@@ -26,5 +26,5 @@ main ブランチに push すると GitHub Pages が自動で `https://yuichi916
 ## リンク
 
 - [Note (views_of_life)](https://note.com/views_of_life)
-- [YouTube (ずんだもんの AI ラボ)](https://www.youtube.com/@zundamonnoairabo)
+- [YouTube (ずんだもんの AI ラボ)](https://www.youtube.com/@zundamon_ai_lab)
 - [GitHub](https://github.com/yuichi916)
