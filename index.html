@@ -192,10 +192,15 @@ body{
   animation:underline-in 1.1s cubic-bezier(.2,.8,.2,1) .35s both;
 }
 @keyframes underline-in{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-.front h1 .row{display:block;overflow:hidden}
-.front h1 .row > span{display:inline-block;animation:rise 1s cubic-bezier(.2,.8,.2,1) both}
+.front h1 .row{display:block;overflow:hidden;padding:0.06em 0}
+.front h1 .row > span{display:block;animation:rise 1s cubic-bezier(.2,.8,.2,1) both}
 .front h1 .row.r2 > span{animation-delay:.18s}
 @keyframes rise{from{transform:translateY(110%);opacity:0}to{transform:translateY(0);opacity:1}}
+/* capture/screenshot mode: disable entry animations so headless captures show final state */
+body.nofx .front h1 .row{overflow:visible}
+body.nofx .front h1 .row > span,
+body.nofx .front h1 em::after,
+body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!important;transition:none!important}
 
 /* reveal on scroll */
 .reveal{opacity:0;transform:translateY(24px);transition:opacity .9s ease, transform .9s cubic-bezier(.2,.8,.2,1)}
@@ -1114,6 +1119,14 @@ body{
   }
 
   applyLang(detectLang());
+
+  // Capture/screenshot mode: ?nofx=1 disables intro animations so headless tools see final state
+  try {
+    if (new URLSearchParams(location.search).get("nofx") === "1") {
+      document.body.classList.add("nofx");
+      document.querySelectorAll(".reveal").forEach((el) => el.classList.add("in"));
+    }
+  } catch (_) {}
 
   // Toggle dropdown menu
   const langToggle = document.getElementById("langToggle");
