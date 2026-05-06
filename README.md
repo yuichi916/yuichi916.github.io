@@ -4,21 +4,20 @@
 
 ## ページ構成
 
-| URL | 言語 | 説明 |
-|---|---|---|
-| `/` (`index.html`) | 日本語 | ランディング (Views Engineer) |
-| `/index.en.html` | English | English landing |
-| `/cabin.html` | 日本語 | 森の小屋 — 瞑想用ページ (タイマー / 環境音 / 音楽) |
-| `/cabin.en.html` | English | Cabin in the Hollow — meditation page |
+| URL | 説明 |
+|---|---|
+| `/` (`index.html`) | ランディング (Views Engineer) |
+| `/cabin.html` | 森の小屋 — 瞑想用ページ (タイマー / 環境音 / 音楽) |
+
+両ページとも **10言語対応** (JS 辞書方式 / `localStorage` で記憶):
+JP · EN · ZH-CN · KO · ES · FR · DE · PT · RU · IT
 
 ## ファイル
 
 ```
 .
-├── index.html          # JP landing
-├── index.en.html       # EN landing
-├── cabin.html          # JP cabin page
-├── cabin.en.html       # EN cabin page
+├── index.html          # ランディング (10-lang)
+├── cabin.html          # 森の小屋 (10-lang)
 ├── styles.css          # (legacy, currently unused — styles inline in pages)
 ├── favicon.svg
 ├── sitemap.xml
@@ -40,16 +39,28 @@ python -m http.server 8000
 # → http://localhost:8000/
 ```
 
+言語切替テスト:
+- `?lang=en` で EN 強制 (例: `localhost:8000/cabin.html?lang=zh-CN`)
+- ブラウザの `navigator.language` で初回自動判定
+- マストヘッドの言語ドロップダウンで切替 (localStorage に保存)
+
 ## デプロイ
 
 main ブランチに push すると GitHub Pages が自動で `https://yuichi916.github.io/` に公開します。
 
 ## 多言語対応 (i18n)
 
-- separate-files 方式: `index.html` (JP) ↔ `index.en.html` (EN), `cabin.html` (JP) ↔ `cabin.en.html` (EN)
-- 各ファイルに `<link rel="alternate" hreflang="ja|en|x-default">` を設置
-- `<html lang="ja|en">` で正しい言語属性
-- マストヘッドの JP/EN リンクで切替
+- **方式**: JS 辞書 + `data-i18n` / `data-i18n-html` 属性 (single URL)
+- **対応 10 言語**: ja, en, zh-CN, ko, es, fr, de, pt, ru, it
+- **検出順序**: URL の `?lang=xx` → localStorage → navigator.language → ja (default)
+- **記憶**: 切替時に `localStorage["ve_lang"]` に保存
+- **属性**:
+  - `data-i18n="key"` → `textContent` を差替え
+  - `data-i18n-html="key"` → `innerHTML` を差替え (HTML 含むキー用)
+
+新規キー追加手順:
+1. HTML に `data-i18n="新キー"` を付与
+2. `<script>` 内の i18n 辞書に各言語の翻訳を追加 (JP は DOM から自動キャプチャ)
 
 ## リンク
 

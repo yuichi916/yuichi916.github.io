@@ -13,9 +13,6 @@
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
 <meta name="theme-color" content="#f4f0e6">
 <link rel="canonical" href="https://yuichi916.github.io/">
-<link rel="alternate" hreflang="ja" href="https://yuichi916.github.io/">
-<link rel="alternate" hreflang="en" href="https://yuichi916.github.io/index.en.html">
-<link rel="alternate" hreflang="x-default" href="https://yuichi916.github.io/">
 
 <!-- ── Open Graph ──────────────────────────────────────── -->
 <meta property="og:type" content="website">
@@ -124,8 +121,31 @@ body{
 }
 .masthead .date{color:var(--ink-2)}
 .masthead .issue{font-family:"JetBrains Mono",monospace}
-.masthead .lang a{color:var(--ink);text-decoration:none;margin-left:14px}
-.masthead .lang a.on{border-bottom:1px solid var(--ink)}
+.masthead .lang{position:relative}
+.lang-toggle{
+  background:transparent;border:1px solid var(--ink);
+  font:inherit;color:var(--ink);
+  padding:4px 12px;cursor:pointer;letter-spacing:.2em;text-transform:uppercase;
+  font-family:"JetBrains Mono",monospace;font-size:11px;
+}
+.lang-toggle:hover{background:var(--paper-2)}
+.lang-arrow{margin-left:8px;font-size:9px}
+.lang-menu{
+  position:absolute;right:0;top:calc(100% + 4px);
+  list-style:none;padding:6px 0;margin:0;
+  background:var(--paper);border:1px solid var(--ink);
+  min-width:170px;z-index:50;
+  box-shadow:0 12px 32px rgba(0,0,0,.18);
+}
+.lang-menu li{
+  padding:9px 16px;cursor:pointer;
+  font-size:13px;letter-spacing:.04em;text-transform:none;color:var(--ink);
+  font-family:"Inter","Yu Gothic UI",sans-serif;
+}
+.lang-menu li:hover{background:var(--paper-2);color:var(--accent)}
+.lang-menu li.on{background:var(--paper-2);color:var(--accent);font-weight:700}
+.lang-menu li::before{content:attr(data-flag);margin-right:10px;font-size:11px;color:var(--ink-3);font-family:"JetBrains Mono",monospace;letter-spacing:.1em;text-transform:uppercase}
+[hidden]{display:none}
 
 /* ── Title bar ── */
 .titlebar{
@@ -172,10 +192,15 @@ body{
   animation:underline-in 1.1s cubic-bezier(.2,.8,.2,1) .35s both;
 }
 @keyframes underline-in{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-.front h1 .row{display:block;overflow:hidden}
-.front h1 .row > span{display:inline-block;animation:rise 1s cubic-bezier(.2,.8,.2,1) both}
+.front h1 .row{display:block;overflow:hidden;padding:0.06em 0}
+.front h1 .row > span{display:block;animation:rise 1s cubic-bezier(.2,.8,.2,1) both}
 .front h1 .row.r2 > span{animation-delay:.18s}
 @keyframes rise{from{transform:translateY(110%);opacity:0}to{transform:translateY(0);opacity:1}}
+/* capture/screenshot mode: disable entry animations so headless captures show final state */
+body.nofx .front h1 .row{overflow:visible}
+body.nofx .front h1 .row > span,
+body.nofx .front h1 em::after,
+body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!important;transition:none!important}
 
 /* reveal on scroll */
 .reveal{opacity:0;transform:translateY(24px);transition:opacity .9s ease, transform .9s cubic-bezier(.2,.8,.2,1)}
@@ -477,7 +502,23 @@ body{
 <div class="masthead">
   <div class="date">— Vol.001 — <span id="today"></span> —</div>
   <div class="issue">VIEWS — ENGINEER — JOURNAL</div>
-  <div class="lang"><a href="index.html" class="on">JP</a><a href="index.en.html">EN</a></div>
+  <div class="lang">
+    <button class="lang-toggle" id="langToggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="langCurrent">JP</span><span class="lang-arrow">▼</span>
+    </button>
+    <ul class="lang-menu" id="langMenu" role="listbox" hidden>
+      <li role="option" data-lang="ja"    data-flag="JP">日本語</li>
+      <li role="option" data-lang="en"    data-flag="EN">English</li>
+      <li role="option" data-lang="zh-CN" data-flag="ZH">简体中文</li>
+      <li role="option" data-lang="ko"    data-flag="KO">한국어</li>
+      <li role="option" data-lang="es"    data-flag="ES">Español</li>
+      <li role="option" data-lang="fr"    data-flag="FR">Français</li>
+      <li role="option" data-lang="de"    data-flag="DE">Deutsch</li>
+      <li role="option" data-lang="pt"    data-flag="PT">Português</li>
+      <li role="option" data-lang="ru"    data-flag="RU">Русский</li>
+      <li role="option" data-lang="it"    data-flag="IT">Italiano</li>
+    </ul>
+  </div>
 </div>
 
 <div class="titlebar">
@@ -487,7 +528,7 @@ body{
     <a href="#manifesto">Manifesto</a>
     <a href="#works">Directory</a>
     <a href="#about">About</a>
-    <a href="cabin.html">小屋</a>
+    <a href="cabin.html" data-i18n="nav.cabin">小屋</a>
     <a href="https://note.com/views_of_life" target="_blank" rel="noopener">Note ↗</a>
   </nav>
 </div>
@@ -495,57 +536,49 @@ body{
 <!-- ── FRONT PAGE ── -->
 <section class="front">
   <div class="lead">
-    <div class="kicker">特集 — Featured Issue · No. 001</div>
+    <div class="kicker" data-i18n="front.kicker">特集 — Featured Issue · No. 001</div>
     <h1 class="serif">
-      <span class="row r1"><span>AI 時代 を、</span></span>
-      <span class="row r2"><span><em>使い倒す</em> 側 へ。</span></span>
+      <span class="row r1"><span data-i18n-html="front.title.r1">AI 時代 を、</span></span>
+      <span class="row r2"><span data-i18n-html="front.title.r2"><em>使い倒す</em> 側 へ。</span></span>
     </h1>
-    <p class="deck serif">
+    <p class="deck serif" data-i18n-html="front.deck">
       <strong>Claude Code</strong> でフレームワークを実装し、<strong>Stable Diffusion</strong> で素材を量産し、Note と YouTube で本質を解説する人。100 年前の哲学者から現代の AI エージェントまで、変わらない「問いの形」を、毎週ひとつずつ書いていく。
     </p>
     <div class="actions">
-      <a class="btn btn-primary" href="https://note.com/views_of_life" target="_blank" rel="noopener">最新の note を読む →</a>
-      <a class="btn btn-ghost" href="#works">5 つの活動の場 →</a>
+      <a class="btn btn-primary" href="https://note.com/views_of_life" target="_blank" rel="noopener" data-i18n="front.btn.note">最新の note を読む →</a>
+      <a class="btn btn-ghost" href="#works" data-i18n="front.btn.dir">5 つの活動の場 →</a>
     </div>
     <div class="byline">
-      <span>By Views Engineer / yuichi916</span>
-      <span>Tokyo · 2026</span>
+      <span data-i18n="front.byline.who">By Views Engineer / yuichi916</span>
+      <span data-i18n="front.byline.where">Tokyo · 2026</span>
     </div>
   </div>
 
   <aside class="sidebar">
-    <h6>In This Issue <span class="x">— 目次</span></h6>
+    <h6 data-i18n-html="sidebar.title">In This Issue <span class="x">— 目次</span></h6>
     <a class="item" href="#featured">
       <div class="num">№ 01 / Featured Note</div>
-      <div class="ttl serif">Claude Code を 1ヶ月使ったら、デューイと同じ結論にたどり着いた話</div>
+      <div class="ttl serif" data-i18n="sidebar.toc.1">Claude Code を 1ヶ月使ったら、デューイと同じ結論にたどり着いた話</div>
     </a>
     <a class="item" href="#manifesto">
       <div class="num">№ 02 / Manifesto</div>
-      <div class="ttl serif">技術は変わる、本質は変わらない、という立場について</div>
+      <div class="ttl serif" data-i18n="sidebar.toc.2">技術は変わる、本質は変わらない、という立場について</div>
     </a>
     <a class="item" href="#works">
       <div class="num">№ 03 / Directory</div>
-      <div class="ttl serif">5 つのプラットフォーム、ひとつの問い</div>
+      <div class="ttl serif" data-i18n="sidebar.toc.3">5 つのプラットフォーム、ひとつの問い</div>
     </a>
     <a class="item" href="#about">
       <div class="num">№ 04 / About</div>
-      <div class="ttl serif">Views Engineer とは何者か。</div>
+      <div class="ttl serif" data-i18n="sidebar.toc.4">Views Engineer とは何者か。</div>
     </a>
 
     <div class="pull">
-      <p class="serif">「技術は 10 年で変わる。<br>フレームワークは 5 年で陳腐化する。<br>だが、問題解決の本質は <span style="color:var(--accent)">100 年経っても変わらない</span>。」</p>
-      <div class="src">— 本号 Featured より</div>
+      <p class="serif" data-i18n-html="sidebar.pull">「技術は 10 年で変わる。<br>フレームワークは 5 年で陳腐化する。<br>だが、問題解決の本質は <span style="color:var(--accent)">100 年経っても変わらない</span>。」</p>
+      <div class="src" data-i18n="sidebar.src">— 本号 Featured より</div>
     </div>
   </aside>
 </section>
-
-<!-- ── STAMPS ── -->
-<div class="stamps">
-  <div class="item"><div><div class="l">Channels</div><div class="n">5+</div></div></div>
-  <div class="item"><div><div class="l">Time-range</div><div class="n">100年</div></div></div>
-  <div class="item"><div><div class="l">Stack</div><div class="n">4 tools</div></div></div>
-  <div class="item"><div><div class="l">Operator</div><div class="n">1人</div></div></div>
-</div>
 
 <!-- ── CABIN CTA ── -->
 <section class="cabin-cta" aria-label="Cabin in the Hollow">
@@ -560,7 +593,6 @@ body{
           </radialGradient>
         </defs>
         <rect width="320" height="220" fill="#0a0608"/>
-        <!-- distant trees -->
         <g fill="#120c0a" opacity=".9">
           <polygon points="0,220 24,140 48,220"/>
           <polygon points="40,220 80,110 120,220"/>
@@ -568,9 +600,7 @@ body{
           <polygon points="200,220 240,120 280,220"/>
           <polygon points="270,220 300,150 320,220"/>
         </g>
-        <!-- glow -->
         <ellipse cx="160" cy="138" rx="100" ry="50" fill="url(#ccGlow)"/>
-        <!-- cabin -->
         <g transform="translate(120,108)">
           <polygon points="0,28 40,0 80,28 80,32 0,32" fill="#1a0f08"/>
           <polygon points="0,28 40,0 80,28" fill="#241510"/>
@@ -587,7 +617,6 @@ body{
           <rect x="58" y="6" width="6" height="14" fill="#1a1008"/>
           <path d="M61,6 Q59,-4 63,-12 Q67,-20 62,-28" fill="none" stroke="#3a2a20" stroke-width="1" opacity=".5"/>
         </g>
-        <!-- foreground tall pines -->
         <g fill="#050302">
           <polygon points="0,220 14,40 28,220"/>
           <polygon points="20,220 50,20 80,220"/>
@@ -597,10 +626,10 @@ body{
       </svg>
     </div>
     <div class="cabin-body">
-      <div class="cabin-eyebrow">№ 00 — A Quiet Detour</div>
-      <h3 class="serif cabin-h">森 の 奥 に、<em>灯り</em> が ともる 小屋。</h3>
-      <p class="cabin-deck serif">瞑想 の ための 小さな 場所。 タイマー、 呼吸 の ガイド、 雨 と 焚き火 の 音。 道 に 迷った 人 だけ が 見つけられる、 もう ひとつ の ページ です。</p>
-      <span class="cabin-go">小屋 に 入る  →</span>
+      <div class="cabin-eyebrow" data-i18n="cabin.eyebrow">№ 00 — A Quiet Detour</div>
+      <h3 class="serif cabin-h" data-i18n-html="cabin.h">森 の 奥 に、<em>灯り</em> が ともる 小屋。</h3>
+      <p class="cabin-deck serif" data-i18n="cabin.deck">瞑想 の ための 小さな 場所。 タイマー、 呼吸 の ガイド、 雨 と 焚き火 の 音。 道 に 迷った 人 だけ が 見つけられる、 もう ひとつ の ページ です。</p>
+      <span class="cabin-go" data-i18n="cabin.go">小屋 に 入る  →</span>
     </div>
   </a>
 </section>
@@ -659,27 +688,35 @@ body{
 }
 </style>
 
+<!-- ── STAMPS ── -->
+<div class="stamps">
+  <div class="item"><div><div class="l" data-i18n="stamp.l1">Channels</div><div class="n">5+</div></div></div>
+  <div class="item"><div><div class="l" data-i18n="stamp.l2">Time-range</div><div class="n" data-i18n="stamp.n2">100年</div></div></div>
+  <div class="item"><div><div class="l" data-i18n="stamp.l3">Stack</div><div class="n" data-i18n="stamp.n3">4 tools</div></div></div>
+  <div class="item"><div><div class="l" data-i18n="stamp.l4">Operator</div><div class="n" data-i18n="stamp.n4">1人</div></div></div>
+</div>
+
 <!-- ── FEATURED ── -->
 <section class="section" id="featured">
   <div class="section-head">
     <div class="section-eyebrow">№ 01 — Featured Article</div>
-    <h2 class="section-title">100年前 の哲学者 と<br><em>同じ結論</em> に たどり着いた話。</h2>
+    <h2 class="section-title" data-i18n-html="featured.title">100年前 の哲学者 と<br><em>同じ結論</em> に たどり着いた話。</h2>
   </div>
 
   <article class="article">
     <div class="body">
       <span class="tag">EDITOR'S PICK</span>
-      <h3 class="serif">Claude Code を 1ヶ月使ったら、<br>デューイと同じ場所に着いた。</h3>
-      <p>AI エージェント時代に <strong>99% が見落としている問題解決の神髄</strong>を、1910 年のジョン・デューイから 2026 年の Claude Code まで一直線に貫く本質として考察。</p>
+      <h3 class="serif" data-i18n-html="featured.h3">Claude Code を 1ヶ月使ったら、<br>デューイと同じ場所に着いた。</h3>
+      <p data-i18n-html="featured.p">AI エージェント時代に <strong>99% が見落としている問題解決の神髄</strong>を、1910 年のジョン・デューイから 2026 年の Claude Code まで一直線に貫く本質として考察。</p>
       <ul class="points">
-        <li><span class="n">i.</span> 4世代を貫く問題解決の3つの真理</li>
-        <li><span class="n">ii.</span> AI に任せる範囲を「明文化」する習慣</li>
-        <li><span class="n">iii.</span> 明日から実践できる思考フレーム</li>
+        <li><span class="n">i.</span> <span data-i18n="featured.pt1">4世代を貫く問題解決の3つの真理</span></li>
+        <li><span class="n">ii.</span> <span data-i18n="featured.pt2">AI に任せる範囲を「明文化」する習慣</span></li>
+        <li><span class="n">iii.</span> <span data-i18n="featured.pt3">明日から実践できる思考フレーム</span></li>
       </ul>
-      <a class="btn btn-primary" href="https://note.com/views_of_life" target="_blank" rel="noopener">Note で全文を読む ↗</a>
+      <a class="btn btn-primary" href="https://note.com/views_of_life" target="_blank" rel="noopener" data-i18n="featured.btn">Note で全文を読む ↗</a>
     </div>
     <div class="pull-side">
-      <blockquote class="serif">
+      <blockquote class="serif" data-i18n-html="featured.quote">
         技術は 10 年で変わる。<br>
         フレームワークは 5 年で陳腐化する。<br>
         だが、<em>問題解決の本質は<br>100 年経っても変わらない</em>。
@@ -693,9 +730,9 @@ body{
 <section class="section" id="manifesto" style="background:var(--paper-2)">
   <div class="section-head">
     <div class="section-eyebrow">№ 02 — Manifesto</div>
-    <h2 class="section-title">立場 を、<em>明文化</em> する。</h2>
+    <h2 class="section-title" data-i18n-html="manifesto.title">立場 を、<em>明文化</em> する。</h2>
   </div>
-  <div class="cols serif">
+  <div class="cols serif" data-i18n-html="manifesto.body">
     <p><span class="drop">A</span>I を <strong>使われる側</strong> ではなく、<strong>使い倒す側</strong> に立つ — というのが、ここでの基本姿勢である。Claude Code を主軸にしつつ、Stable Diffusion・VOICEVOX・FFmpeg をひとつの工房に束ねて、個人が短時間で作れる成果物の上限を、毎週ひとつずつ更新していく。</p>
     <p>扱うのは新しいツールだが、問うているのは <strong>100年単位で変わらない</strong> ものの方だ。1910 年にジョン・デューイが書いたことと、2026 年に Claude Code が私たちに提示する問いは、不思議なほどよく似ている。「考える」とはどういうことか、「問題」とは何の輪郭をもつのか。</p>
     <p>だから、ここに並ぶ note も、YouTube も、GitHub も、X の投稿も、表面的なツール紹介ではない。<strong>道具を使い倒すための、長い思考の記録</strong> である。役に立つかどうかは読者が決める。ただ、書く側の責任として、毎回ひとつだけ「自分が見つけた問い」を置いていきたい。</p>
@@ -706,41 +743,41 @@ body{
 <section class="section" id="works">
   <div class="section-head">
     <div class="section-eyebrow">№ 03 — Directory</div>
-    <h2 class="section-title">5 つの場所、<em>ひとつ</em> の問い。</h2>
+    <h2 class="section-title" data-i18n-html="directory.title">5 つの場所、<em>ひとつ</em> の問い。</h2>
   </div>
   <div class="directory">
     <a class="dir-row" href="https://note.com/views_of_life" target="_blank" rel="noopener">
       <div class="ix">01</div>
       <div class="name serif">Note</div>
-      <div class="desc">AI エージェント時代の問題解決を、100 年単位で本質まで掘り下げる長文。</div>
+      <div class="desc" data-i18n="dir.note">AI エージェント時代の問題解決を、100 年単位で本質まで掘り下げる長文。</div>
       <div class="handle">/views_of_life</div>
       <div class="arr">→</div>
     </a>
     <a class="dir-row" href="https://www.youtube.com/@zundamon_ai_lab" target="_blank" rel="noopener">
       <div class="ix">02</div>
       <div class="name serif">YouTube</div>
-      <div class="desc">「ずんだもんの AI ラボ」— 解説 Shorts を連載。</div>
+      <div class="desc" data-i18n="dir.youtube">「ずんだもんの AI ラボ」— 解説 Shorts を連載。</div>
       <div class="handle">@zundamon_ai_lab</div>
       <div class="arr">→</div>
     </a>
     <a class="dir-row" href="https://github.com/yuichi916" target="_blank" rel="noopener">
       <div class="ix">03</div>
       <div class="name serif">GitHub</div>
-      <div class="desc">ソースコード、自動化スクリプト、実験リポジトリ。</div>
+      <div class="desc" data-i18n="dir.github">ソースコード、自動化スクリプト、実験リポジトリ。</div>
       <div class="handle">@yuichi916</div>
       <div class="arr">→</div>
     </a>
     <a class="dir-row" href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">
       <div class="ix">04</div>
-      <div class="name serif">X · 個人</div>
-      <div class="desc">AI と問題解決の実験録。短文の独り言が多め。</div>
+      <div class="name serif" data-i18n="dir.xpersonal.name">X · 個人</div>
+      <div class="desc" data-i18n="dir.xpersonal.desc">AI と問題解決の実験録。短文の独り言が多め。</div>
       <div class="handle">@ViewsEngineer</div>
       <div class="arr">→</div>
     </a>
     <a class="dir-row" href="https://x.com/ZundamonAILab" target="_blank" rel="noopener">
       <div class="ix">05</div>
-      <div class="name serif">X · AIラボ</div>
-      <div class="desc">ずんだもんの AI ラボ 公式。動画告知と短文解説。</div>
+      <div class="name serif" data-i18n="dir.xlab.name">X · AIラボ</div>
+      <div class="desc" data-i18n="dir.xlab.desc">ずんだもんの AI ラボ 公式。動画告知と短文解説。</div>
       <div class="handle">@ZundamonAILab</div>
       <div class="arr">→</div>
     </a>
@@ -751,7 +788,7 @@ body{
 <section class="section" id="about">
   <div class="section-head">
     <div class="section-eyebrow">№ 04 — About the Author</div>
-    <h2 class="section-title">Views Engineer<br><em>とは何者か。</em></h2>
+    <h2 class="section-title" data-i18n-html="about.title">Views Engineer<br><em>とは何者か。</em></h2>
   </div>
   <div class="spread">
     <aside class="id">
@@ -759,14 +796,14 @@ body{
       <h4 class="serif">yuichi916</h4>
       <div class="role">Views Engineer · Independent</div>
       <div class="row"><span class="k">Base</span><span class="v">Tokyo, JP</span></div>
-      <div class="row"><span class="k">Voice</span><span class="v">ずんだもんの AI ラボ</span></div>
+      <div class="row"><span class="k">Voice</span><span class="v" data-i18n="about.voice">ずんだもんの AI ラボ</span></div>
       <div class="row"><span class="k">Stack</span><span class="v">Claude Code · SD · VOICEVOX · FFmpeg</span></div>
       <div class="row"><span class="k">Since</span><span class="v">2024 —</span></div>
-      <div class="row"><span class="k">Cadence</span><span class="v">Weekly</span></div>
+      <div class="row"><span class="k">Cadence</span><span class="v" data-i18n="about.cadence">Weekly</span></div>
     </aside>
     <div class="text">
-      <p>AI を「使う側」になるための実験を、コードと記事と動画で発信している。Claude Code を主軸に、Stable Diffusion (reForge)・VOICEVOX・FFmpeg を組み合わせて、個人が短時間で作れる成果物の限界を探索する独立アカウント。</p>
-      <p>100 年前の哲学者デューイから現代の AI エージェントまで、<strong>問題解決の本質は変わらない</strong> という視点で書く。テクノロジーは語り手を変えるだけで、語られていることは存外、古い。</p>
+      <p data-i18n-html="about.p1">AI を「使う側」になるための実験を、コードと記事と動画で発信している。Claude Code を主軸に、Stable Diffusion (reForge)・VOICEVOX・FFmpeg を組み合わせて、個人が短時間で作れる成果物の限界を探索する独立アカウント。</p>
+      <p data-i18n-html="about.p2">100 年前の哲学者デューイから現代の AI エージェントまで、<strong>問題解決の本質は変わらない</strong> という視点で書く。テクノロジーは語り手を変えるだけで、語られていることは存外、古い。</p>
       <div class="tools">
         <span>Claude Code</span><span>Stable Diffusion</span><span>reForge</span>
         <span>VOICEVOX</span><span>FFmpeg</span><span>note</span><span>YouTube Shorts</span><span>GitHub Pages</span>
@@ -777,11 +814,11 @@ body{
 
 <!-- ── CLOSER ── -->
 <section class="closer">
-  <h2 class="serif">使い倒す側 に、<br><em>来ないか。</em></h2>
-  <p class="serif">毎週、note と YouTube で更新しています。<br>気が向いたら、X で気軽に話しかけてください。</p>
+  <h2 class="serif" data-i18n-html="closer.title">使い倒す側 に、<br><em>来ないか。</em></h2>
+  <p class="serif" data-i18n-html="closer.p">毎週、note と YouTube で更新しています。<br>気が向いたら、X で気軽に話しかけてください。</p>
   <div class="actions">
-    <a class="btn btn-primary" href="https://note.com/views_of_life" target="_blank" rel="noopener">最新 note を読む ↗</a>
-    <a class="btn btn-ghost" href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X でフォロー ↗</a>
+    <a class="btn btn-primary" href="https://note.com/views_of_life" target="_blank" rel="noopener" data-i18n="closer.btn1">最新 note を読む ↗</a>
+    <a class="btn btn-ghost" href="https://x.com/ViewsEngineer" target="_blank" rel="noopener" data-i18n="closer.btn2">X でフォロー ↗</a>
   </div>
 </section>
 
@@ -809,6 +846,469 @@ body{
     entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
   },{threshold:.12});
   document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  // ── i18n: 10 languages ──
+  const LANG_FLAGS = { ja:"JP", en:"EN", "zh-CN":"ZH", ko:"KO", es:"ES", fr:"FR", de:"DE", pt:"PT", ru:"RU", it:"IT" };
+  const LANG_HTML  = { ja:"ja", en:"en", "zh-CN":"zh-CN", ko:"ko", es:"es", fr:"fr", de:"de", pt:"pt", ru:"ru", it:"it" };
+
+  const i18n = {
+    en: {
+      "front.kicker":"Featured Issue · No. 001",
+      "front.title.r1":"Toward mastering",
+      "front.title.r2":"the <em>AI era</em>.",
+      "front.deck":"Implementing frameworks with <strong>Claude Code</strong>, generating assets at scale with <strong>Stable Diffusion</strong>, and unpacking the essentials on Note and YouTube. From a 100-year-old philosopher to today's AI agents, I write one piece a week on the shape of the question that never changes.",
+      "front.btn.note":"Read the latest Note →","front.btn.dir":"Five places →",
+      "front.byline.who":"By Views Engineer / yuichi916","front.byline.where":"Tokyo · 2026",
+      "sidebar.title":"In This Issue <span class=\"x\">— Contents</span>",
+      "sidebar.toc.1":"After a month with Claude Code, I arrived at the same place as Dewey",
+      "sidebar.toc.2":"Tools change, the essentials don't — a position",
+      "sidebar.toc.3":"Five platforms, one question",
+      "sidebar.toc.4":"Who is the Views Engineer?",
+      "sidebar.pull":"“Tools change every 10 years.<br>Frameworks become obsolete every 5.<br>But the essence of problem-solving <span style=\"color:var(--accent)\">hasn't changed in 100 years.</span>”",
+      "sidebar.src":"— from the Featured of this issue",
+      "stamp.l1":"Channels","stamp.l2":"Time-range","stamp.n2":"100 yrs","stamp.l3":"Stack","stamp.n3":"4 tools","stamp.l4":"Operator","stamp.n4":"Solo",
+      "featured.title":"Same conclusion as a<br><em>100-year-old philosopher</em>.",
+      "featured.h3":"After a month with Claude Code,<br>I arrived where Dewey was.",
+      "featured.p":"An essay tracing the <strong>core of problem-solving 99% miss in the AI-agent era</strong> in a single line — from John Dewey in 1910 to Claude Code in 2026.",
+      "featured.pt1":"Three truths of problem-solving across four eras",
+      "featured.pt2":"The habit of putting AI's scope into words",
+      "featured.pt3":"A thinking frame you can apply tomorrow",
+      "featured.btn":"Read on Note ↗",
+      "featured.quote":"Tools change every 10 years.<br>Frameworks become obsolete every 5.<br>But <em>the essence of problem-solving<br>hasn't changed in 100 years</em>.",
+      "manifesto.title":"Spell out the <em>position</em>.",
+      "manifesto.body":"<p><span class=\"drop\">T</span>his journal stands not on the side that gets <strong>used by AI</strong>, but on the side that <strong>uses AI hard</strong>. Around Claude Code, I bundle Stable Diffusion, VOICEVOX, and FFmpeg into one studio, and update — week by week — the ceiling of what one person can ship in a short window.</p><p>The tools are new, but the question is the kind that <strong>doesn't change for a century</strong>. What John Dewey wrote in 1910 and what Claude Code asks of us in 2026 are oddly close. What does it mean to think? What gives a “problem” its outline?</p><p>So the Notes, YouTube, GitHub, and X posts here aren't surface-level tool tours. They are <strong>the long record of thought needed to use the tools hard</strong>. Whether they're useful is for the reader to decide. My job, as the writer, is to leave one question of my own each time.</p>",
+      "directory.title":"Five places, <em>one</em> question.",
+      "dir.note":"Long-form essays on AI-agent-era problem-solving, dug down to the essence on a 100-year scale.",
+      "dir.youtube":"“Zundamon's AI Lab” — explainer Shorts, serialised.",
+      "dir.github":"Source code, automation scripts, experimental repos.",
+      "dir.xpersonal.name":"X · Personal","dir.xpersonal.desc":"A log of AI and problem-solving experiments. Mostly short notes to self.",
+      "dir.xlab.name":"X · AI Lab","dir.xlab.desc":"Official account of Zundamon's AI Lab. Video releases and short explainers.",
+      "about.title":"Who is the<br><em>Views Engineer?</em>","about.voice":"Zundamon's AI Lab","about.cadence":"Weekly",
+      "about.p1":"An independent account experimenting on what it means to <strong>“use”</strong> AI — published as code, articles, and videos. Around Claude Code, combined with Stable Diffusion (reForge), VOICEVOX, and FFmpeg, exploring the upper bound of what one person can ship in a short window.",
+      "about.p2":"From the 100-year-old philosopher Dewey to today's AI agents, I write from the angle that <strong>the essence of problem-solving doesn't change</strong>. Technology only swaps the speaker; what is being said is, surprisingly often, very old.",
+      "closer.title":"Come stand on the <em>using-hard</em> side.",
+      "closer.p":"Updated weekly on Note and YouTube.<br>If the mood strikes, say hi on X.",
+      "closer.btn1":"Read latest Note ↗","closer.btn2":"Follow on X ↗",
+      "nav.cabin":"Cabin",
+      "cabin.eyebrow":"№ 00 — A Quiet Detour",
+      "cabin.h":"Deep in the woods, a cabin with <em>one light</em>.",
+      "cabin.deck":"A small place for meditation. A timer, a breathing guide, rain and a hearth. Another page only those who lose their way will find.",
+      "cabin.go":"Enter the Cabin  →"
+    },
+    "zh-CN": {
+      "front.kicker":"特辑 · No. 001",
+      "front.title.r1":"驾驭",
+      "front.title.r2":"<em>AI 时代</em>。",
+      "front.deck":"用 <strong>Claude Code</strong> 实装框架,用 <strong>Stable Diffusion</strong> 量产素材,在 Note 和 YouTube 上拆解本质。从一百年前的哲学家到今天的 AI 智能体,每周写一篇——专注那种永远不变的提问的形状。",
+      "front.btn.note":"阅读最新 Note →","front.btn.dir":"五个去处 →",
+      "front.byline.who":"By Views Engineer / yuichi916","front.byline.where":"东京 · 2026",
+      "sidebar.title":"本期 <span class=\"x\">— 目录</span>",
+      "sidebar.toc.1":"用 Claude Code 一个月,抵达和杜威相同的结论",
+      "sidebar.toc.2":"工具会变,本质不变——我的立场",
+      "sidebar.toc.3":"五个平台,一个问题",
+      "sidebar.toc.4":"Views Engineer 是何许人?",
+      "sidebar.pull":"「工具每 10 年变一次。<br>框架每 5 年就过时。<br>但解决问题的本质 <span style=\"color:var(--accent)\">100 年都没变。</span>」",
+      "sidebar.src":"— 摘自本期 Featured",
+      "stamp.l1":"平台数","stamp.l2":"时间跨度","stamp.n2":"100 年","stamp.l3":"工具栈","stamp.n3":"4 工具","stamp.l4":"运营","stamp.n4":"单人",
+      "featured.title":"和 <em>一百年前的哲学家</em><br>得出了同样的结论。",
+      "featured.h3":"用 Claude Code 一个月后,<br>我到了杜威所在的地方。",
+      "featured.p":"一篇贯穿了 <strong>AI 智能体时代 99% 的人忽略的问题解决精髓</strong>——从 1910 年的约翰·杜威到 2026 年的 Claude Code,一线到底。",
+      "featured.pt1":"贯穿四代的三条真理","featured.pt2":"把交给 AI 的范围明文化的习惯","featured.pt3":"明天就能用的思考框架",
+      "featured.btn":"在 Note 阅读全文 ↗",
+      "featured.quote":"工具每 10 年变一次。<br>框架每 5 年就过时。<br>但 <em>解决问题的本质<br>100 年都没变</em>。",
+      "manifesto.title":"把 <em>立场</em> 写下来。",
+      "manifesto.body":"<p><span class=\"drop\">站</span>在不被 AI <strong>使用</strong>,而是 <strong>用爆 AI</strong> 这一边——这是这本刊物的基本姿态。以 Claude Code 为主轴,把 Stable Diffusion · VOICEVOX · FFmpeg 收拢成一间小工坊,每周更新一次「一个人在短时间能产出的上限」。</p><p>用的是新工具,但问的是 <strong>百年单位都不会变</strong> 的那种东西。1910 年杜威写下的,和 2026 年 Claude Code 摆在我们面前的问题,似得出奇。什么是「思考」?「问题」的轮廓由什么决定?</p><p>所以这里收的 Note · YouTube · GitHub · X,都不是表层的工具介绍——而是 <strong>把工具用透所需的长期思考记录</strong>。有用没用读者自己定。写者的责任,是每次都留下一个自己发现的问题。</p>",
+      "directory.title":"五处地方,<em>一个</em> 问题。",
+      "dir.note":"AI 智能体时代的问题解决,以百年为单位掘到本质的长文。",
+      "dir.youtube":"「ずんだもん的 AI 实验室」—— 解说 Shorts 连载。",
+      "dir.github":"源代码、自动化脚本、实验仓库。",
+      "dir.xpersonal.name":"X · 个人","dir.xpersonal.desc":"AI 与问题解决的实验记录。多为短句独白。",
+      "dir.xlab.name":"X · AI 实验室","dir.xlab.desc":"ずんだもん AI 实验室官方。视频预告和短解说。",
+      "about.title":"Views Engineer<br><em>是谁?</em>","about.voice":"ずんだもん的 AI 实验室","about.cadence":"每周",
+      "about.p1":"用代码、文章和视频,做着「站到 AI 使用者一侧」的实验,的独立账号。以 Claude Code 为主轴,组合 Stable Diffusion (reForge) · VOICEVOX · FFmpeg,探索一个人短时间能做出的成果上限。",
+      "about.p2":"从一百年前的哲学家杜威到今天的 AI 智能体,以「<strong>解决问题的本质不变</strong>」为视角写作。技术只是换了说话人,被说的事意外地很老。",
+      "closer.title":"来站到<br><em>用爆它</em> 这一边吧。",
+      "closer.p":"每周在 Note 与 YouTube 更新。<br>有兴致的话,在 X 上随便聊聊。",
+      "closer.btn1":"阅读最新 Note ↗","closer.btn2":"在 X 关注 ↗",
+      "nav.cabin":"小屋",
+      "cabin.eyebrow":"№ 00 — 一处静谧的岔路",
+      "cabin.h":"林深处，有一间<em>灯火未灭</em>的小屋。",
+      "cabin.deck":"一个供冥想的小处所。计时器、呼吸引导、雨声与篝火。只有迷路的人才能找到的另一页。",
+      "cabin.go":"进入小屋  →"
+    },
+    ko: {
+      "front.kicker":"특집 · No. 001",
+      "front.title.r1":"AI 시대를","front.title.r2":"<em>활용하는 쪽</em>으로.",
+      "front.deck":"<strong>Claude Code</strong> 로 프레임워크를 구현하고, <strong>Stable Diffusion</strong> 으로 소재를 양산하며, Note 와 YouTube 에서 본질을 풀어내는 사람. 100 년 전 철학자부터 오늘의 AI 에이전트까지, 변하지 않는 「질문의 모양」을 매주 하나씩 적습니다.",
+      "front.btn.note":"최신 Note 읽기 →","front.btn.dir":"5곳을 보기 →",
+      "front.byline.who":"By Views Engineer / yuichi916","front.byline.where":"도쿄 · 2026",
+      "sidebar.title":"이번 호 <span class=\"x\">— 목차</span>",
+      "sidebar.toc.1":"Claude Code 를 한 달 쓰니 듀이와 같은 자리에 도착했다",
+      "sidebar.toc.2":"도구는 바뀌고 본질은 바뀌지 않는다 — 내 입장",
+      "sidebar.toc.3":"다섯 플랫폼, 하나의 질문","sidebar.toc.4":"Views Engineer 는 누구인가?",
+      "sidebar.pull":"「도구는 10년마다 변한다.<br>프레임워크는 5년마다 낡는다.<br>하지만 문제 해결의 본질은 <span style=\"color:var(--accent)\">100년이 지나도 변하지 않는다.</span>」",
+      "sidebar.src":"— 본호 Featured 에서",
+      "stamp.l1":"채널 수","stamp.l2":"시간 폭","stamp.n2":"100년","stamp.l3":"스택","stamp.n3":"4 도구","stamp.l4":"운영자","stamp.n4":"1인",
+      "featured.title":"<em>100 년 전 철학자</em>와<br>같은 결론에 도달.",
+      "featured.h3":"Claude Code 를 한 달 쓰자,<br>듀이가 있는 자리에 닿았다.",
+      "featured.p":"AI 에이전트 시대에 <strong>99% 가 놓치는 문제 해결의 정수</strong>를, 1910 년 존 듀이부터 2026 년 Claude Code 까지 한 줄로 꿰뚫는 본질로 고찰.",
+      "featured.pt1":"4 세대를 관통하는 문제 해결의 3 가지 진리",
+      "featured.pt2":"AI 에 맡길 범위를 「명문화」하는 습관",
+      "featured.pt3":"내일부터 쓸 수 있는 사고 프레임",
+      "featured.btn":"Note 에서 전문 읽기 ↗",
+      "featured.quote":"도구는 10년마다 변한다.<br>프레임워크는 5년마다 낡는다.<br>하지만 <em>문제 해결의 본질은<br>100년 가도 변하지 않는다</em>.",
+      "manifesto.title":"입장을 <em>명문화</em> 하다.",
+      "manifesto.body":"<p><span class=\"drop\">A</span>I 에 <strong>쓰이는 쪽</strong>이 아니라 <strong>마음껏 쓰는 쪽</strong>에 서겠다는 것이 여기의 기본 자세다. Claude Code 를 축으로 Stable Diffusion · VOICEVOX · FFmpeg 를 한 작업장에 묶어, 개인이 짧은 시간에 만들 수 있는 결과물의 상한을 매주 하나씩 갱신해 간다.</p><p>다루는 것은 새 도구이지만, 묻고 있는 것은 <strong>100 년 단위로 변하지 않는</strong> 쪽이다. 1910 년 존 듀이가 쓴 것과 2026 년 Claude Code 가 우리에게 던지는 질문은 묘하게 닮았다. 「생각한다」 는 무엇이며, 「문제」 의 윤곽은 무엇이 만드는가.</p><p>그래서 여기 늘어선 Note 도 YouTube 도 GitHub 도 X 게시물도, 표면적인 도구 소개가 아니다. <strong>도구를 끝까지 쓰기 위한 긴 사고의 기록</strong>이다. 쓸모는 독자가 정한다. 다만 쓰는 쪽의 책임으로, 매번 「내가 찾은 질문」 하나만 두고 가고 싶다.</p>",
+      "directory.title":"5 곳, <em>하나</em>의 질문.",
+      "dir.note":"AI 에이전트 시대의 문제 해결을 100 년 단위로 본질까지 파고드는 장문.",
+      "dir.youtube":"「즌다몬의 AI 랩」 — 해설 Shorts 연재.","dir.github":"소스코드, 자동화 스크립트, 실험 레포.",
+      "dir.xpersonal.name":"X · 개인","dir.xpersonal.desc":"AI 와 문제 해결의 실험 기록. 짧은 혼잣말이 많음.",
+      "dir.xlab.name":"X · AI 랩","dir.xlab.desc":"즌다몬의 AI 랩 공식. 영상 공지와 짧은 해설.",
+      "about.title":"Views Engineer 는<br><em>누구인가?</em>","about.voice":"즌다몬의 AI 랩","about.cadence":"매주",
+      "about.p1":"AI 를 「쓰는 쪽」이 되기 위한 실험을 코드와 글, 영상으로 발신하는 독립 계정. Claude Code 를 축으로 Stable Diffusion (reForge) · VOICEVOX · FFmpeg 를 조합해, 개인이 짧은 시간에 만들 수 있는 한계를 탐색.",
+      "about.p2":"100 년 전 철학자 듀이부터 오늘의 AI 에이전트까지, <strong>문제 해결의 본질은 변하지 않는다</strong>는 시각으로 쓴다. 기술은 화자만 바뀔 뿐, 말해지고 있는 것은 의외로 오래된 것이다.",
+      "closer.title":"<em>마음껏 쓰는 쪽</em>으로<br>오지 않을래요?",
+      "closer.p":"매주 Note 와 YouTube 에서 갱신.<br>마음 내키면 X 에서 부담 없이 말 걸어 주세요.",
+      "closer.btn1":"최신 Note 읽기 ↗","closer.btn2":"X 에서 팔로우 ↗",
+      "nav.cabin":"오두막",
+      "cabin.eyebrow":"№ 00 — 조용한 우회",
+      "cabin.h":"숲 깊은 곳, <em>불빛</em> 한 줄기 켜진 오두막.",
+      "cabin.deck":"명상을 위한 작은 장소. 타이머, 호흡 안내, 빗소리와 모닥불. 길을 잃은 이만 찾을 수 있는 또 하나의 페이지.",
+      "cabin.go":"오두막에 들어가기  →"
+    },
+    es: {
+      "front.kicker":"Edición destacada · No. 001",
+      "front.title.r1":"Hacia el dominio","front.title.r2":"de la <em>era de la IA</em>.",
+      "front.deck":"Implemento frameworks con <strong>Claude Code</strong>, genero recursos a escala con <strong>Stable Diffusion</strong> y desgloso lo esencial en Note y YouTube. Del filósofo de hace 100 años a los agentes de IA de hoy, escribo una pieza por semana sobre la forma de la pregunta que no cambia.",
+      "front.btn.note":"Leer la última Note →","front.btn.dir":"Cinco lugares →",
+      "front.byline.who":"By Views Engineer / yuichi916","front.byline.where":"Tokio · 2026",
+      "sidebar.title":"En este número <span class=\"x\">— Índice</span>",
+      "sidebar.toc.1":"Tras un mes con Claude Code, llegué al mismo lugar que Dewey",
+      "sidebar.toc.2":"Las herramientas cambian, lo esencial no — una postura",
+      "sidebar.toc.3":"Cinco plataformas, una pregunta","sidebar.toc.4":"¿Quién es el Views Engineer?",
+      "sidebar.pull":"«Las herramientas cambian cada 10 años.<br>Los frameworks quedan obsoletos cada 5.<br>Pero la esencia de resolver problemas <span style=\"color:var(--accent)\">no ha cambiado en 100 años.</span>»",
+      "sidebar.src":"— del Featured de este número",
+      "stamp.l1":"Canales","stamp.l2":"Periodo","stamp.n2":"100 años","stamp.l3":"Stack","stamp.n3":"4 tools","stamp.l4":"Operador","stamp.n4":"Solo",
+      "featured.title":"Misma conclusión que un<br><em>filósofo de hace 100 años</em>.",
+      "featured.h3":"Tras un mes con Claude Code,<br>llegué a donde estaba Dewey.",
+      "featured.p":"Un ensayo que rastrea el <strong>núcleo de la resolución de problemas que el 99% pasa por alto en la era de los agentes de IA</strong>, en línea recta de John Dewey en 1910 a Claude Code en 2026.",
+      "featured.pt1":"Tres verdades de la resolución de problemas en cuatro eras",
+      "featured.pt2":"El hábito de poner por escrito el alcance de la IA",
+      "featured.pt3":"Un marco de pensamiento aplicable mañana",
+      "featured.btn":"Leer en Note ↗",
+      "featured.quote":"Las herramientas cambian cada 10 años.<br>Los frameworks caducan cada 5.<br>Pero <em>la esencia de resolver problemas<br>no ha cambiado en 100 años</em>.",
+      "manifesto.title":"Poner la <em>postura</em> por escrito.",
+      "manifesto.body":"<p><span class=\"drop\">N</span>o estoy del lado al que <strong>la IA usa</strong>, sino del lado que <strong>usa la IA a fondo</strong>. Alrededor de Claude Code, agrupo Stable Diffusion, VOICEVOX y FFmpeg en un único taller y voy actualizando, semana a semana, el techo de lo que una persona puede entregar en poco tiempo.</p><p>Las herramientas son nuevas, pero la pregunta es de las que <strong>no cambian en un siglo</strong>. Lo que John Dewey escribió en 1910 y lo que Claude Code nos plantea en 2026 son extrañamente parecidos. ¿Qué es pensar? ¿Qué da forma a un «problema»?</p><p>Por eso las Notes, YouTube, GitHub y X que ves aquí no son visitas guiadas a herramientas. Son <strong>el largo registro del pensar que hace falta para usarlas a fondo</strong>. Que sirvan o no, lo decide quien lee. Como autor, mi deber es dejar cada vez una pregunta propia.</p>",
+      "directory.title":"Cinco lugares, <em>una</em> pregunta.",
+      "dir.note":"Ensayos largos sobre resolver problemas en la era de los agentes de IA, excavando hasta la esencia a escala de 100 años.",
+      "dir.youtube":"«AI Lab de Zundamon» — Shorts explicativos serializados.",
+      "dir.github":"Código fuente, scripts de automatización, repositorios experimentales.",
+      "dir.xpersonal.name":"X · Personal","dir.xpersonal.desc":"Bitácora de experimentos con IA y resolución de problemas. Notas breves al hilo.",
+      "dir.xlab.name":"X · AI Lab","dir.xlab.desc":"Cuenta oficial del AI Lab de Zundamon. Avisos de vídeos y mini-explicaciones.",
+      "about.title":"¿Quién es el<br><em>Views Engineer?</em>","about.voice":"AI Lab de Zundamon","about.cadence":"Semanal",
+      "about.p1":"Cuenta independiente que experimenta con lo que significa <strong>«usar»</strong> la IA — publicado como código, artículos y vídeos. Alrededor de Claude Code, combinado con Stable Diffusion (reForge), VOICEVOX y FFmpeg, explorando el techo de lo entregable por una persona en poco tiempo.",
+      "about.p2":"Del filósofo Dewey de hace 100 años a los agentes de IA de hoy, escribo desde la idea de que <strong>la esencia de resolver problemas no cambia</strong>. La tecnología solo cambia al narrador; lo dicho es, sorprendentemente, muy viejo.",
+      "closer.title":"Pásate al lado que<br><em>la usa a fondo</em>.",
+      "closer.p":"Actualizo cada semana en Note y YouTube.<br>Si te apetece, salúdame en X.",
+      "closer.btn1":"Leer la última Note ↗","closer.btn2":"Seguir en X ↗",
+      "nav.cabin":"Cabaña",
+      "cabin.eyebrow":"№ 00 — Un desvío silencioso",
+      "cabin.h":"En lo profundo del bosque, una cabaña con <em>una luz</em>.",
+      "cabin.deck":"Un pequeño lugar para meditar. Temporizador, guía de respiración, lluvia y hogar. Otra página solo para quien se ha perdido.",
+      "cabin.go":"Entra a la cabaña  →"
+    },
+    fr: {
+      "front.kicker":"Numéro spécial · No. 001",
+      "front.title.r1":"Vers la maîtrise","front.title.r2":"de l'<em>ère de l'IA</em>.",
+      "front.deck":"J'implémente des frameworks avec <strong>Claude Code</strong>, je produis des assets à grande échelle avec <strong>Stable Diffusion</strong>, et j'explique l'essentiel sur Note et YouTube. Du philosophe d'il y a 100 ans aux agents IA d'aujourd'hui, j'écris un texte par semaine sur la forme de la question qui ne change pas.",
+      "front.btn.note":"Lire la dernière Note →","front.btn.dir":"Cinq lieux →",
+      "front.byline.who":"By Views Engineer / yuichi916","front.byline.where":"Tokyo · 2026",
+      "sidebar.title":"Dans ce numéro <span class=\"x\">— Sommaire</span>",
+      "sidebar.toc.1":"Après un mois avec Claude Code, j'ai atterri au même endroit que Dewey",
+      "sidebar.toc.2":"Les outils changent, l'essentiel non — une position",
+      "sidebar.toc.3":"Cinq plateformes, une question","sidebar.toc.4":"Qui est le Views Engineer ?",
+      "sidebar.pull":"« Les outils changent tous les 10 ans.<br>Les frameworks s'obsolescent tous les 5.<br>Mais l'essence de la résolution de problèmes <span style=\"color:var(--accent)\">n'a pas changé en 100 ans.</span> »",
+      "sidebar.src":"— extrait du Featured de ce numéro",
+      "stamp.l1":"Canaux","stamp.l2":"Étendue","stamp.n2":"100 ans","stamp.l3":"Stack","stamp.n3":"4 outils","stamp.l4":"Opérateur","stamp.n4":"Solo",
+      "featured.title":"Même conclusion qu'un<br><em>philosophe d'il y a 100 ans</em>.",
+      "featured.h3":"Après un mois avec Claude Code,<br>je suis arrivé là où était Dewey.",
+      "featured.p":"Un essai qui retrace l'<strong>essence du problem-solving que 99 % manquent à l'ère des agents IA</strong>, en ligne droite de John Dewey en 1910 à Claude Code en 2026.",
+      "featured.pt1":"Trois vérités de la résolution de problèmes à travers quatre époques",
+      "featured.pt2":"L'habitude d'expliciter le périmètre confié à l'IA",
+      "featured.pt3":"Un cadre de pensée applicable dès demain",
+      "featured.btn":"Lire sur Note ↗",
+      "featured.quote":"Les outils changent tous les 10 ans.<br>Les frameworks vieillissent tous les 5.<br>Mais <em>l'essence de la résolution de problèmes<br>n'a pas changé en 100 ans</em>.",
+      "manifesto.title":"Mettre la <em>position</em> par écrit.",
+      "manifesto.body":"<p><span class=\"drop\">J</span>e ne me place pas du côté qui se fait <strong>utiliser par l'IA</strong>, mais du côté qui <strong>l'utilise à fond</strong>. Autour de Claude Code, je rassemble Stable Diffusion, VOICEVOX et FFmpeg dans un même atelier, et je fais monter — semaine après semaine — le plafond de ce qu'une personne seule peut livrer en peu de temps.</p><p>Les outils sont nouveaux, mais la question est du genre qui <strong>ne change pas à l'échelle d'un siècle</strong>. Ce que John Dewey a écrit en 1910 et ce que Claude Code nous propose en 2026 se ressemblent étrangement. Que veut dire « penser » ? Qu'est-ce qui donne forme à un « problème » ?</p><p>Donc les Notes, YouTube, GitHub et X rassemblés ici ne sont pas des visites de surface des outils. Ce sont <strong>la longue trace de pensée qu'il faut pour les utiliser à fond</strong>. Utile ou non, c'est au lecteur d'en décider. Mon devoir, comme auteur, est de laisser à chaque fois une question qui m'est propre.</p>",
+      "directory.title":"Cinq lieux, <em>une</em> question.",
+      "dir.note":"Essais longs sur la résolution de problèmes à l'ère des agents IA, creusés jusqu'à l'essence sur 100 ans.",
+      "dir.youtube":"« AI Lab de Zundamon » — Shorts d'explication, en série.",
+      "dir.github":"Code source, scripts d'automatisation, dépôts d'expérimentation.",
+      "dir.xpersonal.name":"X · Personnel","dir.xpersonal.desc":"Journal d'expériences IA et de résolution de problèmes. Surtout des notes courtes.",
+      "dir.xlab.name":"X · AI Lab","dir.xlab.desc":"Compte officiel de l'AI Lab de Zundamon. Annonces vidéo et mini-explications.",
+      "about.title":"Qui est le<br><em>Views Engineer ?</em>","about.voice":"AI Lab de Zundamon","about.cadence":"Hebdomadaire",
+      "about.p1":"Compte indépendant qui expérimente ce que veut dire <strong>« utiliser »</strong> l'IA — publié sous forme de code, d'articles et de vidéos. Autour de Claude Code, avec Stable Diffusion (reForge), VOICEVOX et FFmpeg, à la recherche du plafond livrable en peu de temps par une personne seule.",
+      "about.p2":"Du philosophe Dewey d'il y a 100 ans aux agents IA d'aujourd'hui, j'écris depuis l'angle où <strong>l'essence de la résolution de problèmes ne change pas</strong>. La technologie ne fait que changer le narrateur ; ce qui est dit est, étonnamment, fort ancien.",
+      "closer.title":"Passe du côté qui<br><em>l'utilise à fond</em>.",
+      "closer.p":"Mises à jour hebdomadaires sur Note et YouTube.<br>Si l'envie te prend, viens me parler sur X.",
+      "closer.btn1":"Lire la dernière Note ↗","closer.btn2":"Suivre sur X ↗",
+      "nav.cabin":"Cabane",
+      "cabin.eyebrow":"№ 00 — Un détour silencieux",
+      "cabin.h":"Au fond des bois, une cabane à <em>une lumière</em>.",
+      "cabin.deck":"Un petit lieu pour la méditation. Minuteur, guide respiratoire, pluie et feu de cheminée. Une autre page que seuls les égarés trouvent.",
+      "cabin.go":"Entrer dans la cabane  →"
+    },
+    de: {
+      "front.kicker":"Sondernummer · No. 001",
+      "front.title.r1":"Auf die Seite, die","front.title.r2":"die <em>KI-Ära</em> beherrscht.",
+      "front.deck":"Frameworks implementiere ich mit <strong>Claude Code</strong>, Assets in Mengen mit <strong>Stable Diffusion</strong>, und auf Note und YouTube zerlege ich das Wesentliche. Vom Philosophen vor 100 Jahren bis zu den KI-Agenten von heute schreibe ich jede Woche einen Text über die Form der Frage, die sich nicht ändert.",
+      "front.btn.note":"Neueste Note lesen →","front.btn.dir":"Fünf Orte →",
+      "front.byline.who":"By Views Engineer / yuichi916","front.byline.where":"Tokio · 2026",
+      "sidebar.title":"In dieser Ausgabe <span class=\"x\">— Inhalt</span>",
+      "sidebar.toc.1":"Nach einem Monat mit Claude Code landete ich am gleichen Ort wie Dewey",
+      "sidebar.toc.2":"Werkzeuge ändern sich, das Wesentliche nicht — eine Haltung",
+      "sidebar.toc.3":"Fünf Plattformen, eine Frage","sidebar.toc.4":"Wer ist der Views Engineer?",
+      "sidebar.pull":"„Werkzeuge ändern sich alle 10 Jahre.<br>Frameworks veralten alle 5.<br>Aber das Wesen des Problemlösens <span style=\"color:var(--accent)\">hat sich in 100 Jahren nicht geändert.</span>“",
+      "sidebar.src":"— aus dem Featured dieser Ausgabe",
+      "stamp.l1":"Kanäle","stamp.l2":"Zeitspanne","stamp.n2":"100 J.","stamp.l3":"Stack","stamp.n3":"4 Tools","stamp.l4":"Betreiber","stamp.n4":"Solo",
+      "featured.title":"Gleicher Schluss wie ein<br><em>100 Jahre alter Philosoph</em>.",
+      "featured.h3":"Nach einem Monat mit Claude Code<br>kam ich dort an, wo Dewey stand.",
+      "featured.p":"Ein Essay, der den <strong>Kern des Problemlösens, den 99 % im KI-Agenten-Zeitalter übersehen</strong>, in einer Linie von John Dewey 1910 bis Claude Code 2026 zieht.",
+      "featured.pt1":"Drei Wahrheiten des Problemlösens über vier Epochen",
+      "featured.pt2":"Die Gewohnheit, der KI ihren Bereich auszuformulieren",
+      "featured.pt3":"Ein Denkrahmen, ab morgen einsetzbar",
+      "featured.btn":"Auf Note weiterlesen ↗",
+      "featured.quote":"Werkzeuge ändern sich alle 10 Jahre.<br>Frameworks veralten alle 5.<br>Aber <em>das Wesen des Problemlösens<br>hat sich in 100 Jahren nicht geändert</em>.",
+      "manifesto.title":"Die <em>Haltung</em> ausformulieren.",
+      "manifesto.body":"<p><span class=\"drop\">N</span>icht auf der Seite, die von der <strong>KI benutzt</strong> wird, sondern auf der Seite, die die <strong>KI gründlich nutzt</strong> — das ist hier die Grundhaltung. Mit Claude Code als Achse bündele ich Stable Diffusion, VOICEVOX und FFmpeg in einer Werkstatt und hebe Woche für Woche die Obergrenze dessen, was eine Person in kurzer Zeit ausliefern kann.</p><p>Die Werkzeuge sind neu, aber die Frage ist von der Sorte, die sich <strong>auf 100-Jahres-Sicht nicht ändert</strong>. Was John Dewey 1910 schrieb und was Claude Code uns 2026 vorlegt, ähnelt sich erstaunlich. Was heißt „denken“? Was gibt einem „Problem“ seine Kontur?</p><p>Deshalb sind die hier versammelten Notes, YouTubes, GitHubs und X-Beiträge keine oberflächlichen Tool-Touren. Sie sind <strong>der lange Denkrekord, den man braucht, um die Werkzeuge gründlich zu nutzen</strong>. Ob nützlich, entscheidet die Leserin. Meine Pflicht als Schreiber: jedes Mal eine eigene Frage hinterlassen.</p>",
+      "directory.title":"Fünf Orte, <em>eine</em> Frage.",
+      "dir.note":"Lange Essays zum Problemlösen im KI-Agenten-Zeitalter, im 100-Jahres-Maßstab bis zum Wesentlichen.",
+      "dir.youtube":"„Zundamons KI-Lab“ — erklärende Shorts, fortlaufend.",
+      "dir.github":"Quellcode, Automatisierungs-Skripte, Experimentier-Repos.",
+      "dir.xpersonal.name":"X · Persönlich","dir.xpersonal.desc":"Logbuch zu KI- und Problemlöse-Experimenten. Meist kurze Notizen.",
+      "dir.xlab.name":"X · KI-Lab","dir.xlab.desc":"Offizieller Account des Zundamon KI-Labs. Video-Hinweise und Kurz-Erklärungen.",
+      "about.title":"Wer ist der<br><em>Views Engineer?</em>","about.voice":"Zundamons KI-Lab","about.cadence":"Wöchentlich",
+      "about.p1":"Unabhängiger Account, der mit dem experimentiert, was es heißt, KI <strong>„zu nutzen“</strong> — als Code, Artikel und Videos. Mit Claude Code als Kern, kombiniert mit Stable Diffusion (reForge), VOICEVOX und FFmpeg, sucht er die Obergrenze dessen, was eine Person in kurzer Zeit ausliefern kann.",
+      "about.p2":"Vom 100 Jahre alten Philosophen Dewey bis zu heutigen KI-Agenten schreibe ich aus dem Blickwinkel, dass <strong>das Wesen des Problemlösens sich nicht ändert</strong>. Die Technik tauscht nur den Erzähler aus; was gesagt wird, ist erstaunlich oft sehr alt.",
+      "closer.title":"Komm auf die Seite,<br>die <em>gründlich nutzt</em>.",
+      "closer.p":"Wöchentliches Update auf Note und YouTube.<br>Wenn dir danach ist, sag auf X einfach Hallo.",
+      "closer.btn1":"Neueste Note lesen ↗","closer.btn2":"Auf X folgen ↗",
+      "nav.cabin":"Hütte",
+      "cabin.eyebrow":"№ 00 — Ein leiser Umweg",
+      "cabin.h":"Tief im Wald, eine Hütte mit <em>einem Licht</em>.",
+      "cabin.deck":"Ein kleiner Ort zum Meditieren. Timer, Atemführung, Regen und Kamin. Eine weitere Seite, die nur Verirrte finden.",
+      "cabin.go":"Die Hütte betreten  →"
+    },
+    pt: {
+      "front.kicker":"Edição em destaque · No. 001",
+      "front.title.r1":"Rumo ao domínio","front.title.r2":"da <em>era da IA</em>.",
+      "front.deck":"Implemento frameworks com <strong>Claude Code</strong>, gero recursos em escala com <strong>Stable Diffusion</strong> e desempacoto o essencial no Note e no YouTube. Do filósofo de 100 anos atrás aos agentes de IA de hoje, escrevo um texto por semana sobre a forma da pergunta que não muda.",
+      "front.btn.note":"Ler a última Note →","front.btn.dir":"Cinco lugares →",
+      "front.byline.who":"By Views Engineer / yuichi916","front.byline.where":"Tóquio · 2026",
+      "sidebar.title":"Nesta edição <span class=\"x\">— Sumário</span>",
+      "sidebar.toc.1":"Após um mês com Claude Code, cheguei ao mesmo lugar que Dewey",
+      "sidebar.toc.2":"As ferramentas mudam, o essencial não — uma postura",
+      "sidebar.toc.3":"Cinco plataformas, uma pergunta","sidebar.toc.4":"Quem é o Views Engineer?",
+      "sidebar.pull":"«As ferramentas mudam a cada 10 anos.<br>Os frameworks ficam obsoletos a cada 5.<br>Mas a essência de resolver problemas <span style=\"color:var(--accent)\">não mudou em 100 anos.</span>»",
+      "sidebar.src":"— extraído do Featured desta edição",
+      "stamp.l1":"Canais","stamp.l2":"Período","stamp.n2":"100 anos","stamp.l3":"Stack","stamp.n3":"4 tools","stamp.l4":"Operador","stamp.n4":"Solo",
+      "featured.title":"Mesma conclusão que um<br><em>filósofo de 100 anos atrás</em>.",
+      "featured.h3":"Depois de um mês com Claude Code,<br>cheguei onde Dewey estava.",
+      "featured.p":"Um ensaio que rastreia o <strong>cerne do problem-solving que 99% perde na era dos agentes de IA</strong> em linha reta — de John Dewey em 1910 a Claude Code em 2026.",
+      "featured.pt1":"Três verdades do resolver problemas em quatro eras",
+      "featured.pt2":"O hábito de explicitar o escopo entregue à IA",
+      "featured.pt3":"Um quadro de pensamento aplicável amanhã",
+      "featured.btn":"Ler no Note ↗",
+      "featured.quote":"Ferramentas mudam a cada 10 anos.<br>Frameworks ficam obsoletos a cada 5.<br>Mas <em>a essência de resolver problemas<br>não mudou em 100 anos</em>.",
+      "manifesto.title":"Por a <em>postura</em> por escrito.",
+      "manifesto.body":"<p><span class=\"drop\">F</span>ico não do lado <strong>usado pela IA</strong>, mas do lado que <strong>usa a IA a fundo</strong> — esta é a postura básica daqui. Em torno de Claude Code, junto Stable Diffusion, VOICEVOX e FFmpeg num só ateliê, e atualizo semana após semana o teto do que uma pessoa consegue entregar em pouco tempo.</p><p>As ferramentas são novas, mas a pergunta é do tipo que <strong>não muda em escala de século</strong>. O que John Dewey escreveu em 1910 e o que Claude Code nos coloca em 2026 são estranhamente parecidos. O que é «pensar»? O que dá contorno a um «problema»?</p><p>Por isso as Notes, YouTubes, GitHubs e posts de X reunidos aqui não são tours superficiais de ferramentas. São <strong>o longo registro de pensamento necessário para usá-las a fundo</strong>. Útil ou não, decide quem lê. Como autor, meu dever é deixar a cada vez uma pergunta minha.</p>",
+      "directory.title":"Cinco lugares, <em>uma</em> pergunta.",
+      "dir.note":"Ensaios longos sobre resolver problemas na era dos agentes de IA, escavados até a essência em escala de 100 anos.",
+      "dir.youtube":"«AI Lab do Zundamon» — Shorts explicativos seriados.",
+      "dir.github":"Código-fonte, scripts de automação, repositórios de experimento.",
+      "dir.xpersonal.name":"X · Pessoal","dir.xpersonal.desc":"Diário de experimentos com IA e resolução de problemas. Mais notas curtas.",
+      "dir.xlab.name":"X · AI Lab","dir.xlab.desc":"Conta oficial do AI Lab do Zundamon. Avisos de vídeos e mini-explicações.",
+      "about.title":"Quem é o<br><em>Views Engineer?</em>","about.voice":"AI Lab do Zundamon","about.cadence":"Semanal",
+      "about.p1":"Conta independente que experimenta o que significa <strong>«usar»</strong> IA — publicada como código, artigos e vídeos. Em torno de Claude Code, com Stable Diffusion (reForge), VOICEVOX e FFmpeg, busca o teto entregável por uma pessoa em pouco tempo.",
+      "about.p2":"Do filósofo Dewey de 100 anos atrás aos agentes de IA de hoje, escrevo do ângulo de que <strong>a essência de resolver problemas não muda</strong>. A tecnologia só troca o narrador; o que é dito é, surpreendentemente, muito antigo.",
+      "closer.title":"Vem para o lado que<br><em>usa a fundo</em>.",
+      "closer.p":"Atualizado toda semana no Note e no YouTube.<br>Se der vontade, fala comigo no X.",
+      "closer.btn1":"Ler última Note ↗","closer.btn2":"Seguir no X ↗",
+      "nav.cabin":"Cabana",
+      "cabin.eyebrow":"№ 00 — Um desvio silencioso",
+      "cabin.h":"No fundo da floresta, uma cabana com <em>uma luz</em>.",
+      "cabin.deck":"Um pequeno lugar para meditar. Cronómetro, guia de respiração, chuva e lareira. Outra página só para quem se perdeu.",
+      "cabin.go":"Entrar na cabana  →"
+    },
+    ru: {
+      "front.kicker":"Спецвыпуск · No. 001",
+      "front.title.r1":"К освоению","front.title.r2":"<em>эры ИИ</em>.",
+      "front.deck":"С <strong>Claude Code</strong> собираю фреймворки, со <strong>Stable Diffusion</strong> массово делаю материалы, на Note и YouTube разбираю суть. От философа столетней давности до сегодняшних ИИ-агентов — каждую неделю один текст о форме вопроса, которая не меняется.",
+      "front.btn.note":"Читать свежий Note →","front.btn.dir":"Пять мест →",
+      "front.byline.who":"By Views Engineer / yuichi916","front.byline.where":"Токио · 2026",
+      "sidebar.title":"В этом выпуске <span class=\"x\">— Содержание</span>",
+      "sidebar.toc.1":"Месяц с Claude Code — и я пришёл туда же, где был Дьюи",
+      "sidebar.toc.2":"Инструменты меняются, суть — нет — позиция",
+      "sidebar.toc.3":"Пять платформ, один вопрос","sidebar.toc.4":"Кто такой Views Engineer?",
+      "sidebar.pull":"«Инструменты меняются раз в 10 лет.<br>Фреймворки устаревают за 5.<br>Но суть решения задач <span style=\"color:var(--accent)\">не изменилась за 100 лет.</span>»",
+      "sidebar.src":"— из Featured этого номера",
+      "stamp.l1":"Каналы","stamp.l2":"Период","stamp.n2":"100 лет","stamp.l3":"Стек","stamp.n3":"4 инстр.","stamp.l4":"Оператор","stamp.n4":"Соло",
+      "featured.title":"Тот же вывод, что у<br><em>философа 100 лет назад</em>.",
+      "featured.h3":"После месяца с Claude Code<br>я пришёл туда, где был Дьюи.",
+      "featured.p":"Очерк прослеживает <strong>суть решения задач, которую 99% упускают в эпоху ИИ-агентов</strong>, прямой линией от Джона Дьюи 1910 года до Claude Code 2026 года.",
+      "featured.pt1":"Три истины решения задач сквозь четыре эпохи",
+      "featured.pt2":"Привычка письменно фиксировать зону, отдаваемую ИИ",
+      "featured.pt3":"Применимая с завтра рамка мышления",
+      "featured.btn":"Читать на Note ↗",
+      "featured.quote":"Инструменты меняются раз в 10 лет.<br>Фреймворки устаревают за 5.<br>Но <em>суть решения задач<br>не изменилась за 100 лет</em>.",
+      "manifesto.title":"Зафиксировать <em>позицию</em>.",
+      "manifesto.body":"<p><span class=\"drop\">З</span>десь не та сторона, которую <strong>использует ИИ</strong>, а та, что <strong>использует ИИ на полную</strong>. Вокруг Claude Code собираю в одной мастерской Stable Diffusion, VOICEVOX и FFmpeg и неделю за неделей поднимаю потолок того, что один человек выпускает за короткое время.</p><p>Инструменты новые, но вопрос — из тех, что <strong>не меняются столетиями</strong>. То, что Джон Дьюи написал в 1910 году, и то, что Claude Code предлагает нам в 2026-м, странно похоже. Что значит «думать»? Что задаёт контур «задачи»?</p><p>Поэтому собранные здесь Note, YouTube, GitHub и X — не поверхностные обзоры инструментов, а <strong>длинная запись мышления, нужного, чтобы использовать их на полную</strong>. Полезно ли — решает читатель. Долг автора — оставлять каждый раз один свой вопрос.</p>",
+      "directory.title":"Пять мест, <em>один</em> вопрос.",
+      "dir.note":"Длинные тексты о решении задач в эпоху ИИ-агентов, выкопанные до сути в масштабе 100 лет.",
+      "dir.youtube":"«AI-лаборатория Зундамона» — обучающие Shorts серией.",
+      "dir.github":"Исходный код, скрипты автоматизации, экспериментальные репозитории.",
+      "dir.xpersonal.name":"X · Личный","dir.xpersonal.desc":"Журнал экспериментов с ИИ и решением задач. В основном короткие заметки.",
+      "dir.xlab.name":"X · AI Lab","dir.xlab.desc":"Официальный аккаунт AI-лаборатории Зундамона. Анонсы видео и короткие пояснения.",
+      "about.title":"Кто такой<br><em>Views Engineer?</em>","about.voice":"AI-лаборатория Зундамона","about.cadence":"Еженедельно",
+      "about.p1":"Независимый аккаунт, экспериментирующий с тем, что значит <strong>«использовать»</strong> ИИ — выпускается как код, статьи и видео. Вокруг Claude Code, в связке со Stable Diffusion (reForge), VOICEVOX и FFmpeg, ищу потолок того, что один человек выпускает за короткое время.",
+      "about.p2":"От философа Дьюи столетней давности до сегодняшних ИИ-агентов пишу с угла «<strong>суть решения задач не меняется</strong>». Технология лишь меняет рассказчика; сказанное, на удивление, очень старое.",
+      "closer.title":"Переходи на сторону,<br><em>использующую на полную</em>.",
+      "closer.p":"Обновляю каждую неделю в Note и на YouTube.<br>Если будет настроение — пиши в X.",
+      "closer.btn1":"Читать свежий Note ↗","closer.btn2":"Подписаться в X ↗",
+      "nav.cabin":"Хижина",
+      "cabin.eyebrow":"№ 00 — Тихий объезд",
+      "cabin.h":"В глубине леса — хижина с <em>одним огоньком</em>.",
+      "cabin.deck":"Маленькое место для медитации. Таймер, направляемое дыхание, дождь и очаг. Ещё одна страница — только для тех, кто сбился с пути.",
+      "cabin.go":"Войти в хижину  →"
+    },
+    it: {
+      "front.kicker":"Numero speciale · No. 001",
+      "front.title.r1":"Verso il dominio","front.title.r2":"dell'<em>era dell'IA</em>.",
+      "front.deck":"Implemento framework con <strong>Claude Code</strong>, produco asset in serie con <strong>Stable Diffusion</strong> e svisceero l'essenziale su Note e YouTube. Dal filosofo di 100 anni fa agli agenti IA di oggi, scrivo un pezzo a settimana sulla forma della domanda che non cambia.",
+      "front.btn.note":"Leggi l'ultima Note →","front.btn.dir":"Cinque luoghi →",
+      "front.byline.who":"By Views Engineer / yuichi916","front.byline.where":"Tokyo · 2026",
+      "sidebar.title":"In questo numero <span class=\"x\">— Indice</span>",
+      "sidebar.toc.1":"Dopo un mese con Claude Code sono arrivato allo stesso punto di Dewey",
+      "sidebar.toc.2":"Gli strumenti cambiano, l'essenziale no — una posizione",
+      "sidebar.toc.3":"Cinque piattaforme, una domanda","sidebar.toc.4":"Chi è il Views Engineer?",
+      "sidebar.pull":"«Gli strumenti cambiano ogni 10 anni.<br>I framework diventano obsoleti ogni 5.<br>Ma l'essenza del problem-solving <span style=\"color:var(--accent)\">non cambia da 100 anni.</span>»",
+      "sidebar.src":"— dal Featured di questo numero",
+      "stamp.l1":"Canali","stamp.l2":"Arco","stamp.n2":"100 anni","stamp.l3":"Stack","stamp.n3":"4 strumenti","stamp.l4":"Operatore","stamp.n4":"Solo",
+      "featured.title":"Stessa conclusione di un<br><em>filosofo di 100 anni fa</em>.",
+      "featured.h3":"Dopo un mese con Claude Code<br>sono arrivato dove era Dewey.",
+      "featured.p":"Un saggio che traccia il <strong>cuore del problem-solving che il 99% manca nell'era degli agenti IA</strong> in una sola linea — da John Dewey nel 1910 a Claude Code nel 2026.",
+      "featured.pt1":"Tre verità del problem-solving attraverso quattro epoche",
+      "featured.pt2":"L'abitudine di mettere per iscritto l'ambito affidato all'IA",
+      "featured.pt3":"Una cornice di pensiero applicabile da domani",
+      "featured.btn":"Leggi su Note ↗",
+      "featured.quote":"Gli strumenti cambiano ogni 10 anni.<br>I framework si esauriscono ogni 5.<br>Ma <em>l'essenza del problem-solving<br>non cambia da 100 anni</em>.",
+      "manifesto.title":"Mettere la <em>posizione</em> per iscritto.",
+      "manifesto.body":"<p><span class=\"drop\">N</span>on dalla parte <strong>usata dall'IA</strong>, ma dalla parte che <strong>usa l'IA fino in fondo</strong> — è la postura di base qui. Intorno a Claude Code raccolgo Stable Diffusion, VOICEVOX e FFmpeg in un'unica bottega e, settimana dopo settimana, alzo il tetto di ciò che una persona può consegnare in poco tempo.</p><p>Gli strumenti sono nuovi, ma la domanda è di quelle che <strong>non cambiano in un secolo</strong>. Quanto John Dewey scrisse nel 1910 e quanto Claude Code ci pone nel 2026 si somigliano stranamente. Cosa vuol dire «pensare»? Cosa dà forma a un «problema»?</p><p>Perciò Note, YouTube, GitHub e X qui raccolti non sono visite di superficie agli strumenti. Sono <strong>il lungo registro del pensare necessario per usarli fino in fondo</strong>. Se siano utili, lo decide chi legge. Il dovere di chi scrive è lasciare ogni volta una propria domanda.</p>",
+      "directory.title":"Cinque luoghi, <em>una</em> domanda.",
+      "dir.note":"Saggi lunghi sul problem-solving nell'era degli agenti IA, scavati fino all'essenza su scala centenaria.",
+      "dir.youtube":"«AI Lab di Zundamon» — Shorts esplicativi a serie.",
+      "dir.github":"Codice sorgente, script di automazione, repository di esperimento.",
+      "dir.xpersonal.name":"X · Personale","dir.xpersonal.desc":"Diario di esperimenti con IA e problem-solving. Per lo più note brevi.",
+      "dir.xlab.name":"X · AI Lab","dir.xlab.desc":"Account ufficiale dell'AI Lab di Zundamon. Annunci video e mini-spiegazioni.",
+      "about.title":"Chi è il<br><em>Views Engineer?</em>","about.voice":"AI Lab di Zundamon","about.cadence":"Settimanale",
+      "about.p1":"Account indipendente che sperimenta cosa significhi <strong>«usare»</strong> l'IA — pubblicato come codice, articoli e video. Intorno a Claude Code, con Stable Diffusion (reForge), VOICEVOX e FFmpeg, esplora il tetto consegnabile da una persona in poco tempo.",
+      "about.p2":"Dal filosofo Dewey di 100 anni fa agli agenti IA di oggi, scrivo dall'angolo che <strong>l'essenza del problem-solving non cambia</strong>. La tecnologia cambia solo il narratore; ciò che viene detto è, sorprendentemente, molto vecchio.",
+      "closer.title":"Vieni dalla parte<br>che <em>la usa fino in fondo</em>.",
+      "closer.p":"Aggiornato ogni settimana su Note e YouTube.<br>Se ne hai voglia, scrivimi su X.",
+      "closer.btn1":"Leggi ultima Note ↗","closer.btn2":"Segui su X ↗",
+      "nav.cabin":"Capanna",
+      "cabin.eyebrow":"№ 00 — Una deviazione silenziosa",
+      "cabin.h":"Nel folto del bosco, una capanna con <em>una sola luce</em>.",
+      "cabin.deck":"Un piccolo luogo per meditare. Timer, guida al respiro, pioggia e focolare. Un'altra pagina, solo per chi si è perso.",
+      "cabin.go":"Entra nella capanna  →"
+    },
+    ja: {} // captured from original DOM below
+  };
+
+  // Snapshot the original Japanese DOM into the ja dict so we can switch back.
+  document.querySelectorAll("[data-i18n], [data-i18n-html]").forEach((el) => {
+    const k = el.getAttribute("data-i18n") || el.getAttribute("data-i18n-html");
+    if (!k || (k in i18n.ja)) return;
+    i18n.ja[k] = el.getAttribute("data-i18n-html") ? el.innerHTML : el.textContent;
+  });
+
+  function applyLang(lang){
+    if (!i18n[lang]) lang = "ja";
+    const dict = i18n[lang] || {};
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      const k = el.getAttribute("data-i18n");
+      if (dict[k] !== undefined) el.textContent = dict[k];
+    });
+    document.querySelectorAll("[data-i18n-html]").forEach((el) => {
+      const k = el.getAttribute("data-i18n-html");
+      if (dict[k] !== undefined) el.innerHTML = dict[k];
+    });
+    document.documentElement.setAttribute("lang", LANG_HTML[lang] || lang);
+    const cur = document.getElementById("langCurrent");
+    if (cur) cur.textContent = LANG_FLAGS[lang] || lang.toUpperCase();
+    document.querySelectorAll("#langMenu li[data-lang]").forEach((li) => {
+      li.classList.toggle("on", li.getAttribute("data-lang") === lang);
+    });
+  }
+
+  function detectLang(){
+    const params = new URLSearchParams(location.search);
+    const q = params.get("lang");
+    if (q && i18n[q]) return q;
+    let stored = null;
+    try { stored = localStorage.getItem("ve_lang"); } catch(_) {}
+    if (stored && i18n[stored]) return stored;
+    const nav = (navigator.language || "ja").toLowerCase();
+    // Map common navigator locales to our 10 languages
+    if (nav.startsWith("zh")) return "zh-CN";
+    if (nav.startsWith("ko")) return "ko";
+    if (nav.startsWith("es")) return "es";
+    if (nav.startsWith("fr")) return "fr";
+    if (nav.startsWith("de")) return "de";
+    if (nav.startsWith("pt")) return "pt";
+    if (nav.startsWith("ru")) return "ru";
+    if (nav.startsWith("it")) return "it";
+    if (nav.startsWith("en")) return "en";
+    return "ja";
+  }
+
+  applyLang(detectLang());
+
+  // Capture/screenshot mode: ?nofx=1 disables intro animations so headless tools see final state
+  try {
+    if (new URLSearchParams(location.search).get("nofx") === "1") {
+      document.body.classList.add("nofx");
+      document.querySelectorAll(".reveal").forEach((el) => el.classList.add("in"));
+    }
+  } catch (_) {}
+
+  // Toggle dropdown menu
+  const langToggle = document.getElementById("langToggle");
+  const langMenu = document.getElementById("langMenu");
+  if (langToggle && langMenu) {
+    langToggle.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const open = !langMenu.hasAttribute("hidden");
+      if (open) langMenu.setAttribute("hidden", "");
+      else langMenu.removeAttribute("hidden");
+      langToggle.setAttribute("aria-expanded", String(!open));
+    });
+    document.addEventListener("click", (ev) => {
+      if (!langMenu.contains(ev.target) && !langToggle.contains(ev.target)) {
+        langMenu.setAttribute("hidden", "");
+        langToggle.setAttribute("aria-expanded", "false");
+      }
+    });
+    langMenu.querySelectorAll("li[data-lang]").forEach((li) => {
+      li.addEventListener("click", () => {
+        const lang = li.getAttribute("data-lang");
+        try { localStorage.setItem("ve_lang", lang); } catch(_) {}
+        applyLang(lang);
+        langMenu.setAttribute("hidden", "");
+        langToggle.setAttribute("aria-expanded", "false");
+      });
+    });
+  }
 </script>
 </body>
 </html>
