@@ -32,6 +32,21 @@ JP · EN · ZH-CN · KO · ES · FR · DE · PT · RU · IT
 └── README.md
 ```
 
+## アクセスカウンター (GoatCounter)
+
+`index.html` の stamps 行に **Visitors** 数を表示。  
+`https://viewsengineer.goatcounter.com/` (要セットアップ) からデータ取得。
+
+**初回セットアップ手順:**
+
+1. https://www.goatcounter.com/signup でアカウント作成
+   - **Code (subdomain)**: `viewsengineer` を入力
+   - サイトURLは `https://yuichi916.github.io/`
+2. ダッシュボード → **Settings** → **Public access** で「**Allow public counter**」を ON
+3. 完了。両ページのトラッキングスクリプト + index.html の fetch がそのまま動作する
+
+サブドメインを別の名前にする場合は `index.html` 2箇所 + `cabin.html` 1箇所の `viewsengineer.goatcounter.com` を置換。
+
 ## ローカル動作確認
 
 ```bash
