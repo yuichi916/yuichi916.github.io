@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>屋台の湯気と山の駅 — 一人旅</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --washi-ivory: #f6f4ef; --washi-gray-sakura: #e8e4e1;
+            --ink-light: #9d9890; --ink-medium: #5a5550; --ink-dark: #2e2a26;
+            --accent-red: #c25450; --accent-blue: #6b8a99;
+        }
+        body { font-family: 'Zen Maru Gothic', sans-serif; background: var(--washi-ivory); color: var(--ink-dark); line-height: 1.85; }
+        nav { padding: 1.2rem 2rem; border-bottom: 1px solid var(--ink-light); background: rgba(255,255,255,0.7); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(8px); }
+        nav a { color: var(--ink-medium); text-decoration: none; font-size: 0.95rem; letter-spacing: 0.05em; transition: color 0.2s; }
+        nav a:hover { color: var(--ink-dark); }
+        header { padding: 5rem 2rem 3rem; max-width: 780px; margin: 0 auto; }
+        h1 { font-family: 'Klee One', serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 600; margin-bottom: 0.6rem; letter-spacing: 0.06em; }
+        .journey-meta-header { display: flex; gap: 1.5rem; flex-wrap: wrap; color: var(--ink-medium); font-size: 0.9rem; margin-bottom: 2.5rem; letter-spacing: 0.05em; }
+        .journey-meta-header .tag { padding: 0.2rem 0.8rem; border: 1px solid var(--ink-light); border-radius: 2px; font-size: 0.85rem; }
+        .journey-meta-header .tag.os { border-color: var(--accent-blue); color: var(--accent-blue); }
+        .journey-meta-header .tag.jp { border-color: var(--accent-red); color: var(--accent-red); }
+        .journey-intro { font-size: 1.05rem; line-height: 2; color: var(--ink-medium); }
+        main { max-width: 880px; margin: 2rem auto 4rem; padding: 0 2rem; }
+        .chapter { margin-bottom: 5rem; }
+        .chapter-title { font-family: 'Klee One', serif; font-size: 1.6rem; font-weight: 600; margin-bottom: 0.4rem; letter-spacing: 0.04em; color: var(--accent-red); }
+        .chapter-time { font-size: 0.85rem; color: var(--ink-light); font-family: 'Cascadia Code', Consolas, monospace; margin-bottom: 1.4rem; letter-spacing: 0.1em; }
+        .chapter-text { font-size: 1.02rem; line-height: 2; color: var(--ink-dark); margin-bottom: 1.8rem; }
+        .photo-collage { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.2rem; margin-top: 1.6rem; }
+        .photo-item { background: rgba(255,255,255,0.7); border: 1px solid var(--washi-gray-sakura); padding: 0.6rem; transition: transform 0.3s, box-shadow 0.3s; cursor: pointer; }
+        .photo-item:nth-child(4n+1) { transform: rotate(-0.5deg); }
+        .photo-item:nth-child(4n+2) { transform: rotate(0.3deg); }
+        .photo-item:nth-child(4n+3) { transform: rotate(-0.2deg); }
+        .photo-item:hover { transform: scale(1.02) rotate(0deg); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+        .photo-item img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--washi-gray-sakura); }
+        .outro { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--ink-light); font-size: 1.02rem; line-height: 2; color: var(--ink-medium); font-style: italic; opacity: 0.92; }
+        footer { text-align: center; padding: 3rem 2rem; color: var(--ink-light); font-size: 0.9rem; border-top: 1px solid var(--ink-light); margin-top: 4rem; }
+        footer a { color: var(--ink-medium); text-decoration: none; }
+        .lightbox { position: fixed; inset: 0; background: rgba(46,42,38,0.95); display: none; align-items: center; justify-content: center; z-index: 200; cursor: zoom-out; }
+        .lightbox.open { display: flex; }
+        .lightbox img { max-width: 96vw; max-height: 96vh; object-fit: contain; box-shadow: 0 0 40px rgba(0,0,0,0.4); }
+        .lightbox .close { position: absolute; top: 1rem; right: 1.5rem; color: var(--washi-ivory); font-size: 0.9rem; letter-spacing: 0.1em; }
+        @media (max-width: 768px) {
+            header { padding: 3rem 1rem 2rem; }
+            main { padding: 0 1rem; }
+            .photo-collage { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <nav><a href="index.html">← 一人旅トップへ</a></nav>
+    <header>
+        <h1>屋台の湯気と山の駅</h1>
+        <div class="journey-meta-header">
+            <span class="tag os">海外</span>
+            <span>[マレーシア.台湾]</span>
+            <span>15 章 / 97 枚</span>
+        </div>
+        <p class="journey-intro">南国の港町から、湿った山の鉄道へ。マレーシアと台湾を続けて歩いた旅でした。屋台に並ぶ湯気、寺院の朱、線路を抜ける風、霧のかかった峠の駅。食べることと祈ること、移動することと立ち止まること、その繰り返しの中で、私は東アジアと東南アジアが地図上の線で区切れない一続きの空気でつながっていることに気づきました。長い行程でしたが、一日ごとに体が軽くなっていきました。</p>
+    </header>
+    <main>
+        <article class="chapter">
+            <h2 class="chapter-title">港町の朝</h2>
+            <p class="chapter-time">2017-02-25 10:18 – 11:28</p>
+            <p class="chapter-text">海沿いの街並みに、植民地時代の窓枠が残っていました。新しい高層ビルとの対比が、この国の歩幅を物語っていました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197168&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197168&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197285&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197285&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197487&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197487&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197667&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197667&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197806&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197806&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197907&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734197907&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734198192&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734198192&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734198358&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734198358&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">皿の上の青</h2>
+            <p class="chapter-time">2017-02-25 13:49 – 14:03</p>
+            <p class="chapter-text">鮮やかな緑の野菜炒めが運ばれてきました。一皿に、海と山と移民の歴史が同居している味でした。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734198893&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734198893&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734199526&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734199526&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734200882&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734200882&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">茶色いスープ</h2>
+            <p class="chapter-time">2017-02-25 20:50 – 20:50</p>
+            <p class="chapter-text">肉骨茶の湯気が眼鏡を曇らせました。薬膳の香りと汗が混ざる店内で、私は無言で椀を空にしました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734201231&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734201231&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734201801&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734201801&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">華人廟の朱</h2>
+            <p class="chapter-time">2017-02-26 13:20 – 15:21</p>
+            <p class="chapter-text">鮮やかな朱の柱に金の文字が連なっていました。線香の煙が天井で渦を巻き、誰かの願い事が天へのぼっていきました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734201873&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734201873&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734201938&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734201938&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734202076&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734202076&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734202248&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734202248&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734202410&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734202410&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734202838&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734202838&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734203009&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734203009&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734203198&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734203198&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">列車を待つ</h2>
+            <p class="chapter-time">2017-02-27 20:56 – 20:58</p>
+            <p class="chapter-text">海を渡って台湾へ。古い駅舎で、私は時刻表よりも空の色を眺めていました。旅の継ぎ目には、いつも少しの間が要ります。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734203734&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734203734&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734204124&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734204124&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">山岳鉄道</h2>
+            <p class="chapter-time">2017-08-10 11:58 – 14:02</p>
+            <p class="chapter-text">森の奥へ、線路は細く伸びていきました。窓の外の緑が一段濃くなるたびに、街の重さが体から落ちていきました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734204554&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734204554&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734205174&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734205174&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734205871&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734205871&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734208329&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734208329&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734208832&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734208832&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734209640&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734209640&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734210673&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734210673&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734211389&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734211389&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">霧の老街</h2>
+            <p class="chapter-time">2017-08-10 15:07 – 16:22</p>
+            <p class="chapter-text">石段に提灯が連なる坂の街。霧がすべてを少しだけ柔らかくし、観光客の足音までも遠くに聞こえました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734211923&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734211923&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734212787&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734212787&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734213365&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734213365&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734214122&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734214122&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734214977&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734214977&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734215599&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734215599&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734216262&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734216262&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734216957&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734216957&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">夜景の盆地</h2>
+            <p class="chapter-time">2017-08-10 18:31 – 20:52</p>
+            <p class="chapter-text">山から見下ろす街は、地上に落ちた星座のようでした。眩しいのに、なぜか静かに感じられる夜でした。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734217490&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734217490&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734218471&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734218471&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734219019&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734219019&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734219508&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734219508&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734220228&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734220228&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734221287&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734221287&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734221974&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734221974&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734222869&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734222869&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">暗渠の灯</h2>
+            <p class="chapter-time">2017-08-11 10:01 – 14:05</p>
+            <p class="chapter-text">夜市の路地裏には、薄暗い灯りと小さな祠がありました。賑わいのすぐ裏に、別の時間が流れていました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734224531&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734224531&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734225259&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734225259&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734225885&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734225885&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734226608&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734226608&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734227950&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734227950&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734228578&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734228578&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734229245&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734229245&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734230117&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734230117&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">媽祖の宮</h2>
+            <p class="chapter-time">2017-08-11 15:07 – 15:27</p>
+            <p class="chapter-text">海の女神の前で、漁師の家族が頭を下げていました。私は旅人の身分のまま、隅でそっと手を合わせました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734231262&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734231262&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734232136&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734232136&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734232907&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734232907&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734234471&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734234471&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734235075&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734235075&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734236070&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734236070&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734236924&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734236924&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734237533&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734237533&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">回廊の影</h2>
+            <p class="chapter-time">2017-08-11 17:03 – 17:56</p>
+            <p class="chapter-text">廟の長い回廊を歩くと、柱の影が等間隔で落ちていました。光と影のリズムが、自分の歩幅を少しずつ整えてくれました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734238288&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734238288&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734239138&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734239138&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734240013&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734240013&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734241497&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734241497&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734242455&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734242455&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734243067&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734243067&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">祭壇の細部</h2>
+            <p class="chapter-time">2017-08-11 19:33 – 19:34</p>
+            <p class="chapter-text">小さな神像が幾重にも並んでいました。一柱ごとに役目があるのだと知り、信仰の細やかさに静かに驚きました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734243832&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734243832&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734244502&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734244502&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734245395&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734245395&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734246014&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734246014&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">庭園の苔</h2>
+            <p class="chapter-time">2018-01-27 13:13 – 14:33</p>
+            <p class="chapter-text">石灯籠と苔と水音。手入れされた庭は、人の手があるのに人の気配を感じさせない不思議な場所でした。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734246690&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734246690&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734247155&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734247155&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734248120&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734248120&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734249122&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734249122&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734249510&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734249510&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734251237&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734251237&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734251937&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734251937&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734253158&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734253158&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">竹林の道</h2>
+            <p class="chapter-time">2018-03-17 15:48 – 16:40</p>
+            <p class="chapter-text">風が竹を鳴らす道を、ひとりで歩きました。音と光だけが連れの、贅沢な数十分でした。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734253784&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734253784&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734254667&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734254667&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734255381&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734255381&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734256159&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734256159&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734256990&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734256990&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734257682&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734257682&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734258692&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734258692&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734260377&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734260377&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">海辺の岩</h2>
+            <p class="chapter-time">2018-03-18 21:45 – 23:53</p>
+            <p class="chapter-text">波に削られた岩の連なりを前に、旅の終わりを感じました。形あるものは少しずつ削られて、それでも美しいのだと思いました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734261187&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734261187&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734262136&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734262136&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734262980&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734262980&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734263662&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734263662&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734264168&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734264168&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734264819&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734264819&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734265514&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734265514&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734266289&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87734266289&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+
+        <p class="outro">南の屋台と、北の山駅。違う言葉と違う匂いが、同じ温度で私を迎えてくれました。長い旅は、長いほど自分が小さくなる旅でした。</p>
+    </main>
+    <footer>
+        <p><a href="index.html">← 一人旅トップへ</a></p>
+    </footer>
+    <div class="lightbox" id="lb" onclick="closeLb()"><div class="close">close ✕</div><img id="lbimg" alt=""></div>
+    <script>
+        function openLb(url){document.getElementById('lbimg').src=url;document.getElementById('lb').classList.add('open');}
+        function closeLb(){document.getElementById('lb').classList.remove('open');}
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); });
+    </script>
+</body>
+</html>

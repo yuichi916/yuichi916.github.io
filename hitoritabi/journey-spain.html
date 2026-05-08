@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>乾いた大地のモザイク — 一人旅</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --washi-ivory: #f6f4ef; --washi-gray-sakura: #e8e4e1;
+            --ink-light: #9d9890; --ink-medium: #5a5550; --ink-dark: #2e2a26;
+            --accent-red: #c25450; --accent-blue: #6b8a99;
+        }
+        body { font-family: 'Zen Maru Gothic', sans-serif; background: var(--washi-ivory); color: var(--ink-dark); line-height: 1.85; }
+        nav { padding: 1.2rem 2rem; border-bottom: 1px solid var(--ink-light); background: rgba(255,255,255,0.7); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(8px); }
+        nav a { color: var(--ink-medium); text-decoration: none; font-size: 0.95rem; letter-spacing: 0.05em; transition: color 0.2s; }
+        nav a:hover { color: var(--ink-dark); }
+        header { padding: 5rem 2rem 3rem; max-width: 780px; margin: 0 auto; }
+        h1 { font-family: 'Klee One', serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 600; margin-bottom: 0.6rem; letter-spacing: 0.06em; }
+        .journey-meta-header { display: flex; gap: 1.5rem; flex-wrap: wrap; color: var(--ink-medium); font-size: 0.9rem; margin-bottom: 2.5rem; letter-spacing: 0.05em; }
+        .journey-meta-header .tag { padding: 0.2rem 0.8rem; border: 1px solid var(--ink-light); border-radius: 2px; font-size: 0.85rem; }
+        .journey-meta-header .tag.os { border-color: var(--accent-blue); color: var(--accent-blue); }
+        .journey-meta-header .tag.jp { border-color: var(--accent-red); color: var(--accent-red); }
+        .journey-intro { font-size: 1.05rem; line-height: 2; color: var(--ink-medium); }
+        main { max-width: 880px; margin: 2rem auto 4rem; padding: 0 2rem; }
+        .chapter { margin-bottom: 5rem; }
+        .chapter-title { font-family: 'Klee One', serif; font-size: 1.6rem; font-weight: 600; margin-bottom: 0.4rem; letter-spacing: 0.04em; color: var(--accent-red); }
+        .chapter-time { font-size: 0.85rem; color: var(--ink-light); font-family: 'Cascadia Code', Consolas, monospace; margin-bottom: 1.4rem; letter-spacing: 0.1em; }
+        .chapter-text { font-size: 1.02rem; line-height: 2; color: var(--ink-dark); margin-bottom: 1.8rem; }
+        .photo-collage { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.2rem; margin-top: 1.6rem; }
+        .photo-item { background: rgba(255,255,255,0.7); border: 1px solid var(--washi-gray-sakura); padding: 0.6rem; transition: transform 0.3s, box-shadow 0.3s; cursor: pointer; }
+        .photo-item:nth-child(4n+1) { transform: rotate(-0.5deg); }
+        .photo-item:nth-child(4n+2) { transform: rotate(0.3deg); }
+        .photo-item:nth-child(4n+3) { transform: rotate(-0.2deg); }
+        .photo-item:hover { transform: scale(1.02) rotate(0deg); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+        .photo-item img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--washi-gray-sakura); }
+        .outro { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--ink-light); font-size: 1.02rem; line-height: 2; color: var(--ink-medium); font-style: italic; opacity: 0.92; }
+        footer { text-align: center; padding: 3rem 2rem; color: var(--ink-light); font-size: 0.9rem; border-top: 1px solid var(--ink-light); margin-top: 4rem; }
+        footer a { color: var(--ink-medium); text-decoration: none; }
+        .lightbox { position: fixed; inset: 0; background: rgba(46,42,38,0.95); display: none; align-items: center; justify-content: center; z-index: 200; cursor: zoom-out; }
+        .lightbox.open { display: flex; }
+        .lightbox img { max-width: 96vw; max-height: 96vh; object-fit: contain; box-shadow: 0 0 40px rgba(0,0,0,0.4); }
+        .lightbox .close { position: absolute; top: 1rem; right: 1.5rem; color: var(--washi-ivory); font-size: 0.9rem; letter-spacing: 0.1em; }
+        @media (max-width: 768px) {
+            header { padding: 3rem 1rem 2rem; }
+            main { padding: 0 1rem; }
+            .photo-collage { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <nav><a href="index.html">← 一人旅トップへ</a></nav>
+    <header>
+        <h1>乾いた大地のモザイク</h1>
+        <div class="journey-meta-header">
+            <span class="tag os">海外</span>
+            <span>[スペイン]</span>
+            <span>18 章 / 130 枚</span>
+        </div>
+        <p class="journey-intro">夏の終わりのスペインを、八日間ほど歩きました。ローマ水道橋のそびえるセゴビア、塔のあるトレド、白い壁のアンダルシア、そしてガウディの曲線が走るバルセロナ。土地ごとに石の色も、空の高さも違いました。乾いた風と、深い影と、夕方になっても帰らない太陽の話を、少し書こうと思います。</p>
+    </header>
+    <main>
+        <article class="chapter">
+            <h2 class="chapter-title">セゴビアの朝</h2>
+            <p class="chapter-time">2019-08-31 08:12 – 09:14</p>
+            <p class="chapter-text">朝の光のなか、ローマ時代の水道橋が街の上に浮かんでいました。二千年前の石組みが今も生活の背景になっていることに、しずかな驚きを覚えました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733858013&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733858013&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733858735&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733858735&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733859426&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733859426&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733860064&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733860064&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733860642&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733860642&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733861324&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733861324&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733861863&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733861863&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733862468&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733862468&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">城と路地</h2>
+            <p class="chapter-time">2019-08-31 10:30 – 11:15</p>
+            <p class="chapter-text">アルカサル周辺を歩きました。塔から見下ろす赤い屋根の集まり。観光地でありながら、人々の朝食の匂いが路地にこぼれていました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733862946&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733862946&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733863572&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733863572&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733864213&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733864213&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733864858&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733864858&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733865636&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733865636&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733866144&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733866144&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733867213&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733867213&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">トレドへ</h2>
+            <p class="chapter-time">2019-08-31 16:04 – 18:07</p>
+            <p class="chapter-text">午後にトレドへ移動。三つの宗教が混じった旧市街は迷路のようで、坂と石階段ばかりでした。汗ばんだ背中に、教会の冷気がよく効きました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733867668&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733867668&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733868184&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733868184&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733868724&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733868724&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733869462&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733869462&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733870199&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733870199&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733870855&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733870855&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733871486&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733871486&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733872041&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733872041&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">夕暮れの食卓</h2>
+            <p class="chapter-time">2019-08-31 20:17 – 20:48</p>
+            <p class="chapter-text">夕方、テラス席でタパスを取りました。オリーブ、生ハム、トマトのパン。素材そのままの味と、長い夕方の光が一緒に皿の上にありました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733872655&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733872655&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733873384&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733873384&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733873819&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733873819&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">コルドバの祈り</h2>
+            <p class="chapter-time">2019-09-01 08:54 – 11:48</p>
+            <p class="chapter-text">コルドバのメスキータへ。赤白縞のアーチが森のように続きます。イスラームの祈りの場が、のちにキリスト教会になった層が、柱の一本ごとに見えました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733874844&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733874844&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733875368&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733875368&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733876039&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733876039&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733876953&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733876953&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733877453&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733877453&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733878521&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733878521&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733879103&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733879103&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733879490&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733879490&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">白い路地</h2>
+            <p class="chapter-time">2019-09-01 13:51 – 14:08</p>
+            <p class="chapter-text">ユダヤ人街の白漆喰の路地を歩きました。窓辺の植木鉢、青い小皿。観光のための景色ではなく、人が日々塗り直してきた壁でした。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733879819&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733879819&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733880307&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733880307&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733880758&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733880758&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733881283&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733881283&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733881818&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733881818&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">アルハンブラ</h2>
+            <p class="chapter-time">2019-09-01 15:15 – 16:39</p>
+            <p class="chapter-text">グラナダ、アルハンブラ宮殿。アラベスク模様の細密さに目が離せませんでした。緻密な幾何が、信仰のかたちでもあったのだと知りました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733882423&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733882423&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733883152&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733883152&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733883748&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733883748&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733884403&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733884403&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733885018&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733885018&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733885958&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733885958&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733886417&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733886417&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733887360&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733887360&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">ナスル朝の影</h2>
+            <p class="chapter-time">2019-09-01 18:52 – 20:13</p>
+            <p class="chapter-text">宮殿の中庭、池に空が映り込みます。乾いた土地に水を引くこと自体が贅沢であり、祈りでもあったのでしょう。影と風がよく考えられた空間でした。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733888012&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733888012&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733888684&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733888684&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733889383&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733889383&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733890049&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733890049&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733890569&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733890569&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733891149&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733891149&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">アンダルシアの白</h2>
+            <p class="chapter-time">2019-09-02 11:08 – 14:18</p>
+            <p class="chapter-text">アンダルシアの白い村を巡りました。坂の上の十字架、青いタイル、洗濯物。観光客の少ない時間に歩くと、村は息をしているようでした。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733891831&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733891831&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733892579&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733892579&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733893349&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733893349&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733894004&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733894004&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733895317&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733895317&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733895867&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733895867&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733896573&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733896573&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733897116&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733897116&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">セビリアの華</h2>
+            <p class="chapter-time">2019-09-03 08:27 – 12:25</p>
+            <p class="chapter-text">セビリアのスペイン広場。半円のタイルベンチに、各州の絵が並びます。フラメンコのリズムが街角からふと漏れて、夏の終わりを引き伸ばしました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733897522&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733897522&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733897994&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733897994&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733898603&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733898603&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733899270&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733899270&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733900259&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733900259&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733900961&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733900961&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733901560&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733901560&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733902241&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733902241&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">教会と広場</h2>
+            <p class="chapter-time">2019-09-04 07:47 – 11:11</p>
+            <p class="chapter-text">セビリアの大聖堂とヒラルダの塔。観光と祈りが同じ建物の中で並んでいます。ガイドの声と、信徒のろうそくの炎を、私は等距離で見ていました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733903251&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733903251&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733903789&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733903789&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733904437&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733904437&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733905044&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733905044&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733905588&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733905588&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733906361&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733906361&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733907154&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733907154&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733907838&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733907838&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">南の昼下がり</h2>
+            <p class="chapter-time">2019-09-04 13:00 – 16:02</p>
+            <p class="chapter-text">正午過ぎ、街は半ば眠ります。シエスタの習慣が今も残っていて、誰もいない通りに自分の影だけが長く伸びていました。何もない時間も旅の一部でした。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733908410&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733908410&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733909046&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733909046&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733909649&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733909649&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733910333&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733910333&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733910959&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733910959&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733911606&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733911606&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733912245&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733912245&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733912918&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733912918&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">夕方の路地</h2>
+            <p class="chapter-time">2019-09-04 17:07 – 17:19</p>
+            <p class="chapter-text">夕方、街が再び動き始めます。テラスにビールが並び、笑い声が階段を駆け上がっていきました。南欧の夜は遅く、急がないリズムが心地よかったです。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733913616&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733913616&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733914247&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733914247&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733914727&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733914727&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733915376&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733915376&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733915868&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733915868&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">夜のタパス</h2>
+            <p class="chapter-time">2019-09-04 20:02 – 20:11</p>
+            <p class="chapter-text">バルでタパスをはしご。指さしで注文し、立ったまま食べます。会話を交わさなくても、隣の人の食べ方を見ているだけで街に馴染んだ気がしました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733916770&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733916770&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733917394&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733917394&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733918244&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733918244&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733918939&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733918939&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733920331&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733920331&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733920864&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733920864&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733921715&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733921715&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733922229&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733922229&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">バルセロナへ</h2>
+            <p class="chapter-time">2019-09-05 08:47 – 12:22</p>
+            <p class="chapter-text">夜行を経てバルセロナ。海と山に挟まれた街は、空気の色が違いました。モデルニスモの曲線が、石造りの古い街にやわらかい亀裂を入れていました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733922757&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733922757&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733923382&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733923382&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733923984&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733923984&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733924363&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733924363&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733924722&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733924722&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733925242&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733925242&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733925744&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733925744&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733926382&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733926382&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">ガウディの森</h2>
+            <p class="chapter-time">2019-09-05 14:21 – 17:06</p>
+            <p class="chapter-text">サグラダ・ファミリアへ。中に入ると、柱が樹木のように天井を支えていました。光が色ガラスを通って床に落ち、教会というより森の朝のようでした。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733927001&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733927001&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733927502&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733927502&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733927961&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733927961&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733928459&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733928459&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733928822&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733928822&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733929243&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733929243&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733929738&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733929738&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733930286&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733930286&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">グエル公園</h2>
+            <p class="chapter-time">2019-09-06 08:40 – 11:27</p>
+            <p class="chapter-text">グエル公園のモザイクベンチに腰掛けました。砕いたタイルが幾何ではなく流れになっています。失敗を歓迎する設計のようで、少しほっとしました。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733930865&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733930865&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733931465&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733931465&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733931986&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733931986&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733932519&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733932519&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733933261&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733933261&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733933778&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733933778&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733934546&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733934546&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733935087&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733935087&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+        <article class="chapter">
+            <h2 class="chapter-title">海辺の最終日</h2>
+            <p class="chapter-time">2019-09-07 09:53 – 13:58</p>
+            <p class="chapter-text">最終日、バルセロネータの海辺へ。地中海の青はあっけらかんとしていました。乾いた大地と祈りと曲線。スペインは決して一色では語れない国でした。</p>
+            <div class="photo-collage">
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733935701&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733935701&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733936271&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733936271&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733936920&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733936920&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733937452&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733937452&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733937900&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733937900&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733938544&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733938544&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733939136&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733939136&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            <div class="photo-item" onclick="openLb('https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733939459&type=auto&crop=0&size=1280x1280')"><img src="https://apitok2.pcloud.com/getpubthumb?code=kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk&fileid=87733939459&type=auto&crop=0&size=480x480" loading="lazy" alt=""></div>
+            </div>
+        </article>
+
+        <p class="outro">石組みと水と、白漆喰と曲線。スペインは層になって私の中に積もっていきました。夏の終わりの長い影を、しばらく忘れないと思います。</p>
+    </main>
+    <footer>
+        <p><a href="index.html">← 一人旅トップへ</a></p>
+    </footer>
+    <div class="lightbox" id="lb" onclick="closeLb()"><div class="close">close ✕</div><img id="lbimg" alt=""></div>
+    <script>
+        function openLb(url){document.getElementById('lbimg').src=url;document.getElementById('lb').classList.add('open');}
+        function closeLb(){document.getElementById('lb').classList.remove('open');}
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); });
+    </script>
+</body>
+</html>
