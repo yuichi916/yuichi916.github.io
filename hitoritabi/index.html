@@ -68,7 +68,9 @@
       ]
     }
     </script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
@@ -200,26 +202,6 @@
             background: rgba(255, 255, 255, 0.4);
             border: 1px solid var(--washi-gray-sakura);
             border-radius: 4px;
-        }
-
-        .map-svg {
-            width: 100%;
-            height: auto;
-            display: none;
-        }
-
-        .map-svg.active {
-            display: block;
-        }
-
-        .map-marker {
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .map-marker:hover {
-            transform: scale(1.2);
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
         }
 
         /* 旅のカード（コラージュ風） */
@@ -371,9 +353,32 @@
         }
     
         .journey-card .card-cover { width: calc(100% + 3.6rem); height: 160px; background-size: cover; background-position: center; margin: -1.8rem -1.8rem 1.2rem -1.8rem; border-bottom: 1px solid var(--washi-gray-sakura); }
-        .map-svg.world-svg { aspect-ratio: 1400/700; }
-        .map-svg.japan-svg { aspect-ratio: 400/800; max-height: 700px; margin: 0 auto; display: none; }
-        .map-svg.japan-svg.active { display: block; }
+        /* Leaflet マップ */
+        .leaflet-map { width: 100%; height: 540px; display: none; border-radius: 4px; background: var(--washi-ivory); }
+        .leaflet-map.active { display: block; }
+        .journey-tooltip-label {
+            background: rgba(46,42,38,0.92) !important;
+            color: var(--washi-ivory) !important;
+            border: none !important;
+            border-radius: 3px !important;
+            padding: 0.25rem 0.65rem !important;
+            font-family: 'Klee One', serif !important;
+            font-size: 0.85rem !important;
+            font-weight: 500 !important;
+            letter-spacing: 0.05em !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+        }
+        .journey-tooltip-label::before { display: none; }
+        .leaflet-container { font-family: 'Zen Maru Gothic', sans-serif; }
+        .leaflet-popup-content-wrapper { border-radius: 4px; }
+        .leaflet-control-attribution { font-size: 0.7rem; opacity: 0.7; }
+        .leaflet-marker-icon.journey-pin {
+            background: var(--accent-red); border: 2px solid var(--washi-ivory);
+            border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+            transition: transform 0.18s ease;
+        }
+        .leaflet-marker-icon.journey-pin.overseas { background: var(--accent-blue); }
+        .leaflet-marker-icon.journey-pin:hover { transform: scale(1.25); z-index: 999 !important; }
 
     </style>
 </head>
@@ -394,458 +399,8 @@
         </div>
 
         <div class="map-container">
-            <!-- 世界地図 - Natural Earthの簡易版を使用 -->
-            <svg class="map-svg world-svg active" id="world-map" viewBox="0 0 1400 700" xmlns="http://www.w3.org/2000/svg">
-                <style>.country { fill:#e8e4e1; stroke:#9d9890; stroke-width:0.6; opacity:0.55; } .ocean { fill:#f6f4ef; }</style>
-                <rect class="ocean" width="1400" height="700"/>
-                <g class="countries">
-                    <path class="country" d="M170,140 L210,130 L260,125 L310,135 L355,150 L385,180 L395,225 L385,265 L355,290 L320,305 L275,310 L230,300 L195,275 L175,240 L168,200 Z M220,310 L250,315 L275,330 L285,355 L275,380 L255,395 L225,395 L205,380 L195,355 L200,330 Z"/>
-                    <path class="country" d="M310,365 L340,355 L370,365 L390,395 L400,440 L395,490 L380,540 L355,565 L325,575 L295,565 L280,540 L275,500 L280,460 L290,420 L300,390 Z"/>
-                    <path class="country" d="M640,150 L670,145 L705,150 L735,165 L755,185 L760,210 L750,230 L730,245 L705,250 L675,248 L650,238 L635,218 L632,195 L635,170 Z"/>
-                    <path class="country" d="M670,255 L700,250 L735,260 L765,280 L788,310 L800,355 L800,400 L788,450 L760,485 L725,505 L685,510 L650,500 L625,475 L612,435 L612,390 L620,345 L640,305 L660,275 Z"/>
-                    <path class="country" d="M755,235 L780,232 L800,238 L815,255 L818,275 L808,290 L788,295 L768,290 L755,275 L753,255 Z"/>
-                    <path class="country" d="M770,140 L820,135 L880,135 L940,138 L1000,145 L1055,160 L1095,180 L1115,205 L1115,235 L1095,255 L1065,265 L1025,265 L985,260 L935,250 L885,240 L835,232 L795,228 L775,218 L770,195 Z"/>
-                    <path class="country" d="M870,265 L905,262 L935,275 L955,295 L962,320 L955,340 L935,355 L905,358 L875,350 L860,330 L858,305 L862,280 Z"/>
-                    <path class="country" d="M965,310 L995,308 L1020,318 L1035,335 L1032,355 L1015,370 L990,375 L970,365 L962,345 Z M1040,355 L1062,352 L1075,360 L1078,378 L1068,390 L1050,392 L1038,382 Z"/>
-                    <path class="country" d="M1130,225 L1148,222 L1160,230 L1167,245 L1170,265 L1165,282 L1153,290 L1140,287 L1128,278 L1122,260 L1122,240 Z"/>
-                    <path class="country" d="M1075,455 L1110,452 L1150,455 L1190,463 L1218,478 L1235,500 L1240,525 L1232,548 L1212,565 L1180,575 L1145,575 L1110,568 L1085,553 L1070,530 L1062,505 L1068,480 Z"/>
-                    <path class="country" d="M1238,560 L1252,558 L1262,570 L1262,587 L1255,598 L1240,600 L1228,592 L1226,576 Z"/>
-                </g>
-                <g class="map-marker" data-journey="sandiego" transform="translate(235, 220)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">サンディエゴ</text>
-                </g>
-                <g class="map-marker" data-journey="vegas" transform="translate(245, 230)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="-22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">ラスベガス</text>
-                </g>
-                <g class="map-marker" data-journey="canada" transform="translate(260, 175)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">カナダ</text>
-                </g>
-                <g class="map-marker" data-journey="italy_benelux" transform="translate(685, 215)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">イタリア</text>
-                </g>
-                <g class="map-marker" data-journey="spain" transform="translate(635, 235)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="-22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">スペイン</text>
-                </g>
-                <g class="map-marker" data-journey="france_swiss" transform="translate(665, 200)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">フランス・スイス</text>
-                </g>
-                <g class="map-marker" data-journey="croatia" transform="translate(700, 230)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="32" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">クロアチア</text>
-                </g>
-                <g class="map-marker" data-journey="slovenia" transform="translate(695, 215)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="-32" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">スロヴェニア</text>
-                </g>
-                <g class="map-marker" data-journey="turkey" transform="translate(745, 245)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">トルコ</text>
-                </g>
-                <g class="map-marker" data-journey="egypt" transform="translate(720, 295)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">エジプト</text>
-                </g>
-                <g class="map-marker" data-journey="jordan_israel" transform="translate(745, 275)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="-22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">ヨル・イスラエル</text>
-                </g>
-                <g class="map-marker" data-journey="indonesia" transform="translate(1020, 380)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">インドネシア</text>
-                </g>
-                <g class="map-marker" data-journey="thailand" transform="translate(985, 320)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">タイ</text>
-                </g>
-                <g class="map-marker" data-journey="vietnam" transform="translate(1010, 305)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="-22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">ベトナム</text>
-                </g>
-                <g class="map-marker" data-journey="cambodia" transform="translate(1000, 335)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="28" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">カンボジア</text>
-                </g>
-                <g class="map-marker" data-journey="malaysia_taiwan" transform="translate(1045, 350)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="28" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">マレ・台</text>
-                </g>
-                <g class="map-marker" data-journey="shanghai" transform="translate(1085, 280)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">上海</text>
-                </g>
-                <g class="map-marker" data-journey="australia" transform="translate(1145, 510)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">オーストラリア</text>
-                </g>
-                <g class="map-marker" data-journey="newzealand" transform="translate(1240, 580)">
-                    <circle r="8" fill="#6b8a99" opacity="0.2"/>
-                    <circle r="5" fill="#6b8a99"/>
-                    <circle r="9" fill="none" stroke="#6b8a99" stroke-width="1.6" opacity="0.4">
-                        <animate attributeName="r" values="9;13;9" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text y="22" text-anchor="middle" font-family="Klee One" font-size="13" fill="#5a5550" font-weight="500">NZ</text>
-                </g>
-            </svg>
-
-            <!-- 日本地図 - 都道府県境界を含む詳細版 -->
-            <svg class="map-svg japan-svg" id="japan-map" viewBox="0 0 400 650" xmlns="http://www.w3.org/2000/svg">
-                <style>
-                    .prefecture { fill: #e8e4e1; stroke: #9d9890; stroke-width: 0.4; opacity: 0.35; }
-                    .sea { fill: #f6f4ef; }
-                
-        .journey-card .card-cover { width: calc(100% + 3.6rem); height: 160px; background-size: cover; background-position: center; margin: -1.8rem -1.8rem 1.2rem -1.8rem; border-bottom: 1px solid var(--washi-gray-sakura); }
-        .map-svg.world-svg { aspect-ratio: 1400/700; }
-        .map-svg.japan-svg { aspect-ratio: 400/800; max-height: 700px; margin: 0 auto; display: none; }
-        .map-svg.japan-svg.active { display: block; }
-
-    </style>
-                
-                <rect class="sea" width="400" height="650"/>
-                
-                <!-- 都道府県別の詳細な日本地図 -->
-                <g class="prefectures">
-                    <!-- 北海道 -->
-                    <path class="prefecture" d="M 230,45 L 250,42 L 270,43 L 290,47 L 308,55 L 322,68 L 330,85 L 333,102 L 330,118 L 320,130 L 303,138 L 283,142 L 263,142 L 245,137 L 232,128 L 225,115 L 222,98 L 223,80 L 226,63 Z"/>
-                    
-                    <!-- 青森 -->
-                    <path class="prefecture" d="M 240,152 L 255,150 L 268,153 L 275,163 L 278,178 L 275,193 L 267,202 L 255,205 L 243,203 L 237,193 L 235,178 L 237,163 Z"/>
-                    
-                    <!-- 岩手 -->
-                    <path class="prefecture" d="M 255,207 L 268,209 L 278,216 L 283,230 L 283,248 L 278,263 L 268,272 L 255,274 L 245,270 L 240,258 L 240,242 L 243,227 Z"/>
-                    
-                    <!-- 宮城 -->
-                    <path class="prefecture" d="M 255,276 L 267,278 L 276,286 L 280,298 L 278,312 L 270,322 L 258,325 L 248,321 L 245,309 L 247,294 Z"/>
-                    
-                    <!-- 秋田 -->
-                    <path class="prefecture" d="M 232,208 L 243,210 L 252,218 L 255,233 L 253,250 L 247,265 L 237,272 L 227,270 L 220,260 L 218,245 L 220,228 Z"/>
-                    
-                    <!-- 山形 -->
-                    <path class="prefecture" d="M 237,274 L 248,277 L 257,285 L 258,300 L 255,315 L 247,325 L 237,327 L 228,322 L 225,308 L 227,293 Z"/>
-                    
-                    <!-- 福島 -->
-                    <path class="prefecture" d="M 247,327 L 258,330 L 267,339 L 268,354 L 264,368 L 254,377 L 242,378 L 233,372 L 230,358 L 232,343 Z"/>
-                    
-                    <!-- 新潟 -->
-                    <path class="prefecture" d="M 220,275 L 230,278 L 238,288 L 240,305 L 238,323 L 232,338 L 222,345 L 210,344 L 202,335 L 200,318 L 203,300 L 210,285 Z"/>
-                    
-                    <!-- 群馬 -->
-                    <path class="prefecture" d="M 242,380 L 253,383 L 261,391 L 262,403 L 257,413 L 247,418 L 237,416 L 232,408 L 232,395 Z"/>
-                    
-                    <!-- 栃木 -->
-                    <path class="prefecture" d="M 253,363 L 264,365 L 272,373 L 273,386 L 268,397 L 258,402 L 248,400 L 243,391 L 244,378 Z"/>
-                    
-                    <!-- 茨城 -->
-                    <path class="prefecture" d="M 263,398 L 273,400 L 282,409 L 284,423 L 280,436 L 270,443 L 258,443 L 250,437 L 250,423 L 255,410 Z"/>
-                    
-                    <!-- 千葉 -->
-                    <path class="prefecture" d="M 270,445 L 280,447 L 290,456 L 292,470 L 288,482 L 277,488 L 265,487 L 258,479 L 258,465 L 263,453 Z"/>
-                    
-                    <!-- 埼玉 -->
-                    <path class="prefecture" d="M 247,420 L 258,423 L 267,431 L 268,444 L 263,455 L 253,460 L 243,458 L 237,449 L 237,436 Z"/>
-                    
-                    <!-- 東京 -->
-                    <path class="prefecture" d="M 253,462 L 263,464 L 271,472 L 272,483 L 267,492 L 257,496 L 248,493 L 244,485 L 245,473 Z"/>
-                    
-                    <!-- 神奈川 -->
-                    <path class="prefecture" d="M 243,495 L 253,497 L 262,504 L 263,514 L 258,522 L 248,525 L 239,522 L 236,514 L 237,504 Z"/>
-                    
-                    <!-- 山梨 -->
-                    <path class="prefecture" d="M 232,418 L 243,421 L 251,430 L 252,443 L 247,455 L 237,460 L 227,458 L 222,449 L 222,436 Z"/>
-                    
-                    <!-- 静岡 -->
-                    <path class="prefecture" d="M 227,460 L 238,463 L 248,472 L 250,487 L 247,502 L 237,512 L 223,515 L 212,510 L 208,497 L 210,482 L 217,470 Z"/>
-                    
-                    <!-- 長野 -->
-                    <path class="prefecture" d="M 210,347 L 222,350 L 232,360 L 235,377 L 233,395 L 227,410 L 217,418 L 205,418 L 195,410 L 192,395 L 195,378 L 202,363 Z"/>
-                    
-                    <!-- 岐阜 -->
-                    <path class="prefecture" d="M 205,420 L 217,423 L 227,433 L 228,448 L 223,461 L 212,467 L 200,466 L 192,458 L 190,445 L 193,433 Z"/>
-                    
-                    <!-- 愛知 -->
-                    <path class="prefecture" d="M 200,468 L 212,471 L 223,480 L 225,494 L 220,507 L 208,512 L 196,510 L 189,501 L 189,487 Z"/>
-                    
-                    <!-- 三重 -->
-                    <path class="prefecture" d="M 208,514 L 219,517 L 228,527 L 228,541 L 222,553 L 210,557 L 199,553 L 194,542 L 195,528 Z"/>
-                    
-                    <!-- 富山 -->
-                    <path class="prefecture" d="M 195,330 L 206,333 L 215,342 L 216,355 L 211,366 L 201,371 L 191,369 L 186,360 L 186,347 Z"/>
-                    
-                    <!-- 石川 -->
-                    <path class="prefecture" d="M 186,372 L 196,375 L 205,384 L 205,398 L 200,410 L 189,415 L 179,413 L 174,404 L 174,390 Z"/>
-                    
-                    <!-- 福井 -->
-                    <path class="prefecture" d="M 189,417 L 200,420 L 209,429 L 209,443 L 203,455 L 192,460 L 182,458 L 177,448 L 178,434 Z"/>
-                    
-                    <!-- 滋賀 -->
-                    <path class="prefecture" d="M 192,462 L 203,465 L 212,474 L 212,487 L 206,498 L 195,502 L 185,499 L 181,489 L 182,476 Z"/>
-                    
-                    <!-- 京都 -->
-                    <path class="prefecture" d="M 185,501 L 196,504 L 206,513 L 206,526 L 200,537 L 189,541 L 179,538 L 175,528 L 176,515 Z"/>
-                    
-                    <!-- 大阪 -->
-                    <path class="prefecture" d="M 189,543 L 199,545 L 208,553 L 208,564 L 202,573 L 192,576 L 183,573 L 179,564 L 180,553 Z"/>
-                    
-                    <!-- 兵庫 -->
-                    <path class="prefecture" d="M 170,520 L 181,523 L 191,533 L 192,548 L 186,561 L 175,567 L 163,565 L 157,555 L 158,540 Z"/>
-                    
-                    <!-- 奈良 -->
-                    <path class="prefecture" d="M 192,578 L 202,580 L 211,589 L 211,601 L 205,611 L 194,614 L 184,611 L 180,601 L 181,589 Z"/>
-                    
-                    <!-- 和歌山 -->
-                    <path class="prefecture" d="M 184,613 L 194,616 L 203,626 L 203,641 L 196,652 L 184,655 L 173,651 L 168,640 L 169,626 Z"/>
-                    
-                    <!-- 鳥取 -->
-                    <path class="prefecture" d="M 152,510 L 163,513 L 173,522 L 174,536 L 168,548 L 157,553 L 147,551 L 142,541 L 143,527 Z"/>
-                    
-                    <!-- 島根 -->
-                    <path class="prefecture" d="M 135,525 L 146,528 L 156,538 L 157,552 L 151,565 L 140,570 L 129,568 L 124,558 L 125,544 Z"/>
-                    
-                    <!-- 岡山 -->
-                    <path class="prefecture" d="M 157,555 L 168,558 L 178,568 L 179,583 L 173,596 L 162,601 L 151,599 L 146,589 L 147,574 Z"/>
-                    
-                    <!-- 広島 -->
-                    <path class="prefecture" d="M 140,572 L 151,575 L 162,585 L 163,600 L 157,613 L 145,618 L 133,616 L 128,606 L 129,591 Z"/>
-                    
-                    <!-- 山口 -->
-                    <path class="prefecture" d="M 125,608 L 136,611 L 146,621 L 147,636 L 141,648 L 129,652 L 118,649 L 113,639 L 115,624 Z"/>
-                    
-                    <!-- 徳島 -->
-                    <path class="prefecture" d="M 173,615 L 184,618 L 194,628 L 195,642 L 189,654 L 177,658 L 166,655 L 162,645 L 163,631 Z"/>
-                    
-                    <!-- 香川 -->
-                    <path class="prefecture" d="M 162,603 L 173,606 L 183,615 L 183,628 L 177,638 L 166,642 L 156,639 L 152,629 L 153,616 Z"/>
-                    
-                    <!-- 愛媛 -->
-                    <path class="prefecture" d="M 145,620 L 156,623 L 166,633 L 167,648 L 161,661 L 149,666 L 137,663 L 132,653 L 134,638 Z"/>
-                    
-                    <!-- 高知 -->
-                    <path class="prefecture" d="M 166,657 L 177,660 L 187,671 L 187,686 L 180,698 L 167,702 L 155,698 L 150,687 L 152,672 Z"/>
-                    
-                    <!-- 福岡 -->
-                    <path class="prefecture" d="M 110,641 L 121,644 L 131,654 L 132,668 L 126,680 L 114,685 L 103,682 L 98,672 L 100,658 Z"/>
-                    
-                    <!-- 佐賀 -->
-                    <path class="prefecture" d="M 98,674 L 108,677 L 117,686 L 117,698 L 111,708 L 100,711 L 90,708 L 86,698 L 88,685 Z"/>
-                    
-                    <!-- 長崎 -->
-                    <path class="prefecture" d="M 82,685 L 92,688 L 99,698 L 98,711 L 91,721 L 80,724 L 70,720 L 66,710 L 68,697 Z"/>
-                    
-                    <!-- 熊本 -->
-                    <path class="prefecture" d="M 100,713 L 111,716 L 121,727 L 122,743 L 116,757 L 104,762 L 92,759 L 87,748 L 89,733 Z"/>
-                    
-                    <!-- 大分 -->
-                    <path class="prefecture" d="M 114,687 L 125,690 L 135,701 L 136,717 L 130,731 L 118,736 L 107,733 L 102,722 L 104,707 Z"/>
-                    
-                    <!-- 宮崎 -->
-                    <path class="prefecture" d="M 118,738 L 129,741 L 140,753 L 141,771 L 135,787 L 122,793 L 110,789 L 105,777 L 107,761 Z"/>
-                    
-                    <!-- 鹿児島 -->
-                    <path class="prefecture" d="M 92,761 L 104,764 L 115,776 L 116,794 L 110,810 L 97,816 L 84,812 L 78,800 L 80,784 L 86,770 Z"/>
-                </g>
-                
-                <!-- 旅先マーカー（国内） -->
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                            <g class="map-marker" data-journey="tokyo" transform="translate(260, 410)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="0" y="18" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">東京近郊</text>
-                </g>
-                <g class="map-marker" data-journey="kamakura" transform="translate(255, 430)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="28" y="12" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">鎌倉湘南</text>
-                </g>
-                <g class="map-marker" data-journey="miura" transform="translate(262, 444)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="44" y="12" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">三浦</text>
-                </g>
-                <g class="map-marker" data-journey="izu" transform="translate(245, 490)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="0" y="-15" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">伊豆</text>
-                </g>
-                <g class="map-marker" data-journey="keiryu" transform="translate(270, 470)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="0" y="12" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">渓流</text>
-                </g>
-                <g class="map-marker" data-journey="kusatsu" transform="translate(227, 407)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="-22" y="12" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">草津</text>
-                </g>
-                <g class="map-marker" data-journey="matsushima" transform="translate(273, 305)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="22" y="12" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">松島</text>
-                </g>
-                <g class="map-marker" data-journey="tohoku" transform="translate(268, 228)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="-22" y="14" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">東北</text>
-                </g>
-                <g class="map-marker" data-journey="hiroshima" transform="translate(145, 608)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="-22" y="12" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">広島・倉敷・岡山</text>
-                </g>
-                <g class="map-marker" data-journey="shikoku" transform="translate(177, 648)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="25" y="12" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">四国</text>
-                </g>
-                <g class="map-marker" data-journey="beppu" transform="translate(125, 715)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="25" y="14" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">別府</text>
-                </g>
-                <g class="map-marker" data-journey="zoo" transform="translate(255, 408)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="0" y="10" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">動物園</text>
-                </g>
-                <g class="map-marker" data-journey="yakushima" transform="translate(155, 760)">
-                    <circle r="6.5" fill="#c25450" opacity="0.2"/>
-                    <circle r="4.2" fill="#c25450"/>
-                    <circle r="7" fill="none" stroke="#c25450" stroke-width="1.4" opacity="0.5">
-                        <animate attributeName="r" values="7;10;7" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <text x="25" y="14" text-anchor="middle" font-family="Klee One" font-size="11" fill="#5a5550" font-weight="500">屋久島</text>
-                </g>
-            </svg>
+            <div id="world-map-leaf" class="leaflet-map leaflet-world active"></div>
+            <div id="japan-map-leaf" class="leaflet-map leaflet-japan"></div>
         </div>
     </section>
 
@@ -1178,29 +733,99 @@
     </footer>
 
     <script>
-        // 地図切り替え
+        // 旅 slug → 緯度経度・ラベル
+        const overseasJourneys = [
+            { slug: 'sandiego', label: 'サンディエゴ', lat: 32.715, lon: -117.157 },
+            { slug: 'vegas', label: 'ラスベガス', lat: 36.175, lon: -115.137 },
+            { slug: 'canada', label: 'カナダ', lat: 49.283, lon: -123.119 },
+            { slug: 'italy_benelux', label: 'イタリア・ベネルクス', lat: 41.902, lon: 12.496 },
+            { slug: 'spain', label: 'スペイン', lat: 40.417, lon: -3.703 },
+            { slug: 'france_swiss', label: 'フランス・スイス', lat: 46.519, lon: 6.633 },
+            { slug: 'croatia', label: 'クロアチア', lat: 43.508, lon: 16.440 },
+            { slug: 'slovenia', label: 'スロヴェニア', lat: 46.051, lon: 14.506 },
+            { slug: 'turkey', label: 'トルコ', lat: 38.643, lon: 34.829 },
+            { slug: 'egypt', label: 'エジプト', lat: 29.978, lon: 31.135 },
+            { slug: 'jordan_israel', label: 'ヨルダン・イスラエル', lat: 30.328, lon: 35.444 },
+            { slug: 'indonesia', label: 'インドネシア', lat: -7.608, lon: 110.204 },
+            { slug: 'thailand', label: 'タイ', lat: 13.756, lon: 100.502 },
+            { slug: 'vietnam', label: 'ベトナム', lat: 20.951, lon: 107.040 },
+            { slug: 'cambodia', label: 'カンボジア', lat: 13.412, lon: 103.867 },
+            { slug: 'malaysia_taiwan', label: 'マレーシア・台湾', lat: 25.034, lon: 121.565 },
+            { slug: 'shanghai', label: '上海', lat: 31.230, lon: 121.474 },
+            { slug: 'australia', label: 'オーストラリア', lat: -33.857, lon: 151.215 },
+            { slug: 'newzealand', label: 'ニュージーランド', lat: -45.031, lon: 168.660 },
+        ];
+        const domesticJourneys = [
+            { slug: 'tokyo', label: '東京', lat: 35.681, lon: 139.766 },
+            { slug: 'kamakura', label: '鎌倉', lat: 35.319, lon: 139.547 },
+            { slug: 'miura', label: '三浦半島', lat: 35.144, lon: 139.622 },
+            { slug: 'izu', label: '伊豆', lat: 34.726, lon: 138.943 },
+            { slug: 'keiryu', label: '渓流', lat: 35.521, lon: 138.628 },
+            { slug: 'kusatsu', label: '草津温泉', lat: 36.622, lon: 138.595 },
+            { slug: 'matsushima', label: '松島', lat: 38.376, lon: 141.060 },
+            { slug: 'tohoku', label: '東北', lat: 39.708, lon: 141.155 },
+            { slug: 'hiroshima', label: '広島・倉敷・岡山', lat: 34.396, lon: 132.476 },
+            { slug: 'shikoku', label: '四国', lat: 34.073, lon: 134.554 },
+            { slug: 'beppu', label: '別府', lat: 33.279, lon: 131.500 },
+            { slug: 'zoo', label: '動物園', lat: 35.717, lon: 139.771 },
+            { slug: 'yakushima', label: '屋久島', lat: 30.366, lon: 130.508 },
+        ];
+
+        function makePin(j, region) {
+            const icon = L.divIcon({
+                className: `journey-pin ${region}`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8],
+            });
+            const m = L.marker([j.lat, j.lon], { icon, riseOnHover: true });
+            m.bindTooltip(j.label, {
+                permanent: true,
+                direction: 'top',
+                offset: [0, -8],
+                className: 'journey-tooltip-label',
+            });
+            m.on('click', () => { window.location.href = `journey-${j.slug}.html`; });
+            return m;
+        }
+
+        const cartoTile = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+        const cartoAttr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+        const worldMap = L.map('world-map-leaf', {
+            center: [25, 30], zoom: 2, minZoom: 2, maxZoom: 6,
+            scrollWheelZoom: false, worldCopyJump: true,
+        });
+        L.tileLayer(cartoTile, { attribution: cartoAttr, subdomains: 'abcd' }).addTo(worldMap);
+        overseasJourneys.forEach(j => makePin(j, 'overseas').addTo(worldMap));
+
+        const japanMap = L.map('japan-map-leaf', {
+            center: [37.0, 137.0], zoom: 5, minZoom: 4, maxZoom: 8,
+            scrollWheelZoom: false,
+        });
+        L.tileLayer(cartoTile, { attribution: cartoAttr, subdomains: 'abcd' }).addTo(japanMap);
+        domesticJourneys.forEach(j => makePin(j, 'domestic').addTo(japanMap));
+
+        // タブ切替
         const buttons = document.querySelectorAll('.map-toggle button');
         const cards = document.querySelectorAll('.journey-card');
-        const worldMap = document.getElementById('world-map');
-        const japanMap = document.getElementById('japan-map');
-        buttons.forEach(button => {
-            button.addEventListener('click', () => {
-                buttons.forEach(b => b.classList.remove('active'));
-                button.classList.add('active');
-                const region = button.dataset.region;
-                if (region === 'overseas') { worldMap.classList.add('active'); japanMap.classList.remove('active'); }
-                else if (region === 'domestic') { worldMap.classList.remove('active'); japanMap.classList.add('active'); }
-                else { worldMap.classList.add('active'); japanMap.classList.remove('active'); }
+        const wmEl = document.getElementById('world-map-leaf');
+        const jmEl = document.getElementById('japan-map-leaf');
+        function activateMap(region) {
+            if (region === 'domestic') { wmEl.classList.remove('active'); jmEl.classList.add('active'); setTimeout(() => japanMap.invalidateSize(), 0); }
+            else { wmEl.classList.add('active'); jmEl.classList.remove('active'); setTimeout(() => worldMap.invalidateSize(), 0); }
+        }
+        buttons.forEach(b => {
+            b.addEventListener('click', () => {
+                buttons.forEach(x => x.classList.remove('active'));
+                b.classList.add('active');
+                const region = b.dataset.region;
+                activateMap(region);
                 cards.forEach(card => {
                     if (region === 'all') card.classList.remove('hidden');
                     else if (card.dataset.region === region) card.classList.remove('hidden');
                     else card.classList.add('hidden');
                 });
             });
-        });
-        document.querySelectorAll('.map-marker').forEach(marker => {
-            const j = marker.dataset.journey;
-            if (j) { marker.style.cursor = 'pointer'; marker.addEventListener('click', () => location.href = `journey-${j}.html`); }
         });
     </script>
 </body>
