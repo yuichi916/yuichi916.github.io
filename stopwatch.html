@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Stopwatch — Views Engineer</title>
+  <meta name="description" content="高精度Webストップウォッチ - カウントダウン、世界時計、JSON出力対応のエンジニア向けタイマー">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="canonical" href="https://yuichi916.github.io/stopwatch.html">
+  <meta property="og:title" content="Web Stopwatch — Views Engineer">
+  <meta property="og:description" content="エンジニア向け高精度タイマー - ストップウォッチ/カウントダウン/世界時計">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://yuichi916.github.io/stopwatch.html">
+  <meta property="og:image" content="https://yuichi916.github.io/assets/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Web Stopwatch">
+  <meta name="twitter:description" content="高精度タイマー with JSON Export">
+  <meta name="twitter:image" content="https://yuichi916.github.io/assets/og-image.png">
+  <meta name="robots" content="index, follow">
+  <style>
+    :root {
+      --term-bg: #0d1117;
+      --term-fg: #c9d1d9;
+      --term-dim: #8b949e;
+      --term-green: #7ee787;
+      --term-yellow: #f4d03f;
+      --term-red: #ff7b72;
+      --term-blue: #79c0ff;
+      --term-border: #21262d;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Courier New', monospace;
+      background: var(--term-bg);
+      color: var(--term-fg);
+      min-height: 100vh;
+      padding: 2rem;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--term-border);
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      color: var(--term-green);
+      font-weight: 400;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    .subtitle {
+      color: var(--term-dim);
+      font-size: 14px;
+      letter-spacing: 0.1em;
+    }
+
+    .nav {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-top: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .nav a {
+      color: var(--term-dim);
+      text-decoration: none;
+      font-size: 13px;
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--term-border);
+      transition: all 0.2s;
+    }
+
+    .nav a:hover {
+      border-color: var(--term-green);
+      color: var(--term-fg);
+    }
+
+    .terminal {
+      background: var(--term-bg);
+      border: 1px solid var(--term-border);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      margin-bottom: 2rem;
+    }
+
+    .terminal-header {
+      background: var(--term-border);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--term-border);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--term-dim);
+    }
+
+    .dot.red { background: var(--term-red); }
+    .dot.yellow { background: var(--term-yellow); }
+    .dot.green { background: var(--term-green); }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+      color: var(--term-dim);
+      letter-spacing: 0.05em;
+    }
+
+    .terminal-body {
+      padding: 2rem;
+    }
+
+    .mode-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      padding: 0.6rem 1.2rem;
+      background: transparent;
+      color: var(--term-dim);
+      border: 1px solid var(--term-border);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+    }
+
+    .tab:hover {
+      border-color: var(--term-green);
+      color: var(--term-fg);
+    }
+
+    .tab.active {
+      background: var(--term-green);
+      color: var(--term-bg);
+      border-color: var(--term-green);
+    }
+
+    .display-large {
+      font-size: clamp(2.5rem, 8vw, 4.5rem);
+      font-weight: 400;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.05em;
+      color: var(--term-green);
+      margin: 2rem 0;
+      text-shadow: 0 0 20px rgba(126, 231, 135, 0.2);
+      min-height: 5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      margin: 2rem 0;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: transparent;
+      color: var(--term-fg);
+      border: 1px solid var(--term-border);
+      padding: 0.75rem 1.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+      font-size: 13px;
+      min-width: 100px;
+    }
+
+    .btn:hover {
+      border-color: var(--term-green);
+      background: rgba(126, 231, 135, 0.1);
+    }
+
+    .btn.primary {
+      border-color: var(--term-green);
+      color: var(--term-green);
+    }
+
+    .btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      border-color: var(--term-border);
+    }
+
+    .btn:disabled:hover {
+      border-color: var(--term-border);
+      background: transparent;
+    }
+
+    .countdown-presets {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .preset {
+      padding: 0.5rem 1rem;
+      background: transparent;
+      color: var(--term-dim);
+      border: 1px solid var(--term-border);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+
+    .preset:hover {
+      border-color: var(--term-yellow);
+      color: var(--term-yellow);
+    }
+
+    .custom-input {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .custom-input input {
+      width: 70px;
+      padding: 0.5rem;
+      background: var(--term-bg);
+      border: 1px solid var(--term-border);
+      color: var(--term-fg);
+      font-family: inherit;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .custom-input input:focus {
+      outline: none;
+      border-color: var(--term-green);
+    }
+
+    .laps-container {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--term-border);
+      border-radius: 4px;
+      padding: 1rem;
+      margin-top: 2rem;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .laps-header {
+      font-size: 11px;
+      color: var(--term-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--term-border);
+    }
+
+    .lap-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(33, 38, 45, 0.5);
+      font-size: 13px;
+    }
+
+    .lap-item:last-child {
+      border-bottom: none;
+    }
+
+    .lap-item.fastest {
+      color: var(--term-green);
+    }
+
+    .lap-item.slowest {
+      color: var(--term-red);
+    }
+
+    .lap-number {
+      color: var(--term-dim);
+      min-width: 60px;
+    }
+
+    .lap-time {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .lap-delta {
+      font-size: 11px;
+      color: var(--term-dim);
+      margin-left: 1rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--term-dim);
+      font-size: 12px;
+      padding: 1.5rem;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .info-item {
+      padding: 1rem;
+      background: rgba(126, 231, 135, 0.05);
+      border-left: 2px solid var(--term-green);
+    }
+
+    .info-label {
+      font-size: 11px;
+      color: var(--term-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+
+    .info-value {
+      font-size: 14px;
+      color: var(--term-fg);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .json-export {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--term-border);
+      border-radius: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 12px;
+      color: var(--term-dim);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .export-status {
+      margin-top: 0.5rem;
+      text-align: center;
+      font-size: 11px;
+      color: var(--term-green);
+    }
+
+    .shortcuts {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--term-border);
+    }
+
+    .shortcuts h3 {
+      font-size: 13px;
+      color: var(--term-yellow);
+      margin-bottom: 1rem;
+      font-weight: 400;
+    }
+
+    .shortcut-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.75rem;
+      font-size: 12px;
+    }
+
+    .shortcut-item {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .key-combo {
+      color: var(--term-blue);
+      min-width: 60px;
+    }
+
+    .disclaimer {
+      background: rgba(255, 123, 114, 0.1);
+      border: 1px solid var(--term-border);
+      border-left: 3px solid var(--term-red);
+      padding: 1.5rem;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--term-dim);
+    }
+
+    .disclaimer h3 {
+      color: var(--term-red);
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    .disclaimer p {
+      margin-bottom: 0.5rem;
+    }
+
+    .disclaimer ul {
+      margin-left: 1.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .disclaimer li {
+      margin-bottom: 0.3rem;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 1rem;
+      }
+      
+      .terminal-body {
+        padding: 1rem;
+      }
+
+      .display-large {
+        font-size: 2rem;
+        min-height: 3.5rem;
+      }
+
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .header {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+      }
+    }
+
+    .laps-container::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .laps-container::-webkit-scrollbar-track {
+      background: rgba(0,0,0,0.2);
+    }
+
+    .laps-container::-webkit-scrollbar-thumb {
+      background: var(--term-border);
+      border-radius: 3px;
+    }
+
+    .laps-container::-webkit-scrollbar-thumb:hover {
+      background: var(--term-dim);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>Web Stopwatch</h1>
+      <p class="subtitle">High-Precision Timer with JSON Export</p>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a href="cabin.html">Cabin</a>
+        <a href="hitoritabi/">Hitoritabi</a>
+      </nav>
+    </header>
+
+    <div class="terminal">
+      <div class="terminal-header">
+        <div class="dot red"></div>
+        <div class="dot yellow"></div>
+        <div class="dot green"></div>
+        <div class="terminal-title">timer.sh — v1.0.0</div>
+      </div>
+
+      <div class="terminal-body">
+        <div class="mode-tabs">
+          <button class="tab active" data-mode="stopwatch">STOPWATCH</button>
+          <button class="tab" data-mode="countdown">COUNTDOWN</button>
+          <button class="tab" data-mode="clock">WORLD CLOCK</button>
+        </div>
+
+        <!-- Stopwatch Mode -->
+        <div id="stopwatch-mode">
+          <div class="display-large" id="stopwatch-display">00:00:00.000</div>
+          <div class="controls">
+            <button class="btn primary" id="sw-start">START</button>
+            <button class="btn" id="sw-lap" disabled>LAP</button>
+            <button class="btn" id="sw-reset">RESET</button>
+            <button class="btn" id="sw-export">EXPORT JSON</button>
+          </div>
+          <div class="laps-container hidden" id="laps-container">
+            <div class="laps-header">LAP TIMES</div>
+            <div id="laps-list" class="empty-state">ラップタイムなし</div>
+          </div>
+        </div>
+
+        <!-- Countdown Mode -->
+        <div id="countdown-mode" class="hidden">
+          <div class="countdown-presets">
+            <button class="preset" data-minutes="5">5 min</button>
+            <button class="preset" data-minutes="10">10 min</button>
+            <button class="preset" data-minutes="15">15 min</button>
+            <button class="preset" data-minutes="25">25 min</button>
+          </div>
+          <div class="custom-input">
+            <span>Custom:</span>
+            <input type="number" id="custom-min" placeholder="MM" min="0" max="999">
+            <span>:</span>
+            <input type="number" id="custom-sec" placeholder="SS" min="0" max="59">
+            <button class="btn" id="set-custom">SET</button>
+          </div>
+          <div class="display-large" id="countdown-display">00:00.000</div>
+          <div class="controls">
+            <button class="btn primary" id="cd-start">START</button>
+            <button class="btn" id="cd-reset">RESET</button>
+            <button class="btn" id="cd-export">EXPORT JSON</button>
+          </div>
+        </div>
+
+        <!-- Clock Mode -->
+        <div id="clock-mode" class="hidden">
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">Local Time</div>
+              <div class="info-value" id="local-time">--:--:--</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">UTC</div>
+              <div class="info-value" id="utc-time">--:--:--</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Unix Timestamp</div>
+              <div class="info-value" id="unix-time">----------</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">ISO 8601</div>
+              <div class="info-value" id="iso-time">----</div>
+            </div>
+          </div>
+          <div class="controls" style="margin-top: 2rem;">
+            <button class="btn" id="clock-export">EXPORT JSON</button>
+          </div>
+        </div>
+
+        <!-- JSON Export Area -->
+        <div class="json-export hidden" id="json-output"></div>
+        <div class="export-status hidden" id="export-status">✓ JSON copied to clipboard</div>
+
+        <!-- Shortcuts -->
+        <div class="shortcuts">
+          <h3>KEYBOARD SHORTCUTS</h3>
+          <div class="shortcut-list">
+            <div class="shortcut-item"><span class="key-combo">Space</span><span>Start / Stop</span></div>
+            <div class="shortcut-item"><span class="key-combo">L</span><span>Lap (Stopwatch)</span></div>
+            <div class="shortcut-item"><span class="key-combo">R</span><span>Reset</span></div>
+            <div class="shortcut-item"><span class="key-combo">E</span><span>Export JSON</span></div>
+            <div class="shortcut-item"><span class="key-combo">1-3</span><span>Switch Mode</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+      <h3>⚠ 免責事項 / DISCLAIMER</h3>
+      <p>本Webストップウォッチは、ブラウザのJavaScript実行環境に依存しており、以下の点にご注意ください：</p>
+      <ul>
+        <li>ミリ秒単位の精度は保証されません。ブラウザやデバイスの処理負荷により誤差が生じる可能性があります。</li>
+        <li>バックグラウンドタブでは、ブラウザの省電力機能により計測が不正確になる場合があります。</li>
+        <li>重要な時間計測（スポーツ競技、医療用途、法的効力を持つ記録等）には使用しないでください。</li>
+        <li>本ツールの使用により生じたいかなる損害についても、開発者は一切の責任を負いません。</li>
+        <li>エクスポートされるJSON形式は参考情報であり、公式な記録として使用できません。</li>
+      </ul>
+      <p style="margin-top: 0.75rem;">This web stopwatch depends on browser JavaScript execution and is provided "as is" without warranty of any kind. Do not use for critical timing applications.</p>
+    </div>
+  </div>
+
+  <script>
+    // State
+    const state = {
+      mode: 'stopwatch',
+      stopwatch: {
+        startTime: 0,
+        elapsed: 0,
+        interval: null,
+        running: false,
+        laps: []
+      },
+      countdown: {
+        targetTime: 0,
+        remaining: 0,
+        interval: null,
+        running: false
+      },
+      clock: {
+        interval: null
+      }
+    };
+
+    // DOM
+    const tabs = document.querySelectorAll('.tab');
+    const modes = {
+      stopwatch: document.getElementById('stopwatch-mode'),
+      countdown: document.getElementById('countdown-mode'),
+      clock: document.getElementById('clock-mode')
+    };
+
+    const swDisplay = document.getElementById('stopwatch-display');
+    const swStart = document.getElementById('sw-start');
+    const swLap = document.getElementById('sw-lap');
+    const swReset = document.getElementById('sw-reset');
+    const swExport = document.getElementById('sw-export');
+    const lapsContainer = document.getElementById('laps-container');
+    const lapsList = document.getElementById('laps-list');
+
+    const cdDisplay = document.getElementById('countdown-display');
+    const cdStart = document.getElementById('cd-start');
+    const cdReset = document.getElementById('cd-reset');
+    const cdExport = document.getElementById('cd-export');
+    const presets = document.querySelectorAll('.preset');
+    const customMin = document.getElementById('custom-min');
+    const customSec = document.getElementById('custom-sec');
+    const setCustom = document.getElementById('set-custom');
+
+    const localTime = document.getElementById('local-time');
+    const utcTime = document.getElementById('utc-time');
+    const unixTime = document.getElementById('unix-time');
+    const isoTime = document.getElementById('iso-time');
+    const clockExport = document.getElementById('clock-export');
+
+    const jsonOutput = document.getElementById('json-output');
+    const exportStatus = document.getElementById('export-status');
+
+    // Format functions
+    function formatMs(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const milliseconds = ms % 1000;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`;
+    }
+
+    function formatCountdown(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      const milliseconds = ms % 1000;
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`;
+    }
+
+    // Mode switching
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const mode = tab.dataset.mode;
+        switchMode(mode);
+      });
+    });
+
+    function switchMode(mode) {
+      state.mode = mode;
+      tabs.forEach(t => t.classList.remove('active'));
+      document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
+      Object.values(modes).forEach(m => m.classList.add('hidden'));
+      modes[mode].classList.remove('hidden');
+      jsonOutput.classList.add('hidden');
+      exportStatus.classList.add('hidden');
+
+      if (mode === 'clock') {
+        startClock();
+      } else {
+        stopClock();
+      }
+    }
+
+    // Stopwatch
+    function updateStopwatch() {
+      const elapsed = state.stopwatch.elapsed + (Date.now() - state.stopwatch.startTime);
+      swDisplay.textContent = formatMs(elapsed);
+    }
+
+    swStart.addEventListener('click', toggleStopwatch);
+    swLap.addEventListener('click', recordLap);
+    swReset.addEventListener('click', resetStopwatch);
+    swExport.addEventListener('click', () => exportJSON('stopwatch'));
+
+    function toggleStopwatch() {
+      if (state.stopwatch.running) {
+        clearInterval(state.stopwatch.interval);
+        state.stopwatch.elapsed += Date.now() - state.stopwatch.startTime;
+        state.stopwatch.running = false;
+        swStart.textContent = 'RESUME';
+        swLap.disabled = true;
+      } else {
+        state.stopwatch.startTime = Date.now();
+        state.stopwatch.interval = setInterval(updateStopwatch, 10);
+        state.stopwatch.running = true;
+        swStart.textContent = 'STOP';
+        swLap.disabled = false;
+      }
+    }
+
+    function recordLap() {
+      if (!state.stopwatch.running) return;
+      
+      const currentTime = state.stopwatch.elapsed + (Date.now() - state.stopwatch.startTime);
+      const lapTime = state.stopwatch.laps.length > 0 
+        ? currentTime - state.stopwatch.laps[state.stopwatch.laps.length - 1].total 
+        : currentTime;
+      
+      state.stopwatch.laps.push({
+        number: state.stopwatch.laps.length + 1,
+        lap: lapTime,
+        total: currentTime
+      });
+
+      renderLaps();
+    }
+
+    function renderLaps() {
+      if (state.stopwatch.laps.length === 0) {
+        lapsContainer.classList.add('hidden');
+        return;
+      }
+
+      lapsContainer.classList.remove('hidden');
+      
+      const lapTimes = state.stopwatch.laps.map(l => l.lap);
+      const fastest = Math.min(...lapTimes);
+      const slowest = Math.max(...lapTimes);
+
+      lapsList.innerHTML = state.stopwatch.laps.map((lap, index) => {
+        let className = 'lap-item';
+        if (state.stopwatch.laps.length > 1) {
+          if (lap.lap === fastest) className += ' fastest';
+          if (lap.lap === slowest) className += ' slowest';
+        }
+
+        const delta = index > 0 ? lap.lap - state.stopwatch.laps[index - 1].lap : 0;
+        const deltaStr = delta !== 0 ? 
+          `<span class="lap-delta">${delta > 0 ? '+' : ''}${formatMs(Math.abs(delta))}</span>` : '';
+
+        return `
+          <div class="${className}">
+            <span class="lap-number">Lap ${lap.number}</span>
+            <span>
+              <span class="lap-time">${formatMs(lap.lap)}</span>
+              ${deltaStr}
+            </span>
+          </div>
+        `;
+      }).reverse().join('');
+    }
+
+    function resetStopwatch() {
+      clearInterval(state.stopwatch.interval);
+      state.stopwatch.startTime = 0;
+      state.stopwatch.elapsed = 0;
+      state.stopwatch.running = false;
+      state.stopwatch.laps = [];
+      swDisplay.textContent = '00:00:00.000';
+      swStart.textContent = 'START';
+      swLap.disabled = true;
+      renderLaps();
+    }
+
+    // Countdown
+    presets.forEach(preset => {
+      preset.addEventListener('click', () => {
+        const minutes = parseInt(preset.dataset.minutes);
+        setCountdown(minutes * 60 * 1000);
+      });
+    });
+
+    setCustom.addEventListener('click', () => {
+      const min = parseInt(customMin.value) || 0;
+      const sec = parseInt(customSec.value) || 0;
+      setCountdown((min * 60 + sec) * 1000);
+    });
+
+    function setCountdown(ms) {
+      resetCountdown();
+      state.countdown.remaining = ms;
+      cdDisplay.textContent = formatCountdown(ms);
+    }
+
+    cdStart.addEventListener('click', toggleCountdown);
+    cdReset.addEventListener('click', resetCountdown);
+    cdExport.addEventListener('click', () => exportJSON('countdown'));
+
+    function updateCountdown() {
+      const elapsed = Date.now() - state.countdown.targetTime;
+      const remaining = Math.max(0, state.countdown.remaining - elapsed);
+      cdDisplay.textContent = formatCountdown(remaining);
+
+      if (remaining === 0) {
+        clearInterval(state.countdown.interval);
+        state.countdown.running = false;
+        cdStart.textContent = 'START';
+        cdDisplay.style.color = 'var(--term-red)';
+        setTimeout(() => {
+          cdDisplay.style.color = 'var(--term-green)';
+        }, 2000);
+      }
+    }
+
+    function toggleCountdown() {
+      if (state.countdown.running) {
+        clearInterval(state.countdown.interval);
+        state.countdown.remaining -= Date.now() - state.countdown.targetTime;
+        state.countdown.running = false;
+        cdStart.textContent = 'RESUME';
+      } else {
+        if (state.countdown.remaining === 0) return;
+        state.countdown.targetTime = Date.now();
+        state.countdown.interval = setInterval(updateCountdown, 10);
+        state.countdown.running = true;
+        cdStart.textContent = 'STOP';
+      }
+    }
+
+    function resetCountdown() {
+      clearInterval(state.countdown.interval);
+      state.countdown.targetTime = 0;
+      state.countdown.remaining = 0;
+      state.countdown.running = false;
+      cdDisplay.textContent = '00:00.000';
+      cdStart.textContent = 'START';
+    }
+
+    // Clock
+    function updateClock() {
+      const now = new Date();
+      localTime.textContent = now.toLocaleTimeString('ja-JP', { hour12: false });
+      utcTime.textContent = now.toUTCString().split(' ')[4];
+      unixTime.textContent = Math.floor(now.getTime() / 1000).toString();
+      isoTime.textContent = now.toISOString().split('T')[1].split('.')[0];
+    }
+
+    function startClock() {
+      updateClock();
+      state.clock.interval = setInterval(updateClock, 100);
+    }
+
+    function stopClock() {
+      clearInterval(state.clock.interval);
+    }
+
+    clockExport.addEventListener('click', () => exportJSON('clock'));
+
+    // JSON Export
+    function exportJSON(mode) {
+      let data = {};
+      const timestamp = new Date().toISOString();
+
+      if (mode === 'stopwatch') {
+        const elapsed = state.stopwatch.running 
+          ? state.stopwatch.elapsed + (Date.now() - state.stopwatch.startTime) 
+          : state.stopwatch.elapsed;
+        data = {
+          mode: 'stopwatch',
+          timestamp,
+          elapsed_ms: elapsed,
+          elapsed_formatted: formatMs(elapsed),
+          running: state.stopwatch.running,
+          laps: state.stopwatch.laps.map(lap => ({
+            number: lap.number,
+            lap_ms: lap.lap,
+            lap_formatted: formatMs(lap.lap),
+            total_ms: lap.total,
+            total_formatted: formatMs(lap.total)
+          }))
+        };
+      } else if (mode === 'countdown') {
+        const remaining = state.countdown.running 
+          ? Math.max(0, state.countdown.remaining - (Date.now() - state.countdown.targetTime)) 
+          : state.countdown.remaining;
+        data = {
+          mode: 'countdown',
+          timestamp,
+          remaining_ms: remaining,
+          remaining_formatted: formatCountdown(remaining),
+          running: state.countdown.running
+        };
+      } else if (mode === 'clock') {
+        const now = new Date();
+        data = {
+          mode: 'clock',
+          timestamp,
+          local: now.toLocaleString(),
+          utc: now.toUTCString(),
+          unix: Math.floor(now.getTime() / 1000),
+          iso8601: now.toISOString()
+        };
+      }
+
+      jsonOutput.textContent = JSON.stringify(data, null, 2);
+      jsonOutput.classList.remove('hidden');
+
+      // Copy to clipboard
+      navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
+        exportStatus.classList.remove('hidden');
+        setTimeout(() => {
+          exportStatus.classList.add('hidden');
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+      });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+
+      switch(e.key.toLowerCase()) {
+        case ' ':
+          e.preventDefault();
+          if (state.mode === 'stopwatch') toggleStopwatch();
+          else if (state.mode === 'countdown') toggleCountdown();
+          break;
+        case 'l':
+          if (state.mode === 'stopwatch') recordLap();
+          break;
+        case 'r':
+          if (state.mode === 'stopwatch') resetStopwatch();
+          else if (state.mode === 'countdown') resetCountdown();
+          break;
+        case 'e':
+          exportJSON(state.mode);
+          break;
+        case '1':
+          switchMode('stopwatch');
+          break;
+        case '2':
+          switchMode('countdown');
+          break;
+        case '3':
+          switchMode('clock');
+          break;
+      }
+    });
+  </script>
+</body>
+</html>
