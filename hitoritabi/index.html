@@ -357,29 +357,34 @@
         .leaflet-map { width: 100%; height: 540px; display: none; border-radius: 4px; background: var(--washi-ivory); }
         .leaflet-map.active { display: block; }
         .journey-tooltip-label {
-            background: rgba(46,42,38,0.88) !important;
-            color: var(--washi-ivory) !important;
-            border: none !important;
-            border-radius: 3px !important;
-            padding: 0.18rem 0.55rem !important;
-            font-family: 'Klee One', serif !important;
-            font-size: 0.78rem !important;
-            font-weight: 500 !important;
-            letter-spacing: 0.04em !important;
-            line-height: 1.15 !important;
+            background: rgba(255, 250, 243, 0.95) !important;
+            color: var(--ink-dark) !important;
+            border: 1px solid rgba(46,42,38,0.18) !important;
+            border-radius: 999px !important;
+            padding: 0.12rem 0.55rem !important;
+            font-family: 'Zen Maru Gothic', sans-serif !important;
+            font-size: 0.7rem !important;
+            font-weight: 600 !important;
+            letter-spacing: 0.02em !important;
+            line-height: 1.1 !important;
             white-space: nowrap !important;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-            transition: background 0.15s, transform 0.15s, opacity 0.15s, z-index 0s;
-            opacity: 0.78;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            transition: background 0.15s, transform 0.15s, opacity 0.15s, padding 0.15s, font-size 0.15s, color 0.15s;
+            opacity: 0.92;
         }
         .journey-tooltip-label::before { display: none; }
         .journey-tooltip-label.hl {
             opacity: 1 !important;
-            background: rgba(194,84,80,0.96) !important;
-            transform: scale(1.08);
+            background: var(--accent-red) !important;
+            color: #fff !important;
+            border-color: var(--accent-red) !important;
+            transform: scale(1.18);
+            font-size: 0.95rem !important;
+            padding: 0.32rem 0.85rem !important;
             z-index: 1000 !important;
-            box-shadow: 0 4px 10px rgba(194,84,80,0.4) !important;
+            box-shadow: 0 4px 14px rgba(194,84,80,0.45) !important;
         }
+        .journey-tooltip-label.hl b { font-weight: 700; }
         .leaflet-container { font-family: 'Zen Maru Gothic', sans-serif; }
         .leaflet-popup-content-wrapper { border-radius: 4px; }
         .leaflet-control-attribution { font-size: 0.7rem; opacity: 0.7; }
@@ -745,64 +750,62 @@
 
     <script>
         // 旅 slug → 緯度経度・ラベル
-        // dir/dx/dy で各 pin のラベル配置を分散させ、密集領域（西欧・東南アジア）の重なりを回避
+        // 通常表示は「国旗+2字コード」のコンパクトチップ。hover でフル名に拡張
         const overseasJourneys = [
-            { slug: 'sandiego',        label: 'サンディエゴ',        lat: 32.715, lon: -117.157, dir: 'left',  dx: -10, dy: 0 },
-            { slug: 'vegas',           label: 'ラスベガス',          lat: 36.175, lon: -115.137, dir: 'top',   dx: 0,   dy: -8 },
-            { slug: 'canada',          label: 'カナダ',              lat: 49.283, lon: -123.119, dir: 'top',   dx: 0,   dy: -8 },
-            // ヨーロッパ密集帯：上下左右に分散
-            { slug: 'italy_benelux',   label: 'イタリア・ベネルクス', lat: 41.902, lon: 12.496,   dir: 'bottom',dx: 0,   dy: 8 },
-            { slug: 'spain',           label: 'スペイン',            lat: 40.417, lon: -3.703,   dir: 'left',  dx: -10, dy: 0 },
-            { slug: 'france_swiss',    label: 'フランス・スイス',     lat: 46.519, lon: 6.633,    dir: 'top',   dx: 0,   dy: -8 },
-            { slug: 'croatia',         label: 'クロアチア',          lat: 43.508, lon: 16.440,   dir: 'right', dx: 10,  dy: 0 },
-            { slug: 'slovenia',        label: 'スロヴェニア',        lat: 46.051, lon: 14.506,   dir: 'top',   dx: 14,  dy: -8 },
-            { slug: 'turkey',          label: 'トルコ',              lat: 38.643, lon: 34.829,   dir: 'top',   dx: 0,   dy: -8 },
-            { slug: 'egypt',           label: 'エジプト',            lat: 29.978, lon: 31.135,   dir: 'left',  dx: -10, dy: 0 },
-            { slug: 'jordan_israel',   label: 'ヨルダン・イスラエル', lat: 30.328, lon: 35.444,   dir: 'right', dx: 10,  dy: 0 },
-            // 東南アジア密集帯：方向で分散
-            { slug: 'indonesia',       label: 'インドネシア',        lat: -7.608, lon: 110.204,  dir: 'bottom',dx: 0,   dy: 8 },
-            { slug: 'thailand',        label: 'タイ',                lat: 13.756, lon: 100.502,  dir: 'left',  dx: -10, dy: 0 },
-            { slug: 'vietnam',         label: 'ベトナム',            lat: 20.951, lon: 107.040,  dir: 'top',   dx: 0,   dy: -8 },
-            { slug: 'cambodia',        label: 'カンボジア',          lat: 13.412, lon: 103.867,  dir: 'bottom',dx: 0,   dy: 8 },
-            { slug: 'malaysia_taiwan', label: 'マレーシア・台湾',     lat: 25.034, lon: 121.565,  dir: 'right', dx: 10,  dy: 0 },
-            { slug: 'shanghai',        label: '上海',                lat: 31.230, lon: 121.474,  dir: 'top',   dx: 0,   dy: -8 },
-            { slug: 'australia',       label: 'オーストラリア',      lat: -33.857, lon: 151.215, dir: 'left',  dx: -10, dy: 0 },
-            { slug: 'newzealand',      label: 'ニュージーランド',    lat: -45.031, lon: 168.660, dir: 'top',   dx: 0,   dy: -8 },
+            { slug: 'sandiego',        full: 'サンディエゴ',         short: '🇺🇸 SD',  lat: 32.715, lon: -117.157, dir: 'left',   dx: -10, dy: 0 },
+            { slug: 'vegas',           full: 'ラスベガス',           short: '🇺🇸 LV',  lat: 36.175, lon: -115.137, dir: 'top',    dx: 0,   dy: -10 },
+            { slug: 'canada',          full: 'カナダ',               short: '🇨🇦 CA',  lat: 49.283, lon: -123.119, dir: 'top',    dx: 0,   dy: -10 },
+            { slug: 'italy_benelux',   full: 'イタリア・ベネルクス',  short: '🇮🇹 IT',  lat: 41.902, lon: 12.496,   dir: 'bottom', dx: 0,   dy: 10 },
+            { slug: 'spain',           full: 'スペイン',             short: '🇪🇸 ES',  lat: 40.417, lon: -3.703,   dir: 'left',   dx: -10, dy: 0 },
+            { slug: 'france_swiss',    full: 'フランス・スイス',      short: '🇫🇷 FR',  lat: 46.519, lon: 6.633,    dir: 'top',    dx: 0,   dy: -10 },
+            { slug: 'croatia',         full: 'クロアチア',           short: '🇭🇷 HR',  lat: 43.508, lon: 16.440,   dir: 'right',  dx: 10,  dy: 0 },
+            { slug: 'slovenia',        full: 'スロヴェニア',         short: '🇸🇮 SI',  lat: 46.051, lon: 14.506,   dir: 'top',    dx: 12,  dy: -10 },
+            { slug: 'turkey',          full: 'トルコ',               short: '🇹🇷 TR',  lat: 38.643, lon: 34.829,   dir: 'top',    dx: 0,   dy: -10 },
+            { slug: 'egypt',           full: 'エジプト',             short: '🇪🇬 EG',  lat: 29.978, lon: 31.135,   dir: 'left',   dx: -10, dy: 0 },
+            { slug: 'jordan_israel',   full: 'ヨルダン・イスラエル',  short: '🇯🇴 JO',  lat: 30.328, lon: 35.444,   dir: 'right',  dx: 10,  dy: 0 },
+            { slug: 'indonesia',       full: 'インドネシア',         short: '🇮🇩 ID',  lat: -7.608, lon: 110.204,  dir: 'bottom', dx: 0,   dy: 10 },
+            { slug: 'thailand',        full: 'タイ',                 short: '🇹🇭 TH',  lat: 13.756, lon: 100.502,  dir: 'left',   dx: -10, dy: 0 },
+            { slug: 'vietnam',         full: 'ベトナム',             short: '🇻🇳 VN',  lat: 20.951, lon: 107.040,  dir: 'top',    dx: 0,   dy: -10 },
+            { slug: 'cambodia',        full: 'カンボジア',           short: '🇰🇭 KH',  lat: 13.412, lon: 103.867,  dir: 'bottom', dx: 0,   dy: 10 },
+            { slug: 'malaysia_taiwan', full: 'マレーシア・台湾',      short: '🇹🇼 TW',  lat: 25.034, lon: 121.565,  dir: 'right',  dx: 10,  dy: 0 },
+            { slug: 'shanghai',        full: '上海',                 short: '🇨🇳 CN',  lat: 31.230, lon: 121.474,  dir: 'top',    dx: 0,   dy: -10 },
+            { slug: 'australia',       full: 'オーストラリア',       short: '🇦🇺 AU',  lat: -33.857, lon: 151.215, dir: 'left',   dx: -10, dy: 0 },
+            { slug: 'newzealand',      full: 'ニュージーランド',     short: '🇳🇿 NZ',  lat: -45.031, lon: 168.660, dir: 'top',    dx: 0,   dy: -10 },
         ];
         const domesticJourneys = [
-            // 関東密集帯：方向で分散
-            { slug: 'tokyo',      label: '東京',           lat: 35.681, lon: 139.766, dir: 'right',  dx: 10,  dy: 0 },
-            { slug: 'kamakura',   label: '鎌倉',           lat: 35.319, lon: 139.547, dir: 'left',   dx: -10, dy: 0 },
-            { slug: 'miura',      label: '三浦半島',       lat: 35.144, lon: 139.622, dir: 'bottom', dx: 0,   dy: 8 },
-            { slug: 'izu',        label: '伊豆',           lat: 34.726, lon: 138.943, dir: 'left',   dx: -10, dy: 0 },
-            { slug: 'keiryu',     label: '渓流',           lat: 35.521, lon: 138.628, dir: 'top',    dx: 0,   dy: -8 },
-            { slug: 'kusatsu',    label: '草津温泉',       lat: 36.622, lon: 138.595, dir: 'left',   dx: -10, dy: 0 },
-            { slug: 'matsushima', label: '松島',           lat: 38.376, lon: 141.060, dir: 'right',  dx: 10,  dy: 0 },
-            { slug: 'tohoku',     label: '東北',           lat: 39.708, lon: 141.155, dir: 'right',  dx: 10,  dy: 0 },
-            { slug: 'hiroshima',  label: '広島・倉敷・岡山', lat: 34.396, lon: 132.476, dir: 'top',    dx: 0,   dy: -8 },
-            { slug: 'shikoku',    label: '四国',           lat: 34.073, lon: 134.554, dir: 'bottom', dx: 0,   dy: 8 },
-            { slug: 'beppu',      label: '別府',           lat: 33.279, lon: 131.500, dir: 'left',   dx: -10, dy: 0 },
-            { slug: 'zoo',        label: '動物園',         lat: 35.717, lon: 139.771, dir: 'top',    dx: 18,  dy: -8 },
-            { slug: 'yakushima',  label: '屋久島',         lat: 30.366, lon: 130.508, dir: 'left',   dx: -10, dy: 0 },
+            { slug: 'tokyo',      full: '東京',            short: '🗼 東京', lat: 35.681, lon: 139.766, dir: 'right',  dx: 10,  dy: 0 },
+            { slug: 'kamakura',   full: '鎌倉・湘南',      short: '⛩ 鎌倉', lat: 35.319, lon: 139.547, dir: 'left',   dx: -10, dy: 0 },
+            { slug: 'miura',      full: '三浦半島',        short: '🐟 三浦', lat: 35.144, lon: 139.622, dir: 'bottom', dx: 0,   dy: 10 },
+            { slug: 'izu',        full: '伊豆 河津桜',     short: '🌸 伊豆', lat: 34.726, lon: 138.943, dir: 'left',   dx: -10, dy: 0 },
+            { slug: 'keiryu',     full: '渓流',            short: '💧 渓流', lat: 35.521, lon: 138.628, dir: 'top',    dx: 0,   dy: -10 },
+            { slug: 'kusatsu',    full: '草津温泉',        short: '♨ 草津', lat: 36.622, lon: 138.595, dir: 'left',   dx: -10, dy: 0 },
+            { slug: 'matsushima', full: '松島',            short: '🏝 松島', lat: 38.376, lon: 141.060, dir: 'right',  dx: 10,  dy: 0 },
+            { slug: 'tohoku',     full: '東北',            short: '🍎 東北', lat: 39.708, lon: 141.155, dir: 'right',  dx: 10,  dy: 0 },
+            { slug: 'hiroshima',  full: '広島・倉敷・岡山', short: '🕊 広島', lat: 34.396, lon: 132.476, dir: 'top',    dx: 0,   dy: -10 },
+            { slug: 'shikoku',    full: '四国',            short: '🌊 四国', lat: 34.073, lon: 134.554, dir: 'bottom', dx: 0,   dy: 10 },
+            { slug: 'beppu',      full: '別府',            short: '♨ 別府', lat: 33.279, lon: 131.500, dir: 'left',   dx: -10, dy: 0 },
+            { slug: 'zoo',        full: '動物園',          short: '🦁 動物', lat: 35.717, lon: 139.771, dir: 'top',    dx: 18,  dy: -10 },
+            { slug: 'yakushima',  full: '屋久島',          short: '🌲 屋久', lat: 30.366, lon: 130.508, dir: 'left',   dx: -10, dy: 0 },
         ];
 
         function makePin(j, region) {
             const icon = L.divIcon({
                 className: `journey-pin ${region}`,
-                iconSize: [16, 16],
-                iconAnchor: [8, 8],
+                iconSize: [18, 18],
+                iconAnchor: [9, 9],
             });
             const m = L.marker([j.lat, j.lon], { icon, riseOnHover: true });
-            m.bindTooltip(j.label, {
+            m.bindTooltip(j.short, {
                 permanent: true,
                 direction: j.dir || 'top',
-                offset: [j.dx || 0, j.dy || -8],
+                offset: [j.dx || 0, j.dy || -10],
                 className: 'journey-tooltip-label',
             });
-            // hover で対応ラベルを強調 (重なっていても識別可能に)
+            // hover でラベル拡張：フル名前にスイッチ + 強調
             const hl = (on) => {
                 const tt = m.getTooltip();
                 if (!tt) return;
+                tt.setContent(on ? `<b>${j.full}</b>` : j.short);
                 const el = tt.getElement();
                 if (el) el.classList.toggle('hl', on);
             };
