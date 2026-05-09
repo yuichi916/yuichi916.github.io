@@ -825,7 +825,6 @@ body::after{{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
     <h1 class="chap-name-jp">{name_jp}</h1>
     <div class="chap-name-en">{name_en}</div>
     <div class="chap-latin">{latin}</div>
-    <div class="chap-count">{count} albums</div>
   </div>
 </section>
 
