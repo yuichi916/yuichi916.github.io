@@ -445,6 +445,73 @@
       display: none;
     }
 
+    /* description block */
+    .description {
+      background: rgba(126, 231, 135, 0.04);
+      border: 1px solid var(--term-border);
+      border-left: 3px solid var(--term-green);
+      border-radius: 4px;
+      padding: 1.5rem 1.75rem;
+      margin-bottom: 2rem;
+      font-size: 13px;
+      line-height: 1.75;
+    }
+    .description h2 {
+      font-size: 15px;
+      font-weight: 400;
+      color: var(--term-green);
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+    .description p { color: var(--term-fg); margin-bottom: 0.9rem; }
+    .description h3 {
+      font-size: 12px;
+      color: var(--term-yellow);
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      margin: 0.6rem 0 0.4rem;
+    }
+    .description ul { list-style: none; padding-left: 0; }
+    .description li {
+      position: relative; padding-left: 1.2rem; color: var(--term-dim);
+      font-size: 12.5px; margin: 0.18rem 0;
+    }
+    .description li::before {
+      content: "▸"; position: absolute; left: 0; color: var(--term-green);
+    }
+
+    /* language dropdown — terminal style */
+    .lang-toggle {
+      position: relative; display: inline-block;
+      margin-top: 1rem;
+    }
+    .lang-toggle button {
+      background: transparent; color: var(--term-dim);
+      border: 1px solid var(--term-border);
+      padding: 0.4rem 0.9rem; cursor: pointer;
+      font-family: inherit; font-size: 12px; letter-spacing: 0.05em;
+      transition: all 0.2s;
+    }
+    .lang-toggle button:hover { border-color: var(--term-green); color: var(--term-fg); }
+    .lang-toggle ul[hidden] { display: none; }
+    .lang-toggle ul {
+      position: absolute; top: calc(100% + 4px); right: 0; z-index: 100;
+      list-style: none; margin: 0; padding: 4px 0;
+      background: var(--term-bg); border: 1px solid var(--term-border);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      min-width: 180px;
+    }
+    .lang-toggle li {
+      padding: 7px 14px; cursor: pointer; font-size: 12px;
+      color: var(--term-dim); display: flex; justify-content: space-between; gap: 12px;
+    }
+    .lang-toggle li:hover { background: rgba(126,231,135,0.08); color: var(--term-fg); }
+    .lang-toggle li.on { color: var(--term-green); }
+    .lang-toggle li .code { color: var(--term-dim); font-family: 'SF Mono', monospace; }
+
+    /* nofx mode for headless capture */
+    body.nofx .description, body.nofx .terminal { transition: none !important; }
+
     @media (max-width: 768px) {
       body {
         padding: 1rem;
@@ -490,14 +557,45 @@
 <body>
   <div class="container">
     <header class="header">
-      <h1>Web Stopwatch</h1>
-      <p class="subtitle">High-Precision Timer with JSON Export</p>
+      <h1 data-i18n="page.title">Web Stopwatch</h1>
+      <p class="subtitle" data-i18n="page.subtitle">High-Precision Timer with JSON Export</p>
       <nav class="nav">
-        <a href="index.html">Home</a>
-        <a href="cabin.html">Cabin</a>
-        <a href="hitoritabi/">Hitoritabi</a>
+        <a href="index.html" data-i18n="nav.home">Home</a>
+        <a href="cabin.html" data-i18n="nav.cabin">Cabin</a>
+        <a href="hitoritabi/" data-i18n="nav.hitoritabi">Hitoritabi</a>
       </nav>
+      <div class="lang-toggle">
+        <button id="langToggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+          <span id="langCurrent">JA</span>  ▾
+        </button>
+        <ul id="langMenu" role="listbox" hidden>
+          <li data-lang="ja"  class="on"><span>日本語</span><span class="code">JA</span></li>
+          <li data-lang="en"><span>English</span><span class="code">EN</span></li>
+          <li data-lang="zh-CN"><span>简体中文</span><span class="code">ZH</span></li>
+          <li data-lang="ko"><span>한국어</span><span class="code">KO</span></li>
+          <li data-lang="es"><span>Español</span><span class="code">ES</span></li>
+          <li data-lang="fr"><span>Français</span><span class="code">FR</span></li>
+          <li data-lang="de"><span>Deutsch</span><span class="code">DE</span></li>
+          <li data-lang="pt"><span>Português</span><span class="code">PT</span></li>
+          <li data-lang="ru"><span>Русский</span><span class="code">RU</span></li>
+          <li data-lang="it"><span>Italiano</span><span class="code">IT</span></li>
+        </ul>
+      </div>
     </header>
+
+    <!-- Description -->
+    <section class="description" aria-label="page description">
+      <h2 data-i18n="desc.title">Web Stopwatch — 高精度タイマー</h2>
+      <p data-i18n="desc.body">ストップウォッチ、カウントダウン、世界時計を搭載したエンジニア向けWebタイマー。ミリ秒精度のラップタイム記録、JSON形式でのデータエクスポート、キーボードショートカット完備。ターミナル風UIデザイン。</p>
+      <h3 data-i18n="desc.feat_title">主な機能:</h3>
+      <ul>
+        <li data-i18n="desc.feat1">ストップウォッチ（ラップタイム、最速/最遅ハイライト）</li>
+        <li data-i18n="desc.feat2">カウントダウン（5/10/15/25分プリセット + カスタム）</li>
+        <li data-i18n="desc.feat3">世界時計（UTC、Unixタイムスタンプ、ISO 8601）</li>
+        <li data-i18n="desc.feat4">JSON Export（クリップボード自動コピー）</li>
+        <li data-i18n="desc.feat5">キーボードショートカット（Space/L/R/E/1-3）</li>
+      </ul>
+    </section>
 
     <div class="terminal">
       <div class="terminal-header">
@@ -524,8 +622,8 @@
             <button class="btn" id="sw-export">EXPORT JSON</button>
           </div>
           <div class="laps-container hidden" id="laps-container">
-            <div class="laps-header">LAP TIMES</div>
-            <div id="laps-list" class="empty-state">ラップタイムなし</div>
+            <div class="laps-header" data-i18n="laps.title">LAP TIMES</div>
+            <div id="laps-list" class="empty-state" data-i18n="laps.empty">ラップタイムなし</div>
           </div>
         </div>
 
@@ -579,17 +677,17 @@
 
         <!-- JSON Export Area -->
         <div class="json-export hidden" id="json-output"></div>
-        <div class="export-status hidden" id="export-status">✓ JSON copied to clipboard</div>
+        <div class="export-status hidden" id="export-status" data-i18n="export.copied">✓ JSON copied to clipboard</div>
 
         <!-- Shortcuts -->
         <div class="shortcuts">
-          <h3>KEYBOARD SHORTCUTS</h3>
+          <h3 data-i18n="shortcut.title">KEYBOARD SHORTCUTS</h3>
           <div class="shortcut-list">
-            <div class="shortcut-item"><span class="key-combo">Space</span><span>Start / Stop</span></div>
-            <div class="shortcut-item"><span class="key-combo">L</span><span>Lap (Stopwatch)</span></div>
-            <div class="shortcut-item"><span class="key-combo">R</span><span>Reset</span></div>
-            <div class="shortcut-item"><span class="key-combo">E</span><span>Export JSON</span></div>
-            <div class="shortcut-item"><span class="key-combo">1-3</span><span>Switch Mode</span></div>
+            <div class="shortcut-item"><span class="key-combo">Space</span><span data-i18n="shortcut.startstop">Start / Stop</span></div>
+            <div class="shortcut-item"><span class="key-combo">L</span><span data-i18n="shortcut.lap">Lap (Stopwatch)</span></div>
+            <div class="shortcut-item"><span class="key-combo">R</span><span data-i18n="shortcut.reset">Reset</span></div>
+            <div class="shortcut-item"><span class="key-combo">E</span><span data-i18n="shortcut.export">Export JSON</span></div>
+            <div class="shortcut-item"><span class="key-combo">1-3</span><span data-i18n="shortcut.mode">Switch Mode</span></div>
           </div>
         </div>
       </div>
@@ -597,16 +695,16 @@
 
     <!-- Disclaimer -->
     <div class="disclaimer">
-      <h3>⚠ 免責事項 / DISCLAIMER</h3>
-      <p>本Webストップウォッチは、ブラウザのJavaScript実行環境に依存しており、以下の点にご注意ください：</p>
+      <h3 data-i18n="disclaimer.title">⚠ 免責事項 / DISCLAIMER</h3>
+      <p data-i18n="disclaimer.intro">本Webストップウォッチは、ブラウザのJavaScript実行環境に依存しており、以下の点にご注意ください：</p>
       <ul>
-        <li>ミリ秒単位の精度は保証されません。ブラウザやデバイスの処理負荷により誤差が生じる可能性があります。</li>
-        <li>バックグラウンドタブでは、ブラウザの省電力機能により計測が不正確になる場合があります。</li>
-        <li>重要な時間計測（スポーツ競技、医療用途、法的効力を持つ記録等）には使用しないでください。</li>
-        <li>本ツールの使用により生じたいかなる損害についても、開発者は一切の責任を負いません。</li>
-        <li>エクスポートされるJSON形式は参考情報であり、公式な記録として使用できません。</li>
+        <li data-i18n="disclaimer.b1">ミリ秒単位の精度は保証されません。ブラウザやデバイスの処理負荷により誤差が生じる可能性があります。</li>
+        <li data-i18n="disclaimer.b2">バックグラウンドタブでは、ブラウザの省電力機能により計測が不正確になる場合があります。</li>
+        <li data-i18n="disclaimer.b3">重要な時間計測（スポーツ競技、医療用途、法的効力を持つ記録等）には使用しないでください。</li>
+        <li data-i18n="disclaimer.b4">本ツールの使用により生じたいかなる損害についても、開発者は一切の責任を負いません。</li>
+        <li data-i18n="disclaimer.b5">エクスポートされるJSON形式は参考情報であり、公式な記録として使用できません。</li>
       </ul>
-      <p style="margin-top: 0.75rem;">This web stopwatch depends on browser JavaScript execution and is provided "as is" without warranty of any kind. Do not use for critical timing applications.</p>
+      <p style="margin-top: 0.75rem;" data-i18n="disclaimer.outro">This web stopwatch depends on browser JavaScript execution and is provided "as is" without warranty of any kind. Do not use for critical timing applications.</p>
     </div>
   </div>
 
@@ -974,6 +1072,338 @@
           break;
       }
     });
+
+    // ============================================================
+    // i18n — 10 languages, persisted in localStorage,
+    // auto-detected from navigator.language. Mirrors index.html.
+    // ============================================================
+    const I18N = {
+      en: {
+        "page.title": "Web Stopwatch",
+        "page.subtitle": "High-Precision Timer with JSON Export",
+        "nav.home": "Home", "nav.cabin": "Cabin", "nav.hitoritabi": "Hitoritabi",
+        "desc.title": "Web Stopwatch — High-Precision Timer",
+        "desc.body": "Engineer-friendly web timer with stopwatch, countdown, and world clock. Features millisecond precision, lap times with fastest/slowest highlighting, JSON export, keyboard shortcuts, and terminal-style UI.",
+        "desc.feat_title": "Key Features:",
+        "desc.feat1": "Stopwatch (lap times, fastest/slowest auto-highlight)",
+        "desc.feat2": "Countdown (5/10/15/25min presets + custom)",
+        "desc.feat3": "World Clock (UTC, Unix timestamp, ISO 8601)",
+        "desc.feat4": "JSON Export (auto-copy to clipboard)",
+        "desc.feat5": "Keyboard shortcuts (Space/L/R/E/1-3)",
+        "laps.title": "LAP TIMES", "laps.empty": "No lap times yet",
+        "export.copied": "✓ JSON copied to clipboard",
+        "shortcut.title": "KEYBOARD SHORTCUTS",
+        "shortcut.startstop": "Start / Stop", "shortcut.lap": "Lap (Stopwatch)",
+        "shortcut.reset": "Reset", "shortcut.export": "Export JSON",
+        "shortcut.mode": "Switch Mode",
+        "disclaimer.title": "⚠ DISCLAIMER",
+        "disclaimer.intro": "This Web Stopwatch depends on the browser's JavaScript runtime. Please note the following:",
+        "disclaimer.b1": "Millisecond accuracy is not guaranteed. Errors may occur depending on browser or device load.",
+        "disclaimer.b2": "When in a background tab, browser power-saving may make timing inaccurate.",
+        "disclaimer.b3": "Do not use for critical timing (sports competitions, medical use, legally binding records, etc.).",
+        "disclaimer.b4": "The developer assumes no liability whatsoever for any damages arising from use of this tool.",
+        "disclaimer.b5": "Exported JSON is informational only and cannot be used as an official record.",
+        "disclaimer.outro": "This web stopwatch depends on browser JavaScript execution and is provided \"as is\" without warranty of any kind. Do not use for critical timing applications."
+      },
+      "zh-CN": {
+        "page.title": "Web Stopwatch", "page.subtitle": "高精度计时器（支持 JSON 导出）",
+        "nav.home": "首页", "nav.cabin": "小屋", "nav.hitoritabi": "独行旅",
+        "desc.title": "Web Stopwatch — 高精度计时器",
+        "desc.body": "面向工程师的Web计时器，集成秒表、倒计时和世界时钟。毫秒级精度的圈速记录、JSON格式数据导出、键盘快捷键完备。终端风格UI设计。",
+        "desc.feat_title": "主要功能：",
+        "desc.feat1": "秒表（圈速记录，最快/最慢自动高亮）",
+        "desc.feat2": "倒计时（5/10/15/25分钟预设 + 自定义）",
+        "desc.feat3": "世界时钟（UTC、Unix 时间戳、ISO 8601）",
+        "desc.feat4": "JSON Export（自动复制到剪贴板）",
+        "desc.feat5": "键盘快捷键（Space/L/R/E/1-3）",
+        "laps.title": "LAP TIMES", "laps.empty": "暂无圈速记录",
+        "export.copied": "✓ JSON 已复制到剪贴板",
+        "shortcut.title": "键盘快捷键",
+        "shortcut.startstop": "开始 / 停止", "shortcut.lap": "记圈（秒表）",
+        "shortcut.reset": "重置", "shortcut.export": "导出 JSON",
+        "shortcut.mode": "切换模式",
+        "disclaimer.title": "⚠ 免责声明",
+        "disclaimer.intro": "本Web秒表依赖浏览器的JavaScript执行环境，请注意以下事项：",
+        "disclaimer.b1": "不保证毫秒级精度。可能因浏览器或设备负载产生误差。",
+        "disclaimer.b2": "在后台标签页中，浏览器节能功能可能导致计时不准确。",
+        "disclaimer.b3": "请勿用于重要时间计测（体育竞技、医疗用途、具法律效力的记录等）。",
+        "disclaimer.b4": "对使用本工具产生的任何损失，开发者概不负责。",
+        "disclaimer.b5": "导出的 JSON 格式仅供参考，不可作为正式记录使用。",
+        "disclaimer.outro": "本Web秒表依赖浏览器JavaScript执行环境，按\"原样\"提供，不附带任何形式的保证。请勿用于关键计时场景。"
+      },
+      ko: {
+        "page.title": "Web Stopwatch", "page.subtitle": "JSON 내보내기 지원 고정밀 타이머",
+        "nav.home": "홈", "nav.cabin": "오두막", "nav.hitoritabi": "혼자 여행",
+        "desc.title": "Web Stopwatch — 고정밀 타이머",
+        "desc.body": "엔지니어를 위한 웹 타이머. 스톱워치, 카운트다운, 세계 시계 탑재. 밀리초 정밀도의 랩타임 기록, JSON 형식 데이터 내보내기, 키보드 단축키 완비. 터미널 스타일 UI 디자인.",
+        "desc.feat_title": "주요 기능:",
+        "desc.feat1": "스톱워치 (랩타임, 최속/최저 자동 하이라이트)",
+        "desc.feat2": "카운트다운 (5/10/15/25분 프리셋 + 사용자 정의)",
+        "desc.feat3": "세계 시계 (UTC, Unix 타임스탬프, ISO 8601)",
+        "desc.feat4": "JSON Export (클립보드 자동 복사)",
+        "desc.feat5": "키보드 단축키 (Space/L/R/E/1-3)",
+        "laps.title": "LAP TIMES", "laps.empty": "랩타임 없음",
+        "export.copied": "✓ JSON 클립보드에 복사됨",
+        "shortcut.title": "키보드 단축키",
+        "shortcut.startstop": "시작 / 정지", "shortcut.lap": "랩 (스톱워치)",
+        "shortcut.reset": "리셋", "shortcut.export": "JSON 내보내기",
+        "shortcut.mode": "모드 전환",
+        "disclaimer.title": "⚠ 면책 사항",
+        "disclaimer.intro": "이 웹 스톱워치는 브라우저의 JavaScript 실행 환경에 의존하며, 다음 사항에 유의해 주십시오:",
+        "disclaimer.b1": "밀리초 단위의 정밀도는 보장되지 않습니다. 브라우저나 기기의 부하에 따라 오차가 발생할 수 있습니다.",
+        "disclaimer.b2": "백그라운드 탭에서는 브라우저의 절전 기능으로 인해 측정이 부정확해질 수 있습니다.",
+        "disclaimer.b3": "중요한 시간 측정(스포츠 경기, 의료 용도, 법적 효력을 가진 기록 등)에는 사용하지 마십시오.",
+        "disclaimer.b4": "본 도구 사용으로 발생한 어떠한 손해에 대해서도 개발자는 일체의 책임을 지지 않습니다.",
+        "disclaimer.b5": "내보내진 JSON 형식은 참고 정보일 뿐이며, 공식 기록으로 사용할 수 없습니다.",
+        "disclaimer.outro": "이 웹 스톱워치는 브라우저 JavaScript 실행에 의존하며 \"있는 그대로\" 제공됩니다. 중요한 타이밍 용도에는 사용하지 마십시오."
+      },
+      es: {
+        "page.title": "Web Stopwatch", "page.subtitle": "Temporizador de alta precisión con exportación JSON",
+        "nav.home": "Inicio", "nav.cabin": "Cabaña", "nav.hitoritabi": "Viaje en solitario",
+        "desc.title": "Web Stopwatch — Temporizador de alta precisión",
+        "desc.body": "Temporizador web orientado a ingenieros con cronómetro, cuenta regresiva y reloj mundial. Precisión de milisegundos, registros de vuelta con resaltado del más rápido/lento, exportación JSON y atajos de teclado. Diseño UI estilo terminal.",
+        "desc.feat_title": "Características principales:",
+        "desc.feat1": "Cronómetro (vueltas, resaltado automático más rápido/lento)",
+        "desc.feat2": "Cuenta regresiva (presets 5/10/15/25 min + personalizado)",
+        "desc.feat3": "Reloj mundial (UTC, marca de tiempo Unix, ISO 8601)",
+        "desc.feat4": "JSON Export (copia automática al portapapeles)",
+        "desc.feat5": "Atajos de teclado (Space/L/R/E/1-3)",
+        "laps.title": "LAP TIMES", "laps.empty": "Sin tiempos de vuelta",
+        "export.copied": "✓ JSON copiado al portapapeles",
+        "shortcut.title": "ATAJOS DE TECLADO",
+        "shortcut.startstop": "Inicio / Parada", "shortcut.lap": "Vuelta (Cronómetro)",
+        "shortcut.reset": "Reiniciar", "shortcut.export": "Exportar JSON",
+        "shortcut.mode": "Cambiar modo",
+        "disclaimer.title": "⚠ AVISO LEGAL",
+        "disclaimer.intro": "Este Web Stopwatch depende del entorno de ejecución JavaScript del navegador. Tenga en cuenta lo siguiente:",
+        "disclaimer.b1": "No se garantiza la precisión a nivel de milisegundos. Pueden producirse errores según la carga del navegador o del dispositivo.",
+        "disclaimer.b2": "En pestañas en segundo plano, el ahorro de energía del navegador puede causar mediciones inexactas.",
+        "disclaimer.b3": "No utilizar para mediciones críticas (competiciones deportivas, uso médico, registros con valor legal, etc.).",
+        "disclaimer.b4": "El desarrollador no asume responsabilidad alguna por daños derivados del uso de esta herramienta.",
+        "disclaimer.b5": "El JSON exportado es solo informativo y no puede usarse como registro oficial.",
+        "disclaimer.outro": "Este cronómetro web depende de la ejecución JavaScript del navegador y se ofrece \"tal cual\" sin garantía de ningún tipo. No usar en aplicaciones de cronometraje crítico."
+      },
+      fr: {
+        "page.title": "Web Stopwatch", "page.subtitle": "Chronomètre haute précision avec export JSON",
+        "nav.home": "Accueil", "nav.cabin": "Cabane", "nav.hitoritabi": "Voyage solo",
+        "desc.title": "Web Stopwatch — Chronomètre haute précision",
+        "desc.body": "Chronomètre web pour ingénieurs avec stopwatch, compte à rebours et horloge mondiale. Précision à la milliseconde, temps au tour avec mise en évidence du plus rapide/lent, export JSON et raccourcis clavier. Interface de style terminal.",
+        "desc.feat_title": "Fonctionnalités principales :",
+        "desc.feat1": "Stopwatch (temps au tour, mise en évidence plus rapide/lent)",
+        "desc.feat2": "Compte à rebours (préréglages 5/10/15/25 min + personnalisé)",
+        "desc.feat3": "Horloge mondiale (UTC, horodatage Unix, ISO 8601)",
+        "desc.feat4": "JSON Export (copie automatique dans le presse-papiers)",
+        "desc.feat5": "Raccourcis clavier (Space/L/R/E/1-3)",
+        "laps.title": "LAP TIMES", "laps.empty": "Aucun tour enregistré",
+        "export.copied": "✓ JSON copié dans le presse-papiers",
+        "shortcut.title": "RACCOURCIS CLAVIER",
+        "shortcut.startstop": "Démarrer / Arrêter", "shortcut.lap": "Tour (Stopwatch)",
+        "shortcut.reset": "Réinitialiser", "shortcut.export": "Exporter JSON",
+        "shortcut.mode": "Changer de mode",
+        "disclaimer.title": "⚠ AVERTISSEMENT",
+        "disclaimer.intro": "Ce Web Stopwatch dépend de l'environnement d'exécution JavaScript du navigateur. Veuillez noter ce qui suit :",
+        "disclaimer.b1": "La précision à la milliseconde n'est pas garantie. Des écarts peuvent survenir selon la charge du navigateur ou de l'appareil.",
+        "disclaimer.b2": "Dans un onglet en arrière-plan, l'économie d'énergie du navigateur peut rendre la mesure imprécise.",
+        "disclaimer.b3": "Ne pas utiliser pour des mesures critiques (compétitions sportives, usage médical, enregistrements à valeur légale, etc.).",
+        "disclaimer.b4": "Le développeur n'assume aucune responsabilité pour les dommages résultant de l'utilisation de cet outil.",
+        "disclaimer.b5": "Le JSON exporté est purement informatif et ne peut être utilisé comme enregistrement officiel.",
+        "disclaimer.outro": "Ce chronomètre web dépend de l'exécution JavaScript du navigateur et est fourni \"tel quel\" sans garantie d'aucune sorte. Ne pas utiliser pour le chronométrage critique."
+      },
+      de: {
+        "page.title": "Web Stopwatch", "page.subtitle": "Hochpräzise Zeitmessung mit JSON-Export",
+        "nav.home": "Start", "nav.cabin": "Hütte", "nav.hitoritabi": "Solo-Reise",
+        "desc.title": "Web Stopwatch — Hochpräzise Zeitmessung",
+        "desc.body": "Engineer-orientierter Web-Timer mit Stoppuhr, Countdown und Weltuhr. Millisekunden-Präzision, Rundenzeiten mit Hervorhebung der schnellsten/langsamsten, JSON-Export und Tastaturkürzel. UI im Terminal-Stil.",
+        "desc.feat_title": "Hauptfunktionen:",
+        "desc.feat1": "Stoppuhr (Rundenzeiten, schnellste/langsamste Hervorhebung)",
+        "desc.feat2": "Countdown (5/10/15/25 Min. Voreinstellungen + benutzerdefiniert)",
+        "desc.feat3": "Weltuhr (UTC, Unix-Zeitstempel, ISO 8601)",
+        "desc.feat4": "JSON Export (automatisch in Zwischenablage kopieren)",
+        "desc.feat5": "Tastaturkürzel (Space/L/R/E/1-3)",
+        "laps.title": "LAP TIMES", "laps.empty": "Keine Rundenzeiten",
+        "export.copied": "✓ JSON in Zwischenablage kopiert",
+        "shortcut.title": "TASTATURKÜRZEL",
+        "shortcut.startstop": "Start / Stopp", "shortcut.lap": "Runde (Stoppuhr)",
+        "shortcut.reset": "Zurücksetzen", "shortcut.export": "JSON exportieren",
+        "shortcut.mode": "Modus wechseln",
+        "disclaimer.title": "⚠ HAFTUNGSAUSSCHLUSS",
+        "disclaimer.intro": "Diese Web-Stoppuhr ist von der JavaScript-Laufzeit des Browsers abhängig. Bitte beachten Sie:",
+        "disclaimer.b1": "Millisekunden-Genauigkeit ist nicht garantiert. Je nach Browser oder Geräteauslastung können Abweichungen auftreten.",
+        "disclaimer.b2": "In Hintergrund-Tabs kann der Energiesparmodus des Browsers zu ungenauer Messung führen.",
+        "disclaimer.b3": "Nicht für kritische Zeitmessungen verwenden (Sportwettkämpfe, medizinische Anwendungen, rechtsverbindliche Aufzeichnungen usw.).",
+        "disclaimer.b4": "Der Entwickler übernimmt keinerlei Haftung für Schäden, die aus der Nutzung dieses Tools entstehen.",
+        "disclaimer.b5": "Exportierte JSON-Daten sind rein informativ und nicht als offizielle Aufzeichnung verwendbar.",
+        "disclaimer.outro": "Diese Web-Stoppuhr ist von der JavaScript-Ausführung im Browser abhängig und wird \"wie besehen\" ohne jegliche Gewährleistung bereitgestellt. Nicht für kritische Zeitmessanwendungen verwenden."
+      },
+      pt: {
+        "page.title": "Web Stopwatch", "page.subtitle": "Cronômetro de alta precisão com exportação JSON",
+        "nav.home": "Início", "nav.cabin": "Cabana", "nav.hitoritabi": "Viagem solo",
+        "desc.title": "Web Stopwatch — Cronômetro de alta precisão",
+        "desc.body": "Cronômetro web voltado para engenheiros com stopwatch, contagem regressiva e relógio mundial. Precisão em milissegundos, voltas com destaque para mais rápida/lenta, exportação JSON e atalhos de teclado. Interface estilo terminal.",
+        "desc.feat_title": "Funcionalidades principais:",
+        "desc.feat1": "Stopwatch (voltas, destaque automático mais rápido/lento)",
+        "desc.feat2": "Contagem regressiva (predefinições 5/10/15/25 min + personalizado)",
+        "desc.feat3": "Relógio mundial (UTC, timestamp Unix, ISO 8601)",
+        "desc.feat4": "JSON Export (cópia automática para a área de transferência)",
+        "desc.feat5": "Atalhos de teclado (Space/L/R/E/1-3)",
+        "laps.title": "LAP TIMES", "laps.empty": "Sem tempos de volta",
+        "export.copied": "✓ JSON copiado para a área de transferência",
+        "shortcut.title": "ATALHOS DE TECLADO",
+        "shortcut.startstop": "Iniciar / Parar", "shortcut.lap": "Volta (Stopwatch)",
+        "shortcut.reset": "Reiniciar", "shortcut.export": "Exportar JSON",
+        "shortcut.mode": "Trocar modo",
+        "disclaimer.title": "⚠ AVISO LEGAL",
+        "disclaimer.intro": "Este Web Stopwatch depende do ambiente de execução JavaScript do navegador. Observe o seguinte:",
+        "disclaimer.b1": "A precisão em milissegundos não é garantida. Podem ocorrer erros conforme a carga do navegador ou do dispositivo.",
+        "disclaimer.b2": "Em abas em segundo plano, a economia de energia do navegador pode tornar a medição imprecisa.",
+        "disclaimer.b3": "Não use para cronometragem crítica (competições esportivas, uso médico, registros com valor legal etc.).",
+        "disclaimer.b4": "O desenvolvedor não assume qualquer responsabilidade por danos decorrentes do uso desta ferramenta.",
+        "disclaimer.b5": "O JSON exportado é apenas informativo e não pode ser usado como registro oficial.",
+        "disclaimer.outro": "Este cronômetro web depende da execução JavaScript do navegador e é fornecido \"como está\", sem garantias de qualquer tipo. Não use em aplicações de cronometragem crítica."
+      },
+      ru: {
+        "page.title": "Web Stopwatch", "page.subtitle": "Высокоточный таймер с экспортом в JSON",
+        "nav.home": "Главная", "nav.cabin": "Хижина", "nav.hitoritabi": "Соло-путешествие",
+        "desc.title": "Web Stopwatch — Высокоточный таймер",
+        "desc.body": "Веб-таймер для инженеров с секундомером, обратным отсчётом и мировыми часами. Миллисекундная точность, круги с подсветкой самого быстрого/медленного, экспорт в JSON и горячие клавиши. UI в стиле терминала.",
+        "desc.feat_title": "Ключевые возможности:",
+        "desc.feat1": "Секундомер (круги, авто-подсветка самого быстрого/медленного)",
+        "desc.feat2": "Обратный отсчёт (предустановки 5/10/15/25 мин + свой)",
+        "desc.feat3": "Мировые часы (UTC, Unix-метка, ISO 8601)",
+        "desc.feat4": "JSON Export (автокопирование в буфер обмена)",
+        "desc.feat5": "Горячие клавиши (Space/L/R/E/1-3)",
+        "laps.title": "LAP TIMES", "laps.empty": "Кругов пока нет",
+        "export.copied": "✓ JSON скопирован в буфер обмена",
+        "shortcut.title": "ГОРЯЧИЕ КЛАВИШИ",
+        "shortcut.startstop": "Старт / Стоп", "shortcut.lap": "Круг (секундомер)",
+        "shortcut.reset": "Сброс", "shortcut.export": "Экспорт JSON",
+        "shortcut.mode": "Сменить режим",
+        "disclaimer.title": "⚠ ОТКАЗ ОТ ОТВЕТСТВЕННОСТИ",
+        "disclaimer.intro": "Этот веб-секундомер зависит от среды выполнения JavaScript в браузере. Обратите внимание:",
+        "disclaimer.b1": "Миллисекундная точность не гарантируется. Возможны погрешности из-за нагрузки браузера или устройства.",
+        "disclaimer.b2": "В фоновых вкладках режим энергосбережения браузера может сделать измерение неточным.",
+        "disclaimer.b3": "Не используйте для критичных измерений (спортивные соревнования, медицина, юридически значимые записи и т. п.).",
+        "disclaimer.b4": "Разработчик не несёт ответственности за любой ущерб, возникший в результате использования этого инструмента.",
+        "disclaimer.b5": "Экспортируемый JSON носит ознакомительный характер и не может использоваться как официальная запись.",
+        "disclaimer.outro": "Этот веб-секундомер зависит от выполнения JavaScript в браузере и предоставляется \"как есть\" без каких-либо гарантий. Не используйте для критичного хронометража."
+      },
+      it: {
+        "page.title": "Web Stopwatch", "page.subtitle": "Timer ad alta precisione con export JSON",
+        "nav.home": "Home", "nav.cabin": "Capanna", "nav.hitoritabi": "Viaggio solo",
+        "desc.title": "Web Stopwatch — Timer ad alta precisione",
+        "desc.body": "Timer web pensato per ingegneri con stopwatch, conto alla rovescia e orologio mondiale. Precisione al millisecondo, tempi sul giro con evidenziazione del più veloce/lento, export JSON e scorciatoie da tastiera. UI stile terminale.",
+        "desc.feat_title": "Funzionalità principali:",
+        "desc.feat1": "Stopwatch (tempi sul giro, evidenziazione più veloce/lento)",
+        "desc.feat2": "Conto alla rovescia (preimpostazioni 5/10/15/25 min + personalizzato)",
+        "desc.feat3": "Orologio mondiale (UTC, timestamp Unix, ISO 8601)",
+        "desc.feat4": "JSON Export (copia automatica negli appunti)",
+        "desc.feat5": "Scorciatoie da tastiera (Space/L/R/E/1-3)",
+        "laps.title": "LAP TIMES", "laps.empty": "Nessun tempo sul giro",
+        "export.copied": "✓ JSON copiato negli appunti",
+        "shortcut.title": "SCORCIATOIE DA TASTIERA",
+        "shortcut.startstop": "Avvia / Ferma", "shortcut.lap": "Giro (Stopwatch)",
+        "shortcut.reset": "Reset", "shortcut.export": "Esporta JSON",
+        "shortcut.mode": "Cambia modalità",
+        "disclaimer.title": "⚠ AVVERTENZE",
+        "disclaimer.intro": "Questo Web Stopwatch dipende dall'ambiente di esecuzione JavaScript del browser. Si prega di notare quanto segue:",
+        "disclaimer.b1": "La precisione al millisecondo non è garantita. Possono verificarsi errori a seconda del carico del browser o del dispositivo.",
+        "disclaimer.b2": "Nelle schede in background, il risparmio energetico del browser può rendere la misurazione imprecisa.",
+        "disclaimer.b3": "Non utilizzare per cronometraggi critici (gare sportive, uso medico, registrazioni con valore legale, ecc.).",
+        "disclaimer.b4": "Lo sviluppatore non si assume alcuna responsabilità per danni derivanti dall'uso di questo strumento.",
+        "disclaimer.b5": "Il JSON esportato è puramente informativo e non può essere usato come registrazione ufficiale.",
+        "disclaimer.outro": "Questo cronometro web dipende dall'esecuzione JavaScript del browser ed è fornito \"così com'è\" senza alcuna garanzia. Non utilizzare per cronometraggi critici."
+      },
+      ja: {} // captured from original DOM below
+    };
+
+    const LANG_FLAGS = {
+      ja:"JA", en:"EN", "zh-CN":"ZH", ko:"KO", es:"ES",
+      fr:"FR", de:"DE", pt:"PT", ru:"RU", it:"IT"
+    };
+    const LANG_HTML = { "zh-CN":"zh-CN" };
+
+    // Snapshot original Japanese DOM into the ja dict
+    document.querySelectorAll("[data-i18n], [data-i18n-html]").forEach((el) => {
+      const k = el.getAttribute("data-i18n") || el.getAttribute("data-i18n-html");
+      if (!k || (k in I18N.ja)) return;
+      I18N.ja[k] = el.getAttribute("data-i18n-html") ? el.innerHTML : el.textContent;
+    });
+
+    function applyLang(lang){
+      if (!I18N[lang]) lang = "ja";
+      const dict = I18N[lang] || {};
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const k = el.getAttribute("data-i18n");
+        if (dict[k] !== undefined) el.textContent = dict[k];
+      });
+      document.querySelectorAll("[data-i18n-html]").forEach((el) => {
+        const k = el.getAttribute("data-i18n-html");
+        if (dict[k] !== undefined) el.innerHTML = dict[k];
+      });
+      document.documentElement.setAttribute("lang", LANG_HTML[lang] || lang);
+      const cur = document.getElementById("langCurrent");
+      if (cur) cur.textContent = LANG_FLAGS[lang] || lang.toUpperCase();
+      document.querySelectorAll("#langMenu li[data-lang]").forEach((li) => {
+        li.classList.toggle("on", li.getAttribute("data-lang") === lang);
+      });
+    }
+
+    function detectLang(){
+      const params = new URLSearchParams(location.search);
+      const q = params.get("lang");
+      if (q && I18N[q]) return q;
+      let stored = null;
+      try { stored = localStorage.getItem("ve_lang"); } catch(_) {}
+      if (stored && I18N[stored]) return stored;
+      const nav = (navigator.language || "ja").toLowerCase();
+      if (nav.startsWith("zh")) return "zh-CN";
+      if (nav.startsWith("ko")) return "ko";
+      if (nav.startsWith("es")) return "es";
+      if (nav.startsWith("fr")) return "fr";
+      if (nav.startsWith("de")) return "de";
+      if (nav.startsWith("pt")) return "pt";
+      if (nav.startsWith("ru")) return "ru";
+      if (nav.startsWith("it")) return "it";
+      if (nav.startsWith("en")) return "en";
+      return "ja";
+    }
+
+    applyLang(detectLang());
+
+    // capture/screenshot mode
+    try {
+      if (new URLSearchParams(location.search).get("nofx") === "1") {
+        document.body.classList.add("nofx");
+      }
+    } catch (_) {}
+
+    // dropdown
+    const langToggle = document.getElementById("langToggle");
+    const langMenu = document.getElementById("langMenu");
+    if (langToggle && langMenu) {
+      langToggle.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const open = !langMenu.hasAttribute("hidden");
+        if (open) langMenu.setAttribute("hidden", "");
+        else langMenu.removeAttribute("hidden");
+        langToggle.setAttribute("aria-expanded", String(!open));
+      });
+      document.addEventListener("click", (ev) => {
+        if (!langMenu.contains(ev.target) && !langToggle.contains(ev.target)) {
+          langMenu.setAttribute("hidden", "");
+          langToggle.setAttribute("aria-expanded", "false");
+        }
+      });
+      langMenu.querySelectorAll("li[data-lang]").forEach((li) => {
+        li.addEventListener("click", () => {
+          const lang = li.getAttribute("data-lang");
+          try { localStorage.setItem("ve_lang", lang); } catch(_) {}
+          applyLang(lang);
+          langMenu.setAttribute("hidden", "");
+          langToggle.setAttribute("aria-expanded", "false");
+        });
+      });
+    }
   </script>
 </body>
 </html>
