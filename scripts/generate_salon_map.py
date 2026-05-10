@@ -439,6 +439,20 @@ def build_data():
         except Exception as e:
             print(f"  WARN: failed to load descriptions: {e}")
 
+    # Load per-artist recommended albums + display name overrides (optional)
+    albums_path = Path(__file__).parent / "salon_albums.py"
+    ALBUMS = {}
+    DISPLAY_NAMES = {}
+    if albums_path.exists():
+        try:
+            spec3 = importlib.util.spec_from_file_location("salon_albums", albums_path)
+            mod3 = importlib.util.module_from_spec(spec3)
+            spec3.loader.exec_module(mod3)
+            ALBUMS = getattr(mod3, "ALBUMS", {})
+            DISPLAY_NAMES = getattr(mod3, "DISPLAY_NAMES", {})
+        except Exception as e:
+            print(f"  WARN: failed to load albums: {e}")
+
     music = json.loads(MUSIC_DATA.read_text(encoding="utf-8"))
     out = {}
     for slug, g in GENRES.items():
@@ -484,14 +498,28 @@ def build_data():
         # Build per-artist description map for this genre.
         # Priority: explicit per-artist description > subgroup blurb > empty
         descs_for_genre = DESCRIPTIONS.get(slug, {})
-        # Build NFC-normalized lookup since artist strings may differ
         desc_lookup = {norm(k): v for k, v in descs_for_genre.items()}
+
+        # Display name overrides + recommended album per artist
+        names_for_genre = DISPLAY_NAMES.get(slug, {})
+        names_lookup = {norm(k): v for k, v in names_for_genre.items()}
+        albums_for_genre = ALBUMS.get(slug, {})
+        albums_lookup = {norm(k): v for k, v in albums_for_genre.items()}
+
         artist_descs = {}
+        artist_displays = {}
+        artist_albums = {}
         for sg in subgroups:
             for a in sg["artists"]:
                 if a in artist_descs:
                     continue
-                artist_descs[a] = desc_lookup.get(norm(a), sg.get("blurb", ""))
+                key = norm(a)
+                artist_descs[a] = desc_lookup.get(key, sg.get("blurb", ""))
+                artist_displays[a] = names_lookup.get(key, a)
+                alb = albums_lookup.get(key)
+                if alb:
+                    title, year = alb if isinstance(alb, (list, tuple)) and len(alb) == 2 else (alb, None)
+                    artist_albums[a] = {"title": title, "year": year}
 
         out[slug] = {
             "name_jp": g["name_jp"], "name_en": g["name_en"], "latin": g["latin"],
@@ -500,6 +528,8 @@ def build_data():
             "subgroups": subgroups,
             "all_artists": all_artists,
             "artist_descs": artist_descs,
+            "artist_displays": artist_displays,
+            "artist_albums": artist_albums,
         }
     return out, SPINES
 
@@ -722,8 +752,14 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
   font-size:11px;color:var(--ink-soft);letter-spacing:.18em;
   text-transform:uppercase;margin-bottom:10px;}
 .ap-desc{font-family:"Shippori Mincho",serif;font-size:13px;
-  color:var(--paper-dim);line-height:1.75;margin-bottom:14px;
-  padding-bottom:12px;border-bottom:1px dashed rgba(212,160,80,.18);}
+  color:var(--paper-dim);line-height:1.75;margin-bottom:10px;}
+.ap-album{font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:12.5px;color:var(--amber);letter-spacing:.04em;
+  margin-bottom:14px;padding-bottom:12px;
+  border-bottom:1px dashed rgba(212,160,80,.18);min-height:1em;}
+.ap-album:empty{display:none}
+.ap-album .ap-album-label{font-style:normal;color:var(--ink-soft);
+  letter-spacing:.18em;text-transform:uppercase;font-size:10px;margin-right:8px;}
 .ap-player-row{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
 .ap-player{display:none;margin-bottom:12px;border-radius:4px;overflow:hidden;
   background:#000;aspect-ratio:16/9;width:100%;}
@@ -861,6 +897,7 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
   <div class="ap-name" id="apName"></div>
   <div class="ap-sub" id="apSub"></div>
   <div class="ap-desc" id="apDesc"></div>
+  <div class="ap-album" id="apAlbum"></div>
   <div class="ap-player-row">
     <button class="ap-btn ap-btn-play" id="apBtnPlayHere" type="button">▶ 即試聴</button>
     <a class="ap-btn ap-btn-yt-tab" id="apBtnYtTab" href="#" target="_blank" rel="noopener">YouTubeで開く ↗</a>
@@ -883,19 +920,22 @@ const SPINES = JSON.parse(document.getElementById('spines-data').textContent);
 const AUDIO = JSON.parse(document.getElementById('audio-data').textContent);
 
 const AMAZON_TAG = AUDIO.amazon_tag || 'viewsengineer-22';
-// "直接再生できるページ" 優先 — Amazon Music は曲タップで即試聴 (30秒) /
-// Prime/Unlimited会員ならフル再生。 amazon.co.jp の MP3 検索は曲行に試聴ボタンあり。
-function amazonMusicPlayUrl(artist){
-  // Amazon Music JP — アーティスト検索結果。 タップ即試聴。
-  return `https://music.amazon.co.jp/search/${encodeURIComponent(artist)}?tag=${AMAZON_TAG}&ref=dm_sh_${AMAZON_TAG}`;
+// Amazon URLs: when an album is known, search for "<artist> <album>"
+// so the listener lands on a specific record rather than a generic page.
+function amazonQuery(artist, album){
+  return album ? `${artist} ${album}` : artist;
 }
-function amazonMp3Url(artist){
-  // amazon.co.jp デジタル音楽 (MP3) — 曲一覧に▶試聴ボタン、 アフィリエイト対応
-  return `https://www.amazon.co.jp/s?k=${encodeURIComponent(artist)}&i=digital-music&tag=${AMAZON_TAG}`;
+function amazonMusicPlayUrl(artist, album){
+  const q = amazonQuery(artist, album);
+  return `https://music.amazon.co.jp/search/${encodeURIComponent(q)}?tag=${AMAZON_TAG}&ref=dm_sh_${AMAZON_TAG}`;
 }
-function amazonAllUrl(artist){
-  // 物理メディア (CD/Vinyl) 含む全商品検索
-  return `https://www.amazon.co.jp/s?k=${encodeURIComponent(artist)}&tag=${AMAZON_TAG}`;
+function amazonMp3Url(artist, album){
+  const q = amazonQuery(artist, album);
+  return `https://www.amazon.co.jp/s?k=${encodeURIComponent(q)}&i=digital-music&tag=${AMAZON_TAG}`;
+}
+function amazonAllUrl(artist, album){
+  const q = amazonQuery(artist, album);
+  return `https://www.amazon.co.jp/s?k=${encodeURIComponent(q)}&tag=${AMAZON_TAG}`;
 }
 
 // ─── Artist popover ───────────────────────────────
@@ -944,10 +984,12 @@ function youtubeEmbedUrl(artist){
   if (vid) return `https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&rel=0`;
   return null;
 }
-function youtubeWatchUrl(artist){
+function youtubeWatchUrl(artist, displayName, album){
   const vid = youtubeVideoId(artist);
   if (vid) return `https://www.youtube.com/watch?v=${vid}`;
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(artist + ' full album')}`;
+  // Fallback: search with display name + album when available, else artist + " full album"
+  const q = album ? `${displayName || artist} ${album}` : `${displayName || artist} full album`;
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
 }
 
 function clearPlayer(){
@@ -976,26 +1018,34 @@ function startPlayer(){
   if (apCurrentChip) positionPopover(apCurrentChip);
 }
 
-function showPopover(slug, artist, sgName, desc, chipEl){
+const apAlbum = document.getElementById('apAlbum');
+let apCurrentDisplay = null;
+let apCurrentAlbum = null;
+
+function showPopover(slug, artist, sgName, desc, chipEl, display, album){
   clearTimeout(apHideTimer);
   if (apCurrentArtist !== artist) clearPlayer();
   apCurrentChip = chipEl;
   apCurrentArtist = artist;
-  apName.textContent = artist;
+  apCurrentDisplay = display || artist;
+  apCurrentAlbum = album || null;
+  apName.textContent = apCurrentDisplay;
   apSub.textContent = sgName;
   apDesc.textContent = desc || '(詳細未登録)';
-  apBtnYtTab.href = youtubeWatchUrl(artist);
-  apBtnMp3.href = amazonMp3Url(artist);
-  apBtnAll.href = amazonAllUrl(artist);
-  apBtnAmzMusic.href = amazonMusicPlayUrl(artist);
-  // Disable in-place player button if we have no pre-baked id
-  if (youtubeVideoId(artist)){
-    apBtnPlayHere.disabled = false;
-    apBtnPlayHere.title = 'YouTube で即試聴';
+  if (apCurrentAlbum && apCurrentAlbum.title){
+    const yr = apCurrentAlbum.year ? ` (${apCurrentAlbum.year})` : '';
+    apAlbum.innerHTML = `<span class="ap-album-label">推奨盤</span>${apCurrentAlbum.title}${yr}`;
   } else {
-    apBtnPlayHere.disabled = false;
-    apBtnPlayHere.title = '即試聴IDが未登録 — YouTubeを新規タブで開きます';
+    apAlbum.innerHTML = '';
   }
+  // Search/embed queries use display name + album when available
+  const searchName = apCurrentDisplay;
+  const albumTitle = apCurrentAlbum ? apCurrentAlbum.title : null;
+  apBtnYtTab.href = youtubeWatchUrl(artist, searchName, albumTitle);
+  apBtnMp3.href = amazonMp3Url(searchName, albumTitle);
+  apBtnAll.href = amazonAllUrl(searchName, albumTitle);
+  apBtnAmzMusic.href = amazonMusicPlayUrl(searchName, albumTitle);
+  apBtnPlayHere.title = youtubeVideoId(artist) ? 'YouTube で即試聴' : '即試聴IDが未登録 — YouTubeを新規タブで開きます';
   positionPopover(chipEl);
 }
 
@@ -1155,22 +1205,26 @@ function openSubgroup(slug, idx){
   const chips = document.getElementById('artistChips');
   chips.innerHTML = '';
   const descs = g.artist_descs || {};
+  const displays = g.artist_displays || {};
+  const albums = g.artist_albums || {};
   sg.artists.forEach(a => {
     const span = document.createElement('span');
     span.className = 'artist-chip';
-    span.textContent = a;
-    span.title = `${a} — ${descs[a] || sg.blurb}`;
+    const display = displays[a] || a;
+    span.textContent = display;
+    const album = albums[a] || null;
     const desc = descs[a] || sg.blurb;
+    span.title = album ? `${display} — ${album.title}${album.year?` (${album.year})`:''}` : `${display} — ${desc}`;
     span.addEventListener('click', (ev) => {
       ev.stopPropagation();
       apPinned = true;
       clearTimeout(apHideTimer);
-      showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span);
+      showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span, display, album);
     });
     span.addEventListener('mouseenter', () => {
       if (apPinned) return;
       clearTimeout(apHideTimer);
-      showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span);
+      showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span, display, album);
     });
     span.addEventListener('mouseleave', () => { if (!apPinned) scheduleHide(); });
     chips.appendChild(span);

@@ -22,22 +22,37 @@ OUT = HERE / "youtube_ids.json"
 
 
 def load_artists():
+    """Load all artists with their (display_name, album_title) when available."""
     spec = importlib.util.spec_from_file_location("gen", GENERATOR)
     gen = importlib.util.module_from_spec(spec); spec.loader.exec_module(gen)
     data, _ = gen.build_data()
     seen = set()
     artists = []
     for slug, g in data.items():
+        displays = g.get("artist_displays") or {}
+        albums = g.get("artist_albums") or {}
         for sg in g["subgroups"]:
             for a in sg["artists"]:
                 if a in seen: continue
-                seen.add(a); artists.append(a)
+                seen.add(a)
+                display = displays.get(a, a)
+                alb = albums.get(a)
+                album_title = alb["title"] if alb else None
+                artists.append((a, display, album_title))
     return artists
 
 
-def fetch_one(artist):
-    """Use yt-dlp ytsearch1 to get the first videoId for the artist."""
-    q = f"ytsearch1:{artist} full album"
+def fetch_one(artist, display=None, album=None):
+    """Use yt-dlp ytsearch1 to get the first videoId for the artist+album.
+
+    When album is given, prefer "<display> <album>" — much more accurate.
+    Otherwise fall back to "<display> full album".
+    """
+    name = display or artist
+    if album:
+        q = f"ytsearch1:{name} {album}"
+    else:
+        q = f"ytsearch1:{name} full album"
     try:
         r = subprocess.run(
             ["yt-dlp", "--quiet", "--no-warnings", "--get-id",
@@ -62,17 +77,38 @@ def main():
         existing = json.loads(OUT.read_text(encoding="utf-8"))
         print(f"resuming: {len(existing)} already mapped")
 
-    todo = [a for a in artists if a not in existing or not existing.get(a)]
-    print(f"to fetch: {len(todo)}")
+    # When an album is now known but the existing id was fetched with artist-only,
+    # we want to RE-FETCH for better accuracy. Track per-artist last query type.
+    QUERIES = Path(__file__).parent / "youtube_query_log.json"
+    queries_used = {}
+    if QUERIES.exists():
+        queries_used = json.loads(QUERIES.read_text(encoding="utf-8"))
+
+    # Decide what to fetch:
+    # - artists with no current id: fetch
+    # - artists with current id but album available now and previous query had no album: re-fetch
+    todo = []
+    for tup in artists:
+        a, display, album = tup
+        last_q = queries_used.get(a, "")
+        has_album_query = album and ("|" in last_q and last_q.split("|", 1)[1])
+        if a not in existing or not existing.get(a):
+            todo.append(tup)
+        elif album and not has_album_query:
+            todo.append(tup)
+    print(f"to fetch (incl. album re-fetches): {len(todo)}")
 
     lock = threading.Lock()
     results = dict(existing)
     counts = {"ok": 0, "fail": 0, "done": 0}
 
-    def worker(a):
-        vid = fetch_one(a)
+    def worker(tup):
+        a, display, album = tup
+        vid = fetch_one(a, display, album)
+        q_used = f"{display or a}|{album or ''}"
         with lock:
             counts["done"] += 1
+            queries_used[a] = q_used
             if vid:
                 counts["ok"] += 1
                 results[a] = vid
@@ -81,16 +117,18 @@ def main():
                 results.setdefault(a, None)
             if counts["done"] % 25 == 0:
                 OUT.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+                QUERIES.write_text(json.dumps(queries_used, ensure_ascii=False, indent=2), encoding="utf-8")
                 print(f"  [{counts['done']}/{len(todo)}] ok={counts['ok']} fail={counts['fail']}  last: {a} -> {vid}")
         return vid
 
     # 6 parallel workers — yt-dlp + ytsearch is network bound
     with ThreadPoolExecutor(max_workers=6) as ex:
-        futs = [ex.submit(worker, a) for a in todo]
+        futs = [ex.submit(worker, t) for t in todo]
         for _ in as_completed(futs):
             pass
 
     OUT.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+    QUERIES.write_text(json.dumps(queries_used, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"done: ok={counts['ok']} fail={counts['fail']}  saved: {OUT}")
 
 
