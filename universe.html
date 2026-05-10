@@ -483,17 +483,44 @@ async function main() {
   document.getElementById('loading').classList.add('hidden');
   document.getElementById('visitedCount').textContent = visited.size.toLocaleString();
 
-  // Surface today's pick (only if user hasn't already visited it).
+  // Reset camera to a sensible overview (graph spans roughly [-1000, 1000])
+  sigma.getCamera().setState({ x: 0.5, y: 0.5, ratio: 1.1, angle: 0 });
+
+  // Surface today's pick as a clickable banner — no auto-camera-move so the
+  // visitor still sees the whole universe at first paint.
   const today = pickOfTheDay();
   if (today && !visited.has(today)){
-    setTimeout(() => {
-      // Soft hint: focus the camera on today's pick but don't auto-open the
-      // info panel (that would auto-play YouTube before user opts-in).
-      const a = graph.getNodeAttributes(today);
-      sigma.getCamera().animate({ x: a.x, y: a.y, ratio: 0.2 }, { duration: 900 });
-      flashHint(`今日のおすすめ: ${a.label}`);
-    }, 500);
+    const a = graph.getNodeAttributes(today);
+    showTodayHint(a.label, today);
   }
+}
+
+function showTodayHint(label, id){
+  let el = document.getElementById('today-hint');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'today-hint';
+    el.style.cssText = 'position:fixed;top:64px;left:50%;transform:translateX(-50%);'
+      + 'background:rgba(20,16,26,.96);border:1px solid var(--amber);'
+      + 'border-radius:18px;padding:10px 22px;color:var(--amber-soft);'
+      + 'font-family:Cormorant Garamond,serif;font-style:italic;font-size:13.5px;'
+      + 'letter-spacing:.04em;z-index:15;box-shadow:0 6px 18px rgba(0,0,0,.55);'
+      + 'cursor:pointer;backdrop-filter:blur(8px);transition:all .3s;';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `今日のおすすめ: <strong style="color:var(--paper);font-weight:600">${label}</strong> <span style="opacity:.6;font-size:11px;margin-left:6px">クリックで訪れる →</span>`;
+  el.onclick = () => {
+    focusNode(id);
+    markVisited(id);
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 400);
+  };
+  // Auto-fade after a while if the visitor doesn't engage
+  setTimeout(() => {
+    if (el && document.body.contains(el)) {
+      el.style.opacity = '0.4';
+    }
+  }, 8000);
 }
 
 function flashHint(text){
