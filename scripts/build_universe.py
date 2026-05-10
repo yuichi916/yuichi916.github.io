@@ -136,16 +136,18 @@ def main():
         nodes[a]["degree"] += w
         nodes[b]["degree"] += w
 
-    # 7. Genre inference for external nodes via majority-genre of in-collection neighbors
+    # 7. Genre inference: multi-pass BFS from collection nodes.
+    # Each external node inherits the genre of the closest collection ancestor;
+    # ties broken by weighted vote.
     neighbors = defaultdict(list)
     for (a, b), w in sym.items():
         neighbors[a].append((b, w))
         neighbors[b].append((a, w))
 
+    # Pass 1: external nodes with at least one in-collection neighbor
     for nid, node in nodes.items():
         if node["in_collection"]:
             continue
-        # Find in-collection neighbors and take weighted majority genre
         votes = Counter()
         for nb, w in neighbors[nid]:
             nbn = nodes.get(nb)
@@ -154,7 +156,37 @@ def main():
         if votes:
             node["genre"] = votes.most_common(1)[0][0]
 
-    # 8. Output
+    # Passes 2-4: propagate from already-labeled neighbors (ignoring 'unknown')
+    for _ in range(3):
+        changes = 0
+        for nid, node in nodes.items():
+            if node["in_collection"] or node["genre"] != "unknown":
+                continue
+            votes = Counter()
+            for nb, w in neighbors[nid]:
+                nbn = nodes.get(nb)
+                if nbn and nbn["genre"] != "unknown":
+                    votes[nbn["genre"]] += w
+            if votes:
+                node["genre"] = votes.most_common(1)[0][0]
+                changes += 1
+        if changes == 0:
+            break
+
+    # 8. Preserve existing layout coords (x, y, r) if available — so re-running
+    # this script doesn't blow away the ForceAtlas2 positions.
+    if OUT.exists():
+        try:
+            prev = json.loads(OUT.read_text(encoding="utf-8"))
+            for pn in prev.get("nodes", []):
+                pid = pn.get("id")
+                if pid and pid in nodes and "x" in pn:
+                    nodes[pid]["x"] = pn["x"]
+                    nodes[pid]["y"] = pn["y"]
+                    nodes[pid]["r"] = pn.get("r", 2.5)
+        except Exception:
+            pass
+
     edges = [{"source": a, "target": b, "weight": w}
              for (a, b), w in sym.items()]
     nodes_list = list(nodes.values())

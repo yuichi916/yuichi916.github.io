@@ -117,9 +117,33 @@ def load_collection():
     return out
 
 
+def load_layer2_targets():
+    """For layer-2: take all artists referenced in lastfm_similar.json that
+    aren't yet in our results dict. Returns list of (raw, display) tuples
+    where raw == display since we only know the canonical name."""
+    if not OUT.exists():
+        return []
+    existing = json.loads(OUT.read_text(encoding="utf-8"))
+    # All artists currently keyed (collection set)
+    have_keys = set(existing.keys())
+    # Discovered names
+    referenced = set()
+    for sims in existing.values():
+        for s in sims:
+            referenced.add(s)
+    # Targets: referenced names not already keyed
+    targets = sorted(referenced - have_keys)
+    return [(t, t) for t in targets]
+
+
 def main():
-    arts = load_collection()
-    print(f"collection size: {len(arts)}")
+    mode = sys.argv[1] if len(sys.argv) > 1 else "collection"
+    if mode == "layer2":
+        arts = load_layer2_targets()
+        print(f"layer-2 targets (referenced but unscraped): {len(arts)}")
+    else:
+        arts = load_collection()
+        print(f"collection size: {len(arts)}")
 
     existing = {}
     if OUT.exists():
@@ -148,7 +172,7 @@ def main():
                 sims = fetch_similar(artist_raw)
             except Exception:
                 pass
-        time.sleep(random.uniform(0.2, 0.5))  # pace
+        time.sleep(random.uniform(0.8, 1.6))  # pace — Last.fm rate-limit friendly
         with lock:
             counts["done"] += 1
             if sims:
@@ -162,8 +186,8 @@ def main():
                 print(f"  [{counts['done']}/{len(todo)}] ok={counts['ok']} fail={counts['fail']}  last: {display} -> {len(sims)} sims")
         return sims
 
-    # 8 parallel workers
-    with ThreadPoolExecutor(max_workers=8) as ex:
+    # 4 parallel workers (Last.fm rate-limit friendly)
+    with ThreadPoolExecutor(max_workers=4) as ex:
         futs = [ex.submit(worker, t) for t in todo]
         for _ in as_completed(futs):
             pass
