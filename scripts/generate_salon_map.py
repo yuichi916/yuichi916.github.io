@@ -789,17 +789,19 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 .mapsvg .ax-label{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:11px;
   fill:var(--ink-soft);letter-spacing:.18em;text-transform:uppercase}
 .mapsvg .genre-bubble{cursor:pointer;transition:opacity .4s}
-.mapsvg .genre-bubble circle{transition:r .4s, fill-opacity .25s}
-.mapsvg .genre-bubble:hover circle{fill-opacity:.7}
-.mapsvg .genre-bubble.active circle{stroke-width:3}
+.mapsvg .genre-bubble circle{transition:r .4s, fill-opacity .25s;filter:drop-shadow(0 0 8px currentColor)}
+.mapsvg .genre-bubble:hover circle{fill-opacity:.7;filter:drop-shadow(0 0 16px currentColor) drop-shadow(0 0 28px currentColor)}
+.mapsvg .genre-bubble.active circle{stroke-width:3;filter:drop-shadow(0 0 12px currentColor) drop-shadow(0 0 24px currentColor)}
 .mapsvg .genre-bubble text{font-family:"Shippori Mincho",serif;font-weight:700;
-  fill:var(--paper);text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+  fill:var(--paper);text-anchor:middle;dominant-baseline:middle;pointer-events:none;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6))}
 .mapsvg .genre-bubble .en{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:9px;fill:var(--amber);text-anchor:middle}
 .mapsvg .subgroup-bubble{cursor:pointer;transition:opacity .4s}
-.mapsvg .subgroup-bubble circle{transition:fill-opacity .25s,r .25s}
-.mapsvg .subgroup-bubble:hover circle{fill-opacity:.95;r:36}
+.mapsvg .subgroup-bubble circle{transition:fill-opacity .25s,r .25s;filter:drop-shadow(0 0 6px currentColor)}
+.mapsvg .subgroup-bubble:hover circle{fill-opacity:.95;r:36;filter:drop-shadow(0 0 14px currentColor) drop-shadow(0 0 22px currentColor)}
 .mapsvg .subgroup-bubble text{font-family:"Shippori Mincho",serif;font-weight:500;
-  fill:var(--paper);text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-size:10px}
+  fill:var(--paper);text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-size:10px;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,0.5))}
 
 .panel{position:relative;margin-top:24px;padding:24px;
   background:rgba(28,20,40,.55);border:1px solid rgba(212,160,80,.18);border-radius:6px;display:none;}
@@ -863,7 +865,7 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
   border:1px solid rgba(212,160,80,.18);border-radius:6px;padding:24px;}
 .spines-svg{display:block;width:100%;height:auto;aspect-ratio:16/10}
 .spines-svg .spine{stroke-width:1.6;fill:none;stroke-linecap:round;opacity:.85}
-.spines-svg .node circle{fill:var(--night-3);stroke-width:1.4}
+.spines-svg .node circle{fill:var(--night-3);stroke-width:2;filter:drop-shadow(0 0 4px currentColor)}
 .spines-svg .node text{font-family:"Shippori Mincho",serif;font-size:11px;fill:var(--paper);text-anchor:middle}
 .spines-svg .spine-label{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:13px}
 .spines-legend{display:flex;flex-direction:column;gap:14px;margin-top:24px}
@@ -1438,8 +1440,18 @@ function showGenres(){
     grp.setAttribute('class', 'genre-bubble');
     grp.setAttribute('data-slug', slug);
     grp.style.opacity = '1';
+    const gradId = `grad-${slug}`;
     grp.innerHTML = `
-      <circle cx="${g.x}" cy="${g.y}" r="38" fill="${g.color}" fill-opacity=".42" stroke="${g.color}" stroke-width="1.4"/>
+      <defs>
+        <radialGradient id="${gradId}">
+          <stop offset="0%" stop-color="${g.color}" stop-opacity="0.65"/>
+          <stop offset="70%" stop-color="${g.color}" stop-opacity="0.42"/>
+          <stop offset="100%" stop-color="${g.color}" stop-opacity="0.25"/>
+        </radialGradient>
+      </defs>
+      <circle cx="${g.x}" cy="${g.y}" r="38" fill="url(#${gradId})" stroke="${g.color}" stroke-width="2" stroke-opacity="0.6"/>
+      <circle cx="${g.x}" cy="${g.y}" r="38" fill="none" stroke="${g.color}" stroke-width="1" stroke-opacity="0.3" stroke-dasharray="2,3"/>
+      <circle cx="${g.x - 8}" cy="${g.y - 8}" r="4" fill="${g.color}" fill-opacity="0.4"/>
       <text x="${g.x}" y="${g.y - 4}" font-size="${g.name_jp.length > 6 ? 11 : 13}">${clamp(g.name_jp, 8)}</text>
       <text x="${g.x}" y="${g.y + 12}" class="en">${clamp(g.name_en, 14)}</text>
     `;
@@ -1482,8 +1494,16 @@ function openGenre(slug){
     const label = clamp(sg.name_jp, 8);
     const isAuto = !!sg.auto;
     const fillOpacity = isAuto ? '.32' : '.55';
+    const subId = `subgrad-${slug}-${i}`;
     grp.innerHTML = `
-      <circle cx="${sx}" cy="${sy}" r="28" fill="${g.color}" fill-opacity="${fillOpacity}" stroke="${g.color}" stroke-width="1.2" ${isAuto ? 'stroke-dasharray="2,3"' : ''}/>
+      <defs>
+        <radialGradient id="${subId}">
+          <stop offset="0%" stop-color="${g.color}" stop-opacity="${isAuto ? '0.5' : '0.7'}"/>
+          <stop offset="100%" stop-color="${g.color}" stop-opacity="${isAuto ? '0.2' : '0.4'}"/>
+        </radialGradient>
+      </defs>
+      <circle cx="${sx}" cy="${sy}" r="28" fill="url(#${subId})" stroke="${g.color}" stroke-width="1.5" stroke-opacity="0.5" ${isAuto ? 'stroke-dasharray="2,3"' : ''}/>
+      <circle cx="${sx - 6}" cy="${sy - 6}" r="3" fill="${g.color}" fill-opacity="0.35"/>
       <text x="${sx}" y="${sy}" font-size="9">${label}</text>
     `;
     grp.addEventListener('click', (ev) => { ev.stopPropagation(); openSubgroup(slug, i); });
