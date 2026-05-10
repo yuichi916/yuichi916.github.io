@@ -13,7 +13,7 @@ Each node:
 Each edge:
   { source: artist_id, target: artist_id, weight }
 """
-import json, sys, io, os, importlib.util, unicodedata
+import json, sys, io, os, importlib.util, unicodedata, re
 from pathlib import Path
 from collections import Counter, defaultdict
 
@@ -24,11 +24,54 @@ HERE = Path(__file__).parent
 GENERATOR = HERE / "generate_salon_map.py"
 LASTFM = HERE / "lastfm_similar.json"
 CURATED = HERE / "salon_similar.py"
+YT_IDS = HERE / "youtube_ids.json"
+ASINS = HERE / "amazon_asins.json"
 OUT = HERE / "universe.json"
 
 
 def norm(s):
     return unicodedata.normalize("NFC", s or "").strip().lower()
+
+
+_NOISE_PATTERNS = [
+    # Format/encoding markers usually appended to folder names
+    r"\s*\[?(FLAC|MP3|APE|WAV|TTA|TAK|DSF|DFF|AIFF|FLAC\+CUE\+LOG\+BK|FLAC\+CUE)\]?\s*$",
+    r"\s*\(?(96kHz/24bit|48kHz/24bit|24bit|96kHz|48kHz|44\.1kHz|hi-?res|Hi-Res)\)?\s*$",
+    r"\s*\[?(96kHz[／/]24bit|48kHz[／/]24bit|44\.1kHz[／/]16bit)\]?\s*$",
+    # Trailing FLAC/CUE/LOG/BK token at end (handles _FLAC, .FLAC etc.)
+    r"[\s_\-\.]+(FLAC|MP3|APE|CUE|LOG|BK|ape)$",
+    # Folder-style 4-digit year prefix like "[1999] " or "1999 - "
+    r"^\s*[\[\(]?\d{4}[\]\)]?\s*[\-\.\s]\s*",
+    # Trailing year " (1999)" or " 1999" at end of string when name has more text
+    r"\s+\(\d{4}\)\s*$",
+    # "1st Album「..」" "2nd Album「..」" Japanese suffixes (just keep up to album marker)
+    r"\s*\d+(st|nd|rd|th)\s*Album.*$",
+    # "Original Soundtrack" trailing repeat
+    r"\s*Original\s+Soundtrack\s*$",
+    # "[USA]" "[JP]" region tags
+    r"\s*\[(USA|JP|UK|EU|JAP)\]\s*$",
+]
+
+
+def clean_artist_name(name):
+    """Strip common folder/format noise from artist names so the visualization
+    shows clean canonical names."""
+    if not name:
+        return name
+    s = str(name)
+    # Apply patterns repeatedly until stable
+    for _ in range(4):
+        prev = s
+        for p in _NOISE_PATTERNS:
+            s = re.sub(p, "", s, flags=re.I).strip()
+        if s == prev:
+            break
+    # Replace underscores with spaces (common folder convention) when string has many
+    if s.count("_") >= 2 and " " not in s:
+        s = s.replace("_", " ")
+    # Collapse repeated whitespace
+    s = re.sub(r"\s+", " ", s).strip(" -_.,")
+    return s or name  # fall back to original if cleaning emptied it
 
 
 def main():
@@ -70,18 +113,23 @@ def main():
         for sg in g["subgroups"]:
             for a in sg["artists"]:
                 disp = displays.get(a, a)
+                cleaned = clean_artist_name(disp)
                 alb = albums.get(a) or {}
-                add_node(disp,
+                # Also clean album title (drop format markers) but keep year for tooltip
+                clean_album = clean_artist_name(alb.get("title")) if alb.get("title") else None
+                add_node(cleaned,
                          in_collection=True,
                          genre=slug,
                          subgroup=sg["name_jp"],
-                         album=alb.get("title"),
-                         year=alb.get("year"))
-                # Also alias the raw name to the same canonical id when different
-                rid = canonical_id(a)
-                did = canonical_id(disp)
-                if rid != did:
-                    name_to_id[rid] = did
+                         album=clean_album,
+                         year=alb.get("year"),
+                         raw_name=a)  # keep raw for YT id lookup
+                # Also alias raw + display so similar lookups resolve
+                cid = canonical_id(cleaned)
+                for alias in [a, disp]:
+                    aid = canonical_id(alias)
+                    if aid != cid and aid not in name_to_id:
+                        name_to_id[aid] = cid
 
     print(f"collection nodes: {len(nodes)}")
 
@@ -173,6 +221,35 @@ def main():
         if changes == 0:
             break
 
+    # 7b. Attach YouTube videoId + Amazon ASIN per node (for inline player)
+    yt_ids = {}
+    if YT_IDS.exists():
+        ydata = json.loads(YT_IDS.read_text(encoding="utf-8"))
+        for k, v in ydata.items():
+            if v:
+                yt_ids[canonical_id(k)] = v
+    asin_map = {}
+    if ASINS.exists():
+        adata = json.loads(ASINS.read_text(encoding="utf-8"))
+        for k, v in adata.items():
+            if isinstance(v, dict) and v.get("asin"):
+                asin_map[canonical_id(k)] = v["asin"]
+
+    for nid, node in nodes.items():
+        # Try to find YT id by canonical id, then by alias chain (raw_name)
+        raw = node.get("raw_name")
+        cands = [nid]
+        if raw:
+            cands.append(canonical_id(raw))
+        for c in cands:
+            if c in yt_ids:
+                node["yt"] = yt_ids[c]
+                break
+        for c in cands:
+            if c in asin_map:
+                node["asin"] = asin_map[c]
+                break
+
     # 8. Preserve existing layout coords (x, y, r) if available — so re-running
     # this script doesn't blow away the ForceAtlas2 positions.
     if OUT.exists():
@@ -189,7 +266,11 @@ def main():
 
     edges = [{"source": a, "target": b, "weight": w}
              for (a, b), w in sym.items()]
-    nodes_list = list(nodes.values())
+    # Drop helper keys before serializing
+    nodes_list = []
+    for n in nodes.values():
+        n.pop("raw_name", None)
+        nodes_list.append(n)
 
     OUT.write_text(json.dumps({
         "nodes": nodes_list,

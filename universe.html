@@ -62,18 +62,37 @@ html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
 .legend .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 
 .info{position:fixed;top:64px;right:16px;z-index:10;
-  background:rgba(20,16,26,.96);border:1px solid var(--amber);
-  border-radius:6px;padding:18px;width:300px;display:none;
-  box-shadow:0 10px 30px rgba(0,0,0,.6);
+  background:rgba(20,16,26,.97);border:1px solid var(--amber);
+  border-radius:6px;padding:18px;width:340px;display:none;
+  box-shadow:0 14px 36px rgba(0,0,0,.7);
   backdrop-filter:blur(12px);}
 .info.open{display:block;animation:fadein .25s ease;}
 @keyframes fadein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .info .name{font-family:"Shippori Mincho",serif;font-weight:700;font-size:18px;
-  color:var(--paper);margin-bottom:4px;}
+  color:var(--paper);margin-bottom:4px;padding-right:24px;line-height:1.4;}
 .info .sub{font-family:"Cormorant Garamond",serif;font-style:italic;
-  font-size:12px;color:var(--amber);letter-spacing:.06em;margin-bottom:12px;
+  font-size:11px;color:var(--amber);letter-spacing:.18em;margin-bottom:12px;
   text-transform:uppercase;}
-.info .meta{font-family:"Shippori Mincho",serif;font-size:13px;
+.info .album{font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:13px;color:var(--amber-soft);margin-bottom:14px;padding-bottom:12px;
+  border-bottom:1px dashed rgba(212,160,80,.2);}
+.info .album-label{font-family:"Inter",sans-serif;font-style:normal;
+  text-transform:uppercase;letter-spacing:.18em;font-size:10px;
+  color:var(--ink-soft);margin-right:8px;}
+.info .player{display:none;margin-bottom:14px;border-radius:4px;overflow:hidden;
+  background:#000;aspect-ratio:16/9;width:100%;}
+.info .player.open{display:block}
+.info .player iframe{width:100%;height:100%;border:0;display:block}
+.info .play-row{display:flex;gap:6px;margin-bottom:12px;}
+.info .play-btn{font-family:"Inter",sans-serif;font-size:12px;font-weight:700;
+  padding:8px 14px;border-radius:4px;cursor:pointer;border:1px solid #c02838;
+  background:linear-gradient(180deg,#e23a4e,#a02030);color:#fff;
+  transition:all .2s;}
+.info .play-btn:hover{background:linear-gradient(180deg,#ff5060,#c03040);
+  transform:translateY(-1px);}
+.info .play-btn.playing{background:linear-gradient(180deg,#444,#222);border-color:#555}
+.info .play-btn[disabled]{opacity:.35;cursor:not-allowed;background:#333;border-color:#444;}
+.info .meta{font-family:"Shippori Mincho",serif;font-size:12px;
   color:var(--paper-dim);line-height:1.7;margin-bottom:12px;}
 .info .links{display:flex;gap:6px;flex-wrap:wrap;}
 .info .links a{font-family:"Inter",sans-serif;font-size:11px;font-weight:600;
@@ -86,6 +105,26 @@ html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
   border:none;color:var(--ink-soft);cursor:pointer;font-size:18px;line-height:1;
   padding:2px 6px;}
 .info .close:hover{color:var(--amber)}
+
+.filter-panel{position:fixed;top:64px;left:16px;z-index:10;
+  background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.18);
+  border-radius:6px;padding:10px 14px;
+  backdrop-filter:blur(12px);max-width:260px;}
+.filter-panel h3{font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--amber);margin-bottom:8px;}
+.filter-panel .item{display:flex;align-items:center;gap:6px;
+  font-size:11px;color:var(--paper-dim);cursor:pointer;
+  padding:2px 0;user-select:none;}
+.filter-panel .item:hover{color:var(--paper)}
+.filter-panel .item input{margin:0;cursor:pointer;}
+.filter-panel .item .swatch{width:9px;height:9px;border-radius:50%;}
+.filter-panel .item .count{margin-left:auto;color:var(--ink-soft);font-size:10px}
+.filter-panel .toggle-all{margin-top:6px;padding-top:6px;
+  border-top:1px solid rgba(212,160,80,.12);
+  display:flex;gap:8px;font-size:10px;color:var(--ink-soft);}
+.filter-panel .toggle-all a{color:var(--amber);text-decoration:none;cursor:pointer;}
+.filter-panel .toggle-all a:hover{color:var(--paper)}
 
 .controls{position:fixed;bottom:16px;right:16px;z-index:10;
   display:flex;flex-direction:column;gap:6px;}
@@ -147,8 +186,23 @@ html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
   <button class="close" id="infoClose" aria-label="閉じる">×</button>
   <div class="name" id="infoName"></div>
   <div class="sub" id="infoSub"></div>
+  <div class="album" id="infoAlbum"></div>
+  <div class="play-row">
+    <button class="play-btn" id="playBtn" type="button">▶ 即試聴</button>
+  </div>
+  <div class="player" id="infoPlayer"></div>
   <div class="meta" id="infoMeta"></div>
   <div class="links" id="infoLinks"></div>
+</div>
+
+<div class="filter-panel" id="filterPanel">
+  <h3>Genre Filter · ジャンル絞り込み</h3>
+  <div id="filterItems"></div>
+  <div class="toggle-all">
+    <a id="filterAll">すべて表示</a>
+    <a id="filterNone">すべて隠す</a>
+    <a id="filterCollOnly">コレクションのみ</a>
+  </div>
 </div>
 
 <div class="controls">
@@ -202,19 +256,21 @@ function buildGraph(data) {
       y: n.y ?? Math.random() * 100 - 50,
       size: n.r ?? 2.5,
       color: color,
+      origColor: color,  // preserved for hover dim/restore
       genre: n.genre,
       inCollection: n.in_collection,
       album: n.album,
-      year: n.year,
-      subgroup: n.subgroup,
       degree: n.degree,
+      yt: n.yt,
+      asin: n.asin,
     });
   }
   for (const e of data.edges) {
     if (g.hasNode(e.source) && g.hasNode(e.target) && !g.hasEdge(e.source, e.target)) {
       g.addEdge(e.source, e.target, {
-        size: 0.5,
-        color: 'rgba(212,160,80,0.06)',
+        size: 0.4,
+        color: 'rgba(212,160,80,0.05)',
+        origColor: 'rgba(212,160,80,0.05)',
         weight: e.weight,
       });
     }
@@ -237,19 +293,46 @@ async function main() {
     labelSize: 11,
     labelWeight: 'normal',
     labelColor: { color: '#f0e8d8' },
-    labelDensity: 0.8,
-    labelGridCellSize: 80,
-    labelRenderedSizeThreshold: 6,
+    labelDensity: 1.2,
+    labelGridCellSize: 60,
+    labelRenderedSizeThreshold: 4,  // show more labels at zoom
     enableEdgeEvents: false,
-    minCameraRatio: 0.05,
-    maxCameraRatio: 50,
+    minCameraRatio: 0.005,  // 200x zoom in (was 20x)
+    maxCameraRatio: 80,
+    // Reducer hooks for hover-highlighting
+    nodeReducer: (id, attrs) => {
+      const r = { ...attrs };
+      if (hoveredNode && id !== hoveredNode && !graph.hasEdge(hoveredNode, id) && !graph.hasEdge(id, hoveredNode)) {
+        r.color = '#3a2438';
+        r.label = '';
+      }
+      return r;
+    },
+    edgeReducer: (id, attrs) => {
+      const r = { ...attrs };
+      if (hoveredNode && !graph.hasExtremity(id, hoveredNode)) {
+        r.hidden = true;
+      }
+      if (hoveredNode && graph.hasExtremity(id, hoveredNode)) {
+        r.color = 'rgba(240,200,120,0.6)';
+        r.size = 1.4;
+      }
+      return r;
+    },
   });
 
   // Hover & click
-  sigma.on('enterNode', ({ node }) => { hoveredNode = node; });
-  sigma.on('leaveNode', () => { hoveredNode = null; });
+  sigma.on('enterNode', ({ node }) => {
+    hoveredNode = node;
+    sigma.refresh();
+  });
+  sigma.on('leaveNode', () => {
+    hoveredNode = null;
+    sigma.refresh();
+  });
   sigma.on('clickNode', ({ node }) => showInfo(node));
-  sigma.on('clickStage', () => closeInfo());
+  // clickStage: don't close info (info has its own × button) — instead just deselect any hover
+  sigma.on('clickStage', () => { /* keep info open */ });
 
   // Controls
   document.getElementById('zoomIn').onclick = () => {
@@ -264,6 +347,19 @@ async function main() {
     sigma.getCamera().animatedReset({ duration: 500 });
   };
   document.getElementById('infoClose').onclick = () => closeInfo();
+
+  // Play button: toggle inline YouTube player
+  document.getElementById('playBtn').onclick = () => {
+    const p = document.getElementById('infoPlayer');
+    if (p.classList.contains('open')){
+      resetPlayer();
+    } else {
+      startPlayer();
+    }
+  };
+
+  // Genre filter panel
+  buildFilterPanel();
 
   // Serendipity dice — preferentially highlight an external (not-yet-known) node.
   document.getElementById('dice').onclick = () => {
@@ -308,6 +404,56 @@ async function main() {
   document.getElementById('loading').classList.add('hidden');
 }
 
+function buildFilterPanel(){
+  const counts = {};
+  for (const id of allNodeIds){
+    const g = graph.getNodeAttribute(id, 'genre') || 'unknown';
+    counts[g] = (counts[g] || 0) + 1;
+  }
+  const entries = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+  const html = entries.map(([g, c]) => `
+    <label class="item">
+      <input type="checkbox" data-g="${g}" checked>
+      <span class="swatch" style="background:${GENRE_COLORS[g] || '#7a2a3a'}"></span>
+      <span>${g}</span>
+      <span class="count">${c.toLocaleString()}</span>
+    </label>`).join('');
+  document.getElementById('filterItems').innerHTML = html;
+
+  function applyFilter(){
+    const enabled = new Set();
+    document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => {
+      if (cb.checked) enabled.add(cb.getAttribute('data-g'));
+    });
+    const collOnly = document.getElementById('filterPanel').dataset.collOnly === 'true';
+    for (const id of allNodeIds){
+      const g = graph.getNodeAttribute(id, 'genre') || 'unknown';
+      const inColl = graph.getNodeAttribute(id, 'inCollection');
+      const visible = enabled.has(g) && (!collOnly || inColl);
+      graph.setNodeAttribute(id, 'hidden', !visible);
+    }
+    sigma.refresh();
+  }
+
+  document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', applyFilter);
+  });
+  document.getElementById('filterAll').onclick = () => {
+    document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => cb.checked = true);
+    document.getElementById('filterPanel').dataset.collOnly = 'false';
+    applyFilter();
+  };
+  document.getElementById('filterNone').onclick = () => {
+    document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => cb.checked = false);
+    applyFilter();
+  };
+  document.getElementById('filterCollOnly').onclick = () => {
+    document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => cb.checked = true);
+    document.getElementById('filterPanel').dataset.collOnly = 'true';
+    applyFilter();
+  };
+}
+
 function focusNode(id) {
   if (!graph.hasNode(id)) return;
   const a = graph.getNodeAttributes(id);
@@ -316,32 +462,89 @@ function focusNode(id) {
   setTimeout(() => showInfo(id), 600);
 }
 
+let currentNodeId = null;
+
 function showInfo(id) {
   const a = graph.getNodeAttributes(id);
+  currentNodeId = id;
   document.getElementById('infoName').textContent = a.label;
   const sub = a.inCollection
-    ? `${(a.genre || '').toUpperCase()} · ${a.subgroup || ''}`
-    : `${(a.genre || 'unknown').toUpperCase()} · 外部 / Last.fm 関連`;
+    ? `${(a.genre || '').toUpperCase()} · コレクション内`
+    : `${(a.genre || 'unknown').toUpperCase()} · まだ知らない隣人`;
   document.getElementById('infoSub').textContent = sub;
-  let meta = '';
-  if (a.album) meta += `推奨盤: ${a.album}${a.year ? ` (${a.year})` : ''}<br>`;
-  meta += `関連数: ${Math.round(a.degree || 0)}`;
+  // Album: title only (year dropped per user request — cleaner)
+  const albEl = document.getElementById('infoAlbum');
+  if (a.album){
+    albEl.innerHTML = `<span class="album-label">推奨盤</span>${a.album}`;
+    albEl.style.display = '';
+  } else {
+    albEl.innerHTML = '';
+    albEl.style.display = 'none';
+  }
+  // Player & button state
+  resetPlayer();
+  const playBtn = document.getElementById('playBtn');
+  if (a.yt){
+    playBtn.disabled = false;
+    playBtn.textContent = '▶ 即試聴';
+    playBtn.title = 'YouTube で即試聴';
+  } else {
+    playBtn.disabled = false;
+    playBtn.textContent = '▶ YouTube で開く';
+    playBtn.title = '即試聴IDなし — YouTube検索を新規タブで開きます';
+  }
+  // Meta
+  let meta = `関連 ${Math.round(a.degree || 0)} 作家`;
   document.getElementById('infoMeta').innerHTML = meta;
-  const enc = encodeURIComponent(a.label);
+  // External links
+  const enc = encodeURIComponent(a.label + (a.album ? ' ' + a.album : ''));
+  const ytTab = a.yt
+    ? `https://www.youtube.com/watch?v=${a.yt}`
+    : `https://www.youtube.com/results?search_query=${encodeURIComponent(a.label + (a.album ? ' ' + a.album : ' full album'))}`;
+  const amzMain = a.asin
+    ? `https://www.amazon.co.jp/dp/${a.asin}?tag=viewsengineer-22`
+    : `https://www.amazon.co.jp/s?k=${enc}&i=digital-music&tag=viewsengineer-22`;
   const links = [
-    `<a href="https://www.youtube.com/results?search_query=${enc}+full+album" target="_blank" rel="noopener">▶ YouTube</a>`,
-    `<a href="https://www.amazon.co.jp/s?k=${enc}&i=digital-music&tag=viewsengineer-22" target="_blank" rel="noopener sponsored">🎧 Amazon</a>`,
-    `<a href="https://www.last.fm/music/${enc}" target="_blank" rel="noopener">📊 Last.fm</a>`,
+    `<a href="${ytTab}" target="_blank" rel="noopener">YouTube ↗</a>`,
+    `<a href="${amzMain}" target="_blank" rel="noopener sponsored">${a.asin ? '🎧 アルバムへ' : '🎧 Amazon'}</a>`,
+    `<a href="https://www.last.fm/music/${encodeURIComponent(a.label)}" target="_blank" rel="noopener">📊 Last.fm</a>`,
   ];
-  if (a.inCollection) {
-    links.unshift(`<a href="salon.html#${enc}">Salon →</a>`);
+  if (a.inCollection){
+    links.unshift(`<a href="salon.html">サロン</a>`);
   }
   document.getElementById('infoLinks').innerHTML = links.join('');
   document.getElementById('info').classList.add('open');
 }
 
+function resetPlayer(){
+  const p = document.getElementById('infoPlayer');
+  p.innerHTML = '';
+  p.classList.remove('open');
+  const btn = document.getElementById('playBtn');
+  btn.classList.remove('playing');
+}
+
+function startPlayer(){
+  if (!currentNodeId) return;
+  const a = graph.getNodeAttributes(currentNodeId);
+  const btn = document.getElementById('playBtn');
+  if (!a.yt){
+    // Fallback: open YouTube search in new tab
+    const q = encodeURIComponent(a.label + (a.album ? ' ' + a.album : ' full album'));
+    window.open(`https://www.youtube.com/results?search_query=${q}`, '_blank', 'noopener');
+    return;
+  }
+  const p = document.getElementById('infoPlayer');
+  p.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${a.yt}?autoplay=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+  p.classList.add('open');
+  btn.classList.add('playing');
+  btn.textContent = '■ 停止';
+}
+
 function closeInfo() {
   document.getElementById('info').classList.remove('open');
+  resetPlayer();
+  currentNodeId = null;
 }
 
 main().catch(err => {
