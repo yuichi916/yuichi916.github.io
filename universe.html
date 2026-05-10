@@ -121,6 +121,8 @@
 <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/graphology-layout-noverlap@0.4.2/dist/graphology-layout-noverlap.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0/dist/sigma.min.js"></script>
+<!-- @sigma/node-border has no UMD bundle; node state is shown via halos +
+     fill-colour mixing in the reducer instead. -->
 
 <style>
 :root{
@@ -355,6 +357,42 @@ body.embed #graph{top:0;}
 }
 .ripple.lvup{border-color:#bf8aff;}
 
+/* Hover halos — pulsing rings on hovered node + its neighbours */
+.halo-layer{position:fixed;inset:0;pointer-events:none;z-index:11;
+  overflow:hidden;}
+.halo{position:absolute;border-radius:50%;pointer-events:none;
+  transform:translate(-50%,-50%);}
+.halo.primary{
+  width:46px;height:46px;
+  border:2px solid var(--amber);
+  box-shadow:0 0 18px rgba(240,200,120,.55), inset 0 0 12px rgba(240,200,120,.25);
+  animation:haloPulse 1.6s ease-in-out infinite;}
+.halo.neighbor{
+  width:24px;height:24px;
+  border:1.5px solid rgba(240,200,120,.5);
+  box-shadow:0 0 9px rgba(240,200,120,.3);
+  animation:haloPulse 1.8s ease-in-out infinite;
+  animation-delay:.2s;}
+@keyframes haloPulse{
+  0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.85}
+  50%    {transform:translate(-50%,-50%) scale(1.18);opacity:.45}
+}
+.halo-label{position:absolute;transform:translate(-50%,-100%);
+  margin-top:-30px;
+  font-family:"Shippori Mincho",serif;font-weight:700;font-size:12px;
+  color:var(--paper);background:rgba(15,12,22,.94);
+  border:1px solid rgba(240,200,120,.45);border-radius:4px;
+  padding:3px 9px;white-space:nowrap;
+  box-shadow:0 4px 10px rgba(0,0,0,.6);letter-spacing:.04em;
+  pointer-events:none;}
+.halo-label.primary{font-size:14px;
+  border-color:var(--amber);color:var(--amber-soft);
+  box-shadow:0 6px 14px rgba(0,0,0,.7), 0 0 12px rgba(240,200,120,.3);}
+.halo-label .hl-icon{margin-right:4px;}
+.halo-label .hl-yt{color:#ff7080;font-weight:900;}
+.halo-label .hl-hub{color:#ffd070;}
+.halo-label .hl-visited{color:#88e0a0;}
+
 /* Hover tooltip — large legible name + meta floating over the canvas */
 .node-tip{position:fixed;pointer-events:none;z-index:9999;
   background:rgba(15,12,22,.98);border:1px solid var(--amber);
@@ -467,6 +505,7 @@ body.embed #graph{top:0;}
   <button id="zoomReset" title="リセット">⊙</button>
 </div>
 
+<div class="halo-layer" id="haloLayer"></div>
 <div class="node-tip" id="nodeTip"></div>
 <div class="loading" id="loading">universe loading…</div>
 
@@ -515,17 +554,24 @@ function buildGraph(data) {
   const g = new Graph({ type: 'undirected', multi: false });
   for (const n of data.nodes) {
     const color = GENRE_COLORS[n.genre] || GENRE_COLORS.unknown;
+    const deg = n.degree || 0;
+    const isHub = deg >= 18;
+    // Hubs render with a brighter fill so they pop visually as "popular"
+    const fill = isHub
+      ? mixColor(color, '#ffffff', 0.18)
+      : color;
     g.addNode(n.id, {
       label: n.name,
       x: n.x ?? Math.random() * 100 - 50,
       y: n.y ?? Math.random() * 100 - 50,
-      size: n.r ?? 2.5,
-      color: color,
-      origColor: color,
+      size: isHub ? (n.r ?? 2.5) * 1.4 : (n.r ?? 2.5),
+      color: fill,
+      origColor: fill,
       genre: n.genre,
       inCollection: n.in_collection,
       album: n.album,
-      degree: n.degree,
+      degree: deg,
+      isHub: isHub,
       yt: n.yt,
       asin: n.asin,
       origin: n.origin,
@@ -781,16 +827,17 @@ async function main() {
 
   sigma = new Sigma(graph, document.getElementById('graph'), {
     renderEdgeLabels: false,
-    labelSize: 11,
-    labelWeight: 'normal',
+    labelSize: 12,
+    labelWeight: '700',
     labelColor: { color: '#f0e8d8' },
-    labelDensity: 1.2,
-    labelGridCellSize: 60,
-    labelRenderedSizeThreshold: 4,  // show more labels at zoom
+    labelDensity: 1.4,
+    labelGridCellSize: 56,
+    labelRenderedSizeThreshold: 6,
     enableEdgeEvents: false,
-    minCameraRatio: 0.005,  // 200x zoom in (was 20x)
+    minCameraRatio: 0.005,
     maxCameraRatio: 80,
-    // Reducer hooks: hover, visited muting, level-based mystery gating.
+    // Reducer hooks: hover (with neighbours rising), visited muting,
+    // level-based mystery gating, state-aware borders.
     nodeReducer: (id, attrs) => {
       const r = { ...attrs };
       const wasVisited = visited.has(id);
@@ -798,24 +845,31 @@ async function main() {
       if (locked){
         r.color = '#2a2138';
         r.size  = Math.max(1.2, (attrs.size || 2) * 0.55);
-        r.label = '';
       } else if (wasVisited){
-        r.color = mixColor(attrs.origColor, '#3a2438', 0.55);
+        // Visited: dim fill so unvisited pop, but tint slightly green so it
+        // reads as "you've been here" rather than just dead.
+        r.color = mixColor(attrs.origColor, '#3a5a48', 0.55);
       }
-      // Hide all labels (we render a custom floating tooltip on hover)
       r.label = '';
-      // Hover: enlarge + brighten the focused node and its neighbours
+      // Hover: dramatically enlarge focused node + ALL neighbours, force
+      // their labels visible so the relation becomes obvious at a glance.
       if (hoveredNode){
-        if (id === hoveredNode){
-          r.size = (r.size || 2) * 1.8;
+        const isHovered = id === hoveredNode;
+        const isNeighbor = graph.hasEdge(hoveredNode, id) || graph.hasEdge(id, hoveredNode);
+        if (isHovered){
+          r.size = (r.size || 2) * 2.4;
           r.color = attrs.origColor;
+          r.label = attrs.label;
+          r.forceLabel = true;
           r.zIndex = 10;
-        } else if (graph.hasEdge(hoveredNode, id) || graph.hasEdge(id, hoveredNode)){
-          // neighbours keep colour but get a faint glow via slightly larger size
-          r.size = (r.size || 2) * 1.15;
+        } else if (isNeighbor){
+          r.size = (r.size || 2) * 1.7;
           r.color = attrs.origColor;
+          r.label = attrs.label;
+          r.forceLabel = true;
+          r.zIndex = 8;
         } else {
-          r.color = '#221426';
+          r.color = '#1a0e1c';
         }
       }
       return r;
@@ -871,15 +925,69 @@ async function main() {
     if (hoveredNode) placeTipAtMouse();
   }, { passive: true });
 
+  // Halo overlay: pulsing rings on hovered node + ALL its neighbours.
+  // Limited to top-N neighbours by edge weight to avoid 100+ DOM elements
+  // for very high-degree hubs.
+  const haloLayer = document.getElementById('haloLayer');
+  function renderHalos(){
+    haloLayer.innerHTML = '';
+    if (!hoveredNode || !graph.hasNode(hoveredNode)) return;
+    const rect = sigma.getContainer().getBoundingClientRect();
+    function place(id, kind){
+      const a = graph.getNodeAttributes(id);
+      if (a.hidden) return;
+      const v = sigma.framedGraphToViewport({ x: a.x, y: a.y });
+      const halo = document.createElement('div');
+      halo.className = 'halo ' + kind;
+      halo.style.left = (rect.left + v.x) + 'px';
+      halo.style.top  = (rect.top  + v.y) + 'px';
+      // Scale by node size for hubs to feel bigger
+      const baseSize = (a.size || 3);
+      const scale = Math.min(2.4, 1 + baseSize / 16);
+      halo.style.transform = `translate(-50%,-50%) scale(${scale})`;
+      haloLayer.appendChild(halo);
+      // Floating label for neighbour
+      if (kind === 'neighbor'){
+        const lab = document.createElement('div');
+        lab.className = 'halo-label';
+        const icons = [];
+        if (a.yt) icons.push('<span class="hl-yt">▶</span>');
+        if (a.isHub) icons.push('<span class="hl-hub">★</span>');
+        if (visited.has(id)) icons.push('<span class="hl-visited">✓</span>');
+        const iconStr = icons.length ? `<span class="hl-icon">${icons.join('')}</span>` : '';
+        lab.innerHTML = iconStr + a.label;
+        lab.style.left = (rect.left + v.x) + 'px';
+        lab.style.top  = (rect.top  + v.y) + 'px';
+        haloLayer.appendChild(lab);
+      }
+    }
+    // Collect neighbours with edge weights, sort, take top 14
+    const nbrs = [];
+    graph.forEachEdge(hoveredNode, (eid, attr, s, t) => {
+      const other = (s === hoveredNode) ? t : s;
+      if (graph.getNodeAttribute(other, 'hidden')) return;
+      nbrs.push({ id: other, w: attr.weight || 1 });
+    });
+    nbrs.sort((a, b) => b.w - a.w);
+    for (const n of nbrs.slice(0, 14)) place(n.id, 'neighbor');
+    place(hoveredNode, 'primary');
+  }
+
   sigma.on('enterNode', ({ node }) => {
     hoveredNode = node;
     fillTip(node);
+    renderHalos();
     sigma.refresh();
   });
   sigma.on('leaveNode', () => {
     hoveredNode = null;
     tipEl.classList.remove('show');
+    haloLayer.innerHTML = '';
     sigma.refresh();
+  });
+  // Reposition halos when camera moves while hovering
+  sigma.getCamera().on('updated', () => {
+    if (hoveredNode) renderHalos();
   });
   sigma.on('clickNode', ({ node, event }) => {
     const attrs = graph.getNodeAttributes(node);
