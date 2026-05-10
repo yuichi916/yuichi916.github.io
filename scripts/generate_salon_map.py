@@ -646,6 +646,10 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 .artist-chip:hover{background:rgba(122,42,58,.3);border-color:var(--amber);color:var(--paper)}
 .artist-chip.has-clip::before{content:"♪";font-size:11px;color:var(--amber);opacity:.6;transition:opacity .2s}
 .artist-chip.has-clip:hover::before{opacity:1}
+.artist-chip-amazon{display:inline-flex;margin-left:6px;font-size:10px;color:var(--ink-soft);
+  text-decoration:none;opacity:.5;transition:opacity .2s,color .2s;
+  font-family:"Inter",sans-serif;letter-spacing:.04em;}
+.artist-chip-amazon:hover{opacity:1;color:var(--amber)}
 .artist-chip.no-clip{cursor:default;opacity:.7}
 .artist-chip.no-clip:hover{background:rgba(28,20,40,.7);border-color:rgba(212,160,80,.18);color:var(--paper-dim)}
 .artist-chip.loading::before{content:"…";color:var(--amber);opacity:1}
@@ -665,10 +669,25 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 .audio-bar .ab-progress{flex:1;min-width:140px;height:3px;background:rgba(212,160,80,.18);border-radius:2px;overflow:hidden;position:relative}
 .audio-bar .ab-progress-fill{position:absolute;left:0;top:0;bottom:0;background:var(--amber);width:0%;transition:width .1s linear}
 .audio-bar .ab-time{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--ink-soft);letter-spacing:.06em}
+.audio-bar .ab-info{flex:0 1 auto;min-width:0}
 .audio-bar .ab-stop{font-family:"Inter",sans-serif;font-size:12px;color:var(--ink-soft);
   background:transparent;border:1px solid rgba(212,160,80,.32);
   padding:6px 14px;border-radius:3px;cursor:pointer;letter-spacing:.06em;transition:all .2s;}
 .audio-bar .ab-stop:hover{color:var(--amber);border-color:var(--amber)}
+.audio-bar .ab-amazon{font-family:"Inter",sans-serif;font-size:12px;font-weight:600;
+  color:var(--night);background:linear-gradient(180deg,#f5c878,#d4a050);
+  padding:7px 14px;border-radius:3px;text-decoration:none;letter-spacing:.04em;
+  transition:all .2s;white-space:nowrap;}
+.audio-bar .ab-amazon:hover{background:linear-gradient(180deg,#ffd890,#e8b860);
+  box-shadow:0 0 14px rgba(240,200,120,.4);transform:translateY(-1px);color:var(--night);}
+@media(max-width:780px){
+  .audio-bar{padding:10px 14px;gap:10px}
+  .audio-bar .ab-info{order:1;flex:1 1 100%}
+  .audio-bar .ab-progress{order:2;flex:1 1 100%}
+  .audio-bar .ab-time{order:3;font-size:10px}
+  .audio-bar .ab-amazon{order:4;font-size:11px;padding:6px 10px}
+  .audio-bar .ab-stop{order:5;font-size:11px;padding:5px 10px}
+}
 
 .spines{position:relative;width:100%;background:radial-gradient(ellipse at 50% 50%, rgba(122,42,58,.1), rgba(10,8,20,.2) 70%, transparent),rgba(20,16,26,.8);
   border:1px solid rgba(212,160,80,.18);border-radius:6px;padding:24px;}
@@ -799,12 +818,13 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 </footer>
 
 <div class="audio-bar" id="audioBar">
-  <div>
+  <div class="ab-info">
     <div class="ab-title" id="abTitle"></div>
     <div class="ab-sub" id="abSub">30秒のサビをプレビュー</div>
   </div>
   <div class="ab-time" id="abTime">0:00</div>
   <div class="ab-progress"><div class="ab-progress-fill" id="abFill"></div></div>
+  <a class="ab-amazon" id="abAmazon" href="#" target="_blank" rel="noopener sponsored">📦 Amazonで探す →</a>
   <button class="ab-stop" id="abStop">停止 ×</button>
 </div>
 <audio id="salonAudio" preload="none"></audio>
@@ -826,7 +846,13 @@ const abTitle = document.getElementById('abTitle');
 const abFill = document.getElementById('abFill');
 const abTime = document.getElementById('abTime');
 const abStop = document.getElementById('abStop');
+const abAmazon = document.getElementById('abAmazon');
 let currentChip = null;
+
+function amazonUrl(artist){
+  const q = encodeURIComponent(artist);
+  return `https://www.amazon.co.jp/s?k=${q}&i=digital-music&tag=${AUDIO.amazon_tag || 'viewsengineer-22'}`;
+}
 
 function fmt(s){
   s = Math.max(0, Math.floor(s));
@@ -889,6 +915,7 @@ async function playArtist(slug, artist, chipEl){
     chipEl.classList.remove('loading');
     chipEl.classList.add('playing');
     abTitle.textContent = artist;
+    abAmazon.href = amazonUrl(artist);
     audioBar.classList.add('open');
   } catch(e) {
     chipEl.classList.remove('loading');
@@ -1028,6 +1055,16 @@ function openSubgroup(slug, idx){
     const hasClip = AUDIO.mapping && AUDIO.mapping[key];
     span.className = 'artist-chip ' + (hasClip ? 'has-clip' : 'no-clip');
     span.textContent = a;
+    // Always add a small Amazon link (regardless of clip availability)
+    const amaz = document.createElement('a');
+    amaz.className = 'artist-chip-amazon';
+    amaz.href = amazonUrl(a);
+    amaz.target = '_blank';
+    amaz.rel = 'noopener sponsored';
+    amaz.title = `Amazonで「${a}」を探す`;
+    amaz.textContent = '📦';
+    amaz.addEventListener('click', (ev) => ev.stopPropagation());
+    span.appendChild(amaz);
     if (hasClip) {
       span.addEventListener('click', () => playArtist(slug, a, span));
     }
@@ -1146,12 +1183,26 @@ SPINES.forEach((sp, idx) => {
 """
 
 
+AMAZON_TAG = "viewsengineer-22"
+
+def amazon_url(artist):
+    """Build Amazon JP affiliate search URL for an artist name."""
+    import urllib.parse
+    q = urllib.parse.quote(artist, safe="")
+    # i=digital-music focuses on music products (CD/MP3/streaming)
+    return f"https://www.amazon.co.jp/s?k={q}&i=digital-music&tag={AMAZON_TAG}"
+
+
 def load_audio_mapping():
-    """Load pCloud publink + fileid mapping if available."""
+    """Load pCloud publink + fileid mapping if available; build Amazon URLs."""
     if not PCLOUD_JSON.exists():
-        return {"publink_code": None, "mapping": {}}
+        return {"publink_code": None, "mapping": {}, "amazon_tag": AMAZON_TAG}
     d = json.loads(PCLOUD_JSON.read_text(encoding="utf-8"))
-    return {"publink_code": d.get("publink_code"), "mapping": d.get("mapping", {})}
+    return {
+        "publink_code": d.get("publink_code"),
+        "mapping": d.get("mapping", {}),
+        "amazon_tag": AMAZON_TAG,
+    }
 
 
 def main():
