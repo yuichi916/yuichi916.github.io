@@ -414,11 +414,15 @@ SPINES = [
 ]
 
 
+import unicodedata
+def norm(s):
+    """NFC + casefold normalization for cross-collection artist lookup."""
+    return unicodedata.normalize("NFC", s or "").lower()
+
+
 def build_data():
     """Merge GENRES (curated subgroups) + ADDITIONS (per-genre extra
     classifications) → final data. Any artist still missing → safety bucket."""
-    import unicodedata
-    def norm(s): return unicodedata.normalize("NFC", s).lower()
     # Lazy import additions to keep this file self-contained-ish
     import importlib.util
     add_path = Path(__file__).parent / "salon_additions.py"
@@ -452,6 +456,18 @@ def build_data():
             DISPLAY_NAMES = getattr(mod3, "DISPLAY_NAMES", {})
         except Exception as e:
             print(f"  WARN: failed to load albums: {e}")
+
+    # Load similarity / related-artists map (optional)
+    sim_path = Path(__file__).parent / "salon_similar.py"
+    SIMILAR = {}
+    if sim_path.exists():
+        try:
+            spec4 = importlib.util.spec_from_file_location("salon_similar", sim_path)
+            mod4 = importlib.util.module_from_spec(spec4)
+            spec4.loader.exec_module(mod4)
+            SIMILAR = getattr(mod4, "SIMILAR", {})
+        except Exception as e:
+            print(f"  WARN: failed to load similar: {e}")
 
     music = json.loads(MUSIC_DATA.read_text(encoding="utf-8"))
     out = {}
@@ -505,10 +521,13 @@ def build_data():
         names_lookup = {norm(k): v for k, v in names_for_genre.items()}
         albums_for_genre = ALBUMS.get(slug, {})
         albums_lookup = {norm(k): v for k, v in albums_for_genre.items()}
+        similar_for_genre = SIMILAR.get(slug, {})
+        similar_lookup = {norm(k): v for k, v in similar_for_genre.items()}
 
         artist_descs = {}
         artist_displays = {}
         artist_albums = {}
+        artist_similar = {}
         for sg in subgroups:
             for a in sg["artists"]:
                 if a in artist_descs:
@@ -520,6 +539,9 @@ def build_data():
                 if alb:
                     title, year = alb if isinstance(alb, (list, tuple)) and len(alb) == 2 else (alb, None)
                     artist_albums[a] = {"title": title, "year": year}
+                sim = similar_lookup.get(key)
+                if sim:
+                    artist_similar[a] = list(sim)
 
         out[slug] = {
             "name_jp": g["name_jp"], "name_en": g["name_en"], "latin": g["latin"],
@@ -530,6 +552,7 @@ def build_data():
             "artist_descs": artist_descs,
             "artist_displays": artist_displays,
             "artist_albums": artist_albums,
+            "artist_similar": artist_similar,
         }
     return out, SPINES
 
@@ -760,6 +783,26 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 .ap-album:empty{display:none}
 .ap-album .ap-album-label{font-style:normal;color:var(--ink-soft);
   letter-spacing:.18em;text-transform:uppercase;font-size:10px;margin-right:8px;}
+.ap-similar{margin-bottom:14px;padding-bottom:12px;
+  border-bottom:1px dashed rgba(212,160,80,.18);}
+.ap-similar:empty{display:none}
+.ap-similar-label{font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:10px;color:var(--ink-soft);letter-spacing:.18em;
+  text-transform:uppercase;margin-bottom:6px;}
+.ap-sim-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.ap-sim-chip{font-family:"Shippori Mincho",serif;font-size:11px;
+  padding:3px 9px;border-radius:999px;
+  background:rgba(28,20,40,.7);color:var(--paper-dim);
+  border:1px solid rgba(212,160,80,.16);cursor:pointer;
+  transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;}
+.ap-sim-chip:hover{border-color:var(--amber);color:var(--paper);
+  background:rgba(122,42,58,.3);}
+.ap-sim-chip.in-collection{border-color:rgba(212,160,80,.5);
+  color:var(--amber-soft);}
+.ap-sim-chip.in-collection::before{content:"●";color:var(--amber);
+  font-size:8px;margin-right:5px;opacity:.7;}
+.ap-sim-chip.external::after{content:"↗";font-size:10px;opacity:.45;
+  margin-left:4px;}
 .ap-player-row{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
 .ap-player{display:none;margin-bottom:12px;border-radius:4px;overflow:hidden;
   background:#000;aspect-ratio:16/9;width:100%;}
@@ -898,6 +941,7 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
   <div class="ap-sub" id="apSub"></div>
   <div class="ap-desc" id="apDesc"></div>
   <div class="ap-album" id="apAlbum"></div>
+  <div class="ap-similar" id="apSimilar"></div>
   <div class="ap-player-row">
     <button class="ap-btn ap-btn-play" id="apBtnPlayHere" type="button">▶ 即試聴</button>
     <a class="ap-btn ap-btn-yt-tab" id="apBtnYtTab" href="#" target="_blank" rel="noopener">YouTubeで開く ↗</a>
@@ -913,11 +957,20 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 <script id="genres-data" type="application/json">__GENRES_JSON__</script>
 <script id="spines-data" type="application/json">__SPINES_JSON__</script>
 <script id="audio-data" type="application/json">__AUDIO_JSON__</script>
+<script id="collection-index" type="application/json">__INDEX_JSON__</script>
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
 const GENRES = JSON.parse(document.getElementById('genres-data').textContent);
 const SPINES = JSON.parse(document.getElementById('spines-data').textContent);
 const AUDIO = JSON.parse(document.getElementById('audio-data').textContent);
+const COLL_INDEX = JSON.parse(document.getElementById('collection-index').textContent);
+function normName(s){
+  // Match Python norm(): NFC + casefold + collapse whitespace.
+  return (s||'').normalize('NFC').toLowerCase().replace(/\s+/g,' ').trim();
+}
+function findInCollection(name){
+  return COLL_INDEX[normName(name)] || null;
+}
 
 const AMAZON_TAG = AUDIO.amazon_tag || 'viewsengineer-22';
 const ASINS = AUDIO.amazon_asins || {};
@@ -1025,10 +1078,64 @@ function startPlayer(){
 }
 
 const apAlbum = document.getElementById('apAlbum');
+const apSimilar = document.getElementById('apSimilar');
+
+function renderSimilar(slug, similar){
+  if (!similar || similar.length === 0){ apSimilar.innerHTML = ''; return; }
+  const chips = similar.map(name => {
+    const inColl = findInCollection(name);
+    if (inColl){
+      const sslug = inColl.slug, sname = inColl.name;
+      return `<a class="ap-sim-chip in-collection" href="#" data-collection-slug="${sslug}" data-collection-name="${encodeURIComponent(sname)}">${name}</a>`;
+    } else {
+      // External: open YouTube search in new tab
+      const q = encodeURIComponent(name + ' full album');
+      return `<a class="ap-sim-chip external" href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">${name}</a>`;
+    }
+  }).join('');
+  apSimilar.innerHTML = `<div class="ap-similar-label">Related · 似た作家</div><div class="ap-sim-chips">${chips}</div>`;
+  apSimilar.querySelectorAll('.ap-sim-chip.in-collection').forEach(el => {
+    el.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const tslug = el.getAttribute('data-collection-slug');
+      const tname = decodeURIComponent(el.getAttribute('data-collection-name'));
+      navigateToArtist(tslug, tname);
+    });
+  });
+}
+
+function navigateToArtist(slug, artistName){
+  // Open the genre + find subgroup containing this artist + open popover.
+  const g = GENRES[slug];
+  if (!g) return;
+  // Find subgroup with this artist
+  let sgIdx = -1;
+  for (let i = 0; i < g.subgroups.length; i++){
+    if (g.subgroups[i].artists.indexOf(artistName) >= 0){ sgIdx = i; break; }
+  }
+  if (sgIdx < 0) return;
+  hidePopover();
+  openGenre(slug);
+  setTimeout(() => {
+    openSubgroup(slug, sgIdx);
+    setTimeout(() => {
+      const chips = document.querySelectorAll('.artist-chip');
+      for (const c of chips){
+        if (c.textContent === artistName ||
+            c.textContent === ((g.artist_displays || {})[artistName] || artistName)){
+          c.click();
+          c.scrollIntoView({behavior:'smooth', block:'center'});
+          break;
+        }
+      }
+    }, 200);
+  }, 350);
+}
 let apCurrentDisplay = null;
 let apCurrentAlbum = null;
 
-function showPopover(slug, artist, sgName, desc, chipEl, display, album){
+function showPopover(slug, artist, sgName, desc, chipEl, display, album, similar){
   clearTimeout(apHideTimer);
   if (apCurrentArtist !== artist) clearPlayer();
   apCurrentChip = chipEl;
@@ -1044,6 +1151,7 @@ function showPopover(slug, artist, sgName, desc, chipEl, display, album){
   } else {
     apAlbum.innerHTML = '';
   }
+  renderSimilar(slug, similar);
   // Search/embed queries use display name + album when available
   const searchName = apCurrentDisplay;
   const albumTitle = apCurrentAlbum ? apCurrentAlbum.title : null;
@@ -1228,24 +1336,26 @@ function openSubgroup(slug, idx){
   const descs = g.artist_descs || {};
   const displays = g.artist_displays || {};
   const albums = g.artist_albums || {};
+  const sims = g.artist_similar || {};
   sg.artists.forEach(a => {
     const span = document.createElement('span');
     span.className = 'artist-chip';
     const display = displays[a] || a;
     span.textContent = display;
     const album = albums[a] || null;
+    const similar = sims[a] || null;
     const desc = descs[a] || sg.blurb;
     span.title = album ? `${display} — ${album.title}${album.year?` (${album.year})`:''}` : `${display} — ${desc}`;
     span.addEventListener('click', (ev) => {
       ev.stopPropagation();
       apPinned = true;
       clearTimeout(apHideTimer);
-      showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span, display, album);
+      showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span, display, album, similar);
     });
     span.addEventListener('mouseenter', () => {
       if (apPinned) return;
       clearTimeout(apHideTimer);
-      showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span, display, album);
+      showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span, display, album, similar);
     });
     span.addEventListener('mouseleave', () => { if (!apPinned) scheduleHide(); });
     chips.appendChild(span);
@@ -1417,16 +1527,38 @@ def load_audio_mapping():
     return base
 
 
+def build_collection_index(data):
+    """Build a normalized lookup: name_norm → (slug, raw_name) for every
+    artist in the collection. Used by JS to resolve "similar artist" chips
+    that point to artists within the salon."""
+    idx = {}
+    for slug, g in data.items():
+        for sg in g["subgroups"]:
+            for a in sg["artists"]:
+                key = norm(a)
+                if key not in idx:
+                    idx[key] = {"slug": slug, "name": a}
+                # Also index display name if different
+                disp = (g.get("artist_displays") or {}).get(a, a)
+                dkey = norm(disp)
+                if dkey != key and dkey not in idx:
+                    idx[dkey] = {"slug": slug, "name": a}
+    return idx
+
+
 def main():
     data, spines = build_data()
     audio = load_audio_mapping()
+    collection_index = build_collection_index(data)
     html = HTML_TEMPLATE.replace("__GENRES_JSON__", json.dumps(data, ensure_ascii=False))
     html = html.replace("__SPINES_JSON__", json.dumps(spines, ensure_ascii=False))
     html = html.replace("__AUDIO_JSON__", json.dumps(audio, ensure_ascii=False))
+    html = html.replace("__INDEX_JSON__", json.dumps(collection_index, ensure_ascii=False))
     OUT.write_text(html, encoding="utf-8")
     print(f"  audio-mapped: {len(audio['mapping'])} (code: {audio['publink_code'] or 'none'})")
     print(f"  youtube-ids: {len(audio.get('youtube_ids') or {})}")
     print(f"  amazon-asins: {len(audio.get('amazon_asins') or {})}")
+    print(f"  collection-index: {len(collection_index)}")
 
     total = sum(len(g["all_artists"]) for g in data.values())
     cat = sum(sum(len(sg["artists"]) for sg in g["subgroups"] if not sg.get("auto"))
