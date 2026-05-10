@@ -120,8 +120,10 @@
 <!-- Sigma.js + Graphology for WebGL graph rendering -->
 <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0/dist/sigma.min.js"></script>
-<!-- @sigma/node-border has no UMD bundle; node state is shown via halos +
-     fill-colour mixing in the reducer instead. -->
+<!-- @sigma/node-border has no UMD bundle and ESM module identity won't
+     interop cleanly with UMD-loaded Sigma. Border attributes set in the
+     reducer are silently ignored by the default circle program; the
+     enhanced edge/colour reducer changes still apply. -->
 
 <style>
 :root{
@@ -979,6 +981,7 @@ if (new URLSearchParams(location.search).get('embed') === '1'){
 }
 
 async function main() {
+
   const data = await loadGraph();
   graph = buildGraph(data);
 
@@ -1010,14 +1013,23 @@ async function main() {
       const r = { ...attrs };
       const wasVisited = visited.has(id);
       const locked = !wasVisited && isLockedByLevel(attrs);
+      
+      // Enhanced node rendering with glow and border effects
       if (locked){
         r.color = '#2a2138';
         r.size  = Math.max(1.2, (attrs.size || 2) * 0.55);
+        r.borderSize = 0;
       } else if (wasVisited){
-        // Visited: dim fill so unvisited pop, but tint slightly green so it
-        // reads as "you've been here" rather than just dead.
+        // Visited: dim with subtle green tint + soft border
         r.color = mixColor(attrs.origColor, '#3a5a48', 0.55);
+        r.borderSize = 0.3;
+        r.borderColor = mixColor(attrs.origColor, '#88e0a0', 0.3);
+      } else {
+        // Unvisited: enhanced glow effect
+        r.borderSize = 0.5;
+        r.borderColor = mixColor(attrs.origColor, '#ffffff', 0.15);
       }
+      
       r.label = '';
       // Hover: dramatically enlarge focused node + ALL neighbours, force
       // their labels visible so the relation becomes obvious at a glance.
@@ -1030,14 +1042,19 @@ async function main() {
           r.label = attrs.label;
           r.forceLabel = true;
           r.zIndex = 10;
+          r.borderSize = 1.5;
+          r.borderColor = mixColor(attrs.origColor, '#ffffff', 0.4);
         } else if (isNeighbor){
           r.size = (r.size || 2) * 1.7;
           r.color = attrs.origColor;
           r.label = attrs.label;
           r.forceLabel = true;
           r.zIndex = 8;
+          r.borderSize = 1;
+          r.borderColor = 'rgba(240,200,120,0.5)';
         } else {
           r.color = '#1a0e1c';
+          r.borderSize = 0;
         }
       }
       return r;
@@ -1048,8 +1065,14 @@ async function main() {
         r.hidden = true;
       }
       if (hoveredNode && graph.hasExtremity(id, hoveredNode)) {
-        r.color = 'rgba(240,200,120,0.6)';
-        r.size = 1.4;
+        // Enhanced connection lines with gradient-like glow
+        r.color = 'rgba(240,200,120,0.75)';
+        r.size = 1.8;
+      } else {
+        // Subtle enhancement to default edges
+        const baseAlpha = parseFloat(r.color.match(/[\d.]+\)$/)?.[0].replace(')', '')) || 0.04;
+        const enhancedAlpha = Math.min(baseAlpha * 1.5, 0.15);
+        r.color = r.color.replace(/[\d.]+\)$/, enhancedAlpha.toFixed(3) + ')');
       }
       return r;
     },
