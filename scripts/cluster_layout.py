@@ -17,36 +17,45 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 HERE = Path(__file__).parent
 UNIV = HERE / "universe.json"
 
-# Order of genres around the ring — clockwise starting from "north"
-# (top of canvas). Grouped by sonic affinity so neighbours blend nicely.
-GENRE_RING = [
-    "ambient",       # 北
-    "classic",
+# Two nested rings — inner ring fills the central void so the universe
+# is dense at the core like a real galactic disk, with the outermost edge
+# reserved for the largest / most specialised genres.
+#
+# Outer ring (R=2400, 7 positions): the big specialty genres that need
+# room to breathe. These are the ones with thousands of artists.
+GENRE_OUTER = [
+    "ambient",       # 北 (top)
     "healing",
     "celt",
-    "blues-folk",
     "jazz",
-    "pop-rock",
-    "jpop",          # 南
-    "anime",
-    "game",
     "indies",
     "metal",
     "progressive",
+]
+# Inner ring (R=1100, 7 positions, half-slot offset so it interleaves with
+# the outer ring): mid-popular genres that benefit from being closer to
+# the centre of attention.
+GENRE_INNER = [
+    "classic",
+    "blues-folk",
+    "pop-rock",
+    "jpop",
+    "anime",
+    "game",
     "nature",
 ]
 GENRE_NAME_JP = {
-    "ambient": "アンビエント銀河", "classic": "クラシカ銀河", "healing": "ヒーリング星雲",
-    "celt": "ケルト系", "blues-folk": "ブルース・フォーク", "jazz": "ジャズ群",
+    "ambient": "アンビエント銀河", "classic": "クラシカ系", "healing": "ヒーリング星雲",
+    "celt": "ケルト群", "blues-folk": "ブルース・フォーク", "jazz": "ジャズ群",
     "pop-rock": "ポップ・ロック", "jpop": "JPOP連星", "anime": "アニソン群",
     "game": "ゲーム音楽星団", "indies": "インディーズ", "metal": "メタル星雲",
     "progressive": "プログ銀河", "nature": "ネイチャー域",
 }
+GENRE_RING = GENRE_OUTER + GENRE_INNER  # union for iteration
 
-# Ring radius — how far apart the galaxy centres sit. Bumped from 1700
-# to 2400 so that even big galaxies (healing 4963, metal 4563) have room
-# to spread without bumping into the neighbour's edge stars.
-RING_R = 2400
+# Outer / inner ring radii
+RING_R = 2400      # outer
+RING_R_INNER = 1100  # inner — fills the centre
 # Per-galaxy target spread: nodes get repositioned in a disk of this radius
 # (scaled by sqrt(member_count)) around their genre centroid — so dense
 # galaxies grow proportionally instead of stacking on top of each other.
@@ -62,9 +71,15 @@ def main():
     nodes = data["nodes"]
 
     centroids = {}
-    for i, g in enumerate(GENRE_RING):
-        ang = 2 * math.pi * i / len(GENRE_RING) - math.pi / 2  # start at top
+    n_outer = len(GENRE_OUTER)
+    n_inner = len(GENRE_INNER)
+    for i, g in enumerate(GENRE_OUTER):
+        ang = 2 * math.pi * i / n_outer - math.pi / 2  # start at top
         centroids[g] = (RING_R * math.cos(ang), RING_R * math.sin(ang), ang)
+    for i, g in enumerate(GENRE_INNER):
+        # Half-slot offset so inner positions sit between outer positions
+        ang = 2 * math.pi * i / n_inner - math.pi / 2 + math.pi / n_inner
+        centroids[g] = (RING_R_INNER * math.cos(ang), RING_R_INNER * math.sin(ang), ang)
 
     # Compute current pre-cluster centroid of each genre so we can normalize.
     # We'll subtract the current per-genre centroid before applying pull, so

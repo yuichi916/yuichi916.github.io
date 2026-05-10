@@ -464,6 +464,33 @@ body.embed #stars,body.embed #galaxyLayer{top:0;}
 .halo-label .hl-hub{color:#ffd070;}
 .halo-label .hl-visited{color:#88e0a0;}
 
+/* Hub stars — twinkling sparkles overlaid on the highest-degree nodes,
+   replacing the plain circle with a real "star" feel. Rendered as
+   absolute-positioned SVG so they scale + rotate independently of the
+   WebGL canvas. */
+#hubLayer{position:absolute;top:48px;left:0;right:0;bottom:0;
+  pointer-events:none;z-index:5;overflow:hidden;}
+body.embed #hubLayer{top:0;}
+.hub-star{position:absolute;transform:translate(-50%,-50%);
+  pointer-events:none;will-change:opacity,transform;
+  filter:drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
+  animation:hubTwinkle 3s ease-in-out infinite;}
+.hub-star.lg{animation-duration:3.6s;}
+.hub-star.lg svg{width:18px;height:18px;}
+.hub-star.md svg{width:12px;height:12px;}
+.hub-star.sm svg{width:8px;height:8px;}
+@keyframes hubTwinkle{
+  0%,100%{opacity:.65;transform:translate(-50%,-50%) scale(.9) rotate(0deg);}
+  50%    {opacity:1.0;transform:translate(-50%,-50%) scale(1.15) rotate(8deg);}
+}
+.hub-star.visited{filter:drop-shadow(0 0 3px #88e0a0) drop-shadow(0 0 6px #88e0a0);
+  animation-duration:5s;}
+/* Visited mark — a small ✓ ring overlay */
+.visited-mark{position:absolute;transform:translate(-50%,-50%);
+  pointer-events:none;width:6px;height:6px;border-radius:50%;
+  background:rgba(136,224,160,.8);
+  box-shadow:0 0 6px #88e0a0;}
+
 /* Hover tooltip — large legible name + meta floating over the canvas */
 .node-tip{position:fixed;pointer-events:none;z-index:9999;
   background:rgba(15,12,22,.98);border:1px solid var(--amber);
@@ -535,6 +562,7 @@ body.embed #stars,body.embed #galaxyLayer{top:0;}
 
 <div id="stars"></div>
 <div id="graph"></div>
+<div id="hubLayer"></div>
 <div id="galaxyLayer"></div>
 
 <div class="legend">
@@ -827,6 +855,8 @@ function awardClick(id){
   lastClickViaChain = false;
   // Refresh sigma to update visited muting + level gating
   if (sigma) sigma.refresh();
+  // Refresh the hub-star overlay so newly-visited hubs flip to green
+  refreshHubStars();
 }
 
 function refreshGameUI(){
@@ -871,6 +901,11 @@ function isLockedByLevel(attrs){
 // Backward-compat: older code calls markVisited
 function markVisited(id){
   awardClick(id);
+}
+
+// Hub-star refresh after any state change. Defined late so closures resolve.
+function refreshHubStars(){
+  if (window.placeHubStars) window.placeHubStars();
 }
 
 // Detect embed mode (when iframed from salon.html with ?embed=1)
@@ -1219,6 +1254,56 @@ async function main() {
   placeGalaxyLabels();
   sigma.getCamera().on('updated', placeGalaxyLabels);
 
+  // ── Hub-star overlay: replace the plain circle for high-degree nodes ──
+  // with twinkling SVG stars. Performance-friendly: only the top ~250 hubs
+  // by degree get an overlay element (and only when zoomed enough to see).
+  const hubLayer = document.getElementById('hubLayer');
+  // Pre-compute the hub list once
+  const HUB_LIST = allNodeIds
+    .filter(id => graph.getNodeAttribute(id, 'isHub'))
+    .sort((a, b) =>
+      (graph.getNodeAttribute(b, 'degree') || 0) -
+      (graph.getNodeAttribute(a, 'degree') || 0))
+    .slice(0, 280);
+
+  const STAR_SVG_4 = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 L13.5 9.5 L21 11 L13.5 12.5 L12 22 L10.5 12.5 L3 11 L10.5 9.5 Z"/></svg>';
+  const STAR_SVG_5 = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 l3 7 l7 1 l-5 5 l1.2 7 l-6.2 -3.5 l-6.2 3.5 l1.2 -7 l-5 -5 l7 -1 z"/></svg>';
+
+  window.placeHubStars = function(){
+    hubLayer.innerHTML = '';
+    const ratio = sigma.getCamera().getState().ratio;
+    // When extremely zoomed in, hubs are big enough as circles — skip overlay
+    if (ratio < 0.05) return;
+    // When zoomed way out, only show the very brightest
+    const maxStars = ratio > 1.4 ? 60 : ratio > 0.7 ? 140 : 280;
+    for (let i = 0; i < HUB_LIST.length && i < maxStars; i++){
+      const id = HUB_LIST[i];
+      const a = graph.getNodeAttributes(id);
+      if (a.hidden) continue;
+      const v = sigma.graphToViewport({ x: a.x, y: a.y });
+      // Skip if outside viewport (saves DOM)
+      if (v.x < -40 || v.x > window.innerWidth + 40 ||
+          v.y < -40 || v.y > window.innerHeight + 40) continue;
+      const star = document.createElement('div');
+      const deg = a.degree || 0;
+      const cls = deg > 60 ? 'lg' : deg > 30 ? 'md' : 'sm';
+      const isVisited = visited.has(id);
+      star.className = 'hub-star ' + cls + (isVisited ? ' visited' : '');
+      star.style.left = v.x + 'px';
+      star.style.top  = v.y + 'px';
+      star.style.color = isVisited ? '#88e0a0' : a.origColor;
+      star.innerHTML = (deg > 60) ? STAR_SVG_5 : STAR_SVG_4;
+      // Per-node animation phase offset so they don't all twinkle in unison
+      star.style.animationDelay = ((i * 137) % 3000) + 'ms';
+      hubLayer.appendChild(star);
+    }
+  }
+  window.placeHubStars();
+  sigma.getCamera().on('updated', window.placeHubStars);
+  // Re-render hub stars when graph filters change (visibility may change)
+  const _origApply = window.applyFilter;
+  // (deferred binding handled below in the filter panel setup)
+
   // Reset camera to a sensible overview (graph spans roughly [-1000, 1000])
   sigma.getCamera().setState({ x: 0.5, y: 0.5, ratio: 1.1, angle: 0 });
 
@@ -1317,6 +1402,7 @@ function buildFilterPanel(){
       graph.setNodeAttribute(id, 'hidden', !visible);
     }
     sigma.refresh();
+    refreshHubStars();
   }
 
   document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => {
