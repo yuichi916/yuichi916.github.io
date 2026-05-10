@@ -15,6 +15,7 @@
 
 <!-- Sigma.js + Graphology for WebGL graph rendering -->
 <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphology-layout-noverlap@0.4.2/dist/graphology-layout-noverlap.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0/dist/sigma.min.js"></script>
 
 <style>
@@ -166,7 +167,8 @@ html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
   <div class="stats">
     <span class="num" id="statNodes">0</span> アーティスト ·
     <span class="num" id="statEdges">0</span> 関連 ·
-    <span class="num" id="statColl">0</span> コレクション
+    <span class="num" id="statColl">0</span> コレクション ·
+    出会った <span class="num" id="visitedCount">0</span>
   </div>
 </header>
 
@@ -176,10 +178,11 @@ html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
 
 <div class="legend">
   <h3>Discovery Map · 出会いの地図</h3>
-  <div class="row"><span class="dot" style="background:#f0c878"></span>コレクション内 (アンカー)</div>
-  <div class="row"><span class="dot" style="background:#7a2a3a"></span>まだ知らない隣人 (発見)</div>
-  <div class="row"><span style="color:var(--ink-soft)">大きい点 = 多くの作家と関連</span></div>
-  <div class="row"><span style="color:var(--ink-soft)">クリックで詳細 · 🎲 でランダム発見</span></div>
+  <div class="row"><span style="color:var(--ink-soft)">色 = ジャンル · 大きい点 = 多くの関連</span></div>
+  <div class="row"><span class="dot" style="background:#f0c878;opacity:1"></span>未訪問 (鮮やか)</div>
+  <div class="row"><span class="dot" style="background:#5a3848"></span>クリック済 (くすむ)</div>
+  <div class="row"><span style="color:var(--ink-soft)">クリックで即試聴 · 🎲 で未訪問へ</span></div>
+  <div class="row"><span style="color:var(--ink-soft)">「つぎへ →」で関連を辿る</span></div>
 </div>
 
 <div class="info" id="info">
@@ -189,6 +192,7 @@ html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
   <div class="album" id="infoAlbum"></div>
   <div class="play-row">
     <button class="play-btn" id="playBtn" type="button">▶ 即試聴</button>
+    <button class="play-btn chain" id="chainBtn" type="button" style="background:linear-gradient(180deg,#7a4af0,#5028a8);border-color:#5028a8;display:none">つぎへ →</button>
   </div>
   <div class="player" id="infoPlayer"></div>
   <div class="meta" id="infoMeta"></div>
@@ -201,7 +205,7 @@ html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
   <div class="toggle-all">
     <a id="filterAll">すべて表示</a>
     <a id="filterNone">すべて隠す</a>
-    <a id="filterCollOnly">コレクションのみ</a>
+    <a id="filterUnvisited">未訪問のみ</a>
   </div>
 </div>
 
@@ -245,6 +249,15 @@ async function loadGraph() {
   }
 }
 
+// Hex color mix for visited dimming
+function mixColor(hex1, hex2, t){
+  function p(h){ h = h.replace('#',''); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+  if (!hex1 || !hex1.startsWith('#') || hex1.length < 7) return hex2;
+  const a = p(hex1), b = p(hex2);
+  const m = a.map((v,i) => Math.round(v * (1-t) + b[i] * t));
+  return '#' + m.map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
 function buildGraph(data) {
   const Graph = graphology.Graph;
   const g = new Graph({ type: 'undirected', multi: false });
@@ -256,22 +269,31 @@ function buildGraph(data) {
       y: n.y ?? Math.random() * 100 - 50,
       size: n.r ?? 2.5,
       color: color,
-      origColor: color,  // preserved for hover dim/restore
+      origColor: color,
       genre: n.genre,
       inCollection: n.in_collection,
       album: n.album,
       degree: n.degree,
       yt: n.yt,
       asin: n.asin,
+      origin: n.origin,
+      country: n.country,
+      years_active: n.years_active,
+      mb_tags: n.mb_tags,
+      mbid: n.mbid,
     });
   }
   for (const e of data.edges) {
     if (g.hasNode(e.source) && g.hasNode(e.target) && !g.hasEdge(e.source, e.target)) {
+      // Multi-source edges drawn brighter
+      const nSrc = (e.src || []).length;
+      const alpha = 0.04 + 0.06 * Math.min(nSrc - 1, 3);
       g.addEdge(e.source, e.target, {
-        size: 0.4,
-        color: 'rgba(212,160,80,0.05)',
-        origColor: 'rgba(212,160,80,0.05)',
+        size: 0.4 + 0.3 * Math.min(nSrc - 1, 2),
+        color: `rgba(212,160,80,${alpha.toFixed(3)})`,
+        origColor: `rgba(212,160,80,${alpha.toFixed(3)})`,
         weight: e.weight,
+        src: e.src || [],
       });
     }
   }
@@ -280,12 +302,58 @@ function buildGraph(data) {
 
 let sigma, graph, allNodeIds, hoveredNode;
 
+// Track which artists the user has clicked (localStorage-persisted).
+const VISITED_KEY = 'salon_universe_visited_v1';
+let visited = new Set();
+try {
+  const raw = localStorage.getItem(VISITED_KEY);
+  if (raw) visited = new Set(JSON.parse(raw));
+} catch {}
+function markVisited(id){
+  visited.add(id);
+  try { localStorage.setItem(VISITED_KEY, JSON.stringify([...visited])); } catch {}
+  document.getElementById('visitedCount').textContent = visited.size.toLocaleString();
+  // Trigger a redraw so the visited node gets desaturated
+  if (sigma) sigma.refresh();
+}
+
+function isUnvisited(id){ return !visited.has(id); }
+
 async function main() {
   const data = await loadGraph();
   graph = buildGraph(data);
+
+  // Spread overlapping nodes apart while preserving the layout structure.
+  try {
+    if (window.graphologyLibrary && window.graphologyLibrary.NoverlapLayout){
+      window.graphologyLibrary.NoverlapLayout.assign(graph, {
+        maxIterations: 80,
+        settings: { margin: 1.5, ratio: 1.2, expansion: 1.05, gridSize: 24, speed: 3 },
+      });
+    }
+  } catch (e) { console.warn('noverlap failed', e); }
+
   document.getElementById('statNodes').textContent = data.stats.total_nodes.toLocaleString();
   document.getElementById('statEdges').textContent = data.stats.total_edges.toLocaleString();
   document.getElementById('statColl').textContent = data.stats.in_collection.toLocaleString();
+  // Sources breakdown
+  if (data.stats.edges_by_source){
+    const order = ['lastfm', 'wikipedia', 'musicbrainz', 'curated'];
+    const labels = {lastfm: 'Last.fm', wikipedia: 'Wikipedia', musicbrainz: 'MusicBrainz', curated: '手選'};
+    const parts = [];
+    for (const k of order){
+      const c = data.stats.edges_by_source[k];
+      if (c) parts.push(`${labels[k]} ${c.toLocaleString()}`);
+    }
+    if (data.stats.multi_source_edges){
+      parts.push(`<span style="color:var(--amber)">複合 ${data.stats.multi_source_edges.toLocaleString()}</span>`);
+    }
+    const sb = document.createElement('span');
+    sb.innerHTML = ' · ' + parts.join(' · ');
+    sb.style.color = 'var(--ink-soft)';
+    sb.style.fontSize = '10px';
+    document.querySelector('.stats').appendChild(sb);
+  }
   allNodeIds = graph.nodes();
 
   sigma = new Sigma(graph, document.getElementById('graph'), {
@@ -299,11 +367,16 @@ async function main() {
     enableEdgeEvents: false,
     minCameraRatio: 0.005,  // 200x zoom in (was 20x)
     maxCameraRatio: 80,
-    // Reducer hooks for hover-highlighting
+    // Reducer hooks for hover-highlighting + visited-state styling
     nodeReducer: (id, attrs) => {
       const r = { ...attrs };
+      // Visited nodes are muted/desaturated so unvisited ones pop out
+      if (visited.has(id)){
+        r.color = mixColor(attrs.origColor, '#3a2438', 0.55);
+      }
+      // Hover dim
       if (hoveredNode && id !== hoveredNode && !graph.hasEdge(hoveredNode, id) && !graph.hasEdge(id, hoveredNode)) {
-        r.color = '#3a2438';
+        r.color = '#2a1830';
         r.label = '';
       }
       return r;
@@ -330,7 +403,7 @@ async function main() {
     hoveredNode = null;
     sigma.refresh();
   });
-  sigma.on('clickNode', ({ node }) => showInfo(node));
+  sigma.on('clickNode', ({ node }) => { showInfo(node); markVisited(node); });
   // clickStage: don't close info (info has its own × button) — instead just deselect any hover
   sigma.on('clickStage', () => { /* keep info open */ });
 
@@ -361,15 +434,21 @@ async function main() {
   // Genre filter panel
   buildFilterPanel();
 
-  // Serendipity dice — preferentially highlight an external (not-yet-known) node.
+  // Serendipity dice — preferentially surface an artist YOU haven't clicked yet.
   document.getElementById('dice').onclick = () => {
-    // Bias toward external nodes 70% of the time so each click favors discovery
-    const pool = (Math.random() < 0.7)
-      ? allNodeIds.filter(id => !graph.getNodeAttribute(id, 'inCollection'))
-      : allNodeIds;
+    const unvisited = allNodeIds.filter(id => isUnvisited(id) && !graph.getNodeAttribute(id, 'hidden'));
+    const pool = unvisited.length ? unvisited : allNodeIds;
     if (!pool.length) return;
-    const id = pool[Math.floor(Math.random() * pool.length)];
-    focusNode(id);
+    // Weight by degree so well-connected hubs surface more often
+    const weights = pool.map(id => Math.max(1, graph.getNodeAttribute(id, 'degree') || 1));
+    const total = weights.reduce((a,b) => a+b, 0);
+    let r = Math.random() * total;
+    let pick = pool[0];
+    for (let i = 0; i < pool.length; i++){
+      r -= weights[i];
+      if (r <= 0){ pick = pool[i]; break; }
+    }
+    focusNode(pick);
   };
 
   // Search
@@ -402,6 +481,38 @@ async function main() {
   inp.addEventListener('blur', () => setTimeout(() => sug.classList.remove('open'), 200));
 
   document.getElementById('loading').classList.add('hidden');
+  document.getElementById('visitedCount').textContent = visited.size.toLocaleString();
+
+  // Surface today's pick (only if user hasn't already visited it).
+  const today = pickOfTheDay();
+  if (today && !visited.has(today)){
+    setTimeout(() => {
+      // Soft hint: focus the camera on today's pick but don't auto-open the
+      // info panel (that would auto-play YouTube before user opts-in).
+      const a = graph.getNodeAttributes(today);
+      sigma.getCamera().animate({ x: a.x, y: a.y, ratio: 0.2 }, { duration: 900 });
+      flashHint(`今日のおすすめ: ${a.label}`);
+    }, 500);
+  }
+}
+
+function flashHint(text){
+  let el = document.getElementById('hint');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'hint';
+    el.style.cssText = 'position:fixed;top:64px;left:50%;transform:translateX(-50%);'
+      + 'background:rgba(20,16,26,.96);border:1px solid var(--amber);'
+      + 'border-radius:18px;padding:8px 18px;color:var(--amber-soft);'
+      + 'font-family:Cormorant Garamond,serif;font-style:italic;font-size:13px;'
+      + 'letter-spacing:.04em;z-index:15;box-shadow:0 6px 18px rgba(0,0,0,.5);'
+      + 'transition:opacity .4s;backdrop-filter:blur(8px);';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, 4500);
 }
 
 function buildFilterPanel(){
@@ -425,11 +536,10 @@ function buildFilterPanel(){
     document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => {
       if (cb.checked) enabled.add(cb.getAttribute('data-g'));
     });
-    const collOnly = document.getElementById('filterPanel').dataset.collOnly === 'true';
+    const unvisitedOnly = document.getElementById('filterPanel').dataset.unvisitedOnly === 'true';
     for (const id of allNodeIds){
       const g = graph.getNodeAttribute(id, 'genre') || 'unknown';
-      const inColl = graph.getNodeAttribute(id, 'inCollection');
-      const visible = enabled.has(g) && (!collOnly || inColl);
+      const visible = enabled.has(g) && (!unvisitedOnly || isUnvisited(id));
       graph.setNodeAttribute(id, 'hidden', !visible);
     }
     sigma.refresh();
@@ -447,9 +557,9 @@ function buildFilterPanel(){
     document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => cb.checked = false);
     applyFilter();
   };
-  document.getElementById('filterCollOnly').onclick = () => {
+  document.getElementById('filterUnvisited').onclick = () => {
     document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => cb.checked = true);
-    document.getElementById('filterPanel').dataset.collOnly = 'true';
+    document.getElementById('filterPanel').dataset.unvisitedOnly = 'true';
     applyFilter();
   };
 }
@@ -468,9 +578,10 @@ function showInfo(id) {
   const a = graph.getNodeAttributes(id);
   currentNodeId = id;
   document.getElementById('infoName').textContent = a.label;
-  const sub = a.inCollection
-    ? `${(a.genre || '').toUpperCase()} · コレクション内`
-    : `${(a.genre || 'unknown').toUpperCase()} · まだ知らない隣人`;
+  const wasVisited = visited.has(id);
+  const sub = wasVisited
+    ? `${(a.genre || '').toUpperCase()} · 再会`
+    : `${(a.genre || '').toUpperCase()} · 初めての出会い`;
   document.getElementById('infoSub').textContent = sub;
   // Album: title only (year dropped per user request — cleaner)
   const albEl = document.getElementById('infoAlbum');
@@ -481,20 +592,38 @@ function showInfo(id) {
     albEl.innerHTML = '';
     albEl.style.display = 'none';
   }
-  // Player & button state
+  // Player & button state — auto-load YouTube embed on click when we have an ID.
   resetPlayer();
   const playBtn = document.getElementById('playBtn');
   if (a.yt){
     playBtn.disabled = false;
-    playBtn.textContent = '▶ 即試聴';
-    playBtn.title = 'YouTube で即試聴';
+    playBtn.title = 'クリックで停止';
+    // Auto-start player so a click on a node = instant playback
+    setTimeout(() => startPlayer(), 50);
   } else {
     playBtn.disabled = false;
     playBtn.textContent = '▶ YouTube で開く';
     playBtn.title = '即試聴IDなし — YouTube検索を新規タブで開きます';
   }
-  // Meta
+  // Meta — count similarity sources via incident edges
+  const srcCount = {};
+  graph.forEachEdge(id, (eid, attrs, s, t) => {
+    const ss = attrs.src || [];
+    for (const x of ss){ srcCount[x] = (srcCount[x] || 0) + 1; }
+  });
+  const SRC_LABEL = {
+    lastfm: 'Last.fm',
+    musicbrainz: 'MusicBrainz',
+    wikipedia: 'Wikipedia',
+    curated: '手選',
+  };
+  const srcStr = Object.entries(srcCount).sort((x,y) => y[1] - x[1])
+    .map(([k,v]) => `${SRC_LABEL[k] || k} ${v}`).join(' · ');
   let meta = `関連 ${Math.round(a.degree || 0)} 作家`;
+  if (a.origin) meta += `<br>出身: ${a.origin}`;
+  if (a.country) meta += (a.origin ? ' · ' : '<br>出身: ') + a.country;
+  if (a.years_active) meta += `<br>活動: ${a.years_active}`;
+  if (srcStr) meta += `<br><span style="color:var(--ink-soft)">出典: ${srcStr}</span>`;
   document.getElementById('infoMeta').innerHTML = meta;
   // External links
   const enc = encodeURIComponent(a.label + (a.album ? ' ' + a.album : ''));
@@ -509,11 +638,43 @@ function showInfo(id) {
     `<a href="${amzMain}" target="_blank" rel="noopener sponsored">${a.asin ? '🎧 アルバムへ' : '🎧 Amazon'}</a>`,
     `<a href="https://www.last.fm/music/${encodeURIComponent(a.label)}" target="_blank" rel="noopener">📊 Last.fm</a>`,
   ];
-  if (a.inCollection){
-    links.unshift(`<a href="salon.html">サロン</a>`);
-  }
   document.getElementById('infoLinks').innerHTML = links.join('');
+
+  // つぎへ — chain to a related artist YOU haven't seen yet.
+  const chainBtn = document.getElementById('chainBtn');
+  if (chainBtn){
+    const neighbors = [];
+    graph.forEachNeighbor(id, (nid, attr) => {
+      neighbors.push({nid, attrs: attr});
+    });
+    if (neighbors.length){
+      chainBtn.style.display = '';
+      chainBtn.onclick = () => {
+        const fresh = neighbors.filter(n => !visited.has(n.nid));
+        const pool = fresh.length ? fresh : neighbors;
+        const next = pool[Math.floor(Math.random() * pool.length)];
+        focusNode(next.nid);
+      };
+    } else {
+      chainBtn.style.display = 'none';
+    }
+  }
   document.getElementById('info').classList.add('open');
+}
+
+// Today's pick — deterministic artist (preferring well-connected hubs you
+// haven't clicked yet). Refreshes daily so revisits feel new without state-loss.
+function pickOfTheDay(){
+  const unvisited = allNodeIds.filter(id => isUnvisited(id));
+  const pool = unvisited.length ? unvisited : allNodeIds;
+  // Sort by degree desc and pick a hub-ish but not the absolute top one
+  const sorted = [...pool].sort((a, b) =>
+    (graph.getNodeAttribute(b, 'degree') || 0) - (graph.getNodeAttribute(a, 'degree') || 0));
+  const top = sorted.slice(0, Math.min(500, sorted.length));
+  if (!top.length) return null;
+  const today = new Date();
+  const seed = today.getFullYear() * 1000 + today.getMonth() * 50 + today.getDate();
+  return top[seed % top.length];
 }
 
 function resetPlayer(){

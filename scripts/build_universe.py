@@ -23,10 +23,24 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 HERE = Path(__file__).parent
 GENERATOR = HERE / "generate_salon_map.py"
 LASTFM = HERE / "lastfm_similar.json"
+WIKIPEDIA = HERE / "wikipedia_relations.json"
+MUSICBRAINZ = HERE / "musicbrainz_relations.json"
 CURATED = HERE / "salon_similar.py"
 YT_IDS = HERE / "youtube_ids.json"
 ASINS = HERE / "amazon_asins.json"
 OUT = HERE / "universe.json"
+
+# Per-source weights — different signals carry different confidence:
+#   curated   = hand-picked by maintainer
+#   musicbrainz = verified band-membership / explicit collaboration
+#   wikipedia = associated-acts as listed by editors
+#   lastfm    = collaborative-filter from listening data
+SRC_WEIGHTS = {
+    "curated": 2.0,
+    "musicbrainz": 1.8,
+    "wikipedia": 1.4,
+    "lastfm": 1.0,
+}
 
 
 def norm(s):
@@ -133,32 +147,100 @@ def main():
 
     print(f"collection nodes: {len(nodes)}")
 
-    # 3. Merge Last.fm similar edges
-    edges_dict = defaultdict(float)  # (src_id, tgt_id) -> weight (sum)
+    # 3-5. Merge edges from every source with provenance tags.
+    # edges_src[(a, b)] = {source: weight}
+    edges_src = defaultdict(lambda: defaultdict(float))
+
+    def add_edge(src_id, tgt_id, source, w=1.0):
+        if src_id == tgt_id:
+            return
+        a, b = sorted([src_id, tgt_id])
+        edges_src[(a, b)][source] += w * SRC_WEIGHTS.get(source, 1.0)
+
+    # Last.fm
     if LASTFM.exists():
         lastfm = json.loads(LASTFM.read_text(encoding="utf-8"))
         ext_added = 0
         for raw_artist, sims in lastfm.items():
             src_id = name_to_id.get(canonical_id(raw_artist)) or canonical_id(raw_artist)
             if src_id not in nodes:
-                # Source artist isn't even in collection by canonical id;
-                # skip (or could add as external)
                 continue
             for s in sims:
                 tgt_id = canonical_id(s)
                 if tgt_id not in nodes:
                     add_node(s, in_collection=False)
                     ext_added += 1
-                if src_id != tgt_id:
-                    edges_dict[(src_id, tgt_id)] += 1.0
-        print(f"  added {ext_added} external (Last.fm-only) artists")
+                add_edge(src_id, tgt_id, "lastfm")
+        print(f"  Last.fm: edges from {len(lastfm)} sources, +{ext_added} external")
 
-    # 4. Merge curated similar
+    # Wikipedia (associated_acts + members + past_members + influences)
+    if WIKIPEDIA.exists():
+        wiki = json.loads(WIKIPEDIA.read_text(encoding="utf-8"))
+        ext_added_w = 0
+        wiki_pairs = 0
+        for raw_artist, info in wiki.items():
+            if not isinstance(info, dict):
+                continue
+            src_id = name_to_id.get(canonical_id(raw_artist)) or canonical_id(raw_artist)
+            if src_id not in nodes:
+                continue
+            for key in ("associated_acts", "members", "past_members",
+                         "influences", "influenced_by"):
+                for s in info.get(key, []) or []:
+                    tgt_id = canonical_id(s)
+                    if tgt_id not in nodes:
+                        add_node(s, in_collection=False)
+                        ext_added_w += 1
+                    add_edge(src_id, tgt_id, "wikipedia")
+                    wiki_pairs += 1
+            # Save metadata onto the source node for the UI
+            n = nodes[src_id]
+            if info.get("origin"):
+                n["origin"] = info["origin"]
+            if info.get("years_active"):
+                n["years_active"] = info["years_active"]
+            if info.get("genres"):
+                n.setdefault("wiki_genres", info["genres"])
+        print(f"  Wikipedia: {wiki_pairs} pairs, +{ext_added_w} external")
+
+    # MusicBrainz (members + member_of + collaborators)
+    if MUSICBRAINZ.exists():
+        mb = json.loads(MUSICBRAINZ.read_text(encoding="utf-8"))
+        ext_added_m = 0
+        mb_pairs = 0
+        for raw_artist, info in mb.items():
+            if not isinstance(info, dict):
+                continue
+            src_id = name_to_id.get(canonical_id(raw_artist)) or canonical_id(raw_artist)
+            if src_id not in nodes:
+                continue
+            for key in ("members", "member_of", "collaborators"):
+                for s in info.get(key, []) or []:
+                    tgt_id = canonical_id(s)
+                    if tgt_id not in nodes:
+                        add_node(s, in_collection=False)
+                        ext_added_m += 1
+                    add_edge(src_id, tgt_id, "musicbrainz")
+                    mb_pairs += 1
+            # Metadata
+            n = nodes[src_id]
+            if info.get("country"):
+                n["country"] = info["country"]
+            if info.get("type"):
+                n["mb_type"] = info["type"]
+            if info.get("tags"):
+                n["mb_tags"] = [t["name"] for t in info["tags"][:8]]
+            if info.get("mbid"):
+                n["mbid"] = info["mbid"]
+        print(f"  MusicBrainz: {mb_pairs} pairs, +{ext_added_m} external")
+
+    # Curated SIMILAR (highest weight)
     if CURATED.exists():
         try:
             spec2 = importlib.util.spec_from_file_location("salon_similar", CURATED)
             mod2 = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(mod2)
             SIM = getattr(mod2, "SIMILAR", {})
+            cur_pairs = 0
             for slug, m in SIM.items():
                 for raw_artist, sims in m.items():
                     src_id = name_to_id.get(canonical_id(raw_artist)) or canonical_id(raw_artist)
@@ -168,31 +250,35 @@ def main():
                         tgt_id = canonical_id(s)
                         if tgt_id not in nodes:
                             add_node(s, in_collection=False)
-                        if src_id != tgt_id:
-                            edges_dict[(src_id, tgt_id)] += 1.5  # curated weight slightly higher
+                        add_edge(src_id, tgt_id, "curated")
+                        cur_pairs += 1
+            print(f"  Curated: {cur_pairs} pairs")
         except Exception as e:
             print(f"  warn: curated load: {e}")
 
-    # 5. Symmetrize edges (undirected graph) — sum bidirectional
-    sym = defaultdict(float)
-    for (s, t), w in edges_dict.items():
-        a, b = sorted([s, t])
-        sym[(a, b)] += w
+    # 5. Aggregate weights & sources per edge
+    sym = {}
+    for pair, src_dict in edges_src.items():
+        total = sum(src_dict.values())
+        # Bonus: edges supported by multiple sources get a coherence boost
+        bonus = max(0, len(src_dict) - 1) * 0.5
+        sym[pair] = {
+            "weight": total + bonus,
+            "sources": sorted(src_dict.keys()),
+        }
 
     # 6. Compute degrees
-    for (a, b), w in sym.items():
+    for (a, b), info in sym.items():
+        w = info["weight"]
         nodes[a]["degree"] += w
         nodes[b]["degree"] += w
 
     # 7. Genre inference: multi-pass BFS from collection nodes.
-    # Each external node inherits the genre of the closest collection ancestor;
-    # ties broken by weighted vote.
     neighbors = defaultdict(list)
-    for (a, b), w in sym.items():
-        neighbors[a].append((b, w))
-        neighbors[b].append((a, w))
+    for (a, b), info in sym.items():
+        neighbors[a].append((b, info["weight"]))
+        neighbors[b].append((a, info["weight"]))
 
-    # Pass 1: external nodes with at least one in-collection neighbor
     for nid, node in nodes.items():
         if node["in_collection"]:
             continue
@@ -204,7 +290,6 @@ def main():
         if votes:
             node["genre"] = votes.most_common(1)[0][0]
 
-    # Passes 2-4: propagate from already-labeled neighbors (ignoring 'unknown')
     for _ in range(3):
         changes = 0
         for nid, node in nodes.items():
@@ -264,13 +349,25 @@ def main():
         except Exception:
             pass
 
-    edges = [{"source": a, "target": b, "weight": w}
-             for (a, b), w in sym.items()]
+    edges = [{
+        "source": a, "target": b,
+        "weight": info["weight"],
+        "src": info["sources"],
+    } for (a, b), info in sym.items()]
     # Drop helper keys before serializing
     nodes_list = []
     for n in nodes.values():
         n.pop("raw_name", None)
         nodes_list.append(n)
+
+    src_count = Counter()
+    multi_src = 0
+    for e in edges:
+        srcs = e.get("src") or []
+        for s in srcs:
+            src_count[s] += 1
+        if len(srcs) >= 2:
+            multi_src += 1
 
     OUT.write_text(json.dumps({
         "nodes": nodes_list,
@@ -280,6 +377,8 @@ def main():
             "in_collection": sum(1 for n in nodes_list if n["in_collection"]),
             "external": sum(1 for n in nodes_list if not n["in_collection"]),
             "total_edges": len(edges),
+            "edges_by_source": dict(src_count),
+            "multi_source_edges": multi_src,
         },
     }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 

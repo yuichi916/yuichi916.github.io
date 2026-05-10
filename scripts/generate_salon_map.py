@@ -1405,6 +1405,10 @@ function openSubgroup(slug, idx){
       apPinned = true;
       clearTimeout(apHideTimer);
       showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span, display, album, similar);
+      // YouTube one-click: auto-start the embed when chip is clicked
+      if (youtubeVideoId(a)){
+        setTimeout(() => startPlayer(), 60);
+      }
     });
     span.addEventListener('mouseenter', () => {
       if (apPinned) return;
