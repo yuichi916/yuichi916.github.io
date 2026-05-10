@@ -413,60 +413,66 @@ SPINES = [
 ]
 
 
-def alpha_bucket(name):
-    """Return bucket label (A-F / G-M / N-S / T-Z / 記号・他) for a name."""
-    s = name.strip()
-    if not s:
-        return "T-Z"
-    c0 = s[0].upper()
-    if "A" <= c0 <= "F":
-        return "A-F"
-    if "G" <= c0 <= "M":
-        return "G-M"
-    if "N" <= c0 <= "S":
-        return "N-S"
-    if "T" <= c0 <= "Z":
-        return "T-Z"
-    return "記号・日本語他"
-
-
 def build_data():
+    """Merge GENRES (curated subgroups) + ADDITIONS (per-genre extra
+    classifications) → final data. Any artist still missing → safety bucket."""
+    import unicodedata
+    def norm(s): return unicodedata.normalize("NFC", s).lower()
+    # Lazy import additions to keep this file self-contained-ish
+    import importlib.util
+    add_path = Path(__file__).parent / "salon_additions.py"
+    spec = importlib.util.spec_from_file_location("salon_additions", add_path)
+    add_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(add_mod)
+    ADDITIONS = add_mod.ADDITIONS
+
     music = json.loads(MUSIC_DATA.read_text(encoding="utf-8"))
     out = {}
     for slug, g in GENRES.items():
         all_artists = music.get(g["key"], [])
-        # Set of explicitly categorized artist names (case-insensitive)
+
+        # Deep-copy subgroups so we can extend without mutating GENRES
+        subgroups = [dict(sg, artists=list(sg["artists"])) for sg in g["subgroups"]]
+
+        # Apply additions
+        ad = ADDITIONS.get(slug, {})
+        # Add to existing subgroups (match by name_jp)
+        for sg_name, artists in ad.get("to_existing", {}).items():
+            target = next((sg for sg in subgroups if sg["name_jp"] == sg_name), None)
+            if target is None:
+                print(f"  WARN: {slug}: existing subgroup '{sg_name}' not found, creating")
+                target = {"name_jp": sg_name, "name_en": sg_name,
+                          "blurb": "", "artists": []}
+                subgroups.append(target)
+            for a in artists:
+                if a not in target["artists"]:
+                    target["artists"].append(a)
+        # New subgroups
+        for new_sg in ad.get("new_subgroups", []):
+            subgroups.append(dict(new_sg, artists=list(new_sg["artists"])))
+
+        # Compute NFC-normalized case-insensitive set of all categorized
         cat_set = set()
-        for sg in g["subgroups"]:
+        for sg in subgroups:
             for a in sg["artists"]:
-                cat_set.add(a.lower())
+                cat_set.add(norm(a))
 
-        # Find truly uncategorized artists
-        uncat = [a for a in all_artists if a.lower() not in cat_set]
-
-        # Bucket residual into alphabet groups
-        buckets = {"A-F": [], "G-M": [], "N-S": [], "T-Z": [], "記号・日本語他": []}
-        for a in uncat:
-            buckets[alpha_bucket(a)].append(a)
-
-        # Build full subgroup list — start with curated, append non-empty alpha buckets
-        full_subgroups = list(g["subgroups"])
-        for bucket_label in ["A-F", "G-M", "N-S", "T-Z", "記号・日本語他"]:
-            ents = buckets[bucket_label]
-            if ents:
-                full_subgroups.append({
-                    "name_jp": f"周辺 {bucket_label}",
-                    "name_en": f"Periphery {bucket_label}",
-                    "blurb": f"上記カテゴリに振り分けていない、 アルファベット {bucket_label} 帯のアーティスト。",
-                    "artists": sorted(ents, key=lambda s: s.lower()),
-                    "auto": True,
-                })
+        # Anything still uncategorized → safety bucket
+        residual = [a for a in all_artists if norm(a) not in cat_set]
+        if residual:
+            print(f"  {slug}: {len(residual)} residual not classified, adding to misc bucket")
+            subgroups.append({
+                "name_jp": "未分類", "name_en": "Unclassified",
+                "blurb": "システム的に振り分けられなかった残り (要 手動確認)。",
+                "artists": sorted(residual, key=lambda s: s.lower()),
+                "auto": True,
+            })
 
         out[slug] = {
             "name_jp": g["name_jp"], "name_en": g["name_en"], "latin": g["latin"],
             "x": g["x"], "y": g["y"], "color": g["color"],
             "essence": g["essence"], "essay": g["essay"],
-            "subgroups": full_subgroups,
+            "subgroups": subgroups,
             "all_artists": all_artists,
         }
     return out, SPINES
