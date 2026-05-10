@@ -119,7 +119,6 @@
 
 <!-- Sigma.js + Graphology for WebGL graph rendering -->
 <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/graphology-layout-noverlap@0.4.2/dist/graphology-layout-noverlap.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0/dist/sigma.min.js"></script>
 <!-- @sigma/node-border has no UMD bundle; node state is shown via halos +
      fill-colour mixing in the reducer instead. -->
@@ -159,54 +158,62 @@ html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
    reclaim the vertical space and merge with the parent's chrome. */
 body.embed .bar{display:none;}
 body.embed #graph{top:0;}
-/* Cosmic background lives on body — graph canvas is fully transparent so
-   nebula + stars layers behind it stay visible. */
-body{
+/* ── Enhanced Cosmic Background ── */
+body{background:#060410 !important;}
+.cosmic-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;overflow:hidden;}
+.nebula-layer{position:absolute;top:0;left:0;width:100%;height:100%;
+  background-size:cover;background-position:center;
+  transition:transform .1s ease-out;will-change:transform;}
+.nebula-layer-1{background:
+  radial-gradient(ellipse 420px 320px at 50% 15%,rgba(122,74,240,.28),transparent 75%),
+  radial-gradient(ellipse 280px 240px at 75% 25%,rgba(212,160,80,.20),transparent 70%),
+  radial-gradient(ellipse 460px 360px at 90% 42%,rgba(240,200,120,.24),transparent 72%);
+  opacity:.9;}
+.nebula-layer-2{background:
+  radial-gradient(ellipse 340px 280px at 94% 64%,rgba(84,200,120,.18),transparent 70%),
+  radial-gradient(ellipse 260px 220px at 76% 82%,rgba(95,200,255,.20),transparent 68%),
+  radial-gradient(ellipse 360px 300px at 52% 90%,rgba(255,107,157,.22),transparent 70%);
+  opacity:.85;}
+.nebula-layer-3{background:
+  radial-gradient(ellipse 360px 300px at 28% 82%,rgba(107,190,255,.19),transparent 70%),
+  radial-gradient(ellipse 400px 340px at 14% 64%,rgba(168,122,219,.24),transparent 72%),
+  radial-gradient(ellipse 440px 360px at 10% 42%,rgba(226,58,78,.23),transparent 70%),
+  radial-gradient(ellipse 440px 340px at 29% 25%,rgba(155,88,224,.24),transparent 72%);
+  opacity:.88;}
+.nebula-layer-4{background:radial-gradient(ellipse 1200px 1000px at 50% 50%,rgba(40,30,60,0.65),transparent 85%);opacity:1;}
+.light-rays{position:absolute;top:-50%;left:-50%;width:200%;height:200%;
   background:
-    radial-gradient(ellipse 320px 220px at 50% 12%,  rgba(122,74,240,.20), transparent 70%),
-    radial-gradient(ellipse 220px 200px at 73% 22%,  rgba(212,160,80,.14), transparent 70%),
-    radial-gradient(ellipse 360px 280px at 88% 38%,  rgba(240,200,120,.18),transparent 70%),
-    radial-gradient(ellipse 260px 230px at 92% 60%,  rgba(84,200,120,.13), transparent 70%),
-    radial-gradient(ellipse 200px 180px at 73% 78%,  rgba(95,200,255,.14), transparent 70%),
-    radial-gradient(ellipse 280px 240px at 50% 88%,  rgba(255,107,157,.16),transparent 70%),
-    radial-gradient(ellipse 280px 240px at 27% 78%,  rgba(107,190,255,.14),transparent 70%),
-    radial-gradient(ellipse 320px 280px at 12% 60%,  rgba(168,122,219,.18),transparent 70%),
-    radial-gradient(ellipse 360px 280px at 8%  38%,  rgba(226,58,78,.18),  transparent 70%),
-    radial-gradient(ellipse 360px 280px at 27% 22%,  rgba(155,88,224,.18), transparent 70%),
-    radial-gradient(ellipse 1100px 900px at 50% 50%, rgba(40,30,60,0.55),  transparent 80%),
-    #060410 !important;
-}
-#graph{position:absolute;top:48px;left:0;right:0;bottom:0;
-  background:transparent;}
-/* Starfield: layered SVG noise dots simulating a deep-space starfield */
-#stars{position:absolute;top:48px;left:0;right:0;bottom:0;pointer-events:none;
-  z-index:1;
+    linear-gradient(135deg,transparent 30%,rgba(212,160,80,0.08) 50%,transparent 70%),
+    linear-gradient(225deg,transparent 30%,rgba(122,74,240,0.06) 50%,transparent 70%),
+    linear-gradient(45deg,transparent 35%,rgba(95,200,255,0.05) 50%,transparent 65%);
+  opacity:.4;animation:rotateRays 120s linear infinite;pointer-events:none;}
+@keyframes rotateRays{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+#particlesCanvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;opacity:.6;}
+#graph{position:absolute;top:48px;left:0;right:0;bottom:0;background:transparent;z-index:5;}
+/* Enhanced starfield with brighter stars */
+#stars{position:absolute;top:48px;left:0;right:0;bottom:0;pointer-events:none;z-index:2;
   background-image:
-    radial-gradient(0.6px 0.6px at 11% 17%, rgba(255,255,255,.85), transparent 100%),
-    radial-gradient(0.7px 0.7px at 24% 73%, rgba(220,230,255,.75), transparent 100%),
-    radial-gradient(0.5px 0.5px at 31% 41%, rgba(255,250,220,.7),  transparent 100%),
-    radial-gradient(0.7px 0.7px at 47% 88%, rgba(220,230,255,.6),  transparent 100%),
-    radial-gradient(0.6px 0.6px at 53% 9%,  rgba(255,255,255,.75), transparent 100%),
-    radial-gradient(0.6px 0.6px at 67% 31%, rgba(255,250,220,.7),  transparent 100%),
-    radial-gradient(0.5px 0.5px at 71% 64%, rgba(220,230,255,.65), transparent 100%),
-    radial-gradient(0.7px 0.7px at 83% 22%, rgba(255,255,255,.7),  transparent 100%),
-    radial-gradient(0.6px 0.6px at 89% 56%, rgba(220,230,255,.6),  transparent 100%),
-    radial-gradient(0.5px 0.5px at 18% 92%, rgba(255,250,220,.65), transparent 100%),
-    radial-gradient(1.2px 1.2px at 38% 58%, rgba(255,255,255,.95), transparent 100%),
-    radial-gradient(1.4px 1.4px at 78% 78%, rgba(255,250,220,.95), transparent 100%),
-    radial-gradient(1.2px 1.2px at 14% 36%, rgba(220,230,255,.9),  transparent 100%);
+    radial-gradient(0.7px 0.7px at 11% 17%,rgba(255,255,255,.90),transparent),
+    radial-gradient(0.8px 0.8px at 24% 73%,rgba(220,230,255,.82),transparent),
+    radial-gradient(0.6px 0.6px at 31% 41%,rgba(255,250,220,.78),transparent),
+    radial-gradient(0.8px 0.8px at 47% 88%,rgba(220,230,255,.70),transparent),
+    radial-gradient(0.7px 0.7px at 53% 9%,rgba(255,255,255,.82),transparent),
+    radial-gradient(0.7px 0.7px at 67% 31%,rgba(255,250,220,.78),transparent),
+    radial-gradient(0.6px 0.6px at 71% 64%,rgba(220,230,255,.72),transparent),
+    radial-gradient(0.8px 0.8px at 83% 22%,rgba(255,255,255,.78),transparent),
+    radial-gradient(0.7px 0.7px at 89% 56%,rgba(220,230,255,.68),transparent),
+    radial-gradient(0.6px 0.6px at 18% 92%,rgba(255,250,220,.72),transparent),
+    radial-gradient(1.4px 1.4px at 38% 58%,rgba(255,255,255,1),transparent),
+    radial-gradient(1.6px 1.6px at 78% 78%,rgba(255,250,220,1),transparent),
+    radial-gradient(1.3px 1.3px at 14% 36%,rgba(220,230,255,.95),transparent);
   background-size:
-    600px 600px, 800px 800px, 700px 700px, 900px 900px,
-    600px 600px, 800px 800px, 700px 700px, 900px 900px,
-    600px 600px, 800px 800px,
-    1200px 1200px, 1400px 1400px, 1100px 1100px;
-  background-repeat:repeat;
-  opacity:.7;
-  animation:twinkle 8s ease-in-out infinite;}
-@keyframes twinkle{
-  0%,100%{opacity:.55}
-  50%{opacity:.85}
-}
+    600px 600px,800px 800px,700px 700px,900px 900px,
+    600px 600px,800px 800px,700px 700px,900px 900px,
+    600px 600px,800px 800px,
+    1200px 1200px,1400px 1400px,1100px 1100px;
+  background-repeat:repeat;opacity:.75;animation:twinkle 9s ease-in-out infinite;}
+@keyframes twinkle{0%,100%{opacity:.65}50%{opacity:.92}}
+#constellations{position:absolute;top:48px;left:0;right:0;bottom:0;pointer-events:none;z-index:3;opacity:.25;}
 /* Galaxy labels — large constellation names floating over each cluster */
 #galaxyLayer{position:absolute;top:48px;left:0;right:0;bottom:0;
   pointer-events:none;overflow:hidden;z-index:6;}
@@ -516,6 +523,60 @@ body.embed #hubLayer{top:0;}
 </head>
 <body>
 
+<!-- Enhanced cosmic background -->
+<div class="cosmic-bg">
+  <div class="nebula-layer nebula-layer-1" data-speed="0.5"></div>
+  <div class="nebula-layer nebula-layer-2" data-speed="0.3"></div>
+  <div class="nebula-layer nebula-layer-3" data-speed="0.2"></div>
+  <div class="nebula-layer nebula-layer-4" data-speed="0.1"></div>
+  <div class="light-rays"></div>
+  <canvas id="particlesCanvas"></canvas>
+</div>
+
+<!-- SVG constellation overlay -->
+<svg id="constellations" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="constellation-glow">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g opacity="0.4" filter="url(#constellation-glow)">
+    <circle cx="12%" cy="20%" r="1.5" fill="rgba(255,250,220,0.9)"/>
+    <circle cx="15%" cy="25%" r="1.2" fill="rgba(255,250,220,0.85)"/>
+    <circle cx="18%" cy="22%" r="1.3" fill="rgba(255,250,220,0.88)"/>
+    <circle cx="14%" cy="30%" r="1.6" fill="rgba(255,250,220,0.95)"/>
+    <circle cx="17%" cy="32%" r="1.4" fill="rgba(255,250,220,0.9)"/>
+    <line x1="12%" y1="20%" x2="15%" y2="25%" stroke="rgba(255,250,220,0.3)" stroke-width="0.5"/>
+    <line x1="15%" y1="25%" x2="18%" y2="22%" stroke="rgba(255,250,220,0.3)" stroke-width="0.5"/>
+    <line x1="15%" y1="25%" x2="14%" y2="30%" stroke="rgba(255,250,220,0.3)" stroke-width="0.5"/>
+    <line x1="14%" y1="30%" x2="17%" y2="32%" stroke="rgba(255,250,220,0.3)" stroke-width="0.5"/>
+  </g>
+  <g opacity="0.35" filter="url(#constellation-glow)">
+    <circle cx="75%" cy="18%" r="1.4" fill="rgba(220,230,255,0.9)"/>
+    <circle cx="78%" cy="22%" r="1.3" fill="rgba(220,230,255,0.85)"/>
+    <circle cx="80%" cy="19%" r="1.5" fill="rgba(220,230,255,0.92)"/>
+    <circle cx="83%" cy="24%" r="1.2" fill="rgba(220,230,255,0.88)"/>
+    <circle cx="85%" cy="20%" r="1.3" fill="rgba(220,230,255,0.9)"/>
+    <line x1="75%" y1="18%" x2="78%" y2="22%" stroke="rgba(220,230,255,0.28)" stroke-width="0.5"/>
+    <line x1="78%" y1="22%" x2="80%" y2="19%" stroke="rgba(220,230,255,0.28)" stroke-width="0.5"/>
+    <line x1="80%" y1="19%" x2="83%" y2="24%" stroke="rgba(220,230,255,0.28)" stroke-width="0.5"/>
+    <line x1="83%" y1="24%" x2="85%" y2="20%" stroke="rgba(220,230,255,0.28)" stroke-width="0.5"/>
+  </g>
+  <g opacity="0.32" filter="url(#constellation-glow)">
+    <circle cx="50%" cy="8%" r="1.8" fill="rgba(255,255,255,1)"/>
+    <circle cx="52%" cy="12%" r="1.2" fill="rgba(255,250,220,0.85)"/>
+    <circle cx="48%" cy="13%" r="1.3" fill="rgba(255,250,220,0.88)"/>
+    <circle cx="50%" cy="16%" r="1.4" fill="rgba(255,250,220,0.9)"/>
+    <line x1="50%" y1="8%" x2="52%" y2="12%" stroke="rgba(255,250,220,0.25)" stroke-width="0.5"/>
+    <line x1="52%" y1="12%" x2="50%" y2="16%" stroke="rgba(255,250,220,0.25)" stroke-width="0.5"/>
+    <line x1="48%" y1="13%" x2="50%" y2="16%" stroke="rgba(255,250,220,0.25)" stroke-width="0.5"/>
+  </g>
+</svg>
+
 <header class="bar">
   <a href="index.html" class="brand">◐ Views Engineer</a>
   <a href="salon.html">← Salon</a>
@@ -719,7 +780,9 @@ try {
     const loaded = JSON.parse(raw);
     state = { ...state, ...loaded };
   }
-} catch {}
+} catch (e) {
+  // Silently ignore localStorage errors
+}
 let visited = new Set(state.visited || []);
 let earnedAchv = new Set(state.achievements || []);
 let genreSet = new Set(state.genresVisited || []);
@@ -730,7 +793,9 @@ function saveState(){
   state.achievements = [...earnedAchv];
   state.genresVisited = [...genreSet];
   state.lastVisit = Date.now();
-  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch (e) {
+    // Silently ignore localStorage errors
+  }
 }
 
 // ─── Levels ──────────────────────────────────────────────────────────
@@ -1647,9 +1712,86 @@ function closeInfo() {
   currentNodeId = null;
 }
 
+// ── Parallax nebula on mouse move ──
+const nebulaLayers = document.querySelectorAll('.nebula-layer');
+if (nebulaLayers.length > 0) {
+  document.addEventListener('mousemove', (e) => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 2;
+    const y = (e.clientY / window.innerHeight - 0.5) * 2;
+    nebulaLayers.forEach(layer => {
+      const speed = parseFloat(layer.dataset.speed) || 0.5;
+      const translateX = x * 30 * speed;
+      const translateY = y * 30 * speed;
+      layer.style.transform = `translate(${translateX}px, ${translateY}px)`;
+    });
+  });
+}
+
+// ── Floating particles ──
+const particlesCanvas = document.getElementById('particlesCanvas');
+if (particlesCanvas) {
+  const pctx = particlesCanvas.getContext('2d');
+  particlesCanvas.width = window.innerWidth;
+  particlesCanvas.height = window.innerHeight;
+
+  const particles = [];
+  const particleCount = 40;
+
+  class Particle {
+    constructor() {
+      this.reset();
+    }
+    reset() {
+      this.x = Math.random() * particlesCanvas.width;
+      this.y = Math.random() * particlesCanvas.height;
+      this.vx = (Math.random() - 0.5) * 0.3;
+      this.vy = (Math.random() - 0.5) * 0.3;
+      this.size = Math.random() * 1.5 + 0.5;
+      this.opacity = Math.random() * 0.4 + 0.2;
+      this.color = ['rgba(212,160,80,', 'rgba(95,200,255,', 'rgba(155,88,224,'][Math.floor(Math.random() * 3)];
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      if (this.x < 0 || this.x > particlesCanvas.width || this.y < 0 || this.y > particlesCanvas.height) {
+        this.reset();
+      }
+    }
+    draw() {
+      pctx.beginPath();
+      pctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      pctx.fillStyle = this.color + this.opacity + ')';
+      pctx.fill();
+    }
+  }
+
+  for (let i = 0; i < particleCount; i++) {
+    particles.push(new Particle());
+  }
+
+  function animateParticles() {
+    pctx.clearRect(0, 0, particlesCanvas.width, particlesCanvas.height);
+    particles.forEach(p => {
+      p.update();
+      p.draw();
+    });
+    requestAnimationFrame(animateParticles);
+  }
+
+  animateParticles();
+
+  window.addEventListener('resize', () => {
+    particlesCanvas.width = window.innerWidth;
+    particlesCanvas.height = window.innerHeight;
+  });
+}
+
 main().catch(err => {
-  console.error(err);
-  document.getElementById('loading').textContent = 'load failed: ' + err.message;
+  if (err) console.error(err);
+  const loadingEl = document.getElementById('loading');
+  if (loadingEl) {
+    loadingEl.textContent = 'load failed: ' + (err ? err.message : 'unknown error');
+  }
 });
 </script>
 </body>
