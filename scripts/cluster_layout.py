@@ -43,13 +43,18 @@ GENRE_NAME_JP = {
     "progressive": "プログ銀河", "nature": "ネイチャー域",
 }
 
-# Ring radius — how far apart the galaxy centres sit.
-RING_R = 1700
-# How strongly to pull each node toward its genre centroid.
-# 0.0 = no pull (pure FA2),  1.0 = collapse to centroid.
-PULL = 0.55
-# Soft jitter so nodes don't perfectly stack at the centroid
-JITTER = 24.0
+# Ring radius — how far apart the galaxy centres sit. Bumped from 1700
+# to 2400 so that even big galaxies (healing 4963, metal 4563) have room
+# to spread without bumping into the neighbour's edge stars.
+RING_R = 2400
+# Per-galaxy target spread: nodes get repositioned in a disk of this radius
+# (scaled by sqrt(member_count)) around their genre centroid — so dense
+# galaxies grow proportionally instead of stacking on top of each other.
+GALAXY_BASE_R = 80
+GALAXY_PER_NODE = 5.5
+GALAXY_MAX_R = 420
+# Light jitter for stability when many nodes share an FA2 position
+JITTER = 18.0
 
 
 def main():
@@ -77,15 +82,67 @@ def main():
         cx_old = sum(n.get("x", 0) for n in members) / len(members)
         cy_old = sum(n.get("y", 0) for n in members) / len(members)
         cx_new, cy_new, _ang = centroids[g]
+        # Compute the FA2 spread of this genre (max distance from old centroid)
+        max_d = max(
+            (((n.get("x", 0) - cx_old) ** 2 + (n.get("y", 0) - cy_old) ** 2) ** 0.5)
+            for n in members
+        ) or 1.0
+        # Target radius for this galaxy: scales with sqrt of member count
+        target_r = min(
+            GALAXY_MAX_R,
+            GALAXY_BASE_R + GALAXY_PER_NODE * (len(members) ** 0.5),
+        )
+        # Scale factor maps the genre's FA2 layout (radius max_d) into the
+        # target radius — preserves the within-genre topology while fitting
+        # a known disk.
+        scale = target_r / max_d
         for n in members:
-            x = n.get("x", 0) - cx_old
-            y = n.get("y", 0) - cy_old
-            # Apply pull: blend toward new centroid
-            n["x"] = cx_new * PULL + (cx_new + x) * (1 - PULL)
-            n["y"] = cy_new * PULL + (cy_new + y) * (1 - PULL)
-            # Tiny jitter only for nodes very close to the centroid
-            n["x"] += rnd.uniform(-JITTER, JITTER) * 0.3
-            n["y"] += rnd.uniform(-JITTER, JITTER) * 0.3
+            rx = (n.get("x", 0) - cx_old) * scale
+            ry = (n.get("y", 0) - cy_old) * scale
+            n["x"] = cx_new + rx + rnd.uniform(-JITTER, JITTER) * 0.5
+            n["y"] = cy_new + ry + rnd.uniform(-JITTER, JITTER) * 0.5
+
+    # ── Final noverlap pass: push remaining overlaps apart in-place ──
+    # Per-galaxy spatial-hash collision resolution (cheap, deterministic).
+    print("running per-galaxy noverlap pass...")
+    NUM_ITER = 60
+    MARGIN = 1.4  # absolute-pixel margin between node circles
+    for g, members in per_g.items():
+        if len(members) < 2:
+            continue
+        positions = [(n["x"], n["y"]) for n in members]
+        sizes = [n.get("r", 2.5) for n in members]
+        cell = max(sizes) * 4 + MARGIN + 4
+        for _it in range(NUM_ITER):
+            grid = {}
+            for i, (x, y) in enumerate(positions):
+                key = (int(x // cell), int(y // cell))
+                grid.setdefault(key, []).append(i)
+            moved = 0
+            for i, (x, y) in enumerate(positions):
+                cx_grid, cy_grid = int(x // cell), int(y // cell)
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        for j in grid.get((cx_grid + dx, cy_grid + dy), []):
+                            if j <= i:
+                                continue
+                            x2, y2 = positions[j]
+                            ddx = x - x2
+                            ddy = y - y2
+                            d = (ddx * ddx + ddy * ddy) ** 0.5
+                            min_d = sizes[i] + sizes[j] + MARGIN
+                            if 0.001 < d < min_d:
+                                push = (min_d - d) / 2.0
+                                ux = ddx / d
+                                uy = ddy / d
+                                positions[i] = (x + ux * push, y + uy * push)
+                                positions[j] = (x2 - ux * push, y2 - uy * push)
+                                x, y = positions[i]
+                                moved += 1
+            if moved == 0:
+                break
+        for i, n in enumerate(members):
+            n["x"], n["y"] = positions[i]
 
     # Compute galaxy metadata for label rendering
     galaxies = []
