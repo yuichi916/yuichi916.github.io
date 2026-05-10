@@ -1094,7 +1094,9 @@ function youtubeVideoId(artist){
 }
 function youtubeEmbedUrl(artist){
   const vid = youtubeVideoId(artist);
-  if (vid) return `https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&rel=0`;
+  // youtube.com/embed (NOT youtube-nocookie) so Premium-logged-in browsers
+  // can pass auth cookies and skip ads. modestbranding=1 dampens YouTube logo.
+  if (vid) return `https://www.youtube.com/embed/${vid}?autoplay=1&rel=0&modestbranding=1`;
   return null;
 }
 function youtubeWatchUrl(artist, displayName, album){
