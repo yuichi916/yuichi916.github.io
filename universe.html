@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music Universe — まだ知らない音楽との出会い / Discovery</title>
+<meta name="description" content="好きな音楽の隣にいる、 まだ知らない作家を見つけるための音楽宇宙地図。Last.fm 類似性で繋がった 5,200+ アーティストを WebGL で可視化。">
+<meta name="theme-color" content="#0a0814">
+<link rel="canonical" href="https://yuichi916.github.io/universe.html">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Sigma.js + Graphology for WebGL graph rendering -->
+<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0/dist/sigma.min.js"></script>
+
+<style>
+:root{
+  --night:#0a0814;--night-2:#14101a;--night-3:#1c1428;
+  --paper:#f0e8d8;--paper-dim:#c8b89a;--ink-soft:#7c6a52;
+  --amber:#f0c878;--amber-soft:#f8e0a0;--gold:#d4a050;
+  --wine:#7a2a3a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
+  background:var(--night);color:var(--paper);}
+.wrap{position:relative;width:100vw;height:100vh;}
+.bar{position:fixed;top:0;left:0;right:0;height:48px;z-index:10;
+  background:linear-gradient(180deg,rgba(10,8,20,.96),rgba(10,8,20,.7));
+  display:flex;align-items:center;padding:0 18px;gap:18px;
+  border-bottom:1px solid rgba(212,160,80,.18);
+  backdrop-filter:blur(12px);}
+.brand{display:flex;align-items:center;gap:8px;
+  font-family:"Cormorant Garamond",serif;font-style:italic;color:var(--amber);
+  font-size:18px;letter-spacing:.06em;text-decoration:none;}
+.brand:hover{color:var(--amber-soft)}
+.bar a{color:var(--paper-dim);text-decoration:none;font-size:13px;letter-spacing:.04em;}
+.bar a:hover{color:var(--paper)}
+.search{flex:1;max-width:380px;display:flex;align-items:center;
+  background:rgba(28,20,40,.6);border:1px solid rgba(212,160,80,.2);
+  border-radius:18px;padding:0 14px;height:32px;}
+.search input{flex:1;background:transparent;border:none;color:var(--paper);
+  font-family:"Inter",sans-serif;font-size:13px;outline:none;}
+.search input::placeholder{color:var(--ink-soft)}
+.stats{font-size:11px;color:var(--ink-soft);letter-spacing:.06em;}
+.stats span.num{color:var(--amber);font-weight:600;}
+
+#graph{position:absolute;top:48px;left:0;right:0;bottom:0;
+  background:radial-gradient(ellipse at 50% 50%,#1a1228 0%,#0a0814 100%);}
+.legend{position:fixed;bottom:16px;left:16px;z-index:10;
+  background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.18);
+  border-radius:6px;padding:14px 18px;
+  backdrop-filter:blur(12px);font-size:11px;max-width:260px;}
+.legend h3{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--amber);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+  margin-bottom:10px;}
+.legend .row{display:flex;align-items:center;gap:8px;margin-bottom:5px;
+  color:var(--paper-dim);}
+.legend .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+
+.info{position:fixed;top:64px;right:16px;z-index:10;
+  background:rgba(20,16,26,.96);border:1px solid var(--amber);
+  border-radius:6px;padding:18px;width:300px;display:none;
+  box-shadow:0 10px 30px rgba(0,0,0,.6);
+  backdrop-filter:blur(12px);}
+.info.open{display:block;animation:fadein .25s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.info .name{font-family:"Shippori Mincho",serif;font-weight:700;font-size:18px;
+  color:var(--paper);margin-bottom:4px;}
+.info .sub{font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:12px;color:var(--amber);letter-spacing:.06em;margin-bottom:12px;
+  text-transform:uppercase;}
+.info .meta{font-family:"Shippori Mincho",serif;font-size:13px;
+  color:var(--paper-dim);line-height:1.7;margin-bottom:12px;}
+.info .links{display:flex;gap:6px;flex-wrap:wrap;}
+.info .links a{font-family:"Inter",sans-serif;font-size:11px;font-weight:600;
+  padding:6px 11px;border-radius:4px;text-decoration:none;
+  border:1px solid rgba(212,160,80,.25);color:var(--paper-dim);
+  transition:all .2s;}
+.info .links a:hover{border-color:var(--amber);color:var(--paper);
+  background:rgba(212,160,80,.08);}
+.info .close{position:absolute;top:6px;right:10px;background:transparent;
+  border:none;color:var(--ink-soft);cursor:pointer;font-size:18px;line-height:1;
+  padding:2px 6px;}
+.info .close:hover{color:var(--amber)}
+
+.controls{position:fixed;bottom:16px;right:16px;z-index:10;
+  display:flex;flex-direction:column;gap:6px;}
+.controls button{background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.2);
+  color:var(--paper-dim);width:36px;height:36px;border-radius:4px;
+  font-family:"Inter",sans-serif;font-size:14px;cursor:pointer;
+  transition:all .2s;backdrop-filter:blur(12px);}
+.controls button:hover{border-color:var(--amber);color:var(--paper);}
+
+.loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;
+  background:rgba(20,16,26,.95);border:1px solid var(--amber);
+  border-radius:6px;padding:24px 36px;
+  font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--amber);letter-spacing:.18em;}
+.loading.hidden{display:none}
+
+.suggestions{position:absolute;top:48px;left:18px;z-index:11;
+  background:rgba(20,16,26,.97);border:1px solid rgba(212,160,80,.25);
+  border-radius:4px;max-width:380px;max-height:380px;overflow-y:auto;
+  display:none;}
+.suggestions.open{display:block}
+.suggestions a{display:block;padding:7px 14px;color:var(--paper-dim);
+  font-size:12.5px;text-decoration:none;border-bottom:1px solid rgba(212,160,80,.08);}
+.suggestions a:hover{background:rgba(122,42,58,.3);color:var(--paper)}
+.suggestions a .sub{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--ink-soft);font-size:10px;margin-left:8px;letter-spacing:.06em;}
+.suggestions a.in-coll::before{content:"●";color:var(--amber);
+  font-size:8px;margin-right:6px;opacity:.8;}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <a href="index.html" class="brand">◐ Views Engineer</a>
+  <a href="salon.html">← Salon des Sons</a>
+  <div class="search">
+    <input id="searchInput" type="text" placeholder="アーティスト検索 / search artists..." autocomplete="off"/>
+  </div>
+  <div class="stats">
+    <span class="num" id="statNodes">0</span> アーティスト ·
+    <span class="num" id="statEdges">0</span> 関連 ·
+    <span class="num" id="statColl">0</span> コレクション
+  </div>
+</header>
+
+<div id="suggestions" class="suggestions"></div>
+
+<div id="graph"></div>
+
+<div class="legend">
+  <h3>Discovery Map · 出会いの地図</h3>
+  <div class="row"><span class="dot" style="background:#f0c878"></span>コレクション内 (アンカー)</div>
+  <div class="row"><span class="dot" style="background:#7a2a3a"></span>まだ知らない隣人 (発見)</div>
+  <div class="row"><span style="color:var(--ink-soft)">大きい点 = 多くの作家と関連</span></div>
+  <div class="row"><span style="color:var(--ink-soft)">クリックで詳細 · 🎲 でランダム発見</span></div>
+</div>
+
+<div class="info" id="info">
+  <button class="close" id="infoClose" aria-label="閉じる">×</button>
+  <div class="name" id="infoName"></div>
+  <div class="sub" id="infoSub"></div>
+  <div class="meta" id="infoMeta"></div>
+  <div class="links" id="infoLinks"></div>
+</div>
+
+<div class="controls">
+  <button id="dice" title="サイコロ — まだ知らない音楽をひとつ" style="font-size:18px">🎲</button>
+  <button id="zoomIn" title="ズームイン">＋</button>
+  <button id="zoomOut" title="ズームアウト">−</button>
+  <button id="zoomReset" title="リセット">⊙</button>
+</div>
+
+<div class="loading" id="loading">universe loading…</div>
+
+<script>
+// Genre color palette
+const GENRE_COLORS = {
+  ambient: '#7a4af0',
+  classic: '#d4a050',
+  jazz: '#5fc8ff',
+  metal: '#e23a4e',
+  progressive: '#9b58e0',
+  healing: '#f0c878',
+  celt: '#54c878',
+  jpop: '#ff6b9d',
+  anime: '#ff9d6b',
+  game: '#6bbeff',
+  indies: '#a87adb',
+  'pop-rock': '#f5a042',
+  'blues-folk': '#c87a4a',
+  nature: '#88c878',
+  unknown: '#7a2a3a',
+};
+
+async function loadGraph() {
+  try {
+    const r = await fetch('scripts/universe.json');
+    if (!r.ok) throw new Error('universe.json not found — run build_universe.py');
+    return await r.json();
+  } catch (e) {
+    document.getElementById('loading').textContent = 'universe loading… ' + e.message;
+    throw e;
+  }
+}
+
+function buildGraph(data) {
+  const Graph = graphology.Graph;
+  const g = new Graph({ type: 'undirected', multi: false });
+  for (const n of data.nodes) {
+    const color = GENRE_COLORS[n.genre] || GENRE_COLORS.unknown;
+    g.addNode(n.id, {
+      label: n.name,
+      x: n.x ?? Math.random() * 100 - 50,
+      y: n.y ?? Math.random() * 100 - 50,
+      size: n.r ?? 2.5,
+      color: color,
+      genre: n.genre,
+      inCollection: n.in_collection,
+      album: n.album,
+      year: n.year,
+      subgroup: n.subgroup,
+      degree: n.degree,
+    });
+  }
+  for (const e of data.edges) {
+    if (g.hasNode(e.source) && g.hasNode(e.target) && !g.hasEdge(e.source, e.target)) {
+      g.addEdge(e.source, e.target, {
+        size: 0.5,
+        color: 'rgba(212,160,80,0.06)',
+        weight: e.weight,
+      });
+    }
+  }
+  return g;
+}
+
+let sigma, graph, allNodeIds, hoveredNode;
+
+async function main() {
+  const data = await loadGraph();
+  graph = buildGraph(data);
+  document.getElementById('statNodes').textContent = data.stats.total_nodes.toLocaleString();
+  document.getElementById('statEdges').textContent = data.stats.total_edges.toLocaleString();
+  document.getElementById('statColl').textContent = data.stats.in_collection.toLocaleString();
+  allNodeIds = graph.nodes();
+
+  sigma = new Sigma(graph, document.getElementById('graph'), {
+    renderEdgeLabels: false,
+    labelSize: 11,
+    labelWeight: 'normal',
+    labelColor: { color: '#f0e8d8' },
+    labelDensity: 0.8,
+    labelGridCellSize: 80,
+    labelRenderedSizeThreshold: 6,
+    enableEdgeEvents: false,
+    minCameraRatio: 0.05,
+    maxCameraRatio: 50,
+  });
+
+  // Hover & click
+  sigma.on('enterNode', ({ node }) => { hoveredNode = node; });
+  sigma.on('leaveNode', () => { hoveredNode = null; });
+  sigma.on('clickNode', ({ node }) => showInfo(node));
+  sigma.on('clickStage', () => closeInfo());
+
+  // Controls
+  document.getElementById('zoomIn').onclick = () => {
+    const cam = sigma.getCamera();
+    cam.animatedZoom({ duration: 300 });
+  };
+  document.getElementById('zoomOut').onclick = () => {
+    const cam = sigma.getCamera();
+    cam.animatedUnzoom({ duration: 300 });
+  };
+  document.getElementById('zoomReset').onclick = () => {
+    sigma.getCamera().animatedReset({ duration: 500 });
+  };
+  document.getElementById('infoClose').onclick = () => closeInfo();
+
+  // Serendipity dice — preferentially highlight an external (not-yet-known) node.
+  document.getElementById('dice').onclick = () => {
+    // Bias toward external nodes 70% of the time so each click favors discovery
+    const pool = (Math.random() < 0.7)
+      ? allNodeIds.filter(id => !graph.getNodeAttribute(id, 'inCollection'))
+      : allNodeIds;
+    if (!pool.length) return;
+    const id = pool[Math.floor(Math.random() * pool.length)];
+    focusNode(id);
+  };
+
+  // Search
+  const inp = document.getElementById('searchInput');
+  const sug = document.getElementById('suggestions');
+  inp.addEventListener('input', () => {
+    const q = inp.value.trim().toLowerCase();
+    if (q.length < 2) { sug.classList.remove('open'); return; }
+    const matches = [];
+    for (const id of allNodeIds) {
+      const a = graph.getNodeAttributes(id);
+      if (a.label.toLowerCase().includes(q)) {
+        matches.push({ id, label: a.label, inColl: a.inCollection, genre: a.genre });
+        if (matches.length >= 30) break;
+      }
+    }
+    sug.innerHTML = matches.map(m =>
+      `<a href="#" data-id="${m.id}" class="${m.inColl ? 'in-coll' : ''}">${m.label}<span class="sub">${m.genre || ''}</span></a>`
+    ).join('');
+    sug.classList.toggle('open', matches.length > 0);
+    sug.querySelectorAll('a').forEach(a => {
+      a.onclick = (e) => {
+        e.preventDefault();
+        focusNode(a.getAttribute('data-id'));
+        sug.classList.remove('open');
+        inp.value = a.textContent;
+      };
+    });
+  });
+  inp.addEventListener('blur', () => setTimeout(() => sug.classList.remove('open'), 200));
+
+  document.getElementById('loading').classList.add('hidden');
+}
+
+function focusNode(id) {
+  if (!graph.hasNode(id)) return;
+  const a = graph.getNodeAttributes(id);
+  const cam = sigma.getCamera();
+  cam.animate({ x: a.x, y: a.y, ratio: 0.15 }, { duration: 600 });
+  setTimeout(() => showInfo(id), 600);
+}
+
+function showInfo(id) {
+  const a = graph.getNodeAttributes(id);
+  document.getElementById('infoName').textContent = a.label;
+  const sub = a.inCollection
+    ? `${(a.genre || '').toUpperCase()} · ${a.subgroup || ''}`
+    : `${(a.genre || 'unknown').toUpperCase()} · 外部 / Last.fm 関連`;
+  document.getElementById('infoSub').textContent = sub;
+  let meta = '';
+  if (a.album) meta += `推奨盤: ${a.album}${a.year ? ` (${a.year})` : ''}<br>`;
+  meta += `関連数: ${Math.round(a.degree || 0)}`;
+  document.getElementById('infoMeta').innerHTML = meta;
+  const enc = encodeURIComponent(a.label);
+  const links = [
+    `<a href="https://www.youtube.com/results?search_query=${enc}+full+album" target="_blank" rel="noopener">▶ YouTube</a>`,
+    `<a href="https://www.amazon.co.jp/s?k=${enc}&i=digital-music&tag=viewsengineer-22" target="_blank" rel="noopener sponsored">🎧 Amazon</a>`,
+    `<a href="https://www.last.fm/music/${enc}" target="_blank" rel="noopener">📊 Last.fm</a>`,
+  ];
+  if (a.inCollection) {
+    links.unshift(`<a href="salon.html#${enc}">Salon →</a>`);
+  }
+  document.getElementById('infoLinks').innerHTML = links.join('');
+  document.getElementById('info').classList.add('open');
+}
+
+function closeInfo() {
+  document.getElementById('info').classList.remove('open');
+}
+
+main().catch(err => {
+  console.error(err);
+  document.getElementById('loading').textContent = 'load failed: ' + err.message;
+});
+</script>
+</body>
+</html>

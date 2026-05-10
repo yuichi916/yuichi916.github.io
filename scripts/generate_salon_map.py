@@ -11,7 +11,13 @@ sub-currents; everything else is auto-bucketed into alphabetical Periphery
 sub-groups (A-F / G-M / N-S / T-Z + Others-Symbols/JP). No counts shown.
 """
 import json, sys, io, re
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+# Only rewrap stdout when run as a script (not when imported, since the importer
+# may have its own stream / closed pipe).
+if __name__ == "__main__":
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -562,8 +568,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Salon des Sons — 音の客間 / 音楽性の地図</title>
-<meta name="description" content="個人音楽コレクションの音楽性可視化。14ジャンル × 60+サブクラスタ × 全アーティスト。階層化地図をクリックで詳細化。">
+<title>Salon des Sons — まだ知らない音楽との出会い / Discovery Atlas</title>
+<meta name="description" content="まだ知らない、 でもきっと好きになる音楽。 1269 のアーティストから、 Last.fm 等のデータで関連を辿り、 偶然の出会いを設計する音楽宇宙地図。">
 <meta name="theme-color" content="#0a0814">
 <link rel="canonical" href="https://yuichi916.github.io/salon.html">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -631,6 +637,19 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 .hero-title-jp em{font-style:normal;color:var(--amber);text-shadow:0 0 24px rgba(240,200,120,.45)}
 .hero-sub{font-family:"Shippori Mincho",serif;font-size:clamp(15px,1.6vw,18px);
   color:var(--paper-dim);max-width:680px;margin:0 auto;line-height:2;}
+.hero-actions{display:flex;justify-content:center;gap:14px;margin-top:36px;
+  flex-wrap:wrap;}
+.hero-btn{font-family:"Inter",sans-serif;font-size:13px;font-weight:600;
+  padding:14px 24px;border-radius:4px;text-decoration:none;cursor:pointer;
+  letter-spacing:.06em;transition:all .25s;border:none;display:inline-block;
+  background:transparent;color:var(--paper);}
+.hero-btn.primary{background:linear-gradient(180deg,#f5c878,#d4a050);
+  color:var(--night);border:1px solid #d4a050;}
+.hero-btn.primary:hover{background:linear-gradient(180deg,#ffd890,#e0b060);
+  transform:translateY(-2px);box-shadow:0 8px 20px rgba(212,160,80,.4);}
+.hero-btn.secondary{border:1px solid rgba(212,160,80,.4);color:var(--paper-dim);}
+.hero-btn.secondary:hover{border-color:var(--amber);color:var(--paper);
+  background:rgba(212,160,80,.08);transform:translateY(-2px);}
 
 .sec{position:relative;padding:80px 32px;border-top:1px solid rgba(212,160,80,.1)}
 .sec-inner{max-width:1200px;margin:0 auto}
@@ -849,23 +868,27 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 
 <section class="hero" id="top">
   <div class="hero-content">
-    <div class="hero-eyebrow">A Personal Atlas of Sound</div>
+    <div class="hero-eyebrow">An Atlas for Musical Serendipity</div>
     <h1 class="hero-title-en">Salon des Sons</h1>
-    <h1 class="hero-title-jp">音 の <em>客間</em>。</h1>
+    <h1 class="hero-title-jp">まだ 知らない、 でも きっと 好き に なる <em>音楽</em>。</h1>
     <p class="hero-sub serif">
-      14 の ジャンル と、 60+ の サブクラスタ と、 全 アーティスト を、<br>
-      <em>ひとつの 階層化 された 地図</em> として 並べる。<br>
-      クリック で どんどん 詳細化 する。
+      好きな アーティスト の <em>隣</em> に、 必ず まだ 知らない 隣人 が いる。<br>
+      14 の ジャンル × 1,269 アーティスト × Last.fm の 類似性 で、<br>
+      <em>偶然 の 出会い</em> を 設計 した 音楽 地図。
     </p>
+    <div class="hero-actions">
+      <a href="universe.html" class="hero-btn primary">▶ 音楽宇宙ビュー (5,200+ アーティスト)</a>
+      <button class="hero-btn secondary" id="randomBtn">サイコロ — 知らない音楽 を ひとつ</button>
+    </div>
   </div>
 </section>
 
 <section class="sec" id="map">
   <div class="sec-inner">
-    <div class="sec-eyebrow eng">Hierarchical Map · 階層化地図</div>
-    <h2 class="sec-title serif">クリック で <em>掘り下げる</em>、 音楽性 の 地図。</h2>
+    <div class="sec-eyebrow eng">Discovery Map · 出会いの地図</div>
+    <h2 class="sec-title serif">好きな 音楽 の <em>隣</em> に、 まだ 知らない 隣人 が いる。</h2>
     <div class="sec-lead">
-      <p>14 の ジャンル を、<strong>静謐 ↔ 激情</strong> の 縦軸 と <strong>器楽 ↔ 声楽</strong> の 横軸 の 上 に 配置 した。 <em>ジャンル を クリック</em> すると 内側 が ひらき、 サブクラスタ が 現れる。 もう一度 同じ ジャンル を クリック すると 戻る (ESC キー / 「← 戻る」 ボタン / パンくず でも 可)。 <em>サブクラスタ を クリック</em> すると、 そこ に 住む アーティスト の 一覧 が 開く。</p>
+      <p>14 の 入口 を、 <strong>静謐 ↔ 激情</strong> の 縦軸 と <strong>器楽 ↔ 声楽</strong> の 横軸 で 配置。 <em>ジャンル を クリック</em> すると 中 の サブクラスタ が ひらき、 さらに クリック で アーティスト 一覧 が 出る。 <em>各 アーティスト を クリック</em> すると、 推奨盤 と 「<strong>似た作家</strong>」 が 出る ── ●印 が ついた 作家 は サロン の 中、 ↗印 は <em>まだ 知らない 隣人</em>。 そこから YouTube で すぐ 試聴 できる。 もっと 大規模 に 探索 したい ときは <a href="universe.html"><em>音楽宇宙ビュー</em></a> へ。</p>
     </div>
 
     <div class="map-wrap">
@@ -925,14 +948,15 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 
 <section class="closer">
   <p class="quote serif">
-    分類 は 道具 に すぎず、 真 の 構造 は<br>
-    <em>5 つ の 脊椎</em> として、 部屋 を 貫いている。
+    好きな 音楽 の <em>隣</em> に、 必ず<br>
+    まだ 知らない 隣人 が いる。<br>
+    分類 は 道具 にすぎない。 出会い のために。
   </p>
-  <div class="src eng">— Salon des Sons · 音 の 客間</div>
+  <div class="src eng">— Salon des Sons · An Atlas for Musical Serendipity</div>
 </section>
 
 <footer class="foot">
-  <div>© <span id="year"></span> Salon des Sons · a private library of <a href="index.html">Views Engineer</a> · paired with <a href="cabin.html">Cabin in the Hollow</a></div>
+  <div>© <span id="year"></span> Salon des Sons · a discovery atlas by <a href="index.html">Views Engineer</a> · explore the wider universe at <a href="universe.html">Music Universe</a></div>
 </footer>
 
 <div class="artist-popover" id="artistPopover">
@@ -960,6 +984,36 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 <script id="collection-index" type="application/json">__INDEX_JSON__</script>
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
+
+// ─── Serendipity dice ─────────────────────────────────
+// Pick a random artist + jump into their popover.
+(function(){
+  const btn = document.getElementById('randomBtn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const slugs = Object.keys(GENRES);
+    if (!slugs.length) return;
+    // Weighted by chip count so the dice doesn't always land in the same room.
+    const buckets = [];
+    for (const s of slugs){
+      for (const sg of GENRES[s].subgroups){
+        for (const a of sg.artists){
+          buckets.push({slug: s, sgIdx: GENRES[s].subgroups.indexOf(sg), artist: a});
+        }
+      }
+    }
+    const pick = buckets[Math.floor(Math.random() * buckets.length)];
+    if (!pick) return;
+    // Use existing navigation
+    if (typeof navigateToArtist === 'function'){
+      navigateToArtist(pick.slug, pick.artist);
+    } else {
+      // Fallback: open the genre + subgroup
+      openGenre(pick.slug);
+      setTimeout(() => openSubgroup(pick.slug, pick.sgIdx), 350);
+    }
+  });
+})();
 const GENRES = JSON.parse(document.getElementById('genres-data').textContent);
 const SPINES = JSON.parse(document.getElementById('spines-data').textContent);
 const AUDIO = JSON.parse(document.getElementById('audio-data').textContent);
