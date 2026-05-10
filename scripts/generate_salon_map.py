@@ -920,21 +920,27 @@ const SPINES = JSON.parse(document.getElementById('spines-data').textContent);
 const AUDIO = JSON.parse(document.getElementById('audio-data').textContent);
 
 const AMAZON_TAG = AUDIO.amazon_tag || 'viewsengineer-22';
-// Amazon URLs: when an album is known, search for "<artist> <album>"
-// so the listener lands on a specific record rather than a generic page.
-function amazonQuery(artist, album){
-  return album ? `${artist} ${album}` : artist;
-}
-function amazonMusicPlayUrl(artist, album){
-  const q = amazonQuery(artist, album);
-  return `https://music.amazon.co.jp/search/${encodeURIComponent(q)}?tag=${AMAZON_TAG}&ref=dm_sh_${AMAZON_TAG}`;
-}
-function amazonMp3Url(artist, album){
-  const q = amazonQuery(artist, album);
+const ASINS = AUDIO.amazon_asins || {};
+function amazonAsin(artist){ return ASINS[artist] || null; }
+// Direct product page when ASIN is known; search fallback otherwise.
+function amazonProductUrl(artist, displayName, album){
+  const asin = amazonAsin(artist);
+  if (asin) return `https://www.amazon.co.jp/dp/${asin}?tag=${AMAZON_TAG}`;
+  // Fallback: digital-music search using album-aware query
+  const name = displayName || artist;
+  const q = album ? `${name} ${album}` : name;
   return `https://www.amazon.co.jp/s?k=${encodeURIComponent(q)}&i=digital-music&tag=${AMAZON_TAG}`;
 }
-function amazonAllUrl(artist, album){
-  const q = amazonQuery(artist, album);
+function amazonMusicAlbumUrl(artist){
+  // Returns null when no ASIN — caller should hide the button.
+  const asin = amazonAsin(artist);
+  if (!asin) return null;
+  return `https://music.amazon.co.jp/albums/${asin}?tag=${AMAZON_TAG}&ref=dm_sh_${AMAZON_TAG}`;
+}
+function amazonAllUrl(artist, displayName, album){
+  // CD / Vinyl / 全商品 — physical media has different ASINs, so we keep search.
+  const name = displayName || artist;
+  const q = album ? `${name} ${album}` : name;
   return `https://www.amazon.co.jp/s?k=${encodeURIComponent(q)}&tag=${AMAZON_TAG}`;
 }
 
@@ -1042,9 +1048,24 @@ function showPopover(slug, artist, sgName, desc, chipEl, display, album){
   const searchName = apCurrentDisplay;
   const albumTitle = apCurrentAlbum ? apCurrentAlbum.title : null;
   apBtnYtTab.href = youtubeWatchUrl(artist, searchName, albumTitle);
-  apBtnMp3.href = amazonMp3Url(searchName, albumTitle);
-  apBtnAll.href = amazonAllUrl(searchName, albumTitle);
-  apBtnAmzMusic.href = amazonMusicPlayUrl(searchName, albumTitle);
+  apBtnMp3.href = amazonProductUrl(artist, searchName, albumTitle);
+  apBtnAll.href = amazonAllUrl(artist, searchName, albumTitle);
+  // Amazon Music: only show when we have a direct ASIN link
+  const amzMusicUrl = amazonMusicAlbumUrl(artist);
+  if (amzMusicUrl){
+    apBtnAmzMusic.href = amzMusicUrl;
+    apBtnAmzMusic.style.display = '';
+  } else {
+    apBtnAmzMusic.style.display = 'none';
+  }
+  // Update MP3 button label: "アルバムへ" when ASIN-direct, "MP3 試聴/購入" when search
+  if (amazonAsin(artist)){
+    apBtnMp3.textContent = '🎧 アルバムへ';
+    apBtnMp3.title = 'Amazon でこの推奨盤を直接開く';
+  } else {
+    apBtnMp3.textContent = '🎧 MP3 試聴/購入';
+    apBtnMp3.title = 'Amazon MP3 検索結果';
+  }
   apBtnPlayHere.title = youtubeVideoId(artist) ? 'YouTube で即試聴' : '即試聴IDが未登録 — YouTubeを新規タブで開きます';
   positionPopover(chipEl);
 }
@@ -1353,6 +1374,7 @@ def amazon_url(artist):
 
 
 YT_IDS_FILE = Path(__file__).parent / "youtube_ids.json"
+ASIN_FILE = Path(__file__).parent / "amazon_asins.json"
 
 def load_youtube_ids():
     """Load pre-baked artist→videoId mapping (built by fetch_youtube_ids.py)."""
@@ -1362,18 +1384,37 @@ def load_youtube_ids():
     return {k: v for k, v in d.items() if v}
 
 
+def load_amazon_asins():
+    """Load pre-baked artist→ASIN mapping (built by fetch_amazon_asins.py).
+
+    Returns { artist_name: asin } — only entries with successful asin lookups.
+    """
+    if not ASIN_FILE.exists():
+        return {}
+    d = json.loads(ASIN_FILE.read_text(encoding="utf-8"))
+    out = {}
+    for k, v in d.items():
+        if isinstance(v, dict) and v.get("asin"):
+            out[k] = v["asin"]
+    return out
+
+
 def load_audio_mapping():
     """Load pCloud publink + fileid mapping if available; build Amazon URLs."""
     yt_ids = load_youtube_ids()
+    asins = load_amazon_asins()
+    base = {
+        "publink_code": None, "mapping": {}, "amazon_tag": AMAZON_TAG,
+        "youtube_ids": yt_ids, "amazon_asins": asins,
+    }
     if not PCLOUD_JSON.exists():
-        return {"publink_code": None, "mapping": {}, "amazon_tag": AMAZON_TAG, "youtube_ids": yt_ids}
+        return base
     d = json.loads(PCLOUD_JSON.read_text(encoding="utf-8"))
-    return {
+    base.update({
         "publink_code": d.get("publink_code"),
         "mapping": d.get("mapping", {}),
-        "amazon_tag": AMAZON_TAG,
-        "youtube_ids": yt_ids,
-    }
+    })
+    return base
 
 
 def main():
@@ -1385,6 +1426,7 @@ def main():
     OUT.write_text(html, encoding="utf-8")
     print(f"  audio-mapped: {len(audio['mapping'])} (code: {audio['publink_code'] or 'none'})")
     print(f"  youtube-ids: {len(audio.get('youtube_ids') or {})}")
+    print(f"  amazon-asins: {len(audio.get('amazon_asins') or {})}")
 
     total = sum(len(g["all_artists"]) for g in data.values())
     cat = sum(sum(len(sg["artists"]) for sg in g["subgroups"] if not sg.get("auto"))
