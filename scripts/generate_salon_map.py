@@ -427,6 +427,18 @@ def build_data():
     spec.loader.exec_module(add_mod)
     ADDITIONS = add_mod.ADDITIONS
 
+    # Load per-artist descriptions (optional)
+    desc_path = Path(__file__).parent / "salon_descriptions.py"
+    DESCRIPTIONS = {}
+    if desc_path.exists():
+        try:
+            spec2 = importlib.util.spec_from_file_location("salon_descriptions", desc_path)
+            mod2 = importlib.util.module_from_spec(spec2)
+            spec2.loader.exec_module(mod2)
+            DESCRIPTIONS = getattr(mod2, "DESCRIPTIONS", {})
+        except Exception as e:
+            print(f"  WARN: failed to load descriptions: {e}")
+
     music = json.loads(MUSIC_DATA.read_text(encoding="utf-8"))
     out = {}
     for slug, g in GENRES.items():
@@ -469,12 +481,25 @@ def build_data():
                 "auto": True,
             })
 
+        # Build per-artist description map for this genre.
+        # Priority: explicit per-artist description > subgroup blurb > empty
+        descs_for_genre = DESCRIPTIONS.get(slug, {})
+        # Build NFC-normalized lookup since artist strings may differ
+        desc_lookup = {norm(k): v for k, v in descs_for_genre.items()}
+        artist_descs = {}
+        for sg in subgroups:
+            for a in sg["artists"]:
+                if a in artist_descs:
+                    continue
+                artist_descs[a] = desc_lookup.get(norm(a), sg.get("blurb", ""))
+
         out[slug] = {
             "name_jp": g["name_jp"], "name_en": g["name_en"], "latin": g["latin"],
             "x": g["x"], "y": g["y"], "color": g["color"],
             "essence": g["essence"], "essay": g["essay"],
             "subgroups": subgroups,
             "all_artists": all_artists,
+            "artist_descs": artist_descs,
         }
     return out, SPINES
 
@@ -675,6 +700,47 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
   font-size:13px;color:var(--ink-soft);letter-spacing:.1em;
   border-top:1px solid rgba(212,160,80,.1);}
 .foot a{color:var(--ink-soft);margin:0 12px}.foot a:hover{color:var(--amber)}
+
+.artist-popover{position:fixed;display:none;z-index:90;
+  min-width:280px;max-width:380px;
+  background:rgba(20,16,26,.97);
+  border:1px solid var(--amber);border-radius:6px;
+  padding:18px 20px 16px;
+  box-shadow:0 14px 40px rgba(0,0,0,.7), 0 0 24px rgba(212,160,80,.18);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
+.artist-popover.open{display:block;animation:panel-in .2s ease}
+.ap-close{position:absolute;top:6px;right:10px;
+  background:transparent;border:none;color:var(--ink-soft);
+  font-size:20px;cursor:pointer;padding:2px 8px;line-height:1;
+  font-family:"Inter",sans-serif;}
+.ap-close:hover{color:var(--amber)}
+.ap-name{font-family:"Shippori Mincho",serif;font-weight:700;
+  font-size:18px;color:var(--paper);letter-spacing:.04em;
+  margin-right:24px;margin-bottom:2px;line-height:1.4;}
+.ap-sub{font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:11px;color:var(--ink-soft);letter-spacing:.18em;
+  text-transform:uppercase;margin-bottom:10px;}
+.ap-desc{font-family:"Shippori Mincho",serif;font-size:13px;
+  color:var(--paper-dim);line-height:1.75;margin-bottom:14px;
+  padding-bottom:12px;border-bottom:1px dashed rgba(212,160,80,.18);}
+.ap-amazon-row{display:flex;gap:6px;flex-wrap:wrap}
+.ap-btn{font-family:"Inter",sans-serif;font-size:11.5px;font-weight:600;
+  padding:7px 12px;border-radius:4px;text-decoration:none;
+  letter-spacing:.04em;transition:all .2s;cursor:pointer;
+  display:inline-flex;align-items:center;gap:4px;
+  border:1px solid transparent;}
+.ap-btn-primary{background:linear-gradient(180deg,#f5c878,#d4a050);
+  color:var(--night);border-color:#d4a050;}
+.ap-btn-primary:hover{background:linear-gradient(180deg,#ffd890,#e0b060);
+  transform:translateY(-1px);box-shadow:0 4px 12px rgba(212,160,80,.4);}
+.ap-btn-secondary{background:transparent;
+  border:1px solid rgba(212,160,80,.4);color:var(--paper-dim);}
+.ap-btn-secondary:hover{border-color:var(--amber);color:var(--paper);
+  background:rgba(212,160,80,.1);}
+.ap-btn-prime{background:rgba(0,168,225,.15);
+  border:1px solid #00a8e1;color:#5fc8ff;}
+.ap-btn-prime:hover{background:rgba(0,168,225,.28);color:#a0e0ff;
+  transform:translateY(-1px);}
 </style>
 </head>
 <body>
@@ -776,6 +842,18 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
   <div>© <span id="year"></span> Salon des Sons · a private library of <a href="index.html">Views Engineer</a> · paired with <a href="cabin.html">Cabin in the Hollow</a></div>
 </footer>
 
+<div class="artist-popover" id="artistPopover">
+  <button class="ap-close" id="apClose" aria-label="閉じる">×</button>
+  <div class="ap-name" id="apName"></div>
+  <div class="ap-sub" id="apSub"></div>
+  <div class="ap-desc" id="apDesc"></div>
+  <div class="ap-amazon-row">
+    <a class="ap-btn ap-btn-primary" id="apBtnDigital" href="#" target="_blank" rel="noopener sponsored">📦 デジタル音楽</a>
+    <a class="ap-btn ap-btn-secondary" id="apBtnAll" href="#" target="_blank" rel="noopener sponsored">🛒 すべての商品</a>
+    <a class="ap-btn ap-btn-prime" id="apBtnPrime" href="#" target="_blank" rel="noopener sponsored">▶ Prime</a>
+  </div>
+</div>
+
 <script id="genres-data" type="application/json">__GENRES_JSON__</script>
 <script id="spines-data" type="application/json">__SPINES_JSON__</script>
 <script id="audio-data" type="application/json">__AUDIO_JSON__</script>
@@ -785,10 +863,83 @@ const GENRES = JSON.parse(document.getElementById('genres-data').textContent);
 const SPINES = JSON.parse(document.getElementById('spines-data').textContent);
 const AUDIO = JSON.parse(document.getElementById('audio-data').textContent);
 
-function amazonUrl(artist){
-  const q = encodeURIComponent(artist);
-  return `https://www.amazon.co.jp/s?k=${q}&i=digital-music&tag=${AUDIO.amazon_tag || 'viewsengineer-22'}`;
+const AMAZON_TAG = AUDIO.amazon_tag || 'viewsengineer-22';
+function amazonDigitalUrl(artist){
+  return `https://www.amazon.co.jp/s?k=${encodeURIComponent(artist)}&i=digital-music&tag=${AMAZON_TAG}`;
 }
+function amazonAllUrl(artist){
+  return `https://www.amazon.co.jp/s?k=${encodeURIComponent(artist)}&tag=${AMAZON_TAG}`;
+}
+function amazonPrimeUrl(artist){
+  // p_85:2230749051 = Prime対象 filter on Amazon JP
+  return `https://www.amazon.co.jp/s?k=${encodeURIComponent(artist)}&rh=p_85%3A2230749051&tag=${AMAZON_TAG}`;
+}
+
+// ─── Artist popover ───────────────────────────────
+const apEl = document.getElementById('artistPopover');
+const apName = document.getElementById('apName');
+const apSub = document.getElementById('apSub');
+const apDesc = document.getElementById('apDesc');
+const apBtnDigital = document.getElementById('apBtnDigital');
+const apBtnAll = document.getElementById('apBtnAll');
+const apBtnPrime = document.getElementById('apBtnPrime');
+let apHideTimer = null;
+let apCurrentChip = null;
+let apPinned = false;
+
+function positionPopover(targetEl){
+  const r = targetEl.getBoundingClientRect();
+  const pop = apEl;
+  pop.style.left = '0px'; pop.style.top = '0px'; // reset for measurement
+  // Show first to measure
+  pop.style.visibility = 'hidden';
+  pop.classList.add('open');
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let left = r.left + r.width / 2 - pw / 2;
+  let top = r.top - ph - 12;
+  // Clamp horizontal
+  const margin = 12;
+  if (left < margin) left = margin;
+  if (left + pw > window.innerWidth - margin) left = window.innerWidth - pw - margin;
+  // Flip vertically if no room above
+  if (top < margin) top = r.bottom + 12;
+  if (top + ph > window.innerHeight - margin) top = Math.max(margin, window.innerHeight - ph - margin);
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  pop.style.visibility = 'visible';
+}
+
+function showPopover(slug, artist, sgName, desc, chipEl){
+  clearTimeout(apHideTimer);
+  apCurrentChip = chipEl;
+  apName.textContent = artist;
+  apSub.textContent = sgName;
+  apDesc.textContent = desc || '(詳細未登録)';
+  apBtnDigital.href = amazonDigitalUrl(artist);
+  apBtnAll.href = amazonAllUrl(artist);
+  apBtnPrime.href = amazonPrimeUrl(artist);
+  positionPopover(chipEl);
+}
+
+function hidePopover(){
+  apEl.classList.remove('open');
+  apEl.style.visibility = '';
+  apCurrentChip = null;
+  apPinned = false;
+}
+
+function scheduleHide(){
+  clearTimeout(apHideTimer);
+  apHideTimer = setTimeout(hidePopover, 200);
+}
+
+apEl.addEventListener('mouseenter', () => clearTimeout(apHideTimer));
+apEl.addEventListener('mouseleave', scheduleHide);
+document.getElementById('apClose').addEventListener('click', hidePopover);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hidePopover(); });
+document.addEventListener('click', (e) => {
+  if (!apEl.contains(e.target) && !e.target.closest('.artist-chip')) hidePopover();
+});
 
 const layerGenre = document.getElementById('layerGenre');
 const layerSubgroup = document.getElementById('layerSubgroup');
@@ -911,15 +1062,26 @@ function openSubgroup(slug, idx){
   document.getElementById('artistListTitle').textContent = `${sg.name_jp} · ${sg.name_en}`;
   const chips = document.getElementById('artistChips');
   chips.innerHTML = '';
+  const descs = g.artist_descs || {};
   sg.artists.forEach(a => {
-    const link = document.createElement('a');
-    link.className = 'artist-chip';
-    link.href = amazonUrl(a);
-    link.target = '_blank';
-    link.rel = 'noopener sponsored';
-    link.title = `Amazonで「${a}」を探す (${sg.name_jp})`;
-    link.textContent = a;
-    chips.appendChild(link);
+    const span = document.createElement('span');
+    span.className = 'artist-chip';
+    span.textContent = a;
+    span.title = `${a} — ${descs[a] || sg.blurb}`;
+    const desc = descs[a] || sg.blurb;
+    span.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      apPinned = true;
+      clearTimeout(apHideTimer);
+      showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span);
+    });
+    span.addEventListener('mouseenter', () => {
+      if (apPinned) return;
+      clearTimeout(apHideTimer);
+      showPopover(slug, a, `${g.name_jp} · ${sg.name_jp}`, desc, span);
+    });
+    span.addEventListener('mouseleave', () => { if (!apPinned) scheduleHide(); });
+    chips.appendChild(span);
   });
   document.getElementById('artistList').classList.add('open');
   updateBreadcrumb();
