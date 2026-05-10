@@ -17,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MUSIC_DATA = Path("C:/tmp/music_data.json")
 OUT = ROOT / "salon.html"
+PCLOUD_JSON = Path("C:/tmp/salon_clips_pcloud.json")  # optional — for audio playback
 
 # Known categorizations per genre. Add as many as you can identify.
 # Anything not listed here goes into alphabetical periphery buckets.
@@ -640,8 +641,34 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 .artist-chips{display:flex;flex-wrap:wrap;gap:8px}
 .artist-chip{font-family:"Shippori Mincho",serif;font-size:13px;
   padding:6px 14px;background:rgba(28,20,40,.7);border:1px solid rgba(212,160,80,.18);
-  border-radius:999px;color:var(--paper-dim);transition:all .2s;}
+  border-radius:999px;color:var(--paper-dim);transition:all .2s;
+  position:relative;cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:6px;}
 .artist-chip:hover{background:rgba(122,42,58,.3);border-color:var(--amber);color:var(--paper)}
+.artist-chip.has-clip::before{content:"♪";font-size:11px;color:var(--amber);opacity:.6;transition:opacity .2s}
+.artist-chip.has-clip:hover::before{opacity:1}
+.artist-chip.no-clip{cursor:default;opacity:.7}
+.artist-chip.no-clip:hover{background:rgba(28,20,40,.7);border-color:rgba(212,160,80,.18);color:var(--paper-dim)}
+.artist-chip.loading::before{content:"…";color:var(--amber);opacity:1}
+.artist-chip.playing{background:rgba(240,200,120,.18);border-color:var(--amber);color:var(--paper);
+  box-shadow:0 0 14px rgba(240,200,120,.25);}
+.artist-chip.playing::before{content:"▶";color:var(--amber);opacity:1;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+.audio-bar{position:fixed;bottom:0;left:0;right:0;z-index:80;
+  background:linear-gradient(180deg, rgba(10,8,20,.92), rgba(10,8,20,.96));
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-top:1px solid rgba(212,160,80,.32);
+  padding:14px 24px;display:none;align-items:center;gap:18px;flex-wrap:wrap;}
+.audio-bar.open{display:flex;animation:abar-in .25s ease}
+@keyframes abar-in{from{transform:translateY(60px)}to{transform:translateY(0)}}
+.audio-bar .ab-title{font-family:"Shippori Mincho",serif;font-weight:700;color:var(--paper);font-size:15px;letter-spacing:.04em}
+.audio-bar .ab-sub{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:12px;color:var(--ink-soft);letter-spacing:.06em}
+.audio-bar .ab-progress{flex:1;min-width:140px;height:3px;background:rgba(212,160,80,.18);border-radius:2px;overflow:hidden;position:relative}
+.audio-bar .ab-progress-fill{position:absolute;left:0;top:0;bottom:0;background:var(--amber);width:0%;transition:width .1s linear}
+.audio-bar .ab-time{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--ink-soft);letter-spacing:.06em}
+.audio-bar .ab-stop{font-family:"Inter",sans-serif;font-size:12px;color:var(--ink-soft);
+  background:transparent;border:1px solid rgba(212,160,80,.32);
+  padding:6px 14px;border-radius:3px;cursor:pointer;letter-spacing:.06em;transition:all .2s;}
+.audio-bar .ab-stop:hover{color:var(--amber);border-color:var(--amber)}
 
 .spines{position:relative;width:100%;background:radial-gradient(ellipse at 50% 50%, rgba(122,42,58,.1), rgba(10,8,20,.2) 70%, transparent),rgba(20,16,26,.8);
   border:1px solid rgba(212,160,80,.18);border-radius:6px;padding:24px;}
@@ -771,12 +798,108 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
   <div>© <span id="year"></span> Salon des Sons · a private library of <a href="index.html">Views Engineer</a> · paired with <a href="cabin.html">Cabin in the Hollow</a></div>
 </footer>
 
+<div class="audio-bar" id="audioBar">
+  <div>
+    <div class="ab-title" id="abTitle"></div>
+    <div class="ab-sub" id="abSub">30秒のサビをプレビュー</div>
+  </div>
+  <div class="ab-time" id="abTime">0:00</div>
+  <div class="ab-progress"><div class="ab-progress-fill" id="abFill"></div></div>
+  <button class="ab-stop" id="abStop">停止 ×</button>
+</div>
+<audio id="salonAudio" preload="none"></audio>
+
 <script id="genres-data" type="application/json">__GENRES_JSON__</script>
 <script id="spines-data" type="application/json">__SPINES_JSON__</script>
+<script id="audio-data" type="application/json">__AUDIO_JSON__</script>
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
 const GENRES = JSON.parse(document.getElementById('genres-data').textContent);
 const SPINES = JSON.parse(document.getElementById('spines-data').textContent);
+const AUDIO = JSON.parse(document.getElementById('audio-data').textContent);
+// AUDIO = { publink_code: "...", mapping: { "slug::artist": fileid, ... } }
+
+// ─── Audio playback ─────────────────────────────────────
+const audioEl = document.getElementById('salonAudio');
+const audioBar = document.getElementById('audioBar');
+const abTitle = document.getElementById('abTitle');
+const abFill = document.getElementById('abFill');
+const abTime = document.getElementById('abTime');
+const abStop = document.getElementById('abStop');
+let currentChip = null;
+
+function fmt(s){
+  s = Math.max(0, Math.floor(s));
+  return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
+}
+
+function stopAudio(){
+  audioEl.pause();
+  audioEl.currentTime = 0;
+  audioEl.src = '';
+  audioBar.classList.remove('open');
+  if (currentChip) {
+    currentChip.classList.remove('playing','loading');
+    currentChip = null;
+  }
+  abFill.style.width = '0%';
+}
+
+abStop.addEventListener('click', stopAudio);
+
+audioEl.addEventListener('timeupdate', () => {
+  if (audioEl.duration) {
+    const pct = (audioEl.currentTime / audioEl.duration) * 100;
+    abFill.style.width = pct + '%';
+    abTime.textContent = fmt(audioEl.currentTime) + ' / ' + fmt(audioEl.duration);
+  }
+});
+
+audioEl.addEventListener('ended', stopAudio);
+audioEl.addEventListener('error', () => {
+  if (currentChip) currentChip.classList.remove('loading','playing');
+  audioBar.classList.remove('open');
+});
+
+async function playArtist(slug, artist, chipEl){
+  const key = slug + '::' + artist;
+  const fileid = AUDIO.mapping && AUDIO.mapping[key];
+  if (!fileid || !AUDIO.publink_code) return;
+
+  // If clicking the currently-playing chip, stop
+  if (currentChip === chipEl && !audioEl.paused) {
+    stopAudio();
+    return;
+  }
+  // Stop any other playback
+  stopAudio();
+
+  currentChip = chipEl;
+  chipEl.classList.add('loading');
+
+  try {
+    const apiUrl = `https://api.pcloud.com/getpublinkdownload?code=${AUDIO.publink_code}&fileid=${fileid}`;
+    const r = await fetch(apiUrl, {referrerPolicy: 'no-referrer'});
+    const d = await r.json();
+    if (d.result !== 0 || !d.hosts || !d.path) throw new Error('pcloud link fail: ' + (d.error || JSON.stringify(d)));
+    const streamUrl = `https://${d.hosts[0]}${d.path}`;
+    audioEl.src = streamUrl;
+    audioEl.volume = 0.85;
+    await audioEl.play();
+    chipEl.classList.remove('loading');
+    chipEl.classList.add('playing');
+    abTitle.textContent = artist;
+    audioBar.classList.add('open');
+  } catch(e) {
+    chipEl.classList.remove('loading');
+    currentChip = null;
+  }
+}
+
+// ESC also stops audio
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !audioEl.paused) { stopAudio(); }
+});
 
 const layerGenre = document.getElementById('layerGenre');
 const layerSubgroup = document.getElementById('layerSubgroup');
@@ -898,7 +1021,18 @@ function openSubgroup(slug, idx){
 
   document.getElementById('artistListTitle').textContent = `${sg.name_jp} · ${sg.name_en}`;
   const chips = document.getElementById('artistChips');
-  chips.innerHTML = sg.artists.map(a => `<span class="artist-chip">${a}</span>`).join('');
+  chips.innerHTML = '';
+  sg.artists.forEach(a => {
+    const span = document.createElement('span');
+    const key = slug + '::' + a;
+    const hasClip = AUDIO.mapping && AUDIO.mapping[key];
+    span.className = 'artist-chip ' + (hasClip ? 'has-clip' : 'no-clip');
+    span.textContent = a;
+    if (hasClip) {
+      span.addEventListener('click', () => playArtist(slug, a, span));
+    }
+    chips.appendChild(span);
+  });
   document.getElementById('artistList').classList.add('open');
   updateBreadcrumb();
   document.getElementById('artistList').scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -1012,11 +1146,22 @@ SPINES.forEach((sp, idx) => {
 """
 
 
+def load_audio_mapping():
+    """Load pCloud publink + fileid mapping if available."""
+    if not PCLOUD_JSON.exists():
+        return {"publink_code": None, "mapping": {}}
+    d = json.loads(PCLOUD_JSON.read_text(encoding="utf-8"))
+    return {"publink_code": d.get("publink_code"), "mapping": d.get("mapping", {})}
+
+
 def main():
     data, spines = build_data()
+    audio = load_audio_mapping()
     html = HTML_TEMPLATE.replace("__GENRES_JSON__", json.dumps(data, ensure_ascii=False))
     html = html.replace("__SPINES_JSON__", json.dumps(spines, ensure_ascii=False))
+    html = html.replace("__AUDIO_JSON__", json.dumps(audio, ensure_ascii=False))
     OUT.write_text(html, encoding="utf-8")
+    print(f"  audio-mapped: {len(audio['mapping'])} (code: {audio['publink_code'] or 'none'})")
 
     total = sum(len(g["all_artists"]) for g in data.values())
     cat = sum(sum(len(sg["artists"]) for sg in g["subgroups"] if not sg.get("auto"))
