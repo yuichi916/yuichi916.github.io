@@ -702,12 +702,13 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 .foot a{color:var(--ink-soft);margin:0 12px}.foot a:hover{color:var(--amber)}
 
 .artist-popover{position:fixed;display:none;z-index:90;
-  min-width:280px;max-width:380px;
+  width:380px;max-width:calc(100vw - 24px);
   background:rgba(20,16,26,.97);
   border:1px solid var(--amber);border-radius:6px;
   padding:18px 20px 16px;
   box-shadow:0 14px 40px rgba(0,0,0,.7), 0 0 24px rgba(212,160,80,.18);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
+.artist-popover.has-player{width:420px}
 .artist-popover.open{display:block;animation:panel-in .2s ease}
 .ap-close{position:absolute;top:6px;right:10px;
   background:transparent;border:none;color:var(--ink-soft);
@@ -723,6 +724,19 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
 .ap-desc{font-family:"Shippori Mincho",serif;font-size:13px;
   color:var(--paper-dim);line-height:1.75;margin-bottom:14px;
   padding-bottom:12px;border-bottom:1px dashed rgba(212,160,80,.18);}
+.ap-player-row{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.ap-player{display:none;margin-bottom:12px;border-radius:4px;overflow:hidden;
+  background:#000;aspect-ratio:16/9;width:100%;}
+.ap-player.open{display:block}
+.ap-player iframe{width:100%;height:100%;border:0;display:block}
+.ap-btn-play{background:linear-gradient(180deg,#e23a4e,#a02030);color:#fff;
+  border:1px solid #c02838;font-size:12.5px;padding:8px 14px;font-weight:700;}
+.ap-btn-play:hover{background:linear-gradient(180deg,#ff5060,#c03040);
+  transform:translateY(-1px);box-shadow:0 4px 12px rgba(226,58,78,.45);}
+.ap-btn-play.playing{background:linear-gradient(180deg,#444,#222);border-color:#555}
+.ap-btn-yt-tab{background:transparent;color:var(--ink-soft);
+  border:1px solid rgba(212,160,80,.25);font-size:11px;padding:7px 10px;}
+.ap-btn-yt-tab:hover{color:var(--paper);border-color:var(--amber)}
 .ap-amazon-row{display:flex;gap:6px;flex-wrap:wrap}
 .ap-btn{font-family:"Inter",sans-serif;font-size:11.5px;font-weight:600;
   padding:7px 12px;border-radius:4px;text-decoration:none;
@@ -847,10 +861,15 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
   <div class="ap-name" id="apName"></div>
   <div class="ap-sub" id="apSub"></div>
   <div class="ap-desc" id="apDesc"></div>
+  <div class="ap-player-row">
+    <button class="ap-btn ap-btn-play" id="apBtnPlayHere" type="button">▶ 即試聴</button>
+    <a class="ap-btn ap-btn-yt-tab" id="apBtnYtTab" href="#" target="_blank" rel="noopener">YouTubeで開く ↗</a>
+  </div>
+  <div class="ap-player" id="apPlayer"></div>
   <div class="ap-amazon-row">
-    <a class="ap-btn ap-btn-prime" id="apBtnPlay" href="#" target="_blank" rel="noopener sponsored">▶ Amazon Music で再生</a>
     <a class="ap-btn ap-btn-primary" id="apBtnMp3" href="#" target="_blank" rel="noopener sponsored">🎧 MP3 試聴/購入</a>
     <a class="ap-btn ap-btn-secondary" id="apBtnAll" href="#" target="_blank" rel="noopener sponsored">💿 CD/全商品</a>
+    <a class="ap-btn ap-btn-prime" id="apBtnAmzMusic" href="#" target="_blank" rel="noopener sponsored">Amazon Music ↗</a>
   </div>
 </div>
 
@@ -884,9 +903,12 @@ const apEl = document.getElementById('artistPopover');
 const apName = document.getElementById('apName');
 const apSub = document.getElementById('apSub');
 const apDesc = document.getElementById('apDesc');
-const apBtnPlay = document.getElementById('apBtnPlay');
+const apBtnPlayHere = document.getElementById('apBtnPlayHere');
+const apBtnYtTab = document.getElementById('apBtnYtTab');
+const apPlayer = document.getElementById('apPlayer');
 const apBtnMp3 = document.getElementById('apBtnMp3');
 const apBtnAll = document.getElementById('apBtnAll');
+const apBtnAmzMusic = document.getElementById('apBtnAmzMusic');
 let apHideTimer = null;
 let apCurrentChip = null;
 let apPinned = false;
@@ -913,24 +935,90 @@ function positionPopover(targetEl){
   pop.style.visibility = 'visible';
 }
 
+const YT_IDS = AUDIO.youtube_ids || {};
+function youtubeVideoId(artist){
+  return YT_IDS[artist] || null;
+}
+function youtubeEmbedUrl(artist){
+  const vid = youtubeVideoId(artist);
+  if (vid) return `https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&rel=0`;
+  return null;
+}
+function youtubeWatchUrl(artist){
+  const vid = youtubeVideoId(artist);
+  if (vid) return `https://www.youtube.com/watch?v=${vid}`;
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(artist + ' full album')}`;
+}
+
+function clearPlayer(){
+  apPlayer.classList.remove('open');
+  apPlayer.innerHTML = '';
+  apEl.classList.remove('has-player');
+  apBtnPlayHere.classList.remove('playing');
+  apBtnPlayHere.textContent = '▶ 即試聴';
+}
+
+let apCurrentArtist = null;
+function startPlayer(){
+  if (!apCurrentArtist) return;
+  const url = youtubeEmbedUrl(apCurrentArtist);
+  if (!url){
+    // No pre-baked id — open YouTube search in a new tab as fallback
+    window.open(youtubeWatchUrl(apCurrentArtist), '_blank', 'noopener');
+    return;
+  }
+  apPlayer.innerHTML = `<iframe src="${url}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+  apPlayer.classList.add('open');
+  apEl.classList.add('has-player');
+  apBtnPlayHere.classList.add('playing');
+  apBtnPlayHere.textContent = '■ 停止';
+  apPinned = true;
+  if (apCurrentChip) positionPopover(apCurrentChip);
+}
+
 function showPopover(slug, artist, sgName, desc, chipEl){
   clearTimeout(apHideTimer);
+  if (apCurrentArtist !== artist) clearPlayer();
   apCurrentChip = chipEl;
+  apCurrentArtist = artist;
   apName.textContent = artist;
   apSub.textContent = sgName;
   apDesc.textContent = desc || '(詳細未登録)';
-  apBtnPlay.href = amazonMusicPlayUrl(artist);
+  apBtnYtTab.href = youtubeWatchUrl(artist);
   apBtnMp3.href = amazonMp3Url(artist);
   apBtnAll.href = amazonAllUrl(artist);
+  apBtnAmzMusic.href = amazonMusicPlayUrl(artist);
+  // Disable in-place player button if we have no pre-baked id
+  if (youtubeVideoId(artist)){
+    apBtnPlayHere.disabled = false;
+    apBtnPlayHere.title = 'YouTube で即試聴';
+  } else {
+    apBtnPlayHere.disabled = false;
+    apBtnPlayHere.title = '即試聴IDが未登録 — YouTubeを新規タブで開きます';
+  }
   positionPopover(chipEl);
 }
 
 function hidePopover(){
+  clearPlayer();
   apEl.classList.remove('open');
   apEl.style.visibility = '';
   apCurrentChip = null;
+  apCurrentArtist = null;
   apPinned = false;
 }
+
+apBtnPlayHere.addEventListener('click', (e) => {
+  e.stopPropagation();
+  apPinned = true;
+  clearTimeout(apHideTimer);
+  if (apPlayer.classList.contains('open')) {
+    clearPlayer();
+    if (apCurrentChip) positionPopover(apCurrentChip);
+  } else {
+    startPlayer();
+  }
+});
 
 function scheduleHide(){
   clearTimeout(apHideTimer);
@@ -1210,15 +1298,27 @@ def amazon_url(artist):
     return f"https://www.amazon.co.jp/s?k={q}&i=digital-music&tag={AMAZON_TAG}"
 
 
+YT_IDS_FILE = Path(__file__).parent / "youtube_ids.json"
+
+def load_youtube_ids():
+    """Load pre-baked artist→videoId mapping (built by fetch_youtube_ids.py)."""
+    if not YT_IDS_FILE.exists():
+        return {}
+    d = json.loads(YT_IDS_FILE.read_text(encoding="utf-8"))
+    return {k: v for k, v in d.items() if v}
+
+
 def load_audio_mapping():
     """Load pCloud publink + fileid mapping if available; build Amazon URLs."""
+    yt_ids = load_youtube_ids()
     if not PCLOUD_JSON.exists():
-        return {"publink_code": None, "mapping": {}, "amazon_tag": AMAZON_TAG}
+        return {"publink_code": None, "mapping": {}, "amazon_tag": AMAZON_TAG, "youtube_ids": yt_ids}
     d = json.loads(PCLOUD_JSON.read_text(encoding="utf-8"))
     return {
         "publink_code": d.get("publink_code"),
         "mapping": d.get("mapping", {}),
         "amazon_tag": AMAZON_TAG,
+        "youtube_ids": yt_ids,
     }
 
 
@@ -1230,6 +1330,7 @@ def main():
     html = html.replace("__AUDIO_JSON__", json.dumps(audio, ensure_ascii=False))
     OUT.write_text(html, encoding="utf-8")
     print(f"  audio-mapped: {len(audio['mapping'])} (code: {audio['publink_code'] or 'none'})")
+    print(f"  youtube-ids: {len(audio.get('youtube_ids') or {})}")
 
     total = sum(len(g["all_artists"]) for g in data.values())
     cat = sum(sum(len(sg["artists"]) for sg in g["subgroups"] if not sg.get("auto"))
