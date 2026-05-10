@@ -848,9 +848,9 @@ body::after{content:"";position:fixed;inset:0;z-index:200;pointer-events:none;
   <div class="ap-sub" id="apSub"></div>
   <div class="ap-desc" id="apDesc"></div>
   <div class="ap-amazon-row">
-    <a class="ap-btn ap-btn-primary" id="apBtnDigital" href="#" target="_blank" rel="noopener sponsored">📦 デジタル音楽</a>
-    <a class="ap-btn ap-btn-secondary" id="apBtnAll" href="#" target="_blank" rel="noopener sponsored">🛒 すべての商品</a>
-    <a class="ap-btn ap-btn-prime" id="apBtnPrime" href="#" target="_blank" rel="noopener sponsored">▶ Prime</a>
+    <a class="ap-btn ap-btn-prime" id="apBtnPlay" href="#" target="_blank" rel="noopener sponsored">▶ Amazon Music で再生</a>
+    <a class="ap-btn ap-btn-primary" id="apBtnMp3" href="#" target="_blank" rel="noopener sponsored">🎧 MP3 試聴/購入</a>
+    <a class="ap-btn ap-btn-secondary" id="apBtnAll" href="#" target="_blank" rel="noopener sponsored">💿 CD/全商品</a>
   </div>
 </div>
 
@@ -864,15 +864,19 @@ const SPINES = JSON.parse(document.getElementById('spines-data').textContent);
 const AUDIO = JSON.parse(document.getElementById('audio-data').textContent);
 
 const AMAZON_TAG = AUDIO.amazon_tag || 'viewsengineer-22';
-function amazonDigitalUrl(artist){
+// "直接再生できるページ" 優先 — Amazon Music は曲タップで即試聴 (30秒) /
+// Prime/Unlimited会員ならフル再生。 amazon.co.jp の MP3 検索は曲行に試聴ボタンあり。
+function amazonMusicPlayUrl(artist){
+  // Amazon Music JP — アーティスト検索結果。 タップ即試聴。
+  return `https://music.amazon.co.jp/search/${encodeURIComponent(artist)}?tag=${AMAZON_TAG}&ref=dm_sh_${AMAZON_TAG}`;
+}
+function amazonMp3Url(artist){
+  // amazon.co.jp デジタル音楽 (MP3) — 曲一覧に▶試聴ボタン、 アフィリエイト対応
   return `https://www.amazon.co.jp/s?k=${encodeURIComponent(artist)}&i=digital-music&tag=${AMAZON_TAG}`;
 }
 function amazonAllUrl(artist){
+  // 物理メディア (CD/Vinyl) 含む全商品検索
   return `https://www.amazon.co.jp/s?k=${encodeURIComponent(artist)}&tag=${AMAZON_TAG}`;
-}
-function amazonPrimeUrl(artist){
-  // p_85:2230749051 = Prime対象 filter on Amazon JP
-  return `https://www.amazon.co.jp/s?k=${encodeURIComponent(artist)}&rh=p_85%3A2230749051&tag=${AMAZON_TAG}`;
 }
 
 // ─── Artist popover ───────────────────────────────
@@ -880,9 +884,9 @@ const apEl = document.getElementById('artistPopover');
 const apName = document.getElementById('apName');
 const apSub = document.getElementById('apSub');
 const apDesc = document.getElementById('apDesc');
-const apBtnDigital = document.getElementById('apBtnDigital');
+const apBtnPlay = document.getElementById('apBtnPlay');
+const apBtnMp3 = document.getElementById('apBtnMp3');
 const apBtnAll = document.getElementById('apBtnAll');
-const apBtnPrime = document.getElementById('apBtnPrime');
 let apHideTimer = null;
 let apCurrentChip = null;
 let apPinned = false;
@@ -915,9 +919,9 @@ function showPopover(slug, artist, sgName, desc, chipEl){
   apName.textContent = artist;
   apSub.textContent = sgName;
   apDesc.textContent = desc || '(詳細未登録)';
-  apBtnDigital.href = amazonDigitalUrl(artist);
+  apBtnPlay.href = amazonMusicPlayUrl(artist);
+  apBtnMp3.href = amazonMp3Url(artist);
   apBtnAll.href = amazonAllUrl(artist);
-  apBtnPrime.href = amazonPrimeUrl(artist);
   positionPopover(chipEl);
 }
 
