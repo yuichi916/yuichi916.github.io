@@ -159,8 +159,69 @@ html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
    reclaim the vertical space and merge with the parent's chrome. */
 body.embed .bar{display:none;}
 body.embed #graph{top:0;}
+/* Cosmic background lives on body — graph canvas is fully transparent so
+   nebula + stars layers behind it stay visible. */
+body{
+  background:
+    radial-gradient(ellipse 320px 220px at 50% 12%,  rgba(122,74,240,.20), transparent 70%),
+    radial-gradient(ellipse 220px 200px at 73% 22%,  rgba(212,160,80,.14), transparent 70%),
+    radial-gradient(ellipse 360px 280px at 88% 38%,  rgba(240,200,120,.18),transparent 70%),
+    radial-gradient(ellipse 260px 230px at 92% 60%,  rgba(84,200,120,.13), transparent 70%),
+    radial-gradient(ellipse 200px 180px at 73% 78%,  rgba(95,200,255,.14), transparent 70%),
+    radial-gradient(ellipse 280px 240px at 50% 88%,  rgba(255,107,157,.16),transparent 70%),
+    radial-gradient(ellipse 280px 240px at 27% 78%,  rgba(107,190,255,.14),transparent 70%),
+    radial-gradient(ellipse 320px 280px at 12% 60%,  rgba(168,122,219,.18),transparent 70%),
+    radial-gradient(ellipse 360px 280px at 8%  38%,  rgba(226,58,78,.18),  transparent 70%),
+    radial-gradient(ellipse 360px 280px at 27% 22%,  rgba(155,88,224,.18), transparent 70%),
+    radial-gradient(ellipse 1100px 900px at 50% 50%, rgba(40,30,60,0.55),  transparent 80%),
+    #060410 !important;
+}
 #graph{position:absolute;top:48px;left:0;right:0;bottom:0;
-  background:radial-gradient(ellipse at 50% 50%,#1a1228 0%,#0a0814 100%);}
+  background:transparent;}
+/* Starfield: layered SVG noise dots simulating a deep-space starfield */
+#stars{position:absolute;top:48px;left:0;right:0;bottom:0;pointer-events:none;
+  z-index:1;
+  background-image:
+    radial-gradient(0.6px 0.6px at 11% 17%, rgba(255,255,255,.85), transparent 100%),
+    radial-gradient(0.7px 0.7px at 24% 73%, rgba(220,230,255,.75), transparent 100%),
+    radial-gradient(0.5px 0.5px at 31% 41%, rgba(255,250,220,.7),  transparent 100%),
+    radial-gradient(0.7px 0.7px at 47% 88%, rgba(220,230,255,.6),  transparent 100%),
+    radial-gradient(0.6px 0.6px at 53% 9%,  rgba(255,255,255,.75), transparent 100%),
+    radial-gradient(0.6px 0.6px at 67% 31%, rgba(255,250,220,.7),  transparent 100%),
+    radial-gradient(0.5px 0.5px at 71% 64%, rgba(220,230,255,.65), transparent 100%),
+    radial-gradient(0.7px 0.7px at 83% 22%, rgba(255,255,255,.7),  transparent 100%),
+    radial-gradient(0.6px 0.6px at 89% 56%, rgba(220,230,255,.6),  transparent 100%),
+    radial-gradient(0.5px 0.5px at 18% 92%, rgba(255,250,220,.65), transparent 100%),
+    radial-gradient(1.2px 1.2px at 38% 58%, rgba(255,255,255,.95), transparent 100%),
+    radial-gradient(1.4px 1.4px at 78% 78%, rgba(255,250,220,.95), transparent 100%),
+    radial-gradient(1.2px 1.2px at 14% 36%, rgba(220,230,255,.9),  transparent 100%);
+  background-size:
+    600px 600px, 800px 800px, 700px 700px, 900px 900px,
+    600px 600px, 800px 800px, 700px 700px, 900px 900px,
+    600px 600px, 800px 800px,
+    1200px 1200px, 1400px 1400px, 1100px 1100px;
+  background-repeat:repeat;
+  opacity:.7;
+  animation:twinkle 8s ease-in-out infinite;}
+@keyframes twinkle{
+  0%,100%{opacity:.55}
+  50%{opacity:.85}
+}
+/* Galaxy labels — large constellation names floating over each cluster */
+#galaxyLayer{position:absolute;top:48px;left:0;right:0;bottom:0;
+  pointer-events:none;overflow:hidden;z-index:6;}
+.galaxy-label{position:absolute;transform:translate(-50%,-50%);
+  font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:rgba(240,200,120,.6);letter-spacing:.32em;text-transform:uppercase;
+  text-shadow:0 0 18px rgba(212,160,80,.55), 0 0 4px rgba(0,0,0,0.85);
+  white-space:nowrap;user-select:none;text-align:center;
+  transition:opacity .3s, font-size .3s;}
+.galaxy-label .gx-jp{display:block;
+  font-family:"Shippori Mincho",serif;font-style:normal;font-weight:700;
+  color:rgba(255,236,180,.78);letter-spacing:.16em;
+  margin-top:5px;font-size:.55em;
+  text-shadow:0 0 14px rgba(212,160,80,.6), 0 0 4px rgba(0,0,0,.9);}
+body.embed #stars,body.embed #galaxyLayer{top:0;}
 .legend{position:fixed;bottom:16px;left:16px;z-index:10;
   background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.18);
   border-radius:6px;padding:14px 18px;
@@ -367,6 +428,16 @@ body.embed #graph{top:0;}
   border:2px solid var(--amber);
   box-shadow:0 0 18px rgba(240,200,120,.55), inset 0 0 12px rgba(240,200,120,.25);
   animation:haloPulse 1.6s ease-in-out infinite;}
+/* Comet trail on chain-navigation */
+.comet{position:fixed;pointer-events:none;z-index:14;
+  width:8px;height:8px;border-radius:50%;
+  background:radial-gradient(circle,#fff,#f0c878 40%,rgba(240,200,120,0));
+  box-shadow:0 0 14px #f0c878,0 0 30px rgba(240,200,120,.5);}
+.comet-tail{position:fixed;pointer-events:none;z-index:13;
+  height:2px;border-radius:1px;
+  background:linear-gradient(90deg,transparent,rgba(240,200,120,.7),rgba(240,200,120,.95));
+  box-shadow:0 0 8px rgba(240,200,120,.6);
+  transform-origin:left center;}
 .halo.neighbor{
   width:24px;height:24px;
   border:1.5px solid rgba(240,200,120,.5);
@@ -462,7 +533,9 @@ body.embed #graph{top:0;}
 
 <div id="suggestions" class="suggestions"></div>
 
+<div id="stars"></div>
 <div id="graph"></div>
+<div id="galaxyLayer"></div>
 
 <div class="legend">
   <h3>Discovery Map · 出会いの地図</h3>
@@ -936,7 +1009,7 @@ async function main() {
     function place(id, kind){
       const a = graph.getNodeAttributes(id);
       if (a.hidden) return;
-      const v = sigma.framedGraphToViewport({ x: a.x, y: a.y });
+      const v = sigma.graphToViewport({ x: a.x, y: a.y });
       const halo = document.createElement('div');
       halo.className = 'halo ' + kind;
       halo.style.left = (rect.left + v.x) + 'px';
@@ -1117,6 +1190,40 @@ async function main() {
   document.getElementById('loading').classList.add('hidden');
   document.getElementById('visitedCount').textContent = visited.size.toLocaleString();
 
+  // Galaxy labels — render the constellation names at each genre centroid.
+  // Reposition them on every camera update so they track the universe.
+  const galaxyData = data.galaxies || [];
+  const galLayer = document.getElementById('galaxyLayer');
+  const labelEls = [];
+  for (const gx of galaxyData){
+    const el = document.createElement('div');
+    el.className = 'galaxy-label';
+    el.dataset.slug = gx.slug;
+    el.dataset.x = gx.x;
+    el.dataset.y = gx.y;
+    el.dataset.r = gx.radius;
+    el.innerHTML = `${gx.slug.toUpperCase()}<span class="gx-jp">${gx.name_jp}</span>`;
+    galLayer.appendChild(el);
+    labelEls.push(el);
+  }
+  function placeGalaxyLabels(){
+    const ratio = sigma.getCamera().getState().ratio;
+    // Font scales inversely with zoom (larger when zoomed out, smaller when in)
+    const fontSize = Math.max(10, Math.min(34, 18 / Math.sqrt(ratio)));
+    for (const el of labelEls){
+      const x = parseFloat(el.dataset.x);
+      const y = parseFloat(el.dataset.y);
+      const v = sigma.graphToViewport({ x, y });
+      el.style.left = v.x + 'px';
+      el.style.top  = v.y + 'px';
+      el.style.fontSize = fontSize + 'px';
+      // Hide labels when very zoomed in (clutter)
+      el.style.opacity = ratio < 0.04 ? '0' : '';
+    }
+  }
+  placeGalaxyLabels();
+  sigma.getCamera().on('updated', placeGalaxyLabels);
+
   // Reset camera to a sensible overview (graph spans roughly [-1000, 1000])
   sigma.getCamera().setState({ x: 0.5, y: 0.5, ratio: 1.1, angle: 0 });
 
@@ -1255,13 +1362,68 @@ function focusNode(id) {
   if (!graph.hasNode(id)) return;
   const a = graph.getNodeAttributes(id);
   const cam = sigma.getCamera();
-  cam.animate({ x: a.x, y: a.y, ratio: 0.15 }, { duration: 600 });
+  // Comet trail from current camera target to destination node
+  const fromState = cam.getState();
+  const fromXY = sigma.graphToViewport({ x: fromState.x*1000, y: fromState.y*1000 });
+  cam.animate({ x: a.x, y: a.y, ratio: 0.15 }, { duration: 700 });
   setTimeout(() => {
     showInfo(id);
     awardClick(id);
-    // Tiny ripple at the canvas center for the search/dice/chain navigations
     ripple(window.innerWidth / 2, window.innerHeight / 2);
-  }, 600);
+  }, 700);
+  // Comet flying across the screen to the destination
+  shootComet(window.innerWidth * 0.5, window.innerHeight * 0.5);
+}
+
+function shootComet(targetX, targetY){
+  // Launch from a random edge of the screen toward the target, fading.
+  const W = window.innerWidth, H = window.innerHeight;
+  const startSide = Math.floor(Math.random() * 4);
+  let sx, sy;
+  switch (startSide){
+    case 0: sx = -40; sy = Math.random()*H; break;
+    case 1: sx = W+40; sy = Math.random()*H; break;
+    case 2: sx = Math.random()*W; sy = -40; break;
+    default:sx = Math.random()*W; sy = H+40;
+  }
+  const dx = targetX - sx, dy = targetY - sy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  // Tail
+  const tail = document.createElement('div');
+  tail.className = 'comet-tail';
+  tail.style.left = sx + 'px';
+  tail.style.top  = sy + 'px';
+  tail.style.width = '0px';
+  tail.style.transform = `rotate(${angle}deg)`;
+  document.body.appendChild(tail);
+  // Comet head
+  const head = document.createElement('div');
+  head.className = 'comet';
+  head.style.left = sx + 'px';
+  head.style.top  = sy + 'px';
+  document.body.appendChild(head);
+  // Animate: head moves to target while tail extends behind
+  const dur = Math.min(900, 400 + dist * 0.4);
+  const start = performance.now();
+  function step(now){
+    const t = Math.min(1, (now - start) / dur);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const cx = sx + dx * ease;
+    const cy = sy + dy * ease;
+    head.style.left = (cx - 4) + 'px';
+    head.style.top  = (cy - 4) + 'px';
+    head.style.opacity = String(1 - t * 0.7);
+    // Tail trails behind by ~120px
+    const tailLen = Math.min(140, dist * ease);
+    tail.style.left = (cx - Math.cos(angle*Math.PI/180) * tailLen) + 'px';
+    tail.style.top  = (cy - Math.sin(angle*Math.PI/180) * tailLen) + 'px';
+    tail.style.width = tailLen + 'px';
+    tail.style.opacity = String(1 - t);
+    if (t < 1) requestAnimationFrame(step);
+    else { head.remove(); tail.remove(); }
+  }
+  requestAnimationFrame(step);
 }
 
 let currentNodeId = null;
