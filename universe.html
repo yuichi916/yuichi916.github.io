@@ -250,6 +250,27 @@ body.embed #graph{top:0;}
     transform:translate(-120px,-120px);}
 }
 .ripple.lvup{border-color:#bf8aff;}
+
+/* Hover tooltip — large legible name + meta floating over the canvas */
+.node-tip{position:fixed;pointer-events:none;z-index:25;
+  background:rgba(20,16,26,.97);border:1px solid var(--amber);
+  border-radius:6px;padding:8px 14px;
+  font-family:"Shippori Mincho",serif;color:var(--paper);
+  font-size:14px;font-weight:700;letter-spacing:.04em;
+  box-shadow:0 8px 22px rgba(0,0,0,.7);backdrop-filter:blur(10px);
+  white-space:nowrap;opacity:0;transition:opacity .12s;
+  transform:translate(-50%, -100%) translateY(-12px);}
+.node-tip.show{opacity:1;}
+.node-tip .tip-genre{display:block;font-family:"Cormorant Garamond",serif;
+  font-style:italic;font-weight:400;font-size:10.5px;color:var(--amber);
+  letter-spacing:.18em;text-transform:uppercase;margin-top:2px;}
+.node-tip .tip-yt{display:inline-block;margin-left:8px;
+  font-family:"Inter",sans-serif;font-size:10px;font-weight:600;
+  color:#fff;background:#e23a4e;padding:1px 6px;border-radius:3px;
+  vertical-align:middle;letter-spacing:.04em;}
+.node-tip .tip-album{display:block;font-family:"Cormorant Garamond",serif;
+  font-style:italic;font-weight:400;font-size:11.5px;color:var(--amber-soft);
+  margin-top:4px;letter-spacing:.04em;}
 </style>
 </head>
 <body>
@@ -330,6 +351,7 @@ body.embed #graph{top:0;}
     <a id="filterAll">すべて表示</a>
     <a id="filterNone">すべて隠す</a>
     <a id="filterUnvisited">未訪問のみ</a>
+    <a id="filterPlayable">▶ 即試聴可のみ</a>
   </div>
 </div>
 
@@ -340,6 +362,7 @@ body.embed #graph{top:0;}
   <button id="zoomReset" title="リセット">⊙</button>
 </div>
 
+<div class="node-tip" id="nodeTip"></div>
 <div class="loading" id="loading">universe loading…</div>
 
 <script>
@@ -668,18 +691,27 @@ async function main() {
       const wasVisited = visited.has(id);
       const locked = !wasVisited && isLockedByLevel(attrs);
       if (locked){
-        // Render as a faint mystery node; label hidden
         r.color = '#2a2138';
         r.size  = Math.max(1.2, (attrs.size || 2) * 0.55);
         r.label = '';
       } else if (wasVisited){
-        // Visited nodes are muted/desaturated so unvisited ones pop out
         r.color = mixColor(attrs.origColor, '#3a2438', 0.55);
       }
-      // Hover dim
-      if (hoveredNode && id !== hoveredNode && !graph.hasEdge(hoveredNode, id) && !graph.hasEdge(id, hoveredNode)) {
-        r.color = '#2a1830';
-        r.label = '';
+      // Hide all labels (we render a custom floating tooltip on hover)
+      r.label = '';
+      // Hover: enlarge + brighten the focused node and its neighbours
+      if (hoveredNode){
+        if (id === hoveredNode){
+          r.size = (r.size || 2) * 1.8;
+          r.color = attrs.origColor;
+          r.zIndex = 10;
+        } else if (graph.hasEdge(hoveredNode, id) || graph.hasEdge(id, hoveredNode)){
+          // neighbours keep colour but get a faint glow via slightly larger size
+          r.size = (r.size || 2) * 1.15;
+          r.color = attrs.origColor;
+        } else {
+          r.color = '#221426';
+        }
       }
       return r;
     },
@@ -696,14 +728,39 @@ async function main() {
     },
   });
 
-  // Hover & click
+  // Hover & click — show floating tooltip + redraw graph for highlight.
+  const tipEl = document.getElementById('nodeTip');
+  function placeTip(node){
+    if (!node){ tipEl.classList.remove('show'); return; }
+    const a = graph.getNodeAttributes(node);
+    const display = sigma.framedGraphToViewport({ x: a.x, y: a.y });
+    const wasVisited = visited.has(node);
+    const locked = !wasVisited && isLockedByLevel(a);
+    if (locked){
+      tipEl.innerHTML = `？ <span class="tip-genre">未解禁の領域</span>`;
+    } else {
+      const ytBadge = a.yt ? '<span class="tip-yt">▶ 即試聴</span>' : '';
+      const album = a.album ? `<span class="tip-album">${a.album}</span>` : '';
+      tipEl.innerHTML = `${a.label}${ytBadge}<span class="tip-genre">${(a.genre || '').toUpperCase()} · 関連 ${Math.round(a.degree || 0)}</span>${album}`;
+    }
+    const rect = sigma.getContainer().getBoundingClientRect();
+    tipEl.style.left = (rect.left + display.x) + 'px';
+    tipEl.style.top  = (rect.top  + display.y) + 'px';
+    tipEl.classList.add('show');
+  }
   sigma.on('enterNode', ({ node }) => {
     hoveredNode = node;
+    placeTip(node);
     sigma.refresh();
   });
   sigma.on('leaveNode', () => {
     hoveredNode = null;
+    tipEl.classList.remove('show');
     sigma.refresh();
+  });
+  // Re-place tip on camera move so it tracks pan/zoom while hovering
+  sigma.getCamera().on('updated', () => {
+    if (hoveredNode) placeTip(hoveredNode);
   });
   sigma.on('clickNode', ({ node, event }) => {
     const attrs = graph.getNodeAttributes(node);
@@ -913,10 +970,15 @@ function buildFilterPanel(){
     document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => {
       if (cb.checked) enabled.add(cb.getAttribute('data-g'));
     });
-    const unvisitedOnly = document.getElementById('filterPanel').dataset.unvisitedOnly === 'true';
+    const fp = document.getElementById('filterPanel');
+    const unvisitedOnly = fp.dataset.unvisitedOnly === 'true';
+    const playableOnly  = fp.dataset.playableOnly  === 'true';
     for (const id of allNodeIds){
       const g = graph.getNodeAttribute(id, 'genre') || 'unknown';
-      const visible = enabled.has(g) && (!unvisitedOnly || isUnvisited(id));
+      const yt = graph.getNodeAttribute(id, 'yt');
+      let visible = enabled.has(g);
+      if (unvisitedOnly) visible = visible && isUnvisited(id);
+      if (playableOnly)  visible = visible && !!yt;
       graph.setNodeAttribute(id, 'hidden', !visible);
     }
     sigma.refresh();
@@ -925,20 +987,28 @@ function buildFilterPanel(){
   document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => {
     cb.addEventListener('change', applyFilter);
   });
+  function flipMode(linkId, dataKey){
+    const link = document.getElementById(linkId);
+    const fp = document.getElementById('filterPanel');
+    const cur = fp.dataset[dataKey] === 'true';
+    fp.dataset[dataKey] = cur ? 'false' : 'true';
+    link.style.color = (!cur) ? 'var(--paper)' : 'var(--amber)';
+    link.style.textDecoration = (!cur) ? 'underline' : 'none';
+    applyFilter();
+  }
   document.getElementById('filterAll').onclick = () => {
     document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => cb.checked = true);
-    document.getElementById('filterPanel').dataset.collOnly = 'false';
+    const fp = document.getElementById('filterPanel');
+    fp.dataset.unvisitedOnly = 'false';
+    fp.dataset.playableOnly  = 'false';
     applyFilter();
   };
   document.getElementById('filterNone').onclick = () => {
     document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => cb.checked = false);
     applyFilter();
   };
-  document.getElementById('filterUnvisited').onclick = () => {
-    document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => cb.checked = true);
-    document.getElementById('filterPanel').dataset.unvisitedOnly = 'true';
-    applyFilter();
-  };
+  document.getElementById('filterUnvisited').onclick = () => flipMode('filterUnvisited', 'unvisitedOnly');
+  document.getElementById('filterPlayable').onclick  = () => flipMode('filterPlayable',  'playableOnly');
 }
 
 function focusNode(id) {
