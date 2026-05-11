@@ -560,7 +560,23 @@ body.embed #hubLayer{top:0;}
 .hp-tab.active{color:var(--amber);border-bottom-color:var(--amber);
   background:linear-gradient(180deg,rgba(212,160,80,.06),transparent);}
 .hp-tab:hover{color:var(--paper);}
+.hp-toolbar{display:flex;gap:6px;padding:6px 10px;
+  border-bottom:1px solid rgba(212,160,80,.12);
+  background:rgba(20,16,26,.6);}
+.hp-tool-btn{flex:1;font-family:"Inter",sans-serif;font-size:11px;
+  padding:6px 10px;border-radius:3px;cursor:pointer;
+  background:transparent;border:1px solid rgba(212,160,80,.2);
+  color:var(--paper-dim);letter-spacing:.04em;transition:all .15s;}
+.hp-tool-btn:hover{border-color:var(--amber);color:var(--paper);}
+.hp-tool-btn:disabled{opacity:.35;cursor:not-allowed;}
 .hp-list{flex:1;overflow-y:auto;max-height:min(56vh,440px);}
+.hp-item .reason{display:block;font-family:"Cormorant Garamond",serif;
+  font-style:italic;font-size:10px;color:var(--ink-soft);
+  letter-spacing:.04em;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hp-item .score-tag{font-family:"Inter",sans-serif;font-size:9px;
+  font-weight:700;color:var(--amber);background:rgba(212,160,80,.12);
+  padding:2px 6px;border-radius:10px;letter-spacing:.04em;flex-shrink:0;}
 .hp-item{display:flex;align-items:center;gap:10px;
   padding:8px 14px;border-bottom:1px solid rgba(212,160,80,.08);
   cursor:pointer;transition:all .15s;}
@@ -1030,6 +1046,11 @@ body.embed #hubLayer{top:0;}
   <div class="hp-tabs">
     <button class="hp-tab active" id="hpTabHistory" type="button">📜 履歴</button>
     <button class="hp-tab" id="hpTabFavorites" type="button">★ お気に入り</button>
+    <button class="hp-tab" id="hpTabRecs" type="button">✨ あなたへ</button>
+  </div>
+  <div class="hp-toolbar" id="hpToolbar">
+    <button class="hp-tool-btn" id="hpDownload" type="button" title="履歴+お気に入りを JSON でダウンロード">📥 ダウンロード</button>
+    <button class="hp-tool-btn" id="hpClear" type="button" title="このタブの内容をクリア">🗑 クリア</button>
   </div>
   <div class="hp-list" id="hpList"></div>
 </div>
@@ -1791,37 +1812,97 @@ async function main() {
   const histFab = document.getElementById('histFab');
   const histPanel = document.getElementById('histPanel');
   let _hpTab = 'history';
+
+  // ── Recommendation algorithm ─────────────────────────────────────
+  // For every neighbour of an already-visited artist, score how strongly
+  // the visitor's taste implies it: weighted edge sum, with favourites
+  // counting double. Exclude already-visited, exclude level-locked.
+  // Returns top-N candidates with reason (top source artists).
+  function computeRecommendations(N){
+    N = N || 20;
+    if (!visited.size) return [];
+    // For each candidate id → { score, sources: [{src, w}] }
+    const cand = new Map();
+    for (const src of visited){
+      if (!graph.hasNode(src)) continue;
+      const srcWeight = favorites.has(src) ? 2.0 : 1.0;
+      graph.forEachEdge(src, (eid, attr, s, t) => {
+        const other = (s === src) ? t : s;
+        if (visited.has(other)) return;       // skip already-met
+        if (graph.getNodeAttribute(other, 'hidden')) return;
+        const a = graph.getNodeAttributes(other);
+        if (isLockedByLevel(a)) return;       // respect level gating
+        const w = (attr.weight || 1) * srcWeight;
+        let e = cand.get(other);
+        if (!e){ e = { score: 0, sources: [] }; cand.set(other, e); }
+        e.score += w;
+        e.sources.push({ src, w });
+      });
+    }
+    const arr = [...cand.entries()].map(([id, e]) => {
+      // Top 2 source artists by weight for the "reason" line
+      e.sources.sort((a, b) => b.w - a.w);
+      const topSrc = e.sources.slice(0, 2)
+        .map(s => graph.getNodeAttribute(s.src, 'label')).join(' · ');
+      return {
+        id,
+        label: graph.getNodeAttribute(id, 'label'),
+        score: e.score,
+        reason: topSrc,
+      };
+    });
+    arr.sort((a, b) => b.score - a.score);
+    return arr.slice(0, N);
+  }
+
   function renderHpList(){
     const lst = document.getElementById('hpList');
+    const clearBtn = document.getElementById('hpClear');
     let items = [];
+    let isRec = false;
     if (_hpTab === 'history'){
       items = (state.visitHistory || []).slice(0, 100).map(h => ({
         id: h.id, label: h.label, t: h.t,
       }));
-    } else {
+      clearBtn.style.display = '';
+    } else if (_hpTab === 'favorites'){
       items = [...favorites].map(id => {
         const a = graph.hasNode(id) ? graph.getNodeAttributes(id) : null;
         return { id, label: a ? a.label : id };
       });
+      clearBtn.style.display = '';
+    } else if (_hpTab === 'recs'){
+      isRec = true;
+      items = computeRecommendations(20);
+      clearBtn.style.display = 'none';
     }
     if (!items.length){
-      lst.innerHTML = `<div class="hp-empty">${_hpTab === 'history'
+      const msg = _hpTab === 'history'
         ? 'まだクリック履歴がありません。<br>🎲 サイコロから始めてみてください。'
-        : 'お気に入りはまだありません。<br>★ ボタンで気に入った作家を保存できます。'}</div>`;
+        : _hpTab === 'favorites'
+        ? 'お気に入りはまだありません。<br>★ ボタンで気に入った作家を保存できます。'
+        : '履歴を増やすとここに「あなた向け」の<br>推薦が並びます。 まず何人かクリックしてみてください。';
+      lst.innerHTML = `<div class="hp-empty">${msg}</div>`;
       return;
     }
     lst.innerHTML = items.map(it => {
       const a = graph.hasNode(it.id) ? graph.getNodeAttributes(it.id) : null;
       const color = a ? a.origColor : 'var(--paper-dim)';
-      const sub = it.t
-        ? new Date(it.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
-        : '';
+      let extra = '';
+      if (isRec){
+        extra = `<span class="score-tag" title="親和度">${Math.round(it.score)}</span>`;
+      } else if (it.t){
+        const sub = new Date(it.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        extra = `<span class="sub">${sub}</span>`;
+      }
       const remove = _hpTab === 'favorites'
         ? `<button class="remove" data-id="${it.id}" title="削除">×</button>` : '';
+      const reasonLine = isRec && it.reason
+        ? `<span class="reason">${it.reason} に基づく</span>` : '';
       return `<div class="hp-item" data-id="${it.id}">
         <span class="swatch" style="background:${color};color:${color}"></span>
-        <span class="label">${it.label}</span>
-        ${sub ? `<span class="sub">${sub}</span>` : ''}
+        <span class="label">${it.label}${reasonLine}</span>
+        ${extra}
         ${remove}
       </div>`;
     }).join('');
@@ -1847,6 +1928,7 @@ async function main() {
     _hpTab = tab;
     document.getElementById('hpTabHistory').classList.toggle('active', tab === 'history');
     document.getElementById('hpTabFavorites').classList.toggle('active', tab === 'favorites');
+    document.getElementById('hpTabRecs').classList.toggle('active', tab === 'recs');
     renderHpList();
   }
   histFab.onclick = () => {
@@ -1855,6 +1937,63 @@ async function main() {
   };
   document.getElementById('hpTabHistory').onclick = () => setHpTab('history');
   document.getElementById('hpTabFavorites').onclick = () => setHpTab('favorites');
+  document.getElementById('hpTabRecs').onclick = () => setHpTab('recs');
+
+  // Download history + favorites as JSON
+  document.getElementById('hpDownload').onclick = () => {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      source: 'Salon des Sons · Music Universe',
+      url: location.href,
+      score: state.score || 0,
+      level: levelFor(state.score || 0),
+      visited_count: visited.size,
+      history: (state.visitHistory || []).map(h => ({
+        artist: h.label,
+        id: h.id,
+        visited_at: new Date(h.t).toISOString(),
+      })),
+      favorites: [...favorites].map(id => {
+        const a = graph.hasNode(id) ? graph.getNodeAttributes(id) : null;
+        return {
+          artist: a ? a.label : id,
+          id,
+          genre: a ? a.genre : null,
+          album: a ? a.album : null,
+          youtube: a && a.yt ? `https://www.youtube.com/watch?v=${a.yt}` : null,
+        };
+      }),
+      achievements: [...earnedAchv],
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)],
+                          {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const dt = new Date().toISOString().slice(0,10);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `salon-universe-history-${dt}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('score', `<span class="pts">📥</span> 履歴 ${(state.visitHistory||[]).length}件 / お気に入り ${favorites.size}件 をダウンロードしました`);
+  };
+
+  // Clear current tab (history or favorites)
+  document.getElementById('hpClear').onclick = () => {
+    if (_hpTab === 'history'){
+      if (!confirm('履歴をすべて削除しますか? お気に入りは残ります。')) return;
+      state.visitHistory = [];
+      saveState();
+    } else if (_hpTab === 'favorites'){
+      if (!confirm('お気に入りをすべて削除しますか?')) return;
+      favorites.clear();
+      saveState();
+      refreshFavoritesUI();
+      refreshHubStars();
+    } else {
+      return;  // recs tab — nothing to clear
+    }
+    renderHpList();
+  };
   // Update badge initially
   document.getElementById('histBadge').textContent = favorites.size || 0;
 
