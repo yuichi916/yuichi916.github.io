@@ -1051,9 +1051,11 @@ body.embed #hubLayer{top:0;}
     <button class="hp-tab" id="hpTabFavRecs" type="button">💎 ★から</button>
   </div>
   <div class="hp-toolbar" id="hpToolbar">
-    <button class="hp-tool-btn" id="hpDownload" type="button" title="履歴+お気に入りを JSON でダウンロード">📥 ダウンロード</button>
+    <button class="hp-tool-btn" id="hpDownload" type="button" title="履歴+お気に入りを JSON でダウンロード">📥 DL</button>
+    <button class="hp-tool-btn" id="hpUpload" type="button" title="JSON ファイルを読み込み (移行・復元)">📤 読込</button>
     <button class="hp-tool-btn" id="hpClear" type="button" title="このタブの内容をクリア">🗑 クリア</button>
   </div>
+  <input type="file" id="hpUploadFile" accept="application/json,.json" style="display:none">
   <div class="hp-list" id="hpList"></div>
 </div>
 
@@ -2001,6 +2003,117 @@ async function main() {
     URL.revokeObjectURL(url);
     toast('score', `<span class="pts">📥</span> 履歴 ${(state.visitHistory||[]).length}件 / お気に入り ${favorites.size}件 をダウンロードしました`);
   };
+
+  // 📤 Upload — load a previously-downloaded history JSON.
+  // Asks the visitor whether to merge with current state or replace.
+  const uploadInput = document.getElementById('hpUploadFile');
+  document.getElementById('hpUpload').onclick = () => uploadInput.click();
+  uploadInput.addEventListener('change', async (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    let text;
+    try { text = await file.text(); }
+    catch (e){
+      toast('cheer', `<span class="title">読み込み失敗</span><span class="body">ファイルが開けません</span>`, 4000);
+      return;
+    }
+    let data;
+    try { data = JSON.parse(text); }
+    catch (e){
+      toast('cheer', `<span class="title">読み込み失敗</span><span class="body">JSON 形式ではありません</span>`, 4000);
+      return;
+    }
+    if (!data || (!data.history && !data.favorites && !data.visited)){
+      toast('cheer', `<span class="title">形式不一致</span><span class="body">Salon の履歴 JSON ではないようです</span>`, 4000);
+      return;
+    }
+    // Ask: merge or replace
+    const msg = '📥 読み込んだ JSON を:\n\n'
+              + '・ 「OK」 = 現在の履歴と合体 (おすすめ)\n'
+              + '・ 「キャンセル」 = 何もしない\n\n'
+              + 'もし完全置換したい場合は、 まずクリアしてから読み込んでください。';
+    if (!confirm(msg)){
+      uploadInput.value = '';
+      return;
+    }
+    applyLoadedState(data, /*merge=*/true);
+    uploadInput.value = '';
+  });
+
+  // Merge / replace loaded JSON into the live state. Resolves artist
+  // names to graph node ids (the file may have come from a different
+  // build where ids changed but names are stable).
+  function applyLoadedState(data, merge){
+    // Resolve canonical id by node label (for forward-compat with id changes)
+    const labelToId = new Map();
+    graph.forEachNode((id, attrs) => {
+      labelToId.set((attrs.label || '').toLowerCase(), id);
+    });
+    function resolve(item){
+      // Accept either { id, ... } or { artist, ... } or plain string
+      if (typeof item === 'string') return item;
+      const id = item.id;
+      if (id && graph.hasNode(id)) return id;
+      const name = (item.artist || item.label || '').toLowerCase();
+      const byName = labelToId.get(name);
+      return byName || id;
+    }
+
+    // History (chronological): newest first
+    const incomingHist = (data.history || data.visitHistory || []).map(h => {
+      const id = resolve(h);
+      const label = h.artist || h.label;
+      const t = h.visited_at ? new Date(h.visited_at).getTime()
+              : (h.t || Date.now());
+      return id ? { id, label, t } : null;
+    }).filter(Boolean);
+    if (!merge){
+      state.visitHistory = incomingHist;
+      visited = new Set(incomingHist.map(h => h.id));
+    } else {
+      // Merge: prefer newer timestamps, dedupe by id
+      const existing = new Map();
+      for (const h of (state.visitHistory || [])) existing.set(h.id, h);
+      for (const h of incomingHist){
+        const prev = existing.get(h.id);
+        if (!prev || h.t > prev.t) existing.set(h.id, h);
+      }
+      state.visitHistory = [...existing.values()].sort((a, b) => b.t - a.t).slice(0, 200);
+      // Visited = union
+      for (const h of incomingHist) visited.add(h.id);
+    }
+
+    // Favorites
+    const incomingFavs = (data.favorites || []).map(resolve).filter(Boolean);
+    if (!merge) favorites = new Set();
+    for (const fid of incomingFavs) favorites.add(fid);
+
+    // Achievements (union always)
+    for (const aid of (data.achievements || [])) earnedAchv.add(aid);
+
+    // Score: merge → take max; replace → exact
+    if (typeof data.score === 'number'){
+      if (!merge) state.score = data.score;
+      else state.score = Math.max(state.score || 0, data.score);
+    }
+
+    // Genres visited: union
+    for (const h of state.visitHistory){
+      if (graph.hasNode(h.id)){
+        const g = graph.getNodeAttribute(h.id, 'genre');
+        if (g) genreSet.add(g);
+      }
+    }
+
+    saveState();
+    refreshGameUI();
+    refreshFavoritesUI();
+    refreshHubStars();
+    renderHpList();
+    if (sigma) sigma.refresh();
+
+    toast('cheer', `<span class="title">📤 読み込み完了</span><span class="body">履歴 ${state.visitHistory.length} 件 · お気に入り ${favorites.size} 件 を反映しました</span>`, 5500);
+  }
 
   // Clear current tab (history or favorites)
   document.getElementById('hpClear').onclick = () => {
