@@ -1164,8 +1164,7 @@ body.embed .copyright{display:none;}  /* hide inside salon iframe */
   <div class="hp-tabs">
     <button class="hp-tab active" id="hpTabHistory" type="button">📜 履歴</button>
     <button class="hp-tab" id="hpTabFavorites" type="button">★ お気に入り</button>
-    <button class="hp-tab" id="hpTabRecs" type="button">✨ あなたへ</button>
-    <button class="hp-tab" id="hpTabFavRecs" type="button">💎 ★から</button>
+    <button class="hp-tab" id="hpTabRecs" type="button">✨ おすすめ</button>
   </div>
   <div class="hp-toolbar" id="hpToolbar">
     <button class="hp-tool-btn" id="hpDownload" type="button" title="履歴+お気に入りを JSON でダウンロード">📥 DL</button>
@@ -1958,7 +1957,7 @@ async function main() {
     {
       target: '#histFab',
       title: '📜 履歴・お気に入り・推薦',
-      body: 'クリックした履歴、 <em>★ で保存したお気に入り</em>、 さらに <em>「✨ あなたへ」「💎 ★から」</em> の推薦タブも。 JSON で書き出し / 読み込みもできます。',
+      body: 'クリックした履歴、 <em>★ で保存したお気に入り</em>、 さらに <em>「✨ おすすめ」</em> タブ (お気に入りを起点に「これも好きかも」 を並べる) も。 JSON で書き出し / 読み込みもできます。',
       shape: 'circle',
     },
     {
@@ -2163,10 +2162,8 @@ async function main() {
       });
       clearBtn.style.display = '';
     } else if (_hpTab === 'recs'){
-      isRec = true;
-      items = computeRecommendations({ N: 20, mode: 'history' });
-      clearBtn.style.display = 'none';
-    } else if (_hpTab === 'favrecs'){
+      // Recommendation seeds are ★ favorites only — dice rolls and
+      // accidental clicks in plain history aren't deliberate signals.
       isRec = true;
       items = computeRecommendations({ N: 20, mode: 'favorites' });
       clearBtn.style.display = 'none';
@@ -2177,10 +2174,8 @@ async function main() {
         msg = 'まだクリック履歴がありません。<br>🎲 サイコロから始めてみてください。';
       } else if (_hpTab === 'favorites'){
         msg = 'お気に入りはまだありません。<br>★ ボタンで気に入った作家を保存できます。';
-      } else if (_hpTab === 'recs'){
-        msg = '履歴を増やすとここに「あなた向け」の<br>推薦が並びます。 まず何人かクリックしてみてください。';
-      } else {  // favrecs
-        msg = '★ を付けると、 そこを起点に<br>「これも好きかも」 が並びます。<br>気に入った作家に ★ を付けてみてください。';
+      } else {  // recs (favorites-seeded)
+        msg = '★ をつけた作家を起点に、<br>「これも好きかも」 が並びます。<br>気に入った作家には <em style="color:var(--amber)">★</em> を付けてみてください。';
       }
       lst.innerHTML = `<div class="hp-empty">${msg}</div>`;
       return;
@@ -2229,7 +2224,6 @@ async function main() {
     document.getElementById('hpTabHistory').classList.toggle('active', tab === 'history');
     document.getElementById('hpTabFavorites').classList.toggle('active', tab === 'favorites');
     document.getElementById('hpTabRecs').classList.toggle('active', tab === 'recs');
-    document.getElementById('hpTabFavRecs').classList.toggle('active', tab === 'favrecs');
     renderHpList();
   }
   histFab.onclick = () => {
@@ -2239,7 +2233,6 @@ async function main() {
   document.getElementById('hpTabHistory').onclick = () => setHpTab('history');
   document.getElementById('hpTabFavorites').onclick = () => setHpTab('favorites');
   document.getElementById('hpTabRecs').onclick = () => setHpTab('recs');
-  document.getElementById('hpTabFavRecs').onclick = () => setHpTab('favrecs');
 
   // Download history + favorites as JSON
   document.getElementById('hpDownload').onclick = () => {
