@@ -1568,17 +1568,22 @@ function placeSelectedRing(){
   const a = graph.getNodeAttributes(_selectedNodeId);
   if (a.hidden){ ring.classList.remove('active'); return; }
   const v = sigma.graphToViewport({ x: a.x, y: a.y });
-  // Hide if outside the viewport
-  if (v.x < -60 || v.x > window.innerWidth + 60 ||
-      v.y < -60 || v.y > window.innerHeight + 60){
+  // graphToViewport returns container-local coords; ring uses position:fixed
+  // (window-anchored), so add the container's offset.
+  const rect = sigma.getContainer().getBoundingClientRect();
+  const sx = rect.left + v.x;
+  const sy = rect.top  + v.y;
+  // Hide if outside the visible window
+  if (sx < -60 || sx > window.innerWidth + 60 ||
+      sy < -60 || sy > window.innerHeight + 60){
     ring.classList.remove('active'); return;
   }
   // Ring size scales with current camera ratio so it tracks node size
   const ratio = sigma.getCamera().getState().ratio;
   const baseR = (a.size || 3);
   const sz = Math.max(20, Math.min(80, baseR * 5 / Math.sqrt(ratio + 0.1)));
-  ring.style.left = v.x + 'px';
-  ring.style.top  = v.y + 'px';
+  ring.style.left = sx + 'px';
+  ring.style.top  = sy + 'px';
   ring.style.width  = sz + 'px';
   ring.style.height = sz + 'px';
   ring.classList.add('active');
@@ -2808,12 +2813,22 @@ function focusNode(id) {
   const disp = sigma.getNodeDisplayData(id) || { x: 0.5, y: 0.5 };
   // 0.45 ratio keeps the picked node prominent while leaving 6-10
   // surrounding artists visible for immediate "つぎへ" exploration.
-  cam.animate({ x: disp.x, y: disp.y, ratio: 0.45 }, { duration: 700 });
-  setTimeout(() => {
+  const animPromise = cam.animate({ x: disp.x, y: disp.y, ratio: 0.45 }, { duration: 700 });
+  // Open the info panel + award score immediately at animation end so
+  // the visitor sees feedback the moment the camera settles. We use the
+  // returned promise (Sigma 3) when available so the ring is positioned
+  // against the final camera state, not a mid-tween snapshot.
+  const onDone = () => {
     showInfo(id);
     awardClick(id);
     ripple(window.innerWidth / 2, window.innerHeight / 2);
-  }, 700);
+    if (typeof placeSelectedRing === 'function') placeSelectedRing();
+  };
+  if (animPromise && typeof animPromise.then === 'function'){
+    animPromise.then(onDone);
+  } else {
+    setTimeout(onDone, 720);
+  }
   // Comet flying across the screen to the destination
   shootComet(window.innerWidth * 0.5, window.innerHeight * 0.5);
 }
@@ -2875,7 +2890,13 @@ function showInfo(id) {
   const a = graph.getNodeAttributes(id);
   currentNodeId = id;
   _selectedNodeId = id;
+  // Re-position the ring across the tail of the camera animation, since
+  // 'updated' events fire only when the camera state mutates and the
+  // final frame can lag the timeout that triggers showInfo.
   placeSelectedRing();
+  setTimeout(placeSelectedRing, 50);
+  setTimeout(placeSelectedRing, 200);
+  setTimeout(placeSelectedRing, 500);
   document.getElementById('infoName').textContent = a.label;
   const wasVisited = visited.has(id);
   const sub = wasVisited
