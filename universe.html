@@ -221,20 +221,27 @@ body{background:#060410 !important;}
   pointer-events:none;overflow:hidden;z-index:6;}
 .galaxy-label{position:absolute;transform:translate(-50%,-50%);
   font-family:"Cormorant Garamond",serif;font-style:italic;
-  color:rgba(240,200,120,.6);letter-spacing:.32em;text-transform:uppercase;
-  text-shadow:0 0 18px rgba(212,160,80,.55), 0 0 4px rgba(0,0,0,0.85);
+  color:rgba(255,236,180,.95);letter-spacing:.28em;text-transform:uppercase;
   white-space:nowrap;user-select:none;text-align:center;
-  transition:opacity .3s, font-size .3s;}
+  padding:6px 14px;border-radius:14px;
+  background:rgba(10,8,20,.55);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  box-shadow:0 0 14px rgba(0,0,0,.5);
+  transition:opacity .3s, font-size .3s, background-color .2s;}
+.galaxy-label:hover{background:rgba(10,8,20,.85);}
 .galaxy-label .gx-jp{display:block;
   font-family:"Shippori Mincho",serif;font-style:normal;font-weight:700;
-  color:rgba(255,236,180,.78);letter-spacing:.16em;
-  margin-top:5px;font-size:.55em;
-  text-shadow:0 0 14px rgba(212,160,80,.6), 0 0 4px rgba(0,0,0,.9);}
+  color:rgba(255,255,255,.98);letter-spacing:.14em;
+  margin-top:4px;font-size:.58em;}
 body.embed #stars,body.embed #galaxyLayer{top:0;}
-.legend{position:fixed;bottom:16px;left:16px;z-index:10;
-  background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.18);
-  border-radius:6px;padding:14px 18px;
-  backdrop-filter:blur(12px);font-size:11px;max-width:260px;}
+.legend{position:fixed;bottom:60px;left:16px;z-index:10;
+  background:rgba(20,16,26,.95);border:1px solid rgba(212,160,80,.18);
+  border-radius:6px;padding:12px 16px;
+  backdrop-filter:blur(12px);font-size:11px;max-width:260px;
+  /* Hidden by default — visitor opens via the help button. Keeps the
+     initial canvas clean of corner clutter. */
+  display:none;}
+.legend.open{display:block;}
 .legend h3{font-family:"Cormorant Garamond",serif;font-style:italic;
   color:var(--amber);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
   margin-bottom:10px;}
@@ -288,9 +295,12 @@ body.embed #stars,body.embed #galaxyLayer{top:0;}
 .info .close:hover{color:var(--amber)}
 
 .filter-panel{position:fixed;top:64px;left:16px;z-index:10;
-  background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.18);
+  background:rgba(20,16,26,.95);border:1px solid rgba(212,160,80,.18);
   border-radius:6px;padding:10px 14px;
-  backdrop-filter:blur(12px);max-width:260px;}
+  backdrop-filter:blur(12px);max-width:260px;
+  /* Collapsed by default on desktop too — visitor opens via the FAB. */
+  display:none;}
+.filter-panel.open{display:block;}
 .filter-panel h3{font-family:"Cormorant Garamond",serif;font-style:italic;
   font-size:11px;letter-spacing:.18em;text-transform:uppercase;
   color:var(--amber);margin-bottom:8px;}
@@ -807,19 +817,20 @@ body.embed #hubLayer{top:0;}
   .dice-hint{right:8px;bottom:8px;width:44px;height:44px;}
   .dice-hint-arrow{right:18px;bottom:60px;}
 
-  /* Filter mobile toggle helper FAB */
-  #filterToggle{position:fixed;bottom:60px;left:8px;z-index:8;
-    width:44px;height:44px;border-radius:50%;
-    background:rgba(15,12,22,.95);border:1px solid rgba(212,160,80,.3);
-    color:var(--paper);font-size:18px;cursor:pointer;
-    backdrop-filter:blur(12px);display:flex;
-    align-items:center;justify-content:center;}
-  #filterToggle:hover{border-color:var(--amber);}
+  #filterToggle{bottom:60px;left:8px;width:44px;height:44px;font-size:18px;}
 }
-/* Desktop: hide mobile-only filter toggle FAB */
-@media(min-width:781px){
-  #filterToggle{display:none;}
-}
+/* Filter toggle FAB — visible on desktop too now that the panel
+   defaults to collapsed. Discreet badge bottom-left. */
+#filterToggle{position:fixed;bottom:16px;left:16px;z-index:8;
+  width:36px;height:36px;border-radius:50%;
+  background:rgba(15,12,22,.92);border:1px solid rgba(212,160,80,.3);
+  color:var(--paper-dim);font-size:16px;cursor:pointer;
+  backdrop-filter:blur(12px);display:flex;
+  align-items:center;justify-content:center;transition:all .2s;}
+#filterToggle:hover{border-color:var(--amber);color:var(--paper);
+  box-shadow:0 0 14px rgba(212,160,80,.4);}
+#filterToggle.active{background:linear-gradient(180deg,#f5c878,#d4a050);
+  color:var(--night);border-color:#d4a050;}
 
 /* Stronger backdrop blur + slightly more opaque panels for legibility */
 .legend{background:rgba(15,12,22,.95) !important;}
@@ -2139,7 +2150,8 @@ async function main() {
   const filterPanelEl = document.getElementById('filterPanel');
   const filterToggle = document.getElementById('filterToggle');
   function toggleFilterDrawer(){
-    filterPanelEl.classList.toggle('open');
+    const opened = filterPanelEl.classList.toggle('open');
+    filterToggle.classList.toggle('active', opened);
   }
   if (filterToggle){
     filterToggle.addEventListener('click', toggleFilterDrawer);
@@ -2248,7 +2260,7 @@ async function main() {
     .sort((a, b) =>
       (graph.getNodeAttribute(b, 'degree') || 0) -
       (graph.getNodeAttribute(a, 'degree') || 0))
-    .slice(0, 280);
+    .slice(0, 200);
 
   const STAR_SVG_4 = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 L13.5 9.5 L21 11 L13.5 12.5 L12 22 L10.5 12.5 L3 11 L10.5 9.5 Z"/></svg>';
   const STAR_SVG_5 = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 l3 7 l7 1 l-5 5 l1.2 7 l-6.2 -3.5 l-6.2 3.5 l1.2 -7 l-5 -5 l7 -1 z"/></svg>';
@@ -2259,7 +2271,7 @@ async function main() {
     // When extremely zoomed in, hubs are big enough as circles — skip overlay
     if (ratio < 0.05) return;
     // When zoomed way out, only show the very brightest
-    const maxStars = ratio > 1.4 ? 60 : ratio > 0.7 ? 140 : 280;
+    const maxStars = ratio > 1.4 ? 40 : ratio > 0.7 ? 100 : 200;
     for (let i = 0; i < HUB_LIST.length && i < maxStars; i++){
       const id = HUB_LIST[i];
       const a = graph.getNodeAttributes(id);
