@@ -348,6 +348,37 @@ body.embed #stars,body.embed #galaxyLayer{top:0;}
 /* ── Gamification UI ─────────────────────────────── */
 .game-stats{display:flex;align-items:center;gap:10px;margin-left:auto;
   font-family:"Inter",sans-serif;}
+.loc-pin{display:inline-flex;align-items:center;gap:5px;
+  background:rgba(15,12,22,.85);
+  border:1px solid rgba(212,160,80,.3);border-radius:14px;
+  padding:3px 12px;font-family:"Shippori Mincho",serif;font-size:12px;
+  color:var(--paper);letter-spacing:.04em;cursor:default;
+  transition:all .2s;max-width:240px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.loc-pin .loc-icon{font-size:11px;flex-shrink:0;}
+.loc-pin .loc-text{font-weight:700;color:var(--amber-soft);
+  text-shadow:0 0 8px rgba(240,200,120,.35);}
+@media(max-width:780px){
+  .loc-pin{max-width:140px;font-size:11px;padding:2px 8px;}
+  .loc-pin .loc-text{font-size:10.5px;}
+}
+
+/* Selected-node ring on the canvas — shows the artist currently in
+   the info panel. Pulses gently so the visitor never loses sight of
+   where they are. */
+.selected-ring{position:fixed;pointer-events:none;z-index:7;
+  border-radius:50%;transform:translate(-50%,-50%);
+  border:2.5px solid var(--amber);
+  box-shadow:0 0 14px rgba(240,200,120,.7),
+             inset 0 0 10px rgba(240,200,120,.35);
+  animation:selRing 2.4s ease-in-out infinite;
+  display:none;}
+.selected-ring.active{display:block;}
+@keyframes selRing{
+  0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.9;}
+  50%   {transform:translate(-50%,-50%) scale(1.18);opacity:.55;}
+}
+
 .lv-badge{display:inline-flex;align-items:center;gap:6px;
   background:linear-gradient(135deg,rgba(122,42,58,.7),rgba(212,160,80,.3));
   border:1px solid var(--amber);border-radius:14px;padding:3px 10px;
@@ -989,6 +1020,7 @@ body.embed .copyright{display:none;}  /* hide inside salon iframe */
     <input id="searchInput" type="text" placeholder="アーティスト検索 / search artists..." autocomplete="off"/>
   </div>
   <div class="game-stats">
+    <span class="loc-pin" id="locPin" title="いま見ている銀河"><span class="loc-icon">📍</span><span class="loc-text">音楽宇宙</span></span>
     <span class="lv-badge" id="lvBadge" title="クリックで実績一覧">
       <span class="lv-num" id="lvNum">1</span>
       <span class="lv-title" id="lvTitle">旅人</span>
@@ -1074,6 +1106,7 @@ body.embed .copyright{display:none;}  /* hide inside salon iframe */
 </div>
 
 <div class="halo-layer" id="haloLayer"></div>
+<div class="selected-ring" id="selectedRing"></div>
 <div class="node-tip" id="nodeTip"></div>
 <div class="loading" id="loading">universe loading…</div>
 
@@ -1520,6 +1553,35 @@ function markVisited(id){
 // Hub-star refresh after any state change. Defined late so closures resolve.
 function refreshHubStars(){
   if (window.placeHubStars) window.placeHubStars();
+}
+
+// "Selected node" ring overlay — pulses around the artist currently
+// in the info panel so the visitor always sees their position.
+let _selectedNodeId = null;
+function placeSelectedRing(){
+  const ring = document.getElementById('selectedRing');
+  if (!ring) return;
+  if (!_selectedNodeId || !graph || !graph.hasNode(_selectedNodeId)){
+    ring.classList.remove('active');
+    return;
+  }
+  const a = graph.getNodeAttributes(_selectedNodeId);
+  if (a.hidden){ ring.classList.remove('active'); return; }
+  const v = sigma.graphToViewport({ x: a.x, y: a.y });
+  // Hide if outside the viewport
+  if (v.x < -60 || v.x > window.innerWidth + 60 ||
+      v.y < -60 || v.y > window.innerHeight + 60){
+    ring.classList.remove('active'); return;
+  }
+  // Ring size scales with current camera ratio so it tracks node size
+  const ratio = sigma.getCamera().getState().ratio;
+  const baseR = (a.size || 3);
+  const sz = Math.max(20, Math.min(80, baseR * 5 / Math.sqrt(ratio + 0.1)));
+  ring.style.left = v.x + 'px';
+  ring.style.top  = v.y + 'px';
+  ring.style.width  = sz + 'px';
+  ring.style.height = sz + 'px';
+  ring.classList.add('active');
 }
 
 // Detect embed mode (when iframed from salon.html with ?embed=1)
@@ -2507,7 +2569,47 @@ async function main() {
     }
   }
   placeGalaxyLabels();
-  sigma.getCamera().on('updated', placeGalaxyLabels);
+
+  // ── "You are here" location pin in the top bar ──
+  // Picks the galaxy whose centroid is closest to the viewport centre
+  // (in graph coordinates) and shows its Japanese name in the top bar.
+  const locPin = document.getElementById('locPin');
+  const locText = locPin ? locPin.querySelector('.loc-text') : null;
+  function updateLocationPin(){
+    if (!locPin || !galaxyData.length) return;
+    const cam = sigma.getCamera().getState();
+    const ratio = cam.ratio;
+    // If zoomed way out, just say "音楽宇宙"
+    if (ratio > 1.05){
+      locText.textContent = '音楽宇宙';
+      return;
+    }
+    // Camera centre in graph coords: invert sigma.graphToViewport for
+    // a fictional viewport-centre point.
+    const centerVp = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const centerGraph = sigma.viewportToGraph(centerVp);
+    let nearest = null, nearestD = Infinity;
+    for (const gx of galaxyData){
+      const dx = gx.x - centerGraph.x;
+      const dy = gx.y - centerGraph.y;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < nearestD){ nearestD = d; nearest = gx; }
+    }
+    if (nearest){
+      // Only flag a galaxy if we're reasonably close to it relative to
+      // the galaxy's own radius. Otherwise say "音楽宇宙".
+      const inside = nearestD < (nearest.radius || 200) * 2.4;
+      locText.textContent = inside
+        ? nearest.name_jp
+        : '音楽宇宙';
+    }
+  }
+  updateLocationPin();
+  sigma.getCamera().on('updated', () => {
+    placeGalaxyLabels();
+    updateLocationPin();
+    placeSelectedRing();
+  });
 
   // ── Hub-star overlay: replace the plain circle for high-degree nodes ──
   // with twinkling SVG stars. Performance-friendly: only the top ~250 hubs
@@ -2772,6 +2874,8 @@ let currentNodeId = null;
 function showInfo(id) {
   const a = graph.getNodeAttributes(id);
   currentNodeId = id;
+  _selectedNodeId = id;
+  placeSelectedRing();
   document.getElementById('infoName').textContent = a.label;
   const wasVisited = visited.has(id);
   const sub = wasVisited
@@ -2946,6 +3050,8 @@ function stopMiniPlayer(){
 function closeInfo() {
   document.getElementById('info').classList.remove('open');
   currentNodeId = null;
+  _selectedNodeId = null;
+  placeSelectedRing();
   // Note: mini-player keeps playing — user must close it explicitly.
 }
 
