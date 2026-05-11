@@ -522,6 +522,41 @@ body.embed #hubLayer{top:0;}
   font-style:italic;font-weight:400;font-size:11.5px;color:var(--amber-soft);
   margin-top:4px;letter-spacing:.04em;}
 
+/* ─── Persistent mini-player ────────────────────────────────────
+   Detached YouTube iframe that keeps playing across node navigation.
+   Anchored bottom-left, draggable header, minimize + close buttons. */
+.mini-player{position:fixed;bottom:16px;left:286px;z-index:12;
+  width:328px;background:rgba(8,6,16,.98);border:1px solid var(--amber);
+  border-radius:6px;display:none;flex-direction:column;
+  box-shadow:0 14px 36px rgba(0,0,0,.75), 0 0 18px rgba(212,160,80,.18);
+  backdrop-filter:blur(14px);}
+.mini-player.open{display:flex;animation:miniIn .3s ease;}
+@keyframes miniIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.mini-player.minimized{height:32px;}
+.mini-player.minimized .mp-body{display:none;}
+.mp-head{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;
+  background:linear-gradient(180deg,rgba(122,42,58,.35),rgba(20,16,26,0));
+  border-bottom:1px solid rgba(212,160,80,.18);cursor:grab;user-select:none;}
+.mp-head:active{cursor:grabbing;}
+.mp-title{flex:1;font-family:"Shippori Mincho",serif;font-weight:700;
+  font-size:12px;color:var(--paper);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:0 1px 2px rgba(0,0,0,.7);}
+.mp-title .mp-yt-badge{display:inline-block;margin-right:6px;
+  font-family:"Inter",sans-serif;font-size:9px;font-weight:600;
+  color:#fff;background:#e23a4e;padding:1px 5px;border-radius:3px;
+  vertical-align:middle;}
+.mp-btn{background:transparent;border:none;color:var(--paper-dim);
+  cursor:pointer;font-size:13px;line-height:1;padding:4px 6px;
+  border-radius:3px;transition:all .15s;}
+.mp-btn:hover{color:var(--amber);background:rgba(212,160,80,.12);}
+.mp-body{aspect-ratio:16/9;width:100%;background:#000;overflow:hidden;
+  border-radius:0 0 5px 5px;}
+.mp-body iframe{width:100%;height:100%;border:0;display:block;}
+@media(max-width:780px){
+  .mini-player{width:280px;left:auto;right:16px;bottom:60px;}
+}
+
 /* ─── Onboarding: welcome modal + dice hint + help button ─────── */
 .welcome-modal{position:fixed;inset:0;z-index:80;
   background:radial-gradient(ellipse 70% 50% at 50% 40%,rgba(40,30,60,.6),rgba(0,0,0,.85));
@@ -760,6 +795,18 @@ body.embed #hubLayer{top:0;}
 <div class="halo-layer" id="haloLayer"></div>
 <div class="node-tip" id="nodeTip"></div>
 <div class="loading" id="loading">universe loading…</div>
+
+<!-- Persistent mini-player. Stays playing while the visitor explores
+     other nodes — closing the info panel does NOT stop it. -->
+<div class="mini-player" id="miniPlayer">
+  <div class="mp-head" id="mpHead">
+    <span class="mp-title" id="mpTitle"></span>
+    <button class="mp-btn" id="mpLock" title="クリックしても切り替えない (BG固定)">🔓</button>
+    <button class="mp-btn" id="mpMinimize" title="最小化">―</button>
+    <button class="mp-btn" id="mpClose" title="閉じる">×</button>
+  </div>
+  <div class="mp-body" id="mpBody"></div>
+</div>
 
 <!-- Welcome / onboarding modal -->
 <div class="welcome-modal" id="welcomeModal">
@@ -1371,15 +1418,56 @@ async function main() {
   // Initial UI sync
   refreshGameUI();
 
-  // Play button: toggle inline YouTube player
+  // Play button: toggles mini-player for the currently-shown artist
   document.getElementById('playBtn').onclick = () => {
-    const p = document.getElementById('infoPlayer');
-    if (p.classList.contains('open')){
-      resetPlayer();
+    if (currentNodeId && _playingNodeId === currentNodeId){
+      stopMiniPlayer();
     } else {
       startPlayer();
     }
   };
+
+  // Mini-player chrome wiring
+  const miniPlayerEl = document.getElementById('miniPlayer');
+  document.getElementById('mpClose').onclick = () => stopMiniPlayer();
+  document.getElementById('mpMinimize').onclick = () => {
+    miniPlayerEl.classList.toggle('minimized');
+    document.getElementById('mpMinimize').textContent =
+      miniPlayerEl.classList.contains('minimized') ? '+' : '―';
+  };
+  document.getElementById('mpLock').onclick = () => {
+    _miniLocked = !_miniLocked;
+    const lockBtn = document.getElementById('mpLock');
+    lockBtn.textContent = _miniLocked ? '🔒' : '🔓';
+    lockBtn.title = _miniLocked
+      ? 'BG固定中 — 別ノードを押しても再生継続 (クリックで解除)'
+      : 'クリックで BG 固定 (別ノード選択しても再生継続)';
+  };
+  // Drag the mini-player by its header
+  (function dragInit(){
+    const head = document.getElementById('mpHead');
+    let dragging = false, ox = 0, oy = 0;
+    head.addEventListener('pointerdown', (ev) => {
+      // Ignore drags that originated on the buttons themselves
+      if (ev.target.closest('.mp-btn')) return;
+      dragging = true;
+      const r = miniPlayerEl.getBoundingClientRect();
+      ox = ev.clientX - r.left;
+      oy = ev.clientY - r.top;
+      head.setPointerCapture(ev.pointerId);
+    });
+    head.addEventListener('pointermove', (ev) => {
+      if (!dragging) return;
+      const x = Math.max(8, Math.min(window.innerWidth  - miniPlayerEl.offsetWidth  - 8, ev.clientX - ox));
+      const y = Math.max(8, Math.min(window.innerHeight - miniPlayerEl.offsetHeight - 8, ev.clientY - oy));
+      miniPlayerEl.style.left = x + 'px';
+      miniPlayerEl.style.top  = y + 'px';
+      miniPlayerEl.style.bottom = 'auto';
+      miniPlayerEl.style.right  = 'auto';
+    });
+    head.addEventListener('pointerup', () => { dragging = false; });
+    head.addEventListener('pointercancel', () => { dragging = false; });
+  })();
 
   // Genre filter panel
   buildFilterPanel();
@@ -1806,14 +1894,22 @@ function showInfo(id) {
     albEl.innerHTML = '';
     albEl.style.display = 'none';
   }
-  // Player & button state — auto-load YouTube embed on click when we have an ID.
+  // Player button state — auto-load YouTube embed on click only when this is
+  // a *new* artist. If the mini-player is already playing this same node we
+  // leave it alone (toggle is via the play button).
   resetPlayer();
   const playBtn = document.getElementById('playBtn');
   if (a.yt){
     playBtn.disabled = false;
-    playBtn.title = 'クリックで停止';
-    // Auto-start player so a click on a node = instant playback
-    setTimeout(() => startPlayer(), 50);
+    if (_playingNodeId === id){
+      playBtn.title = 'クリックで停止';
+    } else if (_miniLocked && _playingNodeId){
+      // Lock active — don't auto-swap; let user explicitly hit ▶ to swap
+      playBtn.title = '🔒 BG固定中 — クリックでこの曲に切替';
+    } else {
+      playBtn.title = 'クリックで再生';
+      setTimeout(() => loadMiniPlayer(id, a.label, a.yt), 50);
+    }
   } else {
     playBtn.disabled = false;
     playBtn.textContent = '▶ YouTube で開く';
@@ -1893,37 +1989,69 @@ function pickOfTheDay(){
   return top[seed % top.length];
 }
 
+// Track which video is currently in the mini-player so re-clicking the
+// same artist's ▶ button toggles stop instead of reloading. closeInfo()
+// no longer stops playback — closing the info panel just closes the
+// panel; the mini-player keeps going.
+let _playingNodeId = null;
+let _miniLocked = false;  // when true, clicking a new node does NOT swap the mini-player
+
 function resetPlayer(){
-  const p = document.getElementById('infoPlayer');
-  p.innerHTML = '';
-  p.classList.remove('open');
+  // Sync the inline play-row button to whatever the mini-player is doing.
   const btn = document.getElementById('playBtn');
-  btn.classList.remove('playing');
+  if (!btn) return;
+  if (_playingNodeId && currentNodeId === _playingNodeId){
+    btn.classList.add('playing');
+    btn.textContent = '■ 停止';
+  } else {
+    btn.classList.remove('playing');
+    btn.textContent = '▶ 即試聴';
+  }
 }
 
 function startPlayer(){
   if (!currentNodeId) return;
   const a = graph.getNodeAttributes(currentNodeId);
-  const btn = document.getElementById('playBtn');
   if (!a.yt){
-    // Fallback: open YouTube search in new tab
+    // Fallback: open YouTube search in new tab (no playable id)
     const q = encodeURIComponent(a.label + (a.album ? ' ' + a.album : ' full album'));
     window.open(`https://www.youtube.com/results?search_query=${q}`, '_blank', 'noopener');
     return;
   }
-  const p = document.getElementById('infoPlayer');
+  // Same artist already playing? Toggle stop.
+  if (_playingNodeId === currentNodeId){
+    stopMiniPlayer();
+    return;
+  }
+  loadMiniPlayer(currentNodeId, a.label, a.yt);
+}
+
+function loadMiniPlayer(id, label, yt){
+  _playingNodeId = id;
+  const mini = document.getElementById('miniPlayer');
+  const body = document.getElementById('mpBody');
+  const titleEl = document.getElementById('mpTitle');
+  titleEl.innerHTML = `<span class="mp-yt-badge">▶ NOW</span>${label}`;
   // youtube.com/embed (NOT youtube-nocookie) so Premium-logged-in browsers
-  // can pass auth cookies and skip ads. modestbranding=1 dampens YouTube logo.
-  p.innerHTML = `<iframe src="https://www.youtube.com/embed/${a.yt}?autoplay=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
-  p.classList.add('open');
-  btn.classList.add('playing');
-  btn.textContent = '■ 停止';
+  // can pass auth cookies and skip ads.
+  body.innerHTML = `<iframe src="https://www.youtube.com/embed/${yt}?autoplay=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+  mini.classList.add('open');
+  mini.classList.remove('minimized');
+  resetPlayer();
+}
+
+function stopMiniPlayer(){
+  _playingNodeId = null;
+  const mini = document.getElementById('miniPlayer');
+  mini.classList.remove('open');
+  document.getElementById('mpBody').innerHTML = '';
+  resetPlayer();
 }
 
 function closeInfo() {
   document.getElementById('info').classList.remove('open');
-  resetPlayer();
   currentNodeId = null;
+  // Note: mini-player keeps playing — user must close it explicitly.
 }
 
 // ── Parallax nebula on mouse move ──
