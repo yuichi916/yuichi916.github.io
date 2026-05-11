@@ -657,6 +657,89 @@ body.embed #hubLayer{top:0;}
   .mini-player{width:280px;left:auto;right:16px;bottom:60px;}
 }
 
+/* ─── Guided tour ─────────────────────────────────────────────
+   Step-through onboarding: spotlight + tooltip card moves over each
+   UI element while a dark overlay dims everything else. */
+.tour-spot{position:fixed;z-index:78;pointer-events:none;
+  border-radius:12px;
+  box-shadow:0 0 0 9999px rgba(6,4,16,.86),
+             0 0 0 3px var(--amber),
+             0 0 22px rgba(240,200,120,.55);
+  transition:top .35s cubic-bezier(.2,.7,.3,1),
+             left .35s cubic-bezier(.2,.7,.3,1),
+             width .35s cubic-bezier(.2,.7,.3,1),
+             height .35s cubic-bezier(.2,.7,.3,1),
+             border-radius .25s;
+  display:none;}
+.tour-spot.active{display:block;animation:spotPulse 2.2s ease-in-out infinite;}
+.tour-spot.circle{border-radius:50%;}
+@keyframes spotPulse{
+  0%,100%{box-shadow:0 0 0 9999px rgba(6,4,16,.86),
+                     0 0 0 3px var(--amber),
+                     0 0 22px rgba(240,200,120,.55);}
+  50%   {box-shadow:0 0 0 9999px rgba(6,4,16,.86),
+                     0 0 0 4px var(--amber-soft),
+                     0 0 36px rgba(240,200,120,.85);}
+}
+.tour-card{position:fixed;z-index:79;
+  width:min(380px,calc(100vw - 32px));
+  background:rgba(20,16,26,.98);border:1px solid var(--amber);
+  border-radius:8px;padding:18px 22px;
+  box-shadow:0 18px 40px rgba(0,0,0,.7), 0 0 22px rgba(212,160,80,.22);
+  backdrop-filter:blur(14px);
+  font-family:"Shippori Mincho",serif;color:var(--paper);
+  display:none;}
+.tour-card.active{display:block;animation:fadein .3s ease;}
+.tour-card .tc-step{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--amber);font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;margin-bottom:4px;}
+.tour-card h3{font-family:"Shippori Mincho",serif;font-weight:700;
+  font-size:18px;color:var(--paper);margin-bottom:8px;
+  letter-spacing:.04em;line-height:1.4;}
+.tour-card .tc-body{font-size:13px;line-height:1.85;
+  color:var(--paper-dim);margin-bottom:16px;}
+.tour-card .tc-body em{font-style:normal;color:var(--amber);font-weight:600;}
+.tour-card .tc-body kbd{font-family:"Inter",sans-serif;font-size:11px;
+  padding:2px 6px;background:rgba(28,20,40,.7);border:1px solid rgba(212,160,80,.25);
+  border-radius:3px;color:var(--amber-soft);}
+.tour-nav{display:flex;align-items:center;gap:8px;}
+.tour-nav .tc-progress{flex:1;font-family:"Inter",sans-serif;font-size:11px;
+  color:var(--ink-soft);letter-spacing:.06em;}
+.tour-nav button{font-family:"Inter",sans-serif;font-size:12px;font-weight:700;
+  padding:8px 14px;border-radius:4px;cursor:pointer;
+  letter-spacing:.04em;transition:all .15s;border:1px solid transparent;
+  background:transparent;color:var(--paper-dim);}
+.tour-nav button.primary{background:linear-gradient(180deg,#f5c878,#d4a050);
+  color:var(--night);border-color:#d4a050;}
+.tour-nav button.primary:hover{background:linear-gradient(180deg,#ffd890,#e0b060);
+  transform:translateY(-1px);box-shadow:0 4px 12px rgba(212,160,80,.4);}
+.tour-nav button.ghost{border-color:rgba(212,160,80,.3);}
+.tour-nav button.ghost:hover{border-color:var(--amber);color:var(--paper);}
+.tour-skip{position:absolute;top:8px;right:12px;
+  background:transparent;border:none;color:var(--ink-soft);
+  font-size:11px;font-family:"Inter",sans-serif;cursor:pointer;
+  letter-spacing:.06em;padding:4px 6px;}
+.tour-skip:hover{color:var(--amber);}
+
+/* Copyright notice — bottom-center, subtle, single line on desktop */
+.copyright{position:fixed;bottom:6px;left:50%;transform:translateX(-50%);
+  z-index:6;pointer-events:none;
+  font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:10.5px;color:rgba(200,184,154,.55);letter-spacing:.04em;
+  background:rgba(10,8,20,.5);backdrop-filter:blur(4px);
+  padding:3px 14px;border-radius:14px;
+  white-space:nowrap;max-width:calc(100vw - 32px);
+  overflow:hidden;text-overflow:ellipsis;}
+.copyright a{color:rgba(240,200,120,.75);pointer-events:auto;
+  text-decoration:none;}
+.copyright a:hover{color:var(--amber-soft);text-decoration:underline;}
+@media(max-width:780px){
+  .copyright{font-size:9px;padding:2px 10px;bottom:auto;top:4px;
+    left:50%;transform:translateX(-50%);
+    background:rgba(10,8,20,.7);}
+}
+body.embed .copyright{display:none;}  /* hide inside salon iframe */
+
 /* ─── Onboarding: welcome modal + dice hint + help button ─────── */
 .welcome-modal{position:fixed;inset:0;z-index:80;
   background:radial-gradient(ellipse 70% 50% at 50% 40%,rgba(40,30,60,.6),rgba(0,0,0,.85));
@@ -1040,14 +1123,37 @@ body.embed #hubLayer{top:0;}
       </div>
     </div>
     <div class="welcome-actions">
-      <button class="welcome-btn primary" id="welcomeStart">▶ 探索を始める</button>
-      <button class="welcome-btn ghost" id="welcomeSkip">あとで</button>
+      <button class="welcome-btn primary" id="welcomeStart">▶ 機能ツアーを始める</button>
+      <button class="welcome-btn ghost" id="welcomeSkip">スキップ</button>
     </div>
   </div>
 </div>
 
 <!-- Persistent help button (re-opens the welcome modal) -->
 <button class="help-btn" id="helpBtn" title="使い方を見る">？</button>
+
+<!-- Guided tour overlay: dark backdrop with a spotlight + tooltip card.
+     Driven by TOUR_STEPS in JS. -->
+<div class="tour-spot" id="tourSpot"></div>
+<div class="tour-card" id="tourCard">
+  <button class="tour-skip" id="tourSkip">スキップ ×</button>
+  <div class="tc-step" id="tcStep">Step 1</div>
+  <h3 id="tcTitle"></h3>
+  <div class="tc-body" id="tcBody"></div>
+  <div class="tour-nav">
+    <span class="tc-progress" id="tcProgress"></span>
+    <button class="ghost" id="tourPrev">← 戻る</button>
+    <button class="primary" id="tourNext">次へ →</button>
+  </div>
+</div>
+
+<!-- Copyright notice -->
+<div class="copyright" id="copyright">
+  © 2026 <a href="https://yuichi916.github.io/" target="_blank" rel="noopener">Views Engineer</a> ·
+  Music data from MusicBrainz, Last.fm, Wikipedia.
+  Built with <a href="https://www.sigmajs.org/" target="_blank" rel="noopener">Sigma.js</a>.
+  All artist names, album titles, and YouTube content remain the property of their respective owners.
+</div>
 
 <!-- Mobile-only filter toggle FAB (hidden on desktop) -->
 <button id="filterToggle" title="ジャンルフィルター">⛬</button>
@@ -1809,12 +1915,170 @@ async function main() {
     try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) {}
     showDiceHint();
   }
-  document.getElementById('welcomeStart').onclick = closeWelcome;
+  document.getElementById('welcomeStart').onclick = () => {
+    welcomeModal.classList.remove('open');
+    try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) {}
+    startGuidedTour();
+  };
   document.getElementById('welcomeSkip').onclick = closeWelcome;
   welcomeModal.addEventListener('click', (ev) => {
     if (ev.target.id === 'welcomeModal') closeWelcome();
   });
   document.getElementById('helpBtn').onclick = openWelcome;
+
+  // ─── Guided tour: spotlight + tooltip drives through every feature ──
+  const TOUR_STEPS = [
+    {
+      target: null,  // hero step — no specific element, centered overlay
+      title: '音楽宇宙へ、 ようこそ',
+      body: '<em>19,810 アーティスト × 42,744 関連</em> の地図を、 これから順番に案内します。 各機能の場所をハイライトしながら進めていきます。',
+    },
+    {
+      target: '#dice',
+      title: '🎲 サイコロ — 迷ったらまずこれ',
+      body: 'まだ訪れていないアーティストへ <em>ランダムに飛ぶ</em> ボタン。 何から聴いていいか迷ったら、 このサイコロを振ってみてください。',
+      shape: 'circle',
+    },
+    {
+      target: '#searchInput',
+      title: 'アーティスト検索',
+      body: '名前で直接探したいときはここ。 例えば <kbd>Yoasobi</kbd> や <kbd>Helloween</kbd> と入力すると、 候補がリスト表示されます。 候補をクリックでカメラが飛びます。',
+    },
+    {
+      target: '.bar .game-stats',
+      title: 'Lv / スコア — あなたの探索の証',
+      body: 'アーティストをクリックするたびにスコアが上がり、 一定値で <em>レベルアップ</em>。 上がるごとに <em>マイナーな領域が解放</em> されていきます。 進捗バーで次のLvまでの距離が見えます。',
+    },
+    {
+      target: '#filterToggle',
+      title: '⛬ フィルター',
+      body: 'ジャンルで絞り込んだり、 <em>「未訪問のみ」</em> や <em>「▶ 即試聴可のみ」</em> に切替えたりできます。 デフォルトは即試聴可だけ表示しています。',
+      shape: 'circle',
+    },
+    {
+      target: '#histFab',
+      title: '📜 履歴・お気に入り・推薦',
+      body: 'クリックした履歴、 <em>★ で保存したお気に入り</em>、 さらに <em>「✨ あなたへ」「💎 ★から」</em> の推薦タブも。 JSON で書き出し / 読み込みもできます。',
+      shape: 'circle',
+    },
+    {
+      target: '#helpBtn',
+      title: '？ いつでも使い方',
+      body: 'このツアーを後から見直すときはこのボタン。 機能が増えたときも、 ここから最新のガイドに戻れます。',
+      shape: 'circle',
+    },
+    {
+      target: null,
+      title: 'では、 最初の一歩を。',
+      body: 'まずは <em>🎲 サイコロ</em> を押してみるのがおすすめ。 出てきた作家をクリックすると <em>YouTube が即再生</em> され、 関連アーティストを <em>「つぎへ →」</em> で辿れます。 ★ で保存も忘れずに。',
+    },
+  ];
+
+  const tourSpot = document.getElementById('tourSpot');
+  const tourCard = document.getElementById('tourCard');
+  let _tourIdx = 0;
+
+  function startGuidedTour(){
+    _tourIdx = 0;
+    renderTourStep();
+  }
+  function endTour(){
+    tourSpot.classList.remove('active');
+    tourCard.classList.remove('active');
+    showDiceHint();  // gentle nudge once tour is done
+  }
+  function placeTourCard(rect){
+    // Pick a card position that avoids overlapping the spotlight.
+    const card = tourCard;
+    const cw = Math.min(380, window.innerWidth - 32);
+    const ch = card.offsetHeight || 200;
+    const margin = 16;
+    // Prefer placing card on the side with most space
+    const space = {
+      below: window.innerHeight - (rect.bottom + margin) - ch,
+      above: rect.top - margin - ch,
+      right: window.innerWidth - (rect.right + margin) - cw,
+      left:  rect.left - margin - cw,
+    };
+    let pos = 'below';
+    if (space.below < 0){
+      if (space.above >= 0) pos = 'above';
+      else if (space.right >= 0) pos = 'right';
+      else if (space.left  >= 0) pos = 'left';
+      else pos = 'below';
+    }
+    let x, y;
+    if (pos === 'below'){
+      x = Math.max(margin, Math.min(window.innerWidth - cw - margin, rect.left + rect.width/2 - cw/2));
+      y = rect.bottom + margin;
+    } else if (pos === 'above'){
+      x = Math.max(margin, Math.min(window.innerWidth - cw - margin, rect.left + rect.width/2 - cw/2));
+      y = rect.top - margin - ch;
+    } else if (pos === 'right'){
+      x = rect.right + margin;
+      y = Math.max(margin, Math.min(window.innerHeight - ch - margin, rect.top + rect.height/2 - ch/2));
+    } else {
+      x = rect.left - margin - cw;
+      y = Math.max(margin, Math.min(window.innerHeight - ch - margin, rect.top + rect.height/2 - ch/2));
+    }
+    card.style.left = x + 'px';
+    card.style.top  = y + 'px';
+  }
+  function renderTourStep(){
+    const step = TOUR_STEPS[_tourIdx];
+    if (!step){ endTour(); return; }
+    document.getElementById('tcStep').textContent = `Step ${_tourIdx + 1} / ${TOUR_STEPS.length}`;
+    document.getElementById('tcTitle').textContent = step.title;
+    document.getElementById('tcBody').innerHTML = step.body;
+    document.getElementById('tcProgress').textContent = '';
+    document.getElementById('tourPrev').disabled = (_tourIdx === 0);
+    document.getElementById('tourPrev').style.opacity = (_tourIdx === 0) ? '.4' : '1';
+    document.getElementById('tourNext').textContent =
+      (_tourIdx === TOUR_STEPS.length - 1) ? '🚀 探索を始める' : '次へ →';
+
+    if (step.target){
+      const el = document.querySelector(step.target);
+      if (el){
+        const r = el.getBoundingClientRect();
+        const pad = 6;
+        tourSpot.style.left   = (r.left - pad) + 'px';
+        tourSpot.style.top    = (r.top  - pad) + 'px';
+        tourSpot.style.width  = (r.width  + pad * 2) + 'px';
+        tourSpot.style.height = (r.height + pad * 2) + 'px';
+        tourSpot.classList.toggle('circle', step.shape === 'circle');
+        tourSpot.classList.add('active');
+        // Place card after spot is sized (next frame so offsetHeight is correct)
+        tourCard.classList.add('active');
+        requestAnimationFrame(() => placeTourCard(r));
+        return;
+      }
+    }
+    // No target — center the card, hide spotlight
+    tourSpot.classList.remove('active');
+    tourSpot.style.width = '0';
+    tourSpot.style.height = '0';
+    tourCard.classList.add('active');
+    requestAnimationFrame(() => {
+      const cw = tourCard.offsetWidth, ch = tourCard.offsetHeight;
+      tourCard.style.left = ((window.innerWidth  - cw) / 2) + 'px';
+      tourCard.style.top  = ((window.innerHeight - ch) / 2) + 'px';
+    });
+  }
+  document.getElementById('tourNext').onclick = () => {
+    _tourIdx++;
+    if (_tourIdx >= TOUR_STEPS.length){ endTour(); return; }
+    renderTourStep();
+  };
+  document.getElementById('tourPrev').onclick = () => {
+    if (_tourIdx <= 0) return;
+    _tourIdx--;
+    renderTourStep();
+  };
+  document.getElementById('tourSkip').onclick = endTour;
+  // Re-position card on window resize so it stays anchored to target
+  window.addEventListener('resize', () => {
+    if (tourCard.classList.contains('active')) renderTourStep();
+  });
 
   // Favorite toggle in info panel
   document.getElementById('favBtn').onclick = () => {
