@@ -552,11 +552,12 @@ body.embed #hubLayer{top:0;}
   backdrop-filter:blur(14px);overflow:hidden;}
 .hist-panel.open{display:flex;animation:miniIn .25s ease;}
 .hp-tabs{display:flex;border-bottom:1px solid rgba(212,160,80,.18);}
-.hp-tab{flex:1;padding:10px 12px;text-align:center;cursor:pointer;
+.hp-tab{flex:1;padding:10px 4px;text-align:center;cursor:pointer;
   font-family:"Cormorant Garamond",serif;font-style:italic;
-  color:var(--paper-dim);font-size:12px;letter-spacing:.18em;
+  color:var(--paper-dim);font-size:11px;letter-spacing:.08em;
   text-transform:uppercase;transition:all .2s;
-  background:transparent;border:none;border-bottom:2px solid transparent;}
+  background:transparent;border:none;border-bottom:2px solid transparent;
+  white-space:nowrap;}
 .hp-tab.active{color:var(--amber);border-bottom-color:var(--amber);
   background:linear-gradient(180deg,rgba(212,160,80,.06),transparent);}
 .hp-tab:hover{color:var(--paper);}
@@ -1047,6 +1048,7 @@ body.embed #hubLayer{top:0;}
     <button class="hp-tab active" id="hpTabHistory" type="button">📜 履歴</button>
     <button class="hp-tab" id="hpTabFavorites" type="button">★ お気に入り</button>
     <button class="hp-tab" id="hpTabRecs" type="button">✨ あなたへ</button>
+    <button class="hp-tab" id="hpTabFavRecs" type="button">💎 ★から</button>
   </div>
   <div class="hp-toolbar" id="hpToolbar">
     <button class="hp-tool-btn" id="hpDownload" type="button" title="履歴+お気に入りを JSON でダウンロード">📥 ダウンロード</button>
@@ -1814,24 +1816,37 @@ async function main() {
   let _hpTab = 'history';
 
   // ── Recommendation algorithm ─────────────────────────────────────
-  // For every neighbour of an already-visited artist, score how strongly
-  // the visitor's taste implies it: weighted edge sum, with favourites
-  // counting double. Exclude already-visited, exclude level-locked.
-  // Returns top-N candidates with reason (top source artists).
-  function computeRecommendations(N){
-    N = N || 20;
-    if (!visited.size) return [];
-    // For each candidate id → { score, sources: [{src, w}] }
+  // For every neighbour of a "seed" artist (from sourceSet), score how
+  // strongly the visitor's taste implies it: weighted edge sum, with
+  // favourites counting double. Exclude already-visited (when seed is
+  // history) or simply exclude the seed itself (when seed is favourites).
+  // Respects level gating. Returns top-N candidates with reason text.
+  function computeRecommendations(opts){
+    opts = opts || {};
+    const N = opts.N || 20;
+    const mode = opts.mode || 'history';  // 'history' | 'favorites'
+    let seeds;
+    if (mode === 'favorites'){
+      seeds = [...favorites];
+    } else {
+      seeds = [...visited];
+    }
+    if (!seeds.length) return [];
+
     const cand = new Map();
-    for (const src of visited){
+    for (const src of seeds){
       if (!graph.hasNode(src)) continue;
-      const srcWeight = favorites.has(src) ? 2.0 : 1.0;
+      const srcWeight = (mode === 'history' && favorites.has(src)) ? 2.0 : 1.0;
       graph.forEachEdge(src, (eid, attr, s, t) => {
         const other = (s === src) ? t : s;
-        if (visited.has(other)) return;       // skip already-met
+        // For history mode: skip ALL visited (we want new discoveries).
+        // For favorites mode: skip favorites themselves but allow other
+        // visited artists if the user wants to revisit them, but more
+        // intuitively skip every visited too (they already know it).
+        if (visited.has(other)) return;
         if (graph.getNodeAttribute(other, 'hidden')) return;
         const a = graph.getNodeAttributes(other);
-        if (isLockedByLevel(a)) return;       // respect level gating
+        if (isLockedByLevel(a)) return;
         const w = (attr.weight || 1) * srcWeight;
         let e = cand.get(other);
         if (!e){ e = { score: 0, sources: [] }; cand.set(other, e); }
@@ -1840,7 +1855,6 @@ async function main() {
       });
     }
     const arr = [...cand.entries()].map(([id, e]) => {
-      // Top 2 source artists by weight for the "reason" line
       e.sources.sort((a, b) => b.w - a.w);
       const topSrc = e.sources.slice(0, 2)
         .map(s => graph.getNodeAttribute(s.src, 'label')).join(' · ');
@@ -1873,15 +1887,24 @@ async function main() {
       clearBtn.style.display = '';
     } else if (_hpTab === 'recs'){
       isRec = true;
-      items = computeRecommendations(20);
+      items = computeRecommendations({ N: 20, mode: 'history' });
+      clearBtn.style.display = 'none';
+    } else if (_hpTab === 'favrecs'){
+      isRec = true;
+      items = computeRecommendations({ N: 20, mode: 'favorites' });
       clearBtn.style.display = 'none';
     }
     if (!items.length){
-      const msg = _hpTab === 'history'
-        ? 'まだクリック履歴がありません。<br>🎲 サイコロから始めてみてください。'
-        : _hpTab === 'favorites'
-        ? 'お気に入りはまだありません。<br>★ ボタンで気に入った作家を保存できます。'
-        : '履歴を増やすとここに「あなた向け」の<br>推薦が並びます。 まず何人かクリックしてみてください。';
+      let msg;
+      if (_hpTab === 'history'){
+        msg = 'まだクリック履歴がありません。<br>🎲 サイコロから始めてみてください。';
+      } else if (_hpTab === 'favorites'){
+        msg = 'お気に入りはまだありません。<br>★ ボタンで気に入った作家を保存できます。';
+      } else if (_hpTab === 'recs'){
+        msg = '履歴を増やすとここに「あなた向け」の<br>推薦が並びます。 まず何人かクリックしてみてください。';
+      } else {  // favrecs
+        msg = '★ を付けると、 そこを起点に<br>「これも好きかも」 が並びます。<br>気に入った作家に ★ を付けてみてください。';
+      }
       lst.innerHTML = `<div class="hp-empty">${msg}</div>`;
       return;
     }
@@ -1929,6 +1952,7 @@ async function main() {
     document.getElementById('hpTabHistory').classList.toggle('active', tab === 'history');
     document.getElementById('hpTabFavorites').classList.toggle('active', tab === 'favorites');
     document.getElementById('hpTabRecs').classList.toggle('active', tab === 'recs');
+    document.getElementById('hpTabFavRecs').classList.toggle('active', tab === 'favrecs');
     renderHpList();
   }
   histFab.onclick = () => {
@@ -1938,6 +1962,7 @@ async function main() {
   document.getElementById('hpTabHistory').onclick = () => setHpTab('history');
   document.getElementById('hpTabFavorites').onclick = () => setHpTab('favorites');
   document.getElementById('hpTabRecs').onclick = () => setHpTab('recs');
+  document.getElementById('hpTabFavRecs').onclick = () => setHpTab('favrecs');
 
   // Download history + favorites as JSON
   document.getElementById('hpDownload').onclick = () => {
