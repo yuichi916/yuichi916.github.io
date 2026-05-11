@@ -2498,8 +2498,9 @@ async function main() {
   }
   function placeGalaxyLabels(){
     const ratio = sigma.getCamera().getState().ratio;
-    // Font scales inversely with zoom (larger when zoomed out, smaller when in)
-    const fontSize = Math.max(10, Math.min(34, 18 / Math.sqrt(ratio)));
+    // Font scales WITH ratio so labels stay readable when zoomed out
+    // and shrink (out of the way of individual artists) when zoomed in.
+    const fontSize = Math.max(10, Math.min(28, 16 * Math.sqrt(ratio)));
     for (const el of labelEls){
       const x = parseFloat(el.dataset.x);
       const y = parseFloat(el.dataset.y);
@@ -2507,8 +2508,9 @@ async function main() {
       el.style.left = v.x + 'px';
       el.style.top  = v.y + 'px';
       el.style.fontSize = fontSize + 'px';
-      // Hide labels when very zoomed in (clutter)
-      el.style.opacity = ratio < 0.04 ? '0' : '';
+      // Fade galaxy labels out at deep zoom so they don't obscure the
+      // node the visitor is inspecting.
+      el.style.opacity = ratio < 0.18 ? '0.35' : (ratio < 0.3 ? '0.7' : '1');
     }
   }
   placeGalaxyLabels();
@@ -2705,10 +2707,13 @@ function focusNode(id) {
   if (!graph.hasNode(id)) return;
   const a = graph.getNodeAttributes(id);
   const cam = sigma.getCamera();
-  // Comet trail from current camera target to destination node
-  const fromState = cam.getState();
-  const fromXY = sigma.graphToViewport({ x: fromState.x*1000, y: fromState.y*1000 });
-  cam.animate({ x: a.x, y: a.y, ratio: 0.15 }, { duration: 700 });
+  // Bug fix: cam.animate expects CAMERA-FRAME coords (normalized
+  // around the graph bbox), not raw graph coords. Use Sigma's
+  // getNodeDisplayData() which returns the right frame for the node.
+  const disp = sigma.getNodeDisplayData(id) || { x: 0.5, y: 0.5 };
+  // 0.45 ratio keeps the picked node prominent while leaving 6-10
+  // surrounding artists visible for immediate "つぎへ" exploration.
+  cam.animate({ x: disp.x, y: disp.y, ratio: 0.45 }, { duration: 700 });
   setTimeout(() => {
     showInfo(id);
     awardClick(id);
