@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Library of Babel — バベルの図書館 / Books Universe</title>
+<meta name="description" content="P:\ebook 蔵書 40,000冊の WebGL 書籍宇宙地図。bge-m3 全文埋め込み + 多ソース類似度で、未知の本との出会いをセレンディピティ駆動で。">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0/dist/sigma.min.js"></script>
+
+<style>
+:root{
+  --paper:#e8dcb8;
+  --paper-soft:#f3e7c4;
+  --paper-dim:#a89d80;
+  --ink-soft:#7a6e58;
+  --night:#0e0a16;
+  --night-2:#1a1310;
+  --amber:#ffb968;
+  --amber-soft:#ffd970;
+  --burgundy:#7a2a3a;
+  --candle:#ffac4a;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;padding:0;
+  background:#0a0612;color:var(--paper);
+  font-family:"Shippori Mincho","Cormorant Garamond",serif;
+  overflow:hidden;}
+
+/* ─── Bg: hex tiles + nebula candles + endless staircase ── */
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
+.bg .nebula{position:absolute;inset:-10%;
+  background:
+    radial-gradient(40% 50% at 50% 50%, rgba(255,180,90,.18), transparent 60%),
+    radial-gradient(60% 60% at 30% 30%, rgba(110,60,200,.32), transparent 60%),
+    radial-gradient(50% 50% at 70% 75%, rgba(212,160,80,.22), transparent 65%),
+    radial-gradient(40% 45% at 20% 80%, rgba(220,80,120,.18), transparent 65%);
+  filter:blur(60px) saturate(110%);
+  opacity:.55;}
+.bg .hex-tiles{position:absolute;inset:0;opacity:.12;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='52' viewBox='0 0 60 52'><polygon points='30,2 58,17 58,35 30,50 2,35 2,17' fill='none' stroke='%23e8dcb8' stroke-width='0.6' opacity='0.5'/></svg>");
+  background-repeat:repeat;
+  background-size:60px 52px;
+  mix-blend-mode:screen;}
+.bg .stars{position:absolute;inset:0;mix-blend-mode:screen;opacity:.35;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, #ffe9b0, transparent),
+    radial-gradient(1px 1px at 60% 50%, #ffd070, transparent),
+    radial-gradient(1px 1px at 80% 20%, #fff2c0, transparent),
+    radial-gradient(1px 1px at 35% 80%, #ffe9b0, transparent),
+    radial-gradient(0.8px 0.8px at 70% 70%, #ffd070, transparent),
+    radial-gradient(0.8px 0.8px at 10% 60%, #fff2c0, transparent),
+    radial-gradient(0.7px 0.7px at 85% 85%, #ffd070, transparent),
+    radial-gradient(1.2px 1.2px at 50% 15%, #fff2c0, transparent);
+  background-size:300px 300px,400px 400px,250px 250px,350px 350px,
+                  280px 280px,320px 320px,260px 260px,360px 360px;}
+.bg .vignette{position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 70% at 50% 50%, transparent 30%, rgba(0,0,0,.6) 80%, rgba(0,0,0,.9) 100%);}
+
+/* ─── Top bar ─── */
+.bar{position:fixed;top:0;left:0;right:0;height:54px;z-index:20;
+  background:linear-gradient(180deg,rgba(15,10,22,.96),rgba(15,10,22,.7));
+  border-bottom:1px solid rgba(212,160,80,.22);
+  display:flex;align-items:center;padding:0 18px;gap:14px;
+  backdrop-filter:blur(8px);}
+.brand{font-family:"Shippori Mincho",serif;font-weight:700;font-size:17px;
+  color:var(--amber-soft);letter-spacing:.06em;}
+.brand .sub{color:var(--ink-soft);font-style:italic;font-weight:400;
+  margin-left:8px;font-family:"Cormorant Garamond",serif;font-size:13px;}
+.search{flex:1;max-width:420px;}
+.search input{width:100%;height:34px;padding:0 12px;border-radius:4px;
+  background:rgba(8,5,14,.7);border:1px solid rgba(212,160,80,.22);
+  color:var(--paper);font-family:"Shippori Mincho",serif;font-size:13.5px;
+  outline:none;}
+.search input:focus{border-color:var(--amber);}
+.stats{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--ink-soft);font-size:12px;letter-spacing:.08em;}
+.stats b{color:var(--amber);font-weight:700;}
+
+/* level badge + score pill */
+.lv-badge{display:inline-flex;align-items:center;gap:6px;
+  background:linear-gradient(135deg,rgba(122,42,58,.7),rgba(212,160,80,.3));
+  border:1px solid var(--amber);border-radius:16px;padding:5px 12px;
+  font-size:12.5px;letter-spacing:.06em;color:var(--paper);}
+.lv-badge .lv-num{color:var(--amber);font-weight:700;}
+.lv-badge .lv-title{font-family:"Shippori Mincho",serif;font-size:13px;}
+.score-pill{display:inline-flex;align-items:center;gap:5px;
+  background:rgba(28,20,40,.7);border:1px solid rgba(212,160,80,.2);
+  border-radius:16px;padding:5px 12px;font-size:12.5px;color:var(--paper-dim);
+  font-variant-numeric:tabular-nums;}
+.score-pill .pts{color:var(--amber);font-weight:600;}
+.score-pill .progress{height:3px;width:64px;background:rgba(212,160,80,.15);
+  border-radius:2px;overflow:hidden;margin-left:6px;}
+.score-pill .progress span{display:block;height:100%;
+  background:linear-gradient(90deg,var(--amber),var(--amber-soft));
+  transition:width .4s;}
+
+/* favorite button inside info */
+.fav-btn{font-family:"Inter",sans-serif;font-size:13px;font-weight:700;
+  padding:6px 14px;border-radius:4px;cursor:pointer;margin-top:8px;
+  background:transparent;border:1px solid rgba(212,160,80,.3);
+  color:var(--paper-dim);transition:all .2s;}
+.fav-btn:hover{border-color:var(--amber);color:var(--paper);}
+.fav-btn.active{background:linear-gradient(180deg,#f5c878,#d4a050);
+  color:var(--night);border-color:#d4a050;
+  box-shadow:0 0 12px rgba(212,160,80,.5);}
+
+/* toast */
+.toast-stack{position:fixed;top:64px;right:16px;z-index:30;
+  display:flex;flex-direction:column;gap:8px;pointer-events:none;
+  align-items:flex-end;}
+.toast{background:rgba(20,16,26,.97);border:1px solid var(--amber);
+  border-radius:6px;padding:10px 16px;color:var(--paper);
+  font-family:"Shippori Mincho",serif;font-size:13px;
+  box-shadow:0 8px 22px rgba(0,0,0,.6);
+  animation:toastIn .3s ease, toastOut .4s ease 3.6s forwards;
+  backdrop-filter:blur(10px);max-width:340px;}
+.toast .pts{color:var(--amber-soft);font-weight:700;}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+@keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateX(20px)}}
+
+/* history drawer */
+.hist-fab{position:fixed;bottom:18px;right:90px;z-index:9;
+  width:52px;height:52px;border-radius:50%;
+  background:rgba(15,12,22,.92);border:1px solid rgba(212,160,80,.3);
+  color:var(--paper-dim);font-size:20px;cursor:pointer;
+  backdrop-filter:blur(8px);transition:all .2s;
+  display:flex;align-items:center;justify-content:center;}
+.hist-fab:hover{border-color:var(--amber);color:var(--amber);}
+.hist-fab .badge{position:absolute;top:-4px;right:-4px;
+  background:var(--amber);color:var(--night);
+  font-size:9px;font-weight:700;border-radius:9px;padding:1px 5px;
+  font-family:"Inter",sans-serif;letter-spacing:.04em;}
+.hist-panel{position:fixed;right:16px;bottom:82px;z-index:11;
+  width:340px;max-height:min(64vh,520px);
+  background:rgba(14,10,22,.97);border:1px solid var(--amber);
+  border-radius:8px;display:none;flex-direction:column;
+  box-shadow:0 14px 36px rgba(0,0,0,.75), 0 0 18px rgba(212,160,80,.18);
+  backdrop-filter:blur(14px);overflow:hidden;}
+.hist-panel.open{display:flex;}
+.hp-tabs{display:flex;border-bottom:1px solid rgba(212,160,80,.18);}
+.hp-tab{flex:1;padding:10px 4px;cursor:pointer;
+  font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--paper-dim);font-size:11.5px;letter-spacing:.08em;
+  text-transform:uppercase;background:transparent;border:none;
+  border-bottom:2px solid transparent;transition:all .2s;}
+.hp-tab.active{color:var(--amber);border-bottom-color:var(--amber);
+  background:linear-gradient(180deg,rgba(212,160,80,.06),transparent);}
+.hp-list{flex:1;overflow-y:auto;max-height:min(56vh,440px);}
+.hp-item{display:flex;align-items:center;gap:10px;
+  padding:9px 14px;border-bottom:1px solid rgba(212,160,80,.08);
+  cursor:pointer;transition:all .15s;}
+.hp-item:hover{background:rgba(122,42,58,.2);}
+.hp-item .swatch{width:8px;height:8px;border-radius:50%;flex-shrink:0;
+  box-shadow:0 0 6px currentColor;}
+.hp-item .label{flex:1;font-family:"Shippori Mincho",serif;font-size:12.5px;
+  color:var(--paper);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-weight:600;}
+.hp-item .sub{font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:10px;color:var(--ink-soft);flex-shrink:0;}
+.hp-empty{padding:30px 18px;text-align:center;color:var(--ink-soft);
+  font-family:"Shippori Mincho",serif;font-size:12px;line-height:1.7;}
+
+/* visited node muting via overlay color */
+.node-visited-mark{position:absolute;transform:translate(-50%,-50%);
+  pointer-events:none;width:6px;height:6px;border-radius:50%;
+  background:rgba(136,224,160,.85);box-shadow:0 0 6px #88e0a0;}
+
+/* unknown-book projection modal */
+.proj-fab{position:fixed;bottom:18px;right:162px;z-index:9;
+  width:52px;height:52px;border-radius:50%;
+  background:rgba(15,12,22,.92);border:1px solid rgba(212,160,80,.3);
+  color:var(--paper-dim);font-size:22px;cursor:pointer;
+  backdrop-filter:blur(8px);transition:all .2s;
+  display:flex;align-items:center;justify-content:center;}
+.proj-fab:hover{border-color:var(--amber);color:var(--amber);
+  transform:translateY(-2px);box-shadow:0 6px 18px rgba(212,160,80,.4);}
+
+.proj-modal{position:fixed;inset:0;z-index:40;
+  background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;
+  backdrop-filter:blur(4px);}
+.proj-modal.open{display:flex;animation:fadein .25s ease;}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.proj-inner{background:var(--night-2);border:1px solid var(--amber);
+  border-radius:8px;padding:28px 32px;max-width:560px;width:90%;
+  box-shadow:0 24px 60px rgba(0,0,0,.7);
+  font-family:"Shippori Mincho",serif;color:var(--paper);
+  position:relative;}
+.proj-inner h2{margin:0 0 6px;font-size:20px;letter-spacing:.04em;}
+.proj-inner .deck{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--amber);font-size:13px;margin-bottom:18px;}
+.proj-inner label{display:block;font-size:11.5px;color:var(--paper-dim);
+  letter-spacing:.06em;margin:12px 0 4px;}
+.proj-inner input, .proj-inner textarea{width:100%;
+  background:rgba(8,5,14,.7);border:1px solid rgba(212,160,80,.2);
+  color:var(--paper);font-family:"Shippori Mincho",serif;font-size:13.5px;
+  padding:8px 10px;border-radius:4px;outline:none;box-sizing:border-box;}
+.proj-inner textarea{resize:vertical;min-height:60px;font-size:13px;
+  line-height:1.5;}
+.proj-inner input:focus, .proj-inner textarea:focus{border-color:var(--amber);}
+.proj-actions{display:flex;gap:10px;margin-top:18px;}
+.proj-actions button{flex:1;padding:9px 14px;font-family:"Inter",sans-serif;
+  font-weight:600;font-size:13px;letter-spacing:.06em;cursor:pointer;
+  border-radius:4px;border:1px solid var(--amber);
+  background:linear-gradient(180deg,#f5c878,#d4a050);color:var(--night);
+  transition:all .2s;}
+.proj-actions button.secondary{background:transparent;color:var(--paper-dim);
+  border-color:rgba(212,160,80,.3);}
+.proj-actions button:hover{transform:translateY(-1px);
+  box-shadow:0 4px 12px rgba(212,160,80,.4);}
+.proj-result{margin-top:18px;padding-top:14px;
+  border-top:1px solid rgba(212,160,80,.18);display:none;}
+.proj-result.open{display:block;}
+.proj-result h3{margin:0 0 8px;font-size:14px;color:var(--paper);}
+.proj-result .nearby{display:grid;gap:6px;}
+.proj-result .nearby a{display:flex;justify-content:space-between;
+  padding:6px 10px;border-radius:3px;background:rgba(28,20,40,.5);
+  border:1px solid rgba(212,160,80,.1);text-decoration:none;
+  color:var(--paper);font-size:12.5px;cursor:pointer;transition:all .15s;}
+.proj-result .nearby a:hover{border-color:var(--amber);
+  background:rgba(122,42,58,.25);}
+.proj-result .nearby a .w{color:var(--amber);font-family:"Inter",sans-serif;
+  font-size:10.5px;font-weight:600;}
+.proj-close{position:absolute;top:10px;right:14px;background:transparent;
+  border:none;color:var(--ink-soft);cursor:pointer;font-size:22px;
+  line-height:1;}
+.proj-close:hover{color:var(--amber);}
+
+/* achievements panel + modal */
+.achv-panel{position:fixed;bottom:18px;right:234px;z-index:9;
+  background:rgba(15,12,22,.92);border:1px solid rgba(212,160,80,.25);
+  border-radius:6px;padding:0 14px;backdrop-filter:blur(8px);
+  font-family:"Inter",sans-serif;font-size:13px;color:var(--paper);
+  cursor:pointer;transition:all .2s;letter-spacing:.06em;
+  display:flex;align-items:center;gap:6px;height:52px;}
+.achv-panel:hover{border-color:var(--amber);transform:translateY(-1px);
+  box-shadow:0 4px 14px rgba(212,160,80,.3);}
+.achv-panel .achv-count{color:var(--amber);font-weight:700;font-size:16px;}
+
+.achv-modal{position:fixed;inset:0;z-index:40;
+  background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;
+  backdrop-filter:blur(4px);}
+.achv-modal.open{display:flex;animation:fadein .25s ease;}
+.achv-inner{background:var(--night-2);border:1px solid var(--amber);
+  border-radius:8px;padding:30px 36px;max-width:600px;width:92%;
+  box-shadow:0 24px 60px rgba(0,0,0,.7);max-height:78vh;overflow-y:auto;
+  position:relative;}
+.achv-inner h2{font-family:"Shippori Mincho",serif;font-weight:700;
+  color:var(--paper);font-size:22px;margin:0 0 6px;}
+.achv-inner .lead{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--amber);letter-spacing:.06em;margin-bottom:18px;font-size:14px;}
+.achv-list{display:grid;gap:10px;}
+.achv-item{display:flex;align-items:center;gap:12px;padding:11px 14px;
+  background:rgba(28,20,40,.7);border:1px solid rgba(212,160,80,.14);
+  border-radius:5px;font-family:"Shippori Mincho",serif;font-size:13px;}
+.achv-item.earned{border-color:var(--amber);
+  background:linear-gradient(90deg,rgba(212,160,80,.13),rgba(28,20,40,.7));}
+.achv-item .icon{font-size:24px;width:36px;text-align:center;flex-shrink:0;
+  color:var(--ink-soft);}
+.achv-item.earned .icon{color:var(--amber);
+  text-shadow:0 0 12px rgba(255,180,90,.6);}
+.achv-item .body{flex:1;}
+.achv-item .name{color:var(--paper);font-weight:700;font-size:13.5px;
+  display:block;margin-bottom:2px;}
+.achv-item .desc{color:var(--paper-dim);font-size:11.5px;line-height:1.5;}
+.achv-item.earned .desc::after{content:" ✓";color:var(--amber);font-weight:700;}
+.achv-item.locked{opacity:.5;}
+.achv-item.locked .name{color:var(--ink-soft);}
+
+/* guided tour */
+.tour-veil{position:fixed;inset:0;z-index:60;
+  background:rgba(0,0,0,.78);display:none;
+  pointer-events:auto;}
+.tour-veil.open{display:block;}
+.tour-spot{position:fixed;border-radius:8px;
+  box-shadow:0 0 0 4px var(--amber), 0 0 0 9999px rgba(0,0,0,.78);
+  pointer-events:none;transition:all .35s cubic-bezier(.5,.0,.2,1);}
+.tour-card{position:fixed;background:var(--night-2);
+  border:1px solid var(--amber);border-radius:8px;
+  padding:18px 22px;max-width:340px;
+  font-family:"Shippori Mincho",serif;color:var(--paper);
+  box-shadow:0 18px 48px rgba(0,0,0,.6);z-index:61;
+  transition:all .35s cubic-bezier(.5,.0,.2,1);}
+.tour-card .step{font-family:"JetBrains Mono",monospace;
+  font-size:10px;letter-spacing:.2em;color:var(--amber);
+  margin-bottom:6px;text-transform:uppercase;}
+.tour-card .body{font-size:14px;line-height:1.7;}
+.tour-card .body em{color:var(--amber-soft);font-style:normal;font-weight:700;}
+.tour-card .actions{display:flex;gap:8px;margin-top:14px;}
+.tour-card button{flex:1;padding:8px 12px;border-radius:4px;cursor:pointer;
+  font-family:"Inter",sans-serif;font-size:12px;font-weight:600;
+  background:transparent;color:var(--paper-dim);
+  border:1px solid rgba(212,160,80,.3);transition:all .15s;}
+.tour-card button:hover{border-color:var(--amber);color:var(--paper);}
+.tour-card button.primary{background:linear-gradient(180deg,#f5c878,#d4a050);
+  color:var(--night);border-color:#d4a050;}
+
+/* hub stars (top-degree nodes twinkle) */
+#hub-layer{position:fixed;top:54px;left:0;right:0;bottom:0;
+  pointer-events:none;z-index:5;overflow:hidden;}
+.hub-star{position:absolute;transform:translate(-50%,-50%);
+  pointer-events:none;color:var(--amber);
+  filter:drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
+  animation:twinkle 3s ease-in-out infinite;}
+.hub-star.lg{animation-duration:3.6s;}
+.hub-star.fav{color:#ffd870;
+  filter:drop-shadow(0 0 5px #ffd870) drop-shadow(0 0 12px rgba(255,216,112,.6));}
+.hub-star.visited{color:#88e0a0;
+  filter:drop-shadow(0 0 3px #88e0a0) drop-shadow(0 0 6px #88e0a0);}
+@keyframes twinkle{
+  0%,100%{opacity:.6;transform:translate(-50%,-50%) scale(.9) rotate(0deg);}
+  50%{opacity:1.0;transform:translate(-50%,-50%) scale(1.15) rotate(8deg);}
+}
+
+/* ─── Canvas ─── */
+#sigma-container{position:fixed;inset:54px 0 0 0;z-index:1;}
+
+/* ─── Galaxy labels ─── */
+.galaxy-label{position:absolute;pointer-events:none;
+  padding:5px 12px;background:rgba(10,7,18,.7);
+  backdrop-filter:blur(6px);border:1px solid rgba(212,160,80,.18);
+  border-radius:999px;font-family:"Shippori Mincho",serif;font-weight:700;
+  color:var(--paper);font-size:13.5px;letter-spacing:.08em;
+  transform:translate(-50%,-50%);text-shadow:0 0 10px rgba(212,160,80,.6);
+  white-space:nowrap;z-index:5;
+  transition:opacity .15s, font-size .2s;}
+.galaxy-label .gl-sub{display:block;font-family:"Cormorant Garamond",serif;
+  font-style:italic;font-weight:400;color:var(--amber);
+  font-size:10px;letter-spacing:.12em;margin-top:1px;text-transform:uppercase;}
+
+/* ─── Info panel ─── */
+.info{position:fixed;left:18px;bottom:18px;z-index:9;width:360px;
+  background:rgba(14,10,22,.96);border:1px solid var(--amber);
+  border-radius:6px;padding:18px 20px;display:none;
+  box-shadow:0 14px 38px rgba(0,0,0,.7), 0 0 22px rgba(212,160,80,.16);
+  backdrop-filter:blur(10px);max-height:calc(100vh - 90px);overflow-y:auto;}
+.info.open{display:block;}
+.info h2{margin:0 0 6px;font-family:"Shippori Mincho",serif;
+  font-size:18px;color:var(--paper);line-height:1.35;}
+.info .author{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--amber);font-size:13.5px;margin-bottom:10px;}
+.info .meta{font-size:12px;color:var(--paper-dim);line-height:1.65;
+  margin-bottom:10px;}
+.info .meta span{color:var(--ink-soft);letter-spacing:.04em;}
+.info .cluster{display:inline-block;padding:3px 10px;border-radius:99px;
+  font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid currentColor;margin-bottom:10px;}
+.info h3{margin:14px 0 8px;font-family:"Cormorant Garamond",serif;
+  font-style:italic;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-soft);font-size:11px;font-weight:400;}
+.info .related{display:grid;gap:6px;}
+.info .related a{display:flex;justify-content:space-between;
+  padding:6px 10px;border-radius:3px;background:rgba(28,20,40,.5);
+  border:1px solid rgba(212,160,80,.08);text-decoration:none;
+  color:var(--paper);font-size:12.5px;font-family:"Shippori Mincho",serif;
+  cursor:pointer;transition:all .15s;}
+.info .related a:hover{border-color:var(--amber);
+  background:rgba(122,42,58,.25);}
+.info .related a .w{color:var(--amber);font-family:"Inter",sans-serif;
+  font-size:10.5px;font-weight:600;}
+.info .close{position:absolute;top:8px;right:12px;background:transparent;
+  border:none;color:var(--ink-soft);cursor:pointer;font-size:18px;}
+.info .close:hover{color:var(--amber);}
+
+/* ─── Dice + Recs FAB ─── */
+.fabs{position:fixed;bottom:18px;right:18px;z-index:9;
+  display:flex;flex-direction:column;gap:10px;}
+.fab{width:52px;height:52px;border-radius:50%;
+  background:rgba(15,10,22,.92);border:1px solid rgba(212,160,80,.3);
+  color:var(--paper);font-size:22px;cursor:pointer;
+  backdrop-filter:blur(8px);transition:all .2s;
+  display:flex;align-items:center;justify-content:center;font-family:serif;}
+.fab:hover{border-color:var(--amber);color:var(--amber);
+  transform:translateY(-2px);box-shadow:0 6px 18px rgba(212,160,80,.4);}
+
+/* ─── Loading veil ─── */
+.loading{position:fixed;inset:0;background:rgba(8,5,14,.97);z-index:50;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;
+  gap:14px;font-family:"Shippori Mincho",serif;color:var(--paper);}
+.loading.hidden{display:none;}
+.loading .title{font-size:22px;letter-spacing:.18em;color:var(--amber-soft);
+  text-shadow:0 0 16px rgba(255,180,90,.35);}
+.loading .sub{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--ink-soft);font-size:14px;letter-spacing:.1em;}
+.loading .spin{width:30px;height:30px;border-radius:50%;
+  border:2px solid rgba(212,160,80,.18);border-top-color:var(--amber);
+  animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="nebula"></div>
+  <div class="hex-tiles"></div>
+  <div class="stars"></div>
+  <div class="vignette"></div>
+</div>
+
+<div class="bar">
+  <div class="brand">バベルの図書館<span class="sub">Library of Babel · Books Universe</span></div>
+  <div class="search"><input id="search" placeholder="本のタイトル or 著者で検索…" autocomplete="off"></div>
+  <div class="stats"><b id="stat-nodes">—</b> 冊 · <b id="stat-edges">—</b> 関連 · <b id="stat-clusters">—</b> 銀河</div>
+  <div class="lv-badge"><span class="lv-num" id="lv-num">1</span><span class="lv-title" id="lv-title">旅人</span></div>
+  <div class="score-pill"><span class="pts" id="lv-pts">0</span> 点<span class="progress"><span id="lv-progress"></span></span></div>
+</div>
+
+<div class="toast-stack" id="toast-stack"></div>
+
+<div id="sigma-container"></div>
+<div id="galaxy-labels-layer" style="position:fixed;inset:54px 0 0 0;pointer-events:none;z-index:6;"></div>
+
+<aside class="info" id="info">
+  <button class="close" id="info-close" aria-label="close">×</button>
+  <span class="cluster" id="info-cluster">—</span>
+  <h2 id="info-title">—</h2>
+  <div class="author" id="info-author">—</div>
+  <div class="meta" id="info-meta"></div>
+  <button class="fav-btn" id="fav-btn" title="お気に入りに追加/外す">☆ 書架に置く</button>
+  <h3>同じ書架の本</h3>
+  <div class="related" id="info-related"></div>
+</aside>
+
+<button class="hist-fab" id="hist-fab" title="履歴・お気に入り・おすすめ">📖<span class="badge" id="hist-badge">0</span></button>
+<aside class="hist-panel" id="hist-panel">
+  <div class="hp-tabs">
+    <button class="hp-tab active" data-tab="history">履歴</button>
+    <button class="hp-tab" data-tab="favorites">お気に入り</button>
+    <button class="hp-tab" data-tab="recs">おすすめ</button>
+  </div>
+  <div class="hp-list" id="hp-list"></div>
+</aside>
+
+<div id="hub-layer"></div>
+
+<button class="proj-fab" id="proj-fab" title="未知の本を投影">✧</button>
+<button class="achv-panel" id="achv-fab" title="実績">
+  <span class="achv-count" id="achv-count">0</span><span>/10 実績</span>
+</button>
+
+<div class="achv-modal" id="achv-modal">
+  <div class="achv-inner">
+    <button class="proj-close" id="achv-close" aria-label="close">×</button>
+    <h2>書架の星座 — 実績</h2>
+    <div class="lead">本との出会いの軌跡。</div>
+    <div class="achv-list" id="achv-list"></div>
+  </div>
+</div>
+
+<div class="tour-veil" id="tour-veil">
+  <div class="tour-spot" id="tour-spot"></div>
+  <div class="tour-card" id="tour-card">
+    <div class="step" id="tour-step">— / —</div>
+    <div class="body" id="tour-body"></div>
+    <div class="actions">
+      <button id="tour-skip">スキップ</button>
+      <button id="tour-next" class="primary">次へ →</button>
+    </div>
+  </div>
+</div>
+
+<div class="proj-modal" id="proj-modal">
+  <div class="proj-inner">
+    <button class="proj-close" id="proj-close" aria-label="close">×</button>
+    <h2>未知の本を、書架に投影する。</h2>
+    <div class="deck">タイトルや概要から、あなたの蔵書宇宙に最も近い本を見つけます。</div>
+    <label for="proj-title">本のタイトル (or 任意のテキスト)</label>
+    <input id="proj-title" placeholder="例: 三体 / 1Q84 / 検察側の罪人">
+    <label for="proj-desc">概要 / キーワード (任意・精度向上)</label>
+    <textarea id="proj-desc" placeholder="例: 中国SF 異星人 三体問題 文化大革命"></textarea>
+    <div class="proj-actions">
+      <button id="proj-submit">蔵書宇宙に投影</button>
+      <button id="proj-clear" class="secondary">クリア</button>
+    </div>
+    <div class="proj-result" id="proj-result">
+      <h3 id="proj-result-h">蔵書宇宙の最寄り</h3>
+      <div class="nearby" id="proj-nearby"></div>
+    </div>
+  </div>
+</div>
+
+<div class="fabs">
+  <button class="fab" id="dice" title="サイコロを振る">⚂</button>
+  <button class="fab" id="recenter" title="全体に戻る">⊙</button>
+</div>
+
+<div class="loading" id="loading">
+  <div class="title">バベルの図書館</div>
+  <div class="spin"></div>
+  <div class="sub">書架を呼び出しています…</div>
+</div>
+
+<script>
+const DATA_URL = "../data/babel.json";
+
+// ─── Local state (persisted) ─────────────────────────────────────────
+const STATE_KEY = "babel_universe_state_v1";
+const LEVELS = [
+  { lv:1, title:"旅人",      minPts:0    },
+  { lv:2, title:"探書家",    minPts:25   },
+  { lv:3, title:"蒐書家",    minPts:90   },
+  { lv:4, title:"司書",      minPts:240  },
+  { lv:5, title:"古書街の主", minPts:560 },
+  { lv:6, title:"バベルの司書長", minPts:1200 },
+];
+let state = { visited:[], favorites:[], history:[], score:0, lastVisit:null };
+try {
+  const j = localStorage.getItem(STATE_KEY);
+  if (j) state = {...state, ...JSON.parse(j)};
+} catch(e) {}
+let visited = new Set(state.visited);
+let favorites = new Set(state.favorites);
+
+function saveState(){
+  state.visited = [...visited];
+  state.favorites = [...favorites];
+  state.lastVisit = Date.now();
+  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch(e){}
+}
+
+function levelFor(pts){
+  let cur = LEVELS[0];
+  for(const l of LEVELS) if (pts >= l.minPts) cur = l;
+  return cur;
+}
+
+// ─── Achievements ──────────────────────────────────────────────────
+const ACHIEVEMENTS = [
+  {id:"first",   icon:"✦", name:"最初の出会い",    desc:"初めての本との出会い。",
+   check: s => visited.size >= 1},
+  {id:"ten",     icon:"✶", name:"十冊の旅",        desc:"10冊の本に出会う。",
+   check: s => visited.size >= 10},
+  {id:"fifty",   icon:"✺", name:"五十冊の交友",    desc:"50冊の本に出会う。",
+   check: s => visited.size >= 50},
+  {id:"hundred", icon:"❉", name:"百の発見",         desc:"100冊の本に出会う。",
+   check: s => visited.size >= 100},
+  {id:"allgal",  icon:"◈", name:"全銀河踏破",      desc:"全ての銀河から少なくとも1冊。",
+   check: s => s.genresVisited && s.genresVisited.length >= s.totalGalaxies},
+  {id:"fav5",    icon:"★", name:"五つの書架",      desc:"5冊をお気に入りに置く。",
+   check: s => favorites.size >= 5},
+  {id:"fav20",   icon:"❄", name:"二十の書架",      desc:"20冊をお気に入りに置く。",
+   check: s => favorites.size >= 20},
+  {id:"dice10",  icon:"⚂", name:"運命の旅人",      desc:"サイコロを10回振る。",
+   check: s => (s.diceRolls||0) >= 10},
+  {id:"midnight",icon:"🌙", name:"夜更かしの司書",  desc:"深夜0〜4時に訪問。",
+   check: s => { const h = new Date().getHours(); return h < 4; }},
+  {id:"lv5",     icon:"♛", name:"バベルの座",       desc:"レベル5に到達。",
+   check: s => levelFor(s.score||0).lv >= 5},
+];
+
+let earnedAchv = new Set(state.achievements || []);
+
+function checkAchievements(){
+  let totalGalaxies = window.__galaxyCount || 8;
+  const ctx = {
+    score: state.score,
+    diceRolls: state.diceRolls || 0,
+    genresVisited: state.genresVisited || [],
+    totalGalaxies,
+  };
+  for(const a of ACHIEVEMENTS){
+    if(earnedAchv.has(a.id)) continue;
+    if(a.check(ctx)){
+      earnedAchv.add(a.id);
+      state.achievements = [...earnedAchv];
+      saveState();
+      toast(`<span class="pts">${a.icon}</span> 実績解除 — ${a.name}`);
+      document.getElementById("achv-count").textContent = earnedAchv.size;
+    }
+  }
+}
+
+function renderAchvList(){
+  const list = document.getElementById("achv-list");
+  list.innerHTML = "";
+  for(const a of ACHIEVEMENTS){
+    const earned = earnedAchv.has(a.id);
+    const el = document.createElement("div");
+    el.className = "achv-item " + (earned ? "earned" : "locked");
+    el.innerHTML = `<span class="icon">${a.icon}</span>
+      <div class="body">
+        <span class="name">${a.name}</span>
+        <span class="desc">${a.desc}</span>
+      </div>`;
+    list.appendChild(el);
+  }
+}
+function nextLevel(pts){
+  for(const l of LEVELS) if (pts < l.minPts) return l;
+  return null;
+}
+function computeScore(){
+  return visited.size * 10 + favorites.size * 25 + (state.diceRolls||0) * 5;
+}
+function refreshLevelUI(){
+  state.score = computeScore();
+  const lv = levelFor(state.score);
+  const nx = nextLevel(state.score);
+  document.getElementById("lv-num").textContent = lv.lv;
+  document.getElementById("lv-title").textContent = lv.title;
+  document.getElementById("lv-pts").textContent = state.score;
+  const pb = document.getElementById("lv-progress");
+  if (nx){
+    const range = nx.minPts - lv.minPts;
+    const within = state.score - lv.minPts;
+    pb.style.width = Math.max(0, Math.min(100, within/range*100)) + "%";
+  } else {
+    pb.style.width = "100%";
+  }
+}
+
+function toast(html, kind="score"){
+  const stack = document.getElementById("toast-stack");
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.innerHTML = html;
+  stack.appendChild(el);
+  setTimeout(()=>el.remove(), 4200);
+}
+let currentNodeId = null;
+
+(async function(){
+  const r = await fetch(DATA_URL);
+  if(!r.ok){
+    document.querySelector("#loading .sub").textContent = "babel.json が見つかりません (data/babel.json)";
+    return;
+  }
+  const data = await r.json();
+  const g = new graphology.Graph({multi:false});
+  data.nodes.forEach(n => {
+    g.addNode(n.id, {
+      x:n.x, y:n.y,
+      size:n.size||4,
+      color:n.color||"#a0a0a0",
+      label:n.label,
+      cluster:n.cluster,
+      meta:n,
+    });
+  });
+  data.edges.forEach(e => {
+    if(g.hasNode(e.src) && g.hasNode(e.dst) && !g.hasEdge(e.src, e.dst)){
+      const srcC = g.getNodeAttribute(e.src, "cluster");
+      const dstC = g.getNodeAttribute(e.dst, "cluster");
+      const sameCluster = srcC === dstC;
+      // intra-cluster: strong amber; inter: faint
+      const a = sameCluster
+        ? (0.10 + (e.w||0.5) * 0.15).toFixed(3)
+        : (0.015 + (e.w||0.5) * 0.025).toFixed(3);
+      g.addEdge(e.src, e.dst, {
+        weight: e.w, sameCluster,
+        color: sameCluster
+          ? `rgba(255,193,108,${a})`   // intra: amber
+          : `rgba(180,140,200,${a})`,  // inter: violet (rare bridges)
+        size: sameCluster ? 0.7 : 0.4,
+      });
+    }
+  });
+
+  document.getElementById("stat-nodes").textContent = data.stats.n_nodes.toLocaleString();
+  document.getElementById("stat-edges").textContent = data.stats.n_edges.toLocaleString();
+  document.getElementById("stat-clusters").textContent = data.stats.n_clusters.toLocaleString();
+
+  const container = document.getElementById("sigma-container");
+  const sigma = new Sigma(g, container, {
+    renderEdgeLabels:false,
+    labelDensity:0.03,
+    labelRenderedSizeThreshold:14,
+    labelFont:'"Shippori Mincho",serif',
+    labelColor:{color:"#e8dcb8"},
+    defaultEdgeColor:"rgba(212,160,80,0.05)",
+    minCameraRatio:0.04,
+    maxCameraRatio:4,
+    zIndex:true,
+  });
+  // start a bit zoomed out so we can see all galaxies
+  sigma.getCamera().setState({x:0.5, y:0.5, ratio:1.25});
+  window.SIGMA = sigma;
+  window.G = g;
+
+  // galaxy labels
+  const layer = document.getElementById("galaxy-labels-layer");
+  const galaxies = data.clusters;
+  for(const [tid, info] of Object.entries(galaxies)){
+    const el = document.createElement("div");
+    el.className = "galaxy-label";
+    el.dataset.tid = tid;
+    el.innerHTML = info.name + (info.subtitle? '<span class="gl-sub">'+info.subtitle+'</span>' : "");
+    el.style.color = info.color;
+    layer.appendChild(el);
+  }
+  function updateGalaxyLabels(){
+    const cam = sigma.getCamera();
+    const ratio = cam.getState().ratio;
+    const rect = container.getBoundingClientRect();
+    for(const [tid, info] of Object.entries(galaxies)){
+      const el = layer.querySelector(`[data-tid="${tid}"]`);
+      if(!el) continue;
+      const v = sigma.graphToViewport({x:info.cx, y:info.cy});
+      el.style.left = (v.x) + "px";
+      el.style.top = (v.y) + "px";
+      el.style.fontSize = Math.min(22, Math.max(10, 14 / Math.sqrt(ratio))) + "px";
+      el.style.opacity = ratio < 2.5 ? "0.95" : "0";
+    }
+  }
+  sigma.on("afterRender", updateGalaxyLabels);
+  updateGalaxyLabels();
+
+  // ─── Recommendations from favorites ───────────────────────────────
+  function getRecommendations(limit=20){
+    const candidates = new Map();
+    for(const seed of favorites){
+      if(!g.hasNode(seed)) continue;
+      g.forEachEdge(seed, (edge, attr, src, dst) => {
+        const other = src === seed ? dst : src;
+        if(visited.has(other) || favorites.has(other)) return;
+        const w = attr.weight || 0.5;
+        candidates.set(other, (candidates.get(other)||0) + w);
+      });
+    }
+    return [...candidates.entries()].sort((a,b)=>b[1]-a[1]).slice(0, limit);
+  }
+
+  // ─── Favorite + history ───────────────────────────────────────────
+  function toggleFavorite(nodeId, label){
+    if(favorites.has(nodeId)){
+      favorites.delete(nodeId);
+      toast(`<span class="pts">☆</span> 書架から外しました — ${label}`);
+    } else {
+      favorites.add(nodeId);
+      toast(`<span class="pts">★</span> 書架に置きました — ${label}`);
+    }
+    saveState();
+    refreshLevelUI();
+    refreshFavBtn();
+    refreshHistBadge();
+    refreshHistList();
+  }
+
+  function refreshFavBtn(){
+    const btn = document.getElementById("fav-btn");
+    if(!btn || !currentNodeId) return;
+    if(favorites.has(currentNodeId)){
+      btn.classList.add("active");
+      btn.textContent = "★ 書架にある";
+    } else {
+      btn.classList.remove("active");
+      btn.textContent = "☆ 書架に置く";
+    }
+  }
+  function refreshHistBadge(){
+    document.getElementById("hist-badge").textContent = favorites.size || 0;
+  }
+
+  function pushHistory(id, label){
+    state.history = (state.history||[]).filter(h => h.id !== id);
+    state.history.unshift({id, label, t: Date.now()});
+    if(state.history.length > 200) state.history.length = 200;
+    saveState();
+  }
+
+  // ─── History drawer (tabs) ────────────────────────────────────────
+  let currentTab = "history";
+  function refreshHistList(){
+    const list = document.getElementById("hp-list");
+    list.innerHTML = "";
+    let rows = [];
+    if(currentTab === "history"){
+      rows = (state.history||[]).map(h => ({id:h.id, label:h.label}));
+    } else if(currentTab === "favorites"){
+      rows = [...favorites].map(id => {
+        if(!g.hasNode(id)) return null;
+        const m = g.getNodeAttribute(id, "meta");
+        return {id, label: m.label};
+      }).filter(Boolean);
+    } else if(currentTab === "recs"){
+      rows = getRecommendations(20).map(([id, score])=>{
+        const m = g.getNodeAttribute(id, "meta");
+        return {id, label: m.label, score};
+      });
+    }
+    if(rows.length === 0){
+      const e = document.createElement("div");
+      e.className = "hp-empty";
+      e.textContent = currentTab === "favorites"
+        ? "まだお気に入りがありません。★を押して書架に置きましょう。"
+        : currentTab === "recs"
+          ? "★お気に入りを増やすと、関連書が並びます。"
+          : "まだ訪問していません。サイコロを振ってみましょう。";
+      list.appendChild(e);
+      return;
+    }
+    rows.forEach(r => {
+      const m = g.hasNode(r.id) ? g.getNodeAttribute(r.id, "meta") : null;
+      const a = document.createElement("div");
+      a.className = "hp-item";
+      const color = m && m.color || "#a0a0a0";
+      a.innerHTML = `<span class="swatch" style="background:${color};color:${color}"></span>
+        <span class="label">${r.label}</span>
+        ${m && galaxies[m.cluster] ? `<span class="sub">${galaxies[m.cluster].name}</span>` : ""}`;
+      a.onclick = () => focusNode(r.id);
+      list.appendChild(a);
+    });
+  }
+
+  document.querySelectorAll(".hp-tab").forEach(t => {
+    t.onclick = () => {
+      document.querySelectorAll(".hp-tab").forEach(x=>x.classList.remove("active"));
+      t.classList.add("active");
+      currentTab = t.dataset.tab;
+      refreshHistList();
+    };
+  });
+  document.getElementById("hist-fab").onclick = () => {
+    const p = document.getElementById("hist-panel");
+    p.classList.toggle("open");
+    if(p.classList.contains("open")) refreshHistList();
+  };
+
+  // node interactions
+  function showInfo(nodeId){
+    const meta = g.getNodeAttribute(nodeId, "meta");
+    document.getElementById("info-title").textContent = meta.label;
+    document.getElementById("info-author").textContent = meta.author || "—";
+    const metaBits = [];
+    if(meta.publisher) metaBits.push(`<span>出版:</span> ${meta.publisher}`);
+    if(meta.series) metaBits.push(`<span>シリーズ:</span> ${meta.series}${meta.series_index?` #${meta.series_index}`:""}`);
+    if(meta.language) metaBits.push(`<span>言語:</span> ${meta.language}`);
+    document.getElementById("info-meta").innerHTML = metaBits.join("<br>");
+    const cl = galaxies[meta.cluster];
+    const clEl = document.getElementById("info-cluster");
+    if(cl){
+      clEl.textContent = cl.name;
+      clEl.style.color = cl.color;
+    }else{
+      clEl.textContent = "—";
+    }
+
+    // related
+    const rel = [];
+    g.forEachEdge(nodeId, (edge, attr, src, dst) => {
+      const other = src === nodeId ? dst : src;
+      rel.push({id: other, w: attr.weight});
+    });
+    rel.sort((a,b)=>b.w-a.w);
+    const relEl = document.getElementById("info-related");
+    relEl.innerHTML = "";
+    rel.slice(0, 10).forEach(r => {
+      const om = g.getNodeAttribute(r.id, "meta");
+      const a = document.createElement("a");
+      a.innerHTML = `<span>${om.label}</span><span class="w">${(r.w*100|0)}%</span>`;
+      a.onclick = (e) => { e.preventDefault(); focusNode(r.id); };
+      relEl.appendChild(a);
+    });
+    document.getElementById("info").classList.add("open");
+    // record visit + level
+    currentNodeId = nodeId;
+    const wasNew = !visited.has(nodeId);
+    visited.add(nodeId);
+    pushHistory(nodeId, meta.label);
+    if(wasNew){
+      toast(`<span class="pts">+10</span> ${meta.label}`);
+    }
+    // track visited galaxy
+    state.genresVisited = state.genresVisited || [];
+    if(meta.cluster !== undefined && !state.genresVisited.includes(meta.cluster)){
+      state.genresVisited.push(meta.cluster);
+    }
+    saveState();
+    refreshFavBtn();
+    refreshLevelUI();
+    refreshHistBadge();
+    checkAchievements();
+  }
+
+  function focusNode(id){
+    const disp = sigma.getNodeDisplayData(id);
+    sigma.getCamera().animate({x:disp.x, y:disp.y, ratio:0.6}, {duration:600});
+    showInfo(id);
+  }
+
+  // favorite button binding
+  document.getElementById("fav-btn").onclick = () => {
+    if(!currentNodeId) return;
+    const meta = g.getNodeAttribute(currentNodeId, "meta");
+    toggleFavorite(currentNodeId, meta.label);
+  };
+
+  sigma.on("clickNode", e => focusNode(e.node));
+  document.getElementById("info-close").onclick = () => {
+    document.getElementById("info").classList.remove("open");
+  };
+
+  // dice
+  document.getElementById("dice").onclick = () => {
+    const nodes = g.nodes();
+    // prefer unseen nodes
+    const unseen = nodes.filter(n => !visited.has(n));
+    const pool = unseen.length > 0 ? unseen : nodes;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    state.diceRolls = (state.diceRolls||0) + 1;
+    focusNode(pick);
+  };
+  document.getElementById("recenter").onclick = () => {
+    sigma.getCamera().animate({x:0.5, y:0.5, ratio:1.0}, {duration:500});
+    document.getElementById("info").classList.remove("open");
+  };
+
+  // search
+  const searchEl = document.getElementById("search");
+  searchEl.addEventListener("input", () => {
+    const q = searchEl.value.trim().toLowerCase();
+    if(!q){ return; }
+    let found = null;
+    g.forEachNode((id, attr) => {
+      if(found) return;
+      const meta = attr.meta;
+      if((meta.label || "").toLowerCase().includes(q) ||
+         (meta.author || "").toLowerCase().includes(q)){
+        found = id;
+      }
+    });
+    if(found) focusNode(found);
+  });
+
+  // ─── Unknown-book projection (MVP fuzzy version) ─────────────────
+  // True semantic projection requires bge-m3 inference. For MVP we use
+  // (1) token-based scoring against label + author + publisher + cluster name
+  // (2) optional NDL search to enrich the query with subjects.
+  function tokenize(s){
+    if(!s) return [];
+    s = s.toLowerCase();
+    // split on CJK character boundaries + whitespace + punctuation
+    const out = [];
+    // collect CJK individual chars
+    for(const ch of s){
+      if(/[぀-ヿ一-鿿]/.test(ch)) out.push(ch);
+    }
+    // also split on whitespace/punct for latin
+    s.replace(/[぀-ヿ一-鿿]/g, " ").split(/[\s\.\,\-_\/:;()\[\]{}!?'"]+/)
+      .filter(t => t && t.length >= 2).forEach(t => out.push(t));
+    return out;
+  }
+
+  function scoreAgainstBook(qTokens, meta){
+    const hay = [meta.label, meta.author, meta.publisher, meta.series,
+                 galaxies[meta.cluster]?.name].filter(Boolean).join(" ");
+    const hTokens = new Set(tokenize(hay));
+    let score = 0;
+    let match = 0;
+    for(const t of qTokens){
+      if(hTokens.has(t)){ score += 1.5; match++; }
+      else {
+        for(const h of hTokens){
+          if(h.includes(t) || t.includes(h)) { score += 0.3; break; }
+        }
+      }
+    }
+    return {score: score / Math.max(1, qTokens.length), match};
+  }
+
+  async function project(title, desc){
+    const result = document.getElementById("proj-result");
+    const nearby = document.getElementById("proj-nearby");
+    const h = document.getElementById("proj-result-h");
+    result.classList.add("open");
+    nearby.innerHTML = '<div class="hp-empty">投影中…</div>';
+
+    // try NDL search for enrichment (CORS may block; ignore on failure)
+    let ndlSubjects = "";
+    try {
+      const url = `https://ndlsearch.ndl.go.jp/api/opensearch?title=${encodeURIComponent(title)}&cnt=1`;
+      // Likely CORS-blocked from GitHub Pages, but try anyway
+      const r = await fetch(url, {mode:"cors"});
+      if(r.ok){
+        const txt = await r.text();
+        const subjMatches = [...txt.matchAll(/<dc:subject>([^<]+)<\/dc:subject>/g)];
+        ndlSubjects = subjMatches.map(m=>m[1]).join(" ");
+      }
+    } catch(e) { /* CORS blocked, fall back to local tokens only */ }
+
+    const q = [title, desc, ndlSubjects].filter(Boolean).join(" ");
+    const qTokens = tokenize(q);
+    if(qTokens.length === 0){
+      nearby.innerHTML = '<div class="hp-empty">タイトルか概要を入力してください。</div>';
+      return;
+    }
+
+    const scored = [];
+    g.forEachNode((id, attr) => {
+      const meta = attr.meta;
+      const s = scoreAgainstBook(qTokens, meta);
+      if(s.score > 0.05) scored.push({id, ...s, meta});
+    });
+    scored.sort((a,b) => b.score - a.score);
+
+    if(scored.length === 0){
+      nearby.innerHTML = '<div class="hp-empty">蔵書宇宙の中で類似書を見つけられませんでした。</div>';
+      return;
+    }
+
+    // pick top 5 and project a "ghost node" at their centroid
+    const top = scored.slice(0, 5);
+    let cx = 0, cy = 0, totalW = 0;
+    for(const t of top){
+      const w = t.score;
+      cx += t.meta.x * w;
+      cy += t.meta.y * w;
+      totalW += w;
+    }
+    cx /= totalW; cy /= totalW;
+
+    // focus camera to centroid
+    const cam = sigma.getCamera();
+    const disp = sigma.graphToViewport({x:cx, y:cy});
+    // use raw graph coordinates -> normalized via Sigma
+    const fakeNodeAttr = {x:cx, y:cy};
+    // we can't easily set camera in graph coords; use displayed average instead
+    if(top[0]){
+      const d0 = sigma.getNodeDisplayData(top[0].id);
+      cam.animate({x:d0.x, y:d0.y, ratio:0.55}, {duration:700});
+    }
+
+    const galaxyVote = {};
+    for(const t of top){
+      const cid = t.meta.cluster;
+      galaxyVote[cid] = (galaxyVote[cid]||0) + t.score;
+    }
+    const best = Object.entries(galaxyVote).sort((a,b)=>b[1]-a[1])[0];
+    const bestGalaxy = best ? galaxies[best[0]] : null;
+    h.innerHTML = bestGalaxy
+      ? `蔵書宇宙では <span style="color:${bestGalaxy.color}">${bestGalaxy.name}</span> の近く`
+      : "蔵書宇宙の最寄り";
+
+    nearby.innerHTML = "";
+    top.forEach(t => {
+      const a = document.createElement("a");
+      a.innerHTML = `<span>${t.meta.label}</span><span class="w">${(t.score*100|0)}%</span>`;
+      a.onclick = (e) => {
+        e.preventDefault();
+        document.getElementById("proj-modal").classList.remove("open");
+        focusNode(t.id);
+      };
+      nearby.appendChild(a);
+    });
+  }
+
+  document.getElementById("proj-fab").onclick = () => {
+    document.getElementById("proj-modal").classList.add("open");
+    document.getElementById("proj-title").focus();
+  };
+  document.getElementById("proj-close").onclick = () => {
+    document.getElementById("proj-modal").classList.remove("open");
+  };
+  document.getElementById("proj-clear").onclick = () => {
+    document.getElementById("proj-title").value = "";
+    document.getElementById("proj-desc").value = "";
+    document.getElementById("proj-result").classList.remove("open");
+  };
+  document.getElementById("proj-submit").onclick = () => {
+    const t = document.getElementById("proj-title").value.trim();
+    const d = document.getElementById("proj-desc").value.trim();
+    if(!t && !d) return;
+    project(t, d);
+  };
+  document.getElementById("proj-modal").onclick = (e) => {
+    if(e.target.id === "proj-modal"){
+      document.getElementById("proj-modal").classList.remove("open");
+    }
+  };
+  // Enter key on title submits
+  document.getElementById("proj-title").addEventListener("keydown", e=>{
+    if(e.key === "Enter") document.getElementById("proj-submit").click();
+  });
+
+  // ─── Achievement modal ────────────────────────────────────────────
+  window.__galaxyCount = Object.keys(galaxies).length;
+  document.getElementById("achv-count").textContent = earnedAchv.size;
+  document.getElementById("achv-fab").onclick = () => {
+    renderAchvList();
+    document.getElementById("achv-modal").classList.add("open");
+  };
+  document.getElementById("achv-close").onclick = () => {
+    document.getElementById("achv-modal").classList.remove("open");
+  };
+  document.getElementById("achv-modal").onclick = (e) => {
+    if(e.target.id === "achv-modal"){
+      document.getElementById("achv-modal").classList.remove("open");
+    }
+  };
+
+  // ─── Hub stars (top-degree nodes twinkle) ─────────────────────────
+  const hubLayer = document.getElementById("hub-layer");
+  let hubStars = [];
+  {
+    const degrees = g.nodes().map(n => ({id:n, deg:g.degree(n)}));
+    degrees.sort((a,b)=>b.deg-a.deg);
+    const TOP = Math.min(120, Math.ceil(degrees.length * 0.15));
+    const top = degrees.slice(0, TOP);
+    for(const {id, deg} of top){
+      const el = document.createElement("div");
+      el.className = "hub-star " + (deg >= 12 ? "lg" : "");
+      el.dataset.id = id;
+      el.style.color = g.getNodeAttribute(id, "color");
+      el.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></svg>`;
+      el.style.animationDelay = (Math.random()*3) + "s";
+      hubLayer.appendChild(el);
+      hubStars.push({id, el});
+    }
+  }
+  function refreshHubStars(){
+    const rect = container.getBoundingClientRect();
+    for(const {id, el} of hubStars){
+      const a = g.getNodeAttributes(id);
+      const v = sigma.graphToViewport({x:a.x, y:a.y});
+      el.style.left = v.x + "px";
+      el.style.top = v.y + "px";
+      const visible = v.x > -20 && v.x < rect.width+20 && v.y > -20 && v.y < rect.height+20;
+      el.style.display = visible ? "" : "none";
+      if(favorites.has(id)){ el.classList.add("fav"); el.classList.remove("visited"); }
+      else if(visited.has(id)){ el.classList.add("visited"); el.classList.remove("fav"); }
+      else { el.classList.remove("fav", "visited"); }
+    }
+  }
+  sigma.on("afterRender", refreshHubStars);
+  refreshHubStars();
+
+  // ─── Guided tour (first-visit) ────────────────────────────────────
+  const TOUR_KEY = "babel_tour_seen_v1";
+  const TOUR_STEPS = [
+    {target:"#search", body:"知っている本を <em>検索</em> から呼び出せます。"},
+    {target:"#dice", body:"迷ったら <em>サイコロ</em>。未訪問の本へ瞬時に。"},
+    {target:"#fav-btn", body:"気に入った本は <em>★ 書架に置く</em>。 おすすめの種になります。", precondition:()=>currentNodeId, before:()=>{
+      if(!currentNodeId){
+        const nodes = g.nodes();
+        focusNode(nodes[Math.floor(Math.random()*nodes.length)]);
+      }
+    }},
+    {target:"#hist-fab", body:"<em>履歴 / お気に入り / おすすめ</em> はここから。"},
+    {target:"#proj-fab", body:"<em>蔵書外の本</em> もここで投影できます。"},
+    {target:"#achv-fab", body:"<em>10 の実績</em> を集めると、書架の星座が完成します。"},
+    {target:".galaxy-label", body:"これは <em>銀河ラベル</em>。各書架の概観。"},
+    {target:"#info-related", body:"クリックした本の <em>同じ書架の本</em> はここに。出会いの連鎖を辿りましょう。", precondition:()=>currentNodeId},
+  ];
+  let tourStep = 0;
+  function showTourStep(i){
+    const step = TOUR_STEPS[i];
+    if(!step){ endTour(); return; }
+    if(step.before) step.before();
+    const tgt = document.querySelector(step.target);
+    if(!tgt){ tourStep++; showTourStep(tourStep); return; }
+    const rect = tgt.getBoundingClientRect();
+    const spot = document.getElementById("tour-spot");
+    const PAD = 8;
+    spot.style.left = (rect.left - PAD) + "px";
+    spot.style.top = (rect.top - PAD) + "px";
+    spot.style.width = (rect.width + PAD*2) + "px";
+    spot.style.height = (rect.height + PAD*2) + "px";
+    const card = document.getElementById("tour-card");
+    document.getElementById("tour-step").textContent = `Step ${i+1} / ${TOUR_STEPS.length}`;
+    document.getElementById("tour-body").innerHTML = step.body;
+    // place card below or above
+    const below = rect.top < window.innerHeight - 280;
+    card.style.left = Math.max(16, Math.min(window.innerWidth-360, rect.left + rect.width/2 - 170)) + "px";
+    if(below){
+      card.style.top = (rect.bottom + 16) + "px";
+    } else {
+      card.style.top = (rect.top - 200) + "px";
+    }
+    document.getElementById("tour-next").textContent = (i === TOUR_STEPS.length - 1) ? "始める" : "次へ →";
+  }
+  function startTour(){
+    document.getElementById("tour-veil").classList.add("open");
+    tourStep = 0;
+    showTourStep(0);
+  }
+  function endTour(){
+    document.getElementById("tour-veil").classList.remove("open");
+    try { localStorage.setItem(TOUR_KEY, "1"); } catch(e){}
+  }
+  document.getElementById("tour-next").onclick = () => {
+    tourStep++;
+    if(tourStep >= TOUR_STEPS.length){ endTour(); return; }
+    showTourStep(tourStep);
+  };
+  document.getElementById("tour-skip").onclick = endTour;
+
+  // launch tour for new visitors (after a short delay so layout settles)
+  if(!localStorage.getItem(TOUR_KEY) && visited.size === 0){
+    setTimeout(startTour, 1200);
+  }
+
+  refreshLevelUI();
+  refreshHistBadge();
+  checkAchievements();
+  document.getElementById("loading").classList.add("hidden");
+})();
+</script>
+
+</body>
+</html>
