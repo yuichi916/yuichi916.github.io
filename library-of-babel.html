@@ -102,6 +102,32 @@ html,body{height:100%;margin:0;padding:0;
   background:linear-gradient(90deg,var(--amber),var(--amber-soft));
   transition:width .4s;}
 
+/* description in info */
+.info .desc{font-family:"Shippori Mincho",serif;font-size:12.5px;
+  line-height:1.75;color:var(--paper-dim);margin:10px 0 4px;
+  max-height:170px;overflow-y:auto;
+  padding:8px 10px;background:rgba(28,20,40,.45);
+  border-left:2px solid rgba(212,160,80,.3);border-radius:0 4px 4px 0;
+  display:none;}
+.info .desc.has{display:block;}
+.info .desc::-webkit-scrollbar{width:6px;}
+.info .desc::-webkit-scrollbar-thumb{background:rgba(212,160,80,.25);border-radius:3px;}
+
+/* external link buttons in info */
+.info-links{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px;}
+.info-links a{font-family:"Inter",sans-serif;font-size:11px;font-weight:600;
+  padding:5px 10px;border-radius:3px;text-decoration:none;letter-spacing:.04em;
+  border:1px solid rgba(212,160,80,.25);color:var(--paper-dim);
+  transition:all .15s;display:inline-flex;align-items:center;gap:4px;}
+.info-links a:hover{border-color:var(--amber);color:var(--amber);
+  background:rgba(212,160,80,.08);}
+.info-links a.amazon{border-color:#ff9900;color:#ff9900;}
+.info-links a.amazon:hover{background:rgba(255,153,0,.12);color:#ffb84d;}
+.info-links a.rakuten{border-color:#bf0000;color:#e25050;}
+.info-links a.rakuten:hover{background:rgba(191,0,0,.12);color:#ff6a6a;}
+.info-links a.ndl{border-color:#3a7bbf;color:#7ab0e0;}
+.info-links a.ndl:hover{background:rgba(58,123,191,.12);color:#a0c8ee;}
+
 /* favorite button inside info */
 .fav-btn{font-family:"Inter",sans-serif;font-size:13px;font-weight:700;
   padding:6px 14px;border-radius:4px;cursor:pointer;margin-top:8px;
@@ -425,6 +451,8 @@ html,body{height:100%;margin:0;padding:0;
   <div class="author" id="info-author">—</div>
   <div class="meta" id="info-meta"></div>
   <button class="fav-btn" id="fav-btn" title="お気に入りに追加/外す">☆ 書架に置く</button>
+  <p class="desc" id="info-desc"></p>
+  <div class="info-links" id="info-links"></div>
   <h3>同じ書架の本</h3>
   <div class="related" id="info-related"></div>
 </aside>
@@ -499,7 +527,7 @@ html,body{height:100%;margin:0;padding:0;
 </div>
 
 <script>
-const DATA_URL = "../data/babel.json";
+const DATA_URL = "data/babel.json";
 
 // ─── Local state (persisted) ─────────────────────────────────────────
 const STATE_KEY = "babel_universe_state_v1";
@@ -825,6 +853,14 @@ let currentNodeId = null;
   };
 
   // node interactions
+  function stripHtml(s){
+    if(!s) return "";
+    // remove tags + decode common entities, collapse whitespace
+    let t = String(s).replace(/<[^>]+>/g, " ");
+    t = t.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+         .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ");
+    return t.replace(/\s+/g, " ").trim();
+  }
   function showInfo(nodeId){
     const meta = g.getNodeAttribute(nodeId, "meta");
     document.getElementById("info-title").textContent = meta.label;
@@ -833,7 +869,47 @@ let currentNodeId = null;
     if(meta.publisher) metaBits.push(`<span>出版:</span> ${meta.publisher}`);
     if(meta.series) metaBits.push(`<span>シリーズ:</span> ${meta.series}${meta.series_index?` #${meta.series_index}`:""}`);
     if(meta.language) metaBits.push(`<span>言語:</span> ${meta.language}`);
+    if(meta.isbn) metaBits.push(`<span>ISBN:</span> ${meta.isbn}`);
+    if(meta.subjects && meta.subjects.length){
+      metaBits.push(`<span>主題:</span> ${meta.subjects.slice(0,4).join(" / ")}`);
+    }
     document.getElementById("info-meta").innerHTML = metaBits.join("<br>");
+
+    // description (sanitized)
+    const descEl = document.getElementById("info-desc");
+    const desc = stripHtml(meta.desc || "");
+    if(desc){
+      descEl.textContent = desc;
+      descEl.classList.add("has");
+    } else {
+      descEl.classList.remove("has");
+      descEl.textContent = "";
+    }
+
+    // external links
+    const linksEl = document.getElementById("info-links");
+    linksEl.innerHTML = "";
+    if(meta.amazon){
+      const a = document.createElement("a");
+      a.className = "amazon"; a.href = meta.amazon; a.target = "_blank";
+      a.rel = "noopener sponsored";
+      a.innerHTML = "🛒 Amazon で見る";
+      linksEl.appendChild(a);
+    }
+    if(meta.rakuten){
+      const a = document.createElement("a");
+      a.className = "rakuten"; a.href = meta.rakuten; a.target = "_blank";
+      a.rel = "noopener";
+      a.innerHTML = "📕 楽天ブックス";
+      linksEl.appendChild(a);
+    }
+    if(meta.ndl_url){
+      const a = document.createElement("a");
+      a.className = "ndl"; a.href = meta.ndl_url; a.target = "_blank";
+      a.rel = "noopener";
+      a.innerHTML = "🏛 国立国会図書館";
+      linksEl.appendChild(a);
+    }
     const cl = galaxies[meta.cluster];
     const clEl = document.getElementById("info-cluster");
     if(cl){
