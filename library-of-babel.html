@@ -1039,7 +1039,7 @@ let currentNodeId = null;
     currentNodeId = id;
     setNodeReducer();
     const disp = sigma.getNodeDisplayData(id);
-    sigma.getCamera().animate({x:disp.x, y:disp.y, ratio:0.45}, {duration:600});
+    sigma.getCamera().animate({x:disp.x, y:disp.y, ratio:0.6}, {duration:600});
     showInfo(id);
   }
 
@@ -1349,9 +1349,18 @@ let currentNodeId = null;
   };
   document.getElementById("tour-skip").onclick = endTour;
 
-  // launch tour for new visitors (after a short delay so layout settles)
+  // launch tour for new visitors — but only if they don't interact first.
+  // Earlier版では1.2秒固定で起動 → サイコロ等を押した直後にツアー veil が
+  // 被さって「背景が消える」現象になっていたため、最初の操作で予約破棄。
+  let tourTimer = null;
+  const cancelTourPlan = () => {
+    if(tourTimer){ clearTimeout(tourTimer); tourTimer = null; }
+  };
   if(!localStorage.getItem(TOUR_KEY) && visited.size === 0){
-    setTimeout(startTour, 1200);
+    tourTimer = setTimeout(() => { tourTimer = null; startTour(); }, 2500);
+    ["pointerdown", "wheel", "keydown"].forEach(ev => {
+      window.addEventListener(ev, cancelTourPlan, {once:true, capture:true});
+    });
   }
 
   refreshLevelUI();
