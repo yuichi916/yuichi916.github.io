@@ -105,6 +105,31 @@ html,body{height:100%;margin:0;padding:0;
   color:var(--ink-soft);font-size:12px;letter-spacing:.08em;}
 .stats b{color:var(--amber);font-weight:700;}
 
+/* density slider */
+.density{display:flex;align-items:center;gap:8px;
+  background:rgba(28,20,14,.55);border:1px solid rgba(216,178,112,.18);
+  border-radius:14px;padding:4px 12px;}
+.density .lab{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--ink-soft);font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;}
+.density input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:120px;height:4px;border-radius:2px;
+  background:linear-gradient(90deg, var(--ink-soft), var(--amber));
+  outline:none;cursor:pointer;}
+.density input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:14px;height:14px;border-radius:50%;
+  background:var(--amber-soft);border:1px solid var(--amber);
+  box-shadow:0 0 8px rgba(255,180,90,.6);cursor:pointer;}
+.density input[type=range]::-moz-range-thumb{
+  width:14px;height:14px;border-radius:50%;
+  background:var(--amber-soft);border:1px solid var(--amber);
+  box-shadow:0 0 8px rgba(255,180,90,.6);cursor:pointer;}
+.density .val{font-family:"Inter",sans-serif;font-variant-numeric:tabular-nums;
+  font-size:11px;color:var(--amber);font-weight:600;min-width:54px;
+  text-align:right;}
+
 /* level badge + score pill */
 .lv-badge{display:inline-flex;align-items:center;gap:6px;
   background:linear-gradient(135deg,rgba(122,42,58,.7),rgba(212,160,80,.3));
@@ -469,6 +494,11 @@ html,body{height:100%;margin:0;padding:0;
 <div class="bar">
   <div class="brand">バベルの図書館<span class="sub">Library of Babel · Books Universe</span></div>
   <div class="search"><input id="search" placeholder="本のタイトル or 著者で検索…" autocomplete="off"></div>
+  <div class="density" title="表示する本の数 (degree上位から)">
+    <span class="lab">密度</span>
+    <input id="density" type="range" min="200" max="100" step="50" value="2000">
+    <span class="val" id="density-val">—</span>
+  </div>
   <div class="stats"><b id="stat-nodes">—</b> 冊 · <b id="stat-edges">—</b> 関連 · <b id="stat-clusters">—</b> 銀河</div>
   <div class="lv-badge"><span class="lv-num" id="lv-num">1</span><span class="lv-title" id="lv-title">旅人</span></div>
   <div class="score-pill"><span class="pts" id="lv-pts">0</span> 点<span class="progress"><span id="lv-progress"></span></span></div>
@@ -691,17 +721,24 @@ function toast(html, kind="score"){
 let currentNodeId = null;
 
 (async function(){
-  const r = await fetch(DATA_URL);
-  if(!r.ok){
-    document.querySelector("#loading .sub").textContent = "babel.json が見つかりません (data/babel.json)";
+  let data;
+  try {
+    const r = await fetch(DATA_URL);
+    if(!r.ok){
+      throw new Error("HTTP " + r.status);
+    }
+    data = await r.json();
+  } catch(err) {
+    const sub = document.querySelector("#loading .sub");
+    if(sub) sub.textContent = "babel.json を読み込めませんでした: " + err.message;
+    console.error("babel.json load failed:", err);
     return;
   }
-  const data = await r.json();
   const g = new graphology.Graph({multi:false});
   data.nodes.forEach(n => {
     g.addNode(n.id, {
       x:n.x, y:n.y,
-      size:n.size||4,
+      size:n.size||1.6,
       color:n.color||"#a0a0a0",
       label:n.label,
       cluster:n.cluster,
@@ -713,16 +750,16 @@ let currentNodeId = null;
       const srcC = g.getNodeAttribute(e.src, "cluster");
       const dstC = g.getNodeAttribute(e.dst, "cluster");
       const sameCluster = srcC === dstC;
-      // intra-cluster: 金糸; inter: 銀糸
+      // intra-cluster: 金糸; inter: 銀糸 (29k規模では薄く)
       const a = sameCluster
-        ? (0.12 + (e.w||0.5) * 0.18).toFixed(3)
-        : (0.02 + (e.w||0.5) * 0.04).toFixed(3);
+        ? (0.06 + (e.w||0.5) * 0.10).toFixed(3)
+        : (0.012 + (e.w||0.5) * 0.020).toFixed(3);
       g.addEdge(e.src, e.dst, {
         weight: e.w, sameCluster,
         color: sameCluster
           ? `rgba(216,178,112,${a})`   // intra: 金糸 (gold thread)
           : `rgba(200,178,148,${a})`,  // inter: 銀糸 (silk thread)
-        size: sameCluster ? 0.7 : 0.35,
+        size: sameCluster ? 0.5 : 0.3,
       });
     }
   });
@@ -734,55 +771,104 @@ let currentNodeId = null;
   const container = document.getElementById("sigma-container");
   const sigma = new Sigma(g, container, {
     renderEdgeLabels:false,
-    labelDensity:0.03,
-    labelRenderedSizeThreshold:14,
+    labelDensity:0.02,
+    labelRenderedSizeThreshold:18,
     labelFont:'"Shippori Mincho",serif',
     labelColor:{color:"#e8dcb8"},
-    defaultEdgeColor:"rgba(212,160,80,0.05)",
-    minCameraRatio:0.04,
-    maxCameraRatio:4,
+    defaultEdgeColor:"rgba(212,160,80,0.04)",
+    minCameraRatio:0.03,
+    maxCameraRatio:6,
     zIndex:true,
   });
-  // start a bit zoomed out so we can see all galaxies
-  sigma.getCamera().setState({x:0.5, y:0.5, ratio:1.25});
+  // start zoomed out enough to see the whole library
+  sigma.getCamera().setState({x:0.5, y:0.5, ratio:2.2});
   window.SIGMA = sigma;
   window.G = g;
 
-  // ─── Level-of-Detail (LOD) for large corpora ──────────────────────
-  // 全冊を一気に描くと29k規模で重くなる。degree でスコアリング、
-  // ズーム比率に応じて表示閾値を動的に変える。
-  // 検索ヒット/お気に入り/訪問済みは常に表示。
+  // ─── Level-of-Detail (LOD) — slider-controlled ────────────────────
+  // クラスタ別に degree で rank し、スライダー値 displayCap を各クラスタへ
+  // 均等に割り振る。これで「高 degree が偏る中央クラスタ」だけが残って
+  // 中央が真っ白に光るのを防ぐ。
+  // 検索ヒット/お気に入り/訪問済み/現在選択は常に表示。
   const NODE_COUNT = g.order;
-  const TARGETS = {  // ズーム比率 → 表示ノード数
-    far: Math.min(NODE_COUNT, Math.max(600, Math.floor(NODE_COUNT * 0.06))),
-    mid: Math.min(NODE_COUNT, Math.max(2000, Math.floor(NODE_COUNT * 0.25))),
-    near: NODE_COUNT,
-  };
-  // pre-compute degree-based rank for each node
+  const clusterIds = new Set(g.nodes().map(n => g.getNodeAttribute(n, "cluster")));
+  const N_CLUSTERS = clusterIds.size;
+  // per-cluster ranking
+  const perClusterRank = new Map();
+  const clusterSize = new Map();
+  {
+    const byCluster = new Map();
+    g.nodes().forEach(n => {
+      const c = g.getNodeAttribute(n, "cluster");
+      if(!byCluster.has(c)) byCluster.set(c, []);
+      byCluster.get(c).push({id:n, deg:g.degree(n)});
+    });
+    byCluster.forEach((arr, c) => {
+      arr.sort((a,b) => b.deg - a.deg);
+      clusterSize.set(c, arr.length);
+      arr.forEach((r, i) => perClusterRank.set(r.id, i));
+    });
+  }
+  // global rank as a tie-breaker
   const rankList = g.nodes().map(n => ({id:n, deg:g.degree(n)}));
   rankList.sort((a,b)=>b.deg - a.deg);
   const nodeRank = new Map();
   rankList.forEach((r, i) => nodeRank.set(r.id, i));
 
+  // density slider (上限はノード数、初期は2000)
+  const dEl = document.getElementById("density");
+  const dValEl = document.getElementById("density-val");
+  dEl.min = Math.min(300, NODE_COUNT);
+  dEl.max = NODE_COUNT;
+  dEl.step = 50;
+  let displayCap = Math.min(2000, NODE_COUNT);
+  dEl.value = displayCap;
+
+  function formatCap(){
+    if(displayCap >= NODE_COUNT) return `全 ${NODE_COUNT.toLocaleString()}`;
+    return `${displayCap.toLocaleString()} 冊`;
+  }
   function setNodeReducer(){
-    // determine threshold by camera ratio
     const ratio = sigma.getCamera().getState().ratio;
-    let threshold;
-    if(ratio > 1.5) threshold = TARGETS.far;
-    else if(ratio > 0.55) threshold = TARGETS.mid;
-    else threshold = TARGETS.near;
+    const zoomBoost = ratio < 0.55 ? 3.0
+                     : ratio < 1.0 ? 1.7
+                     : 1.0;
+    const totalThreshold = Math.min(NODE_COUNT, Math.floor(displayCap * zoomBoost));
+    // per-cluster cap: 各クラスタの size に比例して配分するのではなく、
+    // 全クラスタに最低限を保証 + 残りを比例配分。
+    const minPerCluster = Math.max(4, Math.floor(totalThreshold * 0.4 / N_CLUSTERS));
+    const proportional = Math.max(0, totalThreshold - minPerCluster * N_CLUSTERS);
+    function isVisibleByCluster(node){
+      const c = g.getNodeAttribute(node, "cluster");
+      const r = perClusterRank.get(node) || 0;
+      const cSize = clusterSize.get(c) || 1;
+      const cap = minPerCluster + Math.ceil(proportional * (cSize / NODE_COUNT));
+      return r < cap;
+    }
     sigma.setSetting("nodeReducer", (node, attr) => {
-      const r = nodeRank.get(node);
       const forced = (visited && visited.has(node))
         || (favorites && favorites.has(node))
         || node === currentNodeId;
-      if (!forced && r >= threshold){
+      if (!forced && !isVisibleByCluster(node)){
         return { ...attr, hidden: true };
       }
       return attr;
     });
+    sigma.setSetting("edgeReducer", (edge, attr) => {
+      const [src, dst] = g.extremities(edge);
+      const sVis = visited.has(src) || favorites.has(src) || src === currentNodeId || isVisibleByCluster(src);
+      const dVis = visited.has(dst) || favorites.has(dst) || dst === currentNodeId || isVisibleByCluster(dst);
+      if(!sVis || !dVis) return { ...attr, hidden: true };
+      return attr;
+    });
+    dValEl.textContent = formatCap();
   }
   setNodeReducer();
+
+  dEl.addEventListener("input", () => {
+    displayCap = parseInt(dEl.value, 10);
+    setNodeReducer();
+  });
 
   // Debounce camera moves so LOD evaluation doesn't fire every frame
   let lodTimer = null;
@@ -1035,12 +1121,24 @@ let currentNodeId = null;
   }
 
   function focusNode(id){
-    // ensure target is visible even if LOD currently hides it
+    if(!g.hasNode(id)) return;
     currentNodeId = id;
+    // temporarily raise the cap so the neighbourhood surfaces
+    displayCap = Math.min(NODE_COUNT, Math.max(displayCap, 4000));
+    dEl.value = displayCap;
     setNodeReducer();
-    const disp = sigma.getNodeDisplayData(id);
-    sigma.getCamera().animate({x:disp.x, y:disp.y, ratio:0.6}, {duration:600});
-    showInfo(id);
+    // wait a frame so the target node is actually rendered before measuring
+    requestAnimationFrame(() => {
+      const disp = sigma.getNodeDisplayData(id);
+      if(disp){
+        sigma.getCamera().animate({x:disp.x, y:disp.y, ratio:0.5}, {duration:600});
+      } else {
+        // fallback: convert graph coordinates manually
+        const a = g.getNodeAttributes(id);
+        sigma.getCamera().animate({x:a.x, y:a.y, ratio:0.5}, {duration:600});
+      }
+      showInfo(id);
+    });
   }
 
   // favorite button binding
@@ -1070,21 +1168,92 @@ let currentNodeId = null;
     document.getElementById("info").classList.remove("open");
   };
 
-  // search
+  // ─── Search with debounced dropdown ──────────────────────────────
   const searchEl = document.getElementById("search");
-  searchEl.addEventListener("input", () => {
+  // ドロップダウン候補リスト
+  const searchPanel = document.createElement("div");
+  searchPanel.id = "search-panel";
+  searchPanel.style.cssText = "position:fixed;top:54px;left:50%;transform:translateX(-50%);"
+    + "width:min(420px, 90vw);max-height:60vh;overflow-y:auto;z-index:30;display:none;"
+    + "background:rgba(14,10,22,.97);border:1px solid var(--amber);"
+    + "border-radius:0 0 6px 6px;border-top:0;"
+    + "box-shadow:0 14px 28px rgba(0,0,0,.7);backdrop-filter:blur(10px);";
+  document.body.appendChild(searchPanel);
+
+  let searchTimer = null;
+  let imeComposing = false;
+  searchEl.addEventListener("compositionstart", () => { imeComposing = true; });
+  searchEl.addEventListener("compositionend", () => {
+    imeComposing = false;
+    if(searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(RUN_SEARCH, 80);
+  });
+  const RUN_SEARCH = () => {
     const q = searchEl.value.trim().toLowerCase();
-    if(!q){ return; }
-    let found = null;
+    if(!q){ searchPanel.style.display = "none"; return; }
+    const hits = [];
     g.forEachNode((id, attr) => {
-      if(found) return;
-      const meta = attr.meta;
-      if((meta.label || "").toLowerCase().includes(q) ||
-         (meta.author || "").toLowerCase().includes(q)){
-        found = id;
-      }
+      if(hits.length >= 30) return;
+      const m = attr.meta;
+      const hay = ((m.label||"") + " " + (m.author||"") + " " + (m.publisher||""))
+        .toLowerCase();
+      if(hay.includes(q)) hits.push({id, m});
     });
-    if(found) focusNode(found);
+    if(hits.length === 0){
+      searchPanel.innerHTML = '<div style="padding:14px;color:var(--ink-soft);'
+        + 'font-family:\'Shippori Mincho\',serif;font-size:13px;">該当する本はありません。</div>';
+      searchPanel.style.display = "block";
+      return;
+    }
+    searchPanel.innerHTML = "";
+    hits.forEach(({id, m}, idx) => {
+      const item = document.createElement("div");
+      item.style.cssText = "padding:9px 14px;cursor:pointer;"
+        + "border-bottom:1px solid rgba(212,160,80,.08);"
+        + "font-family:'Shippori Mincho',serif;color:var(--paper);"
+        + "transition:background .12s;";
+      item.onmouseenter = () => item.style.background = "rgba(122,42,58,.25)";
+      item.onmouseleave = () => item.style.background = "transparent";
+      const gal = galaxies[m.cluster];
+      item.innerHTML = `<div style="font-size:13.5px;font-weight:600;line-height:1.4;">${m.label}</div>`
+        + `<div style="font-size:11px;color:var(--paper-dim);margin-top:2px;">${m.author||""}`
+        + (gal ? ` · <span style="color:${gal.color}">${gal.name}</span>` : "")
+        + `</div>`;
+      item.onclick = () => {
+        searchPanel.style.display = "none";
+        searchEl.value = m.label;
+        focusNode(id);
+      };
+      searchPanel.appendChild(item);
+    });
+    searchPanel.style.display = "block";
+  };
+
+  searchEl.addEventListener("input", () => {
+    if(imeComposing) return;  // skip while composing
+    if(searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(RUN_SEARCH, 180);
+  });
+  searchEl.addEventListener("keydown", (e) => {
+    if(e.key === "Enter" && !e.isComposing && !imeComposing){
+      e.preventDefault();
+      if(searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
+      RUN_SEARCH();
+      // auto-jump to the first hit if any
+      const first = searchPanel.querySelector("div[style*='cursor:pointer']");
+      if(first) first.click();
+    } else if(e.key === "Escape"){
+      searchPanel.style.display = "none";
+      searchEl.blur();
+    }
+  });
+  searchEl.addEventListener("focus", () => {
+    if(searchEl.value.trim()) RUN_SEARCH();
+  });
+  document.addEventListener("click", (e) => {
+    if(!searchPanel.contains(e.target) && e.target !== searchEl){
+      searchPanel.style.display = "none";
+    }
   });
 
   // ─── Unknown-book projection (MVP fuzzy version) ─────────────────
@@ -1232,9 +1401,11 @@ let currentNodeId = null;
       document.getElementById("proj-modal").classList.remove("open");
     }
   };
-  // Enter key on title submits
+  // Enter key on title submits — IME-safe
   document.getElementById("proj-title").addEventListener("keydown", e=>{
-    if(e.key === "Enter") document.getElementById("proj-submit").click();
+    if(e.key === "Enter" && !e.isComposing){
+      document.getElementById("proj-submit").click();
+    }
   });
 
   // ─── Achievement modal ────────────────────────────────────────────
@@ -1253,13 +1424,16 @@ let currentNodeId = null;
     }
   };
 
-  // ─── Hub stars (top-degree nodes twinkle) ─────────────────────────
+  // ─── Hub stars (top-degree nodes twinkle, restrained at large scale) ──
   const hubLayer = document.getElementById("hub-layer");
   let hubStars = [];
   {
     const degrees = g.nodes().map(n => ({id:n, deg:g.degree(n)}));
     degrees.sort((a,b)=>b.deg-a.deg);
-    const TOP = Math.min(120, Math.ceil(degrees.length * 0.15));
+    // 29k規模では極めて控えめに。中央光の正体を抑制。
+    const TOP = NODE_COUNT > 3000
+      ? Math.min(18, Math.ceil(degrees.length * 0.0008))
+      : Math.min(50, Math.ceil(degrees.length * 0.12));
     const top = degrees.slice(0, TOP);
     for(const {id, deg} of top){
       const el = document.createElement("div");
@@ -1274,7 +1448,14 @@ let currentNodeId = null;
   }
   function refreshHubStars(){
     const rect = container.getBoundingClientRect();
+    const ratio = sigma.getCamera().getState().ratio;
+    // ズーム遠ではハブスターを非表示にして中央光を抑制
+    const showHubs = ratio < 1.4;
     for(const {id, el} of hubStars){
+      if(!showHubs){
+        el.style.display = "none";
+        continue;
+      }
       const a = g.getNodeAttributes(id);
       const v = sigma.graphToViewport({x:a.x, y:a.y});
       el.style.left = v.x + "px";
@@ -1348,6 +1529,16 @@ let currentNodeId = null;
     showTourStep(tourStep);
   };
   document.getElementById("tour-skip").onclick = endTour;
+  // ESC or click on veil exits the tour (so it never sticks)
+  document.addEventListener("keydown", (e) => {
+    if(e.key === "Escape" && document.getElementById("tour-veil").classList.contains("open")){
+      endTour();
+    }
+  });
+  document.getElementById("tour-veil").addEventListener("click", (e) => {
+    // clicks on the card shouldn't dismiss
+    if(e.target.id === "tour-veil") endTour();
+  });
 
   // launch tour for new visitors — but only if they don't interact first.
   // Earlier版では1.2秒固定で起動 → サイコロ等を押した直後にツアー veil が
