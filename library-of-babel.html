@@ -452,8 +452,20 @@ html,body{height:100%;margin:0;padding:0;
 /* ─── Canvas ─── */
 #sigma-container{position:fixed;inset:54px 0 0 0;z-index:1;}
 
-/* ─── Galaxy labels — 書架の名札風 ─── */
-.galaxy-label{position:absolute;pointer-events:none;
+/* ─── Breadcrumb — 現在地 ─── */
+.breadcrumb{display:flex;align-items:center;gap:6px;
+  font-family:"Shippori Mincho",serif;font-size:12.5px;
+  color:var(--paper-dim);letter-spacing:.06em;flex-shrink:0;
+  max-width:38vw;overflow:hidden;white-space:nowrap;}
+.breadcrumb .crumb{cursor:pointer;color:var(--paper-dim);
+  padding:3px 9px;border-radius:3px;transition:all .15s;}
+.breadcrumb .crumb:hover{background:rgba(212,160,80,.12);color:var(--paper);}
+.breadcrumb .crumb.current{color:var(--amber);font-weight:700;cursor:default;}
+.breadcrumb .crumb.current:hover{background:transparent;}
+.breadcrumb .sep{color:var(--ink-soft);font-size:11px;}
+
+/* ─── Galaxy labels — 書架の名札風 (clickable) ─── */
+.galaxy-label{position:absolute;pointer-events:auto;cursor:pointer;
   padding:7px 16px 6px;
   background:linear-gradient(180deg, rgba(36,22,12,.96), rgba(22,14,6,.96));
   border:1px solid var(--gold-leaf);
@@ -476,6 +488,37 @@ html,body{height:100%;margin:0;padding:0;
 .galaxy-label .gl-sub{display:block;font-family:"Cormorant Garamond",serif;
   font-style:italic;font-weight:400;color:var(--gold-leaf);
   font-size:10px;letter-spacing:.18em;margin-top:1px;text-transform:uppercase;}
+.galaxy-label .gl-count{display:block;font-family:"Inter",sans-serif;
+  font-weight:600;color:var(--amber);font-size:10.5px;margin-top:2px;
+  letter-spacing:.04em;}
+.galaxy-label:hover{transform:translate(-50%,-50%) scale(1.05);
+  box-shadow:inset 0 0 12px rgba(216,178,112,.32),
+             0 8px 20px rgba(0,0,0,.7),
+             0 0 18px rgba(216,178,112,.4);}
+.galaxy-label.active{border-color:var(--amber-soft);
+  box-shadow:inset 0 0 14px rgba(255,217,112,.4),
+             0 0 28px rgba(255,217,112,.55);}
+
+/* Selected book "you are here" pulsing ring */
+.selected-ring{position:fixed;pointer-events:none;z-index:8;
+  width:60px;height:60px;border-radius:50%;
+  border:2.5px solid var(--amber);
+  box-shadow:0 0 18px rgba(255,180,90,.7),
+             inset 0 0 14px rgba(255,180,90,.35);
+  transform:translate(-50%,-50%);
+  animation:selRing 2.2s ease-in-out infinite;display:none;}
+.selected-ring.active{display:block;}
+@keyframes selRing{
+  0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.95}
+  50%{transform:translate(-50%,-50%) scale(1.25);opacity:.55}
+}
+
+/* Galaxy center disk — subtle hint glow only, label is the click target */
+.gal-center{position:absolute;pointer-events:none;
+  border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,
+    rgba(255,217,112,.10), transparent 60%);
+  transform:translate(-50%,-50%);transition:all .25s;}
 
 /* ─── Info panel ─── */
 .info{position:fixed;left:18px;bottom:18px;z-index:9;width:360px;
@@ -561,7 +604,10 @@ html,body{height:100%;margin:0;padding:0;
     <input id="density" type="range" min="200" max="100" step="50" value="2000">
     <span class="val" id="density-val">—</span>
   </div>
-  <div class="stats"><b id="stat-nodes">—</b> 冊 · <b id="stat-edges">—</b> 関連 · <b id="stat-clusters">—</b> 銀河</div>
+  <nav class="breadcrumb" id="breadcrumb">
+    <span class="crumb" data-level="overview">🏛 図書館</span>
+  </nav>
+  <div class="stats"><b id="stat-nodes">—</b> 冊 · <b id="stat-clusters">—</b> 書架</div>
   <div class="lv-badge"><span class="lv-num" id="lv-num">1</span><span class="lv-title" id="lv-title">旅人</span></div>
   <div class="score-pill"><span class="pts" id="lv-pts">0</span> 点<span class="progress"><span id="lv-progress"></span></span></div>
 </div>
@@ -837,7 +883,6 @@ let currentNodeId = null;
   });
 
   document.getElementById("stat-nodes").textContent = data.stats.n_nodes.toLocaleString();
-  document.getElementById("stat-edges").textContent = data.stats.n_edges.toLocaleString();
   document.getElementById("stat-clusters").textContent = data.stats.n_clusters.toLocaleString();
 
   const container = document.getElementById("sigma-container");
@@ -900,40 +945,114 @@ let currentNodeId = null;
     if(displayCap >= NODE_COUNT) return `全 ${NODE_COUNT.toLocaleString()}`;
     return `${displayCap.toLocaleString()} 冊`;
   }
+  // ─── View hierarchy: overview → galaxy → book ────────────────────
+  // 情報密度を3段階に抑える。デフォルトは銀河ラベルだけ、銀河を選ぶと
+  // その書架の本が現れ、本を選ぶと「その本と直接つながる本」だけが残る。
+  let viewLevel = "overview";   // overview | galaxy | book
+  let selectedGalaxy = null;    // cluster id for galaxy mode
+  let neighborSet = new Set();  // current book + neighbours for book mode
+
+  function setViewLevel(level, anchor){
+    viewLevel = level;
+    if(level === "galaxy"){
+      selectedGalaxy = anchor;
+      neighborSet.clear();
+    } else if(level === "book"){
+      neighborSet.clear();
+      neighborSet.add(anchor);
+      g.forEachNeighbor(anchor, n => neighborSet.add(n));
+      // 2-hop は重いので 1-hop のみ
+    } else {
+      selectedGalaxy = null;
+      neighborSet.clear();
+    }
+    updateBreadcrumb();
+    setNodeReducer();
+    updateGalaxyLabelStates();
+    refreshGalCenters();
+  }
+
   function setNodeReducer(){
-    const ratio = sigma.getCamera().getState().ratio;
-    const zoomBoost = ratio < 0.55 ? 3.0
-                     : ratio < 1.0 ? 1.7
-                     : 1.0;
-    const totalThreshold = Math.min(NODE_COUNT, Math.floor(displayCap * zoomBoost));
-    // per-cluster cap: 各クラスタの size に比例して配分するのではなく、
-    // 全クラスタに最低限を保証 + 残りを比例配分。
+    const totalThreshold = Math.min(NODE_COUNT, displayCap);
     const minPerCluster = Math.max(4, Math.floor(totalThreshold * 0.4 / N_CLUSTERS));
     const proportional = Math.max(0, totalThreshold - minPerCluster * N_CLUSTERS);
-    function isVisibleByCluster(node){
+    function isVisibleByLOD(node){
       const c = g.getNodeAttribute(node, "cluster");
       const r = perClusterRank.get(node) || 0;
       const cSize = clusterSize.get(c) || 1;
       const cap = minPerCluster + Math.ceil(proportional * (cSize / NODE_COUNT));
       return r < cap;
     }
-    sigma.setSetting("nodeReducer", (node, attr) => {
-      const forced = (visited && visited.has(node))
-        || (favorites && favorites.has(node))
-        || node === currentNodeId;
-      if (!forced && !isVisibleByCluster(node)){
-        return { ...attr, hidden: true };
+    function isVisibleByContext(node){
+      const forced = visited.has(node) || favorites.has(node) || node === currentNodeId;
+      if(forced) return true;
+      if(viewLevel === "overview"){
+        return false;  // 個別の本は隠す。銀河ラベル/中心円だけが残る。
+      } else if(viewLevel === "galaxy"){
+        const c = g.getNodeAttribute(node, "cluster");
+        if(c !== selectedGalaxy) return false;
+        return isVisibleByLOD(node);
+      } else {  // book
+        return neighborSet.has(node);
       }
+    }
+    sigma.setSetting("nodeReducer", (node, attr) => {
+      if(!isVisibleByContext(node)) return { ...attr, hidden: true };
+      // 強調: 選択中の本は size 3倍、近隣は1.5倍
+      if(node === currentNodeId) return { ...attr, size: (attr.size||1.6) * 2.5, zIndex: 10 };
+      if(viewLevel === "book" && neighborSet.has(node)) return { ...attr, size: (attr.size||1.6) * 1.4, zIndex: 5 };
       return attr;
     });
     sigma.setSetting("edgeReducer", (edge, attr) => {
       const [src, dst] = g.extremities(edge);
-      const sVis = visited.has(src) || favorites.has(src) || src === currentNodeId || isVisibleByCluster(src);
-      const dVis = visited.has(dst) || favorites.has(dst) || dst === currentNodeId || isVisibleByCluster(dst);
+      const sVis = isVisibleByContext(src);
+      const dVis = isVisibleByContext(dst);
       if(!sVis || !dVis) return { ...attr, hidden: true };
+      // book モードでは選択ノードに繋がる線を強調
+      if(viewLevel === "book" && (src === currentNodeId || dst === currentNodeId)){
+        return { ...attr, color: "rgba(255,217,112,0.6)", size: 1.2 };
+      }
       return attr;
     });
     dValEl.textContent = formatCap();
+  }
+
+  // breadcrumb
+  function updateBreadcrumb(){
+    const bc = document.getElementById("breadcrumb");
+    bc.innerHTML = "";
+    const mk = (label, level, anchor, current) => {
+      const el = document.createElement("span");
+      el.className = "crumb" + (current ? " current" : "");
+      el.textContent = label;
+      if(!current){
+        el.onclick = () => {
+          if(level === "overview") setViewLevel("overview");
+          else if(level === "galaxy") setViewLevel("galaxy", anchor);
+        };
+      }
+      return el;
+    };
+    const sep = () => {
+      const s = document.createElement("span");
+      s.className = "sep"; s.textContent = "›";
+      return s;
+    };
+    bc.appendChild(mk("🏛 図書館", "overview", null, viewLevel === "overview"));
+    if(viewLevel === "galaxy" || viewLevel === "book"){
+      bc.appendChild(sep());
+      const gid = viewLevel === "galaxy" ? selectedGalaxy
+                : g.getNodeAttribute(currentNodeId, "cluster");
+      const ginfo = galaxies[gid];
+      const galLabel = ginfo ? ginfo.name : "?";
+      bc.appendChild(mk(galLabel, "galaxy", gid, viewLevel === "galaxy"));
+    }
+    if(viewLevel === "book" && currentNodeId){
+      bc.appendChild(sep());
+      const m = g.getNodeAttribute(currentNodeId, "meta");
+      const label = m.label.length > 22 ? m.label.slice(0, 20) + "…" : m.label;
+      bc.appendChild(mk(label, "book", currentNodeId, true));
+    }
   }
   setNodeReducer();
 
@@ -949,33 +1068,108 @@ let currentNodeId = null;
     lodTimer = setTimeout(setNodeReducer, 80);
   });
 
-  // galaxy labels
+  // galaxy labels + clickable centre disks
   const layer = document.getElementById("galaxy-labels-layer");
+  layer.style.pointerEvents = "none";  // children individually opt in
   const galaxies = data.clusters;
   for(const [tid, info] of Object.entries(galaxies)){
+    // clickable disk (visible mainly in overview)
+    const disk = document.createElement("div");
+    disk.className = "gal-center";
+    disk.dataset.tid = tid;
+    disk.style.background =
+      `radial-gradient(circle at 40% 35%, ${info.color}33, ${info.color}10 55%, transparent 78%)`;
+    disk.style.borderColor = info.color + "66";
+    disk.onclick = () => setViewLevel("galaxy", parseInt(tid, 10));
+    layer.appendChild(disk);
+    // brass plate label
     const el = document.createElement("div");
     el.className = "galaxy-label";
     el.dataset.tid = tid;
-    el.innerHTML = info.name + (info.subtitle? '<span class="gl-sub">'+info.subtitle+'</span>' : "");
+    el.innerHTML = `${info.name}` +
+      (info.subtitle ? `<span class="gl-sub">${info.subtitle}</span>` : "") +
+      `<span class="gl-count">${info.count} 冊</span>`;
     el.style.color = info.color;
+    el.onclick = () => setViewLevel("galaxy", parseInt(tid, 10));
     layer.appendChild(el);
   }
+
   function updateGalaxyLabels(){
     const cam = sigma.getCamera();
     const ratio = cam.getState().ratio;
-    const rect = container.getBoundingClientRect();
     for(const [tid, info] of Object.entries(galaxies)){
-      const el = layer.querySelector(`[data-tid="${tid}"]`);
+      const el = layer.querySelector(`.galaxy-label[data-tid="${tid}"]`);
       if(!el) continue;
       const v = sigma.graphToViewport({x:info.cx, y:info.cy});
-      el.style.left = (v.x) + "px";
-      el.style.top = (v.y) + "px";
-      el.style.fontSize = Math.min(22, Math.max(10, 14 / Math.sqrt(ratio))) + "px";
-      el.style.opacity = ratio < 2.5 ? "0.95" : "0";
+      el.style.left = v.x + "px";
+      el.style.top = v.y + "px";
+      // ラベルはoverviewのみフル表示。galaxyモードでは選択中のみ太字。
+      if(viewLevel === "overview"){
+        el.style.fontSize = Math.min(20, Math.max(11, 13 / Math.sqrt(ratio))) + "px";
+        el.style.opacity = ratio < 3.5 ? "0.95" : "0";
+      } else if(viewLevel === "galaxy" && parseInt(tid, 10) === selectedGalaxy){
+        el.style.fontSize = Math.min(22, Math.max(12, 14 / Math.sqrt(ratio))) + "px";
+        el.style.opacity = "1";
+      } else {
+        el.style.fontSize = Math.min(14, Math.max(9, 10 / Math.sqrt(ratio))) + "px";
+        el.style.opacity = "0.45";
+      }
     }
   }
-  sigma.on("afterRender", updateGalaxyLabels);
+  function refreshGalCenters(){
+    // 装飾的なグロー (小さめ)。クリックは galaxy-label に任せる。
+    for(const [tid, info] of Object.entries(galaxies)){
+      const disk = layer.querySelector(`.gal-center[data-tid="${tid}"]`);
+      if(!disk) continue;
+      const v = sigma.graphToViewport({x:info.cx, y:info.cy});
+      const ratio = sigma.getCamera().getState().ratio;
+      const r = Math.max(16, Math.min(60, 50 / Math.sqrt(ratio)));
+      disk.style.left = v.x + "px";
+      disk.style.top = v.y + "px";
+      disk.style.width = (r * 2) + "px";
+      disk.style.height = (r * 2) + "px";
+      disk.style.display = viewLevel === "overview" ? "block" : "none";
+    }
+  }
+  function updateGalaxyLabelStates(){
+    const labels = layer.querySelectorAll(".galaxy-label");
+    labels.forEach(el => {
+      const tid = parseInt(el.dataset.tid, 10);
+      el.classList.toggle("active",
+        (viewLevel === "galaxy" && tid === selectedGalaxy) ||
+        (viewLevel === "book" && currentNodeId &&
+         g.getNodeAttribute(currentNodeId, "cluster") === tid));
+    });
+  }
+  sigma.on("afterRender", () => {
+    updateGalaxyLabels();
+    refreshGalCenters();
+    updateSelectedRing();
+  });
   updateGalaxyLabels();
+  refreshGalCenters();
+
+  // ─── Selected book "you are here" ring ────────────────────────────
+  const selRing = document.createElement("div");
+  selRing.className = "selected-ring";
+  selRing.id = "selected-ring";
+  document.body.appendChild(selRing);
+  function updateSelectedRing(){
+    if(!currentNodeId || viewLevel !== "book"){
+      selRing.classList.remove("active");
+      return;
+    }
+    if(!g.hasNode(currentNodeId)){
+      selRing.classList.remove("active");
+      return;
+    }
+    const a = g.getNodeAttributes(currentNodeId);
+    const v = sigma.graphToViewport({x: a.x, y: a.y});
+    const rect = container.getBoundingClientRect();
+    selRing.style.left = (rect.left + v.x) + "px";
+    selRing.style.top = (rect.top + v.y) + "px";
+    selRing.classList.add("active");
+  }
 
   // ─── Recommendations from favorites ───────────────────────────────
   function getRecommendations(limit=20){
@@ -1195,22 +1389,23 @@ let currentNodeId = null;
   function focusNode(id){
     if(!g.hasNode(id)) return;
     currentNodeId = id;
-    // temporarily raise the cap so the neighbourhood surfaces
-    displayCap = Math.min(NODE_COUNT, Math.max(displayCap, 4000));
-    dEl.value = displayCap;
-    setNodeReducer();
-    // wait a frame so the target node is actually rendered before measuring
+    setViewLevel("book", id);
     requestAnimationFrame(() => {
       const disp = sigma.getNodeDisplayData(id);
       if(disp){
-        sigma.getCamera().animate({x:disp.x, y:disp.y, ratio:0.5}, {duration:600});
+        sigma.getCamera().animate({x:disp.x, y:disp.y, ratio:0.35}, {duration:700});
       } else {
-        // fallback: convert graph coordinates manually
         const a = g.getNodeAttributes(id);
-        sigma.getCamera().animate({x:a.x, y:a.y, ratio:0.5}, {duration:600});
+        sigma.getCamera().animate({x:a.x, y:a.y, ratio:0.35}, {duration:700});
       }
       showInfo(id);
     });
+  }
+  function focusGalaxy(tid){
+    setViewLevel("galaxy", tid);
+    const info = galaxies[tid];
+    if(!info) return;
+    sigma.getCamera().animate({x:info.cx, y:info.cy, ratio:0.8}, {duration:700});
   }
 
   // favorite button binding
@@ -1236,7 +1431,8 @@ let currentNodeId = null;
     focusNode(pick);
   };
   document.getElementById("recenter").onclick = () => {
-    sigma.getCamera().animate({x:0.5, y:0.5, ratio:1.0}, {duration:500});
+    setViewLevel("overview");
+    sigma.getCamera().animate({x:0.5, y:0.5, ratio:2.2}, {duration:700});
     document.getElementById("info").classList.remove("open");
   };
 
@@ -1369,7 +1565,7 @@ let currentNodeId = null;
       item.onclick = () => {
         searchPanel.style.display = "none";
         searchEl.value = "";
-        focusNode(anchorId);
+        focusGalaxy(parseInt(tid, 10));
       };
       searchPanel.appendChild(item);
     });
@@ -1691,16 +1887,13 @@ let currentNodeId = null;
     }
   };
 
-  // ─── Hub stars (top-degree nodes twinkle, restrained at large scale) ──
+  // ─── Hub stars — 大規模では描画自体しない (UX 簡素化) ───────────
   const hubLayer = document.getElementById("hub-layer");
   let hubStars = [];
-  {
+  if(NODE_COUNT <= 1500) {
     const degrees = g.nodes().map(n => ({id:n, deg:g.degree(n)}));
     degrees.sort((a,b)=>b.deg-a.deg);
-    // 29k規模では極めて控えめに。中央光の正体を抑制。
-    const TOP = NODE_COUNT > 3000
-      ? Math.min(18, Math.ceil(degrees.length * 0.0008))
-      : Math.min(50, Math.ceil(degrees.length * 0.12));
+    const TOP = Math.min(40, Math.ceil(degrees.length * 0.08));
     const top = degrees.slice(0, TOP);
     for(const {id, deg} of top){
       const el = document.createElement("div");
@@ -1712,7 +1905,7 @@ let currentNodeId = null;
       hubLayer.appendChild(el);
       hubStars.push({id, el});
     }
-  }
+  }  // end if NODE_COUNT <= 1500
   function refreshHubStars(){
     const rect = container.getBoundingClientRect();
     const ratio = sigma.getCamera().getState().ratio;
@@ -1736,6 +1929,9 @@ let currentNodeId = null;
   }
   sigma.on("afterRender", refreshHubStars);
   refreshHubStars();
+  // ensure we start in overview mode
+  setViewLevel("overview");
+  sigma.getCamera().setState({x:0.5, y:0.5, ratio:2.5});
 
   // ─── Guided tour (first-visit) ────────────────────────────────────
   const TOUR_KEY = "babel_tour_seen_v1";
