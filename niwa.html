@@ -3050,20 +3050,162 @@ function buildObservatory(group){
 }
 
 // ─── Decorative trees / bushes / lanterns ─────────────────────────
+// Cached geometries / materials for tree variety (created lazily)
+const TREE_CACHE = { trunks: {}, foliage: {} };
+function getTreeAssets(kind){
+  // kind: cedar / maple / sakura / pine / momiji / bamboo
+  if (TREE_CACHE.trunks[kind]) return TREE_CACHE.trunks[kind];
+  const palette = {
+    cedar:  { trunk: 0x5d4128, foliage: 0x355c34, shape: 'cone'      },
+    maple:  { trunk: 0x6d4830, foliage: 0xb05c20, shape: 'spheres'   },
+    sakura: { trunk: 0x755236, foliage: 0xf2b8c8, shape: 'spheres'   },
+    pine:   { trunk: 0x4c3a24, foliage: 0x2c4a26, shape: 'cone'      },
+    momiji: { trunk: 0x6a4626, foliage: 0xc54632, shape: 'spheres'   },
+    bamboo: { trunk: 0xc0b06a, foliage: 0x6ea850, shape: 'thin'      },
+    willow: { trunk: 0x5a4630, foliage: 0xa5b860, shape: 'cascade'   },
+  }[kind] || { trunk: 0x6d4830, foliage: 0x5d8a48, shape: 'spheres' };
+  TREE_CACHE.trunks[kind] = palette;
+  return palette;
+}
+
 function createTree(x, z){
-  const idx = Math.floor(hash(x, z, 1) * TEX.trees.length);
-  const treeMat = new THREE.SpriteMaterial({
-    map: TEX.trees[idx],
-    transparent: true,
-    depthWrite: false,
-  });
-  const sprite = new THREE.Sprite(treeMat);
-  const scale = 5.5 + hash(x, z, 2) * 2.5;
-  sprite.scale.set(scale * 0.667, scale, 1);
+  // pick a species probabilistically based on position hash for natural variation
+  const h = hash(x, z, 1);
+  let kind;
+  if (h < 0.30) kind = 'cedar';
+  else if (h < 0.50) kind = 'pine';
+  else if (h < 0.66) kind = 'maple';
+  else if (h < 0.78) kind = 'momiji';
+  else if (h < 0.88) kind = 'sakura';
+  else if (h < 0.95) kind = 'willow';
+  else kind = 'bamboo';
+
+  const pal = getTreeAssets(kind);
+  const g = new THREE.Group();
+
+  // global scale based on position for variety
+  const baseScale = 0.9 + hash(x, z, 2) * 0.7;
+  const tall = (kind === 'cedar' || kind === 'pine' || kind === 'bamboo') ? 1.5 : 1.0;
+
+  if (kind === 'bamboo') {
+    // bamboo grove: 3-5 thin canes per spot
+    const n = 3 + Math.floor(hash(x, z, 5) * 3);
+    for (let i = 0; i < n; i++) {
+      const ox = (hash(x, z, 11+i) - 0.5) * 0.8;
+      const oz = (hash(x, z, 33+i) - 0.5) * 0.8;
+      const height = 4.5 + hash(x, z, 51+i) * 2.0;
+      const cane = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.07, height, 6),
+        new THREE.MeshLambertMaterial({ color: pal.trunk })
+      );
+      cane.position.set(ox, height/2, oz);
+      cane.castShadow = true; cane.receiveShadow = true;
+      g.add(cane);
+      // leaf tuft at top
+      const tuft = new THREE.Mesh(
+        new THREE.SphereGeometry(0.55, 8, 6),
+        new THREE.MeshLambertMaterial({ color: pal.foliage })
+      );
+      tuft.position.set(ox, height + 0.15, oz);
+      tuft.scale.set(1.4, 0.8, 1.4);
+      tuft.castShadow = true;
+      tuft.userData.isLeaf = true;
+      g.add(tuft);
+    }
+  } else if (kind === 'willow') {
+    // willow: cascading droopy branches
+    const trunkH = 3.4 * baseScale;
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.20, 0.28, trunkH, 8),
+      new THREE.MeshLambertMaterial({ color: pal.trunk })
+    );
+    trunk.position.y = trunkH / 2;
+    trunk.castShadow = true; trunk.receiveShadow = true;
+    g.add(trunk);
+    const top = new THREE.Mesh(
+      new THREE.SphereGeometry(1.5 * baseScale, 12, 8),
+      new THREE.MeshLambertMaterial({ color: pal.foliage })
+    );
+    top.position.y = trunkH + 0.6 * baseScale;
+    top.scale.y = 1.2;
+    top.castShadow = true;
+    top.userData.isLeaf = true;
+    g.add(top);
+    // cascading droops
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const droop = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.07, 0.12, 1.6 * baseScale, 6),
+        new THREE.MeshLambertMaterial({ color: pal.foliage })
+      );
+      droop.position.set(Math.cos(a) * 1.0 * baseScale, trunkH + 0.2, Math.sin(a) * 1.0 * baseScale);
+      droop.rotation.z = Math.cos(a) * 0.5;
+      droop.rotation.x = Math.sin(a) * 0.5;
+      droop.userData.isLeaf = true;
+      g.add(droop);
+    }
+  } else if (pal.shape === 'cone') {
+    // conical conifer (cedar/pine): trunk + stacked cones
+    const trunkH = 3.0 * baseScale * tall;
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.28, trunkH, 7),
+      new THREE.MeshLambertMaterial({ color: pal.trunk })
+    );
+    trunk.position.y = trunkH / 2;
+    trunk.castShadow = true; trunk.receiveShadow = true;
+    g.add(trunk);
+    const layers = 4;
+    for (let i = 0; i < layers; i++) {
+      const t = i / layers;
+      const layerR = (1.4 - t * 0.9) * baseScale;
+      const layerH = 1.5 * baseScale;
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(layerR, layerH, 7),
+        new THREE.MeshLambertMaterial({ color: pal.foliage })
+      );
+      cone.position.y = trunkH * 0.5 + i * layerH * 0.6 + layerH / 2;
+      cone.castShadow = true;
+      cone.userData.isLeaf = true;
+      g.add(cone);
+    }
+  } else {
+    // deciduous sphere-clustered (maple/sakura/momiji)
+    const trunkH = 2.4 * baseScale;
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.26, trunkH, 7),
+      new THREE.MeshLambertMaterial({ color: pal.trunk })
+    );
+    trunk.position.y = trunkH / 2;
+    trunk.castShadow = true; trunk.receiveShadow = true;
+    g.add(trunk);
+    const foliageMat = new THREE.MeshLambertMaterial({ color: pal.foliage });
+    const blobs = 5;
+    for (let i = 0; i < blobs; i++) {
+      const r = (1.2 - i * 0.07) * baseScale;
+      const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), foliageMat);
+      const angle = (i / blobs) * Math.PI * 2;
+      const ring = 0.4 * baseScale;
+      blob.position.set(Math.cos(angle) * ring, trunkH + 0.3 * baseScale + (hash(x, z, 70+i) - 0.5) * 0.4, Math.sin(angle) * ring);
+      blob.castShadow = true;
+      blob.userData.isLeaf = true;
+      g.add(blob);
+    }
+    // crown
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(1.05 * baseScale, 10, 8), foliageMat);
+    crown.position.y = trunkH + 1.2 * baseScale;
+    crown.castShadow = true; crown.userData.isLeaf = true;
+    g.add(crown);
+  }
+
   const ty = getTerrainHeight(x, z);
-  sprite.position.set(x, ty + scale / 2, z);
-  if(hash(x, z, 11) > 0.5) sprite.scale.x *= -1;
-  scene.add(sprite);
+  g.position.set(x, ty, z);
+  g.rotation.y = hash(x, z, 99) * Math.PI * 2;
+  g.userData.windPhase = hash(x, z, 88) * Math.PI * 2;
+  g.userData.windAmp = (kind === 'bamboo' || kind === 'willow') ? 0.06 : 0.025;
+  g.userData.isWindObj = true;
+  scene.add(g);
+  if (!window.__windObjs) window.__windObjs = [];
+  window.__windObjs.push(g);
 }
 
 function createBush(x, z){
@@ -3460,6 +3602,12 @@ function animate(){
   updatePetals(dt, t);
   updateSmoke(dt, t);
   updateFireflies(dt, t);
+  // v4 env upgrades
+  if (typeof updateButterflies === 'function') updateButterflies(dt, t);
+  if (typeof updateSmallBirds === 'function') updateSmallBirds(dt, t);
+  if (typeof updateKois === 'function') updateKois(dt, t);
+  if (typeof updateLightRays === 'function') updateLightRays(t);
+  if (typeof updateWindObjs === 'function') updateWindObjs(dt, t);
   if (composer) composer.render(dt);
   else renderer.render(scene, camera);
 }
@@ -3477,7 +3625,7 @@ window.addEventListener('resize', () => {
 // Game layer (v3): KOKORO score, day/night, particles, GLB, BGM
 // ─────────────────────────────────────────────────────────────────
 function setupGameLayer() {
-  // 1) Load Blender village kit (Pagoda + sourin rings + Torii + others)
+  // 1) Load Blender village kit
   loadVillageKit().then(() => placeGlbHighlights()).catch(()=>{});
   // 2) Build particle systems
   buildPetals();
@@ -3491,6 +3639,18 @@ function setupGameLayer() {
   });
   const bgm = document.getElementById('bgm-toggle');
   if (bgm) bgm.addEventListener('click', () => toggleBgm());
+  // 4) Commercial-quality environment upgrades (v4)
+  enhanceGroundDetail();
+  growGrassInstances();
+  buildMountainTrail();
+  buildLookoutTower();
+  buildRockTerraces();
+  buildPagodaSteps();
+  buildHillsidePavilion();
+  buildButterflies();
+  buildSmallBirds();
+  buildKoiPond();
+  buildLightRays();
   // initial UI sync
   updateKokoroUI();
 }
@@ -4023,6 +4183,613 @@ function stopBgm() {
   }
   bgmNodes = [];
   if (bgmGain) { try { bgmGain.disconnect(); } catch(e){} bgmGain = null; }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// v4: Commercial-game-level environment upgrades
+// (richer ground / grass instances / multi-tier Z movement / wildlife)
+// ═════════════════════════════════════════════════════════════════
+
+// ─── Ground detail overlay: add moss / dirt patches via tiles ─────
+function enhanceGroundDetail() {
+  // Sprinkle subtle moss, stone, and dirt circles to break uniform grass
+  const overlay = new THREE.Group();
+  const patches = [
+    { tone: 0x6f5e3a, n: 60, r: [1.0, 2.5], dist: [10, 45] }, // dirt
+    { tone: 0x5a7050, n: 40, r: [0.7, 1.8], dist: [12, 40] }, // moss
+    { tone: 0x9a958c, n: 24, r: [0.6, 1.4], dist: [14, 38] }, // small stone
+  ];
+  for (const p of patches) {
+    for (let i = 0; i < p.n; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = p.dist[0] + Math.random() * (p.dist[1] - p.dist[0]);
+      const px = Math.cos(angle) * dist;
+      const pz = Math.sin(angle) * dist;
+      if (!notTooCloseToPlaces(px, pz, 2.5)) continue;
+      if (!notInLake(px, pz)) continue;
+      const rad = p.r[0] + Math.random() * (p.r[1] - p.r[0]);
+      const geom = new THREE.CircleGeometry(rad, 10);
+      const col = new THREE.Color(p.tone);
+      col.offsetHSL((Math.random()-0.5)*0.04, -0.05, (Math.random()-0.5)*0.08);
+      const mat = new THREE.MeshLambertMaterial({ color: col, transparent: true, opacity: 0.85 });
+      const m = new THREE.Mesh(geom, mat);
+      m.rotation.x = -Math.PI/2;
+      m.position.set(px, getTerrainHeight(px, pz) + 0.025, pz);
+      m.receiveShadow = true;
+      overlay.add(m);
+    }
+  }
+  scene.add(overlay);
+
+  // Add scattered stones / rocks (small clusters) for Z-jitter ground feel
+  const stoneGeom = new THREE.DodecahedronGeometry(0.18, 0);
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x827870 });
+  const stones = new THREE.InstancedMesh(stoneGeom, stoneMat, 220);
+  const dummy = new THREE.Object3D();
+  let placed = 0;
+  for (let i = 0; i < 800 && placed < 220; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 8 + Math.random() * 36;
+    const px = Math.cos(angle) * dist;
+    const pz = Math.sin(angle) * dist;
+    if (!notTooCloseToPlaces(px, pz, 1.5)) continue;
+    if (!notInLake(px, pz)) continue;
+    dummy.position.set(px, getTerrainHeight(px, pz) + 0.08, pz);
+    dummy.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+    const s = 0.6 + Math.random() * 0.9;
+    dummy.scale.set(s, s*0.65, s);
+    dummy.updateMatrix();
+    stones.setMatrixAt(placed++, dummy.matrix);
+  }
+  stones.castShadow = true; stones.receiveShadow = true;
+  stones.instanceMatrix.needsUpdate = true;
+  scene.add(stones);
+}
+
+// ─── Grass instances ──────────────────────────────────────────────
+function growGrassInstances() {
+  // tall grass blades as instanced cones; thousands of them
+  const N = 2400;
+  const bladeGeom = new THREE.ConeGeometry(0.04, 0.42, 4);
+  bladeGeom.translate(0, 0.21, 0);
+  const bladeMat = new THREE.MeshLambertMaterial({ color: 0x6a9a4e });
+  const grass = new THREE.InstancedMesh(bladeGeom, bladeMat, N);
+  grass.castShadow = false;
+  grass.receiveShadow = true;
+  const dummy = new THREE.Object3D();
+  let placed = 0;
+  for (let attempt = 0; attempt < N * 3 && placed < N; attempt++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 8 + Math.pow(Math.random(), 0.6) * 38;
+    const px = Math.cos(angle) * dist;
+    const pz = Math.sin(angle) * dist;
+    if (!notTooCloseToPlaces(px, pz, 1.0)) continue;
+    if (!notInLake(px, pz)) continue;
+    const ty = getTerrainHeight(px, pz);
+    if (ty < -0.5) continue;
+    dummy.position.set(px, ty, pz);
+    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+    const s = 0.6 + Math.random() * 0.7;
+    dummy.scale.set(s, s, s);
+    dummy.updateMatrix();
+    grass.setMatrixAt(placed++, dummy.matrix);
+  }
+  grass.count = placed;
+  grass.instanceMatrix.needsUpdate = true;
+  scene.add(grass);
+  window.__grassMesh = grass;
+  window.__grassCount = placed;
+}
+
+// ─── Mountain trail: zigzag stone steps climbing up a peak ────────
+function buildMountainTrail() {
+  // pick a tall mountain spot: north-east
+  const peakAngle = -Math.PI * 0.18;
+  const peakDist  = 56;
+  const peakX = Math.cos(peakAngle) * peakDist;
+  const peakZ = Math.sin(peakAngle) * peakDist;
+  // build a series of stone-step segments zig-zagging from terrain ~38 outward
+  const segments = 24;
+  const trail = new THREE.Group();
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x9e958c });
+  const railMat  = new THREE.MeshLambertMaterial({ color: 0x6a4830 });
+  let prev = { x: Math.cos(peakAngle) * 35, z: Math.sin(peakAngle) * 35 };
+  for (let i = 1; i <= segments; i++) {
+    const t = i / segments;
+    const distAlong = 35 + t * 20;
+    const lateral = Math.sin(t * Math.PI * 5) * 4.2;  // zigzag amplitude
+    const baseAngle = peakAngle;
+    const wx = Math.cos(baseAngle) * distAlong + Math.cos(baseAngle + Math.PI/2) * lateral;
+    const wz = Math.sin(baseAngle) * distAlong + Math.sin(baseAngle + Math.PI/2) * lateral;
+    const tyA = getTerrainHeight(prev.x, prev.z);
+    const tyB = getTerrainHeight(wx, wz);
+    const mx = (prev.x + wx) / 2;
+    const mz = (prev.z + wz) / 2;
+    const my = (tyA + tyB) / 2 + 0.08;
+    const dx = wx - prev.x, dz = wz - prev.z;
+    const len = Math.hypot(dx, dz);
+    const seg = new THREE.Mesh(
+      new THREE.BoxGeometry(len, 0.18, 1.4),
+      stoneMat
+    );
+    seg.position.set(mx, my, mz);
+    seg.rotation.y = -Math.atan2(dz, dx);
+    seg.castShadow = true; seg.receiveShadow = true;
+    trail.add(seg);
+    // posts for hand-rail (alternating sides)
+    if (i % 2 === 0) {
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 1.0, 5),
+        railMat
+      );
+      post.position.set(wx, getTerrainHeight(wx, wz) + 0.5, wz);
+      post.castShadow = true;
+      trail.add(post);
+    }
+    prev = { x: wx, z: wz };
+  }
+  scene.add(trail);
+
+  // Summit: small viewing platform + bench + a tiny lantern
+  const summitH = getTerrainHeight(peakX, peakZ);
+  const platform = new THREE.Mesh(
+    new THREE.BoxGeometry(3.2, 0.22, 3.2),
+    new THREE.MeshLambertMaterial({ color: 0x8a6e44 })
+  );
+  platform.position.set(peakX, summitH + 0.12, peakZ);
+  platform.castShadow = true; platform.receiveShadow = true;
+  scene.add(platform);
+  // bench
+  for (let i = 0; i < 2; i++) {
+    const leg = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.45, 0.16),
+      new THREE.MeshLambertMaterial({ color: 0x553820 })
+    );
+    leg.position.set(peakX - 1.0, summitH + 0.45, peakZ - 1.0 + i*1.0);
+    leg.castShadow = true; scene.add(leg);
+  }
+  const bench = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 0.07, 1.8),
+    new THREE.MeshLambertMaterial({ color: 0x6b4828 })
+  );
+  bench.position.set(peakX - 1.0, summitH + 0.75, peakZ - 0.5);
+  bench.castShadow = true; scene.add(bench);
+  // lantern at summit
+  const sumLanGeo = new THREE.BoxGeometry(0.4, 0.55, 0.4);
+  const sumLanMat = new THREE.MeshStandardMaterial({
+    color: 0xffd890, emissive: 0xff9a40, emissiveIntensity: 0.45,
+    roughness: 0.45, metalness: 0,
+  });
+  const sumLan = new THREE.Mesh(sumLanGeo, sumLanMat);
+  sumLan.position.set(peakX + 1.2, summitH + 0.7, peakZ + 1.2);
+  sumLan.userData.isLanternHead = true;
+  scene.add(sumLan);
+  lanternHeads.push({ mesh: sumLan, light: null });
+  const sumLight = new THREE.PointLight(0xff9a40, 0.4, 8);
+  sumLight.position.copy(sumLan.position);
+  sumLight.userData.isLanternLight = true;
+  scene.add(sumLight);
+}
+
+// ─── Wooden lookout tower with spiral stairs ────────────────────
+function buildLookoutTower() {
+  const cx = -36, cz = 14;
+  const ty = getTerrainHeight(cx, cz);
+  const wood = new THREE.MeshLambertMaterial({ color: 0x6e4a2c });
+  const woodDark = new THREE.MeshLambertMaterial({ color: 0x4a2f1a });
+  // central post
+  const post = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22, 0.28, 7.0, 8),
+    woodDark
+  );
+  post.position.set(cx, ty + 3.5, cz);
+  post.castShadow = true; scene.add(post);
+
+  // 4 corner posts
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const px = cx + Math.cos(a) * 1.6;
+    const pz = cz + Math.sin(a) * 1.6;
+    const p = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 7.4, 0.2),
+      wood
+    );
+    p.position.set(px, ty + 3.7, pz);
+    p.castShadow = true; scene.add(p);
+  }
+  // spiral wooden stairs around the central post
+  const steps = 22;
+  for (let i = 0; i < steps; i++) {
+    const t = i / steps;
+    const a = t * Math.PI * 3.5;
+    const r = 1.05;
+    const sx = cx + Math.cos(a) * r;
+    const sz = cz + Math.sin(a) * r;
+    const sy = ty + t * 5.6 + 0.1;
+    const stair = new THREE.Mesh(
+      new THREE.BoxGeometry(1.0, 0.08, 0.4),
+      wood
+    );
+    stair.position.set(sx, sy, sz);
+    stair.rotation.y = -a + Math.PI/2;
+    stair.castShadow = true; stair.receiveShadow = true;
+    scene.add(stair);
+  }
+  // upper platform
+  const platR = 2.0;
+  const platGeo = new THREE.CylinderGeometry(platR, platR, 0.18, 12);
+  const plat = new THREE.Mesh(platGeo, wood);
+  plat.position.set(cx, ty + 6.1, cz);
+  plat.castShadow = true; plat.receiveShadow = true;
+  scene.add(plat);
+  // railing posts
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const rp = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 0.9, 6),
+      woodDark
+    );
+    rp.position.set(cx + Math.cos(a) * platR, ty + 6.55, cz + Math.sin(a) * platR);
+    rp.castShadow = true; scene.add(rp);
+  }
+  // railing top ring
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(platR, 0.05, 6, 24),
+    woodDark
+  );
+  ring.position.set(cx, ty + 7.0, cz);
+  ring.rotation.x = Math.PI/2;
+  scene.add(ring);
+
+  // pyramid roof
+  const roof = new THREE.Mesh(
+    new THREE.ConeGeometry(platR + 0.4, 1.4, 4),
+    new THREE.MeshLambertMaterial({ color: 0x4a2818 })
+  );
+  roof.rotation.y = Math.PI/4;
+  roof.position.set(cx, ty + 7.8, cz);
+  roof.castShadow = true; scene.add(roof);
+  // top lantern (visible from far)
+  const topLanMat = new THREE.MeshStandardMaterial({
+    color: 0xffd890, emissive: 0xff9a40, emissiveIntensity: 0.5,
+    roughness: 0.4, metalness: 0,
+  });
+  const topLan = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), topLanMat);
+  topLan.position.set(cx, ty + 8.6, cz);
+  topLan.userData.isLanternHead = true;
+  scene.add(topLan);
+  lanternHeads.push({ mesh: topLan, light: null });
+  const topLight = new THREE.PointLight(0xff9a40, 0.6, 12);
+  topLight.position.copy(topLan.position);
+  topLight.userData.isLanternLight = true;
+  scene.add(topLight);
+}
+
+// ─── Rock terraces: tiered cliff with steps ────────────────────
+function buildRockTerraces() {
+  // place on south-east edge of plaza
+  const cx = 22, cz = -8;
+  const tiers = 4;
+  const stone = new THREE.MeshLambertMaterial({ color: 0x8c8580 });
+  for (let i = 0; i < tiers; i++) {
+    const r = 4 - i * 0.7;
+    const h = 0.6;
+    const tier = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r + 0.2, h, 10),
+      stone
+    );
+    tier.position.set(cx, getTerrainHeight(cx, cz) + h/2 + i * h * 0.95, cz);
+    tier.castShadow = true; tier.receiveShadow = true;
+    scene.add(tier);
+    // small bonsai-style tree on top tier
+    if (i === tiers - 1) {
+      const bonsai = new THREE.Group();
+      const tk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.18, 0.5, 7),
+        new THREE.MeshLambertMaterial({ color: 0x5a3a22 })
+      );
+      tk.position.y = 0.25; tk.castShadow = true; bonsai.add(tk);
+      const tp = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 10, 8),
+        new THREE.MeshLambertMaterial({ color: 0x5d8a48 })
+      );
+      tp.position.y = 0.78; tp.castShadow = true;
+      tp.userData.isLeaf = true;
+      bonsai.add(tp);
+      bonsai.position.set(cx, getTerrainHeight(cx, cz) + tiers * h * 0.95 + 0.05, cz);
+      scene.add(bonsai);
+      bonsai.userData.windPhase = Math.random()*Math.PI*2;
+      bonsai.userData.windAmp = 0.03;
+      if (!window.__windObjs) window.__windObjs = [];
+      window.__windObjs.push(bonsai);
+    }
+  }
+  // stair access on the west side
+  for (let i = 0; i < tiers; i++) {
+    const sx = cx - 4 + i * 0.7;
+    const sy = getTerrainHeight(cx, cz) + 0.15 + i * 0.55;
+    const sz = cz + 1.6;
+    const stair = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, 0.18, 1.0),
+      stone
+    );
+    stair.position.set(sx, sy, sz);
+    stair.castShadow = true; stair.receiveShadow = true;
+    scene.add(stair);
+  }
+}
+
+// ─── Pagoda steps: stone steps leading up to the pagoda spot ────
+function buildPagodaSteps() {
+  // pagoda placed at (32, -34); steps from (24, -28) going up
+  const ax = 24, az = -28;
+  const bx = 32, bz = -34;
+  const segs = 14;
+  const stone = new THREE.MeshLambertMaterial({ color: 0xa49890 });
+  for (let i = 0; i < segs; i++) {
+    const t = i / (segs - 1);
+    const x = ax + (bx - ax) * t;
+    const z = az + (bz - az) * t;
+    const baseY = getTerrainHeight(x, z);
+    const step = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 0.18, 0.55),
+      stone
+    );
+    step.position.set(x, baseY + 0.1 + i * 0.05, z);
+    step.rotation.y = -Math.atan2(bz - az, bx - ax);
+    step.castShadow = true; step.receiveShadow = true;
+    scene.add(step);
+  }
+  // gate torii at the bottom
+  const torii = new THREE.Group();
+  const tMat = new THREE.MeshLambertMaterial({ color: 0xb04a3a });
+  const l = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 2.6, 8), tMat);
+  l.position.set(-1.0, 1.3, 0); l.castShadow=true; torii.add(l);
+  const r = l.clone(); r.position.x = 1.0; torii.add(r);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.2, 0.3), tMat);
+  top.position.y = 2.55; torii.add(top);
+  const upper = top.clone(); upper.scale.set(1.18, 0.6, 1.05); upper.position.y = 2.78; torii.add(upper);
+  torii.position.set(ax, getTerrainHeight(ax, az), az);
+  torii.rotation.y = -Math.atan2(bz - az, bx - ax);
+  scene.add(torii);
+}
+
+// ─── Hillside pavilion: small thatched-roof rest spot ──────────
+function buildHillsidePavilion() {
+  const cx = -28, cz = -10;
+  const ty = getTerrainHeight(cx, cz);
+  const wood = new THREE.MeshLambertMaterial({ color: 0x8a6840 });
+  const thatch = new THREE.MeshLambertMaterial({ color: 0x6e4828 });
+  // 4 corner posts
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI/4;
+    const px = cx + Math.cos(a) * 1.4;
+    const pz = cz + Math.sin(a) * 1.4;
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 2.2, 6), wood);
+    p.position.set(px, ty + 1.1, pz);
+    p.castShadow = true; scene.add(p);
+  }
+  // floor
+  const fl = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.15, 3.0), wood);
+  fl.position.set(cx, ty + 0.18, cz);
+  fl.castShadow = true; fl.receiveShadow = true;
+  scene.add(fl);
+  // pyramid thatched roof
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(2.4, 1.5, 4), thatch);
+  roof.rotation.y = Math.PI/4;
+  roof.position.set(cx, ty + 2.6, cz);
+  roof.castShadow = true; scene.add(roof);
+  // a flowing prayer flag string
+  for (let i = 0; i < 5; i++) {
+    const flagCol = [0xe8c0a0, 0xb86a48, 0xc0b88a, 0xa86a8a, 0xa0c0b8][i];
+    const flag = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.35, 0.5),
+      new THREE.MeshLambertMaterial({ color: flagCol, side: THREE.DoubleSide, transparent: true, opacity: 0.95 })
+    );
+    flag.position.set(cx - 1.3 + i*0.55, ty + 2.1, cz - 1.3);
+    flag.userData.isFlag = true;
+    flag.userData.fphase = Math.random()*Math.PI*2;
+    scene.add(flag);
+    if (!window.__flags) window.__flags = [];
+    window.__flags.push(flag);
+  }
+  // zigzag wooden steps approaching
+  for (let i = 0; i < 6; i++) {
+    const t = i / 6;
+    const sx = cx - 4 + t * 4;
+    const sz = cz - 3 + t * 3;
+    const step = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.16, 0.45),
+      wood
+    );
+    step.position.set(sx, getTerrainHeight(sx, sz) + 0.1 + i*0.04, sz);
+    step.rotation.y = -Math.atan2(3, 4);
+    step.castShadow = true; step.receiveShadow = true;
+    scene.add(step);
+  }
+}
+
+// ─── Butterflies (drifting around flowers) ─────────────────────
+let butterflies = null;
+function buildButterflies() {
+  butterflies = new THREE.Group();
+  for (let i = 0; i < 14; i++) {
+    const g = new THREE.Group();
+    const col = [0xfff0a0, 0xffd0d0, 0xc0d0ff, 0xffe0c0][i % 4];
+    const mat = new THREE.MeshLambertMaterial({ color: col, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+    const wL = new THREE.Mesh(new THREE.CircleGeometry(0.18, 6), mat);
+    wL.position.x = -0.1;
+    g.add(wL);
+    const wR = new THREE.Mesh(new THREE.CircleGeometry(0.18, 6), mat);
+    wR.position.x = 0.1;
+    g.add(wR);
+    g.userData = {
+      cx: (Math.random()-0.5) * 40,
+      cz: (Math.random()-0.5) * 40,
+      r: 3 + Math.random()*4,
+      speed: 0.6 + Math.random()*0.6,
+      phase: Math.random()*Math.PI*2,
+      yBase: 1.0 + Math.random()*1.0,
+      wL, wR,
+    };
+    butterflies.add(g);
+  }
+  scene.add(butterflies);
+}
+function updateButterflies(dt, t) {
+  if (!butterflies) return;
+  // butterflies only visible during day
+  const sunI = scene.userData.lights ? scene.userData.lights.sun.intensity : 1.0;
+  butterflies.visible = sunI > 0.5;
+  if (!butterflies.visible) return;
+  for (const b of butterflies.children) {
+    const u = b.userData;
+    const px = u.cx + Math.sin(t * u.speed + u.phase) * u.r;
+    const pz = u.cz + Math.cos(t * u.speed * 0.8 + u.phase) * u.r;
+    const py = getTerrainHeight(px, pz) + u.yBase + Math.sin(t * 1.8 + u.phase) * 0.25;
+    b.position.set(px, py, pz);
+    b.rotation.y = -Math.atan2(Math.cos(t * u.speed + u.phase), Math.cos(t * u.speed * 0.8 + u.phase));
+    const flap = Math.sin(t * 16 + u.phase) * 0.7;
+    u.wL.rotation.y = -flap;
+    u.wR.rotation.y =  flap;
+  }
+}
+
+// ─── Small birds wheeling in the sky ──────────────────────────
+let smallBirds = null;
+function buildSmallBirds() {
+  smallBirds = new THREE.Group();
+  const birdMat = new THREE.MeshBasicMaterial({ color: 0x2a2a2a });
+  for (let i = 0; i < 8; i++) {
+    // V shape: two tilted small planes
+    const g = new THREE.Group();
+    const wL = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.15), birdMat);
+    wL.rotation.z = 0.5;
+    wL.position.x = -0.22;
+    g.add(wL);
+    const wR = wL.clone();
+    wR.rotation.z = -0.5;
+    wR.position.x = 0.22;
+    g.add(wR);
+    g.userData = {
+      cx: 0, cz: 0,
+      r: 22 + Math.random() * 12,
+      speed: 0.15 + Math.random() * 0.12,
+      phase: Math.random() * Math.PI * 2,
+      yBase: 14 + Math.random() * 6,
+      wL, wR,
+    };
+    smallBirds.add(g);
+  }
+  scene.add(smallBirds);
+}
+function updateSmallBirds(dt, t) {
+  if (!smallBirds) return;
+  for (const b of smallBirds.children) {
+    const u = b.userData;
+    const a = t * u.speed + u.phase;
+    const px = u.cx + Math.cos(a) * u.r;
+    const pz = u.cz + Math.sin(a) * u.r;
+    const py = u.yBase + Math.sin(t * 0.4 + u.phase) * 1.2;
+    b.position.set(px, py, pz);
+    // face direction of motion
+    b.rotation.y = -a + Math.PI/2;
+    const flap = Math.sin(t * 9 + u.phase) * 0.45;
+    u.wL.rotation.z = 0.5 + flap;
+    u.wR.rotation.z = -0.5 - flap;
+  }
+}
+
+// ─── Koi pond fish in lake ────────────────────────────────────
+let kois = null;
+function buildKoiPond() {
+  kois = new THREE.Group();
+  for (let i = 0; i < 8; i++) {
+    const body = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 8, 6),
+      new THREE.MeshLambertMaterial({ color: i % 3 === 0 ? 0xd0a040 : (i % 3 === 1 ? 0xc0c0c0 : 0xb04030) })
+    );
+    body.scale.set(1, 0.4, 1.6);
+    body.userData = {
+      cx: LAKE.cx + (Math.random()-0.5) * 8,
+      cz: LAKE.cz + (Math.random()-0.5) * 8,
+      r: 1.5 + Math.random() * 2,
+      speed: 0.25 + Math.random() * 0.18,
+      phase: Math.random()*Math.PI*2,
+    };
+    body.castShadow = false;
+    kois.add(body);
+  }
+  scene.add(kois);
+}
+function updateKois(dt, t) {
+  if (!kois) return;
+  for (const k of kois.children) {
+    const u = k.userData;
+    const a = t * u.speed + u.phase;
+    k.position.x = u.cx + Math.cos(a) * u.r;
+    k.position.z = u.cz + Math.sin(a) * u.r;
+    k.position.y = -1.05 + Math.sin(t * 1.5 + u.phase) * 0.05;
+    k.rotation.y = -a + Math.PI/2;
+  }
+}
+
+// ─── God-ray-like light columns ───────────────────────────────
+function buildLightRays() {
+  const rays = new THREE.Group();
+  const rayMat = new THREE.MeshBasicMaterial({
+    color: 0xfff2c0, transparent: true, opacity: 0.06,
+    side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  for (let i = 0; i < 5; i++) {
+    const angle = i / 5 * Math.PI * 2 + 0.7;
+    const dist = 12 + i * 3;
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    const ray = new THREE.Mesh(
+      new THREE.ConeGeometry(2.4, 18, 12, 1, true),
+      rayMat
+    );
+    ray.position.set(x, 9, z);
+    ray.rotation.x = 0.0;
+    ray.rotation.z = (Math.random()-0.5) * 0.2;
+    rays.add(ray);
+  }
+  scene.add(rays);
+  window.__lightRays = rays;
+}
+function updateLightRays(t) {
+  if (!window.__lightRays) return;
+  const sunI = scene.userData.lights ? scene.userData.lights.sun.intensity : 0.7;
+  // visible during day but subtle
+  const v = Math.max(0, sunI - 0.4) * 0.12;
+  window.__lightRays.traverse(o => {
+    if (o.isMesh && o.material) o.material.opacity = v;
+  });
+}
+
+// ─── Wind animation pass ─────────────────────────────────────
+function updateWindObjs(dt, t) {
+  if (window.__windObjs) {
+    for (const obj of window.__windObjs) {
+      const phase = obj.userData.windPhase || 0;
+      const amp = obj.userData.windAmp || 0.02;
+      const sway = Math.sin(t * 0.9 + phase) * amp;
+      // gently sway only the leaf children
+      obj.children.forEach(c => {
+        if (c.userData && c.userData.isLeaf) {
+          c.rotation.z = sway;
+          c.rotation.x = Math.cos(t * 0.7 + phase) * amp * 0.6;
+        }
+      });
+    }
+  }
+  if (window.__flags) {
+    for (const f of window.__flags) {
+      f.rotation.y = Math.PI/2 + Math.sin(t * 1.4 + f.userData.fphase) * 0.6;
+      f.scale.x = 1 + Math.sin(t * 2.0 + f.userData.fphase) * 0.1;
+    }
+  }
 }
 
 // ─── Overlay (place content) ───────────────────────────────────────
