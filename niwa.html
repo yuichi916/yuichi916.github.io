@@ -336,6 +336,299 @@ function hash(x, y, seed = 0) {
   return n - Math.floor(n);
 }
 
+// ─── Procedural canvas texture generators ──────────────────────────
+// 1) Lush moonlit grass + dirt path + scattered flowers
+function makeGrassTexture(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 1024;
+  const x = c.getContext('2d');
+
+  // base gradient — moonlit green
+  const g = x.createRadialGradient(512, 512, 100, 512, 512, 720);
+  g.addColorStop(0, '#3a5a3a');
+  g.addColorStop(0.3, '#2c4a30');
+  g.addColorStop(0.7, '#1e3624');
+  g.addColorStop(1, '#0e1c14');
+  x.fillStyle = g; x.fillRect(0, 0, 1024, 1024);
+
+  // grass clumps (many overlapping ellipses)
+  for(let i = 0; i < 850; i++){
+    const r = 14 + Math.random() * 38;
+    const px = Math.random() * 1024, py = Math.random() * 1024;
+    x.fillStyle = `rgba(${60 + Math.random()*70}, ${110 + Math.random()*70}, ${60 + Math.random()*40}, ${0.16 + Math.random()*0.28})`;
+    x.beginPath(); x.ellipse(px, py, r, r * 0.7, Math.random() * Math.PI, 0, Math.PI * 2); x.fill();
+  }
+  // single blades
+  for(let i = 0; i < 3500; i++){
+    x.strokeStyle = `rgba(${90 + Math.random()*70}, ${150 + Math.random()*70}, ${80 + Math.random()*40}, ${0.3 + Math.random()*0.4})`;
+    x.lineWidth = 0.8 + Math.random() * 0.6;
+    const px = Math.random() * 1024, py = Math.random() * 1024;
+    x.beginPath(); x.moveTo(px, py);
+    x.lineTo(px + (Math.random() - 0.5) * 4, py - 3 - Math.random() * 6);
+    x.stroke();
+  }
+  // moonlit flower specks (white / yellow)
+  for(let i = 0; i < 220; i++){
+    x.fillStyle = Math.random() > 0.5 ? 'rgba(255,248,220,0.85)' : 'rgba(255,217,140,0.7)';
+    x.beginPath();
+    x.arc(Math.random() * 1024, Math.random() * 1024, 1 + Math.random() * 1.2, 0, Math.PI * 2);
+    x.fill();
+  }
+  // dirt patches (worn areas)
+  for(let i = 0; i < 12; i++){
+    const px = Math.random() * 1024, py = Math.random() * 1024;
+    const r = 50 + Math.random() * 90;
+    const gr = x.createRadialGradient(px, py, 10, px, py, r);
+    gr.addColorStop(0, 'rgba(110, 80, 55, 0.55)');
+    gr.addColorStop(1, 'rgba(110, 80, 55, 0)');
+    x.fillStyle = gr;
+    x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+  }
+  return c;
+}
+
+// 2) Wood plank texture (warm)
+function makeWoodTexture(baseHue = 28){
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const x = c.getContext('2d');
+  // base
+  x.fillStyle = `hsl(${baseHue}, 30%, 28%)`;
+  x.fillRect(0, 0, 512, 512);
+  // vertical planks
+  const plankCount = 8;
+  for(let i = 0; i < plankCount; i++){
+    const px = i * (512 / plankCount);
+    const w = (512 / plankCount);
+    const shade = -10 + Math.random() * 20;
+    x.fillStyle = `hsl(${baseHue}, ${30 + Math.random()*20}%, ${22 + Math.random()*16}%)`;
+    x.fillRect(px, 0, w, 512);
+    // plank gap
+    x.fillStyle = 'rgba(10,5,0,0.7)';
+    x.fillRect(px - 1, 0, 2, 512);
+    // grain
+    for(let j = 0; j < 24; j++){
+      x.strokeStyle = `rgba(${30 + Math.random()*30}, ${20 + Math.random()*20}, ${10 + Math.random()*10}, ${0.18 + Math.random()*0.18})`;
+      x.lineWidth = 0.6 + Math.random();
+      const y = Math.random() * 512;
+      x.beginPath();
+      x.moveTo(px + 1, y);
+      x.bezierCurveTo(px + w/3, y + (Math.random()-0.5)*8,
+                       px + 2*w/3, y + (Math.random()-0.5)*8,
+                       px + w - 1, y + (Math.random()-0.5)*4);
+      x.stroke();
+    }
+    // knots
+    if(Math.random() < 0.4){
+      const ky = Math.random() * 512;
+      const kg = x.createRadialGradient(px + w/2, ky, 1, px + w/2, ky, 10);
+      kg.addColorStop(0, 'rgba(10,5,0,0.8)');
+      kg.addColorStop(1, 'rgba(40,25,12,0)');
+      x.fillStyle = kg;
+      x.beginPath(); x.arc(px + w/2, ky, 10, 0, Math.PI * 2); x.fill();
+    }
+  }
+  return c;
+}
+
+// 3) Thatch / shingle roof texture
+function makeRoofTexture(){
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const x = c.getContext('2d');
+  // base brown
+  x.fillStyle = '#3a2818';
+  x.fillRect(0, 0, 512, 512);
+  // shingle rows
+  const rows = 14;
+  for(let r = 0; r < rows; r++){
+    const ry = r * (512 / rows);
+    const rh = 512 / rows;
+    const offset = (r % 2) * 18;
+    for(let i = -1; i <= 14; i++){
+      const ix = i * 40 + offset;
+      const shade = 40 + Math.random() * 30;
+      const sat = 35 + Math.random() * 15;
+      x.fillStyle = `hsl(${22 + Math.random()*10}, ${sat}%, ${shade/3}%)`;
+      x.beginPath();
+      x.moveTo(ix, ry + rh);
+      x.lineTo(ix + 8, ry + rh * 0.4);
+      x.quadraticCurveTo(ix + 22, ry, ix + 36, ry + rh * 0.4);
+      x.lineTo(ix + 44, ry + rh);
+      x.closePath();
+      x.fill();
+      // edge shadow
+      x.strokeStyle = 'rgba(10, 5, 0, 0.4)';
+      x.lineWidth = 0.6;
+      x.stroke();
+    }
+  }
+  return c;
+}
+
+// 4) Stone wall (for hourglass platform, observatory base)
+function makeStoneTexture(){
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const x = c.getContext('2d');
+  x.fillStyle = '#5a544a';
+  x.fillRect(0, 0, 512, 512);
+  // stones - irregular polygons
+  for(let i = 0; i < 80; i++){
+    const cx = Math.random() * 512, cy = Math.random() * 512;
+    const r = 25 + Math.random() * 35;
+    const sides = 5 + Math.floor(Math.random() * 4);
+    x.fillStyle = `hsl(${30 + Math.random()*15}, ${10 + Math.random()*15}%, ${30 + Math.random()*25}%)`;
+    x.beginPath();
+    for(let s = 0; s <= sides; s++){
+      const a = (s / sides) * Math.PI * 2 + Math.random() * 0.3;
+      const rr = r * (0.7 + Math.random() * 0.4);
+      x.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    }
+    x.closePath();
+    x.fill();
+    x.strokeStyle = 'rgba(20, 15, 10, 0.6)';
+    x.lineWidth = 1.2;
+    x.stroke();
+  }
+  // mossy patches
+  for(let i = 0; i < 40; i++){
+    const g = x.createRadialGradient(Math.random()*512, Math.random()*512, 4,
+                                     Math.random()*512, Math.random()*512, 28);
+    g.addColorStop(0, 'rgba(60, 100, 50, 0.45)');
+    g.addColorStop(1, 'rgba(60, 100, 50, 0)');
+    x.fillStyle = g; x.fillRect(0, 0, 512, 512);
+  }
+  return c;
+}
+
+// 5) Tree sprite (canvas with transparency, used as billboard)
+function makeTreeSprite(seed = 0){
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 384;
+  const x = c.getContext('2d');
+  const W = 256, H = 384;
+  // trunk
+  const tw = 22 + (hash(seed, 1) * 8);
+  const th = 130 + hash(seed, 2) * 40;
+  const tg = x.createLinearGradient(W/2 - tw, 0, W/2 + tw, 0);
+  tg.addColorStop(0, '#2a1810');
+  tg.addColorStop(0.5, '#4a3018');
+  tg.addColorStop(1, '#2a1810');
+  x.fillStyle = tg;
+  x.fillRect(W/2 - tw/2, H - th, tw, th);
+  // bark cracks
+  for(let i = 0; i < 6; i++){
+    x.strokeStyle = 'rgba(10, 5, 0, 0.5)';
+    x.lineWidth = 0.7;
+    x.beginPath();
+    x.moveTo(W/2 - tw/2 + (i * tw / 6), H - th);
+    x.lineTo(W/2 - tw/2 + (i * tw / 6) + (Math.random() - 0.5) * 4, H);
+    x.stroke();
+  }
+  // foliage — many overlapping circles
+  const fY = H - th + 10;
+  const fSize = 110 + hash(seed, 3) * 30;
+  // dark base
+  for(let i = 0; i < 120; i++){
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * fSize * 0.85;
+    const px = W/2 + Math.cos(a) * r;
+    const py = fY + Math.sin(a) * r * 0.85 - fSize * 0.4;
+    const rad = 24 + Math.random() * 20;
+    const hue = 90 + Math.random() * 30;
+    const sat = 30 + Math.random() * 25;
+    const lt = 12 + Math.random() * 14;
+    x.fillStyle = `hsl(${hue}, ${sat}%, ${lt}%)`;
+    x.globalAlpha = 0.55 + Math.random() * 0.3;
+    x.beginPath();
+    x.arc(px, py, rad, 0, Math.PI * 2);
+    x.fill();
+  }
+  x.globalAlpha = 1.0;
+  // highlight on moonlit side (top-right)
+  for(let i = 0; i < 30; i++){
+    const a = Math.random() * Math.PI * 0.6 + Math.PI * 1.7;
+    const r = Math.random() * fSize * 0.6;
+    const px = W/2 + Math.cos(a) * r;
+    const py = fY + Math.sin(a) * r * 0.85 - fSize * 0.45;
+    const rad = 14 + Math.random() * 12;
+    x.fillStyle = `hsl(${100 + Math.random()*20}, 40%, ${40 + Math.random()*15}%)`;
+    x.globalAlpha = 0.5;
+    x.beginPath(); x.arc(px, py, rad, 0, Math.PI * 2); x.fill();
+  }
+  x.globalAlpha = 1.0;
+  return c;
+}
+
+// 6) Fern / bush sprite
+function makeBushSprite(seed = 0){
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 96;
+  const x = c.getContext('2d');
+  const W = 128, H = 96;
+  // base shadow
+  x.fillStyle = 'rgba(10, 20, 10, 0.4)';
+  x.beginPath(); x.ellipse(W/2, H - 8, 50, 8, 0, 0, Math.PI * 2); x.fill();
+  // foliage
+  for(let i = 0; i < 40; i++){
+    const angle = Math.random() * Math.PI - Math.PI;
+    const dist = Math.random() * 38;
+    const px = W/2 + Math.cos(angle) * dist;
+    const py = H - 22 + Math.sin(angle) * dist * 0.4 - Math.random() * 14;
+    const rad = 11 + Math.random() * 10;
+    const hue = 85 + Math.random() * 30;
+    x.fillStyle = `hsl(${hue}, ${30 + Math.random()*25}%, ${14 + Math.random()*16}%)`;
+    x.globalAlpha = 0.65 + Math.random() * 0.25;
+    x.beginPath(); x.arc(px, py, rad, 0, Math.PI * 2); x.fill();
+  }
+  x.globalAlpha = 1;
+  return c;
+}
+
+// 7) Smoke particle (single soft puff)
+function makeSmokeTexture(){
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(64, 64, 4, 64, 64, 60);
+  g.addColorStop(0, 'rgba(220, 220, 220, 0.55)');
+  g.addColorStop(0.6, 'rgba(180, 180, 180, 0.2)');
+  g.addColorStop(1, 'rgba(180, 180, 180, 0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  return c;
+}
+
+// Texture cache
+const TEX = {};
+function ensureTextures(){
+  if(TEX.ready) return;
+  TEX.grass = new THREE.CanvasTexture(makeGrassTexture());
+  TEX.grass.wrapS = TEX.grass.wrapT = THREE.RepeatWrapping;
+  TEX.grass.repeat.set(2, 2);
+  TEX.wood = new THREE.CanvasTexture(makeWoodTexture(28));
+  TEX.wood.wrapS = TEX.wood.wrapT = THREE.RepeatWrapping;
+  TEX.woodDark = new THREE.CanvasTexture(makeWoodTexture(18));
+  TEX.woodDark.wrapS = TEX.woodDark.wrapT = THREE.RepeatWrapping;
+  TEX.roof = new THREE.CanvasTexture(makeRoofTexture());
+  TEX.roof.wrapS = TEX.roof.wrapT = THREE.RepeatWrapping;
+  TEX.stone = new THREE.CanvasTexture(makeStoneTexture());
+  TEX.stone.wrapS = TEX.stone.wrapT = THREE.RepeatWrapping;
+  TEX.smoke = new THREE.CanvasTexture(makeSmokeTexture());
+  TEX.trees = [
+    new THREE.CanvasTexture(makeTreeSprite(0)),
+    new THREE.CanvasTexture(makeTreeSprite(7)),
+    new THREE.CanvasTexture(makeTreeSprite(13)),
+    new THREE.CanvasTexture(makeTreeSprite(21)),
+  ];
+  TEX.bushes = [
+    new THREE.CanvasTexture(makeBushSprite(2)),
+    new THREE.CanvasTexture(makeBushSprite(9)),
+    new THREE.CanvasTexture(makeBushSprite(17)),
+  ];
+  TEX.ready = true;
+}
+
 // ─── Locations ─────────────────────────────────────────────────────
 const LOCATIONS = [
   {id:"takibi",  x:0,    z:0,   name:"焚き火の前",   en:"At the Bonfire",   type:"firepit"},
@@ -350,6 +643,7 @@ const LOCATIONS = [
 
 // ─── Three.js init ─────────────────────────────────────────────────
 function init() {
+  ensureTextures();
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0a1a);
   scene.fog = new THREE.Fog(0x0a0a1a, 55, 130);
@@ -472,50 +766,22 @@ function createMoonOrb(){
 
 // ─── Ground ────────────────────────────────────────────────────────
 function createGround(){
-  const size = 110;
-  const groundGeo = new THREE.PlaneGeometry(size, size, 90, 90);
+  const size = 130;
+  const groundGeo = new THREE.PlaneGeometry(size, size, 60, 60);
   const positions = groundGeo.attributes.position;
   for(let i = 0; i < positions.count; i++){
     const x = positions.getX(i);
     const y = positions.getY(i);
     const dist = Math.sqrt(x*x + y*y);
-    const noise = Math.sin(x * 0.15) * Math.cos(y * 0.15) * 0.42 +
-                  Math.sin(x * 0.4) * Math.cos(y * 0.3) * 0.22;
-    positions.setZ(i, noise - (dist < 16 ? 0.32 : 0));
+    // gentle rolling terrain — far edges sink slightly, centre is flat for buildings
+    const flatness = Math.min(1, dist / 30);
+    const noise = (Math.sin(x * 0.08) * Math.cos(y * 0.08) * 0.18 +
+                   Math.sin(x * 0.22) * Math.cos(y * 0.18) * 0.08) * flatness;
+    positions.setZ(i, noise);
   }
   groundGeo.computeVertexNormals();
 
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024; canvas.height = 1024;
-  const ctx = canvas.getContext('2d');
-  // moonlit moss base
-  const grad = ctx.createRadialGradient(512, 512, 160, 512, 512, 720);
-  grad.addColorStop(0, '#3a4838');
-  grad.addColorStop(0.3, '#2a382a');
-  grad.addColorStop(0.6, '#1c281f');
-  grad.addColorStop(1, '#0e161a');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 1024, 1024);
-  // moss patches
-  for(let i = 0; i < 280; i++){
-    ctx.fillStyle = `rgba(${50 + Math.random()*40}, ${90 + Math.random()*60}, ${50 + Math.random()*30}, ${0.18 + Math.random()*0.32})`;
-    ctx.beginPath();
-    ctx.arc(Math.random()*1024, Math.random()*1024, 14 + Math.random()*30, 0, Math.PI*2);
-    ctx.fill();
-  }
-  // dewy highlights
-  for(let i = 0; i < 1600; i++){
-    ctx.strokeStyle = `rgba(${110 + Math.random()*50}, ${140 + Math.random()*60}, ${90 + Math.random()*40}, 0.36)`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    const x = Math.random() * 1024, y = Math.random() * 1024;
-    ctx.moveTo(x, y); ctx.lineTo(x + (Math.random() - 0.5) * 4, y + Math.random() * 5);
-    ctx.stroke();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-
-  const groundMat = new THREE.MeshLambertMaterial({map: tex});
+  const groundMat = new THREE.MeshLambertMaterial({map: TEX.grass});
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -523,11 +789,58 @@ function createGround(){
 
   // Stone path circle around centre
   const pathGeo = new THREE.RingGeometry(7, 9.5, 64);
-  const pathMat = new THREE.MeshLambertMaterial({color: 0x4a4438});
+  const pathMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  TEX.stone.repeat.set(3, 1);
   const path = new THREE.Mesh(pathGeo, pathMat);
   path.rotation.x = -Math.PI / 2;
   path.position.y = 0.04;
   scene.add(path);
+
+  // Radial dirt paths to each location
+  LOCATIONS.forEach(loc => {
+    const dist = Math.hypot(loc.x, loc.z);
+    if(dist < 4) return;  // skip firepit centre
+    const pathLen = dist - 4;
+    const pGeo = new THREE.PlaneGeometry(2.0, pathLen);
+    const pMat = new THREE.MeshLambertMaterial({
+      color: 0x6a4828, transparent: true, opacity: 0.85,
+    });
+    const p = new THREE.Mesh(pGeo, pMat);
+    p.rotation.x = -Math.PI / 2;
+    p.position.set(loc.x * 0.5, 0.03, loc.z * 0.5);
+    p.rotation.z = -Math.atan2(loc.x, loc.z) + Math.PI;
+    p.receiveShadow = true;
+    scene.add(p);
+  });
+
+  // Stones, flowers and grass tufts scattered randomly for detail
+  for(let i = 0; i < 80; i++){
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 12 + Math.random() * 50;
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    if(!notTooCloseToPlaces(x, z, 2.5)) continue;
+    // small stone
+    if(Math.random() < 0.5){
+      const stGeo = new THREE.DodecahedronGeometry(0.18 + Math.random() * 0.2);
+      const stMat = new THREE.MeshLambertMaterial({color: 0x6a6258});
+      const st = new THREE.Mesh(stGeo, stMat);
+      st.position.set(x, 0.1, z);
+      st.rotation.set(Math.random() * 2, Math.random() * 2, Math.random() * 2);
+      st.castShadow = true;
+      scene.add(st);
+    } else {
+      // grass tuft (tall blade billboard)
+      const tuftMat = new THREE.SpriteMaterial({
+        map: TEX.bushes[i % TEX.bushes.length],
+        transparent: true, depthWrite: false,
+      });
+      const tuft = new THREE.Sprite(tuftMat);
+      tuft.scale.set(0.8 + Math.random() * 0.4, 0.6 + Math.random() * 0.3, 1);
+      tuft.position.set(x, tuft.scale.y / 2, z);
+      scene.add(tuft);
+    }
+  }
 }
 
 // ─── Place builders (custom per location) ──────────────────────────
@@ -649,7 +962,7 @@ function buildFirepit(group){
 function buildLibrary(group){
   // Pagoda-like book tower
   const baseGeo = new THREE.BoxGeometry(5.5, 0.5, 5.5);
-  const baseMat = new THREE.MeshLambertMaterial({color: 0x3a2818});
+  const baseMat = new THREE.MeshLambertMaterial({map: TEX.stone});
   const base = new THREE.Mesh(baseGeo, baseMat);
   base.position.y = 0.25;
   base.castShadow = base.receiveShadow = true;
@@ -659,7 +972,10 @@ function buildLibrary(group){
   for(let f = 0; f < 3; f++){
     const w = 4.6 - f * 0.6;
     const wallGeo = new THREE.BoxGeometry(w, 2.0, w);
-    const wallMat = new THREE.MeshLambertMaterial({color: 0x4a3018});
+    const wallTex = TEX.woodDark.clone();
+    wallTex.needsUpdate = true;
+    wallTex.repeat.set(1.5, 0.6);
+    const wallMat = new THREE.MeshLambertMaterial({map: wallTex});
     const wall = new THREE.Mesh(wallGeo, wallMat);
     wall.position.y = 1.5 + f * 2.4;
     wall.castShadow = wall.receiveShadow = true;
@@ -685,11 +1001,14 @@ function buildLibrary(group){
         group.add(book);
       }
     }
-    // roof slab
-    const slabGeo = new THREE.BoxGeometry(w + 0.6, 0.25, w + 0.6);
-    const slabMat = new THREE.MeshLambertMaterial({color: 0x2a1a10});
-    const slab = new THREE.Mesh(slabGeo, slabMat);
-    slab.position.y = 2.6 + f * 2.4;
+    // roof slab — sloped tile pyramid
+    const slabRoofGeo = new THREE.ConeGeometry(w * 0.78, 0.6, 4);
+    const slabRoofTex = TEX.roof.clone();
+    slabRoofTex.needsUpdate = true;
+    const slabMat = new THREE.MeshLambertMaterial({map: slabRoofTex});
+    const slab = new THREE.Mesh(slabRoofGeo, slabMat);
+    slab.position.y = 2.8 + f * 2.4;
+    slab.rotation.y = Math.PI / 4;
     slab.castShadow = true;
     group.add(slab);
   }
@@ -895,29 +1214,46 @@ function buildHourglassTower(group){
 
 // 雨音の部屋
 function buildRainHut(group){
-  // walls
-  const wallW = 3.2, wallH = 3.2, wallD = 3.2;
+  // walls (textured wood)
+  const wallW = 3.4, wallH = 3.2, wallD = 3.4;
+  const wallTex = TEX.wood.clone();
+  wallTex.needsUpdate = true;
+  wallTex.repeat.set(2, 1);
   const wallGeo = new THREE.BoxGeometry(wallW, wallH, wallD);
-  const wallMat = new THREE.MeshLambertMaterial({color: 0x6a5040});
+  const wallMat = new THREE.MeshLambertMaterial({map: wallTex});
   const walls = new THREE.Mesh(wallGeo, wallMat);
   walls.position.y = wallH / 2;
   walls.castShadow = walls.receiveShadow = true;
   group.add(walls);
-  // wood plank texture (vertical planks)
-  for(let side = 0; side < 4; side++){
-    const ang = side * Math.PI / 2;
-    for(let p = -wallW/2; p < wallW/2; p += 0.28){
-      const plankGeo = new THREE.BoxGeometry(0.16, wallH, 0.05);
-      const plankMat = new THREE.MeshLambertMaterial({color: 0x8a6850});
-      const plank = new THREE.Mesh(plankGeo, plankMat);
-      plank.position.set(
-        Math.cos(ang) * (wallD/2 + 0.025) + Math.sin(ang) * p,
-        wallH / 2,
-        Math.sin(ang) * (wallD/2 + 0.025) - Math.cos(ang) * p
-      );
-      plank.rotation.y = ang;
-      group.add(plank);
-    }
+
+  // foundation stones
+  const baseGeo = new THREE.BoxGeometry(wallW + 0.3, 0.3, wallD + 0.3);
+  const baseMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.15;
+  base.receiveShadow = true;
+  group.add(base);
+
+  // chimney with smoke
+  const chimGeo = new THREE.BoxGeometry(0.5, 1.8, 0.5);
+  const chimMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const chim = new THREE.Mesh(chimGeo, chimMat);
+  chim.position.set(-wallW * 0.25, wallH + 0.9, -wallD * 0.25);
+  chim.castShadow = true;
+  group.add(chim);
+  // smoke from chimney
+  group.userData.smoke = [];
+  for(let i = 0; i < 5; i++){
+    const sMat = new THREE.SpriteMaterial({
+      map: TEX.smoke, transparent: true, opacity: 0.5,
+      depthWrite: false, fog: false,
+    });
+    const sp = new THREE.Sprite(sMat);
+    sp.scale.set(1.5, 1.5, 1);
+    sp.position.set(-wallW * 0.25, wallH + 2 + i * 0.6, -wallD * 0.25);
+    sp.userData = {phase: i * 0.8, baseY: wallH + 2};
+    group.add(sp);
+    group.userData.smoke.push(sp);
   }
   // window
   const winGeo = new THREE.BoxGeometry(1.0, 1.0, 0.08);
@@ -940,14 +1276,23 @@ function buildRainHut(group){
   const door = new THREE.Mesh(doorGeo, doorMat);
   door.position.set(-1.0, 0.9, wallD / 2 + 0.05);
   group.add(door);
-  // roof
-  const roofGeo = new THREE.ConeGeometry(wallW * 0.85, wallH * 0.6, 4);
-  const roofMat = new THREE.MeshLambertMaterial({color: 0x4a3828});
+  // roof — textured pyramid
+  const roofTex = TEX.roof.clone();
+  roofTex.needsUpdate = true;
+  roofTex.repeat.set(1, 1);
+  const roofGeo = new THREE.ConeGeometry(wallW * 0.85, wallH * 0.65, 4);
+  const roofMat = new THREE.MeshLambertMaterial({map: roofTex});
   const roof = new THREE.Mesh(roofGeo, roofMat);
-  roof.position.y = wallH + wallH * 0.3;
+  roof.position.y = wallH + wallH * 0.32;
   roof.rotation.y = Math.PI / 4;
   roof.castShadow = true;
   group.add(roof);
+  // roof ridge
+  const ridgeGeo = new THREE.BoxGeometry(0.12, 0.12, wallW * 1.6);
+  const ridgeMat = new THREE.MeshLambertMaterial({color: 0x2a1808});
+  const ridge = new THREE.Mesh(ridgeGeo, ridgeMat);
+  ridge.position.y = wallH + wallH * 0.65;
+  group.add(ridge);
   // rain drops (lines)
   const rainGroup = new THREE.Group();
   group.add(rainGroup);
@@ -1018,41 +1363,35 @@ function buildObservatory(group){
 
 // ─── Decorative trees / bushes / lanterns ─────────────────────────
 function createTree(x, z){
-  const group = new THREE.Group();
-  const h = 4 + hash(x, z, 3) * 2.5;
-  const fs = 1.5 + hash(x, z, 4) * 0.8;
-  // trunk
-  const trunkGeo = new THREE.CylinderGeometry(0.22, 0.32, h, 10);
-  const trunkMat = new THREE.MeshLambertMaterial({color: 0x4a3a2a});
-  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-  trunk.position.y = h / 2;
-  trunk.castShadow = true;
-  group.add(trunk);
-  // foliage layers (dark blue-green, moonlit)
-  const colors = [0x2a4030, 0x3a5040, 0x466050];
-  for(let i = 0; i < 3; i++){
-    const layerGeo = new THREE.SphereGeometry(fs - i * 0.25, 10, 10);
-    const layerMat = new THREE.MeshLambertMaterial({color: colors[i]});
-    const layer = new THREE.Mesh(layerGeo, layerMat);
-    layer.position.y = h + 0.4 + i * 0.7;
-    layer.castShadow = layer.receiveShadow = true;
-    group.add(layer);
-  }
-  group.position.set(x, 0, z);
-  scene.add(group);
+  // billboard sprite — looks much more like a real tree from any angle
+  const idx = Math.floor(hash(x, z, 1) * TEX.trees.length);
+  const treeMat = new THREE.SpriteMaterial({
+    map: TEX.trees[idx],
+    transparent: true,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(treeMat);
+  const scale = 5.5 + hash(x, z, 2) * 2.5;
+  // sprite intrinsic ratio 256:384 = 0.667
+  sprite.scale.set(scale * 0.667, scale, 1);
+  sprite.position.set(x, scale / 2, z);
+  // jitter rotation by sin (sprites don't really rotate but we can flip)
+  if(hash(x, z, 11) > 0.5) sprite.scale.x *= -1;
+  scene.add(sprite);
 }
 
 function createBush(x, z){
-  const bushGeo = new THREE.SphereGeometry(0.55 + hash(x, z) * 0.35, 8, 8);
-  const bushMat = new THREE.MeshLambertMaterial({color: 0x3a5038});
-  for(let i = 0; i < 3; i++){
-    const b = new THREE.Mesh(bushGeo, bushMat);
-    b.position.set(x + (hash(i, x, 10) - 0.5) * 0.8, 0.42,
-                   z + (hash(z, i, 10) - 0.5) * 0.8);
-    b.scale.set(1, 0.78, 1);
-    b.castShadow = true;
-    scene.add(b);
-  }
+  const idx = Math.floor(hash(x, z, 4) * TEX.bushes.length);
+  const bMat = new THREE.SpriteMaterial({
+    map: TEX.bushes[idx],
+    transparent: true,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(bMat);
+  const s = 1.2 + hash(x, z, 5) * 0.9;
+  sprite.scale.set(s, s * 0.75, 1);
+  sprite.position.set(x, s * 0.38, z);
+  scene.add(sprite);
 }
 
 function createPathLantern(x, z){
@@ -1263,6 +1602,16 @@ function animate(){
       g.userData.rain.children.forEach(d => {
         d.position.y -= d.userData.speed;
         if(d.position.y < 0.5) d.position.y = d.userData.init;
+      });
+    }
+    // chimney smoke rising
+    if(g.userData.smoke){
+      g.userData.smoke.forEach((sp, i) => {
+        const phase = (t * 0.3 + sp.userData.phase) % 4;
+        sp.position.y = sp.userData.baseY + phase * 0.8;
+        sp.position.x = (g.userData.smoke[0]?.position.x || 0) + Math.sin(t * 0.5 + i) * 0.2;
+        sp.material.opacity = Math.max(0, 0.55 - phase * 0.15);
+        sp.scale.setScalar(1.2 + phase * 0.7);
       });
     }
   });
