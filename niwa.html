@@ -889,7 +889,7 @@ function createLocation(loc){
   clickableObjects.push(group);
 }
 
-// 焚き火
+// 焚き火 — 石の炉 + 薪 + 周りの丸太椅子
 function buildFirepit(group){
   // ground hollow (slightly darker disc)
   const baseGeo = new THREE.CircleGeometry(2.4, 24);
@@ -956,19 +956,242 @@ function buildFirepit(group){
   fireLight.position.y = 1.4;
   group.add(fireLight);
   group.userData.fireLight = fireLight;
+
+  // 丸太椅子 (3 log seats around the fire)
+  const logSeatMat = new THREE.MeshLambertMaterial({color: 0x5a3818});
+  for(let i = 0; i < 3; i++){
+    const ang = (i / 3) * Math.PI * 2 + 0.3;
+    const sx = Math.cos(ang) * 3.0;
+    const sz = Math.sin(ang) * 3.0;
+    const logGeo = new THREE.CylinderGeometry(0.32, 0.38, 1.2, 10);
+    const logSeat = new THREE.Mesh(logGeo, logSeatMat);
+    logSeat.position.set(sx, 0.6, sz);
+    logSeat.rotation.x = Math.PI / 2;
+    logSeat.rotation.y = ang + Math.PI / 2;
+    logSeat.castShadow = true;
+    group.add(logSeat);
+    // rings on the log ends
+    const ringEnd = new THREE.Mesh(
+      new THREE.CircleGeometry(0.32, 12),
+      new THREE.MeshLambertMaterial({color: 0x7a4a28})
+    );
+    ringEnd.position.set(sx + Math.cos(ang + Math.PI/2) * 0.6,
+                         0.6,
+                         sz + Math.sin(ang + Math.PI/2) * 0.6);
+    ringEnd.rotation.y = ang + Math.PI / 2;
+    group.add(ringEnd);
+  }
 }
 
-// 月光の書架
-function buildLibrary(group){
-  // Pagoda-like book tower
-  const baseGeo = new THREE.BoxGeometry(5.5, 0.5, 5.5);
+// ─── Helper builders ────────────────────────────────────────────
+// Curved pagoda roof (with upturned eaves) from a custom BufferGeometry
+function buildPagodaRoof(width, height, depth, group, y, color = 0x2a1808){
+  // 4-sided slope with upturned corners
+  const w = width, d = depth, h = height;
+  const vs = [
+    // top peak
+    [0, h, 0],
+    // mid corners (outer + slight lift)
+    [w*0.6, h*0.7, d*0.6], [-w*0.6, h*0.7, d*0.6],
+    [-w*0.6, h*0.7, -d*0.6], [w*0.6, h*0.7, -d*0.6],
+    // lower outer corners (eaves uplifted)
+    [w, h*0.18, d], [-w, h*0.18, d],
+    [-w, h*0.18, -d], [w, h*0.18, -d],
+    // edge midpoints (lower)
+    [w*1.05, h*0.05, 0], [0, h*0.05, d*1.05],
+    [-w*1.05, h*0.05, 0], [0, h*0.05, -d*1.05],
+  ];
+  const idx = [
+    // four panels (peak → mid → corner)
+    0,1,2,  0,2,3,  0,3,4,  0,4,1,
+    // eaves panels
+    1,5,10, 2,10,6,
+    2,6,11, 3,11,7,
+    3,7,12, 4,12,8,
+    4,8,9,  1,9,5,
+  ];
+  const positions = new Float32Array(vs.length * 3);
+  vs.forEach((v, i) => { positions[i*3]=v[0]; positions[i*3+1]=v[1]; positions[i*3+2]=v[2]; });
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geom.setIndex(idx);
+  geom.computeVertexNormals();
+  const roofTex = TEX.roof.clone(); roofTex.needsUpdate = true;
+  const roofMat = new THREE.MeshLambertMaterial({map: roofTex, color: color});
+  const roof = new THREE.Mesh(geom, roofMat);
+  roof.position.y = y;
+  roof.castShadow = true;
+  group.add(roof);
+  // ridge cap
+  const ridgeGeo = new THREE.BoxGeometry(0.18, 0.12, 0.18);
+  const ridgeMat = new THREE.MeshLambertMaterial({color: 0x1a0a04});
+  const ridgeRoot = new THREE.Mesh(ridgeGeo, ridgeMat);
+  ridgeRoot.position.y = y + h * 0.95;
+  group.add(ridgeRoot);
+  return roof;
+}
+
+// Stone lantern (toro)
+function buildStoneLantern(){
+  const g = new THREE.Group();
+  // base hexagonal stone
+  const baseGeo = new THREE.CylinderGeometry(0.32, 0.4, 0.2, 6);
   const baseMat = new THREE.MeshLambertMaterial({map: TEX.stone});
   const base = new THREE.Mesh(baseGeo, baseMat);
-  base.position.y = 0.25;
+  base.position.y = 0.1; base.castShadow = base.receiveShadow = true;
+  g.add(base);
+  // pillar
+  const pilGeo = new THREE.CylinderGeometry(0.12, 0.15, 0.85, 8);
+  const pilMat = new THREE.MeshLambertMaterial({color: 0x5a544a});
+  const pil = new THREE.Mesh(pilGeo, pilMat);
+  pil.position.y = 0.63; pil.castShadow = true; g.add(pil);
+  // chudai (middle platform)
+  const cdGeo = new THREE.CylinderGeometry(0.26, 0.3, 0.1, 6);
+  const cd = new THREE.Mesh(cdGeo, baseMat);
+  cd.position.y = 1.1; cd.castShadow = true; g.add(cd);
+  // hibukuro (light chamber) — emissive
+  const hbGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.36, 6, 1, true);
+  const hbMat = new THREE.MeshLambertMaterial({
+    color: 0xffcc70, emissive: 0xff8830, emissiveIntensity: 0.85,
+    side: THREE.DoubleSide,
+  });
+  const hb = new THREE.Mesh(hbGeo, hbMat);
+  hb.position.y = 1.36; g.add(hb);
+  // kasa (umbrella stone) — small pagoda-style
+  const kasaGeo = new THREE.ConeGeometry(0.38, 0.22, 6);
+  const kasa = new THREE.Mesh(kasaGeo, baseMat);
+  kasa.position.y = 1.66; kasa.castShadow = true; g.add(kasa);
+  // hoju (top jewel)
+  const hojuGeo = new THREE.SphereGeometry(0.06, 8, 6);
+  const hoju = new THREE.Mesh(hojuGeo, baseMat);
+  hoju.position.y = 1.8; g.add(hoju);
+  // glow light
+  const ll = new THREE.PointLight(0xff9a40, 0.55, 6);
+  ll.position.y = 1.4; g.add(ll);
+  return g;
+}
+
+// ─── Place builders ────────────────────────────────────────────────
+
+// 月光の書架 — 五重塔 (5-tier Japanese pagoda)
+function buildLibrary(group){
+  // stone base platform
+  const baseGeo = new THREE.BoxGeometry(6.5, 0.4, 6.5);
+  const baseMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.2;
   base.castShadow = base.receiveShadow = true;
   group.add(base);
+  // base steps
+  const step2Geo = new THREE.BoxGeometry(7.5, 0.2, 7.5);
+  const step2 = new THREE.Mesh(step2Geo, baseMat);
+  step2.position.y = 0.05;
+  step2.receiveShadow = true;
+  group.add(step2);
 
-  // Tower body (3 floors of bookshelves)
+  // 5 tiers of pagoda
+  const tiers = 5;
+  let curY = 0.4;
+  for(let f = 0; f < tiers; f++){
+    const w = 4.2 - f * 0.45;
+    const h = 1.5 - f * 0.05;
+    // wall — wooden box
+    const wallTex = TEX.woodDark.clone();
+    wallTex.needsUpdate = true;
+    wallTex.repeat.set(1.2, 0.5);
+    const wallGeo = new THREE.BoxGeometry(w, h, w);
+    const wallMat = new THREE.MeshLambertMaterial({map: wallTex});
+    const wall = new THREE.Mesh(wallGeo, wallMat);
+    wall.position.y = curY + h / 2;
+    wall.castShadow = wall.receiveShadow = true;
+    group.add(wall);
+
+    // window slots glowing (1 per face)
+    if(f < tiers - 1){
+      for(let side = 0; side < 4; side++){
+        const ang = side * Math.PI / 2;
+        const winGeo = new THREE.BoxGeometry(w * 0.4, h * 0.45, 0.08);
+        const winMat = new THREE.MeshLambertMaterial({
+          color: 0xffcc70, emissive: 0xffaa40, emissiveIntensity: 0.65,
+        });
+        const win = new THREE.Mesh(winGeo, winMat);
+        win.position.set(
+          Math.cos(ang) * (w/2 + 0.04),
+          curY + h * 0.55,
+          Math.sin(ang) * (w/2 + 0.04)
+        );
+        win.rotation.y = ang;
+        group.add(win);
+        // window lattice
+        for(let k = -1; k <= 1; k++){
+          const latGeo = new THREE.BoxGeometry(0.05, h * 0.45, 0.02);
+          const latMat = new THREE.MeshLambertMaterial({color: 0x2a1808});
+          const lat = new THREE.Mesh(latGeo, latMat);
+          lat.position.set(
+            Math.cos(ang) * (w/2 + 0.09) + Math.sin(ang) * (k * w * 0.08),
+            curY + h * 0.55,
+            Math.sin(ang) * (w/2 + 0.09) - Math.cos(ang) * (k * w * 0.08)
+          );
+          lat.rotation.y = ang;
+          group.add(lat);
+        }
+      }
+    }
+
+    // curved pagoda roof
+    buildPagodaRoof(w * 0.85, 0.7, w * 0.85, group, curY + h, 0x2a1808);
+
+    // corner pendants (small bells under eaves)
+    for(let cx = -1; cx <= 1; cx += 2){
+      for(let cz = -1; cz <= 1; cz += 2){
+        const pendGeo = new THREE.ConeGeometry(0.06, 0.18, 6);
+        const pendMat = new THREE.MeshLambertMaterial({
+          color: 0xc89a5a, emissive: 0x6a3818, emissiveIntensity: 0.3,
+        });
+        const pend = new THREE.Mesh(pendGeo, pendMat);
+        pend.position.set(cx * w * 0.85, curY + h - 0.15, cz * w * 0.85);
+        pend.rotation.x = Math.PI;
+        group.add(pend);
+      }
+    }
+    curY += h + 0.5;  // add roof height
+  }
+
+  // sourin (top finial) — 5 rings
+  const sourinBaseGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.6, 8);
+  const sourinMat = new THREE.MeshLambertMaterial({
+    color: 0xc89a5a, emissive: 0x6a3818, emissiveIntensity: 0.4,
+  });
+  const sourin = new THREE.Mesh(sourinBaseGeo, sourinMat);
+  sourin.position.y = curY + 0.8;
+  group.add(sourin);
+  for(let i = 0; i < 5; i++){
+    const ringGeo = new THREE.TorusGeometry(0.18 - i * 0.02, 0.025, 6, 12);
+    const ring = new THREE.Mesh(ringGeo, sourinMat);
+    ring.position.y = curY + 0.3 + i * 0.2;
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+  }
+  // top hoju (sacred jewel)
+  const hojuGeo = new THREE.SphereGeometry(0.12, 8, 8);
+  const hojuMat = new THREE.MeshLambertMaterial({
+    color: 0xffd970, emissive: 0xffd970, emissiveIntensity: 0.7,
+  });
+  const hoju = new THREE.Mesh(hojuGeo, hojuMat);
+  hoju.position.y = curY + 1.7;
+  group.add(hoju);
+
+  // stone lanterns flanking the entrance
+  const lan1 = buildStoneLantern();
+  lan1.position.set(3.5, 0, 3.5);
+  group.add(lan1);
+  const lan2 = buildStoneLantern();
+  lan2.position.set(-3.5, 0, 3.5);
+  group.add(lan2);
+
+  return;  // skip old library code below
+
+  // (legacy code below is unreachable)
   for(let f = 0; f < 3; f++){
     const w = 4.6 - f * 0.6;
     const wallGeo = new THREE.BoxGeometry(w, 2.0, w);
@@ -1025,60 +1248,151 @@ function buildLibrary(group){
   group.add(lanLight);
 }
 
-// 音の祠 (鳥居)
+// 音の祠 — 神社 (torii + 拝殿 + 賽銭箱 + 灯籠)
 function buildTorii(group){
   const red = 0xb04030;
-  // pillars
-  const pillarGeo = new THREE.CylinderGeometry(0.25, 0.32, 6, 8);
+  const redDark = 0x8a3020;
+
+  // ── 鳥居 (frontal entrance, facing -Z toward centre) ──
+  const pillarGeo = new THREE.CylinderGeometry(0.28, 0.36, 6, 12);
   const pillarMat = new THREE.MeshLambertMaterial({color: red});
-  const p1 = new THREE.Mesh(pillarGeo, pillarMat);
-  p1.position.set(-2.2, 3, 0); p1.castShadow = true;
-  group.add(p1);
-  const p2 = new THREE.Mesh(pillarGeo, pillarMat);
-  p2.position.set(2.2, 3, 0); p2.castShadow = true;
-  group.add(p2);
-  // top beam (kasagi)
-  const beamGeo = new THREE.BoxGeometry(5.6, 0.6, 0.7);
-  const beam = new THREE.Mesh(beamGeo, pillarMat);
-  beam.position.y = 6.2;
-  beam.castShadow = true;
-  group.add(beam);
-  // ridge cap
-  const capGeo = new THREE.BoxGeometry(6.2, 0.18, 0.85);
+  for(const px of [-2.4, 2.4]){
+    const p = new THREE.Mesh(pillarGeo, pillarMat);
+    p.position.set(px, 3, 3); p.castShadow = true;
+    group.add(p);
+  }
+  // kasagi (top beam with upturned ends)
+  const kasagiGeo = new THREE.BoxGeometry(6.2, 0.5, 0.85);
+  const kasagi = new THREE.Mesh(kasagiGeo, pillarMat);
+  kasagi.position.set(0, 6.3, 3);
+  kasagi.castShadow = true;
+  group.add(kasagi);
+  // shimaki (cap above kasagi)
+  const capGeo = new THREE.BoxGeometry(6.8, 0.2, 1.0);
   const cap = new THREE.Mesh(capGeo, pillarMat);
-  cap.position.y = 6.6;
+  cap.position.set(0, 6.65, 3);
   group.add(cap);
-  // inner beam (nuki)
-  const nukiGeo = new THREE.BoxGeometry(5, 0.32, 0.55);
+  // tilted end caps (upward curve)
+  for(const sx of [-1, 1]){
+    const tipGeo = new THREE.BoxGeometry(1.2, 0.3, 0.85);
+    const tip = new THREE.Mesh(tipGeo, pillarMat);
+    tip.position.set(sx * 3.4, 6.55, 3);
+    tip.rotation.z = sx * 0.18;
+    group.add(tip);
+  }
+  // nuki (inner beam)
+  const nukiGeo = new THREE.BoxGeometry(5.5, 0.4, 0.6);
   const nuki = new THREE.Mesh(nukiGeo, pillarMat);
-  nuki.position.y = 5.0;
+  nuki.position.set(0, 5.0, 3);
   nuki.castShadow = true;
   group.add(nuki);
-  // shimenawa (rope)
-  const ropeGeo = new THREE.CylinderGeometry(0.1, 0.1, 4.4, 8);
+  // shimenawa rope
+  const ropeGeo = new THREE.CylinderGeometry(0.15, 0.15, 4.4, 8);
   const ropeMat = new THREE.MeshLambertMaterial({color: 0xfff2c0});
   const rope = new THREE.Mesh(ropeGeo, ropeMat);
   rope.rotation.z = Math.PI / 2;
-  rope.position.y = 5.5;
+  rope.position.set(0, 5.5, 3.05);
   group.add(rope);
   // shide (paper folds)
-  for(let i = 0; i < 3; i++){
-    const sGeo = new THREE.BoxGeometry(0.18, 0.65, 0.04);
+  for(let i = 0; i < 4; i++){
+    const sGeo = new THREE.BoxGeometry(0.16, 0.7, 0.04);
     const sMat = new THREE.MeshLambertMaterial({color: 0xfff8d8});
     const s = new THREE.Mesh(sGeo, sMat);
-    s.position.set(-1.4 + i * 1.4, 5.05, 0.05);
+    s.position.set(-1.8 + i * 1.2, 5.1, 3.12);
     group.add(s);
   }
-  // small lanterns
-  for(const sx of [-2.2, 2.2]){
-    const lanGeo = new THREE.SphereGeometry(0.3, 12, 12);
-    const lanMat = new THREE.MeshLambertMaterial({
-      color: 0xffcc70, emissive: 0xff8830, emissiveIntensity: 0.6,
-    });
-    const lan = new THREE.Mesh(lanGeo, lanMat);
-    lan.position.set(sx, 6.85, 0);
-    group.add(lan);
+
+  // ── 拝殿 (haiden / worship hall, behind the torii) ──
+  // foundation
+  const haiBaseGeo = new THREE.BoxGeometry(5, 0.4, 4);
+  const haiBaseMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const haiBase = new THREE.Mesh(haiBaseGeo, haiBaseMat);
+  haiBase.position.set(0, 0.2, -1.5);
+  haiBase.receiveShadow = true;
+  group.add(haiBase);
+  // walls
+  const haiWallTex = TEX.wood.clone(); haiWallTex.needsUpdate = true;
+  haiWallTex.repeat.set(2, 1);
+  const haiWallGeo = new THREE.BoxGeometry(4.5, 2.5, 3.5);
+  const haiWallMat = new THREE.MeshLambertMaterial({map: haiWallTex});
+  const haiWall = new THREE.Mesh(haiWallGeo, haiWallMat);
+  haiWall.position.set(0, 1.65, -1.5);
+  haiWall.castShadow = haiWall.receiveShadow = true;
+  group.add(haiWall);
+  // pillars at corners
+  for(const cx of [-2.2, 2.2]){
+    for(const cz of [0.2, -3.2]){
+      const pGeo = new THREE.BoxGeometry(0.18, 2.5, 0.18);
+      const pMat = new THREE.MeshLambertMaterial({color: red});
+      const p = new THREE.Mesh(pGeo, pMat);
+      p.position.set(cx, 1.65, cz);
+      group.add(p);
+    }
   }
+  // doorway (centred, dark with vertical golden line)
+  const doorGeo = new THREE.BoxGeometry(1.3, 1.8, 0.08);
+  const doorMat = new THREE.MeshLambertMaterial({
+    color: 0x1a0e08, emissive: 0xff8830, emissiveIntensity: 0.25,
+  });
+  const door = new THREE.Mesh(doorGeo, doorMat);
+  door.position.set(0, 1.3, 0.25);
+  group.add(door);
+  // hanging lantern at entrance
+  const lanGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.8, 12);
+  const lanMat = new THREE.MeshLambertMaterial({
+    color: 0xffcc70, emissive: 0xff8830, emissiveIntensity: 0.7,
+  });
+  const lan = new THREE.Mesh(lanGeo, lanMat);
+  lan.position.set(0, 3.5, 0.5);
+  group.add(lan);
+  const lanLight = new THREE.PointLight(0xff9a40, 0.9, 8);
+  lanLight.position.set(0, 3.2, 0.5);
+  group.add(lanLight);
+  // pagoda-style roof on the haiden
+  buildPagodaRoof(3, 1.4, 2.5, group, 2.9, 0x2a1808);
+  // chigi (X-shaped wooden cross at roof ridge)
+  for(const cx of [-1, 1]){
+    const chigiGeo = new THREE.BoxGeometry(0.15, 1.2, 0.15);
+    const chigiMat = new THREE.MeshLambertMaterial({color: 0x3a2818});
+    const chigi = new THREE.Mesh(chigiGeo, chigiMat);
+    chigi.position.set(cx * 1.3, 4.2, -1.5);
+    chigi.rotation.z = cx * 0.4;
+    chigi.castShadow = true;
+    group.add(chigi);
+  }
+  // katsuogi (logs on ridge)
+  for(let i = 0; i < 3; i++){
+    const kGeo = new THREE.CylinderGeometry(0.15, 0.15, 1.8, 8);
+    const kMat = new THREE.MeshLambertMaterial({color: 0x3a2818});
+    const k = new THREE.Mesh(kGeo, kMat);
+    k.position.set(-0.8 + i * 0.8, 3.7, -1.5);
+    k.rotation.z = Math.PI / 2;
+    group.add(k);
+  }
+
+  // ── 賽銭箱 (offering box, in front of haiden) ──
+  const boxGeo = new THREE.BoxGeometry(1.6, 0.5, 0.7);
+  const boxMat = new THREE.MeshLambertMaterial({color: 0x4a3018});
+  const box = new THREE.Mesh(boxGeo, boxMat);
+  box.position.set(0, 0.65, 1);
+  box.castShadow = true;
+  group.add(box);
+  // box bell rope above
+  const bellRopeGeo = new THREE.CylinderGeometry(0.06, 0.06, 2.2, 6);
+  const bellRopeMat = new THREE.MeshLambertMaterial({color: 0xfff2c0});
+  const bellRope = new THREE.Mesh(bellRopeGeo, bellRopeMat);
+  bellRope.position.set(0, 1.9, 1);
+  group.add(bellRope);
+  // bell
+  const bellGeo = new THREE.SphereGeometry(0.18, 12, 8, 0, Math.PI*2, 0, Math.PI/1.5);
+  const bellMat = new THREE.MeshLambertMaterial({color: 0xc89a5a});
+  const bell = new THREE.Mesh(bellGeo, bellMat);
+  bell.position.set(0, 3.0, 1);
+  group.add(bell);
+
+  // ── 灯籠 × 2 (along approach) ──
+  const lt1 = buildStoneLantern(); lt1.position.set(2.2, 0, 4.5); group.add(lt1);
+  const lt2 = buildStoneLantern(); lt2.position.set(-2.2, 0, 4.5); group.add(lt2);
 }
 
 // ひとり旅の道
@@ -1123,10 +1437,48 @@ function buildRoad(group){
   group.add(lanLight);
 }
 
-// 水辺の岸
+// 水辺の岸 — 太鼓橋 + 池 + 蓮 + 石灯籠
 function buildPond(group){
-  // water disc
-  const pondGeo = new THREE.CircleGeometry(3.5, 32);
+  // ── 太鼓橋 (arched red bridge over the pond) ──
+  const red = 0xb04030;
+  const bridgeMat = new THREE.MeshLambertMaterial({color: red});
+  // arched deck (segments)
+  const segments = 9;
+  for(let i = 0; i < segments; i++){
+    const t = (i / (segments - 1)) - 0.5;
+    const x = t * 8;
+    const y = 0.6 + Math.cos(t * Math.PI) * 1.0;  // arch profile
+    const segGeo = new THREE.BoxGeometry(1.0, 0.18, 1.6);
+    const seg = new THREE.Mesh(segGeo, bridgeMat);
+    seg.position.set(x, y, 5);
+    seg.rotation.z = -t * 0.6;
+    seg.castShadow = seg.receiveShadow = true;
+    group.add(seg);
+    // railing posts on each side
+    if(i % 2 === 0){
+      for(const dz of [0.8, -0.8]){
+        const postGeo = new THREE.BoxGeometry(0.1, 0.6, 0.1);
+        const post = new THREE.Mesh(postGeo, bridgeMat);
+        post.position.set(x, y + 0.4, 5 + dz);
+        group.add(post);
+        // giboshi (ornamental top) — small onion shape
+        const gibGeo = new THREE.SphereGeometry(0.1, 8, 6);
+        const gib = new THREE.Mesh(gibGeo, bridgeMat);
+        gib.position.set(x, y + 0.75, 5 + dz);
+        group.add(gib);
+      }
+    }
+  }
+  // bridge railings (continuous)
+  const railGeo = new THREE.BoxGeometry(8, 0.08, 0.08);
+  for(const dz of [0.8, -0.8]){
+    const rail = new THREE.Mesh(railGeo, bridgeMat);
+    rail.position.set(0, 1.4, 5 + dz);
+    rail.geometry = new THREE.BoxGeometry(8, 0.08, 0.08);
+    group.add(rail);
+  }
+  // ── 池 (water) ──
+  const pondGeo = new THREE.CircleGeometry(4.0, 48);
   const pondMat = new THREE.MeshLambertMaterial({
     color: 0x4a7090, transparent: true, opacity: 0.78,
     emissive: 0x223040, emissiveIntensity: 0.4,
@@ -1158,58 +1510,135 @@ function buildPond(group){
     rock.castShadow = true;
     group.add(rock);
   }
-  // a small wooden lantern
-  const postGeo = new THREE.BoxGeometry(0.14, 1.6, 0.14);
-  const postMat = new THREE.MeshLambertMaterial({color: 0x3a281a});
-  const post = new THREE.Mesh(postGeo, postMat);
-  post.position.set(-3.0, 0.8, 1.5);
-  group.add(post);
-  const lanGeo = new THREE.BoxGeometry(0.45, 0.55, 0.45);
-  const lanMat = new THREE.MeshLambertMaterial({
-    color: 0xffcc70, emissive: 0xff8830, emissiveIntensity: 0.55,
-  });
-  const lan = new THREE.Mesh(lanGeo, lanMat);
-  lan.position.set(-3.0, 1.85, 1.5);
-  group.add(lan);
+  // 蓮の葉 (lily pads on water)
+  for(let i = 0; i < 6; i++){
+    const lilyGeo = new THREE.CircleGeometry(0.4 + Math.random() * 0.2, 12);
+    const lilyMat = new THREE.MeshLambertMaterial({
+      color: 0x3a6a4a, side: THREE.DoubleSide,
+    });
+    const lily = new THREE.Mesh(lilyGeo, lilyMat);
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 1.0 + Math.random() * 2.4;
+    lily.position.set(Math.cos(angle) * dist, 0.06, Math.sin(angle) * dist);
+    lily.rotation.x = -Math.PI / 2;
+    group.add(lily);
+  }
+  // 蓮の花
+  for(let i = 0; i < 3; i++){
+    const flowerGeo = new THREE.SphereGeometry(0.18, 8, 6);
+    const flowerMat = new THREE.MeshLambertMaterial({
+      color: 0xffc0d0, emissive: 0xff80a0, emissiveIntensity: 0.2,
+    });
+    const flower = new THREE.Mesh(flowerGeo, flowerMat);
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 1.4 + Math.random() * 1.8;
+    flower.position.set(Math.cos(angle) * dist, 0.18, Math.sin(angle) * dist);
+    group.add(flower);
+  }
+  // 石灯籠 (proper toro)
+  const toro = buildStoneLantern();
+  toro.position.set(-3.4, 0, 1.8);
+  group.add(toro);
+  const toro2 = buildStoneLantern();
+  toro2.position.set(-3.6, 0, -1.5);
+  group.add(toro2);
   // small reflection light
-  const pondLight = new THREE.PointLight(0x60a0c0, 0.45, 8);
+  const pondLight = new THREE.PointLight(0x60a0c0, 0.5, 10);
   pondLight.position.set(0, 1.5, 0);
   group.add(pondLight);
 }
 
-// 時の砂時計 (sundial)
+// 時の砂時計 — 鐘楼 (bonshou — temple bell tower)
 function buildHourglassTower(group){
-  // base column
-  const colGeo = new THREE.CylinderGeometry(0.6, 0.8, 1.6, 8);
-  const colMat = new THREE.MeshLambertMaterial({color: 0x5a5048});
-  const col = new THREE.Mesh(colGeo, colMat);
-  col.position.y = 0.8;
-  col.castShadow = true;
-  group.add(col);
-  // platter
-  const platGeo = new THREE.CylinderGeometry(1.7, 1.7, 0.2, 24);
-  const platMat = new THREE.MeshLambertMaterial({color: 0x8a8278});
-  const plat = new THREE.Mesh(platGeo, platMat);
-  plat.position.y = 1.7;
-  plat.castShadow = true;
-  group.add(plat);
-  // gnomon (angled triangle)
-  const gnoGeo = new THREE.ConeGeometry(0.3, 1.4, 4);
-  const gnoMat = new THREE.MeshLambertMaterial({color: 0xc2956a});
-  const gno = new THREE.Mesh(gnoGeo, gnoMat);
-  gno.position.set(0, 2.4, 0);
-  gno.rotation.x = Math.PI / 6;
-  gno.castShadow = true;
-  group.add(gno);
-  // sand particles - falling glow at base
-  const sandGeo = new THREE.SphereGeometry(0.05, 6, 6);
-  const sandMat = new THREE.MeshBasicMaterial({color: 0xffd970, fog: false, transparent: true, opacity: 0.85});
-  for(let i = 0; i < 12; i++){
-    const sp = new THREE.Mesh(sandGeo, sandMat);
-    sp.position.set((Math.random()-0.5)*1.4, 0.4 + Math.random() * 0.8, (Math.random()-0.5)*1.4);
-    sp.userData = {phase: Math.random() * Math.PI * 2};
-    group.add(sp);
+  // stone base
+  const baseGeo = new THREE.BoxGeometry(3.2, 0.4, 3.2);
+  const baseMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.2;
+  base.castShadow = base.receiveShadow = true;
+  group.add(base);
+  // 4 wooden pillars
+  const pillarMat = new THREE.MeshLambertMaterial({color: 0x5a3818});
+  for(const cx of [-1.2, 1.2]){
+    for(const cz of [-1.2, 1.2]){
+      const pillarGeo = new THREE.BoxGeometry(0.25, 4, 0.25);
+      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.set(cx, 0.4 + 2, cz);
+      pillar.castShadow = true;
+      group.add(pillar);
+    }
   }
+  // cross beams
+  const beamMat = new THREE.MeshLambertMaterial({color: 0x4a2c14});
+  for(const cz of [-1.2, 1.2]){
+    const beamGeo = new THREE.BoxGeometry(2.6, 0.22, 0.22);
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.set(0, 3.8, cz);
+    beam.castShadow = true;
+    group.add(beam);
+  }
+  for(const cx of [-1.2, 1.2]){
+    const beamGeo = new THREE.BoxGeometry(0.22, 0.22, 2.6);
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.set(cx, 3.8, 0);
+    group.add(beam);
+  }
+  // pagoda roof
+  buildPagodaRoof(2.0, 1.2, 2.0, group, 4.0, 0x2a1808);
+  // sourin
+  const sourinGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.6, 8);
+  const sourinMat = new THREE.MeshLambertMaterial({color: 0xc89a5a});
+  const sourin = new THREE.Mesh(sourinGeo, sourinMat);
+  sourin.position.y = 5.4;
+  group.add(sourin);
+  // 鐘 (large bronze bell hanging from the centre)
+  const bellGeo = new THREE.CylinderGeometry(0.75, 0.95, 1.6, 16, 1, true);
+  const bellMat = new THREE.MeshLambertMaterial({
+    color: 0x6a5848, emissive: 0x3a2818, emissiveIntensity: 0.15,
+  });
+  const bell = new THREE.Mesh(bellGeo, bellMat);
+  bell.position.set(0, 2.4, 0);
+  bell.castShadow = true;
+  group.add(bell);
+  // bell top (rounded)
+  const bellTopGeo = new THREE.SphereGeometry(0.75, 12, 6, 0, Math.PI*2, 0, Math.PI/2);
+  const bellTop = new THREE.Mesh(bellTopGeo, bellMat);
+  bellTop.position.set(0, 3.2, 0);
+  group.add(bellTop);
+  // bell handle
+  const handleGeo = new THREE.TorusGeometry(0.15, 0.05, 6, 12);
+  const handle = new THREE.Mesh(handleGeo, bellMat);
+  handle.position.set(0, 3.6, 0);
+  handle.rotation.x = Math.PI / 2;
+  group.add(handle);
+  // suspension chain
+  for(let i = 0; i < 3; i++){
+    const chainGeo = new THREE.TorusGeometry(0.04, 0.012, 4, 8);
+    const chainMat = new THREE.MeshLambertMaterial({color: 0xc89a5a});
+    const chain = new THREE.Mesh(chainGeo, chainMat);
+    chain.position.set(0, 3.7 + i * 0.08, 0);
+    chain.rotation.x = i % 2 === 0 ? Math.PI / 2 : 0;
+    group.add(chain);
+  }
+  // 撞木 (shumoku — hanging wooden striker on rope)
+  const strikerGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.4, 8);
+  const strikerMat = new THREE.MeshLambertMaterial({color: 0x6a4818});
+  const striker = new THREE.Mesh(strikerGeo, strikerMat);
+  striker.position.set(1.2, 2.4, 0);
+  striker.rotation.z = Math.PI / 2;
+  striker.castShadow = true;
+  group.add(striker);
+  // striker rope
+  const rope1Geo = new THREE.CylinderGeometry(0.02, 0.02, 0.8, 6);
+  const rope1Mat = new THREE.MeshLambertMaterial({color: 0xfff2c0});
+  const rope1 = new THREE.Mesh(rope1Geo, rope1Mat);
+  rope1.position.set(1.2, 3.0, 0);
+  group.add(rope1);
+  // pull rope hanging down for visitor
+  const pullGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.5, 6);
+  const pull = new THREE.Mesh(pullGeo, rope1Mat);
+  pull.position.set(1.9, 1.7, 0);
+  group.add(pull);
 }
 
 // 雨音の部屋
@@ -1315,49 +1744,104 @@ function buildRainHut(group){
   group.add(winLight);
 }
 
-// 星見台
+// 星見台 — 物見櫓 (3-story watchtower / yagura)
 function buildObservatory(group){
-  // stone platform
-  const pGeo = new THREE.CylinderGeometry(2.0, 2.5, 0.5, 16);
-  const pMat = new THREE.MeshLambertMaterial({color: 0x5a5048});
-  const p = new THREE.Mesh(pGeo, pMat);
-  p.position.y = 0.25;
-  p.castShadow = p.receiveShadow = true;
-  group.add(p);
-  // tower
-  const towGeo = new THREE.CylinderGeometry(1.1, 1.3, 5, 12);
-  const towMat = new THREE.MeshLambertMaterial({color: 0x6a5a4a});
-  const tow = new THREE.Mesh(towGeo, towMat);
-  tow.position.y = 3;
-  tow.castShadow = true;
-  group.add(tow);
-  // dome
-  const domeGeo = new THREE.SphereGeometry(1.4, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-  const domeMat = new THREE.MeshLambertMaterial({color: 0x8a7a6a});
-  const dome = new THREE.Mesh(domeGeo, domeMat);
-  dome.position.y = 5.55;
-  dome.castShadow = true;
-  group.add(dome);
-  // telescope sticking out
-  const teleGeo = new THREE.CylinderGeometry(0.18, 0.18, 2.4, 12);
+  // stone foundation
+  const foundGeo = new THREE.BoxGeometry(3.5, 0.4, 3.5);
+  const foundMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const found = new THREE.Mesh(foundGeo, foundMat);
+  found.position.y = 0.2;
+  found.castShadow = found.receiveShadow = true;
+  group.add(found);
+  // 4 corner pillars going up to top
+  const pillarMat = new THREE.MeshLambertMaterial({color: 0x4a3018});
+  const totalH = 7.5;
+  for(const cx of [-1.4, 1.4]){
+    for(const cz of [-1.4, 1.4]){
+      const pillarGeo = new THREE.BoxGeometry(0.2, totalH, 0.2);
+      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.set(cx, 0.4 + totalH / 2, cz);
+      pillar.castShadow = true;
+      group.add(pillar);
+    }
+  }
+  // 3 floors (boxes inside the pillars)
+  const woodTex = TEX.wood.clone(); woodTex.needsUpdate = true;
+  for(let f = 0; f < 3; f++){
+    const fy = 0.4 + f * 2.3 + 1.1;
+    const w = 2.6 - f * 0.15;
+    // floor
+    const flGeo = new THREE.BoxGeometry(w + 0.2, 0.18, w + 0.2);
+    const flMat = new THREE.MeshLambertMaterial({color: 0x6a4828});
+    const fl = new THREE.Mesh(flGeo, flMat);
+    fl.position.set(0, fy - 1.1, 0);
+    group.add(fl);
+    // upper floor walls (slats)
+    if(f < 3){
+      for(let side = 0; side < 4; side++){
+        const ang = side * Math.PI / 2;
+        const wallGeo = new THREE.BoxGeometry(w, 1.2, 0.08);
+        const wallMat = new THREE.MeshLambertMaterial({map: woodTex});
+        const wall = new THREE.Mesh(wallGeo, wallMat);
+        wall.position.set(
+          Math.cos(ang) * (w / 2 + 0.05),
+          fy - 0.4,
+          Math.sin(ang) * (w / 2 + 0.05)
+        );
+        wall.rotation.y = ang;
+        group.add(wall);
+      }
+    }
+    // railing
+    const railGeo = new THREE.BoxGeometry(w + 0.4, 0.04, 0.04);
+    const railMat = new THREE.MeshLambertMaterial({color: 0x3a2818});
+    for(let side = 0; side < 4; side++){
+      const ang = side * Math.PI / 2;
+      const rail = new THREE.Mesh(railGeo, railMat);
+      rail.position.set(
+        Math.cos(ang) * (w / 2 + 0.1),
+        fy - 1.0 + 0.5,
+        Math.sin(ang) * (w / 2 + 0.1)
+      );
+      rail.rotation.y = ang;
+      group.add(rail);
+    }
+  }
+  // observation top with curved pagoda roof
+  buildPagodaRoof(2.6, 1.4, 2.6, group, 7.0, 0x2a1808);
+  // sourin
+  const sourinGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.8, 8);
+  const sourinMat = new THREE.MeshLambertMaterial({
+    color: 0xc89a5a, emissive: 0x6a3818, emissiveIntensity: 0.4,
+  });
+  const sourin = new THREE.Mesh(sourinGeo, sourinMat);
+  sourin.position.y = 8.5;
+  group.add(sourin);
+  // telescope on top floor
+  const teleGeo = new THREE.CylinderGeometry(0.14, 0.14, 1.8, 12);
   const teleMat = new THREE.MeshLambertMaterial({color: 0x2a1a10});
   const tele = new THREE.Mesh(teleGeo, teleMat);
-  tele.position.set(0, 6.2, 0);
+  tele.position.set(0.2, 6.6, 0.4);
   tele.rotation.z = Math.PI / 5;
+  tele.rotation.y = Math.PI / 6;
   group.add(tele);
   // lens flare
-  const lensGeo = new THREE.SphereGeometry(0.18, 8, 8);
+  const lensGeo = new THREE.SphereGeometry(0.15, 8, 8);
   const lensMat = new THREE.MeshBasicMaterial({color: 0xfff8d8, fog: false});
   const lens = new THREE.Mesh(lensGeo, lensMat);
-  lens.position.set(1.0, 6.8, 0);
+  lens.position.set(1.0, 7.1, 0.4);
   group.add(lens);
-  // ladder
-  for(let i = 0; i < 5; i++){
-    const rungGeo = new THREE.BoxGeometry(0.8, 0.05, 0.05);
-    const rungMat = new THREE.MeshLambertMaterial({color: 0x4a3818});
-    const rung = new THREE.Mesh(rungGeo, rungMat);
-    rung.position.set(1.2, 0.6 + i * 0.7, 0.2);
-    group.add(rung);
+  // stone lanterns at base
+  const lan1 = buildStoneLantern(); lan1.position.set(2.4, 0, 2.4); group.add(lan1);
+  const lan2 = buildStoneLantern(); lan2.position.set(-2.4, 0, 2.4); group.add(lan2);
+  // ladder/stairs leading up
+  for(let i = 0; i < 8; i++){
+    const stairGeo = new THREE.BoxGeometry(1.0, 0.12, 0.3);
+    const stairMat = new THREE.MeshLambertMaterial({color: 0x4a3818});
+    const stair = new THREE.Mesh(stairGeo, stairMat);
+    stair.position.set(2.5 + i * 0.18, 0.1 + i * 0.18, 0);
+    stair.castShadow = true;
+    group.add(stair);
   }
 }
 
