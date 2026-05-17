@@ -683,21 +683,36 @@ function init() {
   scene.add(fill);
 
   createGround();
+  buildSurroundingMountains();
+  buildLargeLake();
+  buildVillageBuildings();
   LOCATIONS.forEach(loc => createLocation(loc));
 
-  // Trees scattered around (avoiding centre)
-  for(let i = 0; i < 60; i++){
+  // Dense forest — bias trees toward outer rings
+  for(let i = 0; i < 220; i++){
     const angle = hash(i, 0, 100) * Math.PI * 2;
-    const dist = 22 + hash(0, i, 100) * 24;
+    // bias toward outer ring (sqrt curve)
+    const t = Math.sqrt(hash(0, i, 100));
+    const dist = 18 + t * 50;
     const x = Math.cos(angle) * dist;
     const z = Math.sin(angle) * dist;
-    if(notTooCloseToPlaces(x, z, 4)) createTree(x, z);
+    if(notTooCloseToPlaces(x, z, 4) && notInLake(x, z)) createTree(x, z);
   }
-  // Bushes scattered (no centre)
-  for(let i = 0; i < 36; i++){
-    const x = (hash(i, 10, 100) - 0.5) * 70;
-    const z = (hash(10, i, 100) - 0.5) * 70;
-    if(Math.sqrt(x*x + z*z) > 7 && notTooCloseToPlaces(x, z, 3)) createBush(x, z);
+  // Pine trees on mountain slopes
+  for(let i = 0; i < 60; i++){
+    const angle = hash(i, 50, 100) * Math.PI * 2;
+    const dist = 55 + hash(50, i, 100) * 12;
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    if(notTooCloseToPlaces(x, z, 3) && notInLake(x, z)) createTree(x, z);
+  }
+  // Bushes scattered
+  for(let i = 0; i < 100; i++){
+    const x = (hash(i, 10, 100) - 0.5) * 90;
+    const z = (hash(10, i, 100) - 0.5) * 90;
+    if(Math.sqrt(x*x + z*z) > 7 &&
+       notTooCloseToPlaces(x, z, 2.5) &&
+       notInLake(x, z)) createBush(x, z);
   }
   // Lanterns along the central paths
   for(let i = 0; i < 12; i++){
@@ -705,6 +720,8 @@ function init() {
     const dist = 9;
     createPathLantern(Math.cos(angle) * dist, Math.sin(angle) * dist);
   }
+  // NPCs (small wandering villagers)
+  buildNPCs();
 
   setupControls();
   setupKeyboard();
@@ -718,7 +735,566 @@ function notTooCloseToPlaces(x, z, r){
     const d = Math.hypot(x - loc.x, z - loc.z);
     if(d < r + 3.5) return false;
   }
+  // also avoid village buildings
+  for(const v of (window.__villagePos || [])){
+    if(Math.hypot(x - v.x, z - v.z) < r + 2.5) return false;
+  }
   return true;
+}
+
+const LAKE = {cx: -32, cz: -38, rx: 18, rz: 14};
+function notInLake(x, z){
+  const dx = (x - LAKE.cx) / LAKE.rx;
+  const dz = (z - LAKE.cz) / LAKE.rz;
+  return (dx*dx + dz*dz) > 1.0;
+}
+
+// ─── Surrounding mountains (low-poly cone peaks) ───────────────────
+function buildSurroundingMountains(){
+  const peaks = [
+    {x: 0,   z: -75, h: 22, r: 18, snow: true},
+    {x: -55, z: -50, h: 18, r: 14, snow: true},
+    {x: 55,  z: -50, h: 20, r: 16, snow: true},
+    {x: -65, z: 10,  h: 14, r: 12, snow: false},
+    {x: 65,  z: 10,  h: 16, r: 14, snow: false},
+    {x: -40, z: 55,  h: 12, r: 11, snow: false},
+    {x: 40,  z: 60,  h: 14, r: 13, snow: false},
+    {x: 0,   z: 70,  h: 11, r: 10, snow: false},
+  ];
+  peaks.forEach(p => {
+    // main cone
+    const baseGeo = new THREE.ConeGeometry(p.r, p.h, 8);
+    const baseMat = new THREE.MeshLambertMaterial({
+      color: 0x2a3a44, flatShading: true,
+    });
+    const peak = new THREE.Mesh(baseGeo, baseMat);
+    peak.position.set(p.x, p.h / 2 - 1, p.z);
+    peak.castShadow = peak.receiveShadow = true;
+    scene.add(peak);
+    // snow cap
+    if(p.snow){
+      const snowGeo = new THREE.ConeGeometry(p.r * 0.35, p.h * 0.35, 8);
+      const snowMat = new THREE.MeshLambertMaterial({
+        color: 0xddd8e8, flatShading: true,
+      });
+      const snow = new THREE.Mesh(snowGeo, snowMat);
+      snow.position.set(p.x, p.h * 0.85 - 1, p.z);
+      scene.add(snow);
+    }
+    // dark stone ring around base
+    const ringGeo = new THREE.ConeGeometry(p.r * 1.05, p.h * 0.15, 8);
+    const ringMat = new THREE.MeshLambertMaterial({
+      color: 0x1a242a, flatShading: true,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.set(p.x, p.h * 0.075 - 1, p.z);
+    scene.add(ring);
+  });
+}
+
+// ─── Large lake to the north ──────────────────────────────────────
+function buildLargeLake(){
+  // water surface (ellipse)
+  const waterGeo = new THREE.PlaneGeometry(LAKE.rx * 2, LAKE.rz * 2, 24, 24);
+  // ripple displacement
+  const pos = waterGeo.attributes.position;
+  for(let i = 0; i < pos.count; i++){
+    const x = pos.getX(i), y = pos.getY(i);
+    pos.setZ(i, Math.sin(x * 0.4) * 0.08 + Math.cos(y * 0.3) * 0.06);
+  }
+  waterGeo.computeVertexNormals();
+  const waterMat = new THREE.MeshLambertMaterial({
+    color: 0x3a6a90, transparent: true, opacity: 0.85,
+    emissive: 0x1a3852, emissiveIntensity: 0.3,
+  });
+  const water = new THREE.Mesh(waterGeo, waterMat);
+  water.rotation.x = -Math.PI / 2;
+  water.position.set(LAKE.cx, 0.1, LAKE.cz);
+  scene.add(water);
+  // shoreline stones
+  for(let i = 0; i < 40; i++){
+    const t = i / 40 * Math.PI * 2;
+    const stoneR = 0.3 + Math.random() * 0.45;
+    const stoneGeo = new THREE.DodecahedronGeometry(stoneR);
+    const stoneMat = new THREE.MeshLambertMaterial({
+      color: 0x5a544a, flatShading: true,
+    });
+    const stone = new THREE.Mesh(stoneGeo, stoneMat);
+    const r = 1.03 + Math.random() * 0.08;
+    stone.position.set(
+      LAKE.cx + Math.cos(t) * LAKE.rx * r,
+      0.2,
+      LAKE.cz + Math.sin(t) * LAKE.rz * r
+    );
+    stone.rotation.set(Math.random()*2, Math.random()*2, Math.random()*2);
+    stone.castShadow = true;
+    scene.add(stone);
+  }
+  // a small wooden dock (pier)
+  const dockGroup = new THREE.Group();
+  for(let i = 0; i < 5; i++){
+    const plankGeo = new THREE.BoxGeometry(2.0, 0.12, 0.6);
+    const plankMat = new THREE.MeshLambertMaterial({color: 0x5a3818});
+    const plank = new THREE.Mesh(plankGeo, plankMat);
+    plank.position.set(0, 0.4, i * 0.7);
+    plank.castShadow = true;
+    dockGroup.add(plank);
+  }
+  // support posts
+  for(const dz of [0, 1.4, 2.8]){
+    for(const dx of [-0.9, 0.9]){
+      const pGeo = new THREE.BoxGeometry(0.18, 1.4, 0.18);
+      const pMat = new THREE.MeshLambertMaterial({color: 0x3a2818});
+      const p = new THREE.Mesh(pGeo, pMat);
+      p.position.set(dx, -0.3, dz);
+      p.castShadow = true;
+      dockGroup.add(p);
+    }
+  }
+  dockGroup.position.set(LAKE.cx + LAKE.rx * 0.7, 0, LAKE.cz - LAKE.rz * 0.2);
+  dockGroup.rotation.y = Math.PI / 4;
+  scene.add(dockGroup);
+  // small rowboat
+  const boatGroup = new THREE.Group();
+  const boatGeo = new THREE.ConeGeometry(0.8, 2.6, 6, 1, false, 0, Math.PI);
+  const boatMat = new THREE.MeshLambertMaterial({color: 0x6a4828});
+  const boat = new THREE.Mesh(boatGeo, boatMat);
+  boat.rotation.z = Math.PI / 2;
+  boat.scale.set(1, 1, 0.5);
+  boatGroup.add(boat);
+  boatGroup.position.set(LAKE.cx + LAKE.rx * 0.5, 0.3, LAKE.cz - LAKE.rz * 0.1);
+  boatGroup.userData.bob = true;
+  scene.add(boatGroup);
+  window.__boat = boatGroup;
+}
+
+// ─── Surrounding village buildings (teahouse, longhouses, well, market stalls) ───
+function buildVillageBuildings(){
+  window.__villagePos = [];
+  // Define village structures (avoiding the 8 main places + lake)
+  const villageSpots = [
+    {x: -22, z: 26,  type: "longhouse",  rot: 0.3},
+    {x: 24,  z: 28,  type: "longhouse",  rot: -0.4},
+    {x: 22,  z: -28, type: "teahouse",   rot: 0.2},
+    {x: -24, z: -30, type: "teahouse",   rot: -0.3},
+    {x: -32, z: 14,  type: "well",       rot: 0},
+    {x: 32,  z: 14,  type: "market",     rot: 0.5},
+    {x: -8,  z: 38,  type: "shed",       rot: -0.2},
+    {x: 8,   z: 38,  type: "shed",       rot: 0.25},
+    {x: -36, z: -10, type: "kiosk",      rot: 0.4},
+    {x: 36,  z: -10, type: "kiosk",      rot: -0.4},
+  ];
+  villageSpots.forEach(v => {
+    window.__villagePos.push({x: v.x, z: v.z});
+    const g = new THREE.Group();
+    switch(v.type){
+      case "longhouse":  buildLonghouse(g);  break;
+      case "teahouse":   buildTeahouse(g);   break;
+      case "well":       buildWell(g);       break;
+      case "market":     buildMarket(g);     break;
+      case "shed":       buildShed(g);       break;
+      case "kiosk":      buildKiosk(g);      break;
+    }
+    g.position.set(v.x, 0, v.z);
+    g.rotation.y = v.rot;
+    scene.add(g);
+  });
+  // Stone steps leading to the main central plaza from the south
+  for(let i = 0; i < 8; i++){
+    const stepGeo = new THREE.BoxGeometry(4.0 - i * 0.1, 0.3, 1.0);
+    const stepMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+    const step = new THREE.Mesh(stepGeo, stepMat);
+    step.position.set(0, 0.15 + i * 0.15, 14 - i * 0.9);
+    step.castShadow = step.receiveShadow = true;
+    scene.add(step);
+  }
+  // Entrance torii at the south (small ceremonial gate)
+  const entryGroup = new THREE.Group();
+  const eRed = 0xb04030;
+  for(const ex of [-1.4, 1.4]){
+    const ePilGeo = new THREE.CylinderGeometry(0.15, 0.2, 3.2, 8);
+    const ePilMat = new THREE.MeshLambertMaterial({color: eRed});
+    const ePil = new THREE.Mesh(ePilGeo, ePilMat);
+    ePil.position.set(ex, 1.6, 0); ePil.castShadow = true;
+    entryGroup.add(ePil);
+  }
+  const eTopGeo = new THREE.BoxGeometry(3.6, 0.3, 0.45);
+  const eTop = new THREE.Mesh(eTopGeo, new THREE.MeshLambertMaterial({color: eRed}));
+  eTop.position.y = 3.3;
+  entryGroup.add(eTop);
+  const eNukiGeo = new THREE.BoxGeometry(3.2, 0.2, 0.35);
+  const eNuki = new THREE.Mesh(eNukiGeo, new THREE.MeshLambertMaterial({color: eRed}));
+  eNuki.position.y = 2.7;
+  entryGroup.add(eNuki);
+  entryGroup.position.set(0, 0, 16);
+  scene.add(entryGroup);
+}
+
+function buildLonghouse(g){
+  const wallTex = TEX.wood.clone(); wallTex.needsUpdate = true;
+  wallTex.repeat.set(3, 1);
+  const w = 6, h = 2.2, d = 2.6;
+  // foundation
+  const baseGeo = new THREE.BoxGeometry(w + 0.4, 0.3, d + 0.4);
+  const baseMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.15;
+  base.receiveShadow = true;
+  g.add(base);
+  // walls
+  const wallGeo = new THREE.BoxGeometry(w, h, d);
+  const wallMat = new THREE.MeshLambertMaterial({map: wallTex});
+  const wall = new THREE.Mesh(wallGeo, wallMat);
+  wall.position.y = 0.3 + h / 2;
+  wall.castShadow = wall.receiveShadow = true;
+  g.add(wall);
+  // gable thatch roof — use 2 triangle planes for the slopes + 2 vertical gables
+  const roofTex = TEX.roof.clone(); roofTex.needsUpdate = true;
+  roofTex.repeat.set(2, 1);
+  const slopeMat = new THREE.MeshLambertMaterial({map: roofTex});
+  const slopeGeo = new THREE.PlaneGeometry(w + 0.4, d * 0.9);
+  const slope1 = new THREE.Mesh(slopeGeo, slopeMat);
+  slope1.position.y = h + 0.3 + d * 0.22;
+  slope1.position.z = d * 0.25;
+  slope1.rotation.x = -Math.PI / 4;
+  slope1.castShadow = true;
+  g.add(slope1);
+  const slope2 = new THREE.Mesh(slopeGeo, slopeMat);
+  slope2.position.y = h + 0.3 + d * 0.22;
+  slope2.position.z = -d * 0.25;
+  slope2.rotation.x = Math.PI / 4;
+  slope2.castShadow = true;
+  g.add(slope2);
+  // ridge
+  const ridgeGeo = new THREE.BoxGeometry(w + 0.4, 0.18, 0.18);
+  const ridge = new THREE.Mesh(ridgeGeo, new THREE.MeshLambertMaterial({color: 0x1a0e08}));
+  ridge.position.y = h + 0.3 + d * 0.45;
+  g.add(ridge);
+  // gable triangle plates
+  for(const sz of [d/2 + 0.01, -d/2 - 0.01]){
+    const gShape = new THREE.Shape();
+    gShape.moveTo(-w/2 - 0.2, 0);
+    gShape.lineTo(w/2 + 0.2, 0);
+    gShape.lineTo(0, d * 0.45);
+    gShape.lineTo(-w/2 - 0.2, 0);
+    const gGeo = new THREE.ShapeGeometry(gShape);
+    const gMat = new THREE.MeshLambertMaterial({map: wallTex});
+    const gable = new THREE.Mesh(gGeo, gMat);
+    gable.position.set(0, h + 0.3, sz);
+    g.add(gable);
+  }
+  // door
+  const doorGeo = new THREE.BoxGeometry(0.8, 1.6, 0.05);
+  const doorMat = new THREE.MeshLambertMaterial({color: 0x2a1808});
+  const door = new THREE.Mesh(doorGeo, doorMat);
+  door.position.set(-1.5, 1.1, d / 2 + 0.03);
+  g.add(door);
+  // window glow
+  for(const wx of [1.0, 2.2]){
+    const winGeo = new THREE.BoxGeometry(0.7, 0.6, 0.06);
+    const winMat = new THREE.MeshLambertMaterial({
+      color: 0xffcc70, emissive: 0xffaa40, emissiveIntensity: 0.6,
+    });
+    const win = new THREE.Mesh(winGeo, winMat);
+    win.position.set(wx, 1.4, d / 2 + 0.04);
+    g.add(win);
+  }
+  // chimney + smoke
+  const chimGeo = new THREE.BoxGeometry(0.4, 1.4, 0.4);
+  const chim = new THREE.Mesh(chimGeo, baseMat);
+  chim.position.set(-w * 0.35, h + 0.3 + 0.7, -d * 0.15);
+  chim.castShadow = true;
+  g.add(chim);
+  // simple smoke billboard
+  const smkMat = new THREE.SpriteMaterial({
+    map: TEX.smoke, transparent: true, opacity: 0.45, depthWrite: false, fog: false,
+  });
+  const smk = new THREE.Sprite(smkMat);
+  smk.position.set(-w * 0.35, h + 2.8, -d * 0.15);
+  smk.scale.set(2, 2, 1);
+  smk.userData = {phase: Math.random() * 3, baseY: h + 2.8};
+  g.add(smk);
+  g.userData.smoke = [smk];
+}
+
+function buildTeahouse(g){
+  const w = 3.8, h = 2.2, d = 3.8;
+  // foundation
+  const baseGeo = new THREE.BoxGeometry(w + 0.3, 0.25, d + 0.3);
+  const baseMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.125;
+  g.add(base);
+  // wall
+  const wallTex = TEX.wood.clone(); wallTex.needsUpdate = true;
+  wallTex.repeat.set(2, 1);
+  const wallGeo = new THREE.BoxGeometry(w, h, d);
+  const wallMat = new THREE.MeshLambertMaterial({map: wallTex});
+  const wall = new THREE.Mesh(wallGeo, wallMat);
+  wall.position.y = 0.25 + h / 2;
+  wall.castShadow = wall.receiveShadow = true;
+  g.add(wall);
+  // pagoda-style hipped roof
+  buildPagodaRoof(w * 0.7, 1.0, d * 0.7, g, h + 0.25, 0x2a1808);
+  // engawa (verandah)
+  const engawaGeo = new THREE.BoxGeometry(w + 0.6, 0.15, 0.7);
+  const engawa = new THREE.Mesh(engawaGeo, new THREE.MeshLambertMaterial({color: 0x7a5a3a}));
+  engawa.position.set(0, 0.32, d / 2 + 0.45);
+  engawa.castShadow = true;
+  g.add(engawa);
+  // shoji windows (glowing)
+  for(const wx of [-1.1, 0, 1.1]){
+    const sGeo = new THREE.BoxGeometry(0.7, 1.0, 0.04);
+    const sMat = new THREE.MeshLambertMaterial({
+      color: 0xfff2c0, emissive: 0xffd970, emissiveIntensity: 0.55,
+    });
+    const sj = new THREE.Mesh(sGeo, sMat);
+    sj.position.set(wx, 1.0, d / 2 + 0.02);
+    g.add(sj);
+    // lattice
+    for(let lk = -1; lk <= 1; lk++){
+      const lGeo = new THREE.BoxGeometry(0.7, 0.04, 0.02);
+      const lMat = new THREE.MeshLambertMaterial({color: 0x2a1808});
+      const l = new THREE.Mesh(lGeo, lMat);
+      l.position.set(wx, 1.0 + lk * 0.3, d / 2 + 0.06);
+      g.add(l);
+    }
+  }
+  // bamboo decoration to the side
+  for(let i = 0; i < 4; i++){
+    const bambooGeo = new THREE.CylinderGeometry(0.06, 0.06, 2.5, 6);
+    const bambooMat = new THREE.MeshLambertMaterial({color: 0x4a7038});
+    const bamboo = new THREE.Mesh(bambooGeo, bambooMat);
+    bamboo.position.set(w / 2 + 0.4 + i * 0.18, 1.25, d / 2 - 0.2);
+    g.add(bamboo);
+  }
+}
+
+function buildWell(g){
+  // round stone well
+  const wellGeo = new THREE.CylinderGeometry(0.9, 1.0, 1.2, 14);
+  const wellMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const well = new THREE.Mesh(wellGeo, wellMat);
+  well.position.y = 0.6;
+  well.castShadow = well.receiveShadow = true;
+  g.add(well);
+  // water inside (dark)
+  const waterGeo = new THREE.CircleGeometry(0.75, 16);
+  const water = new THREE.Mesh(waterGeo,
+    new THREE.MeshLambertMaterial({color: 0x1a3850, emissive: 0x0a1c2a, emissiveIntensity: 0.4}));
+  water.rotation.x = -Math.PI / 2;
+  water.position.y = 1.15;
+  g.add(water);
+  // roof
+  const roofGeo = new THREE.ConeGeometry(1.4, 0.8, 4);
+  const roofTex = TEX.roof.clone(); roofTex.needsUpdate = true;
+  const roof = new THREE.Mesh(roofGeo, new THREE.MeshLambertMaterial({map: roofTex}));
+  roof.position.y = 3.0;
+  roof.rotation.y = Math.PI / 4;
+  g.add(roof);
+  // 4 supporting posts
+  for(let i = 0; i < 4; i++){
+    const ang = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const postGeo = new THREE.BoxGeometry(0.12, 1.6, 0.12);
+    const post = new THREE.Mesh(postGeo, new THREE.MeshLambertMaterial({color: 0x4a3018}));
+    post.position.set(Math.cos(ang) * 0.85, 1.8, Math.sin(ang) * 0.85);
+    post.castShadow = true;
+    g.add(post);
+  }
+  // bucket on rope
+  const bucketGeo = new THREE.CylinderGeometry(0.18, 0.16, 0.25, 8);
+  const bucket = new THREE.Mesh(bucketGeo,
+    new THREE.MeshLambertMaterial({color: 0x6a4828}));
+  bucket.position.set(0, 1.5, 0);
+  g.add(bucket);
+  // rope
+  const ropeGeo = new THREE.CylinderGeometry(0.02, 0.02, 1.0, 6);
+  const rope = new THREE.Mesh(ropeGeo,
+    new THREE.MeshLambertMaterial({color: 0xfff2c0}));
+  rope.position.y = 2.05;
+  g.add(rope);
+}
+
+function buildMarket(g){
+  // 3 small market stalls in a row with coloured canopies
+  const canopyColors = [0xc5605a, 0xc59a40, 0x5a8a4a];
+  for(let i = 0; i < 3; i++){
+    const sx = (i - 1) * 1.6;
+    // table
+    const tGeo = new THREE.BoxGeometry(1.2, 0.7, 0.8);
+    const tMat = new THREE.MeshLambertMaterial({color: 0x6a4828});
+    const t = new THREE.Mesh(tGeo, tMat);
+    t.position.set(sx, 0.35, 0);
+    t.castShadow = true;
+    g.add(t);
+    // 4 posts
+    for(const cx of [-0.55, 0.55]){
+      for(const cz of [-0.35, 0.35]){
+        const pGeo = new THREE.BoxGeometry(0.08, 1.6, 0.08);
+        const p = new THREE.Mesh(pGeo, new THREE.MeshLambertMaterial({color: 0x4a3018}));
+        p.position.set(sx + cx, 0.8, cz);
+        p.castShadow = true;
+        g.add(p);
+      }
+    }
+    // canopy
+    const canopyGeo = new THREE.BoxGeometry(1.4, 0.06, 1.0);
+    const canopyMat = new THREE.MeshLambertMaterial({color: canopyColors[i]});
+    const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+    canopy.position.set(sx, 1.6, 0);
+    canopy.rotation.x = -0.15;
+    canopy.castShadow = true;
+    g.add(canopy);
+    // goods (3 small boxes on table)
+    for(let k = 0; k < 3; k++){
+      const gGeo = new THREE.BoxGeometry(0.22, 0.14, 0.22);
+      const gMat = new THREE.MeshLambertMaterial({
+        color: [0xc89a5a, 0xc5605a, 0x88a35a, 0x6a8aa0][k % 4],
+      });
+      const good = new THREE.Mesh(gGeo, gMat);
+      good.position.set(sx + (k - 1) * 0.32, 0.78, 0);
+      g.add(good);
+    }
+  }
+  // hanging banner
+  const banGeo = new THREE.BoxGeometry(0.6, 1.2, 0.04);
+  const banMat = new THREE.MeshLambertMaterial({color: 0x4a7038});
+  const ban = new THREE.Mesh(banGeo, banMat);
+  ban.position.set(-2.6, 1.5, 0);
+  ban.rotation.x = 0.05;
+  g.add(ban);
+}
+
+function buildShed(g){
+  const w = 2.2, h = 1.8, d = 2.2;
+  const wallTex = TEX.wood.clone(); wallTex.needsUpdate = true;
+  wallTex.repeat.set(1.5, 1);
+  const wallGeo = new THREE.BoxGeometry(w, h, d);
+  const wallMat = new THREE.MeshLambertMaterial({map: wallTex});
+  const wall = new THREE.Mesh(wallGeo, wallMat);
+  wall.position.y = h / 2;
+  wall.castShadow = wall.receiveShadow = true;
+  g.add(wall);
+  // slanted roof
+  const roofTex = TEX.roof.clone(); roofTex.needsUpdate = true;
+  const roofGeo = new THREE.PlaneGeometry(w + 0.3, d + 0.6);
+  const roof = new THREE.Mesh(roofGeo, new THREE.MeshLambertMaterial({map: roofTex}));
+  roof.rotation.x = -Math.PI / 3.2;
+  roof.position.y = h + 0.3;
+  roof.castShadow = true;
+  g.add(roof);
+  // a stack of barrels next to it
+  for(let i = 0; i < 3; i++){
+    const barGeo = new THREE.CylinderGeometry(0.3, 0.32, 0.55, 12);
+    const barMat = new THREE.MeshLambertMaterial({color: 0x6a4828});
+    const bar = new THREE.Mesh(barGeo, barMat);
+    bar.position.set(w / 2 + 0.6, 0.27 + (i % 2 ? 0.55 : 0), d / 2 - i * 0.3);
+    if(i === 2) bar.position.y = 0.82;
+    bar.castShadow = true;
+    g.add(bar);
+    // bands
+    for(let k = 0; k < 3; k++){
+      const bandGeo = new THREE.CylinderGeometry(0.33, 0.33, 0.06, 12);
+      const bandMat = new THREE.MeshLambertMaterial({color: 0x2a1a10});
+      const band = new THREE.Mesh(bandGeo, bandMat);
+      band.position.copy(bar.position);
+      band.position.y += -0.18 + k * 0.18;
+      g.add(band);
+    }
+  }
+}
+
+function buildKiosk(g){
+  // small open-walled wooden kiosk with goods baskets
+  const baseGeo = new THREE.BoxGeometry(2.4, 0.1, 1.6);
+  const baseMat = new THREE.MeshLambertMaterial({color: 0x6a4828});
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.05;
+  base.castShadow = true;
+  g.add(base);
+  // 4 corner posts
+  for(const cx of [-1.1, 1.1]){
+    for(const cz of [-0.7, 0.7]){
+      const postGeo = new THREE.BoxGeometry(0.1, 2.2, 0.1);
+      const post = new THREE.Mesh(postGeo, new THREE.MeshLambertMaterial({color: 0x4a3018}));
+      post.position.set(cx, 1.1, cz);
+      post.castShadow = true;
+      g.add(post);
+    }
+  }
+  // sloped roof
+  const roofGeo = new THREE.ConeGeometry(1.8, 1.0, 4);
+  const roofTex = TEX.roof.clone(); roofTex.needsUpdate = true;
+  const roof = new THREE.Mesh(roofGeo, new THREE.MeshLambertMaterial({map: roofTex}));
+  roof.rotation.y = Math.PI / 4;
+  roof.position.y = 2.6;
+  roof.castShadow = true;
+  g.add(roof);
+  // baskets (3)
+  for(let i = 0; i < 3; i++){
+    const bGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.25, 10);
+    const bMat = new THREE.MeshLambertMaterial({color: 0x8a6028});
+    const b = new THREE.Mesh(bGeo, bMat);
+    b.position.set(-0.6 + i * 0.6, 0.22, 0);
+    b.castShadow = true;
+    g.add(b);
+    // fruits/balls inside
+    const fGeo = new THREE.SphereGeometry(0.08, 6, 6);
+    const fMat = new THREE.MeshLambertMaterial({
+      color: [0xc56a3a, 0xc5a040, 0x8a6028][i],
+    });
+    for(let k = 0; k < 4; k++){
+      const f = new THREE.Mesh(fGeo, fMat);
+      f.position.set(-0.6 + i * 0.6 + (Math.random()-0.5)*0.18, 0.42, (Math.random()-0.5)*0.18);
+      g.add(f);
+    }
+  }
+}
+
+// NPCs: small low-poly villagers wandering near the centre
+function buildNPCs(){
+  window.__npcs = [];
+  const positions = [
+    {x: 3, z: 6, color: 0xc5605a},
+    {x: -4, z: 5, color: 0x6a8aa0},
+    {x: 6, z: -3, color: 0x88a35a},
+    {x: -7, z: -5, color: 0xc59a40},
+    {x: 12, z: 14, color: 0xa86058},
+    {x: -14, z: 13, color: 0x4a7038},
+  ];
+  positions.forEach(pos => {
+    const g = new THREE.Group();
+    // body
+    const bodyGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.7, 8);
+    const bodyMat = new THREE.MeshLambertMaterial({color: pos.color});
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.35;
+    body.castShadow = true;
+    g.add(body);
+    // head
+    const headGeo = new THREE.SphereGeometry(0.13, 10, 8);
+    const headMat = new THREE.MeshLambertMaterial({color: 0xe8c8a0});
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.y = 0.85;
+    head.castShadow = true;
+    g.add(head);
+    // hat (small cone)
+    const hatGeo = new THREE.ConeGeometry(0.2, 0.18, 8);
+    const hat = new THREE.Mesh(hatGeo, new THREE.MeshLambertMaterial({color: 0x8a6028}));
+    hat.position.y = 1.02;
+    g.add(hat);
+    // legs
+    for(const lx of [-0.08, 0.08]){
+      const legGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.35, 6);
+      const leg = new THREE.Mesh(legGeo, new THREE.MeshLambertMaterial({color: 0x2a1808}));
+      leg.position.set(lx, 0.17, 0);
+      g.add(leg);
+    }
+    g.position.set(pos.x, 0, pos.z);
+    g.userData.origin = {x: pos.x, z: pos.z, phase: Math.random() * Math.PI * 2};
+    scene.add(g);
+    window.__npcs.push(g);
+  });
 }
 
 // ─── Stars ─────────────────────────────────────────────────────────
@@ -2102,6 +2678,20 @@ function animate(){
   // moon halo facing camera
   if(scene && scene.userData.halo){
     scene.userData.halo.lookAt(camera.position);
+  }
+  // NPCs gentle wandering
+  if(window.__npcs){
+    window.__npcs.forEach(npc => {
+      const o = npc.userData.origin;
+      npc.position.x = o.x + Math.sin(t * 0.4 + o.phase) * 1.2;
+      npc.position.z = o.z + Math.cos(t * 0.4 + o.phase) * 1.2;
+      npc.rotation.y = t * 0.4 + o.phase + Math.PI / 2;
+    });
+  }
+  // boat bobbing on lake
+  if(window.__boat){
+    window.__boat.position.y = 0.3 + Math.sin(t * 0.8) * 0.06;
+    window.__boat.rotation.z = Math.sin(t * 0.5) * 0.04;
   }
   renderer.render(scene, camera);
 }
