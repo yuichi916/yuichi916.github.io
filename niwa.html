@@ -749,6 +749,76 @@ function notInLake(x, z){
   return (dx*dx + dz*dz) > 1.0;
 }
 
+// ─── Terrain heightmap ──────────────────────────────────────────────
+// Central plaza is flat; gentle rolling outside; mountains rise toward
+// the rim; lake sinks into the ground; a river valley cuts south from
+// the lake to the rim. Buildings, trees, NPCs all follow this.
+const RIVER_PATH = [
+  {x: -32, z: -24}, {x: -28, z: -16}, {x: -22, z: -8},
+  {x: -16, z: 4},   {x: -10, z: 16},  {x: -4, z: 28},
+  {x: 2, z: 42},    {x: 8, z: 56},
+];
+function distToRiver(x, z){
+  let minD = Infinity;
+  for(let i = 0; i < RIVER_PATH.length - 1; i++){
+    const a = RIVER_PATH[i], b = RIVER_PATH[i+1];
+    const abx = b.x - a.x, abz = b.z - a.z;
+    const apx = x - a.x, apz = z - a.z;
+    const t = Math.max(0, Math.min(1, (apx*abx + apz*abz) / (abx*abx + abz*abz)));
+    const px = a.x + abx * t, pz = a.z + abz * t;
+    const d = Math.hypot(x - px, z - pz);
+    if(d < minD) minD = d;
+  }
+  return minD;
+}
+
+function getTerrainHeight(x, z){
+  const dist = Math.hypot(x, z);
+
+  // 1. central plaza: flat
+  if(dist < 9) return 0;
+
+  // 2. lake depression
+  const lakeDX = (x - LAKE.cx) / LAKE.rx;
+  const lakeDZ = (z - LAKE.cz) / LAKE.rz;
+  const lakeR = Math.sqrt(lakeDX*lakeDX + lakeDZ*lakeDZ);
+  if(lakeR < 1.0){
+    return -1.4 + (1 - lakeR) * -0.2;
+  }
+  // lake shore rim
+  let shoreLift = 0;
+  if(lakeR < 1.3) shoreLift = (1 - (lakeR - 1.0) / 0.3) * 0.8 - 0.2;
+
+  // 3. river valley along the river path (depressed by 0.5 within 2.5 wide)
+  const dRiver = distToRiver(x, z);
+  let riverDip = 0;
+  if(dRiver < 2.5) riverDip = -(1 - dRiver / 2.5) * 0.7;
+
+  // 4. gentle rolling terrain
+  let h = Math.sin(x * 0.075) * Math.cos(z * 0.075) * 0.7 +
+          Math.sin(x * 0.18 + 1.2) * Math.cos(z * 0.16 + 0.7) * 0.32 +
+          Math.sin(x * 0.34 + 2.1) * Math.cos(z * 0.28 + 1.4) * 0.18;
+
+  // 5. mountain rise toward the rim (smooth, after dist 35)
+  if(dist > 35){
+    const t = Math.min(1, (dist - 35) / 35);
+    h += t * t * 9;
+  }
+
+  // 6. ease in from the central plaza (smooth transition)
+  if(dist < 18){
+    const blend = Math.min(1, (dist - 9) / 9);
+    h *= blend * blend;
+  }
+
+  return h + shoreLift + riverDip;
+}
+
+// Helper: place an object at terrain height
+function placeOnTerrain(obj, x, z, extraY = 0){
+  obj.position.set(x, getTerrainHeight(x, z) + extraY, z);
+}
+
 // ─── Surrounding mountains (low-poly cone peaks) ───────────────────
 function buildSurroundingMountains(){
   const peaks = [
@@ -895,16 +965,19 @@ function buildVillageBuildings(){
       case "shed":       buildShed(g);       break;
       case "kiosk":      buildKiosk(g);      break;
     }
-    g.position.set(v.x, 0, v.z);
+    g.position.set(v.x, getTerrainHeight(v.x, v.z), v.z);
     g.rotation.y = v.rot;
     scene.add(g);
   });
   // Stone steps leading to the main central plaza from the south
-  for(let i = 0; i < 8; i++){
-    const stepGeo = new THREE.BoxGeometry(4.0 - i * 0.1, 0.3, 1.0);
+  // (positioned so they ascend from the terrain to the plaza floor)
+  for(let i = 0; i < 10; i++){
+    const stepZ = 18 - i * 0.9;
+    const baseY = getTerrainHeight(0, stepZ);
+    const stepGeo = new THREE.BoxGeometry(4.2 - i * 0.08, 0.3, 1.0);
     const stepMat = new THREE.MeshLambertMaterial({map: TEX.stone});
     const step = new THREE.Mesh(stepGeo, stepMat);
-    step.position.set(0, 0.15 + i * 0.15, 14 - i * 0.9);
+    step.position.set(0, baseY + 0.15, stepZ);
     step.castShadow = step.receiveShadow = true;
     scene.add(step);
   }
@@ -926,7 +999,7 @@ function buildVillageBuildings(){
   const eNuki = new THREE.Mesh(eNukiGeo, new THREE.MeshLambertMaterial({color: eRed}));
   eNuki.position.y = 2.7;
   entryGroup.add(eNuki);
-  entryGroup.position.set(0, 0, 16);
+  entryGroup.position.set(0, getTerrainHeight(0, 18), 18);
   scene.add(entryGroup);
 }
 
@@ -1342,18 +1415,13 @@ function createMoonOrb(){
 
 // ─── Ground ────────────────────────────────────────────────────────
 function createGround(){
-  const size = 130;
-  const groundGeo = new THREE.PlaneGeometry(size, size, 60, 60);
+  const size = 160;
+  const groundGeo = new THREE.PlaneGeometry(size, size, 140, 140);
   const positions = groundGeo.attributes.position;
   for(let i = 0; i < positions.count; i++){
     const x = positions.getX(i);
     const y = positions.getY(i);
-    const dist = Math.sqrt(x*x + y*y);
-    // gentle rolling terrain — far edges sink slightly, centre is flat for buildings
-    const flatness = Math.min(1, dist / 30);
-    const noise = (Math.sin(x * 0.08) * Math.cos(y * 0.08) * 0.18 +
-                   Math.sin(x * 0.22) * Math.cos(y * 0.18) * 0.08) * flatness;
-    positions.setZ(i, noise);
+    positions.setZ(i, getTerrainHeight(x, y));
   }
   groundGeo.computeVertexNormals();
 
@@ -1365,58 +1433,322 @@ function createGround(){
 
   // Stone path circle around centre
   const pathGeo = new THREE.RingGeometry(7, 9.5, 64);
-  const pathMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const ringMat = new THREE.MeshLambertMaterial({map: TEX.stone});
   TEX.stone.repeat.set(3, 1);
-  const path = new THREE.Mesh(pathGeo, pathMat);
+  const path = new THREE.Mesh(pathGeo, ringMat);
   path.rotation.x = -Math.PI / 2;
   path.position.y = 0.04;
   scene.add(path);
 
-  // Radial dirt paths to each location
+  // Radial dirt paths to each location (segmented so they follow the terrain)
+  const dirtMat = new THREE.MeshLambertMaterial({
+    color: 0x6a4828, transparent: true, opacity: 0.9,
+  });
   LOCATIONS.forEach(loc => {
     const dist = Math.hypot(loc.x, loc.z);
-    if(dist < 4) return;  // skip firepit centre
-    const pathLen = dist - 4;
-    const pGeo = new THREE.PlaneGeometry(2.0, pathLen);
-    const pMat = new THREE.MeshLambertMaterial({
-      color: 0x6a4828, transparent: true, opacity: 0.85,
-    });
-    const p = new THREE.Mesh(pGeo, pMat);
-    p.rotation.x = -Math.PI / 2;
-    p.position.set(loc.x * 0.5, 0.03, loc.z * 0.5);
-    p.rotation.z = -Math.atan2(loc.x, loc.z) + Math.PI;
-    p.receiveShadow = true;
-    scene.add(p);
+    if(dist < 4) return;
+    const segments = 10;
+    for(let s = 0; s < segments; s++){
+      const t0 = s / segments;
+      const t1 = (s + 1) / segments;
+      const startDist = 4 + (dist - 4) * t0;
+      const endDist = 4 + (dist - 4) * t1;
+      const ang = Math.atan2(loc.x, loc.z);
+      const mx = Math.sin(ang) * (startDist + endDist) / 2;
+      const mz = Math.cos(ang) * (startDist + endDist) / 2;
+      const segLen = endDist - startDist;
+      const segGeo = new THREE.PlaneGeometry(1.8, segLen);
+      const seg = new THREE.Mesh(segGeo, dirtMat);
+      seg.rotation.x = -Math.PI / 2;
+      seg.position.set(mx, getTerrainHeight(mx, mz) + 0.04, mz);
+      seg.rotation.z = -ang + Math.PI;
+      seg.receiveShadow = true;
+      scene.add(seg);
+    }
   });
 
-  // Stones, flowers and grass tufts scattered randomly for detail
-  for(let i = 0; i < 80; i++){
+  // River — narrow water strip following RIVER_PATH segments
+  buildRiver();
+  // Bridge over river near plaza
+  buildRiverBridge();
+  // Rice paddies and vegetable fields (cluster of small platforms)
+  buildRicePaddies();
+  // Stone retaining walls (terracing on a hill)
+  buildStoneTerraces();
+  // Small water mill
+  buildWatermill();
+
+  // Stones, flowers and grass tufts scattered, follow terrain
+  for(let i = 0; i < 110; i++){
     const angle = Math.random() * Math.PI * 2;
-    const dist = 12 + Math.random() * 50;
+    const dist = 12 + Math.random() * 55;
     const x = Math.cos(angle) * dist;
     const z = Math.sin(angle) * dist;
-    if(!notTooCloseToPlaces(x, z, 2.5)) continue;
-    // small stone
+    if(!notTooCloseToPlaces(x, z, 2.5) || !notInLake(x, z)) continue;
+    if(distToRiver(x, z) < 1.5) continue;
+    const ty = getTerrainHeight(x, z);
     if(Math.random() < 0.5){
-      const stGeo = new THREE.DodecahedronGeometry(0.18 + Math.random() * 0.2);
+      const stGeo = new THREE.DodecahedronGeometry(0.18 + Math.random() * 0.22);
       const stMat = new THREE.MeshLambertMaterial({color: 0x6a6258});
       const st = new THREE.Mesh(stGeo, stMat);
-      st.position.set(x, 0.1, z);
+      st.position.set(x, ty + 0.1, z);
       st.rotation.set(Math.random() * 2, Math.random() * 2, Math.random() * 2);
       st.castShadow = true;
       scene.add(st);
     } else {
-      // grass tuft (tall blade billboard)
       const tuftMat = new THREE.SpriteMaterial({
         map: TEX.bushes[i % TEX.bushes.length],
         transparent: true, depthWrite: false,
       });
       const tuft = new THREE.Sprite(tuftMat);
       tuft.scale.set(0.8 + Math.random() * 0.4, 0.6 + Math.random() * 0.3, 1);
-      tuft.position.set(x, tuft.scale.y / 2, z);
+      tuft.position.set(x, ty + tuft.scale.y / 2, z);
       scene.add(tuft);
     }
   }
+}
+
+// ─── River + bridge ───────────────────────────────────────────────
+function buildRiver(){
+  const waterMat = new THREE.MeshLambertMaterial({
+    color: 0x3a6a90, transparent: true, opacity: 0.82,
+    emissive: 0x1a3852, emissiveIntensity: 0.35,
+  });
+  for(let i = 0; i < RIVER_PATH.length - 1; i++){
+    const a = RIVER_PATH[i], b = RIVER_PATH[i+1];
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    const mx = (a.x + b.x) / 2;
+    const mz = (a.z + b.z) / 2;
+    const segGeo = new THREE.PlaneGeometry(1.6, len, 6, 8);
+    const positions = segGeo.attributes.position;
+    for(let p = 0; p < positions.count; p++){
+      positions.setZ(p, Math.sin(positions.getY(p) * 0.6) * 0.04);
+    }
+    segGeo.computeVertexNormals();
+    const seg = new THREE.Mesh(segGeo, waterMat);
+    seg.rotation.x = -Math.PI / 2;
+    seg.position.set(mx, getTerrainHeight(mx, mz) + 0.15, mz);
+    seg.rotation.z = -Math.atan2(b.x - a.x, b.z - a.z);
+    scene.add(seg);
+  }
+  // Pebbles along banks
+  for(let i = 0; i < 50; i++){
+    const segIdx = Math.floor(Math.random() * (RIVER_PATH.length - 1));
+    const a = RIVER_PATH[segIdx], b = RIVER_PATH[segIdx + 1];
+    const t = Math.random();
+    const cx = a.x + (b.x - a.x) * t;
+    const cz = a.z + (b.z - a.z) * t;
+    const sideX = -(b.z - a.z) / Math.hypot(b.x - a.x, b.z - a.z);
+    const sideZ =  (b.x - a.x) / Math.hypot(b.x - a.x, b.z - a.z);
+    const offset = (Math.random() < 0.5 ? -1 : 1) * (0.9 + Math.random() * 0.5);
+    const x = cx + sideX * offset;
+    const z = cz + sideZ * offset;
+    const pebbleGeo = new THREE.DodecahedronGeometry(0.16 + Math.random() * 0.2);
+    const pebbleMat = new THREE.MeshLambertMaterial({color: 0x5a544a});
+    const pebble = new THREE.Mesh(pebbleGeo, pebbleMat);
+    pebble.position.set(x, getTerrainHeight(x, z) + 0.1, z);
+    pebble.rotation.set(Math.random()*2, Math.random()*2, Math.random()*2);
+    scene.add(pebble);
+  }
+}
+
+function buildRiverBridge(){
+  // Locate a river point near the village (around z = 16)
+  const bx = -10, bz = 16;
+  const ang = Math.atan2(RIVER_PATH[4].x - RIVER_PATH[3].x,
+                         RIVER_PATH[4].z - RIVER_PATH[3].z);
+  const bg = new THREE.Group();
+  // wooden plank deck
+  for(let i = -3; i <= 3; i++){
+    const plankGeo = new THREE.BoxGeometry(0.4, 0.15, 3.0);
+    const plankMat = new THREE.MeshLambertMaterial({color: 0x6a4828});
+    const plank = new THREE.Mesh(plankGeo, plankMat);
+    plank.position.set(i * 0.5, 0, 0);
+    plank.castShadow = true;
+    bg.add(plank);
+  }
+  // railing posts
+  for(const dx of [-1.6, -0.6, 0.6, 1.6]){
+    for(const dz of [-1.4, 1.4]){
+      const postGeo = new THREE.BoxGeometry(0.08, 0.7, 0.08);
+      const post = new THREE.Mesh(postGeo,
+        new THREE.MeshLambertMaterial({color: 0x4a3018}));
+      post.position.set(dx, 0.35, dz);
+      bg.add(post);
+    }
+  }
+  // rails
+  for(const dz of [-1.4, 1.4]){
+    const railGeo = new THREE.BoxGeometry(3.5, 0.07, 0.07);
+    const rail = new THREE.Mesh(railGeo,
+      new THREE.MeshLambertMaterial({color: 0x4a3018}));
+    rail.position.set(0, 0.65, dz);
+    bg.add(rail);
+  }
+  bg.position.set(bx, getTerrainHeight(bx, bz) + 0.5, bz);
+  bg.rotation.y = ang;
+  scene.add(bg);
+}
+
+// ─── Rice paddies & vegetable fields ──────────────────────────────
+function buildRicePaddies(){
+  // Two terraced rice paddies on the gentle slope between village and forest
+  const spots = [
+    {cx: -42, cz: 8,  rot: 0.3},
+    {cx: -42, cz: -2, rot: 0.3},
+    {cx: 42,  cz: -2, rot: -0.3},
+    {cx: 42,  cz: 8,  rot: -0.3},
+  ];
+  spots.forEach(s => {
+    const pg = new THREE.Group();
+    // base (mud)
+    const mudGeo = new THREE.BoxGeometry(7, 0.18, 5);
+    const mudMat = new THREE.MeshLambertMaterial({color: 0x5a4a30});
+    const mud = new THREE.Mesh(mudGeo, mudMat);
+    mud.receiveShadow = true;
+    pg.add(mud);
+    // water on top (shallow)
+    const wGeo = new THREE.BoxGeometry(6.6, 0.06, 4.6);
+    const wMat = new THREE.MeshLambertMaterial({
+      color: 0x4a6878, transparent: true, opacity: 0.6,
+      emissive: 0x1a2838, emissiveIntensity: 0.3,
+    });
+    const water = new THREE.Mesh(wGeo, wMat);
+    water.position.y = 0.12;
+    pg.add(water);
+    // rice plants (rows of small green tufts)
+    for(let rx = -2.8; rx <= 2.8; rx += 0.5){
+      for(let rz = -2.0; rz <= 2.0; rz += 0.45){
+        const tGeo = new THREE.ConeGeometry(0.08, 0.4, 4);
+        const tMat = new THREE.MeshLambertMaterial({color: 0x88a058});
+        const t = new THREE.Mesh(tGeo, tMat);
+        t.position.set(rx + (Math.random()-0.5)*0.06, 0.28,
+                       rz + (Math.random()-0.5)*0.06);
+        pg.add(t);
+      }
+    }
+    // wooden bunding (raised edges)
+    const bundMat = new THREE.MeshLambertMaterial({color: 0x4a3018});
+    for(const ez of [-2.55, 2.55]){
+      const ebGeo = new THREE.BoxGeometry(7, 0.15, 0.18);
+      const eb = new THREE.Mesh(ebGeo, bundMat);
+      eb.position.set(0, 0.18, ez);
+      pg.add(eb);
+    }
+    for(const ex of [-3.55, 3.55]){
+      const ebGeo = new THREE.BoxGeometry(0.18, 0.15, 5.2);
+      const eb = new THREE.Mesh(ebGeo, bundMat);
+      eb.position.set(ex, 0.18, 0);
+      pg.add(eb);
+    }
+    pg.position.set(s.cx, getTerrainHeight(s.cx, s.cz), s.cz);
+    pg.rotation.y = s.rot;
+    scene.add(pg);
+    if(!window.__villagePos) window.__villagePos = [];
+    window.__villagePos.push({x: s.cx, z: s.cz});
+  });
+  // Vegetable plot near the longhouse — rows of cabbages
+  const veg = new THREE.Group();
+  for(let r = -2; r <= 2; r++){
+    for(let c = -3; c <= 3; c++){
+      const cabGeo = new THREE.SphereGeometry(0.22, 8, 6);
+      const cabMat = new THREE.MeshLambertMaterial({color: 0x5a8a3a});
+      const cab = new THREE.Mesh(cabGeo, cabMat);
+      cab.position.set(c * 0.65, 0.2, r * 0.8);
+      veg.add(cab);
+    }
+  }
+  // mud ridges
+  for(let r = -2; r <= 2; r++){
+    const ridGeo = new THREE.BoxGeometry(4.5, 0.1, 0.18);
+    const ridMat = new THREE.MeshLambertMaterial({color: 0x4a3818});
+    const rid = new THREE.Mesh(ridGeo, ridMat);
+    rid.position.set(0, 0.05, r * 0.8 - 0.35);
+    veg.add(rid);
+  }
+  const vp = {x: 16, z: 36};
+  veg.position.set(vp.x, getTerrainHeight(vp.x, vp.z), vp.z);
+  scene.add(veg);
+  if(window.__villagePos) window.__villagePos.push(vp);
+}
+
+// ─── Stone terraces (retaining walls on a hill) ───────────────────
+function buildStoneTerraces(){
+  // small staircase of stone walls on the eastern slope
+  const tg = new THREE.Group();
+  for(let i = 0; i < 4; i++){
+    const wallGeo = new THREE.BoxGeometry(6 - i * 0.5, 0.6, 1.2);
+    const wallMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+    const wall = new THREE.Mesh(wallGeo, wallMat);
+    wall.position.set(0, 0.3 + i * 0.7, i * 1.4);
+    wall.castShadow = wall.receiveShadow = true;
+    tg.add(wall);
+    // small grass on top
+    const flatGeo = new THREE.BoxGeometry(6 - i * 0.5, 0.05, 1.0);
+    const flatMat = new THREE.MeshLambertMaterial({color: 0x4a6a3a});
+    const flat = new THREE.Mesh(flatGeo, flatMat);
+    flat.position.set(0, 0.63 + i * 0.7, i * 1.4);
+    tg.add(flat);
+  }
+  const tp = {x: 48, z: 26};
+  tg.position.set(tp.x, getTerrainHeight(tp.x, tp.z), tp.z);
+  tg.rotation.y = -0.8;
+  scene.add(tg);
+}
+
+// ─── Water mill (small) on the river ──────────────────────────────
+function buildWatermill(){
+  const wmg = new THREE.Group();
+  // small mill house
+  const wallTex = TEX.wood.clone(); wallTex.needsUpdate = true;
+  wallTex.repeat.set(2, 1);
+  const wallGeo = new THREE.BoxGeometry(2.6, 2.4, 2.6);
+  const wallMat = new THREE.MeshLambertMaterial({map: wallTex});
+  const wall = new THREE.Mesh(wallGeo, wallMat);
+  wall.position.y = 1.2;
+  wall.castShadow = true;
+  wmg.add(wall);
+  // base
+  const baseGeo = new THREE.BoxGeometry(2.8, 0.3, 2.8);
+  const baseMat = new THREE.MeshLambertMaterial({map: TEX.stone});
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.15;
+  wmg.add(base);
+  // pagoda-style roof
+  buildPagodaRoof(2.1, 0.9, 2.1, wmg, 2.4, 0x2a1808);
+  // water wheel (side)
+  const wheelGroup = new THREE.Group();
+  const wheelRadius = 1.2;
+  // outer ring
+  const ringGeo = new THREE.TorusGeometry(wheelRadius, 0.08, 6, 16);
+  const ringMat = new THREE.MeshLambertMaterial({color: 0x3a2818});
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  wheelGroup.add(ring);
+  // 8 paddle blades
+  for(let i = 0; i < 8; i++){
+    const a = (i / 8) * Math.PI * 2;
+    const padGeo = new THREE.BoxGeometry(0.06, 0.5, 0.7);
+    const pad = new THREE.Mesh(padGeo, ringMat);
+    pad.position.set(Math.cos(a) * (wheelRadius - 0.2), Math.sin(a) * (wheelRadius - 0.2), 0);
+    pad.rotation.z = a;
+    wheelGroup.add(pad);
+  }
+  // axle
+  const axGeo = new THREE.CylinderGeometry(0.1, 0.1, 1, 8);
+  const axMat = new THREE.MeshLambertMaterial({color: 0x4a3018});
+  const ax = new THREE.Mesh(axGeo, axMat);
+  ax.rotation.x = Math.PI / 2;
+  wheelGroup.add(ax);
+  wheelGroup.position.set(1.6, 1.4, 0);
+  wheelGroup.rotation.y = Math.PI / 2;
+  wmg.add(wheelGroup);
+  wmg.userData.wheel = wheelGroup;
+  // place on river near segment 5
+  const wp = RIVER_PATH[5];
+  wmg.position.set(wp.x + 1.5, getTerrainHeight(wp.x + 1.5, wp.z) + 0.3, wp.z);
+  wmg.rotation.y = -Math.atan2(RIVER_PATH[6].x - wp.x, RIVER_PATH[6].z - wp.z);
+  scene.add(wmg);
+  window.__watermill = wmg;
 }
 
 // ─── Place builders (custom per location) ──────────────────────────
@@ -1460,7 +1792,7 @@ function createLocation(loc){
   label.userData = {isLabel: true};
   group.add(label);
 
-  group.position.set(loc.x, 0, loc.z);
+  group.position.set(loc.x, getTerrainHeight(loc.x, loc.z), loc.z);
   scene.add(group);
   clickableObjects.push(group);
 }
@@ -2423,7 +2755,6 @@ function buildObservatory(group){
 
 // ─── Decorative trees / bushes / lanterns ─────────────────────────
 function createTree(x, z){
-  // billboard sprite — looks much more like a real tree from any angle
   const idx = Math.floor(hash(x, z, 1) * TEX.trees.length);
   const treeMat = new THREE.SpriteMaterial({
     map: TEX.trees[idx],
@@ -2432,10 +2763,9 @@ function createTree(x, z){
   });
   const sprite = new THREE.Sprite(treeMat);
   const scale = 5.5 + hash(x, z, 2) * 2.5;
-  // sprite intrinsic ratio 256:384 = 0.667
   sprite.scale.set(scale * 0.667, scale, 1);
-  sprite.position.set(x, scale / 2, z);
-  // jitter rotation by sin (sprites don't really rotate but we can flip)
+  const ty = getTerrainHeight(x, z);
+  sprite.position.set(x, ty + scale / 2, z);
   if(hash(x, z, 11) > 0.5) sprite.scale.x *= -1;
   scene.add(sprite);
 }
@@ -2450,25 +2780,27 @@ function createBush(x, z){
   const sprite = new THREE.Sprite(bMat);
   const s = 1.2 + hash(x, z, 5) * 0.9;
   sprite.scale.set(s, s * 0.75, 1);
-  sprite.position.set(x, s * 0.38, z);
+  const ty = getTerrainHeight(x, z);
+  sprite.position.set(x, ty + s * 0.38, z);
   scene.add(sprite);
 }
 
 function createPathLantern(x, z){
+  const ty = getTerrainHeight(x, z);
   const postGeo = new THREE.BoxGeometry(0.12, 1.2, 0.12);
   const postMat = new THREE.MeshLambertMaterial({color: 0x3a281a});
   const post = new THREE.Mesh(postGeo, postMat);
-  post.position.set(x, 0.6, z);
+  post.position.set(x, ty + 0.6, z);
   scene.add(post);
   const lanGeo = new THREE.BoxGeometry(0.36, 0.5, 0.36);
   const lanMat = new THREE.MeshLambertMaterial({
     color: 0xffcc70, emissive: 0xff8830, emissiveIntensity: 0.6,
   });
   const lan = new THREE.Mesh(lanGeo, lanMat);
-  lan.position.set(x, 1.4, z);
+  lan.position.set(x, ty + 1.4, z);
   scene.add(lan);
   const ll = new THREE.PointLight(0xff9a40, 0.5, 5);
-  ll.position.set(x, 1.4, z);
+  ll.position.set(x, ty + 1.4, z);
   scene.add(ll);
 }
 
@@ -2679,14 +3011,19 @@ function animate(){
   if(scene && scene.userData.halo){
     scene.userData.halo.lookAt(camera.position);
   }
-  // NPCs gentle wandering
+  // NPCs gentle wandering, follow terrain
   if(window.__npcs){
     window.__npcs.forEach(npc => {
       const o = npc.userData.origin;
-      npc.position.x = o.x + Math.sin(t * 0.4 + o.phase) * 1.2;
-      npc.position.z = o.z + Math.cos(t * 0.4 + o.phase) * 1.2;
+      const nx = o.x + Math.sin(t * 0.4 + o.phase) * 1.2;
+      const nz = o.z + Math.cos(t * 0.4 + o.phase) * 1.2;
+      npc.position.set(nx, getTerrainHeight(nx, nz), nz);
       npc.rotation.y = t * 0.4 + o.phase + Math.PI / 2;
     });
+  }
+  // water wheel spins
+  if(window.__watermill && window.__watermill.userData.wheel){
+    window.__watermill.userData.wheel.rotation.z += 0.012;
   }
   // boat bobbing on lake
   if(window.__boat){
