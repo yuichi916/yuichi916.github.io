@@ -270,34 +270,98 @@ function toonMat(color, opts = {}) {
   });
 }
 
-// ─── Terrain heightmap function (compact) ────────────────────
+// ─── Terrain heightmap function (DRAMATIC 3D RELIEF v8) ────────
 function getTerrainHeight(x, z) {
   const dist = Math.hypot(x, z);
-  // Central plaza (within 2.0): flat
+  // Central plaza (within 2.0): flat — the gathering spot
   if (dist < 2.0) return MAP.centerY;
-  // Within inner playable area: gentle rolling
+
+  // Within inner playable area: substantial rolling + sculpted features
   if (dist < MAP.innerR) {
     const r = (dist - 2.0) / (MAP.innerR - 2.0);
-    let h = Math.sin(x * 0.5) * Math.cos(z * 0.4) * 0.22 +
-            Math.sin(x * 0.27 + 1.1) * Math.cos(z * 0.34 + 0.4) * 0.32 +
-            Math.sin(x * 0.82) * Math.cos(z * 0.62) * 0.12;
-    // Hill at pagoda spot (north)
+    // Base rolling noise — gentler near plaza, more dramatic at edges
+    let h = Math.sin(x * 0.42) * Math.cos(z * 0.36) * 0.5 +
+            Math.sin(x * 0.18 + 1.1) * Math.cos(z * 0.22 + 0.4) * 0.7 +
+            Math.sin(x * 0.92) * Math.cos(z * 0.65) * 0.22;
+
+    // PAGODA HILL (back-center) — dramatic peak rising to +4m
     const dPag = Math.hypot(x - 0, z - (-11.5));
-    if (dPag < 4) h += (1 - dPag / 4) * 1.2;
-    // Pond depression at mizube
+    if (dPag < 5.5) {
+      const t = 1 - dPag / 5.5;
+      // smooth Gaussian-like ridge
+      h += t * t * (3.0 - t * 0.5) + 1.0;
+    }
+
+    // KOI POND (west) — deeper depression
     const dMiz = Math.hypot(x - (-8.5), z - 3.5);
-    if (dMiz < 2.6) h -= (1 - dMiz / 2.6) * 0.6;
-    // Observatory bump (east)
+    if (dMiz < 3.2) {
+      const t = 1 - dMiz / 3.2;
+      h -= t * t * 2.0;
+    }
+
+    // OBSERVATORY MOUND (east) — gentler bump to +2.5m
     const dObs = Math.hypot(x - 5.5, z - 9.0);
-    if (dObs < 2.5) h += (1 - dObs / 2.5) * 0.8;
-    return h * (1 - Math.max(0, r - 0.85) * 4);
+    if (dObs < 3.0) {
+      const t = 1 - dObs / 3.0;
+      h += t * t * 2.2;
+    }
+
+    // HOURGLASS TERRACE (east) — flat raised platform
+    const dToki = Math.hypot(x - 8.5, z - 4.0);
+    if (dToki < 2.0) {
+      const t = 1 - dToki / 2.0;
+      h += Math.min(1.4, t * 2.0);
+    }
+
+    // RAIN HUT MOUND (north-west)
+    const dAma = Math.hypot(x - (-5.0), z - 9.5);
+    if (dAma < 2.4) {
+      const t = 1 - dAma / 2.4;
+      h += t * t * 1.4;
+    }
+
+    // STREAM CHANNEL — from pagoda hill down to pond
+    // line from (0, -8) to (-8.5, 3.5)
+    const streamDist = distToStream(x, z);
+    if (streamDist < 0.9) {
+      const t = 1 - streamDist / 0.9;
+      h -= t * 1.2;
+    }
+
+    // gentle taper to edge so terrain meets the cliff smoothly
+    return h * (1 - Math.max(0, r - 0.88) * 6);
   }
-  // Edge slope: drop down toward the wall
+
+  // Edge slope: a real cliff dropping to the visible base
   if (dist < MAP.outerR) {
     const r = (dist - MAP.innerR) / (MAP.outerR - MAP.innerR);
-    return -r * 0.6;
+    return -r * r * 1.4 - 0.1;
   }
-  return -0.6;
+  return -1.5;
+}
+
+// Helper: distance to the curved stream from pagoda hill to pond
+function distToStream(x, z) {
+  // approximate as polyline
+  const pts = [
+    [0, -8],
+    [-2, -5],
+    [-4, -2],
+    [-6, 0.5],
+    [-8.5, 3.5],
+  ];
+  let minD = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, az] = pts[i], [bx, bz] = pts[i + 1];
+    const dx = bx - ax, dz = bz - az;
+    const len2 = dx * dx + dz * dz;
+    let t = ((x - ax) * dx + (z - az) * dz) / Math.max(0.01, len2);
+    t = Math.max(0, Math.min(1, t));
+    const px = ax + dx * t, pz = az + dz * t;
+    const d = Math.hypot(x - px, z - pz);
+    if (d < minD) minD = d;
+  }
+  return minD;
 }
 
 // ─── Init ────────────────────────────────────────────────────
@@ -360,7 +424,9 @@ async function init() {
   buildDioramaBase();
   buildHeightmapTerrain();
   buildKoiPond();
-  buildStream();
+  // buildStream() — replaced by carved stream channel in heightmap + waterfall GLB
+  buildWaterfall();
+  buildStreamWater();
   buildPaths();
   buildLocations();
   buildHandPlacedFlora();
@@ -446,55 +512,67 @@ function buildSkyDome() {
   scene.add(skyDome);
 }
 
-// ─── Diorama base — octagonal "model on a base" ───────────────
+// ─── Diorama base — irregular cliff edge (naturalistic, v8) ───
 function buildDioramaBase() {
-  // outer wall (octagonal stone wall)
-  const wallShape = new THREE.Shape();
-  const SIDES = 8;
-  const R = MAP.outerR + 0.3;
-  for (let i = 0; i < SIDES; i++) {
-    const a = (i / SIDES) * Math.PI * 2 + Math.PI / SIDES;
-    const x = Math.cos(a) * R;
-    const z = Math.sin(a) * R;
-    if (i === 0) wallShape.moveTo(x, z); else wallShape.lineTo(x, z);
+  // "Dirt cake" base — earthen layered substrate (visible from below)
+  const baseGeo = new THREE.CylinderGeometry(MAP.outerR + 0.2, MAP.outerR - 2.2, 2.8, 32, 4);
+  // Slight noise on base side vertices for natural rock feel
+  const pos = baseGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    const x = pos.getX(i), z = pos.getZ(i);
+    if (y > -1.0 && y < 1.0) {
+      const off = (Math.sin(x * 1.2 + z * 0.8) + Math.cos(x * 0.5 - z * 0.7)) * 0.18;
+      pos.setX(i, x + off);
+      pos.setZ(i, z + off * 0.7);
+    }
   }
-  wallShape.closePath();
-  // hole for interior so we get a frame
-  const innerR = MAP.outerR - 0.4;
-  const hole = new THREE.Path();
-  for (let i = 0; i < SIDES; i++) {
-    const a = (i / SIDES) * Math.PI * 2 + Math.PI / SIDES;
-    const x = Math.cos(a) * innerR;
-    const z = Math.sin(a) * innerR;
-    if (i === 0) hole.moveTo(x, z); else hole.lineTo(x, z);
-  }
-  hole.closePath();
-  wallShape.holes.push(hole);
-  const wallGeom = new THREE.ExtrudeGeometry(wallShape, {
-    depth: 1.6, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.1, bevelSegments: 2,
-  });
-  wallGeom.rotateX(-Math.PI / 2);
-  const wallMat = toonMat(0xa49386, { roughness: 0.85 });
-  const wall = new THREE.Mesh(wallGeom, wallMat);
-  wall.position.y = -0.8;
-  wall.castShadow = true; wall.receiveShadow = true;
-  scene.add(wall);
-
-  // base disk underneath the diorama — "dirt cake"
-  const baseGeo = new THREE.CylinderGeometry(MAP.outerR + 0.1, MAP.outerR - 1.4, 1.6, SIDES);
-  const baseMat = toonMat(0x7e5a3a);
+  pos.needsUpdate = true;
+  baseGeo.computeVertexNormals();
+  const baseMat = toonMat(0x6a4a30);
   const base = new THREE.Mesh(baseGeo, baseMat);
-  base.position.y = -1.6;
+  base.position.y = -2.4;
   base.castShadow = true; base.receiveShadow = true;
   scene.add(base);
 
-  // ground-level cap of grass at the top edge so it doesn't look hollow
-  const capGeo = new THREE.CylinderGeometry(MAP.outerR - 0.3, MAP.outerR - 0.3, 0.05, SIDES);
-  const capMat = toonMat(0x6f9a52);
-  const cap = new THREE.Mesh(capGeo, capMat);
-  cap.position.y = -0.75;
-  cap.receiveShadow = true;
-  scene.add(cap);
+  // Layered earth strata — thin colored rings on the side
+  for (let i = 0; i < 3; i++) {
+    const ringR = MAP.outerR - 1.0 - i * 0.4;
+    const ringGeo = new THREE.TorusGeometry(ringR, 0.18, 6, 28);
+    ringGeo.rotateX(Math.PI / 2);
+    const ringMat = toonMat([0x8a6850, 0x5a4030, 0x423025][i]);
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.y = -1.6 - i * 0.4;
+    ring.castShadow = false; ring.receiveShadow = true;
+    scene.add(ring);
+  }
+
+  // Irregular cliff rim — clusters of rock outcrops along the edge
+  // Use 12 sectors with random rock formations
+  const rimGroup = new THREE.Group();
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
+    const r = MAP.outerR - 0.4 - Math.random() * 0.3;
+    const cx = Math.cos(a) * r;
+    const cz = Math.sin(a) * r;
+    // Cluster of 2-3 rocks per spot
+    const n = 2 + Math.floor(Math.random() * 2);
+    for (let j = 0; j < n; j++) {
+      const ox = (Math.random() - 0.5) * 0.6;
+      const oz = (Math.random() - 0.5) * 0.6;
+      const rock = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.45, 0),
+        toonMat(0x8a8480)
+      );
+      rock.position.set(cx + ox, getTerrainHeight(cx + ox, cz + oz) + 0.3, cz + oz);
+      rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      const s = 0.8 + Math.random() * 0.6;
+      rock.scale.set(s, s * 0.8, s);
+      rock.castShadow = true; rock.receiveShadow = true;
+      rimGroup.add(rock);
+    }
+  }
+  scene.add(rimGroup);
 }
 
 // ─── Heightmap terrain ──────────────────────────────────────
@@ -506,33 +584,45 @@ function buildHeightmapTerrain() {
   geom.rotateX(-Math.PI / 2);
   const pos = geom.attributes.position;
   const colorAttr = new Float32Array(pos.count * 3);
-  // displace + color
-  const tmpC = new THREE.Color();
+  // displace
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const z = pos.getZ(i);
     const dist = Math.hypot(x, z);
     if (dist > MAP.outerR - 0.1) {
-      pos.setY(i, -0.6); // edge dips
+      pos.setY(i, -1.4);
     } else {
       pos.setY(i, getTerrainHeight(x, z));
     }
-    // color: grass gradient based on height and a noise
+  }
+  geom.computeVertexNormals();
+  // color based on height + slope
+  const normalAttr = geom.attributes.normal;
+  const tmpC = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
     const h = pos.getY(i);
-    const noise = Math.sin(x * 0.8) * Math.cos(z * 0.7) * 0.06 + (Math.random() - 0.5) * 0.04;
+    // slope: how vertical the normal is (1=flat, 0=cliff)
+    const ny = normalAttr.getY(i);
+    const slope = Math.max(0, ny);
+    const isSlope = slope < 0.7;
+    const noise = Math.sin(x * 1.4) * Math.cos(z * 1.1) * 0.07 + (Math.random() - 0.5) * 0.05;
     let baseG;
-    if (h < -0.2) baseG = 0x5a8038;          // shaded valley grass
-    else if (h < 0.2) baseG = 0x84a85a;      // mid grass
-    else if (h < 0.6) baseG = 0xa6c070;      // hilltop highlight
-    else baseG = 0xc8d088;                    // sunlit ridge
+    if (h < -1.0) baseG = 0x4a3320;            // deep earth (under cliff)
+    else if (h < -0.5) baseG = 0x5a4628;       // riverbed / pond edge
+    else if (isSlope) baseG = h > 1.5 ? 0x8a7a60 : 0x6a5a40;   // exposed slope earth/rock
+    else if (h < 0.1) baseG = 0x5a7a3a;         // valley grass
+    else if (h < 1.0) baseG = 0x7ea556;         // mid grass
+    else if (h < 2.5) baseG = 0x96b864;         // sunlit hillside
+    else baseG = 0xb0c478;                       // bright ridge top
     tmpC.setHex(baseG);
-    tmpC.offsetHSL(0, -0.05 + noise * 0.2, noise);
+    tmpC.offsetHSL(0, -0.04 + noise * 0.2, noise);
     colorAttr[i * 3 + 0] = tmpC.r;
     colorAttr[i * 3 + 1] = tmpC.g;
     colorAttr[i * 3 + 2] = tmpC.b;
   }
   geom.setAttribute('color', new THREE.BufferAttribute(colorAttr, 3));
-  geom.computeVertexNormals();
   const mat = toonMat(0xffffff);
   mat.vertexColors = true;
   terrainMesh = new THREE.Mesh(geom, mat);
@@ -542,64 +632,72 @@ function buildHeightmapTerrain() {
   scene.add(terrainMesh);
 }
 
-// ─── Koi pond — reflective surface at mizube ────────────────
+// ─── Koi pond — reflective water at mizube depression ───────
+const WATER_Y = -0.55;
 let koiPondMesh;
 function buildKoiPond() {
   const px = -8.5, pz = 3.5;
-  // Reflector for the water surface
-  const reflGeo = new THREE.CircleGeometry(2.2, 32);
+  // Larger reflective surface filling the depression
+  const reflGeo = new THREE.CircleGeometry(2.8, 40);
   reflGeo.rotateX(-Math.PI / 2);
   if (typeof THREE.Reflector === 'function') {
     const refl = new THREE.Reflector(reflGeo, {
       clipBias: 0.003,
-      textureWidth: 512,
-      textureHeight: 512,
-      color: 0x88a8b8,
+      textureWidth: 1024,
+      textureHeight: 1024,
+      color: 0x506880,
     });
-    refl.position.set(px, getTerrainHeight(px, pz) + 0.05, pz);
+    refl.position.set(px, WATER_Y, pz);
     scene.add(refl);
     koiPondMesh = refl;
   } else {
-    // fallback
     const mat = new THREE.MeshStandardMaterial({
-      color: 0x4a90b0, metalness: 0.7, roughness: 0.15, transparent: true, opacity: 0.85,
+      color: 0x4a8090, metalness: 0.8, roughness: 0.12, transparent: true, opacity: 0.92,
     });
     const m = new THREE.Mesh(reflGeo, mat);
-    m.position.set(px, getTerrainHeight(px, pz) + 0.05, pz);
+    m.position.set(px, WATER_Y, pz);
     scene.add(m);
     koiPondMesh = m;
   }
-  // Stone rim
-  const rimGeo = new THREE.TorusGeometry(2.25, 0.15, 8, 28);
+  // Soft blue tint plane just below the reflector for depth-feel
+  const tintGeo = new THREE.CircleGeometry(2.7, 36);
+  tintGeo.rotateX(-Math.PI / 2);
+  const tint = new THREE.Mesh(tintGeo, new THREE.MeshBasicMaterial({
+    color: 0x2a4a64, transparent: true, opacity: 0.55,
+  }));
+  tint.position.set(px, WATER_Y - 0.02, pz);
+  scene.add(tint);
+  // Stone rim around the pond
+  const rimGeo = new THREE.TorusGeometry(2.85, 0.22, 8, 32);
   rimGeo.rotateX(Math.PI / 2);
-  const rim = new THREE.Mesh(rimGeo, toonMat(0x807872));
-  rim.position.set(px, getTerrainHeight(px, pz) + 0.05, pz);
+  const rim = new THREE.Mesh(rimGeo, toonMat(0x6e6862));
+  rim.position.set(px, WATER_Y - 0.1, pz);
   rim.castShadow = true; rim.receiveShadow = true;
   scene.add(rim);
-  // Koi fish swimming
+  // Koi (smaller fallback in case GLB doesn't load)
   const koiMats = [toonMat(0xd06030), toonMat(0xf0d050), toonMat(0xffffff)];
   if (!window.__koi) window.__koi = [];
   for (let i = 0; i < 4; i++) {
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), koiMats[i % koiMats.length]);
     body.scale.set(0.7, 0.32, 1.6);
-    body.userData = { cx: px, cz: pz, r: 0.9 + Math.random() * 0.8, speed: 0.5 + Math.random() * 0.3, phase: Math.random() * Math.PI * 2 };
+    body.userData = { cx: px, cz: pz, r: 1.2 + Math.random() * 0.9, speed: 0.5 + Math.random() * 0.3, phase: Math.random() * Math.PI * 2 };
     scene.add(body);
     window.__koi.push(body);
   }
-  // Lily pads
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2;
-    const r = 0.7 + Math.random() * 1.0;
+  // Lily pads on water
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const r = 0.8 + Math.random() * 1.4;
     const pad = new THREE.Mesh(
-      new THREE.CircleGeometry(0.32 + Math.random() * 0.15, 12),
+      new THREE.CircleGeometry(0.32 + Math.random() * 0.18, 12),
       toonMat(0x4d7a48)
     );
     pad.rotation.x = -Math.PI / 2;
-    pad.position.set(px + Math.cos(a) * r, getTerrainHeight(px, pz) + 0.08, pz + Math.sin(a) * r);
+    pad.position.set(px + Math.cos(a) * r, WATER_Y + 0.03, pz + Math.sin(a) * r);
     scene.add(pad);
-    if (Math.random() < 0.4) {
+    if (Math.random() < 0.5) {
       const flower = new THREE.Mesh(
-        new THREE.ConeGeometry(0.1, 0.14, 6),
+        new THREE.ConeGeometry(0.1, 0.16, 6),
         toonMat(0xffd0d8)
       );
       flower.position.set(pad.position.x, pad.position.y + 0.06, pad.position.z);
@@ -608,8 +706,89 @@ function buildKoiPond() {
   }
 }
 
-// ─── Stream — winding water from north to pond ──────────────
-function buildStream() {
+// ─── Waterfall (placeholder — will get replaced by GLB) ─────
+function buildWaterfall() {
+  // Simple animated water shaft from pagoda hill slope to stream
+  const wfStart = { x: -1.5, z: -7.5, y: 2.5 };
+  const wfEnd   = { x: -1.5, z: -7.5, y: -0.6 };
+  const wfGeo = new THREE.PlaneGeometry(0.9, wfStart.y - wfEnd.y, 1, 8);
+  const wfMat = new THREE.MeshStandardMaterial({
+    color: 0xc0e0f0, transparent: true, opacity: 0.78,
+    metalness: 0.4, roughness: 0.2, side: THREE.DoubleSide,
+  });
+  const wf = new THREE.Mesh(wfGeo, wfMat);
+  wf.position.set(wfStart.x, (wfStart.y + wfEnd.y) / 2, wfStart.z);
+  wf.userData.isWaterfall = true;
+  scene.add(wf);
+  // Splash particles at the base
+  const splashGeo = new THREE.SphereGeometry(0.08, 6, 4);
+  const splashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+  if (!window.__splash) window.__splash = [];
+  for (let i = 0; i < 8; i++) {
+    const s = new THREE.Mesh(splashGeo, splashMat.clone());
+    s.userData = {
+      cx: wfEnd.x + (Math.random() - 0.5) * 0.4,
+      cz: wfEnd.z + (Math.random() - 0.5) * 0.4,
+      cy: wfEnd.y,
+      phase: Math.random() * Math.PI * 2,
+      r: 0.3 + Math.random() * 0.4,
+    };
+    scene.add(s);
+    window.__splash.push(s);
+  }
+  // Sound of falling water — small ripples at base
+  const ringGeo = new THREE.RingGeometry(0.15, 0.2, 16);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xc0e0ff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+  for (let i = 0; i < 4; i++) {
+    const ring = new THREE.Mesh(ringGeo, ringMat.clone());
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(wfEnd.x, wfEnd.y + 0.02, wfEnd.z);
+    ring.userData = { life: i * 0.4, growth: 1.0 + Math.random() * 0.5, isWaterRipple: true };
+    scene.add(ring);
+  }
+}
+
+function buildStreamWater() {
+  // Stream water visible in the carved channel
+  const pts = [
+    new THREE.Vector3(-1.5, WATER_Y, -7.5),
+    new THREE.Vector3(-3, WATER_Y, -5),
+    new THREE.Vector3(-5, WATER_Y, -2),
+    new THREE.Vector3(-7, WATER_Y, 0.5),
+    new THREE.Vector3(-8.5, WATER_Y, 3.5),
+  ];
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const streamGeo = new THREE.TubeGeometry(curve, 40, 0.4, 8, false);
+  const streamMat = new THREE.MeshStandardMaterial({
+    color: 0x7ab0c8, metalness: 0.65, roughness: 0.18,
+    transparent: true, opacity: 0.85,
+  });
+  const stream = new THREE.Mesh(streamGeo, streamMat);
+  scene.add(stream);
+  // Pebbles along stream
+  const samples = curve.getPoints(24);
+  for (let i = 0; i < samples.length; i++) {
+    const t = i / Math.max(1, samples.length - 1);
+    const tangent = curve.getTangentAt(t);
+    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+    for (let s = -1; s <= 1; s += 2) {
+      const px = samples[i].x + normal.x * 0.6 * s;
+      const pz = samples[i].z + normal.z * 0.6 * s;
+      const py = getTerrainHeight(px, pz);
+      const peb = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.08 + Math.random() * 0.07, 0),
+        toonMat(0xa49a90)
+      );
+      peb.position.set(px, py + 0.05, pz);
+      peb.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      peb.castShadow = true; peb.receiveShadow = true;
+      scene.add(peb);
+    }
+  }
+}
+
+// ─── Old procedural stream (no longer called, kept for reference) ──
+function buildStream_OLD() {
   // simple curved channel mesh + flowing texture (via small offset)
   const pts = [
     new THREE.Vector3(0, 0, -10.5),
@@ -876,44 +1055,29 @@ function buildLocationContent(g, loc) {
 
 // ─── Hand-placed flora (curated, NOT random scatter) ────────
 function buildHandPlacedFlora() {
-  // Each tree is hand-placed for composition.
+  // 4 curated forest clusters + a few accent trees. Tighter, more cinematic.
   // Tree definitions: [kind, x, z, scale]
   const trees = [
-    // around plaza, framing
-    ['sakura',  3.5, -2.5, 1.0],
-    ['sakura', -3.5, -3.0, 0.95],
-    ['maple',   4.8,  3.0, 1.1],
-    ['maple',  -4.0,  4.2, 1.05],
-    // back ridge (north)
-    ['cedar',   0.5, -13.5, 1.15],
-    ['cedar',  -2.5, -13.0, 1.1],
-    ['cedar',   2.5, -13.5, 1.05],
-    ['cedar',   4.0, -12.0, 1.0],
-    ['cedar',  -4.0, -12.0, 1.0],
-    // east side around observatory
-    ['momiji',  7.0, 11.0, 0.95],
-    ['momiji',  3.5, 11.0, 1.0],
-    // west side near pond
-    ['willow', -10.0, 2.5, 1.0],
-    ['willow', -10.5, 5.5, 0.95],
-    // south path
-    ['pine',   -1.5, -10.0, 0.9],
-    ['pine',    1.5, -10.0, 0.9],
-    // perimeter framing trees
-    ['cedar',  10.0,  9.0, 0.95],
-    ['cedar', -10.5,  9.5, 1.0],
-    ['cedar',  -7.0, -10.0, 0.9],
-    ['cedar',   7.0, -10.0, 0.9],
-    ['pine',   11.0, -2.0, 0.9],
-    ['pine',  -11.5, -1.5, 0.9],
-    ['sakura',  6.5, -2.5, 1.0],
-    ['sakura', -5.5, -1.0, 0.95],
-    ['maple',  10.5,  3.0, 1.0],
-    ['maple', -10.0,  9.0, 0.9],
-    // bamboo grove east-side
+    // === Cluster A: south-east bamboo grove (frames the east) ===
     ['bamboo', 10.5,  6.0, 1.1],
-    ['bamboo', 11.0,  4.0, 1.0],
-    ['bamboo', 10.5,  7.5, 1.0],
+    ['bamboo', 11.0,  4.5, 1.0],
+    ['bamboo', 10.0,  7.0, 1.0],
+    // === Cluster B: north-west pine ridge ===
+    ['cedar',  -7.0, -10.0, 1.05],
+    ['cedar',  -9.0,  -7.5, 1.1],
+    ['pine',  -10.5,  -4.5, 0.95],
+    // === Cluster C: south-east mixed maple grove ===
+    ['maple',  10.0,  3.0, 1.0],
+    ['momiji',  9.5,  0.5, 0.95],
+    // === Cluster D: pond willows ===
+    ['willow', -10.5, 0.5, 1.0],
+    ['willow', -11.0, 5.5, 0.95],
+    // === Hilltop accents (visible silhouettes against sky) ===
+    ['cedar',   2.5, -13.5, 1.1],   // pagoda hill side
+    ['cedar',  -2.5, -13.5, 1.1],   // pagoda hill side
+    // small framing maples at plaza entry
+    ['maple',   4.6,  4.5, 0.85],
+    ['maple',  -4.2,  4.7, 0.85],
   ];
   for (const [kind, x, z, s] of trees) {
     createTree(x, z, kind, s);
@@ -1287,6 +1451,26 @@ const EXTERNAL_ASSETS = [
   { file:'koi_gold_google.glb',         role:'koi_c',      x:-8.5, z: 3.0,  h: 0.16, rot:0,     yOff: 0,   animate:'koi', cx:-8.5, cz:3.5, radius:1.0, speed:0.7, phase:2.4 },
   // Temple entrance arch / shrine (small accent near tabi road end)
   { file:'temple_entrance_jonsson.glb', role:'tabi_arch',  x: 0,   z:-13.5, h: 3.4, rot: 0,     yOff: 0,   shadow:true },
+  // === Hero terrain (mountain GLBs as backdrop) ===
+  { file:'mountains_quaternius.glb',    role:'mtn_back',   x: 0,   z:-15.5, h: 6.0, rot: 0,     yOff: -0.5, shadow:true },
+  { file:'mountain_quaternius.glb',     role:'mtn_west',   x:-13.0, z:-7,   h: 5.5, rot: 0.4,   yOff: -0.6, shadow:true },
+  { file:'mountain_quaternius.glb',     role:'mtn_east',   x: 13.5, z:-2,   h: 5.0, rot: 1.4,   yOff: -0.6, shadow:true },
+  // Waterfall — place along the stream channel near top
+  { file:'waterfall_carson.glb',        role:'waterfall',  x:-2.0,  z:-7.0, h: 3.5, rot: 0,     yOff: 0.4, shadow:true },
+  // Grass clumps spread across hilltops
+  { file:'tall_grass_quaternius.glb',   role:'grass_a',    x: 2.5,  z: 4.5,  h: 0.6, rot: 0,    yOff: 0,   shadow:true },
+  { file:'tall_grass_quaternius.glb',   role:'grass_b',    x:-3.0,  z: 4.0,  h: 0.6, rot: 0.6,  yOff: 0,   shadow:true },
+  { file:'tall_grass_quaternius.glb',   role:'grass_c',    x: 4.0,  z:-4.5,  h: 0.6, rot: 1.2,  yOff: 0,   shadow:true },
+  { file:'tall_grass_quaternius.glb',   role:'grass_d',    x:-1.5,  z: 7.0,  h: 0.6, rot: 0.4,  yOff: 0,   shadow:true },
+  { file:'grass_quaternius.glb',        role:'grass_patch_a', x: 6.0, z: 2.5, h: 0.5, rot: 0,   yOff: 0,   shadow:true },
+  { file:'grass_quaternius.glb',        role:'grass_patch_b', x:-5.5, z:-5.0, h: 0.5, rot: 0.6, yOff: 0,   shadow:true },
+  // Rock formations at strategic spots
+  { file:'rocks_quaternius1.glb',       role:'rocks_a',    x: 9.5,  z: 6.5,  h: 0.8, rot: 0,    yOff: 0,   shadow:true },
+  { file:'rocks_quaternius1.glb',       role:'rocks_b',    x:-9.5,  z:-5.5,  h: 0.8, rot: 0.5,  yOff: 0,   shadow:true },
+  { file:'rocks_quaternius1.glb',       role:'rocks_c',    x: 2.0,  z:-4.0,  h: 0.7, rot: 1.0,  yOff: 0,   shadow:true },
+  { file:'rocks_quaternius1.glb',       role:'rocks_d',    x:-6.0,  z: 7.5,  h: 0.7, rot: 0.3,  yOff: 0,   shadow:true },
+  { file:'rock_formation_kenney.glb',   role:'rock_big_a', x:-11.5, z: 4.0,  h: 1.4, rot: 0,    yOff: 0,   shadow:true },
+  { file:'rock_formation_kenney.glb',   role:'rock_big_b', x: 11.0, z: 11.0, h: 1.4, rot: 0.7,  yOff: 0,   shadow:true },
 ];
 
 const externalAssets = {}; // keyed by role
