@@ -330,11 +330,9 @@ async function init() {
   buildPaths();
   buildLocations();
   buildHandPlacedFlora();
-  buildHandPlacedLanterns();
-  buildBridge();
-  buildPavilion();
-  buildPagoda();
-  buildTorii();
+  // (lanterns / pagoda / torii / bridge / pavilion are now provided by external GLB assets)
+  // External CC0 / CC-BY assets (Poly Pizza) — adds high-quality hero objects
+  loadExternalAssets().then(() => setLoadBar(0.99));
   buildClouds();
   buildAvatar();
   buildPlaceHovers();
@@ -1211,6 +1209,147 @@ function buildTorii() {
   scene.add(g);
 }
 
+// ─── External CC0 / CC-BY assets from Poly Pizza ─────────────
+// (h: target world-space height; auto-scaled so each model fits)
+const EXTERNAL_ASSETS = [
+  // Hero architecture
+  { file:'torii_jacques.glb',           role:'torii',     x: 0,    z: 13,   h: 4.2, rot: 0,     yOff: 0,   shadow:true },
+  { file:'pagoda_google2.glb',          role:'pagoda',    x: 0,    z:-11.5, h: 7.0, rot: 0,     yOff: 0.0, shadow:true },
+  { file:'temple_wooden_quaternius.glb',role:'temple',    x: 5.5,  z: 9.0,  h: 2.8, rot:-0.55,  yOff: 0,   shadow:true },
+  { file:'bell_tower_quaternius.glb',   role:'bell',      x:-8.0,  z:-7.5,  h: 4.2, rot: 0.4,   yOff: 0,   shadow:true },
+  { file:'temple_quaternius2.glb',      role:'pavilion',  x:-6.5,  z:-3.5,  h: 2.6, rot: 0.2,   yOff: 0,   shadow:true },
+  { file:'shrine_mclaughlin.glb',       role:'shrine_x',  x: 5.8,  z:-3.5,  h: 2.0, rot:-0.8,   yOff: 0,   shadow:true },
+  { file:'bridge_wood_google.glb',      role:'bridge',    x:-5.0,  z:-0.5,  h: 1.0, rot: 1.0,   yOff: 0.05, shadow:true },
+  // Lanterns (stone) — replace 12 plaza lanterns with hero ishidoro at key points
+  { file:'ishidoro_flopsi.glb',         role:'ish_a',     x:-2.6,  z:-2.4,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_b',     x: 2.6,  z:-2.4,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_c',     x:-2.6,  z: 2.6,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_d',     x: 2.6,  z: 2.6,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_path_a',x:-2.0,  z:-8.5,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_path_b',x: 2.0,  z:-8.5,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_east',  x: 9.5,  z: 0.0,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_west',  x:-9.5,  z: 0.0,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
+  // Trees
+  { file:'sakura_bonsai_gronert.glb',   role:'sakura_hero',x: 3.0, z:-2.0,  h: 4.6, rot: 0.4,   yOff: 0,   shadow:true },
+  { file:'cherry_tree_google.glb',      role:'cherry_a',   x:-3.8, z:-3.2,  h: 4.0, rot:-0.5,   yOff: 0,   shadow:true },
+  { file:'cherry_tree_google.glb',      role:'cherry_b',   x: 4.6, z: 3.2,  h: 3.6, rot: 0.7,   yOff: 0,   shadow:true },
+  { file:'pine_quaternius.glb',         role:'pine_a',     x:-4.5, z: 5.0,  h: 4.0, rot: 0.3,   yOff: 0,   shadow:true },
+  { file:'pine_quaternius.glb',         role:'pine_b',     x: 8.0, z:-4.0,  h: 4.2, rot: 0.7,   yOff: 0,   shadow:true },
+  { file:'pine_quaternius.glb',         role:'pine_c',     x: 6.0, z: 5.0,  h: 3.8, rot:-0.4,   yOff: 0,   shadow:true },
+  { file:'pine_trees2_quaternius.glb',  role:'pine_grove', x:-9.0, z: 8.0,  h: 4.4, rot: 0,     yOff: 0,   shadow:true },
+  { file:'pine_trees2_quaternius.glb',  role:'pine_grove2',x: 9.0, z:-8.0,  h: 4.0, rot: 1.5,   yOff: 0,   shadow:true },
+  // Bonsai (small accents on pagoda steps + temple area)
+  { file:'bonsai_carson.glb',           role:'bonsai_a',   x: 7.5, z: 9.8,  h: 0.7, rot: 0,     yOff: 0,   shadow:true },
+  { file:'bonsai_carson.glb',           role:'bonsai_b',   x:-7.5, z:-7.0,  h: 0.7, rot: 0,     yOff: 1.6, shadow:true }, // on bell tower platform
+  // Koi in the pond
+  { file:'koi_quaternius.glb',          role:'koi_a',      x:-8.0, z: 3.5,  h: 0.16, rot:0,     yOff: 0,   animate:'koi', cx:-8.5, cz:3.5, radius:1.2, speed:0.5, phase:0 },
+  { file:'koi_blue_quaternius.glb',     role:'koi_b',      x:-9.0, z: 4.0,  h: 0.16, rot:0,     yOff: 0,   animate:'koi', cx:-8.5, cz:3.5, radius:1.6, speed:0.6, phase:1.2 },
+  { file:'koi_gold_google.glb',         role:'koi_c',      x:-8.5, z: 3.0,  h: 0.16, rot:0,     yOff: 0,   animate:'koi', cx:-8.5, cz:3.5, radius:1.0, speed:0.7, phase:2.4 },
+  // Temple entrance arch / shrine (small accent near tabi road end)
+  { file:'temple_entrance_jonsson.glb', role:'tabi_arch',  x: 0,   z:-13.5, h: 3.4, rot: 0,     yOff: 0,   shadow:true },
+];
+
+const externalAssets = {}; // keyed by role
+async function loadExternalAssets() {
+  if (typeof THREE.GLTFLoader !== 'function') {
+    console.warn('GLTFLoader missing — skipping external assets');
+    return;
+  }
+  const loader = new THREE.GLTFLoader();
+  let progress = 0;
+  const all = EXTERNAL_ASSETS.length;
+  const loadOne = (spec) => new Promise((resolve) => {
+    loader.load(
+      'assets/external/' + spec.file,
+      (gltf) => {
+        try {
+          const obj = gltf.scene;
+          // upgrade materials to Toon to match scene aesthetic (only where it makes sense)
+          obj.traverse(c => {
+            if (c.isMesh) {
+              if (spec.shadow) { c.castShadow = true; c.receiveShadow = true; }
+              if (c.material && c.material.color) {
+                // keep texture maps if present (they look better); only re-shade simple solid-color materials
+                if (!c.material.map) {
+                  const col = c.material.color.clone();
+                  c.material = toonMat(col.getHex());
+                }
+              }
+            }
+          });
+          // auto-fit to target world height
+          const box = new THREE.Box3().setFromObject(obj);
+          const size = box.getSize(new THREE.Vector3());
+          const naturalH = Math.max(0.01, size.y);
+          const scale = spec.h / naturalH;
+          obj.scale.setScalar(scale);
+          // recompute box after scale
+          box.setFromObject(obj);
+          // center on origin in X,Z; rest base on ground (min Y = 0)
+          const center = box.getCenter(new THREE.Vector3());
+          obj.position.x -= center.x;
+          obj.position.z -= center.z;
+          obj.position.y -= box.min.y;
+          // wrapper for placement
+          const wrap = new THREE.Group();
+          wrap.add(obj);
+          const ty = getTerrainHeight(spec.x, spec.z);
+          wrap.position.set(spec.x, ty + (spec.yOff || 0), spec.z);
+          wrap.rotation.y = spec.rot || 0;
+          wrap.userData.spec = spec;
+          scene.add(wrap);
+          externalAssets[spec.role] = wrap;
+          // tag lanterns for night glow boost
+          if (spec.lantern) {
+            wrap.traverse(c => {
+              if (c.isMesh && c.material && c.material.color) {
+                // give a soft emissive
+                const newMat = new THREE.MeshStandardMaterial({
+                  color: c.material.color,
+                  emissive: 0xff9a40,
+                  emissiveIntensity: 0.35,
+                  roughness: 0.6,
+                  metalness: 0.0,
+                });
+                c.material = newMat;
+                c.userData.isLanternHead = true;
+              }
+            });
+            // accompanying point light
+            const pl = new THREE.PointLight(0xff9a40, 0.45, 5);
+            pl.position.set(spec.x, ty + spec.h * 0.7, spec.z);
+            pl.userData.isLanternLight = true;
+            scene.add(pl);
+            wrap.traverse(c => { if (c.userData.isLanternHead) lanternHeads.push({ mesh: c, light: pl }); });
+          }
+          // koi animation tag
+          if (spec.animate === 'koi') {
+            wrap.userData.animKoi = { cx: spec.cx, cz: spec.cz, r: spec.radius, speed: spec.speed, phase: spec.phase };
+            if (!window.__extKoi) window.__extKoi = [];
+            window.__extKoi.push(wrap);
+          }
+        } catch (e) {
+          console.warn('asset placement error:', spec.file, e);
+        }
+        progress++;
+        setLoadBar(0.9 + (progress / all) * 0.09);
+        resolve();
+      },
+      undefined,
+      (err) => {
+        console.warn('failed to load', spec.file, err);
+        progress++;
+        resolve();
+      }
+    );
+  });
+  // load in batches of 6 to avoid network contention
+  const batch = 6;
+  for (let i = 0; i < EXTERNAL_ASSETS.length; i += batch) {
+    await Promise.all(EXTERNAL_ASSETS.slice(i, i + batch).map(loadOne));
+  }
+}
+
 // ─── Clouds (sky sprites drifting) ────────────────────────
 function buildClouds() {
   const cloudTex = makeCloudTexture();
@@ -1920,7 +2059,7 @@ function animate() {
       obj.position.y = obj.userData.bobBase + Math.sin(t * 1.4 + obj.userData.bobPhase) * 0.12;
     }
   });
-  // koi swimming
+  // koi swimming (procedural fallbacks)
   if (window.__koi) {
     for (const k of window.__koi) {
       const u = k.userData;
@@ -1929,6 +2068,18 @@ function animate() {
       k.position.z = u.cz + Math.sin(a) * u.r;
       k.position.y = getTerrainHeight(u.cx, u.cz) + 0.08 + Math.sin(t * 2 + u.phase) * 0.02;
       k.rotation.y = -a + Math.PI / 2;
+    }
+  }
+  // external GLB koi
+  if (window.__extKoi) {
+    for (const wrap of window.__extKoi) {
+      const u = wrap.userData.animKoi;
+      if (!u) continue;
+      const a = t * u.speed + u.phase;
+      wrap.position.x = u.cx + Math.cos(a) * u.r;
+      wrap.position.z = u.cz + Math.sin(a) * u.r;
+      wrap.position.y = getTerrainHeight(u.cx, u.cz) + 0.06 + Math.sin(t * 2 + u.phase) * 0.02;
+      wrap.rotation.y = -a + Math.PI / 2;
     }
   }
   // cloud drift
