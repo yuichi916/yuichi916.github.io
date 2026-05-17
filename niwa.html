@@ -147,6 +147,24 @@ body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;
   transition:opacity .15s;
   box-shadow:0 6px 18px rgba(0,0,0,.6),0 0 14px rgba(255,180,90,.2);
   transform:translate(-50%, -120%);}
+
+/* "入る" button shown when avatar is near a place */
+.enter-place-btn{position:fixed;left:50%;bottom:18%;transform:translateX(-50%);
+  z-index:58;display:none;align-items:center;gap:10px;
+  padding:14px 32px;cursor:pointer;
+  background:linear-gradient(180deg, var(--candle-soft), var(--candle-deep));
+  color:var(--indigo);
+  font-family:"Shippori Mincho",serif;font-weight:700;font-size:15px;letter-spacing:.18em;
+  border:1px solid var(--candle-soft);border-radius:4px;
+  box-shadow:0 8px 22px rgba(255,180,90,.45);
+  transition:transform .2s, box-shadow .2s;
+  animation:enterPulse 1.6s ease-in-out infinite;}
+.enter-place-btn:hover{transform:translateX(-50%) translateY(-3px);
+  box-shadow:0 14px 30px rgba(255,180,90,.6);}
+@keyframes enterPulse{
+  0%,100%{box-shadow:0 8px 22px rgba(255,180,90,.45),0 0 0 0 rgba(255,217,112,.5);}
+  50%   {box-shadow:0 8px 22px rgba(255,180,90,.45),0 0 0 18px rgba(255,217,112,0);}
+}
 .hover-tip.show{opacity:1;}
 .hover-tip kbd{font-family:"JetBrains Mono",monospace;font-size:10.5px;
   background:rgba(255,185,104,.16);border:1px solid var(--candle);
@@ -281,9 +299,9 @@ body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;
     八つの場所をクリックして、 心を整える小さな世界を巡ろう。
   </div>
   <div class="keys">
+    <span><kbd>タップ</kbd> 行きたい場所へ歩く</span>
     <span><kbd>ドラッグ</kbd> 視点を回す</span>
-    <span><kbd>スクロール</kbd> ズーム</span>
-    <span><kbd>クリック</kbd> 場所に入る</span>
+    <span><kbd>F</kbd> または <kbd>入る</kbd>ボタン</span>
   </div>
   <button id="enter-btn">庭に入る</button>
 </div>
@@ -311,6 +329,9 @@ body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;
 <!-- hover tooltip for highlighted place -->
 <div class="hover-tip" id="hover-tip"></div>
 
+<!-- "入る" floating button (shown when avatar is near a place) -->
+<button class="enter-place-btn" id="enter-place-btn" type="button"></button>
+
 <!-- overlay -->
 <div class="overlay" id="overlay">
   <div class="overlay-inner" id="overlay-inner"></div>
@@ -325,6 +346,20 @@ const clickableObjects = [];
 let hoveredObject = null;
 let inOverlay = false;
 const visitedPlaces = new Set();
+
+// Avatar state
+let avatar3D = null;
+const avatarSpeed = 0.18;
+let avatarYaw = 0;
+let cameraYawOffset = 0;
+let cameraPitch = 0.55;
+let cameraDist = 14;
+let avatarTarget = null;        // {x, z} from tap-to-move
+let nearbyPlace = null;
+const PLACE_INTERACT_RADIUS = 5.5;
+const downRay = new THREE.Raycaster();
+let groundMesh = null;
+let targetMarker = null;        // visual marker at the tap destination
 
 try {
   const raw = localStorage.getItem("niwa_visited_v3");
@@ -646,11 +681,11 @@ function init() {
   ensureTextures();
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0a1a);
-  scene.fog = new THREE.Fog(0x0a0a1a, 55, 130);
+  scene.fog = new THREE.Fog(0x0a0a1a, 65, 145);
 
-  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(40, 36, 40);
-  camera.lookAt(0, 0, 0);
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 12, 18);
+  camera.lookAt(0, 1.5, 0);
 
   renderer = new THREE.WebGLRenderer({antialias: true});
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -723,11 +758,145 @@ function init() {
   // NPCs (small wandering villagers)
   buildNPCs();
 
+  // Create the player avatar at the south entry
+  buildAvatar3D();
+
+  // Target marker (pulsing ring shown where you tapped)
+  buildTargetMarker();
+
   setupControls();
   setupKeyboard();
   setupTouch();
   refreshVisitedDots();
   animate();
+}
+
+// ─── Player avatar (3D) ────────────────────────────────────────────
+function buildAvatar3D(){
+  const g = new THREE.Group();
+  // body — robe-like cylinder
+  const bodyGeo = new THREE.CylinderGeometry(0.32, 0.42, 1.1, 10);
+  const bodyMat = new THREE.MeshLambertMaterial({color: 0x3a4860});
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0.55;
+  body.castShadow = true;
+  g.add(body);
+  // sash
+  const sashGeo = new THREE.TorusGeometry(0.36, 0.05, 6, 16);
+  const sashMat = new THREE.MeshLambertMaterial({color: 0xb04030});
+  const sash = new THREE.Mesh(sashGeo, sashMat);
+  sash.position.y = 0.7;
+  sash.rotation.x = Math.PI / 2;
+  g.add(sash);
+  // head
+  const headGeo = new THREE.SphereGeometry(0.22, 14, 10);
+  const headMat = new THREE.MeshLambertMaterial({color: 0xe8c8a0});
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.y = 1.35;
+  head.castShadow = true;
+  g.add(head);
+  // hair (small dark cap)
+  const hairGeo = new THREE.SphereGeometry(0.23, 12, 8, 0, Math.PI*2, 0, Math.PI/2);
+  const hairMat = new THREE.MeshLambertMaterial({color: 0x1a0e08});
+  const hair = new THREE.Mesh(hairGeo, hairMat);
+  hair.position.y = 1.40;
+  g.add(hair);
+  // straw hat (kasa) hanging on back? — for now a small floppy hat
+  const hatBaseGeo = new THREE.ConeGeometry(0.42, 0.18, 8);
+  const hatMat = new THREE.MeshLambertMaterial({color: 0xa88a5a});
+  const hat = new THREE.Mesh(hatBaseGeo, hatMat);
+  hat.position.y = 1.62;
+  g.add(hat);
+  // lantern on a stick (held in front)
+  const stickGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.8, 6);
+  const stickMat = new THREE.MeshLambertMaterial({color: 0x3a2818});
+  const stick = new THREE.Mesh(stickGeo, stickMat);
+  stick.position.set(0.45, 1.05, 0.32);
+  stick.rotation.z = -0.25;
+  g.add(stick);
+  const lanGeo = new THREE.BoxGeometry(0.22, 0.28, 0.22);
+  const lanMat = new THREE.MeshLambertMaterial({
+    color: 0xffd970, emissive: 0xffaa40, emissiveIntensity: 0.85,
+  });
+  const lan = new THREE.Mesh(lanGeo, lanMat);
+  lan.position.set(0.65, 1.45, 0.32);
+  g.add(lan);
+  const lanLight = new THREE.PointLight(0xffaa50, 0.85, 7);
+  lanLight.position.set(0.65, 1.45, 0.32);
+  g.add(lanLight);
+  // legs (left/right) — used for walk animation
+  const legMat = new THREE.MeshLambertMaterial({color: 0x2a1808});
+  const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.45, 6), legMat);
+  legL.position.set(-0.12, 0.22, 0);
+  legL.castShadow = true;
+  g.add(legL);
+  const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.45, 6), legMat);
+  legR.position.set(0.12, 0.22, 0);
+  legR.castShadow = true;
+  g.add(legR);
+  g.userData.legs = {L: legL, R: legR};
+
+  // start the avatar at the south entry plaza
+  g.position.set(0, getTerrainHeight(0, 12), 12);
+  avatar3D = g;
+  scene.add(g);
+}
+
+function buildTargetMarker(){
+  const g = new THREE.Group();
+  // outer ring
+  const ringGeo = new THREE.RingGeometry(0.5, 0.65, 24);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0xffd970, side: THREE.DoubleSide,
+    transparent: true, opacity: 0.9, fog: false,
+  });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  g.add(ring);
+  // inner pulse
+  const pulseGeo = new THREE.RingGeometry(0.18, 0.32, 18);
+  const pulse = new THREE.Mesh(pulseGeo,
+    new THREE.MeshBasicMaterial({color: 0xfff2c0, side: THREE.DoubleSide,
+      transparent: true, opacity: 0.7, fog: false}));
+  pulse.rotation.x = -Math.PI / 2;
+  g.add(pulse);
+  g.userData.pulse = pulse;
+  g.visible = false;
+  scene.add(g);
+  targetMarker = g;
+}
+
+// Stair-aware elevation: returns the highest "walkable" surface at (x, z).
+// Combines terrain + the south stone steps + the river bridge.
+function getWalkableY(x, z){
+  let y = getTerrainHeight(x, z);
+  // south stone steps (10 steps along z = 9..18 with width ±2.1)
+  if(Math.abs(x) < 2.1 && z > 8.5 && z < 18.5){
+    const t = Math.max(0, Math.min(9, (18 - z) / 0.9));
+    const stepIndex = Math.floor(t);
+    const stepY = getTerrainHeight(0, 18 - stepIndex * 0.9) + 0.3 + stepIndex * 0.15;
+    if(stepY > y) y = stepY;
+  }
+  // river bridge: planks centred around (-10, 16) rotated. Local check on a generous box.
+  const bridgeX = -10, bridgeZ = 16;
+  const dx = x - bridgeX, dz = z - bridgeZ;
+  if(Math.abs(dx) < 1.8 && Math.abs(dz) < 1.8){
+    const bridgeY = getTerrainHeight(bridgeX, bridgeZ) + 0.65;
+    if(bridgeY > y) y = bridgeY;
+  }
+  // terraces (east hill, around 48, 26)
+  const txp = x - 48, tzp = z - 26;
+  // rotate -0.8: local coords
+  const cos = Math.cos(0.8), sin = Math.sin(0.8);
+  const lx = txp * cos - tzp * sin;
+  const lz = txp * sin + tzp * cos;
+  if(Math.abs(lx) < 3 && lz > -0.5 && lz < 6){
+    const tStep = Math.floor(lz / 1.4);
+    const tStepClamped = Math.max(0, Math.min(3, tStep));
+    const terY = getTerrainHeight(48, 26) + 0.6 + tStepClamped * 0.7;
+    if(terY > y) y = terY;
+  }
+  return y;
 }
 
 function notTooCloseToPlaces(x, z, r){
@@ -1430,6 +1599,7 @@ function createGround(){
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
+  groundMesh = ground;  // used for tap-to-move raycast
 
   // Stone path circle around centre
   const pathGeo = new THREE.RingGeometry(7, 9.5, 64);
@@ -2820,9 +2990,9 @@ function setupControls(){
     if(isDragging){
       const dx = e.clientX - previousMousePosition.x;
       const dy = e.clientY - previousMousePosition.y;
-      orbitCamera(dx, dy);
+      cameraYawOffset -= dx * 0.005;
+      cameraPitch = Math.max(0.18, Math.min(1.2, cameraPitch + dy * 0.003));
       previousMousePosition = {x: e.clientX, y: e.clientY};
-      tipEl.classList.remove('show');
       return;
     }
     hoverPlace(e.clientX, e.clientY);
@@ -2830,37 +3000,63 @@ function setupControls(){
   dom.addEventListener('mouseup', e => {
     if(!isDragging) return;
     const moved = Math.abs(e.clientX - dragStart.x) + Math.abs(e.clientY - dragStart.y);
-    if(moved < 5 && !inOverlay){
-      clickPlace(e.clientX, e.clientY);
+    if(moved < 6 && !inOverlay){
+      handleTap(e.clientX, e.clientY);
     }
     isDragging = false;
   });
   dom.addEventListener('mouseleave', () => {
     isDragging = false;
-    tipEl.classList.remove('show');
-    if(hoveredObject){ hoveredObject.scale.set(1,1,1); hoveredObject = null; }
   });
   dom.addEventListener('wheel', e => {
     e.preventDefault();
-    const dz = e.deltaY > 0 ? 1.05 : 0.95;
-    camera.position.multiplyScalar(dz);
-    const d = camera.position.length();
-    if(d < 16) camera.position.setLength(16);
-    if(d > 90) camera.position.setLength(90);
+    cameraDist = Math.max(6, Math.min(40, cameraDist + e.deltaY * 0.015));
   }, {passive: false});
 }
 
-function orbitCamera(dx, dy){
-  camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), dx * 0.005);
-  const pitchAxis = new THREE.Vector3(-camera.position.z, 0, camera.position.x).normalize();
-  const curD = camera.position.length();
-  camera.position.applyAxisAngle(pitchAxis, -dy * 0.003);
-  camera.position.setLength(curD);
-  camera.position.y = Math.max(8, Math.min(70, camera.position.y));
-  camera.lookAt(0, 0, 0);
+// Tap on a place opens it; tap on the ground sets a move target.
+function handleTap(cx, cy){
+  mouse.x = (cx / window.innerWidth) * 2 - 1;
+  mouse.y = -(cy / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  // 1) place click first
+  const placeHits = raycaster.intersectObjects(clickableObjects, true);
+  if(placeHits.length){
+    let obj = placeHits[0].object;
+    while(obj.parent && !obj.userData.name) obj = obj.parent;
+    if(obj.userData.id){
+      // walk toward it; if very close, open immediately
+      const dist = Math.hypot(avatar3D.position.x - obj.position.x,
+                              avatar3D.position.z - obj.position.z);
+      if(dist < PLACE_INTERACT_RADIUS){
+        openOverlay(obj.userData.id);
+      } else {
+        avatarTarget = {x: obj.position.x, z: obj.position.z};
+        if(targetMarker){
+          targetMarker.position.set(obj.position.x,
+            getWalkableY(obj.position.x, obj.position.z) + 0.05, obj.position.z);
+          targetMarker.visible = true;
+        }
+      }
+      return;
+    }
+  }
+  // 2) ground click
+  if(groundMesh){
+    const gHits = raycaster.intersectObject(groundMesh);
+    if(gHits.length){
+      const p = gHits[0].point;
+      avatarTarget = {x: p.x, z: p.z};
+      if(targetMarker){
+        targetMarker.position.set(p.x, getWalkableY(p.x, p.z) + 0.05, p.z);
+        targetMarker.visible = true;
+      }
+    }
+  }
 }
 
 function hoverPlace(cx, cy){
+  // Avatar-mode: tip is driven by proximity, not hover. Just track cursor for click.
   mouse.x = (cx / window.innerWidth) * 2 - 1;
   mouse.y = -(cy / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
@@ -2870,21 +3066,10 @@ function hoverPlace(cx, cy){
     while(obj.parent && !obj.userData.name) obj = obj.parent;
     if(obj.userData.name){
       renderer.domElement.style.cursor = 'pointer';
-      if(hoveredObject !== obj){
-        if(hoveredObject) hoveredObject.scale.set(1, 1, 1);
-        hoveredObject = obj;
-        obj.scale.set(1.06, 1.06, 1.06);
-      }
-      tipEl.innerHTML = `${obj.userData.name} <kbd>CLICK</kbd>`;
-      tipEl.style.left = cx + 'px';
-      tipEl.style.top = cy + 'px';
-      tipEl.classList.add('show');
       return;
     }
   }
   renderer.domElement.style.cursor = 'default';
-  if(hoveredObject){ hoveredObject.scale.set(1, 1, 1); hoveredObject = null; }
-  tipEl.classList.remove('show');
 }
 
 function clickPlace(cx, cy){
@@ -2904,11 +3089,13 @@ function setupTouch(){
   const dom = renderer.domElement;
   let lastTouch = null;
   let pinchD = 0;
+  let moved = 0;
   dom.addEventListener('touchstart', e => {
     if(e.touches.length === 1){
       lastTouch = {x: e.touches[0].clientX, y: e.touches[0].clientY};
       dragStart = {x: e.touches[0].clientX, y: e.touches[0].clientY};
       isDragging = true;
+      moved = 0;
     } else if(e.touches.length === 2){
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -2919,7 +3106,14 @@ function setupTouch(){
   dom.addEventListener('touchmove', e => {
     if(e.touches.length === 1 && isDragging){
       const t = e.touches[0];
-      orbitCamera(t.clientX - lastTouch.x, t.clientY - lastTouch.y);
+      const dx = t.clientX - lastTouch.x;
+      const dy = t.clientY - lastTouch.y;
+      moved += Math.abs(dx) + Math.abs(dy);
+      // drag rotates camera only after a small threshold
+      if(moved > 12){
+        cameraYawOffset -= dx * 0.005;
+        cameraPitch = Math.max(0.18, Math.min(1.2, cameraPitch + dy * 0.003));
+      }
       lastTouch = {x: t.clientX, y: t.clientY};
       e.preventDefault();
     } else if(e.touches.length === 2){
@@ -2928,10 +3122,7 @@ function setupTouch(){
       const d = Math.hypot(dx, dy);
       if(pinchD > 0){
         const ratio = pinchD / d;
-        camera.position.multiplyScalar(ratio);
-        const dist = camera.position.length();
-        if(dist < 16) camera.position.setLength(16);
-        if(dist > 90) camera.position.setLength(90);
+        cameraDist = Math.max(6, Math.min(40, cameraDist * ratio));
       }
       pinchD = d;
       e.preventDefault();
@@ -2940,20 +3131,117 @@ function setupTouch(){
   dom.addEventListener('touchend', e => {
     if(isDragging && e.changedTouches.length === 1){
       const t = e.changedTouches[0];
-      const moved = Math.abs(t.clientX - dragStart.x) + Math.abs(t.clientY - dragStart.y);
-      if(moved < 7 && !inOverlay) clickPlace(t.clientX, t.clientY);
+      const total = Math.abs(t.clientX - dragStart.x) + Math.abs(t.clientY - dragStart.y);
+      if(total < 12 && !inOverlay) handleTap(t.clientX, t.clientY);
     }
     isDragging = false;
     pinchD = 0;
+    moved = 0;
   });
 }
 
 function setupKeyboard(){
   window.addEventListener('keydown', e => {
-    if(e.key === 'Escape' && inOverlay){
-      closeOverlay();
+    if(inOverlay){
+      if(e.key === 'Escape') closeOverlay();
+      return;
+    }
+    const k = e.key.toLowerCase();
+    if((k === 'f' || k === ' ' || k === 'enter') && nearbyPlace){
+      openOverlay(nearbyPlace.id);
+      e.preventDefault();
     }
   });
+}
+
+// ─── Avatar / camera update each frame ────────────────────────────
+function updateAvatar(dt){
+  if(!avatar3D || inOverlay) return;
+  let vx = 0, vz = 0;
+  let walking = false;
+  // tap-to-move
+  if(avatarTarget){
+    const dx = avatarTarget.x - avatar3D.position.x;
+    const dz = avatarTarget.z - avatar3D.position.z;
+    const d = Math.hypot(dx, dz);
+    if(d > 0.45){
+      vx = dx / d;
+      vz = dz / d;
+      avatar3D.position.x += vx * avatarSpeed;
+      avatar3D.position.z += vz * avatarSpeed;
+      avatarYaw = Math.atan2(vx, vz);
+      avatar3D.rotation.y = avatarYaw;
+      walking = true;
+    } else {
+      avatarTarget = null;
+      if(targetMarker) targetMarker.visible = false;
+    }
+  }
+  // clamp to a sensible bounding box
+  const r = Math.hypot(avatar3D.position.x, avatar3D.position.z);
+  const MAX_R = 60;
+  if(r > MAX_R){
+    const a = Math.atan2(avatar3D.position.x, avatar3D.position.z);
+    avatar3D.position.x = Math.sin(a) * MAX_R;
+    avatar3D.position.z = Math.cos(a) * MAX_R;
+  }
+  // ground follow + stair climb
+  const y = getWalkableY(avatar3D.position.x, avatar3D.position.z);
+  // smooth Y lerp
+  avatar3D.position.y += (y - avatar3D.position.y) * 0.35;
+  // leg animation (simple bob)
+  if(avatar3D.userData.legs){
+    const phase = performance.now() * 0.008;
+    if(walking){
+      avatar3D.userData.legs.L.position.z = Math.sin(phase) * 0.16;
+      avatar3D.userData.legs.R.position.z = -Math.sin(phase) * 0.16;
+      avatar3D.userData.legs.L.position.y = 0.22 + Math.abs(Math.sin(phase)) * 0.08;
+      avatar3D.userData.legs.R.position.y = 0.22 + Math.abs(Math.sin(phase + Math.PI)) * 0.08;
+    } else {
+      avatar3D.userData.legs.L.position.z = 0;
+      avatar3D.userData.legs.R.position.z = 0;
+      avatar3D.userData.legs.L.position.y = 0.22;
+      avatar3D.userData.legs.R.position.y = 0.22;
+    }
+  }
+  // detect nearby place
+  let near = null;
+  let nearDist = PLACE_INTERACT_RADIUS;
+  for(const loc of LOCATIONS){
+    const d = Math.hypot(avatar3D.position.x - loc.x, avatar3D.position.z - loc.z);
+    if(d < nearDist){ nearDist = d; near = loc; }
+  }
+  if(near !== nearbyPlace){
+    nearbyPlace = near;
+    updateProximityHint();
+  }
+}
+
+function updateCameraFollow(){
+  if(!avatar3D || !camera) return;
+  const targetY = avatar3D.position.y + 1.5;
+  const horiz = Math.cos(cameraPitch) * cameraDist;
+  const vert  = Math.sin(cameraPitch) * cameraDist;
+  camera.position.x = avatar3D.position.x + Math.sin(cameraYawOffset) * horiz;
+  camera.position.z = avatar3D.position.z + Math.cos(cameraYawOffset) * horiz;
+  camera.position.y = targetY + vert;
+  camera.lookAt(avatar3D.position.x, targetY, avatar3D.position.z);
+}
+
+function updateProximityHint(){
+  const tip = document.getElementById('hover-tip');
+  const btn = document.getElementById('enter-place-btn');
+  if(nearbyPlace){
+    tip.innerHTML = `${nearbyPlace.name}`;
+    tip.style.left = '50%';
+    tip.style.top = '58%';
+    tip.style.transform = 'translate(-50%, 0)';
+    tip.classList.add('show');
+    if(btn){ btn.style.display = 'flex'; btn.textContent = `${nearbyPlace.name} に入る`; }
+  } else {
+    tip.classList.remove('show');
+    if(btn) btn.style.display = 'none';
+  }
 }
 
 // ─── Animation loop ────────────────────────────────────────────────
@@ -2962,6 +3250,10 @@ function animate(){
   requestAnimationFrame(animate);
   frameCount++;
   const t = performance.now() * 0.001;
+  // avatar + camera
+  updateAvatar();
+  updateCameraFollow();
+  if(window.__niwaAnimHook) window.__niwaAnimHook(t);
   // flicker fire flames + sparks
   clickableObjects.forEach(g => {
     if(g.userData.flame){
@@ -3232,6 +3524,25 @@ ambBtn.onclick = () => {
     ambBtn.title = "静かな環境音 (オフ)";
   }
 };
+
+// ─── Enter-place floating button ──────────────────────────────────
+const enterBtn = document.getElementById('enter-place-btn');
+if(enterBtn){
+  enterBtn.onclick = () => { if(nearbyPlace) openOverlay(nearbyPlace.id); };
+}
+
+// ─── Target marker pulse animation ────────────────────────────────
+function animateTargetMarker(t){
+  if(targetMarker && targetMarker.visible && targetMarker.userData.pulse){
+    const s = 1 + Math.sin(t * 4) * 0.18;
+    targetMarker.userData.pulse.scale.setScalar(s);
+    targetMarker.userData.pulse.material.opacity = 0.45 + Math.sin(t * 4) * 0.25;
+    targetMarker.rotation.y = t * 0.6;
+  }
+}
+// hook into existing animate loop via a global the loop already calls
+const __oldAnimateHook = window.__niwaAnimHook;
+window.__niwaAnimHook = (t) => { animateTargetMarker(t); if(__oldAnimateHook) __oldAnimateHook(t); };
 
 // ─── Splash dismiss ────────────────────────────────────────────────
 document.getElementById('enter-btn').onclick = () => {
