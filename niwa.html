@@ -2,13 +2,13 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>心の庭 — A Quiet Garden / yuichi916.github.io</title>
-<meta name="description" content="提灯を持って、夜の庭を歩く。月光の書架、音の祠、ひとり旅の道、焚き火、水辺、砂時計、雨音の部屋、星見台。八つの場所を散策しながら、心を整える小さな世界。">
-<meta name="keywords" content="心を整える,くつろぎ,瞑想,呼吸ワーク,478呼吸,環境音,ASMR,ヒーリング,旅,読書,音楽,星空,夜の散策,2D探索">
+<meta name="description" content="月夜の庭を、ドラッグで見渡しながら散策する 3D ホームページ。月光の書架、音の祠、ひとり旅の道、焚き火、水辺、砂時計、雨音の部屋、星見台 — 八つの場所を巡って心を整える。">
+<meta name="keywords" content="心を整える,くつろぎ,瞑想,呼吸ワーク,478呼吸,環境音,ヒーリング,旅,読書,音楽,星空,夜の散策,3D探索,Three.js">
 <meta name="author" content="yuichi916 / Views Engineer">
 <meta name="robots" content="index, follow, max-image-preview:large">
-<meta name="theme-color" content="#0a1320">
+<meta name="theme-color" content="#0a0a1a">
 
 <link rel="canonical" href="https://yuichi916.github.io/niwa.html">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -17,8 +17,8 @@
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="心の庭 · A Quiet Garden">
-<meta property="og:title" content="心の庭 — 提灯を持って、夜の庭を歩く">
-<meta property="og:description" content="月光の書架、音の祠、焚き火、水辺、星見台 — 八つの場所を散策しながら、心を整える。">
+<meta property="og:title" content="心の庭 — 月夜の庭を見渡しながら、八つの場所を巡る">
+<meta property="og:description" content="月光の書架、音の祠、焚き火、水辺、砂時計、雨音、星見台 — Three.js の 3D 空間で、 心を整える小さな世界。">
 <meta property="og:url" content="https://yuichi916.github.io/niwa.html">
 <meta property="og:locale" content="ja_JP">
 
@@ -26,7 +26,12 @@
 <meta name="twitter:site" content="@ViewsEngineer">
 
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebSite","@id":"https://yuichi916.github.io/niwa.html#site","name":"心の庭 · A Quiet Garden","url":"https://yuichi916.github.io/niwa.html","inLanguage":"ja","description":"提灯を持って、夜の庭を歩く。八つの場所を散策する 2D 探索ホームページ。"}
+{"@context":"https://schema.org","@graph":[
+{"@type":"WebSite","@id":"https://yuichi916.github.io/niwa.html#site","name":"心の庭 · A Quiet Garden","url":"https://yuichi916.github.io/niwa.html","inLanguage":"ja","description":"月夜の庭の 3D 空間で八つの場所を巡るホームページ。"},
+{"@type":"Person","@id":"https://yuichi916.github.io/#person","name":"yuichi916","alternateName":"Views Engineer","url":"https://yuichi916.github.io/"},
+{"@type":"BreadcrumbList","itemListElement":[
+{"@type":"ListItem","position":1,"name":"Views Engineer","item":"https://yuichi916.github.io/"},
+{"@type":"ListItem","position":2,"name":"心の庭","item":"https://yuichi916.github.io/niwa.html"}]}]}
 </script>
 
 <script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
@@ -37,9 +42,8 @@
 
 <style>
 :root{
-  --indigo:#0a1320;
-  --indigo-2:#13243a;
-  --indigo-3:#1d3552;
+  --indigo:#0a0a1a;
+  --indigo-2:#15192e;
   --paper:#e8dcb8;
   --paper-soft:#f3e7c4;
   --paper-dim:#b8a878;
@@ -51,32 +55,59 @@
   --vermilion:#b04030;
   --water:#7ac0d8;
   --night-blue:#3a5070;
-  --wood:#a87a4a;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{
   height:100%;background:var(--indigo);color:var(--paper);
   font-family:"Shippori Mincho","Cormorant Garamond",serif;
   font-feature-settings:"palt";letter-spacing:.02em;
-  -webkit-font-smoothing:antialiased;
-  overflow:hidden;  /* world handles all panning */
-  touch-action:manipulation;
+  -webkit-font-smoothing:antialiased;overflow:hidden;
   user-select:none;-webkit-user-select:none;
 }
 a{color:var(--candle);text-decoration:none;}
 a:hover{color:var(--candle-soft);}
 
-/* ──── grain (over everything) ──── */
 body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.7 0 0 0 0 0.6 0 0 0 0 0.4 0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  opacity:.4;mix-blend-mode:overlay;}
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.7 0 0 0 0 0.6 0 0 0 0 0.4 0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity:.35;mix-blend-mode:overlay;}
 
-/* ──── top bar ──── */
+#container{position:fixed;inset:0;z-index:1;width:100vw;height:100vh;}
+#container canvas{display:block;}
+
+/* splash */
+.splash{position:fixed;inset:0;z-index:200;
+  background:linear-gradient(180deg, rgba(10,10,26,.99), rgba(15,12,30,.99));
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:20px;padding:40px 24px;transition:opacity .5s;text-align:center;}
+.splash.hidden{opacity:0;pointer-events:none;}
+.splash .en{font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:clamp(14px,1.5vw,17px);color:var(--candle);letter-spacing:.32em;}
+.splash .title{font-family:"Shippori Mincho",serif;font-weight:500;
+  font-size:clamp(38px,5.5vw,68px);letter-spacing:.22em;color:var(--paper);}
+.splash .title em{font-style:normal;color:var(--candle);
+  text-shadow:0 0 24px rgba(255,180,90,.5);}
+.splash .sub{font-family:"Shippori Mincho",serif;font-size:14.5px;
+  color:var(--paper-dim);max-width:520px;line-height:2.1;}
+.splash .keys{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+  font-family:"Shippori Mincho",serif;color:var(--paper-dim);font-size:12.5px;margin-top:8px;}
+.splash .keys span{display:inline-flex;align-items:center;gap:6px;}
+.splash .keys kbd{font-family:"JetBrains Mono",monospace;font-size:11px;
+  background:rgba(255,185,104,.15);border:1px solid var(--candle);
+  border-radius:3px;padding:2px 7px;color:var(--candle-soft);}
+.splash button{margin-top:24px;
+  padding:14px 38px;background:linear-gradient(180deg, var(--candle-soft), var(--candle-deep));
+  color:var(--indigo);font-family:"Shippori Mincho",serif;font-weight:700;
+  font-size:15.5px;letter-spacing:.22em;border:none;border-radius:3px;cursor:pointer;
+  box-shadow:0 8px 24px rgba(255,180,90,.4);transition:all .2s;}
+.splash button:hover{transform:translateY(-2px);
+  box-shadow:0 12px 30px rgba(255,180,90,.55);}
+
+/* top bar (after splash) */
 .bar{position:fixed;top:0;left:0;right:0;z-index:60;height:54px;
-  display:flex;align-items:center;justify-content:space-between;padding:0 22px;
-  background:linear-gradient(180deg,rgba(10,19,32,.92),rgba(10,19,32,0));
-  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
-  pointer-events:auto;}
+  display:none;align-items:center;justify-content:space-between;padding:0 22px;
+  background:linear-gradient(180deg,rgba(10,10,26,.92),rgba(10,10,26,0));
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
+.bar.show{display:flex;}
 .bar .brand{display:flex;align-items:center;gap:10px;
   font-family:"Shippori Mincho",serif;font-weight:700;font-size:16px;
   letter-spacing:.18em;color:var(--paper-soft);}
@@ -87,6 +118,11 @@ body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;
 @keyframes flicker{0%,30%,40%,100%{opacity:1;}35%,42%{opacity:.75;}}
 .bar .brand .sub{font-family:"Cormorant Garamond",serif;font-style:italic;
   font-size:12.5px;color:var(--ink-soft);letter-spacing:.16em;margin-left:4px;font-weight:400;}
+.bar .info{font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:12px;color:var(--ink-soft);letter-spacing:.1em;}
+.bar .info kbd{font-family:"JetBrains Mono",monospace;font-size:10.5px;
+  background:rgba(255,185,104,.12);border:1px solid rgba(255,185,104,.3);
+  border-radius:3px;padding:1px 6px;color:var(--candle);margin:0 3px;}
 .bar .tools{display:flex;gap:8px;align-items:center;}
 .bar .tool{width:34px;height:34px;border-radius:50%;
   background:rgba(28,42,58,.6);border:1px solid rgba(216,178,112,.18);
@@ -100,215 +136,41 @@ body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;
 .bar .back:hover{color:var(--candle);}
 @media (max-width:720px){
   .bar{padding:0 12px;}
-  .bar .brand .sub{display:none;}
+  .bar .brand .sub, .bar .info{display:none;}
 }
 
-/* ──── world (camera-driven) ──── */
-.world{position:fixed;inset:0;overflow:hidden;}
-.layer{position:absolute;top:0;bottom:0;left:0;will-change:transform;
-  pointer-events:none;}
-/* each layer's content is wide and absolutely positioned within it */
-.layer-content{position:relative;width:100%;height:100%;}
+/* hover tooltip when a place is highlighted */
+.hover-tip{position:fixed;z-index:55;pointer-events:none;
+  font-family:"Shippori Mincho",serif;font-size:13.5px;color:var(--paper);
+  background:rgba(10,10,26,.94);border:1px solid var(--candle);border-radius:3px;
+  padding:7px 14px;letter-spacing:.06em;white-space:nowrap;opacity:0;
+  transition:opacity .15s;
+  box-shadow:0 6px 18px rgba(0,0,0,.6),0 0 14px rgba(255,180,90,.2);
+  transform:translate(-50%, -120%);}
+.hover-tip.show{opacity:1;}
+.hover-tip kbd{font-family:"JetBrains Mono",monospace;font-size:10.5px;
+  background:rgba(255,185,104,.16);border:1px solid var(--candle);
+  border-radius:2px;padding:1px 5px;color:var(--candle-soft);margin-left:6px;}
 
-/* skydome (fixed gradient, slight nebula) */
-.layer-sky{
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(58,80,112,.45), transparent 65%),
-    radial-gradient(ellipse 50% 30% at 20% 14%, rgba(120,80,160,.15), transparent 70%),
-    radial-gradient(ellipse 50% 30% at 80% 22%, rgba(180,140,220,.12), transparent 70%),
-    linear-gradient(180deg, var(--indigo) 0%, var(--indigo-2) 50%, var(--indigo) 100%);}
+/* visited dots (top centre) */
+.visited-row{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:62;
+  display:none;align-items:center;gap:8px;pointer-events:none;
+  font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--ink-soft);font-size:11px;letter-spacing:.16em;}
+.visited-row.show{display:flex;}
+.visited-row .vlabel{flex-shrink:0;}
+.visited-row .vdot{width:8px;height:8px;border-radius:50%;
+  background:rgba(216,178,112,.32);transition:all .25s;}
+.visited-row .vdot.on{background:var(--candle);
+  box-shadow:0 0 8px var(--candle);}
 
-/* starfield (layered) */
-.stars-near, .stars-far{position:absolute;inset:0;mix-blend-mode:screen;}
-.stars-far{
-  background-image:
-    radial-gradient(0.7px 0.7px at 6% 14%, #fff2c0, transparent),
-    radial-gradient(0.6px 0.6px at 19% 8%, #ffe9b0, transparent),
-    radial-gradient(0.8px 0.8px at 31% 22%, #fff8d8, transparent),
-    radial-gradient(0.6px 0.6px at 47% 6%, #ffd970, transparent),
-    radial-gradient(0.7px 0.7px at 58% 26%, #fff2c0, transparent),
-    radial-gradient(0.5px 0.5px at 71% 14%, #fff8d8, transparent),
-    radial-gradient(0.8px 0.8px at 84% 8%, #ffe9b0, transparent),
-    radial-gradient(0.6px 0.6px at 92% 28%, #fff2c0, transparent),
-    radial-gradient(0.5px 0.5px at 12% 38%, #fff8d8, transparent),
-    radial-gradient(0.6px 0.6px at 38% 44%, #ffe9b0, transparent),
-    radial-gradient(0.7px 0.7px at 64% 38%, #fff2c0, transparent),
-    radial-gradient(0.5px 0.5px at 86% 42%, #ffd970, transparent);
-  background-size:1200px 600px;background-repeat:repeat-x;opacity:.55;}
-.stars-near{
-  background-image:
-    radial-gradient(1px 1px at 13% 18%, #fff8d8, transparent),
-    radial-gradient(0.9px 0.9px at 28% 12%, #fff2c0, transparent),
-    radial-gradient(1.1px 1.1px at 52% 22%, #ffd970, transparent),
-    radial-gradient(0.9px 0.9px at 75% 16%, #fff8d8, transparent),
-    radial-gradient(1px 1px at 91% 26%, #fff2c0, transparent);
-  background-size:900px 500px;background-repeat:repeat-x;opacity:.85;
-  animation:twinkleAll 6s ease-in-out infinite;}
-@keyframes twinkleAll{
-  0%,100%{opacity:.85;}
-  50%{opacity:.55;}
-}
-
-/* moon (mostly fixed) */
-.moon{position:absolute;top:9%;width:120px;height:120px;border-radius:50%;
-  background:radial-gradient(circle at 35% 30%, #fffce6, var(--candle-soft) 35%, #a88848 75%, transparent 95%);
-  box-shadow:0 0 60px rgba(255,217,112,.32), 0 0 120px rgba(255,217,112,.18);}
-
-/* far mountains */
-.far-mtn{position:absolute;bottom:30%;left:0;width:200%;height:30%;
-  background:
-    linear-gradient(180deg, transparent 0%, rgba(20,30,46,.45) 60%, rgba(10,19,32,.85) 100%);}
-.far-mtn svg{position:absolute;left:0;bottom:0;width:100%;height:100%;
-  display:block;filter:blur(.5px);}
-
-/* mid-distance hills */
-.mid-hill{position:absolute;bottom:18%;left:0;width:200%;height:35%;}
-.mid-hill svg{position:absolute;left:0;bottom:0;width:100%;height:100%;display:block;}
-
-/* trees (near) */
-.near-tree{position:absolute;bottom:0;left:0;width:200%;height:60%;
-  pointer-events:none;}
-.near-tree svg{position:absolute;left:0;bottom:0;width:100%;height:100%;display:block;}
-
-/* ground (gentle slope, walkable feeling) */
-.ground{position:absolute;bottom:0;left:0;width:200%;height:14%;
-  background:
-    linear-gradient(180deg, rgba(30,22,12,.55) 0%, rgba(15,10,4,.95) 100%);}
-.ground::before{content:"";position:absolute;left:0;top:0;width:100%;height:6px;
-  background:linear-gradient(180deg, rgba(216,178,112,.3), transparent);}
-
-/* fog (front, soft drift) */
-.fog{position:absolute;bottom:8%;left:0;width:200%;height:32%;
-  background:
-    radial-gradient(ellipse 40% 50% at 15% 60%, rgba(216,178,112,.07), transparent 70%),
-    radial-gradient(ellipse 30% 40% at 50% 70%, rgba(216,178,112,.06), transparent 70%),
-    radial-gradient(ellipse 35% 50% at 80% 50%, rgba(216,178,112,.06), transparent 70%);
-  filter:blur(6px);}
-
-/* place objects (decorative, walkable past) */
-.place-obj{position:absolute;bottom:14%;pointer-events:auto;cursor:pointer;z-index:3;
-  transition:filter .2s;}
-.place-obj svg{display:block;}
-.place-obj:hover{filter:brightness(1.18) drop-shadow(0 0 12px rgba(255,217,112,.4));}
-.place-obj .place-name{position:absolute;left:50%;top:-32px;transform:translateX(-50%);
-  font-family:"Shippori Mincho",serif;font-weight:700;font-size:13px;
-  letter-spacing:.14em;color:var(--paper-soft);white-space:nowrap;
-  text-shadow:0 1px 4px rgba(0,0,0,.8);
-  background:rgba(10,19,32,.7);padding:3px 12px;border-radius:2px;
-  border:1px solid rgba(216,178,112,.22);
-  opacity:.7;transition:opacity .2s;}
-.place-obj.near .place-name{opacity:1;
-  border-color:var(--candle);
-  box-shadow:0 0 16px rgba(255,180,90,.3);}
-
-/* avatar — placed slightly left of centre so the world extends to the right */
-.avatar{position:fixed;left:38%;bottom:13%;transform:translateX(-50%);
-  z-index:50;width:120px;height:160px;pointer-events:none;
-  filter:drop-shadow(0 6px 8px rgba(0,0,0,.55));}
-.avatar::before{content:"";position:absolute;left:50%;bottom:-8px;
-  transform:translateX(-50%);
-  width:160px;height:18px;border-radius:50%;
-  background:radial-gradient(ellipse at center,
-    rgba(255,217,112,.32) 0%, rgba(255,180,90,.12) 50%, transparent 80%);
-  z-index:0;}
-.avatar .lantern-glow{position:absolute;left:66%;top:22%;
-  width:240px;height:240px;border-radius:50%;transform:translate(-50%,-50%);
-  background:radial-gradient(circle at 50% 50%,
-    rgba(255,217,112,.45) 0%, rgba(255,180,90,.18) 30%, rgba(255,140,40,.05) 60%, transparent 82%);
-  z-index:1;mix-blend-mode:screen;
-  pointer-events:none;animation:lanternGlow 3s ease-in-out infinite;}
-@keyframes lanternGlow{
-  0%,100%{opacity:.85;transform:translate(-50%,-50%) scale(1);}
-  50%{opacity:1;transform:translate(-50%,-50%) scale(1.08);}
-}
-.avatar .body{position:absolute;left:0;top:0;width:100%;height:100%;
-  z-index:2;}
-.avatar.walking .body{animation:walkBob .6s ease-in-out infinite;}
-@keyframes walkBob{
-  0%,100%{transform:translateY(0);}
-  50%{transform:translateY(-2px);}
-}
-.avatar.flip .body{transform:scaleX(-1);}
-.avatar.flip.walking .body{animation:walkBobFlip .6s ease-in-out infinite;}
-@keyframes walkBobFlip{
-  0%,100%{transform:scaleX(-1) translateY(0);}
-  50%{transform:scaleX(-1) translateY(-2px);}
-}
-
-/* hint above avatar */
-.hint{position:fixed;left:38%;bottom:calc(13% + 180px);transform:translate(-50%, 8px);
-  z-index:55;font-family:"Shippori Mincho",serif;font-size:13.5px;
-  color:var(--paper);background:rgba(10,19,32,.92);
-  border:1px solid var(--candle);border-radius:4px;padding:8px 16px;
-  letter-spacing:.06em;white-space:nowrap;pointer-events:none;
-  opacity:0;transition:opacity .2s, transform .2s;
-  box-shadow:0 6px 18px rgba(0,0,0,.6), 0 0 16px rgba(255,180,90,.2);}
-.hint.show{opacity:1;transform:translate(-50%, 0);}
-.hint kbd{font-family:"JetBrains Mono",monospace;font-size:11px;
-  background:rgba(255,185,104,.18);border:1px solid var(--candle);
-  border-radius:3px;padding:2px 7px;color:var(--candle-soft);margin:0 3px;
-  letter-spacing:.02em;}
-
-/* compass / progress bar (top bar middle) */
-.compass{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:62;
-  width:min(440px, 60vw);height:32px;
-  display:flex;align-items:center;gap:10px;pointer-events:none;
-  font-family:"Cormorant Garamond",serif;font-style:italic;font-size:11px;
-  color:var(--paper-dim);letter-spacing:.16em;}
-.compass .label{flex-shrink:0;color:var(--ink-soft);}
-.compass .track{flex:1;height:2px;background:rgba(216,178,112,.16);
-  border-radius:1px;position:relative;}
-.compass .progress{position:absolute;left:0;top:0;height:100%;
-  background:linear-gradient(90deg, var(--candle), var(--candle-soft));
-  border-radius:1px;width:0;}
-.compass .pin{position:absolute;top:50%;transform:translate(-50%,-50%);
-  width:10px;height:10px;border-radius:50%;
-  background:var(--candle);box-shadow:0 0 12px rgba(255,180,90,.6);}
-.compass .marker{position:absolute;top:50%;transform:translate(-50%,-50%);
-  width:5px;height:5px;border-radius:50%;
-  background:rgba(216,178,112,.5);}
-.compass .marker.visited{background:#88e0a0;}
-@media (max-width:720px){.compass{width:62vw;}}
-
-/* minimap (bottom-right) */
-.minimap{position:fixed;right:14px;bottom:14px;z-index:62;
-  width:200px;height:46px;
-  background:rgba(10,19,32,.88);border:1px solid rgba(216,178,112,.2);
-  border-radius:4px;padding:6px 8px;
-  font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--ink-soft);
-  letter-spacing:.06em;backdrop-filter:blur(8px);pointer-events:none;}
-.minimap .title{margin-bottom:3px;color:var(--paper-dim);font-size:9.5px;
-  letter-spacing:.12em;text-transform:uppercase;}
-.minimap .mini-track{position:relative;height:6px;background:rgba(216,178,112,.14);
-  border-radius:3px;}
-.minimap .mini-pin{position:absolute;top:50%;transform:translate(-50%,-50%);
-  width:6px;height:6px;border-radius:50%;background:var(--candle);
-  box-shadow:0 0 6px var(--candle);}
-.minimap .mini-marker{position:absolute;top:50%;transform:translate(-50%,-50%);
-  width:4px;height:4px;border-radius:50%;background:rgba(216,178,112,.4);}
-.minimap .mini-marker.visited{background:#88e0a0;}
-@media (max-width:720px){.minimap{width:140px;height:42px;}}
-
-/* mobile touch buttons */
-.tcontrol{display:none;}
-@media (pointer:coarse), (max-width:720px){
-  .tcontrol{display:flex;position:fixed;bottom:14px;left:14px;z-index:62;gap:8px;}
-  .tcontrol button{
-    width:52px;height:52px;border-radius:50%;
-    background:rgba(10,19,32,.85);border:1px solid rgba(216,178,112,.3);
-    color:var(--paper-soft);font-size:22px;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;
-    backdrop-filter:blur(8px);}
-  .tcontrol button:active{background:rgba(255,185,104,.2);color:var(--candle);}
-}
-
-/* ──── overlay (place content modal) ──── */
+/* ── overlay (place content modal, same as before) ── */
 .overlay{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.78);
   display:none;align-items:center;justify-content:center;
-  backdrop-filter:blur(4px);padding:60px 16px 80px;overflow-y:auto;}
+  backdrop-filter:blur(4px);padding:60px 16px;overflow-y:auto;}
 .overlay.open{display:flex;animation:fadein .3s ease;}
 @keyframes fadein{from{opacity:0;}to{opacity:1;}}
-.overlay-inner{background:linear-gradient(180deg, #15243a 0%, #0a1320 100%);
+.overlay-inner{background:linear-gradient(180deg, #15192e 0%, #0a0a1a 100%);
   border:1px solid var(--candle);border-radius:6px;
   padding:36px 40px 32px;max-width:680px;width:100%;max-height:88vh;overflow-y:auto;
   position:relative;box-shadow:0 24px 60px rgba(0,0,0,.7), 0 0 40px rgba(255,180,90,.12);}
@@ -337,7 +199,6 @@ body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;
 .overlay-cta:hover{background:rgba(255,185,104,.15);border-color:var(--candle);
   gap:20px;color:var(--candle-soft);}
 
-/* ── breathing widget (inside overlay) ── */
 .breath-widget{margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:14px;}
 .breath-circle{width:160px;height:160px;border-radius:50%;
   background:radial-gradient(circle at 50% 50%,
@@ -361,20 +222,16 @@ body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;
   font-size:11.5px;color:var(--ink-soft);letter-spacing:.06em;
   max-width:380px;line-height:1.7;text-align:center;}
 
-/* ── poems ── */
 .poems{display:flex;flex-direction:column;gap:26px;}
 .poem{font-family:"Shippori Mincho",serif;color:var(--paper-soft);
   font-size:14.5px;line-height:2.3;letter-spacing:.06em;
-  border-left:1px solid rgba(122,192,216,.32);
-  padding-left:18px;}
+  border-left:1px solid rgba(122,192,216,.32);padding-left:18px;}
 .poem .signature{display:block;margin-top:4px;
   font-family:"Cormorant Garamond",serif;font-style:italic;
   font-size:11px;color:var(--ink-soft);letter-spacing:.14em;text-transform:uppercase;}
 .poem em{color:var(--candle-soft);font-style:normal;}
 
-/* ── ambient tiles ── */
-.ambient-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
-  gap:12px;}
+.ambient-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;}
 .amb-tile{padding:14px 16px;background:rgba(28,42,58,.6);
   border:1px solid rgba(122,192,216,.22);border-radius:4px;
   text-decoration:none;color:var(--paper);transition:all .2s;
@@ -387,7 +244,6 @@ body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;
 .amb-tile .src{font-family:"Cormorant Garamond",serif;font-style:italic;
   font-size:10px;color:var(--paper-dim);letter-spacing:.06em;text-transform:uppercase;}
 
-/* ── starscape ── */
 .starscape{position:relative;width:100%;height:240px;
   border-radius:6px;overflow:hidden;
   border:1px solid rgba(216,178,112,.18);
@@ -412,559 +268,1019 @@ body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;
   10%{opacity:0;transform:translate(180px,40px) rotate(-15deg);}
   100%{opacity:0;}
 }
-
-/* ── intro splash (first time) ── */
-.splash{position:fixed;inset:0;z-index:200;
-  display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(180deg, rgba(10,19,32,.96), rgba(10,19,32,.99));
-  flex-direction:column;gap:20px;padding:24px;text-align:center;}
-.splash.hidden{display:none;}
-.splash .title{font-family:"Shippori Mincho",serif;font-weight:500;
-  font-size:clamp(32px,5vw,52px);letter-spacing:.18em;color:var(--paper);}
-.splash .title em{font-style:normal;color:var(--candle);
-  text-shadow:0 0 24px rgba(255,180,90,.5);}
-.splash .en{font-family:"Cormorant Garamond",serif;font-style:italic;
-  font-size:clamp(14px,1.5vw,17px);color:var(--candle);letter-spacing:.32em;}
-.splash .sub{font-family:"Shippori Mincho",serif;font-size:14.5px;
-  color:var(--paper-dim);max-width:520px;line-height:2.1;}
-.splash .keys{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin-top:8px;
-  font-family:"Shippori Mincho",serif;color:var(--paper-dim);font-size:13px;}
-.splash .keys span{display:inline-flex;align-items:center;gap:6px;}
-.splash .keys kbd{font-family:"JetBrains Mono",monospace;font-size:11px;
-  background:rgba(255,185,104,.15);border:1px solid var(--candle);
-  border-radius:3px;padding:2px 7px;color:var(--candle-soft);}
-.splash .enter-btn{margin-top:22px;
-  padding:14px 36px;background:linear-gradient(180deg, var(--candle-soft), var(--candle-deep));
-  color:var(--indigo);font-family:"Shippori Mincho",serif;font-weight:700;
-  font-size:15.5px;letter-spacing:.18em;border:none;border-radius:3px;cursor:pointer;
-  box-shadow:0 8px 24px rgba(255,180,90,.4);transition:all .2s;}
-.splash .enter-btn:hover{transform:translateY(-2px);
-  box-shadow:0 12px 30px rgba(255,180,90,.55);}
 </style>
 </head>
 <body>
 
-<!-- splash / intro -->
+<!-- splash -->
 <div class="splash" id="splash">
   <div class="en">A Quiet Garden · № 08</div>
   <div class="title">心 の <em>庭</em></div>
   <div class="sub">
-    提灯を持って、 夜の庭を歩きます。<br>
-    八つの場所を散策しながら、 すこしずつ呼吸を整えていきましょう。<br>
-    どこから歩いてもかまわないよ。
+    月夜の庭を、 ドラッグで見渡しながら散策します。<br>
+    八つの場所をクリックして、 心を整える小さな世界を巡ろう。
   </div>
   <div class="keys">
-    <span><kbd>←</kbd> <kbd>→</kbd> 歩く</span>
-    <span><kbd>Space</kbd> 入る</span>
-    <span><kbd>Esc</kbd> 戻る</span>
+    <span><kbd>ドラッグ</kbd> 視点を回す</span>
+    <span><kbd>スクロール</kbd> ズーム</span>
+    <span><kbd>クリック</kbd> 場所に入る</span>
   </div>
-  <button class="enter-btn" id="enter-btn">庭に入る</button>
+  <button id="enter-btn">庭に入る</button>
 </div>
 
-<!-- top bar -->
-<header class="bar">
+<!-- top bar (visible after splash) -->
+<header class="bar" id="bar">
   <div class="brand">
     <span class="lantern"></span>心の庭<span class="sub">A Quiet Garden</span>
   </div>
+  <div class="info"><kbd>ドラッグ</kbd>回転 <kbd>スクロール</kbd>ズーム <kbd>クリック</kbd>入る</div>
   <div class="tools">
     <button class="tool" id="ambient-toggle" title="静かな環境音 (オフ)" aria-label="ambient">♪</button>
     <a class="back" href="/">← 入口へ</a>
   </div>
 </header>
 
-<!-- compass / progress -->
-<div class="compass" id="compass">
-  <span class="label">庭 の 道</span>
-  <div class="track" id="compass-track">
-    <div class="progress" id="compass-progress"></div>
-    <div class="pin" id="compass-pin"></div>
-  </div>
+<!-- visited dots -->
+<div class="visited-row" id="visited-row">
+  <span class="vlabel">巡った場所</span>
 </div>
 
-<!-- world: parallax layers + place objects -->
-<div class="world" id="world">
-  <!-- Layer 0: sky (fixed) -->
-  <div class="layer layer-sky" data-speed="0" style="width:100%;">
-    <div class="moon" id="moon"></div>
-    <div class="stars-far"></div>
-    <div class="stars-near"></div>
-  </div>
-  <!-- Layer 1: far mountains -->
-  <div class="layer" data-speed="0.12" style="width:200%;">
-    <div class="far-mtn">
-      <svg viewBox="0 0 4000 400" preserveAspectRatio="none">
-        <path d="M0 320 L300 180 L500 250 L750 130 L1100 220 L1380 150 L1600 240 L1900 140 L2200 230 L2520 130 L2800 230 L3100 160 L3400 250 L3700 170 L4000 280 L4000 400 L0 400 Z"
-              fill="#1a2840" opacity="0.75"/>
-      </svg>
-    </div>
-  </div>
-  <!-- Layer 2: mid hills -->
-  <div class="layer" data-speed="0.32" style="width:200%;">
-    <div class="mid-hill">
-      <svg viewBox="0 0 4000 500" preserveAspectRatio="none">
-        <path d="M0 380 L240 290 L520 360 L820 250 L1180 340 L1440 270 L1740 350 L2040 240 L2360 340 L2640 270 L2960 350 L3260 260 L3560 360 L3820 290 L4000 360 L4000 500 L0 500 Z"
-              fill="#1f3354" opacity="0.85"/>
-      </svg>
-    </div>
-  </div>
-  <!-- Layer 3: ground + place objects -->
-  <div class="layer" data-speed="1" style="width:200%;">
-    <div class="ground"></div>
-    <!-- place objects are appended here by JS using PLACES coords -->
-    <div id="place-layer" style="position:absolute;left:0;right:0;bottom:0;top:0;"></div>
-  </div>
-  <!-- Layer 4: near trees / grass (front) -->
-  <div class="layer" data-speed="1.4" style="width:200%;">
-    <div class="near-tree">
-      <svg viewBox="0 0 4000 600" preserveAspectRatio="none">
-        <!-- random grass tufts -->
-        <g fill="#0a1218" opacity="0.85">
-          <path d="M50 600 L50 540 L40 560 L48 580 L42 600 Z"/>
-          <path d="M180 600 L180 535 L170 555 L185 595 Z"/>
-          <path d="M340 600 L340 530 L325 560 L350 595 Z"/>
-          <path d="M510 600 L510 545 L498 570 L520 600 Z"/>
-          <path d="M670 600 L670 525 L655 555 L680 600 Z"/>
-          <path d="M880 600 L880 540 L870 560 L890 590 Z"/>
-          <path d="M1030 600 L1030 530 L1015 560 L1045 590 Z"/>
-          <path d="M1240 600 L1240 540 L1228 565 L1252 600 Z"/>
-          <path d="M1480 600 L1480 530 L1465 560 L1495 590 Z"/>
-          <path d="M1700 600 L1700 540 L1690 565 L1712 595 Z"/>
-          <path d="M1980 600 L1980 525 L1965 555 L1995 590 Z"/>
-          <path d="M2200 600 L2200 540 L2188 565 L2212 600 Z"/>
-          <path d="M2450 600 L2450 530 L2435 560 L2465 590 Z"/>
-          <path d="M2680 600 L2680 540 L2670 565 L2690 595 Z"/>
-          <path d="M2920 600 L2920 525 L2905 555 L2935 590 Z"/>
-          <path d="M3170 600 L3170 540 L3158 565 L3182 600 Z"/>
-          <path d="M3400 600 L3400 530 L3385 560 L3415 590 Z"/>
-          <path d="M3640 600 L3640 540 L3630 565 L3652 595 Z"/>
-          <path d="M3880 600 L3880 525 L3865 555 L3895 590 Z"/>
-        </g>
-      </svg>
-    </div>
-  </div>
-  <!-- Layer 5: fog -->
-  <div class="layer" data-speed="1.7" style="width:200%;">
-    <div class="fog"></div>
-  </div>
-</div>
+<!-- Three.js canvas mount -->
+<div id="container"></div>
 
-<!-- avatar (always at screen centre) -->
-<div class="avatar" id="avatar">
-  <div class="lantern-glow"></div>
-  <svg class="body" viewBox="0 0 100 134" style="position:relative;z-index:2;width:100%;height:100%;">
-    <defs>
-      <radialGradient id="lantern-flame" cx="50%" cy="50%" r="60%">
-        <stop offset="0%" stop-color="#fff8d8"/>
-        <stop offset="40%" stop-color="#ffd970"/>
-        <stop offset="100%" stop-color="#ff8830"/>
-      </radialGradient>
-      <linearGradient id="robe-grad" x1="50%" y1="0%" x2="50%" y2="100%">
-        <stop offset="0%" stop-color="#5a3e2a"/>
-        <stop offset="100%" stop-color="#2a1a10"/>
-      </linearGradient>
-    </defs>
-    <!-- shadow under feet -->
-    <ellipse cx="50" cy="130" rx="26" ry="4" fill="rgba(0,0,0,.55)"/>
-    <!-- staff -->
-    <line x1="30" y1="48" x2="22" y2="126" stroke="#3a2814" stroke-width="2.4" stroke-linecap="round"/>
-    <!-- robe/body -->
-    <path d="M30 74 Q30 60 42 56 L58 56 Q70 60 70 74 L74 126 L26 126 Z"
-          fill="url(#robe-grad)" stroke="#8a6a3a" stroke-width="0.8"/>
-    <!-- sash -->
-    <rect x="30" y="86" width="40" height="5" fill="#b04030" opacity=".75"/>
-    <!-- arm / lantern stick -->
-    <path d="M65 70 L88 36" stroke="#5a3e22" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <!-- lantern -->
-    <g>
-      <ellipse cx="88" cy="38" rx="11" ry="3" fill="#3a2814"/>
-      <rect x="78" y="30" width="20" height="22" rx="3" fill="#b04030" stroke="#ffd970" stroke-width="1"/>
-      <rect x="80" y="32" width="16" height="2" fill="#5a2010"/>
-      <rect x="80" y="48" width="16" height="2" fill="#5a2010"/>
-      <rect x="81" y="34" width="14" height="14" fill="url(#lantern-flame)"/>
-      <text x="88" y="44" font-family="serif" font-size="9" fill="#5a2010"
-            text-anchor="middle" opacity="0.6">心</text>
-      <line x1="88" y1="22" x2="88" y2="30" stroke="#3a2814" stroke-width="1.4"/>
-      <line x1="83" y1="25" x2="88" y2="30" stroke="#3a2814" stroke-width="1"/>
-      <line x1="93" y1="25" x2="88" y2="30" stroke="#3a2814" stroke-width="1"/>
-    </g>
-    <!-- straw hat (kasa) -->
-    <path d="M28 34 Q50 18 72 34 L66 38 L34 38 Z" fill="#a88a5a" stroke="#5a3e22" stroke-width="0.8"/>
-    <ellipse cx="50" cy="34" rx="22" ry="3" fill="#8a6a3a"/>
-    <!-- face -->
-    <circle cx="50" cy="46" r="11" fill="#e8c8a0" stroke="#a88a5a" stroke-width="0.8"/>
-    <!-- chin shadow -->
-    <ellipse cx="50" cy="54" rx="9" ry="3" fill="rgba(120,90,60,.3)"/>
-    <!-- hair tied back -->
-    <path d="M40 46 Q40 38 50 36 Q60 38 60 46" fill="#1a0e08"/>
-  </svg>
-</div>
+<!-- hover tooltip for highlighted place -->
+<div class="hover-tip" id="hover-tip"></div>
 
-<!-- hint above avatar -->
-<div class="hint" id="hint">
-  <span id="hint-text">月光の書架 へ</span><kbd>Space</kbd> または タップ
-</div>
-
-<!-- minimap -->
-<div class="minimap">
-  <div class="title">⌖ minimap</div>
-  <div class="mini-track" id="mini-track">
-    <div class="mini-pin" id="mini-pin"></div>
-  </div>
-</div>
-
-<!-- mobile touch controls -->
-<div class="tcontrol">
-  <button id="t-left" aria-label="left">‹</button>
-  <button id="t-act" aria-label="action">●</button>
-  <button id="t-right" aria-label="right">›</button>
-</div>
-
-<!-- overlay (place content) -->
+<!-- overlay -->
 <div class="overlay" id="overlay">
-  <div class="overlay-inner" id="overlay-inner">
-    <!-- filled by JS -->
-  </div>
+  <div class="overlay-inner" id="overlay-inner"></div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// ─── World configuration ────────────────────────────────────────────
-const WORLD_WIDTH = 10800;   // total world width in px (camera ranges 0..WORLD_WIDTH)
-const PLACES = [
-  {id:"tsuki",   x:900,  name:"月光の書架",    en:"Moonlit Library",
-   icon:"shelf", color:"#d8c08a"},
-  {id:"oto",     x:2100, name:"音の祠",        en:"Sound Shrine",
-   icon:"torii", color:"#c5a0ff"},
-  {id:"tabi",    x:3300, name:"ひとり旅の道",  en:"Solitary Road",
-   icon:"sign",  color:"#e09080"},
-  {id:"takibi",  x:4500, name:"焚き火の前",    en:"At the Bonfire",
-   icon:"fire",  color:"#ff8a3a"},
-  {id:"mizube",  x:5700, name:"水辺の岸",      en:"Water's Edge",
-   icon:"water", color:"#7ac0d8"},
-  {id:"toki",    x:6900, name:"時の砂時計",    en:"Hourglass",
-   icon:"clock", color:"#c2956a"},
-  {id:"amaoto",  x:8100, name:"雨音の部屋",    en:"Room of Rain",
-   icon:"hut",   color:"#9ec5e0"},
-  {id:"hoshi",   x:9300, name:"星見台",        en:"Observatory",
-   icon:"scope", color:"#fff2c0"},
-];
-const INTERACT_RANGE = 130;   // how close to a place to trigger hint
-
-// ─── State (exposed on window for tooling) ─────────────────────────
-let cameraX = 0;
-window.__niwaSetCamera = (x) => { cameraX = Math.max(0, Math.min(WORLD_WIDTH, x)); applyCamera(); };
-window.__niwaGetCamera = () => cameraX;
-let walking = false;
-let facing = 1;  // 1 = right, -1 = left
-let activePlace = null;
+// ─── Three.js scene state ──────────────────────────────────────────
+let scene, camera, renderer;
+let isDragging = false, dragStart = {x: 0, y: 0}, previousMousePosition = {x: 0, y: 0};
+const clickableObjects = [];
+let hoveredObject = null;
 let inOverlay = false;
-let visited = new Set();
+const visitedPlaces = new Set();
+
 try {
-  const raw = localStorage.getItem("niwa_visited_v2");
-  if(raw) visited = new Set(JSON.parse(raw));
+  const raw = localStorage.getItem("niwa_visited_v3");
+  if(raw) JSON.parse(raw).forEach(v => visitedPlaces.add(v));
 } catch(e){}
 
-// ─── Build place objects (decorative SVGs along the ground) ────────
-function placeSvg(p){
-  const c = p.color;
-  switch(p.icon){
-    case "shelf": return `<svg width="120" height="140" viewBox="0 0 120 140">
-      <rect x="14" y="22" width="92" height="98" fill="#3a2818" stroke="${c}" stroke-width="1"/>
-      <rect x="14" y="42" width="92" height="2" fill="${c}" opacity=".5"/>
-      <rect x="14" y="68" width="92" height="2" fill="${c}" opacity=".5"/>
-      <rect x="14" y="94" width="92" height="2" fill="${c}" opacity=".5"/>
-      <!-- books on shelves -->
-      <g fill="${c}" opacity=".85">
-        <rect x="18" y="26" width="6" height="14"/><rect x="26" y="24" width="5" height="16"/>
-        <rect x="34" y="28" width="7" height="12"/><rect x="44" y="25" width="5" height="15"/>
-        <rect x="52" y="27" width="6" height="13"/><rect x="62" y="26" width="5" height="14"/>
-        <rect x="72" y="24" width="7" height="16"/><rect x="84" y="27" width="5" height="13"/>
-        <rect x="92" y="25" width="6" height="15"/>
-        <rect x="18" y="52" width="6" height="14"/><rect x="28" y="50" width="7" height="16"/>
-        <rect x="40" y="53" width="5" height="13"/><rect x="50" y="51" width="6" height="15"/>
-        <rect x="60" y="54" width="7" height="12"/><rect x="72" y="50" width="5" height="16"/>
-        <rect x="82" y="52" width="6" height="14"/><rect x="92" y="53" width="6" height="13"/>
-        <rect x="18" y="78" width="7" height="14"/><rect x="30" y="76" width="5" height="16"/>
-        <rect x="40" y="79" width="6" height="13"/><rect x="52" y="77" width="5" height="15"/>
-        <rect x="62" y="78" width="7" height="14"/><rect x="76" y="76" width="6" height="16"/>
-        <rect x="88" y="79" width="5" height="13"/>
-      </g>
-      <!-- lantern on top -->
-      <circle cx="60" cy="14" r="5" fill="${c}" opacity=".9"/>
-      <line x1="60" y1="0" x2="60" y2="9" stroke="${c}" stroke-width="1" opacity=".5"/>
-    </svg>`;
-    case "torii": return `<svg width="140" height="160" viewBox="0 0 140 160">
-      <!-- two pillars -->
-      <line x1="36" y1="40" x2="36" y2="150" stroke="#b04030" stroke-width="6"/>
-      <line x1="104" y1="40" x2="104" y2="150" stroke="#b04030" stroke-width="6"/>
-      <!-- top beam (kasagi) -->
-      <path d="M22 36 L118 36 L122 28 L18 28 Z" fill="#b04030"/>
-      <!-- inner beam (nuki) -->
-      <rect x="32" y="48" width="76" height="6" fill="#b04030"/>
-      <!-- shimenawa rope -->
-      <line x1="40" y1="56" x2="100" y2="56" stroke="#fff2c0" stroke-width="2" opacity=".7"/>
-      <circle cx="50" cy="58" r="2" fill="#fff2c0"/>
-      <circle cx="70" cy="58" r="2" fill="#fff2c0"/>
-      <circle cx="90" cy="58" r="2" fill="#fff2c0"/>
-    </svg>`;
-    case "sign": return `<svg width="100" height="130" viewBox="0 0 100 130">
-      <line x1="50" y1="40" x2="50" y2="125" stroke="#5a3e22" stroke-width="4"/>
-      <rect x="14" y="30" width="72" height="32" fill="#2a1e14" stroke="${c}" stroke-width="1.2"/>
-      <line x1="20" y1="40" x2="80" y2="40" stroke="${c}" stroke-width=".8" opacity=".6"/>
-      <line x1="20" y1="46" x2="76" y2="46" stroke="${c}" stroke-width=".8" opacity=".5"/>
-      <line x1="20" y1="52" x2="72" y2="52" stroke="${c}" stroke-width=".8" opacity=".4"/>
-      <!-- direction arrow -->
-      <path d="M82 32 L92 36 L82 40 Z" fill="${c}"/>
-    </svg>`;
-    case "fire": return `<svg width="140" height="120" viewBox="0 0 140 120">
-      <!-- logs -->
-      <ellipse cx="70" cy="100" rx="44" ry="8" fill="#3a2818"/>
-      <rect x="34" y="92" width="72" height="6" fill="#5a3818" rx="3" transform="rotate(-8 70 95)"/>
-      <rect x="32" y="88" width="76" height="6" fill="#7a4828" rx="3" transform="rotate(7 70 91)"/>
-      <!-- flame -->
-      <path d="M70 30 Q56 50 60 70 Q66 84 70 92 Q74 84 80 70 Q84 50 70 30 Z" fill="url(#flame-g)"/>
-      <path d="M70 45 Q63 58 64 70 Q68 78 70 84 Q72 78 76 70 Q77 58 70 45 Z" fill="#fff2c0" opacity=".75">
-        <animate attributeName="d" values="M70 45 Q63 58 64 70 Q68 78 70 84 Q72 78 76 70 Q77 58 70 45 Z;M70 42 Q64 56 65 70 Q67 78 70 84 Q73 78 75 70 Q76 56 70 42 Z;M70 45 Q63 58 64 70 Q68 78 70 84 Q72 78 76 70 Q77 58 70 45 Z" dur="2.4s" repeatCount="indefinite"/>
-      </path>
-      <!-- sparks -->
-      <circle cx="64" cy="34" r="1.4" fill="#fff2c0">
-        <animate attributeName="cy" values="34;14;34" dur="3s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="0;1;0" dur="3s" repeatCount="indefinite"/>
-      </circle>
-      <circle cx="78" cy="40" r="1.2" fill="#ffd970">
-        <animate attributeName="cy" values="40;18;40" dur="3.6s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="0;1;0" dur="3.6s" repeatCount="indefinite"/>
-      </circle>
-      <defs>
-        <linearGradient id="flame-g" x1="50%" y1="0%" x2="50%" y2="100%">
-          <stop offset="0%" stop-color="#fff2c0"/>
-          <stop offset="40%" stop-color="${c}"/>
-          <stop offset="100%" stop-color="#b04030"/>
-        </linearGradient>
-      </defs>
-    </svg>`;
-    case "water": return `<svg width="160" height="120" viewBox="0 0 160 120">
-      <!-- bridge -->
-      <path d="M10 80 Q80 60 150 80" stroke="#5a3e22" stroke-width="6" fill="none"/>
-      <line x1="30" y1="76" x2="30" y2="95" stroke="#5a3e22" stroke-width="2"/>
-      <line x1="60" y1="68" x2="60" y2="98" stroke="#5a3e22" stroke-width="2"/>
-      <line x1="100" y1="68" x2="100" y2="98" stroke="#5a3e22" stroke-width="2"/>
-      <line x1="130" y1="76" x2="130" y2="95" stroke="#5a3e22" stroke-width="2"/>
-      <!-- water ripples -->
-      <g fill="none" stroke="${c}" stroke-width="1.3" opacity=".55">
-        <path d="M20 110 Q40 106 60 110 T100 110 T140 110"/>
-        <path d="M25 117 Q45 113 65 117 T105 117 T145 117"/>
-      </g>
-    </svg>`;
-    case "clock": return `<svg width="100" height="160" viewBox="0 0 100 160">
-      <!-- hourglass -->
-      <line x1="20" y1="30" x2="80" y2="30" stroke="${c}" stroke-width="3"/>
-      <line x1="20" y1="130" x2="80" y2="130" stroke="${c}" stroke-width="3"/>
-      <path d="M20 30 L80 30 L50 80 Z" fill="rgba(255,217,112,.32)" stroke="${c}" stroke-width="1.2"/>
-      <path d="M50 80 L20 130 L80 130 Z" fill="rgba(255,217,112,.22)" stroke="${c}" stroke-width="1.2"/>
-      <!-- sand falling -->
-      <rect x="48" y="78" width="4" height="20" fill="#ffd970"/>
-      <ellipse cx="50" cy="125" rx="14" ry="3" fill="#ffd970" opacity=".6"/>
-    </svg>`;
-    case "hut": return `<svg width="140" height="140" viewBox="0 0 140 140">
-      <!-- hut body -->
-      <rect x="20" y="60" width="100" height="70" fill="#3a2818" stroke="${c}" stroke-width="1"/>
-      <!-- roof -->
-      <path d="M10 60 L70 18 L130 60 Z" fill="#5a3818" stroke="${c}" stroke-width="1"/>
-      <!-- door -->
-      <rect x="60" y="86" width="20" height="44" fill="#1a0e08" stroke="${c}" stroke-width=".8"/>
-      <circle cx="74" cy="108" r="1" fill="${c}"/>
-      <!-- window glow -->
-      <rect x="34" y="76" width="14" height="14" fill="#ffd970" opacity=".5">
-        <animate attributeName="opacity" values=".4;.7;.4" dur="3.4s" repeatCount="indefinite"/>
-      </rect>
-      <rect x="92" y="76" width="14" height="14" fill="#ffd970" opacity=".5">
-        <animate attributeName="opacity" values=".55;.35;.55" dur="3s" repeatCount="indefinite"/>
-      </rect>
-      <!-- rain drops -->
-      <g stroke="${c}" stroke-width="1" opacity=".55">
-        <line x1="30" y1="0" x2="28" y2="14"><animate attributeName="y2" values="14;28;14" dur="1.6s" repeatCount="indefinite"/></line>
-        <line x1="60" y1="0" x2="58" y2="14"><animate attributeName="y2" values="14;28;14" dur="1.8s" repeatCount="indefinite"/></line>
-        <line x1="90" y1="0" x2="88" y2="14"><animate attributeName="y2" values="14;28;14" dur="2s" repeatCount="indefinite"/></line>
-        <line x1="116" y1="0" x2="114" y2="14"><animate attributeName="y2" values="14;28;14" dur="1.5s" repeatCount="indefinite"/></line>
-      </g>
-    </svg>`;
-    case "scope": return `<svg width="130" height="160" viewBox="0 0 130 160">
-      <!-- platform -->
-      <rect x="20" y="130" width="90" height="14" fill="#3a2818" stroke="${c}" stroke-width="1"/>
-      <!-- tripod -->
-      <line x1="55" y1="130" x2="40" y2="155" stroke="${c}" stroke-width="2.5"/>
-      <line x1="75" y1="130" x2="90" y2="155" stroke="${c}" stroke-width="2.5"/>
-      <line x1="65" y1="130" x2="65" y2="156" stroke="${c}" stroke-width="2.5"/>
-      <!-- telescope body -->
-      <line x1="40" y1="120" x2="100" y2="60" stroke="${c}" stroke-width="6" stroke-linecap="round"/>
-      <line x1="40" y1="120" x2="100" y2="60" stroke="#3a2818" stroke-width="3"/>
-      <!-- eyepiece -->
-      <circle cx="42" cy="122" r="5" fill="${c}"/>
-      <!-- lens flare -->
-      <circle cx="100" cy="60" r="3" fill="#fff2c0">
-        <animate attributeName="r" values="3;4;3" dur="2.4s" repeatCount="indefinite"/>
-      </circle>
-    </svg>`;
-    default: return "";
+function hash(x, y, seed = 0) {
+  const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 45.164) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+// ─── Locations ─────────────────────────────────────────────────────
+const LOCATIONS = [
+  {id:"takibi",  x:0,    z:0,   name:"焚き火の前",   en:"At the Bonfire",   type:"firepit"},
+  {id:"tsuki",   x:-16,  z:-15, name:"月光の書架",   en:"Moonlit Library",  type:"library"},
+  {id:"oto",     x:16,   z:-13, name:"音の祠",       en:"Sound Shrine",     type:"torii"},
+  {id:"tabi",    x:0,    z:-26, name:"ひとり旅の道", en:"Solitary Road",    type:"road"},
+  {id:"mizube",  x:-19,  z:6,   name:"水辺の岸",     en:"Water's Edge",     type:"pond"},
+  {id:"toki",    x:19,   z:8,   name:"時の砂時計",   en:"Hourglass",        type:"hourglass"},
+  {id:"amaoto",  x:-11,  z:19,  name:"雨音の部屋",   en:"Room of Rain",     type:"hut"},
+  {id:"hoshi",   x:13,   z:21,  name:"星見台",       en:"Observatory",      type:"observatory"},
+];
+
+// ─── Three.js init ─────────────────────────────────────────────────
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a1a);
+  scene.fog = new THREE.Fog(0x0a0a1a, 55, 130);
+
+  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(40, 36, 40);
+  camera.lookAt(0, 0, 0);
+
+  renderer = new THREE.WebGLRenderer({antialias: true});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.getElementById('container').appendChild(renderer.domElement);
+
+  createStarfield();
+  createMoonOrb();
+
+  // Lighting
+  const ambient = new THREE.AmbientLight(0x9090b8, 0.42);
+  scene.add(ambient);
+
+  const moonLight = new THREE.DirectionalLight(0xd0d0ff, 0.85);
+  moonLight.position.set(60, 80, 40);
+  moonLight.castShadow = true;
+  moonLight.shadow.mapSize.width = 2048;
+  moonLight.shadow.mapSize.height = 2048;
+  moonLight.shadow.camera.left = -70;
+  moonLight.shadow.camera.right = 70;
+  moonLight.shadow.camera.top = 70;
+  moonLight.shadow.camera.bottom = -70;
+  moonLight.shadow.bias = -0.0001;
+  scene.add(moonLight);
+
+  // Subtle warm fill from a low east-side amber
+  const fill = new THREE.HemisphereLight(0x1a2240, 0x3a2818, 0.18);
+  scene.add(fill);
+
+  createGround();
+  LOCATIONS.forEach(loc => createLocation(loc));
+
+  // Trees scattered around (avoiding centre)
+  for(let i = 0; i < 60; i++){
+    const angle = hash(i, 0, 100) * Math.PI * 2;
+    const dist = 22 + hash(0, i, 100) * 24;
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    if(notTooCloseToPlaces(x, z, 4)) createTree(x, z);
+  }
+  // Bushes scattered (no centre)
+  for(let i = 0; i < 36; i++){
+    const x = (hash(i, 10, 100) - 0.5) * 70;
+    const z = (hash(10, i, 100) - 0.5) * 70;
+    if(Math.sqrt(x*x + z*z) > 7 && notTooCloseToPlaces(x, z, 3)) createBush(x, z);
+  }
+  // Lanterns along the central paths
+  for(let i = 0; i < 12; i++){
+    const angle = (i / 12) * Math.PI * 2;
+    const dist = 9;
+    createPathLantern(Math.cos(angle) * dist, Math.sin(angle) * dist);
+  }
+
+  setupControls();
+  setupKeyboard();
+  setupTouch();
+  refreshVisitedDots();
+  animate();
+}
+
+function notTooCloseToPlaces(x, z, r){
+  for(const loc of LOCATIONS){
+    const d = Math.hypot(x - loc.x, z - loc.z);
+    if(d < r + 3.5) return false;
+  }
+  return true;
+}
+
+// ─── Stars ─────────────────────────────────────────────────────────
+function createStarfield(){
+  const starGeo = new THREE.BufferGeometry();
+  const N = 1400;
+  const positions = new Float32Array(N * 3);
+  const sizes = new Float32Array(N);
+  for(let i = 0; i < N; i++){
+    positions[i*3]   = (Math.random() - 0.5) * 220;
+    positions[i*3+1] = Math.random() * 110 + 18;
+    positions[i*3+2] = (Math.random() - 0.5) * 220;
+    sizes[i] = 0.18 + Math.random() * 0.4;
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  starGeo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+  const starMat = new THREE.PointsMaterial({
+    color: 0xfff2c0, size: 0.32, transparent: true, opacity: 0.85,
+    sizeAttenuation: true,
+  });
+  const stars = new THREE.Points(starGeo, starMat);
+  scene.add(stars);
+}
+
+function createMoonOrb(){
+  // Visible moon disc in the sky
+  const moonGeo = new THREE.SphereGeometry(3.6, 24, 24);
+  const moonMat = new THREE.MeshBasicMaterial({color: 0xfff2c0, fog: false});
+  const moonMesh = new THREE.Mesh(moonGeo, moonMat);
+  moonMesh.position.set(58, 50, -40);
+  scene.add(moonMesh);
+  // Halo
+  const haloGeo = new THREE.RingGeometry(4.0, 10, 32);
+  const haloMat = new THREE.MeshBasicMaterial({
+    color: 0xffd970, side: THREE.DoubleSide,
+    transparent: true, opacity: 0.18, fog: false,
+  });
+  const halo = new THREE.Mesh(haloGeo, haloMat);
+  halo.position.copy(moonMesh.position);
+  halo.lookAt(camera.position);
+  scene.add(halo);
+  scene.userData.halo = halo;
+  scene.userData.moonMesh = moonMesh;
+}
+
+// ─── Ground ────────────────────────────────────────────────────────
+function createGround(){
+  const size = 110;
+  const groundGeo = new THREE.PlaneGeometry(size, size, 90, 90);
+  const positions = groundGeo.attributes.position;
+  for(let i = 0; i < positions.count; i++){
+    const x = positions.getX(i);
+    const y = positions.getY(i);
+    const dist = Math.sqrt(x*x + y*y);
+    const noise = Math.sin(x * 0.15) * Math.cos(y * 0.15) * 0.42 +
+                  Math.sin(x * 0.4) * Math.cos(y * 0.3) * 0.22;
+    positions.setZ(i, noise - (dist < 16 ? 0.32 : 0));
+  }
+  groundGeo.computeVertexNormals();
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024; canvas.height = 1024;
+  const ctx = canvas.getContext('2d');
+  // moonlit moss base
+  const grad = ctx.createRadialGradient(512, 512, 160, 512, 512, 720);
+  grad.addColorStop(0, '#3a4838');
+  grad.addColorStop(0.3, '#2a382a');
+  grad.addColorStop(0.6, '#1c281f');
+  grad.addColorStop(1, '#0e161a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1024, 1024);
+  // moss patches
+  for(let i = 0; i < 280; i++){
+    ctx.fillStyle = `rgba(${50 + Math.random()*40}, ${90 + Math.random()*60}, ${50 + Math.random()*30}, ${0.18 + Math.random()*0.32})`;
+    ctx.beginPath();
+    ctx.arc(Math.random()*1024, Math.random()*1024, 14 + Math.random()*30, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // dewy highlights
+  for(let i = 0; i < 1600; i++){
+    ctx.strokeStyle = `rgba(${110 + Math.random()*50}, ${140 + Math.random()*60}, ${90 + Math.random()*40}, 0.36)`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const x = Math.random() * 1024, y = Math.random() * 1024;
+    ctx.moveTo(x, y); ctx.lineTo(x + (Math.random() - 0.5) * 4, y + Math.random() * 5);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+
+  const groundMat = new THREE.MeshLambertMaterial({map: tex});
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Stone path circle around centre
+  const pathGeo = new THREE.RingGeometry(7, 9.5, 64);
+  const pathMat = new THREE.MeshLambertMaterial({color: 0x4a4438});
+  const path = new THREE.Mesh(pathGeo, pathMat);
+  path.rotation.x = -Math.PI / 2;
+  path.position.y = 0.04;
+  scene.add(path);
+}
+
+// ─── Place builders (custom per location) ──────────────────────────
+function createLocation(loc){
+  const group = new THREE.Group();
+  group.userData = {name: loc.name, en: loc.en, id: loc.id};
+
+  switch(loc.type){
+    case "firepit":      buildFirepit(group); break;
+    case "library":      buildLibrary(group); break;
+    case "torii":        buildTorii(group); break;
+    case "road":         buildRoad(group); break;
+    case "pond":         buildPond(group); break;
+    case "hourglass":    buildHourglassTower(group); break;
+    case "hut":          buildRainHut(group); break;
+    case "observatory":  buildObservatory(group); break;
+  }
+
+  // Label sprite (canvas)
+  const canvas = document.createElement('canvas');
+  canvas.width = 384; canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(10,10,26,.88)';
+  ctx.fillRect(0, 24, 384, 56);
+  ctx.strokeStyle = '#ffb968'; ctx.lineWidth = 2;
+  ctx.strokeRect(0, 24, 384, 56);
+  ctx.fillStyle = '#f3e7c4';
+  ctx.font = 'bold 30px "Shippori Mincho",serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(loc.name, 192, 60);
+  const labelTex = new THREE.CanvasTexture(canvas);
+  const labelMat = new THREE.SpriteMaterial({map: labelTex, transparent: true, opacity: 0.9});
+  const label = new THREE.Sprite(labelMat);
+  const labelY = (loc.type === "observatory") ? 11
+              : (loc.type === "library") ? 8.5
+              : (loc.type === "torii") ? 7.5
+              : (loc.type === "hut") ? 6.5
+              : 5;
+  label.position.y = labelY;
+  label.scale.set(6.5, 1.6, 1);
+  label.userData = {isLabel: true};
+  group.add(label);
+
+  group.position.set(loc.x, 0, loc.z);
+  scene.add(group);
+  clickableObjects.push(group);
+}
+
+// 焚き火
+function buildFirepit(group){
+  // ground hollow (slightly darker disc)
+  const baseGeo = new THREE.CircleGeometry(2.4, 24);
+  const baseMat = new THREE.MeshLambertMaterial({color: 0x2a201a});
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.rotation.x = -Math.PI / 2; base.position.y = 0.05;
+  base.receiveShadow = true;
+  group.add(base);
+  // stones in circle
+  for(let i = 0; i < 10; i++){
+    const angle = (i / 10) * Math.PI * 2;
+    const w = 0.4 + hash(i, 0, 7) * 0.2;
+    const stoneGeo = new THREE.BoxGeometry(w, 0.45, w * 0.85);
+    const stoneMat = new THREE.MeshLambertMaterial({color: 0x6a6a5a});
+    const stone = new THREE.Mesh(stoneGeo, stoneMat);
+    stone.position.set(Math.cos(angle) * 1.85, 0.23, Math.sin(angle) * 1.85);
+    stone.rotation.y = hash(i, 1, 7) * Math.PI;
+    stone.castShadow = true;
+    group.add(stone);
+  }
+  // logs (crossed)
+  const logMat = new THREE.MeshLambertMaterial({color: 0x4a2818});
+  for(let i = 0; i < 3; i++){
+    const logGeo = new THREE.CylinderGeometry(0.16, 0.16, 2.4, 8);
+    const log = new THREE.Mesh(logGeo, logMat);
+    log.rotation.z = Math.PI/2;
+    log.rotation.y = (i / 3) * Math.PI;
+    log.position.y = 0.3 + i * 0.08;
+    log.castShadow = true;
+    group.add(log);
+  }
+  // flame group
+  const flameGroup = new THREE.Group();
+  flameGroup.position.y = 0.4;
+  group.add(flameGroup);
+  group.userData.flame = flameGroup;
+
+  const flameGeo1 = new THREE.ConeGeometry(0.7, 1.7, 8);
+  const flameMat1 = new THREE.MeshBasicMaterial({color: 0xff7a30, transparent: true, opacity: 0.85, fog: false});
+  const flame1 = new THREE.Mesh(flameGeo1, flameMat1);
+  flame1.position.y = 0.85;
+  flameGroup.add(flame1);
+
+  const flameGeo2 = new THREE.ConeGeometry(0.42, 1.1, 8);
+  const flameMat2 = new THREE.MeshBasicMaterial({color: 0xfff2c0, transparent: true, opacity: 0.95, fog: false});
+  const flame2 = new THREE.Mesh(flameGeo2, flameMat2);
+  flame2.position.y = 0.7;
+  flameGroup.add(flame2);
+
+  // sparks (instanced via small spheres)
+  const sparks = [];
+  for(let i = 0; i < 8; i++){
+    const sparkGeo = new THREE.SphereGeometry(0.08, 6, 6);
+    const sparkMat = new THREE.MeshBasicMaterial({color: 0xffd970, transparent: true, opacity: 0.8, fog: false});
+    const sp = new THREE.Mesh(sparkGeo, sparkMat);
+    sp.userData = {offset: i * 0.3, baseY: 1.5, vx: (Math.random() - 0.5) * 0.4, vz: (Math.random() - 0.5) * 0.4};
+    sp.position.set(sp.userData.vx, sp.userData.baseY, sp.userData.vz);
+    flameGroup.add(sp);
+    sparks.push(sp);
+  }
+  group.userData.sparks = sparks;
+  // warm fire light
+  const fireLight = new THREE.PointLight(0xff7a30, 1.7, 14);
+  fireLight.position.y = 1.4;
+  group.add(fireLight);
+  group.userData.fireLight = fireLight;
+}
+
+// 月光の書架
+function buildLibrary(group){
+  // Pagoda-like book tower
+  const baseGeo = new THREE.BoxGeometry(5.5, 0.5, 5.5);
+  const baseMat = new THREE.MeshLambertMaterial({color: 0x3a2818});
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.25;
+  base.castShadow = base.receiveShadow = true;
+  group.add(base);
+
+  // Tower body (3 floors of bookshelves)
+  for(let f = 0; f < 3; f++){
+    const w = 4.6 - f * 0.6;
+    const wallGeo = new THREE.BoxGeometry(w, 2.0, w);
+    const wallMat = new THREE.MeshLambertMaterial({color: 0x4a3018});
+    const wall = new THREE.Mesh(wallGeo, wallMat);
+    wall.position.y = 1.5 + f * 2.4;
+    wall.castShadow = wall.receiveShadow = true;
+    group.add(wall);
+    // book spines on each face
+    for(let side = 0; side < 4; side++){
+      const ang = side * Math.PI / 2;
+      for(let b = 0; b < 10; b++){
+        const bookW = 0.18 + hash(f, b+side, 5) * 0.16;
+        const bookH = 1.0 + hash(b, f+side, 5) * 0.6;
+        const bookGeo = new THREE.BoxGeometry(bookW, bookH, 0.18);
+        const bookColors = [0x8a6a4a, 0xc28a4a, 0x7a4a4a, 0x6a8a5a, 0xc5a070, 0xa86a4a];
+        const bc = bookColors[Math.floor(hash(f, b*2+side, 9) * bookColors.length)];
+        const bookMat = new THREE.MeshLambertMaterial({color: bc});
+        const book = new THREE.Mesh(bookGeo, bookMat);
+        const offset = (b - 4.5) * (w * 0.85 / 10);
+        book.position.set(
+          Math.cos(ang) * (w/2 + 0.1) + Math.sin(ang) * offset,
+          1.5 + f * 2.4 + (hash(b, f, 11) - 0.5) * 0.2,
+          Math.sin(ang) * (w/2 + 0.1) - Math.cos(ang) * offset
+        );
+        book.rotation.y = ang + Math.PI/2;
+        group.add(book);
+      }
+    }
+    // roof slab
+    const slabGeo = new THREE.BoxGeometry(w + 0.6, 0.25, w + 0.6);
+    const slabMat = new THREE.MeshLambertMaterial({color: 0x2a1a10});
+    const slab = new THREE.Mesh(slabGeo, slabMat);
+    slab.position.y = 2.6 + f * 2.4;
+    slab.castShadow = true;
+    group.add(slab);
+  }
+  // Top lantern
+  const topLanGeo = new THREE.BoxGeometry(0.9, 1.2, 0.9);
+  const topLanMat = new THREE.MeshLambertMaterial({
+    color: 0xffcc70, emissive: 0xffaa40, emissiveIntensity: 0.7,
+  });
+  const topLan = new THREE.Mesh(topLanGeo, topLanMat);
+  topLan.position.y = 9.2;
+  group.add(topLan);
+  const lanLight = new THREE.PointLight(0xffcc70, 0.6, 10);
+  lanLight.position.y = 9.2;
+  group.add(lanLight);
+}
+
+// 音の祠 (鳥居)
+function buildTorii(group){
+  const red = 0xb04030;
+  // pillars
+  const pillarGeo = new THREE.CylinderGeometry(0.25, 0.32, 6, 8);
+  const pillarMat = new THREE.MeshLambertMaterial({color: red});
+  const p1 = new THREE.Mesh(pillarGeo, pillarMat);
+  p1.position.set(-2.2, 3, 0); p1.castShadow = true;
+  group.add(p1);
+  const p2 = new THREE.Mesh(pillarGeo, pillarMat);
+  p2.position.set(2.2, 3, 0); p2.castShadow = true;
+  group.add(p2);
+  // top beam (kasagi)
+  const beamGeo = new THREE.BoxGeometry(5.6, 0.6, 0.7);
+  const beam = new THREE.Mesh(beamGeo, pillarMat);
+  beam.position.y = 6.2;
+  beam.castShadow = true;
+  group.add(beam);
+  // ridge cap
+  const capGeo = new THREE.BoxGeometry(6.2, 0.18, 0.85);
+  const cap = new THREE.Mesh(capGeo, pillarMat);
+  cap.position.y = 6.6;
+  group.add(cap);
+  // inner beam (nuki)
+  const nukiGeo = new THREE.BoxGeometry(5, 0.32, 0.55);
+  const nuki = new THREE.Mesh(nukiGeo, pillarMat);
+  nuki.position.y = 5.0;
+  nuki.castShadow = true;
+  group.add(nuki);
+  // shimenawa (rope)
+  const ropeGeo = new THREE.CylinderGeometry(0.1, 0.1, 4.4, 8);
+  const ropeMat = new THREE.MeshLambertMaterial({color: 0xfff2c0});
+  const rope = new THREE.Mesh(ropeGeo, ropeMat);
+  rope.rotation.z = Math.PI / 2;
+  rope.position.y = 5.5;
+  group.add(rope);
+  // shide (paper folds)
+  for(let i = 0; i < 3; i++){
+    const sGeo = new THREE.BoxGeometry(0.18, 0.65, 0.04);
+    const sMat = new THREE.MeshLambertMaterial({color: 0xfff8d8});
+    const s = new THREE.Mesh(sGeo, sMat);
+    s.position.set(-1.4 + i * 1.4, 5.05, 0.05);
+    group.add(s);
+  }
+  // small lanterns
+  for(const sx of [-2.2, 2.2]){
+    const lanGeo = new THREE.SphereGeometry(0.3, 12, 12);
+    const lanMat = new THREE.MeshLambertMaterial({
+      color: 0xffcc70, emissive: 0xff8830, emissiveIntensity: 0.6,
+    });
+    const lan = new THREE.Mesh(lanGeo, lanMat);
+    lan.position.set(sx, 6.85, 0);
+    group.add(lan);
   }
 }
 
-function buildPlaces(){
-  const layer = document.getElementById("place-layer");
-  PLACES.forEach(p => {
-    const div = document.createElement("div");
-    div.className = "place-obj";
-    div.dataset.id = p.id;
-    div.style.left = p.x + "px";
-    div.innerHTML = `<div class="place-name">${p.name}</div>${placeSvg(p)}`;
-    div.onclick = () => openOverlay(p.id);
-    // align bottom of svg to ground; offset so that x is the centre
-    setTimeout(() => {
-      const w = div.querySelector("svg").getAttribute("width") || 120;
-      div.style.marginLeft = (-w / 2) + "px";
-    }, 0);
-    layer.appendChild(div);
-  });
-}
-buildPlaces();
-
-// ─── Camera + parallax loop ─────────────────────────────────────────
-const moonEl = document.getElementById("moon");
-function applyCamera(){
-  const layers = document.querySelectorAll(".layer[data-speed]");
-  layers.forEach(l => {
-    const sp = parseFloat(l.dataset.speed);
-    l.style.transform = `translateX(${-cameraX * sp}px)`;
-  });
-  // moon moves a tiny bit so it feels alive
-  if(moonEl){
-    const t = cameraX / WORLD_WIDTH;
-    moonEl.style.left = (75 - t * 30) + "%";
+// ひとり旅の道
+function buildRoad(group){
+  // a winding stone path receding
+  for(let i = 0; i < 14; i++){
+    const stoneGeo = new THREE.CylinderGeometry(0.8 + hash(i, 0, 4) * 0.3,
+                                                0.8 + hash(i, 1, 4) * 0.3,
+                                                0.12, 8);
+    const stoneMat = new THREE.MeshLambertMaterial({color: 0x8a7a6a});
+    const stone = new THREE.Mesh(stoneGeo, stoneMat);
+    stone.position.set(Math.sin(i * 0.45) * 1.6, 0.06, -i * 1.6);
+    stone.receiveShadow = true;
+    group.add(stone);
   }
-  // check proximity to a place
-  let near = null;
-  let minD = INTERACT_RANGE;
-  PLACES.forEach(p => {
-    const d = Math.abs(cameraX - p.x);
-    if(d < minD){ minD = d; near = p; }
+  // dosojin (guardian stone)
+  const baseGeo = new THREE.BoxGeometry(0.8, 0.5, 0.6);
+  const baseMat = new THREE.MeshLambertMaterial({color: 0x5a5048});
+  const bs = new THREE.Mesh(baseGeo, baseMat);
+  bs.position.set(0.8, 0.25, 0.4);
+  group.add(bs);
+  const stoneTop = new THREE.SphereGeometry(0.5, 12, 8);
+  const top = new THREE.Mesh(stoneTop, baseMat);
+  top.position.set(0.8, 0.95, 0.4);
+  top.castShadow = true;
+  group.add(top);
+  // small lantern atop a post
+  const postGeo = new THREE.BoxGeometry(0.18, 1.8, 0.18);
+  const postMat = new THREE.MeshLambertMaterial({color: 0x5a3a22});
+  const post = new THREE.Mesh(postGeo, postMat);
+  post.position.set(-1.0, 0.9, 0.4);
+  group.add(post);
+  const lanGeo = new THREE.BoxGeometry(0.5, 0.65, 0.5);
+  const lanMat = new THREE.MeshLambertMaterial({
+    color: 0xffcc70, emissive: 0xff8830, emissiveIntensity: 0.7,
   });
-  // place-obj near class
-  document.querySelectorAll(".place-obj").forEach(el => {
-    el.classList.toggle("near", near && el.dataset.id === near.id);
-  });
-  // hint
-  const hintEl = document.getElementById("hint");
-  if(near && !inOverlay){
-    activePlace = near;
-    document.getElementById("hint-text").textContent = `${near.name} へ`;
-    hintEl.classList.add("show");
-  } else {
-    activePlace = null;
-    hintEl.classList.remove("show");
-  }
-  // compass + minimap
-  updateCompass();
+  const lan = new THREE.Mesh(lanGeo, lanMat);
+  lan.position.set(-1.0, 2.0, 0.4);
+  group.add(lan);
+  const lanLight = new THREE.PointLight(0xff9a40, 0.7, 7);
+  lanLight.position.set(-1.0, 2.0, 0.4);
+  group.add(lanLight);
 }
 
-function updateCompass(){
-  const ratio = Math.max(0, Math.min(1, cameraX / WORLD_WIDTH));
-  document.getElementById("compass-progress").style.width = (ratio * 100) + "%";
-  document.getElementById("compass-pin").style.left = (ratio * 100) + "%";
-  document.getElementById("mini-pin").style.left = (ratio * 100) + "%";
+// 水辺の岸
+function buildPond(group){
+  // water disc
+  const pondGeo = new THREE.CircleGeometry(3.5, 32);
+  const pondMat = new THREE.MeshLambertMaterial({
+    color: 0x4a7090, transparent: true, opacity: 0.78,
+    emissive: 0x223040, emissiveIntensity: 0.4,
+  });
+  const pond = new THREE.Mesh(pondGeo, pondMat);
+  pond.rotation.x = -Math.PI / 2; pond.position.y = 0.02;
+  group.add(pond);
+  group.userData.water = pond;
+  // ripple rings
+  for(let i = 0; i < 3; i++){
+    const ringGeo = new THREE.RingGeometry(0.5 + i * 0.4, 0.55 + i * 0.4, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xaadcf0, transparent: true, opacity: 0.4, side: THREE.DoubleSide, fog: false,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04;
+    ring.userData = {phase: i * 1.2};
+    group.add(ring);
+  }
+  group.userData.ripples = group.children.filter(c => c.geometry instanceof THREE.RingGeometry);
+  // stones around
+  for(let i = 0; i < 8; i++){
+    const angle = (i / 8) * Math.PI * 2;
+    const rockGeo = new THREE.DodecahedronGeometry(0.35 + hash(i, 5) * 0.25);
+    const rockMat = new THREE.MeshLambertMaterial({color: 0x6a6258});
+    const rock = new THREE.Mesh(rockGeo, rockMat);
+    rock.position.set(Math.cos(angle) * 3.6, 0.18, Math.sin(angle) * 3.6);
+    rock.rotation.set(hash(i, 6)*2, hash(i, 7)*2, hash(i, 8)*2);
+    rock.castShadow = true;
+    group.add(rock);
+  }
+  // a small wooden lantern
+  const postGeo = new THREE.BoxGeometry(0.14, 1.6, 0.14);
+  const postMat = new THREE.MeshLambertMaterial({color: 0x3a281a});
+  const post = new THREE.Mesh(postGeo, postMat);
+  post.position.set(-3.0, 0.8, 1.5);
+  group.add(post);
+  const lanGeo = new THREE.BoxGeometry(0.45, 0.55, 0.45);
+  const lanMat = new THREE.MeshLambertMaterial({
+    color: 0xffcc70, emissive: 0xff8830, emissiveIntensity: 0.55,
+  });
+  const lan = new THREE.Mesh(lanGeo, lanMat);
+  lan.position.set(-3.0, 1.85, 1.5);
+  group.add(lan);
+  // small reflection light
+  const pondLight = new THREE.PointLight(0x60a0c0, 0.45, 8);
+  pondLight.position.set(0, 1.5, 0);
+  group.add(pondLight);
 }
 
-// place markers on compass + minimap
-{
-  const ct = document.getElementById("compass-track");
-  const mt = document.getElementById("mini-track");
-  PLACES.forEach(p => {
-    const ratio = p.x / WORLD_WIDTH;
-    const m1 = document.createElement("div");
-    m1.className = "marker" + (visited.has(p.id) ? " visited" : "");
-    m1.style.left = (ratio * 100) + "%";
-    m1.dataset.id = p.id;
-    m1.title = p.name;
-    ct.appendChild(m1);
-    const m2 = document.createElement("div");
-    m2.className = "mini-marker" + (visited.has(p.id) ? " visited" : "");
-    m2.style.left = (ratio * 100) + "%";
-    m2.dataset.id = p.id;
-    mt.appendChild(m2);
+// 時の砂時計 (sundial)
+function buildHourglassTower(group){
+  // base column
+  const colGeo = new THREE.CylinderGeometry(0.6, 0.8, 1.6, 8);
+  const colMat = new THREE.MeshLambertMaterial({color: 0x5a5048});
+  const col = new THREE.Mesh(colGeo, colMat);
+  col.position.y = 0.8;
+  col.castShadow = true;
+  group.add(col);
+  // platter
+  const platGeo = new THREE.CylinderGeometry(1.7, 1.7, 0.2, 24);
+  const platMat = new THREE.MeshLambertMaterial({color: 0x8a8278});
+  const plat = new THREE.Mesh(platGeo, platMat);
+  plat.position.y = 1.7;
+  plat.castShadow = true;
+  group.add(plat);
+  // gnomon (angled triangle)
+  const gnoGeo = new THREE.ConeGeometry(0.3, 1.4, 4);
+  const gnoMat = new THREE.MeshLambertMaterial({color: 0xc2956a});
+  const gno = new THREE.Mesh(gnoGeo, gnoMat);
+  gno.position.set(0, 2.4, 0);
+  gno.rotation.x = Math.PI / 6;
+  gno.castShadow = true;
+  group.add(gno);
+  // sand particles - falling glow at base
+  const sandGeo = new THREE.SphereGeometry(0.05, 6, 6);
+  const sandMat = new THREE.MeshBasicMaterial({color: 0xffd970, fog: false, transparent: true, opacity: 0.85});
+  for(let i = 0; i < 12; i++){
+    const sp = new THREE.Mesh(sandGeo, sandMat);
+    sp.position.set((Math.random()-0.5)*1.4, 0.4 + Math.random() * 0.8, (Math.random()-0.5)*1.4);
+    sp.userData = {phase: Math.random() * Math.PI * 2};
+    group.add(sp);
+  }
+}
+
+// 雨音の部屋
+function buildRainHut(group){
+  // walls
+  const wallW = 3.2, wallH = 3.2, wallD = 3.2;
+  const wallGeo = new THREE.BoxGeometry(wallW, wallH, wallD);
+  const wallMat = new THREE.MeshLambertMaterial({color: 0x6a5040});
+  const walls = new THREE.Mesh(wallGeo, wallMat);
+  walls.position.y = wallH / 2;
+  walls.castShadow = walls.receiveShadow = true;
+  group.add(walls);
+  // wood plank texture (vertical planks)
+  for(let side = 0; side < 4; side++){
+    const ang = side * Math.PI / 2;
+    for(let p = -wallW/2; p < wallW/2; p += 0.28){
+      const plankGeo = new THREE.BoxGeometry(0.16, wallH, 0.05);
+      const plankMat = new THREE.MeshLambertMaterial({color: 0x8a6850});
+      const plank = new THREE.Mesh(plankGeo, plankMat);
+      plank.position.set(
+        Math.cos(ang) * (wallD/2 + 0.025) + Math.sin(ang) * p,
+        wallH / 2,
+        Math.sin(ang) * (wallD/2 + 0.025) - Math.cos(ang) * p
+      );
+      plank.rotation.y = ang;
+      group.add(plank);
+    }
+  }
+  // window
+  const winGeo = new THREE.BoxGeometry(1.0, 1.0, 0.08);
+  const winMat = new THREE.MeshLambertMaterial({
+    color: 0xffcc70, emissive: 0xffaa40, emissiveIntensity: 0.8,
+  });
+  const win = new THREE.Mesh(winGeo, winMat);
+  win.position.set(0, wallH * 0.55, wallD / 2 + 0.06);
+  group.add(win);
+  // window cross
+  const xv = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.0, 0.02),
+    new THREE.MeshLambertMaterial({color: 0x2a1a10}));
+  xv.position.set(0, wallH * 0.55, wallD / 2 + 0.12); group.add(xv);
+  const xh = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.02),
+    new THREE.MeshLambertMaterial({color: 0x2a1a10}));
+  xh.position.set(0, wallH * 0.55, wallD / 2 + 0.12); group.add(xh);
+  // door
+  const doorGeo = new THREE.BoxGeometry(0.9, 1.8, 0.08);
+  const doorMat = new THREE.MeshLambertMaterial({color: 0x3a2818});
+  const door = new THREE.Mesh(doorGeo, doorMat);
+  door.position.set(-1.0, 0.9, wallD / 2 + 0.05);
+  group.add(door);
+  // roof
+  const roofGeo = new THREE.ConeGeometry(wallW * 0.85, wallH * 0.6, 4);
+  const roofMat = new THREE.MeshLambertMaterial({color: 0x4a3828});
+  const roof = new THREE.Mesh(roofGeo, roofMat);
+  roof.position.y = wallH + wallH * 0.3;
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  group.add(roof);
+  // rain drops (lines)
+  const rainGroup = new THREE.Group();
+  group.add(rainGroup);
+  group.userData.rain = rainGroup;
+  for(let i = 0; i < 40; i++){
+    const dropGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.4, 4);
+    const dropMat = new THREE.MeshBasicMaterial({color: 0xaadcf0, transparent: true, opacity: 0.55, fog: false});
+    const drop = new THREE.Mesh(dropGeo, dropMat);
+    drop.position.set(
+      (Math.random() - 0.5) * 5,
+      6 + Math.random() * 4,
+      (Math.random() - 0.5) * 5
+    );
+    drop.userData = {speed: 0.2 + Math.random() * 0.15, init: drop.position.y};
+    rainGroup.add(drop);
+  }
+  // warm window light
+  const winLight = new THREE.PointLight(0xffaa40, 0.7, 8);
+  winLight.position.set(0, 2.4, wallD / 2 + 1);
+  group.add(winLight);
+}
+
+// 星見台
+function buildObservatory(group){
+  // stone platform
+  const pGeo = new THREE.CylinderGeometry(2.0, 2.5, 0.5, 16);
+  const pMat = new THREE.MeshLambertMaterial({color: 0x5a5048});
+  const p = new THREE.Mesh(pGeo, pMat);
+  p.position.y = 0.25;
+  p.castShadow = p.receiveShadow = true;
+  group.add(p);
+  // tower
+  const towGeo = new THREE.CylinderGeometry(1.1, 1.3, 5, 12);
+  const towMat = new THREE.MeshLambertMaterial({color: 0x6a5a4a});
+  const tow = new THREE.Mesh(towGeo, towMat);
+  tow.position.y = 3;
+  tow.castShadow = true;
+  group.add(tow);
+  // dome
+  const domeGeo = new THREE.SphereGeometry(1.4, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+  const domeMat = new THREE.MeshLambertMaterial({color: 0x8a7a6a});
+  const dome = new THREE.Mesh(domeGeo, domeMat);
+  dome.position.y = 5.55;
+  dome.castShadow = true;
+  group.add(dome);
+  // telescope sticking out
+  const teleGeo = new THREE.CylinderGeometry(0.18, 0.18, 2.4, 12);
+  const teleMat = new THREE.MeshLambertMaterial({color: 0x2a1a10});
+  const tele = new THREE.Mesh(teleGeo, teleMat);
+  tele.position.set(0, 6.2, 0);
+  tele.rotation.z = Math.PI / 5;
+  group.add(tele);
+  // lens flare
+  const lensGeo = new THREE.SphereGeometry(0.18, 8, 8);
+  const lensMat = new THREE.MeshBasicMaterial({color: 0xfff8d8, fog: false});
+  const lens = new THREE.Mesh(lensGeo, lensMat);
+  lens.position.set(1.0, 6.8, 0);
+  group.add(lens);
+  // ladder
+  for(let i = 0; i < 5; i++){
+    const rungGeo = new THREE.BoxGeometry(0.8, 0.05, 0.05);
+    const rungMat = new THREE.MeshLambertMaterial({color: 0x4a3818});
+    const rung = new THREE.Mesh(rungGeo, rungMat);
+    rung.position.set(1.2, 0.6 + i * 0.7, 0.2);
+    group.add(rung);
+  }
+}
+
+// ─── Decorative trees / bushes / lanterns ─────────────────────────
+function createTree(x, z){
+  const group = new THREE.Group();
+  const h = 4 + hash(x, z, 3) * 2.5;
+  const fs = 1.5 + hash(x, z, 4) * 0.8;
+  // trunk
+  const trunkGeo = new THREE.CylinderGeometry(0.22, 0.32, h, 10);
+  const trunkMat = new THREE.MeshLambertMaterial({color: 0x4a3a2a});
+  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+  trunk.position.y = h / 2;
+  trunk.castShadow = true;
+  group.add(trunk);
+  // foliage layers (dark blue-green, moonlit)
+  const colors = [0x2a4030, 0x3a5040, 0x466050];
+  for(let i = 0; i < 3; i++){
+    const layerGeo = new THREE.SphereGeometry(fs - i * 0.25, 10, 10);
+    const layerMat = new THREE.MeshLambertMaterial({color: colors[i]});
+    const layer = new THREE.Mesh(layerGeo, layerMat);
+    layer.position.y = h + 0.4 + i * 0.7;
+    layer.castShadow = layer.receiveShadow = true;
+    group.add(layer);
+  }
+  group.position.set(x, 0, z);
+  scene.add(group);
+}
+
+function createBush(x, z){
+  const bushGeo = new THREE.SphereGeometry(0.55 + hash(x, z) * 0.35, 8, 8);
+  const bushMat = new THREE.MeshLambertMaterial({color: 0x3a5038});
+  for(let i = 0; i < 3; i++){
+    const b = new THREE.Mesh(bushGeo, bushMat);
+    b.position.set(x + (hash(i, x, 10) - 0.5) * 0.8, 0.42,
+                   z + (hash(z, i, 10) - 0.5) * 0.8);
+    b.scale.set(1, 0.78, 1);
+    b.castShadow = true;
+    scene.add(b);
+  }
+}
+
+function createPathLantern(x, z){
+  const postGeo = new THREE.BoxGeometry(0.12, 1.2, 0.12);
+  const postMat = new THREE.MeshLambertMaterial({color: 0x3a281a});
+  const post = new THREE.Mesh(postGeo, postMat);
+  post.position.set(x, 0.6, z);
+  scene.add(post);
+  const lanGeo = new THREE.BoxGeometry(0.36, 0.5, 0.36);
+  const lanMat = new THREE.MeshLambertMaterial({
+    color: 0xffcc70, emissive: 0xff8830, emissiveIntensity: 0.6,
+  });
+  const lan = new THREE.Mesh(lanGeo, lanMat);
+  lan.position.set(x, 1.4, z);
+  scene.add(lan);
+  const ll = new THREE.PointLight(0xff9a40, 0.5, 5);
+  ll.position.set(x, 1.4, z);
+  scene.add(ll);
+}
+
+// ─── Controls (mouse + touch + keyboard) ──────────────────────────
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const tipEl = document.getElementById('hover-tip');
+
+function setupControls(){
+  const dom = renderer.domElement;
+  dom.addEventListener('mousedown', e => {
+    isDragging = true;
+    dragStart = {x: e.clientX, y: e.clientY};
+    previousMousePosition = {x: e.clientX, y: e.clientY};
+  });
+  dom.addEventListener('mousemove', e => {
+    if(isDragging){
+      const dx = e.clientX - previousMousePosition.x;
+      const dy = e.clientY - previousMousePosition.y;
+      orbitCamera(dx, dy);
+      previousMousePosition = {x: e.clientX, y: e.clientY};
+      tipEl.classList.remove('show');
+      return;
+    }
+    hoverPlace(e.clientX, e.clientY);
+  });
+  dom.addEventListener('mouseup', e => {
+    if(!isDragging) return;
+    const moved = Math.abs(e.clientX - dragStart.x) + Math.abs(e.clientY - dragStart.y);
+    if(moved < 5 && !inOverlay){
+      clickPlace(e.clientX, e.clientY);
+    }
+    isDragging = false;
+  });
+  dom.addEventListener('mouseleave', () => {
+    isDragging = false;
+    tipEl.classList.remove('show');
+    if(hoveredObject){ hoveredObject.scale.set(1,1,1); hoveredObject = null; }
+  });
+  dom.addEventListener('wheel', e => {
+    e.preventDefault();
+    const dz = e.deltaY > 0 ? 1.05 : 0.95;
+    camera.position.multiplyScalar(dz);
+    const d = camera.position.length();
+    if(d < 16) camera.position.setLength(16);
+    if(d > 90) camera.position.setLength(90);
+  }, {passive: false});
+}
+
+function orbitCamera(dx, dy){
+  camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), dx * 0.005);
+  const pitchAxis = new THREE.Vector3(-camera.position.z, 0, camera.position.x).normalize();
+  const curD = camera.position.length();
+  camera.position.applyAxisAngle(pitchAxis, -dy * 0.003);
+  camera.position.setLength(curD);
+  camera.position.y = Math.max(8, Math.min(70, camera.position.y));
+  camera.lookAt(0, 0, 0);
+}
+
+function hoverPlace(cx, cy){
+  mouse.x = (cx / window.innerWidth) * 2 - 1;
+  mouse.y = -(cy / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(clickableObjects, true);
+  if(hits.length){
+    let obj = hits[0].object;
+    while(obj.parent && !obj.userData.name) obj = obj.parent;
+    if(obj.userData.name){
+      renderer.domElement.style.cursor = 'pointer';
+      if(hoveredObject !== obj){
+        if(hoveredObject) hoveredObject.scale.set(1, 1, 1);
+        hoveredObject = obj;
+        obj.scale.set(1.06, 1.06, 1.06);
+      }
+      tipEl.innerHTML = `${obj.userData.name} <kbd>CLICK</kbd>`;
+      tipEl.style.left = cx + 'px';
+      tipEl.style.top = cy + 'px';
+      tipEl.classList.add('show');
+      return;
+    }
+  }
+  renderer.domElement.style.cursor = 'default';
+  if(hoveredObject){ hoveredObject.scale.set(1, 1, 1); hoveredObject = null; }
+  tipEl.classList.remove('show');
+}
+
+function clickPlace(cx, cy){
+  mouse.x = (cx / window.innerWidth) * 2 - 1;
+  mouse.y = -(cy / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(clickableObjects, true);
+  if(hits.length){
+    let obj = hits[0].object;
+    while(obj.parent && !obj.userData.name) obj = obj.parent;
+    if(obj.userData.id) openOverlay(obj.userData.id);
+  }
+}
+
+// ── Touch controls (single-finger orbit, pinch zoom, tap click) ───
+function setupTouch(){
+  const dom = renderer.domElement;
+  let lastTouch = null;
+  let pinchD = 0;
+  dom.addEventListener('touchstart', e => {
+    if(e.touches.length === 1){
+      lastTouch = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+      dragStart = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+      isDragging = true;
+    } else if(e.touches.length === 2){
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchD = Math.hypot(dx, dy);
+      isDragging = false;
+    }
+  }, {passive: true});
+  dom.addEventListener('touchmove', e => {
+    if(e.touches.length === 1 && isDragging){
+      const t = e.touches[0];
+      orbitCamera(t.clientX - lastTouch.x, t.clientY - lastTouch.y);
+      lastTouch = {x: t.clientX, y: t.clientY};
+      e.preventDefault();
+    } else if(e.touches.length === 2){
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const d = Math.hypot(dx, dy);
+      if(pinchD > 0){
+        const ratio = pinchD / d;
+        camera.position.multiplyScalar(ratio);
+        const dist = camera.position.length();
+        if(dist < 16) camera.position.setLength(16);
+        if(dist > 90) camera.position.setLength(90);
+      }
+      pinchD = d;
+      e.preventDefault();
+    }
+  }, {passive: false});
+  dom.addEventListener('touchend', e => {
+    if(isDragging && e.changedTouches.length === 1){
+      const t = e.changedTouches[0];
+      const moved = Math.abs(t.clientX - dragStart.x) + Math.abs(t.clientY - dragStart.y);
+      if(moved < 7 && !inOverlay) clickPlace(t.clientX, t.clientY);
+    }
+    isDragging = false;
+    pinchD = 0;
   });
 }
 
-// ─── Input ──────────────────────────────────────────────────────────
-const keys = {left:false, right:false};
-window.addEventListener("keydown", (e) => {
-  if(e.repeat) return;
-  if(inOverlay){
-    if(e.key === "Escape") closeOverlay();
-    return;
+function setupKeyboard(){
+  window.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && inOverlay){
+      closeOverlay();
+    }
+  });
+}
+
+// ─── Animation loop ────────────────────────────────────────────────
+let frameCount = 0;
+function animate(){
+  requestAnimationFrame(animate);
+  frameCount++;
+  const t = performance.now() * 0.001;
+  // flicker fire flames + sparks
+  clickableObjects.forEach(g => {
+    if(g.userData.flame){
+      const f = g.userData.flame;
+      f.scale.y = 1 + Math.sin(t * 7 + g.position.x) * 0.07;
+      f.scale.x = 1 + Math.cos(t * 9 + g.position.z) * 0.05;
+      if(g.userData.fireLight){
+        g.userData.fireLight.intensity = 1.5 + Math.sin(t * 5) * 0.3;
+      }
+      if(g.userData.sparks){
+        g.userData.sparks.forEach((sp, idx) => {
+          const phase = (t + sp.userData.offset) % 2;
+          sp.position.y = sp.userData.baseY + phase * 2;
+          sp.material.opacity = Math.max(0, 0.9 - phase * 0.45);
+          sp.position.x = sp.userData.vx + Math.sin(t * 2 + idx) * 0.1;
+          sp.position.z = sp.userData.vz + Math.cos(t * 2 + idx) * 0.1;
+        });
+      }
+    }
+    // pond ripples
+    if(g.userData.ripples){
+      g.userData.ripples.forEach(r => {
+        const phase = (t * 0.5 + r.userData.phase) % 2;
+        r.scale.setScalar(1 + phase * 1.2);
+        r.material.opacity = Math.max(0, 0.45 - phase * 0.22);
+      });
+    }
+    // rain drops
+    if(g.userData.rain){
+      g.userData.rain.children.forEach(d => {
+        d.position.y -= d.userData.speed;
+        if(d.position.y < 0.5) d.position.y = d.userData.init;
+      });
+    }
+  });
+  // moon halo facing camera
+  if(scene && scene.userData.halo){
+    scene.userData.halo.lookAt(camera.position);
   }
-  if(e.key === "ArrowLeft" || e.key === "a" || e.key === "A"){ keys.left = true; e.preventDefault(); }
-  else if(e.key === "ArrowRight" || e.key === "d" || e.key === "D"){ keys.right = true; e.preventDefault(); }
-  else if(e.key === " " || e.key === "Enter"){
-    if(activePlace){ openOverlay(activePlace.id); e.preventDefault(); }
-  }
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  if(!camera || !renderer) return;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
 });
-window.addEventListener("keyup", (e) => {
-  if(e.key === "ArrowLeft" || e.key === "a" || e.key === "A") keys.left = false;
-  else if(e.key === "ArrowRight" || e.key === "d" || e.key === "D") keys.right = false;
-});
 
-// touch controls
-const tLeft = document.getElementById("t-left");
-const tRight = document.getElementById("t-right");
-const tAct = document.getElementById("t-act");
-function bindHold(el, key){
-  const start = (e) => { e.preventDefault(); keys[key] = true; };
-  const end = (e) => { keys[key] = false; };
-  el.addEventListener("pointerdown", start);
-  el.addEventListener("pointerup", end);
-  el.addEventListener("pointercancel", end);
-  el.addEventListener("pointerleave", end);
-}
-bindHold(tLeft, "left");
-bindHold(tRight, "right");
-tAct.onclick = () => { if(activePlace) openOverlay(activePlace.id); };
-
-// also: clicking on a place-obj triggers open (handled in build)
-
-// ─── Main loop ──────────────────────────────────────────────────────
-const SPEED = 4.5;
-const FAST_FACTOR = 2.0;
-let lastT = performance.now();
-const avatar = document.getElementById("avatar");
-function loop(t){
-  const dt = Math.min(40, t - lastT);
-  lastT = t;
-  if(!inOverlay){
-    let moved = false;
-    const step = SPEED * (dt / 16);
-    if(keys.left){
-      cameraX = Math.max(0, cameraX - step);
-      facing = -1;
-      moved = true;
-    }
-    if(keys.right){
-      cameraX = Math.min(WORLD_WIDTH, cameraX + step);
-      facing = 1;
-      moved = true;
-    }
-    if(moved){
-      avatar.classList.add("walking");
-      avatar.classList.toggle("flip", facing === -1);
-    } else {
-      avatar.classList.remove("walking");
-    }
-    applyCamera();
-  }
-  requestAnimationFrame(loop);
-}
-applyCamera();
-requestAnimationFrame(loop);
-
-// ─── Overlay (place content) ────────────────────────────────────────
+// ─── Overlay (place content) ───────────────────────────────────────
 function renderPlaceContent(id){
   switch(id){
     case "tsuki": return `
@@ -1050,13 +1366,11 @@ function openOverlay(id){
   document.getElementById("overlay").onclick = (e) => {
     if(e.target.id === "overlay") closeOverlay();
   };
-  // mark visited
-  if(!visited.has(id)){
-    visited.add(id);
-    try { localStorage.setItem("niwa_visited_v2", JSON.stringify([...visited])); } catch(e){}
-    document.querySelectorAll(`.marker[data-id="${id}"], .mini-marker[data-id="${id}"]`).forEach(el => el.classList.add("visited"));
+  if(!visitedPlaces.has(id)){
+    visitedPlaces.add(id);
+    try { localStorage.setItem("niwa_visited_v3", JSON.stringify([...visitedPlaces])); } catch(e){}
+    refreshVisitedDots();
   }
-  // wire breath widget if present
   if(id === "takibi") setupBreath();
   if(id === "hoshi") setupStarscape();
 }
@@ -1065,7 +1379,19 @@ function closeOverlay(){
   document.getElementById("overlay").classList.remove("open");
 }
 
-// ── breath widget ──
+function refreshVisitedDots(){
+  const row = document.getElementById("visited-row");
+  // remove old dots (keep .vlabel)
+  row.querySelectorAll(".vdot").forEach(el => el.remove());
+  LOCATIONS.forEach(loc => {
+    const d = document.createElement("span");
+    d.className = "vdot" + (visitedPlaces.has(loc.id) ? " on" : "");
+    d.title = loc.name;
+    row.appendChild(d);
+  });
+  row.classList.add("show");
+}
+
 function setupBreath(){
   const circle = document.getElementById("breath-circle");
   const phase = document.getElementById("breath-phase");
@@ -1099,7 +1425,6 @@ function setupBreath(){
   };
 }
 
-// ── starscape ──
 function setupStarscape(){
   const sky = document.getElementById("starscape");
   if(!sky) return;
@@ -1148,20 +1473,15 @@ ambBtn.onclick = () => {
   }
 };
 
-// ─── Splash dismiss ─────────────────────────────────────────────────
-document.getElementById("enter-btn").onclick = () => {
-  document.getElementById("splash").classList.add("hidden");
+// ─── Splash dismiss ────────────────────────────────────────────────
+document.getElementById('enter-btn').onclick = () => {
+  document.getElementById('splash').classList.add('hidden');
+  document.getElementById('bar').classList.add('show');
+  init();
+  setTimeout(() => {
+    document.getElementById('splash').style.display = 'none';
+  }, 500);
 };
-// also: pressing key on splash enters
-window.addEventListener("keydown", (e) => {
-  const sp = document.getElementById("splash");
-  if(!sp.classList.contains("hidden")){
-    if(e.key === "Enter" || e.key === " " || e.key === "ArrowRight" || e.key === "ArrowLeft"){
-      sp.classList.add("hidden");
-    }
-  }
-}, true);
 </script>
-
 </body>
 </html>
