@@ -3608,6 +3608,7 @@ function animate(){
   if (typeof updateKois === 'function') updateKois(dt, t);
   if (typeof updateLightRays === 'function') updateLightRays(t);
   if (typeof updateWindObjs === 'function') updateWindObjs(dt, t);
+  if (typeof updateWaterAnimation === 'function') updateWaterAnimation(t);
   if (composer) composer.render(dt);
   else renderer.render(scene, camera);
 }
@@ -3651,6 +3652,17 @@ function setupGameLayer() {
   buildSmallBirds();
   buildKoiPond();
   buildLightRays();
+  // v5 FlowScape-inspired density layer
+  growLushUndergrowth();
+  growWildflowers();
+  growFerns();
+  growMushrooms();
+  buildLilyPads();
+  buildMossyLogs();
+  buildReflectiveLake();
+  buildAtmosphericMist();
+  buildExtraTreeRings();
+  applyVignetteAndGrade();
   // initial UI sync
   updateKokoroUI();
 }
@@ -4788,6 +4800,428 @@ function updateWindObjs(dt, t) {
     for (const f of window.__flags) {
       f.rotation.y = Math.PI/2 + Math.sin(t * 1.4 + f.userData.fphase) * 0.6;
       f.scale.x = 1 + Math.sin(t * 2.0 + f.userData.fphase) * 0.1;
+    }
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// v5: FlowScape-inspired lush density + reflective water + atmosphere
+// ═════════════════════════════════════════════════════════════════
+
+// ─── Helper: sample plant placements over walkable terrain ────
+function* terrainSampler(count, distMin, distMax, opts={}){
+  const minToPlaces = opts.minToPlaces || 1.5;
+  const allowWater = opts.allowWater || false;
+  let yielded = 0;
+  for (let i = 0; i < count * 8 && yielded < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = distMin + Math.pow(Math.random(), 0.7) * (distMax - distMin);
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    if (!notTooCloseToPlaces(x, z, minToPlaces)) continue;
+    if (!allowWater && !notInLake(x, z)) continue;
+    const ty = getTerrainHeight(x, z);
+    if (ty < (opts.minY ?? -0.5)) continue;
+    if (opts.maxY !== undefined && ty > opts.maxY) continue;
+    yield { x, z, y: ty };
+    yielded++;
+  }
+}
+
+// ─── Lush undergrowth: small clump bushes everywhere ─────────
+function growLushUndergrowth() {
+  const N = 1400;
+  const bladeGeom = new THREE.SphereGeometry(0.28, 6, 5);
+  bladeGeom.scale(1, 0.55, 1);
+  // multiple color variations
+  const greenVariants = [0x4d7a3a, 0x6a9d52, 0x7eaa5e, 0x5a8a4a, 0x88b56a];
+  const groups = greenVariants.map(c => new THREE.InstancedMesh(
+    bladeGeom,
+    new THREE.MeshLambertMaterial({ color: c }),
+    Math.ceil(N / greenVariants.length)
+  ));
+  const dummy = new THREE.Object3D();
+  let counts = greenVariants.map(()=>0);
+  for (const s of terrainSampler(N, 8, 46, { minToPlaces: 0.8, minY: -0.3 })) {
+    const v = Math.floor(Math.random() * greenVariants.length);
+    if (counts[v] >= groups[v].count) continue;
+    dummy.position.set(s.x, s.y + 0.15, s.z);
+    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+    const sc = 0.45 + Math.random() * 0.55;
+    dummy.scale.set(sc * (0.9 + Math.random()*0.3), sc * 0.7, sc * (0.9 + Math.random()*0.3));
+    dummy.updateMatrix();
+    groups[v].setMatrixAt(counts[v]++, dummy.matrix);
+  }
+  for (let i = 0; i < groups.length; i++) {
+    groups[i].count = counts[i];
+    groups[i].instanceMatrix.needsUpdate = true;
+    groups[i].receiveShadow = true;
+    scene.add(groups[i]);
+  }
+}
+
+// ─── Wildflowers: small colorful sprites (instanced) ─────────
+function growWildflowers() {
+  // build a few flower geometry archetypes; each is a tiny meshes group rendered via Sprite plane
+  const flowerMakers = [
+    { color: 0xff8aa8, count: 240, name: 'cosmos'  },  // pink cosmos
+    { color: 0xfff5a0, count: 180, name: 'sun'     },  // yellow sunflower-like
+    { color: 0xb084f0, count: 140, name: 'lupin'   },  // purple
+    { color: 0xffffff, count: 160, name: 'daisy'   },  // white daisy
+    { color: 0xff5050, count:  80, name: 'higan'   },  // red higan
+  ];
+  // single instanced disc per color
+  for (const fm of flowerMakers) {
+    // cluster of 4 disc petals + center
+    const blossomGeom = new THREE.CircleGeometry(0.18, 8);
+    const mat = new THREE.MeshLambertMaterial({
+      color: fm.color, side: THREE.DoubleSide, transparent: true, opacity: 0.95,
+    });
+    const inst = new THREE.InstancedMesh(blossomGeom, mat, fm.count);
+    const dummy = new THREE.Object3D();
+    let placed = 0;
+    for (const s of terrainSampler(fm.count, 9, 44, { minToPlaces: 0.7 })) {
+      dummy.position.set(s.x, s.y + 0.32 + Math.random()*0.15, s.z);
+      // face roughly up but with random rotation
+      dummy.rotation.set(-Math.PI/2 + (Math.random()-0.5)*0.4, Math.random() * Math.PI * 2, 0);
+      const sc = 0.7 + Math.random() * 0.7;
+      dummy.scale.setScalar(sc);
+      dummy.updateMatrix();
+      inst.setMatrixAt(placed++, dummy.matrix);
+    }
+    inst.count = placed;
+    inst.instanceMatrix.needsUpdate = true;
+    scene.add(inst);
+    // stem cylinders (a single instanced thin cylinder per cluster — same positions roughly)
+    if (fm.name === 'cosmos' || fm.name === 'lupin' || fm.name === 'higan') {
+      const stemGeom = new THREE.CylinderGeometry(0.015, 0.025, 0.35, 4);
+      const stemMat = new THREE.MeshLambertMaterial({ color: 0x4d6a32 });
+      const stems = new THREE.InstancedMesh(stemGeom, stemMat, placed);
+      for (let i = 0; i < placed; i++) {
+        const m = new THREE.Matrix4();
+        inst.getMatrixAt(i, m);
+        const p = new THREE.Vector3().setFromMatrixPosition(m);
+        dummy.position.set(p.x, p.y - 0.17, p.z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        stems.setMatrixAt(i, dummy.matrix);
+      }
+      stems.count = placed;
+      stems.instanceMatrix.needsUpdate = true;
+      scene.add(stems);
+    }
+  }
+}
+
+// ─── Ferns: tall fronds with arched shape ──────────────────
+function growFerns() {
+  const N = 280;
+  // build a single fern as a Group with arched fronds, then bake into one geometry per copy
+  const fernMat = new THREE.MeshLambertMaterial({ color: 0x3e6a32, side: THREE.DoubleSide });
+  const ferns = new THREE.Group();
+  for (const s of terrainSampler(N, 10, 42, { minToPlaces: 0.8 })) {
+    const fern = new THREE.Group();
+    const fronds = 4 + Math.floor(Math.random()*3);
+    for (let i = 0; i < fronds; i++) {
+      const a = (i / fronds) * Math.PI * 2 + Math.random()*0.3;
+      const frond = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.4, 1.1, 1, 4),
+        fernMat
+      );
+      // bend the frond by warping vertices (cheap arch)
+      const g = frond.geometry;
+      const pos = g.attributes.position;
+      for (let v = 0; v < pos.count; v++) {
+        const py = pos.getY(v);
+        const t = (py + 0.55) / 1.1;
+        pos.setX(v, pos.getX(v) * (1 - t * 0.6));
+      }
+      pos.needsUpdate = true;
+      frond.rotation.y = a;
+      frond.rotation.x = -Math.PI/3 + Math.random()*0.3;
+      frond.position.y = 0.55;
+      frond.position.x = Math.cos(a) * 0.12;
+      frond.position.z = Math.sin(a) * 0.12;
+      frond.userData.isLeaf = true;
+      fern.add(frond);
+    }
+    fern.position.set(s.x, s.y, s.z);
+    fern.rotation.y = Math.random() * Math.PI * 2;
+    fern.userData.windPhase = Math.random()*Math.PI*2;
+    fern.userData.windAmp = 0.04;
+    if (!window.__windObjs) window.__windObjs = [];
+    window.__windObjs.push(fern);
+    ferns.add(fern);
+  }
+  scene.add(ferns);
+}
+
+// ─── Mushrooms: small clusters (red caps, white spots) ─────
+function growMushrooms() {
+  const N = 60;
+  const capMat = new THREE.MeshLambertMaterial({ color: 0xc83a3a });
+  const stemMat = new THREE.MeshLambertMaterial({ color: 0xf8e8c0 });
+  const grp = new THREE.Group();
+  const capGeo = new THREE.SphereGeometry(0.18, 8, 6, 0, Math.PI*2, 0, Math.PI/2);
+  const stemGeo = new THREE.CylinderGeometry(0.06, 0.08, 0.2, 6);
+  for (const s of terrainSampler(N, 10, 38, { minToPlaces: 1.0 })) {
+    const cluster = 1 + Math.floor(Math.random()*3);
+    for (let i = 0; i < cluster; i++) {
+      const ox = (Math.random()-0.5) * 0.5;
+      const oz = (Math.random()-0.5) * 0.5;
+      const stem = new THREE.Mesh(stemGeo, stemMat);
+      stem.position.set(s.x + ox, s.y + 0.1, s.z + oz);
+      stem.castShadow = true; grp.add(stem);
+      const cap = new THREE.Mesh(capGeo, capMat);
+      cap.position.set(s.x + ox, s.y + 0.22, s.z + oz);
+      cap.castShadow = true; grp.add(cap);
+      // a couple of white dots on the cap (small spheres)
+      for (let d = 0; d < 3; d++) {
+        const da = Math.random() * Math.PI * 2;
+        const dot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.03, 6, 4),
+          new THREE.MeshLambertMaterial({ color: 0xffffff })
+        );
+        dot.position.set(
+          s.x + ox + Math.cos(da) * 0.08,
+          s.y + 0.28,
+          s.z + oz + Math.sin(da) * 0.08
+        );
+        grp.add(dot);
+      }
+    }
+  }
+  scene.add(grp);
+}
+
+// ─── Lily pads on the lake ─────────────────────────────────
+function buildLilyPads() {
+  const N = 36;
+  const padGeo = new THREE.CircleGeometry(0.5, 16);
+  const padMat = new THREE.MeshLambertMaterial({ color: 0x4d7a48, side: THREE.DoubleSide });
+  const blossomMat = new THREE.MeshLambertMaterial({ color: 0xffeaf0, side: THREE.DoubleSide });
+  const grp = new THREE.Group();
+  for (let i = 0; i < N; i++) {
+    // sample within the lake
+    const lakeAngle = Math.random() * Math.PI * 2;
+    const lakeR = Math.random();
+    const x = LAKE.cx + Math.cos(lakeAngle) * LAKE.rx * lakeR * 0.85;
+    const z = LAKE.cz + Math.sin(lakeAngle) * LAKE.rz * lakeR * 0.85;
+    const pad = new THREE.Mesh(padGeo, padMat);
+    pad.rotation.x = -Math.PI/2;
+    pad.position.set(x, -1.05, z);
+    pad.scale.setScalar(0.6 + Math.random()*0.6);
+    grp.add(pad);
+    // some pads have flowers
+    if (Math.random() < 0.3) {
+      const blossom = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.18, 6), blossomMat);
+      blossom.position.set(x, -0.95, z);
+      grp.add(blossom);
+    }
+  }
+  scene.add(grp);
+}
+
+// ─── Mossy logs / driftwood ────────────────────────────────
+function buildMossyLogs() {
+  const wood = new THREE.MeshLambertMaterial({ color: 0x5a3e22 });
+  const moss = new THREE.MeshLambertMaterial({ color: 0x6a8a48 });
+  const N = 14;
+  let placed = 0;
+  for (let i = 0; i < 60 && placed < N; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 12 + Math.random() * 28;
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    if (!notTooCloseToPlaces(x, z, 2.5)) continue;
+    if (!notInLake(x, z)) continue;
+    const ty = getTerrainHeight(x, z);
+    const len = 2.0 + Math.random() * 1.5;
+    const r = 0.18 + Math.random() * 0.08;
+    const log = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, len, 8),
+      wood
+    );
+    log.rotation.z = Math.PI/2;
+    log.rotation.y = Math.random() * Math.PI * 2;
+    log.position.set(x, ty + r, z);
+    log.castShadow = true; log.receiveShadow = true;
+    scene.add(log);
+    // moss patches on top
+    for (let p = 0; p < 3; p++) {
+      const mp = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18, 6, 4),
+        moss
+      );
+      mp.position.set(
+        x + (Math.random()-0.5) * len * 0.7,
+        ty + r * 2 - 0.04,
+        z + (Math.random()-0.5) * 0.2
+      );
+      mp.scale.y = 0.35;
+      mp.userData.isLeaf = true;
+      scene.add(mp);
+    }
+    placed++;
+  }
+}
+
+// ─── Reflective lake surface ───────────────────────────────
+function buildReflectiveLake() {
+  // overlay a translucent mirror-like plane over the existing lake
+  // (using a regular plane with light blue + animated normal-ish shader uniforms via small ripple sprites)
+  const lakeGeom = new THREE.PlaneGeometry(LAKE.rx * 2, LAKE.rz * 2, 32, 32);
+  const lakeMat = new THREE.MeshStandardMaterial({
+    color: 0x4a90b0,
+    metalness: 0.6,
+    roughness: 0.15,
+    transparent: true,
+    opacity: 0.78,
+  });
+  const lake = new THREE.Mesh(lakeGeom, lakeMat);
+  lake.rotation.x = -Math.PI/2;
+  lake.position.set(LAKE.cx, -1.0, LAKE.cz);
+  lake.receiveShadow = true;
+  scene.add(lake);
+  window.__reflectiveLake = lake;
+  // distortion via vertex animation (cheap waves)
+  lake.userData.isAnimatedWater = true;
+  // also add wave ripples (rings expanding) periodically
+  if (!window.__waterRipples) window.__waterRipples = new THREE.Group();
+  scene.add(window.__waterRipples);
+  setInterval(() => {
+    if (!scene) return;
+    const ang = Math.random() * Math.PI * 2;
+    const rr = Math.random() * 0.7;
+    const rx = LAKE.cx + Math.cos(ang) * LAKE.rx * rr;
+    const rz = LAKE.cz + Math.sin(ang) * LAKE.rz * rr;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.05, 0.08, 18),
+      new THREE.MeshBasicMaterial({ color: 0xc0e0ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI/2;
+    ring.position.set(rx, -0.95, rz);
+    ring.userData.life = 0;
+    window.__waterRipples.add(ring);
+  }, 1100);
+}
+
+// ─── Atmospheric mist (low fog band hugging the ground) ───
+function buildAtmosphericMist() {
+  // make scene fog denser
+  if (scene.fog && scene.fog.far) {
+    scene.fog.near = 25;
+    scene.fog.far = 95;
+  }
+  // low ground mist as semi-transparent rings around the village
+  const mistMat = new THREE.MeshBasicMaterial({
+    color: 0xeae8e0, transparent: true, opacity: 0.18,
+    depthWrite: false,
+  });
+  const mist = new THREE.Group();
+  for (let i = 0; i < 24; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = 12 + Math.random() * 30;
+    const x = Math.cos(angle) * r;
+    const z = Math.sin(angle) * r;
+    const ring = new THREE.Mesh(
+      new THREE.PlaneGeometry(8 + Math.random()*4, 8 + Math.random()*4),
+      mistMat.clone()
+    );
+    ring.rotation.x = -Math.PI/2;
+    ring.position.set(x, getTerrainHeight(x, z) + 0.5, z);
+    ring.userData.drift = { phase: Math.random()*Math.PI*2, speed: 0.2 + Math.random()*0.3 };
+    mist.add(ring);
+  }
+  scene.add(mist);
+  window.__mist = mist;
+}
+
+// ─── Extra dense tree rings to combat FlowScape-style sparseness ───
+function buildExtraTreeRings() {
+  // forest-density tree placement, deliberately layered
+  for (let band = 0; band < 3; band++) {
+    const r0 = 14 + band * 9;
+    const r1 = r0 + 9;
+    const count = [80, 120, 180][band];
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = r0 + Math.random() * (r1 - r0);
+      const x = Math.cos(angle) * dist;
+      const z = Math.sin(angle) * dist;
+      if (!notTooCloseToPlaces(x, z, 2.5)) continue;
+      if (!notInLake(x, z)) continue;
+      createTree(x, z);
+    }
+  }
+}
+
+// ─── Vignette + color grading via post-process pass ───────
+function applyVignetteAndGrade() {
+  if (!composer) return;
+  // simple vignette via a tinted dark plane attached to camera
+  const vignTex = makeVignetteTexture();
+  const vignMat = new THREE.SpriteMaterial({
+    map: vignTex,
+    transparent: true, opacity: 0.65,
+    depthTest: false, depthWrite: false,
+  });
+  const vignette = new THREE.Sprite(vignMat);
+  vignette.scale.set(2.4, 2.4 * (window.innerHeight/window.innerWidth), 1);
+  vignette.position.z = -0.05;
+  vignette.renderOrder = 999;
+  // attach to camera so it always covers screen
+  camera.add(vignette);
+  scene.add(camera);
+  window.__vignette = vignette;
+  window.addEventListener('resize', () => {
+    vignette.scale.set(2.4, 2.4 * (window.innerHeight/window.innerWidth), 1);
+  });
+}
+function makeVignetteTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  // radial fade from clear to subtle warm vignette
+  const g = ctx.createRadialGradient(256, 256, 80, 256, 256, 360);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(0.55, 'rgba(0,0,0,0)');
+  g.addColorStop(0.8, 'rgba(60,30,10,0.18)');
+  g.addColorStop(1, 'rgba(20,10,5,0.7)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 512, 512);
+  const tex = new THREE.CanvasTexture(c);
+  return tex;
+}
+
+// ─── Water animation hook (called from animate via existing flow) ───
+function updateWaterAnimation(t) {
+  if (window.__reflectiveLake) {
+    const g = window.__reflectiveLake.geometry;
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const wave = Math.sin(x * 0.5 + t * 1.4) * 0.04 + Math.cos(y * 0.5 + t * 1.1) * 0.03;
+      pos.setZ(i, wave);
+    }
+    pos.needsUpdate = true;
+  }
+  if (window.__waterRipples) {
+    for (const r of [...window.__waterRipples.children]) {
+      r.userData.life += 0.016;
+      const k = r.userData.life;
+      if (k > 1.6) { window.__waterRipples.remove(r); continue; }
+      r.scale.setScalar(1 + k * 4);
+      r.material.opacity = Math.max(0, 0.55 - k * 0.32);
+    }
+  }
+  if (window.__mist) {
+    for (const m of window.__mist.children) {
+      const u = m.userData.drift;
+      m.rotation.z = Math.sin(t * 0.2 + u.phase) * 0.4;
+      m.material.opacity = 0.14 + Math.sin(t * u.speed + u.phase) * 0.06;
     }
   }
 }
