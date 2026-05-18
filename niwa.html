@@ -741,25 +741,68 @@ function buildSkyDome() {
       botColor:   { value: new THREE.Color(0xf5d8b0) },
       offset:     { value: 12.0 },
       exponent:   { value: 1.1 },
+      sunDir:     { value: new THREE.Vector3(0.6, 0.7, 0.3).normalize() },
+      sunColor:   { value: new THREE.Color(0xfff1d6) },
+      time:       { value: 0 },
+      cloudStrength: { value: 0.45 },
     },
     vertexShader: `
       varying vec3 vWorldPos;
+      varying vec3 vDir;
       void main(){
         vec4 wp = modelMatrix * vec4(position, 1.0);
         vWorldPos = wp.xyz;
+        vDir = normalize(position);
         gl_Position = projectionMatrix * viewMatrix * wp;
       }
     `,
     fragmentShader: `
       uniform vec3 topColor; uniform vec3 midColor; uniform vec3 botColor;
       uniform float offset; uniform float exponent;
+      uniform vec3 sunDir; uniform vec3 sunColor;
+      uniform float time; uniform float cloudStrength;
       varying vec3 vWorldPos;
+      varying vec3 vDir;
+
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vnoise(vec2 p){
+        vec2 i = floor(p); vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = hash(i), b = hash(i + vec2(1,0));
+        float c = hash(i + vec2(0,1)), d = hash(i + vec2(1,1));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
+      float fbm(vec2 p){
+        float v = 0.0, a = 0.5;
+        for(int i = 0; i < 5; i++){ v += a * vnoise(p); p *= 2.0; a *= 0.5; }
+        return v;
+      }
+
       void main(){
         float h = normalize(vWorldPos + vec3(0.0, offset, 0.0)).y;
         float t = max(pow(max(h, 0.0), exponent), 0.0);
         vec3 col = h < 0.0
           ? mix(midColor, botColor, clamp(-h * 1.5, 0.0, 1.0))
           : mix(midColor, topColor, t);
+
+        // Sun halo - bright disc around sun direction
+        float sunDot = max(0.0, dot(normalize(vDir), normalize(sunDir)));
+        float halo = pow(sunDot, 200.0);   // sharp disc
+        float glow = pow(sunDot, 8.0) * 0.3;   // wider halo
+        col += sunColor * (halo * 1.4 + glow);
+
+        // Soft cloud streaks projected onto sky dome (only upper hemisphere)
+        if (h > 0.0) {
+          vec2 uv = normalize(vDir).xz * 0.5 + vec2(time * 0.0025, 0.0);
+          float cloud1 = fbm(uv * 3.0 + vec2(0.0, time * 0.005));
+          float cloud2 = fbm(uv * 6.0 - vec2(time * 0.003, 0.0));
+          float cloudMask = smoothstep(0.5, 0.85, cloud1 * 0.7 + cloud2 * 0.5);
+          // fade clouds toward horizon
+          cloudMask *= smoothstep(0.0, 0.4, h);
+          vec3 cloudColor = mix(midColor * 1.3, vec3(1.0, 0.97, 0.92), 0.5);
+          col = mix(col, cloudColor, cloudMask * cloudStrength);
+        }
+
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -3190,14 +3233,19 @@ function updateTimeOfDay(dt) {
   const ctop = new THREE.Color(a.top).lerp(new THREE.Color(b.top), k);
   const cmid = new THREE.Color(a.mid).lerp(new THREE.Color(b.mid), k);
   const cbot = new THREE.Color(a.bot).lerp(new THREE.Color(b.bot), k);
+  const lights = scene.userData.lights;
   if (skyMat) {
     skyMat.uniforms.topColor.value = ctop;
     skyMat.uniforms.midColor.value = cmid;
     skyMat.uniforms.botColor.value = cbot;
+    if (lights && lights.sun) {
+      skyMat.uniforms.sunDir.value.copy(lights.sun.position).normalize();
+      skyMat.uniforms.sunColor.value = lights.sun.color;
+    }
+    skyMat.uniforms.time.value += dt;
   }
   scene.background = cmid.clone();
   scene.fog.color = cmid.clone();
-  const lights = scene.userData.lights;
   if (lights) {
     lights.sun.color = new THREE.Color(a.sun).lerp(new THREE.Color(b.sun), k);
     lights.sun.intensity = a.sunI + (b.sunI - a.sunI) * k;
