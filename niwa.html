@@ -212,16 +212,36 @@ canvas{display:block;touch-action:none}
 //   • All v1-v5 game systems preserved (KOKORO, achievements, sounds, BGM)
 // ─────────────────────────────────────────────────────────────────────
 
+// ─── World layout (v23 multi-biome) ─────────────────────────
+// 4 themed biomes radiate from a central plaza.
+// Each biome has a distinct center, terrain profile, and content.
 const MAP = {
-  innerR: 14,      // playable inner radius
-  outerR: 17,      // base edge radius (the "diorama wall")
+  innerR: 36,      // playable inner radius (4x expansion)
+  outerR: 40,      // base edge radius
   centerY: 0,      // center plaza height
 };
+// Biome zones with center coordinates and direction angles
+const BIOMES = {
+  plaza:   { name: '入口', cx:  0,  cz:  0,  radius: 6 },
+  forest:  { name: '森',   cx:-22, cz:-22,  radius: 14 },
+  village: { name: '村',   cx: 22, cz:-22,  radius: 14 },
+  lake:    { name: '湖',   cx: 14, cz: 22,  radius: 14 },
+  mountain:{ name: '山',   cx:-18, cz: 24,  radius: 16 },
+};
+// Helper: which biome is a point closest to?
+function biomeAt(x, z) {
+  let best = 'plaza', bestD = Infinity;
+  for (const [k, b] of Object.entries(BIOMES)) {
+    const d = Math.hypot(x - b.cx, z - b.cz);
+    if (d < bestD) { bestD = d; best = k; }
+  }
+  return { key: best, dist: bestD };
+}
 
 let scene, camera, renderer, composer, bloomPass;
 let raycaster, mouse = new THREE.Vector2();
-let avatar, avatarTarget = null, avatarSpeed = 0.13;
-let cameraYawOffset = -0.6, cameraPitch = 0.55, cameraDist = 16;
+let avatar, avatarTarget = null, avatarSpeed = 0.18;
+let cameraYawOffset = -0.6, cameraPitch = 0.6, cameraDist = 22;
 let nearbyPlace = null;
 const visited = new Set();
 const clickables = [];
@@ -239,16 +259,21 @@ const FOLIAGE_OBJS = [];   // wind-sway leaves
 let petalsGroup, firefliesGroup, dustGroup, ripplesGroup;
 let inOverlay = false;
 
-// ─── LOCATIONS — eight curated spots ──────────────────────────
+// ─── LOCATIONS — distributed by biome ──────────────────────
+// 湖(lake): takibi+mizube / 森(forest): tsuki / 村(village): oto+toki+amaoto / 山(mountain): tabi+hoshi
 const LOCATIONS = [
-  {id:'takibi', name:'焚き火の前',  en:'At the Bonfire',   x: 0,    z: 0,     yOff:0.15, color:0xff8848},
-  {id:'tsuki',  name:'月光の書架',  en:'Moonlit Library',  x:-7.2,  z:-7.0,   yOff:0.4,  color:0xc4a8d0},
-  {id:'oto',    name:'音の祠',      en:'Sound Shrine',     x: 7.5,  z:-6.0,   yOff:0.4,  color:0xc06a52},
-  {id:'tabi',   name:'ひとり旅の道', en:'Solitary Road',    x: 0,    z:-11.5,  yOff:0.2,  color:0xa49070},
-  {id:'mizube', name:'水辺の岸',    en:"Water's Edge",     x:-8.5,  z: 3.5,   yOff:0.1,  color:0x8ab8d0},
-  {id:'toki',   name:'時の砂時計',  en:'Hourglass',        x: 8.5,  z: 4.0,   yOff:0.3,  color:0xd0b878},
-  {id:'amaoto', name:'雨音の部屋',  en:'Room of Rain',     x:-5.0,  z: 9.5,   yOff:0.25, color:0x9ab4c0},
-  {id:'hoshi',  name:'星見台',      en:'Observatory',      x: 5.5,  z: 9.0,   yOff:0.35, color:0xd0c4a0},
+  // 湖エリア — Lake (NE/SE area, around water)
+  {id:'takibi', name:'焚き火の前',  en:'At the Bonfire',   x: 9,    z: 18,    yOff:0.15, biome:'lake'},
+  {id:'mizube', name:'水辺の岸',    en:"Water's Edge",     x: 18,   z: 22,    yOff:0.1,  biome:'lake'},
+  // 森エリア — Forest (NW area, deep woods + cabin)
+  {id:'tsuki',  name:'月光の書架',  en:'Moonlit Library',  x:-22,   z:-22,    yOff:0.4,  biome:'forest'},
+  // 村エリア — Village (NE area, dense cluster of buildings)
+  {id:'oto',    name:'音の祠',      en:'Sound Shrine',     x: 24,   z:-20,    yOff:0.4,  biome:'village'},
+  {id:'toki',   name:'時の砂時計',  en:'Hourglass',        x: 28,   z:-16,    yOff:0.3,  biome:'village'},
+  {id:'amaoto', name:'雨音の部屋',  en:'Room of Rain',     x: 18,   z:-25,    yOff:0.25, biome:'village'},
+  // 山エリア — Mountain (SW area, winding path + summit)
+  {id:'tabi',   name:'ひとり旅の道', en:'Solitary Road',    x:-12,   z: 14,    yOff:0.2,  biome:'mountain'},
+  {id:'hoshi',  name:'星見台',      en:'Observatory',      x:-22,   z: 28,    yOff:0.35, biome:'mountain'},
 ];
 
 // ─── Toon gradient texture (painterly warm-shadow ramp) ──────
@@ -436,85 +461,82 @@ function applyHDRIForTime() {
   }
 }
 
-// ─── Terrain heightmap function (DRAMATIC 3D RELIEF v8) ────────
+// ─── Terrain heightmap (v23 multi-biome) ──────────────────────
+// Each biome shapes its zone; transitions blend smoothly between centers.
 function getTerrainHeight(x, z) {
   const dist = Math.hypot(x, z);
-  // Central plaza (within 2.0): flat — the gathering spot
-  if (dist < 2.0) return MAP.centerY;
+  // Plaza center — flat
+  if (dist < 4.0) return MAP.centerY;
 
-  // Within inner playable area: substantial rolling + sculpted features
-  if (dist < MAP.innerR) {
-    const r = (dist - 2.0) / (MAP.innerR - 2.0);
-    // Base rolling noise — gentler near plaza, more dramatic at edges
-    let h = Math.sin(x * 0.42) * Math.cos(z * 0.36) * 0.5 +
-            Math.sin(x * 0.18 + 1.1) * Math.cos(z * 0.22 + 0.4) * 0.7 +
-            Math.sin(x * 0.92) * Math.cos(z * 0.65) * 0.22;
-
-    // PAGODA HILL (back-center) — dramatic peak rising to +4m
-    const dPag = Math.hypot(x - 0, z - (-11.5));
-    if (dPag < 5.5) {
-      const t = 1 - dPag / 5.5;
-      // smooth Gaussian-like ridge
-      h += t * t * (3.0 - t * 0.5) + 1.0;
+  if (dist >= MAP.innerR) {
+    // Edge slope — real cliff dropping to base
+    if (dist < MAP.outerR) {
+      const r = (dist - MAP.innerR) / (MAP.outerR - MAP.innerR);
+      return -r * r * 1.6 - 0.2;
     }
-
-    // KOI POND (west) — deeper depression
-    const dMiz = Math.hypot(x - (-8.5), z - 3.5);
-    if (dMiz < 3.2) {
-      const t = 1 - dMiz / 3.2;
-      h -= t * t * 2.0;
-    }
-
-    // OBSERVATORY MOUND (east) — gentler bump to +2.5m
-    const dObs = Math.hypot(x - 5.5, z - 9.0);
-    if (dObs < 3.0) {
-      const t = 1 - dObs / 3.0;
-      h += t * t * 2.2;
-    }
-
-    // HOURGLASS TERRACE (east) — flat raised platform
-    const dToki = Math.hypot(x - 8.5, z - 4.0);
-    if (dToki < 2.0) {
-      const t = 1 - dToki / 2.0;
-      h += Math.min(1.4, t * 2.0);
-    }
-
-    // RAIN HUT MOUND (north-west)
-    const dAma = Math.hypot(x - (-5.0), z - 9.5);
-    if (dAma < 2.4) {
-      const t = 1 - dAma / 2.4;
-      h += t * t * 1.4;
-    }
-
-    // STREAM CHANNEL — from pagoda hill down to pond
-    // line from (0, -8) to (-8.5, 3.5)
-    const streamDist = distToStream(x, z);
-    if (streamDist < 0.9) {
-      const t = 1 - streamDist / 0.9;
-      h -= t * 1.2;
-    }
-
-    // gentle taper to edge so terrain meets the cliff smoothly
-    return h * (1 - Math.max(0, r - 0.88) * 6);
+    return -1.8;
   }
 
-  // Edge slope: a real cliff dropping to the visible base
-  if (dist < MAP.outerR) {
-    const r = (dist - MAP.innerR) / (MAP.outerR - MAP.innerR);
-    return -r * r * 1.4 - 0.1;
+  // Base rolling noise (gentle global undulation)
+  let h = Math.sin(x * 0.18) * Math.cos(z * 0.15) * 0.4 +
+          Math.sin(x * 0.32 + 1.1) * Math.cos(z * 0.28 + 0.4) * 0.3 +
+          Math.sin(x * 0.65) * Math.cos(z * 0.55) * 0.12;
+
+  // ── BIOME SHAPING ──
+  // Forest (NW): gentle valley floor with occasional mounds
+  const dF = Math.hypot(x - BIOMES.forest.cx, z - BIOMES.forest.cz);
+  if (dF < BIOMES.forest.radius) {
+    const t = 1 - dF / BIOMES.forest.radius;
+    h += t * 0.5 + Math.sin(x * 0.4) * Math.cos(z * 0.4) * 0.4 * t;
   }
-  return -1.5;
+
+  // Village (NE): mild hills around cluster
+  const dV = Math.hypot(x - BIOMES.village.cx, z - BIOMES.village.cz);
+  if (dV < BIOMES.village.radius) {
+    const t = 1 - dV / BIOMES.village.radius;
+    h += t * t * 0.8;
+  }
+
+  // Lake (SE): deep depression for water + lakeside path
+  const dL = Math.hypot(x - BIOMES.lake.cx, z - BIOMES.lake.cz);
+  if (dL < BIOMES.lake.radius) {
+    const t = 1 - dL / BIOMES.lake.radius;
+    h -= t * t * 3.2;
+  }
+
+  // Mountain (SW): rising peak with winding path
+  const dM = Math.hypot(x - BIOMES.mountain.cx, z - BIOMES.mountain.cz);
+  if (dM < BIOMES.mountain.radius) {
+    const t = 1 - dM / BIOMES.mountain.radius;
+    // dramatic peak rising to +8m at center, with a winding step path
+    h += t * t * (6.0 - t * 1.0) + 1.0 * t;
+    // path is slight depression (-0.3m) for visibility
+    const angleFromCenter = Math.atan2(z - BIOMES.mountain.cz, x - BIOMES.mountain.cx);
+    const pathAngle = angleFromCenter * 4 + dM * 0.6;  // spiral pattern
+    const pathBand = Math.abs(Math.sin(pathAngle)) - 0.86;
+    if (pathBand > 0) h -= 0.4 * pathBand * 6;
+  }
+
+  // Stream channel from mountain area down to lake (gentle, optional)
+  const streamD = distToBiomeStream(x, z);
+  if (streamD < 1.2) {
+    const t = 1 - streamD / 1.2;
+    h -= t * 0.9;
+  }
+
+  // Taper near edge to meet the cliff base smoothly
+  const edgeFade = Math.max(0, (dist - (MAP.innerR - 5)) / 5);
+  return h * (1 - edgeFade * 0.6);
 }
 
-// Helper: distance to the curved stream from pagoda hill to pond
-function distToStream(x, z) {
-  // approximate as polyline
+// Stream from lake biome to plaza area
+function distToBiomeStream(x, z) {
   const pts = [
-    [0, -8],
-    [-2, -5],
-    [-4, -2],
-    [-6, 0.5],
-    [-8.5, 3.5],
+    [BIOMES.mountain.cx + 4, BIOMES.mountain.cz - 4],
+    [BIOMES.mountain.cx + 6, BIOMES.mountain.cz - 8],
+    [4, 8],
+    [BIOMES.lake.cx - 6, BIOMES.lake.cz - 4],
+    [BIOMES.lake.cx - 2, BIOMES.lake.cz],
   ];
   let minD = Infinity;
   for (let i = 0; i < pts.length - 1; i++) {
@@ -529,6 +551,7 @@ function distToStream(x, z) {
   }
   return minD;
 }
+function distToStream(x, z) { return distToBiomeStream(x, z); }
 
 // ─── Init ────────────────────────────────────────────────────
 async function init() {
@@ -904,19 +927,37 @@ function buildHeightmapTerrain() {
     const x = pos.getX(i);
     const z = pos.getZ(i);
     const h = pos.getY(i);
-    // slope: how vertical the normal is (1=flat, 0=cliff)
     const ny = normalAttr.getY(i);
     const slope = Math.max(0, ny);
     const isSlope = slope < 0.7;
     const noise = Math.sin(x * 1.4) * Math.cos(z * 1.1) * 0.07 + (Math.random() - 0.5) * 0.05;
+    // Biome-aware coloring
+    const b = biomeAt(x, z).key;
     let baseG;
-    if (h < -1.0) baseG = 0x4a3320;            // deep earth (under cliff)
-    else if (h < -0.5) baseG = 0x5a4628;       // riverbed / pond edge
-    else if (isSlope) baseG = h > 1.5 ? 0x8a7a60 : 0x6a5a40;   // exposed slope earth/rock
-    else if (h < 0.1) baseG = 0x5a7a3a;         // valley grass
-    else if (h < 1.0) baseG = 0x7ea556;         // mid grass
-    else if (h < 2.5) baseG = 0x96b864;         // sunlit hillside
-    else baseG = 0xb0c478;                       // bright ridge top
+    if (h < -1.5) baseG = 0x4a3320;                  // deep earth
+    else if (b === 'lake' && h < -0.4) baseG = 0x4a6680;  // lake bed (visible if water transparent)
+    else if (b === 'forest') {
+      if (isSlope) baseG = 0x5e4a30;                 // forest floor exposed earth
+      else baseG = h > 0.5 ? 0x4a7038 : (h > 0 ? 0x3e5e30 : 0x2e4628);  // deep mossy green
+    }
+    else if (b === 'village') {
+      if (isSlope) baseG = 0x8a7456;                 // village dirt path
+      else baseG = h > 0.6 ? 0xa8b070 : 0x88a256;    // managed pasture
+    }
+    else if (b === 'lake') {
+      // shoreline sandy/grassy
+      baseG = h > 0 ? 0x8aa05a : 0x9a8866;           // dry shore
+    }
+    else if (b === 'mountain') {
+      if (isSlope) baseG = h > 4 ? 0xa09080 : 0x6a5a44;  // mountain rock/dirt
+      else baseG = h > 4 ? 0xc4b890 : (h > 2 ? 0x86a560 : 0x6a8a4a);  // alpine grass
+    }
+    else {
+      // plaza/transition
+      if (isSlope) baseG = 0x6a5a40;
+      else if (h < 0.1) baseG = 0x5a7a3a;
+      else baseG = 0x7ea556;
+    }
     tmpC.setHex(baseG);
     tmpC.offsetHSL(0, -0.04 + noise * 0.2, noise);
     colorAttr[i * 3 + 0] = tmpC.r;
@@ -1041,9 +1082,9 @@ function buildHeightmapTerrain() {
           col *= mix(1.0 - cloudStrength, 1.0, cs);
         }
 
-        // distance haze for painterly depth
+        // distance haze for painterly depth (now wider area)
         float dist = length(vWorldPos.xz);
-        float haze = smoothstep(8.0, 22.0, dist) * 0.45;
+        float haze = smoothstep(18.0, 42.0, dist) * 0.5;
         col = mix(col, vec3(0.86, 0.82, 0.74), haze);
 
         gl_FragColor = vec4(col, 1.0);
@@ -1062,9 +1103,10 @@ function buildHeightmapTerrain() {
 const WATER_Y = -0.55;
 let koiPondMesh;
 function buildKoiPond() {
-  const px = -8.5, pz = 3.5;
-  // Larger reflective surface filling the depression
-  const reflGeo = new THREE.CircleGeometry(2.8, 40);
+  // Now placed at lake biome center
+  const px = BIOMES.lake.cx, pz = BIOMES.lake.cz;
+  // Larger reflective surface filling the lake biome
+  const reflGeo = new THREE.CircleGeometry(6.5, 48);
   reflGeo.rotateX(-Math.PI / 2);
   if (typeof THREE.Reflector === 'function') {
     const refl = new THREE.Reflector(reflGeo, {
@@ -1086,7 +1128,7 @@ function buildKoiPond() {
     koiPondMesh = m;
   }
   // Soft blue tint plane just below the reflector for depth-feel
-  const tintGeo = new THREE.CircleGeometry(2.7, 36);
+  const tintGeo = new THREE.CircleGeometry(6.4, 42);
   tintGeo.rotateX(-Math.PI / 2);
   const tint = new THREE.Mesh(tintGeo, new THREE.MeshBasicMaterial({
     color: 0x2a4a64, transparent: true, opacity: 0.55,
@@ -1094,7 +1136,7 @@ function buildKoiPond() {
   tint.position.set(px, WATER_Y - 0.02, pz);
   scene.add(tint);
   // Painterly water surface layer above the reflector
-  const waterTopGeo = new THREE.CircleGeometry(2.7, 64);
+  const waterTopGeo = new THREE.CircleGeometry(6.4, 96);
   waterTopGeo.rotateX(-Math.PI / 2);
   const waterTopMat = new THREE.ShaderMaterial({
     uniforms: {
@@ -1177,7 +1219,7 @@ function buildKoiPond() {
   scene.add(waterTop);
   window.__waterTop = waterTop;
   // Stone rim around the pond
-  const rimGeo = new THREE.TorusGeometry(2.85, 0.22, 8, 32);
+  const rimGeo = new THREE.TorusGeometry(6.6, 0.28, 8, 48);
   rimGeo.rotateX(Math.PI / 2);
   const rim = new THREE.Mesh(rimGeo, toonMat(0x6e6862));
   rim.position.set(px, WATER_Y - 0.1, pz);
@@ -1661,29 +1703,42 @@ function buildLocationContent(g, loc) {
 
 // ─── Hand-placed flora (curated, NOT random scatter) ────────
 function buildHandPlacedFlora() {
-  // 4 curated forest clusters + a few accent trees. Tighter, more cinematic.
-  // Tree definitions: [kind, x, z, scale]
+  // v23 biome-organized tree placements
   const trees = [
-    // === Cluster A: south-east bamboo grove (frames the east) ===
-    ['bamboo', 10.5,  6.0, 1.1],
-    ['bamboo', 11.0,  4.5, 1.0],
-    ['bamboo', 10.0,  7.0, 1.0],
-    // === Cluster B: north-west pine ridge ===
-    ['cedar',  -7.0, -10.0, 1.05],
-    ['cedar',  -9.0,  -7.5, 1.1],
-    ['pine',  -10.5,  -4.5, 0.95],
-    // === Cluster C: south-east mixed maple grove ===
-    ['maple',  10.0,  3.0, 1.0],
-    ['momiji',  9.5,  0.5, 0.95],
-    // === Cluster D: pond willows ===
-    ['willow', -10.5, 0.5, 1.0],
-    ['willow', -11.0, 5.5, 0.95],
-    // === Hilltop accents (visible silhouettes against sky) ===
-    ['cedar',   2.5, -13.5, 1.1],   // pagoda hill side
-    ['cedar',  -2.5, -13.5, 1.1],   // pagoda hill side
-    // small framing maples at plaza entry
-    ['maple',   4.6,  4.5, 0.85],
-    ['maple',  -4.2,  4.7, 0.85],
+    // === 森エリア (Forest) - dense pine/cedar ===
+    ['cedar', BIOMES.forest.cx - 8, BIOMES.forest.cz + 2, 1.2],
+    ['cedar', BIOMES.forest.cx - 5, BIOMES.forest.cz - 7, 1.15],
+    ['cedar', BIOMES.forest.cx - 3, BIOMES.forest.cz + 9, 1.1],
+    ['cedar', BIOMES.forest.cx + 8, BIOMES.forest.cz + 5, 1.1],
+    ['cedar', BIOMES.forest.cx + 6, BIOMES.forest.cz - 8, 1.15],
+    ['cedar', BIOMES.forest.cx - 9, BIOMES.forest.cz - 4, 1.05],
+    ['pine',  BIOMES.forest.cx + 4, BIOMES.forest.cz + 1, 1.0],
+    ['pine',  BIOMES.forest.cx - 2, BIOMES.forest.cz - 2, 1.0],
+    ['pine',  BIOMES.forest.cx + 9, BIOMES.forest.cz - 1, 1.05],
+    ['maple', BIOMES.forest.cx - 7, BIOMES.forest.cz + 7, 0.95],
+    // === 村エリア (Village) - sparse, scattered ===
+    ['sakura', BIOMES.village.cx - 8, BIOMES.village.cz + 4, 1.0],
+    ['sakura', BIOMES.village.cx + 7, BIOMES.village.cz - 7, 1.0],
+    ['maple',  BIOMES.village.cx - 6, BIOMES.village.cz + 8, 0.95],
+    ['maple',  BIOMES.village.cx + 9, BIOMES.village.cz + 3, 0.95],
+    ['bamboo', BIOMES.village.cx + 4, BIOMES.village.cz - 9, 1.1],
+    // === 湖エリア (Lake) - willows + lakeside ===
+    ['willow', BIOMES.lake.cx - 8, BIOMES.lake.cz + 2, 1.1],
+    ['willow', BIOMES.lake.cx + 8, BIOMES.lake.cz - 1, 1.05],
+    ['willow', BIOMES.lake.cx - 5, BIOMES.lake.cz - 8, 1.0],
+    ['momiji', BIOMES.lake.cx + 9, BIOMES.lake.cz + 5, 1.0],
+    ['sakura', BIOMES.lake.cx - 4, BIOMES.lake.cz + 9, 1.0],
+    // === 山エリア (Mountain) - pine + cedar at altitude ===
+    ['pine', BIOMES.mountain.cx + 6, BIOMES.mountain.cz + 4, 0.95],
+    ['pine', BIOMES.mountain.cx - 8, BIOMES.mountain.cz - 3, 1.0],
+    ['cedar',BIOMES.mountain.cx + 8, BIOMES.mountain.cz - 5, 1.05],
+    ['cedar',BIOMES.mountain.cx - 3, BIOMES.mountain.cz + 9, 1.0],
+    ['momiji',BIOMES.mountain.cx + 2, BIOMES.mountain.cz + 6, 0.9],
+    // === Plaza framing (4 sides) ===
+    ['sakura',  3.0,  6.0, 0.85],
+    ['sakura', -3.0,  6.0, 0.85],
+    ['maple',   3.0, -6.0, 0.85],
+    ['maple',  -3.0, -6.0, 0.85],
   ];
   for (const [kind, x, z, s] of trees) {
     createTree(x, z, kind, s);
@@ -2106,61 +2161,63 @@ function buildTorii() {
 // ─── External CC0 / CC-BY assets from Poly Pizza ─────────────
 // (h: target world-space height; auto-scaled so each model fits)
 const EXTERNAL_ASSETS = [
-  // Hero architecture
-  { file:'torii_jacques.glb',           role:'torii',     x: 0,    z: 13,   h: 4.2, rot: 0,     yOff: 0,   shadow:true },
-  { file:'pagoda_google2.glb',          role:'pagoda',    x: 0,    z:-11.5, h: 7.0, rot: 0,     yOff: 0.0, shadow:true },
-  { file:'temple_wooden_quaternius.glb',role:'temple',    x: 5.5,  z: 9.0,  h: 2.8, rot:-0.55,  yOff: 0,   shadow:true },
-  { file:'bell_tower_quaternius.glb',   role:'bell',      x:-8.0,  z:-7.5,  h: 4.2, rot: 0.4,   yOff: 0,   shadow:true },
-  { file:'temple_quaternius2.glb',      role:'pavilion',  x:-6.5,  z:-3.5,  h: 2.6, rot: 0.2,   yOff: 0,   shadow:true },
-  { file:'shrine_mclaughlin.glb',       role:'shrine_x',  x: 5.8,  z:-3.5,  h: 2.0, rot:-0.8,   yOff: 0,   shadow:true },
-  { file:'bridge_wood_google.glb',      role:'bridge',    x:-5.0,  z:-0.5,  h: 1.0, rot: 1.0,   yOff: 0.05, shadow:true },
-  // Lanterns (stone) — replace 12 plaza lanterns with hero ishidoro at key points
-  { file:'ishidoro_flopsi.glb',         role:'ish_a',     x:-2.6,  z:-2.4,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
-  { file:'ishidoro_flopsi.glb',         role:'ish_b',     x: 2.6,  z:-2.4,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
-  { file:'ishidoro_flopsi.glb',         role:'ish_c',     x:-2.6,  z: 2.6,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
-  { file:'ishidoro_flopsi.glb',         role:'ish_d',     x: 2.6,  z: 2.6,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
-  { file:'ishidoro_flopsi.glb',         role:'ish_path_a',x:-2.0,  z:-8.5,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
-  { file:'ishidoro_flopsi.glb',         role:'ish_path_b',x: 2.0,  z:-8.5,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
-  { file:'ishidoro_flopsi.glb',         role:'ish_east',  x: 9.5,  z: 0.0,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
-  { file:'ishidoro_flopsi.glb',         role:'ish_west',  x:-9.5,  z: 0.0,  h: 1.4, rot: 0,     yOff: 0,   shadow:true, lantern:true },
-  // Trees
-  { file:'sakura_bonsai_gronert.glb',   role:'sakura_hero',x: 3.0, z:-2.0,  h: 4.6, rot: 0.4,   yOff: 0,   shadow:true },
-  { file:'cherry_tree_google.glb',      role:'cherry_a',   x:-3.8, z:-3.2,  h: 4.0, rot:-0.5,   yOff: 0,   shadow:true },
-  { file:'cherry_tree_google.glb',      role:'cherry_b',   x: 4.6, z: 3.2,  h: 3.6, rot: 0.7,   yOff: 0,   shadow:true },
-  { file:'pine_quaternius.glb',         role:'pine_a',     x:-4.5, z: 5.0,  h: 4.0, rot: 0.3,   yOff: 0,   shadow:true },
-  { file:'pine_quaternius.glb',         role:'pine_b',     x: 8.0, z:-4.0,  h: 4.2, rot: 0.7,   yOff: 0,   shadow:true },
-  { file:'pine_quaternius.glb',         role:'pine_c',     x: 6.0, z: 5.0,  h: 3.8, rot:-0.4,   yOff: 0,   shadow:true },
-  { file:'pine_trees2_quaternius.glb',  role:'pine_grove', x:-9.0, z: 8.0,  h: 4.4, rot: 0,     yOff: 0,   shadow:true },
-  { file:'pine_trees2_quaternius.glb',  role:'pine_grove2',x: 9.0, z:-8.0,  h: 4.0, rot: 1.5,   yOff: 0,   shadow:true },
-  // Bonsai (small accents on pagoda steps + temple area)
-  { file:'bonsai_carson.glb',           role:'bonsai_a',   x: 7.5, z: 9.8,  h: 0.7, rot: 0,     yOff: 0,   shadow:true },
-  { file:'bonsai_carson.glb',           role:'bonsai_b',   x:-7.5, z:-7.0,  h: 0.7, rot: 0,     yOff: 1.6, shadow:true }, // on bell tower platform
-  // Koi in the pond
-  { file:'koi_quaternius.glb',          role:'koi_a',      x:-8.0, z: 3.5,  h: 0.16, rot:0,     yOff: 0,   animate:'koi', cx:-8.5, cz:3.5, radius:1.2, speed:0.5, phase:0 },
-  { file:'koi_blue_quaternius.glb',     role:'koi_b',      x:-9.0, z: 4.0,  h: 0.16, rot:0,     yOff: 0,   animate:'koi', cx:-8.5, cz:3.5, radius:1.6, speed:0.6, phase:1.2 },
-  { file:'koi_gold_google.glb',         role:'koi_c',      x:-8.5, z: 3.0,  h: 0.16, rot:0,     yOff: 0,   animate:'koi', cx:-8.5, cz:3.5, radius:1.0, speed:0.7, phase:2.4 },
-  // Temple entrance arch / shrine (small accent near tabi road end)
-  { file:'temple_entrance_jonsson.glb', role:'tabi_arch',  x: 0,   z:-13.5, h: 3.4, rot: 0,     yOff: 0,   shadow:true },
-  // === Hero terrain (mountain GLBs as backdrop) ===
-  { file:'mountains_quaternius.glb',    role:'mtn_back',   x: 0,   z:-15.5, h: 6.0, rot: 0,     yOff: -0.5, shadow:true },
-  { file:'mountain_quaternius.glb',     role:'mtn_west',   x:-13.0, z:-7,   h: 5.5, rot: 0.4,   yOff: -0.6, shadow:true },
-  { file:'mountain_quaternius.glb',     role:'mtn_east',   x: 13.5, z:-2,   h: 5.0, rot: 1.4,   yOff: -0.6, shadow:true },
-  // Waterfall — place along the stream channel near top
-  { file:'waterfall_carson.glb',        role:'waterfall',  x:-2.0,  z:-7.0, h: 3.5, rot: 0,     yOff: 0.4, shadow:true },
-  // Grass clumps spread across hilltops
-  { file:'tall_grass_quaternius.glb',   role:'grass_a',    x: 2.5,  z: 4.5,  h: 0.6, rot: 0,    yOff: 0,   shadow:true },
-  { file:'tall_grass_quaternius.glb',   role:'grass_b',    x:-3.0,  z: 4.0,  h: 0.6, rot: 0.6,  yOff: 0,   shadow:true },
-  { file:'tall_grass_quaternius.glb',   role:'grass_c',    x: 4.0,  z:-4.5,  h: 0.6, rot: 1.2,  yOff: 0,   shadow:true },
-  { file:'tall_grass_quaternius.glb',   role:'grass_d',    x:-1.5,  z: 7.0,  h: 0.6, rot: 0.4,  yOff: 0,   shadow:true },
-  { file:'grass_quaternius.glb',        role:'grass_patch_a', x: 6.0, z: 2.5, h: 0.5, rot: 0,   yOff: 0,   shadow:true },
-  { file:'grass_quaternius.glb',        role:'grass_patch_b', x:-5.5, z:-5.0, h: 0.5, rot: 0.6, yOff: 0,   shadow:true },
-  // Rock formations at strategic spots
-  { file:'rocks_quaternius1.glb',       role:'rocks_a',    x: 9.5,  z: 6.5,  h: 0.8, rot: 0,    yOff: 0,   shadow:true },
-  { file:'rocks_quaternius1.glb',       role:'rocks_b',    x:-9.5,  z:-5.5,  h: 0.8, rot: 0.5,  yOff: 0,   shadow:true },
-  { file:'rocks_quaternius1.glb',       role:'rocks_c',    x: 2.0,  z:-4.0,  h: 0.7, rot: 1.0,  yOff: 0,   shadow:true },
-  { file:'rocks_quaternius1.glb',       role:'rocks_d',    x:-6.0,  z: 7.5,  h: 0.7, rot: 0.3,  yOff: 0,   shadow:true },
-  { file:'rock_formation_kenney.glb',   role:'rock_big_a', x:-11.5, z: 4.0,  h: 1.4, rot: 0,    yOff: 0,   shadow:true },
-  { file:'rock_formation_kenney.glb',   role:'rock_big_b', x: 11.0, z: 11.0, h: 1.4, rot: 0.7,  yOff: 0,   shadow:true },
+  // === Plaza entrance ===
+  { file:'torii_jacques.glb',           role:'torii_main',   x: 0,    z: -4,    h: 4.2, rot: 0,    yOff: 0, shadow:true },
+  // === 山エリア (Mountain) — summit pagoda, bell tower, shrine ===
+  { file:'pagoda_google2.glb',          role:'pagoda',       x: BIOMES.mountain.cx,     z: BIOMES.mountain.cz,     h: 8.0, rot: 0.2,   yOff: 0.0, shadow:true },
+  { file:'bell_tower_quaternius.glb',   role:'bell',         x: BIOMES.mountain.cx + 6, z: BIOMES.mountain.cz - 3, h: 5.0, rot: 0.4,   yOff: 0,   shadow:true },
+  { file:'shrine_mclaughlin.glb',       role:'shrine_mtn',   x: BIOMES.mountain.cx - 4, z: BIOMES.mountain.cz + 4, h: 2.2, rot:-0.8,   yOff: 0,   shadow:true },
+  { file:'mountains_quaternius.glb',    role:'mtn_back_a',   x: BIOMES.mountain.cx - 8, z: BIOMES.mountain.cz - 10,h: 8.0, rot: 0,     yOff: -0.5,shadow:true },
+  { file:'mountain_quaternius.glb',     role:'mtn_back_b',   x: BIOMES.mountain.cx + 12,z: BIOMES.mountain.cz + 8, h: 7.0, rot: 1.4,   yOff: -0.6,shadow:true },
+  // === 森エリア (Forest) — single cabin (library) + dense trees ===
+  { file:'japanese_room_aimi.glb',      role:'forest_cabin', x: BIOMES.forest.cx,       z: BIOMES.forest.cz,       h: 3.0, rot: 0.3,   yOff: 0,   shadow:true },
+  { file:'pine_trees2_quaternius.glb',  role:'forest_pines_a', x: BIOMES.forest.cx + 5, z: BIOMES.forest.cz + 4,   h: 6.0, rot: 0,    yOff: 0,   shadow:true },
+  { file:'pine_trees2_quaternius.glb',  role:'forest_pines_b', x: BIOMES.forest.cx - 6, z: BIOMES.forest.cz - 5,   h: 6.0, rot: 1.5,  yOff: 0,   shadow:true },
+  { file:'pine_quaternius.glb',         role:'forest_pine_a',  x: BIOMES.forest.cx + 7, z: BIOMES.forest.cz - 3,   h: 5.0, rot: 0.7,  yOff: 0,   shadow:true },
+  { file:'pine_quaternius.glb',         role:'forest_pine_b',  x: BIOMES.forest.cx - 4, z: BIOMES.forest.cz + 7,   h: 5.0, rot:-0.4,  yOff: 0,   shadow:true },
+  { file:'pine_quaternius.glb',         role:'forest_pine_c',  x: BIOMES.forest.cx + 2, z: BIOMES.forest.cz + 8,   h: 5.5, rot: 0.3,  yOff: 0,   shadow:true },
+  // === 村エリア (Village) — wooden houses, shrine, watchtower ===
+  { file:'temple_quaternius2.glb',      role:'village_house_a',x: BIOMES.village.cx,    z: BIOMES.village.cz,      h: 3.0, rot: 0.2,  yOff: 0,   shadow:true },
+  { file:'temple_wooden_quaternius.glb',role:'village_house_b',x: BIOMES.village.cx + 5,z: BIOMES.village.cz + 2,  h: 2.8, rot:-0.5,  yOff: 0,   shadow:true },
+  { file:'temple_quaternius3.glb',      role:'village_house_c',x: BIOMES.village.cx - 4,z: BIOMES.village.cz - 3,  h: 2.6, rot: 0.7,  yOff: 0,   shadow:true },
+  { file:'japanese_room_timothy.glb',   role:'village_house_d',x: BIOMES.village.cx - 2,z: BIOMES.village.cz + 5,  h: 2.4, rot:-0.3,  yOff: 0,   shadow:true },
+  { file:'temple_entrance_jonsson.glb', role:'village_gate',   x: BIOMES.village.cx + 8,z: BIOMES.village.cz - 5,  h: 3.4, rot: 1.0,  yOff: 0,   shadow:true },
+  // === 湖エリア (Lake) — bridge, koi, lakeside trees ===
+  { file:'bridge_wood_google.glb',      role:'bridge',         x: BIOMES.lake.cx - 6,    z: BIOMES.lake.cz - 3,    h: 1.0, rot: 0.6,  yOff: -0.1,shadow:true },
+  { file:'koi_quaternius.glb',          role:'koi_a',          x: BIOMES.lake.cx,        z: BIOMES.lake.cz,        h: 0.16, rot:0,    yOff: 0,   animate:'koi', cx:BIOMES.lake.cx, cz:BIOMES.lake.cz, radius:2.5, speed:0.5, phase:0 },
+  { file:'koi_blue_quaternius.glb',     role:'koi_b',          x: BIOMES.lake.cx + 1,    z: BIOMES.lake.cz + 1,    h: 0.16, rot:0,    yOff: 0,   animate:'koi', cx:BIOMES.lake.cx, cz:BIOMES.lake.cz, radius:3.5, speed:0.6, phase:1.2 },
+  { file:'koi_gold_google.glb',         role:'koi_c',          x: BIOMES.lake.cx - 1,    z: BIOMES.lake.cz - 1,    h: 0.16, rot:0,    yOff: 0,   animate:'koi', cx:BIOMES.lake.cx, cz:BIOMES.lake.cz, radius:2.0, speed:0.7, phase:2.4 },
+  // === Trees scattered to anchor area transitions ===
+  { file:'sakura_bonsai_gronert.glb',   role:'sakura_hero',    x: 8,    z: 0,    h: 5.0, rot: 0.4,   yOff: 0,    shadow:true },
+  { file:'cherry_tree_google.glb',      role:'cherry_a',       x: 5,    z: 6,    h: 4.5, rot:-0.5,   yOff: 0,    shadow:true },
+  { file:'cherry_tree_google.glb',      role:'cherry_b',       x: -6,   z: 5,    h: 4.0, rot: 0.7,   yOff: 0,    shadow:true },
+  // === Plaza lanterns (4 corners) ===
+  { file:'ishidoro_flopsi.glb',         role:'ish_a',     x:-3.5, z:-3.5, h: 1.6, rot: 0, yOff: 0, shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_b',     x: 3.5, z:-3.5, h: 1.6, rot: 0, yOff: 0, shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_c',     x:-3.5, z: 3.5, h: 1.6, rot: 0, yOff: 0, shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_d',     x: 3.5, z: 3.5, h: 1.6, rot: 0, yOff: 0, shadow:true, lantern:true },
+  // === Lantern path between biomes (one per biome direction) ===
+  { file:'ishidoro_flopsi.glb',         role:'ish_to_forest', x:-10, z:-10, h: 1.4, rot: 0, yOff: 0, shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_to_village',x: 10, z:-10, h: 1.4, rot: 0, yOff: 0, shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_to_lake',   x: 8,  z: 10, h: 1.4, rot: 0, yOff: 0, shadow:true, lantern:true },
+  { file:'ishidoro_flopsi.glb',         role:'ish_to_mtn',    x:-10, z: 12, h: 1.4, rot: 0, yOff: 0, shadow:true, lantern:true },
+  // Bonsai accents
+  { file:'bonsai_carson.glb',           role:'bonsai_a',  x: BIOMES.village.cx,     z: BIOMES.village.cz + 7, h: 0.8, rot: 0,   yOff: 0, shadow:true },
+  { file:'bonsai_carson.glb',           role:'bonsai_b',  x: BIOMES.mountain.cx + 3,z: BIOMES.mountain.cz - 6, h: 0.7, rot: 0,   yOff: 2.0, shadow:true }, // on mountain ledge
+  // Waterfall — from mountain area down toward lake
+  { file:'waterfall_carson.glb',        role:'waterfall', x:-4,  z: 12, h: 4.5, rot: 0, yOff: 0.4, shadow:true },
+  // Grass clumps in transition zones
+  { file:'tall_grass_quaternius.glb',   role:'grass_a', x: 5,  z: 12, h: 0.8, rot: 0,   yOff: 0, shadow:true },
+  { file:'tall_grass_quaternius.glb',   role:'grass_b', x:-8,  z:-5, h: 0.8, rot: 0.6, yOff: 0, shadow:true },
+  { file:'tall_grass_quaternius.glb',   role:'grass_c', x: 12, z:-8, h: 0.8, rot: 1.2, yOff: 0, shadow:true },
+  { file:'tall_grass_quaternius.glb',   role:'grass_d', x: -5, z: 10,h: 0.8, rot: 0.4, yOff: 0, shadow:true },
+  // Rocks across biomes
+  { file:'rocks_quaternius1.glb',       role:'rocks_a', x: BIOMES.mountain.cx - 6, z: BIOMES.mountain.cz + 2, h: 1.2, rot: 0,   yOff: 0, shadow:true },
+  { file:'rocks_quaternius1.glb',       role:'rocks_b', x: BIOMES.lake.cx + 7,     z: BIOMES.lake.cz - 4,     h: 1.0, rot: 0.5, yOff: 0, shadow:true },
+  { file:'rocks_quaternius1.glb',       role:'rocks_c', x: BIOMES.forest.cx + 3,   z: BIOMES.forest.cz + 4,   h: 0.9, rot: 1.0, yOff: 0, shadow:true },
+  { file:'rocks_quaternius1.glb',       role:'rocks_d', x: BIOMES.village.cx - 5,  z: BIOMES.village.cz + 6,  h: 0.8, rot: 0.3, yOff: 0, shadow:true },
+  { file:'rock_formation_kenney.glb',   role:'rock_big_a', x: BIOMES.mountain.cx + 8, z: BIOMES.mountain.cz + 3, h: 2.0, rot: 0,   yOff: 0, shadow:true },
+  { file:'rock_formation_kenney.glb',   role:'rock_big_b', x: BIOMES.lake.cx - 8,     z: BIOMES.lake.cz - 6,     h: 1.6, rot: 0.7, yOff: 0, shadow:true },
 ];
 
 const externalAssets = {}; // keyed by role
@@ -3430,7 +3487,7 @@ function setupInput() {
   });
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    cameraDist = Math.max(8, Math.min(28, cameraDist + e.deltaY * 0.012));
+    cameraDist = Math.max(8, Math.min(70, cameraDist + e.deltaY * 0.02));
   }, { passive: false });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'f' || e.key === 'F') {
