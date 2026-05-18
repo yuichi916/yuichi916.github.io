@@ -711,6 +711,71 @@ async function init() {
     const gradePass = new THREE.ShaderPass(colorGradeShader);
     composer.addPass(gradePass);
     window.__gradePass = gradePass;
+
+    // Kuwahara-style painterly filter for oil-painting look (compact 3x3 quadrants)
+    const kuwaharaShader = {
+      uniforms: {
+        tDiffuse:   { value: null },
+        resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+        strength:   { value: 0.7 },   // blend amount with original
+        radius:     { value: 3.0 },   // sampling radius in pixels
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+      `,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec2 resolution;
+        uniform float strength;
+        uniform float radius;
+        varying vec2 vUv;
+
+        // Sample a quadrant and return (mean, variance) packed in vec4 (rgb=mean, a=variance scalar)
+        // To keep cheap, we use a 3x3 sample per quadrant.
+        void sampleQuadrant(int qx, int qy, out vec3 mean, out float var) {
+          vec2 texel = 1.0 / resolution;
+          vec3 sum = vec3(0.0);
+          vec3 sumSq = vec3(0.0);
+          float count = 9.0;
+          for (int dy = 0; dy < 3; dy++) {
+            for (int dx = 0; dx < 3; dx++) {
+              vec2 offset = vec2(float(qx + dx - 2) * radius * texel.x, float(qy + dy - 2) * radius * texel.y) * 0.5;
+              vec3 c = texture2D(tDiffuse, vUv + offset).rgb;
+              sum += c;
+              sumSq += c * c;
+            }
+          }
+          mean = sum / count;
+          vec3 v = (sumSq / count) - mean * mean;
+          var = v.r + v.g + v.b;
+        }
+
+        void main() {
+          vec3 m0, m1, m2, m3;
+          float v0, v1, v2, v3;
+          // 4 quadrants centered around current pixel (TL, TR, BL, BR)
+          sampleQuadrant(-2,  0, m0, v0);  // top-left (using offset trick)
+          sampleQuadrant( 0,  0, m1, v1);  // top-right
+          sampleQuadrant(-2, -2, m2, v2);  // bottom-left
+          sampleQuadrant( 0, -2, m3, v3);  // bottom-right
+
+          // Pick quadrant with lowest variance
+          vec3 picked = m0; float minVar = v0;
+          if (v1 < minVar) { picked = m1; minVar = v1; }
+          if (v2 < minVar) { picked = m2; minVar = v2; }
+          if (v3 < minVar) { picked = m3; minVar = v3; }
+
+          // Blend with original to preserve detail
+          vec3 orig = texture2D(tDiffuse, vUv).rgb;
+          vec3 final = mix(orig, picked, strength);
+          gl_FragColor = vec4(final, 1.0);
+        }
+      `,
+    };
+    const kuwaharaPass = new THREE.ShaderPass(kuwaharaShader);
+    composer.addPass(kuwaharaPass);
+    window.__kuwaharaPass = kuwaharaPass;
   }
 
   // Depth of Field (Bokeh) — auto-focus on avatar distance
@@ -4487,6 +4552,9 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   if (composer) composer.setSize(window.innerWidth, window.innerHeight);
   if (bloomPass) bloomPass.setSize(window.innerWidth, window.innerHeight);
+  if (window.__kuwaharaPass) {
+    window.__kuwaharaPass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
+  }
 });
 
 init();
