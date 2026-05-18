@@ -646,7 +646,7 @@ async function init() {
   }
   bloomPass = new THREE.UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.34, 0.7, 0.86
+    0.55, 0.85, 0.78  // stronger bloom, lower threshold for cinematic glow
   );
   composer.addPass(bloomPass);
   // Color grading + vignette + chromatic warmth (painterly final polish)
@@ -713,12 +713,12 @@ async function init() {
     window.__gradePass = gradePass;
   }
 
-  // Depth of Field (Bokeh) — subtle painterly soft focus on distant objects
+  // Depth of Field (Bokeh) — auto-focus on avatar distance
   if (typeof THREE.BokehPass === 'function') {
     const bokeh = new THREE.BokehPass(scene, camera, {
-      focus: 16.0,    // focal distance (around the avatar/plaza)
-      aperture: 0.00012,  // small aperture = subtle blur
-      maxblur: 0.008,
+      focus: 14.0,         // closer focus for tighter cinematic feel
+      aperture: 0.00018,   // a touch more blur
+      maxblur: 0.012,
       width: window.innerWidth,
       height: window.innerHeight,
     });
@@ -4348,6 +4348,11 @@ function animate() {
   updateBonfire(dt, t);
   updateBiomeAtmosphere(dt);
   updatePrayerFlags(t);
+  // Auto-focus DoF on avatar
+  if (window.__bokeh && avatar) {
+    const dist = camera.position.distanceTo(avatar.position);
+    window.__bokeh.uniforms.focus.value = dist;
+  }
   // Forest fireflies animate independently of time-of-day
   if (window.__forestFf) {
     for (const m of window.__forestFf.children) {
