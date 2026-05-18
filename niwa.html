@@ -180,6 +180,7 @@ canvas{display:block;touch-action:none}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/RGBELoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/objects/Reflector.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/postprocessing/EffectComposer.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/postprocessing/RenderPass.js"></script>
@@ -245,13 +246,17 @@ const LOCATIONS = [
   {id:'hoshi',  name:'星見台',      en:'Observatory',      x: 5.5,  z: 9.0,   yOff:0.35, color:0xd0c4a0},
 ];
 
-// ─── Toon gradient texture ───────────────────────────────────
-function makeToonGradient(steps = 4) {
+// ─── Toon gradient texture (painterly warm-shadow ramp) ──────
+function makeToonGradient() {
+  // 5-step ramp with warm-tint shadows: dark→shadow→midtone→light→bright
+  // Encoded as a 5-pixel-wide grayscale; combined with material color and
+  // ambient/sun light, produces a hand-painted feel.
   const c = document.createElement('canvas');
-  c.width = steps; c.height = 1;
+  c.width = 5; c.height = 1;
   const ctx = c.getContext('2d');
-  for (let i = 0; i < steps; i++) {
-    const v = Math.round((i + 0.5) / steps * 255);
+  const stops = [0.32, 0.48, 0.66, 0.85, 1.0];
+  for (let i = 0; i < stops.length; i++) {
+    const v = Math.round(stops[i] * 255);
     ctx.fillStyle = `rgb(${v},${v},${v})`;
     ctx.fillRect(i, 0, 1, 1);
   }
@@ -262,12 +267,57 @@ function makeToonGradient(steps = 4) {
   return tex;
 }
 let TOON_GRAD;
+const TOON_MATERIALS = new Set();  // track for seasonal/env update
 function toonMat(color, opts = {}) {
-  return new THREE.MeshToonMaterial({
-    color,
-    gradientMap: TOON_GRAD,
-    ...opts,
+  const m = new THREE.MeshToonMaterial({
+    color, gradientMap: TOON_GRAD, ...opts,
   });
+  TOON_MATERIALS.add(m);
+  return m;
+}
+
+// ─── HDRI environment system ─────────────────────────────────
+let pmrem = null;
+let HDRI_ENVS = {};   // keyed by time-of-day band: 'night','dawn','day','dusk'
+let currentEnvBand = null;
+const HDRI_FILES = {
+  night: 'moonless_golf_1k.hdr',
+  dawn:  'kiara_2_sunrise_1k.hdr',
+  day:   'ninomaru_teien_1k.hdr',
+  dusk:  'spruit_sunrise_1k.hdr',
+};
+async function loadAllHDRIs() {
+  if (typeof THREE.RGBELoader !== 'function') {
+    console.warn('RGBELoader missing — skipping HDRI');
+    return;
+  }
+  pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  const loader = new THREE.RGBELoader();
+  loader.setDataType(THREE.HalfFloatType);
+  const promises = Object.entries(HDRI_FILES).map(([band, file]) => new Promise((resolve) => {
+    loader.load('assets/hdri/' + file, (tex) => {
+      const envMap = pmrem.fromEquirectangular(tex).texture;
+      tex.dispose();
+      HDRI_ENVS[band] = envMap;
+      resolve();
+    }, undefined, (err) => { console.warn('HDRI failed:', file, err); resolve(); });
+  }));
+  await Promise.all(promises);
+  // initial environment based on current time
+  applyHDRIForTime();
+}
+function applyHDRIForTime() {
+  if (!HDRI_ENVS || Object.keys(HDRI_ENVS).length === 0) return;
+  let band;
+  if (timeOfDay < 0.1 || timeOfDay > 0.92) band = 'night';
+  else if (timeOfDay < 0.28) band = 'dawn';
+  else if (timeOfDay < 0.7) band = 'day';
+  else band = 'dusk';
+  if (band !== currentEnvBand && HDRI_ENVS[band]) {
+    scene.environment = HDRI_ENVS[band];
+    currentEnvBand = band;
+  }
 }
 
 // ─── Terrain heightmap function (DRAMATIC 3D RELIEF v8) ────────
@@ -417,7 +467,10 @@ async function init() {
   );
   composer.addPass(smaa);
 
-  setLoadBar(0.15);
+  setLoadBar(0.1);
+
+  // Load HDRIs early (in parallel with scene build)
+  loadAllHDRIs().then(() => setLoadBar(0.4));
 
   // Build everything in the correct order
   buildSkyDome();
@@ -1222,6 +1275,15 @@ function createTree(x, z, kindOverride, scaleOverride) {
   g.userData = { windPhase: Math.random() * Math.PI * 2, windAmp: 0.025, kind, isWindObj: true };
   scene.add(g);
   FOLIAGE_OBJS.push(g);
+  // Contact shadow disc
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.7 * bs, 18),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.set(x, ty + 0.025, z);
+  shadow.renderOrder = -1;
+  scene.add(shadow);
 }
 
 function createBush(x, z) {
@@ -1523,6 +1585,19 @@ async function loadExternalAssets() {
           wrap.userData.spec = spec;
           scene.add(wrap);
           externalAssets[spec.role] = wrap;
+          // Contact shadow disc beneath (baked AO substitute)
+          if (spec.shadow !== false && spec.role && !spec.role.startsWith('koi') && !spec.role.startsWith('grass')) {
+            const newBox = new THREE.Box3().setFromObject(wrap);
+            const footRadius = Math.max(0.4, Math.min(2.2, (newBox.max.x - newBox.min.x) * 0.55));
+            const shadow = new THREE.Mesh(
+              new THREE.CircleGeometry(footRadius, 24),
+              new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false })
+            );
+            shadow.rotation.x = -Math.PI / 2;
+            shadow.position.set(spec.x, ty + 0.025, spec.z);
+            shadow.renderOrder = -1;
+            scene.add(shadow);
+          }
           // tag lanterns for night glow boost
           if (spec.lantern) {
             wrap.traverse(c => {
@@ -1850,6 +1925,9 @@ function updateTimeOfDay(dt) {
     bloomPass.threshold = 0.86 - nightFactor * 0.2;
   }
 
+  // HDRI environment swap by time-of-day band
+  applyHDRIForTime();
+
   // labels
   const labels = ['夜','夜','暁','朝','朝','昼','昼','夕','夕','宵','夜'];
   const idx = Math.min(labels.length - 1, Math.floor(t * labels.length));
@@ -2007,35 +2085,58 @@ function bindHud() {
   document.getElementById('season-btn').addEventListener('click', cycleSeason);
 }
 
+// ─── Seasonal smooth transitions ────────────────────────────
+const SEASON_TRANSITIONS = []; // active interpolations { mat, fromCol, toCol, t, dur }
+function colorForKindSeason(kind, sea) {
+  const PALETTE = {
+    sakura:  { cedar:0x4a7a3a, pine:0x3a5a30, maple:0xb8d878, momiji:0xa8c060, sakura:0xf2b8c8, willow:0xa5b860, bamboo:0x6ea850, other:0x6ea850 },
+    summer:  { cedar:0x3a6a30, pine:0x2a5226, maple:0x4a8a3a, momiji:0x4a8a3a, sakura:0x6aa854, willow:0x6e9248, bamboo:0x4a8a3a, other:0x4a8a3a },
+    momiji:  { cedar:0x4a7038, pine:0x3a5028, maple:0xc66a2c, momiji:0xc54632, sakura:0xd8a060, willow:0xb09848, bamboo:0xa89858, other:0xb88a3a },
+    yuki:    { cedar:0x5a7058, pine:0x4a5e44, maple:0xd8d0c0, momiji:0xc0b8a8, sakura:0xe0e0e0, willow:0xb8c0b8, bamboo:0xc0c0a8, other:0xd0d0c8 },
+  };
+  return (PALETTE[sea] && (PALETTE[sea][kind] || PALETTE[sea].other)) || 0x6a9d52;
+}
 function cycleSeason() {
   const order = ['sakura', 'summer', 'momiji', 'yuki'];
   const labels = { sakura: '桜', summer: '夏', momiji: '紅', yuki: '雪' };
   const idx = order.indexOf(season);
   season = order[(idx + 1) % order.length];
   document.getElementById('season-btn').textContent = labels[season];
-  applySeason();
+  startSeasonTransition(season);
 }
-function applySeason() {
-  // adjust foliage colors and ground tint
+function startSeasonTransition(sea) {
+  // queue smooth interpolations across all foliage materials
+  SEASON_TRANSITIONS.length = 0;
   for (const obj of FOLIAGE_OBJS) {
+    const kind = obj.userData.kind || 'other';
+    const targetHex = colorForKindSeason(kind, sea);
     obj.children.forEach(c => {
-      if (c.userData && c.userData.isLeaf && c.material) {
-        const kind = obj.userData.kind || 'cedar';
-        let col;
-        if (season === 'sakura') {
-          col = kind === 'sakura' ? 0xf2b8c8 : (kind === 'maple' ? 0xb8d878 : (kind === 'momiji' ? 0xa8c060 : (kind === 'cedar' || kind === 'pine' ? 0x4a7a3a : 0x6ea850)));
-        } else if (season === 'summer') {
-          col = kind === 'cedar' || kind === 'pine' ? 0x3a6a30 : 0x4a8a3a;
-        } else if (season === 'momiji') {
-          col = kind === 'cedar' || kind === 'pine' ? 0x4a7038 : (kind === 'maple' ? 0xc66a2c : (kind === 'momiji' ? 0xc54632 : (kind === 'sakura' ? 0xd8a060 : 0xc0a040)));
-        } else if (season === 'yuki') {
-          col = kind === 'cedar' || kind === 'pine' ? 0x5a7058 : 0xd8d0c0;
-        }
-        if (col !== undefined) c.material.color = new THREE.Color(col);
+      if (c.userData && c.userData.isLeaf && c.material && c.material.color) {
+        SEASON_TRANSITIONS.push({
+          mat: c.material,
+          fromCol: c.material.color.clone(),
+          toCol: new THREE.Color(targetHex),
+          t: 0,
+          dur: 2.2,
+        });
       }
     });
   }
-  showAchievement('季節がめぐる', { sakura: '春の桜', summer: '夏の濃緑', momiji: '秋の紅葉', yuki: '冬の雪化粧' }[season]);
+  // ground tint shift via fog color drift (handled in updateTimeOfDay later)
+  showAchievement('季節がめぐる', { sakura: '春の桜', summer: '夏の濃緑', momiji: '秋の紅葉', yuki: '冬の雪化粧' }[sea]);
+}
+function updateSeasonTransitions(dt) {
+  if (!SEASON_TRANSITIONS.length) return;
+  let active = false;
+  for (const tr of SEASON_TRANSITIONS) {
+    tr.t = Math.min(tr.dur, tr.t + dt);
+    const k = tr.t / tr.dur;
+    // easeInOutCubic
+    const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    tr.mat.color.copy(tr.fromCol).lerp(tr.toCol, e);
+    if (tr.t < tr.dur) active = true;
+  }
+  if (!active) SEASON_TRANSITIONS.length = 0;
 }
 
 // ─── Place visit / overlay ────────────────────────────────
@@ -2265,6 +2366,7 @@ function animate() {
   updateCameraFollow();
   updateProximity(t);
   updateTimeOfDay(dt);
+  updateSeasonTransitions(dt);
   updatePetals(dt, t);
   updateFireflies(t);
   updateDust(t);
