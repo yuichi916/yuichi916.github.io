@@ -190,6 +190,8 @@ canvas{display:block;touch-action:none}
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/shaders/CopyShader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/shaders/LuminosityHighPassShader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/shaders/SMAAShader.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/shaders/BokehShader.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/postprocessing/BokehPass.js"></script>
 <script>
 'use strict';
 // ─────────────────────────────────────────────────────────────────────
@@ -623,6 +625,19 @@ async function init() {
     const gradePass = new THREE.ShaderPass(colorGradeShader);
     composer.addPass(gradePass);
     window.__gradePass = gradePass;
+  }
+
+  // Depth of Field (Bokeh) — subtle painterly soft focus on distant objects
+  if (typeof THREE.BokehPass === 'function') {
+    const bokeh = new THREE.BokehPass(scene, camera, {
+      focus: 16.0,    // focal distance (around the avatar/plaza)
+      aperture: 0.00012,  // small aperture = subtle blur
+      maxblur: 0.008,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+    composer.addPass(bokeh);
+    window.__bokeh = bokeh;
   }
 
   // SMAA for crisp edges (last)
