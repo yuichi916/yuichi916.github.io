@@ -2933,26 +2933,59 @@ function buildBiomeDetails() {
     scene.add(pad);
   }
 
-  // Forest: dappled light shafts (cone meshes) coming through canopy
+  // Forest: dappled light shafts (cone meshes) coming through canopy — 12 shafts
   const shaftMat = new THREE.MeshBasicMaterial({
-    color: 0xfff4d0, transparent: true, opacity: 0.06,
+    color: 0xfff4d0, transparent: true, opacity: 0.10,
     blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
   });
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 12; i++) {
     const a = Math.random() * Math.PI * 2;
     const r = 2 + Math.random() * (BIOMES.forest.radius - 4);
     const x = BIOMES.forest.cx + Math.cos(a) * r;
     const z = BIOMES.forest.cz + Math.sin(a) * r;
     const ty = getTerrainHeight(x, z);
     const shaft = new THREE.Mesh(
-      new THREE.ConeGeometry(1.6, 8, 8, 1, true),
+      new THREE.ConeGeometry(1.4 + Math.random() * 0.6, 9, 8, 1, true),
       shaftMat.clone()
     );
-    shaft.position.set(x, ty + 5, z);
-    shaft.rotation.z = (Math.random() - 0.5) * 0.3;
+    shaft.position.set(x, ty + 5.5, z);
+    shaft.rotation.z = (Math.random() - 0.5) * 0.4;
     shaft.userData.isForestShaft = true;
     scene.add(shaft);
   }
+  // Forest: dark canopy shadow disc (very low opacity dark plane)
+  const canopyShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(BIOMES.forest.radius * 0.85, 32),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.MultiplyBlending })
+  );
+  canopyShadow.rotation.x = -Math.PI / 2;
+  canopyShadow.position.set(BIOMES.forest.cx, getTerrainHeight(BIOMES.forest.cx, BIOMES.forest.cz) + 0.04, BIOMES.forest.cz);
+  canopyShadow.renderOrder = 0;
+  scene.add(canopyShadow);
+
+  // Forest fireflies (dense, always visible — woodland creatures)
+  const forestFf = new THREE.Group();
+  for (let i = 0; i < 20; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * BIOMES.forest.radius * 0.85;
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 6, 5),
+      new THREE.MeshBasicMaterial({ color: 0xddff80, transparent: true, opacity: 0.7 })
+    );
+    m.userData = {
+      cx: BIOMES.forest.cx + Math.cos(a) * r,
+      cz: BIOMES.forest.cz + Math.sin(a) * r,
+      cy: 1.0 + Math.random() * 1.5,
+      r: 0.4 + Math.random() * 1.0,
+      speed: 0.4 + Math.random() * 0.6,
+      phase: Math.random() * Math.PI * 2,
+      blinkPhase: Math.random() * Math.PI * 2,
+    };
+    m.position.set(m.userData.cx, m.userData.cy, m.userData.cz);
+    forestFf.add(m);
+  }
+  scene.add(forestFf);
+  window.__forestFf = forestFf;
 
   // Village: hanging string of lanterns between two posts (chochin)
   const stringStart = { x: BIOMES.village.cx - 3, z: BIOMES.village.cz + 2 };
@@ -3045,6 +3078,29 @@ function buildBiomeDetails() {
       if (!window.__prayerFlags) window.__prayerFlags = [];
       window.__prayerFlags.push(flag);
     }
+  }
+
+  // Mountain snow cap on summit area
+  const snowGeo = new THREE.CircleGeometry(3.5, 18);
+  const snow = new THREE.Mesh(snowGeo, new THREE.MeshLambertMaterial({ color: 0xfafcff, transparent: true, opacity: 0.85 }));
+  snow.rotation.x = -Math.PI / 2;
+  snow.position.set(BIOMES.mountain.cx, getTerrainHeight(BIOMES.mountain.cx, BIOMES.mountain.cz) + 0.06, BIOMES.mountain.cz);
+  scene.add(snow);
+  // Snow patches around summit
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const sr = 2 + Math.random() * 4;
+    const sx = BIOMES.mountain.cx + Math.cos(a) * sr;
+    const sz = BIOMES.mountain.cz + Math.sin(a) * sr;
+    const ty = getTerrainHeight(sx, sz);
+    if (ty < 3.5) continue;
+    const patch = new THREE.Mesh(
+      new THREE.CircleGeometry(0.5 + Math.random() * 0.4, 10),
+      new THREE.MeshLambertMaterial({ color: 0xfafcff, transparent: true, opacity: 0.75 })
+    );
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.set(sx, ty + 0.05, sz);
+    scene.add(patch);
   }
 
   // Summit lookout deck (wooden platform with railing)
@@ -4261,6 +4317,16 @@ function animate() {
   updateBonfire(dt, t);
   updateBiomeAtmosphere(dt);
   updatePrayerFlags(t);
+  // Forest fireflies animate independently of time-of-day
+  if (window.__forestFf) {
+    for (const m of window.__forestFf.children) {
+      const u = m.userData;
+      m.position.x = u.cx + Math.sin(t * u.speed + u.phase) * u.r;
+      m.position.z = u.cz + Math.cos(t * u.speed * 0.7 + u.phase) * u.r;
+      m.position.y = u.cy + Math.sin(t * u.speed * 1.3 + u.phase) * 0.3;
+      m.material.opacity = 0.35 + 0.45 * Math.max(0, Math.sin(t * 2.4 + u.blinkPhase));
+    }
+  }
   // Sun flare position + intensity
   if (_sunFlareSprite && scene.userData.lights) {
     const sunPos = scene.userData.lights.sun.position.clone().normalize().multiplyScalar(120);
