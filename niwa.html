@@ -716,6 +716,7 @@ async function init() {
   buildDustMotes();
   buildGroundMist();
   buildBiomeSignposts();
+  buildBiomeDetails();
   buildAvatar();
   buildPlaceHovers();
   buildPetals();
@@ -2730,6 +2731,144 @@ function updateGodRays(t) {
         m.material.color.lerp(tgt, k);
       }
     });
+  }
+}
+
+// ─── Per-biome detail (forest density, village fence, lake reeds, mountain steps) ───
+function buildBiomeDetails() {
+  // === 森 (Forest) — dense conifer cover (+30 trees scattered within biome) ===
+  for (let i = 0; i < 30; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 2 + Math.random() * (BIOMES.forest.radius - 1);
+    const x = BIOMES.forest.cx + Math.cos(a) * r;
+    const z = BIOMES.forest.cz + Math.sin(a) * r;
+    if (Math.hypot(x, z) > MAP.innerR - 2) continue;
+    // Avoid the cabin spot
+    if (Math.hypot(x - BIOMES.forest.cx, z - BIOMES.forest.cz) < 3.5) continue;
+    const kind = Math.random() < 0.65 ? 'cedar' : (Math.random() < 0.5 ? 'pine' : 'momiji');
+    createTree(x, z, kind, 0.85 + Math.random() * 0.45);
+  }
+  // Mushroom clusters on forest floor
+  for (let i = 0; i < 12; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 2 + Math.random() * (BIOMES.forest.radius - 2);
+    const x = BIOMES.forest.cx + Math.cos(a) * r;
+    const z = BIOMES.forest.cz + Math.sin(a) * r;
+    const cap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 8, 6, 0, Math.PI*2, 0, Math.PI/2),
+      toonMat(0xc83a3a)
+    );
+    cap.position.set(x, getTerrainHeight(x, z) + 0.22, z);
+    cap.castShadow = true;
+    scene.add(cap);
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.07, 0.18, 6),
+      toonMat(0xf8e8c0)
+    );
+    stem.position.set(x, getTerrainHeight(x, z) + 0.09, z);
+    scene.add(stem);
+  }
+
+  // === 村 (Village) — wooden fence segments + well + small huts ===
+  // Fence around village (open arcs facing center)
+  const fenceMat = toonMat(0x6a4828);
+  const fenceCount = 18;
+  for (let i = 0; i < fenceCount; i++) {
+    const a = (i / fenceCount) * Math.PI * 2;
+    // Skip the side facing plaza (between -135 and -45 deg of biome local)
+    const towardPlaza = Math.atan2(-BIOMES.village.cz, -BIOMES.village.cx);
+    let aDiff = a - towardPlaza;
+    while (aDiff > Math.PI) aDiff -= Math.PI * 2;
+    while (aDiff < -Math.PI) aDiff += Math.PI * 2;
+    if (Math.abs(aDiff) < 0.9) continue;
+    const r = 11.5;
+    const x = BIOMES.village.cx + Math.cos(a) * r;
+    const z = BIOMES.village.cz + Math.sin(a) * r;
+    // Two vertical posts + horizontal beam
+    const post1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.2, 0.1), fenceMat);
+    post1.position.set(x, getTerrainHeight(x, z) + 0.6, z);
+    post1.castShadow = true;
+    scene.add(post1);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 0.08), fenceMat);
+    beam.position.set(x, getTerrainHeight(x, z) + 0.8, z);
+    beam.rotation.y = a + Math.PI / 2;
+    beam.castShadow = true;
+    scene.add(beam);
+  }
+  // Village well (procedural simple)
+  const wellX = BIOMES.village.cx - 1, wellZ = BIOMES.village.cz - 1;
+  const wellY = getTerrainHeight(wellX, wellZ);
+  const wellStone = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 0.6, 14), toonMat(0x9a948a));
+  wellStone.position.set(wellX, wellY + 0.3, wellZ);
+  wellStone.castShadow = true; wellStone.receiveShadow = true;
+  scene.add(wellStone);
+  for (let i = 0; i < 2; i++) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.4, 6), toonMat(0x4a3220));
+    pole.position.set(wellX + (i === 0 ? -0.5 : 0.5), wellY + 1.05, wellZ);
+    pole.castShadow = true;
+    scene.add(pole);
+  }
+  const wellRoof = new THREE.Mesh(new THREE.ConeGeometry(0.85, 0.45, 4), toonMat(0x6e4828));
+  wellRoof.rotation.y = Math.PI / 4;
+  wellRoof.position.set(wellX, wellY + 1.95, wellZ);
+  wellRoof.castShadow = true;
+  scene.add(wellRoof);
+
+  // === 湖 (Lake) — reeds along shoreline ===
+  const reedMat = toonMat(0x6e9648);
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * Math.PI * 2;
+    // Place at edge of lake biome (radius 6-9 from lake center)
+    const r = 6.8 + Math.random() * 1.8;
+    const x = BIOMES.lake.cx + Math.cos(a) * r;
+    const z = BIOMES.lake.cz + Math.sin(a) * r;
+    if (Math.hypot(x, z) > MAP.innerR - 1) continue;
+    const reed = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.6 + Math.random() * 0.3, 4), reedMat);
+    reed.position.set(x, getTerrainHeight(x, z) + 0.3, z);
+    reed.rotation.z = (Math.random() - 0.5) * 0.15;
+    reed.castShadow = true;
+    scene.add(reed);
+  }
+  // Lily pads (more)
+  for (let i = 0; i < 10; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * 5;
+    const x = BIOMES.lake.cx + Math.cos(a) * r;
+    const z = BIOMES.lake.cz + Math.sin(a) * r;
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(0.35 + Math.random() * 0.2, 12), toonMat(0x4d7a48));
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.set(x, WATER_Y + 0.04, z);
+    scene.add(pad);
+  }
+
+  // === 山 (Mountain) — stone steps winding up the path ===
+  const stoneMat = toonMat(0xb0a89c);
+  const stepCount = 32;
+  for (let i = 0; i < stepCount; i++) {
+    const t = i / stepCount;
+    const a = t * Math.PI * 4.5;
+    const r = 12 - t * 10;  // starts at edge of biome, spirals inward
+    const x = BIOMES.mountain.cx + Math.cos(a) * r;
+    const z = BIOMES.mountain.cz + Math.sin(a) * r;
+    const y = getTerrainHeight(x, z);
+    const step = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.15, 0.5), stoneMat);
+    step.position.set(x, y + 0.1, z);
+    step.rotation.y = -a + Math.PI / 2;
+    step.castShadow = true; step.receiveShadow = true;
+    scene.add(step);
+  }
+  // Stone markers along the path
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 4.5;
+    const r = 11 - i * 1.5;
+    const x = BIOMES.mountain.cx + Math.cos(a) * r;
+    const z = BIOMES.mountain.cz + Math.sin(a) * r;
+    if (i % 2 === 0) {
+      const marker = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.6, 0.15), stoneMat);
+      marker.position.set(x + 0.6, getTerrainHeight(x, z) + 0.3, z);
+      marker.castShadow = true;
+      scene.add(marker);
+    }
   }
 }
 
