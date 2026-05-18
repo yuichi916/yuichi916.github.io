@@ -402,31 +402,43 @@ function foliageMat(baseHex, opts = {}) {
         float ndl = dot(N, L);
         // wrapped diffuse — leaves catch more soft light
         float diff = ndl * 0.5 + 0.5;
-        // 3-step toon ramp
-        float t1 = step(0.4, diff);
-        float t2 = step(0.72, diff);
-        float lit = 0.55 + t1 * 0.2 + t2 * 0.25;
+        // 4-step toon ramp for smoother painterly transitions
+        float t1 = step(0.35, diff);
+        float t2 = step(0.55, diff);
+        float t3 = step(0.78, diff);
+        float lit = 0.45 + t1 * 0.18 + t2 * 0.20 + t3 * 0.22;
 
-        // sample leaf noise based on object-space position for tree-shape variation
+        // Multi-octave noise for leaf clusters (object-space)
         vec2 nuv = vObjectPos.xz * noiseScale + vObjectPos.y * 0.4;
-        float leaf = texture2D(noiseMap, nuv).r;
-        leaf = 0.8 + leaf * 0.4;  // 0.8..1.2 modulation
-        // also a secondary high-freq layer
+        float leaf  = texture2D(noiseMap, nuv).r;
+        leaf = 0.75 + leaf * 0.5;          // wider modulation
         float leaf2 = texture2D(noiseMap, nuv * 3.7 + vec2(13.0, 7.0)).r;
-        float speckle = (leaf2 - 0.5) * 0.18;
+        float speckle = (leaf2 - 0.5) * 0.22;
+        float leaf3 = texture2D(noiseMap, nuv * 9.0 + vec2(0.3, 5.8)).r;
+        float fine = (leaf3 - 0.5) * 0.10;
 
-        // subsurface scatter: light coming through leaves from behind
+        // Top-of-canopy highlight (sun-facing leaves brighter)
+        float topMask = smoothstep(0.0, 1.5, vObjectPos.y);
+        float topLight = topMask * max(0.0, ndl) * 0.32;
+
+        // SSS: light through leaves from behind
         float backLight = max(0.0, dot(-N, L));
-        vec3 sss = baseColor * backLight * sssIntensity * vec3(1.2, 1.15, 0.9);
+        vec3 sss = baseColor * backLight * sssIntensity * vec3(1.25, 1.18, 0.9);
 
-        // rim lighting at silhouette
+        // Rim light - now stronger and warmer
         float rim = pow(1.0 - max(0.0, dot(N, vViewDir)), rimPower);
 
-        // base color modulated by leaf noise; darken in shadows
-        vec3 col = baseColor * (leaf + speckle);
-        col = mix(shadowTint * baseColor, col, lit);
+        // Combine
+        vec3 col = baseColor * (leaf + speckle + fine);
+        col = mix(shadowTint * baseColor * 1.1, col, lit);
         col += sss;
         col += rimColor * rim * rimStrength;
+        col += rimColor * topLight;
+
+        // Slight color variation per cluster (use vObjectPos for hash)
+        float hueShift = (texture2D(noiseMap, vObjectPos.xz * 0.3).r - 0.5) * 0.08;
+        col.r *= (1.0 + hueShift * 0.6);
+        col.b *= (1.0 - hueShift * 0.4);
 
         gl_FragColor = vec4(col, 1.0);
       }
