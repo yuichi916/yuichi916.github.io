@@ -715,6 +715,7 @@ async function init() {
   buildSunFlare();
   buildDustMotes();
   buildGroundMist();
+  buildBiomeSignposts();
   buildAvatar();
   buildPlaceHovers();
   buildPetals();
@@ -934,29 +935,32 @@ function buildHeightmapTerrain() {
     // Biome-aware coloring
     const b = biomeAt(x, z).key;
     let baseG;
-    if (h < -1.5) baseG = 0x4a3320;                  // deep earth
-    else if (b === 'lake' && h < -0.4) baseG = 0x4a6680;  // lake bed (visible if water transparent)
+    if (h < -1.5) baseG = 0x3a2818;                          // deep earth (under cliffs)
+    else if (b === 'lake' && h < -0.4) baseG = 0x2a3a50;     // lake bed (visible if water transparent)
     else if (b === 'forest') {
-      if (isSlope) baseG = 0x5e4a30;                 // forest floor exposed earth
-      else baseG = h > 0.5 ? 0x4a7038 : (h > 0 ? 0x3e5e30 : 0x2e4628);  // deep mossy green
+      // Dark mossy forest floor — deeply shaded
+      if (isSlope) baseG = 0x4a3820;                          // forest dirt slopes
+      else baseG = h > 0.5 ? 0x355028 : (h > 0 ? 0x2a4220 : 0x1e3018);  // very deep mossy
     }
     else if (b === 'village') {
-      if (isSlope) baseG = 0x8a7456;                 // village dirt path
-      else baseG = h > 0.6 ? 0xa8b070 : 0x88a256;    // managed pasture
+      // Bright managed pasture — dirt paths
+      if (isSlope) baseG = 0x9a7e58;                          // village dirt path
+      else baseG = h > 0.6 ? 0xb8c078 : 0x96b060;             // bright managed grass
     }
     else if (b === 'lake') {
-      // shoreline sandy/grassy
-      baseG = h > 0 ? 0x8aa05a : 0x9a8866;           // dry shore
+      // Sandy shoreline (warm tone) vs grassy lakeside
+      baseG = h > 0 ? 0xb09058 : 0xc8a878;                    // bright sandy shore
     }
     else if (b === 'mountain') {
-      if (isSlope) baseG = h > 4 ? 0xa09080 : 0x6a5a44;  // mountain rock/dirt
-      else baseG = h > 4 ? 0xc4b890 : (h > 2 ? 0x86a560 : 0x6a8a4a);  // alpine grass
+      // Alpine: rock at altitude, grass on slopes
+      if (isSlope) baseG = h > 4 ? 0xb8a48a : 0x6e5a40;       // mountain rock pale / dirt
+      else baseG = h > 4 ? 0xd0c8a8 : (h > 2 ? 0x82a058 : 0x4a8050);  // alpine
     }
     else {
-      // plaza/transition
-      if (isSlope) baseG = 0x6a5a40;
-      else if (h < 0.1) baseG = 0x5a7a3a;
-      else baseG = 0x7ea556;
+      // plaza/transition - warm khaki
+      if (isSlope) baseG = 0x826a48;
+      else if (h < 0.1) baseG = 0x6e9248;
+      else baseG = 0x9eb866;
     }
     tmpC.setHex(baseG);
     tmpC.offsetHSL(0, -0.04 + noise * 0.2, noise);
@@ -2726,6 +2730,56 @@ function updateGodRays(t) {
         m.material.color.lerp(tgt, k);
       }
     });
+  }
+}
+
+// ─── Biome signposts (wooden marker at each biome entrance) ──
+function buildBiomeSignposts() {
+  const biomeColors = { forest:0x5a3a22, village:0x8a6232, lake:0x88a8bc, mountain:0xa09680 };
+  const signs = [
+    { biome:'forest',   text:'森', dirX:-1, dirZ:-1 },
+    { biome:'village',  text:'村', dirX: 1, dirZ:-1 },
+    { biome:'lake',     text:'湖', dirX: 1, dirZ: 1 },
+    { biome:'mountain', text:'山', dirX:-1, dirZ: 1 },
+  ];
+  for (const s of signs) {
+    const b = BIOMES[s.biome];
+    // Place sign at the boundary between plaza and biome (about 30% in)
+    const dx = b.cx * 0.4;
+    const dz = b.cz * 0.4;
+    const g = new THREE.Group();
+    // Post
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.4, 0.18), toonMat(0x4a3a22));
+    post.position.y = 1.2; post.castShadow = true; g.add(post);
+    // Sign board (kanji texture)
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#e8d4a0'; ctx.fillRect(0, 0, 128, 128);
+    ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 6; ctx.strokeRect(8, 8, 112, 112);
+    ctx.fillStyle = '#1a1008';
+    ctx.font = '900 78px "Shippori Mincho", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(s.text, 64, 70);
+    const tex = new THREE.CanvasTexture(c);
+    const boardMat = new THREE.MeshLambertMaterial({ map: tex });
+    const board = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.08), boardMat);
+    board.position.y = 1.9; board.castShadow = true;
+    // Rotate to face the biome direction
+    board.rotation.y = Math.atan2(dx, dz);
+    g.add(board);
+    // Small lantern on top (always glowing)
+    const lan = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8),
+      new THREE.MeshStandardMaterial({ color: 0xfff2c0, emissive: 0xffb060, emissiveIntensity: 0.5 }));
+    lan.position.y = 2.6;
+    lan.userData.isLanternHead = true;
+    g.add(lan);
+    lanternHeads.push({ mesh: lan, light: null });
+    const ty = getTerrainHeight(dx, dz);
+    g.position.set(dx, ty, dz);
+    g.rotation.y = Math.atan2(dx, dz);
+    scene.add(g);
   }
 }
 
