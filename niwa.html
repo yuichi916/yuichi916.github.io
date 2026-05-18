@@ -657,6 +657,8 @@ async function init() {
   buildGodRays();
   growGrassTufts();
   scatterWildflowers();
+  buildSunFlare();
+  buildDustMotes();
   buildAvatar();
   buildPlaceHovers();
   buildPetals();
@@ -2595,6 +2597,101 @@ function updateGodRays(t) {
   }
 }
 
+// ─── Sun lens flare (additive sprite at sun position) ─────────
+let _sunFlareSprite = null;
+function buildSunFlare() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  // Bright central blob + glow halo
+  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, 'rgba(255,255,255,1.0)');
+  g.addColorStop(0.05, 'rgba(255,250,220,0.95)');
+  g.addColorStop(0.18, 'rgba(255,220,150,0.6)');
+  g.addColorStop(0.4, 'rgba(255,180,100,0.2)');
+  g.addColorStop(0.7, 'rgba(255,150,80,0.06)');
+  g.addColorStop(1, 'rgba(255,150,80,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  // Subtle starburst
+  ctx.strokeStyle = 'rgba(255,240,200,0.45)';
+  ctx.lineWidth = 4;
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(128 + Math.cos(angle) * 8, 128 + Math.sin(angle) * 8);
+    ctx.lineTo(128 + Math.cos(angle) * 100, 128 + Math.sin(angle) * 100);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    color: 0xfff4d0,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: false,
+    opacity: 0.0,
+  });
+  _sunFlareSprite = new THREE.Sprite(mat);
+  _sunFlareSprite.scale.set(14, 14, 1);
+  _sunFlareSprite.renderOrder = 990;
+  scene.add(_sunFlareSprite);
+}
+
+// ─── Floating dust motes (visible in light shafts) ────────────
+let _dustMotes = null;
+function buildDustMotes() {
+  const N = 70;
+  const positions = new Float32Array(N * 3);
+  const colors = new Float32Array(N * 3);
+  const sizes = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    positions[i*3]   = (Math.random() - 0.5) * 30;
+    positions[i*3+1] = 1.5 + Math.random() * 6.0;
+    positions[i*3+2] = (Math.random() - 0.5) * 30;
+    colors[i*3]   = 1.0;
+    colors[i*3+1] = 0.92;
+    colors[i*3+2] = 0.7;
+    sizes[i] = 0.05 + Math.random() * 0.08;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 } },
+    vertexShader: `
+      attribute float size; varying vec3 vColor; uniform float time;
+      void main(){
+        vColor = color;
+        vec3 p = position;
+        // gentle drift up and sway
+        p.y += sin(time * 0.3 + position.x) * 0.4;
+        p.x += cos(time * 0.2 + position.z) * 0.3;
+        vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = size * (60.0 / -mvPosition.z);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vColor;
+      void main(){
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        if (d > 1.0) discard;
+        float a = (1.0 - d * d) * 0.45;
+        gl_FragColor = vec4(vColor, a);
+      }
+    `,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+    vertexColors: true,
+  });
+  _dustMotes = new THREE.Points(geo, mat);
+  scene.add(_dustMotes);
+}
+
 // ─── 3D grass tufts (instanced thin blades) ────────────────────
 function growGrassTufts() {
   const N = 1800;
@@ -3499,6 +3596,28 @@ function animate() {
   updateSeasonTransitions(dt);
   updateGodRays(t);
   updateBonfire(dt, t);
+  // Sun flare position + intensity
+  if (_sunFlareSprite && scene.userData.lights) {
+    const sunPos = scene.userData.lights.sun.position.clone().normalize().multiplyScalar(120);
+    // place behind camera-relative direction so it appears in-scene; track sun world position
+    _sunFlareSprite.position.copy(scene.userData.lights.sun.position).normalize().multiplyScalar(100);
+    const sunI = scene.userData.lights.sun.intensity;
+    let baseOp = 0;
+    if (timeOfDay > 0.62 && timeOfDay < 0.85) baseOp = 0.95;
+    else if (timeOfDay > 0.12 && timeOfDay < 0.3) baseOp = 0.85;
+    else if (sunI > 0.55) baseOp = 0.45;
+    else baseOp = 0;
+    _sunFlareSprite.material.opacity = baseOp;
+    _sunFlareSprite.material.color.copy(scene.userData.lights.sun.color);
+  }
+  if (_dustMotes && _dustMotes.material.uniforms) {
+    _dustMotes.material.uniforms.time.value = t;
+    // dust more visible at dawn/dusk + day, fade at night
+    if (scene.userData.lights) {
+      const sunI = scene.userData.lights.sun.intensity;
+      _dustMotes.visible = sunI > 0.35;
+    }
+  }
   if (window.__waterTop && window.__waterTop.material.uniforms) {
     window.__waterTop.material.uniforms.time.value = t;
     if (scene.userData.lights) {
