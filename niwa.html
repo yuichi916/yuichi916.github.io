@@ -1013,6 +1013,89 @@ function buildKoiPond() {
   }));
   tint.position.set(px, WATER_Y - 0.02, pz);
   scene.add(tint);
+  // Painterly water surface layer above the reflector
+  const waterTopGeo = new THREE.CircleGeometry(2.7, 64);
+  waterTopGeo.rotateX(-Math.PI / 2);
+  const waterTopMat = new THREE.ShaderMaterial({
+    uniforms: {
+      time: { value: 0 },
+      surfaceColor: { value: new THREE.Color(0x9ec0d8) },
+      deepColor:    { value: new THREE.Color(0x405068) },
+      sparkleColor: { value: new THREE.Color(0xffffff) },
+      sunDir:       { value: new THREE.Vector3(0.6, 0.7, 0.3).normalize() },
+    },
+    transparent: true,
+    depthWrite: false,
+    vertexShader: `
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
+      void main(){
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      uniform float time;
+      uniform vec3 surfaceColor;
+      uniform vec3 deepColor;
+      uniform vec3 sparkleColor;
+      uniform vec3 sunDir;
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
+
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vnoise(vec2 p){
+        vec2 i = floor(p); vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = hash(i), b = hash(i + vec2(1,0));
+        float c = hash(i + vec2(0,1)), d = hash(i + vec2(1,1));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
+      float fbm(vec2 p){
+        float v = 0.0, a = 0.5;
+        for(int i = 0; i < 4; i++){ v += a * vnoise(p); p *= 2.0; a *= 0.5; }
+        return v;
+      }
+
+      void main(){
+        vec2 uv = vWorldPos.xz * 0.5;
+        // wave distortion
+        float w1 = fbm(uv + vec2(time * 0.12, time * 0.08));
+        float w2 = fbm(uv * 2.4 + vec2(-time * 0.16, time * 0.11));
+        float waves = (w1 - 0.5) * 0.5 + (w2 - 0.5) * 0.25;
+        // base water tone (gradient from edge to center)
+        vec2 center = vec2(-8.5, 3.5);
+        float distC = length(vWorldPos.xz - center) / 2.7;
+        vec3 base = mix(deepColor, surfaceColor, smoothstep(0.0, 1.2, distC) * 0.4 + 0.55);
+        base += waves * 0.18;
+        // caustic-like bright streaks
+        float caustic = pow(fbm(uv * 3.0 + vec2(time * 0.2, -time * 0.13)), 3.0) * 0.4;
+        base += sparkleColor * caustic * 0.5;
+        // sparkles (kira-kira) — small bright dots
+        float sparkleNoise = pow(fbm(uv * 12.0 + vec2(time * 0.5, -time * 0.4)), 8.0);
+        base += sparkleColor * sparkleNoise * 2.0;
+        // sun glitter (bright spot facing sun)
+        vec3 N = normalize(vec3(waves * 0.5, 1.0, waves * 0.5));
+        float sunGlitter = pow(max(0.0, dot(N, normalize(sunDir))), 24.0) * 0.6;
+        base += sparkleColor * sunGlitter;
+        // edge foam (where pond meets land)
+        float edgeFoam = smoothstep(0.92, 1.0, distC) * 0.5 + smoothstep(0.98, 1.0, distC) * 0.3;
+        base = mix(base, vec3(0.95, 0.96, 0.95), edgeFoam * (0.6 + sparkleNoise));
+        // ripple lines (concentric, slow) for serenity
+        float ripple = abs(sin(distC * 18.0 - time * 1.2)) * 0.04 * smoothstep(1.0, 0.3, distC);
+        base += vec3(ripple);
+        gl_FragColor = vec4(base, 0.55);
+      }
+    `,
+  });
+  waterTopMat.userData.isPainterlyWater = true;
+  const waterTop = new THREE.Mesh(waterTopGeo, waterTopMat);
+  waterTop.position.set(px, WATER_Y + 0.02, pz);
+  waterTop.userData.isWaterSurface = true;
+  scene.add(waterTop);
+  window.__waterTop = waterTop;
   // Stone rim around the pond
   const rimGeo = new THREE.TorusGeometry(2.85, 0.22, 8, 32);
   rimGeo.rotateX(Math.PI / 2);
@@ -3257,6 +3340,12 @@ function animate() {
   updateSeasonTransitions(dt);
   updateGodRays(t);
   updateBonfire(dt, t);
+  if (window.__waterTop && window.__waterTop.material.uniforms) {
+    window.__waterTop.material.uniforms.time.value = t;
+    if (scene.userData.lights) {
+      window.__waterTop.material.uniforms.sunDir.value.copy(scene.userData.lights.sun.position).normalize();
+    }
+  }
   updatePetals(dt, t);
   updateFireflies(t);
   updateDust(t);
