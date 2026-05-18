@@ -276,6 +276,117 @@ function toonMat(color, opts = {}) {
   return m;
 }
 
+// ─── Painterly foliage shader (used for tree leaves & bushes) ─
+let LEAF_NOISE_TEX = null;
+function makeLeafNoiseTexture() {
+  // procedural leafy noise: small dabs of light/dark, like brush strokes
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgb(128,128,128)';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 360; i++) {
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const r = 1.5 + Math.random() * 3;
+    const v = Math.floor(60 + Math.random() * 195);
+    ctx.fillStyle = `rgb(${v},${v},${v})`;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+const FOLIAGE_MATERIALS = new Set();
+function foliageMat(baseHex, opts = {}) {
+  if (!LEAF_NOISE_TEX) LEAF_NOISE_TEX = makeLeafNoiseTexture();
+  const baseColor = new THREE.Color(baseHex);
+  const m = new THREE.ShaderMaterial({
+    uniforms: {
+      baseColor:   { value: baseColor },
+      shadowTint:  { value: new THREE.Color(0x3a4a2a) },  // deep moss shadow
+      rimColor:    { value: new THREE.Color(0xfff2c0) },  // golden rim
+      sunDir:      { value: new THREE.Vector3(0.6, 0.7, 0.3).normalize() },
+      noiseMap:    { value: LEAF_NOISE_TEX },
+      noiseScale:  { value: 1.6 },
+      sssIntensity:{ value: 0.42 },
+      rimPower:    { value: 2.4 },
+      rimStrength: { value: 0.42 },
+    },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec3 vViewDir;
+      varying vec3 vObjectPos;
+      void main(){
+        vNormal = normalize(normalMatrix * normal);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vViewDir = normalize(cameraPosition - wp.xyz);
+        vObjectPos = position;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 baseColor;
+      uniform vec3 shadowTint;
+      uniform vec3 rimColor;
+      uniform vec3 sunDir;
+      uniform sampler2D noiseMap;
+      uniform float noiseScale;
+      uniform float sssIntensity;
+      uniform float rimPower;
+      uniform float rimStrength;
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec3 vViewDir;
+      varying vec3 vObjectPos;
+
+      void main(){
+        vec3 N = normalize(vNormal);
+        vec3 L = normalize(sunDir);
+        float ndl = dot(N, L);
+        // wrapped diffuse — leaves catch more soft light
+        float diff = ndl * 0.5 + 0.5;
+        // 3-step toon ramp
+        float t1 = step(0.4, diff);
+        float t2 = step(0.72, diff);
+        float lit = 0.55 + t1 * 0.2 + t2 * 0.25;
+
+        // sample leaf noise based on object-space position for tree-shape variation
+        vec2 nuv = vObjectPos.xz * noiseScale + vObjectPos.y * 0.4;
+        float leaf = texture2D(noiseMap, nuv).r;
+        leaf = 0.8 + leaf * 0.4;  // 0.8..1.2 modulation
+        // also a secondary high-freq layer
+        float leaf2 = texture2D(noiseMap, nuv * 3.7 + vec2(13.0, 7.0)).r;
+        float speckle = (leaf2 - 0.5) * 0.18;
+
+        // subsurface scatter: light coming through leaves from behind
+        float backLight = max(0.0, dot(-N, L));
+        vec3 sss = baseColor * backLight * sssIntensity * vec3(1.2, 1.15, 0.9);
+
+        // rim lighting at silhouette
+        float rim = pow(1.0 - max(0.0, dot(N, vViewDir)), rimPower);
+
+        // base color modulated by leaf noise; darken in shadows
+        vec3 col = baseColor * (leaf + speckle);
+        col = mix(shadowTint * baseColor, col, lit);
+        col += sss;
+        col += rimColor * rim * rimStrength;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+  });
+  m.userData.isFoliage = true;
+  m.userData.baseColorRef = baseColor;  // for season swap to reach the uniform
+  FOLIAGE_MATERIALS.add(m);
+  return m;
+}
+
 // ─── HDRI environment system ─────────────────────────────────
 let pmrem = null;
 let HDRI_ENVS = {};   // keyed by time-of-day band: 'night','dawn','day','dusk'
@@ -1487,7 +1598,7 @@ function createTree(x, z, kindOverride, scaleOverride) {
       const cane = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, height, 6), toonMat(pal.trunk));
       cane.position.set(ox, height / 2, oz);
       cane.castShadow = true; g.add(cane);
-      const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), toonMat(pal.foliage));
+      const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), foliageMat(pal.foliage));
       tuft.position.set(ox, height + 0.15, oz);
       tuft.scale.set(1.3, 0.8, 1.3);
       tuft.castShadow = true; tuft.userData.isLeaf = true;
@@ -1499,14 +1610,14 @@ function createTree(x, z, kindOverride, scaleOverride) {
     trunk.position.y = trunkH / 2;
     trunk.castShadow = true; trunk.receiveShadow = true;
     g.add(trunk);
-    const top = new THREE.Mesh(new THREE.SphereGeometry(1.3 * bs, 12, 8), toonMat(pal.foliage));
+    const top = new THREE.Mesh(new THREE.SphereGeometry(1.3 * bs, 12, 8), foliageMat(pal.foliage));
     top.position.y = trunkH + 0.5 * bs;
     top.scale.y = 1.2;
     top.castShadow = true; top.userData.isLeaf = true;
     g.add(top);
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
-      const droop = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.1, 1.4 * bs, 6), toonMat(pal.foliage));
+      const droop = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.1, 1.4 * bs, 6), foliageMat(pal.foliage));
       droop.position.set(Math.cos(a) * 0.9 * bs, trunkH + 0.2, Math.sin(a) * 0.9 * bs);
       droop.rotation.z = Math.cos(a) * 0.5;
       droop.rotation.x = Math.sin(a) * 0.5;
@@ -1522,7 +1633,7 @@ function createTree(x, z, kindOverride, scaleOverride) {
       const t = i / layers;
       const layerR = (1.2 - t * 0.8) * bs;
       const layerH = 1.3 * bs;
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(layerR, layerH, 7), toonMat(pal.foliage));
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(layerR, layerH, 7), foliageMat(pal.foliage));
       cone.position.y = trunkH * 0.5 + i * layerH * 0.6 + layerH / 2;
       cone.castShadow = true; cone.userData.isLeaf = true;
       g.add(cone);
@@ -1532,18 +1643,18 @@ function createTree(x, z, kindOverride, scaleOverride) {
     const trunkH = 2.0 * bs;
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, trunkH, 7), toonMat(pal.trunk));
     trunk.position.y = trunkH / 2; trunk.castShadow = true; trunk.receiveShadow = true; g.add(trunk);
-    const foliageMat = toonMat(pal.foliage);
+    const fmat = foliageMat(pal.foliage);
     const blobs = 5;
     for (let i = 0; i < blobs; i++) {
       const r = (1.0 - i * 0.07) * bs;
-      const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), foliageMat);
+      const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), fmat);
       const angle = (i / blobs) * Math.PI * 2;
       const ring = 0.35 * bs;
       blob.position.set(Math.cos(angle) * ring, trunkH + 0.3 * bs + (Math.random() - 0.5) * 0.3, Math.sin(angle) * ring);
       blob.castShadow = true; blob.userData.isLeaf = true;
       g.add(blob);
     }
-    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.95 * bs, 10, 8), foliageMat);
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.95 * bs, 10, 8), fmat);
     crown.position.y = trunkH + 1.1 * bs;
     crown.castShadow = true; crown.userData.isLeaf = true;
     g.add(crown);
@@ -2216,25 +2327,39 @@ function updateTimeOfDay(dt) {
       u.sunColor.value = lights.sun.color;
       u.ambientColor.value = lights.ambient.color;
     }
-    // drift the cloud noise sample slowly
     u.cloudOffset.value.x += dt * 0.45;
     u.cloudOffset.value.y += dt * 0.18;
     u.time.value = timeOfDay;
-    // shadow tint warms at dusk, cools at dawn/day, deepens at night
-    const sunI = lights ? lights.sun.intensity : 0.7;
-    const nightFactor = Math.max(0, Math.min(1, 1 - sunI / 0.85));
+    // shadow tint by time-of-day
     const dawnTint = new THREE.Color(0x7d6e84);
     const noonTint = new THREE.Color(0x506890);
     const duskTint = new THREE.Color(0x6a4060);
     const nightTint= new THREE.Color(0x1a2240);
-    const tt = timeOfDay;
     let chosen;
-    if (tt < 0.18) chosen = nightTint;
-    else if (tt < 0.4) chosen = dawnTint;
-    else if (tt < 0.65) chosen = noonTint;
-    else if (tt < 0.85) chosen = duskTint;
+    if (timeOfDay < 0.18) chosen = nightTint;
+    else if (timeOfDay < 0.4) chosen = dawnTint;
+    else if (timeOfDay < 0.65) chosen = noonTint;
+    else if (timeOfDay < 0.85) chosen = duskTint;
     else chosen = nightTint;
     u.shadowColor.value.lerp(chosen, 0.08);
+  }
+
+  // Foliage shader sun + shadow tint sync
+  if (lights && lights.sun) {
+    const sunNorm = lights.sun.position.clone().normalize();
+    const sI = lights.sun.intensity;
+    let shadowTintHex, rimHex;
+    if (sI < 0.4) shadowTintHex = 0x182236;
+    else if (sI < 0.7) shadowTintHex = 0x3a2a3e;
+    else shadowTintHex = 0x3a4a2a;
+    if (timeOfDay > 0.6 && timeOfDay < 0.85) rimHex = 0xffb070;
+    else if (timeOfDay > 0.1 && timeOfDay < 0.3) rimHex = 0xffd1a0;
+    else rimHex = 0xfff2c0;
+    for (const fm of FOLIAGE_MATERIALS) {
+      fm.uniforms.sunDir.value.copy(sunNorm);
+      fm.uniforms.shadowTint.value.setHex(shadowTintHex);
+      fm.uniforms.rimColor.value.setHex(rimHex);
+    }
   }
 
   // labels
@@ -2414,24 +2539,25 @@ function cycleSeason() {
   startSeasonTransition(season);
 }
 function startSeasonTransition(sea) {
-  // queue smooth interpolations across all foliage materials
   SEASON_TRANSITIONS.length = 0;
   for (const obj of FOLIAGE_OBJS) {
     const kind = obj.userData.kind || 'other';
     const targetHex = colorForKindSeason(kind, sea);
     obj.children.forEach(c => {
-      if (c.userData && c.userData.isLeaf && c.material && c.material.color) {
-        SEASON_TRANSITIONS.push({
-          mat: c.material,
-          fromCol: c.material.color.clone(),
-          toCol: new THREE.Color(targetHex),
-          t: 0,
-          dur: 2.2,
-        });
-      }
+      if (!c.userData || !c.userData.isLeaf || !c.material) return;
+      let fromCol = null;
+      if (c.material.color) fromCol = c.material.color.clone();
+      else if (c.material.uniforms && c.material.uniforms.baseColor) fromCol = c.material.uniforms.baseColor.value.clone();
+      if (!fromCol) return;
+      SEASON_TRANSITIONS.push({
+        mat: c.material,
+        fromCol,
+        toCol: new THREE.Color(targetHex),
+        t: 0,
+        dur: 2.2,
+      });
     });
   }
-  // ground tint shift via fog color drift (handled in updateTimeOfDay later)
   showAchievement('季節がめぐる', { sakura: '春の桜', summer: '夏の濃緑', momiji: '秋の紅葉', yuki: '冬の雪化粧' }[sea]);
 }
 function updateSeasonTransitions(dt) {
@@ -2440,9 +2566,10 @@ function updateSeasonTransitions(dt) {
   for (const tr of SEASON_TRANSITIONS) {
     tr.t = Math.min(tr.dur, tr.t + dt);
     const k = tr.t / tr.dur;
-    // easeInOutCubic
     const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-    tr.mat.color.copy(tr.fromCol).lerp(tr.toCol, e);
+    const target = tr.fromCol.clone().lerp(tr.toCol, e);
+    if (tr.mat.color) tr.mat.color.copy(target);
+    if (tr.mat.uniforms && tr.mat.uniforms.baseColor) tr.mat.uniforms.baseColor.value.copy(target);
     if (tr.t < tr.dur) active = true;
   }
   if (!active) SEASON_TRANSITIONS.length = 0;
