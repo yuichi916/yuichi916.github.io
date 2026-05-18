@@ -2266,10 +2266,44 @@ async function loadExternalAssets() {
             if (c.isMesh) {
               if (spec.shadow) { c.castShadow = true; c.receiveShadow = true; }
               if (c.material && c.material.color) {
-                // keep texture maps if present (they look better); only re-shade simple solid-color materials
                 if (!c.material.map) {
                   const col = c.material.color.clone();
-                  c.material = toonMat(col.getHex());
+                  const newMat = toonMat(col.getHex());
+                  // Inject world-position noise into the toon material to add painterly mottling
+                  newMat.onBeforeCompile = (shader) => {
+                    shader.uniforms.uPaintTime = { value: 0 };
+                    shader.vertexShader = shader.vertexShader.replace(
+                      '#include <common>',
+                      `#include <common>
+                       varying vec3 vWorldPos_paint;`
+                    ).replace(
+                      '#include <begin_vertex>',
+                      `#include <begin_vertex>
+                       vec4 _wp = modelMatrix * vec4(position, 1.0);
+                       vWorldPos_paint = _wp.xyz;`
+                    );
+                    shader.fragmentShader = shader.fragmentShader.replace(
+                      '#include <common>',
+                      `#include <common>
+                       varying vec3 vWorldPos_paint;
+                       float _h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+                       float _vnoise2(vec2 p){
+                         vec2 i = floor(p); vec2 f = fract(p);
+                         f = f * f * (3.0 - 2.0 * f);
+                         float a = _h21(i), b = _h21(i + vec2(1.0,0.0));
+                         float c2 = _h21(i + vec2(0.0,1.0)), d = _h21(i + vec2(1.0,1.0));
+                         return mix(mix(a, b, f.x), mix(c2, d, f.x), f.y);
+                       }`
+                    ).replace(
+                      '#include <color_fragment>',
+                      `#include <color_fragment>
+                       float pn1 = _vnoise2(vWorldPos_paint.xz * 2.0 + vWorldPos_paint.y * 0.6);
+                       float pn2 = _vnoise2(vWorldPos_paint.xz * 7.0 - vWorldPos_paint.y * 1.2);
+                       float pn = (pn1 - 0.5) * 0.12 + (pn2 - 0.5) * 0.06;
+                       diffuseColor.rgb *= (1.0 + pn);`
+                    );
+                  };
+                  c.material = newMat;
                 }
               }
             }
