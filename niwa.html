@@ -192,6 +192,9 @@ canvas{display:block;touch-action:none}
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/shaders/SMAAShader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/shaders/BokehShader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/postprocessing/BokehPass.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/math/SimplexNoise.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/shaders/SSAOShader.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/postprocessing/SSAOPass.js"></script>
 <script>
 'use strict';
 // ─────────────────────────────────────────────────────────────────────
@@ -568,6 +571,20 @@ async function init() {
   // Post-processing
   composer = new THREE.EffectComposer(renderer);
   composer.addPass(new THREE.RenderPass(scene, camera));
+  // SSAO for screen-space ambient occlusion (real baked-AO feel)
+  if (typeof THREE.SSAOPass === 'function') {
+    try {
+      const ssaoPass = new THREE.SSAOPass(scene, camera, window.innerWidth, window.innerHeight);
+      ssaoPass.kernelRadius = 0.6;
+      ssaoPass.minDistance = 0.002;
+      ssaoPass.maxDistance = 0.08;
+      ssaoPass.output = THREE.SSAOPass.OUTPUT.Default;
+      composer.addPass(ssaoPass);
+      window.__ssaoPass = ssaoPass;
+    } catch(e) {
+      console.warn('SSAO init failed:', e);
+    }
+  }
   bloomPass = new THREE.UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
     0.34, 0.7, 0.86
