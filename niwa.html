@@ -331,6 +331,27 @@ function makeLeafNoiseTexture() {
 }
 
 const FOLIAGE_MATERIALS = new Set();
+// Make an organic blob from icosahedron with noise displacement
+function makeOrganicBlob(radius, subdivisions = 2, noiseStr = 0.18, seed = 0) {
+  const geo = new THREE.IcosahedronGeometry(radius, subdivisions);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    // 3 octaves of value noise based on direction
+    const sx = Math.sin(x * 1.7 + seed) * 0.5;
+    const sy = Math.cos(y * 2.1 + seed * 1.3) * 0.5;
+    const sz = Math.sin(z * 1.4 - seed * 0.7) * 0.5;
+    const n = (sx + sy + sz) * 0.33;
+    const finer = Math.sin(x * 5.0 + seed*2) * Math.cos(y * 4.2 + seed) * 0.3;
+    const scale = 1.0 + (n + finer * 0.3) * noiseStr;
+    pos.setX(i, x * scale);
+    pos.setY(i, y * scale);
+    pos.setZ(i, z * scale);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
 function foliageMat(baseHex, opts = {}) {
   if (!LEAF_NOISE_TEX) LEAF_NOISE_TEX = makeLeafNoiseTexture();
   const baseColor = new THREE.Color(baseHex);
@@ -1820,7 +1841,7 @@ function createTree(x, z, kindOverride, scaleOverride) {
       const cane = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, height, 6), toonMat(pal.trunk));
       cane.position.set(ox, height / 2, oz);
       cane.castShadow = true; g.add(cane);
-      const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), foliageMat(pal.foliage));
+      const tuft = new THREE.Mesh(makeOrganicBlob(0.45, 1, 0.16, i * 13), foliageMat(pal.foliage));
       tuft.position.set(ox, height + 0.15, oz);
       tuft.scale.set(1.3, 0.8, 1.3);
       tuft.castShadow = true; tuft.userData.isLeaf = true;
@@ -1832,7 +1853,7 @@ function createTree(x, z, kindOverride, scaleOverride) {
     trunk.position.y = trunkH / 2;
     trunk.castShadow = true; trunk.receiveShadow = true;
     g.add(trunk);
-    const top = new THREE.Mesh(new THREE.SphereGeometry(1.3 * bs, 12, 8), foliageMat(pal.foliage));
+    const top = new THREE.Mesh(makeOrganicBlob(1.3 * bs, 2, 0.22, x * 7 + z * 11), foliageMat(pal.foliage));
     top.position.y = trunkH + 0.5 * bs;
     top.scale.y = 1.2;
     top.castShadow = true; top.userData.isLeaf = true;
@@ -1869,14 +1890,14 @@ function createTree(x, z, kindOverride, scaleOverride) {
     const blobs = 5;
     for (let i = 0; i < blobs; i++) {
       const r = (1.0 - i * 0.07) * bs;
-      const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), fmat);
+      const blob = new THREE.Mesh(makeOrganicBlob(r, 2, 0.22, i * 17 + x * 3 + z * 5), fmat);
       const angle = (i / blobs) * Math.PI * 2;
       const ring = 0.35 * bs;
       blob.position.set(Math.cos(angle) * ring, trunkH + 0.3 * bs + (Math.random() - 0.5) * 0.3, Math.sin(angle) * ring);
       blob.castShadow = true; blob.userData.isLeaf = true;
       g.add(blob);
     }
-    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.95 * bs, 10, 8), fmat);
+    const crown = new THREE.Mesh(makeOrganicBlob(0.95 * bs, 2, 0.24, x * 9 + z * 13), fmat);
     crown.position.y = trunkH + 1.1 * bs;
     crown.castShadow = true; crown.userData.isLeaf = true;
     g.add(crown);
@@ -1976,9 +1997,9 @@ function addCanopySprites(treeGroup, baseHex, bs, kind) {
 
 function createBush(x, z) {
   const g = new THREE.Group();
-  const bMat = toonMat(0x5a8a3a);
+  const bMat = foliageMat(0x5a8a3a);
   for (let i = 0; i < 4; i++) {
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.32 + Math.random() * 0.1, 10, 7), bMat);
+    const b = new THREE.Mesh(makeOrganicBlob(0.32 + Math.random() * 0.1, 1, 0.2, i * 7 + x * 3), bMat);
     b.position.set((Math.random() - 0.5) * 0.4, 0.25 + Math.random() * 0.15, (Math.random() - 0.5) * 0.4);
     b.castShadow = true; b.userData.isLeaf = true;
     g.add(b);
@@ -2734,6 +2755,43 @@ function updateGodRays(t) {
   }
 }
 
+// ─── Per-biome atmospheric override (avatar-position-based) ───
+const _biomeAtmosphereCache = { current: 'plaza', curFog: null, curAmb: null };
+function updateBiomeAtmosphere(dt) {
+  if (!avatar || !scene.userData.lights) return;
+  const b = biomeAt(avatar.position.x, avatar.position.z).key;
+  // Each biome has a multiplier for ambient color/intensity and fog tint
+  const overrides = {
+    plaza:    { ambTint:0xffeac8, ambMul:1.0,  fogTint:0xefd9b8, fogMul:1.0  },
+    forest:   { ambTint:0x6e8a6e, ambMul:0.75, fogTint:0x4a6850, fogMul:1.2  },
+    village:  { ambTint:0xfff0d0, ambMul:1.05, fogTint:0xf8e8c8, fogMul:0.85 },
+    lake:     { ambTint:0xc8dceb, ambMul:1.0,  fogTint:0xc8dde6, fogMul:0.9  },
+    mountain: { ambTint:0xe8e8fa, ambMul:1.1,  fogTint:0xc8d4e8, fogMul:0.7  },
+  };
+  const target = overrides[b] || overrides.plaza;
+  // Smooth blend the ambient color
+  const lights = scene.userData.lights;
+  if (!_biomeAtmosphereCache.curAmb) _biomeAtmosphereCache.curAmb = lights.ambient.color.clone();
+  const targetAmb = new THREE.Color(target.ambTint);
+  _biomeAtmosphereCache.curAmb.lerp(targetAmb, 0.05);
+  // Apply: tint the existing ambient color toward the biome
+  const origIntensity = lights.ambient.intensity;
+  // We don't override intensity hard since time-of-day controls it
+  // But we apply a per-biome multiplier to brightness for transition feel:
+  if (!lights.ambient.userData) lights.ambient.userData = {};
+  if (lights.ambient.userData.timeI === undefined) lights.ambient.userData.timeI = origIntensity;
+  lights.ambient.intensity = origIntensity * (target.ambMul * 0.4 + 0.6);  // gentle blend
+  // Tint the ambient color slightly toward biome target
+  const blendedAmb = lights.ambient.color.clone().lerp(targetAmb, 0.15);
+  lights.ambient.color.lerp(blendedAmb, 0.05);
+  // Fog color tint
+  if (scene.fog) {
+    const targetFog = new THREE.Color(target.fogTint);
+    scene.fog.color.lerp(targetFog, 0.04);
+  }
+  _biomeAtmosphereCache.current = b;
+}
+
 // ─── Per-biome detail (forest density, village fence, lake reeds, mountain steps) ───
 function buildBiomeDetails() {
   // === 森 (Forest) — dense conifer cover (+30 trees scattered within biome) ===
@@ -2841,6 +2899,57 @@ function buildBiomeDetails() {
     scene.add(pad);
   }
 
+  // Forest: dappled light shafts (cone meshes) coming through canopy
+  const shaftMat = new THREE.MeshBasicMaterial({
+    color: 0xfff4d0, transparent: true, opacity: 0.06,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+  });
+  for (let i = 0; i < 6; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 2 + Math.random() * (BIOMES.forest.radius - 4);
+    const x = BIOMES.forest.cx + Math.cos(a) * r;
+    const z = BIOMES.forest.cz + Math.sin(a) * r;
+    const ty = getTerrainHeight(x, z);
+    const shaft = new THREE.Mesh(
+      new THREE.ConeGeometry(1.6, 8, 8, 1, true),
+      shaftMat.clone()
+    );
+    shaft.position.set(x, ty + 5, z);
+    shaft.rotation.z = (Math.random() - 0.5) * 0.3;
+    shaft.userData.isForestShaft = true;
+    scene.add(shaft);
+  }
+
+  // Village: hanging string of lanterns between two posts (chochin)
+  const stringStart = { x: BIOMES.village.cx - 3, z: BIOMES.village.cz + 2 };
+  const stringEnd   = { x: BIOMES.village.cx + 3, z: BIOMES.village.cz + 2 };
+  // Two posts holding the string
+  for (const p of [stringStart, stringEnd]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), toonMat(0x4a3220));
+    post.position.set(p.x, getTerrainHeight(p.x, p.z) + 1.25, p.z);
+    post.castShadow = true;
+    scene.add(post);
+  }
+  // String of paper lanterns (chochin)
+  const lanternCount = 5;
+  for (let i = 1; i <= lanternCount; i++) {
+    const t = i / (lanternCount + 1);
+    const lx = stringStart.x + (stringEnd.x - stringStart.x) * t;
+    const lz = stringStart.z + (stringEnd.z - stringStart.z) * t;
+    const dropY = Math.sin(t * Math.PI) * 0.18;  // catenary droop
+    const ly = getTerrainHeight(lx, lz) + 2.3 - dropY;
+    const chochin = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xff6644, emissive: 0xff9a40, emissiveIntensity: 0.55, roughness: 0.55 })
+    );
+    chochin.scale.y = 1.3;
+    chochin.position.set(lx, ly, lz);
+    chochin.userData.isLanternHead = true;
+    chochin.castShadow = true;
+    scene.add(chochin);
+    lanternHeads.push({ mesh: chochin, light: null });
+  }
+
   // === 山 (Mountain) — stone steps winding up the path ===
   const stoneMat = toonMat(0xb0a89c);
   const stepCount = 32;
@@ -2870,6 +2979,41 @@ function buildBiomeDetails() {
       scene.add(marker);
     }
   }
+  // Summit lookout deck (wooden platform with railing)
+  const summitX = BIOMES.mountain.cx, summitZ = BIOMES.mountain.cz;
+  const summitY = getTerrainHeight(summitX, summitZ);
+  const deck = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.4, 2.4, 0.2, 8),
+    toonMat(0x6e4828)
+  );
+  deck.position.set(summitX, summitY + 0.15, summitZ);
+  deck.castShadow = true; deck.receiveShadow = true;
+  scene.add(deck);
+  // 8 corner posts + railing
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const px = summitX + Math.cos(a) * 2.3;
+    const pz = summitZ + Math.sin(a) * 2.3;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.85, 6), toonMat(0x4a3220));
+    post.position.set(px, summitY + 0.55, pz);
+    post.castShadow = true;
+    scene.add(post);
+  }
+  const railRing = new THREE.Mesh(
+    new THREE.TorusGeometry(2.3, 0.05, 6, 24),
+    toonMat(0x4a3220)
+  );
+  railRing.rotation.x = Math.PI / 2;
+  railRing.position.set(summitX, summitY + 0.95, summitZ);
+  scene.add(railRing);
+  // Information stone marker at the deck center
+  const infoStone = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 1.0, 0.15),
+    toonMat(0x86807a)
+  );
+  infoStone.position.set(summitX, summitY + 0.65, summitZ);
+  infoStone.castShadow = true;
+  scene.add(infoStone);
 }
 
 // ─── Biome signposts (wooden marker at each biome entrance) ──
@@ -4015,6 +4159,7 @@ function animate() {
   updateSeasonTransitions(dt);
   updateGodRays(t);
   updateBonfire(dt, t);
+  updateBiomeAtmosphere(dt);
   // Sun flare position + intensity
   if (_sunFlareSprite && scene.userData.lights) {
     const sunPos = scene.userData.lights.sun.position.clone().normalize().multiplyScalar(120);
