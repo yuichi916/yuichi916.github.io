@@ -1319,7 +1319,7 @@ function buildLocations() {
 function buildLocationContent(g, loc) {
   switch (loc.id) {
     case 'takibi': {
-      // Central firepit: ring of stones + cone "flame"
+      // Stone ring
       const ringR = 0.95;
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * Math.PI * 2;
@@ -1331,27 +1331,25 @@ function buildLocationContent(g, loc) {
         stone.castShadow = true; stone.receiveShadow = true;
         g.add(stone);
       }
-      // logs
-      for (let i = 0; i < 3; i++) {
-        const log = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.9, 6), toonMat(0x5a3a22));
-        log.rotation.z = Math.PI / 2 + (i * Math.PI / 3);
-        log.position.set(0, 0.16, 0);
+      // Logs (criss-crossed firewood)
+      for (let i = 0; i < 4; i++) {
+        const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.95, 6), toonMat(0x5a3a22));
+        log.rotation.z = Math.PI / 2;
+        log.rotation.y = i * Math.PI / 4;
+        log.position.set(Math.cos(i * Math.PI / 4) * 0.05, 0.18 + (i % 2) * 0.06, Math.sin(i * Math.PI / 4) * 0.05);
         log.castShadow = true;
         g.add(log);
       }
-      // flame
-      const flame = new THREE.Mesh(
-        new THREE.ConeGeometry(0.32, 0.95, 8),
-        new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.9 })
-      );
-      flame.position.y = 0.62;
-      g.add(flame);
-      g.userData.flame = flame;
-      // ember light
-      const fl = new THREE.PointLight(0xff8838, 1.4, 8);
+      // Volumetric flame system (adapted from kosuke-apps/bonfire)
+      buildBonfireFlames(g);
+      // Spark particles
+      buildBonfireSparks(g);
+      // Embers light (animated intensity)
+      const fl = new THREE.PointLight(0xff8838, 1.6, 9);
       fl.position.y = 0.7;
       g.add(fl);
       g.userData.fireLight = fl;
+      // Heat haze (transparent distortion plane) - subtle
       break;
     }
     case 'tsuki': {
@@ -2079,6 +2077,316 @@ function makeCloudTexture() {
   const tex = new THREE.CanvasTexture(c);
   tex.needsUpdate = true;
   return tex;
+}
+
+// ─── Volumetric Bonfire (adapted from kosuke-apps/bonfire.html) ───
+let _bonfireFlameTex = null;
+function makeFlameTexture() {
+  // procedural noise sheet, vertical streaky pattern resembling flame texture
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'black'; ctx.fillRect(0, 0, 128, 128);
+  // vertical noise streaks
+  for (let i = 0; i < 800; i++) {
+    const x = Math.random() * 128;
+    const y = Math.random() * 128;
+    const h = 2 + Math.random() * 12;
+    const w = 1 + Math.random() * 2;
+    const v = Math.floor(80 + Math.random() * 175);
+    ctx.fillStyle = `rgb(${v},${Math.floor(v*0.6)},${Math.floor(v*0.15)})`;
+    ctx.fillRect(x, y, w, h);
+  }
+  // smooth pass
+  ctx.filter = 'blur(1.5px)';
+  ctx.drawImage(c, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+const FLAME_VERT = `
+uniform float uTime; uniform float uLife;
+varying vec2 vUv;
+float hash3(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float vnoise3(vec3 p){
+  vec3 i = floor(p); vec3 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float n = i.x + i.y * 157.0 + 113.0 * i.z;
+  return mix(mix(mix(hash3(vec3(n,0,0)), hash3(vec3(n+1.0,0,0)), f.x),
+                 mix(hash3(vec3(n+157.0,0,0)), hash3(vec3(n+158.0,0,0)), f.x), f.y),
+             mix(mix(hash3(vec3(n+113.0,0,0)), hash3(vec3(n+114.0,0,0)), f.x),
+                 mix(hash3(vec3(n+270.0,0,0)), hash3(vec3(n+271.0,0,0)), f.x), f.y), f.z);
+}
+void main(){
+  vUv = uv;
+  vec3 pos = position;
+  float h = uv.y * uv.y;
+  float t = uTime;
+  float n1 = vnoise3(vec3(pos.x * 4.0 + t * 1.5, pos.y * 3.0 - t * 2.0, t * 0.5)) - 0.5;
+  float n2 = vnoise3(vec3(pos.x * 8.0 - t * 2.0, pos.y * 6.0 - t * 3.0, t * 0.8)) - 0.5;
+  pos.x += (n1 * 0.13 + n2 * 0.05) * h;
+  pos.z += (n2 * 0.10 + n1 * 0.04) * h;
+  pos.y += n1 * 0.03 * h;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+}
+`;
+const FLAME_FRAG = `
+uniform sampler2D uTex;
+uniform float uOpacity;
+uniform vec3 uTint;
+uniform float uTime;
+uniform float uLife;
+varying vec2 vUv;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p){
+  vec2 i = floor(p); vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash(i), b = hash(i + vec2(1,0));
+  float c = hash(i + vec2(0,1)), d = hash(i + vec2(1,1));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+float fbm(vec2 p){
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 4; i++){
+    v += a * vnoise(p); p *= 2.0; a *= 0.5;
+  }
+  return v;
+}
+void main(){
+  vec2 uv = vUv;
+  float t = uTime;
+  float warp1 = fbm(uv * 4.0 + vec2(0.0, -t * 1.5));
+  float warp2 = fbm(uv * 3.0 + vec2(t * 0.8, -t * 1.2) + warp1 * 0.5);
+  uv.x += (warp2 - 0.5) * 0.22 * (1.0 + uLife);
+  uv.y += (warp1 - 0.5) * 0.13 - t * 0.3;
+
+  float xCenter = abs(vUv.x - 0.5) * 2.0;
+  float yNorm = vUv.y;
+  float xFade = 1.0 - xCenter * xCenter;
+  float yFade = 1.0 - pow(yNorm, 1.5);
+  float shape = xFade * yFade;
+  shape = smoothstep(0.0, 0.25, shape);
+
+  float scroll1 = fbm(vec2(vUv.x * 4.0, vUv.y * 3.0 - t * 2.2) + warp1 * 0.3);
+  float scroll2 = fbm(vec2(vUv.x * 7.0 + 3.0, vUv.y * 5.0 - t * 3.5));
+  float dissolveNoise = scroll1 * scroll2;
+  float dissolveThreshold = pow(yNorm, 1.2) * 0.6;
+  float dissolve = smoothstep(dissolveThreshold - 0.05, dissolveThreshold + 0.08, dissolveNoise);
+  shape *= dissolve;
+
+  float edgeTurb = fbm(vec2(vUv.x * 6.0 + t * 0.4, vUv.y * 4.0 - t * 1.8));
+  shape *= smoothstep(0.1, 0.45, edgeTurb + (1.0 - xCenter) * 0.3);
+
+  vec4 tex = texture2D(uTex, fract(uv));
+  float texBright = max(tex.r, max(tex.g, tex.b));
+  float brightness = shape * (0.5 + texBright * 0.5);
+
+  vec3 colRoot = vec3(0.2, 0.06, 0.15);
+  vec3 colCore = vec3(0.95, 0.32, 0.05);
+  vec3 colMid  = vec3(0.75, 0.10, 0.0);
+  vec3 colTip  = vec3(0.30, 0.02, 0.0);
+  vec3 vertColor;
+  if (yNorm < 0.15) vertColor = mix(colRoot, colCore, yNorm / 0.15);
+  else if (yNorm < 0.4) vertColor = mix(colCore, colMid, (yNorm - 0.15) / 0.25);
+  else vertColor = mix(colMid, colTip, (yNorm - 0.4) / 0.6);
+  vec3 edgeColor = mix(vec3(0.5, 0.06, 0.0), vec3(0.2, 0.01, 0.0), yNorm);
+  vec3 col = mix(vertColor, edgeColor, smoothstep(0.25, 0.85, xCenter));
+  col *= brightness * 1.7;
+  col = col / (1.0 + col);
+  col *= 1.45;
+
+  // soft tint blend (warm fire)
+  float lum = dot(col, vec3(0.299, 0.587, 0.114));
+  col = mix(col, uTint * lum * 1.8, 0.3);
+
+  float dist = length(vUv - vec2(0.5, 0.35));
+  float baseFade = smoothstep(0.6, 0.18, dist);
+  float fringeWidth = 0.06;
+  float fringe = smoothstep(dissolveThreshold - fringeWidth, dissolveThreshold, dissolveNoise);
+  float fringeAlpha = mix(0.3, 1.0, fringe);
+
+  float alpha = brightness * uOpacity * baseFade * fringeAlpha;
+  gl_FragColor = vec4(col, alpha);
+}
+`;
+
+const _bonfireFlames = [];
+function buildBonfireFlames(parent) {
+  if (!_bonfireFlameTex) _bonfireFlameTex = makeFlameTexture();
+  const COUNT = 24;
+  const geoTpl = new THREE.PlaneGeometry(0.32, 0.7, 6, 12);
+  for (let i = 0; i < COUNT; i++) {
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTex:     { value: _bonfireFlameTex },
+        uOpacity: { value: 0.0 },
+        uTint:    { value: new THREE.Color(1.0, 0.55, 0.18) },
+        uTime:    { value: 0.0 },
+        uLife:    { value: 0.0 },
+      },
+      vertexShader: FLAME_VERT,
+      fragmentShader: FLAME_FRAG,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geoTpl.clone(), mat);
+    // random position around firepit center (inside the stones)
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * 0.25;
+    mesh.position.set(Math.cos(a) * r, 0.22 + Math.random() * 0.18, Math.sin(a) * r);
+    mesh.userData = {
+      isBonfireFlame: true,
+      life: Math.random() * 1.5,
+      maxLife: 0.9 + Math.random() * 0.9,
+      baseScale: 0.7 + Math.random() * 0.6,
+      orgA: a, orgR: r,
+    };
+    parent.add(mesh);
+    _bonfireFlames.push(mesh);
+  }
+}
+
+const _bonfireSparks = { mesh: null, data: [] };
+function buildBonfireSparks(parent) {
+  const N = 220;
+  const positions = new Float32Array(N * 3);
+  const colors = new Float32Array(N * 3);
+  const sizes = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const d = {
+      life: Math.random() * 3.5,
+      maxLife: 1.5 + Math.random() * 3.0,
+      vy: 0.5 + Math.random() * 1.1,
+      vx: (Math.random() - 0.5) * 0.5,
+      vz: (Math.random() - 0.5) * 0.5,
+      drag: 0.96 + Math.random() * 0.03,
+      gravity: -0.012 - Math.random() * 0.022,
+      x: (Math.random() - 0.5) * 0.15,
+      y: 0.2 + Math.random() * 0.3,
+      z: (Math.random() - 0.5) * 0.15,
+      swayAmpX: 0.02 + Math.random() * 0.06,
+      swayAmpZ: 0.02 + Math.random() * 0.05,
+      swayFreqX: 1.5 + Math.random() * 3.0,
+      swayFreqZ: 1.0 + Math.random() * 2.5,
+      swayPhaseX: Math.random() * Math.PI * 2,
+      swayPhaseZ: Math.random() * Math.PI * 2,
+      baseSize: 0.18 + Math.random() * 0.22,
+    };
+    _bonfireSparks.data.push(d);
+    positions[i*3] = d.x; positions[i*3+1] = d.y; positions[i*3+2] = d.z;
+    colors[i*3] = 1.0; colors[i*3+1] = 0.8; colors[i*3+2] = 0.2;
+    sizes[i] = d.baseSize;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {},
+    vertexShader: `
+      attribute float size; varying vec3 vColor;
+      void main(){
+        vColor = color;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = size * (24.0 / -mvPosition.z);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vColor;
+      void main(){
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        if (d > 1.0) discard;
+        float alpha = 1.0 - d * d;
+        alpha *= alpha;
+        gl_FragColor = vec4(vColor * (1.0 + alpha), alpha);
+      }
+    `,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+    vertexColors: true,
+  });
+  const pts = new THREE.Points(geo, mat);
+  parent.add(pts);
+  _bonfireSparks.mesh = pts;
+}
+
+function updateBonfire(dt, t) {
+  // Flames lifecycle
+  for (const f of _bonfireFlames) {
+    f.userData.life += dt * 1.4;
+    const u = f.material.uniforms;
+    u.uTime.value = t;
+    const lifeNorm = Math.min(1.0, f.userData.life / f.userData.maxLife);
+    u.uLife.value = lifeNorm;
+    // opacity: ramp up then fade out
+    const r = lifeNorm < 0.2 ? lifeNorm / 0.2 : (1.0 - (lifeNorm - 0.2) / 0.8);
+    u.uOpacity.value = Math.max(0, r) * 0.95;
+    // scale grows then stretches up as it dies
+    const s = f.userData.baseScale * (0.7 + lifeNorm * 0.6);
+    f.scale.set(s, s * (0.9 + lifeNorm * 0.35), s);
+    // rise slightly while dying
+    f.position.y = 0.22 + lifeNorm * 0.18;
+    // billboard rotation toward camera
+    f.lookAt(camera.position.x, f.getWorldPosition(new THREE.Vector3()).y, camera.position.z);
+    if (lifeNorm >= 1.0) {
+      // respawn
+      f.userData.life = 0;
+      f.userData.maxLife = 0.9 + Math.random() * 0.9;
+      f.userData.baseScale = 0.7 + Math.random() * 0.6;
+      const a = Math.random() * Math.PI * 2;
+      const r0 = Math.random() * 0.25;
+      f.position.x = Math.cos(a) * r0;
+      f.position.z = Math.sin(a) * r0;
+    }
+  }
+  // Sparks
+  if (_bonfireSparks.mesh) {
+    const pos = _bonfireSparks.mesh.geometry.attributes.position;
+    const col = _bonfireSparks.mesh.geometry.attributes.color;
+    const size = _bonfireSparks.mesh.geometry.attributes.size;
+    for (let i = 0; i < _bonfireSparks.data.length; i++) {
+      const d = _bonfireSparks.data[i];
+      d.life += dt;
+      if (d.life > d.maxLife) {
+        // respawn
+        d.life = 0;
+        d.maxLife = 1.5 + Math.random() * 3.0;
+        d.vy = 0.5 + Math.random() * 1.1;
+        d.vx = (Math.random() - 0.5) * 0.5;
+        d.vz = (Math.random() - 0.5) * 0.5;
+        d.x = (Math.random() - 0.5) * 0.15;
+        d.y = 0.2 + Math.random() * 0.3;
+        d.z = (Math.random() - 0.5) * 0.15;
+      }
+      // sway
+      const sx = Math.sin(t * d.swayFreqX + d.swayPhaseX) * d.swayAmpX;
+      const sz = Math.cos(t * d.swayFreqZ + d.swayPhaseZ) * d.swayAmpZ;
+      d.vy += d.gravity * dt * 60;
+      d.vx *= d.drag;
+      d.vz *= d.drag;
+      d.x += (d.vx + sx) * dt;
+      d.y += d.vy * dt;
+      d.z += (d.vz + sz) * dt;
+      pos.array[i*3]   = d.x;
+      pos.array[i*3+1] = d.y;
+      pos.array[i*3+2] = d.z;
+      // color fades from yellow → orange → dark red over life
+      const lr = d.life / d.maxLife;
+      col.array[i*3]   = 1.0 - lr * 0.4;
+      col.array[i*3+1] = 0.85 - lr * 0.6;
+      col.array[i*3+2] = 0.2 * (1.0 - lr);
+      // size shrinks with age
+      size.array[i] = d.baseSize * (1.0 - lr * 0.7);
+    }
+    pos.needsUpdate = true;
+    col.needsUpdate = true;
+    size.needsUpdate = true;
+  }
 }
 
 function updateGodRays(t) {
@@ -2948,16 +3256,16 @@ function animate() {
   updateTimeOfDay(dt);
   updateSeasonTransitions(dt);
   updateGodRays(t);
+  updateBonfire(dt, t);
   updatePetals(dt, t);
   updateFireflies(t);
   updateDust(t);
   updateWind(t);
-  // flame flicker
+  // flame light flicker (volumetric flames update separately)
   for (const c of clickables) {
-    if (c.userData.flame) {
-      c.userData.flame.scale.y = 1 + Math.sin(t * 8) * 0.15;
-      c.userData.flame.scale.x = 1 + Math.cos(t * 10) * 0.1;
-      if (c.userData.fireLight) c.userData.fireLight.intensity = 1.0 + Math.sin(t * 4) * 0.35;
+    if (c.userData.fireLight) {
+      // multi-octave flicker for organic feel
+      c.userData.fireLight.intensity = 1.4 + Math.sin(t * 5.7) * 0.32 + Math.sin(t * 11.3) * 0.18 + Math.sin(t * 23.1) * 0.08;
     }
   }
   // moon-lantern bobbing
