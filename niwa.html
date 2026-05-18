@@ -460,7 +460,61 @@ async function init() {
     0.34, 0.7, 0.86
   );
   composer.addPass(bloomPass);
-  // SMAA for crisp edges
+  // Color grading + vignette + chromatic warmth (painterly final polish)
+  const colorGradeShader = {
+    uniforms: {
+      tDiffuse:   { value: null },
+      time:       { value: 0 },
+      satBoost:   { value: 1.18 },     // boost saturation
+      warmShift:  { value: 0.05 },     // shift highlights warmer
+      coolShade:  { value: 0.06 },     // shift shadows cooler
+      vignette:   { value: 0.32 },     // edge darkening
+      lift:       { value: 0.012 },    // small lift in blacks
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: `
+      uniform sampler2D tDiffuse;
+      uniform float time;
+      uniform float satBoost;
+      uniform float warmShift;
+      uniform float coolShade;
+      uniform float vignette;
+      uniform float lift;
+      varying vec2 vUv;
+
+      vec3 satAdjust(vec3 c, float s){
+        float L = dot(c, vec3(0.299, 0.587, 0.114));
+        return mix(vec3(L), c, s);
+      }
+
+      void main(){
+        vec3 c = texture2D(tDiffuse, vUv).rgb;
+        // lift the blacks slightly so deep shadows don't crush
+        c = c + vec3(lift);
+        // boost saturation
+        c = satAdjust(c, satBoost);
+        // warm highlights / cool shadows
+        float lum = dot(c, vec3(0.299, 0.587, 0.114));
+        c += vec3(warmShift, warmShift*0.5, -warmShift*0.8) * lum;
+        c -= vec3(coolShade*0.6, coolShade*0.4, -coolShade*0.8) * (1.0 - lum);
+        // vignette
+        vec2 d = vUv - vec2(0.5);
+        float v = smoothstep(0.85, 0.35, length(d));
+        c *= mix(1.0 - vignette, 1.0, v);
+        gl_FragColor = vec4(c, 1.0);
+      }
+    `,
+  };
+  if (typeof THREE.ShaderPass === 'function') {
+    const gradePass = new THREE.ShaderPass(colorGradeShader);
+    composer.addPass(gradePass);
+    window.__gradePass = gradePass;
+  }
+
+  // SMAA for crisp edges (last)
   const smaa = new THREE.SMAAPass(
     window.innerWidth * renderer.getPixelRatio(),
     window.innerHeight * renderer.getPixelRatio()
@@ -481,6 +535,7 @@ async function init() {
   buildWaterfall();
   buildStreamWater();
   buildPaths();
+  setupCloudShadowTex();
   buildLocations();
   buildHandPlacedFlora();
   // (lanterns / pagoda / torii / bridge / pavilion are now provided by external GLB assets)
@@ -676,9 +731,134 @@ function buildHeightmapTerrain() {
     colorAttr[i * 3 + 2] = tmpC.b;
   }
   geom.setAttribute('color', new THREE.BufferAttribute(colorAttr, 3));
-  const mat = toonMat(0xffffff);
-  mat.vertexColors = true;
-  terrainMesh = new THREE.Mesh(geom, mat);
+  // Custom painterly terrain shader — mixes grass/dirt/rock textures by slope and height,
+  // adds toon-like ramp shading and warm shadows for a FlowScape-ish painterly feel.
+  const texLoader = new THREE.TextureLoader();
+  const setupTex = (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 6); return t; };
+  const grassTex = setupTex(texLoader.load('assets/textures/leafy_grass_diff_1k.jpg'));
+  const grassNorm = setupTex(texLoader.load('assets/textures/leafy_grass_nor_gl_1k.jpg'));
+  const grassAO  = setupTex(texLoader.load('assets/textures/leafy_grass_ao_1k.jpg'));
+  const dirtTex  = setupTex(texLoader.load('assets/textures/forrest_ground_01_diff_1k.jpg'));
+  const rockTex  = setupTex(texLoader.load('assets/textures/rock_diff_1k.jpg'));
+  const mossTex  = setupTex(texLoader.load('assets/textures/moss_diff_1k.jpg'));
+  const pathTex  = setupTex(texLoader.load('assets/textures/grass_path_3_diff_1k.jpg'));
+
+  const terrainMat = new THREE.ShaderMaterial({
+    uniforms: {
+      grassMap: { value: grassTex },
+      grassNormMap: { value: grassNorm },
+      grassAOMap: { value: grassAO },
+      dirtMap:  { value: dirtTex },
+      rockMap:  { value: rockTex },
+      mossMap:  { value: mossTex },
+      pathMap:  { value: pathTex },
+      sunDir:   { value: new THREE.Vector3(0.6, 0.7, 0.3).normalize() },
+      sunColor: { value: new THREE.Color(0xfff1d6) },
+      shadowColor: { value: new THREE.Color(0x7d6e84) },
+      ambientColor:{ value: new THREE.Color(0xb5c8e0) },
+      shadowSoft:  { value: 0.42 },
+      texScale:    { value: 0.45 },
+      time:     { value: 0 },
+      cloudTex: { value: null },
+      cloudOffset: { value: new THREE.Vector2(0, 0) },
+      cloudStrength:{ value: 0.0 },     // will be raised after texture loads
+    },
+    vertexColors: true,
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec3 vColor;
+      varying float vSlope;
+      varying float vHeight;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vColor = color;
+        vSlope = normal.y;
+        vHeight = position.y;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D grassMap;
+      uniform sampler2D grassNormMap;
+      uniform sampler2D grassAOMap;
+      uniform sampler2D dirtMap;
+      uniform sampler2D rockMap;
+      uniform sampler2D mossMap;
+      uniform sampler2D pathMap;
+      uniform vec3 sunDir;
+      uniform vec3 sunColor;
+      uniform vec3 shadowColor;
+      uniform vec3 ambientColor;
+      uniform float shadowSoft;
+      uniform float texScale;
+      uniform float time;
+      uniform sampler2D cloudTex;
+      uniform vec2 cloudOffset;
+      uniform float cloudStrength;
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec3 vColor;
+      varying float vSlope;
+      varying float vHeight;
+
+      void main() {
+        vec2 uv = vWorldPos.xz * texScale;
+        // four-way blend: grass / dirt / rock / moss
+        float slope = clamp(vSlope, 0.0, 1.0);
+        float rockMask = smoothstep(0.6, 0.35, slope);
+        float dirtMask = smoothstep(0.0, -0.7, vHeight) * (1.0 - rockMask);
+        float mossMask = smoothstep(2.5, 3.5, vHeight) * 0.6;
+        float grassMask = 1.0 - rockMask - dirtMask;
+
+        vec3 grass = texture2D(grassMap, uv).rgb;
+        vec3 dirt  = texture2D(dirtMap,  uv * 0.7).rgb;
+        vec3 rock  = texture2D(rockMap,  uv * 0.5).rgb;
+        vec3 moss  = texture2D(mossMap,  uv * 0.9).rgb;
+        vec3 base = grass * grassMask + dirt * dirtMask + rock * rockMask;
+        base = mix(base, moss, mossMask);
+
+        // tint by vertex color (preserves height-based palette)
+        base = mix(base, base * vColor * 1.55, 0.55);
+
+        // toon-ramp lighting with 4 bands and warm shadows
+        vec3 N = normalize(vNormal);
+        float ndl = dot(N, normalize(sunDir));
+        float wrap = ndl * 0.55 + 0.45;  // wrapped lighting
+        // 4-step ramp
+        float band = floor(wrap * 4.0) / 3.0;
+        float lit = mix(band, wrap, 0.35);  // soften the bands a touch
+
+        // AO from texture
+        float ao = texture2D(grassAOMap, uv).r;
+        ao = mix(0.7, 1.0, ao);
+
+        vec3 sunLit = base * sunColor * lit;
+        vec3 shadowed = base * shadowColor * 1.4;
+        vec3 col = mix(shadowed, sunLit, smoothstep(0.0, shadowSoft, lit));
+        col += ambientColor * base * 0.18;
+        col *= ao;
+
+        // cloud shadow projection (drifting noise tex)
+        if (cloudStrength > 0.001) {
+          vec2 cuv = (vWorldPos.xz + cloudOffset) * 0.025;
+          float cs = texture2D(cloudTex, cuv).r;
+          col *= mix(1.0 - cloudStrength, 1.0, cs);
+        }
+
+        // distance haze for painterly depth
+        float dist = length(vWorldPos.xz);
+        float haze = smoothstep(8.0, 22.0, dist) * 0.45;
+        col = mix(col, vec3(0.86, 0.82, 0.74), haze);
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+  });
+  terrainMat.userData.isTerrainPainterly = true;
+  terrainMesh = new THREE.Mesh(geom, terrainMat);
   terrainMesh.receiveShadow = true;
   terrainMesh.castShadow = false;
   terrainMesh.position.y = 0;
@@ -757,6 +937,106 @@ function buildKoiPond() {
       scene.add(flower);
     }
   }
+}
+
+// ─── Cloud shadow noise texture (sampled by terrain shader) ─
+let CLOUD_NOISE_TEX = null;
+function setupCloudShadowTex() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 32; i++) {
+    const cx = Math.random() * 512;
+    const cy = Math.random() * 512;
+    const r = 50 + Math.random() * 110;
+    const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, r);
+    g.addColorStop(0, `rgba(0,0,0,${0.45 + Math.random()*0.45})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  }
+  CLOUD_NOISE_TEX = new THREE.CanvasTexture(c);
+  CLOUD_NOISE_TEX.wrapS = CLOUD_NOISE_TEX.wrapT = THREE.RepeatWrapping;
+  if (terrainMesh && terrainMesh.material && terrainMesh.material.uniforms) {
+    terrainMesh.material.uniforms.cloudTex.value = CLOUD_NOISE_TEX;
+    terrainMesh.material.uniforms.cloudStrength.value = 0.32;
+  }
+}
+
+// (unused now) ─── Cloud shadow projection plane (drifting noise on terrain) ─
+function buildCloudShadows_OLD() {
+  let cloudShadowMesh, cloudShadowMat;
+  // procedural noise texture for cloud silhouettes
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  // big radial blobs of various sizes/intensity
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 28; i++) {
+    const cx = Math.random() * 512;
+    const cy = Math.random() * 512;
+    const r = 40 + Math.random() * 90;
+    const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, r);
+    g.addColorStop(0, `rgba(0,0,0,${0.4 + Math.random()*0.4})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  }
+  const cloudTex = new THREE.CanvasTexture(c);
+  cloudTex.wrapS = cloudTex.wrapT = THREE.RepeatWrapping;
+  cloudTex.repeat.set(0.06, 0.06);
+
+  cloudShadowMat = new THREE.ShaderMaterial({
+    uniforms: {
+      noiseMap: { value: cloudTex },
+      time: { value: 0 },
+      strength: { value: 0.35 },
+      offset: { value: new THREE.Vector2(0, 0) },
+    },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.MultiplyBlending,
+    vertexShader: `
+      varying vec3 vWorldPos;
+      void main(){
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D noiseMap;
+      uniform float time;
+      uniform float strength;
+      uniform vec2 offset;
+      varying vec3 vWorldPos;
+      void main(){
+        vec2 uv = (vWorldPos.xz + offset) * 0.025;
+        float n = texture2D(noiseMap, uv).r;
+        float shadow = mix(1.0, 1.0 - strength, 1.0 - n);
+        // fade out near boundary
+        float dist = length(vWorldPos.xz);
+        float edgeFade = smoothstep(15.0, 12.0, dist);
+        shadow = mix(1.0, shadow, edgeFade);
+        gl_FragColor = vec4(vec3(shadow), 1.0);
+      }
+    `,
+  });
+  const csGeo = new THREE.PlaneGeometry(MAP.outerR * 2, MAP.outerR * 2, 1, 1);
+  csGeo.rotateX(-Math.PI / 2);
+  cloudShadowMesh = new THREE.Mesh(csGeo, cloudShadowMat);
+  cloudShadowMesh.position.y = 5.5;
+  cloudShadowMesh.renderOrder = 1;
+  // Use vertex-projection: we want shadow projected DOWN onto terrain via separate plane
+  // Position just above max terrain height with proper raycast-by-noise.
+  // For simplicity, draw the plane AT terrain level with multiply blend so it darkens whatever is below.
+  cloudShadowMesh.position.y = 0.01;
+  // Project on a slightly raised plane that follows the rough hilltop level
+  cloudShadowMesh.position.y = 0.05;
+  scene.add(cloudShadowMesh);
 }
 
 // ─── Waterfall (placeholder — will get replaced by GLB) ─────
@@ -1927,6 +2207,35 @@ function updateTimeOfDay(dt) {
 
   // HDRI environment swap by time-of-day band
   applyHDRIForTime();
+
+  // Sync terrain shader uniforms (sun + shadow tint + drifting clouds)
+  if (terrainMesh && terrainMesh.material && terrainMesh.material.userData.isTerrainPainterly) {
+    const u = terrainMesh.material.uniforms;
+    if (lights && lights.sun) {
+      u.sunDir.value.copy(lights.sun.position).normalize();
+      u.sunColor.value = lights.sun.color;
+      u.ambientColor.value = lights.ambient.color;
+    }
+    // drift the cloud noise sample slowly
+    u.cloudOffset.value.x += dt * 0.45;
+    u.cloudOffset.value.y += dt * 0.18;
+    u.time.value = timeOfDay;
+    // shadow tint warms at dusk, cools at dawn/day, deepens at night
+    const sunI = lights ? lights.sun.intensity : 0.7;
+    const nightFactor = Math.max(0, Math.min(1, 1 - sunI / 0.85));
+    const dawnTint = new THREE.Color(0x7d6e84);
+    const noonTint = new THREE.Color(0x506890);
+    const duskTint = new THREE.Color(0x6a4060);
+    const nightTint= new THREE.Color(0x1a2240);
+    const tt = timeOfDay;
+    let chosen;
+    if (tt < 0.18) chosen = nightTint;
+    else if (tt < 0.4) chosen = dawnTint;
+    else if (tt < 0.65) chosen = noonTint;
+    else if (tt < 0.85) chosen = duskTint;
+    else chosen = nightTint;
+    u.shadowColor.value.lerp(chosen, 0.08);
+  }
 
   // labels
   const labels = ['夜','夜','暁','朝','朝','昼','昼','夕','夕','宵','夜'];
