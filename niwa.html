@@ -1282,7 +1282,6 @@ function buildWaterfall() {
 }
 
 function buildStreamWater() {
-  // Stream water visible in the carved channel
   const pts = [
     new THREE.Vector3(-1.5, WATER_Y, -7.5),
     new THREE.Vector3(-3, WATER_Y, -5),
@@ -1291,10 +1290,10 @@ function buildStreamWater() {
     new THREE.Vector3(-8.5, WATER_Y, 3.5),
   ];
   const curve = new THREE.CatmullRomCurve3(pts);
-  const streamGeo = new THREE.TubeGeometry(curve, 40, 0.4, 8, false);
+  const streamGeo = new THREE.TubeGeometry(curve, 40, 0.35, 8, false);
   const streamMat = new THREE.MeshStandardMaterial({
-    color: 0x7ab0c8, metalness: 0.65, roughness: 0.18,
-    transparent: true, opacity: 0.85,
+    color: 0x6ea0b8, metalness: 0.55, roughness: 0.25,
+    transparent: true, opacity: 0.72,
   });
   const stream = new THREE.Mesh(streamGeo, streamMat);
   scene.add(stream);
@@ -2693,11 +2692,11 @@ function buildDustMotes() {
 }
 
 // ─── 3D grass tufts (instanced thin blades) ────────────────────
+const _grassMaterials = [];
 function growGrassTufts() {
   const N = 1800;
   const blade = new THREE.ConeGeometry(0.04, 0.32, 4);
   blade.translate(0, 0.16, 0);
-  // multiple color variations for tufts
   const variants = [
     { c: 0x6e9d4a, count: Math.floor(N * 0.35) },
     { c: 0x86b562, count: Math.floor(N * 0.30) },
@@ -2706,6 +2705,27 @@ function growGrassTufts() {
   ];
   for (const v of variants) {
     const mat = new THREE.MeshLambertMaterial({ color: v.c });
+    // Inject wind sway into vertex shader
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = { value: 0 };
+      shader.uniforms.uWindStrength = { value: 1.0 };
+      shader.vertexShader = `
+        uniform float uTime;
+        uniform float uWindStrength;
+      ` + shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `
+          #include <begin_vertex>
+          float wY = max(0.0, position.y);
+          vec4 instOffset = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          float phase = instOffset.x * 0.6 + instOffset.z * 0.4;
+          transformed.x += sin(uTime * 1.6 + phase) * 0.07 * wY * uWindStrength;
+          transformed.z += cos(uTime * 1.25 + phase * 1.3) * 0.05 * wY * uWindStrength;
+        `
+      );
+      mat.userData.shader = shader;
+    };
+    _grassMaterials.push(mat);
     const inst = new THREE.InstancedMesh(blade, mat, v.count);
     const dummy = new THREE.Object3D();
     let placed = 0;
@@ -3609,6 +3629,10 @@ function animate() {
     else baseOp = 0;
     _sunFlareSprite.material.opacity = baseOp;
     _sunFlareSprite.material.color.copy(scene.userData.lights.sun.color);
+  }
+  // Grass wind sway
+  for (const m of _grassMaterials) {
+    if (m.userData.shader) m.userData.shader.uniforms.uTime.value = t;
   }
   if (_dustMotes && _dustMotes.material.uniforms) {
     _dustMotes.material.uniforms.time.value = t;
