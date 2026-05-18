@@ -653,6 +653,8 @@ async function init() {
   // External CC0 / CC-BY assets (Poly Pizza) — adds high-quality hero objects
   loadExternalAssets().then(() => setLoadBar(0.99));
   buildClouds();
+  buildDistantMountains();
+  buildGodRays();
   buildAvatar();
   buildPlaceHovers();
   buildPetals();
@@ -2079,6 +2081,148 @@ function makeCloudTexture() {
   return tex;
 }
 
+function updateGodRays(t) {
+  const rays = scene.userData.godRays;
+  if (!rays) return;
+  const lights = scene.userData.lights;
+  if (!lights || !lights.sun) return;
+  // Visibility: stronger at dawn/dusk, weaker at noon, off at night
+  const sunI = lights.sun.intensity;
+  const baseI = sunI < 0.35 ? 0.0 :
+                (timeOfDay > 0.6 && timeOfDay < 0.85) ? 0.32 :
+                (timeOfDay > 0.1 && timeOfDay < 0.3) ? 0.28 :
+                0.10;
+  // Point rays toward sun
+  const sunPos = lights.sun.position;
+  for (const cone of rays.children) {
+    if (cone.material.uniforms) {
+      cone.material.uniforms.intensity.value = baseI;
+      cone.material.uniforms.time.value = t;
+      cone.material.uniforms.rayColor.value.copy(lights.sun.color);
+    }
+    // orient cone toward sun: align local +Y with sunPos direction
+    const targetDir = sunPos.clone().normalize();
+    cone.lookAt(sunPos.x, sunPos.y, sunPos.z);
+    cone.rotateX(Math.PI / 2);  // ConeGeometry's tip is +Y
+  }
+  // Distant mountain color shift by time of day
+  if (scene.userData.distantMtns) {
+    const dawn  = new THREE.Color(0xa890aa);
+    const noon  = new THREE.Color(0x90a8c4);
+    const dusk  = new THREE.Color(0xc89070);
+    const night = new THREE.Color(0x2c2a44);
+    let tgt;
+    if (timeOfDay < 0.18) tgt = night;
+    else if (timeOfDay < 0.4) tgt = dawn;
+    else if (timeOfDay < 0.65) tgt = noon;
+    else if (timeOfDay < 0.85) tgt = dusk;
+    else tgt = night;
+    scene.userData.distantMtns.traverse(m => {
+      if (m.isMesh && m.userData.baseColor) {
+        // Subtle ring-based mix (farther = more atmospheric tint)
+        const k = 0.04 + m.userData.ringIndex * 0.04;
+        m.material.color.lerp(tgt, k);
+      }
+    });
+  }
+}
+
+// ─── Distant mountain silhouettes (matte-painting backdrop) ───
+function buildDistantMountains() {
+  // 3 rings of cone mountains at growing radii, sized for parallax depth
+  const rings = [
+    { r: 35, count: 10, h: 14, baseW: 9,  hueShift: 0.05, sat: 0.18, lit: 0.45, opacity: 0.96 },
+    { r: 55, count: 12, h: 18, baseW: 14, hueShift: 0.10, sat: 0.14, lit: 0.55, opacity: 0.88 },
+    { r: 85, count: 16, h: 26, baseW: 22, hueShift: 0.14, sat: 0.10, lit: 0.65, opacity: 0.74 },
+  ];
+  const grp = new THREE.Group();
+  for (let ri = 0; ri < rings.length; ri++) {
+    const ring = rings[ri];
+    for (let i = 0; i < ring.count; i++) {
+      const baseAngle = (i / ring.count) * Math.PI * 2;
+      const jitter = (Math.random() - 0.5) * 0.4;
+      const a = baseAngle + jitter;
+      const radius = ring.r + (Math.random() - 0.5) * 6;
+      const h = ring.h * (0.7 + Math.random() * 0.6);
+      const w = ring.baseW * (0.8 + Math.random() * 0.45);
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(w * 0.5, h, 5, 1, false),
+        new THREE.MeshLambertMaterial({
+          color: new THREE.Color().setHSL(0.55 + ring.hueShift + Math.random() * 0.05, ring.sat, ring.lit),
+          transparent: ring.opacity < 1.0,
+          opacity: ring.opacity,
+          flatShading: true,
+        })
+      );
+      cone.position.set(Math.cos(a) * radius, h * 0.45 - 1.5, Math.sin(a) * radius);
+      cone.rotation.y = Math.random() * Math.PI * 2;
+      cone.userData.isDistantMtn = true;
+      cone.userData.ringIndex = ri;
+      cone.userData.baseColor = cone.material.color.clone();
+      grp.add(cone);
+    }
+  }
+  scene.add(grp);
+  scene.userData.distantMtns = grp;
+}
+
+// ─── God rays (additive cone shafts cast from sun position) ───
+function buildGodRays() {
+  // Use additive cones; per-frame face the sun and modulate by atmospheric thickness
+  const rays = new THREE.Group();
+  const rayMat = new THREE.ShaderMaterial({
+    uniforms: {
+      rayColor: { value: new THREE.Color(0xfff3d0) },
+      intensity:{ value: 0.18 },
+      time:     { value: 0 },
+    },
+    vertexShader: `
+      varying float vAlpha;
+      varying vec3 vLocal;
+      void main(){
+        vLocal = position;
+        // taper: top (cone tip) gets brighter, bottom fades
+        float tip = (position.y - (-12.0)) / 24.0;
+        vAlpha = smoothstep(0.0, 0.5, tip);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 rayColor;
+      uniform float intensity;
+      uniform float time;
+      varying float vAlpha;
+      varying vec3 vLocal;
+      void main(){
+        // streaky pattern across the cone
+        float streak = sin(atan(vLocal.x, vLocal.z) * 12.0 + time * 0.3) * 0.5 + 0.5;
+        float a = vAlpha * intensity * streak;
+        // soft circular fade from center
+        float d = length(vLocal.xz) / 6.0;
+        a *= smoothstep(1.0, 0.0, d);
+        gl_FragColor = vec4(rayColor * a, a);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+  // 3 broad cone shafts angled outward — they'll rotate to face the sun
+  for (let i = 0; i < 3; i++) {
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(6, 24, 6, 1, true),
+      rayMat
+    );
+    cone.position.set((i - 1) * 8, 12, -4);
+    cone.rotation.z = (i - 1) * 0.2;
+    cone.userData.isGodRay = true;
+    rays.add(cone);
+  }
+  scene.add(rays);
+  scene.userData.godRays = rays;
+}
+
 // ─── Avatar ───────────────────────────────────────────────
 function buildAvatar() {
   const g = new THREE.Group();
@@ -2803,6 +2947,7 @@ function animate() {
   updateProximity(t);
   updateTimeOfDay(dt);
   updateSeasonTransitions(dt);
+  updateGodRays(t);
   updatePetals(dt, t);
   updateFireflies(t);
   updateDust(t);
