@@ -35,8 +35,8 @@ canvas{display:block;touch-action:none}
 .splash .deck em{color:#ffc176;font-style:normal}
 .splash button{margin-top:2.6rem;background:#b87c4a;color:#1a0e06;border:none;padding:14px 38px;border-radius:32px;font-family:'Shippori Mincho',serif;font-size:1rem;letter-spacing:.4em;cursor:pointer;box-shadow:0 8px 28px rgba(184,124,74,.32);transition:transform .25s,box-shadow .25s,background .25s}
 .splash button:hover{transform:translateY(-2px);background:#c9905a;box-shadow:0 12px 36px rgba(184,124,74,.45)}
-.splash .progress{margin-top:1.6rem;width:240px;height:2px;background:rgba(255,205,150,.18);border-radius:1px;overflow:hidden}
-.splash .bar{height:100%;width:0%;background:#c08a52;transition:width .4s}
+.splash .progress{margin-top:1.6rem;width:240px;height:2px;background:rgba(255,205,150,.18);border-radius:1px;overflow:hidden;position:relative}
+.splash .progress > .loadbar-fill{position:absolute;left:0;top:0;height:100%;width:0%;background:#c08a52;transition:width .4s}
 
 /* Top bar */
 .bar{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;justify-content:space-between;align-items:center;padding:14px 22px;background:linear-gradient(180deg,rgba(20,16,28,.55),transparent);color:#f4ead0;pointer-events:none}
@@ -181,7 +181,7 @@ canvas{display:block;touch-action:none}
     <em>タップ</em>で歩いて、 <em>ドラッグ</em>で見渡しながら、 ゆっくりと。
   </div>
   <button id="enter-btn">庭に入る</button>
-  <div class="progress"><div class="bar" id="loadbar"></div></div>
+  <div class="progress"><div class="loadbar-fill" id="loadbar"></div></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2442,6 +2442,26 @@ const EXTERNAL_ASSETS = [
   { file:'../blender_v3/chibi_tree_green_a.glb',role:'village_tree_a', x: BIOMES.village.cx + 7, z: BIOMES.village.cz + 7,  h: 3.5, rot: 0,    yOff: 0, shadow:true },
   { file:'../blender_v3/chibi_tree_autumn.glb', role:'village_tree_b', x: BIOMES.village.cx - 7, z: BIOMES.village.cz + 6,  h: 3.5, rot: 0.5,  yOff: 0, shadow:true },
   { file:'../blender_v3/chibi_tree_green_b.glb',role:'village_tree_c', x: BIOMES.village.cx + 6, z: BIOMES.village.cz - 8,  h: 3.5, rot: 1.0,  yOff: 0, shadow:true },
+  // v46 village density: well + wheelbarrow + birdhouse + veg patch + 多数flowers
+  { file:'../blender_v3/chibi_well.glb',        role:'village_well',    x: BIOMES.village.cx + 2, z: BIOMES.village.cz + 3, h: 2.5, rot: 0, yOff: 0, shadow:true },
+  { file:'../blender_v3/wheelbarrow.glb',       role:'village_wb',      x: BIOMES.village.cx - 3, z: BIOMES.village.cz + 2, h: 0.7, rot: 0.6, yOff: 0, shadow:true },
+  { file:'../blender_v3/birdhouse.glb',         role:'village_bh',      x: BIOMES.village.cx + 8, z: BIOMES.village.cz + 4, h: 2.8, rot: 0, yOff: 0, shadow:true },
+  { file:'../blender_v3/veg_patch.glb',         role:'village_veg',     x: BIOMES.village.cx - 6, z: BIOMES.village.cz - 5, h: 0.3, rot: 0, yOff: 0, shadow:true },
+  // Forest density: grass+ferns+mushrooms+flowers
+  { file:'../blender_v3/fern.glb',              role:'forest_fern_a',   x: BIOMES.forest.cx + 2, z: BIOMES.forest.cz - 2, h: 0.5, rot: 0, yOff: 0, shadow:true },
+  { file:'../blender_v3/fern.glb',              role:'forest_fern_b',   x: BIOMES.forest.cx - 2, z: BIOMES.forest.cz + 4, h: 0.5, rot: 1.5, yOff: 0, shadow:true },
+  { file:'../blender_v3/fern.glb',              role:'forest_fern_c',   x: BIOMES.forest.cx + 5, z: BIOMES.forest.cz + 2, h: 0.5, rot: 0.8, yOff: 0, shadow:true },
+  { file:'../blender_v3/mushroom.glb',          role:'forest_mu_a',     x: BIOMES.forest.cx - 3, z: BIOMES.forest.cz - 2, h: 0.4, rot: 0, yOff: 0, shadow:true },
+  { file:'../blender_v3/mushroom.glb',          role:'forest_mu_b',     x: BIOMES.forest.cx + 4, z: BIOMES.forest.cz - 4, h: 0.4, rot: 0.5, yOff: 0, shadow:true },
+  { file:'../blender_v3/mushroom.glb',          role:'forest_mu_c',     x: BIOMES.forest.cx + 3, z: BIOMES.forest.cz + 6, h: 0.4, rot: 1.2, yOff: 0, shadow:true },
+  { file:'../blender_v3/chibi_rocks.glb',       role:'forest_crk',      x: BIOMES.forest.cx + 1, z: BIOMES.forest.cz - 3, h: 0.35, rot: 0, yOff: 0, shadow:true },
+  // Mountain stone_steps_chibi
+  { file:'../blender_v3/stone_steps_chibi.glb', role:'mtn_chibi_steps', x: BIOMES.mountain.cx - 4, z: BIOMES.mountain.cz + 5, h: 1.2, rot: 0.3, yOff: 0, shadow:true },
+  // Lake decorative grass + flowers
+  { file:'../blender_v3/grass_tuft.glb',        role:'lake_grass_a',    x: BIOMES.lake.cx - 5, z: BIOMES.lake.cz - 5, h: 0.35, rot: 0, yOff: 0, shadow:true },
+  { file:'../blender_v3/grass_tuft.glb',        role:'lake_grass_b',    x: BIOMES.lake.cx + 8, z: BIOMES.lake.cz + 6, h: 0.35, rot: 0.5, yOff: 0, shadow:true },
+  { file:'../blender_v3/wildflower_pink.glb',   role:'lake_fl_a',       x: BIOMES.lake.cx - 4, z: BIOMES.lake.cz + 7, h: 0.45, rot: 0, yOff: 0, shadow:true },
+  { file:'../blender_v3/wildflower_orange.glb', role:'lake_fl_b',       x: BIOMES.lake.cx + 6, z: BIOMES.lake.cz - 7, h: 0.45, rot: 0.5, yOff: 0, shadow:true },
   // === 湖エリア (Lake) — 静かな湖畔: 太鼓橋 + 茶室 + 桜並木 + ベンチ ===
   { file:'../blender/arch_bridge.glb',  role:'bridge',     x: BIOMES.lake.cx - 6, z: BIOMES.lake.cz - 3, h: 1.8, rot: 0.6,  yOff: 0,   shadow:true },
   { file:'../blender/tea_house.glb',    role:'tea_house',  x: BIOMES.lake.cx + 5, z: BIOMES.lake.cz - 5, h: 3.2, rot:-0.5,  yOff: 0,   shadow:true },
