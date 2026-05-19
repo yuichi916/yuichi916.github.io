@@ -1028,6 +1028,77 @@ function buildSkyDome() {
   });
   skyDome = new THREE.Mesh(skyGeo, skyMat);
   scene.add(skyDome);
+  // v51: 星 — 月夜の wow factor
+  buildStarField();
+}
+
+function buildStarField() {
+  const N = 800;
+  const positions = new Float32Array(N * 3);
+  const sizes = new Float32Array(N);
+  const colors = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    // Spherical distribution on upper hemisphere
+    const u = Math.random();
+    const v = Math.random();
+    const theta = 2 * Math.PI * u;
+    const phi = Math.acos(2 * v - 1) * 0.5; // upper half
+    const R = 180 + Math.random() * 5;
+    const x = R * Math.sin(phi) * Math.cos(theta);
+    const y = R * Math.cos(phi);
+    const z = R * Math.sin(phi) * Math.sin(theta);
+    positions[i*3] = x; positions[i*3+1] = y; positions[i*3+2] = z;
+    sizes[i] = 0.4 + Math.random() * 1.6;
+    // mostly white-blue, some warm
+    const warm = Math.random() < 0.15;
+    if (warm) {
+      colors[i*3] = 1.0; colors[i*3+1] = 0.9; colors[i*3+2] = 0.75;
+    } else {
+      const b = 0.85 + Math.random() * 0.15;
+      colors[i*3] = b * 0.92; colors[i*3+1] = b * 0.96; colors[i*3+2] = b;
+    }
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geom.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+  geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  // Make twinkle via shader
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 } },
+    vertexShader: `
+      attribute float size;
+      attribute vec3 color;
+      varying vec3 vColor;
+      varying float vTwinkle;
+      uniform float time;
+      void main(){
+        vColor = color;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        // twinkle: per-vertex phase from position
+        float phase = position.x * 0.13 + position.y * 0.21 + position.z * 0.07;
+        vTwinkle = 0.6 + 0.4 * sin(time * 1.3 + phase * 3.0);
+        gl_PointSize = size * (240.0 / -mv.z);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vColor;
+      varying float vTwinkle;
+      void main(){
+        vec2 c = gl_PointCoord - 0.5;
+        float d = length(c);
+        float a = smoothstep(0.5, 0.0, d) * vTwinkle;
+        gl_FragColor = vec4(vColor * vTwinkle, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const stars = new THREE.Points(geom, mat);
+  stars.userData.isStarField = true;
+  scene.add(stars);
+  scene.userData.stars = stars;
 }
 
 // ─── Diorama base — irregular cliff edge (naturalistic, v8) ───
@@ -3538,7 +3609,7 @@ function showBiome(biomeKey) {
   scene.children.forEach(obj => {
     if (obj === avatar || obj.isLight) return;  // always visible
     // Sky, distant mountains, terrain — shared (always visible)
-    if (obj === terrainMesh || obj === skyDome || obj === scene.userData.distantMtns || obj === scene.userData.clouds || obj === scene.userData.godRays) {
+    if (obj === terrainMesh || obj === skyDome || obj === scene.userData.distantMtns || obj === scene.userData.clouds || obj === scene.userData.godRays || obj === scene.userData.stars) {
       obj.visible = true;
       return;
     }
@@ -3727,7 +3798,7 @@ function buildSunFlare() {
     opacity: 0.85,  // 常時可視 (sun-fade ロジックは override)
   });
   _sunFlareSprite = new THREE.Sprite(mat);
-  _sunFlareSprite.scale.set(18, 18, 1);
+  _sunFlareSprite.scale.set(24, 24, 1);  // v51: 月をはっきり大きく
   _sunFlareSprite.renderOrder = 990;
   scene.add(_sunFlareSprite);
 }
@@ -5357,6 +5428,10 @@ function animate() {
   updateFireflies(t);
   updateDust(t);
   updateWind(t);
+  // v51: star twinkle
+  if (scene.userData.stars && scene.userData.stars.material.uniforms) {
+    scene.userData.stars.material.uniforms.time.value = t;
+  }
   // flame light flicker (volumetric flames update separately)
   for (const c of clickables) {
     if (c.userData.fireLight) {
