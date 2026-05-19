@@ -254,8 +254,8 @@ const clickables = [];
 const lanternHeads = [];
 const placeHovers = {};
 let kokoro = 0;
-let timeOfDay = 0.42;     // start mid-afternoon
-const DAY_SEC = 240;
+let timeOfDay = 0.5;      // v48 stylebook: 月が天頂 (moon-position formula peaks at 0.5)、palette は全 stops 夜固定
+const DAY_SEC = 999999;   // effectively static moonlit night (no cycling)
 let lastTs = performance.now();
 let bgmEnabled = false, audioCtx, bgmGain, bgmNodes = [];
 let achievementsUnlocked = new Set();
@@ -598,8 +598,9 @@ function distToStream(x, z) { return distToBiomeStream(x, z); }
 async function init() {
   TOON_GRAD = makeToonGradient(4);
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xe9d4b0);
-  scene.fog = new THREE.Fog(0xefd9b8, 35, 80);
+  // v48 stylebook: 月夜の京都古都 — 墨紺指数霧、30m で減衰
+  scene.background = new THREE.Color(0x0A1424);
+  scene.fog = new THREE.FogExp2(0x0A1424, 0.035);
 
   camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 400);
   camera.position.set(0, 14, 18);
@@ -621,11 +622,11 @@ async function init() {
 
   raycaster = new THREE.Raycaster();
 
-  // Lights — references stored for day/night cycle
-  // Brighter, warmer ambient for picture-book feel (less harsh contrast)
-  const ambient = new THREE.AmbientLight(0xffe8c8, 0.78);
+  // v48 stylebook: 月夜キーライト = 月、ambient = 月夜の青グレー
+  // 月光 5500K cool white、ambient はほぼ落とす (0.15)
+  const ambient = new THREE.AmbientLight(0x1A2E4A, 0.15);
   scene.add(ambient);
-  const sun = new THREE.DirectionalLight(0xfff1d6, 0.85);
+  const sun = new THREE.DirectionalLight(0xD9E6F2, 1.0);  // moonlight (5500K)
   sun.position.set(14, 22, 10);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -874,7 +875,12 @@ async function init() {
   buildHandPlacedFlora();
   // (lanterns / pagoda / torii / bridge / pavilion are now provided by external GLB assets)
   // External CC0 / CC-BY assets (Poly Pizza) — adds high-quality hero objects
-  loadExternalAssets().then(() => setLoadBar(0.99));
+  // v48: chain biome tagging+showBiome after GLB async load completes
+  loadExternalAssets().then(() => {
+    setLoadBar(0.99);
+    tagSceneByBiome();
+    showBiome('plaza');
+  });
   buildClouds();
   buildDistantMountains();
   buildGodRays();
@@ -882,6 +888,8 @@ async function init() {
   scatterWildflowers();
   buildBiomeGroundCover();
   buildBiomePaths();
+  buildForestHeroTree();
+  buildBiomeForegroundFrame();
   buildSunFlare();
   buildDustMotes();
   buildGroundMist();
@@ -897,9 +905,8 @@ async function init() {
 
   setLoadBar(0.9);
 
-  // After all content is built, tag each object by its biome based on position
-  setTimeout(() => tagSceneByBiome(), 200);
-  setTimeout(() => showBiome('plaza'), 600);  // start in plaza
+  // v48: initial tag (covers non-GLB objects). GLB-loaded items get re-tagged via loadExternalAssets().then chain.
+  setTimeout(() => { tagSceneByBiome(); showBiome('plaza'); }, 200);
   setupInput();
   bindHud();
   refreshVisitedDots();
@@ -1269,10 +1276,10 @@ function buildHeightmapTerrain() {
           col *= mix(1.0 - cloudStrength, 1.0, cs);
         }
 
-        // distance haze for painterly depth (now wider area)
+        // v48 stylebook: distance haze tinted to moonlit sky color (0x0A1424)
         float dist = length(vWorldPos.xz);
-        float haze = smoothstep(18.0, 42.0, dist) * 0.5;
-        col = mix(col, vec3(0.86, 0.82, 0.74), haze);
+        float haze = smoothstep(14.0, 32.0, dist) * 0.7;
+        col = mix(col, vec3(0.039, 0.078, 0.141), haze);
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -1303,6 +1310,7 @@ function buildKoiPond() {
       color: 0x506880,
     });
     refl.position.set(px, WATER_Y, pz);
+    refl.userData.biomeOverride = 'lake'; // v48: hide when not in lake biome
     scene.add(refl);
     koiPondMesh = refl;
   } else {
@@ -2401,7 +2409,8 @@ const EXTERNAL_ASSETS = [
   { file:'../blender_v3/signpost.glb',     role:'plaza_sign',  x:-3, z: -1, h: 1.7, rot: 0.4,  yOff: 0, shadow:true },
   { file:'../blender_v3/chochin.glb',      role:'plaza_chochin_a', x: 2, z: 2, h: 0.9, rot: 0, yOff: 1.6, shadow:true },
   { file:'../blender_v3/chochin.glb',      role:'plaza_chochin_b', x:-2, z: 2, h: 0.9, rot: 0, yOff: 1.6, shadow:true },
-  { file:'../blender_v3/mailbox.glb',      role:'plaza_mailbox', x: 2.5, z: -3, h: 1.6, rot: 0, yOff: 0, shadow:true },
+  // v48 stylebook: mailbox は近代的なので除外
+  // { file:'../blender_v3/mailbox.glb',      role:'plaza_mailbox', x: 2.5, z: -3, h: 1.6, rot: 0, yOff: 0, shadow:true },
   // === 山エリア (Mountain) — 主役=五重塔ひとつ、bell/shrine は遠景の脇役へ縮小 ===
   { file:'../blender/pagoda_5tier.glb', role:'pagoda',       x: BIOMES.mountain.cx,     z: BIOMES.mountain.cz,     h: 10.5, rot: 0.2,   yOff: 0.0, shadow:true },
   // bell_tower を背景奥に小さく退避 (silhouette test: 主役と高さ差をつける)
@@ -2425,15 +2434,15 @@ const EXTERNAL_ASSETS = [
   { file:'../blender_v3/chibi_bench.glb',       role:'forest_bench', x: BIOMES.forest.cx + 3, z: BIOMES.forest.cz - 1, h: 0.8, rot: -0.5, yOff: 0, shadow:true },
   { file:'../blender_v3/pond_rocks.glb',        role:'forest_rocks', x: BIOMES.forest.cx - 3, z: BIOMES.forest.cz + 2, h: 0.7, rot: 0.3,  yOff: 0, shadow:true },
   { file:'../blender_v3/chochin.glb',           role:'forest_chochin', x: BIOMES.forest.cx + 4, z: BIOMES.forest.cz + 6, h: 0.7, rot: 0, yOff: 2.5, shadow:true },
-  // === 村エリア (Village) — chibi houses + props (Animal Crossing-style cluster) ===
-  // 3 chibi houses arranged around a central空 (gap = plaza-like space)
-  { file:'../blender_v3/chibi_house_red.glb',   role:'village_house_a',x: BIOMES.village.cx,     z: BIOMES.village.cz,      h: 3.4, rot: 0.15, yOff: 0, shadow:true },
-  { file:'../blender_v3/chibi_house_warm.glb',  role:'village_house_b',x: BIOMES.village.cx + 5, z: BIOMES.village.cz + 2,  h: 3.2, rot:-0.4,  yOff: 0, shadow:true },
-  { file:'../blender_v3/chibi_house_red2.glb',  role:'village_house_c',x: BIOMES.village.cx - 4, z: BIOMES.village.cz - 3,  h: 3.0, rot: 0.6,  yOff: 0, shadow:true },
-  // Detailed kominka as a "shrine/main hall" anchor
-  { file:'../blender/kominka_b.glb',            role:'village_main',   x: BIOMES.village.cx - 2, z: BIOMES.village.cz + 6,  h: 3.6, rot:-0.3,  yOff: 0, shadow:true },
-  // Watchtower far edge
-  { file:'../blender/watchtower.glb',           role:'village_tower',  x: BIOMES.village.cx + 8, z: BIOMES.village.cz - 5,  h: 6.5, rot: 1.0,  yOff: 0, shadow:true },
+  // === 村エリア (Village) — 主役 1 点=kominka_b、他は背景silhouetteへ縮小 ===
+  // 主役: 民家(kominka_b) を中央へ大きく
+  { file:'../blender/kominka_b.glb',            role:'village_main',   x: BIOMES.village.cx,     z: BIOMES.village.cz,      h: 5.4, rot:-0.2,  yOff: 0, shadow:true },
+  // watchtower を遠景奥のシルエット (背高い+小さくして空気遠近)
+  { file:'../blender/watchtower.glb',           role:'village_tower',  x: BIOMES.village.cx + 10, z: BIOMES.village.cz - 9, h: 4.2, rot: 1.0,  yOff: 0, shadow:true },
+  // chibi houses は外周の脇役として小型化
+  { file:'../blender_v3/chibi_house_red.glb',   role:'village_house_a',x: BIOMES.village.cx + 7, z: BIOMES.village.cz + 6,  h: 2.0, rot: 0.4, yOff: 0, shadow:true },
+  { file:'../blender_v3/chibi_house_warm.glb',  role:'village_house_b',x: BIOMES.village.cx - 7, z: BIOMES.village.cz + 5,  h: 1.9, rot:-0.6, yOff: 0, shadow:true },
+  { file:'../blender_v3/chibi_house_red2.glb',  role:'village_house_c',x: BIOMES.village.cx - 6, z: BIOMES.village.cz - 7,  h: 1.8, rot: 0.7, yOff: 0, shadow:true },
   // Village props - storytelling
   { file:'../blender_v3/laundry.glb',           role:'village_laundry',x: BIOMES.village.cx + 2, z: BIOMES.village.cz - 5,  h: 1.7, rot: 0,    yOff: 0, shadow:true },
   { file:'../blender_v3/bucket.glb',            role:'village_bucket', x: BIOMES.village.cx - 3, z: BIOMES.village.cz - 1,  h: 0.6, rot: 0,    yOff: 0, shadow:true },
@@ -2495,15 +2504,16 @@ const EXTERNAL_ASSETS = [
   { file:'koi_quaternius.glb',          role:'koi_a',          x: BIOMES.lake.cx,        z: BIOMES.lake.cz,        h: 0.16, rot:0,    yOff: 0,   animate:'koi', cx:BIOMES.lake.cx, cz:BIOMES.lake.cz, radius:2.5, speed:0.5, phase:0 },
   { file:'koi_blue_quaternius.glb',     role:'koi_b',          x: BIOMES.lake.cx + 1,    z: BIOMES.lake.cz + 1,    h: 0.16, rot:0,    yOff: 0,   animate:'koi', cx:BIOMES.lake.cx, cz:BIOMES.lake.cz, radius:3.5, speed:0.6, phase:1.2 },
   { file:'koi_gold_google.glb',         role:'koi_c',          x: BIOMES.lake.cx - 1,    z: BIOMES.lake.cz - 1,    h: 0.16, rot:0,    yOff: 0,   animate:'koi', cx:BIOMES.lake.cx, cz:BIOMES.lake.cz, radius:2.0, speed:0.7, phase:2.4 },
-  // === Trees scattered to anchor area transitions ===
-  { file:'../blender/sakura_a.glb',     role:'sakura_hero',    x: 8,    z: 0,    h: 5.5, rot: 0.4,   yOff: 0,    shadow:true },
-  { file:'../blender/sakura_b.glb',     role:'cherry_a',       x: 5,    z: 6,    h: 5.0, rot:-0.5,   yOff: 0,    shadow:true },
-  { file:'../blender/sakura_a.glb',     role:'cherry_b',       x: -6,   z: 5,    h: 4.5, rot: 0.7,   yOff: 0,    shadow:true },
-  // === Plaza lanterns (4 corners) ===
-  { file:'../blender/stone_lantern.glb',role:'ish_a',     x:-3.5, z:-3.5, h: 1.8, rot: 0, yOff: 0, shadow:true, lantern:true },
-  { file:'../blender/stone_lantern.glb',role:'ish_b',     x: 3.5, z:-3.5, h: 1.8, rot: 0, yOff: 0, shadow:true, lantern:true },
-  { file:'../blender/stone_lantern.glb',role:'ish_c',     x:-3.5, z: 3.5, h: 1.8, rot: 0, yOff: 0, shadow:true, lantern:true },
-  { file:'../blender/stone_lantern.glb',role:'ish_d',     x: 3.5, z: 3.5, h: 1.8, rot: 0, yOff: 0, shadow:true, lantern:true },
+  // v48 stylebook: 桜は palette 外 (赤桃禁止) のため除外。森biomeで苔森トリーに置き換え予定
+  // { file:'../blender/sakura_a.glb',     role:'sakura_hero',    x: 8,    z: 0,    h: 5.5, rot: 0.4,   yOff: 0,    shadow:true },
+  // { file:'../blender/sakura_b.glb',     role:'cherry_a',       x: 5,    z: 6,    h: 5.0, rot:-0.5,   yOff: 0,    shadow:true },
+  // { file:'../blender/sakura_a.glb',     role:'cherry_b',       x: -6,   z: 5,    h: 4.5, rot: 0.7,   yOff: 0,    shadow:true },
+  // v48 stylebook: 鳥居を hero に、提灯を周囲に三角配置 (rule 6: hero + 3 reps)
+  // torii は (0, -4) に z=-4, h=4.5。lanterns を鳥居両柱 + 手前1基 + 後背に三角に置く
+  { file:'../blender/stone_lantern.glb',role:'ish_a',     x:-2.2, z:-3.6, h: 1.8, rot: 0,    yOff: 0, shadow:true, lantern:true }, // 鳥居左柱
+  { file:'../blender/stone_lantern.glb',role:'ish_b',     x: 2.2, z:-3.6, h: 1.8, rot: 0,    yOff: 0, shadow:true, lantern:true }, // 鳥居右柱
+  { file:'../blender/stone_lantern.glb',role:'ish_c',     x: 0.0, z: 2.0, h: 1.8, rot: 0,    yOff: 0, shadow:true, lantern:true }, // 手前中央 (visitor-facing)
+  { file:'../blender/stone_lantern.glb',role:'ish_d',     x: 0.0, z:-7.0, h: 1.6, rot: 0,    yOff: 0, shadow:true, lantern:true }, // 鳥居の奥 (silhouette glow)
   // === Lantern path between biomes (one per biome direction) ===
   { file:'ishidoro_flopsi.glb',         role:'ish_to_forest', x:-10, z:-10, h: 1.4, rot: 0, yOff: 0, shadow:true, lantern:true },
   { file:'ishidoro_flopsi.glb',         role:'ish_to_village',x: 10, z:-10, h: 1.4, rot: 0, yOff: 0, shadow:true, lantern:true },
@@ -2625,15 +2635,14 @@ async function loadExternalAssets() {
             shadow.renderOrder = -1;
             scene.add(shadow);
           }
-          // tag lanterns for night glow boost
+          // v48 stylebook: lantern emissive uses #FFB070 (1900K)、PointLight intensity 0.8 distance 6m
           if (spec.lantern) {
             wrap.traverse(c => {
               if (c.isMesh && c.material && c.material.color) {
-                // give a soft emissive
                 const newMat = new THREE.MeshStandardMaterial({
                   color: c.material.color,
-                  emissive: 0xff9a40,
-                  emissiveIntensity: 0.35,
+                  emissive: 0xFFB070,
+                  emissiveIntensity: 0.9,
                   roughness: 0.6,
                   metalness: 0.0,
                 });
@@ -2641,8 +2650,7 @@ async function loadExternalAssets() {
                 c.userData.isLanternHead = true;
               }
             });
-            // accompanying point light
-            const pl = new THREE.PointLight(0xff9a40, 0.45, 5);
+            const pl = new THREE.PointLight(0xFFB070, 0.8, 6, 1.5);
             pl.position.set(spec.x, ty + spec.h * 0.7, spec.z);
             pl.userData.isLanternLight = true;
             scene.add(pl);
@@ -3859,11 +3867,12 @@ function scatterWildflowers() {
 // ─── v47: per-biome ground cover via InstancedMesh ───
 // Composition rules: 70% main + 30% accent (2 side colors), no spillover.
 // Each biome uses its own palette per niwa-composition-rules.md.
+// v48 stylebook: 月夜の苔庭 palette に統一。アクセントは唯一 #F4B860 (lantern コア) のみ
 const BIOME_GROUND = {
-  forest:   { main:0x3F6B3A, side:[0x5A8A48, 0xB7C77A], accent:0xE26A4A, count:520 },
-  village:  { main:0x9C8862, side:[0xC9A878, 0xE8D9B0], accent:0xC8553D, count:380 },
-  lake:     { main:0xA8C8B5, side:[0x86B58E, 0xC6D2B0], accent:0xF2B66B, count:460 },
-  mountain: { main:0xB7B0A4, side:[0xD9E4EC, 0x6B7A8F], accent:0xC46A4A, count:420 },
+  forest:   { main:0x2F5841, side:[0x1F3A2E, 0x6B8A3A], accent:0xF4B860, count:520 },
+  village:  { main:0x6A5E45, side:[0xd8d0b8, 0x3A3025], accent:0xF4B860, count:380 },
+  lake:     { main:0x7B9890, side:[0x2F5841, 0x4A6360], accent:0xF4B860, count:460 },
+  mountain: { main:0x5C6068, side:[0x3A4045, 0x8A8E94], accent:0xF4B860, count:420 },
 };
 function buildBiomeGroundCover() {
   if (!scene) return;
@@ -3946,6 +3955,86 @@ function buildBiomeGroundCover() {
       inst.userData.biome = bkey;
       inst.userData.biomeOverride = bkey; // pin biome for showBiome
       scene.add(inst);
+    }
+  }
+}
+
+// ─── v48: forest hero tree (procedural giant broadleaf) ───
+// createTree adds the tree group + shadow + canopy sprites directly to scene
+// and returns nothing — so we capture by index range and re-tag biome.
+function buildForestHeroTree() {
+  if (!scene || typeof createTree !== 'function') return;
+  const b = BIOMES.forest;
+  const tagBiome = (start, end) => {
+    for (let i = start; i < end; i++) {
+      const c = scene.children[i];
+      if (c && c.userData) c.userData.biomeOverride = 'forest';
+    }
+  };
+  let s = scene.children.length;
+  createTree(b.cx - 2, b.cz + 1, 'maple', 2.4); // hero giant maple
+  tagBiome(s, scene.children.length);
+  s = scene.children.length;
+  createTree(b.cx + 5, b.cz - 4, 'cedar', 1.8); // secondary tall conifer
+  tagBiome(s, scene.children.length);
+  s = scene.children.length;
+  createTree(b.cx - 6, b.cz - 3, 'momiji', 1.6); // accent autumn
+  tagBiome(s, scene.children.length);
+}
+
+// ─── v48: foreground "額縁" frame per biome ───
+// Composition rule #2: foreground layer must darken/frame the bottom of view.
+// Place taller bushes & rocks along the plaza-facing edge of each biome.
+function buildBiomeForegroundFrame() {
+  if (!scene) return;
+  const bushGeo = makeOrganicBlob(0.7, 1, 0.18, 7);
+  for (const [bkey, b] of Object.entries(BIOMES)) {
+    if (bkey === 'plaza') continue;
+    // direction from biome center toward plaza (origin) — the "viewer" side
+    const dx = -b.cx, dz = -b.cz;
+    const len = Math.max(0.001, Math.hypot(dx, dz));
+    const ux = dx / len, uz = dz / len;
+    const palette = (BIOME_GROUND[bkey] || {});
+    const bushColor = palette.main || 0x4a7a3a;
+    // 6-8 bushes along an arc on the plaza-facing edge
+    const cnt = 7;
+    for (let i = 0; i < cnt; i++) {
+      const t = (i / (cnt - 1)) - 0.5; // -0.5..0.5
+      // arc tangent: perpendicular to (ux,uz)
+      const px = -uz, pz = ux;
+      const r = b.radius - 1.0;
+      const x = b.cx + ux * r + px * t * (b.radius * 1.2);
+      const z = b.cz + uz * r + pz * t * (b.radius * 1.2);
+      const y = (typeof getTerrainHeight === 'function') ? getTerrainHeight(x, z) : 0;
+      if (y < -0.25) continue;
+      const m = new THREE.Mesh(bushGeo, foliageMat(bushColor, { rim: 0.35 }));
+      m.position.set(x, y + 0.35, z);
+      const s = 0.85 + Math.random() * 0.5;
+      m.scale.set(s * 1.4, s * 0.9, s * 1.3);
+      m.rotation.y = Math.random() * Math.PI * 2;
+      m.castShadow = true; m.receiveShadow = true;
+      m.userData.biomeOverride = bkey;
+      m.userData.isLeaf = true;
+      scene.add(m);
+      FOLIAGE_OBJS.push(m);
+    }
+    // 2-3 dark rocks at very front for foreground depth
+    const rockMat = toonMat(0x3a3530);
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3 - 0.5) * 0.9;
+      const px = -uz, pz = ux;
+      const r = b.radius + 0.8;
+      const x = b.cx + ux * r + px * a * b.radius;
+      const z = b.cz + uz * r + pz * a * b.radius;
+      const y = (typeof getTerrainHeight === 'function') ? getTerrainHeight(x, z) : 0;
+      const rk = new THREE.Mesh(makeOrganicBlob(0.55, 1, 0.22, i * 5 + 31), rockMat);
+      rk.position.set(x, y + 0.18, z);
+      const s = 0.9 + Math.random() * 0.6;
+      rk.scale.set(s * 1.4, s * 0.75, s * 1.2);
+      rk.rotation.y = Math.random() * Math.PI * 2;
+      rk.castShadow = true; rk.receiveShadow = true;
+      rk.userData.biomeOverride = bkey;
+      scene.add(rk);
     }
   }
 }
@@ -4299,12 +4388,15 @@ function updateDust(t) {
 function updateTimeOfDay(dt) {
   timeOfDay = (timeOfDay + dt / DAY_SEC) % 1.0;
   const t = timeOfDay;
+  // v48 stylebook: 月夜の京都古都に palette 固定。全 stops を夜パレットで上書き。
+  // moon = 5500K cool key (#D9E6F2), ambient = #1A2E4A (sky)/#0F1A12 (ground)
+  // fog & sky horizon = #1A2E4A、zenith = #0A1424
   const stops = [
-    { t: 0.00, top:0x1a1a2c, mid:0x1f1730, bot:0x2c2438, sun:0x4060a0, sunI:0.20, amb:0x252238, ambI:0.32, expo:0.65 },
-    { t: 0.18, top:0xb8a0c0, mid:0xe8b890, bot:0xf6c8a0, sun:0xffaa78, sunI:0.55, amb:0xa08070, ambI:0.45, expo:0.80 },
-    { t: 0.5,  top:0xb6cce8, mid:0xfde2c0, bot:0xf5d8b0, sun:0xfff1d6, sunI:0.85, amb:0xfff2dc, ambI:0.55, expo:0.88 },
-    { t: 0.78, top:0x8a5070, mid:0xc06848, bot:0xc25030, sun:0xff7a40, sunI:0.55, amb:0x8a5050, ambI:0.45, expo:0.80 },
-    { t: 0.95, top:0x1a1a2c, mid:0x1f1730, bot:0x2c2438, sun:0x4060a0, sunI:0.20, amb:0x252238, ambI:0.32, expo:0.65 },
+    { t: 0.00, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:1.0,  amb:0x1A2E4A, ambI:0.15, expo:0.85 },
+    { t: 0.18, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:1.0,  amb:0x1A2E4A, ambI:0.15, expo:0.85 },
+    { t: 0.5,  top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:1.0,  amb:0x1A2E4A, ambI:0.15, expo:0.85 },
+    { t: 0.78, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:1.0,  amb:0x1A2E4A, ambI:0.15, expo:0.85 },
+    { t: 0.95, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:1.0,  amb:0x1A2E4A, ambI:0.15, expo:0.85 },
   ];
   let a = stops[0], b = stops[1];
   for (let i = 0; i < stops.length - 1; i++) {
