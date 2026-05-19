@@ -659,22 +659,21 @@ async function init() {
       console.warn('SSAO init failed:', e);
     }
   }
-  // v48 stylebook Phase 6: Bloom strength 0.45, threshold 0.75, radius 0.6 (提灯と月の縁のみ)
+  // v48 stylebook Phase 6 polish
   bloomPass = new THREE.UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
     0.45, 0.75, 0.6
   );
   composer.addPass(bloomPass);
-  // v48 Phase 6: 月夜 color grade — 彩度抑え、寒色を強める、四隅を沈める
   const colorGradeShader = {
     uniforms: {
       tDiffuse:   { value: null },
       time:       { value: 0 },
-      satBoost:   { value: 0.92 },     // 月夜は彩度低め (1.0 -> 0.92)
-      warmShift:  { value: -0.05 },    // ハイライトを若干冷色寄り
-      coolShade:  { value: 0.18 },     // シャドウを青寄りに沈める
-      vignette:   { value: 0.50 },     // 四隅を強く沈める
-      lift:       { value: 0.015 },    // 黒を持ち上げない (深い黒を残す)
+      satBoost:   { value: 0.92 },
+      warmShift:  { value: -0.05 },
+      coolShade:  { value: 0.18 },
+      vignette:   { value: 0.50 },
+      lift:       { value: 0.015 },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -893,6 +892,7 @@ async function init() {
   buildBiomeForegroundFrame();
   buildPlazaForeground();
   buildLakeHero();
+  buildBiomeMidLayer();  // v49: 中層シダ/高草/岩 outcrop で密度向上
   buildSunFlare();
   buildDustMotes();
   buildGroundMist();
@@ -3881,12 +3881,12 @@ function scatterWildflowers() {
 // ─── v47: per-biome ground cover via InstancedMesh ───
 // Composition rules: 70% main + 30% accent (2 side colors), no spillover.
 // Each biome uses its own palette per niwa-composition-rules.md.
-// v48 stylebook: 月夜の苔庭 palette に統一。アクセントは唯一 #F4B860 (lantern コア) のみ
+// v49: 月夜苔庭 palette 統一・密度を ~1.8x で控えめに増強
 const BIOME_GROUND = {
-  forest:   { main:0x2F5841, side:[0x1F3A2E, 0x6B8A3A], accent:0xF4B860, count:520 },
-  village:  { main:0x6A5E45, side:[0xd8d0b8, 0x3A3025], accent:0xF4B860, count:380 },
-  lake:     { main:0x7B9890, side:[0x2F5841, 0x4A6360], accent:0xF4B860, count:460 },
-  mountain: { main:0x5C6068, side:[0x3A4045, 0x8A8E94], accent:0xF4B860, count:420 },
+  forest:   { main:0x2F5841, side:[0x1F3A2E, 0x6B8A3A], accent:0xF4B860, count:900 },
+  village:  { main:0x6A5E45, side:[0xd8d0b8, 0x3A3025], accent:0xF4B860, count:620 },
+  lake:     { main:0x7B9890, side:[0x2F5841, 0x4A6360], accent:0xF4B860, count:800 },
+  mountain: { main:0x5C6068, side:[0x3A4045, 0x8A8E94], accent:0xF4B860, count:700 },
 };
 function buildBiomeGroundCover() {
   if (!scene) return;
@@ -4228,6 +4228,142 @@ function buildPlazaForeground() {
     for (let i = before1; i < end; i++) {
       const c = scene.children[i];
       if (c && c.userData) c.userData.biomeOverride = 'plaza';
+    }
+  }
+}
+
+// ─── v49: 中層 fern/高草 + 岩 outcrop InstancedMesh 層 (FlowScape 級密度) ───
+function buildBiomeMidLayer() {
+  if (!scene) return;
+  // fern leaflet — small flat ribbon
+  const fernGeo = new THREE.PlaneGeometry(0.6, 0.45);
+  fernGeo.translate(0, 0.22, 0);
+  // tall grass clump — 3 stacked cones
+  const tallBlade = new THREE.ConeGeometry(0.08, 0.85, 4);
+  tallBlade.translate(0, 0.42, 0);
+  // rock — squashed sphere
+  const rockGeo = new THREE.IcosahedronGeometry(0.45, 0);
+  // v49: mid-layer 密度を控えめに (OOM 防止)
+  const layers = {
+    forest:   { fern:300, tallGrass: 200, rock:50,  fernColor:0x1F3A2E, grassColor:0x2F5841, rockColor:0x222018 },
+    village:  { fern:60,  tallGrass: 80,  rock:25,  fernColor:0x2F5841, grassColor:0x6A5E45, rockColor:0x2A2622 },
+    lake:     { fern:150, tallGrass: 180, rock:50,  fernColor:0x2F5841, grassColor:0x7B9890, rockColor:0x222018 },
+    mountain: { fern:80,  tallGrass: 100, rock:90,  fernColor:0x2F5841, grassColor:0x5C6068, rockColor:0x1A1818 },
+  };
+  for (const [bkey, cfg] of Object.entries(layers)) {
+    const b = BIOMES[bkey];
+    if (!b) continue;
+    const R = b.radius + 5;
+    // fern layer
+    {
+      const mat = new THREE.MeshLambertMaterial({ color: cfg.fernColor, side: THREE.DoubleSide, transparent:true, opacity:0.95 });
+      const inst = new THREE.InstancedMesh(fernGeo, mat, cfg.fern);
+      const d = new THREE.Object3D();
+      let p = 0;
+      for (let a = 0; a < cfg.fern * 4 && p < cfg.fern; a++) {
+        const ang = Math.random() * Math.PI * 2;
+        const t = Math.pow(Math.random(), 0.55);
+        const r = 1.5 + t * (R - 1.5);
+        const x = b.cx + Math.cos(ang) * r;
+        const z = b.cz + Math.sin(ang) * r;
+        if (Math.hypot(x - b.cx, z - b.cz) > R) continue;
+        let closest = bkey, dmin = Infinity;
+        for (const [k, bb] of Object.entries(BIOMES)) {
+          const dd = Math.hypot(x - bb.cx, z - bb.cz);
+          if (dd < dmin) { dmin = dd; closest = k; }
+        }
+        if (closest !== bkey) continue;
+        const y = (typeof getTerrainHeight === 'function') ? getTerrainHeight(x, z) : 0;
+        if (y < -0.25) continue;
+        d.position.set(x, y + 0.05, z);
+        d.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
+        const s = 0.55 + Math.random() * 0.5;
+        d.scale.set(s * 1.4, s, s * 1.4);
+        d.updateMatrix();
+        inst.setMatrixAt(p++, d.matrix);
+      }
+      inst.count = p; inst.instanceMatrix.needsUpdate = true; inst.receiveShadow = true;
+      inst.userData.biomeOverride = bkey;
+      scene.add(inst);
+    }
+    // tall grass clumps
+    {
+      const mat = new THREE.MeshLambertMaterial({ color: cfg.grassColor });
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.uTime = { value: 0 };
+        shader.uniforms.uWindStrength = { value: 0.7 };
+        shader.vertexShader = `uniform float uTime; uniform float uWindStrength;\n` + shader.vertexShader.replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+          float wY = max(0.0, position.y);
+          vec4 instOff = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          float phase = instOff.x * 0.6 + instOff.z * 0.4;
+          transformed.x += sin(uTime * 1.4 + phase) * 0.08 * wY * uWindStrength;
+          transformed.z += cos(uTime * 1.1 + phase * 1.3) * 0.05 * wY * uWindStrength;`
+        );
+        mat.userData.shader = shader;
+      };
+      _grassMaterials.push(mat);
+      const inst = new THREE.InstancedMesh(tallBlade, mat, cfg.tallGrass);
+      const d = new THREE.Object3D();
+      let p = 0;
+      for (let a = 0; a < cfg.tallGrass * 4 && p < cfg.tallGrass; a++) {
+        const ang = Math.random() * Math.PI * 2;
+        const t = Math.pow(Math.random(), 0.6);
+        const r = 1.5 + t * (R - 1.5);
+        const x = b.cx + Math.cos(ang) * r;
+        const z = b.cz + Math.sin(ang) * r;
+        if (Math.hypot(x - b.cx, z - b.cz) > R) continue;
+        let closest = bkey, dmin = Infinity;
+        for (const [k, bb] of Object.entries(BIOMES)) {
+          const dd = Math.hypot(x - bb.cx, z - bb.cz);
+          if (dd < dmin) { dmin = dd; closest = k; }
+        }
+        if (closest !== bkey) continue;
+        const y = (typeof getTerrainHeight === 'function') ? getTerrainHeight(x, z) : 0;
+        if (y < -0.25) continue;
+        d.position.set(x, y, z);
+        d.rotation.set(0, Math.random() * Math.PI * 2, (Math.random()-0.5)*0.15);
+        const s = 0.5 + Math.random()*0.7;
+        d.scale.set(s, s * (0.7 + Math.random()*0.6), s);
+        d.updateMatrix();
+        inst.setMatrixAt(p++, d.matrix);
+      }
+      inst.count = p; inst.instanceMatrix.needsUpdate = true; inst.receiveShadow = true;
+      inst.userData.biomeOverride = bkey;
+      scene.add(inst);
+    }
+    // rock outcrops
+    {
+      const mat = new THREE.MeshLambertMaterial({ color: cfg.rockColor });
+      const inst = new THREE.InstancedMesh(rockGeo, mat, cfg.rock);
+      const d = new THREE.Object3D();
+      let p = 0;
+      for (let a = 0; a < cfg.rock * 6 && p < cfg.rock; a++) {
+        const ang = Math.random() * Math.PI * 2;
+        const t = Math.pow(Math.random(), 0.5);
+        const r = 1.5 + t * (R - 1.5);
+        const x = b.cx + Math.cos(ang) * r;
+        const z = b.cz + Math.sin(ang) * r;
+        if (Math.hypot(x - b.cx, z - b.cz) > R) continue;
+        let closest = bkey, dmin = Infinity;
+        for (const [k, bb] of Object.entries(BIOMES)) {
+          const dd = Math.hypot(x - bb.cx, z - bb.cz);
+          if (dd < dmin) { dmin = dd; closest = k; }
+        }
+        if (closest !== bkey) continue;
+        const y = (typeof getTerrainHeight === 'function') ? getTerrainHeight(x, z) : 0;
+        if (y < -0.25) continue;
+        d.position.set(x, y + 0.18, z);
+        d.rotation.set((Math.random()-0.5)*0.4, Math.random() * Math.PI * 2, (Math.random()-0.5)*0.4);
+        const s = 0.6 + Math.random()*1.4;
+        d.scale.set(s * 1.3, s * 0.8, s * 1.1);
+        d.updateMatrix();
+        inst.setMatrixAt(p++, d.matrix);
+      }
+      inst.count = p; inst.instanceMatrix.needsUpdate = true; inst.castShadow = true; inst.receiveShadow = true;
+      inst.userData.biomeOverride = bkey;
+      scene.add(inst);
     }
   }
 }
