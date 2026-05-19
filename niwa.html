@@ -880,6 +880,8 @@ async function init() {
   buildGodRays();
   growGrassTufts();
   scatterWildflowers();
+  buildBiomeGroundCover();
+  buildBiomePaths();
   buildSunFlare();
   buildDustMotes();
   buildGroundMist();
@@ -2400,10 +2402,12 @@ const EXTERNAL_ASSETS = [
   { file:'../blender_v3/chochin.glb',      role:'plaza_chochin_a', x: 2, z: 2, h: 0.9, rot: 0, yOff: 1.6, shadow:true },
   { file:'../blender_v3/chochin.glb',      role:'plaza_chochin_b', x:-2, z: 2, h: 0.9, rot: 0, yOff: 1.6, shadow:true },
   { file:'../blender_v3/mailbox.glb',      role:'plaza_mailbox', x: 2.5, z: -3, h: 1.6, rot: 0, yOff: 0, shadow:true },
-  // === 山エリア (Mountain) — Blender自作 五重塔 ===
-  { file:'../blender/pagoda_5tier.glb', role:'pagoda',       x: BIOMES.mountain.cx,     z: BIOMES.mountain.cz,     h: 8.5, rot: 0.2,   yOff: 0.0, shadow:true },
-  { file:'../blender/bell_tower_v2.glb',role:'bell',         x: BIOMES.mountain.cx + 6, z: BIOMES.mountain.cz - 3, h: 5.5, rot: 0.4,   yOff: 0,   shadow:true },
-  { file:'shrine_mclaughlin.glb',       role:'shrine_mtn',   x: BIOMES.mountain.cx - 4, z: BIOMES.mountain.cz + 4, h: 2.2, rot:-0.8,   yOff: 0,   shadow:true },
+  // === 山エリア (Mountain) — 主役=五重塔ひとつ、bell/shrine は遠景の脇役へ縮小 ===
+  { file:'../blender/pagoda_5tier.glb', role:'pagoda',       x: BIOMES.mountain.cx,     z: BIOMES.mountain.cz,     h: 10.5, rot: 0.2,   yOff: 0.0, shadow:true },
+  // bell_tower を背景奥に小さく退避 (silhouette test: 主役と高さ差をつける)
+  { file:'../blender/bell_tower_v2.glb',role:'bell',         x: BIOMES.mountain.cx + 10, z: BIOMES.mountain.cz - 8, h: 3.6, rot: 0.6,   yOff: 0,   shadow:true },
+  // shrine は脇役のサイズで残す
+  { file:'shrine_mclaughlin.glb',       role:'shrine_mtn',   x: BIOMES.mountain.cx - 5, z: BIOMES.mountain.cz + 5, h: 1.6, rot:-0.8,   yOff: 0,   shadow:true },
   { file:'mountains_quaternius.glb',    role:'mtn_back_a',   x: BIOMES.mountain.cx - 8, z: BIOMES.mountain.cz - 10,h: 8.0, rot: 0,     yOff: -0.5,shadow:true },
   { file:'mountain_quaternius.glb',     role:'mtn_back_b',   x: BIOMES.mountain.cx + 12,z: BIOMES.mountain.cz + 8, h: 7.0, rot: 1.4,   yOff: -0.6,shadow:true },
   // === 森エリア (Forest) — chibi cabin + organic forest with chibi trees ===
@@ -3848,6 +3852,145 @@ function scatterWildflowers() {
     }
     inst.count = placed;
     inst.instanceMatrix.needsUpdate = true;
+    scene.add(inst);
+  }
+}
+
+// ─── v47: per-biome ground cover via InstancedMesh ───
+// Composition rules: 70% main + 30% accent (2 side colors), no spillover.
+// Each biome uses its own palette per niwa-composition-rules.md.
+const BIOME_GROUND = {
+  forest:   { main:0x3F6B3A, side:[0x5A8A48, 0xB7C77A], accent:0xE26A4A, count:520 },
+  village:  { main:0x9C8862, side:[0xC9A878, 0xE8D9B0], accent:0xC8553D, count:380 },
+  lake:     { main:0xA8C8B5, side:[0x86B58E, 0xC6D2B0], accent:0xF2B66B, count:460 },
+  mountain: { main:0xB7B0A4, side:[0xD9E4EC, 0x6B7A8F], accent:0xC46A4A, count:420 },
+};
+function buildBiomeGroundCover() {
+  if (!scene) return;
+  const blade = new THREE.ConeGeometry(0.045, 0.34, 4);
+  blade.translate(0, 0.17, 0);
+  const blossomGeo = new THREE.CircleGeometry(0.13, 6);
+  for (const [bkey, pal] of Object.entries(BIOME_GROUND)) {
+    const b = BIOMES[bkey];
+    if (!b) continue;
+    const buckets = [
+      { c: pal.main,    count: Math.floor(pal.count * 0.70), kind:'blade' },
+      { c: pal.side[0], count: Math.floor(pal.count * 0.18), kind:'blade' },
+      { c: pal.side[1], count: Math.floor(pal.count * 0.12), kind:'blade' },
+      { c: pal.accent,  count: Math.floor(pal.count * 0.06), kind:'bloom' },
+    ];
+    for (const bk of buckets) {
+      const mat = (bk.kind === 'bloom')
+        ? new THREE.MeshLambertMaterial({ color: bk.c, side: THREE.DoubleSide, transparent:true, opacity:0.95 })
+        : new THREE.MeshLambertMaterial({ color: bk.c });
+      // Wind sway for blades only
+      if (bk.kind === 'blade') {
+        mat.onBeforeCompile = (shader) => {
+          shader.uniforms.uTime = { value: 0 };
+          shader.uniforms.uWindStrength = { value: 0.9 };
+          shader.vertexShader = `uniform float uTime; uniform float uWindStrength;\n` + shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+            float wY = max(0.0, position.y);
+            vec4 instOff = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+            float phase = instOff.x * 0.6 + instOff.z * 0.4;
+            transformed.x += sin(uTime * 1.6 + phase) * 0.06 * wY * uWindStrength;
+            transformed.z += cos(uTime * 1.25 + phase * 1.3) * 0.04 * wY * uWindStrength;`
+          );
+          mat.userData.shader = shader;
+        };
+        _grassMaterials.push(mat);
+      }
+      const geo = (bk.kind === 'bloom') ? blossomGeo : blade;
+      const inst = new THREE.InstancedMesh(geo, mat, bk.count);
+      const dummy = new THREE.Object3D();
+      let placed = 0;
+      const R = b.radius + 4;
+      for (let attempt = 0; attempt < bk.count * 6 && placed < bk.count; attempt++) {
+        // Poisson-ish: random angle, biased toward outer 60% to fill ring
+        const ang = Math.random() * Math.PI * 2;
+        const t = Math.pow(Math.random(), 0.6);
+        const rad = 1.5 + t * (R - 1.5);
+        const x = b.cx + Math.cos(ang) * rad;
+        const z = b.cz + Math.sin(ang) * rad;
+        // skip if too far from biome center (negative space discipline)
+        if (Math.hypot(x - b.cx, z - b.cz) > R) continue;
+        // skip if closer to another biome center
+        let closest = bkey, dmin = Infinity;
+        for (const [k, bb] of Object.entries(BIOMES)) {
+          const d = Math.hypot(x - bb.cx, z - bb.cz);
+          if (d < dmin) { dmin = d; closest = k; }
+        }
+        if (closest !== bkey) continue;
+        // sample height
+        const y = (typeof getTerrainHeight === 'function') ? getTerrainHeight(x, z) : 0;
+        if (y < -0.25) continue; // skip water
+        // place
+        if (bk.kind === 'bloom') {
+          dummy.position.set(x, y + 0.24, z);
+          dummy.rotation.set(-Math.PI/2 + (Math.random()-0.5)*0.4, Math.random()*Math.PI*2, 0);
+          const s = 0.55 + Math.random()*0.5;
+          dummy.scale.setScalar(s);
+        } else {
+          dummy.position.set(x, y, z);
+          dummy.rotation.set(0, Math.random()*Math.PI*2, (Math.random()-0.5)*0.18);
+          const s = 0.55 + Math.random()*0.55;
+          dummy.scale.set(s, s*(0.8+Math.random()*0.5), s);
+        }
+        dummy.updateMatrix();
+        inst.setMatrixAt(placed++, dummy.matrix);
+      }
+      inst.count = placed;
+      inst.instanceMatrix.needsUpdate = true;
+      inst.receiveShadow = true;
+      inst.userData.biome = bkey;
+      inst.userData.biomeOverride = bkey; // pin biome for showBiome
+      scene.add(inst);
+    }
+  }
+}
+
+// ─── v47: S-curve stone path from plaza toward each biome ───
+function buildBiomePaths() {
+  if (!scene) return;
+  const tileGeo = new THREE.CircleGeometry(0.42, 14);
+  tileGeo.rotateX(-Math.PI/2);
+  for (const [bkey, b] of Object.entries(BIOMES)) {
+    if (bkey === 'plaza') continue;
+    // S-curve control: midpoint offset perpendicular to the line
+    const sx = 0, sz = 0;
+    const ex = b.cx, ez = b.cz;
+    const dx = ex - sx, dz = ez - sz;
+    const len = Math.hypot(dx, dz);
+    const px = -dz / len, pz = dx / len; // perpendicular unit
+    const curveAmp = len * 0.18 * ((bkey === 'forest' || bkey === 'lake') ? 1 : -1);
+    const tiles = Math.floor(len * 0.9);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x9c8a6a });
+    const inst = new THREE.InstancedMesh(tileGeo, mat, tiles);
+    const dummy = new THREE.Object3D();
+    let placed = 0;
+    for (let i = 1; i < tiles - 1; i++) {
+      const t = i / (tiles - 1);
+      // S-curve: amp * sin(pi*t) gives bow-out
+      const off = Math.sin(t * Math.PI) * curveAmp;
+      const x = sx + dx * t + px * off;
+      const z = sz + dz * t + pz * off;
+      // jitter
+      const jx = (Math.random() - 0.5) * 0.18;
+      const jz = (Math.random() - 0.5) * 0.18;
+      const y = (typeof getTerrainHeight === 'function') ? getTerrainHeight(x + jx, z + jz) : 0;
+      if (y < -0.4) continue; // skip if underwater
+      dummy.position.set(x + jx, y + 0.02, z + jz);
+      dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+      const s = 0.85 + Math.random() * 0.4;
+      dummy.scale.set(s, 1, s);
+      dummy.updateMatrix();
+      inst.setMatrixAt(placed++, dummy.matrix);
+    }
+    inst.count = placed;
+    inst.instanceMatrix.needsUpdate = true;
+    inst.receiveShadow = true;
+    inst.userData.biomeOverride = 'plaza'; // visible from plaza (sight-line to biome)
     scene.add(inst);
   }
 }
