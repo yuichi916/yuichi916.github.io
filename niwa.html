@@ -659,21 +659,22 @@ async function init() {
       console.warn('SSAO init failed:', e);
     }
   }
+  // v48 stylebook Phase 6: Bloom strength 0.45, threshold 0.75, radius 0.6 (提灯と月の縁のみ)
   bloomPass = new THREE.UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.38, 0.75, 0.82  // softer bloom for picture-book glow
+    0.45, 0.75, 0.6
   );
   composer.addPass(bloomPass);
-  // Color grading + vignette + chromatic warmth (painterly final polish)
+  // v48 Phase 6: 月夜 color grade — 彩度抑え、寒色を強める、四隅を沈める
   const colorGradeShader = {
     uniforms: {
       tDiffuse:   { value: null },
       time:       { value: 0 },
-      satBoost:   { value: 1.10 },     // softer for picture-book feel
-      warmShift:  { value: 0.14 },     // warmer highlights — children's-book sunlight
-      coolShade:  { value: 0.04 },     // gentler shadow cool shift
-      vignette:   { value: 0.30 },     // softer vignette
-      lift:       { value: 0.040 },    // lift blacks more (no harsh darkness)
+      satBoost:   { value: 0.92 },     // 月夜は彩度低め (1.0 -> 0.92)
+      warmShift:  { value: -0.05 },    // ハイライトを若干冷色寄り
+      coolShade:  { value: 0.18 },     // シャドウを青寄りに沈める
+      vignette:   { value: 0.50 },     // 四隅を強く沈める
+      lift:       { value: 0.015 },    // 黒を持ち上げない (深い黒を残す)
     },
     vertexShader: `
       varying vec2 vUv;
@@ -891,6 +892,7 @@ async function init() {
   buildForestHeroTree();
   buildBiomeForegroundFrame();
   buildPlazaForeground();
+  buildLakeHero();
   buildSunFlare();
   buildDustMotes();
   buildGroundMist();
@@ -2425,14 +2427,16 @@ const EXTERNAL_ASSETS = [
   // === 森エリア (Forest) — chibi cabin + organic forest with chibi trees ===
   { file:'../blender_v3/chibi_house_red.glb',   role:'forest_cabin',   x: BIOMES.forest.cx,     z: BIOMES.forest.cz,     h: 3.2, rot: 0.3, yOff: 0, shadow:true },
   // Forest ring of chibi trees (8 trees forming a clearing)
+  // v48 Phase 2: green chibi のみ残す。autumn/red は palette 外 → 除外
   { file:'../blender_v3/chibi_tree_green_a.glb',role:'forest_t1', x: BIOMES.forest.cx + 5, z: BIOMES.forest.cz + 4, h: 3.5, rot: 0,   yOff: 0, shadow:true },
   { file:'../blender_v3/chibi_tree_green_b.glb',role:'forest_t2', x: BIOMES.forest.cx - 6, z: BIOMES.forest.cz - 5, h: 3.8, rot: 1.5, yOff: 0, shadow:true },
   { file:'../blender_v3/chibi_tree_green_a.glb',role:'forest_t3', x: BIOMES.forest.cx + 7, z: BIOMES.forest.cz - 3, h: 3.4, rot: 0.7, yOff: 0, shadow:true },
   { file:'../blender_v3/chibi_tree_green_b.glb',role:'forest_t4', x: BIOMES.forest.cx - 4, z: BIOMES.forest.cz + 7, h: 3.6, rot:-0.4, yOff: 0, shadow:true },
-  { file:'../blender_v3/chibi_tree_autumn.glb', role:'forest_t5', x: BIOMES.forest.cx + 2, z: BIOMES.forest.cz + 8, h: 3.7, rot: 0.3, yOff: 0, shadow:true },
-  { file:'../blender_v3/chibi_tree_red.glb',    role:'forest_t6', x: BIOMES.forest.cx - 8, z: BIOMES.forest.cz + 2, h: 3.5, rot: 0,   yOff: 0, shadow:true },
+  // autumn/red 4 本は palette 外につき無効化 (forest_t5/t6/t8 のうち autumn と red)
+  // { file:'../blender_v3/chibi_tree_autumn.glb', role:'forest_t5', ... },
+  // { file:'../blender_v3/chibi_tree_red.glb',    role:'forest_t6', ... },
   { file:'../blender_v3/chibi_tree_green_a.glb',role:'forest_t7', x: BIOMES.forest.cx + 8, z: BIOMES.forest.cz + 7, h: 3.6, rot: 0.5, yOff: 0, shadow:true },
-  { file:'../blender_v3/chibi_tree_autumn.glb', role:'forest_t8', x: BIOMES.forest.cx - 7, z: BIOMES.forest.cz - 7, h: 3.4, rot: 1.0, yOff: 0, shadow:true },
+  // { file:'../blender_v3/chibi_tree_autumn.glb', role:'forest_t8', ... },
   // Forest props - cozy details
   { file:'../blender_v3/chibi_bench.glb',       role:'forest_bench', x: BIOMES.forest.cx + 3, z: BIOMES.forest.cz - 1, h: 0.8, rot: -0.5, yOff: 0, shadow:true },
   { file:'../blender_v3/pond_rocks.glb',        role:'forest_rocks', x: BIOMES.forest.cx - 3, z: BIOMES.forest.cz + 2, h: 0.7, rot: 0.3,  yOff: 0, shadow:true },
@@ -2447,22 +2451,24 @@ const EXTERNAL_ASSETS = [
   { file:'../blender_v3/chibi_house_warm.glb',  role:'village_house_b',x: BIOMES.village.cx - 7, z: BIOMES.village.cz + 5,  h: 1.9, rot:-0.6, yOff: 0, shadow:true },
   { file:'../blender_v3/chibi_house_red2.glb',  role:'village_house_c',x: BIOMES.village.cx - 6, z: BIOMES.village.cz - 7,  h: 1.8, rot: 0.7, yOff: 0, shadow:true },
   // Village props - storytelling
-  { file:'../blender_v3/laundry.glb',           role:'village_laundry',x: BIOMES.village.cx + 2, z: BIOMES.village.cz - 5,  h: 1.7, rot: 0,    yOff: 0, shadow:true },
+  // v48 Phase 4: 洗濯物・umbrella (生活感過多) は palette/style 外として無効化
+  // { file:'../blender_v3/laundry.glb',           role:'village_laundry', ... },
   { file:'../blender_v3/bucket.glb',            role:'village_bucket', x: BIOMES.village.cx - 3, z: BIOMES.village.cz - 1,  h: 0.6, rot: 0,    yOff: 0, shadow:true },
   { file:'../blender_v3/chibi_barrel.glb',      role:'village_barrel_a',x: BIOMES.village.cx + 4, z: BIOMES.village.cz - 4, h: 0.9, rot: 0,    yOff: 0, shadow:true },
   { file:'../blender_v3/chibi_barrel.glb',      role:'village_barrel_b',x: BIOMES.village.cx - 5, z: BIOMES.village.cz + 4, h: 0.9, rot: 0.6,  yOff: 0, shadow:true },
   { file:'../blender_v3/chibi_bench.glb',       role:'village_bench',  x: BIOMES.village.cx + 1, z: BIOMES.village.cz + 4,  h: 0.9, rot: -1.2, yOff: 0, shadow:true },
-  { file:'../blender_v3/umbrella.glb',          role:'village_umbrella',x: BIOMES.village.cx + 6, z: BIOMES.village.cz + 5, h: 1.1, rot: 0.4,  yOff: 0, shadow:true },
+  // { file:'../blender_v3/umbrella.glb',          role:'village_umbrella', ... },
   { file:'../blender_v3/signpost.glb',          role:'village_signpost',x: BIOMES.village.cx - 6, z: BIOMES.village.cz,     h: 1.7, rot: 0.7,  yOff: 0, shadow:true },
   // Chibi trees framing
+  // v48 Phase 4: 村に橙チビ木は不要、緑だけ残す
   { file:'../blender_v3/chibi_tree_green_a.glb',role:'village_tree_a', x: BIOMES.village.cx + 7, z: BIOMES.village.cz + 7,  h: 3.5, rot: 0,    yOff: 0, shadow:true },
-  { file:'../blender_v3/chibi_tree_autumn.glb', role:'village_tree_b', x: BIOMES.village.cx - 7, z: BIOMES.village.cz + 6,  h: 3.5, rot: 0.5,  yOff: 0, shadow:true },
+  // { file:'../blender_v3/chibi_tree_autumn.glb', role:'village_tree_b', ... },
   { file:'../blender_v3/chibi_tree_green_b.glb',role:'village_tree_c', x: BIOMES.village.cx + 6, z: BIOMES.village.cz - 8,  h: 3.5, rot: 1.0,  yOff: 0, shadow:true },
-  // v46 village density: well + wheelbarrow + birdhouse + veg patch + 多数flowers
+  // v48 Phase 4: 井戸のみ残す。wheelbarrow/birdhouse/veg_patch は palette/style 外
   { file:'../blender_v3/chibi_well.glb',        role:'village_well',    x: BIOMES.village.cx + 2, z: BIOMES.village.cz + 3, h: 2.5, rot: 0, yOff: 0, shadow:true },
-  { file:'../blender_v3/wheelbarrow.glb',       role:'village_wb',      x: BIOMES.village.cx - 3, z: BIOMES.village.cz + 2, h: 0.7, rot: 0.6, yOff: 0, shadow:true },
-  { file:'../blender_v3/birdhouse.glb',         role:'village_bh',      x: BIOMES.village.cx + 8, z: BIOMES.village.cz + 4, h: 2.8, rot: 0, yOff: 0, shadow:true },
-  { file:'../blender_v3/veg_patch.glb',         role:'village_veg',     x: BIOMES.village.cx - 6, z: BIOMES.village.cz - 5, h: 0.3, rot: 0, yOff: 0, shadow:true },
+  // { file:'../blender_v3/wheelbarrow.glb',       role:'village_wb',     ... },
+  // { file:'../blender_v3/birdhouse.glb',         role:'village_bh',     ... },
+  // { file:'../blender_v3/veg_patch.glb',         role:'village_veg',    ... },
   // Forest density: grass+ferns+mushrooms+flowers
   { file:'../blender_v3/fern.glb',              role:'forest_fern_a',   x: BIOMES.forest.cx + 2, z: BIOMES.forest.cz - 2, h: 0.5, rot: 0, yOff: 0, shadow:true },
   { file:'../blender_v3/fern.glb',              role:'forest_fern_b',   x: BIOMES.forest.cx - 2, z: BIOMES.forest.cz + 4, h: 0.5, rot: 1.5, yOff: 0, shadow:true },
@@ -2476,14 +2482,16 @@ const EXTERNAL_ASSETS = [
   // Lake decorative grass + flowers
   { file:'../blender_v3/grass_tuft.glb',        role:'lake_grass_a',    x: BIOMES.lake.cx - 5, z: BIOMES.lake.cz - 5, h: 0.35, rot: 0, yOff: 0, shadow:true },
   { file:'../blender_v3/grass_tuft.glb',        role:'lake_grass_b',    x: BIOMES.lake.cx + 8, z: BIOMES.lake.cz + 6, h: 0.35, rot: 0.5, yOff: 0, shadow:true },
-  { file:'../blender_v3/wildflower_pink.glb',   role:'lake_fl_a',       x: BIOMES.lake.cx - 4, z: BIOMES.lake.cz + 7, h: 0.45, rot: 0, yOff: 0, shadow:true },
-  { file:'../blender_v3/wildflower_orange.glb', role:'lake_fl_b',       x: BIOMES.lake.cx + 6, z: BIOMES.lake.cz - 7, h: 0.45, rot: 0.5, yOff: 0, shadow:true },
+  // v48 Phase 3: 桃野花 palette外、橙野花 palette外 (アクセント灯橙のみ可)
+  // { file:'../blender_v3/wildflower_pink.glb',   role:'lake_fl_a',       ... },
+  // { file:'../blender_v3/wildflower_orange.glb', role:'lake_fl_b',       ... },
   // === 湖エリア (Lake) — 静かな湖畔: 太鼓橋 + 茶室 + 桜並木 + ベンチ ===
   { file:'../blender/arch_bridge.glb',  role:'bridge',     x: BIOMES.lake.cx - 6, z: BIOMES.lake.cz - 3, h: 1.8, rot: 0.6,  yOff: 0,   shadow:true },
   { file:'../blender/tea_house.glb',    role:'tea_house',  x: BIOMES.lake.cx + 5, z: BIOMES.lake.cz - 5, h: 3.2, rot:-0.5,  yOff: 0,   shadow:true },
-  { file:'../blender_v3/chibi_tree_sakura.glb', role:'lake_sakura_a', x: BIOMES.lake.cx - 7, z: BIOMES.lake.cz + 3, h: 4.0, rot: 0,   yOff: 0, shadow:true },
-  { file:'../blender_v3/chibi_tree_sakura.glb', role:'lake_sakura_b', x: BIOMES.lake.cx + 7, z: BIOMES.lake.cz + 4, h: 4.0, rot: 0.5, yOff: 0, shadow:true },
-  { file:'../blender_v3/chibi_tree_sakura.glb', role:'lake_sakura_c', x: BIOMES.lake.cx + 3, z: BIOMES.lake.cz + 8, h: 3.8, rot: 1.0, yOff: 0, shadow:true },
+  // v48 Phase 3: 桜並木 (桃 palette外) → 削除。枝垂れ柳 hero を JS で別途追加
+  // { file:'../blender_v3/chibi_tree_sakura.glb', role:'lake_sakura_a', ... },
+  // { file:'../blender_v3/chibi_tree_sakura.glb', role:'lake_sakura_b', ... },
+  // { file:'../blender_v3/chibi_tree_sakura.glb', role:'lake_sakura_c', ... },
   { file:'../blender_v3/chibi_bench.glb', role:'lake_bench', x: BIOMES.lake.cx + 7, z: BIOMES.lake.cz + 2, h: 0.9, rot: -1.5, yOff: 0, shadow:true },
   { file:'../blender_v3/pond_rocks.glb',  role:'lake_rocks_a', x: BIOMES.lake.cx + 8, z: BIOMES.lake.cz - 2, h: 0.7, rot: 0, yOff: 0, shadow:true },
   { file:'../blender_v3/chochin.glb',    role:'lake_chochin', x: BIOMES.lake.cx, z: BIOMES.lake.cz - 7, h: 0.9, rot: 0, yOff: 2.0, shadow:true },
@@ -2491,8 +2499,9 @@ const EXTERNAL_ASSETS = [
   { file:'../blender/rock_cluster_a.glb',role:'lake_rocks',    x: BIOMES.lake.cx - 5,    z: BIOMES.lake.cz + 4,    h: 1.2, rot: 0,    yOff: 0,    shadow:true },
   { file:'../blender_v3/pond_rocks.glb', role:'mtn_rocks',     x: BIOMES.mountain.cx + 4,z: BIOMES.mountain.cz + 5,h: 1.0, rot: 0.5,  yOff: 0,    shadow:true },
   // Mountain chibi trees + signpost
-  { file:'../blender_v3/chibi_tree_red.glb',    role:'mtn_t1', x: BIOMES.mountain.cx + 6, z: BIOMES.mountain.cz + 3, h: 3.4, rot: 0.4, yOff: 0, shadow:true },
-  { file:'../blender_v3/chibi_tree_autumn.glb', role:'mtn_t2', x: BIOMES.mountain.cx - 5, z: BIOMES.mountain.cz - 4, h: 3.4, rot: 1.2, yOff: 0, shadow:true },
+  // v48 Phase 5: 山に赤・橙のチビ木は不要、緑だけ残す
+  // { file:'../blender_v3/chibi_tree_red.glb',    role:'mtn_t1', ... },
+  // { file:'../blender_v3/chibi_tree_autumn.glb', role:'mtn_t2', ... },
   { file:'../blender_v3/chibi_tree_green_b.glb',role:'mtn_t3', x: BIOMES.mountain.cx + 7, z: BIOMES.mountain.cz - 5, h: 3.6, rot: 0,   yOff: 0, shadow:true },
   { file:'../blender_v3/signpost.glb',          role:'mtn_signpost', x: BIOMES.mountain.cx - 7, z: BIOMES.mountain.cz + 2, h: 1.7, rot: 0.5, yOff: 0, shadow:true },
   // Village details (offering box at shrine, barrels, fences, wind chimes)
@@ -2523,8 +2532,9 @@ const EXTERNAL_ASSETS = [
   { file:'ishidoro_flopsi.glb',         role:'ish_to_lake',   x: 8,  z: 10, h: 1.4, rot: 0, yOff: 0, shadow:true, lantern:true },
   { file:'ishidoro_flopsi.glb',         role:'ish_to_mtn',    x:-10, z: 12, h: 1.4, rot: 0, yOff: 0, shadow:true, lantern:true },
   // Bonsai accents
-  { file:'bonsai_carson.glb',           role:'bonsai_a',  x: BIOMES.village.cx,     z: BIOMES.village.cz + 7, h: 0.8, rot: 0,   yOff: 0, shadow:true },
-  { file:'bonsai_carson.glb',           role:'bonsai_b',  x: BIOMES.mountain.cx + 3,z: BIOMES.mountain.cz - 6, h: 0.7, rot: 0,   yOff: 2.0, shadow:true }, // on mountain ledge
+  // v48 Phase 4: bonsai は palette と相性悪く除去
+  // { file:'bonsai_carson.glb',           role:'bonsai_a',  ... },
+  // { file:'bonsai_carson.glb',           role:'bonsai_b',  ... },
   // Waterfall — from mountain area down toward lake
   { file:'waterfall_carson.glb',        role:'waterfall', x:-4,  z: 12, h: 4.5, rot: 0, yOff: 0.4, shadow:true },
   // Grass clumps in transition zones
@@ -3963,27 +3973,81 @@ function buildBiomeGroundCover() {
   }
 }
 
-// ─── v48: forest hero tree (procedural giant broadleaf) ───
-// createTree adds the tree group + shadow + canopy sprites directly to scene
-// and returns nothing — so we capture by index range and re-tag biome.
+// ─── v48 Phase 2: forest hero tree — moss-covered gnarled broadleaf in palette ───
+// 自前で組む (createTree の broadleaf 系は palette 外の orange/pink/yellow しか持たない)
 function buildForestHeroTree() {
-  if (!scene || typeof createTree !== 'function') return;
+  if (!scene) return;
   const b = BIOMES.forest;
-  const tagBiome = (start, end) => {
-    for (let i = start; i < end; i++) {
-      const c = scene.children[i];
-      if (c && c.userData) c.userData.biomeOverride = 'forest';
+  const TRUNK_C = 0x0F1A12; // 墨黒
+  const MOSS_MID = 0x2F5841;
+  const MOSS_DARK = 0x1F3A2E;
+  const MOSS_YOUNG = 0x6B8A3A;
+  const buildHero = (cx, cz, bs, kind) => {
+    const g = new THREE.Group();
+    const trunkH = 2.4 * bs;
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18 * bs, 0.34 * bs, trunkH, 8),
+      toonMat(TRUNK_C)
+    );
+    trunk.position.y = trunkH / 2;
+    trunk.castShadow = true; trunk.receiveShadow = true;
+    g.add(trunk);
+    if (kind === 'gnarled') {
+      // main canopy + 2 secondaries + 1 high accent (irregular silhouette)
+      const c1 = new THREE.Mesh(makeOrganicBlob(1.6 * bs, 3, 0.34, cx * 5 + cz * 11), foliageMat(MOSS_MID));
+      c1.position.y = trunkH + 0.9 * bs;
+      c1.scale.y = 0.9; c1.castShadow = true; c1.userData.isLeaf = true;
+      g.add(c1);
+      const c2 = new THREE.Mesh(makeOrganicBlob(1.0 * bs, 2, 0.30, cx * 7 + cz * 19), foliageMat(MOSS_DARK));
+      c2.position.set(0.6 * bs, trunkH + 0.4 * bs, -0.4 * bs);
+      c2.castShadow = true; c2.userData.isLeaf = true;
+      g.add(c2);
+      const c3 = new THREE.Mesh(makeOrganicBlob(0.85 * bs, 2, 0.28, cx * 13 + cz * 3), foliageMat(MOSS_MID));
+      c3.position.set(-0.7 * bs, trunkH + 0.5 * bs, 0.45 * bs);
+      c3.castShadow = true; c3.userData.isLeaf = true;
+      g.add(c3);
+      const c4 = new THREE.Mesh(makeOrganicBlob(0.6 * bs, 2, 0.22, cx * 23 + cz * 31), foliageMat(MOSS_YOUNG));
+      c4.position.set(0.0, trunkH + 1.6 * bs, 0.2 * bs);
+      c4.castShadow = true; c4.userData.isLeaf = true;
+      g.add(c4);
+    } else if (kind === 'cedar') {
+      const layers = 5;
+      for (let i = 0; i < layers; i++) {
+        const t = i / layers;
+        const r = (1.0 - t * 0.7) * bs;
+        const h = 1.1 * bs;
+        const c = (i < 2) ? MOSS_DARK : MOSS_MID;
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), foliageMat(c));
+        cone.position.y = trunkH * 0.4 + i * h * 0.55 + h / 2;
+        cone.castShadow = true; cone.userData.isLeaf = true;
+        g.add(cone);
+      }
     }
+    const y = (typeof getTerrainHeight === 'function') ? getTerrainHeight(cx, cz) : 0;
+    g.position.set(cx, y, cz);
+    g.rotation.y = (cx * 0.13 + cz * 0.21) * Math.PI;
+    g.userData.biomeOverride = 'forest';
+    g.userData.isLeaf = true;
+    g.userData.isHero = (kind === 'gnarled');
+    scene.add(g);
+    FOLIAGE_OBJS.push(g);
+    // contact shadow disc
+    const sh = new THREE.Mesh(
+      new THREE.CircleGeometry(0.9 * bs, 18),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false })
+    );
+    sh.rotation.x = -Math.PI / 2;
+    sh.position.set(cx, y + 0.025, cz);
+    sh.renderOrder = -1;
+    sh.userData.biomeOverride = 'forest';
+    scene.add(sh);
   };
-  let s = scene.children.length;
-  createTree(b.cx - 2, b.cz + 1, 'maple', 2.4); // hero giant maple
-  tagBiome(s, scene.children.length);
-  s = scene.children.length;
-  createTree(b.cx + 5, b.cz - 4, 'cedar', 1.8); // secondary tall conifer
-  tagBiome(s, scene.children.length);
-  s = scene.children.length;
-  createTree(b.cx - 6, b.cz - 3, 'momiji', 1.6); // accent autumn
-  tagBiome(s, scene.children.length);
+  // hero gnarled broadleaf (3.5x player = ~6m) at biome focal point
+  buildHero(b.cx - 2, b.cz + 1, 2.8, 'gnarled');
+  // background cedar silhouettes (1.6m+) further into BG
+  buildHero(b.cx + 5, b.cz - 5, 2.4, 'cedar');
+  buildHero(b.cx - 6, b.cz - 6, 2.1, 'cedar');
+  buildHero(b.cx + 8, b.cz + 4, 2.2, 'cedar');
 }
 
 // ─── v48: foreground "額縁" frame per biome ───
@@ -4041,6 +4105,85 @@ function buildBiomeForegroundFrame() {
       scene.add(rk);
     }
   }
+}
+
+// ─── v48 Phase 3: 湖 hero — 枝垂れ柳 (moonlit moss palette) ───
+function buildLakeHero() {
+  if (!scene) return;
+  const b = BIOMES.lake;
+  // willow placed slightly west of lake center so it frames the pond
+  const cx = b.cx - 4.5, cz = b.cz - 1.0;
+  const bs = 1.8;
+  const g = new THREE.Group();
+  const trunkH = 3.0 * bs;
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18 * bs, 0.30 * bs, trunkH, 8),
+    toonMat(0x0F1A12)
+  );
+  trunk.position.y = trunkH / 2;
+  trunk.castShadow = true; trunk.receiveShadow = true;
+  g.add(trunk);
+  // single soft canopy
+  const fmat = foliageMat(0x4a6b3a, { rim: 0.3 });
+  const canopy = new THREE.Mesh(makeOrganicBlob(1.5 * bs, 3, 0.25, cx * 5 + cz * 11), fmat);
+  canopy.position.y = trunkH + 0.5 * bs;
+  canopy.scale.y = 1.05;
+  canopy.castShadow = true; canopy.userData.isLeaf = true;
+  g.add(canopy);
+  // drooping branches (cylinders with rotation)
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const radial = 0.8 * bs + Math.random() * 0.4;
+    const droop = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04 * bs, 0.08 * bs, 1.8 * bs, 6),
+      foliageMat(0x2F5841)
+    );
+    droop.position.set(Math.cos(a) * radial, trunkH + 0.2 * bs - 0.8 * bs, Math.sin(a) * radial);
+    droop.rotation.z = Math.cos(a) * 0.45;
+    droop.rotation.x = Math.sin(a) * 0.45;
+    droop.castShadow = true; droop.userData.isLeaf = true;
+    g.add(droop);
+  }
+  const y = (typeof getTerrainHeight === 'function') ? getTerrainHeight(cx, cz) : 0;
+  g.position.set(cx, y, cz);
+  g.userData.biomeOverride = 'lake';
+  g.userData.isHero = true;
+  scene.add(g);
+  FOLIAGE_OBJS.push(g);
+  // contact shadow
+  const sh = new THREE.Mesh(
+    new THREE.CircleGeometry(1.1 * bs, 18),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false })
+  );
+  sh.rotation.x = -Math.PI / 2;
+  sh.position.set(cx, y + 0.025, cz);
+  sh.renderOrder = -1;
+  sh.userData.biomeOverride = 'lake';
+  scene.add(sh);
+  // 1 lantern at pier-end (灯橙 accent for the rule-of-thirds intersection)
+  const lantern = new THREE.Group();
+  const post = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.08, 1.8, 6),
+    toonMat(0x0F1A12)
+  );
+  post.position.y = 0.9;
+  post.castShadow = true; lantern.add(post);
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.5, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0xE8D9B0, emissive: 0xFFB070, emissiveIntensity: 1.5, roughness:0.7 })
+  );
+  head.position.y = 1.95;
+  head.castShadow = false; head.userData.isLanternHead = true;
+  lantern.add(head);
+  const pl = new THREE.PointLight(0xFFB070, 1.0, 7, 1.5);
+  pl.position.y = 1.95;
+  pl.userData.isLanternLight = true;
+  lantern.add(pl);
+  const lx = b.cx + 4, lz = b.cz + 4;
+  const ly = (typeof getTerrainHeight === 'function') ? getTerrainHeight(lx, lz) : 0;
+  lantern.position.set(lx, ly, lz);
+  lantern.userData.biomeOverride = 'lake';
+  scene.add(lantern);
 }
 
 // ─── v48 Phase 1: plaza foreground frame (額縁) ───
