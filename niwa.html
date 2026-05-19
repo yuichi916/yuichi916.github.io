@@ -132,6 +132,10 @@ canvas{display:block;touch-action:none}
 </div>
 
 <div id="container"></div>
+<!-- Fade overlay for biome transitions -->
+<div id="biome-fade" style="position:fixed;inset:0;z-index:60;background:#0c0a14;opacity:0;pointer-events:none;transition:opacity 0.35s ease;"></div>
+<!-- Return to plaza button (visible only in non-plaza biome) -->
+<button id="return-plaza-btn" style="position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:62;display:none;background:rgba(20,16,28,.55);backdrop-filter:blur(8px);border:1px solid rgba(255,200,130,.3);border-radius:18px;padding:8px 18px;color:#f4ead0;font-family:'Shippori Mincho',serif;font-size:.78rem;letter-spacing:.2em;cursor:pointer;align-items:center;gap:6px">← 入口へ戻る</button>
 <div class="hover-tip" id="hover-tip"></div>
 <button class="enter-place-btn" id="enter-place-btn"></button>
 
@@ -254,6 +258,8 @@ let lastTs = performance.now();
 let bgmEnabled = false, audioCtx, bgmGain, bgmNodes = [];
 let achievementsUnlocked = new Set();
 let season = 'sakura';    // sakura/summer/momiji/yuki
+let currentBiome = 'plaza';  // current visible biome map
+const BIOME_GROUPS = { plaza:null, forest:null, village:null, lake:null, mountain:null };  // per-biome content groups
 let isDragging = false, dragStart = {x:0,y:0};
 const FOLIAGE_OBJS = [];   // wind-sway leaves
 let petalsGroup, firefliesGroup, dustGroup, ripplesGroup;
@@ -884,6 +890,9 @@ async function init() {
 
   setLoadBar(0.9);
 
+  // After all content is built, tag each object by its biome based on position
+  setTimeout(() => tagSceneByBiome(), 200);
+  setTimeout(() => showBiome('plaza'), 600);  // start in plaza
   setupInput();
   bindHud();
   refreshVisitedDots();
@@ -896,6 +905,7 @@ async function init() {
     // resume audio context on user gesture
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   });
+  document.getElementById('return-plaza-btn').addEventListener('click', () => teleportToBiome('plaza'));
   document.getElementById('credits-btn').addEventListener('click', () => {
     document.getElementById('credits-overlay').style.display = 'flex';
   });
@@ -3384,18 +3394,107 @@ function buildBiomeSignposts() {
   }
 }
 
-// Move the avatar (and camera follows) to a biome
+// Tag each top-level scene object by which biome zone it belongs to
+function tagSceneByBiome() {
+  if (!scene) return;
+  // For each top-level object, find its center and assign a biome
+  scene.children.forEach(obj => {
+    if (obj === avatar || obj.isLight || obj === terrainMesh) return;
+    // Compute world position center via bounding box
+    let bx, bz;
+    if (obj.userData && obj.userData.biomeOverride) {
+      obj.userData.biome = obj.userData.biomeOverride;
+      return;
+    }
+    // Use object position
+    bx = obj.position.x;
+    bz = obj.position.z;
+    // Object near origin (plaza) — keep visible in plaza
+    const dist = Math.hypot(bx, bz);
+    if (dist < 8) {
+      obj.userData.biome = 'plaza';
+    } else {
+      // Find closest biome
+      let best = 'plaza', bestD = Infinity;
+      for (const [k, b] of Object.entries(BIOMES)) {
+        if (k === 'plaza') continue;
+        const d = Math.hypot(bx - b.cx, bz - b.cz);
+        if (d < bestD) { bestD = d; best = k; }
+      }
+      obj.userData.biome = best;
+    }
+  });
+}
+
+// Show only specified biome's content (and shared/plaza elements)
+function showBiome(biomeKey) {
+  if (!scene) return;
+  currentBiome = biomeKey;
+  // Iterate scene children
+  scene.children.forEach(obj => {
+    if (obj === avatar || obj.isLight) return;  // always visible
+    // Sky, distant mountains, terrain — shared (always visible)
+    if (obj === terrainMesh || obj === skyDome || obj === scene.userData.distantMtns || obj === scene.userData.clouds || obj === scene.userData.godRays) {
+      obj.visible = true;
+      return;
+    }
+    // Sun flare, dust, mist — shared (visible everywhere)
+    if (obj === _sunFlareSprite || obj === _dustMotes || obj === petalsGroup || obj === _groundMist || obj === firefliesGroup || obj === window.__forestFf) {
+      obj.visible = true;
+      return;
+    }
+    if (obj.userData && obj.userData.biome) {
+      const b = obj.userData.biome;
+      // Always show shared/plaza tagged objects
+      if (b === 'plaza') {
+        obj.visible = true;
+      } else {
+        // Show only if matching currentBiome
+        obj.visible = (b === biomeKey);
+      }
+    }
+  });
+  // Update HUD
+  const titleEl = document.querySelector('.bar .brand');
+  if (titleEl) {
+    const labels = { plaza:'入口の庭', forest:'森の奥', village:'村のなか', lake:'湖のほとり', mountain:'山の頂' };
+    const span = titleEl.querySelector('.sub');
+    if (span) span.textContent = labels[biomeKey] || biomeKey;
+  }
+  // Show "return to plaza" button if in a biome
+  const retBtn = document.getElementById('return-plaza-btn');
+  if (retBtn) retBtn.style.display = (biomeKey === 'plaza') ? 'none' : 'flex';
+}
+
+// Move avatar AND switch the biome map
 function teleportToBiome(biomeKey) {
   const b = BIOMES[biomeKey];
   if (!b || !avatar) return;
-  // Place avatar at biome center
-  avatar.position.x = b.cx;
-  avatar.position.z = b.cz;
-  avatar.position.y = getTerrainHeight(b.cx, b.cz) + 0.05;
-  avatarTarget = null;
-  // Snap camera close to avatar instantly
-  cameraDist = 14;
-  showAchievement(b.name, 'エリアに移動しました');
+  // Fade transition
+  const fade = document.getElementById('biome-fade');
+  if (fade) {
+    fade.style.opacity = '1';
+    setTimeout(() => {
+      // Place avatar at biome center
+      avatar.position.x = b.cx;
+      avatar.position.z = b.cz;
+      avatar.position.y = getTerrainHeight(b.cx, b.cz) + 0.05;
+      avatarTarget = null;
+      // Switch the visible biome map
+      showBiome(biomeKey);
+      // Re-position camera near avatar in biome
+      cameraDist = 14;
+      // Fade back
+      setTimeout(() => { fade.style.opacity = '0'; }, 200);
+    }, 400);
+  } else {
+    // No fade fallback
+    avatar.position.x = b.cx;
+    avatar.position.z = b.cz;
+    avatar.position.y = getTerrainHeight(b.cx, b.cz) + 0.05;
+    showBiome(biomeKey);
+  }
+  showAchievement(b.name, 'マップ切替');
   playPlaceSound(0.7);
 }
 
