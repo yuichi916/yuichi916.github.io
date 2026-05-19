@@ -3543,8 +3543,18 @@ function showBiome(biomeKey) {
       return;
     }
     // Sun flare, dust, mist — shared (visible everywhere)
-    if (obj === _sunFlareSprite || obj === _dustMotes || obj === petalsGroup || obj === _groundMist || obj === firefliesGroup || obj === window.__forestFf) {
+    if (obj === _sunFlareSprite || obj === _dustMotes || obj === petalsGroup || obj === _groundMist || obj === window.__forestFf) {
       obj.visible = true;
+      return;
+    }
+    // v49: firefliesGroup の per-biome sub-group を biomeOverride で個別表示
+    if (obj === firefliesGroup) {
+      obj.visible = true;
+      for (const sub of obj.children) {
+        if (sub.userData && sub.userData.biomeOverride) {
+          sub.visible = (sub.userData.biomeOverride === biomeKey) || (sub.userData.biomeOverride === 'plaza');
+        }
+      }
       return;
     }
     if (obj.userData && obj.userData.biome) {
@@ -4642,36 +4652,52 @@ function updatePetals(dt, t) {
 
 function buildFireflies() {
   firefliesGroup = new THREE.Group();
-  for (let i = 0; i < 24; i++) {
-    const m = new THREE.Mesh(
-      new THREE.SphereGeometry(0.06, 6, 5),
-      new THREE.MeshBasicMaterial({ color: 0xffe690, transparent: true })
-    );
-    const a = Math.random() * Math.PI * 2;
-    const r = 4 + Math.random() * 9;
-    m.userData = {
-      cx: Math.cos(a) * r,
-      cz: Math.sin(a) * r,
-      cy: 1.2 + Math.random() * 1.1,
-      r: 0.5 + Math.random() * 1.3,
-      speed: 0.5 + Math.random() * 0.8,
-      phase: Math.random() * Math.PI * 2,
-      blinkPhase: Math.random() * Math.PI * 2,
-    };
-    m.position.set(m.userData.cx, m.userData.cy, m.userData.cz);
-    firefliesGroup.add(m);
+  // v49: biome ごとに 20+ 蛍を分散 (合計 100+)
+  const centers = [
+    { x: 0, z: 0, biome: 'plaza', n: 30 },
+    { x: BIOMES.forest.cx,   z: BIOMES.forest.cz,   biome: 'forest',   n: 32 },
+    { x: BIOMES.village.cx,  z: BIOMES.village.cz,  biome: 'village',  n: 16 },
+    { x: BIOMES.lake.cx,     z: BIOMES.lake.cz,     biome: 'lake',     n: 24 },
+    { x: BIOMES.mountain.cx, z: BIOMES.mountain.cz, biome: 'mountain', n: 18 },
+  ];
+  for (const c of centers) {
+    const grp = new THREE.Group();
+    for (let i = 0; i < c.n; i++) {
+      const m = new THREE.Mesh(
+        new THREE.SphereGeometry(0.07, 6, 5),
+        new THREE.MeshBasicMaterial({ color: 0xFFE6A8, transparent: true })
+      );
+      const a = Math.random() * Math.PI * 2;
+      const r = 1.5 + Math.random() * 9;
+      m.userData = {
+        cx: c.x + Math.cos(a) * r,
+        cz: c.z + Math.sin(a) * r,
+        cy: 1.2 + Math.random() * 1.8,
+        r: 0.5 + Math.random() * 1.4,
+        speed: 0.4 + Math.random() * 0.7,
+        phase: Math.random() * Math.PI * 2,
+        blinkPhase: Math.random() * Math.PI * 2,
+      };
+      m.position.set(m.userData.cx, m.userData.cy, m.userData.cz);
+      grp.add(m);
+    }
+    grp.userData.biomeOverride = c.biome;
+    firefliesGroup.add(grp);
   }
   firefliesGroup.visible = false;
   scene.add(firefliesGroup);
 }
 function updateFireflies(t) {
   if (!firefliesGroup || !firefliesGroup.visible) return;
-  for (const m of firefliesGroup.children) {
-    const u = m.userData;
-    m.position.x = u.cx + Math.sin(t * u.speed + u.phase) * u.r;
-    m.position.z = u.cz + Math.cos(t * u.speed * 0.7 + u.phase) * u.r;
-    m.position.y = u.cy + Math.sin(t * u.speed * 1.3 + u.phase) * 0.3;
-    m.material.opacity = 0.3 + 0.6 * Math.max(0, Math.sin(t * 2.6 + u.blinkPhase));
+  for (const grp of firefliesGroup.children) {
+    if (!grp.visible) continue;
+    for (const m of grp.children) {
+      const u = m.userData;
+      m.position.x = u.cx + Math.sin(t * u.speed + u.phase) * u.r;
+      m.position.z = u.cz + Math.cos(t * u.speed * 0.7 + u.phase) * u.r;
+      m.position.y = u.cy + Math.sin(t * u.speed * 1.3 + u.phase) * 0.3;
+      m.material.opacity = 0.3 + 0.6 * Math.max(0, Math.sin(t * 2.6 + u.blinkPhase));
+    }
   }
 }
 
@@ -4718,14 +4744,13 @@ function updateTimeOfDay(dt) {
   timeOfDay = (timeOfDay + dt / DAY_SEC) % 1.0;
   const t = timeOfDay;
   // v48 stylebook: 月夜の京都古都に palette 固定。全 stops を夜パレットで上書き。
-  // moon = 5500K cool key (#D9E6F2), ambient = #1A2E4A (sky)/#0F1A12 (ground)
-  // fog & sky horizon = #1A2E4A、zenith = #0A1424
+  // moon = 5500K cool key (#D9E6F2)、強度 0.35 (月光は弱いキーライト、nightFactor=1 で蛍火等が灯る)
   const stops = [
-    { t: 0.00, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:1.0,  amb:0x1A2E4A, ambI:0.15, expo:0.85 },
-    { t: 0.18, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:1.0,  amb:0x1A2E4A, ambI:0.15, expo:0.85 },
-    { t: 0.5,  top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:1.0,  amb:0x1A2E4A, ambI:0.15, expo:0.85 },
-    { t: 0.78, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:1.0,  amb:0x1A2E4A, ambI:0.15, expo:0.85 },
-    { t: 0.95, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:1.0,  amb:0x1A2E4A, ambI:0.15, expo:0.85 },
+    { t: 0.00, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:0.35, amb:0x1A2E4A, ambI:0.20, expo:0.85 },
+    { t: 0.18, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:0.35, amb:0x1A2E4A, ambI:0.20, expo:0.85 },
+    { t: 0.5,  top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:0.35, amb:0x1A2E4A, ambI:0.20, expo:0.85 },
+    { t: 0.78, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:0.35, amb:0x1A2E4A, ambI:0.20, expo:0.85 },
+    { t: 0.95, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:0.35, amb:0x1A2E4A, ambI:0.20, expo:0.85 },
   ];
   let a = stops[0], b = stops[1];
   for (let i = 0; i < stops.length - 1; i++) {
