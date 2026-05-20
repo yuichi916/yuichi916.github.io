@@ -222,17 +222,18 @@ canvas{display:block;touch-action:none}
 // 4 themed biomes radiate from a central plaza.
 // Each biome has a distinct center, terrain profile, and content.
 const MAP = {
-  innerR: 36,      // playable inner radius (4x expansion)
-  outerR: 40,      // base edge radius
+  innerR: 20,      // v56 compact: 1画面で全体が見渡せるサイズへ縮小 (36 → 20)
+  outerR: 24,      // base edge radius (40 → 24)
   centerY: 0,      // center plaza height
 };
 // Biome zones with center coordinates and direction angles
 const BIOMES = {
-  plaza:   { name: '入口', cx:  0,  cz:  0,  radius: 6 },
-  forest:  { name: '森',   cx:-22, cz:-22,  radius: 14 },
-  village: { name: '村',   cx: 22, cz:-22,  radius: 14 },
-  lake:    { name: '湖',   cx: 14, cz: 22,  radius: 14 },
-  mountain:{ name: '山',   cx:-18, cz: 24,  radius: 16 },
+  // v56 compact: biome距離を半分以下に、半径も縮小。1画面で4方位全部見える箱庭へ
+  plaza:   { name: '入口', cx:  0,  cz:  0,  radius: 4 },
+  forest:  { name: '森',   cx:-11, cz:-11,  radius: 7 },
+  village: { name: '村',   cx: 11, cz:-11,  radius: 7 },
+  lake:    { name: '湖',   cx:  7, cz: 11,  radius: 7 },
+  mountain:{ name: '山',   cx: -9, cz: 12,  radius: 8 },
 };
 // Helper: which biome is a point closest to?
 function biomeAt(x, z) {
@@ -247,15 +248,17 @@ function biomeAt(x, z) {
 let scene, camera, renderer, composer, bloomPass;
 let raycaster, mouse = new THREE.Vector2();
 let avatar, avatarTarget = null, avatarSpeed = 0.18;
-let cameraYawOffset = -0.6, cameraPitch = 0.6, cameraDist = 22;
+// v56 quarter view 固定: pitch 0.55 (~31° down)、dist 14 (compact)
+let cameraYawOffset = -Math.PI / 4, cameraPitch = 0.55, cameraDist = 14;
 let nearbyPlace = null;
 const visited = new Set();
 const clickables = [];
 const lanternHeads = [];
 const placeHovers = {};
 let kokoro = 0;
-let timeOfDay = 0.5;      // v48 stylebook: 月が天頂 (moon-position formula peaks at 0.5)、palette は全 stops 夜固定
-const DAY_SEC = 999999;   // effectively static moonlit night (no cycling)
+// v56 Kairosoft 調: 明るい昼間・ポップな箱庭へ
+let timeOfDay = 0.42;
+const DAY_SEC = 999999;   // 昼固定 (no cycling)
 let lastTs = performance.now();
 let bgmEnabled = false, audioCtx, bgmGain, bgmNodes = [];
 let achievementsUnlocked = new Set();
@@ -598,9 +601,9 @@ function distToStream(x, z) { return distToBiomeStream(x, z); }
 async function init() {
   TOON_GRAD = makeToonGradient(4);
   scene = new THREE.Scene();
-  // v48 stylebook: 月夜の京都古都 — 墨紺指数霧、20m で大きく減衰させる
-  scene.background = new THREE.Color(0x0A1424);
-  scene.fog = new THREE.FogExp2(0x0A1424, 0.05);
+  // v56 Kairosoft / Captain Toad 調: 明るい青空、薄い霧
+  scene.background = new THREE.Color(0xBEE0EE);
+  scene.fog = new THREE.Fog(0xBEE0EE, 28, 60);
 
   camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 400);
   camera.position.set(0, 14, 18);
@@ -622,11 +625,10 @@ async function init() {
 
   raycaster = new THREE.Raycaster();
 
-  // v48 stylebook: 月夜キーライト = 月、ambient = 月夜の青グレー
-  // 月光 5500K cool white、ambient はほぼ落とす (0.15)
-  const ambient = new THREE.AmbientLight(0x1A2E4A, 0.15);
+  // v56 Captain Toad / Kairosoft 調: 明るい昼間ライト
+  const ambient = new THREE.AmbientLight(0xFFF2DC, 0.55);
   scene.add(ambient);
-  const sun = new THREE.DirectionalLight(0xD9E6F2, 1.0);  // moonlight (5500K)
+  const sun = new THREE.DirectionalLight(0xFFF4D6, 1.0);
   sun.position.set(14, 22, 10);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -659,21 +661,21 @@ async function init() {
       console.warn('SSAO init failed:', e);
     }
   }
-  // v48 stylebook Phase 6 polish
+  // v56 Captain Toad 調: 鮮やか彩度、暖色シフト、vignette ほぼなし
   bloomPass = new THREE.UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.45, 0.75, 0.6
+    0.30, 0.85, 0.6
   );
   composer.addPass(bloomPass);
   const colorGradeShader = {
     uniforms: {
       tDiffuse:   { value: null },
       time:       { value: 0 },
-      satBoost:   { value: 0.92 },
-      warmShift:  { value: -0.05 },
-      coolShade:  { value: 0.18 },
-      vignette:   { value: 0.50 },
-      lift:       { value: 0.015 },
+      satBoost:   { value: 1.25 },     // 鮮やかに
+      warmShift:  { value: 0.12 },     // 暖色ハイライト
+      coolShade:  { value: 0.04 },
+      vignette:   { value: 0.18 },     // 四隅は軽く
+      lift:       { value: 0.04 },     // 黒を持ち上げて pop な印象
     },
     vertexShader: `
       varying vec2 vUv;
@@ -1344,8 +1346,8 @@ function buildHeightmapTerrain() {
         vec3 col = mix(shadowed, sunLit, smoothstep(0.0, shadowSoft, lit));
         col += ambientColor * base * 0.18;
         col *= ao;
-        // v48 stylebook: 月夜の地表は暗く (0.28 multiplier) — 月光の弱い光
-        col *= 0.28;
+        // v56 Captain Toad / Kairosoft 調: 明るい昼間 (multiplier 復活なし)
+        col *= 1.25;
 
         // cloud shadow projection (drifting noise tex)
         if (cloudStrength > 0.001) {
@@ -1354,10 +1356,10 @@ function buildHeightmapTerrain() {
           col *= mix(1.0 - cloudStrength, 1.0, cs);
         }
 
-        // v48 stylebook: distance haze tinted to moonlit sky color (0x0A1424)
+        // v56 Kairosoft 調: 明るい青空 haze (#BEE0EE)
         float dist = length(vWorldPos.xz);
-        float haze = smoothstep(14.0, 32.0, dist) * 0.7;
-        col = mix(col, vec3(0.039, 0.078, 0.141), haze);
+        float haze = smoothstep(14.0, 28.0, dist) * 0.55;
+        col = mix(col, vec3(0.745, 0.878, 0.933), haze);
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -4683,25 +4685,37 @@ function buildGodRays() {
 
 // ─── Avatar ───────────────────────────────────────────────
 function buildAvatar() {
+  // v56 かわいい chibi アバター: 大きな頭 + 短い体 (Captain Toad / Kairosoft 風 2.5頭身)
   const g = new THREE.Group();
-  // robe body
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.32, 0.85, 10), toonMat(0x3a4860));
-  body.position.y = 0.6; body.castShadow = true; g.add(body);
-  // sash
-  const sash = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.05, 6, 14), toonMat(0xc88848));
-  sash.rotation.x = Math.PI / 2; sash.position.y = 0.78; g.add(sash);
-  // head
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 14, 10), toonMat(0xf0d8b0));
-  head.position.y = 1.18; head.castShadow = true; g.add(head);
-  // hat (kasa)
-  const kasa = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.18, 12), toonMat(0xc09060));
-  kasa.position.y = 1.36; kasa.castShadow = true; g.add(kasa);
-  // foot spotlight
-  const foot = new THREE.PointLight(0xfff0c0, 0.4, 3);
-  foot.position.y = 0.2;
-  g.add(foot);
+  // 足 (短い円柱2本)
+  const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.25, 8), toonMat(0x6a4a32));
+  legL.position.set(-0.08, 0.13, 0); legL.castShadow = true; g.add(legL);
+  const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.25, 8), toonMat(0x6a4a32));
+  legR.position.set( 0.08, 0.13, 0); legR.castShadow = true; g.add(legR);
+  // 胴 (赤い半被)
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.30, 0.40, 12), toonMat(0xd2553a));
+  body.position.y = 0.46; body.castShadow = true; g.add(body);
+  // 帯
+  const sash = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.04, 6, 16), toonMat(0xfff2c0));
+  sash.rotation.x = Math.PI / 2; sash.position.y = 0.42; g.add(sash);
+  // 頭 (大きめ、可愛さの中心)
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.30, 18, 14), toonMat(0xfde0c0));
+  head.position.y = 0.92; head.castShadow = true; g.add(head);
+  // 目 (黒い小球)
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0x1a1a22 }));
+  eyeL.position.set(-0.10, 0.95, 0.28); g.add(eyeL);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0x1a1a22 }));
+  eyeR.position.set( 0.10, 0.95, 0.28); g.add(eyeR);
+  // ほっぺ (薄ピンク)
+  const cheekL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff9a9a, transparent:true, opacity:0.55 }));
+  cheekL.position.set(-0.20, 0.88, 0.25); g.add(cheekL);
+  const cheekR = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff9a9a, transparent:true, opacity:0.55 }));
+  cheekR.position.set( 0.20, 0.88, 0.25); g.add(cheekR);
+  // 笠
+  const kasa = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.22, 16), toonMat(0xc88a52));
+  kasa.position.y = 1.24; kasa.castShadow = true; g.add(kasa);
   avatar = g;
-  avatar.position.set(0, getTerrainHeight(0, 12) + 0.05, 12);
+  avatar.position.set(0, getTerrainHeight(0, 6) + 0.05, 6);
   scene.add(avatar);
 }
 
@@ -4881,14 +4895,14 @@ function updateDust(t) {
 function updateTimeOfDay(dt) {
   timeOfDay = (timeOfDay + dt / DAY_SEC) % 1.0;
   const t = timeOfDay;
-  // v48 stylebook: 月夜の京都古都に palette 固定。全 stops を夜パレットで上書き。
-  // moon = 5500K cool key (#D9E6F2)、強度 0.35 (月光は弱いキーライト、nightFactor=1 で蛍火等が灯る)
+  // v56 Kairosoft 調 palette: 青空、明るい黄緑、暖かい光
+  // 全 stops を昼間 palette で固定 (no day-night cycle)
   const stops = [
-    { t: 0.00, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:0.35, amb:0x1A2E4A, ambI:0.20, expo:0.85 },
-    { t: 0.18, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:0.35, amb:0x1A2E4A, ambI:0.20, expo:0.85 },
-    { t: 0.5,  top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:0.35, amb:0x1A2E4A, ambI:0.20, expo:0.85 },
-    { t: 0.78, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:0.35, amb:0x1A2E4A, ambI:0.20, expo:0.85 },
-    { t: 0.95, top:0x0A1424, mid:0x1A2E4A, bot:0x1F2840, sun:0xD9E6F2, sunI:0.35, amb:0x1A2E4A, ambI:0.20, expo:0.85 },
+    { t: 0.00, top:0x8CC8E8, mid:0xBEE0EE, bot:0xE8F4DC, sun:0xFFF4D6, sunI:1.0,  amb:0xFFF2DC, ambI:0.55, expo:0.92 },
+    { t: 0.18, top:0x8CC8E8, mid:0xBEE0EE, bot:0xE8F4DC, sun:0xFFF4D6, sunI:1.0,  amb:0xFFF2DC, ambI:0.55, expo:0.92 },
+    { t: 0.5,  top:0x8CC8E8, mid:0xBEE0EE, bot:0xE8F4DC, sun:0xFFF4D6, sunI:1.0,  amb:0xFFF2DC, ambI:0.55, expo:0.92 },
+    { t: 0.78, top:0x8CC8E8, mid:0xBEE0EE, bot:0xE8F4DC, sun:0xFFF4D6, sunI:1.0,  amb:0xFFF2DC, ambI:0.55, expo:0.92 },
+    { t: 0.95, top:0x8CC8E8, mid:0xBEE0EE, bot:0xE8F4DC, sun:0xFFF4D6, sunI:1.0,  amb:0xFFF2DC, ambI:0.55, expo:0.92 },
   ];
   let a = stops[0], b = stops[1];
   for (let i = 0; i < stops.length - 1; i++) {
@@ -5010,8 +5024,31 @@ function updateWind(t) {
 }
 
 // ─── Avatar movement ─────────────────────────────────────
+const keyState = { w:false, a:false, s:false, d:false, ArrowUp:false, ArrowLeft:false, ArrowDown:false, ArrowRight:false };
 function updateAvatar(dt) {
-  if (!avatar || !avatarTarget) return;
+  if (!avatar) return;
+  // v56: キーボード WASD / 矢印キー入力 (クォータービューの軸に揃える)
+  let kx = 0, kz = 0;
+  if (keyState.w || keyState.ArrowUp)    { kz -= 1; }
+  if (keyState.s || keyState.ArrowDown)  { kz += 1; }
+  if (keyState.a || keyState.ArrowLeft)  { kx -= 1; }
+  if (keyState.d || keyState.ArrowRight) { kx += 1; }
+  if (kx !== 0 || kz !== 0) {
+    avatarTarget = null;
+    // カメラ yaw に合わせて入力ベクトルを回転させる (画面の上=奥に進む)
+    const yaw = cameraYawOffset;
+    const cx = Math.cos(yaw), sx = Math.sin(yaw);
+    const wx =  kx * cx + kz * sx;
+    const wz = -kx * sx + kz * cx;
+    const len = Math.hypot(wx, wz) || 1;
+    const sp = avatarSpeed * 1.1;
+    avatar.position.x += (wx / len) * sp;
+    avatar.position.z += (wz / len) * sp;
+    avatar.position.y = getTerrainHeight(avatar.position.x, avatar.position.z) + 0.05;
+    avatar.rotation.y = Math.atan2(wx, wz);
+    return;
+  }
+  if (!avatarTarget) return;
   const dx = avatarTarget.x - avatar.position.x;
   const dz = avatarTarget.z - avatar.position.z;
   const d = Math.hypot(dx, dz);
@@ -5022,7 +5059,6 @@ function updateAvatar(dt) {
   avatar.position.z += stepZ;
   avatar.position.y = getTerrainHeight(avatar.position.x, avatar.position.z) + 0.05;
   avatar.rotation.y = Math.atan2(dx, dz);
-  // ripples in pond if walking through? not applicable; skip
 }
 
 // ─── Camera follow + 4-direction snap ─────────────────────
@@ -5070,6 +5106,20 @@ function updateProximity(t) {
 
 // ─── Inputs ───────────────────────────────────────────────
 function setupInput() {
+  // v56: WASD + 矢印キーで cute avatar が動く
+  window.addEventListener('keydown', (e) => {
+    if (e.key in keyState) { keyState[e.key] = true; }
+    const lc = e.key.toLowerCase();
+    if (lc in keyState) { keyState[lc] = true; }
+    // Q/E でカメラ yaw 回転 (90° スナップ)
+    if (lc === 'q') { cameraYawOffset = Math.round((cameraYawOffset - Math.PI/2) / (Math.PI/2)) * (Math.PI/2); }
+    if (lc === 'e') { cameraYawOffset = Math.round((cameraYawOffset + Math.PI/2) / (Math.PI/2)) * (Math.PI/2); }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.key in keyState) { keyState[e.key] = false; }
+    const lc = e.key.toLowerCase();
+    if (lc in keyState) { keyState[lc] = false; }
+  });
   const canvas = renderer.domElement;
   let downX = 0, downY = 0, downT = 0;
   canvas.addEventListener('pointerdown', (e) => {
@@ -5081,8 +5131,9 @@ function setupInput() {
     const dx = e.clientX - dragStart.x;
     const dy = e.clientY - dragStart.y;
     if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+      // v56 quarter view 固定: yaw のみ自由、pitch はロック (0.55 ± 少し)
       cameraYawOffset -= dx * 0.005;
-      cameraPitch = Math.max(0.18, Math.min(1.2, cameraPitch + dy * 0.003));
+      cameraPitch = 0.55;  // quarter view 固定
       dragStart = { x: e.clientX, y: e.clientY };
     }
   });
