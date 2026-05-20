@@ -471,11 +471,41 @@ setLoad(0.2, 'TERRAIN');
 
 /* === Water (lake + pond) ================================= */
 const waterMat = new THREE.MeshStandardMaterial({
-  color: 0x4a8aae, transparent:true, opacity:0.88, roughness:0.08, metalness:0.2,
-  emissive:0x102838, emissiveIntensity:0.06, envMapIntensity:1.4
+  color: 0x4a8aae, transparent:true, opacity:0.85, roughness:0.06, metalness:0.2,
+  emissive:0x102838, emissiveIntensity:0.06, envMapIntensity:1.6
 });
-const lake = new THREE.Mesh(new THREE.CircleGeometry(8.5, 48).rotateX(-Math.PI/2), waterMat);
-lake.position.set(18, -1.05, 16);   // note: +z = south
+let waterWaveUniforms = null;
+waterMat.onBeforeCompile = (shader)=>{
+  shader.uniforms.uTime = { value: 0 };
+  shader.vertexShader = 'uniform float uTime;\n' + shader.vertexShader;
+  shader.vertexShader = shader.vertexShader.replace(
+    '#include <begin_vertex>',
+    `#include <begin_vertex>
+    // gentle multi-octave wave displacement
+    float wave1 = sin(transformed.x*0.6 + uTime*1.4) * 0.06;
+    float wave2 = sin(transformed.z*0.45 + uTime*0.9) * 0.05;
+    float wave3 = sin((transformed.x+transformed.z)*0.32 + uTime*0.6) * 0.04;
+    transformed.y += wave1 + wave2 + wave3;
+    `
+  );
+  // Inject normal recomputation for lighting (cheap)
+  shader.vertexShader = shader.vertexShader.replace(
+    '#include <beginnormal_vertex>',
+    `#include <beginnormal_vertex>
+    objectNormal = normalize(objectNormal + vec3(
+      cos(transformed.x*0.6 + uTime*1.4)*0.4,
+      0.0,
+      cos(transformed.z*0.45 + uTime*0.9)*0.3
+    ));
+    `
+  );
+  waterWaveUniforms = shader.uniforms;
+};
+// Larger segment count for wave displacement
+const lakeGeo = new THREE.CircleGeometry(8.5, 64);
+lakeGeo.rotateX(-Math.PI/2);
+const lake = new THREE.Mesh(lakeGeo, waterMat);
+lake.position.set(18, -1.05, 16);
 lake.receiveShadow = true;
 scene.add(lake);
 
@@ -1143,6 +1173,42 @@ for(const [x,z,rot,rc] of KOMINKA_SPOTS){
   k.rotation.y = rot;
   scene.add(k);
 }
+
+/* === Hanging chochin lanterns (string lights) ============ */
+(function chochin(){
+  // 4 strings connecting plaza corners; each holds 5 paper lanterns
+  const corners = [[-8,-8],[8,-8],[8,8],[-8,8]];
+  for(let s=0;s<4;s++){
+    const a = corners[s], b = corners[(s+1)%4];
+    const N = 5;
+    // sag curve approximated: y = top - 4*droopAmt*t*(1-t)
+    for(let i=1;i<=N;i++){
+      const tt = i/(N+1);
+      const x = a[0] + (b[0]-a[0])*tt;
+      const z = a[1] + (b[1]-a[1])*tt;
+      const droop = 1.0;
+      const yTop = 4.2;
+      const y = yTop - 4*droop*tt*(1-tt);
+      // string segment (thin cylinder to next)
+      // (skip string per-segment for simplicity; lanterns float)
+      // lantern
+      const g = new THREE.Group();
+      g.position.set(x, y, z);
+      const paper = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8),
+        new THREE.MeshStandardMaterial({color:0xf6d28a, emissive:0xffaa44, emissiveIntensity:0.0, roughness:0.6}));
+      paper.userData.lamp = true;
+      paper.scale.y = 1.3;
+      g.add(paper);
+      // top + bottom caps
+      const capMat = new THREE.MeshStandardMaterial({color:0x4a2010, roughness:0.8});
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.04, 8), capMat);
+      top.position.y = 0.24; g.add(top);
+      const bot = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.06, 0.04, 8), capMat);
+      bot.position.y = -0.24; g.add(bot);
+      scene.add(g);
+    }
+  }
+})();
 
 /* === Lily pads on the lake =============================== */
 (function lilyPads(){
@@ -2131,6 +2197,7 @@ function animate(){
 
   // wind on grass
   if(grassWindUniforms) grassWindUniforms.uTime.value = t;
+  if(waterWaveUniforms) waterWaveUniforms.uTime.value = t;
 
   // wind sway on trees (subtle)
   for(const tr of TREE_GROUPS){
