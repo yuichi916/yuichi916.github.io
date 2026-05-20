@@ -634,6 +634,56 @@ function makeLantern(scale=1){
   return g;
 }
 
+/* === Engawa (Japanese wooden veranda) ==================== */
+function makeEngawa(width = 3.0, depth = 1.0){
+  const g = new THREE.Group();
+  const deckTex = WOOD_TEX.clone();
+  deckTex.needsUpdate = true;
+  deckTex.repeat.set(width*0.6, depth);
+  deckTex.wrapS = deckTex.wrapT = THREE.RepeatWrapping;
+  deckTex.colorSpace = THREE.SRGBColorSpace;
+  const woodM = new THREE.MeshStandardMaterial({ map: deckTex, color:0xb88a5a, roughness:0.85, metalness:0.03 });
+  // base (foundation stones)
+  const stoneM = mat(0x6a5a40);
+  for(const sx of [-width*0.45, 0, width*0.45]){
+    const stone = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, depth*0.8), stoneM);
+    stone.position.set(sx, 0.15, 0);
+    stone.castShadow = stone.receiveShadow = true;
+    g.add(stone);
+  }
+  // deck planks (4-6 per width)
+  const plankCount = Math.max(4, Math.floor(depth/0.22));
+  for(let i=0;i<plankCount;i++){
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(width, 0.08, depth/plankCount - 0.01), woodM);
+    plank.position.set(0, 0.34, (i/(plankCount-1) - 0.5)*depth);
+    plank.castShadow = plank.receiveShadow = true;
+    g.add(plank);
+  }
+  // edge trim
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(width+0.04, 0.05, 0.06), mat(0x5a3a20));
+  trim.position.set(0, 0.36, depth/2 + 0.02);
+  g.add(trim);
+  return g;
+}
+
+/* === Stepping stones (沓脱石) ============================ */
+function makeSteppingStones(points){
+  const g = new THREE.Group();
+  const stoneM = mat(0x7a7060, {roughness:0.95});
+  for(const [x,z, scale=1.0, rot=Math.random()*Math.PI] of points){
+    const stone = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32*scale, 0.36*scale, 0.10, 8, 1),
+      stoneM
+    );
+    stone.position.set(x, 0.05, z);
+    stone.rotation.y = rot;
+    stone.scale.set(1, 1, 0.85+Math.random()*0.2);
+    stone.castShadow = stone.receiveShadow = true;
+    g.add(stone);
+  }
+  return g;
+}
+
 function makeBoatDock(){
   const g = new THREE.Group();
   const dockTex = WOOD_TEX.clone(); dockTex.needsUpdate=true; dockTex.repeat.set(2,1);
@@ -1047,11 +1097,30 @@ SCENES.plaza = {
     // Well at centre
     const well = makeWell();
     root.add(well);
-    // 4 kominka at compass points
+    // 4 kominka at compass points + engawa (wooden veranda) facing the well
     const compass = [[-7,-7,Math.PI*0.25,0x4a3024],[7,-7,-Math.PI*0.25,0x5a3a24],[-7,7,-Math.PI*0.25,0x3a2a1a],[7,7,Math.PI*0.25,0x4a3a24]];
     for(const [x,z,rot,rc] of compass){
       const k = makeKominka(rc); k.position.set(x,0,z); k.rotation.y = rot;
       root.add(k);
+      // Engawa attached on the side facing the centre (well)
+      const eng = makeEngawa(2.6, 0.95);
+      // place engawa on the centre-facing side of each kominka
+      const cx = -x*0.18, cz = -z*0.18;   // small offset toward centre
+      eng.position.set(x + cx, 0, z + cz);
+      eng.rotation.y = rot + Math.PI/2;   // align long edge with kominka wall
+      root.add(eng);
+    }
+    // Stepping stones from each kominka engawa to the central well
+    for(const [x,z] of [[-5,-5],[5,-5],[-5,5],[5,5]]){
+      const dx = -x/4, dz = -z/4;
+      const stones = [];
+      for(let i=1;i<=4;i++){
+        const t = i/5;
+        const sx = x*(1-t);
+        const sz = z*(1-t);
+        stones.push([sx, sz, 0.9 + Math.random()*0.2]);
+      }
+      root.add(makeSteppingStones(stones));
     }
     // 8 chochin lanterns around the well
     for(let i=0;i<8;i++){
@@ -1175,6 +1244,12 @@ SCENES.oto = {
       new THREE.MeshStandardMaterial({color:0xc8a674, roughness:0.9, transparent:true, opacity:0.7}));
     path.position.set(0, 0.02, 1.5);
     root.add(path);
+    // Stepping stones flanking the path centre
+    const sandoStones = [];
+    for(let i=-3;i<=4;i++){
+      sandoStones.push([0, 6 - i*1.4, 1.0, 0]);
+    }
+    root.add(makeSteppingStones(sandoStones));
     // Torii at the front
     const torii = makeTorii();
     torii.position.set(0, 0, 2.5);
@@ -1285,6 +1360,18 @@ SCENES.tabi = {
     dock.rotation.y = -Math.PI/2;
     root.add(dock);
     if(dock.userData.boat) ENTITIES.boats.push(dock.userData.boat);
+    // Engawa-style wooden deck on the shore, facing the water
+    const shoreDeck = makeEngawa(3.4, 1.4);
+    shoreDeck.position.set(-5.5, 0, -1);
+    shoreDeck.rotation.y = Math.PI/2;
+    root.add(shoreDeck);
+    // Stepping stones from shore deck to dock
+    root.add(makeSteppingStones([
+      [-5.0, -0.5, 0.95, 0.3],
+      [-4.4, -0.3, 1.0,  0.6],
+      [-3.8,  0.0, 0.9,  0.1],
+      [-3.4,  0.5, 0.95, 0.4],
+    ]));
     // Willow tree on shore
     const willow = makeTree('willow');
     willow.position.set(-6, 0, -3);
