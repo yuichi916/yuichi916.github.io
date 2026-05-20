@@ -903,6 +903,8 @@ async function init() {
   buildBiomeSignposts();
   buildBiomeDetails();
   buildAvatar();
+  buildNPCs();
+  buildSpeechBubbles();
   buildPlaceHovers();
   buildPetals();
   buildFireflies();
@@ -4717,6 +4719,119 @@ function buildAvatar() {
   avatar = g;
   avatar.position.set(0, getTerrainHeight(0, 6) + 0.05, 6);
   scene.add(avatar);
+  // v57: 足元の選択リング (Kairosoft/SimCity 風)
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.38, 0.46, 24),
+    new THREE.MeshBasicMaterial({ color: 0x6BE07A, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.03;
+  ring.renderOrder = 5;
+  avatar.add(ring);
+  avatar.userData.ring = ring;
+}
+
+// ─── v57: NPC chibi characters scattered in biomes ───
+const NPCS = [];
+function makeChibi(color, capColor) {
+  const g = new THREE.Group();
+  const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.22, 8), toonMat(0x6a4a32));
+  legL.position.set(-0.07, 0.11, 0); legL.castShadow = true; g.add(legL);
+  const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.22, 8), toonMat(0x6a4a32));
+  legR.position.set( 0.07, 0.11, 0); legR.castShadow = true; g.add(legR);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.27, 0.36, 12), toonMat(color));
+  body.position.y = 0.42; body.castShadow = true; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 16, 12), toonMat(0xfde0c0));
+  head.position.y = 0.84; head.castShadow = true; g.add(head);
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), new THREE.MeshBasicMaterial({ color: 0x1a1a22 }));
+  eyeL.position.set(-0.09, 0.87, 0.25); g.add(eyeL);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), new THREE.MeshBasicMaterial({ color: 0x1a1a22 }));
+  eyeR.position.set( 0.09, 0.87, 0.25); g.add(eyeR);
+  const cheekL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff9a9a, transparent:true, opacity:0.55 }));
+  cheekL.position.set(-0.18, 0.81, 0.22); g.add(cheekL);
+  const cheekR = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff9a9a, transparent:true, opacity:0.55 }));
+  cheekR.position.set( 0.18, 0.81, 0.22); g.add(cheekR);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.20, 14), toonMat(capColor));
+  cap.position.y = 1.12; cap.castShadow = true; g.add(cap);
+  // selection ring under NPC (cyan)
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.34, 0.42, 24),
+    new THREE.MeshBasicMaterial({ color: 0x70CCE8, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.03;
+  ring.renderOrder = 5;
+  g.add(ring);
+  return g;
+}
+function buildNPCs() {
+  if (!scene) return;
+  const specs = [
+    { name:'森番',    biome:'forest',   x: BIOMES.forest.cx + 2,   z: BIOMES.forest.cz - 1, color: 0x4a8a6a, cap: 0x6a4a32, say:'こんにちは!' },
+    { name:'木こり',  biome:'forest',   x: BIOMES.forest.cx - 3,   z: BIOMES.forest.cz + 2, color: 0x9c6242, cap: 0xc8553d, say:'まきわり中' },
+    { name:'村人',    biome:'village',  x: BIOMES.village.cx - 2,  z: BIOMES.village.cz + 2, color: 0xd2553a, cap: 0xfff2c0, say:'いい天気!' },
+    { name:'物売り',  biome:'village',  x: BIOMES.village.cx + 2,  z: BIOMES.village.cz - 1, color: 0xc8a060, cap: 0x6a4a32, say:'やすいよ' },
+    { name:'漁師',    biome:'lake',     x: BIOMES.lake.cx + 1,     z: BIOMES.lake.cz - 2, color: 0x4a7090, cap: 0xc88a52, say:'魚いる?' },
+    { name:'巫女',    biome:'mountain', x: BIOMES.mountain.cx - 1, z: BIOMES.mountain.cz + 1, color: 0xd95054, cap: 0xfff2c0, say:'おまもり' },
+    { name:'クマ',    biome:'mountain', x: BIOMES.mountain.cx + 2, z: BIOMES.mountain.cz - 2, color: 0x6e4a2c, cap: 0x4a2a18, say:'ガオ' },
+  ];
+  for (const s of specs) {
+    const npc = makeChibi(s.color, s.cap);
+    const y = (typeof getTerrainHeight === 'function') ? getTerrainHeight(s.x, s.z) : 0;
+    npc.position.set(s.x, y + 0.05, s.z);
+    npc.userData.biomeOverride = s.biome;
+    npc.userData.npc = s;
+    npc.userData.t0 = Math.random() * 1000;
+    scene.add(npc);
+    NPCS.push(npc);
+  }
+}
+function updateNPCs(t) {
+  for (const npc of NPCS) {
+    const u = npc.userData;
+    npc.position.y += (Math.sin((t + u.t0) * 2.3) * 0.012);
+    if (avatar) {
+      const dx = avatar.position.x - npc.position.x;
+      const dz = avatar.position.z - npc.position.z;
+      npc.rotation.y = Math.atan2(dx, dz);
+    }
+  }
+}
+
+// ─── v57: HTML 吹き出し (DOM、3D 座標を投影して追従) ───
+const SPEECH_BUBBLES = [];
+function buildSpeechBubbles() {
+  let layer = document.getElementById('bubble-layer');
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'bubble-layer';
+    layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:40';
+    document.body.appendChild(layer);
+  }
+  for (const npc of NPCS) {
+    const d = document.createElement('div');
+    d.textContent = npc.userData.npc.say + '';
+    d.style.cssText = 'position:absolute;background:#fff;color:#3a342a;border:2px solid #c08a52;border-radius:14px;padding:4px 10px;font-family:Zen Maru Gothic,sans-serif;font-size:12px;letter-spacing:.05em;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.15);transform:translate(-50%,-100%);opacity:0;transition:opacity .25s';
+    layer.appendChild(d);
+    SPEECH_BUBBLES.push({ npc, el: d });
+  }
+}
+function updateSpeechBubbles() {
+  if (!camera || !renderer) return;
+  for (const { npc, el } of SPEECH_BUBBLES) {
+    if (!npc.visible) { el.style.opacity = '0'; continue; }
+    const wp = new THREE.Vector3(npc.position.x, npc.position.y + 1.45, npc.position.z);
+    const screen = wp.clone().project(camera);
+    if (screen.z > 1) { el.style.opacity = '0'; continue; }
+    // distance fade
+    const d = avatar ? Math.hypot(npc.position.x - avatar.position.x, npc.position.z - avatar.position.z) : 99;
+    if (d > 14) { el.style.opacity = '0'; continue; }
+    const x = (screen.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-screen.y * 0.5 + 0.5) * window.innerHeight;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.opacity = (d < 10 ? 1 : (14 - d) / 4).toFixed(2);
+  }
 }
 
 // ─── Place hover labels (3D floating text) ────────────────
@@ -5544,6 +5659,8 @@ function animate() {
   }
   updatePetals(dt, t);
   updateFireflies(t);
+  updateNPCs(t);
+  updateSpeechBubbles();
   updateDust(t);
   updateWind(t);
   // v51: star twinkle
