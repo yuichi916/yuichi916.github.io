@@ -888,10 +888,12 @@ async function init() {
   scatterWildflowers();
   buildBiomeGroundCover();
   buildBiomePaths();
-  buildForestHeroTree();
+  // v52: hifi Blender hero (gnarled tree / willow / moss lantern) を GLB 経由で配置するため
+  // procedural hero は無効化
+  // buildForestHeroTree();
   buildBiomeForegroundFrame();
   buildPlazaForeground();
-  buildLakeHero();
+  // buildLakeHero();
   buildBiomeMidLayer();  // v49: 中層シダ/高草/岩 outcrop で密度向上
   buildSunFlare();
   buildDustMotes();
@@ -2495,6 +2497,9 @@ const EXTERNAL_ASSETS = [
   { file:'shrine_mclaughlin.glb',       role:'shrine_mtn',   x: BIOMES.mountain.cx - 5, z: BIOMES.mountain.cz + 5, h: 1.6, rot:-0.8,   yOff: 0,   shadow:true },
   { file:'mountains_quaternius.glb',    role:'mtn_back_a',   x: BIOMES.mountain.cx - 8, z: BIOMES.mountain.cz - 10,h: 8.0, rot: 0,     yOff: -0.5,shadow:true },
   { file:'mountain_quaternius.glb',     role:'mtn_back_b',   x: BIOMES.mountain.cx + 12,z: BIOMES.mountain.cz + 8, h: 7.0, rot: 1.4,   yOff: -0.6,shadow:true },
+  // v52: hifi Blender hero — 森の主役は gnarled_tree.glb (3MB, 高ポリ + 苔パッチ + canopy 多層)
+  { file:'../blender_hifi/gnarled_tree.glb',  role:'forest_hero_giant', x: BIOMES.forest.cx - 2, z: BIOMES.forest.cz + 1, h: 9.5, rot: 0.3, yOff: 0, shadow:true },
+  { file:'../blender_hifi/gnarled_tree_b.glb',role:'forest_hero_b',     x: BIOMES.forest.cx + 6, z: BIOMES.forest.cz - 4, h: 8.0, rot: 1.2, yOff: 0, shadow:true },
   // === 森エリア (Forest) — chibi cabin + organic forest with chibi trees ===
   { file:'../blender_v3/chibi_house_red.glb',   role:'forest_cabin',   x: BIOMES.forest.cx,     z: BIOMES.forest.cz,     h: 3.2, rot: 0.3, yOff: 0, shadow:true },
   // Forest ring of chibi trees (8 trees forming a clearing)
@@ -2556,6 +2561,8 @@ const EXTERNAL_ASSETS = [
   // v48 Phase 3: 桃野花 palette外、橙野花 palette外 (アクセント灯橙のみ可)
   // { file:'../blender_v3/wildflower_pink.glb',   role:'lake_fl_a',       ... },
   // { file:'../blender_v3/wildflower_orange.glb', role:'lake_fl_b',       ... },
+  // v52: hifi 湖の主役は weeping_willow.glb (657KB, 樹幹+クラウン+20本の垂れ枝)
+  { file:'../blender_hifi/weeping_willow.glb', role:'lake_hero_willow', x: BIOMES.lake.cx - 4.5, z: BIOMES.lake.cz - 1, h: 7.0, rot: 0,   yOff: 0, shadow:true },
   // === 湖エリア (Lake) — 静かな湖畔: 太鼓橋 + 茶室 + 桜並木 + ベンチ ===
   { file:'../blender/arch_bridge.glb',  role:'bridge',     x: BIOMES.lake.cx - 6, z: BIOMES.lake.cz - 3, h: 1.8, rot: 0.6,  yOff: 0,   shadow:true },
   { file:'../blender/tea_house.glb',    role:'tea_house',  x: BIOMES.lake.cx + 5, z: BIOMES.lake.cz - 5, h: 3.2, rot:-0.5,  yOff: 0,   shadow:true },
@@ -2591,12 +2598,11 @@ const EXTERNAL_ASSETS = [
   // { file:'../blender/sakura_a.glb',     role:'sakura_hero',    x: 8,    z: 0,    h: 5.5, rot: 0.4,   yOff: 0,    shadow:true },
   // { file:'../blender/sakura_b.glb',     role:'cherry_a',       x: 5,    z: 6,    h: 5.0, rot:-0.5,   yOff: 0,    shadow:true },
   // { file:'../blender/sakura_a.glb',     role:'cherry_b',       x: -6,   z: 5,    h: 4.5, rot: 0.7,   yOff: 0,    shadow:true },
-  // v48 stylebook: 鳥居を hero に、提灯を周囲に三角配置 (rule 6: hero + 3 reps)
-  // torii は (0, -4) に z=-4, h=4.5。lanterns を鳥居両柱 + 手前1基 + 後背に三角に置く
-  { file:'../blender/stone_lantern.glb',role:'ish_a',     x:-2.2, z:-3.6, h: 1.8, rot: 0,    yOff: 0, shadow:true, lantern:true }, // 鳥居左柱
-  { file:'../blender/stone_lantern.glb',role:'ish_b',     x: 2.2, z:-3.6, h: 1.8, rot: 0,    yOff: 0, shadow:true, lantern:true }, // 鳥居右柱
-  { file:'../blender/stone_lantern.glb',role:'ish_c',     x: 0.0, z: 2.0, h: 1.8, rot: 0,    yOff: 0, shadow:true, lantern:true }, // 手前中央 (visitor-facing)
-  { file:'../blender/stone_lantern.glb',role:'ish_d',     x: 0.0, z:-7.0, h: 1.6, rot: 0,    yOff: 0, shadow:true, lantern:true }, // 鳥居の奥 (silhouette glow)
+  // v52: hifi 苔石灯籠 (moss_lantern.glb 30KB) を鳥居周りに4基三角配置
+  { file:'../blender_hifi/moss_lantern.glb',  role:'ish_a',     x:-2.2, z:-3.6, h: 2.1, rot: 0,    yOff: 0, shadow:true, lantern:true },
+  { file:'../blender_hifi/moss_lantern_b.glb',role:'ish_b',     x: 2.2, z:-3.6, h: 2.1, rot: 0,    yOff: 0, shadow:true, lantern:true },
+  { file:'../blender_hifi/moss_lantern.glb',  role:'ish_c',     x: 0.0, z: 2.0, h: 2.1, rot: 0,    yOff: 0, shadow:true, lantern:true },
+  { file:'../blender_hifi/moss_lantern_b.glb',role:'ish_d',     x: 0.0, z:-7.0, h: 1.9, rot: 0,    yOff: 0, shadow:true, lantern:true },
   // === Lantern path between biomes (one per biome direction) ===
   { file:'ishidoro_flopsi.glb',         role:'ish_to_forest', x:-10, z:-10, h: 1.4, rot: 0, yOff: 0, shadow:true, lantern:true },
   { file:'ishidoro_flopsi.glb',         role:'ish_to_village',x: 10, z:-10, h: 1.4, rot: 0, yOff: 0, shadow:true, lantern:true },
