@@ -921,6 +921,47 @@ function makeTreeMesh(kind, rnd){
 })();
 setLoad(0.6, 'VEGETATION');
 
+/* === PBR cobblestone path overlay ======================== */
+(function pathOverlay(){
+  const cobbleTex = stonePBR.diff.clone();
+  cobbleTex.needsUpdate = true;
+  cobbleTex.wrapS = cobbleTex.wrapT = THREE.RepeatWrapping;
+  cobbleTex.repeat.set(2, 14);
+  cobbleTex.colorSpace = THREE.SRGBColorSpace;
+  const pathMat = new THREE.MeshStandardMaterial({ map: cobbleTex, color:0xe6d6b0, roughness:0.9, metalness:0.02 });
+  const N = 56;
+  // build a strip along Z axis (N-S)
+  function buildStrip(axis){
+    const geo = new THREE.PlaneGeometry(1.6, 56, 1, N);
+    geo.rotateX(-Math.PI/2);
+    if(axis === 'x') geo.rotateY(Math.PI/2);
+    const pos = geo.attributes.position;
+    for(let i=0;i<pos.count;i++){
+      const wx = pos.getX(i), wz = pos.getZ(i);
+      pos.setY(i, terrainHeight(wx, wz) + 0.03);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, pathMat);
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+  }
+  buildStrip('z'); buildStrip('x');
+  // plaza disc
+  const plazaGeo = new THREE.CircleGeometry(4.2, 36).rotateX(-Math.PI/2);
+  const pp = plazaGeo.attributes.position;
+  for(let i=0;i<pp.count;i++){
+    const x = pp.getX(i), z = pp.getZ(i);
+    pp.setY(i, terrainHeight(x,z)+0.025);
+  }
+  pp.needsUpdate = true; plazaGeo.computeVertexNormals();
+  const plaza = new THREE.Mesh(plazaGeo, pathMat.clone());
+  plaza.material.map = cobbleTex.clone();
+  plaza.material.map.repeat.set(4,4);
+  plaza.receiveShadow = true;
+  scene.add(plaza);
+})();
+
 /* === Stone bridge over pond ============================== */
 (function buildBridge(){
   const g = new THREE.Group();
@@ -1407,6 +1448,25 @@ for(let i=0;i<40;i++){
   scene.add(p);
   PETALS.push(p);
 }
+
+// smoke particles for cabin chimney
+const SMOKES = [];
+(function spawnSmokeForCabin(){
+  // find the cabin place position
+  const cabin = PLACES.find(p=>p.id==='amaoto');
+  if(!cabin) return;
+  const baseX = cabin.wx + 0.9 * Math.cos(0);  // chimney offset; obj is not rotated for cabin
+  const baseY = terrainHeight(cabin.wx, cabin.wz) + 3.0;
+  const baseZ = cabin.wz - 0.6;
+  for(let i=0;i<16;i++){
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.18+Math.random()*0.18, 8, 6),
+      new THREE.MeshBasicMaterial({color:0xc0c0c0, transparent:true, opacity:0}));
+    s.position.set(baseX, baseY, baseZ);
+    s.userData = { life: i*0.4, baseX, baseY, baseZ };
+    scene.add(s);
+    SMOKES.push(s);
+  }
+})();
 
 // fireflies
 const FIREFLIES = [];
@@ -1912,6 +1972,17 @@ function animate(){
     if(p.position.y < 0.05){
       p.position.set((Math.random()-0.5)*WORLD_SIZE*0.7, 7+Math.random()*4, (Math.random()-0.5)*WORLD_SIZE*0.7);
     }
+  }
+
+  // smoke from cabin chimney
+  for(const s of SMOKES){
+    s.userData.life += dt;
+    const phase = (s.userData.life % 4) / 4; // 0..1 over 4 seconds
+    s.position.x = s.userData.baseX + Math.sin(s.userData.life*0.7)*0.3 + phase*0.5;
+    s.position.y = s.userData.baseY + phase*3.5;
+    s.position.z = s.userData.baseZ + Math.cos(s.userData.life*0.5)*0.2;
+    s.scale.setScalar(0.6 + phase*1.8);
+    s.material.opacity = (1-phase)*0.45;
   }
 
   // fireflies
