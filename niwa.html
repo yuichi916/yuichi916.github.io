@@ -323,7 +323,15 @@ function makeToonRamp(steps=4){
 }
 const toonGradient = makeToonRamp(4);
 function toonMat(hex, opts={}){
-  return new THREE.MeshToonMaterial({ color: hex, gradientMap: toonGradient, ...opts });
+  // Used to be MeshToonMaterial — now PBR for photoreal lighting with HDRI envMap.
+  // Kept the name to avoid touching every callsite.
+  return new THREE.MeshStandardMaterial({
+    color: hex,
+    roughness: 0.85,
+    metalness: 0.03,
+    envMapIntensity: 0.9,
+    ...opts
+  });
 }
 
 /* === Procedural canvas textures ========================== */
@@ -1676,7 +1684,7 @@ btnSound.addEventListener('click', ()=>{
 /* === Post-processing ===================================== */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.35, 0.7, 0.85);
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.45, 0.6, 0.78);
 composer.addPass(bloom);
 const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
 composer.addPass(smaa);
