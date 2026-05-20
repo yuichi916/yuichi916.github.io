@@ -1236,14 +1236,26 @@ function makeAvatar(){
   hip.add(pantsMesh);
 
   function leg(side){
+    // hip joint group
     const l = new THREE.Group();
     l.position.set(side*0.07, -0.2, 0);
-    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 8), pants);
-    upper.position.y = -0.18; upper.castShadow = true;
-    l.add(upper);
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.18), toonMat(0x3a2010));
-    foot.position.set(0, -0.39, 0.04); foot.castShadow = true;
-    l.add(foot);
+    // upper leg (thigh)
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.18, 10), pants);
+    thigh.position.y = -0.09; thigh.castShadow = true;
+    l.add(thigh);
+    // knee joint group (rotates relative to thigh)
+    const knee = new THREE.Group();
+    knee.position.y = -0.18;
+    l.add(knee);
+    // lower leg (shin)
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.065, 0.18, 10), pants);
+    shin.position.y = -0.09; shin.castShadow = true;
+    knee.add(shin);
+    // ankle + foot
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.20), toonMat(0x3a2010));
+    foot.position.set(0, -0.21, 0.05); foot.castShadow = true;
+    knee.add(foot);
+    l.userData = { knee };
     return l;
   }
   const legL = leg(-1); const legR = leg(1);
@@ -1474,6 +1486,42 @@ for(let i=0;i<40;i++){
   scene.add(p);
   PETALS.push(p);
 }
+
+// Birds (V-formation flock)
+const BIRD_FLOCK = new THREE.Group();
+const BIRDS = [];
+function makeBird(){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.18),
+    new THREE.MeshStandardMaterial({color:0x2a2014, roughness:0.7}));
+  body.castShadow = true;
+  g.add(body);
+  // wings as planes
+  const wingMat = new THREE.MeshStandardMaterial({color:0x2a2014, side:THREE.DoubleSide, roughness:0.7});
+  const wingL = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 0.08), wingMat);
+  wingL.position.set(-0.16, 0, 0); wingL.rotation.y = -0.2;
+  g.add(wingL);
+  const wingR = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 0.08), wingMat);
+  wingR.position.set(0.16, 0, 0); wingR.rotation.y = 0.2;
+  g.add(wingR);
+  g.userData = { wingL, wingR };
+  return g;
+}
+// V-formation positions (relative to flock leader)
+const V_OFFSETS = [
+  [0, 0, 0],
+  [-0.5, 0, 0.6], [0.5, 0, 0.6],
+  [-1.0, 0, 1.2], [1.0, 0, 1.2],
+  [-1.5, 0, 1.8], [1.5, 0, 1.8],
+];
+for(const off of V_OFFSETS){
+  const b = makeBird();
+  b.position.set(off[0], off[1], off[2]);
+  BIRDS.push(b);
+  BIRD_FLOCK.add(b);
+}
+BIRD_FLOCK.position.set(-HALF, 18, -HALF);
+scene.add(BIRD_FLOCK);
 
 // smoke particles for cabin chimney
 const SMOKES = [];
@@ -1861,16 +1909,28 @@ function animate(){
   const joints = avatar.userData.joints;
   if(moving){
     const sw = Math.sin(t*10);
+    const cw = Math.cos(t*10);
     joints.legL.rotation.x = sw * 0.55;
     joints.legR.rotation.x = -sw * 0.55;
+    // knee bends when leg comes forward (positive sw lift left leg → bend its knee)
+    if(joints.legL.userData && joints.legL.userData.knee){
+      joints.legL.userData.knee.rotation.x = -Math.max(0, sw) * 0.9;
+      joints.legR.userData.knee.rotation.x = -Math.max(0, -sw) * 0.9;
+    }
     joints.armL.rotation.x = -sw * 0.45;
     joints.armR.rotation.x = sw * 0.45;
     joints.torso.position.y = 0.18 + Math.abs(sw)*0.025;
+    joints.torso.rotation.z = cw * 0.04;  // subtle weight shift
   } else {
     const idle = Math.sin(t*1.6)*0.04;
     joints.legL.rotation.x *= 0.85; joints.legR.rotation.x *= 0.85;
+    if(joints.legL.userData && joints.legL.userData.knee){
+      joints.legL.userData.knee.rotation.x *= 0.9;
+      joints.legR.userData.knee.rotation.x *= 0.9;
+    }
     joints.armL.rotation.x = idle; joints.armR.rotation.x = -idle;
     joints.torso.position.y = 0.18 + idle*0.4;
+    joints.torso.rotation.z *= 0.9;
   }
   joints.head.rotation.y = Math.sin(t*0.4)*0.1;
 
@@ -1997,6 +2057,22 @@ function animate(){
     p.rotation.set(p.userData.spin, p.userData.spin*0.7, 0);
     if(p.position.y < 0.05){
       p.position.set((Math.random()-0.5)*WORLD_SIZE*0.7, 7+Math.random()*4, (Math.random()-0.5)*WORLD_SIZE*0.7);
+    }
+  }
+
+  // Bird flock — slow figure-8 over the village, wings flap
+  {
+    const fx = Math.sin(t*0.18)*HALF*0.55;
+    const fz = Math.sin(t*0.36)*HALF*0.4;
+    BIRD_FLOCK.position.set(fx, 16 + Math.sin(t*0.2)*2, fz);
+    // face direction of travel
+    const dx = Math.cos(t*0.18)*HALF*0.55*0.18;
+    const dz = Math.cos(t*0.36)*HALF*0.4*0.36;
+    BIRD_FLOCK.rotation.y = Math.atan2(dx, dz);
+    const flap = Math.sin(t*8);
+    for(const b of BIRDS){
+      b.userData.wingL.rotation.z = flap*0.7;
+      b.userData.wingR.rotation.z = -flap*0.7;
     }
   }
 
