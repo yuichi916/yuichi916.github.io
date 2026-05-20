@@ -192,6 +192,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 
 /* ===========================================================
@@ -1915,6 +1916,12 @@ btnSound.addEventListener('click', ()=>{
 /* === Post-processing ===================================== */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
+// SSAO — adds ambient occlusion contact shadows around base of objects
+const ssao = new SSAOPass(scene, camera, window.innerWidth, window.innerHeight);
+ssao.kernelRadius = 0.5;
+ssao.minDistance = 0.002;
+ssao.maxDistance = 0.08;
+composer.addPass(ssao);
 const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.45, 0.6, 0.78);
 composer.addPass(bloom);
 const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
@@ -2214,6 +2221,7 @@ window.addEventListener('resize', ()=>{
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
+  ssao.setSize(window.innerWidth, window.innerHeight);
 });
 
 setLoad(1.0, 'READY');
