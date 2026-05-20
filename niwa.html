@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>心の庭 / A Quiet Garden — yuichi916</title>
+<meta name="description" content="クォータビューで散策する、心を整える箱庭。月光の書架、音の祠、ひとり旅の道、星見台。各地は yuichi916.github.io の子ページへつながっています。">
+<meta name="theme-color" content="#0e1a26">
+<link rel="canonical" href="https://yuichi916.github.io/niwa.html">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="心の庭 / A Quiet Garden">
+<meta property="og:description" content="クォータビューで散策する、心を整える小さな箱庭。">
+<meta property="og:url" content="https://yuichi916.github.io/niwa.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og-image.png">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:creator" content="@ViewsEngineer">
+
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Cormorant+Garamond:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+
+<style>
+:root{
+  --night:#0e1a26;
+  --night-2:#172a3a;
+  --wood:#c2956a;
+  --candle:#ffb968;
+  --moss:#5a7a4a;
+  --vermilion:#b04030;
+  --paper:#e8dcb8;
+  --paper-2:#d6c89a;
+  --ink:#1b1a14;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--night);color:var(--paper);font-family:"Shippori Mincho","Hiragino Mincho ProN",serif;overflow:hidden;-webkit-font-smoothing:antialiased}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;cursor:grab;touch-action:none}
+canvas.dragging{cursor:grabbing}
+
+/* ─── Header (eyebrow + title) ─────────────────────── */
+header.hud{
+  position:fixed;top:0;left:0;right:0;z-index:10;
+  padding:18px 24px 28px;
+  background:linear-gradient(180deg,rgba(14,26,38,.85) 0%,rgba(14,26,38,.55) 60%,rgba(14,26,38,0) 100%);
+  pointer-events:none;
+}
+.eyebrow{
+  font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.32em;text-transform:uppercase;
+  color:var(--candle);opacity:.85;margin-bottom:6px;
+}
+h1.title{
+  font-family:"Shippori Mincho",serif;font-weight:700;font-size:30px;letter-spacing:.18em;
+  color:var(--paper);text-shadow:0 2px 8px rgba(0,0,0,.5);
+}
+h1.title .en{
+  display:block;font-family:"Cormorant Garamond",serif;font-style:italic;font-weight:400;
+  font-size:14px;letter-spacing:.18em;color:var(--paper-2);opacity:.75;margin-top:2px;
+}
+
+/* ─── Top-right toolbar ────────────────────────────── */
+.toolbar{
+  position:fixed;top:18px;right:18px;z-index:11;display:flex;gap:8px;
+}
+.tool{
+  appearance:none;border:1px solid rgba(232,220,184,.35);background:rgba(14,26,38,.7);
+  color:var(--paper);font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.18em;
+  padding:8px 12px;cursor:pointer;backdrop-filter:blur(4px);transition:background .2s,border-color .2s;
+}
+.tool:hover{background:rgba(255,185,104,.18);border-color:var(--candle)}
+.tool.active{background:rgba(255,185,104,.22);border-color:var(--candle);color:var(--candle)}
+
+/* ─── Bottom hint ──────────────────────────────────── */
+.hint{
+  position:fixed;left:0;right:0;bottom:16px;z-index:9;text-align:center;
+  font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.28em;
+  color:var(--paper-2);opacity:.7;pointer-events:none;
+  text-shadow:0 1px 3px rgba(0,0,0,.7);
+}
+.hint .sep{margin:0 14px;opacity:.55}
+
+/* ─── Compass ──────────────────────────────────────── */
+.compass{
+  position:fixed;left:18px;bottom:50px;z-index:9;width:64px;height:64px;
+  background:radial-gradient(circle at 50% 50%,rgba(14,26,38,.85) 40%,rgba(14,26,38,0) 70%);
+  pointer-events:none;
+}
+.compass svg{width:100%;height:100%;opacity:.7}
+
+/* ─── Place modal ──────────────────────────────────── */
+.modal{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:50;
+  background:rgba(14,26,38,.78);backdrop-filter:blur(8px);
+  opacity:0;transition:opacity .35s;
+}
+.modal.show{display:flex;opacity:1}
+.card{
+  width:min(520px,calc(100vw - 40px));max-height:calc(100vh - 80px);overflow:auto;
+  background:linear-gradient(160deg,#e8dcb8 0%,#d6c89a 100%);color:var(--ink);
+  border:1px solid rgba(27,26,20,.18);box-shadow:0 30px 70px rgba(0,0,0,.55),0 0 0 6px rgba(232,220,184,.15);
+  padding:32px 32px 28px;position:relative;
+  transform:translateY(12px);transition:transform .35s;
+}
+.modal.show .card{transform:translateY(0)}
+.card .close{
+  position:absolute;top:10px;right:14px;font-size:20px;font-family:"Cormorant Garamond",serif;color:var(--ink);
+  background:transparent;border:none;cursor:pointer;opacity:.6;
+}
+.card .close:hover{opacity:1}
+.card .num{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.32em;color:#b04030;margin-bottom:8px}
+.card h2{font-family:"Shippori Mincho",serif;font-weight:700;font-size:26px;letter-spacing:.1em;margin-bottom:4px;color:var(--ink)}
+.card h2 .en{display:block;font-family:"Cormorant Garamond",serif;font-style:italic;font-weight:400;font-size:14px;letter-spacing:.14em;color:#5a4a30;margin-top:2px;opacity:.85}
+.card .body{margin:18px 0 22px;line-height:1.85;font-size:14.5px}
+.card .body p+p{margin-top:10px}
+.card .go{
+  display:inline-flex;align-items:center;gap:10px;text-decoration:none;
+  font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.24em;
+  background:var(--ink);color:var(--paper);padding:11px 18px;border:1px solid var(--ink);
+  transition:background .2s,color .2s;
+}
+.card .go:hover{background:var(--vermilion);border-color:var(--vermilion)}
+.card .go.disabled{background:transparent;color:#5a4a30;border-color:#7a6850;cursor:default;pointer-events:none;opacity:.7}
+.card .go .arrow{font-family:"Cormorant Garamond",serif;font-size:16px}
+
+/* ─── Heart counter ───────────────────────────────── */
+.hearts{
+  position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:12;
+  display:flex;gap:4px;pointer-events:none;
+}
+.hearts .h{width:14px;height:14px;opacity:.25;transition:opacity .3s}
+.hearts .h.on{opacity:1}
+.hearts svg{width:100%;height:100%;fill:#b04030;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+
+@media (max-width:680px){
+  header.hud{padding:14px 18px 22px}
+  h1.title{font-size:22px;letter-spacing:.14em}
+  h1.title .en{font-size:12px}
+  .toolbar{top:14px;right:14px}
+  .tool{font-size:10px;padding:7px 9px}
+  .compass{width:48px;height:48px;left:14px;bottom:46px}
+  .card{padding:24px 22px 22px}
+  .card h2{font-size:21px}
+  .card .body{font-size:13.5px}
+  .hint{font-size:9.5px;letter-spacing:.2em}
+  .hint .sep{margin:0 8px}
+}
+</style>
+</head>
+<body>
+
+<canvas id="world"></canvas>
+
+<header class="hud">
+  <div class="eyebrow">№ 08 — A Quiet Garden</div>
+  <h1 class="title">心の庭<span class="en">walk softly, breathe slowly</span></h1>
+</header>
+
+<div class="hearts" id="hearts"></div>
+
+<div class="toolbar">
+  <button class="tool" id="btn-sound" aria-pressed="false">SOUND · OFF</button>
+  <button class="tool" id="btn-time">NIGHT</button>
+  <a class="tool" href="index.html" style="text-decoration:none">← HOME</a>
+</div>
+
+<div class="compass" aria-hidden="true">
+  <svg viewBox="0 0 64 64">
+    <circle cx="32" cy="32" r="28" fill="none" stroke="#e8dcb8" stroke-width="1" opacity=".5"/>
+    <polygon points="32,8 36,32 32,28 28,32" fill="#b04030"/>
+    <polygon points="32,56 36,32 32,36 28,32" fill="#e8dcb8" opacity=".7"/>
+    <text x="32" y="13" text-anchor="middle" font-family="Cormorant Garamond" font-size="9" fill="#e8dcb8">N</text>
+  </svg>
+</div>
+
+<div class="hint">
+  <span>DRAG · 散策</span><span class="sep">/</span><span>WHEEL · 寄る・引く</span><span class="sep">/</span><span>CLICK · 場所を覗く</span>
+</div>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true">
+  <div class="card">
+    <button class="close" id="modal-close" aria-label="閉じる">×</button>
+    <div class="num" id="m-num">— · — · —</div>
+    <h2 id="m-title">title<span class="en" id="m-en">subtitle</span></h2>
+    <div class="body" id="m-body"></div>
+    <a class="go" id="m-go" href="#" target="_self">
+      <span id="m-go-label">VISIT</span><span class="arrow">→</span>
+    </a>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =================================================
+ *  心の庭 — Quarter-View Garden (Canvas 2D Isometric)
+ * ================================================= */
+
+const CV = document.getElementById('world');
+const CTX = CV.getContext('2d');
+
+const TW = 32;          // tile width (pixels, world units)
+const TH = 16;          // tile height (half — for 2:1 isometric)
+const ELEV = 8;         // vertical step per elevation unit
+
+const MAP_W = 26, MAP_H = 26;
+
+// Tile types
+const T = {
+  GRASS:1, GRASS_DARK:2, SAND:3, WATER:4, STONE:5, PATH:6,
+  WOOD_DECK:7, MOSS:8, GRAVEL:9, WATER_DEEP:10, SAKURA_FLOOR:11,
+};
+
+// Build the world grid procedurally
+function buildMap(){
+  const g = [];
+  for(let y=0;y<MAP_H;y++){
+    const row=[];
+    for(let x=0;x<MAP_W;x++){
+      // base elevation map: small hills NW, water lake SE, beach
+      let e = 0;
+      const cx=MAP_W/2, cy=MAP_H/2;
+      const dNW = Math.hypot(x-4,y-4);
+      const dHill = Math.hypot(x-21,y-5);
+      const dLake = Math.hypot(x-19,y-19);
+      const dCenter = Math.hypot(x-cx,y-cy);
+
+      if(dHill < 5) e = 2 - Math.floor(dHill/2);
+      else if(dNW < 4) e = 1;
+
+      let type = T.GRASS;
+      // lake (SE corner)
+      if(dLake < 5){ type = T.WATER_DEEP; e = -1; }
+      else if(dLake < 6.4){ type = T.WATER; e = -1; }
+      else if(dLake < 7.4){ type = T.SAND; e = 0; }
+
+      // a small pond NW corner
+      const dPond = Math.hypot(x-2,y-17);
+      if(dPond < 1.8){ type = T.WATER; e = -1; }
+
+      // central plaza (square)
+      if(Math.abs(x-cx)<2.5 && Math.abs(y-cy)<2.5){ type = T.STONE; e = 0; }
+
+      // paths radiating from plaza
+      // N path to observatory
+      if(x>=12 && x<=13 && y>=3 && y<=10){ type = T.PATH; e = 0; }
+      // S path to cabin
+      if(x>=12 && x<=13 && y>=15 && y<=22){ type = T.PATH; e = 0; }
+      // W path to campfire
+      if(y>=12 && y<=13 && x>=2 && x<=10){ type = T.PATH; e = 0; }
+      // E path to dock
+      if(y>=12 && y<=13 && x>=15 && x<=22){ type = T.PATH; e = 0; }
+
+      // NW library plot (raised) — moss stone
+      if(x>=3 && x<=6 && y>=3 && y<=6){ type = T.MOSS; e = 1; }
+      // NE shrine plot
+      if(x>=19 && x<=22 && y>=3 && y<=6){ type = T.GRAVEL; e = 1; }
+
+      // SW path-grass and bridge approach
+      const dDock = Math.hypot(x-3,y-21);
+      if(dDock < 1.5){ type = T.SAND; e = 0; }
+
+      // Sakura grove patch
+      if(x>=16 && x<=18 && y>=8 && y<=10){ type = T.SAKURA_FLOOR; e = 0; }
+
+      // Edge: gradient grass dark
+      if(((x+y*7)%13)===0 && type===T.GRASS) type = T.GRASS_DARK;
+
+      row.push({type,elev:e});
+    }
+    g.push(row);
+  }
+  // make a wooden deck (pier) reaching from sand into the lake
+  for(let i=0;i<5;i++){
+    const tx = 18-i, ty = 19+Math.floor(i/3);
+    if(g[ty] && g[ty][tx]){ g[ty][tx] = {type:T.WOOD_DECK, elev:0}; }
+  }
+  // wooden bridge over pond (just decorative deck)
+  g[17][2] = {type:T.WOOD_DECK, elev:0};
+  g[17][3] = {type:T.WOOD_DECK, elev:0};
+
+  return g;
+}
+const MAP = buildMap();
+
+/* =================================================
+ *  Buildings & places
+ * ================================================= */
+const PLACES = [
+  { id:'monlight', num:'01 · MOON', x:4.5, y:4.5,  kind:'pagoda',
+    title:'月光の書架', en:'The Moonlit Stacks',
+    body:`<p>背の高い書架と、月だけが灯る読書灯のある場所。読みかけの本を、しばらく置いていけます。</p><p>世界中の書物を <em>「似ている」</em> でつないだ宇宙へ。</p>`,
+    href:'books.html', cta:'書架へ' },
+
+  { id:'oto', num:'02 · OTO', x:20.5, y:4.5, kind:'torii',
+    title:'音の祠', en:'The Shrine of Sound',
+    body:`<p>朱の鳥居をくぐると、19,000 のアーティストが銀河をつくっています。</p><p>★ お気に入りに灯をともすと、新しい星座が見えてくるかも。</p>`,
+    href:'salon.html', cta:'銀河へ' },
+
+  { id:'tabi', num:'03 · TABI', x:3.5, y:20.5, kind:'boat',
+    title:'ひとり旅の道', en:'A Path for One',
+    body:`<p>小舟と桟橋のある岸。32 の旅と 1,700 枚の写真が、静かに並んでいます。</p><p>頁をめくる速度は、こちらで決められます。</p>`,
+    href:'hitoritabi/', cta:'旅の地図へ' },
+
+  { id:'toki', num:'04 · TOKI', x:20.5, y:20.5, kind:'clock',
+    title:'時の砂時計', en:'Hourglass',
+    body:`<p>砂が落ちきるまで、なにもしない時間。タスクに名前をつけて、置いていけます。</p>`,
+    href:'stopwatch.html', cta:'砂を返す' },
+
+  { id:'hoshi', num:'05 · HOSHI', x:12.5, y:3.5, kind:'observatory',
+    title:'星見台', en:'The Stargazer\'s Hill',
+    body:`<p>丘の上、空を切り取る小さな台。<br>夜になると、ささやかな星座が頭上に流れます。</p><p class="muted">— 上部「<strong>NIGHT</strong>」を押すと夜が訪れます。</p>`,
+    href:null, cta:'夜を呼ぶ' },
+
+  { id:'takibi', num:'06 · TAKIBI', x:3.5, y:12.5, kind:'fire',
+    title:'焚き火の前', en:'By the Campfire',
+    body:`<p><strong>4 - 7 - 8 呼吸</strong>。鼻から 4 秒吸って、7 秒止めて、8 秒かけて吐きます。</p><p>火を見ていれば、自然とそのリズムに揃ってくれます。</p>`,
+    href:null, cta:'呼吸を合わせる' },
+
+  { id:'mizube', num:'07 · MIZUBE', x:21.5, y:12.5, kind:'lantern',
+    title:'水辺の岸', en:'The Water\'s Edge',
+    body:`<p>波打ち際で読む、ごく短い 3 編。</p><blockquote style="margin:8px 0 0;padding:4px 12px;border-left:2px solid #b04030;font-style:italic;font-size:13.5px;line-height:1.8">行き先のない舟は、いま、ここに、ある。<br>潮は記憶を運ばない。<br>足跡だけが、明日にとっておかれる。</blockquote>`,
+    href:null, cta:'もう一度読む' },
+
+  { id:'amaoto', num:'08 · AMAOTO', x:12.5, y:20.5, kind:'cabin',
+    title:'雨音の部屋', en:'The Room of Rain',
+    body:`<p>小屋の中、灯りひとつ。雨音が必要なときの、外部リンク集です。</p><ul style="margin-top:8px;padding-left:18px;line-height:2"><li><a href="https://rainymood.com/" target="_blank" rel="noopener" style="color:#b04030">Rainy Mood</a></li><li><a href="https://mynoise.net/" target="_blank" rel="noopener" style="color:#b04030">myNoise</a></li><li><a href="https://www.youtube.com/results?search_query=rain+sound+8+hours" target="_blank" rel="noopener" style="color:#b04030">YouTube: 雨音 8 時間</a></li></ul>`,
+    href:null, cta:'雨を聴く' },
+
+  { id:'iri', num:'00 · IRI', x:12.5, y:12.5, kind:'well',
+    title:'入口の井戸', en:'The Well at the Centre',
+    body:`<p>この庭の真ん中にある古い井戸。覗き込むと、訪れた場所の数だけ、水面に灯がともります。</p>`,
+    href:null, cta:'水を覗く' },
+];
+
+const PLACE_BY_ID = Object.fromEntries(PLACES.map(p=>[p.id,p]));
+
+/* =================================================
+ *  Camera
+ * ================================================= */
+const cam = {
+  x: 0, y: 0,
+  scale: 2.0,             // pixel-art zoom
+  minScale: 1.2, maxScale: 3.4,
+};
+
+// World iso → screen
+function iso(wx, wy){
+  return { sx:(wx-wy)*(TW/2), sy:(wx+wy)*(TH/2) };
+}
+
+// Resize handling with DPR
+let DPR = Math.min(window.devicePixelRatio||1, 2);
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  const w = window.innerWidth, h = window.innerHeight;
+  CV.width = Math.floor(w*DPR);
+  CV.height = Math.floor(h*DPR);
+  CV.style.width = w+'px';
+  CV.style.height = h+'px';
+  CTX.setTransform(DPR,0,0,DPR,0,0);
+  CTX.imageSmoothingEnabled = false;
+}
+window.addEventListener('resize', resize);
+
+// Centre camera initially on plaza
+function centerCamera(){
+  const p = iso(MAP_W/2, MAP_H/2);
+  cam.x = -p.sx;
+  cam.y = -p.sy + 40;
+}
+
+/* =================================================
+ *  Input — drag, wheel zoom, click
+ * ================================================= */
+let dragging=false, dragMoved=false, lastX=0, lastY=0;
+let lastClientX=0, lastClientY=0;
+let pinchStartDist=0, pinchStartScale=0;
+
+CV.addEventListener('pointerdown', e=>{
+  CV.setPointerCapture(e.pointerId);
+  dragging=true; dragMoved=false;
+  lastX=e.clientX; lastY=e.clientY;
+  lastClientX=e.clientX; lastClientY=e.clientY;
+  CV.classList.add('dragging');
+});
+CV.addEventListener('pointermove', e=>{
+  if(dragging){
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    if(Math.abs(dx)+Math.abs(dy)>3) dragMoved=true;
+    cam.x += dx/cam.scale;
+    cam.y += dy/cam.scale;
+    lastX=e.clientX; lastY=e.clientY;
+    return;
+  }
+  // Hover hit-test for places
+  hoverPlace = pickPlace(e.clientX, e.clientY);
+  CV.style.cursor = hoverPlace ? 'pointer' : 'grab';
+});
+CV.addEventListener('pointerup', e=>{
+  dragging=false;
+  CV.classList.remove('dragging');
+  if(!dragMoved){
+    handleClick(e.clientX, e.clientY);
+  }
+});
+CV.addEventListener('pointercancel', ()=>{ dragging=false; CV.classList.remove('dragging'); });
+CV.addEventListener('pointerleave', ()=>{ hoverPlace=null; CV.style.cursor='grab'; });
+CV.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const s0 = cam.scale;
+  const factor = e.deltaY > 0 ? 0.92 : 1.08;
+  cam.scale = Math.max(cam.minScale, Math.min(cam.maxScale, cam.scale*factor));
+  // zoom toward mouse position
+  const rect = CV.getBoundingClientRect();
+  const mx = e.clientX-rect.left-rect.width/2;
+  const my = e.clientY-rect.top-rect.height/2;
+  cam.x = (cam.x - mx/s0)*1 + mx/cam.scale;
+  cam.y = (cam.y - my/s0)*1 + my/cam.scale;
+},{passive:false});
+
+// keyboard
+window.addEventListener('keydown', e=>{
+  const step = 24/cam.scale;
+  if(e.key==='ArrowUp')    cam.y += step;
+  if(e.key==='ArrowDown')  cam.y -= step;
+  if(e.key==='ArrowLeft')  cam.x += step;
+  if(e.key==='ArrowRight') cam.x -= step;
+  if(e.key==='Escape') closeModal();
+});
+
+// hit test for places — measured against drawn icons in screen space
+function pickPlace(cx, cy){
+  const rect = CV.getBoundingClientRect();
+  const sxClick = (cx-rect.left) - rect.width/2;
+  const syClick = (cy-rect.top)  - rect.height/2;
+  let best=null, bestD=9999;
+  for(const p of PLACES){
+    const w = iso(p.x, p.y);
+    const e = (MAP[Math.floor(p.y)] && MAP[Math.floor(p.y)][Math.floor(p.x)]) ? MAP[Math.floor(p.y)][Math.floor(p.x)].elev : 0;
+    const wx = (w.sx + cam.x)*cam.scale;
+    const wy = (w.sy + cam.y - e*ELEV - 18)*cam.scale; // approx top of structure
+    const d = Math.hypot(wx-sxClick, wy-syClick);
+    if(d<bestD){ bestD=d; best=p; }
+  }
+  return (best && bestD < 50) ? best : null;
+}
+function handleClick(cx, cy){
+  const p = pickPlace(cx, cy);
+  if(p) openModal(p);
+}
+
+/* =================================================
+ *  Drawing primitives
+ * ================================================= */
+function fillPath(ctx, pts, fill, stroke){
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.closePath();
+  if(fill){ ctx.fillStyle=fill; ctx.fill(); }
+  if(stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=1; ctx.stroke(); }
+}
+
+// Draw an isometric diamond tile centered at (sx,sy) with top color, plus left/right wall colors below given height
+function drawTile(ctx, sx, sy, wTop, wLeft, wRight, h){
+  // top
+  fillPath(ctx, [
+    [sx,         sy - TH/2],
+    [sx + TW/2,  sy        ],
+    [sx,         sy + TH/2],
+    [sx - TW/2,  sy        ],
+  ], wTop);
+  if(h>0){
+    // left wall
+    fillPath(ctx, [
+      [sx - TW/2, sy        ],
+      [sx,        sy + TH/2 ],
+      [sx,        sy + TH/2 + h ],
+      [sx - TW/2, sy + h    ],
+    ], wLeft);
+    // right wall
+    fillPath(ctx, [
+      [sx,        sy + TH/2 ],
+      [sx + TW/2, sy        ],
+      [sx + TW/2, sy + h    ],
+      [sx,        sy + TH/2 + h ],
+    ], wRight);
+  }
+}
+
+/* =================================================
+ *  Tile palette (top + 2 darker side shades)
+ * ================================================= */
+const TPAL = {
+  [T.GRASS]:       ['#8fb358','#5f7d3b','#73914a'],
+  [T.GRASS_DARK]:  ['#7ea64a','#557334','#688540'],
+  [T.SAND]:        ['#e6c98a','#a98b4d','#c4a665'],
+  [T.WATER]:       ['#6fa8c7','#3e6a89','#578faf'],
+  [T.WATER_DEEP]:  ['#4e84a4','#28526f','#3a6e91'],
+  [T.STONE]:       ['#b8aa86','#7a6f54','#9c8f6e'],
+  [T.PATH]:        ['#c2956a','#7e5e3e','#a07854'],
+  [T.WOOD_DECK]:   ['#a2774c','#624029','#86603c'],
+  [T.MOSS]:        ['#6e8c4a','#46612e','#5a7a3d'],
+  [T.GRAVEL]:      ['#cec3a2','#8a8067','#b4a888'],
+  [T.SAKURA_FLOOR]:['#f0b8c8','#c4889a','#dca0b2'],
+};
+
+/* =================================================
+ *  Animations / time
+ * ================================================= */
+let TIME = 0;                  // ms accumulator
+let nightMode = false;
+let nightT = 0;                // 0=day, 1=night (eased)
+let hoverPlace = null;         // place under cursor for label
+let petals = [];
+let birds = [];
+let clouds = [];
+for(let i=0;i<6;i++){
+  petals.push({x:Math.random()*MAP_W, y:Math.random()*MAP_H,
+               vx:0.0008+Math.random()*0.0006, vy:0.0006,
+               r:0.4+Math.random()*0.6, ph:Math.random()*Math.PI*2});
+}
+for(let i=0;i<3;i++){
+  birds.push({x:Math.random()*MAP_W, y:Math.random()*MAP_H, vx:0.0015, vy:0});
+}
+// Clouds are screen-space (sky layer)
+for(let i=0;i<5;i++){
+  clouds.push({
+    x:Math.random()*1600, y:30+Math.random()*120,
+    r:10+Math.random()*16, vx:0.06+Math.random()*0.08
+  });
+}
+
+/* =================================================
+ *  NPC Walkers — small wandering villagers with speech bubbles
+ *  (homage to the Anno-style pixel port-town reference)
+ * ================================================= */
+const NPC_PHRASES = [
+  'いい天気だね','歩こうかな','風が気持ちいい','ふぅ…','静かだ',
+  'お茶でも','少し休もう','雲が流れる','遠くまで見える','足音だけ',
+  'なんとなく','こころが軽い','ちょうどいい','ゆっくり','深呼吸'
+];
+
+// Waypoints around the plaza + along each radial path
+const NPC_PATHS = [
+  // plaza ring
+  [[11,11],[14,11],[14,14],[11,14]],
+  // N path
+  [[12.5,4],[12.5,11.5],[14,12],[12.5,11.5],[12.5,4]],
+  // S path
+  [[12.5,21],[12.5,14.5],[12.5,21]],
+  // W path
+  [[4,12.5],[11.5,12.5],[4,12.5]],
+  // E path
+  [[21,12.5],[14.5,12.5],[21,12.5]],
+];
+const NPC_COLORS = ['#b04030','#3e6a89','#5a7a3d','#c2956a','#7a5a3a','#8a3030'];
+
+const npcs = [];
+for(let i=0;i<7;i++){
+  const path = NPC_PATHS[i%NPC_PATHS.length];
+  const wp = i%path.length;
+  npcs.push({
+    path, wp,
+    x: path[wp][0], y: path[wp][1],
+    speed: 0.7 + Math.random()*0.5,         // tiles per second
+    col: NPC_COLORS[i%NPC_COLORS.length],
+    bubble: null, bubbleT: 0,
+    nextBubble: 1500 + Math.random()*4000
+  });
+}
+
+function updateNPCs(dt){
+  for(const n of npcs){
+    const tgt = n.path[(n.wp+1)%n.path.length];
+    const dx = tgt[0]-n.x, dy = tgt[1]-n.y;
+    const d = Math.hypot(dx,dy);
+    const step = n.speed * dt/1000;
+    if(d < step*1.1){
+      n.x = tgt[0]; n.y = tgt[1];
+      n.wp = (n.wp+1)%n.path.length;
+    }else{
+      n.x += dx/d*step; n.y += dy/d*step;
+    }
+    // bubble timing
+    n.bubbleT -= dt;
+    n.nextBubble -= dt;
+    if(n.nextBubble<=0 && !n.bubble){
+      n.bubble = NPC_PHRASES[Math.floor(Math.random()*NPC_PHRASES.length)];
+      n.bubbleT = 2500;
+      n.nextBubble = 6000+Math.random()*8000;
+    }
+    if(n.bubbleT<=0) n.bubble=null;
+  }
+}
+
+function drawNPC(ctx, n){
+  const w = iso(n.x, n.y);
+  const e = (MAP[Math.floor(n.y)] && MAP[Math.floor(n.y)][Math.floor(n.x)]) ? MAP[Math.floor(n.y)][Math.floor(n.x)].elev : 0;
+  const sx = w.sx, sy = w.sy - e*ELEV;
+  // shadow
+  shadow(ctx,sx,sy,3);
+  // walk bob
+  const bob = Math.floor(Math.sin(TIME*0.012+n.x*4)*1);
+  // legs (two steps)
+  ctx.fillStyle = '#3a3024';
+  if(bob===0){ ctx.fillRect(sx-1,sy-4,1,3); ctx.fillRect(sx,sy-4,1,3); }
+  else{ ctx.fillRect(sx-2,sy-4,1,3); ctx.fillRect(sx+1,sy-4,1,3); }
+  // body
+  ctx.fillStyle = n.col;
+  ctx.fillRect(sx-2,sy-8,4,4);
+  // arm dot
+  ctx.fillStyle = '#1b1a14';
+  ctx.fillRect(sx-3,sy-7,1,2);
+  ctx.fillRect(sx+2,sy-7,1,2);
+  // head
+  ctx.fillStyle = '#f0c8a0';
+  ctx.fillRect(sx-1,sy-11,2,3);
+  // hair
+  ctx.fillStyle = '#1b1a14';
+  ctx.fillRect(sx-2,sy-12,4,1);
+  ctx.fillRect(sx-2,sy-11,1,1);
+}
+
+function drawBubble(ctx, n){
+  if(!n.bubble) return;
+  const w = iso(n.x, n.y);
+  const e = (MAP[Math.floor(n.y)] && MAP[Math.floor(n.y)][Math.floor(n.x)]) ? MAP[Math.floor(n.y)][Math.floor(n.x)].elev : 0;
+  const sx = w.sx, sy = w.sy - e*ELEV;
+  // fade in/out
+  const fade = Math.min(1, n.bubbleT/400);
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, fade) * (n.bubbleT>2200 ? (2500-n.bubbleT)/300 : 1);
+  // estimate width of text (canvas font is set later; we use a fixed approximation)
+  const text = n.bubble;
+  ctx.font = '6px "Shippori Mincho", serif';
+  const tw = ctx.measureText(text).width + 6;
+  const th = 10;
+  const bx = sx, by = sy - 20;
+  // body
+  ctx.fillStyle = '#f8f2e0';
+  ctx.strokeStyle = '#1b1a14';
+  ctx.lineWidth = 0.5;
+  // rounded-ish rectangle (pixel-style)
+  ctx.fillRect(bx - tw/2, by - th, tw, th);
+  ctx.strokeRect(bx - tw/2, by - th, tw, th);
+  // tail
+  ctx.beginPath();
+  ctx.moveTo(bx-2, by);
+  ctx.lineTo(bx,   by+3);
+  ctx.lineTo(bx+2, by);
+  ctx.closePath();
+  ctx.fillStyle = '#f8f2e0';
+  ctx.fill();
+  ctx.strokeStyle = '#1b1a14';
+  ctx.beginPath();
+  ctx.moveTo(bx-2, by); ctx.lineTo(bx,   by+3); ctx.moveTo(bx,   by+3); ctx.lineTo(bx+2, by);
+  ctx.stroke();
+  // text
+  ctx.fillStyle = '#1b1a14';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, bx, by - th/2 + 0.5);
+  ctx.restore();
+}
+
+/* =================================================
+ *  Structures — each drawn around an isometric tile
+ *  draw functions receive (ctx, sx, sy, p) with sx,sy = base center of the tile
+ * ================================================= */
+
+function shadow(ctx, sx, sy, r){
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,.28)';
+  ctx.beginPath();
+  ctx.ellipse(sx, sy+TH/3, r, r/2.4, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function lanternGlow(ctx, sx, sy, intensity){
+  if(intensity<=0.02) return;
+  const g = ctx.createRadialGradient(sx,sy,0,sx,sy,32);
+  g.addColorStop(0,`rgba(255,205,120,${0.55*intensity})`);
+  g.addColorStop(0.4,`rgba(255,185,104,${0.22*intensity})`);
+  g.addColorStop(1,'rgba(255,185,104,0)');
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(sx,sy,32,0,Math.PI*2); ctx.fill();
+}
+
+function drawPagoda(ctx,sx,sy,p){
+  // multi-tier pagoda (3 tiers) — uses vermilion + paper
+  shadow(ctx,sx,sy,18);
+  // base
+  fillPath(ctx,[[sx-10,sy-2],[sx,sy-7],[sx+10,sy-2],[sx,sy+3]],'#9d8268');
+  // tier 1 wall
+  fillPath(ctx,[[sx-8,sy-4],[sx-8,sy-12],[sx,sy-16],[sx,sy-8]],'#b04030');
+  fillPath(ctx,[[sx,sy-8],[sx,sy-16],[sx+8,sy-12],[sx+8,sy-4]],'#8d3325');
+  fillPath(ctx,[[sx-8,sy-12],[sx,sy-16],[sx+8,sy-12],[sx,sy-8]],'#c75a4a');
+  // roof 1
+  fillPath(ctx,[[sx-14,sy-12],[sx,sy-20],[sx+14,sy-12],[sx,sy-4]],'#3a3024');
+  fillPath(ctx,[[sx-14,sy-12],[sx,sy-20],[sx,sy-12]],'#4a3c30');
+  fillPath(ctx,[[sx+14,sy-12],[sx,sy-20],[sx,sy-12]],'#2a221a');
+  // tier 2
+  fillPath(ctx,[[sx-6,sy-18],[sx,sy-22],[sx+6,sy-18],[sx,sy-14]],'#b04030');
+  // roof 2
+  fillPath(ctx,[[sx-10,sy-22],[sx,sy-28],[sx+10,sy-22],[sx,sy-16]],'#3a3024');
+  // tier 3
+  fillPath(ctx,[[sx-4,sy-26],[sx,sy-29],[sx+4,sy-26],[sx,sy-23]],'#b04030');
+  // roof 3 + finial
+  fillPath(ctx,[[sx-7,sy-29],[sx,sy-34],[sx+7,sy-29],[sx,sy-24]],'#3a3024');
+  ctx.fillStyle='#ffb968'; ctx.fillRect(sx-1,sy-38,2,4);
+  // window squares
+  ctx.fillStyle='#ffe2a8';
+  if(nightT>0.3){
+    ctx.fillRect(sx-3,sy-12,2,3);
+    ctx.fillRect(sx+1,sy-12,2,3);
+    lanternGlow(ctx,sx,sy-11,nightT);
+  }else{
+    ctx.fillStyle='#e8dcb8';
+    ctx.fillRect(sx-3,sy-12,2,3);
+    ctx.fillRect(sx+1,sy-12,2,3);
+  }
+}
+
+function drawTorii(ctx,sx,sy,p){
+  shadow(ctx,sx,sy,14);
+  // left pillar
+  ctx.fillStyle='#b04030'; ctx.fillRect(sx-9,sy-22,3,22);
+  ctx.fillStyle='#8d3325'; ctx.fillRect(sx-6,sy-22,1,22);
+  // right pillar
+  ctx.fillStyle='#b04030'; ctx.fillRect(sx+6,sy-22,3,22);
+  ctx.fillStyle='#8d3325'; ctx.fillRect(sx+9,sy-22,1,22);
+  // upper beam (kasagi) — slightly arched
+  fillPath(ctx,[[sx-13,sy-24],[sx+13,sy-24],[sx+13,sy-21],[sx-13,sy-21]],'#1b1a14');
+  fillPath(ctx,[[sx-14,sy-26],[sx+14,sy-26],[sx+13,sy-24],[sx-13,sy-24]],'#3a3024');
+  // nuki (inner crossbar)
+  ctx.fillStyle='#b04030'; ctx.fillRect(sx-10,sy-18,20,2);
+  // small shrine box behind
+  fillPath(ctx,[[sx-5,sy-8],[sx-5,sy-14],[sx+5,sy-14],[sx+5,sy-8]],'#3a3024');
+  fillPath(ctx,[[sx-5,sy-14],[sx,sy-18],[sx+5,sy-14]],'#b04030');
+  // glow at night
+  if(nightT>0.3) lanternGlow(ctx,sx,sy-22,nightT*0.8);
+}
+
+function drawObservatory(ctx,sx,sy,p){
+  shadow(ctx,sx,sy,16);
+  // stone base
+  fillPath(ctx,[[sx-10,sy-2],[sx,sy-7],[sx+10,sy-2],[sx,sy+3]],'#8a8067');
+  // tower body (tall cylinder approx)
+  fillPath(ctx,[[sx-6,sy-22],[sx-6,sy-4],[sx,sy-1],[sx,sy-19]],'#7a6850');
+  fillPath(ctx,[[sx,sy-19],[sx,sy-1],[sx+6,sy-4],[sx+6,sy-22]],'#5a4a3a');
+  fillPath(ctx,[[sx-6,sy-22],[sx,sy-26],[sx+6,sy-22],[sx,sy-18]],'#9c8a70');
+  // dome
+  ctx.fillStyle='#3a3024';
+  ctx.beginPath(); ctx.ellipse(sx,sy-26,8,4,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5a4a3a';
+  ctx.beginPath(); ctx.arc(sx,sy-26,8,Math.PI,Math.PI*2); ctx.fill();
+  // slit
+  ctx.fillStyle = nightT>0.3 ? '#ffe2a8' : '#1b1a14';
+  ctx.fillRect(sx-1,sy-32,2,6);
+  // window
+  ctx.fillStyle = nightT>0.3 ? '#ffe2a8' : '#3a3024';
+  ctx.fillRect(sx-2,sy-12,4,3);
+  if(nightT>0.3) lanternGlow(ctx,sx,sy-22,nightT*0.7);
+}
+
+function drawWell(ctx,sx,sy,p){
+  shadow(ctx,sx,sy,10);
+  // base ring
+  fillPath(ctx,[[sx-7,sy-2],[sx,sy-5],[sx+7,sy-2],[sx,sy+1]],'#8a8067');
+  fillPath(ctx,[[sx-7,sy-2],[sx-7,sy+2],[sx,sy+5],[sx,sy+1]],'#5a5040');
+  fillPath(ctx,[[sx+7,sy-2],[sx+7,sy+2],[sx,sy+5],[sx,sy+1]],'#6e6450');
+  // water hole
+  ctx.fillStyle='#1b3040';
+  ctx.beginPath(); ctx.ellipse(sx,sy-2,4,2,0,0,Math.PI*2); ctx.fill();
+  // posts
+  ctx.fillStyle='#624029'; ctx.fillRect(sx-7,sy-12,2,10); ctx.fillRect(sx+5,sy-12,2,10);
+  // roof
+  fillPath(ctx,[[sx-9,sy-12],[sx,sy-17],[sx+9,sy-12],[sx,sy-10]],'#3a3024');
+  fillPath(ctx,[[sx-9,sy-12],[sx,sy-17],[sx,sy-12]],'#4a3c30');
+  fillPath(ctx,[[sx+9,sy-12],[sx,sy-17],[sx,sy-12]],'#2a221a');
+  // rope
+  ctx.strokeStyle='#e8dcb8'; ctx.lineWidth=1; ctx.beginPath();
+  ctx.moveTo(sx,sy-12); ctx.lineTo(sx,sy-3); ctx.stroke();
+  // bucket
+  ctx.fillStyle='#624029'; ctx.fillRect(sx-2,sy-4,4,2);
+}
+
+function drawClock(ctx,sx,sy,p){
+  shadow(ctx,sx,sy,14);
+  // base
+  fillPath(ctx,[[sx-8,sy-2],[sx,sy-6],[sx+8,sy-2],[sx,sy+2]],'#7a6850');
+  // tower
+  fillPath(ctx,[[sx-5,sy-22],[sx-5,sy-4],[sx,sy-1],[sx,sy-19]],'#c2956a');
+  fillPath(ctx,[[sx,sy-19],[sx,sy-1],[sx+5,sy-4],[sx+5,sy-22]],'#8a6c4a');
+  fillPath(ctx,[[sx-5,sy-22],[sx,sy-25],[sx+5,sy-22],[sx,sy-19]],'#d9aa80');
+  // clock face
+  ctx.fillStyle='#e8dcb8';
+  ctx.beginPath(); ctx.arc(sx-1,sy-15,3,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#1b1a14'; ctx.lineWidth=1; ctx.stroke();
+  // hands (rotating)
+  const t = TIME/600;
+  const ang1 = t%(Math.PI*2), ang2 = (t*0.2)%(Math.PI*2);
+  ctx.strokeStyle='#1b1a14'; ctx.beginPath();
+  ctx.moveTo(sx-1,sy-15); ctx.lineTo(sx-1+Math.cos(ang1)*2, sy-15+Math.sin(ang1)*2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(sx-1,sy-15); ctx.lineTo(sx-1+Math.cos(ang2)*1.5, sy-15+Math.sin(ang2)*1.5); ctx.stroke();
+  // roof — pyramid
+  fillPath(ctx,[[sx-7,sy-22],[sx,sy-30],[sx+7,sy-22],[sx,sy-20]],'#b04030');
+  fillPath(ctx,[[sx-7,sy-22],[sx,sy-30],[sx,sy-22]],'#8d3325');
+  ctx.fillStyle='#ffb968'; ctx.fillRect(sx-0.5,sy-33,1,3);
+  if(nightT>0.3) lanternGlow(ctx,sx,sy-15,nightT*0.4);
+}
+
+function drawCabin(ctx,sx,sy,p){
+  shadow(ctx,sx,sy,16);
+  // base
+  fillPath(ctx,[[sx-10,sy-2],[sx,sy-6],[sx+10,sy-2],[sx,sy+2]],'#7a6850');
+  // walls
+  fillPath(ctx,[[sx-10,sy-12],[sx-10,sy-2],[sx,sy+2],[sx,sy-8]],'#c2956a');
+  fillPath(ctx,[[sx,sy-8],[sx,sy+2],[sx+10,sy-2],[sx+10,sy-12]],'#8a6c4a');
+  // door (front-left wall)
+  ctx.fillStyle='#3a3024'; ctx.fillRect(sx-6,sy-9,3,6);
+  // window (front-right)
+  const lit = nightT>0.3 ? '#ffe2a8' : '#9eb8c8';
+  ctx.fillStyle=lit; ctx.fillRect(sx+3,sy-7,4,3);
+  // roof — thatch
+  fillPath(ctx,[[sx-12,sy-12],[sx,sy-20],[sx+12,sy-12],[sx,sy-4]],'#5a4a30');
+  fillPath(ctx,[[sx-12,sy-12],[sx,sy-20],[sx,sy-12]],'#7a6440');
+  fillPath(ctx,[[sx+12,sy-12],[sx,sy-20],[sx,sy-12]],'#3e3320');
+  // chimney + smoke
+  ctx.fillStyle='#5a4a3a'; ctx.fillRect(sx+4,sy-18,2,4);
+  const sm = (TIME*0.001)%1;
+  ctx.fillStyle=`rgba(232,220,184,${0.5-sm*0.4})`;
+  ctx.beginPath(); ctx.arc(sx+5, sy-20-sm*8, 1.5+sm*2, 0, Math.PI*2); ctx.fill();
+  if(nightT>0.3) lanternGlow(ctx,sx+5,sy-7,nightT*0.6);
+}
+
+function drawFire(ctx,sx,sy,p){
+  shadow(ctx,sx,sy,12);
+  // stones
+  ctx.fillStyle='#5a5040';
+  for(let i=0;i<5;i++){
+    const a = (i/5)*Math.PI*2;
+    ctx.beginPath();
+    ctx.ellipse(sx+Math.cos(a)*7, sy+Math.sin(a)*3.5+1, 2.5, 1.5, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // logs
+  ctx.fillStyle='#624029'; ctx.fillRect(sx-5,sy-2,10,2);
+  ctx.fillStyle='#8a6c4a'; ctx.fillRect(sx-5,sy-3,10,1);
+  // flames (animated)
+  const ph = TIME*0.005;
+  const h1 = 6+Math.sin(ph)*1.5;
+  const h2 = 8+Math.sin(ph*1.3+1)*2;
+  fillPath(ctx,[[sx-3,sy-2],[sx,sy-2-h2],[sx+3,sy-2]],'#ffb968');
+  fillPath(ctx,[[sx-2,sy-2],[sx,sy-2-h1],[sx+2,sy-2]],'#ff7a30');
+  fillPath(ctx,[[sx-1,sy-2],[sx,sy-4],[sx+1,sy-2]],'#fff2c0');
+  // ember glow
+  lanternGlow(ctx, sx, sy-4, 0.7);
+  // small sparks
+  for(let i=0;i<3;i++){
+    const sp = (TIME*0.001 + i*0.33)%1;
+    ctx.fillStyle=`rgba(255,185,104,${1-sp})`;
+    ctx.fillRect(sx + Math.sin(sp*8+i)*4, sy-2 - sp*16, 1, 1);
+  }
+}
+
+function drawLantern(ctx,sx,sy,p){
+  shadow(ctx,sx,sy,8);
+  // stone post
+  ctx.fillStyle='#7a6f54'; ctx.fillRect(sx-1,sy-12,2,12);
+  ctx.fillStyle='#5a5040'; ctx.fillRect(sx+1,sy-12,1,12);
+  // basin
+  fillPath(ctx,[[sx-5,sy-14],[sx,sy-16],[sx+5,sy-14],[sx,sy-12]],'#9c8f6e');
+  // light
+  const lit = nightT>0.3 ? '#ffe2a8' : '#e0d8b0';
+  fillPath(ctx,[[sx-4,sy-18],[sx-4,sy-14],[sx+4,sy-14],[sx+4,sy-18]],'#3a3024');
+  ctx.fillStyle=lit;
+  ctx.fillRect(sx-3,sy-17,6,3);
+  // roof
+  fillPath(ctx,[[sx-6,sy-18],[sx,sy-22],[sx+6,sy-18],[sx,sy-17]],'#3a3024');
+  if(nightT>0.3) lanternGlow(ctx,sx,sy-15,nightT);
+}
+
+function drawBoat(ctx,sx,sy,p){
+  shadow(ctx,sx,sy,16);
+  // small dock
+  ctx.fillStyle='#7a5a3a'; ctx.fillRect(sx-10,sy-1,20,3);
+  ctx.fillStyle='#5a4028'; ctx.fillRect(sx-10,sy+2,20,1);
+  // posts
+  ctx.fillStyle='#3a2818'; ctx.fillRect(sx-9,sy-4,1,3); ctx.fillRect(sx+8,sy-4,1,3);
+  // boat (rocking)
+  const r = Math.sin(TIME*0.001)*0.8;
+  ctx.save();
+  ctx.translate(sx,sy-4);
+  ctx.rotate(r*0.04);
+  fillPath(ctx,[[-7,0],[-5,3],[5,3],[7,0]],'#7a5a3a');
+  fillPath(ctx,[[-5,0],[-3,-1],[3,-1],[5,0]],'#a07854');
+  // mast
+  ctx.fillStyle='#5a4028'; ctx.fillRect(-0.5,-8,1,8);
+  ctx.fillStyle='#e8dcb8'; ctx.fillRect(-3,-7,6,5);
+  ctx.restore();
+}
+
+function drawTree(ctx,sx,sy,kind='pine'){
+  shadow(ctx,sx,sy,5);
+  if(kind==='pine'){
+    ctx.fillStyle='#3a3024'; ctx.fillRect(sx-1,sy-3,2,3);
+    fillPath(ctx,[[sx-5,sy-3],[sx,sy-14],[sx+5,sy-3]],'#3F6B3A');
+    fillPath(ctx,[[sx-4,sy-7],[sx,sy-16],[sx+4,sy-7]],'#4d7a44');
+    fillPath(ctx,[[sx-3,sy-11],[sx,sy-18],[sx+3,sy-11]],'#5a8a50');
+  }else if(kind==='sakura'){
+    ctx.fillStyle='#3a3024'; ctx.fillRect(sx-1,sy-3,2,3);
+    ctx.fillStyle='#f0b8c8';
+    ctx.beginPath(); ctx.arc(sx-3,sy-6,3,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx+3,sy-7,3,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx,sy-10,4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#f8d0d8';
+    ctx.beginPath(); ctx.arc(sx,sy-11,2,0,Math.PI*2); ctx.fill();
+  }else{ // round broadleaf
+    ctx.fillStyle='#3a3024'; ctx.fillRect(sx-1,sy-3,2,3);
+    ctx.fillStyle='#5a8a50';
+    ctx.beginPath(); ctx.ellipse(sx,sy-9,5,5,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#73a45c';
+    ctx.beginPath(); ctx.ellipse(sx-1,sy-10,3,3,0,0,Math.PI*2); ctx.fill();
+  }
+}
+
+function drawRock(ctx,sx,sy){
+  shadow(ctx,sx,sy,5);
+  fillPath(ctx,[[sx-4,sy-1],[sx-2,sy-4],[sx+3,sy-3],[sx+4,sy-1],[sx,sy+2],[sx-3,sy]],'#8a8067');
+  fillPath(ctx,[[sx-2,sy-4],[sx+3,sy-3],[sx,sy-1]],'#a59a78');
+}
+
+function drawBush(ctx,sx,sy){
+  ctx.fillStyle='#3F6B3A';
+  ctx.beginPath(); ctx.ellipse(sx,sy-1,4,2.5,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5a8a50';
+  ctx.beginPath(); ctx.ellipse(sx-1,sy-2,2,1.5,0,0,Math.PI*2); ctx.fill();
+}
+
+function drawSign(ctx,sx,sy,label){
+  // not used in this version (kept for future)
+}
+
+function drawFlowers(ctx,sx,sy){
+  const pts = [[-3,-1],[3,0],[1,2],[-2,3]];
+  for(const [dx,dy] of pts){
+    ctx.fillStyle = Math.random()<0.5 ? '#ffb968' : '#e26a4a';
+    ctx.fillRect(sx+dx,sy+dy,1,1);
+  }
+}
+
+function drawAvatar(ctx,sx,sy,col){
+  // small NPC standing
+  shadow(ctx,sx,sy,3);
+  // legs
+  ctx.fillStyle='#3a3024'; ctx.fillRect(sx-1,sy-4,1,3); ctx.fillRect(sx,sy-4,1,3);
+  // body
+  ctx.fillStyle=col; ctx.fillRect(sx-2,sy-8,4,4);
+  // head
+  ctx.fillStyle='#e8c8a0'; ctx.fillRect(sx-1,sy-11,2,3);
+  // hair
+  ctx.fillStyle='#1b1a14'; ctx.fillRect(sx-1,sy-12,2,1);
+}
+
+const KIND_DRAW = {
+  pagoda: drawPagoda,
+  torii:  drawTorii,
+  boat:   drawBoat,
+  clock:  drawClock,
+  observatory: drawObservatory,
+  fire:   drawFire,
+  lantern:drawLantern,
+  cabin:  drawCabin,
+  well:   drawWell,
+};
+
+/* =================================================
+ *  Decoration placements (procedural but fixed seed)
+ * ================================================= */
+function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}}
+const RND = mulberry32(20260521);
+
+const DECOR = []; // {x,y,kind}
+function placeDecor(){
+  for(let y=0;y<MAP_H;y++){
+    for(let x=0;x<MAP_W;x++){
+      const t = MAP[y][x];
+      if(t.type===T.GRASS || t.type===T.GRASS_DARK){
+        // avoid being on a place's tile
+        const onPlace = PLACES.some(p=>Math.abs(p.x-(x+0.5))<1.5 && Math.abs(p.y-(y+0.5))<1.5);
+        if(onPlace) continue;
+        const r = RND();
+        if(r<0.06) DECOR.push({x:x+0.5,y:y+0.5,kind:'pine'});
+        else if(r<0.075) DECOR.push({x:x+0.5,y:y+0.5,kind:'broad'});
+        else if(r<0.085) DECOR.push({x:x+0.5,y:y+0.5,kind:'rock'});
+        else if(r<0.13) DECOR.push({x:x+0.5,y:y+0.5,kind:'bush'});
+        else if(r<0.16) DECOR.push({x:x+0.5,y:y+0.5,kind:'flowers'});
+      }else if(t.type===T.SAKURA_FLOOR){
+        if(RND()<0.4) DECOR.push({x:x+0.5,y:y+0.5,kind:'sakura'});
+      }else if(t.type===T.MOSS){
+        if(RND()<0.3) DECOR.push({x:x+0.5,y:y+0.5,kind:'rock'});
+      }
+    }
+  }
+  // a couple of NPC avatars near the plaza
+  DECOR.push({x:11.6,y:13.4,kind:'avatar',col:'#b04030'});
+  DECOR.push({x:14.0,y:12.6,kind:'avatar',col:'#3e6a89'});
+  DECOR.push({x:13.2,y:14.2,kind:'avatar',col:'#5a7a3d'});
+  // lanterns along paths
+  for(let y=4;y<=10;y+=3){ DECOR.push({x:11.2,y:y+0.5,kind:'lantern_post'}); DECOR.push({x:13.8,y:y+0.5,kind:'lantern_post'}); }
+  for(let y=15;y<=21;y+=3){ DECOR.push({x:11.2,y:y+0.5,kind:'lantern_post'}); DECOR.push({x:13.8,y:y+0.5,kind:'lantern_post'}); }
+  for(let x=4;x<=10;x+=3){ DECOR.push({x:x+0.5,y:11.2,kind:'lantern_post'}); DECOR.push({x:x+0.5,y:13.8,kind:'lantern_post'}); }
+  for(let x=15;x<=21;x+=3){ DECOR.push({x:x+0.5,y:11.2,kind:'lantern_post'}); DECOR.push({x:x+0.5,y:13.8,kind:'lantern_post'}); }
+}
+placeDecor();
+
+const DECOR_DRAW = {
+  pine: (c,sx,sy)=>drawTree(c,sx,sy,'pine'),
+  broad:(c,sx,sy)=>drawTree(c,sx,sy,'broad'),
+  sakura:(c,sx,sy)=>drawTree(c,sx,sy,'sakura'),
+  rock: drawRock,
+  bush: drawBush,
+  flowers: drawFlowers,
+  avatar: (c,sx,sy,d)=>drawAvatar(c,sx,sy,d.col||'#b04030'),
+  lantern_post: drawLantern,
+};
+
+/* =================================================
+ *  Main render
+ * ================================================= */
+function tileShade(top,left,right,nT){
+  // darken at night
+  if(nT<=0.01) return [top,left,right];
+  const dark = (col, k)=>{
+    const c=parseInt(col.slice(1),16);
+    let r=(c>>16)&255, g=(c>>8)&255, b=c&255;
+    r=Math.round(r*(1-k*0.5)+30*k);
+    g=Math.round(g*(1-k*0.5)+40*k);
+    b=Math.round(b*(1-k*0.45)+60*k);
+    return '#'+((r<<16)|(g<<8)|b).toString(16).padStart(6,'0');
+  };
+  return [dark(top,nT), dark(left,nT), dark(right,nT)];
+}
+
+function drawWaterAnim(ctx,sx,sy,nT){
+  // sparkle: two diagonal moving lines on top face
+  const phase = (TIME*0.0008 + sx*0.01 + sy*0.01) % 1;
+  const tone = nT>0.3 ? 'rgba(232,220,184,0.18)' : 'rgba(255,255,255,0.18)';
+  ctx.fillStyle = tone;
+  ctx.fillRect(sx-6+phase*12, sy-2, 3, 1);
+  ctx.fillRect(sx-9+(phase*12+6)%18, sy+2, 2, 1);
+}
+
+function render(){
+  const w = CV.clientWidth, h = CV.clientHeight;
+
+  // Sky gradient (changes with time) — day is bright pastel, night deep navy
+  const skyTop    = nightT>0.5 ? '#080d18' : '#6fa8c7';
+  const skyBottom = nightT>0.5 ? '#142233' : '#a8d4e8';
+  const skyHoriz  = nightT>0.5 ? '#1a2a3a' : '#e8d8b4';
+  const grad = CTX.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0,skyTop);
+  grad.addColorStop(0.55,skyBottom);
+  grad.addColorStop(1, skyHoriz);
+  CTX.fillStyle=grad;
+  CTX.fillRect(0,0,w,h);
+
+  // Clouds (day only; reference Captain Toad / Anno bright sky)
+  if(nightT<0.7){
+    const ca = 1 - nightT;
+    for(const c of clouds){
+      c.x += c.vx;
+      if(c.x > w+80) c.x = -80;
+      const cx = c.x, cy = c.y;
+      CTX.fillStyle = `rgba(255,255,255,${0.75*ca})`;
+      // three puffs
+      CTX.beginPath(); CTX.ellipse(cx,    cy,    c.r*1.4, c.r*0.7, 0, 0, Math.PI*2); CTX.fill();
+      CTX.beginPath(); CTX.ellipse(cx-c.r*0.8, cy+2, c.r*1.0, c.r*0.55, 0, 0, Math.PI*2); CTX.fill();
+      CTX.beginPath(); CTX.ellipse(cx+c.r*0.9, cy+1, c.r*1.0, c.r*0.55, 0, 0, Math.PI*2); CTX.fill();
+      // soft underside shadow
+      CTX.fillStyle = `rgba(180,200,220,${0.4*ca})`;
+      CTX.beginPath(); CTX.ellipse(cx, cy+c.r*0.5, c.r*1.5, c.r*0.2, 0, 0, Math.PI*2); CTX.fill();
+    }
+  }
+
+  // Stars (only at night)
+  if(nightT>0.3){
+    CTX.save();
+    for(let i=0;i<80;i++){
+      const sx = (i*97 + 13)%w;
+      const sy = ((i*53 + 23)%(h*0.6));
+      const tw = 0.5 + Math.sin(TIME*0.002+i)*0.5;
+      CTX.fillStyle=`rgba(232,220,184,${(0.3+tw*0.6)*nightT})`;
+      CTX.fillRect(sx,sy,1,1);
+    }
+    // Moon
+    CTX.fillStyle=`rgba(232,220,184,${0.8*nightT})`;
+    CTX.beginPath(); CTX.arc(w-110, 80, 18, 0, Math.PI*2); CTX.fill();
+    CTX.fillStyle=skyTop;
+    CTX.beginPath(); CTX.arc(w-100, 76, 18, 0, Math.PI*2); CTX.fill();
+    CTX.restore();
+  } else {
+    // Sun
+    CTX.fillStyle='rgba(255,225,160,.9)';
+    CTX.beginPath(); CTX.arc(120, 90, 22, 0, Math.PI*2); CTX.fill();
+    CTX.fillStyle='rgba(255,225,160,.25)';
+    CTX.beginPath(); CTX.arc(120, 90, 36, 0, Math.PI*2); CTX.fill();
+  }
+
+  // Distant mountains
+  drawMountains(w,h);
+
+  // Camera apply (centre)
+  CTX.save();
+  CTX.translate(w/2, h/2);
+  CTX.scale(cam.scale, cam.scale);
+  CTX.translate(cam.x, cam.y);
+
+  // 1) Tiles
+  for(let y=0;y<MAP_H;y++){
+    for(let x=0;x<MAP_W;x++){
+      const t = MAP[y][x];
+      const {sx,sy} = iso(x+0.5,y+0.5);
+      const [top,left,right] = TPAL[t.type] || TPAL[T.GRASS];
+      const [tT,tL,tR] = tileShade(top,left,right,nightT);
+      drawTile(CTX, sx, sy - t.elev*ELEV, tT, tL, tR, t.elev>0 ? t.elev*ELEV : 0);
+
+      // water animation overlay on top
+      if(t.type===T.WATER || t.type===T.WATER_DEEP){
+        drawWaterAnim(CTX, sx, sy - t.elev*ELEV, nightT);
+      }
+    }
+  }
+
+  // Hover footprint (drawn under entities)
+  if(hoverPlace){
+    const p = hoverPlace;
+    const w = iso(p.x, p.y);
+    const e = (MAP[Math.floor(p.y)] && MAP[Math.floor(p.y)][Math.floor(p.x)]) ? MAP[Math.floor(p.y)][Math.floor(p.x)].elev : 0;
+    const sy = w.sy - e*ELEV;
+    CTX.save();
+    CTX.lineWidth = 1.5;
+    CTX.strokeStyle = 'rgba(120,220,120,.95)';
+    CTX.fillStyle = 'rgba(120,220,120,.18)';
+    // 1-tile diamond
+    CTX.beginPath();
+    CTX.moveTo(w.sx,        sy - TH/2);
+    CTX.lineTo(w.sx + TW/2, sy);
+    CTX.lineTo(w.sx,        sy + TH/2);
+    CTX.lineTo(w.sx - TW/2, sy);
+    CTX.closePath();
+    CTX.fill(); CTX.stroke();
+    CTX.restore();
+  }
+
+  // 2) Build a depth-sorted entity list: decor + places + NPCs
+  const ents = [];
+  for(const d of DECOR){
+    ents.push({sortY:d.y, draw:(ctx)=>{
+      const e = (MAP[Math.floor(d.y)] && MAP[Math.floor(d.y)][Math.floor(d.x)]) ? MAP[Math.floor(d.y)][Math.floor(d.x)].elev : 0;
+      const w = iso(d.x,d.y); DECOR_DRAW[d.kind](ctx, w.sx, w.sy - e*ELEV, d);
+    }});
+  }
+  for(const p of PLACES){
+    ents.push({sortY:p.y, draw:(ctx)=>{
+      const e = (MAP[Math.floor(p.y)] && MAP[Math.floor(p.y)][Math.floor(p.x)]) ? MAP[Math.floor(p.y)][Math.floor(p.x)].elev : 0;
+      const w = iso(p.x,p.y); KIND_DRAW[p.kind](ctx, w.sx, w.sy - e*ELEV, p);
+    }});
+  }
+  for(const n of npcs){
+    ents.push({sortY:n.y+0.01, draw:(ctx)=>drawNPC(ctx, n)});
+  }
+  ents.sort((a,b)=>a.sortY-b.sortY);
+  for(const e of ents) e.draw(CTX);
+
+  // 2b) NPC speech bubbles on top of all entities
+  for(const n of npcs) drawBubble(CTX, n);
+
+  // 3) Petals (sakura)
+  for(const pe of petals){
+    pe.x += pe.vx*16 + Math.sin(TIME*0.001+pe.ph)*0.005;
+    pe.y += pe.vy*16;
+    if(pe.x>MAP_W) pe.x=0;
+    if(pe.y>MAP_H) pe.y=0;
+    const w = iso(pe.x, pe.y);
+    CTX.fillStyle = `rgba(248,200,216,${0.7})`;
+    CTX.fillRect(w.sx, w.sy-30+Math.sin(TIME*0.002+pe.ph)*3, pe.r*1.5, pe.r);
+  }
+
+  // 4) Birds
+  for(const b of birds){
+    b.x += b.vx*16;
+    if(b.x>MAP_W+2) { b.x=-2; b.y=Math.random()*MAP_H; }
+    const w = iso(b.x, b.y);
+    const flap = Math.sin(TIME*0.012+b.x)*2;
+    CTX.strokeStyle = nightT>0.5 ? 'rgba(232,220,184,.4)' : 'rgba(40,30,20,.55)';
+    CTX.lineWidth=1;
+    CTX.beginPath();
+    CTX.moveTo(w.sx-3, w.sy-40+flap);
+    CTX.lineTo(w.sx,   w.sy-42);
+    CTX.lineTo(w.sx+3, w.sy-40+flap);
+    CTX.stroke();
+  }
+
+  // 5) Place markers — soft pulse ring on all places + hover label on focused one
+  for(const p of PLACES){
+    const e = (MAP[Math.floor(p.y)] && MAP[Math.floor(p.y)][Math.floor(p.x)]) ? MAP[Math.floor(p.y)][Math.floor(p.x)].elev : 0;
+    const w = iso(p.x,p.y);
+    const yy = w.sy - e*ELEV - 36;
+    const pulse = 0.5 + Math.sin(TIME*0.003 + p.x)*0.5;
+    const isHover = hoverPlace && hoverPlace.id === p.id;
+    const baseAlpha = isHover ? 0.95 : 0.45;
+    CTX.strokeStyle = `rgba(255,185,104,${baseAlpha*0.8+pulse*0.2})`;
+    CTX.lineWidth = isHover ? 1.5 : 1;
+    CTX.beginPath(); CTX.arc(w.sx, yy, 3+pulse, 0, Math.PI*2); CTX.stroke();
+    CTX.fillStyle = `rgba(255,185,104,${baseAlpha+pulse*0.3})`;
+    CTX.beginPath(); CTX.arc(w.sx, yy, 1.2, 0, Math.PI*2); CTX.fill();
+
+    if(isHover){
+      // floating name label
+      CTX.font = '8px "Shippori Mincho", serif';
+      const text = p.title;
+      const tw = CTX.measureText(text).width + 10;
+      const bx = w.sx, by = yy - 12;
+      CTX.fillStyle = 'rgba(14,26,38,.92)';
+      CTX.fillRect(bx - tw/2, by - 8, tw, 10);
+      CTX.strokeStyle = 'rgba(255,185,104,.7)';
+      CTX.lineWidth = 0.5;
+      CTX.strokeRect(bx - tw/2, by - 8, tw, 10);
+      CTX.fillStyle = '#ffe2a8';
+      CTX.textAlign = 'center'; CTX.textBaseline = 'middle';
+      CTX.fillText(text, bx, by - 3);
+      // small caret pointing down
+      CTX.fillStyle = 'rgba(14,26,38,.92)';
+      CTX.beginPath();
+      CTX.moveTo(bx-2, by+2); CTX.lineTo(bx, by+5); CTX.lineTo(bx+2, by+2);
+      CTX.closePath(); CTX.fill();
+    }
+  }
+
+  CTX.restore();
+
+  // 6) Vignette
+  const vg = CTX.createRadialGradient(w/2,h/2,Math.min(w,h)*0.35,w/2,h/2,Math.max(w,h)*0.7);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,.45)');
+  CTX.fillStyle=vg; CTX.fillRect(0,0,w,h);
+
+  // 7) Night blue cast
+  if(nightT>0.05){
+    CTX.fillStyle=`rgba(20,40,70,${0.20*nightT})`;
+    CTX.fillRect(0,0,w,h);
+  }
+}
+
+function drawMountains(w,h){
+  // Soft layered mountains in BG (brighter pastel at day)
+  const baseY = h*0.46;
+  // far ridge
+  CTX.fillStyle = nightT>0.5 ? '#0e1a26' : '#8aa4b8';
+  CTX.beginPath();
+  CTX.moveTo(0,baseY+20);
+  for(let i=0;i<=20;i++){
+    const x = (i/20)*w;
+    const y = baseY - 30 + Math.sin(i*1.3)*22 + Math.sin(i*0.6)*18;
+    CTX.lineTo(x,y);
+  }
+  CTX.lineTo(w,baseY+50); CTX.lineTo(0,baseY+50); CTX.closePath(); CTX.fill();
+  // near ridge
+  CTX.fillStyle = nightT>0.5 ? '#162232' : '#6f8a7a';
+  CTX.beginPath();
+  CTX.moveTo(0,baseY+40);
+  for(let i=0;i<=20;i++){
+    const x = (i/20)*w;
+    const y = baseY + Math.sin(i*0.9+1.4)*16 + Math.sin(i*0.4)*10;
+    CTX.lineTo(x,y);
+  }
+  CTX.lineTo(w,h); CTX.lineTo(0,h); CTX.closePath(); CTX.fill();
+}
+
+/* =================================================
+ *  Loop
+ * ================================================= */
+let lastT = performance.now();
+function loop(now){
+  const dt = Math.min(40, now-lastT); lastT=now;
+  TIME += dt;
+  // Ease night toggle
+  const target = nightMode ? 1 : 0;
+  nightT += (target-nightT) * Math.min(1, dt*0.003);
+  updateNPCs(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+/* =================================================
+ *  Modal
+ * ================================================= */
+const modal = document.getElementById('modal');
+const visited = new Set();
+
+function updateHearts(){
+  const total = PLACES.length;
+  const got = visited.size;
+  const root = document.getElementById('hearts');
+  if(!root.children.length){
+    for(let i=0;i<total;i++){
+      const div = document.createElement('div');
+      div.className='h';
+      div.innerHTML='<svg viewBox="0 0 24 24"><path d="M12 21s-7-4.35-9.5-8.5C0 8 2 4 5.5 4c2 0 3.5 1 6.5 4 3-3 4.5-4 6.5-4 3.5 0 5.5 4 3 8.5C19 16.65 12 21 12 21z"/></svg>';
+      root.appendChild(div);
+    }
+  }
+  for(let i=0;i<total;i++){
+    root.children[i].classList.toggle('on', i<got);
+  }
+}
+updateHearts();
+
+function openModal(p){
+  visited.add(p.id);
+  updateHearts();
+  document.getElementById('m-num').textContent  = p.num;
+  document.getElementById('m-title').firstChild.nodeValue = p.title;
+  document.getElementById('m-en').textContent   = p.en;
+  document.getElementById('m-body').innerHTML   = p.body;
+  const go = document.getElementById('m-go');
+  if(p.href){
+    go.href = p.href;
+    go.classList.remove('disabled');
+    document.getElementById('m-go-label').textContent = p.cta || 'VISIT';
+  }else{
+    go.href = 'javascript:void(0)';
+    go.classList.add('disabled');
+    document.getElementById('m-go-label').textContent = p.cta || 'CLOSE';
+  }
+  modal.classList.add('show');
+}
+function closeModal(){ modal.classList.remove('show'); }
+
+document.getElementById('modal-close').addEventListener('click', closeModal);
+modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
+
+/* =================================================
+ *  Toolbar buttons
+ * ================================================= */
+const btnSound = document.getElementById('btn-sound');
+const btnTime  = document.getElementById('btn-time');
+
+let audioCtx=null, ambient=null;
+function startAmbient(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  }
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  ambient = audioCtx.createGain(); ambient.gain.value=0;
+  ambient.connect(audioCtx.destination);
+  // wind: filtered pink noise
+  const noiseBuf = audioCtx.createBuffer(1, audioCtx.sampleRate*2, audioCtx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  let b0=0,b1=0,b2=0;
+  for(let i=0;i<nd.length;i++){
+    const white = Math.random()*2-1;
+    b0 = 0.99765*b0 + white*0.0990460;
+    b1 = 0.96300*b1 + white*0.2965164;
+    b2 = 0.57000*b2 + white*1.0526913;
+    nd[i] = (b0+b1+b2+white*0.1848) * 0.08;
+  }
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = noiseBuf; noise.loop = true;
+  const lp = audioCtx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=420;
+  noise.connect(lp).connect(ambient);
+  noise.start();
+  // soft chimes (slow random)
+  function chime(){
+    if(!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type='sine';
+    osc.frequency.value = [440,523.25,587.33,659.25,783.99][Math.floor(Math.random()*5)];
+    g.gain.setValueAtTime(0, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime+0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+2.5);
+    osc.connect(g).connect(ambient);
+    osc.start(); osc.stop(audioCtx.currentTime+2.6);
+    setTimeout(chime, 5000+Math.random()*7000);
+  }
+  setTimeout(chime, 3000);
+  // fade in
+  ambient.gain.linearRampToValueAtTime(0.7, audioCtx.currentTime+1.5);
+}
+function stopAmbient(){
+  if(ambient){
+    const a = ambient; const ctx=audioCtx;
+    a.gain.linearRampToValueAtTime(0, ctx.currentTime+0.8);
+    setTimeout(()=>{ try{ a.disconnect(); }catch(e){} }, 1000);
+    ambient=null;
+  }
+}
+
+btnSound.addEventListener('click', ()=>{
+  const on = btnSound.classList.toggle('active');
+  btnSound.textContent = on ? 'SOUND · ON' : 'SOUND · OFF';
+  btnSound.setAttribute('aria-pressed', on?'true':'false');
+  if(on) startAmbient(); else stopAmbient();
+});
+
+btnTime.addEventListener('click', ()=>{
+  nightMode = !nightMode;
+  btnTime.textContent = nightMode ? 'DAY' : 'NIGHT';
+  btnTime.classList.toggle('active', nightMode);
+});
+
+/* =================================================
+ *  Init
+ * ================================================= */
+resize();
+centerCamera();
+requestAnimationFrame(loop);
+
+// Subtle entry pan: zoom in a bit at start
+let startAnim = 0;
+const initPan = setInterval(()=>{
+  cam.scale += 0.02;
+  startAnim++;
+  if(cam.scale>=2.2 || startAnim>20) clearInterval(initPan);
+}, 30);
+
+</script>
+</body>
+</html>
