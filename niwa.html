@@ -658,7 +658,13 @@ function makeClockTower(){
 
 function makeCabin(){
   const g = new THREE.Group();
-  const wood = toonMat(0xc2956a);
+  // PBR wood for the walls — heavily realistic
+  const wallTex = woodPBR.diff.clone();
+  wallTex.needsUpdate = true;
+  wallTex.repeat.set(3, 2);
+  wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
+  wallTex.colorSpace = THREE.SRGBColorSpace;
+  const wood = new THREE.MeshStandardMaterial({ map: wallTex, color:0xb88a5e, roughness:0.85, metalness:0.02, envMapIntensity:0.8 });
   const dark = toonMat(0x6a4a2c);
   const base = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.3, 2.6), toonMat(0x7a6850));
   base.position.y = 0.15; base.castShadow=base.receiveShadow=true; g.add(base);
@@ -736,7 +742,12 @@ function makeLantern(){
 
 function makeBoatDock(){
   const g = new THREE.Group();
-  const dockMat = toonMat(0x7a5a3a);
+  const dockTex = woodPBR.diff.clone();
+  dockTex.needsUpdate = true;
+  dockTex.repeat.set(2, 1);
+  dockTex.wrapS = dockTex.wrapT = THREE.RepeatWrapping;
+  dockTex.colorSpace = THREE.SRGBColorSpace;
+  const dockMat = new THREE.MeshStandardMaterial({ map: dockTex, color:0xa07a4c, roughness:0.9, metalness:0.02 });
   for(let i=0;i<4;i++){
     const plank = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.1, 0.4), dockMat);
     plank.position.set(0, 0.05, i*0.42 - 0.6);
@@ -896,23 +907,133 @@ function makeTreeMesh(kind, rnd){
     scene.add(b);
   }
 })();
-setLoad(0.65, 'VEGETATION');
+setLoad(0.6, 'VEGETATION');
 
-/* === Instanced grass blades ============================= */
+/* === Stone bridge over pond ============================== */
+(function buildBridge(){
+  const g = new THREE.Group();
+  const stone = new THREE.MeshStandardMaterial({color:0xa89878, roughness:0.85, metalness:0.0});
+  // arched deck via lathe-like extrusion
+  const deckShape = new THREE.Shape();
+  deckShape.moveTo(-2.2, 0);
+  deckShape.bezierCurveTo(-2.2, 0.5, -1.6, 1.2, 0, 1.4);
+  deckShape.bezierCurveTo(1.6, 1.2, 2.2, 0.5, 2.2, 0);
+  deckShape.lineTo(2.2, -0.4);
+  deckShape.bezierCurveTo(1.6, 0.6, -1.6, 0.6, -2.2, -0.4);
+  deckShape.closePath();
+  const extrude = new THREE.ExtrudeGeometry(deckShape, {depth: 1.2, bevelEnabled: true, bevelSize: 0.06, bevelThickness:0.04, bevelSegments:2});
+  extrude.center();
+  const deck = new THREE.Mesh(extrude, stone);
+  deck.castShadow = deck.receiveShadow = true;
+  g.add(deck);
+  // railings
+  const railMat = new THREE.MeshStandardMaterial({color:0x7a5a3a, roughness:0.8, metalness:0.0});
+  for(const side of [-1,1]){
+    for(let i=-2;i<=2;i++){
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.6, 8), railMat);
+      const xx = i*0.55;
+      const yy = 0.5 + Math.cos(i*0.4)*0.35;
+      post.position.set(xx, yy + 0.3, side*0.65);
+      post.castShadow = true;
+      g.add(post);
+    }
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 4.5, 8), railMat);
+    top.rotation.z = Math.PI/2;
+    top.position.set(0, 1.1, side*0.65);
+    g.add(top);
+  }
+  g.position.set(-22, 0.4, -14);   // over the pond
+  g.rotation.y = Math.PI/3;
+  scene.add(g);
+})();
+
+/* === Wooden fence segments around the plaza ============= */
+(function buildFences(){
+  const fenceMat = new THREE.MeshStandardMaterial({color:0x8a5a3a, roughness:0.95});
+  function fenceSegment(){
+    const seg = new THREE.Group();
+    // 2 posts + 2 rails
+    for(const dx of [-0.6, 0.6]){
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.9, 0.12), fenceMat);
+      post.position.set(dx, 0.45, 0); post.castShadow = true;
+      seg.add(post);
+    }
+    for(const dy of [0.25, 0.65]){
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.08, 0.08), fenceMat);
+      rail.position.set(0, dy, 0); rail.castShadow = true;
+      seg.add(rail);
+    }
+    return seg;
+  }
+  // place ring of fence around plaza (radius 5.5) with gaps for paths
+  const R = 5.5;
+  for(let i=0;i<24;i++){
+    const ang = (i/24)*Math.PI*2;
+    // skip near the 4 cardinal directions (paths)
+    const along = Math.abs(Math.sin(ang)), across = Math.abs(Math.cos(ang));
+    if(across < 0.2 || along < 0.2) continue;
+    const x = Math.sin(ang)*R, z = Math.cos(ang)*R;
+    const seg = fenceSegment();
+    seg.position.set(x, terrainHeight(x,z), z);
+    seg.rotation.y = ang + Math.PI/2;
+    scene.add(seg);
+  }
+})();
+
+/* === Plaza sakura ring (signature reference look) ======== */
+(function plazaSakura(){
+  const positions = [
+    [-4.5, -4.5], [4.5, -4.5], [4.5, 4.5], [-4.5, 4.5],
+    [-6, 0], [6, 0], [0, -6], [0, 6],
+  ];
+  for(const [x,z] of positions){
+    const onPath = (Math.abs(x)<1.6 && Math.abs(z)<30) || (Math.abs(z)<1.6 && Math.abs(x)<30);
+    if(onPath) continue;
+    const t = makeTreeMesh('sakura', Math.random);
+    t.position.set(x, terrainHeight(x,z), z);
+    t.scale.setScalar(1.4 + Math.random()*0.3);
+    scene.add(t);
+  }
+})();
+setLoad(0.65, 'BRIDGE + FENCE');
+
+/* === Instanced grass blades (with wind shader) =========== */
+let grassWindUniforms = null;
 (function instancedGrass(){
-  const c = document.createElement('canvas'); c.width = 16; c.height = 32;
+  const c = document.createElement('canvas'); c.width = 16; c.height = 64;
   const cctx = c.getContext('2d');
-  cctx.fillStyle = '#7ea14a';
+  const grad = cctx.createLinearGradient(0,0,0,64);
+  grad.addColorStop(0,'#5a8a3a'); grad.addColorStop(0.5,'#7ea14a'); grad.addColorStop(1,'#4a7030');
+  cctx.fillStyle = grad;
   cctx.beginPath();
-  cctx.moveTo(8, 32); cctx.lineTo(2, 0); cctx.lineTo(14, 0); cctx.closePath(); cctx.fill();
+  cctx.moveTo(8, 64); cctx.lineTo(2, 0); cctx.lineTo(14, 0); cctx.closePath(); cctx.fill();
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
 
-  const geo = new THREE.PlaneGeometry(0.18, 0.4);
-  geo.translate(0, 0.2, 0);
-  const mat = new THREE.MeshLambertMaterial({color:0xffffff, side:THREE.DoubleSide, transparent:true, alphaTest:0.5, map: tex, alphaMap: tex});
+  const geo = new THREE.PlaneGeometry(0.22, 0.55, 1, 4); // more segments for bend
+  geo.translate(0, 0.275, 0);
+  const mat = new THREE.MeshLambertMaterial({color:0xffffff, side:THREE.DoubleSide, transparent:true, alphaTest:0.45, map: tex, alphaMap: tex});
 
-  const N = 2200;
+  // Wind animation via shader injection
+  mat.onBeforeCompile = (shader)=>{
+    shader.uniforms.uTime = { value: 0 };
+    shader.vertexShader = 'uniform float uTime;\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      // wind based on world position of instance + local Y as bend factor
+      vec4 worldP = modelMatrix * instanceMatrix * vec4(0.0,0.0,0.0,1.0);
+      float bend = smoothstep(0.0, 0.5, position.y);
+      float w = sin(uTime*1.7 + worldP.x*0.35 + worldP.z*0.25) * 0.18
+              + sin(uTime*0.9 + worldP.x*0.7) * 0.07;
+      transformed.x += w * bend;
+      transformed.z += w * 0.6 * bend;
+      `
+    );
+    grassWindUniforms = shader.uniforms;
+  };
+
+  const N = 3500;
   const inst = new THREE.InstancedMesh(geo, mat, N);
   const dummy = new THREE.Object3D();
   const rnd = mulberry32(20260530);
@@ -1181,7 +1302,44 @@ for(let i=0;i<30;i++){
   FIREFLIES.push(f);
 }
 
-setLoad(0.92, 'SKY');
+setLoad(0.9, 'SKY');
+
+/* === Optional Gaussian Splat backdrop ====================
+ *  Activate via ?splat=URL  (e.g. ?splat=https://huggingface.co/cakewalk/splat-data/resolve/main/garden.splat)
+ *  Or ?splat=garden|treehill|bicycle|stump for built-in HF community mirrors.
+ * ========================================================= */
+(async function maybeLoadSplat(){
+  const params = new URLSearchParams(location.search);
+  const arg = params.get('splat');
+  if(!arg) return;
+  const PRESETS = {
+    garden:    'https://huggingface.co/cakewalk/splat-data/resolve/main/garden.splat',
+    treehill:  'https://huggingface.co/cakewalk/splat-data/resolve/main/treehill.splat',
+    bicycle:   'https://huggingface.co/cakewalk/splat-data/resolve/main/bicycle.splat',
+    stump:     'https://huggingface.co/cakewalk/splat-data/resolve/main/stump.splat',
+  };
+  const url = PRESETS[arg] || arg;
+  try{
+    setLoad(0.91, 'SPLAT · loading');
+    const lib = await import('https://unpkg.com/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js');
+    const viewer = new lib.DropInViewer({
+      gpuAcceleratedSort: true,
+      sharedMemoryForWorkers: false,
+      selfDrivenMode: false,
+    });
+    await viewer.addSplatScene(url, {
+      position: [0, 6, -32],
+      scale: [6, 6, 6],
+      rotation: [0, 0, 0, 1],
+      showLoadingUI: false,
+    });
+    scene.add(viewer);
+    console.log('Splat backdrop loaded:', url);
+    setLoad(0.95, 'SPLAT · ready');
+  } catch(e){
+    console.warn('Splat backdrop failed:', e);
+  }
+})();
 
 /* === Avatar control + camera ============================ */
 const keys = { w:false, a:false, s:false, d:false, shift:false };
@@ -1647,6 +1805,9 @@ function animate(){
     f.position.y = 0.7 + terrainHeight(f.position.x, f.position.z) + Math.sin(f.userData.phase*1.2)*0.35;
     f.material.opacity = nightT * (0.4 + 0.6*Math.abs(Math.sin(f.userData.phase*2.5)));
   }
+
+  // wind on grass
+  if(grassWindUniforms) grassWindUniforms.uTime.value = t;
 
   drawMini();
   composer.render();
