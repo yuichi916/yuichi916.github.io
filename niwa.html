@@ -192,7 +192,6 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 
 /* ===========================================================
@@ -251,6 +250,22 @@ function setLoad(p, label){
   if(el) el.style.width = (loadProgress*100).toFixed(0)+'%';
   if(pct) pct.textContent = (label||'LOADING') + ' · ' + (loadProgress*100).toFixed(0)+'%';
 }
+setLoad(0.05, 'INIT');     // confirm script started executing
+
+// Safety: if anything blocks the splash hide for too long, force-hide
+setTimeout(()=>{
+  const sp = document.getElementById('splash');
+  if(sp && !sp.classList.contains('hidden')){
+    sp.classList.add('hidden');
+    console.warn('niwa: splash force-hidden after 12s — check console for module errors');
+  }
+}, 12000);
+
+// Surface any runtime error to the loader label so it's visible without devtools
+window.addEventListener('error', e=>{
+  const pct = document.getElementById('loadpct');
+  if(pct) pct.textContent = 'ERR · ' + (e.message||'unknown').slice(0,40);
+});
 
 /* === Lighting ============================================ */
 const sun = new THREE.DirectionalLight(0xfff4d0, 3.2);
@@ -489,14 +504,14 @@ waterMat.onBeforeCompile = (shader)=>{
     transformed.y += wave1 + wave2 + wave3;
     `
   );
-  // Inject normal recomputation for lighting (cheap)
+  // Inject normal perturbation for lighting (uses `position`, available in beginnormal_vertex)
   shader.vertexShader = shader.vertexShader.replace(
     '#include <beginnormal_vertex>',
     `#include <beginnormal_vertex>
     objectNormal = normalize(objectNormal + vec3(
-      cos(transformed.x*0.6 + uTime*1.4)*0.4,
+      cos(position.x*0.6 + uTime*1.4)*0.4,
       0.0,
-      cos(transformed.z*0.45 + uTime*0.9)*0.3
+      cos(position.z*0.45 + uTime*0.9)*0.3
     ));
     `
   );
@@ -1916,12 +1931,6 @@ btnSound.addEventListener('click', ()=>{
 /* === Post-processing ===================================== */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-// SSAO — adds ambient occlusion contact shadows around base of objects
-const ssao = new SSAOPass(scene, camera, window.innerWidth, window.innerHeight);
-ssao.kernelRadius = 0.5;
-ssao.minDistance = 0.002;
-ssao.maxDistance = 0.08;
-composer.addPass(ssao);
 const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.45, 0.6, 0.78);
 composer.addPass(bloom);
 const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
@@ -2221,7 +2230,6 @@ window.addEventListener('resize', ()=>{
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
-  ssao.setSize(window.innerWidth, window.innerHeight);
 });
 
 setLoad(1.0, 'READY');
