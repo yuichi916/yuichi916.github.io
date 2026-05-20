@@ -192,6 +192,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { Sky } from 'three/addons/objects/Sky.js';
 
 /* ===========================================================
  *  心の庭 — Three.js 3D quarter-view (commercial-quality)
@@ -216,6 +217,27 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color('#9ec6d8');
 scene.fog = new THREE.Fog('#bcd6e2', 60, 140);
 
+/* === Realistic Sky (Three.js atmospheric scattering) ===== */
+const sky = new Sky();
+sky.scale.setScalar(450);
+scene.add(sky);
+const skyUniforms = sky.material.uniforms;
+skyUniforms.turbidity.value = 4;
+skyUniforms.rayleigh.value = 2;
+skyUniforms.mieCoefficient.value = 0.005;
+skyUniforms.mieDirectionalG.value = 0.85;
+// sun position computed from elevation/azimuth (radians)
+const sunSph = new THREE.Vector3();
+function setSunPosition(elev, azim){
+  const phi = THREE.MathUtils.degToRad(90 - elev);
+  const theta = THREE.MathUtils.degToRad(azim);
+  sunSph.setFromSphericalCoords(1, phi, theta);
+  skyUniforms.sunPosition.value.copy(sunSph);
+  // also update directional sun position
+  sun.position.set(sunSph.x*40, Math.max(2, sunSph.y*40), sunSph.z*40);
+}
+// initial sun set after `sun` directional light is declared
+
 const camera = new THREE.PerspectiveCamera(28, window.innerWidth/window.innerHeight, 0.5, 220);
 camera.position.set(18, 22, 22);
 camera.lookAt(0, 0, 0);
@@ -230,7 +252,7 @@ function setLoad(p, label){
 }
 
 /* === Lighting ============================================ */
-const sun = new THREE.DirectionalLight(0xfff4d0, 2.4);
+const sun = new THREE.DirectionalLight(0xfff4d0, 3.2);
 sun.position.set(24, 28, 16);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -253,6 +275,11 @@ scene.add(ambient);
 const moon = new THREE.DirectionalLight(0xa0c0e8, 0.0);
 moon.position.set(-20, 22, -16);
 scene.add(moon);
+
+// Set sun direction now that `sun` light exists (drives both Sky and shadow camera)
+setSunPosition(45, -20);
+// scene.background will be replaced by Sky render; null it out
+scene.background = null;
 
 /* === HDRI environment (Polyhaven CC0) ===================== */
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -1953,6 +1980,12 @@ function animate(){
   // env map swap (with simple threshold to avoid flicker)
   if(nightT > 0.55 && envNight && scene.environment !== envNight) scene.environment = envNight;
   if(nightT < 0.45 && envDay && scene.environment !== envDay) scene.environment = envDay;
+  // animate sky sun: day = high, night = below horizon
+  const elev = 45 - nightT * 75;  // 45° → -30°
+  setSunPosition(elev, -20);
+  // sky scattering thickens at night
+  skyUniforms.turbidity.value = 4 + nightT*8;
+  skyUniforms.rayleigh.value = 2 + nightT*1.5;
   // Use HDR background when available (photoreal sky), darken at night via toneMapping exposure
   renderer.toneMappingExposure = 1.05 * (1 - nightT*0.55) + 0.25;
   if(scene.background instanceof THREE.Color){
