@@ -2645,6 +2645,32 @@ async function loadExternalAssets() {
     return;
   }
   const loader = new THREE.GLTFLoader();
+  // v54: hifi GLB のマテリアル名で texture を割り当てて photoreal 寄りに
+  const texLoader = new THREE.TextureLoader();
+  const hifiTex = {};
+  function loadHifiTex(key, url) {
+    if (hifiTex[key]) return hifiTex[key];
+    const t = texLoader.load(url);
+    t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(2, 2);
+    if (THREE.sRGBEncoding !== undefined) t.encoding = THREE.sRGBEncoding;
+    hifiTex[key] = t;
+    return t;
+  }
+  // Pre-load shared textures
+  loadHifiTex('bark', 'assets/textures/bark_diff_1k.jpg');
+  loadHifiTex('moss', 'assets/textures/moss_diff_1k.jpg');
+  loadHifiTex('rock', 'assets/textures/rock_diff_1k.jpg');
+  loadHifiTex('wood', 'assets/textures/wood_diff_1k.jpg');
+  loadHifiTex('grass_path', 'assets/textures/grass_path_3_diff_1k.jpg');
+  function pickHifiTexture(matName) {
+    const lo = (matName || '').toLowerCase();
+    if (lo.startsWith('bark')) return hifiTex.bark;
+    if (lo.startsWith('moss')) return hifiTex.moss;
+    if (lo.startsWith('stone') || lo.startsWith('boulder')) return hifiTex.rock;
+    if (lo.startsWith('wood') || lo.startsWith('door')) return hifiTex.wood;
+    return null;
+  }
   let progress = 0;
   const all = EXTERNAL_ASSETS.length;
   const loadOne = (spec) => new Promise((resolve) => {
@@ -2654,10 +2680,29 @@ async function loadExternalAssets() {
         try {
           const obj = gltf.scene;
           // upgrade materials to Toon to match scene aesthetic (only where it makes sense)
+          const isHifi = spec.file.startsWith('../blender_hifi/');
           obj.traverse(c => {
             if (c.isMesh) {
               if (spec.shadow) { c.castShadow = true; c.receiveShadow = true; }
               if (c.material && c.material.color) {
+                // v54: hifi asset は material 名で texture を貼る
+                if (isHifi) {
+                  const matName = c.material.name || '';
+                  const tex = pickHifiTexture(matName);
+                  if (tex) {
+                    const col = c.material.color.clone();
+                    const newMat = new THREE.MeshStandardMaterial({
+                      color: col,
+                      map: tex,
+                      roughness: 0.92,
+                      metalness: 0.0,
+                    });
+                    c.material = newMat;
+                    return;
+                  }
+                  // No texture match — keep solid Principled BSDF (palette colors)
+                  return;
+                }
                 if (!c.material.map) {
                   const col = c.material.color.clone();
                   const newMat = toonMat(col.getHex());
