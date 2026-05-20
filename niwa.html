@@ -191,6 +191,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 /* ===========================================================
  *  心の庭 — Three.js 3D quarter-view (commercial-quality)
@@ -252,6 +253,57 @@ scene.add(ambient);
 const moon = new THREE.DirectionalLight(0xa0c0e8, 0.0);
 moon.position.set(-20, 22, -16);
 scene.add(moon);
+
+/* === HDRI environment (Polyhaven CC0) ===================== */
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+let envDay = null, envNight = null;
+const rgbeLoader = new RGBELoader();
+// Day sky
+rgbeLoader.load(
+  'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloofendal_43d_clear_puresky_1k.hdr',
+  (hdr)=>{
+    hdr.mapping = THREE.EquirectangularReflectionMapping;
+    envDay = pmrem.fromEquirectangular(hdr).texture;
+    scene.environment = envDay;
+    hdr.dispose();
+    setLoad(0.35, 'SKY · DAY');
+  }
+);
+// Night sky
+rgbeLoader.load(
+  'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/satara_night_no_lamps_1k.hdr',
+  (hdr)=>{
+    hdr.mapping = THREE.EquirectangularReflectionMapping;
+    envNight = pmrem.fromEquirectangular(hdr).texture;
+    hdr.dispose();
+    setLoad(0.4, 'SKY · NIGHT');
+  }
+);
+
+/* === PBR textures (Polyhaven CC0) ========================= */
+const texLoader = new THREE.TextureLoader();
+function loadTex(url, repeat=20, srgb=true){
+  const t = texLoader.load(url, ()=>{ /* loaded */ });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeat, repeat);
+  if(srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+const PH = 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/';
+const grassPBR = {
+  diff: loadTex(PH + 'leafy_grass/leafy_grass_diff_1k.jpg', 22, true),
+  nor:  loadTex(PH + 'leafy_grass/leafy_grass_nor_gl_1k.jpg', 22, false),
+  ao:   loadTex(PH + 'leafy_grass/leafy_grass_ao_1k.jpg', 22, false),
+  rough:loadTex(PH + 'leafy_grass/leafy_grass_rough_1k.jpg', 22, false),
+};
+const woodPBR = {
+  diff: loadTex(PH + 'wood_planks_grey/wood_planks_grey_diff_1k.jpg', 1, true),
+};
+const stonePBR = {
+  diff: loadTex(PH + 'cobblestone_floor_07/cobblestone_floor_07_diff_1k.jpg', 1, true),
+};
 
 /* === Toon ramp + material helper ========================= */
 function makeToonRamp(steps=4){
@@ -363,9 +415,19 @@ groundGeo.rotateX(-Math.PI/2);
   }
   groundGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 }
-const groundMat = toonMat(0xffffff);
-groundMat.vertexColors = true;
-groundMat.map = grassTex;
+const groundMat = new THREE.MeshStandardMaterial({
+  map: grassPBR.diff,
+  normalMap: grassPBR.nor,
+  aoMap: grassPBR.ao,
+  roughnessMap: grassPBR.rough,
+  vertexColors: true,
+  color: 0xffffff,
+  roughness: 1.0,
+  metalness: 0.0,
+  envMapIntensity: 0.7,
+});
+// duplicate UV to UV2 channel for AO
+groundGeo.setAttribute('uv2', groundGeo.attributes.uv);
 const ground = new THREE.Mesh(groundGeo, groundMat);
 ground.receiveShadow = true;
 scene.add(ground);
@@ -374,8 +436,8 @@ setLoad(0.2, 'TERRAIN');
 
 /* === Water (lake + pond) ================================= */
 const waterMat = new THREE.MeshStandardMaterial({
-  color: 0x6fa8c7, transparent:true, opacity:0.88, roughness:0.18, metalness:0.05,
-  emissive:0x102838, emissiveIntensity:0.08
+  color: 0x4a8aae, transparent:true, opacity:0.88, roughness:0.08, metalness:0.2,
+  emissive:0x102838, emissiveIntensity:0.06, envMapIntensity:1.4
 });
 const lake = new THREE.Mesh(new THREE.CircleGeometry(8.5, 48).rotateX(-Math.PI/2), waterMat);
 lake.position.set(18, -1.05, 16);   // note: +z = south
@@ -1467,10 +1529,19 @@ function animate(){
   hemi.intensity = 0.55 * (1-nightT*0.85);
   moon.intensity = 0.5 * nightT;
   ambient.intensity = 0.18 + 0.08*nightT;
-  const dayBg = new THREE.Color('#9ec6d8');
-  const nightBg = new THREE.Color('#10182a');
-  scene.background.copy(dayBg).lerp(nightBg, nightT);
-  scene.fog.color = scene.background.clone();
+  // env map swap (with simple threshold to avoid flicker)
+  if(nightT > 0.55 && envNight && scene.environment !== envNight) scene.environment = envNight;
+  if(nightT < 0.45 && envDay && scene.environment !== envDay) scene.environment = envDay;
+  // Use HDR background when available (photoreal sky), darken at night via toneMapping exposure
+  renderer.toneMappingExposure = 1.05 * (1 - nightT*0.55) + 0.25;
+  if(scene.background instanceof THREE.Color){
+    const dayBg = new THREE.Color('#9ec6d8');
+    const nightBg = new THREE.Color('#10182a');
+    scene.background.copy(dayBg).lerp(nightBg, nightT);
+  }
+  scene.fog.color = (scene.background instanceof THREE.Color)
+    ? scene.background.clone()
+    : new THREE.Color('#9ec6d8').lerp(new THREE.Color('#10182a'), nightT);
   scene.fog.near = 60 - nightT*15;
   scene.fog.far = 140 - nightT*40;
   skySun.material.opacity = (1-nightT);
