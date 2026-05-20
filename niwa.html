@@ -634,6 +634,271 @@ function makeLantern(scale=1){
   return g;
 }
 
+/* === Traditional Japanese garden helpers ================= */
+
+// Stone grouping (石組): triadic — tall (主石) + mid (副石) + flat (添石)
+function makeStoneGroup(rnd = Math.random){
+  const g = new THREE.Group();
+  const stoneA = mat(0x8a8067, {roughness:0.95});
+  const stoneB = mat(0x6a6050, {roughness:0.95});
+  const stoneC = mat(0xa49880, {roughness:0.95});
+  // 主石 (tall vertical)
+  const tall = new THREE.Mesh(new THREE.ConeGeometry(0.35+rnd()*0.1, 1.2+rnd()*0.4, 6+Math.floor(rnd()*3)), stoneA);
+  tall.position.set(0, 0.55, 0);
+  tall.rotation.set((rnd()-0.5)*0.4, rnd()*Math.PI, (rnd()-0.5)*0.3);
+  tall.scale.set(1, 1, 0.85);
+  tall.castShadow = tall.receiveShadow = true;
+  g.add(tall);
+  // 副石 (medium, slightly behind)
+  const mid = new THREE.Mesh(new THREE.DodecahedronGeometry(0.42+rnd()*0.1, 0), stoneB);
+  mid.position.set(0.55+rnd()*0.2, 0.35, -0.3+rnd()*0.2);
+  mid.rotation.set(rnd()*Math.PI, rnd()*Math.PI, rnd()*Math.PI);
+  mid.scale.set(1, 0.75, 1.1);
+  mid.castShadow = mid.receiveShadow = true;
+  g.add(mid);
+  // 添石 (flat, in front)
+  const flat = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35+rnd()*0.08, 0), stoneC);
+  flat.position.set(-0.45+rnd()*0.2, 0.15, 0.5+rnd()*0.2);
+  flat.rotation.set(rnd()*Math.PI*0.5, rnd()*Math.PI, rnd()*Math.PI*0.5);
+  flat.scale.set(1.3, 0.4, 1.0);
+  flat.castShadow = flat.receiveShadow = true;
+  g.add(flat);
+  // 苔 patch under the trinity
+  const moss = new THREE.Mesh(new THREE.CircleGeometry(0.9, 16).rotateX(-Math.PI/2),
+    new THREE.MeshStandardMaterial({color:0x4a6a36, roughness:1.0, transparent:true, opacity:0.85}));
+  moss.position.y = 0.01;
+  g.add(moss);
+  return g;
+}
+
+// Azalea patch (低木): cluster of small rounded shrubs
+function makeAzaleaPatch(count = 5, color = 0xc8553d){
+  const g = new THREE.Group();
+  for(let i=0;i<count;i++){
+    const r = 0.18 + Math.random()*0.12;
+    const shrub = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6),
+      mat(color, {roughness:0.85}));
+    const ang = (i/count)*Math.PI*2 + Math.random()*0.3;
+    const dist = Math.random()*0.6;
+    shrub.position.set(Math.sin(ang)*dist, r*0.8, Math.cos(ang)*dist);
+    shrub.castShadow = true;
+    g.add(shrub);
+    // a few colorful blossom dots
+    if(Math.random() < 0.5){
+      for(let k=0;k<3;k++){
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4),
+          mat(0xff8aa0, {emissive:0xff5a7a, emissiveIntensity:0.15}));
+        dot.position.set(
+          shrub.position.x + (Math.random()-0.5)*r*0.8,
+          shrub.position.y + (Math.random()-0.5)*r*0.6 + r*0.4,
+          shrub.position.z + (Math.random()-0.5)*r*0.8
+        );
+        g.add(dot);
+      }
+    }
+  }
+  return g;
+}
+
+// Bamboo grove (中木): tall thin segmented stalks
+function makeBambooGrove(count = 9){
+  const g = new THREE.Group();
+  const bambooMat = mat(0x6a8a3a, {roughness:0.7});
+  for(let i=0;i<count;i++){
+    const stalk = new THREE.Group();
+    const h = 2.2 + Math.random()*1.4;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, h, 6), bambooMat);
+    stem.position.y = h/2;
+    stem.castShadow = true;
+    stalk.add(stem);
+    // node rings
+    const nodes = Math.floor(h/0.35);
+    for(let n=1;n<nodes;n++){
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 4, 8), mat(0x4a6a2a));
+      ring.position.y = n*0.35;
+      ring.rotation.x = Math.PI/2;
+      stalk.add(ring);
+    }
+    // tiny leaves at top
+    for(let k=0;k<4;k++){
+      const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.06),
+        new THREE.MeshStandardMaterial({color:0x5a7a30, side:THREE.DoubleSide, transparent:true, alphaTest:0.5}));
+      leaf.position.set(Math.cos(k)*0.15, h - 0.15 - k*0.12, Math.sin(k)*0.15);
+      leaf.rotation.set(k*0.3, k*0.7, k*0.4);
+      stalk.add(leaf);
+    }
+    const ang = (i/count)*Math.PI*2;
+    const rad = 0.4 + Math.random()*0.7;
+    stalk.position.set(Math.sin(ang)*rad, 0, Math.cos(ang)*rad);
+    stalk.userData.windPhase = Math.random()*Math.PI*2;
+    TREE_GROUPS.push(stalk);
+    g.add(stalk);
+  }
+  return g;
+}
+
+// Bamboo fence (segment)
+function makeBambooFence(length = 3.0){
+  const g = new THREE.Group();
+  const bambooMat = mat(0xc8a86a, {roughness:0.75});
+  const dark = mat(0x6a4a2a);
+  // 2 posts
+  for(const dx of [-length/2, length/2]){
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.0, 8), bambooMat);
+    post.position.set(dx, 0.5, 0);
+    post.castShadow = true;
+    g.add(post);
+  }
+  // vertical stakes
+  const stakes = Math.floor(length/0.12);
+  for(let i=0;i<stakes;i++){
+    const x = (i/(stakes-1) - 0.5)*length;
+    const stake = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.8, 5), bambooMat);
+    stake.position.set(x, 0.4, 0);
+    stake.castShadow = true;
+    g.add(stake);
+  }
+  // 2 horizontal rails
+  for(const y of [0.2, 0.75]){
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, length, 5), dark);
+    rail.rotation.z = Math.PI/2;
+    rail.position.set(0, y, 0);
+    g.add(rail);
+  }
+  return g;
+}
+
+// Tsukubai (stone water basin)
+function makeTsukubai(){
+  const g = new THREE.Group();
+  const stoneM = mat(0x6a5a4a, {roughness:0.95});
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.55, 0.4, 12), stoneM);
+  base.position.y = 0.2;
+  base.castShadow = base.receiveShadow = true;
+  g.add(base);
+  // water-filled top
+  const water = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.45, 0.06, 16),
+    new THREE.MeshStandardMaterial({color:0x103040, roughness:0.05, metalness:0.1, envMapIntensity:1.5, transparent:true, opacity:0.9}));
+  water.position.y = 0.43;
+  g.add(water);
+  // bamboo spout pouring water
+  const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.8, 6), mat(0xa88a4a));
+  spout.position.set(-0.5, 0.7, 0);
+  spout.rotation.z = -Math.PI*0.4;
+  spout.castShadow = true;
+  g.add(spout);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.4, 6), mat(0x6a4a2a));
+  post.position.set(-0.7, 0.7, 0);
+  post.castShadow = true;
+  g.add(post);
+  // small stones around the basin
+  for(let i=0;i<6;i++){
+    const ang = (i/6)*Math.PI*2;
+    const r = makeRock(Math.random, 0.5);
+    r.position.set(Math.sin(ang)*0.75, 0.04, Math.cos(ang)*0.75);
+    g.add(r);
+  }
+  return g;
+}
+
+// Raked gravel pattern (sazanami) — concentric rings
+function makeRakedGravel(radius = 2.0){
+  const g = new THREE.Group();
+  const sand = new THREE.Mesh(new THREE.CircleGeometry(radius, 32).rotateX(-Math.PI/2),
+    new THREE.MeshStandardMaterial({color:0xeadbb8, roughness:1.0, map: SAND_TEX.clone()}));
+  sand.position.y = 0.01;
+  sand.material.map.repeat.set(2, 2);
+  sand.receiveShadow = true;
+  g.add(sand);
+  // concentric rings (raked lines)
+  for(let i=1;i<6;i++){
+    const r = (i/6)*radius;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r-0.02, r, 48).rotateX(-Math.PI/2),
+      new THREE.MeshBasicMaterial({color:0xb8a888, transparent:true, opacity:0.4}));
+    ring.position.y = 0.02;
+    g.add(ring);
+  }
+  return g;
+}
+
+// Granite/Kasuga-style stone lantern (taller, decorative)
+function makeStoneLantern(){
+  const g = new THREE.Group();
+  const stoneM = mat(0x9c9078, {roughness:0.95});
+  // base
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.35, 0.20, 8), stoneM);
+  base.position.y = 0.10; base.castShadow=base.receiveShadow=true; g.add(base);
+  // shaft (hex)
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.9, 6), stoneM);
+  shaft.position.y = 0.65; shaft.castShadow=true; g.add(shaft);
+  // mid platter (chudai)
+  const platter = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.30, 0.10, 8), stoneM);
+  platter.position.y = 1.15; g.add(platter);
+  // light chamber (hibukuro) — hex with cutouts
+  const cham = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.34, 0.32), stoneM);
+  cham.position.y = 1.36; cham.castShadow = true;
+  g.add(cham);
+  // 4 light windows
+  for(let i=0;i<4;i++){
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.18),
+      mat(0xffe2a8, {emissive:0xffaa44, emissiveIntensity:0}));
+    const ang = (i/4)*Math.PI*2;
+    win.position.set(Math.sin(ang)*0.161, 1.36, Math.cos(ang)*0.161);
+    win.lookAt(0, 1.36, 0); win.rotation.y += Math.PI;
+    win.userData.lamp = true;
+    g.add(win);
+  }
+  // roof (kasagi) — wide flat hex with point
+  const roof1 = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.42, 0.10, 8), stoneM);
+  roof1.position.y = 1.58; g.add(roof1);
+  const roof2 = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.18, 8), stoneM);
+  roof2.position.y = 1.72; roof2.castShadow = true; g.add(roof2);
+  // finial (hoju)
+  const fin = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), stoneM);
+  fin.position.y = 1.86; g.add(fin);
+  // point light at chamber
+  const pl = new THREE.PointLight(0xffaa44, 0, 5, 2);
+  pl.position.y = 1.36;
+  g.add(pl);
+  g.userData.lampLight = pl;
+  return g;
+}
+
+// Layered planting helper — places 4 layers (canopy, sub, shrub, ground) at a spot
+function layeredPlanting(root, x, z, theme = 'forest'){
+  const themes = {
+    forest:    { canopy:'pine',    sub:'broad',   shrubColor:0x4a7a40, mossColor:0x3a5a30 },
+    autumn:    { canopy:'momiji',  sub:'momiji',  shrubColor:0xa83a30, mossColor:0x6a5230 },
+    spring:    { canopy:'sakura',  sub:'broad',   shrubColor:0xd968a0, mossColor:0x4a6a36 },
+    shrine:    { canopy:'pine',    sub:'sakura',  shrubColor:0x4a7a40, mossColor:0x3a5230 },
+    lake:      { canopy:'willow',  sub:'broad',   shrubColor:0x5a8a4a, mossColor:0x4a6a36 },
+  };
+  const th = themes[theme] || themes.forest;
+  // canopy
+  const t1 = makeTree(th.canopy);
+  t1.position.set(x, 0, z);
+  t1.scale.setScalar(1.4 + Math.random()*0.3);
+  root.add(t1);
+  // sub
+  const t2 = makeTree(th.sub);
+  t2.position.set(x + (Math.random()-0.5)*1.4, 0, z + (Math.random()-0.5)*1.4);
+  t2.scale.setScalar(0.9);
+  root.add(t2);
+  // shrubs (3)
+  for(let i=0;i<3;i++){
+    const ang = (i/3)*Math.PI*2;
+    const r = 0.7 + Math.random()*0.4;
+    const az = makeAzaleaPatch(3, th.shrubColor);
+    az.position.set(x + Math.sin(ang)*r*1.5, 0, z + Math.cos(ang)*r*1.5);
+    root.add(az);
+  }
+  // moss patch
+  const moss = new THREE.Mesh(new THREE.CircleGeometry(1.8, 16).rotateX(-Math.PI/2),
+    new THREE.MeshStandardMaterial({color:th.mossColor, roughness:1.0, transparent:true, opacity:0.7}));
+  moss.position.set(x, 0.02, z);
+  root.add(moss);
+}
+
 /* === Engawa (Japanese wooden veranda) ==================== */
 function makeEngawa(width = 3.0, depth = 1.0){
   const g = new THREE.Group();
@@ -1132,10 +1397,49 @@ SCENES.plaza = {
       ENTITIES.lamps.push(...lp.children.filter(c=>c.userData?.lamp));
       if(lp.userData.lampLight) ENTITIES.lampLights.push(lp.userData.lampLight);
     }
-    // 4 sakura at corners (between kominka)
+    // 4 sakura at compass edges (between kominka)
     for(const [x,z] of [[-9,0],[9,0],[0,-9],[0,9]]){
-      const t = makeTree('sakura'); t.position.set(x,0,z); t.scale.setScalar(1.2);
+      const t = makeTree('sakura'); t.position.set(x,0,z); t.scale.setScalar(1.3);
       root.add(t);
+    }
+    // 4 tall pines deeper at edge
+    for(const [x,z] of [[-10,-4],[10,-4],[-10,4],[10,4]]){
+      const t = makeTree('pine'); t.position.set(x,0,z); t.scale.setScalar(1.5);
+      root.add(t);
+    }
+    // Tsukubai water basin off to one side
+    const tk = makeTsukubai();
+    tk.position.set(-3.5, 0, -3.5);
+    root.add(tk);
+    // 2 stone groupings (triadic) at flanking positions
+    const sg1 = makeStoneGroup();
+    sg1.position.set(3.5, 0, -3.5); root.add(sg1);
+    const sg2 = makeStoneGroup();
+    sg2.position.set(-3.5, 0, 3.5); root.add(sg2);
+    // Azalea patches around the well
+    for(let i=0;i<6;i++){
+      const ang = (i/6)*Math.PI*2 + 0.3;
+      const r = 2.0;
+      const az = makeAzaleaPatch(4, [0xc8553d, 0xff8aa0, 0xd968a0][i%3]);
+      az.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
+      root.add(az);
+    }
+    // Bamboo fence between kominka (8 segments around the inner ring)
+    for(let i=0;i<8;i++){
+      const ang = (i/8)*Math.PI*2 + Math.PI/8;
+      const r = 5.0;
+      const f = makeBambooFence(1.5);
+      f.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
+      f.rotation.y = ang + Math.PI/2;
+      root.add(f);
+    }
+    // Mossy boulders scattered
+    for(let i=0;i<4;i++){
+      const ang = i/4*Math.PI*2 + 0.7;
+      const r = 7.5;
+      const rock = makeRock(Math.random, 1.3);
+      rock.position.set(Math.sin(ang)*r + 0.5, 0, Math.cos(ang)*r);
+      root.add(rock);
     }
     // NPCs walking around the plaza
     for(let i=0;i<4;i++){
@@ -1222,6 +1526,39 @@ SCENES.monlight = {
       pile.add(book);
     }
     root.add(pile);
+    // Bamboo grove behind the pagoda
+    const bamboo1 = makeBambooGrove(10);
+    bamboo1.position.set(0, 0, -7);
+    root.add(bamboo1);
+    // Two stone trinity groupings flanking the pagoda
+    const sg1 = makeStoneGroup();
+    sg1.position.set(3.5, 0, 1); root.add(sg1);
+    const sg2 = makeStoneGroup();
+    sg2.position.set(-3.5, 0, 1); root.add(sg2);
+    // Stone lantern flanking the steps
+    const sl1 = makeStoneLantern();
+    sl1.position.set(-1.5, 0, 4.2); root.add(sl1);
+    if(sl1.userData.lampLight) ENTITIES.lampLights.push(sl1.userData.lampLight);
+    sl1.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    const sl2 = makeStoneLantern();
+    sl2.position.set(1.5, 0, 4.2); root.add(sl2);
+    if(sl2.userData.lampLight) ENTITIES.lampLights.push(sl2.userData.lampLight);
+    sl2.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    // Azalea patches (low layer) ring
+    for(let i=0;i<8;i++){
+      const ang = (i/8)*Math.PI*2;
+      const r = 4.5;
+      const az = makeAzaleaPatch(4, [0xc8553d, 0xa83a30][i%2]);
+      az.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
+      root.add(az);
+    }
+    // Tsukubai with bamboo spout
+    const tk = makeTsukubai();
+    tk.position.set(4.5, 0, 3.5);
+    root.add(tk);
+    // Layered planting at 4 corners
+    layeredPlanting(root, -8, -4, 'autumn');
+    layeredPlanting(root, 8, -4, 'autumn');
   }
 };
 
@@ -1308,6 +1645,49 @@ SCENES.oto = {
     priest.userData.wp = 0; priest.userData.speed = 0;
     root.add(priest);
     ENTITIES.npcs.push(priest);
+    // Raked gravel inner courtyard (sazanami)
+    const gravel = makeRakedGravel(2.8);
+    gravel.position.set(0, 0, 0);
+    root.add(gravel);
+    // 2 stone trinity rocks at corners of gravel area
+    const sg1 = makeStoneGroup();
+    sg1.position.set(1.6, 0, -1.0); root.add(sg1);
+    const sg2 = makeStoneGroup();
+    sg2.position.set(-1.6, 0, -1.0); root.add(sg2);
+    // 2 more stone lanterns deeper in
+    for(const x of [-3.2, 3.2]){
+      const sl = makeStoneLantern();
+      sl.position.set(x, 0, -2);
+      root.add(sl);
+      if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
+      sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    }
+    // Bamboo fence segments lining the sando
+    for(const side of [-1, 1]){
+      for(let i=0;i<3;i++){
+        const f = makeBambooFence(2.4);
+        f.position.set(side*1.8, 0, 5.5 - i*2.2);
+        f.rotation.y = Math.PI/2;
+        root.add(f);
+      }
+    }
+    // Dense cedar/pine forest backdrop
+    for(let i=0;i<6;i++){
+      const ang = Math.PI + (i-2.5)/6*Math.PI*0.7;
+      const r = 9;
+      const t = makeTree('pine');
+      t.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
+      t.scale.setScalar(1.5 + Math.random()*0.3);
+      root.add(t);
+    }
+    // Azalea patches alongside sando
+    for(let i=0;i<6;i++){
+      const side = i%2 ? -1 : 1;
+      const z = 5 - Math.floor(i/2)*2.4;
+      const az = makeAzaleaPatch(4, [0xc8553d, 0xd968a0, 0xff8aa0][i%3]);
+      az.position.set(side*2.5, 0, z);
+      root.add(az);
+    }
   }
 };
 
@@ -1412,6 +1792,41 @@ SCENES.tabi = {
     pine.position.set(-7, 0, 2);
     pine.scale.setScalar(1.4);
     root.add(pine);
+    // Tsukubai (water basin) on the shore
+    const tk = makeTsukubai();
+    tk.position.set(-7.5, 0, 5);
+    root.add(tk);
+    // Stone trinity at shore curve
+    const sg1 = makeStoneGroup();
+    sg1.position.set(-5, 0, -5); root.add(sg1);
+    // Bamboo grove deeper inland
+    const bamboo = makeBambooGrove(8);
+    bamboo.position.set(-8, 0, -3);
+    root.add(bamboo);
+    // Stone lantern at shore edge
+    const sl = makeStoneLantern();
+    sl.position.set(-3.5, 0, -1.5); root.add(sl);
+    if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
+    sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    // Azalea patches on shore
+    for(const [x,z] of [[-8,1],[-7,-1],[-6,4],[-4,-2]]){
+      const az = makeAzaleaPatch(4, [0xd968a0, 0xc8553d][Math.random()<0.5?0:1]);
+      az.position.set(x, 0, z); root.add(az);
+    }
+    // Reeds along the water edge
+    for(let i=0;i<10;i++){
+      const z = -7 + i*1.4;
+      const reed = new THREE.Group();
+      for(let k=0;k<5;k++){
+        const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.8 + Math.random()*0.4),
+          new THREE.MeshStandardMaterial({color:0x6a8a3a, side:THREE.DoubleSide, transparent:true, alphaTest:0.5}));
+        blade.position.set((Math.random()-0.5)*0.3, 0.4, (Math.random()-0.5)*0.3);
+        blade.rotation.y = Math.random()*Math.PI;
+        reed.add(blade);
+      }
+      reed.position.set(-2.2, -0.2, z);
+      root.add(reed);
+    }
   }
 };
 
@@ -1475,6 +1890,38 @@ SCENES.toki = {
     sitter.userData.path = [[-5,3],[-5,3]]; sitter.userData.wp = 0; sitter.userData.speed = 0;
     root.add(sitter);
     ENTITIES.npcs.push(sitter);
+    // Central sand spiral pattern (zen sand)
+    const sandRing = makeRakedGravel(2.5);
+    sandRing.position.set(0, 0, 0);
+    root.add(sandRing);
+    // 2 stone trinity groups beside the tower
+    const sg1 = makeStoneGroup();
+    sg1.position.set(3, 0, -2); root.add(sg1);
+    const sg2 = makeStoneGroup();
+    sg2.position.set(-3, 0, -2); root.add(sg2);
+    // Bamboo fence perimeter
+    for(let i=0;i<6;i++){
+      const ang = (i/6)*Math.PI*2;
+      const r = 7.5;
+      const f = makeBambooFence(2.0);
+      f.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
+      f.rotation.y = ang + Math.PI/2;
+      root.add(f);
+    }
+    // Azalea patches along inner ring
+    for(let i=0;i<8;i++){
+      const ang = (i/8)*Math.PI*2 + Math.PI/8;
+      const r = 5.8;
+      const az = makeAzaleaPatch(3, [0xc8553d, 0xff8aa0][i%2]);
+      az.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
+      root.add(az);
+    }
+    // Stone lantern by the bench
+    const sl = makeStoneLantern();
+    sl.position.set(-6.5, 0, 3.5);
+    root.add(sl);
+    if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
+    sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
   }
 };
 
@@ -1532,6 +1979,49 @@ SCENES.hoshi = {
     scope.rotation.z = 0.6;
     scope.castShadow = true;
     root.add(scope);
+    // Dense moss boulders on hill slope
+    for(let i=0;i<10;i++){
+      const ang = Math.random()*Math.PI*2;
+      const r = 3 + Math.random()*4;
+      const tx = Math.sin(ang)*r, tz = Math.cos(ang)*r;
+      const rock = makeRock(Math.random, 1.0+Math.random()*0.8);
+      rock.position.set(tx, hf(tx,tz)+0.05, tz);
+      root.add(rock);
+    }
+    // 3 stone trinity groups on hill slope at different elevations
+    for(let i=0;i<3;i++){
+      const ang = i*Math.PI*2/3 + 0.4;
+      const r = 4.5;
+      const tx = Math.sin(ang)*r, tz = Math.cos(ang)*r;
+      const sg = makeStoneGroup();
+      sg.position.set(tx, hf(tx,tz), tz);
+      root.add(sg);
+    }
+    // Layered planting at hill base (3 spots)
+    layeredPlanting(root, -7, -6, 'forest');
+    layeredPlanting(root, 7, -6, 'forest');
+    layeredPlanting(root, 0, 8, 'autumn');
+    // Stone lantern marking the viewing spot
+    const sl = makeStoneLantern();
+    sl.position.set(2.5, hf(2.5, -1) + 0.05, -1);
+    root.add(sl);
+    if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
+    sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    // Small viewing pavilion (sub structure on the hill)
+    const pav = new THREE.Group();
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.16, 1.6), mat(0x7a5a3a));
+    floor.position.y = hf(-3, 0) + 0.08; floor.castShadow=floor.receiveShadow=true;
+    pav.add(floor);
+    for(const [x,z] of [[-0.7,-0.7],[0.7,-0.7],[-0.7,0.7],[0.7,0.7]]){
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 6), mat(0x4a3024));
+      post.position.set(x, hf(-3,0)+0.7, z); post.castShadow=true;
+      pav.add(post);
+    }
+    const pavRoof = new THREE.Mesh(new THREE.ConeGeometry(1.3, 0.8, 4), mat(0x3a2a18));
+    pavRoof.position.y = hf(-3, 0) + 1.7; pavRoof.rotation.y = Math.PI/4; pavRoof.castShadow=true;
+    pav.add(pavRoof);
+    pav.position.set(-3, 0, 0);
+    root.add(pav);
   }
 };
 
@@ -1597,6 +2087,46 @@ SCENES.takibi = {
       sp.position.set(0, 0.6, 0);
       root.add(sp);
       ENTITIES.particles.push({obj:sp, type:'spark'});
+    }
+    // Stone trinity on opposite sides (informal forest clearing)
+    const sg1 = makeStoneGroup();
+    sg1.position.set(4, 0, -3); root.add(sg1);
+    const sg2 = makeStoneGroup();
+    sg2.position.set(-4, 0, 3); root.add(sg2);
+    // Layered planting (autumn theme, forest mood)
+    layeredPlanting(root, -6, -6, 'autumn');
+    layeredPlanting(root, 6, -6, 'forest');
+    layeredPlanting(root, -6, 6, 'forest');
+    // A stack of firewood
+    const woodStack = new THREE.Group();
+    for(let i=0;i<6;i++){
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.55, 8), mat(0x624029));
+      log.rotation.z = Math.PI/2;
+      log.position.set((i%2)*0.05, 0.1 + Math.floor(i/2)*0.18, (i%3-1)*0.18);
+      log.castShadow = true;
+      woodStack.add(log);
+    }
+    woodStack.position.set(2.5, 0, 2);
+    root.add(woodStack);
+    // Axe stuck in a stump
+    const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.32, 0.5, 12), mat(0x6a4a2a));
+    stump.position.set(-3, 0.25, -1.5); stump.castShadow=stump.receiveShadow=true;
+    root.add(stump);
+    const axeHead = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, 0.05), mat(0x4a4a52, {metalness:0.7, roughness:0.4}));
+    axeHead.position.set(-3, 0.65, -1.5);
+    axeHead.rotation.z = 0.3;
+    root.add(axeHead);
+    const axeHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.7, 6), mat(0xa88a4a));
+    axeHandle.position.set(-3, 0.6, -1.5);
+    axeHandle.rotation.z = 0.3;
+    root.add(axeHandle);
+    // 4 dim lanterns marking exit path
+    for(const [x,z] of [[1,5],[3,5.5],[5,5.8],[6.5,4.5]]){
+      const lp = makeLantern(0.7);
+      lp.position.set(x, 0, z);
+      root.add(lp);
+      ENTITIES.lamps.push(...lp.children.filter(c=>c.userData?.lamp));
+      if(lp.userData.lampLight) ENTITIES.lampLights.push(lp.userData.lampLight);
     }
   }
 };
@@ -1680,6 +2210,55 @@ SCENES.mizube = {
     bench.position.set(3, 0, 2.5);
     bench.lookAt(0, 0, -1);
     root.add(bench);
+    // Tsukubai near bench
+    const tk = makeTsukubai();
+    tk.position.set(4.5, 0, 4.0);
+    root.add(tk);
+    // Second willow (group of 2 for asymmetric balance)
+    const w2 = makeTree('willow');
+    w2.position.set(-7, 0, 0.5);
+    w2.scale.setScalar(1.1);
+    root.add(w2);
+    // Stone trinity at shore curve
+    const sg = makeStoneGroup();
+    sg.position.set(-3, 0, 1.5); root.add(sg);
+    // Bamboo grove deeper inland
+    const bamboo = makeBambooGrove(7);
+    bamboo.position.set(-5, 0, 5);
+    root.add(bamboo);
+    // Reed cluster at water edge
+    for(let i=0;i<8;i++){
+      const reed = new THREE.Group();
+      for(let k=0;k<5;k++){
+        const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.7+Math.random()*0.3),
+          new THREE.MeshStandardMaterial({color:0x6a8a3a, side:THREE.DoubleSide, transparent:true, alphaTest:0.5}));
+        blade.position.set((Math.random()-0.5)*0.3, 0.35, (Math.random()-0.5)*0.3);
+        blade.rotation.y = Math.random()*Math.PI;
+        reed.add(blade);
+      }
+      reed.position.set(-6+i*1.4, -0.15, -1.5);
+      root.add(reed);
+    }
+    // Azalea patches in foreground
+    for(const [x,z] of [[-2,3],[2,3.5],[6,2]]){
+      const az = makeAzaleaPatch(4, [0xd968a0, 0xc8553d, 0xff8aa0][Math.floor(Math.random()*3)]);
+      az.position.set(x, 0, z);
+      root.add(az);
+    }
+    // Several pebbles for richer ground layer
+    for(let i=0;i<20;i++){
+      const ang = Math.random()*Math.PI*2;
+      const r = 2 + Math.random()*5;
+      const x = Math.sin(ang)*r;
+      const z = Math.cos(ang)*r * 0.45 + 2;
+      if(z < -1) continue;
+      const peb = new THREE.Mesh(new THREE.SphereGeometry(0.10+Math.random()*0.07, 8, 6),
+        mat(0xaaa090, {roughness:0.6}));
+      peb.scale.y = 0.5;
+      peb.position.set(x, 0.05, z);
+      peb.castShadow=true;
+      root.add(peb);
+    }
   }
 };
 
@@ -1743,6 +2322,42 @@ SCENES.amaoto = {
     rain.userData = { state: rainState };
     root.add(rain);
     ENTITIES.particles.push({obj:rain, type:'rain'});
+    // Stone path leading to the cabin
+    root.add(makeSteppingStones([
+      [3,5,1.0,0],[2.5,4,1.0,0.2],[2,3,0.95,0.4],[1.5,2,1.0,0.1],[1,1,1.05,0.3],
+    ]));
+    // Engawa attached to cabin (covered porch)
+    const eng = makeEngawa(2.6, 0.9);
+    eng.position.set(0, 0, 0.5);
+    root.add(eng);
+    // Stone lanterns flanking the path (glow at dusk/rain)
+    for(const x of [-2.2, 2.2]){
+      const sl = makeStoneLantern();
+      sl.position.set(x, 0, 1.5);
+      root.add(sl);
+      if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
+      sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    }
+    // Stone trinity in the rain
+    const sg = makeStoneGroup();
+    sg.position.set(-4, 0, 3); root.add(sg);
+    // Azalea (wet, glistening)
+    for(const [x,z] of [[3,4],[-3,5],[4,-2],[-4,-2]]){
+      const az = makeAzaleaPatch(4, [0xd968a0, 0xc8553d][Math.random()<0.5?0:1]);
+      az.position.set(x, 0, z); root.add(az);
+    }
+    // Layered planting backdrop
+    layeredPlanting(root, -7, -5, 'forest');
+    layeredPlanting(root, 7, -5, 'forest');
+    // A few extra puddles in the path
+    for(let i=0;i<6;i++){
+      const ang = Math.random()*Math.PI*2;
+      const r = 1.5 + Math.random()*4;
+      const pu = new THREE.Mesh(new THREE.CircleGeometry(0.35+Math.random()*0.25, 12).rotateX(-Math.PI/2),
+        new THREE.MeshStandardMaterial({color:0x2a3a4a, roughness:0.05, metalness:0.0, envMapIntensity:1.8, opacity:0.92, transparent:true}));
+      pu.position.set(Math.sin(ang)*r, 0.012, Math.cos(ang)*r);
+      root.add(pu);
+    }
   }
 };
 
