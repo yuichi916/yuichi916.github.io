@@ -980,6 +980,111 @@ setLoad(0.6, 'VEGETATION');
   }
 })();
 
+/* === Kominka decorative houses (village atmosphere) ====== */
+function makeKominka(roofColor=0x4a3024){
+  const g = new THREE.Group();
+  // PBR walls (reuse wood texture)
+  const wallTex = woodPBR.diff.clone();
+  wallTex.needsUpdate = true; wallTex.repeat.set(2, 1.2);
+  wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
+  wallTex.colorSpace = THREE.SRGBColorSpace;
+  const wood = new THREE.MeshStandardMaterial({ map: wallTex, color:0xddc5a0, roughness:0.9 });
+
+  // foundation
+  const base = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 2.0), new THREE.MeshStandardMaterial({color:0x7a6a52, roughness:0.95}));
+  base.position.y = 0.15; base.castShadow = base.receiveShadow = true; g.add(base);
+  // walls
+  const walls = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.3, 1.8), wood);
+  walls.position.y = 0.95; walls.castShadow = walls.receiveShadow = true; g.add(walls);
+  // dark beams (visible vertical posts)
+  const beamMat = new THREE.MeshStandardMaterial({color:0x2a1a10, roughness:0.92});
+  for(const [x,z] of [[-1.05,-0.85],[1.05,-0.85],[-1.05,0.85],[1.05,0.85]]){
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.4, 0.12), beamMat);
+    beam.position.set(x, 1.0, z); beam.castShadow = true;
+    g.add(beam);
+  }
+  // shoji windows (glowing at night)
+  for(const z of [-0.91,0.91]){
+    const shoji = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.6), toonMat(0xf5e8c4, {emissive:0xffd478, emissiveIntensity:0}));
+    shoji.position.set(0, 1.05, z);
+    if(z<0) shoji.rotation.y = Math.PI;
+    shoji.position.z += (z<0?-0.001:0.001);
+    shoji.userData.lamp = true;
+    g.add(shoji);
+    // shoji frame (grid)
+    const frameMat = new THREE.MeshBasicMaterial({color:0x3a2810});
+    for(const dx of [-0.23, 0, 0.23]){
+      const v = new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.6), frameMat);
+      v.position.set(dx, 1.05, z+(z<0?-0.005:0.005));
+      if(z<0) v.rotation.y = Math.PI;
+      g.add(v);
+    }
+    for(const dy of [-0.2, 0, 0.2]){
+      const h = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.015), frameMat);
+      h.position.set(0, 1.05+dy, z+(z<0?-0.005:0.005));
+      if(z<0) h.rotation.y = Math.PI;
+      g.add(h);
+    }
+  }
+  // door front (-x side)
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.95), new THREE.MeshStandardMaterial({color:0x3a2a18, roughness:0.95}));
+  door.position.set(-1.12, 0.8, 0); door.rotation.y = -Math.PI/2;
+  g.add(door);
+
+  // thatched / tiled roof — wide hipped gable
+  const roofMat = new THREE.MeshStandardMaterial({color:roofColor, roughness:0.85});
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.1, 2.3), roofMat);
+  roof.position.y = 1.65; g.add(roof);
+  // gable slopes
+  const slope1 = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.12, 1.2), roofMat);
+  slope1.position.set(0, 2.0, 0.5); slope1.rotation.x = -0.5; slope1.castShadow = true;
+  g.add(slope1);
+  const slope2 = slope1.clone(); slope2.position.z = -0.5; slope2.rotation.x = 0.5;
+  g.add(slope2);
+  // ridge cap
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.16, 0.2), new THREE.MeshStandardMaterial({color:0x2a1a10, roughness:0.92}));
+  ridge.position.set(0, 2.32, 0); g.add(ridge);
+  // chimney box (small)
+  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.45, 0.22), new THREE.MeshStandardMaterial({color:0x4a3a2a, roughness:0.95}));
+  chim.position.set(0.6, 2.15, 0); chim.castShadow = true;
+  g.add(chim);
+  return g;
+}
+// place 4 kominka around the plaza (corners)
+const KOMINKA_SPOTS = [
+  [-8,-8, Math.PI*0.25, 0x4a3024],
+  [ 8,-8,-Math.PI*0.25, 0x5a3a24],
+  [-8, 8,-Math.PI*0.25, 0x3a2a1a],
+  [ 8, 8, Math.PI*0.25, 0x4a3a24],
+];
+for(const [x,z,rot,rc] of KOMINKA_SPOTS){
+  const k = makeKominka(rc);
+  k.position.set(x, terrainHeight(x,z), z);
+  k.rotation.y = rot;
+  scene.add(k);
+}
+
+/* === Lily pads on the lake =============================== */
+(function lilyPads(){
+  const padMat = new THREE.MeshStandardMaterial({color:0x4a8050, roughness:0.6});
+  const flowerMat = new THREE.MeshStandardMaterial({color:0xf8e8c0, roughness:0.5, emissive:0xfff2c0, emissiveIntensity:0.05});
+  for(let i=0;i<14;i++){
+    const ang = Math.random()*Math.PI*2;
+    const r = 2 + Math.random()*5.5;
+    const x = 18 + Math.cos(ang)*r;
+    const z = 16 + Math.sin(ang)*r;
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(0.18+Math.random()*0.18, 8), padMat);
+    pad.rotation.x = -Math.PI/2;
+    pad.position.set(x, -1.02, z);
+    scene.add(pad);
+    if(Math.random()<0.35){
+      const flower = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), flowerMat);
+      flower.position.set(x, -0.95, z);
+      scene.add(flower);
+    }
+  }
+})();
+
 /* === Plaza sakura ring (signature reference look) ======== */
 (function plazaSakura(){
   const positions = [
