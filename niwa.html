@@ -3147,10 +3147,16 @@ function buildScene(name){
   }
   // ground-clamp avatar
   avatar.position.y = sampleHeight(avatar.position.x, avatar.position.z);
-  // Reset camera state per scene (per Codex: don't inherit bad views)
+  // Reset camera + movement state per scene
   camZoomTarget = CAM_DEFAULT_SIZE;
   camYawTarget = -Math.PI*0.25;
   camInit = false;
+  // Reset avatar movement so stale velocity/marker from previous scene doesn't leak
+  playerVel.set(0,0,0);
+  moveTarget = null;
+  targetMarker.visible = false;
+  invalidMarker.visible = false;
+  joyState.active = false; joyState.dx = 0; joyState.dz = 0;
   // Concept card
   const cc = document.getElementById('concept');
   document.getElementById('c-type').textContent = def.num + ' · ' + (def.kind?.toUpperCase() || 'SCENE');
@@ -5448,6 +5454,8 @@ let camZoomTarget = CAM_ORTHO_SIZE;   // smoothed zoom target
 const camFollow = new THREE.Vector3();
 let camInit = false;
 const playerVel = new THREE.Vector3();   // velocity for damped movement
+let lastTargetDist = Infinity;
+let stuckTime = 0;
 const WALK_SPEED = 3.4;
 const RUN_SPEED = 5.6;
 const ACCEL = 18;
@@ -5561,7 +5569,8 @@ function handleClick(cx, cy){
 // Onboarding overlay — show on first load until user dismisses
 {
   const onb = document.getElementById('onboarding');
-  const seen = localStorage.getItem('niwa.onboarded');
+  let seen = null;
+  try { seen = localStorage.getItem('niwa.onboarded'); } catch(_){}
   if(IS_MOBILE){
     document.getElementById('onbDesc1').innerHTML = '左下のスティックで歩く';
     document.getElementById('onbDesc2').innerHTML = '画面の右側を指でドラッグして視点回転';
@@ -5572,7 +5581,7 @@ function handleClick(cx, cy){
   }
   document.getElementById('onbStart').addEventListener('click', ()=>{
     onb.classList.remove('show');
-    localStorage.setItem('niwa.onboarded', '1');
+    try { localStorage.setItem('niwa.onboarded', '1'); } catch(_){}
   });
 }
 
@@ -5610,13 +5619,16 @@ const joyState = { active:false, dx:0, dz:0, startX:0, startY:0 };
     joyState.dx = dx; joyState.dz = dz;
     setStick(dx, dz);
   });
-  function endJoy(){
+  function endJoy(e){
+    if(e && joy.hasPointerCapture && joy.hasPointerCapture(e.pointerId)){
+      try { joy.releasePointerCapture(e.pointerId); } catch(_){}
+    }
     joyState.active = false; joyState.dx = 0; joyState.dz = 0;
     setStick(0, 0);
   }
   joy.addEventListener('pointerup', endJoy);
   joy.addEventListener('pointercancel', endJoy);
-  joy.addEventListener('pointerleave', e=>{ if(joyState.active) endJoy(); });
+  // Note: do NOT cancel on pointerleave — thumb often drifts outside the pad
 }
 
 // Mobile zoom buttons
@@ -5710,10 +5722,22 @@ function animate(){
     if(md < 0.22){
       moveTarget = null;
       targetMarker.visible = false;
+      stuckTime = 0; lastTargetDist = Infinity;
     } else {
-      desiredVx = (mdx/md)*targetSpeed;
-      desiredVz = (mdz/md)*targetSpeed;
+      // Stuck detection: cancel target if no progress for 0.6s (slide collision wedge)
+      const progressed = md < lastTargetDist - 0.01;
+      stuckTime = progressed ? 0 : stuckTime + dt;
+      lastTargetDist = md;
+      if(stuckTime > 0.6){
+        moveTarget = null; targetMarker.visible = false;
+        playerVel.set(0, 0, 0); stuckTime = 0; lastTargetDist = Infinity;
+      } else {
+        desiredVx = (mdx/md)*targetSpeed;
+        desiredVz = (mdz/md)*targetSpeed;
+      }
     }
+  } else {
+    lastTargetDist = Infinity; stuckTime = 0;
   }
   // Frame-rate-independent damp toward desired velocity
   const dampRate = (desiredVx || desiredVz) ? ACCEL : DECEL;
