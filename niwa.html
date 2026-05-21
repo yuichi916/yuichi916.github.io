@@ -901,6 +901,488 @@ function layeredPlanting(root, x, z, theme = 'forest'){
   root.add(moss);
 }
 
+/* === Cube platform terrain (Captain Toad style) ========== */
+function makePlatformChunk(w, h, d, theme = 'grass'){
+  // Six-material box: top textured grass/stone/etc, sides stone, bottom dirt
+  const g = new THREE.Group();
+  const topColors = { grass:0x7ea64a, stone:0xb0a48a, sand:0xe6c98a, moss:0x6e8c4a, wood:0xa07a4c, autumn:0x9a8a4a, dark:0x4a3a2a };
+  const sideColor = 0x8a7a5c;   // stone face
+  const grassEdgeColor = 0x5a7a3d; // dark green band under grass top
+  const baseColor = 0x4a3024;   // dirt/rock bottom
+  // Six materials [+X, -X, +Y, -Y, +Z, -Z]
+  const sideMat   = mat(sideColor,  {roughness:0.95});
+  const topMat    = mat(topColors[theme] || topColors.grass, {roughness:0.92});
+  const bottomMat = mat(baseColor,  {roughness:0.98});
+  const mats = [sideMat, sideMat, topMat, bottomMat, sideMat, sideMat];
+  const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
+  box.position.y = h/2;
+  box.castShadow = box.receiveShadow = true;
+  g.add(box);
+  // Dark green grass band hugging the top edge (visual continuity with side)
+  if(theme === 'grass' || theme === 'moss' || theme === 'autumn'){
+    const band = new THREE.Mesh(new THREE.BoxGeometry(w+0.02, 0.10, d+0.02), mat(grassEdgeColor, {roughness:0.98}));
+    band.position.y = h - 0.02;
+    g.add(band);
+  }
+  // Outline strip along the very edge of top (subtle highlight)
+  return g;
+}
+
+// Slope ramp connecting two heights
+function makeRamp(w = 1.6, length = 2.0, riseFrom = 0, riseTo = 1.0, theme = 'stone'){
+  const g = new THREE.Group();
+  const dh = riseTo - riseFrom;
+  const angle = Math.atan2(dh, length);
+  const hyp = Math.hypot(length, dh);
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(w, 0.18, hyp), mat(theme==='wood'?0x8a5a3a:0xa89878, {roughness:0.9}));
+  slab.position.set(0, (riseFrom + riseTo)/2, 0);
+  slab.rotation.x = -angle;
+  slab.castShadow = slab.receiveShadow = true;
+  g.add(slab);
+  return g;
+}
+
+/* === Medieval / Japanese hybrid building builders ======== */
+
+// Parametric house — used to create dozens of varied buildings
+function makeMedievalHouse(opts = {}){
+  const o = Object.assign({
+    w: 1.8, d: 1.6, stories: 2,
+    wallColor: 0xe8d4a8,
+    beamColor: 0x4a3024,
+    roofColor: 0x6a3a20,
+    hasChimney: true,
+    hasTower: false,
+    hasBalcony: false,
+    overhang: 0.18,
+  }, opts);
+  const g = new THREE.Group();
+  const wallMat = mat(o.wallColor, {roughness:0.88});
+  const beamMat = mat(o.beamColor, {roughness:0.92});
+  const roofMat = mat(o.roofColor, {roughness:0.85});
+  // Stone foundation
+  const foundation = new THREE.Mesh(new THREE.BoxGeometry(o.w+0.16, 0.32, o.d+0.16), mat(0x6a5040, {roughness:0.95}));
+  foundation.position.y = 0.16;
+  foundation.castShadow = foundation.receiveShadow = true;
+  g.add(foundation);
+  // Stories
+  let storyW = o.w;
+  let storyD = o.d;
+  for(let s=0;s<o.stories;s++){
+    // upper stories overhang slightly (Anno style)
+    if(s>0){ storyW += o.overhang*0.5; storyD += o.overhang*0.5; }
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(storyW, 1.05, storyD), wallMat);
+    const y = 0.32 + s*1.05 + 0.525;
+    wall.position.y = y;
+    wall.castShadow = wall.receiveShadow = true;
+    g.add(wall);
+    // Timber framing (visible beams on each face)
+    // Vertical corner posts
+    const postH = 1.05;
+    for(const [dx, dz] of [[-storyW/2, -storyD/2],[storyW/2, -storyD/2],[-storyW/2, storyD/2],[storyW/2, storyD/2]]){
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.10, postH, 0.10), beamMat);
+      post.position.set(dx, y, dz);
+      post.castShadow = true;
+      g.add(post);
+    }
+    // Horizontal beams top + bottom
+    for(const yy of [y - postH/2 + 0.05, y + postH/2 - 0.05]){
+      const beamF = new THREE.Mesh(new THREE.BoxGeometry(storyW + 0.05, 0.10, 0.08), beamMat);
+      beamF.position.set(0, yy, storyD/2 + 0.005);
+      g.add(beamF);
+      const beamB = beamF.clone();
+      beamB.position.z = -storyD/2 - 0.005;
+      g.add(beamB);
+      const beamL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.10, storyD + 0.05), beamMat);
+      beamL.position.set(-storyW/2 - 0.005, yy, 0);
+      g.add(beamL);
+      const beamR = beamL.clone();
+      beamR.position.x = storyW/2 + 0.005;
+      g.add(beamR);
+    }
+    // Diagonal X-brace on front face
+    if(s < o.stories - 1 || o.stories === 1){
+      const diag1 = new THREE.Mesh(new THREE.BoxGeometry(storyW*0.7, 0.08, 0.06), beamMat);
+      diag1.position.set(0, y, storyD/2 + 0.01);
+      diag1.rotation.z = 0.6;
+      g.add(diag1);
+      const diag2 = diag1.clone();
+      diag2.rotation.z = -0.6;
+      g.add(diag2);
+    }
+    // Windows: 1-2 per face per story, with shutters
+    const winY = y;
+    const winCount = storyW > 1.7 ? 2 : 1;
+    for(let i=0;i<winCount;i++){
+      const wx = winCount===2 ? (i - 0.5)*storyW*0.5 : 0;
+      // front
+      const winF = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.32), mat(0xffe2a8, {emissive:0xffaa44, emissiveIntensity:0}));
+      winF.position.set(wx, winY, storyD/2 + 0.012);
+      winF.userData.lamp = true;
+      g.add(winF);
+      // window frame
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.38, 0.04), beamMat);
+      frame.position.set(wx, winY, storyD/2 + 0.005);
+      g.add(frame);
+      // shutters
+      for(const sx of [-1, 1]){
+        const sht = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.36, 0.025), mat(o.roofColor, {roughness:0.92}));
+        sht.position.set(wx + sx*0.20, winY, storyD/2 + 0.022);
+        g.add(sht);
+      }
+      // back
+      const winB = winF.clone();
+      winB.position.z = -storyD/2 - 0.012;
+      winB.rotation.y = Math.PI;
+      winB.userData.lamp = true;
+      g.add(winB);
+    }
+  }
+  // Door (bottom story front)
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.72, 0.05), mat(o.beamColor, {roughness:0.92}));
+  door.position.set(0, 0.32 + 0.36, storyD/2 + 0.012);
+  g.add(door);
+  // Door arch
+  const arch = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.05, 12, 1, false, 0, Math.PI), beamMat);
+  arch.position.set(0, 0.32 + 0.72, storyD/2 + 0.012);
+  arch.rotation.x = Math.PI/2;
+  g.add(arch);
+  // Roof: pointed gable, two sloped boxes meeting at ridge
+  const totalH = 0.32 + o.stories*1.05;
+  const roofW = storyW + o.overhang;
+  const roofD = storyD + o.overhang;
+  const roofH = roofD * 0.45;
+  // Two main slopes
+  const sloW = roofW + 0.1;
+  const sloLen = Math.hypot(roofD/2, roofH);
+  const angle = Math.atan2(roofH, roofD/2);
+  const slo1 = new THREE.Mesh(new THREE.BoxGeometry(sloW, 0.12, sloLen), roofMat);
+  slo1.position.set(0, totalH + roofH/2, roofD*0.25);
+  slo1.rotation.x = -angle;
+  slo1.castShadow = true;
+  g.add(slo1);
+  const slo2 = slo1.clone();
+  slo2.position.z = -roofD*0.25;
+  slo2.rotation.x = angle;
+  g.add(slo2);
+  // Triangle gables (front+back walls fill above story height)
+  const gableShape = new THREE.Shape();
+  gableShape.moveTo(-storyW/2, 0);
+  gableShape.lineTo(storyW/2, 0);
+  gableShape.lineTo(0, roofH);
+  gableShape.lineTo(-storyW/2, 0);
+  const gableGeo = new THREE.ShapeGeometry(gableShape);
+  const gableF = new THREE.Mesh(gableGeo, wallMat);
+  gableF.position.set(0, totalH, storyD/2);
+  g.add(gableF);
+  const gableB = gableF.clone();
+  gableB.position.z = -storyD/2;
+  gableB.rotation.y = Math.PI;
+  g.add(gableB);
+  // Ridge cap
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(roofW + 0.12, 0.14, 0.18), mat(0x2a1a10));
+  ridge.position.y = totalH + roofH;
+  g.add(ridge);
+  // Chimney
+  if(o.hasChimney){
+    const chim = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.55, 0.20), mat(0x5a4a3a));
+    chim.position.set(storyW*0.28, totalH + roofH*0.5 + 0.1, 0);
+    chim.castShadow = true;
+    g.add(chim);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.06, 0.26), mat(0x3a2a1a));
+    cap.position.set(storyW*0.28, totalH + roofH*0.5 + 0.4, 0);
+    g.add(cap);
+  }
+  // Side tower (optional)
+  if(o.hasTower){
+    const tH = totalH * 1.35;
+    const tw = storyW * 0.42;
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(tw, tH, tw), wallMat);
+    tower.position.set(-storyW*0.55, tH*0.5, 0);
+    tower.castShadow = tower.receiveShadow = true;
+    g.add(tower);
+    // tower corner posts
+    for(const [tx,tz] of [[-tw/2,-tw/2],[tw/2,-tw/2],[-tw/2,tw/2],[tw/2,tw/2]]){
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, tH, 0.08), beamMat);
+      post.position.set(-storyW*0.55 + tx, tH*0.5, tz);
+      g.add(post);
+    }
+    // tower window
+    const tw2 = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.30), mat(0xffe2a8, {emissive:0xffaa44, emissiveIntensity:0}));
+    tw2.position.set(-storyW*0.55, tH*0.7, tw/2 + 0.005);
+    tw2.userData.lamp = true;
+    g.add(tw2);
+    // tower roof (steep cone)
+    const tRoof = new THREE.Mesh(new THREE.ConeGeometry(tw*0.85, 1.0, 6), roofMat);
+    tRoof.position.set(-storyW*0.55, tH + 0.5, 0);
+    tRoof.castShadow = true;
+    g.add(tRoof);
+    const tFin = new THREE.Mesh(new THREE.SphereGeometry(0.06), mat(0xffb968, {emissive:0xffb968, emissiveIntensity:0.3}));
+    tFin.position.set(-storyW*0.55, tH + 1.05, 0);
+    g.add(tFin);
+  }
+  // Balcony (optional)
+  if(o.hasBalcony && o.stories > 1){
+    const bal = new THREE.Mesh(new THREE.BoxGeometry(o.w*0.7, 0.08, 0.5), mat(o.beamColor));
+    bal.position.set(0, 0.32 + 1.05 + 0.04, o.d/2 + 0.25);
+    bal.castShadow = bal.receiveShadow = true;
+    g.add(bal);
+    // rails
+    for(let i=0;i<5;i++){
+      const t = (i/4 - 0.5)*o.w*0.7;
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.30, 6), beamMat);
+      post.position.set(t, 0.32 + 1.05 + 0.23, o.d/2 + 0.49);
+      g.add(post);
+    }
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, o.w*0.7+0.05, 6), beamMat);
+    rail.rotation.z = Math.PI/2;
+    rail.position.set(0, 0.32 + 1.05 + 0.38, o.d/2 + 0.49);
+    g.add(rail);
+  }
+  return g;
+}
+
+// Stone watchtower — tall multi-story round tower
+function makeWatchtower(){
+  const g = new THREE.Group();
+  const stoneM = mat(0x8a7a64, {roughness:0.95});
+  const darkM = mat(0x5a4a3a, {roughness:0.95});
+  // base
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.0, 0.4, 12), darkM);
+  base.position.y = 0.2; base.castShadow=base.receiveShadow=true;
+  g.add(base);
+  // main shaft (4 sections)
+  for(let i=0;i<4;i++){
+    const sec = new THREE.Mesh(new THREE.CylinderGeometry(0.72 - i*0.05, 0.78 - i*0.05, 1.2, 12), stoneM);
+    sec.position.y = 0.4 + i*1.2 + 0.6;
+    sec.castShadow = true;
+    g.add(sec);
+    // ring at top of each section
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.80 - i*0.05, 0.78 - i*0.05, 0.10, 12), darkM);
+    ring.position.y = 0.4 + (i+1)*1.2 - 0.05;
+    g.add(ring);
+    // arrow slit per face
+    for(let s=0;s<4;s++){
+      const ang = (s/4)*Math.PI*2;
+      const slit = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.40),
+        mat(0xffe2a8, {emissive:0xffaa44, emissiveIntensity:0}));
+      slit.position.set(Math.sin(ang)*(0.74 - i*0.05), 0.4 + i*1.2 + 0.6, Math.cos(ang)*(0.74 - i*0.05));
+      slit.lookAt(0, slit.position.y, 0); slit.rotation.y += Math.PI;
+      slit.userData.lamp = true;
+      g.add(slit);
+    }
+  }
+  // crenellated top
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.18, 12), stoneM);
+  top.position.y = 0.4 + 4*1.2 + 0.09; top.castShadow=true;
+  g.add(top);
+  // 8 crenellations
+  for(let i=0;i<8;i++){
+    const ang = (i/8)*Math.PI*2;
+    const cren = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.30, 0.18), stoneM);
+    cren.position.set(Math.sin(ang)*0.78, 0.4 + 4*1.2 + 0.18 + 0.15, Math.cos(ang)*0.78);
+    cren.lookAt(0, cren.position.y, 0);
+    g.add(cren);
+  }
+  // flag pole + flag
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.8, 6), darkM);
+  pole.position.y = 0.4 + 4*1.2 + 0.18 + 0.4;
+  g.add(pole);
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 0.22), mat(0xb04030));
+  flag.position.set(0.18, 0.4 + 4*1.2 + 0.18 + 0.55, 0);
+  flag.userData.flag = true;
+  g.add(flag);
+  return g;
+}
+
+// Church/cathedral — gothic with tall spire
+function makeChurch(){
+  const g = new THREE.Group();
+  const stoneM = mat(0xb0a48a, {roughness:0.9});
+  const darkM = mat(0x5a4a3a);
+  const roofM = mat(0x4a4a6a);
+  // nave (main hall)
+  const nave = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.4, 4.5), stoneM);
+  nave.position.y = 1.2; nave.castShadow = nave.receiveShadow = true;
+  g.add(nave);
+  // nave roof (steep gabled)
+  for(const dx of [-1, 1]){
+    const slope = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 4.5), roofM);
+    slope.position.set(dx*0.7, 3.0, 0);
+    slope.rotation.z = dx*0.6;
+    slope.castShadow = true;
+    g.add(slope);
+  }
+  // Gothic windows on side
+  for(let i=0;i<3;i++){
+    const wz = (i-1)*1.4;
+    for(const dx of [-1, 1]){
+      const winShape = new THREE.Shape();
+      winShape.moveTo(-0.2, 0);
+      winShape.lineTo(0.2, 0);
+      winShape.lineTo(0.2, 0.8);
+      winShape.bezierCurveTo(0.2, 1.1, -0.2, 1.1, -0.2, 0.8);
+      winShape.lineTo(-0.2, 0);
+      const winGeo = new THREE.ShapeGeometry(winShape);
+      const win = new THREE.Mesh(winGeo, mat(0xffe2a8, {emissive:0xffaa44, emissiveIntensity:0}));
+      win.position.set(dx*1.31, 1.0, wz);
+      win.rotation.y = dx > 0 ? -Math.PI/2 : Math.PI/2;
+      win.userData.lamp = true;
+      g.add(win);
+    }
+  }
+  // Bell tower (front)
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(1.6, 4.2, 1.6), stoneM);
+  tower.position.set(0, 2.1, 2.5);
+  tower.castShadow = true;
+  g.add(tower);
+  // Bell-tower window
+  for(const dx of [-1, 1]){
+    const arch = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.55), mat(0xffe2a8, {emissive:0xffaa44, emissiveIntensity:0}));
+    arch.position.set(dx*0.81, 3.4, 2.5);
+    arch.rotation.y = dx > 0 ? -Math.PI/2 : Math.PI/2;
+    arch.userData.lamp = true;
+    g.add(arch);
+  }
+  // Front entrance arch
+  const ent = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.06), mat(0x4a2a18));
+  ent.position.set(0, 0.6, 3.3);
+  g.add(ent);
+  // Steeple
+  const steeple = new THREE.Mesh(new THREE.ConeGeometry(1.0, 2.2, 6), roofM);
+  steeple.position.set(0, 5.3, 2.5);
+  steeple.castShadow = true;
+  g.add(steeple);
+  // Cross on steeple
+  const cv = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.30, 0.04), mat(0xffd680, {emissive:0xffb968, emissiveIntensity:0.3}));
+  cv.position.set(0, 6.55, 2.5);
+  g.add(cv);
+  const ch = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.04), mat(0xffd680, {emissive:0xffb968, emissiveIntensity:0.3}));
+  ch.position.set(0, 6.6, 2.5);
+  g.add(ch);
+  return g;
+}
+
+// Fountain (replaces well at plaza center)
+function makeFountain(){
+  const g = new THREE.Group();
+  const stoneM = mat(0x9c9078, {roughness:0.9});
+  const stoneD = mat(0x6a5a4a, {roughness:0.95});
+  // octagonal basin
+  const basin = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.5, 0.5, 8), stoneM);
+  basin.position.y = 0.25; basin.castShadow=basin.receiveShadow=true;
+  g.add(basin);
+  // inner rim
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(1.32, 1.32, 0.10, 8), stoneD);
+  rim.position.y = 0.45; g.add(rim);
+  // water
+  const water = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 0.05, 16),
+    new THREE.MeshStandardMaterial({color:0x4a8aae, transparent:true, opacity:0.86, roughness:0.05, metalness:0.2, envMapIntensity:1.6}));
+  water.position.y = 0.48;
+  g.add(water);
+  // central column
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.0, 12), stoneM);
+  col.position.y = 1.0;
+  col.castShadow = true;
+  g.add(col);
+  // mid bowl
+  const midBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.4, 0.10, 12), stoneM);
+  midBowl.position.y = 1.55;
+  g.add(midBowl);
+  // upper column
+  const colTop = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.5, 8), stoneM);
+  colTop.position.y = 1.85; colTop.castShadow = true;
+  g.add(colTop);
+  // top finial (statue stand-in)
+  const stat = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.30, 6), stoneM);
+  stat.position.y = 2.20;
+  g.add(stat);
+  // water spouts (4 jets)
+  for(let i=0;i<4;i++){
+    const ang = (i/4)*Math.PI*2 + Math.PI/4;
+    const jet = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.015, 0.5, 6),
+      mat(0xa0c8e0, {emissive:0xa0c8e0, emissiveIntensity:0.4, transparent:true, opacity:0.7}));
+    jet.position.set(Math.sin(ang)*0.4, 1.3, Math.cos(ang)*0.4);
+    jet.rotation.set(Math.sin(ang)*0.5, ang, Math.cos(ang)*0.5);
+    g.add(jet);
+  }
+  return g;
+}
+
+// Stone archway (gate)
+function makeArchway(){
+  const g = new THREE.Group();
+  const stoneM = mat(0xb0a48a, {roughness:0.92});
+  // 2 piers
+  for(const dx of [-1.0, 1.0]){
+    const pier = new THREE.Mesh(new THREE.BoxGeometry(0.42, 2.4, 0.42), stoneM);
+    pier.position.set(dx, 1.2, 0);
+    pier.castShadow=pier.receiveShadow=true;
+    g.add(pier);
+    // pier cap
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.55), mat(0x5a4a3a));
+    cap.position.set(dx, 2.5, 0);
+    g.add(cap);
+  }
+  // arch (half torus)
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.18, 8, 16, Math.PI), stoneM);
+  arch.position.y = 2.4;
+  arch.rotation.z = Math.PI;
+  arch.castShadow = true;
+  g.add(arch);
+  // keystone
+  const ks = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.32, 0.4), mat(0x5a4a3a));
+  ks.position.y = 3.4;
+  g.add(ks);
+  // crown
+  const crown = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.25, 0.55), stoneM);
+  crown.position.y = 3.65;
+  g.add(crown);
+  return g;
+}
+
+// Windmill (small)
+function makeWindmill(){
+  const g = new THREE.Group();
+  const stoneM = mat(0xb89878, {roughness:0.9});
+  const woodM = mat(0x6a4a2a);
+  // round tower
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, 2.4, 12), stoneM);
+  tower.position.y = 1.2; tower.castShadow=tower.receiveShadow=true;
+  g.add(tower);
+  // cap
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.85, 0.6, 8), mat(0x5a4a3a));
+  cap.position.y = 2.7; cap.castShadow=true;
+  g.add(cap);
+  // door
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.8), woodM);
+  door.position.set(0, 0.4, 0.71);
+  g.add(door);
+  // window
+  const win = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.28), mat(0xffe2a8, {emissive:0xffaa44, emissiveIntensity:0}));
+  win.position.set(0, 1.6, 0.81);
+  win.userData.lamp = true;
+  g.add(win);
+  // hub + 4 sails
+  const hubGroup = new THREE.Group();
+  hubGroup.position.set(0, 2.4, 0.85);
+  const hub = new THREE.Mesh(new THREE.SphereGeometry(0.10, 12, 8), woodM);
+  hubGroup.add(hub);
+  for(let i=0;i<4;i++){
+    const sail = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 1.4), mat(0xe8dcb8));
+    sail.material.side = THREE.DoubleSide;
+    sail.position.set(0, 0.75, 0);
+    const arm = new THREE.Group();
+    arm.add(sail);
+    arm.rotation.z = (i/4)*Math.PI*2;
+    hubGroup.add(arm);
+  }
+  hubGroup.userData.rotateZ = 0.4;  // rotate around Z
+  g.add(hubGroup);
+  g.userData.mill = hubGroup;
+  return g;
+}
+
 /* === Multi-level terrain helpers ========================= */
 // Stone stairs from a low point to a high point (along +z direction)
 function makeStairs(count = 4, width = 1.8, stepHeight = 0.22, stepDepth = 0.4){
@@ -1533,7 +2015,7 @@ function sampleHeightFor(root, x, z){
   const g = root.userData.ground;
   if(!g) return 0;
   _rayDown.set(new THREE.Vector3(x, 30, z), _down);
-  const hits = _rayDown.intersectObject(g);
+  const hits = _rayDown.intersectObject(g, true);
   return hits.length ? hits[0].point.y : 0;
 }
 
@@ -1840,6 +2322,7 @@ setLoad(0.45, 'AVATAR');
 /* NPC chibi =============================================== */
 function makeNpc(bodyColor, hairColor){
   const g = new THREE.Group();
+  g.visible = false;   // user removed NPCs (no walking characters)
   const skin = mat(0xf2cba5, {roughness:0.65});
   const cloth = mat(bodyColor);
   const pants = mat(0x2a1a14);
@@ -1909,7 +2392,7 @@ function palSnow(x, z, y, r, c){
 // Scene state
 let currentScene = null;
 const SCENES = {};
-const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], lampLights: [], boats: [], hourhands: [], minhands: [], bobs: [], spins: [] };
+const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], lampLights: [], boats: [], hourhands: [], minhands: [], bobs: [], spins: [], mills: [], flags: [] };
 function clearScene(){
   if(!currentScene) return;
   // Dispose all children of currentScene.root
@@ -1933,6 +2416,8 @@ function clearScene(){
   ENTITIES.minhands.length = 0;
   ENTITIES.bobs.length = 0;
   ENTITIES.spins.length = 0;
+  ENTITIES.mills.length = 0;
+  ENTITIES.flags.length = 0;
   TREE_GROUPS.length = 0;
   densifyWindUniforms.length = 0;
 }
@@ -1982,11 +2467,10 @@ const _rayDown = new THREE.Raycaster();
 const _down = new THREE.Vector3(0,-1,0);
 function sampleHeight(x, z){
   if(!currentScene || !currentScene.root) return 0;
-  // find ground mesh in current scene
   const ground = currentScene.root.userData.ground;
   if(!ground) return 0;
   _rayDown.set(new THREE.Vector3(x, 30, z), _down);
-  const hits = _rayDown.intersectObject(ground);
+  const hits = _rayDown.intersectObject(ground, true);
   return hits.length ? hits[0].point.y : 0;
 }
 
@@ -1995,204 +2479,287 @@ function sampleHeight(x, z){
 // 1. 入口の井戸
 SCENES.plaza = {
   num: '00', kind: 'plaza',
-  title: '入口の井戸', en: 'The Well at Centre',
-  concept: '九つの場所への入口。中央に古井戸。覗き込むほど、訪れた場所が増えていく。',
+  title: '城下町', en: 'The Castle Town',
+  concept: '段差のあるキューブ大地に密集する中世風の町。噴水・教会・物見櫓・風車・市場・古民家がひしめく。',
   sun: [55, -25], turbidity:3.5, rayleigh:1.8,
-  fogColor:'#cce0e8', fogNear:22, fogFar:60, exposure:1.08,
+  fogColor:'#cce0e8', fogNear:30, fogFar:80, exposure:1.08,
   avatarStart: [0, 8],
   build(root){
-    const hf = (x,z)=>0;
-    const ground = terrainDisc(SCENE_RADIUS, hf, palStone);
-    ground.material.map = STONE_TEX;
-    root.add(ground); root.userData.ground = ground;
-    // Plaza paving ring
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0, SCENE_RADIUS*0.85, 36, 1).rotateX(-Math.PI/2),
-      new THREE.MeshStandardMaterial({color:0xddccaa, roughness:0.85, transparent:true, opacity:0.55}));
-    ring.position.y = 0.01; root.add(ring);
-    // Well at centre
-    const well = makeWell();
-    root.add(well);
-    // 4 kominka at compass points + engawa (wooden veranda) facing the well
-    const compass = [[-7,-7,Math.PI*0.25,0x4a3024],[7,-7,-Math.PI*0.25,0x5a3a24],[-7,7,-Math.PI*0.25,0x3a2a1a],[7,7,Math.PI*0.25,0x4a3a24]];
-    for(const [x,z,rot,rc] of compass){
-      const k = makeKominka(rc); k.position.set(x,0,z); k.rotation.y = rot;
-      root.add(k);
-      // Engawa attached on the side facing the centre (well)
-      const eng = makeEngawa(2.6, 0.95);
-      // place engawa on the centre-facing side of each kominka
-      const cx = -x*0.18, cz = -z*0.18;   // small offset toward centre
-      eng.position.set(x + cx, 0, z + cz);
-      eng.rotation.y = rot + Math.PI/2;   // align long edge with kominka wall
-      root.add(eng);
+    /* ─ Cube-platform terrain (Captain Toad style) ─
+       The world is a stack of solid platforms at different elevations.
+       Camera ortho sees them as crisp blocks with grass tops + stone sides.
+    */
+    const groundGroup = new THREE.Group();
+    root.add(groundGroup); root.userData.ground = groundGroup;
+
+    // Central plaza platform (low, large) — for fountain + market
+    const central = makePlatformChunk(11, 0.5, 11, 'stone');
+    central.position.set(0, 0, 0);
+    groundGroup.add(central);
+
+    // 4 quadrant platforms — each elevated ~+0.7, hosts dense buildings
+    const quadH = 1.2;
+    const quads = [
+      { x: -8.5, z: -8.5, w: 7, d: 7, theme: 'grass' },
+      { x:  8.5, z: -8.5, w: 7, d: 7, theme: 'grass' },
+      { x: -8.5, z:  8.5, w: 7, d: 7, theme: 'grass' },
+      { x:  8.5, z:  8.5, w: 7, d: 7, theme: 'grass' },
+    ];
+    for(const q of quads){
+      const p = makePlatformChunk(q.w, quadH, q.d, q.theme);
+      p.position.set(q.x, 0, q.z);
+      groundGroup.add(p);
     }
-    // Stepping stones from each kominka engawa to the central well
-    for(const [x,z] of [[-5,-5],[5,-5],[-5,5],[5,5]]){
-      const dx = -x/4, dz = -z/4;
-      const stones = [];
-      for(let i=1;i<=4;i++){
-        const t = i/5;
-        const sx = x*(1-t);
-        const sz = z*(1-t);
-        stones.push([sx, sz, 0.9 + Math.random()*0.2]);
+    // 4 mid-bridge platforms (narrower, link central to quadrants)
+    const links = [
+      { x: -6, z:  0, w: 3, d: 4, h: 0.9 },
+      { x:  6, z:  0, w: 3, d: 4, h: 0.9 },
+      { x:  0, z: -6, w: 4, d: 3, h: 0.9 },
+      { x:  0, z:  6, w: 4, d: 3, h: 0.9 },
+    ];
+    for(const l of links){
+      const p = makePlatformChunk(l.w, l.h, l.d, 'stone');
+      p.position.set(l.x, 0, l.z);
+      groundGroup.add(p);
+    }
+    // 4 corner pillars (tallest, for towers / trees)
+    const pillars = [
+      { x: -12, z: -12, h: 2.0 },
+      { x:  12, z: -12, h: 2.0 },
+      { x: -12, z:  12, h: 2.0 },
+      { x:  12, z:  12, h: 2.0 },
+    ];
+    for(const pi of pillars){
+      const p = makePlatformChunk(3, pi.h, 3, 'stone');
+      p.position.set(pi.x, 0, pi.z);
+      groundGroup.add(p);
+    }
+    // Ramps connecting central to each link platform
+    const ramps = [
+      { x: -3.0, z:  0, len: 2.4, w: 1.4, from: 0.5, to: 0.9, ry: Math.PI/2 },
+      { x:  3.0, z:  0, len: 2.4, w: 1.4, from: 0.5, to: 0.9, ry: -Math.PI/2 },
+      { x:  0, z: -3.0, len: 2.4, w: 1.4, from: 0.5, to: 0.9, ry: 0 },
+      { x:  0, z:  3.0, len: 2.4, w: 1.4, from: 0.5, to: 0.9, ry: Math.PI },
+    ];
+    for(const r of ramps){
+      const ramp = makeRamp(r.w, r.len, r.from, r.to, 'stone');
+      ramp.position.set(r.x, 0, r.z);
+      ramp.rotation.y = r.ry;
+      groundGroup.add(ramp);
+    }
+    // Stone stairs from each link platform up to quadrants
+    for(const [qx, qz, lx, lz] of [
+      [-8.5,-8.5, -5.0,-1.5], [ 8.5,-8.5,  5.0,-1.5],
+      [-8.5, 8.5, -5.0, 1.5], [ 8.5, 8.5,  5.0, 1.5],
+    ]){
+      const steps = makeStairs(2, 1.2, 0.18, 0.4);
+      // direction from link to quad
+      const dx = qx-lx, dz = qz-lz;
+      steps.position.set((qx+lx)/2, 0.9, (qz+lz)/2);
+      steps.rotation.y = Math.atan2(dx, dz) + Math.PI;
+      groundGroup.add(steps);
+    }
+
+    /* ─ Central fountain (replaces the well at the heart of the town) ─ */
+    const fountain = makeFountain();
+    fountain.position.set(0, 0.5, 0);
+    root.add(fountain);
+
+    /* ─ Watchtower on a corner pillar (tall stone tower with flag) ─ */
+    const tower = makeWatchtower();
+    tower.position.set(-12, 2.0, -12);
+    root.add(tower);
+    tower.traverse(o=>{
+      if(o.userData?.flag) ENTITIES.flags.push(o);
+      if(o.userData?.lamp) ENTITIES.lamps.push(o);
+    });
+
+    /* ─ Church/cathedral on opposite corner pillar ─ */
+    const church = makeChurch();
+    church.position.set(12, 2.0, 12);
+    church.rotation.y = -Math.PI*0.7;
+    church.scale.setScalar(0.85);
+    root.add(church);
+    church.traverse(o=>{
+      if(o.userData?.lamp) ENTITIES.lamps.push(o);
+    });
+
+    /* ─ Windmill on third corner pillar ─ */
+    const mill = makeWindmill();
+    mill.position.set(12, 2.0, -12);
+    root.add(mill);
+    if(mill.userData.mill){
+      mill.userData.mill.userData.rotateZ = 0.4;
+      ENTITIES.mills.push(mill.userData.mill);
+    }
+    mill.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+
+    /* ─ Big townhouse cluster on the 4th corner pillar ─ */
+    const bigHouse = makeMedievalHouse({ w:1.8, d:1.6, stories:3, hasTower:true, hasBalcony:true,
+      wallColor:0xe8d4a8, beamColor:0x3a2418, roofColor:0x7a3a1a });
+    bigHouse.position.set(-12, 2.0, 12);
+    bigHouse.rotation.y = -Math.PI/4;
+    root.add(bigHouse);
+    bigHouse.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+
+    /* ─ DENSE PACKED HOUSES on each quadrant platform (16 houses total) ─ */
+    const houseVariants = [
+      { w:1.5, d:1.3, stories:2, wallColor:0xe8d4a8, beamColor:0x3a2418, roofColor:0x7a3a1a, hasChimney:true },
+      { w:1.7, d:1.4, stories:2, wallColor:0xd8c89a, beamColor:0x2a1810, roofColor:0x4a4a6a, hasChimney:true, hasBalcony:true },
+      { w:1.4, d:1.2, stories:3, wallColor:0xeacc94, beamColor:0x4a3024, roofColor:0x8a4a20, hasChimney:true },
+      { w:1.6, d:1.4, stories:2, wallColor:0xd0b888, beamColor:0x3a2418, roofColor:0x5a3a20, hasChimney:false, hasTower:true },
+    ];
+    // 4 houses per quadrant, tightly packed
+    for(const q of quads){
+      const housePositions = [
+        [-1.8, -1.8], [ 1.8, -1.8],
+        [-1.8,  1.8], [ 1.8,  1.8],
+      ];
+      for(let i=0;i<housePositions.length;i++){
+        const [dx, dz] = housePositions[i];
+        const v = houseVariants[(i + (q.x<0?1:0) + (q.z<0?2:0)) % houseVariants.length];
+        const h = makeMedievalHouse(v);
+        h.position.set(q.x + dx, quadH, q.z + dz);
+        // face center of quadrant
+        h.rotation.y = Math.atan2(-dx, -dz);
+        root.add(h);
+        h.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
       }
-      root.add(makeSteppingStones(stones));
     }
-    // 8 chochin lanterns around the well
-    for(let i=0;i<8;i++){
-      const ang = (i/8)*Math.PI*2;
-      const x = Math.sin(ang)*3.5, z = Math.cos(ang)*3.5;
-      const lp = makeLantern(0.7);
-      lp.position.set(x, 0, z);
-      root.add(lp);
-      ENTITIES.lamps.push(...lp.children.filter(c=>c.userData?.lamp));
-      if(lp.userData.lampLight) ENTITIES.lampLights.push(lp.userData.lampLight);
+
+    /* ─ 4 ARCHWAYS at outer entrances (compass points) ─ */
+    for(const [x,z,ry] of [[0,-13.5,0],[13.5,0,Math.PI/2],[0,13.5,0],[-13.5,0,Math.PI/2]]){
+      const ar = makeArchway();
+      ar.position.set(x, 0, z);
+      ar.rotation.y = ry;
+      ar.scale.setScalar(0.95);
+      root.add(ar);
     }
-    // 4 sakura at compass edges (between kominka)
-    for(const [x,z] of [[-9,0],[9,0],[0,-9],[0,9]]){
-      const t = makeTree('sakura'); t.position.set(x,0,z); t.scale.setScalar(1.3);
+
+    /* ─ MARKET STALLS along central plaza edges ─ */
+    for(const [x,z,ry] of [[-3.6,3.5,0.2],[3.6,3.5,-0.2],[-3.6,-3.5,Math.PI+0.2],[3.6,-3.5,Math.PI-0.2]]){
+      const ms = makeMarketStall();
+      ms.position.set(x, 0.5, z); ms.rotation.y = ry;
+      root.add(ms);
+    }
+
+    /* ─ TREES on the corner pillars + along outer ring ─ */
+    for(const [x,z,kind,s] of [
+      [-12, -10, 'pine', 1.5], [-10, -12, 'pine', 1.5],
+      [ 12, -10, 'sakura', 1.4], [ 10, -12, 'sakura', 1.4],
+      [-12,  10, 'momiji', 1.4], [-10,  12, 'momiji', 1.4],
+      [ 12,  10, 'broad', 1.3],  [ 10,  12, 'broad', 1.3],
+    ]){
+      const t = makeTree(kind); t.position.set(x, 2.0, z); t.scale.setScalar(s);
       root.add(t);
     }
-    // 4 tall pines deeper at edge
-    for(const [x,z] of [[-10,-4],[10,-4],[-10,4],[10,4]]){
-      const t = makeTree('pine'); t.position.set(x,0,z); t.scale.setScalar(1.5);
+    // ring of trees outside the platforms (decorative skirt)
+    for(let i=0;i<14;i++){
+      const ang = (i/14)*Math.PI*2;
+      const r = 13.5 + (i%2)*0.5;
+      const t = makeTree(['pine','momiji','broad','sakura'][i%4]);
+      t.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
+      t.scale.setScalar(1.2 + Math.random()*0.3);
       root.add(t);
     }
-    // Tsukubai water basin off to one side
-    const tk = makeTsukubai();
-    tk.position.set(-3.5, 0, -3.5);
-    root.add(tk);
-    // 2 stone groupings (triadic) at flanking positions
-    const sg1 = makeStoneGroup();
-    sg1.position.set(3.5, 0, -3.5); root.add(sg1);
-    const sg2 = makeStoneGroup();
-    sg2.position.set(-3.5, 0, 3.5); root.add(sg2);
-    // Azalea patches around the well
-    for(let i=0;i<6;i++){
-      const ang = (i/6)*Math.PI*2 + 0.3;
-      const r = 2.0;
-      const az = makeAzaleaPatch(4, [0xc8553d, 0xff8aa0, 0xd968a0][i%3]);
-      az.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      root.add(az);
-    }
-    // Bamboo fence between kominka (8 segments around the inner ring)
+
+    /* ─ DECORATIONS: barrels, baskets, signs, flower beds, lanterns ─ */
+    // Barrels + baskets near market stalls (8)
     for(let i=0;i<8;i++){
-      const ang = (i/8)*Math.PI*2 + Math.PI/8;
-      const r = 5.0;
-      const f = makeBambooFence(1.5);
-      f.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      f.rotation.y = ang + Math.PI/2;
-      root.add(f);
+      const ang = (i/8)*Math.PI*2 + 0.4;
+      const r = 4.6;
+      const b = (i%2 === 0 ? makeBarrel() : makeBasket());
+      b.position.set(Math.sin(ang)*r, 0.5, Math.cos(ang)*r);
+      root.add(b);
     }
-    // Mossy boulders scattered
-    for(let i=0;i<4;i++){
-      const ang = i/4*Math.PI*2 + 0.7;
-      const r = 7.5;
-      const rock = makeRock(Math.random, 1.3);
-      rock.position.set(Math.sin(ang)*r + 0.5, 0, Math.cos(ang)*r);
-      root.add(rock);
+    // 4 Jizo statues at the central platform edges
+    for(const [x,z] of [[-4.5,-4.5],[4.5,-4.5],[-4.5,4.5],[4.5,4.5]]){
+      const j = makeStoneStatue();
+      j.position.set(x, 0.5, z);
+      root.add(j);
     }
-    // Market stalls
-    const ms1 = makeMarketStall(); ms1.position.set(-3.5, 0, 7); ms1.rotation.y = -0.3; root.add(ms1);
-    const ms2 = makeMarketStall(); ms2.position.set(3.5, 0, 7); ms2.rotation.y = 0.3; root.add(ms2);
-    // Teahouse off-side
-    const th1 = makeTeahouse(); th1.position.set(-9, 0, -1); th1.rotation.y = Math.PI/2; root.add(th1);
-    // Wood storage
-    const ws1 = makeWoodshed(); ws1.position.set(9, 0, -1); ws1.rotation.y = -Math.PI/2; root.add(ws1);
-    // 4 Jizo statues at compass approaches
-    for(const [x,z] of [[-1.5,11.5],[1.5,11.5],[-11.5,1.5],[11.5,1.5]]){
-      const j = makeStoneStatue(); j.position.set(x, 0, z); root.add(j);
-    }
-    // Barrels around market
-    for(const [x,z] of [[-4.5,6.5],[-3,8],[3,8],[4.5,6.5]]){
-      const b = makeBarrel(); b.position.set(x,0,z); root.add(b);
-    }
-    // Baskets
-    for(const [x,z] of [[-3.8,7.2],[-2.7,7.4],[2.7,7.4],[3.8,7.2]]){
-      const b = makeBasket(); b.position.set(x,0,z); root.add(b);
-    }
-    // Buckets near well
-    for(const [x,z] of [[1.2,0.5],[-1.2,0.5],[0.5,1.3]]){
-      const b = makeBucket(); b.position.set(x,0,z); root.add(b);
-    }
-    // Signs
-    const sn1 = makeSign('市'); sn1.position.set(-2, 0, 8.5); root.add(sn1);
-    const sn2 = makeSign('茶'); sn2.position.set(-7.5, 0, -1); root.add(sn2);
-    const sn3 = makeSign('薪'); sn3.position.set(7.5, 0, -1); root.add(sn3);
-    // Flower beds
-    for(const [x,z] of [[-5.5,2.5],[5.5,2.5],[-5.5,-2.5],[5.5,-2.5],[-2.5,5.5],[2.5,5.5]]){
-      const fb = makeFlowerBed(); fb.position.set(x,0,z); root.add(fb);
-    }
-    // Hanging chochin between kominka — paper lanterns ringed
-    for(let i=0;i<12;i++){
-      const ang = (i/12)*Math.PI*2;
-      const r = 8.5;
-      const ch = new THREE.Group();
-      const paper = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8),
+    // 6 hanging chochin lanterns across the central plaza
+    for(let i=0;i<10;i++){
+      const ang = (i/10)*Math.PI*2;
+      const r = 4.2;
+      const paper = new THREE.Mesh(new THREE.SphereGeometry(0.20, 12, 8),
         mat(0xf6d28a, {emissive:0xffaa44, emissiveIntensity:0}));
       paper.scale.y = 1.3;
       paper.userData.lamp = true;
-      ch.add(paper);
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.10, 0.04, 8), mat(0x4a2010));
-      cap.position.y = 0.24; ch.add(cap);
-      ch.position.set(Math.sin(ang)*r, 3.5, Math.cos(ang)*r);
-      root.add(ch);
+      paper.position.set(Math.sin(ang)*r, 3.6, Math.cos(ang)*r);
+      root.add(paper);
       ENTITIES.lamps.push(paper);
     }
-    // NPCs walking around the plaza (more, 8 total)
-    const npcColors = [0xb04030,0x3e6a89,0x5a7a3d,0xc2956a,0x7a3a3a,0x4a6a8a,0x8a5a3a,0xc8553d];
-    for(let i=0;i<8;i++){
-      const ang = (i/8)*Math.PI*2;
-      const n = makeNpc(npcColors[i], 0x1a1410);
-      const r0 = 4 + (i%2)*2;
-      n.position.set(Math.sin(ang)*r0, 0, Math.cos(ang)*r0);
-      n.userData.path = [
-        [Math.sin(ang)*r0, Math.cos(ang)*r0],
-        [Math.sin(ang+1.2)*r0, Math.cos(ang+1.2)*r0],
-        [Math.sin(ang+2.4)*r0, Math.cos(ang+2.4)*r0],
-      ];
-      n.userData.wp = 0;
-      n.userData.speed = 0.5 + Math.random()*0.4;
-      root.add(n);
-      ENTITIES.npcs.push(n);
+    // Stone lanterns flanking the archways
+    for(const [x,z] of [[-1.8,-12],[1.8,-12],[12,-1.8],[12,1.8],[-1.8,12],[1.8,12],[-12,-1.8],[-12,1.8]]){
+      const sl = makeStoneLantern();
+      sl.position.set(x, 0, z);
+      root.add(sl);
+      if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
+      sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
     }
-    // 2 static NPCs at market stalls
-    for(let i=0;i<2;i++){
-      const n = makeNpc([0xc83a30, 0x3a6a8a][i], 0x1a1410);
-      n.position.set([-3.5, 3.5][i], 0, 6);
-      n.userData.path = [[[-3.5,6],[3.5,6]][i],[[-3.5,6],[3.5,6]][i]];
-      n.userData.wp = 0; n.userData.speed = 0;
-      root.add(n);
-      ENTITIES.npcs.push(n);
+    // Flower beds along the central plaza edges
+    for(const [x,z] of [[-3,3],[3,3],[-3,-3],[3,-3],[0,4.5],[0,-4.5]]){
+      const fb = makeFlowerBed();
+      fb.position.set(x, 0.5, z);
+      root.add(fb);
     }
-    /* ── RPG gimmicks ── */
-    // 4 directional signposts at path entrances
-    for(const [x,z,r,t] of [[0,12.5,0,'庭'],[12.5,0,Math.PI/2,'湖'],[0,-12.5,Math.PI,'森'],[-12.5,0,-Math.PI/2,'祠']]){
-      const sp = makeSignpost(t);
-      sp.position.set(x, 0, z); sp.rotation.y = r;
-      root.add(sp);
+    // Wooden carts (small detail)
+    for(const [x,z,ry] of [[2.5,-2.0, 0.5],[-2.5, 2.0, -0.5]]){
+      const cart = new THREE.Group();
+      const bed = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.18, 0.7), mat(0x8a5a3a));
+      bed.position.y = 0.3; bed.castShadow=true; cart.add(bed);
+      // wheels
+      for(const dx of [-0.4, 0.4]){
+        for(const dz of [-0.3, 0.3]){
+          const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.06, 12), mat(0x4a3024));
+          wh.rotation.z = Math.PI/2;
+          wh.position.set(dx, 0.18, dz);
+          cart.add(wh);
+        }
+      }
+      // load
+      for(let k=0;k<3;k++){
+        const sack = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), mat(0xd9b078));
+        sack.scale.set(1, 0.7, 0.9);
+        sack.position.set(-0.2 + k*0.2, 0.5, 0);
+        cart.add(sack);
+      }
+      cart.position.set(x, 0.5, z); cart.rotation.y = ry;
+      root.add(cart);
     }
-    // Treasure chest behind a kominka
+
+    /* ─ RPG gimmicks ─ */
+    // Treasure chest near windmill
     const chest = makeChest();
-    chest.position.set(-9, 0, -8);
-    chest.rotation.y = 0.3;
+    chest.position.set(11.8, 2.0, -11.5);
+    chest.rotation.y = 0.5;
     root.add(chest);
     if(chest.userData.bob){
       chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
       ENTITIES.bobs.push(chest.userData.bob);
     }
-    // Magic orb beside the well (RPG vibe)
-    const orb = makeMagicOrb(0x6BE0FF);
-    orb.position.set(2.5, 0, 0);
+    // Magic orb on church corner
+    const orb = makeMagicOrb(0xc090ff);
+    orb.position.set(11.8, 2.0, 11.5);
     root.add(orb);
     if(orb.userData.orb){
       orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
       ENTITIES.bobs.push(orb.userData.orb);
     }
-    // Crystal cluster near a sakura
-    const cr = makeCrystal(0xff9ad0);
-    cr.position.set(9, 0, 8);
+    // Crystal at townhouse base
+    const cr = makeCrystal(0x6BE0FF);
+    cr.position.set(-11.8, 2.0, 11.5);
+    cr.scale.setScalar(0.7);
     root.add(cr);
     ENTITIES.spins.push(cr);
+    // 4 directional signposts at the archways
+    for(const [x,z,ry,t] of [[0,-12,0,'森'],[12,0,Math.PI/2,'湖'],[0,12,Math.PI,'丘'],[-12,0,-Math.PI/2,'祠']]){
+      const sp = makeSignpost(t);
+      sp.position.set(x*0.85, 0.5, z*0.85);
+      sp.rotation.y = ry;
+      root.add(sp);
+    }
     densifyGround(root, 'grass');
   }
 };
@@ -3672,6 +4239,14 @@ function animate(){
   // spinning gimmicks (crystals)
   for(const s of ENTITIES.spins){
     s.rotation.y = t*0.6;
+  }
+  // windmill sails
+  for(const m of ENTITIES.mills){
+    m.rotation.z = t * (m.userData.rotateZ || 0.4);
+  }
+  // flag waves
+  for(const f of ENTITIES.flags){
+    f.rotation.y = Math.sin(t*2.5)*0.3;
   }
   // NPC walk
   for(const n of ENTITIES.npcs){
