@@ -2664,22 +2664,29 @@ SCENES.plaza = {
   fogColor:'#a0c4ce', fogNear:40, fogFar:120, exposure:1.05,
   avatarStart: [0, 6],
   build(root){
-    /* ─ Natural rolling heightmap with a coastal cliff (no cube platforms) ─ */
+    /* ─ Natural rolling heightmap with WALKABLE FLAT PADS at landmarks
+         (per codex review — church/tower/mill need pads, not isolated peaks) ─ */
     const hf = (x, z)=>{
-      // gentle hills
-      let h = Math.sin(x*0.32)*0.35 + Math.cos(z*0.28)*0.30 + Math.sin((x+z)*0.18)*0.20;
-      // central village mound
-      const dCenter = Math.hypot(x, z);
-      if(dCenter < 7) h += (1 - dCenter/7) * 0.6;
-      // church hill (NE)
-      const dChurch = Math.hypot(x-8, z-8);
-      if(dChurch < 5) h += (1 - dChurch/5) * 2.2;
-      // watchtower hill (NW)
-      const dTower = Math.hypot(x+8, z-8);
-      if(dTower < 4) h += (1 - dTower/4) * 1.8;
-      // coastal cliff drop (east edge)
-      if(x > 9) h -= (x-9)*0.6;
-      if(x > 12) h -= 1.0;
+      // gentle base hills (subtle)
+      let h = Math.sin(x*0.28)*0.18 + Math.cos(z*0.24)*0.14 + Math.sin((x+z)*0.15)*0.12;
+      // Village core: nearly flat market common (radius 3.0) at (0,0)
+      const dCore = Math.hypot(x, z);
+      if(dCore < 3.0) h *= 0.15;
+      // Church terrace at (7.2, 7.0) radius 2.8 — flat raised pad
+      const dCh = Math.hypot(x-7.2, z-7.0);
+      if(dCh < 2.8){ h = 1.6; }
+      else if(dCh < 4.5){ h = 1.6 - ((dCh-2.8)/1.7)*1.0; }   // gentle slope down
+      // Tower pad at (-8, 7.2) radius 2.0
+      const dTw = Math.hypot(x+8, z-7.2);
+      if(dTw < 2.0){ h = 1.4; }
+      else if(dTw < 3.4){ h = 1.4 - ((dTw-2.0)/1.4)*0.9; }
+      // Mill farm pad at (-8, -7.4) radius 2.4
+      const dMl = Math.hypot(x+8, z+7.4);
+      if(dMl < 2.4){ h = 1.1; }
+      else if(dMl < 4.0){ h = 1.1 - ((dMl-2.4)/1.6)*0.7; }
+      // Coastal cliff on east
+      if(x > 9) h -= (x-9)*0.5;
+      if(x > 11.5) h -= 0.8;
       return h;
     };
     const groundC = terrainDisc(SCENE_RADIUS, hf, (x,z,y,r,c)=>{
@@ -2706,33 +2713,34 @@ SCENES.plaza = {
       root.add(rk);
     }
 
-    /* ─ KEY BUILDINGS placed in natural clearings (not on platforms) ─ */
-    // Church on NE hill
+    /* ─ KEY BUILDINGS on FLAT PADS (per codex: walkable, connected terrain) ─ */
+    // Church on NE flat terrace
     const church = makeChurch();
-    church.position.set(8, hf(8,8), 8);
+    church.position.set(7.2, hf(7.2,7.0), 7.0);
     church.rotation.y = -Math.PI*0.6;
     church.scale.setScalar(0.85);
     root.add(church);
     church.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    // Watchtower on NW hill
+    // Watchtower on NW flat pad
     const tower = makeWatchtower();
-    tower.position.set(-8, hf(-8,8), 8);
+    tower.position.set(-8, hf(-8,7.2), 7.2);
     root.add(tower);
     tower.traverse(o=>{
       if(o.userData?.flag) ENTITIES.flags.push(o);
       if(o.userData?.lamp) ENTITIES.lamps.push(o);
     });
-    // Windmill on a hilltop (SW)
+    // Windmill on SW farm pad
     const mill = makeWindmill();
-    mill.position.set(-8, hf(-8,-8), -8);
+    mill.position.set(-8, hf(-8,-7.4), -7.4);
     root.add(mill);
     if(mill.userData.mill){
       mill.userData.mill.userData.rotateZ = 0.4;
       ENTITIES.mills.push(mill.userData.mill);
     }
 
-    /* ─ MEDIEVAL VILLAGE — 14 houses clustered around the central mound ─
-       Tight packing like the Anno reference image. Houses face inward.
+    /* ─ MEDIEVAL VILLAGE — 10 houses in 3 CLUSTERS WITH YARDS (per codex) ─
+       South cottages (4), West homes (3), East homes (3) — each facing the
+       village lane that loops through them. No more crowding the center.
     */
     const houseVariants = [
       { w:1.5, d:1.3, stories:2, wallColor:0xe8d4a8, beamColor:0x3a2418, roofColor:0x7a3a1a, hasChimney:true },
@@ -2742,17 +2750,19 @@ SCENES.plaza = {
       { w:1.5, d:1.3, stories:2, wallColor:0xc8b888, beamColor:0x3a2418, roofColor:0x6a4a3a, hasChimney:true, hasBalcony:true },
     ];
     const housePositions = [
-      [-3.0, -2.0], [-1.0, -2.4], [ 1.0, -2.4], [ 3.0, -2.0],
-      [-3.4, -0.2], [ 3.4, -0.2],
-      [-3.4,  2.0], [-1.0,  2.4], [ 1.0,  2.4], [ 3.4,  2.0],
-      [-5.0, -1.0], [ 5.0, -1.0], [-5.0,  2.5], [ 5.0,  2.5],
+      // South cottages (facing north toward village lane)
+      [-3.8, -5.2], [-1.3, -5.8], [1.4, -5.7], [4.0, -5.0],
+      // West homes (facing east into village)
+      [-6.0, -1.8], [-6.4, 1.2], [-5.0, 3.8],
+      // East homes (facing west into village)
+      [5.4, -2.0], [6.2, 1.0], [4.9, 3.5],
     ];
     for(let i=0;i<housePositions.length;i++){
       const [hx, hz] = housePositions[i];
       const v = { ...houseVariants[i % houseVariants.length] };
       const h = makeMedievalHouse(v);
       h.position.set(hx, hf(hx, hz), hz);
-      // face the central plaza
+      // Face the village center
       h.rotation.y = Math.atan2(-hx, -hz);
       root.add(h);
       h.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
@@ -2763,12 +2773,13 @@ SCENES.plaza = {
     fountain.position.set(0, hf(0,0), 0);
     root.add(fountain);
 
-    /* ─ COBBLESTONE PATHS winding through the village ─ */
+    /* ─ COBBLESTONE PATHS: village lane LOOP + main entry + approach paths
+       (per codex: replace spokes with a proper street network) ─ */
     const pathMat = new THREE.MeshStandardMaterial({color:0xb8a888, roughness:0.9});
     function pathSeg(ax,az,bx,bz, w=1.0){
       const dx = bx-ax, dz = bz-az;
       const len = Math.hypot(dx,dz);
-      const segs = Math.ceil(len/0.5);
+      const segs = Math.max(1, Math.ceil(len/0.5));
       for(let s=0;s<segs;s++){
         const t1 = s/segs, t2 = (s+1)/segs;
         const cx = ax + dx*(t1+t2)/2;
@@ -2780,72 +2791,106 @@ SCENES.plaza = {
         root.add(plate);
       }
     }
-    // Paths radiating from center
-    pathSeg(0, 0, 8, 8, 1.0);   // to church
-    pathSeg(0, 0, -8, 8, 1.0);  // to tower
-    pathSeg(0, 0, -8, -8, 1.0); // to windmill
-    pathSeg(0, 0, 11, 0, 1.0);  // to coast
-    pathSeg(0, 0, 0, -10, 1.2); // south entry
+    // Village lane loop (cobble street around the village core)
+    const loop = [
+      [-3.6,-3.0],[0,-3.8],[3.6,-3.0],[3.8,0.4],[2.8,3.0],[0,3.7],
+      [-2.8,3.0],[-3.8,0.2],[-3.6,-3.0],
+    ];
+    for(let i=0;i<loop.length-1;i++){
+      pathSeg(loop[i][0], loop[i][1], loop[i+1][0], loop[i+1][1], 1.1);
+    }
+    // Main south entry road from village edge
+    pathSeg(0, -12.5, 0, -3.8, 1.3);
+    // Approach paths from loop to each landmark
+    pathSeg(3.8, 3.2, 7.2, 7.0, 1.1);   // church
+    pathSeg(-4.2, 3.6, -8, 7.2, 1.1);   // watchtower
+    pathSeg(-5.0, -4.0, -8, -7.4, 1.1); // windmill
+    pathSeg(3.8, 0.4, 10.5, -4.5, 1.0); // east coast overlook
 
-    /* ─ DENSE PINE FOREST (Anno reference: solid green canopy) ─
-       400+ trees across the disc, only avoiding building footprints and paths.
+    /* ─ FOREST (per codex: dense only beyond r=9.5, framed clumps elsewhere) ─
+       Trees grow ONLY outside the village livable zone, leaving usable space.
     */
     const buildingZones = [
-      ...housePositions.map(([x,z])=>({x, z, r:1.6})),
-      {x:8, z:8, r:3.5},   // church
-      {x:-8, z:8, r:2.5},  // tower
-      {x:-8, z:-8, r:2.5}, // windmill
-      {x:0, z:0, r:2.5},   // fountain
+      ...housePositions.map(([x,z])=>({x, z, r:1.8})),
+      {x:7.2, z:7.0, r:3.5},   // church + terrace
+      {x:-8, z:7.2, r:2.5},    // tower pad
+      {x:-8, z:-7.4, r:2.8},   // mill farm pad
+      {x:0, z:0, r:3.5},       // market common (treeless)
     ];
-    function isClear(x, z, treeR=0.6){
-      // skip near buildings
-      for(const b of buildingZones){
-        if(Math.hypot(x-b.x, z-b.z) < b.r + treeR) return false;
-      }
-      // skip on cliff drop
-      if(x > 10.5) return false;
-      // skip on the main radial paths (within ~0.6 of the line)
-      const paths = [
-        [0,0, 8,8], [0,0,-8,8], [0,0,-8,-8], [0,0,11,0], [0,0,0,-10]
+    const yardZones = [
+      {x:3.5, z:-7.0, r:1.4},   // veg plot 1
+      {x:5.8, z:-6.2, r:1.4},   // veg plot 2
+      {x:-4.8, z:-6.4, r:1.4},  // veg plot 3
+      {x:-7.0, z:-2.8, r:2.0},  // sheep/wood yard
+    ];
+    function nearAnyPath(x, z, tol = 0.7){
+      const allPaths = [
+        // loop
+        ...(function*(){
+          for(let i=0;i<loop.length-1;i++) yield [loop[i][0],loop[i][1],loop[i+1][0],loop[i+1][1]];
+        })(),
+        [0,-12.5,0,-3.8],
+        [3.8,3.2,7.2,7.0],
+        [-4.2,3.6,-8,7.2],
+        [-5.0,-4.0,-8,-7.4],
+        [3.8,0.4,10.5,-4.5],
       ];
-      for(const [ax,az,bx,bz] of paths){
+      for(const [ax,az,bx,bz] of allPaths){
         const dx=bx-ax, dz=bz-az;
         const lenSq = dx*dx + dz*dz;
         if(lenSq < 0.001) continue;
         let t = ((x-ax)*dx + (z-az)*dz) / lenSq;
-        if(t < 0 || t > 1) continue;
+        t = Math.max(0, Math.min(1, t));
         const px = ax + t*dx, pz = az + t*dz;
-        if(Math.hypot(x-px, z-pz) < 0.7) return false;
+        if(Math.hypot(x-px, z-pz) < tol) return true;
       }
+      return false;
+    }
+    function isClear(x, z, treeR=0.6){
+      for(const b of buildingZones){
+        if(Math.hypot(x-b.x, z-b.z) < b.r + treeR) return false;
+      }
+      for(const y of yardZones){
+        if(Math.hypot(x-y.x, z-y.z) < y.r + treeR) return false;
+      }
+      if(x > 10.8) return false;
+      if(nearAnyPath(x, z, 0.7 + treeR*0.5)) return false;
       return true;
     }
+    // Tree zones: dense outside r=9.5 + 3 framed clumps inside
+    const framedClumps = [[-10, 4], [9, 5], [-10, -9]];
+    function inForestZone(x, z){
+      if(Math.hypot(x, z) > 9.5) return true;   // outer ring
+      for(const [cx, cz] of framedClumps){
+        if(Math.hypot(x-cx, z-cz) < 2.0) return true;
+      }
+      return false;
+    }
     let treeCount = 0;
-    for(let attempt=0; attempt<2400 && treeCount<400; attempt++){
+    for(let attempt=0; attempt<2000 && treeCount<220; attempt++){
       const ang = Math.random()*Math.PI*2;
       const rr = Math.sqrt(Math.random())*SCENE_RADIUS*0.99;
       const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
+      if(!inForestZone(x,z)) continue;
       if(!isClear(x,z)) continue;
       const y = hf(x,z);
-      if(y < -1.0) continue;  // skip beach
-      // 70% pines (dark forest), 12% sakura, 10% momiji, 8% broad
+      if(y < -1.0) continue;
       const r = Math.random();
-      const kind = r<0.70 ? 'pine' : r<0.82 ? 'sakura' : r<0.92 ? 'momiji' : 'broad';
+      const kind = r<0.72 ? 'pine' : r<0.85 ? 'sakura' : r<0.94 ? 'momiji' : 'broad';
       const t = makeTree(kind);
       t.position.set(x, y, z);
       const s = 0.95 + Math.random()*0.55;
       t.scale.setScalar(s);
       t.rotation.y = Math.random()*Math.PI*2;
-      t.userData.windPhase = Math.random()*Math.PI*2;
-      t.userData.baseRotZ = 0;
-      TREE_GROUPS.push(t);
       root.add(t);
       treeCount++;
     }
-    // Bushes / undergrowth filling gaps
-    for(let i=0;i<280;i++){
+    // Bushes only in forest zones
+    for(let i=0;i<140;i++){
       const ang = Math.random()*Math.PI*2;
       const rr = Math.sqrt(Math.random())*SCENE_RADIUS*0.99;
       const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
+      if(!inForestZone(x,z)) continue;
       if(!isClear(x,z,0.3)) continue;
       const y = hf(x,z);
       if(y < -1.0) continue;
@@ -2853,16 +2898,107 @@ SCENES.plaza = {
       b.position.set(x, y+0.12, z);
       root.add(b);
     }
-    // Mossy boulders
-    for(let i=0;i<24;i++){
+    // Mossy boulders — outer ring only
+    for(let i=0;i<14;i++){
       const ang = Math.random()*Math.PI*2;
-      const rr = 4 + Math.random()*(SCENE_RADIUS-5);
+      const rr = 10 + Math.random()*4;
       const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
       if(!isClear(x,z,0.8)) continue;
       const rk = makeRock(Math.random, 1.0+Math.random()*0.8);
       rk.position.set(x, hf(x,z), z);
       root.add(rk);
     }
+
+    /* ─ VEGETABLE PLOTS + SHEEP YARD (livelihood zones per codex) ─ */
+    function makeVegPlot(){
+      const g = new THREE.Group();
+      // Soil patch
+      const soil = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.6).rotateX(-Math.PI/2),
+        new THREE.MeshStandardMaterial({color:0x6a4a2a, roughness:0.95}));
+      soil.position.y = 0.02; soil.receiveShadow = true;
+      g.add(soil);
+      // 5 rows of plants
+      for(let r=0;r<5;r++){
+        for(let i=0;i<6;i++){
+          const c = ['#5a8a30','#7aa040','#a8c060','#6a9a3a'][r%4];
+          const plant = new THREE.Mesh(new THREE.SphereGeometry(0.08+Math.random()*0.04, 6, 4), mat(parseInt(c.slice(1),16)));
+          plant.position.set(-0.85 + i*0.34, 0.12, -0.65 + r*0.32);
+          g.add(plant);
+        }
+      }
+      // Wooden border (4 stakes)
+      for(const [dx,dz] of [[-1,-0.8],[1,-0.8],[-1,0.8],[1,0.8]]){
+        const stake = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.4, 0.06), mat(0x5a3a20));
+        stake.position.set(dx, 0.2, dz); stake.castShadow = true;
+        g.add(stake);
+      }
+      return g;
+    }
+    for(const y of yardZones.slice(0,3)){
+      const p = makeVegPlot();
+      p.position.set(y.x, hf(y.x, y.z), y.z);
+      p.rotation.y = Math.random()*0.4 - 0.2;
+      root.add(p);
+    }
+    // Sheep/wood yard with fence at (-7, -2.8)
+    function makeSheepYard(){
+      const g = new THREE.Group();
+      // Fenced perimeter (square 3.4×3.4)
+      for(let i=0;i<10;i++){
+        const t = i/10;
+        // top fence
+        const f1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.45, 0.06), mat(0x6a4a2a));
+        f1.position.set(-1.7 + t*3.4, 0.22, -1.7); g.add(f1);
+        // bottom fence
+        const f2 = f1.clone(); f2.position.z = 1.7; g.add(f2);
+        // left fence
+        const f3 = f1.clone(); f3.position.set(-1.7, 0.22, -1.7 + t*3.4); g.add(f3);
+        // right fence
+        const f4 = f3.clone(); f4.position.x = 1.7; g.add(f4);
+      }
+      // 2 horizontal rails on each side
+      for(const yy of [0.18, 0.36]){
+        for(const side of ['n','s','e','w']){
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.03, 0.03), mat(0x6a4a2a));
+          if(side==='n'){ rail.position.set(0, yy, -1.7); }
+          else if(side==='s'){ rail.position.set(0, yy, 1.7); }
+          else if(side==='e'){ rail.position.set(1.7, yy, 0); rail.rotation.y = Math.PI/2; }
+          else { rail.position.set(-1.7, yy, 0); rail.rotation.y = Math.PI/2; }
+          g.add(rail);
+        }
+      }
+      // 3 sheep (simple cube woolly bodies)
+      for(let i=0;i<3;i++){
+        const sheep = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 8), mat(0xe8e0d0));
+        body.scale.set(1.2, 0.85, 1.0);
+        body.position.y = 0.35; body.castShadow = true;
+        sheep.add(body);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), mat(0x4a3024));
+        head.position.set(0.36, 0.40, 0); head.castShadow = true;
+        sheep.add(head);
+        for(const [dx,dz] of [[0.18,0.13],[0.18,-0.13],[-0.18,0.13],[-0.18,-0.13]]){
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.20, 6), mat(0x4a3024));
+          leg.position.set(dx, 0.10, dz);
+          sheep.add(leg);
+        }
+        sheep.position.set(-0.8 + i*0.8, 0, -0.3 + Math.random()*0.6);
+        sheep.rotation.y = Math.random()*Math.PI*2;
+        g.add(sheep);
+      }
+      // Wood pile in one corner
+      for(let k=0;k<4;k++){
+        const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.8, 8), mat(0x624029));
+        log.rotation.z = Math.PI/2;
+        log.position.set(-1.2, 0.10 + Math.floor(k/2)*0.16, 1.2 + (k%2)*0.05);
+        log.castShadow = true;
+        g.add(log);
+      }
+      return g;
+    }
+    const yard = makeSheepYard();
+    yard.position.set(-7.0, hf(-7,-2.8), -2.8);
+    root.add(yard);
 
     /* ─ Small near-building decorations (not scattered, anchored to houses) ─ */
     // each kitchen-side gets a wood pile + barrel
@@ -2900,54 +3036,55 @@ SCENES.plaza = {
       }
     }
 
-    /* ─ Curated village delight ─ */
-    // 1 fountain + 4 stone lanterns around it + viewing benches
-    for(let i=0;i<4;i++){
-      const ang = (i/4)*Math.PI*2 + Math.PI/4;
-      const r = 1.6;
+    /* ─ Curated village delight (focal hierarchy per codex) ─ */
+    // 2 stone lanterns at the fountain (was 4, less competing detail)
+    for(const [x,z] of [[-1.6, 1.6], [1.6, -1.6]]){
       const sl = makeStoneLantern();
-      sl.position.set(Math.sin(ang)*r, hf(Math.sin(ang)*r, Math.cos(ang)*r), Math.cos(ang)*r);
+      sl.position.set(x, hf(x,z), z);
       root.add(sl);
       if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
       sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
     }
     // 2 viewing benches at the fountain
-    for(const [x,z,ry] of [[-2.4, 0, Math.PI/2], [2.4, 0, -Math.PI/2]]){
+    for(const [x,z,ry] of [[-2.2, 0, Math.PI/2], [2.2, 0, -Math.PI/2]]){
       const bn = makeViewingBench();
       bn.position.set(x, hf(x,z), z);
       bn.rotation.y = ry;
       root.add(bn);
     }
-    // Koi pond tucked in near the windmill (less prominent, more found-secret)
-    const pond = makeKoiPond(1.4);
+    // Koi pond tucked near the windmill
+    const pond = makeKoiPond(1.3);
     pond.position.set(-6, hf(-6,-5.5), -5.5);
     root.add(pond);
-    // Wishing bell at the church approach
+    // Wishing bell moved to church gate (focal hierarchy fix)
     const bell = makeWishingBell();
-    bell.position.set(6, hf(6,7), 7);
+    bell.position.set(5.6, hf(5.6, 5.8), 5.8);
     root.add(bell);
     bell.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    // Butterflies in the village center (not floating in empty space)
-    spawnButterflies(root, 8, [0, 1.2, 0], 3);
+    // Butterflies in the village center
+    spawnButterflies(root, 6, [0, 1.2, 0], 3);
 
-    /* ─ Gimmicks tucked into natural spots ─ */
+    /* ─ Gimmicks at codex-recommended spots (don't compete with village) ─ */
+    // Chest at coast overlook (was on cliff; now at the road's end)
     const chest = makeChest();
-    chest.position.set(11, hf(11,-2)+0.05, -2);  // on the cliff edge near the coast
+    chest.position.set(10.5, hf(10.5, -4.5), -4.5);
     chest.rotation.y = -Math.PI/3;
     root.add(chest);
     if(chest.userData.bob){
       chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
       ENTITIES.bobs.push(chest.userData.bob);
     }
+    // Orb moved off church center to the gate corner
     const orb = makeMagicOrb(0xc090ff);
-    orb.position.set(8, hf(8,8)+1.4, 8);  // by the church
+    orb.position.set(9.5, hf(9.5, 8.8) + 0.05, 8.8);
     root.add(orb);
     if(orb.userData.orb){
       orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
       ENTITIES.bobs.push(orb.userData.orb);
     }
+    // Crystal deep in the western forest (forest secret, not village clutter)
     const cr = makeCrystal(0x6BE0FF);
-    cr.position.set(-11, hf(-11,2)+0.05, 2);  // deep in the western forest
+    cr.position.set(-12, hf(-12, 5)+0.05, 5);
     cr.scale.setScalar(0.7);
     root.add(cr);
     ENTITIES.spins.push(cr);
