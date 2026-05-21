@@ -901,6 +901,213 @@ function layeredPlanting(root, x, z, theme = 'forest'){
   root.add(moss);
 }
 
+/* === Multi-level terrain helpers ========================= */
+// Stone stairs from a low point to a high point (along +z direction)
+function makeStairs(count = 4, width = 1.8, stepHeight = 0.22, stepDepth = 0.4){
+  const g = new THREE.Group();
+  const stone = mat(0x8a8067);
+  for(let i=0;i<count;i++){
+    const step = new THREE.Mesh(new THREE.BoxGeometry(width, stepHeight, stepDepth), stone);
+    step.position.set(0, stepHeight*(i+0.5), -i*stepDepth);
+    step.castShadow = step.receiveShadow = true;
+    g.add(step);
+  }
+  // side walls (low retaining stones)
+  for(const xs of [-1, 1]){
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.18, stepHeight*count, stepDepth*count + 0.2), mat(0x6a5040));
+    wall.position.set(xs*(width/2 + 0.09), stepHeight*count/2, -stepDepth*(count-1)/2);
+    wall.castShadow = wall.receiveShadow = true;
+    g.add(wall);
+  }
+  return g;
+}
+
+// Stone retaining wall — straight wall of stacked stones
+function makeRetainingWall(length = 4, height = 1.0){
+  const g = new THREE.Group();
+  const stone = mat(0x7a6f54);
+  // top cap
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(length, 0.12, 0.4), mat(0x9c8a70));
+  cap.position.y = height + 0.06; cap.castShadow = cap.receiveShadow = true; g.add(cap);
+  // stacked stones face
+  const rows = Math.floor(height / 0.25);
+  for(let r=0;r<rows;r++){
+    const cols = Math.floor(length / 0.35);
+    for(let c=0;c<cols;c++){
+      const block = new THREE.Mesh(new THREE.BoxGeometry(0.32 + Math.random()*0.05, 0.22, 0.4), stone);
+      block.position.set(
+        (c - (cols-1)/2)*0.35 + ((r%2)*0.18),
+        r*0.25 + 0.11,
+        0
+      );
+      block.castShadow = block.receiveShadow = true;
+      g.add(block);
+    }
+  }
+  return g;
+}
+
+/* === RPG gimmick builders =============================== */
+function makeChest(){
+  const g = new THREE.Group();
+  const wood = mat(0x8a5a3a);
+  const dark = mat(0x4a2a18);
+  const gold = mat(0xffd478, {emissive:0xffaa44, emissiveIntensity:0.2, metalness:0.5, roughness:0.4});
+  // body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.42, 0.4), wood);
+  body.position.y = 0.21; body.castShadow=body.receiveShadow=true; g.add(body);
+  // lid (slightly opened or closed)
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.18, 0.42), wood);
+  lid.position.y = 0.51; lid.rotation.x = -0.2; lid.castShadow=true; g.add(lid);
+  // straps
+  for(const z of [-0.18, 0.18]){
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.05, 0.06), dark);
+    strap.position.set(0, 0.41, z); g.add(strap);
+  }
+  // lock
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.10, 0.04), gold);
+  lock.position.set(0, 0.35, 0.21); g.add(lock);
+  // floating glow above
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6),
+    new THREE.MeshBasicMaterial({color:0xffe2a8, transparent:true, opacity:0.85}));
+  glow.position.y = 0.9;
+  glow.userData.glow = true;
+  g.add(glow);
+  g.userData.bob = glow;
+  // soft point light
+  const pl = new THREE.PointLight(0xffd478, 0.6, 3, 2);
+  pl.position.y = 0.7;
+  g.add(pl);
+  return g;
+}
+
+function makeMagicOrb(color = 0x6BE0FF){
+  const g = new THREE.Group();
+  // pedestal
+  const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.55, 12), mat(0x6a5a4a));
+  ped.position.y = 0.275; ped.castShadow=ped.receiveShadow=true; g.add(ped);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.06, 12), mat(0x4a4030));
+  top.position.y = 0.58; g.add(top);
+  // floating orb
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 18),
+    new THREE.MeshStandardMaterial({color:color, emissive:color, emissiveIntensity:0.7, roughness:0.2, metalness:0.3, transparent:true, opacity:0.9}));
+  orb.position.y = 0.95;
+  orb.userData.bob = true;
+  g.add(orb);
+  g.userData.orb = orb;
+  // light
+  const pl = new THREE.PointLight(color, 1.8, 5, 2);
+  pl.position.y = 0.95;
+  g.add(pl);
+  return g;
+}
+
+function makeSignpost(text = '?'){
+  const g = new THREE.Group();
+  const wood = mat(0x6a4a2a);
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.10, 1.4, 0.10), wood);
+  post.position.y = 0.7; post.castShadow=true; g.add(post);
+  // sign face (canvas with text)
+  const c = document.createElement('canvas'); c.width = 128; c.height = 80;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#e8dcb8'; ctx.fillRect(0,0,128,80);
+  ctx.strokeStyle = '#5a3a18'; ctx.lineWidth = 4; ctx.strokeRect(2,2,124,76);
+  ctx.fillStyle = '#1b1a14';
+  ctx.font = 'bold 38px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(text, 64, 44);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.4),
+    new THREE.MeshStandardMaterial({map:tex, roughness:0.85}));
+  face.position.set(0, 1.15, 0.06); g.add(face);
+  // back panel
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.42, 0.08), wood);
+  panel.position.y = 1.15; g.add(panel);
+  // small bell
+  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), mat(0xc8a040, {metalness:0.5, roughness:0.4}));
+  bell.position.set(0.32, 1.0, 0);
+  g.add(bell);
+  return g;
+}
+
+function makeFishingSpot(){
+  // a wooden pole with a string into the water — visual gimmick
+  const g = new THREE.Group();
+  const w = mat(0x6a4a2a);
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 1.4, 6), w);
+  rod.position.y = 0.5; rod.rotation.z = -0.5; rod.position.x = 0.3;
+  rod.castShadow=true;
+  g.add(rod);
+  // line (thin)
+  const line = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 1.2, 4), mat(0xffffff));
+  line.position.set(0.85, -0.05, 0);
+  g.add(line);
+  // bobber
+  const bob = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), mat(0xff5a5a, {emissive:0xff5a5a, emissiveIntensity:0.3}));
+  bob.position.set(0.85, -0.6, 0);
+  bob.userData.bob = true;
+  g.add(bob);
+  g.userData.bobber = bob;
+  return g;
+}
+
+function makeCrystal(color = 0xc090ff){
+  // floating crystal cluster — collectible gimmick
+  const g = new THREE.Group();
+  const mat0 = new THREE.MeshStandardMaterial({color:color, emissive:color, emissiveIntensity:0.6, transparent:true, opacity:0.85, roughness:0.15, metalness:0.4});
+  for(let i=0;i<4;i++){
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.10+Math.random()*0.04, 0.32+Math.random()*0.1, 5), mat0);
+    const ang = (i/4)*Math.PI*2;
+    c.position.set(Math.sin(ang)*0.08, 0.18 + Math.random()*0.1, Math.cos(ang)*0.08);
+    c.rotation.set((Math.random()-0.5)*0.5, Math.random()*Math.PI, (Math.random()-0.5)*0.5);
+    g.add(c);
+  }
+  g.userData.spinRoot = true;
+  // base rocks
+  for(let i=0;i<4;i++){
+    const ang = (i/4)*Math.PI*2;
+    const r = makeRock(Math.random, 0.7);
+    r.position.set(Math.sin(ang)*0.25, 0, Math.cos(ang)*0.25);
+    g.add(r);
+  }
+  const pl = new THREE.PointLight(color, 1.5, 4, 2);
+  pl.position.y = 0.4;
+  g.add(pl);
+  return g;
+}
+
+function makeBridge(length = 4, arc = 0.5){
+  // wooden plank bridge
+  const g = new THREE.Group();
+  const wood = mat(0x6a4a2a);
+  const dark = mat(0x4a2a18);
+  // arched deck (curved planks)
+  const planks = 8;
+  for(let i=0;i<planks;i++){
+    const t = i/(planks-1);
+    const x = (t-0.5)*length;
+    const y = Math.sin(t*Math.PI)*arc;
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(length/planks - 0.02, 0.08, 1.2), wood);
+    plank.position.set(x, y, 0);
+    plank.rotation.z = Math.cos(t*Math.PI)*0.3;
+    plank.castShadow = plank.receiveShadow = true;
+    g.add(plank);
+  }
+  // rails
+  for(const zs of [-1, 1]){
+    for(let i=0;i<planks;i++){
+      const t = i/(planks-1);
+      const x = (t-0.5)*length;
+      const y = Math.sin(t*Math.PI)*arc + 0.5;
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.5, 6), dark);
+      post.position.set(x, y - 0.25, zs*0.55);
+      post.castShadow = true;
+      g.add(post);
+    }
+  }
+  return g;
+}
+
 /* === Prop builders (small game-density elements) ========= */
 function makeBarrel(){
   const g = new THREE.Group();
@@ -1702,7 +1909,7 @@ function palSnow(x, z, y, r, c){
 // Scene state
 let currentScene = null;
 const SCENES = {};
-const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], lampLights: [], boats: [], hourhands: [], minhands: [] };
+const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], lampLights: [], boats: [], hourhands: [], minhands: [], bobs: [], spins: [] };
 function clearScene(){
   if(!currentScene) return;
   // Dispose all children of currentScene.root
@@ -1724,6 +1931,8 @@ function clearScene(){
   ENTITIES.boats.length = 0;
   ENTITIES.hourhands.length = 0;
   ENTITIES.minhands.length = 0;
+  ENTITIES.bobs.length = 0;
+  ENTITIES.spins.length = 0;
   TREE_GROUPS.length = 0;
   densifyWindUniforms.length = 0;
 }
@@ -1955,6 +2164,35 @@ SCENES.plaza = {
       root.add(n);
       ENTITIES.npcs.push(n);
     }
+    /* ── RPG gimmicks ── */
+    // 4 directional signposts at path entrances
+    for(const [x,z,r,t] of [[0,12.5,0,'庭'],[12.5,0,Math.PI/2,'湖'],[0,-12.5,Math.PI,'森'],[-12.5,0,-Math.PI/2,'祠']]){
+      const sp = makeSignpost(t);
+      sp.position.set(x, 0, z); sp.rotation.y = r;
+      root.add(sp);
+    }
+    // Treasure chest behind a kominka
+    const chest = makeChest();
+    chest.position.set(-9, 0, -8);
+    chest.rotation.y = 0.3;
+    root.add(chest);
+    if(chest.userData.bob){
+      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(chest.userData.bob);
+    }
+    // Magic orb beside the well (RPG vibe)
+    const orb = makeMagicOrb(0x6BE0FF);
+    orb.position.set(2.5, 0, 0);
+    root.add(orb);
+    if(orb.userData.orb){
+      orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
+      ENTITIES.bobs.push(orb.userData.orb);
+    }
+    // Crystal cluster near a sakura
+    const cr = makeCrystal(0xff9ad0);
+    cr.position.set(9, 0, 8);
+    root.add(cr);
+    ENTITIES.spins.push(cr);
     densifyGround(root, 'grass');
   }
 };
@@ -2060,6 +2298,31 @@ SCENES.monlight = {
     // Layered planting at 4 corners
     layeredPlanting(root, -8, -4, 'autumn');
     layeredPlanting(root, 8, -4, 'autumn');
+    /* ── RPG gimmicks ── */
+    // Retaining wall around the central mound (depth)
+    const retain = makeRetainingWall(8, 0.7);
+    retain.position.set(0, 0, 2.5);
+    root.add(retain);
+    // Chest hidden behind moss boulders
+    const chest = makeChest();
+    chest.position.set(-7, 0, 6); chest.rotation.y = -0.4;
+    root.add(chest);
+    if(chest.userData.bob){
+      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(chest.userData.bob);
+    }
+    // Reading orb (knowledge motif)
+    const orb = makeMagicOrb(0xc090ff);
+    orb.position.set(2.5, 1.2, 2.5);
+    root.add(orb);
+    if(orb.userData.orb){
+      orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
+      ENTITIES.bobs.push(orb.userData.orb);
+    }
+    // Signpost at entrance
+    const sp = makeSignpost('書');
+    sp.position.set(0, 0, 7);
+    root.add(sp);
     densifyGround(root, 'moss');
   }
 };
@@ -2190,6 +2453,39 @@ SCENES.oto = {
       az.position.set(side*2.5, 0, z);
       root.add(az);
     }
+    /* ── Multi-level + gimmicks ── */
+    // Stone steps up to the inner shrine (raised platform feel)
+    const steps = makeStairs(3, 2.4, 0.18, 0.5);
+    steps.position.set(0, 0, -1.5);
+    steps.rotation.y = Math.PI;
+    root.add(steps);
+    // Sacred orb in front of shrine (kannon-like)
+    const orb = makeMagicOrb(0xff9a4a);
+    orb.position.set(0, 0.55, -2.0);
+    root.add(orb);
+    if(orb.userData.orb){
+      orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
+      ENTITIES.bobs.push(orb.userData.orb);
+    }
+    // Treasure chest hidden behind shrine
+    const chest = makeChest();
+    chest.position.set(2, 0, -5);
+    chest.rotation.y = 2;
+    root.add(chest);
+    if(chest.userData.bob){
+      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(chest.userData.bob);
+    }
+    // Crystal between komainu (sacred light)
+    const cr = makeCrystal(0xfff080);
+    cr.position.set(0, 0, 5.5);
+    cr.scale.setScalar(0.7);
+    root.add(cr);
+    ENTITIES.spins.push(cr);
+    // Signpost at sando entrance
+    const sp = makeSignpost('音');
+    sp.position.set(2, 0, 7);
+    root.add(sp);
     densifyGround(root, 'gravel');
   }
 };
@@ -2330,6 +2626,54 @@ SCENES.tabi = {
       reed.position.set(-2.2, -0.2, z);
       root.add(reed);
     }
+    /* ── Multi-level + gimmicks ── */
+    // Retaining wall along the shore-water break
+    const retain = makeRetainingWall(5, 0.6);
+    retain.position.set(-2.1, -0.6, 0);
+    retain.rotation.y = Math.PI/2;
+    root.add(retain);
+    // Stairs from shore down to the dock
+    const steps = makeStairs(4, 1.4, 0.2, 0.5);
+    steps.position.set(-3.0, -0.9, 1.6);
+    steps.rotation.y = -Math.PI/2;
+    root.add(steps);
+    // Wooden bridge spanning to a small isle in the lake
+    const bridge = makeBridge(4, 0.4);
+    bridge.position.set(6, -0.2, 0);
+    bridge.rotation.y = Math.PI/2;
+    root.add(bridge);
+    // Small isle stone (target of bridge)
+    const isle = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.2, 0.4, 16), mat(0x8a8067));
+    isle.position.set(6, -0.7, 2.6);
+    isle.castShadow = isle.receiveShadow = true;
+    root.add(isle);
+    // Crystal on the isle (collectible reward)
+    const cr = makeCrystal(0x6BE0FF);
+    cr.position.set(6, -0.45, 2.6);
+    cr.scale.setScalar(0.7);
+    root.add(cr);
+    ENTITIES.spins.push(cr);
+    // Fishing spot at end of dock
+    const fish = makeFishingSpot();
+    fish.position.set(0, 0.1, 2.2);
+    root.add(fish);
+    if(fish.userData.bobber){
+      fish.userData.bobber.userData = { baseY: fish.userData.bobber.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(fish.userData.bobber);
+    }
+    // Treasure chest under the willow
+    const chest = makeChest();
+    chest.position.set(-7, 0, -2.5);
+    chest.rotation.y = 0.8;
+    root.add(chest);
+    if(chest.userData.bob){
+      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(chest.userData.bob);
+    }
+    // Signpost
+    const sp = makeSignpost('湖');
+    sp.position.set(-6, 0, 3.5);
+    root.add(sp);
     densifyGround(root, 'shore');
   }
 };
@@ -2426,6 +2770,37 @@ SCENES.toki = {
     root.add(sl);
     if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
     sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    /* ── Multi-level + gimmicks ── */
+    // Raised platform around the tower
+    const retain = makeRetainingWall(7, 0.4);
+    retain.position.set(0, 0, 2.8);
+    root.add(retain);
+    // Stairs up to the tower base from south
+    const steps = makeStairs(2, 2.0, 0.18, 0.5);
+    steps.position.set(0, 0, 4.5);
+    steps.rotation.y = Math.PI;
+    root.add(steps);
+    // Hourglass orb floating beside the tower
+    const orb = makeMagicOrb(0xffe2a8);
+    orb.position.set(2.3, 0, 0.5);
+    root.add(orb);
+    if(orb.userData.orb){
+      orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
+      ENTITIES.bobs.push(orb.userData.orb);
+    }
+    // Chest near a bench
+    const chest = makeChest();
+    chest.position.set(-5, 0, -2);
+    chest.rotation.y = 1.0;
+    root.add(chest);
+    if(chest.userData.bob){
+      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(chest.userData.bob);
+    }
+    // Signpost
+    const sp = makeSignpost('時');
+    sp.position.set(2, 0, 7);
+    root.add(sp);
     densifyGround(root, 'sand');
   }
 };
@@ -2527,6 +2902,38 @@ SCENES.hoshi = {
     pav.add(pavRoof);
     pav.position.set(-3, 0, 0);
     root.add(pav);
+    /* ── Multi-level + gimmicks ── */
+    // Retaining wall around the hill base
+    const retain1 = makeRetainingWall(6, 0.5);
+    retain1.position.set(0, 0.3, 5);
+    root.add(retain1);
+    const retain2 = makeRetainingWall(6, 0.5);
+    retain2.position.set(-5, 0.3, 0); retain2.rotation.y = Math.PI/2;
+    root.add(retain2);
+    // Stairs up the hill from south
+    const steps = makeStairs(6, 1.6, 0.25, 0.5);
+    steps.position.set(0, 0, 5);
+    steps.rotation.y = Math.PI;
+    root.add(steps);
+    // Crystal cluster at the very top of the hill
+    const cr = makeCrystal(0xc090ff);
+    cr.position.set(0, hf(0,0) + 0.5, 0);
+    cr.scale.setScalar(0.6);
+    root.add(cr);
+    ENTITIES.spins.push(cr);
+    // Chest in the pavilion
+    const chest = makeChest();
+    chest.position.set(-3, hf(-3,0)+0.16, 0);
+    chest.rotation.y = 0.5;
+    root.add(chest);
+    if(chest.userData.bob){
+      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(chest.userData.bob);
+    }
+    // Signpost at base of stairs
+    const sp = makeSignpost('星');
+    sp.position.set(2, 0, 7);
+    root.add(sp);
     densifyGround(root, 'forest');
   }
 };
@@ -2634,6 +3041,22 @@ SCENES.takibi = {
       ENTITIES.lamps.push(...lp.children.filter(c=>c.userData?.lamp));
       if(lp.userData.lampLight) ENTITIES.lampLights.push(lp.userData.lampLight);
     }
+    /* ── Gimmicks ── */
+    const chest = makeChest();
+    chest.position.set(4, 0, -4); chest.rotation.y = 1.3;
+    root.add(chest);
+    if(chest.userData.bob){
+      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(chest.userData.bob);
+    }
+    const cr = makeCrystal(0xff7a30);
+    cr.position.set(-3, 0, 3);
+    cr.scale.setScalar(0.7);
+    root.add(cr);
+    ENTITIES.spins.push(cr);
+    const sp = makeSignpost('火');
+    sp.position.set(6, 0, 7); sp.rotation.y = -0.4;
+    root.add(sp);
     densifyGround(root, 'autumn');
   }
 };
@@ -2766,6 +3189,43 @@ SCENES.mizube = {
       peb.castShadow=true;
       root.add(peb);
     }
+    /* ── Multi-level + gimmicks ── */
+    // Wooden deck out over water, with stairs down to pebble beach
+    const steps = makeStairs(3, 1.6, 0.18, 0.4);
+    steps.position.set(2, 0, 0.5);
+    steps.rotation.y = Math.PI;
+    root.add(steps);
+    // Bridge into the water on stilts
+    const bridge = makeBridge(3.5, 0.3);
+    bridge.position.set(0, 0.1, -3);
+    bridge.rotation.y = Math.PI/2;
+    root.add(bridge);
+    // Fishing spot at the bridge end
+    const fish = makeFishingSpot();
+    fish.position.set(0, 0.1, -4.5);
+    root.add(fish);
+    if(fish.userData.bobber){
+      fish.userData.bobber.userData = { baseY: fish.userData.bobber.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(fish.userData.bobber);
+    }
+    // Chest at shore
+    const chest = makeChest();
+    chest.position.set(5, 0, 4); chest.rotation.y = -0.6;
+    root.add(chest);
+    if(chest.userData.bob){
+      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(chest.userData.bob);
+    }
+    // Crystal in the water (shimmer)
+    const cr = makeCrystal(0x6BE0FF);
+    cr.position.set(-3, -0.3, -4);
+    cr.scale.setScalar(0.5);
+    root.add(cr);
+    ENTITIES.spins.push(cr);
+    // Signpost
+    const sp = makeSignpost('辺');
+    sp.position.set(5, 0, 6);
+    root.add(sp);
     densifyGround(root, 'shore');
   }
 };
@@ -2866,6 +3326,34 @@ SCENES.amaoto = {
       pu.position.set(Math.sin(ang)*r, 0.012, Math.cos(ang)*r);
       root.add(pu);
     }
+    /* ── Gimmicks ── */
+    // Stairs to cabin porch
+    const steps = makeStairs(2, 1.6, 0.18, 0.4);
+    steps.position.set(0, 0, 1.4);
+    steps.rotation.y = Math.PI;
+    root.add(steps);
+    // Chest by the porch
+    const chest = makeChest();
+    chest.position.set(2.5, 0.36, 0); chest.rotation.y = 1.0;
+    root.add(chest);
+    if(chest.userData.bob){
+      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
+      ENTITIES.bobs.push(chest.userData.bob);
+    }
+    // Crystal that glows brighter in the rain
+    const cr = makeCrystal(0x9ad8ff);
+    cr.position.set(-4, 0, -3);
+    cr.scale.setScalar(0.65);
+    root.add(cr);
+    ENTITIES.spins.push(cr);
+    // Bamboo wind chime by the cabin
+    const wc = makeBambooWindChime();
+    wc.position.set(-2.5, 0, 0);
+    root.add(wc);
+    // Signpost
+    const sp = makeSignpost('雨');
+    sp.position.set(3.5, 0, 5);
+    root.add(sp);
     densifyGround(root, 'forest');
   }
 };
@@ -3177,6 +3665,14 @@ function animate(){
   }
   // grass wind uniforms
   for(const u of densifyWindUniforms){ u.uTime.value = t; }
+  // bobbing gimmicks (chests, orbs, fishing bobbers)
+  for(const b of ENTITIES.bobs){
+    b.position.y = b.userData.baseY + Math.sin(t*1.6 + (b.userData.phase||0))*0.08;
+  }
+  // spinning gimmicks (crystals)
+  for(const s of ENTITIES.spins){
+    s.rotation.y = t*0.6;
+  }
   // NPC walk
   for(const n of ENTITIES.npcs){
     const ud = n.userData;
