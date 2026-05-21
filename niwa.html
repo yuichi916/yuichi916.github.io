@@ -104,6 +104,26 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 .card .go.disabled{background:transparent;color:#5a4a30;border-color:#7a6850;cursor:default;pointer-events:none;opacity:.7}
 .card .go .arrow{font-family:"Cormorant Garamond",serif;font-size:16px}
 
+/* Mobile virtual joystick */
+.joy{position:fixed;left:18px;bottom:120px;z-index:13;width:120px;height:120px;border-radius:50%;background:rgba(14,26,38,.4);border:2px solid rgba(232,220,184,.5);touch-action:none;display:none}
+.joy.show{display:block}
+.joy .stick{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;background:rgba(255,185,104,.65);border:2px solid rgba(232,220,184,.8);transform:translate(-50%,-50%);transition:transform .08s linear}
+.mobileBtn{position:fixed;right:18px;bottom:140px;z-index:13;width:64px;height:64px;border-radius:50%;background:rgba(255,185,104,.7);border:2px solid rgba(232,220,184,.8);color:#1b1a14;font-family:"Shippori Mincho",serif;font-size:13px;letter-spacing:.1em;display:none;cursor:pointer;touch-action:manipulation}
+.mobileBtn.show{display:block}
+.zoomBtns{position:fixed;right:18px;bottom:220px;z-index:13;display:none;flex-direction:column;gap:6px}
+.zoomBtns.show{display:flex}
+.zoomBtns button{width:44px;height:44px;border-radius:50%;background:rgba(14,26,38,.6);border:1.5px solid rgba(232,220,184,.5);color:#e8dcb8;font-size:18px;cursor:pointer;touch-action:manipulation}
+
+/* First-run onboarding overlay */
+.onboarding{position:fixed;inset:0;z-index:80;background:rgba(14,26,38,.85);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;color:var(--paper);transition:opacity .3s}
+.onboarding.show{display:flex}
+.onboarding .panel{max-width:380px;padding:32px 32px 22px;text-align:center}
+.onboarding h3{font-family:"Shippori Mincho",serif;font-size:22px;letter-spacing:.16em;margin-bottom:16px;color:var(--candle)}
+.onboarding p{font-family:"Shippori Mincho",serif;font-size:14px;line-height:1.9;margin-bottom:6px;color:var(--paper-2)}
+.onboarding .keycap{display:inline-block;border:1px solid rgba(232,220,184,.5);padding:1px 5px;border-radius:3px;background:rgba(14,26,38,.4);margin:0 1px;font-family:"JetBrains Mono",monospace;font-size:11px}
+.onboarding button{margin-top:22px;background:var(--candle);color:var(--ink);border:none;font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.22em;padding:11px 22px;cursor:pointer}
+.onboarding button:hover{background:var(--vermilion);color:var(--paper)}
+
 @media (max-width:680px){
   header.hud{padding:14px 16px 18px}
   h1.title{font-size:18px;letter-spacing:.14em}
@@ -153,6 +173,25 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 </div>
 
 <nav class="scene-tabs" id="scene-tabs"></nav>
+
+<!-- Mobile controls -->
+<div class="joy" id="joy"><div class="stick" id="joyStick"></div></div>
+<div class="zoomBtns" id="zoomBtns">
+  <button id="zoomIn" aria-label="ズームイン">+</button>
+  <button id="zoomOut" aria-label="ズームアウト">−</button>
+</div>
+<button class="mobileBtn" id="mobileEnter" aria-label="入る">E</button>
+
+<!-- First-run onboarding -->
+<div class="onboarding" id="onboarding">
+  <div class="panel">
+    <h3>心の庭へようこそ</h3>
+    <p id="onbDesc1">PC：<span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span> で歩く</p>
+    <p id="onbDesc2">画面ドラッグで視点回転、ホイールでズーム</p>
+    <p id="onbDesc3">クリックで移動、近づいて <span class="keycap">E</span> で場所を見る</p>
+    <button id="onbStart">はじめる</button>
+  </div>
+</div>
 
 <div class="hint">
   <span><span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span> 歩く</span>
@@ -205,7 +244,9 @@ const SCENE_BOUND = 13;        // avatar can walk up to this radius
 
 const canvas = document.getElementById('webgl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 900);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_MOBILE ? 1.25 : 2));
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -237,7 +278,10 @@ window.addEventListener('error', e=>{
 });
 
 /* Orthographic camera (quarter-view) ====================== */
-let CAM_ORTHO_SIZE = 10;       // vertical half-size in world units (zoom) — mutable
+const CAM_DEFAULT_SIZE = 9;     // Codex: tighter default framing
+const CAM_MIN_SIZE = 6;
+const CAM_MAX_SIZE = 16;
+let CAM_ORTHO_SIZE = CAM_DEFAULT_SIZE;
 const CAM_OFFSET = new THREE.Vector3(10, 14, 10);
 function makeOrthoCam(){
   const aspect = window.innerWidth/window.innerHeight;
@@ -3103,6 +3147,10 @@ function buildScene(name){
   }
   // ground-clamp avatar
   avatar.position.y = sampleHeight(avatar.position.x, avatar.position.z);
+  // Reset camera state per scene (per Codex: don't inherit bad views)
+  camZoomTarget = CAM_DEFAULT_SIZE;
+  camYawTarget = -Math.PI*0.25;
+  camInit = false;
   // Concept card
   const cc = document.getElementById('concept');
   document.getElementById('c-type').textContent = def.num + ' · ' + (def.kind?.toUpperCase() || 'SCENE');
@@ -5447,14 +5495,14 @@ canvas.addEventListener('pointercancel', ()=>{ pointerDown = false; });
 function onWheelZoom(e){
   e.preventDefault();
   const factor = e.deltaY > 0 ? 1.10 : 0.91;
-  camZoomTarget = Math.max(4, Math.min(28, camZoomTarget * factor));
+  camZoomTarget = Math.max(CAM_MIN_SIZE, Math.min(CAM_MAX_SIZE, camZoomTarget * factor));
 }
 canvas.addEventListener('wheel', onWheelZoom, { passive: false });
 window.addEventListener('wheel', onWheelZoom, { passive: false });
 // keyboard zoom fallback: [ ] keys
 window.addEventListener('keydown', e=>{
-  if(e.key === ']') { camZoomTarget = Math.max(4, camZoomTarget*0.91); }
-  if(e.key === '[') { camZoomTarget = Math.min(28, camZoomTarget*1.10); }
+  if(e.key === ']') { camZoomTarget = Math.max(CAM_MIN_SIZE, camZoomTarget*0.91); }
+  if(e.key === '[') { camZoomTarget = Math.min(CAM_MAX_SIZE, camZoomTarget*1.10); }
 });
 
 // click destination marker (pulsing ring on the ground)
@@ -5509,14 +5557,119 @@ function handleClick(cx, cy){
   }
 }
 
+/* === Mobile / accessibility helpers ===================== */
+// Onboarding overlay — show on first load until user dismisses
+{
+  const onb = document.getElementById('onboarding');
+  const seen = localStorage.getItem('niwa.onboarded');
+  if(IS_MOBILE){
+    document.getElementById('onbDesc1').innerHTML = '左下のスティックで歩く';
+    document.getElementById('onbDesc2').innerHTML = '画面の右側を指でドラッグして視点回転';
+    document.getElementById('onbDesc3').innerHTML = '光る場所をタップして移動、近づいて <span class="keycap">E</span> ボタンで入る';
+  }
+  if(!seen){
+    onb.classList.add('show');
+  }
+  document.getElementById('onbStart').addEventListener('click', ()=>{
+    onb.classList.remove('show');
+    localStorage.setItem('niwa.onboarded', '1');
+  });
+}
+
+// Mobile UI activation
+if(IS_MOBILE){
+  document.getElementById('joy').classList.add('show');
+  document.getElementById('zoomBtns').classList.add('show');
+  document.getElementById('mobileEnter').classList.add('show');
+}
+
+// Virtual joystick (left thumb) — drives keys.w/a/s/d intensity via a vector
+const joyState = { active:false, dx:0, dz:0, startX:0, startY:0 };
+{
+  const joy = document.getElementById('joy');
+  const stick = document.getElementById('joyStick');
+  const radius = 40;
+  function setStick(ndx, ndz){
+    stick.style.transform = `translate(calc(-50% + ${ndx*radius}px), calc(-50% + ${ndz*radius}px))`;
+  }
+  joy.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    joy.setPointerCapture(e.pointerId);
+    joyState.active = true;
+    const r = joy.getBoundingClientRect();
+    joyState.startX = r.left + r.width/2;
+    joyState.startY = r.top + r.height/2;
+  });
+  joy.addEventListener('pointermove', e=>{
+    if(!joyState.active) return;
+    const r = joy.getBoundingClientRect();
+    let dx = (e.clientX - (r.left + r.width/2)) / radius;
+    let dz = (e.clientY - (r.top + r.height/2)) / radius;
+    const mag = Math.hypot(dx, dz);
+    if(mag > 1){ dx/=mag; dz/=mag; }
+    joyState.dx = dx; joyState.dz = dz;
+    setStick(dx, dz);
+  });
+  function endJoy(){
+    joyState.active = false; joyState.dx = 0; joyState.dz = 0;
+    setStick(0, 0);
+  }
+  joy.addEventListener('pointerup', endJoy);
+  joy.addEventListener('pointercancel', endJoy);
+  joy.addEventListener('pointerleave', e=>{ if(joyState.active) endJoy(); });
+}
+
+// Mobile zoom buttons
+document.getElementById('zoomIn').addEventListener('click', ()=>{
+  camZoomTarget = Math.max(CAM_MIN_SIZE, camZoomTarget*0.85);
+});
+document.getElementById('zoomOut').addEventListener('click', ()=>{
+  camZoomTarget = Math.min(CAM_MAX_SIZE, camZoomTarget*1.18);
+});
+// Mobile enter button
+document.getElementById('mobileEnter').addEventListener('click', ()=>{
+  openSceneModal();
+});
+
+// Audio click feedback (UI sounds via WebAudio)
+let _audioCtxUI = null;
+function uiSfx(type){
+  try{
+    if(!_audioCtxUI) _audioCtxUI = new (window.AudioContext||window.webkitAudioContext)();
+    const ctx = _audioCtxUI;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g).connect(ctx.destination);
+    if(type === 'click'){ o.frequency.value = 760; o.type='sine'; g.gain.setValueAtTime(0.06, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.12); o.start(); o.stop(ctx.currentTime+0.13); }
+    else if(type === 'block'){ o.frequency.value = 200; o.type='square'; g.gain.setValueAtTime(0.05, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.18); o.start(); o.stop(ctx.currentTime+0.19); if(navigator.vibrate) navigator.vibrate(15); }
+    else if(type === 'tab'){ o.frequency.value = 540; o.type='triangle'; g.gain.setValueAtTime(0.05, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.18); o.start(); o.stop(ctx.currentTime+0.19); }
+    else if(type === 'open'){ o.frequency.value = 880; o.type='sine'; g.gain.setValueAtTime(0.07, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.28); o.start(); o.stop(ctx.currentTime+0.29); if(navigator.vibrate) navigator.vibrate(25); }
+  }catch(e){}
+}
+// Hook UI sounds into existing flows
+const _origBuild = buildScene;
+buildScene = function(name){ uiSfx('tab'); _origBuild(name); };
+const _origOpen = openSceneModal;
+openSceneModal = function(){ uiSfx('open'); _origOpen(); };
+const _origFlash = flashInvalid;
+flashInvalid = function(p){ uiSfx('block'); _origFlash(p); };
+
+// Aria labels for toolbar buttons
+document.getElementById('btn-sound').setAttribute('aria-label', '環境音 オン/オフ');
+document.getElementById('btn-time').setAttribute('aria-label', '昼/夜');
+document.getElementById('btn-view').setAttribute('aria-label', '一人称/三人称 視点切替');
+
 /* === Post-processing ==================================== */
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
-const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.5, 0.7, 0.78);
+const bloomStrength = (IS_MOBILE || REDUCED_MOTION) ? 0.25 : 0.5;
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), bloomStrength, 0.7, 0.78);
 composer.addPass(bloom);
-const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
-composer.addPass(smaa);
+if(!IS_MOBILE){
+  const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
+  composer.addPass(smaa);
+}
 composer.addPass(new OutputPass());
 
 /* === Animation loop ===================================== */
@@ -5530,17 +5683,25 @@ function animate(){
   let moving = false;
   const targetSpeed = keys.shift ? RUN_SPEED : WALK_SPEED;
   let mx = 0, mz = 0;
-  if(keys.w) mz -= 1;
-  if(keys.s) mz += 1;
-  if(keys.a) mx -= 1;
-  if(keys.d) mx += 1;
+  // Mobile joystick takes priority when active (analog magnitude)
+  if(joyState.active && (Math.abs(joyState.dx) > 0.06 || Math.abs(joyState.dz) > 0.06)){
+    mx = joyState.dx;
+    mz = joyState.dz;
+  } else {
+    if(keys.w) mz -= 1;
+    if(keys.s) mz += 1;
+    if(keys.a) mx -= 1;
+    if(keys.d) mx += 1;
+  }
   let desiredVx = 0, desiredVz = 0;
   if(mx || mz){
-    const len = Math.hypot(mx,mz); mx/=len; mz/=len;
+    const len = Math.hypot(mx,mz);
+    const mag = Math.min(1, len);                  // analog magnitude (joystick)
+    mx /= (len || 1); mz /= (len || 1);
     const wx = mx*Math.cos(camYawState) - mz*Math.sin(camYawState);
     const wz = mx*Math.sin(camYawState) + mz*Math.cos(camYawState);
-    desiredVx = wx*targetSpeed;
-    desiredVz = wz*targetSpeed;
+    desiredVx = wx*targetSpeed*mag;
+    desiredVz = wz*targetSpeed*mag;
     if(moveTarget){ moveTarget = null; targetMarker.visible = false; }
   } else if(moveTarget){
     const mdx = moveTarget.x - avatar.position.x;
