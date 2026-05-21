@@ -194,7 +194,7 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 </div>
 
 <div style="position:fixed;bottom:4px;right:8px;z-index:8;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;color:rgba(232,220,184,.55);pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.7)">
-  ASSETS · Glen&nbsp;Fox · mirada · three.js CC&#8209;BY
+  ASSETS · Glen&nbsp;Fox · mirada · Khronos · CC&#8209;BY/CC0
 </div>
 <div class="hint">
   <span><span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span> 歩く</span>
@@ -1670,8 +1670,12 @@ const ASSETS = {
   parrot:        'https://threejs.org/examples/models/gltf/Parrot.glb',
   // KhronosGroup sample horse (CC0)
   horse:         'https://threejs.org/examples/models/gltf/Horse.glb',
-  // Soldier — animation reference
-  // 'soldier':  'https://threejs.org/examples/models/gltf/Soldier.glb',
+  // Khronos Lantern (CC0) — detailed PBR stone+brass+glass lantern
+  lantern:       'https://threejs.org/examples/models/gltf/Lantern/glTF-Binary/Lantern.glb',
+  // mirada Parrot (CC-BY 3.0) — colorful flying bird w/ flap animation
+  parrot:        'https://threejs.org/examples/models/gltf/Parrot.glb',
+  // Khronos Duck (CC0) — yellow rubber duck (perfect for ponds)
+  duck:          'https://threejs.org/examples/models/gltf/Duck/glTF-Binary/Duck.glb',
 };
 
 // Track per-scene animation mixers for cleanup
@@ -3900,6 +3904,44 @@ SCENES.plaza = {
         mixer.clipAction(gltf.animations[0]).play();
         addMixer(mixer);
       }
+    });
+    // Khronos Lantern (PBR detailed) — at fountain corner as a hero prop
+    loadGLB(ASSETS.lantern).then(gltf => {
+      if(!gltf) return;
+      const lantern = gltf.scene;
+      lantern.scale.setScalar(0.25);
+      lantern.position.set(2.5, hf(2.5, 2.5), 2.5);
+      root.add(lantern);
+    });
+    // Parrot — joining the flamingo flock for color variety
+    loadGLB(ASSETS.parrot).then(gltf => {
+      if(!gltf) return;
+      const parrot = gltf.scene.clone(true);
+      parrot.scale.setScalar(0.013);
+      parrot.userData.flightPhase = Math.PI;
+      parrot.userData.flightRadius = 8;
+      parrot.userData.flightY = 9;
+      root.add(parrot);
+      if(gltf.animations.length){
+        const mixer = new THREE.AnimationMixer(parrot);
+        mixer.clipAction(gltf.animations[0]).play();
+        addMixer(mixer);
+      }
+      ENTITIES.flyers = ENTITIES.flyers || [];
+      ENTITIES.flyers.push(parrot);
+    });
+    // Khronos Duck floating on the koi pond — high-quality cherished asset
+    loadGLB(ASSETS.duck).then(gltf => {
+      if(!gltf) return;
+      const duck = gltf.scene;
+      duck.scale.setScalar(0.012);
+      duck.position.set(-6.2, hf(-6, -5.5)+0.25, -5.5);
+      duck.rotation.y = 0.4;
+      // Bob gently
+      duck.userData.baseY = duck.position.y;
+      duck.userData.phase = 0;
+      ENTITIES.bobs.push(duck);
+      root.add(duck);
     });
   }
 };
