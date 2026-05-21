@@ -193,6 +193,9 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   </div>
 </div>
 
+<div style="position:fixed;bottom:4px;right:8px;z-index:8;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;color:rgba(232,220,184,.55);pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.7)">
+  ASSETS · Glen&nbsp;Fox · mirada · three.js CC&#8209;BY
+</div>
 <div class="hint">
   <span><span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span> 歩く</span>
   <span class="sep">/</span>
@@ -1636,7 +1639,7 @@ function loadGLB(url){
         g.scene.traverse(o => {
           if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; }
         });
-        resolve(g.scene);
+        resolve(g);   // full gltf (scene + animations)
       },
       undefined,
       (err) => {
@@ -1647,6 +1650,31 @@ function loadGLB(url){
   });
   GLB_CACHE.set(url, promise);
   return promise;
+}
+
+/* === Curated CC web assets (Three.js samples; CORS-enabled; permissive) ===
+ *  All under three.js MIT-bundle examples — verified CORS for any origin.
+ *  Authors credited via comments. The full credits panel is in PUBLIC ATTRIBUTIONS below.
+ */
+const ASSETS = {
+  // Glen Fox — "Littlest Tokyo" (CC-BY 4.0) — animated low-poly Japanese cityscape
+  littlestTokyo: 'https://threejs.org/examples/models/gltf/LittlestTokyo.glb',
+  // mirada (CC-BY 3.0) — flying flamingo with built-in animation
+  flamingo:      'https://threejs.org/examples/models/gltf/Flamingo.glb',
+  // mirada — stork
+  stork:         'https://threejs.org/examples/models/gltf/Stork.glb',
+  // mirada — parrot
+  parrot:        'https://threejs.org/examples/models/gltf/Parrot.glb',
+  // KhronosGroup sample horse (CC0)
+  horse:         'https://threejs.org/examples/models/gltf/Horse.glb',
+  // Soldier — animation reference
+  // 'soldier':  'https://threejs.org/examples/models/gltf/Soldier.glb',
+};
+
+// Track per-scene animation mixers for cleanup
+function addMixer(mixer){
+  ENTITIES.mixers = ENTITIES.mixers || [];
+  ENTITIES.mixers.push(mixer);
 }
 
 /* === Purpose-specific commercial RPG buildings (Codex review) === */
@@ -3117,6 +3145,11 @@ function clearScene(){
   if(ENTITIES.butterflies) ENTITIES.butterflies.length = 0;
   if(ENTITIES.bells) ENTITIES.bells.length = 0;
   if(ENTITIES.banners) ENTITIES.banners.length = 0;
+  if(ENTITIES.mixers){
+    for(const m of ENTITIES.mixers){ try { m.stopAllAction(); } catch(_){} }
+    ENTITIES.mixers.length = 0;
+  }
+  if(ENTITIES.flyers) ENTITIES.flyers.length = 0;
   ENTITIES.obstacles.length = 0;
   TREE_GROUPS.length = 0;
   densifyWindUniforms.length = 0;
@@ -3778,8 +3811,61 @@ SCENES.plaza = {
     innerSign.rotation.y = -0.3;
     root.add(innerSign);
 
-    // Tiny natural undergrowth — grass tufts, ferns, flowers, leaves (no pebbles/mushrooms)
+    // Tiny natural undergrowth — grass tufts, ferns, flowers, leaves
     densifyGround(root, 'forest');
+
+    /* ─ HIGH-QUALITY WEB ASSETS (Three.js sample CC-licensed GLBs) ─ */
+    // 3 flamingos circling above the village (animated wing flap)
+    loadGLB(ASSETS.flamingo).then(gltf => {
+      if(!gltf) return;
+      for(let i=0;i<3;i++){
+        const bird = gltf.scene.clone(true);
+        bird.scale.setScalar(0.012);
+        bird.userData.flightPhase = (i/3)*Math.PI*2;
+        bird.userData.flightRadius = 9 + i*0.6;
+        bird.userData.flightY = 10 + i*0.8;
+        root.add(bird);
+        if(gltf.animations.length){
+          const mixer = new THREE.AnimationMixer(bird);
+          mixer.clipAction(gltf.animations[0]).play();
+          addMixer(mixer);
+        }
+        // Custom orbit animation in animate loop via userData
+        ENTITIES.flyers = ENTITIES.flyers || [];
+        ENTITIES.flyers.push(bird);
+      }
+    });
+    // 1 stork patrolling lower
+    loadGLB(ASSETS.stork).then(gltf => {
+      if(!gltf) return;
+      const stork = gltf.scene.clone(true);
+      stork.scale.setScalar(0.010);
+      stork.userData.flightPhase = Math.PI/2;
+      stork.userData.flightRadius = 7;
+      stork.userData.flightY = 7;
+      root.add(stork);
+      if(gltf.animations.length){
+        const mixer = new THREE.AnimationMixer(stork);
+        mixer.clipAction(gltf.animations[0]).play();
+        addMixer(mixer);
+      }
+      ENTITIES.flyers = ENTITIES.flyers || [];
+      ENTITIES.flyers.push(stork);
+    });
+    // Horse at the mill (walking animation)
+    loadGLB(ASSETS.horse).then(gltf => {
+      if(!gltf) return;
+      const horse = gltf.scene.clone(true);
+      horse.scale.setScalar(0.012);
+      horse.position.set(-7.2, hf(-7.2, -8.4), -8.4);
+      horse.rotation.y = -0.6;
+      root.add(horse);
+      if(gltf.animations.length){
+        const mixer = new THREE.AnimationMixer(horse);
+        mixer.clipAction(gltf.animations[0]).play();
+        addMixer(mixer);
+      }
+    });
   }
 };
 
@@ -5309,6 +5395,49 @@ SCENES.heya = {
 
     // Butterflies floating inside the room (delight)
     spawnButterflies(root, 3, [0, 2.0, 0], 1.5);
+
+    /* ─ HERO ASSET: Glen Fox "Littlest Tokyo" on a pedestal (CC-BY 4.0) ─
+       A tiny animated Japanese cityscape under a glass dome — the room's
+       magical centerpiece. Cleanly hand-modeled and animated. */
+    // Pedestal (wood + stone top)
+    const pedTop = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.42, 0.08, 24),
+      mat(0xb89868, {roughness:0.8}));
+    pedTop.position.set(-1.4, 1.21 + 0.74, 1.4);
+    pedTop.castShadow = pedTop.receiveShadow = true;
+    root.add(pedTop);
+    const pedBody = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.44, 0.7, 12),
+      mat(0x6a4a2a, {roughness:0.9}));
+    pedBody.position.set(-1.4, 1.21 + 0.35, 1.4);
+    pedBody.castShadow = pedBody.receiveShadow = true;
+    root.add(pedBody);
+    // Glass dome
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.42, 22, 16, 0, Math.PI*2, 0, Math.PI/2),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.12,
+        roughness: 0.05, metalness: 0.1, envMapIntensity: 1.4,
+        side: THREE.DoubleSide
+      }));
+    dome.position.set(-1.4, 1.21 + 0.78, 1.4);
+    root.add(dome);
+    // Brass ring at glass base
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 24),
+      mat(0xc8a040, {metalness:0.6, roughness:0.4}));
+    ring.rotation.x = Math.PI/2;
+    ring.position.set(-1.4, 1.21 + 0.79, 1.4);
+    root.add(ring);
+    // Load the Littlest Tokyo and place inside the dome
+    loadGLB(ASSETS.littlestTokyo).then(gltf => {
+      if(!gltf) return;
+      const tokyo = gltf.scene;
+      tokyo.scale.setScalar(0.0006);
+      tokyo.position.set(-1.4, 1.21 + 0.78, 1.4);
+      root.add(tokyo);
+      if(gltf.animations && gltf.animations.length){
+        const mixer = new THREE.AnimationMixer(tokyo);
+        mixer.clipAction(gltf.animations[0]).play();
+        addMixer(mixer);
+      }
+    });
   }
 };
 
@@ -5872,6 +6001,17 @@ function animate(){
   }
   // grass wind uniforms
   for(const u of densifyWindUniforms){ u.uTime.value = t; }
+  // GLB AnimationMixer updates
+  if(ENTITIES.mixers) for(const mixer of ENTITIES.mixers){ mixer.update(dt); }
+  // Flying GLB birds — gentle orbital flight
+  if(ENTITIES.flyers) for(const b of ENTITIES.flyers){
+    b.userData.flightPhase += dt*0.4;
+    const r = b.userData.flightRadius;
+    b.position.x = Math.sin(b.userData.flightPhase) * r;
+    b.position.z = Math.cos(b.userData.flightPhase) * r;
+    b.position.y = b.userData.flightY + Math.sin(b.userData.flightPhase*1.7)*0.6;
+    b.rotation.y = -b.userData.flightPhase + Math.PI/2;
+  }
   // bobbing gimmicks (chests, orbs, fishing bobbers)
   for(const b of ENTITIES.bobs){
     b.position.y = b.userData.baseY + Math.sin(t*1.6 + (b.userData.phase||0))*0.08;
