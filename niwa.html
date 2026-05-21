@@ -235,7 +235,7 @@ window.addEventListener('error', e=>{
 });
 
 /* Orthographic camera (quarter-view) ====================== */
-const CAM_ORTHO_SIZE = 10;       // vertical half-size in world units (zoom)
+let CAM_ORTHO_SIZE = 10;       // vertical half-size in world units (zoom) — mutable
 const CAM_OFFSET = new THREE.Vector3(10, 14, 10);
 function makeOrthoCam(){
   const aspect = window.innerWidth/window.innerHeight;
@@ -244,6 +244,14 @@ function makeOrthoCam(){
   c.position.copy(CAM_OFFSET);
   c.lookAt(0, 1, 0);
   return c;
+}
+function applyOrthoSize(){
+  const aspect = window.innerWidth/window.innerHeight;
+  camera.left = -CAM_ORTHO_SIZE*aspect;
+  camera.right = CAM_ORTHO_SIZE*aspect;
+  camera.top = CAM_ORTHO_SIZE;
+  camera.bottom = -CAM_ORTHO_SIZE;
+  camera.updateProjectionMatrix();
 }
 let camera = makeOrthoCam();
 // 1st-person perspective camera, swap into composer per frame
@@ -2995,7 +3003,9 @@ function palSnow(x, z, y, r, c){
 // Scene state
 let currentScene = null;
 const SCENES = {};
-const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], lampLights: [], boats: [], hourhands: [], minhands: [], bobs: [], spins: [], mills: [], flags: [] };
+const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], lampLights: [], boats: [], hourhands: [], minhands: [], bobs: [], spins: [], mills: [], flags: [], obstacles: [] };
+// helper for scenes to register collision obstacles (x,z,r)
+function addObstacle(x, z, r){ ENTITIES.obstacles.push({x, z, r}); }
 function clearScene(){
   if(!currentScene) return;
   // Dispose all children of currentScene.root
@@ -3025,6 +3035,7 @@ function clearScene(){
   if(ENTITIES.butterflies) ENTITIES.butterflies.length = 0;
   if(ENTITIES.bells) ENTITIES.bells.length = 0;
   if(ENTITIES.banners) ENTITIES.banners.length = 0;
+  ENTITIES.obstacles.length = 0;
   TREE_GROUPS.length = 0;
   densifyWindUniforms.length = 0;
 }
@@ -3147,6 +3158,7 @@ SCENES.plaza = {
     church.scale.setScalar(0.85);
     root.add(church);
     church.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    addObstacle(7.2, 7.0, 2.2);
     // Watchtower on NW flat pad
     const tower = makeWatchtower();
     tower.position.set(-8, hf(-8,7.2), 7.2);
@@ -3155,6 +3167,7 @@ SCENES.plaza = {
       if(o.userData?.flag) ENTITIES.flags.push(o);
       if(o.userData?.lamp) ENTITIES.lamps.push(o);
     });
+    addObstacle(-8, 7.2, 1.1);
     // Windmill on SW farm pad
     const mill = makeWindmill();
     mill.position.set(-8, hf(-8,-7.4), -7.4);
@@ -3163,6 +3176,9 @@ SCENES.plaza = {
       mill.userData.mill.userData.rotateZ = 0.4;
       ENTITIES.mills.push(mill.userData.mill);
     }
+    addObstacle(-8, -7.4, 1.2);
+    // Central fountain — small obstacle (avatar can't walk through basin)
+    addObstacle(0, 0, 1.5);
 
     /* ─ MEDIEVAL VILLAGE — 10 houses in 3 CLUSTERS WITH YARDS (per codex) ─
        South cottages (4), West homes (3), East homes (3) — each facing the
@@ -3206,6 +3222,10 @@ SCENES.plaza = {
       h.rotation.y = Math.atan2(-hx, -hz);
       root.add(h);
       h.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+      // Register collision footprint
+      addObstacle(hx, hz, specials[key] === 'blacksmith' ? 1.5 :
+                          specials[key] === 'tavern'     ? 1.6 :
+                          specials[key] === 'herbalist'  ? 1.3 : 1.2);
     }
 
     /* ─ CENTRAL FOUNTAIN at the heart of the village ─ */
@@ -5337,6 +5357,8 @@ const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 let moveTarget = null;
 let camYawState = -Math.PI*0.25;   // dynamic camera yaw (rotated by drag)
+const camFollow = new THREE.Vector3();   // smoothed camera target
+let camInit = false;
 
 window.addEventListener('keydown', e=>{
   if(e.code==='KeyW' || e.key==='ArrowUp')    keys.w = true;
@@ -5375,21 +5397,22 @@ canvas.addEventListener('pointerup', e=>{
   if(!dragMoved) handleClick(e.clientX, e.clientY);
 });
 canvas.addEventListener('pointercancel', ()=>{ pointerDown = false; });
-// Wheel: zoom by changing ortho frustum size
-canvas.addEventListener('wheel', e=>{
+// Wheel: zoom by changing ortho size (also bound on window in case canvas misses)
+function onWheelZoom(e){
   e.preventDefault();
-  const factor = e.deltaY > 0 ? 1.1 : 0.9;
-  camera.left *= factor; camera.right *= factor;
-  camera.top  *= factor; camera.bottom *= factor;
-  // clamp to sensible range
-  const half = camera.top;
-  if(half < 4 || half > 32){
-    const inv = 1/factor;
-    camera.left *= inv; camera.right *= inv;
-    camera.top  *= inv; camera.bottom *= inv;
-  }
-  camera.updateProjectionMatrix();
-}, { passive: false });
+  const factor = e.deltaY > 0 ? 1.10 : 0.91;
+  CAM_ORTHO_SIZE *= factor;
+  if(CAM_ORTHO_SIZE < 4) CAM_ORTHO_SIZE = 4;
+  if(CAM_ORTHO_SIZE > 28) CAM_ORTHO_SIZE = 28;
+  applyOrthoSize();
+}
+canvas.addEventListener('wheel', onWheelZoom, { passive: false });
+window.addEventListener('wheel', onWheelZoom, { passive: false });
+// keyboard zoom fallback: [ ] keys
+window.addEventListener('keydown', e=>{
+  if(e.key === ']') { CAM_ORTHO_SIZE = Math.max(4, CAM_ORTHO_SIZE*0.91); applyOrthoSize(); }
+  if(e.key === '[') { CAM_ORTHO_SIZE = Math.min(28, CAM_ORTHO_SIZE*1.10); applyOrthoSize(); }
+});
 
 function handleClick(cx, cy){
   ndc.x = (cx / window.innerWidth) * 2 - 1;
@@ -5422,9 +5445,9 @@ function animate(){
   const dt = Math.min(0.05, clock.getDelta());
   const t = clock.elapsedTime;
 
-  /* ── Avatar movement ── */
+  /* ── Avatar movement (smoother + collision) ── */
   let moving = false;
-  const moveSpeed = keys.shift ? 5.2 : 3.0;
+  const moveSpeed = keys.shift ? 8.5 : 5.5;   // snappier feel (was 5.2/3.0)
   let mx = 0, mz = 0;
   if(keys.w) mz -= 1;
   if(keys.s) mz += 1;
@@ -5452,26 +5475,47 @@ function animate(){
     }
   }
   // clamp to scene radius
-  const r = Math.hypot(avatar.position.x, avatar.position.z);
-  if(r > SCENE_BOUND){
-    avatar.position.x *= SCENE_BOUND/r;
-    avatar.position.z *= SCENE_BOUND/r;
+  const rr = Math.hypot(avatar.position.x, avatar.position.z);
+  if(rr > SCENE_BOUND){
+    avatar.position.x *= SCENE_BOUND/rr;
+    avatar.position.z *= SCENE_BOUND/rr;
+  }
+  // collision push-out against registered building obstacles
+  const AV_RADIUS = 0.35;
+  for(const ob of ENTITIES.obstacles){
+    const dxo = avatar.position.x - ob.x;
+    const dzo = avatar.position.z - ob.z;
+    const dd = Math.hypot(dxo, dzo);
+    const minD = ob.r + AV_RADIUS;
+    if(dd < minD && dd > 0.001){
+      const push = (minD - dd) / dd;
+      avatar.position.x += dxo * push;
+      avatar.position.z += dzo * push;
+      // cancel auto-walk target if blocked
+      if(moveTarget){
+        const dt2 = Math.hypot(moveTarget.x - ob.x, moveTarget.z - ob.z);
+        if(dt2 < ob.r + AV_RADIUS) moveTarget = null;
+      }
+    }
   }
   // follow terrain
   avatar.position.y = sampleHeight(avatar.position.x, avatar.position.z);
 
   // Camera positioning — 3rd-person ortho follow OR 1st-person perspective
   if(!firstPerson){
+    // Smoothed follow target (avoids jitter, less stressful pan)
+    if(!camInit){ camFollow.copy(avatar.position); camInit = true; }
+    camFollow.lerp(avatar.position, 0.16);
     // 3P: ortho camera follows avatar with rotatable offset
     const dist = Math.hypot(CAM_OFFSET.x, CAM_OFFSET.z);
     const cx = Math.sin(camYawState)*dist;
     const cz = Math.cos(camYawState)*dist;
     camera.position.set(
-      avatar.position.x + cx,
-      avatar.position.y + CAM_OFFSET.y,
-      avatar.position.z + cz
+      camFollow.x + cx,
+      camFollow.y + CAM_OFFSET.y,
+      camFollow.z + cz
     );
-    camera.lookAt(avatar.position.x, avatar.position.y + 1.0, avatar.position.z);
+    camera.lookAt(camFollow.x, camFollow.y + 1.0, camFollow.z);
     avatar.visible = true;
     renderPass.camera = camera;
   } else {
