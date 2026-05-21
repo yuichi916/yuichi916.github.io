@@ -901,6 +901,251 @@ function layeredPlanting(root, x, z, theme = 'forest'){
   root.add(moss);
 }
 
+/* === Prop builders (small game-density elements) ========= */
+function makeBarrel(){
+  const g = new THREE.Group();
+  const wood = mat(0x8a5a3a);
+  const dark = mat(0x4a3024);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.55, 12), wood);
+  body.position.y = 0.275; body.castShadow=body.receiveShadow=true; g.add(body);
+  for(const y of [0.08, 0.5]){
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.025, 6, 16), dark);
+    band.rotation.x = Math.PI/2; band.position.y = y; g.add(band);
+  }
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 12), wood);
+  lid.position.y = 0.56; g.add(lid);
+  return g;
+}
+function makeBasket(){
+  const g = new THREE.Group();
+  const w = mat(0xb89868);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.28, 10), w);
+  body.position.y = 0.14; body.castShadow=true; g.add(body);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.022, 6, 8, Math.PI), w);
+  handle.position.y = 0.32; handle.rotation.x = Math.PI/2;
+  g.add(handle);
+  return g;
+}
+function makeBucket(){
+  const g = new THREE.Group();
+  const w = mat(0x4a3024);
+  const m = mat(0x6a5a3a);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.26, 10), m);
+  body.position.y = 0.13; body.castShadow=true; g.add(body);
+  for(const y of [0.04, 0.22]){
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.018, 6, 12), w);
+    band.rotation.x = Math.PI/2; band.position.y = y; g.add(band);
+  }
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.015, 4, 8, Math.PI), w);
+  handle.position.y = 0.30; handle.rotation.x = Math.PI/2;
+  g.add(handle);
+  return g;
+}
+function makeSign(text='市'){
+  const g = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.1, 0.08), mat(0x4a3024));
+  post.position.y = 0.55; post.castShadow=true; g.add(post);
+  // text on a canvas
+  const c = document.createElement('canvas'); c.width = 96; c.height = 96;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#e8dcb8'; ctx.fillRect(0,0,96,96);
+  ctx.fillStyle = '#1b1a14';
+  ctx.font = 'bold 64px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(text, 48, 52);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4),
+    new THREE.MeshStandardMaterial({map:tex, roughness:0.85}));
+  board.position.set(0, 0.95, 0.041); g.add(board);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.06), mat(0x6a4a2a));
+  back.position.y = 0.95; g.add(back);
+  return g;
+}
+function makeMarketStall(){
+  const g = new THREE.Group();
+  const w = mat(0xc2956a);
+  const d = mat(0x5a3a20);
+  const red = mat(0xb04030);
+  // 4 posts
+  for(const [x,z] of [[-0.8,-0.5],[0.8,-0.5],[-0.8,0.5],[0.8,0.5]]){
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.4, 6), d);
+    p.position.set(x, 0.7, z); p.castShadow=true; g.add(p);
+  }
+  // counter
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.08, 0.6), w);
+  counter.position.y = 0.55; counter.castShadow=counter.receiveShadow=true; g.add(counter);
+  // legs
+  const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), d);
+  leg1.position.set(-0.8, 0.25, 0); leg1.castShadow=true; g.add(leg1);
+  const leg2 = leg1.clone(); leg2.position.x = 0.8; g.add(leg2);
+  // awning (slanted)
+  const awning = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 1.0), red);
+  awning.position.y = 1.4; awning.rotation.x = -0.18; awning.castShadow=true; g.add(awning);
+  // hanging cloth
+  for(const x of [-0.8, 0.8]){
+    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.3), red);
+    cloth.position.set(x, 1.18, 0.4);
+    g.add(cloth);
+  }
+  // goods on counter
+  const cone1 = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.18, 8), mat(0xff8a30));
+  cone1.position.set(-0.5, 0.68, 0); g.add(cone1);
+  const cone2 = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.18, 8), mat(0xc83a30));
+  cone2.position.set(0, 0.68, 0); g.add(cone2);
+  const cone3 = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.18, 8), mat(0xfff2a0));
+  cone3.position.set(0.5, 0.68, 0); g.add(cone3);
+  return g;
+}
+function makeTeahouse(){
+  const g = new THREE.Group();
+  const w = mat(0xc2956a);
+  const d = mat(0x4a3024);
+  // foundation
+  const base = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.25, 1.6), mat(0x7a6a52));
+  base.position.y = 0.125; base.castShadow=base.receiveShadow=true; g.add(base);
+  // walls (partial - open side)
+  const back = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.2, 0.1), mat(0xe8dcb8));
+  back.position.set(0, 0.85, -0.75); back.castShadow=true; g.add(back);
+  const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.2, 1.5), mat(0xe8dcb8));
+  sideL.position.set(-0.95, 0.85, 0); g.add(sideL);
+  const sideR = sideL.clone(); sideR.position.x = 0.95; g.add(sideR);
+  // posts
+  for(const [x,z] of [[-0.95,0.75],[0.95,0.75]]){
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.4, 0.1), d);
+    p.position.set(x, 0.7, z); p.castShadow=true; g.add(p);
+  }
+  // tatami floor pattern (simple)
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.4).rotateX(-Math.PI/2), mat(0xc8a868));
+  floor.position.y = 0.26; g.add(floor);
+  // thatched gable roof
+  const roof1 = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.12, 1.0), mat(0x5a4a30));
+  roof1.position.set(0, 1.55, 0.4); roof1.rotation.x = -0.4; roof1.castShadow=true; g.add(roof1);
+  const roof2 = roof1.clone(); roof2.position.z = -0.4; roof2.rotation.x = 0.4;
+  g.add(roof2);
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.14, 0.18), d);
+  ridge.position.y = 1.75; g.add(ridge);
+  // tea pot on a small table
+  const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.05, 8), d);
+  tableTop.position.set(0, 0.45, 0.2); g.add(tableTop);
+  const pot = new THREE.Mesh(new THREE.SphereGeometry(0.10, 12, 8), mat(0x2a1a14, {metalness:0.3, roughness:0.4}));
+  pot.scale.y = 0.8; pot.position.set(0, 0.56, 0.2); g.add(pot);
+  return g;
+}
+function makeWoodshed(){
+  const g = new THREE.Group();
+  const w = mat(0x8a6a4a);
+  const d = mat(0x4a3024);
+  // 4 posts
+  for(const [x,z] of [[-0.7,-0.45],[0.7,-0.45],[-0.7,0.45],[0.7,0.45]]){
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.4, 6), d);
+    p.position.set(x, 0.7, z); p.castShadow=true; g.add(p);
+  }
+  // roof
+  const roof1 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.08, 0.7), mat(0x5a4a30));
+  roof1.position.set(0, 1.4, 0.2); roof1.rotation.x = -0.3; roof1.castShadow=true; g.add(roof1);
+  const roof2 = roof1.clone(); roof2.position.z = -0.2; roof2.rotation.x = 0.3;
+  g.add(roof2);
+  // back wall
+  const back = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.2, 0.06), w);
+  back.position.set(0, 0.7, -0.45); g.add(back);
+  // wood pile inside (visible)
+  for(let i=0;i<8;i++){
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 8), mat(0x624029));
+    log.rotation.z = Math.PI/2;
+    log.position.set((i%2)*0.05 - 0.025, 0.1 + Math.floor(i/2)*0.14, -0.3 + (i%4)*0.15);
+    log.castShadow=true;
+    g.add(log);
+  }
+  return g;
+}
+function makeRoadsideShrine(){
+  // 道祖神 — small roadside shrine
+  const g = new THREE.Group();
+  const stone = mat(0x8a8067);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.5), stone);
+  base.position.y = 0.1; base.castShadow=base.receiveShadow=true; g.add(base);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.4), stone);
+  body.position.y = 0.55; body.castShadow=true; g.add(body);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.22, 4), stone);
+  roof.position.y = 1.01; roof.rotation.y = Math.PI/4; g.add(roof);
+  // tiny offering bowl
+  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.04, 8), mat(0xc8a868));
+  bowl.position.set(0, 0.22, 0.22); g.add(bowl);
+  return g;
+}
+function makeBambooWindChime(){
+  const g = new THREE.Group();
+  const m = mat(0x8aa64a);
+  const support = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.2, 6), mat(0x4a3024));
+  support.position.y = 0.6; g.add(support);
+  for(let i=0;i<5;i++){
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.25+Math.random()*0.1, 6), m);
+    const ang = (i/5)*Math.PI*2;
+    tube.position.set(Math.sin(ang)*0.08, 0.1, Math.cos(ang)*0.08);
+    g.add(tube);
+  }
+  return g;
+}
+function makeFlowerBed(){
+  // dense colorful patch — instanced micro
+  const g = new THREE.Group();
+  const colors = [0xff5a7a, 0xff8a30, 0xfff2a0, 0xc8d8f8, 0xd968a0];
+  for(let i=0;i<30;i++){
+    const c = colors[Math.floor(Math.random()*colors.length)];
+    const f = new THREE.Mesh(new THREE.SphereGeometry(0.06+Math.random()*0.04, 6, 4),
+      mat(c, {emissive:c, emissiveIntensity:0.18}));
+    const ang = Math.random()*Math.PI*2;
+    const r = Math.random()*0.65;
+    f.position.set(Math.sin(ang)*r, 0.07+Math.random()*0.08, Math.cos(ang)*r);
+    g.add(f);
+  }
+  // small leaves
+  for(let i=0;i<20;i++){
+    const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.10, 0.06).rotateX(-Math.PI/2),
+      mat(0x4a7a40, {side:THREE.DoubleSide}));
+    const ang = Math.random()*Math.PI*2;
+    const r = Math.random()*0.7;
+    leaf.position.set(Math.sin(ang)*r, 0.03, Math.cos(ang)*r);
+    leaf.rotation.y = Math.random()*Math.PI;
+    g.add(leaf);
+  }
+  return g;
+}
+function makeScroll(){
+  const g = new THREE.Group();
+  const s = mat(0xe8dcb8);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.4, 10), s);
+  body.rotation.z = Math.PI/2;
+  body.position.y = 0.08;
+  body.castShadow=true;
+  g.add(body);
+  const caps = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.05, 10), mat(0x4a3024));
+  caps.rotation.z = Math.PI/2;
+  caps.position.set(-0.22, 0.08, 0);
+  g.add(caps);
+  const caps2 = caps.clone(); caps2.position.x = 0.22;
+  g.add(caps2);
+  return g;
+}
+function makeStoneStatue(){
+  // small Jizo / kasajizo
+  const g = new THREE.Group();
+  const stone = mat(0x9c9078, {roughness:0.92});
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.08, 8), stone);
+  base.position.y = 0.04; base.castShadow=base.receiveShadow=true; g.add(base);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 0.42, 10), stone);
+  body.position.y = 0.29; body.castShadow=true; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), stone);
+  head.position.y = 0.58; head.castShadow=true; g.add(head);
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.10, 8), mat(0xa88a4a));
+  hat.position.y = 0.73; g.add(hat);
+  // red bib (style accent)
+  const bib = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.18), mat(0xc83a30));
+  bib.position.set(0, 0.45, 0.13);
+  g.add(bib);
+  return g;
+}
+
 /* === Instanced ground density (10× small props) ========== */
 // shared geometries / materials for instanced layers
 function makeGrassBladeTex(){
@@ -1637,17 +1882,76 @@ SCENES.plaza = {
       rock.position.set(Math.sin(ang)*r + 0.5, 0, Math.cos(ang)*r);
       root.add(rock);
     }
-    // NPCs walking around the plaza
-    for(let i=0;i<4;i++){
-      const ang = (i/4)*Math.PI*2;
-      const n = makeNpc([0xb04030,0x3e6a89,0x5a7a3d,0xc2956a][i], 0x1a1410);
-      n.position.set(Math.sin(ang)*5, 0, Math.cos(ang)*5);
+    // Market stalls
+    const ms1 = makeMarketStall(); ms1.position.set(-3.5, 0, 7); ms1.rotation.y = -0.3; root.add(ms1);
+    const ms2 = makeMarketStall(); ms2.position.set(3.5, 0, 7); ms2.rotation.y = 0.3; root.add(ms2);
+    // Teahouse off-side
+    const th1 = makeTeahouse(); th1.position.set(-9, 0, -1); th1.rotation.y = Math.PI/2; root.add(th1);
+    // Wood storage
+    const ws1 = makeWoodshed(); ws1.position.set(9, 0, -1); ws1.rotation.y = -Math.PI/2; root.add(ws1);
+    // 4 Jizo statues at compass approaches
+    for(const [x,z] of [[-1.5,11.5],[1.5,11.5],[-11.5,1.5],[11.5,1.5]]){
+      const j = makeStoneStatue(); j.position.set(x, 0, z); root.add(j);
+    }
+    // Barrels around market
+    for(const [x,z] of [[-4.5,6.5],[-3,8],[3,8],[4.5,6.5]]){
+      const b = makeBarrel(); b.position.set(x,0,z); root.add(b);
+    }
+    // Baskets
+    for(const [x,z] of [[-3.8,7.2],[-2.7,7.4],[2.7,7.4],[3.8,7.2]]){
+      const b = makeBasket(); b.position.set(x,0,z); root.add(b);
+    }
+    // Buckets near well
+    for(const [x,z] of [[1.2,0.5],[-1.2,0.5],[0.5,1.3]]){
+      const b = makeBucket(); b.position.set(x,0,z); root.add(b);
+    }
+    // Signs
+    const sn1 = makeSign('市'); sn1.position.set(-2, 0, 8.5); root.add(sn1);
+    const sn2 = makeSign('茶'); sn2.position.set(-7.5, 0, -1); root.add(sn2);
+    const sn3 = makeSign('薪'); sn3.position.set(7.5, 0, -1); root.add(sn3);
+    // Flower beds
+    for(const [x,z] of [[-5.5,2.5],[5.5,2.5],[-5.5,-2.5],[5.5,-2.5],[-2.5,5.5],[2.5,5.5]]){
+      const fb = makeFlowerBed(); fb.position.set(x,0,z); root.add(fb);
+    }
+    // Hanging chochin between kominka — paper lanterns ringed
+    for(let i=0;i<12;i++){
+      const ang = (i/12)*Math.PI*2;
+      const r = 8.5;
+      const ch = new THREE.Group();
+      const paper = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8),
+        mat(0xf6d28a, {emissive:0xffaa44, emissiveIntensity:0}));
+      paper.scale.y = 1.3;
+      paper.userData.lamp = true;
+      ch.add(paper);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.10, 0.04, 8), mat(0x4a2010));
+      cap.position.y = 0.24; ch.add(cap);
+      ch.position.set(Math.sin(ang)*r, 3.5, Math.cos(ang)*r);
+      root.add(ch);
+      ENTITIES.lamps.push(paper);
+    }
+    // NPCs walking around the plaza (more, 8 total)
+    const npcColors = [0xb04030,0x3e6a89,0x5a7a3d,0xc2956a,0x7a3a3a,0x4a6a8a,0x8a5a3a,0xc8553d];
+    for(let i=0;i<8;i++){
+      const ang = (i/8)*Math.PI*2;
+      const n = makeNpc(npcColors[i], 0x1a1410);
+      const r0 = 4 + (i%2)*2;
+      n.position.set(Math.sin(ang)*r0, 0, Math.cos(ang)*r0);
       n.userData.path = [
-        [Math.sin(ang)*5, Math.cos(ang)*5],
-        [Math.sin(ang+1.5)*5, Math.cos(ang+1.5)*5],
+        [Math.sin(ang)*r0, Math.cos(ang)*r0],
+        [Math.sin(ang+1.2)*r0, Math.cos(ang+1.2)*r0],
+        [Math.sin(ang+2.4)*r0, Math.cos(ang+2.4)*r0],
       ];
       n.userData.wp = 0;
-      n.userData.speed = 0.6 + Math.random()*0.3;
+      n.userData.speed = 0.5 + Math.random()*0.4;
+      root.add(n);
+      ENTITIES.npcs.push(n);
+    }
+    // 2 static NPCs at market stalls
+    for(let i=0;i<2;i++){
+      const n = makeNpc([0xc83a30, 0x3a6a8a][i], 0x1a1410);
+      n.position.set([-3.5, 3.5][i], 0, 6);
+      n.userData.path = [[[-3.5,6],[3.5,6]][i],[[-3.5,6],[3.5,6]][i]];
+      n.userData.wp = 0; n.userData.speed = 0;
       root.add(n);
       ENTITIES.npcs.push(n);
     }
