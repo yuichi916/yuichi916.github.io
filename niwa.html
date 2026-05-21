@@ -905,6 +905,177 @@ function layeredPlanting(root, x, z, theme = 'forest'){
   root.add(moss);
 }
 
+/* === Delight builders (くつろぎ＋視覚的に楽しい仕掛け) ====== */
+
+// Koi pond — wooden frame, shimmering water, small koi swimming in circles
+function makeKoiPond(radius = 1.6){
+  const g = new THREE.Group();
+  // wooden frame
+  const frameMat = mat(0x6a4a2a);
+  for(let i=0;i<12;i++){
+    const ang = (i/12)*Math.PI*2;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.32, 6), frameMat);
+    post.position.set(Math.sin(ang)*radius, 0.16, Math.cos(ang)*radius);
+    post.castShadow = true;
+    g.add(post);
+  }
+  // rim
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.07, 6, 24), frameMat);
+  rim.rotation.x = Math.PI/2; rim.position.y = 0.3;
+  g.add(rim);
+  // water
+  const water = new THREE.Mesh(new THREE.CircleGeometry(radius - 0.08, 32).rotateX(-Math.PI/2),
+    new THREE.MeshStandardMaterial({color:0x2a5a78, transparent:true, opacity:0.92, roughness:0.06, metalness:0.2, envMapIntensity:1.6}));
+  water.position.y = 0.18;
+  g.add(water);
+  // koi fish (3, swim in circle)
+  const koiColors = [0xff5a3a, 0xfff0a0, 0xffffff];
+  for(let i=0;i<3;i++){
+    const koi = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), mat(koiColors[i], {emissive:koiColors[i], emissiveIntensity:0.1}));
+    body.scale.set(1.6, 0.5, 0.7);
+    koi.add(body);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.16, 6), mat(koiColors[i]));
+    tail.rotation.z = Math.PI/2;
+    tail.position.set(-0.18, 0, 0);
+    koi.add(tail);
+    koi.userData = { phase: (i/3)*Math.PI*2, radius: radius - 0.4 };
+    koi.position.y = 0.20;
+    g.add(koi);
+    ENTITIES.kois = ENTITIES.kois || [];
+    ENTITIES.kois.push(koi);
+  }
+  // lily pads on the water
+  for(let i=0;i<4;i++){
+    const ang = Math.random()*Math.PI*2;
+    const r = Math.random()*(radius - 0.4);
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(0.16+Math.random()*0.10, 8).rotateX(-Math.PI/2),
+      mat(0x4a8050, {roughness:0.6}));
+    pad.position.set(Math.sin(ang)*r, 0.21, Math.cos(ang)*r);
+    g.add(pad);
+    if(Math.random() < 0.5){
+      const flower = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6),
+        mat(0xf8e8c0, {emissive:0xfff2c0, emissiveIntensity:0.15}));
+      flower.position.set(Math.sin(ang)*r, 0.26, Math.cos(ang)*r);
+      g.add(flower);
+    }
+  }
+  return g;
+}
+
+// Wishing bell — bronze bell on wooden frame, swings with the wind
+function makeWishingBell(){
+  const g = new THREE.Group();
+  const wood = mat(0x5a3a20);
+  // 2 posts
+  for(const dx of [-0.6, 0.6]){
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 2.0, 6), wood);
+    post.position.set(dx, 1.0, 0); post.castShadow = true;
+    g.add(post);
+  }
+  // top beam
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.14, 0.18), wood);
+  beam.position.y = 2.0; beam.castShadow = true;
+  g.add(beam);
+  // bell on swivel
+  const swivel = new THREE.Group();
+  swivel.position.y = 1.95;
+  g.add(swivel);
+  const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.4, 0.6, 16, 1, true),
+    mat(0xa87a30, {metalness:0.6, roughness:0.4}));
+  bell.position.y = -0.5;
+  bell.castShadow = true;
+  swivel.add(bell);
+  const bellTop = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 8, 0, Math.PI*2, 0, Math.PI/2),
+    mat(0xa87a30, {metalness:0.6, roughness:0.4}));
+  bellTop.position.y = -0.2; bellTop.rotation.x = Math.PI;
+  swivel.add(bellTop);
+  // clapper
+  const clapper = new THREE.Mesh(new THREE.SphereGeometry(0.10, 8, 6), mat(0x4a3018));
+  clapper.position.y = -0.75;
+  swivel.add(clapper);
+  // rope
+  const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7, 6), mat(0xddc488));
+  rope.position.set(0, -1.2, 0);
+  swivel.add(rope);
+  g.userData.swivel = swivel;
+  ENTITIES.bells = ENTITIES.bells || [];
+  ENTITIES.bells.push(swivel);
+  return g;
+}
+
+// Festival banners — vertical cloth banners hanging from a string
+function makeFestivalBanners(length = 6, count = 6){
+  const g = new THREE.Group();
+  // string
+  const str = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, length, 4), mat(0x3a2818));
+  str.rotation.z = Math.PI/2;
+  str.position.y = 3.0;
+  g.add(str);
+  const colors = [0xc83a30, 0xfff2a0, 0x3a6a89, 0x5a8a3d, 0xd968a0, 0xf08a30];
+  for(let i=0;i<count;i++){
+    const x = (i/(count-1) - 0.5) * length * 0.85;
+    const banner = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 0.9), mat(colors[i%colors.length]));
+    banner.material.side = THREE.DoubleSide;
+    banner.position.set(x, 2.5, 0);
+    banner.userData.swayPhase = i*0.5;
+    g.add(banner);
+    ENTITIES.banners = ENTITIES.banners || [];
+    ENTITIES.banners.push(banner);
+  }
+  return g;
+}
+
+// Butterflies — small fluttering creatures
+function spawnButterflies(root, count, center, radius){
+  ENTITIES.butterflies = ENTITIES.butterflies || [];
+  for(let i=0;i<count;i++){
+    const b = new THREE.Group();
+    const colors = [0xff8aa0, 0xfff2a0, 0xa0c8ff, 0xc890ff];
+    const c = colors[Math.floor(Math.random()*colors.length)];
+    const m = mat(c, {emissive:c, emissiveIntensity:0.15, side:THREE.DoubleSide, transparent:true, opacity:0.9});
+    const wingL = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.12), m);
+    wingL.position.x = -0.07; wingL.rotation.y = 0.4;
+    const wingR = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.12), m);
+    wingR.position.x = 0.07; wingR.rotation.y = -0.4;
+    b.add(wingL); b.add(wingR);
+    b.userData = {
+      cx: center[0], cz: center[2], radius,
+      phase: Math.random()*Math.PI*2,
+      heightBase: center[1] + 1.0 + Math.random()*1.5,
+      wingL, wingR,
+      speed: 0.4 + Math.random()*0.4,
+    };
+    root.add(b);
+    ENTITIES.butterflies.push(b);
+  }
+}
+
+// Engawa-style viewing bench (沓脱石 + 板縁)
+function makeViewingBench(){
+  const g = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({ map: WOOD_TEX.clone(), color:0xb88a5a, roughness:0.88 });
+  woodMat.map.needsUpdate = true; woodMat.map.repeat.set(2, 0.6); woodMat.map.colorSpace = THREE.SRGBColorSpace;
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.10, 0.5), woodMat);
+  seat.position.y = 0.40; seat.castShadow=seat.receiveShadow=true;
+  g.add(seat);
+  for(const dx of [-0.75, 0.75]){
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.40, 0.45), mat(0x4a3024));
+    leg.position.set(dx, 0.20, 0); leg.castShadow=true;
+    g.add(leg);
+  }
+  // back rest
+  const back = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 0.06), woodMat);
+  back.position.set(0, 0.71, -0.22);
+  back.rotation.x = -0.15;
+  g.add(back);
+  // small cushion (red)
+  const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.4), mat(0xc83a30, {emissive:0xc83a30, emissiveIntensity:0.08}));
+  cushion.position.set(0, 0.49, 0);
+  g.add(cushion);
+  return g;
+}
+
 /* === Cube platform terrain (Captain Toad style) ========== */
 function makePlatformChunk(w, h, d, theme = 'grass'){
   // Six-material box: top textured grass/stone/etc, sides stone, bottom dirt
@@ -2422,6 +2593,10 @@ function clearScene(){
   ENTITIES.spins.length = 0;
   ENTITIES.mills.length = 0;
   ENTITIES.flags.length = 0;
+  if(ENTITIES.kois) ENTITIES.kois.length = 0;
+  if(ENTITIES.butterflies) ENTITIES.butterflies.length = 0;
+  if(ENTITIES.bells) ENTITIES.bells.length = 0;
+  if(ENTITIES.banners) ENTITIES.banners.length = 0;
   TREE_GROUPS.length = 0;
   densifyWindUniforms.length = 0;
 }
@@ -2668,70 +2843,53 @@ SCENES.plaza = {
       root.add(t);
     }
 
-    /* ─ DECORATIONS: barrels, baskets, signs, flower beds, lanterns ─ */
-    // Barrels + baskets near market stalls (8)
-    for(let i=0;i<8;i++){
-      const ang = (i/8)*Math.PI*2 + 0.4;
-      const r = 4.6;
-      const b = (i%2 === 0 ? makeBarrel() : makeBasket());
-      b.position.set(Math.sin(ang)*r, 0.5, Math.cos(ang)*r);
-      root.add(b);
-    }
-    // 4 Jizo statues at the central platform edges
-    for(const [x,z] of [[-4.5,-4.5],[4.5,-4.5],[-4.5,4.5],[4.5,4.5]]){
-      const j = makeStoneStatue();
-      j.position.set(x, 0.5, z);
-      root.add(j);
-    }
-    // 6 hanging chochin lanterns across the central plaza
-    for(let i=0;i<10;i++){
-      const ang = (i/10)*Math.PI*2;
-      const r = 4.2;
-      const paper = new THREE.Mesh(new THREE.SphereGeometry(0.20, 12, 8),
-        mat(0xf6d28a, {emissive:0xffaa44, emissiveIntensity:0}));
-      paper.scale.y = 1.3;
-      paper.userData.lamp = true;
-      paper.position.set(Math.sin(ang)*r, 3.6, Math.cos(ang)*r);
-      root.add(paper);
-      ENTITIES.lamps.push(paper);
-    }
-    // Stone lanterns flanking the archways
-    for(const [x,z] of [[-1.8,-12],[1.8,-12],[12,-1.8],[12,1.8],[-1.8,12],[1.8,12],[-12,-1.8],[-12,1.8]]){
+    /* ─ CURATED DECORATIONS (calm, not cluttered) ─ */
+    // KOI POND on the central plaza beside the fountain — magical focal point
+    const pond = makeKoiPond(1.6);
+    pond.position.set(-3.5, 0.5, -0.5);
+    root.add(pond);
+    // 4 stone lanterns at the cardinal axis of the central plaza (composition!)
+    for(const [x,z] of [[-4.5,0],[4.5,0],[0,-4.5],[0,4.5]]){
       const sl = makeStoneLantern();
-      sl.position.set(x, 0, z);
+      sl.position.set(x, 0.5, z);
       root.add(sl);
       if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
       sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
     }
-    // Flower beds along the central plaza edges
-    for(const [x,z] of [[-3,3],[3,3],[-3,-3],[3,-3],[0,4.5],[0,-4.5]]){
+    // FESTIVAL BANNERS strung between central plaza and corner pillars
+    for(const [x,z,ry] of [[-6, 6, Math.PI/4],[6, -6, Math.PI/4],[-6,-6,-Math.PI/4],[6,6,-Math.PI/4]]){
+      const banners = makeFestivalBanners(5.5, 5);
+      banners.position.set(x, 0.5, z); banners.rotation.y = ry;
+      root.add(banners);
+    }
+    // WISHING BELL on a corner of the central plaza (visual + audible delight)
+    const bell = makeWishingBell();
+    bell.position.set(3.5, 0.5, 3.0);
+    root.add(bell);
+    bell.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    // 4 VIEWING BENCHES facing the fountain (places to pause)
+    for(const [x,z,ry] of [[-2.6,-2.6,-Math.PI/4],[2.6,-2.6,Math.PI/4],[-2.6,2.6,-3*Math.PI/4],[2.6,2.6,3*Math.PI/4]]){
+      const bn = makeViewingBench();
+      bn.position.set(x, 0.5, z); bn.rotation.y = ry;
+      root.add(bn);
+    }
+    // FLOWER BEDS at quadrant entrances (delight, not clutter)
+    for(const [x,z] of [[-3,5],[3,5],[-3,-5],[3,-5]]){
       const fb = makeFlowerBed();
       fb.position.set(x, 0.5, z);
       root.add(fb);
     }
-    // Wooden carts (small detail)
-    for(const [x,z,ry] of [[2.5,-2.0, 0.5],[-2.5, 2.0, -0.5]]){
-      const cart = new THREE.Group();
-      const bed = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.18, 0.7), mat(0x8a5a3a));
-      bed.position.y = 0.3; bed.castShadow=true; cart.add(bed);
-      // wheels
-      for(const dx of [-0.4, 0.4]){
-        for(const dz of [-0.3, 0.3]){
-          const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.06, 12), mat(0x4a3024));
-          wh.rotation.z = Math.PI/2;
-          wh.position.set(dx, 0.18, dz);
-          cart.add(wh);
-        }
-      }
-      // load
-      for(let k=0;k<3;k++){
-        const sack = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), mat(0xd9b078));
-        sack.scale.set(1, 0.7, 0.9);
-        sack.position.set(-0.2 + k*0.2, 0.5, 0);
-        cart.add(sack);
-      }
-      cart.position.set(x, 0.5, z); cart.rotation.y = ry;
-      root.add(cart);
+    // 2 Jizo guarding the church approach
+    for(const [x,z] of [[10,9.5],[10,11.5]]){
+      const j = makeStoneStatue();
+      j.position.set(x, 2.0, z);
+      root.add(j);
+    }
+    // BUTTERFLIES flutter around the central plaza
+    spawnButterflies(root, 6, [0, 1.0, 0], 5);
+    // BUTTERFLIES near each archway entrance too
+    for(const [x,z] of [[0,-12],[12,0],[0,12],[-12,0]]){
+      spawnButterflies(root, 2, [x, 1.0, z], 1.5);
     }
 
     /* ─ RPG gimmicks ─ */
@@ -4274,6 +4432,34 @@ function animate(){
   // flag waves
   for(const f of ENTITIES.flags){
     f.rotation.y = Math.sin(t*2.5)*0.3;
+  }
+  // koi swimming in circles
+  if(ENTITIES.kois) for(const k of ENTITIES.kois){
+    k.userData.phase += 0.6 * dt;
+    const r = k.userData.radius;
+    k.position.x = Math.sin(k.userData.phase) * r;
+    k.position.z = Math.cos(k.userData.phase) * r;
+    k.rotation.y = -k.userData.phase + Math.PI/2;
+  }
+  // butterflies float in lazy ellipses
+  if(ENTITIES.butterflies) for(const b of ENTITIES.butterflies){
+    b.userData.phase += b.userData.speed * dt;
+    b.position.x = b.userData.cx + Math.sin(b.userData.phase) * b.userData.radius;
+    b.position.z = b.userData.cz + Math.cos(b.userData.phase*0.83) * b.userData.radius;
+    b.position.y = b.userData.heightBase + Math.sin(b.userData.phase*1.7)*0.4;
+    b.rotation.y = -b.userData.phase;
+    const flap = Math.sin(t*14 + b.userData.phase)*0.6;
+    b.userData.wingL.rotation.y = 0.4 + flap;
+    b.userData.wingR.rotation.y = -0.4 - flap;
+  }
+  // wishing bell sway
+  if(ENTITIES.bells) for(const sw of ENTITIES.bells){
+    sw.rotation.z = Math.sin(t*0.8)*0.06;
+  }
+  // festival banners sway
+  if(ENTITIES.banners) for(const ba of ENTITIES.banners){
+    ba.rotation.y = Math.sin(t*1.3 + (ba.userData.swayPhase||0))*0.18;
+    ba.rotation.x = Math.sin(t*0.8 + (ba.userData.swayPhase||0))*0.06;
   }
   // NPC walk
   for(const n of ENTITIES.npcs){
