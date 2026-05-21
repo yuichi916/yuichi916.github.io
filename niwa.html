@@ -197,8 +197,8 @@ import { Sky } from 'three/addons/objects/Sky.js';
  *  心の庭 — 9 compact dioramas, scene-switched
  * =========================================================== */
 
-const SCENE_RADIUS = 12;       // each diorama is a 24m disc, framed in view
-const SCENE_BOUND = 11;        // avatar can walk up to this radius
+const SCENE_RADIUS = 14;       // diorama disc radius (28m total)
+const SCENE_BOUND = 13;        // avatar can walk up to this radius
 
 const canvas = document.getElementById('webgl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
@@ -233,12 +233,14 @@ window.addEventListener('error', e=>{
 });
 
 /* Orthographic camera (quarter-view) ====================== */
+const CAM_ORTHO_SIZE = 10;       // vertical half-size in world units (zoom)
+const CAM_OFFSET = new THREE.Vector3(10, 14, 10);
 function makeOrthoCam(){
   const aspect = window.innerWidth/window.innerHeight;
-  const s = 13.5;  // vertical half-size in world units (controls framing)
+  const s = CAM_ORTHO_SIZE;
   const c = new THREE.OrthographicCamera(-s*aspect, s*aspect, s, -s, 0.1, 200);
-  c.position.set(20, 22, 20);
-  c.lookAt(0, 1.2, 0);
+  c.position.copy(CAM_OFFSET);
+  c.lookAt(0, 1, 0);
   return c;
 }
 let camera = makeOrthoCam();
@@ -899,6 +901,190 @@ function layeredPlanting(root, x, z, theme = 'forest'){
   root.add(moss);
 }
 
+/* === Instanced ground density (10× small props) ========== */
+// shared geometries / materials for instanced layers
+function makeGrassBladeTex(){
+  const c = document.createElement('canvas'); c.width = 16; c.height = 64;
+  const cx = c.getContext('2d');
+  const g = cx.createLinearGradient(0,0,0,64);
+  g.addColorStop(0,'#5a8a3a'); g.addColorStop(0.5,'#7ea14a'); g.addColorStop(1,'#3a5a20');
+  cx.fillStyle = g;
+  cx.beginPath();
+  cx.moveTo(8, 64); cx.lineTo(2, 0); cx.lineTo(14, 0); cx.closePath(); cx.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const GRASS_BLADE_TEX = makeGrassBladeTex();
+
+let densifyWindUniforms = [];   // track all grass shader uniforms for wind
+
+function densifyGround(root, themeName){
+  const r = SCENE_RADIUS;
+  const rndFn = (s=>{let a=s;return ()=>{a=Math.imul(a^a>>>15,a|1);a^=a+Math.imul(a^a>>>7,a|61);return((a^a>>>14)>>>0)/4294967296;}})(0xc0ffee + Math.random()*1e6 | 0);
+
+  const themes = {
+    grass:   { grass:1200, peb:240, flower:340, mushroom:60,  leaf:140 },
+    moss:    { grass:600,  peb:340, flower:140, mushroom:240, leaf:340 },
+    sand:    { grass:140,  peb:560, flower:80,  mushroom:0,   leaf:60  },
+    gravel:  { grass:240,  peb:840, flower:60,  mushroom:0,   leaf:80  },
+    shore:   { grass:560,  peb:560, flower:240, mushroom:0,   leaf:140 },
+    forest:  { grass:900,  peb:340, flower:240, mushroom:340, leaf:440 },
+    autumn:  { grass:700,  peb:240, flower:140, mushroom:140, leaf:540 },
+  };
+  const th = themes[themeName] || themes.grass;
+  const dummy = new THREE.Object3D();
+
+  // 1) Grass tufts (alpha plane)
+  if(th.grass > 0){
+    const geo = new THREE.PlaneGeometry(0.16, 0.36, 1, 3);
+    geo.translate(0, 0.18, 0);
+    const m = new THREE.MeshLambertMaterial({
+      map: GRASS_BLADE_TEX, alphaMap: GRASS_BLADE_TEX, alphaTest: 0.4,
+      side: THREE.DoubleSide, transparent: true, color: 0xffffff
+    });
+    m.onBeforeCompile = (sh)=>{
+      sh.uniforms.uTime = { value: 0 };
+      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader;
+      sh.vertexShader = sh.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vec4 wp = modelMatrix * instanceMatrix * vec4(0.0,0.0,0.0,1.0);
+        float bend = smoothstep(0.0, 0.3, position.y);
+        float w = sin(uTime*1.7 + wp.x*0.35 + wp.z*0.25)*0.15 + sin(uTime*0.9 + wp.x*0.7)*0.06;
+        transformed.x += w*bend; transformed.z += w*0.6*bend;
+        `
+      );
+      densifyWindUniforms.push(sh.uniforms);
+    };
+    const inst = new THREE.InstancedMesh(geo, m, th.grass);
+    let n = 0;
+    for(let i=0;i<th.grass*3 && n<th.grass;i++){
+      const ang = rndFn()*Math.PI*2;
+      const rr = Math.sqrt(rndFn())*r*0.95;
+      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
+      dummy.position.set(x, sampleHeightFor(root, x, z), z);
+      dummy.rotation.y = rndFn()*Math.PI*2;
+      const s = 0.6 + rndFn()*0.9;
+      dummy.scale.set(s, 0.8 + rndFn()*0.8, s);
+      dummy.updateMatrix();
+      inst.setMatrixAt(n++, dummy.matrix);
+    }
+    inst.count = n;
+    inst.instanceMatrix.needsUpdate = true;
+    root.add(inst);
+  }
+
+  // 2) Pebbles (instanced spheres)
+  if(th.peb > 0){
+    const geo = new THREE.SphereGeometry(0.10, 6, 4);
+    geo.scale(1, 0.45, 1);
+    const m = mat(0xa8a090, {roughness:0.92});
+    const inst = new THREE.InstancedMesh(geo, m, th.peb);
+    let n = 0;
+    for(let i=0;i<th.peb*3 && n<th.peb;i++){
+      const ang = rndFn()*Math.PI*2;
+      const rr = Math.sqrt(rndFn())*r*0.98;
+      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
+      dummy.position.set(x, sampleHeightFor(root, x, z)+0.04, z);
+      dummy.rotation.set(rndFn()*Math.PI, rndFn()*Math.PI, rndFn()*Math.PI);
+      const s = 0.5 + rndFn()*0.9;
+      dummy.scale.set(s, s, s);
+      dummy.updateMatrix();
+      inst.setMatrixAt(n++, dummy.matrix);
+    }
+    inst.count = n;
+    inst.instanceMatrix.needsUpdate = true;
+    root.add(inst);
+  }
+
+  // 3) Wildflowers (small color dots)
+  if(th.flower > 0){
+    const geo = new THREE.SphereGeometry(0.06, 6, 4);
+    const colorOptions = themeName === 'autumn'
+      ? [0xff8a3a, 0xff5a4a, 0xfff2a0]
+      : themeName === 'forest'
+      ? [0xfff2a0, 0xf8b0c8, 0xc8e8a0]
+      : [0xfff2a0, 0xff8aa0, 0xc8d8f8, 0xffd478];
+    const m = mat(colorOptions[0], {emissive:colorOptions[0], emissiveIntensity:0.18});
+    const inst = new THREE.InstancedMesh(geo, m, th.flower);
+    let n = 0;
+    for(let i=0;i<th.flower*3 && n<th.flower;i++){
+      const ang = rndFn()*Math.PI*2;
+      const rr = Math.sqrt(rndFn())*r*0.95;
+      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
+      dummy.position.set(x, sampleHeightFor(root, x, z)+0.08+rndFn()*0.1, z);
+      dummy.rotation.y = rndFn()*Math.PI*2;
+      const s = 0.6 + rndFn()*0.8;
+      dummy.scale.set(s, s, s);
+      dummy.updateMatrix();
+      inst.setMatrixAt(n++, dummy.matrix);
+    }
+    inst.count = n;
+    inst.instanceMatrix.needsUpdate = true;
+    root.add(inst);
+  }
+
+  // 4) Mushrooms (forest scenes)
+  if(th.mushroom > 0){
+    const grp = new THREE.Group();
+    const stemMat = mat(0xe8d8b8, {roughness:0.7});
+    const capMat = mat(0xc83a30, {roughness:0.6});
+    // build a single mushroom mesh, then clone-position (not instanced — count is small enough)
+    for(let i=0;i<th.mushroom;i++){
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.1, 6), stemMat);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6, 0, Math.PI*2, 0, Math.PI*0.55), capMat);
+      cap.position.y = 0.08;
+      const sh = new THREE.Group();
+      sh.add(stem); sh.add(cap);
+      const ang = rndFn()*Math.PI*2;
+      const rr = Math.sqrt(rndFn())*r*0.95;
+      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
+      sh.position.set(x, sampleHeightFor(root, x, z)+0.05, z);
+      sh.scale.setScalar(0.7 + rndFn()*0.7);
+      grp.add(sh);
+    }
+    root.add(grp);
+  }
+
+  // 5) Fallen leaves (autumn/forest) — tiny rotated planes
+  if(th.leaf > 0){
+    const leafC = document.createElement('canvas'); leafC.width=32; leafC.height=32;
+    const lc = leafC.getContext('2d');
+    lc.fillStyle = themeName==='autumn' ? '#c8553d' : '#ad8a3a';
+    lc.beginPath(); lc.ellipse(16,16,12,7,0.5,0,Math.PI*2); lc.fill();
+    const ltex = new THREE.CanvasTexture(leafC);
+    ltex.colorSpace = THREE.SRGBColorSpace;
+    const geo = new THREE.PlaneGeometry(0.18, 0.12).rotateX(-Math.PI/2);
+    const m = new THREE.MeshLambertMaterial({map: ltex, alphaMap: ltex, alphaTest:0.4, transparent:true, side:THREE.DoubleSide, color:0xffffff});
+    const inst = new THREE.InstancedMesh(geo, m, th.leaf);
+    let n = 0;
+    for(let i=0;i<th.leaf*3 && n<th.leaf;i++){
+      const ang = rndFn()*Math.PI*2;
+      const rr = Math.sqrt(rndFn())*r*0.95;
+      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
+      dummy.position.set(x, sampleHeightFor(root, x, z)+0.02, z);
+      dummy.rotation.set(0, rndFn()*Math.PI*2, 0);
+      const s = 0.7 + rndFn()*0.8;
+      dummy.scale.set(s, 1, s);
+      dummy.updateMatrix();
+      inst.setMatrixAt(n++, dummy.matrix);
+    }
+    inst.count = n;
+    inst.instanceMatrix.needsUpdate = true;
+    root.add(inst);
+  }
+}
+
+// helper: sample height of an arbitrary mesh in a group (during build)
+function sampleHeightFor(root, x, z){
+  const g = root.userData.ground;
+  if(!g) return 0;
+  _rayDown.set(new THREE.Vector3(x, 30, z), _down);
+  const hits = _rayDown.intersectObject(g);
+  return hits.length ? hits[0].point.y : 0;
+}
+
 /* === Engawa (Japanese wooden veranda) ==================== */
 function makeEngawa(width = 3.0, depth = 1.0){
   const g = new THREE.Group();
@@ -1174,13 +1360,22 @@ function makeAvatar(){
   hatRim.position.y = 0.175; hatRim.rotation.x = Math.PI/2;
   head.add(hatRim);
 
-  // selection ring
+  // selection ring (always on top so avatar is visible even behind buildings)
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.44, 32),
-    new THREE.MeshBasicMaterial({color:0x6BE07A, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false}));
+    new THREE.MeshBasicMaterial({color:0x6BE07A, transparent:true, opacity:0.92, side:THREE.DoubleSide, depthWrite:false, depthTest:false}));
   ring.rotation.x = -Math.PI/2;
   ring.position.y = 0.02;
+  ring.renderOrder = 999;
   g.add(ring);
   g.userData.ring = ring;
+  // floating marker arrow above head (always visible)
+  const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.20, 6),
+    new THREE.MeshBasicMaterial({color:0x6BE07A, transparent:true, opacity:0.7, depthTest:false}));
+  arrow.position.y = 2.0;
+  arrow.rotation.x = Math.PI;
+  arrow.renderOrder = 999;
+  g.add(arrow);
+  g.userData.marker = arrow;
 
   g.userData.joints = { hip, torso, head, legL, legR, armL, armR };
   return g;
@@ -1285,6 +1480,7 @@ function clearScene(){
   ENTITIES.hourhands.length = 0;
   ENTITIES.minhands.length = 0;
   TREE_GROUPS.length = 0;
+  densifyWindUniforms.length = 0;
 }
 
 function buildScene(name){
@@ -1455,6 +1651,7 @@ SCENES.plaza = {
       root.add(n);
       ENTITIES.npcs.push(n);
     }
+    densifyGround(root, 'grass');
   }
 };
 
@@ -1559,6 +1756,7 @@ SCENES.monlight = {
     // Layered planting at 4 corners
     layeredPlanting(root, -8, -4, 'autumn');
     layeredPlanting(root, 8, -4, 'autumn');
+    densifyGround(root, 'moss');
   }
 };
 
@@ -1688,6 +1886,7 @@ SCENES.oto = {
       az.position.set(side*2.5, 0, z);
       root.add(az);
     }
+    densifyGround(root, 'gravel');
   }
 };
 
@@ -1827,6 +2026,7 @@ SCENES.tabi = {
       reed.position.set(-2.2, -0.2, z);
       root.add(reed);
     }
+    densifyGround(root, 'shore');
   }
 };
 
@@ -1922,6 +2122,7 @@ SCENES.toki = {
     root.add(sl);
     if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
     sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    densifyGround(root, 'sand');
   }
 };
 
@@ -2022,6 +2223,7 @@ SCENES.hoshi = {
     pav.add(pavRoof);
     pav.position.set(-3, 0, 0);
     root.add(pav);
+    densifyGround(root, 'forest');
   }
 };
 
@@ -2128,6 +2330,7 @@ SCENES.takibi = {
       ENTITIES.lamps.push(...lp.children.filter(c=>c.userData?.lamp));
       if(lp.userData.lampLight) ENTITIES.lampLights.push(lp.userData.lampLight);
     }
+    densifyGround(root, 'autumn');
   }
 };
 
@@ -2259,6 +2462,7 @@ SCENES.mizube = {
       peb.castShadow=true;
       root.add(peb);
     }
+    densifyGround(root, 'shore');
   }
 };
 
@@ -2358,6 +2562,7 @@ SCENES.amaoto = {
       pu.position.set(Math.sin(ang)*r, 0.012, Math.cos(ang)*r);
       root.add(pu);
     }
+    densifyGround(root, 'forest');
   }
 };
 
@@ -2594,6 +2799,14 @@ function animate(){
   // follow terrain
   avatar.position.y = sampleHeight(avatar.position.x, avatar.position.z);
 
+  // Camera follows avatar in XZ (constant offset = quarter-view feel)
+  camera.position.set(
+    avatar.position.x + CAM_OFFSET.x,
+    avatar.position.y + CAM_OFFSET.y,
+    avatar.position.z + CAM_OFFSET.z
+  );
+  camera.lookAt(avatar.position.x, avatar.position.y + 1.0, avatar.position.z);
+
   /* ── Avatar joints animation ── */
   const j = avatar.userData.joints;
   if(j){
@@ -2658,6 +2871,8 @@ function animate(){
   if(currentScene && currentScene.root.userData.waterU){
     currentScene.root.userData.waterU.uTime.value = t;
   }
+  // grass wind uniforms
+  for(const u of densifyWindUniforms){ u.uTime.value = t; }
   // NPC walk
   for(const n of ENTITIES.npcs){
     const ud = n.userData;
@@ -2712,7 +2927,7 @@ function animate(){
 
 window.addEventListener('resize', ()=>{
   const aspect = window.innerWidth/window.innerHeight;
-  const s = 13.5;
+  const s = CAM_ORTHO_SIZE;
   camera.left = -s*aspect; camera.right = s*aspect;
   camera.top = s; camera.bottom = -s;
   camera.updateProjectionMatrix();
