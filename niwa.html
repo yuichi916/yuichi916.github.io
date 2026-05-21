@@ -212,7 +212,8 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog('#bcd6e2', 26, 70);
+// Fog disabled — user wanted clear visibility, no haze
+scene.fog = null;
 
 /* Loader bar helper */
 let loadProgress = 0;
@@ -2613,10 +2614,7 @@ function buildScene(name){
   setSun(def.sun[0], def.sun[1]);
   skyU.turbidity.value = def.turbidity ?? 4;
   skyU.rayleigh.value = def.rayleigh ?? 2;
-  scene.fog.color = new THREE.Color(def.fogColor || '#bcd6e2');
-  // Triple-distance fog so the world stays visible (user: もやがかかって見えにくい)
-  scene.fog.near = (def.fogNear ?? 26) * 3.0;
-  scene.fog.far  = (def.fogFar  ?? 70) * 3.0;
+  // Fog disabled — no per-scene fog application (user complained of haze)
   renderer.toneMappingExposure = def.exposure ?? 1.05;
   // Build geometry
   def.build(root);
@@ -4624,7 +4622,7 @@ const keys = { w:false,a:false,s:false,d:false,shift:false };
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 let moveTarget = null;
-const camYaw = -Math.PI*0.25;   // fixed camera angle
+let camYawState = -Math.PI*0.25;   // dynamic camera yaw (rotated by drag)
 
 window.addEventListener('keydown', e=>{
   if(e.code==='KeyW' || e.key==='ArrowUp')    keys.w = true;
@@ -4651,7 +4649,10 @@ canvas.addEventListener('pointerdown', e=>{
 });
 canvas.addEventListener('pointermove', e=>{
   if(pointerDown){
-    if(Math.abs(e.clientX-lastPx)+Math.abs(e.clientY-lastPy)>4) dragMoved = true;
+    const dx = e.clientX-lastPx, dy = e.clientY-lastPy;
+    if(Math.abs(dx)+Math.abs(dy)>4) dragMoved = true;
+    // Orbit camera yaw around the avatar
+    camYawState -= dx*0.005;
     lastPx=e.clientX; lastPy=e.clientY;
   }
 });
@@ -4660,6 +4661,21 @@ canvas.addEventListener('pointerup', e=>{
   if(!dragMoved) handleClick(e.clientX, e.clientY);
 });
 canvas.addEventListener('pointercancel', ()=>{ pointerDown = false; });
+// Wheel: zoom by changing ortho frustum size
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? 1.1 : 0.9;
+  camera.left *= factor; camera.right *= factor;
+  camera.top  *= factor; camera.bottom *= factor;
+  // clamp to sensible range
+  const half = camera.top;
+  if(half < 4 || half > 32){
+    const inv = 1/factor;
+    camera.left *= inv; camera.right *= inv;
+    camera.top  *= inv; camera.bottom *= inv;
+  }
+  camera.updateProjectionMatrix();
+}, { passive: false });
 
 function handleClick(cx, cy){
   ndc.x = (cx / window.innerWidth) * 2 - 1;
@@ -4702,8 +4718,8 @@ function animate(){
   if(keys.d) mx += 1;
   if(mx || mz){
     const len = Math.hypot(mx,mz); mx/=len; mz/=len;
-    const wx = mx*Math.cos(camYaw) - mz*Math.sin(camYaw);
-    const wz = mx*Math.sin(camYaw) + mz*Math.cos(camYaw);
+    const wx = mx*Math.cos(camYawState) - mz*Math.sin(camYawState);
+    const wz = mx*Math.sin(camYawState) + mz*Math.cos(camYawState);
     avatar.position.x += wx * moveSpeed * dt;
     avatar.position.z += wz * moveSpeed * dt;
     avatar.lookAt(avatar.position.x + wx, avatar.position.y, avatar.position.z + wz);
@@ -4732,11 +4748,14 @@ function animate(){
 
   // Camera positioning — 3rd-person ortho follow OR 1st-person perspective
   if(!firstPerson){
-    // 3P: ortho camera follows avatar with constant offset
+    // 3P: ortho camera follows avatar with rotatable offset
+    const dist = Math.hypot(CAM_OFFSET.x, CAM_OFFSET.z);
+    const cx = Math.sin(camYawState)*dist;
+    const cz = Math.cos(camYawState)*dist;
     camera.position.set(
-      avatar.position.x + CAM_OFFSET.x,
+      avatar.position.x + cx,
       avatar.position.y + CAM_OFFSET.y,
-      avatar.position.z + CAM_OFFSET.z
+      avatar.position.z + cz
     );
     camera.lookAt(avatar.position.x, avatar.position.y + 1.0, avatar.position.z);
     avatar.visible = true;
