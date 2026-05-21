@@ -193,6 +193,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { Sky } from 'three/addons/objects/Sky.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 /* ===========================================================
  *  心の庭 — 9 compact dioramas, scene-switched
@@ -1565,6 +1567,42 @@ function makeWindmill(){
   g.add(hubGroup);
   g.userData.mill = hubGroup;
   return g;
+}
+
+/* === High-quality web asset loader (Kenney/Quaternius/KayKit CDN) ===
+ *  Tries to load CC0 GLB models from public CDNs and caches them.
+ *  Falls back to procedural if loading fails.
+ *  Asset sources (all CC0 / permissive):
+ *    - threejs.org gltf samples (CC-BY / CC0)
+ *    - cdn.jsdelivr.net mirrors of GitHub-hosted free packs
+ */
+const gltfLoader = new GLTFLoader();
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+gltfLoader.setDRACOLoader(dracoLoader);
+
+const GLB_CACHE = new Map();
+function loadGLB(url){
+  if(GLB_CACHE.has(url)) return GLB_CACHE.get(url);
+  const promise = new Promise((resolve) => {
+    gltfLoader.load(
+      url,
+      (g) => {
+        // enable shadows on every mesh
+        g.scene.traverse(o => {
+          if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; }
+        });
+        resolve(g.scene);
+      },
+      undefined,
+      (err) => {
+        console.warn('GLB load failed (using procedural fallback):', url, err.message);
+        resolve(null);
+      }
+    );
+  });
+  GLB_CACHE.set(url, promise);
+  return promise;
 }
 
 /* === Purpose-specific commercial RPG buildings (Codex review) === */
@@ -5356,9 +5394,17 @@ const keys = { w:false,a:false,s:false,d:false,shift:false };
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 let moveTarget = null;
-let camYawState = -Math.PI*0.25;   // dynamic camera yaw (rotated by drag)
-const camFollow = new THREE.Vector3();   // smoothed camera target
+let camYawState = -Math.PI*0.25;
+let camYawTarget = camYawState;       // smoothed yaw target (Codex)
+let camZoomTarget = CAM_ORTHO_SIZE;   // smoothed zoom target
+const camFollow = new THREE.Vector3();
 let camInit = false;
+const playerVel = new THREE.Vector3();   // velocity for damped movement
+const WALK_SPEED = 3.4;
+const RUN_SPEED = 5.6;
+const ACCEL = 18;
+const DECEL = 14;
+const AV_RADIUS = 0.35;
 
 window.addEventListener('keydown', e=>{
   if(e.code==='KeyW' || e.key==='ArrowUp')    keys.w = true;
@@ -5387,8 +5433,8 @@ canvas.addEventListener('pointermove', e=>{
   if(pointerDown){
     const dx = e.clientX-lastPx, dy = e.clientY-lastPy;
     if(Math.abs(dx)+Math.abs(dy)>4) dragMoved = true;
-    // Orbit camera yaw around the avatar
-    camYawState -= dx*0.005;
+    // Orbit camera yaw TARGET (smoothed in animate loop)
+    camYawTarget -= dx*0.0045;
     lastPx=e.clientX; lastPy=e.clientY;
   }
 });
@@ -5401,19 +5447,47 @@ canvas.addEventListener('pointercancel', ()=>{ pointerDown = false; });
 function onWheelZoom(e){
   e.preventDefault();
   const factor = e.deltaY > 0 ? 1.10 : 0.91;
-  CAM_ORTHO_SIZE *= factor;
-  if(CAM_ORTHO_SIZE < 4) CAM_ORTHO_SIZE = 4;
-  if(CAM_ORTHO_SIZE > 28) CAM_ORTHO_SIZE = 28;
-  applyOrthoSize();
+  camZoomTarget = Math.max(4, Math.min(28, camZoomTarget * factor));
 }
 canvas.addEventListener('wheel', onWheelZoom, { passive: false });
 window.addEventListener('wheel', onWheelZoom, { passive: false });
 // keyboard zoom fallback: [ ] keys
 window.addEventListener('keydown', e=>{
-  if(e.key === ']') { CAM_ORTHO_SIZE = Math.max(4, CAM_ORTHO_SIZE*0.91); applyOrthoSize(); }
-  if(e.key === '[') { CAM_ORTHO_SIZE = Math.min(28, CAM_ORTHO_SIZE*1.10); applyOrthoSize(); }
+  if(e.key === ']') { camZoomTarget = Math.max(4, camZoomTarget*0.91); }
+  if(e.key === '[') { camZoomTarget = Math.min(28, camZoomTarget*1.10); }
 });
 
+// click destination marker (pulsing ring on the ground)
+const targetMarker = new THREE.Mesh(
+  new THREE.RingGeometry(0.32, 0.46, 32),
+  new THREE.MeshBasicMaterial({color:0x6BE07A, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false, depthTest:false})
+);
+targetMarker.rotation.x = -Math.PI/2;
+targetMarker.renderOrder = 998;
+targetMarker.visible = false;
+scene.add(targetMarker);
+const invalidMarker = new THREE.Mesh(
+  new THREE.RingGeometry(0.32, 0.46, 32),
+  new THREE.MeshBasicMaterial({color:0xff5050, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false, depthTest:false})
+);
+invalidMarker.rotation.x = -Math.PI/2;
+invalidMarker.renderOrder = 998;
+invalidMarker.visible = false;
+scene.add(invalidMarker);
+let invalidUntil = 0;
+
+function isWalkable(x, z){
+  if(Math.hypot(x, z) > SCENE_BOUND - 0.1) return false;
+  for(const ob of ENTITIES.obstacles){
+    if(Math.hypot(x - ob.x, z - ob.z) < ob.r + AV_RADIUS + 0.05) return false;
+  }
+  return true;
+}
+function flashInvalid(p){
+  invalidMarker.position.set(p.x, p.y + 0.04, p.z);
+  invalidMarker.visible = true;
+  invalidUntil = performance.now() + 600;
+}
 function handleClick(cx, cy){
   ndc.x = (cx / window.innerWidth) * 2 - 1;
   ndc.y = -(cy / window.innerHeight) * 2 + 1;
@@ -5421,10 +5495,17 @@ function handleClick(cx, cy){
   if(!currentScene) return;
   const ground = currentScene.root.userData.ground;
   if(!ground) return;
-  const hits = raycaster.intersectObject(ground);
+  // recursive raycast so grouped grounds (room platforms, plaza) all work
+  const hits = raycaster.intersectObject(ground, true);
   if(hits.length){
     const p = hits[0].point;
-    moveTarget = new THREE.Vector3(p.x, 0, p.z);
+    if(isWalkable(p.x, p.z)){
+      moveTarget = new THREE.Vector3(p.x, p.y, p.z);
+      targetMarker.position.set(p.x, p.y + 0.04, p.z);
+      targetMarker.visible = true;
+    } else {
+      flashInvalid(p);
+    }
   }
 }
 
@@ -5445,68 +5526,79 @@ function animate(){
   const dt = Math.min(0.05, clock.getDelta());
   const t = clock.elapsedTime;
 
-  /* ── Avatar movement (smoother + collision) ── */
+  /* ── Avatar movement (Codex: damp velocity + slide collision) ── */
   let moving = false;
-  const moveSpeed = keys.shift ? 8.5 : 5.5;   // snappier feel (was 5.2/3.0)
+  const targetSpeed = keys.shift ? RUN_SPEED : WALK_SPEED;
   let mx = 0, mz = 0;
   if(keys.w) mz -= 1;
   if(keys.s) mz += 1;
   if(keys.a) mx -= 1;
   if(keys.d) mx += 1;
+  let desiredVx = 0, desiredVz = 0;
   if(mx || mz){
     const len = Math.hypot(mx,mz); mx/=len; mz/=len;
     const wx = mx*Math.cos(camYawState) - mz*Math.sin(camYawState);
     const wz = mx*Math.sin(camYawState) + mz*Math.cos(camYawState);
-    avatar.position.x += wx * moveSpeed * dt;
-    avatar.position.z += wz * moveSpeed * dt;
-    avatar.lookAt(avatar.position.x + wx, avatar.position.y, avatar.position.z + wz);
-    moving = true; moveTarget = null;
+    desiredVx = wx*targetSpeed;
+    desiredVz = wz*targetSpeed;
+    if(moveTarget){ moveTarget = null; targetMarker.visible = false; }
   } else if(moveTarget){
-    const dx = moveTarget.x - avatar.position.x;
-    const dz = moveTarget.z - avatar.position.z;
-    const d = Math.hypot(dx,dz);
-    if(d < 0.18) moveTarget = null;
-    else {
-      const sp = moveSpeed * dt;
-      avatar.position.x += dx/d*sp;
-      avatar.position.z += dz/d*sp;
-      avatar.lookAt(avatar.position.x+dx, avatar.position.y, avatar.position.z+dz);
-      moving = true;
+    const mdx = moveTarget.x - avatar.position.x;
+    const mdz = moveTarget.z - avatar.position.z;
+    const md = Math.hypot(mdx, mdz);
+    if(md < 0.22){
+      moveTarget = null;
+      targetMarker.visible = false;
+    } else {
+      desiredVx = (mdx/md)*targetSpeed;
+      desiredVz = (mdz/md)*targetSpeed;
     }
   }
-  // clamp to scene radius
-  const rr = Math.hypot(avatar.position.x, avatar.position.z);
-  if(rr > SCENE_BOUND){
-    avatar.position.x *= SCENE_BOUND/rr;
-    avatar.position.z *= SCENE_BOUND/rr;
-  }
-  // collision push-out against registered building obstacles
-  const AV_RADIUS = 0.35;
-  for(const ob of ENTITIES.obstacles){
-    const dxo = avatar.position.x - ob.x;
-    const dzo = avatar.position.z - ob.z;
-    const dd = Math.hypot(dxo, dzo);
-    const minD = ob.r + AV_RADIUS;
-    if(dd < minD && dd > 0.001){
-      const push = (minD - dd) / dd;
-      avatar.position.x += dxo * push;
-      avatar.position.z += dzo * push;
-      // cancel auto-walk target if blocked
-      if(moveTarget){
-        const dt2 = Math.hypot(moveTarget.x - ob.x, moveTarget.z - ob.z);
-        if(dt2 < ob.r + AV_RADIUS) moveTarget = null;
-      }
+  // Frame-rate-independent damp toward desired velocity
+  const dampRate = (desiredVx || desiredVz) ? ACCEL : DECEL;
+  playerVel.x = THREE.MathUtils.damp(playerVel.x, desiredVx, dampRate, dt);
+  playerVel.z = THREE.MathUtils.damp(playerVel.z, desiredVz, dampRate, dt);
+  const stepX = playerVel.x * dt;
+  const stepZ = playerVel.z * dt;
+  // Slide collision: test X and Z independently so avatar slides along walls
+  function blocked(px, pz){
+    if(Math.hypot(px, pz) > SCENE_BOUND) return true;
+    for(const ob of ENTITIES.obstacles){
+      if(Math.hypot(px - ob.x, pz - ob.z) < ob.r + AV_RADIUS) return true;
     }
+    return false;
   }
-  // follow terrain
+  const tryX = avatar.position.x + stepX;
+  if(!blocked(tryX, avatar.position.z)){ avatar.position.x = tryX; }
+  else { playerVel.x = 0; }
+  const tryZ = avatar.position.z + stepZ;
+  if(!blocked(avatar.position.x, tryZ)){ avatar.position.z = tryZ; }
+  else { playerVel.z = 0; }
+  // Cancel click-to-move if target became unreachable
+  if(moveTarget && (blocked(moveTarget.x, moveTarget.z))){
+    moveTarget = null; targetMarker.visible = false;
+  }
+  // Face movement direction
+  if(Math.hypot(playerVel.x, playerVel.z) > 0.4){
+    avatar.lookAt(avatar.position.x + playerVel.x, avatar.position.y, avatar.position.z + playerVel.z);
+  }
+  moving = Math.hypot(playerVel.x, playerVel.z) > 0.3;
   avatar.position.y = sampleHeight(avatar.position.x, avatar.position.z);
 
+  // Damp camera yaw + zoom toward their targets
+  camYawState = THREE.MathUtils.damp(camYawState, camYawTarget, 10, dt);
+  const newSize = THREE.MathUtils.damp(CAM_ORTHO_SIZE, camZoomTarget, 12, dt);
+  if(Math.abs(newSize - CAM_ORTHO_SIZE) > 0.01){
+    CAM_ORTHO_SIZE = newSize;
+    applyOrthoSize();
+  }
   // Camera positioning — 3rd-person ortho follow OR 1st-person perspective
   if(!firstPerson){
-    // Smoothed follow target (avoids jitter, less stressful pan)
     if(!camInit){ camFollow.copy(avatar.position); camInit = true; }
-    camFollow.lerp(avatar.position, 0.16);
-    // 3P: ortho camera follows avatar with rotatable offset
+    // Frame-rate-independent damp follow (per Codex)
+    camFollow.x = THREE.MathUtils.damp(camFollow.x, avatar.position.x, 8, dt);
+    camFollow.y = THREE.MathUtils.damp(camFollow.y, avatar.position.y, 8, dt);
+    camFollow.z = THREE.MathUtils.damp(camFollow.z, avatar.position.z, 8, dt);
     const dist = Math.hypot(CAM_OFFSET.x, CAM_OFFSET.z);
     const cx = Math.sin(camYawState)*dist;
     const cz = Math.cos(camYawState)*dist;
@@ -5610,6 +5702,14 @@ function animate(){
   // flag waves
   for(const f of ENTITIES.flags){
     f.rotation.y = Math.sin(t*2.5)*0.3;
+  }
+  // click destination marker pulse + invalid red flash timeout
+  if(targetMarker.visible){
+    targetMarker.scale.setScalar(1 + Math.sin(t*5)*0.18);
+    targetMarker.rotation.z = t*1.2;
+  }
+  if(invalidMarker.visible && performance.now() > invalidUntil){
+    invalidMarker.visible = false;
   }
   // koi swimming in circles
   if(ENTITIES.kois) for(const k of ENTITIES.kois){
