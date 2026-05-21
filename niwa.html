@@ -1559,6 +1559,376 @@ function makeWindmill(){
   return g;
 }
 
+/* === Purpose-specific commercial RPG buildings (Codex review) === */
+
+// Blacksmith — forge w/ chimney, anvil, glowing coals
+function makeBlacksmith(){
+  const g = new THREE.Group();
+  const stone = mat(0x6a5a4a, {roughness:0.9});
+  const wood = mat(0x4a3024);
+  const roof = mat(0x3a2418);
+  // base building (stone)
+  const main = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.6, 1.8), stone);
+  main.position.y = 0.8; main.castShadow = main.receiveShadow = true;
+  g.add(main);
+  // wooden door front
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.9, 0.06), wood);
+  door.position.set(0, 0.45, 0.91); g.add(door);
+  // wide forge opening on right side (with glow)
+  const arch = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.9, 1.0), mat(0x1a0a06));
+  arch.position.set(1.11, 0.55, 0); g.add(arch);
+  const forgeGlow = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.7),
+    mat(0xff6a30, {emissive:0xff5a20, emissiveIntensity:1.4}));
+  forgeGlow.position.set(1.10, 0.55, 0);
+  forgeGlow.rotation.y = -Math.PI/2;
+  g.add(forgeGlow);
+  const fl = new THREE.PointLight(0xff7030, 1.6, 5, 2);
+  fl.position.set(1.4, 0.7, 0);
+  g.add(fl);
+  // sloped roof (gable)
+  for(const dz of [-1, 1]){
+    const slope = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.10, 1.1), roof);
+    slope.position.set(0, 2.05, dz*0.45);
+    slope.rotation.x = dz*0.55;
+    slope.castShadow = true;
+    g.add(slope);
+  }
+  // tall chimney
+  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), stone);
+  chim.position.set(-0.7, 2.4, -0.3); chim.castShadow = true;
+  g.add(chim);
+  g.userData.smokeAnchor = new THREE.Vector3(-0.7, 3.05, -0.3);
+  // anvil outside (right of forge)
+  const anvilBase = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.20, 0.30, 8), mat(0x3a2a1a));
+  anvilBase.position.set(1.85, 0.15, 0.3); anvilBase.castShadow = true;
+  g.add(anvilBase);
+  const anvilTop = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.10, 0.16), mat(0x2a2a30, {metalness:0.5, roughness:0.5}));
+  anvilTop.position.set(1.85, 0.35, 0.3);
+  g.add(anvilTop);
+  const anvilHorn = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 8), mat(0x2a2a30, {metalness:0.5, roughness:0.5}));
+  anvilHorn.position.set(2.10, 0.35, 0.3);
+  anvilHorn.rotation.z = Math.PI/2;
+  g.add(anvilHorn);
+  // hammer leaning
+  const hammer = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.6, 6), mat(0x6a4a2a));
+  hammer.position.set(1.85, 0.65, 0.45);
+  hammer.rotation.z = 0.4;
+  g.add(hammer);
+  // sword rack
+  for(let i=0;i<3;i++){
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.6, 0.012),
+      mat(0xc0c0c8, {metalness:0.7, roughness:0.35}));
+    blade.position.set(-1.4, 0.7, -0.3 + i*0.18);
+    blade.rotation.z = (i-1)*0.05;
+    blade.castShadow = true;
+    g.add(blade);
+    const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.06, 0.04), mat(0x4a2a18));
+    hilt.position.set(-1.4, 0.40, -0.3 + i*0.18);
+    g.add(hilt);
+  }
+  return g;
+}
+
+// Tavern — sign, porch with benches, warm light
+function makeTavern(){
+  const g = new THREE.Group();
+  // re-use medieval house body
+  const body = makeMedievalHouse({
+    w: 2.0, d: 1.7, stories: 2,
+    wallColor: 0xc89868, beamColor: 0x3a2418, roofColor: 0x6a3a1a,
+    hasChimney: true, hasBalcony: true,
+  });
+  g.add(body);
+  body.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+  // covered porch (overhang front)
+  const porchRoof = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.10, 0.8), mat(0x4a2a18));
+  porchRoof.position.set(0, 1.05, 1.1); porchRoof.castShadow = true;
+  g.add(porchRoof);
+  for(const dx of [-1.0, 1.0]){
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 10), mat(0x3a2418));
+    post.position.set(dx, 0.5, 1.4); post.castShadow = true;
+    g.add(post);
+  }
+  // 2 benches on porch
+  for(const dx of [-0.6, 0.6]){
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.05, 0.22), mat(0x6a4a2a));
+    seat.position.set(dx, 0.34, 1.2); seat.castShadow = true;
+    g.add(seat);
+    for(const sx of [-0.3, 0.3]){
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.34, 0.06), mat(0x4a2a18));
+      leg.position.set(dx+sx, 0.17, 1.2);
+      g.add(leg);
+    }
+  }
+  // hanging tavern sign on a bracket
+  const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.5), mat(0x2a1a10));
+  bracket.position.set(-1.05, 1.6, 1.05);
+  g.add(bracket);
+  const signC = document.createElement('canvas');
+  signC.width = 96; signC.height = 96;
+  const sctx = signC.getContext('2d');
+  sctx.fillStyle = '#3a2418'; sctx.fillRect(0,0,96,96);
+  sctx.fillStyle = '#fff2a0';
+  sctx.font = 'bold 62px serif'; sctx.textAlign='center'; sctx.textBaseline='middle';
+  sctx.fillText('酒', 48, 52);
+  const signTex = new THREE.CanvasTexture(signC);
+  signTex.colorSpace = THREE.SRGBColorSpace;
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.45),
+    new THREE.MeshStandardMaterial({map:signTex, roughness:0.9}));
+  sign.position.set(-1.05, 1.35, 1.3);
+  sign.rotation.y = Math.PI/2;
+  g.add(sign);
+  // small lantern beside the door
+  const lp = makeLantern(0.7);
+  lp.position.set(0.7, 0, 1.15);
+  g.add(lp);
+  if(lp.userData.lampLight) ENTITIES.lampLights.push(lp.userData.lampLight);
+  lp.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+  // barrel by porch
+  const b = makeBarrel();
+  b.position.set(-0.85, 0, 1.5);
+  g.add(b);
+  return g;
+}
+
+// Herbalist — house with hanging herbs and garden crates outside
+function makeHerbalist(){
+  const g = new THREE.Group();
+  const body = makeMedievalHouse({
+    w: 1.6, d: 1.4, stories: 2,
+    wallColor: 0xd8e8a8, beamColor: 0x4a3a20, roofColor: 0x5a7a3d,
+    hasChimney: true,
+  });
+  g.add(body);
+  body.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+  // herb-drying rack: horizontal pole + bundles
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.4, 6), mat(0x3a2418));
+  pole.rotation.z = Math.PI/2;
+  pole.position.set(0, 1.7, 0.85);
+  g.add(pole);
+  for(let i=0;i<5;i++){
+    const t = (i-2)*0.28;
+    const bundle = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.32, 6),
+      mat([0x5a7a30, 0x6a8a30, 0x7a9a40, 0x4a6a30, 0x8aa050][i]));
+    bundle.position.set(t, 1.45, 0.85);
+    bundle.rotation.x = Math.PI;
+    g.add(bundle);
+  }
+  // garden crates (3 crates each with mini plants)
+  for(let i=0;i<3;i++){
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.18, 0.36), mat(0x6a4a2a));
+    crate.position.set(1.0 + (i%2)*0.42, 0.09, -0.5 + Math.floor(i/2)*0.42);
+    crate.castShadow = true;
+    g.add(crate);
+    for(let k=0;k<4;k++){
+      const plant = new THREE.Mesh(new THREE.SphereGeometry(0.05+Math.random()*0.03, 8, 6),
+        mat([0x6a9a3a, 0x5a8a30, 0x8aa040][k%3]));
+      plant.position.set(crate.position.x + (k%2-0.5)*0.16, 0.22, crate.position.z + (Math.floor(k/2)-0.5)*0.16);
+      g.add(plant);
+    }
+  }
+  return g;
+}
+
+// Graveyard — 5 small graves with crosses
+function makeGraveyard(){
+  const g = new THREE.Group();
+  const stone = mat(0x8a8067);
+  const cross = mat(0x6a5040);
+  for(let i=0;i<5;i++){
+    const grave = new THREE.Group();
+    const mound = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.10, 0.7), mat(0x5a4030));
+    mound.position.y = 0.05; mound.castShadow = mound.receiveShadow = true;
+    grave.add(mound);
+    // headstone (rounded top)
+    const stoneH = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.50, 0.08), stone);
+    stoneH.position.set(0, 0.30, -0.30); stoneH.castShadow = true;
+    grave.add(stoneH);
+    const stoneTop = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, 0.08, 12, 1, false, 0, Math.PI), stone);
+    stoneTop.position.set(0, 0.54, -0.30);
+    stoneTop.rotation.z = Math.PI/2;
+    grave.add(stoneTop);
+    grave.position.set((i-2)*0.55, 0, 0);
+    grave.rotation.y = (Math.random()-0.5)*0.18;
+    g.add(grave);
+  }
+  return g;
+}
+
+// Cart (wooden 4-wheel with hay/grain load)
+function makeCart(load = 'hay'){
+  const g = new THREE.Group();
+  const wood = mat(0x6a4a2a);
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.15, 0.7), wood);
+  bed.position.y = 0.35; bed.castShadow = bed.receiveShadow = true;
+  g.add(bed);
+  // sides
+  for(const dz of [-0.30, 0.30]){
+    const side = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.30, 0.06), wood);
+    side.position.set(0, 0.55, dz);
+    g.add(side);
+  }
+  for(const dx of [-0.55, 0.55]){
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.30, 0.7), wood);
+    cap.position.set(dx, 0.55, 0);
+    g.add(cap);
+  }
+  // 4 wheels
+  for(const dx of [-0.45, 0.45]){
+    for(const dz of [-0.35, 0.35]){
+      const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.06, 14), mat(0x4a3024));
+      wh.rotation.z = Math.PI/2;
+      wh.position.set(dx, 0.22, dz);
+      wh.castShadow = true;
+      g.add(wh);
+    }
+  }
+  // pulling shaft
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.8, 6), wood);
+  shaft.rotation.x = Math.PI/2;
+  shaft.position.set(0.7, 0.30, 0);
+  g.add(shaft);
+  // load
+  if(load === 'hay'){
+    for(let k=0;k<6;k++){
+      const bale = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.32, 12), mat(0xd9b078));
+      bale.rotation.z = Math.PI/2;
+      bale.position.set(-0.4 + (k%3)*0.4, 0.62, -0.2 + Math.floor(k/3)*0.4);
+      bale.castShadow = true;
+      g.add(bale);
+    }
+  } else if(load === 'sacks'){
+    for(let k=0;k<5;k++){
+      const sack = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8), mat(0xddbb80));
+      sack.scale.set(1, 0.7, 0.9);
+      sack.position.set(-0.3 + k*0.18, 0.55, (k%2-0.5)*0.2);
+      sack.castShadow = true;
+      g.add(sack);
+    }
+  }
+  return g;
+}
+
+// Notice board with paper
+function makeNoticeBoard(){
+  const g = new THREE.Group();
+  // 2 posts
+  for(const dx of [-0.45, 0.45]){
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.10, 1.6, 0.10), mat(0x4a3024));
+    post.position.set(dx, 0.8, 0); post.castShadow = true;
+    g.add(post);
+  }
+  // board
+  const board = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.8, 0.08), mat(0x6a4a2a));
+  board.position.set(0, 1.2, 0); board.castShadow = true;
+  g.add(board);
+  // small roof
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.06, 0.3), mat(0x3a2018));
+  roof.position.set(0, 1.65, 0);
+  g.add(roof);
+  // 3 notices (paper rectangles)
+  for(let i=0;i<3;i++){
+    const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 0.32),
+      mat([0xfff2c0, 0xfff8d4, 0xfde8b8][i]));
+    paper.position.set(-0.35 + i*0.35, 1.20 - (i%2)*0.05, 0.045);
+    paper.rotation.z = (Math.random()-0.5)*0.10;
+    g.add(paper);
+  }
+  return g;
+}
+
+// Training dummy (wooden post + sack + crossbar arms)
+function makeTrainingDummy(){
+  const g = new THREE.Group();
+  const wood = mat(0x4a3024);
+  // base cross
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.7), wood);
+  base.position.y = 0.04; base.receiveShadow = true;
+  g.add(base);
+  // post
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.8, 10), wood);
+  post.position.y = 0.94; post.castShadow = true;
+  g.add(post);
+  // crossbar (arms)
+  const cross = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.08, 0.08), wood);
+  cross.position.y = 1.55;
+  g.add(cross);
+  // sack body (top)
+  const sack = new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 10), mat(0xc8a868));
+  sack.scale.set(0.9, 1.2, 0.9);
+  sack.position.y = 1.40; sack.castShadow = true;
+  g.add(sack);
+  // straps
+  const strap = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.02, 6, 16), mat(0x3a2418));
+  strap.position.y = 1.40;
+  strap.rotation.x = Math.PI/2;
+  g.add(strap);
+  // a stuck arrow
+  const arrow = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.40, 6), mat(0x6a4a2a));
+  arrow.rotation.z = Math.PI/2;
+  arrow.position.set(0.18, 1.40, 0.15);
+  g.add(arrow);
+  return g;
+}
+
+// Watch fire (small bonfire on stone ring)
+function makeWatchFire(){
+  const g = new THREE.Group();
+  // stone ring
+  for(let i=0;i<6;i++){
+    const ang = (i/6)*Math.PI*2;
+    const s = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 1), mat(0x5a5040));
+    s.position.set(Math.sin(ang)*0.42, 0.10, Math.cos(ang)*0.42);
+    g.add(s);
+  }
+  // logs (cross)
+  const l1 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.6, 8), mat(0x624029));
+  l1.rotation.z = Math.PI/2; l1.position.y = 0.18;
+  g.add(l1);
+  const l2 = l1.clone(); l2.rotation.z = Math.PI/2; l2.rotation.y = Math.PI/2;
+  g.add(l2);
+  // flame
+  const f1 = new THREE.Mesh(new THREE.ConeGeometry(0.20, 0.7, 14), mat(0xff7a30, {emissive:0xff7a30, emissiveIntensity:0.9}));
+  f1.position.y = 0.6; f1.userData.flame = 1;
+  g.add(f1);
+  const f2 = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 12), mat(0xffb968, {emissive:0xffb968, emissiveIntensity:1.1}));
+  f2.position.y = 0.72; f2.userData.flame = 2;
+  g.add(f2);
+  // light
+  const fl = new THREE.PointLight(0xffaa44, 1.4, 6, 2);
+  fl.position.y = 0.7;
+  g.add(fl);
+  g.userData.flameLight = fl;
+  return g;
+}
+
+// Telescope on tripod (coast overlook)
+function makeTelescope(){
+  const g = new THREE.Group();
+  const w = mat(0x4a3024);
+  const m = mat(0x2a2a30, {metalness:0.5, roughness:0.4});
+  // tripod legs
+  for(let i=0;i<3;i++){
+    const ang = (i/3)*Math.PI*2;
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 1.2, 6), w);
+    leg.position.set(Math.sin(ang)*0.18, 0.6, Math.cos(ang)*0.18);
+    leg.rotation.x = -Math.sin(ang)*0.18;
+    leg.rotation.z = Math.cos(ang)*0.18;
+    g.add(leg);
+  }
+  // tube
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.8, 14), m);
+  tube.position.y = 1.2;
+  tube.rotation.z = 0.4;
+  g.add(tube);
+  // eyepiece
+  const eye = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.10, 8), m);
+  eye.position.set(0.22, 1.05, 0);
+  eye.rotation.z = 0.4;
+  g.add(eye);
+  return g;
+}
+
 /* === Multi-level terrain helpers ========================= */
 // Stone stairs from a low point to a high point (along +z direction)
 function makeStairs(count = 4, width = 1.8, stepHeight = 0.22, stepDepth = 0.4){
@@ -2556,7 +2926,6 @@ setLoad(0.45, 'AVATAR');
 /* NPC chibi =============================================== */
 function makeNpc(bodyColor, hairColor){
   const g = new THREE.Group();
-  g.visible = false;   // user removed NPCs (no walking characters)
   const skin = mat(0xf2cba5, {roughness:0.65});
   const cloth = mat(bodyColor);
   const pants = mat(0x2a1a14);
@@ -2806,6 +3175,13 @@ SCENES.plaza = {
       { w:1.6, d:1.4, stories:2, wallColor:0xd0b888, beamColor:0x3a2418, roofColor:0x5a3a20, hasChimney:false, hasTower:true },
       { w:1.5, d:1.3, stories:2, wallColor:0xc8b888, beamColor:0x3a2418, roofColor:0x6a4a3a, hasChimney:true, hasBalcony:true },
     ];
+    // Special POI buildings — replace 4 generic cottages with purpose buildings
+    // (Codex: blacksmith / tavern / herbalist + 1 kept generic)
+    const specials = {
+      '-6.4,1.2': 'blacksmith',
+      '1.4,-5.7': 'tavern',
+      '4.9,3.5':  'herbalist',
+    };
     const housePositions = [
       // South cottages (facing north toward village lane)
       [-3.8, -5.2], [-1.3, -5.8], [1.4, -5.7], [4.0, -5.0],
@@ -2816,8 +3192,15 @@ SCENES.plaza = {
     ];
     for(let i=0;i<housePositions.length;i++){
       const [hx, hz] = housePositions[i];
-      const v = { ...houseVariants[i % houseVariants.length] };
-      const h = makeMedievalHouse(v);
+      const key = hx + ',' + hz;
+      let h;
+      if(specials[key] === 'blacksmith'){ h = makeBlacksmith(); }
+      else if(specials[key] === 'tavern'){ h = makeTavern(); }
+      else if(specials[key] === 'herbalist'){ h = makeHerbalist(); }
+      else {
+        const v = { ...houseVariants[i % houseVariants.length] };
+        h = makeMedievalHouse(v);
+      }
       h.position.set(hx, hf(hx, hz), hz);
       // Face the village center
       h.rotation.y = Math.atan2(-hx, -hz);
@@ -3146,7 +3529,144 @@ SCENES.plaza = {
     root.add(cr);
     ENTITIES.spins.push(cr);
 
-    // Tiny moss-floor density (mushrooms, fallen leaves) — forest atmosphere
+    /* ─ ENVIRONMENTAL STORYTELLING per landmark (Codex review) ─ */
+    // CHURCH yard: graves + notice board + candles
+    const graves = makeGraveyard();
+    graves.position.set(6.0, hf(6.0, 8.5), 8.5);
+    graves.rotation.y = -0.5;
+    root.add(graves);
+    const noticeCh = makeNoticeBoard();
+    noticeCh.position.set(4.8, hf(4.8, 5.0), 5.0);
+    noticeCh.rotation.y = -Math.PI/4;
+    root.add(noticeCh);
+    // small candles around the church entrance
+    for(const [cx,cz] of [[6.2,5.7],[6.6,5.4],[6.9,5.2]]){
+      const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.20, 8), mat(0xfff2e0));
+      candle.position.set(cx, hf(cx,cz)+0.10, cz);
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.10, 8),
+        mat(0xffd478, {emissive:0xffaa44, emissiveIntensity:1.0}));
+      flame.position.set(cx, hf(cx,cz)+0.25, cz);
+      flame.userData.lamp = true;
+      ENTITIES.lamps.push(flame);
+      root.add(candle); root.add(flame);
+    }
+
+    // TOWER: watch fire + training dummy + weapons (already in blacksmith helper)
+    const watch = makeWatchFire();
+    watch.position.set(-6.8, hf(-6.8, 6.0), 6.0);
+    root.add(watch);
+    if(watch.userData.flameLight) ENTITIES.lampLights.push(watch.userData.flameLight);
+    watch.traverse(o=>{ if(o.userData?.flame) ENTITIES.flames.push(o); });
+    const dummy = makeTrainingDummy();
+    dummy.position.set(-9.4, hf(-9.4, 6.0), 6.0);
+    dummy.rotation.y = 0.3;
+    root.add(dummy);
+    const noticeTw = makeNoticeBoard();
+    noticeTw.position.set(-5.6, hf(-5.6, 4.8), 4.8);
+    noticeTw.rotation.y = Math.PI/4;
+    root.add(noticeTw);
+
+    // MILL: hay cart + grain sacks + cart tracks (cart tracks just by visual)
+    const cart1 = makeCart('hay');
+    cart1.position.set(-6.4, hf(-6.4, -6.0), -6.0);
+    cart1.rotation.y = -0.8;
+    root.add(cart1);
+    const cart2 = makeCart('sacks');
+    cart2.position.set(-9.4, hf(-9.4, -6.6), -6.6);
+    cart2.rotation.y = 0.4;
+    root.add(cart2);
+    // a few hay bales loose
+    for(let i=0;i<3;i++){
+      const bale = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.45, 14), mat(0xd9b078));
+      bale.rotation.z = Math.PI/2;
+      bale.position.set(-9.2 + i*0.6, hf(-9.2+i*0.6, -8.0) + 0.20, -8.0);
+      bale.castShadow = true;
+      root.add(bale);
+    }
+
+    // COAST overlook: telescope + broken railing + chest is already here
+    const scope = makeTelescope();
+    scope.position.set(10.2, hf(10.2, -4.5), -4.5);
+    scope.rotation.y = Math.PI/2;
+    root.add(scope);
+    // broken rail (3 posts + 1 cracked beam)
+    for(let i=0;i<3;i++){
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 8), mat(0x5a3a20));
+      post.position.set(10.8 + i*0.5, hf(10.8+i*0.5, -3.0+i*0.4) + 0.3, -3.0 + i*0.4);
+      post.castShadow = true;
+      root.add(post);
+    }
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 1.2), mat(0x5a3a20));
+    beam.position.set(11.0, hf(11.0, -3.2) + 0.55, -3.2);
+    beam.rotation.x = 0.18;
+    root.add(beam);
+    // coiled rope by the cliff
+    for(let i=0;i<3;i++){
+      const coil = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.018, 6, 16), mat(0xe8dcb8));
+      coil.rotation.x = Math.PI/2;
+      coil.position.set(11.2, hf(11.2, -4.2) + 0.02 + i*0.045, -4.2);
+      root.add(coil);
+    }
+
+    // WESTERN FOREST (around crystal): corruption — broken fence + warning sign + blue fireflies
+    const brokenSign = makeNoticeBoard();
+    brokenSign.position.set(-10, hf(-10, 5), 5);
+    brokenSign.rotation.y = -0.5;
+    brokenSign.scale.setScalar(0.85);
+    root.add(brokenSign);
+    // dead-grass ring around crystal (darker ground patch)
+    const deadRing = new THREE.Mesh(new THREE.RingGeometry(0.8, 2.5, 32).rotateX(-Math.PI/2),
+      new THREE.MeshStandardMaterial({color:0x3a2a1a, roughness:0.95, transparent:true, opacity:0.55}));
+    deadRing.position.set(-12, hf(-12, 5)+0.05, 5);
+    root.add(deadRing);
+    // 3 broken-fence posts around the corruption
+    for(let i=0;i<4;i++){
+      const ang = (i/4)*Math.PI*2;
+      const r = 2.2;
+      const fp = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5 - i*0.08, 0.08), mat(0x5a3a20));
+      fp.position.set(-12 + Math.sin(ang)*r, hf(-12+Math.sin(ang)*r, 5+Math.cos(ang)*r) + 0.2, 5 + Math.cos(ang)*r);
+      fp.rotation.z = (Math.random()-0.5)*0.3;
+      fp.castShadow = true;
+      root.add(fp);
+    }
+
+    /* ─ NPCs (re-enabled per Codex review for ambient life) ─ */
+    function placeNpc(x, z, colors, path = null, speed = 0.0){
+      const n = makeNpc(colors[0], colors[1]);
+      n.position.set(x, hf(x,z), z);
+      n.userData.path = path || [[x,z],[x,z]];
+      n.userData.wp = 0;
+      n.userData.speed = speed;
+      root.add(n);
+      ENTITIES.npcs.push(n);
+      return n;
+    }
+    // Vendor at market center
+    placeNpc(-1.8, -1.4, [0xb04030, 0x1a1410]);
+    // Child looping path near fountain
+    placeNpc(1.8, 1.5, [0xfff2a0, 0x3a2418],
+      [[1.8, 1.5],[2.8, -1.5],[-1.5, -2.2],[1.8, 1.5]], 0.7);
+    // Priest near church gate
+    placeNpc(5.7, 5.6, [0xe8d4a0, 0x1a1410]);
+    // Guard at tower base
+    placeNpc(-7.4, 5.7, [0x4a6a8a, 0x3a2418]);
+    // Miller at mill
+    placeNpc(-7.0, -6.2, [0xc2956a, 0x3a2418]);
+    // Fisher at coast lookout
+    placeNpc(10.0, -4.2, [0x5a7a3d, 0x2a1a14]);
+
+    /* ─ MAIN ENTRY GATE at south road end (game-readable affordance) ─ */
+    const gate = makeArchway();
+    gate.position.set(0, hf(0, -12.5), -12.5);
+    gate.scale.setScalar(0.95);
+    root.add(gate);
+    // signpost just inside the gate pointing 4 ways
+    const innerSign = makeSignpost('→');
+    innerSign.position.set(0.8, hf(0.8, -3.9), -3.9);
+    innerSign.rotation.y = -0.3;
+    root.add(innerSign);
+
+    // Tiny natural undergrowth — grass tufts, ferns, flowers, leaves (no pebbles/mushrooms)
     densifyGround(root, 'forest');
   }
 };
