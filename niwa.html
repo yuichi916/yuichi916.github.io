@@ -285,6 +285,9 @@ const CAM_DEFAULT_SIZE = 9;     // Codex: tighter default framing
 const CAM_MIN_SIZE = 6;
 const CAM_MAX_SIZE = 16;
 let CAM_ORTHO_SIZE = CAM_DEFAULT_SIZE;
+// 1st-person view orientation (independent of avatar facing)
+let fpYaw = 0;      // horizontal look (radians)
+let fpPitch = 0;    // vertical look (-1..+1)
 const CAM_OFFSET = new THREE.Vector3(10, 14, 10);
 function makeOrthoCam(){
   const aspect = window.innerWidth/window.innerHeight;
@@ -2822,23 +2825,55 @@ const TREE_GROUPS = [];   // for wind sway
 function makeTree(kind, rnd=Math.random){
   const g = new THREE.Group();
   if(kind==='pine'){
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.14, 0.85, 14), mat(0x4a3020));
-    trunk.position.y = 0.42; trunk.castShadow=true; g.add(trunk);
-    for(let i=0;i<3;i++){
-      const c = new THREE.Mesh(new THREE.ConeGeometry(0.7 - i*0.15, 0.85, 18), mat([0x3F6B3A, 0x4d7a44, 0x5a8a50][i]));
-      c.position.y = 0.85 + i*0.5; c.castShadow=true; g.add(c);
+    // Detailed pine: textured trunk + 5 stacked cones + small overhang cones for organic break
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.14, 0.95, 14), mat(0x3a2418));
+    trunk.position.y = 0.47; trunk.castShadow=true; g.add(trunk);
+    // 4 main canopy tiers
+    const tiers = [
+      { r:0.78, h:0.85, color:0x3F6B3A, y:0.85 },
+      { r:0.62, h:0.80, color:0x4a7c44, y:1.30 },
+      { r:0.46, h:0.70, color:0x5a8a50, y:1.75 },
+      { r:0.30, h:0.50, color:0x6a9a5a, y:2.10 },
+    ];
+    for(const t of tiers){
+      const c = new THREE.Mesh(new THREE.ConeGeometry(t.r, t.h, 18), mat(t.color));
+      c.position.y = t.y; c.castShadow=true; g.add(c);
+    }
+    // tiny offshoot cones for organic silhouette
+    for(let i=0;i<5;i++){
+      const ang = (i/5)*Math.PI*2 + rnd();
+      const ty = 1.0 + rnd()*0.7;
+      const off = new THREE.Mesh(new THREE.ConeGeometry(0.15+rnd()*0.08, 0.3+rnd()*0.18, 8), mat(0x4a7a44));
+      off.position.set(Math.sin(ang)*0.45, ty, Math.cos(ang)*0.45);
+      off.rotation.z = (rnd()-0.5)*0.4;
+      g.add(off);
     }
   } else if(kind==='sakura'){
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.7, 12), mat(0x4a3020));
+    // Lush sakura: cluster of 10 puff balls with mixed pink shades + tiny petals
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.7, 12), mat(0x3a2418));
     trunk.position.y = 0.35; trunk.castShadow=true; g.add(trunk);
-    for(let i=0;i<5;i++){
-      const ang = (i/5)*Math.PI*2;
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.4 + rnd()*0.1, 18, 14), mat(0xf0b8c8));
-      ball.position.set(Math.sin(ang)*0.3, 1.0 + Math.cos(ang)*0.12, Math.cos(ang)*0.3);
+    const pinks = [0xf0b8c8, 0xf8d0d8, 0xf5c4d0, 0xffe0e8, 0xe89aaa];
+    // outer 8 puffs
+    for(let i=0;i<8;i++){
+      const ang = (i/8)*Math.PI*2;
+      const r = 0.34 + rnd()*0.12;
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), mat(pinks[i%pinks.length]));
+      ball.position.set(Math.sin(ang)*0.35, 0.92 + Math.cos(ang*1.3)*0.18, Math.cos(ang)*0.35);
       ball.castShadow=true; g.add(ball);
     }
-    const center = new THREE.Mesh(new THREE.SphereGeometry(0.42, 22, 16), mat(0xf8d0d8));
-    center.position.y = 1.2; center.castShadow=true; g.add(center);
+    // 3 upper puffs (canopy crown)
+    for(let i=0;i<3;i++){
+      const ang = (i/3)*Math.PI*2;
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.30, 16, 12), mat(pinks[(i+1)%pinks.length]));
+      ball.position.set(Math.sin(ang)*0.20, 1.25, Math.cos(ang)*0.20);
+      ball.castShadow=true; g.add(ball);
+    }
+    const center = new THREE.Mesh(new THREE.SphereGeometry(0.42, 22, 16), mat(0xfde0e6));
+    center.position.y = 1.05; center.castShadow=true; g.add(center);
+    // hint of darker base shadow for the canopy
+    const baseDark = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 12), mat(0xd896a6));
+    baseDark.position.y = 0.85; baseDark.scale.y = 0.55;
+    g.add(baseDark);
   } else if(kind==='momiji'){
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.10, 0.65, 12), mat(0x3a261a));
     trunk.position.y = 0.32; trunk.castShadow=true; g.add(trunk);
@@ -5525,6 +5560,11 @@ btnView.addEventListener('click', ()=>{
   firstPerson = !firstPerson;
   btnView.textContent = firstPerson ? 'VIEW · 1P' : 'VIEW · 3P';
   btnView.classList.toggle('active', firstPerson);
+  // Sync FP yaw to current 3P camera direction so the view doesn't snap
+  if(firstPerson){
+    fpYaw = camYawState + Math.PI;   // look opposite of camera offset (forward)
+    fpPitch = -0.1;
+  }
 });
 
 let audioCtx=null, ambientGain=null;
@@ -5618,8 +5658,15 @@ canvas.addEventListener('pointermove', e=>{
   if(pointerDown){
     const dx = e.clientX-lastPx, dy = e.clientY-lastPy;
     if(Math.abs(dx)+Math.abs(dy)>4) dragMoved = true;
-    // Orbit camera yaw TARGET (smoothed in animate loop)
-    camYawTarget -= dx*0.0045;
+    if(firstPerson){
+      // 1P: free look — drag rotates the FP yaw + pitch
+      fpYaw -= dx*0.006;
+      fpPitch -= dy*0.005;
+      fpPitch = Math.max(-1.0, Math.min(0.8, fpPitch));   // clamp vertical
+    } else {
+      // 3P: orbit camera around avatar
+      camYawTarget -= dx*0.0045;
+    }
     lastPx=e.clientX; lastPy=e.clientY;
   }
 });
@@ -5839,8 +5886,10 @@ function animate(){
     const len = Math.hypot(mx,mz);
     const mag = Math.min(1, len);                  // analog magnitude (joystick)
     mx /= (len || 1); mz /= (len || 1);
-    const wx = mx*Math.cos(camYawState) - mz*Math.sin(camYawState);
-    const wz = mx*Math.sin(camYawState) + mz*Math.cos(camYawState);
+    // In 1P, walk relative to look direction; in 3P, walk relative to camera
+    const yawForMove = firstPerson ? (fpYaw + Math.PI) : camYawState;
+    const wx = mx*Math.cos(yawForMove) - mz*Math.sin(yawForMove);
+    const wz = mx*Math.sin(yawForMove) + mz*Math.cos(yawForMove);
     desiredVx = wx*targetSpeed*mag;
     desiredVz = wz*targetSpeed*mag;
     if(moveTarget){ moveTarget = null; targetMarker.visible = false; }
@@ -5925,12 +5974,15 @@ function animate(){
     avatar.visible = true;
     renderPass.camera = camera;
   } else {
-    // 1P: perspective camera at avatar head, looking forward
+    // 1P: perspective camera at avatar head, free-look via fpYaw/fpPitch
     const headY = avatar.position.y + 1.55;
     camFP.position.set(avatar.position.x, headY, avatar.position.z);
-    const fwd = new THREE.Vector3();
-    avatar.getWorldDirection(fwd);   // avatar's -Z forward in world space
-    camFP.lookAt(avatar.position.x + fwd.x, headY + fwd.y*0.05, avatar.position.z + fwd.z);
+    // Convert spherical (yaw, pitch) to a look-target vector
+    const cosP = Math.cos(fpPitch);
+    const lx = avatar.position.x + Math.sin(fpYaw) * cosP;
+    const ly = headY + Math.sin(fpPitch);
+    const lz = avatar.position.z + Math.cos(fpYaw) * cosP;
+    camFP.lookAt(lx, ly, lz);
     avatar.visible = false;
     renderPass.camera = camFP;
   }
