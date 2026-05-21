@@ -148,6 +148,7 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 <div class="toolbar">
   <button class="tool" id="btn-sound" aria-pressed="false">SOUND · OFF</button>
   <button class="tool" id="btn-time">NIGHT</button>
+  <button class="tool" id="btn-view">VIEW · 3P</button>
   <a class="tool" href="index.html" style="text-decoration:none">← HOME</a>
 </div>
 
@@ -244,6 +245,9 @@ function makeOrthoCam(){
   return c;
 }
 let camera = makeOrthoCam();
+// 1st-person perspective camera, swap into composer per frame
+const camFP = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 220);
+let firstPerson = false;
 
 /* Lighting ================================================ */
 const sun = new THREE.DirectionalLight(0xfff4d0, 3.4);
@@ -2434,8 +2438,9 @@ function buildScene(name){
   skyU.turbidity.value = def.turbidity ?? 4;
   skyU.rayleigh.value = def.rayleigh ?? 2;
   scene.fog.color = new THREE.Color(def.fogColor || '#bcd6e2');
-  scene.fog.near = def.fogNear ?? 26;
-  scene.fog.far  = def.fogFar  ?? 70;
+  // Triple-distance fog so the world stays visible (user: もやがかかって見えにくい)
+  scene.fog.near = (def.fogNear ?? 26) * 3.0;
+  scene.fog.far  = (def.fogFar  ?? 70) * 3.0;
   renderer.toneMappingExposure = def.exposure ?? 1.05;
   // Build geometry
   def.build(root);
@@ -4003,6 +4008,13 @@ btnTime.addEventListener('click', ()=>{
   btnTime.classList.toggle('active', nightMode);
 });
 
+const btnView = document.getElementById('btn-view');
+btnView.addEventListener('click', ()=>{
+  firstPerson = !firstPerson;
+  btnView.textContent = firstPerson ? 'VIEW · 1P' : 'VIEW · 3P';
+  btnView.classList.toggle('active', firstPerson);
+});
+
 let audioCtx=null, ambientGain=null;
 function startAmbient(){
   if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
@@ -4106,7 +4118,8 @@ function handleClick(cx, cy){
 
 /* === Post-processing ==================================== */
 const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.5, 0.7, 0.78);
 composer.addPass(bloom);
 const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
@@ -4158,13 +4171,27 @@ function animate(){
   // follow terrain
   avatar.position.y = sampleHeight(avatar.position.x, avatar.position.z);
 
-  // Camera follows avatar in XZ (constant offset = quarter-view feel)
-  camera.position.set(
-    avatar.position.x + CAM_OFFSET.x,
-    avatar.position.y + CAM_OFFSET.y,
-    avatar.position.z + CAM_OFFSET.z
-  );
-  camera.lookAt(avatar.position.x, avatar.position.y + 1.0, avatar.position.z);
+  // Camera positioning — 3rd-person ortho follow OR 1st-person perspective
+  if(!firstPerson){
+    // 3P: ortho camera follows avatar with constant offset
+    camera.position.set(
+      avatar.position.x + CAM_OFFSET.x,
+      avatar.position.y + CAM_OFFSET.y,
+      avatar.position.z + CAM_OFFSET.z
+    );
+    camera.lookAt(avatar.position.x, avatar.position.y + 1.0, avatar.position.z);
+    avatar.visible = true;
+    renderPass.camera = camera;
+  } else {
+    // 1P: perspective camera at avatar head, looking forward
+    const headY = avatar.position.y + 1.55;
+    camFP.position.set(avatar.position.x, headY, avatar.position.z);
+    const fwd = new THREE.Vector3();
+    avatar.getWorldDirection(fwd);   // avatar's -Z forward in world space
+    camFP.lookAt(avatar.position.x + fwd.x, headY + fwd.y*0.05, avatar.position.z + fwd.z);
+    avatar.visible = false;
+    renderPass.camera = camFP;
+  }
 
   /* ── Avatar joints animation ── */
   const j = avatar.userData.joints;
@@ -4306,6 +4333,8 @@ window.addEventListener('resize', ()=>{
   camera.left = -s*aspect; camera.right = s*aspect;
   camera.top = s; camera.bottom = -s;
   camera.updateProjectionMatrix();
+  camFP.aspect = aspect;
+  camFP.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
 });
