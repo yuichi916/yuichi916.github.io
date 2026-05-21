@@ -2335,6 +2335,7 @@ function makeTree(kind, rnd=Math.random){
     top2.position.set(0.2, 1.3, -0.1); top2.castShadow=true; g.add(top2);
   }
   g.userData.windPhase = Math.random()*Math.PI*2;
+  g.userData.baseRotZ = 0;
   TREE_GROUPS.push(g);
   return g;
 }
@@ -2659,271 +2660,302 @@ function sampleHeight(x, z){
 // 1. 入口の井戸
 SCENES.plaza = {
   num: '00', kind: 'plaza',
-  title: '城下町', en: 'The Castle Town',
-  concept: '段差のあるキューブ大地に密集する中世風の町。噴水・教会・物見櫓・風車・市場・古民家がひしめく。',
+  title: '森の村', en: 'The Forest Village',
+  concept: '針葉樹の森に埋もれた中世風の村。岬の上に教会、丘の上に物見櫓、森の奥に古民家。海へ落ちる岸辺。',
   sun: [55, -25], turbidity:3.5, rayleigh:1.8,
-  fogColor:'#cce0e8', fogNear:30, fogFar:80, exposure:1.08,
-  avatarStart: [0, 8],
+  fogColor:'#a0c4ce', fogNear:40, fogFar:120, exposure:1.05,
+  avatarStart: [0, 6],
   build(root){
-    /* ─ Cube-platform terrain (Captain Toad style) ─
-       The world is a stack of solid platforms at different elevations.
-       Camera ortho sees them as crisp blocks with grass tops + stone sides.
-    */
-    const groundGroup = new THREE.Group();
-    root.add(groundGroup); root.userData.ground = groundGroup;
+    /* ─ Natural rolling heightmap with a coastal cliff (no cube platforms) ─ */
+    const hf = (x, z)=>{
+      // gentle hills
+      let h = Math.sin(x*0.32)*0.35 + Math.cos(z*0.28)*0.30 + Math.sin((x+z)*0.18)*0.20;
+      // central village mound
+      const dCenter = Math.hypot(x, z);
+      if(dCenter < 7) h += (1 - dCenter/7) * 0.6;
+      // church hill (NE)
+      const dChurch = Math.hypot(x-8, z-8);
+      if(dChurch < 5) h += (1 - dChurch/5) * 2.2;
+      // watchtower hill (NW)
+      const dTower = Math.hypot(x+8, z-8);
+      if(dTower < 4) h += (1 - dTower/4) * 1.8;
+      // coastal cliff drop (east edge)
+      if(x > 9) h -= (x-9)*0.6;
+      if(x > 12) h -= 1.0;
+      return h;
+    };
+    const groundC = terrainDisc(SCENE_RADIUS, hf, (x,z,y,r,c)=>{
+      const n = noise(x*4,z*4,1.4);
+      if(x > 11 && y < -0.5){ c.setHex(0xc8a868); }       // beach
+      else if(y > 1.4){ c.setHex(0x6a8a40).lerp(new THREE.Color(0x4a6a30), n*0.5); }  // higher slopes
+      else { c.setHex(0x5a7a3d).lerp(new THREE.Color(0x3a5a28), n*0.55); }   // forest floor
+    });
+    groundC.material.map = MOSS_TEX;
+    groundC.material.color.setHex(0xc8d8b0);
+    root.add(groundC); root.userData.ground = groundC;
 
-    // Central plaza platform (low, large) — for fountain + market
-    const central = makePlatformChunk(11, 0.5, 11, 'stone');
-    central.position.set(0, 0, 0);
-    groundGroup.add(central);
-
-    // 4 quadrant platforms — each elevated ~+0.7, hosts dense buildings
-    const quadH = 1.2;
-    const quads = [
-      { x: -8.5, z: -8.5, w: 7, d: 7, theme: 'grass' },
-      { x:  8.5, z: -8.5, w: 7, d: 7, theme: 'grass' },
-      { x: -8.5, z:  8.5, w: 7, d: 7, theme: 'grass' },
-      { x:  8.5, z:  8.5, w: 7, d: 7, theme: 'grass' },
-    ];
-    for(const q of quads){
-      const p = makePlatformChunk(q.w, quadH, q.d, q.theme);
-      p.position.set(q.x, 0, q.z);
-      groundGroup.add(p);
-    }
-    // 4 mid-bridge platforms (narrower, link central to quadrants)
-    const links = [
-      { x: -6, z:  0, w: 3, d: 4, h: 0.9 },
-      { x:  6, z:  0, w: 3, d: 4, h: 0.9 },
-      { x:  0, z: -6, w: 4, d: 3, h: 0.9 },
-      { x:  0, z:  6, w: 4, d: 3, h: 0.9 },
-    ];
-    for(const l of links){
-      const p = makePlatformChunk(l.w, l.h, l.d, 'stone');
-      p.position.set(l.x, 0, l.z);
-      groundGroup.add(p);
-    }
-    // 4 corner pillars (tallest, for towers / trees)
-    const pillars = [
-      { x: -12, z: -12, h: 2.0 },
-      { x:  12, z: -12, h: 2.0 },
-      { x: -12, z:  12, h: 2.0 },
-      { x:  12, z:  12, h: 2.0 },
-    ];
-    for(const pi of pillars){
-      const p = makePlatformChunk(3, pi.h, 3, 'stone');
-      p.position.set(pi.x, 0, pi.z);
-      groundGroup.add(p);
-    }
-    // Ramps connecting central to each link platform
-    const ramps = [
-      { x: -3.0, z:  0, len: 2.4, w: 1.4, from: 0.5, to: 0.9, ry: Math.PI/2 },
-      { x:  3.0, z:  0, len: 2.4, w: 1.4, from: 0.5, to: 0.9, ry: -Math.PI/2 },
-      { x:  0, z: -3.0, len: 2.4, w: 1.4, from: 0.5, to: 0.9, ry: 0 },
-      { x:  0, z:  3.0, len: 2.4, w: 1.4, from: 0.5, to: 0.9, ry: Math.PI },
-    ];
-    for(const r of ramps){
-      const ramp = makeRamp(r.w, r.len, r.from, r.to, 'stone');
-      ramp.position.set(r.x, 0, r.z);
-      ramp.rotation.y = r.ry;
-      groundGroup.add(ramp);
-    }
-    // Stone stairs from each link platform up to quadrants
-    for(const [qx, qz, lx, lz] of [
-      [-8.5,-8.5, -5.0,-1.5], [ 8.5,-8.5,  5.0,-1.5],
-      [-8.5, 8.5, -5.0, 1.5], [ 8.5, 8.5,  5.0, 1.5],
-    ]){
-      const steps = makeStairs(2, 1.2, 0.18, 0.4);
-      // direction from link to quad
-      const dx = qx-lx, dz = qz-lz;
-      steps.position.set((qx+lx)/2, 0.9, (qz+lz)/2);
-      steps.rotation.y = Math.atan2(dx, dz) + Math.PI;
-      groundGroup.add(steps);
+    /* ─ COASTAL WATER (cliff edge on east) ─ */
+    const coast = new THREE.Mesh(new THREE.PlaneGeometry(20, 30, 16, 16).rotateX(-Math.PI/2),
+      new THREE.MeshStandardMaterial({color:0x3a6a8a, transparent:true, opacity:0.92, roughness:0.05, metalness:0.2, envMapIntensity:1.6}));
+    coast.position.set(20, -1.6, 0);
+    root.add(coast);
+    // some rocks along the cliff edge
+    for(let i=0;i<8;i++){
+      const z = -10 + i*3 + (Math.random()-0.5);
+      const x = 11.5 + Math.random()*1.2;
+      const rk = makeRock(Math.random, 1.6+Math.random()*0.6);
+      rk.position.set(x, hf(x,z)-0.2, z);
+      root.add(rk);
     }
 
-    /* ─ Central fountain (replaces the well at the heart of the town) ─ */
-    const fountain = makeFountain();
-    fountain.position.set(0, 0.5, 0);
-    root.add(fountain);
-
-    /* ─ Watchtower on a corner pillar (tall stone tower with flag) ─ */
+    /* ─ KEY BUILDINGS placed in natural clearings (not on platforms) ─ */
+    // Church on NE hill
+    const church = makeChurch();
+    church.position.set(8, hf(8,8), 8);
+    church.rotation.y = -Math.PI*0.6;
+    church.scale.setScalar(0.85);
+    root.add(church);
+    church.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    // Watchtower on NW hill
     const tower = makeWatchtower();
-    tower.position.set(-12, 2.0, -12);
+    tower.position.set(-8, hf(-8,8), 8);
     root.add(tower);
     tower.traverse(o=>{
       if(o.userData?.flag) ENTITIES.flags.push(o);
       if(o.userData?.lamp) ENTITIES.lamps.push(o);
     });
-
-    /* ─ Church/cathedral on opposite corner pillar ─ */
-    const church = makeChurch();
-    church.position.set(12, 2.0, 12);
-    church.rotation.y = -Math.PI*0.7;
-    church.scale.setScalar(0.85);
-    root.add(church);
-    church.traverse(o=>{
-      if(o.userData?.lamp) ENTITIES.lamps.push(o);
-    });
-
-    /* ─ Windmill on third corner pillar ─ */
+    // Windmill on a hilltop (SW)
     const mill = makeWindmill();
-    mill.position.set(12, 2.0, -12);
+    mill.position.set(-8, hf(-8,-8), -8);
     root.add(mill);
     if(mill.userData.mill){
       mill.userData.mill.userData.rotateZ = 0.4;
       ENTITIES.mills.push(mill.userData.mill);
     }
-    mill.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
 
-    /* ─ Big townhouse cluster on the 4th corner pillar ─ */
-    const bigHouse = makeMedievalHouse({ w:1.8, d:1.6, stories:3, hasTower:true, hasBalcony:true,
-      wallColor:0xe8d4a8, beamColor:0x3a2418, roofColor:0x7a3a1a });
-    bigHouse.position.set(-12, 2.0, 12);
-    bigHouse.rotation.y = -Math.PI/4;
-    root.add(bigHouse);
-    bigHouse.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-
-    /* ─ DENSE PACKED HOUSES on each quadrant platform (16 houses total) ─ */
+    /* ─ MEDIEVAL VILLAGE — 14 houses clustered around the central mound ─
+       Tight packing like the Anno reference image. Houses face inward.
+    */
     const houseVariants = [
       { w:1.5, d:1.3, stories:2, wallColor:0xe8d4a8, beamColor:0x3a2418, roofColor:0x7a3a1a, hasChimney:true },
-      { w:1.7, d:1.4, stories:2, wallColor:0xd8c89a, beamColor:0x2a1810, roofColor:0x4a4a6a, hasChimney:true, hasBalcony:true },
+      { w:1.7, d:1.4, stories:2, wallColor:0xd8c89a, beamColor:0x2a1810, roofColor:0x4a4a6a, hasChimney:true },
       { w:1.4, d:1.2, stories:3, wallColor:0xeacc94, beamColor:0x4a3024, roofColor:0x8a4a20, hasChimney:true },
       { w:1.6, d:1.4, stories:2, wallColor:0xd0b888, beamColor:0x3a2418, roofColor:0x5a3a20, hasChimney:false, hasTower:true },
+      { w:1.5, d:1.3, stories:2, wallColor:0xc8b888, beamColor:0x3a2418, roofColor:0x6a4a3a, hasChimney:true, hasBalcony:true },
     ];
-    // 4 houses per quadrant, tightly packed
-    for(const q of quads){
-      const housePositions = [
-        [-1.8, -1.8], [ 1.8, -1.8],
-        [-1.8,  1.8], [ 1.8,  1.8],
+    const housePositions = [
+      [-3.0, -2.0], [-1.0, -2.4], [ 1.0, -2.4], [ 3.0, -2.0],
+      [-3.4, -0.2], [ 3.4, -0.2],
+      [-3.4,  2.0], [-1.0,  2.4], [ 1.0,  2.4], [ 3.4,  2.0],
+      [-5.0, -1.0], [ 5.0, -1.0], [-5.0,  2.5], [ 5.0,  2.5],
+    ];
+    for(let i=0;i<housePositions.length;i++){
+      const [hx, hz] = housePositions[i];
+      const v = { ...houseVariants[i % houseVariants.length] };
+      const h = makeMedievalHouse(v);
+      h.position.set(hx, hf(hx, hz), hz);
+      // face the central plaza
+      h.rotation.y = Math.atan2(-hx, -hz);
+      root.add(h);
+      h.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    }
+
+    /* ─ CENTRAL FOUNTAIN at the heart of the village ─ */
+    const fountain = makeFountain();
+    fountain.position.set(0, hf(0,0), 0);
+    root.add(fountain);
+
+    /* ─ COBBLESTONE PATHS winding through the village ─ */
+    const pathMat = new THREE.MeshStandardMaterial({color:0xb8a888, roughness:0.9});
+    function pathSeg(ax,az,bx,bz, w=1.0){
+      const dx = bx-ax, dz = bz-az;
+      const len = Math.hypot(dx,dz);
+      const segs = Math.ceil(len/0.5);
+      for(let s=0;s<segs;s++){
+        const t1 = s/segs, t2 = (s+1)/segs;
+        const cx = ax + dx*(t1+t2)/2;
+        const cz = az + dz*(t1+t2)/2;
+        const plate = new THREE.Mesh(new THREE.PlaneGeometry(w, len/segs + 0.05).rotateX(-Math.PI/2), pathMat);
+        plate.position.set(cx, hf(cx,cz)+0.04, cz);
+        plate.rotation.y = Math.atan2(dx, dz);
+        plate.receiveShadow = true;
+        root.add(plate);
+      }
+    }
+    // Paths radiating from center
+    pathSeg(0, 0, 8, 8, 1.0);   // to church
+    pathSeg(0, 0, -8, 8, 1.0);  // to tower
+    pathSeg(0, 0, -8, -8, 1.0); // to windmill
+    pathSeg(0, 0, 11, 0, 1.0);  // to coast
+    pathSeg(0, 0, 0, -10, 1.2); // south entry
+
+    /* ─ DENSE PINE FOREST (Anno reference: solid green canopy) ─
+       400+ trees across the disc, only avoiding building footprints and paths.
+    */
+    const buildingZones = [
+      ...housePositions.map(([x,z])=>({x, z, r:1.6})),
+      {x:8, z:8, r:3.5},   // church
+      {x:-8, z:8, r:2.5},  // tower
+      {x:-8, z:-8, r:2.5}, // windmill
+      {x:0, z:0, r:2.5},   // fountain
+    ];
+    function isClear(x, z, treeR=0.6){
+      // skip near buildings
+      for(const b of buildingZones){
+        if(Math.hypot(x-b.x, z-b.z) < b.r + treeR) return false;
+      }
+      // skip on cliff drop
+      if(x > 10.5) return false;
+      // skip on the main radial paths (within ~0.6 of the line)
+      const paths = [
+        [0,0, 8,8], [0,0,-8,8], [0,0,-8,-8], [0,0,11,0], [0,0,0,-10]
       ];
-      for(let i=0;i<housePositions.length;i++){
-        const [dx, dz] = housePositions[i];
-        const v = houseVariants[(i + (q.x<0?1:0) + (q.z<0?2:0)) % houseVariants.length];
-        const h = makeMedievalHouse(v);
-        h.position.set(q.x + dx, quadH, q.z + dz);
-        // face center of quadrant
-        h.rotation.y = Math.atan2(-dx, -dz);
-        root.add(h);
-        h.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+      for(const [ax,az,bx,bz] of paths){
+        const dx=bx-ax, dz=bz-az;
+        const lenSq = dx*dx + dz*dz;
+        if(lenSq < 0.001) continue;
+        let t = ((x-ax)*dx + (z-az)*dz) / lenSq;
+        if(t < 0 || t > 1) continue;
+        const px = ax + t*dx, pz = az + t*dz;
+        if(Math.hypot(x-px, z-pz) < 0.7) return false;
+      }
+      return true;
+    }
+    let treeCount = 0;
+    for(let attempt=0; attempt<2400 && treeCount<400; attempt++){
+      const ang = Math.random()*Math.PI*2;
+      const rr = Math.sqrt(Math.random())*SCENE_RADIUS*0.99;
+      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
+      if(!isClear(x,z)) continue;
+      const y = hf(x,z);
+      if(y < -1.0) continue;  // skip beach
+      // 70% pines (dark forest), 12% sakura, 10% momiji, 8% broad
+      const r = Math.random();
+      const kind = r<0.70 ? 'pine' : r<0.82 ? 'sakura' : r<0.92 ? 'momiji' : 'broad';
+      const t = makeTree(kind);
+      t.position.set(x, y, z);
+      const s = 0.95 + Math.random()*0.55;
+      t.scale.setScalar(s);
+      t.rotation.y = Math.random()*Math.PI*2;
+      t.userData.windPhase = Math.random()*Math.PI*2;
+      t.userData.baseRotZ = 0;
+      TREE_GROUPS.push(t);
+      root.add(t);
+      treeCount++;
+    }
+    // Bushes / undergrowth filling gaps
+    for(let i=0;i<280;i++){
+      const ang = Math.random()*Math.PI*2;
+      const rr = Math.sqrt(Math.random())*SCENE_RADIUS*0.99;
+      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
+      if(!isClear(x,z,0.3)) continue;
+      const y = hf(x,z);
+      if(y < -1.0) continue;
+      const b = makeBush();
+      b.position.set(x, y+0.12, z);
+      root.add(b);
+    }
+    // Mossy boulders
+    for(let i=0;i<24;i++){
+      const ang = Math.random()*Math.PI*2;
+      const rr = 4 + Math.random()*(SCENE_RADIUS-5);
+      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
+      if(!isClear(x,z,0.8)) continue;
+      const rk = makeRock(Math.random, 1.0+Math.random()*0.8);
+      rk.position.set(x, hf(x,z), z);
+      root.add(rk);
+    }
+
+    /* ─ Small near-building decorations (not scattered, anchored to houses) ─ */
+    // each kitchen-side gets a wood pile + barrel
+    for(let i=0;i<housePositions.length;i+=2){
+      const [hx, hz] = housePositions[i];
+      const y = hf(hx, hz);
+      const off = 0.9;
+      const woodAng = Math.random()*Math.PI*2;
+      const wx = hx + Math.cos(woodAng)*off, wz = hz + Math.sin(woodAng)*off;
+      // wood pile (3 logs stacked)
+      for(let k=0;k<3;k++){
+        const log = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.4, 8), mat(0x624029));
+        log.rotation.z = Math.PI/2;
+        log.position.set(wx + (k%2)*0.03, y + 0.08 + Math.floor(k/2)*0.14, wz);
+        log.castShadow = true;
+        root.add(log);
+      }
+      // barrel on the other side
+      const b = makeBarrel();
+      b.position.set(hx - Math.cos(woodAng)*off, y, hz - Math.sin(woodAng)*off);
+      root.add(b);
+    }
+    // Chimney smoke for every house (anchored to its position)
+    ENTITIES.smokes = ENTITIES.smokes || [];
+    for(let i=0;i<housePositions.length;i++){
+      const [hx, hz] = housePositions[i];
+      const y = hf(hx, hz);
+      for(let k=0;k<5;k++){
+        const s = new THREE.Mesh(new THREE.SphereGeometry(0.18+Math.random()*0.12, 8, 6),
+          new THREE.MeshBasicMaterial({color:0xb0b0b0, transparent:true, opacity:0}));
+        s.position.set(hx + 0.3, y + 3.0, hz);
+        s.userData = { life: k*0.6 + Math.random(), bx: hx + 0.3, by: y + 3.0, bz: hz };
+        ENTITIES.smokes.push(s);
+        root.add(s);
       }
     }
 
-    /* ─ 4 ARCHWAYS at outer entrances (compass points) ─ */
-    for(const [x,z,ry] of [[0,-13.5,0],[13.5,0,Math.PI/2],[0,13.5,0],[-13.5,0,Math.PI/2]]){
-      const ar = makeArchway();
-      ar.position.set(x, 0, z);
-      ar.rotation.y = ry;
-      ar.scale.setScalar(0.95);
-      root.add(ar);
-    }
-
-    /* ─ MARKET STALLS along central plaza edges ─ */
-    for(const [x,z,ry] of [[-3.6,3.5,0.2],[3.6,3.5,-0.2],[-3.6,-3.5,Math.PI+0.2],[3.6,-3.5,Math.PI-0.2]]){
-      const ms = makeMarketStall();
-      ms.position.set(x, 0.5, z); ms.rotation.y = ry;
-      root.add(ms);
-    }
-
-    /* ─ TREES on the corner pillars + along outer ring ─ */
-    for(const [x,z,kind,s] of [
-      [-12, -10, 'pine', 1.5], [-10, -12, 'pine', 1.5],
-      [ 12, -10, 'sakura', 1.4], [ 10, -12, 'sakura', 1.4],
-      [-12,  10, 'momiji', 1.4], [-10,  12, 'momiji', 1.4],
-      [ 12,  10, 'broad', 1.3],  [ 10,  12, 'broad', 1.3],
-    ]){
-      const t = makeTree(kind); t.position.set(x, 2.0, z); t.scale.setScalar(s);
-      root.add(t);
-    }
-    // ring of trees outside the platforms (decorative skirt)
-    for(let i=0;i<14;i++){
-      const ang = (i/14)*Math.PI*2;
-      const r = 13.5 + (i%2)*0.5;
-      const t = makeTree(['pine','momiji','broad','sakura'][i%4]);
-      t.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      t.scale.setScalar(1.2 + Math.random()*0.3);
-      root.add(t);
-    }
-
-    /* ─ CURATED DECORATIONS (calm, not cluttered) ─ */
-    // KOI POND on the central plaza beside the fountain — magical focal point
-    const pond = makeKoiPond(1.6);
-    pond.position.set(-3.5, 0.5, -0.5);
-    root.add(pond);
-    // 4 stone lanterns at the cardinal axis of the central plaza (composition!)
-    for(const [x,z] of [[-4.5,0],[4.5,0],[0,-4.5],[0,4.5]]){
+    /* ─ Curated village delight ─ */
+    // 1 fountain + 4 stone lanterns around it + viewing benches
+    for(let i=0;i<4;i++){
+      const ang = (i/4)*Math.PI*2 + Math.PI/4;
+      const r = 1.6;
       const sl = makeStoneLantern();
-      sl.position.set(x, 0.5, z);
+      sl.position.set(Math.sin(ang)*r, hf(Math.sin(ang)*r, Math.cos(ang)*r), Math.cos(ang)*r);
       root.add(sl);
       if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
       sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
     }
-    // FESTIVAL BANNERS strung between central plaza and corner pillars
-    for(const [x,z,ry] of [[-6, 6, Math.PI/4],[6, -6, Math.PI/4],[-6,-6,-Math.PI/4],[6,6,-Math.PI/4]]){
-      const banners = makeFestivalBanners(5.5, 5);
-      banners.position.set(x, 0.5, z); banners.rotation.y = ry;
-      root.add(banners);
-    }
-    // WISHING BELL on a corner of the central plaza (visual + audible delight)
-    const bell = makeWishingBell();
-    bell.position.set(3.5, 0.5, 3.0);
-    root.add(bell);
-    bell.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    // 4 VIEWING BENCHES facing the fountain (places to pause)
-    for(const [x,z,ry] of [[-2.6,-2.6,-Math.PI/4],[2.6,-2.6,Math.PI/4],[-2.6,2.6,-3*Math.PI/4],[2.6,2.6,3*Math.PI/4]]){
+    // 2 viewing benches at the fountain
+    for(const [x,z,ry] of [[-2.4, 0, Math.PI/2], [2.4, 0, -Math.PI/2]]){
       const bn = makeViewingBench();
-      bn.position.set(x, 0.5, z); bn.rotation.y = ry;
+      bn.position.set(x, hf(x,z), z);
+      bn.rotation.y = ry;
       root.add(bn);
     }
-    // FLOWER BEDS at quadrant entrances (delight, not clutter)
-    for(const [x,z] of [[-3,5],[3,5],[-3,-5],[3,-5]]){
-      const fb = makeFlowerBed();
-      fb.position.set(x, 0.5, z);
-      root.add(fb);
-    }
-    // 2 Jizo guarding the church approach
-    for(const [x,z] of [[10,9.5],[10,11.5]]){
-      const j = makeStoneStatue();
-      j.position.set(x, 2.0, z);
-      root.add(j);
-    }
-    // BUTTERFLIES flutter around the central plaza
-    spawnButterflies(root, 6, [0, 1.0, 0], 5);
-    // BUTTERFLIES near each archway entrance too
-    for(const [x,z] of [[0,-12],[12,0],[0,12],[-12,0]]){
-      spawnButterflies(root, 2, [x, 1.0, z], 1.5);
-    }
+    // Koi pond tucked in near the windmill (less prominent, more found-secret)
+    const pond = makeKoiPond(1.4);
+    pond.position.set(-6, hf(-6,-5.5), -5.5);
+    root.add(pond);
+    // Wishing bell at the church approach
+    const bell = makeWishingBell();
+    bell.position.set(6, hf(6,7), 7);
+    root.add(bell);
+    bell.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
+    // Butterflies in the village center (not floating in empty space)
+    spawnButterflies(root, 8, [0, 1.2, 0], 3);
 
-    /* ─ RPG gimmicks ─ */
-    // Treasure chest near windmill
+    /* ─ Gimmicks tucked into natural spots ─ */
     const chest = makeChest();
-    chest.position.set(11.8, 2.0, -11.5);
-    chest.rotation.y = 0.5;
+    chest.position.set(11, hf(11,-2)+0.05, -2);  // on the cliff edge near the coast
+    chest.rotation.y = -Math.PI/3;
     root.add(chest);
     if(chest.userData.bob){
       chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
       ENTITIES.bobs.push(chest.userData.bob);
     }
-    // Magic orb on church corner
     const orb = makeMagicOrb(0xc090ff);
-    orb.position.set(11.8, 2.0, 11.5);
+    orb.position.set(8, hf(8,8)+1.4, 8);  // by the church
     root.add(orb);
     if(orb.userData.orb){
       orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
       ENTITIES.bobs.push(orb.userData.orb);
     }
-    // Crystal at townhouse base
     const cr = makeCrystal(0x6BE0FF);
-    cr.position.set(-11.8, 2.0, 11.5);
+    cr.position.set(-11, hf(-11,2)+0.05, 2);  // deep in the western forest
     cr.scale.setScalar(0.7);
     root.add(cr);
     ENTITIES.spins.push(cr);
-    // 4 directional signposts at the archways
-    for(const [x,z,ry,t] of [[0,-12,0,'森'],[12,0,Math.PI/2,'湖'],[0,12,Math.PI,'丘'],[-12,0,-Math.PI/2,'祠']]){
-      const sp = makeSignpost(t);
-      sp.position.set(x*0.85, 0.5, z*0.85);
-      sp.rotation.y = ry;
-      root.add(sp);
-    }
-    densifyGround(root, 'grass');
+
+    // Tiny moss-floor density (mushrooms, fallen leaves) — forest atmosphere
+    densifyGround(root, 'forest');
   }
 };
 
@@ -4088,6 +4120,374 @@ SCENES.amaoto = {
   }
 };
 
+// 10. 部屋 — cozy interior diorama (Garden Inn style)
+SCENES.heya = {
+  num: '09', kind: 'room',
+  title: '部屋', en: 'The Cozy Room',
+  concept: '木の床と漆喰の壁、棚にずらり並んだ鉢植え。画架と丸い玄関マット。灯りが揺れる小さな部屋。',
+  sun: [40, -30], turbidity:3, rayleigh:1.6,
+  fogColor:'#e0e8f0', fogNear:60, fogFar:200, exposure:1.12,
+  avatarStart: [1.2, 1.8],
+  build(root){
+    /* ─ Wooden plank floor (the diorama base) ─ */
+    const groundGroup = new THREE.Group();
+    root.add(groundGroup); root.userData.ground = groundGroup;
+    // base block beneath (so the room "floats" Captain-Toad-style)
+    const baseBlock = makePlatformChunk(7.5, 1.2, 7.5, 'wood');
+    baseBlock.position.set(0, 0, 0);
+    groundGroup.add(baseBlock);
+
+    // wooden plank floor on top of base
+    const floorTex = WOOD_TEX.clone();
+    floorTex.needsUpdate = true; floorTex.repeat.set(3, 3);
+    floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+    floorTex.colorSpace = THREE.SRGBColorSpace;
+    const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, color:0xc89868, roughness:0.78 });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(6.5, 6.5).rotateX(-Math.PI/2), floorMat);
+    floor.position.y = 1.21;
+    floor.receiveShadow = true;
+    groundGroup.add(floor);
+
+    /* ─ L-shaped walls (back + left), camera-side open ─ */
+    const wallMat = new THREE.MeshStandardMaterial({ map: WOOD_TEX.clone(), color:0xcca888, roughness:0.85 });
+    wallMat.map.needsUpdate = true; wallMat.map.repeat.set(2.5, 1.2);
+    wallMat.map.wrapS = wallMat.map.wrapT = THREE.RepeatWrapping;
+    wallMat.map.colorSpace = THREE.SRGBColorSpace;
+    const wallH = 3.4;
+    // back wall (z = -3.25)
+    const backWall = new THREE.Mesh(new THREE.BoxGeometry(6.5, wallH, 0.15), wallMat);
+    backWall.position.set(0, 1.21 + wallH/2, -3.25);
+    backWall.castShadow = backWall.receiveShadow = true;
+    root.add(backWall);
+    // left wall (x = -3.25)
+    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.15, wallH, 6.5), wallMat);
+    leftWall.position.set(-3.25, 1.21 + wallH/2, 0);
+    leftWall.castShadow = leftWall.receiveShadow = true;
+    root.add(leftWall);
+    // wall trim (darker baseboard)
+    const trimMat = mat(0x5a3a20);
+    const trim1 = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.12, 0.17), trimMat);
+    trim1.position.set(0, 1.21 + 0.06, -3.245);
+    root.add(trim1);
+    const trim2 = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.12, 6.5), trimMat);
+    trim2.position.set(-3.245, 1.21 + 0.06, 0);
+    root.add(trim2);
+    // ceiling beam (visible at top of walls)
+    const beamMat = mat(0x4a2a18);
+    const beam1 = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.18, 0.22), beamMat);
+    beam1.position.set(0, 1.21 + wallH - 0.12, -3.18);
+    root.add(beam1);
+    const beam2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 6.5), beamMat);
+    beam2.position.set(-3.18, 1.21 + wallH - 0.12, 0);
+    root.add(beam2);
+
+    /* ─ Window with curtain on the back wall ─ */
+    const winFrame = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.22), mat(0x4a2a18));
+    winFrame.position.set(1.5, 1.21 + 1.9, -3.18);
+    root.add(winFrame);
+    const winGlass = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 1.25),
+      new THREE.MeshStandardMaterial({color:0xb8d4e8, emissive:0xb8d4e8, emissiveIntensity:0.3, transparent:true, opacity:0.7}));
+    winGlass.position.set(1.5, 1.21 + 1.9, -3.07);
+    root.add(winGlass);
+    // window crossbars
+    for(const [dx, dy] of [[0, 0], [0, 0.4], [0, -0.4]]){
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.04, 0.03), mat(0x4a2a18));
+      bar.position.set(1.5 + dx, 1.21 + 1.9 + dy, -3.06);
+      root.add(bar);
+    }
+    const barV = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.3, 0.03), mat(0x4a2a18));
+    barV.position.set(1.5, 1.21 + 1.9, -3.06);
+    root.add(barV);
+    // curtains (left + right)
+    const curtainMat = mat(0xb88858);
+    for(const sx of [-1, 1]){
+      const curtain = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.5, 0.04), curtainMat);
+      curtain.position.set(1.5 + sx*0.55, 1.21 + 1.85, -3.04);
+      root.add(curtain);
+    }
+
+    /* ─ Shelves on the right wall area (front-right corner) ─ */
+    const shelfMat = new THREE.MeshStandardMaterial({ map: WOOD_TEX.clone(), color:0x6a4a2a, roughness:0.85 });
+    shelfMat.map.needsUpdate = true; shelfMat.map.repeat.set(2, 0.4);
+    shelfMat.map.wrapS = shelfMat.map.wrapT = THREE.RepeatWrapping;
+    shelfMat.map.colorSpace = THREE.SRGBColorSpace;
+    // 3-tier shelf along back wall (right portion)
+    function makeShelfRack(){
+      const g = new THREE.Group();
+      for(let i=0;i<3;i++){
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 0.4), shelfMat);
+        shelf.position.y = 0.6 + i*0.6;
+        shelf.castShadow = shelf.receiveShadow = true;
+        g.add(shelf);
+      }
+      // sides
+      for(const dx of [-0.65, 0.65]){
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.9, 0.4), shelfMat);
+        post.position.set(dx, 0.95, 0);
+        post.castShadow = true;
+        g.add(post);
+      }
+      return g;
+    }
+    const shelfRack = makeShelfRack();
+    shelfRack.position.set(-2.4, 1.21, -2.9);
+    root.add(shelfRack);
+    // Another shelf on the left wall
+    const shelfRack2 = makeShelfRack();
+    shelfRack2.position.set(-2.9, 1.21, -1.5);
+    shelfRack2.rotation.y = Math.PI/2;
+    root.add(shelfRack2);
+
+    /* ─ Many potted plants on shelves + floor ─ */
+    function makePot(color = 0xddc5a0, size = 0.18){
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(size*0.85, size, size*1.3, 12), mat(color, {roughness:0.75}));
+      body.position.y = size*0.65;
+      body.castShadow = true;
+      g.add(body);
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(size*0.92, size*0.92, size*0.1, 12), mat(0x6a4a2a));
+      rim.position.y = size*1.25;
+      g.add(rim);
+      return g;
+    }
+    function makePlant(kind = 'leafy'){
+      const g = new THREE.Group();
+      if(kind === 'leafy'){
+        for(let i=0;i<6;i++){
+          const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.3), mat(0x5a8a40, {side:THREE.DoubleSide}));
+          const ang = (i/6)*Math.PI*2;
+          leaf.position.set(Math.sin(ang)*0.05, 0.15 + i*0.02, Math.cos(ang)*0.05);
+          leaf.rotation.set(0.4, ang, (Math.random()-0.5)*0.4);
+          g.add(leaf);
+        }
+      } else if(kind === 'succulent'){
+        for(let i=0;i<5;i++){
+          const blob = new THREE.Mesh(new THREE.SphereGeometry(0.08+Math.random()*0.04, 8, 6), mat(0x6aa050));
+          const ang = (i/5)*Math.PI*2;
+          blob.position.set(Math.sin(ang)*0.06, 0.08, Math.cos(ang)*0.06);
+          g.add(blob);
+        }
+        const c = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0x8aaa60));
+        c.position.y = 0.12;
+        g.add(c);
+      } else if(kind === 'tall'){
+        // tall slim plant (like aloe or palm)
+        for(let i=0;i<4;i++){
+          const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.5, 4), mat(0x5a9040, {side:THREE.DoubleSide}));
+          const ang = (i/4)*Math.PI*2;
+          leaf.position.set(Math.sin(ang)*0.04, 0.25, Math.cos(ang)*0.04);
+          leaf.rotation.z = Math.sin(ang)*0.3;
+          leaf.rotation.x = Math.cos(ang)*0.3;
+          g.add(leaf);
+        }
+      } else if(kind === 'flower'){
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 4), mat(0x5a7030));
+        stem.position.y = 0.15; g.add(stem);
+        const flower = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat(0xff8aa0, {emissive:0xff5a7a, emissiveIntensity:0.15}));
+        flower.position.y = 0.32; g.add(flower);
+        for(let i=0;i<5;i++){
+          const petal = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), mat(0xfff2a0));
+          const ang = (i/5)*Math.PI*2;
+          petal.position.set(Math.sin(ang)*0.07, 0.32, Math.cos(ang)*0.07);
+          g.add(petal);
+        }
+      }
+      return g;
+    }
+    function makePotted(potColor, plantKind, size){
+      const g = new THREE.Group();
+      g.add(makePot(potColor, size));
+      const plant = makePlant(plantKind);
+      plant.position.y = size*1.3;
+      g.add(plant);
+      return g;
+    }
+    // Place 10 potted plants on the shelves
+    const shelfYs = [0.6, 1.2, 1.8];
+    for(let i=0;i<8;i++){
+      const tier = i % 3;
+      const xPos = ((i % 2 === 0) ? -0.4 : 0.4) + (Math.random()-0.5)*0.15;
+      const colors = [0xddc5a0, 0xb89868, 0xa87858, 0xc8a878, 0x88a868, 0x9c7848];
+      const kinds = ['leafy', 'succulent', 'tall', 'flower'];
+      const pot = makePotted(colors[i%colors.length], kinds[i%kinds.length], 0.15+Math.random()*0.06);
+      pot.position.set(-2.4 + xPos, 1.21 + shelfYs[tier] + 0.03, -2.9 + 0.05);
+      root.add(pot);
+    }
+    // Some on left wall shelf
+    for(let i=0;i<8;i++){
+      const tier = i % 3;
+      const zPos = ((i % 2 === 0) ? -0.4 : 0.4) + (Math.random()-0.5)*0.15;
+      const colors = [0xa87858, 0xc8a878, 0x88a868];
+      const kinds = ['succulent', 'flower', 'leafy', 'tall'];
+      const pot = makePotted(colors[i%colors.length], kinds[i%kinds.length], 0.15+Math.random()*0.06);
+      pot.position.set(-2.9 + 0.05, 1.21 + shelfYs[tier] + 0.03, -1.5 + zPos);
+      root.add(pot);
+    }
+    // Floor pots (a few larger ones)
+    const floorPots = [
+      [-2.0,  2.0, 0x9c7848, 'tall'],
+      [ 1.8,  1.8, 0xb89868, 'leafy'],
+      [-2.5, -0.2, 0xa87858, 'flower'],
+      [ 2.2, -2.2, 0xc8a878, 'tall'],
+    ];
+    for(const [x,z,col,kind] of floorPots){
+      const pot = makePotted(col, kind, 0.28);
+      pot.position.set(x, 1.21, z);
+      root.add(pot);
+    }
+    // Hanging plants from ceiling beams (3)
+    for(const [x,z] of [[-1.8, -2.8], [0.8, -2.8], [-2.8, -1.2]]){
+      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.8, 4), mat(0x6a4a2a));
+      rope.position.set(x, 1.21 + wallH - 0.5, z);
+      root.add(rope);
+      const pot = makePotted(0xc88858, 'leafy', 0.16);
+      pot.position.set(x, 1.21 + wallH - 1.05, z);
+      root.add(pot);
+    }
+
+    /* ─ Easel with red canvas ─ */
+    const easel = new THREE.Group();
+    // 3 legs
+    for(let i=0;i<3;i++){
+      const ang = (i/3)*Math.PI*2 + Math.PI/6;
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.6, 5), mat(0x5a3a20));
+      leg.position.set(Math.sin(ang)*0.18, 0.8, Math.cos(ang)*0.18);
+      leg.rotation.x = Math.sin(ang)*0.18;
+      leg.rotation.z = Math.cos(ang)*0.18;
+      leg.castShadow = true;
+      easel.add(leg);
+    }
+    // canvas ledge
+    const ledge = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.04, 0.08), mat(0x5a3a20));
+    ledge.position.set(0, 0.7, 0.15);
+    easel.add(ledge);
+    // canvas (red painting)
+    const canvas = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.7), mat(0xe8dcb8));
+    canvas.position.set(0, 1.05, 0.13);
+    canvas.rotation.x = -0.08;
+    easel.add(canvas);
+    // painting splash
+    const splash = new THREE.Mesh(new THREE.CircleGeometry(0.18, 16), mat(0xc83a30, {emissive:0xc83a30, emissiveIntensity:0.15}));
+    splash.position.set(0, 1.05, 0.135);
+    splash.rotation.x = -0.08;
+    easel.add(splash);
+    easel.position.set(-1.6, 1.21, 0.8);
+    easel.rotation.y = 0.3;
+    root.add(easel);
+
+    /* ─ Stool (round black with cushion) ─ */
+    const stool = new THREE.Group();
+    const stoolBase = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.32, 0.42, 16), mat(0x2a1a14));
+    stoolBase.position.y = 0.21; stoolBase.castShadow = true;
+    stool.add(stoolBase);
+    const stoolCushion = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.08, 16), mat(0x4a3024));
+    stoolCushion.position.y = 0.46;
+    stool.add(stoolCushion);
+    stool.position.set(0.6, 1.21, 1.6);
+    root.add(stool);
+
+    /* ─ Side table (small with items on top) ─ */
+    const sideTable = new THREE.Group();
+    const tableTop = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.55), mat(0x6a4a2a));
+    tableTop.position.y = 0.6; tableTop.castShadow = tableTop.receiveShadow = true;
+    sideTable.add(tableTop);
+    for(const [dx, dz] of [[-0.4, -0.22],[0.4, -0.22],[-0.4, 0.22],[0.4, 0.22]]){
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.6, 5), mat(0x4a2a18));
+      leg.position.set(dx, 0.3, dz);
+      sideTable.add(leg);
+    }
+    // items: tea kettle + cup
+    const kettle = new THREE.Mesh(new THREE.SphereGeometry(0.10, 12, 8), mat(0x2a1a14, {metalness:0.4, roughness:0.4}));
+    kettle.scale.y = 0.8; kettle.position.y = 0.72;
+    sideTable.add(kettle);
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.07, 8), mat(0xe8d4a0));
+    cup.position.set(0.18, 0.66, 0);
+    sideTable.add(cup);
+    // small book
+    const book = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.12), mat(0x3a5a8a));
+    book.position.set(-0.25, 0.65, 0);
+    sideTable.add(book);
+    sideTable.position.set(-1.3, 1.21, -1.5);
+    sideTable.rotation.y = -0.3;
+    root.add(sideTable);
+
+    /* ─ Round welcome mat with crown emblem (center of room) ─ */
+    const mat0 = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24).rotateX(-Math.PI/2),
+      new THREE.MeshStandardMaterial({color:0xc8a868, roughness:0.85}));
+    mat0.position.set(0, 1.22, 0.6);
+    root.add(mat0);
+    const matRing = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.6, 32).rotateX(-Math.PI/2),
+      new THREE.MeshStandardMaterial({color:0xfff2e8, roughness:0.85}));
+    matRing.position.set(0, 1.225, 0.6);
+    root.add(matRing);
+    // crown emblem (3 triangular points)
+    const crown = new THREE.Group();
+    for(const dx of [-0.10, 0, 0.10]){
+      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.13, 4), mat(0xc83a30));
+      sp.position.set(dx, 0.04, 0);
+      sp.rotation.x = -Math.PI/2;
+      crown.add(sp);
+    }
+    const crownBand = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.04, 0.04), mat(0xc83a30));
+    crown.add(crownBand);
+    crown.position.set(0, 1.23, 0.6);
+    crown.rotation.x = -Math.PI/2;
+    root.add(crown);
+
+    /* ─ String lights (purple/warm fairy lights) along beams ─ */
+    const lightStringMat = mat(0xc890ff, {emissive:0xc890ff, emissiveIntensity:0.8});
+    // along back-wall beam
+    for(let i=0;i<10;i++){
+      const t = i/9;
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), lightStringMat);
+      ball.position.set(-3 + t*6, 1.21 + wallH - 0.35 - Math.sin(t*Math.PI)*0.1, -3.05);
+      ball.userData.lamp = true;
+      root.add(ball);
+      ENTITIES.lamps.push(ball);
+    }
+    // along left-wall beam
+    for(let i=0;i<10;i++){
+      const t = i/9;
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), lightStringMat);
+      ball.position.set(-3.05, 1.21 + wallH - 0.35 - Math.sin(t*Math.PI)*0.1, -3 + t*6);
+      ball.userData.lamp = true;
+      root.add(ball);
+      ENTITIES.lamps.push(ball);
+    }
+
+    /* ─ Wall sign "GARDEN INN" ─ */
+    const signC = document.createElement('canvas');
+    signC.width = 256; signC.height = 96;
+    const sctx = signC.getContext('2d');
+    sctx.fillStyle = '#1a3548';
+    sctx.fillRect(0,0,256,96);
+    sctx.fillStyle = '#fff2c0';
+    sctx.font = 'bold 38px serif';
+    sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+    sctx.fillText('GARDEN  INN', 128, 50);
+    const signTex = new THREE.CanvasTexture(signC);
+    signTex.colorSpace = THREE.SRGBColorSpace;
+    const signBoard = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.45),
+      new THREE.MeshStandardMaterial({map:signTex, emissive:0x4a6a8a, emissiveIntensity:0.3}));
+    signBoard.position.set(2.0, 1.21 + 2.2, -3.07);
+    root.add(signBoard);
+    const signFrame = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.55, 0.06), mat(0x4a2a18));
+    signFrame.position.set(2.0, 1.21 + 2.2, -3.10);
+    root.add(signFrame);
+
+    /* ─ Small bowl on floor (decorative) ─ */
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.16, 12), mat(0x2a1a14));
+    bowl.position.set(1.6, 1.21 + 0.08, 1.0);
+    root.add(bowl);
+
+    // Open the ceiling for ortho top-down visibility (no roof in this diorama)
+    // (intentionally left open — the camera shows down into the corner)
+
+    // Butterflies floating inside the room (delight)
+    spawnButterflies(root, 3, [0, 2.0, 0], 1.5);
+  }
+};
+
 setLoad(0.75, 'SCENES');
 
 /* === Tabs UI ============================================== */
@@ -4101,6 +4501,7 @@ const TAB_DEFS = [
   {id:'takibi',   label:'焚火',   num:'06'},
   {id:'mizube',   label:'水辺',   num:'07'},
   {id:'amaoto',   label:'雨',     num:'08'},
+  {id:'heya',     label:'部屋',   num:'09'},
 ];
 const tabsEl = document.getElementById('scene-tabs');
 for(const t of TAB_DEFS){
