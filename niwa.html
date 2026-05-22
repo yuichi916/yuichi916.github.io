@@ -1592,6 +1592,20 @@ function buildKindsRegistry(){
       kinds.push({type:'jizo', bib, scale});
     }
   }
+  // ── Pack v4 nature decor (one per kind — rare, distributed sparsely) ──
+  for(const scale of [0.9, 1.15]){
+    kinds.push({type:'glb', name:'azalea_bush', scale});
+    kinds.push({type:'glb', name:'bamboo_bundle', scale});
+    kinds.push({type:'glb', name:'moss_stone', scale});
+    kinds.push({type:'glb', name:'lotus', scale});
+  }
+  kinds.push({type:'glb', name:'water_basin', scale:1.0});
+  kinds.push({type:'glb', name:'bird_perched', scale:1.0});
+  // ── Pack v6 festival kit (sparse, one each — adds village character) ──
+  kinds.push({type:'glb', name:'sundial', scale:1.0});
+  kinds.push({type:'glb', name:'well_bucket', scale:1.0});
+  kinds.push({type:'glb', name:'sake_barrel', scale:1.0});
+  kinds.push({type:'glb', name:'banner', scale:1.0});
   return kinds;
 }
 const KIND_REGISTRY = buildKindsRegistry();
@@ -1725,6 +1739,15 @@ function makeKind(kind, rnd){
       }
     });
     return j;
+  }
+  if(kind.type === 'glb'){
+    // Direct Blender GLB clone — works for any name in BLENDER_CACHE
+    const bl = blenderClone(kind.name);
+    if(bl){
+      bl.scale.setScalar((kind.scale || 1.0) * (0.95 + rnd()*0.1));
+      return bl;
+    }
+    return new THREE.Group();
   }
   // Fallback
   return new THREE.Group();
@@ -2651,8 +2674,14 @@ const BLENDER_NAMES = [
   // Pack v4 — nature / animals
   'deer', 'fox', 'cat', 'bird_perched',
   'lotus', 'azalea_bush', 'bamboo_bundle', 'moss_stone', 'water_basin',
+  // Pack v5 — chibi NPC variants
+  'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow',
+  'chibi_monk', 'chibi_woman', 'chibi_child',
+  // Pack v6 — festival / village kit
+  'sundial', 'well_bucket', 'koi', 'sake_barrel', 'banner', 'festival_lantern_string',
 ];
 const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
+const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow', 'chibi_monk', 'chibi_woman', 'chibi_child'];
 async function preloadBlenderAssets(){
   for(const name of BLENDER_NAMES){
     try {
@@ -4108,18 +4137,35 @@ scene.add(avatar);
 setLoad(0.45, 'AVATAR');
 
 /* NPC chibi =============================================== */
-function makeNpc(bodyColor, hairColor){
-  // Try Blender chibi GLB first — tint the cloth/hair materials per NPC for variety
-  const bl = blenderClone('chibi');
+let __npcVariantIndex = 0;
+function makeNpc(bodyColor, hairColor, variantHint){
+  // Rotate through chibi variants so the village is populated with distinct villagers.
+  // If variantHint is supplied (e.g. 'monk', 'woman', 'child'), prefer that variant.
+  let variant = null;
+  if(variantHint){
+    const want = 'chibi_' + variantHint;
+    if(BLENDER_CACHE[want]) variant = want;
+  }
+  if(!variant){
+    // Round-robin across whichever variants successfully loaded
+    const available = CHIBI_VARIANTS.filter(n => BLENDER_CACHE[n]);
+    if(available.length){
+      variant = available[__npcVariantIndex % available.length];
+      __npcVariantIndex++;
+    }
+  }
+  const bl = variant ? blenderClone(variant) : blenderClone('chibi');
   if(bl){
     bl.traverse(o => {
       if(!o.isMesh || !o.material) return;
       o.material = o.material.clone();
       const nm = o.material.name || '';
-      // Tint the cloth and hair materials per NPC colors so each is distinct
-      if(nm.includes('Cloth') && o.material.color){
+      // Tint the cloth and hair materials per NPC colors so each is distinct.
+      // For named variants (monk/woman/child) we keep the GLB-authored palette intact
+      // unless explicit colors were requested.
+      if(nm.includes('Cloth') && o.material.color && bodyColor != null){
         o.material.color.setHex(bodyColor);
-      } else if(nm.includes('Hair') && o.material.color){
+      } else if(nm.includes('Hair') && o.material.color && hairColor != null){
         o.material.color.setHex(hairColor);
       }
     });
@@ -4131,7 +4177,8 @@ function makeNpc(bodyColor, hairColor){
       legL: find('LegL')  || bl,
       legR: find('LegR')  || bl,
     };
-    bl.scale.setScalar(0.85);   // make NPCs slightly smaller than avatar
+    // Child variant is naturally smaller — keep its baked-in scale; others uniform
+    if(variant !== 'chibi_child') bl.scale.setScalar(0.85);
     return bl;
   }
   // ── Procedural fallback (low-poly chibi made from primitives) ──
@@ -5023,6 +5070,36 @@ SCENES.plaza = {
     });
     // World continuity — distant landmarks of every other scene at the horizon
     addDistantLandmarks(root, 'plaza');
+    // Cat curled by the well — village ambient life
+    const cat = blenderClone('cat');
+    if(cat){
+      cat.scale.setScalar(0.85);
+      cat.position.set(-3.5, 0, 2.2);
+      cat.rotation.y = 0.7;
+      root.add(cat);
+    }
+    // Festival banner near the market — village festival atmosphere
+    const banner = blenderClone('banner');
+    if(banner){
+      banner.scale.setScalar(0.95);
+      banner.position.set(5.5, hf(5.5, -4.0), -4.0);
+      banner.rotation.y = -0.4;
+      root.add(banner);
+    }
+    // String of festival lanterns hanging across the plaza
+    const lstr = blenderClone('festival_lantern_string');
+    if(lstr){
+      lstr.scale.setScalar(1.1);
+      lstr.position.set(0, hf(0,0), -2.5);
+      root.add(lstr);
+    }
+    // Well bucket left by the well
+    const bucket = blenderClone('well_bucket');
+    if(bucket){
+      bucket.scale.setScalar(1.0);
+      bucket.position.set(-3.0, hf(-3.0, 1.6), 1.6);
+      root.add(bucket);
+    }
   }
 };
 
@@ -5241,8 +5318,8 @@ SCENES.oto = {
       t.scale.setScalar(1.2);
       root.add(t);
     }
-    // NPC priest near offering box
-    const priest = makeNpc(0xe8d4a0, 0x1a1410);
+    // NPC priest near offering box — use the dedicated monk chibi variant
+    const priest = makeNpc(null, null, 'monk');
     priest.position.set(0.6, 0, -1.6);
     priest.lookAt(0, 0, -3);
     priest.userData.path = [[0.6,-1.6],[0.6,-1.6]]; // static
@@ -5776,8 +5853,8 @@ SCENES.toki = {
       t.scale.setScalar(1.2);
       root.add(t);
     }
-    // Single NPC sitting on a bench (idle)
-    const sitter = makeNpc(0x5a7a3d, 0x1a1410);
+    // Single NPC sitting on a bench (idle) — give her the woman variant for visual variety
+    const sitter = makeNpc(null, null, 'woman');
     sitter.position.set(-5, 0.4, 3);
     sitter.userData.path = [[-5,3],[-5,3]]; sitter.userData.wp = 0; sitter.userData.speed = 0;
     root.add(sitter);
@@ -5980,6 +6057,22 @@ SCENES.hoshi = {
     const sp = makeSignpost('星');
     sp.position.set(2, 0, 7);
     root.add(sp);
+    // Deer at the forest edge — adds life to the dusk hill scene
+    const deer = blenderClone('deer');
+    if(deer){
+      deer.scale.setScalar(1.05);
+      const dx = -5.8, dz = -4.5;
+      deer.position.set(dx, hf(dx, dz), dz);
+      deer.rotation.y = Math.PI * 1.2;
+      root.add(deer);
+    }
+    // Sundial at the base of the hill — astronomy ↔ time tie-in
+    const sundial = blenderClone('sundial');
+    if(sundial){
+      sundial.scale.setScalar(1.1);
+      sundial.position.set(4.5, hf(4.5, 4.5), 4.5);
+      root.add(sundial);
+    }
     densifyGround(root, 'forest');
   }
 };
@@ -6111,6 +6204,21 @@ SCENES.takibi = {
       l.position.set(5.5, hf(5.5, 6.5), 6.5);
       root.add(l);
     });
+    // Fox watching from the edge of the forest — campfire scenes feel inhabited
+    const fox = blenderClone('fox');
+    if(fox){
+      fox.scale.setScalar(0.9);
+      fox.position.set(-5.5, 0, -5.5);
+      fox.rotation.y = Math.PI * 0.65;
+      root.add(fox);
+    }
+    // Sake barrel near the firewood — campfire matsuri vibe
+    const barrel = blenderClone('sake_barrel');
+    if(barrel){
+      barrel.scale.setScalar(0.75);
+      barrel.position.set(3.0, 0, 2.4);
+      root.add(barrel);
+    }
     densifyGround(root, 'autumn');
     addDistantLandmarks(root, 'takibi');
   }
@@ -6300,6 +6408,35 @@ SCENES.mizube = {
       ENTITIES.bobs.push(d);
       root.add(d);
     });
+    // Koi swimming in the shallows — 4 fish at different positions/rotations
+    const koiBL = blenderClone('koi');
+    if(koiBL){
+      const positions = [
+        {x:-2.5, z:-2.0, ry:0.6,  s:0.32},
+        {x: 0.5, z:-3.5, ry:-1.1, s:0.28},
+        {x:-0.5, z: 1.5, ry:2.1,  s:0.30},
+        {x: 1.8, z:-1.0, ry:0.2,  s:0.26},
+      ];
+      for(let i=0;i<positions.length;i++){
+        const p = positions[i];
+        const k = (i===0) ? koiBL : blenderClone('koi');
+        if(!k) continue;
+        k.scale.setScalar(p.s);
+        k.position.set(p.x, -0.35, p.z);
+        k.rotation.y = p.ry;
+        k.userData.baseY = k.position.y;
+        k.userData.phase = i * 1.4;
+        ENTITIES.bobs.push(k);
+        root.add(k);
+      }
+    }
+    // Water basin near the shore — places the GLB water_basin
+    const basin = blenderClone('water_basin');
+    if(basin){
+      basin.scale.setScalar(0.85);
+      basin.position.set(4.2, hf(4.2, 5.0), 5.0);
+      root.add(basin);
+    }
     densifyGround(root, 'shore');
     addDistantLandmarks(root, 'mizube');
   }
