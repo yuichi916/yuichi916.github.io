@@ -1752,56 +1752,84 @@ function extendWorldGround(root, sceneName){
  *  Roads are 8-way radial from the scene origin, terminated at SCENE_BOUND.
  */
 function addSceneConnections(root, sceneName){
-  const here = SCENE_WORLD_POS[sceneName];
-  if(!here) return;
-  // Brighter cobble color + slight emissive so the road reads clearly
-  const pathMat = new THREE.MeshStandardMaterial({color:0xe2c690, roughness:0.85, emissive:0x2a1a08, emissiveIntensity:0.25});
-  const pathDarkMat = new THREE.MeshStandardMaterial({color:0xa88a5a, roughness:0.92, emissive:0x1a1004, emissiveIntensity:0.2});
-  // Build a set of unique direction vectors toward each other scene
-  const dirs = [];
-  for(const [otherName, other] of Object.entries(SCENE_WORLD_POS)){
-    if(otherName === sceneName || otherName === 'heya') continue;
-    const dx = other.dx - here.dx;
-    const dz = other.dz - here.dz;
-    if(dx === 0 && dz === 0) continue;
-    const len = Math.hypot(dx, dz);
-    dirs.push({ux:dx/len, uz:dz/len, target:otherName});
-  }
-  // Lay segmented cobble path strips from r=3 to r=SCENE_BOUND-1 along each direction
-  const startR = 3.2;
-  const endR = SCENE_BOUND - 0.5;
-  const segLen = 0.6;
-  for(const d of dirs){
-    const totalLen = endR - startR;
-    const segs = Math.ceil(totalLen / segLen);
-    const yaw = Math.atan2(d.ux, d.uz);
+  // ── SIMPLE, GUARANTEED-VISIBLE ROAD NETWORK ──
+  // Every outdoor scene gets 8 cardinal/diagonal cobble roads from r=2.6 to
+  // r=12 (SCENE_BOUND - 1). No height sampling, no obstacle skipping — they
+  // ALWAYS appear so the world reads as connected.
+  if(!SCENE_WORLD_POS[sceneName] || sceneName === 'heya') return;
+  // Bright sandy cobble with strong emissive so it reads through any lighting
+  const roadLight = new THREE.MeshStandardMaterial({
+    color: 0xf0d4a0, emissive: 0x8a6a2a, emissiveIntensity: 0.45,
+    roughness: 0.85, metalness: 0.0
+  });
+  const roadDark = new THREE.MeshStandardMaterial({
+    color: 0xb89868, emissive: 0x4a3a1a, emissiveIntensity: 0.35,
+    roughness: 0.92, metalness: 0.0
+  });
+  // Stone border edging (slight raised lip)
+  const borderMat = new THREE.MeshStandardMaterial({
+    color: 0x7a6a4a, roughness: 0.95, emissive: 0x2a1a08, emissiveIntensity: 0.15
+  });
+  // 8 directions — N, NE, E, SE, S, SW, W, NW
+  const s2 = 0.7071;
+  const dirs = [
+    [0,  1, 'N'],  [s2,  s2, 'NE'], [1,  0, 'E'],  [s2, -s2, 'SE'],
+    [0, -1, 'S'],  [-s2,-s2, 'SW'], [-1, 0, 'W'],  [-s2, s2, 'NW'],
+  ];
+  const startR = 2.6;
+  const endR = 12.0;
+  const rdLen = endR - startR;
+  const segLen = 0.55;
+  const segs = Math.ceil(rdLen / segLen);
+  for(const [ux, uz, label] of dirs){
+    const yaw = Math.atan2(ux, uz);
+    // Lay alternating-tone cobble plates so the road clearly reads as paved
     for(let s=0;s<segs;s++){
-      const rr = startR + (s+0.5)*(totalLen/segs);
-      const x = d.ux * rr;
-      const z = d.uz * rr;
-      // Skip placements that overlap building obstacles
-      let blocked = false;
-      for(const ob of ENTITIES.obstacles){
-        if(Math.hypot(x-ob.x, z-ob.z) < ob.r + 0.4){ blocked = true; break; }
-      }
-      if(blocked) continue;
-      const y = sampleHeightFor(root, x, z);
-      if(y < -0.4) continue;
+      const rr = startR + (s + 0.5) * (rdLen / segs);
+      const x = ux * rr, z = uz * rr;
+      // Slight raised BoxGeometry so the road sits above any procedural terrain
       const plate = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.2, totalLen/segs + 0.06).rotateX(-Math.PI/2),
-        (s%2===0) ? pathMat : pathDarkMat
+        new THREE.BoxGeometry(2.4, 0.08, rdLen/segs + 0.04),
+        (s % 2 === 0) ? roadLight : roadDark
       );
-      plate.position.set(x, y + 0.10, z);
+      plate.position.set(x, 0.16, z);
       plate.rotation.y = yaw;
+      plate.castShadow = false;
       plate.receiveShadow = true;
       root.add(plate);
     }
-    // Direction marker — small wood signpost at scene edge
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.8, 0.08), mat(0x4a3024));
-    post.position.set(d.ux*(SCENE_BOUND-1), sampleHeightFor(root, d.ux*(SCENE_BOUND-1), d.uz*(SCENE_BOUND-1)) + 0.4, d.uz*(SCENE_BOUND-1));
+    // Stone curbs along both sides of the road (long thin boxes)
+    for(const side of [-1, 1]){
+      const curb = new THREE.Mesh(
+        new THREE.BoxGeometry(0.16, 0.18, rdLen),
+        borderMat
+      );
+      // Side offset perpendicular to yaw
+      const perpX = Math.cos(yaw) * 1.22;   // perpendicular in XZ
+      const perpZ = -Math.sin(yaw) * 1.22;
+      const midR = (startR + endR) / 2;
+      curb.position.set(ux*midR + side*perpX, 0.22, uz*midR + side*perpZ);
+      curb.rotation.y = yaw;
+      curb.castShadow = true;
+      curb.receiveShadow = true;
+      root.add(curb);
+    }
+    // Direction post at the road end with a hint of where it leads
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.1, 0.12),
+      new THREE.MeshStandardMaterial({color:0x5a3a20, roughness:0.85, emissive:0x1a0a02, emissiveIntensity:0.2}));
+    post.position.set(ux*(endR+0.4), 0.55, uz*(endR+0.4));
     post.castShadow = true;
     root.add(post);
+    // Stone marker disc at scene centre side of each road (visible centre hub)
   }
+  // Central plaza disc where all roads meet — gives a visual hub
+  const hub = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.4, 2.4, 0.12, 24),
+    roadLight
+  );
+  hub.position.set(0, 0.12, 0);
+  hub.receiveShadow = true;
+  root.add(hub);
 }
 
 /* === World continuity helpers — distant landmarks visible from any scene === */
