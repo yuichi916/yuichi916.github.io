@@ -1613,6 +1613,13 @@ function buildKindsRegistry(){
   kinds.push({type:'glb', name:'daruma', scale:0.9});
   kinds.push({type:'glb', name:'omikuji_box', scale:0.95});
   kinds.push({type:'glb', name:'snow_kominka', scale:0.85});  // appears as distant outer-ring landmark
+  // ── Pack v8 architecture extras (rare, distinctive) ──
+  kinds.push({type:'glb', name:'pagoda_3tier', scale:0.55});  // smaller than hero pagoda
+  kinds.push({type:'glb', name:'kura_storage', scale:0.75});
+  kinds.push({type:'glb', name:'tea_garden_set', scale:1.1});
+  kinds.push({type:'glb', name:'shoji_screen', scale:1.0});
+  kinds.push({type:'glb', name:'zen_garden', scale:0.85});
+  kinds.push({type:'glb', name:'koma_inu', scale:0.95});
   return kinds;
 }
 const KIND_REGISTRY = buildKindsRegistry();
@@ -2689,6 +2696,9 @@ const BLENDER_NAMES = [
   // Pack v7 — dynamic / atmospheric kit
   'butterfly', 'firefly_cluster', 'bamboo_grove', 'wishing_tree',
   'snow_kominka', 'ema_board', 'daruma', 'omikuji_box',
+  // Pack v8 — architecture extras
+  'drum_bridge', 'pagoda_3tier', 'tea_garden_set', 'shoji_screen',
+  'zen_garden', 'kura_storage', 'torii_grand', 'koma_inu',
 ];
 const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
 const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow', 'chibi_monk', 'chibi_woman', 'chibi_child'];
@@ -5164,6 +5174,23 @@ SCENES.plaza = {
       ob.position.set(2.0, hf(2.0, -2.0), -2.0);
       root.add(ob);
     }
+    // Grand torii as the village gateway (south of plaza centre)
+    const tg = blenderClone('torii_grand');
+    if(tg){
+      tg.scale.setScalar(0.65);
+      tg.position.set(0, hf(0, 6.5), 6.5);
+      tg.rotation.y = 0;
+      root.add(tg);
+    }
+    // 2 koma-inu guardian dogs flanking the torii approach
+    for(const [x, ry] of [[-1.6, -0.2], [1.6, 0.2]]){
+      const ki = blenderClone('koma_inu');
+      if(!ki) break;
+      ki.scale.setScalar(1.0);
+      ki.position.set(x, hf(x, 5.5), 5.5);
+      ki.rotation.y = ry;
+      root.add(ki);
+    }
   }
 };
 
@@ -5860,6 +5887,43 @@ SCENES.tabi = {
     // Beach grass / tropical undergrowth
     densifyGround(root, 'shore');
     addDistantLandmarks(root, 'tabi');
+    // Pagoda silhouette on the distant headland — destination beacon
+    const p3 = blenderClone('pagoda_3tier');
+    if(p3){
+      p3.scale.setScalar(0.55);
+      p3.position.set(-8.0, hf(-8.0, -6.0), -6.0);
+      p3.rotation.y = 0.6;
+      root.add(p3);
+    }
+    // Kura storage at the trailhead — traveler way-station
+    const ks = blenderClone('kura_storage');
+    if(ks){
+      ks.scale.setScalar(0.75);
+      ks.position.set(7.0, hf(7.0, 4.0), 4.0);
+      ks.rotation.y = -0.9;
+      root.add(ks);
+    }
+    // Butterflies for the seaside breeze
+    for(let i=0;i<4;i++){
+      const bf = blenderClone('butterfly');
+      if(!bf) break;
+      bf.scale.setScalar(0.8 + Math.random()*0.3);
+      const cx = (Math.random()-0.5)*8;
+      const cz = (Math.random()-0.5)*8;
+      bf.userData.fly = {
+        cx, cz,
+        baseY: 1.2 + Math.random()*1.0,
+        r: 1.0 + Math.random()*1.4,
+        speed: 0.7 + Math.random()*0.4,
+        phase: Math.random()*Math.PI*2,
+        wingPhase: Math.random()*Math.PI*2,
+      };
+      const wings = [];
+      bf.traverse(o=>{ if(o.isMesh && /^Wing/.test(o.name)) wings.push(o); });
+      bf.userData.fly.wings = wings;
+      root.add(bf);
+      ENTITIES.butterflies.push(bf);
+    }
   }
 };
 
@@ -6541,6 +6605,14 @@ SCENES.mizube = {
       lp.position.set(x, -0.30, z);
       root.add(lp);
     }
+    // Drum bridge arching across the water — the hero of any koi pond
+    const db = blenderClone('drum_bridge');
+    if(db){
+      db.scale.setScalar(0.95);
+      db.position.set(0.5, 0, 0);
+      db.rotation.y = 0.3;
+      root.add(db);
+    }
     densifyGround(root, 'shore');
     addDistantLandmarks(root, 'mizube');
   }
@@ -6670,6 +6742,22 @@ SCENES.amaoto = {
     const sp = makeSignpost('雨');
     sp.position.set(3.5, 0, 5);
     root.add(sp);
+    // Zen sand garden in the cabin courtyard — adds the contemplative footprint
+    const zg = blenderClone('zen_garden');
+    if(zg){
+      zg.scale.setScalar(1.05);
+      zg.position.set(2.5, 0, -2.5);
+      zg.rotation.y = -0.2;
+      root.add(zg);
+    }
+    // Cat sheltering under the eaves (calm in the rain)
+    const catA = blenderClone('cat');
+    if(catA){
+      catA.scale.setScalar(0.85);
+      catA.position.set(-1.5, 0, 0.5);
+      catA.rotation.y = 0.4;
+      root.add(catA);
+    }
     densifyGround(root, 'forest');
     addDistantLandmarks(root, 'amaoto');
   }
@@ -7083,6 +7171,29 @@ SCENES.heya = {
         addMixer(mixer);
       }
     });
+    // Shoji screen against the back wall for partition mood
+    const ss = blenderClone('shoji_screen');
+    if(ss){
+      ss.scale.setScalar(0.55);
+      ss.position.set(0.4, 1.25, -2.4);
+      ss.rotation.y = Math.PI;
+      root.add(ss);
+    }
+    // Tea ceremony set on the floor (low table + cushions + cups)
+    const ts = blenderClone('tea_garden_set');
+    if(ts){
+      ts.scale.setScalar(0.7);
+      ts.position.set(1.4, 1.25, 1.0);
+      ts.rotation.y = -0.4;
+      root.add(ts);
+    }
+    // Daruma on a shelf for good luck
+    const darH = blenderClone('daruma');
+    if(darH){
+      darH.scale.setScalar(0.35);
+      darH.position.set(-2.4, 1.21 + 1.5, -2.85);
+      root.add(darH);
+    }
   }
 };
 
