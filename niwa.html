@@ -200,6 +200,17 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 
 <nav class="scene-tabs" id="scene-tabs"></nav>
 
+<!-- Photoreal Gaussian-Splat backdrop URL input — paste your .ksplat URL for this scene -->
+<div id="splat-panel" style="position:fixed;right:18px;bottom:74px;z-index:11;background:rgba(14,26,38,.78);backdrop-filter:blur(6px);border:1px solid rgba(232,220,184,.3);padding:9px 10px;display:flex;gap:6px;flex-direction:column;max-width:300px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--paper-2)">
+  <div style="font-family:'Shippori Mincho',serif;font-size:11px;letter-spacing:.16em;color:var(--candle)">🛰 SPLAT BACKDROP</div>
+  <div style="font-size:9px;line-height:1.5;opacity:.85">Polycam/Luma で撮影した <code>.ksplat</code> URL を貼り付けると、このシーンの背景が実空間 3D 再構成に置き換わります（フォトリアル）</div>
+  <input id="splat-url" type="text" placeholder="https://…/your-scene.ksplat" style="background:rgba(14,26,38,.5);border:1px solid rgba(232,220,184,.3);color:var(--paper);padding:5px 6px;font-family:inherit;font-size:10px;width:100%;box-sizing:border-box">
+  <div style="display:flex;gap:5px">
+    <button id="splat-apply" style="flex:1;background:rgba(255,185,104,.7);color:#1b1a14;border:none;padding:6px 8px;font-family:inherit;font-size:10px;letter-spacing:.16em;cursor:pointer">APPLY</button>
+    <button id="splat-clear" style="flex:1;background:rgba(176,64,48,.5);color:var(--paper);border:none;padding:6px 8px;font-family:inherit;font-size:10px;letter-spacing:.16em;cursor:pointer">CLEAR</button>
+  </div>
+</div>
+
 <!-- Mobile controls -->
 <div class="joy" id="joy"><div class="stick" id="joyStick"></div></div>
 <div class="zoomBtns" id="zoomBtns">
@@ -260,6 +271,64 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+/* ===============================================================
+ *  Gaussian Splatting backdrop (photoreal browser 3D — the only
+ *  path that actually reaches UE5-level fidelity in WebGL).
+ *  Library: @mkkellogg/gaussian-splats-3d via unpkg.
+ *  Per-scene splat URL is read from localStorage so the user can
+ *  paste their own Polycam/Luma .ksplat capture for any scene
+ *  without editing code.
+ * =============================================================== */
+let _splatLib = null;
+async function loadSplatLib(){
+  if(_splatLib !== null) return _splatLib;
+  try {
+    _splatLib = await import('https://unpkg.com/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js');
+  } catch(err){
+    console.warn('niwa: gaussian-splats-3d failed to load:', err);
+    _splatLib = false;
+  }
+  return _splatLib;
+}
+// Per-scene splat config (URL + transform). User paste-loads via UI.
+function getSceneSplat(name){
+  try {
+    const raw = localStorage.getItem('niwa.splat.' + name);
+    if(raw) return JSON.parse(raw);
+  } catch(_){}
+  return null;
+}
+function setSceneSplat(name, config){
+  try {
+    if(config) localStorage.setItem('niwa.splat.' + name, JSON.stringify(config));
+    else localStorage.removeItem('niwa.splat.' + name);
+  } catch(_){}
+}
+async function addSplatBackdrop(root, sceneName){
+  const cfg = getSceneSplat(sceneName);
+  if(!cfg || !cfg.url) return;
+  const lib = await loadSplatLib();
+  if(!lib) return;
+  try {
+    const viewer = new lib.DropInViewer({
+      gpuAcceleratedSort: true,
+      sharedMemoryForWorkers: false,
+      selfDrivenMode: false,
+    });
+    await viewer.addSplatScene(cfg.url, {
+      position: cfg.position || [0, 3, -16],
+      scale:    cfg.scale    || [6, 6, 6],
+      rotation: cfg.rotation || [0, 0, 0, 1],
+      showLoadingUI: false,
+    });
+    root.add(viewer);
+    root.userData.splatViewer = viewer;
+    console.log('niwa[' + sceneName + ']: splat backdrop loaded', cfg.url);
+  } catch(err){
+    console.warn('niwa[' + sceneName + ']: splat load failed:', err);
+  }
+}
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -4023,6 +4092,8 @@ function buildScene(name){
     addSceneConnections(root, name);   // visible roads toward each neighbor
     pad150PBR(root, name);
   }
+  // Optional photoreal Gaussian-Splat backdrop (per-scene URL via UI)
+  addSplatBackdrop(root, name);
   // Avatar position
   if(def.avatarStart){
     avatar.position.set(def.avatarStart[0], 0, def.avatarStart[1]);
@@ -6964,6 +7035,35 @@ flashInvalid = function(p){ uiSfx('block'); _origFlash(p); };
 document.getElementById('btn-sound').setAttribute('aria-label', '環境音 オン/オフ');
 document.getElementById('btn-time').setAttribute('aria-label', '昼/夜');
 document.getElementById('btn-view').setAttribute('aria-label', '一人称/三人称 視点切替');
+
+/* ── Gaussian Splat backdrop panel — paste a per-scene splat URL ── */
+const splatInput = document.getElementById('splat-url');
+const splatApplyBtn = document.getElementById('splat-apply');
+const splatClearBtn = document.getElementById('splat-clear');
+function refreshSplatInput(){
+  if(!currentScene) return;
+  const cfg = getSceneSplat(currentScene.name);
+  splatInput.value = (cfg && cfg.url) ? cfg.url : '';
+}
+splatApplyBtn.addEventListener('click', ()=>{
+  if(!currentScene) return;
+  const url = splatInput.value.trim();
+  if(!url){ return; }
+  setSceneSplat(currentScene.name, { url, position:[0, 3, -16], scale:[6, 6, 6] });
+  uiSfx('open');
+  // Rebuild scene to load the splat
+  buildScene(currentScene.name);
+});
+splatClearBtn.addEventListener('click', ()=>{
+  if(!currentScene) return;
+  setSceneSplat(currentScene.name, null);
+  splatInput.value = '';
+  uiSfx('block');
+  buildScene(currentScene.name);
+});
+// Wrap buildScene to refresh splat input on every scene change
+const _origBuildForSplat = buildScene;
+buildScene = function(name){ _origBuildForSplat(name); setTimeout(refreshSplatInput, 50); };
 
 /* === Post-processing ==================================== */
 const composer = new EffectComposer(renderer);
