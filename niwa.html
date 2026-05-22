@@ -3284,6 +3284,107 @@ function makeFishingSpot(){
   return g;
 }
 
+// Falling-particle system (cherry petals / snow / autumn leaves).
+// kind: 'petal' | 'snow' | 'leaf'
+function makeFallingParticles(kind, count = 200, opts = {}){
+  const o = Object.assign({
+    range: 22,        // horizontal spread
+    yMax: 10,         // ceiling
+    yMin: 0,          // floor
+    fallSpeed: 0.6,   // base downward speed
+    swayAmp: 0.6,     // horizontal sway amplitude
+    swayFreq: 1.2,    // sway frequency
+    spinFreq: 1.5,    // particle "rotation" (only visible if textured)
+  }, opts);
+  // Build a small texture for the petal shape so points look like soft shapes
+  let color, size;
+  if(kind === 'petal'){
+    color = 0xffd8e8; size = 0.35;
+  } else if(kind === 'snow'){
+    color = 0xffffff; size = 0.20;
+  } else if(kind === 'leaf'){
+    color = 0xff8a30; size = 0.30;
+  } else {
+    color = 0xffffff; size = 0.20;
+  }
+  // Generate a soft circular sprite texture in canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createRadialGradient(32, 32, 4, 32, 32, 28);
+  // Pull rgb from color hex
+  const r = (color >> 16) & 0xff, g = (color >> 8) & 0xff, b = color & 0xff;
+  grad.addColorStop(0, `rgba(${r},${g},${b},1.0)`);
+  grad.addColorStop(0.6, `rgba(${r},${g},${b},0.55)`);
+  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  if(kind === 'petal'){
+    // Draw a stylized petal shape — pointed at top, rounded at bottom
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(32, 4);
+    ctx.bezierCurveTo(58, 18, 58, 42, 32, 60);
+    ctx.bezierCurveTo(6, 42, 6, 18, 32, 4);
+    ctx.fill();
+  } else if(kind === 'leaf'){
+    // Diamond-ish maple leaf shape
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(32, 4);
+    ctx.lineTo(56, 24);
+    ctx.lineTo(48, 32);
+    ctx.lineTo(60, 50);
+    ctx.lineTo(38, 44);
+    ctx.lineTo(32, 60);
+    ctx.lineTo(26, 44);
+    ctx.lineTo(4, 50);
+    ctx.lineTo(16, 32);
+    ctx.lineTo(8, 24);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // Snow — soft round disc
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(32, 32, 28, 0, Math.PI*2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const state = new Array(count);
+  for(let i = 0; i < count; i++){
+    const x = (Math.random() - 0.5) * o.range;
+    const z = (Math.random() - 0.5) * o.range;
+    const y = o.yMin + Math.random() * (o.yMax - o.yMin);
+    positions[i*3] = x; positions[i*3+1] = y; positions[i*3+2] = z;
+    state[i] = {
+      baseX: x, baseZ: z,
+      y: y,
+      // Per-particle speeds and phases
+      fall: o.fallSpeed * (0.7 + Math.random() * 0.7),
+      swayAmpX: o.swayAmp * (0.5 + Math.random() * 0.8),
+      swayAmpZ: o.swayAmp * (0.5 + Math.random() * 0.6),
+      phaseX: Math.random() * Math.PI * 2,
+      phaseZ: Math.random() * Math.PI * 2,
+      freq: o.swayFreq * (0.7 + Math.random() * 0.6),
+    };
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    map: tex,
+    size: size,
+    transparent: true,
+    opacity: kind === 'snow' ? 0.92 : 0.82,
+    depthWrite: false,
+    sizeAttenuation: true,
+    blending: kind === 'snow' ? THREE.NormalBlending : THREE.NormalBlending,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.userData = { state, kind, opts: o };
+  return pts;
+}
+
 function makeCrystal(color = 0xc090ff){
   // floating crystal cluster — collectible gimmick
   const g = new THREE.Group();
@@ -5293,6 +5394,12 @@ SCENES.plaza = {
       mb.position.set(-2.5, hf(-2.5, 6.0), 6.0);
       root.add(mb);
     }
+    // Falling cherry petals across the plaza (cherry-blossom party atmosphere)
+    const petals = makeFallingParticles('petal', 220, {
+      range: 24, yMax: 10, yMin: 0, fallSpeed: 0.55, swayAmp: 0.5, swayFreq: 1.4,
+    });
+    root.add(petals);
+    ENTITIES.particles.push({obj: petals, type: 'fall'});
   }
 };
 
@@ -6362,6 +6469,12 @@ SCENES.hoshi = {
       sl.rotation.y = 0.5;
       root.add(sl);
     }
+    // Falling snow across the hill — alpine winter night
+    const snow = makeFallingParticles('snow', 320, {
+      range: 24, yMax: 11, yMin: 0, fallSpeed: 0.45, swayAmp: 0.4, swayFreq: 0.9,
+    });
+    root.add(snow);
+    ENTITIES.particles.push({obj: snow, type: 'fall'});
     densifyGround(root, 'forest');
   }
 };
@@ -6542,6 +6655,12 @@ SCENES.takibi = {
       bf.position.set(-4.5, 1.5, -2.0);
       root.add(bf);
     }
+    // Falling autumn maple leaves around the firepit
+    const leaves = makeFallingParticles('leaf', 180, {
+      range: 22, yMax: 8, yMin: 0, fallSpeed: 0.50, swayAmp: 0.7, swayFreq: 1.6,
+    });
+    root.add(leaves);
+    ENTITIES.particles.push({obj: leaves, type: 'fall'});
     densifyGround(root, 'autumn');
     addDistantLandmarks(root, 'takibi');
   }
@@ -8366,6 +8485,27 @@ function animate(){
         if(state[i].y < 0){ state[i].y = 8 + Math.random()*2; state[i].x = (Math.random()-0.5)*22; state[i].z = (Math.random()-0.5)*22; }
         positions.array[i*6]   = state[i].x; positions.array[i*6+1] = state[i].y;       positions.array[i*6+2] = state[i].z;
         positions.array[i*6+3] = state[i].x; positions.array[i*6+4] = state[i].y - 0.5; positions.array[i*6+5] = state[i].z;
+      }
+      positions.needsUpdate = true;
+    } else if(p.type === 'fall'){
+      // Generic falling-particle system used for cherry petals / snow / autumn leaves
+      const positions = p.obj.geometry.attributes.position;
+      const state = p.obj.userData.state;
+      const opts = p.obj.userData.opts;
+      for(let i=0;i<state.length;i++){
+        const s = state[i];
+        s.y -= s.fall * dt;
+        if(s.y < opts.yMin - 0.5){
+          s.y = opts.yMax + Math.random()*2;
+          s.baseX = (Math.random()-0.5) * opts.range;
+          s.baseZ = (Math.random()-0.5) * opts.range;
+        }
+        // Sway around the base position using the per-particle phase
+        const swayX = Math.sin(t*s.freq + s.phaseX) * s.swayAmpX;
+        const swayZ = Math.cos(t*s.freq*0.85 + s.phaseZ) * s.swayAmpZ;
+        positions.array[i*3]   = s.baseX + swayX;
+        positions.array[i*3+1] = s.y;
+        positions.array[i*3+2] = s.baseZ + swayZ;
       }
       positions.needsUpdate = true;
     }
