@@ -775,11 +775,22 @@ function makeClockTower(){
 }
 
 function makeKominka(roofColor=0x4a3024){
-  const bl = blenderClone('kominka');
-  if(bl){
-    // Tag shoji windows for night-time lamp emissive
-    bl.traverse(o=>{ if(o.isMesh && o.material?.emissive?.r > 0.1) o.userData.lamp = true; });
-    return bl;
+  // Rotate through 4 Blender color variants for village variety
+  for(const variant of KOMINKA_VARIANTS){
+    if(Math.random() < (1 / KOMINKA_VARIANTS.length)) continue;   // skip statistically
+    const bl = blenderClone(variant);
+    if(bl){
+      bl.traverse(o=>{ if(o.isMesh && o.material?.emissive?.r > 0.1) o.userData.lamp = true; });
+      return bl;
+    }
+  }
+  // Fallback: take the first cache hit even if Math.random skipped above
+  for(const variant of KOMINKA_VARIANTS){
+    const bl = blenderClone(variant);
+    if(bl){
+      bl.traverse(o=>{ if(o.isMesh && o.material?.emissive?.r > 0.1) o.userData.lamp = true; });
+      return bl;
+    }
   }
   const g = new THREE.Group();
   const wallTex = WOOD_TEX.clone();
@@ -2629,7 +2640,11 @@ const BLENDER_NAMES = [
   'kominka', 'pagoda', 'torii', 'fountain', 'stone_lantern',
   'tree_pine', 'tree_sakura', 'tree_momiji', 'tree_broad',
   'well', 'watchtower', 'windmill', 'bridge', 'shrine',
+  // Pack v2
+  'kominka_red', 'kominka_blue', 'kominka_green',
+  'barrel', 'basket', 'sign', 'jizo', 'hedge', 'lily_pad', 'chibi',
 ];
+const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
 async function preloadBlenderAssets(){
   for(const name of BLENDER_NAMES){
     try {
@@ -3130,6 +3145,8 @@ function makeMagicOrb(color = 0x6BE0FF){
 }
 
 function makeSignpost(text = '?'){
+  const bl = blenderClone('sign');
+  if(bl) return bl;
   const g = new THREE.Group();
   const wood = mat(0x6a4a2a);
   const post = new THREE.Mesh(new THREE.BoxGeometry(0.10, 1.4, 0.10), wood);
@@ -3244,6 +3261,8 @@ function makeBridge(length = 4, arc = 0.5){
 
 /* === Prop builders (small game-density elements) ========= */
 function makeBarrel(){
+  const bl = blenderClone('barrel');
+  if(bl) return bl;
   const g = new THREE.Group();
   const wood = mat(0x8a5a3a);
   const dark = mat(0x4a3024);
@@ -3258,6 +3277,8 @@ function makeBarrel(){
   return g;
 }
 function makeBasket(){
+  const bl = blenderClone('basket');
+  if(bl) return bl;
   const g = new THREE.Group();
   const w = mat(0xb89868);
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.28, 10), w);
@@ -3469,6 +3490,8 @@ function makeScroll(){
   return g;
 }
 function makeStoneStatue(){
+  const bl = blenderClone('jizo');
+  if(bl) return bl;
   // small Jizo / kasajizo
   const g = new THREE.Group();
   const stone = mat(0x9c9078, {roughness:0.92});
