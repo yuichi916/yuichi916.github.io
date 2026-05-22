@@ -104,6 +104,11 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 .card .go.disabled{background:transparent;color:#5a4a30;border-color:#7a6850;cursor:default;pointer-events:none;opacity:.7}
 .card .go .arrow{font-family:"Cormorant Garamond",serif;font-size:16px}
 
+/* World compass — shows the player's position in the continuous world */
+.compass{position:fixed;left:18px;top:14px;z-index:11;width:88px;height:88px;background:rgba(14,26,38,.55);backdrop-filter:blur(3px);border:1px solid rgba(232,220,184,.3);border-radius:50%;pointer-events:none}
+.compass svg{width:100%;height:100%}
+.compass .where{position:absolute;left:50%;top:104%;transform:translateX(-50%);white-space:nowrap;font-family:"Shippori Mincho",serif;font-size:11px;letter-spacing:.12em;color:var(--paper-2);text-shadow:0 1px 3px rgba(0,0,0,.7)}
+
 /* Mobile virtual joystick */
 .joy{position:fixed;left:18px;bottom:120px;z-index:13;width:120px;height:120px;border-radius:50%;background:rgba(14,26,38,.4);border:2px solid rgba(232,220,184,.5);touch-action:none;display:none}
 .joy.show{display:block}
@@ -164,6 +169,27 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 </div>
 
 <div class="hearts" id="hearts"></div>
+
+<!-- World compass (continuous-world indicator) -->
+<div class="compass" id="compass">
+  <svg viewBox="-50 -50 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- 9 scene dots in 3x3 grid -->
+    <g id="compass-dots">
+      <circle cx="-30" cy="-30" r="3.5" data-key="amaoto" fill="#6a5040"/>
+      <circle cx="0"   cy="-30" r="3.5" data-key="oto"    fill="#6a5040"/>
+      <circle cx="30"  cy="-30" r="3.5" data-key="tabi"   fill="#6a5040"/>
+      <circle cx="-30" cy="0"   r="3.5" data-key="monlight" fill="#6a5040"/>
+      <circle cx="0"   cy="0"   r="4.5" data-key="plaza"  fill="#6a5040"/>
+      <circle cx="30"  cy="0"   r="3.5" data-key="toki"   fill="#6a5040"/>
+      <circle cx="-30" cy="30"  r="3.5" data-key="takibi" fill="#6a5040"/>
+      <circle cx="0"   cy="30"  r="3.5" data-key="hoshi"  fill="#6a5040"/>
+      <circle cx="30"  cy="30"  r="3.5" data-key="mizube" fill="#6a5040"/>
+    </g>
+    <!-- N marker -->
+    <text x="0" y="-40" text-anchor="middle" font-family="Cormorant Garamond" font-size="9" fill="#e8dcb8" opacity=".7">N</text>
+  </svg>
+  <div class="where" id="compass-where">中央 — 森の村</div>
+</div>
 
 <div class="toolbar">
   <button class="tool" id="btn-sound" aria-pressed="false">SOUND · OFF</button>
@@ -244,6 +270,46 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 const SCENE_RADIUS = 14;       // diorama disc radius (28m total)
 const SCENE_BOUND = 13;        // avatar can walk up to this radius
+
+/* === Unified WORLD palette + sun (continuous world view) ===
+ *  Every scene shares the same base palette and sun/fog band so the
+ *  whole garden reads as ONE place seen from different angles.
+ */
+const WORLD = {
+  palette: {
+    grass:      0x6a9a4a,
+    grassDark:  0x4a7a3a,
+    moss:       0x4a6a36,
+    stone:      0xb0a48a,
+    stoneDark:  0x6a5a40,
+    sand:       0xe6c98a,
+    wood:       0x8a6a4a,
+    woodDark:   0x3a2418,
+    roof:       0x7a3a1a,
+    vermilion:  0xc8553d,
+    candle:     0xffb968,
+    paper:      0xe8dcb8,
+  },
+  // Single sun band used by every scene unless they override (rare: night-only scenes)
+  sun:       { elev: 50, azim: -30 },
+  turbidity: 4.0,
+  rayleigh:  2.0,
+  exposure:  1.05,
+};
+// Per-scene world position (conceptual N/S/E/W of the central village).
+// Used by the compass widget so the player knows where they are.
+const SCENE_WORLD_POS = {
+  plaza:    { dx:  0, dz:  0, label:'中央 — 森の村' },
+  monlight: { dx: -1, dz:  0, label:'西 — 月光の書架' },
+  oto:      { dx:  0, dz: -1, label:'北 — 音の祠' },
+  tabi:    { dx:  1, dz: -1, label:'北東 — ひとり旅の岸' },
+  toki:    { dx:  1, dz:  0, label:'東 — 時の砂時計' },
+  hoshi:   { dx:  0, dz:  1, label:'南 — 星見台' },
+  takibi:  { dx: -1, dz:  1, label:'南西 — 焚き火の森' },
+  mizube:  { dx:  1, dz:  1, label:'南東 — 水辺の岸' },
+  amaoto:  { dx: -1, dz: -1, label:'北西 — 雨音の小屋' },
+  heya:    { dx:  0, dz:  0, label:'室内 — 庵の部屋' },
+};
 
 const canvas = document.getElementById('webgl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
@@ -3201,12 +3267,14 @@ function buildScene(name){
   const root = new THREE.Group();
   scene.add(root);
   currentScene = { name, def, root };
-  // Mood: sun position & sky scattering
-  setSun(def.sun[0], def.sun[1]);
-  skyU.turbidity.value = def.turbidity ?? 4;
-  skyU.rayleigh.value = def.rayleigh ?? 2;
-  // Fog disabled — no per-scene fog application (user complained of haze)
-  renderer.toneMappingExposure = def.exposure ?? 1.05;
+  // Mood: sun position & sky scattering (use WORLD defaults; allow override only when needed)
+  const sunE = def.sun?.[0] ?? WORLD.sun.elev;
+  const sunA = def.sun?.[1] ?? WORLD.sun.azim;
+  setSun(sunE, sunA);
+  skyU.turbidity.value = def.turbidity ?? WORLD.turbidity;
+  skyU.rayleigh.value = def.rayleigh ?? WORLD.rayleigh;
+  // Fog disabled globally (user requested no haze)
+  renderer.toneMappingExposure = def.exposure ?? WORLD.exposure;
   // Build geometry
   def.build(root);
   // Avatar position
@@ -3238,6 +3306,19 @@ function buildScene(name){
   cc.classList.add('show');
   // Tabs
   document.querySelectorAll('.scene-tab').forEach(t=>t.classList.toggle('active', t.dataset.scene===name));
+  // Compass: highlight current scene's dot + show where label
+  const compassDots = document.querySelectorAll('#compass-dots circle');
+  compassDots.forEach(c => {
+    if(c.dataset.key === name){
+      c.setAttribute('fill', '#ffb968');
+      c.setAttribute('r', '5');
+    } else {
+      c.setAttribute('fill', '#6a5040');
+      c.setAttribute('r', c.dataset.key === 'plaza' ? '4.5' : '3.5');
+    }
+  });
+  const whereEl = document.getElementById('compass-where');
+  if(whereEl && SCENE_WORLD_POS[name]) whereEl.textContent = SCENE_WORLD_POS[name].label;
   // Visited heart
   visited.add(name); updateHearts();
 }
