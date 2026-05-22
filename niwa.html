@@ -1754,8 +1754,9 @@ function extendWorldGround(root, sceneName){
 function addSceneConnections(root, sceneName){
   const here = SCENE_WORLD_POS[sceneName];
   if(!here) return;
-  const pathMat = new THREE.MeshStandardMaterial({color:0xb8a888, roughness:0.85});
-  const pathDarkMat = new THREE.MeshStandardMaterial({color:0x8a7858, roughness:0.92});
+  // Brighter cobble color + slight emissive so the road reads clearly
+  const pathMat = new THREE.MeshStandardMaterial({color:0xe2c690, roughness:0.85, emissive:0x2a1a08, emissiveIntensity:0.25});
+  const pathDarkMat = new THREE.MeshStandardMaterial({color:0xa88a5a, roughness:0.92, emissive:0x1a1004, emissiveIntensity:0.2});
   // Build a set of unique direction vectors toward each other scene
   const dirs = [];
   for(const [otherName, other] of Object.entries(SCENE_WORLD_POS)){
@@ -1787,10 +1788,10 @@ function addSceneConnections(root, sceneName){
       const y = sampleHeightFor(root, x, z);
       if(y < -0.4) continue;
       const plate = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.3, totalLen/segs + 0.06).rotateX(-Math.PI/2),
+        new THREE.PlaneGeometry(2.2, totalLen/segs + 0.06).rotateX(-Math.PI/2),
         (s%2===0) ? pathMat : pathDarkMat
       );
-      plate.position.set(x, y + 0.04, z);
+      plate.position.set(x, y + 0.10, z);
       plate.rotation.y = yaw;
       plate.receiveShadow = true;
       root.add(plate);
@@ -6951,10 +6952,10 @@ if(!IS_MOBILE){
 const HDRGradeShader = {
   uniforms: {
     tDiffuse:    { value: null },
-    uSaturation: { value: 1.18 },
-    uShadowLift: { value: 0.04 },
-    uHighlight:  { value: 1.05 },
-    uWarmCool:   { value: 0.10 },   // 0..1 split-toning intensity
+    uSaturation: { value: 1.45 },
+    uShadowLift: { value: 0.10 },
+    uHighlight:  { value: 1.12 },
+    uWarmCool:   { value: 0.35 },   // 0..1 split-toning intensity
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
