@@ -625,6 +625,11 @@ function curvedRoof(radius, depth, color){
 }
 
 function makePagoda(){
+  const bl = blenderClone('pagoda');
+  if(bl){
+    bl.traverse(o=>{ if(o.isMesh && o.material?.emissive) o.userData.lamp = true; });
+    return bl;
+  }
   const g = new THREE.Group();
   const base = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.4, 3.4), mat(0x7a6f56));
   base.position.y = 0.2; base.castShadow=base.receiveShadow=true; g.add(base);
@@ -653,6 +658,8 @@ function makePagoda(){
 }
 
 function makeTorii(){
+  const bl = blenderClone('torii');
+  if(bl) return bl;
   const g = new THREE.Group();
   const wood = mat(0xb04030);
   const dark = mat(0x2a1a14);
@@ -707,6 +714,8 @@ function makeObservatory(){
 }
 
 function makeWell(){
+  const bl = blenderClone('well');
+  if(bl) return bl;
   const g = new THREE.Group();
   const stone = mat(0x8a8067);
   const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.55, 16), stone);
@@ -766,6 +775,12 @@ function makeClockTower(){
 }
 
 function makeKominka(roofColor=0x4a3024){
+  const bl = blenderClone('kominka');
+  if(bl){
+    // Tag shoji windows for night-time lamp emissive
+    bl.traverse(o=>{ if(o.isMesh && o.material?.emissive?.r > 0.1) o.userData.lamp = true; });
+    return bl;
+  }
   const g = new THREE.Group();
   const wallTex = WOOD_TEX.clone();
   wallTex.needsUpdate = true; wallTex.repeat.set(2.4, 1.4);
@@ -1035,6 +1050,20 @@ function makeRakedGravel(radius = 2.0){
 
 // Granite/Kasuga-style stone lantern (taller, decorative)
 function makeStoneLantern(){
+  const bl = blenderClone('stone_lantern');
+  if(bl){
+    // Tag paper-light meshes + add a point light for night glow
+    bl.traverse(o=>{
+      if(o.isMesh && o.material?.emissive && (o.material.emissive.r > 0.5 || o.material.emissive.g > 0.5)){
+        o.userData.lamp = true;
+      }
+    });
+    const pl = new THREE.PointLight(0xffaa44, 0, 5, 2);
+    pl.position.y = 1.4;
+    bl.add(pl);
+    bl.userData.lampLight = pl;
+    return bl;
+  }
   const g = new THREE.Group();
   const stoneM = mat(0x9c9078, {roughness:0.95});
   // base
@@ -2253,6 +2282,19 @@ function makeMedievalHouse(opts = {}){
 
 // Stone watchtower — tall multi-story round tower
 function makeWatchtower(){
+  const bl = blenderClone('watchtower');
+  if(bl){
+    bl.traverse(o=>{
+      if(o.isMesh && o.material?.emissive && (o.material.emissive.r > 0.5 || o.material.emissive.g > 0.3)){
+        o.userData.lamp = true;
+      }
+      // Identify the flag cloth so it can wave in the loop
+      if(o.isMesh && o.material?.color && o.material.name?.includes && o.material.name.includes('Flag')){
+        o.userData.flag = true;
+      }
+    });
+    return bl;
+  }
   const g = new THREE.Group();
   const stoneM = mat(0x8a7a64, {roughness:0.95});
   const darkM = mat(0x5a4a3a, {roughness:0.95});
@@ -2374,6 +2416,8 @@ function makeChurch(){
 
 // Fountain (replaces well at plaza center)
 function makeFountain(){
+  const bl = blenderClone('fountain');
+  if(bl) return bl;
   const g = new THREE.Group();
   const stoneM = mat(0x9c9078, {roughness:0.9});
   const stoneD = mat(0x6a5a4a, {roughness:0.95});
@@ -2452,6 +2496,13 @@ function makeArchway(){
 
 // Windmill (small)
 function makeWindmill(){
+  const bl = blenderClone('windmill');
+  if(bl){
+    bl.traverse(o=>{
+      if(o.isMesh && o.material?.emissive?.r > 0.5) o.userData.lamp = true;
+    });
+    return bl;
+  }
   const g = new THREE.Group();
   const stoneM = mat(0xb89878, {roughness:0.9});
   const woodM = mat(0x6a4a2a);
@@ -2547,6 +2598,21 @@ const ASSETS = {
   lantern:       'https://threejs.org/examples/models/gltf/Lantern/glTF-Binary/Lantern.glb',
   // mirada Parrot (CC-BY 3.0) — colorful flying bird w/ flap animation
   parrot:        'https://threejs.org/examples/models/gltf/Parrot.glb',
+  // ── Self-authored Blender 5.1 procedural pack (assets/blender/*.glb) ──
+  blender_kominka:       'assets/blender/kominka.glb',
+  blender_pagoda:        'assets/blender/pagoda.glb',
+  blender_torii:         'assets/blender/torii.glb',
+  blender_fountain:      'assets/blender/fountain.glb',
+  blender_stone_lantern: 'assets/blender/stone_lantern.glb',
+  blender_tree_pine:     'assets/blender/tree_pine.glb',
+  blender_tree_sakura:   'assets/blender/tree_sakura.glb',
+  blender_tree_momiji:   'assets/blender/tree_momiji.glb',
+  blender_tree_broad:    'assets/blender/tree_broad.glb',
+  blender_well:          'assets/blender/well.glb',
+  blender_watchtower:    'assets/blender/watchtower.glb',
+  blender_windmill:      'assets/blender/windmill.glb',
+  blender_bridge:        'assets/blender/bridge.glb',
+  blender_shrine:        'assets/blender/shrine.glb',
   // Khronos Duck (CC0) — yellow rubber duck (perfect for ponds)
   duck:          'https://threejs.org/examples/models/gltf/Duck/glTF-Binary/Duck.glb',
 };
@@ -2555,6 +2621,41 @@ const ASSETS = {
 function addMixer(mixer){
   ENTITIES.mixers = ENTITIES.mixers || [];
   ENTITIES.mixers.push(mixer);
+}
+
+/* === Blender procedural asset pack — preloaded once, then cloned per use === */
+const BLENDER_CACHE = {};
+const BLENDER_NAMES = [
+  'kominka', 'pagoda', 'torii', 'fountain', 'stone_lantern',
+  'tree_pine', 'tree_sakura', 'tree_momiji', 'tree_broad',
+  'well', 'watchtower', 'windmill', 'bridge', 'shrine',
+];
+async function preloadBlenderAssets(){
+  for(const name of BLENDER_NAMES){
+    try {
+      const gltf = await loadGLB('assets/blender/' + name + '.glb');
+      if(gltf && gltf.scene){
+        // Ensure shadows and PBR settings on every mesh
+        gltf.scene.traverse(o => {
+          if(o.isMesh){
+            o.castShadow = true; o.receiveShadow = true;
+            if(o.material) o.material.envMapIntensity = 1.1;
+          }
+        });
+        BLENDER_CACHE[name] = gltf.scene;
+        console.log('niwa blender: preloaded', name);
+      }
+    } catch(_){}
+  }
+  console.log('niwa blender: cache has', Object.keys(BLENDER_CACHE).length, '/', BLENDER_NAMES.length, 'assets');
+}
+// Kick off preload (non-blocking — first scene render may use procedural fallback)
+preloadBlenderAssets();
+
+function blenderClone(name){
+  const src = BLENDER_CACHE[name];
+  if(!src) return null;
+  return src.clone(true);
 }
 
 /* === Purpose-specific commercial RPG buildings (Codex review) === */
@@ -3103,6 +3204,13 @@ function makeCrystal(color = 0xc090ff){
 }
 
 function makeBridge(length = 4, arc = 0.5){
+  const bl = blenderClone('bridge');
+  if(bl){
+    // The Blender bridge is 4.5m long — rescale if caller wanted different length
+    const s = length / 4.5;
+    bl.scale.set(s, 1, 1);
+    return bl;
+  }
   // wooden plank bridge
   const g = new THREE.Group();
   const wood = mat(0x6a4a2a);
@@ -3700,6 +3808,17 @@ function makeBoatDock(){
 /* Tree builder ============================================ */
 const TREE_GROUPS = [];   // for wind sway
 function makeTree(kind, rnd=Math.random){
+  // Try Blender GLB per species first
+  const blenderMap = { pine:'tree_pine', sakura:'tree_sakura', momiji:'tree_momiji', broad:'tree_broad' };
+  if(blenderMap[kind]){
+    const bl = blenderClone(blenderMap[kind]);
+    if(bl){
+      bl.userData.windPhase = Math.random()*Math.PI*2;
+      bl.userData.baseRotZ = 0;
+      TREE_GROUPS.push(bl);
+      return bl;
+    }
+  }
   const g = new THREE.Group();
   if(kind==='pine'){
     // Detailed pine: textured trunk + 5 stacked cones + small overhang cones for organic break
