@@ -1606,6 +1606,13 @@ function buildKindsRegistry(){
   kinds.push({type:'glb', name:'well_bucket', scale:1.0});
   kinds.push({type:'glb', name:'sake_barrel', scale:1.0});
   kinds.push({type:'glb', name:'banner', scale:1.0});
+  // ── Pack v7 atmospheric kit (rare — one per kind) ──
+  kinds.push({type:'glb', name:'bamboo_grove', scale:0.85});
+  kinds.push({type:'glb', name:'wishing_tree', scale:0.95});
+  kinds.push({type:'glb', name:'ema_board', scale:1.0});
+  kinds.push({type:'glb', name:'daruma', scale:0.9});
+  kinds.push({type:'glb', name:'omikuji_box', scale:0.95});
+  kinds.push({type:'glb', name:'snow_kominka', scale:0.85});  // appears as distant outer-ring landmark
   return kinds;
 }
 const KIND_REGISTRY = buildKindsRegistry();
@@ -2679,6 +2686,9 @@ const BLENDER_NAMES = [
   'chibi_monk', 'chibi_woman', 'chibi_child',
   // Pack v6 — festival / village kit
   'sundial', 'well_bucket', 'koi', 'sake_barrel', 'banner', 'festival_lantern_string',
+  // Pack v7 — dynamic / atmospheric kit
+  'butterfly', 'firefly_cluster', 'bamboo_grove', 'wishing_tree',
+  'snow_kominka', 'ema_board', 'daruma', 'omikuji_box',
 ];
 const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
 const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow', 'chibi_monk', 'chibi_woman', 'chibi_child'];
@@ -4252,7 +4262,7 @@ function palSnow(x, z, y, r, c){
 // Scene state
 let currentScene = null;
 const SCENES = {};
-const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], lampLights: [], boats: [], hourhands: [], minhands: [], bobs: [], spins: [], mills: [], flags: [], obstacles: [] };
+const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], lampLights: [], boats: [], hourhands: [], minhands: [], bobs: [], spins: [], mills: [], flags: [], obstacles: [], butterflies: [], koiSwim: [] };
 // helper for scenes to register collision obstacles (x,z,r)
 function addObstacle(x, z, r){ ENTITIES.obstacles.push({x, z, r}); }
 function clearScene(){
@@ -4281,6 +4291,7 @@ function clearScene(){
   ENTITIES.mills.length = 0;
   ENTITIES.flags.length = 0;
   if(ENTITIES.kois) ENTITIES.kois.length = 0;
+  if(ENTITIES.koiSwim) ENTITIES.koiSwim.length = 0;
   if(ENTITIES.butterflies) ENTITIES.butterflies.length = 0;
   if(ENTITIES.bells) ENTITIES.bells.length = 0;
   if(ENTITIES.banners) ENTITIES.banners.length = 0;
@@ -5099,6 +5110,59 @@ SCENES.plaza = {
       bucket.scale.setScalar(1.0);
       bucket.position.set(-3.0, hf(-3.0, 1.6), 1.6);
       root.add(bucket);
+    }
+    // Butterfly swarm fluttering above the plaza flowers
+    for(let i=0;i<6;i++){
+      const bf = blenderClone('butterfly');
+      if(!bf) break;
+      bf.scale.setScalar(0.7 + Math.random()*0.3);
+      // Each butterfly gets a flight path (center + radius + speed offset)
+      const cx = (Math.random()-0.5)*8;
+      const cz = (Math.random()-0.5)*8;
+      bf.userData.fly = {
+        cx, cz,
+        baseY: 1.0 + Math.random()*1.2,
+        r: 1.2 + Math.random()*1.5,
+        speed: 0.6 + Math.random()*0.5,
+        phase: Math.random()*Math.PI*2,
+        wingPhase: Math.random()*Math.PI*2,
+      };
+      // Locate wing meshes for flap animation
+      const wings = [];
+      bf.traverse(o=>{ if(o.isMesh && /^Wing/.test(o.name)) wings.push(o); });
+      bf.userData.fly.wings = wings;
+      root.add(bf);
+      ENTITIES.butterflies.push(bf);
+    }
+    // Wishing tree (sakura with hanging tanzaku) on the plaza outskirts
+    const wt = blenderClone('wishing_tree');
+    if(wt){
+      wt.scale.setScalar(1.3);
+      wt.position.set(-7.0, hf(-7.0, -2.5), -2.5);
+      root.add(wt);
+    }
+    // Daruma sitting by the shrine offering box
+    const dar = blenderClone('daruma');
+    if(dar){
+      dar.scale.setScalar(0.95);
+      dar.position.set(1.4, hf(1.4, -1.4), -1.4);
+      dar.rotation.y = -0.3;
+      root.add(dar);
+    }
+    // Ema board rack near the shrine — wishing plaques tied to a wooden frame
+    const ema = blenderClone('ema_board');
+    if(ema){
+      ema.scale.setScalar(0.85);
+      ema.position.set(-1.8, hf(-1.8, -2.3), -2.3);
+      ema.rotation.y = 0.4;
+      root.add(ema);
+    }
+    // Omikuji fortune box at the shrine entrance
+    const ob = blenderClone('omikuji_box');
+    if(ob){
+      ob.scale.setScalar(0.9);
+      ob.position.set(2.0, hf(2.0, -2.0), -2.0);
+      root.add(ob);
     }
   }
 };
@@ -6073,6 +6137,25 @@ SCENES.hoshi = {
       sundial.position.set(4.5, hf(4.5, 4.5), 4.5);
       root.add(sundial);
     }
+    // Wishing tree at the base of the hill — tanzaku catching starlight
+    const wtH = blenderClone('wishing_tree');
+    if(wtH){
+      wtH.scale.setScalar(1.15);
+      wtH.position.set(-6.0, hf(-6.0, 2.5), 2.5);
+      root.add(wtH);
+    }
+    // Fireflies on the hill at night
+    for(let i=0;i<2;i++){
+      const ff = blenderClone('firefly_cluster');
+      if(!ff) break;
+      const tx = (i===0) ? 3.0 : -3.5;
+      const tz = (i===0) ? -4.0 : 1.5;
+      ff.position.set(tx, hf(tx,tz) + 0.2, tz);
+      ff.userData.baseY = ff.position.y;
+      ff.userData.phase = i * 2.7;
+      ENTITIES.bobs.push(ff);
+      root.add(ff);
+    }
     densifyGround(root, 'forest');
   }
 };
@@ -6218,6 +6301,18 @@ SCENES.takibi = {
       barrel.scale.setScalar(0.75);
       barrel.position.set(3.0, 0, 2.4);
       root.add(barrel);
+    }
+    // Fireflies — 3 clusters around the forest, each gently bobbing
+    for(let i=0;i<3;i++){
+      const ff = blenderClone('firefly_cluster');
+      if(!ff) break;
+      const ang = i * Math.PI * 2 / 3 + 0.7;
+      const r = 4.5;
+      ff.position.set(Math.sin(ang)*r, 0.2, Math.cos(ang)*r);
+      ff.userData.baseY = ff.position.y;
+      ff.userData.phase = i * 2.1;
+      ENTITIES.bobs.push(ff);
+      root.add(ff);
     }
     densifyGround(root, 'autumn');
     addDistantLandmarks(root, 'takibi');
@@ -6408,27 +6503,21 @@ SCENES.mizube = {
       ENTITIES.bobs.push(d);
       root.add(d);
     });
-    // Koi swimming in the shallows — 4 fish at different positions/rotations
-    const koiBL = blenderClone('koi');
-    if(koiBL){
-      const positions = [
-        {x:-2.5, z:-2.0, ry:0.6,  s:0.32},
-        {x: 0.5, z:-3.5, ry:-1.1, s:0.28},
-        {x:-0.5, z: 1.5, ry:2.1,  s:0.30},
-        {x: 1.8, z:-1.0, ry:0.2,  s:0.26},
-      ];
-      for(let i=0;i<positions.length;i++){
-        const p = positions[i];
-        const k = (i===0) ? koiBL : blenderClone('koi');
-        if(!k) continue;
-        k.scale.setScalar(p.s);
-        k.position.set(p.x, -0.35, p.z);
-        k.rotation.y = p.ry;
-        k.userData.baseY = k.position.y;
-        k.userData.phase = i * 1.4;
-        ENTITIES.bobs.push(k);
-        root.add(k);
-      }
+    // Koi gracefully swimming in the shallows — 4 fish on figure-8 paths
+    const koiPaths = [
+      {cx:-2.5, cz:-2.0, r:1.8, baseY:-0.35, s:0.32, speed:0.45, phase:0.0},
+      {cx: 0.5, cz:-3.5, r:1.4, baseY:-0.32, s:0.28, speed:0.55, phase:1.2},
+      {cx:-1.0, cz: 1.5, r:1.6, baseY:-0.36, s:0.30, speed:0.40, phase:2.4},
+      {cx: 2.5, cz:-1.0, r:1.2, baseY:-0.34, s:0.26, speed:0.60, phase:3.6},
+    ];
+    for(const p of koiPaths){
+      const k = blenderClone('koi');
+      if(!k) continue;
+      k.scale.setScalar(p.s);
+      k.position.set(p.cx, p.baseY, p.cz);
+      k.userData.swim = { cx:p.cx, cz:p.cz, r:p.r, baseY:p.baseY, speed:p.speed, phase:p.phase };
+      ENTITIES.koiSwim.push(k);
+      root.add(k);
     }
     // Water basin near the shore — places the GLB water_basin
     const basin = blenderClone('water_basin');
@@ -6436,6 +6525,21 @@ SCENES.mizube = {
       basin.scale.setScalar(0.85);
       basin.position.set(4.2, hf(4.2, 5.0), 5.0);
       root.add(basin);
+    }
+    // Bamboo grove on the shaded shore
+    const grove = blenderClone('bamboo_grove');
+    if(grove){
+      grove.scale.setScalar(0.9);
+      grove.position.set(-6.5, 0, 3.5);
+      root.add(grove);
+    }
+    // Lotus pads on the water surface (3 scattered)
+    for(const [x,z,s] of [[-3.0, -1.0, 1.0], [1.5, 1.0, 0.85], [-1.5, -4.0, 0.9]]){
+      const lp = blenderClone('lotus');
+      if(!lp) break;
+      lp.scale.setScalar(s);
+      lp.position.set(x, -0.30, z);
+      root.add(lp);
     }
     densifyGround(root, 'shore');
     addDistantLandmarks(root, 'mizube');
@@ -7666,6 +7770,36 @@ function animate(){
   // bobbing gimmicks (chests, orbs, fishing bobbers)
   for(const b of ENTITIES.bobs){
     b.position.y = b.userData.baseY + Math.sin(t*1.6 + (b.userData.phase||0))*0.08;
+  }
+  // Butterflies — looping flight + wing flap
+  for(const bf of ENTITIES.butterflies){
+    const f = bf.userData.fly;
+    if(!f) continue;
+    const a = t * f.speed + f.phase;
+    bf.position.x = f.cx + Math.cos(a) * f.r;
+    bf.position.z = f.cz + Math.sin(a*0.85) * f.r;
+    bf.position.y = f.baseY + Math.sin(a*1.8)*0.25;
+    // Face direction of motion
+    bf.rotation.y = a + Math.PI/2;
+    // Wing flap — rotate each wing about the body Y axis (in local space)
+    if(f.wings && f.wings.length){
+      const flap = Math.sin(t*22 + f.wingPhase) * 0.55;
+      for(const w of f.wings){
+        const isLeft = /L$/.test(w.name);
+        w.rotation.y = isLeft ? flap : -flap;
+      }
+    }
+  }
+  // Koi — gentle drift along figure-8 path
+  for(const k of ENTITIES.koiSwim){
+    const f = k.userData.swim;
+    if(!f) continue;
+    const a = t * f.speed + f.phase;
+    k.position.x = f.cx + Math.cos(a) * f.r;
+    k.position.z = f.cz + Math.sin(a*2) * f.r * 0.6;
+    k.rotation.y = Math.atan2(-Math.sin(a)*f.r, Math.cos(a*2)*f.r*1.2);
+    // Slight up-down for "swimming"
+    k.position.y = f.baseY + Math.sin(a*3)*0.02;
   }
   // spinning gimmicks (crystals)
   for(const s of ENTITIES.spins){
