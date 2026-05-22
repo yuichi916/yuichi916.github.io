@@ -1203,6 +1203,115 @@ function makeViewingBench(){
   return g;
 }
 
+/* === World continuity helpers — distant landmarks visible from any scene === */
+/*  Each scene reveals silhouetted versions of OTHER places at its edge so the
+ *  player feels they're inside one continuous RPG world.
+ *  Distant landmarks are placed beyond SCENE_BOUND (~r=18-24m), silhouetted
+ *  via mat() + lower envMapIntensity. They are not walkable.
+ */
+function addDistantLandmarks(root, sceneName){
+  const here = SCENE_WORLD_POS[sceneName];
+  if(!here) return;
+  // For each OTHER scene, draw a tiny silhouette in its compass direction
+  const dirToWorldXZ = (dx, dz, dist=20) => {
+    // Project (dx,dz) onto the local horizon
+    const len = Math.hypot(dx, dz) || 1;
+    return [dx/len * dist, dz/len * dist];
+  };
+  // Drop a far-distance silhouette icon per other scene
+  const silhouetteMat = mat(0x3a4a52, {roughness:1.0, metalness:0});
+  for(const [otherName, other] of Object.entries(SCENE_WORLD_POS)){
+    if(otherName === sceneName) continue;
+    const ddx = other.dx - here.dx;
+    const ddz = other.dz - here.dz;
+    if(ddx === 0 && ddz === 0) continue;
+    const [x, z] = dirToWorldXZ(ddx, ddz, 22);
+    // Choose silhouette by scene kind
+    const sil = new THREE.Group();
+    if(otherName === 'monlight'){
+      // pagoda silhouette (stacked boxes + cone)
+      for(let i=0;i<3;i++){
+        const b = new THREE.Mesh(new THREE.BoxGeometry(2.0-i*0.4, 1.2, 2.0-i*0.4), silhouetteMat);
+        b.position.y = 0.6 + i*1.4; sil.add(b);
+      }
+      const top = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 4), silhouetteMat);
+      top.position.y = 5.0; top.rotation.y = Math.PI/4; sil.add(top);
+    } else if(otherName === 'oto'){
+      // torii silhouette
+      const m = silhouetteMat;
+      for(const dx of [-1.2, 1.2]){
+        const pil = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.20, 3.6, 8), m);
+        pil.position.set(dx, 1.8, 0); sil.add(pil);
+      }
+      const top = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.3, 0.4), m);
+      top.position.y = 3.5; sil.add(top);
+    } else if(otherName === 'tabi' || otherName === 'mizube'){
+      // boat + dock silhouette
+      const dock = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.18, 0.7), silhouetteMat);
+      dock.position.y = 0.4; sil.add(dock);
+      const hull = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 2.0), silhouetteMat);
+      hull.position.set(0.5, 0.3, 1.5); sil.add(hull);
+    } else if(otherName === 'toki'){
+      // clock tower silhouette
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 4.0, 1.4), silhouetteMat);
+      body.position.y = 2.0; sil.add(body);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.0, 4), silhouetteMat);
+      roof.position.y = 4.5; roof.rotation.y = Math.PI/4; sil.add(roof);
+    } else if(otherName === 'hoshi'){
+      // observatory silhouette (cylinder + dome)
+      const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 3.2, 12), silhouetteMat);
+      tw.position.y = 1.6; sil.add(tw);
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(1.0, 14, 8, 0, Math.PI*2, 0, Math.PI/2), silhouetteMat);
+      dome.position.y = 3.2; sil.add(dome);
+    } else if(otherName === 'takibi'){
+      // pine forest cluster silhouette (3 cones)
+      for(let i=0;i<3;i++){
+        const p = new THREE.Mesh(new THREE.ConeGeometry(0.8 - i*0.1, 3.0 - i*0.4, 8), silhouetteMat);
+        p.position.set((i-1)*1.0, 1.5, 0); sil.add(p);
+      }
+    } else if(otherName === 'amaoto'){
+      // cabin silhouette (box + sloped roof)
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.4, 1.8), silhouetteMat);
+      body.position.y = 0.7; sil.add(body);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.2, 4), silhouetteMat);
+      roof.position.y = 1.9; roof.rotation.y = Math.PI/4; sil.add(roof);
+    } else if(otherName === 'plaza'){
+      // village silhouette: 3-4 houses + a tower
+      for(let i=0;i<3;i++){
+        const h = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.2, 1.2), silhouetteMat);
+        h.position.set((i-1)*1.7, 0.6, 0); sil.add(h);
+        const r = new THREE.Mesh(new THREE.ConeGeometry(1.1, 0.8, 4), silhouetteMat);
+        r.position.set((i-1)*1.7, 1.6, 0); r.rotation.y = Math.PI/4; sil.add(r);
+      }
+      const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 3.5, 8), silhouetteMat);
+      tw.position.set(2.4, 1.75, -0.4); sil.add(tw);
+    } else {
+      // generic mound silhouette
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1.4, 1), silhouetteMat);
+      m.position.y = 0.7; sil.add(m);
+    }
+    // Far mountain backdrop behind every silhouette (distance + scale)
+    const mountain = new THREE.Mesh(new THREE.ConeGeometry(4.5, 3.0, 6), mat(0x2a3a48, {roughness:1.0}));
+    mountain.position.set(0, 0, -3);
+    sil.add(mountain);
+    // Scale down + place far at the edge
+    sil.scale.setScalar(0.7);
+    sil.position.set(x, -0.5, z);
+    sil.lookAt(0, 0, 0);   // face the centre so silhouette plane is correct
+    root.add(sil);
+  }
+  // A continuous distant mountain ring on the far horizon
+  const ringMat = mat(0x4a5a68, {roughness:1.0});
+  for(let i=0;i<14;i++){
+    const ang = (i/14)*Math.PI*2;
+    const r = 26;
+    const mtn = new THREE.Mesh(new THREE.ConeGeometry(2.8+Math.random()*1.6, 3.5+Math.random()*2.5, 6), ringMat);
+    mtn.position.set(Math.sin(ang)*r, -0.8, Math.cos(ang)*r);
+    mtn.rotation.y = Math.random()*Math.PI;
+    root.add(mtn);
+  }
+}
+
 /* === Cube platform terrain (Captain Toad style) ========== */
 function makePlatformChunk(w, h, d, theme = 'grass'){
   // Six-material box: top textured grass/stone/etc, sides stone, bottom dirt
@@ -4024,6 +4133,8 @@ SCENES.plaza = {
       ENTITIES.bobs.push(duck);
       root.add(duck);
     });
+    // World continuity — distant landmarks of every other scene at the horizon
+    addDistantLandmarks(root, 'plaza');
   }
 };
 
@@ -4162,6 +4273,7 @@ SCENES.monlight = {
       root.add(l);
     });
     densifyGround(root, 'moss');
+    addDistantLandmarks(root, 'monlight');
   }
 };
 
@@ -4336,6 +4448,7 @@ SCENES.oto = {
       });
     }
     densifyGround(root, 'gravel');
+    addDistantLandmarks(root, 'oto');
   }
 };
 
@@ -4550,6 +4663,7 @@ SCENES.tabi = {
       }
     });
     densifyGround(root, 'shore');
+    addDistantLandmarks(root, 'tabi');
   }
 };
 
@@ -4677,6 +4791,7 @@ SCENES.toki = {
     sp.position.set(2, 0, 7);
     root.add(sp);
     densifyGround(root, 'sand');
+    addDistantLandmarks(root, 'toki');
   }
 };
 
@@ -4777,6 +4892,7 @@ SCENES.hoshi = {
     pav.add(pavRoof);
     pav.position.set(-3, 0, 0);
     root.add(pav);
+    addDistantLandmarks(root, 'hoshi');
     /* ── Multi-level + gimmicks ── */
     // Retaining wall around the hill base
     const retain1 = makeRetainingWall(6, 0.5);
@@ -4941,6 +5057,7 @@ SCENES.takibi = {
       root.add(l);
     });
     densifyGround(root, 'autumn');
+    addDistantLandmarks(root, 'takibi');
   }
 };
 
@@ -5128,6 +5245,7 @@ SCENES.mizube = {
       root.add(d);
     });
     densifyGround(root, 'shore');
+    addDistantLandmarks(root, 'mizube');
   }
 };
 
@@ -5256,6 +5374,7 @@ SCENES.amaoto = {
     sp.position.set(3.5, 0, 5);
     root.add(sp);
     densifyGround(root, 'forest');
+    addDistantLandmarks(root, 'amaoto');
   }
 };
 
