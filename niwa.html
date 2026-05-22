@@ -4326,6 +4326,7 @@ function clearScene(){
   if(ENTITIES.butterflies) ENTITIES.butterflies.length = 0;
   if(ENTITIES.bells) ENTITIES.bells.length = 0;
   if(ENTITIES.banners) ENTITIES.banners.length = 0;
+  if(ENTITIES.lanternStrings) ENTITIES.lanternStrings.length = 0;
   if(ENTITIES.mixers){
     for(const m of ENTITIES.mixers){ try { m.stopAllAction(); } catch(_){} }
     ENTITIES.mixers.length = 0;
@@ -5126,6 +5127,18 @@ SCENES.plaza = {
       banner.scale.setScalar(0.95);
       banner.position.set(5.5, hf(5.5, -4.0), -4.0);
       banner.rotation.y = -0.4;
+      // Locate the cloth panel + stripes for flap animation
+      const flapMeshes = [];
+      banner.traverse(o=>{
+        if(o.isMesh && (o.name === 'Cloth' || o.name === 'TopStripe' ||
+                        o.name === 'BotStripe' || /^Char_/.test(o.name))){
+          o.userData.baseRotZ = o.rotation.z;
+          flapMeshes.push(o);
+        }
+      });
+      banner.userData.flap = { meshes: flapMeshes, baseRotY: banner.rotation.y, phase: 0 };
+      ENTITIES.banners = ENTITIES.banners || [];
+      ENTITIES.banners.push(banner);
       root.add(banner);
     }
     // String of festival lanterns hanging across the plaza
@@ -5133,6 +5146,9 @@ SCENES.plaza = {
     if(lstr){
       lstr.scale.setScalar(1.1);
       lstr.position.set(0, hf(0,0), -2.5);
+      lstr.userData.sway = { baseRotZ: lstr.rotation.z, phase: 0 };
+      ENTITIES.lanternStrings = ENTITIES.lanternStrings || [];
+      ENTITIES.lanternStrings.push(lstr);
       root.add(lstr);
     }
     // Well bucket left by the well
@@ -8095,6 +8111,32 @@ function animate(){
     k.rotation.y = Math.atan2(-Math.sin(a)*f.r, Math.cos(a*2)*f.r*1.2);
     // Slight up-down for "swimming"
     k.position.y = f.baseY + Math.sin(a*3)*0.02;
+  }
+  // Banners — gentle flap by rotating cloth meshes about Z (in-plane flutter)
+  if(ENTITIES.banners){
+    for(const b of ENTITIES.banners){
+      const f = b.userData.flap;
+      if(!f) continue;
+      const wave = Math.sin(t*1.8 + f.phase);
+      // Whole banner sways slightly around its post
+      b.rotation.y = f.baseRotY + wave * 0.08;
+      // Cloth slats ripple — phase varies down the banner so it looks like a wave
+      for(let i=0;i<f.meshes.length;i++){
+        const m = f.meshes[i];
+        const offset = i * 0.5;
+        m.rotation.z = (m.userData.baseRotZ || 0) + Math.sin(t*2.2 + offset) * 0.06;
+      }
+    }
+  }
+  // Lantern strings — gentle pendulum sway about the rope's local axis
+  if(ENTITIES.lanternStrings){
+    for(const l of ENTITIES.lanternStrings){
+      const s = l.userData.sway;
+      if(!s) continue;
+      l.rotation.z = (s.baseRotZ || 0) + Math.sin(t*0.9) * 0.045;
+      // Also slight x-rotation for a wind feel
+      l.rotation.x = Math.sin(t*1.3 + 0.7) * 0.025;
+    }
   }
   // spinning gimmicks (crystals)
   for(const s of ENTITIES.spins){
