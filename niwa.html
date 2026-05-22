@@ -1203,6 +1203,360 @@ function makeViewingBench(){
   return g;
 }
 
+/* === Tropical scene builders (palm, sailboat, bougainvillea, island) === */
+
+function makePalmTree(){
+  const g = new THREE.Group();
+  // Tall slender trunk with subtle taper, slight curve
+  const trunkSegs = 6;
+  for(let i=0;i<trunkSegs;i++){
+    const t = i/trunkSegs;
+    const seg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11 - t*0.04, 0.13 - t*0.04, 0.55, 14),
+      mat(0x8a5a3a, {roughness:0.92})
+    );
+    seg.position.set(Math.sin(t*0.6)*0.18, 0.27 + i*0.52, 0);
+    seg.rotation.z = -0.04;
+    seg.castShadow = true;
+    g.add(seg);
+  }
+  const topY = 0.27 + (trunkSegs-1)*0.52 + 0.3;
+  // Ring of 9 fronds spreading radially with drooping tips
+  const frondMat = mat(0x4a9040, {roughness:0.85, side:THREE.DoubleSide});
+  for(let i=0;i<9;i++){
+    const ang = (i/9)*Math.PI*2;
+    const frond = new THREE.Group();
+    // Main blade (long flat plane)
+    const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 1.5), frondMat);
+    blade.position.set(0, 0, 0.75);
+    blade.rotation.x = -0.3;
+    frond.add(blade);
+    // Mid taper
+    const mid = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.7), frondMat);
+    mid.position.set(0, -0.18, 1.55);
+    mid.rotation.x = -0.85;
+    frond.add(mid);
+    // Tip
+    const tip = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 0.45), mat(0x5aa850, {side:THREE.DoubleSide}));
+    tip.position.set(0, -0.45, 1.95);
+    tip.rotation.x = -1.2;
+    frond.add(tip);
+    // small leaflets along the blade
+    for(let k=0;k<6;k++){
+      const lk = new THREE.Mesh(new THREE.PlaneGeometry(0.10, 0.32), mat(0x5a9a4a, {side:THREE.DoubleSide}));
+      lk.position.set(0.10*(k%2?1:-1), -0.04*k, 0.3 + k*0.22);
+      lk.rotation.set(-0.5, 0.6*(k%2?1:-1), 0);
+      frond.add(lk);
+    }
+    frond.position.set(Math.sin(ang)*0.05, topY, Math.cos(ang)*0.05);
+    frond.rotation.y = ang;
+    g.add(frond);
+  }
+  // Coconut cluster
+  for(let i=0;i<4;i++){
+    const c = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 8), mat(0x3a261a, {roughness:0.8}));
+    c.position.set(Math.cos(i*1.6)*0.10, topY-0.05, Math.sin(i*1.6)*0.10);
+    c.castShadow = true;
+    g.add(c);
+  }
+  // Track in TREE_GROUPS so wind sway picks it up
+  g.userData.windPhase = Math.random()*Math.PI*2;
+  g.userData.baseRotZ = 0;
+  TREE_GROUPS.push(g);
+  return g;
+}
+
+function makeSailboat(opts = {}){
+  const o = Object.assign({ hullColor:0xeeeeee, sailColor:0xfafafa, stripe:0x3a6aa0, scale:1 }, opts);
+  const g = new THREE.Group();
+  // Hull (rounded box)
+  const hullMat = new THREE.MeshStandardMaterial({color:o.hullColor, roughness:0.5, metalness:0.05});
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 1.9), hullMat);
+  hull.position.y = 0.11;
+  hull.castShadow = true;
+  g.add(hull);
+  // Pointed bow
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.55, 4), hullMat);
+  bow.rotation.x = Math.PI/2; bow.rotation.y = Math.PI/4;
+  bow.position.set(0, 0.11, 1.20);
+  g.add(bow);
+  // Hull stripe (waterline accent)
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.73, 0.04, 1.9),
+    mat(o.stripe, {roughness:0.5}));
+  stripe.position.y = 0.02; g.add(stripe);
+  // Deck
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.02, 1.5), mat(0x6a4a2a, {roughness:0.8}));
+  deck.position.y = 0.23; g.add(deck);
+  // Cabin
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.18, 0.5), hullMat);
+  cabin.position.set(0, 0.33, -0.1); cabin.castShadow=true;
+  g.add(cabin);
+  // Mast (tall thin)
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.2, 10),
+    mat(0xcccccc, {roughness:0.4, metalness:0.4}));
+  mast.position.y = 1.32;
+  mast.castShadow = true;
+  g.add(mast);
+  // Boom
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.1, 8), mat(0xcccccc, {roughness:0.4, metalness:0.4}));
+  boom.rotation.x = Math.PI/2; boom.position.set(0, 0.6, 0.3);
+  g.add(boom);
+  // Main sail (large triangular)
+  const sailMat = new THREE.MeshStandardMaterial({color:o.sailColor, roughness:0.7, side:THREE.DoubleSide});
+  const sailShape = new THREE.Shape();
+  sailShape.moveTo(0, 0);
+  sailShape.lineTo(0, 1.8);
+  sailShape.lineTo(0.9, 0);
+  sailShape.lineTo(0, 0);
+  const sailGeo = new THREE.ShapeGeometry(sailShape);
+  const sail = new THREE.Mesh(sailGeo, sailMat);
+  sail.position.set(0, 0.6, 0.3);
+  sail.rotation.y = Math.PI/2;
+  sail.castShadow = true;
+  g.add(sail);
+  // Jib sail (smaller front)
+  const jibShape = new THREE.Shape();
+  jibShape.moveTo(0, 0);
+  jibShape.lineTo(0, 1.4);
+  jibShape.lineTo(0.6, 0);
+  jibShape.lineTo(0, 0);
+  const jibGeo = new THREE.ShapeGeometry(jibShape);
+  const jib = new THREE.Mesh(jibGeo, sailMat);
+  jib.position.set(0, 0.55, 0.85);
+  jib.rotation.y = -Math.PI/2;
+  g.add(jib);
+  g.scale.setScalar(o.scale);
+  // bob with the waves
+  g.userData.bobPhase = Math.random()*Math.PI*2;
+  g.userData.bobAmp = 0.04;
+  ENTITIES.bobBoats = ENTITIES.bobBoats || [];
+  ENTITIES.bobBoats.push(g);
+  return g;
+}
+
+function makeBougainvillea(){
+  // Dense magenta+pink+coral flower cluster (one bush worth)
+  const g = new THREE.Group();
+  const pinks = [0xd91d70, 0xe83d80, 0xff5a9a, 0xc01a60, 0xff80b0, 0xff3070, 0xe6285c];
+  // dense small flower spheres
+  for(let i=0;i<32;i++){
+    const c = pinks[Math.floor(Math.random()*pinks.length)];
+    const flower = new THREE.Mesh(new THREE.SphereGeometry(0.08+Math.random()*0.06, 10, 8),
+      new THREE.MeshStandardMaterial({color:c, emissive:c, emissiveIntensity:0.22, roughness:0.7}));
+    const ang = Math.random()*Math.PI*2;
+    const r = Math.random()*0.55;
+    flower.position.set(Math.sin(ang)*r, 0.18 + Math.random()*0.5, Math.cos(ang)*r);
+    g.add(flower);
+  }
+  // Tiny pale center flecks (bougainvillea has small white inner flowers)
+  for(let i=0;i<10;i++){
+    const fleck = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6),
+      mat(0xfffae8, {emissive:0xffeecc, emissiveIntensity:0.4}));
+    const ang = Math.random()*Math.PI*2;
+    const r = Math.random()*0.5;
+    fleck.position.set(Math.sin(ang)*r, 0.25 + Math.random()*0.4, Math.cos(ang)*r);
+    g.add(fleck);
+  }
+  // Dark green foliage base
+  for(let i=0;i<6;i++){
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.15+Math.random()*0.08, 12, 10), mat(0x356a30, {roughness:0.85}));
+    const ang = (i/6)*Math.PI*2;
+    leaf.position.set(Math.sin(ang)*0.32, 0.10, Math.cos(ang)*0.32);
+    leaf.castShadow = true;
+    g.add(leaf);
+  }
+  return g;
+}
+
+function makeTropicalIsland(width=4, height=2.2){
+  // Distant green rolling hill island silhouette
+  const g = new THREE.Group();
+  // Main island mound (icosahedron, scaled)
+  const land = new THREE.Mesh(new THREE.IcosahedronGeometry(width*0.5, 2),
+    mat(0x6a8a44, {roughness:1.0}));
+  land.scale.set(1, height/(width*0.5)*0.5, 0.7);
+  land.position.y = height*0.4;
+  land.castShadow = land.receiveShadow = true;
+  g.add(land);
+  // Lighter grass cap
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(width*0.42, 18, 14),
+    mat(0x8aaa54, {roughness:0.95}));
+  cap.scale.set(1, height/(width*0.5)*0.35, 0.6);
+  cap.position.y = height*0.65;
+  g.add(cap);
+  // Sandy shoreline ring at base
+  const shore = new THREE.Mesh(new THREE.CylinderGeometry(width*0.55, width*0.65, 0.08, 32),
+    mat(0xeed9a5, {roughness:1.0}));
+  shore.position.y = 0;
+  g.add(shore);
+  return g;
+}
+
+/* === 150+ PBR hero-asset PAD per scene (guaranteed density) ===
+ *  Drops in 150 commercial-grade procedural PBR meshes per scene:
+ *    60 trees · 40 rocks · 30 bushes · 12 lanterns · 8 barrels = 150
+ *  All meshes use MeshStandardMaterial (since v62 global PBR).
+ *  Skips placements that overlap building obstacles or walk-bounds so
+ *  the village core stays uncluttered, but fills the outer ring densely.
+ */
+function pad150PBR(root, sceneName, opts = {}){
+  // Uses sampleHeightFor(root, x, z) so works on ANY scene without hf passed.
+  const o = Object.assign({
+    trees: 60, rocks: 40, bushes: 30, lanterns: 12, barrels: 8,
+    minR: 4.5, maxR: SCENE_RADIUS*0.98,
+    treeKinds: ['pine','sakura','momiji','broad'],
+  }, opts);
+  const seedBase = 0xb0ce + sceneName.split('').reduce((a,c,i)=>a + c.charCodeAt(0)*(i+1)*97, 0);
+  const rnd = mulberry32(seedBase);
+  function findSpot(padR){
+    for(let i=0;i<24;i++){
+      const ang = rnd()*Math.PI*2;
+      const rr = o.minR + rnd()*(o.maxR - o.minR);
+      const x = Math.sin(ang)*rr;
+      const z = Math.cos(ang)*rr;
+      if(Math.hypot(x,z) > SCENE_RADIUS) continue;
+      let blocked = false;
+      for(const ob of ENTITIES.obstacles){
+        if(Math.hypot(x-ob.x, z-ob.z) < ob.r + padR){ blocked = true; break; }
+      }
+      if(!blocked) return [x, z];
+    }
+    return null;
+  }
+  let placed = 0;
+  // 1) Trees (60)
+  for(let i=0;i<o.trees;i++){
+    const spot = findSpot(0.6);
+    if(!spot) continue;
+    const [x, z] = spot;
+    const y = sampleHeightFor(root, x, z);
+    if(y < -0.5) continue;
+    const t = makeTree(o.treeKinds[Math.floor(rnd()*o.treeKinds.length)], rnd);
+    t.position.set(x, y, z); t.scale.setScalar(0.85 + rnd()*0.55); t.rotation.y = rnd()*Math.PI*2;
+    root.add(t); addObstacle(x, z, 0.5); placed++;
+  }
+  // 2) Rocks (40)
+  for(let i=0;i<o.rocks;i++){
+    const spot = findSpot(0.3); if(!spot) continue;
+    const [x, z] = spot; const y = sampleHeightFor(root, x, z);
+    if(y < -0.5) continue;
+    const r = makeRock(rnd, 0.6 + rnd()*1.3);
+    r.position.set(x, y + 0.04, z); root.add(r); placed++;
+  }
+  // 3) Bushes (30)
+  for(let i=0;i<o.bushes;i++){
+    const spot = findSpot(0.25); if(!spot) continue;
+    const [x, z] = spot; const y = sampleHeightFor(root, x, z);
+    if(y < -0.5) continue;
+    const b = makeBush(rnd); b.position.set(x, y + 0.12, z); root.add(b); placed++;
+  }
+  // 4) Stone lanterns (12)
+  for(let i=0;i<o.lanterns;i++){
+    const spot = findSpot(0.25); if(!spot) continue;
+    const [x, z] = spot; const y = sampleHeightFor(root, x, z);
+    if(y < -0.5) continue;
+    const sl = makeStoneLantern();
+    sl.position.set(x, y, z); sl.rotation.y = rnd()*Math.PI*2; sl.scale.setScalar(0.7 + rnd()*0.5);
+    root.add(sl);
+    if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
+    sl.traverse(child=>{ if(child.userData?.lamp) ENTITIES.lamps.push(child); });
+    placed++;
+  }
+  // 5) Barrels (8)
+  for(let i=0;i<o.barrels;i++){
+    const spot = findSpot(0.3); if(!spot) continue;
+    const [x, z] = spot; const y = sampleHeightFor(root, x, z);
+    if(y < -0.5) continue;
+    const b = makeBarrel();
+    b.position.set(x, y, z); b.rotation.y = rnd()*Math.PI*2; root.add(b); placed++;
+  }
+  console.log(`niwa[${sceneName}]: pad150PBR placed ${placed} PBR hero assets`);
+  return placed;
+}
+
+/* === Continuous world extension — terrain flows past the playable disc ===
+ *  Critical for ひとつながりの世界 feel: no more "floating island" edge.
+ *  Outer ring of terrain extends from SCENE_RADIUS out to r=80, with rolling
+ *  hills + distant instanced forest + far mountain silhouettes.
+ */
+function extendWorldGround(root, sceneName){
+  const innerR = SCENE_RADIUS - 0.3;
+  const outerR = 90;
+  const segR = 96, segH = 14;
+  const geo = new THREE.RingGeometry(innerR, outerR, segR, segH);
+  geo.rotateX(-Math.PI/2);
+  const pos = geo.attributes.position;
+  // Rolling hills + far rise toward horizon
+  for(let i=0;i<pos.count;i++){
+    const x = pos.getX(i), z = pos.getZ(i);
+    const r = Math.hypot(x, z);
+    const tt = THREE.MathUtils.clamp((r-innerR)/(outerR-innerR), 0, 1);
+    let y = Math.sin(x*0.06)*0.8 + Math.cos(z*0.07)*0.6 + Math.sin((x+z)*0.04)*0.5;
+    // gradual rise toward horizon so the world feels enclosed in geography
+    y += Math.pow(tt, 1.4) * 6.0;
+    pos.setY(i, y - 0.05);   // slight dip at inner edge for blend
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  // Vertex colors for natural variation
+  const colors = new Float32Array(pos.count*3);
+  const grassC = new THREE.Color(0x5a7a3d);
+  const grassDarkC = new THREE.Color(0x3a5a28);
+  const mossC = new THREE.Color(0x4a6a36);
+  for(let i=0;i<pos.count;i++){
+    const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i);
+    const n = noise(x*0.5, z*0.5, 1);
+    const c = grassC.clone().lerp(grassDarkC, n*0.6);
+    if(y > 2.0) c.lerp(mossC, Math.min(1, (y-2.0)/4));
+    colors[i*3]=c.r; colors[i*3+1]=c.g; colors[i*3+2]=c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const m = new THREE.MeshStandardMaterial({
+    color: 0xffffff, vertexColors: true, roughness: 1.0, metalness: 0.0
+  });
+  const outer = new THREE.Mesh(geo, m);
+  outer.receiveShadow = true;
+  outer.position.y = 0;
+  root.add(outer);
+  // Distant forest — InstancedMesh of cone "tree silhouettes" across the ring
+  const numTrees = 600;
+  const treeGeo = new THREE.ConeGeometry(0.7, 2.2, 8);
+  const treeMat = mat(0x3a5a2a, {roughness:1.0});
+  const inst = new THREE.InstancedMesh(treeGeo, treeMat, numTrees);
+  const dummy = new THREE.Object3D();
+  let placed = 0;
+  for(let i=0;i<numTrees*2 && placed<numTrees;i++){
+    const ang = Math.random()*Math.PI*2;
+    const r = innerR + 0.5 + Math.random()*(outerR-innerR-1);
+    const x = Math.sin(ang)*r;
+    const z = Math.cos(ang)*r;
+    const tt = THREE.MathUtils.clamp((r-innerR)/(outerR-innerR), 0, 1);
+    let y = Math.sin(x*0.06)*0.8 + Math.cos(z*0.07)*0.6 + Math.pow(tt, 1.4)*6.0;
+    dummy.position.set(x, y + 1.1, z);
+    dummy.rotation.y = Math.random()*Math.PI*2;
+    const s = (0.7 + Math.random()*1.6) * (1 + tt*0.5);   // larger trees closer to viewer? no — opposite
+    dummy.scale.set(s, s + Math.random()*0.4, s);
+    dummy.updateMatrix();
+    inst.setMatrixAt(placed, dummy.matrix);
+    placed++;
+  }
+  inst.count = placed;
+  inst.instanceMatrix.needsUpdate = true;
+  root.add(inst);
+  // Distant rolling hills — large mounds at the outer edge for layered horizon
+  for(let i=0;i<10;i++){
+    const ang = (i/10)*Math.PI*2 + Math.random()*0.3;
+    const rr = 55 + Math.random()*25;
+    const hill = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(8 + Math.random()*4, 2),
+      mat(0x3a5a4a, {roughness:1.0})
+    );
+    hill.position.set(Math.sin(ang)*rr, 2 + Math.random()*2, Math.cos(ang)*rr);
+    hill.scale.y = 0.5 + Math.random()*0.3;
+    root.add(hill);
+  }
+}
+
 /* === World continuity helpers — distant landmarks visible from any scene === */
 /*  Each scene reveals silhouetted versions of OTHER places at its edge so the
  *  player feels they're inside one continuous RPG world.
@@ -3364,6 +3718,7 @@ function clearScene(){
     ENTITIES.mixers.length = 0;
   }
   if(ENTITIES.flyers) ENTITIES.flyers.length = 0;
+  if(ENTITIES.bobBoats) ENTITIES.bobBoats.length = 0;
   ENTITIES.obstacles.length = 0;
   TREE_GROUPS.length = 0;
   densifyWindUniforms.length = 0;
@@ -3386,6 +3741,12 @@ function buildScene(name){
   renderer.toneMappingExposure = def.exposure ?? WORLD.exposure;
   // Build geometry
   def.build(root);
+  // POST-PASS: every scene gets a continuous world ring + 150+ PBR hero assets.
+  // (Skip for the interior room scene which is a glass-box diorama.)
+  if(def.kind !== 'room'){
+    extendWorldGround(root, name);
+    pad150PBR(root, name);
+  }
   // Avatar position
   if(def.avatarStart){
     avatar.position.set(def.avatarStart[0], 0, def.avatarStart[1]);
@@ -4454,196 +4815,355 @@ SCENES.oto = {
 
 // 4. ひとり旅の道 (湖)
 SCENES.tabi = {
-  num: '03', kind: 'lake',
-  title: 'ひとり旅の道', en: 'A Path for One',
-  concept: '小舟と桟橋のある岸。32の旅と1,700枚の写真が、静かに並ぶ。',
-  sun: [22, -60], turbidity:3, rayleigh:2.4,
-  fogColor:'#c8d8e2', fogNear:22, fogFar:75, exposure:1.05,
-  avatarStart: [-6, 4],
+  num: '03', kind: 'tropical',
+  title: 'ひとり旅の岸', en: 'Tropical Shore',
+  concept: '南の島の入り江。ヤシの葉とブーゲンビリアの陰、白いヨットが浮かぶターコイズ色の海。',
+  // Bright tropical noon — high sun, vivid sky
+  sun: [62, -20], turbidity:2.6, rayleigh:1.4,
+  exposure:1.18,
+  avatarStart: [-7, 5],
   link: 'hitoritabi/', cta: '旅の地図へ',
   build(root){
-    // height: shore -> 0, lake area: -1
-    const hf = (x,z)=>{
-      // shore on the left (negative x), lake on the right
-      if(x > -2) return -1.0;
-      if(x > -4) return THREE.MathUtils.mapLinear(x, -4, -2, 0, -1.0);
-      return 0;
+    /* ─ Terrain: high grassy cliff on the WEST, beach + sea on the EAST ─ */
+    const hf = (x, z)=>{
+      // West (x < -3): high grassy hill plateau (~+1.2m)
+      if(x < -6) return 1.2 + Math.sin(x*0.4)*0.15 + Math.cos(z*0.5)*0.10;
+      if(x < -3) return THREE.MathUtils.mapLinear(x, -6, -3, 1.2, 0.0);
+      // Beach band (x: -3 to -1)
+      if(x < -1) return THREE.MathUtils.mapLinear(x, -3, -1, 0.0, -0.4);
+      // Sea floor
+      return -1.2;
     };
-    function palShore(x, z, y, r, c){
-      if(y < -0.8){ palSand(x,z,y,r,c); }   // lake floor (sand-ish)
-      else if(y < -0.2){ palSand(x,z,y,r,c); c.lerp(new THREE.Color(0xb89060), 0.3); }
-      else { palGrass(x,z,y,r,c); }
+    function palTropic(x, z, y, r, c){
+      if(y < -0.6){
+        // sea floor: pale sand visible through turquoise
+        c.setHex(0xeed9a5);
+      } else if(y < 0.1){
+        // bright beach sand
+        const n = noise(x*4, z*4, 1.5);
+        c.setHex(0xf3deaa);
+        c.lerp(new THREE.Color(0xd9b87a), n*0.35);
+      } else {
+        // grassy hilltop
+        const n = noise(x*3, z*3, 1.4);
+        c.setHex(0x7aa650);
+        c.lerp(new THREE.Color(0x5a8a40), n*0.5);
+      }
     }
-    const ground = terrainDisc(SCENE_RADIUS, hf, palShore);
+    const ground = terrainDisc(SCENE_RADIUS, hf, palTropic);
     root.add(ground); root.userData.ground = ground;
-    // Lake surface
-    const waterMat = new THREE.MeshStandardMaterial({
-      color:0x6fa8c7, transparent:true, opacity:0.88, roughness:0.08, metalness:0.18,
-      emissive:0x102838, emissiveIntensity:0.06, envMapIntensity:1.4
+
+    /* ─ TURQUOISE SEA — bright Caribbean cyan, double-layer (shallow + deep) ─ */
+    // Shallow band along the beach (very light cyan)
+    const shallowMat = new THREE.MeshStandardMaterial({
+      color: 0x86e0d8, transparent: true, opacity: 0.78,
+      roughness: 0.05, metalness: 0.18,
+      emissive: 0x2090a0, emissiveIntensity: 0.10,
+      envMapIntensity: 1.8,
     });
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(20, 24, 32, 32).rotateX(-Math.PI/2), waterMat);
-    water.position.set(4, -0.4, 0);
-    waterMat.onBeforeCompile = (sh)=>{
+    const shallow = new THREE.Mesh(new THREE.PlaneGeometry(8, 28, 16, 32).rotateX(-Math.PI/2), shallowMat);
+    shallow.position.set(2, -0.55, 0);
+    root.add(shallow);
+    // Deep sea (rich turquoise)
+    const seaMat = new THREE.MeshStandardMaterial({
+      color: 0x2090c0, transparent: true, opacity: 0.92,
+      roughness: 0.04, metalness: 0.22,
+      emissive: 0x103a4a, emissiveIntensity: 0.06,
+      envMapIntensity: 1.8,
+    });
+    seaMat.onBeforeCompile = (sh)=>{
       sh.uniforms.uTime = { value: 0 };
       sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader;
       sh.vertexShader = sh.vertexShader.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-        transformed.y += sin(position.x*0.6 + uTime*1.4)*0.06 + sin(position.z*0.45 + uTime*0.9)*0.05;
+        transformed.y += sin(position.x*0.5 + uTime*1.2)*0.07
+                       + sin(position.z*0.42 + uTime*0.9)*0.06
+                       + sin((position.x+position.z)*0.3 + uTime*0.6)*0.04;
         `
       );
       root.userData.waterU = sh.uniforms;
     };
-    root.add(water);
-    // Dock + boat
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(34, 34, 48, 48).rotateX(-Math.PI/2), seaMat);
+    sea.position.set(10, -0.85, 0);
+    root.add(sea);
+    // Foam line where shallow meets beach
+    for(let i=0;i<6;i++){
+      const z = -10 + i*4 + Math.random()*1.2;
+      const foam = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 3 + Math.random()).rotateX(-Math.PI/2),
+        new THREE.MeshStandardMaterial({color:0xffffff, transparent:true, opacity:0.45, roughness:1.0}));
+      foam.position.set(-1.0, -0.30, z);
+      root.add(foam);
+    }
+
+    /* ─ PALM TREES on the grassy hill + a couple near the beach ─ */
+    // Big hero palm at the cliff edge (foreground left)
+    const heroPalm = makePalmTree();
+    heroPalm.position.set(-7.0, hf(-7.0, 1.0), 1.0);
+    heroPalm.scale.setScalar(1.25);
+    heroPalm.rotation.z = 0.10;
+    root.add(heroPalm);
+    addObstacle(-7.0, 1.0, 0.5);
+    // Cluster of 4 more palms on the hill
+    for(const [x,z,s,rz] of [[-9, -2, 1.0, -0.05],[-10, 3, 0.9, 0.15],[-8.5, 5.5, 1.1, -0.10],[-11, -5, 0.95, 0.05]]){
+      const p = makePalmTree();
+      p.position.set(x, hf(x, z), z);
+      p.scale.setScalar(s);
+      p.rotation.z = rz;
+      root.add(p);
+      addObstacle(x, z, 0.4);
+    }
+    // 2 smaller palms on beach
+    for(const [x,z,s] of [[-2.4, -3, 0.7],[-2.0, 4, 0.65]]){
+      const p = makePalmTree();
+      p.position.set(x, hf(x,z), z);
+      p.scale.setScalar(s);
+      root.add(p);
+    }
+
+    /* ─ BOUGAINVILLEA — vivid magenta cascading flowers (foreground) ─ */
+    // Big cascade right at the cliff edge (the visual hero in the foreground)
+    for(const [x,z,s] of [
+      [-5.5, -1, 1.3], [-5.0, 1, 1.4], [-5.3, 3, 1.2],
+      [-6.0, -3, 1.1], [-5.8, 5, 1.3], [-4.5, 6.5, 1.0],
+      [-4.5, -5, 1.0], [-7.5, 4, 1.0], [-7.5, -1, 0.9],
+    ]){
+      const b = makeBougainvillea();
+      b.position.set(x, hf(x,z), z);
+      b.scale.setScalar(s);
+      root.add(b);
+    }
+
+    /* ─ SAILBOATS scattered across the bay (white hulls, billowing sails) ─ */
+    const boatSpecs = [
+      { x:  3.5, z: -5,   s:1.1, ry:-0.5,  stripe:0x3a6aa0 },
+      { x:  6,   z: -2,   s:1.0, ry: 0.4,  stripe:0xc83a3a },
+      { x:  9,   z:  3,   s:1.2, ry: 1.6,  stripe:0x3a6aa0 },
+      { x:  4.5, z:  4.5, s:0.9, ry:-1.2,  stripe:0x2a9070 },
+      { x: 11,   z: -3,   s:1.1, ry:-0.3,  stripe:0xa0a050 },
+      { x:  7.5, z:  6.5, s:0.95,ry: 2.0,  stripe:0x3a6aa0 },
+      { x: 12,   z:  5,   s:1.0, ry:-1.8,  stripe:0xc83a3a },
+      { x:  5,   z: -8,   s:0.9, ry: 0.2,  stripe:0x3a6aa0 },
+    ];
+    for(const sb of boatSpecs){
+      const boat = makeSailboat({ stripe: sb.stripe, scale: sb.s });
+      boat.position.set(sb.x, -0.72, sb.z);
+      boat.userData.baseY = boat.position.y;
+      boat.rotation.y = sb.ry;
+      root.add(boat);
+    }
+    // Single small dinghy near shore (closer)
+    const dinghy = makeSailboat({ stripe:0xc83a3a, scale:0.55 });
+    dinghy.position.set(1.5, -0.7, -3);
+    dinghy.userData.baseY = dinghy.position.y;
+    dinghy.rotation.y = -0.8;
+    root.add(dinghy);
+
+    /* ─ DISTANT GREEN ISLANDS across the bay (silhouette horizon) ─ */
+    const islandSpecs = [
+      { x: 18, z: -8,  w: 7, h: 3.0 },
+      { x: 19, z:  4,  w: 6, h: 2.4 },
+      { x: 14, z: 10,  w: 5, h: 2.0 },
+      { x: 22, z:  0,  w: 8, h: 3.6 },
+    ];
+    for(const isl of islandSpecs){
+      const island = makeTropicalIsland(isl.w, isl.h);
+      island.position.set(isl.x, -0.8, isl.z);
+      // Add 2-3 dots of palm silhouettes on each distant island
+      for(let k=0;k<3;k++){
+        const ang = Math.random()*Math.PI*2;
+        const ir = isl.w*0.2;
+        const palmSil = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.4, 6),
+          mat(0x4a7030, {roughness:1.0}));
+        palmSil.position.set(Math.sin(ang)*ir, isl.h*0.7, Math.cos(ang)*ir);
+        island.add(palmSil);
+      }
+      root.add(island);
+    }
+
+    /* ─ White roofed beach cottages on the hill (Caribbean village) ─ */
+    function makeBeachCottage(){
+      const g = new THREE.Group();
+      // base
+      const base = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 1.2),
+        mat(0xddc5a0, {roughness:0.9}));
+      base.position.y = 0.10; base.receiveShadow = true;
+      g.add(base);
+      // walls (pale pastel)
+      const colors = [0xfff5e8, 0xffe6c8, 0xffe0c0, 0xe8d6b0];
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.95, 1.1),
+        mat(colors[Math.floor(Math.random()*colors.length)], {roughness:0.85}));
+      wall.position.y = 0.68;
+      wall.castShadow = wall.receiveShadow = true;
+      g.add(wall);
+      // door
+      const door = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.55), mat(0x5a3a20));
+      door.position.set(0, 0.48, 0.56);
+      g.add(door);
+      // window
+      const win = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.30),
+        mat(0xa8d4e8, {emissive:0xa8d4e8, emissiveIntensity:0.18}));
+      win.position.set(0.4, 0.78, 0.56);
+      g.add(win);
+      const win2 = win.clone();
+      win2.position.x = -0.4;
+      g.add(win2);
+      // white roof (signature Caribbean look)
+      for(const dz of [-1, 1]){
+        const slope = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 0.75),
+          mat(0xfafafa, {roughness:0.45, metalness:0.05}));
+        slope.position.set(0, 1.30, dz*0.32);
+        slope.rotation.x = -dz*0.55;
+        slope.castShadow = true;
+        g.add(slope);
+      }
+      // ridge
+      const ridge = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.10, 0.10), mat(0xdddddd));
+      ridge.position.y = 1.50;
+      g.add(ridge);
+      return g;
+    }
+    // 5 cottages along the hillside terrace (left edge of view)
+    const cottageSpots = [
+      [-11.5, -4, -0.5], [-11.0, -1.5, 0.0], [-11.5, 1, 0.3],
+      [-10.5, 4, 0.0], [-12, -7, 0.5],
+    ];
+    for(const [x,z,ry] of cottageSpots){
+      const c = makeBeachCottage();
+      c.position.set(x, hf(x,z), z);
+      c.rotation.y = ry + Math.PI*0.5;
+      root.add(c);
+      addObstacle(x, z, 0.8);
+    }
+
+    /* ─ Wooden boardwalk + steps from hill down to the beach ─ */
+    const board = makeEngawa(3.0, 1.6);
+    board.position.set(-4.5, hf(-4.5, -0.5)+0.05, -0.5);
+    root.add(board);
+    const stepsDown = makeStairs(5, 1.5, 0.22, 0.5);
+    stepsDown.position.set(-3.5, 0.55, 1.6);
+    stepsDown.rotation.y = -Math.PI/2;
+    root.add(stepsDown);
+    // small dock reaching into the water
     const dock = makeBoatDock();
-    dock.position.set(-3, 0, 1);
+    dock.position.set(-0.5, -0.55, 0);
     dock.rotation.y = -Math.PI/2;
     root.add(dock);
     if(dock.userData.boat) ENTITIES.boats.push(dock.userData.boat);
-    // Engawa-style wooden deck on the shore, facing the water
-    const shoreDeck = makeEngawa(3.4, 1.4);
-    shoreDeck.position.set(-5.5, 0, -1);
-    shoreDeck.rotation.y = Math.PI/2;
-    root.add(shoreDeck);
-    // Stepping stones from shore deck to dock
-    root.add(makeSteppingStones([
-      [-5.0, -0.5, 0.95, 0.3],
-      [-4.4, -0.3, 1.0,  0.6],
-      [-3.8,  0.0, 0.9,  0.1],
-      [-3.4,  0.5, 0.95, 0.4],
-    ]));
-    // Willow tree on shore
-    const willow = makeTree('willow');
-    willow.position.set(-6, 0, -3);
-    willow.scale.setScalar(1.3);
-    root.add(willow);
-    // Stone lantern on shore
-    const lp = makeLantern(0.9);
-    lp.position.set(-5, 0, 5);
-    root.add(lp);
-    ENTITIES.lamps.push(...lp.children.filter(c=>c.userData?.lamp));
-    if(lp.userData.lampLight) ENTITIES.lampLights.push(lp.userData.lampLight);
-    // Lily pads on lake
-    for(let i=0;i<12;i++){
-      const ang = Math.random()*Math.PI*2;
-      const r = 1.5 + Math.random()*7;
-      const px = 4 + Math.cos(ang)*r;
-      const pz = Math.sin(ang)*r;
-      if(px < -2) continue;  // skip shore
-      const pad = new THREE.Mesh(new THREE.CircleGeometry(0.25+Math.random()*0.2, 8).rotateX(-Math.PI/2),
-        mat(0x4a8050, {roughness:0.6}));
-      pad.position.set(px, -0.32, pz);
-      root.add(pad);
-      if(Math.random()<0.4){
-        const flower = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6),
-          mat(0xf8e8c0, {emissive:0xfff2c0, emissiveIntensity:0.1}));
-        flower.position.set(px, -0.25, pz);
-        root.add(flower);
+
+    /* ─ Beach decorations: deck chairs + parasol + driftwood + seashells ─ */
+    function makeDeckChair(){
+      const g = new THREE.Group();
+      // seat (slatted plane)
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 1.0), mat(0x3a6aa0, {roughness:0.7}));
+      seat.position.y = 0.35;
+      seat.rotation.x = -0.18;
+      seat.castShadow = true;
+      g.add(seat);
+      // back
+      const back = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 0.8), mat(0x3a6aa0, {roughness:0.7}));
+      back.position.set(0, 0.65, -0.5);
+      back.rotation.x = -0.95;
+      back.castShadow = true;
+      g.add(back);
+      // legs
+      for(const [dx,dz] of [[-0.2,-0.4],[0.2,-0.4],[-0.2,0.4],[0.2,0.4]]){
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.34, 6), mat(0x4a3a2a));
+        leg.position.set(dx, 0.17, dz);
+        g.add(leg);
       }
+      return g;
     }
-    // Distant rocks at far shore
-    for(let i=0;i<5;i++){
-      const r = makeRock(Math.random, 1.4);
-      r.position.set(8 + Math.random()*2, 0, -8 + Math.random()*16);
-      root.add(r);
-    }
-    // A pine on the shore
-    const pine = makeTree('pine');
-    pine.position.set(-7, 0, 2);
-    pine.scale.setScalar(1.4);
-    root.add(pine);
-    // Tsukubai (water basin) on the shore
-    const tk = makeTsukubai();
-    tk.position.set(-7.5, 0, 5);
-    root.add(tk);
-    // Stone trinity at shore curve
-    const sg1 = makeStoneGroup();
-    sg1.position.set(-5, 0, -5); root.add(sg1);
-    // Bamboo grove deeper inland
-    const bamboo = makeBambooGrove(8);
-    bamboo.position.set(-8, 0, -3);
-    root.add(bamboo);
-    // Stone lantern at shore edge
-    const sl = makeStoneLantern();
-    sl.position.set(-3.5, 0, -1.5); root.add(sl);
-    if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
-    sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    // Azalea patches on shore
-    for(const [x,z] of [[-8,1],[-7,-1],[-6,4],[-4,-2]]){
-      const az = makeAzaleaPatch(4, [0xd968a0, 0xc8553d][Math.random()<0.5?0:1]);
-      az.position.set(x, 0, z); root.add(az);
-    }
-    // Reeds along the water edge
-    for(let i=0;i<10;i++){
-      const z = -7 + i*1.4;
-      const reed = new THREE.Group();
-      for(let k=0;k<5;k++){
-        const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.8 + Math.random()*0.4),
-          new THREE.MeshStandardMaterial({color:0x6a8a3a, side:THREE.DoubleSide, transparent:true, alphaTest:0.5}));
-        blade.position.set((Math.random()-0.5)*0.3, 0.4, (Math.random()-0.5)*0.3);
-        blade.rotation.y = Math.random()*Math.PI;
-        reed.add(blade);
+    function makeParasol(){
+      const g = new THREE.Group();
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.2, 8), mat(0xddc5a0));
+      pole.position.y = 1.1;
+      g.add(pole);
+      // alternating stripe canopy via 8 wedge cones
+      const stripes = [0xff5a5a, 0xffffff];
+      for(let i=0;i<8;i++){
+        const wedge = new THREE.Mesh(new THREE.CylinderGeometry(0, 0.9, 0.4, 4, 1, false, (i/8)*Math.PI*2, Math.PI/4),
+          mat(stripes[i%2], {side:THREE.DoubleSide, roughness:0.7}));
+        wedge.position.y = 2.0;
+        g.add(wedge);
       }
-      reed.position.set(-2.2, -0.2, z);
-      root.add(reed);
+      // tassel
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), mat(0xff5a5a));
+      tip.position.y = 2.25;
+      g.add(tip);
+      return g;
     }
-    /* ── Multi-level + gimmicks ── */
-    // Retaining wall along the shore-water break
-    const retain = makeRetainingWall(5, 0.6);
-    retain.position.set(-2.1, -0.6, 0);
-    retain.rotation.y = Math.PI/2;
-    root.add(retain);
-    // Stairs from shore down to the dock
-    const steps = makeStairs(4, 1.4, 0.2, 0.5);
-    steps.position.set(-3.0, -0.9, 1.6);
-    steps.rotation.y = -Math.PI/2;
-    root.add(steps);
-    // Wooden bridge spanning to a small isle in the lake
-    const bridge = makeBridge(4, 0.4);
-    bridge.position.set(6, -0.2, 0);
-    bridge.rotation.y = Math.PI/2;
-    root.add(bridge);
-    // Small isle stone (target of bridge)
-    const isle = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.2, 0.4, 16), mat(0x8a8067));
-    isle.position.set(6, -0.7, 2.6);
-    isle.castShadow = isle.receiveShadow = true;
-    root.add(isle);
-    // Crystal on the isle (collectible reward)
-    const cr = makeCrystal(0x6BE0FF);
-    cr.position.set(6, -0.45, 2.6);
-    cr.scale.setScalar(0.7);
-    root.add(cr);
-    ENTITIES.spins.push(cr);
-    // Fishing spot at end of dock
-    const fish = makeFishingSpot();
-    fish.position.set(0, 0.1, 2.2);
-    root.add(fish);
-    if(fish.userData.bobber){
-      fish.userData.bobber.userData = { baseY: fish.userData.bobber.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(fish.userData.bobber);
+    // Beach umbrella + 2 deck chairs
+    const par = makeParasol();
+    par.position.set(-1.0, hf(-1.0, -2.5), -2.5);
+    root.add(par);
+    for(const [x,z,ry] of [[-1.5, -2.0, 0.3], [-0.5, -2.6, -0.3]]){
+      const dc = makeDeckChair();
+      dc.position.set(x, hf(x,z), z);
+      dc.rotation.y = ry + Math.PI;
+      root.add(dc);
     }
-    // Treasure chest under the willow
+    // Second umbrella + chair set further down the beach
+    const par2 = makeParasol();
+    par2.position.set(-1.2, hf(-1.2, 4.0), 4.0);
+    root.add(par2);
+    const dc3 = makeDeckChair();
+    dc3.position.set(-1.6, hf(-1.6, 4.5), 4.5);
+    dc3.rotation.y = -0.4 + Math.PI;
+    root.add(dc3);
+    // Driftwood pieces along beach
+    for(let i=0;i<6;i++){
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.10, 0.7+Math.random()*0.5, 8),
+        mat(0xc4a878, {roughness:0.95}));
+      log.rotation.z = Math.PI/2 + (Math.random()-0.5)*0.4;
+      log.rotation.y = Math.random()*Math.PI;
+      log.position.set(-1.7 + Math.random()*0.5, hf(-1.7,0)+0.06, -6 + i*2.2 + Math.random());
+      log.castShadow = true;
+      root.add(log);
+    }
+    // Seashells (tiny spheres scattered on beach)
+    const shellColors = [0xfff0d0, 0xffe0b8, 0xffd0c0, 0xfae8d0];
+    for(let i=0;i<22;i++){
+      const sh = new THREE.Mesh(new THREE.SphereGeometry(0.04+Math.random()*0.03, 10, 8, 0, Math.PI*2, 0, Math.PI/2),
+        mat(shellColors[Math.floor(Math.random()*shellColors.length)], {roughness:0.45}));
+      const x = -1.6 + Math.random()*0.7;
+      const z = -7 + Math.random()*14;
+      sh.position.set(x, hf(x,z)+0.02, z);
+      sh.rotation.set(0, Math.random()*Math.PI*2, 0);
+      root.add(sh);
+    }
+
+    /* ─ Gimmicks ─ */
+    // Treasure chest among the bougainvillea
     const chest = makeChest();
-    chest.position.set(-7, 0, -2.5);
+    chest.position.set(-9.5, hf(-9.5, 6.5), 6.5);
     chest.rotation.y = 0.8;
     root.add(chest);
     if(chest.userData.bob){
       chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
       ENTITIES.bobs.push(chest.userData.bob);
     }
-    // Signpost
-    const sp = makeSignpost('湖');
-    sp.position.set(-6, 0, 3.5);
+    // Crystal on a small offshore rock
+    const isle = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 0.3, 12), mat(0x8a8067));
+    isle.position.set(4, -0.65, -6);
+    root.add(isle);
+    const cr = makeCrystal(0xff9ad0);   // pink to match bougainvillea palette
+    cr.position.set(4, -0.4, -6);
+    cr.scale.setScalar(0.7);
+    root.add(cr);
+    ENTITIES.spins.push(cr);
+    // Sign at boardwalk entry
+    const sp = makeSignpost('海');
+    sp.position.set(-6.5, hf(-6.5, -1), -1);
     root.add(sp);
-    // Hero GLBs: 2 ducks on the lake + 1 flamingo wading
+
+    /* ─ Hero GLBs already wired (Duck on water, Flamingo wading) ─ */
     loadGLB(ASSETS.duck).then(gltf => {
       if(!gltf) return;
       for(let i=0;i<2;i++){
         const d = gltf.scene.clone(true);
         d.scale.setScalar(0.011);
-        d.position.set(3 + i*1.5, -0.30, -1.0 + i*0.6);
-        d.rotation.y = 0.4 + i*0.5;
+        d.position.set(2.5 + i*1.2, -0.45, 1 + i*0.5);
         d.userData.baseY = d.position.y; d.userData.phase = i*Math.PI;
         ENTITIES.bobs.push(d);
         root.add(d);
@@ -4651,17 +5171,24 @@ SCENES.tabi = {
     });
     loadGLB(ASSETS.flamingo).then(gltf => {
       if(!gltf) return;
-      const f = gltf.scene.clone(true);
-      f.scale.setScalar(0.010);
-      f.position.set(5, -0.3, 2);
-      f.rotation.y = 2;
-      root.add(f);
-      if(gltf.animations.length){
-        const mixer = new THREE.AnimationMixer(f);
-        mixer.clipAction(gltf.animations[0]).play();
-        addMixer(mixer);
+      for(let i=0;i<2;i++){
+        const f = gltf.scene.clone(true);
+        f.scale.setScalar(0.011);
+        f.userData.flightPhase = Math.PI*i;
+        f.userData.flightRadius = 11 + i*0.6;
+        f.userData.flightY = 5 + i*0.5;
+        root.add(f);
+        if(gltf.animations.length){
+          const mixer = new THREE.AnimationMixer(f);
+          mixer.clipAction(gltf.animations[0]).play();
+          addMixer(mixer);
+        }
+        ENTITIES.flyers = ENTITIES.flyers || [];
+        ENTITIES.flyers.push(f);
       }
     });
+
+    // Beach grass / tropical undergrowth
     densifyGround(root, 'shore');
     addDistantLandmarks(root, 'tabi');
   }
@@ -6376,6 +6903,13 @@ function animate(){
     b.position.z = Math.cos(b.userData.flightPhase) * r;
     b.position.y = b.userData.flightY + Math.sin(b.userData.flightPhase*1.7)*0.6;
     b.rotation.y = -b.userData.flightPhase + Math.PI/2;
+  }
+  // Sailboats bob and sway on the water
+  if(ENTITIES.bobBoats) for(const bt of ENTITIES.bobBoats){
+    const ph = bt.userData.bobPhase || 0;
+    bt.position.y = (bt.userData.baseY ?? bt.position.y) + Math.sin(t*0.9 + ph) * (bt.userData.bobAmp || 0.04);
+    bt.rotation.z = Math.sin(t*0.7 + ph)*0.05;
+    bt.rotation.x = Math.cos(t*0.55 + ph)*0.03;
   }
   // bobbing gimmicks (chests, orbs, fishing bobbers)
   for(const b of ENTITIES.bobs){
