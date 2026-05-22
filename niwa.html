@@ -4153,6 +4153,14 @@ SCENES.monlight = {
     const sp = makeSignpost('書');
     sp.position.set(0, 0, 7);
     root.add(sp);
+    // Hero GLB: Khronos Lantern PBR by the steps to the pagoda
+    loadGLB(ASSETS.lantern).then(gltf => {
+      if(!gltf) return;
+      const l = gltf.scene;
+      l.scale.setScalar(0.22);
+      l.position.set(-2.6, hf(-2.6, 4.0), 4.0);
+      root.add(l);
+    });
     densifyGround(root, 'moss');
   }
 };
@@ -4316,6 +4324,17 @@ SCENES.oto = {
     const sp = makeSignpost('音');
     sp.position.set(2, 0, 7);
     root.add(sp);
+    // Hero GLBs at shrine: 2 detailed PBR Lanterns flanking the torii approach
+    for(const ang of [Math.PI*0.30, Math.PI*-0.30]){
+      loadGLB(ASSETS.lantern).then(gltf => {
+        if(!gltf) return;
+        const l = gltf.scene.clone(true);
+        l.scale.setScalar(0.24);
+        const x = Math.sin(ang)*3.2, z = Math.cos(ang)*3.2;
+        l.position.set(x, hf(x,z), z);
+        root.add(l);
+      });
+    }
     densifyGround(root, 'gravel');
   }
 };
@@ -4504,6 +4523,32 @@ SCENES.tabi = {
     const sp = makeSignpost('湖');
     sp.position.set(-6, 0, 3.5);
     root.add(sp);
+    // Hero GLBs: 2 ducks on the lake + 1 flamingo wading
+    loadGLB(ASSETS.duck).then(gltf => {
+      if(!gltf) return;
+      for(let i=0;i<2;i++){
+        const d = gltf.scene.clone(true);
+        d.scale.setScalar(0.011);
+        d.position.set(3 + i*1.5, -0.30, -1.0 + i*0.6);
+        d.rotation.y = 0.4 + i*0.5;
+        d.userData.baseY = d.position.y; d.userData.phase = i*Math.PI;
+        ENTITIES.bobs.push(d);
+        root.add(d);
+      }
+    });
+    loadGLB(ASSETS.flamingo).then(gltf => {
+      if(!gltf) return;
+      const f = gltf.scene.clone(true);
+      f.scale.setScalar(0.010);
+      f.position.set(5, -0.3, 2);
+      f.rotation.y = 2;
+      root.add(f);
+      if(gltf.animations.length){
+        const mixer = new THREE.AnimationMixer(f);
+        mixer.clipAction(gltf.animations[0]).play();
+        addMixer(mixer);
+      }
+    });
     densifyGround(root, 'shore');
   }
 };
@@ -4887,6 +4932,14 @@ SCENES.takibi = {
     const sp = makeSignpost('火');
     sp.position.set(6, 0, 7); sp.rotation.y = -0.4;
     root.add(sp);
+    // Hero GLB: PBR Lantern hanging by the fire camp entrance
+    loadGLB(ASSETS.lantern).then(gltf => {
+      if(!gltf) return;
+      const l = gltf.scene;
+      l.scale.setScalar(0.18);
+      l.position.set(5.5, hf(5.5, 6.5), 6.5);
+      root.add(l);
+    });
     densifyGround(root, 'autumn');
   }
 };
@@ -5056,6 +5109,24 @@ SCENES.mizube = {
     const sp = makeSignpost('辺');
     sp.position.set(5, 0, 6);
     root.add(sp);
+    // Hero GLBs: lantern at the stone basin + ducks on the water
+    loadGLB(ASSETS.lantern).then(gltf => {
+      if(!gltf) return;
+      const l = gltf.scene;
+      l.scale.setScalar(0.20);
+      l.position.set(2.0, hf(2.0, 1.6), 1.6);
+      root.add(l);
+    });
+    loadGLB(ASSETS.duck).then(gltf => {
+      if(!gltf) return;
+      const d = gltf.scene;
+      d.scale.setScalar(0.011);
+      d.position.set(-1.0, -0.30, -3.5);
+      d.rotation.y = 1.2;
+      d.userData.baseY = d.position.y; d.userData.phase = 0.7;
+      ENTITIES.bobs.push(d);
+      root.add(d);
+    });
     densifyGround(root, 'shore');
   }
 };
