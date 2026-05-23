@@ -2957,17 +2957,20 @@ const BLENDER_NAMES = [
   'enc_int_hoshi', 'enc_int_takibi', 'enc_int_mizube', 'enc_int_amaoto',
   'enc_int_heya',
   // v620 — side-pack atmosphere accents (Dark Fantasy / Valhalla /
-  // Village House Kit). Each scene picks 2-4 of these and places them
-  // around the playable edge.  Extracted by _blender/multi_pack_extract.py.
-  // Dark Fantasy:
-  'df_wall_torch', 'df_gargoyle', 'df_brazier', 'df_chain', 'df_banner',
-  'df_altar', 'df_gate', 'df_relic',
-  // Valhalla:
-  'val_shield', 'val_pillar', 'val_rune', 'val_banner', 'val_horn',
-  'val_barrel', 'val_axe', 'val_longbench',
-  // Village House Kit:
-  'vh_well', 'vh_fence', 'vh_cart', 'vh_barrel', 'vh_crate',
-  'vh_ladder', 'vh_gate', 'vh_palisade',
+  // Village House Kit). Extracted by _blender/multi_pack_extract.py.
+  // ONLY the assets that were actually extracted (some filters in the
+  // script didn't match — DF has no torch/brazier/banner/altar/relic
+  // under those exact names; VAL has no banner/axe). Adding to this
+  // list is harmless (showpublink auto-resolves) but listing the
+  // verified set keeps the manifest honest.
+  // Dark Fantasy (3):
+  'df_chain', 'df_gargoyle', 'df_gate',
+  // Valhalla (6):
+  'val_barrel', 'val_horn', 'val_longbench', 'val_pillar',
+  'val_rune', 'val_shield',
+  // Village House Kit (8):
+  'vh_barrel', 'vh_cart', 'vh_crate', 'vh_fence', 'vh_gate',
+  'vh_ladder', 'vh_palisade', 'vh_well',
 ];
 const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
 const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow', 'chibi_monk', 'chibi_woman', 'chibi_child'];
@@ -5842,17 +5845,55 @@ async function switchScene(name){
  * and the scene just shows fewer accents.
  * ================================================================= */
 
+// All entries reference GLBs that ACTUALLY exist on pCloud (verified
+// against multi_pack_extract.py output 2026-05-24).  Each scene picks
+// 2-4 props from the 17 successfully-extracted side-pack assets:
+//   DF:  df_chain, df_gargoyle, df_gate                          (3)
+//   VAL: val_barrel, val_horn, val_longbench, val_pillar,
+//        val_rune, val_shield                                    (6)
+//   VH:  vh_barrel, vh_cart, vh_crate, vh_fence, vh_gate,
+//        vh_ladder, vh_palisade, vh_well                         (8)
 const SIDE_PACK_ACCENTS = {
-  plaza:    [['vh_well', -7, 7, 0.85, 0], ['df_brazier', 7, 7, 0.85, 0], ['val_banner', 0, -8, 0.85, 0]],
-  monlight: [['vh_fence', -7, 6, 0.85, 0], ['val_pillar', 7, 6, 0.85, 0]],
-  oto:      [['vh_well', -6, 6, 0.85, 0], ['vh_barrel', 6, 6, 0.85, 0], ['vh_cart', 0, 7, 0.85, 30]],
-  tabi:     [['val_horn', -6, 6, 0.85, 0], ['val_barrel', 6, 6, 0.85, 0], ['df_banner', 0, 7, 0.85, 0]],
-  toki:     [['df_gargoyle', -7, 6, 0.85, 30], ['val_pillar', 7, 6, 0.85, 0]],
-  hoshi:    [['df_relic', -6, 6, 0.85, 0], ['df_altar', 6, 6, 0.85, 0], ['val_rune', 0, 7, 0.85, 0]],
-  takibi:   [['df_brazier', -5, 6, 0.85, 0], ['df_wall_torch', 5, 6, 0.85, 0], ['val_horn', 0, 7, 0.85, 0]],
-  mizube:   [['vh_ladder', -6, 6, 0.85, 0], ['vh_barrel', 6, 6, 0.85, 0]],
-  amaoto:   [['df_gate', 0, -7, 0.85, 0], ['df_altar', -6, 6, 0.85, 0], ['df_chain', 6, 6, 0.85, 0]],
-  heya:     [['vh_well', -6, 6, 0.85, 0], ['vh_cart', 6, 6, 0.85, -30]],
+  // Village square — well + fence + a viking shield at the front
+  plaza:    [['vh_well',     -7,  7, 0.85,   0],
+             ['vh_fence',     7,  7, 0.85, 180],
+             ['val_shield',   0,  7, 0.80,   0]],
+  // Quiet bookshop outskirts — fence behind, a single pillar + rune
+  monlight: [['vh_fence',    -7,  6, 0.85,   0],
+             ['val_pillar',   7,  6, 0.85,   0],
+             ['val_rune',     0,  7, 0.80,   0]],
+  // Watermill cosy — well, barrel, cart
+  oto:      [['vh_well',     -6,  6, 0.85,   0],
+             ['vh_barrel',    6,  6, 0.85,   0],
+             ['vh_cart',      0,  7, 0.85,  30]],
+  // Traveller's inn — horn, barrel, longhouse bench
+  tabi:     [['val_horn',    -6,  6, 0.85,   0],
+             ['val_barrel',   6,  6, 0.85,   0],
+             ['val_longbench',0,  7, 0.85,   0]],
+  // Clock tower — gargoyle + pillar (dark/timekeeping mood)
+  toki:     [['df_gargoyle', -7,  6, 0.85,  30],
+             ['val_pillar',   7,  6, 0.85,   0],
+             ['val_rune',     0,  7, 0.80,   0]],
+  // Antiquarian / star hill — mystical: gargoyle, rune, pillar
+  hoshi:    [['df_gargoyle', -6,  6, 0.85,   0],
+             ['val_rune',     6,  6, 0.85,   0],
+             ['val_pillar',   0,  7, 0.85,   0]],
+  // Candle maker (warm fire) — horn, longbench, crate
+  takibi:   [['val_horn',    -5,  6, 0.85,   0],
+             ['val_longbench',5,  6, 0.85,   0],
+             ['vh_crate',     0,  7, 0.85,   0]],
+  // Weaver workshop — ladder + barrel + crate
+  mizube:   [['vh_ladder',   -6,  6, 0.85,   0],
+             ['vh_barrel',    6,  6, 0.85,   0],
+             ['vh_crate',     0,  7, 0.85,   0]],
+  // Rain chapel — gothic gate + chain + gargoyle
+  amaoto:   [['df_gate',      0, -7, 0.85,   0],
+             ['df_chain',    -6,  6, 0.85,   0],
+             ['df_gargoyle',  6,  6, 0.85,  30]],
+  // Bakery — well + cart + crate
+  heya:     [['vh_well',     -6,  6, 0.85,   0],
+             ['vh_cart',      6,  6, 0.85, -30],
+             ['vh_crate',     0,  7, 0.85,   0]],
 };
 
 async function loadSidePackAccents(name){
