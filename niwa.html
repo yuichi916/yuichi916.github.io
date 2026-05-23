@@ -4694,127 +4694,186 @@ function sampleHeight(x, z){
 SCENES.plaza = {
   num: '00', kind: 'plaza',
   title: 'Cloudfall Village (雲落ちの村)', en: 'Cloudfall Village',
-  concept: 'Dark-fantasy 浮遊島ジオラマ。中央に古代の噴水と魔法結晶、四方に守護者像、辺縁に高層尖塔。',
-  // Late afternoon — readable warm + sharp shadows; KB3D PBR shines here.
-  sun: [40, -25], turbidity: 2.6, rayleigh: 1.2,
-  fogColor: '#a8b8c4', fogNear: 14, fogFar: 34, exposure: 0.85,
-  avatarStart: [0, 3.2],
+  concept: 'KB3D Dark Fantasy diorama — 浮遊島の中央に噴水広場、放射状の街路、城壁内の住居群と城門。',
+  // Warm afternoon. Slightly higher exposure now that KB3D PBR is in play.
+  sun: [42, -25], turbidity: 2.5, rayleigh: 1.1,
+  fogColor: '#a8b8c4', fogNear: 16, fogFar: 38, exposure: 1.0,
+  avatarStart: [0, 3.5],
   build(root){
-    /* KB3D-grade plaza diorama on a chibi-scale floating island.
-     * 18 carefully-placed AAA-grade props with magical accents. */
+    /* Settlers-style cohesive layout (cf user reference image #3):
+     *   - central plaza disc w/ Fountain (hero)
+     *   - 4 radial cobble streets (N/S/E/W)
+     *   - Buildings face the streets (rotation y always toward centre)
+     *   - South gateway (Gate_B) flanked by 2 statues
+     *   - North wall (railing) with watch tower
+     *   - East residential row (3 houses lined up along E street)
+     *   - West market row (vendor stalls + barrels + firewood)
+     *   - 2 ChainHooks on diagonal edges (floating-island lore)
+     */
 
     // 1) Floating-island base
     const isle = makeIslandBase(SCENE_RADIUS, {
-      topColor: 0x5d8843,
-      rimColor: 0x2a4e1a,
-      sideColor: 0x6a4628,
-      underColor: 0x18100a,
+      topColor: 0x5d8843, rimColor: 0x2a4e1a,
+      sideColor: 0x6a4628, underColor: 0x18100a,
     });
     root.add(isle);
     root.userData.ground = isle;
 
-    // Helper: clone a KB3D GLB and apply uniform scale.
-    function kb(name, x, y, z, scale, rotY){
+    // 2) Central cobblestone plaza disc (3m radius — bigger than before)
+    const stoneDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(3.0, 48).rotateX(-Math.PI/2),
+      new THREE.MeshStandardMaterial({
+        color: 0x8a7868, roughness: 0.88, metalness: 0.0, envMapIntensity: 0.5,
+      })
+    );
+    stoneDisc.position.y = 0.005;
+    stoneDisc.receiveShadow = true;
+    root.add(stoneDisc);
+    // Plaza rim — ring of cobbles
+    for(let i = 0; i < 32; i++){
+      const a = i / 32 * Math.PI * 2;
+      const stone = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.18, 0),
+        new THREE.MeshStandardMaterial({color: 0x6a5848, roughness: 0.92})
+      );
+      stone.position.set(Math.cos(a)*3.0, 0.08, Math.sin(a)*3.0);
+      stone.scale.set(1.1, 0.55, 1.1);
+      stone.castShadow = true; stone.receiveShadow = true;
+      root.add(stone);
+    }
+    // 3) 4 radial street paths from plaza to edge — wide enough for NPC pathing
+    function buildStreet(angleDeg, length){
+      const a = THREE.MathUtils.degToRad(angleDeg);
+      const cx = Math.cos(a) * (3.0 + length/2);
+      const cz = Math.sin(a) * (3.0 + length/2);
+      const street = new THREE.Mesh(
+        new THREE.PlaneGeometry(length, 1.2).rotateX(-Math.PI/2),
+        new THREE.MeshStandardMaterial({color: 0x6a5848, roughness: 0.95})
+      );
+      street.position.set(cx, 0.01, cz);
+      street.rotation.y = a;
+      street.receiveShadow = true;
+      root.add(street);
+      // Cobble noise lines
+      for(let k = 0; k < Math.floor(length * 2); k++){
+        const t = (k + 0.5) / Math.floor(length * 2);
+        const sx = cx + (Math.cos(a + Math.PI/2) * (Math.random()-0.5) * 0.7);
+        const sz = cz + (Math.sin(a + Math.PI/2) * (Math.random()-0.5) * 0.7);
+        const stone = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.06, 0),
+          new THREE.MeshStandardMaterial({color: 0x7a6858, roughness: 0.92})
+        );
+        const t2 = (k - length) / 4;
+        stone.position.set(
+          cx + Math.cos(a) * (t - 0.5) * length * 0.85 + (Math.random()-0.5)*0.4,
+          0.015,
+          cz + Math.sin(a) * (t - 0.5) * length * 0.85 + (Math.random()-0.5)*0.4
+        );
+        stone.scale.set(1.0, 0.3, 1.0);
+        root.add(stone);
+      }
+    }
+    buildStreet(90, 4.5);    // N street
+    buildStreet(-90, 4.5);   // S street (to gate)
+    buildStreet(0, 4.5);     // E street
+    buildStreet(180, 4.5);   // W street
+
+    // Helper: KB3D placement with proper scale + face-the-centre rotation
+    function kbAt(name, x, z, scale, faceCenter, extraRotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
       if(!m) return null;
       m.scale.setScalar(scale);
-      m.position.set(x, y, z);
-      if(typeof rotY === 'number') m.rotation.y = rotY;
+      m.position.set(x, 0, z);
+      // Face the centre (buildings turn entrance toward plaza)
+      if(faceCenter){
+        m.rotation.y = Math.atan2(-x, -z);
+        if(typeof extraRotY === 'number') m.rotation.y += extraRotY;
+      } else if(typeof extraRotY === 'number'){
+        m.rotation.y = extraRotY;
+      }
       m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
       root.add(m);
       return m;
     }
 
-    // 2) HERO 1 — KB3D Fountain at the center (8.5K verts, AAA detail)
-    kb('kb3d_fountain', 0, 0, 0, 0.022, 0);
+    // 4) HERO — Central KB3D Fountain (3.9m bbox → scale 0.41 = ~1.6m diameter)
+    kbAt('kb3d_fountain', 0, 0, 0.40, false, 0);
 
-    // 3) HERO 2 — KB3D Tower A (5.8K verts) on NE: village landmark
-    kb('kb3d_tower_a', 3.5, 0, -3.0, 0.018, -0.5);
+    // 5) HERO — KB3D Tower Grand on the NORTH edge of plaza, as the central skyline
+    kbAt('kb3d_tower_grand', 0, -7.2, 0.23, false, 0.2);   // 3.5m tall
 
-    // 4) HERO 3 — KB3D Tower Small (1K verts) on NW: watch tower
-    kb('kb3d_tower_small', -4.2, 0, -2.0, 0.022, 0.4);
+    // 6) South gateway — KB3D Gate_B at south + 2 KB3D statues flanking
+    kbAt('kb3d_gate_b', 0, 6.5, 0.30, false, 0);
+    kbAt('kb3d_statue_a', -1.3, 5.3, 0.36, false, 0.3);     // ~0.9m tall guardians
+    kbAt('kb3d_statue_b', 1.3, 5.3, 0.36, false, -0.3);
 
-    // 5) HERO 4 — KB3D Tower D (9K verts) farther out west — bigger silhouette
-    kb('kb3d_tower_d', -5.5, 0, 1.5, 0.014, 0.9);
+    // 7) North wall — KB3D Tower_A on NE + KB3D Tower_Small on NW as watch towers
+    kbAt('kb3d_tower_a', 4.2, -5.0, 0.16, false, -0.4);      // 3.5m tall
+    kbAt('kb3d_tower_small', -4.2, -5.0, 0.16, false, 0.4);  // 2.4m tall
 
-    // 6) HERO 5 — KB3D Gate B (1.2K verts) at south entrance
-    kb('kb3d_gate_b', 0, 0, 5.0, 0.020, 0);
+    // 8) East residential row — 3 buildings along the E street, facing W (toward plaza)
+    kbAt('kb3d_bldg_sm_f', 5.2, -2.0, 0.25, false, -Math.PI/2 + 0.1);
+    kbAt('kb3d_bldg_sm_g', 5.5, 0.4, 0.25, false, -Math.PI/2);
+    kbAt('kb3d_bldg_md_e', 5.2, 2.8, 0.24, false, -Math.PI/2 - 0.1);
 
-    // 7) 2 KB3D Statues flanking the gate
-    kb('kb3d_statue_a', -1.6, 0, 4.0, 0.024, 0.4);
-    kb('kb3d_statue_b', 1.6, 0, 4.0, 0.024, -0.4);
+    // 9) West market row — 1 tall narrow house + KB3D market props (barrels, firewood)
+    kbAt('kb3d_bldg_sm_c', -5.5, 0.5, 0.20, false, Math.PI/2);
+    kbAt('kb3d_bldg_sm_f', -5.2, -2.5, 0.25, false, Math.PI/2 + 0.1);
+    kbAt('kb3d_bldg_sm_g', -5.0, 3.0, 0.25, false, Math.PI/2 - 0.1);
 
-    // 8) KB3D Statue E — hero shrine statue near the fountain
-    kb('kb3d_statue_e', 0, 0, -2.4, 0.026, 0);
+    // 10) Vendor row props (along W street boundary)
+    kbAt('kb3d_barrel', -3.2, -0.6, 0.22, false, 0.5);
+    kbAt('kb3d_barrel', -3.6, 0.4, 0.22, false, -0.3);
+    kbAt('kb3d_firewood', -3.4, -1.5, 0.20, false, 0.2);
+    kbAt('kb3d_barrel', 3.4, -0.7, 0.22, false, 0.7);
+    kbAt('kb3d_firewood', 3.6, 1.3, 0.20, false, -0.4);
 
-    // 9) Small KB3D houses on the east side (residential row)
-    kb('kb3d_bldg_sm_f', 4.5, 0, 1.0, 0.020, -1.2);
-    kb('kb3d_bldg_sm_g', 5.0, 0, 3.2, 0.020, -1.8);
-    kb('kb3d_bldg_md_e', 3.2, 0, 4.2, 0.020, -2.2);
+    // 11) 4 KB3D Torches around the plaza (lit by point lights below)
+    kbAt('kb3d_torch', -2.4, 0, 0.55, false, 0);
+    kbAt('kb3d_torch', 2.4, 0, 0.55, false, 0);
+    kbAt('kb3d_torch', 0, -2.4, 0.55, false, 0);
+    kbAt('kb3d_torch', 0, 2.4, 0.55, false, 0);
 
-    // 10) KB3D Tower Grand (17K verts) on far north as the skyline anchor
-    kb('kb3d_tower_grand', -2.5, 0, -5.8, 0.011, 0.3);
+    // 12) KB3D Statue_E — hero shrine statue near the central tower (north side)
+    kbAt('kb3d_statue_e', -1.5, -3.8, 0.40, false, 0.4);
+    kbAt('kb3d_statue_e', 1.5, -3.8, 0.40, false, -0.4);
 
-    // 11) Tall narrow building on west — Settlers density
-    kb('kb3d_bldg_sm_c', -4.0, 0, 3.5, 0.012, 1.6);
+    // 13) ChainHooks on diagonal corners — floating-island lore prop
+    kbAt('kb3d_chainhook', -6.5, 6.0, 0.20, false, 0.5);
+    kbAt('kb3d_chainhook', 6.5, -6.0, 0.20, false, Math.PI + 0.5);
 
-    // 12) 2 KB3D Torches flanking the central fountain
-    kb('kb3d_torch', -1.0, 0, 0.0, 0.022, 0);
-    kb('kb3d_torch', 1.0, 0, 0.0, 0.022, Math.PI);
-
-    // 13) Barrel + firewood market detail (small)
-    kb('kb3d_barrel', 4.0, 0, -1.0, 0.024, 0.5);
-    kb('kb3d_firewood', 4.4, 0, -0.4, 0.026, -0.3);
-    kb('kb3d_barrel', -3.6, 0, 0.6, 0.024, -0.3);
-
-    // 14) Chain hook — the floating-island lore prop (links to other islands)
-    kb('kb3d_chainhook', -6.5, 0, 5.5, 0.030, 0.4);
-    kb('kb3d_chainhook', 6.5, 0, -5.5, 0.030, Math.PI + 0.4);
-
-    // 15) FANTASY: magic crystal cluster — image-2 style hero magic
+    // 14) FANTASY MAGIC PROPS — image-2 painted-style accents (kept from v23)
+    // Magic crystal — placed in the NE corner pocket
     const crystal = (typeof blenderClone === 'function' && blenderClone('magic_crystal_cluster'));
     if(crystal){
       crystal.scale.setScalar(0.85);
-      crystal.position.set(-2.0, 0, 2.4);
+      crystal.position.set(2.6, 0, -2.6);
+      crystal.traverse(o => { if(o.isMesh) o.castShadow = true; });
       root.add(crystal);
       ENTITIES.spins = ENTITIES.spins || [];
       ENTITIES.spins.push(crystal);
     }
-
-    // 16) FANTASY: giant glowing mushroom on edge — image-2 painted vibe
+    // Giant mushroom — SW corner pocket
     const shroom = (typeof blenderClone === 'function' && blenderClone('giant_mushroom'));
     if(shroom){
       shroom.scale.setScalar(0.55);
-      shroom.position.set(2.5, 0, 2.2);
+      shroom.position.set(-2.6, 0, -2.6);
+      shroom.traverse(o => { if(o.isMesh) o.castShadow = true; });
       root.add(shroom);
     }
-
-    // 17) Flame brazier (image-2 lit altar) on south side
-    const brazier = (typeof blenderClone === 'function' && blenderClone('flame_brazier'));
-    if(brazier){
-      brazier.scale.setScalar(0.70);
-      brazier.position.set(-1.8, 0, -1.0);
-      root.add(brazier);
-    }
-    const brazier2 = (typeof blenderClone === 'function' && blenderClone('flame_brazier'));
-    if(brazier2){
-      brazier2.scale.setScalar(0.70);
-      brazier2.position.set(1.8, 0, -1.0);
-      root.add(brazier2);
-    }
-
-    // 18) Waypoint pillar (magic beacon)
+    // Waypoint pillar — directly north of plaza (between fountain and tower)
     const wp = (typeof blenderClone === 'function' && blenderClone('waypoint_pillar'));
     if(wp){
-      wp.scale.setScalar(0.85);
-      wp.position.set(0, 0, 2.6);
+      wp.scale.setScalar(0.80);
+      wp.position.set(0, 0, -5.0);
+      wp.traverse(o => { if(o.isMesh) o.castShadow = true; });
       root.add(wp);
     }
 
-    // 19) NPC chibi villagers (smaller — KB3D buildings are big, scale down NPCs)
+    // 15) NPC chibi villagers — 4 walking purposeful paths along streets
     function placeNpc(colors, path, speed, variant){
       const n = makeNpc(colors[0], colors[1], variant);
-      n.scale.setScalar(0.85);
+      n.scale.setScalar(0.95);
       n.position.set(path[0][0], 0, path[0][1]);
       n.userData.path = path;
       n.userData.wp = 0;
@@ -4823,12 +4882,16 @@ SCENES.plaza = {
       root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[-1.8, 0.4], [0.8, 0.4], [1.8, 1.8]], 0.55, 'woman');
-    placeNpc([0x3858a8, 0x1a1410], [[2.0, -0.5], [0.0, -1.5], [-1.8, -0.5]], 0.5, 'red');
-    placeNpc([0x4a6a30, 0x1a1410], [[0, 3.2], [0, 1.2]], 0.45, 'green');
-    placeNpc([0xd8a838, 0x1a1410], [[-3.4, -0.6], [-2.0, 2.0]], 0.42, 'monk');
+    // NPC walks N street (plaza ↔ tower)
+    placeNpc([0xb83838, 0x1a1410], [[0, 3.0], [0, -3.0], [0, 3.0]], 0.55, 'woman');
+    // NPC walks E street (plaza ↔ residential)
+    placeNpc([0x3858a8, 0x1a1410], [[3.0, 0], [-3.0, 0]], 0.50, 'red');
+    // NPC walks W street to market
+    placeNpc([0x4a6a30, 0x1a1410], [[-3.0, 0], [3.0, 0]], 0.45, 'green');
+    // NPC walks S street to gate
+    placeNpc([0xd8a838, 0x1a1410], [[0, 4.0], [0, 1.5]], 0.42, 'monk');
 
-    // 20) Cherry petal particles (mood)
+    // 16) Cherry petal particles
     if(typeof makeFallingParticles === 'function'){
       const petals = makeFallingParticles('petal', 90, {
         range: 16, yMax: 8, yMin: 0, fallSpeed: 0.40, swayAmp: 0.35, swayFreq: 1.2,
@@ -4837,37 +4900,29 @@ SCENES.plaza = {
       ENTITIES.particles.push({obj: petals, type: 'fall'});
     }
 
-    // 21) Warm hemi rim light for KB3D PBR readability
+    // 17) Warm hemi rim
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.40);
     fill.position.set(5, 8, 5);
     root.add(fill);
 
-    // 22) Magic point lights so the brazier/crystal/torches actually illuminate
-    const crystalLight = new THREE.PointLight(0xb060ff, 0.7, 6.0);
-    crystalLight.position.set(-2.0, 2.0, 2.4); root.add(crystalLight);
+    // 18) Torch point lights (4 around the plaza)
+    for(const [tx, tz] of [[-2.4, 0], [2.4, 0], [0, -2.4], [0, 2.4]]){
+      const tl = new THREE.PointLight(0xff8030, 1.0, 4.5);
+      tl.position.set(tx, 1.6, tz);
+      root.add(tl);
+      ENTITIES.lampLights.push(tl);
+    }
+    // Crystal light
+    const crystalLight = new THREE.PointLight(0xb060ff, 0.7, 5.0);
+    crystalLight.position.set(2.6, 1.8, -2.6); root.add(crystalLight);
     ENTITIES.lampLights.push(crystalLight);
-
-    const torchLightL = new THREE.PointLight(0xff8030, 1.1, 4.5);
-    torchLightL.position.set(-1.0, 1.8, 0.0); root.add(torchLightL);
-    ENTITIES.lampLights.push(torchLightL);
-
-    const torchLightR = new THREE.PointLight(0xff8030, 1.1, 4.5);
-    torchLightR.position.set(1.0, 1.8, 0.0); root.add(torchLightR);
-    ENTITIES.lampLights.push(torchLightR);
-
-    const brazierLightL = new THREE.PointLight(0xff7028, 0.9, 5.0);
-    brazierLightL.position.set(-1.8, 1.2, -1.0); root.add(brazierLightL);
-    ENTITIES.lampLights.push(brazierLightL);
-
-    const brazierLightR = new THREE.PointLight(0xff7028, 0.9, 5.0);
-    brazierLightR.position.set(1.8, 1.2, -1.0); root.add(brazierLightR);
-    ENTITIES.lampLights.push(brazierLightR);
-
+    // Waypoint
     const waypointLight = new THREE.PointLight(0x70c0ff, 0.7, 5.0);
-    waypointLight.position.set(0, 2.0, 2.6); root.add(waypointLight);
+    waypointLight.position.set(0, 2.0, -5.0); root.add(waypointLight);
     ENTITIES.lampLights.push(waypointLight);
   }
 };
+
 
 
 
