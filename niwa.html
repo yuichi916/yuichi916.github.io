@@ -2984,8 +2984,10 @@ async function preloadBlenderAssets(){
 function blenderClone(name){
   const src = BLENDER_CACHE[name];
   if(!src){
-    // Kick off background load so a later rebuild picks it up
-    lazyLoadAsset(name);
+    // Only ENC assets are valid for loading; all procedural GLBs have been
+    // deleted, so requests for non-enc_* names fall straight to procedural
+    // fallback (no 404 fetch attempt).
+    if(name && name.startsWith('enc_')) lazyLoadAsset(name);
     return null;
   }
   return src.clone(true);
@@ -4525,22 +4527,10 @@ setLoad(0.45, 'AVATAR');
 /* NPC chibi =============================================== */
 let __npcVariantIndex = 0;
 function makeNpc(bodyColor, hairColor, variantHint){
-  // Rotate through chibi variants so the village is populated with distinct villagers.
-  // If variantHint is supplied (e.g. 'monk', 'woman', 'child'), prefer that variant.
-  let variant = null;
-  if(variantHint){
-    const want = 'chibi_' + variantHint;
-    if(BLENDER_CACHE[want]) variant = want;
-  }
-  if(!variant){
-    // Round-robin across whichever variants successfully loaded
-    const available = CHIBI_VARIANTS.filter(n => BLENDER_CACHE[n]);
-    if(available.length){
-      variant = available[__npcVariantIndex % available.length];
-      __npcVariantIndex++;
-    }
-  }
-  const bl = variant ? blenderClone(variant) : blenderClone('chibi');
+  // chibi GLBs have been deleted as procedural garbage; this function now
+  // always builds an NPC from primitives. variantHint/CHIBI_VARIANTS args
+  // are retained for backward-compat with scene code that passes them.
+  const bl = null;
   if(bl){
     bl.traverse(o => {
       if(!o.isMesh || !o.material) return;
