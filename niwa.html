@@ -2800,7 +2800,8 @@ const ASSETS = {
   blender_bridge:        'assets/blender/bridge.glb',
   blender_shrine:        'assets/blender/shrine.glb',
   // Khronos Duck (CC0) — yellow rubber duck (perfect for ponds)
-  duck:          'https://threejs.org/examples/models/gltf/Duck/glTF-Binary/Duck.glb',
+  // Local Blender koi as a stand-in (threejs.org Duck.glb returns 404).
+  duck:          'assets/blender/koi.glb',
 };
 
 // Track per-scene animation mixers for cleanup
@@ -8284,16 +8285,21 @@ function animate(){
     k.position.z = Math.cos(k.userData.phase) * r;
     k.rotation.y = -k.userData.phase + Math.PI/2;
   }
-  // butterflies float in lazy ellipses
+  // butterflies float in lazy ellipses (legacy loop — null-safe)
   if(ENTITIES.butterflies) for(const b of ENTITIES.butterflies){
+    if(!b || !b.userData) continue;
+    // The new v7 pack puts fly state under b.userData.fly — handled by a
+    // separate loop below. Skip legacy butterflies that don't have the old
+    // cx/radius fields to avoid crashing.
+    if(typeof b.userData.cx !== 'number') continue;
     b.userData.phase += b.userData.speed * dt;
     b.position.x = b.userData.cx + Math.sin(b.userData.phase) * b.userData.radius;
     b.position.z = b.userData.cz + Math.cos(b.userData.phase*0.83) * b.userData.radius;
     b.position.y = b.userData.heightBase + Math.sin(b.userData.phase*1.7)*0.4;
     b.rotation.y = -b.userData.phase;
     const flap = Math.sin(t*14 + b.userData.phase)*0.6;
-    b.userData.wingL.rotation.y = 0.4 + flap;
-    b.userData.wingR.rotation.y = -0.4 - flap;
+    if(b.userData.wingL && b.userData.wingL.rotation) b.userData.wingL.rotation.y = 0.4 + flap;
+    if(b.userData.wingR && b.userData.wingR.rotation) b.userData.wingR.rotation.y = -0.4 - flap;
   }
   // wishing bell sway
   if(ENTITIES.bells) for(const sw of ENTITIES.bells){
