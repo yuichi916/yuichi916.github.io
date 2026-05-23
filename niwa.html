@@ -2907,16 +2907,90 @@ function _decorateGLB(scene){
   });
 }
 
+// === ENC asset hosting on pCloud Public Folder ===
+// Procedural niwa GLBs (kominka_*, sakura_*, etc.) are deprecated as garbage.
+// All Enchanted (enc_*) GLBs are hosted on pCloud at:
+//   pCloud publink: kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk (covers hitoritabi/niwa-assets/blender/)
+// The download URL is short-lived; we query it just-in-time via pCloud REST.
+const PCLOUD_PUBLINK = 'kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk';
+const ENC_FILEIDS = {
+  enc_antiquarian:    88322005167,
+  enc_armor_chest:    88322005325,
+  enc_bank:           88322005532,
+  enc_bench:          88322005700,
+  enc_bookshelf:      88322005847,
+  enc_bookstore:      88322006014,
+  enc_brazier:        88322006121,
+  enc_candlemaker:    88322006302,
+  enc_church_spire:   88322006652,
+  // The rest are pulled from showpublink at runtime if missing here.
+};
+
+// Build the pCloud public-download URL for a fileid (4h-expiring CDN URL).
+// IMPORTANT: `&download=1` bypasses pCloud's "Invalid link referer" block that
+// would otherwise prevent browser-origin requests from succeeding.
+async function pcloudFileURL(fileid){
+  const r = await fetch(`https://api.pcloud.com/getpublinkdownload?code=${PCLOUD_PUBLINK}&fileid=${fileid}&download=1`);
+  const data = await r.json();
+  if(data.result !== 0 || !data.hosts || !data.hosts.length) throw new Error('pcloud failed ' + data.error);
+  return `https://${data.hosts[0]}${data.path}`;
+}
+
+// Promise-cached fileid resolution (race-safe: concurrent callers share the
+// same in-flight showpublink request).
+let _ENC_FILEID_PROMISE = null;
+function resolveAllEncFileids(){
+  if(_ENC_FILEID_PROMISE) return _ENC_FILEID_PROMISE;
+  _ENC_FILEID_PROMISE = (async () => {
+    try {
+      const r = await fetch(`https://api.pcloud.com/showpublink?code=${PCLOUD_PUBLINK}`);
+      const d = await r.json();
+      const md = d.metadata || {};
+      const map = Object.assign({}, ENC_FILEIDS);
+      for(const c of (md.contents || [])){
+        if(c.isfolder && c.name === 'niwa-assets'){
+          for(const sub of (c.contents || [])){
+            if(sub.isfolder && sub.name === 'blender'){
+              for(const f of (sub.contents || [])){
+                if(f.name && f.name.endsWith('.glb')){
+                  map[f.name.slice(0, -4)] = f.fileid;
+                }
+              }
+            }
+          }
+        }
+      }
+      return map;
+    } catch(e){
+      console.warn('niwa: pcloud showpublink failed', e);
+      // On failure, clear the promise so a subsequent call can retry.
+      _ENC_FILEID_PROMISE = null;
+      return ENC_FILEIDS;
+    }
+  })();
+  return _ENC_FILEID_PROMISE;
+}
+
 async function lazyLoadAsset(name){
   if(BLENDER_CACHE[name]) return BLENDER_CACHE[name];
   if(BLENDER_LOADING.has(name)) return BLENDER_LOADING.get(name);
   const p = (async () => {
     try {
-      const gltf = await loadGLB('assets/blender/' + name + '.glb');
+      let url;
+      if(name.startsWith('enc_')){
+        // KB3D Enchanted assets — fetch from pCloud public folder
+        const fids = await resolveAllEncFileids();
+        const fid = fids[name];
+        if(!fid){ console.warn('niwa: no pCloud fileid for', name); return null; }
+        url = await pcloudFileURL(fid);
+      } else {
+        // Local procedural assets (legacy) — still bundled with the repo.
+        url = 'assets/blender/' + name + '.glb';
+      }
+      const gltf = await loadGLB(url);
       if(gltf && gltf.scene){
         _decorateGLB(gltf.scene);
-        // Mark geometry+materials as shared so clearScene() doesn't dispose
-        // them; clones share references with the cached source.
+        // Mark shared so clearScene() doesn't dispose cached resources.
         gltf.scene.traverse(o => {
           if(o.geometry) o.geometry.userData = Object.assign(o.geometry.userData || {}, {shared: true});
           if(o.material){
@@ -2927,10 +3001,11 @@ async function lazyLoadAsset(name){
         BLENDER_CACHE[name] = gltf.scene;
         return gltf.scene;
       }
-    } catch(_){}
+    } catch(e){
+      console.warn('niwa lazy-load failed:', name, e);
+    }
     return null;
   })();
-  // Remove the in-flight entry when the promise settles so failures can be retried.
   p.finally(() => BLENDER_LOADING.delete(name));
   BLENDER_LOADING.set(name, p);
   return p;
@@ -4691,22 +4766,21 @@ function buildScene(name){
   // then kick off background fetch and rebuild scene once when assets arrive.
   // Use a per-scene build token to prevent rebuild storms from rapid switches.
   buildScene._tokens = buildScene._tokens || {};
+  buildScene._rebuiltFor = buildScene._rebuiltFor || {};   // per-scene flag (was global)
   const buildToken = (buildScene._tokens[name] = (buildScene._tokens[name]||0) + 1);
+  // Reset the per-scene "rebuilt once" flag for the new build attempt.
+  buildScene._rebuiltFor[name] = false;
   if(def.preloadAssets && def.preloadAssets.length){
     const missing = def.preloadAssets.filter(n => !BLENDER_CACHE[n]);
     if(missing.length){
       console.log(`niwa[${name}]: lazy-loading ${missing.length} assets in background`);
       preloadSceneAssets(missing).then(() => {
-        // Only rebuild if this is the LATEST build call for this scene
-        // (prevents multiple rebuilds when user rapidly switches scenes).
         if(currentScene && currentScene.name === name
             && buildScene._tokens[name] === buildToken
-            && !buildScene._rebuiltOnce){
-          buildScene._rebuiltOnce = true;
-          console.log(`niwa[${name}]: assets ready, rebuilding once`);
+            && !buildScene._rebuiltFor[name]){
+          buildScene._rebuiltFor[name] = true;
+          console.log(`niwa[${name}]: assets ready, rebuilding`);
           buildScene(name);
-          // Reset for next scene
-          setTimeout(() => { buildScene._rebuiltOnce = false; }, 50);
         }
       });
     }
@@ -4792,15 +4866,16 @@ SCENES.plaza = {
   sun: [42, -22], turbidity: 2.5, rayleigh: 1.1,
   fogColor: '#b0c4d0', fogNear: 16, fogFar: 38, exposure: 1.0,
   avatarStart: [0, 4.0],
-  // Lazy-load: niwa preloads only these assets when this scene opens.
+  // Lazy-load: only ENC assets (procedural primitives have been removed).
   preloadAssets: [
-    'enc_clocktower_b', 'enc_church_a', 'enc_antiquarian',
-    'enc_inn', 'enc_bank', 'enc_herbalist', 'enc_bookstore',
-    'enc_candlemaker', 'enc_pub', 'enc_lamppost_a', 'enc_lamppost_c',
-    'enc_lantern', 'enc_sign_a', 'enc_planter_a', 'enc_brazier',
+    'enc_clocktower_b', 'enc_church_a', 'enc_church_spire',
+    'enc_antiquarian', 'enc_inn', 'enc_bank', 'enc_herbalist',
+    'enc_bookstore', 'enc_candlemaker', 'enc_pub',
+    'enc_lamppost_a', 'enc_lamppost_c', 'enc_lantern',
+    'enc_sign_a', 'enc_planter_a', 'enc_brazier',
     'enc_bench', 'enc_sigil', 'enc_wooden_arch', 'enc_zoltor',
-    'enc_vendor_b', 'enc_sword_in_stone',
-    'magic_crystal_cluster', 'waypoint_pillar', 'kb3d_chainhook',
+    'enc_vendor_b', 'enc_sword_in_stone', 'enc_bookshelf',
+    'enc_armor_chest', 'enc_wash_basin', 'enc_hangingpot',
   ],
   build(root){
     /* === KB3D Enchanted Settlers-style cohesive village ===
@@ -4925,36 +5000,17 @@ SCENES.plaza = {
     kbAt('enc_sign_a',    -3.0,  3.0, 0.85);
     kbAt('enc_sign_a',     3.0,  3.0, 0.85);
 
-    // 13) DARK FANTASY accents — magic crystal + waypoint pillar + chain hooks
-    const crystal = (typeof blenderClone === 'function' && blenderClone('magic_crystal_cluster'));
-    if(crystal){
-      crystal.scale.setScalar(0.7);
-      crystal.position.set(-2.5, 0, 2.8);
-      crystal.traverse(o => { if(o.isMesh){ o.castShadow = true; } });
-      root.add(crystal);
-      ENTITIES.spins = ENTITIES.spins || [];
-      ENTITIES.spins.push(crystal);
-    }
-    const waypoint = (typeof blenderClone === 'function' && blenderClone('waypoint_pillar'));
-    if(waypoint){
-      waypoint.scale.setScalar(0.75);
-      waypoint.position.set(2.5, 0, 2.8);
-      waypoint.traverse(o => { if(o.isMesh){ o.castShadow = true; } });
-      root.add(waypoint);
-    }
-    // Chain hooks on diagonal corners — floating-island lore prop
-    function kb3dAt(name, x, z, scale, rotY){
-      const m = (typeof blenderClone === 'function' && blenderClone(name));
-      if(!m) return null;
-      m.scale.setScalar(scale);
-      m.position.set(x, 0, z);
-      m.rotation.y = rotY || 0;
-      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
-      root.add(m);
-      return m;
-    }
-    kb3dAt('kb3d_chainhook', -6.5,  6.5, 0.18, 0.5);
-    kb3dAt('kb3d_chainhook',  6.5, -6.5, 0.18, Math.PI + 0.5);
+    // 13) Extra Enchanted accents — magical sigils on diagonals + bookshelves
+    kbAt('enc_sigil',       -3.0,  3.5, 0.85, 0);
+    kbAt('enc_sigil',        3.0,  3.5, 0.85, 0);
+    kbAt('enc_bookshelf',   -4.5,  2.0, 0.70, Math.PI/2);
+    kbAt('enc_bookshelf',    4.5,  2.0, 0.70, -Math.PI/2);
+    kbAt('enc_armor_chest', -3.5, -1.0, 0.65, 0.3);
+    kbAt('enc_armor_chest',  3.5, -1.0, 0.65, -0.3);
+    kbAt('enc_wash_basin',  -1.2,  2.5, 0.70, 0);
+    kbAt('enc_wash_basin',   1.2,  2.5, 0.70, 0);
+    kbAt('enc_hangingpot',   2.0,  3.2, 0.85, 0);
+    kbAt('enc_hangingpot',  -2.0,  3.2, 0.85, 0);
 
     // 14) 4 chibi NPCs walking the streets
     function placeNpc(colors, path, speed, variant){
