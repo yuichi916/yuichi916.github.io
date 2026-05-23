@@ -3000,8 +3000,8 @@ async function lazyLoadAsset(name, onProgress){
         // GLB's bbox and shift every direct child so the bbox bottom-centre
         // lands at the local (0, 0, 0).
         gltf.scene.updateMatrixWorld(true);
-        const bbox = new THREE.Box3().setFromObject(gltf.scene);
-        const sz   = bbox.getSize(new THREE.Vector3());
+        let bbox = new THREE.Box3().setFromObject(gltf.scene);
+        let sz   = bbox.getSize(new THREE.Vector3());
         // Only re-centre if the bbox is materially off-origin (avoid double-shift
         // on assets that were already authored correctly, e.g. enc_lamppost_a).
         const offX = (bbox.max.x + bbox.min.x) * 0.5;
@@ -3013,7 +3013,11 @@ async function lazyLoadAsset(name, onProgress){
             child.position.z -= offZ;
             child.position.y -= offY;
           }
-          console.log(`niwa: re-centred ${name} (off=${offX.toFixed(1)},${offY.toFixed(1)},${offZ.toFixed(1)} size=${sz.x.toFixed(1)}x${sz.y.toFixed(1)}x${sz.z.toFixed(1)}m)`);
+          gltf.scene.updateMatrixWorld(true);
+          // Recompute bbox in the post-shift coord space — what scenes see.
+          bbox = new THREE.Box3().setFromObject(gltf.scene);
+          sz   = bbox.getSize(new THREE.Vector3());
+          console.log(`niwa: re-centred ${name} (offset=${offX.toFixed(1)},${offY.toFixed(1)},${offZ.toFixed(1)} | new bbox ${sz.x.toFixed(1)}×${sz.y.toFixed(1)}×${sz.z.toFixed(1)}m)`);
         }
         gltf.scene.userData.bbox = bbox;
         gltf.scene.userData.size = sz;
@@ -5007,33 +5011,8 @@ function buildScene(name){
     }
   }
 
-  // === Always-present fallback "garden disc" =============================
-  // Sits at y = -0.02 so the prefab cobble (loaded next at y≈0) covers it
-  // visually. If the prefab fails to load OR is shifted off-centre, the
-  // user still lands on a visible warm-stone circle instead of empty sky.
-  // This also gives sampleHeight() a guaranteed raycast surface inside the
-  // disc, so the avatar never floats over an unloaded scene.
-  if(def.kind !== 'room'){
-    const fallback = new THREE.Mesh(
-      new THREE.CylinderGeometry(SCENE_BOUND + 0.5, SCENE_BOUND + 0.5, 0.12, 64),
-      new THREE.MeshStandardMaterial({color:0x6a5240, roughness:0.95})
-    );
-    fallback.position.y = -0.08;
-    fallback.receiveShadow = true;
-    fallback.userData.isFallbackGround = true;
-    root.add(fallback);
-    // A second, slightly smaller, darker ring for grounded contrast
-    const rim = new THREE.Mesh(
-      new THREE.RingGeometry(SCENE_BOUND - 0.05, SCENE_BOUND + 0.45, 96),
-      new THREE.MeshStandardMaterial({color:0x3a2a1c, roughness:0.95, side:THREE.DoubleSide})
-    );
-    rim.rotation.x = -Math.PI/2;
-    rim.position.y = -0.015;
-    rim.receiveShadow = true;
-    root.add(rim);
-  }
-
-  // Build geometry
+  // Build geometry — the prefab provides its own ground + buildings.
+  // No procedural fallback disc: user wants "prefab だけの世界".
   def.build(root);
   // POST-PASS: every scene gets a continuous world ring + 150+ PBR hero assets
   // + cobble roads leading to every neighbor scene (continuous-world feel).
@@ -5045,8 +5024,50 @@ function buildScene(name){
   // Optional photoreal Gaussian-Splat backdrop (per-scene URL via UI)
   addSplatBackdrop(root, name);
   // Whole-root raycast surface (clicks land anywhere visible inside the
-  // playable disc). Walk-validity is still gated by isWalkable()/SCENE_BOUND.
+  // playable area). Walk-validity is still gated by isWalkable()/playableBounds.
   root.userData.ground = root;
+
+  // === Playable bounds & building AABBs (v617) =====================
+  // The "playable world" is whatever the main prefab covers in XZ.
+  // The avatar can walk anywhere inside that bbox EXCEPT where a tall
+  // (>1.0 m) prefab mesh occupies space — those become AABB obstacles
+  // so the avatar slides along walls instead of clipping through them.
+  ENTITIES.obstacles.length = 0;
+  ENTITIES.boxObstacles = ENTITIES.boxObstacles || [];
+  ENTITIES.boxObstacles.length = 0;
+  const prefabCache = BLENDER_CACHE['enc_prefab_' + name];
+  if(prefabCache && prefabCache.userData && prefabCache.userData.bbox){
+    const bb = prefabCache.userData.bbox;
+    // Shrink slightly so the avatar can't escape via numerical jitter
+    currentScene.playableBounds = {
+      minX: bb.min.x + 0.4, maxX: bb.max.x - 0.4,
+      minZ: bb.min.z + 0.4, maxZ: bb.max.z - 0.4,
+    };
+    // Collect AABBs of TALL prefab meshes — these are walls/buildings.
+    // Skip thin floor/cobble/path meshes (y-extent < 1m).
+    const _box = new THREE.Box3();
+    root.traverse(o => {
+      if(!o.isMesh) return;
+      _box.setFromObject(o);
+      const dy = _box.max.y - _box.min.y;
+      const dx = _box.max.x - _box.min.x;
+      const dz = _box.max.z - _box.min.z;
+      // Tall + non-trivial XZ footprint = a building or wall
+      if(dy > 1.0 && (dx * dz) > 0.3 && (dx * dz) < 800){
+        ENTITIES.boxObstacles.push({
+          minX: _box.min.x, maxX: _box.max.x,
+          minZ: _box.min.z, maxZ: _box.max.z,
+        });
+      }
+    });
+    console.log(`niwa[${name}]: playable XZ ${(bb.max.x-bb.min.x).toFixed(1)}×${(bb.max.z-bb.min.z).toFixed(1)}m, ${ENTITIES.boxObstacles.length} building AABBs`);
+  } else {
+    // Fallback: legacy circular bound (only used if main prefab is missing)
+    currentScene.playableBounds = {
+      minX: -SCENE_BOUND, maxX: SCENE_BOUND,
+      minZ: -SCENE_BOUND, maxZ: SCENE_BOUND,
+    };
+  }
   // Avatar position
   if(def.avatarStart){
     avatar.position.set(def.avatarStart[0], 0, def.avatarStart[1]);
@@ -5885,9 +5906,22 @@ scene.add(invalidMarker);
 let invalidUntil = 0;
 
 function isWalkable(x, z){
-  if(Math.hypot(x, z) > SCENE_BOUND - 0.1) return false;
+  // Clamp to the main prefab's XZ bbox (the "prefab だけの世界")
+  const pb = currentScene && currentScene.playableBounds;
+  if(pb){
+    if(x < pb.minX || x > pb.maxX || z < pb.minZ || z > pb.maxZ) return false;
+  } else {
+    if(Math.hypot(x, z) > SCENE_BOUND - 0.1) return false;
+  }
+  // Legacy circular obstacles (e.g. accent prop trees)
   for(const ob of ENTITIES.obstacles){
     if(Math.hypot(x - ob.x, z - ob.z) < ob.r + AV_RADIUS + 0.05) return false;
+  }
+  // v617: building AABB obstacles — avatar circle vs box (with AV_RADIUS pad)
+  const boxes = ENTITIES.boxObstacles || [];
+  const r = AV_RADIUS + 0.08;
+  for(const b of boxes){
+    if(x > b.minX - r && x < b.maxX + r && z > b.minZ - r && z < b.maxZ + r) return false;
   }
   return true;
 }
@@ -6259,9 +6293,20 @@ function animate(){
   const stepZ = playerVel.z * dt;
   // Slide collision: test X and Z independently so avatar slides along walls
   function blocked(px, pz){
-    if(Math.hypot(px, pz) > SCENE_BOUND) return true;
+    const pb = currentScene && currentScene.playableBounds;
+    if(pb){
+      if(px < pb.minX || px > pb.maxX || pz < pb.minZ || pz > pb.maxZ) return true;
+    } else if(Math.hypot(px, pz) > SCENE_BOUND){
+      return true;
+    }
     for(const ob of ENTITIES.obstacles){
       if(Math.hypot(px - ob.x, pz - ob.z) < ob.r + AV_RADIUS) return true;
+    }
+    // v617: AABB building obstacles
+    const boxes = ENTITIES.boxObstacles || [];
+    const r = AV_RADIUS;
+    for(const b of boxes){
+      if(px > b.minX - r && px < b.maxX + r && pz > b.minZ - r && pz < b.maxZ + r) return true;
     }
     return false;
   }
@@ -6280,7 +6325,10 @@ function animate(){
     avatar.lookAt(avatar.position.x + playerVel.x, avatar.position.y, avatar.position.z + playerVel.z);
   }
   moving = Math.hypot(playerVel.x, playerVel.z) > 0.3;
-  avatar.position.y = sampleHeight(avatar.position.x, avatar.position.z);
+  // Smooth Y-follow over uneven prefab ground — damp toward the sampled
+  // ground height so steps/slopes feel like walking, not teleporting.
+  const targetY = sampleHeight(avatar.position.x, avatar.position.z);
+  avatar.position.y = THREE.MathUtils.damp(avatar.position.y, targetY, 11, dt);
 
   // Damp camera yaw + zoom toward their targets
   camYawState = THREE.MathUtils.damp(camYawState, camYawTarget, 10, dt);
