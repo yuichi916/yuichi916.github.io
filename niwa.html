@@ -130,6 +130,90 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 .zoomBtns.show{display:flex}
 .zoomBtns button{width:44px;height:44px;border-radius:50%;background:rgba(14,26,38,.6);border:1.5px solid rgba(232,220,184,.5);color:#e8dcb8;font-size:18px;cursor:pointer;touch-action:manipulation}
 
+/* ===========================================================
+ * v618/v619 — building interior modal + healing widgets
+ * =========================================================== */
+/* Floating "中に入る" prompt that appears when the avatar is near a door portal */
+#portal-prompt{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);z-index:14;padding:9px 18px;background:rgba(14,26,38,.85);border:1px solid var(--candle);color:var(--paper);font-family:"Shippori Mincho",serif;font-size:13px;letter-spacing:.18em;backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .25s;cursor:pointer}
+#portal-prompt.show{opacity:1;pointer-events:auto}
+#portal-prompt .key{display:inline-block;border:1px solid rgba(232,220,184,.7);padding:1px 6px;margin-right:8px;font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.18em;background:rgba(255,185,104,.18);color:var(--candle)}
+
+/* Interior modal — fullscreen overlay covering the 3D scene */
+#interior-modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(8,14,22,.92);backdrop-filter:blur(10px);opacity:0;transition:opacity .35s}
+#interior-modal.show{display:flex;opacity:1}
+#interior-modal .panel{width:min(720px,calc(100vw - 32px));max-height:calc(100vh - 60px);overflow:auto;background:linear-gradient(170deg,#1a2438 0%,#10182a 60%,#0a1020 100%);border:1px solid rgba(232,220,184,.18);box-shadow:0 30px 80px rgba(0,0,0,.7);padding:28px 32px 24px;color:var(--paper);position:relative;transform:translateY(14px);transition:transform .35s}
+#interior-modal.show .panel{transform:translateY(0)}
+#interior-modal .close{position:absolute;top:12px;right:14px;background:transparent;border:none;color:var(--paper-2);font-family:"Cormorant Garamond",serif;font-size:22px;cursor:pointer;opacity:.5}
+#interior-modal .close:hover{opacity:1}
+#interior-modal .crest{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.32em;color:var(--candle);margin-bottom:8px}
+#interior-modal h2{font-family:"Shippori Mincho",serif;font-weight:700;font-size:24px;letter-spacing:.14em;margin:0 0 4px;color:var(--paper)}
+#interior-modal .en{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:14px;letter-spacing:.16em;color:var(--paper-2);opacity:.7;margin-bottom:18px}
+#interior-modal .flavor{font-family:"Shippori Mincho",serif;font-size:13.5px;line-height:1.85;color:var(--paper-2);margin-bottom:22px}
+#interior-modal .widget{margin:18px 0 24px;min-height:200px;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(255,185,104,.06) 0%,rgba(14,26,38,.4) 100%);border:1px solid rgba(232,220,184,.08);padding:18px;position:relative;overflow:hidden}
+#interior-modal .links{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+#interior-modal .links a,#interior-modal .links button{display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;background:transparent;color:var(--candle);padding:9px 14px;border:1px solid var(--candle);transition:background .2s,color .2s;cursor:pointer}
+#interior-modal .links a:hover,#interior-modal .links button:hover{background:var(--candle);color:var(--ink)}
+#interior-modal .links .arrow{font-family:"Cormorant Garamond",serif;font-size:14px}
+#interior-modal .return-btn{display:block;margin:14px auto 0;background:transparent;color:var(--paper-2);border:1px solid var(--paper-2);font-family:"Shippori Mincho",serif;font-size:12px;letter-spacing:.18em;padding:10px 22px;cursor:pointer;transition:background .2s,color .2s}
+#interior-modal .return-btn:hover{background:var(--paper-2);color:var(--ink)}
+
+/* === Healing widgets ====================================== */
+/* Breathing ring (used by book-breath, candle-breath, etc.) */
+.breath-ring{position:relative;width:140px;height:140px;display:flex;align-items:center;justify-content:center}
+.breath-ring .ring{position:absolute;inset:0;border:2px solid var(--candle);border-radius:50%;opacity:.7;transform:scale(0.5);transition:transform 4s cubic-bezier(.4,0,.6,1),opacity 4s}
+.breath-ring .ring.in{transform:scale(1);opacity:1}
+.breath-ring .label{font-family:"Shippori Mincho",serif;font-size:13px;letter-spacing:.16em;color:var(--candle);text-align:center;line-height:1.4}
+.breath-ring .label .sub{display:block;font-family:"JetBrains Mono",monospace;font-size:9.5px;color:var(--paper-2);letter-spacing:.24em;margin-top:3px}
+
+/* Meditation timer */
+.med-timer{text-align:center}
+.med-timer .display{font-family:"JetBrains Mono",monospace;font-size:42px;letter-spacing:.16em;color:var(--candle);margin-bottom:14px;font-variant-numeric:tabular-nums}
+.med-timer .picks{display:flex;gap:8px;justify-content:center;margin-bottom:14px}
+.med-timer .picks button{background:transparent;border:1px solid var(--paper-2);color:var(--paper-2);font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.2em;padding:7px 11px;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.med-timer .picks button.active,.med-timer .picks button:hover{background:var(--candle);color:var(--ink);border-color:var(--candle)}
+.med-timer .start{background:transparent;border:1px solid var(--candle);color:var(--candle);font-family:"Shippori Mincho",serif;font-size:13px;letter-spacing:.18em;padding:9px 24px;cursor:pointer}
+.med-timer .start:hover{background:var(--candle);color:var(--ink)}
+
+/* Starfield (SVG) — slow rotating dots */
+.starfield{width:100%;height:200px;position:relative;overflow:hidden}
+.starfield svg{width:100%;height:100%}
+.starfield .star{fill:#fff;opacity:.5}
+.starfield .star.bright{opacity:1;filter:drop-shadow(0 0 4px #ffd890)}
+
+/* Candle flame (SVG flicker) */
+.candle-flame{display:flex;flex-direction:column;align-items:center;gap:12px}
+.candle-flame .wick{width:4px;height:60px;background:#3a2810;border-radius:2px;position:relative}
+.candle-flame .flame{width:18px;height:34px;background:radial-gradient(ellipse at center bottom,#ffd890 0%,#ff8838 60%,transparent 100%);position:absolute;left:50%;top:-30px;transform:translateX(-50%);border-radius:50% 50% 50% 50% / 70% 70% 30% 30%;animation:flicker 1.2s infinite ease-in-out;filter:drop-shadow(0 0 12px #ffaa55)}
+@keyframes flicker{0%,100%{transform:translateX(-50%) scale(1) rotate(-1deg)}33%{transform:translateX(-50%) scale(1.05,0.95) rotate(2deg)}66%{transform:translateX(-50%) scale(0.97,1.04) rotate(-1.5deg)}}
+.candle-flame .candle{width:24px;height:80px;background:linear-gradient(180deg,#e8dcb8 0%,#c8b890 100%);border:1px solid #a89868;border-radius:2px}
+
+/* Rain animation (CSS lines falling) */
+.rain-bath{position:relative;width:240px;height:200px;overflow:hidden;background:linear-gradient(180deg,rgba(122,138,156,.18) 0%,rgba(122,138,156,.04) 100%);border:1px solid rgba(232,220,184,.12)}
+.rain-bath .drop{position:absolute;top:-30px;width:1.5px;height:24px;background:linear-gradient(180deg,transparent 0%,rgba(232,220,184,.7) 100%);animation:rainfall linear infinite}
+@keyframes rainfall{from{transform:translateY(-30px)}to{transform:translateY(240px)}}
+
+/* Stream rhythm (water ripples) */
+.stream{position:relative;width:240px;height:140px;background:radial-gradient(ellipse at center,rgba(122,180,200,.3) 0%,rgba(58,90,110,.1) 100%);overflow:hidden}
+.stream .ripple{position:absolute;left:50%;top:50%;width:30px;height:30px;border:1.5px solid rgba(232,220,184,.7);border-radius:50%;transform:translate(-50%,-50%) scale(0);animation:rippleOut 3s ease-out infinite}
+@keyframes rippleOut{from{transform:translate(-50%,-50%) scale(0);opacity:1}to{transform:translate(-50%,-50%) scale(7);opacity:0}}
+
+/* Weave rhythm (loom shuttles) */
+.loom{display:flex;flex-direction:column;gap:6px;width:240px}
+.loom .thread{height:3px;background:linear-gradient(90deg,#8a6840 0%,#c8a878 50%,#8a6840 100%);width:100%;border-radius:2px;animation:weaveShift 2s ease-in-out infinite}
+.loom .thread:nth-child(2n){background:linear-gradient(90deg,#5a3a28 0%,#a88560 50%,#5a3a28 100%);animation-delay:.6s}
+.loom .thread:nth-child(3n){background:linear-gradient(90deg,#6a4828 0%,#b89060 50%,#6a4828 100%);animation-delay:1.2s}
+@keyframes weaveShift{0%,100%{transform:translateX(-3%)}50%{transform:translateX(3%)}}
+
+/* Aroma — warm gradient with light orbs */
+.aroma{position:relative;width:240px;height:180px;background:radial-gradient(ellipse at 30% 70%,rgba(255,185,104,.35) 0%,transparent 60%),radial-gradient(ellipse at 70% 40%,rgba(220,150,80,.3) 0%,transparent 60%),linear-gradient(180deg,#3a2a18 0%,#1a1208 100%);overflow:hidden}
+.aroma .orb{position:absolute;width:8px;height:8px;border-radius:50%;background:radial-gradient(circle,#ffd890 0%,transparent 70%);animation:rise linear infinite}
+@keyframes rise{from{transform:translateY(0);opacity:.8}to{transform:translateY(-200px);opacity:0}}
+
+/* Travel-journal page */
+.journal{padding:18px;background:linear-gradient(170deg,#e8dcb8 0%,#d6c89a 100%);color:var(--ink);font-family:"Shippori Mincho",serif;font-size:13.5px;line-height:1.9;width:100%;border:1px solid rgba(27,26,20,.18)}
+.journal .stamp{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.28em;color:#b04030;margin-bottom:10px}
+.journal .pin{display:inline-block;width:8px;height:8px;background:#b04030;border-radius:50%;margin-right:6px;vertical-align:middle}
+
 /* First-run onboarding overlay */
 .onboarding{position:fixed;inset:0;z-index:80;background:rgba(14,26,38,.85);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;color:var(--paper);transition:opacity .3s}
 .onboarding.show{display:flex}
@@ -170,6 +254,22 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   <div class="en" id="trans-en">walking on</div>
   <div class="bar"><div class="fill" id="trans-loadbar"></div></div>
   <div class="pct" id="trans-loadpct">LOADING · 0MB</div>
+</div>
+
+<!-- v618 — door portal prompt + interior modal -->
+<div id="portal-prompt"><span class="key">E</span><span id="portal-prompt-label">中に入る</span></div>
+
+<div id="interior-modal">
+  <div class="panel">
+    <button class="close" id="interior-close" aria-label="閉じる">×</button>
+    <div class="crest" id="interior-crest">№ — · INTERIOR</div>
+    <h2 id="interior-title">…</h2>
+    <div class="en" id="interior-en">inside</div>
+    <div class="flavor" id="interior-flavor"></div>
+    <div class="widget" id="interior-widget"></div>
+    <div class="links" id="interior-links"></div>
+    <button class="return-btn" id="interior-return">外に戻る</button>
+  </div>
 </div>
 
 <canvas id="webgl"></canvas>
@@ -4968,6 +5068,10 @@ function clearScene(){
   ENTITIES.obstacles.length = 0;
   TREE_GROUPS.length = 0;
   densifyWindUniforms.length = 0;
+  // v618: reset portal state when leaving a scene
+  if(typeof currentPortal !== 'undefined') currentPortal = null;
+  if(typeof portalHover !== 'undefined') portalHover = false;
+  if(typeof hidePortalPrompt === 'function') hidePortalPrompt();
 }
 
 function buildScene(name){
@@ -5068,6 +5172,8 @@ function buildScene(name){
       minZ: -SCENE_BOUND, maxZ: SCENE_BOUND,
     };
   }
+  // v618: drop a door portal in front of the building
+  if(typeof addPortalForScene === 'function') addPortalForScene(name);
   // Avatar position
   if(def.avatarStart){
     avatar.position.set(def.avatarStart[0], 0, def.avatarStart[1]);
@@ -5696,6 +5802,509 @@ async function switchScene(name){
   try { renderer.render(scene, camera); } catch(_){}
   await new Promise(r => setTimeout(r, 80));
   hideTransSplash();
+}
+
+/* =================================================================
+ * v618 / v619 — Building entry portals + healing interior modal
+ *
+ * Each outdoor scene gets one "door portal" placed at the front of
+ * the prefab.  When the avatar walks within `radius` of the portal,
+ * a #portal-prompt overlay appears; pressing E or clicking the
+ * portal/prompt opens #interior-modal with that scene's healing
+ * widget and any external content links.
+ *
+ * Healing widgets are pure DOM/SVG/CSS (see the CSS block above),
+ * keeping the modal lightweight and avoiding a second Three.js
+ * canvas.  When the Enchanted Interiors extract (`enc_int_*.glb`)
+ * is ready, a 3D mini-room can be added behind the widget later.
+ * ================================================================= */
+
+const INTERIOR_CONTENT = {
+  plaza: null,  // plaza is the outdoor entry — no indoor
+  monlight: {
+    title: '月光の書架の中',
+    en: 'Inside the Moonlit Stacks',
+    flavor: '本の匂い、紙の沈黙。窓から差す月の光が、開いたページに静かに落ちる。一冊、ゆっくり開いてみる。',
+    widget: 'book-breath',
+    links: [],
+  },
+  oto: {
+    title: '水車小屋の中',
+    en: 'Inside the Watermill',
+    flavor: '木の床がきしむ。水車の音が壁の向こうから、規則正しく、ゆっくり、ずっと続いている。',
+    widget: 'stream-rhythm',
+    links: [
+      { href: 'hitoritabi/', label: '一人旅へ', en: 'wander' },
+    ],
+  },
+  tabi: {
+    title: '旅の宿の中',
+    en: "Inside the Traveler's Inn",
+    flavor: '暖炉の前の椅子。誰かが残した旅の記録が机の上にある。次の道を、ここでゆっくり選ぼう。',
+    widget: 'travel-journal',
+    links: [
+      { href: 'hitoritabi/', label: '一人旅の記録', en: 'journeys' },
+    ],
+  },
+  toki: {
+    title: '時計塔の中',
+    en: 'Inside the Clock Tower',
+    flavor: '振り子の音だけが部屋を満たす。1秒、また1秒。心を時間の流れに預けてみる。',
+    widget: 'meditation-timer',
+    links: [
+      { href: 'stopwatch.html', label: '専用タイマー', en: 'stopwatch' },
+    ],
+  },
+  hoshi: {
+    title: '骨董屋の中',
+    en: 'Inside the Antiquarian',
+    flavor: '天井いっぱいに星のような小さなランプが揺れている。古い天球儀。今夜の星を見つけてみよう。',
+    widget: 'starfield',
+    links: [],
+  },
+  takibi: {
+    title: 'ろうそく屋の中',
+    en: 'Inside the Candle Maker',
+    flavor: '一本のろうそくの炎を見つめる。吸って4つ、止めて7つ、吐いて8つ。炎が呼吸と同じ速さで揺れる。',
+    widget: 'candle-breath',
+    links: [],
+  },
+  mizube: {
+    title: '機織り屋の中',
+    en: "Inside the Weaver's Hut",
+    flavor: 'シャトルが横糸を通す。トン、トン、トン。一定のリズムで布が長くなっていく。考え事を、織り込んでみる。',
+    widget: 'weave-rhythm',
+    links: [],
+  },
+  amaoto: {
+    title: '雨音の教会の中',
+    en: 'Inside the Rain Chapel',
+    flavor: 'ステンドグラスの色が床に落ちている。屋根を打つ雨音だけが、世界の音のすべて。耳をすませる。',
+    widget: 'rain-bath',
+    links: [],
+  },
+  heya: {
+    title: 'パン屋の中',
+    en: 'Inside the Bakery',
+    flavor: '小麦と焦げた砂糖の香り。窓辺の植木鉢。焼きたてのパンと、流れる音楽。誰かの台所に紛れ込んだみたいな安心感。',
+    widget: 'aroma-comfort',
+    links: [
+      { href: 'salon.html', label: '音楽の宇宙へ', en: 'music galaxy' },
+    ],
+  },
+};
+
+// Per-scene portal placement (in scene coords, relative to the prefab centre).
+// The avatar interacts with this portal via proximity + click or E key.
+// Sized to land just in front of the main building (z positive) within the
+// playable bounds.
+const PORTAL_PLACEMENT = {
+  monlight: { x:  0, z:  3.5, radius: 1.8, label: '書架へ' },
+  oto:      { x:  0, z:  3.5, radius: 1.8, label: '水車へ' },
+  tabi:     { x:  0, z:  3.5, radius: 1.8, label: '宿へ' },
+  toki:     { x:  0, z:  3.5, radius: 1.8, label: '時計塔へ' },
+  hoshi:    { x:  0, z:  3.5, radius: 1.8, label: '骨董屋へ' },
+  takibi:   { x:  0, z:  3.5, radius: 1.8, label: 'ろうそく屋へ' },
+  mizube:   { x:  0, z:  3.5, radius: 1.8, label: '工房へ' },
+  amaoto:   { x:  0, z:  3.5, radius: 1.8, label: '教会へ' },
+  heya:     { x:  0, z:  3.5, radius: 1.8, label: 'パン屋へ' },
+};
+
+let currentPortal = null;       // THREE.Group of the active portal, OR null
+let portalHover = false;        // is avatar inside portal radius?
+const portalPromptEl = document.getElementById('portal-prompt');
+const portalPromptLabelEl = document.getElementById('portal-prompt-label');
+
+function makeDoorPortal(label){
+  // Glowing arch — short curved gateway. Built procedurally so it always
+  // matches the diorama palette regardless of prefab choice.
+  const g = new THREE.Group();
+  // Left + right gate post
+  for(let side of [-1, 1]){
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.10, 0.10, 1.8, 12),
+      new THREE.MeshStandardMaterial({color:0x4a3018, roughness:0.7})
+    );
+    post.position.set(side * 0.55, 0.9, 0); post.castShadow = true;
+    g.add(post);
+    // Lantern atop each post
+    const lantern = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.20, 0.16),
+      new THREE.MeshStandardMaterial({color:0xffd890, emissive:0xffaa55, emissiveIntensity:1.4, transparent:true, opacity:0.9})
+    );
+    lantern.position.set(side * 0.55, 1.9, 0);
+    g.add(lantern);
+  }
+  // Top arch beam
+  const beam = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 0.10, 0.16),
+    new THREE.MeshStandardMaterial({color:0x4a3018, roughness:0.7})
+  );
+  beam.position.set(0, 1.85, 0); beam.castShadow = true;
+  g.add(beam);
+  // Hanging plaque with label
+  const sc = document.createElement('canvas');
+  sc.width = 320; sc.height = 80;
+  const sx = sc.getContext('2d');
+  sx.fillStyle = '#3a2818'; sx.fillRect(0, 0, 320, 80);
+  sx.strokeStyle = '#c89848'; sx.lineWidth = 3;
+  sx.strokeRect(4, 4, 312, 72);
+  sx.fillStyle = '#e8dcb8';
+  sx.font = 'bold 28px "Shippori Mincho", serif';
+  sx.textAlign = 'center'; sx.textBaseline = 'middle';
+  sx.fillText(label || '中へ', 160, 44);
+  const plaqueTex = new THREE.CanvasTexture(sc);
+  plaqueTex.colorSpace = THREE.SRGBColorSpace;
+  const plaque = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.1, 0.28),
+    new THREE.MeshBasicMaterial({map: plaqueTex, transparent: true})
+  );
+  plaque.position.set(0, 1.55, 0.09);
+  g.add(plaque);
+  // Doorway glow halo on the ground
+  const halo = new THREE.Mesh(
+    new THREE.RingGeometry(0.5, 0.95, 32),
+    new THREE.MeshBasicMaterial({color:0xffd890, transparent:true, opacity:0.30, side:THREE.DoubleSide, depthWrite:false})
+  );
+  halo.rotation.x = -Math.PI / 2; halo.position.y = 0.02;
+  g.add(halo);
+  g.userData.halo = halo;
+  return g;
+}
+
+function addPortalForScene(name){
+  if(currentPortal){ try { currentScene && currentScene.root.remove(currentPortal); } catch(_){} currentPortal = null; }
+  if(!currentScene) return;
+  const cfg = PORTAL_PLACEMENT[name];
+  if(!cfg) return;
+  const pb = currentScene.playableBounds;
+  // Keep the portal strictly inside playable bounds (shrink margin)
+  const x = Math.max(pb ? pb.minX + 1.0 : -SCENE_BOUND + 1, Math.min(pb ? pb.maxX - 1.0 : SCENE_BOUND - 1, cfg.x));
+  const z = Math.max(pb ? pb.minZ + 1.0 : -SCENE_BOUND + 1, Math.min(pb ? pb.maxZ - 1.0 : SCENE_BOUND - 1, cfg.z));
+  const portal = makeDoorPortal(cfg.label);
+  portal.position.set(x, 0, z);
+  portal.userData.kind = 'door';
+  portal.userData.scene = name;
+  portal.userData.cfg = { x, z, radius: cfg.radius, label: cfg.label };
+  currentScene.root.add(portal);
+  currentPortal = portal;
+}
+
+function showPortalPrompt(label){
+  if(!portalPromptEl) return;
+  if(portalPromptLabelEl) portalPromptLabelEl.textContent = label || '中に入る';
+  portalPromptEl.classList.add('show');
+}
+function hidePortalPrompt(){
+  if(portalPromptEl) portalPromptEl.classList.remove('show');
+}
+
+/* ---------- Interior modal control ------------------------------- */
+const interiorModalEl = document.getElementById('interior-modal');
+const interiorCrestEl = document.getElementById('interior-crest');
+const interiorTitleEl = document.getElementById('interior-title');
+const interiorEnEl    = document.getElementById('interior-en');
+const interiorFlavorEl= document.getElementById('interior-flavor');
+const interiorWidgetEl= document.getElementById('interior-widget');
+const interiorLinksEl = document.getElementById('interior-links');
+
+let activeWidgetCleanup = null;   // function to stop intervals / oscillators
+
+function openInterior(sceneName){
+  const content = INTERIOR_CONTENT[sceneName];
+  if(!content){ return; }
+  const def = SCENES[sceneName];
+  interiorCrestEl.textContent = `№ ${def?.num || '—'} · ${(def?.kind || 'INTERIOR').toUpperCase()}`;
+  interiorTitleEl.textContent = content.title;
+  interiorEnEl.textContent = content.en;
+  interiorFlavorEl.textContent = content.flavor;
+  // Cleanup any prior widget
+  if(activeWidgetCleanup){ try{ activeWidgetCleanup(); }catch(_){} activeWidgetCleanup = null; }
+  interiorWidgetEl.innerHTML = '';
+  activeWidgetCleanup = buildHealingWidget(content.widget, interiorWidgetEl);
+  // Links
+  interiorLinksEl.innerHTML = '';
+  for(const l of (content.links || [])){
+    const a = document.createElement('a');
+    a.href = l.href; a.target = '_self';
+    a.innerHTML = `${l.label} <span class="arrow">→</span><br><span style="opacity:.55;font-size:9px">${l.en || ''}</span>`;
+    interiorLinksEl.appendChild(a);
+  }
+  interiorModalEl.classList.add('show');
+  uiSfx('open');
+}
+function closeInterior(){
+  interiorModalEl.classList.remove('show');
+  if(activeWidgetCleanup){ try{ activeWidgetCleanup(); }catch(_){} activeWidgetCleanup = null; }
+  interiorWidgetEl.innerHTML = '';
+}
+document.getElementById('interior-close').addEventListener('click', closeInterior);
+document.getElementById('interior-return').addEventListener('click', closeInterior);
+interiorModalEl.addEventListener('click', e => { if(e.target === interiorModalEl) closeInterior(); });
+window.addEventListener('keydown', e => {
+  if(e.key === 'Escape') closeInterior();
+  if((e.key === 'e' || e.key === 'E') && portalHover && currentScene && currentScene.name){
+    openInterior(currentScene.name);
+  }
+});
+// Click on prompt = enter
+portalPromptEl.addEventListener('click', () => {
+  if(currentScene && currentScene.name) openInterior(currentScene.name);
+});
+
+/* ---------- Healing widget builders ------------------------------ */
+function buildHealingWidget(kind, host){
+  if(kind === 'book-breath' || kind === 'candle-breath'){
+    return buildBreathRing(host, kind === 'candle-breath');
+  }
+  if(kind === 'meditation-timer') return buildMedTimer(host);
+  if(kind === 'starfield')        return buildStarfield(host);
+  if(kind === 'rain-bath')        return buildRainBath(host);
+  if(kind === 'stream-rhythm')    return buildStreamRhythm(host);
+  if(kind === 'weave-rhythm')     return buildWeaveRhythm(host);
+  if(kind === 'aroma-comfort')    return buildAromaComfort(host);
+  if(kind === 'travel-journal')   return buildTravelJournal(host);
+  return null;
+}
+
+function buildBreathRing(host, isCandle){
+  // 4-7-8 breathing — total 19 s per cycle.
+  const wrap = document.createElement('div');
+  wrap.className = 'breath-ring';
+  if(isCandle){
+    const cf = document.createElement('div');
+    cf.className = 'candle-flame';
+    cf.innerHTML = '<div class="wick"><div class="flame"></div></div><div class="candle"></div>';
+    wrap.appendChild(cf);
+  } else {
+    const ring = document.createElement('div'); ring.className = 'ring';
+    const label = document.createElement('div'); label.className = 'label';
+    label.innerHTML = '<span id="breath-phase">吸って</span><span class="sub" id="breath-count">4</span>';
+    wrap.appendChild(ring); wrap.appendChild(label);
+  }
+  host.appendChild(wrap);
+  const phaseEl = wrap.querySelector('#breath-phase');
+  const countEl = wrap.querySelector('#breath-count');
+  const ringEl = wrap.querySelector('.ring');
+  const phases = [
+    { name: '吸って', dur: 4, expand: true },
+    { name: '止めて', dur: 7, expand: null },
+    { name: '吐いて', dur: 8, expand: false },
+  ];
+  let pi = 0, secLeft = phases[0].dur;
+  function tick(){
+    if(phaseEl) phaseEl.textContent = phases[pi].name;
+    if(countEl) countEl.textContent = String(secLeft);
+    if(ringEl){
+      ringEl.style.transitionDuration = `${phases[pi].dur}s`;
+      if(phases[pi].expand === true) ringEl.classList.add('in');
+      else if(phases[pi].expand === false) ringEl.classList.remove('in');
+    }
+  }
+  tick();
+  const iv = setInterval(() => {
+    secLeft--;
+    if(secLeft <= 0){
+      pi = (pi + 1) % phases.length;
+      secLeft = phases[pi].dur;
+    }
+    tick();
+  }, 1000);
+  return () => clearInterval(iv);
+}
+
+function buildMedTimer(host){
+  const wrap = document.createElement('div'); wrap.className = 'med-timer';
+  wrap.innerHTML = `
+    <div class="display" id="med-display">05:00</div>
+    <div class="picks">
+      <button data-min="3">3 分</button>
+      <button data-min="5" class="active">5 分</button>
+      <button data-min="10">10 分</button>
+      <button data-min="20">20 分</button>
+    </div>
+    <button class="start" id="med-start">はじめる</button>
+  `;
+  host.appendChild(wrap);
+  let totalSec = 5 * 60, running = false, remaining = totalSec, iv = null;
+  const dispEl = wrap.querySelector('#med-display');
+  const startEl = wrap.querySelector('#med-start');
+  function fmt(s){ const m = Math.floor(s/60); const ss = s%60; return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; }
+  function render(){ dispEl.textContent = fmt(remaining); }
+  function bell(){
+    try{
+      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.frequency.value = 528; o.type = 'sine';
+      o.connect(g).connect(ctx.destination);
+      g.gain.setValueAtTime(0.18, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 3.0);
+      o.start(); o.stop(ctx.currentTime + 3.1);
+    } catch(_){}
+  }
+  wrap.querySelectorAll('.picks button').forEach(b => {
+    b.addEventListener('click', () => {
+      if(running) return;
+      wrap.querySelectorAll('.picks button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      totalSec = parseInt(b.dataset.min, 10) * 60;
+      remaining = totalSec; render();
+    });
+  });
+  startEl.addEventListener('click', () => {
+    if(running){
+      clearInterval(iv); running = false; iv = null;
+      startEl.textContent = 'はじめる';
+      return;
+    }
+    running = true; remaining = totalSec; render();
+    startEl.textContent = 'やめる';
+    iv = setInterval(() => {
+      remaining--;
+      if(remaining <= 0){
+        clearInterval(iv); running = false; iv = null;
+        startEl.textContent = 'はじめる';
+        bell();
+      }
+      render();
+    }, 1000);
+  });
+  render();
+  return () => { if(iv) clearInterval(iv); };
+}
+
+function buildStarfield(host){
+  const wrap = document.createElement('div'); wrap.className = 'starfield';
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 400 200');
+  const stars = [];
+  for(let i = 0; i < 80; i++){
+    const c = document.createElementNS(svgNS, 'circle');
+    const x = Math.random() * 400, y = Math.random() * 200;
+    c.setAttribute('cx', x); c.setAttribute('cy', y);
+    const bright = Math.random() < 0.18;
+    c.setAttribute('r', bright ? 2.0 : 0.9);
+    c.setAttribute('class', bright ? 'star bright' : 'star');
+    svg.appendChild(c);
+    stars.push({ el: c, baseOpacity: bright ? 1 : 0.3 + Math.random() * 0.4, phase: Math.random() * Math.PI * 2 });
+  }
+  wrap.appendChild(svg); host.appendChild(wrap);
+  let t0 = performance.now();
+  let raf;
+  function tick(now){
+    const dt = (now - t0) / 1000;
+    for(const s of stars){
+      const k = (Math.sin(dt * 0.8 + s.phase) + 1) * 0.5;
+      s.el.setAttribute('opacity', String(s.baseOpacity * (0.5 + 0.5 * k)));
+    }
+    raf = requestAnimationFrame(tick);
+  }
+  raf = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(raf);
+}
+
+function buildRainBath(host){
+  const wrap = document.createElement('div'); wrap.className = 'rain-bath';
+  for(let i = 0; i < 80; i++){
+    const d = document.createElement('div'); d.className = 'drop';
+    d.style.left = `${Math.random() * 100}%`;
+    d.style.animationDuration = `${0.6 + Math.random() * 0.7}s`;
+    d.style.animationDelay = `${-Math.random() * 1.5}s`;
+    wrap.appendChild(d);
+  }
+  host.appendChild(wrap);
+  // ambient rain WebAudio
+  let cleanup = null;
+  try {
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const noise = ctx.createBufferSource();
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.6;
+    noise.buffer = buf; noise.loop = true;
+    const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 1800;
+    const gain = ctx.createGain(); gain.gain.value = 0.05;
+    noise.connect(filt).connect(gain).connect(ctx.destination);
+    noise.start();
+    cleanup = () => { try{ noise.stop(); ctx.close(); }catch(_){} };
+  } catch(_){}
+  return cleanup;
+}
+
+function buildStreamRhythm(host){
+  const wrap = document.createElement('div'); wrap.className = 'stream';
+  for(let i = 0; i < 4; i++){
+    const r = document.createElement('div'); r.className = 'ripple';
+    r.style.animationDelay = `${i * 0.75}s`;
+    wrap.appendChild(r);
+  }
+  host.appendChild(wrap);
+  let cleanup = null;
+  try {
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.4;
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 600; filt.Q.value = 2;
+    const g = ctx.createGain(); g.gain.value = 0.06;
+    src.connect(filt).connect(g).connect(ctx.destination);
+    src.start();
+    cleanup = () => { try{ src.stop(); ctx.close(); }catch(_){} };
+  } catch(_){}
+  return cleanup;
+}
+
+function buildWeaveRhythm(host){
+  const wrap = document.createElement('div'); wrap.className = 'loom';
+  for(let i = 0; i < 10; i++){
+    const t = document.createElement('div'); t.className = 'thread';
+    wrap.appendChild(t);
+  }
+  host.appendChild(wrap);
+  // Soft click every 2 s
+  let cleanup = null;
+  try {
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const iv = setInterval(() => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.frequency.value = 220; o.type = 'triangle';
+      o.connect(g).connect(ctx.destination);
+      g.gain.setValueAtTime(0.05, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+      o.start(); o.stop(ctx.currentTime + 0.2);
+    }, 2000);
+    cleanup = () => { clearInterval(iv); try{ ctx.close(); }catch(_){} };
+  } catch(_){}
+  return cleanup;
+}
+
+function buildAromaComfort(host){
+  const wrap = document.createElement('div'); wrap.className = 'aroma';
+  for(let i = 0; i < 18; i++){
+    const o = document.createElement('div'); o.className = 'orb';
+    o.style.left = `${10 + Math.random() * 80}%`;
+    o.style.bottom = `${Math.random() * 30}%`;
+    o.style.animationDuration = `${4 + Math.random() * 3}s`;
+    o.style.animationDelay = `${-Math.random() * 4}s`;
+    wrap.appendChild(o);
+  }
+  host.appendChild(wrap);
+  return null;
+}
+
+function buildTravelJournal(host){
+  const wrap = document.createElement('div'); wrap.className = 'journal';
+  wrap.innerHTML = `
+    <div class="stamp">№ TRAVELLER'S RECORD</div>
+    <p><span class="pin"></span>霧の村「雲落ち」を出て、東の湖を目指す。</p>
+    <p><span class="pin"></span>静かな宿で一晩。窓から月が見えた。</p>
+    <p><span class="pin"></span>明日は水車のある小川沿いを歩こう。</p>
+    <p style="margin-top:14px;font-size:11px;color:#7a6a48">続きは「一人旅」ページで。</p>
+  `;
+  host.appendChild(wrap);
+  return null;
 }
 
 /* === Modal + hearts ====================================== */
@@ -6329,6 +6938,23 @@ function animate(){
   // ground height so steps/slopes feel like walking, not teleporting.
   const targetY = sampleHeight(avatar.position.x, avatar.position.z);
   avatar.position.y = THREE.MathUtils.damp(avatar.position.y, targetY, 11, dt);
+
+  // v618: Portal proximity check (every frame) — show "中に入る" prompt
+  // when the avatar steps inside the door portal's radius.
+  if(currentPortal){
+    const pc = currentPortal.userData.cfg;
+    const d = Math.hypot(avatar.position.x - pc.x, avatar.position.z - pc.z);
+    const wasHover = portalHover;
+    portalHover = d < pc.radius;
+    if(portalHover && !wasHover){ showPortalPrompt(pc.label); }
+    else if(!portalHover && wasHover){ hidePortalPrompt(); }
+    // Gentle vertical drift for the halo to make the portal feel alive
+    if(currentPortal.userData.halo){
+      currentPortal.userData.halo.material.opacity = 0.22 + 0.10 * Math.sin(performance.now() * 0.0018);
+    }
+  } else if(portalHover){
+    portalHover = false; hidePortalPrompt();
+  }
 
   // Damp camera yaw + zoom toward their targets
   camYawState = THREE.MathUtils.damp(camYawState, camYawTarget, 10, dt);
