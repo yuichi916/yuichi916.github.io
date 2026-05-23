@@ -2991,6 +2991,32 @@ async function lazyLoadAsset(name, onProgress){
       const gltf = await loadGLB(url, onProgress);
       if(gltf && gltf.scene){
         _decorateGLB(gltf.scene);
+        // === Bbox-centre + bottom-anchor =========================================
+        // The Blender extract script tried to centre each prefab at origin and put
+        // its base at z=0, but `o.location` adjustments don't move vertex data —
+        // glTF nodes were exported with whatever world coords the meshes had in
+        // the master .blend. Result: the prefab cobble disc renders OFF-SCREEN
+        // and the avatar lands on empty sky. Fix here in JS: compute the loaded
+        // GLB's bbox and shift every direct child so the bbox bottom-centre
+        // lands at the local (0, 0, 0).
+        gltf.scene.updateMatrixWorld(true);
+        const bbox = new THREE.Box3().setFromObject(gltf.scene);
+        const sz   = bbox.getSize(new THREE.Vector3());
+        // Only re-centre if the bbox is materially off-origin (avoid double-shift
+        // on assets that were already authored correctly, e.g. enc_lamppost_a).
+        const offX = (bbox.max.x + bbox.min.x) * 0.5;
+        const offZ = (bbox.max.z + bbox.min.z) * 0.5;
+        const offY = bbox.min.y;
+        if(Math.abs(offX) > 0.02 || Math.abs(offZ) > 0.02 || Math.abs(offY) > 0.02){
+          for(const child of gltf.scene.children){
+            child.position.x -= offX;
+            child.position.z -= offZ;
+            child.position.y -= offY;
+          }
+          console.log(`niwa: re-centred ${name} (off=${offX.toFixed(1)},${offY.toFixed(1)},${offZ.toFixed(1)} size=${sz.x.toFixed(1)}x${sz.y.toFixed(1)}x${sz.z.toFixed(1)}m)`);
+        }
+        gltf.scene.userData.bbox = bbox;
+        gltf.scene.userData.size = sz;
         // Mark shared so clearScene() doesn't dispose cached resources.
         gltf.scene.traverse(o => {
           if(o.geometry) o.geometry.userData = Object.assign(o.geometry.userData || {}, {shared: true});
@@ -4683,14 +4709,11 @@ function makeAvatar(){
         new THREE.MeshStandardMaterial({color:0xe8c460, roughness:0.35, metalness:0.7}));
       band.position.y = 0.94; band.rotation.x = Math.PI/2;
       staffG.add(band);
-      // A soft cool light from the crystal — subtle counterpoint to the
-      // warm lantern on the other side
-      const cryLight = new THREE.PointLight(0x8acce8, 0.4, 4, 1.4);
-      cryLight.position.y = 1.00;
-      staffG.add(cryLight);
+      // No real PointLight on the crystal — the emissive material is
+      // already enough, and Three.js' WebGL renderer caps dynamic lights
+      // before tab-crashing on weaker GPUs. The lantern keeps its light.
       a.add(staffG);
       a.userData.staff = staffG;
-      a.userData.staffLight = cryLight;
     }
     return a;
   }
@@ -4982,6 +5005,32 @@ function buildScene(name){
         }
       });
     }
+  }
+
+  // === Always-present fallback "garden disc" =============================
+  // Sits at y = -0.02 so the prefab cobble (loaded next at y≈0) covers it
+  // visually. If the prefab fails to load OR is shifted off-centre, the
+  // user still lands on a visible warm-stone circle instead of empty sky.
+  // This also gives sampleHeight() a guaranteed raycast surface inside the
+  // disc, so the avatar never floats over an unloaded scene.
+  if(def.kind !== 'room'){
+    const fallback = new THREE.Mesh(
+      new THREE.CylinderGeometry(SCENE_BOUND + 0.5, SCENE_BOUND + 0.5, 0.12, 64),
+      new THREE.MeshStandardMaterial({color:0x6a5240, roughness:0.95})
+    );
+    fallback.position.y = -0.08;
+    fallback.receiveShadow = true;
+    fallback.userData.isFallbackGround = true;
+    root.add(fallback);
+    // A second, slightly smaller, darker ring for grounded contrast
+    const rim = new THREE.Mesh(
+      new THREE.RingGeometry(SCENE_BOUND - 0.05, SCENE_BOUND + 0.45, 96),
+      new THREE.MeshStandardMaterial({color:0x3a2a1c, roughness:0.95, side:THREE.DoubleSide})
+    );
+    rim.rotation.x = -Math.PI/2;
+    rim.position.y = -0.015;
+    rim.receiveShadow = true;
+    root.add(rim);
   }
 
   // Build geometry
