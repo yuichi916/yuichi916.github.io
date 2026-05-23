@@ -4807,15 +4807,21 @@ SCENES.plaza = {
   avatarStart: [0, 6.0],
   // Lazy-load via pCloud-proxy worker. All assets are ENC; no procedural fallback.
   preloadAssets: [
-    'enc_townsquare_ground', 'enc_townsquare_floor', 'enc_townsquare_upper',
+    // Ground tier (8-12 MB each) — drawn first
+    'enc_townsquare_ground', 'enc_townsquare_floor',
+    // Hero buildings (5-13 MB)
     'enc_clocktower_b', 'enc_church_a', 'enc_church_spire',
     'enc_antiquarian', 'enc_inn', 'enc_bank', 'enc_herbalist',
     'enc_bookstore', 'enc_candlemaker', 'enc_pub',
+    // Decorative (light, 1-7 MB)
     'enc_lamppost_a', 'enc_lamppost_c', 'enc_lantern',
-    'enc_sign_a', 'enc_sign_b', 'enc_planter_a', 'enc_planter_b',
-    'enc_brazier', 'enc_hangingpot', 'enc_bench',
-    'enc_sigil', 'enc_sword_in_stone', 'enc_zoltor', 'enc_vendor_b',
-    'enc_wooden_arch', 'enc_armor_chest', 'enc_wash_basin', 'enc_bookshelf',
+    'enc_sign_a', 'enc_planter_a', 'enc_brazier',
+    'enc_hangingpot', 'enc_bench', 'enc_sigil',
+    'enc_sword_in_stone', 'enc_wooden_arch',
+    // NOTE: enc_townsquare_upper (40 MB) and zoltor / vendor_b / bookshelf
+    // / armor_chest / wash_basin / planter_b / sign_b removed from plaza's
+    // *initial* load to keep first-paint under ~15s on a 30 Mbps link.
+    // They'll lazy-load in the background and show up on the next rebuild.
   ],
   build(root){
     /* === Cloudfall Village — Enchanted-only diorama ===
@@ -8415,18 +8421,42 @@ window.addEventListener('resize', ()=>{
   composer.setSize(window.innerWidth, window.innerHeight);
 });
 
-setLoad(0.95, 'READY');
+setLoad(0.95, 'ASSETS');
 
-// Bootstrap: build the first scene then hide splash
-buildScene('plaza');
-setLoad(1.0, 'READY');
-setTimeout(()=>{
-  const sp = document.getElementById('splash');
-  if(sp) sp.classList.add('hidden');
-  setTimeout(()=>{ if(sp) sp.remove(); }, 900);
-}, 350);
-
-animate();
+// Bootstrap: PRE-FETCH all plaza ENC assets BEFORE the first build/render so
+// the user doesn't see a half-loaded scene. Splash stays visible until
+// 100% complete. Once loaded, the scene appears in one frame.
+(async () => {
+  const plazaDef = SCENES.plaza;
+  const toLoad = (plazaDef && Array.isArray(plazaDef.preloadAssets))
+                  ? plazaDef.preloadAssets.slice() : [];
+  if(toLoad.length){
+    // Concurrency cap (4 parallel) so the worker isn't overwhelmed and the
+    // browser network slot is shared with three.js / GLTFLoader fairly.
+    const CONCURRENCY = 4;
+    let done = 0;
+    const total = toLoad.length;
+    async function worker(){
+      while(toLoad.length){
+        const name = toLoad.shift();
+        if(!name) break;
+        try { await lazyLoadAsset(name); } catch(_){}
+        done++;
+        setLoad(0.95 + 0.04 * (done/total), `BUILDINGS ${done}/${total}`);
+      }
+    }
+    await Promise.all(Array(CONCURRENCY).fill(0).map(()=>worker()));
+  }
+  setLoad(0.99, 'BUILD');
+  buildScene('plaza');
+  setLoad(1.0, 'READY');
+  setTimeout(()=>{
+    const sp = document.getElementById('splash');
+    if(sp) sp.classList.add('hidden');
+    setTimeout(()=>{ if(sp) sp.remove(); }, 900);
+  }, 350);
+  animate();
+})();
 </script>
 </body>
 </html>
