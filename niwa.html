@@ -2881,34 +2881,92 @@ const BLENDER_NAMES = [
   'kb3d_gate_b', 'kb3d_gate_c', 'kb3d_door_e', 'kb3d_torch',
   'kb3d_barrel', 'kb3d_firewood', 'kb3d_chainhook', 'kb3d_bldg_sm_f',
   'kb3d_bldg_sm_g', 'kb3d_bldg_md_e', 'kb3d_bldg_sm_c', 'kb3d_railing',
+  // KB3D Enchanted hero kitbash — primary base for Cloudfall village + others
+  'enc_clocktower_b', 'enc_church_a', 'enc_antiquarian', 'enc_inn',
+  'enc_church_spire', 'enc_bank', 'enc_herbalist', 'enc_bookstore',
+  'enc_candlemaker', 'enc_pub', 'enc_lamppost_a', 'enc_lamppost_c',
+  'enc_lantern', 'enc_sign_a', 'enc_sign_b', 'enc_planter_a',
+  'enc_planter_b', 'enc_brazier', 'enc_hangingpot', 'enc_bench',
+  'enc_sigil', 'enc_sword_in_stone', 'enc_zoltor', 'enc_vendor_b',
+  'enc_wooden_arch', 'enc_armor_chest', 'enc_wash_basin', 'enc_bookshelf',
 ];
 const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
 const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow', 'chibi_monk', 'chibi_woman', 'chibi_child'];
-async function preloadBlenderAssets(){
-  for(const name of BLENDER_NAMES){
+// === Lazy-load architecture ===
+// Avoids preloading ~200 GLBs at startup. Each scene declares its required
+// GLBs (via scene.preloadAssets) and loads them only when the scene is opened.
+// Already-loaded entries stay in BLENDER_CACHE for fast re-entry.
+const BLENDER_LOADING = new Map();     // name -> Promise<scene|null>
+
+function _decorateGLB(scene){
+  scene.traverse(o => {
+    if(o.isMesh){
+      o.castShadow = true; o.receiveShadow = true;
+      if(o.material) o.material.envMapIntensity = 1.1;
+    }
+  });
+}
+
+async function lazyLoadAsset(name){
+  if(BLENDER_CACHE[name]) return BLENDER_CACHE[name];
+  if(BLENDER_LOADING.has(name)) return BLENDER_LOADING.get(name);
+  const p = (async () => {
     try {
       const gltf = await loadGLB('assets/blender/' + name + '.glb');
       if(gltf && gltf.scene){
-        // Ensure shadows and PBR settings on every mesh
+        _decorateGLB(gltf.scene);
+        // Mark geometry+materials as shared so clearScene() doesn't dispose
+        // them; clones share references with the cached source.
         gltf.scene.traverse(o => {
-          if(o.isMesh){
-            o.castShadow = true; o.receiveShadow = true;
-            if(o.material) o.material.envMapIntensity = 1.1;
+          if(o.geometry) o.geometry.userData = Object.assign(o.geometry.userData || {}, {shared: true});
+          if(o.material){
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            for(const m of mats) m.userData = Object.assign(m.userData || {}, {shared: true});
           }
         });
         BLENDER_CACHE[name] = gltf.scene;
-        console.log('niwa blender: preloaded', name);
+        return gltf.scene;
       }
     } catch(_){}
-  }
-  console.log('niwa blender: cache has', Object.keys(BLENDER_CACHE).length, '/', BLENDER_NAMES.length, 'assets');
+    return null;
+  })();
+  // Remove the in-flight entry when the promise settles so failures can be retried.
+  p.finally(() => BLENDER_LOADING.delete(name));
+  BLENDER_LOADING.set(name, p);
+  return p;
 }
-// Kick off preload (non-blocking — first scene render may use procedural fallback)
-preloadBlenderAssets();
+
+// Preload a curated set of *very small* always-needed assets so the first
+// scene paints fast. Everything else loads on-demand.
+const _ALWAYS_PRELOAD = [
+  // small chibi NPC variants (a few KB each)
+  'chibi', 'chibi_red', 'chibi_blue',
+];
+(async () => {
+  await Promise.all(_ALWAYS_PRELOAD.map(n => lazyLoadAsset(n)));
+  console.log('niwa blender: always-preload done (' + _ALWAYS_PRELOAD.length + ' assets)');
+})();
+
+// Per-scene preload: scenes call this in their build() to start fetching
+// the assets they need. Render uses procedural fallback for any not-yet-loaded
+// asset, then re-runs the build pass when assets arrive (simple: rebuild scene).
+async function preloadSceneAssets(names){
+  if(!Array.isArray(names) || !names.length) return;
+  await Promise.all(names.map(n => lazyLoadAsset(n)));
+}
+// Backward-compat shim so any older code paths still work.
+async function preloadBlenderAssets(){
+  // Disabled — replaced by lazy-load. Keep as no-op to avoid breaking calls.
+  console.log('niwa blender: preloadBlenderAssets() is a no-op (lazy-load active)');
+}
 
 function blenderClone(name){
   const src = BLENDER_CACHE[name];
-  if(!src) return null;
+  if(!src){
+    // Kick off background load so a later rebuild picks it up
+    lazyLoadAsset(name);
+    return null;
+  }
   return src.clone(true);
 }
 
@@ -4564,12 +4622,20 @@ const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], la
 function addObstacle(x, z, r){ ENTITIES.obstacles.push({x, z, r}); }
 function clearScene(){
   if(!currentScene) return;
-  // Dispose all children of currentScene.root
+  // Dispose all children of currentScene.root.
+  // Skip disposing geometry/materials marked shared (either on the object itself
+  // — legacy — or on the geometry/material data block, which is how lazy-load
+  // tags cloned-from-cache GLB assets).
   currentScene.root.traverse(o=>{
-    if(o.geometry && !o.userData.shared) o.geometry.dispose();
+    const objShared = !!(o.userData && o.userData.shared);
+    if(o.geometry && !objShared && !o.geometry.userData?.shared){
+      o.geometry.dispose();
+    }
     if(o.material){
       const mats = Array.isArray(o.material) ? o.material : [o.material];
-      for(const m of mats) if(!m.userData?.shared) m.dispose();
+      for(const m of mats){
+        if(!objShared && !m.userData?.shared) m.dispose();
+      }
     }
   });
   scene.remove(currentScene.root);
@@ -4619,6 +4685,33 @@ function buildScene(name){
   skyU.rayleigh.value = def.rayleigh ?? WORLD.rayleigh;
   // Fog disabled globally (user requested no haze)
   renderer.toneMappingExposure = def.exposure ?? WORLD.exposure;
+
+  // === Lazy-load scene assets ===
+  // First build with whatever's in cache (procedural fallback for missing),
+  // then kick off background fetch and rebuild scene once when assets arrive.
+  // Use a per-scene build token to prevent rebuild storms from rapid switches.
+  buildScene._tokens = buildScene._tokens || {};
+  const buildToken = (buildScene._tokens[name] = (buildScene._tokens[name]||0) + 1);
+  if(def.preloadAssets && def.preloadAssets.length){
+    const missing = def.preloadAssets.filter(n => !BLENDER_CACHE[n]);
+    if(missing.length){
+      console.log(`niwa[${name}]: lazy-loading ${missing.length} assets in background`);
+      preloadSceneAssets(missing).then(() => {
+        // Only rebuild if this is the LATEST build call for this scene
+        // (prevents multiple rebuilds when user rapidly switches scenes).
+        if(currentScene && currentScene.name === name
+            && buildScene._tokens[name] === buildToken
+            && !buildScene._rebuiltOnce){
+          buildScene._rebuiltOnce = true;
+          console.log(`niwa[${name}]: assets ready, rebuilding once`);
+          buildScene(name);
+          // Reset for next scene
+          setTimeout(() => { buildScene._rebuiltOnce = false; }, 50);
+        }
+      });
+    }
+  }
+
   // Build geometry
   def.build(root);
   // POST-PASS: every scene gets a continuous world ring + 150+ PBR hero assets
@@ -4694,183 +4787,176 @@ function sampleHeight(x, z){
 SCENES.plaza = {
   num: '00', kind: 'plaza',
   title: 'Cloudfall Village (雲落ちの村)', en: 'Cloudfall Village',
-  concept: 'KB3D Dark Fantasy diorama — 浮遊島の中央に噴水広場、放射状の街路、城壁内の住居群と城門。',
-  // Warm afternoon. Slightly higher exposure now that KB3D PBR is in play.
-  sun: [42, -25], turbidity: 2.5, rayleigh: 1.1,
-  fogColor: '#a8b8c4', fogNear: 16, fogFar: 38, exposure: 1.0,
-  avatarStart: [0, 3.5],
+  concept: 'KB3D Enchanted ベースの魔法箱庭。中央広場に時計塔、市場、教会、酒場、薬草師、本屋などが整然と並ぶ。',
+  // Slightly cooler high-noon. Enchanted PBR shines under moderate exposure.
+  sun: [42, -22], turbidity: 2.5, rayleigh: 1.1,
+  fogColor: '#b0c4d0', fogNear: 16, fogFar: 38, exposure: 1.0,
+  avatarStart: [0, 4.0],
+  // Lazy-load: niwa preloads only these assets when this scene opens.
+  preloadAssets: [
+    'enc_clocktower_b', 'enc_church_a', 'enc_antiquarian',
+    'enc_inn', 'enc_bank', 'enc_herbalist', 'enc_bookstore',
+    'enc_candlemaker', 'enc_pub', 'enc_lamppost_a', 'enc_lamppost_c',
+    'enc_lantern', 'enc_sign_a', 'enc_planter_a', 'enc_brazier',
+    'enc_bench', 'enc_sigil', 'enc_wooden_arch', 'enc_zoltor',
+    'enc_vendor_b', 'enc_sword_in_stone',
+    'magic_crystal_cluster', 'waypoint_pillar', 'kb3d_chainhook',
+  ],
   build(root){
-    /* Settlers-style cohesive layout (cf user reference image #3):
-     *   - central plaza disc w/ Fountain (hero)
-     *   - 4 radial cobble streets (N/S/E/W)
-     *   - Buildings face the streets (rotation y always toward centre)
-     *   - South gateway (Gate_B) flanked by 2 statues
-     *   - North wall (railing) with watch tower
-     *   - East residential row (3 houses lined up along E street)
-     *   - West market row (vendor stalls + barrels + firewood)
-     *   - 2 ChainHooks on diagonal edges (floating-island lore)
+    /* === KB3D Enchanted Settlers-style cohesive village ===
+     * Layout (2.5D box-diorama on floating island):
+     *   center      cobble plaza + clock tower (HERO)
+     *   N (0,-5)    Church + Brazier + Spire
+     *   E (5,0)     Inn + Bookstore + Pub (residential / commerce row)
+     *   W (-5,0)    Herbalist + Antiquarian + CandleMaker (artisan row)
+     *   S (0,5)     Wooden Arch + Vendor + Zoltor (gateway + market)
+     *   4 lampposts at cardinal compass points
+     *   bench seating around the plaza
+     *   magic crystal + waypoint pillar (Dark Fantasy accents)
      */
 
     // 1) Floating-island base
     const isle = makeIslandBase(SCENE_RADIUS, {
-      topColor: 0x5d8843, rimColor: 0x2a4e1a,
-      sideColor: 0x6a4628, underColor: 0x18100a,
+      topColor: 0x6d9846, rimColor: 0x395420,
+      sideColor: 0x6f4b29, underColor: 0x1c1108,
     });
     root.add(isle);
     root.userData.ground = isle;
 
-    // 2) Central cobblestone plaza disc (3m radius — bigger than before)
+    // 2) Central cobblestone plaza disc (3.5m radius)
     const stoneDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(3.0, 48).rotateX(-Math.PI/2),
+      new THREE.CircleGeometry(3.5, 48).rotateX(-Math.PI/2),
       new THREE.MeshStandardMaterial({
-        color: 0x8a7868, roughness: 0.88, metalness: 0.0, envMapIntensity: 0.5,
+        color: 0x8a7868, roughness: 0.92, metalness: 0.0, envMapIntensity: 0.6,
       })
     );
     stoneDisc.position.y = 0.005;
     stoneDisc.receiveShadow = true;
     root.add(stoneDisc);
-    // Plaza rim — ring of cobbles
-    for(let i = 0; i < 32; i++){
-      const a = i / 32 * Math.PI * 2;
+    for(let i = 0; i < 36; i++){
+      const a = i / 36 * Math.PI * 2;
       const stone = new THREE.Mesh(
         new THREE.DodecahedronGeometry(0.18, 0),
-        new THREE.MeshStandardMaterial({color: 0x6a5848, roughness: 0.92})
+        new THREE.MeshStandardMaterial({color: 0x6a5848, roughness: 0.95})
       );
-      stone.position.set(Math.cos(a)*3.0, 0.08, Math.sin(a)*3.0);
+      stone.position.set(Math.cos(a)*3.5, 0.08, Math.sin(a)*3.5);
       stone.scale.set(1.1, 0.55, 1.1);
       stone.castShadow = true; stone.receiveShadow = true;
       root.add(stone);
     }
-    // 3) 4 radial street paths from plaza to edge — wide enough for NPC pathing
+
+    // 3) Cobble streets (4 radial)
     function buildStreet(angleDeg, length){
       const a = THREE.MathUtils.degToRad(angleDeg);
-      const cx = Math.cos(a) * (3.0 + length/2);
-      const cz = Math.sin(a) * (3.0 + length/2);
+      const cx = Math.cos(a) * (3.5 + length/2);
+      const cz = Math.sin(a) * (3.5 + length/2);
       const street = new THREE.Mesh(
-        new THREE.PlaneGeometry(length, 1.2).rotateX(-Math.PI/2),
+        new THREE.PlaneGeometry(length, 1.5).rotateX(-Math.PI/2),
         new THREE.MeshStandardMaterial({color: 0x6a5848, roughness: 0.95})
       );
       street.position.set(cx, 0.01, cz);
       street.rotation.y = a;
       street.receiveShadow = true;
       root.add(street);
-      // Cobble noise lines
-      for(let k = 0; k < Math.floor(length * 2); k++){
-        const t = (k + 0.5) / Math.floor(length * 2);
-        const sx = cx + (Math.cos(a + Math.PI/2) * (Math.random()-0.5) * 0.7);
-        const sz = cz + (Math.sin(a + Math.PI/2) * (Math.random()-0.5) * 0.7);
-        const stone = new THREE.Mesh(
-          new THREE.DodecahedronGeometry(0.06, 0),
-          new THREE.MeshStandardMaterial({color: 0x7a6858, roughness: 0.92})
-        );
-        const t2 = (k - length) / 4;
-        stone.position.set(
-          cx + Math.cos(a) * (t - 0.5) * length * 0.85 + (Math.random()-0.5)*0.4,
-          0.015,
-          cz + Math.sin(a) * (t - 0.5) * length * 0.85 + (Math.random()-0.5)*0.4
-        );
-        stone.scale.set(1.0, 0.3, 1.0);
-        root.add(stone);
-      }
     }
-    buildStreet(90, 4.5);    // N street
-    buildStreet(-90, 4.5);   // S street (to gate)
-    buildStreet(0, 4.5);     // E street
-    buildStreet(180, 4.5);   // W street
+    buildStreet(90, 4.0);   // N
+    buildStreet(-90, 4.0);  // S
+    buildStreet(0, 4.0);    // E
+    buildStreet(180, 4.0);  // W
 
-    // Helper: KB3D placement with proper scale + face-the-centre rotation
-    function kbAt(name, x, z, scale, faceCenter, extraRotY){
+    // KB3D placement helper (face the center)
+    function kbAt(name, x, z, scale, rotYOverride){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
       if(!m) return null;
       m.scale.setScalar(scale);
       m.position.set(x, 0, z);
-      // Face the centre (buildings turn entrance toward plaza)
-      if(faceCenter){
-        m.rotation.y = Math.atan2(-x, -z);
-        if(typeof extraRotY === 'number') m.rotation.y += extraRotY;
-      } else if(typeof extraRotY === 'number'){
-        m.rotation.y = extraRotY;
-      }
+      m.rotation.y = (typeof rotYOverride === 'number')
+                    ? rotYOverride
+                    : Math.atan2(-x, -z);   // building faces plaza centre
       m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
       root.add(m);
       return m;
     }
 
-    // 4) HERO — Central KB3D Fountain (3.9m bbox → scale 0.41 = ~1.6m diameter)
-    kbAt('kb3d_fountain', 0, 0, 0.40, false, 0);
+    // 4) HERO — Clock tower at the very centre (small + iconic)
+    kbAt('enc_clocktower_b', 0, 0, 0.50, 0);
 
-    // 5) HERO — KB3D Tower Grand on the NORTH edge of plaza, as the central skyline
-    kbAt('kb3d_tower_grand', 0, -7.2, 0.23, false, 0.2);   // 3.5m tall
+    // 5) NORTH — Church chapel + church spire flanking
+    kbAt('enc_church_a',      0,   -6.0, 0.32);
+    kbAt('enc_church_spire', -2.5, -5.5, 0.28);
 
-    // 6) South gateway — KB3D Gate_B at south + 2 KB3D statues flanking
-    kbAt('kb3d_gate_b', 0, 6.5, 0.30, false, 0);
-    kbAt('kb3d_statue_a', -1.3, 5.3, 0.36, false, 0.3);     // ~0.9m tall guardians
-    kbAt('kb3d_statue_b', 1.3, 5.3, 0.36, false, -0.3);
+    // 6) EAST — residential row (3 buildings, all facing west toward plaza)
+    kbAt('enc_inn',          5.5, -3.5, 0.20);   // top of east street
+    kbAt('enc_bookstore',    6.0,  0.0, 0.22);   // middle
+    kbAt('enc_pub',          5.8,  3.5, 0.16);   // bottom
 
-    // 7) North wall — KB3D Tower_A on NE + KB3D Tower_Small on NW as watch towers
-    kbAt('kb3d_tower_a', 4.2, -5.0, 0.16, false, -0.4);      // 3.5m tall
-    kbAt('kb3d_tower_small', -4.2, -5.0, 0.16, false, 0.4);  // 2.4m tall
+    // 7) WEST — artisan row (3 buildings facing east toward plaza)
+    kbAt('enc_herbalist',   -5.5, -3.5, 0.28);
+    kbAt('enc_antiquarian', -6.0,  0.0, 0.40);
+    kbAt('enc_candlemaker', -5.8,  3.5, 0.20);
 
-    // 8) East residential row — 3 buildings along the E street, facing W (toward plaza)
-    kbAt('kb3d_bldg_sm_f', 5.2, -2.0, 0.25, false, -Math.PI/2 + 0.1);
-    kbAt('kb3d_bldg_sm_g', 5.5, 0.4, 0.25, false, -Math.PI/2);
-    kbAt('kb3d_bldg_md_e', 5.2, 2.8, 0.24, false, -Math.PI/2 - 0.1);
+    // 8) SOUTH — gateway + market
+    kbAt('enc_wooden_arch',  0,    5.5, 0.55, 0);
+    kbAt('enc_bank',         3.0,  6.5, 0.10);
+    kbAt('enc_vendor_b',    -2.5,  6.0, 0.65, Math.PI/2 - 0.2);
+    kbAt('enc_zoltor',      -3.0,  4.5, 0.70, Math.PI/2);
 
-    // 9) West market row — 1 tall narrow house + KB3D market props (barrels, firewood)
-    kbAt('kb3d_bldg_sm_c', -5.5, 0.5, 0.20, false, Math.PI/2);
-    kbAt('kb3d_bldg_sm_f', -5.2, -2.5, 0.25, false, Math.PI/2 + 0.1);
-    kbAt('kb3d_bldg_sm_g', -5.0, 3.0, 0.25, false, Math.PI/2 - 0.1);
+    // 9) Cardinal lampposts (4)
+    kbAt('enc_lamppost_a',  3.0,  0,    0.50);
+    kbAt('enc_lamppost_a', -3.0,  0,    0.50);
+    kbAt('enc_lamppost_c',  0,    3.0,  0.50);
+    kbAt('enc_lamppost_c',  0,   -3.0,  0.50);
 
-    // 10) Vendor row props (along W street boundary)
-    kbAt('kb3d_barrel', -3.2, -0.6, 0.22, false, 0.5);
-    kbAt('kb3d_barrel', -3.6, 0.4, 0.22, false, -0.3);
-    kbAt('kb3d_firewood', -3.4, -1.5, 0.20, false, 0.2);
-    kbAt('kb3d_barrel', 3.4, -0.7, 0.22, false, 0.7);
-    kbAt('kb3d_firewood', 3.6, 1.3, 0.20, false, -0.4);
+    // 10) Benches around plaza (3)
+    kbAt('enc_bench',  2.5,  1.5, 0.70, Math.atan2(-2.5, -1.5) + Math.PI/2);
+    kbAt('enc_bench', -2.5,  1.5, 0.70, Math.atan2( 2.5, -1.5) + Math.PI/2);
+    kbAt('enc_bench',  0,    2.8, 0.70, Math.PI);
 
-    // 11) 4 KB3D Torches around the plaza (lit by point lights below)
-    kbAt('kb3d_torch', -2.4, 0, 0.55, false, 0);
-    kbAt('kb3d_torch', 2.4, 0, 0.55, false, 0);
-    kbAt('kb3d_torch', 0, -2.4, 0.55, false, 0);
-    kbAt('kb3d_torch', 0, 2.4, 0.55, false, 0);
+    // 11) Brazier centre piece (will be lit by point light)
+    kbAt('enc_brazier',  0.0, -2.0, 0.50, 0);
 
-    // 12) KB3D Statue_E — hero shrine statue near the central tower (north side)
-    kbAt('kb3d_statue_e', -1.5, -3.8, 0.40, false, 0.4);
-    kbAt('kb3d_statue_e', 1.5, -3.8, 0.40, false, -0.4);
+    // 12) Decorative props around plaza
+    kbAt('enc_planter_a',  1.5,  0.0, 0.70);
+    kbAt('enc_planter_a', -1.5,  0.0, 0.70);
+    kbAt('enc_lantern',   -2.5, -2.0, 0.70);
+    kbAt('enc_lantern',    2.5, -2.0, 0.70);
+    kbAt('enc_sigil',      0,   -3.5, 0.70, 0);
+    kbAt('enc_sword_in_stone', 2.0, -3.0, 0.65, 0);
+    kbAt('enc_sign_a',    -3.0,  3.0, 0.85);
+    kbAt('enc_sign_a',     3.0,  3.0, 0.85);
 
-    // 13) ChainHooks on diagonal corners — floating-island lore prop
-    kbAt('kb3d_chainhook', -6.5, 6.0, 0.20, false, 0.5);
-    kbAt('kb3d_chainhook', 6.5, -6.0, 0.20, false, Math.PI + 0.5);
-
-    // 14) FANTASY MAGIC PROPS — image-2 painted-style accents (kept from v23)
-    // Magic crystal — placed in the NE corner pocket
+    // 13) DARK FANTASY accents — magic crystal + waypoint pillar + chain hooks
     const crystal = (typeof blenderClone === 'function' && blenderClone('magic_crystal_cluster'));
     if(crystal){
-      crystal.scale.setScalar(0.85);
-      crystal.position.set(2.6, 0, -2.6);
-      crystal.traverse(o => { if(o.isMesh) o.castShadow = true; });
+      crystal.scale.setScalar(0.7);
+      crystal.position.set(-2.5, 0, 2.8);
+      crystal.traverse(o => { if(o.isMesh){ o.castShadow = true; } });
       root.add(crystal);
       ENTITIES.spins = ENTITIES.spins || [];
       ENTITIES.spins.push(crystal);
     }
-    // Giant mushroom — SW corner pocket
-    const shroom = (typeof blenderClone === 'function' && blenderClone('giant_mushroom'));
-    if(shroom){
-      shroom.scale.setScalar(0.55);
-      shroom.position.set(-2.6, 0, -2.6);
-      shroom.traverse(o => { if(o.isMesh) o.castShadow = true; });
-      root.add(shroom);
+    const waypoint = (typeof blenderClone === 'function' && blenderClone('waypoint_pillar'));
+    if(waypoint){
+      waypoint.scale.setScalar(0.75);
+      waypoint.position.set(2.5, 0, 2.8);
+      waypoint.traverse(o => { if(o.isMesh){ o.castShadow = true; } });
+      root.add(waypoint);
     }
-    // Waypoint pillar — directly north of plaza (between fountain and tower)
-    const wp = (typeof blenderClone === 'function' && blenderClone('waypoint_pillar'));
-    if(wp){
-      wp.scale.setScalar(0.80);
-      wp.position.set(0, 0, -5.0);
-      wp.traverse(o => { if(o.isMesh) o.castShadow = true; });
-      root.add(wp);
+    // Chain hooks on diagonal corners — floating-island lore prop
+    function kb3dAt(name, x, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale);
+      m.position.set(x, 0, z);
+      m.rotation.y = rotY || 0;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
     }
+    kb3dAt('kb3d_chainhook', -6.5,  6.5, 0.18, 0.5);
+    kb3dAt('kb3d_chainhook',  6.5, -6.5, 0.18, Math.PI + 0.5);
 
-    // 15) NPC chibi villagers — 4 walking purposeful paths along streets
+    // 14) 4 chibi NPCs walking the streets
     function placeNpc(colors, path, speed, variant){
       const n = makeNpc(colors[0], colors[1], variant);
       n.scale.setScalar(0.95);
@@ -4882,16 +4968,12 @@ SCENES.plaza = {
       root.add(n);
       return n;
     }
-    // NPC walks N street (plaza ↔ tower)
-    placeNpc([0xb83838, 0x1a1410], [[0, 3.0], [0, -3.0], [0, 3.0]], 0.55, 'woman');
-    // NPC walks E street (plaza ↔ residential)
-    placeNpc([0x3858a8, 0x1a1410], [[3.0, 0], [-3.0, 0]], 0.50, 'red');
-    // NPC walks W street to market
-    placeNpc([0x4a6a30, 0x1a1410], [[-3.0, 0], [3.0, 0]], 0.45, 'green');
-    // NPC walks S street to gate
+    placeNpc([0xb83838, 0x1a1410], [[0, 3.5], [0, -3.5], [0, 3.5]], 0.55, 'woman');
+    placeNpc([0x3858a8, 0x1a1410], [[3.5, 0], [-3.5, 0]], 0.50, 'red');
+    placeNpc([0x4a6a30, 0x1a1410], [[-3.5, 0], [3.5, 0]], 0.45, 'green');
     placeNpc([0xd8a838, 0x1a1410], [[0, 4.0], [0, 1.5]], 0.42, 'monk');
 
-    // 16) Cherry petal particles
+    // 15) Cherry petal particles
     if(typeof makeFallingParticles === 'function'){
       const petals = makeFallingParticles('petal', 90, {
         range: 16, yMax: 8, yMin: 0, fallSpeed: 0.40, swayAmp: 0.35, swayFreq: 1.2,
@@ -4900,28 +4982,30 @@ SCENES.plaza = {
       ENTITIES.particles.push({obj: petals, type: 'fall'});
     }
 
-    // 17) Warm hemi rim
+    // 16) Warm hemi rim
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.40);
     fill.position.set(5, 8, 5);
     root.add(fill);
 
-    // 18) Torch point lights (4 around the plaza)
-    for(const [tx, tz] of [[-2.4, 0], [2.4, 0], [0, -2.4], [0, 2.4]]){
-      const tl = new THREE.PointLight(0xff8030, 1.0, 4.5);
-      tl.position.set(tx, 1.6, tz);
-      root.add(tl);
-      ENTITIES.lampLights.push(tl);
+    // 17) 4 cardinal lamppost lights + brazier + crystal + waypoint
+    for(const [tx, tz] of [[3.0, 0], [-3.0, 0], [0, 3.0], [0, -3.0]]){
+      const pl = new THREE.PointLight(0xffd080, 0.85, 5.0);
+      pl.position.set(tx, 2.0, tz);
+      root.add(pl);
+      ENTITIES.lampLights.push(pl);
     }
-    // Crystal light
-    const crystalLight = new THREE.PointLight(0xb060ff, 0.7, 5.0);
-    crystalLight.position.set(2.6, 1.8, -2.6); root.add(crystalLight);
+    const brazierLight = new THREE.PointLight(0xff7028, 1.0, 4.5);
+    brazierLight.position.set(0, 1.5, -2.0); root.add(brazierLight);
+    ENTITIES.lampLights.push(brazierLight);
+    const crystalLight = new THREE.PointLight(0xb060ff, 0.7, 4.5);
+    crystalLight.position.set(-2.5, 2.0, 2.8); root.add(crystalLight);
     ENTITIES.lampLights.push(crystalLight);
-    // Waypoint
-    const waypointLight = new THREE.PointLight(0x70c0ff, 0.7, 5.0);
-    waypointLight.position.set(0, 2.0, -5.0); root.add(waypointLight);
+    const waypointLight = new THREE.PointLight(0x70c0ff, 0.7, 4.5);
+    waypointLight.position.set(2.5, 2.0, 2.8); root.add(waypointLight);
     ENTITIES.lampLights.push(waypointLight);
   }
 };
+
 
 
 
