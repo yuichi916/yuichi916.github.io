@@ -2842,11 +2842,20 @@ function _decorateGLB(scene){
   });
 }
 
-// === ENC asset hosting on pCloud Public Folder ===
-// Procedural niwa GLBs (kominka_*, sakura_*, etc.) are deprecated as garbage.
+// === ENC asset hosting on pCloud Public Folder, fronted by a Cloudflare Worker ===
+// Procedural niwa GLBs (kominka_*, sakura_*, etc.) have been deleted as garbage.
 // All Enchanted (enc_*) GLBs are hosted on pCloud at:
-//   pCloud publink: kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk (covers hitoritabi/niwa-assets/blender/)
-// The download URL is short-lived; we query it just-in-time via pCloud REST.
+//   P:\Public Folder\hitoritabi\niwa-assets\blender\enc_*.glb
+//   publink code:  kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk
+// pCloud CDN refuses non-pCloud origins, so a tiny Cloudflare Worker re-serves
+// the bytes with CORS=*.  Worker source is _workers/pcloud-cors-proxy.js.
+// PCLOUD_PROXY is the deployed worker URL.  Set this to the workers.dev URL
+// after the user deploys it.
+//   Format example:  https://niwa-cors.<your-subdomain>.workers.dev
+//   Fetch URL:       <PCLOUD_PROXY>/g/<fileid>
+// Until the worker is deployed, all ENC fetches will fail and the scene falls
+// back to procedural primitives.
+const PCLOUD_PROXY = '';   // ← paste worker URL here
 const PCLOUD_PUBLINK = 'kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk';
 const ENC_FILEIDS = {
   enc_antiquarian:    88322005167,
@@ -2861,19 +2870,12 @@ const ENC_FILEIDS = {
   // The rest are pulled from showpublink at runtime if missing here.
 };
 
-// Build the pCloud public-download URL for a fileid (4h-expiring CDN URL).
-// IMPORTANT: pCloud rejects browser-origin requests with "Invalid link referer"
-// when the Referer header contains a non-pCloud domain. We strip the referer
-// via referrerPolicy:'no-referrer' so the API call goes through unchallenged.
-// `&download=1` also helps bypass the check on some pCloud regions.
-async function pcloudFileURL(fileid){
-  const r = await fetch(
-    `https://api.pcloud.com/getpublinkdownload?code=${PCLOUD_PUBLINK}&fileid=${fileid}&download=1`,
-    { referrerPolicy: 'no-referrer', credentials: 'omit', mode: 'cors' }
-  );
-  const data = await r.json();
-  if(data.result !== 0 || !data.hosts || !data.hosts.length) throw new Error('pcloud failed ' + data.error);
-  return `https://${data.hosts[0]}${data.path}`;
+// Build the URL to fetch an ENC asset from pCloud via the CORS-proxying worker.
+// If PCLOUD_PROXY is empty the asset is unreachable from a browser (pCloud CDN
+// blocks non-pCloud origins) — lazyLoadAsset will fall back to procedural.
+function pcloudProxyURL(fileid){
+  if(!PCLOUD_PROXY) return null;
+  return `${PCLOUD_PROXY.replace(/\/+$/, '')}/g/${fileid}`;
 }
 
 // Promise-cached fileid resolution (race-safe: concurrent callers share the
@@ -2883,6 +2885,9 @@ function resolveAllEncFileids(){
   if(_ENC_FILEID_PROMISE) return _ENC_FILEID_PROMISE;
   _ENC_FILEID_PROMISE = (async () => {
     try {
+      // showpublink is CORS-enabled (api.pcloud.com sets Access-Control-Allow-Origin: *
+      // on the JSON response, only the CDN refuses cross-origin reads).
+      // We still strip the Referer so pCloud doesn't 7010 us on the API call.
       const r = await fetch(`https://api.pcloud.com/showpublink?code=${PCLOUD_PUBLINK}`,
         { referrerPolicy: 'no-referrer', credentials: 'omit', mode: 'cors' });
       const d = await r.json();
@@ -2919,11 +2924,16 @@ async function lazyLoadAsset(name){
     try {
       let url;
       if(name.startsWith('enc_')){
-        // KB3D Enchanted assets — fetch from pCloud public folder
+        // KB3D Enchanted assets — fetched via Cloudflare worker proxy
+        // (pCloud CDN blocks non-pCloud origins so direct fetch is impossible).
+        if(!PCLOUD_PROXY){
+          console.warn('niwa: PCLOUD_PROXY not set — deploy the Cloudflare worker (see _workers/pcloud-cors-proxy.js) and paste its URL into niwa.html');
+          return null;
+        }
         const fids = await resolveAllEncFileids();
         const fid = fids[name];
         if(!fid){ console.warn('niwa: no pCloud fileid for', name); return null; }
-        url = await pcloudFileURL(fid);
+        url = pcloudProxyURL(fid);
       } else {
         // Local procedural assets (legacy) — still bundled with the repo.
         url = 'assets/blender/' + name + '.glb';
@@ -2954,14 +2964,9 @@ async function lazyLoadAsset(name){
 
 // Preload a curated set of *very small* always-needed assets so the first
 // scene paints fast. Everything else loads on-demand.
-const _ALWAYS_PRELOAD = [
-  // small chibi NPC variants (a few KB each)
-  'chibi', 'chibi_red', 'chibi_blue',
-];
-(async () => {
-  await Promise.all(_ALWAYS_PRELOAD.map(n => lazyLoadAsset(n)));
-  console.log('niwa blender: always-preload done (' + _ALWAYS_PRELOAD.length + ' assets)');
-})();
+// Always-preload list is empty — all procedural GLBs (chibi, etc.) have been
+// deleted per user direction; every asset now lazy-loads per-scene.
+const _ALWAYS_PRELOAD = [];
 
 // Per-scene preload: scenes call this in their build() to start fetching
 // the assets they need. Render uses procedural fallback for any not-yet-loaded
