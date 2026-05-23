@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>浮遊島群 — Cartographer's Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --parchment-a: #e8d6a3;
+    --parchment-b: #c9a76a;
+    --parchment-c: #a78449;
+    --ink: #3a2410;
+    --ink-soft: #5a3a1c;
+    --red-zone: rgba(170, 30, 30, 0.18);
+  }
+  html, body { margin:0; padding:0; height:100%; background:#1a140a; overflow:hidden;
+                font-family: 'Cinzel', 'Times New Roman', serif; color: var(--ink); }
+  #wrap { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+  #map  { width: min(100vw, 100vh * 1.6); aspect-ratio: 1.6; max-width: 1600px;
+          position:relative; background:
+            radial-gradient(circle at 30% 20%, var(--parchment-a) 0%, var(--parchment-b) 65%, var(--parchment-c) 100%);
+          border: 14px solid #5a3a1c;
+          border-image: linear-gradient(135deg, #6a4a26, #3a2410, #6a4a26) 1;
+          box-shadow: 0 12px 40px rgba(0,0,0,0.75), inset 0 0 60px rgba(120, 80, 40, 0.35);
+          overflow:hidden;
+  }
+  #map::before {
+    /* Parchment grain texture */
+    content:''; position:absolute; inset:0;
+    background-image:
+      repeating-radial-gradient(circle at 12% 18%, rgba(90,60,30,0.10) 0, rgba(90,60,30,0) 2px),
+      repeating-radial-gradient(circle at 78% 64%, rgba(90,60,30,0.07) 0, rgba(90,60,30,0) 3px),
+      repeating-radial-gradient(circle at 35% 82%, rgba(60,40,20,0.08) 0, rgba(60,40,20,0) 2px),
+      radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(90,60,30,0.20) 100%);
+    pointer-events:none;
+  }
+  #map::after {
+    /* Subtle aged edge stains */
+    content:''; position:absolute; inset:0;
+    background:
+      radial-gradient(circle at 5% 5%, rgba(70,40,20,0.45) 0%, rgba(70,40,20,0) 25%),
+      radial-gradient(circle at 95% 8%, rgba(70,40,20,0.42) 0%, rgba(70,40,20,0) 22%),
+      radial-gradient(circle at 5% 95%, rgba(70,40,20,0.45) 0%, rgba(70,40,20,0) 22%),
+      radial-gradient(circle at 95% 95%, rgba(70,40,20,0.42) 0%, rgba(70,40,20,0) 22%);
+    pointer-events:none;
+  }
+  svg.cartography { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .title-banner {
+    position:absolute; top: 24px; left: 50%; transform: translateX(-50%);
+    font-family: 'Cinzel', 'Trajan Pro', serif;
+    font-size: clamp(22px, 2.6vw, 38px);
+    letter-spacing: 0.20em;
+    color: var(--ink);
+    text-shadow: 0 1px 0 rgba(255,230,180,0.4);
+    z-index: 5;
+    user-select: none;
+  }
+  .island {
+    position:absolute;
+    pointer-events:auto;
+    cursor: pointer;
+    transition: transform 0.20s ease;
+  }
+  .island:hover { transform: scale(1.03); }
+  .island svg { width:100%; height:100%; }
+  .label {
+    position:absolute;
+    font-family: 'IM Fell English', 'Cinzel', serif;
+    font-style: italic;
+    font-size: clamp(11px, 1.05vw, 16px);
+    color: var(--ink);
+    text-shadow: 0 1px 0 rgba(255, 230, 180, 0.45);
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+  }
+  .label.large { font-size: clamp(13px, 1.3vw, 19px); font-weight: 600; letter-spacing: 0.05em; }
+  .danger-zone {
+    position:absolute;
+    background: radial-gradient(ellipse, var(--red-zone) 30%, transparent 70%);
+    pointer-events: none;
+  }
+  .compass {
+    position:absolute; bottom: 32px; right: 32px;
+    width: clamp(80px, 9vw, 140px); height: clamp(80px, 9vw, 140px);
+    opacity: 0.85;
+  }
+  .legend {
+    position:absolute; left: 24px; bottom: 18px;
+    font-family: 'IM Fell English', serif;
+    font-size: clamp(10px, 0.85vw, 13px);
+    color: var(--ink-soft);
+    line-height: 1.55;
+    background: rgba(232, 214, 163, 0.6);
+    border: 1px solid rgba(90, 60, 30, 0.5);
+    padding: 10px 14px;
+    max-width: 200px;
+    pointer-events: none;
+  }
+  .legend b { font-family: 'Cinzel', serif; font-style: normal; }
+  .nav-back {
+    position:absolute; top: 18px; left: 24px;
+    font-family: 'Cinzel', serif;
+    font-size: clamp(12px, 1.1vw, 16px);
+    color: var(--ink);
+    text-decoration: none;
+    padding: 4px 12px;
+    border: 1px solid var(--ink-soft);
+    background: rgba(232, 214, 163, 0.7);
+    z-index: 10;
+  }
+  .nav-back:hover { background: rgba(232, 214, 163, 1.0); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="map">
+    <a class="nav-back" href="index.html">⟵ 戻る</a>
+    <div class="title-banner">浮 遊 島 群 ・ 雲 落 ち の 地 図</div>
+
+    <!-- SVG layer: chains between islands + danger ink zones + vortex ruin -->
+    <svg class="cartography" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <!-- Compass rose -->
+        <symbol id="compass" viewBox="-50 -50 100 100">
+          <circle r="48" fill="none" stroke="#3a2410" stroke-width="1.5"/>
+          <circle r="38" fill="none" stroke="#5a3a1c" stroke-width="0.8" stroke-dasharray="2,2"/>
+          <g stroke="#3a2410" stroke-width="1.0">
+            <line x1="0" y1="-48" x2="0" y2="48"/>
+            <line x1="-48" y1="0" x2="48" y2="0"/>
+            <line x1="-34" y1="-34" x2="34" y2="34"/>
+            <line x1="-34" y1="34" x2="34" y2="-34"/>
+          </g>
+          <polygon points="0,-46 6,0 0,-14 -6,0" fill="#3a2410"/>
+          <text x="0" y="-30" text-anchor="middle" font-family="Cinzel" font-size="9" fill="#3a2410">N</text>
+          <text x="32" y="3" text-anchor="middle" font-family="Cinzel" font-size="9" fill="#3a2410">E</text>
+          <text x="0" y="40" text-anchor="middle" font-family="Cinzel" font-size="9" fill="#3a2410">S</text>
+          <text x="-32" y="3" text-anchor="middle" font-family="Cinzel" font-size="9" fill="#3a2410">W</text>
+        </symbol>
+        <!-- A floating-island silhouette template (top + jagged bottom) -->
+        <symbol id="island-shape" viewBox="-100 -60 200 140">
+          <path d="M -90,0 Q -95,-25 -70,-35 Q -50,-50 -20,-48 Q 10,-55 40,-50 Q 65,-58 80,-40 Q 100,-25 90,0
+                   Q 80,15 60,25 Q 50,55 20,55 Q -10,75 -30,45 Q -55,55 -60,30 Q -85,20 -90,0 Z"
+                fill="#9d7a44" stroke="#3a2410" stroke-width="1.6"/>
+          <!-- top grass band -->
+          <path d="M -90,0 Q -95,-25 -70,-35 Q -50,-50 -20,-48 Q 10,-55 40,-50 Q 65,-58 80,-40 Q 100,-25 90,0
+                   L 80,-5 Q 65,-25 40,-35 Q 10,-40 -20,-32 Q -50,-35 -70,-22 L -90,0 Z"
+                fill="#7ea758" stroke="none"/>
+          <!-- some surface details (tiny stones / trees) -->
+          <circle cx="-50" cy="-30" r="3" fill="#4a3220"/>
+          <circle cx="-20" cy="-32" r="2.5" fill="#4a3220"/>
+          <circle cx="20" cy="-35" r="3.5" fill="#4a3220"/>
+          <circle cx="50" cy="-32" r="2.8" fill="#4a3220"/>
+          <!-- crack lines on rocky underside -->
+          <path d="M -40,10 L -35,30 M 0,15 L -8,40 M 30,10 L 25,35 M -65,5 L -68,25"
+                stroke="#3a2410" stroke-width="0.6" fill="none"/>
+        </symbol>
+        <!-- Tiny mountain icon for villages -->
+        <symbol id="village-icon" viewBox="-15 -15 30 30">
+          <path d="M -10,8 L -3,-6 L 2,2 L 7,-4 L 10,8 Z" fill="#7a5a3a" stroke="#3a2410" stroke-width="1"/>
+          <rect x="-2" y="2" width="3" height="6" fill="#5a3a1c"/>
+        </symbol>
+        <!-- X mark for chest -->
+        <symbol id="x-mark" viewBox="-10 -10 20 20">
+          <line x1="-7" y1="-7" x2="7" y2="7" stroke="#a82018" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="-7" y1="7" x2="7" y2="-7" stroke="#a82018" stroke-width="2.5" stroke-linecap="round"/>
+        </symbol>
+        <!-- Waypoint icon -->
+        <symbol id="waypoint-icon" viewBox="-10 -10 20 20">
+          <polygon points="0,-8 8,2 5,2 5,8 -5,8 -5,2 -8,2" fill="#3a72a8" stroke="#1a3a5a" stroke-width="1.2"/>
+        </symbol>
+        <!-- Dragon icon (small) -->
+        <symbol id="dragon-icon" viewBox="-25 -15 50 30">
+          <path d="M -22,5 Q -15,-3 -8,0 Q -2,-8 8,-5 Q 18,-10 22,-2 Q 18,5 12,4 Q 8,8 0,7 Q -8,10 -15,7 Q -20,9 -22,5 Z"
+                fill="#5a3a1c" stroke="#3a2410" stroke-width="1"/>
+          <circle cx="14" cy="-2" r="1.2" fill="#a82018"/>
+        </symbol>
+      </defs>
+
+      <!-- Background drifting clouds (inked) -->
+      <g opacity="0.45" stroke="#5a3a1c" stroke-width="0.8" fill="none">
+        <path d="M 80,180 Q 130,160 180,180 Q 230,170 270,190 Q 290,200 270,210 Q 220,220 170,210 Q 130,220 90,210 Q 60,210 80,180 Z"/>
+        <path d="M 1100,140 Q 1160,120 1220,140 Q 1280,130 1340,150 Q 1370,160 1340,180 Q 1280,190 1220,180 Q 1160,200 1100,180 Q 1070,180 1100,140 Z"/>
+        <path d="M 1380,560 Q 1430,540 1480,560 Q 1530,550 1560,570 Q 1580,580 1560,590 Q 1510,600 1460,590 Q 1420,600 1390,590 Q 1370,590 1380,560 Z"/>
+        <path d="M 70,800 Q 130,780 190,800 Q 250,790 300,810 Q 320,820 300,830 Q 240,840 180,830 Q 130,840 90,830 Q 60,830 70,800 Z"/>
+      </g>
+
+      <!-- Danger zones (red ink wash near central vortex) -->
+      <ellipse cx="800" cy="500" rx="280" ry="180" fill="rgba(170,30,30,0.16)"/>
+      <ellipse cx="800" cy="500" rx="220" ry="140" fill="rgba(170,30,30,0.10)"/>
+
+      <!-- Chain bridges connecting islands -->
+      <g stroke="#3a2410" stroke-width="2.5" fill="none">
+        <!-- Plaza (left center) to Vortex -->
+        <path d="M 380,500 Q 500,490 620,500" stroke-dasharray="3,4"/>
+        <!-- Vortex to Hoshi (right) -->
+        <path d="M 980,500 Q 1100,495 1220,500" stroke-dasharray="3,4"/>
+        <!-- Plaza to Cloudfall (top) -->
+        <path d="M 360,440 Q 450,300 540,220" stroke-dasharray="3,4"/>
+        <!-- Cloudfall to Windward waypoint (top center) -->
+        <path d="M 620,200 Q 760,170 900,200" stroke-dasharray="3,4"/>
+        <!-- Windward to Dragon's Hoard -->
+        <path d="M 950,210 Q 1100,210 1230,250"/>
+        <!-- Vortex S chain to bottom waypoint -->
+        <path d="M 820,580 Q 830,720 800,820" stroke-dasharray="3,4"/>
+        <!-- Bottom waypoint to monster zone -->
+        <path d="M 800,820 Q 950,830 1080,820" stroke-dasharray="3,4"/>
+      </g>
+
+      <!-- Central Vortex ruin -->
+      <g transform="translate(800, 500)">
+        <!-- Outer ring ruin -->
+        <circle r="120" fill="#8a6a3a" stroke="#3a2410" stroke-width="2"/>
+        <circle r="110" fill="#7a5a30" stroke="#3a2410" stroke-width="1.2"/>
+        <!-- Broken stone pillars around the rim -->
+        <g stroke="#3a2410" stroke-width="1">
+          <rect x="-8" y="-118" width="16" height="20" fill="#6a4a26"/>
+          <rect x="-118" y="-8" width="20" height="16" fill="#6a4a26"/>
+          <rect x="-8" y="98" width="16" height="20" fill="#6a4a26"/>
+          <rect x="98" y="-8" width="20" height="16" fill="#6a4a26"/>
+          <rect x="-90" y="-90" width="14" height="14" fill="#6a4a26" transform="rotate(-30)"/>
+          <rect x="76" y="-86" width="14" height="14" fill="#6a4a26"/>
+          <rect x="-90" y="76" width="14" height="14" fill="#6a4a26"/>
+          <rect x="76" y="76" width="14" height="14" fill="#6a4a26"/>
+        </g>
+        <!-- Swirling vortex in the center -->
+        <g stroke="#3a2410" stroke-width="1.5" fill="none">
+          <path d="M 0,-80 Q 60,-60 70,0 Q 60,55 0,70 Q -55,55 -70,0 Q -55,-55 0,-80"/>
+          <path d="M 0,-55 Q 40,-40 50,0 Q 40,38 0,50 Q -38,38 -50,0 Q -38,-40 0,-55"/>
+          <path d="M 0,-30 Q 22,-20 28,0 Q 22,20 0,28 Q -20,20 -28,0 Q -20,-22 0,-30"/>
+          <circle r="8" fill="#3a2410"/>
+        </g>
+        <text x="0" y="-135" text-anchor="middle" font-family="Cinzel" font-size="14" fill="#3a2410"
+              style="letter-spacing:0.1em">Abyssal Vortex</text>
+      </g>
+
+      <!-- Compass rose -->
+      <use href="#compass" x="1440" y="900" width="120" height="120"/>
+    </svg>
+
+    <!-- Islands as positioned divs so they can be hover/clickable links to scenes -->
+    <!-- Plaza (Cloudfall Village) — left center -->
+    <a href="niwa.html?scene=plaza" class="island" style="left: 13%; top: 38%; width: 18%; height: 22%;"
+       title="Cloudfall Village">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-shape"/>
+        <use href="#village-icon" x="0" y="-20" width="30" height="30"/>
+      </svg>
+    </a>
+    <div class="label large" style="left: 12%; top: 32%;">Cloudfall Village</div>
+    <div class="label" style="left: 15%; top: 60%; color:#5a3a1c;">★ 雲落ちの村</div>
+
+    <!-- Cloudfall outpost (top left) — Monlight scene -->
+    <a href="niwa.html?scene=monlight" class="island" style="left: 28%; top: 12%; width: 14%; height: 18%;"
+       title="Moonlit Stacks (月光の書架)">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-shape"/>
+        <use href="#village-icon" x="-10" y="-22" width="22" height="22"/>
+      </svg>
+    </a>
+    <div class="label large" style="left: 26%; top: 7%;">Moonlit Stacks</div>
+
+    <!-- Windward Waypoint (top center) -->
+    <a href="niwa.html?scene=hoshi" class="island" style="left: 53%; top: 8%; width: 8%; height: 12%;"
+       title="Stargazer's Hill">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-shape"/>
+        <use href="#waypoint-icon" x="0" y="-20" width="20" height="20"/>
+      </svg>
+    </a>
+    <div class="label" style="left: 53%; top: 4%;">Windward Waypoint</div>
+
+    <!-- Dragon's Hoard (top right) -->
+    <a href="niwa.html?scene=takibi" class="island" style="left: 76%; top: 14%; width: 14%; height: 18%;"
+       title="By the Campfire (焚き火の前)">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-shape"/>
+        <use href="#dragon-icon" x="-10" y="-20" width="34" height="20"/>
+        <use href="#x-mark" x="-30" y="20" width="14" height="14"/>
+        <use href="#x-mark" x="20" y="-10" width="14" height="14"/>
+      </svg>
+    </a>
+    <div class="label large" style="left: 76%; top: 9%;">Dragon's Hoard</div>
+    <div class="label" style="left: 90%; top: 18%;">★ 焚き火</div>
+
+    <!-- Broken Bridge Chest (right) -->
+    <a href="niwa.html?scene=toki" class="island" style="left: 73%; top: 38%; width: 14%; height: 20%;"
+       title="The Hourglass Hill (時の砂時計)">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-shape"/>
+        <use href="#x-mark" x="0" y="-10" width="16" height="16"/>
+      </svg>
+    </a>
+    <div class="label" style="left: 75%; top: 33%;">Broken Bridge Chest</div>
+
+    <!-- Skyside Chest (bottom left) — Mizube scene -->
+    <a href="niwa.html?scene=mizube" class="island" style="left: 12%; top: 65%; width: 18%; height: 22%;"
+       title="The Pondside (水辺の岸)">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-shape"/>
+        <use href="#village-icon" x="-5" y="-15" width="24" height="24"/>
+      </svg>
+    </a>
+    <div class="label large" style="left: 13%; top: 88%;">Skyside Waypoint Chest</div>
+
+    <!-- Maelstrom monster zone south -->
+    <a href="niwa.html?scene=oto" class="island" style="left: 42%; top: 75%; width: 14%; height: 18%;"
+       title="The Stream Garden (音の小川)">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-shape"/>
+        <use href="#waypoint-icon" x="0" y="-12" width="18" height="18"/>
+      </svg>
+    </a>
+    <div class="label" style="left: 42%; top: 70%;">Maelstrom Monster Zone</div>
+
+    <!-- Tabi (east bottom) -->
+    <a href="niwa.html?scene=tabi" class="island" style="left: 68%; top: 70%; width: 16%; height: 20%;"
+       title="The Traveler's Coast (旅の岸辺)">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-shape"/>
+        <use href="#village-icon" x="0" y="-10" width="22" height="22"/>
+      </svg>
+    </a>
+    <div class="label large" style="left: 67%; top: 65%;">Traveler's Coast</div>
+
+    <!-- Amaoto (cloud center upper) — small island near top -->
+    <a href="niwa.html?scene=amaoto" class="island" style="left: 44%; top: 38%; width: 8%; height: 12%;"
+       title="The Room of Rain (雨音の部屋)">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-shape"/>
+        <use href="#village-icon" x="0" y="-15" width="18" height="18"/>
+      </svg>
+    </a>
+    <div class="label" style="left: 42%; top: 33%;">Rain Hermitage</div>
+
+    <!-- Heya (small island near upper right) -->
+    <a href="niwa.html?scene=heya" class="island" style="left: 55%; top: 33%; width: 7%; height: 10%;"
+       title="The Cozy Room (部屋)">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-shape"/>
+        <use href="#village-icon" x="0" y="-15" width="16" height="16"/>
+      </svg>
+    </a>
+    <div class="label" style="left: 56%; top: 28%;">Hearth Sanctum</div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <b>凡例</b><br>
+      ★ — 主要な村 / Village<br>
+      🜔 — ウェイポイント / Waypoint<br>
+      ✕ — 隠し宝箱 / Hidden Chest<br>
+      <span style="color:#a82018">▰</span> — モンスターエリア / Danger Zone<br>
+      ━━ — 鎖の橋 / Chain Bridge<br>
+      <br>
+      <i>Click any island to descend.</i>
+    </div>
+  </div>
+</div>
+<script>
+  // Pre-load font (Cinzel / IM Fell English) from Google Fonts. If offline, falls back to serif.
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=IM+Fell+English:ital@0;1&display=swap';
+  document.head.appendChild(link);
+  // Optional: when an island is clicked, write scene preference into sessionStorage so niwa.html
+  // can pick it up if it supports ?scene= query
+  document.querySelectorAll('.island').forEach(a => {
+    a.addEventListener('click', e => {
+      const url = new URL(a.href, location.href);
+      const scene = url.searchParams.get('scene');
+      if(scene) sessionStorage.setItem('niwa.startScene', scene);
+    });
+  });
+</script>
+</body>
+</html>

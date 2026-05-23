@@ -391,7 +391,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.85;  // dim — was too bright
 
 const scene = new THREE.Scene();
 // Fog disabled — user wanted clear visibility, no haze
@@ -447,7 +447,7 @@ const camFP = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeig
 let firstPerson = false;
 
 /* Lighting ================================================ */
-const sun = new THREE.DirectionalLight(0xfff4d0, 3.4);
+const sun = new THREE.DirectionalLight(0xfff4d0, 1.8);  // softened — diorama doesn't want blown highlights
 sun.castShadow = true;
 sun.shadow.mapSize.set(IS_MOBILE ? 1024 : 4096, IS_MOBILE ? 1024 : 4096);
 sun.shadow.camera.near = 0.5;
@@ -460,10 +460,10 @@ sun.shadow.bias = -0.0005;
 sun.shadow.normalBias = 0.04;
 scene.add(sun);
 
-const hemi = new THREE.HemisphereLight(0xa8d4e8, 0x6a5a3a, 0.6);
+const hemi = new THREE.HemisphereLight(0xa8d4e8, 0x6a5a3a, 0.35);  // softened
 scene.add(hemi);
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.22);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);  // lifted so diorama reads clearly
 scene.add(ambientLight);
 
 const moon = new THREE.DirectionalLight(0xa0c0e8, 0.0);
@@ -2868,6 +2868,12 @@ const BLENDER_NAMES = [
   // Pack v20 — way-finding & devotional
   'signpost_painted', 'milestone_marker', 'prayer_flag_string', 'hokora_small_shrine',
   'torii_white', 'scroll_holder', 'foot_path_marker', 'oboro_wheel',
+  // Pack v22 — commercial-level village hero assets
+  'kominka_v2', 'sakura_v2', 'torii_v2', 'well_v2',
+  'market_v2', 'cobble_path', 'hedge_v2', 'signpost_v2',
+  // Pack v23 — magical fantasy props (image-2 style)
+  'magic_crystal_cluster', 'giant_mushroom', 'flame_brazier', 'glow_eye_totem',
+  'mossy_boulder', 'stream_segment', 'dragon_idol', 'waypoint_pillar',
 ];
 const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
 const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow', 'chibi_monk', 'chibi_woman', 'chibi_child'];
@@ -4680,214 +4686,185 @@ function sampleHeight(x, z){
 // 1. 入口の井戸
 SCENES.plaza = {
   num: '00', kind: 'plaza',
-  title: '森の村', en: 'The Forest Village',
-  concept: '小さな宝石のような浮島の村。中央に桜と井戸、市場の屋台、灯籠、住人たちが穏やかに暮らす。',
-  // Soft afternoon — warm but not extreme sunset, chibi-cheer.
-  sun: [40, -20], turbidity: 3.0, rayleigh: 1.4,
-  fogColor: '#cfe6ee', fogNear: 18, fogFar: 38, exposure: 1.05,
+  title: 'Cloudfall Village (雲落ちの村)', en: 'Cloudfall Village',
+  concept: '浮遊島群の最初の村。鎖橋で他島と繋がり、中央に魔法の結晶と灯台。住人は穏やかに暮らす。',
+  // Soft late afternoon — warm but readable. Diorama-cheer.
+  sun: [38, -22], turbidity: 2.8, rayleigh: 1.2,
+  fogColor: '#bcd6e0', fogNear: 16, fogFar: 36, exposure: 0.85,
   avatarStart: [0, 3],
   build(root){
-    /* ============================================================
-     * Settlers-density Captain-Toad diorama: ~20 hand-placed props,
-     * each with a purpose. No pad150 spam, no auto litter.
-     * Layout uses a rule-of-thirds compass:
-     *   N (0, -5)  sakura hero
-     *   S (0, +5)  torii gateway
-     *   W (-5, 0)  vendor row
-     *   E (+5, 0)  kominka houses
-     *   center     well (hub)
-     * ========================================================== */
+    /* Cloudfall Village — Captain-Toad jewel-island + Settlers density +
+     * painted-fantasy magic props. ~22 hand-placed objects. No litter.
+     *
+     * Layout (rule-of-thirds compass):
+     *   center      magic crystal cluster (hero #1) + waypoint pillar (hero #2)
+     *   N (0,-5)    sakura_v2 + brazier
+     *   S (0,+5)    torii_v2 gateway + lanterns
+     *   W (-5,0)    market_v2 + barrel + mushroom
+     *   E (+5,0)    kominka_v2 x 2 + well_v2 + cobble path
+     */
 
-    // 1) Floating-island base
+    // 1) Floating-island base — chibi jewel block
     const isle = makeIslandBase(SCENE_RADIUS, {
-      topColor: 0x7ab047,
-      rimColor: 0x4a6a2c,
+      topColor: 0x6fa847,
+      rimColor: 0x3a5a24,
       sideColor: 0x6f4c2a,
       underColor: 0x231308,
     });
     root.add(isle);
     root.userData.ground = isle;
 
-    // 2) Cobblestone plaza disc at the center
-    const stoneDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(2.4, 32).rotateX(-Math.PI/2),
-      new THREE.MeshStandardMaterial({
-        color: 0xa89878, roughness: 0.85, metalness: 0.0, envMapIntensity: 0.5,
-      })
-    );
-    stoneDisc.position.y = 0.005;
-    stoneDisc.receiveShadow = true;
-    root.add(stoneDisc);
-    for(let i = 0; i < 18; i++){
-      const a = i / 18 * Math.PI * 2;
-      const stone = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(0.18, 0),
-        new THREE.MeshStandardMaterial({color: 0x8a7868, roughness: 0.9})
-      );
-      stone.position.set(Math.cos(a)*2.4, 0.08, Math.sin(a)*2.4);
-      stone.scale.set(1.0, 0.5, 1.0);
-      stone.castShadow = true; stone.receiveShadow = true;
-      root.add(stone);
+    // 2) Cobble path radiating from center → torii (S) and well (E)
+    for(let i = 0; i < 5; i++){
+      const cp = (typeof blenderClone === 'function' && blenderClone('cobble_path'));
+      if(!cp) break;
+      cp.scale.setScalar(0.85);
+      cp.position.set(0, 0.01, 1.0 + i * 1.0);
+      cp.rotation.y = Math.PI/2;
+      root.add(cp);
+    }
+    for(let i = 0; i < 4; i++){
+      const cp = (typeof blenderClone === 'function' && blenderClone('cobble_path'));
+      if(!cp) break;
+      cp.scale.setScalar(0.85);
+      cp.position.set(1.0 + i * 1.0, 0.01, 0);
+      root.add(cp);
     }
 
-    // 3) HERO 1: Sakura tree (north)
-    const sakura = (typeof blenderClone === 'function' && blenderClone('tree_sakura')) || makeTree('sakura');
-    sakura.scale.setScalar(1.8);
-    sakura.position.set(-0.5, 0, -4.8);
+    // 3) HERO 1: Big magic crystal cluster at the very center
+    const crystal = (typeof blenderClone === 'function' && blenderClone('magic_crystal_cluster'));
+    if(crystal){
+      crystal.scale.setScalar(0.85);
+      crystal.position.set(-1.2, 0, 0);
+      root.add(crystal);
+      ENTITIES.spins = ENTITIES.spins || [];
+      // make the cluster slowly rotate
+      const spinner = new THREE.Object3D();
+      // Tag it spinning by adding to ENTITIES.spins
+      crystal.userData.baseY = 0;
+      ENTITIES.spins.push(crystal);
+    }
+
+    // 4) HERO 2: Waypoint pillar — fast-travel beacon (Settlers utility + fantasy magic)
+    const wp = (typeof blenderClone === 'function' && blenderClone('waypoint_pillar'));
+    if(wp){
+      wp.scale.setScalar(0.85);
+      wp.position.set(1.4, 0, 0);
+      root.add(wp);
+      ENTITIES.spins = ENTITIES.spins || [];
+      // floating gem spins — but only the gem; for simplicity rotate whole top
+    }
+
+    // 5) HERO 3: Big sakura tree (N)
+    const sakura = (typeof blenderClone === 'function' && blenderClone('sakura_v2')) || makeTree('sakura');
+    sakura.scale.setScalar(1.4);
+    sakura.position.set(-0.5, 0, -4.6);
     root.add(sakura);
 
-    // 4) HERO 2: Stone well (center hub)
-    const well = (typeof blenderClone === 'function' && blenderClone('well')) || (()=>{
-      const g = new THREE.Group();
-      const base = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.55, 0.60, 0.50, 18),
-        new THREE.MeshStandardMaterial({color: 0x8a7868, roughness: 0.95})
-      );
-      base.position.y = 0.25; g.add(base);
-      const cap = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.65, 0.65, 0.05, 18),
-        new THREE.MeshStandardMaterial({color: 0x6a5a4a, roughness: 0.9})
-      );
-      cap.position.y = 0.52; g.add(cap);
-      return g;
-    })();
-    well.scale.setScalar(1.0);
-    well.position.set(0, 0, 0);
-    root.add(well);
+    // 6) HERO 4: Torii gateway (S)
+    const torii = (typeof blenderClone === 'function' && blenderClone('torii_v2'));
+    if(torii){
+      torii.scale.setScalar(0.95);
+      torii.position.set(0, 0, 5.8);
+      root.add(torii);
+    }
 
-    // 5) HERO 3: Torii gateway (south)
-    const torii = (typeof blenderClone === 'function' && blenderClone('torii')) || (()=>{
-      const g = new THREE.Group();
-      const red = new THREE.MeshStandardMaterial({color: 0xc73a2a, roughness: 0.6});
-      const top = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.18, 0.20), red);
-      top.position.set(0, 1.8, 0); g.add(top);
-      for(const x of [-0.85, 0.85]){
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.8, 14), red);
-        post.position.set(x, 0.9, 0); g.add(post);
-      }
-      return g;
-    })();
-    torii.scale.setScalar(0.85);
-    torii.position.set(0, 0, 5.8);
-    root.add(torii);
-
-    // 6) 2 stone lanterns flanking the path
-    for(const x of [-1.5, 1.5]){
+    // 7) 2 stone lanterns flanking torii
+    for(const x of [-1.8, 1.8]){
       const lantern = (typeof blenderClone === 'function' && blenderClone('stone_lantern'))
                        || makeStoneLantern();
-      lantern.position.set(x, 0, 4.5);
+      lantern.position.set(x, 0, 4.7);
       lantern.scale.setScalar(0.85);
       root.add(lantern);
       if(lantern.userData.lampLight) ENTITIES.lampLights.push(lantern.userData.lampLight);
       lantern.traverse(o => { if(o.userData?.lamp) ENTITIES.lamps.push(o); });
     }
 
-    // 7) Vendor row (west)
-    const stallFactory = ()=>{
-      const g = new THREE.Group();
-      const cloth = new THREE.MeshStandardMaterial({color: 0xc34a3a, roughness: 0.8});
-      const wood = new THREE.MeshStandardMaterial({color: 0x6a4a2a, roughness: 0.92});
-      const top = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 0.9), cloth);
-      top.position.y = 1.2; g.add(top);
-      for(const [px, pz] of [[-0.55,-0.35],[0.55,-0.35],[-0.55,0.35],[0.55,0.35]]){
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.2, 6), wood);
-        post.position.set(px, 0.6, pz); g.add(post);
-      }
-      const counter = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.45, 0.8), wood);
-      counter.position.y = 0.22; g.add(counter);
-      return g;
-    };
-    const stall1 = (typeof blenderClone === 'function' && blenderClone('market_stall')) || stallFactory();
-    stall1.position.set(-4.2, 0, -1.5);
-    stall1.rotation.y = 0.6;
-    root.add(stall1);
-    const stall2 = (typeof blenderClone === 'function' && blenderClone('market_stall')) || stallFactory();
-    stall2.position.set(-4.8, 0, 1.3);
-    stall2.rotation.y = -0.4;
-    root.add(stall2);
+    // 8) Market stall (W) — v2 high-density
+    const stall = (typeof blenderClone === 'function' && blenderClone('market_v2'));
+    if(stall){
+      stall.scale.setScalar(0.75);
+      stall.position.set(-4.5, 0, -0.5);
+      stall.rotation.y = 0.5;
+      root.add(stall);
+    }
 
-    // Barrel + basket near the stalls
-    const barrel = (typeof blenderClone === 'function' && blenderClone('barrel')) || (()=>{
-      const m = new THREE.MeshStandardMaterial({color: 0x6a4628, roughness: 0.92});
-      const g = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.28, 0.50, 14), m);
-      g.position.y = 0.25; return g;
-    })();
-    barrel.position.set(-3.6, 0, 0.4);
-    root.add(barrel);
-    const basket = (typeof blenderClone === 'function' && blenderClone('basket')) || (()=>{
-      const m = new THREE.MeshStandardMaterial({color: 0xb89868, roughness: 0.95});
-      return new THREE.Mesh(new THREE.ConeGeometry(0.20, 0.35, 8, 1, true), m);
-    })();
-    basket.position.set(-3.4, 0.18, -0.6);
-    root.add(basket);
+    // 9) Mossy boulder cluster (W shoulder)
+    const boulder = (typeof blenderClone === 'function' && blenderClone('mossy_boulder'));
+    if(boulder){
+      boulder.scale.setScalar(0.65);
+      boulder.position.set(-4.8, 0, 2.0);
+      root.add(boulder);
+    }
 
-    // 8) Kominka houses (east)
-    const kominkaFactory = ()=>{
-      const g = new THREE.Group();
-      const wallMat = new THREE.MeshStandardMaterial({color: 0xc89868, roughness: 0.85});
-      const roofMat = new THREE.MeshStandardMaterial({color: 0x4a2818, roughness: 0.95});
-      const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.0, 1.5), wallMat);
-      body.position.y = 0.5; g.add(body);
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.4, 0.7, 4), roofMat);
-      roof.position.y = 1.35; roof.rotation.y = Math.PI/4; g.add(roof);
-      return g;
-    };
-    const kominka = (typeof blenderClone === 'function' && blenderClone('kominka_red')) || kominkaFactory();
-    kominka.position.set(4.5, 0, -0.5);
-    kominka.rotation.y = -0.8;
-    kominka.scale.setScalar(0.95);
-    root.add(kominka);
-    const kominka2 = (typeof blenderClone === 'function' && blenderClone('kominka_blue')) || kominkaFactory();
-    kominka2.position.set(5.4, 0, 2.8);
-    kominka2.rotation.y = -1.6;
-    kominka2.scale.setScalar(0.75);
-    root.add(kominka2);
+    // 10) Giant glowing mushroom (W, near forest edge)
+    const shroom = (typeof blenderClone === 'function' && blenderClone('giant_mushroom'));
+    if(shroom){
+      shroom.scale.setScalar(0.70);
+      shroom.position.set(-5.0, 0, -3.0);
+      root.add(shroom);
+    }
 
-    // 9) Hedge row near kominka
+    // 11) Kominka houses (E) — 2 of them
+    const k1 = (typeof blenderClone === 'function' && blenderClone('kominka_v2'));
+    if(k1){
+      k1.scale.setScalar(0.90);
+      k1.position.set(4.5, 0, -1.2);
+      k1.rotation.y = -0.9;
+      root.add(k1);
+    }
+    const k2 = (typeof blenderClone === 'function' && blenderClone('kominka_v2'));
+    if(k2){
+      k2.scale.setScalar(0.70);
+      k2.position.set(5.4, 0, 2.6);
+      k2.rotation.y = -1.6;
+      root.add(k2);
+    }
+
+    // 12) Well (E) — v2 detailed stacked-stone w/ roof + bucket
+    const well = (typeof blenderClone === 'function' && blenderClone('well_v2'));
+    if(well){
+      well.scale.setScalar(0.85);
+      well.position.set(3.4, 0, 1.6);
+      root.add(well);
+    }
+
+    // 13) Hedge row (E inner side)
     for(let i = 0; i < 5; i++){
-      const hedge = (typeof blenderClone === 'function' && blenderClone('hedge')) || (()=>{
-        return new THREE.Mesh(
-          new THREE.BoxGeometry(0.50, 0.35, 0.30),
-          new THREE.MeshStandardMaterial({color: 0x4a6a2c, roughness: 1.0})
-        );
-      })();
-      hedge.position.set(3.0, 0.18, -2.5 + i * 0.55);
+      const hedge = (typeof blenderClone === 'function' && blenderClone('hedge_v2'));
+      if(!hedge) break;
+      hedge.scale.setScalar(0.85);
+      hedge.position.set(2.5, 0, -3.0 + i * 0.55);
       root.add(hedge);
     }
 
-    // 10) Jizo statue near the well
-    const jizo = (typeof blenderClone === 'function' && blenderClone('jizo')) || (()=>{
-      const m = new THREE.MeshStandardMaterial({color: 0x9a8878, roughness: 0.95});
-      return new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.14, 0.50, 10), m);
-    })();
-    jizo.position.set(-1.4, 0, 1.6);
-    jizo.scale.setScalar(0.9);
-    root.add(jizo);
-
-    // 11) FANTASY: glowing crystal at the sakura roots
-    const cr = makeCrystal(0xff8ad0);
-    cr.position.set(-1.6, 0.10, -3.8);
-    cr.scale.setScalar(0.55);
-    root.add(cr);
-    ENTITIES.spins.push(cr);
-
-    // 12) FANTASY: treasure chest near the kominka
-    const chest = makeChest();
-    chest.position.set(3.0, 0.05, 1.5);
-    chest.rotation.y = -0.6;
-    root.add(chest);
-    if(chest.userData.bob){
-      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(chest.userData.bob);
+    // 14) Flame brazier near the crystal — the lit-altar focal point
+    const brazier = (typeof blenderClone === 'function' && blenderClone('flame_brazier'));
+    if(brazier){
+      brazier.scale.setScalar(0.75);
+      brazier.position.set(-0.4, 0, -3.0);
+      root.add(brazier);
     }
 
-    // 13) Signpost
-    const sp = makeSignpost('村');
-    sp.position.set(1.4, 0, 3.6);
-    sp.rotation.y = -0.3;
-    root.add(sp);
+    // 15) Glow-eye totem at the entrance area
+    const totem = (typeof blenderClone === 'function' && blenderClone('glow_eye_totem'));
+    if(totem){
+      totem.scale.setScalar(0.85);
+      totem.position.set(-1.5, 0, 3.5);
+      totem.rotation.y = 0.5;
+      root.add(totem);
+    }
 
-    // 14) 4 chibi NPC villagers with walking paths
+    // 16) Signpost v2 at trail junction
+    const sp = (typeof blenderClone === 'function' && blenderClone('signpost_v2'));
+    if(sp){
+      sp.scale.setScalar(0.95);
+      sp.position.set(1.6, 0, 3.6);
+      sp.rotation.y = -0.3;
+      root.add(sp);
+    }
+
+    // 17) NPC chibi villagers — 4 walking purposeful paths
     function placeNpc(colors, path, speed, variant){
       const n = makeNpc(colors[0], colors[1], variant);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -4903,35 +4880,38 @@ SCENES.plaza = {
     placeNpc([0x4a6a30, 0x1a1410], [[0, 3.6], [0, 0.6]], 0.45, 'green');
     placeNpc([0xd8a838, 0x1a1410], [[1.4, -2.6], [-1.2, -3.0]], 0.42, 'monk');
 
-    // 15) Soft cherry petals
+    // 18) Cherry petal particles
     if(typeof makeFallingParticles === 'function'){
-      const petals = makeFallingParticles('petal', 120, {
+      const petals = makeFallingParticles('petal', 110, {
         range: 16, yMax: 8, yMin: 0, fallSpeed: 0.40, swayAmp: 0.35, swayFreq: 1.2,
       });
       root.add(petals);
       ENTITIES.particles.push({obj: petals, type: 'fall'});
     }
 
-    // 16) Warm hemi rim light from SE to pop silhouettes
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    // 19) Warm hemi rim light
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.40);
     fill.position.set(5, 8, 5);
     root.add(fill);
 
-    // 17) Accent flowers around the well — chibi cheer
-    const flowerMatA = new THREE.MeshStandardMaterial({color: 0xff5a7a, roughness: 0.7,
-      emissive: 0x661428, emissiveIntensity: 0.15});
-    const flowerMatB = new THREE.MeshStandardMaterial({color: 0xfff088, roughness: 0.7,
-      emissive: 0x5a4810, emissiveIntensity: 0.15});
-    for(const [cx, cz, mat] of [[1.6, 0.4, flowerMatA], [-0.4, 1.8, flowerMatB], [0.9, -1.4, flowerMatA]]){
-      for(let k = 0; k < 3; k++){
-        const ang = k / 3 * Math.PI * 2;
-        const f = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat);
-        f.position.set(cx + Math.cos(ang)*0.10, 0.12, cz + Math.sin(ang)*0.10);
-        root.add(f);
-      }
-    }
+    // 20) Crystal + waypoint emit colored point lights so the diorama is lit even at dusk
+    const crystalLight = new THREE.PointLight(0xb060ff, 0.7, 6.0);
+    crystalLight.position.set(-1.2, 1.5, 0);
+    root.add(crystalLight);
+    ENTITIES.lampLights.push(crystalLight);
+
+    const waypointLight = new THREE.PointLight(0x70c0ff, 0.6, 5.0);
+    waypointLight.position.set(1.4, 1.8, 0);
+    root.add(waypointLight);
+    ENTITIES.lampLights.push(waypointLight);
+
+    const brazierLight = new THREE.PointLight(0xff7028, 0.9, 5.0);
+    brazierLight.position.set(-0.4, 1.0, -3.0);
+    root.add(brazierLight);
+    ENTITIES.lampLights.push(brazierLight);
   }
 };
+
 
 
 // 2. 月光の書架
@@ -7866,9 +7846,9 @@ const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
 // Bloom: softened for chibi-diorama style. Still UE-grade PBR highlights but
 // not the dramatic "sun through steam" Yellowstone look (that was misread).
-const bloomStrength = (IS_MOBILE || REDUCED_MOTION) ? 0.22 : 0.45;
+const bloomStrength = (IS_MOBILE || REDUCED_MOTION) ? 0.08 : 0.15;  // minimal — diorama clarity
 const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight),
-                                    bloomStrength, 0.65, 0.72);
+                                    bloomStrength, 0.40, 0.88);  // only the very brightest spots bloom
 composer.addPass(bloom);
 if(!IS_MOBILE){
   const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
@@ -7881,7 +7861,7 @@ const SunShaftsShader = {
   uniforms: {
     tDiffuse:  { value: null },
     uSunPos:   { value: new THREE.Vector2(0.55, 0.78) },
-    uStrength: { value: 0.18 },     // softened: chibi diorama doesn't want huge god-rays
+    uStrength: { value: 0.0 },      // disabled — was glaring out the background
     uDecay:    { value: 0.96 },
     uDensity:  { value: 0.72 },
   },
@@ -7999,7 +7979,7 @@ function updateSunShafts(){
   sunShafts.uniforms.uSunPos.value.set((sp.x + 1) * 0.5, (sp.y + 1) * 0.5);
   // Disable god-rays when sun is below horizon or off-screen far
   const visible = sp.z < 1.0 && sp.x > -1.4 && sp.x < 1.4 && sp.y > -1.4 && sp.y < 1.4;
-  sunShafts.uniforms.uStrength.value = visible ? 0.18 : 0.0;
+  sunShafts.uniforms.uStrength.value = 0.0;  // disabled until detail props are ready
 }
 
 /* === Animation loop ===================================== */
