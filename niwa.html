@@ -2815,18 +2815,15 @@ function addMixer(mixer){
 const BLENDER_CACHE = {};
 const BLENDER_NAMES = [
   // KB3D Enchanted — the sole asset base (procedural primitives removed per user direction).
-  // All hosted on pCloud Public Folder; fetched lazy on scene open. See PCLOUD_PUBLINK above.
-  'enc_clocktower_b', 'enc_church_a', 'enc_church_spire',
-  'enc_antiquarian', 'enc_inn', 'enc_bank', 'enc_herbalist',
-  'enc_bookstore', 'enc_candlemaker', 'enc_pub',
-  'enc_lamppost_a', 'enc_lamppost_c', 'enc_lantern',
-  'enc_sign_a', 'enc_sign_b', 'enc_planter_a', 'enc_planter_b',
-  'enc_brazier', 'enc_hangingpot', 'enc_bench',
-  'enc_sigil', 'enc_sword_in_stone', 'enc_zoltor', 'enc_vendor_b',
-  'enc_wooden_arch', 'enc_armor_chest', 'enc_wash_basin', 'enc_bookshelf',
-  // Ground / plaza pieces (extracted via wm.append low-memory script)
-  'enc_townsquare_ground', 'enc_townsquare_floor', 'enc_townsquare_upper',
-  'enc_castle_ground', 'enc_herbalist_ground',
+  // Each scene is composed of: 1 ground disc + 1 hero building + lampposts + planter.
+  // All hosted on pCloud Public Folder; fetched lazy per-scene. See PCLOUD_PUBLINK above.
+  // Ground discs (every scene picks one — solves the "floating buildings" issue):
+  'enc_townsquare_ground', 'enc_herbalist_ground',
+  // Hero buildings (one per scene; clocktower used by both plaza and toki):
+  'enc_clocktower_b', 'enc_bookstore', 'enc_herbalist', 'enc_inn',
+  'enc_antiquarian', 'enc_candlemaker', 'enc_church_a',
+  // Shared props (every scene gets lampposts + planter):
+  'enc_lamppost_a', 'enc_planter_a',
 ];
 const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
 const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow', 'chibi_monk', 'chibi_woman', 'chibi_child'];
@@ -4815,134 +4812,59 @@ function sampleHeight(x, z){
 
 // 1. 入口の井戸
 SCENES.plaza = {
-  num: '00', kind: 'plaza',
+  num: '00', kind: 'outdoor',
   title: 'Cloudfall Village (雲落ちの村)', en: 'Cloudfall Village',
-  concept: 'KB3D Enchanted ベースの原寸ジオラマ。広場・地面・建物すべて Enchanted アセット。',
+  concept: 'KB3D Enchanted の塔広場を中心に据えた入口の村。霧の上に石畳と中央時計塔。',
   sun: [44, -22], turbidity: 2.5, rayleigh: 1.1,
-  fogColor: '#b0c4d0', fogNear: 28, fogFar: 80, exposure: 1.0,
+  fogColor: '#b0c4d0', fogNear: 30, fogFar: 90, exposure: 1.0,
   avatarStart: [0, 6.0],
-  // Lazy-load via pCloud-proxy worker. All assets are ENC; no procedural fallback.
-  preloadAssets: [
-    // SMALLER initial set — heavy multi-material ENC buildings exhaust GPU
-    // texture memory on first-paint (each has ~13 materials × 4 PBR maps).
-    // Show only ground + 4 hero buildings + 2 lights up front; the rest
-    // arrives via background lazy-load and pops in on auto-rebuild.
-    'enc_townsquare_ground', 'enc_townsquare_floor',
-    'enc_clocktower_b', 'enc_church_a',
-    'enc_inn', 'enc_herbalist',
-    'enc_lamppost_a', 'enc_brazier',
-  ],
+  preloadAssets: ['enc_townsquare_ground', 'enc_clocktower_b', 'enc_lamppost_a', 'enc_planter_a'],
   build(root){
-    /* === Cloudfall Village — Enchanted-only diorama ===
-     * Native-scale layout. SCENE_RADIUS is 8m but ENC buildings live in
-     * their original metric system so we don't downsize.
-     */
-
-    // === 1) Ground — pure ENC asset (no more procedural floating island) ===
-    function placeENC(name, x, z, scale, rotY){
+    function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
       if(!m) return null;
       m.scale.setScalar(scale ?? 1.0);
-      m.position.set(x, 0, z);
-      if(typeof rotY === 'number') m.rotation.y = rotY;
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
       m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
       root.add(m);
       return m;
     }
 
-    // Plaza ground (cobblestone slab, native scale)
-    placeENC('enc_townsquare_ground', 0, 0, 1.0, 0);
-    // Plaza floor tiles (raised tile pattern, native scale)
-    placeENC('enc_townsquare_floor', 0, 0, 1.0, 0);
+    // 1) Ground first — cobblestone disc anchors everything (no more floating)
+    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
 
-    // === 2) Heroes — clock tower centre + 2 hero buildings flanking ===
-    // ENC native scale ≈ 1.0 (no downsize). Buildings are 5-15m tall.
-    placeENC('enc_clocktower_b', 0,   -8, 1.0, 0);
-    placeENC('enc_church_a',    -8,  -3, 1.0, Math.PI/2);
-    placeENC('enc_church_spire', 8,  -3, 1.0, -Math.PI/2);
+    // 2) Hero building, raised slightly above the ground plate so it sits on it
+    placeENC('enc_clocktower_b', 0, 0.05, -1.5, 0.85, 0);
 
-    // === 3) Residential / artisan rows (east + west) ===
-    placeENC('enc_inn',          12,  0, 1.0, -Math.PI/2);
-    placeENC('enc_bookstore',    12,  5, 1.0, -Math.PI/2);
-    placeENC('enc_pub',          12, 10, 1.0, -Math.PI/2);
-    placeENC('enc_herbalist',   -12,  0, 1.0,  Math.PI/2);
-    placeENC('enc_antiquarian', -12,  5, 1.0,  Math.PI/2);
-    placeENC('enc_candlemaker', -12, 10, 1.0,  Math.PI/2);
+    // 3) Lampposts flanking the entrance + 1 planter for life
+    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
 
-    // === 4) South gateway + market ===
-    placeENC('enc_wooden_arch',  0, 14, 1.0, 0);
-    placeENC('enc_vendor_b',     5, 12, 1.0, -Math.PI/2);
-    placeENC('enc_zoltor',      -5, 12, 1.0,  Math.PI/2);
-    placeENC('enc_bank',         0, 18, 1.0, 0);
-
-    // === 5) Cardinal lampposts ===
-    placeENC('enc_lamppost_a',  4,  0, 1.0, 0);
-    placeENC('enc_lamppost_a', -4,  0, 1.0, 0);
-    placeENC('enc_lamppost_c',  0,  4, 1.0, 0);
-    placeENC('enc_lamppost_c',  0, -4, 1.0, 0);
-
-    // === 6) Decorative — sigils, statues, props ===
-    placeENC('enc_brazier',          0, -3, 1.0, 0);
-    placeENC('enc_sword_in_stone',   3, -3, 1.0, 0);
-    placeENC('enc_sigil',           -3,  3, 1.0, 0);
-    placeENC('enc_sigil',            3,  3, 1.0, 0);
-    placeENC('enc_bench',           -3, -3, 1.0, Math.PI/2);
-    placeENC('enc_planter_a',        5,  5, 1.0, 0);
-    placeENC('enc_planter_a',       -5,  5, 1.0, 0);
-    placeENC('enc_planter_b',        5, -5, 1.0, 0);
-    placeENC('enc_planter_b',       -5, -5, 1.0, 0);
-    placeENC('enc_hangingpot',       2,  2, 1.0, 0);
-    placeENC('enc_hangingpot',      -2,  2, 1.0, 0);
-    placeENC('enc_lantern',          2, -2, 1.0, 0);
-    placeENC('enc_lantern',         -2, -2, 1.0, 0);
-    placeENC('enc_bookshelf',       -8,  8, 1.0, Math.PI/2);
-    placeENC('enc_bookshelf',        8,  8, 1.0, -Math.PI/2);
-    placeENC('enc_sign_a',          -6,  3, 1.0, 0);
-    placeENC('enc_sign_a',           6,  3, 1.0, 0);
-    placeENC('enc_armor_chest',     -7, -7, 1.0, 0);
-    placeENC('enc_armor_chest',      7, -7, 1.0, 0);
-    placeENC('enc_wash_basin',      -1.5, 0, 1.0, 0);
-    placeENC('enc_wash_basin',       1.5, 0, 1.0, 0);
-
-    // === 7) NPC chibi villagers (procedural primitive cute) ===
-    function placeNpc(colors, path, speed, variant){
-      const n = makeNpc(colors[0], colors[1], variant);
+    // 4) NPC villagers wandering the plate
+    function placeNpc(colors, path, speed){
+      const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path;
-      n.userData.wp = 0;
-      n.userData.speed = speed;
-      ENTITIES.npcs.push(n);
-      root.add(n);
+      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
+      ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[0, 6], [0, -6]], 0.55);
-    placeNpc([0x3858a8, 0x1a1410], [[6, 0], [-6, 0]], 0.50);
-    placeNpc([0x4a6a30, 0x1a1410], [[0, 10], [0, 2]], 0.45);
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
 
-    // === 8) Cherry petals + warm rim light ===
     if(typeof makeFallingParticles === 'function'){
-      const petals = makeFallingParticles('petal', 90, {
-        range: 30, yMax: 12, yMin: 0, fallSpeed: 0.40, swayAmp: 0.4, swayFreq: 1.2,
-      });
-      root.add(petals);
-      ENTITIES.particles.push({obj: petals, type: 'fall'});
+      const p = makeFallingParticles('petal', 80, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.40, swayAmp: 0.4, swayFreq: 1.2 });
+      root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
+    // 5) Warm hemi fill for chibi diorama look
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
     fill.position.set(8, 12, 8);
     root.add(fill);
-
-    // === 9) Lamppost + brazier point lights ===
-    for(const [tx, tz] of [[4, 0], [-4, 0], [0, 4], [0, -4]]){
-      const pl = new THREE.PointLight(0xffd080, 0.85, 8.0);
-      pl.position.set(tx, 3.0, tz);
-      root.add(pl);
-      ENTITIES.lampLights.push(pl);
-    }
-    const bl = new THREE.PointLight(0xff7028, 1.0, 6.0);
-    bl.position.set(0, 1.8, -3); root.add(bl);
-    ENTITIES.lampLights.push(bl);
   }
 };
+
+
 
 
 
@@ -4952,2529 +4874,507 @@ SCENES.plaza = {
 
 // 2. 月光の書架
 SCENES.monlight = {
-  num: '01', kind: 'pagoda',
+  num: '00', kind: 'outdoor',
   title: '月光の書架', en: 'The Moonlit Stacks',
-  concept: '塔の最上階に揺れる読書灯。月だけが照らす、世界中の本の書架。',
-  sun: [12, 35], turbidity:6, rayleigh:3.5,
-  fogColor:'#3a4a68', fogNear:18, fogFar:55, exposure:0.85,
-  avatarStart: [4, 5],
-  link: 'books.html', cta: '書架へ',
+  concept: '月光の下に積まれた書物。古書店の街区。',
+  sun: [12, 35], turbidity: 6, rayleigh: 3.5,
+  fogColor: '#3a4a68', fogNear: 18, fogFar: 55, exposure: 0.85,
+  avatarStart: [0, 6.0],
+  preloadAssets: ['enc_townsquare_ground', 'enc_bookstore', 'enc_lamppost_a', 'enc_planter_a'],
   build(root){
-    const hf = (x,z)=> {
-      // gentle mound under pagoda
-      const r = Math.hypot(x,z);
-      return Math.max(0, 1.2*(1 - r/8));
-    };
-    const ground = terrainDisc(SCENE_RADIUS, hf, palMoss);
-    ground.material.map = MOSS_TEX;
-    root.add(ground); root.userData.ground = ground;
-    // Pagoda at centre
-    const pag = makePagoda();
-    pag.position.y = hf(0,0);
-    root.add(pag);
-    // Stone steps leading up
-    for(let i=0;i<4;i++){
-      const step = new THREE.Mesh(new THREE.BoxGeometry(2.0 - i*0.2, 0.18, 0.6), mat(0x8a8067));
-      step.position.set(0, 0.1 + i*0.18, 3.5 - i*0.5);
-      step.castShadow=step.receiveShadow=true;
-      root.add(step);
+    function placeENC(name, x, y, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale ?? 1.0);
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
     }
-    // Hanging reading lanterns around the pagoda
-    for(let i=0;i<8;i++){
-      const ang = (i/8)*Math.PI*2;
-      const r = 5.5;
-      const lamp = makeLantern(0.8);
-      lamp.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      root.add(lamp);
-      ENTITIES.lamps.push(...lamp.children.filter(c=>c.userData?.lamp));
-      if(lamp.userData.lampLight) ENTITIES.lampLights.push(lamp.userData.lampLight);
+
+    // 1) Ground first — cobblestone disc anchors everything (no more floating)
+    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
+
+    // 2) Hero building, raised slightly above the ground plate so it sits on it
+    placeENC('enc_bookstore', 0, 0.05, -1.5, 0.85, 0);
+
+    // 3) Lampposts flanking the entrance + 1 planter for life
+    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
+
+    // 4) NPC villagers wandering the plate
+    function placeNpc(colors, path, speed){
+      const n = makeNpc(colors[0], colors[1]);
+      n.position.set(path[0][0], 0, path[0][1]);
+      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
+      ENTITIES.npcs.push(n); root.add(n);
+      return n;
     }
-    // Moss boulders
-    for(let i=0;i<7;i++){
-      const ang = Math.random()*Math.PI*2;
-      const r = 7 + Math.random()*3;
-      const rock = makeRock(Math.random, 1.5);
-      rock.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      root.add(rock);
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+
+    if(typeof makeFallingParticles === 'function'){
+      const p = makeFallingParticles('star', 90, { range: 30, yMax: 20, yMin: 6, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
+      root.add(p); ENTITIES.particles.push({obj: p, type: 'static'});
     }
-    // Momiji trees (autumn red) ringing
-    for(let i=0;i<4;i++){
-      const ang = (i/4)*Math.PI*2 + 0.3;
-      const r = 9;
-      const t = makeTree('momiji');
-      t.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      t.scale.setScalar(1.4);
-      root.add(t);
-    }
-    // Books pile (small)
-    const pile = new THREE.Group();
-    pile.position.set(-2, 0.05, 2.5);
-    for(let i=0;i<3;i++){
-      const book = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.4),
-        mat([0x884a30, 0x4a6a8a, 0x3a5a3a][i]));
-      book.position.y = 0.08 + i*0.13;
-      book.rotation.y = i*0.1;
-      book.castShadow = true;
-      pile.add(book);
-    }
-    root.add(pile);
-    // Bamboo grove behind the pagoda
-    const bamboo1 = makeBambooGrove(10);
-    bamboo1.position.set(0, 0, -7);
-    root.add(bamboo1);
-    // Two stone trinity groupings flanking the pagoda
-    const sg1 = makeStoneGroup();
-    sg1.position.set(3.5, 0, 1); root.add(sg1);
-    const sg2 = makeStoneGroup();
-    sg2.position.set(-3.5, 0, 1); root.add(sg2);
-    // Stone lantern flanking the steps
-    const sl1 = makeStoneLantern();
-    sl1.position.set(-1.5, 0, 4.2); root.add(sl1);
-    if(sl1.userData.lampLight) ENTITIES.lampLights.push(sl1.userData.lampLight);
-    sl1.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    const sl2 = makeStoneLantern();
-    sl2.position.set(1.5, 0, 4.2); root.add(sl2);
-    if(sl2.userData.lampLight) ENTITIES.lampLights.push(sl2.userData.lampLight);
-    sl2.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    // Azalea patches (low layer) ring
-    for(let i=0;i<8;i++){
-      const ang = (i/8)*Math.PI*2;
-      const r = 4.5;
-      const az = makeAzaleaPatch(4, [0xc8553d, 0xa83a30][i%2]);
-      az.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      root.add(az);
-    }
-    // Tsukubai with bamboo spout
-    const tk = makeTsukubai();
-    tk.position.set(4.5, 0, 3.5);
-    root.add(tk);
-    // Layered planting at 4 corners
-    layeredPlanting(root, -8, -4, 'autumn');
-    layeredPlanting(root, 8, -4, 'autumn');
-    /* ── RPG gimmicks ── */
-    // Retaining wall around the central mound (depth)
-    const retain = makeRetainingWall(8, 0.7);
-    retain.position.set(0, 0, 2.5);
-    root.add(retain);
-    // Chest hidden behind moss boulders
-    const chest = makeChest();
-    chest.position.set(-7, 0, 6); chest.rotation.y = -0.4;
-    root.add(chest);
-    if(chest.userData.bob){
-      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(chest.userData.bob);
-    }
-    // Reading orb (knowledge motif)
-    const orb = makeMagicOrb(0xc090ff);
-    orb.position.set(2.5, 1.2, 2.5);
-    root.add(orb);
-    if(orb.userData.orb){
-      orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
-      ENTITIES.bobs.push(orb.userData.orb);
-    }
-    // Signpost at entrance
-    const sp = makeSignpost('書');
-    sp.position.set(0, 0, 7);
-    root.add(sp);
-    // Hero GLB: Khronos Lantern PBR by the steps to the pagoda
-    loadGLB(ASSETS.lantern).then(gltf => {
-      if(!gltf) return;
-      const l = gltf.scene;
-      l.scale.setScalar(0.22);
-      l.position.set(-2.6, hf(-2.6, 4.0), 4.0);
-      root.add(l);
-    });
-    densifyGround(root, 'moss');
-    addDistantLandmarks(root, 'monlight');
+    // 5) Warm hemi fill for chibi diorama look
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(8, 12, 8);
+    root.add(fill);
   }
 };
+
+
 
 // 3. 音の祠
 SCENES.oto = {
-  num: '02', kind: 'shrine',
-  title: '音の祠', en: 'The Shrine of Sound',
-  concept: '夕日に染まる朱の鳥居。19,000のアーティストが銀河をつくる、音の社。',
-  // Visual ref: warm low-angle sunset over a temple with reflective water
-  sun: [16, -40], turbidity:3.4, rayleigh:3.2,
-  exposure:1.18,
-  avatarStart: [0, 6],
-  link: 'salon.html', cta: '銀河へ',
+  num: '00', kind: 'outdoor',
+  title: '音の小川', en: 'Stream Garden',
+  concept: '小川の音と苔むした水車小屋。コケと石段の世界。',
+  sun: [30, 60], turbidity: 4, rayleigh: 2.5,
+  fogColor: '#a8c4c8', fogNear: 20, fogFar: 60, exposure: 0.95,
+  avatarStart: [0, 6.0],
+  preloadAssets: ['enc_herbalist_ground', 'enc_herbalist', 'enc_lamppost_a', 'enc_planter_a'],
   build(root){
-    const hf = (x,z)=>0;
-    const ground = terrainDisc(SCENE_RADIUS, hf, palGravel);
-    ground.material.map = SAND_TEX;
-    root.add(ground); root.userData.ground = ground;
-    // Approach path
-    const path = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 9).rotateX(-Math.PI/2),
-      new THREE.MeshStandardMaterial({color:0xc8a674, roughness:0.9, transparent:true, opacity:0.7}));
-    path.position.set(0, 0.02, 1.5);
-    root.add(path);
-    // Stepping stones flanking the path centre
-    const sandoStones = [];
-    for(let i=-3;i<=4;i++){
-      sandoStones.push([0, 6 - i*1.4, 1.0, 0]);
+    function placeENC(name, x, y, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale ?? 1.0);
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
     }
-    root.add(makeSteppingStones(sandoStones));
-    // Torii at the front
-    const torii = makeTorii();
-    torii.position.set(0, 0, 2.5);
-    root.add(torii);
-    // Stone lanterns flanking torii
-    for(const x of [-2.5, 2.5]){
-      const lp = makeLantern(1.0);
-      lp.position.set(x, 0, 4);
-      root.add(lp);
-      ENTITIES.lamps.push(...lp.children.filter(c=>c.userData?.lamp));
-      if(lp.userData.lampLight) ENTITIES.lampLights.push(lp.userData.lampLight);
+
+    // 1) Ground first — cobblestone disc anchors everything (no more floating)
+    placeENC('enc_herbalist_ground', 0, 0, 0, 1.6, 0);
+
+    // 2) Hero building, raised slightly above the ground plate so it sits on it
+    placeENC('enc_herbalist', 0, 0.05, -1.5, 0.85, 25);
+
+    // 3) Lampposts flanking the entrance + 1 planter for life
+    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
+
+    // 4) NPC villagers wandering the plate
+    function placeNpc(colors, path, speed){
+      const n = makeNpc(colors[0], colors[1]);
+      n.position.set(path[0][0], 0, path[0][1]);
+      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
+      ENTITIES.npcs.push(n); root.add(n);
+      return n;
     }
-    // Komainu (lion-dog) — simple rock with eyes
-    for(const x of [-1.7, 1.7]){
-      const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.5), mat(0x8a8067));
-      plinth.position.set(x, 0.25, 5.5);
-      plinth.castShadow = plinth.receiveShadow = true;
-      root.add(plinth);
-      const dog = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), mat(0x9c9078));
-      dog.position.set(x, 0.78, 5.5);
-      dog.scale.set(0.9, 1.1, 1.3);
-      dog.castShadow = true;
-      root.add(dog);
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+
+    if(typeof makeFallingParticles === 'function'){
+      const p = makeFallingParticles('leaf', 60, { range: 26, yMax: 12, yMin: 0, fallSpeed: 0.35, swayAmp: 0.55, swayFreq: 0.8 });
+      root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // Inner shrine on raised base
-    const base = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.4, 3.0), mat(0x8a8067));
-    base.position.set(0, 0.2, -3);
-    base.castShadow = base.receiveShadow = true;
-    root.add(base);
-    const shrine = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.5, 2.2), mat(0xb04030));
-    shrine.position.set(0, 1.15, -3);
-    shrine.castShadow = true;
-    root.add(shrine);
-    const shrineRoof = new THREE.Mesh(new THREE.ConeGeometry(1.9, 1.0, 4), mat(0x2a1a14));
-    shrineRoof.position.set(0, 2.4, -3); shrineRoof.rotation.y = Math.PI/4;
-    shrineRoof.castShadow = true;
-    root.add(shrineRoof);
-    // Offering box
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.5), mat(0x4a2a18));
-    box.position.set(0, 0.65, -2);
-    root.add(box);
-    // Trees
-    for(let i=0;i<4;i++){
-      const ang = i/4*Math.PI*2 + Math.PI/4;
-      const r = 9;
-      const t = makeTree(i%2 ? 'pine' : 'sakura');
-      t.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      t.scale.setScalar(1.2);
-      root.add(t);
-    }
-    // NPC priest near offering box — use the dedicated monk chibi variant
-    const priest = makeNpc(null, null, 'monk');
-    priest.position.set(0.6, 0, -1.6);
-    priest.lookAt(0, 0, -3);
-    priest.userData.path = [[0.6,-1.6],[0.6,-1.6]]; // static
-    priest.userData.wp = 0; priest.userData.speed = 0;
-    root.add(priest);
-    ENTITIES.npcs.push(priest);
-    // Raked gravel inner courtyard (sazanami)
-    const gravel = makeRakedGravel(2.8);
-    gravel.position.set(0, 0, 0);
-    root.add(gravel);
-    // 2 stone trinity rocks at corners of gravel area
-    const sg1 = makeStoneGroup();
-    sg1.position.set(1.6, 0, -1.0); root.add(sg1);
-    const sg2 = makeStoneGroup();
-    sg2.position.set(-1.6, 0, -1.0); root.add(sg2);
-    // 2 more stone lanterns deeper in
-    for(const x of [-3.2, 3.2]){
-      const sl = makeStoneLantern();
-      sl.position.set(x, 0, -2);
-      root.add(sl);
-      if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
-      sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    }
-    // Bamboo fence segments lining the sando
-    for(const side of [-1, 1]){
-      for(let i=0;i<3;i++){
-        const f = makeBambooFence(2.4);
-        f.position.set(side*1.8, 0, 5.5 - i*2.2);
-        f.rotation.y = Math.PI/2;
-        root.add(f);
-      }
-    }
-    // Dense cedar/pine forest backdrop
-    for(let i=0;i<6;i++){
-      const ang = Math.PI + (i-2.5)/6*Math.PI*0.7;
-      const r = 9;
-      const t = makeTree('pine');
-      t.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      t.scale.setScalar(1.5 + Math.random()*0.3);
-      root.add(t);
-    }
-    // Azalea patches alongside sando
-    for(let i=0;i<6;i++){
-      const side = i%2 ? -1 : 1;
-      const z = 5 - Math.floor(i/2)*2.4;
-      const az = makeAzaleaPatch(4, [0xc8553d, 0xd968a0, 0xff8aa0][i%3]);
-      az.position.set(side*2.5, 0, z);
-      root.add(az);
-    }
-    /* ── Multi-level + gimmicks ── */
-    // Stone steps up to the inner shrine (raised platform feel)
-    const steps = makeStairs(3, 2.4, 0.18, 0.5);
-    steps.position.set(0, 0, -1.5);
-    steps.rotation.y = Math.PI;
-    root.add(steps);
-    // Sacred orb in front of shrine (kannon-like)
-    const orb = makeMagicOrb(0xff9a4a);
-    orb.position.set(0, 0.55, -2.0);
-    root.add(orb);
-    if(orb.userData.orb){
-      orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
-      ENTITIES.bobs.push(orb.userData.orb);
-    }
-    // Treasure chest hidden behind shrine
-    const chest = makeChest();
-    chest.position.set(2, 0, -5);
-    chest.rotation.y = 2;
-    root.add(chest);
-    if(chest.userData.bob){
-      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(chest.userData.bob);
-    }
-    // Crystal between komainu (sacred light)
-    const cr = makeCrystal(0xfff080);
-    cr.position.set(0, 0, 5.5);
-    cr.scale.setScalar(0.7);
-    root.add(cr);
-    ENTITIES.spins.push(cr);
-    // Signpost at sando entrance
-    const sp = makeSignpost('音');
-    sp.position.set(2, 0, 7);
-    root.add(sp);
-    // Hero GLBs at shrine: 2 detailed PBR Lanterns flanking the torii approach
-    for(const ang of [Math.PI*0.30, Math.PI*-0.30]){
-      loadGLB(ASSETS.lantern).then(gltf => {
-        if(!gltf) return;
-        const l = gltf.scene.clone(true);
-        l.scale.setScalar(0.24);
-        const x = Math.sin(ang)*3.2, z = Math.cos(ang)*3.2;
-        l.position.set(x, hf(x,z), z);
-        root.add(l);
-      });
-    }
-    densifyGround(root, 'gravel');
-    addDistantLandmarks(root, 'oto');
+    // 5) Warm hemi fill for chibi diorama look
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(8, 12, 8);
+    root.add(fill);
   }
 };
+
+
 
 // 4. ひとり旅の道 (湖)
 SCENES.tabi = {
-  num: '03', kind: 'tropical',
-  title: 'ひとり旅の岸', en: 'Tropical Shore',
-  concept: '南の島の入り江。ヤシの葉とブーゲンビリアの陰、白いヨットが浮かぶターコイズ色の海。',
-  // Bright tropical noon — high sun, vivid sky
-  sun: [62, -20], turbidity:2.6, rayleigh:1.4,
-  exposure:1.18,
-  avatarStart: [-7, 5],
-  link: 'hitoritabi/', cta: '旅の地図へ',
+  num: '00', kind: 'outdoor',
+  title: '旅の岸辺', en: "Traveler's Inn",
+  concept: '湖畔の宿。煌々と灯る暖かい客室と中庭。',
+  sun: [38, 25], turbidity: 3, rayleigh: 2.0,
+  fogColor: '#c0bca0', fogNear: 22, fogFar: 70, exposure: 1.0,
+  avatarStart: [0, 6.0],
+  preloadAssets: ['enc_townsquare_ground', 'enc_inn', 'enc_lamppost_a', 'enc_planter_a'],
   build(root){
-    /* ─ Terrain: high grassy cliff on the WEST, beach + sea on the EAST ─ */
-    const hf = (x, z)=>{
-      // West (x < -3): high grassy hill plateau (~+1.2m)
-      if(x < -6) return 1.2 + Math.sin(x*0.4)*0.15 + Math.cos(z*0.5)*0.10;
-      if(x < -3) return THREE.MathUtils.mapLinear(x, -6, -3, 1.2, 0.0);
-      // Beach band (x: -3 to -1)
-      if(x < -1) return THREE.MathUtils.mapLinear(x, -3, -1, 0.0, -0.4);
-      // Sea floor
-      return -1.2;
-    };
-    function palTropic(x, z, y, r, c){
-      if(y < -0.6){
-        // sea floor: pale sand visible through turquoise
-        c.setHex(0xeed9a5);
-      } else if(y < 0.1){
-        // bright beach sand
-        const n = noise(x*4, z*4, 1.5);
-        c.setHex(0xf3deaa);
-        c.lerp(new THREE.Color(0xd9b87a), n*0.35);
-      } else {
-        // grassy hilltop
-        const n = noise(x*3, z*3, 1.4);
-        c.setHex(0x7aa650);
-        c.lerp(new THREE.Color(0x5a8a40), n*0.5);
-      }
-    }
-    const ground = terrainDisc(SCENE_RADIUS, hf, palTropic);
-    root.add(ground); root.userData.ground = ground;
-
-    /* ─ TURQUOISE SEA — bright Caribbean cyan, double-layer (shallow + deep) ─ */
-    // Shallow band along the beach (very light cyan)
-    const shallowMat = new THREE.MeshStandardMaterial({
-      color: 0x86e0d8, transparent: true, opacity: 0.78,
-      roughness: 0.05, metalness: 0.18,
-      emissive: 0x2090a0, emissiveIntensity: 0.10,
-      envMapIntensity: 1.8,
-    });
-    const shallow = new THREE.Mesh(new THREE.PlaneGeometry(8, 28, 16, 32).rotateX(-Math.PI/2), shallowMat);
-    shallow.position.set(2, -0.55, 0);
-    root.add(shallow);
-    // Deep sea (rich turquoise)
-    const seaMat = new THREE.MeshStandardMaterial({
-      color: 0x2090c0, transparent: true, opacity: 0.92,
-      roughness: 0.04, metalness: 0.22,
-      emissive: 0x103a4a, emissiveIntensity: 0.06,
-      envMapIntensity: 1.8,
-    });
-    seaMat.onBeforeCompile = (sh)=>{
-      sh.uniforms.uTime = { value: 0 };
-      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader;
-      sh.vertexShader = sh.vertexShader.replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-        transformed.y += sin(position.x*0.5 + uTime*1.2)*0.07
-                       + sin(position.z*0.42 + uTime*0.9)*0.06
-                       + sin((position.x+position.z)*0.3 + uTime*0.6)*0.04;
-        `
-      );
-      root.userData.waterU = sh.uniforms;
-    };
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(34, 34, 48, 48).rotateX(-Math.PI/2), seaMat);
-    sea.position.set(10, -0.85, 0);
-    root.add(sea);
-    // Foam line where shallow meets beach
-    for(let i=0;i<6;i++){
-      const z = -10 + i*4 + Math.random()*1.2;
-      const foam = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 3 + Math.random()).rotateX(-Math.PI/2),
-        new THREE.MeshStandardMaterial({color:0xffffff, transparent:true, opacity:0.45, roughness:1.0}));
-      foam.position.set(-1.0, -0.30, z);
-      root.add(foam);
+    function placeENC(name, x, y, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale ?? 1.0);
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
     }
 
-    /* ─ PALM TREES on the grassy hill + a couple near the beach ─ */
-    // Big hero palm at the cliff edge (foreground left)
-    const heroPalm = makePalmTree();
-    heroPalm.position.set(-7.0, hf(-7.0, 1.0), 1.0);
-    heroPalm.scale.setScalar(1.25);
-    heroPalm.rotation.z = 0.10;
-    root.add(heroPalm);
-    addObstacle(-7.0, 1.0, 0.5);
-    // Cluster of 4 more palms on the hill
-    for(const [x,z,s,rz] of [[-9, -2, 1.0, -0.05],[-10, 3, 0.9, 0.15],[-8.5, 5.5, 1.1, -0.10],[-11, -5, 0.95, 0.05]]){
-      const p = makePalmTree();
-      p.position.set(x, hf(x, z), z);
-      p.scale.setScalar(s);
-      p.rotation.z = rz;
-      root.add(p);
-      addObstacle(x, z, 0.4);
-    }
-    // 2 smaller palms on beach
-    for(const [x,z,s] of [[-2.4, -3, 0.7],[-2.0, 4, 0.65]]){
-      const p = makePalmTree();
-      p.position.set(x, hf(x,z), z);
-      p.scale.setScalar(s);
-      root.add(p);
-    }
+    // 1) Ground first — cobblestone disc anchors everything (no more floating)
+    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
 
-    /* ─ BOUGAINVILLEA — vivid magenta cascading flowers (foreground) ─ */
-    // Big cascade right at the cliff edge (the visual hero in the foreground)
-    for(const [x,z,s] of [
-      [-5.5, -1, 1.3], [-5.0, 1, 1.4], [-5.3, 3, 1.2],
-      [-6.0, -3, 1.1], [-5.8, 5, 1.3], [-4.5, 6.5, 1.0],
-      [-4.5, -5, 1.0], [-7.5, 4, 1.0], [-7.5, -1, 0.9],
-    ]){
-      const b = makeBougainvillea();
-      b.position.set(x, hf(x,z), z);
-      b.scale.setScalar(s);
-      root.add(b);
-    }
+    // 2) Hero building, raised slightly above the ground plate so it sits on it
+    placeENC('enc_inn', 0, 0.05, -1.5, 0.85, 0);
 
-    /* ─ SAILBOATS scattered across the bay (white hulls, billowing sails) ─ */
-    const boatSpecs = [
-      { x:  3.5, z: -5,   s:1.1, ry:-0.5,  stripe:0x3a6aa0 },
-      { x:  6,   z: -2,   s:1.0, ry: 0.4,  stripe:0xc83a3a },
-      { x:  9,   z:  3,   s:1.2, ry: 1.6,  stripe:0x3a6aa0 },
-      { x:  4.5, z:  4.5, s:0.9, ry:-1.2,  stripe:0x2a9070 },
-      { x: 11,   z: -3,   s:1.1, ry:-0.3,  stripe:0xa0a050 },
-      { x:  7.5, z:  6.5, s:0.95,ry: 2.0,  stripe:0x3a6aa0 },
-      { x: 12,   z:  5,   s:1.0, ry:-1.8,  stripe:0xc83a3a },
-      { x:  5,   z: -8,   s:0.9, ry: 0.2,  stripe:0x3a6aa0 },
-    ];
-    for(const sb of boatSpecs){
-      const boat = makeSailboat({ stripe: sb.stripe, scale: sb.s });
-      boat.position.set(sb.x, -0.72, sb.z);
-      boat.userData.baseY = boat.position.y;
-      boat.rotation.y = sb.ry;
-      root.add(boat);
-    }
-    // Single small dinghy near shore (closer)
-    const dinghy = makeSailboat({ stripe:0xc83a3a, scale:0.55 });
-    dinghy.position.set(1.5, -0.7, -3);
-    dinghy.userData.baseY = dinghy.position.y;
-    dinghy.rotation.y = -0.8;
-    root.add(dinghy);
+    // 3) Lampposts flanking the entrance + 1 planter for life
+    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
 
-    /* ─ DISTANT GREEN ISLANDS across the bay (silhouette horizon) ─ */
-    const islandSpecs = [
-      { x: 18, z: -8,  w: 7, h: 3.0 },
-      { x: 19, z:  4,  w: 6, h: 2.4 },
-      { x: 14, z: 10,  w: 5, h: 2.0 },
-      { x: 22, z:  0,  w: 8, h: 3.6 },
-    ];
-    for(const isl of islandSpecs){
-      const island = makeTropicalIsland(isl.w, isl.h);
-      island.position.set(isl.x, -0.8, isl.z);
-      // Add 2-3 dots of palm silhouettes on each distant island
-      for(let k=0;k<3;k++){
-        const ang = Math.random()*Math.PI*2;
-        const ir = isl.w*0.2;
-        const palmSil = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.4, 6),
-          mat(0x4a7030, {roughness:1.0}));
-        palmSil.position.set(Math.sin(ang)*ir, isl.h*0.7, Math.cos(ang)*ir);
-        island.add(palmSil);
-      }
-      root.add(island);
+    // 4) NPC villagers wandering the plate
+    function placeNpc(colors, path, speed){
+      const n = makeNpc(colors[0], colors[1]);
+      n.position.set(path[0][0], 0, path[0][1]);
+      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
+      ENTITIES.npcs.push(n); root.add(n);
+      return n;
     }
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
 
-    /* ─ White roofed beach cottages on the hill (Caribbean village) ─ */
-    function makeBeachCottage(){
-      const g = new THREE.Group();
-      // base
-      const base = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 1.2),
-        mat(0xddc5a0, {roughness:0.9}));
-      base.position.y = 0.10; base.receiveShadow = true;
-      g.add(base);
-      // walls (pale pastel)
-      const colors = [0xfff5e8, 0xffe6c8, 0xffe0c0, 0xe8d6b0];
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.95, 1.1),
-        mat(colors[Math.floor(Math.random()*colors.length)], {roughness:0.85}));
-      wall.position.y = 0.68;
-      wall.castShadow = wall.receiveShadow = true;
-      g.add(wall);
-      // door
-      const door = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.55), mat(0x5a3a20));
-      door.position.set(0, 0.48, 0.56);
-      g.add(door);
-      // window
-      const win = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.30),
-        mat(0xa8d4e8, {emissive:0xa8d4e8, emissiveIntensity:0.18}));
-      win.position.set(0.4, 0.78, 0.56);
-      g.add(win);
-      const win2 = win.clone();
-      win2.position.x = -0.4;
-      g.add(win2);
-      // white roof (signature Caribbean look)
-      for(const dz of [-1, 1]){
-        const slope = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 0.75),
-          mat(0xfafafa, {roughness:0.45, metalness:0.05}));
-        slope.position.set(0, 1.30, dz*0.32);
-        slope.rotation.x = -dz*0.55;
-        slope.castShadow = true;
-        g.add(slope);
-      }
-      // ridge
-      const ridge = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.10, 0.10), mat(0xdddddd));
-      ridge.position.y = 1.50;
-      g.add(ridge);
-      return g;
+    if(typeof makeFallingParticles === 'function'){
+      const p = makeFallingParticles('petal', 80, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.40, swayAmp: 0.4, swayFreq: 1.2 });
+      root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // 5 cottages along the hillside terrace (left edge of view)
-    const cottageSpots = [
-      [-11.5, -4, -0.5], [-11.0, -1.5, 0.0], [-11.5, 1, 0.3],
-      [-10.5, 4, 0.0], [-12, -7, 0.5],
-    ];
-    for(const [x,z,ry] of cottageSpots){
-      const c = makeBeachCottage();
-      c.position.set(x, hf(x,z), z);
-      c.rotation.y = ry + Math.PI*0.5;
-      root.add(c);
-      addObstacle(x, z, 0.8);
-    }
-
-    /* ─ Wooden boardwalk + steps from hill down to the beach ─ */
-    const board = makeEngawa(3.0, 1.6);
-    board.position.set(-4.5, hf(-4.5, -0.5)+0.05, -0.5);
-    root.add(board);
-    const stepsDown = makeStairs(5, 1.5, 0.22, 0.5);
-    stepsDown.position.set(-3.5, 0.55, 1.6);
-    stepsDown.rotation.y = -Math.PI/2;
-    root.add(stepsDown);
-    // small dock reaching into the water
-    const dock = makeBoatDock();
-    dock.position.set(-0.5, -0.55, 0);
-    dock.rotation.y = -Math.PI/2;
-    root.add(dock);
-    if(dock.userData.boat) ENTITIES.boats.push(dock.userData.boat);
-
-    /* ─ Beach decorations: deck chairs + parasol + driftwood + seashells ─ */
-    function makeDeckChair(){
-      const g = new THREE.Group();
-      // seat (slatted plane)
-      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 1.0), mat(0x3a6aa0, {roughness:0.7}));
-      seat.position.y = 0.35;
-      seat.rotation.x = -0.18;
-      seat.castShadow = true;
-      g.add(seat);
-      // back
-      const back = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 0.8), mat(0x3a6aa0, {roughness:0.7}));
-      back.position.set(0, 0.65, -0.5);
-      back.rotation.x = -0.95;
-      back.castShadow = true;
-      g.add(back);
-      // legs
-      for(const [dx,dz] of [[-0.2,-0.4],[0.2,-0.4],[-0.2,0.4],[0.2,0.4]]){
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.34, 6), mat(0x4a3a2a));
-        leg.position.set(dx, 0.17, dz);
-        g.add(leg);
-      }
-      return g;
-    }
-    function makeParasol(){
-      const g = new THREE.Group();
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.2, 8), mat(0xddc5a0));
-      pole.position.y = 1.1;
-      g.add(pole);
-      // alternating stripe canopy via 8 wedge cones
-      const stripes = [0xff5a5a, 0xffffff];
-      for(let i=0;i<8;i++){
-        const wedge = new THREE.Mesh(new THREE.CylinderGeometry(0, 0.9, 0.4, 4, 1, false, (i/8)*Math.PI*2, Math.PI/4),
-          mat(stripes[i%2], {side:THREE.DoubleSide, roughness:0.7}));
-        wedge.position.y = 2.0;
-        g.add(wedge);
-      }
-      // tassel
-      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), mat(0xff5a5a));
-      tip.position.y = 2.25;
-      g.add(tip);
-      return g;
-    }
-    // Beach umbrella + 2 deck chairs
-    const par = makeParasol();
-    par.position.set(-1.0, hf(-1.0, -2.5), -2.5);
-    root.add(par);
-    for(const [x,z,ry] of [[-1.5, -2.0, 0.3], [-0.5, -2.6, -0.3]]){
-      const dc = makeDeckChair();
-      dc.position.set(x, hf(x,z), z);
-      dc.rotation.y = ry + Math.PI;
-      root.add(dc);
-    }
-    // Second umbrella + chair set further down the beach
-    const par2 = makeParasol();
-    par2.position.set(-1.2, hf(-1.2, 4.0), 4.0);
-    root.add(par2);
-    const dc3 = makeDeckChair();
-    dc3.position.set(-1.6, hf(-1.6, 4.5), 4.5);
-    dc3.rotation.y = -0.4 + Math.PI;
-    root.add(dc3);
-    // Driftwood pieces along beach
-    for(let i=0;i<6;i++){
-      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.10, 0.7+Math.random()*0.5, 8),
-        mat(0xc4a878, {roughness:0.95}));
-      log.rotation.z = Math.PI/2 + (Math.random()-0.5)*0.4;
-      log.rotation.y = Math.random()*Math.PI;
-      log.position.set(-1.7 + Math.random()*0.5, hf(-1.7,0)+0.06, -6 + i*2.2 + Math.random());
-      log.castShadow = true;
-      root.add(log);
-    }
-    // Seashells (tiny spheres scattered on beach)
-    const shellColors = [0xfff0d0, 0xffe0b8, 0xffd0c0, 0xfae8d0];
-    for(let i=0;i<22;i++){
-      const sh = new THREE.Mesh(new THREE.SphereGeometry(0.04+Math.random()*0.03, 10, 8, 0, Math.PI*2, 0, Math.PI/2),
-        mat(shellColors[Math.floor(Math.random()*shellColors.length)], {roughness:0.45}));
-      const x = -1.6 + Math.random()*0.7;
-      const z = -7 + Math.random()*14;
-      sh.position.set(x, hf(x,z)+0.02, z);
-      sh.rotation.set(0, Math.random()*Math.PI*2, 0);
-      root.add(sh);
-    }
-
-    /* ─ Gimmicks ─ */
-    // Treasure chest among the bougainvillea
-    const chest = makeChest();
-    chest.position.set(-9.5, hf(-9.5, 6.5), 6.5);
-    chest.rotation.y = 0.8;
-    root.add(chest);
-    if(chest.userData.bob){
-      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(chest.userData.bob);
-    }
-    // Crystal on a small offshore rock
-    const isle = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 0.3, 12), mat(0x8a8067));
-    isle.position.set(4, -0.65, -6);
-    root.add(isle);
-    const cr = makeCrystal(0xff9ad0);   // pink to match bougainvillea palette
-    cr.position.set(4, -0.4, -6);
-    cr.scale.setScalar(0.7);
-    root.add(cr);
-    ENTITIES.spins.push(cr);
-    // Sign at boardwalk entry
-    const sp = makeSignpost('海');
-    sp.position.set(-6.5, hf(-6.5, -1), -1);
-    root.add(sp);
-
-    /* ─ Hero GLBs already wired (Duck on water, Flamingo wading) ─ */
-    loadGLB(ASSETS.duck).then(gltf => {
-      if(!gltf) return;
-      for(let i=0;i<2;i++){
-        const d = gltf.scene.clone(true);
-        d.scale.setScalar(0.011);
-        d.position.set(2.5 + i*1.2, -0.45, 1 + i*0.5);
-        d.userData.baseY = d.position.y; d.userData.phase = i*Math.PI;
-        ENTITIES.bobs.push(d);
-        root.add(d);
-      }
-    });
-    loadGLB(ASSETS.flamingo).then(gltf => {
-      if(!gltf) return;
-      for(let i=0;i<2;i++){
-        const f = gltf.scene.clone(true);
-        f.scale.setScalar(0.011);
-        f.userData.flightPhase = Math.PI*i;
-        f.userData.flightRadius = 11 + i*0.6;
-        f.userData.flightY = 5 + i*0.5;
-        root.add(f);
-        if(gltf.animations.length){
-          const mixer = new THREE.AnimationMixer(f);
-          mixer.clipAction(gltf.animations[0]).play();
-          addMixer(mixer);
-        }
-        ENTITIES.flyers = ENTITIES.flyers || [];
-        ENTITIES.flyers.push(f);
-      }
-    });
-
-    // Beach grass / tropical undergrowth
-    densifyGround(root, 'shore');
-    addDistantLandmarks(root, 'tabi');
-    // Pagoda silhouette on the distant headland — destination beacon
-    const p3 = blenderClone('pagoda_3tier');
-    if(p3){
-      p3.scale.setScalar(0.55);
-      p3.position.set(-8.0, hf(-8.0, -6.0), -6.0);
-      p3.rotation.y = 0.6;
-      root.add(p3);
-    }
-    // Kura storage at the trailhead — traveler way-station
-    const ks = blenderClone('kura_storage');
-    if(ks){
-      ks.scale.setScalar(0.75);
-      ks.position.set(7.0, hf(7.0, 4.0), 4.0);
-      ks.rotation.y = -0.9;
-      root.add(ks);
-    }
-    // Ox cart hauling rice bales — traveler theme
-    const oc = blenderClone('ox_cart');
-    if(oc){
-      oc.scale.setScalar(0.8);
-      oc.position.set(3.5, hf(3.5, 2.5), 2.5);
-      oc.rotation.y = -1.0;
-      root.add(oc);
-    }
-    // Rickshaw waiting at the inn
-    const rs2 = blenderClone('rickshaw');
-    if(rs2){
-      rs2.scale.setScalar(0.75);
-      rs2.position.set(5.0, hf(5.0, -2.5), -2.5);
-      rs2.rotation.y = 0.6;
-      root.add(rs2);
-    }
-    // Palanquin (kago) on the trail
-    const pal = blenderClone('palanquin');
-    if(pal){
-      pal.scale.setScalar(0.65);
-      pal.position.set(-2.5, hf(-2.5, 4.0), 4.0);
-      pal.rotation.y = 0.5;
-      root.add(pal);
-    }
-    // Scarecrow in the rice field
-    const sc = blenderClone('scarecrow');
-    if(sc){
-      sc.scale.setScalar(0.85);
-      sc.position.set(-5.0, hf(-5.0, -2.0), -2.0);
-      sc.rotation.y = 0.3;
-      root.add(sc);
-    }
-    // Farmer tools leaning by the path
-    const ft = blenderClone('farmer_tools');
-    if(ft){
-      ft.scale.setScalar(0.85);
-      ft.position.set(2.0, hf(2.0, 5.5), 5.5);
-      ft.rotation.y = -0.6;
-      root.add(ft);
-    }
-    // Painted multi-arrow signpost at the trail junction
-    const spP = blenderClone('signpost_painted');
-    if(spP){
-      spP.scale.setScalar(0.9);
-      spP.position.set(0, hf(0, 6.5), 6.5);
-      root.add(spP);
-    }
-    // Foot-path marker further down the trail
-    const fpm = blenderClone('foot_path_marker');
-    if(fpm){
-      fpm.scale.setScalar(1.0);
-      fpm.position.set(-3.5, hf(-3.5, 6.0), 6.0);
-      fpm.rotation.y = 0.3;
-      root.add(fpm);
-    }
-    // Milestone stone marker
-    const mil = blenderClone('milestone_marker');
-    if(mil){
-      mil.scale.setScalar(0.95);
-      mil.position.set(4.5, hf(4.5, 6.0), 6.0);
-      root.add(mil);
-    }
-    // Butterflies for the seaside breeze
-    for(let i=0;i<4;i++){
-      const bf = blenderClone('butterfly');
-      if(!bf) break;
-      bf.scale.setScalar(0.8 + Math.random()*0.3);
-      const cx = (Math.random()-0.5)*8;
-      const cz = (Math.random()-0.5)*8;
-      bf.userData.fly = {
-        cx, cz,
-        baseY: 1.2 + Math.random()*1.0,
-        r: 1.0 + Math.random()*1.4,
-        speed: 0.7 + Math.random()*0.4,
-        phase: Math.random()*Math.PI*2,
-        wingPhase: Math.random()*Math.PI*2,
-      };
-      const wings = [];
-      bf.traverse(o=>{ if(o.isMesh && /^Wing/.test(o.name)) wings.push(o); });
-      bf.userData.fly.wings = wings;
-      root.add(bf);
-      ENTITIES.butterflies.push(bf);
-    }
+    // 5) Warm hemi fill for chibi diorama look
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(8, 12, 8);
+    root.add(fill);
   }
 };
+
+
 
 // 5. 時の砂時計
 SCENES.toki = {
-  num: '04', kind: 'clock',
-  title: '時の砂時計', en: 'Hourglass',
-  concept: '砂が落ちきるまで、なにもしない時間。タスクに名前をつけて置く。',
-  sun: [50, 0], turbidity:4, rayleigh:1.8,
-  fogColor:'#dac8a8', fogNear:22, fogFar:60, exposure:1.05,
-  avatarStart: [5, 5],
-  link: 'stopwatch.html', cta: '砂を返す',
+  num: '00', kind: 'outdoor',
+  title: '時の砂時計', en: 'Hourglass Hill',
+  concept: '雲海の上に佇む時計塔。時間の番人。',
+  sun: [55, -25], turbidity: 3.5, rayleigh: 1.8,
+  fogColor: '#a0c4ce', fogNear: 40, fogFar: 120, exposure: 1.0,
+  avatarStart: [0, 6.0],
+  preloadAssets: ['enc_townsquare_ground', 'enc_clocktower_b', 'enc_lamppost_a', 'enc_planter_a'],
   build(root){
-    const hf = (x,z)=>0;
-    const ground = terrainDisc(SCENE_RADIUS, hf, palSand);
-    ground.material.map = SAND_TEX;
-    root.add(ground); root.userData.ground = ground;
-    // Clock tower at centre
-    const tower = makeClockTower();
-    root.add(tower);
-    // Find hourhand/minhand for animation
-    tower.traverse(o=>{
-      if(o.userData?.role === 'hourhand') ENTITIES.hourhands.push(o);
-      if(o.userData?.role === 'minhand') ENTITIES.minhands.push(o);
-    });
-    // Sand piles ringing the tower
-    for(let i=0;i<6;i++){
-      const ang = (i/6)*Math.PI*2;
-      const r = 4.5;
-      const pile = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.35, 12), mat(0xe6c98a));
-      pile.position.set(Math.sin(ang)*r, 0.17, Math.cos(ang)*r);
-      pile.castShadow = true;
-      root.add(pile);
+    function placeENC(name, x, y, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale ?? 1.0);
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
     }
-    // Stone benches
-    for(const [x,z,ry] of [[-5,3,0],[5,3,0],[0,-5,Math.PI/2]]){
-      const bench = new THREE.Group();
-      const seat = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.12, 0.4), mat(0x8a8067));
-      seat.position.y = 0.4; seat.castShadow=seat.receiveShadow=true;
-      bench.add(seat);
-      for(const dx of [-0.65, 0.65]){
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.4), mat(0x6a6050));
-        leg.position.set(dx, 0.2, 0); leg.castShadow=true;
-        bench.add(leg);
-      }
-      bench.position.set(x, 0, z);
-      bench.rotation.y = ry;
-      root.add(bench);
+
+    // 1) Ground first — cobblestone disc anchors everything (no more floating)
+    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
+
+    // 2) Hero building, raised slightly above the ground plate so it sits on it
+    placeENC('enc_clocktower_b', 0, 0.05, -1.5, 0.85, 90);
+
+    // 3) Lampposts flanking the entrance + 1 planter for life
+    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
+
+    // 4) NPC villagers wandering the plate
+    function placeNpc(colors, path, speed){
+      const n = makeNpc(colors[0], colors[1]);
+      n.position.set(path[0][0], 0, path[0][1]);
+      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
+      ENTITIES.npcs.push(n); root.add(n);
+      return n;
     }
-    // Sakura ring (autumn-feel mood transition)
-    for(let i=0;i<4;i++){
-      const ang = i/4*Math.PI*2 + Math.PI/4;
-      const t = makeTree('sakura');
-      t.position.set(Math.sin(ang)*8, 0, Math.cos(ang)*8);
-      t.scale.setScalar(1.2);
-      root.add(t);
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+
+    if(typeof makeFallingParticles === 'function'){
+      const p = makeFallingParticles('mist', 120, { range: 32, yMax: 8, yMin: 0, fallSpeed: 0.12, swayAmp: 0.6, swayFreq: 0.4 });
+      root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // Single NPC sitting on a bench (idle) — give her the woman variant for visual variety
-    const sitter = makeNpc(null, null, 'woman');
-    sitter.position.set(-5, 0.4, 3);
-    sitter.userData.path = [[-5,3],[-5,3]]; sitter.userData.wp = 0; sitter.userData.speed = 0;
-    root.add(sitter);
-    ENTITIES.npcs.push(sitter);
-    // Central sand spiral pattern (zen sand)
-    const sandRing = makeRakedGravel(2.5);
-    sandRing.position.set(0, 0, 0);
-    root.add(sandRing);
-    // 2 stone trinity groups beside the tower
-    const sg1 = makeStoneGroup();
-    sg1.position.set(3, 0, -2); root.add(sg1);
-    const sg2 = makeStoneGroup();
-    sg2.position.set(-3, 0, -2); root.add(sg2);
-    // Bamboo fence perimeter
-    for(let i=0;i<6;i++){
-      const ang = (i/6)*Math.PI*2;
-      const r = 7.5;
-      const f = makeBambooFence(2.0);
-      f.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      f.rotation.y = ang + Math.PI/2;
-      root.add(f);
-    }
-    // Azalea patches along inner ring
-    for(let i=0;i<8;i++){
-      const ang = (i/8)*Math.PI*2 + Math.PI/8;
-      const r = 5.8;
-      const az = makeAzaleaPatch(3, [0xc8553d, 0xff8aa0][i%2]);
-      az.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      root.add(az);
-    }
-    // Stone lantern by the bench
-    const sl = makeStoneLantern();
-    sl.position.set(-6.5, 0, 3.5);
-    root.add(sl);
-    if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
-    sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    /* ── Multi-level + gimmicks ── */
-    // Raised platform around the tower
-    const retain = makeRetainingWall(7, 0.4);
-    retain.position.set(0, 0, 2.8);
-    root.add(retain);
-    // Stairs up to the tower base from south
-    const steps = makeStairs(2, 2.0, 0.18, 0.5);
-    steps.position.set(0, 0, 4.5);
-    steps.rotation.y = Math.PI;
-    root.add(steps);
-    // Hourglass orb floating beside the tower
-    const orb = makeMagicOrb(0xffe2a8);
-    orb.position.set(2.3, 0, 0.5);
-    root.add(orb);
-    if(orb.userData.orb){
-      orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
-      ENTITIES.bobs.push(orb.userData.orb);
-    }
-    // Chest near a bench
-    const chest = makeChest();
-    chest.position.set(-5, 0, -2);
-    chest.rotation.y = 1.0;
-    root.add(chest);
-    if(chest.userData.bob){
-      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(chest.userData.bob);
-    }
-    // Signpost
-    const sp = makeSignpost('時');
-    sp.position.set(2, 0, 7);
-    root.add(sp);
-    densifyGround(root, 'sand');
-    addDistantLandmarks(root, 'toki');
+    // 5) Warm hemi fill for chibi diorama look
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(8, 12, 8);
+    root.add(fill);
   }
 };
+
+
 
 // 6. 星見台
 SCENES.hoshi = {
-  num: '05', kind: 'observatory',
-  title: '星見台', en: "The Stargazer's Hill",
-  concept: '丘の上、空を切り取る小さな台。夜になると、ささやかな星座が頭上に流れる。',
-  sun: [-8, 70], turbidity:8, rayleigh:3.0,   // sun below horizon = night
-  fogColor:'#1a2a3a', fogNear:20, fogFar:60, exposure:0.55,
-  avatarStart: [4, 5],
-  forceNight: true,
+  num: '00', kind: 'outdoor',
+  title: "Stargazer's Hill", en: "Stargazer's Hill",
+  concept: '骨董屋の小さな丘。星見の道具と古い書物が積まれた静かな館。',
+  sun: [-8, 70], turbidity: 8, rayleigh: 3.0,
+  fogColor: '#1a2a3a', fogNear: 20, fogFar: 60, exposure: 0.7,
+  avatarStart: [0, 6.0],
+  preloadAssets: ['enc_herbalist_ground', 'enc_antiquarian', 'enc_lamppost_a', 'enc_planter_a'],
   build(root){
-    // Hill in the centre
-    const hf = (x,z)=>{
-      const r = Math.hypot(x,z);
-      return Math.max(0, 2.0 * (1 - r/7));
-    };
-    const ground = terrainDisc(SCENE_RADIUS, hf, palGrass);
-    ground.material.map = GRASS_TEX;
-    root.add(ground); root.userData.ground = ground;
-    // Observatory at the top of the hill
-    const obs = makeObservatory();
-    obs.position.y = hf(0,0);
-    root.add(obs);
-    // Stone steps zig-zagging up
-    for(let i=0;i<8;i++){
-      const t = i/8;
-      const ang = t*Math.PI*0.6 + 0.2;
-      const r = 6.5 - t*5;
-      const step = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.16, 0.5), mat(0x8a8067));
-      step.position.set(Math.sin(ang)*r, hf(Math.sin(ang)*r, Math.cos(ang)*r) + 0.1, Math.cos(ang)*r);
-      step.lookAt(0, step.position.y, 0);
-      step.rotation.x = 0;
-      step.castShadow=step.receiveShadow=true;
-      root.add(step);
+    function placeENC(name, x, y, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale ?? 1.0);
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
     }
-    // Pine trees on the hill flanks
-    for(let i=0;i<6;i++){
-      const ang = Math.random()*Math.PI*2;
-      const r = 6 + Math.random()*3;
-      const t = makeTree('pine');
-      const tx = Math.sin(ang)*r, tz = Math.cos(ang)*r;
-      t.position.set(tx, hf(tx,tz), tz);
-      t.scale.setScalar(1.1);
-      root.add(t);
+
+    // 1) Ground first — cobblestone disc anchors everything (no more floating)
+    placeENC('enc_herbalist_ground', 0, 0, 0, 1.6, 0);
+
+    // 2) Hero building, raised slightly above the ground plate so it sits on it
+    placeENC('enc_antiquarian', 0, 0.05, -1.5, 0.85, 0);
+
+    // 3) Lampposts flanking the entrance + 1 planter for life
+    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
+
+    // 4) NPC villagers wandering the plate
+    function placeNpc(colors, path, speed){
+      const n = makeNpc(colors[0], colors[1]);
+      n.position.set(path[0][0], 0, path[0][1]);
+      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
+      ENTITIES.npcs.push(n); root.add(n);
+      return n;
     }
-    // Telescope plinth
-    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.8, 12), mat(0x6a5a3a));
-    plinth.position.set(2.5, hf(2.5,1.5) + 0.4, 1.5);
-    plinth.castShadow = plinth.receiveShadow = true;
-    root.add(plinth);
-    const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 8), mat(0x2a1a14));
-    scope.position.copy(plinth.position); scope.position.y += 0.55;
-    scope.rotation.z = 0.6;
-    scope.castShadow = true;
-    root.add(scope);
-    // Dense moss boulders on hill slope
-    for(let i=0;i<10;i++){
-      const ang = Math.random()*Math.PI*2;
-      const r = 3 + Math.random()*4;
-      const tx = Math.sin(ang)*r, tz = Math.cos(ang)*r;
-      const rock = makeRock(Math.random, 1.0+Math.random()*0.8);
-      rock.position.set(tx, hf(tx,tz)+0.05, tz);
-      root.add(rock);
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+
+    if(typeof makeFallingParticles === 'function'){
+      const p = makeFallingParticles('star', 90, { range: 30, yMax: 20, yMin: 6, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
+      root.add(p); ENTITIES.particles.push({obj: p, type: 'static'});
     }
-    // 3 stone trinity groups on hill slope at different elevations
-    for(let i=0;i<3;i++){
-      const ang = i*Math.PI*2/3 + 0.4;
-      const r = 4.5;
-      const tx = Math.sin(ang)*r, tz = Math.cos(ang)*r;
-      const sg = makeStoneGroup();
-      sg.position.set(tx, hf(tx,tz), tz);
-      root.add(sg);
-    }
-    // Layered planting at hill base (3 spots)
-    layeredPlanting(root, -7, -6, 'forest');
-    layeredPlanting(root, 7, -6, 'forest');
-    layeredPlanting(root, 0, 8, 'autumn');
-    // Stone lantern marking the viewing spot
-    const sl = makeStoneLantern();
-    sl.position.set(2.5, hf(2.5, -1) + 0.05, -1);
-    root.add(sl);
-    if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
-    sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    // Small viewing pavilion (sub structure on the hill)
-    const pav = new THREE.Group();
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.16, 1.6), mat(0x7a5a3a));
-    floor.position.y = hf(-3, 0) + 0.08; floor.castShadow=floor.receiveShadow=true;
-    pav.add(floor);
-    for(const [x,z] of [[-0.7,-0.7],[0.7,-0.7],[-0.7,0.7],[0.7,0.7]]){
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 6), mat(0x4a3024));
-      post.position.set(x, hf(-3,0)+0.7, z); post.castShadow=true;
-      pav.add(post);
-    }
-    const pavRoof = new THREE.Mesh(new THREE.ConeGeometry(1.3, 0.8, 4), mat(0x3a2a18));
-    pavRoof.position.y = hf(-3, 0) + 1.7; pavRoof.rotation.y = Math.PI/4; pavRoof.castShadow=true;
-    pav.add(pavRoof);
-    pav.position.set(-3, 0, 0);
-    root.add(pav);
-    addDistantLandmarks(root, 'hoshi');
-    /* ── Multi-level + gimmicks ── */
-    // Retaining wall around the hill base
-    const retain1 = makeRetainingWall(6, 0.5);
-    retain1.position.set(0, 0.3, 5);
-    root.add(retain1);
-    const retain2 = makeRetainingWall(6, 0.5);
-    retain2.position.set(-5, 0.3, 0); retain2.rotation.y = Math.PI/2;
-    root.add(retain2);
-    // Stairs up the hill from south
-    const steps = makeStairs(6, 1.6, 0.25, 0.5);
-    steps.position.set(0, 0, 5);
-    steps.rotation.y = Math.PI;
-    root.add(steps);
-    // Crystal cluster at the very top of the hill
-    const cr = makeCrystal(0xc090ff);
-    cr.position.set(0, hf(0,0) + 0.5, 0);
-    cr.scale.setScalar(0.6);
-    root.add(cr);
-    ENTITIES.spins.push(cr);
-    // Chest in the pavilion
-    const chest = makeChest();
-    chest.position.set(-3, hf(-3,0)+0.16, 0);
-    chest.rotation.y = 0.5;
-    root.add(chest);
-    if(chest.userData.bob){
-      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(chest.userData.bob);
-    }
-    // Signpost at base of stairs
-    const sp = makeSignpost('星');
-    sp.position.set(2, 0, 7);
-    root.add(sp);
-    // Deer at the forest edge — adds life to the dusk hill scene
-    const deer = blenderClone('deer');
-    if(deer){
-      deer.scale.setScalar(1.05);
-      const dx = -5.8, dz = -4.5;
-      deer.position.set(dx, hf(dx, dz), dz);
-      deer.rotation.y = Math.PI * 1.2;
-      root.add(deer);
-    }
-    // Sundial at the base of the hill — astronomy ↔ time tie-in
-    const sundial = blenderClone('sundial');
-    if(sundial){
-      sundial.scale.setScalar(1.1);
-      sundial.position.set(4.5, hf(4.5, 4.5), 4.5);
-      root.add(sundial);
-    }
-    // Wishing tree at the base of the hill — tanzaku catching starlight
-    const wtH = blenderClone('wishing_tree');
-    if(wtH){
-      wtH.scale.setScalar(1.15);
-      wtH.position.set(-6.0, hf(-6.0, 2.5), 2.5);
-      root.add(wtH);
-    }
-    // Fireflies on the hill at night
-    for(let i=0;i<2;i++){
-      const ff = blenderClone('firefly_cluster');
-      if(!ff) break;
-      const tx = (i===0) ? 3.0 : -3.5;
-      const tz = (i===0) ? -4.0 : 1.5;
-      ff.position.set(tx, hf(tx,tz) + 0.2, tz);
-      ff.userData.baseY = ff.position.y;
-      ff.userData.phase = i * 2.7;
-      ENTITIES.bobs.push(ff);
-      root.add(ff);
-    }
-    // 3 snow pines on the upper slopes — alpine winter night
-    for(const [x,z,s] of [[-4.0, -5.5, 1.0], [4.5, -4.5, 1.1], [-5.5, 0.5, 0.95]]){
-      const sp2 = blenderClone('snow_pine');
-      if(!sp2) break;
-      sp2.scale.setScalar(s);
-      sp2.position.set(x, hf(x,z), z);
-      root.add(sp2);
-    }
-    // Sled abandoned beside the snow pines
-    const sledObj = blenderClone('sled');
-    if(sledObj){
-      sledObj.scale.setScalar(1.05);
-      sledObj.position.set(-3.0, hf(-3.0, -4.0), -4.0);
-      sledObj.rotation.y = 0.5;
-      root.add(sledObj);
-    }
-    // Falling snow across the hill — alpine winter night
-    const snow = makeFallingParticles('snow', 320, {
-      range: 24, yMax: 11, yMin: 0, fallSpeed: 0.45, swayAmp: 0.4, swayFreq: 0.9,
-    });
-    root.add(snow);
-    ENTITIES.particles.push({obj: snow, type: 'fall'});
-    // Tsukimi (moon-viewing) tray set on the pavilion floor — dango pyramid + susuki + sake
-    const tm = blenderClone('tsukimi_tray');
-    if(tm){
-      tm.scale.setScalar(0.85);
-      tm.position.set(-3.0, hf(-3.0, 0) + 0.10, 0);
-      root.add(tm);
-    }
-    // Temple bell at the base of the hill — toll of evening
-    const tb = blenderClone('temple_bell');
-    if(tb){
-      tb.scale.setScalar(0.85);
-      tb.position.set(5.5, hf(5.5, -3.0), -3.0);
-      tb.rotation.y = -0.4;
-      root.add(tb);
-    }
-    // Rocky cliff outcrop on the south edge
-    const rocky = blenderClone('rocky_cliff');
-    if(rocky){
-      rocky.scale.setScalar(0.95);
-      rocky.position.set(-6.5, hf(-6.5, -6.5), -6.5);
-      rocky.rotation.y = 0.4;
-      root.add(rocky);
-    }
-    // Curving stone staircase up the hillside
-    const scs2 = blenderClone('stone_curve_steps');
-    if(scs2){
-      scs2.scale.setScalar(0.85);
-      scs2.position.set(3.0, hf(3.0, 5.5), 5.5);
-      scs2.rotation.y = -0.7;
-      root.add(scs2);
-    }
-    // Distant mountain silhouette backdrop
-    const ms = blenderClone('mountain_silhouette');
-    if(ms){
-      ms.scale.setScalar(1.6);
-      ms.position.set(0, hf(0, -9), -9);
-      root.add(ms);
-    }
-    densifyGround(root, 'forest');
+    // 5) Warm hemi fill for chibi diorama look
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(8, 12, 8);
+    root.add(fill);
   }
 };
+
+
 
 // 7. 焚き火の前
 SCENES.takibi = {
-  num: '06', kind: 'campfire',
-  title: '焚き火の前', en: 'By the Campfire',
-  concept: '4-7-8 呼吸。火を見ていれば、自然とそのリズムに揃ってくれる。',
-  sun: [8, -90], turbidity:6, rayleigh:2.5,
-  fogColor:'#3a2828', fogNear:18, fogFar:55, exposure:0.7,
-  avatarStart: [3, 3],
+  num: '00', kind: 'outdoor',
+  title: '焚き火の前', en: 'By the Candle',
+  concept: 'ろうそく屋の前。窓越しの暖色の灯りと積まれたろうそく。',
+  sun: [8, -90], turbidity: 6, rayleigh: 2.5,
+  fogColor: '#3a2828', fogNear: 18, fogFar: 55, exposure: 0.85,
+  avatarStart: [0, 6.0],
+  preloadAssets: ['enc_townsquare_ground', 'enc_candlemaker', 'enc_lamppost_a', 'enc_planter_a'],
   build(root){
-    const hf = (x,z)=>0;
-    const ground = terrainDisc(SCENE_RADIUS, hf, palMoss);
-    ground.material.map = MOSS_TEX;
-    root.add(ground); root.userData.ground = ground;
-    // Campfire at centre
-    const fire = makeFire();
-    root.add(fire);
-    if(fire.userData.flameLight) ENTITIES.lampLights.push(fire.userData.flameLight);
-    fire.traverse(o=>{ if(o.userData?.flame) ENTITIES.flames.push(o); });
-    // 4 log seats arranged
-    for(let i=0;i<4;i++){
-      const ang = (i/4)*Math.PI*2 + Math.PI/4;
-      const r = 1.8;
-      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.2, 8), mat(0x624029));
-      log.position.set(Math.sin(ang)*r, 0.18, Math.cos(ang)*r);
-      log.rotation.set(0, ang + Math.PI/2, Math.PI/2);
-      log.castShadow=log.receiveShadow=true;
-      root.add(log);
+    function placeENC(name, x, y, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale ?? 1.0);
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
     }
-    // Forest ring (pines)
-    for(let i=0;i<10;i++){
-      const ang = (i/10)*Math.PI*2;
-      const r = 7 + Math.random()*2;
-      const t = makeTree('pine');
-      t.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      t.scale.setScalar(1.2 + Math.random()*0.3);
-      root.add(t);
+
+    // 1) Ground first — cobblestone disc anchors everything (no more floating)
+    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
+
+    // 2) Hero building, raised slightly above the ground plate so it sits on it
+    placeENC('enc_candlemaker', 0, 0.05, -1.5, 0.85, 15);
+
+    // 3) Lampposts flanking the entrance + 1 planter for life
+    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
+
+    // 4) NPC villagers wandering the plate
+    function placeNpc(colors, path, speed){
+      const n = makeNpc(colors[0], colors[1]);
+      n.position.set(path[0][0], 0, path[0][1]);
+      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
+      ENTITIES.npcs.push(n); root.add(n);
+      return n;
     }
-    // Tea kettle on a stone
-    const kettleStone = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.5), mat(0x8a8067));
-    kettleStone.position.set(1.2, 0.1, 0);
-    kettleStone.castShadow=kettleStone.receiveShadow=true;
-    root.add(kettleStone);
-    const kettle = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), mat(0x2a1a14, {metalness:0.4, roughness:0.5}));
-    body.scale.y = 0.85;
-    body.position.y = 0.32;
-    kettle.add(body);
-    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.18, 8), mat(0x2a1a14, {metalness:0.4, roughness:0.5}));
-    spout.rotation.z = -Math.PI/3;
-    spout.position.set(0.16, 0.36, 0);
-    kettle.add(spout);
-    kettle.position.set(1.2, 0.1, 0);
-    kettle.castShadow = true;
-    root.add(kettle);
-    // Sparks (particles)
-    for(let i=0;i<14;i++){
-      const sp = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6),
-        new THREE.MeshBasicMaterial({color:0xffb968}));
-      sp.userData = { phase: Math.random()*4, baseX:0, baseY:0.6, baseZ:0 };
-      sp.position.set(0, 0.6, 0);
-      root.add(sp);
-      ENTITIES.particles.push({obj:sp, type:'spark'});
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+
+    if(typeof makeFallingParticles === 'function'){
+      const p = makeFallingParticles('ember', 70, { range: 16, yMax: 6, yMin: 0, fallSpeed: -0.45, swayAmp: 0.25, swayFreq: 1.5 });
+      root.add(p); ENTITIES.particles.push({obj: p, type: 'rise'});
     }
-    // Stone trinity on opposite sides (informal forest clearing)
-    const sg1 = makeStoneGroup();
-    sg1.position.set(4, 0, -3); root.add(sg1);
-    const sg2 = makeStoneGroup();
-    sg2.position.set(-4, 0, 3); root.add(sg2);
-    // Layered planting (autumn theme, forest mood)
-    layeredPlanting(root, -6, -6, 'autumn');
-    layeredPlanting(root, 6, -6, 'forest');
-    layeredPlanting(root, -6, 6, 'forest');
-    // A stack of firewood
-    const woodStack = new THREE.Group();
-    for(let i=0;i<6;i++){
-      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.55, 8), mat(0x624029));
-      log.rotation.z = Math.PI/2;
-      log.position.set((i%2)*0.05, 0.1 + Math.floor(i/2)*0.18, (i%3-1)*0.18);
-      log.castShadow = true;
-      woodStack.add(log);
-    }
-    woodStack.position.set(2.5, 0, 2);
-    root.add(woodStack);
-    // Axe stuck in a stump
-    const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.32, 0.5, 12), mat(0x6a4a2a));
-    stump.position.set(-3, 0.25, -1.5); stump.castShadow=stump.receiveShadow=true;
-    root.add(stump);
-    const axeHead = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, 0.05), mat(0x4a4a52, {metalness:0.7, roughness:0.4}));
-    axeHead.position.set(-3, 0.65, -1.5);
-    axeHead.rotation.z = 0.3;
-    root.add(axeHead);
-    const axeHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.7, 6), mat(0xa88a4a));
-    axeHandle.position.set(-3, 0.6, -1.5);
-    axeHandle.rotation.z = 0.3;
-    root.add(axeHandle);
-    // 4 dim lanterns marking exit path
-    for(const [x,z] of [[1,5],[3,5.5],[5,5.8],[6.5,4.5]]){
-      const lp = makeLantern(0.7);
-      lp.position.set(x, 0, z);
-      root.add(lp);
-      ENTITIES.lamps.push(...lp.children.filter(c=>c.userData?.lamp));
-      if(lp.userData.lampLight) ENTITIES.lampLights.push(lp.userData.lampLight);
-    }
-    /* ── Gimmicks ── */
-    const chest = makeChest();
-    chest.position.set(4, 0, -4); chest.rotation.y = 1.3;
-    root.add(chest);
-    if(chest.userData.bob){
-      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(chest.userData.bob);
-    }
-    const cr = makeCrystal(0xff7a30);
-    cr.position.set(-3, 0, 3);
-    cr.scale.setScalar(0.7);
-    root.add(cr);
-    ENTITIES.spins.push(cr);
-    const sp = makeSignpost('火');
-    sp.position.set(6, 0, 7); sp.rotation.y = -0.4;
-    root.add(sp);
-    // Hero GLB: PBR Lantern hanging by the fire camp entrance
-    loadGLB(ASSETS.lantern).then(gltf => {
-      if(!gltf) return;
-      const l = gltf.scene;
-      l.scale.setScalar(0.18);
-      l.position.set(5.5, hf(5.5, 6.5), 6.5);
-      root.add(l);
-    });
-    // Fox watching from the edge of the forest — campfire scenes feel inhabited
-    const fox = blenderClone('fox');
-    if(fox){
-      fox.scale.setScalar(0.9);
-      fox.position.set(-5.5, 0, -5.5);
-      fox.rotation.y = Math.PI * 0.65;
-      root.add(fox);
-    }
-    // Sake barrel near the firewood — campfire matsuri vibe
-    const barrel = blenderClone('sake_barrel');
-    if(barrel){
-      barrel.scale.setScalar(0.75);
-      barrel.position.set(3.0, 0, 2.4);
-      root.add(barrel);
-    }
-    // Fireflies — 3 clusters around the forest, each gently bobbing
-    for(let i=0;i<3;i++){
-      const ff = blenderClone('firefly_cluster');
-      if(!ff) break;
-      const ang = i * Math.PI * 2 / 3 + 0.7;
-      const r = 4.5;
-      ff.position.set(Math.sin(ang)*r, 0.2, Math.cos(ang)*r);
-      ff.userData.baseY = ff.position.y;
-      ff.userData.phase = i * 2.1;
-      ENTITIES.bobs.push(ff);
-      root.add(ff);
-    }
-    // Maple grove on the south side — autumn reds + fallen leaves around the camp
-    const mg = blenderClone('maple_grove');
-    if(mg){
-      mg.scale.setScalar(0.95);
-      mg.position.set(5.0, 0, 4.0);
-      mg.rotation.y = -0.4;
-      root.add(mg);
-    }
-    // Mushroom cluster on the forest floor
-    const mc = blenderClone('mushroom_cluster');
-    if(mc){
-      mc.scale.setScalar(1.0);
-      mc.position.set(-2.5, 0, -3.0);
-      root.add(mc);
-    }
-    // Bird feeder hanging from a pine
-    const bf = blenderClone('bird_feeder');
-    if(bf){
-      bf.scale.setScalar(0.85);
-      bf.position.set(-4.5, 1.5, -2.0);
-      root.add(bf);
-    }
-    // Falling autumn maple leaves around the firepit
-    const leaves = makeFallingParticles('leaf', 180, {
-      range: 22, yMax: 8, yMin: 0, fallSpeed: 0.50, swayAmp: 0.7, swayFreq: 1.6,
-    });
-    root.add(leaves);
-    ENTITIES.particles.push({obj: leaves, type: 'fall'});
-    // Momiji lantern pair w/ maple-leaf carvings — autumn night accent
-    const mlp = blenderClone('momiji_lantern_pair');
-    if(mlp){
-      mlp.scale.setScalar(1.0);
-      mlp.position.set(3.5, 0, -4.0);
-      mlp.rotation.y = -0.5;
-      root.add(mlp);
-    }
-    // Cave entrance hidden in the forest — adventure hook
-    const cave = blenderClone('cave_entrance');
-    if(cave){
-      cave.scale.setScalar(0.9);
-      cave.position.set(-6.0, 0, -3.0);
-      cave.rotation.y = 1.0;
-      root.add(cave);
-    }
-    // Cherry branch overhang above the campfire
-    const cbo = blenderClone('cherry_branch_overhang');
-    if(cbo){
-      cbo.scale.setScalar(0.75);
-      cbo.position.set(0, 0, 2.0);
-      cbo.rotation.y = 0.3;
-      root.add(cbo);
-    }
-    // Root-bench for sitting by the fire
-    const rbnch = blenderClone('root_bench');
-    if(rbnch){
-      rbnch.scale.setScalar(0.95);
-      rbnch.position.set(-3.5, 0, 3.5);
-      rbnch.rotation.y = -0.4;
-      root.add(rbnch);
-    }
-    densifyGround(root, 'autumn');
-    addDistantLandmarks(root, 'takibi');
+    // 5) Warm hemi fill for chibi diorama look
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(8, 12, 8);
+    root.add(fill);
   }
 };
+
+
 
 // 8. 水辺の岸
 SCENES.mizube = {
-  num: '07', kind: 'shore',
-  title: '水辺の岸', en: "The Water's Edge",
-  concept: 'エメラルド色の水と苔むした岩、白く流れ落ちる滝。潮は記憶を運ばない。',
-  // Visual ref: emerald turquoise lakes ringed by lush mossy cliffs with cascading waterfalls
-  sun: [42, -25], turbidity:2.4, rayleigh:1.6,
-  exposure:1.10,
-  avatarStart: [-4, 4],
+  num: '00', kind: 'outdoor',
+  title: '水辺の岸', en: 'By the Weaver',
+  concept: '水辺の小さな工房。織りかけの布と苔むした石。',
+  sun: [22, 110], turbidity: 5, rayleigh: 2.5,
+  fogColor: '#cfe6ee', fogNear: 28, fogFar: 80, exposure: 0.95,
+  avatarStart: [0, 6.0],
+  preloadAssets: ['enc_herbalist_ground', 'enc_herbalist', 'enc_lamppost_a', 'enc_planter_a'],
   build(root){
-    const hf = (x,z)=>{
-      // half land, half water
-      if(z > 0) return 0;
-      if(z > -2) return THREE.MathUtils.mapLinear(z, -2, 0, -0.6, 0);
-      return -0.6;
-    };
-    function palShore(x, z, y, r, c){
-      if(y < -0.4) palSand(x,z,y,r,c);
-      else if(y < 0.0){ palSand(x,z,y,r,c); c.lerp(new THREE.Color(0xa88860), 0.4); }
-      else { palGrass(x,z,y,r,c); }
+    function placeENC(name, x, y, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale ?? 1.0);
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
     }
-    const ground = terrainDisc(SCENE_RADIUS, hf, palShore);
-    root.add(ground); root.userData.ground = ground;
-    // Water (far side)
-    const waterMat = new THREE.MeshStandardMaterial({
-      color:0x7a98b2, transparent:true, opacity:0.88, roughness:0.10, metalness:0.18,
-      emissive:0x10283a, emissiveIntensity:0.07, envMapIntensity:1.5
-    });
-    waterMat.onBeforeCompile = (sh)=>{
-      sh.uniforms.uTime = { value: 0 };
-      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader;
-      sh.vertexShader = sh.vertexShader.replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-        transformed.y += sin(position.x*0.7 + uTime*1.5)*0.05 + sin(position.z*0.5 + uTime*1.0)*0.04;
-        `
-      );
-      root.userData.waterU = sh.uniforms;
-    };
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(26, 14, 32, 16).rotateX(-Math.PI/2), waterMat);
-    water.position.set(0, -0.5, -6);
-    root.add(water);
-    // Big stone lantern on the shore
-    const lp = makeLantern(1.3);
-    lp.position.set(0, 0, 1.5);
-    root.add(lp);
-    ENTITIES.lamps.push(...lp.children.filter(c=>c.userData?.lamp));
-    if(lp.userData.lampLight) ENTITIES.lampLights.push(lp.userData.lampLight);
-    // Willow at shore
-    const w = makeTree('willow');
-    w.position.set(-5, 0, 3);
-    w.scale.setScalar(1.4);
-    root.add(w);
-    // Pebbles
-    for(let i=0;i<24;i++){
-      const ang = Math.random()*Math.PI*2;
-      const r = 1.5 + Math.random()*3.5;
-      const x = Math.sin(ang)*r;
-      const z = Math.cos(ang)*r * 0.5 + 1;
-      if(z < -1) continue;
-      const peb = new THREE.Mesh(new THREE.SphereGeometry(0.10+Math.random()*0.07, 8, 6),
-        mat(0xaaa090, {roughness:0.6}));
-      peb.scale.y = 0.5;
-      peb.position.set(x, 0.05, z);
-      peb.castShadow=true;
-      root.add(peb);
+
+    // 1) Ground first — cobblestone disc anchors everything (no more floating)
+    placeENC('enc_herbalist_ground', 0, 0, 0, 1.6, 0);
+
+    // 2) Hero building, raised slightly above the ground plate so it sits on it
+    placeENC('enc_herbalist', 0, 0.05, -1.5, 0.85, -20);
+
+    // 3) Lampposts flanking the entrance + 1 planter for life
+    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
+
+    // 4) NPC villagers wandering the plate
+    function placeNpc(colors, path, speed){
+      const n = makeNpc(colors[0], colors[1]);
+      n.position.set(path[0][0], 0, path[0][1]);
+      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
+      ENTITIES.npcs.push(n); root.add(n);
+      return n;
     }
-    // Bench facing water
-    const bench = new THREE.Group();
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.12, 0.42), mat(0x7a5a3a));
-    seat.position.y = 0.42; seat.castShadow=seat.receiveShadow=true;
-    bench.add(seat);
-    for(const dx of [-0.65, 0.65]){
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.42, 0.42), mat(0x4a3024));
-      leg.position.set(dx, 0.21, 0); leg.castShadow=true;
-      bench.add(leg);
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+
+    if(typeof makeFallingParticles === 'function'){
+      const p = makeFallingParticles('petal', 80, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.40, swayAmp: 0.4, swayFreq: 1.2 });
+      root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    bench.position.set(3, 0, 2.5);
-    bench.lookAt(0, 0, -1);
-    root.add(bench);
-    // Tsukubai near bench
-    const tk = makeTsukubai();
-    tk.position.set(4.5, 0, 4.0);
-    root.add(tk);
-    // Second willow (group of 2 for asymmetric balance)
-    const w2 = makeTree('willow');
-    w2.position.set(-7, 0, 0.5);
-    w2.scale.setScalar(1.1);
-    root.add(w2);
-    // Stone trinity at shore curve
-    const sg = makeStoneGroup();
-    sg.position.set(-3, 0, 1.5); root.add(sg);
-    // Bamboo grove deeper inland
-    const bamboo = makeBambooGrove(7);
-    bamboo.position.set(-5, 0, 5);
-    root.add(bamboo);
-    // Reed cluster at water edge
-    for(let i=0;i<8;i++){
-      const reed = new THREE.Group();
-      for(let k=0;k<5;k++){
-        const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.7+Math.random()*0.3),
-          new THREE.MeshStandardMaterial({color:0x6a8a3a, side:THREE.DoubleSide, transparent:true, alphaTest:0.5}));
-        blade.position.set((Math.random()-0.5)*0.3, 0.35, (Math.random()-0.5)*0.3);
-        blade.rotation.y = Math.random()*Math.PI;
-        reed.add(blade);
-      }
-      reed.position.set(-6+i*1.4, -0.15, -1.5);
-      root.add(reed);
-    }
-    // Azalea patches in foreground
-    for(const [x,z] of [[-2,3],[2,3.5],[6,2]]){
-      const az = makeAzaleaPatch(4, [0xd968a0, 0xc8553d, 0xff8aa0][Math.floor(Math.random()*3)]);
-      az.position.set(x, 0, z);
-      root.add(az);
-    }
-    // Several pebbles for richer ground layer
-    for(let i=0;i<20;i++){
-      const ang = Math.random()*Math.PI*2;
-      const r = 2 + Math.random()*5;
-      const x = Math.sin(ang)*r;
-      const z = Math.cos(ang)*r * 0.45 + 2;
-      if(z < -1) continue;
-      const peb = new THREE.Mesh(new THREE.SphereGeometry(0.10+Math.random()*0.07, 8, 6),
-        mat(0xaaa090, {roughness:0.6}));
-      peb.scale.y = 0.5;
-      peb.position.set(x, 0.05, z);
-      peb.castShadow=true;
-      root.add(peb);
-    }
-    /* ── Multi-level + gimmicks ── */
-    // Wooden deck out over water, with stairs down to pebble beach
-    const steps = makeStairs(3, 1.6, 0.18, 0.4);
-    steps.position.set(2, 0, 0.5);
-    steps.rotation.y = Math.PI;
-    root.add(steps);
-    // Bridge into the water on stilts
-    const bridge = makeBridge(3.5, 0.3);
-    bridge.position.set(0, 0.1, -3);
-    bridge.rotation.y = Math.PI/2;
-    root.add(bridge);
-    // Fishing spot at the bridge end
-    const fish = makeFishingSpot();
-    fish.position.set(0, 0.1, -4.5);
-    root.add(fish);
-    if(fish.userData.bobber){
-      fish.userData.bobber.userData = { baseY: fish.userData.bobber.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(fish.userData.bobber);
-    }
-    // Chest at shore
-    const chest = makeChest();
-    chest.position.set(5, 0, 4); chest.rotation.y = -0.6;
-    root.add(chest);
-    if(chest.userData.bob){
-      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(chest.userData.bob);
-    }
-    // Crystal in the water (shimmer)
-    const cr = makeCrystal(0x6BE0FF);
-    cr.position.set(-3, -0.3, -4);
-    cr.scale.setScalar(0.5);
-    root.add(cr);
-    ENTITIES.spins.push(cr);
-    // Signpost
-    const sp = makeSignpost('辺');
-    sp.position.set(5, 0, 6);
-    root.add(sp);
-    // Hero GLBs: lantern at the stone basin + ducks on the water
-    loadGLB(ASSETS.lantern).then(gltf => {
-      if(!gltf) return;
-      const l = gltf.scene;
-      l.scale.setScalar(0.20);
-      l.position.set(2.0, hf(2.0, 1.6), 1.6);
-      root.add(l);
-    });
-    loadGLB(ASSETS.duck).then(gltf => {
-      if(!gltf) return;
-      const d = gltf.scene;
-      d.scale.setScalar(0.011);
-      d.position.set(-1.0, -0.30, -3.5);
-      d.rotation.y = 1.2;
-      d.userData.baseY = d.position.y; d.userData.phase = 0.7;
-      ENTITIES.bobs.push(d);
-      root.add(d);
-    });
-    // Koi gracefully swimming in the shallows — 4 fish on figure-8 paths
-    const koiPaths = [
-      {cx:-2.5, cz:-2.0, r:1.8, baseY:-0.35, s:0.32, speed:0.45, phase:0.0},
-      {cx: 0.5, cz:-3.5, r:1.4, baseY:-0.32, s:0.28, speed:0.55, phase:1.2},
-      {cx:-1.0, cz: 1.5, r:1.6, baseY:-0.36, s:0.30, speed:0.40, phase:2.4},
-      {cx: 2.5, cz:-1.0, r:1.2, baseY:-0.34, s:0.26, speed:0.60, phase:3.6},
-    ];
-    for(const p of koiPaths){
-      const k = blenderClone('koi');
-      if(!k) continue;
-      k.scale.setScalar(p.s);
-      k.position.set(p.cx, p.baseY, p.cz);
-      k.userData.swim = { cx:p.cx, cz:p.cz, r:p.r, baseY:p.baseY, speed:p.speed, phase:p.phase };
-      ENTITIES.koiSwim.push(k);
-      root.add(k);
-    }
-    // Water basin near the shore — places the GLB water_basin
-    const basin = blenderClone('water_basin');
-    if(basin){
-      basin.scale.setScalar(0.85);
-      basin.position.set(4.2, hf(4.2, 5.0), 5.0);
-      root.add(basin);
-    }
-    // Bamboo grove on the shaded shore
-    const grove = blenderClone('bamboo_grove');
-    if(grove){
-      grove.scale.setScalar(0.9);
-      grove.position.set(-6.5, 0, 3.5);
-      root.add(grove);
-    }
-    // Lotus pads on the water surface (3 scattered)
-    for(const [x,z,s] of [[-3.0, -1.0, 1.0], [1.5, 1.0, 0.85], [-1.5, -4.0, 0.9]]){
-      const lp = blenderClone('lotus');
-      if(!lp) break;
-      lp.scale.setScalar(s);
-      lp.position.set(x, -0.30, z);
-      root.add(lp);
-    }
-    // Drum bridge arching across the water — the hero of any koi pond
-    const db = blenderClone('drum_bridge');
-    if(db){
-      db.scale.setScalar(0.95);
-      db.position.set(0.5, 0, 0);
-      db.rotation.y = 0.3;
-      root.add(db);
-    }
-    // Crane standing at the water's edge — quiet sentinel
-    const cr2 = blenderClone('crane');
-    if(cr2){
-      cr2.scale.setScalar(0.95);
-      cr2.position.set(4.5, hf(4.5, -2.5)+0.05, -2.5);
-      cr2.rotation.y = -0.5;
-      root.add(cr2);
-    }
-    // Frog on a lotus pad — small detail near the bank
-    const fr = blenderClone('frog');
-    if(fr){
-      fr.scale.setScalar(1.0);
-      fr.position.set(-3.0, -0.18, -1.0);
-      fr.rotation.y = 0.3;
-      root.add(fr);
-    }
-    // Kappa peeking from the reeds (south shore)
-    const kp = blenderClone('kappa');
-    if(kp){
-      kp.scale.setScalar(0.85);
-      kp.position.set(-5.5, -0.1, -4.5);
-      kp.rotation.y = 0.9;
-      root.add(kp);
-    }
-    // Weeping willow drooping over the water (east shore) — classic koi-pond mood
-    const ww = blenderClone('weeping_willow');
-    if(ww){
-      ww.scale.setScalar(1.05);
-      ww.position.set(5.5, 0, 1.5);
-      root.add(ww);
-    }
-    // Rowboat moored at the western shore
-    const rb = blenderClone('rowboat');
-    if(rb){
-      rb.scale.setScalar(0.65);
-      rb.position.set(-3.5, -0.15, 3.5);
-      rb.rotation.y = 0.6;
-      rb.userData.baseY = rb.position.y;
-      rb.userData.phase = 1.2;
-      ENTITIES.bobs.push(rb);
-      root.add(rb);
-    }
-    // Fishing boat anchored mid-pond
-    const fishB = blenderClone('fishing_boat');
-    if(fishB){
-      fishB.scale.setScalar(0.55);
-      fishB.position.set(2.0, -0.12, -3.8);
-      fishB.rotation.y = -0.8;
-      fishB.userData.baseY = fishB.position.y;
-      fishB.userData.phase = 0.5;
-      ENTITIES.bobs.push(fishB);
-      root.add(fishB);
-    }
-    // Bamboo raft drifting on the south side
-    const rf = blenderClone('raft');
-    if(rf){
-      rf.scale.setScalar(0.7);
-      rf.position.set(0.0, -0.20, 4.0);
-      rf.rotation.y = 0.2;
-      rf.userData.baseY = rf.position.y;
-      rf.userData.phase = 2.8;
-      ENTITIES.bobs.push(rf);
-      root.add(rf);
-    }
-    // Fishing rod left on the bank w/ a tackle box
-    const frd = blenderClone('fishing_rod');
-    if(frd){
-      frd.scale.setScalar(0.85);
-      frd.position.set(5.5, hf(5.5, 5.0), 5.0);
-      frd.rotation.y = -0.4;
-      root.add(frd);
-    }
-    // Waterfall on the far shore — cascading cliff w/ mist
-    const wfall = blenderClone('waterfall');
-    if(wfall){
-      wfall.scale.setScalar(1.1);
-      wfall.position.set(-7.5, 0, -7.5);
-      wfall.rotation.y = 0.6;
-      root.add(wfall);
-    }
-    // Fishing pier extending into the pond
-    const fpier = blenderClone('fishing_pier');
-    if(fpier){
-      fpier.scale.setScalar(0.7);
-      fpier.position.set(4.5, -0.45, 5.5);
-      fpier.rotation.y = -0.3;
-      root.add(fpier);
-    }
-    // Hydrangea bushes at the water's edge (rainy-season favorite)
-    for(const [x,z,s] of [[-5.5, 2.5, 1.0], [-4.0, 4.5, 0.9], [4.0, 4.5, 1.0]]){
-      const h2 = blenderClone('hydrangea');
-      if(!h2) break;
-      h2.scale.setScalar(s);
-      h2.position.set(x, 0, z);
-      root.add(h2);
-    }
-    densifyGround(root, 'shore');
-    addDistantLandmarks(root, 'mizube');
+    // 5) Warm hemi fill for chibi diorama look
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(8, 12, 8);
+    root.add(fill);
   }
 };
+
+
 
 // 9. 雨音の部屋
 SCENES.amaoto = {
-  num: '08', kind: 'rain',
-  title: '雨音の部屋', en: 'The Room of Rain',
-  concept: '小屋の中、灯りひとつ。雨音が必要なときの、夜の小屋。',
-  sun: [10, 100], turbidity:8, rayleigh:3.0,
-  fogColor:'#3a4456', fogNear:18, fogFar:50, exposure:0.6,
-  avatarStart: [4, 4],
+  num: '00', kind: 'outdoor',
+  title: '雨音の部屋', en: 'Rain Chapel',
+  concept: '小さな教会。雨音と石壁、ステンドグラスの灯り。',
+  sun: [10, 100], turbidity: 8, rayleigh: 3.0,
+  fogColor: '#7a8a9c', fogNear: 22, fogFar: 60, exposure: 0.85,
+  avatarStart: [0, 6.0],
+  preloadAssets: ['enc_townsquare_ground', 'enc_church_a', 'enc_lamppost_a', 'enc_planter_a'],
   build(root){
-    const hf = (x,z)=>0;
-    function palWetGrass(x, z, y, r, c){
-      const n = noise(x*5, z*5, 1.6);
-      c.setHex(0x5a7350);
-      c.lerp(new THREE.Color(0x3a5236), n*0.5);
+    function placeENC(name, x, y, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale ?? 1.0);
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
     }
-    const ground = terrainDisc(SCENE_RADIUS, hf, palWetGrass);
-    ground.material.roughness = 0.4; // wet
-    ground.material.envMapIntensity = 1.2;
-    root.add(ground); root.userData.ground = ground;
-    // Cabin
-    const cabin = makeKominka(0x3a2a1a);
-    cabin.position.set(0, 0, -1);
-    root.add(cabin);
-    // pines all around for forest feel
-    for(let i=0;i<8;i++){
-      const ang = (i/8)*Math.PI*2;
-      const r = 8 + Math.random()*1.5;
-      const t = makeTree('pine');
-      t.position.set(Math.sin(ang)*r, 0, Math.cos(ang)*r);
-      t.scale.setScalar(1.3 + Math.random()*0.3);
-      root.add(t);
+
+    // 1) Ground first — cobblestone disc anchors everything (no more floating)
+    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
+
+    // 2) Hero building, raised slightly above the ground plate so it sits on it
+    placeENC('enc_church_a', 0, 0.05, -1.5, 0.85, 0);
+
+    // 3) Lampposts flanking the entrance + 1 planter for life
+    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
+
+    // 4) NPC villagers wandering the plate
+    function placeNpc(colors, path, speed){
+      const n = makeNpc(colors[0], colors[1]);
+      n.position.set(path[0][0], 0, path[0][1]);
+      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
+      ENTITIES.npcs.push(n); root.add(n);
+      return n;
     }
-    // Puddles
-    for(let i=0;i<6;i++){
-      const ang = Math.random()*Math.PI*2;
-      const r = 2 + Math.random()*4;
-      const pu = new THREE.Mesh(new THREE.CircleGeometry(0.4+Math.random()*0.3, 12).rotateX(-Math.PI/2),
-        new THREE.MeshStandardMaterial({color:0x2a3a4a, roughness:0.05, metalness:0.0, envMapIntensity:1.8, opacity:0.9, transparent:true}));
-      pu.position.set(Math.sin(ang)*r, 0.01, Math.cos(ang)*r);
-      root.add(pu);
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+
+    if(typeof makeFallingParticles === 'function'){
+      const p = makeFallingParticles('rain', 220, { range: 24, yMax: 16, yMin: 0, fallSpeed: 1.6, swayAmp: 0.05, swayFreq: 0.2 });
+      root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // Rain particles (line segments)
-    const rainGeo = new THREE.BufferGeometry();
-    const RAIN_COUNT = 300;
-    const positions = new Float32Array(RAIN_COUNT*6);
-    const rainState = [];
-    for(let i=0;i<RAIN_COUNT;i++){
-      const x = (Math.random()-0.5)*22;
-      const z = (Math.random()-0.5)*22;
-      const y = Math.random()*8 + 1;
-      positions[i*6]   = x; positions[i*6+1] = y;       positions[i*6+2] = z;
-      positions[i*6+3] = x; positions[i*6+4] = y - 0.5; positions[i*6+5] = z;
-      rainState.push({x,y,z});
-    }
-    rainGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const rainMat = new THREE.LineBasicMaterial({color:0xc8d4e2, transparent:true, opacity:0.55});
-    const rain = new THREE.LineSegments(rainGeo, rainMat);
-    rain.userData = { state: rainState };
-    root.add(rain);
-    ENTITIES.particles.push({obj:rain, type:'rain'});
-    // Stone path leading to the cabin
-    root.add(makeSteppingStones([
-      [3,5,1.0,0],[2.5,4,1.0,0.2],[2,3,0.95,0.4],[1.5,2,1.0,0.1],[1,1,1.05,0.3],
-    ]));
-    // Engawa attached to cabin (covered porch)
-    const eng = makeEngawa(2.6, 0.9);
-    eng.position.set(0, 0, 0.5);
-    root.add(eng);
-    // Stone lanterns flanking the path (glow at dusk/rain)
-    for(const x of [-2.2, 2.2]){
-      const sl = makeStoneLantern();
-      sl.position.set(x, 0, 1.5);
-      root.add(sl);
-      if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
-      sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    }
-    // Stone trinity in the rain
-    const sg = makeStoneGroup();
-    sg.position.set(-4, 0, 3); root.add(sg);
-    // Azalea (wet, glistening)
-    for(const [x,z] of [[3,4],[-3,5],[4,-2],[-4,-2]]){
-      const az = makeAzaleaPatch(4, [0xd968a0, 0xc8553d][Math.random()<0.5?0:1]);
-      az.position.set(x, 0, z); root.add(az);
-    }
-    // Layered planting backdrop
-    layeredPlanting(root, -7, -5, 'forest');
-    layeredPlanting(root, 7, -5, 'forest');
-    // A few extra puddles in the path
-    for(let i=0;i<6;i++){
-      const ang = Math.random()*Math.PI*2;
-      const r = 1.5 + Math.random()*4;
-      const pu = new THREE.Mesh(new THREE.CircleGeometry(0.35+Math.random()*0.25, 12).rotateX(-Math.PI/2),
-        new THREE.MeshStandardMaterial({color:0x2a3a4a, roughness:0.05, metalness:0.0, envMapIntensity:1.8, opacity:0.92, transparent:true}));
-      pu.position.set(Math.sin(ang)*r, 0.012, Math.cos(ang)*r);
-      root.add(pu);
-    }
-    /* ── Gimmicks ── */
-    // Stairs to cabin porch
-    const steps = makeStairs(2, 1.6, 0.18, 0.4);
-    steps.position.set(0, 0, 1.4);
-    steps.rotation.y = Math.PI;
-    root.add(steps);
-    // Chest by the porch
-    const chest = makeChest();
-    chest.position.set(2.5, 0.36, 0); chest.rotation.y = 1.0;
-    root.add(chest);
-    if(chest.userData.bob){
-      chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
-      ENTITIES.bobs.push(chest.userData.bob);
-    }
-    // Crystal that glows brighter in the rain
-    const cr = makeCrystal(0x9ad8ff);
-    cr.position.set(-4, 0, -3);
-    cr.scale.setScalar(0.65);
-    root.add(cr);
-    ENTITIES.spins.push(cr);
-    // Bamboo wind chime by the cabin
-    const wc = makeBambooWindChime();
-    wc.position.set(-2.5, 0, 0);
-    root.add(wc);
-    // Signpost
-    const sp = makeSignpost('雨');
-    sp.position.set(3.5, 0, 5);
-    root.add(sp);
-    // Zen sand garden in the cabin courtyard — adds the contemplative footprint
-    const zg = blenderClone('zen_garden');
-    if(zg){
-      zg.scale.setScalar(1.05);
-      zg.position.set(2.5, 0, -2.5);
-      zg.rotation.y = -0.2;
-      root.add(zg);
-    }
-    // Cat sheltering under the eaves (calm in the rain)
-    const catA = blenderClone('cat');
-    if(catA){
-      catA.scale.setScalar(0.85);
-      catA.position.set(-1.5, 0, 0.5);
-      catA.rotation.y = 0.4;
-      root.add(catA);
-    }
-    // Ivy arch as the cabin entrance — vines thrive in rain
-    const ia2 = blenderClone('ivy_arch');
-    if(ia2){
-      ia2.scale.setScalar(0.9);
-      ia2.position.set(-3.5, 0, 4.5);
-      ia2.rotation.y = -0.3;
-      root.add(ia2);
-    }
-    // 2 mushroom clusters on the damp ground
-    for(const [x,z] of [[2.5, 2.5], [-2.0, -2.5]]){
-      const mc2 = blenderClone('mushroom_cluster');
-      if(!mc2) break;
-      mc2.position.set(x, 0, z);
-      root.add(mc2);
-    }
-    // Hydrangea — rainy-season hero
-    const hy2 = blenderClone('hydrangea');
-    if(hy2){
-      hy2.scale.setScalar(1.05);
-      hy2.position.set(4.0, 0, -2.0);
-      root.add(hy2);
-    }
-    // Suikinkutsu (water harp basin) — the iconic rain-sound feature
-    const sk = blenderClone('suikinkutsu');
-    if(sk){
-      sk.scale.setScalar(1.1);
-      sk.position.set(0, 0, 3.0);
-      root.add(sk);
-    }
-    densifyGround(root, 'forest');
-    addDistantLandmarks(root, 'amaoto');
+    // 5) Warm hemi fill for chibi diorama look
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(8, 12, 8);
+    root.add(fill);
   }
 };
+
+
 
 // 10. 部屋 — cozy interior diorama (Garden Inn style)
 SCENES.heya = {
-  num: '09', kind: 'room',
-  title: '部屋', en: 'The Cozy Room',
-  concept: '木の床と漆喰の壁、棚にずらり並んだ鉢植え。画架と丸い玄関マット。灯りが揺れる小さな部屋。',
-  sun: [40, -30], turbidity:3, rayleigh:1.6,
-  fogColor:'#e0e8f0', fogNear:60, fogFar:200, exposure:1.12,
-  avatarStart: [1.2, 1.8],
+  num: '00', kind: 'outdoor',
+  title: '部屋', en: 'The Bakery',
+  concept: 'パン屋の小さな前庭。温かい店内と窓辺の植木鉢。',
+  sun: [40, -30], turbidity: 3, rayleigh: 1.6,
+  fogColor: '#e0e8f0', fogNear: 28, fogFar: 70, exposure: 1.05,
+  avatarStart: [0, 6.0],
+  preloadAssets: ['enc_herbalist_ground', 'enc_bookstore', 'enc_lamppost_a', 'enc_planter_a'],
   build(root){
-    /* ─ Wooden plank floor (the diorama base) ─ */
-    const groundGroup = new THREE.Group();
-    root.add(groundGroup); root.userData.ground = groundGroup;
-    // base block beneath (so the room "floats" Captain-Toad-style)
-    const baseBlock = makePlatformChunk(7.5, 1.2, 7.5, 'wood');
-    baseBlock.position.set(0, 0, 0);
-    groundGroup.add(baseBlock);
-
-    // wooden plank floor on top of base
-    const floorTex = WOOD_TEX.clone();
-    floorTex.needsUpdate = true; floorTex.repeat.set(3, 3);
-    floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
-    floorTex.colorSpace = THREE.SRGBColorSpace;
-    const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, color:0xc89868, roughness:0.78 });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(6.5, 6.5).rotateX(-Math.PI/2), floorMat);
-    floor.position.y = 1.21;
-    floor.receiveShadow = true;
-    groundGroup.add(floor);
-
-    /* ─ L-shaped walls (back + left), camera-side open ─ */
-    const wallMat = new THREE.MeshStandardMaterial({ map: WOOD_TEX.clone(), color:0xcca888, roughness:0.85 });
-    wallMat.map.needsUpdate = true; wallMat.map.repeat.set(2.5, 1.2);
-    wallMat.map.wrapS = wallMat.map.wrapT = THREE.RepeatWrapping;
-    wallMat.map.colorSpace = THREE.SRGBColorSpace;
-    const wallH = 3.4;
-    // back wall (z = -3.25)
-    const backWall = new THREE.Mesh(new THREE.BoxGeometry(6.5, wallH, 0.15), wallMat);
-    backWall.position.set(0, 1.21 + wallH/2, -3.25);
-    backWall.castShadow = backWall.receiveShadow = true;
-    root.add(backWall);
-    // left wall (x = -3.25)
-    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.15, wallH, 6.5), wallMat);
-    leftWall.position.set(-3.25, 1.21 + wallH/2, 0);
-    leftWall.castShadow = leftWall.receiveShadow = true;
-    root.add(leftWall);
-    // wall trim (darker baseboard)
-    const trimMat = mat(0x5a3a20);
-    const trim1 = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.12, 0.17), trimMat);
-    trim1.position.set(0, 1.21 + 0.06, -3.245);
-    root.add(trim1);
-    const trim2 = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.12, 6.5), trimMat);
-    trim2.position.set(-3.245, 1.21 + 0.06, 0);
-    root.add(trim2);
-    // ceiling beam (visible at top of walls)
-    const beamMat = mat(0x4a2a18);
-    const beam1 = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.18, 0.22), beamMat);
-    beam1.position.set(0, 1.21 + wallH - 0.12, -3.18);
-    root.add(beam1);
-    const beam2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 6.5), beamMat);
-    beam2.position.set(-3.18, 1.21 + wallH - 0.12, 0);
-    root.add(beam2);
-
-    /* ─ Window with curtain on the back wall ─ */
-    const winFrame = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.22), mat(0x4a2a18));
-    winFrame.position.set(1.5, 1.21 + 1.9, -3.18);
-    root.add(winFrame);
-    const winGlass = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 1.25),
-      new THREE.MeshStandardMaterial({color:0xb8d4e8, emissive:0xb8d4e8, emissiveIntensity:0.3, transparent:true, opacity:0.7}));
-    winGlass.position.set(1.5, 1.21 + 1.9, -3.07);
-    root.add(winGlass);
-    // window crossbars
-    for(const [dx, dy] of [[0, 0], [0, 0.4], [0, -0.4]]){
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.04, 0.03), mat(0x4a2a18));
-      bar.position.set(1.5 + dx, 1.21 + 1.9 + dy, -3.06);
-      root.add(bar);
-    }
-    const barV = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.3, 0.03), mat(0x4a2a18));
-    barV.position.set(1.5, 1.21 + 1.9, -3.06);
-    root.add(barV);
-    // curtains (left + right)
-    const curtainMat = mat(0xb88858);
-    for(const sx of [-1, 1]){
-      const curtain = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.5, 0.04), curtainMat);
-      curtain.position.set(1.5 + sx*0.55, 1.21 + 1.85, -3.04);
-      root.add(curtain);
+    function placeENC(name, x, y, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale ?? 1.0);
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
     }
 
-    /* ─ Shelves on the right wall area (front-right corner) ─ */
-    const shelfMat = new THREE.MeshStandardMaterial({ map: WOOD_TEX.clone(), color:0x6a4a2a, roughness:0.85 });
-    shelfMat.map.needsUpdate = true; shelfMat.map.repeat.set(2, 0.4);
-    shelfMat.map.wrapS = shelfMat.map.wrapT = THREE.RepeatWrapping;
-    shelfMat.map.colorSpace = THREE.SRGBColorSpace;
-    // 3-tier shelf along back wall (right portion)
-    function makeShelfRack(){
-      const g = new THREE.Group();
-      for(let i=0;i<3;i++){
-        const shelf = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 0.4), shelfMat);
-        shelf.position.y = 0.6 + i*0.6;
-        shelf.castShadow = shelf.receiveShadow = true;
-        g.add(shelf);
-      }
-      // sides
-      for(const dx of [-0.65, 0.65]){
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.9, 0.4), shelfMat);
-        post.position.set(dx, 0.95, 0);
-        post.castShadow = true;
-        g.add(post);
-      }
-      return g;
-    }
-    const shelfRack = makeShelfRack();
-    shelfRack.position.set(-2.4, 1.21, -2.9);
-    root.add(shelfRack);
-    // Another shelf on the left wall
-    const shelfRack2 = makeShelfRack();
-    shelfRack2.position.set(-2.9, 1.21, -1.5);
-    shelfRack2.rotation.y = Math.PI/2;
-    root.add(shelfRack2);
+    // 1) Ground first — cobblestone disc anchors everything (no more floating)
+    placeENC('enc_herbalist_ground', 0, 0, 0, 1.6, 0);
 
-    /* ─ Many potted plants on shelves + floor ─ */
-    function makePot(color = 0xddc5a0, size = 0.18){
-      const g = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(size*0.85, size, size*1.3, 12), mat(color, {roughness:0.75}));
-      body.position.y = size*0.65;
-      body.castShadow = true;
-      g.add(body);
-      const rim = new THREE.Mesh(new THREE.CylinderGeometry(size*0.92, size*0.92, size*0.1, 12), mat(0x6a4a2a));
-      rim.position.y = size*1.25;
-      g.add(rim);
-      return g;
-    }
-    function makePlant(kind = 'leafy'){
-      const g = new THREE.Group();
-      if(kind === 'leafy'){
-        for(let i=0;i<6;i++){
-          const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.3), mat(0x5a8a40, {side:THREE.DoubleSide}));
-          const ang = (i/6)*Math.PI*2;
-          leaf.position.set(Math.sin(ang)*0.05, 0.15 + i*0.02, Math.cos(ang)*0.05);
-          leaf.rotation.set(0.4, ang, (Math.random()-0.5)*0.4);
-          g.add(leaf);
-        }
-      } else if(kind === 'succulent'){
-        for(let i=0;i<5;i++){
-          const blob = new THREE.Mesh(new THREE.SphereGeometry(0.08+Math.random()*0.04, 8, 6), mat(0x6aa050));
-          const ang = (i/5)*Math.PI*2;
-          blob.position.set(Math.sin(ang)*0.06, 0.08, Math.cos(ang)*0.06);
-          g.add(blob);
-        }
-        const c = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0x8aaa60));
-        c.position.y = 0.12;
-        g.add(c);
-      } else if(kind === 'tall'){
-        // tall slim plant (like aloe or palm)
-        for(let i=0;i<4;i++){
-          const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.5, 4), mat(0x5a9040, {side:THREE.DoubleSide}));
-          const ang = (i/4)*Math.PI*2;
-          leaf.position.set(Math.sin(ang)*0.04, 0.25, Math.cos(ang)*0.04);
-          leaf.rotation.z = Math.sin(ang)*0.3;
-          leaf.rotation.x = Math.cos(ang)*0.3;
-          g.add(leaf);
-        }
-      } else if(kind === 'flower'){
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 4), mat(0x5a7030));
-        stem.position.y = 0.15; g.add(stem);
-        const flower = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat(0xff8aa0, {emissive:0xff5a7a, emissiveIntensity:0.15}));
-        flower.position.y = 0.32; g.add(flower);
-        for(let i=0;i<5;i++){
-          const petal = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), mat(0xfff2a0));
-          const ang = (i/5)*Math.PI*2;
-          petal.position.set(Math.sin(ang)*0.07, 0.32, Math.cos(ang)*0.07);
-          g.add(petal);
-        }
-      }
-      return g;
-    }
-    function makePotted(potColor, plantKind, size){
-      const g = new THREE.Group();
-      g.add(makePot(potColor, size));
-      const plant = makePlant(plantKind);
-      plant.position.y = size*1.3;
-      g.add(plant);
-      return g;
-    }
-    // Place 10 potted plants on the shelves
-    const shelfYs = [0.6, 1.2, 1.8];
-    for(let i=0;i<8;i++){
-      const tier = i % 3;
-      const xPos = ((i % 2 === 0) ? -0.4 : 0.4) + (Math.random()-0.5)*0.15;
-      const colors = [0xddc5a0, 0xb89868, 0xa87858, 0xc8a878, 0x88a868, 0x9c7848];
-      const kinds = ['leafy', 'succulent', 'tall', 'flower'];
-      const pot = makePotted(colors[i%colors.length], kinds[i%kinds.length], 0.15+Math.random()*0.06);
-      pot.position.set(-2.4 + xPos, 1.21 + shelfYs[tier] + 0.03, -2.9 + 0.05);
-      root.add(pot);
-    }
-    // Some on left wall shelf
-    for(let i=0;i<8;i++){
-      const tier = i % 3;
-      const zPos = ((i % 2 === 0) ? -0.4 : 0.4) + (Math.random()-0.5)*0.15;
-      const colors = [0xa87858, 0xc8a878, 0x88a868];
-      const kinds = ['succulent', 'flower', 'leafy', 'tall'];
-      const pot = makePotted(colors[i%colors.length], kinds[i%kinds.length], 0.15+Math.random()*0.06);
-      pot.position.set(-2.9 + 0.05, 1.21 + shelfYs[tier] + 0.03, -1.5 + zPos);
-      root.add(pot);
-    }
-    // Floor pots (a few larger ones)
-    const floorPots = [
-      [-2.0,  2.0, 0x9c7848, 'tall'],
-      [ 1.8,  1.8, 0xb89868, 'leafy'],
-      [-2.5, -0.2, 0xa87858, 'flower'],
-      [ 2.2, -2.2, 0xc8a878, 'tall'],
-    ];
-    for(const [x,z,col,kind] of floorPots){
-      const pot = makePotted(col, kind, 0.28);
-      pot.position.set(x, 1.21, z);
-      root.add(pot);
-    }
-    // Hanging plants from ceiling beams (3)
-    for(const [x,z] of [[-1.8, -2.8], [0.8, -2.8], [-2.8, -1.2]]){
-      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.8, 4), mat(0x6a4a2a));
-      rope.position.set(x, 1.21 + wallH - 0.5, z);
-      root.add(rope);
-      const pot = makePotted(0xc88858, 'leafy', 0.16);
-      pot.position.set(x, 1.21 + wallH - 1.05, z);
-      root.add(pot);
-    }
+    // 2) Hero building, raised slightly above the ground plate so it sits on it
+    placeENC('enc_bookstore', 0, 0.05, -1.5, 0.75, 30);
 
-    /* ─ Easel with red canvas ─ */
-    const easel = new THREE.Group();
-    // 3 legs
-    for(let i=0;i<3;i++){
-      const ang = (i/3)*Math.PI*2 + Math.PI/6;
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.6, 5), mat(0x5a3a20));
-      leg.position.set(Math.sin(ang)*0.18, 0.8, Math.cos(ang)*0.18);
-      leg.rotation.x = Math.sin(ang)*0.18;
-      leg.rotation.z = Math.cos(ang)*0.18;
-      leg.castShadow = true;
-      easel.add(leg);
-    }
-    // canvas ledge
-    const ledge = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.04, 0.08), mat(0x5a3a20));
-    ledge.position.set(0, 0.7, 0.15);
-    easel.add(ledge);
-    // canvas (red painting)
-    const canvas = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.7), mat(0xe8dcb8));
-    canvas.position.set(0, 1.05, 0.13);
-    canvas.rotation.x = -0.08;
-    easel.add(canvas);
-    // painting splash
-    const splash = new THREE.Mesh(new THREE.CircleGeometry(0.18, 16), mat(0xc83a30, {emissive:0xc83a30, emissiveIntensity:0.15}));
-    splash.position.set(0, 1.05, 0.135);
-    splash.rotation.x = -0.08;
-    easel.add(splash);
-    easel.position.set(-1.6, 1.21, 0.8);
-    easel.rotation.y = 0.3;
-    root.add(easel);
+    // 3) Lampposts flanking the entrance + 1 planter for life
+    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
+    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
 
-    /* ─ Stool (round black with cushion) ─ */
-    const stool = new THREE.Group();
-    const stoolBase = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.32, 0.42, 16), mat(0x2a1a14));
-    stoolBase.position.y = 0.21; stoolBase.castShadow = true;
-    stool.add(stoolBase);
-    const stoolCushion = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.08, 16), mat(0x4a3024));
-    stoolCushion.position.y = 0.46;
-    stool.add(stoolCushion);
-    stool.position.set(0.6, 1.21, 1.6);
-    root.add(stool);
+    // 4) NPC villagers wandering the plate
+    function placeNpc(colors, path, speed){
+      const n = makeNpc(colors[0], colors[1]);
+      n.position.set(path[0][0], 0, path[0][1]);
+      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
+      ENTITIES.npcs.push(n); root.add(n);
+      return n;
+    }
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
 
-    /* ─ Side table (small with items on top) ─ */
-    const sideTable = new THREE.Group();
-    const tableTop = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.55), mat(0x6a4a2a));
-    tableTop.position.y = 0.6; tableTop.castShadow = tableTop.receiveShadow = true;
-    sideTable.add(tableTop);
-    for(const [dx, dz] of [[-0.4, -0.22],[0.4, -0.22],[-0.4, 0.22],[0.4, 0.22]]){
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.6, 5), mat(0x4a2a18));
-      leg.position.set(dx, 0.3, dz);
-      sideTable.add(leg);
+    if(typeof makeFallingParticles === 'function'){
+      const p = makeFallingParticles('petal', 80, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.40, swayAmp: 0.4, swayFreq: 1.2 });
+      root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // items: tea kettle + cup
-    const kettle = new THREE.Mesh(new THREE.SphereGeometry(0.10, 12, 8), mat(0x2a1a14, {metalness:0.4, roughness:0.4}));
-    kettle.scale.y = 0.8; kettle.position.y = 0.72;
-    sideTable.add(kettle);
-    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.07, 8), mat(0xe8d4a0));
-    cup.position.set(0.18, 0.66, 0);
-    sideTable.add(cup);
-    // small book
-    const book = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.12), mat(0x3a5a8a));
-    book.position.set(-0.25, 0.65, 0);
-    sideTable.add(book);
-    sideTable.position.set(-1.3, 1.21, -1.5);
-    sideTable.rotation.y = -0.3;
-    root.add(sideTable);
-
-    /* ─ Round welcome mat with crown emblem (center of room) ─ */
-    const mat0 = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24).rotateX(-Math.PI/2),
-      new THREE.MeshStandardMaterial({color:0xc8a868, roughness:0.85}));
-    mat0.position.set(0, 1.22, 0.6);
-    root.add(mat0);
-    const matRing = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.6, 32).rotateX(-Math.PI/2),
-      new THREE.MeshStandardMaterial({color:0xfff2e8, roughness:0.85}));
-    matRing.position.set(0, 1.225, 0.6);
-    root.add(matRing);
-    // crown emblem (3 triangular points)
-    const crown = new THREE.Group();
-    for(const dx of [-0.10, 0, 0.10]){
-      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.13, 4), mat(0xc83a30));
-      sp.position.set(dx, 0.04, 0);
-      sp.rotation.x = -Math.PI/2;
-      crown.add(sp);
-    }
-    const crownBand = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.04, 0.04), mat(0xc83a30));
-    crown.add(crownBand);
-    crown.position.set(0, 1.23, 0.6);
-    crown.rotation.x = -Math.PI/2;
-    root.add(crown);
-
-    /* ─ String lights (purple/warm fairy lights) along beams ─ */
-    const lightStringMat = mat(0xc890ff, {emissive:0xc890ff, emissiveIntensity:0.8});
-    // along back-wall beam
-    for(let i=0;i<10;i++){
-      const t = i/9;
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), lightStringMat);
-      ball.position.set(-3 + t*6, 1.21 + wallH - 0.35 - Math.sin(t*Math.PI)*0.1, -3.05);
-      ball.userData.lamp = true;
-      root.add(ball);
-      ENTITIES.lamps.push(ball);
-    }
-    // along left-wall beam
-    for(let i=0;i<10;i++){
-      const t = i/9;
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), lightStringMat);
-      ball.position.set(-3.05, 1.21 + wallH - 0.35 - Math.sin(t*Math.PI)*0.1, -3 + t*6);
-      ball.userData.lamp = true;
-      root.add(ball);
-      ENTITIES.lamps.push(ball);
-    }
-
-    /* ─ Wall sign "GARDEN INN" ─ */
-    const signC = document.createElement('canvas');
-    signC.width = 256; signC.height = 96;
-    const sctx = signC.getContext('2d');
-    sctx.fillStyle = '#1a3548';
-    sctx.fillRect(0,0,256,96);
-    sctx.fillStyle = '#fff2c0';
-    sctx.font = 'bold 38px serif';
-    sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
-    sctx.fillText('GARDEN  INN', 128, 50);
-    const signTex = new THREE.CanvasTexture(signC);
-    signTex.colorSpace = THREE.SRGBColorSpace;
-    const signBoard = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.45),
-      new THREE.MeshStandardMaterial({map:signTex, emissive:0x4a6a8a, emissiveIntensity:0.3}));
-    signBoard.position.set(2.0, 1.21 + 2.2, -3.07);
-    root.add(signBoard);
-    const signFrame = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.55, 0.06), mat(0x4a2a18));
-    signFrame.position.set(2.0, 1.21 + 2.2, -3.10);
-    root.add(signFrame);
-
-    /* ─ Small bowl on floor (decorative) ─ */
-    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.16, 12), mat(0x2a1a14));
-    bowl.position.set(1.6, 1.21 + 0.08, 1.0);
-    root.add(bowl);
-
-    // Open the ceiling for ortho top-down visibility (no roof in this diorama)
-    // (intentionally left open — the camera shows down into the corner)
-
-    // Butterflies floating inside the room (delight)
-    spawnButterflies(root, 3, [0, 2.0, 0], 1.5);
-
-    /* ─ HERO ASSET: Glen Fox "Littlest Tokyo" on a pedestal (CC-BY 4.0) ─
-       A tiny animated Japanese cityscape under a glass dome — the room's
-       magical centerpiece. Cleanly hand-modeled and animated. */
-    // Pedestal (wood + stone top)
-    const pedTop = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.42, 0.08, 24),
-      mat(0xb89868, {roughness:0.8}));
-    pedTop.position.set(-1.4, 1.21 + 0.74, 1.4);
-    pedTop.castShadow = pedTop.receiveShadow = true;
-    root.add(pedTop);
-    const pedBody = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.44, 0.7, 12),
-      mat(0x6a4a2a, {roughness:0.9}));
-    pedBody.position.set(-1.4, 1.21 + 0.35, 1.4);
-    pedBody.castShadow = pedBody.receiveShadow = true;
-    root.add(pedBody);
-    // Glass dome
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.42, 22, 16, 0, Math.PI*2, 0, Math.PI/2),
-      new THREE.MeshStandardMaterial({
-        color: 0xffffff, transparent: true, opacity: 0.12,
-        roughness: 0.05, metalness: 0.1, envMapIntensity: 1.4,
-        side: THREE.DoubleSide
-      }));
-    dome.position.set(-1.4, 1.21 + 0.78, 1.4);
-    root.add(dome);
-    // Brass ring at glass base
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 24),
-      mat(0xc8a040, {metalness:0.6, roughness:0.4}));
-    ring.rotation.x = Math.PI/2;
-    ring.position.set(-1.4, 1.21 + 0.79, 1.4);
-    root.add(ring);
-    // Load the Littlest Tokyo and place inside the dome
-    loadGLB(ASSETS.littlestTokyo).then(gltf => {
-      if(!gltf) return;
-      const tokyo = gltf.scene;
-      tokyo.scale.setScalar(0.0006);
-      tokyo.position.set(-1.4, 1.21 + 0.78, 1.4);
-      root.add(tokyo);
-      if(gltf.animations && gltf.animations.length){
-        const mixer = new THREE.AnimationMixer(tokyo);
-        mixer.clipAction(gltf.animations[0]).play();
-        addMixer(mixer);
-      }
-    });
-    // Shoji screen against the back wall for partition mood
-    const ss = blenderClone('shoji_screen');
-    if(ss){
-      ss.scale.setScalar(0.55);
-      ss.position.set(0.4, 1.25, -2.4);
-      ss.rotation.y = Math.PI;
-      root.add(ss);
-    }
-    // Tea ceremony set on the floor (low table + cushions + cups)
-    const ts = blenderClone('tea_garden_set');
-    if(ts){
-      ts.scale.setScalar(0.7);
-      ts.position.set(1.4, 1.25, 1.0);
-      ts.rotation.y = -0.4;
-      root.add(ts);
-    }
-    // Daruma on a shelf for good luck
-    const darH = blenderClone('daruma');
-    if(darH){
-      darH.scale.setScalar(0.35);
-      darH.position.set(-2.4, 1.21 + 1.5, -2.85);
-      root.add(darH);
-    }
-    // Kitsune mask hanging on the back wall (left)
-    const km = blenderClone('kitsune_mask');
-    if(km){
-      km.scale.setScalar(0.6);
-      km.position.set(-1.2, 1.21 + 2.4, -3.10);
-      km.rotation.y = Math.PI;   // face the room
-      root.add(km);
-    }
-    // Oni mask hanging on the back wall (right)
-    const om = blenderClone('oni_mask');
-    if(om){
-      om.scale.setScalar(0.55);
-      om.position.set(0.6, 1.21 + 2.4, -3.10);
-      om.rotation.y = Math.PI;
-      root.add(om);
-    }
-    // Kabuki doll on a small shelf in the corner
-    const kd = blenderClone('kabuki_doll');
-    if(kd){
-      kd.scale.setScalar(0.45);
-      kd.position.set(-2.6, 1.21 + 0.04, 2.4);
-      kd.rotation.y = 0.5;
-      root.add(kd);
-    }
-    // Crane stylization in the corner — like an ikebana accent
-    const cr3 = blenderClone('crane');
-    if(cr3){
-      cr3.scale.setScalar(0.30);
-      cr3.position.set(2.4, 1.21 + 0.04, 2.6);
-      cr3.rotation.y = -0.7;
-      root.add(cr3);
-    }
-    // Geta rack at the engawa — sandals lined up at the entrance
-    const gr = blenderClone('geta_rack');
-    if(gr){
-      gr.scale.setScalar(0.45);
-      gr.position.set(0.0, 1.21 + 0.04, 2.7);
-      gr.rotation.y = Math.PI;
-      root.add(gr);
-    }
-    // Calligraphy set on the floor (low table substitute)
-    const cs = blenderClone('calligraphy_set');
-    if(cs){
-      cs.scale.setScalar(0.6);
-      cs.position.set(-1.6, 1.21 + 0.04, -1.5);
-      cs.rotation.y = 0.3;
-      root.add(cs);
-    }
-    // Sake cup set on the tea_garden_set tray nearby
-    const scs = blenderClone('sake_cup_set');
-    if(scs){
-      scs.scale.setScalar(0.55);
-      scs.position.set(1.2, 1.21 + 0.04, -0.5);
-      scs.rotation.y = -0.5;
-      root.add(scs);
-    }
-    // Fan holder on a side shelf
-    const fh = blenderClone('fan_holder');
-    if(fh){
-      fh.scale.setScalar(0.55);
-      fh.position.set(-2.55, 1.21 + 0.04, 1.8);
-      fh.rotation.y = 0.5;
-      root.add(fh);
-    }
-    // Ceramic pot set in another corner
-    const cps = blenderClone('ceramic_pot_set');
-    if(cps){
-      cps.scale.setScalar(0.55);
-      cps.position.set(1.8, 1.21 + 0.04, -2.6);
-      cps.rotation.y = 0.2;
-      root.add(cps);
-    }
-    // Bonsai on a side table
-    const bs = blenderClone('bonsai');
-    if(bs){
-      bs.scale.setScalar(0.7);
-      bs.position.set(-2.4, 1.21 + 1.0, 1.5);
-      root.add(bs);
-    }
-    // Incense burner on the floor (low table substitute)
-    const ib = blenderClone('incense_burner');
-    if(ib){
-      ib.scale.setScalar(0.55);
-      ib.position.set(2.2, 1.21 + 0.04, -1.5);
-      root.add(ib);
-    }
-    // Onigiri lunch set on the calligraphy mat (light meal)
-    const os2 = blenderClone('onigiri_set');
-    if(os2){
-      os2.scale.setScalar(0.55);
-      os2.position.set(-0.6, 1.21 + 0.04, -0.8);
-      os2.rotation.y = 0.2;
-      root.add(os2);
-    }
-    // Wind chime set hanging from the ceiling beam
-    const wcs = blenderClone('wind_chime_set');
-    if(wcs){
-      wcs.scale.setScalar(0.5);
-      wcs.position.set(1.0, 1.21 + 2.8, -2.6);
-      root.add(wcs);
-    }
-    // Sumi-e folding panel against the left wall
-    const sep = blenderClone('sumi_e_panel');
-    if(sep){
-      sep.scale.setScalar(0.85);
-      sep.position.set(-2.65, 1.21 + 0.04, 0.2);
-      sep.rotation.y = Math.PI/2;
-      root.add(sep);
-    }
-    // Ofuda box (talisman shrine) on a high shelf
-    const ofb = blenderClone('ofuda_box');
-    if(ofb){
-      ofb.scale.setScalar(0.55);
-      ofb.position.set(-2.4, 1.21 + 2.0, -2.85);
-      root.add(ofb);
-    }
-    // Hina dolls display (Emperor + Empress on red tier) — small alcove
-    const hd = blenderClone('hina_dolls');
-    if(hd){
-      hd.scale.setScalar(0.7);
-      hd.position.set(1.5, 1.21 + 0.04, 1.8);
-      hd.rotation.y = -0.3;
-      root.add(hd);
-    }
-    // Oshogatsu New Year kagamimochi arrangement on the floor (auspicious)
-    const ok = blenderClone('oshogatsu_kazari');
-    if(ok){
-      ok.scale.setScalar(0.65);
-      ok.position.set(-1.0, 1.21 + 0.04, 1.5);
-      root.add(ok);
-    }
-    // Mizuhiki ornament on a side table
-    const mz = blenderClone('mizuhiki_ornament');
-    if(mz){
-      mz.scale.setScalar(0.6);
-      mz.position.set(-2.45, 1.21 + 0.04, 0.0);
-      mz.rotation.y = 0.5;
-      root.add(mz);
-    }
-    // Samurai armor stand against the back wall (focal collectible)
-    const sas = blenderClone('samurai_armor_stand');
-    if(sas){
-      sas.scale.setScalar(0.8);
-      sas.position.set(2.4, 1.21 + 0.04, -2.6);
-      sas.rotation.y = -0.5;
-      root.add(sas);
-    }
-    // Katana rack near the armor
-    const kr = blenderClone('katana_rack');
-    if(kr){
-      kr.scale.setScalar(0.85);
-      kr.position.set(2.4, 1.21 + 0.04, -1.6);
-      kr.rotation.y = -0.7;
-      root.add(kr);
-    }
-    // Abacus on the low table — accountant's tool
-    const ab = blenderClone('abacus');
-    if(ab){
-      ab.scale.setScalar(0.65);
-      ab.position.set(1.0, 1.21 + 0.04, 0.4);
-      ab.rotation.y = 0.3;
-      root.add(ab);
-    }
-    // Tall shoji lamp casting warm light in the corner
-    const slp = blenderClone('shoji_lamp');
-    if(slp){
-      slp.scale.setScalar(0.85);
-      slp.position.set(-2.6, 1.21 + 0.04, -2.6);
-      root.add(slp);
-    }
-    // Kimono rack with 3 hanging kimonos near the back
-    const krk = blenderClone('kimono_rack');
-    if(krk){
-      krk.scale.setScalar(0.55);
-      krk.position.set(-1.6, 1.21 + 0.04, -2.5);
-      krk.rotation.y = 0.3;
-      root.add(krk);
-    }
-    // Kimono mannequin on display
-    const kmn = blenderClone('kimono_mannequin');
-    if(kmn){
-      kmn.scale.setScalar(0.65);
-      kmn.position.set(0.5, 1.21 + 0.04, -2.3);
-      kmn.rotation.y = -0.2;
-      root.add(kmn);
-    }
-    // Soba meal on a table mat
-    const sbb = blenderClone('soba_bowls');
-    if(sbb){
-      sbb.scale.setScalar(0.65);
-      sbb.position.set(-1.4, 1.21 + 0.04, 0.5);
-      sbb.rotation.y = 0.2;
-      root.add(sbb);
-    }
-    // Oil lamp (andon) in a dim corner
-    const oilL = blenderClone('oil_lamp');
-    if(oilL){
-      oilL.scale.setScalar(0.85);
-      oilL.position.set(2.6, 1.21 + 0.04, 2.6);
-      root.add(oilL);
-    }
-    // Charcoal brazier (hibachi) — warmth + kettle for tea
-    const cbz = blenderClone('charcoal_brazier');
-    if(cbz){
-      cbz.scale.setScalar(0.6);
-      cbz.position.set(0.6, 1.21 + 0.04, 1.8);
-      root.add(cbz);
-    }
-    // Hanging scroll (kakemono) on back wall — sumi-e ink painting
-    const sch = blenderClone('scroll_holder');
-    if(sch){
-      sch.scale.setScalar(0.75);
-      sch.position.set(-0.5, 1.21 + 0.04, -3.1);
-      sch.rotation.y = Math.PI;
-      root.add(sch);
-    }
+    // 5) Warm hemi fill for chibi diorama look
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(8, 12, 8);
+    root.add(fill);
   }
 };
+
+
 
 setLoad(0.75, 'SCENES');
 
