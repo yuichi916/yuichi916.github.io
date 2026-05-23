@@ -2743,19 +2743,24 @@ dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5
 gltfLoader.setDRACOLoader(dracoLoader);
 
 const GLB_CACHE = new Map();
-function loadGLB(url){
+function loadGLB(url, onProgress){
   if(GLB_CACHE.has(url)) return GLB_CACHE.get(url);
   const promise = new Promise((resolve) => {
     gltfLoader.load(
       url,
       (g) => {
-        // enable shadows on every mesh
         g.scene.traverse(o => {
           if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; }
         });
-        resolve(g);   // full gltf (scene + animations)
+        resolve(g);
       },
-      undefined,
+      (xhr) => {
+        // GLTFLoader doesn't always populate xhr.total for Cloudflare worker
+        // responses (no Content-Length header), so we only report when known.
+        if(onProgress && xhr && xhr.loaded){
+          onProgress(xhr.loaded, xhr.total || 0);
+        }
+      },
       (err) => {
         console.warn('GLB load failed (using procedural fallback):', url, err.message);
         resolve(null);
@@ -2943,7 +2948,7 @@ function resolveAllEncFileids(){
   return _ENC_FILEID_PROMISE;
 }
 
-async function lazyLoadAsset(name){
+async function lazyLoadAsset(name, onProgress){
   if(BLENDER_CACHE[name]) return BLENDER_CACHE[name];
   if(BLENDER_LOADING.has(name)) return BLENDER_LOADING.get(name);
   const p = (async () => {
@@ -2964,7 +2969,7 @@ async function lazyLoadAsset(name){
         // Local procedural assets (legacy) — still bundled with the repo.
         url = 'assets/blender/' + name + '.glb';
       }
-      const gltf = await loadGLB(url);
+      const gltf = await loadGLB(url, onProgress);
       if(gltf && gltf.scene){
         _decorateGLB(gltf.scene);
         // Mark shared so clearScene() doesn't dispose cached resources.
@@ -4408,132 +4413,224 @@ function makeBush(rnd=Math.random){
   return g;
 }
 
-/* Avatar (jointed) ======================================== */
+/* Avatar — Enchanted traveller (hooded, cloaked, lantern in hand)
+ * ------------------------------------------------------------------
+ * KB3D packs ship NO character meshes (verified across Enchanted,
+ * Enchanted Interiors, Dark Fantasy, Valhalla, Village House Kit),
+ * so this is procedural — primitive volumes shaped to match the KB3D
+ * Enchanted town's robed-villager silhouette. Cloak + hood + lantern
+ * gives the right "lone traveller arriving at a misty village" mood.
+ *
+ * Coordinate convention: the root group's local origin sits AT THE
+ * FEET, so the caller can `avatar.position.y = 0` to place the
+ * avatar on flat ground — no manual height offsets needed elsewhere.
+ */
 function makeAvatar(){
   const g = new THREE.Group();
-  const skin = mat(0xf2cba5, {roughness:0.65});
-  const cloth = mat(0x3e6a89);
-  const trim = mat(0xe8dcb8);
-  const pants = mat(0x2a1a14);
-  const hair = mat(0x1a1410, {roughness:0.5});
-  const sash = mat(0xb04030);
+  const skin   = mat(0xe8c8a8, {roughness:0.7});
+  const cloak  = mat(0x2c3550, {roughness:0.85});  // deep indigo cloak
+  const cloakIn= mat(0x1a2030, {roughness:0.95});  // dark inner cloak lining
+  const robe   = mat(0xc8b890, {roughness:0.8});   // parchment robe under
+  const sash   = mat(0x884030, {roughness:0.7});   // warm leather sash
+  const boot   = mat(0x2a1810, {roughness:0.9});
+  const trim   = mat(0xd9b070, {roughness:0.5, metalness:0.3});
+  const hair   = mat(0x3a2818, {roughness:0.6});
 
-  const hip = new THREE.Group();
-  hip.position.y = 0.42;
-  g.add(hip);
-  const pantsMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.22, 0.45, 8), pants);
-  pantsMesh.position.y = -0.05; pantsMesh.castShadow = true;
-  hip.add(pantsMesh);
-
+  // === Legs (under the robe, mostly hidden by cloak) ===
+  // Geometry math: hip-top y=0.48, thigh 0.22 long → knee at y=0.26,
+  // shin 0.20 long → ankle at y=0.06, boot box 0.08 tall → boot bottom
+  // at y=0.02. Net result: feet rest ~2 cm above the root origin which
+  // is effectively y=0 once the avatar is placed at avatar.position.y=0.
   function leg(side){
     const l = new THREE.Group();
-    l.position.set(side*0.08, -0.23, 0);
-    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.2, 10), pants);
-    thigh.position.y = -0.10; thigh.castShadow = true;
+    l.position.set(side*0.085, 0.48, 0);
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.08, 0.22, 10), robe);
+    thigh.position.y = -0.11; thigh.castShadow = true;
     l.add(thigh);
     const knee = new THREE.Group();
-    knee.position.y = -0.20;
-    l.add(knee);
-    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.075, 0.2, 10), pants);
+    knee.position.y = -0.22; l.add(knee);
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.078, 0.07, 0.20, 10), robe);
     shin.position.y = -0.10; shin.castShadow = true;
     knee.add(shin);
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.22), mat(0x3a2010));
-    foot.position.set(0, -0.23, 0.06); foot.castShadow = true;
-    knee.add(foot);
+    const bootM = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.22), boot);
+    bootM.position.set(0, -0.22, 0.04); bootM.castShadow = true;
+    knee.add(bootM);
     l.userData = { knee };
     return l;
   }
   const legL = leg(-1), legR = leg(1);
-  hip.add(legL); hip.add(legR);
+  g.add(legL); g.add(legR);
+
+  // === Hip + torso ===
+  const hip = new THREE.Group();
+  hip.position.y = 0.52;   // slightly above the leg-attach (y=0.48)
+  g.add(hip);
 
   const torso = new THREE.Group();
-  torso.position.y = 0.2;
+  torso.position.y = 0.22;
   hip.add(torso);
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.25, 0.48, 10), cloth);
-  body.position.y = 0.18; body.castShadow = true;
-  torso.add(body);
-  const sashM = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.10, 12), sash);
-  sashM.position.y = 0; torso.add(sashM);
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.035, 6, 16), trim);
-  collar.position.y = 0.36; collar.rotation.x = Math.PI/2;
-  torso.add(collar);
 
-  function arm(side){
+  // robe body (visible at the front, hidden behind by cloak)
+  const robeBody = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.27, 0.55, 12), robe);
+  robeBody.position.y = 0.16; robeBody.castShadow = true;
+  torso.add(robeBody);
+  // wide sash at waist
+  const sashM = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.12, 14), sash);
+  sashM.position.y = -0.05; torso.add(sashM);
+  // sash buckle (subtle)
+  const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.04), trim);
+  buckle.position.set(0, -0.05, 0.26); torso.add(buckle);
+
+  // === Cloak (wide trapezoidal cone behind shoulders) ===
+  // Double-sided so the inside is visible if camera goes around.
+  const cloakGeo = new THREE.CylinderGeometry(0.30, 0.42, 0.70, 16, 1, true);
+  const cloakMesh = new THREE.Mesh(cloakGeo, cloak);
+  cloakMesh.position.y = 0.06; cloakMesh.castShadow = true;
+  // Open the cloak in front so the robe shows through
+  cloakMesh.material.side = THREE.DoubleSide;
+  torso.add(cloakMesh);
+  // Cloak inner lining peek at the front opening
+  const lining = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.34, 0.62),
+    cloakIn
+  );
+  lining.material.side = THREE.DoubleSide;
+  lining.position.set(0, 0.06, 0.18);
+  torso.add(lining);
+
+  // === Arms (under cloak; right arm extended forward holding lantern) ===
+  function arm(side, lanternHand){
     const a = new THREE.Group();
-    a.position.set(side*0.24, 0.36, 0);
-    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.36, 8), cloth);
-    upper.position.y = -0.18; upper.castShadow = true;
-    a.add(upper);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), skin);
-    hand.position.y = -0.38;
+    a.position.set(side*0.26, 0.32, 0);
+    // Cloak sleeve (wider)
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.10, 0.38, 10), cloak);
+    sleeve.position.y = -0.19; sleeve.castShadow = true;
+    a.add(sleeve);
+    // Hand peeks out at end of sleeve
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 8), skin);
+    hand.position.y = -0.42;
     a.add(hand);
+    if(lanternHand){
+      // Slight forward+inward swing of right arm so the lantern is held
+      // in front-of-belly.
+      a.rotation.x = -0.5;
+      a.rotation.z = side * -0.15;
+      // Lantern: small box + emissive amber glass
+      const lanternG = new THREE.Group();
+      lanternG.position.set(0, -0.48, 0.0);
+      const cage = new THREE.Mesh(
+        new THREE.BoxGeometry(0.10, 0.14, 0.10),
+        new THREE.MeshStandardMaterial({color:0x2a1810, roughness:0.6, metalness:0.4})
+      );
+      cage.castShadow = true;
+      lanternG.add(cage);
+      const glass = new THREE.Mesh(
+        new THREE.BoxGeometry(0.075, 0.10, 0.075),
+        new THREE.MeshStandardMaterial({
+          color:0xffd890, emissive:0xffaa55, emissiveIntensity:1.6,
+          roughness:0.4, transparent:true, opacity:0.92
+        })
+      );
+      lanternG.add(glass);
+      // Glow halo
+      const halo = new THREE.Mesh(
+        new THREE.SphereGeometry(0.20, 12, 10),
+        new THREE.MeshBasicMaterial({color:0xffd890, transparent:true, opacity:0.22, depthWrite:false})
+      );
+      lanternG.add(halo);
+      // Handle bar above
+      const bar = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 6, 10, Math.PI),
+        new THREE.MeshStandardMaterial({color:0x3a2810, roughness:0.6, metalness:0.5}));
+      bar.position.y = 0.075; bar.rotation.x = Math.PI/2;
+      lanternG.add(bar);
+      // Real point light contribution
+      const lanternLight = new THREE.PointLight(0xffd890, 0.9, 5, 1.6);
+      lanternLight.position.y = 0;
+      lanternG.add(lanternLight);
+      a.add(lanternG);
+      a.userData.lantern = lanternG;
+      a.userData.lanternLight = lanternLight;
+    }
     return a;
   }
-  const armL = arm(-1), armR = arm(1);
+  const armL = arm(-1, false);
+  const armR = arm(1, true);
   torso.add(armL); torso.add(armR);
 
+  // === Head + hood ===
   const head = new THREE.Group();
-  head.position.y = 0.48;
+  head.position.y = 0.50;
   torso.add(head);
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.07,0.07,8), skin);
-  neck.position.y = -0.06; head.add(neck);
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 14), skin);
-  skull.position.y = 0.07; skull.castShadow = true; head.add(skull);
-  const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.155, 16, 12, 0, Math.PI*2, 0, Math.PI*0.55), hair);
-  hairCap.position.y = 0.07; head.add(hairCap);
-  const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, 0.11), hair);
-  bangs.position.set(0, 0.16, 0.085); bangs.rotation.x = -0.12;
-  head.add(bangs);
-  const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.08,8,8), hair);
-  tuft.position.set(0, 0.04, -0.13); head.add(tuft);
 
-  // face texture
+  // skull (mostly hidden under hood, just chin/face peeks)
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 14), skin);
+  skull.position.y = 0.07; skull.castShadow = true;
+  head.add(skull);
+  // Hood (sphere upper half + cone behind)
+  const hoodOuter = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 16, 12, 0, Math.PI*2, 0, Math.PI*0.6),
+    cloak
+  );
+  hoodOuter.position.y = 0.07; hoodOuter.castShadow = true;
+  head.add(hoodOuter);
+  // Hood lining (peeks at face opening)
+  const hoodLining = new THREE.Mesh(
+    new THREE.SphereGeometry(0.165, 16, 10, 0, Math.PI*2, 0, Math.PI*0.5),
+    cloakIn
+  );
+  hoodLining.position.y = 0.075;
+  head.add(hoodLining);
+  // Pointy hood tail behind
+  const hoodTail = new THREE.Mesh(
+    new THREE.ConeGeometry(0.13, 0.20, 8),
+    cloak
+  );
+  hoodTail.position.set(0, 0.12, -0.10); hoodTail.rotation.x = 0.6;
+  head.add(hoodTail);
+
+  // === Face — quiet expression behind the hood shadow ===
   const faceCan = document.createElement('canvas');
   faceCan.width = 128; faceCan.height = 128;
   const fc = faceCan.getContext('2d');
-  fc.fillStyle = '#2a1a14';
-  fc.fillRect(36, 50, 18, 4); fc.fillRect(74, 50, 18, 4);
-  fc.fillStyle = '#1a1410';
-  fc.beginPath(); fc.ellipse(46, 62, 9, 6, 0, 0, Math.PI*2); fc.fill();
-  fc.beginPath(); fc.ellipse(82, 62, 9, 6, 0, 0, Math.PI*2); fc.fill();
-  fc.fillStyle = '#ffffff';
-  fc.beginPath(); fc.arc(48, 60, 2, 0, Math.PI*2); fc.fill();
-  fc.beginPath(); fc.arc(84, 60, 2, 0, Math.PI*2); fc.fill();
-  fc.fillStyle = 'rgba(180,130,100,.35)';
-  fc.beginPath(); fc.ellipse(64, 78, 3, 5, 0, 0, Math.PI*2); fc.fill();
-  fc.strokeStyle = '#5a2410'; fc.lineWidth = 2;
-  fc.beginPath(); fc.arc(64, 92, 7, 0.2*Math.PI, 0.8*Math.PI); fc.stroke();
-  fc.fillStyle = 'rgba(255,158,138,.55)';
-  fc.beginPath(); fc.ellipse(36, 80, 9, 6, 0, 0, Math.PI*2); fc.fill();
-  fc.beginPath(); fc.ellipse(92, 80, 9, 6, 0, 0, Math.PI*2); fc.fill();
+  // Slight ambient warm tint
+  fc.fillStyle = 'rgba(232,200,168,0.18)';
+  fc.fillRect(0, 0, 128, 128);
+  // Eyes (closed-ish — peaceful)
+  fc.strokeStyle = '#3a2818'; fc.lineWidth = 3;
+  fc.beginPath(); fc.arc(48, 64, 7, 0.05*Math.PI, 0.95*Math.PI); fc.stroke();
+  fc.beginPath(); fc.arc(80, 64, 7, 0.05*Math.PI, 0.95*Math.PI); fc.stroke();
+  // Soft cheek blush
+  fc.fillStyle = 'rgba(220,140,120,0.35)';
+  fc.beginPath(); fc.ellipse(40, 82, 8, 5, 0, 0, Math.PI*2); fc.fill();
+  fc.beginPath(); fc.ellipse(88, 82, 8, 5, 0, 0, Math.PI*2); fc.fill();
+  // Calm small smile
+  fc.strokeStyle = '#5a2818'; fc.lineWidth = 2;
+  fc.beginPath(); fc.arc(64, 90, 6, 0.15*Math.PI, 0.85*Math.PI); fc.stroke();
   const faceTex = new THREE.CanvasTexture(faceCan);
   faceTex.colorSpace = THREE.SRGBColorSpace;
   const facePlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.24, 0.24),
+    new THREE.PlaneGeometry(0.18, 0.18),
     new THREE.MeshBasicMaterial({ map: faceTex, transparent:true, alphaTest:0.02 })
   );
-  facePlane.position.set(0, 0.07, 0.135);
+  facePlane.position.set(0, 0.05, 0.135);
   head.add(facePlane);
+  // Wisp of hair peeking out at the front
+  const wisp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, 0.04), hair);
+  wisp.position.set(0, 0.14, 0.10); wisp.rotation.x = -0.15;
+  head.add(wisp);
 
-  // hat
-  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.12, 16), mat(0xd9a86a));
-  hat.position.y = 0.20; hat.castShadow=true;
-  head.add(hat);
-  const hatRim = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.028, 6, 16), mat(0xb88a4a));
-  hatRim.position.y = 0.175; hatRim.rotation.x = Math.PI/2;
-  head.add(hatRim);
-
-  // selection ring (always on top so avatar is visible even behind buildings)
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.44, 32),
-    new THREE.MeshBasicMaterial({color:0x6BE07A, transparent:true, opacity:0.92, side:THREE.DoubleSide, depthWrite:false, depthTest:false}));
+  // === Selection ring at the feet (subtle warm halo, not the prior bright green) ===
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.32, 0.40, 32),
+    new THREE.MeshBasicMaterial({color:0xffd890, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false, depthTest:false}));
   ring.rotation.x = -Math.PI/2;
-  ring.position.y = 0.02;
+  ring.position.y = 0.01;
   ring.renderOrder = 999;
   g.add(ring);
   g.userData.ring = ring;
-  // floating marker arrow above head (always visible)
-  const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.20, 6),
-    new THREE.MeshBasicMaterial({color:0x6BE07A, transparent:true, opacity:0.7, depthTest:false}));
+
+  // === Hover-marker arrow above head — used by the gameplay code ===
+  const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.16, 6),
+    new THREE.MeshBasicMaterial({color:0xffd890, transparent:true, opacity:0.5, depthTest:false}));
   arrow.position.y = 2.0;
   arrow.rotation.x = Math.PI;
   arrow.renderOrder = 999;
@@ -4846,19 +4943,6 @@ SCENES.plaza = {
     placeENC('enc_sword_in_stone', 4.5, 0.05, 9.0, 0.9, 0);
     placeENC('enc_sigil', -4.5, 0.05, 9.0, 0.85, 0);
     placeENC('enc_brazier', 0.0, 0.05, 10.5, 0.9, 0);
-
-    function placeNpc(colors, path, speed){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
-      ENTITIES.npcs.push(n); root.add(n);
-      return n;
-    }
-    placeNpc([0xb83838, 0x1a1410], [[5, 7], [-5, 3]], 0.5);
-    placeNpc([0x3858a8, 0x1a1410], [[-6, 5], [6, -3]], 0.45);
-    placeNpc([0x4a6a30, 0x1a1410], [[0, 9], [0, 1]], 0.4);
-    placeNpc([0xc89030, 0x1a1410], [[7, 8], [-7, 8]], 0.35);
-
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('petal', 100, { range: 30, yMax: 14, yMin: 0, fallSpeed: 0.4, swayAmp: 0.4, swayFreq: 1.2 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
@@ -4912,18 +4996,6 @@ SCENES.monlight = {
     placeENC('enc_lantern', 6.0, 0.05, 9.0, 0.85, 0);
     placeENC('enc_lantern', -6.0, 0.05, 9.0, 0.85, 0);
     placeENC('enc_bookshelf', 0.0, 0.05, 11.0, 0.85, 0);
-
-    function placeNpc(colors, path, speed){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
-      ENTITIES.npcs.push(n); root.add(n);
-      return n;
-    }
-    placeNpc([0x3a3a78, 0x1a1410], [[3, 6], [-3, 2]], 0.3);
-    placeNpc([0x68487a, 0x1a1410], [[-5, 5], [5, 1]], 0.35);
-    placeNpc([0x4a4a5a, 0x1a1410], [[0, 8], [0, 2]], 0.3);
-
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('star', 120, { range: 32, yMax: 22, yMin: 8, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'static'});
@@ -4970,18 +5042,6 @@ SCENES.oto = {
     // Story accent props placed OUTSIDE the prefab footprint (front-stage)
     placeENC('enc_hangingpot', -4.5, 0.05, 9.0, 0.85, 0);
     placeENC('enc_lantern', 4.5, 0.05, 9.0, 0.85, 0);
-
-    function placeNpc(colors, path, speed){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
-      ENTITIES.npcs.push(n); root.add(n);
-      return n;
-    }
-    placeNpc([0x4a6a30, 0x1a1410], [[4, 6], [-4, 2]], 0.4);
-    placeNpc([0x7a8a4a, 0x1a1410], [[-5, 6], [5, 1]], 0.38);
-    placeNpc([0x68a878, 0x1a1410], [[0, 8], [0, 2]], 0.35);
-
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('leaf', 80, { range: 28, yMax: 12, yMin: 0, fallSpeed: 0.35, swayAmp: 0.55, swayFreq: 0.8 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
@@ -5029,19 +5089,6 @@ SCENES.tabi = {
     placeENC('enc_brazier', 0.0, 0.05, 10.5, 0.9, 0);
     placeENC('enc_lantern', 5.0, 0.05, 9.0, 0.85, 0);
     placeENC('enc_lantern', -5.0, 0.05, 9.0, 0.85, 0);
-
-    function placeNpc(colors, path, speed){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
-      ENTITIES.npcs.push(n); root.add(n);
-      return n;
-    }
-    placeNpc([0xc88040, 0x1a1410], [[4, 6], [-4, 0]], 0.45);
-    placeNpc([0x884a2a, 0x1a1410], [[-5, 5], [5, 1]], 0.42);
-    placeNpc([0xa86848, 0x1a1410], [[6, 8], [-6, 8]], 0.38);
-    placeNpc([0xd8a878, 0x1a1410], [[0, 9], [0, 1]], 0.4);
-
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('petal', 90, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.4, swayAmp: 0.4, swayFreq: 1.2 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
@@ -5088,17 +5135,6 @@ SCENES.toki = {
     // Story accent props placed OUTSIDE the prefab footprint (front-stage)
     placeENC('enc_sigil', -7.0, 0.05, 9.0, 0.85, 0);
     placeENC('enc_sigil', 7.0, 0.05, 9.0, 0.85, 0);
-
-    function placeNpc(colors, path, speed){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
-      ENTITIES.npcs.push(n); root.add(n);
-      return n;
-    }
-    placeNpc([0x4a4a6a, 0x1a1410], [[3, 5], [-3, 1]], 0.32);
-    placeNpc([0x6a4a8a, 0x1a1410], [[-4, 4], [4, 0]], 0.35);
-
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('mist', 150, { range: 34, yMax: 8, yMin: 0, fallSpeed: 0.12, swayAmp: 0.6, swayFreq: 0.4 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
@@ -5146,18 +5182,6 @@ SCENES.hoshi = {
     placeENC('enc_sword_in_stone', -5.0, 0.05, 9.0, 0.9, 0);
     placeENC('enc_sigil', 5.0, 0.05, 9.0, 0.85, 0);
     placeENC('enc_armor_chest', 0.0, 0.05, 10.5, 0.85, 30);
-
-    function placeNpc(colors, path, speed){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
-      ENTITIES.npcs.push(n); root.add(n);
-      return n;
-    }
-    placeNpc([0x2a2a5a, 0x1a1410], [[3, 6], [-3, 2]], 0.3);
-    placeNpc([0x4a3a78, 0x1a1410], [[-5, 5], [5, 1]], 0.32);
-    placeNpc([0x6a6a8a, 0x1a1410], [[0, 8], [0, 2]], 0.28);
-
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('star', 130, { range: 32, yMax: 22, yMin: 8, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'static'});
@@ -5205,18 +5229,6 @@ SCENES.takibi = {
     placeENC('enc_brazier', 3.0, 0.05, 9.0, 0.9, 0);
     placeENC('enc_brazier', -3.0, 0.05, 9.0, 0.9, 0);
     placeENC('enc_lantern', 0.0, 0.05, 11.0, 0.85, 0);
-
-    function placeNpc(colors, path, speed){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
-      ENTITIES.npcs.push(n); root.add(n);
-      return n;
-    }
-    placeNpc([0xc84030, 0x1a1410], [[3, 5], [-3, 4]], 0.3);
-    placeNpc([0xa83020, 0x1a1410], [[5, 6], [-5, 6]], 0.32);
-    placeNpc([0xe87840, 0x1a1410], [[0, 8], [0, 2]], 0.3);
-
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('ember', 90, { range: 18, yMax: 8, yMin: 0, fallSpeed: -0.45, swayAmp: 0.25, swayFreq: 1.5 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'rise'});
@@ -5263,18 +5275,6 @@ SCENES.mizube = {
     // Story accent props placed OUTSIDE the prefab footprint (front-stage)
     placeENC('enc_hangingpot', -4.0, 0.05, 9.0, 0.85, 0);
     placeENC('enc_hangingpot', 4.0, 0.05, 9.0, 0.85, 0);
-
-    function placeNpc(colors, path, speed){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
-      ENTITIES.npcs.push(n); root.add(n);
-      return n;
-    }
-    placeNpc([0x4a78a8, 0x1a1410], [[4, 7], [-4, 3]], 0.38);
-    placeNpc([0x78a8c8, 0x1a1410], [[-5, 6], [5, 1]], 0.4);
-    placeNpc([0xa8c8d8, 0x1a1410], [[0, 9], [0, 3]], 0.36);
-
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('petal', 80, { range: 28, yMax: 12, yMin: 0, fallSpeed: 0.32, swayAmp: 0.5, swayFreq: 1.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
@@ -5322,18 +5322,6 @@ SCENES.amaoto = {
     placeENC('enc_sigil', -4.5, 0.05, 9.0, 0.85, 0);
     placeENC('enc_sigil', 4.5, 0.05, 9.0, 0.85, 0);
     placeENC('enc_brazier', 0.0, 0.05, 10.5, 0.9, 0);
-
-    function placeNpc(colors, path, speed){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
-      ENTITIES.npcs.push(n); root.add(n);
-      return n;
-    }
-    placeNpc([0x5a6a8a, 0x1a1410], [[4, 6], [-4, 1]], 0.32);
-    placeNpc([0x7a8aa8, 0x1a1410], [[-5, 5], [5, 0]], 0.34);
-    placeNpc([0x4a5a78, 0x1a1410], [[0, 8], [0, 2]], 0.3);
-
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('rain', 260, { range: 24, yMax: 16, yMin: 0, fallSpeed: 1.6, swayAmp: 0.05, swayFreq: 0.2 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
@@ -5380,18 +5368,6 @@ SCENES.heya = {
     // Story accent props placed OUTSIDE the prefab footprint (front-stage)
     placeENC('enc_hangingpot', -3.5, 0.05, 9.0, 0.85, 0);
     placeENC('enc_hangingpot', 3.5, 0.05, 9.0, 0.85, 0);
-
-    function placeNpc(colors, path, speed){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(path[0][0], 0, path[0][1]);
-      n.userData.path = path; n.userData.wp = 0; n.userData.speed = speed;
-      ENTITIES.npcs.push(n); root.add(n);
-      return n;
-    }
-    placeNpc([0xd8a878, 0x1a1410], [[3, 5], [-3, 1]], 0.4);
-    placeNpc([0xc89060, 0x1a1410], [[-4, 4], [4, 0]], 0.38);
-    placeNpc([0xe8c89c, 0x1a1410], [[5, 7], [-5, 7]], 0.35);
-
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('petal', 60, { range: 22, yMax: 10, yMin: 0, fallSpeed: 0.28, swayAmp: 0.3, swayFreq: 0.9 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
@@ -6366,38 +6342,61 @@ window.addEventListener('resize', ()=>{
 
 setLoad(0.95, 'ASSETS');
 
-// Bootstrap: PRE-FETCH all plaza ENC assets BEFORE the first build/render so
-// the user doesn't see a half-loaded scene. Splash stays visible until
-// 100% complete. Once loaded, the scene appears in one frame.
+// Bootstrap: PRE-FETCH plaza assets, RENDER the scene 2 frames (warms GPU
+// texture uploads while the splash is still visible), THEN reveal. This
+// eliminates the previous "splash hides → 1 second of white screen" bug
+// caused by deferred texture upload during the first animate() frame.
 (async () => {
   const plazaDef = SCENES.plaza;
   const toLoad = (plazaDef && Array.isArray(plazaDef.preloadAssets))
                   ? plazaDef.preloadAssets.slice() : [];
   if(toLoad.length){
-    // Concurrency cap (4 parallel) so the worker isn't overwhelmed and the
-    // browser network slot is shared with three.js / GLTFLoader fairly.
-    const CONCURRENCY = 4;
-    let done = 0;
+    // Per-asset byte counter so the splash bar tracks real download
+    // progress (the prefab GLB is ~150 MB — without this the bar sits
+    // at "BUILDINGS 0/4" for 30-60 s, looking stuck).
+    const bytesPerAsset = new Map();
+    let assetsDone = 0;
     const total = toLoad.length;
+    const renderBar = () => {
+      const totalBytes = Array.from(bytesPerAsset.values()).reduce((a,b)=>a+b, 0);
+      const mb = (totalBytes / 1024 / 1024).toFixed(0);
+      const pct = 0.95 + 0.04 * (assetsDone / total);
+      setLoad(pct, `LOADING ${mb}MB  (${assetsDone}/${total})`);
+    };
+    const CONCURRENCY = 4;
     async function worker(){
       while(toLoad.length){
         const name = toLoad.shift();
         if(!name) break;
-        try { await lazyLoadAsset(name); } catch(_){}
-        done++;
-        setLoad(0.95 + 0.04 * (done/total), `BUILDINGS ${done}/${total}`);
+        try {
+          await lazyLoadAsset(name, (loaded /*, total */) => {
+            bytesPerAsset.set(name, loaded);
+            renderBar();
+          });
+        } catch(_){}
+        bytesPerAsset.set(name, bytesPerAsset.get(name) || 0);
+        assetsDone++;
+        renderBar();
       }
     }
     await Promise.all(Array(CONCURRENCY).fill(0).map(()=>worker()));
   }
-  setLoad(0.99, 'BUILD');
+  setLoad(0.985, 'BUILD');
   buildScene('plaza');
+  // Force first render (uploads textures + compiles shaders) while splash
+  // is still occluding the canvas. Without this, the user sees a white/black
+  // canvas for ~1 s during the first frame's texture upload.
+  setLoad(0.99, 'RENDER');
+  await new Promise(r => requestAnimationFrame(r));
+  renderer.render(scene, camera);
+  await new Promise(r => requestAnimationFrame(r));
+  renderer.render(scene, camera);
   setLoad(1.0, 'READY');
-  setTimeout(()=>{
-    const sp = document.getElementById('splash');
-    if(sp) sp.classList.add('hidden');
-    setTimeout(()=>{ if(sp) sp.remove(); }, 900);
-  }, 350);
+  // Brief hold so the user sees the "READY" state, then fade.
+  await new Promise(r => setTimeout(r, 200));
+  const sp = document.getElementById('splash');
+  if(sp) sp.classList.add('hidden');
+  setTimeout(()=>{ if(sp) sp.remove(); }, 900);
   animate();
 })();
 </script>
