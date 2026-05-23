@@ -4797,161 +4797,97 @@ function sampleHeight(x, z){
 SCENES.plaza = {
   num: '00', kind: 'plaza',
   title: 'Cloudfall Village (雲落ちの村)', en: 'Cloudfall Village',
-  concept: 'KB3D Enchanted ベースの魔法箱庭。中央広場に時計塔、市場、教会、酒場、薬草師、本屋などが整然と並ぶ。',
-  // Slightly cooler high-noon. Enchanted PBR shines under moderate exposure.
-  sun: [42, -22], turbidity: 2.5, rayleigh: 1.1,
-  fogColor: '#b0c4d0', fogNear: 16, fogFar: 38, exposure: 1.0,
-  avatarStart: [0, 4.0],
-  // Lazy-load: only ENC assets (procedural primitives have been removed).
+  concept: 'KB3D Enchanted ベースの原寸ジオラマ。広場・地面・建物すべて Enchanted アセット。',
+  sun: [44, -22], turbidity: 2.5, rayleigh: 1.1,
+  fogColor: '#b0c4d0', fogNear: 28, fogFar: 80, exposure: 1.0,
+  avatarStart: [0, 6.0],
+  // Lazy-load via pCloud-proxy worker. All assets are ENC; no procedural fallback.
   preloadAssets: [
+    'enc_townsquare_ground', 'enc_townsquare_floor', 'enc_townsquare_upper',
     'enc_clocktower_b', 'enc_church_a', 'enc_church_spire',
     'enc_antiquarian', 'enc_inn', 'enc_bank', 'enc_herbalist',
     'enc_bookstore', 'enc_candlemaker', 'enc_pub',
     'enc_lamppost_a', 'enc_lamppost_c', 'enc_lantern',
-    'enc_sign_a', 'enc_planter_a', 'enc_brazier',
-    'enc_bench', 'enc_sigil', 'enc_wooden_arch', 'enc_zoltor',
-    'enc_vendor_b', 'enc_sword_in_stone', 'enc_bookshelf',
-    'enc_armor_chest', 'enc_wash_basin', 'enc_hangingpot',
+    'enc_sign_a', 'enc_sign_b', 'enc_planter_a', 'enc_planter_b',
+    'enc_brazier', 'enc_hangingpot', 'enc_bench',
+    'enc_sigil', 'enc_sword_in_stone', 'enc_zoltor', 'enc_vendor_b',
+    'enc_wooden_arch', 'enc_armor_chest', 'enc_wash_basin', 'enc_bookshelf',
   ],
   build(root){
-    /* === KB3D Enchanted Settlers-style cohesive village ===
-     * Layout (2.5D box-diorama on floating island):
-     *   center      cobble plaza + clock tower (HERO)
-     *   N (0,-5)    Church + Brazier + Spire
-     *   E (5,0)     Inn + Bookstore + Pub (residential / commerce row)
-     *   W (-5,0)    Herbalist + Antiquarian + CandleMaker (artisan row)
-     *   S (0,5)     Wooden Arch + Vendor + Zoltor (gateway + market)
-     *   4 lampposts at cardinal compass points
-     *   bench seating around the plaza
-     *   magic crystal + waypoint pillar (Dark Fantasy accents)
+    /* === Cloudfall Village — Enchanted-only diorama ===
+     * Native-scale layout. SCENE_RADIUS is 8m but ENC buildings live in
+     * their original metric system so we don't downsize.
      */
 
-    // 1) Floating-island base
-    const isle = makeIslandBase(SCENE_RADIUS, {
-      topColor: 0x6d9846, rimColor: 0x395420,
-      sideColor: 0x6f4b29, underColor: 0x1c1108,
-    });
-    root.add(isle);
-    root.userData.ground = isle;
-
-    // 2) Central cobblestone plaza disc (3.5m radius)
-    const stoneDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(3.5, 48).rotateX(-Math.PI/2),
-      new THREE.MeshStandardMaterial({
-        color: 0x8a7868, roughness: 0.92, metalness: 0.0, envMapIntensity: 0.6,
-      })
-    );
-    stoneDisc.position.y = 0.005;
-    stoneDisc.receiveShadow = true;
-    root.add(stoneDisc);
-    for(let i = 0; i < 36; i++){
-      const a = i / 36 * Math.PI * 2;
-      const stone = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(0.18, 0),
-        new THREE.MeshStandardMaterial({color: 0x6a5848, roughness: 0.95})
-      );
-      stone.position.set(Math.cos(a)*3.5, 0.08, Math.sin(a)*3.5);
-      stone.scale.set(1.1, 0.55, 1.1);
-      stone.castShadow = true; stone.receiveShadow = true;
-      root.add(stone);
-    }
-
-    // 3) Cobble streets (4 radial)
-    function buildStreet(angleDeg, length){
-      const a = THREE.MathUtils.degToRad(angleDeg);
-      const cx = Math.cos(a) * (3.5 + length/2);
-      const cz = Math.sin(a) * (3.5 + length/2);
-      const street = new THREE.Mesh(
-        new THREE.PlaneGeometry(length, 1.5).rotateX(-Math.PI/2),
-        new THREE.MeshStandardMaterial({color: 0x6a5848, roughness: 0.95})
-      );
-      street.position.set(cx, 0.01, cz);
-      street.rotation.y = a;
-      street.receiveShadow = true;
-      root.add(street);
-    }
-    buildStreet(90, 4.0);   // N
-    buildStreet(-90, 4.0);  // S
-    buildStreet(0, 4.0);    // E
-    buildStreet(180, 4.0);  // W
-
-    // KB3D placement helper (face the center)
-    function kbAt(name, x, z, scale, rotYOverride){
+    // === 1) Ground — pure ENC asset (no more procedural floating island) ===
+    function placeENC(name, x, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
       if(!m) return null;
-      m.scale.setScalar(scale);
+      m.scale.setScalar(scale ?? 1.0);
       m.position.set(x, 0, z);
-      m.rotation.y = (typeof rotYOverride === 'number')
-                    ? rotYOverride
-                    : Math.atan2(-x, -z);   // building faces plaza centre
+      if(typeof rotY === 'number') m.rotation.y = rotY;
       m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
       root.add(m);
       return m;
     }
 
-    // 4) HERO — Clock tower at the very centre (small + iconic)
-    kbAt('enc_clocktower_b', 0, 0, 0.50, 0);
+    // Plaza ground (cobblestone slab, native scale)
+    placeENC('enc_townsquare_ground', 0, 0, 1.0, 0);
+    // Plaza floor tiles (raised tile pattern, native scale)
+    placeENC('enc_townsquare_floor', 0, 0, 1.0, 0);
 
-    // 5) NORTH — Church chapel + church spire flanking
-    kbAt('enc_church_a',      0,   -6.0, 0.32);
-    kbAt('enc_church_spire', -2.5, -5.5, 0.28);
+    // === 2) Heroes — clock tower centre + 2 hero buildings flanking ===
+    // ENC native scale ≈ 1.0 (no downsize). Buildings are 5-15m tall.
+    placeENC('enc_clocktower_b', 0,   -8, 1.0, 0);
+    placeENC('enc_church_a',    -8,  -3, 1.0, Math.PI/2);
+    placeENC('enc_church_spire', 8,  -3, 1.0, -Math.PI/2);
 
-    // 6) EAST — residential row (3 buildings, all facing west toward plaza)
-    kbAt('enc_inn',          5.5, -3.5, 0.20);   // top of east street
-    kbAt('enc_bookstore',    6.0,  0.0, 0.22);   // middle
-    kbAt('enc_pub',          5.8,  3.5, 0.16);   // bottom
+    // === 3) Residential / artisan rows (east + west) ===
+    placeENC('enc_inn',          12,  0, 1.0, -Math.PI/2);
+    placeENC('enc_bookstore',    12,  5, 1.0, -Math.PI/2);
+    placeENC('enc_pub',          12, 10, 1.0, -Math.PI/2);
+    placeENC('enc_herbalist',   -12,  0, 1.0,  Math.PI/2);
+    placeENC('enc_antiquarian', -12,  5, 1.0,  Math.PI/2);
+    placeENC('enc_candlemaker', -12, 10, 1.0,  Math.PI/2);
 
-    // 7) WEST — artisan row (3 buildings facing east toward plaza)
-    kbAt('enc_herbalist',   -5.5, -3.5, 0.28);
-    kbAt('enc_antiquarian', -6.0,  0.0, 0.40);
-    kbAt('enc_candlemaker', -5.8,  3.5, 0.20);
+    // === 4) South gateway + market ===
+    placeENC('enc_wooden_arch',  0, 14, 1.0, 0);
+    placeENC('enc_vendor_b',     5, 12, 1.0, -Math.PI/2);
+    placeENC('enc_zoltor',      -5, 12, 1.0,  Math.PI/2);
+    placeENC('enc_bank',         0, 18, 1.0, 0);
 
-    // 8) SOUTH — gateway + market
-    kbAt('enc_wooden_arch',  0,    5.5, 0.55, 0);
-    kbAt('enc_bank',         3.0,  6.5, 0.10);
-    kbAt('enc_vendor_b',    -2.5,  6.0, 0.65, Math.PI/2 - 0.2);
-    kbAt('enc_zoltor',      -3.0,  4.5, 0.70, Math.PI/2);
+    // === 5) Cardinal lampposts ===
+    placeENC('enc_lamppost_a',  4,  0, 1.0, 0);
+    placeENC('enc_lamppost_a', -4,  0, 1.0, 0);
+    placeENC('enc_lamppost_c',  0,  4, 1.0, 0);
+    placeENC('enc_lamppost_c',  0, -4, 1.0, 0);
 
-    // 9) Cardinal lampposts (4)
-    kbAt('enc_lamppost_a',  3.0,  0,    0.50);
-    kbAt('enc_lamppost_a', -3.0,  0,    0.50);
-    kbAt('enc_lamppost_c',  0,    3.0,  0.50);
-    kbAt('enc_lamppost_c',  0,   -3.0,  0.50);
+    // === 6) Decorative — sigils, statues, props ===
+    placeENC('enc_brazier',          0, -3, 1.0, 0);
+    placeENC('enc_sword_in_stone',   3, -3, 1.0, 0);
+    placeENC('enc_sigil',           -3,  3, 1.0, 0);
+    placeENC('enc_sigil',            3,  3, 1.0, 0);
+    placeENC('enc_bench',           -3, -3, 1.0, Math.PI/2);
+    placeENC('enc_planter_a',        5,  5, 1.0, 0);
+    placeENC('enc_planter_a',       -5,  5, 1.0, 0);
+    placeENC('enc_planter_b',        5, -5, 1.0, 0);
+    placeENC('enc_planter_b',       -5, -5, 1.0, 0);
+    placeENC('enc_hangingpot',       2,  2, 1.0, 0);
+    placeENC('enc_hangingpot',      -2,  2, 1.0, 0);
+    placeENC('enc_lantern',          2, -2, 1.0, 0);
+    placeENC('enc_lantern',         -2, -2, 1.0, 0);
+    placeENC('enc_bookshelf',       -8,  8, 1.0, Math.PI/2);
+    placeENC('enc_bookshelf',        8,  8, 1.0, -Math.PI/2);
+    placeENC('enc_sign_a',          -6,  3, 1.0, 0);
+    placeENC('enc_sign_a',           6,  3, 1.0, 0);
+    placeENC('enc_armor_chest',     -7, -7, 1.0, 0);
+    placeENC('enc_armor_chest',      7, -7, 1.0, 0);
+    placeENC('enc_wash_basin',      -1.5, 0, 1.0, 0);
+    placeENC('enc_wash_basin',       1.5, 0, 1.0, 0);
 
-    // 10) Benches around plaza (3)
-    kbAt('enc_bench',  2.5,  1.5, 0.70, Math.atan2(-2.5, -1.5) + Math.PI/2);
-    kbAt('enc_bench', -2.5,  1.5, 0.70, Math.atan2( 2.5, -1.5) + Math.PI/2);
-    kbAt('enc_bench',  0,    2.8, 0.70, Math.PI);
-
-    // 11) Brazier centre piece (will be lit by point light)
-    kbAt('enc_brazier',  0.0, -2.0, 0.50, 0);
-
-    // 12) Decorative props around plaza
-    kbAt('enc_planter_a',  1.5,  0.0, 0.70);
-    kbAt('enc_planter_a', -1.5,  0.0, 0.70);
-    kbAt('enc_lantern',   -2.5, -2.0, 0.70);
-    kbAt('enc_lantern',    2.5, -2.0, 0.70);
-    kbAt('enc_sigil',      0,   -3.5, 0.70, 0);
-    kbAt('enc_sword_in_stone', 2.0, -3.0, 0.65, 0);
-    kbAt('enc_sign_a',    -3.0,  3.0, 0.85);
-    kbAt('enc_sign_a',     3.0,  3.0, 0.85);
-
-    // 13) Extra Enchanted accents — magical sigils on diagonals + bookshelves
-    kbAt('enc_sigil',       -3.0,  3.5, 0.85, 0);
-    kbAt('enc_sigil',        3.0,  3.5, 0.85, 0);
-    kbAt('enc_bookshelf',   -4.5,  2.0, 0.70, Math.PI/2);
-    kbAt('enc_bookshelf',    4.5,  2.0, 0.70, -Math.PI/2);
-    kbAt('enc_armor_chest', -3.5, -1.0, 0.65, 0.3);
-    kbAt('enc_armor_chest',  3.5, -1.0, 0.65, -0.3);
-    kbAt('enc_wash_basin',  -1.2,  2.5, 0.70, 0);
-    kbAt('enc_wash_basin',   1.2,  2.5, 0.70, 0);
-    kbAt('enc_hangingpot',   2.0,  3.2, 0.85, 0);
-    kbAt('enc_hangingpot',  -2.0,  3.2, 0.85, 0);
-
-    // 14) 4 chibi NPCs walking the streets
+    // === 7) NPC chibi villagers (procedural primitive cute) ===
     function placeNpc(colors, path, speed, variant){
       const n = makeNpc(colors[0], colors[1], variant);
-      n.scale.setScalar(0.95);
       n.position.set(path[0][0], 0, path[0][1]);
       n.userData.path = path;
       n.userData.wp = 0;
@@ -4960,43 +4896,35 @@ SCENES.plaza = {
       root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[0, 3.5], [0, -3.5], [0, 3.5]], 0.55, 'woman');
-    placeNpc([0x3858a8, 0x1a1410], [[3.5, 0], [-3.5, 0]], 0.50, 'red');
-    placeNpc([0x4a6a30, 0x1a1410], [[-3.5, 0], [3.5, 0]], 0.45, 'green');
-    placeNpc([0xd8a838, 0x1a1410], [[0, 4.0], [0, 1.5]], 0.42, 'monk');
+    placeNpc([0xb83838, 0x1a1410], [[0, 6], [0, -6]], 0.55);
+    placeNpc([0x3858a8, 0x1a1410], [[6, 0], [-6, 0]], 0.50);
+    placeNpc([0x4a6a30, 0x1a1410], [[0, 10], [0, 2]], 0.45);
 
-    // 15) Cherry petal particles
+    // === 8) Cherry petals + warm rim light ===
     if(typeof makeFallingParticles === 'function'){
       const petals = makeFallingParticles('petal', 90, {
-        range: 16, yMax: 8, yMin: 0, fallSpeed: 0.40, swayAmp: 0.35, swayFreq: 1.2,
+        range: 30, yMax: 12, yMin: 0, fallSpeed: 0.40, swayAmp: 0.4, swayFreq: 1.2,
       });
       root.add(petals);
       ENTITIES.particles.push({obj: petals, type: 'fall'});
     }
-
-    // 16) Warm hemi rim
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.40);
-    fill.position.set(5, 8, 5);
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(8, 12, 8);
     root.add(fill);
 
-    // 17) 4 cardinal lamppost lights + brazier + crystal + waypoint
-    for(const [tx, tz] of [[3.0, 0], [-3.0, 0], [0, 3.0], [0, -3.0]]){
-      const pl = new THREE.PointLight(0xffd080, 0.85, 5.0);
-      pl.position.set(tx, 2.0, tz);
+    // === 9) Lamppost + brazier point lights ===
+    for(const [tx, tz] of [[4, 0], [-4, 0], [0, 4], [0, -4]]){
+      const pl = new THREE.PointLight(0xffd080, 0.85, 8.0);
+      pl.position.set(tx, 3.0, tz);
       root.add(pl);
       ENTITIES.lampLights.push(pl);
     }
-    const brazierLight = new THREE.PointLight(0xff7028, 1.0, 4.5);
-    brazierLight.position.set(0, 1.5, -2.0); root.add(brazierLight);
-    ENTITIES.lampLights.push(brazierLight);
-    const crystalLight = new THREE.PointLight(0xb060ff, 0.7, 4.5);
-    crystalLight.position.set(-2.5, 2.0, 2.8); root.add(crystalLight);
-    ENTITIES.lampLights.push(crystalLight);
-    const waypointLight = new THREE.PointLight(0x70c0ff, 0.7, 4.5);
-    waypointLight.position.set(2.5, 2.0, 2.8); root.add(waypointLight);
-    ENTITIES.lampLights.push(waypointLight);
+    const bl = new THREE.PointLight(0xff7028, 1.0, 6.0);
+    bl.position.set(0, 1.8, -3); root.add(bl);
+    ENTITIES.lampLights.push(bl);
   }
 };
+
 
 
 
