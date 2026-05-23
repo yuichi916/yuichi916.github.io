@@ -2,7 +2,6 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="referrer" content="no-referrer"><!-- pCloud public API rejects non-pCloud Referer with "Invalid link referer" — strip it page-wide -->
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>心の庭 / A Quiet Garden — yuichi916</title>
@@ -2838,10 +2837,29 @@ const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chib
 const BLENDER_LOADING = new Map();     // name -> Promise<scene|null>
 
 function _decorateGLB(scene){
+  // Decorate meshes + downscale loaded textures to ease GPU memory pressure.
+  // KB3D Enchanted GLBs ship with 1024×1024 PBR maps × ~13 materials per
+  // building, which exhausts WebGL texture memory if we render all 30 at once.
+  // We mark each texture for max anisotropy 1 and rely on the renderer's
+  // default mipmap LOD.
   scene.traverse(o => {
     if(o.isMesh){
       o.castShadow = true; o.receiveShadow = true;
-      if(o.material) o.material.envMapIntensity = 1.1;
+      const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+      for(const m of mats){
+        if(!m) continue;
+        m.envMapIntensity = 1.1;
+        // Mark every texture for proper GPU-friendly settings
+        for(const slot of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap']){
+          const tex = m[slot];
+          if(tex){
+            tex.anisotropy = 1;
+            tex.generateMipmaps = true;
+            tex.minFilter = THREE.LinearMipmapLinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+          }
+        }
+      }
     }
   });
 }
@@ -2987,13 +3005,11 @@ async function preloadBlenderAssets(){
 
 function blenderClone(name){
   const src = BLENDER_CACHE[name];
-  if(!src){
-    // Only ENC assets are valid for loading; all procedural GLBs have been
-    // deleted, so requests for non-enc_* names fall straight to procedural
-    // fallback (no 404 fetch attempt).
-    if(name && name.startsWith('enc_')) lazyLoadAsset(name);
-    return null;
-  }
+  if(!src) return null;
+  // NOTE: previously kicked off lazyLoadAsset for missing assets; that caused
+  // a chain reaction where ALL placeENC() calls (including deferred ones)
+  // queued texture loads, exhausting GPU memory and crashing the tab.
+  // Now: only preloadAssets[] explicitly listed in each scene get loaded.
   return src.clone(true);
 }
 
@@ -4807,21 +4823,14 @@ SCENES.plaza = {
   avatarStart: [0, 6.0],
   // Lazy-load via pCloud-proxy worker. All assets are ENC; no procedural fallback.
   preloadAssets: [
-    // Ground tier (8-12 MB each) — drawn first
+    // SMALLER initial set — heavy multi-material ENC buildings exhaust GPU
+    // texture memory on first-paint (each has ~13 materials × 4 PBR maps).
+    // Show only ground + 4 hero buildings + 2 lights up front; the rest
+    // arrives via background lazy-load and pops in on auto-rebuild.
     'enc_townsquare_ground', 'enc_townsquare_floor',
-    // Hero buildings (5-13 MB)
-    'enc_clocktower_b', 'enc_church_a', 'enc_church_spire',
-    'enc_antiquarian', 'enc_inn', 'enc_bank', 'enc_herbalist',
-    'enc_bookstore', 'enc_candlemaker', 'enc_pub',
-    // Decorative (light, 1-7 MB)
-    'enc_lamppost_a', 'enc_lamppost_c', 'enc_lantern',
-    'enc_sign_a', 'enc_planter_a', 'enc_brazier',
-    'enc_hangingpot', 'enc_bench', 'enc_sigil',
-    'enc_sword_in_stone', 'enc_wooden_arch',
-    // NOTE: enc_townsquare_upper (40 MB) and zoltor / vendor_b / bookshelf
-    // / armor_chest / wash_basin / planter_b / sign_b removed from plaza's
-    // *initial* load to keep first-paint under ~15s on a 30 Mbps link.
-    // They'll lazy-load in the background and show up on the next rebuild.
+    'enc_clocktower_b', 'enc_church_a',
+    'enc_inn', 'enc_herbalist',
+    'enc_lamppost_a', 'enc_brazier',
   ],
   build(root){
     /* === Cloudfall Village — Enchanted-only diorama ===
