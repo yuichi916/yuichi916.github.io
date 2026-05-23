@@ -338,8 +338,8 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
  *  心の庭 — 9 compact dioramas, scene-switched
  * =========================================================== */
 
-const SCENE_RADIUS = 14;       // diorama disc radius (28m total)
-const SCENE_BOUND = 13;        // avatar can walk up to this radius
+const SCENE_RADIUS = 8;        // diorama disc radius (16m total) — Captain-Toad chibi scale
+const SCENE_BOUND = 7.4;       // avatar can walk up to this radius
 
 /* === Unified WORLD palette + sun (continuous world view) ===
  *  Every scene shares the same base palette and sun/fog band so the
@@ -417,14 +417,14 @@ window.addEventListener('error', e=>{
 });
 
 /* Orthographic camera (quarter-view) ====================== */
-const CAM_DEFAULT_SIZE = 9;     // Codex: tighter default framing
+const CAM_DEFAULT_SIZE = 6.5;   // tight Captain-Toad diorama framing
 const CAM_MIN_SIZE = 6;
 const CAM_MAX_SIZE = 16;
 let CAM_ORTHO_SIZE = CAM_DEFAULT_SIZE;
 // 1st-person view orientation (independent of avatar facing)
 let fpYaw = 0;      // horizontal look (radians)
 let fpPitch = 0;    // vertical look (-1..+1)
-const CAM_OFFSET = new THREE.Vector3(10, 14, 10);
+const CAM_OFFSET = new THREE.Vector3(6.5, 7.5, 6.5);  // tighter diorama framing — Captain-Toad / Settlers look
 function makeOrthoCam(){
   const aspect = window.innerWidth/window.innerHeight;
   const s = CAM_ORTHO_SIZE;
@@ -572,6 +572,111 @@ const WOOD_TEX = tex((()=>{
 WOOD_TEX.repeat.set(2, 1);
 
 setLoad(0.28, 'TEXTURES');
+
+/* === Floating-island base — Captain-Toad style diorama foundation ===
+ * Returns a group with:
+ *   - top: round grass disc (PBR, slightly raised)
+ *   - sides: brown stone/dirt cylinder (PBR, dark)
+ *   - rim: chamfered edge in mid-tone (the iconic Captain-Toad bevel)
+ *   - underside: dark cap (so looking from below isn't transparent)
+ * Use this INSTEAD of terrainDisc() for the Settlers-density rebuild.
+ * radius: top-face radius (default SCENE_RADIUS)
+ * opts.topColor / opts.sideColor / opts.rimColor: override palette
+ * opts.depth: how thick the island is (default 1.2)
+ */
+function makeIslandBase(radius, opts = {}){
+  const o = Object.assign({
+    depth: 1.2,
+    topColor: 0x6fa847,     // bright chibi grass green
+    rimColor: 0x4a6a2c,     // darker grass edge
+    sideColor: 0x6a4a2a,    // warm earthy brown
+    underColor: 0x2a1c10,   // dark base cap
+    grassMap: GRASS_TEX,
+  }, opts);
+  const g = new THREE.Group();
+  const segs = 64;
+  // 1) Top grass disc — flat circle (no height noise). Captain-Toad style is
+  //    deliberately flat, the "fun" comes from props, not undulation.
+  const top = new THREE.Mesh(
+    new THREE.CircleGeometry(radius, segs).rotateX(-Math.PI/2),
+    new THREE.MeshStandardMaterial({
+      color: o.topColor,
+      map: o.grassMap,
+      roughness: 0.92,
+      metalness: 0.0,
+      envMapIntensity: 0.5,
+    })
+  );
+  top.position.y = 0;
+  top.receiveShadow = true;
+  g.add(top);
+  // 2) Chamfered rim — a thin torus ring around the top edge in darker grass.
+  //    Mimics the Captain-Toad "outlined" top edge.
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(radius - 0.05, 0.10, 8, segs).rotateX(Math.PI/2),
+    new THREE.MeshStandardMaterial({
+      color: o.rimColor, roughness: 0.92, metalness: 0.0, envMapIntensity: 0.5,
+    })
+  );
+  rim.position.y = -0.02;
+  rim.castShadow = true; rim.receiveShadow = true;
+  g.add(rim);
+  // 3) Side cylinder — brown earth/stone face of the floating block.
+  const side = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius - 0.05, radius - 0.20, o.depth, segs, 1, true),
+    new THREE.MeshStandardMaterial({
+      color: o.sideColor, roughness: 1.0, metalness: 0.0, envMapIntensity: 0.4,
+      side: THREE.DoubleSide,
+    })
+  );
+  side.position.y = -o.depth / 2 - 0.05;
+  side.castShadow = true; side.receiveShadow = true;
+  g.add(side);
+  // 4) 8 stone outcrops on the side — chibi "rock chunks sticking out" detail
+  const rockMat = new THREE.MeshStandardMaterial({
+    color: 0x7a6a5a, roughness: 0.92, metalness: 0.0,
+  });
+  for(let i = 0; i < 8; i++){
+    const ang = (i / 8) * Math.PI * 2 + 0.1;
+    const rx = Math.cos(ang) * (radius - 0.05);
+    const rz = Math.sin(ang) * (radius - 0.05);
+    const rockH = 0.4 + Math.random() * 0.3;
+    const rock = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.30 + Math.random()*0.10, 0),
+      rockMat
+    );
+    rock.position.set(rx, -o.depth * (0.3 + Math.random()*0.4), rz);
+    rock.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+    rock.scale.set(1.0 + Math.random()*0.5, rockH, 1.0 + Math.random()*0.5);
+    rock.castShadow = true;
+    g.add(rock);
+  }
+  // 5) Underside cap (dark) so the bottom isn't an open hollow cylinder.
+  const under = new THREE.Mesh(
+    new THREE.CircleGeometry(radius - 0.20, segs).rotateX(Math.PI/2),
+    new THREE.MeshStandardMaterial({
+      color: o.underColor, roughness: 1.0, metalness: 0.0,
+    })
+  );
+  under.position.y = -o.depth - 0.05;
+  g.add(under);
+  // 6) Hanging "roots" or "vines" from the bottom — 5 small dark spikes
+  //    that give it the floating-island silhouette
+  const vineMat = new THREE.MeshStandardMaterial({color: 0x4a3a1a, roughness: 1.0});
+  for(let i = 0; i < 5; i++){
+    const ang = i / 5 * Math.PI * 2 + 0.3;
+    const rx = Math.cos(ang) * (radius - 0.4);
+    const rz = Math.sin(ang) * (radius - 0.4);
+    const vH = 0.6 + Math.random() * 0.6;
+    const vine = new THREE.Mesh(
+      new THREE.ConeGeometry(0.08, vH, 6),
+      vineMat
+    );
+    vine.position.set(rx, -o.depth - vH/2 - 0.05, rz);
+    g.add(vine);
+  }
+  return g;
+}
 
 /* Terrain disc builder ==================================== */
 function terrainDisc(radius, heightFn, paletteFn, mapTex){
@@ -1788,7 +1893,12 @@ function makeKind(kind, rnd){
 }
 
 function pad150PBR(root, sceneName, opts = {}){
-  // Place ONE of each kind in KIND_REGISTRY → guaranteed 150+ varieties
+  // DISABLED — was the root cause of the "industrial waste" cluttered look.
+  // Captain Toad / Settlers diorama style wants ~15-25 purposeful objects per
+  // scene, not 200 random varieties. Each scene's build() now hand-places its
+  // hero set instead.
+  if(typeof console !== 'undefined') console.log(`niwa[${sceneName}]: pad150PBR disabled (clutter removal)`);
+  return;
   const o = Object.assign({
     minR: 4.5, maxR: SCENE_RADIUS*0.98,
   }, opts);
@@ -1829,12 +1939,15 @@ function pad150PBR(root, sceneName, opts = {}){
   return placed;
 }
 
-/* === Continuous world extension — terrain flows past the playable disc ===
- *  Critical for ひとつながりの世界 feel: no more "floating island" edge.
- *  Outer ring of terrain extends from SCENE_RADIUS out to r=80, with rolling
- *  hills + distant instanced forest + far mountain silhouettes.
+/* === Continuous world extension — DISABLED ===
+ *  The original goal was "ひとつながりの世界". But it produced a vast landscape
+ *  that conflicts with the Captain-Toad / Settlers diorama style the user
+ *  actually wants. Each scene is now a self-contained jewel-island, so
+ *  extendWorldGround / addDistantLandmarks are no-ops below.
  */
 function extendWorldGround(root, sceneName){
+  // DISABLED — diorama style does not want a vast outer terrain ring.
+  return;
   const innerR = SCENE_RADIUS - 0.3;
   const outerR = 90;
   const segR = 96, segH = 14;
@@ -2005,6 +2118,9 @@ function addSceneConnections(root, sceneName){
  *  via mat() + lower envMapIntensity. They are not walkable.
  */
 function addDistantLandmarks(root, sceneName){
+  // DISABLED — diorama style: each scene is its own floating jewel-island.
+  // No "ひとつながりの世界" silhouettes at the horizon any more.
+  return;
   const here = SCENE_WORLD_POS[sceneName];
   if(!here) return;
   // For each OTHER scene, draw a tiny silhouette in its compass direction
@@ -3744,6 +3860,10 @@ const GRASS_BLADE_TEX = makeGrassBladeTex();
 let densifyWindUniforms = [];   // track all grass shader uniforms for wind
 
 function densifyGround(root, themeName){
+  // DISABLED — diorama style does not want hundreds of grass-blade instances.
+  // The floating-island base now uses a single PBR grass material on its top
+  // face, and any extra greenery is hand-placed by build_<scene>().
+  return;
   const r = SCENE_RADIUS;
   const rndFn = (s=>{let a=s;return ()=>{a=Math.imul(a^a>>>15,a|1);a^=a+Math.imul(a^a>>>7,a|61);return((a^a>>>14)>>>0)/4294967296;}})(0xc0ffee + Math.random()*1e6 | 0);
 
@@ -4561,1013 +4681,258 @@ function sampleHeight(x, z){
 SCENES.plaza = {
   num: '00', kind: 'plaza',
   title: '森の村', en: 'The Forest Village',
-  concept: '針葉樹の森に埋もれた中世風の村。岬の上に教会、丘の上に物見櫓、森の奥に古民家。海へ落ちる岸辺。',
-  sun: [55, -25], turbidity:3.5, rayleigh:1.8,
-  fogColor:'#a0c4ce', fogNear:40, fogFar:120, exposure:1.05,
-  avatarStart: [0, 6],
+  concept: '小さな宝石のような浮島の村。中央に桜と井戸、市場の屋台、灯籠、住人たちが穏やかに暮らす。',
+  // Soft afternoon — warm but not extreme sunset, chibi-cheer.
+  sun: [40, -20], turbidity: 3.0, rayleigh: 1.4,
+  fogColor: '#cfe6ee', fogNear: 18, fogFar: 38, exposure: 1.05,
+  avatarStart: [0, 3],
   build(root){
-    /* ─ Natural rolling heightmap with WALKABLE FLAT PADS at landmarks
-         (per codex review — church/tower/mill need pads, not isolated peaks) ─ */
-    const hf = (x, z)=>{
-      // gentle base hills (subtle)
-      let h = Math.sin(x*0.28)*0.18 + Math.cos(z*0.24)*0.14 + Math.sin((x+z)*0.15)*0.12;
-      // Village core: nearly flat market common (radius 3.0) at (0,0)
-      const dCore = Math.hypot(x, z);
-      if(dCore < 3.0) h *= 0.15;
-      // Church terrace at (7.2, 7.0) radius 2.8 — flat raised pad
-      const dCh = Math.hypot(x-7.2, z-7.0);
-      if(dCh < 2.8){ h = 1.6; }
-      else if(dCh < 4.5){ h = 1.6 - ((dCh-2.8)/1.7)*1.0; }   // gentle slope down
-      // Tower pad at (-8, 7.2) radius 2.0
-      const dTw = Math.hypot(x+8, z-7.2);
-      if(dTw < 2.0){ h = 1.4; }
-      else if(dTw < 3.4){ h = 1.4 - ((dTw-2.0)/1.4)*0.9; }
-      // Mill farm pad at (-8, -7.4) radius 2.4
-      const dMl = Math.hypot(x+8, z+7.4);
-      if(dMl < 2.4){ h = 1.1; }
-      else if(dMl < 4.0){ h = 1.1 - ((dMl-2.4)/1.6)*0.7; }
-      // Coastal cliff on east
-      if(x > 9) h -= (x-9)*0.5;
-      if(x > 11.5) h -= 0.8;
-      return h;
-    };
-    const groundC = terrainDisc(SCENE_RADIUS, hf, (x,z,y,r,c)=>{
-      const n = noise(x*4,z*4,1.4);
-      if(x > 11 && y < -0.5){ c.setHex(0xc8a868); }       // beach
-      else if(y > 1.4){ c.setHex(0x6a8a40).lerp(new THREE.Color(0x4a6a30), n*0.5); }  // higher slopes
-      else { c.setHex(0x5a7a3d).lerp(new THREE.Color(0x3a5a28), n*0.55); }   // forest floor
+    /* ============================================================
+     * Settlers-density Captain-Toad diorama: ~20 hand-placed props,
+     * each with a purpose. No pad150 spam, no auto litter.
+     * Layout uses a rule-of-thirds compass:
+     *   N (0, -5)  sakura hero
+     *   S (0, +5)  torii gateway
+     *   W (-5, 0)  vendor row
+     *   E (+5, 0)  kominka houses
+     *   center     well (hub)
+     * ========================================================== */
+
+    // 1) Floating-island base
+    const isle = makeIslandBase(SCENE_RADIUS, {
+      topColor: 0x7ab047,
+      rimColor: 0x4a6a2c,
+      sideColor: 0x6f4c2a,
+      underColor: 0x231308,
     });
-    groundC.material.map = MOSS_TEX;
-    groundC.material.color.setHex(0xc8d8b0);
-    root.add(groundC); root.userData.ground = groundC;
+    root.add(isle);
+    root.userData.ground = isle;
 
-    /* ─ COASTAL WATER (cliff edge on east) ─ */
-    const coast = new THREE.Mesh(new THREE.PlaneGeometry(20, 30, 16, 16).rotateX(-Math.PI/2),
-      new THREE.MeshStandardMaterial({color:0x3a6a8a, transparent:true, opacity:0.92, roughness:0.05, metalness:0.2, envMapIntensity:1.6}));
-    coast.position.set(20, -1.6, 0);
-    root.add(coast);
-    // some rocks along the cliff edge
-    for(let i=0;i<8;i++){
-      const z = -10 + i*3 + (Math.random()-0.5);
-      const x = 11.5 + Math.random()*1.2;
-      const rk = makeRock(Math.random, 1.6+Math.random()*0.6);
-      rk.position.set(x, hf(x,z)-0.2, z);
-      root.add(rk);
-    }
-
-    /* ─ KEY BUILDINGS on FLAT PADS (per codex: walkable, connected terrain) ─ */
-    // Church on NE flat terrace
-    const church = makeChurch();
-    church.position.set(7.2, hf(7.2,7.0), 7.0);
-    church.rotation.y = -Math.PI*0.6;
-    church.scale.setScalar(0.85);
-    root.add(church);
-    church.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    addObstacle(7.2, 7.0, 2.2);
-    // Watchtower on NW flat pad
-    const tower = makeWatchtower();
-    tower.position.set(-8, hf(-8,7.2), 7.2);
-    root.add(tower);
-    tower.traverse(o=>{
-      if(o.userData?.flag) ENTITIES.flags.push(o);
-      if(o.userData?.lamp) ENTITIES.lamps.push(o);
-    });
-    addObstacle(-8, 7.2, 1.1);
-    // Windmill on SW farm pad
-    const mill = makeWindmill();
-    mill.position.set(-8, hf(-8,-7.4), -7.4);
-    root.add(mill);
-    if(mill.userData.mill){
-      mill.userData.mill.userData.rotateZ = 0.4;
-      ENTITIES.mills.push(mill.userData.mill);
-    }
-    addObstacle(-8, -7.4, 1.2);
-    // Central fountain — small obstacle (avatar can't walk through basin)
-    addObstacle(0, 0, 1.5);
-
-    /* ─ MEDIEVAL VILLAGE — 10 houses in 3 CLUSTERS WITH YARDS (per codex) ─
-       South cottages (4), West homes (3), East homes (3) — each facing the
-       village lane that loops through them. No more crowding the center.
-    */
-    const houseVariants = [
-      { w:1.5, d:1.3, stories:2, wallColor:0xe8d4a8, beamColor:0x3a2418, roofColor:0x7a3a1a, hasChimney:true },
-      { w:1.7, d:1.4, stories:2, wallColor:0xd8c89a, beamColor:0x2a1810, roofColor:0x4a4a6a, hasChimney:true },
-      { w:1.4, d:1.2, stories:3, wallColor:0xeacc94, beamColor:0x4a3024, roofColor:0x8a4a20, hasChimney:true },
-      { w:1.6, d:1.4, stories:2, wallColor:0xd0b888, beamColor:0x3a2418, roofColor:0x5a3a20, hasChimney:false, hasTower:true },
-      { w:1.5, d:1.3, stories:2, wallColor:0xc8b888, beamColor:0x3a2418, roofColor:0x6a4a3a, hasChimney:true, hasBalcony:true },
-    ];
-    // Special POI buildings — replace 4 generic cottages with purpose buildings
-    // (Codex: blacksmith / tavern / herbalist + 1 kept generic)
-    const specials = {
-      '-6.4,1.2': 'blacksmith',
-      '1.4,-5.7': 'tavern',
-      '4.9,3.5':  'herbalist',
-    };
-    const housePositions = [
-      // South cottages (facing north toward village lane)
-      [-3.8, -5.2], [-1.3, -5.8], [1.4, -5.7], [4.0, -5.0],
-      // West homes (facing east into village)
-      [-6.0, -1.8], [-6.4, 1.2], [-5.0, 3.8],
-      // East homes (facing west into village)
-      [5.4, -2.0], [6.2, 1.0], [4.9, 3.5],
-    ];
-    for(let i=0;i<housePositions.length;i++){
-      const [hx, hz] = housePositions[i];
-      const key = hx + ',' + hz;
-      let h;
-      if(specials[key] === 'blacksmith'){ h = makeBlacksmith(); }
-      else if(specials[key] === 'tavern'){ h = makeTavern(); }
-      else if(specials[key] === 'herbalist'){ h = makeHerbalist(); }
-      else {
-        const v = { ...houseVariants[i % houseVariants.length] };
-        h = makeMedievalHouse(v);
-      }
-      h.position.set(hx, hf(hx, hz), hz);
-      // Face the village center
-      h.rotation.y = Math.atan2(-hx, -hz);
-      root.add(h);
-      h.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-      // Register collision footprint
-      addObstacle(hx, hz, specials[key] === 'blacksmith' ? 1.5 :
-                          specials[key] === 'tavern'     ? 1.6 :
-                          specials[key] === 'herbalist'  ? 1.3 : 1.2);
+    // 2) Cobblestone plaza disc at the center
+    const stoneDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(2.4, 32).rotateX(-Math.PI/2),
+      new THREE.MeshStandardMaterial({
+        color: 0xa89878, roughness: 0.85, metalness: 0.0, envMapIntensity: 0.5,
+      })
+    );
+    stoneDisc.position.y = 0.005;
+    stoneDisc.receiveShadow = true;
+    root.add(stoneDisc);
+    for(let i = 0; i < 18; i++){
+      const a = i / 18 * Math.PI * 2;
+      const stone = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.18, 0),
+        new THREE.MeshStandardMaterial({color: 0x8a7868, roughness: 0.9})
+      );
+      stone.position.set(Math.cos(a)*2.4, 0.08, Math.sin(a)*2.4);
+      stone.scale.set(1.0, 0.5, 1.0);
+      stone.castShadow = true; stone.receiveShadow = true;
+      root.add(stone);
     }
 
-    /* ─ CENTRAL FOUNTAIN at the heart of the village ─ */
-    const fountain = makeFountain();
-    fountain.position.set(0, hf(0,0), 0);
-    root.add(fountain);
+    // 3) HERO 1: Sakura tree (north)
+    const sakura = (typeof blenderClone === 'function' && blenderClone('tree_sakura')) || makeTree('sakura');
+    sakura.scale.setScalar(1.8);
+    sakura.position.set(-0.5, 0, -4.8);
+    root.add(sakura);
 
-    /* ─ COBBLESTONE PATHS: village lane LOOP + main entry + approach paths
-       (per codex: replace spokes with a proper street network) ─ */
-    const pathMat = new THREE.MeshStandardMaterial({color:0xb8a888, roughness:0.9});
-    function pathSeg(ax,az,bx,bz, w=1.0){
-      const dx = bx-ax, dz = bz-az;
-      const len = Math.hypot(dx,dz);
-      const segs = Math.max(1, Math.ceil(len/0.5));
-      for(let s=0;s<segs;s++){
-        const t1 = s/segs, t2 = (s+1)/segs;
-        const cx = ax + dx*(t1+t2)/2;
-        const cz = az + dz*(t1+t2)/2;
-        const plate = new THREE.Mesh(new THREE.PlaneGeometry(w, len/segs + 0.05).rotateX(-Math.PI/2), pathMat);
-        plate.position.set(cx, hf(cx,cz)+0.04, cz);
-        plate.rotation.y = Math.atan2(dx, dz);
-        plate.receiveShadow = true;
-        root.add(plate);
-      }
-    }
-    // Village lane loop (cobble street around the village core)
-    const loop = [
-      [-3.6,-3.0],[0,-3.8],[3.6,-3.0],[3.8,0.4],[2.8,3.0],[0,3.7],
-      [-2.8,3.0],[-3.8,0.2],[-3.6,-3.0],
-    ];
-    for(let i=0;i<loop.length-1;i++){
-      pathSeg(loop[i][0], loop[i][1], loop[i+1][0], loop[i+1][1], 1.1);
-    }
-    // Main south entry road from village edge
-    pathSeg(0, -12.5, 0, -3.8, 1.3);
-    // Approach paths from loop to each landmark
-    pathSeg(3.8, 3.2, 7.2, 7.0, 1.1);   // church
-    pathSeg(-4.2, 3.6, -8, 7.2, 1.1);   // watchtower
-    pathSeg(-5.0, -4.0, -8, -7.4, 1.1); // windmill
-    pathSeg(3.8, 0.4, 10.5, -4.5, 1.0); // east coast overlook
-
-    /* ─ FOREST (per codex: dense only beyond r=9.5, framed clumps elsewhere) ─
-       Trees grow ONLY outside the village livable zone, leaving usable space.
-    */
-    const buildingZones = [
-      ...housePositions.map(([x,z])=>({x, z, r:1.8})),
-      {x:7.2, z:7.0, r:3.5},   // church + terrace
-      {x:-8, z:7.2, r:2.5},    // tower pad
-      {x:-8, z:-7.4, r:2.8},   // mill farm pad
-      {x:0, z:0, r:3.5},       // market common (treeless)
-    ];
-    const yardZones = [
-      {x:3.5, z:-7.0, r:1.4},   // veg plot 1
-      {x:5.8, z:-6.2, r:1.4},   // veg plot 2
-      {x:-4.8, z:-6.4, r:1.4},  // veg plot 3
-      {x:-7.0, z:-2.8, r:2.0},  // sheep/wood yard
-    ];
-    function nearAnyPath(x, z, tol = 0.7){
-      const allPaths = [
-        // loop
-        ...(function*(){
-          for(let i=0;i<loop.length-1;i++) yield [loop[i][0],loop[i][1],loop[i+1][0],loop[i+1][1]];
-        })(),
-        [0,-12.5,0,-3.8],
-        [3.8,3.2,7.2,7.0],
-        [-4.2,3.6,-8,7.2],
-        [-5.0,-4.0,-8,-7.4],
-        [3.8,0.4,10.5,-4.5],
-      ];
-      for(const [ax,az,bx,bz] of allPaths){
-        const dx=bx-ax, dz=bz-az;
-        const lenSq = dx*dx + dz*dz;
-        if(lenSq < 0.001) continue;
-        let t = ((x-ax)*dx + (z-az)*dz) / lenSq;
-        t = Math.max(0, Math.min(1, t));
-        const px = ax + t*dx, pz = az + t*dz;
-        if(Math.hypot(x-px, z-pz) < tol) return true;
-      }
-      return false;
-    }
-    function isClear(x, z, treeR=0.6){
-      for(const b of buildingZones){
-        if(Math.hypot(x-b.x, z-b.z) < b.r + treeR) return false;
-      }
-      for(const y of yardZones){
-        if(Math.hypot(x-y.x, z-y.z) < y.r + treeR) return false;
-      }
-      if(x > 10.8) return false;
-      if(nearAnyPath(x, z, 0.7 + treeR*0.5)) return false;
-      return true;
-    }
-    // Tree zones: dense outside r=9.5 + 3 framed clumps inside
-    const framedClumps = [[-10, 4], [9, 5], [-10, -9]];
-    function inForestZone(x, z){
-      if(Math.hypot(x, z) > 9.5) return true;   // outer ring
-      for(const [cx, cz] of framedClumps){
-        if(Math.hypot(x-cx, z-cz) < 2.0) return true;
-      }
-      return false;
-    }
-    let treeCount = 0;
-    for(let attempt=0; attempt<2000 && treeCount<220; attempt++){
-      const ang = Math.random()*Math.PI*2;
-      const rr = Math.sqrt(Math.random())*SCENE_RADIUS*0.99;
-      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
-      if(!inForestZone(x,z)) continue;
-      if(!isClear(x,z)) continue;
-      const y = hf(x,z);
-      if(y < -1.0) continue;
-      const r = Math.random();
-      const kind = r<0.72 ? 'pine' : r<0.85 ? 'sakura' : r<0.94 ? 'momiji' : 'broad';
-      const t = makeTree(kind);
-      t.position.set(x, y, z);
-      const s = 0.95 + Math.random()*0.55;
-      t.scale.setScalar(s);
-      t.rotation.y = Math.random()*Math.PI*2;
-      root.add(t);
-      treeCount++;
-    }
-    // Bushes only in forest zones
-    for(let i=0;i<140;i++){
-      const ang = Math.random()*Math.PI*2;
-      const rr = Math.sqrt(Math.random())*SCENE_RADIUS*0.99;
-      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
-      if(!inForestZone(x,z)) continue;
-      if(!isClear(x,z,0.3)) continue;
-      const y = hf(x,z);
-      if(y < -1.0) continue;
-      const b = makeBush();
-      b.position.set(x, y+0.12, z);
-      root.add(b);
-    }
-    // Mossy boulders — outer ring only
-    for(let i=0;i<14;i++){
-      const ang = Math.random()*Math.PI*2;
-      const rr = 10 + Math.random()*4;
-      const x = Math.sin(ang)*rr, z = Math.cos(ang)*rr;
-      if(!isClear(x,z,0.8)) continue;
-      const rk = makeRock(Math.random, 1.0+Math.random()*0.8);
-      rk.position.set(x, hf(x,z), z);
-      root.add(rk);
-    }
-
-    /* ─ VEGETABLE PLOTS + SHEEP YARD (livelihood zones per codex) ─ */
-    function makeVegPlot(){
+    // 4) HERO 2: Stone well (center hub)
+    const well = (typeof blenderClone === 'function' && blenderClone('well')) || (()=>{
       const g = new THREE.Group();
-      // Soil patch
-      const soil = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.6).rotateX(-Math.PI/2),
-        new THREE.MeshStandardMaterial({color:0x6a4a2a, roughness:0.95}));
-      soil.position.y = 0.02; soil.receiveShadow = true;
-      g.add(soil);
-      // 5 rows of plants
-      for(let r=0;r<5;r++){
-        for(let i=0;i<6;i++){
-          const c = ['#5a8a30','#7aa040','#a8c060','#6a9a3a'][r%4];
-          const plant = new THREE.Mesh(new THREE.SphereGeometry(0.08+Math.random()*0.04, 6, 4), mat(parseInt(c.slice(1),16)));
-          plant.position.set(-0.85 + i*0.34, 0.12, -0.65 + r*0.32);
-          g.add(plant);
-        }
-      }
-      // Wooden border (4 stakes)
-      for(const [dx,dz] of [[-1,-0.8],[1,-0.8],[-1,0.8],[1,0.8]]){
-        const stake = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.4, 0.06), mat(0x5a3a20));
-        stake.position.set(dx, 0.2, dz); stake.castShadow = true;
-        g.add(stake);
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.55, 0.60, 0.50, 18),
+        new THREE.MeshStandardMaterial({color: 0x8a7868, roughness: 0.95})
+      );
+      base.position.y = 0.25; g.add(base);
+      const cap = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.65, 0.65, 0.05, 18),
+        new THREE.MeshStandardMaterial({color: 0x6a5a4a, roughness: 0.9})
+      );
+      cap.position.y = 0.52; g.add(cap);
+      return g;
+    })();
+    well.scale.setScalar(1.0);
+    well.position.set(0, 0, 0);
+    root.add(well);
+
+    // 5) HERO 3: Torii gateway (south)
+    const torii = (typeof blenderClone === 'function' && blenderClone('torii')) || (()=>{
+      const g = new THREE.Group();
+      const red = new THREE.MeshStandardMaterial({color: 0xc73a2a, roughness: 0.6});
+      const top = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.18, 0.20), red);
+      top.position.set(0, 1.8, 0); g.add(top);
+      for(const x of [-0.85, 0.85]){
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.8, 14), red);
+        post.position.set(x, 0.9, 0); g.add(post);
       }
       return g;
+    })();
+    torii.scale.setScalar(0.85);
+    torii.position.set(0, 0, 5.8);
+    root.add(torii);
+
+    // 6) 2 stone lanterns flanking the path
+    for(const x of [-1.5, 1.5]){
+      const lantern = (typeof blenderClone === 'function' && blenderClone('stone_lantern'))
+                       || makeStoneLantern();
+      lantern.position.set(x, 0, 4.5);
+      lantern.scale.setScalar(0.85);
+      root.add(lantern);
+      if(lantern.userData.lampLight) ENTITIES.lampLights.push(lantern.userData.lampLight);
+      lantern.traverse(o => { if(o.userData?.lamp) ENTITIES.lamps.push(o); });
     }
-    for(const y of yardZones.slice(0,3)){
-      const p = makeVegPlot();
-      p.position.set(y.x, hf(y.x, y.z), y.z);
-      p.rotation.y = Math.random()*0.4 - 0.2;
-      root.add(p);
-    }
-    // Sheep/wood yard with fence at (-7, -2.8)
-    function makeSheepYard(){
+
+    // 7) Vendor row (west)
+    const stallFactory = ()=>{
       const g = new THREE.Group();
-      // Fenced perimeter (square 3.4×3.4)
-      for(let i=0;i<10;i++){
-        const t = i/10;
-        // top fence
-        const f1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.45, 0.06), mat(0x6a4a2a));
-        f1.position.set(-1.7 + t*3.4, 0.22, -1.7); g.add(f1);
-        // bottom fence
-        const f2 = f1.clone(); f2.position.z = 1.7; g.add(f2);
-        // left fence
-        const f3 = f1.clone(); f3.position.set(-1.7, 0.22, -1.7 + t*3.4); g.add(f3);
-        // right fence
-        const f4 = f3.clone(); f4.position.x = 1.7; g.add(f4);
+      const cloth = new THREE.MeshStandardMaterial({color: 0xc34a3a, roughness: 0.8});
+      const wood = new THREE.MeshStandardMaterial({color: 0x6a4a2a, roughness: 0.92});
+      const top = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 0.9), cloth);
+      top.position.y = 1.2; g.add(top);
+      for(const [px, pz] of [[-0.55,-0.35],[0.55,-0.35],[-0.55,0.35],[0.55,0.35]]){
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.2, 6), wood);
+        post.position.set(px, 0.6, pz); g.add(post);
       }
-      // 2 horizontal rails on each side
-      for(const yy of [0.18, 0.36]){
-        for(const side of ['n','s','e','w']){
-          const rail = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.03, 0.03), mat(0x6a4a2a));
-          if(side==='n'){ rail.position.set(0, yy, -1.7); }
-          else if(side==='s'){ rail.position.set(0, yy, 1.7); }
-          else if(side==='e'){ rail.position.set(1.7, yy, 0); rail.rotation.y = Math.PI/2; }
-          else { rail.position.set(-1.7, yy, 0); rail.rotation.y = Math.PI/2; }
-          g.add(rail);
-        }
-      }
-      // 3 sheep (simple cube woolly bodies)
-      for(let i=0;i<3;i++){
-        const sheep = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 8), mat(0xe8e0d0));
-        body.scale.set(1.2, 0.85, 1.0);
-        body.position.y = 0.35; body.castShadow = true;
-        sheep.add(body);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), mat(0x4a3024));
-        head.position.set(0.36, 0.40, 0); head.castShadow = true;
-        sheep.add(head);
-        for(const [dx,dz] of [[0.18,0.13],[0.18,-0.13],[-0.18,0.13],[-0.18,-0.13]]){
-          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.20, 6), mat(0x4a3024));
-          leg.position.set(dx, 0.10, dz);
-          sheep.add(leg);
-        }
-        sheep.position.set(-0.8 + i*0.8, 0, -0.3 + Math.random()*0.6);
-        sheep.rotation.y = Math.random()*Math.PI*2;
-        g.add(sheep);
-      }
-      // Wood pile in one corner
-      for(let k=0;k<4;k++){
-        const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.8, 8), mat(0x624029));
-        log.rotation.z = Math.PI/2;
-        log.position.set(-1.2, 0.10 + Math.floor(k/2)*0.16, 1.2 + (k%2)*0.05);
-        log.castShadow = true;
-        g.add(log);
-      }
+      const counter = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.45, 0.8), wood);
+      counter.position.y = 0.22; g.add(counter);
       return g;
-    }
-    const yard = makeSheepYard();
-    yard.position.set(-7.0, hf(-7,-2.8), -2.8);
-    root.add(yard);
+    };
+    const stall1 = (typeof blenderClone === 'function' && blenderClone('market_stall')) || stallFactory();
+    stall1.position.set(-4.2, 0, -1.5);
+    stall1.rotation.y = 0.6;
+    root.add(stall1);
+    const stall2 = (typeof blenderClone === 'function' && blenderClone('market_stall')) || stallFactory();
+    stall2.position.set(-4.8, 0, 1.3);
+    stall2.rotation.y = -0.4;
+    root.add(stall2);
 
-    /* ─ Small near-building decorations (not scattered, anchored to houses) ─ */
-    // each kitchen-side gets a wood pile + barrel
-    for(let i=0;i<housePositions.length;i+=2){
-      const [hx, hz] = housePositions[i];
-      const y = hf(hx, hz);
-      const off = 0.9;
-      const woodAng = Math.random()*Math.PI*2;
-      const wx = hx + Math.cos(woodAng)*off, wz = hz + Math.sin(woodAng)*off;
-      // wood pile (3 logs stacked)
-      for(let k=0;k<3;k++){
-        const log = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.4, 8), mat(0x624029));
-        log.rotation.z = Math.PI/2;
-        log.position.set(wx + (k%2)*0.03, y + 0.08 + Math.floor(k/2)*0.14, wz);
-        log.castShadow = true;
-        root.add(log);
-      }
-      // barrel on the other side
-      const b = makeBarrel();
-      b.position.set(hx - Math.cos(woodAng)*off, y, hz - Math.sin(woodAng)*off);
-      root.add(b);
-    }
-    // Chimney smoke for every house (anchored to its position)
-    ENTITIES.smokes = ENTITIES.smokes || [];
-    for(let i=0;i<housePositions.length;i++){
-      const [hx, hz] = housePositions[i];
-      const y = hf(hx, hz);
-      for(let k=0;k<5;k++){
-        const s = new THREE.Mesh(new THREE.SphereGeometry(0.18+Math.random()*0.12, 8, 6),
-          new THREE.MeshBasicMaterial({color:0xb0b0b0, transparent:true, opacity:0}));
-        s.position.set(hx + 0.3, y + 3.0, hz);
-        s.userData = { life: k*0.6 + Math.random(), bx: hx + 0.3, by: y + 3.0, bz: hz };
-        ENTITIES.smokes.push(s);
-        root.add(s);
-      }
+    // Barrel + basket near the stalls
+    const barrel = (typeof blenderClone === 'function' && blenderClone('barrel')) || (()=>{
+      const m = new THREE.MeshStandardMaterial({color: 0x6a4628, roughness: 0.92});
+      const g = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.28, 0.50, 14), m);
+      g.position.y = 0.25; return g;
+    })();
+    barrel.position.set(-3.6, 0, 0.4);
+    root.add(barrel);
+    const basket = (typeof blenderClone === 'function' && blenderClone('basket')) || (()=>{
+      const m = new THREE.MeshStandardMaterial({color: 0xb89868, roughness: 0.95});
+      return new THREE.Mesh(new THREE.ConeGeometry(0.20, 0.35, 8, 1, true), m);
+    })();
+    basket.position.set(-3.4, 0.18, -0.6);
+    root.add(basket);
+
+    // 8) Kominka houses (east)
+    const kominkaFactory = ()=>{
+      const g = new THREE.Group();
+      const wallMat = new THREE.MeshStandardMaterial({color: 0xc89868, roughness: 0.85});
+      const roofMat = new THREE.MeshStandardMaterial({color: 0x4a2818, roughness: 0.95});
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.0, 1.5), wallMat);
+      body.position.y = 0.5; g.add(body);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.4, 0.7, 4), roofMat);
+      roof.position.y = 1.35; roof.rotation.y = Math.PI/4; g.add(roof);
+      return g;
+    };
+    const kominka = (typeof blenderClone === 'function' && blenderClone('kominka_red')) || kominkaFactory();
+    kominka.position.set(4.5, 0, -0.5);
+    kominka.rotation.y = -0.8;
+    kominka.scale.setScalar(0.95);
+    root.add(kominka);
+    const kominka2 = (typeof blenderClone === 'function' && blenderClone('kominka_blue')) || kominkaFactory();
+    kominka2.position.set(5.4, 0, 2.8);
+    kominka2.rotation.y = -1.6;
+    kominka2.scale.setScalar(0.75);
+    root.add(kominka2);
+
+    // 9) Hedge row near kominka
+    for(let i = 0; i < 5; i++){
+      const hedge = (typeof blenderClone === 'function' && blenderClone('hedge')) || (()=>{
+        return new THREE.Mesh(
+          new THREE.BoxGeometry(0.50, 0.35, 0.30),
+          new THREE.MeshStandardMaterial({color: 0x4a6a2c, roughness: 1.0})
+        );
+      })();
+      hedge.position.set(3.0, 0.18, -2.5 + i * 0.55);
+      root.add(hedge);
     }
 
-    /* ─ Curated village delight (focal hierarchy per codex) ─ */
-    // 2 stone lanterns at the fountain (was 4, less competing detail)
-    for(const [x,z] of [[-1.6, 1.6], [1.6, -1.6]]){
-      const sl = makeStoneLantern();
-      sl.position.set(x, hf(x,z), z);
-      root.add(sl);
-      if(sl.userData.lampLight) ENTITIES.lampLights.push(sl.userData.lampLight);
-      sl.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    }
-    // 2 viewing benches at the fountain
-    for(const [x,z,ry] of [[-2.2, 0, Math.PI/2], [2.2, 0, -Math.PI/2]]){
-      const bn = makeViewingBench();
-      bn.position.set(x, hf(x,z), z);
-      bn.rotation.y = ry;
-      root.add(bn);
-    }
-    // Koi pond tucked near the windmill
-    const pond = makeKoiPond(1.3);
-    pond.position.set(-6, hf(-6,-5.5), -5.5);
-    root.add(pond);
-    // Wishing bell moved to church gate (focal hierarchy fix)
-    const bell = makeWishingBell();
-    bell.position.set(5.6, hf(5.6, 5.8), 5.8);
-    root.add(bell);
-    bell.traverse(o=>{ if(o.userData?.lamp) ENTITIES.lamps.push(o); });
-    // Butterflies in the village center
-    spawnButterflies(root, 6, [0, 1.2, 0], 3);
+    // 10) Jizo statue near the well
+    const jizo = (typeof blenderClone === 'function' && blenderClone('jizo')) || (()=>{
+      const m = new THREE.MeshStandardMaterial({color: 0x9a8878, roughness: 0.95});
+      return new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.14, 0.50, 10), m);
+    })();
+    jizo.position.set(-1.4, 0, 1.6);
+    jizo.scale.setScalar(0.9);
+    root.add(jizo);
 
-    /* ─ Gimmicks at codex-recommended spots (don't compete with village) ─ */
-    // Chest at coast overlook (was on cliff; now at the road's end)
+    // 11) FANTASY: glowing crystal at the sakura roots
+    const cr = makeCrystal(0xff8ad0);
+    cr.position.set(-1.6, 0.10, -3.8);
+    cr.scale.setScalar(0.55);
+    root.add(cr);
+    ENTITIES.spins.push(cr);
+
+    // 12) FANTASY: treasure chest near the kominka
     const chest = makeChest();
-    chest.position.set(10.5, hf(10.5, -4.5), -4.5);
-    chest.rotation.y = -Math.PI/3;
+    chest.position.set(3.0, 0.05, 1.5);
+    chest.rotation.y = -0.6;
     root.add(chest);
     if(chest.userData.bob){
       chest.userData.bob.userData = { baseY: chest.userData.bob.position.y, phase: Math.random()*6 };
       ENTITIES.bobs.push(chest.userData.bob);
     }
-    // Orb moved off church center to the gate corner
-    const orb = makeMagicOrb(0xc090ff);
-    orb.position.set(9.5, hf(9.5, 8.8) + 0.05, 8.8);
-    root.add(orb);
-    if(orb.userData.orb){
-      orb.userData.orb.userData = { baseY: orb.userData.orb.position.y, phase: 0 };
-      ENTITIES.bobs.push(orb.userData.orb);
-    }
-    // Crystal deep in the western forest (forest secret, not village clutter)
-    const cr = makeCrystal(0x6BE0FF);
-    cr.position.set(-12, hf(-12, 5)+0.05, 5);
-    cr.scale.setScalar(0.7);
-    root.add(cr);
-    ENTITIES.spins.push(cr);
 
-    /* ─ ENVIRONMENTAL STORYTELLING per landmark (Codex review) ─ */
-    // CHURCH yard: graves + notice board + candles
-    const graves = makeGraveyard();
-    graves.position.set(6.0, hf(6.0, 8.5), 8.5);
-    graves.rotation.y = -0.5;
-    root.add(graves);
-    const noticeCh = makeNoticeBoard();
-    noticeCh.position.set(4.8, hf(4.8, 5.0), 5.0);
-    noticeCh.rotation.y = -Math.PI/4;
-    root.add(noticeCh);
-    // small candles around the church entrance
-    for(const [cx,cz] of [[6.2,5.7],[6.6,5.4],[6.9,5.2]]){
-      const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.20, 8), mat(0xfff2e0));
-      candle.position.set(cx, hf(cx,cz)+0.10, cz);
-      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.10, 8),
-        mat(0xffd478, {emissive:0xffaa44, emissiveIntensity:1.0}));
-      flame.position.set(cx, hf(cx,cz)+0.25, cz);
-      flame.userData.lamp = true;
-      ENTITIES.lamps.push(flame);
-      root.add(candle); root.add(flame);
-    }
+    // 13) Signpost
+    const sp = makeSignpost('村');
+    sp.position.set(1.4, 0, 3.6);
+    sp.rotation.y = -0.3;
+    root.add(sp);
 
-    // TOWER: watch fire + training dummy + weapons (already in blacksmith helper)
-    const watch = makeWatchFire();
-    watch.position.set(-6.8, hf(-6.8, 6.0), 6.0);
-    root.add(watch);
-    if(watch.userData.flameLight) ENTITIES.lampLights.push(watch.userData.flameLight);
-    watch.traverse(o=>{ if(o.userData?.flame) ENTITIES.flames.push(o); });
-    const dummy = makeTrainingDummy();
-    dummy.position.set(-9.4, hf(-9.4, 6.0), 6.0);
-    dummy.rotation.y = 0.3;
-    root.add(dummy);
-    const noticeTw = makeNoticeBoard();
-    noticeTw.position.set(-5.6, hf(-5.6, 4.8), 4.8);
-    noticeTw.rotation.y = Math.PI/4;
-    root.add(noticeTw);
-
-    // MILL: hay cart + grain sacks + cart tracks (cart tracks just by visual)
-    const cart1 = makeCart('hay');
-    cart1.position.set(-6.4, hf(-6.4, -6.0), -6.0);
-    cart1.rotation.y = -0.8;
-    root.add(cart1);
-    const cart2 = makeCart('sacks');
-    cart2.position.set(-9.4, hf(-9.4, -6.6), -6.6);
-    cart2.rotation.y = 0.4;
-    root.add(cart2);
-    // a few hay bales loose
-    for(let i=0;i<3;i++){
-      const bale = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.45, 14), mat(0xd9b078));
-      bale.rotation.z = Math.PI/2;
-      bale.position.set(-9.2 + i*0.6, hf(-9.2+i*0.6, -8.0) + 0.20, -8.0);
-      bale.castShadow = true;
-      root.add(bale);
-    }
-
-    // COAST overlook: telescope + broken railing + chest is already here
-    const scope = makeTelescope();
-    scope.position.set(10.2, hf(10.2, -4.5), -4.5);
-    scope.rotation.y = Math.PI/2;
-    root.add(scope);
-    // broken rail (3 posts + 1 cracked beam)
-    for(let i=0;i<3;i++){
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 8), mat(0x5a3a20));
-      post.position.set(10.8 + i*0.5, hf(10.8+i*0.5, -3.0+i*0.4) + 0.3, -3.0 + i*0.4);
-      post.castShadow = true;
-      root.add(post);
-    }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 1.2), mat(0x5a3a20));
-    beam.position.set(11.0, hf(11.0, -3.2) + 0.55, -3.2);
-    beam.rotation.x = 0.18;
-    root.add(beam);
-    // coiled rope by the cliff
-    for(let i=0;i<3;i++){
-      const coil = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.018, 6, 16), mat(0xe8dcb8));
-      coil.rotation.x = Math.PI/2;
-      coil.position.set(11.2, hf(11.2, -4.2) + 0.02 + i*0.045, -4.2);
-      root.add(coil);
-    }
-
-    // WESTERN FOREST (around crystal): corruption — broken fence + warning sign + blue fireflies
-    const brokenSign = makeNoticeBoard();
-    brokenSign.position.set(-10, hf(-10, 5), 5);
-    brokenSign.rotation.y = -0.5;
-    brokenSign.scale.setScalar(0.85);
-    root.add(brokenSign);
-    // dead-grass ring around crystal (darker ground patch)
-    const deadRing = new THREE.Mesh(new THREE.RingGeometry(0.8, 2.5, 32).rotateX(-Math.PI/2),
-      new THREE.MeshStandardMaterial({color:0x3a2a1a, roughness:0.95, transparent:true, opacity:0.55}));
-    deadRing.position.set(-12, hf(-12, 5)+0.05, 5);
-    root.add(deadRing);
-    // 3 broken-fence posts around the corruption
-    for(let i=0;i<4;i++){
-      const ang = (i/4)*Math.PI*2;
-      const r = 2.2;
-      const fp = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5 - i*0.08, 0.08), mat(0x5a3a20));
-      fp.position.set(-12 + Math.sin(ang)*r, hf(-12+Math.sin(ang)*r, 5+Math.cos(ang)*r) + 0.2, 5 + Math.cos(ang)*r);
-      fp.rotation.z = (Math.random()-0.5)*0.3;
-      fp.castShadow = true;
-      root.add(fp);
-    }
-
-    /* ─ NPCs (re-enabled per Codex review for ambient life) ─ */
-    function placeNpc(x, z, colors, path = null, speed = 0.0){
-      const n = makeNpc(colors[0], colors[1]);
-      n.position.set(x, hf(x,z), z);
-      n.userData.path = path || [[x,z],[x,z]];
+    // 14) 4 chibi NPC villagers with walking paths
+    function placeNpc(colors, path, speed, variant){
+      const n = makeNpc(colors[0], colors[1], variant);
+      n.position.set(path[0][0], 0, path[0][1]);
+      n.userData.path = path;
       n.userData.wp = 0;
       n.userData.speed = speed;
-      root.add(n);
       ENTITIES.npcs.push(n);
+      root.add(n);
       return n;
     }
-    // Vendor at market center
-    placeNpc(-1.8, -1.4, [0xb04030, 0x1a1410]);
-    // Child looping path near fountain
-    placeNpc(1.8, 1.5, [0xfff2a0, 0x3a2418],
-      [[1.8, 1.5],[2.8, -1.5],[-1.5, -2.2],[1.8, 1.5]], 0.7);
-    // Priest near church gate
-    placeNpc(5.7, 5.6, [0xe8d4a0, 0x1a1410]);
-    // Guard at tower base
-    placeNpc(-7.4, 5.7, [0x4a6a8a, 0x3a2418]);
-    // Miller at mill
-    placeNpc(-7.0, -6.2, [0xc2956a, 0x3a2418]);
-    // Fisher at coast lookout
-    placeNpc(10.0, -4.2, [0x5a7a3d, 0x2a1a14]);
+    placeNpc([0xb83838, 0x1a1410], [[-3.6, 0.4], [-1.0, 0.4], [0.5, 0.0]], 0.55, 'woman');
+    placeNpc([0x3858a8, 0x1a1410], [[3.0, 1.5], [1.0, 1.0], [-0.5, 0.5]], 0.5, 'red');
+    placeNpc([0x4a6a30, 0x1a1410], [[0, 3.6], [0, 0.6]], 0.45, 'green');
+    placeNpc([0xd8a838, 0x1a1410], [[1.4, -2.6], [-1.2, -3.0]], 0.42, 'monk');
 
-    /* ─ MAIN ENTRY GATE at south road end (game-readable affordance) ─ */
-    const gate = makeArchway();
-    gate.position.set(0, hf(0, -12.5), -12.5);
-    gate.scale.setScalar(0.95);
-    root.add(gate);
-    // signpost just inside the gate pointing 4 ways
-    const innerSign = makeSignpost('→');
-    innerSign.position.set(0.8, hf(0.8, -3.9), -3.9);
-    innerSign.rotation.y = -0.3;
-    root.add(innerSign);
-
-    // Tiny natural undergrowth — grass tufts, ferns, flowers, leaves
-    densifyGround(root, 'forest');
-
-    /* ─ HIGH-QUALITY WEB ASSETS (Three.js sample CC-licensed GLBs) ─ */
-    // 3 flamingos circling above the village (animated wing flap)
-    loadGLB(ASSETS.flamingo).then(gltf => {
-      if(!gltf) return;
-      for(let i=0;i<3;i++){
-        const bird = gltf.scene.clone(true);
-        bird.scale.setScalar(0.012);
-        bird.userData.flightPhase = (i/3)*Math.PI*2;
-        bird.userData.flightRadius = 9 + i*0.6;
-        bird.userData.flightY = 10 + i*0.8;
-        root.add(bird);
-        if(gltf.animations.length){
-          const mixer = new THREE.AnimationMixer(bird);
-          mixer.clipAction(gltf.animations[0]).play();
-          addMixer(mixer);
-        }
-        // Custom orbit animation in animate loop via userData
-        ENTITIES.flyers = ENTITIES.flyers || [];
-        ENTITIES.flyers.push(bird);
-      }
-    });
-    // 1 stork patrolling lower
-    loadGLB(ASSETS.stork).then(gltf => {
-      if(!gltf) return;
-      const stork = gltf.scene.clone(true);
-      stork.scale.setScalar(0.010);
-      stork.userData.flightPhase = Math.PI/2;
-      stork.userData.flightRadius = 7;
-      stork.userData.flightY = 7;
-      root.add(stork);
-      if(gltf.animations.length){
-        const mixer = new THREE.AnimationMixer(stork);
-        mixer.clipAction(gltf.animations[0]).play();
-        addMixer(mixer);
-      }
-      ENTITIES.flyers = ENTITIES.flyers || [];
-      ENTITIES.flyers.push(stork);
-    });
-    // Horse at the mill (walking animation)
-    loadGLB(ASSETS.horse).then(gltf => {
-      if(!gltf) return;
-      const horse = gltf.scene.clone(true);
-      horse.scale.setScalar(0.012);
-      horse.position.set(-7.2, hf(-7.2, -8.4), -8.4);
-      horse.rotation.y = -0.6;
-      root.add(horse);
-      if(gltf.animations.length){
-        const mixer = new THREE.AnimationMixer(horse);
-        mixer.clipAction(gltf.animations[0]).play();
-        addMixer(mixer);
-      }
-    });
-    // Khronos Lantern (PBR detailed) — at fountain corner as a hero prop
-    loadGLB(ASSETS.lantern).then(gltf => {
-      if(!gltf) return;
-      const lantern = gltf.scene;
-      lantern.scale.setScalar(0.25);
-      lantern.position.set(2.5, hf(2.5, 2.5), 2.5);
-      root.add(lantern);
-    });
-    // Parrot — joining the flamingo flock for color variety
-    loadGLB(ASSETS.parrot).then(gltf => {
-      if(!gltf) return;
-      const parrot = gltf.scene.clone(true);
-      parrot.scale.setScalar(0.013);
-      parrot.userData.flightPhase = Math.PI;
-      parrot.userData.flightRadius = 8;
-      parrot.userData.flightY = 9;
-      root.add(parrot);
-      if(gltf.animations.length){
-        const mixer = new THREE.AnimationMixer(parrot);
-        mixer.clipAction(gltf.animations[0]).play();
-        addMixer(mixer);
-      }
-      ENTITIES.flyers = ENTITIES.flyers || [];
-      ENTITIES.flyers.push(parrot);
-    });
-    // Khronos Duck floating on the koi pond — high-quality cherished asset
-    loadGLB(ASSETS.duck).then(gltf => {
-      if(!gltf) return;
-      const duck = gltf.scene;
-      duck.scale.setScalar(0.012);
-      duck.position.set(-6.2, hf(-6, -5.5)+0.25, -5.5);
-      duck.rotation.y = 0.4;
-      // Bob gently
-      duck.userData.baseY = duck.position.y;
-      duck.userData.phase = 0;
-      ENTITIES.bobs.push(duck);
-      root.add(duck);
-    });
-    // World continuity — distant landmarks of every other scene at the horizon
-    addDistantLandmarks(root, 'plaza');
-    // Cat curled by the well — village ambient life
-    const cat = blenderClone('cat');
-    if(cat){
-      cat.scale.setScalar(0.85);
-      cat.position.set(-3.5, 0, 2.2);
-      cat.rotation.y = 0.7;
-      root.add(cat);
-    }
-    // Festival banner near the market — village festival atmosphere
-    const banner = blenderClone('banner');
-    if(banner){
-      banner.scale.setScalar(0.95);
-      banner.position.set(5.5, hf(5.5, -4.0), -4.0);
-      banner.rotation.y = -0.4;
-      // Locate the cloth panel + stripes for flap animation
-      const flapMeshes = [];
-      banner.traverse(o=>{
-        if(o.isMesh && (o.name === 'Cloth' || o.name === 'TopStripe' ||
-                        o.name === 'BotStripe' || /^Char_/.test(o.name))){
-          o.userData.baseRotZ = o.rotation.z;
-          flapMeshes.push(o);
-        }
+    // 15) Soft cherry petals
+    if(typeof makeFallingParticles === 'function'){
+      const petals = makeFallingParticles('petal', 120, {
+        range: 16, yMax: 8, yMin: 0, fallSpeed: 0.40, swayAmp: 0.35, swayFreq: 1.2,
       });
-      banner.userData.flap = { meshes: flapMeshes, baseRotY: banner.rotation.y, phase: 0 };
-      ENTITIES.banners = ENTITIES.banners || [];
-      ENTITIES.banners.push(banner);
-      root.add(banner);
+      root.add(petals);
+      ENTITIES.particles.push({obj: petals, type: 'fall'});
     }
-    // String of festival lanterns hanging across the plaza
-    const lstr = blenderClone('festival_lantern_string');
-    if(lstr){
-      lstr.scale.setScalar(1.1);
-      lstr.position.set(0, hf(0,0), -2.5);
-      lstr.userData.sway = { baseRotZ: lstr.rotation.z, phase: 0 };
-      ENTITIES.lanternStrings = ENTITIES.lanternStrings || [];
-      ENTITIES.lanternStrings.push(lstr);
-      root.add(lstr);
-    }
-    // Well bucket left by the well
-    const bucket = blenderClone('well_bucket');
-    if(bucket){
-      bucket.scale.setScalar(1.0);
-      bucket.position.set(-3.0, hf(-3.0, 1.6), 1.6);
-      root.add(bucket);
-    }
-    // Butterfly swarm fluttering above the plaza flowers
-    for(let i=0;i<6;i++){
-      const bf = blenderClone('butterfly');
-      if(!bf) break;
-      bf.scale.setScalar(0.7 + Math.random()*0.3);
-      // Each butterfly gets a flight path (center + radius + speed offset)
-      const cx = (Math.random()-0.5)*8;
-      const cz = (Math.random()-0.5)*8;
-      bf.userData.fly = {
-        cx, cz,
-        baseY: 1.0 + Math.random()*1.2,
-        r: 1.2 + Math.random()*1.5,
-        speed: 0.6 + Math.random()*0.5,
-        phase: Math.random()*Math.PI*2,
-        wingPhase: Math.random()*Math.PI*2,
-      };
-      // Locate wing meshes for flap animation
-      const wings = [];
-      bf.traverse(o=>{ if(o.isMesh && /^Wing/.test(o.name)) wings.push(o); });
-      bf.userData.fly.wings = wings;
-      root.add(bf);
-      ENTITIES.butterflies.push(bf);
-    }
-    // Wishing tree (sakura with hanging tanzaku) on the plaza outskirts
-    const wt = blenderClone('wishing_tree');
-    if(wt){
-      wt.scale.setScalar(1.3);
-      wt.position.set(-7.0, hf(-7.0, -2.5), -2.5);
-      root.add(wt);
-    }
-    // Daruma sitting by the shrine offering box
-    const dar = blenderClone('daruma');
-    if(dar){
-      dar.scale.setScalar(0.95);
-      dar.position.set(1.4, hf(1.4, -1.4), -1.4);
-      dar.rotation.y = -0.3;
-      root.add(dar);
-    }
-    // Ema board rack near the shrine — wishing plaques tied to a wooden frame
-    const ema = blenderClone('ema_board');
-    if(ema){
-      ema.scale.setScalar(0.85);
-      ema.position.set(-1.8, hf(-1.8, -2.3), -2.3);
-      ema.rotation.y = 0.4;
-      root.add(ema);
-    }
-    // Omikuji fortune box at the shrine entrance
-    const ob = blenderClone('omikuji_box');
-    if(ob){
-      ob.scale.setScalar(0.9);
-      ob.position.set(2.0, hf(2.0, -2.0), -2.0);
-      root.add(ob);
-    }
-    // Grand torii as the village gateway (south of plaza centre)
-    const tg = blenderClone('torii_grand');
-    if(tg){
-      tg.scale.setScalar(0.65);
-      tg.position.set(0, hf(0, 6.5), 6.5);
-      tg.rotation.y = 0;
-      root.add(tg);
-    }
-    // 2 koma-inu guardian dogs flanking the torii approach
-    for(const [x, ry] of [[-1.6, -0.2], [1.6, 0.2]]){
-      const ki = blenderClone('koma_inu');
-      if(!ki) break;
-      ki.scale.setScalar(1.0);
-      ki.position.set(x, hf(x, 5.5), 5.5);
-      ki.rotation.y = ry;
-      root.add(ki);
-    }
-    // Wandering monk by the shrine — adds spiritual presence
-    const mk = blenderClone('monk_w_staff');
-    if(mk){
-      mk.scale.setScalar(0.85);
-      mk.position.set(0.8, hf(0.8, -0.8), -0.8);
-      mk.rotation.y = -0.6;
-      root.add(mk);
-    }
-    // Tanuki statue near the market stall (Shigaraki-style lucky figurine)
-    const tn = blenderClone('tanuki');
-    if(tn){
-      tn.scale.setScalar(0.7);
-      tn.position.set(6.2, hf(6.2, -2.0), -2.0);
-      tn.rotation.y = 0.4;
-      root.add(tn);
-    }
-    // Cherry grove on the north-east edge of plaza
-    const cg = blenderClone('cherry_grove');
-    if(cg){
-      cg.scale.setScalar(0.85);
-      cg.position.set(7.0, hf(7.0, 5.0), 5.0);
-      cg.rotation.y = 0.3;
-      root.add(cg);
-    }
-    // Wisteria arbor as a covered walkway accent (west side)
-    const wa = blenderClone('wisteria_arbor');
-    if(wa){
-      wa.scale.setScalar(0.75);
-      wa.position.set(-6.5, hf(-6.5, 1.0), 1.0);
-      wa.rotation.y = Math.PI/2;
-      root.add(wa);
-    }
-    // Ivy arch as a small side gate to the shrine garden
-    const ia = blenderClone('ivy_arch');
-    if(ia){
-      ia.scale.setScalar(0.85);
-      ia.position.set(3.0, hf(3.0, -5.5), -5.5);
-      ia.rotation.y = -0.3;
-      root.add(ia);
-    }
-    // Hydrangea cluster by the well — wet-loving June bloomers
-    const hy = blenderClone('hydrangea');
-    if(hy){
-      hy.scale.setScalar(1.1);
-      hy.position.set(-3.5, hf(-3.5, 3.0), 3.0);
-      root.add(hy);
-    }
-    // Mailbox at the village entrance
-    const mb = blenderClone('mailbox');
-    if(mb){
-      mb.scale.setScalar(1.0);
-      mb.position.set(-2.5, hf(-2.5, 6.0), 6.0);
-      root.add(mb);
-    }
-    // Falling cherry petals across the plaza (cherry-blossom party atmosphere)
-    const petals = makeFallingParticles('petal', 220, {
-      range: 24, yMax: 10, yMin: 0, fallSpeed: 0.55, swayAmp: 0.5, swayFreq: 1.4,
-    });
-    root.add(petals);
-    ENTITIES.particles.push({obj: petals, type: 'fall'});
-    // Festival food stall at the market corner
-    const fs = blenderClone('food_stall');
-    if(fs){
-      fs.scale.setScalar(0.8);
-      fs.position.set(6.0, hf(6.0, -1.5), -1.5);
-      fs.rotation.y = -1.2;
-      root.add(fs);
-    }
-    // Ramen cart parked nearby
-    const rc = blenderClone('ramen_cart');
-    if(rc){
-      rc.scale.setScalar(0.85);
-      rc.position.set(4.5, hf(4.5, 0.5), 0.5);
-      rc.rotation.y = 0.8;
-      root.add(rc);
-    }
-    // Small dango skewers tray on the food stall counter (approximate position)
-    const ds = blenderClone('dango_skewers');
-    if(ds){
-      ds.scale.setScalar(1.0);
-      ds.position.set(5.4, hf(5.4, -1.2) + 0.7, -1.2);
-      root.add(ds);
-    }
-    // Taiyaki next to it
-    const ty = blenderClone('taiyaki');
-    if(ty){
-      ty.scale.setScalar(1.0);
-      ty.position.set(5.9, hf(5.9, -1.8) + 0.7, -1.8);
-      root.add(ty);
-    }
-    // Shimenawa rope across the torii gate (sacred boundary)
-    const sn = blenderClone('shimenawa');
-    if(sn){
-      sn.scale.setScalar(0.85);
-      sn.position.set(0, hf(0, 6.5), 6.5);
-      sn.rotation.y = 0;
-      root.add(sn);
-    }
-    // Omikoshi portable shrine — festival float ready for matsuri
-    const om2 = blenderClone('omikoshi');
-    if(om2){
-      om2.scale.setScalar(0.85);
-      om2.position.set(-4.5, hf(-4.5, -2.0), -2.0);
-      om2.rotation.y = 0.4;
-      root.add(om2);
-    }
-    // Hanami blanket on the ground under the cherry grove
-    const hb = blenderClone('hanami_blanket');
-    if(hb){
-      hb.scale.setScalar(1.05);
-      hb.position.set(6.0, hf(6.0, 4.0), 4.0);
-      hb.rotation.y = 0.5;
-      root.add(hb);
-    }
-    // Shide paper streamers at the shrine corner (sacred marker)
-    const sst = blenderClone('shide_strips');
-    if(sst){
-      sst.scale.setScalar(0.85);
-      sst.position.set(2.5, hf(2.5, -3.0), -3.0);
-      root.add(sst);
-    }
-    // 2 kadomatsu flanking the torii (New Year arrangement)
-    for(const x of [-0.8, 0.8]){
-      const km = blenderClone('kadomatsu');
-      if(!km) break;
-      km.scale.setScalar(0.9);
-      km.position.set(x, hf(x, 4.5), 4.5);
-      root.add(km);
-    }
-    // Shimekazari wreath hanging above the torii crossbeam
-    const sk2 = blenderClone('shimekazari');
-    if(sk2){
-      sk2.scale.setScalar(0.5);
-      sk2.position.set(0, hf(0, 6.5) + 2.6, 6.5);
-      root.add(sk2);
-    }
-    // Koinobori carp streamers standing pole (children's day spirit)
-    const ko = blenderClone('koinobori');
-    if(ko){
-      ko.scale.setScalar(0.65);
-      ko.position.set(7.5, hf(7.5, 1.0), 1.0);
-      root.add(ko);
-    }
-    // Sasa tanabata bamboo wish branch
-    const sasa = blenderClone('sasa_tanabata');
-    if(sasa){
-      sasa.scale.setScalar(0.85);
-      sasa.position.set(-7.0, hf(-7.0, -3.5), -3.5);
-      root.add(sasa);
-    }
-    // Blacksmith anvil — village smithy at the west edge
-    const ba = blenderClone('blacksmith_anvil');
-    if(ba){
-      ba.scale.setScalar(0.95);
-      ba.position.set(-5.5, hf(-5.5, -5.0), -5.0);
-      ba.rotation.y = 0.5;
-      root.add(ba);
-    }
-    // Shop facade — Edo machiya merchant storefront
-    const sfac = blenderClone('shop_facade');
-    if(sfac){
-      sfac.scale.setScalar(0.75);
-      sfac.position.set(7.5, hf(7.5, -5.5), -5.5);
-      sfac.rotation.y = 0.8;
-      root.add(sfac);
-    }
-    // Roadside hokora — tiny side shrine
-    const hkk = blenderClone('hokora_small_shrine');
-    if(hkk){
-      hkk.scale.setScalar(1.05);
-      hkk.position.set(-6.5, hf(-6.5, -6.0), -6.0);
-      hkk.rotation.y = 0.6;
-      root.add(hkk);
-    }
-    // White Inari-style torii — secondary shrine entrance
-    const tw = blenderClone('torii_white');
-    if(tw){
-      tw.scale.setScalar(0.55);
-      tw.position.set(-7.0, hf(-7.0, -5.0), -5.0);
-      tw.rotation.y = 0.6;
-      root.add(tw);
-    }
-    // Prayer flag string between trees in the courtyard
-    const pfs = blenderClone('prayer_flag_string');
-    if(pfs){
-      pfs.scale.setScalar(0.85);
-      pfs.position.set(0, hf(0, 4.0), 4.0);
-      root.add(pfs);
-    }
-    // Oboro wheel (folklore wheel) tucked away in a corner
-    const ow = blenderClone('oboro_wheel');
-    if(ow){
-      ow.scale.setScalar(0.95);
-      ow.position.set(-7.5, hf(-7.5, 7.5), 7.5);
-      ow.rotation.y = 0.3;
-      root.add(ow);
-    }
-    // Kanban sign at the entrance to the merchant area
-    const ksg = blenderClone('kanban_sign');
-    if(ksg){
-      ksg.scale.setScalar(0.85);
-      ksg.position.set(5.0, hf(5.0, 6.5), 6.5);
-      ksg.rotation.y = 0.3;
-      root.add(ksg);
+
+    // 16) Warm hemi rim light from SE to pop silhouettes
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
+    fill.position.set(5, 8, 5);
+    root.add(fill);
+
+    // 17) Accent flowers around the well — chibi cheer
+    const flowerMatA = new THREE.MeshStandardMaterial({color: 0xff5a7a, roughness: 0.7,
+      emissive: 0x661428, emissiveIntensity: 0.15});
+    const flowerMatB = new THREE.MeshStandardMaterial({color: 0xfff088, roughness: 0.7,
+      emissive: 0x5a4810, emissiveIntensity: 0.15});
+    for(const [cx, cz, mat] of [[1.6, 0.4, flowerMatA], [-0.4, 1.8, flowerMatB], [0.9, -1.4, flowerMatA]]){
+      for(let k = 0; k < 3; k++){
+        const ang = k / 3 * Math.PI * 2;
+        const f = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat);
+        f.position.set(cx + Math.cos(ang)*0.10, 0.12, cz + Math.sin(ang)*0.10);
+        root.add(f);
+      }
     }
   }
 };
+
 
 // 2. 月光の書架
 SCENES.monlight = {
@@ -8499,11 +7864,11 @@ buildScene = function(name){ _origBuildForSplat(name); setTimeout(refreshSplatIn
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
-// Bloom: stronger, lower threshold so HDR highlights bloom dramatically (matches the
-// "blown sun through steam" look in the HDR Wallpaper references).
-const bloomStrength = (IS_MOBILE || REDUCED_MOTION) ? 0.45 : 0.95;
+// Bloom: softened for chibi-diorama style. Still UE-grade PBR highlights but
+// not the dramatic "sun through steam" Yellowstone look (that was misread).
+const bloomStrength = (IS_MOBILE || REDUCED_MOTION) ? 0.22 : 0.45;
 const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight),
-                                    bloomStrength, 0.85, 0.55);
+                                    bloomStrength, 0.65, 0.72);
 composer.addPass(bloom);
 if(!IS_MOBILE){
   const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
@@ -8516,9 +7881,9 @@ const SunShaftsShader = {
   uniforms: {
     tDiffuse:  { value: null },
     uSunPos:   { value: new THREE.Vector2(0.55, 0.78) },
-    uStrength: { value: 0.42 },
+    uStrength: { value: 0.18 },     // softened: chibi diorama doesn't want huge god-rays
     uDecay:    { value: 0.96 },
-    uDensity:  { value: 0.85 },
+    uDensity:  { value: 0.72 },
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -8561,12 +7926,12 @@ composer.addPass(sunShafts);
 const HDRGradeShader = {
   uniforms: {
     tDiffuse:    { value: null },
-    uSaturation: { value: 1.65 },     // bumped from 1.45
-    uShadowLift: { value: 0.06 },     // less lift so blacks stay rich
-    uHighlight:  { value: 1.22 },     // bumped from 1.12
-    uWarmCool:   { value: 0.55 },     // bumped from 0.35
-    uContrast:   { value: 1.20 },     // S-curve contrast
-    uVignette:   { value: 0.55 },     // soft cinematic vignette
+    uSaturation: { value: 1.25 },     // chibi-cheer saturation (down from 1.65)
+    uShadowLift: { value: 0.12 },     // raise blacks — diorama doesn't want deep blacks
+    uHighlight:  { value: 1.10 },     // mild highlight (down from 1.22)
+    uWarmCool:   { value: 0.20 },     // gentle warm/cool (down from 0.55)
+    uContrast:   { value: 1.08 },     // light S-curve (down from 1.20)
+    uVignette:   { value: 0.25 },     // soft vignette (down from 0.55)
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -8634,7 +7999,7 @@ function updateSunShafts(){
   sunShafts.uniforms.uSunPos.value.set((sp.x + 1) * 0.5, (sp.y + 1) * 0.5);
   // Disable god-rays when sun is below horizon or off-screen far
   const visible = sp.z < 1.0 && sp.x > -1.4 && sp.x < 1.4 && sp.y > -1.4 && sp.y < 1.4;
-  sunShafts.uniforms.uStrength.value = visible ? 0.42 : 0.0;
+  sunShafts.uniforms.uStrength.value = visible ? 0.18 : 0.0;
 }
 
 /* === Animation loop ===================================== */
