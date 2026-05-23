@@ -2815,15 +2815,23 @@ function addMixer(mixer){
 const BLENDER_CACHE = {};
 const BLENDER_NAMES = [
   // KB3D Enchanted — the sole asset base (procedural primitives removed per user direction).
-  // Each scene is composed of: 1 ground disc + 1 hero building + lampposts + planter.
+  // Each scene is a *populated diorama* with 15-21 ENC objects: hero building +
+  // 1-2 sibling buildings + ground tier(s) + 4-8 props + 3-5 lampposts/lanterns
+  // + 2-4 NPCs + scene-tuned particles. ~174 ENC placements across all 10 scenes.
   // All hosted on pCloud Public Folder; fetched lazy per-scene. See PCLOUD_PUBLINK above.
-  // Ground discs (every scene picks one — solves the "floating buildings" issue):
-  'enc_townsquare_ground', 'enc_herbalist_ground',
-  // Hero buildings (one per scene; clocktower used by both plaza and toki):
-  'enc_clocktower_b', 'enc_bookstore', 'enc_herbalist', 'enc_inn',
-  'enc_antiquarian', 'enc_candlemaker', 'enc_church_a',
-  // Shared props (every scene gets lampposts + planter):
-  'enc_lamppost_a', 'enc_planter_a',
+  // Ground tiers (anchors so buildings never float):
+  'enc_townsquare_ground', 'enc_townsquare_floor', 'enc_herbalist_ground', 'enc_townsquare_upper',
+  // Hero / sibling buildings:
+  'enc_clocktower_b', 'enc_church_a', 'enc_church_spire', 'enc_bookstore',
+  'enc_antiquarian', 'enc_inn', 'enc_pub', 'enc_bank', 'enc_herbalist',
+  'enc_candlemaker', 'enc_vendor_b',
+  // Lighting (warm/cool lamppost variants):
+  'enc_lamppost_a', 'enc_lamppost_c', 'enc_lantern',
+  // Accent props (fire / mystery / signage):
+  'enc_brazier', 'enc_sigil', 'enc_sword_in_stone', 'enc_armor_chest',
+  'enc_sign_a', 'enc_sign_b',
+  // Soft greenery + rest:
+  'enc_planter_a', 'enc_planter_b', 'enc_hangingpot', 'enc_bench', 'enc_bookshelf',
 ];
 const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
 const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow', 'chibi_monk', 'chibi_woman', 'chibi_child'];
@@ -4814,11 +4822,11 @@ function sampleHeight(x, z){
 SCENES.plaza = {
   num: '00', kind: 'outdoor',
   title: 'Cloudfall Village (雲落ちの村)', en: 'Cloudfall Village',
-  concept: 'KB3D Enchanted の塔広場を中心に据えた入口の村。霧の上に石畳と中央時計塔。',
+  concept: '霧の上に石畳の中央広場。時計塔・銀行・宿・酒場・行商の天幕、剣・紋章・かがり火を配した入口の村。',
   sun: [44, -22], turbidity: 2.5, rayleigh: 1.1,
   fogColor: '#b0c4d0', fogNear: 30, fogFar: 90, exposure: 1.0,
-  avatarStart: [0, 6.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_clocktower_b', 'enc_lamppost_a', 'enc_planter_a'],
+  avatarStart: [0, 8.0],
+  preloadAssets: ['enc_townsquare_ground', 'enc_townsquare_floor', 'enc_clocktower_b', 'enc_pub', 'enc_inn', 'enc_bank', 'enc_vendor_b', 'enc_sword_in_stone', 'enc_sigil', 'enc_brazier', 'enc_lamppost_a', 'enc_lamppost_c', 'enc_sign_a', 'enc_sign_b', 'enc_planter_a', 'enc_planter_b', 'enc_bench'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -4831,18 +4839,28 @@ SCENES.plaza = {
       return m;
     }
 
-    // 1) Ground first — cobblestone disc anchors everything (no more floating)
-    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
+    placeENC('enc_townsquare_ground', 0, 0, 0, 1.8, 0);
+    placeENC('enc_townsquare_floor', 0, 0.06, -3, 1.0, 0);
+    placeENC('enc_clocktower_b', 0, 0.08, -5, 0.95, 0);
+    placeENC('enc_pub', 11, 0.08, -3, 0.85, -30);
+    placeENC('enc_inn', -11, 0.08, -3, 0.85, 30);
+    placeENC('enc_bank', 8, 0.08, -11, 0.8, 20);
+    placeENC('enc_vendor_b', -6, 0.08, 6, 0.75, 150);
+    placeENC('enc_sword_in_stone', 2.5, 0.08, 3, 0.85, 0);
+    placeENC('enc_sigil', -3.5, 0.08, 3, 0.8, 0);
+    placeENC('enc_brazier', 5, 0.08, 4, 0.85, 0);
+    placeENC('enc_lamppost_a', 7.5, 0.08, 5.5, 0.85, 0);
+    placeENC('enc_lamppost_a', -7.5, 0.08, 5.5, 0.85, 0);
+    placeENC('enc_lamppost_c', 8, 0.08, -7, 0.75, 0);
+    placeENC('enc_lamppost_c', -8, 0.08, -7, 0.75, 0);
+    placeENC('enc_sign_a', 4, 0.08, 7, 0.85, 10);
+    placeENC('enc_sign_b', -4, 0.08, 7, 0.85, -10);
+    placeENC('enc_planter_a', 6, 0.08, 8, 0.85, 0);
+    placeENC('enc_planter_a', -6, 0.08, 8, 0.85, 0);
+    placeENC('enc_planter_b', 3, 0.08, -7, 0.85, 0);
+    placeENC('enc_bench', 9, 0.08, 6, 0.85, 90);
+    placeENC('enc_bench', -9, 0.08, 6, 0.85, -90);
 
-    // 2) Hero building, raised slightly above the ground plate so it sits on it
-    placeENC('enc_clocktower_b', 0, 0.05, -1.5, 0.85, 0);
-
-    // 3) Lampposts flanking the entrance + 1 planter for life
-    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
-
-    // 4) NPC villagers wandering the plate
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -4850,19 +4868,25 @@ SCENES.plaza = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
+    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.5);
     placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+    placeNpc([0x4a6a30, 0x1a1410], [[0, 8], [0, 1]], 0.4);
+    placeNpc([0xc89030, 0x1a1410], [[6, 7], [-6, 7]], 0.35);
 
     if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('petal', 80, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.40, swayAmp: 0.4, swayFreq: 1.2 });
+      const p = makeFallingParticles('petal', 100, { range: 30, yMax: 14, yMin: 0, fallSpeed: 0.4, swayAmp: 0.4, swayFreq: 1.2 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // 5) Warm hemi fill for chibi diorama look
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
-    fill.position.set(8, 12, 8);
+
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
+    fill.position.set(8, 14, 8);
     root.add(fill);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
+    accent.position.set(0, 5, 4);
+    root.add(accent);
   }
 };
+
 
 
 
@@ -4876,11 +4900,11 @@ SCENES.plaza = {
 SCENES.monlight = {
   num: '00', kind: 'outdoor',
   title: '月光の書架', en: 'The Moonlit Stacks',
-  concept: '月光の下に積まれた書物。古書店の街区。',
+  concept: '月光が降る本屋街区。古書店と骨董屋が並び、屋外の書棚と灯籠が静かに照らす。',
   sun: [12, 35], turbidity: 6, rayleigh: 3.5,
   fogColor: '#3a4a68', fogNear: 18, fogFar: 55, exposure: 0.85,
-  avatarStart: [0, 6.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_bookstore', 'enc_lamppost_a', 'enc_planter_a'],
+  avatarStart: [0, 8.0],
+  preloadAssets: ['enc_townsquare_ground', 'enc_townsquare_floor', 'enc_bookstore', 'enc_antiquarian', 'enc_bookshelf', 'enc_lamppost_c', 'enc_lantern', 'enc_hangingpot', 'enc_sign_a', 'enc_planter_a', 'enc_bench'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -4893,18 +4917,25 @@ SCENES.monlight = {
       return m;
     }
 
-    // 1) Ground first — cobblestone disc anchors everything (no more floating)
-    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
+    placeENC('enc_townsquare_ground', 0, 0, 0, 1.5, 0);
+    placeENC('enc_townsquare_floor', 0, 0.06, -2, 0.9, 0);
+    placeENC('enc_bookstore', 0, 0.08, -5, 0.95, 0);
+    placeENC('enc_antiquarian', 10, 0.08, -4, 0.85, -25);
+    placeENC('enc_bookshelf', -5, 0.08, 4, 0.85, 20);
+    placeENC('enc_bookshelf', 5, 0.08, 4, 0.85, -20);
+    placeENC('enc_lamppost_c', 7, 0.08, 5, 0.85, 0);
+    placeENC('enc_lamppost_c', -7, 0.08, 5, 0.85, 0);
+    placeENC('enc_lamppost_c', 9, 0.08, -5, 0.85, 0);
+    placeENC('enc_lantern', 3, 0.08, 6, 0.85, 0);
+    placeENC('enc_lantern', -3, 0.08, 6, 0.85, 0);
+    placeENC('enc_hangingpot', 2.5, 0.08, -1.5, 0.75, 0);
+    placeENC('enc_hangingpot', -2.5, 0.08, -1.5, 0.75, 0);
+    placeENC('enc_sign_a', 4, 0.08, 3, 0.85, 5);
+    placeENC('enc_planter_a', 5, 0.08, 7, 0.85, 0);
+    placeENC('enc_planter_a', -5, 0.08, 7, 0.85, 0);
+    placeENC('enc_bench', 8, 0.08, 7, 0.85, 90);
+    placeENC('enc_bench', -8, 0.08, 7, 0.85, -90);
 
-    // 2) Hero building, raised slightly above the ground plate so it sits on it
-    placeENC('enc_bookstore', 0, 0.05, -1.5, 0.85, 0);
-
-    // 3) Lampposts flanking the entrance + 1 planter for life
-    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
-
-    // 4) NPC villagers wandering the plate
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -4912,19 +4943,24 @@ SCENES.monlight = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
-    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+    placeNpc([0x3a3a78, 0x1a1410], [[2, 5], [-2, 1]], 0.3);
+    placeNpc([0x68487a, 0x1a1410], [[-4, 4], [4, 0]], 0.35);
+    placeNpc([0x4a4a5a, 0x1a1410], [[0, 7], [0, 2]], 0.3);
 
     if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('star', 90, { range: 30, yMax: 20, yMin: 6, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
+      const p = makeFallingParticles('star', 120, { range: 32, yMax: 22, yMin: 8, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'static'});
     }
-    // 5) Warm hemi fill for chibi diorama look
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
-    fill.position.set(8, 12, 8);
+
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
+    fill.position.set(8, 14, 8);
     root.add(fill);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
+    accent.position.set(0, 5, 4);
+    root.add(accent);
   }
 };
+
 
 
 
@@ -4932,11 +4968,11 @@ SCENES.monlight = {
 SCENES.oto = {
   num: '00', kind: 'outdoor',
   title: '音の小川', en: 'Stream Garden',
-  concept: '小川の音と苔むした水車小屋。コケと石段の世界。',
+  concept: '薬草工房の脇を流れる小川。吊り鉢の緑と灯籠の灯が水音と共に揺れる。',
   sun: [30, 60], turbidity: 4, rayleigh: 2.5,
   fogColor: '#a8c4c8', fogNear: 20, fogFar: 60, exposure: 0.95,
-  avatarStart: [0, 6.0],
-  preloadAssets: ['enc_herbalist_ground', 'enc_herbalist', 'enc_lamppost_a', 'enc_planter_a'],
+  avatarStart: [0, 8.0],
+  preloadAssets: ['enc_herbalist_ground', 'enc_townsquare_ground', 'enc_herbalist', 'enc_inn', 'enc_hangingpot', 'enc_lantern', 'enc_bench', 'enc_planter_b', 'enc_sign_b', 'enc_brazier'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -4949,18 +4985,24 @@ SCENES.oto = {
       return m;
     }
 
-    // 1) Ground first — cobblestone disc anchors everything (no more floating)
     placeENC('enc_herbalist_ground', 0, 0, 0, 1.6, 0);
+    placeENC('enc_townsquare_ground', -10, -0.02, 6, 1.0, 0);
+    placeENC('enc_herbalist', -2, 0.08, -5, 0.95, 20);
+    placeENC('enc_inn', 10, 0.08, -3, 0.75, -30);
+    placeENC('enc_hangingpot', -4, 0.08, -1.5, 0.85, 0);
+    placeENC('enc_hangingpot', 0, 0.08, -1.5, 0.85, 0);
+    placeENC('enc_hangingpot', 4, 0.08, -1.5, 0.85, 0);
+    placeENC('enc_lantern', 5, 0.08, 2, 0.85, 0);
+    placeENC('enc_lantern', -5, 0.08, 2, 0.85, 0);
+    placeENC('enc_lantern', 7, 0.08, 6, 0.85, 0);
+    placeENC('enc_lantern', -7, 0.08, 6, 0.85, 0);
+    placeENC('enc_bench', 7, 0.08, 4, 0.85, 90);
+    placeENC('enc_bench', -7, 0.08, 4, 0.85, -90);
+    placeENC('enc_planter_b', 3, 0.08, 6, 0.85, 0);
+    placeENC('enc_planter_b', -3, 0.08, 6, 0.85, 0);
+    placeENC('enc_sign_b', 6, 0.08, 8, 0.85, 10);
+    placeENC('enc_brazier', 0, 0.08, 7, 0.85, 0);
 
-    // 2) Hero building, raised slightly above the ground plate so it sits on it
-    placeENC('enc_herbalist', 0, 0.05, -1.5, 0.85, 25);
-
-    // 3) Lampposts flanking the entrance + 1 planter for life
-    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
-
-    // 4) NPC villagers wandering the plate
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -4968,19 +5010,24 @@ SCENES.oto = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
-    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+    placeNpc([0x4a6a30, 0x1a1410], [[3, 5], [-3, 1]], 0.4);
+    placeNpc([0x7a8a4a, 0x1a1410], [[-5, 5], [5, 1]], 0.38);
+    placeNpc([0x68a878, 0x1a1410], [[0, 7], [0, 2]], 0.35);
 
     if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('leaf', 60, { range: 26, yMax: 12, yMin: 0, fallSpeed: 0.35, swayAmp: 0.55, swayFreq: 0.8 });
+      const p = makeFallingParticles('leaf', 80, { range: 28, yMax: 12, yMin: 0, fallSpeed: 0.35, swayAmp: 0.55, swayFreq: 0.8 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // 5) Warm hemi fill for chibi diorama look
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
-    fill.position.set(8, 12, 8);
+
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
+    fill.position.set(8, 14, 8);
     root.add(fill);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
+    accent.position.set(0, 5, 4);
+    root.add(accent);
   }
 };
+
 
 
 
@@ -4988,11 +5035,11 @@ SCENES.oto = {
 SCENES.tabi = {
   num: '00', kind: 'outdoor',
   title: '旅の岸辺', en: "Traveler's Inn",
-  concept: '湖畔の宿。煌々と灯る暖かい客室と中庭。',
+  concept: '湖畔の旅人宿。隣の酒場と行商の天幕、煌々と灯る街灯、かがり火が旅人を迎える。',
   sun: [38, 25], turbidity: 3, rayleigh: 2.0,
   fogColor: '#c0bca0', fogNear: 22, fogFar: 70, exposure: 1.0,
-  avatarStart: [0, 6.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_inn', 'enc_lamppost_a', 'enc_planter_a'],
+  avatarStart: [0, 8.0],
+  preloadAssets: ['enc_townsquare_ground', 'enc_townsquare_floor', 'enc_inn', 'enc_pub', 'enc_vendor_b', 'enc_lamppost_a', 'enc_brazier', 'enc_lantern', 'enc_sign_a', 'enc_sign_b', 'enc_bench', 'enc_planter_a', 'enc_planter_b'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5005,18 +5052,24 @@ SCENES.tabi = {
       return m;
     }
 
-    // 1) Ground first — cobblestone disc anchors everything (no more floating)
-    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
+    placeENC('enc_townsquare_ground', 0, 0, 0, 1.7, 0);
+    placeENC('enc_townsquare_floor', 0, 0.06, -3, 1.0, 0);
+    placeENC('enc_inn', 0, 0.08, -5, 0.95, 0);
+    placeENC('enc_pub', 11, 0.08, -3, 0.85, -25);
+    placeENC('enc_vendor_b', -8, 0.08, 2, 0.8, 140);
+    placeENC('enc_lamppost_a', 7, 0.08, 5, 0.85, 0);
+    placeENC('enc_lamppost_a', -7, 0.08, 5, 0.85, 0);
+    placeENC('enc_lamppost_a', 9, 0.08, -8, 0.85, 0);
+    placeENC('enc_brazier', 3, 0.08, 3, 0.85, 0);
+    placeENC('enc_lantern', -3, 0.08, 3, 0.85, 0);
+    placeENC('enc_sign_a', 4, 0.08, 7, 0.85, 10);
+    placeENC('enc_sign_b', -4, 0.08, 7, 0.85, -10);
+    placeENC('enc_bench', 8, 0.08, 6, 0.85, 90);
+    placeENC('enc_bench', -8, 0.08, 6, 0.85, -90);
+    placeENC('enc_planter_a', 5, 0.08, 8, 0.85, 0);
+    placeENC('enc_planter_a', -5, 0.08, 8, 0.85, 0);
+    placeENC('enc_planter_b', 0, 0.08, 8, 0.85, 0);
 
-    // 2) Hero building, raised slightly above the ground plate so it sits on it
-    placeENC('enc_inn', 0, 0.05, -1.5, 0.85, 0);
-
-    // 3) Lampposts flanking the entrance + 1 planter for life
-    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
-
-    // 4) NPC villagers wandering the plate
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -5024,19 +5077,25 @@ SCENES.tabi = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
-    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+    placeNpc([0xc88040, 0x1a1410], [[3, 5], [-3, -1]], 0.45);
+    placeNpc([0x884a2a, 0x1a1410], [[-4, 4], [4, 0]], 0.42);
+    placeNpc([0xa86848, 0x1a1410], [[6, 7], [-6, 7]], 0.38);
+    placeNpc([0xd8a878, 0x1a1410], [[0, 8], [0, 1]], 0.4);
 
     if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('petal', 80, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.40, swayAmp: 0.4, swayFreq: 1.2 });
+      const p = makeFallingParticles('petal', 90, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.4, swayAmp: 0.4, swayFreq: 1.2 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // 5) Warm hemi fill for chibi diorama look
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
-    fill.position.set(8, 12, 8);
+
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
+    fill.position.set(8, 14, 8);
     root.add(fill);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
+    accent.position.set(0, 5, 4);
+    root.add(accent);
   }
 };
+
 
 
 
@@ -5044,11 +5103,11 @@ SCENES.tabi = {
 SCENES.toki = {
   num: '00', kind: 'outdoor',
   title: '時の砂時計', en: 'Hourglass Hill',
-  concept: '雲海の上に佇む時計塔。時間の番人。',
+  concept: '雲海の上の時計塔と教会の尖塔。段丘状の上層広場に紋章が二つ、時の番人。',
   sun: [55, -25], turbidity: 3.5, rayleigh: 1.8,
   fogColor: '#a0c4ce', fogNear: 40, fogFar: 120, exposure: 1.0,
-  avatarStart: [0, 6.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_clocktower_b', 'enc_lamppost_a', 'enc_planter_a'],
+  avatarStart: [0, 8.0],
+  preloadAssets: ['enc_townsquare_ground', 'enc_townsquare_upper', 'enc_clocktower_b', 'enc_church_spire', 'enc_sigil', 'enc_lamppost_c', 'enc_sign_a', 'enc_bench', 'enc_planter_b'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5061,18 +5120,22 @@ SCENES.toki = {
       return m;
     }
 
-    // 1) Ground first — cobblestone disc anchors everything (no more floating)
     placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
+    placeENC('enc_townsquare_upper', 0, 0.1, -3, 0.9, 0);
+    placeENC('enc_clocktower_b', -3, 0.18, -6, 0.95, 90);
+    placeENC('enc_church_spire', 5, 0.18, -7, 0.85, -45);
+    placeENC('enc_sigil', -6, 0.18, 2, 0.85, 0);
+    placeENC('enc_sigil', 6, 0.18, 2, 0.85, 0);
+    placeENC('enc_lamppost_c', 8, 0.18, 6, 0.85, 0);
+    placeENC('enc_lamppost_c', -8, 0.18, 6, 0.85, 0);
+    placeENC('enc_lamppost_c', 8, 0.18, -8, 0.85, 0);
+    placeENC('enc_lamppost_c', -8, 0.18, -8, 0.85, 0);
+    placeENC('enc_sign_a', 0, 0.18, 6, 0.85, 0);
+    placeENC('enc_bench', 4, 0.18, 7, 0.85, 90);
+    placeENC('enc_bench', -4, 0.18, 7, 0.85, -90);
+    placeENC('enc_planter_b', 3, 0.18, 4, 0.85, 0);
+    placeENC('enc_planter_b', -3, 0.18, 4, 0.85, 0);
 
-    // 2) Hero building, raised slightly above the ground plate so it sits on it
-    placeENC('enc_clocktower_b', 0, 0.05, -1.5, 0.85, 90);
-
-    // 3) Lampposts flanking the entrance + 1 planter for life
-    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
-
-    // 4) NPC villagers wandering the plate
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -5080,31 +5143,35 @@ SCENES.toki = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
-    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+    placeNpc([0x4a4a6a, 0x1a1410], [[2, 4], [-2, 0]], 0.32);
+    placeNpc([0x6a4a8a, 0x1a1410], [[-3, 3], [3, -1]], 0.35);
 
     if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('mist', 120, { range: 32, yMax: 8, yMin: 0, fallSpeed: 0.12, swayAmp: 0.6, swayFreq: 0.4 });
+      const p = makeFallingParticles('mist', 150, { range: 34, yMax: 8, yMin: 0, fallSpeed: 0.12, swayAmp: 0.6, swayFreq: 0.4 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // 5) Warm hemi fill for chibi diorama look
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
-    fill.position.set(8, 12, 8);
+
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
+    fill.position.set(8, 14, 8);
     root.add(fill);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
+    accent.position.set(0, 5, 4);
+    root.add(accent);
   }
 };
+
 
 
 
 // 6. 星見台
 SCENES.hoshi = {
   num: '00', kind: 'outdoor',
-  title: "Stargazer's Hill", en: "Stargazer's Hill",
-  concept: '骨董屋の小さな丘。星見の道具と古い書物が積まれた静かな館。',
+  title: 'Stargazer's Hill', en: "Stargazer's Hill",
+  concept: '骨董屋と古書店の丘。剣と紋章、宝箱と書棚が並び、星灯りの灯籠が囲む。',
   sun: [-8, 70], turbidity: 8, rayleigh: 3.0,
   fogColor: '#1a2a3a', fogNear: 20, fogFar: 60, exposure: 0.7,
-  avatarStart: [0, 6.0],
-  preloadAssets: ['enc_herbalist_ground', 'enc_antiquarian', 'enc_lamppost_a', 'enc_planter_a'],
+  avatarStart: [0, 8.0],
+  preloadAssets: ['enc_herbalist_ground', 'enc_townsquare_ground', 'enc_antiquarian', 'enc_bookstore', 'enc_sword_in_stone', 'enc_sigil', 'enc_armor_chest', 'enc_bookshelf', 'enc_lantern', 'enc_bench', 'enc_planter_a', 'enc_sign_b'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5117,18 +5184,23 @@ SCENES.hoshi = {
       return m;
     }
 
-    // 1) Ground first — cobblestone disc anchors everything (no more floating)
-    placeENC('enc_herbalist_ground', 0, 0, 0, 1.6, 0);
+    placeENC('enc_herbalist_ground', 0, 0, 0, 1.5, 0);
+    placeENC('enc_townsquare_ground', 0, -0.04, -8, 1.1, 0);
+    placeENC('enc_antiquarian', 0, 0.08, -5, 0.95, 0);
+    placeENC('enc_bookstore', 11, 0.08, -3, 0.8, -25);
+    placeENC('enc_sword_in_stone', -3, 0.08, 3, 0.85, 0);
+    placeENC('enc_sigil', 3, 0.08, 3, 0.85, 0);
+    placeENC('enc_armor_chest', -7, 0.08, 0, 0.85, 30);
+    placeENC('enc_bookshelf', 7, 0.08, 0, 0.85, -30);
+    placeENC('enc_lantern', 6, 0.08, 6, 0.85, 0);
+    placeENC('enc_lantern', -6, 0.08, 6, 0.85, 0);
+    placeENC('enc_lantern', 8, 0.08, -7, 0.85, 0);
+    placeENC('enc_lantern', -8, 0.08, -7, 0.85, 0);
+    placeENC('enc_bench', 9, 0.08, 5, 0.85, 90);
+    placeENC('enc_bench', -9, 0.08, 5, 0.85, -90);
+    placeENC('enc_planter_a', 4, 0.08, 7, 0.85, 0);
+    placeENC('enc_sign_b', -4, 0.08, 7, 0.85, -10);
 
-    // 2) Hero building, raised slightly above the ground plate so it sits on it
-    placeENC('enc_antiquarian', 0, 0.05, -1.5, 0.85, 0);
-
-    // 3) Lampposts flanking the entrance + 1 planter for life
-    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
-
-    // 4) NPC villagers wandering the plate
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -5136,19 +5208,24 @@ SCENES.hoshi = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
-    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+    placeNpc([0x2a2a5a, 0x1a1410], [[2, 5], [-2, 1]], 0.3);
+    placeNpc([0x4a3a78, 0x1a1410], [[-4, 4], [4, 0]], 0.32);
+    placeNpc([0x6a6a8a, 0x1a1410], [[0, 7], [0, 2]], 0.28);
 
     if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('star', 90, { range: 30, yMax: 20, yMin: 6, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
+      const p = makeFallingParticles('star', 130, { range: 32, yMax: 22, yMin: 8, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'static'});
     }
-    // 5) Warm hemi fill for chibi diorama look
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
-    fill.position.set(8, 12, 8);
+
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
+    fill.position.set(8, 14, 8);
     root.add(fill);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
+    accent.position.set(0, 5, 4);
+    root.add(accent);
   }
 };
+
 
 
 
@@ -5156,11 +5233,11 @@ SCENES.hoshi = {
 SCENES.takibi = {
   num: '00', kind: 'outdoor',
   title: '焚き火の前', en: 'By the Candle',
-  concept: 'ろうそく屋の前。窓越しの暖色の灯りと積まれたろうそく。',
+  concept: 'ろうそく屋と酒場、三つのかがり火と灯籠の暖色。冷えた夜の集いの場。',
   sun: [8, -90], turbidity: 6, rayleigh: 2.5,
   fogColor: '#3a2828', fogNear: 18, fogFar: 55, exposure: 0.85,
-  avatarStart: [0, 6.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_candlemaker', 'enc_lamppost_a', 'enc_planter_a'],
+  avatarStart: [0, 8.0],
+  preloadAssets: ['enc_townsquare_ground', 'enc_townsquare_floor', 'enc_candlemaker', 'enc_pub', 'enc_brazier', 'enc_lantern', 'enc_lamppost_a', 'enc_bench', 'enc_planter_a', 'enc_sign_b'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5173,18 +5250,25 @@ SCENES.takibi = {
       return m;
     }
 
-    // 1) Ground first — cobblestone disc anchors everything (no more floating)
-    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
+    placeENC('enc_townsquare_ground', 0, 0, 0, 1.7, 0);
+    placeENC('enc_townsquare_floor', 0, 0.06, -3, 1.0, 0);
+    placeENC('enc_candlemaker', 0, 0.08, -5, 0.95, 15);
+    placeENC('enc_pub', 11, 0.08, -3, 0.85, -25);
+    placeENC('enc_brazier', 3, 0.08, 2, 0.85, 0);
+    placeENC('enc_brazier', -3, 0.08, 2, 0.85, 0);
+    placeENC('enc_brazier', 0, 0.08, 5, 0.85, 0);
+    placeENC('enc_lantern', 6, 0.08, 3, 0.85, 0);
+    placeENC('enc_lantern', -6, 0.08, 3, 0.85, 0);
+    placeENC('enc_lantern', 8, 0.08, 6, 0.85, 0);
+    placeENC('enc_lantern', -8, 0.08, 6, 0.85, 0);
+    placeENC('enc_lamppost_a', 7, 0.08, -7, 0.85, 0);
+    placeENC('enc_lamppost_a', -7, 0.08, -7, 0.85, 0);
+    placeENC('enc_bench', 5, 0.08, 4, 0.85, -135);
+    placeENC('enc_bench', -5, 0.08, 4, 0.85, 135);
+    placeENC('enc_planter_a', 4, 0.08, 8, 0.85, 0);
+    placeENC('enc_planter_a', -4, 0.08, 8, 0.85, 0);
+    placeENC('enc_sign_b', 0, 0.08, 8, 0.85, 0);
 
-    // 2) Hero building, raised slightly above the ground plate so it sits on it
-    placeENC('enc_candlemaker', 0, 0.05, -1.5, 0.85, 15);
-
-    // 3) Lampposts flanking the entrance + 1 planter for life
-    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
-
-    // 4) NPC villagers wandering the plate
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -5192,19 +5276,24 @@ SCENES.takibi = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
-    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+    placeNpc([0xc84030, 0x1a1410], [[2, 3], [-2, 3]], 0.3);
+    placeNpc([0xa83020, 0x1a1410], [[4, 5], [-4, 5]], 0.32);
+    placeNpc([0xe87840, 0x1a1410], [[0, 7], [0, 2]], 0.3);
 
     if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('ember', 70, { range: 16, yMax: 6, yMin: 0, fallSpeed: -0.45, swayAmp: 0.25, swayFreq: 1.5 });
+      const p = makeFallingParticles('ember', 90, { range: 18, yMax: 8, yMin: 0, fallSpeed: -0.45, swayAmp: 0.25, swayFreq: 1.5 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'rise'});
     }
-    // 5) Warm hemi fill for chibi diorama look
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
-    fill.position.set(8, 12, 8);
+
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
+    fill.position.set(8, 14, 8);
     root.add(fill);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
+    accent.position.set(0, 5, 4);
+    root.add(accent);
   }
 };
+
 
 
 
@@ -5212,11 +5301,11 @@ SCENES.takibi = {
 SCENES.mizube = {
   num: '00', kind: 'outdoor',
   title: '水辺の岸', en: 'By the Weaver',
-  concept: '水辺の小さな工房。織りかけの布と苔むした石。',
+  concept: '水辺の織機工房。鏡像のように対岸に小さな書店、水面に映る吊り鉢と灯籠。',
   sun: [22, 110], turbidity: 5, rayleigh: 2.5,
   fogColor: '#cfe6ee', fogNear: 28, fogFar: 80, exposure: 0.95,
-  avatarStart: [0, 6.0],
-  preloadAssets: ['enc_herbalist_ground', 'enc_herbalist', 'enc_lamppost_a', 'enc_planter_a'],
+  avatarStart: [0, 8.0],
+  preloadAssets: ['enc_herbalist_ground', 'enc_townsquare_ground', 'enc_herbalist', 'enc_bookstore', 'enc_hangingpot', 'enc_lantern', 'enc_bench', 'enc_planter_b', 'enc_sign_a'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5229,18 +5318,23 @@ SCENES.mizube = {
       return m;
     }
 
-    // 1) Ground first — cobblestone disc anchors everything (no more floating)
-    placeENC('enc_herbalist_ground', 0, 0, 0, 1.6, 0);
+    placeENC('enc_herbalist_ground', 0, 0, 0, 1.5, 0);
+    placeENC('enc_townsquare_ground', 0, -0.04, 7, 1.1, 0);
+    placeENC('enc_herbalist', -2, 0.08, -5, 0.95, -20);
+    placeENC('enc_bookstore', 10, 0.08, -3, 0.75, 25);
+    placeENC('enc_hangingpot', -4, 0.08, -1.5, 0.85, 0);
+    placeENC('enc_hangingpot', 0, 0.08, -1.5, 0.85, 0);
+    placeENC('enc_hangingpot', 4, 0.08, -1.5, 0.85, 0);
+    placeENC('enc_hangingpot', 2, 0.08, 4, 0.85, 0);
+    placeENC('enc_lantern', 6, 0.08, 6, 0.85, 0);
+    placeENC('enc_lantern', -6, 0.08, 6, 0.85, 0);
+    placeENC('enc_lantern', 0, 0.08, 9, 0.85, 0);
+    placeENC('enc_bench', 7, 0.08, 8, 0.85, 90);
+    placeENC('enc_bench', -7, 0.08, 8, 0.85, -90);
+    placeENC('enc_planter_b', 3, 0.08, 7, 0.85, 0);
+    placeENC('enc_planter_b', -3, 0.08, 7, 0.85, 0);
+    placeENC('enc_sign_a', 4, 0.08, 9, 0.85, 10);
 
-    // 2) Hero building, raised slightly above the ground plate so it sits on it
-    placeENC('enc_herbalist', 0, 0.05, -1.5, 0.85, -20);
-
-    // 3) Lampposts flanking the entrance + 1 planter for life
-    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
-
-    // 4) NPC villagers wandering the plate
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -5248,19 +5342,24 @@ SCENES.mizube = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
-    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+    placeNpc([0x4a78a8, 0x1a1410], [[3, 6], [-3, 2]], 0.38);
+    placeNpc([0x78a8c8, 0x1a1410], [[-4, 5], [4, 1]], 0.4);
+    placeNpc([0xa8c8d8, 0x1a1410], [[0, 8], [0, 3]], 0.36);
 
     if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('petal', 80, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.40, swayAmp: 0.4, swayFreq: 1.2 });
+      const p = makeFallingParticles('petal', 80, { range: 28, yMax: 12, yMin: 0, fallSpeed: 0.32, swayAmp: 0.5, swayFreq: 1.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // 5) Warm hemi fill for chibi diorama look
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
-    fill.position.set(8, 12, 8);
+
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
+    fill.position.set(8, 14, 8);
     root.add(fill);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
+    accent.position.set(0, 5, 4);
+    root.add(accent);
   }
 };
+
 
 
 
@@ -5268,11 +5367,11 @@ SCENES.mizube = {
 SCENES.amaoto = {
   num: '00', kind: 'outdoor',
   title: '雨音の部屋', en: 'Rain Chapel',
-  concept: '小さな教会。雨音と石壁、ステンドグラスの灯り。',
+  concept: '石畳の前庭の教会と尖塔。庇下のかがり火と灯籠、紋章が雨音を受け止める。',
   sun: [10, 100], turbidity: 8, rayleigh: 3.0,
   fogColor: '#7a8a9c', fogNear: 22, fogFar: 60, exposure: 0.85,
-  avatarStart: [0, 6.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_church_a', 'enc_lamppost_a', 'enc_planter_a'],
+  avatarStart: [0, 8.0],
+  preloadAssets: ['enc_townsquare_floor', 'enc_townsquare_ground', 'enc_church_a', 'enc_church_spire', 'enc_sigil', 'enc_brazier', 'enc_lantern', 'enc_lamppost_c', 'enc_bench', 'enc_planter_a', 'enc_sign_a'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5285,18 +5384,25 @@ SCENES.amaoto = {
       return m;
     }
 
-    // 1) Ground first — cobblestone disc anchors everything (no more floating)
-    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
+    placeENC('enc_townsquare_floor', 0, 0, 0, 1.5, 0);
+    placeENC('enc_townsquare_ground', 0, -0.04, -10, 1.2, 0);
+    placeENC('enc_church_a', 0, 0.08, -5, 1.0, 0);
+    placeENC('enc_church_spire', 0, 0.08, -10, 0.85, 0);
+    placeENC('enc_sigil', -4, 0.08, 3, 0.85, 0);
+    placeENC('enc_sigil', 4, 0.08, 3, 0.85, 0);
+    placeENC('enc_brazier', 0, 0.08, 5, 0.85, 0);
+    placeENC('enc_lantern', 5, 0.08, 4, 0.85, 0);
+    placeENC('enc_lantern', -5, 0.08, 4, 0.85, 0);
+    placeENC('enc_lamppost_c', 7, 0.08, 6, 0.85, 0);
+    placeENC('enc_lamppost_c', -7, 0.08, 6, 0.85, 0);
+    placeENC('enc_lamppost_c', 7, 0.08, -8, 0.85, 0);
+    placeENC('enc_lamppost_c', -7, 0.08, -8, 0.85, 0);
+    placeENC('enc_bench', 8, 0.08, 5, 0.85, 90);
+    placeENC('enc_bench', -8, 0.08, 5, 0.85, -90);
+    placeENC('enc_planter_a', 5, 0.08, 8, 0.85, 0);
+    placeENC('enc_planter_a', -5, 0.08, 8, 0.85, 0);
+    placeENC('enc_sign_a', 0, 0.08, 8, 0.85, 0);
 
-    // 2) Hero building, raised slightly above the ground plate so it sits on it
-    placeENC('enc_church_a', 0, 0.05, -1.5, 0.85, 0);
-
-    // 3) Lampposts flanking the entrance + 1 planter for life
-    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
-
-    // 4) NPC villagers wandering the plate
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -5304,19 +5410,24 @@ SCENES.amaoto = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
-    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+    placeNpc([0x5a6a8a, 0x1a1410], [[3, 5], [-3, 1]], 0.32);
+    placeNpc([0x7a8aa8, 0x1a1410], [[-4, 4], [4, 0]], 0.34);
+    placeNpc([0x4a5a78, 0x1a1410], [[0, 7], [0, 2]], 0.3);
 
     if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('rain', 220, { range: 24, yMax: 16, yMin: 0, fallSpeed: 1.6, swayAmp: 0.05, swayFreq: 0.2 });
+      const p = makeFallingParticles('rain', 260, { range: 24, yMax: 16, yMin: 0, fallSpeed: 1.6, swayAmp: 0.05, swayFreq: 0.2 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // 5) Warm hemi fill for chibi diorama look
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
-    fill.position.set(8, 12, 8);
+
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
+    fill.position.set(8, 14, 8);
     root.add(fill);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
+    accent.position.set(0, 5, 4);
+    root.add(accent);
   }
 };
+
 
 
 
@@ -5324,11 +5435,11 @@ SCENES.amaoto = {
 SCENES.heya = {
   num: '00', kind: 'outdoor',
   title: '部屋', en: 'The Bakery',
-  concept: 'パン屋の小さな前庭。温かい店内と窓辺の植木鉢。',
+  concept: '温かなパン屋の前庭。植え込みと吊り鉢、室内灯のような灯籠、暖炉の余熱。',
   sun: [40, -30], turbidity: 3, rayleigh: 1.6,
   fogColor: '#e0e8f0', fogNear: 28, fogFar: 70, exposure: 1.05,
-  avatarStart: [0, 6.0],
-  preloadAssets: ['enc_herbalist_ground', 'enc_bookstore', 'enc_lamppost_a', 'enc_planter_a'],
+  avatarStart: [0, 8.0],
+  preloadAssets: ['enc_herbalist_ground', 'enc_townsquare_floor', 'enc_bookstore', 'enc_herbalist', 'enc_planter_a', 'enc_planter_b', 'enc_hangingpot', 'enc_lantern', 'enc_brazier', 'enc_bench', 'enc_sign_b'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5341,18 +5452,25 @@ SCENES.heya = {
       return m;
     }
 
-    // 1) Ground first — cobblestone disc anchors everything (no more floating)
-    placeENC('enc_herbalist_ground', 0, 0, 0, 1.6, 0);
+    placeENC('enc_herbalist_ground', 0, 0, 0, 1.4, 0);
+    placeENC('enc_townsquare_floor', 0, 0.06, -2, 0.9, 0);
+    placeENC('enc_bookstore', 0, 0.08, -4, 0.75, 30);
+    placeENC('enc_herbalist', 10, 0.08, -4, 0.7, -30);
+    placeENC('enc_planter_a', 5, 0.08, 3, 0.85, 0);
+    placeENC('enc_planter_a', -5, 0.08, 3, 0.85, 0);
+    placeENC('enc_planter_b', 3, 0.08, 6, 0.85, 0);
+    placeENC('enc_planter_b', -3, 0.08, 6, 0.85, 0);
+    placeENC('enc_hangingpot', 2, 0.08, -1, 0.85, 0);
+    placeENC('enc_hangingpot', -2, 0.08, -1, 0.85, 0);
+    placeENC('enc_lantern', 6, 0.08, 5, 0.85, 0);
+    placeENC('enc_lantern', -6, 0.08, 5, 0.85, 0);
+    placeENC('enc_lantern', 4, 0.08, 8, 0.85, 0);
+    placeENC('enc_lantern', -4, 0.08, 8, 0.85, 0);
+    placeENC('enc_brazier', 0, 0.08, 3, 0.85, 0);
+    placeENC('enc_bench', 7, 0.08, 7, 0.85, 90);
+    placeENC('enc_bench', -7, 0.08, 7, 0.85, -90);
+    placeENC('enc_sign_b', 0, 0.08, 9, 0.85, 0);
 
-    // 2) Hero building, raised slightly above the ground plate so it sits on it
-    placeENC('enc_bookstore', 0, 0.05, -1.5, 0.75, 30);
-
-    // 3) Lampposts flanking the entrance + 1 planter for life
-    placeENC('enc_lamppost_a',  6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -6.5, 0.05,  3.5, 0.85, 0);
-    placeENC('enc_planter_a',   4.5, 0.05,  6.5, 0.85, 0);
-
-    // 4) NPC villagers wandering the plate
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
       n.position.set(path[0][0], 0, path[0][1]);
@@ -5360,19 +5478,24 @@ SCENES.heya = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.50);
-    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
+    placeNpc([0xd8a878, 0x1a1410], [[3, 5], [-3, 1]], 0.4);
+    placeNpc([0xc89060, 0x1a1410], [[-4, 4], [4, 0]], 0.38);
+    placeNpc([0xe8c89c, 0x1a1410], [[5, 8], [-5, 8]], 0.35);
 
     if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('petal', 80, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.40, swayAmp: 0.4, swayFreq: 1.2 });
+      const p = makeFallingParticles('petal', 60, { range: 22, yMax: 10, yMin: 0, fallSpeed: 0.28, swayAmp: 0.3, swayFreq: 0.9 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
-    // 5) Warm hemi fill for chibi diorama look
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.45);
-    fill.position.set(8, 12, 8);
+
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
+    fill.position.set(8, 14, 8);
     root.add(fill);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
+    accent.position.set(0, 5, 4);
+    root.add(accent);
   }
 };
+
 
 
 
