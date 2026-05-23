@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="referrer" content="no-referrer"><!-- pCloud public API rejects non-pCloud Referer with "Invalid link referer" — strip it page-wide -->
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>心の庭 / A Quiet Garden — yuichi916</title>
@@ -2813,80 +2814,14 @@ function addMixer(mixer){
 /* === Blender procedural asset pack — preloaded once, then cloned per use === */
 const BLENDER_CACHE = {};
 const BLENDER_NAMES = [
-  'kominka', 'pagoda', 'torii', 'fountain', 'stone_lantern',
-  'tree_pine', 'tree_sakura', 'tree_momiji', 'tree_broad',
-  'well', 'watchtower', 'windmill', 'bridge', 'shrine',
-  // Pack v2
-  'kominka_red', 'kominka_blue', 'kominka_green',
-  'barrel', 'basket', 'sign', 'jizo', 'hedge', 'lily_pad', 'chibi',
-  // Pack v3 — environment kit
-  'cart', 'market_stall', 'stone_wall', 'gate_arch', 'pot', 'chochin',
-  'crate_stack', 'wood_fence', 'brazier', 'lily_pad_blue', 'tea_pavilion',
-  // Pack v4 — nature / animals
-  'deer', 'fox', 'cat', 'bird_perched',
-  'lotus', 'azalea_bush', 'bamboo_bundle', 'moss_stone', 'water_basin',
-  // Pack v5 — chibi NPC variants
-  'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow',
-  'chibi_monk', 'chibi_woman', 'chibi_child',
-  // Pack v6 — festival / village kit
-  'sundial', 'well_bucket', 'koi', 'sake_barrel', 'banner', 'festival_lantern_string',
-  // Pack v7 — dynamic / atmospheric kit
-  'butterfly', 'firefly_cluster', 'bamboo_grove', 'wishing_tree',
-  'snow_kominka', 'ema_board', 'daruma', 'omikuji_box',
-  // Pack v8 — architecture extras
-  'drum_bridge', 'pagoda_3tier', 'tea_garden_set', 'shoji_screen',
-  'zen_garden', 'kura_storage', 'torii_grand', 'koma_inu',
-  // Pack v9 — character/creature expansion
-  'crane', 'frog', 'kitsune_mask', 'oni_mask',
-  'monk_w_staff', 'kappa', 'tanuki', 'kabuki_doll',
-  // Pack v10 — nature & flora expansion
-  'cherry_grove', 'maple_grove', 'weeping_willow', 'wisteria_arbor',
-  'mushroom_cluster', 'ivy_arch', 'snow_pine', 'hydrangea',
-  // Pack v11 — fine-grain detail props
-  'mailbox', 'bird_feeder', 'sake_cup_set', 'calligraphy_set',
-  'fan_holder', 'geta_rack', 'suikinkutsu', 'ceramic_pot_set',
-  // Pack v12 — vehicles & transport
-  'rowboat', 'palanquin', 'ox_cart', 'sled',
-  'rickshaw', 'raft', 'ferry_boat', 'fishing_boat',
-  // Pack v14 — food / market kit (v13 was particle systems, no GLBs)
-  'food_stall', 'ramen_cart', 'dango_skewers', 'taiyaki',
-  'onigiri_set', 'tsukimi_tray', 'bonsai', 'incense_burner',
-  // Pack v15 — sacred / ritual kit
-  'omikoshi', 'shimenawa', 'temple_bell', 'wind_chime_set',
-  'sumi_e_panel', 'hanami_blanket', 'ofuda_box', 'shide_strips',
-  // Pack v16 — seasonal decorations
-  'kadomatsu', 'hina_dolls', 'koinobori', 'shimekazari',
-  'sasa_tanabata', 'momiji_lantern_pair', 'oshogatsu_kazari', 'mizuhiki_ornament',
-  // Pack v17 — tools / armor / craft
-  'samurai_armor_stand', 'katana_rack', 'farmer_tools', 'blacksmith_anvil',
-  'scarecrow', 'fishing_rod', 'abacus', 'shoji_lamp',
-  // Pack v18 — merchant district
-  'shop_facade', 'kanban_sign', 'kimono_rack', 'kimono_mannequin',
-  'paper_screen_window', 'oil_lamp', 'charcoal_brazier', 'soba_bowls',
-  // Pack v19 — terrain features
-  'waterfall', 'rocky_cliff', 'cave_entrance', 'fishing_pier',
-  'mountain_silhouette', 'stone_curve_steps', 'cherry_branch_overhang', 'root_bench',
-  // Pack v20 — way-finding & devotional
-  'signpost_painted', 'milestone_marker', 'prayer_flag_string', 'hokora_small_shrine',
-  'torii_white', 'scroll_holder', 'foot_path_marker', 'oboro_wheel',
-  // Pack v22 — commercial-level village hero assets
-  'kominka_v2', 'sakura_v2', 'torii_v2', 'well_v2',
-  'market_v2', 'cobble_path', 'hedge_v2', 'signpost_v2',
-  // Pack v23 — magical fantasy props (image-2 style)
-  'magic_crystal_cluster', 'giant_mushroom', 'flame_brazier', 'glow_eye_totem',
-  'mossy_boulder', 'stream_segment', 'dragon_idol', 'waypoint_pillar',
-  // KB3D Dark Fantasy hero kitbash — AAA commercial-grade props (Draco-compressed)
-  'kb3d_fountain', 'kb3d_tower_a', 'kb3d_tower_d', 'kb3d_tower_small',
-  'kb3d_tower_grand', 'kb3d_statue_a', 'kb3d_statue_b', 'kb3d_statue_e',
-  'kb3d_gate_b', 'kb3d_gate_c', 'kb3d_door_e', 'kb3d_torch',
-  'kb3d_barrel', 'kb3d_firewood', 'kb3d_chainhook', 'kb3d_bldg_sm_f',
-  'kb3d_bldg_sm_g', 'kb3d_bldg_md_e', 'kb3d_bldg_sm_c', 'kb3d_railing',
-  // KB3D Enchanted hero kitbash — primary base for Cloudfall village + others
-  'enc_clocktower_b', 'enc_church_a', 'enc_antiquarian', 'enc_inn',
-  'enc_church_spire', 'enc_bank', 'enc_herbalist', 'enc_bookstore',
-  'enc_candlemaker', 'enc_pub', 'enc_lamppost_a', 'enc_lamppost_c',
-  'enc_lantern', 'enc_sign_a', 'enc_sign_b', 'enc_planter_a',
-  'enc_planter_b', 'enc_brazier', 'enc_hangingpot', 'enc_bench',
+  // KB3D Enchanted — the sole asset base (procedural primitives removed per user direction).
+  // All hosted on pCloud Public Folder; fetched lazy on scene open. See PCLOUD_PUBLINK above.
+  'enc_clocktower_b', 'enc_church_a', 'enc_church_spire',
+  'enc_antiquarian', 'enc_inn', 'enc_bank', 'enc_herbalist',
+  'enc_bookstore', 'enc_candlemaker', 'enc_pub',
+  'enc_lamppost_a', 'enc_lamppost_c', 'enc_lantern',
+  'enc_sign_a', 'enc_sign_b', 'enc_planter_a', 'enc_planter_b',
+  'enc_brazier', 'enc_hangingpot', 'enc_bench',
   'enc_sigil', 'enc_sword_in_stone', 'enc_zoltor', 'enc_vendor_b',
   'enc_wooden_arch', 'enc_armor_chest', 'enc_wash_basin', 'enc_bookshelf',
 ];
@@ -2927,10 +2862,15 @@ const ENC_FILEIDS = {
 };
 
 // Build the pCloud public-download URL for a fileid (4h-expiring CDN URL).
-// IMPORTANT: `&download=1` bypasses pCloud's "Invalid link referer" block that
-// would otherwise prevent browser-origin requests from succeeding.
+// IMPORTANT: pCloud rejects browser-origin requests with "Invalid link referer"
+// when the Referer header contains a non-pCloud domain. We strip the referer
+// via referrerPolicy:'no-referrer' so the API call goes through unchallenged.
+// `&download=1` also helps bypass the check on some pCloud regions.
 async function pcloudFileURL(fileid){
-  const r = await fetch(`https://api.pcloud.com/getpublinkdownload?code=${PCLOUD_PUBLINK}&fileid=${fileid}&download=1`);
+  const r = await fetch(
+    `https://api.pcloud.com/getpublinkdownload?code=${PCLOUD_PUBLINK}&fileid=${fileid}&download=1`,
+    { referrerPolicy: 'no-referrer', credentials: 'omit', mode: 'cors' }
+  );
   const data = await r.json();
   if(data.result !== 0 || !data.hosts || !data.hosts.length) throw new Error('pcloud failed ' + data.error);
   return `https://${data.hosts[0]}${data.path}`;
@@ -2943,7 +2883,8 @@ function resolveAllEncFileids(){
   if(_ENC_FILEID_PROMISE) return _ENC_FILEID_PROMISE;
   _ENC_FILEID_PROMISE = (async () => {
     try {
-      const r = await fetch(`https://api.pcloud.com/showpublink?code=${PCLOUD_PUBLINK}`);
+      const r = await fetch(`https://api.pcloud.com/showpublink?code=${PCLOUD_PUBLINK}`,
+        { referrerPolicy: 'no-referrer', credentials: 'omit', mode: 'cors' });
       const d = await r.json();
       const md = d.metadata || {};
       const map = Object.assign({}, ENC_FILEIDS);
