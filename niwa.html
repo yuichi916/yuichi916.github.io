@@ -8732,16 +8732,18 @@ function animate(){
   moon.intensity = 0.55 * nightT;
   ambientLight.intensity = 0.22 + 0.10*nightT;
   // lamps glow at night
-  for(const lm of ENTITIES.lamps){ if(lm.material?.emissive) lm.material.emissiveIntensity = nightT * 1.4; }
-  for(const pl of ENTITIES.lampLights){ pl.intensity = 1.5 * nightT; }
+  for(const lm of ENTITIES.lamps){ if(!lm) continue; if(lm.material?.emissive) lm.material.emissiveIntensity = nightT * 1.4; }
+  for(const pl of ENTITIES.lampLights){ if(!pl) continue; pl.intensity = 1.5 * nightT; }
   // flames flicker
   for(const f of ENTITIES.flames){
+    if(!f || !f.userData) continue;
     f.position.y = (f.userData.flame === 1 ? 0.78 : 0.92) + Math.sin(t*8 + f.userData.flame*2)*0.05;
     f.scale.y = 1 + Math.sin(t*9 + f.userData.flame)*0.08;
     f.rotation.y = Math.sin(t*4 + f.userData.flame)*0.2;
   }
   // boat rock
   for(const b of ENTITIES.boats){
+    if(!b || !b.rotation) continue;
     b.rotation.z = Math.sin(t*1.2)*0.04;
     b.position.y = -0.05 + Math.sin(t*1.2)*0.02;
   }
@@ -8778,6 +8780,7 @@ function animate(){
   }
   // bobbing gimmicks (chests, orbs, fishing bobbers)
   for(const b of ENTITIES.bobs){
+    if(!b || !b.userData || typeof b.userData.baseY !== 'number') continue;
     b.position.y = b.userData.baseY + Math.sin(t*1.6 + (b.userData.phase||0))*0.08;
   }
   // Butterflies — looping flight + wing flap
