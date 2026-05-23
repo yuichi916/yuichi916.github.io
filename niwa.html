@@ -2815,23 +2815,22 @@ function addMixer(mixer){
 const BLENDER_CACHE = {};
 const BLENDER_NAMES = [
   // KB3D Enchanted — the sole asset base (procedural primitives removed per user direction).
-  // Each scene is a *populated diorama* with 15-21 ENC objects: hero building +
-  // 1-2 sibling buildings + ground tier(s) + 4-8 props + 3-5 lampposts/lanterns
-  // + 2-4 NPCs + scene-tuned particles. ~174 ENC placements across all 10 scenes.
-  // All hosted on pCloud Public Folder; fetched lazy per-scene. See PCLOUD_PUBLINK above.
-  // Ground tiers (anchors so buildings never float):
-  'enc_townsquare_ground', 'enc_townsquare_floor', 'enc_herbalist_ground', 'enc_townsquare_upper',
-  // Hero / sibling buildings:
-  'enc_clocktower_b', 'enc_church_a', 'enc_church_spire', 'enc_bookstore',
-  'enc_antiquarian', 'enc_inn', 'enc_pub', 'enc_bank', 'enc_herbalist',
-  'enc_candlemaker', 'enc_vendor_b',
-  // Lighting (warm/cool lamppost variants):
-  'enc_lamppost_a', 'enc_lamppost_c', 'enc_lantern',
-  // Accent props (fire / mystery / signage):
-  'enc_brazier', 'enc_sigil', 'enc_sword_in_stone', 'enc_armor_chest',
-  'enc_sign_a', 'enc_sign_b',
-  // Soft greenery + rest:
-  'enc_planter_a', 'enc_planter_b', 'enc_hangingpot', 'enc_bench', 'enc_bookshelf',
+  // v615: each scene uses ONE prefab GLB (33-64 meshes, ~110-167 MB) extracted by
+  // _blender/enc_extract_prefabs.py from the Enchanted .blend.  Buildings +
+  // grounds + cobblestones + lamps + carts + barrels + props are baked into
+  // the prefab with their ORIGINAL Blender world positions, so the scene
+  // reproduces KB3D's intended scale/layout/slopes exactly. On top of the
+  // prefab each scene adds 2-3 "story accent" props + 2-4 chibi NPCs +
+  // scene-tuned particles. All hosted on pCloud Public Folder, lazy-fetched.
+  // Prefab GLBs (one per scene — the full diorama):
+  'enc_prefab_plaza', 'enc_prefab_monlight', 'enc_prefab_oto',
+  'enc_prefab_tabi', 'enc_prefab_toki', 'enc_prefab_hoshi',
+  'enc_prefab_takibi', 'enc_prefab_mizube', 'enc_prefab_amaoto',
+  'enc_prefab_heya',
+  // Story accent props (sword / sigil / brazier / lantern / hangingpot /
+  // armor_chest / bookshelf) — placed in front of the prefab footprint:
+  'enc_sword_in_stone', 'enc_sigil', 'enc_brazier', 'enc_lantern',
+  'enc_hangingpot', 'enc_armor_chest', 'enc_bookshelf',
 ];
 const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
 const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow', 'chibi_monk', 'chibi_woman', 'chibi_child'];
@@ -4820,13 +4819,13 @@ function sampleHeight(x, z){
 
 // 1. 入口の井戸
 SCENES.plaza = {
-  num: '00', kind: 'outdoor',
+  num: '00', kind: 'prefab',
   title: 'Cloudfall Village (雲落ちの村)', en: 'Cloudfall Village',
-  concept: '霧の上に石畳の中央広場。時計塔・銀行・宿・酒場・行商の天幕、剣・紋章・かがり火を配した入口の村。',
+  concept: 'KB3D Enchanted LowerTownSquare プレハブを原寸忠実に配置。建物・地面・道・小物すべて元のレイアウト。剣・紋章・かがり火が物語の入口を彩る。',
   sun: [44, -22], turbidity: 2.5, rayleigh: 1.1,
   fogColor: '#b0c4d0', fogNear: 30, fogFar: 90, exposure: 1.0,
-  avatarStart: [0, 8.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_townsquare_floor', 'enc_clocktower_b', 'enc_pub', 'enc_inn', 'enc_bank', 'enc_vendor_b', 'enc_sword_in_stone', 'enc_sigil', 'enc_brazier', 'enc_lamppost_a', 'enc_lamppost_c', 'enc_sign_a', 'enc_sign_b', 'enc_planter_a', 'enc_planter_b', 'enc_bench'],
+  avatarStart: [0, 12.0],
+  preloadAssets: ['enc_prefab_plaza', 'enc_sword_in_stone', 'enc_sigil', 'enc_brazier'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -4839,27 +4838,14 @@ SCENES.plaza = {
       return m;
     }
 
-    placeENC('enc_townsquare_ground', 0, 0, 0, 1.8, 0);
-    placeENC('enc_townsquare_floor', 0, 0.06, -3, 1.0, 0);
-    placeENC('enc_clocktower_b', 0, 0.08, -5, 0.95, 0);
-    placeENC('enc_pub', 11, 0.08, -3, 0.85, -30);
-    placeENC('enc_inn', -11, 0.08, -3, 0.85, 30);
-    placeENC('enc_bank', 8, 0.08, -11, 0.8, 20);
-    placeENC('enc_vendor_b', -6, 0.08, 6, 0.75, 150);
-    placeENC('enc_sword_in_stone', 2.5, 0.08, 3, 0.85, 0);
-    placeENC('enc_sigil', -3.5, 0.08, 3, 0.8, 0);
-    placeENC('enc_brazier', 5, 0.08, 4, 0.85, 0);
-    placeENC('enc_lamppost_a', 7.5, 0.08, 5.5, 0.85, 0);
-    placeENC('enc_lamppost_a', -7.5, 0.08, 5.5, 0.85, 0);
-    placeENC('enc_lamppost_c', 8, 0.08, -7, 0.75, 0);
-    placeENC('enc_lamppost_c', -8, 0.08, -7, 0.75, 0);
-    placeENC('enc_sign_a', 4, 0.08, 7, 0.85, 10);
-    placeENC('enc_sign_b', -4, 0.08, 7, 0.85, -10);
-    placeENC('enc_planter_a', 6, 0.08, 8, 0.85, 0);
-    placeENC('enc_planter_a', -6, 0.08, 8, 0.85, 0);
-    placeENC('enc_planter_b', 3, 0.08, -7, 0.85, 0);
-    placeENC('enc_bench', 9, 0.08, 6, 0.85, 90);
-    placeENC('enc_bench', -9, 0.08, 6, 0.85, -90);
+    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
+    // baked from the original KB3D Enchanted Blender world positions.
+    placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
+
+    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
+    placeENC('enc_sword_in_stone', 4.5, 0.05, 9.0, 0.9, 0);
+    placeENC('enc_sigil', -4.5, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_brazier', 0.0, 0.05, 10.5, 0.9, 0);
 
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
@@ -4868,10 +4854,10 @@ SCENES.plaza = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xb83838, 0x1a1410], [[3, 4], [-3, -2]], 0.5);
-    placeNpc([0x3858a8, 0x1a1410], [[-4, 3], [4, -3]], 0.45);
-    placeNpc([0x4a6a30, 0x1a1410], [[0, 8], [0, 1]], 0.4);
-    placeNpc([0xc89030, 0x1a1410], [[6, 7], [-6, 7]], 0.35);
+    placeNpc([0xb83838, 0x1a1410], [[5, 7], [-5, 3]], 0.5);
+    placeNpc([0x3858a8, 0x1a1410], [[-6, 5], [6, -3]], 0.45);
+    placeNpc([0x4a6a30, 0x1a1410], [[0, 9], [0, 1]], 0.4);
+    placeNpc([0xc89030, 0x1a1410], [[7, 8], [-7, 8]], 0.35);
 
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('petal', 100, { range: 30, yMax: 14, yMin: 0, fallSpeed: 0.4, swayAmp: 0.4, swayFreq: 1.2 });
@@ -4881,11 +4867,12 @@ SCENES.plaza = {
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
-    accent.position.set(0, 5, 4);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 22);
+    accent.position.set(0, 5, 8);
     root.add(accent);
   }
 };
+
 
 
 
@@ -4898,13 +4885,13 @@ SCENES.plaza = {
 
 // 2. 月光の書架
 SCENES.monlight = {
-  num: '00', kind: 'outdoor',
+  num: '00', kind: 'prefab',
   title: '月光の書架', en: 'The Moonlit Stacks',
-  concept: '月光が降る本屋街区。古書店と骨董屋が並び、屋外の書棚と灯籠が静かに照らす。',
+  concept: 'KB3D Enchanted の古書店プレハブ。月光の下、屋外の書棚と灯籠の余韻。',
   sun: [12, 35], turbidity: 6, rayleigh: 3.5,
   fogColor: '#3a4a68', fogNear: 18, fogFar: 55, exposure: 0.85,
-  avatarStart: [0, 8.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_townsquare_floor', 'enc_bookstore', 'enc_antiquarian', 'enc_bookshelf', 'enc_lamppost_c', 'enc_lantern', 'enc_hangingpot', 'enc_sign_a', 'enc_planter_a', 'enc_bench'],
+  avatarStart: [0, 12.0],
+  preloadAssets: ['enc_prefab_monlight', 'enc_lantern', 'enc_bookshelf'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -4917,24 +4904,14 @@ SCENES.monlight = {
       return m;
     }
 
-    placeENC('enc_townsquare_ground', 0, 0, 0, 1.5, 0);
-    placeENC('enc_townsquare_floor', 0, 0.06, -2, 0.9, 0);
-    placeENC('enc_bookstore', 0, 0.08, -5, 0.95, 0);
-    placeENC('enc_antiquarian', 10, 0.08, -4, 0.85, -25);
-    placeENC('enc_bookshelf', -5, 0.08, 4, 0.85, 20);
-    placeENC('enc_bookshelf', 5, 0.08, 4, 0.85, -20);
-    placeENC('enc_lamppost_c', 7, 0.08, 5, 0.85, 0);
-    placeENC('enc_lamppost_c', -7, 0.08, 5, 0.85, 0);
-    placeENC('enc_lamppost_c', 9, 0.08, -5, 0.85, 0);
-    placeENC('enc_lantern', 3, 0.08, 6, 0.85, 0);
-    placeENC('enc_lantern', -3, 0.08, 6, 0.85, 0);
-    placeENC('enc_hangingpot', 2.5, 0.08, -1.5, 0.75, 0);
-    placeENC('enc_hangingpot', -2.5, 0.08, -1.5, 0.75, 0);
-    placeENC('enc_sign_a', 4, 0.08, 3, 0.85, 5);
-    placeENC('enc_planter_a', 5, 0.08, 7, 0.85, 0);
-    placeENC('enc_planter_a', -5, 0.08, 7, 0.85, 0);
-    placeENC('enc_bench', 8, 0.08, 7, 0.85, 90);
-    placeENC('enc_bench', -8, 0.08, 7, 0.85, -90);
+    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
+    // baked from the original KB3D Enchanted Blender world positions.
+    placeENC('enc_prefab_monlight', 0, 0, 0, 1.0, 0);
+
+    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
+    placeENC('enc_lantern', 6.0, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_lantern', -6.0, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_bookshelf', 0.0, 0.05, 11.0, 0.85, 0);
 
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
@@ -4943,9 +4920,9 @@ SCENES.monlight = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0x3a3a78, 0x1a1410], [[2, 5], [-2, 1]], 0.3);
-    placeNpc([0x68487a, 0x1a1410], [[-4, 4], [4, 0]], 0.35);
-    placeNpc([0x4a4a5a, 0x1a1410], [[0, 7], [0, 2]], 0.3);
+    placeNpc([0x3a3a78, 0x1a1410], [[3, 6], [-3, 2]], 0.3);
+    placeNpc([0x68487a, 0x1a1410], [[-5, 5], [5, 1]], 0.35);
+    placeNpc([0x4a4a5a, 0x1a1410], [[0, 8], [0, 2]], 0.3);
 
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('star', 120, { range: 32, yMax: 22, yMin: 8, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
@@ -4955,8 +4932,8 @@ SCENES.monlight = {
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
-    accent.position.set(0, 5, 4);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 22);
+    accent.position.set(0, 5, 8);
     root.add(accent);
   }
 };
@@ -4964,15 +4941,16 @@ SCENES.monlight = {
 
 
 
+
 // 3. 音の祠
 SCENES.oto = {
-  num: '00', kind: 'outdoor',
+  num: '00', kind: 'prefab',
   title: '音の小川', en: 'Stream Garden',
-  concept: '薬草工房の脇を流れる小川。吊り鉢の緑と灯籠の灯が水音と共に揺れる。',
+  concept: 'KB3D Enchanted の水車屋プレハブ。流れる水音と苔むした小川辺の工房。',
   sun: [30, 60], turbidity: 4, rayleigh: 2.5,
   fogColor: '#a8c4c8', fogNear: 20, fogFar: 60, exposure: 0.95,
-  avatarStart: [0, 8.0],
-  preloadAssets: ['enc_herbalist_ground', 'enc_townsquare_ground', 'enc_herbalist', 'enc_inn', 'enc_hangingpot', 'enc_lantern', 'enc_bench', 'enc_planter_b', 'enc_sign_b', 'enc_brazier'],
+  avatarStart: [0, 12.0],
+  preloadAssets: ['enc_prefab_oto', 'enc_hangingpot', 'enc_lantern'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -4985,23 +4963,13 @@ SCENES.oto = {
       return m;
     }
 
-    placeENC('enc_herbalist_ground', 0, 0, 0, 1.6, 0);
-    placeENC('enc_townsquare_ground', -10, -0.02, 6, 1.0, 0);
-    placeENC('enc_herbalist', -2, 0.08, -5, 0.95, 20);
-    placeENC('enc_inn', 10, 0.08, -3, 0.75, -30);
-    placeENC('enc_hangingpot', -4, 0.08, -1.5, 0.85, 0);
-    placeENC('enc_hangingpot', 0, 0.08, -1.5, 0.85, 0);
-    placeENC('enc_hangingpot', 4, 0.08, -1.5, 0.85, 0);
-    placeENC('enc_lantern', 5, 0.08, 2, 0.85, 0);
-    placeENC('enc_lantern', -5, 0.08, 2, 0.85, 0);
-    placeENC('enc_lantern', 7, 0.08, 6, 0.85, 0);
-    placeENC('enc_lantern', -7, 0.08, 6, 0.85, 0);
-    placeENC('enc_bench', 7, 0.08, 4, 0.85, 90);
-    placeENC('enc_bench', -7, 0.08, 4, 0.85, -90);
-    placeENC('enc_planter_b', 3, 0.08, 6, 0.85, 0);
-    placeENC('enc_planter_b', -3, 0.08, 6, 0.85, 0);
-    placeENC('enc_sign_b', 6, 0.08, 8, 0.85, 10);
-    placeENC('enc_brazier', 0, 0.08, 7, 0.85, 0);
+    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
+    // baked from the original KB3D Enchanted Blender world positions.
+    placeENC('enc_prefab_oto', 0, 0, 0, 1.0, 0);
+
+    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
+    placeENC('enc_hangingpot', -4.5, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_lantern', 4.5, 0.05, 9.0, 0.85, 0);
 
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
@@ -5010,9 +4978,9 @@ SCENES.oto = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0x4a6a30, 0x1a1410], [[3, 5], [-3, 1]], 0.4);
-    placeNpc([0x7a8a4a, 0x1a1410], [[-5, 5], [5, 1]], 0.38);
-    placeNpc([0x68a878, 0x1a1410], [[0, 7], [0, 2]], 0.35);
+    placeNpc([0x4a6a30, 0x1a1410], [[4, 6], [-4, 2]], 0.4);
+    placeNpc([0x7a8a4a, 0x1a1410], [[-5, 6], [5, 1]], 0.38);
+    placeNpc([0x68a878, 0x1a1410], [[0, 8], [0, 2]], 0.35);
 
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('leaf', 80, { range: 28, yMax: 12, yMin: 0, fallSpeed: 0.35, swayAmp: 0.55, swayFreq: 0.8 });
@@ -5022,8 +4990,8 @@ SCENES.oto = {
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
-    accent.position.set(0, 5, 4);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 22);
+    accent.position.set(0, 5, 8);
     root.add(accent);
   }
 };
@@ -5031,15 +4999,16 @@ SCENES.oto = {
 
 
 
+
 // 4. ひとり旅の道 (湖)
 SCENES.tabi = {
-  num: '00', kind: 'outdoor',
+  num: '00', kind: 'prefab',
   title: '旅の岸辺', en: "Traveler's Inn",
-  concept: '湖畔の旅人宿。隣の酒場と行商の天幕、煌々と灯る街灯、かがり火が旅人を迎える。',
+  concept: 'KB3D Enchanted の旅人宿プレハブ。煌々と灯る客室、中庭のかがり火、隣の酒場。',
   sun: [38, 25], turbidity: 3, rayleigh: 2.0,
   fogColor: '#c0bca0', fogNear: 22, fogFar: 70, exposure: 1.0,
-  avatarStart: [0, 8.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_townsquare_floor', 'enc_inn', 'enc_pub', 'enc_vendor_b', 'enc_lamppost_a', 'enc_brazier', 'enc_lantern', 'enc_sign_a', 'enc_sign_b', 'enc_bench', 'enc_planter_a', 'enc_planter_b'],
+  avatarStart: [0, 12.0],
+  preloadAssets: ['enc_prefab_tabi', 'enc_brazier', 'enc_lantern'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5052,23 +5021,14 @@ SCENES.tabi = {
       return m;
     }
 
-    placeENC('enc_townsquare_ground', 0, 0, 0, 1.7, 0);
-    placeENC('enc_townsquare_floor', 0, 0.06, -3, 1.0, 0);
-    placeENC('enc_inn', 0, 0.08, -5, 0.95, 0);
-    placeENC('enc_pub', 11, 0.08, -3, 0.85, -25);
-    placeENC('enc_vendor_b', -8, 0.08, 2, 0.8, 140);
-    placeENC('enc_lamppost_a', 7, 0.08, 5, 0.85, 0);
-    placeENC('enc_lamppost_a', -7, 0.08, 5, 0.85, 0);
-    placeENC('enc_lamppost_a', 9, 0.08, -8, 0.85, 0);
-    placeENC('enc_brazier', 3, 0.08, 3, 0.85, 0);
-    placeENC('enc_lantern', -3, 0.08, 3, 0.85, 0);
-    placeENC('enc_sign_a', 4, 0.08, 7, 0.85, 10);
-    placeENC('enc_sign_b', -4, 0.08, 7, 0.85, -10);
-    placeENC('enc_bench', 8, 0.08, 6, 0.85, 90);
-    placeENC('enc_bench', -8, 0.08, 6, 0.85, -90);
-    placeENC('enc_planter_a', 5, 0.08, 8, 0.85, 0);
-    placeENC('enc_planter_a', -5, 0.08, 8, 0.85, 0);
-    placeENC('enc_planter_b', 0, 0.08, 8, 0.85, 0);
+    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
+    // baked from the original KB3D Enchanted Blender world positions.
+    placeENC('enc_prefab_tabi', 0, 0, 0, 1.0, 0);
+
+    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
+    placeENC('enc_brazier', 0.0, 0.05, 10.5, 0.9, 0);
+    placeENC('enc_lantern', 5.0, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_lantern', -5.0, 0.05, 9.0, 0.85, 0);
 
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
@@ -5077,10 +5037,10 @@ SCENES.tabi = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xc88040, 0x1a1410], [[3, 5], [-3, -1]], 0.45);
-    placeNpc([0x884a2a, 0x1a1410], [[-4, 4], [4, 0]], 0.42);
-    placeNpc([0xa86848, 0x1a1410], [[6, 7], [-6, 7]], 0.38);
-    placeNpc([0xd8a878, 0x1a1410], [[0, 8], [0, 1]], 0.4);
+    placeNpc([0xc88040, 0x1a1410], [[4, 6], [-4, 0]], 0.45);
+    placeNpc([0x884a2a, 0x1a1410], [[-5, 5], [5, 1]], 0.42);
+    placeNpc([0xa86848, 0x1a1410], [[6, 8], [-6, 8]], 0.38);
+    placeNpc([0xd8a878, 0x1a1410], [[0, 9], [0, 1]], 0.4);
 
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('petal', 90, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.4, swayAmp: 0.4, swayFreq: 1.2 });
@@ -5090,8 +5050,8 @@ SCENES.tabi = {
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
-    accent.position.set(0, 5, 4);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 22);
+    accent.position.set(0, 5, 8);
     root.add(accent);
   }
 };
@@ -5099,15 +5059,16 @@ SCENES.tabi = {
 
 
 
+
 // 5. 時の砂時計
 SCENES.toki = {
-  num: '00', kind: 'outdoor',
+  num: '00', kind: 'prefab',
   title: '時の砂時計', en: 'Hourglass Hill',
-  concept: '雲海の上の時計塔と教会の尖塔。段丘状の上層広場に紋章が二つ、時の番人。',
+  concept: 'KB3D Enchanted の時計塔プレハブ。雲海の上、双子の紋章が時を見守る。',
   sun: [55, -25], turbidity: 3.5, rayleigh: 1.8,
   fogColor: '#a0c4ce', fogNear: 40, fogFar: 120, exposure: 1.0,
-  avatarStart: [0, 8.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_townsquare_upper', 'enc_clocktower_b', 'enc_church_spire', 'enc_sigil', 'enc_lamppost_c', 'enc_sign_a', 'enc_bench', 'enc_planter_b'],
+  avatarStart: [0, 12.0],
+  preloadAssets: ['enc_prefab_toki', 'enc_sigil'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5120,21 +5081,13 @@ SCENES.toki = {
       return m;
     }
 
-    placeENC('enc_townsquare_ground', 0, 0, 0, 1.6, 0);
-    placeENC('enc_townsquare_upper', 0, 0.1, -3, 0.9, 0);
-    placeENC('enc_clocktower_b', -3, 0.18, -6, 0.95, 90);
-    placeENC('enc_church_spire', 5, 0.18, -7, 0.85, -45);
-    placeENC('enc_sigil', -6, 0.18, 2, 0.85, 0);
-    placeENC('enc_sigil', 6, 0.18, 2, 0.85, 0);
-    placeENC('enc_lamppost_c', 8, 0.18, 6, 0.85, 0);
-    placeENC('enc_lamppost_c', -8, 0.18, 6, 0.85, 0);
-    placeENC('enc_lamppost_c', 8, 0.18, -8, 0.85, 0);
-    placeENC('enc_lamppost_c', -8, 0.18, -8, 0.85, 0);
-    placeENC('enc_sign_a', 0, 0.18, 6, 0.85, 0);
-    placeENC('enc_bench', 4, 0.18, 7, 0.85, 90);
-    placeENC('enc_bench', -4, 0.18, 7, 0.85, -90);
-    placeENC('enc_planter_b', 3, 0.18, 4, 0.85, 0);
-    placeENC('enc_planter_b', -3, 0.18, 4, 0.85, 0);
+    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
+    // baked from the original KB3D Enchanted Blender world positions.
+    placeENC('enc_prefab_toki', 0, 0, 0, 1.0, 0);
+
+    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
+    placeENC('enc_sigil', -7.0, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_sigil', 7.0, 0.05, 9.0, 0.85, 0);
 
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
@@ -5143,8 +5096,8 @@ SCENES.toki = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0x4a4a6a, 0x1a1410], [[2, 4], [-2, 0]], 0.32);
-    placeNpc([0x6a4a8a, 0x1a1410], [[-3, 3], [3, -1]], 0.35);
+    placeNpc([0x4a4a6a, 0x1a1410], [[3, 5], [-3, 1]], 0.32);
+    placeNpc([0x6a4a8a, 0x1a1410], [[-4, 4], [4, 0]], 0.35);
 
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('mist', 150, { range: 34, yMax: 8, yMin: 0, fallSpeed: 0.12, swayAmp: 0.6, swayFreq: 0.4 });
@@ -5154,8 +5107,8 @@ SCENES.toki = {
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
-    accent.position.set(0, 5, 4);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 22);
+    accent.position.set(0, 5, 8);
     root.add(accent);
   }
 };
@@ -5163,15 +5116,16 @@ SCENES.toki = {
 
 
 
+
 // 6. 星見台
 SCENES.hoshi = {
-  num: '00', kind: 'outdoor',
+  num: '00', kind: 'prefab',
   title: "Stargazer's Hill", en: "Stargazer's Hill",
-  concept: '骨董屋と古書店の丘。剣と紋章、宝箱と書棚が並び、星灯りの灯籠が囲む。',
+  concept: 'KB3D Enchanted の骨董屋プレハブ。剣・紋章・宝箱と古い書物、星灯りに照らされる丘。',
   sun: [-8, 70], turbidity: 8, rayleigh: 3.0,
   fogColor: '#1a2a3a', fogNear: 20, fogFar: 60, exposure: 0.7,
-  avatarStart: [0, 8.0],
-  preloadAssets: ['enc_herbalist_ground', 'enc_townsquare_ground', 'enc_antiquarian', 'enc_bookstore', 'enc_sword_in_stone', 'enc_sigil', 'enc_armor_chest', 'enc_bookshelf', 'enc_lantern', 'enc_bench', 'enc_planter_a', 'enc_sign_b'],
+  avatarStart: [0, 12.0],
+  preloadAssets: ['enc_prefab_hoshi', 'enc_sword_in_stone', 'enc_sigil', 'enc_armor_chest'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5184,22 +5138,14 @@ SCENES.hoshi = {
       return m;
     }
 
-    placeENC('enc_herbalist_ground', 0, 0, 0, 1.5, 0);
-    placeENC('enc_townsquare_ground', 0, -0.04, -8, 1.1, 0);
-    placeENC('enc_antiquarian', 0, 0.08, -5, 0.95, 0);
-    placeENC('enc_bookstore', 11, 0.08, -3, 0.8, -25);
-    placeENC('enc_sword_in_stone', -3, 0.08, 3, 0.85, 0);
-    placeENC('enc_sigil', 3, 0.08, 3, 0.85, 0);
-    placeENC('enc_armor_chest', -7, 0.08, 0, 0.85, 30);
-    placeENC('enc_bookshelf', 7, 0.08, 0, 0.85, -30);
-    placeENC('enc_lantern', 6, 0.08, 6, 0.85, 0);
-    placeENC('enc_lantern', -6, 0.08, 6, 0.85, 0);
-    placeENC('enc_lantern', 8, 0.08, -7, 0.85, 0);
-    placeENC('enc_lantern', -8, 0.08, -7, 0.85, 0);
-    placeENC('enc_bench', 9, 0.08, 5, 0.85, 90);
-    placeENC('enc_bench', -9, 0.08, 5, 0.85, -90);
-    placeENC('enc_planter_a', 4, 0.08, 7, 0.85, 0);
-    placeENC('enc_sign_b', -4, 0.08, 7, 0.85, -10);
+    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
+    // baked from the original KB3D Enchanted Blender world positions.
+    placeENC('enc_prefab_hoshi', 0, 0, 0, 1.0, 0);
+
+    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
+    placeENC('enc_sword_in_stone', -5.0, 0.05, 9.0, 0.9, 0);
+    placeENC('enc_sigil', 5.0, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_armor_chest', 0.0, 0.05, 10.5, 0.85, 30);
 
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
@@ -5208,9 +5154,9 @@ SCENES.hoshi = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0x2a2a5a, 0x1a1410], [[2, 5], [-2, 1]], 0.3);
-    placeNpc([0x4a3a78, 0x1a1410], [[-4, 4], [4, 0]], 0.32);
-    placeNpc([0x6a6a8a, 0x1a1410], [[0, 7], [0, 2]], 0.28);
+    placeNpc([0x2a2a5a, 0x1a1410], [[3, 6], [-3, 2]], 0.3);
+    placeNpc([0x4a3a78, 0x1a1410], [[-5, 5], [5, 1]], 0.32);
+    placeNpc([0x6a6a8a, 0x1a1410], [[0, 8], [0, 2]], 0.28);
 
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('star', 130, { range: 32, yMax: 22, yMin: 8, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
@@ -5220,8 +5166,8 @@ SCENES.hoshi = {
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
-    accent.position.set(0, 5, 4);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 22);
+    accent.position.set(0, 5, 8);
     root.add(accent);
   }
 };
@@ -5229,15 +5175,16 @@ SCENES.hoshi = {
 
 
 
+
 // 7. 焚き火の前
 SCENES.takibi = {
-  num: '00', kind: 'outdoor',
+  num: '00', kind: 'prefab',
   title: '焚き火の前', en: 'By the Candle',
-  concept: 'ろうそく屋と酒場、三つのかがり火と灯籠の暖色。冷えた夜の集いの場。',
+  concept: 'KB3D Enchanted のろうそく屋プレハブ。窓越しの暖色、三つのかがり火と灯籠の集いの場。',
   sun: [8, -90], turbidity: 6, rayleigh: 2.5,
   fogColor: '#3a2828', fogNear: 18, fogFar: 55, exposure: 0.85,
-  avatarStart: [0, 8.0],
-  preloadAssets: ['enc_townsquare_ground', 'enc_townsquare_floor', 'enc_candlemaker', 'enc_pub', 'enc_brazier', 'enc_lantern', 'enc_lamppost_a', 'enc_bench', 'enc_planter_a', 'enc_sign_b'],
+  avatarStart: [0, 12.0],
+  preloadAssets: ['enc_prefab_takibi', 'enc_brazier', 'enc_lantern'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5250,24 +5197,14 @@ SCENES.takibi = {
       return m;
     }
 
-    placeENC('enc_townsquare_ground', 0, 0, 0, 1.7, 0);
-    placeENC('enc_townsquare_floor', 0, 0.06, -3, 1.0, 0);
-    placeENC('enc_candlemaker', 0, 0.08, -5, 0.95, 15);
-    placeENC('enc_pub', 11, 0.08, -3, 0.85, -25);
-    placeENC('enc_brazier', 3, 0.08, 2, 0.85, 0);
-    placeENC('enc_brazier', -3, 0.08, 2, 0.85, 0);
-    placeENC('enc_brazier', 0, 0.08, 5, 0.85, 0);
-    placeENC('enc_lantern', 6, 0.08, 3, 0.85, 0);
-    placeENC('enc_lantern', -6, 0.08, 3, 0.85, 0);
-    placeENC('enc_lantern', 8, 0.08, 6, 0.85, 0);
-    placeENC('enc_lantern', -8, 0.08, 6, 0.85, 0);
-    placeENC('enc_lamppost_a', 7, 0.08, -7, 0.85, 0);
-    placeENC('enc_lamppost_a', -7, 0.08, -7, 0.85, 0);
-    placeENC('enc_bench', 5, 0.08, 4, 0.85, -135);
-    placeENC('enc_bench', -5, 0.08, 4, 0.85, 135);
-    placeENC('enc_planter_a', 4, 0.08, 8, 0.85, 0);
-    placeENC('enc_planter_a', -4, 0.08, 8, 0.85, 0);
-    placeENC('enc_sign_b', 0, 0.08, 8, 0.85, 0);
+    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
+    // baked from the original KB3D Enchanted Blender world positions.
+    placeENC('enc_prefab_takibi', 0, 0, 0, 1.0, 0);
+
+    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
+    placeENC('enc_brazier', 3.0, 0.05, 9.0, 0.9, 0);
+    placeENC('enc_brazier', -3.0, 0.05, 9.0, 0.9, 0);
+    placeENC('enc_lantern', 0.0, 0.05, 11.0, 0.85, 0);
 
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
@@ -5276,9 +5213,9 @@ SCENES.takibi = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0xc84030, 0x1a1410], [[2, 3], [-2, 3]], 0.3);
-    placeNpc([0xa83020, 0x1a1410], [[4, 5], [-4, 5]], 0.32);
-    placeNpc([0xe87840, 0x1a1410], [[0, 7], [0, 2]], 0.3);
+    placeNpc([0xc84030, 0x1a1410], [[3, 5], [-3, 4]], 0.3);
+    placeNpc([0xa83020, 0x1a1410], [[5, 6], [-5, 6]], 0.32);
+    placeNpc([0xe87840, 0x1a1410], [[0, 8], [0, 2]], 0.3);
 
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('ember', 90, { range: 18, yMax: 8, yMin: 0, fallSpeed: -0.45, swayAmp: 0.25, swayFreq: 1.5 });
@@ -5288,8 +5225,8 @@ SCENES.takibi = {
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
-    accent.position.set(0, 5, 4);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 22);
+    accent.position.set(0, 5, 8);
     root.add(accent);
   }
 };
@@ -5297,15 +5234,16 @@ SCENES.takibi = {
 
 
 
+
 // 8. 水辺の岸
 SCENES.mizube = {
-  num: '00', kind: 'outdoor',
+  num: '00', kind: 'prefab',
   title: '水辺の岸', en: 'By the Weaver',
-  concept: '水辺の織機工房。鏡像のように対岸に小さな書店、水面に映る吊り鉢と灯籠。',
+  concept: 'KB3D Enchanted の機織り屋プレハブ。水辺の小さな工房と織りかけの布、吊り鉢の緑。',
   sun: [22, 110], turbidity: 5, rayleigh: 2.5,
   fogColor: '#cfe6ee', fogNear: 28, fogFar: 80, exposure: 0.95,
-  avatarStart: [0, 8.0],
-  preloadAssets: ['enc_herbalist_ground', 'enc_townsquare_ground', 'enc_herbalist', 'enc_bookstore', 'enc_hangingpot', 'enc_lantern', 'enc_bench', 'enc_planter_b', 'enc_sign_a'],
+  avatarStart: [0, 12.0],
+  preloadAssets: ['enc_prefab_mizube', 'enc_hangingpot'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5318,22 +5256,13 @@ SCENES.mizube = {
       return m;
     }
 
-    placeENC('enc_herbalist_ground', 0, 0, 0, 1.5, 0);
-    placeENC('enc_townsquare_ground', 0, -0.04, 7, 1.1, 0);
-    placeENC('enc_herbalist', -2, 0.08, -5, 0.95, -20);
-    placeENC('enc_bookstore', 10, 0.08, -3, 0.75, 25);
-    placeENC('enc_hangingpot', -4, 0.08, -1.5, 0.85, 0);
-    placeENC('enc_hangingpot', 0, 0.08, -1.5, 0.85, 0);
-    placeENC('enc_hangingpot', 4, 0.08, -1.5, 0.85, 0);
-    placeENC('enc_hangingpot', 2, 0.08, 4, 0.85, 0);
-    placeENC('enc_lantern', 6, 0.08, 6, 0.85, 0);
-    placeENC('enc_lantern', -6, 0.08, 6, 0.85, 0);
-    placeENC('enc_lantern', 0, 0.08, 9, 0.85, 0);
-    placeENC('enc_bench', 7, 0.08, 8, 0.85, 90);
-    placeENC('enc_bench', -7, 0.08, 8, 0.85, -90);
-    placeENC('enc_planter_b', 3, 0.08, 7, 0.85, 0);
-    placeENC('enc_planter_b', -3, 0.08, 7, 0.85, 0);
-    placeENC('enc_sign_a', 4, 0.08, 9, 0.85, 10);
+    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
+    // baked from the original KB3D Enchanted Blender world positions.
+    placeENC('enc_prefab_mizube', 0, 0, 0, 1.0, 0);
+
+    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
+    placeENC('enc_hangingpot', -4.0, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_hangingpot', 4.0, 0.05, 9.0, 0.85, 0);
 
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
@@ -5342,9 +5271,9 @@ SCENES.mizube = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0x4a78a8, 0x1a1410], [[3, 6], [-3, 2]], 0.38);
-    placeNpc([0x78a8c8, 0x1a1410], [[-4, 5], [4, 1]], 0.4);
-    placeNpc([0xa8c8d8, 0x1a1410], [[0, 8], [0, 3]], 0.36);
+    placeNpc([0x4a78a8, 0x1a1410], [[4, 7], [-4, 3]], 0.38);
+    placeNpc([0x78a8c8, 0x1a1410], [[-5, 6], [5, 1]], 0.4);
+    placeNpc([0xa8c8d8, 0x1a1410], [[0, 9], [0, 3]], 0.36);
 
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('petal', 80, { range: 28, yMax: 12, yMin: 0, fallSpeed: 0.32, swayAmp: 0.5, swayFreq: 1.0 });
@@ -5354,8 +5283,8 @@ SCENES.mizube = {
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
-    accent.position.set(0, 5, 4);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 22);
+    accent.position.set(0, 5, 8);
     root.add(accent);
   }
 };
@@ -5363,15 +5292,16 @@ SCENES.mizube = {
 
 
 
+
 // 9. 雨音の部屋
 SCENES.amaoto = {
-  num: '00', kind: 'outdoor',
+  num: '00', kind: 'prefab',
   title: '雨音の部屋', en: 'Rain Chapel',
-  concept: '石畳の前庭の教会と尖塔。庇下のかがり火と灯籠、紋章が雨音を受け止める。',
+  concept: 'KB3D Enchanted の教会プレハブ。雨音と石壁、ステンドグラスの灯り、紋章とかがり火が支える祭壇。',
   sun: [10, 100], turbidity: 8, rayleigh: 3.0,
   fogColor: '#7a8a9c', fogNear: 22, fogFar: 60, exposure: 0.85,
-  avatarStart: [0, 8.0],
-  preloadAssets: ['enc_townsquare_floor', 'enc_townsquare_ground', 'enc_church_a', 'enc_church_spire', 'enc_sigil', 'enc_brazier', 'enc_lantern', 'enc_lamppost_c', 'enc_bench', 'enc_planter_a', 'enc_sign_a'],
+  avatarStart: [0, 12.0],
+  preloadAssets: ['enc_prefab_amaoto', 'enc_sigil', 'enc_brazier'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5384,24 +5314,14 @@ SCENES.amaoto = {
       return m;
     }
 
-    placeENC('enc_townsquare_floor', 0, 0, 0, 1.5, 0);
-    placeENC('enc_townsquare_ground', 0, -0.04, -10, 1.2, 0);
-    placeENC('enc_church_a', 0, 0.08, -5, 1.0, 0);
-    placeENC('enc_church_spire', 0, 0.08, -10, 0.85, 0);
-    placeENC('enc_sigil', -4, 0.08, 3, 0.85, 0);
-    placeENC('enc_sigil', 4, 0.08, 3, 0.85, 0);
-    placeENC('enc_brazier', 0, 0.08, 5, 0.85, 0);
-    placeENC('enc_lantern', 5, 0.08, 4, 0.85, 0);
-    placeENC('enc_lantern', -5, 0.08, 4, 0.85, 0);
-    placeENC('enc_lamppost_c', 7, 0.08, 6, 0.85, 0);
-    placeENC('enc_lamppost_c', -7, 0.08, 6, 0.85, 0);
-    placeENC('enc_lamppost_c', 7, 0.08, -8, 0.85, 0);
-    placeENC('enc_lamppost_c', -7, 0.08, -8, 0.85, 0);
-    placeENC('enc_bench', 8, 0.08, 5, 0.85, 90);
-    placeENC('enc_bench', -8, 0.08, 5, 0.85, -90);
-    placeENC('enc_planter_a', 5, 0.08, 8, 0.85, 0);
-    placeENC('enc_planter_a', -5, 0.08, 8, 0.85, 0);
-    placeENC('enc_sign_a', 0, 0.08, 8, 0.85, 0);
+    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
+    // baked from the original KB3D Enchanted Blender world positions.
+    placeENC('enc_prefab_amaoto', 0, 0, 0, 1.0, 0);
+
+    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
+    placeENC('enc_sigil', -4.5, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_sigil', 4.5, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_brazier', 0.0, 0.05, 10.5, 0.9, 0);
 
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
@@ -5410,9 +5330,9 @@ SCENES.amaoto = {
       ENTITIES.npcs.push(n); root.add(n);
       return n;
     }
-    placeNpc([0x5a6a8a, 0x1a1410], [[3, 5], [-3, 1]], 0.32);
-    placeNpc([0x7a8aa8, 0x1a1410], [[-4, 4], [4, 0]], 0.34);
-    placeNpc([0x4a5a78, 0x1a1410], [[0, 7], [0, 2]], 0.3);
+    placeNpc([0x5a6a8a, 0x1a1410], [[4, 6], [-4, 1]], 0.32);
+    placeNpc([0x7a8aa8, 0x1a1410], [[-5, 5], [5, 0]], 0.34);
+    placeNpc([0x4a5a78, 0x1a1410], [[0, 8], [0, 2]], 0.3);
 
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('rain', 260, { range: 24, yMax: 16, yMin: 0, fallSpeed: 1.6, swayAmp: 0.05, swayFreq: 0.2 });
@@ -5422,8 +5342,8 @@ SCENES.amaoto = {
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
-    accent.position.set(0, 5, 4);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 22);
+    accent.position.set(0, 5, 8);
     root.add(accent);
   }
 };
@@ -5431,15 +5351,16 @@ SCENES.amaoto = {
 
 
 
+
 // 10. 部屋 — cozy interior diorama (Garden Inn style)
 SCENES.heya = {
-  num: '00', kind: 'outdoor',
+  num: '00', kind: 'prefab',
   title: '部屋', en: 'The Bakery',
-  concept: '温かなパン屋の前庭。植え込みと吊り鉢、室内灯のような灯籠、暖炉の余熱。',
+  concept: 'KB3D Enchanted のパン屋プレハブ。温かな店内、窓辺の植木鉢、焼きたてのパンの匂い。',
   sun: [40, -30], turbidity: 3, rayleigh: 1.6,
   fogColor: '#e0e8f0', fogNear: 28, fogFar: 70, exposure: 1.05,
-  avatarStart: [0, 8.0],
-  preloadAssets: ['enc_herbalist_ground', 'enc_townsquare_floor', 'enc_bookstore', 'enc_herbalist', 'enc_planter_a', 'enc_planter_b', 'enc_hangingpot', 'enc_lantern', 'enc_brazier', 'enc_bench', 'enc_sign_b'],
+  avatarStart: [0, 12.0],
+  preloadAssets: ['enc_prefab_heya', 'enc_hangingpot'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -5452,24 +5373,13 @@ SCENES.heya = {
       return m;
     }
 
-    placeENC('enc_herbalist_ground', 0, 0, 0, 1.4, 0);
-    placeENC('enc_townsquare_floor', 0, 0.06, -2, 0.9, 0);
-    placeENC('enc_bookstore', 0, 0.08, -4, 0.75, 30);
-    placeENC('enc_herbalist', 10, 0.08, -4, 0.7, -30);
-    placeENC('enc_planter_a', 5, 0.08, 3, 0.85, 0);
-    placeENC('enc_planter_a', -5, 0.08, 3, 0.85, 0);
-    placeENC('enc_planter_b', 3, 0.08, 6, 0.85, 0);
-    placeENC('enc_planter_b', -3, 0.08, 6, 0.85, 0);
-    placeENC('enc_hangingpot', 2, 0.08, -1, 0.85, 0);
-    placeENC('enc_hangingpot', -2, 0.08, -1, 0.85, 0);
-    placeENC('enc_lantern', 6, 0.08, 5, 0.85, 0);
-    placeENC('enc_lantern', -6, 0.08, 5, 0.85, 0);
-    placeENC('enc_lantern', 4, 0.08, 8, 0.85, 0);
-    placeENC('enc_lantern', -4, 0.08, 8, 0.85, 0);
-    placeENC('enc_brazier', 0, 0.08, 3, 0.85, 0);
-    placeENC('enc_bench', 7, 0.08, 7, 0.85, 90);
-    placeENC('enc_bench', -7, 0.08, 7, 0.85, -90);
-    placeENC('enc_sign_b', 0, 0.08, 9, 0.85, 0);
+    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
+    // baked from the original KB3D Enchanted Blender world positions.
+    placeENC('enc_prefab_heya', 0, 0, 0, 1.0, 0);
+
+    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
+    placeENC('enc_hangingpot', -3.5, 0.05, 9.0, 0.85, 0);
+    placeENC('enc_hangingpot', 3.5, 0.05, 9.0, 0.85, 0);
 
     function placeNpc(colors, path, speed){
       const n = makeNpc(colors[0], colors[1]);
@@ -5480,7 +5390,7 @@ SCENES.heya = {
     }
     placeNpc([0xd8a878, 0x1a1410], [[3, 5], [-3, 1]], 0.4);
     placeNpc([0xc89060, 0x1a1410], [[-4, 4], [4, 0]], 0.38);
-    placeNpc([0xe8c89c, 0x1a1410], [[5, 8], [-5, 8]], 0.35);
+    placeNpc([0xe8c89c, 0x1a1410], [[5, 7], [-5, 7]], 0.35);
 
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('petal', 60, { range: 22, yMax: 10, yMin: 0, fallSpeed: 0.28, swayAmp: 0.3, swayFreq: 0.9 });
@@ -5490,11 +5400,12 @@ SCENES.heya = {
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffd8a0, 0.8, 18);
-    accent.position.set(0, 5, 4);
+    const accent = new THREE.PointLight(0xffd8a0, 0.8, 22);
+    accent.position.set(0, 5, 8);
     root.add(accent);
   }
 };
+
 
 
 
