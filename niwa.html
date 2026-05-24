@@ -5220,6 +5220,12 @@ function buildScene(name){
       minX: bb.min.x + 0.4, maxX: bb.max.x - 0.4,
       minZ: bb.min.z + 0.4, maxZ: bb.max.z - 0.4,
     };
+    // v624: rocky underside so the diorama reads as a floating island
+    try {
+      const base = makeFloatingBase(bb);
+      base.userData.isFloatingBase = true;
+      root.add(base);
+    } catch(e){ console.warn('floating base failed:', e.message); }
     // Collect AABBs of TALL prefab meshes — these are walls/buildings.
     // Skip thin floor/cobble/path meshes (y-extent < 1m).
     const _box = new THREE.Box3();
@@ -5247,10 +5253,10 @@ function buildScene(name){
   }
   // v618: drop a door portal in front of the building
   if(typeof addPortalForScene === 'function') addPortalForScene(name);
-  // v620 side-pack accents disabled per user feedback ("prefab外の
-  // オブジェクトは配置しないで。違和感"). Keeping the wiring intact
-  // so it can be re-enabled if we ever blend them back in tastefully.
-  // if(typeof placeSidePackAccents === 'function') placeSidePackAccents(name, root);
+  // v624: re-enabled concept-matched side-pack accents (see SIDE_PACK_ACCENTS).
+  // Coords are inside playableBounds — accents read as part of the diorama,
+  // not floating in the void outside.
+  if(typeof placeSidePackAccents === 'function') placeSidePackAccents(name, root);
   // v621: drop neighbour-bridges at the cardinal edges of the prefab.
   // Walking onto one auto-triggers switchScene to that neighbour.
   if(typeof addBridgesForScene === 'function') addBridgesForScene(name);
@@ -5315,16 +5321,32 @@ function buildScene(name){
   visited.add(name); updateHearts();
 }
 
-// sample height of current scene's ground (called for avatar Y follow)
+// sample height of current scene's ground (called for avatar Y follow).
+// Returns the avatar's CURRENT y as the safe fallback so a missed raycast
+// (scene still loading, transition mid-flight, click outside the prefab
+// footprint) never teleports the avatar to y=0 or into the void.
 const _rayDown = new THREE.Raycaster();
 const _down = new THREE.Vector3(0,-1,0);
 function sampleHeight(x, z){
-  if(!currentScene || !currentScene.root) return 0;
-  const ground = currentScene.root.userData.ground;
-  if(!ground) return 0;
-  _rayDown.set(new THREE.Vector3(x, 30, z), _down);
-  const hits = _rayDown.intersectObject(ground, true);
-  return hits.length ? hits[0].point.y : 0;
+  const fallback = (typeof avatar !== 'undefined' && avatar) ? avatar.position.y : 0;
+  try {
+    if(!currentScene || !currentScene.root) return fallback;
+    const ground = currentScene.root.userData.ground;
+    if(!ground) return fallback;
+    _rayDown.set(new THREE.Vector3(x, 30, z), _down);
+    const hits = _rayDown.intersectObject(ground, true);
+    if(!hits.length) return fallback;
+    // Pick the FIRST hit above the avatar's current position; otherwise
+    // the highest hit overall (so the avatar stands on rooftops only if
+    // the path-finding actually walked there, never via a stray raycast
+    // through a wall).
+    const y = hits[0].point.y;
+    if(!isFinite(y)) return fallback;
+    return y;
+  } catch(e){
+    console.warn('sampleHeight failed:', e.message);
+    return fallback;
+  }
 }
 
 /* === SCENE DEFINITIONS ==================================== */
@@ -5862,8 +5884,13 @@ async function switchScene(name){
   if(!def){ console.warn('switchScene: unknown', name); return; }
   // Same scene? Just rebuild without splash dance.
   if(currentScene && currentScene.name === name){ buildScene(name); return; }
-  // v620 side-pack accents disabled in switchScene too (placeSidePackAccents
-  // is no longer called from buildScene). Keep the fetch a no-op.
+  // v624: side-pack accents loaded in background so they pop in after
+  // the prefab without blocking scene reveal.
+  loadSidePackAccents(name).then(() => {
+    if(currentScene && currentScene.name === name){
+      placeSidePackAccents(name, currentScene.root);
+    }
+  });
   const missing = (def.preloadAssets || []).filter(n => !BLENDER_CACHE[n]);
   if(missing.length){
     showTransSplash(def.title, def.en);
@@ -5899,6 +5926,96 @@ async function switchScene(name){
   try { renderer.render(scene, camera); } catch(_){}
   await new Promise(r => setTimeout(r, 80));
   hideTransSplash();
+}
+
+/* =================================================================
+ * v624 — Floating-island rocky underside
+ *
+ * Each prefab is normally placed at y=0 with no visible base, so the
+ * diorama reads as "a town on flat ground". The user wanted it to
+ * look like a FLOATING island, so this function builds a procedural
+ * rocky cone-mass that hangs below the prefab footprint: a wide
+ * polygonal disc near y≈-0.5 m (grass + soil rim hidden by the
+ * cobble above), then a tapered jagged rocky underside descending
+ * to ~y=-10 m. Subtle Y bob is applied per frame in animate().
+ *
+ * Sized from the loaded prefab's bbox so big dioramas get big
+ * islands and small ones get small islands. The underside is added
+ * as a sibling of the prefab inside currentScene.root, so it moves
+ * with the scene swap.
+ * ================================================================= */
+function makeFloatingBase(prefabBBox){
+  const g = new THREE.Group();
+  if(!prefabBBox) return g;
+  const sx = prefabBBox.max.x - prefabBBox.min.x;
+  const sz = prefabBBox.max.z - prefabBBox.min.z;
+  const cx = (prefabBBox.max.x + prefabBBox.min.x) * 0.5;
+  const cz = (prefabBBox.max.z + prefabBBox.min.z) * 0.5;
+  const r  = Math.max(sx, sz) * 0.52;   // top radius — matches diorama footprint
+  // === Top rocky rim — green grass band peeking under the cobble ===
+  const rim = new THREE.Mesh(
+    new THREE.CylinderGeometry(r * 1.02, r * 0.95, 0.4, 28),
+    new THREE.MeshStandardMaterial({color: 0x5a7838, roughness: 1.0})
+  );
+  rim.position.set(cx, -0.25, cz);
+  rim.receiveShadow = true; rim.castShadow = true;
+  g.add(rim);
+  // === Soil layer just below rim ===
+  const soil = new THREE.Mesh(
+    new THREE.CylinderGeometry(r * 0.95, r * 0.78, 0.9, 28),
+    new THREE.MeshStandardMaterial({color: 0x6a4830, roughness: 0.95})
+  );
+  soil.position.set(cx, -0.9, cz);
+  soil.castShadow = true; soil.receiveShadow = true;
+  g.add(soil);
+  // === Jagged rocky underside — irregular cone tapering down ===
+  // Cone via lathe (custom radial profile) keeps it cheap + organic.
+  const profile = [];
+  const segments = 6;
+  for(let i = 0; i <= segments; i++){
+    const t = i / segments;
+    // start at top with full radius, taper jagged toward tip
+    const rr = r * 0.78 * (1 - t) + r * 0.05 * (Math.sin(t * 8) + 1) * 0.4;
+    const yy = -1.4 - t * 9.0;
+    profile.push(new THREE.Vector2(Math.max(0.1, rr), yy));
+  }
+  const lathe = new THREE.Mesh(
+    new THREE.LatheGeometry(profile, 16),
+    new THREE.MeshStandardMaterial({color: 0x5a4030, roughness: 0.95, flatShading: true})
+  );
+  lathe.position.set(cx, 0, cz);
+  lathe.castShadow = true;
+  g.add(lathe);
+  // === Scattered hanging rock chunks for character ===
+  const rockMat = new THREE.MeshStandardMaterial({color: 0x6a5040, roughness: 0.95, flatShading: true});
+  for(let i = 0; i < 5; i++){
+    const ang = (i / 5) * Math.PI * 2 + Math.random() * 0.6;
+    const rr  = r * 0.55 + Math.random() * 0.5;
+    const yy  = -3 - Math.random() * 4;
+    const rock = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.6, 0),
+      rockMat
+    );
+    rock.position.set(cx + Math.cos(ang) * rr, yy, cz + Math.sin(ang) * rr);
+    rock.castShadow = true;
+    g.add(rock);
+  }
+  // === Wisps of cloud trailing off the base (translucent ellipsoids) ===
+  const wispMat = new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 1.0, transparent: true, opacity: 0.42});
+  for(let i = 0; i < 6; i++){
+    const ang = (i / 6) * Math.PI * 2 + Math.random();
+    const rr  = r * (0.7 + Math.random() * 0.4);
+    const yy  = -2 - Math.random() * 6;
+    const wisp = new THREE.Mesh(
+      new THREE.SphereGeometry(1.2 + Math.random() * 0.8, 10, 8),
+      wispMat
+    );
+    wisp.scale.y *= 0.45;
+    wisp.position.set(cx + Math.cos(ang) * rr, yy, cz + Math.sin(ang) * rr);
+    g.add(wisp);
+  }
+  g.userData.isFloatingBase = true;
+  return g;
 }
 
 /* =================================================================
@@ -6037,47 +6154,44 @@ function addBridgesForScene(name){
 //        val_rune, val_shield                                    (6)
 //   VH:  vh_barrel, vh_cart, vh_crate, vh_fence, vh_gate,
 //        vh_ladder, vh_palisade, vh_well                         (8)
+// v624: re-enabled per-scene accent selection, tightened so each scene's
+// supporting props match its CORE CONCEPT rather than just filling space:
+//   - takibi (fire)   → warm braziers, lanterns, benches by the fire
+//   - amaoto (rain)   → gothic chain/gate/gargoyle around the chapel
+//   - hoshi (stars)   → mystic rune + pillar circle on the hill
+//   - oto/mizube      → village waterside utilitarian (well/barrel)
+//   - toki (time)     → solitary timekeeper rune at the foot of the tower
+//   - tabi (travel)   → traveller's longbench + cart + barrel
+//   - heya (bakery)   → cart + crate as bakery delivery
+//   - plaza           → village well + traveller's cart
+//   - monlight (book) → contemplative single rune at the corner
+// Each entry: [asset_name, x, z, scale, rot_deg].  Coords are within the
+// scene's playableBounds (≈ ±9 m) so accents read as part of the prefab
+// edge, not "outside" it. Clamping in placeSidePackAccents enforces that.
 const SIDE_PACK_ACCENTS = {
-  // Village square — well + fence + a viking shield at the front
-  plaza:    [['vh_well',     -7,  7, 0.85,   0],
-             ['vh_fence',     7,  7, 0.85, 180],
-             ['val_shield',   0,  7, 0.80,   0]],
-  // Quiet bookshop outskirts — fence behind, a single pillar + rune
-  monlight: [['vh_fence',    -7,  6, 0.85,   0],
-             ['val_pillar',   7,  6, 0.85,   0],
-             ['val_rune',     0,  7, 0.80,   0]],
-  // Watermill cosy — well, barrel, cart
-  oto:      [['vh_well',     -6,  6, 0.85,   0],
-             ['vh_barrel',    6,  6, 0.85,   0],
-             ['vh_cart',      0,  7, 0.85,  30]],
-  // Traveller's inn — horn, barrel, longhouse bench
-  tabi:     [['val_horn',    -6,  6, 0.85,   0],
-             ['val_barrel',   6,  6, 0.85,   0],
-             ['val_longbench',0,  7, 0.85,   0]],
-  // Clock tower — gargoyle + pillar (dark/timekeeping mood)
-  toki:     [['df_gargoyle', -7,  6, 0.85,  30],
-             ['val_pillar',   7,  6, 0.85,   0],
-             ['val_rune',     0,  7, 0.80,   0]],
-  // Antiquarian / star hill — mystical: gargoyle, rune, pillar
-  hoshi:    [['df_gargoyle', -6,  6, 0.85,   0],
-             ['val_rune',     6,  6, 0.85,   0],
+  plaza:    [['vh_well',     -7,  6, 0.85,   0],
+             ['vh_cart',      6,  7, 0.85,  30]],
+  monlight: [['val_rune',    -6,  6, 0.80,   0]],
+  oto:      [['vh_well',     -5,  6, 0.85,   0],
+             ['vh_barrel',    5,  6, 0.85,   0]],
+  tabi:     [['val_longbench',-5, 6, 0.85,  90],
+             ['val_barrel',   5,  6, 0.85,   0],
+             ['vh_cart',      0,  7, 0.85,   0]],
+  toki:     [['val_rune',    -6,  6, 0.85,   0],
+             ['val_pillar',   6,  6, 0.85,   0]],
+  hoshi:    [['val_rune',    -5,  5, 0.85,   0],
+             ['val_rune',     5,  5, 0.85,  30],
              ['val_pillar',   0,  7, 0.85,   0]],
-  // Candle maker (warm fire) — horn, longbench, crate
-  takibi:   [['val_horn',    -5,  6, 0.85,   0],
-             ['val_longbench',5,  6, 0.85,   0],
-             ['vh_crate',     0,  7, 0.85,   0]],
-  // Weaver workshop — ladder + barrel + crate
-  mizube:   [['vh_ladder',   -6,  6, 0.85,   0],
-             ['vh_barrel',    6,  6, 0.85,   0],
-             ['vh_crate',     0,  7, 0.85,   0]],
-  // Rain chapel — gothic gate + chain + gargoyle
+  takibi:   [['val_longbench',-5, 6, 0.85,  90],
+             ['val_longbench', 5, 6, 0.85, -90]],
+  mizube:   [['vh_ladder',   -5,  5, 0.85,   0],
+             ['vh_barrel',    5,  5, 0.85,   0],
+             ['vh_well',      0,  7, 0.85,   0]],
   amaoto:   [['df_gate',      0, -7, 0.85,   0],
-             ['df_chain',    -6,  6, 0.85,   0],
-             ['df_gargoyle',  6,  6, 0.85,  30]],
-  // Bakery — well + cart + crate
-  heya:     [['vh_well',     -6,  6, 0.85,   0],
-             ['vh_cart',      6,  6, 0.85, -30],
-             ['vh_crate',     0,  7, 0.85,   0]],
+             ['df_gargoyle', -6,  5, 0.85,  30],
+             ['df_gargoyle',  6,  5, 0.85, -30]],
+  heya:     [['vh_cart',     -5,  6, 0.85,  30],
+             ['vh_crate',     5,  6, 0.85,   0]],
 };
 
 async function loadSidePackAccents(name){
@@ -7156,8 +7270,23 @@ function updateSunShafts(){
 const clock = new THREE.Clock();
 
 function animate(){
-  const dt = Math.min(0.05, clock.getDelta());
-  const t = clock.elapsedTime;
+  let dt, t;
+  try {
+    dt = Math.min(0.05, clock.getDelta());
+    t = clock.elapsedTime;
+  } catch(e){
+    requestAnimationFrame(animate);
+    return;
+  }
+  try {
+
+  // v624: gentle floating-island bob on the current scene root.
+  // ~3 cm peak-to-peak at 0.18 Hz so the diorama feels suspended in air.
+  // Avatar.y is sampled from the prefab, so it bobs naturally with the
+  // island — no separate compensation needed.
+  if(currentScene && currentScene.root){
+    currentScene.root.position.y = Math.sin(t * 1.15) * 0.04;
+  }
 
   // v622: gentle cloud drift around the scene, plus subtle bob in Y
   if(cloudGroup){
@@ -7650,7 +7779,15 @@ function animate(){
     }
   }
 
-  composer.render();
+  try { composer.render(); } catch(e){
+    console.warn('composer.render failed:', e.message);
+    try { renderer.render(scene, camera); } catch(_){}
+  }
+
+  } catch(animateErr){
+    console.error('animate frame failed (continuing):', animateErr);
+    try { renderer.render(scene, camera); } catch(_){}
+  }
   requestAnimationFrame(animate);
 }
 
