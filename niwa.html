@@ -5520,6 +5520,309 @@ function makePier(cx, cz, lengthAxis = 'z', length = 4){
   return g;
 }
 
+/* ==============================================================
+ * v630 — Theme-kit procedural assets
+ * ==============================================================
+ * Shared KB3D-matching PBR palette so procedural pieces blend with
+ * the prefab buildings instead of reading as plain cartoon shapes.
+ * Each helper sets skipObstacle so the avatar walks freely through.
+ * ============================================================== */
+const PBR = {
+  wood:   new THREE.MeshStandardMaterial({color: 0x5a3a1c, roughness: 0.85, envMapIntensity: 0.8}),
+  oak:    new THREE.MeshStandardMaterial({color: 0x6a4828, roughness: 0.80, envMapIntensity: 0.8}),
+  rope:   new THREE.MeshStandardMaterial({color: 0x9a7848, roughness: 0.95}),
+  stone:  new THREE.MeshStandardMaterial({color: 0x6a5040, roughness: 0.95, envMapIntensity: 0.7}),
+  moss:   new THREE.MeshStandardMaterial({color: 0x4a6838, roughness: 0.95}),
+  iron:   new THREE.MeshStandardMaterial({color: 0x2a1810, roughness: 0.60, metalness: 0.55, envMapIntensity: 1.0}),
+  gold:   new THREE.MeshStandardMaterial({color: 0xc8a050, roughness: 0.35, metalness: 0.70, envMapIntensity: 1.2}),
+  bread:  new THREE.MeshStandardMaterial({color: 0xa87838, roughness: 0.80}),
+  flour:  new THREE.MeshStandardMaterial({color: 0xe8dcc0, roughness: 0.95}),
+  page:   new THREE.MeshStandardMaterial({color: 0xf0e4c0, roughness: 0.95}),
+  binding:new THREE.MeshStandardMaterial({color: 0x6a2818, roughness: 0.85}),
+  bookA:  new THREE.MeshStandardMaterial({color: 0x4a2828, roughness: 0.85}),
+  bookB:  new THREE.MeshStandardMaterial({color: 0x28384a, roughness: 0.85}),
+  bookC:  new THREE.MeshStandardMaterial({color: 0x483a28, roughness: 0.85}),
+  candleWax: new THREE.MeshStandardMaterial({color: 0xe8dcb8, roughness: 0.70}),
+  candleFlame: new THREE.MeshStandardMaterial({color: 0xffe890, emissive: 0xffaa55, emissiveIntensity: 2.0, transparent: true, opacity: 0.92}),
+  bannerRed:  new THREE.MeshStandardMaterial({color: 0xa83828, roughness: 0.90, side: THREE.DoubleSide}),
+  bannerBlue: new THREE.MeshStandardMaterial({color: 0x385878, roughness: 0.90, side: THREE.DoubleSide}),
+  awning: new THREE.MeshStandardMaterial({color: 0x884028, roughness: 0.85, side: THREE.DoubleSide}),
+  koiRed:  new THREE.MeshStandardMaterial({color: 0xc04020, roughness: 0.55, envMapIntensity: 0.8}),
+  koiGold: new THREE.MeshStandardMaterial({color: 0xe8a838, roughness: 0.55, envMapIntensity: 0.8}),
+  koiWhite:new THREE.MeshStandardMaterial({color: 0xe8e0d0, roughness: 0.55, envMapIntensity: 0.8}),
+};
+for(const k in PBR) PBR[k].userData.shared = true;
+
+function makeBoat(x, z, rotY = 0){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  if(rotY) g.rotation.y = rotY * Math.PI / 180;
+  // Hull (extruded shape: trapezoidal cross-section)
+  const hullShape = new THREE.Shape();
+  hullShape.moveTo(-1.4, 0);
+  hullShape.lineTo(-1.0, -0.35);
+  hullShape.lineTo(1.0, -0.35);
+  hullShape.lineTo(1.4, 0);
+  hullShape.lineTo(-1.4, 0);
+  const hull = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(hullShape, {depth: 0.55, bevelEnabled: false}),
+    PBR.wood
+  );
+  hull.rotation.x = -Math.PI/2;
+  hull.position.set(0, 0.05, -0.275);
+  hull.castShadow = true; hull.receiveShadow = true;
+  g.add(hull);
+  // Cross-bench
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.06, 0.18), PBR.oak);
+  bench.position.set(0, 0.12, 0); bench.castShadow = true;
+  g.add(bench);
+  // Oar (resting on bench)
+  const oar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.6, 6), PBR.oak);
+  oar.position.set(0.4, 0.18, -0.05); oar.rotation.z = Math.PI/2; oar.rotation.y = 0.2;
+  oar.castShadow = true;
+  g.add(oar);
+  // Oar paddle
+  const paddle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.20, 0.02), PBR.oak);
+  paddle.position.set(1.2, 0.18, -0.05); paddle.rotation.z = Math.PI/2;
+  g.add(paddle);
+  g.userData.skipObstacle = true;
+  g.userData.isBoat = true;
+  return g;
+}
+
+function makeKoi(x, z, palette = 'red'){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  const mat = palette === 'gold' ? PBR.koiGold : palette === 'white' ? PBR.koiWhite : PBR.koiRed;
+  // Body (ellipsoid)
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8), mat);
+  body.scale.set(1.0, 0.45, 0.5);
+  body.position.y = -0.02;
+  g.add(body);
+  // Tail (cone)
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.18, 8), mat);
+  tail.rotation.z = Math.PI/2;
+  tail.position.set(-0.22, -0.02, 0);
+  g.add(tail);
+  // Side fins
+  for(const sx of [-1, 1]){
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.10, 6), mat);
+    fin.rotation.x = Math.PI/2;
+    fin.position.set(0, -0.05, sx * 0.10);
+    g.add(fin);
+  }
+  g.userData.skipObstacle = true;
+  g.userData.isKoi = true;
+  g.userData.swimPhase = Math.random() * Math.PI * 2;
+  g.userData.basePos = [x, z];
+  if(ENTITIES._anim) ENTITIES._anim.kois = ENTITIES._anim.kois || [];
+  if(ENTITIES._anim) ENTITIES._anim.kois.push(g);
+  return g;
+}
+
+function makeStallV630(x, z, rotY = 0, awning = 'awning'){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  if(rotY) g.rotation.y = rotY * Math.PI / 180;
+  // 4 posts
+  for(const [sx, sz] of [[-0.8, -0.5], [0.8, -0.5], [-0.8, 0.5], [0.8, 0.5]]){
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.5, 6), PBR.wood);
+    post.position.set(sx, 0.75, sz); post.castShadow = true;
+    g.add(post);
+  }
+  // Table top
+  const table = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.08, 1.1), PBR.oak);
+  table.position.y = 0.85; table.castShadow = true; table.receiveShadow = true;
+  g.add(table);
+  // Awning (sloped roof)
+  const awningMesh = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.04, 1.3), PBR[awning] || PBR.awning);
+  awningMesh.position.y = 1.55; awningMesh.rotation.x = -0.15;
+  awningMesh.castShadow = true;
+  g.add(awningMesh);
+  // Stuff on table: 3 stacked crates
+  for(let i = 0; i < 3; i++){
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.22), PBR.oak);
+    crate.position.set(-0.55 + i * 0.30, 0.96 + (i%2)*0.22, 0);
+    crate.castShadow = true; g.add(crate);
+  }
+  // Fruit basket
+  const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.16, 0.18, 12), PBR.oak);
+  basket.position.set(0.4, 0.96, 0.15); g.add(basket);
+  // Apples (red spheres)
+  for(let i = 0; i < 4; i++){
+    const apple = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), PBR.koiRed);
+    apple.position.set(0.35 + (i%2)*0.08, 1.08, 0.10 + (Math.floor(i/2)*0.08));
+    g.add(apple);
+  }
+  g.userData.skipObstacle = true;
+  return g;
+}
+
+function makeBreadStack(x, z){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  // Basket
+  const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.28, 0.16, 14), PBR.oak);
+  basket.position.y = 0.08; basket.castShadow = true;
+  g.add(basket);
+  // 4 baguette loaves crossed
+  for(let i = 0; i < 4; i++){
+    const ang = (i / 4) * Math.PI;
+    const loaf = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.32, 4, 8), PBR.bread);
+    loaf.position.y = 0.18 + (i*0.04);
+    loaf.rotation.z = ang;
+    loaf.rotation.x = Math.PI/2;
+    g.add(loaf);
+  }
+  // Round bread on top
+  const round = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 10), PBR.bread);
+  round.scale.set(1.0, 0.55, 1.0); round.position.y = 0.32;
+  g.add(round);
+  g.userData.skipObstacle = true;
+  return g;
+}
+
+function makeBookStack(x, z, height = 4){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  const books = [PBR.bookA, PBR.bookB, PBR.bookC];
+  for(let i = 0; i < height; i++){
+    const w = 0.32 + Math.random() * 0.08;
+    const d = 0.22 + Math.random() * 0.06;
+    const book = new THREE.Mesh(new THREE.BoxGeometry(w, 0.07, d), books[i % books.length]);
+    book.position.set((Math.random() - 0.5) * 0.05, 0.04 + i * 0.075, 0);
+    book.rotation.y = (Math.random() - 0.5) * 0.18;
+    book.castShadow = true;
+    g.add(book);
+  }
+  g.userData.skipObstacle = true;
+  return g;
+}
+
+function makeCandleCluster(x, z, count = 5){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  // Iron base plate
+  const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.40, 0.05, 12), PBR.iron);
+  plate.position.y = 0.025; plate.castShadow = true;
+  g.add(plate);
+  for(let i = 0; i < count; i++){
+    const ang = (i / count) * Math.PI * 2;
+    const r = (i === 0) ? 0 : 0.18;
+    const cx = Math.cos(ang) * r;
+    const cz = Math.sin(ang) * r;
+    const tall = (i === 0) ? 0.45 : 0.28;
+    const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.040, tall, 8), PBR.candleWax);
+    candle.position.set(cx, 0.05 + tall/2, cz); candle.castShadow = true;
+    g.add(candle);
+    const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.03, 4), PBR.iron);
+    wick.position.set(cx, 0.05 + tall + 0.015, cz);
+    g.add(wick);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.06, 6), PBR.candleFlame);
+    flame.position.set(cx, 0.05 + tall + 0.06, cz);
+    g.add(flame);
+  }
+  g.userData.skipObstacle = true;
+  return g;
+}
+
+function makePendulum(x, z, height = 3.0){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  // Chain
+  const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, height, 6), PBR.iron);
+  chain.position.y = height * 0.5;
+  g.add(chain);
+  // Bob (heavy brass weight)
+  const bob = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), PBR.gold);
+  bob.position.y = 0.30; bob.castShadow = true;
+  g.add(bob);
+  // Anchor (ceiling) — small disc
+  const anchor = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.04, 10), PBR.iron);
+  anchor.position.y = height; g.add(anchor);
+  g.userData.skipObstacle = true;
+  g.userData.isPendulum = true;
+  if(ENTITIES._anim){ ENTITIES._anim.pendulums = ENTITIES._anim.pendulums || []; ENTITIES._anim.pendulums.push(g); }
+  return g;
+}
+
+function makeStarMap(x, z){
+  // Glowing celestial chart inlaid on the cobble — a circle with sigils
+  const g = new THREE.Group();
+  g.position.set(x, 0.03, z);
+  const ringMat = new THREE.MeshStandardMaterial({color: 0x88aaff, emissive: 0x4470ff, emissiveIntensity: 0.6, roughness: 0.4});
+  // Outer ring
+  const outer = new THREE.Mesh(new THREE.RingGeometry(0.85, 0.95, 48), ringMat);
+  outer.rotation.x = -Math.PI/2;
+  g.add(outer);
+  // Inner ring
+  const inner = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.62, 48), ringMat);
+  inner.rotation.x = -Math.PI/2;
+  g.add(inner);
+  // 12 star points around the ring
+  for(let i = 0; i < 12; i++){
+    const ang = (i / 12) * Math.PI * 2;
+    const r = 0.74;
+    const star = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), ringMat);
+    star.position.set(Math.cos(ang) * r, 0.005, Math.sin(ang) * r);
+    g.add(star);
+  }
+  // Central rune
+  const center = new THREE.Mesh(new THREE.RingGeometry(0.18, 0.24, 6), ringMat);
+  center.rotation.x = -Math.PI/2;
+  g.add(center);
+  g.userData.skipObstacle = true;
+  return g;
+}
+
+function makeRockCluster(x, z){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  for(let i = 0; i < 3 + Math.floor(Math.random() * 3); i++){
+    const ang = Math.random() * Math.PI * 2;
+    const r = Math.random() * 0.4;
+    const sz = 0.15 + Math.random() * 0.20;
+    const useStone = Math.random() < 0.6;
+    const rock = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(sz, 0),
+      useStone ? PBR.stone : PBR.moss
+    );
+    rock.position.set(Math.cos(ang) * r, sz * 0.5, Math.sin(ang) * r);
+    rock.rotation.set(Math.random(), Math.random(), Math.random());
+    rock.castShadow = true; rock.receiveShadow = true;
+    g.add(rock);
+  }
+  g.userData.skipObstacle = true;
+  return g;
+}
+
+function makeBanner(x, z, color = 'red'){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  // Pole
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 3.5, 8), PBR.wood);
+  pole.position.y = 1.75; pole.castShadow = true;
+  g.add(pole);
+  // Crossbar
+  const cross = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 6), PBR.wood);
+  cross.position.set(0.45, 3.20, 0); cross.rotation.z = Math.PI/2;
+  g.add(cross);
+  // Hanging banner (cloth)
+  const bannerMat = color === 'blue' ? PBR.bannerBlue : PBR.bannerRed;
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(0.80, 1.4), bannerMat);
+  banner.position.set(0.45, 2.50, 0);
+  banner.rotation.y = Math.PI/2;
+  g.add(banner);
+  // Top finial
+  const finial = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.18, 8), PBR.gold);
+  finial.position.y = 3.60; finial.castShadow = true;
+  g.add(finial);
+  g.userData.skipObstacle = true;
+  g.userData.isBanner = true;
+  if(ENTITIES._anim){ ENTITIES._anim.banners = ENTITIES._anim.banners || []; ENTITIES._anim.banners.push({banner, basePhase: Math.random() * Math.PI * 2}); }
+  return g;
+}
+
 // Scene state
 let currentScene = null;
 const SCENES = {};
@@ -5558,6 +5861,9 @@ function clearScene(){
     ENTITIES._anim.campfires.length = 0;
     ENTITIES._anim.waterMats.length = 0;
     ENTITIES._anim.smokes.length    = 0;
+    if(ENTITIES._anim.kois)      ENTITIES._anim.kois.length      = 0;
+    if(ENTITIES._anim.banners)   ENTITIES._anim.banners.length   = 0;
+    if(ENTITIES._anim.pendulums) ENTITIES._anim.pendulums.length = 0;
   }
   ENTITIES.lamps.length = 0;
   ENTITIES.lampLights.length = 0;
@@ -5893,6 +6199,11 @@ SCENES.plaza = {
 
 
     // v628 lighting: midday village - warm sky, earth ground, gold accent
+    // v630 theme: village market + festival banners
+    root.add(makeStallV630(-6,  6, 30));
+    root.add(makeStallV630( 6,  6, -30));
+    root.add(makeBanner(-7,  3, "red"));
+    root.add(makeBanner( 7,  3, "blue"));
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x8a7060, 0.65);
     fill.position.set(8, 14, 8);
     root.add(fill);
@@ -5950,6 +6261,12 @@ SCENES.monlight = {
 
 
     // v628 lighting: cool moonlit night - blue sky, dark stone, lunar accent
+    // v630 theme: open books + candles + scrolls scattered outside
+    root.add(makeBookStack(-3,  3, 5));
+    root.add(makeBookStack( 3,  3, 4));
+    root.add(makeBookStack( 0,  6, 6));
+    root.add(makeCandleCluster(-5,  5, 3));
+    root.add(makeCandleCluster( 5,  5, 3));
     const fill = new THREE.HemisphereLight(0x4060a0, 0x101830, 0.35);
     fill.position.set(8, 14, 8);
     root.add(fill);
@@ -6002,6 +6319,13 @@ SCENES.oto = {
 
 
     // v628 lighting: dewy morning by the stream - pale gold + mossy ground
+    // v630 theme: more koi + moss rocks along the stream
+    root.add(makeKoi(-3, 4, "red"));
+    root.add(makeKoi(-2.5, 6, "gold"));
+    root.add(makeKoi(-3.5, 5, "white"));
+    root.add(makeRockCluster(-5, 4));
+    root.add(makeRockCluster(-1, 6));
+    root.add(makeRockCluster(2,  5));
     const fill = new THREE.HemisphereLight(0xffe8c0, 0x6a8848, 0.55);
     fill.position.set(8, 14, 8);
     root.add(fill);
@@ -6054,6 +6378,10 @@ SCENES.tabi = {
 
 
     // v628 lighting: warm sunset over the lake - golden hour
+    // v630 theme: boat moored at the pier + dockside rocks
+    root.add(makeBoat(0, 8, 0));
+    root.add(makeRockCluster(-4, 7));
+    root.add(makeRockCluster( 4, 7));
     const fill = new THREE.HemisphereLight(0xffa860, 0x4a3010, 0.7);
     fill.position.set(8, 14, 8);
     root.add(fill);
@@ -6104,6 +6432,10 @@ SCENES.toki = {
 
 
     // v628 lighting: misty dusk - cool lavender, timekeeping hour
+    // v630 theme: pendulum + extra candles for the timekeeping shrine
+    root.add(makePendulum(-3, 6, 3.5));
+    root.add(makePendulum( 3, 6, 3.5));
+    root.add(makeCandleCluster(0, 6, 5));
     const fill = new THREE.HemisphereLight(0x8088a0, 0x4a4838, 0.45);
     fill.position.set(8, 14, 8);
     root.add(fill);
@@ -6155,6 +6487,11 @@ SCENES.hoshi = {
 
 
     // v628 lighting: deep starlit night - minimal ambient, faint blue starlight
+    // v630 theme: star map glyph + scattered books of celestial study
+    root.add(makeStarMap(0, 6));
+    root.add(makeBookStack(-3, 6, 3));
+    root.add(makeBookStack( 3, 6, 3));
+    root.add(makeCandleCluster(0, 8, 3));
     const fill = new THREE.HemisphereLight(0x1830a0, 0x080820, 0.18);
     fill.position.set(8, 14, 8);
     root.add(fill);
@@ -6207,7 +6544,11 @@ SCENES.takibi = {
     root.add(makeCampfire(0, 2, 1.8));     // big front fire — right under avatar's line of sight
     root.add(makeCampfire(-3.5, 5, 1.0));  // left side, smaller
     root.add(makeCampfire(3.5, 5, 1.0));   // right side, smaller
-
+    // v630 theme: extra warmth — candles in iron stands + scattered logs
+    root.add(makeCandleCluster(-5, 4, 4));
+    root.add(makeCandleCluster( 5, 4, 4));
+    root.add(makeRockCluster(-6, 6));
+    root.add(makeRockCluster( 6, 6));
 
     // v628 lighting: dark night lit ONLY by the campfires - minimal ambient
     const fill = new THREE.HemisphereLight(0x281008, 0x100804, 0.1);
@@ -6260,7 +6601,13 @@ SCENES.mizube = {
     root.add(makeLilyPad(-3, 4));
     root.add(makeLilyPad(3, 6));
     root.add(makeLilyPad(0, 7));
-
+    // v630 theme: koi school + reedy rocks at the water edge
+    root.add(makeKoi(-2, 4, "red"));
+    root.add(makeKoi( 2, 5, "gold"));
+    root.add(makeKoi(-3, 6, "white"));
+    root.add(makeKoi( 1, 7, "red"));
+    root.add(makeRockCluster(-5, 3));
+    root.add(makeRockCluster( 5, 3));
 
     // v628 lighting: soft cool morning by the water - pale blue + green
     const fill = new THREE.HemisphereLight(0xa0c8d0, 0x4a6850, 0.55);
@@ -6314,6 +6661,10 @@ SCENES.amaoto = {
 
 
     // v628 lighting: rain overcast - cool flat grey, low contrast
+    // v630 theme: candelabra around the altar + open prayer books
+    root.add(makeCandleCluster(-3, 5, 5));
+    root.add(makeCandleCluster( 3, 5, 5));
+    root.add(makeBookStack(0, 5, 2));
     const fill = new THREE.HemisphereLight(0x808890, 0x303838, 0.4);
     fill.position.set(8, 14, 8);
     root.add(fill);
@@ -6364,6 +6715,12 @@ SCENES.heya = {
 
 
     // v628 lighting: warm bakery interior - strong golden glow
+    // v630 theme: fresh bread baskets + flour sacks
+    root.add(makeBreadStack(-3, 6));
+    root.add(makeBreadStack( 3, 6));
+    root.add(makeBreadStack( 0, 7));
+    root.add(makeCandleCluster(-5, 4, 3));
+    root.add(makeCandleCluster( 5, 4, 3));
     const fill = new THREE.HemisphereLight(0xffa860, 0x884020, 0.75);
     fill.position.set(8, 14, 8);
     root.add(fill);
@@ -8162,6 +8519,32 @@ function animate(){
       const dy = (t * 0.5 + (s.userData.baseY || 0)) % 1.6;
       s.position.y = s.userData.baseY + dy;
       s.material.opacity = 0.45 * (1 - dy / 1.6);
+    }
+    // v630: koi gentle swim — small XZ figure-eight near the spawn point
+    if(A.kois){
+      for(const k of A.kois){
+        const ph = k.userData.swimPhase;
+        const [bx, bz] = k.userData.basePos;
+        const dx = Math.sin(t * 0.6 + ph) * 0.6;
+        const dz = Math.sin(t * 0.6 + ph) * Math.cos(t * 0.3 + ph) * 0.5;
+        k.position.x = bx + dx;
+        k.position.z = bz + dz;
+        k.rotation.y = Math.atan2(Math.cos(t * 0.6 + ph) * 0.6,
+                                   Math.cos(t * 0.6 + ph) * Math.cos(t * 0.3 + ph) * 0.5 -
+                                   Math.sin(t * 0.6 + ph) * Math.sin(t * 0.3 + ph) * 0.5);
+      }
+    }
+    // v630: banner gentle sway
+    if(A.banners){
+      for(const b of A.banners){
+        b.banner.rotation.z = Math.sin(t * 1.4 + b.basePhase) * 0.08;
+      }
+    }
+    // v630: pendulum swing (toki)
+    if(A.pendulums){
+      for(const p of A.pendulums){
+        p.rotation.z = Math.sin(t * 1.0) * 0.25;
+      }
     }
   }
   // grass wind uniforms
