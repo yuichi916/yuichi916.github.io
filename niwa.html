@@ -608,48 +608,48 @@ skyU.mieDirectionalG.value = 0.85;
  * intersect the prefab dioramas (largest is ~27 m wide). */
 const cloudGroup = new THREE.Group();
 cloudGroup.userData.isAtmosphereCloud = true;
+// One shared material for all cloud spheres — without this, each
+// MeshStandardMaterial creates its own shader variant + uniforms which
+// pressures the WebGL state cache on lower-end GPUs.
 const cloudMat = new THREE.MeshStandardMaterial({
-  color: 0xffffff, roughness: 1.0, metalness: 0.0,
-  transparent: true, opacity: 0.55,
-  emissive: 0xffe8c8, emissiveIntensity: 0.04,
+  color: 0xfafaf2, roughness: 1.0, metalness: 0.0,
+  transparent: true, opacity: 0.5,
 });
-const lowCloudMat = new THREE.MeshStandardMaterial({
-  color: 0xe8d8c0, roughness: 1.0, metalness: 0.0,
-  transparent: true, opacity: 0.42,
+const islandSilhouetteMat = new THREE.MeshStandardMaterial({
+  color: 0x4a5a40, roughness: 1.0, transparent: true, opacity: 0.8,
 });
-const NUM_CLOUDS = 28;
+cloudMat.userData.shared = true;
+islandSilhouetteMat.userData.shared = true;
+// Reduced cloud count + lower poly to cut GPU pressure (v624 crashed
+// some tabs at NUM_CLOUDS=28 with per-cloud unique geometry).
+const NUM_CLOUDS = 14;
+const _cloudGeom = new THREE.SphereGeometry(1.8, 8, 6);  // shared geometry
 for(let i = 0; i < NUM_CLOUDS; i++){
-  const ang = (i / NUM_CLOUDS) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
-  const r   = 38 + Math.random() * 16;
+  const ang = (i / NUM_CLOUDS) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+  const r   = 38 + Math.random() * 18;
   const cl  = new THREE.Group();
-  // A cloud is 3-5 overlapping spheres
-  const lobes = 3 + Math.floor(Math.random() * 3);
+  // 2-3 overlapping spheres per cloud (was 3-5)
+  const lobes = 2 + Math.floor(Math.random() * 2);
   for(let j = 0; j < lobes; j++){
-    const sphere = new THREE.Mesh(
-      new THREE.SphereGeometry(1.4 + Math.random() * 1.6, 12, 8),
-      Math.random() < 0.65 ? cloudMat : lowCloudMat
-    );
+    const sphere = new THREE.Mesh(_cloudGeom, cloudMat);
     sphere.position.set((j - lobes/2) * 1.6, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.7);
-    sphere.scale.y *= 0.55;  // flatten clouds vertically
+    sphere.scale.set(0.7 + Math.random() * 0.8, 0.4, 0.7 + Math.random() * 0.6);
     cl.add(sphere);
   }
-  cl.position.set(Math.cos(ang) * r, 14 + Math.random() * 8, Math.sin(ang) * r);
-  cl.userData.driftSpeed = 0.005 + Math.random() * 0.01;
+  cl.position.set(Math.cos(ang) * r, 14 + Math.random() * 6, Math.sin(ang) * r);
+  cl.userData.driftSpeed = 0.005 + Math.random() * 0.008;
   cl.userData.angleOffset = ang;
   cl.userData.radius = r;
   cl.userData.baseY = cl.position.y;
   cloudGroup.add(cl);
 }
-// Soft distant island-silhouette ring at y ≈ -6 so the horizon isn't
-// pure sky-shader. Dark mossy green hemisphere segments.
-for(let i = 0; i < 8; i++){
-  const ang = (i / 8) * Math.PI * 2;
-  const island = new THREE.Mesh(
-    new THREE.SphereGeometry(8 + Math.random() * 5, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5),
-    new THREE.MeshStandardMaterial({color: 0x4a5a40, roughness: 1.0, opacity: 0.85, transparent: true})
-  );
+// Distant moss-island silhouettes — keep low geometry, shared material.
+const _islandGeom = new THREE.SphereGeometry(10, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.5);
+for(let i = 0; i < 6; i++){
+  const ang = (i / 6) * Math.PI * 2;
+  const island = new THREE.Mesh(_islandGeom, islandSilhouetteMat);
   island.position.set(Math.cos(ang) * 60, -3 - Math.random() * 2, Math.sin(ang) * 60);
-  island.scale.y *= 0.45;
+  island.scale.set(0.8 + Math.random() * 0.4, 0.45, 0.8 + Math.random() * 0.4);
   cloudGroup.add(island);
 }
 scene.add(cloudGroup);
@@ -5944,6 +5944,19 @@ async function switchScene(name){
  * as a sibling of the prefab inside currentScene.root, so it moves
  * with the scene swap.
  * ================================================================= */
+// v625: simplified for GPU stability — shared materials/geometries,
+// fewer instances. Was crashing some tabs at the v624 fidelity.
+// All marked userData.shared so clearScene doesn't dispose them
+// (each scene-swap previously disposed + recreated them, causing
+// MeshStandardMaterial uniform churn that pushed shader-cache pressure).
+const _baseGrassMat = new THREE.MeshStandardMaterial({color: 0x5a7838, roughness: 1.0});
+const _baseSoilMat  = new THREE.MeshStandardMaterial({color: 0x6a4830, roughness: 0.95});
+const _baseRockMat  = new THREE.MeshStandardMaterial({color: 0x5a4030, roughness: 0.95, flatShading: true});
+_baseGrassMat.userData.shared = true;
+_baseSoilMat.userData.shared  = true;
+_baseRockMat.userData.shared  = true;
+const _baseChunkGeom = new THREE.DodecahedronGeometry(0.6, 0);
+_baseChunkGeom.userData.shared = true;
 function makeFloatingBase(prefabBBox){
   const g = new THREE.Group();
   if(!prefabBBox) return g;
@@ -5951,68 +5964,46 @@ function makeFloatingBase(prefabBBox){
   const sz = prefabBBox.max.z - prefabBBox.min.z;
   const cx = (prefabBBox.max.x + prefabBBox.min.x) * 0.5;
   const cz = (prefabBBox.max.z + prefabBBox.min.z) * 0.5;
-  const r  = Math.max(sx, sz) * 0.52;   // top radius — matches diorama footprint
-  // === Top rocky rim — green grass band peeking under the cobble ===
+  const r  = Math.max(sx, sz) * 0.52;
+  // Grass rim band peeking under the cobble
   const rim = new THREE.Mesh(
-    new THREE.CylinderGeometry(r * 1.02, r * 0.95, 0.4, 28),
-    new THREE.MeshStandardMaterial({color: 0x5a7838, roughness: 1.0})
+    new THREE.CylinderGeometry(r * 1.02, r * 0.95, 0.4, 20),
+    _baseGrassMat
   );
   rim.position.set(cx, -0.25, cz);
-  rim.receiveShadow = true; rim.castShadow = true;
+  rim.receiveShadow = true;
   g.add(rim);
-  // === Soil layer just below rim ===
+  // Soil layer
   const soil = new THREE.Mesh(
-    new THREE.CylinderGeometry(r * 0.95, r * 0.78, 0.9, 28),
-    new THREE.MeshStandardMaterial({color: 0x6a4830, roughness: 0.95})
+    new THREE.CylinderGeometry(r * 0.95, r * 0.78, 0.9, 20),
+    _baseSoilMat
   );
   soil.position.set(cx, -0.9, cz);
-  soil.castShadow = true; soil.receiveShadow = true;
   g.add(soil);
-  // === Jagged rocky underside — irregular cone tapering down ===
-  // Cone via lathe (custom radial profile) keeps it cheap + organic.
+  // Jagged tapered rocky cone (LatheGeometry, low-res)
   const profile = [];
-  const segments = 6;
+  const segments = 5;
   for(let i = 0; i <= segments; i++){
-    const t = i / segments;
-    // start at top with full radius, taper jagged toward tip
-    const rr = r * 0.78 * (1 - t) + r * 0.05 * (Math.sin(t * 8) + 1) * 0.4;
-    const yy = -1.4 - t * 9.0;
+    const tt = i / segments;
+    const rr = r * 0.78 * (1 - tt) + r * 0.04 * Math.sin(tt * 6);
+    const yy = -1.4 - tt * 8.0;
     profile.push(new THREE.Vector2(Math.max(0.1, rr), yy));
   }
   const lathe = new THREE.Mesh(
-    new THREE.LatheGeometry(profile, 16),
-    new THREE.MeshStandardMaterial({color: 0x5a4030, roughness: 0.95, flatShading: true})
+    new THREE.LatheGeometry(profile, 12),
+    _baseRockMat
   );
   lathe.position.set(cx, 0, cz);
-  lathe.castShadow = true;
   g.add(lathe);
-  // === Scattered hanging rock chunks for character ===
-  const rockMat = new THREE.MeshStandardMaterial({color: 0x6a5040, roughness: 0.95, flatShading: true});
-  for(let i = 0; i < 5; i++){
-    const ang = (i / 5) * Math.PI * 2 + Math.random() * 0.6;
-    const rr  = r * 0.55 + Math.random() * 0.5;
-    const yy  = -3 - Math.random() * 4;
-    const rock = new THREE.Mesh(
-      new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.6, 0),
-      rockMat
-    );
+  // 3 hanging rock chunks (shared geom + mat)
+  for(let i = 0; i < 3; i++){
+    const ang = (i / 3) * Math.PI * 2;
+    const rr  = r * 0.55;
+    const yy  = -3 - i * 1.5;
+    const rock = new THREE.Mesh(_baseChunkGeom, _baseRockMat);
     rock.position.set(cx + Math.cos(ang) * rr, yy, cz + Math.sin(ang) * rr);
-    rock.castShadow = true;
+    rock.scale.setScalar(0.8 + (i * 0.3));
     g.add(rock);
-  }
-  // === Wisps of cloud trailing off the base (translucent ellipsoids) ===
-  const wispMat = new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 1.0, transparent: true, opacity: 0.42});
-  for(let i = 0; i < 6; i++){
-    const ang = (i / 6) * Math.PI * 2 + Math.random();
-    const rr  = r * (0.7 + Math.random() * 0.4);
-    const yy  = -2 - Math.random() * 6;
-    const wisp = new THREE.Mesh(
-      new THREE.SphereGeometry(1.2 + Math.random() * 0.8, 10, 8),
-      wispMat
-    );
-    wisp.scale.y *= 0.45;
-    wisp.position.set(cx + Math.cos(ang) * rr, yy, cz + Math.sin(ang) * rr);
-    g.add(wisp);
   }
   g.userData.isFloatingBase = true;
   return g;
@@ -7280,13 +7271,14 @@ function animate(){
   }
   try {
 
-  // v624: gentle floating-island bob on the current scene root.
-  // ~3 cm peak-to-peak at 0.18 Hz so the diorama feels suspended in air.
-  // Avatar.y is sampled from the prefab, so it bobs naturally with the
-  // island — no separate compensation needed.
-  if(currentScene && currentScene.root){
-    currentScene.root.position.y = Math.sin(t * 1.15) * 0.04;
-  }
+  // v625: floating-island bob disabled — the bob caused per-frame
+  // sampleHeight raycasts to track the moving ground, which on weaker
+  // GPUs/CPUs combined with the cloud + base meshes was crashing
+  // tabs. The floating-island feel comes from the rocky underside
+  // alone now. The visual is plenty for the chibi diorama scale.
+  // if(currentScene && currentScene.root){
+  //   currentScene.root.position.y = Math.sin(t * 1.15) * 0.04;
+  // }
 
   // v622: gentle cloud drift around the scene, plus subtle bob in Y
   if(cloudGroup){
