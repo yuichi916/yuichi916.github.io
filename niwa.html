@@ -313,6 +313,7 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   <button class="tool" id="btn-sound" aria-pressed="false">SOUND · OFF</button>
   <button class="tool" id="btn-time">NIGHT</button>
   <button class="tool" id="btn-view">VIEW · 3P</button>
+  <a class="tool" href="world.html" style="text-decoration:none" title="羊皮紙の地図">📜 MAP</a>
   <a class="tool" href="index.html" style="text-decoration:none">← HOME</a>
 </div>
 
@@ -536,9 +537,9 @@ window.addEventListener('error', e=>{
 });
 
 /* Orthographic camera (quarter-view) ====================== */
-const CAM_DEFAULT_SIZE = 18;    // wide enough for native-scale ENC town (±15m radius)
-const CAM_MIN_SIZE = 6;
-const CAM_MAX_SIZE = 16;
+const CAM_DEFAULT_SIZE = 12;    // tight ortho — fills the screen with the prefab
+const CAM_MIN_SIZE = 5;
+const CAM_MAX_SIZE = 22;
 let CAM_ORTHO_SIZE = CAM_DEFAULT_SIZE;
 // 1st-person view orientation (independent of avatar facing)
 let fpYaw = 0;      // horizontal look (radians)
@@ -5088,6 +5089,8 @@ function clearScene(){
   if(typeof currentPortal !== 'undefined') currentPortal = null;
   if(typeof portalHover !== 'undefined') portalHover = false;
   if(typeof hidePortalPrompt === 'function') hidePortalPrompt();
+  // v621: reset bridge references — geometry is owned by the disposed root
+  if(typeof activeBridges !== 'undefined') activeBridges.length = 0;
 }
 
 function buildScene(name){
@@ -5192,6 +5195,12 @@ function buildScene(name){
   if(typeof addPortalForScene === 'function') addPortalForScene(name);
   // v620: place side-pack accent props (gracefully no-ops if assets missing)
   if(typeof placeSidePackAccents === 'function') placeSidePackAccents(name, root);
+  // v621: drop neighbour-bridges at the cardinal edges of the prefab.
+  // Walking onto one auto-triggers switchScene to that neighbour.
+  if(typeof addBridgesForScene === 'function') addBridgesForScene(name);
+  // Suppress bridge re-trigger for 2 s after every scene swap so the spawn
+  // step doesn't immediately walk back through the bridge we just came from.
+  bridgeCooldownUntil = performance.now() + 2000;
   // Avatar position
   if(def.avatarStart){
     avatar.position.set(def.avatarStart[0], 0, def.avatarStart[1]);
@@ -5202,8 +5211,18 @@ function buildScene(name){
   }
   // ground-clamp avatar (sampleHeight raycasts down to the prefab ground)
   avatar.position.y = sampleHeight(avatar.position.x, avatar.position.z);
-  // Reset camera + movement state per scene
-  camZoomTarget = CAM_DEFAULT_SIZE;
+  // v621: auto-frame camera on the prefab so empty sky is hidden.
+  // Use the bigger of the two horizontal extents × 0.62 as the ortho
+  // half-size — that keeps a small margin around the diorama edges
+  // without revealing the white/grey backdrop.
+  const pb2 = currentScene.playableBounds;
+  if(pb2){
+    const w = pb2.maxX - pb2.minX, d = pb2.maxZ - pb2.minZ;
+    const desired = Math.max(w, d) * 0.62;
+    camZoomTarget = Math.max(CAM_MIN_SIZE, Math.min(CAM_MAX_SIZE, desired));
+  } else {
+    camZoomTarget = CAM_DEFAULT_SIZE;
+  }
   camYawTarget = -Math.PI*0.25;
   camInit = false;
   // Reset avatar movement so stale velocity/marker from previous scene doesn't leak
@@ -5828,6 +5847,119 @@ async function switchScene(name){
   try { renderer.render(scene, camera); } catch(_){}
   await new Promise(r => setTimeout(r, 80));
   hideTransSplash();
+}
+
+/* =================================================================
+ * v621 — Bridges between scenes (continuous-world navigation)
+ *
+ * Each scene declares cardinal-direction neighbours (N/E/S/W) derived
+ * from SCENE_WORLD_POS dx/dz.  After the prefab + portal load,
+ * visible "bridge" meshes are placed at each cardinal edge of the
+ * playable disc with a plaque showing the destination scene name.
+ * Walking onto a bridge triggers switchScene(neighbour) automatically
+ * (no click needed), so the player navigates by foot, the way the
+ * parchment cartographer map (world.html) implies the world fits
+ * together.
+ * ================================================================= */
+
+const SCENE_NEIGHBORS = {
+  plaza:    { N:'oto',      E:'toki',    S:'hoshi',  W:'monlight' },
+  monlight: { N:'amaoto',   E:'plaza',   S:'takibi'              },
+  oto:      {                E:'tabi',    S:'plaza',  W:'amaoto'  },
+  tabi:     {                             S:'toki',   W:'oto'     },
+  toki:     { N:'tabi',                   S:'mizube', W:'plaza'   },
+  hoshi:    { N:'plaza',    E:'mizube',              W:'takibi'  },
+  takibi:   { N:'monlight', E:'hoshi'                            },
+  mizube:   { N:'toki',                               W:'hoshi'  },
+  amaoto:   {                E:'oto',     S:'monlight'           },
+  heya:     {},  // standalone — accessed only via tabs or URL
+};
+
+let activeBridges = [];
+let bridgeCooldownUntil = 0;  // suppress re-trigger right after a swap
+
+function makeBridge(targetLabel){
+  const g = new THREE.Group();
+  const plankMat = new THREE.MeshStandardMaterial({color:0x6a4828, roughness:0.85});
+  const stoneMat = new THREE.MeshStandardMaterial({color:0x8a7866, roughness:0.95});
+  // Wooden plank floor
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.12, 1.0), plankMat);
+  plank.position.y = 0.06; plank.castShadow = true; plank.receiveShadow = true;
+  g.add(plank);
+  // Stone bases on both ends
+  for(const xs of [-1.05, 1.05]){
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.22, 0.30, 10), stoneMat);
+    base.position.set(xs, 0.15, 0); base.castShadow = true;
+    g.add(base);
+  }
+  // Wooden railings
+  for(const zs of [-0.42, 0.42]){
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.05, 0.05), plankMat);
+    rail.position.set(0, 0.55, zs); g.add(rail);
+    for(const xs of [-0.85, -0.30, 0.30, 0.85]){
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.42, 0.05), plankMat);
+      post.position.set(xs, 0.32, zs); post.castShadow = true; g.add(post);
+    }
+  }
+  // Glowing plaque with arrow + destination
+  const sc = document.createElement('canvas');
+  sc.width = 320; sc.height = 96;
+  const sx = sc.getContext('2d');
+  sx.fillStyle = '#2a1810'; sx.fillRect(0, 0, 320, 96);
+  sx.strokeStyle = '#c89848'; sx.lineWidth = 3;
+  sx.strokeRect(4, 4, 312, 88);
+  sx.fillStyle = '#ffd890';
+  sx.font = 'bold 30px "Shippori Mincho", serif';
+  sx.textAlign = 'center'; sx.textBaseline = 'middle';
+  sx.fillText('→ ' + (targetLabel || '次の島'), 160, 52);
+  const tex = new THREE.CanvasTexture(sc);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const plaque = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.6, 0.48),
+    new THREE.MeshBasicMaterial({map: tex, transparent: true, side: THREE.DoubleSide})
+  );
+  plaque.position.set(0, 0.95, 0);
+  g.add(plaque);
+  // Halo on the plank to draw the eye
+  const halo = new THREE.Mesh(
+    new THREE.RingGeometry(0.6, 1.1, 24),
+    new THREE.MeshBasicMaterial({color:0xffd890, transparent:true, opacity:0.30, side:THREE.DoubleSide, depthWrite:false})
+  );
+  halo.rotation.x = -Math.PI/2; halo.position.y = 0.13;
+  g.add(halo);
+  g.userData.halo = halo;
+  return g;
+}
+
+function addBridgesForScene(name){
+  // Clear prior bridges
+  for(const b of activeBridges){ try{ b.parent && b.parent.remove(b); }catch(_){} }
+  activeBridges = [];
+  if(!currentScene) return;
+  const neighbors = SCENE_NEIGHBORS[name];
+  if(!neighbors) return;
+  const pb = currentScene.playableBounds;
+  if(!pb) return;
+  // Edge offset: how far inside the bound the bridge sits (so its trigger
+  // circle is inside the playable area, not on the wall).
+  const E = 0.9;
+  for(const [dir, target] of Object.entries(neighbors)){
+    let x = 0, z = 0;
+    if(dir === 'N')      { x = 0;            z = pb.minZ + E; }
+    else if(dir === 'S') { x = 0;            z = pb.maxZ - E; }
+    else if(dir === 'E') { x = pb.maxX - E;  z = 0;            }
+    else if(dir === 'W') { x = pb.minX + E;  z = 0;            }
+    else continue;
+    const bridge = makeBridge(SCENES[target]?.title || target);
+    bridge.position.set(x, 0, z);
+    // Orient: N/S bridges point along Z, E/W rotated 90° about Y
+    if(dir === 'E' || dir === 'W') bridge.rotation.y = Math.PI / 2;
+    bridge.userData.kind = 'bridge';
+    bridge.userData.target = target;
+    bridge.userData.cfg = { x, z, target, dir, radius: 0.95 };
+    currentScene.root.add(bridge);
+    activeBridges.push(bridge);
+  }
 }
 
 /* =================================================================
@@ -7031,6 +7163,8 @@ function animate(){
   const stepX = playerVel.x * dt;
   const stepZ = playerVel.z * dt;
   // Slide collision: test X and Z independently so avatar slides along walls
+  const MAX_STEP_UP = 0.45;   // realistic step the avatar can climb
+  const MAX_STEP_DOWN = 1.20; // allow jumping/falling a bit further down
   function blocked(px, pz){
     const pb = currentScene && currentScene.playableBounds;
     if(pb){
@@ -7047,6 +7181,14 @@ function animate(){
     for(const b of boxes){
       if(px > b.minX - r && px < b.maxX + r && pz > b.minZ - r && pz < b.maxZ + r) return true;
     }
+    // v621: climb-step limit. Block any step where the destination ground
+    // is more than MAX_STEP_UP above the current avatar Y. Without this
+    // the avatar walks straight up onto rooftops / fences / lampposts via
+    // the sampleHeight raycast.
+    const nextY = sampleHeight(px, pz);
+    const curY = avatar.position.y;
+    if(nextY - curY > MAX_STEP_UP) return true;
+    if(curY - nextY > MAX_STEP_DOWN) return true;
     return false;
   }
   const tryX = avatar.position.x + stepX;
@@ -7084,6 +7226,27 @@ function animate(){
     }
   } else if(portalHover){
     portalHover = false; hidePortalPrompt();
+  }
+
+  // v621: Bridge proximity check — walking onto a bridge swaps to the
+  // neighbour scene (no click needed). The cooldown after each swap
+  // prevents the spawn step from immediately re-triggering.
+  if(activeBridges.length && performance.now() > bridgeCooldownUntil){
+    for(const b of activeBridges){
+      const c = b.userData.cfg;
+      const d = Math.hypot(avatar.position.x - c.x, avatar.position.z - c.z);
+      if(d < c.radius){
+        bridgeCooldownUntil = performance.now() + 3000;  // belt-and-braces
+        switchScene(c.target);
+        break;
+      }
+    }
+    // Animate the bridge halo so its breathing matches the portal
+    for(const b of activeBridges){
+      if(b.userData.halo){
+        b.userData.halo.material.opacity = 0.22 + 0.10 * Math.sin(performance.now() * 0.0022 + b.position.x);
+      }
+    }
   }
 
   // Damp camera yaw + zoom toward their targets
@@ -7417,7 +7580,14 @@ setLoad(0.95, 'ASSETS');
 // eliminates the previous "splash hides → 1 second of white screen" bug
 // caused by deferred texture upload during the first animate() frame.
 (async () => {
-  const plazaDef = SCENES.plaza;
+  // v621: ?scene=<name> URL parameter — when navigating from world.html
+  // (the parchment cartographer map) each island links to
+  // niwa.html?scene=<scenename>, so the user lands directly on the
+  // chosen scene instead of being forced through plaza.
+  const urlParams = new URLSearchParams(location.search);
+  const requested = urlParams.get('scene');
+  const initialScene = (requested && SCENES[requested]) ? requested : 'plaza';
+  const plazaDef = SCENES[initialScene];
   const toLoad = (plazaDef && Array.isArray(plazaDef.preloadAssets))
                   ? plazaDef.preloadAssets.slice() : [];
   if(toLoad.length){
@@ -7452,7 +7622,7 @@ setLoad(0.95, 'ASSETS');
     await Promise.all(Array(CONCURRENCY).fill(0).map(()=>worker()));
   }
   setLoad(0.985, 'BUILD');
-  buildScene('plaza');
+  buildScene(initialScene);
   // Force first render (uploads textures + compiles shaders) while splash
   // is still occluding the canvas. Without this, the user sees a white/black
   // canvas for ~1 s during the first frame's texture upload.
