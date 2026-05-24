@@ -5284,6 +5284,7 @@ function buildScene(name){
   camInit = false;
   // Reset avatar movement so stale velocity/marker from previous scene doesn't leak
   playerVel.set(0,0,0);
+  verticalVel = 0;
   moveTarget = null;
   targetMarker.visible = false;
   invalidMarker.visible = false;
@@ -6742,6 +6743,7 @@ let camZoomTarget = CAM_ORTHO_SIZE;   // smoothed zoom target
 const camFollow = new THREE.Vector3();
 let camInit = false;
 const playerVel = new THREE.Vector3();   // velocity for damped movement
+let verticalVel = 0;                      // v623: gravity / falling velocity (m/s)
 let lastTargetDist = Infinity;
 let stuckTime = 0;
 const WALK_SPEED = 3.4;
@@ -7271,16 +7273,36 @@ function animate(){
     avatar.lookAt(avatar.position.x + playerVel.x, avatar.position.y, avatar.position.z + playerVel.z);
   }
   moving = Math.hypot(playerVel.x, playerVel.z) > 0.3;
-  // Smooth Y-follow over uneven prefab ground — damp toward the sampled
-  // ground height so steps/slopes feel like walking, not teleporting.
-  // Hard-cap the per-second vertical velocity to ≈ AV_HEIGHT (~1.4 m/s)
-  // so the avatar can never warp up more than its own height in one move.
+  // === v623: Proper gravity simulation ====================================
+  // Two distinct vertical regimes:
+  //   (a) Ground or slope (target ≥ current — 1 cm tolerance):
+  //        damp UP toward sampleHeight so slopes & stairs feel like walking,
+  //        not teleporting. Vertical velocity stays 0.
+  //   (b) Air (current > target):
+  //        accelerate downward at GRAVITY m/s², clamp on impact.
+  // This makes the avatar fall off ledges naturally instead of teleporting
+  // down to the new sampleHeight, and stay grounded everywhere else.
+  const AV_HEIGHT = 1.4;
+  const GRAVITY = 9.8;
   const targetY = sampleHeight(avatar.position.x, avatar.position.z);
-  const AV_HEIGHT = 1.4;     // avatar approx height — physics cap
-  const dampedY = THREE.MathUtils.damp(avatar.position.y, targetY, 11, dt);
-  const dy = dampedY - avatar.position.y;
-  const maxDy = AV_HEIGHT * dt;       // ≤ 1.4 m/s vertical motion
-  avatar.position.y += Math.max(-maxDy, Math.min(maxDy, dy));
+  const heightDiff = targetY - avatar.position.y;
+  if(heightDiff > 0.02){
+    // Climbing a slope / small step — damp smoothly up (bounded above by
+    // AV_HEIGHT m/s so it can never warp more than one body height/sec).
+    const lifted = THREE.MathUtils.damp(avatar.position.y, targetY, 11, dt);
+    const dy = Math.min(AV_HEIGHT * dt, lifted - avatar.position.y);
+    avatar.position.y += dy;
+    verticalVel = 0;
+  } else if(heightDiff < -0.02){
+    // In the air — gravity takes over (terminal velocity capped at 18 m/s)
+    verticalVel = Math.max(-18, verticalVel - GRAVITY * dt);
+    const ny = avatar.position.y + verticalVel * dt;
+    if(ny <= targetY){ avatar.position.y = targetY; verticalVel = 0; }
+    else { avatar.position.y = ny; }
+  } else {
+    avatar.position.y = targetY;
+    verticalVel = 0;
+  }
 
   // v618: Portal proximity check (every frame) — show "中に入る" prompt
   // when the avatar steps inside the door portal's radius.

@@ -11,7 +11,10 @@
     --parchment-c: #a78449;
     --ink: #3a2410;
     --ink-soft: #5a3a1c;
+    --ink-fade: #8a6840;
+    --gold: #c8a050;
     --red-zone: rgba(170, 30, 30, 0.18);
+    --candle: #ffd890;
   }
   html, body { margin:0; padding:0; height:100%; background:#1a140a; overflow:hidden;
                 font-family: 'Cinzel', 'Times New Roman', serif; color: var(--ink); }
@@ -45,87 +48,186 @@
     pointer-events:none;
   }
   svg.cartography { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  svg.cartography .clickable { pointer-events: auto; cursor: pointer; }
   .title-banner {
-    position:absolute; top: 24px; left: 50%; transform: translateX(-50%);
+    position:absolute; top: 22px; left: 50%; transform: translateX(-50%);
     font-family: 'Cinzel', 'Trajan Pro', serif;
-    font-size: clamp(22px, 2.6vw, 38px);
-    letter-spacing: 0.20em;
+    font-size: clamp(20px, 2.4vw, 34px);
+    letter-spacing: 0.22em;
     color: var(--ink);
-    text-shadow: 0 1px 0 rgba(255,230,180,0.4);
+    text-shadow: 0 1px 0 rgba(255,230,180,0.55), 0 0 16px rgba(232,214,163,0.5);
     z-index: 5;
     user-select: none;
   }
+  .subtitle-banner {
+    position:absolute; top: 66px; left: 50%; transform: translateX(-50%);
+    font-family: 'IM Fell English', serif; font-style: italic;
+    font-size: clamp(11px, 0.95vw, 14px);
+    letter-spacing: 0.20em;
+    color: var(--ink-soft);
+    opacity: 0.7;
+    z-index: 5;
+    user-select: none;
+  }
+  /* === Island wrappers === */
   .island {
     position:absolute;
     pointer-events:auto;
     cursor: pointer;
-    transition: transform 0.20s ease;
+    transition: transform 0.25s ease, filter 0.25s ease;
+    filter: drop-shadow(0 4px 6px rgba(60,40,20,0.45));
   }
-  .island:hover { transform: scale(1.03); }
-  .island svg { width:100%; height:100%; }
+  .island:hover {
+    transform: scale(1.06) translateY(-2px);
+    filter: drop-shadow(0 8px 14px rgba(60,40,20,0.6)) drop-shadow(0 0 8px rgba(255,216,144,0.5));
+  }
+  .island svg { width:100%; height:100%; display:block; }
+  .island .glow {
+    opacity: 0; transition: opacity 0.25s;
+  }
+  .island:hover .glow { opacity: 1; }
   .label {
     position:absolute;
     font-family: 'IM Fell English', 'Cinzel', serif;
     font-style: italic;
-    font-size: clamp(11px, 1.05vw, 16px);
+    font-size: clamp(10px, 0.95vw, 14px);
     color: var(--ink);
-    text-shadow: 0 1px 0 rgba(255, 230, 180, 0.45);
+    text-shadow: 0 1px 0 rgba(255, 230, 180, 0.5);
     white-space: nowrap;
     pointer-events: none;
     user-select: none;
+    text-align: center;
   }
-  .label.large { font-size: clamp(13px, 1.3vw, 19px); font-weight: 600; letter-spacing: 0.05em; }
-  .danger-zone {
-    position:absolute;
-    background: radial-gradient(ellipse, var(--red-zone) 30%, transparent 70%);
+  .label.large {
+    font-size: clamp(12px, 1.25vw, 17px);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    font-family: 'Cinzel', serif;
+    font-style: normal;
+  }
+  .label.jp { font-family: 'Shippori Mincho', serif; color: var(--ink-soft); font-style: normal; }
+  /* === Hover description card === */
+  .island-card {
+    position: absolute;
+    z-index: 9;
+    width: 220px;
+    background: linear-gradient(170deg, var(--parchment-a) 0%, var(--parchment-b) 100%);
+    border: 1.5px solid var(--ink-soft);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    padding: 12px 14px 14px;
+    color: var(--ink);
+    font-family: 'Shippori Mincho', serif;
+    font-size: 12px;
+    line-height: 1.55;
     pointer-events: none;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.20s, transform 0.20s;
+  }
+  .island-card.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .island-card .ic-title {
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    margin-bottom: 2px;
+  }
+  .island-card .ic-jp {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: var(--ink);
+  }
+  .island-card .ic-go {
+    display: inline-block;
+    margin-top: 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--ink);
+    border: 1px solid var(--ink-soft);
+    padding: 3px 10px;
+    background: rgba(255,255,255,0.2);
   }
   .compass {
-    position:absolute; bottom: 32px; right: 32px;
-    width: clamp(80px, 9vw, 140px); height: clamp(80px, 9vw, 140px);
+    position:absolute; bottom: 28px; right: 28px;
+    width: clamp(80px, 9vw, 130px); height: clamp(80px, 9vw, 130px);
     opacity: 0.85;
   }
   .legend {
-    position:absolute; left: 24px; bottom: 18px;
+    position:absolute; left: 22px; bottom: 16px;
     font-family: 'IM Fell English', serif;
-    font-size: clamp(10px, 0.85vw, 13px);
+    font-size: clamp(9px, 0.85vw, 12px);
     color: var(--ink-soft);
-    line-height: 1.55;
-    background: rgba(232, 214, 163, 0.6);
+    line-height: 1.5;
+    background: rgba(232, 214, 163, 0.7);
     border: 1px solid rgba(90, 60, 30, 0.5);
-    padding: 10px 14px;
-    max-width: 200px;
+    padding: 9px 13px;
+    max-width: 220px;
     pointer-events: none;
   }
   .legend b { font-family: 'Cinzel', serif; font-style: normal; }
   .nav-back {
-    position:absolute; top: 18px; left: 24px;
+    position:absolute; top: 16px; left: 22px;
     font-family: 'Cinzel', serif;
-    font-size: clamp(12px, 1.1vw, 16px);
+    font-size: clamp(11px, 1.0vw, 14px);
     color: var(--ink);
     text-decoration: none;
-    padding: 4px 12px;
+    padding: 5px 13px;
     border: 1px solid var(--ink-soft);
-    background: rgba(232, 214, 163, 0.7);
+    background: rgba(232, 214, 163, 0.78);
     z-index: 10;
+    letter-spacing: 0.12em;
+    transition: background 0.2s, transform 0.2s;
   }
-  .nav-back:hover { background: rgba(232, 214, 163, 1.0); }
+  .nav-back:hover { background: rgba(255, 230, 180, 1.0); transform: translateY(-1px); }
+  .nav-back.right { left: auto; right: 22px; }
+
+  /* === Animated clouds drifting across the parchment === */
+  @keyframes driftL2R { from { transform: translateX(-12%) } to { transform: translateX(112%) } }
+  @keyframes driftR2L { from { transform: translateX(112%) } to { transform: translateX(-12%) } }
+  .cloud-svg {
+    position: absolute; pointer-events: none;
+    opacity: 0.40;
+    animation: driftL2R linear infinite;
+  }
+  .cloud-svg.r2l { animation-name: driftR2L; }
+
+  /* gentle sparkle on the active hover */
+  @keyframes twinkle { 0%,100% { opacity: 0.7 } 50% { opacity: 0.2 } }
+  .sparkle { animation: twinkle 2.2s ease-in-out infinite; }
 </style>
 </head>
 <body>
 <div id="wrap">
   <div id="map">
-    <a class="nav-back" href="index.html">⟵ 入口</a>
-    <a class="nav-back" href="niwa.html" style="left: auto; right: 24px;">🌿 庭へ入る</a>
+    <a class="nav-back" href="index.html">⟵ 入口へ</a>
+    <a class="nav-back right" href="niwa.html">🌿 庭へ入る</a>
     <div class="title-banner">浮 遊 島 群 ・ 雲 落 ち の 地 図</div>
+    <div class="subtitle-banner">Cloudfall Archipelago · The Cartographer's Atlas</div>
 
-    <!-- SVG layer: chains between islands + danger ink zones + vortex ruin -->
+    <!-- Drifting clouds on the parchment (CSS animated) -->
+    <svg class="cloud-svg" style="left:0; top:18%; width:120px; height:60px; animation-duration: 110s;" viewBox="0 0 120 60">
+      <ellipse cx="40" cy="36" rx="32" ry="14" fill="#fff" opacity="0.7"/>
+      <ellipse cx="68" cy="30" rx="24" ry="12" fill="#fff" opacity="0.6"/>
+      <ellipse cx="86" cy="38" rx="20" ry="10" fill="#fff" opacity="0.55"/>
+    </svg>
+    <svg class="cloud-svg r2l" style="left:0; top:50%; width:90px; height:46px; animation-duration: 145s;" viewBox="0 0 90 46">
+      <ellipse cx="30" cy="28" rx="24" ry="11" fill="#fff" opacity="0.55"/>
+      <ellipse cx="52" cy="24" rx="20" ry="10" fill="#fff" opacity="0.50"/>
+    </svg>
+    <svg class="cloud-svg" style="left:0; top:78%; width:140px; height:64px; animation-duration: 165s; animation-delay: -40s;" viewBox="0 0 140 64">
+      <ellipse cx="42" cy="38" rx="36" ry="15" fill="#fff" opacity="0.5"/>
+      <ellipse cx="78" cy="32" rx="28" ry="13" fill="#fff" opacity="0.45"/>
+      <ellipse cx="106" cy="42" rx="22" ry="10" fill="#fff" opacity="0.40"/>
+    </svg>
+
+    <!-- SVG defs: scene-specific island silhouettes + cartography decorations -->
     <svg class="cartography" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid meet">
       <defs>
-        <!-- Compass rose -->
+        <!-- ===== Compass rose ===== -->
         <symbol id="compass" viewBox="-50 -50 100 100">
-          <circle r="48" fill="none" stroke="#3a2410" stroke-width="1.5"/>
-          <circle r="38" fill="none" stroke="#5a3a1c" stroke-width="0.8" stroke-dasharray="2,2"/>
+          <circle r="48" fill="none" stroke="#3a2410" stroke-width="1.6"/>
+          <circle r="38" fill="none" stroke="#5a3a1c" stroke-width="0.9" stroke-dasharray="2,2"/>
           <g stroke="#3a2410" stroke-width="1.0">
             <line x1="0" y1="-48" x2="0" y2="48"/>
             <line x1="-48" y1="0" x2="48" y2="0"/>
@@ -133,13 +235,16 @@
             <line x1="-34" y1="34" x2="34" y2="-34"/>
           </g>
           <polygon points="0,-46 6,0 0,-14 -6,0" fill="#3a2410"/>
+          <circle r="3" fill="#c8a050" stroke="#3a2410" stroke-width="0.6"/>
           <text x="0" y="-30" text-anchor="middle" font-family="Cinzel" font-size="9" fill="#3a2410">N</text>
           <text x="32" y="3" text-anchor="middle" font-family="Cinzel" font-size="9" fill="#3a2410">E</text>
           <text x="0" y="40" text-anchor="middle" font-family="Cinzel" font-size="9" fill="#3a2410">S</text>
           <text x="-32" y="3" text-anchor="middle" font-family="Cinzel" font-size="9" fill="#3a2410">W</text>
         </symbol>
-        <!-- A floating-island silhouette template (top + jagged bottom) -->
-        <symbol id="island-shape" viewBox="-100 -60 200 140">
+
+        <!-- ===== Universal floating-island base (varied via scale per scene) ===== -->
+        <symbol id="island-base" viewBox="-100 -60 200 140">
+          <!-- jagged rocky underside -->
           <path d="M -90,0 Q -95,-25 -70,-35 Q -50,-50 -20,-48 Q 10,-55 40,-50 Q 65,-58 80,-40 Q 100,-25 90,0
                    Q 80,15 60,25 Q 50,55 20,55 Q -10,75 -30,45 Q -55,55 -60,30 Q -85,20 -90,0 Z"
                 fill="#9d7a44" stroke="#3a2410" stroke-width="1.6"/>
@@ -147,229 +252,395 @@
           <path d="M -90,0 Q -95,-25 -70,-35 Q -50,-50 -20,-48 Q 10,-55 40,-50 Q 65,-58 80,-40 Q 100,-25 90,0
                    L 80,-5 Q 65,-25 40,-35 Q 10,-40 -20,-32 Q -50,-35 -70,-22 L -90,0 Z"
                 fill="#7ea758" stroke="none"/>
-          <!-- some surface details (tiny stones / trees) -->
-          <circle cx="-50" cy="-30" r="3" fill="#4a3220"/>
-          <circle cx="-20" cy="-32" r="2.5" fill="#4a3220"/>
-          <circle cx="20" cy="-35" r="3.5" fill="#4a3220"/>
-          <circle cx="50" cy="-32" r="2.8" fill="#4a3220"/>
           <!-- crack lines on rocky underside -->
           <path d="M -40,10 L -35,30 M 0,15 L -8,40 M 30,10 L 25,35 M -65,5 L -68,25"
                 stroke="#3a2410" stroke-width="0.6" fill="none"/>
         </symbol>
-        <!-- Tiny mountain icon for villages -->
-        <symbol id="village-icon" viewBox="-15 -15 30 30">
-          <path d="M -10,8 L -3,-6 L 2,2 L 7,-4 L 10,8 Z" fill="#7a5a3a" stroke="#3a2410" stroke-width="1"/>
-          <rect x="-2" y="2" width="3" height="6" fill="#5a3a1c"/>
+
+        <!-- ============================================================
+             Scene-specific building silhouettes (one per niwa scene).
+             All draw at viewBox=(-30,-50, 60, 60) so they layer on top
+             of the island base nicely.
+             ============================================================ -->
+        <!-- plaza — central village w/ clocktower spire -->
+        <symbol id="bldg-plaza" viewBox="-30 -50 60 60">
+          <rect x="-20" y="-12" width="14" height="14" fill="#a26c3a" stroke="#3a2410" stroke-width="1"/>
+          <polygon points="-20,-12 -13,-22 -6,-12" fill="#6a3a18" stroke="#3a2410" stroke-width="0.8"/>
+          <rect x="6" y="-10" width="12" height="12" fill="#a26c3a" stroke="#3a2410" stroke-width="1"/>
+          <polygon points="6,-10 12,-20 18,-10" fill="#6a3a18" stroke="#3a2410" stroke-width="0.8"/>
+          <rect x="-6" y="-30" width="10" height="32" fill="#b88a4a" stroke="#3a2410" stroke-width="1"/>
+          <polygon points="-7,-30 -1,-44 5,-30" fill="#6a3a18" stroke="#3a2410" stroke-width="0.8"/>
+          <circle cx="-1" cy="-24" r="3.2" fill="#e8dcb8" stroke="#3a2410" stroke-width="0.6"/>
+          <line x1="-1" y1="-26" x2="-1" y2="-24" stroke="#3a2410" stroke-width="0.5"/>
+          <line x1="-1" y1="-24" x2="1" y2="-24" stroke="#3a2410" stroke-width="0.5"/>
         </symbol>
-        <!-- X mark for chest -->
-        <symbol id="x-mark" viewBox="-10 -10 20 20">
-          <line x1="-7" y1="-7" x2="7" y2="7" stroke="#a82018" stroke-width="2.5" stroke-linecap="round"/>
-          <line x1="-7" y1="7" x2="7" y2="-7" stroke="#a82018" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- monlight — bookstore w/ window stack -->
+        <symbol id="bldg-monlight" viewBox="-30 -50 60 60">
+          <rect x="-16" y="-26" width="32" height="28" fill="#8a5832" stroke="#3a2410" stroke-width="1.2"/>
+          <polygon points="-16,-26 0,-40 16,-26" fill="#5a3018" stroke="#3a2410" stroke-width="1"/>
+          <rect x="-12" y="-22" width="6" height="6" fill="#e8d480" stroke="#3a2410" stroke-width="0.5"/>
+          <rect x="-2" y="-22" width="6" height="6" fill="#e8d480" stroke="#3a2410" stroke-width="0.5"/>
+          <rect x="8" y="-22" width="6" height="6" fill="#e8d480" stroke="#3a2410" stroke-width="0.5"/>
+          <rect x="-12" y="-12" width="6" height="6" fill="#e8d480" stroke="#3a2410" stroke-width="0.5"/>
+          <rect x="-2" y="-12" width="6" height="6" fill="#e8d480" stroke="#3a2410" stroke-width="0.5"/>
+          <rect x="8" y="-12" width="6" height="6" fill="#e8d480" stroke="#3a2410" stroke-width="0.5"/>
+          <!-- moon -->
+          <circle cx="14" cy="-44" r="3" fill="#e8dcb8" opacity="0.7"/>
         </symbol>
-        <!-- Waypoint icon -->
-        <symbol id="waypoint-icon" viewBox="-10 -10 20 20">
-          <polygon points="0,-8 8,2 5,2 5,8 -5,8 -5,2 -8,2" fill="#3a72a8" stroke="#1a3a5a" stroke-width="1.2"/>
+        <!-- oto — watermill w/ wheel -->
+        <symbol id="bldg-oto" viewBox="-30 -50 60 60">
+          <rect x="-12" y="-22" width="22" height="24" fill="#8a6238" stroke="#3a2410" stroke-width="1"/>
+          <polygon points="-12,-22 -1,-34 10,-22" fill="#5a3a18" stroke="#3a2410" stroke-width="1"/>
+          <circle cx="16" cy="-6" r="10" fill="none" stroke="#3a2410" stroke-width="1.4"/>
+          <line x1="16" y1="-16" x2="16" y2="4" stroke="#3a2410" stroke-width="1"/>
+          <line x1="6" y1="-6" x2="26" y2="-6" stroke="#3a2410" stroke-width="1"/>
+          <line x1="9" y1="-13" x2="23" y2="1" stroke="#3a2410" stroke-width="1"/>
+          <line x1="9" y1="1" x2="23" y2="-13" stroke="#3a2410" stroke-width="1"/>
+          <circle cx="16" cy="-6" r="2.5" fill="#3a2410"/>
+          <!-- stream below -->
+          <path d="M -16,4 Q -8,8 0,4 Q 8,8 16,4 Q 24,8 30,4" stroke="#3a72a8" stroke-width="1.2" fill="none"/>
         </symbol>
-        <!-- Dragon icon (small) -->
-        <symbol id="dragon-icon" viewBox="-25 -15 50 30">
-          <path d="M -22,5 Q -15,-3 -8,0 Q -2,-8 8,-5 Q 18,-10 22,-2 Q 18,5 12,4 Q 8,8 0,7 Q -8,10 -15,7 Q -20,9 -22,5 Z"
-                fill="#5a3a1c" stroke="#3a2410" stroke-width="1"/>
-          <circle cx="14" cy="-2" r="1.2" fill="#a82018"/>
+        <!-- tabi — inn w/ chimney & sign -->
+        <symbol id="bldg-tabi" viewBox="-30 -50 60 60">
+          <rect x="-18" y="-22" width="32" height="24" fill="#a86838" stroke="#3a2410" stroke-width="1.2"/>
+          <polygon points="-18,-22 -2,-38 14,-22" fill="#5a3018" stroke="#3a2410" stroke-width="1"/>
+          <rect x="14" y="-30" width="6" height="14" fill="#8a4a20" stroke="#3a2410" stroke-width="0.6"/>
+          <ellipse cx="17" cy="-32" rx="6" ry="3" fill="#bababa" opacity="0.65"/>
+          <ellipse cx="20" cy="-36" rx="5" ry="2.5" fill="#bababa" opacity="0.45"/>
+          <rect x="-10" y="-14" width="6" height="10" fill="#e8d480" stroke="#3a2410" stroke-width="0.5"/>
+          <rect x="2" y="-14" width="6" height="10" fill="#e8d480" stroke="#3a2410" stroke-width="0.5"/>
+          <!-- sign hanging -->
+          <line x1="-14" y1="-22" x2="-14" y2="-12" stroke="#3a2410" stroke-width="0.8"/>
+          <rect x="-19" y="-12" width="10" height="6" fill="#c89848" stroke="#3a2410" stroke-width="0.5"/>
         </symbol>
+        <!-- toki — clocktower (tall) -->
+        <symbol id="bldg-toki" viewBox="-30 -50 60 60">
+          <rect x="-9" y="-44" width="18" height="46" fill="#9a7038" stroke="#3a2410" stroke-width="1.2"/>
+          <polygon points="-10,-44 0,-50 10,-44" fill="#5a3018" stroke="#3a2410" stroke-width="1"/>
+          <circle cx="0" cy="-30" r="6" fill="#e8dcb8" stroke="#3a2410" stroke-width="0.8"/>
+          <line x1="0" y1="-30" x2="0" y2="-34" stroke="#3a2410" stroke-width="0.8"/>
+          <line x1="0" y1="-30" x2="3" y2="-30" stroke="#3a2410" stroke-width="0.8"/>
+          <rect x="-4" y="-16" width="3" height="6" fill="#e8d480"/>
+          <rect x="1" y="-16" width="3" height="6" fill="#e8d480"/>
+        </symbol>
+        <!-- hoshi — antiquarian/stargazer w/ telescope -->
+        <symbol id="bldg-hoshi" viewBox="-30 -50 60 60">
+          <rect x="-14" y="-22" width="26" height="24" fill="#5a4a8a" stroke="#3a2410" stroke-width="1.2"/>
+          <polygon points="-14,-22 -1,-32 12,-22" fill="#3a2858" stroke="#3a2410" stroke-width="1"/>
+          <circle cx="8" cy="-40" r="3" fill="#fff" class="sparkle"/>
+          <circle cx="-4" cy="-44" r="2" fill="#fff" class="sparkle"/>
+          <circle cx="14" cy="-46" r="2.5" fill="#fff" class="sparkle"/>
+          <!-- small telescope on the roof -->
+          <line x1="-2" y1="-32" x2="6" y2="-40" stroke="#3a2410" stroke-width="1.6"/>
+          <rect x="-10" y="-14" width="5" height="8" fill="#e8d480"/>
+          <rect x="3" y="-14" width="5" height="8" fill="#e8d480"/>
+        </symbol>
+        <!-- takibi — candlemaker w/ flame -->
+        <symbol id="bldg-takibi" viewBox="-30 -50 60 60">
+          <rect x="-14" y="-22" width="28" height="24" fill="#7a4a28" stroke="#3a2410" stroke-width="1.2"/>
+          <polygon points="-14,-22 0,-34 14,-22" fill="#4a2810" stroke="#3a2410" stroke-width="1"/>
+          <rect x="-2" y="-16" width="4" height="14" fill="#e8d480"/>
+          <ellipse cx="0" cy="-18" rx="3" ry="4" fill="#ff9858">
+            <animate attributeName="ry" values="4;5;4" dur="1.4s" repeatCount="indefinite"/>
+          </ellipse>
+          <ellipse cx="0" cy="-19" rx="1.5" ry="2.5" fill="#ffe8a0"/>
+          <!-- small smoke -->
+          <ellipse cx="0" cy="-36" rx="6" ry="2" fill="#bababa" opacity="0.4"/>
+          <ellipse cx="3" cy="-42" rx="5" ry="2" fill="#bababa" opacity="0.3"/>
+        </symbol>
+        <!-- mizube — weaver/loom -->
+        <symbol id="bldg-mizube" viewBox="-30 -50 60 60">
+          <rect x="-13" y="-22" width="26" height="24" fill="#8a6a4a" stroke="#3a2410" stroke-width="1.2"/>
+          <polygon points="-13,-22 0,-32 13,-22" fill="#5a3a18" stroke="#3a2410" stroke-width="1"/>
+          <!-- loom inside window -->
+          <rect x="-6" y="-15" width="12" height="11" fill="#3a2410"/>
+          <line x1="-6" y1="-13" x2="6" y2="-13" stroke="#c8a050" stroke-width="0.6"/>
+          <line x1="-6" y1="-10" x2="6" y2="-10" stroke="#c8a050" stroke-width="0.6"/>
+          <line x1="-6" y1="-7" x2="6" y2="-7" stroke="#c8a050" stroke-width="0.6"/>
+          <!-- water below -->
+          <path d="M -18,4 Q -10,7 -2,4 Q 6,7 14,4 Q 22,7 28,4" stroke="#3a72a8" stroke-width="1.2" fill="none"/>
+          <path d="M -18,8 Q -12,10 -6,8 Q 0,10 6,8 Q 12,10 18,8" stroke="#3a72a8" stroke-width="0.8" fill="none" opacity="0.7"/>
+        </symbol>
+        <!-- amaoto — church w/ cross spire -->
+        <symbol id="bldg-amaoto" viewBox="-30 -50 60 60">
+          <rect x="-14" y="-26" width="28" height="28" fill="#7a8aa8" stroke="#3a2410" stroke-width="1.2"/>
+          <polygon points="-14,-26 0,-40 14,-26" fill="#4a5a78" stroke="#3a2410" stroke-width="1"/>
+          <!-- spire -->
+          <rect x="-3" y="-44" width="6" height="14" fill="#5a6a8a" stroke="#3a2410" stroke-width="0.8"/>
+          <polygon points="-3,-44 0,-50 3,-44" fill="#3a4a68" stroke="#3a2410" stroke-width="0.7"/>
+          <!-- cross -->
+          <line x1="0" y1="-46" x2="0" y2="-52" stroke="#3a2410" stroke-width="1"/>
+          <line x1="-2" y1="-50" x2="2" y2="-50" stroke="#3a2410" stroke-width="1"/>
+          <!-- arched window -->
+          <path d="M -5,-12 A 5 6 0 0 1 5,-12 L 5,-4 L -5,-4 Z" fill="#e8d480" stroke="#3a2410" stroke-width="0.6"/>
+          <!-- rain drops -->
+          <line x1="-18" y1="-12" x2="-19" y2="-6" stroke="#3a72a8" stroke-width="0.6"/>
+          <line x1="-12" y1="-18" x2="-13" y2="-12" stroke="#3a72a8" stroke-width="0.6"/>
+          <line x1="14" y1="-14" x2="13" y2="-8" stroke="#3a72a8" stroke-width="0.6"/>
+          <line x1="20" y1="-20" x2="19" y2="-14" stroke="#3a72a8" stroke-width="0.6"/>
+        </symbol>
+        <!-- heya — bakery (small w/ oven smoke) -->
+        <symbol id="bldg-heya" viewBox="-30 -50 60 60">
+          <rect x="-12" y="-18" width="22" height="20" fill="#c88a4a" stroke="#3a2410" stroke-width="1"/>
+          <polygon points="-12,-18 -1,-28 10,-18" fill="#7a4828" stroke="#3a2410" stroke-width="0.8"/>
+          <!-- chimney smoke -->
+          <rect x="6" y="-26" width="4" height="10" fill="#8a4a20" stroke="#3a2410" stroke-width="0.5"/>
+          <ellipse cx="8" cy="-30" rx="5" ry="2.5" fill="#bababa" opacity="0.6"/>
+          <ellipse cx="11" cy="-36" rx="5" ry="2.5" fill="#bababa" opacity="0.45"/>
+          <!-- bread loaves on window -->
+          <rect x="-9" y="-12" width="6" height="6" fill="#e8d480" stroke="#3a2410" stroke-width="0.4"/>
+          <ellipse cx="-6" cy="-10" rx="2" ry="1" fill="#a86838"/>
+        </symbol>
+
       </defs>
 
-      <!-- Background drifting clouds (inked) -->
-      <g opacity="0.45" stroke="#5a3a1c" stroke-width="0.8" fill="none">
+      <!-- Background drifting ink-clouds (subtle) -->
+      <g opacity="0.30" stroke="#5a3a1c" stroke-width="0.6" fill="none">
         <path d="M 80,180 Q 130,160 180,180 Q 230,170 270,190 Q 290,200 270,210 Q 220,220 170,210 Q 130,220 90,210 Q 60,210 80,180 Z"/>
         <path d="M 1100,140 Q 1160,120 1220,140 Q 1280,130 1340,150 Q 1370,160 1340,180 Q 1280,190 1220,180 Q 1160,200 1100,180 Q 1070,180 1100,140 Z"/>
         <path d="M 1380,560 Q 1430,540 1480,560 Q 1530,550 1560,570 Q 1580,580 1560,590 Q 1510,600 1460,590 Q 1420,600 1390,590 Q 1370,590 1380,560 Z"/>
         <path d="M 70,800 Q 130,780 190,800 Q 250,790 300,810 Q 320,820 300,830 Q 240,840 180,830 Q 130,840 90,830 Q 60,830 70,800 Z"/>
       </g>
 
-      <!-- Danger zones (red ink wash near central vortex) -->
-      <ellipse cx="800" cy="500" rx="280" ry="180" fill="rgba(170,30,30,0.16)"/>
-      <ellipse cx="800" cy="500" rx="220" ry="140" fill="rgba(170,30,30,0.10)"/>
-
-      <!-- Chain bridges connecting islands -->
-      <g stroke="#3a2410" stroke-width="2.5" fill="none">
-        <!-- Plaza (left center) to Vortex -->
-        <path d="M 380,500 Q 500,490 620,500" stroke-dasharray="3,4"/>
-        <!-- Vortex to Hoshi (right) -->
-        <path d="M 980,500 Q 1100,495 1220,500" stroke-dasharray="3,4"/>
-        <!-- Plaza to Cloudfall (top) -->
-        <path d="M 360,440 Q 450,300 540,220" stroke-dasharray="3,4"/>
-        <!-- Cloudfall to Windward waypoint (top center) -->
-        <path d="M 620,200 Q 760,170 900,200" stroke-dasharray="3,4"/>
-        <!-- Windward to Dragon's Hoard -->
-        <path d="M 950,210 Q 1100,210 1230,250"/>
-        <!-- Vortex S chain to bottom waypoint -->
-        <path d="M 820,580 Q 830,720 800,820" stroke-dasharray="3,4"/>
-        <!-- Bottom waypoint to monster zone -->
-        <path d="M 800,820 Q 950,830 1080,820" stroke-dasharray="3,4"/>
-      </g>
-
-      <!-- Central Vortex ruin -->
-      <g transform="translate(800, 500)">
-        <!-- Outer ring ruin -->
-        <circle r="120" fill="#8a6a3a" stroke="#3a2410" stroke-width="2"/>
-        <circle r="110" fill="#7a5a30" stroke="#3a2410" stroke-width="1.2"/>
-        <!-- Broken stone pillars around the rim -->
-        <g stroke="#3a2410" stroke-width="1">
-          <rect x="-8" y="-118" width="16" height="20" fill="#6a4a26"/>
-          <rect x="-118" y="-8" width="20" height="16" fill="#6a4a26"/>
-          <rect x="-8" y="98" width="16" height="20" fill="#6a4a26"/>
-          <rect x="98" y="-8" width="20" height="16" fill="#6a4a26"/>
-          <rect x="-90" y="-90" width="14" height="14" fill="#6a4a26" transform="rotate(-30)"/>
-          <rect x="76" y="-86" width="14" height="14" fill="#6a4a26"/>
-          <rect x="-90" y="76" width="14" height="14" fill="#6a4a26"/>
-          <rect x="76" y="76" width="14" height="14" fill="#6a4a26"/>
-        </g>
-        <!-- Swirling vortex in the center -->
-        <g stroke="#3a2410" stroke-width="1.5" fill="none">
-          <path d="M 0,-80 Q 60,-60 70,0 Q 60,55 0,70 Q -55,55 -70,0 Q -55,-55 0,-80"/>
-          <path d="M 0,-55 Q 40,-40 50,0 Q 40,38 0,50 Q -38,38 -50,0 Q -38,-40 0,-55"/>
-          <path d="M 0,-30 Q 22,-20 28,0 Q 22,20 0,28 Q -20,20 -28,0 Q -20,-22 0,-30"/>
-          <circle r="8" fill="#3a2410"/>
-        </g>
-        <text x="0" y="-135" text-anchor="middle" font-family="Cinzel" font-size="14" fill="#3a2410"
-              style="letter-spacing:0.1em">Abyssal Vortex</text>
+      <!-- ===== Chain bridges between neighbour islands ===== -->
+      <!-- Layout (per niwa SCENE_NEIGHBORS, mirrors SCENE_WORLD_POS dx/dz):
+                   amaoto              oto              tabi
+                       \\               |              /
+              monlight  ─────  plaza  ─────  toki
+                       /               |              \\
+                   takibi             hoshi            mizube
+      -->
+      <g stroke="#3a2410" stroke-width="2.5" fill="none" stroke-dasharray="4,5" opacity="0.65">
+        <!-- plaza ↔ oto / toki / hoshi / monlight -->
+        <line x1="800" y1="460" x2="800" y2="240"/>
+        <line x1="860" y1="500" x2="1240" y2="500"/>
+        <line x1="800" y1="540" x2="800" y2="760"/>
+        <line x1="740" y1="500" x2="360" y2="500"/>
+        <!-- amaoto ↔ oto / monlight -->
+        <line x1="370" y1="220" x2="730" y2="200"/>
+        <line x1="300" y1="240" x2="300" y2="460"/>
+        <!-- oto ↔ tabi -->
+        <line x1="870" y1="200" x2="1230" y2="200"/>
+        <!-- tabi ↔ toki -->
+        <line x1="1300" y1="240" x2="1300" y2="460"/>
+        <!-- toki ↔ mizube -->
+        <line x1="1300" y1="540" x2="1300" y2="760"/>
+        <!-- hoshi ↔ mizube / takibi -->
+        <line x1="870" y1="800" x2="1240" y2="800"/>
+        <line x1="730" y1="800" x2="360" y2="800"/>
+        <!-- monlight ↔ takibi -->
+        <line x1="300" y1="540" x2="300" y2="760"/>
       </g>
 
       <!-- Compass rose -->
       <use href="#compass" x="1440" y="900" width="120" height="120"/>
     </svg>
 
-    <!-- Islands as positioned divs so they can be hover/clickable links to scenes -->
-    <!-- Plaza (Cloudfall Village) — left center -->
-    <a href="niwa.html?scene=plaza" class="island" style="left: 13%; top: 38%; width: 18%; height: 22%;"
-       title="Cloudfall Village">
+    <!-- =====================================================
+         Islands — positioned per SCENE_WORLD_POS (cardinal grid).
+         Center plaza ≈ (800, 500), edges ±500.  Each island is
+         8-12% wide so the silhouettes read clearly at a distance.
+         ===================================================== -->
+
+    <!-- amaoto (NW) — top-left -->
+    <a href="niwa.html?scene=amaoto" class="island" data-scene="amaoto"
+       style="left: 17%; top: 14%; width: 9%; height: 13%;"
+       title="Rain Chapel (雨音の部屋)">
       <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
-        <use href="#island-shape"/>
-        <use href="#village-icon" x="0" y="-20" width="30" height="30"/>
+        <use href="#island-base"/>
+        <use href="#bldg-amaoto" x="-30" y="-50" width="60" height="60"/>
+        <ellipse class="glow" cx="0" cy="-15" rx="40" ry="20" fill="#ffd890" opacity="0.5"/>
       </svg>
     </a>
-    <div class="label large" style="left: 12%; top: 32%;">Cloudfall Village</div>
-    <div class="label" style="left: 15%; top: 60%; color:#5a3a1c;">★ 雲落ちの村</div>
+    <div class="label large" style="left: 17%; top: 8%;">Rain Chapel</div>
+    <div class="label jp"    style="left: 17%; top: 28%;">★ 雨音の部屋</div>
 
-    <!-- Cloudfall outpost (top left) — Monlight scene -->
-    <a href="niwa.html?scene=monlight" class="island" style="left: 28%; top: 12%; width: 14%; height: 18%;"
+    <!-- oto (N) — top center -->
+    <a href="niwa.html?scene=oto" class="island" data-scene="oto"
+       style="left: 46%; top: 12%; width: 10%; height: 14%;"
+       title="Stream Garden (音の小川)">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-base"/>
+        <use href="#bldg-oto" x="-30" y="-50" width="60" height="60"/>
+        <ellipse class="glow" cx="0" cy="-15" rx="40" ry="20" fill="#ffd890" opacity="0.5"/>
+      </svg>
+    </a>
+    <div class="label large" style="left: 46%; top: 6%;">Stream Garden</div>
+    <div class="label jp"    style="left: 46%; top: 27%;">★ 音の小川</div>
+
+    <!-- tabi (NE) — top-right -->
+    <a href="niwa.html?scene=tabi" class="island" data-scene="tabi"
+       style="left: 75%; top: 14%; width: 11%; height: 15%;"
+       title="Traveler's Inn (旅の岸辺)">
+      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
+        <use href="#island-base"/>
+        <use href="#bldg-tabi" x="-30" y="-50" width="60" height="60"/>
+        <ellipse class="glow" cx="0" cy="-15" rx="40" ry="20" fill="#ffd890" opacity="0.5"/>
+      </svg>
+    </a>
+    <div class="label large" style="left: 75%; top: 8%;">Traveler's Coast</div>
+    <div class="label jp"    style="left: 75%; top: 30%;">★ 旅の岸辺</div>
+
+    <!-- monlight (W) — middle-left -->
+    <a href="niwa.html?scene=monlight" class="island" data-scene="monlight"
+       style="left: 12%; top: 42%; width: 10%; height: 14%;"
        title="Moonlit Stacks (月光の書架)">
       <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
-        <use href="#island-shape"/>
-        <use href="#village-icon" x="-10" y="-22" width="22" height="22"/>
+        <use href="#island-base"/>
+        <use href="#bldg-monlight" x="-30" y="-50" width="60" height="60"/>
+        <ellipse class="glow" cx="0" cy="-15" rx="40" ry="20" fill="#ffd890" opacity="0.5"/>
       </svg>
     </a>
-    <div class="label large" style="left: 26%; top: 7%;">Moonlit Stacks</div>
+    <div class="label large" style="left: 12%; top: 37%;">Moonlit Stacks</div>
+    <div class="label jp"    style="left: 12%; top: 57%;">★ 月光の書架</div>
 
-    <!-- Windward Waypoint (top center) -->
-    <a href="niwa.html?scene=hoshi" class="island" style="left: 53%; top: 8%; width: 8%; height: 12%;"
-       title="Stargazer's Hill">
+    <!-- plaza (center) — large -->
+    <a href="niwa.html?scene=plaza" class="island" data-scene="plaza"
+       style="left: 43%; top: 39%; width: 14%; height: 19%;"
+       title="Cloudfall Village (雲落ちの村)">
       <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
-        <use href="#island-shape"/>
-        <use href="#waypoint-icon" x="0" y="-20" width="20" height="20"/>
+        <use href="#island-base"/>
+        <use href="#bldg-plaza" x="-30" y="-52" width="60" height="60"/>
+        <ellipse class="glow" cx="0" cy="-15" rx="48" ry="24" fill="#ffd890" opacity="0.55"/>
       </svg>
     </a>
-    <div class="label" style="left: 53%; top: 4%;">Windward Waypoint</div>
+    <div class="label large" style="left: 43%; top: 33%; color:#5a3a1c;">Cloudfall Village</div>
+    <div class="label jp"    style="left: 43%; top: 59%; color:#5a3a1c;">★ 雲落ちの村 — 中央</div>
 
-    <!-- Dragon's Hoard (top right) -->
-    <a href="niwa.html?scene=takibi" class="island" style="left: 76%; top: 14%; width: 14%; height: 18%;"
-       title="By the Campfire (焚き火の前)">
+    <!-- toki (E) — middle-right -->
+    <a href="niwa.html?scene=toki" class="island" data-scene="toki"
+       style="left: 78%; top: 40%; width: 11%; height: 16%;"
+       title="Hourglass Hill (時の砂時計)">
       <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
-        <use href="#island-shape"/>
-        <use href="#dragon-icon" x="-10" y="-20" width="34" height="20"/>
-        <use href="#x-mark" x="-30" y="20" width="14" height="14"/>
-        <use href="#x-mark" x="20" y="-10" width="14" height="14"/>
+        <use href="#island-base"/>
+        <use href="#bldg-toki" x="-30" y="-50" width="60" height="60"/>
+        <ellipse class="glow" cx="0" cy="-15" rx="40" ry="20" fill="#ffd890" opacity="0.5"/>
       </svg>
     </a>
-    <div class="label large" style="left: 76%; top: 9%;">Dragon's Hoard</div>
-    <div class="label" style="left: 90%; top: 18%;">★ 焚き火</div>
+    <div class="label large" style="left: 78%; top: 34%;">Hourglass Hill</div>
+    <div class="label jp"    style="left: 78%; top: 57%;">★ 時の砂時計</div>
 
-    <!-- Broken Bridge Chest (right) -->
-    <a href="niwa.html?scene=toki" class="island" style="left: 73%; top: 38%; width: 14%; height: 20%;"
-       title="The Hourglass Hill (時の砂時計)">
+    <!-- heya — small island floating near plaza (no spatial neighbours) -->
+    <a href="niwa.html?scene=heya" class="island" data-scene="heya"
+       style="left: 60%; top: 30%; width: 6%; height: 9%;"
+       title="The Bakery (部屋)">
       <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
-        <use href="#island-shape"/>
-        <use href="#x-mark" x="0" y="-10" width="16" height="16"/>
+        <use href="#island-base"/>
+        <use href="#bldg-heya" x="-30" y="-50" width="60" height="60"/>
+        <ellipse class="glow" cx="0" cy="-15" rx="30" ry="14" fill="#ffd890" opacity="0.5"/>
       </svg>
     </a>
-    <div class="label" style="left: 75%; top: 33%;">Broken Bridge Chest</div>
+    <div class="label jp" style="left: 60%; top: 26%;">部屋</div>
 
-    <!-- Skyside Chest (bottom left) — Mizube scene -->
-    <a href="niwa.html?scene=mizube" class="island" style="left: 12%; top: 65%; width: 18%; height: 22%;"
-       title="The Pondside (水辺の岸)">
+    <!-- takibi (SW) — bottom-left -->
+    <a href="niwa.html?scene=takibi" class="island" data-scene="takibi"
+       style="left: 16%; top: 70%; width: 10%; height: 14%;"
+       title="By the Candle (焚き火の前)">
       <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
-        <use href="#island-shape"/>
-        <use href="#village-icon" x="-5" y="-15" width="24" height="24"/>
+        <use href="#island-base"/>
+        <use href="#bldg-takibi" x="-30" y="-50" width="60" height="60"/>
+        <ellipse class="glow" cx="0" cy="-15" rx="40" ry="20" fill="#ff9858" opacity="0.55"/>
       </svg>
     </a>
-    <div class="label large" style="left: 13%; top: 88%;">Skyside Waypoint Chest</div>
+    <div class="label large" style="left: 16%; top: 64%;">By the Candle</div>
+    <div class="label jp"    style="left: 16%; top: 86%;">★ 焚き火の前</div>
 
-    <!-- Maelstrom monster zone south -->
-    <a href="niwa.html?scene=oto" class="island" style="left: 42%; top: 75%; width: 14%; height: 18%;"
-       title="The Stream Garden (音の小川)">
+    <!-- hoshi (S) — bottom center -->
+    <a href="niwa.html?scene=hoshi" class="island" data-scene="hoshi"
+       style="left: 46%; top: 72%; width: 10%; height: 14%;"
+       title="Stargazer's Hill (星見台)">
       <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
-        <use href="#island-shape"/>
-        <use href="#waypoint-icon" x="0" y="-12" width="18" height="18"/>
+        <use href="#island-base"/>
+        <use href="#bldg-hoshi" x="-30" y="-50" width="60" height="60"/>
+        <ellipse class="glow" cx="0" cy="-15" rx="40" ry="20" fill="#a8c8e8" opacity="0.55"/>
       </svg>
     </a>
-    <div class="label" style="left: 42%; top: 70%;">Maelstrom Monster Zone</div>
+    <div class="label large" style="left: 46%; top: 66%;">Stargazer's Hill</div>
+    <div class="label jp"    style="left: 46%; top: 87%;">★ 星見台</div>
 
-    <!-- Tabi (east bottom) -->
-    <a href="niwa.html?scene=tabi" class="island" style="left: 68%; top: 70%; width: 16%; height: 20%;"
-       title="The Traveler's Coast (旅の岸辺)">
+    <!-- mizube (SE) — bottom-right -->
+    <a href="niwa.html?scene=mizube" class="island" data-scene="mizube"
+       style="left: 75%; top: 70%; width: 11%; height: 15%;"
+       title="By the Weaver (水辺の岸)">
       <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
-        <use href="#island-shape"/>
-        <use href="#village-icon" x="0" y="-10" width="22" height="22"/>
+        <use href="#island-base"/>
+        <use href="#bldg-mizube" x="-30" y="-50" width="60" height="60"/>
+        <ellipse class="glow" cx="0" cy="-15" rx="40" ry="20" fill="#a8c8e8" opacity="0.55"/>
       </svg>
     </a>
-    <div class="label large" style="left: 67%; top: 65%;">Traveler's Coast</div>
+    <div class="label large" style="left: 75%; top: 64%;">Weaver's Shore</div>
+    <div class="label jp"    style="left: 75%; top: 86%;">★ 水辺の岸</div>
 
-    <!-- Amaoto (cloud center upper) — small island near top -->
-    <a href="niwa.html?scene=amaoto" class="island" style="left: 44%; top: 38%; width: 8%; height: 12%;"
-       title="The Room of Rain (雨音の部屋)">
-      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
-        <use href="#island-shape"/>
-        <use href="#village-icon" x="0" y="-15" width="18" height="18"/>
-      </svg>
-    </a>
-    <div class="label" style="left: 42%; top: 33%;">Rain Hermitage</div>
-
-    <!-- Heya (small island near upper right) -->
-    <a href="niwa.html?scene=heya" class="island" style="left: 55%; top: 33%; width: 7%; height: 10%;"
-       title="The Cozy Room (部屋)">
-      <svg viewBox="-100 -60 200 140" preserveAspectRatio="xMidYMid meet">
-        <use href="#island-shape"/>
-        <use href="#village-icon" x="0" y="-15" width="16" height="16"/>
-      </svg>
-    </a>
-    <div class="label" style="left: 56%; top: 28%;">Hearth Sanctum</div>
+    <!-- Hover card (single, repositioned per island) -->
+    <div id="card" class="island-card">
+      <div class="ic-title" id="card-title">—</div>
+      <div class="ic-jp" id="card-jp">—</div>
+      <div id="card-desc">—</div>
+      <span class="ic-go">入る →</span>
+    </div>
 
     <!-- Legend -->
     <div class="legend">
       <b>凡例</b><br>
-      ★ — 主要な村 / Village<br>
-      🜔 — ウェイポイント / Waypoint<br>
-      ✕ — 隠し宝箱 / Hidden Chest<br>
-      <span style="color:#a82018">▰</span> — モンスターエリア / Danger Zone<br>
-      ━━ — 鎖の橋 / Chain Bridge<br>
+      ★ — 主要な島 / Island Settlement<br>
+      ─ ─ ─ — 鎖の橋 / Chain Bridge (歩いて渡れる)<br>
+      🌿 — 庭へ入る (niwa.html)<br>
       <br>
-      <i>Click any island to descend.</i>
+      <i>Hover an island for details · click to descend.</i>
     </div>
   </div>
 </div>
 <script>
-  // Pre-load font (Cinzel / IM Fell English) from Google Fonts. If offline, falls back to serif.
+  // Pre-load font (Cinzel / IM Fell English / Shippori Mincho)
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=IM+Fell+English:ital@0;1&display=swap';
+  link.href = 'https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=IM+Fell+English:ital@0;1&family=Shippori+Mincho:wght@400;700&display=swap';
   document.head.appendChild(link);
-  // Optional: when an island is clicked, write scene preference into sessionStorage so niwa.html
-  // can pick it up if it supports ?scene= query
+
+  // Scene metadata for hover cards
+  const SCENE_META = {
+    plaza:    { title:'CLOUDFALL VILLAGE',  jp:'雲落ちの村',     desc:'霧の上の中央広場。時計塔と剣、紋章が物語の入口を彩る。' },
+    monlight: { title:"MOONLIT STACKS",     jp:'月光の書架',     desc:'月光が降る本屋街区。屋外の書棚と灯籠の余韻。' },
+    oto:      { title:"STREAM GARDEN",      jp:'音の小川',       desc:'水車屋の脇を流れる小川。流水音と苔むした工房。' },
+    tabi:     { title:"TRAVELER'S COAST",   jp:'旅の岸辺',       desc:'湖畔の旅人宿。煌々と灯る客室、中庭のかがり火。' },
+    toki:     { title:"HOURGLASS HILL",     jp:'時の砂時計',     desc:'雲海の上の時計塔。双子の紋章が時を見守る。' },
+    hoshi:    { title:"STARGAZER'S HILL",   jp:'星見台',         desc:'骨董屋の丘。剣・紋章・宝箱と古い書物、星灯り。' },
+    takibi:   { title:'BY THE CANDLE',      jp:'焚き火の前',     desc:'ろうそく屋と三つのかがり火。冷えた夜の集いの場。' },
+    mizube:   { title:'BY THE WEAVER',      jp:'水辺の岸',       desc:'水辺の織機工房。水面に映る吊り鉢と灯籠。' },
+    amaoto:   { title:'RAIN CHAPEL',        jp:'雨音の部屋',     desc:'石畳の前庭の教会。雨音と石壁、紋章とかがり火。' },
+    heya:     { title:'THE BAKERY',         jp:'部屋',           desc:'温かなパン屋の前庭。植え込みと吊り鉢、暖炉の余熱。' },
+  };
+
+  const cardEl = document.getElementById('card');
+  const cardTitleEl = document.getElementById('card-title');
+  const cardJpEl    = document.getElementById('card-jp');
+  const cardDescEl  = document.getElementById('card-desc');
+
   document.querySelectorAll('.island').forEach(a => {
     a.addEventListener('click', e => {
       const url = new URL(a.href, location.href);
       const scene = url.searchParams.get('scene');
       if(scene) sessionStorage.setItem('niwa.startScene', scene);
+    });
+    a.addEventListener('mouseenter', () => {
+      const s = a.dataset.scene;
+      if(!s || !SCENE_META[s]) return;
+      const m = SCENE_META[s];
+      cardTitleEl.textContent = m.title;
+      cardJpEl.textContent = m.jp;
+      cardDescEl.textContent = m.desc;
+      const rect = a.getBoundingClientRect();
+      const mapRect = document.getElementById('map').getBoundingClientRect();
+      let x = rect.right - mapRect.left + 10;
+      let y = rect.top - mapRect.top;
+      // flip to left if it would overflow
+      if(x + 230 > mapRect.width) x = rect.left - mapRect.left - 230;
+      cardEl.style.left = x + 'px';
+      cardEl.style.top  = Math.max(8, y) + 'px';
+      cardEl.classList.add('show');
+    });
+    a.addEventListener('mouseleave', () => {
+      cardEl.classList.remove('show');
     });
   });
 </script>
