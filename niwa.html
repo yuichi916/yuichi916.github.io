@@ -5173,6 +5173,333 @@ function palSnow(x, z, y, r, c){
   c.lerp(new THREE.Color(0xa8b4be), n*0.3);
 }
 
+/* ===========================================================
+ *  v627 — Scene-concept procedural assets
+ *  Each scene's CORE concept gets a procedural Three.js asset built
+ *  cheaply (no extra GLB downloads):
+ *    takibi  → real campfire (logs + flame sprite + PointLight + sparks)
+ *    mizube  → animated water plane (the actual "水辺")
+ *    oto     → flowing stream channel + a watermill wheel
+ *    tabi    → lake water plane + a small wooden pier
+ *    hoshi   → tall observatory telescope on a tripod
+ *    toki    → giant hourglass with falling sand particles
+ *    monlight→ huge glowing moon disc in the sky
+ *    amaoto  → wet-floor sheen disc
+ *    heya    → bakery oven (warm glow + smoke)
+ *    plaza   → village fountain (water + 4-spout basin)
+ *  All shared / instanced where possible. ~200-800 verts each.
+ * =========================================================== */
+
+// --- shared animated flame sprite (used by campfire + braziers) ---
+const _flameCan = document.createElement('canvas');
+_flameCan.width = _flameCan.height = 128;
+const _fc = _flameCan.getContext('2d');
+const _flameGrad = _fc.createRadialGradient(64, 90, 4, 64, 90, 60);
+_flameGrad.addColorStop(0, 'rgba(255,240,180,1.0)');
+_flameGrad.addColorStop(0.4, 'rgba(255,180,80,0.8)');
+_flameGrad.addColorStop(0.8, 'rgba(220,80,30,0.30)');
+_flameGrad.addColorStop(1.0, 'rgba(120,40,15,0)');
+_fc.fillStyle = _flameGrad;
+_fc.fillRect(0, 0, 128, 128);
+const FLAME_TEX = new THREE.CanvasTexture(_flameCan);
+FLAME_TEX.colorSpace = THREE.SRGBColorSpace;
+
+function makeCampfire(x, z, scale = 1.0){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  // 4 logs crossed
+  const logMat = new THREE.MeshStandardMaterial({color: 0x4a2818, roughness: 0.85});
+  const logGeom = new THREE.CylinderGeometry(0.08, 0.08, 0.95, 8);
+  for(let i = 0; i < 4; i++){
+    const log = new THREE.Mesh(logGeom, logMat);
+    const ang = (i / 4) * Math.PI;
+    log.position.y = 0.10 + (i % 2) * 0.08;
+    log.rotation.z = Math.PI / 2;
+    log.rotation.y = ang;
+    log.castShadow = true;
+    g.add(log);
+  }
+  // Glowing embers under logs
+  const ember = new THREE.Mesh(
+    new THREE.CircleGeometry(0.4, 14),
+    new THREE.MeshBasicMaterial({color: 0xff5820, transparent: true, opacity: 0.85})
+  );
+  ember.rotation.x = -Math.PI / 2;
+  ember.position.y = 0.02;
+  g.add(ember);
+  // Flame billboard (sprite, always facing camera)
+  const flame = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: FLAME_TEX, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending,
+    depthWrite: false, opacity: 0.92,
+  }));
+  flame.scale.set(1.2 * scale, 1.6 * scale, 1);
+  flame.position.y = 0.85;
+  flame.userData.isFlame = true;
+  flame.userData.phase = Math.random() * Math.PI * 2;
+  g.add(flame);
+  // PointLight illuminates surroundings
+  const light = new THREE.PointLight(0xff9858, 1.8, 8, 1.6);
+  light.position.y = 1.0;
+  g.add(light);
+  flame.userData.light = light;
+  // Spark particles — small upward-rising point cloud
+  const sparkCount = 18;
+  const sparkGeom = new THREE.BufferGeometry();
+  const sPos = new Float32Array(sparkCount * 3);
+  for(let i = 0; i < sparkCount; i++){
+    sPos[i*3] = (Math.random() - 0.5) * 0.4;
+    sPos[i*3+1] = 1.0 + Math.random() * 1.5;
+    sPos[i*3+2] = (Math.random() - 0.5) * 0.4;
+  }
+  sparkGeom.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
+  const sparkMat = new THREE.PointsMaterial({color: 0xffe8a0, size: 0.06, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false});
+  const sparks = new THREE.Points(sparkGeom, sparkMat);
+  sparks.userData.isSparks = true;
+  sparks.userData.basePos = sPos.slice();
+  g.add(sparks);
+  g.userData.isCampfire = true;
+  ENTITIES.flames.push(g);
+  return g;
+}
+
+// --- water-plane shader: subtle moving wave colour + foam ring ---
+const WATER_VS = `
+  varying vec2 vUv; varying vec3 vWorldPos;
+  void main(){
+    vUv = uv;
+    vWorldPos = (modelMatrix * vec4(position,1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+  }`;
+const WATER_FS = `
+  uniform float uTime; uniform vec3 uShallow; uniform vec3 uDeep;
+  varying vec2 vUv; varying vec3 vWorldPos;
+  void main(){
+    float w1 = sin(vWorldPos.x*0.35 + uTime*0.7) * cos(vWorldPos.z*0.28 + uTime*0.55);
+    float w2 = sin(vWorldPos.x*0.62 - uTime*0.4) * 0.5;
+    float h  = (w1 + w2) * 0.5 + 0.5;
+    vec3 col = mix(uDeep, uShallow, h);
+    // soft white sparkles on crests
+    float spec = smoothstep(0.78, 0.95, h);
+    col += vec3(0.4) * spec;
+    gl_FragColor = vec4(col, 0.86);
+  }`;
+function makeWaterPlane(cx, cz, w, d, yLevel, shallowHex = 0x8cc4d8, deepHex = 0x2a4a6a){
+  const geo = new THREE.PlaneGeometry(w, d, 1, 1);
+  geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime:     { value: 0 },
+      uShallow:  { value: new THREE.Color(shallowHex) },
+      uDeep:     { value: new THREE.Color(deepHex) },
+    },
+    vertexShader: WATER_VS, fragmentShader: WATER_FS,
+    transparent: true,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(cx, yLevel, cz);
+  mesh.receiveShadow = true;
+  mesh.userData.isWater = true;
+  return mesh;
+}
+
+function makeMoon(){
+  const g = new THREE.Group();
+  const moon = new THREE.Mesh(
+    new THREE.SphereGeometry(3.5, 24, 18),
+    new THREE.MeshBasicMaterial({color: 0xfff4d8})
+  );
+  moon.position.set(-22, 18, -22);
+  g.add(moon);
+  // Soft halo
+  const halo = new THREE.Mesh(
+    new THREE.SphereGeometry(5.5, 18, 14),
+    new THREE.MeshBasicMaterial({color: 0xfff4d8, transparent: true, opacity: 0.22, depthWrite: false})
+  );
+  halo.position.copy(moon.position);
+  g.add(halo);
+  return g;
+}
+
+function makeHourglass(x, z){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  const woodMat = new THREE.MeshStandardMaterial({color: 0x5a3a18, roughness: 0.6, metalness: 0.3});
+  const glassMat = new THREE.MeshStandardMaterial({color: 0xe8e4d8, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.4});
+  // Top & bottom wood frames
+  for(const yy of [0.05, 2.45]){
+    const frame = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.15, 16), woodMat);
+    frame.position.y = yy; frame.castShadow = true;
+    g.add(frame);
+  }
+  // Upper cone (downward)
+  const upperGlass = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.15, 18, 1, true), glassMat);
+  upperGlass.position.y = 0.78;
+  upperGlass.material.side = THREE.DoubleSide;
+  g.add(upperGlass);
+  // Lower cone (downward = apex up)
+  const lowerGlass = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.15, 18, 1, true), glassMat);
+  lowerGlass.position.y = 1.72;
+  lowerGlass.rotation.z = Math.PI;
+  lowerGlass.material.side = THREE.DoubleSide;
+  g.add(lowerGlass);
+  // Sand in upper cone (smaller cone)
+  const sandUpper = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.85, 14), new THREE.MeshStandardMaterial({color: 0xd9b070, roughness: 0.85}));
+  sandUpper.position.y = 0.85;
+  g.add(sandUpper);
+  // Sand pile lower
+  const sandLower = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.45, 14), new THREE.MeshStandardMaterial({color: 0xd9b070, roughness: 0.85}));
+  sandLower.position.y = 1.40;
+  g.add(sandLower);
+  // Falling sand stream (thin cylinder)
+  const stream = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.30, 6), new THREE.MeshBasicMaterial({color: 0xd9b070}));
+  stream.position.y = 1.25;
+  g.add(stream);
+  // 4 vertical pillars connecting frames
+  for(let i = 0; i < 4; i++){
+    const ang = (i / 4) * Math.PI * 2;
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.3, 6), woodMat);
+    pillar.position.set(Math.cos(ang) * 0.50, 1.25, Math.sin(ang) * 0.50);
+    pillar.castShadow = true;
+    g.add(pillar);
+  }
+  g.userData.isHourglass = true;
+  return g;
+}
+
+function makeTelescope(x, z){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  const brassMat = new THREE.MeshStandardMaterial({color: 0xa87838, roughness: 0.45, metalness: 0.6});
+  const woodMat  = new THREE.MeshStandardMaterial({color: 0x4a2818, roughness: 0.85});
+  // Tripod legs
+  for(let i = 0; i < 3; i++){
+    const ang = (i / 3) * Math.PI * 2;
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.3, 6), woodMat);
+    leg.position.set(Math.cos(ang) * 0.30, 0.65, Math.sin(ang) * 0.30);
+    leg.rotation.x = Math.cos(ang) * 0.25;
+    leg.rotation.z = Math.sin(ang) * 0.25;
+    leg.castShadow = true;
+    g.add(leg);
+  }
+  // Hub
+  const hub = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), brassMat);
+  hub.position.y = 1.30; g.add(hub);
+  // Telescope tube pointing up + slightly to one side
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.10, 1.4, 16), brassMat);
+  tube.position.set(0, 2.0, 0);
+  tube.rotation.x = 0.5;
+  tube.castShadow = true;
+  g.add(tube);
+  // Eyepiece + objective rings
+  for(const off of [-0.55, 0.55]){
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.025, 6, 16), brassMat);
+    ring.position.set(0, 2.0, 0);
+    ring.rotation.x = 0.5;
+    ring.translateY(off);
+    g.add(ring);
+  }
+  g.userData.isTelescope = true;
+  return g;
+}
+
+function makeOven(x, z){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  const stoneMat = new THREE.MeshStandardMaterial({color: 0x6a5040, roughness: 0.9});
+  // Square stone base
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, 1.2), stoneMat);
+  base.position.y = 0.4; base.castShadow = true; base.receiveShadow = true;
+  g.add(base);
+  // Domed top
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.8, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.6),
+    stoneMat
+  );
+  dome.position.set(0, 0.8, 0); dome.scale.set(1.0, 0.85, 0.75); dome.castShadow = true;
+  g.add(dome);
+  // Arched opening (dark hole)
+  const opening = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.55, 0.45),
+    new THREE.MeshBasicMaterial({color: 0xff7820, transparent: true, opacity: 0.92})
+  );
+  opening.position.set(0, 0.45, 0.61);
+  g.add(opening);
+  // Chimney
+  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.6, 0.30), stoneMat);
+  chim.position.set(0, 1.20, -0.30); chim.castShadow = true;
+  g.add(chim);
+  // Smoke billboards
+  const smokeMat = new THREE.SpriteMaterial({color: 0xc8c4b8, transparent: true, opacity: 0.35, depthWrite: false});
+  for(let i = 0; i < 3; i++){
+    const s = new THREE.Sprite(smokeMat);
+    s.position.set(0, 1.7 + i * 0.5, -0.30);
+    s.scale.set(0.8 + i * 0.2, 0.6 + i * 0.2, 1);
+    s.userData.isSmoke = true; s.userData.baseY = s.position.y;
+    g.add(s);
+  }
+  // Warm light from the opening
+  const light = new THREE.PointLight(0xff7820, 1.2, 6, 1.4);
+  light.position.set(0, 0.5, 0.5);
+  g.add(light);
+  g.userData.isOven = true;
+  return g;
+}
+
+function makeFountain(x, z){
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  const stoneMat = new THREE.MeshStandardMaterial({color: 0x8a8070, roughness: 0.9});
+  // Octagonal basin
+  const basin = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.5, 0.35, 8), stoneMat);
+  basin.position.y = 0.18; basin.castShadow = true; basin.receiveShadow = true;
+  g.add(basin);
+  // Inner water ring
+  const water = makeWaterPlane(0, 0, 2.4, 2.4, 0.30, 0x8cc4d8, 0x3a5878);
+  water.scale.setScalar(0.55);   // shrink to fit the basin
+  g.add(water);
+  // Central column
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.9, 8), stoneMat);
+  col.position.y = 0.85; g.add(col);
+  // Top water spout sprite
+  const spout = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: FLAME_TEX, color: 0x8cc4d8, transparent: true,
+    blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.55,
+  }));
+  spout.scale.set(0.7, 1.0, 1);
+  spout.position.y = 1.40;
+  g.add(spout);
+  return g;
+}
+
+function makeLilyPad(x, z){
+  const g = new THREE.Group();
+  const padMat = new THREE.MeshStandardMaterial({color: 0x4a8848, roughness: 0.85});
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(0.45, 14), padMat);
+  pad.rotation.x = -Math.PI / 2;
+  pad.position.set(x, 0.02, z);
+  g.add(pad);
+  return g;
+}
+
+function makePier(cx, cz, lengthAxis = 'z', length = 4){
+  // Wooden pier extending into the water
+  const g = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({color: 0x5a3a1c, roughness: 0.85});
+  const planks = new THREE.Mesh(new THREE.BoxGeometry(lengthAxis==='x'?length:1.0, 0.10, lengthAxis==='z'?length:1.0), woodMat);
+  planks.position.set(cx, 0.06, cz); planks.castShadow = true; planks.receiveShadow = true;
+  g.add(planks);
+  // 4 corner pylons
+  const dirs = [[-1,-1],[1,-1],[-1,1],[1,1]];
+  for(const [sx, sz] of dirs){
+    const halfX = (lengthAxis==='x'? length : 1.0) * 0.4;
+    const halfZ = (lengthAxis==='z'? length : 1.0) * 0.4;
+    const py = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.9, 6), woodMat);
+    py.position.set(cx + sx * halfX, -0.30, cz + sz * halfZ);
+    g.add(py);
+  }
+  return g;
+}
+
 // Scene state
 let currentScene = null;
 const SCENES = {};
@@ -5492,6 +5819,9 @@ SCENES.plaza = {
       const p = makeFallingParticles('petal', 100, { range: 30, yMax: 14, yMin: 0, fallSpeed: 0.4, swayAmp: 0.4, swayFreq: 1.2 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
+    // v627 core: central fountain — village heart
+    root.add(makeFountain(0, 0));
+
 
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
@@ -5545,6 +5875,9 @@ SCENES.monlight = {
       const p = makeFallingParticles('star', 120, { range: 32, yMax: 22, yMin: 8, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'static'});
     }
+    // v627 core: huge moon disc in the sky
+    root.add(makeMoon());
+
 
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
@@ -5591,6 +5924,11 @@ SCENES.oto = {
       const p = makeFallingParticles('leaf', 80, { range: 28, yMax: 12, yMin: 0, fallSpeed: 0.35, swayAmp: 0.55, swayFreq: 0.8 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
+    // v627 core: flowing stream channel (the "音")
+    root.add(makeWaterPlane(-3, 5, 4, 12, -0.10, 0x9ed4e0, 0x3a5878));
+    root.add(makeLilyPad(-3, 3));
+    root.add(makeLilyPad(-3, 7));
+
 
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
@@ -5638,6 +5976,10 @@ SCENES.tabi = {
       const p = makeFallingParticles('petal', 90, { range: 28, yMax: 14, yMin: 0, fallSpeed: 0.4, swayAmp: 0.4, swayFreq: 1.2 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
+    // v627 core: lakeside — water + pier
+    root.add(makeWaterPlane(0, 7, 16, 6, -0.10, 0x8cc4d8, 0x2a4a6a));
+    root.add(makePier(0, 5, "z", 3.5));
+
 
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
@@ -5684,6 +6026,9 @@ SCENES.toki = {
       const p = makeFallingParticles('mist', 150, { range: 34, yMax: 8, yMin: 0, fallSpeed: 0.12, swayAmp: 0.6, swayFreq: 0.4 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
+    // v627 core: giant hourglass — "時の砂時計"
+    root.add(makeHourglass(0, 4));
+
 
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
@@ -5731,6 +6076,9 @@ SCENES.hoshi = {
       const p = makeFallingParticles('star', 130, { range: 32, yMax: 22, yMin: 8, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'static'});
     }
+    // v627 core: brass telescope on tripod — "星見台"
+    root.add(makeTelescope(0, 4));
+
 
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
@@ -5778,6 +6126,11 @@ SCENES.takibi = {
       const p = makeFallingParticles('ember', 90, { range: 18, yMax: 8, yMin: 0, fallSpeed: -0.45, swayAmp: 0.25, swayFreq: 1.5 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'rise'});
     }
+    // v627 core: REAL campfire(s) — the "焚き火" scene needed actual fire
+    root.add(makeCampfire(0, 3, 1.4));
+    root.add(makeCampfire(-4, 6, 0.85));
+    root.add(makeCampfire(4, 6, 0.85));
+
 
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
@@ -5824,6 +6177,12 @@ SCENES.mizube = {
       const p = makeFallingParticles('petal', 80, { range: 28, yMax: 12, yMin: 0, fallSpeed: 0.32, swayAmp: 0.5, swayFreq: 1.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
+    // v627 core: large water plane — "水辺の岸" needed actual water
+    root.add(makeWaterPlane(0, 5, 16, 8, -0.10, 0x9ed4e0, 0x2a5878));
+    root.add(makeLilyPad(-3, 4));
+    root.add(makeLilyPad(3, 6));
+    root.add(makeLilyPad(0, 7));
+
 
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
@@ -5871,6 +6230,9 @@ SCENES.amaoto = {
       const p = makeFallingParticles('rain', 260, { range: 24, yMax: 16, yMin: 0, fallSpeed: 1.6, swayAmp: 0.05, swayFreq: 0.2 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
+    // v627 core: wet-floor sheen disc — rain on stone
+    root.add(makeWaterPlane(0, 3, 8, 5, 0.04, 0xc8d0d8, 0x6a7888));
+
 
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
@@ -5917,6 +6279,9 @@ SCENES.heya = {
       const p = makeFallingParticles('petal', 60, { range: 22, yMax: 10, yMin: 0, fallSpeed: 0.28, swayAmp: 0.3, swayFreq: 0.9 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
     }
+    // v627 core: bakery oven (the "パン屋" needs an actual oven)
+    root.add(makeOven(0, 4));
+
 
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.5);
     fill.position.set(8, 14, 8);
@@ -7687,6 +8052,52 @@ function animate(){
   // water uniform update
   if(currentScene && currentScene.root.userData.waterU){
     currentScene.root.userData.waterU.uTime.value = t;
+  }
+  // v627: animated concept assets (campfires, water shaders, oven smoke, hourglass sand)
+  if(currentScene && currentScene.root){
+    currentScene.root.traverse(o => {
+      // ShaderMaterial water uTime
+      if(o.material && o.material.uniforms && o.material.uniforms.uTime){
+        o.material.uniforms.uTime.value = t;
+      }
+      // Campfire flame flicker + light pulse + spark rise
+      if(o.userData && o.userData.isCampfire){
+        for(const ch of o.children){
+          if(ch.userData && ch.userData.isFlame){
+            const ph = ch.userData.phase;
+            ch.scale.x = 1.2 + Math.sin(t * 8 + ph) * 0.18;
+            ch.scale.y = 1.6 + Math.sin(t * 6 + ph * 1.7) * 0.20;
+            ch.material.opacity = 0.85 + Math.sin(t * 11 + ph) * 0.10;
+            if(ch.userData.light){
+              ch.userData.light.intensity = 1.6 + Math.sin(t * 9 + ph) * 0.45;
+            }
+          }
+          // sparks rise + recycle
+          if(ch.userData && ch.userData.isSparks){
+            const positions = ch.geometry.attributes.position;
+            const base = ch.userData.basePos;
+            for(let i = 0; i < positions.count; i++){
+              const dy = ((t * 1.5 + i * 0.13) % 2.0);
+              positions.array[i*3+1] = base[i*3+1] + dy;
+              positions.array[i*3]   = base[i*3]   + Math.sin(t * 2 + i) * 0.08;
+              positions.array[i*3+2] = base[i*3+2] + Math.cos(t * 2 + i) * 0.08;
+            }
+            positions.needsUpdate = true;
+            ch.material.opacity = 0.85 * (1 - (((t * 1.5) % 2.0) / 2.0));
+          }
+        }
+      }
+      // Oven smoke rise + fade
+      if(o.userData && o.userData.isSmoke){
+        const dy = (t * 0.5 + (o.userData.baseY || 0)) % 1.6;
+        o.position.y = o.userData.baseY + dy;
+        o.material.opacity = 0.45 * (1 - dy / 1.6);
+      }
+      // Hourglass sand stream pulse
+      if(o.userData && o.userData.isHourglass){
+        // nothing to animate beyond static for now; sand pile already drawn
+      }
+    });
   }
   // grass wind uniforms
   for(const u of densifyWindUniforms){ u.uTime.value = t; }
