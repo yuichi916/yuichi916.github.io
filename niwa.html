@@ -6054,24 +6054,23 @@ function buildScene(name){
       minX: bb.min.x + 0.4, maxX: bb.max.x - 0.4,
       minZ: bb.min.z + 0.4, maxZ: bb.max.z - 0.4,
     };
-    // v631: circular-crop the prefab (hide rectangular ground +
-    // out-of-circle buildings + drop in a procedural round cobble disc).
-    // This is the visual fix for both "prefabが四角形のまま" and the
-    // floating-base/cobble seam — both layers now share the same radius.
-    let cropR = Math.min(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.5 - 0.6;
-    try {
-      const cropped = cropPrefabToCircle(root, bb);
-      if(cropped) cropR = cropped.radius;
-    } catch(e){ console.warn('cropPrefabToCircle failed:', e.message); }
-    // v624/v631: rocky underside (radius matches the cropped cobble so
-    // the seam is invisible).
+    // v632: prefabs are now pre-cropped + decimated at extract time
+    // (see _blender/enc_extract_crop_v632.py). Their ground mesh is
+    // Boolean-Intersected with a circular cylinder in Blender so the
+    // GLB itself ships as a round floating island. Runtime cropPrefab
+    // ToCircle() is no longer needed — its function definition stays
+    // for fallback / older GLBs, just not called.
+    //
+    // The floating-base radius is computed from the loaded bbox; for
+    // v632 prefabs that bbox already equals the pre-cropped diameter,
+    // so the base radius matches the cobble edge automatically.
+    const cropR = Math.min(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.5 - 0.2;
     try {
       const base = makeFloatingBase(bb, cropR);
       base.userData.isFloatingBase = true;
       root.add(base);
     } catch(e){ console.warn('floating base failed:', e.message); }
-    // playableBounds shrinks to match the circular cobble so the avatar
-    // can't escape to where the prefab buildings have been hidden.
+    // playableBounds also from the v632-baked footprint.
     currentScene.playableBounds = {
       minX: -cropR + 0.4, maxX: cropR - 0.4,
       minZ: -cropR + 0.4, maxZ: cropR - 0.4,
