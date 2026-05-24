@@ -5745,16 +5745,38 @@ function buildScene(name){
   // Suppress bridge re-trigger for 2 s after every scene swap so the spawn
   // step doesn't immediately walk back through the bridge we just came from.
   bridgeCooldownUntil = performance.now() + 2000;
-  // Avatar position
-  if(def.avatarStart){
-    avatar.position.set(def.avatarStart[0], 0, def.avatarStart[1]);
-    avatar.lookAt(0, avatar.position.y, 0);
-  } else {
-    avatar.position.set(0, 0, SCENE_BOUND*0.5);
-    avatar.lookAt(0, 0, 0);
+  // === v629: avatar SAFE-GROUND spawn ===
+  // sampleHeight() returns the first raycast hit downward — if a
+  // building roof sits over the spawn coord, the avatar spawns on
+  // the roof. Fix: scan an outward spiral around the requested spawn
+  // for a hit with y < SAFE_GROUND_Y (cobble level). If none is
+  // found in range, fall back to the avatarStart at y=0.
+  const SAFE_GROUND_Y = 1.5;
+  function findSafeSpawn(tx, tz){
+    const tryAt = (x, z) => {
+      const y = sampleHeight(x, z);
+      return (y < SAFE_GROUND_Y) ? {x, y, z} : null;
+    };
+    let hit = tryAt(tx, tz);
+    if(hit) return hit;
+    const pb = currentScene && currentScene.playableBounds;
+    const STEP = 0.7, MAX_R = 6.0;
+    for(let r = STEP; r <= MAX_R; r += STEP){
+      for(let a = 0; a < 12; a++){
+        const ang = (a / 12) * Math.PI * 2;
+        const x = tx + Math.cos(ang) * r;
+        const z = tz + Math.sin(ang) * r;
+        if(pb && (x < pb.minX || x > pb.maxX || z < pb.minZ || z > pb.maxZ)) continue;
+        hit = tryAt(x, z);
+        if(hit) return hit;
+      }
+    }
+    return {x: tx, y: 0, z: tz};   // give up — sit at y=0
   }
-  // ground-clamp avatar (sampleHeight raycasts down to the prefab ground)
-  avatar.position.y = sampleHeight(avatar.position.x, avatar.position.z);
+  const start = def.avatarStart || [0, SCENE_BOUND*0.5];
+  const safe = findSafeSpawn(start[0], start[1]);
+  avatar.position.set(safe.x, safe.y, safe.z);
+  avatar.lookAt(0, safe.y, 0);
   // v621/v622: auto-frame the camera so the prefab fills the viewport.
   // ortho half-size = max(width, depth) × 0.52 — tighter than v621's 0.62
   // so the sky/cloud backdrop is mostly off-screen at default zoom.
@@ -7373,6 +7395,10 @@ const ACCEL = 18;
 const DECEL = 14;
 const AV_RADIUS = 0.35;
 
+// v629: WASD + arrow-key movement. Arrow keys are preventDefault()'d
+// so the browser doesn't scroll the page while the user walks the
+// avatar — was a UE-style smooth-walk killer.
+const _ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 window.addEventListener('keydown', e=>{
   if(e.code==='KeyW' || e.key==='ArrowUp')    keys.w = true;
   if(e.code==='KeyS' || e.key==='ArrowDown')  keys.s = true;
@@ -7381,14 +7407,16 @@ window.addEventListener('keydown', e=>{
   if(e.key==='Shift') keys.shift = true;
   if(e.key==='Escape') closeModal();
   if(e.code==='KeyE') openSceneModal();
-});
+  if(_ARROW_KEYS.has(e.key)) e.preventDefault();
+}, { passive: false });
 window.addEventListener('keyup', e=>{
   if(e.code==='KeyW' || e.key==='ArrowUp')    keys.w = false;
   if(e.code==='KeyS' || e.key==='ArrowDown')  keys.s = false;
   if(e.code==='KeyA' || e.key==='ArrowLeft')  keys.a = false;
   if(e.code==='KeyD' || e.key==='ArrowRight') keys.d = false;
   if(e.key==='Shift') keys.shift = false;
-});
+  if(_ARROW_KEYS.has(e.key)) e.preventDefault();
+}, { passive: false });
 
 let pointerDown = false, dragMoved = false, lastPx=0, lastPy=0;
 canvas.addEventListener('pointerdown', e=>{
