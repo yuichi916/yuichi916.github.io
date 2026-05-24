@@ -5500,6 +5500,70 @@ function makeLilyPad(x, z){
   return g;
 }
 
+// v631: Procedural circular cobble disc that REPLACES the prefab's
+// rectangular ground. Solves "prefabの地面が四角形のまま" — a floating
+// island reads as round.
+const _cobbleTopMat = new THREE.MeshStandardMaterial({color: 0x8a7d68, roughness: 0.92, envMapIntensity: 0.9});
+const _cobbleRimMat = new THREE.MeshStandardMaterial({color: 0x6a5840, roughness: 0.95, envMapIntensity: 0.6, side: THREE.DoubleSide});
+_cobbleTopMat.userData.shared = true;
+_cobbleRimMat.userData.shared = true;
+function makeCircularCobble(radius){
+  const g = new THREE.Group();
+  // Top disc — radial segments tuned for size (more verts at edge for big discs)
+  const seg = Math.max(48, Math.min(96, Math.round(radius * 8)));
+  const top = new THREE.Mesh(new THREE.CircleGeometry(radius, seg), _cobbleTopMat);
+  top.rotation.x = -Math.PI / 2;
+  top.position.y = 0.015;
+  top.receiveShadow = true;
+  g.add(top);
+  // Side rim (cylindrical) — joins seamlessly to makeFloatingBase below.
+  const rim = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, 0.30, seg, 1, true),
+    _cobbleRimMat
+  );
+  rim.position.y = -0.13;
+  g.add(rim);
+  g.userData.isCircularCobble = true;
+  g.userData.skipObstacle = true;
+  return g;
+}
+
+// v631: crop the freshly-added prefab to a circular disc — hide its
+// rectangular ground, hide every mesh whose XZ-centre falls outside
+// the target radius, and place a procedural circular cobble in its
+// stead. The result is one continuous round floating island.
+function cropPrefabToCircle(root, prefabBBox){
+  if(!prefabBBox) return null;
+  const sx = prefabBBox.max.x - prefabBBox.min.x;
+  const sz = prefabBBox.max.z - prefabBBox.min.z;
+  const cx = (prefabBBox.max.x + prefabBBox.min.x) * 0.5;
+  const cz = (prefabBBox.max.z + prefabBBox.min.z) * 0.5;
+  // Target radius = half the shorter axis, less a small margin so corner
+  // buildings don't poke past the edge.
+  const radius = Math.min(sx, sz) * 0.5 - 0.6;
+  // 1) hide every mesh whose name says ground/floor/cobble/path/paving
+  const GROUND_RX = /ground|floor|cobble|paving|path|terrain|plaza|street/i;
+  // 2) hide every mesh whose bbox centre is outside the circle
+  const _box = new THREE.Box3();
+  root.traverse(o => {
+    if(!o.isMesh) return;
+    if(o.userData && o.userData.isCircularCobble) return;
+    if(o.userData && o.userData.skipObstacle) return;   // skip procedurals
+    // Name-based ground hide
+    if(o.name && GROUND_RX.test(o.name)){ o.visible = false; return; }
+    // Position-based circle crop
+    _box.setFromObject(o);
+    const mx = (_box.max.x + _box.min.x) * 0.5 - cx;
+    const mz = (_box.max.z + _box.min.z) * 0.5 - cz;
+    if(Math.hypot(mx, mz) > radius + 0.3){ o.visible = false; }
+  });
+  // 3) place the procedural circular cobble at the prefab centre
+  const cobble = makeCircularCobble(radius);
+  cobble.position.set(cx, 0, cz);
+  root.add(cobble);
+  return { radius, cx, cz };
+}
+
 function makePier(cx, cz, lengthAxis = 'z', length = 4){
   // Wooden pier extending into the water
   const g = new THREE.Group();
@@ -5990,12 +6054,28 @@ function buildScene(name){
       minX: bb.min.x + 0.4, maxX: bb.max.x - 0.4,
       minZ: bb.min.z + 0.4, maxZ: bb.max.z - 0.4,
     };
-    // v624: rocky underside so the diorama reads as a floating island
+    // v631: circular-crop the prefab (hide rectangular ground +
+    // out-of-circle buildings + drop in a procedural round cobble disc).
+    // This is the visual fix for both "prefabが四角形のまま" and the
+    // floating-base/cobble seam — both layers now share the same radius.
+    let cropR = Math.min(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.5 - 0.6;
     try {
-      const base = makeFloatingBase(bb);
+      const cropped = cropPrefabToCircle(root, bb);
+      if(cropped) cropR = cropped.radius;
+    } catch(e){ console.warn('cropPrefabToCircle failed:', e.message); }
+    // v624/v631: rocky underside (radius matches the cropped cobble so
+    // the seam is invisible).
+    try {
+      const base = makeFloatingBase(bb, cropR);
       base.userData.isFloatingBase = true;
       root.add(base);
     } catch(e){ console.warn('floating base failed:', e.message); }
+    // playableBounds shrinks to match the circular cobble so the avatar
+    // can't escape to where the prefab buildings have been hidden.
+    currentScene.playableBounds = {
+      minX: -cropR + 0.4, maxX: cropR - 0.4,
+      minZ: -cropR + 0.4, maxZ: cropR - 0.4,
+    };
     // Collect AABBs of TALL prefab meshes — these are walls/buildings.
     // Skip:
     //   * thin floor/cobble/path meshes (y-extent < 1m)
@@ -6864,14 +6944,16 @@ const _baseRockMat  = new THREE.MeshStandardMaterial({color: 0x5a4838, roughness
 _baseRockMat.userData.shared = true;
 const _baseChunkGeom = new THREE.DodecahedronGeometry(0.6, 0);
 _baseChunkGeom.userData.shared = true;
-function makeFloatingBase(prefabBBox){
+function makeFloatingBase(prefabBBox, explicitR){
   const g = new THREE.Group();
   if(!prefabBBox) return g;
   const sx = prefabBBox.max.x - prefabBBox.min.x;
   const sz = prefabBBox.max.z - prefabBBox.min.z;
   const cx = (prefabBBox.max.x + prefabBBox.min.x) * 0.5;
   const cz = (prefabBBox.max.z + prefabBBox.min.z) * 0.5;
-  const r  = Math.max(sx, sz) * 0.52;
+  // v631: prefer the explicit radius passed in (must match the circular
+  // cobble disc so the underside butts cleanly against the top edge).
+  const r  = (typeof explicitR === 'number') ? explicitR : Math.max(sx, sz) * 0.52;
   // Single jagged rocky cone. The TOP radius matches the prefab
   // footprint tightly and starts at y = -0.02 so there's no visible
   // seam between cobble above and rock below.
