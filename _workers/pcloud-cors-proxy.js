@@ -44,12 +44,19 @@ export default {
       });
     }
 
-    // Route: /g/<fileid>  → fetch the GLB by pCloud fileid
-    const match = url.pathname.match(/^\/g\/(\d+)/);
+    // Routes:
+    //   /g/<fileid>  → proxy bytes with CORS=* (for GLBs that need CORS for fetch())
+    //   /r/<fileid>  → 302 redirect to pCloud CDN (for <video src=> where IP binding
+    //                  via worker breaks; the browser fetches directly so its own IP
+    //                  matches the signed URL pCloud issued).
+    const proxyMatch = url.pathname.match(/^\/g\/(\d+)/);
+    const redirectMatch = url.pathname.match(/^\/r\/(\d+)/);
+    const match = proxyMatch || redirectMatch;
     if (!match) {
-      return new Response('Usage: /g/<pcloud-fileid>', { status: 400 });
+      return new Response('Usage: /g/<fileid> (proxy) or /r/<fileid> (redirect)', { status: 400 });
     }
     const fileid = match[1];
+    const redirectMode = !!redirectMatch;
 
     // 1) Get a fresh signed CDN URL from pCloud REST.
     //    Set Referer: https://www.pcloud.com so pCloud accepts the call.
@@ -65,6 +72,19 @@ export default {
       });
     }
     const cdn = `https://${dl.hosts[0]}${dl.path}`;
+
+    // Redirect mode: browser does its own fetch so its IP matches the signed URL.
+    // Useful for <video>/<audio> tags that follow 302s and don't need CORS.
+    if (redirectMode) {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          'Location': cdn,
+          'Cache-Control': 'no-store',
+          'Access-Control-Allow-Origin': '*',
+        }
+      });
+    }
 
     // 2) Fetch the GLB from the CDN. Range requests passed through.
     const upstreamHeaders = {};
