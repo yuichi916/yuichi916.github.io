@@ -600,6 +600,60 @@ skyU.rayleigh.value = 2;
 skyU.mieCoefficient.value = 0.005;
 skyU.mieDirectionalG.value = 0.85;
 
+/* v622: Cloud ring + low backdrop horizon — fills the empty space the
+ * user sees if they manually zoom out past the prefab footprint.
+ * Built once at scene-graph level (sibling to sky/sun), so all
+ * niwa scenes get the same atmospheric backdrop. The clouds sit at
+ * y ≈ 14-22 m and circle out beyond r = 35-55 m so they never
+ * intersect the prefab dioramas (largest is ~27 m wide). */
+const cloudGroup = new THREE.Group();
+cloudGroup.userData.isAtmosphereCloud = true;
+const cloudMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff, roughness: 1.0, metalness: 0.0,
+  transparent: true, opacity: 0.55,
+  emissive: 0xffe8c8, emissiveIntensity: 0.04,
+});
+const lowCloudMat = new THREE.MeshStandardMaterial({
+  color: 0xe8d8c0, roughness: 1.0, metalness: 0.0,
+  transparent: true, opacity: 0.42,
+});
+const NUM_CLOUDS = 28;
+for(let i = 0; i < NUM_CLOUDS; i++){
+  const ang = (i / NUM_CLOUDS) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+  const r   = 38 + Math.random() * 16;
+  const cl  = new THREE.Group();
+  // A cloud is 3-5 overlapping spheres
+  const lobes = 3 + Math.floor(Math.random() * 3);
+  for(let j = 0; j < lobes; j++){
+    const sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(1.4 + Math.random() * 1.6, 12, 8),
+      Math.random() < 0.65 ? cloudMat : lowCloudMat
+    );
+    sphere.position.set((j - lobes/2) * 1.6, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.7);
+    sphere.scale.y *= 0.55;  // flatten clouds vertically
+    cl.add(sphere);
+  }
+  cl.position.set(Math.cos(ang) * r, 14 + Math.random() * 8, Math.sin(ang) * r);
+  cl.userData.driftSpeed = 0.005 + Math.random() * 0.01;
+  cl.userData.angleOffset = ang;
+  cl.userData.radius = r;
+  cl.userData.baseY = cl.position.y;
+  cloudGroup.add(cl);
+}
+// Soft distant island-silhouette ring at y ≈ -6 so the horizon isn't
+// pure sky-shader. Dark mossy green hemisphere segments.
+for(let i = 0; i < 8; i++){
+  const ang = (i / 8) * Math.PI * 2;
+  const island = new THREE.Mesh(
+    new THREE.SphereGeometry(8 + Math.random() * 5, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5),
+    new THREE.MeshStandardMaterial({color: 0x4a5a40, roughness: 1.0, opacity: 0.85, transparent: true})
+  );
+  island.position.set(Math.cos(ang) * 60, -3 - Math.random() * 2, Math.sin(ang) * 60);
+  island.scale.y *= 0.45;
+  cloudGroup.add(island);
+}
+scene.add(cloudGroup);
+
 const sunSph = new THREE.Vector3();
 function setSun(elev, azim){
   const phi = THREE.MathUtils.degToRad(90 - elev);
@@ -5193,8 +5247,10 @@ function buildScene(name){
   }
   // v618: drop a door portal in front of the building
   if(typeof addPortalForScene === 'function') addPortalForScene(name);
-  // v620: place side-pack accent props (gracefully no-ops if assets missing)
-  if(typeof placeSidePackAccents === 'function') placeSidePackAccents(name, root);
+  // v620 side-pack accents disabled per user feedback ("prefab外の
+  // オブジェクトは配置しないで。違和感"). Keeping the wiring intact
+  // so it can be re-enabled if we ever blend them back in tastefully.
+  // if(typeof placeSidePackAccents === 'function') placeSidePackAccents(name, root);
   // v621: drop neighbour-bridges at the cardinal edges of the prefab.
   // Walking onto one auto-triggers switchScene to that neighbour.
   if(typeof addBridgesForScene === 'function') addBridgesForScene(name);
@@ -5211,14 +5267,15 @@ function buildScene(name){
   }
   // ground-clamp avatar (sampleHeight raycasts down to the prefab ground)
   avatar.position.y = sampleHeight(avatar.position.x, avatar.position.z);
-  // v621: auto-frame camera on the prefab so empty sky is hidden.
-  // Use the bigger of the two horizontal extents × 0.62 as the ortho
-  // half-size — that keeps a small margin around the diorama edges
-  // without revealing the white/grey backdrop.
+  // v621/v622: auto-frame the camera so the prefab fills the viewport.
+  // ortho half-size = max(width, depth) × 0.52 — tighter than v621's 0.62
+  // so the sky/cloud backdrop is mostly off-screen at default zoom.
+  // The cloud ring at r≈40m only becomes visible when the user manually
+  // zooms out past the prefab edge.
   const pb2 = currentScene.playableBounds;
   if(pb2){
     const w = pb2.maxX - pb2.minX, d = pb2.maxZ - pb2.minZ;
-    const desired = Math.max(w, d) * 0.62;
+    const desired = Math.max(w, d) * 0.52;
     camZoomTarget = Math.max(CAM_MIN_SIZE, Math.min(CAM_MAX_SIZE, desired));
   } else {
     camZoomTarget = CAM_DEFAULT_SIZE;
@@ -5804,14 +5861,8 @@ async function switchScene(name){
   if(!def){ console.warn('switchScene: unknown', name); return; }
   // Same scene? Just rebuild without splash dance.
   if(currentScene && currentScene.name === name){ buildScene(name); return; }
-  // v620: side-pack accents are nice-to-have, fetch in the background
-  // (don't block scene reveal — accents pop in after the main prefab).
-  loadSidePackAccents(name).then(() => {
-    if(currentScene && currentScene.name === name){
-      // Re-run accent placement on the existing root (cheap clone ops)
-      placeSidePackAccents(name, currentScene.root);
-    }
-  });
+  // v620 side-pack accents disabled in switchScene too (placeSidePackAccents
+  // is no longer called from buildScene). Keep the fetch a no-op.
   const missing = (def.preloadAssets || []).filter(n => !BLENDER_CACHE[n]);
   if(missing.length){
     showTransSplash(def.title, def.en);
@@ -7106,6 +7157,19 @@ function animate(){
   const dt = Math.min(0.05, clock.getDelta());
   const t = clock.elapsedTime;
 
+  // v622: gentle cloud drift around the scene, plus subtle bob in Y
+  if(cloudGroup){
+    for(const cl of cloudGroup.children){
+      const d = cl.userData;
+      if(d && typeof d.driftSpeed === 'number'){
+        d.angleOffset += d.driftSpeed * dt;
+        cl.position.x = Math.cos(d.angleOffset) * d.radius;
+        cl.position.z = Math.sin(d.angleOffset) * d.radius;
+        cl.position.y = d.baseY + Math.sin(t * 0.25 + d.angleOffset * 4) * 0.4;
+      }
+    }
+  }
+
   /* ── Avatar movement (Codex: damp velocity + slide collision) ── */
   let moving = false;
   const targetSpeed = keys.shift ? RUN_SPEED : WALK_SPEED;
@@ -7163,8 +7227,9 @@ function animate(){
   const stepX = playerVel.x * dt;
   const stepZ = playerVel.z * dt;
   // Slide collision: test X and Z independently so avatar slides along walls
-  const MAX_STEP_UP = 0.45;   // realistic step the avatar can climb
-  const MAX_STEP_DOWN = 1.20; // allow jumping/falling a bit further down
+  // Avatar is ~1.4 m tall; treat one realistic stair as ≤ 0.30 m.
+  const MAX_STEP_UP = 0.30;
+  const MAX_STEP_DOWN = 1.20;
   function blocked(px, pz){
     const pb = currentScene && currentScene.playableBounds;
     if(pb){
@@ -7208,8 +7273,14 @@ function animate(){
   moving = Math.hypot(playerVel.x, playerVel.z) > 0.3;
   // Smooth Y-follow over uneven prefab ground — damp toward the sampled
   // ground height so steps/slopes feel like walking, not teleporting.
+  // Hard-cap the per-second vertical velocity to ≈ AV_HEIGHT (~1.4 m/s)
+  // so the avatar can never warp up more than its own height in one move.
   const targetY = sampleHeight(avatar.position.x, avatar.position.z);
-  avatar.position.y = THREE.MathUtils.damp(avatar.position.y, targetY, 11, dt);
+  const AV_HEIGHT = 1.4;     // avatar approx height — physics cap
+  const dampedY = THREE.MathUtils.damp(avatar.position.y, targetY, 11, dt);
+  const dy = dampedY - avatar.position.y;
+  const maxDy = AV_HEIGHT * dt;       // ≤ 1.4 m/s vertical motion
+  avatar.position.y += Math.max(-maxDy, Math.min(maxDy, dy));
 
   // v618: Portal proximity check (every frame) — show "中に入る" prompt
   // when the avatar steps inside the door portal's radius.
