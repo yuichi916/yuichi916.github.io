@@ -6130,6 +6130,36 @@ function buildScene(name){
   // Suppress bridge re-trigger for 2 s after every scene swap so the spawn
   // step doesn't immediately walk back through the bridge we just came from.
   bridgeCooldownUntil = performance.now() + 2000;
+
+  // === v633: lift procedural concept assets up to the cobble surface ===
+  // The KB3D prefab's cobble TOP often sits at y > 0 (the prefab bbox
+  // includes a rocky pedestal extending below). Procedural helpers
+  // (makeStoneFountain, makeMarketStall, makeBanner, makeCampfire, etc.)
+  // create geometry at y = 0 — so they appear FLOATING BELOW the cobble
+  // (the "二層構造" bug). Compute the cobble Y once via sampleHeight,
+  // then push every small top-level group up to that level.
+  try {
+    const groundY = sampleHeight(0, 0);
+    if(groundY > 0.4){
+      const _box = new THREE.Box3();
+      for(const c of root.children){
+        if(!c) continue;
+        if(c.userData && c.userData.isFloatingBase)     continue;  // stays below
+        if(c.userData && c.userData.isAtmosphereCloud)  continue;
+        if(c.userData && c.userData.isCircularCobble)   continue;
+        _box.setFromObject(c);
+        const dy = _box.max.y - _box.min.y;
+        // Heuristic: the prefab clone is many metres tall (dy > 5);
+        // concept assets / accents are smaller (< 5m). Lift only the
+        // small ones — pushing the prefab itself up would move the
+        // cobble surface and break sampleHeight on the next frame.
+        if(dy < 5 && _box.min.y < groundY - 0.2){
+          c.position.y += groundY;
+        }
+      }
+    }
+  } catch(e){ console.warn('lift-to-ground failed:', e.message); }
+
   // === v629: avatar SAFE-GROUND spawn ===
   // sampleHeight() returns the first raycast hit downward — if a
   // building roof sits over the spawn coord, the avatar spawns on
