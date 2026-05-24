@@ -427,6 +427,12 @@ function setSceneSplat(name, config){
 async function addSplatBackdrop(root, sceneName){
   const cfg = getSceneSplat(sceneName);
   if(!cfg || !cfg.url) return;
+  // Security: only allow HTTPS splat URLs (the user pastes these in via UI,
+  // localStorage-persisted — never proxy http:// or javascript: schemes).
+  if(!/^https:\/\//i.test(cfg.url)){
+    console.warn('niwa: rejecting non-https splat URL:', cfg.url);
+    return;
+  }
   const lib = await loadSplatLib();
   if(!lib) return;
   try {
