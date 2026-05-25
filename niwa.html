@@ -6146,6 +6146,18 @@ function buildScene(name){
   // v621: drop neighbour-bridges at the cardinal edges of the prefab.
   // Walking onto one auto-triggers switchScene to that neighbour.
   if(typeof addBridgesForScene === 'function') addBridgesForScene(name);
+  // v637: if we came in via a bridge, suppress THAT bridge until the
+  // avatar moves > 6 m from spawn. Stops the spawn step from immediately
+  // re-triggering the bridge we just walked through.
+  if(_pendingFromScene){
+    for(const b of activeBridges){
+      if(b.userData.cfg && b.userData.cfg.target === _pendingFromScene){
+        b.userData.suppressUntilDist = 6.0;   // animate-loop honours this
+        break;
+      }
+    }
+    _pendingFromScene = null;
+  }
   // v636: bridge cooldown extended 2 → 5 s + animate loop also gates on
   // "avatar has moved > 2 m from spawn" (see avatar-spawn block below
   // for spawnPos save). Combined this prevents the infinite-loop swap
@@ -6945,9 +6957,14 @@ function setTransProgress(loadedBytes, doneCount, total){
 function hideTransSplash(){
   if(transSplashEl) transSplashEl.classList.remove('show');
 }
-async function switchScene(name){
+// v637: track which scene we're coming FROM so buildScene can suppress
+// the back-bridge until the avatar moves far away. Set by bridge crossings
+// in animate(); cleared after consumed in buildScene.
+let _pendingFromScene = null;
+async function switchScene(name, fromScene){
   const def = SCENES[name];
   if(!def){ console.warn('switchScene: unknown', name); return; }
+  if(fromScene) _pendingFromScene = fromScene;
   // Same scene? Just rebuild without splash dance.
   if(currentScene && currentScene.name === name){ buildScene(name); return; }
   // v624: side-pack accents loaded in background so they pop in after
@@ -7237,58 +7254,76 @@ const SIDE_PACK_ACCENTS = {
              ['val_pillar',   0,  7, 0.85,   0],
              ['vh_fence',    -6,  0, 0.85,  90],
              ['vh_fence',     6,  0, 0.85, -90],
-             ['vh_crate',    -3,  6, 0.85,  10]],
+             ['vh_crate',    -3,  6, 0.85,  10],
+             // v637: bookstore interior props spilling out front
+             ['enc_int_monlight', -7, -5, 0.55, 25]],
   oto:      [['vh_well',     -5,  5, 0.85,   0],
              ['vh_barrel',    5,  5, 0.85,   0],
              ['vh_ladder',    6, -3, 0.85,  90],
              ['vh_crate',    -6,  3, 0.85,   0],
-             ['vh_crate',     0,  7, 0.85,  30]],
+             ['vh_crate',     0,  7, 0.85,  30],
+             // v637: watermill interior gear spilled near the stream
+             ['enc_int_oto',   7, -4, 0.55, -20]],
   tabi:     [['val_longbench',-5, 6, 0.85,  90],
              ['val_barrel',   5,  6, 0.85,   0],
              ['vh_cart',      0,  7, 0.85,   0],
              ['val_horn',    -3,  4, 0.85,   0],
              ['val_horn',     3,  4, 0.85,   0],
-             ['vh_well',     -6,  2, 0.85,   0]],
+             ['vh_well',     -6,  2, 0.85,   0],
+             // v637: inn interior props near the dock
+             ['enc_int_tabi', -7, -5, 0.55, 15]],
   toki:     [['val_rune',    -6,  5, 0.85,   0],
              ['val_pillar',   6,  5, 0.85,   0],
              ['val_pillar',  -6,  0, 0.85,   0],
              ['val_pillar',   6,  0, 0.85,   0],
              ['val_rune',     0,  7, 0.85,   0],
              ['df_gargoyle', -7,  3, 0.85,  30],
-             ['df_gargoyle',  7,  3, 0.85, -30]],
+             ['df_gargoyle',  7,  3, 0.85, -30],
+             // v637: clocktower interior brass + dials
+             ['enc_int_toki', -7, -6, 0.55, 10]],
   hoshi:    [['val_rune',    -5,  4, 0.85,   0],
              ['val_rune',     5,  4, 0.85,  30],
              ['val_rune',     0,  7, 0.85,   0],
              ['val_pillar',  -6,  0, 0.85,   0],
              ['val_pillar',   6,  0, 0.85,   0],
              ['df_gargoyle', -5,  6, 0.85,  20],
-             ['df_gargoyle',  5,  6, 0.85, -20]],
+             ['df_gargoyle',  5,  6, 0.85, -20],
+             // v637: antiquarian interior — celestial maps on display
+             ['enc_int_hoshi', 7, -5, 0.55, -15]],
   takibi:   [['val_longbench',-5, 6, 0.85,  90],
              ['val_longbench', 5, 6, 0.85, -90],
              ['val_horn',     0,  7, 0.85,   0],
              ['vh_crate',    -3,  7, 0.85,  10],
              ['vh_crate',     3,  7, 0.85, -10],
              ['vh_barrel',   -6,  3, 0.85,   0],
-             ['vh_barrel',    6,  3, 0.85,   0]],
+             ['vh_barrel',    6,  3, 0.85,   0],
+             // v637: candlemaker interior — wax vats by the fire
+             ['enc_int_takibi', -7, -6, 0.55, 20]],
   mizube:   [['vh_ladder',   -5,  4, 0.85,   0],
              ['vh_barrel',    5,  4, 0.85,   0],
              ['vh_well',      0,  7, 0.85,   0],
              ['vh_crate',    -3,  6, 0.85,   0],
              ['vh_crate',     3,  6, 0.85,   0],
-             ['vh_fence',    -6,  0, 0.85,  90]],
+             ['vh_fence',    -6,  0, 0.85,  90],
+             // v637: weaver interior — loom + bolts of cloth
+             ['enc_int_mizube', 7, -4, 0.55, -25]],
   amaoto:   [['df_gate',      0, -7, 0.85,   0],
              ['df_gargoyle', -6,  4, 0.85,  30],
              ['df_gargoyle',  6,  4, 0.85, -30],
              ['df_chain',    -4,  6, 0.85,   0],
              ['df_chain',     4,  6, 0.85,   0],
              ['val_pillar',  -3,  3, 0.85,   0],
-             ['val_pillar',   3,  3, 0.85,   0]],
+             ['val_pillar',   3,  3, 0.85,   0],
+             // v637: church interior — altar pieces beside the gate
+             ['enc_int_amaoto', -7, -3, 0.55, 30]],
   heya:     [['vh_cart',     -5,  5, 0.85,  30],
              ['vh_crate',     5,  5, 0.85,   0],
              ['vh_well',      0,  7, 0.85,   0],
              ['vh_barrel',   -3,  6, 0.85,   0],
              ['vh_barrel',    3,  6, 0.85,   0],
-             ['vh_fence',    -6,  0, 0.85,  90]],
+             ['vh_fence',    -6,  0, 0.85,  90],
+             // v637: baker interior — oven & bread trays out front
+             ['enc_int_heya',  7, -5, 0.55, -20]],
 };
 
 async function loadSidePackAccents(name){
@@ -8588,10 +8623,14 @@ function animate(){
     if(distFromSpawn > 2.0){
       for(const b of activeBridges){
         const c = b.userData.cfg;
+        // v637: per-bridge "back-bridge" suppression. If the avatar
+        // just walked through this bridge (from the other side), don't
+        // arm it again until the avatar is 6 m from spawn.
+        if(b.userData.suppressUntilDist && distFromSpawn < b.userData.suppressUntilDist) continue;
         const d = Math.hypot(avatar.position.x - c.x, avatar.position.z - c.z);
         if(d < c.radius){
           bridgeCooldownUntil = performance.now() + 4000;
-          switchScene(c.target);
+          switchScene(c.target, currentScene.name);
           break;
         }
       }
@@ -9080,53 +9119,83 @@ setLoad(0.95, 'ASSETS');
 
 async function runSceneTestPlay(){
   const SCENES_LIST = ['plaza','monlight','oto','tabi','toki','hoshi','takibi','mizube','amaoto','heya'];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
   const results = [];
-  // Inject a floating panel with the report
   const panel = document.createElement('pre');
   panel.id = 'test-report';
-  panel.style.cssText = 'position:fixed;top:18px;right:18px;z-index:200;max-width:520px;max-height:80vh;overflow:auto;background:rgba(14,26,38,0.92);color:#e8dcb8;border:1px solid #c89848;padding:12px 14px;font:11px/1.5 "JetBrains Mono",monospace;letter-spacing:.06em;white-space:pre-wrap';
+  panel.style.cssText = 'position:fixed;top:18px;right:18px;z-index:200;max-width:620px;max-height:88vh;overflow:auto;background:rgba(14,26,38,0.93);color:#e8dcb8;border:1px solid #c89848;padding:14px 16px;font:11px/1.55 "JetBrains Mono",monospace;letter-spacing:.04em;white-space:pre-wrap';
   document.body.appendChild(panel);
-  panel.textContent = 'TEST PLAY · running…';
+  panel.textContent = 'EDGE-WALK TEST · running…';
+
+  // 4-cardinal walk test: hold each key 2 s, measure distance moved.
+  // PASS if the avatar reaches >= half the playable radius in at least
+  // 3 of 4 directions. Reset to spawn between tests so paths don't
+  // chain (one stuck wall locks the rest of the directions otherwise).
+  const KEY_DIRS = [
+    ['N', 'w'],
+    ['E', 'd'],
+    ['S', 's'],
+    ['W', 'a'],
+  ];
+
   for(const name of SCENES_LIST){
-    const r = { scene: name, loaded: false, walked: false, bridges: 0, cobbleY: null, err: null };
+    const r = { scene: name, load: 'NG', err: null, dirs: {}, passDirs: 0 };
     try {
       await switchScene(name);
-      // give the scene 800 ms to settle (asset finish + initial physics frames)
-      await new Promise(rsv => setTimeout(rsv, 800));
-      r.loaded = !!(currentScene && currentScene.name === name);
-      // bbox + cobble Y
-      const cy = (() => {
-        const offs = [[3,0],[-3,0],[0,3],[0,-3],[2,2],[-2,2],[2,-2],[-2,-2]];
-        const ys = [];
-        for(const [dx,dz] of offs){
-          const y = sampleHeight(dx, dz);
-          if(y > -2 && y < 25) ys.push(y);
+      await sleep(1200);
+      r.load = (currentScene && currentScene.name === name) ? 'OK' : 'NG';
+      if(r.load !== 'OK'){ results.push(r); continue; }
+
+      const pb = currentScene.playableBounds;
+      const half = pb ? (pb.maxX - pb.minX) * 0.25 : 3;   // expected ~half-radius reach
+      const spawn = currentScene.spawnPos
+        ? new THREE.Vector3(currentScene.spawnPos.x, currentScene.spawnPos.y, currentScene.spawnPos.z)
+        : avatar.position.clone();
+
+      for(const [label, key] of KEY_DIRS){
+        // Reset avatar to spawn
+        avatar.position.copy(spawn);
+        playerVel.set(0, 0, 0);
+        verticalVel = 0;
+        await sleep(120);
+        // Hold the key for 2 s
+        const before = avatar.position.clone();
+        keys[key] = true;
+        await sleep(2000);
+        keys[key] = false;
+        await sleep(150);
+        const moved = avatar.position.distanceTo(before);
+        const ok = moved >= half * 0.85;
+        r.dirs[label] = { moved: +moved.toFixed(2), threshold: +half.toFixed(2), ok };
+        if(ok) r.passDirs++;
+        // If scene SWITCHED (bridge crossed), test failed for this scene
+        if(currentScene.name !== name){
+          r.err = `bridge tripped to ${currentScene.name}`;
+          // bring user back so subsequent tests use the right scene
+          await switchScene(name);
+          await sleep(800);
+          break;
         }
-        ys.sort((a,b)=>a-b);
-        return ys.length ? ys[Math.floor(ys.length/2)] : null;
-      })();
-      r.cobbleY = cy;
-      r.bridges = (typeof activeBridges !== 'undefined') ? activeBridges.length : 0;
-      // Simulate "press W for 0.5 s" — set keys.w, wait, release, check delta
-      const before = avatar.position.clone();
-      keys.w = true;
-      await new Promise(rsv => setTimeout(rsv, 500));
-      keys.w = false;
-      await new Promise(rsv => setTimeout(rsv, 200));
-      const moved = avatar.position.distanceTo(before);
-      r.walked = moved > 0.3;
-      r.moveDist = +moved.toFixed(2);
+      }
     } catch(e){ r.err = e.message; }
+
     results.push(r);
-    panel.textContent = 'TEST PLAY · ' + results.length + '/' + SCENES_LIST.length + '\n\n' +
-      results.map(x => `${(x.loaded&&x.walked&&!x.err)?'✓':'✗'} ${x.scene.padEnd(9)} ` +
-        `load=${x.loaded?'OK':'NG'} walk=${x.walked?'OK':'NG'} ` +
-        `moved=${x.moveDist??'-'}m cobbleY=${x.cobbleY?x.cobbleY.toFixed(2):'?'} ` +
-        `bridges=${x.bridges}${x.err?'  err:'+x.err:''}`).join('\n');
+    const line = (x) => {
+      const dirs = ['N','E','S','W'].map(d => {
+        const dd = x.dirs[d];
+        if(!dd) return d + '-';
+        return (dd.ok ? d : d.toLowerCase()) + dd.moved + 'm';
+      }).join(' ');
+      const ok = (x.passDirs >= 3 && !x.err) ? '✓' : '✗';
+      return `${ok} ${x.scene.padEnd(9)} load=${x.load} ${dirs}${x.err?'  ⚠'+x.err:''}`;
+    };
+    panel.textContent = `EDGE-WALK TEST · ${results.length}/${SCENES_LIST.length}\n` +
+      `(uppercase = passed direction, expected ${(results[0]?.dirs?.N?.threshold)||'?'}m+)\n\n` +
+      results.map(line).join('\n');
   }
   console.table(results);
-  const passes = results.filter(x => x.loaded && x.walked && !x.err).length;
-  panel.textContent += `\n\n${passes}/${SCENES_LIST.length} scenes passed`;
+  const passes = results.filter(x => x.passDirs >= 3 && !x.err).length;
+  panel.textContent += `\n\n${passes}/${SCENES_LIST.length} scenes passed (>=3/4 directions reach half-radius)`;
 }
 </script>
 </body>
