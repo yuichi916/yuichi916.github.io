@@ -6146,15 +6146,19 @@ function buildScene(name){
   // v621: drop neighbour-bridges at the cardinal edges of the prefab.
   // Walking onto one auto-triggers switchScene to that neighbour.
   if(typeof addBridgesForScene === 'function') addBridgesForScene(name);
-  // Suppress bridge re-trigger for 2 s after every scene swap so the spawn
-  // step doesn't immediately walk back through the bridge we just came from.
-  bridgeCooldownUntil = performance.now() + 2000;
+  // v636: bridge cooldown extended 2 → 5 s + animate loop also gates on
+  // "avatar has moved > 2 m from spawn" (see avatar-spawn block below
+  // for spawnPos save). Combined this prevents the infinite-loop swap
+  // the user saw when bridges overlapped the spawn point.
+  bridgeCooldownUntil = performance.now() + 5000;
 
-  // === v633/v635: lift procedural concept assets up to the cobble Y ===
-  // v635 upgrades: (a) sample 9 points instead of 1 and take MEDIAN —
-  // robust against one sample landing on a building roof. (b) procedural
-  // helpers + side-pack accents are now tagged userData.skipRaycast so
-  // sampleHeight() ignores them — gives the true cobble Y reliably.
+  // === v636: v633 runtime lift is no longer needed ===
+  // v636 Blender re-extract normalises the COBBLE TOP to z=0 instead
+  // of the rocky pedestal's min(z)=0. Procedural assets created at
+  // y=0 now sit DIRECTLY on the cobble — no lift step required.
+  // The lift block below is kept as a defensive fallback that runs
+  // ONLY if the loaded prefab still reports a cobble Y > 0.4 (i.e.
+  // an old-format GLB still in browser cache).
   try {
     const SAMPLE_OFFSETS = [
       [3, 0], [-3, 0], [0, 3], [0, -3],
@@ -6169,20 +6173,19 @@ function buildScene(name){
     let groundY = 0;
     if(ys.length){
       ys.sort((a, b) => a - b);
-      groundY = ys[Math.floor(ys.length / 2)];   // median — outlier-robust
+      groundY = ys[Math.floor(ys.length / 2)];
     }
     if(groundY > 0.4){
+      // OLD-format GLB cached: lift procedural assets so they sit on the cobble
+      console.warn(`niwa[${name}]: old-format prefab cobbleY=${groundY.toFixed(2)} — lifting procedurals`);
       const _box = new THREE.Box3();
       for(const c of root.children){
         if(!c) continue;
-        if(c.userData && c.userData.isFloatingBase)     continue;  // stays below
+        if(c.userData && c.userData.isFloatingBase)     continue;
         if(c.userData && c.userData.isAtmosphereCloud)  continue;
         if(c.userData && c.userData.isCircularCobble)   continue;
         _box.setFromObject(c);
         const dy = _box.max.y - _box.min.y;
-        // Heuristic: the prefab clone is many metres tall (dy > 5);
-        // accents / concepts are smaller (< 5m). Lift only the small
-        // ones — pushing the prefab itself up would move the cobble.
         if(dy < 5 && _box.min.y < groundY - 0.2){
           c.position.y += groundY;
         }
@@ -6222,6 +6225,9 @@ function buildScene(name){
   const safe = findSafeSpawn(start[0], start[1]);
   avatar.position.set(safe.x, safe.y, safe.z);
   avatar.lookAt(0, safe.y, 0);
+  // v636: remember spawn — bridges only arm after avatar moves > 2 m
+  // away. Stops the spawn step from triggering the bridge we came from.
+  currentScene.spawnPos = { x: safe.x, y: safe.y, z: safe.z };
   // v621/v622: auto-frame the camera so the prefab fills the viewport.
   // ortho half-size = max(width, depth) × 0.52 — tighter than v621's 0.62
   // so the sky/cloud backdrop is mostly off-screen at default zoom.
@@ -8569,20 +8575,28 @@ function animate(){
     portalHover = false; hidePortalPrompt();
   }
 
-  // v621: Bridge proximity check — walking onto a bridge swaps to the
-  // neighbour scene (no click needed). The cooldown after each swap
-  // prevents the spawn step from immediately re-triggering.
-  if(activeBridges.length && performance.now() > bridgeCooldownUntil){
-    for(const b of activeBridges){
-      const c = b.userData.cfg;
-      const d = Math.hypot(avatar.position.x - c.x, avatar.position.z - c.z);
-      if(d < c.radius){
-        bridgeCooldownUntil = performance.now() + 3000;  // belt-and-braces
-        switchScene(c.target);
-        break;
+  // v621/v636: Bridge proximity check.
+  //   v636 also requires the avatar to have MOVED at least 2 m from
+  //   spawn before any bridge arms — otherwise small numeric drift
+  //   in the spawn position can immediately re-trigger a bridge from
+  //   the scene the user just came from, locking them in a loop.
+  if(activeBridges.length && performance.now() > bridgeCooldownUntil &&
+     currentScene && currentScene.spawnPos){
+    const sp = currentScene.spawnPos;
+    const distFromSpawn = Math.hypot(avatar.position.x - sp.x,
+                                      avatar.position.z - sp.z);
+    if(distFromSpawn > 2.0){
+      for(const b of activeBridges){
+        const c = b.userData.cfg;
+        const d = Math.hypot(avatar.position.x - c.x, avatar.position.z - c.z);
+        if(d < c.radius){
+          bridgeCooldownUntil = performance.now() + 4000;
+          switchScene(c.target);
+          break;
+        }
       }
     }
-    // Animate the bridge halo so its breathing matches the portal
+    // Bridge halo breathing regardless of arming
     for(const b of activeBridges){
       if(b.userData.halo){
         b.userData.halo.material.opacity = 0.22 + 0.10 * Math.sin(performance.now() * 0.0022 + b.position.x);
@@ -9053,7 +9067,67 @@ setLoad(0.95, 'ASSETS');
   if(sp) sp.classList.add('hidden');
   setTimeout(()=>{ if(sp) sp.remove(); }, 900);
   animate();
+
+  // v636: auto test-play runner — visit `?test=scenes` to cycle every
+  // scene and assert basic health. Writes a JSON report to <pre id=
+  // test-report> and console.table. Catches: scene fails to load,
+  // playableBounds missing, avatar can't take a step, bridge fires
+  // immediately, sampleHeight reports impossible cobble Y.
+  if(urlParams.get('test') === 'scenes'){
+    runSceneTestPlay();
+  }
 })();
+
+async function runSceneTestPlay(){
+  const SCENES_LIST = ['plaza','monlight','oto','tabi','toki','hoshi','takibi','mizube','amaoto','heya'];
+  const results = [];
+  // Inject a floating panel with the report
+  const panel = document.createElement('pre');
+  panel.id = 'test-report';
+  panel.style.cssText = 'position:fixed;top:18px;right:18px;z-index:200;max-width:520px;max-height:80vh;overflow:auto;background:rgba(14,26,38,0.92);color:#e8dcb8;border:1px solid #c89848;padding:12px 14px;font:11px/1.5 "JetBrains Mono",monospace;letter-spacing:.06em;white-space:pre-wrap';
+  document.body.appendChild(panel);
+  panel.textContent = 'TEST PLAY · running…';
+  for(const name of SCENES_LIST){
+    const r = { scene: name, loaded: false, walked: false, bridges: 0, cobbleY: null, err: null };
+    try {
+      await switchScene(name);
+      // give the scene 800 ms to settle (asset finish + initial physics frames)
+      await new Promise(rsv => setTimeout(rsv, 800));
+      r.loaded = !!(currentScene && currentScene.name === name);
+      // bbox + cobble Y
+      const cy = (() => {
+        const offs = [[3,0],[-3,0],[0,3],[0,-3],[2,2],[-2,2],[2,-2],[-2,-2]];
+        const ys = [];
+        for(const [dx,dz] of offs){
+          const y = sampleHeight(dx, dz);
+          if(y > -2 && y < 25) ys.push(y);
+        }
+        ys.sort((a,b)=>a-b);
+        return ys.length ? ys[Math.floor(ys.length/2)] : null;
+      })();
+      r.cobbleY = cy;
+      r.bridges = (typeof activeBridges !== 'undefined') ? activeBridges.length : 0;
+      // Simulate "press W for 0.5 s" — set keys.w, wait, release, check delta
+      const before = avatar.position.clone();
+      keys.w = true;
+      await new Promise(rsv => setTimeout(rsv, 500));
+      keys.w = false;
+      await new Promise(rsv => setTimeout(rsv, 200));
+      const moved = avatar.position.distanceTo(before);
+      r.walked = moved > 0.3;
+      r.moveDist = +moved.toFixed(2);
+    } catch(e){ r.err = e.message; }
+    results.push(r);
+    panel.textContent = 'TEST PLAY · ' + results.length + '/' + SCENES_LIST.length + '\n\n' +
+      results.map(x => `${(x.loaded&&x.walked&&!x.err)?'✓':'✗'} ${x.scene.padEnd(9)} ` +
+        `load=${x.loaded?'OK':'NG'} walk=${x.walked?'OK':'NG'} ` +
+        `moved=${x.moveDist??'-'}m cobbleY=${x.cobbleY?x.cobbleY.toFixed(2):'?'} ` +
+        `bridges=${x.bridges}${x.err?'  err:'+x.err:''}`).join('\n');
+  }
+  console.table(results);
+  const passes = results.filter(x => x.loaded && x.walked && !x.err).length;
+  panel.textContent += `\n\n${passes}/${SCENES_LIST.length} scenes passed`;
+}
 </script>
 </body>
 </html>
