@@ -6123,18 +6123,25 @@ function buildScene(name){
       if(!o.isMesh) return;
       if(_isProcedural(o)) return;
       _box.setFromObject(o);
-      if(_box.min.y < -0.3) return;   // belt-and-braces: skip underside meshes
+      // v641: classify GROUND meshes (cobble / floor / paving). Only these
+      // are consulted by sampleHeight() — walls and roofs are skipped so
+      // the avatar's Y never drifts up onto a wall edge. The criterion is
+      // "mesh top is at ground level" (max.y < 1.0) which also accepts a
+      // combined cobble+pedestal mesh whose underside goes deep negative.
       const dy = _box.max.y - _box.min.y;
       const dx = _box.max.x - _box.min.x;
       const dz = _box.max.z - _box.min.z;
-      // v638: tight obstacle filter. KB3D building meshes ship as merged
-      // shells (walls+roof+floor in a single mesh) whose AABB spans the
-      // entire footprint. Registering THAT as a solid obstacle traps the
-      // avatar inside it — see niwa edge-walk test failures pre-v638
-      // (monlight/amaoto/heya all had >300 m² AABBs centred on spawn).
-      // Real solid props are < 8 m on either side and < 25 m² total —
-      // anything bigger is a shell and stays passable.
-      if(dy > 1.0 && (dx * dz) > 0.3 && (dx * dz) < 25 && dx < 8 && dz < 8){
+      if(_box.max.y < 1.0){
+        o.userData.isGroundMesh = true;
+      }
+      if(_box.min.y < -0.3) return;   // belt-and-braces: skip underside meshes
+      // v641b: even tighter filter. KB3D scenes were registering small
+      // benches / signposts / interior walls as solid obstacles, which
+      // chopped each playable disc into disconnected pockets (the
+      // reachability flood-fill saw 19-65 % reach despite 4-dir passing).
+      // Only register ACTUAL pillars: dy > 1.5 (tall) AND footprint
+      // < 6 m² AND each side < 3 m (lampposts, statues, pillars).
+      if(dy > 1.5 && (dx * dz) > 0.3 && (dx * dz) < 6 && dx < 3 && dz < 3){
         ENTITIES.boxObstacles.push({
           minX: _box.min.x, maxX: _box.max.x,
           minZ: _box.min.z, maxZ: _box.max.z,
@@ -6375,24 +6382,27 @@ function sampleHeight(x, z){
     _rayDown.set(new THREE.Vector3(x, 30, z), _down);
     const hits = _rayDown.intersectObject(ground, true);
     if(!hits.length) return fallback;
-    // v640: prefer the HIGHEST non-ignored hit within MAX_STEP_UP+ε of the
-    // avatar's current Y (handles stairs/ramps/slope-step correctly), and
-    // fall back to the LOWEST non-ignored hit otherwise. The old "first hit
-    // wins" returned building ROOF Y when the avatar walked into a covered
-    // courtyard / shop interior, locking the climb-step check and the
-    // edge-walk test in monlight/toki/amaoto.
-    const avatarY = (typeof avatar !== 'undefined' && avatar) ? avatar.position.y : 0;
-    const NEAR = 0.40;    // a bit above MAX_STEP_UP (0.30) — slope tolerance
-    let bestNear = -Infinity;
+    // v641: only count meshes tagged isGroundMesh (cobble / floor /
+    // paving — see buildScene's AABB pass). Walls/roofs are skipped so
+    // the avatar can't drift UP onto a wall edge when the raycast
+    // returns a wall-top hit ahead of the cobble.
+    // First pass: prefer hits on ground-tagged meshes (top-down order).
+    for(const h of hits){
+      if(_hitIsRaycastIgnored(h, ground)) continue;
+      if(!h.object.userData || !h.object.userData.isGroundMesh) continue;
+      const y = h.point.y;
+      if(isFinite(y)) return y;
+    }
+    // Fallback: no ground-tagged hit (e.g. scene with only procedural
+    // ground, or an old GLB cached before v641 ran its tagger). Use the
+    // LOWEST non-ignored hit so the avatar stands on the floor, never
+    // on a roof above.
     let lowest = Infinity;
     for(const h of hits){
       if(_hitIsRaycastIgnored(h, ground)) continue;
       const y = h.point.y;
-      if(!isFinite(y)) continue;
-      if(y < lowest) lowest = y;
-      if(y <= avatarY + NEAR && y > bestNear) bestNear = y;
+      if(isFinite(y) && y < lowest) lowest = y;
     }
-    if(bestNear !== -Infinity) return bestNear;
     if(lowest !== Infinity) return lowest;
     return fallback;
   } catch(e){
@@ -7107,7 +7117,55 @@ async function switchScene(name, fromScene){
 // prefab's grey cobble top — user reported "島とprefabが分離している".
 // Now: a single rocky cone whose TOP exactly meets the prefab edge so
 // the cobble + underside read as one continuous landmass.
-const _baseRockMat  = new THREE.MeshStandardMaterial({color: 0x5a4838, roughness: 0.95, flatShading: true});
+// v641: textured rock material — procedural canvas mottle so the floating
+// pedestal under each disc reads as natural rock instead of flat brown
+// (was visually obvious as "the new ground" the user wants integrated).
+function _makeRockTexture(){
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#5a4838';
+  g.fillRect(0, 0, 256, 256);
+  // Coarse strata: horizontal bands of slightly varied brown — gives
+  // the lathe cone a "sedimentary rock" read once REPEAT-tiled.
+  for(let y = 0; y < 256; y += 6){
+    const lum = 0.85 + 0.30 * Math.sin(y * 0.18) + 0.05 * Math.random();
+    const r = Math.floor(0x5a * lum);
+    const gg = Math.floor(0x48 * lum);
+    const b = Math.floor(0x38 * lum);
+    g.fillStyle = `rgb(${r},${gg},${b})`;
+    g.fillRect(0, y, 256, 6);
+  }
+  // Mottled grain
+  for(let i = 0; i < 6000; i++){
+    const x = Math.random() * 256, y = Math.random() * 256;
+    const v = Math.random();
+    g.fillStyle = v < 0.25 ? 'rgba(28,16,8,0.55)'
+                  : v < 0.55 ? 'rgba(122,96,72,0.30)'
+                  : 'rgba(74,56,40,0.22)';
+    const s = 1 + 2 * Math.random();
+    g.fillRect(x, y, s, s);
+  }
+  // Sparse moss flecks at the top half — visually anchors the rock to
+  // the green-ish cobble disc above.
+  for(let i = 0; i < 220; i++){
+    const x = Math.random() * 256, y = Math.random() * 100;
+    g.fillStyle = 'rgba(80,108,52,0.45)';
+    const s = 1 + Math.random() * 2;
+    g.fillRect(x, y, s, s);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 4);
+  tex.anisotropy = 4;
+  return tex;
+}
+const _baseRockMat = new THREE.MeshStandardMaterial({
+  map: _makeRockTexture(),
+  color: 0xc8b8a8,
+  roughness: 0.92,
+  metalness: 0.02,
+});
 _baseRockMat.userData.shared = true;
 const _baseChunkGeom = new THREE.DodecahedronGeometry(0.6, 0);
 _baseChunkGeom.userData.shared = true;
@@ -8190,15 +8248,37 @@ function handleClick(cx, cy){
   if(!ground) return;
   // recursive raycast so grouped grounds (room platforms, plaza) all work
   const hits = raycaster.intersectObject(ground, true);
-  if(hits.length){
-    const p = hits[0].point;
-    if(isWalkable(p.x, p.z)){
-      moveTarget = new THREE.Vector3(p.x, p.y, p.z);
-      targetMarker.position.set(p.x, p.y + 0.04, p.z);
-      targetMarker.visible = true;
-    } else {
-      flashInvalid(p);
+  if(!hits.length) return;
+  // v641: prefer hits on GROUND-tagged meshes (cobble / floor / paving) —
+  // skip walls, roofs, and procedural decorations whose top a click ray
+  // would otherwise land on (avatar then can't reach the chosen point).
+  let pick = null;
+  for(const h of hits){
+    const o = h.object;
+    if(o.userData && o.userData.skipRaycast) continue;
+    let p = o;
+    let isGround = false;
+    while(p && p !== ground){
+      if(p.userData && p.userData.isGroundMesh){ isGround = true; break; }
+      p = p.parent;
     }
+    if(isGround){ pick = h; break; }
+  }
+  // Last-resort: use first non-decoration hit so clicks don't silently
+  // fail on scenes where the tagger somehow missed everything.
+  if(!pick){
+    for(const h of hits){
+      if(!h.object.userData || !h.object.userData.skipRaycast){ pick = h; break; }
+    }
+  }
+  if(!pick) return;
+  const p = pick.point;
+  if(isWalkable(p.x, p.z)){
+    moveTarget = new THREE.Vector3(p.x, p.y, p.z);
+    targetMarker.position.set(p.x, p.y + 0.04, p.z);
+    targetMarker.visible = true;
+  } else {
+    flashInvalid(p);
   }
 }
 
@@ -9247,8 +9327,92 @@ async function runSceneTestPlay(){
     ['W', 'a'],
   ];
 
+  // v641: flood-fill reachability — for each scene, BFS from spawn over
+  // a 0.6 m grid using the SAME blocked() predicate the avatar uses. Pass
+  // if >= 70 % of the playable disc cells are reachable. Synthesises an
+  // answer to the user's "全ての場所に行けるか" question in seconds, with
+  // no rAF / wall-clock dependence.
+  function floodReach(){
+    const root = currentScene && currentScene.root;
+    const pb = currentScene && currentScene.playableBounds;
+    const spawn = currentScene && currentScene.spawnPos;
+    if(!root || !pb || !spawn) return { reachable: 0, total: 0, pct: 0 };
+    const STEP = 0.6;
+    const w = pb.maxX - pb.minX;
+    const h = pb.maxZ - pb.minZ;
+    const nx = Math.max(2, Math.floor(w / STEP));
+    const nz = Math.max(2, Math.floor(h / STEP));
+    const visited = new Uint8Array(nx * nz);
+    const yMap = new Float32Array(nx * nz);
+    const cellX = (i) => pb.minX + (i + 0.5) * STEP;
+    const cellZ = (j) => pb.minZ + (j + 0.5) * STEP;
+    const idx = (i, j) => i * nz + j;
+    const cx = (pb.minX + pb.maxX) / 2;
+    const cz = (pb.minZ + pb.maxZ) / 2;
+    const R = Math.min(pb.maxX - cx, pb.maxZ - cz);
+    // Count cells that lie inside the playable disc (round corners excluded)
+    let total = 0;
+    for(let i = 0; i < nx; i++){
+      for(let j = 0; j < nz; j++){
+        if(Math.hypot(cellX(i) - cx, cellZ(j) - cz) <= R) total++;
+      }
+    }
+    const sxi = Math.max(0, Math.min(nx - 1, Math.floor((spawn.x - pb.minX) / STEP)));
+    const szi = Math.max(0, Math.min(nz - 1, Math.floor((spawn.z - pb.minZ) / STEP)));
+    visited[idx(sxi, szi)] = 1;
+    yMap[idx(sxi, szi)] = spawn.y;
+    const queue = [[sxi, szi]];
+    const AV_R = (typeof AV_RADIUS !== 'undefined') ? AV_RADIUS : 0.35;
+    const boxes = (ENTITIES && ENTITIES.boxObstacles) || [];
+    const circles = (ENTITIES && ENTITIES.obstacles) || [];
+    const isReachable = (fromI, fromJ, toI, toJ) => {
+      if(toI < 0 || toI >= nx || toJ < 0 || toJ >= nz) return false;
+      const px = cellX(toI), pz = cellZ(toJ);
+      // outside disc → unreachable (avatar can't walk past the round edge)
+      if(Math.hypot(px - cx, pz - cz) > R) return false;
+      // circular obstacles
+      for(const ob of circles){
+        if(Math.hypot(px - ob.x, pz - ob.z) < ob.r + AV_R) return false;
+      }
+      // AABB obstacles (walls/props)
+      for(const b of boxes){
+        if(px > b.minX - AV_R && px < b.maxX + AV_R
+           && pz > b.minZ - AV_R && pz < b.maxZ + AV_R) return false;
+      }
+      // climb-step using sampleHeight at the FROM cell's stored Y
+      const curY = yMap[idx(fromI, fromJ)];
+      // sampleHeight reads avatar.position.y as anchor — temporarily set
+      const savedY = avatar.position.y;
+      avatar.position.y = curY;
+      const nextY = sampleHeight(px, pz);
+      avatar.position.y = savedY;
+      if(nextY - curY > 0.30) return false;
+      if(curY - nextY > 1.20) return false;
+      yMap[idx(toI, toJ)] = nextY;
+      return true;
+    };
+    let reach = 1;
+    const NEIGHBORS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+    while(queue.length){
+      const [ci, cj] = queue.shift();
+      for(const [di, dj] of NEIGHBORS){
+        const ni = ci + di, nj = cj + dj;
+        if(ni < 0 || ni >= nx || nj < 0 || nj >= nz) continue;
+        const id = idx(ni, nj);
+        if(visited[id]) continue;
+        if(isReachable(ci, cj, ni, nj)){
+          visited[id] = 1;
+          queue.push([ni, nj]);
+          reach++;
+        }
+      }
+    }
+    return { reachable: reach, total, pct: total ? reach / total : 0 };
+  }
+
   for(const name of SCENES_LIST){
-    const r = { scene: name, load: 'NG', err: null, dirs: {}, passDirs: 0 };
+    const r = { scene: name, load: 'NG', err: null, dirs: {}, passDirs: 0,
+                reach: 0, total: 0, reachPct: 0 };
     try {
       await switchScene(name);
       await sleep(1200);
@@ -9260,6 +9424,10 @@ async function runSceneTestPlay(){
       const spawn = currentScene.spawnPos
         ? new THREE.Vector3(currentScene.spawnPos.x, currentScene.spawnPos.y, currentScene.spawnPos.z)
         : avatar.position.clone();
+
+      // v641: flood-fill reachability — fast (no rAF dependency).
+      const f = floodReach();
+      r.reach = f.reachable; r.total = f.total; r.reachPct = f.pct;
 
       // v640b: disable bridge transitions during this scene's edge-walk —
       // an unintended bridge trip cuts the test for that scene to 1 dir.
@@ -9308,16 +9476,20 @@ async function runSceneTestPlay(){
         if(!dd) return d + '-';
         return (dd.ok ? d : d.toLowerCase()) + dd.moved + 'm';
       }).join(' ');
-      const ok = (x.passDirs >= 3 && !x.err) ? '✓' : '✗';
-      return `${ok} ${x.scene.padEnd(9)} load=${x.load} ${dirs}${x.err?'  ⚠'+x.err:''}`;
+      const reachStr = x.total
+        ? ` reach=${(x.reachPct*100).toFixed(0)}%(${x.reach}/${x.total})`
+        : '';
+      // PASS if reachability >= 70 % AND >= 3 movement directions clear.
+      const ok = (x.reachPct >= 0.70 && x.passDirs >= 3 && !x.err) ? '✓' : '✗';
+      return `${ok} ${x.scene.padEnd(9)} load=${x.load}${reachStr} ${dirs}${x.err?'  ⚠'+x.err:''}`;
     };
-    panel.textContent = `EDGE-WALK TEST · ${results.length}/${SCENES_LIST.length}\n` +
-      `(uppercase = passed direction, threshold ${(results[0]?.dirs?.N?.threshold)||1.5}m moved)\n\n` +
+    panel.textContent = `SCENE TEST · ${results.length}/${SCENES_LIST.length}\n` +
+      `(reach ≥70% of playable + ≥3/4 dirs move ≥${(results[0]?.dirs?.N?.threshold)||1.5}m)\n\n` +
       results.map(line).join('\n');
   }
   console.table(results);
-  const passes = results.filter(x => x.passDirs >= 3 && !x.err).length;
-  panel.textContent += `\n\n${passes}/${SCENES_LIST.length} scenes passed (>=3/4 directions reach half-radius)`;
+  const passes = results.filter(x => x.reachPct >= 0.70 && x.passDirs >= 3 && !x.err).length;
+  panel.textContent += `\n\n${passes}/${SCENES_LIST.length} scenes passed (reach + 4-dir)`;
 }
 </script>
 </body>
