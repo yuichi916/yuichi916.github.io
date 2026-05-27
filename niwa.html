@@ -6123,15 +6123,18 @@ function buildScene(name){
       if(!o.isMesh) return;
       if(_isProcedural(o)) return;
       _box.setFromObject(o);
-      // v641: classify GROUND meshes (cobble / floor / paving). Only these
-      // are consulted by sampleHeight() — walls and roofs are skipped so
-      // the avatar's Y never drifts up onto a wall edge. The criterion is
-      // "mesh top is at ground level" (max.y < 1.0) which also accepts a
-      // combined cobble+pedestal mesh whose underside goes deep negative.
+      // v642d: classify GROUND meshes (cobble / floor / paving). Only
+      // these are consulted by sampleHeight(). Criterion is "thin slab
+      // with non-trivial XZ area" — works for both v636-normalised
+      // prefabs (cobble at y≈0) AND un-normalised KB3D extracts where
+      // the cobble Y can be y≈5 (plaza prefab is one such case). The
+      // sampleHeight reader uses the LOWEST tagged hit to dodge any
+      // thin roof slab that also happens to satisfy this criterion.
       const dy = _box.max.y - _box.min.y;
       const dx = _box.max.x - _box.min.x;
       const dz = _box.max.z - _box.min.z;
-      if(_box.max.y < 1.0){
+      const area = dx * dz;
+      if(dy < 0.8 && area > 4){
         o.userData.isGroundMesh = true;
       }
       if(_box.min.y < -0.3) return;   // belt-and-braces: skip underside meshes
@@ -6224,13 +6227,13 @@ function buildScene(name){
     }
   } catch(e){ console.warn('lift-to-ground failed:', e.message); }
 
-  // === v629: avatar SAFE-GROUND spawn ===
-  // sampleHeight() returns the first raycast hit downward — if a
-  // building roof sits over the spawn coord, the avatar spawns on
-  // the roof. Fix: scan an outward spiral around the requested spawn
-  // for a hit with y < SAFE_GROUND_Y (cobble level). If none is
-  // found in range, fall back to the avatarStart at y=0.
-  const SAFE_GROUND_Y = 1.5;
+  // === v629/v642d: avatar SAFE-GROUND spawn ===
+  // sampleHeight() now returns the LOWEST tagged ground hit (cobble
+  // floor) — roofs are filtered at the source. We still cap to reject
+  // pathological values, but the cap is generous enough to accept
+  // un-normalised KB3D prefabs whose cobble Y can be ~5 m (plaza is one
+  // such case — its cobble disc lives at y≈5.46).
+  const SAFE_GROUND_Y = 30;
   function findSafeSpawn(tx, tz){
     // v638: reject points inside an AABB obstacle (pad by avatar radius).
     // v639: also require MOBILITY — at least 3 of 4 cardinal world directions
@@ -6365,6 +6368,15 @@ function buildScene(name){
 // top BEFORE the cobble. (The avatar was reported "ゆっくり宙に浮く".)
 const _rayDown = new THREE.Raycaster();
 const _down = new THREE.Vector3(0,-1,0);
+// v642d: sprites in the scene (fountain spout, koi flames, etc.) cause
+// intersectObject to throw "Raycaster.camera needs to be set" when we
+// raycast straight down — which made sampleHeight ALWAYS return the
+// fallback (=avatar.y) in scenes containing procedural sprites. That
+// in turn made the avatar appear to float above the prefab ground
+// because the cobble Y was never actually queried.
+function _ensureRayCamera(){
+  if(typeof camera !== 'undefined' && camera) _rayDown.camera = camera;
+}
 function _hitIsRaycastIgnored(hit, ground){
   let p = hit.object;
   while(p && p !== ground){
@@ -6379,24 +6391,26 @@ function sampleHeight(x, z){
     if(!currentScene || !currentScene.root) return fallback;
     const ground = currentScene.root.userData.ground;
     if(!ground) return fallback;
+    _ensureRayCamera();
     _rayDown.set(new THREE.Vector3(x, 30, z), _down);
     const hits = _rayDown.intersectObject(ground, true);
     if(!hits.length) return fallback;
-    // v641: only count meshes tagged isGroundMesh (cobble / floor /
-    // paving — see buildScene's AABB pass). Walls/roofs are skipped so
-    // the avatar can't drift UP onto a wall edge when the raycast
-    // returns a wall-top hit ahead of the cobble.
-    // First pass: prefer hits on ground-tagged meshes (top-down order).
+    // v642d: the LOWEST tagged isGroundMesh hit wins. The tagger marks
+    // any thin slab with area > 4 m² as ground, which can include both
+    // cobble AND a roof in a covered courtyard — picking the lowest
+    // gives us the floor every time (the cobble at y=0 over the floor
+    // at y=5.46 for un-normalised plaza GLB, or the interior floor
+    // under the roof for monlight / amaoto).
+    let lowestTagged = Infinity;
     for(const h of hits){
       if(_hitIsRaycastIgnored(h, ground)) continue;
       if(!h.object.userData || !h.object.userData.isGroundMesh) continue;
       const y = h.point.y;
-      if(isFinite(y)) return y;
+      if(isFinite(y) && y < lowestTagged) lowestTagged = y;
     }
-    // Fallback: no ground-tagged hit (e.g. scene with only procedural
-    // ground, or an old GLB cached before v641 ran its tagger). Use the
-    // LOWEST non-ignored hit so the avatar stands on the floor, never
-    // on a roof above.
+    if(lowestTagged !== Infinity) return lowestTagged;
+    // Fallback: no ground-tagged hit at all — use lowest non-decoration
+    // so the avatar stands on the floor, never on a roof above.
     let lowest = Infinity;
     for(const h of hits){
       if(_hitIsRaycastIgnored(h, ground)) continue;
