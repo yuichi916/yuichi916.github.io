@@ -5493,6 +5493,11 @@ function makeStoneFountain(x, z){
   g.add(spout);
   g.userData.skipRaycast = true;
   g.userData.skipObstacle = true;
+  // v643: stone fountain is SOLID — circular collider so avatar can
+  // circle the basin instead of phasing through the central column.
+  if(typeof ENTITIES !== 'undefined' && ENTITIES.obstacles){
+    ENTITIES.obstacles.push({ x, z, r: 1.6 });
+  }
   return g;
 }
 
@@ -5661,6 +5666,10 @@ function makeBoat(x, z, rotY = 0){
   g.userData.skipRaycast = true;
   g.userData.skipObstacle = true;
   g.userData.isBoat = true;
+  // v643: boat is solid — slim collider so avatar walks around the hull.
+  if(typeof ENTITIES !== 'undefined' && ENTITIES.obstacles){
+    ENTITIES.obstacles.push({ x, z, r: 1.5 });
+  }
   return g;
 }
 
@@ -5731,6 +5740,11 @@ function makeStallV630(x, z, rotY = 0, awning = 'awning'){
   }
   g.userData.skipRaycast = true;
   g.userData.skipObstacle = true;
+  // v643: market stall has a table + posts — give it a footprint so
+  // the avatar walks AROUND it instead of straight through the awning.
+  if(typeof ENTITIES !== 'undefined' && ENTITIES.obstacles){
+    ENTITIES.obstacles.push({ x, z, r: 1.1 });
+  }
   return g;
 }
 
@@ -5756,6 +5770,10 @@ function makeBreadStack(x, z){
   g.add(round);
   g.userData.skipRaycast = true;
   g.userData.skipObstacle = true;
+  // v643: bread basket on the ground — small solid collider.
+  if(typeof ENTITIES !== 'undefined' && ENTITIES.obstacles){
+    ENTITIES.obstacles.push({ x, z, r: 0.35 });
+  }
   return g;
 }
 
@@ -5774,6 +5792,10 @@ function makeBookStack(x, z, height = 4){
   }
   g.userData.skipRaycast = true;
   g.userData.skipObstacle = true;
+  // v643: book stack is small but solid — petite collider
+  if(typeof ENTITIES !== 'undefined' && ENTITIES.obstacles){
+    ENTITIES.obstacles.push({ x, z, r: 0.35 });
+  }
   return g;
 }
 
@@ -5802,6 +5824,10 @@ function makeCandleCluster(x, z, count = 5){
   }
   g.userData.skipRaycast = true;
   g.userData.skipObstacle = true;
+  // v643: candle cluster has an iron base — small solid footprint.
+  if(typeof ENTITIES !== 'undefined' && ENTITIES.obstacles){
+    ENTITIES.obstacles.push({ x, z, r: 0.45 });
+  }
   return g;
 }
 
@@ -5823,6 +5849,10 @@ function makePendulum(x, z, height = 3.0){
   g.userData.skipObstacle = true;
   g.userData.isPendulum = true;
   if(ENTITIES._anim){ ENTITIES._anim.pendulums = ENTITIES._anim.pendulums || []; ENTITIES._anim.pendulums.push(g); }
+  // v643: pendulum swings — narrow collider at its base.
+  if(typeof ENTITIES !== 'undefined' && ENTITIES.obstacles){
+    ENTITIES.obstacles.push({ x, z, r: 0.30 });
+  }
   return g;
 }
 
@@ -5875,6 +5905,10 @@ function makeRockCluster(x, z){
   }
   g.userData.skipRaycast = true;
   g.userData.skipObstacle = true;
+  // v643: rock cluster — solid footprint matching its ~0.4 m spread.
+  if(typeof ENTITIES !== 'undefined' && ENTITIES.obstacles){
+    ENTITIES.obstacles.push({ x, z, r: 0.50 });
+  }
   return g;
 }
 
@@ -5903,6 +5937,11 @@ function makeBanner(x, z, color = 'red'){
   g.userData.skipObstacle = true;
   g.userData.isBanner = true;
   if(ENTITIES._anim){ ENTITIES._anim.banners = ENTITIES._anim.banners || []; ENTITIES._anim.banners.push({banner, basePhase: Math.random() * Math.PI * 2}); }
+  // v643: tall banner pole — slim collider so the avatar doesn't walk
+  // through it (still small enough that it doesn't crowd the bridge).
+  if(typeof ENTITIES !== 'undefined' && ENTITIES.obstacles){
+    ENTITIES.obstacles.push({ x, z, r: 0.25 });
+  }
   return g;
 }
 
@@ -6431,7 +6470,7 @@ function sampleHeight(x, z){
 SCENES.plaza = {
   num: '00', kind: 'prefab',
   title: 'Cloudfall Village (雲落ちの村)', en: 'Cloudfall Village',
-  concept: 'KB3D Enchanted LowerTownSquare プレハブを原寸忠実に配置。建物・地面・道・小物すべて元のレイアウト。剣・紋章・かがり火が物語の入口を彩る。',
+  concept: '雲の上に浮かぶ村の中央広場。井戸を囲んで石畳が広がり、市場の露店と祝祭の幟が春の陽を返す。広場の縁では古い剣が石に刺さり、誰かが灯したかがり火が訪れた旅人を迎えている。',
   sun: [44, -22], turbidity: 2.5, rayleigh: 1.1,
   fogColor: '#b0c4d0', fogNear: 30, fogFar: 90, exposure: 1.0,
   avatarStart: [0, 4.0],
@@ -6493,7 +6532,7 @@ SCENES.plaza = {
 SCENES.monlight = {
   num: '00', kind: 'prefab',
   title: '月光の書架', en: 'The Moonlit Stacks',
-  concept: 'KB3D Enchanted の古書店プレハブ。月光の下、屋外の書棚と灯籠の余韻。',
+  concept: '月光に冷やされた石畳に、夜風で開かれたままの本が散らばっている。古書店の軒先に灯籠が揺れ、読みかけの一節が露の上で息をひそめている。眠れない夜の住人だけが、ここを訪れる。',
   sun: [12, 35], turbidity: 6, rayleigh: 3.5,
   fogColor: '#3a4a68', fogNear: 18, fogFar: 55, exposure: 0.85,
   avatarStart: [0, 4.0],
@@ -6550,7 +6589,7 @@ SCENES.monlight = {
 SCENES.oto = {
   num: '00', kind: 'prefab',
   title: '音の小川', en: 'Stream Garden',
-  concept: 'KB3D Enchanted の水車屋プレハブ。流れる水音と苔むした小川辺の工房。',
+  concept: '苔むした石の縁を縫って小川が流れ、水車がゆっくり音を刻む。蓮の葉が水面を覆い、紅と金の鯉がその影に身を隠す。耳を澄ますだけで時間がほどけていく、音の祠。',
   sun: [30, 60], turbidity: 4, rayleigh: 2.5,
   fogColor: '#a8c4c8', fogNear: 20, fogFar: 60, exposure: 0.95,
   avatarStart: [0, 4.0],
@@ -6609,7 +6648,7 @@ SCENES.oto = {
 SCENES.tabi = {
   num: '00', kind: 'prefab',
   title: '旅の岸辺', en: "Traveler's Inn",
-  concept: 'KB3D Enchanted の旅人宿プレハブ。煌々と灯る客室、中庭のかがり火、隣の酒場。',
+  concept: '湖畔に係留された小舟。傾いた桟橋の先で、夕焼けに染まる水面が緋色に揺れる。旅人宿の窓から漏れる橙の灯と、岸辺で熾されたかがり火だけが、夜の到来を告げる目印になる。',
   sun: [38, 25], turbidity: 3, rayleigh: 2.0,
   fogColor: '#c0bca0', fogNear: 22, fogFar: 70, exposure: 1.0,
   avatarStart: [0, 4.0],
@@ -6665,7 +6704,7 @@ SCENES.tabi = {
 SCENES.toki = {
   num: '00', kind: 'prefab',
   title: '時の砂時計', en: 'Hourglass Hill',
-  concept: 'KB3D Enchanted の時計塔プレハブ。雲海の上、双子の紋章が時を見守る。',
+  concept: '雲海を見下ろす丘の上に、時計塔が静かに針を刻む。塔の両脇には双子の紋章が掲げられ、振り子の影が霧に呑まれていく。「今」が指の隙間から漏れ落ちる場所。',
   sun: [55, -25], turbidity: 3.5, rayleigh: 1.8,
   fogColor: '#a0c4ce', fogNear: 40, fogFar: 120, exposure: 1.0,
   avatarStart: [0, 4.0],
@@ -6719,7 +6758,7 @@ SCENES.toki = {
 SCENES.hoshi = {
   num: '00', kind: 'prefab',
   title: "Stargazer's Hill", en: "Stargazer's Hill",
-  concept: 'KB3D Enchanted の骨董屋プレハブ。剣・紋章・宝箱と古い書物、星灯りに照らされる丘。',
+  concept: '深い藍の夜空に、星々がいつもより低く広がる丘の上。骨董屋の縁台には開かれた星図と古い宝箱が並び、誰かが置いていった鎧の前で月光が透ける。星を読みに来た者が集まる、静かな砦。',
   sun: [-8, 70], turbidity: 8, rayleigh: 3.0,
   fogColor: '#1a2a3a', fogNear: 20, fogFar: 60, exposure: 0.7,
   avatarStart: [0, 4.0],
@@ -6775,7 +6814,7 @@ SCENES.hoshi = {
 SCENES.takibi = {
   num: '00', kind: 'prefab',
   title: '焚き火の前', en: 'By the Candle',
-  concept: 'KB3D Enchanted のろうそく屋プレハブ。窓越しの暖色、三つのかがり火と灯籠の集いの場。',
+  concept: '凍えるような夜にだけ訪れる集い。三つのかがり火が円を描いて燃え、長椅子と樽が炎を囲む。窓越しに見えるろうそく屋の溶けた蝋の景色が、ここでは外の暗がりまで暖めている。',
   sun: [8, -90], turbidity: 6, rayleigh: 2.5,
   fogColor: '#3a2828', fogNear: 18, fogFar: 55, exposure: 0.85,
   avatarStart: [0, 4.0],
@@ -6834,7 +6873,7 @@ SCENES.takibi = {
 SCENES.mizube = {
   num: '00', kind: 'prefab',
   title: '水辺の岸', en: 'By the Weaver',
-  concept: 'KB3D Enchanted の機織り屋プレハブ。水辺の小さな工房と織りかけの布、吊り鉢の緑。',
+  concept: '機織り屋の窓辺に、織りかけの布が朝霧を吸って色を変えていく。水辺には吊り鉢の蔓草が垂れ、樽と籠を覆う。流れる水音と機の音が、誰の眠りも妨げないように調律されている。',
   sun: [22, 110], turbidity: 5, rayleigh: 2.5,
   fogColor: '#cfe6ee', fogNear: 28, fogFar: 80, exposure: 0.95,
   avatarStart: [0, 4.0],
@@ -6893,7 +6932,7 @@ SCENES.mizube = {
 SCENES.amaoto = {
   num: '00', kind: 'prefab',
   title: '雨音の部屋', en: 'Rain Chapel',
-  concept: 'KB3D Enchanted の教会プレハブ。雨音と石壁、ステンドグラスの灯り、紋章とかがり火が支える祭壇。',
+  concept: '降り続ける雨が石壁を流れ、屋根を雷文のように叩いている。教会の重い扉の前で鎖が湿気で軋み、ガーゴイルが薄暗い庭を見守る。ステンドグラス越しに揺れる燭台の光だけが、雨音と一緒にここに留まる。',
   sun: [10, 100], turbidity: 8, rayleigh: 3.0,
   fogColor: '#7a8a9c', fogNear: 22, fogFar: 60, exposure: 0.85,
   avatarStart: [0, 4.0],
@@ -6948,7 +6987,7 @@ SCENES.amaoto = {
 SCENES.heya = {
   num: '00', kind: 'prefab',
   title: '部屋', en: 'The Bakery',
-  concept: 'KB3D Enchanted のパン屋プレハブ。温かな店内、窓辺の植木鉢、焼きたてのパンの匂い。',
+  concept: '夜明け前に火を入れた窯から、焼きたてのパンの匂いが石畳ににじみ出す。窓辺の植木鉢には早朝の露が光り、樽と荷車が次の配達を待つ。眠れなかった夜にだけ気づく、一日のはじまりの場所。',
   sun: [40, -30], turbidity: 3, rayleigh: 1.6,
   fogColor: '#e0e8f0', fogNear: 28, fogFar: 70, exposure: 1.05,
   avatarStart: [0, 4.0],
