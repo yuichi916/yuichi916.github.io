@@ -9299,21 +9299,21 @@ function animate(){
     const len = Math.hypot(mx,mz);
     const mag = Math.min(1, len);                  // analog magnitude (joystick)
     mx /= (len || 1); mz /= (len || 1);
-    // v652: avatar-relative movement.  WASD is always interpreted in
-    // the avatar's OWN facing frame — pressing W walks in the direction
-    // the chibi is looking, regardless of where the camera happens to be.
-    // The 3P auto-chase (v651b) then keeps the camera behind the chibi
-    // so the screen direction stays consistent.  In 1P the look direction
-    // IS the avatar facing (avatar.rotation.y = -fpYaw each frame),
-    // so 1P walks where you're looking too.
-    //   avatar.visible-forward = (sin(yaw), cos(yaw))
-    //   yawForMove satisfies (sin(yawForMove), -cos(yawForMove)) = forward
-    //   ⇒ yawForMove = π − avatar.rotation.y
-    const yawForMove = Math.PI - avatar.rotation.y;
-    const wx = mx*Math.cos(yawForMove) - mz*Math.sin(yawForMove);
-    const wz = mx*Math.sin(yawForMove) + mz*Math.cos(yawForMove);
-    desiredVx = wx*targetSpeed*mag;
-    desiredVz = wz*targetSpeed*mag;
+    // v652b: explicit avatar-relative WASD.  The avatar's visible front
+    // is +Z when rotation.y = 0 (the chibi's pendant hangs at +Z), so
+    //   forward_world = (sin(yaw), cos(yaw))
+    //   right_world   = (cos(yaw), -sin(yaw))
+    // Pressing W advances along forward, S retreats, A strafes left
+    // (= negative right), D strafes right.  The previous yawForMove
+    // substitution couldn't capture all four signs consistently — the
+    // vz term was inverting and A/D ended up swapped at certain yaws.
+    const yaw  = avatar.rotation.y;
+    const sinY = Math.sin(yaw);
+    const cosY = Math.cos(yaw);
+    const fwd  = -mz;    // W (mz=-1) → +1 forward; S (mz=+1) → -1 backward
+    const rgt  =  mx;    // D (mx=+1) → +1 right;   A (mx=-1) → -1 left
+    desiredVx = (fwd * sinY + rgt * cosY) * targetSpeed * mag;
+    desiredVz = (fwd * cosY - rgt * sinY) * targetSpeed * mag;
     if(moveTarget){ moveTarget = null; targetMarker.visible = false; }
   } else if(moveTarget){
     const mdx = moveTarget.x - avatar.position.x;
