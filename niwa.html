@@ -9401,20 +9401,18 @@ function animate(){
   if(moveTarget && (blocked(moveTarget.x, moveTarget.z))){
     moveTarget = null; targetMarker.visible = false;
   }
-  // v652c: smooth-rotate avatar to face movement direction, but ONLY
-  // when the player is pressing forward / backward.  Strafing alone
-  // (A or D held) used to spin the avatar in tight circles because
-  // the new yaw caused the next frame's WASD direction to also
-  // rotate, walking the avatar in a 24 cm circle and the test runner
-  // measured zero displacement.  Now strafe just slides sideways at
-  // the current yaw.
-  // v652e: also rotate to face velocity during click-to-move (moveTarget
-  // mode), otherwise the avatar walked toward the clicked spot while
-  // still looking the way they were before the click.
-  const _hasFB = keys.w || keys.s ||
-                 (joyState.active && Math.abs(joyState.dz) > 0.06) ||
-                 (typeof moveTarget !== 'undefined' && moveTarget);
-  if(Math.hypot(playerVel.x, playerVel.z) > 0.4 && _hasFB){
+  // v652g: only rotate the avatar to face velocity when the input is
+  // FORWARD (W, joystick-up, or click-to-move toward a target).  Strafe
+  // (A/D) and backward (S) keep the current facing — strafe slides
+  // sideways at the held heading, S backpedals tank-style.
+  // Earlier sub-versions allowed S to rotate too, which made the
+  // avatar oscillate: pressing S pointed yaw at the backward direction,
+  // backward became the new forward, yaw flipped back, ... net
+  // displacement ≈ 0 in the test runner.
+  const _hasForwardIntent = keys.w ||
+                            (joyState.active && joyState.dz < -0.06) ||
+                            (typeof moveTarget !== 'undefined' && moveTarget);
+  if(Math.hypot(playerVel.x, playerVel.z) > 0.4 && _hasForwardIntent){
     const targetYaw = Math.atan2(playerVel.x, playerVel.z);
     let cur = avatar.rotation.y;
     let diff = targetYaw - cur;
