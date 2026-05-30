@@ -7266,6 +7266,29 @@ function makeFloatingBase(prefabBBox, explicitR){
     rock.scale.setScalar(0.8 + (i * 0.3));
     g.add(rock);
   }
+  // v645: distant island silhouettes ringed around the disc to suggest
+  // the scene is one region of a larger landmass. 6 mounded blobs at
+  // radius 2.5×r, fading into the fog. NOT raycast / collision targets.
+  const skirtMat = new THREE.MeshStandardMaterial({
+    color: 0x4a4030, roughness: 0.96, metalness: 0.02,
+  });
+  for(let i = 0; i < 6; i++){
+    const ang = (i / 6) * Math.PI * 2 + 0.4;
+    const rr = r * (2.3 + Math.random() * 0.7);
+    const w  = r * (0.9 + Math.random() * 0.7);
+    const h  = r * (0.25 + Math.random() * 0.20);
+    const mound = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 12, 8),
+      skirtMat
+    );
+    mound.scale.set(w, h, w);
+    mound.position.set(
+      cx + Math.cos(ang) * rr,
+      -h * 0.5 + (Math.random() - 0.5) * 0.4,
+      cz + Math.sin(ang) * rr
+    );
+    g.add(mound);
+  }
   g.userData.isFloatingBase = true;
   g.userData.skipRaycast = true;
   g.userData.skipObstacle = true;
@@ -9435,11 +9458,29 @@ async function runSceneTestPlay(){
     const cx = (pb.minX + pb.maxX) / 2;
     const cz = (pb.minZ + pb.maxZ) / 2;
     const R = Math.min(pb.maxX - cx, pb.maxZ - cz);
-    // Count cells that lie inside the playable disc (round corners excluded)
+    const AV_R = (typeof AV_RADIUS !== 'undefined') ? AV_RADIUS : 0.35;
+    const boxes = (ENTITIES && ENTITIES.boxObstacles) || [];
+    const circles = (ENTITIES && ENTITIES.obstacles) || [];
+    // v645: denominator = PLAYABLE cells (inside disc AND not covered by
+    // any obstacle). Cells under a wall or prop are excluded from
+    // "where the avatar should be able to walk", so a scene with 15 %
+    // of its disc occupied by buildings can still hit 100 % reach.
     let total = 0;
     for(let i = 0; i < nx; i++){
       for(let j = 0; j < nz; j++){
-        if(Math.hypot(cellX(i) - cx, cellZ(j) - cz) <= R) total++;
+        const cx_ = cellX(i), cz_ = cellZ(j);
+        if(Math.hypot(cx_ - cx, cz_ - cz) > R) continue;
+        let blocked = false;
+        for(const b of boxes){
+          if(cx_ > b.minX - AV_R && cx_ < b.maxX + AV_R
+             && cz_ > b.minZ - AV_R && cz_ < b.maxZ + AV_R){ blocked = true; break; }
+        }
+        if(!blocked){
+          for(const o of circles){
+            if(Math.hypot(cx_ - o.x, cz_ - o.z) < o.r + AV_R){ blocked = true; break; }
+          }
+        }
+        if(!blocked) total++;
       }
     }
     const sxi = Math.max(0, Math.min(nx - 1, Math.floor((spawn.x - pb.minX) / STEP)));
@@ -9447,9 +9488,6 @@ async function runSceneTestPlay(){
     visited[idx(sxi, szi)] = 1;
     yMap[idx(sxi, szi)] = spawn.y;
     const queue = [[sxi, szi]];
-    const AV_R = (typeof AV_RADIUS !== 'undefined') ? AV_RADIUS : 0.35;
-    const boxes = (ENTITIES && ENTITIES.boxObstacles) || [];
-    const circles = (ENTITIES && ENTITIES.obstacles) || [];
     const isReachable = (fromI, fromJ, toI, toJ) => {
       if(toI < 0 || toI >= nx || toJ < 0 || toJ >= nz) return false;
       const px = cellX(toI), pz = cellZ(toJ);
