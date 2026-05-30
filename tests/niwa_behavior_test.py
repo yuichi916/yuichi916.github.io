@@ -168,6 +168,53 @@ def main():
                        f'expect=({ex_x:+.2f},{ex_z:+.2f})')
         page.evaluate("() => window.__niwa._setFirstPerson(false)")
 
+        # ===== T1: URL hash initial teleport =====
+        print('\n[T1] URL hash #oto initial teleport')
+        t1_msgs = []
+        page.on('console', lambda m: t1_msgs.append(f'[{m.type}] {m.text}'))
+        # Navigate to about:blank first so the next goto is a full reload
+        # rather than a same-page fragment update (which would skip the IIFE).
+        page.goto('about:blank', timeout=15000)
+        page.goto(f'{URL}#oto', wait_until='load', timeout=30000)
+        wait_island_ready(page)
+        wait_for_streamed(page, 2, timeout_s=120)
+        # Poll for up to 45 s — the build() async waits for prefab to
+        # land before firing teleport.
+        deadline = time.time() + 45
+        p1 = None
+        while time.time() < deadline:
+            p1 = page.evaluate(
+                "() => ({x: window.__niwa.avatar.position.x, "
+                "y: window.__niwa.avatar.position.y, "
+                "z: window.__niwa.avatar.position.z, "
+                "scene: window.__niwa.currentScene.name})")
+            if abs(p1['x']) < 3.0 and abs(p1['z'] - (-16)) < 3.0:
+                break
+            page.wait_for_timeout(800)
+        ok = (abs(p1['x']) < 3.0 and abs(p1['z'] - (-16)) < 3.0
+              and p1['scene'] == 'island')
+        expect('T1 #oto initial teleport', ok,
+               f"pos=({p1['x']:+.2f}, {p1['y']:.2f}, {p1['z']:+.2f}) "
+               f"scene={p1['scene']} want (~0, ?, ~-16, island)")
+        # Dump hash-related console messages either way for diagnosis
+        for m in t1_msgs:
+            if 'hash' in m.lower() or 'pending' in m.lower():
+                print(f'   console: {m}')
+
+        # ===== T3: facing preserved across teleport =====
+        print('\n[T3] facing preserved across teleport')
+        page.evaluate("() => { window.__niwa.avatar.rotation.y = 1.234; }")
+        before_yaw = page.evaluate("() => window.__niwa.avatar.rotation.y")
+        page.evaluate("() => window.__niwa._teleportToIslandSection('hoshi')")
+        page.wait_for_timeout(400)
+        after_yaw = page.evaluate("() => window.__niwa.avatar.rotation.y")
+        delta = abs(after_yaw - before_yaw)
+        delta = min(delta, abs(delta - 2 * math.pi))
+        ok = delta < 0.01
+        expect('T3 facing preserved across teleport', ok,
+               f'before={before_yaw:+.3f} after={after_yaw:+.3f} '
+               f'delta={delta:.4f}')
+
         b.close()
 
     print(f'\n=== SUMMARY: {len(passes)} pass, {len(failures)} fail ===')

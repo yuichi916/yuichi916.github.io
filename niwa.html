@@ -507,6 +507,11 @@ const SCENE_WORLD_POS = {
   heya:    { dx:  0, dz:  0, label:'室内 — 庵の部屋' },
 };
 
+// v655: URL hash deep-link target for island.  Init code at the bottom
+// of the file reads location.hash and sets this; SCENES.island.build()
+// consumes it once the targeted prefab has streamed in.
+let _pendingHashSection = null;
+
 const canvas = document.getElementById('webgl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 900);
@@ -7495,6 +7500,23 @@ SCENES.island = {
         minX: -35, maxX: 35, minZ: -35, maxZ: 35,
       };
     }
+    // v655: honour ?scene=island#<section> hash for initial deep-link
+    // teleport.  Defer until the targeted prefab has actually streamed
+    // in (or 60 s elapsed) — otherwise the spawn lands on a bare disc.
+    if(_pendingHashSection){
+      const _h = _pendingHashSection;
+      _pendingHashSection = null;
+      console.log(`niwa[island]: hash deep-link queued for #${_h}`);
+      (async () => {
+        const deadline = performance.now() + 60000;
+        while(performance.now() < deadline){
+          if(_h === 'plaza' || (BLENDER_CACHE && BLENDER_CACHE['enc_prefab_' + _h])) break;
+          await new Promise(r => setTimeout(r, 400));
+        }
+        console.log(`niwa[island]: firing hash teleport → #${_h}`);
+        try { teleportToIslandSection(_h); } catch(e){ console.warn('hash teleport failed', e); }
+      })();
+    }
   },
 };
 let _islandStreamedCount = 0;
@@ -7565,43 +7587,70 @@ const TAB_DEFS = [
   {id:'heya',     label:'部屋',   num:'09'},
 ];
 const tabsEl = document.getElementById('scene-tabs');
+
+// v655: single teleport entry point shared by tab clicks, URL hash and
+// future deep-link triggers. Picks an obstacle-free spawn south of the
+// section, snaps ground Y, preserves facing.
+function _isClearSpawn(x, z){
+  const pb = currentScene && currentScene.playableBounds;
+  if(pb && (x < pb.minX || x > pb.maxX || z < pb.minZ || z > pb.maxZ)) return false;
+  const AVR = (typeof AV_RADIUS !== 'undefined') ? AV_RADIUS : 0.35;
+  for(const ob of (ENTITIES.obstacles || [])){
+    if(Math.hypot(x - ob.x, z - ob.z) < ob.r + AVR) return false;
+  }
+  for(const b of (ENTITIES.boxObstacles || [])){
+    if(x > b.minX - AVR && x < b.maxX + AVR &&
+       z > b.minZ - AVR && z < b.maxZ + AVR) return false;
+  }
+  // Mobility probe: at least one cardinal step must be clear.
+  for(const [dx, dz] of [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]]){
+    const nx = x + dx, nz = z + dz;
+    let blocked = false;
+    for(const ob of (ENTITIES.obstacles || [])){
+      if(Math.hypot(nx - ob.x, nz - ob.z) < ob.r + AVR){ blocked = true; break; }
+    }
+    if(!blocked){
+      for(const b of (ENTITIES.boxObstacles || [])){
+        if(nx > b.minX - AVR && nx < b.maxX + AVR &&
+           nz > b.minZ - AVR && nz < b.maxZ + AVR){ blocked = true; break; }
+      }
+    }
+    if(!blocked) return true;
+  }
+  return false;
+}
+
+function teleportToIslandSection(id){
+  if(!SCENE_WORLD_POS[id]) return;
+  if(!currentScene || currentScene.name !== 'island') return;
+  const pos = SCENE_WORLD_POS[id];
+  const cx = pos.dx * ISLAND_SEPARATION;
+  const cz = pos.dz * ISLAND_SEPARATION;
+  const offsets = [[0, 4], [0, 5.5], [2, 4], [-2, 4], [0, 6.5]];
+  let chosen = null;
+  for(const [dx, dz] of offsets){
+    const tx = cx + dx, tz = cz + dz;
+    if(_isClearSpawn(tx, tz)){ chosen = { x: tx, z: tz }; break; }
+  }
+  if(!chosen) chosen = { x: cx, z: cz + 4 };
+  avatar.position.set(chosen.x, 0, chosen.z);
+  if(typeof sampleHeight === 'function'){
+    const gy = sampleHeight(chosen.x, chosen.z);
+    if(isFinite(gy) && gy < 30) avatar.position.y = gy;
+  }
+  // D3: facing preserved — DO NOT touch avatar.quaternion / rotation here.
+  if(typeof playerVel !== 'undefined') playerVel.set(0, 0, 0);
+  if(typeof verticalVel !== 'undefined') verticalVel = 0;
+  if(currentScene){
+    currentScene.spawnPos = { x: chosen.x, y: avatar.position.y, z: chosen.z };
+  }
+  bridgeCooldownUntil = performance.now() + 1500;
+  try { history.replaceState(null, '', `?scene=island#${id}`); } catch(_){}
+}
+
 function _tabClick(id){
-  // v649: while the avatar is in the island panorama, tab-click TELEPORTS
-  // within the island (each section is a region of the same scene) rather
-  // than triggering a heavy scene-swap.  Outside the panorama, classic
-  // switchScene behaviour is retained.
   if(currentScene && currentScene.name === 'island' && SCENE_WORLD_POS[id]){
-    const pos = SCENE_WORLD_POS[id];
-    const tx = pos.dx * ISLAND_SEPARATION;
-    const tz = pos.dz * ISLAND_SEPARATION + 4.0;   // a step south of building
-    // v652: probe ground at the target XZ FIRST.  Each prefab grid cell
-    // may have its own cobble Y (un-normalised KB3D plaza lives at
-    // y≈5.46) — dropping the avatar at the stale Y left them buried
-    // under the cobble and the climb-step check refused every move.
-    avatar.position.set(tx, 0, tz);
-    if(typeof sampleHeight === 'function'){
-      const groundY = sampleHeight(tx, tz);
-      if(isFinite(groundY) && groundY < 30) avatar.position.y = groundY;
-    }
-    if(typeof playerVel !== 'undefined') playerVel.set(0,0,0);
-    if(typeof verticalVel !== 'undefined') verticalVel = 0;
-    // v652: update the scene-level spawn anchor too so bridge proximity
-    // gating + the auto-chase camera both use the freshly-snapped point.
-    if(currentScene){
-      currentScene.spawnPos = { x: tx, y: avatar.position.y, z: tz };
-    }
-    bridgeCooldownUntil = performance.now() + 1500;
-    // v652d: face the avatar's visible front (chibi's +Z) toward the
-    // section's building (= grid cell centre).  Without this the chibi
-    // spawned with its back to the building.
-    const bx = pos.dx * ISLAND_SEPARATION;
-    const bz = pos.dz * ISLAND_SEPARATION;
-    avatar.rotation.y = Math.atan2(bx - tx, bz - tz);
-    // Re-centre the orbit camera around the new avatar position so it
-    // ends up behind the freshly-turned avatar.
-    camYawTarget = -avatar.rotation.y - Math.PI*0.5;
-    // Update the URL hash so back-button history works
-    try { history.replaceState(null, '', `?scene=island#${id}`); } catch(_){}
+    teleportToIslandSection(id);
     return;
   }
   switchScene(id);
@@ -9986,6 +10035,12 @@ setLoad(0.95, 'ASSETS');
   // ten regions stitched together. Per-scene names (?scene=plaza etc.)
   // still work for focused / fast loads.
   const initialScene = (requested && SCENES[requested]) ? requested : 'island';
+  // v655: capture #hash so island build() can teleport once the targeted
+  // prefab has streamed in.
+  const _hash = (location.hash || '').replace('#', '').trim();
+  if(initialScene === 'island' && _hash && SCENE_WORLD_POS[_hash]){
+    _pendingHashSection = _hash;
+  }
   const plazaDef = SCENES[initialScene];
   const toLoad = (plazaDef && Array.isArray(plazaDef.preloadAssets))
                   ? plazaDef.preloadAssets.slice() : [];
