@@ -66,6 +66,41 @@ def wait_for_streamed(page, n, timeout_s=240):
     return cnt
 
 
+def reset_pos(page):
+    page.evaluate("""() => {
+      const N = window.__niwa;
+      N.avatar.position.set(0, 0, 0);
+      N.playerVel.set(0, 0, 0); N.setVerticalVel(0);
+      N.keys.w = N.keys.a = N.keys.s = N.keys.d = false;
+    }""")
+
+
+def hold_key_frames(page, key, frames=30):
+    page.evaluate(f"() => {{ window.__niwa.keys['{key}'] = true; }}")
+    page.keyboard.down(key)
+    for _ in range(frames):
+        page.wait_for_timeout(50)
+        page.evaluate("() => window.__niwa.avatar.position.x")
+    page.evaluate(f"() => {{ window.__niwa.keys['{key}'] = false; }}")
+    page.keyboard.up(key)
+    page.wait_for_timeout(200)
+
+
+def pos_xz(page):
+    return page.evaluate(
+        "() => ({x: window.__niwa.avatar.position.x, "
+        "z: window.__niwa.avatar.position.z})")
+
+
+def measure_direction(before, after):
+    dx = after['x'] - before['x']
+    dz = after['z'] - before['z']
+    moved = math.hypot(dx, dz)
+    if moved < 1e-6:
+        return dx, dz, moved, (0.0, 0.0)
+    return dx, dz, moved, (dx / moved, dz / moved)
+
+
 def main():
     with sync_playwright() as p:
         b = p.chromium.launch(headless=True, args=[
@@ -82,7 +117,57 @@ def main():
         expect('hook ready', True, 'extended __niwa available')
         expect('island streaming alive', streamed >= 1,
                f'{streamed}/9 prefabs reached the renderer in time')
-        # Test blocks (M1, M2, ...) will be appended here in subsequent tasks.
+
+        # ===== M1: 3P WASD direction × 4 camYaws × 4 keys = 16 assertions =====
+        print('\n[M1] 3P WASD direction tests')
+        for cam_yaw in (0.0, math.pi / 2, math.pi, -math.pi / 2):
+            page.evaluate("() => window.__niwa._setFirstPerson(false)")
+            page.evaluate(f"() => window.__niwa._setCamYaw({cam_yaw})")
+            page.wait_for_timeout(150)
+            fwd_x, fwd_z = -math.sin(cam_yaw), -math.cos(cam_yaw)
+            rgt_x, rgt_z = fwd_z, -fwd_x
+            for key, (ex_x, ex_z) in (
+                    ('w', (fwd_x, fwd_z)),
+                    ('s', (-fwd_x, -fwd_z)),
+                    ('d', (rgt_x, rgt_z)),
+                    ('a', (-rgt_x, -rgt_z)),
+            ):
+                reset_pos(page)
+                before = pos_xz(page)
+                hold_key_frames(page, key, frames=30)
+                after = pos_xz(page)
+                dx, dz, moved, (ux, uz) = measure_direction(before, after)
+                dot = ux * ex_x + uz * ex_z
+                ok = moved > 0.3 and dot > 0.7
+                expect(f'M1 camYaw={cam_yaw:+.2f} {key.upper()}', ok,
+                       f'Δ=({dx:+.2f},{dz:+.2f}) moved={moved:.2f} dot={dot:+.2f} '
+                       f'expect=({ex_x:+.2f},{ex_z:+.2f})')
+
+        # ===== M2: 1P WASD direction × 4 fpYaws × 4 keys = 16 assertions =====
+        print('\n[M2] 1P WASD direction tests')
+        for fp_yaw in (0.0, math.pi / 2, math.pi, -math.pi / 2):
+            page.evaluate(f"() => window.__niwa._setFirstPerson(true, {fp_yaw})")
+            page.wait_for_timeout(150)
+            fwd_x, fwd_z = math.sin(fp_yaw), math.cos(fp_yaw)
+            rgt_x, rgt_z = fwd_z, -fwd_x
+            for key, (ex_x, ex_z) in (
+                    ('w', (fwd_x, fwd_z)),
+                    ('s', (-fwd_x, -fwd_z)),
+                    ('d', (rgt_x, rgt_z)),
+                    ('a', (-rgt_x, -rgt_z)),
+            ):
+                reset_pos(page)
+                before = pos_xz(page)
+                hold_key_frames(page, key, frames=30)
+                after = pos_xz(page)
+                dx, dz, moved, (ux, uz) = measure_direction(before, after)
+                dot = ux * ex_x + uz * ex_z
+                ok = moved > 0.3 and dot > 0.7
+                expect(f'M2 fpYaw={fp_yaw:+.2f} {key.upper()}', ok,
+                       f'Δ=({dx:+.2f},{dz:+.2f}) moved={moved:.2f} dot={dot:+.2f} '
+                       f'expect=({ex_x:+.2f},{ex_z:+.2f})')
+        page.evaluate("() => window.__niwa._setFirstPerson(false)")
+
         b.close()
 
     print(f'\n=== SUMMARY: {len(passes)} pass, {len(failures)} fail ===')
