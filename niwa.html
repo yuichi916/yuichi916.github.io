@@ -7460,8 +7460,12 @@ SCENES.island = {
       root.add(m);
       return m;
     }
-    // Plaza first so the avatar can walk immediately.
-    placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
+    // v654b: plaza was extracted before the v636 cobble-Y normalisation
+    // so its cobble surface lives at world y ≈ 5.46.  Shift it DOWN by
+    // that offset so every prefab in the panorama shares a y = 0 cobble
+    // plane — keeps the procedural walkways from looking like they're
+    // floating 5 m below the avatar.
+    placeENC('enc_prefab_plaza', 0, -5.46, 0, 1.0, 0);
     // v650: full panorama atmosphere — cloud sea + distant islets +
     // deep ocean + waterfalls cascading off the disc edges.  Heavy bits
     // (clouds, waterfalls) use InstancedMesh so they cost ~3 draw calls.
@@ -7480,6 +7484,16 @@ SCENES.island = {
     // v649: kick off the lazy stream of remaining prefabs + bridges.
     if(typeof _streamRemainingIslandPrefabs === 'function'){
       _streamRemainingIslandPrefabs(root);
+    }
+    // v654b: override the legacy ±SCENE_BOUND playable bounds set by
+    // buildScene's fallback path.  Without this the bounds were a 17 m
+    // disc at the origin and tab-teleports to monlight / oto etc.
+    // landed the avatar OUTSIDE those bounds, so every blocked() check
+    // returned true and the user couldn't move after the warp.
+    if(currentScene){
+      currentScene.playableBounds = {
+        minX: -35, maxX: 35, minZ: -35, maxZ: 35,
+      };
     }
   },
 };
