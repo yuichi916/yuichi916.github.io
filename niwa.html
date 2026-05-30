@@ -6288,6 +6288,7 @@ function buildScene(name){
     // of a building where forward + sideways all hit the wall raycast and
     // the avatar can't escape (toki / monlight / amaoto edge-walk failures).
     const boxes = (ENTITIES && ENTITIES.boxObstacles) || [];
+    const circles = (ENTITIES && ENTITIES.obstacles) || [];
     const pad = (typeof AV_RADIUS !== 'undefined' ? AV_RADIUS : 0.35) + 0.05;
     const pb = currentScene && currentScene.playableBounds;
     const PROBE = 0.5;       // step length used to test mobility
@@ -6296,6 +6297,14 @@ function buildScene(name){
       for(const b of boxes){
         if(x > b.minX - pad && x < b.maxX + pad
            && z > b.minZ - pad && z < b.maxZ + pad) return true;
+      }
+      // v647b: also reject points inside circular obstacles (procedural
+      // props + side-pack accents). Without this the new accent
+      // colliders could swallow the spawn (toki spawn landed inside the
+      // val_rune circle that placeSidePackAccents clamped to the bound
+      // and the avatar had nowhere to step).
+      for(const c of circles){
+        if(Math.hypot(x - c.x, z - c.z) < c.r + pad) return true;
       }
       return false;
     };
@@ -7664,6 +7673,7 @@ function placeSidePackAccents(name, root){
   if(!cfg) return 0;
   const pb = currentScene && currentScene.playableBounds;
   let placed = 0;
+  const _box = new THREE.Box3();
   for(const [asset, x, z, sc, rot] of cfg){
     // Clamp inside playable bounds (so the accent never spawns past
     // the prefab edge where the avatar can't reach).
@@ -7681,9 +7691,26 @@ function placeSidePackAccents(name, root){
     m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     m.userData.skipRaycast = true; m.userData.isSidePackAccent = true;
     root.add(m);
+    // v647: SIDE-PACK accents are SOLID. Compute the placed bbox and
+    // register a circular collider that matches the larger XZ extent
+    // (capped so a tall thin lantern still presents a ~0.4 m footprint
+    // and a wide chest takes ~0.7 m). Without this the avatar could
+    // walk straight through every GLB accent (chest, anchor, helm,
+    // cannon, gargoyle, well, etc.) — the visible "embedded" bug the
+    // user reported.
+    try {
+      _box.setFromObject(m);
+      const dx = _box.max.x - _box.min.x;
+      const dz = _box.max.z - _box.min.z;
+      let r = Math.min(dx, dz) * 0.45;     // inscribed-circle-ish
+      r = Math.max(0.30, Math.min(1.20, r));   // tidy bounds
+      if(typeof ENTITIES !== 'undefined' && ENTITIES.obstacles){
+        ENTITIES.obstacles.push({ x: px, z: pz, r });
+      }
+    } catch(_){}
     placed++;
   }
-  if(placed > 0) console.log(`niwa[${name}]: + ${placed} side-pack accents`);
+  if(placed > 0) console.log(`niwa[${name}]: + ${placed} side-pack accents (solid)`);
   return placed;
 }
 
