@@ -7545,9 +7545,23 @@ function _tabClick(id){
     const pos = SCENE_WORLD_POS[id];
     const tx = pos.dx * ISLAND_SEPARATION;
     const tz = pos.dz * ISLAND_SEPARATION + 4.0;   // a step south of building
-    avatar.position.set(tx, avatar.position.y, tz);
+    // v652: probe ground at the target XZ FIRST.  Each prefab grid cell
+    // may have its own cobble Y (un-normalised KB3D plaza lives at
+    // y≈5.46) — dropping the avatar at the stale Y left them buried
+    // under the cobble and the climb-step check refused every move.
+    avatar.position.set(tx, 0, tz);
+    if(typeof sampleHeight === 'function'){
+      const groundY = sampleHeight(tx, tz);
+      if(isFinite(groundY) && groundY < 30) avatar.position.y = groundY;
+    }
     if(typeof playerVel !== 'undefined') playerVel.set(0,0,0);
     if(typeof verticalVel !== 'undefined') verticalVel = 0;
+    // v652: update the scene-level spawn anchor too so bridge proximity
+    // gating + the auto-chase camera both use the freshly-snapped point.
+    if(currentScene){
+      currentScene.spawnPos = { x: tx, y: avatar.position.y, z: tz };
+    }
+    bridgeCooldownUntil = performance.now() + 1500;
     // Re-centre the orbit camera around the new avatar position
     camYawTarget = -Math.PI*0.25;
     // Update the URL hash so back-button history works
@@ -8707,10 +8721,17 @@ btnView.addEventListener('click', ()=>{
   firstPerson = !firstPerson;
   btnView.textContent = firstPerson ? 'VIEW · 1P' : 'VIEW · 3P';
   btnView.classList.toggle('active', firstPerson);
-  // Sync FP yaw to current 3P camera direction so the view doesn't snap
+  // v652: when entering 1P, snap the look direction to whatever the
+  // avatar is currently facing so the screen doesn't twist and pressing
+  // W actually moves you forward.  Movement uses yawForMove = π − yaw,
+  // and in 1P that mirrors fpYaw + π, so fpYaw should equal −yaw.
   if(firstPerson){
-    fpYaw = camYawState + Math.PI;   // look opposite of camera offset (forward)
+    fpYaw = -avatar.rotation.y;
     fpPitch = -0.1;
+  } else {
+    // Coming back to 3P — snap the orbit camera target behind the
+    // avatar so the user isn't dropped into a confusing side angle.
+    camYawTarget = -avatar.rotation.y - Math.PI*0.5;
   }
 });
 
@@ -9278,8 +9299,17 @@ function animate(){
     const len = Math.hypot(mx,mz);
     const mag = Math.min(1, len);                  // analog magnitude (joystick)
     mx /= (len || 1); mz /= (len || 1);
-    // In 1P, walk relative to look direction; in 3P, walk relative to camera
-    const yawForMove = firstPerson ? (fpYaw + Math.PI) : camYawState;
+    // v652: avatar-relative movement.  WASD is always interpreted in
+    // the avatar's OWN facing frame — pressing W walks in the direction
+    // the chibi is looking, regardless of where the camera happens to be.
+    // The 3P auto-chase (v651b) then keeps the camera behind the chibi
+    // so the screen direction stays consistent.  In 1P the look direction
+    // IS the avatar facing (avatar.rotation.y = -fpYaw each frame),
+    // so 1P walks where you're looking too.
+    //   avatar.visible-forward = (sin(yaw), cos(yaw))
+    //   yawForMove satisfies (sin(yawForMove), -cos(yawForMove)) = forward
+    //   ⇒ yawForMove = π − avatar.rotation.y
+    const yawForMove = Math.PI - avatar.rotation.y;
     const wx = mx*Math.cos(yawForMove) - mz*Math.sin(yawForMove);
     const wz = mx*Math.sin(yawForMove) + mz*Math.cos(yawForMove);
     desiredVx = wx*targetSpeed*mag;
@@ -9507,7 +9537,11 @@ function animate(){
     avatar.visible = true;
     renderPass.camera = camera;
   } else {
-    // 1P: perspective camera at avatar head, free-look via fpYaw/fpPitch
+    // 1P: perspective camera at avatar head, free-look via fpYaw/fpPitch.
+    // v652: bind avatar.rotation.y = -fpYaw so the avatar body rotates
+    // with the camera — pressing W in 1P always walks the way you're
+    // looking, and exiting 1P leaves the avatar facing the same way.
+    avatar.rotation.y = -fpYaw;
     const headY = avatar.position.y + 1.55;
     camFP.position.set(avatar.position.x, headY, avatar.position.z);
     // Convert spherical (yaw, pitch) to a look-target vector
