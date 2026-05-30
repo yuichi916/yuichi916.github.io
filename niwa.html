@@ -7125,6 +7125,63 @@ for(const name of INTERIOR_NAMES){
 }
 
 
+/* v648 — MEGA-ISLAND mode.
+ * Loads ALL 10 KB3D prefab GLBs in one scene, positioned per
+ * SCENE_WORLD_POS × SEPARATION. The Blender mega-extract crashed on
+ * memory pressure during the export, so we stitch at runtime instead:
+ * each prefab is already cobble-Y-normalised by enc_extract_cobbletop_v636.py
+ * so their cobble surfaces share y=0, and placing them on a grid yields
+ * one continuous walkable landmass.
+ *
+ * Reached via ?scene=island or the "全景" tab. The existing 10
+ * per-scene entries remain for fast focused loads. */
+const ISLAND_SEPARATION = 20.0;
+SCENES.island = {
+  num: '∞', kind: 'panorama',
+  title: '心の庭 — 全景', en: 'Garden Panorama',
+  concept: '十の風景がひと続きの島になって浮かんでいる。広場の井戸から、月光の書架へ、水車の流れへ、時計塔の影へ。それぞれの場所がそのまま地続きで、迷いながら歩くことが許される地図。',
+  sun: [44, -22], turbidity: 2.5, rayleigh: 1.1,
+  fogColor: '#b0c4d0', fogNear: 40, fogFar: 120, exposure: 1.0,
+  avatarStart: [0, 4.0],
+  preloadAssets: [
+    'enc_prefab_plaza', 'enc_prefab_monlight', 'enc_prefab_oto',
+    'enc_prefab_tabi', 'enc_prefab_toki', 'enc_prefab_hoshi',
+    'enc_prefab_takibi', 'enc_prefab_mizube', 'enc_prefab_amaoto',
+    'enc_prefab_heya',
+  ],
+  build(root){
+    function placeENC(name, x, y, z, scale, rotY){
+      const m = (typeof blenderClone === 'function' && blenderClone(name));
+      if(!m) return null;
+      m.scale.setScalar(scale ?? 1.0);
+      m.position.set(x ?? 0, y ?? 0, z ?? 0);
+      if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+      m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(m);
+      return m;
+    }
+    // Place each scene's prefab at its grid cell. heya overlaps plaza so
+    // we offset it slightly so its bakery doesn't merge into the well.
+    let placed = 0;
+    for(const [name, pos] of Object.entries(SCENE_WORLD_POS)){
+      const x = pos.dx * ISLAND_SEPARATION;
+      const z = pos.dz * ISLAND_SEPARATION;
+      const offset = (name === 'heya') ? 3.0 : 0;
+      const m = placeENC('enc_prefab_' + name, x + offset, 0, z + offset, 1.0, 0);
+      if(m) placed++;
+    }
+    console.log(`niwa[island]: placed ${placed}/10 prefabs`);
+    // Cross-island lighting — daytime master lights so every region is lit
+    // (each per-scene's own accent point lights only cover ~16 m).
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.6);
+    fill.position.set(0, 30, 0);
+    root.add(fill);
+    const sun = new THREE.DirectionalLight(0xfff0d0, 0.7);
+    sun.position.set(20, 35, 18);
+    root.add(sun);
+  },
+};
+
 
 setLoad(0.75, 'SCENES');
 
