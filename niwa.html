@@ -6383,7 +6383,12 @@ function buildScene(name){
   const start = def.avatarStart || [0, SCENE_BOUND*0.5];
   const safe = findSafeSpawn(start[0], start[1]);
   avatar.position.set(safe.x, safe.y, safe.z);
-  avatar.lookAt(0, safe.y, 0);
+  // v652d: the chibi's pendant hangs at +Z, so the VISIBLE front is
+  // +Z (not the Three.js default -Z).  Compute the yaw that points
+  // the +Z axis at the origin (typical scene-centre building),
+  // instead of using lookAt() which orients -Z and so left the
+  // avatar facing AWAY from the buildings on spawn.
+  avatar.rotation.y = Math.atan2(-safe.x, -safe.z);
   // v636: remember spawn — bridges only arm after avatar moves > 2 m
   // away. Stops the spawn step from triggering the bridge we came from.
   currentScene.spawnPos = { x: safe.x, y: safe.y, z: safe.z };
@@ -7562,8 +7567,15 @@ function _tabClick(id){
       currentScene.spawnPos = { x: tx, y: avatar.position.y, z: tz };
     }
     bridgeCooldownUntil = performance.now() + 1500;
-    // Re-centre the orbit camera around the new avatar position
-    camYawTarget = -Math.PI*0.25;
+    // v652d: face the avatar's visible front (chibi's +Z) toward the
+    // section's building (= grid cell centre).  Without this the chibi
+    // spawned with its back to the building.
+    const bx = pos.dx * ISLAND_SEPARATION;
+    const bz = pos.dz * ISLAND_SEPARATION;
+    avatar.rotation.y = Math.atan2(bx - tx, bz - tz);
+    // Re-centre the orbit camera around the new avatar position so it
+    // ends up behind the freshly-turned avatar.
+    camYawTarget = -avatar.rotation.y - Math.PI*0.5;
     // Update the URL hash so back-button history works
     try { history.replaceState(null, '', `?scene=island#${id}`); } catch(_){}
     return;
