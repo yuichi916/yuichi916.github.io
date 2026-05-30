@@ -8808,6 +8808,9 @@ const camFollow = new THREE.Vector3();
 let camInit = false;
 const playerVel = new THREE.Vector3();   // velocity for damped movement
 let verticalVel = 0;                      // v623: gravity / falling velocity (m/s)
+// v653: scratch vectors for avatar-relative WASD (quaternion-rotated forward / right)
+const _avFwdW = new THREE.Vector3();
+const _avRgtW = new THREE.Vector3();
 let lastTargetDist = Infinity;
 let stuckTime = 0;
 const WALK_SPEED = 3.4;
@@ -9315,21 +9318,17 @@ function animate(){
     const len = Math.hypot(mx,mz);
     const mag = Math.min(1, len);                  // analog magnitude (joystick)
     mx /= (len || 1); mz /= (len || 1);
-    // v652b: explicit avatar-relative WASD.  The avatar's visible front
-    // is +Z when rotation.y = 0 (the chibi's pendant hangs at +Z), so
-    //   forward_world = (sin(yaw), cos(yaw))
-    //   right_world   = (cos(yaw), -sin(yaw))
-    // Pressing W advances along forward, S retreats, A strafes left
-    // (= negative right), D strafes right.  The previous yawForMove
-    // substitution couldn't capture all four signs consistently — the
-    // vz term was inverting and A/D ended up swapped at certain yaws.
-    const yaw  = avatar.rotation.y;
-    const sinY = Math.sin(yaw);
-    const cosY = Math.cos(yaw);
-    const fwd  = -mz;    // W (mz=-1) → +1 forward; S (mz=+1) → -1 backward
-    const rgt  =  mx;    // D (mx=+1) → +1 right;   A (mx=-1) → -1 left
-    desiredVx = (fwd * sinY + rgt * cosY) * targetSpeed * mag;
-    desiredVz = (fwd * cosY - rgt * sinY) * targetSpeed * mag;
+    // v653: avatar-relative WASD via Three.js Vector3/quaternion math.
+    // forward_local = +Z (chibi's pendant hangs at +Z so that's the
+    // visible front), right_local = +X.  Applying avatar.quaternion
+    // rotates those into world space, then we combine with the WASD
+    // intent (forward = −mz, right = mx) and scale by speed.
+    _avFwdW.set(0, 0, 1).applyQuaternion(avatar.quaternion);
+    _avRgtW.set(1, 0, 0).applyQuaternion(avatar.quaternion);
+    const fwdAmt = -mz;    // W → +1 forward; S → −1 back
+    const rgtAmt =  mx;    // D → +1 right;   A → −1 left
+    desiredVx = (_avFwdW.x * fwdAmt + _avRgtW.x * rgtAmt) * targetSpeed * mag;
+    desiredVz = (_avFwdW.z * fwdAmt + _avRgtW.z * rgtAmt) * targetSpeed * mag;
     if(moveTarget){ moveTarget = null; targetMarker.visible = false; }
   } else if(moveTarget){
     const mdx = moveTarget.x - avatar.position.x;
