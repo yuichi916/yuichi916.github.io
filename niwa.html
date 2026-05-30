@@ -7043,6 +7043,77 @@ SCENES.heya = {
 };
 
 
+/* v646 — Building INTERIOR scenes.
+ * Each outdoor scene with a matching enc_int_<name>.glb gets a sister
+ * SCENES.<name>_int entry. The E-key/portal interaction now triggers
+ * switchScene(name + '_int') instead of the legacy healing-widget
+ * modal — the avatar physically walks INTO the building.
+ * Returning to the outdoor scene is via a bridge wired up in
+ * SCENE_NEIGHBORS (see below). */
+const INTERIOR_NAMES = ['monlight','oto','tabi','toki','hoshi','takibi','mizube','amaoto','heya'];
+const INTERIOR_CONCEPTS = {
+  monlight: '高い棚と棚の間に細い通路が走り、紙と革の匂いが空気を染める。月光が窓越しに本の背を撫でて、開きっぱなしの一冊が机の上で静かに息をしている。',
+  oto:      '水車の心臓部。木組みの歯車がゆっくり噛み合い、桶から零れる水滴の音だけが時間を刻む。湿った石床に映る燭台の灯りが、影と一緒に小さく揺れている。',
+  tabi:     '宿屋の食堂。長椅子と樽が壁際に並び、暖炉の燠が床板を金色に染める。隣の客室の足音と、誰かが運んできた潮の匂いが、戸の隙間からゆっくり溶け合う。',
+  toki:     '時計塔の機械室。真鍮の歯車と振子が音もなく噛み合い、壁の文字盤の裏側だけが青白い光を漏らす。時計の中で自分の鼓動も同じ速度になる。',
+  hoshi:    '骨董屋の奥。古い書物と天球儀が棚に隙間なく詰まり、机の上には開いたままの星図と、誰かが置き忘れた鎧の鈍い輝き。窓の外で星が一つ、また一つ瞬く。',
+  takibi:   'ろうそく屋の作業場。溶けた蝋の匂いが暖かい霧のように立ち込め、長卓の上で大小の燭台が育っていく。鋳型の影が壁を伝って、外の三つのかがり火と呼応する。',
+  mizube:   '機織り屋の工房。横糸を張った機の前で、織りかけの布が水音と一緒に揺れる。窓辺の鉢から雫が垂れ、床板の隙間に消えていく。',
+  amaoto:   '教会の身廊。ステンドグラスの色が石の床に降り、雨音が天井の高い空間で柔らかく反響する。蝋燭の煙だけがまっすぐ立ち昇って、誰かの祈りを上に運ぶ。',
+  heya:     'パン屋の店内。窯の熱気が木の壁を温め、焼き上がったばかりのパンの匂いが鼻先で揺れる。窓辺の植木鉢が窯火の橙を映し、戸口の外には朝の気配が薄く差し込む。',
+};
+const INTERIOR_LABELS = {
+  monlight: '月光の書架', oto:'水車屋の心臓', tabi:'宿の食堂',
+  toki:'時計塔の機械室', hoshi:'骨董屋の奥', takibi:'ろうそく屋の卓',
+  mizube:'機織りの工房', amaoto:'教会の身廊', heya:'パン屋の店内',
+};
+function _buildInteriorScene(parentName){
+  const intGlb = 'enc_int_' + parentName;
+  return {
+    num: SCENES[parentName] ? SCENES[parentName].num : '',
+    kind: 'interior',
+    title: INTERIOR_LABELS[parentName] || (parentName + ' interior'),
+    en: 'Interior · ' + parentName,
+    concept: INTERIOR_CONCEPTS[parentName] || '',
+    // Indoor sky — desaturated low-luminance, fog hugs close so the
+    // empty space beyond the GLB walls reads as darkness, not sky.
+    sun: [40, 0], turbidity: 8, rayleigh: 0.4,
+    fogColor: '#15110a', fogNear: 4, fogFar: 16, exposure: 0.65,
+    avatarStart: [0, 3.5],
+    preloadAssets: [intGlb],
+    build(root){
+      function placeENC(name, x, y, z, scale, rotY){
+        const m = (typeof blenderClone === 'function' && blenderClone(name));
+        if(!m) return null;
+        m.scale.setScalar(scale ?? 1.0);
+        m.position.set(x ?? 0, y ?? 0, z ?? 0);
+        if(typeof rotY === 'number') m.rotation.y = rotY * Math.PI / 180;
+        m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+        root.add(m);
+        return m;
+      }
+      placeENC(intGlb, 0, 0, 0, 1.0, 0);
+      // Subtle floating motes for "indoor air"
+      if(typeof makeFallingParticles === 'function'){
+        const p = makeFallingParticles('mist', 40, { range: 8, yMax: 4, yMin: 0, fallSpeed: 0.05, swayAmp: 0.3, swayFreq: 0.5 });
+        root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
+      }
+      // Warm interior fill + focused accent over the centre
+      const fill = new THREE.HemisphereLight(0xffe2b0, 0x2c1810, 0.45);
+      fill.position.set(0, 6, 0);
+      root.add(fill);
+      const accent = new THREE.PointLight(0xffc88a, 1.6, 10);
+      accent.position.set(0, 3.5, 0);
+      root.add(accent);
+      const accent2 = new THREE.PointLight(0xffaa55, 0.8, 8);
+      accent2.position.set(0, 2.0, -2.5);
+      root.add(accent2);
+    },
+  };
+}
+for(const name of INTERIOR_NAMES){
+  SCENES[name + '_int'] = _buildInteriorScene(name);
+}
 
 
 
@@ -7319,6 +7390,17 @@ const SCENE_NEIGHBORS = {
   mizube:   { N:'toki',                               W:'hoshi'  },
   amaoto:   {                E:'oto',     S:'monlight'           },
   heya:     {},  // standalone — accessed only via tabs or URL
+  // v646: building INTERIORS — single bridge back to the parent
+  // outdoor scene at the south edge (= the "door we walked in").
+  monlight_int: { S: 'monlight' },
+  oto_int:      { S: 'oto'      },
+  tabi_int:     { S: 'tabi'     },
+  toki_int:     { S: 'toki'     },
+  hoshi_int:    { S: 'hoshi'    },
+  takibi_int:   { S: 'takibi'   },
+  mizube_int:   { S: 'mizube'   },
+  amaoto_int:   { S: 'amaoto'   },
+  heya_int:     { S: 'heya'     },
 };
 
 let activeBridges = [];
@@ -7842,15 +7924,32 @@ function closeInterior(){
 document.getElementById('interior-close').addEventListener('click', closeInterior);
 document.getElementById('interior-return').addEventListener('click', closeInterior);
 interiorModalEl.addEventListener('click', e => { if(e.target === interiorModalEl) closeInterior(); });
+// v646: enterBuilding prefers a real interior scene swap over the
+// legacy healing-widget modal. The modal is the fallback for scenes
+// without an enc_int_*.glb (currently just plaza).
+function enterBuilding(sceneName){
+  if(!sceneName) return;
+  const intName = sceneName + '_int';
+  if(SCENES[intName]){
+    switchScene(intName);
+  } else if(typeof INTERIOR_CONTENT !== 'undefined' && INTERIOR_CONTENT[sceneName]){
+    openInterior(sceneName);
+  }
+}
 window.addEventListener('keydown', e => {
   if(e.key === 'Escape') closeInterior();
   if((e.key === 'e' || e.key === 'E') && portalHover && currentScene && currentScene.name){
-    openInterior(currentScene.name);
+    // strip any _int suffix so E inside the interior doesn't recurse
+    const baseName = currentScene.name.replace(/_int$/, '');
+    enterBuilding(baseName);
   }
 });
 // Click on prompt = enter
 portalPromptEl.addEventListener('click', () => {
-  if(currentScene && currentScene.name) openInterior(currentScene.name);
+  if(currentScene && currentScene.name){
+    const baseName = currentScene.name.replace(/_int$/, '');
+    enterBuilding(baseName);
+  }
 });
 
 /* ---------- Healing widget builders ------------------------------ */
