@@ -10055,14 +10055,48 @@ setLoad(0.95, 'ASSETS');
       get keys(){ return keys; },
       get joyState(){ return joyState; },
       get camYawState(){ return camYawState; },
+      get fpYaw(){ return fpYaw; },
       get ENTITIES(){ return ENTITIES; },
       get activeBridges(){ return activeBridges; },
       get bridgeCooldownUntil(){ return bridgeCooldownUntil; },
       get firstPerson(){ return firstPerson; },
       get moveTarget(){ return moveTarget; },
       get bumpHud(){ try { return bumpHud; } catch(_){ return null; } },
+      // === Test setters (D8 / P1) ===
+      _setCamYaw(yaw){ camYawTarget = yaw; camYawState = yaw; },
+      _setFpYaw(yaw){ fpYaw = yaw; },
+      _setFirstPerson(b, yaw){
+        firstPerson = !!b;
+        if(b){
+          fpYaw = (typeof yaw === 'number') ? yaw : avatar.rotation.y;
+          fpPitch = -0.1;
+        } else {
+          camYawTarget = avatar.rotation.y + Math.PI;
+        }
+        const btn = document.getElementById('btn-view');
+        if(btn){
+          btn.textContent = firstPerson ? 'VIEW · 1P' : 'VIEW · 3P';
+          btn.classList.toggle('active', firstPerson);
+        }
+      },
+      _isIslandStreamed(){
+        try { return (typeof _islandStreamedCount !== 'undefined') && _islandStreamedCount >= 9; }
+        catch(_){ return false; }
+      },
+      _sampleHeight(x, z){ return sampleHeight(x, z); },
+      _waitFrames(n){
+        return new Promise(resolve => {
+          let i = 0;
+          const tick = () => { if(++i >= n) resolve(); else requestAnimationFrame(tick); };
+          requestAnimationFrame(tick);
+        });
+      },
+      _tabClickProgrammatic(id){ _tabClick(id); },
+      _teleportToIslandSection(id){
+        if(typeof teleportToIslandSection === 'function') teleportToIslandSection(id);
+      },
     };
-    console.log('niwa: __niwa diagnostic hook ready');
+    console.log('niwa: __niwa diagnostic hook ready (extended)');
   }
 })();
 
