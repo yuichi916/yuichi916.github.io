@@ -7497,9 +7497,13 @@ SCENES.island = {
     }
   },
 };
+let _islandStreamedCount = 0;
+let _islandStreamingDone = false;
 async function _streamRemainingIslandPrefabs(root){
   // Stream in a sensible order: plaza's neighbours first so the player
   // sees the nearest sections fill in as they walk outward.
+  _islandStreamedCount = 0;
+  _islandStreamingDone = false;
   const ORDER = ['monlight', 'oto', 'toki', 'hoshi', 'amaoto', 'tabi', 'takibi', 'mizube', 'heya'];
   for(const name of ORDER){
     if(!currentScene || currentScene.name !== 'island') return;   // user left
@@ -7521,8 +7525,10 @@ async function _streamRemainingIslandPrefabs(root){
     m.position.set(x + offset, 0, z + offset);
     m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     root.add(m);
+    _islandStreamedCount++;
     console.log(`niwa[island]: streamed ${name}`);
   }
+  _islandStreamingDone = true;
   // After all prefabs land, wire stone walkways between every adjacent
   // pair so the avatar can cross dish-to-dish.
   const linked = new Set();
