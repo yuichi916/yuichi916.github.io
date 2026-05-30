@@ -6041,6 +6041,26 @@ function buildScene(name){
   skyU.rayleigh.value = def.rayleigh ?? WORLD.rayleigh;
   // Fog disabled globally (user requested no haze)
   renderer.toneMappingExposure = def.exposure ?? WORLD.exposure;
+  // v650: interior scenes should NOT show the open sky beyond their
+  // walls.  Hide the Sky mesh + the cloud backdrop + paint the scene
+  // background a solid dark colour so any gap reads as "inside a
+  // building", not "the avatar standing in a void with stars showing
+  // through".  Outdoor scenes keep the sky on.
+  const isInterior = def.kind === 'interior';
+  if(typeof sky !== 'undefined' && sky){ sky.visible = !isInterior; }
+  if(typeof cloudGroup !== 'undefined' && cloudGroup){ cloudGroup.visible = !isInterior; }
+  if(typeof moon !== 'undefined' && moon){ moon.visible = !isInterior; }
+  scene.background = isInterior
+    ? new THREE.Color(def.fogColor || '#15110a')
+    : null;
+  // For interiors, also enable scene.fog so the empty area beyond the
+  // GLB walls fades into matching darkness.
+  if(isInterior){
+    scene.fog = new THREE.Fog(def.fogColor || '#15110a',
+                               def.fogNear ?? 4, def.fogFar ?? 16);
+  } else {
+    scene.fog = null;
+  }
 
   // v626: per-scene atmosphere tint via the shared cloudMat. Each scene
   // bakes a distinct mood into the cloud ring so the same prefab base
@@ -7244,44 +7264,166 @@ function _placeIslandStone(root, ax, az, bx, bz){
   g.userData.isGroundMesh = true;     // walkable!
   root.add(g);
 }
+// v650: soft white radial cloud texture so quads read as fluffy puffs
+// instead of flat squares. Single shared CanvasTexture.
+let _cloudTex = null;
+function _getCloudTexture(){
+  if(_cloudTex) return _cloudTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  // Radial gradient: bright soft centre fading to fully transparent
+  const grad = g.createRadialGradient(128, 128, 16, 128, 128, 124);
+  grad.addColorStop(0.0, 'rgba(255,255,255,0.95)');
+  grad.addColorStop(0.4, 'rgba(244,248,252,0.75)');
+  grad.addColorStop(0.8, 'rgba(222,232,242,0.20)');
+  grad.addColorStop(1.0, 'rgba(200,220,232,0.00)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 256, 256);
+  // Mottle to break the perfect circle
+  for(let i = 0; i < 60; i++){
+    const x = 50 + Math.random() * 156;
+    const y = 50 + Math.random() * 156;
+    const r = 10 + Math.random() * 40;
+    const gg = g.createRadialGradient(x, y, 0, x, y, r);
+    gg.addColorStop(0, 'rgba(255,255,255,0.18)');
+    gg.addColorStop(1, 'rgba(255,255,255,0.00)');
+    g.fillStyle = gg;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI*2); g.fill();
+  }
+  _cloudTex = new THREE.CanvasTexture(c);
+  _cloudTex.colorSpace = THREE.SRGBColorSpace;
+  return _cloudTex;
+}
 function _placeCloudPlanes(root, basePos){
-  // Soft cloud planes WAY below the disc plane so the user can look
-  // "down" to a fluffy sea of clouds. Sprite-quad approach: cheap,
-  // additively blended, no raycast.
-  const cloudMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.55,
-    depthWrite: false, side: THREE.DoubleSide,
-  });
-  for(let i = 0; i < 24; i++){
-    const ang = Math.random() * Math.PI * 2;
-    const rr  = 30 + Math.random() * 80;
-    const c = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), cloudMat);
-    c.rotation.x = -Math.PI / 2;
-    c.position.set(
-      basePos.x + Math.cos(ang) * rr,
-      -18 - Math.random() * 10,
-      basePos.z + Math.sin(ang) * rr
-    );
-    c.userData.skipRaycast = true;
-    c.userData.skipObstacle = true;
-    root.add(c);
+  // v650: three-layer cloud sea, drawn as a SINGLE InstancedMesh per
+  // layer (3 draw calls total, ~80 instances each) so the panorama
+  // stays cheap even when the user manually zooms out.
+  const tex = _getCloudTexture();
+  const layers = [
+    { y: -14, opacity: 0.85, size: 22, count: 24, ringMin: 18, ringMax: 75 },
+    { y: -28, opacity: 0.70, size: 30, count: 30, ringMin: 25, ringMax: 110 },
+    { y: -46, opacity: 0.55, size: 42, count: 24, ringMin: 40, ringMax: 170 },
+  ];
+  const _m4 = new THREE.Matrix4();
+  for(const L of layers){
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, opacity: L.opacity,
+      depthWrite: false, side: THREE.DoubleSide, fog: false,
+    });
+    const geom = new THREE.PlaneGeometry(L.size, L.size);
+    // Lay them flat (xz) once on the geometry — saves a per-instance rotation
+    geom.rotateX(-Math.PI / 2);
+    const inst = new THREE.InstancedMesh(geom, mat, L.count);
+    inst.userData.skipRaycast = true;
+    inst.userData.skipObstacle = true;
+    inst.userData.isCloud = true;
+    inst.frustumCulled = false;
+    for(let i = 0; i < L.count; i++){
+      const ang = Math.random() * Math.PI * 2;
+      const rr  = L.ringMin + Math.random() * (L.ringMax - L.ringMin);
+      const px  = basePos.x + Math.cos(ang) * rr;
+      const py  = L.y + (Math.random() - 0.5) * 5;
+      const pz  = basePos.z + Math.sin(ang) * rr;
+      const s   = 0.7 + Math.random() * 0.7;
+      _m4.makeTranslation(px, py, pz);
+      _m4.elements[0]  *= s; _m4.elements[5]  *= s; _m4.elements[10] *= s;
+      inst.setMatrixAt(i, _m4);
+    }
+    inst.instanceMatrix.needsUpdate = true;
+    root.add(inst);
   }
 }
-function _placeDistantMountains(root){
-  // Big procedural mounded silhouettes 80-150 m out so the horizon
-  // reads as more landmass beyond what's actually loaded.  Pure
-  // decoration, not collidable.
-  const farMat = new THREE.MeshStandardMaterial({
-    color: 0x5a4a3a, roughness: 0.98, metalness: 0.02,
+function _placeOcean(root){
+  // v650: deep blue ocean far below — the cloud sea sits over it so
+  // the user occasionally glimpses water through gaps. Flat MeshStandard
+  // plane with subtle blue gradient + low roughness for sky reflection.
+  const oceanMat = new THREE.MeshStandardMaterial({
+    color: 0x1a3a64,
+    roughness: 0.38,
+    metalness: 0.10,
+    side: THREE.DoubleSide,
   });
-  for(let i = 0; i < 18; i++){
-    const ang = (i / 18) * Math.PI * 2 + Math.random() * 0.2;
-    const rr  = 80 + Math.random() * 70;
-    const w   = 18 + Math.random() * 22;
-    const h   = 6  + Math.random() * 12;
-    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), farMat);
+  const ocean = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), oceanMat);
+  ocean.rotation.x = -Math.PI / 2;
+  ocean.position.y = -68;
+  ocean.userData.skipRaycast = true;
+  ocean.userData.skipObstacle = true;
+  ocean.userData.isOcean = true;
+  ocean.receiveShadow = true;
+  root.add(ocean);
+  // Thin lighter "shoreline" ring around the island so the water
+  // reads as nearer to the disc edge than the far ocean
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0x4a86a0, transparent: true, opacity: 0.55,
+    side: THREE.DoubleSide, depthWrite: false, fog: false,
+  });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(45, 200, 64), ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = -67.5;
+  ring.userData.skipRaycast = true; ring.userData.skipObstacle = true;
+  root.add(ring);
+}
+function _placeWaterfalls(root){
+  // v650b: a single InstancedMesh of slender vertical strips, 2 per
+  // island region.  Shared geometry + material → 1 draw call regardless
+  // of how many waterfalls we draw.
+  const fallMat = new THREE.MeshBasicMaterial({
+    color: 0xc8e8f8, transparent: true, opacity: 0.55,
+    depthWrite: false, side: THREE.DoubleSide, fog: false,
+  });
+  const fallGeom = new THREE.PlaneGeometry(1.2, 60);
+  const SCENES_ON_EDGE = ['plaza','monlight','oto','tabi','toki','hoshi','takibi','mizube','amaoto'];
+  const positions = [];
+  for(const name of SCENES_ON_EDGE){
+    const pos = SCENE_WORLD_POS[name];
+    if(!pos) continue;
+    const cx = pos.dx * ISLAND_SEPARATION;
+    const cz = pos.dz * ISLAND_SEPARATION;
+    for(let i = 0; i < 2; i++){
+      const ang = ((pos.dx*2 + pos.dz) + i * 1.3) * 1.2;
+      positions.push({
+        x: cx + Math.cos(ang) * 7.5,
+        z: cz + Math.sin(ang) * 7.5,
+        rotY: -ang,
+      });
+    }
+  }
+  if(!positions.length) return;
+  const inst = new THREE.InstancedMesh(fallGeom, fallMat, positions.length);
+  inst.userData.skipRaycast = true;
+  inst.userData.skipObstacle = true;
+  inst.userData.isWaterfall = true;
+  inst.frustumCulled = false;
+  const _m4 = new THREE.Matrix4();
+  const _q  = new THREE.Quaternion();
+  const _e  = new THREE.Euler();
+  const _v  = new THREE.Vector3();
+  const _s  = new THREE.Vector3(1, 1, 1);
+  for(let i = 0; i < positions.length; i++){
+    _e.set(0, positions[i].rotY, 0);
+    _q.setFromEuler(_e);
+    _v.set(positions[i].x, -30, positions[i].z);
+    _m4.compose(_v, _q, _s);
+    inst.setMatrixAt(i, _m4);
+  }
+  inst.instanceMatrix.needsUpdate = true;
+  root.add(inst);
+}
+function _placeDistantMountains(root){
+  // v650: smaller and further so they don't compete with the cloud
+  // layers — read as tiny floating islets at the horizon.
+  const farMat = new THREE.MeshStandardMaterial({
+    color: 0x4a5a6a, roughness: 0.98, metalness: 0.02,
+  });
+  for(let i = 0; i < 14; i++){
+    const ang = (i / 14) * Math.PI * 2 + Math.random() * 0.3;
+    const rr  = 140 + Math.random() * 90;
+    const w   = 14 + Math.random() * 18;
+    const h   = 4  + Math.random() * 9;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), farMat);
     m.scale.set(w, h, w);
-    m.position.set(Math.cos(ang) * rr, -h * 0.4, Math.sin(ang) * rr);
+    m.position.set(Math.cos(ang) * rr, -22 - Math.random() * 10, Math.sin(ang) * rr);
     m.userData.skipRaycast = true;
     m.userData.skipObstacle = true;
     root.add(m);
@@ -7311,10 +7453,13 @@ SCENES.island = {
     }
     // Plaza first so the avatar can walk immediately.
     placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
-    // Procedural atmosphere — cloud sea below + horizon mounds so the
-    // canvas never reads as "white" while the other prefabs load in.
+    // v650: full panorama atmosphere — cloud sea + distant islets +
+    // deep ocean + waterfalls cascading off the disc edges.  Heavy bits
+    // (clouds, waterfalls) use InstancedMesh so they cost ~3 draw calls.
     _placeCloudPlanes(root, {x: 0, z: 0});
     _placeDistantMountains(root);
+    _placeOcean(root);
+    _placeWaterfalls(root);
     // Master daylight so each region is lit even before its own
     // per-prefab point lights arrive.
     const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.75);
@@ -9210,9 +9355,18 @@ function animate(){
   if(moveTarget && (blocked(moveTarget.x, moveTarget.z))){
     moveTarget = null; targetMarker.visible = false;
   }
-  // Face movement direction
+  // v651: smooth-rotate avatar to face movement direction (instead of
+  // instantaneous lookAt — that made the avatar snap by 180° when the
+  // user reversed direction).  Damping rate 14 → about 4 frames at
+  // 60 Hz to complete a turn, which reads as snappy but never as a
+  // jerk.  Avatar facing stays still when the avatar is still.
   if(Math.hypot(playerVel.x, playerVel.z) > 0.4){
-    avatar.lookAt(avatar.position.x + playerVel.x, avatar.position.y, avatar.position.z + playerVel.z);
+    const targetYaw = Math.atan2(playerVel.x, playerVel.z);
+    let cur = avatar.rotation.y;
+    let diff = targetYaw - cur;
+    while(diff >  Math.PI) diff -= Math.PI * 2;
+    while(diff < -Math.PI) diff += Math.PI * 2;
+    avatar.rotation.y = cur + diff * Math.min(1, dt * 14);
   }
   moving = Math.hypot(playerVel.x, playerVel.z) > 0.3;
   // === v623: Proper gravity simulation ====================================
@@ -9807,7 +9961,12 @@ setLoad(0.95, 'ASSETS');
 })();
 
 async function runSceneTestPlay(){
-  const SCENES_LIST = ['plaza','monlight','oto','tabi','toki','hoshi','takibi','mizube','amaoto','heya'];
+  // v650: test EVERY scene — 10 outdoor + 9 interior + island panorama
+  // = 20 scenes total.  Island is last so the heavy streamed load
+  // doesn't gate the smaller ones.
+  const _OUTDOOR = ['plaza','monlight','oto','tabi','toki','hoshi','takibi','mizube','amaoto','heya'];
+  const _INDOOR = _OUTDOOR.filter(n => n !== 'plaza').map(n => n + '_int');
+  const SCENES_LIST = _OUTDOOR.concat(_INDOOR).concat(['island']);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // v639: rAF-paced wait — counts simulated frames instead of wall clock.
   // Headless Chromium throttles rAF when the page isn't actively focused,
