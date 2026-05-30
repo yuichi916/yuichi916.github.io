@@ -8737,17 +8737,17 @@ btnView.addEventListener('click', ()=>{
   firstPerson = !firstPerson;
   btnView.textContent = firstPerson ? 'VIEW · 1P' : 'VIEW · 3P';
   btnView.classList.toggle('active', firstPerson);
-  // v652: when entering 1P, snap the look direction to whatever the
-  // avatar is currently facing so the screen doesn't twist and pressing
-  // W actually moves you forward.  Movement uses yawForMove = π − yaw,
-  // and in 1P that mirrors fpYaw + π, so fpYaw should equal −yaw.
+  // v654: 1P entry — snap fpYaw to match the avatar's visible-front
+  // yaw so the view doesn't twist.  Avatar.visible-front rotates with
+  // Ry(yaw); 1P camera looks (sin(fpYaw), cos(fpYaw)) — same form, so
+  // fpYaw = avatar.rotation.y.
   if(firstPerson){
-    fpYaw = -avatar.rotation.y;
+    fpYaw = avatar.rotation.y;
     fpPitch = -0.1;
   } else {
     // Coming back to 3P — snap the orbit camera target behind the
-    // avatar so the user isn't dropped into a confusing side angle.
-    camYawTarget = -avatar.rotation.y - Math.PI*0.5;
+    // avatar so the chase camera isn't dropped to a side angle.
+    camYawTarget = avatar.rotation.y + Math.PI;
   }
 });
 
@@ -9318,17 +9318,31 @@ function animate(){
     const len = Math.hypot(mx,mz);
     const mag = Math.min(1, len);                  // analog magnitude (joystick)
     mx /= (len || 1); mz /= (len || 1);
-    // v653: avatar-relative WASD via Three.js Vector3/quaternion math.
-    // forward_local = +Z (chibi's pendant hangs at +Z so that's the
-    // visible front), right_local = +X.  Applying avatar.quaternion
-    // rotates those into world space, then we combine with the WASD
-    // intent (forward = −mz, right = mx) and scale by speed.
-    _avFwdW.set(0, 0, 1).applyQuaternion(avatar.quaternion);
-    _avRgtW.set(1, 0, 0).applyQuaternion(avatar.quaternion);
+    // v654: WASD relative to CAMERA — what the user asked for ("wasdは
+    // アバター（カメラ）の向いている方向に合わせて変えないと変").
+    //   3P: camera sits at (sin(camYaw)·d, h, cos(camYaw)·d) from the
+    //       avatar and looks back at it, so "into the screen" is
+    //       (−sin(camYaw), −cos(camYaw)).  W moves in that direction.
+    //   1P: camera look direction is (sin(fpYaw), cos(fpYaw)).
+    // The v651 smooth-lookAt then rotates the avatar to face velocity,
+    // and v651b auto-chase brings the camera around so 3P keeps the
+    // chase shot.
+    let camFwdX, camFwdZ;
+    if(firstPerson){
+      camFwdX =  Math.sin(fpYaw);
+      camFwdZ =  Math.cos(fpYaw);
+    } else {
+      camFwdX = -Math.sin(camYawState);
+      camFwdZ = -Math.cos(camYawState);
+    }
+    // Camera right = camera forward rotated 90° clockwise (when viewed
+    // from above): (fz, -fx)
+    const camRgtX =  camFwdZ;
+    const camRgtZ = -camFwdX;
     const fwdAmt = -mz;    // W → +1 forward; S → −1 back
     const rgtAmt =  mx;    // D → +1 right;   A → −1 left
-    desiredVx = (_avFwdW.x * fwdAmt + _avRgtW.x * rgtAmt) * targetSpeed * mag;
-    desiredVz = (_avFwdW.z * fwdAmt + _avRgtW.z * rgtAmt) * targetSpeed * mag;
+    desiredVx = (camFwdX * fwdAmt + camRgtX * rgtAmt) * targetSpeed * mag;
+    desiredVz = (camFwdZ * fwdAmt + camRgtZ * rgtAmt) * targetSpeed * mag;
     if(moveTarget){ moveTarget = null; targetMarker.visible = false; }
   } else if(moveTarget){
     const mdx = moveTarget.x - avatar.position.x;
@@ -9559,10 +9573,11 @@ function animate(){
     renderPass.camera = camera;
   } else {
     // 1P: perspective camera at avatar head, free-look via fpYaw/fpPitch.
-    // v652: bind avatar.rotation.y = -fpYaw so the avatar body rotates
-    // with the camera — pressing W in 1P always walks the way you're
-    // looking, and exiting 1P leaves the avatar facing the same way.
-    avatar.rotation.y = -fpYaw;
+    // v654: bind avatar.rotation.y = +fpYaw (not -fpYaw — v652b's sign
+    // was wrong).  Camera look direction is (sin(fpYaw), cos(fpYaw))
+    // and the chibi's visible front is +Z, so Ry(fpYaw) on (0,0,1)
+    // gives (sin(fpYaw), 0, cos(fpYaw)) — matching the look direction.
+    avatar.rotation.y = fpYaw;
     const headY = avatar.position.y + 1.55;
     camFP.position.set(avatar.position.x, headY, avatar.position.z);
     // Convert spherical (yaw, pitch) to a look-target vector
