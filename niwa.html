@@ -7076,6 +7076,66 @@ const INTERIOR_LABELS = {
   toki:'時計塔の機械室', hoshi:'骨董屋の奥', takibi:'ろうそく屋の卓',
   mizube:'機織りの工房', amaoto:'教会の身廊', heya:'パン屋の店内',
 };
+// v649: per-interior procedural furniture so each room feels lived-in
+// rather than "an enc_int mesh in empty fog".  Each entry is an array
+// of `[fnName, x, z, ...args]` tuples; the build callback executes them
+// after the GLB is placed.
+const INTERIOR_FURNITURE = {
+  monlight: [
+    ['makeBookStack',     -2.5, -3.0, 5],
+    ['makeBookStack',      2.5, -3.0, 4],
+    ['makeBookStack',      0.0, -4.0, 6],
+    ['makeCandleCluster', -3.0,  0.0, 4],
+    ['makeCandleCluster',  3.0,  0.0, 4],
+  ],
+  oto: [
+    ['makeRockCluster',   -2.5, -2.0],
+    ['makeRockCluster',    2.5, -2.0],
+    ['makeCandleCluster',  0.0, -3.5, 3],
+  ],
+  tabi: [
+    ['makeBreadStack',    -2.0, -3.0],
+    ['makeBreadStack',     2.0, -3.0],
+    ['makeCandleCluster',  0.0, -4.0, 5],
+    ['makeBookStack',     -3.0,  1.0, 3],
+  ],
+  toki: [
+    ['makePendulum',       0.0, -2.5, 3.5],
+    ['makeCandleCluster', -2.5,  0.0, 4],
+    ['makeCandleCluster',  2.5,  0.0, 4],
+  ],
+  hoshi: [
+    ['makeBookStack',     -2.0, -3.0, 4],
+    ['makeBookStack',      2.0, -3.0, 4],
+    ['makeBookStack',      0.0, -4.5, 5],
+    ['makeStarMap',        0.0, -2.0],
+    ['makeCandleCluster', -3.0,  0.5, 3],
+    ['makeCandleCluster',  3.0,  0.5, 3],
+  ],
+  takibi: [
+    ['makeCandleCluster', -2.0, -2.0, 6],
+    ['makeCandleCluster',  2.0, -2.0, 6],
+    ['makeCandleCluster',  0.0, -3.5, 7],
+  ],
+  mizube: [
+    ['makeRockCluster',   -2.5, -2.0],
+    ['makeRockCluster',    2.5, -2.0],
+    ['makeBookStack',      0.0, -3.5, 3],
+  ],
+  amaoto: [
+    ['makeCandleCluster', -2.0, -3.0, 6],
+    ['makeCandleCluster',  2.0, -3.0, 6],
+    ['makeCandleCluster',  0.0, -4.5, 7],
+    ['makeBookStack',     -3.0,  1.0, 4],
+  ],
+  heya: [
+    ['makeBreadStack',    -2.0, -2.5],
+    ['makeBreadStack',     2.0, -2.5],
+    ['makeBreadStack',     0.0, -3.5],
+    ['makeCandleCluster', -3.0,  0.5, 3],
+    ['makeCandleCluster',  3.0,  0.5, 3],
+  ],
+};
 function _buildInteriorScene(parentName){
   const intGlb = 'enc_int_' + parentName;
   return {
@@ -7102,6 +7162,24 @@ function _buildInteriorScene(parentName){
         return m;
       }
       placeENC(intGlb, 0, 0, 0, 1.0, 0);
+      // v649: drop procedural furniture (book stacks, candle clusters,
+      // bread baskets, etc.) so the room reads as "actually inhabited"
+      // rather than just an empty mesh floating in fog. Each makeXxx
+      // function already auto-registers its circular collider so the
+      // avatar walks AROUND the furniture (the おもむきの「めり込み」修正).
+      const furniture = INTERIOR_FURNITURE[parentName] || [];
+      for(const tuple of furniture){
+        const fn = window[tuple[0]] || (typeof eval !== 'undefined' && (function(){
+          try { return eval(tuple[0]); } catch(_){ return null; }
+        })());
+        try {
+          if(typeof fn === 'function'){
+            const args = tuple.slice(1);
+            const obj = fn(...args);
+            if(obj && obj.isObject3D) root.add(obj);
+          }
+        } catch(e){ console.warn(`interior ${parentName}: ${tuple[0]} failed:`, e?.message); }
+      }
       // Subtle floating motes for "indoor air"
       if(typeof makeFallingParticles === 'function'){
         const p = makeFallingParticles('mist', 40, { range: 8, yMax: 4, yMin: 0, fallSpeed: 0.05, swayAmp: 0.3, swayFreq: 0.5 });
@@ -7125,30 +7203,101 @@ for(const name of INTERIOR_NAMES){
 }
 
 
-/* v648 — MEGA-ISLAND mode.
- * Loads ALL 10 KB3D prefab GLBs in one scene, positioned per
- * SCENE_WORLD_POS × SEPARATION. The Blender mega-extract crashed on
- * memory pressure during the export, so we stitch at runtime instead:
- * each prefab is already cobble-Y-normalised by enc_extract_cobbletop_v636.py
- * so their cobble surfaces share y=0, and placing them on a grid yields
- * one continuous walkable landmass.
+/* v649 — MEGA-ISLAND, streamed + atmospheric.
+ * Loads plaza first (fast), then async-streams the other 9 prefabs as
+ * the avatar wanders.  Adds procedural sky atmosphere (cloud layer
+ * beneath the island for a "looking down" panorama, distant horizon
+ * mounds, master sun + hemisphere) and stone walkways between every
+ * pair of adjacent grid cells so every section connects on foot.
  *
- * Reached via ?scene=island or the "全景" tab. The existing 10
- * per-scene entries remain for fast focused loads. */
+ * Entered via ?scene=island (now the default — no query needed).
+ * Tabs jump the avatar between sections WITHIN the island instead of
+ * switching scene. */
 const ISLAND_SEPARATION = 20.0;
+function _placeIslandStone(root, ax, az, bx, bz){
+  // Procedural stone walkway between (ax,az) and (bx,bz).  4-tile path
+  // with a low parapet on each side so it reads as solid ground bridging
+  // the gap between two cobble discs.
+  const dx = bx - ax, dz = bz - az;
+  const len = Math.hypot(dx, dz);
+  if(len < 0.2) return;
+  const ang = Math.atan2(dz, dx);
+  const g = new THREE.Group();
+  g.position.set((ax + bx) * 0.5, 0, (az + bz) * 0.5);
+  g.rotation.y = -ang;
+  const planks = new THREE.Mesh(
+    new THREE.BoxGeometry(len, 0.10, 1.8),
+    new THREE.MeshStandardMaterial({color: 0x8a7866, roughness: 0.92})
+  );
+  planks.position.y = 0.05;
+  planks.receiveShadow = true;
+  g.add(planks);
+  // Low side stones
+  const stoneMat = new THREE.MeshStandardMaterial({color: 0x6a5848, roughness: 0.92});
+  for(const sz of [-0.95, 0.95]){
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.20, 0.18), stoneMat);
+    rail.position.set(0, 0.16, sz); rail.castShadow = true;
+    g.add(rail);
+  }
+  g.userData.skipRaycast = true;
+  g.userData.skipObstacle = true;
+  g.userData.isGroundMesh = true;     // walkable!
+  root.add(g);
+}
+function _placeCloudPlanes(root, basePos){
+  // Soft cloud planes WAY below the disc plane so the user can look
+  // "down" to a fluffy sea of clouds. Sprite-quad approach: cheap,
+  // additively blended, no raycast.
+  const cloudMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.55,
+    depthWrite: false, side: THREE.DoubleSide,
+  });
+  for(let i = 0; i < 24; i++){
+    const ang = Math.random() * Math.PI * 2;
+    const rr  = 30 + Math.random() * 80;
+    const c = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), cloudMat);
+    c.rotation.x = -Math.PI / 2;
+    c.position.set(
+      basePos.x + Math.cos(ang) * rr,
+      -18 - Math.random() * 10,
+      basePos.z + Math.sin(ang) * rr
+    );
+    c.userData.skipRaycast = true;
+    c.userData.skipObstacle = true;
+    root.add(c);
+  }
+}
+function _placeDistantMountains(root){
+  // Big procedural mounded silhouettes 80-150 m out so the horizon
+  // reads as more landmass beyond what's actually loaded.  Pure
+  // decoration, not collidable.
+  const farMat = new THREE.MeshStandardMaterial({
+    color: 0x5a4a3a, roughness: 0.98, metalness: 0.02,
+  });
+  for(let i = 0; i < 18; i++){
+    const ang = (i / 18) * Math.PI * 2 + Math.random() * 0.2;
+    const rr  = 80 + Math.random() * 70;
+    const w   = 18 + Math.random() * 22;
+    const h   = 6  + Math.random() * 12;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), farMat);
+    m.scale.set(w, h, w);
+    m.position.set(Math.cos(ang) * rr, -h * 0.4, Math.sin(ang) * rr);
+    m.userData.skipRaycast = true;
+    m.userData.skipObstacle = true;
+    root.add(m);
+  }
+}
 SCENES.island = {
   num: '∞', kind: 'panorama',
   title: '心の庭 — 全景', en: 'Garden Panorama',
   concept: '十の風景がひと続きの島になって浮かんでいる。広場の井戸から、月光の書架へ、水車の流れへ、時計塔の影へ。それぞれの場所がそのまま地続きで、迷いながら歩くことが許される地図。',
-  sun: [44, -22], turbidity: 2.5, rayleigh: 1.1,
-  fogColor: '#b0c4d0', fogNear: 40, fogFar: 120, exposure: 1.0,
+  sun: [180, 35], turbidity: 2.2, rayleigh: 1.0,
+  fogColor: '#c0d4dc', fogNear: 60, fogFar: 200, exposure: 1.05,
   avatarStart: [0, 4.0],
-  preloadAssets: [
-    'enc_prefab_plaza', 'enc_prefab_monlight', 'enc_prefab_oto',
-    'enc_prefab_tabi', 'enc_prefab_toki', 'enc_prefab_hoshi',
-    'enc_prefab_takibi', 'enc_prefab_mizube', 'enc_prefab_amaoto',
-    'enc_prefab_heya',
-  ],
+  // v649: stream-load — only plaza is required up front.  The rest of
+  // the ten prefabs are pulled in by _streamRemainingIslandPrefabs()
+  // after the avatar can already walk around plaza.
+  preloadAssets: ['enc_prefab_plaza'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -7160,27 +7309,70 @@ SCENES.island = {
       root.add(m);
       return m;
     }
-    // Place each scene's prefab at its grid cell. heya overlaps plaza so
-    // we offset it slightly so its bakery doesn't merge into the well.
-    let placed = 0;
-    for(const [name, pos] of Object.entries(SCENE_WORLD_POS)){
-      const x = pos.dx * ISLAND_SEPARATION;
-      const z = pos.dz * ISLAND_SEPARATION;
-      const offset = (name === 'heya') ? 3.0 : 0;
-      const m = placeENC('enc_prefab_' + name, x + offset, 0, z + offset, 1.0, 0);
-      if(m) placed++;
-    }
-    console.log(`niwa[island]: placed ${placed}/10 prefabs`);
-    // Cross-island lighting — daytime master lights so every region is lit
-    // (each per-scene's own accent point lights only cover ~16 m).
-    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.6);
-    fill.position.set(0, 30, 0);
+    // Plaza first so the avatar can walk immediately.
+    placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
+    // Procedural atmosphere — cloud sea below + horizon mounds so the
+    // canvas never reads as "white" while the other prefabs load in.
+    _placeCloudPlanes(root, {x: 0, z: 0});
+    _placeDistantMountains(root);
+    // Master daylight so each region is lit even before its own
+    // per-prefab point lights arrive.
+    const fill = new THREE.HemisphereLight(0xfff0c8, 0x4a3020, 0.75);
+    fill.position.set(0, 60, 0);
     root.add(fill);
-    const sun = new THREE.DirectionalLight(0xfff0d0, 0.7);
-    sun.position.set(20, 35, 18);
+    const sun = new THREE.DirectionalLight(0xfff0d0, 0.95);
+    sun.position.set(50, 60, 30);
     root.add(sun);
+    // v649: kick off the lazy stream of remaining prefabs + bridges.
+    if(typeof _streamRemainingIslandPrefabs === 'function'){
+      _streamRemainingIslandPrefabs(root);
+    }
   },
 };
+async function _streamRemainingIslandPrefabs(root){
+  // Stream in a sensible order: plaza's neighbours first so the player
+  // sees the nearest sections fill in as they walk outward.
+  const ORDER = ['monlight', 'oto', 'toki', 'hoshi', 'amaoto', 'tabi', 'takibi', 'mizube', 'heya'];
+  for(const name of ORDER){
+    if(!currentScene || currentScene.name !== 'island') return;   // user left
+    try {
+      await lazyLoadAsset('enc_prefab_' + name);
+    } catch(e){
+      console.warn(`niwa[island]: failed to load ${name}: ${e?.message}`);
+      continue;
+    }
+    if(!currentScene || currentScene.name !== 'island') return;
+    const pos = SCENE_WORLD_POS[name];
+    if(!pos) continue;
+    const x = pos.dx * ISLAND_SEPARATION;
+    const z = pos.dz * ISLAND_SEPARATION;
+    const offset = (name === 'heya') ? 3.0 : 0;
+    const m = (typeof blenderClone === 'function' && blenderClone('enc_prefab_' + name));
+    if(!m) continue;
+    m.scale.setScalar(1.0);
+    m.position.set(x + offset, 0, z + offset);
+    m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+    root.add(m);
+    console.log(`niwa[island]: streamed ${name}`);
+  }
+  // After all prefabs land, wire stone walkways between every adjacent
+  // pair so the avatar can cross dish-to-dish.
+  const linked = new Set();
+  for(const [from, neighbors] of Object.entries(SCENE_NEIGHBORS)){
+    if(!neighbors || !SCENE_WORLD_POS[from]) continue;
+    for(const target of Object.values(neighbors)){
+      if(!SCENE_WORLD_POS[target]) continue;
+      const key = [from, target].sort().join('|');
+      if(linked.has(key)) continue;
+      linked.add(key);
+      const a = SCENE_WORLD_POS[from], b = SCENE_WORLD_POS[target];
+      _placeIslandStone(root,
+        a.dx * ISLAND_SEPARATION, a.dz * ISLAND_SEPARATION,
+        b.dx * ISLAND_SEPARATION, b.dz * ISLAND_SEPARATION);
+    }
+  }
+  console.log(`niwa[island]: wired ${linked.size} walkways`);
+}
 
 
 setLoad(0.75, 'SCENES');
@@ -7199,12 +7391,32 @@ const TAB_DEFS = [
   {id:'heya',     label:'部屋',   num:'09'},
 ];
 const tabsEl = document.getElementById('scene-tabs');
+function _tabClick(id){
+  // v649: while the avatar is in the island panorama, tab-click TELEPORTS
+  // within the island (each section is a region of the same scene) rather
+  // than triggering a heavy scene-swap.  Outside the panorama, classic
+  // switchScene behaviour is retained.
+  if(currentScene && currentScene.name === 'island' && SCENE_WORLD_POS[id]){
+    const pos = SCENE_WORLD_POS[id];
+    const tx = pos.dx * ISLAND_SEPARATION;
+    const tz = pos.dz * ISLAND_SEPARATION + 4.0;   // a step south of building
+    avatar.position.set(tx, avatar.position.y, tz);
+    if(typeof playerVel !== 'undefined') playerVel.set(0,0,0);
+    if(typeof verticalVel !== 'undefined') verticalVel = 0;
+    // Re-centre the orbit camera around the new avatar position
+    camYawTarget = -Math.PI*0.25;
+    // Update the URL hash so back-button history works
+    try { history.replaceState(null, '', `?scene=island#${id}`); } catch(_){}
+    return;
+  }
+  switchScene(id);
+}
 for(const t of TAB_DEFS){
   const b = document.createElement('button');
   b.className = 'scene-tab';
   b.dataset.scene = t.id;
   b.innerHTML = `<span class="num">${t.num}</span>${t.label}`;
-  b.addEventListener('click', ()=>switchScene(t.id));
+  b.addEventListener('click', ()=>_tabClick(t.id));
   tabsEl.appendChild(b);
 }
 
@@ -8900,7 +9112,11 @@ function animate(){
 
   /* ── Avatar movement (Codex: damp velocity + slide collision) ── */
   let moving = false;
-  const targetSpeed = keys.shift ? RUN_SPEED : WALK_SPEED;
+  // v649: island panorama is ~200 m wide — bump speed so traversal
+  // doesn't feel like wading.  Outdoor singleton scenes keep the calmer
+  // pace because the playable disc is only ~16 m across.
+  const _ISLAND_MULT = (currentScene && currentScene.name === 'island') ? 1.7 : 1.0;
+  const targetSpeed = (keys.shift ? RUN_SPEED : WALK_SPEED) * _ISLAND_MULT;
   let mx = 0, mz = 0;
   // Mobile joystick takes priority when active (analog magnitude)
   if(joyState.active && (Math.abs(joyState.dx) > 0.06 || Math.abs(joyState.dz) > 0.06)){
@@ -9500,7 +9716,10 @@ setLoad(0.95, 'ASSETS');
   // chosen scene instead of being forced through plaza.
   const urlParams = new URLSearchParams(location.search);
   const requested = urlParams.get('scene');
-  const initialScene = (requested && SCENES[requested]) ? requested : 'plaza';
+  // v649: ?scene=island is the new front door — single panorama with all
+  // ten regions stitched together. Per-scene names (?scene=plaza etc.)
+  // still work for focused / fast loads.
+  const initialScene = (requested && SCENES[requested]) ? requested : 'island';
   const plazaDef = SCENES[initialScene];
   const toLoad = (plazaDef && Array.isArray(plazaDef.preloadAssets))
                   ? plazaDef.preloadAssets.slice() : [];
