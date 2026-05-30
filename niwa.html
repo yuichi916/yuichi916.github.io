@@ -8777,7 +8777,7 @@ const WALK_SPEED = 3.4;
 const RUN_SPEED = 5.6;
 const ACCEL = 18;
 const DECEL = 14;
-const AV_RADIUS = 0.35;
+const AV_RADIUS = 0.28;   // v651b: slimmer so the avatar threads tight gaps
 
 // v629: WASD + arrow-key movement. Arrow keys are preventDefault()'d
 // so the browser doesn't scroll the page while the user walks the
@@ -9459,6 +9459,28 @@ function animate(){
     }
   }
 
+  // v651b: auto-rotate the orbit camera so it stays BEHIND the avatar
+  // when the player is walking — adds the "third-person chase" feel
+  // that modern games (Genshin, BotW) have.  Only kicks in when the
+  // user isn't actively dragging the mouse AND the avatar has been
+  // moving for a moment, so manual rotation is never fought.
+  if(!firstPerson && !pointerDown && moving){
+    if(typeof _camAutoTimer === 'undefined') window._camAutoTimer = 0;
+    window._camAutoTimer = (window._camAutoTimer || 0) + dt;
+    if(window._camAutoTimer > 0.4){
+      // Aim camera "behind" the avatar — camYaw is the orbit angle the
+      // camera looks FROM, so target = avatar.yaw + π keeps the avatar's
+      // back to the camera.
+      let target = avatar.rotation.y + Math.PI;
+      let diff = target - camYawTarget;
+      while(diff >  Math.PI) diff -= Math.PI * 2;
+      while(diff < -Math.PI) diff += Math.PI * 2;
+      // Slow blend so user-initiated drag isn't violently overridden
+      camYawTarget += diff * Math.min(1, dt * 1.6);
+    }
+  } else {
+    window._camAutoTimer = 0;
+  }
   // Damp camera yaw + zoom toward their targets
   camYawState = THREE.MathUtils.damp(camYawState, camYawTarget, 10, dt);
   const newSize = THREE.MathUtils.damp(CAM_ORTHO_SIZE, camZoomTarget, 12, dt);
