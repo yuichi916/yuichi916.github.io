@@ -9385,12 +9385,16 @@ function animate(){
   if(moveTarget && (blocked(moveTarget.x, moveTarget.z))){
     moveTarget = null; targetMarker.visible = false;
   }
-  // v651: smooth-rotate avatar to face movement direction (instead of
-  // instantaneous lookAt — that made the avatar snap by 180° when the
-  // user reversed direction).  Damping rate 14 → about 4 frames at
-  // 60 Hz to complete a turn, which reads as snappy but never as a
-  // jerk.  Avatar facing stays still when the avatar is still.
-  if(Math.hypot(playerVel.x, playerVel.z) > 0.4){
+  // v652c: smooth-rotate avatar to face movement direction, but ONLY
+  // when the player is pressing forward / backward.  Strafing alone
+  // (A or D held) used to spin the avatar in tight circles because
+  // the new yaw caused the next frame's WASD direction to also
+  // rotate, walking the avatar in a 24 cm circle and the test runner
+  // measured zero displacement.  Now strafe just slides sideways at
+  // the current yaw.
+  const _hasFB = keys.w || keys.s ||
+                 (joyState.active && Math.abs(joyState.dz) > 0.06);
+  if(Math.hypot(playerVel.x, playerVel.z) > 0.4 && _hasFB){
     const targetYaw = Math.atan2(playerVel.x, playerVel.z);
     let cur = avatar.rotation.y;
     let diff = targetYaw - cur;
