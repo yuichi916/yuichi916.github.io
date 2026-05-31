@@ -507,6 +507,17 @@ const SCENE_WORLD_POS = {
   heya:    { dx:  0, dz:  0, label:'室内 — 庵の部屋' },
 };
 
+// v655: URL hash deep-link target for island.  Init code at the bottom
+// of the file reads location.hash and sets this; SCENES.island.build()
+// consumes it once the targeted prefab has streamed in.
+let _pendingHashSection = null;
+
+// v655: post-teleport grace period during which blocked() relaxes its
+// climb-step thresholds so the avatar can walk off the spawn even if
+// it landed on a porch / balcony / raised walkway whose drop exceeds
+// MAX_STEP_DOWN.  Set by teleportToIslandSection.
+let teleportGraceUntil = 0;
+
 const canvas = document.getElementById('webgl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 900);
@@ -706,12 +717,48 @@ distantIslands.instanceMatrix.needsUpdate = true;
 scene.add(distantIslands);
 
 const sunSph = new THREE.Vector3();
+// v655: PMREM environment from the Sky shader.  Drives subtle, physically
+// correct reflections on metallic/glossy materials (lantern caps, sword
+// hilts, water).  Mobile OFF — PMREM costs ~3-5 ms per regen.
+let _pmremGen = null;
+let _skyCubeTarget = null;
+let _skyCubeCam = null;
+let _pmremDirty = true;
+function regenerateEnvironment(){
+  if(IS_MOBILE) return;
+  if(currentScene && currentScene.def && currentScene.def.kind === 'interior'){
+    scene.environment = null; _pmremDirty = false; return;
+  }
+  try {
+    if(!_pmremGen){
+      _pmremGen = new THREE.PMREMGenerator(renderer);
+      _pmremGen.compileEquirectangularShader();
+    }
+    if(!_skyCubeTarget){
+      _skyCubeTarget = new THREE.WebGLCubeRenderTarget(128, {
+        type: THREE.HalfFloatType, generateMipmaps: true,
+      });
+    }
+    if(!_skyCubeCam){
+      _skyCubeCam = new THREE.CubeCamera(0.1, 10000, _skyCubeTarget);
+    }
+    const prevBg = scene.background;
+    scene.background = sky;
+    _skyCubeCam.update(renderer, scene);
+    scene.background = prevBg;
+    const env = _pmremGen.fromCubeRenderTarget(_skyCubeTarget);
+    if(scene.environment && scene.environment.dispose) scene.environment.dispose();
+    scene.environment = env.texture;
+    _pmremDirty = false;
+  } catch(e){ console.warn('niwa: PMREM regen failed', e); _pmremDirty = false; }
+}
 function setSun(elev, azim){
   const phi = THREE.MathUtils.degToRad(90 - elev);
   const theta = THREE.MathUtils.degToRad(azim);
   sunSph.setFromSphericalCoords(1, phi, theta);
   skyU.sunPosition.value.copy(sunSph);
   sun.position.set(sunSph.x*22, Math.max(2, sunSph.y*22), sunSph.z*22);
+  _pmremDirty = true;
 }
 setSun(50, -25);
 
@@ -7460,12 +7507,11 @@ SCENES.island = {
       root.add(m);
       return m;
     }
-    // v654b: plaza was extracted before the v636 cobble-Y normalisation
-    // so its cobble surface lives at world y ≈ 5.46.  Shift it DOWN by
-    // that offset so every prefab in the panorama shares a y = 0 cobble
-    // plane — keeps the procedural walkways from looking like they're
-    // floating 5 m below the avatar.
-    placeENC('enc_prefab_plaza', 0, -5.46, 0, 1.0, 0);
+    // v655: plaza re-extracted with v636 cobble-Y normalisation
+    // (commit 2c8a9e1 + pCloud upload), so the cobble surface now
+    // sits at world y = 0 just like the other prefabs.  No more
+    // -5.46 displacement.
+    placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
     // v650: full panorama atmosphere — cloud sea + distant islets +
     // deep ocean + waterfalls cascading off the disc edges.  Heavy bits
     // (clouds, waterfalls) use InstancedMesh so they cost ~3 draw calls.
@@ -7495,11 +7541,32 @@ SCENES.island = {
         minX: -35, maxX: 35, minZ: -35, maxZ: 35,
       };
     }
+    // v655: honour ?scene=island#<section> hash for initial deep-link
+    // teleport.  Defer until the targeted prefab has actually streamed
+    // in (or 60 s elapsed) — otherwise the spawn lands on a bare disc.
+    if(_pendingHashSection){
+      const _h = _pendingHashSection;
+      _pendingHashSection = null;
+      console.log(`niwa[island]: hash deep-link queued for #${_h}`);
+      (async () => {
+        const deadline = performance.now() + 60000;
+        while(performance.now() < deadline){
+          if(_h === 'plaza' || (BLENDER_CACHE && BLENDER_CACHE['enc_prefab_' + _h])) break;
+          await new Promise(r => setTimeout(r, 400));
+        }
+        console.log(`niwa[island]: firing hash teleport → #${_h}`);
+        try { teleportToIslandSection(_h); } catch(e){ console.warn('hash teleport failed', e); }
+      })();
+    }
   },
 };
+let _islandStreamedCount = 0;
+let _islandStreamingDone = false;
 async function _streamRemainingIslandPrefabs(root){
   // Stream in a sensible order: plaza's neighbours first so the player
   // sees the nearest sections fill in as they walk outward.
+  _islandStreamedCount = 0;
+  _islandStreamingDone = false;
   const ORDER = ['monlight', 'oto', 'toki', 'hoshi', 'amaoto', 'tabi', 'takibi', 'mizube', 'heya'];
   for(const name of ORDER){
     if(!currentScene || currentScene.name !== 'island') return;   // user left
@@ -7521,8 +7588,10 @@ async function _streamRemainingIslandPrefabs(root){
     m.position.set(x + offset, 0, z + offset);
     m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     root.add(m);
+    _islandStreamedCount++;
     console.log(`niwa[island]: streamed ${name}`);
   }
+  _islandStreamingDone = true;
   // After all prefabs land, wire stone walkways between every adjacent
   // pair so the avatar can cross dish-to-dish.
   const linked = new Set();
@@ -7559,43 +7628,115 @@ const TAB_DEFS = [
   {id:'heya',     label:'部屋',   num:'09'},
 ];
 const tabsEl = document.getElementById('scene-tabs');
+
+// v655: single teleport entry point shared by tab clicks, URL hash and
+// future deep-link triggers. Picks an obstacle-free spawn south of the
+// section, snaps ground Y, preserves facing.
+function _isClearSpawn(x, z){
+  const pb = currentScene && currentScene.playableBounds;
+  if(pb && (x < pb.minX || x > pb.maxX || z < pb.minZ || z > pb.maxZ)) return false;
+  const AVR = (typeof AV_RADIUS !== 'undefined') ? AV_RADIUS : 0.35;
+  for(const ob of (ENTITIES.obstacles || [])){
+    if(Math.hypot(x - ob.x, z - ob.z) < ob.r + AVR) return false;
+  }
+  for(const b of (ENTITIES.boxObstacles || [])){
+    if(x > b.minX - AVR && x < b.maxX + AVR &&
+       z > b.minZ - AVR && z < b.maxZ + AVR) return false;
+  }
+  // Climb-step + mobility probe: every cardinal direction must yield
+  // a smooth ground at BOTH frame-scale (0.1m) and walk-scale (0.5m).
+  // Without the frame-scale check the spawn can sit on a balcony whose
+  // edge is between 0.1 and 0.5m away — the runtime's per-step
+  // blocked() then trips MAX_STEP_DOWN=1.20m and the avatar is frozen.
+  const STEP_UP = 0.30, STEP_DOWN = 1.20;
+  const yHere = (typeof sampleHeight === 'function') ? sampleHeight(x, z) : 0;
+  if(!isFinite(yHere) || yHere > 20) return false;   // out-of-world hit
+  let mobile = 0;
+  for(const [dx, dz] of [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]]){
+    const nx = x + dx, nz = z + dz;
+    let blocked = false;
+    for(const ob of (ENTITIES.obstacles || [])){
+      if(Math.hypot(nx - ob.x, nz - ob.z) < ob.r + AVR){ blocked = true; break; }
+    }
+    if(!blocked){
+      for(const b of (ENTITIES.boxObstacles || [])){
+        if(nx > b.minX - AVR && nx < b.maxX + AVR &&
+           nz > b.minZ - AVR && nz < b.maxZ + AVR){ blocked = true; break; }
+      }
+    }
+    if(!blocked && typeof sampleHeight === 'function'){
+      // Mid-step Y at 0.1m: catches balcony edges within 0.5m radius.
+      const yMid = sampleHeight(x + dx * 0.2, z + dz * 0.2);
+      const yN = sampleHeight(nx, nz);
+      const ys = [yMid, yN];
+      for(const y of ys){
+        if(!isFinite(y)){ blocked = true; break; }
+        if(y - yHere > STEP_UP){ blocked = true; break; }
+        if(yHere - y > STEP_DOWN){ blocked = true; break; }
+      }
+    }
+    if(!blocked) mobile++;
+  }
+  return mobile >= 2;
+}
+
+function teleportToIslandSection(id){
+  if(!SCENE_WORLD_POS[id]) return;
+  if(!currentScene || currentScene.name !== 'island') return;
+  const pos = SCENE_WORLD_POS[id];
+  const cx = pos.dx * ISLAND_SEPARATION;
+  const cz = pos.dz * ISLAND_SEPARATION;
+  // v655: candidate offsets that stay within the cell's cobble disc
+  // (radius ~4-5 m around the building centre).  Spawning further out
+  // puts the avatar on the raised stone walkway connecting cells, where
+  // every sideways step drops > MAX_STEP_DOWN to the void below.
+  const len = Math.hypot(cx, cz);
+  // Inward unit vector toward plaza.  Plaza itself has no defined
+  // inward direction; fall back to +z (legacy south offset).
+  const ix = (len > 0.01) ? -cx / len : 0;
+  const iz = (len > 0.01) ? -cz / len : 1;
+  const px =  iz, pz = -ix;   // perpendicular for left/right variants
+  const offsets = [];
+  // Stay within ~5 m of cell centre so we land on the cobble disc.
+  for(const r of [3, 4, 5, 3.5, 4.5]){
+    offsets.push([ix * r,             iz * r]);
+    offsets.push([ix * r + px * 1.5,  iz * r + pz * 1.5]);
+    offsets.push([ix * r - px * 1.5,  iz * r - pz * 1.5]);
+  }
+  // Fallback to legacy ±south offsets — useful for cells whose inward
+  // direction happens to be +z anyway (plaza, or as a last resort).
+  offsets.push([0, 4], [2, 4], [-2, 4], [0, 3]);
+  // Pick the candidate with the LOWEST ground Y so we land on cobble,
+  // not on a porch / balcony / walkway raised above the disc.
+  const cands = [];
+  for(const [dx, dz] of offsets){
+    const tx = cx + dx, tz = cz + dz;
+    if(!_isClearSpawn(tx, tz)) continue;
+    const y = (typeof sampleHeight === 'function') ? sampleHeight(tx, tz) : 0;
+    if(isFinite(y) && y < 20) cands.push({ x: tx, z: tz, y });
+  }
+  cands.sort((a, b) => a.y - b.y);
+  let chosen = cands.length ? { x: cands[0].x, z: cands[0].z } : null;
+  if(!chosen) chosen = { x: cx + ix * 4, z: cz + iz * 4 };
+  avatar.position.set(chosen.x, 0, chosen.z);
+  if(typeof sampleHeight === 'function'){
+    const gy = sampleHeight(chosen.x, chosen.z);
+    if(isFinite(gy) && gy < 30) avatar.position.y = gy;
+  }
+  // D3: facing preserved — DO NOT touch avatar.quaternion / rotation here.
+  if(typeof playerVel !== 'undefined') playerVel.set(0, 0, 0);
+  if(typeof verticalVel !== 'undefined') verticalVel = 0;
+  if(currentScene){
+    currentScene.spawnPos = { x: chosen.x, y: avatar.position.y, z: chosen.z };
+  }
+  bridgeCooldownUntil = performance.now() + 1500;
+  teleportGraceUntil  = performance.now() + 2000;
+  try { history.replaceState(null, '', `?scene=island#${id}`); } catch(_){}
+}
+
 function _tabClick(id){
-  // v649: while the avatar is in the island panorama, tab-click TELEPORTS
-  // within the island (each section is a region of the same scene) rather
-  // than triggering a heavy scene-swap.  Outside the panorama, classic
-  // switchScene behaviour is retained.
   if(currentScene && currentScene.name === 'island' && SCENE_WORLD_POS[id]){
-    const pos = SCENE_WORLD_POS[id];
-    const tx = pos.dx * ISLAND_SEPARATION;
-    const tz = pos.dz * ISLAND_SEPARATION + 4.0;   // a step south of building
-    // v652: probe ground at the target XZ FIRST.  Each prefab grid cell
-    // may have its own cobble Y (un-normalised KB3D plaza lives at
-    // y≈5.46) — dropping the avatar at the stale Y left them buried
-    // under the cobble and the climb-step check refused every move.
-    avatar.position.set(tx, 0, tz);
-    if(typeof sampleHeight === 'function'){
-      const groundY = sampleHeight(tx, tz);
-      if(isFinite(groundY) && groundY < 30) avatar.position.y = groundY;
-    }
-    if(typeof playerVel !== 'undefined') playerVel.set(0,0,0);
-    if(typeof verticalVel !== 'undefined') verticalVel = 0;
-    // v652: update the scene-level spawn anchor too so bridge proximity
-    // gating + the auto-chase camera both use the freshly-snapped point.
-    if(currentScene){
-      currentScene.spawnPos = { x: tx, y: avatar.position.y, z: tz };
-    }
-    bridgeCooldownUntil = performance.now() + 1500;
-    // v652d: face the avatar's visible front (chibi's +Z) toward the
-    // section's building (= grid cell centre).  Without this the chibi
-    // spawned with its back to the building.
-    const bx = pos.dx * ISLAND_SEPARATION;
-    const bz = pos.dz * ISLAND_SEPARATION;
-    avatar.rotation.y = Math.atan2(bx - tx, bz - tz);
-    // Re-centre the orbit camera around the new avatar position so it
-    // ends up behind the freshly-turned avatar.
-    camYawTarget = -avatar.rotation.y - Math.PI*0.5;
-    // Update the URL hash so back-button history works
-    try { history.replaceState(null, '', `?scene=island#${id}`); } catch(_){}
+    teleportToIslandSection(id);
     return;
   }
   switchScene(id);
@@ -9125,10 +9266,17 @@ const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
 // Bloom: softened for chibi-diorama style. Still UE-grade PBR highlights but
 // not the dramatic "sun through steam" Yellowstone look (that was misread).
-const bloomStrength = (IS_MOBILE || REDUCED_MOTION) ? 0.08 : 0.15;  // minimal — diorama clarity
-const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight),
-                                    bloomStrength, 0.40, 0.88);  // only the very brightest spots bloom
-composer.addPass(bloom);
+// v655: threshold bloom per spec D6 — 0.85 threshold keeps shadows
+// pristine, 0.55 strength gives soft highlight bleed on sun-lit cobble +
+// metal trim, half-res buffer halves the bloom cost on desktop. Mobile
+// + reduced-motion skip the pass entirely (no FBO/screen-quad cost).
+let bloom = null;
+if(!IS_MOBILE && !REDUCED_MOTION){
+  bloom = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
+    0.55, 0.30, 0.85);
+  composer.addPass(bloom);
+}
 if(!IS_MOBILE){
   const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
   composer.addPass(smaa);
@@ -9274,6 +9422,8 @@ function animate(){
     return;
   }
   try {
+  // v655: deferred PMREM rebuild so setSun doesn't stall the frame.
+  if(_pmremDirty) regenerateEnvironment();
 
   // v626: high cloud ring + low wisps drift around the camera via
   // InstancedMesh — single setMatrixAt sweep per cloud layer per frame
@@ -9412,10 +9562,23 @@ function animate(){
     // is more than MAX_STEP_UP above the current avatar Y. Without this
     // the avatar walks straight up onto rooftops / fences / lampposts via
     // the sampleHeight raycast.
+    // v655: relax climb-step for 1.5s after teleport so the avatar can
+    // walk off porches / balconies / walkways where the cobble disc Y
+    // delta exceeds MAX_STEP_DOWN.  Without this the user reports
+    // "tab-teleport leaves avatar frozen".
     const nextY = sampleHeight(px, pz);
     const curY = avatar.position.y;
-    if(nextY - curY > MAX_STEP_UP) return true;
-    if(curY - nextY > MAX_STEP_DOWN) return true;
+    const inGrace = (typeof teleportGraceUntil !== 'undefined') &&
+                    performance.now() < teleportGraceUntil;
+    const maxUp   = inGrace ? 2.0  : MAX_STEP_UP;
+    const maxDown = inGrace ? 6.0  : MAX_STEP_DOWN;
+    if(isFinite(nextY)){
+      if(nextY - curY > maxUp) return true;
+      if(curY - nextY > maxDown) return true;
+    }
+    // Sky-miss (NaN / non-finite): keep legacy permissive behaviour
+    // so scenes that rely on the avatar walking over raycast voids
+    // (distant water, prefab seams) don't regress.
     return false;
   }
   const tryX = avatar.position.x + stepX;
@@ -9980,6 +10143,12 @@ setLoad(0.95, 'ASSETS');
   // ten regions stitched together. Per-scene names (?scene=plaza etc.)
   // still work for focused / fast loads.
   const initialScene = (requested && SCENES[requested]) ? requested : 'island';
+  // v655: capture #hash so island build() can teleport once the targeted
+  // prefab has streamed in.
+  const _hash = (location.hash || '').replace('#', '').trim();
+  if(initialScene === 'island' && _hash && SCENE_WORLD_POS[_hash]){
+    _pendingHashSection = _hash;
+  }
   const plazaDef = SCENES[initialScene];
   const toLoad = (plazaDef && Array.isArray(plazaDef.preloadAssets))
                   ? plazaDef.preloadAssets.slice() : [];
@@ -10055,14 +10224,56 @@ setLoad(0.95, 'ASSETS');
       get keys(){ return keys; },
       get joyState(){ return joyState; },
       get camYawState(){ return camYawState; },
+      get fpYaw(){ return fpYaw; },
       get ENTITIES(){ return ENTITIES; },
       get activeBridges(){ return activeBridges; },
       get bridgeCooldownUntil(){ return bridgeCooldownUntil; },
       get firstPerson(){ return firstPerson; },
       get moveTarget(){ return moveTarget; },
       get bumpHud(){ try { return bumpHud; } catch(_){ return null; } },
+      // === Test setters (D8 / P1) ===
+      _setCamYaw(yaw){ camYawTarget = yaw; camYawState = yaw; },
+      _setFpYaw(yaw){ fpYaw = yaw; },
+      _setFirstPerson(b, yaw){
+        firstPerson = !!b;
+        if(b){
+          fpYaw = (typeof yaw === 'number') ? yaw : avatar.rotation.y;
+          fpPitch = -0.1;
+        } else {
+          camYawTarget = avatar.rotation.y + Math.PI;
+        }
+        const btn = document.getElementById('btn-view');
+        if(btn){
+          btn.textContent = firstPerson ? 'VIEW · 1P' : 'VIEW · 3P';
+          btn.classList.toggle('active', firstPerson);
+        }
+      },
+      _isIslandStreamed(){
+        try { return (typeof _islandStreamedCount !== 'undefined') && _islandStreamedCount >= 9; }
+        catch(_){ return false; }
+      },
+      get _islandStreamedCount(){
+        try { return (typeof _islandStreamedCount !== 'undefined') ? _islandStreamedCount : -1; }
+        catch(_){ return -1; }
+      },
+      get _islandStreamingDone(){
+        try { return (typeof _islandStreamingDone !== 'undefined') ? _islandStreamingDone : false; }
+        catch(_){ return false; }
+      },
+      _sampleHeight(x, z){ return sampleHeight(x, z); },
+      _waitFrames(n){
+        return new Promise(resolve => {
+          let i = 0;
+          const tick = () => { if(++i >= n) resolve(); else requestAnimationFrame(tick); };
+          requestAnimationFrame(tick);
+        });
+      },
+      _tabClickProgrammatic(id){ _tabClick(id); },
+      _teleportToIslandSection(id){
+        if(typeof teleportToIslandSection === 'function') teleportToIslandSection(id);
+      },
     };
-    console.log('niwa: __niwa diagnostic hook ready');
+    console.log('niwa: __niwa diagnostic hook ready (extended)');
   }
 })();
 
