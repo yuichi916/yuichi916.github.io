@@ -67,9 +67,16 @@ def wait_for_streamed(page, n, timeout_s=240):
 
 
 def reset_pos(page):
+    # Snap Y to the actual cobble surface — important when the prefab
+    # cobble has been re-extracted with a different Y baseline (legacy
+    # plaza was at world Y=5.46; v636-normalised plaza at Y=0).  Setting
+    # Y=0 unconditionally would land the avatar below the cobble and
+    # every step trips MAX_STEP_UP.
     page.evaluate("""() => {
       const N = window.__niwa;
-      N.avatar.position.set(0, 0, 0);
+      const gy = N._sampleHeight(0, 0);
+      const y = (isFinite(gy) && gy < 30) ? gy : 0;
+      N.avatar.position.set(0, y, 0);
       N.playerVel.set(0, 0, 0); N.setVerticalVel(0);
       N.keys.w = N.keys.a = N.keys.s = N.keys.d = false;
     }""")
@@ -316,6 +323,50 @@ def main():
                f"after=({after['x']:+.2f},{after['z']:+.2f})")
         expect('V1 toggle preserves rotation', rot_ok,
                f"before={before['ry']:+.3f} after={after['ry']:+.3f} dy={dy:.3f}")
+
+        # ===== S1: bridge Y vs cobble Y at end-island centres =====
+        print('\n[S1] bridge Y vs cobble Y')
+        ISLAND_SEP = 20.0
+        BRIDGES = [
+            ('plaza','monlight'), ('plaza','oto'), ('plaza','tabi'),
+            ('plaza','hoshi'),    ('plaza','toki'),
+            ('plaza','takibi'),   ('plaza','mizube'), ('plaza','amaoto'),
+            ('oto','monlight'),   ('oto','tabi'),
+            ('mizube','takibi'),  ('mizube','amaoto'),
+        ]
+        CELLS = {
+            'plaza':(0,0),    'monlight':(-1,0),  'oto':(0,-1),
+            'tabi':(1,-1),    'toki':(1,0),       'hoshi':(0,1),
+            'takibi':(-1,1),  'mizube':(1,1),     'amaoto':(-1,-1),
+        }
+        for src, dst in BRIDGES:
+            ax = CELLS[src][0] * ISLAND_SEP
+            az = CELLS[src][1] * ISLAND_SEP
+            bx = CELLS[dst][0] * ISLAND_SEP
+            bz = CELLS[dst][1] * ISLAND_SEP
+            mx = (ax + bx) * 0.5
+            mz = (az + bz) * 0.5
+            ya = page.evaluate(f"() => window.__niwa._sampleHeight({ax}, {az})")
+            ym = page.evaluate(f"() => window.__niwa._sampleHeight({mx}, {mz})")
+            yb = page.evaluate(f"() => window.__niwa._sampleHeight({bx}, {bz})")
+            # Guard against -Inf / NaN raycast misses
+            if not (isinstance(ya, (int, float)) and abs(ya) < 30):
+                ya = 0.0
+            if not (isinstance(yb, (int, float)) and abs(yb) < 30):
+                yb = 0.0
+            if not (isinstance(ym, (int, float)) and abs(ym) < 30):
+                ym = float('nan')
+            cob = (ya + yb) / 2.0
+            delta = abs(ym - cob) if ym == ym else float('inf')
+            # Soft check until pCloud sync of v636 plaza propagates — plaza
+            # Y=-0.94 (old shifted) and Y=0 (new normalised) both pass at
+            # |delta|<1.0 once the prefab loads.
+            ok = delta < 1.0
+            mark = '✓' if ok else '~'
+            print(f'  {mark} S1 bridge {src}↔{dst} (soft): '
+                  f'cobble≈{cob:+.2f} bridge≈{ym:+.2f} Δ={delta:.2f}m')
+            if ok:
+                passes.append(f'S1 {src}↔{dst}')
 
         # ===== V2: 1P W follows fpYaw at 4 yaws =====
         print('\n[V2] 1P W follows fpYaw')
