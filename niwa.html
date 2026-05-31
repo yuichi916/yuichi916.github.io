@@ -512,6 +512,12 @@ const SCENE_WORLD_POS = {
 // consumes it once the targeted prefab has streamed in.
 let _pendingHashSection = null;
 
+// v655: post-teleport grace period during which blocked() relaxes its
+// climb-step thresholds so the avatar can walk off the spawn even if
+// it landed on a porch / balcony / raised walkway whose drop exceeds
+// MAX_STEP_DOWN.  Set by teleportToIslandSection.
+let teleportGraceUntil = 0;
+
 const canvas = document.getElementById('webgl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 900);
@@ -7602,7 +7608,15 @@ function _isClearSpawn(x, z){
     if(x > b.minX - AVR && x < b.maxX + AVR &&
        z > b.minZ - AVR && z < b.maxZ + AVR) return false;
   }
-  // Mobility probe: at least one cardinal step must be clear.
+  // Climb-step + mobility probe: every cardinal direction must yield
+  // a smooth ground at BOTH frame-scale (0.1m) and walk-scale (0.5m).
+  // Without the frame-scale check the spawn can sit on a balcony whose
+  // edge is between 0.1 and 0.5m away — the runtime's per-step
+  // blocked() then trips MAX_STEP_DOWN=1.20m and the avatar is frozen.
+  const STEP_UP = 0.30, STEP_DOWN = 1.20;
+  const yHere = (typeof sampleHeight === 'function') ? sampleHeight(x, z) : 0;
+  if(!isFinite(yHere) || yHere > 20) return false;   // out-of-world hit
+  let mobile = 0;
   for(const [dx, dz] of [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]]){
     const nx = x + dx, nz = z + dz;
     let blocked = false;
@@ -7615,9 +7629,20 @@ function _isClearSpawn(x, z){
            nz > b.minZ - AVR && nz < b.maxZ + AVR){ blocked = true; break; }
       }
     }
-    if(!blocked) return true;
+    if(!blocked && typeof sampleHeight === 'function'){
+      // Mid-step Y at 0.1m: catches balcony edges within 0.5m radius.
+      const yMid = sampleHeight(x + dx * 0.2, z + dz * 0.2);
+      const yN = sampleHeight(nx, nz);
+      const ys = [yMid, yN];
+      for(const y of ys){
+        if(!isFinite(y)){ blocked = true; break; }
+        if(y - yHere > STEP_UP){ blocked = true; break; }
+        if(yHere - y > STEP_DOWN){ blocked = true; break; }
+      }
+    }
+    if(!blocked) mobile++;
   }
-  return false;
+  return mobile >= 2;
 }
 
 function teleportToIslandSection(id){
@@ -7626,13 +7651,38 @@ function teleportToIslandSection(id){
   const pos = SCENE_WORLD_POS[id];
   const cx = pos.dx * ISLAND_SEPARATION;
   const cz = pos.dz * ISLAND_SEPARATION;
-  const offsets = [[0, 4], [0, 5.5], [2, 4], [-2, 4], [0, 6.5]];
-  let chosen = null;
+  // v655: candidate offsets that stay within the cell's cobble disc
+  // (radius ~4-5 m around the building centre).  Spawning further out
+  // puts the avatar on the raised stone walkway connecting cells, where
+  // every sideways step drops > MAX_STEP_DOWN to the void below.
+  const len = Math.hypot(cx, cz);
+  // Inward unit vector toward plaza.  Plaza itself has no defined
+  // inward direction; fall back to +z (legacy south offset).
+  const ix = (len > 0.01) ? -cx / len : 0;
+  const iz = (len > 0.01) ? -cz / len : 1;
+  const px =  iz, pz = -ix;   // perpendicular for left/right variants
+  const offsets = [];
+  // Stay within ~5 m of cell centre so we land on the cobble disc.
+  for(const r of [3, 4, 5, 3.5, 4.5]){
+    offsets.push([ix * r,             iz * r]);
+    offsets.push([ix * r + px * 1.5,  iz * r + pz * 1.5]);
+    offsets.push([ix * r - px * 1.5,  iz * r - pz * 1.5]);
+  }
+  // Fallback to legacy ±south offsets — useful for cells whose inward
+  // direction happens to be +z anyway (plaza, or as a last resort).
+  offsets.push([0, 4], [2, 4], [-2, 4], [0, 3]);
+  // Pick the candidate with the LOWEST ground Y so we land on cobble,
+  // not on a porch / balcony / walkway raised above the disc.
+  const cands = [];
   for(const [dx, dz] of offsets){
     const tx = cx + dx, tz = cz + dz;
-    if(_isClearSpawn(tx, tz)){ chosen = { x: tx, z: tz }; break; }
+    if(!_isClearSpawn(tx, tz)) continue;
+    const y = (typeof sampleHeight === 'function') ? sampleHeight(tx, tz) : 0;
+    if(isFinite(y) && y < 20) cands.push({ x: tx, z: tz, y });
   }
-  if(!chosen) chosen = { x: cx, z: cz + 4 };
+  cands.sort((a, b) => a.y - b.y);
+  let chosen = cands.length ? { x: cands[0].x, z: cands[0].z } : null;
+  if(!chosen) chosen = { x: cx + ix * 4, z: cz + iz * 4 };
   avatar.position.set(chosen.x, 0, chosen.z);
   if(typeof sampleHeight === 'function'){
     const gy = sampleHeight(chosen.x, chosen.z);
@@ -7645,6 +7695,7 @@ function teleportToIslandSection(id){
     currentScene.spawnPos = { x: chosen.x, y: avatar.position.y, z: chosen.z };
   }
   bridgeCooldownUntil = performance.now() + 1500;
+  teleportGraceUntil  = performance.now() + 2000;
   try { history.replaceState(null, '', `?scene=island#${id}`); } catch(_){}
 }
 
@@ -9467,10 +9518,24 @@ function animate(){
     // is more than MAX_STEP_UP above the current avatar Y. Without this
     // the avatar walks straight up onto rooftops / fences / lampposts via
     // the sampleHeight raycast.
+    // v655: relax climb-step for 1.5s after teleport so the avatar can
+    // walk off porches / balconies / walkways where the cobble disc Y
+    // delta exceeds MAX_STEP_DOWN.  Without this the user reports
+    // "tab-teleport leaves avatar frozen".
     const nextY = sampleHeight(px, pz);
     const curY = avatar.position.y;
-    if(nextY - curY > MAX_STEP_UP) return true;
-    if(curY - nextY > MAX_STEP_DOWN) return true;
+    const inGrace = (typeof teleportGraceUntil !== 'undefined') &&
+                    performance.now() < teleportGraceUntil;
+    const maxUp   = inGrace ? 2.0  : MAX_STEP_UP;
+    const maxDown = inGrace ? 6.0  : MAX_STEP_DOWN;
+    if(isFinite(nextY)){
+      if(nextY - curY > maxUp) return true;
+      if(curY - nextY > maxDown) return true;
+    } else if(!inGrace){
+      // Sky-miss: no ground here.  Block outside grace; let grace
+      // teleport bridge cross thin gaps.
+      return true;
+    }
     return false;
   }
   const tryX = avatar.position.x + stepX;
