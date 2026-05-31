@@ -9270,12 +9270,14 @@ composer.addPass(renderPass);
 // v655: threshold bloom per spec D6 — 0.85 threshold keeps shadows
 // pristine, 0.55 strength gives soft highlight bleed on sun-lit cobble +
 // metal trim, half-res buffer halves the bloom cost on desktop. Mobile
-// + reduced-motion set strength=0 (pass becomes a no-op).
-const bloomStrength = (IS_MOBILE || REDUCED_MOTION) ? 0.0 : 0.55;
-const bloom = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
-  bloomStrength, 0.30, 0.85);
-composer.addPass(bloom);
+// + reduced-motion skip the pass entirely (no FBO/screen-quad cost).
+let bloom = null;
+if(!IS_MOBILE && !REDUCED_MOTION){
+  bloom = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
+    0.55, 0.30, 0.85);
+  composer.addPass(bloom);
+}
 if(!IS_MOBILE){
   const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
   composer.addPass(smaa);
@@ -9574,11 +9576,10 @@ function animate(){
     if(isFinite(nextY)){
       if(nextY - curY > maxUp) return true;
       if(curY - nextY > maxDown) return true;
-    } else if(!inGrace){
-      // Sky-miss: no ground here.  Block outside grace; let grace
-      // teleport bridge cross thin gaps.
-      return true;
     }
+    // Sky-miss (NaN / non-finite): keep legacy permissive behaviour
+    // so scenes that rely on the avatar walking over raycast voids
+    // (distant water, prefab seams) don't regress.
     return false;
   }
   const tryX = avatar.position.x + stepX;
