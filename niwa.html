@@ -7680,54 +7680,123 @@ function _isClearSpawn(x, z){
   return mobile >= 2;
 }
 
+// v656: pick a spawn that's verifiably walkable.  At each candidate
+// we (a) reject obstacle hits, (b) check center has finite Y, (c)
+// require at least 2 of 4 cardinal 0.4m neighbours within climb-step
+// tolerance (so the avatar can take a real step). No reference Y is
+// used — each spawn is judged by its OWN local consistency, so cobble
+// vs porch vs walkway all work as long as locally consistent.
+// Polar grid of 6 radii × 12 angles = 72 candidates; the closest
+// passing one wins.
+function _scoreSpawn(x, z){
+  const pb = currentScene && currentScene.playableBounds;
+  if(pb && (x < pb.minX || x > pb.maxX || z < pb.minZ || z > pb.maxZ)) return null;
+  const AVR = (typeof AV_RADIUS !== 'undefined') ? AV_RADIUS : 0.35;
+  for(const ob of (ENTITIES.obstacles || [])){
+    if(Math.hypot(x - ob.x, z - ob.z) < ob.r + AVR) return null;
+  }
+  for(const b of (ENTITIES.boxObstacles || [])){
+    if(x > b.minX - AVR && x < b.maxX + AVR &&
+       z > b.minZ - AVR && z < b.maxZ + AVR) return null;
+  }
+  if(typeof sampleHeight !== 'function') return null;
+  const yHere = sampleHeight(x, z);
+  if(!isFinite(yHere) || yHere > 20) return null;
+  // Cobble fast-path: if the spawn is clearly cobble (Y < 0.6), accept
+  // it without running the chain probe.  Cobble is always walkable
+  // by definition — the chain probe is meant to catch porch / balcony
+  // spawns where the surface ends abruptly within 2.4m.
+  if(yHere < 0.6) return yHere;
+  // Walkability: probe each cardinal at 4 distances (0.4, 0.8, 1.6,
+  // 2.4 m) and require ALL hops within climb-step tolerance.  This
+  // simulates ~30 frames of runtime walking at 5 m/s.  Without the
+  // far probes, porch / balcony spawns pass because the porch surface
+  // extends ~0.5m before dropping to cobble — runtime walk hits the
+  // drop at frame 10 and freezes.
+  let walkable = 0;
+  const STEPS = [0.4, 0.8, 1.6, 2.4];
+  for(const [dirX, dirZ] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){
+    let prevY = yHere;
+    let blocked = false;
+    for(const s of STEPS){
+      const nx = x + dirX * s, nz = z + dirZ * s;
+      // Obstacle check
+      let bad = false;
+      for(const ob of (ENTITIES.obstacles || [])){
+        if(Math.hypot(nx - ob.x, nz - ob.z) < ob.r + AVR){ bad = true; break; }
+      }
+      if(!bad){
+        for(const b of (ENTITIES.boxObstacles || [])){
+          if(nx > b.minX - AVR && nx < b.maxX + AVR &&
+             nz > b.minZ - AVR && nz < b.maxZ + AVR){ bad = true; break; }
+        }
+      }
+      if(bad){ blocked = true; break; }
+      const yN = sampleHeight(nx, nz);
+      if(!isFinite(yN)){
+        // Sky-miss is permissive but stops the chain — no more
+        // ground to walk on but no drop either.  Treat as walkable.
+        break;
+      }
+      if(yN - prevY > 0.30){ blocked = true; break; }
+      if(prevY - yN > 3.0){ blocked = true; break; }
+      prevY = yN;
+    }
+    if(!blocked) walkable++;
+  }
+  if(walkable < 1) return null;   // need at least one walkable direction
+  return yHere;
+}
+
 function teleportToIslandSection(id){
   if(!SCENE_WORLD_POS[id]) return;
   if(!currentScene || currentScene.name !== 'island') return;
+  // v656: re-assert the island's ±35m bounds.  buildScene shrinks
+  // playableBounds to plaza's bbox (~±9m) at scene init, which is
+  // correct for single-prefab scenes but kills the island panorama
+  // where the avatar needs to roam across 9 cells.
+  currentScene.playableBounds = {
+    minX: -35, maxX: 35, minZ: -35, maxZ: 35,
+  };
   const pos = SCENE_WORLD_POS[id];
   const cx = pos.dx * ISLAND_SEPARATION;
   const cz = pos.dz * ISLAND_SEPARATION;
-  // v655: candidate offsets that stay within the cell's cobble disc
-  // (radius ~4-5 m around the building centre).  Spawning further out
-  // puts the avatar on the raised stone walkway connecting cells, where
-  // every sideways step drops > MAX_STEP_DOWN to the void below.
-  const len = Math.hypot(cx, cz);
-  // Inward unit vector toward plaza.  Plaza itself has no defined
-  // inward direction; fall back to +z (legacy south offset).
-  const ix = (len > 0.01) ? -cx / len : 0;
-  const iz = (len > 0.01) ? -cz / len : 1;
-  const px =  iz, pz = -ix;   // perpendicular for left/right variants
-  const offsets = [];
-  // Stay within ~5 m of cell centre so we land on the cobble disc.
-  for(const r of [3, 4, 5, 3.5, 4.5]){
-    offsets.push([ix * r,             iz * r]);
-    offsets.push([ix * r + px * 1.5,  iz * r + pz * 1.5]);
-    offsets.push([ix * r - px * 1.5,  iz * r - pz * 1.5]);
-  }
-  // Fallback to legacy ±south offsets — useful for cells whose inward
-  // direction happens to be +z anyway (plaza, or as a last resort).
-  offsets.push([0, 4], [2, 4], [-2, 4], [0, 3]);
-  // Pick the candidate with the LOWEST ground Y so we land on cobble,
-  // not on a porch / balcony / walkway raised above the disc.
+  // Polar grid: 12 angles × 6 radii = 72 candidates.  Closest passing
+  // candidate to the cell centre wins.
   const cands = [];
-  for(const [dx, dz] of offsets){
-    const tx = cx + dx, tz = cz + dz;
-    if(!_isClearSpawn(tx, tz)) continue;
-    const y = (typeof sampleHeight === 'function') ? sampleHeight(tx, tz) : 0;
-    if(isFinite(y) && y < 20) cands.push({ x: tx, z: tz, y });
+  const ANGLES = 12;
+  for(let a = 0; a < ANGLES; a++){
+    const ang = (a / ANGLES) * Math.PI * 2;
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    for(const r of [4, 5, 6, 3.5, 7, 8]){
+      const tx = cx + cos * r;
+      const tz = cz + sin * r;
+      const y = _scoreSpawn(tx, tz);
+      if(y == null) continue;
+      cands.push({ x: tx, z: tz, y, dist: r });
+    }
   }
-  cands.sort((a, b) => a.y - b.y);
-  let chosen = cands.length ? { x: cands[0].x, z: cands[0].z } : null;
-  if(!chosen) chosen = { x: cx + ix * 4, z: cz + iz * 4 };
-  avatar.position.set(chosen.x, 0, chosen.z);
-  if(typeof sampleHeight === 'function'){
-    const gy = sampleHeight(chosen.x, chosen.z);
-    if(isFinite(gy) && gy < 30) avatar.position.y = gy;
+  // Sort by Y FIRST (cobble before porch), distance SECOND.  A spawn
+  // that's on cobble but slightly further from the cell centre is
+  // better than one that's on the porch — the user can always walk
+  // back toward the building.
+  cands.sort((a, b) => (a.y - b.y) || (a.dist - b.dist));
+  let chosen;
+  if(cands.length){
+    chosen = { x: cands[0].x, z: cands[0].z, y: cands[0].y };
+  } else {
+    // No walkable spawn — last resort: push to cell centre + south.
+    // Avatar may be frozen but at least lands at the right section.
+    const fy = (typeof sampleHeight === 'function') ? sampleHeight(cx, cz + 4) : 0;
+    chosen = { x: cx, z: cz + 4, y: isFinite(fy) ? fy : 0 };
+    console.warn(`niwa[teleport]: no walkable spawn near ${id} (cell ${cx}, ${cz})`);
   }
+  avatar.position.set(chosen.x, chosen.y, chosen.z);
   // D3: facing preserved — DO NOT touch avatar.quaternion / rotation here.
   if(typeof playerVel !== 'undefined') playerVel.set(0, 0, 0);
   if(typeof verticalVel !== 'undefined') verticalVel = 0;
   if(currentScene){
-    currentScene.spawnPos = { x: chosen.x, y: avatar.position.y, z: chosen.z };
+    currentScene.spawnPos = { x: chosen.x, y: chosen.y, z: chosen.z };
   }
   bridgeCooldownUntil = performance.now() + 1500;
   teleportGraceUntil  = performance.now() + 2000;
@@ -9499,10 +9568,15 @@ function animate(){
       camFwdX = -Math.sin(camYawState);
       camFwdZ = -Math.cos(camYawState);
     }
-    // Camera right = camera forward rotated 90° clockwise (when viewed
-    // from above): (fz, -fx)
-    const camRgtX =  camFwdZ;
-    const camRgtZ = -camFwdX;
+    // Camera right = (forward × world-up) using right-hand rule.
+    // For forward (fx, fz) in XZ plane and up=+Y, the right-vector
+    // in the XZ plane is (-fz, fx). Pressing D moves the avatar in
+    // screen-right direction (Genshin/BotW convention).  Earlier
+    // versions used (fz, -fx) which is the LEFT vector — A/D were
+    // reversed but the tests didn't catch it because they encoded
+    // the same wrong convention.
+    const camRgtX = -camFwdZ;
+    const camRgtZ =  camFwdX;
     const fwdAmt = -mz;    // W → +1 forward; S → −1 back
     const rgtAmt =  mx;    // D → +1 right;   A → −1 left
     desiredVx = (camFwdX * fwdAmt + camRgtX * rgtAmt) * targetSpeed * mag;
@@ -9541,7 +9615,10 @@ function animate(){
   // Slide collision: test X and Z independently so avatar slides along walls
   // Avatar is ~1.4 m tall; treat one realistic stair as ≤ 0.30 m.
   const MAX_STEP_UP = 0.30;
-  const MAX_STEP_DOWN = 1.20;
+  // v656: raised from 1.20 → 3.0 so the avatar can walk OFF building
+  // porches (Y≈2.75) onto cobble (Y≈0).  Climbing UP is still gated by
+  // the strict MAX_STEP_UP=0.30 so rooftops / walls remain unscalable.
+  const MAX_STEP_DOWN = 3.0;
   function blocked(px, pz){
     const pb = currentScene && currentScene.playableBounds;
     if(pb){
