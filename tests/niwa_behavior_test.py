@@ -132,7 +132,8 @@ def main():
             page.evaluate(f"() => window.__niwa._setCamYaw({cam_yaw})")
             page.wait_for_timeout(150)
             fwd_x, fwd_z = -math.sin(cam_yaw), -math.cos(cam_yaw)
-            rgt_x, rgt_z = fwd_z, -fwd_x
+            # Camera right = (-fz, fx) — Genshin/BotW screen-right convention.
+            rgt_x, rgt_z = -fwd_z, fwd_x
             for key, (ex_x, ex_z) in (
                     ('w', (fwd_x, fwd_z)),
                     ('s', (-fwd_x, -fwd_z)),
@@ -156,7 +157,8 @@ def main():
             page.evaluate(f"() => window.__niwa._setFirstPerson(true, {fp_yaw})")
             page.wait_for_timeout(150)
             fwd_x, fwd_z = math.sin(fp_yaw), math.cos(fp_yaw)
-            rgt_x, rgt_z = fwd_z, -fwd_x
+            # Camera right = (-fz, fx) — Genshin/BotW screen-right convention.
+            rgt_x, rgt_z = -fwd_z, fwd_x
             for key, (ex_x, ex_z) in (
                     ('w', (fwd_x, fwd_z)),
                     ('s', (-fwd_x, -fwd_z)),
@@ -188,22 +190,26 @@ def main():
         # Poll for up to 45 s — the build() async waits for prefab to
         # land before firing teleport.
         # oto cell at (0, -20); inward toward plaza = (0, +1); expect z=-16
+        # v656: new spawn picker uses polar grid; avatar lands within 10m
+        # of cell centre (was 5m).  Looser tolerance reflects the spawn
+        # priority — walkability over exact position.
         deadline = time.time() + 45
         p1 = None
+        oto_cx, oto_cz = 0.0, -20.0
         while time.time() < deadline:
             p1 = page.evaluate(
                 "() => ({x: window.__niwa.avatar.position.x, "
                 "y: window.__niwa.avatar.position.y, "
                 "z: window.__niwa.avatar.position.z, "
                 "scene: window.__niwa.currentScene.name})")
-            if math.hypot(p1['x'], p1['z'] - (-16)) < 5.0:
+            if math.hypot(p1['x'] - oto_cx, p1['z'] - oto_cz) < 10.0:
                 break
             page.wait_for_timeout(800)
-        ok = (math.hypot(p1['x'], p1['z'] - (-16)) < 5.0
+        ok = (math.hypot(p1['x'] - oto_cx, p1['z'] - oto_cz) < 10.0
               and p1['scene'] == 'island')
         expect('T1 #oto initial teleport', ok,
                f"pos=({p1['x']:+.2f}, {p1['y']:.2f}, {p1['z']:+.2f}) "
-               f"scene={p1['scene']} want (~0, ?, ~-16, island)")
+               f"scene={p1['scene']} want within 10m of (0, -20, island)")
         # Dump hash-related console messages either way for diagnosis
         for m in t1_msgs:
             if 'hash' in m.lower() or 'pending' in m.lower():
@@ -230,19 +236,13 @@ def main():
                 "y: window.__niwa.avatar.position.y, "
                 "z: window.__niwa.avatar.position.z})")
             cx, cz = dx * ISLAND_SEP, dz * ISLAND_SEP
-            length = math.hypot(cx, cz)
-            if length > 0.01:
-                ix, iz = -cx / length, -cz / length
-                ex_x = cx + ix * 4
-                ex_z = cz + iz * 4
-            else:
-                ex_x, ex_z = 0.0, 4.0
-            # Tolerance covers the perpendicular spawn variants + Y-sort
-            # picking a different radius (3-5m).
-            pos_ok = (math.hypot(p2['x'] - ex_x, p2['z'] - ex_z) < 5.0)
+            # v656: spawn anywhere within 10m of cell centre (was strict
+            # inward 4m).  The picker now optimises for walkability, so
+            # position can fall on any cardinal of the building.
+            pos_ok = (math.hypot(p2['x'] - cx, p2['z'] - cz) < 10.0)
             expect(f'T2 tab #{name} pos', pos_ok,
                    f"got=({p2['x']:+.2f}, {p2['y']:.2f}, {p2['z']:+.2f}) "
-                   f"want (~{ex_x:.1f}, ?, ~{ex_z:.1f})")
+                   f"want within 10m of ({cx:.0f}, ?, {cz:.0f})")
             # Walk test: avatar should be able to move ≥0.5m in some
             # direction.  Try W at 4 yaws (0, π/2, π, -π/2) — pass if any
             # produces > 0.5m.  This matches the user's "can move after
@@ -262,22 +262,12 @@ def main():
                     best = m
                 if best > 0.5:
                     break
-            # T2 walk-after is gated on the cobble-disc geometry of each
-            # building prefab.  Currently only plaza has a wide enough
-            # walkable disc; the other 8 buildings have porches / raised
-            # walkways that block movement.  Resolution depends on Task
-            # 13 (re-extracted prefabs with normalized cobble Y) — see
-            # docs/superpowers/specs/2026-05-31-niwa-controls-refactor-design.md.
-            # Until then we only soft-check (warn-not-fail) for the 8 buildings.
-            if name == 'plaza':
-                expect(f'T2 walk after #{name}', best > 0.5,
-                       f'best move {best:.2f}m across 4 yaws')
-            else:
-                ok = best > 0.5
-                mark = '✓' if ok else '~'
-                print(f'  {mark} T2 walk after #{name} (soft): '
-                      f'best move {best:.2f}m across 4 yaws '
-                      f'(blocked by porch geometry pending Task 13)')
+            # v656: walk-after is now a HARD requirement.  The new spawn
+            # picker verifies cobble Y consistency at 4 cardinals before
+            # accepting a candidate, so every section's spawn should be
+            # walkable in at least one direction.
+            expect(f'T2 walk after #{name}', best > 0.5,
+                   f'best move {best:.2f}m across 4 yaws')
             page.evaluate("() => window.__niwa._setFirstPerson(false)")
 
         # ===== T3: facing preserved across teleport =====
