@@ -6251,13 +6251,13 @@ function buildScene(name){
         o.userData.isGroundMesh = true;
       }
       if(_box.min.y < -0.3) return;   // belt-and-braces: skip underside meshes
-      // v641b: even tighter filter. KB3D scenes were registering small
-      // benches / signposts / interior walls as solid obstacles, which
-      // chopped each playable disc into disconnected pockets (the
-      // reachability flood-fill saw 19-65 % reach despite 4-dir passing).
-      // Only register ACTUAL pillars: dy > 1.5 (tall) AND footprint
-      // < 6 m² AND each side < 3 m (lampposts, statues, pillars).
-      if(dy > 1.5 && (dx * dz) > 0.3 && (dx * dz) < 6 && dx < 3 && dz < 3){
+      // v657: loosened filter so building walls / roofs / facades become
+      // colliders too.  Skips named ground meshes.  Caps at 14m max
+      // side and 8m min side so the floating-base / cobble disc don't
+      // register as one giant obstacle.
+      const _nm = (o.name || '').toLowerCase();
+      const _isNamedGround = /ground|floor|cobble|paving|path|terrain|street|plaza/.test(_nm);
+      if(!_isNamedGround && dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) < 14){
         ENTITIES.boxObstacles.push({
           minX: _box.min.x, maxX: _box.max.x,
           minZ: _box.min.z, maxZ: _box.max.z,
@@ -7606,6 +7606,25 @@ async function _streamRemainingIslandPrefabs(root){
     m.position.set(x + offset, 0, z + offset);
     m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     root.add(m);
+    // v657: register multi-AABB building collision for streamed prefab
+    // (mirrors buildScene's per-mesh scan).  Without this, the avatar
+    // could walk through any non-plaza building.
+    const _sbox = new THREE.Box3();
+    m.traverse(o => {
+      if(!o.isMesh) return;
+      const nm = (o.name || '').toLowerCase();
+      if(/ground|floor|cobble|paving|path|terrain|street|plaza/.test(nm)) return;
+      _sbox.setFromObject(o);
+      const dx = _sbox.max.x - _sbox.min.x;
+      const dy = _sbox.max.y - _sbox.min.y;
+      const dz = _sbox.max.z - _sbox.min.z;
+      if(dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) < 14){
+        ENTITIES.boxObstacles.push({
+          minX: _sbox.min.x, maxX: _sbox.max.x,
+          minZ: _sbox.min.z, maxZ: _sbox.max.z,
+        });
+      }
+    });
     _islandStreamedCount++;
     console.log(`niwa[island]: streamed ${name}`);
   }
