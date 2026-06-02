@@ -7512,6 +7512,24 @@ SCENES.island = {
     // sits at world y = 0 just like the other prefabs.  No more
     // -5.46 displacement.
     placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
+    // v657: invisible ground-fill plane at Y=0 covering the entire
+    // island disc (±35m).  sampleHeight's "lowest tagged ground" rule
+    // picks the actual cobble/porch above Y=0 where they exist, and
+    // falls through to this plane only over true voids.  Eliminates
+    // walk-over-void bugs once sky-miss is set to strict-block.
+    const _gf = new THREE.Mesh(
+      new THREE.PlaneGeometry(70, 70, 1, 1),
+      new THREE.MeshStandardMaterial({
+        color: 0x1a2a18, roughness: 1.0, metalness: 0,
+        transparent: true, opacity: 0.0, side: THREE.DoubleSide,
+      })
+    );
+    _gf.rotation.x = -Math.PI * 0.5;
+    _gf.position.y = 0;
+    _gf.userData.isGroundFill = true;
+    _gf.userData.isWalkSurface = true;
+    _gf.receiveShadow = false;
+    root.add(_gf);
     // v650: full panorama atmosphere — cloud sea + distant islets +
     // deep ocean + waterfalls cascading off the disc edges.  Heavy bits
     // (clouds, waterfalls) use InstancedMesh so they cost ~3 draw calls.
