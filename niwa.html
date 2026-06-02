@@ -8669,6 +8669,17 @@ function addPortalForScene(name){
   portal.userData.cfg = { x, z, radius: cfg.radius, label: cfg.label };
   currentScene.root.add(portal);
   currentPortal = portal;
+  // v657: register the portal as an interactable so the new HUD shows
+  // an E-prompt; activating calls the existing enterBuilding flow which
+  // routes to switchScene(<name>_int) if defined, otherwise the modal.
+  ENTITIES.interactables.push({
+    x, z, r: Math.max(1.2, cfg.radius || 1.2),
+    label: 'E: ' + (cfg.label || '中に入る'),
+    onActivate: () => {
+      const baseName = (currentScene && currentScene.name || '').replace(/_int$/, '');
+      enterBuilding(baseName);
+    },
+  });
 }
 
 function showPortalPrompt(label){
