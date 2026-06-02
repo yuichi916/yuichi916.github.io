@@ -7847,6 +7847,49 @@ function _tabClick(id){
   }
   switchScene(id);
 }
+
+// v657: Space key handler — detect ledge in front and either vault or jump.
+function tryClimbOrJump(){
+  if(climbActive) return;
+  if(typeof verticalVel === 'number' && Math.abs(verticalVel) > 0.5) return; // mid-air
+  // Forward direction from camera basis
+  let fwdX, fwdZ;
+  if(typeof firstPerson !== 'undefined' && firstPerson){
+    fwdX =  Math.sin(fpYaw);
+    fwdZ =  Math.cos(fpYaw);
+  } else {
+    fwdX = -Math.sin(camYawState);
+    fwdZ = -Math.cos(camYawState);
+  }
+  const probeX = avatar.position.x + fwdX * 0.6;
+  const probeZ = avatar.position.z + fwdZ * 0.6;
+  const groundY = (typeof sampleHeight === 'function') ? sampleHeight(probeX, probeZ) : NaN;
+  const ledgeUp = isFinite(groundY) ? groundY - avatar.position.y : -1;
+  if(ledgeUp > 0.3 && ledgeUp <= 2.5){
+    // Vault — but only if landing spot is clear of obstacles
+    const AVR = (typeof AV_RADIUS !== 'undefined') ? AV_RADIUS : 0.35;
+    let blocked = false;
+    for(const b of (ENTITIES.boxObstacles || [])){
+      if(probeX > b.minX - AVR && probeX < b.maxX + AVR &&
+         probeZ > b.minZ - AVR && probeZ < b.maxZ + AVR){ blocked = true; break; }
+    }
+    if(!blocked){
+      climbActive = true;
+      climbStart = performance.now();
+      climbFromX = avatar.position.x;
+      climbFromY = avatar.position.y;
+      climbFromZ = avatar.position.z;
+      climbToX = probeX;
+      climbToY = groundY + 0.05;
+      climbToZ = probeZ;
+      playerVel.set(0, 0, 0);
+      verticalVel = 0;
+      return;
+    }
+  }
+  // Plain jump
+  verticalVel = 5.0;
+}
 for(const t of TAB_DEFS){
   const b = document.createElement('button');
   b.className = 'scene-tab';
@@ -9069,6 +9112,14 @@ const camFollow = new THREE.Vector3();
 let camInit = false;
 const playerVel = new THREE.Vector3();   // velocity for damped movement
 let verticalVel = 0;                      // v623: gravity / falling velocity (m/s)
+// v657: climb-vault state — Space triggers either jump (flat ground)
+// or vault (ledge ≤ 2.5m detected forward).  Vault is a 0.35s easing
+// tween from (fromX,Y,Z) to (toX,Y,Z) with a small arc apex.
+let climbActive = false;
+let climbStart = 0;
+const CLIMB_DURATION = 0.35;
+let climbFromX = 0, climbFromY = 0, climbFromZ = 0;
+let climbToX = 0, climbToY = 0, climbToZ = 0;
 // v653: scratch vectors for avatar-relative WASD (quaternion-rotated forward / right)
 const _avFwdW = new THREE.Vector3();
 const _avRgtW = new THREE.Vector3();
@@ -9091,7 +9142,19 @@ window.addEventListener('keydown', e=>{
   if(e.code==='KeyD' || e.key==='ArrowRight') keys.d = true;
   if(e.key==='Shift') keys.shift = true;
   if(e.key==='Escape') closeModal();
-  if(e.code==='KeyE') openSceneModal();
+  // v657: E activates a nearby interactable if present, falls back to scene modal.
+  if(e.code==='KeyE' && !e.repeat){
+    if(window._currentInteract && window._currentInteract.onActivate){
+      window._currentInteract.onActivate();
+    } else {
+      openSceneModal();
+    }
+  }
+  // v657: Space triggers climb-vault or plain jump.
+  if(e.code==='Space' && !e.repeat){
+    e.preventDefault();
+    if(typeof tryClimbOrJump === 'function') tryClimbOrJump();
+  }
   if(_ARROW_KEYS.has(e.key)) e.preventDefault();
 }, { passive: false });
 window.addEventListener('keyup', e=>{
@@ -9531,6 +9594,17 @@ function animate(){
   // v655: deferred PMREM rebuild so setSun doesn't stall the frame.
   if(_pmremDirty) regenerateEnvironment();
 
+  // v657: climb-vault tween — runs BEFORE the movement controller and
+  // blocks playerVel writes while active.
+  if(climbActive){
+    const ct = Math.min(1, (performance.now() - climbStart) / (CLIMB_DURATION * 1000));
+    const e = ct * ct * (3 - 2 * ct);
+    avatar.position.x = climbFromX + (climbToX - climbFromX) * e;
+    avatar.position.y = climbFromY + (climbToY - climbFromY) * e + Math.sin(ct * Math.PI) * 0.2;
+    avatar.position.z = climbFromZ + (climbToZ - climbFromZ) * e;
+    if(ct >= 1){ climbActive = false; verticalVel = 0; }
+  }
+
   // v626: high cloud ring + low wisps drift around the camera via
   // InstancedMesh — single setMatrixAt sweep per cloud layer per frame
   // (was 32+ setattribute calls in v625).
@@ -9643,12 +9717,16 @@ function animate(){
   } else {
     lastTargetDist = Infinity; stuckTime = 0;
   }
-  // Frame-rate-independent damp toward desired velocity
+  // Frame-rate-independent damp toward desired velocity.  v657: skip
+  // playerVel writes while a climb-vault is tweening avatar.position
+  // directly — otherwise the damp competes with the tween.
   const dampRate = (desiredVx || desiredVz) ? ACCEL : DECEL;
-  playerVel.x = THREE.MathUtils.damp(playerVel.x, desiredVx, dampRate, dt);
-  playerVel.z = THREE.MathUtils.damp(playerVel.z, desiredVz, dampRate, dt);
-  const stepX = playerVel.x * dt;
-  const stepZ = playerVel.z * dt;
+  if(!climbActive){
+    playerVel.x = THREE.MathUtils.damp(playerVel.x, desiredVx, dampRate, dt);
+    playerVel.z = THREE.MathUtils.damp(playerVel.z, desiredVz, dampRate, dt);
+  }
+  const stepX = climbActive ? 0 : playerVel.x * dt;
+  const stepZ = climbActive ? 0 : playerVel.z * dt;
   // Slide collision: test X and Z independently so avatar slides along walls
   // Avatar is ~1.4 m tall; treat one realistic stair as ≤ 0.30 m.
   const MAX_STEP_UP = 0.30;
