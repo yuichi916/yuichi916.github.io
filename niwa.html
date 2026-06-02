@@ -237,6 +237,19 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   .scene-tab .num{display:none}
   .hint{bottom:108px;font-size:9px;letter-spacing:.16em}
 }
+/* v657: interactable prompt HUD */
+#interact-hud{
+  position:fixed; bottom:96px; left:50%; transform:translateX(-50%);
+  padding:10px 18px;
+  background:rgba(14,26,38,0.88);
+  color:#e8dcb8; border:1px solid #c89848;
+  font:14px/1.2 'JetBrains Mono', monospace; letter-spacing:0.06em;
+  border-radius:6px; opacity:0;
+  transition:opacity 0.15s;
+  pointer-events:none; z-index:50;
+}
+#interact-hud.visible{ opacity:1; }
+@keyframes warmth-fade{ 0%{opacity:0;} 20%{opacity:1;} 100%{opacity:0;} }
 </style>
 </head>
 <body>
@@ -318,6 +331,9 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 </div>
 
 <nav class="scene-tabs" id="scene-tabs"></nav>
+
+<!-- v657: interactable prompt HUD — shows nearest interactable label when in range -->
+<div id="interact-hud"></div>
 
 <!-- Photoreal Gaussian-Splat backdrop URL input — paste your .ksplat URL for this scene -->
 <div id="splat-panel" style="position:fixed;right:18px;bottom:74px;z-index:11;background:rgba(14,26,38,.78);backdrop-filter:blur(6px);border:1px solid rgba(232,220,184,.3);padding:9px 10px;display:flex;gap:6px;flex-direction:column;max-width:300px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--paper-2)">
@@ -6005,7 +6021,10 @@ const SCENES = {};
 const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], lampLights: [], boats: [], hourhands: [], minhands: [], bobs: [], spins: [], mills: [], flags: [], obstacles: [], butterflies: [], koiSwim: [],
                    // v628b: per-frame animation refs (populated by procedural helpers,
                    // reset on every scene swap). Avoids root.traverse() per frame.
-                   _anim: { campfires: [], waterMats: [], smokes: [] } };
+                   _anim: { campfires: [], waterMats: [], smokes: [] },
+                   // v657: interactables — each {x, z, r, label, onActivate}.
+                   // Reset on every scene swap; per-scene build() pushes.
+                   interactables: [] };
 // helper for scenes to register collision obstacles (x,z,r)
 function addObstacle(x, z, r){ ENTITIES.obstacles.push({x, z, r}); }
 function clearScene(){
@@ -6184,6 +6203,10 @@ function buildScene(name){
   ENTITIES.obstacles.length = 0;
   ENTITIES.boxObstacles = ENTITIES.boxObstacles || [];
   ENTITIES.boxObstacles.length = 0;
+  // v657: clear interactables on every scene swap so stale per-scene
+  // entries don't survive into the next scene.
+  ENTITIES.interactables = [];
+  window._currentInteract = null;
   const prefabCache = BLENDER_CACHE['enc_prefab_' + name];
   if(prefabCache && prefabCache.userData && prefabCache.userData.bbox){
     const bb = prefabCache.userData.bbox;
@@ -9806,6 +9829,27 @@ function animate(){
     avatar.rotation.y = cur + diff * Math.min(1, dt * 14);
   }
   moving = Math.hypot(playerVel.x, playerVel.z) > 0.3;
+
+  // v657: interactable proximity — find nearest in-range entry and
+  // drive the HUD prompt.  Stashes on window for the keydown handler.
+  {
+    let _nearestIt = null, _nearestDist = Infinity;
+    for(const it of (ENTITIES.interactables || [])){
+      const d = Math.hypot(it.x - avatar.position.x, it.z - avatar.position.z);
+      if(d < it.r && d < _nearestDist){ _nearestIt = it; _nearestDist = d; }
+    }
+    const _hud = document.getElementById('interact-hud');
+    if(_hud){
+      if(_nearestIt){
+        if(_hud.textContent !== _nearestIt.label) _hud.textContent = _nearestIt.label;
+        _hud.classList.add('visible');
+      } else {
+        _hud.classList.remove('visible');
+      }
+    }
+    window._currentInteract = _nearestIt;
+  }
+
   // === v623: Proper gravity simulation ====================================
   // Two distinct vertical regimes:
   //   (a) Ground or slope (target ≥ current — 1 cm tolerance):
