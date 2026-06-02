@@ -9670,10 +9670,13 @@ function animate(){
     if(isFinite(nextY)){
       if(nextY - curY > maxUp) return true;
       if(curY - nextY > maxDown) return true;
+    } else {
+      // v657: sky-miss is STRICT — the island has a ground-fill plane
+      // at Y=0 so any non-finite raycast means the avatar stepped off
+      // the world edge.  Other scenes have their own cobble baseline
+      // so this is safe globally.
+      return true;
     }
-    // Sky-miss (NaN / non-finite): keep legacy permissive behaviour
-    // so scenes that rely on the avatar walking over raycast voids
-    // (distant water, prefab seams) don't regress.
     return false;
   }
   const tryX = avatar.position.x + stepX;
