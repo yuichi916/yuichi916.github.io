@@ -7614,6 +7614,7 @@ SCENES.island = {
       new THREE.MeshStandardMaterial({
         color: 0x1a2a18, roughness: 1.0, metalness: 0,
         transparent: true, opacity: 0.0, side: THREE.DoubleSide,
+        depthWrite: false,
       })
     );
     _gf.rotation.x = -Math.PI * 0.5;
@@ -7698,19 +7699,25 @@ async function _streamRemainingIslandPrefabs(root){
     m.position.set(x + offset, 0, z + offset);
     m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     root.add(m);
-    // v657: register multi-AABB building collision for streamed prefab.
-    // Mirrors buildScene's per-mesh scan with the same exclusion rules
-    // so cobble / floor / floating-base meshes don't become walls.
+    // v657: classify streamed-prefab meshes — tag ground-like ones as
+    // isGroundMesh so sampleHeight's "lowest tagged" rule picks them
+    // (else the ground-fill at Y=0 always wins and avatar can't stand
+    // on un-normalised prefab cobble), and register tall non-ground
+    // meshes as collision AABBs.
     const _sbox = new THREE.Box3();
     m.traverse(o => {
       if(!o.isMesh) return;
-      const nm = (o.name || '').toLowerCase();
-      if(/ground|floor|cobble|paving|path|terrain|street|plaza/.test(nm)) return;
-      if(o.userData && o.userData.isGroundMesh) return;
       _sbox.setFromObject(o);
       const dx = _sbox.max.x - _sbox.min.x;
       const dy = _sbox.max.y - _sbox.min.y;
       const dz = _sbox.max.z - _sbox.min.z;
+      // Tag thin wide meshes as ground (mirrors buildScene's v642d
+      // cobble classifier).
+      if(dy < 0.8 && dx * dz > 4) o.userData.isGroundMesh = true;
+      // Skip ground meshes for collision
+      const nm = (o.name || '').toLowerCase();
+      if(/ground|floor|cobble|paving|path|terrain|street|plaza/.test(nm)) return;
+      if(o.userData && o.userData.isGroundMesh) return;
       if(dy > 1.8 && Math.min(dx, dz) < 6 && Math.max(dx, dz) < 12){
         ENTITIES.boxObstacles.push({
           minX: _sbox.min.x, maxX: _sbox.max.x,
@@ -9958,13 +9965,22 @@ function animate(){
   const GRAVITY = 9.8;
   const targetY = sampleHeight(avatar.position.x, avatar.position.z);
   const heightDiff = targetY - avatar.position.y;
+  // v657: skip the entire gravity block while a climb-vault tween is
+  // active — the tween drives avatar.position.y directly and shouldn't
+  // be fought by the per-frame ground snap / gravity decel.  Without
+  // this guard the tween's sin-arc apex triggered heightDiff < -0.02
+  // (avatar above ground), which kicked the gravity branch and yanked
+  // Y back down mid-arc.
+  if(climbActive){
+    // no-op — tween owns Y this frame
+  }
   // v635: if the sample reports ground HIGHER than a single step
   // (MAX_STEP_UP = 0.30 m), DON'T auto-climb. Otherwise the avatar
   // slowly drifts UP onto invisible walls / accent rooftops if any
   // raycast still leaks through the skipRaycast filter. The avatar
   // can still walk up by EXPLICITLY moving onto a real ramp where
   // each XZ step gives a < MAX_STEP_UP delta.
-  if(heightDiff > 0.02 && heightDiff <= 0.30){
+  else if(heightDiff > 0.02 && heightDiff <= 0.30){
     // Climbing a slope / small step — damp smoothly up
     const lifted = THREE.MathUtils.damp(avatar.position.y, targetY, 11, dt);
     const dy = Math.min(AV_HEIGHT * dt, lifted - avatar.position.y);
