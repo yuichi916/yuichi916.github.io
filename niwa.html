@@ -6174,6 +6174,13 @@ function buildScene(name){
     }
   }
 
+  // v657: reset interactables BEFORE def.build so per-scene pushes
+  // inside SCENES[name].build() survive (the legacy obstacle reset
+  // below is post-build because it pairs with the per-mesh AABB
+  // scan which needs the prefab in place).
+  ENTITIES.interactables = [];
+  window._currentInteract = null;
+
   // Build geometry — the prefab provides its own ground + buildings.
   // No procedural fallback disc: user wants "prefab だけの世界".
   def.build(root);
@@ -6204,10 +6211,7 @@ function buildScene(name){
   ENTITIES.obstacles.length = 0;
   ENTITIES.boxObstacles = ENTITIES.boxObstacles || [];
   ENTITIES.boxObstacles.length = 0;
-  // v657: clear interactables on every scene swap so stale per-scene
-  // entries don't survive into the next scene.
-  ENTITIES.interactables = [];
-  window._currentInteract = null;
+  // v657: interactables already reset before def.build (above)
   const prefabCache = BLENDER_CACHE['enc_prefab_' + name];
   if(prefabCache && prefabCache.userData && prefabCache.userData.bbox){
     const bb = prefabCache.userData.bbox;
@@ -6276,12 +6280,14 @@ function buildScene(name){
       }
       if(_box.min.y < -0.3) return;   // belt-and-braces: skip underside meshes
       // v657: loosened filter so building walls / roofs / facades become
-      // colliders too.  Skips named ground meshes.  Caps at 14m max
-      // side and 8m min side so the floating-base / cobble disc don't
-      // register as one giant obstacle.
+      // colliders too.  Skips named ground meshes AND meshes tagged by
+      // the cobble classifier above.  Caps at 12m max side / 6m min
+      // side so cobble discs and floating bases don't register.
       const _nm = (o.name || '').toLowerCase();
       const _isNamedGround = /ground|floor|cobble|paving|path|terrain|street|plaza/.test(_nm);
-      if(!_isNamedGround && dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) < 14){
+      const _isTaggedGround = !!(o.userData && o.userData.isGroundMesh);
+      if(!_isNamedGround && !_isTaggedGround &&
+         dy > 1.8 && Math.min(dx, dz) < 6 && Math.max(dx, dz) < 12){
         ENTITIES.boxObstacles.push({
           minX: _box.min.x, maxX: _box.max.x,
           minZ: _box.min.z, maxZ: _box.max.z,
@@ -7692,19 +7698,20 @@ async function _streamRemainingIslandPrefabs(root){
     m.position.set(x + offset, 0, z + offset);
     m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     root.add(m);
-    // v657: register multi-AABB building collision for streamed prefab
-    // (mirrors buildScene's per-mesh scan).  Without this, the avatar
-    // could walk through any non-plaza building.
+    // v657: register multi-AABB building collision for streamed prefab.
+    // Mirrors buildScene's per-mesh scan with the same exclusion rules
+    // so cobble / floor / floating-base meshes don't become walls.
     const _sbox = new THREE.Box3();
     m.traverse(o => {
       if(!o.isMesh) return;
       const nm = (o.name || '').toLowerCase();
       if(/ground|floor|cobble|paving|path|terrain|street|plaza/.test(nm)) return;
+      if(o.userData && o.userData.isGroundMesh) return;
       _sbox.setFromObject(o);
       const dx = _sbox.max.x - _sbox.min.x;
       const dy = _sbox.max.y - _sbox.min.y;
       const dz = _sbox.max.z - _sbox.min.z;
-      if(dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) < 14){
+      if(dy > 1.8 && Math.min(dx, dz) < 6 && Math.max(dx, dz) < 12){
         ENTITIES.boxObstacles.push({
           minX: _sbox.min.x, maxX: _sbox.max.x,
           minZ: _sbox.min.z, maxZ: _sbox.max.z,
@@ -9973,6 +9980,13 @@ function animate(){
     const ny = avatar.position.y + verticalVel * dt;
     if(ny <= targetY){ avatar.position.y = targetY; verticalVel = 0; }
     else { avatar.position.y = ny; }
+  } else if(verticalVel > 0.1){
+    // v657: jump in progress — DON'T snap to ground.  Let gravity
+    // decelerate the upward velocity naturally.  Without this branch
+    // the Space jump (verticalVel = 5.0) was zeroed on the next frame
+    // because heightDiff was ≈ 0 (avatar still on the ground).
+    verticalVel = Math.max(-18, verticalVel - GRAVITY * dt);
+    avatar.position.y += verticalVel * dt;
   } else {
     avatar.position.y = targetY;
     verticalVel = 0;

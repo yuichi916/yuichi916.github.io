@@ -67,16 +67,17 @@ def wait_for_streamed(page, n, timeout_s=240):
 
 
 def reset_pos(page):
-    # Snap Y to the actual cobble surface — important when the prefab
-    # cobble has been re-extracted with a different Y baseline (legacy
-    # plaza was at world Y=5.46; v636-normalised plaza at Y=0).  Setting
-    # Y=0 unconditionally would land the avatar below the cobble and
-    # every step trips MAX_STEP_UP.
+    # Teleport to plaza, then nudge 4m further south so the fountain
+    # (now a real obstacle per multi-AABB) is well clear of every
+    # cardinal direction.  Re-snap Y after the nudge.
     page.evaluate("""() => {
       const N = window.__niwa;
-      const gy = N._sampleHeight(0, 0);
-      const y = (isFinite(gy) && gy < 30) ? gy : 0;
-      N.avatar.position.set(0, y, 0);
+      N._teleportToIslandSection('plaza');
+      const px = N.avatar.position.x;
+      const pz = N.avatar.position.z + 6;
+      const gy = N._sampleHeight(px, pz);
+      const y = (isFinite(gy) && gy < 30) ? gy : N.avatar.position.y;
+      N.avatar.position.set(px, y, pz);
       N.playerVel.set(0, 0, 0); N.setVerticalVel(0);
       N.keys.w = N.keys.a = N.keys.s = N.keys.d = false;
     }""")
@@ -374,6 +375,70 @@ def main():
             expect(f'V2 fpYaw={fp:+.2f} W', ok,
                    f'Δ=({dx:+.2f},{dz:+.2f}) moved={moved:.2f} dot={dot:+.2f}')
         page.evaluate("() => window.__niwa._setFirstPerson(false)")
+
+        # ===== G1: ground-fill prevents sky-miss =====
+        print('\n[G1] ground-fill prevents sky-miss')
+        non_finite = 0
+        sampled = 0
+        for tx in (-30, -20, -10, 0, 10, 20, 30):
+            for tz in (-30, -20, -10, 0, 10, 20, 30):
+                y = page.evaluate(f"() => window.__niwa._sampleHeight({tx}, {tz})")
+                sampled += 1
+                if not (isinstance(y, (int, float)) and abs(y) < 30):
+                    non_finite += 1
+        expect('G1 ground-fill (no sky-miss in 7x7 grid)',
+               non_finite == 0,
+               f'{non_finite}/{sampled} non-finite samples')
+
+        # ===== G3: Space jumps from flat ground =====
+        print('\n[G3] Space jumps from flat ground')
+        page.evaluate("() => window.__niwa._tabClickProgrammatic('plaza')")
+        page.wait_for_timeout(800)
+        page.evaluate("""() => {
+          const N = window.__niwa;
+          const gy = N._sampleHeight(0, 4);
+          const y = (isFinite(gy) && gy < 30) ? gy : 0;
+          N.avatar.position.set(0, y, 4);
+          N.playerVel.set(0, 0, 0); N.setVerticalVel(0);
+        }""")
+        page.wait_for_timeout(120)
+        y_before = page.evaluate("() => window.__niwa.avatar.position.y")
+        # Dispatch Space keydown directly to ensure the page listener catches it
+        page.evaluate("""() => window.dispatchEvent(new KeyboardEvent('keydown', {code: 'Space', key: ' '}))""")
+        peak = y_before
+        for _ in range(14):
+            page.wait_for_timeout(50)
+            y = page.evaluate("() => window.__niwa.avatar.position.y")
+            if isinstance(y, (int, float)) and y > peak:
+                peak = y
+        lift = peak - y_before
+        expect('G3 Space jump lift > 0.4m', lift > 0.4,
+               f'before={y_before:.2f} peak={peak:.2f} lift={lift:.2f}')
+
+        # ===== G5: Per-section interactables registered after scene swap =====
+        print('\n[G5] interactables registered in plaza scene')
+        page.evaluate("() => window.__niwa.switchScene('plaza')")
+        # Wait up to 90s for plaza scene to fully build (plaza prefab is
+        # ~100MB; may need streaming if not cached)
+        deadline = time.time() + 90
+        labels = []
+        scene_name = None
+        while time.time() < deadline:
+            scene_name = page.evaluate(
+                "() => (window.__niwa.currentScene && window.__niwa.currentScene.name) || null"
+            )
+            labels = page.evaluate(
+                "() => (window.__niwa.ENTITIES.interactables || []).map(i => i.label)"
+            ) or []
+            if scene_name == 'plaza' and len(labels) >= 1:
+                break
+            page.wait_for_timeout(1500)
+        has_well = any(l and '願う' in l for l in labels)
+        expect('G5 plaza scene switch + interactables registered',
+               scene_name == 'plaza' and len(labels) >= 1,
+               f'scene={scene_name}, {len(labels)} entries, labels={labels[:3]}')
+        expect('G5 plaza has well "願う"', has_well,
+               f'labels={labels[:3]}')
 
         b.close()
 
