@@ -353,6 +353,7 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   <button id="zoomOut" aria-label="ズームアウト">−</button>
 </div>
 <button class="mobileBtn" id="mobileEnter" aria-label="入る">E</button>
+<button class="mobileBtn" id="mobileJump" aria-label="ジャンプ" style="bottom:220px;background:rgba(160,200,255,0.7)">⤴</button>
 
 <!-- First-run onboarding -->
 <div class="onboarding" id="onboarding">
@@ -9415,6 +9416,8 @@ if(IS_MOBILE){
   document.getElementById('joy').classList.add('show');
   document.getElementById('zoomBtns').classList.add('show');
   document.getElementById('mobileEnter').classList.add('show');
+  const _mj = document.getElementById('mobileJump');
+  if(_mj) _mj.classList.add('show');
 }
 
 // Virtual joystick (left thumb) — drives keys.w/a/s/d intensity via a vector
@@ -9463,10 +9466,22 @@ document.getElementById('zoomIn').addEventListener('click', ()=>{
 document.getElementById('zoomOut').addEventListener('click', ()=>{
   camZoomTarget = Math.min(CAM_MAX_SIZE, camZoomTarget*1.18);
 });
-// Mobile enter button
+// Mobile enter button — v657: activate interactable if nearby, else
+// fall back to the scene modal (same priority as the desktop E key).
 document.getElementById('mobileEnter').addEventListener('click', ()=>{
-  openSceneModal();
+  if(window._currentInteract && window._currentInteract.onActivate){
+    window._currentInteract.onActivate();
+  } else {
+    openSceneModal();
+  }
 });
+// v657: mobile jump / climb-vault button
+const _btnJumpMobile = document.getElementById('mobileJump');
+if(_btnJumpMobile){
+  _btnJumpMobile.addEventListener('click', () => {
+    if(typeof tryClimbOrJump === 'function') tryClimbOrJump();
+  });
+}
 
 // Audio click feedback (UI sounds via WebAudio)
 let _audioCtxUI = null;
