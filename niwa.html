@@ -6617,6 +6617,19 @@ SCENES.plaza = {
     // v627 core: central fountain — village heart
     root.add(makeStoneFountain(0, 0));
 
+    // v657: well/fountain wishes — E to wish
+    ENTITIES.interactables.push({
+      x: 0, z: 0, r: 1.8,
+      label: 'E: 願う',
+      onActivate: () => {
+        const m = document.createElement('div');
+        m.style.cssText = 'position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);background:rgba(14,26,38,0.94);color:#e8dcb8;border:1px solid #c89848;padding:24px 32px;border-radius:8px;z-index:300;font:16px/1.7 "Shippori Mincho",serif;max-width:380px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.6)';
+        m.innerHTML = '井戸に小さな願いを落とした。<br><br>耳を澄ますと、遠くで誰かが頷いた気がした。';
+        document.body.appendChild(m);
+        m.addEventListener('click', () => m.remove());
+        setTimeout(() => m.remove(), 4500);
+      },
+    });
 
     // v628 lighting: midday village - warm sky, earth ground, gold accent
     // v630 theme: village market + festival banners
@@ -6676,6 +6689,19 @@ SCENES.monlight = {
       const p = makeFallingParticles('star', 120, { range: 32, yMax: 22, yMin: 8, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'static'});
     }
+    // v657: bookshelf reading — E for a verse
+    ENTITIES.interactables.push({
+      x: 0, z: 11.0, r: 1.8,
+      label: 'E: 本を開く',
+      onActivate: () => {
+        const m = document.createElement('div');
+        m.style.cssText = 'position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);background:rgba(14,26,38,0.94);color:#e8dcb8;border:1px solid #c89848;padding:26px 32px;border-radius:8px;z-index:300;font:15px/1.85 "Shippori Mincho",serif;max-width:420px;text-align:left;box-shadow:0 12px 40px rgba(0,0,0,0.6)';
+        m.innerHTML = '〈月光の書架〉<br><br>夜は長く、光は遠い。<br>けれど確かに、ここにある。<br><br>― この本に栞は要らない。<br>　 開いたところが、今のページ。';
+        document.body.appendChild(m);
+        m.addEventListener('click', () => m.remove());
+        setTimeout(() => m.remove(), 9000);
+      },
+    });
     // v627 core: huge moon disc in the sky
     root.add(makeMoon());
 
@@ -6728,6 +6754,28 @@ SCENES.oto = {
     // Story accent props placed OUTSIDE the prefab footprint (front-stage)
     placeENC('enc_hangingpot', -4.5, 0.05, 9.0, 0.85, 0);
     placeENC('enc_lantern', 4.5, 0.05, 9.0, 0.85, 0);
+    // v657: bell at the 祠 — E to ring (440 Hz sine, 2.5s decay)
+    ENTITIES.interactables.push({
+      x: 0, z: 10.5, r: 1.6,
+      label: 'E: 鳴らす',
+      onActivate: () => {
+        try {
+          if(typeof audioCtx !== 'undefined' && audioCtx){
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.frequency.value = 440;
+            o.type = 'sine';
+            g.gain.setValueAtTime(0.001, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.20, audioCtx.currentTime + 0.05);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2.5);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start();
+            o.stop(audioCtx.currentTime + 2.6);
+          }
+        } catch(_){}
+      },
+    });
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('leaf', 80, { range: 28, yMax: 12, yMin: 0, fallSpeed: 0.35, swayAmp: 0.55, swayFreq: 0.8 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
@@ -6957,6 +7005,17 @@ SCENES.takibi = {
     // v657: Soul Smoker — KB3D Enchanted Interiors prop, south-east of
     // the firepit at angle to face avatar spawn.
     placeENC('enc_int_soul_smoker', 4.5, 0.05, 7.5, 0.9, 30);
+    // v657: warmth interactable at firepit centre — E for a warm tint.
+    ENTITIES.interactables.push({
+      x: 0, z: 0, r: 2.5,
+      label: 'E: 暖を取る',
+      onActivate: () => {
+        const tint = document.createElement('div');
+        tint.style.cssText = 'position:fixed;inset:0;background:radial-gradient(ellipse at center, rgba(255,140,60,0) 30%, rgba(255,80,30,0.32) 100%);pointer-events:none;z-index:50;animation:warmth-fade 4s forwards';
+        document.body.appendChild(tint);
+        setTimeout(() => tint.remove(), 4500);
+      },
+    });
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('ember', 90, { range: 18, yMax: 8, yMin: 0, fallSpeed: -0.45, swayAmp: 0.25, swayFreq: 1.5 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'rise'});
