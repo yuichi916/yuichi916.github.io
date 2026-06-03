@@ -237,6 +237,19 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   .scene-tab .num{display:none}
   .hint{bottom:108px;font-size:9px;letter-spacing:.16em}
 }
+/* v657: interactable prompt HUD */
+#interact-hud{
+  position:fixed; bottom:96px; left:50%; transform:translateX(-50%);
+  padding:10px 18px;
+  background:rgba(14,26,38,0.88);
+  color:#e8dcb8; border:1px solid #c89848;
+  font:14px/1.2 'JetBrains Mono', monospace; letter-spacing:0.06em;
+  border-radius:6px; opacity:0;
+  transition:opacity 0.15s;
+  pointer-events:none; z-index:50;
+}
+#interact-hud.visible{ opacity:1; }
+@keyframes warmth-fade{ 0%{opacity:0;} 20%{opacity:1;} 100%{opacity:0;} }
 </style>
 </head>
 <body>
@@ -319,6 +332,9 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 
 <nav class="scene-tabs" id="scene-tabs"></nav>
 
+<!-- v657: interactable prompt HUD — shows nearest interactable label when in range -->
+<div id="interact-hud"></div>
+
 <!-- Photoreal Gaussian-Splat backdrop URL input — paste your .ksplat URL for this scene -->
 <div id="splat-panel" style="position:fixed;right:18px;bottom:74px;z-index:11;background:rgba(14,26,38,.78);backdrop-filter:blur(6px);border:1px solid rgba(232,220,184,.3);padding:9px 10px;display:flex;gap:6px;flex-direction:column;max-width:300px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--paper-2)">
   <div style="font-family:'Shippori Mincho',serif;font-size:11px;letter-spacing:.16em;color:var(--candle)">🛰 SPLAT BACKDROP</div>
@@ -337,6 +353,7 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   <button id="zoomOut" aria-label="ズームアウト">−</button>
 </div>
 <button class="mobileBtn" id="mobileEnter" aria-label="入る">E</button>
+<button class="mobileBtn" id="mobileJump" aria-label="ジャンプ" style="bottom:220px;background:rgba(160,200,255,0.7)">⤴</button>
 
 <!-- First-run onboarding -->
 <div class="onboarding" id="onboarding">
@@ -6005,7 +6022,10 @@ const SCENES = {};
 const ENTITIES = { trees: [], npcs: [], particles: [], flames: [], lamps: [], lampLights: [], boats: [], hourhands: [], minhands: [], bobs: [], spins: [], mills: [], flags: [], obstacles: [], butterflies: [], koiSwim: [],
                    // v628b: per-frame animation refs (populated by procedural helpers,
                    // reset on every scene swap). Avoids root.traverse() per frame.
-                   _anim: { campfires: [], waterMats: [], smokes: [] } };
+                   _anim: { campfires: [], waterMats: [], smokes: [] },
+                   // v657: interactables — each {x, z, r, label, onActivate}.
+                   // Reset on every scene swap; per-scene build() pushes.
+                   interactables: [] };
 // helper for scenes to register collision obstacles (x,z,r)
 function addObstacle(x, z, r){ ENTITIES.obstacles.push({x, z, r}); }
 function clearScene(){
@@ -6154,6 +6174,13 @@ function buildScene(name){
     }
   }
 
+  // v657: reset interactables BEFORE def.build so per-scene pushes
+  // inside SCENES[name].build() survive (the legacy obstacle reset
+  // below is post-build because it pairs with the per-mesh AABB
+  // scan which needs the prefab in place).
+  ENTITIES.interactables = [];
+  window._currentInteract = null;
+
   // Build geometry — the prefab provides its own ground + buildings.
   // No procedural fallback disc: user wants "prefab だけの世界".
   def.build(root);
@@ -6184,6 +6211,7 @@ function buildScene(name){
   ENTITIES.obstacles.length = 0;
   ENTITIES.boxObstacles = ENTITIES.boxObstacles || [];
   ENTITIES.boxObstacles.length = 0;
+  // v657: interactables already reset before def.build (above)
   const prefabCache = BLENDER_CACHE['enc_prefab_' + name];
   if(prefabCache && prefabCache.userData && prefabCache.userData.bbox){
     const bb = prefabCache.userData.bbox;
@@ -6251,13 +6279,15 @@ function buildScene(name){
         o.userData.isGroundMesh = true;
       }
       if(_box.min.y < -0.3) return;   // belt-and-braces: skip underside meshes
-      // v641b: even tighter filter. KB3D scenes were registering small
-      // benches / signposts / interior walls as solid obstacles, which
-      // chopped each playable disc into disconnected pockets (the
-      // reachability flood-fill saw 19-65 % reach despite 4-dir passing).
-      // Only register ACTUAL pillars: dy > 1.5 (tall) AND footprint
-      // < 6 m² AND each side < 3 m (lampposts, statues, pillars).
-      if(dy > 1.5 && (dx * dz) > 0.3 && (dx * dz) < 6 && dx < 3 && dz < 3){
+      // v657: loosened filter so building walls / roofs / facades become
+      // colliders too.  Skips named ground meshes AND meshes tagged by
+      // the cobble classifier above.  Caps at 12m max side / 6m min
+      // side so cobble discs and floating bases don't register.
+      const _nm = (o.name || '').toLowerCase();
+      const _isNamedGround = /ground|floor|cobble|paving|path|terrain|street|plaza/.test(_nm);
+      const _isTaggedGround = !!(o.userData && o.userData.isGroundMesh);
+      if(!_isNamedGround && !_isTaggedGround &&
+         dy > 1.8 && Math.min(dx, dz) < 6 && Math.max(dx, dz) < 12){
         ENTITIES.boxObstacles.push({
           minX: _box.min.x, maxX: _box.max.x,
           minZ: _box.min.z, maxZ: _box.max.z,
@@ -6594,6 +6624,19 @@ SCENES.plaza = {
     // v627 core: central fountain — village heart
     root.add(makeStoneFountain(0, 0));
 
+    // v657: well/fountain wishes — E to wish
+    ENTITIES.interactables.push({
+      x: 0, z: 0, r: 1.8,
+      label: 'E: 願う',
+      onActivate: () => {
+        const m = document.createElement('div');
+        m.style.cssText = 'position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);background:rgba(14,26,38,0.94);color:#e8dcb8;border:1px solid #c89848;padding:24px 32px;border-radius:8px;z-index:300;font:16px/1.7 "Shippori Mincho",serif;max-width:380px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.6)';
+        m.innerHTML = '井戸に小さな願いを落とした。<br><br>耳を澄ますと、遠くで誰かが頷いた気がした。';
+        document.body.appendChild(m);
+        m.addEventListener('click', () => m.remove());
+        setTimeout(() => m.remove(), 4500);
+      },
+    });
 
     // v628 lighting: midday village - warm sky, earth ground, gold accent
     // v630 theme: village market + festival banners
@@ -6653,6 +6696,19 @@ SCENES.monlight = {
       const p = makeFallingParticles('star', 120, { range: 32, yMax: 22, yMin: 8, fallSpeed: 0.0, swayAmp: 0.0, swayFreq: 0.0 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'static'});
     }
+    // v657: bookshelf reading — E for a verse
+    ENTITIES.interactables.push({
+      x: 0, z: 11.0, r: 1.8,
+      label: 'E: 本を開く',
+      onActivate: () => {
+        const m = document.createElement('div');
+        m.style.cssText = 'position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);background:rgba(14,26,38,0.94);color:#e8dcb8;border:1px solid #c89848;padding:26px 32px;border-radius:8px;z-index:300;font:15px/1.85 "Shippori Mincho",serif;max-width:420px;text-align:left;box-shadow:0 12px 40px rgba(0,0,0,0.6)';
+        m.innerHTML = '〈月光の書架〉<br><br>夜は長く、光は遠い。<br>けれど確かに、ここにある。<br><br>― この本に栞は要らない。<br>　 開いたところが、今のページ。';
+        document.body.appendChild(m);
+        m.addEventListener('click', () => m.remove());
+        setTimeout(() => m.remove(), 9000);
+      },
+    });
     // v627 core: huge moon disc in the sky
     root.add(makeMoon());
 
@@ -6705,6 +6761,28 @@ SCENES.oto = {
     // Story accent props placed OUTSIDE the prefab footprint (front-stage)
     placeENC('enc_hangingpot', -4.5, 0.05, 9.0, 0.85, 0);
     placeENC('enc_lantern', 4.5, 0.05, 9.0, 0.85, 0);
+    // v657: bell at the 祠 — E to ring (440 Hz sine, 2.5s decay)
+    ENTITIES.interactables.push({
+      x: 0, z: 10.5, r: 1.6,
+      label: 'E: 鳴らす',
+      onActivate: () => {
+        try {
+          if(typeof audioCtx !== 'undefined' && audioCtx){
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.frequency.value = 440;
+            o.type = 'sine';
+            g.gain.setValueAtTime(0.001, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.20, audioCtx.currentTime + 0.05);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2.5);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start();
+            o.stop(audioCtx.currentTime + 2.6);
+          }
+        } catch(_){}
+      },
+    });
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('leaf', 80, { range: 28, yMax: 12, yMin: 0, fallSpeed: 0.35, swayAmp: 0.55, swayFreq: 0.8 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
@@ -6910,7 +6988,7 @@ SCENES.takibi = {
   sun: [8, -90], turbidity: 6, rayleigh: 2.5,
   fogColor: '#3a2828', fogNear: 18, fogFar: 55, exposure: 0.85,
   avatarStart: [0, 4.0],
-  preloadAssets: ['enc_prefab_takibi', 'enc_brazier', 'enc_lantern'],
+  preloadAssets: ['enc_prefab_takibi', 'enc_brazier', 'enc_lantern', 'enc_int_soul_smoker'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -6931,6 +7009,20 @@ SCENES.takibi = {
     placeENC('enc_brazier', 3.0, 0.05, 9.0, 0.9, 0);
     placeENC('enc_brazier', -3.0, 0.05, 9.0, 0.9, 0);
     placeENC('enc_lantern', 0.0, 0.05, 11.0, 0.85, 0);
+    // v657: Soul Smoker — KB3D Enchanted Interiors prop, south-east of
+    // the firepit at angle to face avatar spawn.
+    placeENC('enc_int_soul_smoker', 4.5, 0.05, 7.5, 0.9, 30);
+    // v657: warmth interactable at firepit centre — E for a warm tint.
+    ENTITIES.interactables.push({
+      x: 0, z: 0, r: 2.5,
+      label: 'E: 暖を取る',
+      onActivate: () => {
+        const tint = document.createElement('div');
+        tint.style.cssText = 'position:fixed;inset:0;background:radial-gradient(ellipse at center, rgba(255,140,60,0) 30%, rgba(255,80,30,0.32) 100%);pointer-events:none;z-index:50;animation:warmth-fade 4s forwards';
+        document.body.appendChild(tint);
+        setTimeout(() => tint.remove(), 4500);
+      },
+    });
     if(typeof makeFallingParticles === 'function'){
       const p = makeFallingParticles('ember', 90, { range: 18, yMax: 8, yMin: 0, fallSpeed: -0.45, swayAmp: 0.25, swayFreq: 1.5 });
       root.add(p); ENTITIES.particles.push({obj: p, type: 'rise'});
@@ -7512,6 +7604,25 @@ SCENES.island = {
     // sits at world y = 0 just like the other prefabs.  No more
     // -5.46 displacement.
     placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
+    // v657: invisible ground-fill plane at Y=0 covering the entire
+    // island disc (±35m).  sampleHeight's "lowest tagged ground" rule
+    // picks the actual cobble/porch above Y=0 where they exist, and
+    // falls through to this plane only over true voids.  Eliminates
+    // walk-over-void bugs once sky-miss is set to strict-block.
+    const _gf = new THREE.Mesh(
+      new THREE.PlaneGeometry(70, 70, 1, 1),
+      new THREE.MeshStandardMaterial({
+        color: 0x1a2a18, roughness: 1.0, metalness: 0,
+        transparent: true, opacity: 0.0, side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    _gf.rotation.x = -Math.PI * 0.5;
+    _gf.position.y = 0;
+    _gf.userData.isGroundFill = true;
+    _gf.userData.isWalkSurface = true;
+    _gf.receiveShadow = false;
+    root.add(_gf);
     // v650: full panorama atmosphere — cloud sea + distant islets +
     // deep ocean + waterfalls cascading off the disc edges.  Heavy bits
     // (clouds, waterfalls) use InstancedMesh so they cost ~3 draw calls.
@@ -7588,6 +7699,32 @@ async function _streamRemainingIslandPrefabs(root){
     m.position.set(x + offset, 0, z + offset);
     m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     root.add(m);
+    // v657: classify streamed-prefab meshes — tag ground-like ones as
+    // isGroundMesh so sampleHeight's "lowest tagged" rule picks them
+    // (else the ground-fill at Y=0 always wins and avatar can't stand
+    // on un-normalised prefab cobble), and register tall non-ground
+    // meshes as collision AABBs.
+    const _sbox = new THREE.Box3();
+    m.traverse(o => {
+      if(!o.isMesh) return;
+      _sbox.setFromObject(o);
+      const dx = _sbox.max.x - _sbox.min.x;
+      const dy = _sbox.max.y - _sbox.min.y;
+      const dz = _sbox.max.z - _sbox.min.z;
+      // Tag thin wide meshes as ground (mirrors buildScene's v642d
+      // cobble classifier).
+      if(dy < 0.8 && dx * dz > 4) o.userData.isGroundMesh = true;
+      // Skip ground meshes for collision
+      const nm = (o.name || '').toLowerCase();
+      if(/ground|floor|cobble|paving|path|terrain|street|plaza/.test(nm)) return;
+      if(o.userData && o.userData.isGroundMesh) return;
+      if(dy > 1.8 && Math.min(dx, dz) < 6 && Math.max(dx, dz) < 12){
+        ENTITIES.boxObstacles.push({
+          minX: _sbox.min.x, maxX: _sbox.max.x,
+          minZ: _sbox.min.z, maxZ: _sbox.max.z,
+        });
+      }
+    });
     _islandStreamedCount++;
     console.log(`niwa[island]: streamed ${name}`);
   }
@@ -7809,6 +7946,49 @@ function _tabClick(id){
     return;
   }
   switchScene(id);
+}
+
+// v657: Space key handler — detect ledge in front and either vault or jump.
+function tryClimbOrJump(){
+  if(climbActive) return;
+  if(typeof verticalVel === 'number' && Math.abs(verticalVel) > 0.5) return; // mid-air
+  // Forward direction from camera basis
+  let fwdX, fwdZ;
+  if(typeof firstPerson !== 'undefined' && firstPerson){
+    fwdX =  Math.sin(fpYaw);
+    fwdZ =  Math.cos(fpYaw);
+  } else {
+    fwdX = -Math.sin(camYawState);
+    fwdZ = -Math.cos(camYawState);
+  }
+  const probeX = avatar.position.x + fwdX * 0.6;
+  const probeZ = avatar.position.z + fwdZ * 0.6;
+  const groundY = (typeof sampleHeight === 'function') ? sampleHeight(probeX, probeZ) : NaN;
+  const ledgeUp = isFinite(groundY) ? groundY - avatar.position.y : -1;
+  if(ledgeUp > 0.3 && ledgeUp <= 2.5){
+    // Vault — but only if landing spot is clear of obstacles
+    const AVR = (typeof AV_RADIUS !== 'undefined') ? AV_RADIUS : 0.35;
+    let blocked = false;
+    for(const b of (ENTITIES.boxObstacles || [])){
+      if(probeX > b.minX - AVR && probeX < b.maxX + AVR &&
+         probeZ > b.minZ - AVR && probeZ < b.maxZ + AVR){ blocked = true; break; }
+    }
+    if(!blocked){
+      climbActive = true;
+      climbStart = performance.now();
+      climbFromX = avatar.position.x;
+      climbFromY = avatar.position.y;
+      climbFromZ = avatar.position.z;
+      climbToX = probeX;
+      climbToY = groundY + 0.05;
+      climbToZ = probeZ;
+      playerVel.set(0, 0, 0);
+      verticalVel = 0;
+      return;
+    }
+  }
+  // Plain jump
+  verticalVel = 5.0;
 }
 for(const t of TAB_DEFS){
   const b = document.createElement('button');
@@ -8566,6 +8746,17 @@ function addPortalForScene(name){
   portal.userData.cfg = { x, z, radius: cfg.radius, label: cfg.label };
   currentScene.root.add(portal);
   currentPortal = portal;
+  // v657: register the portal as an interactable so the new HUD shows
+  // an E-prompt; activating calls the existing enterBuilding flow which
+  // routes to switchScene(<name>_int) if defined, otherwise the modal.
+  ENTITIES.interactables.push({
+    x, z, r: Math.max(1.2, cfg.radius || 1.2),
+    label: 'E: ' + (cfg.label || '中に入る'),
+    onActivate: () => {
+      const baseName = (currentScene && currentScene.name || '').replace(/_int$/, '');
+      enterBuilding(baseName);
+    },
+  });
 }
 
 function showPortalPrompt(label){
@@ -9032,6 +9223,14 @@ const camFollow = new THREE.Vector3();
 let camInit = false;
 const playerVel = new THREE.Vector3();   // velocity for damped movement
 let verticalVel = 0;                      // v623: gravity / falling velocity (m/s)
+// v657: climb-vault state — Space triggers either jump (flat ground)
+// or vault (ledge ≤ 2.5m detected forward).  Vault is a 0.35s easing
+// tween from (fromX,Y,Z) to (toX,Y,Z) with a small arc apex.
+let climbActive = false;
+let climbStart = 0;
+const CLIMB_DURATION = 0.35;
+let climbFromX = 0, climbFromY = 0, climbFromZ = 0;
+let climbToX = 0, climbToY = 0, climbToZ = 0;
 // v653: scratch vectors for avatar-relative WASD (quaternion-rotated forward / right)
 const _avFwdW = new THREE.Vector3();
 const _avRgtW = new THREE.Vector3();
@@ -9054,7 +9253,19 @@ window.addEventListener('keydown', e=>{
   if(e.code==='KeyD' || e.key==='ArrowRight') keys.d = true;
   if(e.key==='Shift') keys.shift = true;
   if(e.key==='Escape') closeModal();
-  if(e.code==='KeyE') openSceneModal();
+  // v657: E activates a nearby interactable if present, falls back to scene modal.
+  if(e.code==='KeyE' && !e.repeat){
+    if(window._currentInteract && window._currentInteract.onActivate){
+      window._currentInteract.onActivate();
+    } else {
+      openSceneModal();
+    }
+  }
+  // v657: Space triggers climb-vault or plain jump.
+  if(e.code==='Space' && !e.repeat){
+    e.preventDefault();
+    if(typeof tryClimbOrJump === 'function') tryClimbOrJump();
+  }
   if(_ARROW_KEYS.has(e.key)) e.preventDefault();
 }, { passive: false });
 window.addEventListener('keyup', e=>{
@@ -9219,6 +9430,8 @@ if(IS_MOBILE){
   document.getElementById('joy').classList.add('show');
   document.getElementById('zoomBtns').classList.add('show');
   document.getElementById('mobileEnter').classList.add('show');
+  const _mj = document.getElementById('mobileJump');
+  if(_mj) _mj.classList.add('show');
 }
 
 // Virtual joystick (left thumb) — drives keys.w/a/s/d intensity via a vector
@@ -9267,10 +9480,22 @@ document.getElementById('zoomIn').addEventListener('click', ()=>{
 document.getElementById('zoomOut').addEventListener('click', ()=>{
   camZoomTarget = Math.min(CAM_MAX_SIZE, camZoomTarget*1.18);
 });
-// Mobile enter button
+// Mobile enter button — v657: activate interactable if nearby, else
+// fall back to the scene modal (same priority as the desktop E key).
 document.getElementById('mobileEnter').addEventListener('click', ()=>{
-  openSceneModal();
+  if(window._currentInteract && window._currentInteract.onActivate){
+    window._currentInteract.onActivate();
+  } else {
+    openSceneModal();
+  }
 });
+// v657: mobile jump / climb-vault button
+const _btnJumpMobile = document.getElementById('mobileJump');
+if(_btnJumpMobile){
+  _btnJumpMobile.addEventListener('click', () => {
+    if(typeof tryClimbOrJump === 'function') tryClimbOrJump();
+  });
+}
 
 // Audio click feedback (UI sounds via WebAudio)
 let _audioCtxUI = null;
@@ -9494,6 +9719,17 @@ function animate(){
   // v655: deferred PMREM rebuild so setSun doesn't stall the frame.
   if(_pmremDirty) regenerateEnvironment();
 
+  // v657: climb-vault tween — runs BEFORE the movement controller and
+  // blocks playerVel writes while active.
+  if(climbActive){
+    const ct = Math.min(1, (performance.now() - climbStart) / (CLIMB_DURATION * 1000));
+    const e = ct * ct * (3 - 2 * ct);
+    avatar.position.x = climbFromX + (climbToX - climbFromX) * e;
+    avatar.position.y = climbFromY + (climbToY - climbFromY) * e + Math.sin(ct * Math.PI) * 0.2;
+    avatar.position.z = climbFromZ + (climbToZ - climbFromZ) * e;
+    if(ct >= 1){ climbActive = false; verticalVel = 0; }
+  }
+
   // v626: high cloud ring + low wisps drift around the camera via
   // InstancedMesh — single setMatrixAt sweep per cloud layer per frame
   // (was 32+ setattribute calls in v625).
@@ -9606,12 +9842,16 @@ function animate(){
   } else {
     lastTargetDist = Infinity; stuckTime = 0;
   }
-  // Frame-rate-independent damp toward desired velocity
+  // Frame-rate-independent damp toward desired velocity.  v657: skip
+  // playerVel writes while a climb-vault is tweening avatar.position
+  // directly — otherwise the damp competes with the tween.
   const dampRate = (desiredVx || desiredVz) ? ACCEL : DECEL;
-  playerVel.x = THREE.MathUtils.damp(playerVel.x, desiredVx, dampRate, dt);
-  playerVel.z = THREE.MathUtils.damp(playerVel.z, desiredVz, dampRate, dt);
-  const stepX = playerVel.x * dt;
-  const stepZ = playerVel.z * dt;
+  if(!climbActive){
+    playerVel.x = THREE.MathUtils.damp(playerVel.x, desiredVx, dampRate, dt);
+    playerVel.z = THREE.MathUtils.damp(playerVel.z, desiredVz, dampRate, dt);
+  }
+  const stepX = climbActive ? 0 : playerVel.x * dt;
+  const stepZ = climbActive ? 0 : playerVel.z * dt;
   // Slide collision: test X and Z independently so avatar slides along walls
   // Avatar is ~1.4 m tall; treat one realistic stair as ≤ 0.30 m.
   const MAX_STEP_UP = 0.30;
@@ -9652,10 +9892,13 @@ function animate(){
     if(isFinite(nextY)){
       if(nextY - curY > maxUp) return true;
       if(curY - nextY > maxDown) return true;
+    } else {
+      // v657: sky-miss is STRICT — the island has a ground-fill plane
+      // at Y=0 so any non-finite raycast means the avatar stepped off
+      // the world edge.  Other scenes have their own cobble baseline
+      // so this is safe globally.
+      return true;
     }
-    // Sky-miss (NaN / non-finite): keep legacy permissive behaviour
-    // so scenes that rely on the avatar walking over raycast voids
-    // (distant water, prefab seams) don't regress.
     return false;
   }
   const tryX = avatar.position.x + stepX;
@@ -9688,6 +9931,27 @@ function animate(){
     avatar.rotation.y = cur + diff * Math.min(1, dt * 14);
   }
   moving = Math.hypot(playerVel.x, playerVel.z) > 0.3;
+
+  // v657: interactable proximity — find nearest in-range entry and
+  // drive the HUD prompt.  Stashes on window for the keydown handler.
+  {
+    let _nearestIt = null, _nearestDist = Infinity;
+    for(const it of (ENTITIES.interactables || [])){
+      const d = Math.hypot(it.x - avatar.position.x, it.z - avatar.position.z);
+      if(d < it.r && d < _nearestDist){ _nearestIt = it; _nearestDist = d; }
+    }
+    const _hud = document.getElementById('interact-hud');
+    if(_hud){
+      if(_nearestIt){
+        if(_hud.textContent !== _nearestIt.label) _hud.textContent = _nearestIt.label;
+        _hud.classList.add('visible');
+      } else {
+        _hud.classList.remove('visible');
+      }
+    }
+    window._currentInteract = _nearestIt;
+  }
+
   // === v623: Proper gravity simulation ====================================
   // Two distinct vertical regimes:
   //   (a) Ground or slope (target ≥ current — 1 cm tolerance):
@@ -9701,13 +9965,22 @@ function animate(){
   const GRAVITY = 9.8;
   const targetY = sampleHeight(avatar.position.x, avatar.position.z);
   const heightDiff = targetY - avatar.position.y;
+  // v657: skip the entire gravity block while a climb-vault tween is
+  // active — the tween drives avatar.position.y directly and shouldn't
+  // be fought by the per-frame ground snap / gravity decel.  Without
+  // this guard the tween's sin-arc apex triggered heightDiff < -0.02
+  // (avatar above ground), which kicked the gravity branch and yanked
+  // Y back down mid-arc.
+  if(climbActive){
+    // no-op — tween owns Y this frame
+  }
   // v635: if the sample reports ground HIGHER than a single step
   // (MAX_STEP_UP = 0.30 m), DON'T auto-climb. Otherwise the avatar
   // slowly drifts UP onto invisible walls / accent rooftops if any
   // raycast still leaks through the skipRaycast filter. The avatar
   // can still walk up by EXPLICITLY moving onto a real ramp where
   // each XZ step gives a < MAX_STEP_UP delta.
-  if(heightDiff > 0.02 && heightDiff <= 0.30){
+  else if(heightDiff > 0.02 && heightDiff <= 0.30){
     // Climbing a slope / small step — damp smoothly up
     const lifted = THREE.MathUtils.damp(avatar.position.y, targetY, 11, dt);
     const dy = Math.min(AV_HEIGHT * dt, lifted - avatar.position.y);
@@ -9723,6 +9996,13 @@ function animate(){
     const ny = avatar.position.y + verticalVel * dt;
     if(ny <= targetY){ avatar.position.y = targetY; verticalVel = 0; }
     else { avatar.position.y = ny; }
+  } else if(verticalVel > 0.1){
+    // v657: jump in progress — DON'T snap to ground.  Let gravity
+    // decelerate the upward velocity naturally.  Without this branch
+    // the Space jump (verticalVel = 5.0) was zeroed on the next frame
+    // because heightDiff was ≈ 0 (avatar still on the ground).
+    verticalVel = Math.max(-18, verticalVel - GRAVITY * dt);
+    avatar.position.y += verticalVel * dt;
   } else {
     avatar.position.y = targetY;
     verticalVel = 0;
