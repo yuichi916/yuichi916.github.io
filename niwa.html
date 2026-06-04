@@ -250,6 +250,93 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 }
 #interact-hud.visible{ opacity:1; }
 @keyframes warmth-fade{ 0%{opacity:0;} 20%{opacity:1;} 100%{opacity:0;} }
+/* v658: persistent help button + tutorial overlay + modal styles */
+#btn-help{
+  position:fixed; bottom:18px; left:18px; z-index:40;
+  width:36px; height:36px; border-radius:50%;
+  background:rgba(14,26,38,0.78); color:#c89848;
+  border:1px solid #c89848; font:18px/1 serif;
+  cursor:pointer; transition:background 0.2s;
+}
+#btn-help:hover{ background:rgba(200,152,72,0.18); }
+#help-panel{
+  position:fixed; bottom:64px; left:18px; z-index:41;
+  width:280px; padding:18px 20px;
+  background:rgba(14,26,38,0.95); color:#e8dcb8;
+  border:1px solid #c89848; border-radius:8px;
+  font:13px/1.7 'Shippori Mincho', serif;
+  box-shadow:0 12px 40px rgba(0,0,0,0.6);
+  display:none;
+}
+#help-panel.visible{ display:block; }
+#help-panel kbd{
+  display:inline-block; min-width:22px; padding:2px 6px; margin:0 2px;
+  background:#1a2438; border:1px solid #c89848; border-radius:3px;
+  font:11px/1 'JetBrains Mono', monospace; color:#c89848;
+}
+#help-panel h3{ margin:0 0 10px; font-size:14px; letter-spacing:0.12em; color:#c89848; font-weight:normal; }
+#help-panel .row{ margin:4px 0; }
+#help-panel .row b{ color:#c89848; font-weight:normal; font-family:'JetBrains Mono', monospace; font-size:11px; }
+#tutorial-overlay{
+  position:fixed; inset:0; z-index:200;
+  background:rgba(8,14,22,0.88); backdrop-filter:blur(6px);
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transition:opacity 0.4s;
+  pointer-events:none;
+}
+#tutorial-overlay.show{ opacity:1; pointer-events:auto; }
+#tutorial-overlay .panel{
+  max-width:440px; padding:32px 36px;
+  background:linear-gradient(170deg,#1a2438 0%,#10182a 60%,#0a1020 100%);
+  border:1px solid rgba(232,220,184,0.3); border-radius:10px;
+  color:#e8dcb8; text-align:center;
+  box-shadow:0 30px 80px rgba(0,0,0,0.7);
+}
+#tutorial-overlay h2{
+  margin:0 0 14px; font:300 22px/1.3 'Shippori Mincho', serif;
+  letter-spacing:0.14em; color:#e8dcb8;
+}
+#tutorial-overlay .keys{
+  display:flex; flex-direction:column; gap:10px; margin:18px 0;
+  font:14px/1.5 'Shippori Mincho', serif; text-align:left;
+}
+#tutorial-overlay .keys b{
+  color:#c89848; font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:normal;
+}
+#tutorial-overlay button{
+  margin-top:14px; padding:10px 28px;
+  background:transparent; color:#c89848; border:1px solid #c89848;
+  font:12px/1 'JetBrains Mono', monospace; letter-spacing:0.18em;
+  cursor:pointer; border-radius:3px;
+}
+#tutorial-overlay button:hover{ background:#c89848; color:#1a2438; }
+/* v658: shared niwa-modal style with X close + click-outside-to-close */
+.niwa-modal{
+  position:fixed; top:38%; left:50%; transform:translate(-50%,-50%);
+  background:rgba(14,26,38,0.95); color:#e8dcb8;
+  border:1px solid #c89848; padding:24px 32px 28px;
+  border-radius:8px; z-index:300;
+  font:16px/1.7 'Shippori Mincho', serif;
+  max-width:420px; text-align:center;
+  box-shadow:0 12px 40px rgba(0,0,0,0.6);
+}
+.niwa-modal .close{
+  position:absolute; top:6px; right:10px;
+  background:transparent; border:none; color:#c89848;
+  font:18px/1 serif; cursor:pointer; opacity:0.7;
+}
+.niwa-modal .close:hover{ opacity:1; }
+/* v658: floating interactable markers */
+.niwa-marker{
+  position:absolute; pointer-events:none; z-index:30;
+  transform:translate(-50%,-100%);
+  padding:3px 7px; border-radius:3px;
+  background:rgba(14,26,38,0.78);
+  color:#e8dcb8; border:1px solid #c89848;
+  font:10px/1 'JetBrains Mono', monospace; letter-spacing:0.05em;
+  white-space:nowrap;
+  transition:opacity 0.2s;
+}
 </style>
 </head>
 <body>
@@ -334,6 +421,35 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 
 <!-- v657: interactable prompt HUD — shows nearest interactable label when in range -->
 <div id="interact-hud"></div>
+
+<!-- v658: persistent help button + tutorial overlay -->
+<button id="btn-help" aria-label="操作ヘルプ" title="操作ヘルプ">?</button>
+<div id="help-panel">
+  <h3>操作</h3>
+  <div class="row"><b>WASD</b> / 矢印 — 歩く</div>
+  <div class="row"><b>Shift</b> — 走る</div>
+  <div class="row"><b>Space</b> — ジャンプ・段差登り</div>
+  <div class="row"><b>E</b> — 調べる・入る</div>
+  <div class="row"><b>V</b> — 1P / 3P 視点</div>
+  <div class="row"><b>マウスドラッグ</b> — 視点回転</div>
+  <div class="row"><b>タブ</b> — シーン移動</div>
+  <div style="margin-top:10px;color:#c89848;font-size:11px">💡 上の浮遊マーカーが調べられる場所</div>
+</div>
+<div id="tutorial-overlay">
+  <div class="panel">
+    <h2>心の庭へようこそ</h2>
+    <div class="keys">
+      <div><b>WASD</b> 歩く &nbsp; <b>Shift</b> 走る</div>
+      <div><b>Space</b> 跳ぶ・登る</div>
+      <div><b>E</b> 調べる・建物に入る</div>
+      <div><b>マウス / 指</b> 視点を回す</div>
+    </div>
+    <div style="font-size:13px;line-height:1.7;color:#c89848;opacity:0.85;margin-top:10px">
+      浮遊マーカー <span style="color:#e8dcb8">◆</span> がある場所に行って <b style="color:#e8dcb8;font-family:'JetBrains Mono',monospace">E</b> を押してみてください
+    </div>
+    <button id="tutorial-ok">はじめる</button>
+  </div>
+</div>
 
 <!-- Photoreal Gaussian-Splat backdrop URL input — paste your .ksplat URL for this scene -->
 <div id="splat-panel" style="position:fixed;right:18px;bottom:74px;z-index:11;background:rgba(14,26,38,.78);backdrop-filter:blur(6px);border:1px solid rgba(232,220,184,.3);padding:9px 10px;display:flex;gap:6px;flex-direction:column;max-width:300px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--paper-2)">
@@ -6740,14 +6856,9 @@ SCENES.plaza = {
     ENTITIES.interactables.push({
       x: 0, z: 0, r: 1.8,
       label: 'E: 願う',
-      onActivate: () => {
-        const m = document.createElement('div');
-        m.style.cssText = 'position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);background:rgba(14,26,38,0.94);color:#e8dcb8;border:1px solid #c89848;padding:24px 32px;border-radius:8px;z-index:300;font:16px/1.7 "Shippori Mincho",serif;max-width:380px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.6)';
-        m.innerHTML = '井戸に小さな願いを落とした。<br><br>耳を澄ますと、遠くで誰かが頷いた気がした。';
-        document.body.appendChild(m);
-        m.addEventListener('click', () => m.remove());
-        setTimeout(() => m.remove(), 4500);
-      },
+      onActivate: () => window.showInteractModal(
+        '井戸に小さな願いを落とした。<br><br>耳を澄ますと、遠くで誰かが頷いた気がした。',
+        6000),
     });
 
     // v628 lighting: midday village - warm sky, earth ground, gold accent
@@ -6812,14 +6923,14 @@ SCENES.monlight = {
     ENTITIES.interactables.push({
       x: 0, z: 11.0, r: 1.8,
       label: 'E: 本を開く',
-      onActivate: () => {
-        const m = document.createElement('div');
-        m.style.cssText = 'position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);background:rgba(14,26,38,0.94);color:#e8dcb8;border:1px solid #c89848;padding:26px 32px;border-radius:8px;z-index:300;font:15px/1.85 "Shippori Mincho",serif;max-width:420px;text-align:left;box-shadow:0 12px 40px rgba(0,0,0,0.6)';
-        m.innerHTML = '〈月光の書架〉<br><br>夜は長く、光は遠い。<br>けれど確かに、ここにある。<br><br>― この本に栞は要らない。<br>　 開いたところが、今のページ。';
-        document.body.appendChild(m);
-        m.addEventListener('click', () => m.remove());
-        setTimeout(() => m.remove(), 9000);
-      },
+      onActivate: () => window.showInteractModal(
+        '<div style="text-align:left;font-size:15px;line-height:1.85">' +
+        '〈月光の書架〉<br><br>' +
+        '夜は長く、光は遠い。<br>' +
+        'けれど確かに、ここにある。<br><br>' +
+        '― この本に栞は要らない。<br>　 開いたところが、今のページ。' +
+        '</div>',
+        12000),
     });
     // v627 core: huge moon disc in the sky
     root.add(makeMoon());
@@ -9622,6 +9733,72 @@ if(_btnJumpMobile){
   });
 }
 
+// v658: persistent help button toggles a controls panel
+(() => {
+  const btn = document.getElementById('btn-help');
+  const panel = document.getElementById('help-panel');
+  if(!btn || !panel) return;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    panel.classList.toggle('visible');
+  });
+  // Click outside closes
+  document.addEventListener('click', e => {
+    if(panel.classList.contains('visible') && !panel.contains(e.target) && e.target !== btn){
+      panel.classList.remove('visible');
+    }
+  });
+})();
+// v658: unified interactable modal — Esc, X button, click-outside, all close.
+// Auto-removes after `durationMs` (default 10s).  Returns the element.
+window.showInteractModal = function(html, durationMs){
+  const m = document.createElement('div');
+  m.className = 'niwa-modal';
+  m.innerHTML = '<button class="close" aria-label="閉じる">×</button>' + html;
+  const close = () => {
+    if(!m.parentNode) return;
+    m.style.opacity = '0';
+    setTimeout(() => { if(m.parentNode) m.remove(); }, 200);
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('click', onOutside, true);
+  };
+  const onKey = e => {
+    if(e.key === 'Escape' || e.code === 'KeyE') close();
+  };
+  const onOutside = e => {
+    // Click outside the modal closes it
+    if(!m.contains(e.target)) close();
+  };
+  m.querySelector('.close').addEventListener('click', close);
+  document.body.appendChild(m);
+  m.style.transition = 'opacity 0.2s';
+  setTimeout(() => document.addEventListener('keydown', onKey), 0);
+  setTimeout(() => document.addEventListener('click', onOutside, true), 100);
+  if(durationMs > 0) setTimeout(close, durationMs);
+  return m;
+};
+
+// v658: first-visit tutorial overlay — shows once, dismissed forever
+(() => {
+  const overlay = document.getElementById('tutorial-overlay');
+  const ok = document.getElementById('tutorial-ok');
+  if(!overlay || !ok) return;
+  let seen = false;
+  try { seen = localStorage.getItem('niwa.tutorial.seen') === '1'; } catch(_){}
+  if(!seen){
+    setTimeout(() => overlay.classList.add('show'), 1800);
+    const dismiss = () => {
+      overlay.classList.remove('show');
+      try { localStorage.setItem('niwa.tutorial.seen', '1'); } catch(_){}
+    };
+    ok.addEventListener('click', dismiss);
+    overlay.addEventListener('click', e => { if(e.target === overlay) dismiss(); });
+    document.addEventListener('keydown', e => {
+      if(e.key === 'Escape' || e.code === 'Space') dismiss();
+    }, { once: true });
+  }
+})();
+
 // Audio click feedback (UI sounds via WebAudio)
 let _audioCtxUI = null;
 function uiSfx(type){
@@ -10059,6 +10236,8 @@ function animate(){
 
   // v657: interactable proximity — find nearest in-range entry and
   // drive the HUD prompt.  Stashes on window for the keydown handler.
+  // v658: project all interactables to screen space and show floating
+  // marker labels above them — telegraphs "E here!" from a distance.
   {
     let _nearestIt = null, _nearestDist = Infinity;
     for(const it of (ENTITIES.interactables || [])){
@@ -10075,6 +10254,51 @@ function animate(){
       }
     }
     window._currentInteract = _nearestIt;
+
+    // Floating markers (v658).  Project each interactable to screen
+    // and show its label as a floating chip — up to 25m away.  Hide
+    // when in range (the HUD shows the label there).
+    if(!window._niwaMarkers){ window._niwaMarkers = []; }
+    const _markers = window._niwaMarkers;
+    const _ents = ENTITIES.interactables || [];
+    // Resize marker array
+    while(_markers.length < _ents.length){
+      const m = document.createElement('div');
+      m.className = 'niwa-marker';
+      document.body.appendChild(m);
+      _markers.push(m);
+    }
+    while(_markers.length > _ents.length){
+      const m = _markers.pop();
+      if(m && m.parentNode) m.parentNode.removeChild(m);
+    }
+    const _v3 = new THREE.Vector3();
+    const _activeCam = firstPerson ? camFP : camera;
+    for(let i = 0; i < _ents.length; i++){
+      const it = _ents[i];
+      const m = _markers[i];
+      if(!m) continue;
+      const dx = it.x - avatar.position.x;
+      const dz = it.z - avatar.position.z;
+      const dist = Math.hypot(dx, dz);
+      // Hide when in range (HUD takes over) or beyond 25m
+      if(dist < it.r || dist > 25){ m.style.opacity = '0'; continue; }
+      _v3.set(it.x, 1.8, it.z);
+      _v3.project(_activeCam);
+      // Behind camera or off-screen
+      if(_v3.z > 1 || Math.abs(_v3.x) > 1.1 || Math.abs(_v3.y) > 1.1){
+        m.style.opacity = '0'; continue;
+      }
+      const sx = (_v3.x * 0.5 + 0.5) * window.innerWidth;
+      const sy = (-_v3.y * 0.5 + 0.5) * window.innerHeight;
+      m.style.left = sx + 'px';
+      m.style.top = sy + 'px';
+      // Fade with distance
+      const fade = Math.max(0, Math.min(1, (25 - dist) / 15));
+      m.style.opacity = fade.toFixed(2);
+      // Set text once (cheap)
+      if(m.textContent !== it.label) m.textContent = it.label;
+    }
   }
 
   // === v623: Proper gravity simulation ====================================
