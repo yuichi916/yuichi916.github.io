@@ -763,11 +763,19 @@ function regenerateEnvironment(){
     scene.background = sky;
     _skyCubeCam.update(renderer, scene);
     scene.background = prevBg;
-    const env = _pmremGen.fromCubeRenderTarget(_skyCubeTarget);
+    // v657 fix: Three.js r155 PMREMGenerator does NOT have
+    // .fromCubeRenderTarget — use .fromCubemap(cubeTexture) instead.
+    // _skyCubeTarget.texture is the CubeTexture written by the
+    // CubeCamera above.
+    const env = _pmremGen.fromCubemap(_skyCubeTarget.texture);
     if(scene.environment && scene.environment.dispose) scene.environment.dispose();
     scene.environment = env.texture;
     _pmremDirty = false;
-  } catch(e){ console.warn('niwa: PMREM regen failed', e); _pmremDirty = false; }
+  } catch(e){
+    console.warn('niwa: PMREM regen failed', e);
+    // Don't loop forever on errors — disable until next setSun
+    _pmremDirty = false;
+  }
 }
 function setSun(elev, azim){
   const phi = THREE.MathUtils.degToRad(90 - elev);
