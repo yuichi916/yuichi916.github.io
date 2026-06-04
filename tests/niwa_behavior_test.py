@@ -67,17 +67,12 @@ def wait_for_streamed(page, n, timeout_s=240):
 
 
 def reset_pos(page):
-    # Teleport to plaza, then nudge 4m further south so the fountain
-    # (now a real obstacle per multi-AABB) is well clear of every
-    # cardinal direction.  Re-snap Y after the nudge.
+    # v658: teleport to plaza's walkable spawn (picker already finds
+    # an obstacle-free spot).  Previously nudged +6m south but that
+    # now hits playableBounds with the v658 multi-AABB walls.
     page.evaluate("""() => {
       const N = window.__niwa;
       N._teleportToIslandSection('plaza');
-      const px = N.avatar.position.x;
-      const pz = N.avatar.position.z + 6;
-      const gy = N._sampleHeight(px, pz);
-      const y = (isFinite(gy) && gy < 30) ? gy : N.avatar.position.y;
-      N.avatar.position.set(px, y, pz);
       N.playerVel.set(0, 0, 0); N.setVerticalVel(0);
       N.keys.w = N.keys.a = N.keys.s = N.keys.d = false;
     }""")
