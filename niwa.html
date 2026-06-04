@@ -6283,19 +6283,23 @@ function buildScene(name){
       const dx = _box.max.x - _box.min.x;
       const dz = _box.max.z - _box.min.z;
       const area = dx * dz;
-      if(dy < 0.8 && area > 4){
+      // v658: roof slabs (Y > 2.5) were mistakenly tagged as ground —
+      // sampleHeight then returned the roof height (Y=5.46 for old
+      // plaza) when the avatar walked between cobble discs.  Require
+      // the slab top to be below 2.5m so only floors / cobble qualify.
+      if(dy < 0.8 && area > 4 && _box.max.y < 2.5){
         o.userData.isGroundMesh = true;
       }
       if(_box.min.y < -0.3) return;   // belt-and-braces: skip underside meshes
-      // v657: loosened filter so building walls / roofs / facades become
-      // colliders too.  Skips named ground meshes AND meshes tagged by
-      // the cobble classifier above.  Caps at 12m max side / 6m min
-      // side so cobble discs and floating bases don't register.
+      // v658: loosened filter — dy > 1.5 catches shorter walls, max
+      // side 25m allows the larger buildings (church / clocktower /
+      // inn) to register.  Skips named ground meshes AND meshes
+      // tagged by the cobble classifier above.
       const _nm = (o.name || '').toLowerCase();
       const _isNamedGround = /ground|floor|cobble|paving|path|terrain|street|plaza/.test(_nm);
       const _isTaggedGround = !!(o.userData && o.userData.isGroundMesh);
       if(!_isNamedGround && !_isTaggedGround &&
-         dy > 1.8 && Math.min(dx, dz) < 6 && Math.max(dx, dz) < 12){
+         dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) < 25){
         ENTITIES.boxObstacles.push({
           minX: _box.min.x, maxX: _box.max.x,
           minZ: _box.min.z, maxZ: _box.max.z,
@@ -6570,14 +6574,35 @@ function sampleHeight(x, z){
     // gives us the floor every time (the cobble at y=0 over the floor
     // at y=5.46 for un-normalised plaza GLB, or the interior floor
     // under the roof for monlight / amaoto).
+    // v658: ground-fill (Y=0 invisible disc) is SECONDARY — only used
+    // when no real cobble/floor hit at this XZ.  Otherwise it would
+    // win the "lowest tagged" race over plaza cobble at Y=5.46 and
+    // pull the avatar through the cobble surface.
     let lowestTagged = Infinity;
+    let lowestFill = Infinity;
     for(const h of hits){
       if(_hitIsRaycastIgnored(h, ground)) continue;
-      if(!h.object.userData || !h.object.userData.isGroundMesh) continue;
+      const ud = h.object.userData;
+      if(!ud) continue;
       const y = h.point.y;
-      if(isFinite(y) && y < lowestTagged) lowestTagged = y;
+      if(!isFinite(y)) continue;
+      if(ud.isGroundFill){
+        if(y < lowestFill) lowestFill = y;
+      } else if(ud.isGroundMesh){
+        if(y < lowestTagged) lowestTagged = y;
+      }
     }
-    if(lowestTagged !== Infinity) return lowestTagged;
+    // v658: prefer ground-fill when the only tagged ground at this XZ
+    // sits above the bridge level (>2.5m).  Avatar can't physically
+    // reach a Y=5.46 roof while walking the Y=0 walkway, so let the
+    // ground-fill win at bridge midpoints between cobble discs.
+    if(lowestTagged !== Infinity){
+      if(lowestFill !== Infinity && lowestTagged > 2.5){
+        return lowestFill;
+      }
+      return lowestTagged;
+    }
+    if(lowestFill !== Infinity) return lowestFill;
     // Fallback: no ground-tagged hit at all — use lowest non-decoration
     // so the avatar stands on the floor, never on a roof above.
     let lowest = Infinity;
@@ -7629,6 +7654,7 @@ SCENES.island = {
     _gf.position.y = 0;
     _gf.userData.isGroundFill = true;
     _gf.userData.isWalkSurface = true;
+    _gf.userData.isGroundMesh = true;   // v658: enables sampleHeight pickup as secondary ground
     _gf.receiveShadow = false;
     root.add(_gf);
     // v650: full panorama atmosphere — cloud sea + distant islets +
@@ -7708,33 +7734,45 @@ async function _streamRemainingIslandPrefabs(root){
     m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     root.add(m);
     // v657: classify streamed-prefab meshes — tag ground-like ones as
-    // isGroundMesh so sampleHeight's "lowest tagged" rule picks them
-    // (else the ground-fill at Y=0 always wins and avatar can't stand
-    // on un-normalised prefab cobble), and register tall non-ground
-    // meshes as collision AABBs.
+    // isGroundMesh so sampleHeight's "lowest tagged" rule picks them,
+    // and register tall non-ground meshes as collision AABBs.
+    // v658: force world-matrix update — without this, setFromObject
+    // returns the prefab's LOCAL bbox (around origin) and the per-
+    // mesh AABB never matches the cell-shifted world position.  Result
+    // was 0 collision boxes for every streamed prefab.
+    m.updateMatrixWorld(true);
     const _sbox = new THREE.Box3();
+    let _added = 0, _meshes = 0;
     m.traverse(o => {
       if(!o.isMesh) return;
+      _meshes++;
       _sbox.setFromObject(o);
       const dx = _sbox.max.x - _sbox.min.x;
       const dy = _sbox.max.y - _sbox.min.y;
       const dz = _sbox.max.z - _sbox.min.z;
       // Tag thin wide meshes as ground (mirrors buildScene's v642d
-      // cobble classifier).
-      if(dy < 0.8 && dx * dz > 4) o.userData.isGroundMesh = true;
+      // cobble classifier).  v658: require top < 2.5m so roof slabs
+      // don't get tagged.
+      if(dy < 0.8 && dx * dz > 4 && _sbox.max.y < 2.5){
+        o.userData.isGroundMesh = true;
+      }
       // Skip ground meshes for collision
       const nm = (o.name || '').toLowerCase();
       if(/ground|floor|cobble|paving|path|terrain|street|plaza/.test(nm)) return;
       if(o.userData && o.userData.isGroundMesh) return;
-      if(dy > 1.8 && Math.min(dx, dz) < 6 && Math.max(dx, dz) < 12){
+      // v658: loosened bounds — max side now 25m so wider buildings
+      // (church/inn/clocktower) get walls registered.  dy > 1.5 catches
+      // shorter walls too (was 1.8).
+      if(dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) < 25){
         ENTITIES.boxObstacles.push({
           minX: _sbox.min.x, maxX: _sbox.max.x,
           minZ: _sbox.min.z, maxZ: _sbox.max.z,
         });
+        _added++;
       }
     });
     _islandStreamedCount++;
-    console.log(`niwa[island]: streamed ${name}`);
+    console.log(`niwa[island]: streamed ${name} — scanned ${_meshes} meshes, +${_added} AABBs`);
   }
   _islandStreamingDone = true;
   // After all prefabs land, wire stone walkways between every adjacent
