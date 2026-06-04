@@ -653,8 +653,11 @@ cloudGroup.userData.isAtmosphereCloud = true;
 // LOWER GPU cost than the v624 individual-mesh version. Per-frame
 // drift is applied directly to the InstancedMesh's instanceMatrix.
 const cloudMat = new THREE.MeshStandardMaterial({
+  // v658: softer opacity for the denser sea-of-clouds layer.  144
+  // instances at 0.55 looked like cotton fluff; 0.42 reads as mist.
   color: 0xfafaf2, roughness: 1.0, metalness: 0.0,
-  transparent: true, opacity: 0.55,
+  transparent: true, opacity: 0.42,
+  depthWrite: false,
 });
 cloudMat.userData.shared = true;
 const islandSilhouetteMat = new THREE.MeshStandardMaterial({
@@ -662,29 +665,44 @@ const islandSilhouetteMat = new THREE.MeshStandardMaterial({
 });
 islandSilhouetteMat.userData.shared = true;
 
-// === High cloud ring (above the islands) ===
-const HI_CLOUD_COUNT = 64;
+// === Sea of clouds (雲海) ===
+// v658: replaced the v626 "frisbee ring" of 64 spheres at Y=13-22m
+// with a DENSE LOW SEA of clouds laid out horizontally around and
+// below the island disc — looks like a calm ocean of mist instead
+// of UFOs hovering overhead.
+const HI_CLOUD_COUNT = 144;
 const _hiCloudGeom = new THREE.SphereGeometry(1.5, 8, 6);
 _hiCloudGeom.userData.shared = true;
 const hiClouds = new THREE.InstancedMesh(_hiCloudGeom, cloudMat, HI_CLOUD_COUNT);
 hiClouds.castShadow = false; hiClouds.receiveShadow = false;
-hiClouds.frustumCulled = false;  // it's a backdrop ring around the camera
+hiClouds.frustumCulled = false;
 hiClouds.userData.shared = true;
-// Pre-compute drift parameters per instance
 const _hiCloudData = [];
 const _tmpMat4 = new THREE.Matrix4();
 const _tmpPos = new THREE.Vector3();
 const _tmpRot = new THREE.Quaternion();
 const _tmpScl = new THREE.Vector3();
 for(let i = 0; i < HI_CLOUD_COUNT; i++){
-  const ang = (i / HI_CLOUD_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
-  const r   = 38 + Math.random() * 20;
-  const y   = 13 + Math.random() * 9;
-  const sx  = 0.6 + Math.random() * 1.4;
-  const sz  = 0.6 + Math.random() * 1.4;
-  _hiCloudData.push({ ang, r, baseY: y, sx, sz, driftSpeed: 0.004 + Math.random() * 0.007, bobPhase: Math.random() * Math.PI * 2 });
+  // Random distribution across a sea of clouds 25-70m around the
+  // island, mostly at Y = -1 to +3 (lapping the disc rim).  A few
+  // thicker tufts rise to Y = +5 for vertical interest without
+  // floating overhead.
+  const ang = Math.random() * Math.PI * 2;
+  const r   = 25 + Math.random() * 45;     // dense near island, thinner far
+  // 80% of clouds at low Y, 20% rise slightly
+  const tier = Math.random();
+  const y   = tier < 0.8
+              ? -1 + Math.random() * 3       // main sea layer
+              : 3 + Math.random() * 3;        // rising puffs
+  // Wider, flatter than the old frisbee ring — read as cloud pillows.
+  const sx  = 2.0 + Math.random() * 3.5;
+  const sz  = 2.0 + Math.random() * 3.5;
+  const sy  = 0.4 + Math.random() * 0.5;
+  _hiCloudData.push({ ang, r, baseY: y, sx, sz,
+                       driftSpeed: 0.0015 + Math.random() * 0.0035,
+                       bobPhase: Math.random() * Math.PI * 2 });
   _tmpPos.set(Math.cos(ang) * r, y, Math.sin(ang) * r);
-  _tmpScl.set(sx, 0.4, sz);
+  _tmpScl.set(sx, sy, sz);
   _tmpMat4.compose(_tmpPos, _tmpRot, _tmpScl);
   hiClouds.setMatrixAt(i, _tmpMat4);
 }
