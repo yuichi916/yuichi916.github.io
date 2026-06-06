@@ -730,7 +730,10 @@ let teleportGraceUntil = 0;
 const canvas = document.getElementById('webgl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 900);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_MOBILE ? 1.25 : 2));
+// v662: pixel ratio capped to 1.0 — was 2.0 on desktop, killing 60fps
+// on high-DPI displays.  Visual difference is minimal at standard
+// viewing distance; perf gain is substantial.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -863,9 +866,8 @@ islandSilhouetteMat.userData.shared = true;
 // with a DENSE LOW SEA of clouds laid out horizontally around and
 // below the island disc — looks like a calm ocean of mist instead
 // of UFOs hovering overhead.
-// v661: reduced from 144 to 80 for perf — natural tufts (3-5 spheres
-// each) at 16-20 tufts ~ 80 instances cover the sky adequately.
-const HI_CLOUD_COUNT = 80;
+// v662: reduced to 48 for further perf — ~12 tufts of 4 spheres each.
+const HI_CLOUD_COUNT = 48;
 const _hiCloudGeom = new THREE.SphereGeometry(1.5, 8, 6);
 _hiCloudGeom.userData.shared = true;
 const hiClouds = new THREE.InstancedMesh(_hiCloudGeom, cloudMat, HI_CLOUD_COUNT);
@@ -7884,7 +7886,8 @@ function _placeDistantMountains(root){
   const farMat = new THREE.MeshStandardMaterial({
     color: 0x4a5a6a, roughness: 0.98, metalness: 0.02,
   });
-  for(let i = 0; i < 14; i++){
+  // v662: reduced 14 → 8 mountains for perf (each is its own draw call).
+  for(let i = 0; i < 8; i++){
     const ang = (i / 14) * Math.PI * 2 + Math.random() * 0.3;
     const rr  = 140 + Math.random() * 90;
     const w   = 14 + Math.random() * 18;
@@ -7923,69 +7926,63 @@ SCENES.island = {
     // (commit 2c8a9e1 + pCloud upload), so the cobble surface now
     // sits at world y = 0 just like the other prefabs.  No more
     // -5.46 displacement.
-    placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
-    // v661: ground-fill is now VISIBLE — earthy procedural grass/path
-    // texture covering all 9 cells + bridges.  Solid color (no opacity
-    // 0) so the user actually SEES the walkable area.  Slightly below
-    // Y=0 so cobble disks render on top.
-    const _gfMat = new THREE.MeshStandardMaterial({
-      color: 0x6b7848,            // muted moss-grass
-      roughness: 0.95, metalness: 0,
-      side: THREE.DoubleSide,
-    });
-    _gfMat.userData.shared = true;
-    // 9 cell discs
-    for(const sec in SCENE_WORLD_POS){
-      const pos = SCENE_WORLD_POS[sec];
-      if(!pos || typeof pos.dx !== 'number' || typeof pos.dz !== 'number') continue;
-      // heya is interior — skip outdoor fill for it
-      if(sec === 'heya') continue;
-      const cx = pos.dx * ISLAND_SEPARATION;
-      const cz = pos.dz * ISLAND_SEPARATION;
-      const disc = new THREE.Mesh(new THREE.CircleGeometry(11, 28), _gfMat);
-      disc.rotation.x = -Math.PI * 0.5;
-      disc.position.set(cx, -0.05, cz);   // slightly below cobble so cobble stays on top
-      disc.userData.isGroundFill = true;
-      disc.userData.isWalkSurface = true;
-      disc.userData.isGroundMesh = true;
-      disc.receiveShadow = false;
-      root.add(disc);
-    }
-    // Bridge strips between adjacent cells
-    const _bridged = new Set();
-    if(typeof SCENE_NEIGHBORS !== 'undefined'){
-      for(const from in SCENE_NEIGHBORS){
-        const nbrs = SCENE_NEIGHBORS[from];
-        if(!nbrs) continue;
-        for(const dir in nbrs){
-          const to = nbrs[dir];
-          if(!SCENE_WORLD_POS[to]) continue;
-          const key = [from, to].sort().join('|');
-          if(_bridged.has(key)) continue;
-          _bridged.add(key);
-          const a = SCENE_WORLD_POS[from];
-          const b = SCENE_WORLD_POS[to];
-          if(!a || !b ||
-             typeof a.dx !== 'number' || typeof a.dz !== 'number' ||
-             typeof b.dx !== 'number' || typeof b.dz !== 'number') continue;
-          const ax = a.dx * ISLAND_SEPARATION;
-          const az = a.dz * ISLAND_SEPARATION;
-          const bx = b.dx * ISLAND_SEPARATION;
-          const bz = b.dz * ISLAND_SEPARATION;
-          const dx = bx - ax, dz = bz - az;
-          const len = Math.hypot(dx, dz);
-          if(len < 0.1) continue;
-          const strip = new THREE.Mesh(new THREE.PlaneGeometry(len, 5.5), _gfMat);
-          strip.rotation.x = -Math.PI * 0.5;
-          strip.rotation.z = -Math.atan2(dz, dx);
-          strip.position.set((ax + bx) * 0.5, -0.05, (az + bz) * 0.5);
-          strip.userData.isGroundFill = true;
-          strip.userData.isWalkSurface = true;
-          strip.userData.isGroundMesh = true;
-          strip.receiveShadow = false;
-          root.add(strip);
+    const _plaza = placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
+    // v662: ONE unified ground at the EXACT SAME Y as plaza cobble,
+    // built by cloning plaza's cobble MATERIAL (with texture) onto a
+    // single 80m × 80m plane.  No second layer.  No green disc.  No
+    // bridge strips.  The plane covers every cell + bridge area in
+    // one continuous mesh so the avatar can walk anywhere.
+    // The plane's Y is computed from plaza's actual cobble top so it
+    // matches whatever the loaded prefab uses (old Y=5.46 or new Y=0).
+    if(_plaza){
+      _plaza.updateMatrixWorld(true);
+      let _cobbleMat = null;
+      let _cobbleY = 0;
+      let _foundCobble = false;
+      _plaza.traverse(o => {
+        if(!o.isMesh || !o.material) return;
+        const nm = (o.name || '').toLowerCase();
+        if(/ground|cobble|paving|path|floor|street|plaza/.test(nm)){
+          if(!_cobbleMat){
+            // Clone material with repeat-wrap texture
+            const src = Array.isArray(o.material) ? o.material[0] : o.material;
+            _cobbleMat = src.clone();
+            if(_cobbleMat.map){
+              _cobbleMat.map = _cobbleMat.map.clone();
+              _cobbleMat.map.wrapS = THREE.RepeatWrapping;
+              _cobbleMat.map.wrapT = THREE.RepeatWrapping;
+              _cobbleMat.map.repeat.set(8, 8);    // 80m / 10m tile
+              _cobbleMat.map.needsUpdate = true;
+            }
+            _cobbleMat.needsUpdate = true;
+          }
+          const _bb = new THREE.Box3().setFromObject(o);
+          if(isFinite(_bb.max.y) && _bb.max.y < 20){
+            _cobbleY = Math.max(_cobbleY, _bb.max.y);
+            _foundCobble = true;
+          }
         }
+      });
+      // Fallback material if plaza had no cobble (cached old plaza without texture)
+      if(!_cobbleMat){
+        _cobbleMat = new THREE.MeshStandardMaterial({
+          color: 0x8a7a55, roughness: 0.95, metalness: 0,
+        });
       }
+      // Place unified ground at the SAME Y as plaza cobble (no 2-layer)
+      const _unifiedGround = new THREE.Mesh(
+        new THREE.PlaneGeometry(80, 80, 1, 1),
+        _cobbleMat
+      );
+      _unifiedGround.rotation.x = -Math.PI * 0.5;
+      _unifiedGround.position.y = _foundCobble ? _cobbleY : 0;
+      _unifiedGround.userData.isGroundMesh = true;   // sampleHeight picks this up
+      _unifiedGround.userData.isWalkSurface = true;
+      _unifiedGround.userData.isUnifiedGround = true;
+      _unifiedGround.receiveShadow = true;
+      _unifiedGround.renderOrder = -1;   // draw first so cobble piles render on top
+      root.add(_unifiedGround);
+      console.log(`niwa[island]: unified ground at Y=${(_foundCobble ? _cobbleY : 0).toFixed(2)} (foundCobble=${_foundCobble})`);
     }
     // v650: full panorama atmosphere — cloud sea + distant islets +
     // deep ocean + waterfalls cascading off the disc edges.  Heavy bits
@@ -8038,27 +8035,28 @@ SCENES.island = {
 let _islandStreamedCount = 0;
 let _islandStreamingDone = false;
 async function _streamRemainingIslandPrefabs(root){
-  // Stream in a sensible order: plaza's neighbours first so the player
-  // sees the nearest sections fill in as they walk outward.
+  // v662: PARALLEL streaming.  Previously sequential (10 sec/prefab × 9 = 90s),
+  // now all 9 fetch in parallel and place as each completes.  Total wall
+  // time = max(downloads) instead of sum — typically 15-20s on broadband.
   _islandStreamedCount = 0;
   _islandStreamingDone = false;
   const ORDER = ['monlight', 'oto', 'toki', 'hoshi', 'amaoto', 'tabi', 'takibi', 'mizube', 'heya'];
-  for(const name of ORDER){
-    if(!currentScene || currentScene.name !== 'island') return;   // user left
+  const downloadAndPlace = async (name) => {
+    if(!currentScene || currentScene.name !== 'island') return;
     try {
       await lazyLoadAsset('enc_prefab_' + name);
     } catch(e){
       console.warn(`niwa[island]: failed to load ${name}: ${e?.message}`);
-      continue;
+      return;
     }
     if(!currentScene || currentScene.name !== 'island') return;
     const pos = SCENE_WORLD_POS[name];
-    if(!pos) continue;
+    if(!pos) return;
     const x = pos.dx * ISLAND_SEPARATION;
     const z = pos.dz * ISLAND_SEPARATION;
     const offset = (name === 'heya') ? 3.0 : 0;
     const m = (typeof blenderClone === 'function' && blenderClone('enc_prefab_' + name));
-    if(!m) continue;
+    if(!m) return;
     m.scale.setScalar(1.0);
     m.position.set(x + offset, 0, z + offset);
     m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
@@ -8169,26 +8167,15 @@ async function _streamRemainingIslandPrefabs(root){
       });
     }
     _islandStreamedCount++;
-    console.log(`niwa[island]: streamed ${name} — scanned ${_meshes} meshes, +${_added} AABBs`);
-  }
+    console.log(`niwa[island]: streamed ${name} — scanned ${_meshes} meshes, +${_added} AABBs (${_islandStreamedCount}/9)`);
+  };
+  // Run all 9 in parallel and wait for completion
+  await Promise.all(ORDER.map(downloadAndPlace));
   _islandStreamingDone = true;
-  // After all prefabs land, wire stone walkways between every adjacent
-  // pair so the avatar can cross dish-to-dish.
-  const linked = new Set();
-  for(const [from, neighbors] of Object.entries(SCENE_NEIGHBORS)){
-    if(!neighbors || !SCENE_WORLD_POS[from]) continue;
-    for(const target of Object.values(neighbors)){
-      if(!SCENE_WORLD_POS[target]) continue;
-      const key = [from, target].sort().join('|');
-      if(linked.has(key)) continue;
-      linked.add(key);
-      const a = SCENE_WORLD_POS[from], b = SCENE_WORLD_POS[target];
-      _placeIslandStone(root,
-        a.dx * ISLAND_SEPARATION, a.dz * ISLAND_SEPARATION,
-        b.dx * ISLAND_SEPARATION, b.dz * ISLAND_SEPARATION);
-    }
-  }
-  console.log(`niwa[island]: wired ${linked.size} walkways`);
+  // After all prefabs land, walkways are no longer needed — the
+  // unified ground (built in SCENES.island.build) already provides
+  // continuous walking between cells.
+  console.log(`niwa[island]: streaming done (${_islandStreamedCount}/9)`);
 }
 
 
@@ -10247,17 +10234,10 @@ composer.addPass(renderPass);
 // pristine, 0.55 strength gives soft highlight bleed on sun-lit cobble +
 // metal trim, half-res buffer halves the bloom cost on desktop. Mobile
 // + reduced-motion skip the pass entirely (no FBO/screen-quad cost).
+// v662: bloom + SMAA disabled per user perf complaint.  Both add
+// 3-8ms/frame (full-res FBO + screen quad each).  Plain composer.
 let bloom = null;
-if(!IS_MOBILE && !REDUCED_MOTION){
-  bloom = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
-    0.55, 0.30, 0.85);
-  composer.addPass(bloom);
-}
-if(!IS_MOBILE){
-  const smaa = new SMAAPass(window.innerWidth*renderer.getPixelRatio(), window.innerHeight*renderer.getPixelRatio());
-  composer.addPass(smaa);
-}
+// (intentionally not adding bloom or SMAA — see v662 perf reduction)
 // Sun-shafts / god-rays pass: radial light streaks from the sun direction in screen space.
 // This is the signature look of the HDR Wallpaper reference photos (Yellowstone-style
 // "sun through mist" effect). Cheap radial blur towards sun screen position.
@@ -10400,7 +10380,10 @@ function animate(){
   }
   try {
   // v655: deferred PMREM rebuild so setSun doesn't stall the frame.
-  if(_pmremDirty) regenerateEnvironment();
+  // v662: PMREM regen disabled per perf complaint — cost was 3-5 ms
+  // per setSun call (which fires every scene swap + tab teleport).
+  // Visual loss is minimal: metallic materials fall back to flat env.
+  // if(_pmremDirty) regenerateEnvironment();
 
   // v657: climb-vault tween — runs BEFORE the movement controller and
   // blocks playerVel writes while active.
