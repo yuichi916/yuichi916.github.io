@@ -326,6 +326,47 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   font:18px/1 serif; cursor:pointer; opacity:0.7;
 }
 .niwa-modal .close:hover{ opacity:1; }
+/* v659: next-action quest hint (top-left) */
+#quest-hint{
+  position:fixed; top:60px; left:18px; z-index:40;
+  padding:10px 16px 12px;
+  background:rgba(14,26,38,0.82);
+  border:1px solid rgba(200,152,72,0.55);
+  border-radius:6px; color:#e8dcb8;
+  font:13px/1.4 'Shippori Mincho', serif;
+  letter-spacing:0.04em;
+  max-width:280px;
+  box-shadow:0 8px 22px rgba(0,0,0,0.5);
+  opacity:0; transition:opacity 0.3s;
+  pointer-events:none;
+}
+#quest-hint.visible{ opacity:1; }
+#quest-hint .lbl{
+  font:10px/1 'JetBrains Mono', monospace;
+  letter-spacing:0.22em; color:#c89848;
+  margin-bottom:6px; text-transform:uppercase;
+}
+#quest-hint .goal{
+  font:15px/1.45 'Shippori Mincho', serif;
+  color:#e8dcb8;
+}
+#quest-hint .goal b{ color:#ffd890; font-weight:normal; }
+/* v659: 3D-projected arrow pointing to the current goal */
+.niwa-quest-arrow{
+  position:absolute; pointer-events:none; z-index:31;
+  width:36px; height:36px;
+  transform:translate(-50%,-50%);
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(255,216,144,0.15);
+  border:2px solid #ffd890; border-radius:50%;
+  color:#ffd890; font:18px/1 'JetBrains Mono', monospace;
+  box-shadow:0 0 12px rgba(255,216,144,0.5);
+  animation:quest-pulse 1.6s ease-in-out infinite;
+}
+@keyframes quest-pulse{
+  0%,100%{ transform:translate(-50%,-50%) scale(1); }
+  50%   { transform:translate(-50%,-50%) scale(1.18); }
+}
 /* v658: floating interactable markers */
 .niwa-marker{
   position:absolute; pointer-events:none; z-index:30;
@@ -421,6 +462,12 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 
 <!-- v657: interactable prompt HUD — shows nearest interactable label when in range -->
 <div id="interact-hud"></div>
+
+<!-- v659: next-action quest hint (top-left) -->
+<div id="quest-hint">
+  <div class="lbl">次の目的</div>
+  <div class="goal">―</div>
+</div>
 
 <!-- v658: persistent help button + tutorial overlay -->
 <button id="btn-help" aria-label="操作ヘルプ" title="操作ヘルプ">?</button>
@@ -6382,18 +6429,34 @@ function buildScene(name){
   // Build geometry — the prefab provides its own ground + buildings.
   // No procedural fallback disc: user wants "prefab だけの世界".
   def.build(root);
-  // POST-PASS: every scene gets a continuous world ring + 150+ PBR hero assets
-  // + cobble roads leading to every neighbor scene (continuous-world feel).
+  // v659: defer non-essential decorations to setTimeout so the initial
+  // scene reveals 1-2s faster — extendWorldGround / addSceneConnections
+  // / pad150PBR add 150+ accent meshes that the player doesn't need
+  // before they can walk around.  They appear progressively over 0.8s.
   if(def.kind !== 'room'){
-    extendWorldGround(root, name);
-    addSceneConnections(root, name);   // visible roads toward each neighbor
-    pad150PBR(root, name);
+    const _tok = buildScene._tokens && buildScene._tokens[name];
+    setTimeout(() => {
+      if(currentScene && currentScene.name === name
+         && (!buildScene._tokens || buildScene._tokens[name] === _tok)){
+        try { extendWorldGround(root, name); } catch(_){}
+      }
+    }, 200);
+    setTimeout(() => {
+      if(currentScene && currentScene.name === name
+         && (!buildScene._tokens || buildScene._tokens[name] === _tok)){
+        try { addSceneConnections(root, name); } catch(_){}
+      }
+    }, 450);
+    setTimeout(() => {
+      if(currentScene && currentScene.name === name
+         && (!buildScene._tokens || buildScene._tokens[name] === _tok)){
+        try { pad150PBR(root, name); } catch(_){}
+      }
+    }, 800);
   }
-  // v658: populate scene with wandering NPCs to give a "lived-in" feel.
-  // Only for outdoor scenes (not interior modals or panorama overview).
-  if(def.kind !== 'room' && def.kind !== 'interior'){
-    populateSceneNPCs(root, name);
-  }
+  // v659: NPC wanderers removed per user request — they wanted the
+  // avatar's OWN movement to feel like walking (head bob + gravity).
+  // The populateSceneNPCs function is kept but no longer called.
   // Optional photoreal Gaussian-Splat backdrop (per-scene URL via UI)
   addSplatBackdrop(root, name);
   // Whole-root raycast surface (clicks land anywhere visible inside the
@@ -7827,26 +7890,71 @@ SCENES.island = {
     // sits at world y = 0 just like the other prefabs.  No more
     // -5.46 displacement.
     placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
-    // v657: invisible ground-fill plane at Y=0 covering the entire
-    // island disc (±35m).  sampleHeight's "lowest tagged ground" rule
-    // picks the actual cobble/porch above Y=0 where they exist, and
-    // falls through to this plane only over true voids.  Eliminates
-    // walk-over-void bugs once sky-miss is set to strict-block.
-    const _gf = new THREE.Mesh(
-      new THREE.PlaneGeometry(70, 70, 1, 1),
-      new THREE.MeshStandardMaterial({
-        color: 0x1a2a18, roughness: 1.0, metalness: 0,
-        transparent: true, opacity: 0.0, side: THREE.DoubleSide,
-        depthWrite: false,
-      })
-    );
-    _gf.rotation.x = -Math.PI * 0.5;
-    _gf.position.y = 0;
-    _gf.userData.isGroundFill = true;
-    _gf.userData.isWalkSurface = true;
-    _gf.userData.isGroundMesh = true;   // v658: enables sampleHeight pickup as secondary ground
-    _gf.receiveShadow = false;
-    root.add(_gf);
+    // v659: ground-fill is now SHAPED — 9 cell discs (radius 7.5m)
+    // at each section + thin bridge strips between neighbours.  Was
+    // a 70×70m square (~4900m²) which let the avatar walk anywhere
+    // within ±35m even far from any cobble.  Now matches the actual
+    // island walkable shape so stepping off the bridge into the void
+    // properly blocks via sky-miss strict.
+    const _gfMat = new THREE.MeshStandardMaterial({
+      color: 0x1a2a18, roughness: 1.0, metalness: 0,
+      transparent: true, opacity: 0.0, side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    _gfMat.userData.shared = true;
+    // 9 cell discs
+    for(const sec in SCENE_WORLD_POS){
+      const pos = SCENE_WORLD_POS[sec];
+      if(!pos || typeof pos.dx !== 'number' || typeof pos.dz !== 'number') continue;
+      // heya is interior — skip outdoor fill for it
+      if(sec === 'heya') continue;
+      const cx = pos.dx * ISLAND_SEPARATION;
+      const cz = pos.dz * ISLAND_SEPARATION;
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(7.5, 24), _gfMat);
+      disc.rotation.x = -Math.PI * 0.5;
+      disc.position.set(cx, 0, cz);
+      disc.userData.isGroundFill = true;
+      disc.userData.isWalkSurface = true;
+      disc.userData.isGroundMesh = true;
+      disc.receiveShadow = false;
+      root.add(disc);
+    }
+    // Bridge strips between adjacent cells
+    const _bridged = new Set();
+    if(typeof SCENE_NEIGHBORS !== 'undefined'){
+      for(const from in SCENE_NEIGHBORS){
+        const nbrs = SCENE_NEIGHBORS[from];
+        if(!nbrs) continue;
+        for(const dir in nbrs){
+          const to = nbrs[dir];
+          if(!SCENE_WORLD_POS[to]) continue;
+          const key = [from, to].sort().join('|');
+          if(_bridged.has(key)) continue;
+          _bridged.add(key);
+          const a = SCENE_WORLD_POS[from];
+          const b = SCENE_WORLD_POS[to];
+          if(!a || !b ||
+             typeof a.dx !== 'number' || typeof a.dz !== 'number' ||
+             typeof b.dx !== 'number' || typeof b.dz !== 'number') continue;
+          const ax = a.dx * ISLAND_SEPARATION;
+          const az = a.dz * ISLAND_SEPARATION;
+          const bx = b.dx * ISLAND_SEPARATION;
+          const bz = b.dz * ISLAND_SEPARATION;
+          const dx = bx - ax, dz = bz - az;
+          const len = Math.hypot(dx, dz);
+          if(len < 0.1) continue;
+          const strip = new THREE.Mesh(new THREE.PlaneGeometry(len, 3.2), _gfMat);
+          strip.rotation.x = -Math.PI * 0.5;
+          strip.rotation.z = -Math.atan2(dz, dx);
+          strip.position.set((ax + bx) * 0.5, 0, (az + bz) * 0.5);
+          strip.userData.isGroundFill = true;
+          strip.userData.isWalkSurface = true;
+          strip.userData.isGroundMesh = true;
+          strip.receiveShadow = false;
+          root.add(strip);
+        }
+      }
+    }
     // v650: full panorama atmosphere — cloud sea + distant islets +
     // deep ocean + waterfalls cascading off the disc edges.  Heavy bits
     // (clouds, waterfalls) use InstancedMesh so they cost ~3 draw calls.
@@ -8963,6 +9071,44 @@ function makeDoorPortal(label){
   halo.rotation.x = -Math.PI / 2; halo.position.y = 0.02;
   g.add(halo);
   g.userData.halo = halo;
+  // v659: vertical light beam reaching to the sky — visible from far
+  // away so the player knows where to go for "E to enter".
+  const beamGeom = new THREE.CylinderGeometry(0.35, 0.6, 12, 16, 1, true);
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: 0xffd890, transparent: true, opacity: 0.18,
+    side: THREE.DoubleSide, depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const beamMesh = new THREE.Mesh(beamGeom, beamMat);
+  beamMesh.position.y = 6;
+  beamMesh.userData.skipRaycast = true;
+  g.add(beamMesh);
+  g.userData.beam = beamMesh;
+  // v659: floating "E" prompt billboarded above the gate
+  const prompt = document.createElement('canvas');
+  prompt.width = 128; prompt.height = 128;
+  const pctx = prompt.getContext('2d');
+  pctx.fillStyle = 'rgba(14,26,38,0.9)';
+  pctx.beginPath();
+  pctx.arc(64, 64, 50, 0, Math.PI * 2);
+  pctx.fill();
+  pctx.strokeStyle = '#ffd890'; pctx.lineWidth = 4;
+  pctx.beginPath(); pctx.arc(64, 64, 50, 0, Math.PI * 2); pctx.stroke();
+  pctx.fillStyle = '#ffd890';
+  pctx.font = 'bold 56px "JetBrains Mono", monospace';
+  pctx.textAlign = 'center'; pctx.textBaseline = 'middle';
+  pctx.fillText('E', 64, 68);
+  const promptTex = new THREE.CanvasTexture(prompt);
+  promptTex.colorSpace = THREE.SRGBColorSpace;
+  const promptSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: promptTex, transparent: true, depthWrite: false, depthTest: false,
+  }));
+  promptSprite.position.set(0, 2.6, 0);
+  promptSprite.scale.set(0.9, 0.9, 1);
+  promptSprite.renderOrder = 999;
+  promptSprite.userData.skipRaycast = true;
+  g.add(promptSprite);
+  g.userData.promptSprite = promptSprite;
   return g;
 }
 
@@ -9749,31 +9895,60 @@ if(_btnJumpMobile){
     }
   });
 })();
-// v658: unified interactable modal — Esc, X button, click-outside, all close.
-// Auto-removes after `durationMs` (default 10s).  Returns the element.
+// v659: unified interactable modal — Esc, X button, click-outside,
+// all close.  Auto-removes after `durationMs` (default 10s).  v659
+// hardened: X click uses pointerdown (fires before any other click
+// handler), stopPropagation, and Esc check covers both keydown phases.
 window.showInteractModal = function(html, durationMs){
+  // Close any existing modal first so re-trigger doesn't stack
+  const existing = document.querySelector('.niwa-modal');
+  if(existing) existing.remove();
   const m = document.createElement('div');
   m.className = 'niwa-modal';
-  m.innerHTML = '<button class="close" aria-label="閉じる">×</button>' + html;
+  m.innerHTML = '<button class="close" type="button" aria-label="閉じる">×</button>' + html;
+  let closed = false;
   const close = () => {
-    if(!m.parentNode) return;
-    m.style.opacity = '0';
-    setTimeout(() => { if(m.parentNode) m.remove(); }, 200);
-    document.removeEventListener('keydown', onKey);
-    document.removeEventListener('click', onOutside, true);
+    if(closed) return;
+    closed = true;
+    document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('pointerdown', onOutside, true);
+    if(m.parentNode){
+      m.style.opacity = '0';
+      setTimeout(() => { if(m.parentNode) m.remove(); }, 200);
+    }
   };
   const onKey = e => {
-    if(e.key === 'Escape' || e.code === 'KeyE') close();
+    if(e.key === 'Escape' || e.code === 'Escape' ||
+       e.key === 'e' || e.key === 'E' || e.code === 'KeyE') close();
   };
   const onOutside = e => {
-    // Click outside the modal closes it
     if(!m.contains(e.target)) close();
   };
-  m.querySelector('.close').addEventListener('click', close);
+  // Wire X button on BOTH pointerdown and click (defensive)
+  const closeBtn = m.querySelector('.close');
+  closeBtn.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    close();
+  }, true);
+  closeBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    close();
+  }, true);
+  // Also: click on the modal background (but not children) closes
+  m.addEventListener('click', e => {
+    if(e.target === m) close();
+  });
   document.body.appendChild(m);
   m.style.transition = 'opacity 0.2s';
-  setTimeout(() => document.addEventListener('keydown', onKey), 0);
-  setTimeout(() => document.addEventListener('click', onOutside, true), 100);
+  // Defer outside-click listener so the click that OPENED the modal
+  // doesn't immediately close it (defer until 150ms after open).
+  setTimeout(() => {
+    if(closed) return;
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onOutside, true);
+  }, 150);
   if(durationMs > 0) setTimeout(close, durationMs);
   return m;
 };
@@ -10255,6 +10430,80 @@ function animate(){
     }
     window._currentInteract = _nearestIt;
 
+    // v659: quest-hint navigation — pick FARTHEST interactable as the
+    // "next goal" (so the player has something to walk toward).  Show
+    // a top-left panel + edge-of-screen arrow pointing at it.
+    {
+      const _ents2 = ENTITIES.interactables || [];
+      let _goal = null, _goalDist = -1;
+      for(const it of _ents2){
+        const d = Math.hypot(it.x - avatar.position.x, it.z - avatar.position.z);
+        // Goal must be > 4m away (not adjacent) and within 60m
+        if(d > 4 && d < 60 && d > _goalDist){ _goal = it; _goalDist = d; }
+      }
+      const _qh = document.getElementById('quest-hint');
+      if(_qh){
+        if(_goal){
+          const _label = (_goal.label || '').replace(/^E:\s*/, '');
+          const _txt = `${_label}<br><b>${_goalDist.toFixed(0)} m</b> 先`;
+          if(_qh.querySelector('.goal').innerHTML !== _txt){
+            _qh.querySelector('.goal').innerHTML = _txt;
+          }
+          _qh.classList.add('visible');
+        } else {
+          _qh.classList.remove('visible');
+        }
+      }
+      // 3D arrow pointing at the goal — projected with clamp at screen edge
+      if(!window._questArrow){
+        const ar = document.createElement('div');
+        ar.className = 'niwa-quest-arrow';
+        ar.textContent = '↑';
+        document.body.appendChild(ar);
+        window._questArrow = ar;
+      }
+      const _arrow = window._questArrow;
+      if(_goal){
+        const _activeCam2 = firstPerson ? camFP : camera;
+        const _v4 = new THREE.Vector3(_goal.x, 1.2, _goal.z);
+        _v4.project(_activeCam2);
+        // If behind camera, place at bottom edge pointing down
+        const _w = window.innerWidth, _h = window.innerHeight;
+        let sx = (_v4.x * 0.5 + 0.5) * _w;
+        let sy = (-_v4.y * 0.5 + 0.5) * _h;
+        const _onScreen = (_v4.z < 1 && Math.abs(_v4.x) < 1 && Math.abs(_v4.y) < 1);
+        if(!_onScreen){
+          // Clamp to edge ring
+          const cx = _w / 2, cy = _h / 2;
+          let dx = sx - cx, dy = sy - cy;
+          // Project to edge of a margin-inset rect (40px)
+          const margin = 60;
+          const mw = (_w - margin * 2) / 2, mh = (_h - margin * 2) / 2;
+          if(_v4.z >= 1){ dx = -dx; dy = -dy; }
+          const ax = Math.abs(dx), ay = Math.abs(dy);
+          let scale;
+          if(ax / mw > ay / mh){ scale = mw / Math.max(ax, 0.001); }
+          else { scale = mh / Math.max(ay, 0.001); }
+          sx = cx + dx * scale;
+          sy = cy + dy * scale;
+          _arrow.textContent = '↑';
+          // Rotate arrow toward goal direction
+          const ang = Math.atan2(dy, dx) + Math.PI / 2;
+          _arrow.style.transform = `translate(-50%,-50%) rotate(${ang}rad)`;
+        } else {
+          _arrow.textContent = '✦';
+          _arrow.style.transform = 'translate(-50%,-50%)';
+          // Hide arrow when very close (< 4m) — already shown in HUD
+          if(_goalDist < 4) sx = sy = -999;
+        }
+        _arrow.style.left = sx + 'px';
+        _arrow.style.top = sy + 'px';
+        _arrow.style.display = (sx < 0) ? 'none' : 'flex';
+      } else {
+        _arrow.style.display = 'none';
+      }
+    }
+
     // Floating markers (v658).  Project each interactable to screen
     // and show its label as a floating chip — up to 25m away.  Hide
     // when in range (the HUD shows the label there).
@@ -10477,18 +10726,43 @@ function animate(){
   const j = avatar.userData.joints;
   if(j){
     if(moving){
-      const sw = Math.sin(t*10);
-      const cw = Math.cos(t*10);
-      j.legL.rotation.x = sw * 0.55;
-      j.legR.rotation.x = -sw * 0.55;
+      // v659: bigger walk amplitude — leg swing + torso bob + side sway.
+      // Plus a footstep audio click each time a foot plants (sw crosses
+      // through 0 with rising slope — happens ~2× per cycle at ~6 Hz).
+      const swSpeed = keys.shift ? 14 : 10;
+      const sw = Math.sin(t * swSpeed);
+      const cw = Math.cos(t * swSpeed);
+      j.legL.rotation.x = sw * 0.65;
+      j.legR.rotation.x = -sw * 0.65;
       if(j.legL.userData?.knee){
-        j.legL.userData.knee.rotation.x = -Math.max(0, sw) * 0.9;
-        j.legR.userData.knee.rotation.x = -Math.max(0, -sw) * 0.9;
+        j.legL.userData.knee.rotation.x = -Math.max(0, sw) * 1.0;
+        j.legR.userData.knee.rotation.x = -Math.max(0, -sw) * 1.0;
       }
-      j.armL.rotation.x = -sw * 0.45;
-      j.armR.rotation.x = sw * 0.45;
-      j.torso.position.y = 0.20 + Math.abs(sw)*0.025;
-      j.torso.rotation.z = cw * 0.04;
+      j.armL.rotation.x = -sw * 0.55;
+      j.armR.rotation.x = sw * 0.55;
+      // v659: bigger torso bob (5cm) + side sway (4cm shift) = walking weight
+      j.torso.position.y = 0.20 + Math.abs(sw) * 0.05;
+      j.torso.position.x = cw * 0.04;
+      j.torso.rotation.z = cw * 0.06;
+      // Footstep cadence: trigger sound each time leg crosses neutral
+      if(!window._lastFootstepSw) window._lastFootstepSw = 0;
+      const ls = window._lastFootstepSw;
+      if((ls < 0 && sw >= 0) || (ls > 0 && sw <= 0)){
+        try {
+          if(typeof audioCtx !== 'undefined' && audioCtx && audioCtx.state === 'running'){
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.frequency.value = 90 + Math.random() * 30;
+            o.type = 'triangle';
+            g.gain.setValueAtTime(0.04, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.09);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start();
+            o.stop(audioCtx.currentTime + 0.10);
+          }
+        } catch(_){}
+      }
+      window._lastFootstepSw = sw;
     } else {
       const idle = Math.sin(t*1.6)*0.04;
       j.legL.rotation.x *= 0.85; j.legR.rotation.x *= 0.85;
@@ -10498,6 +10772,8 @@ function animate(){
       }
       j.armL.rotation.x = idle; j.armR.rotation.x = -idle;
       j.torso.position.y = 0.20 + idle*0.4;
+      // v659: decay side sway back to centre on idle
+      j.torso.position.x *= 0.85;
       j.torso.rotation.z *= 0.9;
     }
     j.head.rotation.y = Math.sin(t*0.4)*0.1;
