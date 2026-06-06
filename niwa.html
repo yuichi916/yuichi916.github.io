@@ -793,7 +793,8 @@ function applyOrthoSize(){
 let camera = makeOrthoCam();
 // 1st-person perspective camera, swap into composer per frame
 const camFP = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 220);
-let firstPerson = false;
+// v661: 1P default per user request — overworld 3P becomes top-down map mode
+let firstPerson = true;
 
 /* Lighting ================================================ */
 const sun = new THREE.DirectionalLight(0xfff4d0, 1.8);  // softened — diorama doesn't want blown highlights
@@ -862,7 +863,9 @@ islandSilhouetteMat.userData.shared = true;
 // with a DENSE LOW SEA of clouds laid out horizontally around and
 // below the island disc — looks like a calm ocean of mist instead
 // of UFOs hovering overhead.
-const HI_CLOUD_COUNT = 144;
+// v661: reduced from 144 to 80 for perf — natural tufts (3-5 spheres
+// each) at 16-20 tufts ~ 80 instances cover the sky adequately.
+const HI_CLOUD_COUNT = 80;
 const _hiCloudGeom = new THREE.SphereGeometry(1.5, 8, 6);
 _hiCloudGeom.userData.shared = true;
 const hiClouds = new THREE.InstancedMesh(_hiCloudGeom, cloudMat, HI_CLOUD_COUNT);
@@ -874,29 +877,47 @@ const _tmpMat4 = new THREE.Matrix4();
 const _tmpPos = new THREE.Vector3();
 const _tmpRot = new THREE.Quaternion();
 const _tmpScl = new THREE.Vector3();
-for(let i = 0; i < HI_CLOUD_COUNT; i++){
-  // Random distribution across a sea of clouds 25-70m around the
-  // island, mostly at Y = -1 to +3 (lapping the disc rim).  A few
-  // thicker tufts rise to Y = +5 for vertical interest without
-  // floating overhead.
+// v661: build cloud "tufts" — each cloud is 3-5 overlapping spheres
+// of varying size, giving a billowy/natural shape instead of flat
+// disc.  Distribute as a sea around the island plus a few overhead.
+let _idx = 0;
+const CLOUD_TUFTS = Math.floor(HI_CLOUD_COUNT / 4);
+for(let t = 0; t < CLOUD_TUFTS && _idx < HI_CLOUD_COUNT; t++){
   const ang = Math.random() * Math.PI * 2;
-  const r   = 25 + Math.random() * 45;     // dense near island, thinner far
-  // 80% of clouds at low Y, 20% rise slightly
+  const r   = 28 + Math.random() * 42;
   const tier = Math.random();
-  const y   = tier < 0.8
-              ? -1 + Math.random() * 3       // main sea layer
-              : 3 + Math.random() * 3;        // rising puffs
-  // Wider, flatter than the old frisbee ring — read as cloud pillows.
-  const sx  = 2.0 + Math.random() * 3.5;
-  const sz  = 2.0 + Math.random() * 3.5;
-  const sy  = 0.4 + Math.random() * 0.5;
-  _hiCloudData.push({ ang, r, baseY: y, sx, sz,
-                       driftSpeed: 0.0015 + Math.random() * 0.0035,
-                       bobPhase: Math.random() * Math.PI * 2 });
-  _tmpPos.set(Math.cos(ang) * r, y, Math.sin(ang) * r);
-  _tmpScl.set(sx, sy, sz);
+  const baseY = tier < 0.85
+                ? -1 + Math.random() * 3
+                : 3 + Math.random() * 4;
+  const tx = Math.cos(ang) * r;
+  const tz = Math.sin(ang) * r;
+  // Tuft of 3-5 overlapping spheres
+  const puffCount = 3 + Math.floor(Math.random() * 3);
+  for(let p = 0; p < puffCount && _idx < HI_CLOUD_COUNT; p++){
+    const ox = (Math.random() - 0.5) * 3.5;
+    const oz = (Math.random() - 0.5) * 3.5;
+    const oy = (Math.random() - 0.3) * 1.2;
+    const s = 1.2 + Math.random() * 1.5;
+    _hiCloudData.push({ ang, r, baseY, sx: s, sz: s,
+                         tuftOx: ox, tuftOz: oz, tuftOy: oy,
+                         driftSpeed: 0.0008 + Math.random() * 0.0025,
+                         bobPhase: Math.random() * Math.PI * 2 });
+    _tmpPos.set(tx + ox, baseY + oy, tz + oz);
+    _tmpScl.set(s, s * (0.7 + Math.random() * 0.4), s);
+    _tmpMat4.compose(_tmpPos, _tmpRot, _tmpScl);
+    hiClouds.setMatrixAt(_idx, _tmpMat4);
+    _idx++;
+  }
+}
+// Pad remaining instances with off-screen scale-0 to avoid undefined slots
+for(; _idx < HI_CLOUD_COUNT; _idx++){
+  _hiCloudData.push({ ang: 0, r: 0, baseY: -100, sx: 0, sz: 0,
+                       tuftOx: 0, tuftOz: 0, tuftOy: 0,
+                       driftSpeed: 0, bobPhase: 0 });
+  _tmpPos.set(0, -100, 0);
+  _tmpScl.set(0.001, 0.001, 0.001);
   _tmpMat4.compose(_tmpPos, _tmpRot, _tmpScl);
-  hiClouds.setMatrixAt(i, _tmpMat4);
+  hiClouds.setMatrixAt(_idx, _tmpMat4);
 }
 hiClouds.instanceMatrix.needsUpdate = true;
 scene.add(hiClouds);
@@ -6453,29 +6474,19 @@ function buildScene(name){
   // below is post-build because it pairs with the per-mesh AABB
   // scan which needs the prefab in place).
   ENTITIES.interactables = [];
+  window._niwaNavIcons = [];   // v661: clear nav-icon refs on scene swap
   window._currentInteract = null;
 
   // Build geometry — the prefab provides its own ground + buildings.
   // No procedural fallback disc: user wants "prefab だけの世界".
   def.build(root);
-  // v660: aggressive defer of non-essential decorations.  The player
-  // can walk and interact 100ms after def.build; accent meshes land
-  // in idle frames over the next ~2s.  requestIdleCallback falls back
-  // to setTimeout for browsers that don't support it.
+  // v661: user requested "no things appear after reveal".  Run the
+  // accent decorations synchronously so the reveal is final.  Cost:
+  // ~300-600ms longer load.  Benefit: no late-popping meshes.
   if(def.kind !== 'room'){
-    const _tok = buildScene._tokens && buildScene._tokens[name];
-    const _stillCurrent = () => currentScene && currentScene.name === name
-       && (!buildScene._tokens || buildScene._tokens[name] === _tok);
-    const _idle = (cb, ms) => {
-      if(typeof requestIdleCallback === 'function'){
-        return requestIdleCallback(() => { if(_stillCurrent()) cb(); }, { timeout: ms + 1000 });
-      } else {
-        return setTimeout(() => { if(_stillCurrent()) cb(); }, ms);
-      }
-    };
-    _idle(() => { try { extendWorldGround(root, name); } catch(_){} }, 300);
-    _idle(() => { try { addSceneConnections(root, name); } catch(_){} }, 700);
-    _idle(() => { try { pad150PBR(root, name); } catch(_){} }, 1200);
+    try { extendWorldGround(root, name); } catch(_){}
+    try { addSceneConnections(root, name); } catch(_){}
+    try { pad150PBR(root, name); } catch(_){}
   }
   // v659: NPC wanderers removed per user request — they wanted the
   // avatar's OWN movement to feel like walking (head bob + gravity).
@@ -7913,16 +7924,14 @@ SCENES.island = {
     // sits at world y = 0 just like the other prefabs.  No more
     // -5.46 displacement.
     placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
-    // v660: ground-fill is the union of 9 cell discs (radius 11m to
-    // overlap into the gaps) + wide bridge strips (width 5m).  The
-    // 11m radius is intentionally larger than the cobble disc so the
-    // overlapping rings produce a continuous walkable surface — no
-    // more "I can't cross this gap" between cells.  Stepping fully
-    // off the union still hits sky-miss → blocked.
+    // v661: ground-fill is now VISIBLE — earthy procedural grass/path
+    // texture covering all 9 cells + bridges.  Solid color (no opacity
+    // 0) so the user actually SEES the walkable area.  Slightly below
+    // Y=0 so cobble disks render on top.
     const _gfMat = new THREE.MeshStandardMaterial({
-      color: 0x1a2a18, roughness: 1.0, metalness: 0,
-      transparent: true, opacity: 0.0, side: THREE.DoubleSide,
-      depthWrite: false,
+      color: 0x6b7848,            // muted moss-grass
+      roughness: 0.95, metalness: 0,
+      side: THREE.DoubleSide,
     });
     _gfMat.userData.shared = true;
     // 9 cell discs
@@ -7935,7 +7944,7 @@ SCENES.island = {
       const cz = pos.dz * ISLAND_SEPARATION;
       const disc = new THREE.Mesh(new THREE.CircleGeometry(11, 28), _gfMat);
       disc.rotation.x = -Math.PI * 0.5;
-      disc.position.set(cx, 0, cz);
+      disc.position.set(cx, -0.05, cz);   // slightly below cobble so cobble stays on top
       disc.userData.isGroundFill = true;
       disc.userData.isWalkSurface = true;
       disc.userData.isGroundMesh = true;
@@ -7969,7 +7978,7 @@ SCENES.island = {
           const strip = new THREE.Mesh(new THREE.PlaneGeometry(len, 5.5), _gfMat);
           strip.rotation.x = -Math.PI * 0.5;
           strip.rotation.z = -Math.atan2(dz, dx);
-          strip.position.set((ax + bx) * 0.5, 0, (az + bz) * 0.5);
+          strip.position.set((ax + bx) * 0.5, -0.05, (az + bz) * 0.5);
           strip.userData.isGroundFill = true;
           strip.userData.isWalkSurface = true;
           strip.userData.isGroundMesh = true;
@@ -8120,8 +8129,25 @@ async function _streamRemainingIslandPrefabs(root){
       _beam.position.set(x + offset, 7, z + offset + 5);
       _beam.userData.skipRaycast = true;
       root.add(_beam);
+      // v661: bright sphere icon hovering above each portal — visible
+      // from the top-down 3P map and from the ground.  Pulses gently.
+      const _icon = new THREE.Mesh(
+        new THREE.SphereGeometry(0.6, 16, 12),
+        new THREE.MeshBasicMaterial({
+          color: _link.color || 0xffd890,
+          transparent: true, opacity: 0.85,
+        })
+      );
+      _icon.position.set(x + offset, 4.2, z + offset + 5);
+      _icon.userData.skipRaycast = true;
+      _icon.userData.isNavIcon = true;
+      _icon.userData.basePos = { x: x + offset, y: 4.2, z: z + offset + 5 };
+      _icon.userData.color = _link.color || 0xffd890;
+      root.add(_icon);
+      if(!window._niwaNavIcons) window._niwaNavIcons = [];
+      window._niwaNavIcons.push(_icon);
       ENTITIES.interactables.push({
-        x: x + offset, z: z + offset + 5, r: 2.0,
+        x: x + offset, z: z + offset + 5, r: 2.5,
         label: 'E: ' + _link.label,
         onActivate: () => {
           // Confirmation modal then navigate
@@ -9605,21 +9631,22 @@ btnTime.addEventListener('click', ()=>{
 const btnView = document.getElementById('btn-view');
 btnView.addEventListener('click', ()=>{
   firstPerson = !firstPerson;
-  btnView.textContent = firstPerson ? 'VIEW · 1P' : 'VIEW · 3P';
+  btnView.textContent = firstPerson ? 'VIEW · 1P' : 'VIEW · 地図';
   btnView.classList.toggle('active', firstPerson);
-  // v654: 1P entry — snap fpYaw to match the avatar's visible-front
-  // yaw so the view doesn't twist.  Avatar.visible-front rotates with
-  // Ry(yaw); 1P camera looks (sin(fpYaw), cos(fpYaw)) — same form, so
-  // fpYaw = avatar.rotation.y.
   if(firstPerson){
     fpYaw = avatar.rotation.y;
     fpPitch = -0.1;
   } else {
-    // Coming back to 3P — snap the orbit camera target behind the
-    // avatar so the chase camera isn't dropped to a side angle.
     camYawTarget = avatar.rotation.y + Math.PI;
+    // v661: in island scene, switching to 3P opens the top-down map.
+    // Bump ortho size so the whole island fits in view.
+    if(currentScene && currentScene.name === 'island'){
+      camZoomTarget = 28;
+    }
   }
 });
+// v661: set initial button text to reflect default 1P state
+try { btnView.textContent = 'VIEW · 1P'; btnView.classList.add('active'); } catch(_){}
 
 let audioCtx=null, ambientGain=null;
 function startAmbient(){
@@ -9857,6 +9884,39 @@ function handleClick(cx, cy){
   }
   if(!pick) return;
   const p = pick.point;
+  // v661: in island top-down 3P, clicks teleport instead of click-to-move.
+  // If clicked very close to an interactable (within 3m), invoke it.
+  const _isIsland3P = !firstPerson && currentScene && currentScene.name === 'island';
+  if(_isIsland3P){
+    let nearest = null, nd = Infinity;
+    for(const it of (ENTITIES.interactables || [])){
+      const d = Math.hypot(it.x - p.x, it.z - p.z);
+      if(d < nd){ nearest = it; nd = d; }
+    }
+    if(nearest && nd < 3){
+      // Teleport avatar near the interactable then auto-activate
+      avatar.position.set(nearest.x, sampleHeight(nearest.x, nearest.z), nearest.z);
+      playerVel.set(0, 0, 0); verticalVel = 0;
+      if(typeof teleportGraceUntil !== 'undefined') teleportGraceUntil = performance.now() + 1200;
+      window._currentInteract = nearest;
+      setTimeout(() => {
+        try { nearest.onActivate(); window._niwaLastInteracted = nearest; } catch(_){}
+      }, 200);
+      return;
+    }
+    // Else: just teleport to clicked location if walkable
+    if(isWalkable(p.x, p.z)){
+      avatar.position.set(p.x, sampleHeight(p.x, p.z), p.z);
+      playerVel.set(0, 0, 0); verticalVel = 0;
+      if(typeof teleportGraceUntil !== 'undefined') teleportGraceUntil = performance.now() + 1200;
+      targetMarker.position.set(p.x, p.y + 0.04, p.z);
+      targetMarker.visible = true;
+      setTimeout(() => { targetMarker.visible = false; }, 500);
+    } else {
+      flashInvalid(p);
+    }
+    return;
+  }
   if(isWalkable(p.x, p.z)){
     moveTarget = new THREE.Vector3(p.x, p.y, p.z);
     targetMarker.position.set(p.x, p.y + 0.04, p.z);
@@ -10005,14 +10065,17 @@ window.showInteractModal = function(html, durationMs){
       // re-trigger the interactable that just got closed.  Without
       // this, pressing E to close the modal immediately re-opened
       // it because the global keydown was still seeing the event.
-      e.stopPropagation();
+      // v661: stopImmediatePropagation — stopPropagation only
+      // prevents the event from reaching OTHER elements; same-element
+      // listeners (like the global E handler on document) still fired.
+      e.stopImmediatePropagation();
       e.preventDefault();
       close();
     }
   };
   const onOutside = e => {
     if(!m.contains(e.target)){
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       close();
     }
   };
@@ -10353,20 +10416,36 @@ function animate(){
   // v626: high cloud ring + low wisps drift around the camera via
   // InstancedMesh — single setMatrixAt sweep per cloud layer per frame
   // (was 32+ setattribute calls in v625).
-  if(hiClouds){
-    for(let i = 0; i < HI_CLOUD_COUNT; i++){
-      const d = _hiCloudData[i];
-      d.ang += d.driftSpeed * dt;
-      _tmpPos.set(
-        Math.cos(d.ang) * d.r,
-        d.baseY + Math.sin(t * 0.22 + d.bobPhase) * 0.35,
-        Math.sin(d.ang) * d.r
-      );
-      _tmpScl.set(d.sx, 0.4, d.sz);
-      _tmpMat4.compose(_tmpPos, _tmpRot, _tmpScl);
-      hiClouds.setMatrixAt(i, _tmpMat4);
+  // v661: nav icon pulse — bob + scale.
+  if(window._niwaNavIcons && window._niwaNavIcons.length){
+    for(const ic of window._niwaNavIcons){
+      if(!ic || !ic.userData || !ic.userData.basePos) continue;
+      ic.position.y = ic.userData.basePos.y + Math.sin(t * 1.8 + ic.userData.basePos.x * 0.3) * 0.35;
+      const sc = 1 + Math.sin(t * 2.4 + ic.userData.basePos.z * 0.2) * 0.18;
+      ic.scale.set(sc, sc, sc);
     }
-    hiClouds.instanceMatrix.needsUpdate = true;
+  }
+  if(hiClouds){
+    // v661: only animate every 4th frame to halve cost — clouds drift
+    // slowly so 15fps animation is invisible to the eye.
+    if((Math.floor(t * 60) & 3) === 0){
+      for(let i = 0; i < HI_CLOUD_COUNT; i++){
+        const d = _hiCloudData[i];
+        if(!d || d.sx === 0) continue;
+        d.ang += d.driftSpeed * dt * 4;
+        const cx = Math.cos(d.ang) * d.r;
+        const cz = Math.sin(d.ang) * d.r;
+        _tmpPos.set(
+          cx + (d.tuftOx || 0),
+          d.baseY + (d.tuftOy || 0) + Math.sin(t * 0.22 + d.bobPhase) * 0.25,
+          cz + (d.tuftOz || 0)
+        );
+        _tmpScl.set(d.sx, d.sx * 0.85, d.sz);
+        _tmpMat4.compose(_tmpPos, _tmpRot, _tmpScl);
+        hiClouds.setMatrixAt(i, _tmpMat4);
+      }
+      hiClouds.instanceMatrix.needsUpdate = true;
+    }
   }
   if(loWisps){
     for(let i = 0; i < LO_WISP_COUNT; i++){
@@ -10840,19 +10919,31 @@ function animate(){
   // Camera positioning — 3rd-person ortho follow OR 1st-person perspective
   if(!firstPerson){
     if(!camInit){ camFollow.copy(avatar.position); camInit = true; }
-    // Frame-rate-independent damp follow (per Codex)
-    camFollow.x = THREE.MathUtils.damp(camFollow.x, avatar.position.x, 8, dt);
-    camFollow.y = THREE.MathUtils.damp(camFollow.y, avatar.position.y, 8, dt);
-    camFollow.z = THREE.MathUtils.damp(camFollow.z, avatar.position.z, 8, dt);
-    const dist = Math.hypot(CAM_OFFSET.x, CAM_OFFSET.z);
-    const cx = Math.sin(camYawState)*dist;
-    const cz = Math.cos(camYawState)*dist;
-    camera.position.set(
-      camFollow.x + cx,
-      camFollow.y + CAM_OFFSET.y,
-      camFollow.z + cz
-    );
-    camera.lookAt(camFollow.x, camFollow.y + 1.0, camFollow.z);
+    // v661: in the ISLAND panorama, 3P is a top-down overview map so
+    // the player can see every event/portal at a glance.  Single-prefab
+    // scenes keep the legacy chase camera.
+    const _isIslandOverview = currentScene && currentScene.name === 'island';
+    if(_isIslandOverview){
+      camFollow.x = THREE.MathUtils.damp(camFollow.x, avatar.position.x, 5, dt);
+      camFollow.z = THREE.MathUtils.damp(camFollow.z, avatar.position.z, 5, dt);
+      camFollow.y = 0;
+      // Fixed top-down — height tuned so a 30m radius shows in the ortho.
+      camera.position.set(camFollow.x, 60, camFollow.z + 0.01);
+      camera.lookAt(camFollow.x, 0, camFollow.z);
+    } else {
+      camFollow.x = THREE.MathUtils.damp(camFollow.x, avatar.position.x, 8, dt);
+      camFollow.y = THREE.MathUtils.damp(camFollow.y, avatar.position.y, 8, dt);
+      camFollow.z = THREE.MathUtils.damp(camFollow.z, avatar.position.z, 8, dt);
+      const dist = Math.hypot(CAM_OFFSET.x, CAM_OFFSET.z);
+      const cx = Math.sin(camYawState)*dist;
+      const cz = Math.cos(camYawState)*dist;
+      camera.position.set(
+        camFollow.x + cx,
+        camFollow.y + CAM_OFFSET.y,
+        camFollow.z + cz
+      );
+      camera.lookAt(camFollow.x, camFollow.y + 1.0, camFollow.z);
+    }
     avatar.visible = true;
     renderPass.camera = camera;
   } else {
