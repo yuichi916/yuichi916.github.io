@@ -6658,7 +6658,12 @@ function buildScene(name){
       ys.sort((a, b) => a - b);
       groundY = ys[Math.floor(ys.length / 2)];
     }
-    if(groundY > 0.4){
+    // v663: in island scene we shift the plaza prefab DOWN to align
+    // its cobble with Y=0 (matching v636 prefabs), so this legacy
+    // "lift procedurals" code MUST be skipped for island — otherwise
+    // it would re-lift everything back up creating the broken 2-layer
+    // we just fixed.
+    if(groundY > 0.4 && name !== 'island'){
       // OLD-format GLB cached: lift procedural assets so they sit on the cobble
       console.warn(`niwa[${name}]: old-format prefab cobbleY=${groundY.toFixed(2)} — lifting procedurals`);
       const _box = new THREE.Box3();
@@ -7927,63 +7932,74 @@ SCENES.island = {
     // sits at world y = 0 just like the other prefabs.  No more
     // -5.46 displacement.
     const _plaza = placeENC('enc_prefab_plaza', 0, 0, 0, 1.0, 0);
-    // v662: ONE unified ground at the EXACT SAME Y as plaza cobble,
-    // built by cloning plaza's cobble MATERIAL (with texture) onto a
-    // single 80m × 80m plane.  No second layer.  No green disc.  No
-    // bridge strips.  The plane covers every cell + bridge area in
-    // one continuous mesh so the avatar can walk anywhere.
-    // The plane's Y is computed from plaza's actual cobble top so it
-    // matches whatever the loaded prefab uses (old Y=5.46 or new Y=0).
+    // v663: detect if plaza cobble is at Y=5.46 (old un-normalised
+    // GLB) and shift the ENTIRE prefab DOWN so its cobble lands at
+    // Y=0 — matching takibi / monlight / oto / all v636 prefabs.
+    // Without this shift: plaza floats high, every other building
+    // sits on Y=0 cobble below, and the player walks "in the air"
+    // on plaza's elevated platform.
     if(_plaza){
       _plaza.updateMatrixWorld(true);
-      let _cobbleMat = null;
-      let _cobbleY = 0;
+      let _plazaCobbleY = 0;
       let _foundCobble = false;
       _plaza.traverse(o => {
-        if(!o.isMesh || !o.material) return;
+        if(!o.isMesh) return;
         const nm = (o.name || '').toLowerCase();
         if(/ground|cobble|paving|path|floor|street|plaza/.test(nm)){
-          if(!_cobbleMat){
-            // Clone material with repeat-wrap texture
-            const src = Array.isArray(o.material) ? o.material[0] : o.material;
-            _cobbleMat = src.clone();
-            if(_cobbleMat.map){
-              _cobbleMat.map = _cobbleMat.map.clone();
-              _cobbleMat.map.wrapS = THREE.RepeatWrapping;
-              _cobbleMat.map.wrapT = THREE.RepeatWrapping;
-              _cobbleMat.map.repeat.set(8, 8);    // 80m / 10m tile
-              _cobbleMat.map.needsUpdate = true;
-            }
-            _cobbleMat.needsUpdate = true;
-          }
           const _bb = new THREE.Box3().setFromObject(o);
           if(isFinite(_bb.max.y) && _bb.max.y < 20){
-            _cobbleY = Math.max(_cobbleY, _bb.max.y);
+            _plazaCobbleY = Math.max(_plazaCobbleY, _bb.max.y);
             _foundCobble = true;
           }
         }
       });
-      // Fallback material if plaza had no cobble (cached old plaza without texture)
-      if(!_cobbleMat){
-        _cobbleMat = new THREE.MeshStandardMaterial({
-          color: 0x8a7a55, roughness: 0.95, metalness: 0,
-        });
+      if(_foundCobble && _plazaCobbleY > 0.5){
+        // Plaza cobble is above Y=0 — shift it down so cobble = 0
+        _plaza.position.y -= _plazaCobbleY;
+        _plaza.updateMatrixWorld(true);
+        console.log(`niwa[island]: shifted plaza DOWN by ${_plazaCobbleY.toFixed(2)}m so cobble = Y=0`);
       }
-      // Place unified ground at the SAME Y as plaza cobble (no 2-layer)
-      const _unifiedGround = new THREE.Mesh(
-        new THREE.PlaneGeometry(80, 80, 1, 1),
-        _cobbleMat
-      );
-      _unifiedGround.rotation.x = -Math.PI * 0.5;
-      _unifiedGround.position.y = _foundCobble ? _cobbleY : 0;
-      _unifiedGround.userData.isGroundMesh = true;   // sampleHeight picks this up
-      _unifiedGround.userData.isWalkSurface = true;
-      _unifiedGround.userData.isUnifiedGround = true;
-      _unifiedGround.receiveShadow = true;
-      _unifiedGround.renderOrder = -1;   // draw first so cobble piles render on top
-      root.add(_unifiedGround);
-      console.log(`niwa[island]: unified ground at Y=${(_foundCobble ? _cobbleY : 0).toFixed(2)} (foundCobble=${_foundCobble})`);
     }
+    // v663: unified ground at FIXED Y=0 to match all v636 prefabs
+    // (takibi / monlight / oto / ...).  Plaza is force-shifted to
+    // match.  Use the LOWEST cobble texture if any prefab cobble has
+    // a texture; else a fallback color.
+    let _gMat = null;
+    if(_plaza){
+      _plaza.traverse(o => {
+        if(_gMat) return;
+        if(!o.isMesh || !o.material) return;
+        const nm = (o.name || '').toLowerCase();
+        if(!/ground|cobble|paving|path|floor|street|plaza/.test(nm)) return;
+        const src = Array.isArray(o.material) ? o.material[0] : o.material;
+        if(!src || !src.map) return;
+        _gMat = src.clone();
+        _gMat.map = _gMat.map.clone();
+        _gMat.map.wrapS = THREE.RepeatWrapping;
+        _gMat.map.wrapT = THREE.RepeatWrapping;
+        _gMat.map.repeat.set(10, 10);
+        _gMat.map.needsUpdate = true;
+        _gMat.needsUpdate = true;
+      });
+    }
+    if(!_gMat){
+      _gMat = new THREE.MeshStandardMaterial({
+        color: 0x8a7a55, roughness: 0.95, metalness: 0,
+      });
+    }
+    const _unifiedGround = new THREE.Mesh(
+      new THREE.PlaneGeometry(80, 80, 1, 1),
+      _gMat
+    );
+    _unifiedGround.rotation.x = -Math.PI * 0.5;
+    _unifiedGround.position.y = 0;   // FIXED Y=0 — matches v636 prefabs
+    _unifiedGround.userData.isGroundMesh = true;
+    _unifiedGround.userData.isWalkSurface = true;
+    _unifiedGround.userData.isUnifiedGround = true;
+    _unifiedGround.receiveShadow = true;
+    _unifiedGround.renderOrder = -1;
+    root.add(_unifiedGround);
+    console.log(`niwa[island]: unified ground at Y=0`);
     // v650: full panorama atmosphere — cloud sea + distant islets +
     // deep ocean + waterfalls cascading off the disc edges.  Heavy bits
     // (clouds, waterfalls) use InstancedMesh so they cost ~3 draw calls.
@@ -9724,10 +9740,9 @@ window.addEventListener('keydown', e=>{
   if(e.key==='Escape') closeModal();
   // v657: E activates a nearby interactable if present, falls back to scene modal.
   if(e.code==='KeyE' && !e.repeat){
-    // v660: don't fire if a modal is open (interactable's own E-to-close
-    // already handled it).  Suppresses the "E closes modal then E reopens
-    // it" double-fire reported by the user.
-    if(document.querySelector('.niwa-modal')){ return; }
+    // v663: window-level guard — set TRUE while ANY modal-class
+    // overlay is up.  Also recheck DOM defensively.
+    if(window._niwaModalOpen || document.querySelector('.niwa-modal')) return;
     if(window._currentInteract && window._currentInteract.onActivate){
       window._currentInteract.onActivate();
       window._niwaLastInteracted = window._currentInteract;
@@ -10035,11 +10050,15 @@ window.showInteractModal = function(html, durationMs){
   m.className = 'niwa-modal';
   m.innerHTML = '<button class="close" type="button" aria-label="閉じる">×</button>' + html;
   let closed = false;
+  // v663: window-level flag — global E/Esc handlers check this to
+  // bail out without trying to (re-)activate any interactable.
+  window._niwaModalOpen = true;
   const close = () => {
     if(closed) return;
     closed = true;
-    document.removeEventListener('keydown', onKey, true);
-    document.removeEventListener('pointerdown', onOutside, true);
+    window._niwaModalOpen = false;
+    window.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('pointerdown', onOutside, true);
     if(m.parentNode){
       m.style.opacity = '0';
       setTimeout(() => { if(m.parentNode) m.remove(); }, 200);
@@ -10048,13 +10067,6 @@ window.showInteractModal = function(html, durationMs){
   const onKey = e => {
     if(e.key === 'Escape' || e.code === 'Escape' ||
        e.key === 'e' || e.key === 'E' || e.code === 'KeyE'){
-      // v660: stop propagation so the global E/Esc handlers don't
-      // re-trigger the interactable that just got closed.  Without
-      // this, pressing E to close the modal immediately re-opened
-      // it because the global keydown was still seeing the event.
-      // v661: stopImmediatePropagation — stopPropagation only
-      // prevents the event from reaching OTHER elements; same-element
-      // listeners (like the global E handler on document) still fired.
       e.stopImmediatePropagation();
       e.preventDefault();
       close();
@@ -10066,31 +10078,29 @@ window.showInteractModal = function(html, durationMs){
       close();
     }
   };
-  // Wire X button on BOTH pointerdown and click (defensive)
   const closeBtn = m.querySelector('.close');
-  closeBtn.addEventListener('pointerdown', e => {
-    e.stopPropagation();
-    e.preventDefault();
-    close();
-  }, true);
-  closeBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    e.preventDefault();
-    close();
-  }, true);
-  // Also: click on the modal background (but not children) closes
+  // v663: bind close on every possible event type so mobile + desktop
+  // + accessibility all work.  Each handler stops further propagation.
+  ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(evt => {
+    closeBtn.addEventListener(evt, e => {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      close();
+    }, true);
+  });
   m.addEventListener('click', e => {
     if(e.target === m) close();
   });
   document.body.appendChild(m);
   m.style.transition = 'opacity 0.2s';
-  // Defer outside-click listener so the click that OPENED the modal
-  // doesn't immediately close it (defer until 150ms after open).
+  // v663: use WINDOW (not document) for outside-click + key listeners
+  // so they fire BEFORE any window-level global handlers on the same
+  // event.  Capture phase ensures we're first.
   setTimeout(() => {
     if(closed) return;
-    document.addEventListener('keydown', onKey, true);
-    document.addEventListener('pointerdown', onOutside, true);
-  }, 150);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('pointerdown', onOutside, true);
+  }, 200);
   if(durationMs > 0) setTimeout(close, durationMs);
   return m;
 };
