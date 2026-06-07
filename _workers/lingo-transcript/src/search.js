@@ -3,8 +3,17 @@ import { CaptchaError } from './transcript.js';
 const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36';
 const MAX_RESULTS = 18;
 
-export async function searchYouTube(query) {
-  const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&hl=en`;
+const SORT_SP = {
+  relevance: '',
+  date: 'CAISAhAB',
+  views: 'CAMSAhAB',
+  rating: 'CAESAhAB',
+};
+
+export async function searchYouTube(query, sort = 'relevance') {
+  const sp = SORT_SP[sort] || '';
+  const spParam = sp ? `&sp=${encodeURIComponent(sp)}` : '';
+  const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&hl=en${spParam}`;
   const res = await fetch(url, { headers: { 'User-Agent': BROWSER_UA } });
   if (!res.ok) throw new Error(`search HTTP ${res.status}`);
   const html = await res.text();

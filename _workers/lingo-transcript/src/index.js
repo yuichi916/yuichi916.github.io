@@ -86,17 +86,20 @@ async function buildBilingualCues(src, debug = null) {
   return src.cues.map((c, i) => ({ start: c.start, end: c.end, en: en[i] ?? '', ja: ja[i] ?? '' }));
 }
 
+const VALID_SORTS = new Set(['relevance', 'date', 'views', 'rating']);
+
 async function handleSearch(env, url) {
   const q = (url.searchParams.get('q') || '').trim();
   if (!q) return corsResponse(env, { error: 'empty_query' }, 400);
+  const sort = VALID_SORTS.has(url.searchParams.get('sort')) ? url.searchParams.get('sort') : 'relevance';
 
-  const cacheKey = `s:${q.toLowerCase()}`;
+  const cacheKey = `s:${sort}:${q.toLowerCase()}`;
   const cached = await env.LINGO_CACHE.get(cacheKey, 'json');
   if (cached) return corsResponse(env, cached, 200);
 
   let results;
   try {
-    results = await searchYouTube(q);
+    results = await searchYouTube(q, sort);
   } catch (err) {
     if (err instanceof CaptchaError) {
       return corsResponse(env, { error: 'rate_limited', message: 'YouTube PoP rate-limited, retry shortly' }, 503);
@@ -104,7 +107,7 @@ async function handleSearch(env, url) {
     return corsResponse(env, { error: 'upstream_search', message: String(err?.message || err) }, 502);
   }
 
-  const payload = { query: q, results, cachedAt: Math.floor(Date.now() / 1000) };
+  const payload = { query: q, sort, results, cachedAt: Math.floor(Date.now() / 1000) };
   await env.LINGO_CACHE.put(cacheKey, JSON.stringify(payload), { expirationTtl: 3600 });
   return corsResponse(env, payload, 200);
 }
