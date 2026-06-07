@@ -436,7 +436,7 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   </div>
 </div>
 
-<canvas id="webgl"></canvas>
+<canvas id="webgl" tabindex="0"></canvas>
 
 <header class="hud">
   <div class="eyebrow">№ 08 — A Quiet Garden</div>
@@ -785,8 +785,11 @@ const CAM_MIN_SIZE = 5;
 const CAM_MAX_SIZE = 22;
 let CAM_ORTHO_SIZE = CAM_DEFAULT_SIZE;
 // 1st-person view orientation (independent of avatar facing)
-let fpYaw = 0;      // horizontal look (radians)
+let fpYaw = 0;      // horizontal look (radians); 0 = +Z, +π/2 = +X
 let fpPitch = 0;    // vertical look (-1..+1)
+// v666: pre-allocated +Z axis for camera bob-roll quaternion (avoid
+// per-frame allocations in the hot render loop).
+const _AXIS_Z_LOCAL = new THREE.Vector3(0, 0, 1);
 const CAM_OFFSET = new THREE.Vector3(18, 14, 18);  // v626: lower elevation
                                                      // so the user sees the FLOATING ISLAND'S SIDE
                                                      // (rocky underside + drop-off + cloud wisps),
@@ -8021,6 +8024,16 @@ SCENES.island = {
     const sun = new THREE.DirectionalLight(0xfff0d0, 0.95);
     sun.position.set(50, 60, 30);
     root.add(sun);
+    // v666: procedural bridges between adjacent cells.  Each bridge is
+    // a long wooden plank that spans the full ~20m gap between two
+    // cell centres, tagged isGroundMesh so sampleHeight finds a solid
+    // walking surface (otherwise raycasts at the bridge midpoint hit
+    // distant building roofs and read Y=5.46, making bridges look like
+    // they "float in the air").  Railings are registered as boxObstacles
+    // so the player can't walk off the side mid-span.
+    if(typeof _addAllIslandBridges === 'function'){
+      _addAllIslandBridges(root);
+    }
     // v649: kick off the lazy stream of remaining prefabs + bridges.
     if(typeof _streamRemainingIslandPrefabs === 'function'){
       _streamRemainingIslandPrefabs(root);
@@ -8056,6 +8069,103 @@ SCENES.island = {
 };
 let _islandStreamedCount = 0;
 let _islandStreamingDone = false;
+
+// v666: cell-to-cell adjacency list (each pair appears once — only the
+// E or S neighbour, so we don't double-build the same bridge).  Cells
+// are 20m apart on the grid, so the bridge plank spans the full 20m
+// minus a short overlap into each cell.
+const ISLAND_BRIDGES = [
+  ['plaza',    'toki'],     // E
+  ['plaza',    'hoshi'],    // S (+Z)
+  ['monlight', 'plaza'],    // E
+  ['monlight', 'takibi'],   // S
+  ['oto',      'tabi'],     // E
+  ['oto',      'plaza'],    // S
+  ['tabi',     'toki'],     // S
+  ['toki',     'mizube'],   // S
+  ['hoshi',    'mizube'],   // E
+  ['takibi',   'hoshi'],    // E
+  ['amaoto',   'oto'],      // E
+  ['amaoto',   'monlight'], // S
+];
+
+function _addIslandBridge(root, fromKey, toKey){
+  const fromPos = SCENE_WORLD_POS[fromKey];
+  const toPos   = SCENE_WORLD_POS[toKey];
+  if(!fromPos || !toPos) return;
+  const ax = fromPos.dx * ISLAND_SEPARATION;
+  const az = fromPos.dz * ISLAND_SEPARATION;
+  const bx = toPos.dx * ISLAND_SEPARATION;
+  const bz = toPos.dz * ISLAND_SEPARATION;
+  const midX = (ax + bx) / 2;
+  const midZ = (az + bz) / 2;
+  const span = Math.hypot(bx - ax, bz - az);
+  // Long axis = direction of travel.  isNS=true means the gap runs
+  // along Z (north-south bridge), so the plank's long axis is Z.
+  const isNS = Math.abs(bx - ax) < 1e-3;
+  const plankLen   = span - 2;     // overlap 1m into each cell
+  const plankWide  = 1.8;
+  const plankThick = 0.20;
+  const plankMat = new THREE.MeshStandardMaterial({
+    color: 0x6a4828, roughness: 0.85,
+  });
+  const plankGeom = isNS
+    ? new THREE.BoxGeometry(plankWide, plankThick, plankLen)
+    : new THREE.BoxGeometry(plankLen,  plankThick, plankWide);
+  const plank = new THREE.Mesh(plankGeom, plankMat);
+  plank.position.set(midX, 0.10, midZ);
+  plank.castShadow = true; plank.receiveShadow = true;
+  plank.userData.isGroundMesh   = true;
+  plank.userData.isWalkSurface  = true;
+  plank.userData.isIslandBridge = true;
+  root.add(plank);
+  // Railings — two parallel long rails on either long side
+  const railHeight = 0.55;
+  const railThick  = 0.08;
+  const railOffset = plankWide * 0.5 + 0.04;
+  const railGeom = isNS
+    ? new THREE.BoxGeometry(railThick, railHeight, plankLen)
+    : new THREE.BoxGeometry(plankLen,  railHeight, railThick);
+  for(const off of [-railOffset, +railOffset]){
+    const rail = new THREE.Mesh(railGeom, plankMat);
+    if(isNS) rail.position.set(midX + off, 0.10 + railHeight*0.5, midZ);
+    else     rail.position.set(midX,        0.10 + railHeight*0.5, midZ + off);
+    rail.castShadow = true;
+    rail.userData.isBridgeRail = true;
+    root.add(rail);
+    rail.updateMatrixWorld(true);
+    const _bb = new THREE.Box3().setFromObject(rail);
+    if(!ENTITIES.boxObstacles) ENTITIES.boxObstacles = [];
+    ENTITIES.boxObstacles.push({
+      minX: _bb.min.x, maxX: _bb.max.x,
+      minZ: _bb.min.z, maxZ: _bb.max.z,
+    });
+  }
+  // Corner posts (4 per bridge) for a more grounded silhouette
+  const postH = 0.78;
+  const postR = 0.09;
+  for(const tEnd of [-plankLen*0.5, +plankLen*0.5]){
+    for(const off of [-railOffset, +railOffset]){
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(postR, postR * 1.2, postH, 8),
+        plankMat
+      );
+      if(isNS) post.position.set(midX + off, 0.10 + postH*0.5, midZ + tEnd);
+      else     post.position.set(midX + tEnd, 0.10 + postH*0.5, midZ + off);
+      post.castShadow = true;
+      root.add(post);
+    }
+  }
+}
+
+function _addAllIslandBridges(root){
+  if(!ENTITIES.boxObstacles) ENTITIES.boxObstacles = [];
+  for(const [a, b] of ISLAND_BRIDGES){
+    _addIslandBridge(root, a, b);
+  }
+  console.log(`niwa[island]: built ${ISLAND_BRIDGES.length} procedural bridges`);
+}
+
 async function _streamRemainingIslandPrefabs(root){
   // v662: PARALLEL streaming.  Previously sequential (10 sec/prefab × 9 = 90s),
   // now all 9 fetch in parallel and place as each completes.  Total wall
@@ -8382,9 +8492,36 @@ function teleportToIslandSection(id){
     console.warn(`niwa[teleport]: no walkable spawn near ${id} (cell ${cx}, ${cz})`);
   }
   avatar.position.set(chosen.x, chosen.y, chosen.z);
-  // D3: facing preserved — DO NOT touch avatar.quaternion / rotation here.
+  // v666: full input reset so the avatar isn't carrying a ghost key
+  // or a half-finished climb tween into the new section.  Without this
+  // a teleport that fires while the player is mid-WASD (e.g. hash
+  // deep-link during walking) left climbActive=true / playerVel.x = -3,
+  // freezing input on arrival.
   if(typeof playerVel !== 'undefined') playerVel.set(0, 0, 0);
   if(typeof verticalVel !== 'undefined') verticalVel = 0;
+  if(typeof keys !== 'undefined' && keys){
+    keys.w = keys.a = keys.s = keys.d = false; keys.shift = false;
+  }
+  if(typeof climbActive !== 'undefined') climbActive = false;
+  if(typeof moveTarget !== 'undefined') moveTarget = null;
+  // Re-orient 1P camera toward the cell centre so the user lands looking
+  // at the building/landmark, not off into empty sky.
+  const _faceX = cx - chosen.x;
+  const _faceZ = cz - chosen.z;
+  if(Math.hypot(_faceX, _faceZ) > 0.1){
+    fpYaw = Math.atan2(_faceX, _faceZ);
+    fpPitch = 0;
+    avatar.rotation.y = fpYaw;
+  }
+  // Refocus the canvas so keydown events have somewhere to land. URL
+  // hash deep-links arrive with the address bar focused — without this
+  // the first WASD press is swallowed by the browser chrome.
+  try {
+    const _cv = (typeof renderer !== 'undefined' && renderer.domElement)
+      ? renderer.domElement
+      : document.getElementById('webgl');
+    if(_cv && _cv.focus) _cv.focus({ preventScroll: true });
+  } catch(_){}
   if(currentScene){
     currentScene.spawnPos = { x: chosen.x, y: chosen.y, z: chosen.z };
   }
@@ -10061,84 +10198,80 @@ if(_btnJumpMobile){
     }
   });
 })();
-// v659: unified interactable modal — Esc, X button, click-outside,
-// all close.  Auto-removes after `durationMs` (default 10s).  v659
-// hardened: X click uses pointerdown (fires before any other click
-// handler), stopPropagation, and Esc check covers both keydown phases.
+// v666: rewritten from scratch.  Root cause of the "close button
+// doesn't work" bug: the previous implementation used WINDOW-level
+// capture-phase pointerdown listeners and only removed them when its
+// close() ran.  Calling showInteractModal a second time only removed
+// the DOM (existing.remove()) but left the previous modal's window
+// listeners orphaned — its onOutside referenced the OLD modal node via
+// closure, saw the new modal's button as "outside", and ate the click
+// with stopImmediatePropagation BEFORE the new button's handler could
+// run.  The X kept working because it was DOM-internal, but the
+// bottom 閉じる button and click-outside fell apart.
+//
+// The new implementation:
+//   * one backdrop element (#niwa-modal-host) covers the whole screen
+//     so click-outside is just "click on host, not panel".
+//   * a single previous-handler reference (`window.__niwaModalCleanup`)
+//     is invoked at the top of EVERY call, guaranteeing no orphans.
+//   * close handlers use direct .onclick = fn — impossible to be
+//     intercepted by capture-phase listeners elsewhere in the page.
+//   * no stopImmediatePropagation, no window-level pointerdown
+//     listeners, no 200ms grace timer.
 window.showInteractModal = function(html, durationMs){
-  // Close any existing modal first so re-trigger doesn't stack
-  const existing = document.querySelector('.niwa-modal');
-  if(existing) existing.remove();
-  const m = document.createElement('div');
-  m.className = 'niwa-modal';
-  // v664: add BIG visible 閉じる button at bottom in addition to the
-  // top-right X.  Plus wrap inner html in a click-through container
-  // so taps inside the body don't accidentally close.
-  m.innerHTML =
-    '<button class="close" type="button" aria-label="閉じる">×</button>' +
-    '<div class="niwa-modal-body">' + html + '</div>' +
-    '<button class="niwa-modal-close-big" type="button">閉じる</button>';
+  if(typeof window.__niwaModalCleanup === 'function'){
+    try { window.__niwaModalCleanup(); } catch(_){}
+  }
+  const old = document.getElementById('niwa-modal-host');
+  if(old) old.remove();
+  const host = document.createElement('div');
+  host.id = 'niwa-modal-host';
+  host.style.cssText =
+    'position:fixed;inset:0;z-index:500;display:flex;' +
+    'align-items:center;justify-content:center;' +
+    'background:rgba(8,14,22,0.45);opacity:1;' +
+    'transition:opacity 0.2s;';
+  host.innerHTML =
+    '<div id="niwa-modal-panel" class="niwa-modal" style="' +
+    'position:relative;margin:0;top:auto;left:auto;transform:none;' +
+    'pointer-events:auto;">' +
+      '<button class="close" type="button" aria-label="閉じる">×</button>' +
+      '<div class="niwa-modal-body">' + html + '</div>' +
+      '<button class="niwa-modal-close-big" type="button">閉じる</button>' +
+    '</div>';
   let closed = false;
-  // v663: window-level flag — global E/Esc handlers check this to
-  // bail out without trying to (re-)activate any interactable.
-  window._niwaModalOpen = true;
-  const close = () => {
+  const cleanup = () => {
     if(closed) return;
     closed = true;
     window._niwaModalOpen = false;
     window.removeEventListener('keydown', onKey, true);
-    window.removeEventListener('pointerdown', onOutside, true);
-    if(m.parentNode){
-      m.style.opacity = '0';
-      setTimeout(() => { if(m.parentNode) m.remove(); }, 200);
+    window.__niwaModalCleanup = null;
+    if(host.parentNode){
+      host.style.opacity = '0';
+      setTimeout(() => { if(host.parentNode) host.remove(); }, 200);
     }
   };
   const onKey = e => {
-    if(e.key === 'Escape' || e.code === 'Escape' ||
-       e.key === 'e' || e.key === 'E' || e.code === 'KeyE'){
-      e.stopImmediatePropagation();
+    if(e.key === 'Escape' || e.code === 'Escape'){
       e.preventDefault();
-      close();
+      cleanup();
     }
   };
-  const onOutside = e => {
-    if(!m.contains(e.target)){
-      e.stopImmediatePropagation();
-      close();
-    }
-  };
-  const closeBtn = m.querySelector('.close');
-  const closeBig = m.querySelector('.niwa-modal-close-big');
-  // v663+v664: bind close on every possible event type so mobile +
-  // desktop + accessibility all work.  Each handler stops further
-  // propagation.  Both the top X and the bottom 閉じる button work.
-  const bindClose = (btn) => {
-    if(!btn) return;
-    ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(evt => {
-      btn.addEventListener(evt, e => {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-        close();
-      }, true);
-    });
-  };
-  bindClose(closeBtn);
-  bindClose(closeBig);
-  m.addEventListener('click', e => {
-    if(e.target === m) close();
-  });
-  document.body.appendChild(m);
-  m.style.transition = 'opacity 0.2s';
-  // v663: use WINDOW (not document) for outside-click + key listeners
-  // so they fire BEFORE any window-level global handlers on the same
-  // event.  Capture phase ensures we're first.
-  setTimeout(() => {
-    if(closed) return;
-    window.addEventListener('keydown', onKey, true);
-    window.addEventListener('pointerdown', onOutside, true);
-  }, 200);
-  if(durationMs > 0) setTimeout(close, durationMs);
-  return m;
+  window.__niwaModalCleanup = cleanup;
+  window._niwaModalOpen = true;
+  // Direct .onclick — guaranteed to fire regardless of any capture-
+  // phase listeners elsewhere, because the actual click target IS the
+  // button and no capture listener exists between window and button.
+  const closeBtn = host.querySelector('.close');
+  const closeBig = host.querySelector('.niwa-modal-close-big');
+  if(closeBtn) closeBtn.onclick = cleanup;
+  if(closeBig) closeBig.onclick = cleanup;
+  // Click on backdrop (host itself, not the panel) closes.
+  host.onclick = e => { if(e.target === host) cleanup(); };
+  window.addEventListener('keydown', onKey, true);
+  document.body.appendChild(host);
+  if(durationMs > 0) setTimeout(cleanup, durationMs);
+  return host;
 };
 
 // v660: step-by-step RPG-style tutorial.  Each step shows a hint at
@@ -11017,19 +11150,21 @@ function animate(){
       headY,
       avatar.position.z + _rightZ * _bobX,
     );
-    // v665: explicit world up vector so lookAt never flips when the
-    // pitch approaches the clamp limit.  Previously a fast drag past
-    // ±90° could leave camFP.up rotated, inverting the view.
-    camFP.up.set(0, 1, 0);
-    // Convert spherical (yaw, pitch) to a look-target vector
-    const cosP = Math.cos(fpPitch);
-    const lx = camFP.position.x + Math.sin(fpYaw) * cosP;
-    const ly = headY + Math.sin(fpPitch);
-    const lz = camFP.position.z + Math.cos(fpYaw) * cosP;
-    camFP.lookAt(lx, ly, lz);
-    // v665: only apply the bob-roll while actively walking; decay to
-    // zero when idle so a stopped drag never inherits residual roll.
-    camFP.rotation.z = _walking ? _bobRoll : 0;
+    // v666: Quaternion-based orientation — NO lookAt, NO Euler write.
+    // Previous lookAt path could leave the resulting quaternion with an
+    // alternate (X≈π, Y≈π) decomposition that produced a flipped view
+    // the moment we then assigned rotation.z for bob roll.  Now we
+    // build the quaternion from (yaw, pitch) directly in 'YXZ' order,
+    // then post-multiply a local Z roll for walk bob.  fpYaw=0 = look
+    // +Z (matching the avatar's visible front), so we offset Y by π
+    // because the camera's default forward is -Z.
+    const _qEuler = new THREE.Euler(fpPitch, fpYaw + Math.PI, 0, 'YXZ');
+    camFP.quaternion.setFromEuler(_qEuler);
+    if(_walking && Math.abs(_bobRoll) > 1e-4){
+      const _qRoll = new THREE.Quaternion()
+        .setFromAxisAngle(_AXIS_Z_LOCAL, _bobRoll);
+      camFP.quaternion.multiply(_qRoll);
+    }
     avatar.visible = false;
     renderPass.camera = camFP;
   }
@@ -11479,13 +11614,20 @@ setLoad(0.95, 'ASSETS');
   }
   setLoad(0.985, 'BUILD');
   buildScene(initialScene);
+  // v666: expose __niwa hook BEFORE the splash stream-wait so Playwright
+  // diagnostics can probe state during the stream (previously __niwa was
+  // only created after the 60s splash await, making any wait_for_function
+  // race against the splash).
+  if(urlParams.get('diag') === '1' && !window.__niwa){
+    try { _exposeNiwaDiag(); } catch(_){}
+  }
   // v665: when the island scene is the initial scene, wait for ALL 9
   // streamed prefabs to land before hiding the splash.  Previously the
   // splash hid as soon as plaza was up, then 8 more prefabs popped in
   // over the next 15-20 s — the user saw the world materialize mesh
   // by mesh.  Now the splash stays up until streaming is done (with
   // progress text), so when revealed the world is complete.
-  if(initialScene === 'island'){
+  if(initialScene === 'island' && urlParams.get('diag') !== '1'){
     const _deadline = performance.now() + 60000;   // 60s safety bail
     while(performance.now() < _deadline){
       const _cnt = (typeof _islandStreamedCount !== 'undefined') ? _islandStreamedCount : 0;
@@ -11524,6 +11666,12 @@ setLoad(0.95, 'ASSETS');
   //       keyboard events. Only opened when ?diag=1 is in the URL so it
   //       can't be poked by random visitors.
   if(urlParams.get('diag') === '1'){
+    if(!window.__niwa) _exposeNiwaDiag();
+    console.log('niwa: __niwa diagnostic hook ready (extended)');
+  }
+  // (function body inlined into _exposeNiwaDiag — defined as a nested
+  // function so we can call it both BEFORE and AFTER the splash wait.)
+  function _exposeNiwaDiag(){
     window.__niwa = {
       switchScene,
       get currentScene(){ return currentScene; },
@@ -11583,7 +11731,6 @@ setLoad(0.95, 'ASSETS');
         if(typeof teleportToIslandSection === 'function') teleportToIslandSection(id);
       },
     };
-    console.log('niwa: __niwa diagnostic hook ready (extended)');
   }
 })();
 
