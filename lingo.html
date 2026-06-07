@@ -160,6 +160,7 @@
       border-radius: 4px;
       padding: 0 2px;
     }
+    .ka-current-plain { color: inherit; }
     #sub-en .ka-future { color: var(--fg); }
     #sub-ja .ka-future { color: var(--dim); }
     .toggle-btn {
@@ -294,12 +295,12 @@
     let player = null;
     let cues = [];
     let pollTimer = null;
-    const storedHl = localStorage.getItem('lingo.hl');
+    const storedHl = localStorage.getItem('lingo.hl.v2');
     let highlightMode = storedHl === null ? true : storedHl === '1';
     applyHighlightToggleUI();
     hlToggle.addEventListener('click', () => {
       highlightMode = !highlightMode;
-      localStorage.setItem('lingo.hl', highlightMode ? '1' : '0');
+      localStorage.setItem('lingo.hl.v2', highlightMode ? '1' : '0');
       applyHighlightToggleUI();
     });
     function applyHighlightToggleUI() {
@@ -318,17 +319,12 @@
     }
 
     function renderActiveCues(active, t) {
-      if (highlightMode) {
-        const enHTML = active.map((c) => renderKaraoke(c.en, c, t)).filter(Boolean).join('<br>');
-        const jaHTML = active.map((c) => renderKaraoke(c.ja, c, t)).filter(Boolean).join('<br>');
-        subEn.innerHTML = enHTML;
-        subJa.innerHTML = jaHTML;
-      } else {
-        const enLines = active.map((c) => c.en).filter(Boolean);
-        const jaLines = active.map((c) => c.ja).filter(Boolean);
-        subEn.textContent = enLines.join('\n');
-        subJa.textContent = jaLines.join('\n');
-      }
+      // Past tokens always disappear (per user requirement "読み終わった部分は消して").
+      // The toggle only controls whether the current token gets highlight styling.
+      const enHTML = active.map((c) => renderKaraoke(c.en, c, t, 'en')).filter(Boolean).join('<br>');
+      const jaHTML = active.map((c) => renderKaraoke(c.ja, c, t, 'ja')).filter(Boolean).join('<br>');
+      subEn.innerHTML = enHTML;
+      subJa.innerHTML = jaHTML;
     }
 
     function escHtml(s) {
@@ -353,27 +349,40 @@
       return tokens;
     }
 
-    function renderKaraoke(text, cue, t) {
+    // Average comfortable reading speeds. Tokens/sec.
+    //   en: ~3.5 word/sec ≈ 200 WPM
+    //   ja: ~7 char/sec
+    const READING_TOKENS_PER_SEC = { en: 3.5, ja: 7, default: 4 };
+
+    function renderKaraoke(text, cue, t, lang) {
       if (!text) return '';
-      const dur = Math.max(0.001, cue.end - cue.start);
-      const elapsed = Math.max(0, Math.min(dur, t - cue.start));
-      const progress = elapsed / dur;
       const tokens = tokenizeForKaraoke(text);
-      // Treat whitespace tokens as zero-weight (they don't count as "spoken units")
       const wordIdx = [];
       tokens.forEach((tok, i) => { if (!/^\s+$/.test(tok)) wordIdx.push(i); });
-      if (!wordIdx.length) return escHtml(text);
+      if (!wordIdx.length) return '';
+
+      // Two progress signals; the higher one wins so text disappears as soon
+      // as EITHER (a) speaker finished saying it or (b) reader finished reading
+      // it at average pace.
+      const dur = Math.max(0.001, cue.end - cue.start);
+      const elapsed = Math.max(0, t - cue.start);
+      const speechProgress = Math.min(1, elapsed / dur);
+      const speed = READING_TOKENS_PER_SEC[lang] || READING_TOKENS_PER_SEC.default;
+      const readProgress = Math.min(1.05, (elapsed * speed) / wordIdx.length);
+      const progress = Math.max(speechProgress, readProgress);
+
+      // Past finished its window → render nothing for this cue.
+      if (progress >= 1) return '';
+
       const currentNth = Math.min(wordIdx.length - 1, Math.floor(progress * wordIdx.length));
       const currentTokenIdx = wordIdx[currentNth];
-      // past: tokens before currentTokenIdx (drop leading whitespace too) → hidden
-      // current: tokens[currentTokenIdx] → highlighted
-      // future: tokens after → normal
       const past = tokens.slice(0, currentTokenIdx).join('');
       const cur = tokens[currentTokenIdx] || '';
       const fut = tokens.slice(currentTokenIdx + 1).join('');
+      const curClass = highlightMode ? 'ka-current' : 'ka-current-plain';
       return (
         `<span class="ka-past">${escHtml(past)}</span>` +
-        `<span class="ka-current">${escHtml(cur)}</span>` +
+        `<span class="${curClass}">${escHtml(cur)}</span>` +
         `<span class="ka-future">${escHtml(fut)}</span>`
       );
     }
