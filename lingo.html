@@ -164,10 +164,10 @@
     #sub-en .ka-future { color: var(--fg); }
     #sub-ja .ka-future { color: var(--dim); }
     .toggle-btn {
-      padding: 10px 14px;
+      padding: 6px 12px;
       background: #1a1d24;
       border: 1px solid #2a2f3a;
-      border-radius: 8px;
+      border-radius: 6px;
       color: var(--dim);
       font-size: 13px;
       cursor: pointer;
@@ -177,6 +177,41 @@
     .toggle-btn.on {
       background: rgba(110, 168, 255, 0.18);
       border-color: var(--accent);
+      color: var(--accent);
+    }
+    #controls-row {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      max-width: 960px;
+      margin-top: 10px;
+      padding: 6px 8px;
+      font-size: 13px;
+      color: var(--dim);
+    }
+    .control-group { display: flex; align-items: center; gap: 6px; }
+    .control-label { color: var(--dim); margin-right: 2px; }
+    .seg {
+      display: inline-flex;
+      border: 1px solid #2a2f3a;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .seg .seg-btn {
+      padding: 6px 12px;
+      background: #1a1d24;
+      border: 0;
+      color: var(--dim);
+      font-size: 13px;
+      cursor: pointer;
+      border-right: 1px solid #2a2f3a;
+    }
+    .seg .seg-btn:last-child { border-right: 0; }
+    .seg .seg-btn.active {
+      background: rgba(110, 168, 255, 0.18);
       color: var(--accent);
     }
     #status {
@@ -198,10 +233,22 @@
       <option value="views">再生数順</option>
       <option value="rating">高評価順</option>
     </select>
-    <button id="hl-toggle" class="toggle-btn" title="今読んでいる箇所をハイライトし、読み終わった単語を消す">強調 OFF</button>
     <button id="load-btn">読み込む / 検索</button>
   </div>
   <div id="player-wrap"></div>
+  <div id="controls-row">
+    <div class="control-group">
+      <span class="control-label">強調:</span>
+      <button id="hl-toggle" class="toggle-btn" title="今読んでいる箇所をハイライト">OFF</button>
+    </div>
+    <div class="control-group">
+      <span class="control-label">消去:</span>
+      <div class="seg" id="hide-mode">
+        <button class="seg-btn" data-hide="word" title="読み終わった単語から消す">単語ずつ</button>
+        <button class="seg-btn" data-hide="line" title="読了したら行ごと消す">行ごと</button>
+      </div>
+    </div>
+  </div>
   <div id="results" class="hidden"></div>
   <div id="subtitles">
     <div id="sub-en"></div>
@@ -305,7 +352,23 @@
     });
     function applyHighlightToggleUI() {
       hlToggle.classList.toggle('on', highlightMode);
-      hlToggle.textContent = highlightMode ? '強調 ON' : '強調 OFF';
+      hlToggle.textContent = highlightMode ? 'ON' : 'OFF';
+    }
+
+    let hideMode = localStorage.getItem('lingo.hideMode') || 'word';
+    if (hideMode !== 'word' && hideMode !== 'line') hideMode = 'word';
+    function applyHideModeUI() {
+      for (const b of document.querySelectorAll('#hide-mode .seg-btn')) {
+        b.classList.toggle('active', b.dataset.hide === hideMode);
+      }
+    }
+    applyHideModeUI();
+    for (const b of document.querySelectorAll('#hide-mode .seg-btn')) {
+      b.addEventListener('click', () => {
+        hideMode = b.dataset.hide;
+        localStorage.setItem('lingo.hideMode', hideMode);
+        applyHideModeUI();
+      });
     }
 
     function setStatus(msg, isError = false) {
@@ -371,7 +434,7 @@
       const readProgress = Math.min(1.05, (elapsed * speed) / wordIdx.length);
       const progress = Math.max(speechProgress, readProgress);
 
-      // Past finished its window → render nothing for this cue.
+      // Reader has consumed the whole line → render nothing.
       if (progress >= 1) return '';
 
       const currentNth = Math.min(wordIdx.length - 1, Math.floor(progress * wordIdx.length));
@@ -380,6 +443,16 @@
       const cur = tokens[currentTokenIdx] || '';
       const fut = tokens.slice(currentTokenIdx + 1).join('');
       const curClass = highlightMode ? 'ka-current' : 'ka-current-plain';
+
+      if (hideMode === 'line') {
+        // Whole line stays visible until progress hits 1; only the current
+        // word may get the highlight chip (if 強調 ON).
+        return (
+          `<span class="ka-future">${escHtml(past)}</span>` +
+          `<span class="${curClass}">${escHtml(cur)}</span>` +
+          `<span class="ka-future">${escHtml(fut)}</span>`
+        );
+      }
       return (
         `<span class="ka-past">${escHtml(past)}</span>` +
         `<span class="${curClass}">${escHtml(cur)}</span>` +
