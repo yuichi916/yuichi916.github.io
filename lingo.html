@@ -267,8 +267,6 @@
     let player = null;
     let cues = [];
     let pollTimer = null;
-    let lastShownAt = 0;
-    const GRACE_MS = 500;
 
     function setStatus(msg, isError = false) {
       statusEl.textContent = msg || '';
@@ -285,7 +283,6 @@
       const jaLines = active.map((c) => c.ja).filter(Boolean);
       subEn.textContent = enLines.join('\n');
       subJa.textContent = jaLines.join('\n');
-      if (enLines.length || jaLines.length) lastShownAt = Date.now();
     }
 
     function startPolling() {
@@ -296,10 +293,10 @@
         const active = findActiveCues(cues, t);
         if (active.length) {
           renderActiveCues(active);
-        } else if (Date.now() - lastShownAt > GRACE_MS) {
+        } else {
           clearSubtitles();
         }
-      }, 250);
+      }, 200);
     }
 
     function stopPolling() {
@@ -414,71 +411,90 @@
     const LINGVA = ['https://lingva.ml', 'https://lingva.lunar.icu'];
 
     async function backfillMissingTranslations(cuesArr, srcLang) {
-      const missEn = [];
-      const missJa = [];
-      for (let i = 0; i < cuesArr.length; i++) {
-        if (!cuesArr[i].en) missEn.push(i);
-        if (!cuesArr[i].ja) missJa.push(i);
+      const sides = [];
+      // Side ja: needed for any cue with empty ja
+      if (cuesArr.some((c) => !c.ja)) {
+        const srcFor = srcLang === 'ja' ? 'ja' : srcLang;
+        sides.push({ target: 'ja', from: srcFor, pickSrc: (c) => (srcFor === 'ja' ? c.ja : c.en || c.ja) || '' });
       }
-      if (!missEn.length && !missJa.length) return;
-      setStatus(`字幕を補完中... (EN欠損: ${missEn.length} / JA欠損: ${missJa.length})`);
-      const tasks = [];
-      if (missEn.length) {
-        const srcFor = srcLang === 'en' ? 'en' : (srcLang === 'ja' ? 'ja' : srcLang);
-        const sources = missEn.map((i) => (srcFor === 'en' ? cuesArr[i].en : cuesArr[i].ja || cuesArr[i].en) || '');
-        if (sources.some((s) => s)) {
-          tasks.push(clientTranslate(sources, srcFor, 'en').then((tr) => {
-            missEn.forEach((idx, k) => { if (tr[k]) cuesArr[idx].en = tr[k]; });
-          }));
-        }
+      // Side en: needed for any cue with empty en (non-en source videos)
+      if (cuesArr.some((c) => !c.en)) {
+        const srcFor = srcLang === 'en' ? 'en' : srcLang;
+        sides.push({ target: 'en', from: srcFor, pickSrc: (c) => (srcFor === 'en' ? c.en : c.ja || c.en) || '' });
       }
-      if (missJa.length) {
-        const srcFor = srcLang === 'ja' ? 'ja' : (srcLang === 'en' ? 'en' : srcLang);
-        const sources = missJa.map((i) => (srcFor === 'ja' ? cuesArr[i].ja : cuesArr[i].en || cuesArr[i].ja) || '');
-        if (sources.some((s) => s)) {
-          tasks.push(clientTranslate(sources, srcFor, 'ja').then((tr) => {
-            missJa.forEach((idx, k) => { if (tr[k]) cuesArr[idx].ja = tr[k]; });
-          }));
-        }
-      }
-      await Promise.all(tasks);
+      if (!sides.length) return;
+
+      setStatus('字幕を逐次補完中...');
+      const totals = { ja: 0, en: 0 };
+      const dones = { ja: 0, en: 0 };
+
+      await Promise.all(sides.map((side) => backfillSideIncremental(cuesArr, side, totals, dones)));
+
       const remEn = cuesArr.filter((c) => !c.en).length;
       const remJa = cuesArr.filter((c) => !c.ja).length;
       if (remEn === 0 && remJa === 0) {
         setStatus(`${cuesArr.length} cues 全て補完完了`);
       } else {
-        setStatus(`${cuesArr.length} cues 読み込み済み (EN欠損 ${remEn} / JA欠損 ${remJa})`, remEn + remJa > cuesArr.length / 2);
+        setStatus(`補完完了 (EN欠損 ${remEn} / JA欠損 ${remJa})`, remEn + remJa > cuesArr.length / 4);
       }
     }
 
-    async function clientTranslate(texts, from, to) {
-      if (!texts.length) return [];
+    async function backfillSideIncremental(cuesArr, side, totals, dones) {
+      // Collect cues that need this side, ordered by closeness to current playback position
+      const missIndices = [];
+      for (let i = 0; i < cuesArr.length; i++) if (!cuesArr[i][side.target]) missIndices.push(i);
+      if (!missIndices.length) return;
+
+      const sortByCurrent = () => {
+        const t = (player && typeof player.getCurrentTime === 'function') ? player.getCurrentTime() : 0;
+        missIndices.sort((a, b) => {
+          const da = Math.abs((cuesArr[a].start + cuesArr[a].end) / 2 - t);
+          const db = Math.abs((cuesArr[b].start + cuesArr[b].end) / 2 - t);
+          return da - db;
+        });
+      };
+      sortByCurrent();
+
+      const orderedSources = missIndices.map((i) => side.pickSrc(cuesArr[i]));
+      const validIndices = [];
+      const validSources = [];
+      for (let k = 0; k < missIndices.length; k++) {
+        if (orderedSources[k]) { validIndices.push(missIndices[k]); validSources.push(orderedSources[k]); }
+      }
+      if (!validSources.length) return;
+
+      totals[side.target] = validSources.length;
+
+      // Chunk by byte budget
       const groups = [];
+      const groupIdx = [];
       let cur = [];
+      let curIdx = [];
       let curBytes = 0;
-      for (const t of texts) {
+      for (let k = 0; k < validSources.length; k++) {
+        const t = validSources[k];
         const tBytes = encodeURIComponent(t).length;
         const sepCost = cur.length ? SEP_ENC_LEN : 0;
         if (cur.length && curBytes + sepCost + tBytes > LINGVA_BUDGET) {
-          groups.push(cur);
-          cur = [];
-          curBytes = 0;
+          groups.push(cur); groupIdx.push(curIdx);
+          cur = []; curIdx = []; curBytes = 0;
         }
-        cur.push(t);
+        cur.push(t); curIdx.push(validIndices[k]);
         curBytes += (cur.length === 1 ? 0 : SEP_ENC_LEN) + tBytes;
       }
-      if (cur.length) groups.push(cur);
+      if (cur.length) { groups.push(cur); groupIdx.push(curIdx); }
 
-      const out = new Array(texts.length).fill('');
-      let writeIdx = 0;
-      for (const g of groups) {
-        const parts = await lingvaTranslateGroup(g, from, to);
-        for (let i = 0; i < g.length; i++) {
-          out[writeIdx + i] = parts[i] || '';
+      for (let g = 0; g < groups.length; g++) {
+        const parts = await lingvaTranslateGroup(groups[g], side.from, side.target);
+        for (let i = 0; i < groups[g].length; i++) {
+          const cueIdx = groupIdx[g][i];
+          if (parts[i]) cuesArr[cueIdx][side.target] = parts[i];
         }
-        writeIdx += g.length;
+        dones[side.target] += groups[g].length;
+        const ja = totals.ja ? `JA ${dones.ja}/${totals.ja}` : '';
+        const en = totals.en ? `EN ${dones.en}/${totals.en}` : '';
+        setStatus(`字幕を逐次補完中... ${[ja, en].filter(Boolean).join(' / ')}`);
       }
-      return out;
     }
 
     async function lingvaTranslateGroup(group, from, to) {
