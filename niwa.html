@@ -7514,14 +7514,17 @@ SCENES.amaoto = {
 
 
 // 10. 部屋 — cozy interior diorama (Garden Inn style)
+// v665: heya (部屋) is now a TRUE INTERIOR using the KB3D Enchanted
+// Interiors prefab.  Previously it incorrectly used the exterior
+// bakery prefab so the player stood OUTSIDE.  Now they're inside.
 SCENES.heya = {
-  num: '00', kind: 'prefab',
-  title: '部屋', en: 'The Bakery',
-  concept: '夜明け前に火を入れた窯から、焼きたてのパンの匂いが石畳ににじみ出す。窓辺の植木鉢には早朝の露が光り、樽と荷車が次の配達を待つ。眠れなかった夜にだけ気づく、一日のはじまりの場所。',
+  num: '00', kind: 'interior',
+  title: '部屋', en: 'The Bakery (Interior)',
+  concept: '夜明け前に火を入れた窯から、焼きたてのパンの匂いが石壁ににじみ込む。木の梁が天井を支え、長卓の上で次の一斤が膨らみ始める。窓越しに薄い朝の光が差し、店の中に一日のはじまりが立ち上がる。',
   sun: [40, -30], turbidity: 3, rayleigh: 1.6,
-  fogColor: '#e0e8f0', fogNear: 28, fogFar: 70, exposure: 1.05,
-  avatarStart: [0, 4.0],
-  preloadAssets: ['enc_prefab_heya', 'enc_hangingpot'],
+  fogColor: '#3a2a1a', fogNear: 12, fogFar: 32, exposure: 0.92,
+  avatarStart: [0, 2.0],
+  preloadAssets: ['enc_int_heya'],
   build(root){
     function placeENC(name, x, y, z, scale, rotY){
       const m = (typeof blenderClone === 'function' && blenderClone(name));
@@ -7533,35 +7536,19 @@ SCENES.heya = {
       root.add(m);
       return m;
     }
-
-    // Whole-prefab diorama: building + ground + cobblestones + props + lamps
-    // baked from the original KB3D Enchanted Blender world positions.
-    placeENC('enc_prefab_heya', 0, 0, 0, 1.0, 0);
-
-    // Story accent props placed OUTSIDE the prefab footprint (front-stage)
-    placeENC('enc_hangingpot', -3.5, 0.05, 9.0, 0.85, 0);
-    placeENC('enc_hangingpot', 3.5, 0.05, 9.0, 0.85, 0);
-    if(typeof makeFallingParticles === 'function'){
-      const p = makeFallingParticles('petal', 60, { range: 22, yMax: 10, yMin: 0, fallSpeed: 0.28, swayAmp: 0.3, swayFreq: 0.9 });
-      root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'});
-    }
-    // v627 core: bakery oven (the "パン屋" needs an actual oven)
-    root.add(makeOven(0, 4));
-
-
-    // v628 lighting: warm bakery interior - strong golden glow
-    // v630 theme: fresh bread baskets + flour sacks
-    root.add(makeBreadStack(-3, 6));
-    root.add(makeBreadStack( 3, 6));
-    root.add(makeBreadStack( 0, 7));
-    root.add(makeCandleCluster(-5, 4, 3));
-    root.add(makeCandleCluster( 5, 4, 3));
-    const fill = new THREE.HemisphereLight(0xffa860, 0x884020, 0.75);
-    fill.position.set(8, 14, 8);
+    // The actual interior prefab from KB3D Enchanted Interiors
+    placeENC('enc_int_heya', 0, 0, 0, 1.0, 0);
+    // Warm interior lighting — match the v646 INTERIOR_PRESETS
+    const fill = new THREE.HemisphereLight(0xffa860, 0x4a2818, 0.65);
+    fill.position.set(0, 6, 0);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffb050, 1.2, 14);
-    accent.position.set(0, 5, 3);
+    const accent = new THREE.PointLight(0xffb050, 1.4, 12);
+    accent.position.set(0, 3.2, 1);
     root.add(accent);
+    // Tighter interior playable bounds (the room is ~10m)
+    if(currentScene){
+      currentScene.playableBounds = { minX: -5, maxX: 5, minZ: -5, maxZ: 5 };
+    }
   }
 };
 
@@ -9797,14 +9784,18 @@ canvas.addEventListener('pointermove', e=>{
     const dx = e.clientX-lastPx, dy = e.clientY-lastPy;
     if(Math.abs(dx)+Math.abs(dy)>4) dragMoved = true;
     if(firstPerson){
-      // v664: cap per-frame delta so a fast drag can't sling the view
-      // past the pitch clamp.  Pitch clamped tighter to ±70° so the
-      // view never flips upside-down.  Yaw stays free (free-look).
-      const _dx = Math.max(-40, Math.min(40, dx));
-      const _dy = Math.max(-40, Math.min(40, dy));
+      // v665: tighter per-frame delta cap (20px instead of 40) and
+      // pitch clamp at ±1.0 rad (~57°) so even a 50px flick can't
+      // pass the limit.  Cap APPLIED BEFORE accumulation, then
+      // clamp APPLIED AFTER, so the view never flips upside-down.
+      const _dx = Math.max(-20, Math.min(20, dx));
+      const _dy = Math.max(-20, Math.min(20, dy));
       fpYaw -= _dx * 0.006;
       fpPitch -= _dy * 0.005;
-      fpPitch = Math.max(-1.20, Math.min(1.20, fpPitch));   // ~±69°
+      fpPitch = Math.max(-1.0, Math.min(1.0, fpPitch));     // ~±57°
+      // Normalise yaw to (-π, π] so it never accumulates huge values
+      while(fpYaw > Math.PI) fpYaw -= 2 * Math.PI;
+      while(fpYaw < -Math.PI) fpYaw += 2 * Math.PI;
     } else {
       // 3P: orbit camera around avatar
       camYawTarget -= dx*0.0045;
@@ -10172,8 +10163,16 @@ window.showInteractModal = function(html, durationMs){
     setTimeout(startSteps, 1500);
   }
   function startSteps(){
+    // v665: gate detection — require an actual keypress before the
+    // first step considers itself "completed".  Previously the
+    // detection polled playerVel/keys from frame 1 and could auto-
+    // advance the tutorial if the avatar slid into a wall on spawn.
+    let _userActed = false;
+    const _markActed = () => { _userActed = true; };
+    window.addEventListener('keydown', _markActed, { once: true });
+    window.addEventListener('pointerdown', _markActed, { once: true });
     const steps = [
-      { hint: 'WASD で歩いてみよう', check: () => Math.hypot(window.__niwa?.playerVel?.x || 0, window.__niwa?.playerVel?.z || 0) > 1 },
+      { hint: 'WASD で歩いてみよう', check: () => _userActed && Math.hypot(window.__niwa?.playerVel?.x || 0, window.__niwa?.playerVel?.z || 0) > 1 },
       { hint: 'マウスをドラッグして視点を回そう', check: () => window._niwaCamRotated || false, timeout: 12000 },
       { hint: 'Shift を押しながら走ってみよう', check: () => window.__niwa?.keys?.shift && Math.hypot(window.__niwa?.playerVel?.x || 0, window.__niwa?.playerVel?.z || 0) > 4, timeout: 12000 },
       { hint: 'Space でジャンプ', check: () => (window.__niwa?.verticalVel || 0) > 1, timeout: 12000 },
@@ -11018,13 +11017,19 @@ function animate(){
       headY,
       avatar.position.z + _rightZ * _bobX,
     );
+    // v665: explicit world up vector so lookAt never flips when the
+    // pitch approaches the clamp limit.  Previously a fast drag past
+    // ±90° could leave camFP.up rotated, inverting the view.
+    camFP.up.set(0, 1, 0);
     // Convert spherical (yaw, pitch) to a look-target vector
     const cosP = Math.cos(fpPitch);
     const lx = camFP.position.x + Math.sin(fpYaw) * cosP;
     const ly = headY + Math.sin(fpPitch);
     const lz = camFP.position.z + Math.cos(fpYaw) * cosP;
     camFP.lookAt(lx, ly, lz);
-    camFP.rotation.z = _bobRoll;
+    // v665: only apply the bob-roll while actively walking; decay to
+    // zero when idle so a stopped drag never inherits residual roll.
+    camFP.rotation.z = _walking ? _bobRoll : 0;
     avatar.visible = false;
     renderPass.camera = camFP;
   }
@@ -11474,6 +11479,22 @@ setLoad(0.95, 'ASSETS');
   }
   setLoad(0.985, 'BUILD');
   buildScene(initialScene);
+  // v665: when the island scene is the initial scene, wait for ALL 9
+  // streamed prefabs to land before hiding the splash.  Previously the
+  // splash hid as soon as plaza was up, then 8 more prefabs popped in
+  // over the next 15-20 s — the user saw the world materialize mesh
+  // by mesh.  Now the splash stays up until streaming is done (with
+  // progress text), so when revealed the world is complete.
+  if(initialScene === 'island'){
+    const _deadline = performance.now() + 60000;   // 60s safety bail
+    while(performance.now() < _deadline){
+      const _cnt = (typeof _islandStreamedCount !== 'undefined') ? _islandStreamedCount : 0;
+      const _done = (typeof _islandStreamingDone !== 'undefined') ? _islandStreamingDone : false;
+      if(_done || _cnt >= 9) break;
+      setLoad(0.985 + 0.004 * (_cnt / 9), `STREAM ${_cnt}/9`);
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
   // Force first render (uploads textures + compiles shaders) while splash
   // is still occluding the canvas. Without this, the user sees a white/black
   // canvas for ~1 s during the first frame's texture upload.
