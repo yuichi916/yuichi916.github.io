@@ -335,6 +335,20 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   margin-top:14px; font:11px/1.4 'JetBrains Mono', monospace;
   color:#c89848; opacity:0.7; letter-spacing:0.1em;
 }
+/* v664: big visible bottom close button */
+.niwa-modal-close-big{
+  display:block; margin:18px auto 0;
+  padding:12px 28px;
+  background:transparent; color:#c89848;
+  border:1.5px solid #c89848; border-radius:6px;
+  font:13px/1 'Shippori Mincho', serif;
+  letter-spacing:0.18em;
+  cursor:pointer; transition:background 0.2s, color 0.2s;
+  min-width:120px;
+}
+.niwa-modal-close-big:hover{ background:#c89848; color:#1a2438; }
+.niwa-modal-close-big:active{ transform:scale(0.97); }
+.niwa-modal-body{ pointer-events:auto; }
 /* v659: next-action quest hint (top-left) */
 #quest-hint{
   position:fixed; top:60px; left:18px; z-index:40;
@@ -6592,7 +6606,12 @@ function buildScene(name){
       const _nm = (o.name || '').toLowerCase();
       const _isNamedGround = /ground|floor|cobble|paving|path|terrain|street|plaza/.test(_nm);
       const _isTaggedGround = !!(o.userData && o.userData.isGroundMesh);
+      // v664: skip OVERHEAD meshes (arches / awnings / roofs / banners).
+      // A mesh whose BOTTOM is above 2.0m is overhead — the avatar
+      // (1.4m tall) can walk under it without bumping.  Without this
+      // exclusion, arches register as walls and tunnels are blocked.
       if(!_isNamedGround && !_isTaggedGround &&
+         _box.min.y < 2.0 &&
          dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) < 25){
         ENTITIES.boxObstacles.push({
           minX: _box.min.x, maxX: _box.max.x,
@@ -8104,10 +8123,11 @@ async function _streamRemainingIslandPrefabs(root){
       const nm = (o.name || '').toLowerCase();
       if(/ground|floor|cobble|paving|path|terrain|street|plaza/.test(nm)) return;
       if(o.userData && o.userData.isGroundMesh) return;
-      // v658: loosened bounds — max side now 25m so wider buildings
-      // (church/inn/clocktower) get walls registered.  dy > 1.5 catches
-      // shorter walls too (was 1.8).
-      if(dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) < 25){
+      // v664: skip overhead meshes (arches / banners / roof beams) so
+      // tunnels are walk-through.  Same _sbox.min.y < 2.0 check as
+      // buildScene's scan.
+      if(_sbox.min.y < 2.0 &&
+         dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) < 25){
         ENTITIES.boxObstacles.push({
           minX: _sbox.min.x, maxX: _sbox.max.x,
           minZ: _sbox.min.z, maxZ: _sbox.max.z,
@@ -9777,10 +9797,14 @@ canvas.addEventListener('pointermove', e=>{
     const dx = e.clientX-lastPx, dy = e.clientY-lastPy;
     if(Math.abs(dx)+Math.abs(dy)>4) dragMoved = true;
     if(firstPerson){
-      // 1P: free look — drag rotates the FP yaw + pitch
-      fpYaw -= dx*0.006;
-      fpPitch -= dy*0.005;
-      fpPitch = Math.max(-1.0, Math.min(0.8, fpPitch));   // clamp vertical
+      // v664: cap per-frame delta so a fast drag can't sling the view
+      // past the pitch clamp.  Pitch clamped tighter to ±70° so the
+      // view never flips upside-down.  Yaw stays free (free-look).
+      const _dx = Math.max(-40, Math.min(40, dx));
+      const _dy = Math.max(-40, Math.min(40, dy));
+      fpYaw -= _dx * 0.006;
+      fpPitch -= _dy * 0.005;
+      fpPitch = Math.max(-1.20, Math.min(1.20, fpPitch));   // ~±69°
     } else {
       // 3P: orbit camera around avatar
       camYawTarget -= dx*0.0045;
@@ -9794,11 +9818,19 @@ canvas.addEventListener('pointerup', e=>{
   if(!dragMoved) handleClick(e.clientX, e.clientY);
 });
 canvas.addEventListener('pointercancel', ()=>{ pointerDown = false; });
-// Wheel: zoom by changing ortho size (also bound on window in case canvas misses)
+// v664: wheel zoom — in 3P changes ortho size; in 1P changes FOV.
 function onWheelZoom(e){
   e.preventDefault();
-  const factor = e.deltaY > 0 ? 1.10 : 0.91;
-  camZoomTarget = Math.max(CAM_MIN_SIZE, Math.min(CAM_MAX_SIZE, camZoomTarget * factor));
+  if(firstPerson && camFP){
+    // FOV zoom — clamp 25° (tight zoom) to 90° (wide)
+    const factor = e.deltaY > 0 ? 1.08 : 0.93;
+    const next = Math.max(25, Math.min(90, camFP.fov * factor));
+    camFP.fov = next;
+    camFP.updateProjectionMatrix();
+  } else {
+    const factor = e.deltaY > 0 ? 1.10 : 0.91;
+    camZoomTarget = Math.max(CAM_MIN_SIZE, Math.min(CAM_MAX_SIZE, camZoomTarget * factor));
+  }
 }
 canvas.addEventListener('wheel', onWheelZoom, { passive: false });
 window.addEventListener('wheel', onWheelZoom, { passive: false });
@@ -10048,7 +10080,13 @@ window.showInteractModal = function(html, durationMs){
   if(existing) existing.remove();
   const m = document.createElement('div');
   m.className = 'niwa-modal';
-  m.innerHTML = '<button class="close" type="button" aria-label="閉じる">×</button>' + html;
+  // v664: add BIG visible 閉じる button at bottom in addition to the
+  // top-right X.  Plus wrap inner html in a click-through container
+  // so taps inside the body don't accidentally close.
+  m.innerHTML =
+    '<button class="close" type="button" aria-label="閉じる">×</button>' +
+    '<div class="niwa-modal-body">' + html + '</div>' +
+    '<button class="niwa-modal-close-big" type="button">閉じる</button>';
   let closed = false;
   // v663: window-level flag — global E/Esc handlers check this to
   // bail out without trying to (re-)activate any interactable.
@@ -10079,15 +10117,22 @@ window.showInteractModal = function(html, durationMs){
     }
   };
   const closeBtn = m.querySelector('.close');
-  // v663: bind close on every possible event type so mobile + desktop
-  // + accessibility all work.  Each handler stops further propagation.
-  ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(evt => {
-    closeBtn.addEventListener(evt, e => {
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      close();
-    }, true);
-  });
+  const closeBig = m.querySelector('.niwa-modal-close-big');
+  // v663+v664: bind close on every possible event type so mobile +
+  // desktop + accessibility all work.  Each handler stops further
+  // propagation.  Both the top X and the bottom 閉じる button work.
+  const bindClose = (btn) => {
+    if(!btn) return;
+    ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(evt => {
+      btn.addEventListener(evt, e => {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        close();
+      }, true);
+    });
+  };
+  bindClose(closeBtn);
+  bindClose(closeBig);
   m.addEventListener('click', e => {
     if(e.target === m) close();
   });
