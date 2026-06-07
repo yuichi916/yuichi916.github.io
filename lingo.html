@@ -71,6 +71,58 @@
       overflow: hidden;
     }
     #player-wrap iframe { width: 100%; height: 100%; border: 0; }
+    #player-wrap.hidden { display: none; }
+    #results {
+      width: 100%;
+      max-width: 960px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 720px) { #results { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 440px) { #results { grid-template-columns: 1fr; } }
+    #results.hidden { display: none; }
+    .result-card {
+      background: #1a1d24;
+      border: 1px solid #2a2f3a;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      display: flex;
+      flex-direction: column;
+    }
+    .result-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .result-thumb {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      overflow: hidden;
+    }
+    .result-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .result-duration {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      font-size: 11px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+    .result-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
+    .result-title {
+      color: var(--fg);
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .result-meta { color: var(--dim); font-size: 12px; }
     #subtitles {
       width: 100%;
       max-width: 960px;
@@ -102,10 +154,11 @@
 <body>
   <h1>🌍 <span class="accent">lingo</span> — YouTube English × 日本語</h1>
   <div class="input-row">
-    <input id="url-input" type="text" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off" />
-    <button id="load-btn">読み込む</button>
+    <input id="url-input" type="text" placeholder="YouTube URL or 検索キーワード" autocomplete="off" />
+    <button id="load-btn">読み込む / 検索</button>
   </div>
   <div id="player-wrap"></div>
+  <div id="results" class="hidden"></div>
   <div id="subtitles">
     <div id="sub-en"></div>
     <div id="sub-ja"></div>
@@ -174,6 +227,7 @@
     const urlInput = document.getElementById('url-input');
     const loadBtn = document.getElementById('load-btn');
     const playerWrap = document.getElementById('player-wrap');
+    const resultsEl = document.getElementById('results');
     const subEn = document.getElementById('sub-en');
     const subJa = document.getElementById('sub-ja');
     const statusEl = document.getElementById('status');
@@ -235,30 +289,72 @@
       });
     }
 
-    async function loadVideo() {
-      const raw = urlInput.value.trim();
-      const videoId = extractVideoId(raw);
-      if (!videoId) {
-        setStatus('YouTube の URL を確認してください', true);
+    function showResults() {
+      resultsEl.classList.remove('hidden');
+      playerWrap.classList.add('hidden');
+      clearSubtitles();
+    }
+
+    function hideResults() {
+      resultsEl.classList.add('hidden');
+      playerWrap.classList.remove('hidden');
+    }
+
+    function renderResults(items) {
+      resultsEl.innerHTML = '';
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.style.gridColumn = '1 / -1';
+        empty.style.color = 'var(--dim)';
+        empty.style.textAlign = 'center';
+        empty.style.padding = '24px';
+        empty.textContent = 'ヒットなし';
+        resultsEl.appendChild(empty);
         return;
       }
+      for (const it of items) {
+        const card = document.createElement('div');
+        card.className = 'result-card';
+        card.innerHTML = `
+          <div class="result-thumb">
+            <img src="${escapeHtml(it.thumbnail)}" alt="" loading="lazy" />
+            ${it.duration ? `<div class="result-duration">${escapeHtml(it.duration)}</div>` : ''}
+          </div>
+          <div class="result-body">
+            <div class="result-title">${escapeHtml(it.title)}</div>
+            <div class="result-meta">${escapeHtml(it.channel)}${it.views ? ' · ' + escapeHtml(it.views) : ''}</div>
+          </div>
+        `;
+        card.addEventListener('click', () => loadByVideoId(it.videoId));
+        resultsEl.appendChild(card);
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+    }
+
+    async function loadByVideoId(videoId) {
       setStatus('字幕を取得中...');
       loadBtn.disabled = true;
+      hideResults();
       clearSubtitles();
       cues = [];
-
       try {
         const res = await fetch(`${WORKER_URL}/api/transcript?v=${videoId}`);
         if (res.status === 404) {
           mountPlayer(videoId);
           setStatus('この動画には英字幕がありません', true);
-          loadBtn.disabled = false;
+          return;
+        }
+        if (res.status === 503) {
+          mountPlayer(videoId);
+          setStatus('YouTube が一時的に制限中です。数十秒待って再試行してください', true);
           return;
         }
         if (!res.ok) {
           mountPlayer(videoId);
           setStatus('字幕の取得に失敗しました。少し待って再試行してください', true);
-          loadBtn.disabled = false;
           return;
         }
         const data = await res.json();
@@ -273,8 +369,43 @@
       }
     }
 
-    loadBtn.addEventListener('click', loadVideo);
-    urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadVideo(); });
+    async function runSearch(query) {
+      setStatus('検索中...');
+      loadBtn.disabled = true;
+      try {
+        const res = await fetch(`${WORKER_URL}/api/search?q=${encodeURIComponent(query)}`);
+        if (res.status === 503) {
+          setStatus('YouTube が一時的に制限中です。数十秒待って再試行してください', true);
+          return;
+        }
+        if (!res.ok) {
+          setStatus('検索に失敗しました', true);
+          return;
+        }
+        const data = await res.json();
+        renderResults(data.results || []);
+        showResults();
+        setStatus(`${(data.results || []).length} 件ヒット`);
+      } catch (err) {
+        setStatus('検索に失敗しました', true);
+      } finally {
+        loadBtn.disabled = false;
+      }
+    }
+
+    async function submitInput() {
+      const raw = urlInput.value.trim();
+      if (!raw) return;
+      const videoId = extractVideoId(raw);
+      if (videoId) {
+        await loadByVideoId(videoId);
+      } else {
+        await runSearch(raw);
+      }
+    }
+
+    loadBtn.addEventListener('click', submitInput);
+    urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitInput(); });
 
     window.onYouTubeIframeAPIReady = () => { /* player mounted lazily on loadVideo */ };
   </script>
