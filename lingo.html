@@ -144,12 +144,14 @@
       font-weight: 700;
       line-height: 1.3;
       color: var(--fg);
+      white-space: pre-line;
     }
     #sub-ja {
       font-size: 20px;
       line-height: 1.4;
       color: var(--dim);
       margin-top: 8px;
+      white-space: pre-line;
     }
     #status {
       margin-top: 12px;
@@ -219,6 +221,17 @@
         return null;
       }
 
+      function findActiveCues(cues, t) {
+        if (!cues || !cues.length) return [];
+        const out = [];
+        for (let i = 0; i < cues.length; i++) {
+          const c = cues[i];
+          if (c.start <= t && t < c.end) out.push(c);
+          else if (c.start > t) break;
+        }
+        return out;
+      }
+
       if (window.location.search.includes('selftest=1')) {
         console.assert(extractVideoId('https://youtu.be/dQw4w9WgXcQ') === 'dQw4w9WgXcQ', 'youtu.be');
         console.assert(extractVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ') === 'dQw4w9WgXcQ', 'watch');
@@ -229,15 +242,18 @@
         console.assert(findActiveCue(cues, 3) && findActiveCue(cues, 3).en === 'b', 'cue@3');
         console.assert(findActiveCue(cues, 4.5) === null, 'gap@4.5');
         console.assert(findActiveCue(cues, 6) && findActiveCue(cues, 6).en === 'c', 'cue@6');
+        const ov = [{start:0,end:5,en:'a'},{start:2,end:6,en:'b'},{start:4,end:8,en:'c'}];
+        const at3 = findActiveCues(ov, 3); console.assert(at3.length === 2 && at3[0].en==='a' && at3[1].en==='b', 'overlap@3');
+        const at5 = findActiveCues(ov, 5); console.assert(at5.length === 2 && at5[0].en==='b' && at5[1].en==='c', 'overlap@5');
         console.log('lingo selftest passed');
       }
 
-      window.__lingo = { extractVideoId, findActiveCue };
+      window.__lingo = { extractVideoId, findActiveCue, findActiveCues };
     })();
   </script>
   <script>
     const WORKER_URL = 'https://lingo-transcript.yuichi916.workers.dev';
-    const { extractVideoId, findActiveCue } = window.__lingo;
+    const { extractVideoId, findActiveCue, findActiveCues } = window.__lingo;
 
     const urlInput = document.getElementById('url-input');
     const sortSelect = document.getElementById('sort-select');
@@ -264,10 +280,12 @@
       subJa.textContent = '';
     }
 
-    function renderCue(cue) {
-      subEn.textContent = cue.en || '';
-      subJa.textContent = cue.ja || '';
-      lastShownAt = Date.now();
+    function renderActiveCues(active) {
+      const enLines = active.map((c) => c.en).filter(Boolean);
+      const jaLines = active.map((c) => c.ja).filter(Boolean);
+      subEn.textContent = enLines.join('\n');
+      subJa.textContent = jaLines.join('\n');
+      if (enLines.length || jaLines.length) lastShownAt = Date.now();
     }
 
     function startPolling() {
@@ -275,9 +293,9 @@
       pollTimer = setInterval(() => {
         if (!player || typeof player.getCurrentTime !== 'function') return;
         const t = player.getCurrentTime();
-        const c = findActiveCue(cues, t);
-        if (c) {
-          renderCue(c);
+        const active = findActiveCues(cues, t);
+        if (active.length) {
+          renderActiveCues(active);
         } else if (Date.now() - lastShownAt > GRACE_MS) {
           clearSubtitles();
         }
