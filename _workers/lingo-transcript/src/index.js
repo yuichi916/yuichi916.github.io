@@ -1,4 +1,4 @@
-import { fetchEnglishCues, NoCaptionsError } from './transcript.js';
+import { fetchEnglishCues, NoCaptionsError, CaptchaError } from './transcript.js';
 import { translateBatch } from './translate.js';
 import { extractVideoId, mergeCuesWithTranslations } from './util.js';
 
@@ -33,6 +33,9 @@ export default {
     } catch (err) {
       if (err instanceof NoCaptionsError) {
         return corsResponse(env, { error: 'no_captions', videoId }, 404);
+      }
+      if (err instanceof CaptchaError) {
+        return corsResponse(env, { error: 'rate_limited', message: 'YouTube PoP rate-limited, retry shortly' }, 503);
       }
       return corsResponse(env, { error: 'upstream_transcript', message: String(err?.message || err) }, 502);
     }
