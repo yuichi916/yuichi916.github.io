@@ -1,6 +1,6 @@
-import { fetchEnglishCues, NoCaptionsError, CaptchaError } from './transcript.js';
+import { fetchSourceCues, NoCaptionsError, CaptchaError } from './transcript.js';
 import { translateBatch } from './translate.js';
-import { extractVideoId, mergeCuesWithTranslations } from './util.js';
+import { extractVideoId } from './util.js';
 import { searchYouTube } from './search.js';
 
 export default {
@@ -35,38 +35,55 @@ async function handleTranscript(env, url) {
     if (cached) return corsResponse(env, cached, 200);
   }
 
-  let cues;
+  const debug = url.searchParams.get('debug') === '1' ? {} : null;
+  let src;
   try {
-    cues = await fetchEnglishCues(videoId);
+    src = await fetchSourceCues(videoId, debug);
   } catch (err) {
     if (err instanceof NoCaptionsError) {
-      return corsResponse(env, { error: 'no_captions', videoId }, 404);
+      return corsResponse(env, { error: 'no_captions', videoId, ...(debug ? { debug } : {}) }, 404);
     }
     if (err instanceof CaptchaError) {
       return corsResponse(env, { error: 'rate_limited', message: 'YouTube PoP rate-limited, retry shortly' }, 503);
     }
-    return corsResponse(env, { error: 'upstream_transcript', message: String(err?.message || err) }, 502);
+    return corsResponse(env, { error: 'upstream_transcript', message: String(err?.message || err), ...(debug ? { debug } : {}) }, 502);
   }
 
-  let jaTexts;
-  try {
-    jaTexts = await translateBatch(cues.map((c) => c.en));
-  } catch (err) {
-    jaTexts = cues.map(() => '');
-  }
-
-  const merged = mergeCuesWithTranslations(cues, jaTexts);
+  const merged = await buildBilingualCues(src, debug);
   const payload = {
     videoId,
-    lang: { from: 'en', to: 'ja' },
+    lang: { from: src.srcLang, to: 'ja' },
     cues: merged,
     cachedAt: Math.floor(Date.now() / 1000),
+    ...(debug ? { debug } : {}),
   };
 
   const ttl = Number(env.CACHE_TTL_SECONDS) || 2592000;
   await env.LINGO_CACHE.put(cacheKey, JSON.stringify(payload), { expirationTtl: ttl });
 
   return corsResponse(env, payload, 200);
+}
+
+async function buildBilingualCues(src, debug = null) {
+  const texts = src.cues.map((c) => c.text);
+  if (src.srcLang === 'en') {
+    let ja;
+    try { ja = await translateBatch(texts, { from: 'en', to: 'ja', debug }); }
+    catch { ja = texts.map(() => ''); }
+    return src.cues.map((c, i) => ({ start: c.start, end: c.end, en: c.text, ja: ja[i] ?? '' }));
+  }
+  if (src.srcLang === 'ja') {
+    let en;
+    try { en = await translateBatch(texts, { from: 'ja', to: 'en', debug }); }
+    catch { en = texts.map(() => ''); }
+    return src.cues.map((c, i) => ({ start: c.start, end: c.end, en: en[i] ?? '', ja: c.text }));
+  }
+  let en, ja;
+  try { en = await translateBatch(texts, { from: src.srcLang, to: 'en', debug }); }
+  catch { en = texts.map(() => ''); }
+  try { ja = await translateBatch(texts, { from: src.srcLang, to: 'ja', debug }); }
+  catch { ja = texts.map(() => ''); }
+  return src.cues.map((c, i) => ({ start: c.start, end: c.end, en: en[i] ?? '', ja: ja[i] ?? '' }));
 }
 
 async function handleSearch(env, url) {

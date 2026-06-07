@@ -13,39 +13,115 @@ export class CaptchaError extends Error {
 }
 
 const INNERTUBE_URL = 'https://www.youtube.com/youtubei/v1/player?prettyPrint=false';
-const INNERTUBE_CLIENT_VERSION = '20.10.38';
-const INNERTUBE_UA = `com.google.android.youtube/${INNERTUBE_CLIENT_VERSION} (Linux; U; Android 14)`;
 const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36';
 
-export async function fetchEnglishCues(videoId) {
-  const tracks = await getCaptionTracks(videoId);
-  if (!tracks.length) throw new NoCaptionsError(videoId);
+const INNERTUBE_CLIENTS = [
+  {
+    name: 'IOS',
+    ua: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X)',
+    extraHeaders: { 'X-YouTube-Client-Name': '5', 'X-YouTube-Client-Version': '20.10.4' },
+    context: {
+      client: {
+        clientName: 'IOS',
+        clientVersion: '20.10.4',
+        deviceMake: 'Apple',
+        deviceModel: 'iPhone16,2',
+        osName: 'iPhone',
+        osVersion: '18.3.2.22D82',
+        hl: 'en', gl: 'US',
+      },
+    },
+  },
+  {
+    name: 'ANDROID',
+    ua: 'com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip',
+    extraHeaders: { 'X-YouTube-Client-Name': '3', 'X-YouTube-Client-Version': '20.10.38' },
+    context: {
+      client: {
+        clientName: 'ANDROID',
+        clientVersion: '20.10.38',
+        androidSdkVersion: 34,
+        osName: 'Android',
+        osVersion: '14',
+        hl: 'en', gl: 'US',
+      },
+    },
+  },
+  {
+    name: 'WEB',
+    ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    extraHeaders: {
+      'X-YouTube-Client-Name': '1',
+      'X-YouTube-Client-Version': '2.20240502.00.00',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Origin': 'https://www.youtube.com',
+      'Referer': 'https://www.youtube.com/',
+      'Cookie': 'SOCS=CAI; CONSENT=YES+; PREF=hl=en&gl=US',
+    },
+    context: {
+      client: {
+        clientName: 'WEB',
+        clientVersion: '2.20240502.00.00',
+        hl: 'en', gl: 'US',
+      },
+    },
+  },
+];
 
-  const track = pickEnglishTrack(tracks);
-  if (!track) throw new NoCaptionsError(videoId);
-
-  const xml = await fetchCaptionXml(track.baseUrl, videoId);
-  const cues = parseTranscriptXml(xml);
-  if (!cues.length) throw new NoCaptionsError(videoId);
-  return cues;
+export async function fetchEnglishCues(videoId, debug = null) {
+  const result = await fetchSourceCues(videoId, debug);
+  return result.cues.map((c) => ({ start: c.start, end: c.end, en: c.text }));
 }
 
-async function getCaptionTracks(videoId) {
-  let tracks = await fetchTracksViaInnerTube(videoId);
-  if (tracks && tracks.length) return tracks;
-  tracks = await fetchTracksViaWebPage(videoId);
+export async function fetchSourceCues(videoId, debug = null) {
+  const tracks = await getCaptionTracks(videoId, debug);
+  if (debug) debug.tracks = tracks.map((t) => ({ lc: t.languageCode, k: t.kind }));
+  if (!tracks.length) throw new NoCaptionsError(videoId);
+
+  const pick = pickBestTrack(tracks);
+  if (debug) debug.pick = pick ? { lc: pick.track.languageCode, k: pick.track.kind, srcLang: pick.srcLang } : null;
+  if (!pick) throw new NoCaptionsError(videoId);
+
+  let xml;
+  try {
+    xml = await fetchCaptionXml(pick.track.baseUrl, videoId, debug);
+  } catch (err) {
+    if (debug) debug.firstFetchErr = String(err?.message || err);
+    if (pick.fallback) {
+      xml = await fetchCaptionXml(pick.fallback.baseUrl, videoId, debug);
+    } else {
+      throw err;
+    }
+  }
+  const rawCues = parseTranscriptXml(xml);
+  if (debug) debug.parsedCues = rawCues.length;
+  if (!rawCues.length) throw new NoCaptionsError(videoId);
+
+  return {
+    srcLang: pick.srcLang,
+    cues: rawCues.map((c) => ({ start: c.start, end: c.end, text: c.en })),
+  };
+}
+
+async function getCaptionTracks(videoId, debug = null) {
+  for (const client of INNERTUBE_CLIENTS) {
+    const tracks = await fetchTracksViaInnerTube(videoId, client);
+    if (debug) (debug.attempts ||= []).push({ client: client.name, count: tracks?.length ?? 0 });
+    if (tracks && tracks.length) return tracks;
+  }
+  const tracks = await fetchTracksViaWebPage(videoId, debug);
+  if (debug) (debug.attempts ||= []).push({ client: 'WEBPAGE', count: tracks?.length ?? 0 });
   return tracks || [];
 }
 
-async function fetchTracksViaInnerTube(videoId) {
+async function fetchTracksViaInnerTube(videoId, client) {
   try {
+    const headers = { 'Content-Type': 'application/json', 'User-Agent': client.ua };
+    if (client.extraHeaders) Object.assign(headers, client.extraHeaders);
     const res = await fetch(INNERTUBE_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': INNERTUBE_UA },
-      body: JSON.stringify({
-        context: { client: { clientName: 'ANDROID', clientVersion: INNERTUBE_CLIENT_VERSION } },
-        videoId,
-      }),
+      headers,
+      body: JSON.stringify({ context: client.context, videoId }),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -55,12 +131,23 @@ async function fetchTracksViaInnerTube(videoId) {
   }
 }
 
-async function fetchTracksViaWebPage(videoId) {
+async function fetchTracksViaWebPage(videoId, debug = null) {
   try {
-    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-      headers: { 'User-Agent': BROWSER_UA },
+    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en&gl=US`, {
+      headers: {
+        'User-Agent': BROWSER_UA,
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
     });
+    if (debug) debug.webStatus = res.status;
     const html = await res.text();
+    if (debug) {
+      debug.htmlLen = html.length;
+      debug.hasCaptcha = html.includes('class="g-recaptcha"');
+      debug.hasPlayerResp = html.includes('ytInitialPlayerResponse');
+      debug.hasCaptionsKey = html.includes('playerCaptionsTracklistRenderer');
+    }
     if (html.includes('class="g-recaptcha"')) throw new CaptchaError(videoId);
     const player = extractInlineJson(html, 'ytInitialPlayerResponse');
     return player?.captions?.playerCaptionsTracklistRenderer?.captionTracks || null;
@@ -70,12 +157,16 @@ async function fetchTracksViaWebPage(videoId) {
   }
 }
 
-function pickEnglishTrack(tracks) {
+function pickBestTrack(tracks) {
   const isEn = (t) => /^(en|a\.en)/i.test(t.languageCode || '');
-  const manual = tracks.filter((t) => isEn(t) && t.kind !== 'asr');
-  if (manual.length) return preferGeneric(manual);
-  const asr = tracks.filter((t) => isEn(t) && t.kind === 'asr');
-  if (asr.length) return preferGeneric(asr);
+  const manualEn = tracks.filter((t) => isEn(t) && t.kind !== 'asr');
+  if (manualEn.length) return { track: preferGeneric(manualEn), srcLang: 'en' };
+  const asrEn = tracks.filter((t) => isEn(t) && t.kind === 'asr');
+  if (asrEn.length) return { track: preferGeneric(asrEn), srcLang: 'en' };
+  const manualAny = tracks.find((t) => t.kind !== 'asr');
+  if (manualAny) return { track: manualAny, srcLang: normalizeLang(manualAny.languageCode) };
+  const asrAny = tracks.find((t) => t.kind === 'asr');
+  if (asrAny) return { track: asrAny, srcLang: normalizeLang(asrAny.languageCode) };
   return null;
 }
 
@@ -87,10 +178,26 @@ function preferGeneric(tracks) {
   );
 }
 
-async function fetchCaptionXml(baseUrl, videoId) {
-  const res = await fetch(baseUrl, { headers: { 'User-Agent': BROWSER_UA } });
-  if (!res.ok) throw new NoCaptionsError(videoId);
-  return res.text();
+function normalizeLang(lc) {
+  if (!lc) return 'auto';
+  return lc.replace(/^a\./, '').split('-')[0].toLowerCase();
+}
+
+async function fetchCaptionXml(baseUrl, videoId, debug = null) {
+  if (debug) debug.fetchUrl = baseUrl.slice(0, 200);
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(baseUrl, { headers: { 'User-Agent': BROWSER_UA } });
+    lastStatus = res.status;
+    if (res.ok) {
+      if (debug) debug.fetchStatus = res.status;
+      return res.text();
+    }
+    if (res.status !== 429 && res.status !== 503) break;
+    await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+  }
+  if (debug) debug.fetchStatus = lastStatus;
+  throw new NoCaptionsError(videoId);
 }
 
 function parseTranscriptXml(xml) {

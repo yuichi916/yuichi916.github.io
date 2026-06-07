@@ -1,13 +1,13 @@
-import { chunk } from './util.js';
-
 const SEPARATOR = '\n\n␞\n\n';
-const CHUNK_SIZE = 40;
-const MAX_IN_FLIGHT = 3;
+const MAX_IN_FLIGHT = 1;
 const ENDPOINT = 'https://translate.googleapis.com/translate_a/single';
+const LINGVA_INSTANCES = ['https://lingva.ml', 'https://lingva.lunar.icu'];
+const ENCODED_SEP_BYTES = encodeURIComponent(SEPARATOR).length;
+const CHUNK_URL_BUDGET = 3000;
 
-export async function translateBatch(texts, { from = 'en', to = 'ja' } = {}) {
+export async function translateBatch(texts, { from = 'en', to = 'ja', debug = null } = {}) {
   if (!texts.length) return [];
-  const groups = chunk(texts, CHUNK_SIZE);
+  const groups = chunkByByteBudget(texts, CHUNK_URL_BUDGET);
   const results = new Array(groups.length);
 
   let next = 0;
@@ -15,7 +15,7 @@ export async function translateBatch(texts, { from = 'en', to = 'ja' } = {}) {
     while (true) {
       const i = next++;
       if (i >= groups.length) return;
-      results[i] = await translateGroup(groups[i], from, to);
+      results[i] = await translateGroup(groups[i], from, to, debug);
     }
   }
   const workers = Array.from({ length: Math.min(MAX_IN_FLIGHT, groups.length) }, worker);
@@ -24,33 +24,110 @@ export async function translateBatch(texts, { from = 'en', to = 'ja' } = {}) {
   return results.flat();
 }
 
-async function translateGroup(group, from, to) {
+function chunkByByteBudget(texts, maxBytes) {
+  const out = [];
+  let cur = [];
+  let curBytes = 0;
+  for (const t of texts) {
+    const tBytes = encodeURIComponent(t).length;
+    const sepCost = cur.length ? ENCODED_SEP_BYTES : 0;
+    if (cur.length && curBytes + sepCost + tBytes > maxBytes) {
+      out.push(cur);
+      cur = [];
+      curBytes = 0;
+    }
+    cur.push(t);
+    curBytes += (cur.length === 1 ? 0 : ENCODED_SEP_BYTES) + tBytes;
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
+async function translateGroup(group, from, to, debug = null) {
+  // GT en→ja from Cloudflare PoP is reliable; other pairs return 429.
+  // Try GT first only for that direction, otherwise jump straight to Lingva
+  // to stay under the 50-subrequest cap on free Workers.
+  if (from === 'en' && to === 'ja') {
+    const viaGT = await translateViaGT(group, from, to, debug);
+    if (viaGT) return viaGT;
+  }
+  const viaLingva = await translateViaLingva(group, from, to, debug);
+  if (viaLingva) return viaLingva;
+  if (!(from === 'en' && to === 'ja')) {
+    const viaGT = await translateViaGT(group, from, to, debug);
+    if (viaGT) return viaGT;
+  }
+  return group.map(() => '');
+}
+
+async function translateViaGT(group, from, to, debug = null) {
   const joined = group.join(SEPARATOR);
   const url = `${ENDPOINT}?client=gtx&sl=${from}&tl=${to}&dt=t`;
   const formBody = `q=${encodeURIComponent(joined)}`;
   let body;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'Mozilla/5.0 lingo-transcript/0.1',
-        },
-        body: formBody,
-      });
-      if (!res.ok) throw new Error(`translate HTTP ${res.status}`);
-      body = await res.json();
-      break;
-    } catch (err) {
-      if (attempt === 2) return group.map(() => '');
-      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+  let lastStatus = 0;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      body: formBody,
+    });
+    lastStatus = res.status;
+    if (!res.ok) {
+      if (debug) (debug.gtFails ||= []).push({ from, to, status: lastStatus });
+      return null;
     }
+    body = await res.json();
+  } catch (err) {
+    if (debug) (debug.gtFails ||= []).push({ from, to, status: lastStatus, err: String(err?.message || err) });
+    return null;
   }
-  const joinedJa = (body?.[0] ?? [])
+  const joinedTl = (body?.[0] ?? [])
     .map((seg) => seg?.[0] ?? '')
     .join('');
-  const parts = joinedJa.split(SEPARATOR);
+  if (!joinedTl) {
+    if (debug) (debug.gtFails ||= []).push({ from, to, status: lastStatus, err: 'empty body' });
+    return null;
+  }
+  if (debug) (debug.gtSuccess ||= []).push({ from, to, status: lastStatus, groupLen: group.length });
+  const parts = joinedTl.split(SEPARATOR);
   if (parts.length === group.length) return parts.map((s) => s.trim());
   return group.map((_, i) => (parts[i] ?? '').trim());
+}
+
+async function translateViaLingva(group, from, to, debug = null) {
+  for (const instance of LINGVA_INSTANCES) {
+    const parts = await lingvaCall(instance, from, to, group, debug);
+    if (!parts) continue;
+    if (parts.length === group.length) return parts.map((s) => s.trim());
+    return group.map((_, i) => (parts[i] ?? '').trim());
+  }
+  return null;
+}
+
+async function lingvaCall(instance, from, to, sg, debug = null) {
+  const joined = sg.join(SEPARATOR);
+  const url = `${instance}/api/v1/${from}/${to}/${encodeURIComponent(joined)}`;
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 lingo-transcript/0.2', 'Accept': 'application/json' },
+    });
+    if (!res.ok) {
+      if (debug) (debug.lingvaFails ||= []).push({ instance, status: res.status });
+      return null;
+    }
+    const body = await res.json();
+    const tl = body?.translation || '';
+    if (!tl) return null;
+    if (debug) (debug.lingvaSuccess ||= []).push({ instance, groupLen: sg.length });
+    return tl.split(SEPARATOR);
+  } catch (err) {
+    if (debug) (debug.lingvaFails ||= []).push({ instance, err: String(err?.message || err) });
+    return null;
+  }
 }
