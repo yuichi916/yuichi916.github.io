@@ -26,16 +26,26 @@ export async function translateBatch(texts, { from = 'en', to = 'ja' } = {}) {
 
 async function translateGroup(group, from, to) {
   const joined = group.join(SEPARATOR);
-  const url = `${ENDPOINT}?client=gtx&sl=${from}&tl=${to}&dt=t&q=${encodeURIComponent(joined)}`;
+  const url = `${ENDPOINT}?client=gtx&sl=${from}&tl=${to}&dt=t`;
+  const formBody = `q=${encodeURIComponent(joined)}`;
   let body;
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 lingo-transcript/0.1' },
-    });
-    if (!res.ok) throw new Error(`translate HTTP ${res.status}`);
-    body = await res.json();
-  } catch (err) {
-    return group.map(() => '');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'Mozilla/5.0 lingo-transcript/0.1',
+        },
+        body: formBody,
+      });
+      if (!res.ok) throw new Error(`translate HTTP ${res.status}`);
+      body = await res.json();
+      break;
+    } catch (err) {
+      if (attempt === 2) return group.map(() => '');
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
   }
   const joinedJa = (body?.[0] ?? [])
     .map((seg) => seg?.[0] ?? '')
