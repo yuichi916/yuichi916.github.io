@@ -153,6 +153,31 @@
       margin-top: 8px;
       white-space: pre-line;
     }
+    .ka-past { display: none; }
+    .ka-current {
+      color: var(--accent);
+      background: rgba(110, 168, 255, 0.18);
+      border-radius: 4px;
+      padding: 0 2px;
+    }
+    #sub-en .ka-future { color: var(--fg); }
+    #sub-ja .ka-future { color: var(--dim); }
+    .toggle-btn {
+      padding: 10px 14px;
+      background: #1a1d24;
+      border: 1px solid #2a2f3a;
+      border-radius: 8px;
+      color: var(--dim);
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .toggle-btn.on {
+      background: rgba(110, 168, 255, 0.18);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
     #status {
       margin-top: 12px;
       color: var(--dim);
@@ -172,6 +197,7 @@
       <option value="views">再生数順</option>
       <option value="rating">高評価順</option>
     </select>
+    <button id="hl-toggle" class="toggle-btn" title="今読んでいる箇所をハイライトし、読み終わった単語を消す">強調 OFF</button>
     <button id="load-btn">読み込む / 検索</button>
   </div>
   <div id="player-wrap"></div>
@@ -257,6 +283,7 @@
 
     const urlInput = document.getElementById('url-input');
     const sortSelect = document.getElementById('sort-select');
+    const hlToggle = document.getElementById('hl-toggle');
     const loadBtn = document.getElementById('load-btn');
     const playerWrap = document.getElementById('player-wrap');
     const resultsEl = document.getElementById('results');
@@ -267,6 +294,17 @@
     let player = null;
     let cues = [];
     let pollTimer = null;
+    let highlightMode = localStorage.getItem('lingo.hl') === '1';
+    applyHighlightToggleUI();
+    hlToggle.addEventListener('click', () => {
+      highlightMode = !highlightMode;
+      localStorage.setItem('lingo.hl', highlightMode ? '1' : '0');
+      applyHighlightToggleUI();
+    });
+    function applyHighlightToggleUI() {
+      hlToggle.classList.toggle('on', highlightMode);
+      hlToggle.textContent = highlightMode ? '強調 ON' : '強調 OFF';
+    }
 
     function setStatus(msg, isError = false) {
       statusEl.textContent = msg || '';
@@ -278,11 +316,65 @@
       subJa.textContent = '';
     }
 
-    function renderActiveCues(active) {
-      const enLines = active.map((c) => c.en).filter(Boolean);
-      const jaLines = active.map((c) => c.ja).filter(Boolean);
-      subEn.textContent = enLines.join('\n');
-      subJa.textContent = jaLines.join('\n');
+    function renderActiveCues(active, t) {
+      if (highlightMode) {
+        const enHTML = active.map((c) => renderKaraoke(c.en, c, t)).filter(Boolean).join('<br>');
+        const jaHTML = active.map((c) => renderKaraoke(c.ja, c, t)).filter(Boolean).join('<br>');
+        subEn.innerHTML = enHTML;
+        subJa.innerHTML = jaHTML;
+      } else {
+        const enLines = active.map((c) => c.en).filter(Boolean);
+        const jaLines = active.map((c) => c.ja).filter(Boolean);
+        subEn.textContent = enLines.join('\n');
+        subJa.textContent = jaLines.join('\n');
+      }
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+    }
+
+    function tokenizeForKaraoke(text) {
+      const tokens = [];
+      let buf = '';
+      for (const ch of text) {
+        if (/\s/.test(ch)) {
+          if (buf) { tokens.push(buf); buf = ''; }
+          tokens.push(ch);
+        } else if (/[぀-ヿ㐀-鿿ｦ-ￜ]/.test(ch)) {
+          if (buf) { tokens.push(buf); buf = ''; }
+          tokens.push(ch);
+        } else {
+          buf += ch;
+        }
+      }
+      if (buf) tokens.push(buf);
+      return tokens;
+    }
+
+    function renderKaraoke(text, cue, t) {
+      if (!text) return '';
+      const dur = Math.max(0.001, cue.end - cue.start);
+      const elapsed = Math.max(0, Math.min(dur, t - cue.start));
+      const progress = elapsed / dur;
+      const tokens = tokenizeForKaraoke(text);
+      // Treat whitespace tokens as zero-weight (they don't count as "spoken units")
+      const wordIdx = [];
+      tokens.forEach((tok, i) => { if (!/^\s+$/.test(tok)) wordIdx.push(i); });
+      if (!wordIdx.length) return escHtml(text);
+      const currentNth = Math.min(wordIdx.length - 1, Math.floor(progress * wordIdx.length));
+      const currentTokenIdx = wordIdx[currentNth];
+      // past: tokens before currentTokenIdx (drop leading whitespace too) → hidden
+      // current: tokens[currentTokenIdx] → highlighted
+      // future: tokens after → normal
+      const past = tokens.slice(0, currentTokenIdx).join('');
+      const cur = tokens[currentTokenIdx] || '';
+      const fut = tokens.slice(currentTokenIdx + 1).join('');
+      return (
+        `<span class="ka-past">${escHtml(past)}</span>` +
+        `<span class="ka-current">${escHtml(cur)}</span>` +
+        `<span class="ka-future">${escHtml(fut)}</span>`
+      );
     }
 
     function startPolling() {
@@ -292,7 +384,7 @@
         const t = player.getCurrentTime();
         const active = findActiveCues(cues, t);
         if (active.length) {
-          renderActiveCues(active);
+          renderActiveCues(active, t);
         } else {
           clearSubtitles();
         }
