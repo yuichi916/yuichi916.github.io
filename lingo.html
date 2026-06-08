@@ -496,8 +496,22 @@
         // Always keep at least one cue visible so the area never blanks.
         if (active.length > 1) {
           const stillReading = active.filter((c) => readerProgress(c, t) < 1);
-          if (stillReading.length) active = stillReading;
-          else active = [active[active.length - 1]];
+          if (stillReading.length) {
+            active = stillReading;
+          } else {
+            // Nobody is still being read. Prefer cues whose speaker is still
+            // talking (latest start), else the most-recently-ended cue.
+            const stillSpeaking = active.filter((c) => t < c.end);
+            let pick;
+            if (stillSpeaking.length) {
+              pick = stillSpeaking[0];
+              for (const c of stillSpeaking) if (c.start > pick.start) pick = c;
+            } else {
+              pick = active[0];
+              for (const c of active) if (c.end > pick.end) pick = c;
+            }
+            active = [pick];
+          }
         }
         if (active.length) {
           renderActiveCues(active, t);
