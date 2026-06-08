@@ -490,13 +490,36 @@
       pollTimer = setInterval(() => {
         if (!player || typeof player.getCurrentTime !== 'function') return;
         const t = player.getCurrentTime();
-        const active = findActiveCues(cues, t);
+        let active = findActiveCues(cues, t);
+        // When multiple cues are stacked, drop the ones the reader has
+        // already finished (user wants line 1 to disappear once read).
+        // Always keep at least one cue visible so the area never blanks.
+        if (active.length > 1) {
+          const stillReading = active.filter((c) => readerProgress(c, t) < 1);
+          if (stillReading.length) active = stillReading;
+          else active = [active[active.length - 1]];
+        }
         if (active.length) {
           renderActiveCues(active, t);
         } else {
           clearSubtitles();
         }
       }, 200);
+    }
+
+    function countReadableTokens(text) {
+      if (!text) return 0;
+      return tokenizeForKaraoke(text).filter((tok) => !/^\s+$/.test(tok)).length;
+    }
+
+    function readerProgress(cue, t) {
+      const elapsed = Math.max(0, t - cue.start);
+      const enTokens = countReadableTokens(cue.en);
+      const jaTokens = countReadableTokens(cue.ja);
+      const enProg = enTokens ? (elapsed * READING_TOKENS_PER_SEC.en) / enTokens : 2;
+      const jaProg = jaTokens ? (elapsed * READING_TOKENS_PER_SEC.ja) / jaTokens : 2;
+      // Reader is "done" only when BOTH languages have been consumed.
+      return Math.min(enProg, jaProg);
     }
 
     function stopPolling() {
