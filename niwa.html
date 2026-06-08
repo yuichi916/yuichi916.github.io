@@ -11722,20 +11722,49 @@ setLoad(0.95, 'ASSETS');
   if(urlParams.get('diag') === '1' && !window.__niwa){
     try { _exposeNiwaDiag(); } catch(_){}
   }
-  // v667: hide the splash AS SOON AS the unified ground + plaza is in.
-  // Streaming the other 8 prefabs continues in the background.  The
-  // previous 60s "wait for all 9" loop made the page look frozen if
-  // pCloud was slow — the user saw "STREAM 0/9 ... 1/9 ..." but no
-  // world.  Now we wait at most 12s for the *first 3* prefabs and bail.
+  // v668: splash blocks until the first 2 prefabs (plaza + 1 neighbour)
+  // arrive OR 25s elapse, whichever first.  After splash hides, the
+  // bottom-right corner shows "ロード中: N/9" until streaming completes
+  // so the user knows the world is still building.  This balances "no
+  // empty world" with "no 60s frozen splash".
   if(initialScene === 'island' && urlParams.get('diag') !== '1'){
-    const _deadline = performance.now() + 12000;
+    const _deadline = performance.now() + 25000;
     while(performance.now() < _deadline){
       const _cnt = (typeof _islandStreamedCount !== 'undefined') ? _islandStreamedCount : 0;
       const _done = (typeof _islandStreamingDone !== 'undefined') ? _islandStreamingDone : false;
-      if(_done || _cnt >= 3) break;
-      setLoad(0.985 + 0.004 * (_cnt / 9), `STREAM ${_cnt}/9`);
-      await new Promise(r => setTimeout(r, 250));
+      if(_done || _cnt >= 2) break;
+      setLoad(0.985 + 0.004 * (_cnt / 9), `STREAM ${_cnt}/9 (初回は CDN cold-start で 10-20 秒かかります)`);
+      await new Promise(r => setTimeout(r, 300));
     }
+  }
+  // v668: post-splash streaming badge — small corner indicator that
+  // shows progress until all 9 prefabs arrive.  Auto-removes when done.
+  if(initialScene === 'island' && urlParams.get('diag') !== '1'){
+    const _badge = document.createElement('div');
+    _badge.id = 'niwa-stream-badge';
+    _badge.style.cssText =
+      'position:fixed;bottom:14px;right:14px;z-index:60;padding:6px 12px;' +
+      'background:rgba(14,26,38,0.82);color:#e8dcb8;' +
+      'border:1px solid rgba(200,152,72,0.5);border-radius:4px;' +
+      'font:11px/1.4 "JetBrains Mono",monospace;letter-spacing:0.06em;' +
+      'opacity:0;transition:opacity 0.4s;';
+    document.body.appendChild(_badge);
+    (async () => {
+      // Give the page 600ms to settle before showing the badge.
+      await new Promise(r => setTimeout(r, 600));
+      _badge.style.opacity = '0.9';
+      while(true){
+        const _cnt = (typeof _islandStreamedCount !== 'undefined') ? _islandStreamedCount : 0;
+        const _done = (typeof _islandStreamingDone !== 'undefined') ? _islandStreamingDone : false;
+        _badge.textContent = _done ? 'WORLD READY' : `LOADING · ${_cnt}/9`;
+        if(_done){
+          _badge.style.opacity = '0';
+          setTimeout(() => _badge.remove(), 1500);
+          break;
+        }
+        await new Promise(r => setTimeout(r, 800));
+      }
+    })();
   }
   // Force first render (uploads textures + compiles shaders) while splash
   // is still occluding the canvas. Without this, the user sees a white/black
