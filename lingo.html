@@ -309,15 +309,13 @@
 
       function computeDisplayEnds(cs) {
         for (let i = 0; i < cs.length; i++) {
+          // Look for the next cue that STARTS after this one's natural end.
+          // That's the cue that should take over the line; extend until then.
           let nextStart = Infinity;
           for (let j = i + 1; j < cs.length; j++) {
-            if (cs[j].start > cs[i].start + 0.01) { nextStart = cs[j].start; break; }
+            if (cs[j].start > cs[i].end) { nextStart = cs[j].start; break; }
           }
-          if (nextStart === Infinity) {
-            cs[i].displayEnd = cs[i].end + 5;
-          } else {
-            cs[i].displayEnd = Math.max(cs[i].end, nextStart);
-          }
+          cs[i].displayEnd = nextStart === Infinity ? cs[i].end + 5 : nextStart;
         }
       }
 
@@ -341,6 +339,11 @@
         console.assert(bridge[1].displayEnd === 12, 'bridge b.displayEnd=12 (last cue +5)');
         const inGap = findActiveCues(bridge, 3);
         console.assert(inGap.length === 1 && inGap[0].en === 'a', 'gap bridged');
+        // overlapping cues — A extends past B because B starts before A ends
+        const ov2 = [{start:1,end:10,en:'A'},{start:3,end:5,en:'B'},{start:12,end:14,en:'C'}];
+        computeDisplayEnds(ov2);
+        console.assert(ov2[0].displayEnd === 12, 'A extends to C.start=12');
+        console.assert(ov2[1].displayEnd === 12, 'B extends to C.start=12');
         console.log('lingo selftest passed');
       }
 
