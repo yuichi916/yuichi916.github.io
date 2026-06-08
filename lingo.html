@@ -300,10 +300,25 @@
         const out = [];
         for (let i = 0; i < cues.length; i++) {
           const c = cues[i];
-          if (c.start <= t && t < c.end) out.push(c);
+          const endT = c.displayEnd != null ? c.displayEnd : c.end;
+          if (c.start <= t && t < endT) out.push(c);
           else if (c.start > t) break;
         }
         return out;
+      }
+
+      function computeDisplayEnds(cs) {
+        for (let i = 0; i < cs.length; i++) {
+          let nextStart = Infinity;
+          for (let j = i + 1; j < cs.length; j++) {
+            if (cs[j].start > cs[i].start + 0.01) { nextStart = cs[j].start; break; }
+          }
+          if (nextStart === Infinity) {
+            cs[i].displayEnd = cs[i].end + 5;
+          } else {
+            cs[i].displayEnd = Math.max(cs[i].end, nextStart);
+          }
+        }
       }
 
       if (window.location.search.includes('selftest=1')) {
@@ -319,15 +334,22 @@
         const ov = [{start:0,end:5,en:'a'},{start:2,end:6,en:'b'},{start:4,end:8,en:'c'}];
         const at3 = findActiveCues(ov, 3); console.assert(at3.length === 2 && at3[0].en==='a' && at3[1].en==='b', 'overlap@3');
         const at5 = findActiveCues(ov, 5); console.assert(at5.length === 2 && at5[0].en==='b' && at5[1].en==='c', 'overlap@5');
+        // displayEnd bridging
+        const bridge = [{start:0,end:2,en:'a'},{start:5,end:7,en:'b'}];
+        computeDisplayEnds(bridge);
+        console.assert(bridge[0].displayEnd === 5, 'bridge a.displayEnd=5');
+        console.assert(bridge[1].displayEnd === 12, 'bridge b.displayEnd=12 (last cue +5)');
+        const inGap = findActiveCues(bridge, 3);
+        console.assert(inGap.length === 1 && inGap[0].en === 'a', 'gap bridged');
         console.log('lingo selftest passed');
       }
 
-      window.__lingo = { extractVideoId, findActiveCue, findActiveCues };
+      window.__lingo = { extractVideoId, findActiveCue, findActiveCues, computeDisplayEnds };
     })();
   </script>
   <script>
     const WORKER_URL = 'https://lingo-transcript.yuichi916.workers.dev';
-    const { extractVideoId, findActiveCue, findActiveCues } = window.__lingo;
+    const { extractVideoId, findActiveCue, findActiveCues, computeDisplayEnds } = window.__lingo;
 
     const urlInput = document.getElementById('url-input');
     const sortSelect = document.getElementById('sort-select');
@@ -431,11 +453,14 @@
       const elapsed = Math.max(0, t - cue.start);
       const speechProgress = Math.min(1, elapsed / dur);
       const speed = READING_TOKENS_PER_SEC[lang] || READING_TOKENS_PER_SEC.default;
-      const readProgress = Math.min(1.05, (elapsed * speed) / wordIdx.length);
-      const progress = Math.max(speechProgress, readProgress);
+      const readProgress = Math.min(1, (elapsed * speed) / wordIdx.length);
+      let progress = Math.max(speechProgress, readProgress);
 
-      // Reader has consumed the whole line → render nothing.
-      if (progress >= 1) return '';
+      // Clamp progress so the last token always stays visible. This bridges
+      // gaps between cues (cue.displayEnd extends past cue.end into the gap
+      // until the next cue starts) so the subtitle area is never empty mid-video.
+      const maxProgress = (wordIdx.length - 1) / wordIdx.length;
+      progress = Math.min(progress, maxProgress);
 
       const currentNth = Math.min(wordIdx.length - 1, Math.floor(progress * wordIdx.length));
       const currentTokenIdx = wordIdx[currentNth];
@@ -567,6 +592,7 @@
         const data = await res.json();
         cues = data.cues || [];
         srcLang = data?.lang?.from || 'en';
+        computeDisplayEnds(cues);
         mountPlayer(videoId);
         setStatus(`${cues.length} cues 読み込み済み`);
       } catch (err) {
