@@ -6502,7 +6502,12 @@ function buildScene(name){
   // v661: user requested "no things appear after reveal".  Run the
   // accent decorations synchronously so the reveal is final.  Cost:
   // ~300-600ms longer load.  Benefit: no late-popping meshes.
-  if(def.kind !== 'room'){
+  // v669: interior scenes skip ALL outdoor extras — ground tiling
+  // beyond the room, bridges to neighbour scenes, and the 150 PBR
+  // background props.  Previously only 'room' kind skipped these,
+  // so heya (kind='interior') was rendering outdoors complete with
+  // cloud sea bridges leading to nowhere — "屋外になっている".
+  if(def.kind !== 'room' && def.kind !== 'interior'){
     try { extendWorldGround(root, name); } catch(_){}
     try { addSceneConnections(root, name); } catch(_){}
     try { pad150PBR(root, name); } catch(_){}
@@ -6527,11 +6532,26 @@ function buildScene(name){
   // a stale Y (e.g. 4 m, when previous scene had elevated terrain) bias
   // the search toward the new scene's roof instead of its floor.
   avatar.position.y = 0;
+  // v669: for interior scenes the def.build() function already owns the
+  // walls + obstacles + bounds, so we stash the obstacles it pushed
+  // and re-merge them after the outdoor multi-AABB scan resets the
+  // list.  Outdoor scenes still run the full scan.
+  const _isInterior = (def.kind === 'interior');
+  const _stashedInteriorBoxes = _isInterior
+    ? (ENTITIES.boxObstacles || []).slice()
+    : null;
+  const _stashedInteriorBounds = _isInterior
+    ? (currentScene && currentScene.playableBounds
+       ? Object.assign({}, currentScene.playableBounds)
+       : null)
+    : null;
   ENTITIES.obstacles.length = 0;
   ENTITIES.boxObstacles = ENTITIES.boxObstacles || [];
   ENTITIES.boxObstacles.length = 0;
   // v657: interactables already reset before def.build (above)
-  const prefabCache = BLENDER_CACHE['enc_prefab_' + name];
+  const prefabCache = _isInterior
+    ? null
+    : BLENDER_CACHE['enc_prefab_' + name];
   if(prefabCache && prefabCache.userData && prefabCache.userData.bbox){
     const bb = prefabCache.userData.bbox;
     // Shrink slightly so the avatar can't escape via numerical jitter
@@ -6646,15 +6666,27 @@ function buildScene(name){
       minZ: -SCENE_BOUND, maxZ: SCENE_BOUND,
     };
   }
-  // v618: drop a door portal in front of the building
-  if(typeof addPortalForScene === 'function') addPortalForScene(name);
+  // v669: restore the interior obstacles + bounds that def.build set.
+  // These were wiped by the obstacle reset at the top of buildScene so
+  // that the outdoor multi-AABB scan could repopulate, but for interior
+  // scenes def.build is authoritative.
+  if(_isInterior){
+    if(_stashedInteriorBoxes && _stashedInteriorBoxes.length){
+      ENTITIES.boxObstacles.push(..._stashedInteriorBoxes);
+    }
+    if(_stashedInteriorBounds){
+      currentScene.playableBounds = _stashedInteriorBounds;
+    }
+  }
+  // v618: drop a door portal in front of the building (outdoor only)
+  if(!_isInterior && typeof addPortalForScene === 'function') addPortalForScene(name);
   // v624: re-enabled concept-matched side-pack accents (see SIDE_PACK_ACCENTS).
   // Coords are inside playableBounds — accents read as part of the diorama,
   // not floating in the void outside.
-  if(typeof placeSidePackAccents === 'function') placeSidePackAccents(name, root);
+  if(!_isInterior && typeof placeSidePackAccents === 'function') placeSidePackAccents(name, root);
   // v621: drop neighbour-bridges at the cardinal edges of the prefab.
   // Walking onto one auto-triggers switchScene to that neighbour.
-  if(typeof addBridgesForScene === 'function') addBridgesForScene(name);
+  if(!_isInterior && typeof addBridgesForScene === 'function') addBridgesForScene(name);
   // v637: if we came in via a bridge, suppress THAT bridge until the
   // avatar moves > 6 m from spawn. Stops the spawn step from immediately
   // re-triggering the bridge we just walked through.
@@ -7565,74 +7597,243 @@ SCENES.heya = {
       root.add(m);
       return m;
     }
-    // v667: build the interior PROCEDURALLY — 4 walls + floor + ceiling.
-    // The KB3D enc_int_heya GLB load times out for some users (pCloud
-    // CDN cold-start), and when it fails the room ends up empty
-    // ("部屋のシーンが屋外のまま").  A procedural room guarantees a
-    // visible enclosed space the moment the scene swaps in.
-    const ROOM_W = 10, ROOM_D = 10, ROOM_H = 3.5;
-    const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x6e4830, roughness: 0.92,
+    // v669: fully procedural bakery interior — guaranteed to render even
+    // when the KB3D enc_int_heya GLB is slow / unavailable.  Stone walls,
+    // wood-plank floor, ceiling beams, hearth oven with flickering glow,
+    // baker's worktable, shelves with bread, frosted-glass window strips
+    // on each wall, and hanging lanterns.
+    const ROOM_W = 11, ROOM_D = 11, ROOM_H = 3.6;
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: 0x6b5947, roughness: 0.95,
     });
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x4a2e1a, roughness: 0.9,
+    const plankMat = new THREE.MeshStandardMaterial({
+      color: 0x5a3a22, roughness: 0.85,
+    });
+    const beamMat = new THREE.MeshStandardMaterial({
+      color: 0x3a2418, roughness: 0.9,
     });
     const ceilMat = new THREE.MeshStandardMaterial({
       color: 0x281610, roughness: 0.95,
     });
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(ROOM_W, ROOM_D), floorMat);
-    floor.rotation.x = -Math.PI * 0.5;
-    floor.position.y = 0;
-    floor.receiveShadow = true;
-    floor.userData.isGroundMesh = true;
-    floor.userData.isWalkSurface = true;
-    root.add(floor);
+    // -- Wood-plank floor (8 strips for visible grain) --
+    for(let i = 0; i < 8; i++){
+      const stripW = ROOM_W / 8;
+      const x = -ROOM_W*0.5 + stripW*(i + 0.5);
+      const plank = new THREE.Mesh(
+        new THREE.PlaneGeometry(stripW * 0.96, ROOM_D), plankMat);
+      plank.rotation.x = -Math.PI * 0.5;
+      plank.position.set(x, 0.001, 0);
+      plank.receiveShadow = true;
+      plank.userData.isGroundMesh = true;
+      plank.userData.isWalkSurface = true;
+      root.add(plank);
+    }
+    // Hidden flat ground at Y=0 so sampleHeight always has a hit
+    const groundCatch = new THREE.Mesh(
+      new THREE.PlaneGeometry(ROOM_W, ROOM_D),
+      new THREE.MeshBasicMaterial({ visible: false }));
+    groundCatch.rotation.x = -Math.PI * 0.5;
+    groundCatch.position.y = 0;
+    groundCatch.userData.isGroundMesh = true;
+    root.add(groundCatch);
+    // -- Ceiling --
     const ceiling = new THREE.Mesh(
       new THREE.PlaneGeometry(ROOM_W, ROOM_D), ceilMat);
     ceiling.rotation.x = Math.PI * 0.5;
     ceiling.position.y = ROOM_H;
     root.add(ceiling);
-    const wallGeomNS = new THREE.BoxGeometry(ROOM_W, ROOM_H, 0.2);
-    const wallGeomEW = new THREE.BoxGeometry(0.2, ROOM_H, ROOM_D);
-    for(const [geom, x, z] of [
-        [wallGeomNS, 0, -ROOM_D*0.5],
-        [wallGeomNS, 0,  ROOM_D*0.5],
-        [wallGeomEW, -ROOM_W*0.5, 0],
-        [wallGeomEW,  ROOM_W*0.5, 0]]){
-      const w = new THREE.Mesh(geom, wallMat);
-      w.position.set(x, ROOM_H*0.5, z);
-      w.castShadow = true; w.receiveShadow = true;
-      root.add(w);
-      w.updateMatrixWorld(true);
-      const _bb = new THREE.Box3().setFromObject(w);
+    // -- Stone walls (each wall split into 3 segments: lower / window / upper) --
+    // Avatar height = 1.4m, so the window strip sits at 1.5-2.4m.
+    const W_T = 0.25;
+    const winLow = 1.5, winHi = 2.4;
+    const WALLS = [
+      // [orientation, axis (0=along X, 1=along Z), wallX, wallZ, wallLen]
+      ['N', 0, 0, -ROOM_D*0.5, ROOM_W],
+      ['S', 0, 0,  ROOM_D*0.5, ROOM_W],
+      ['W', 1, -ROOM_W*0.5, 0, ROOM_D],
+      ['E', 1,  ROOM_W*0.5, 0, ROOM_D],
+    ];
+    for(const [tag, axis, wx, wz, wlen] of WALLS){
+      // Lower segment
+      const lowerH = winLow;
+      const upperH = ROOM_H - winHi;
+      const lowGeom = (axis === 0)
+        ? new THREE.BoxGeometry(wlen, lowerH, W_T)
+        : new THREE.BoxGeometry(W_T, lowerH, wlen);
+      const lowMesh = new THREE.Mesh(lowGeom, stoneMat);
+      lowMesh.position.set(wx, lowerH*0.5, wz);
+      lowMesh.castShadow = true; lowMesh.receiveShadow = true;
+      root.add(lowMesh);
+      lowMesh.updateMatrixWorld(true);
+      const _bbL = new THREE.Box3().setFromObject(lowMesh);
       ENTITIES.boxObstacles = ENTITIES.boxObstacles || [];
       ENTITIES.boxObstacles.push({
-        minX: _bb.min.x, maxX: _bb.max.x,
-        minZ: _bb.min.z, maxZ: _bb.max.z,
+        minX: _bbL.min.x, maxX: _bbL.max.x,
+        minZ: _bbL.min.z, maxZ: _bbL.max.z,
       });
+      // Upper segment (closes off the wall above the window)
+      const upGeom = (axis === 0)
+        ? new THREE.BoxGeometry(wlen, upperH, W_T)
+        : new THREE.BoxGeometry(W_T, upperH, wlen);
+      const upMesh = new THREE.Mesh(upGeom, stoneMat);
+      upMesh.position.set(wx, winHi + upperH*0.5, wz);
+      upMesh.castShadow = true; upMesh.receiveShadow = true;
+      root.add(upMesh);
+      // Window strip — translucent amber glass between lower and upper.
+      const winGeom = (axis === 0)
+        ? new THREE.BoxGeometry(wlen * 0.7, winHi - winLow, W_T*0.6)
+        : new THREE.BoxGeometry(W_T*0.6, winHi - winLow, wlen * 0.7);
+      const winMat = new THREE.MeshStandardMaterial({
+        color: 0xffd890, emissive: 0xffaa50, emissiveIntensity: 0.6,
+        roughness: 0.7, transparent: true, opacity: 0.65,
+      });
+      const winMesh = new THREE.Mesh(winGeom, winMat);
+      winMesh.position.set(wx, (winLow + winHi)*0.5, wz);
+      root.add(winMesh);
     }
-    // Try to also place the GLB on TOP of the procedural fallback —
-    // when it loads it gives the room real detail (oven, table, beams).
-    // The procedural walls stay underneath so we never see an empty room.
-    placeENC('enc_int_heya', 0, 0, 0, 1.0, 0);
-    // Warm interior lighting
-    const fill = new THREE.HemisphereLight(0xffa860, 0x4a2818, 0.85);
-    fill.position.set(0, ROOM_H - 0.2, 0);
+    // -- Ceiling beams (4 wooden cross beams running North-South) --
+    for(let i = 0; i < 4; i++){
+      const x = -ROOM_W*0.4 + (ROOM_W*0.8/3) * i;
+      const beam = new THREE.Mesh(
+        new THREE.BoxGeometry(0.20, 0.22, ROOM_D - 0.4), beamMat);
+      beam.position.set(x, ROOM_H - 0.12, 0);
+      beam.castShadow = true;
+      root.add(beam);
+    }
+    // -- Hearth oven (back wall, north side) --
+    const ovenMat = new THREE.MeshStandardMaterial({
+      color: 0x3a2418, roughness: 0.92,
+    });
+    const oven = new THREE.Group();
+    const ovenBase = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 1.4, 1.2), ovenMat);
+    ovenBase.position.set(0, 0.7, -ROOM_D*0.5 + 0.7);
+    ovenBase.castShadow = true; ovenBase.receiveShadow = true;
+    oven.add(ovenBase);
+    const ovenArch = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.55, 1.0, 16, 1, false, 0, Math.PI),
+      ovenMat);
+    ovenArch.rotation.z = Math.PI * 0.5;
+    ovenArch.rotation.x = Math.PI * 0.5;
+    ovenArch.position.set(0, 1.0, -ROOM_D*0.5 + 0.7);
+    oven.add(ovenArch);
+    // Glowing fire inside the oven mouth
+    const fire = new THREE.Mesh(
+      new THREE.SphereGeometry(0.32, 12, 10),
+      new THREE.MeshBasicMaterial({ color: 0xff6020 }));
+    fire.position.set(0, 0.9, -ROOM_D*0.5 + 1.3);
+    oven.add(fire);
+    const fireLight = new THREE.PointLight(0xff6020, 2.5, 7);
+    fireLight.position.copy(fire.position);
+    oven.add(fireLight);
+    oven.userData.isFurniture = true;
+    root.add(oven);
+    ENTITIES.boxObstacles.push({
+      minX: -1.2, maxX: 1.2,
+      minZ: -ROOM_D*0.5 + 0.1, maxZ: -ROOM_D*0.5 + 1.4,
+    });
+    // -- Baker's table (centre of room) --
+    const tableMat = new THREE.MeshStandardMaterial({
+      color: 0x9a6840, roughness: 0.85,
+    });
+    const tabletop = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 0.08, 0.9), tableMat);
+    tabletop.position.set(0, 0.85, 1.0);
+    tabletop.castShadow = true; tabletop.receiveShadow = true;
+    root.add(tabletop);
+    for(const [tx, tz] of [[-1.05, 0.40], [1.05, 0.40], [-1.05, 1.60], [1.05, 1.60]]){
+      const leg = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.85, 0.08), tableMat);
+      leg.position.set(tx, 0.42, tz);
+      leg.castShadow = true;
+      root.add(leg);
+    }
+    ENTITIES.boxObstacles.push({
+      minX: -1.2, maxX: 1.2, minZ: 0.55, maxZ: 1.45,
+    });
+    // Bread loaves on the table
+    const breadMat = new THREE.MeshStandardMaterial({
+      color: 0xc89868, roughness: 0.9,
+    });
+    for(let i = 0; i < 5; i++){
+      const bread = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.13, 0.22, 4, 8), breadMat);
+      bread.rotation.z = Math.PI * 0.5;
+      bread.position.set(-1.0 + i * 0.5, 0.95, 1.0 + (i % 2 - 0.5) * 0.18);
+      bread.castShadow = true;
+      root.add(bread);
+    }
+    // -- Shelves on the south wall (warm row of jars + loaves) --
+    for(let shelfI = 0; shelfI < 3; shelfI++){
+      const shelfY = 1.0 + shelfI * 0.55;
+      const shelf = new THREE.Mesh(
+        new THREE.BoxGeometry(4.0, 0.05, 0.30), plankMat);
+      shelf.position.set(0, shelfY, ROOM_D*0.5 - 0.18);
+      shelf.castShadow = true;
+      root.add(shelf);
+      for(let i = 0; i < 6; i++){
+        const jar = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.10, 0.12, 0.26, 10),
+          new THREE.MeshStandardMaterial({
+            color: 0x6a4a30, roughness: 0.7,
+          }));
+        jar.position.set(-1.7 + i * 0.68, shelfY + 0.16, ROOM_D*0.5 - 0.20);
+        jar.castShadow = true;
+        root.add(jar);
+      }
+    }
+    // -- Hanging lantern over the table --
+    const lantBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, 0.32, 10),
+      new THREE.MeshStandardMaterial({
+        color: 0xffd890, emissive: 0xffaa50, emissiveIntensity: 0.9,
+        transparent: true, opacity: 0.85,
+      }));
+    lantBody.position.set(0, ROOM_H - 0.6, 1.0);
+    root.add(lantBody);
+    const lantWire = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.01, 0.01, 0.5, 6),
+      new THREE.MeshBasicMaterial({ color: 0x222222 }));
+    lantWire.position.set(0, ROOM_H - 0.25, 1.0);
+    root.add(lantWire);
+    const lantLight = new THREE.PointLight(0xffc88a, 1.8, 8);
+    lantLight.position.set(0, ROOM_H - 0.7, 1.0);
+    root.add(lantLight);
+    // A second lantern over the oven
+    const lant2 = lantBody.clone();
+    lant2.position.set(0, ROOM_H - 0.6, -ROOM_D*0.4);
+    root.add(lant2);
+    const lant2Wire = lantWire.clone();
+    lant2Wire.position.set(0, ROOM_H - 0.25, -ROOM_D*0.4);
+    root.add(lant2Wire);
+    const lant2Light = new THREE.PointLight(0xffc88a, 1.4, 7);
+    lant2Light.position.set(0, ROOM_H - 0.7, -ROOM_D*0.4);
+    root.add(lant2Light);
+    // -- Warm ambient fill --
+    const fill = new THREE.HemisphereLight(0xffc080, 0x3a1e10, 0.7);
+    fill.position.set(0, ROOM_H - 0.4, 0);
     root.add(fill);
-    const accent = new THREE.PointLight(0xffb050, 1.6, 14);
-    accent.position.set(0, ROOM_H * 0.85, 0.5);
-    root.add(accent);
-    const accent2 = new THREE.PointLight(0xff8a30, 1.0, 8);
-    accent2.position.set(2.0, 1.4, -2.0);
-    root.add(accent2);
-    // Tighter interior playable bounds
+    // -- Tighter playable bounds (avatar can't escape the room) --
     if(currentScene){
       currentScene.playableBounds = {
-        minX: -ROOM_W*0.5 + 0.4, maxX: ROOM_W*0.5 - 0.4,
-        minZ: -ROOM_D*0.5 + 0.4, maxZ: ROOM_D*0.5 - 0.4,
+        minX: -ROOM_W*0.5 + 0.5, maxX: ROOM_W*0.5 - 0.5,
+        minZ: -ROOM_D*0.5 + 0.5, maxZ: ROOM_D*0.5 - 0.5,
       };
     }
+    // Floating motes for "indoor air"
+    if(typeof makeFallingParticles === 'function'){
+      try {
+        const p = makeFallingParticles('mist', 50,
+          { range: 8, yMax: ROOM_H - 0.3, yMin: 0.2,
+            fallSpeed: 0.04, swayAmp: 0.25, swayFreq: 0.5 });
+        if(p){ root.add(p); ENTITIES.particles.push({obj: p, type: 'fall'}); }
+      } catch(_){}
+    }
+    // The KB3D GLB is placed LAST so it sits on top of our procedural
+    // base — when it loads it adds real detail (oven hood, beams, props).
+    // The procedural room stays underneath so the player always sees an
+    // enclosed bakery.
+    placeENC('enc_int_heya', 0, 0, 0, 1.0, 0);
   }
 };
 
