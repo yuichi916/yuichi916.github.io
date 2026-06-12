@@ -3617,22 +3617,34 @@ async function lazyLoadAsset(name, onProgress){
   const p = (async () => {
     try {
       let url;
-      // v670: prefer pCloud for ANY asset present in the fileid map —
-      // not just enc_*.  Fixes a live-site bug where val_/vh_/df_ props
-      // 404'd: they are NOT git-tracked (only ti_* is committed) but DO
-      // exist on pCloud.  Local repo path stays as the fallback for
-      // assets pCloud doesn't have (ti_* and any future bundled GLB).
-      const fids = PCLOUD_PROXY ? await resolveAllEncFileids() : {};
-      const fid = fids[name];
-      if(fid){
-        url = pcloudProxyURL(fid);
-      } else if(name.startsWith('enc_')){
-        // enc_* exists ONLY on pCloud — no local fallback possible.
-        console.warn('niwa: no pCloud fileid for', name);
-        return null;
+      // v670: localhost-only test hook — ?assetbase=<relative path>
+      // loads every GLB from that folder instead of pCloud, so the
+      // optimized blender_q / blender_lite sets can be verified end-to-
+      // end before they are uploaded.  Ignored on the live site.
+      const _isLocalHost = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+      const _assetBase = _isLocalHost
+        ? new URLSearchParams(location.search).get('assetbase') : null;
+      if(_assetBase){
+        url = _assetBase.replace(/\/+$/, '') + '/' + name + '.glb';
+        _OPTIMIZED_ASSETS.add(name);
       } else {
-        // Bundled repo assets (ti_* etc.).
-        url = 'assets/blender/' + name + '.glb';
+        // v670: prefer pCloud for ANY asset present in the fileid map —
+        // not just enc_*.  Fixes a live-site bug where val_/vh_/df_ props
+        // 404'd: they are NOT git-tracked (only ti_* is committed) but DO
+        // exist on pCloud.  Local repo path stays as the fallback for
+        // assets pCloud doesn't have (ti_* and any future bundled GLB).
+        const fids = PCLOUD_PROXY ? await resolveAllEncFileids() : {};
+        const fid = fids[name];
+        if(fid){
+          url = pcloudProxyURL(fid);
+        } else if(name.startsWith('enc_')){
+          // enc_* exists ONLY on pCloud — no local fallback possible.
+          console.warn('niwa: no pCloud fileid for', name);
+          return null;
+        } else {
+          // Bundled repo assets (ti_* etc.).
+          url = 'assets/blender/' + name + '.glb';
+        }
       }
       const gltf = await loadGLB(url, onProgress);
       if(gltf && gltf.scene){
@@ -6612,11 +6624,17 @@ function buildScene(name){
   // walls + obstacles + bounds, so we stash the obstacles it pushed
   // and re-merge them after the outdoor multi-AABB scan resets the
   // list.  Outdoor scenes still run the full scan.
+  // v670: the island panorama gets the same treatment — its build()
+  // pushes bridge-railing AABBs and sets ±35m bounds, both of which the
+  // reset below silently destroyed.  Result on live: until the first
+  // tab-teleport (which re-asserts ±35) the avatar was fenced inside
+  // plaza's ±8.5m fallback bounds and bridge railings never collided.
   const _isInterior = (def.kind === 'interior');
-  const _stashedInteriorBoxes = _isInterior
+  const _keepBuildSetup = _isInterior || (def.kind === 'panorama');
+  const _stashedInteriorBoxes = _keepBuildSetup
     ? (ENTITIES.boxObstacles || []).slice()
     : null;
-  const _stashedInteriorBounds = _isInterior
+  const _stashedInteriorBounds = _keepBuildSetup
     ? (currentScene && currentScene.playableBounds
        ? Object.assign({}, currentScene.playableBounds)
        : null)
@@ -6745,8 +6763,9 @@ function buildScene(name){
   // v669: restore the interior obstacles + bounds that def.build set.
   // These were wiped by the obstacle reset at the top of buildScene so
   // that the outdoor multi-AABB scan could repopulate, but for interior
-  // scenes def.build is authoritative.
-  if(_isInterior){
+  // scenes def.build is authoritative.  v670: panorama (island) too —
+  // restores the ±35m roam bounds and the bridge-railing AABBs.
+  if(_keepBuildSetup){
     if(_stashedInteriorBoxes && _stashedInteriorBoxes.length){
       ENTITIES.boxObstacles.push(..._stashedInteriorBoxes);
     }
@@ -12466,6 +12485,7 @@ setLoad(0.95, 'ASSETS');
         catch(_){ return false; }
       },
       _sampleHeight(x, z){ return sampleHeight(x, z); },
+      _isWalkable(x, z){ return isWalkable(x, z); },
       _waitFrames(n){
         return new Promise(resolve => {
           let i = 0;
