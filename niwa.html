@@ -708,7 +708,11 @@ const SCENE_WORLD_POS = {
   takibi:  { dx: -1, dz:  1, label:'南西 — 焚き火の森' },
   mizube:  { dx:  1, dz:  1, label:'南東 — 水辺の岸' },
   amaoto:  { dx: -1, dz: -1, label:'北西 — 雨音の小屋' },
-  heya:    { dx:  0, dz:  0, label:'室内 — 庵の部屋' },
+  // v671: the heya cottage used to sit at plaza centre (+3,+3 offset) —
+  // its wall meshes registered as collision boxes that fenced the
+  // default spawn into a tiny pocket (the live "can't move" bug).  It
+  // now lives in the open meadow gap on the plaza→mizube diagonal.
+  heya:    { dx:  0.5, dz:  0.5, label:'丘の庵 — 静かな部屋' },
 };
 
 // v660: per-section content portals — each island cell links to a
@@ -3429,8 +3433,10 @@ const BLENDER_NAMES = [
   // sixth pack). Extracted by _blender/ti_extract.py. Bundled local in
   // assets/blender/ (not on pCloud — lazyLoadAsset picks the right URL
   // because they don't start with "enc_"). 12 props max:
+  // (v671: ti_helm removed — no helm/wheel object exists in the TIS kit,
+  //  the GLB was never produced and the reference 404'd on every load)
   'ti_anchor', 'ti_barrel', 'ti_beacon', 'ti_boat', 'ti_cannon',
-  'ti_chest', 'ti_crate', 'ti_helm', 'ti_lantern', 'ti_palm',
+  'ti_chest', 'ti_crate', 'ti_lantern', 'ti_palm',
   'ti_rope', 'ti_skull',
   // v670 — commercial-scene cell accents extracted by
   // _blender/multi_pack_extract_v670.py (inventory-driven, exact-name).
@@ -3631,8 +3637,23 @@ async function lazyLoadAsset(name, onProgress){
       const _isLocalHost = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
       const _assetBase = _isLocalHost
         ? new URLSearchParams(location.search).get('assetbase') : null;
+      // v671: re-extracted texture-fix GLBs (the legacy extracts shipped
+      // 1x1 placeholder textures — flat grey props).  The fixed files are
+      // committed to the repo and MUST win over the still-broken pCloud
+      // blender_q/blender_lite copies until those are re-uploaded.
+      // All are WebP-512 optimized, so runtime downscale is skipped.
+      const _LOCAL_FIXED = lazyLoadAsset._localFixed || (lazyLoadAsset._localFixed = new Set([
+        'val_barrel', 'val_horn', 'val_longbench', 'val_pillar',
+        'val_rune', 'val_shield', 'df_chain', 'df_gargoyle', 'df_gate',
+        'enc_int_monlight', 'enc_int_oto', 'enc_int_tabi', 'enc_int_toki',
+        'enc_int_hoshi', 'enc_int_takibi', 'enc_int_mizube', 'enc_int_amaoto',
+        'enc_int_heya',
+      ]));
       if(_assetBase){
         url = _assetBase.replace(/\/+$/, '') + '/' + name + '.glb';
+        _OPTIMIZED_ASSETS.add(name);
+      } else if(_LOCAL_FIXED.has(name)){
+        url = 'assets/blender/' + name + '.glb';
         _OPTIMIZED_ASSETS.add(name);
       } else {
         // v670: prefer pCloud for ANY asset present in the fileid map —
@@ -7019,7 +7040,10 @@ const _down = new THREE.Vector3(0,-1,0);
 // in turn made the avatar appear to float above the prefab ground
 // because the cobble Y was never actually queried.
 function _ensureRayCamera(){
-  if(typeof camera !== 'undefined' && camera) _rayDown.camera = camera;
+  if(typeof camera !== 'undefined' && camera){
+    _rayDown.camera = camera;
+    _rayWall.camera = camera;
+  }
 }
 function _hitIsRaycastIgnored(hit, ground){
   let p = hit.object;
@@ -7058,12 +7082,14 @@ function sampleHeight(x, z){
     let lowestAboveZero = Infinity;
     let lowestBelowZero = -Infinity;   // we want the HIGHEST of the below set
     let lowestFill = Infinity;
+    let unifiedY = Infinity;           // v671: island-wide Y=0 baseline plane
     for(const h of hits){
       if(_hitIsRaycastIgnored(h, ground)) continue;
       const ud = h.object.userData;
       if(!ud) continue;
       const y = h.point.y;
       if(!isFinite(y)) continue;
+      if(ud.isUnifiedGround && y < unifiedY) unifiedY = y;
       if(ud.isGroundFill){
         if(y < lowestFill) lowestFill = y;
       } else if(ud.isGroundMesh){
@@ -7073,6 +7099,13 @@ function sampleHeight(x, z){
           if(y > lowestBelowZero) lowestBelowZero = y;
         }
       }
+    }
+    // v671: never report ground meaningfully BELOW the island's unified
+    // baseline plane — prefab rim skirts dip under it at the disc edges
+    // and made the avatar sink ~1m at cell corners.
+    if(unifiedY !== Infinity){
+      if(lowestAboveZero !== Infinity && lowestAboveZero < unifiedY - 0.6) lowestAboveZero = unifiedY;
+      if(lowestBelowZero !== -Infinity && lowestBelowZero < unifiedY - 0.6) lowestBelowZero = unifiedY;
     }
     // v658+v667: prefer above-zero ground.  If the only tagged ground
     // sits high (>2.5m), prefer the ground-fill (bridge-midpoint case).
@@ -7097,6 +7130,58 @@ function sampleHeight(x, z){
   } catch(e){
     console.warn('sampleHeight failed:', e.message);
     return fallback;
+  }
+}
+
+// v671: chest-height wall raycast — mesh-accurate collision for large
+// KB3D joined meshes (aqueducts, long roof runs, building shells) whose
+// AABB is far bigger than their actual silhouette.  Their boxObstacle
+// registration is capped at 12m (see the streamed-prefab scan), so a
+// horizontal ray from the avatar's chest decides whether the path ahead
+// really has a wall.  Steep faces (world normal |ny| < 0.6) block;
+// floors / ramps / stairs pass and remain sampleHeight's job.
+const _rayWall = new THREE.Raycaster();
+const _wallDir = new THREE.Vector3();
+const _wallOrigin = new THREE.Vector3();
+const _wallNrm = new THREE.Vector3();
+const _wallNrmMat = new THREE.Matrix3();
+function _wallHitIsIgnored(hit, ground){
+  let p = hit.object;
+  while(p && p !== ground){
+    if(p.userData && (p.userData.skipRaycast || p.userData.skipObstacle)) return true;
+    p = p.parent;
+  }
+  const ud = hit.object.userData || {};
+  return !!(ud.isGroundMesh || ud.isGroundFill || ud.isUnifiedGround);
+}
+function _wallRayBlocked(px, pz){
+  try {
+    if(typeof avatar === 'undefined' || !avatar) return false;
+    if(!currentScene || !currentScene.root) return false;
+    const ground = currentScene.root.userData.ground;
+    if(!ground) return false;
+    const ax = avatar.position.x, az = avatar.position.z;
+    const dx = px - ax, dz = pz - az;
+    const d = Math.hypot(dx, dz);
+    if(d < 1e-4) return false;
+    _ensureRayCamera();
+    _wallOrigin.set(ax, avatar.position.y + 0.9, az);
+    _wallDir.set(dx / d, 0, dz / d);
+    _rayWall.set(_wallOrigin, _wallDir);
+    _rayWall.far = d + AV_RADIUS + 0.05;
+    const hits = _rayWall.intersectObject(ground, true);
+    for(const h of hits){
+      if(_wallHitIsIgnored(h, ground)) continue;
+      if(h.face && h.face.normal){
+        _wallNrmMat.getNormalMatrix(h.object.matrixWorld);
+        _wallNrm.copy(h.face.normal).applyMatrix3(_wallNrmMat).normalize();
+        if(Math.abs(_wallNrm.y) >= 0.6) continue;   // floor / ramp — walkable
+      }
+      return true;
+    }
+    return false;
+  } catch(_){
+    return false;
   }
 }
 
@@ -8483,6 +8568,12 @@ const ISLAND_BRIDGES = [
   ['amaoto',   'monlight'], // S
 ];
 
+// v671: registry of built bridges so _rerouteBlockedBridges can validate
+// each lane against the REAL streamed geometry and slide bridges that
+// dead-end into a prefab wall (e.g. the toki clocktower extends ~9m west
+// of its cell centre, straight across the plaza→toki lane).
+let _islandBridgeRegistry = [];
+
 function _addIslandBridge(root, fromKey, toKey){
   const fromPos = SCENE_WORLD_POS[fromKey];
   const toPos   = SCENE_WORLD_POS[toKey];
@@ -8497,12 +8588,19 @@ function _addIslandBridge(root, fromKey, toKey){
   // Long axis = direction of travel.  isNS=true means the gap runs
   // along Z (north-south bridge), so the plank's long axis is Z.
   const isNS = Math.abs(bx - ax) < 1e-3;
-  const plankLen   = span - 2;     // overlap 1m into each cell
+  // v671: bridges used to span the FULL 18m centre-to-centre — their
+  // railing AABBs sliced straight through both cells' walkable plazas
+  // (a 2m-wide corridor was the only legal crossing).  The island sits
+  // on one continuous ground plane, so the bridge is a PATH MARKER for
+  // the gap between zones, not a forced corridor: 7m, centred mid-gap.
+  const plankLen   = Math.min(7, span - 2);
   const plankWide  = 1.8;
   const plankThick = 0.20;
   const plankMat = new THREE.MeshStandardMaterial({
     color: 0x6a4828, roughness: 0.85,
   });
+  const _pieces = [];
+  const _railBoxes = [];
   const plankGeom = isNS
     ? new THREE.BoxGeometry(plankWide, plankThick, plankLen)
     : new THREE.BoxGeometry(plankLen,  plankThick, plankWide);
@@ -8513,6 +8611,7 @@ function _addIslandBridge(root, fromKey, toKey){
   plank.userData.isWalkSurface  = true;
   plank.userData.isIslandBridge = true;
   root.add(plank);
+  _pieces.push(plank);
   // Railings — two parallel long rails on either long side
   const railHeight = 0.55;
   const railThick  = 0.08;
@@ -8530,10 +8629,13 @@ function _addIslandBridge(root, fromKey, toKey){
     rail.updateMatrixWorld(true);
     const _bb = new THREE.Box3().setFromObject(rail);
     if(!ENTITIES.boxObstacles) ENTITIES.boxObstacles = [];
-    ENTITIES.boxObstacles.push({
+    const _boxRec = {
       minX: _bb.min.x, maxX: _bb.max.x,
       minZ: _bb.min.z, maxZ: _bb.max.z,
-    });
+    };
+    ENTITIES.boxObstacles.push(_boxRec);
+    _pieces.push(rail);
+    _railBoxes.push(_boxRec);
   }
   // Corner posts (4 per bridge) for a more grounded silhouette
   const postH = 0.78;
@@ -8547,17 +8649,86 @@ function _addIslandBridge(root, fromKey, toKey){
       if(isNS) post.position.set(midX + off, 0.10 + postH*0.5, midZ + tEnd);
       else     post.position.set(midX + tEnd, 0.10 + postH*0.5, midZ + off);
       post.castShadow = true;
+      post.userData.isBridgePost = true;
       root.add(post);
+      _pieces.push(post);
     }
   }
+  _islandBridgeRegistry.push({
+    fromKey, toKey, isNS, midX, midZ, plankLen,
+    pieces: _pieces, railBoxes: _railBoxes, lateral: 0,
+  });
 }
 
 function _addAllIslandBridges(root){
   if(!ENTITIES.boxObstacles) ENTITIES.boxObstacles = [];
+  _islandBridgeRegistry = [];
   for(const [a, b] of ISLAND_BRIDGES){
     _addIslandBridge(root, a, b);
   }
   console.log(`niwa[island]: built ${ISLAND_BRIDGES.length} procedural bridges`);
+}
+
+// v671: after all prefabs have streamed in, shoot a chest-height ray down
+// each bridge lane.  A steep non-decoration hit means the lane dead-ends
+// into real prefab geometry (KB3D buildings overhang their cell centres
+// by up to 12m) — slide the whole bridge sideways to the first offset
+// whose lane is clear.  Self-healing: works for any future prefab swap.
+function _bridgeLaneHit(root, br, lateral){
+  const along = br.isNS ? {x: 0, z: 1} : {x: 1, z: 0};
+  const lat   = br.isNS ? {x: 1, z: 0} : {x: 0, z: 1};
+  const ox = br.midX + lat.x * lateral - along.x * (br.plankLen * 0.5 - 0.3);
+  const oz = br.midZ + lat.z * lateral - along.z * (br.plankLen * 0.5 - 0.3);
+  _ensureRayCamera();
+  _wallOrigin.set(ox, 0.9, oz);
+  _wallDir.set(along.x, 0, along.z);
+  _rayWall.set(_wallOrigin, _wallDir);
+  _rayWall.far = br.plankLen - 0.6;
+  const ground = root.userData.ground || root;
+  for(const h of _rayWall.intersectObject(ground, true)){
+    const ud = h.object.userData || {};
+    if(ud.isIslandBridge || ud.isBridgeRail || ud.isBridgePost) continue;
+    if(_wallHitIsIgnored(h, ground)) continue;
+    if(h.face && h.face.normal){
+      _wallNrmMat.getNormalMatrix(h.object.matrixWorld);
+      _wallNrm.copy(h.face.normal).applyMatrix3(_wallNrmMat).normalize();
+      if(Math.abs(_wallNrm.y) >= 0.6) continue;   // floor / ramp
+    }
+    return h;
+  }
+  return null;
+}
+
+function _rerouteBlockedBridges(root){
+  if(!currentScene || currentScene.name !== 'island') return;
+  const OFFSETS = [0, 3, -3, 5, -5, 7, -7];
+  let moved = 0;
+  for(const br of _islandBridgeRegistry){
+    if(!_bridgeLaneHit(root, br, 0)) continue;   // lane already clear
+    let chosen = null;
+    for(const off of OFFSETS.slice(1)){
+      if(!_bridgeLaneHit(root, br, off)){ chosen = off; break; }
+    }
+    if(chosen === null){
+      console.warn(`niwa[island]: bridge ${br.fromKey}↔${br.toKey} blocked at every offset`);
+      continue;
+    }
+    const dx = br.isNS ? chosen : 0;
+    const dz = br.isNS ? 0 : chosen;
+    for(const m of br.pieces){
+      m.position.x += dx;
+      m.position.z += dz;
+      m.updateMatrixWorld(true);
+    }
+    for(const box of br.railBoxes){
+      box.minX += dx; box.maxX += dx;
+      box.minZ += dz; box.maxZ += dz;
+    }
+    br.lateral = chosen;
+    moved++;
+    console.log(`niwa[island]: bridge ${br.fromKey}↔${br.toKey} rerouted ${chosen > 0 ? '+' : ''}${chosen}m (lane was walled)`);
+  }
+  if(moved) console.log(`niwa[island]: ${moved} bridges rerouted around prefab walls`);
 }
 
 async function _streamRemainingIslandPrefabs(root){
@@ -8589,7 +8760,9 @@ async function _streamRemainingIslandPrefabs(root){
     if(!pos) return;
     const x = pos.dx * ISLAND_SEPARATION;
     const z = pos.dz * ISLAND_SEPARATION;
-    const offset = (name === 'heya') ? 3.0 : 0;
+    // v671: heya's +3,+3 plaza offset removed — SCENE_WORLD_POS now
+    // places the cottage in the diagonal meadow gap at (10, 10).
+    const offset = 0;
     const m = (typeof blenderClone === 'function' && blenderClone('enc_prefab_' + name));
     if(!m) return;
     m.scale.setScalar(1.0);
@@ -8630,8 +8803,14 @@ async function _streamRemainingIslandPrefabs(root){
       // tunnels are walk-through.  v667: tightened bottom-threshold from
       // 2.0m to 1.4m so meshes whose bottom hangs at chest-height are
       // still walkable.
+      // v671: max-side cap 25m → 8m.  KB3D joined meshes (aqueducts /
+      // long roof runs / building shells) span 10-23m; their AABB covered
+      // whole bridge corridors, the bridge mouth into toki, and large
+      // walkable swaths — the live "動ける場所で動けない" bug.  Walls of
+      // structures wider than 8m are handled mesh-accurately by the
+      // chest-height wall raycast in the movement loop instead.
       if(_sbox.min.y < 1.4 &&
-         dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) < 25){
+         dy > 1.5 && Math.min(dx, dz) < 8 && Math.max(dx, dz) <= 8){
         const _minSide = Math.min(dx, dz);
         if(_minSide > 0.05 && dy / _minSide > 4 && dy > 3) return;
         ENTITIES.boxObstacles.push({
@@ -8720,6 +8899,9 @@ async function _streamRemainingIslandPrefabs(root){
   };
   // Run all 9 in parallel and wait for completion
   await Promise.all(ORDER.map(downloadAndPlace));
+  // v671: with every prefab's real geometry in place, validate each
+  // bridge lane and slide any that dead-end into a building wall.
+  try { _rerouteBlockedBridges(root); } catch(e){ console.warn('bridge reroute failed', e); }
   _islandStreamingDone = true;
   // After all prefabs land, walkways are no longer needed — the
   // unified ground (built in SCENES.island.build) already provides
@@ -8764,7 +8946,7 @@ function _isClearSpawn(x, z){
   // Without the frame-scale check the spawn can sit on a balcony whose
   // edge is between 0.1 and 0.5m away — the runtime's per-step
   // blocked() then trips MAX_STEP_DOWN=1.20m and the avatar is frozen.
-  const STEP_UP = 0.30, STEP_DOWN = 1.20;
+  const STEP_UP = 0.45, STEP_DOWN = 1.20;   // v671: match MAX_STEP_UP
   const yHere = (typeof sampleHeight === 'function') ? sampleHeight(x, z) : 0;
   if(!isFinite(yHere) || yHere > 20) return false;   // out-of-world hit
   let mobile = 0;
@@ -9402,12 +9584,17 @@ function addBridgesForScene(name){
 //        val_rune, val_shield                                    (6)
 //   VH:  vh_barrel, vh_cart, vh_crate, vh_fence, vh_gate,
 //        vh_ladder, vh_palisade, vh_well                         (8)
+// v671: accents that sat ON the cell-centre bridge lanes (local x≈0 or
+// z≈0 strips) were collision-circled right across the only way in/out of
+// each cell — fences at (±7,0) walled off the E/W bridges, the fountain
+// at (0,-6.5) blocked the north lane, etc.  All centre-lane offenders
+// are shifted 2.5-4m sideways; visual intent (edge dressing) unchanged.
 const SIDE_PACK_ACCENTS = {
   plaza:    [['vh_well',     -6,  5, 0.85,   0],
              ['vh_cart',      6,  5, 0.85,  30],
-             ['vh_fence',    -7,  0, 0.85,  90],
-             ['vh_fence',     7,  0, 0.85, -90],
-             ['val_shield',   0,  7, 0.80,   0],
+             ['vh_fence',    -7, -4, 0.85,  90],
+             ['vh_fence',     7, -4, 0.85, -90],
+             ['val_shield', 3.5,  7, 0.80,   0],
              ['val_pillar',  -5,  3, 0.85,   0],
              ['val_pillar',   5,  3, 0.85,   0],
              // v644 TI: market sells goods brought by traders from the coast
@@ -9415,9 +9602,9 @@ const SIDE_PACK_ACCENTS = {
              ['ti_crate',     4, -2, 0.80, -20]],
   monlight: [['val_rune',    -6,  5, 0.80,   0],
              ['val_rune',     6,  5, 0.80,   0],
-             ['val_pillar',   0,  7, 0.85,   0],
-             ['vh_fence',    -6,  0, 0.85,  90],
-             ['vh_fence',     6,  0, 0.85, -90],
+             ['val_pillar',   3,  7, 0.85,   0],
+             ['vh_fence',    -6, -3, 0.85,  90],
+             ['vh_fence',     6, -3, 0.85, -90],
              ['vh_crate',    -3,  6, 0.85,  10],
              // v637: bookstore interior props spilling out front
              ['enc_int_monlight', -7, -5, 0.55, 25],
@@ -9427,28 +9614,30 @@ const SIDE_PACK_ACCENTS = {
              ['vh_barrel',    5,  5, 0.85,   0],
              ['vh_ladder',    6, -3, 0.85,  90],
              ['vh_crate',    -6,  3, 0.85,   0],
-             ['vh_crate',     0,  7, 0.85,  30],
+             ['vh_crate',   2.5,  7, 0.85,  30],
              // v637: watermill interior gear spilled near the stream
              ['enc_int_oto',   7, -4, 0.55, -20],
              // v644 TI: a salvaged chest brought up by the watermill flow
              ['ti_chest',    -4, -3, 0.80,  15]],
   tabi:     [['val_longbench',-5, 6, 0.85,  90],
              ['val_barrel',   5,  6, 0.85,   0],
-             ['vh_cart',      0,  7, 0.85,   0],
+             ['vh_cart',      3,  7, 0.85,   0],
              ['val_horn',    -3,  4, 0.85,   0],
              ['val_horn',     3,  4, 0.85,   0],
              ['vh_well',     -6,  2, 0.85,   0],
              // v637: inn interior props near the dock
              ['enc_int_tabi', -7, -5, 0.55, 15],
-             // v644 TI: pier-side cargo — anchor + rope + the next ship's wheel
+             // v644 TI: pier-side cargo — anchor + rope + a pier lantern
+             // (v671: ti_helm never existed in the TIS kit — the GLB was
+             // never extracted and 404'd on every load; lantern instead)
              ['ti_anchor',    4, -2, 0.85,   0],
              ['ti_rope',     -4, -2, 0.90,  35],
-             ['ti_helm',      0, -3, 0.85,   0]],
+             ['ti_lantern', 2.5, -3, 0.90,   0]],
   toki:     [['val_rune',    -6,  5, 0.85,   0],
              ['val_pillar',   6,  5, 0.85,   0],
-             ['val_pillar',  -6,  0, 0.85,   0],
-             ['val_pillar',   6,  0, 0.85,   0],
-             ['val_rune',     0,  7, 0.85,   0],
+             ['val_pillar',  -6, 2.5, 0.85,  0],
+             ['val_pillar',   6, 2.5, 0.85,  0],
+             ['val_rune',     3,  7, 0.85,   0],
              ['df_gargoyle', -7,  3, 0.85,  30],
              ['df_gargoyle',  7,  3, 0.85, -30],
              // v637: clocktower interior brass + dials
@@ -9457,9 +9646,9 @@ const SIDE_PACK_ACCENTS = {
              ['ti_lantern',   5, -2, 0.85,   0]],
   hoshi:    [['val_rune',    -5,  4, 0.85,   0],
              ['val_rune',     5,  4, 0.85,  30],
-             ['val_rune',     0,  7, 0.85,   0],
-             ['val_pillar',  -6,  0, 0.85,   0],
-             ['val_pillar',   6,  0, 0.85,   0],
+             ['val_rune',     3,  7, 0.85,   0],
+             ['val_pillar',  -6, 2.5, 0.85,  0],
+             ['val_pillar',   6, 2.5, 0.85,  0],
              ['df_gargoyle', -5,  6, 0.85,  20],
              ['df_gargoyle',  5,  6, 0.85, -20],
              // v637: antiquarian interior — celestial maps on display
@@ -9469,7 +9658,7 @@ const SIDE_PACK_ACCENTS = {
              ['ti_skull',     5, -3, 0.85, -25]],
   takibi:   [['val_longbench',-5, 6, 0.85,  90],
              ['val_longbench', 5, 6, 0.85, -90],
-             ['val_horn',     0,  7, 0.85,   0],
+             ['val_horn',     3,  7, 0.85,   0],
              ['vh_crate',    -3,  7, 0.85,  10],
              ['vh_crate',     3,  7, 0.85, -10],
              ['vh_barrel',   -6,  3, 0.85,   0],
@@ -9477,13 +9666,13 @@ const SIDE_PACK_ACCENTS = {
              // v637: candlemaker interior — wax vats by the fire
              ['enc_int_takibi', -7, -6, 0.55, 20],
              // v644 TI: a small cannon abandoned by the campfire ring
-             ['ti_cannon',    0, -3, 0.85,   0]],
+             ['ti_cannon',  2.5, -3, 0.85,   0]],
   mizube:   [['vh_ladder',   -5,  4, 0.85,   0],
              ['vh_barrel',    5,  4, 0.85,   0],
-             ['vh_well',      0,  7, 0.85,   0],
+             ['vh_well',      3,  7, 0.85,   0],
              ['vh_crate',    -3,  6, 0.85,   0],
              ['vh_crate',     3,  6, 0.85,   0],
-             ['vh_fence',    -6,  0, 0.85,  90],
+             ['vh_fence',    -6, -3, 0.85,  90],
              // v637: weaver interior — loom + bolts of cloth
              ['enc_int_mizube', 7, -4, 0.55, -25],
              // v644 TI: an anchor and coiled rope washed up to the shore
@@ -9582,7 +9771,7 @@ const ISLAND_EXTRA_ACCENTS = {
              ['ti_flag',      5.0, -5.0, 0.90,   0]],
   tabi:     [['ti_hammock',   5.5,  4.5, 0.90,  40],
              ['ti_flag',     -5.0,  5.0, 0.85,   0]],
-  takibi:   [['val_bonfire',  0.0, -5.5, 0.90,   0],
+  takibi:   [['val_bonfire',  2.5, -5.5, 0.90,   0],
              ['val_totem_a', -5.5,  4.0, 0.85,  20],
              ['val_totem_b',  5.5,  4.0, 0.85, -20],
              ['val_firewood', 1.8,  6.5, 0.90,   0],
@@ -9597,7 +9786,7 @@ const ISLAND_EXTRA_ACCENTS = {
   amaoto:   [['val_fishrack', 4.5,  5.5, 0.80,   0]],
   oto:      [['df_torch',    -4.0,  5.5, 0.85,   0],
              ['df_torch',     4.0,  5.5, 0.85,   0]],
-  plaza:    [['df_fountain',  0.0, -6.5, 0.85,   0],
+  plaza:    [['df_fountain',  3.5, -6.5, 0.85,   0],
              ['val_dummy',    6.5, -4.0, 0.90, -30]],
 };
 
@@ -10627,7 +10816,12 @@ function handleClick(cx, cy){
     document.getElementById('onbDesc2').innerHTML = '画面の右側を指でドラッグして視点回転';
     document.getElementById('onbDesc3').innerHTML = '光る場所をタップして移動、近づいて <span class="keycap">E</span> ボタンで入る';
   }
-  if(!seen){
+  // v671: desktop first-run already shows #tutorial-overlay + the
+  // step-by-step RPG tutorial — stacking #onboarding on top produced
+  // a confusing double "ようこそ" overlay.  Mobile keeps #onboarding
+  // (its copy explains the touch controls; the keyboard tutorial is
+  // skipped there).
+  if(!seen && IS_MOBILE){
     onb.classList.add('show');
   }
   document.getElementById('onbStart').addEventListener('click', ()=>{
@@ -11023,11 +11217,40 @@ const _UX = (() => {
       _visitAcc = 0;
       if(currentScene && currentScene.name === 'island'){
         const sep = (typeof ISLAND_SEPARATION === 'number') ? ISLAND_SEPARATION : 20;
+        let _nearK = null, _nearD = Infinity;
         for(const k of MAP_CELLS){
           const p = SCENE_WORLD_POS[k];
-          if(Math.hypot(avatar.position.x - p.dx * sep, avatar.position.z - p.dz * sep) < 8){
+          const d = Math.hypot(avatar.position.x - p.dx * sep, avatar.position.z - p.dz * sep);
+          if(d < 8){
             markVisited(k);
           }
+          if(d < _nearD){ _nearD = d; _nearK = k; }
+        }
+        // v671: zone-entry toast — RPG area banner when the avatar walks
+        // into a different cell (teleports already update the compass;
+        // this covers on-foot exploration so users always know where
+        // they are).  Also keeps the compass label in sync.
+        if(_nearK && _nearD < 9 && _nearK !== window._niwaZoneNow){
+          window._niwaZoneNow = _nearK;
+          const lbl = SCENE_WORLD_POS[_nearK].label;
+          const whereEl = document.getElementById('compass-where');
+          if(whereEl) whereEl.textContent = lbl;
+          let tEl = document.getElementById('niwa-zone-toast');
+          if(!tEl){
+            tEl = document.createElement('div');
+            tEl.id = 'niwa-zone-toast';
+            tEl.style.cssText =
+              'position:fixed;top:84px;left:50%;transform:translateX(-50%);' +
+              'background:rgba(14,26,38,.88);color:#ffd890;border:1px solid rgba(255,216,144,.5);' +
+              'padding:10px 26px;border-radius:6px;z-index:70;pointer-events:none;' +
+              'font:15px/1.4 "Shippori Mincho",serif;letter-spacing:.18em;' +
+              'opacity:0;transition:opacity .45s';
+            document.body.appendChild(tEl);
+          }
+          tEl.textContent = lbl;
+          tEl.style.opacity = '1';
+          clearTimeout(window._niwaZoneToastT);
+          window._niwaZoneToastT = setTimeout(() => { tEl.style.opacity = '0'; }, 2600);
         }
       }
     }
@@ -11122,6 +11345,9 @@ window.showInteractModal = function(html, durationMs){
 // the bottom and waits for the player to demonstrate the action.
 // Skipped if localStorage flag set.  Skip button always available.
 (() => {
+  // v671: the WASD/Shift/Space step tutorial is keyboard-only — mobile
+  // users get the #onboarding touch overlay instead.
+  if(typeof IS_MOBILE !== 'undefined' && IS_MOBILE) return;
   let seen = false;
   try { seen = localStorage.getItem('niwa.tutorial.v660') === '1'; } catch(_){}
   if(seen) return;
@@ -11580,8 +11806,9 @@ function animate(){
   const stepX = climbActive ? 0 : playerVel.x * dt;
   const stepZ = climbActive ? 0 : playerVel.z * dt;
   // Slide collision: test X and Z independently so avatar slides along walls
-  // Avatar is ~1.4 m tall; treat one realistic stair as ≤ 0.30 m.
-  const MAX_STEP_UP = 0.30;
+  // Avatar is ~1.4 m tall.  v671: 0.30 → 0.45 m so KB3D cobble lips and
+  // porch steps don't freeze the walk (UE-style step assist).
+  const MAX_STEP_UP = 0.45;
   // v656: raised from 1.20 → 3.0 so the avatar can walk OFF building
   // porches (Y≈2.75) onto cobble (Y≈0).  Climbing UP is still gated by
   // the strict MAX_STEP_UP=0.30 so rooftops / walls remain unscalable.
@@ -11602,6 +11829,13 @@ function animate(){
     for(const b of boxes){
       if(px > b.minX - r && px < b.maxX + r && pz > b.minZ - r && pz < b.maxZ + r) return true;
     }
+    // v671: chest-height wall raycast — mesh-accurate collision for the
+    // big KB3D joined meshes whose AABB is no longer registered (the
+    // 12m cap above).  Casts from chest height toward the candidate
+    // position; a hit on a steep (wall-like) face inside the travel
+    // distance blocks the move.  Walkable ramps/stairs (face normal
+    // mostly up) pass through and are handled by sampleHeight instead.
+    if(_wallRayBlocked(px, pz)) return true;
     // v621: climb-step limit. Block any step where the destination ground
     // is more than MAX_STEP_UP above the current avatar Y. Without this
     // the avatar walks straight up onto rooftops / fences / lampposts via
@@ -11839,15 +12073,27 @@ function animate(){
   // raycast still leaks through the skipRaycast filter. The avatar
   // can still walk up by EXPLICITLY moving onto a real ramp where
   // each XZ step gives a < MAX_STEP_UP delta.
-  else if(heightDiff > 0.02 && heightDiff <= 0.30){
-    // Climbing a slope / small step — damp smoothly up
+  else if(heightDiff > 0.02 && heightDiff <= 0.45){
+    // Climbing a slope / small step — damp smoothly up.  v671: 0.45m
+    // matches the raised MAX_STEP_UP so steps the walk allows are also
+    // smoothly ascended here.
     const lifted = THREE.MathUtils.damp(avatar.position.y, targetY, 11, dt);
     const dy = Math.min(AV_HEIGHT * dt, lifted - avatar.position.y);
     avatar.position.y += dy;
     verticalVel = 0;
-  } else if(heightDiff > 0.30){
+  } else if(heightDiff > 0.45){
     // Sample says ground is too high to be valid — treat as wall;
     // don't drift up, just stay put.
+    // v671 EXCEPTION: if the target is plausible GROUND level (≤0.6m)
+    // the avatar is BURIED below the floor, not facing a wall — the
+    // initial spawn landed at y=-0.99 inside the plaza underside slab
+    // and this rule kept it locked underground forever.  Snap up
+    // smoothly.  Roof/fence raycast leaks are all well above 0.6m, so
+    // the v635 anti-drift protection still holds for them.
+    if(targetY <= 0.6){
+      avatar.position.y = THREE.MathUtils.damp(avatar.position.y, targetY, 14, dt);
+      if(targetY - avatar.position.y < 0.02) avatar.position.y = targetY;
+    }
     verticalVel = 0;
   } else if(heightDiff < -0.02){
     // In the air — gravity takes over (terminal velocity capped at 18 m/s)
@@ -12608,6 +12854,55 @@ setLoad(0.95, 'ASSETS');
       },
       _sampleHeight(x, z){ return sampleHeight(x, z); },
       _isWalkable(x, z){ return isWalkable(x, z); },
+      // v671: chest-ray collision probes for the Playwright suites
+      _wallBlocked(px, pz){ return _wallRayBlocked(px, pz); },
+      _groundProbe(x, z){
+        const out = [];
+        try {
+          const ground = currentScene && currentScene.root && currentScene.root.userData.ground;
+          if(!ground) return out;
+          _ensureRayCamera();
+          _rayDown.set(new THREE.Vector3(x, 30, z), _down);
+          for(const h of _rayDown.intersectObject(ground, true).slice(0, 10)){
+            const ud = h.object.userData || {};
+            out.push({ y: +h.point.y.toFixed(2), mesh: h.object.name || h.object.type,
+                       gm: !!ud.isGroundMesh, fill: !!ud.isGroundFill, uni: !!ud.isUnifiedGround,
+                       ignored: _hitIsRaycastIgnored(h, ground) });
+          }
+        } catch(e){ out.push('ERR ' + e.message); }
+        return out;
+      },
+      get _bridgeRegistry(){
+        try {
+          return _islandBridgeRegistry.map(b => ({
+            fromKey: b.fromKey, toKey: b.toKey, isNS: b.isNS,
+            midX: b.midX, midZ: b.midZ, plankLen: b.plankLen,
+            lateral: b.lateral,
+          }));
+        } catch(_){ return []; }
+      },
+      _wallProbe(x, z, dx, dz, far){
+        const out = [];
+        try {
+          const root = currentScene && currentScene.root;
+          if(!root || !root.userData.ground) return out;
+          _ensureRayCamera();
+          _wallOrigin.set(x, (avatar ? avatar.position.y : 0) + 0.9, z);
+          _wallDir.set(dx, 0, dz).normalize();
+          _rayWall.set(_wallOrigin, _wallDir);
+          _rayWall.far = far || 1.2;
+          for(const h of _rayWall.intersectObject(root.userData.ground, true).slice(0, 6)){
+            let ny = null;
+            if(h.face && h.face.normal){
+              _wallNrmMat.getNormalMatrix(h.object.matrixWorld);
+              ny = +_wallNrm.copy(h.face.normal).applyMatrix3(_wallNrmMat).normalize().y.toFixed(2);
+            }
+            out.push({ d: +h.distance.toFixed(2), mesh: h.object.name || '?', ny,
+                       ignored: _wallHitIsIgnored(h, root.userData.ground) });
+          }
+        } catch(e){ out.push('ERR ' + e.message); }
+        return out;
+      },
       _waitFrames(n){
         return new Promise(resolve => {
           let i = 0;
