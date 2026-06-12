@@ -661,6 +661,7 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 /* ===========================================================
  *  心の庭 — 9 compact dioramas, scene-switched
@@ -744,13 +745,32 @@ let teleportGraceUntil = 0;
 const canvas = document.getElementById('webgl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 900);
-// v662: pixel ratio capped to 1.0 — was 2.0 on desktop, killing 60fps
-// on high-DPI displays.  Visual difference is minimal at standard
-// viewing distance; perf gain is substantial.
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
+// v670: quality tier — "high" (PC, 1024px WebP GLBs, shadows, bloom) or
+// "lite" (mobile / low-spec, 512px simplified GLBs, no shadows, no post).
+// Priority: ?q= URL param > localStorage > device auto-detect.
+const NIWA_QUALITY = (() => {
+  try {
+    const m = new URLSearchParams(location.search).get('q');
+    if(m === 'high' || m === 'lite'){
+      localStorage.setItem('niwa.quality', m);
+      return m;
+    }
+    const saved = localStorage.getItem('niwa.quality');
+    if(saved === 'high' || saved === 'lite') return saved;
+  } catch(_){}
+  const lowSpec = IS_MOBILE ||
+    (navigator.deviceMemory && navigator.deviceMemory < 6) ||
+    (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 6);
+  return lowSpec ? 'lite' : 'high';
+})();
+const IS_LITE = NIWA_QUALITY === 'lite';
+// v662: pixel ratio capped — was 2.0 on desktop, killing 60fps on
+// high-DPI displays.  v670: high tier allows 1.5 (GLBs are now 70-90%
+// lighter so the GPU headroom goes to resolution), lite stays at 1.0.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_LITE ? 1.0 : 1.5));
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !IS_LITE;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -818,8 +838,11 @@ let firstPerson = true;
 
 /* Lighting ================================================ */
 const sun = new THREE.DirectionalLight(0xfff4d0, 1.8);  // softened — diorama doesn't want blown highlights
-sun.castShadow = true;
-sun.shadow.mapSize.set(IS_MOBILE ? 1024 : 4096, IS_MOBILE ? 1024 : 4096);
+// v670: lite tier drops shadow mapping entirely (renderer.shadowMap is
+// off) — the avatar gets a procedural blob shadow instead.  High tier
+// uses 2048 (4096 was over-resolved for a 32m frustum and cost ~2ms).
+sun.castShadow = !IS_LITE;
+sun.shadow.mapSize.set(IS_LITE ? 512 : 2048, IS_LITE ? 512 : 2048);
 sun.shadow.camera.near = 0.5;
 sun.shadow.camera.far = 60;
 sun.shadow.camera.left = -16;
@@ -3288,6 +3311,9 @@ const gltfLoader = new GLTFLoader();
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
 gltfLoader.setDRACOLoader(dracoLoader);
+// v670: optimized GLBs (blender_q / blender_lite) use EXT_meshopt_compression.
+// Legacy GLBs keep KHR_draco — both decoders coexist on one loader.
+gltfLoader.setMeshoptDecoder(MeshoptDecoder);
 
 const GLB_CACHE = new Map();
 function loadGLB(url, onProgress){
@@ -3414,6 +3440,9 @@ const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chib
 // GLBs (via scene.preloadAssets) and loads them only when the scene is opened.
 // Already-loaded entries stay in BLENDER_CACHE for fast re-entry.
 const BLENDER_LOADING = new Map();     // name -> Promise<scene|null>
+// v670: asset names served from blender_q / blender_lite (already
+// optimized offline — runtime texture downscale must be skipped).
+const _OPTIMIZED_ASSETS = new Set();
 
 /* v626: aggressive but invisible texture downsizing on load.
  * KB3D prefabs ship with 1024×1024 PBR maps. At chibi diorama scale
@@ -3448,9 +3477,14 @@ function _downscaleTexture(tex, maxSize){
   }
 }
 
-function _decorateGLB(scene){
+function _decorateGLB(scene, preOptimized){
   // Decorate meshes + downscale loaded textures (the BIG invisible win)
   // + flag GPU-friendly filter modes.
+  // v670: preOptimized GLBs (blender_q / blender_lite) arrive with
+  // right-sized WebP textures — skip the canvas redraw entirely (it
+  // cost 100-300ms of main-thread jank per prefab) and grant the high
+  // tier real anisotropy for sharper ground textures at grazing angles.
+  const aniso = (preOptimized && !IS_LITE) ? 4 : 1;
   scene.traverse(o => {
     if(o.isMesh){
       o.castShadow = true; o.receiveShadow = true;
@@ -3466,8 +3500,8 @@ function _decorateGLB(scene){
         for(const slot of slotsCol){
           const tex = m[slot];
           if(!tex) continue;
-          _downscaleTexture(tex, 512);
-          tex.anisotropy = 1;
+          if(!preOptimized) _downscaleTexture(tex, 512);
+          tex.anisotropy = aniso;
           tex.generateMipmaps = true;
           tex.minFilter = THREE.LinearMipmapLinearFilter;
           tex.magFilter = THREE.LinearFilter;
@@ -3475,7 +3509,7 @@ function _decorateGLB(scene){
         for(const slot of slotsUtil){
           const tex = m[slot];
           if(!tex) continue;
-          _downscaleTexture(tex, 256);
+          if(!preOptimized) _downscaleTexture(tex, 256);
           tex.anisotropy = 1;
           tex.generateMipmaps = true;
           tex.minFilter = THREE.LinearMipmapLinearFilter;
@@ -3537,19 +3571,35 @@ function resolveAllEncFileids(){
       const d = await r.json();
       const md = d.metadata || {};
       const map = Object.assign({}, ENC_FILEIDS);
+      // v670: quality tiers — blender_q (1024px WebP+meshopt) and
+      // blender_lite (512px simplified) folders override the legacy
+      // blender/ fileids when present.  Optimized assets are recorded
+      // in _OPTIMIZED_ASSETS so _decorateGLB skips the runtime canvas
+      // downscale (their textures are already right-sized).
+      const wantFolder = IS_LITE ? 'blender_lite' : 'blender_q';
+      const baseMap = {}, tierMap = {};
       for(const c of (md.contents || [])){
         if(c.isfolder && c.name === 'niwa-assets'){
           for(const sub of (c.contents || [])){
-            if(sub.isfolder && sub.name === 'blender'){
-              for(const f of (sub.contents || [])){
-                if(f.name && f.name.endsWith('.glb')){
-                  map[f.name.slice(0, -4)] = f.fileid;
-                }
+            if(!sub.isfolder) continue;
+            const into = (sub.name === 'blender') ? baseMap
+                       : (sub.name === wantFolder) ? tierMap
+                       : null;
+            if(!into) continue;
+            for(const f of (sub.contents || [])){
+              if(f.name && f.name.endsWith('.glb')){
+                into[f.name.slice(0, -4)] = f.fileid;
               }
             }
           }
         }
       }
+      Object.assign(map, baseMap);
+      for(const k in tierMap){
+        map[k] = tierMap[k];
+        _OPTIMIZED_ASSETS.add(k);
+      }
+      console.log(`niwa: fileids resolved — ${Object.keys(baseMap).length} base, ${Object.keys(tierMap).length} ${wantFolder}`);
       return map;
     } catch(e){
       console.warn('niwa: pcloud showpublink failed', e);
@@ -3567,24 +3617,26 @@ async function lazyLoadAsset(name, onProgress){
   const p = (async () => {
     try {
       let url;
-      if(name.startsWith('enc_')){
-        // KB3D Enchanted assets — fetched via Cloudflare worker proxy
-        // (pCloud CDN blocks non-pCloud origins so direct fetch is impossible).
-        if(!PCLOUD_PROXY){
-          console.warn('niwa: PCLOUD_PROXY not set — deploy the Cloudflare worker (see _workers/pcloud-cors-proxy.js) and paste its URL into niwa.html');
-          return null;
-        }
-        const fids = await resolveAllEncFileids();
-        const fid = fids[name];
-        if(!fid){ console.warn('niwa: no pCloud fileid for', name); return null; }
+      // v670: prefer pCloud for ANY asset present in the fileid map —
+      // not just enc_*.  Fixes a live-site bug where val_/vh_/df_ props
+      // 404'd: they are NOT git-tracked (only ti_* is committed) but DO
+      // exist on pCloud.  Local repo path stays as the fallback for
+      // assets pCloud doesn't have (ti_* and any future bundled GLB).
+      const fids = PCLOUD_PROXY ? await resolveAllEncFileids() : {};
+      const fid = fids[name];
+      if(fid){
         url = pcloudProxyURL(fid);
+      } else if(name.startsWith('enc_')){
+        // enc_* exists ONLY on pCloud — no local fallback possible.
+        console.warn('niwa: no pCloud fileid for', name);
+        return null;
       } else {
-        // Local procedural assets (legacy) — still bundled with the repo.
+        // Bundled repo assets (ti_* etc.).
         url = 'assets/blender/' + name + '.glb';
       }
       const gltf = await loadGLB(url, onProgress);
       if(gltf && gltf.scene){
-        _decorateGLB(gltf.scene);
+        _decorateGLB(gltf.scene, _OPTIMIZED_ASSETS.has(name));
         // === Bbox-centre + bottom-anchor =========================================
         // The Blender extract script tried to centre each prefab at origin and put
         // its base at z=0, but `o.location` adjustments don't move vertex data —
@@ -5405,6 +5457,30 @@ function makeAvatar(){
 
 const avatar = makeAvatar();
 scene.add(avatar);
+// v670: lite tier has no shadow mapping — a soft radial-gradient blob
+// under the avatar restores the grounding cue for ~zero GPU cost.
+if(IS_LITE){
+  const _blobC = document.createElement('canvas');
+  _blobC.width = _blobC.height = 64;
+  const _bctx = _blobC.getContext('2d');
+  const _grad = _bctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+  _grad.addColorStop(0, 'rgba(0,0,0,0.42)');
+  _grad.addColorStop(1, 'rgba(0,0,0,0)');
+  _bctx.fillStyle = _grad;
+  _bctx.fillRect(0, 0, 64, 64);
+  const _blobTex = new THREE.CanvasTexture(_blobC);
+  const _blob = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.1, 1.1),
+    new THREE.MeshBasicMaterial({
+      map: _blobTex, transparent: true, depthWrite: false,
+    })
+  );
+  _blob.rotation.x = -Math.PI / 2;
+  _blob.position.y = 0.03;
+  _blob.renderOrder = 2;
+  _blob.userData.skipRaycast = true;
+  avatar.add(_blob);
+}
 setLoad(0.45, 'AVATAR');
 
 /* NPC chibi =============================================== */
@@ -8449,6 +8525,15 @@ function _addAllIslandBridges(root){
 }
 
 async function _streamRemainingIslandPrefabs(root){
+  // v670: test hook — ?nostream=1 skips the 9-prefab stream entirely so
+  // Playwright suites get a deterministic, decode-jank-free main thread.
+  try {
+    if(new URLSearchParams(location.search).get('nostream') === '1'){
+      console.log('niwa[island]: streaming skipped (nostream=1)');
+      _islandStreamingDone = true;
+      return;
+    }
+  } catch(_){}
   // v662: PARALLEL streaming.  Previously sequential (10 sec/prefab × 9 = 90s),
   // now all 9 fetch in parallel and place as each completes.  Total wall
   // time = max(downloads) instead of sum — typically 15-20s on broadband.
@@ -10252,11 +10337,11 @@ canvas.addEventListener('pointercancel', ()=>{ pointerDown = false; });
 function onWheelZoom(e){
   e.preventDefault();
   if(firstPerson && camFP){
-    // FOV zoom — clamp 25° (tight zoom) to 90° (wide)
+    // FOV zoom — clamp 25° (tight zoom) to 90° (wide).
+    // v670: write the BASE fov; _niwaUXTick composes base + run-kick
+    // each frame so wheel zoom and the sprint FOV kick don't fight.
     const factor = e.deltaY > 0 ? 1.08 : 0.93;
-    const next = Math.max(25, Math.min(90, camFP.fov * factor));
-    camFP.fov = next;
-    camFP.updateProjectionMatrix();
+    window._fpBaseFov = Math.max(25, Math.min(90, (window._fpBaseFov || camFP.fov) * factor));
   } else {
     const factor = e.deltaY > 0 ? 1.10 : 0.91;
     camZoomTarget = Math.max(CAM_MIN_SIZE, Math.min(CAM_MAX_SIZE, camZoomTarget * factor));
@@ -10500,6 +10585,322 @@ if(_btnJumpMobile){
     }
   });
 })();
+
+/* === v670: RPG UX suite ==============================================
+ * Settings gear (quality / sound / view reset), minimap, fullscreen
+ * fast-travel map (M), visited-cell tracking, procedural footsteps,
+ * run FOV kick, two-finger pinch zoom.  All DOM built here so the
+ * static HTML stays untouched.
+ * ==================================================================== */
+const _UX = (() => {
+  const FONT_MONO = "11px/1.4 'JetBrains Mono',monospace";
+  const FONT_SERIF = "'Shippori Mincho',serif";
+  // ---- visited cells ------------------------------------------------
+  let visited = new Set();
+  try {
+    const raw = localStorage.getItem('niwa.visited');
+    if(raw) visited = new Set(JSON.parse(raw));
+  } catch(_){}
+  function markVisited(cell){
+    if(visited.has(cell)) return;
+    visited.add(cell);
+    try { localStorage.setItem('niwa.visited', JSON.stringify([...visited])); } catch(_){}
+  }
+  // ---- sound (footsteps) --------------------------------------------
+  let soundOn = true;
+  try { soundOn = localStorage.getItem('niwa.sound') !== '0'; } catch(_){}
+  let _actx = null;
+  function _ensureAudio(){
+    if(_actx || !soundOn) return;
+    try {
+      _actx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch(_){ _actx = null; }
+  }
+  window.addEventListener('pointerdown', _ensureAudio, { once: false, passive: true });
+  window.addEventListener('keydown', _ensureAudio, { once: false, passive: true });
+  function playFootstep(running){
+    if(!soundOn || !_actx || _actx.state !== 'running') return;
+    // Short filtered-noise burst — reads as a soft scuff on dirt/stone.
+    const dur = 0.09;
+    const n = Math.floor(_actx.sampleRate * dur);
+    const buf = _actx.createBuffer(1, n, _actx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for(let i = 0; i < n; i++){
+      const env = Math.pow(1 - i / n, 2.2);
+      ch[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src = _actx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = 0.85 + Math.random() * 0.3;
+    const filt = _actx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = running ? 900 : 650;
+    const gain = _actx.createGain();
+    gain.gain.value = running ? 0.14 : 0.10;
+    src.connect(filt); filt.connect(gain); gain.connect(_actx.destination);
+    src.start();
+  }
+  // ---- DOM: gear button + panel --------------------------------------
+  function el(tag, css, html){
+    const e = document.createElement(tag);
+    if(css) e.style.cssText = css;
+    if(html != null) e.innerHTML = html;
+    return e;
+  }
+  const gearBtn = el('button',
+    'position:fixed;top:14px;right:14px;z-index:40;width:44px;height:44px;' +
+    'border-radius:50%;background:rgba(14,26,38,.62);border:1.5px solid rgba(232,220,184,.5);' +
+    'color:#e8dcb8;font-size:19px;cursor:pointer;touch-action:manipulation', '⚙');
+  gearBtn.id = 'ux-gear';
+  gearBtn.title = '設定';
+  document.body.appendChild(gearBtn);
+  const gearPanel = el('div',
+    'position:fixed;top:64px;right:14px;z-index:41;display:none;width:230px;' +
+    'background:rgba(14,26,38,.93);border:1px solid rgba(232,220,184,.4);border-radius:8px;' +
+    `padding:14px 16px;color:#e8dcb8;font-family:${FONT_SERIF};font-size:13px;line-height:2.1`);
+  gearPanel.id = 'ux-gear-panel';
+  gearPanel.innerHTML =
+    `<div style="font:${FONT_MONO};letter-spacing:.14em;opacity:.65;margin-bottom:6px">SETTINGS</div>` +
+    `<div>画質 <span style="float:right">` +
+      `<button data-q="high" class="ux-qbtn">高品質</button> ` +
+      `<button data-q="lite" class="ux-qbtn">軽量</button></span></div>` +
+    `<div>足音 <span style="float:right"><button id="ux-sound" class="ux-qbtn"></button></span></div>` +
+    `<div>視点リセット <span style="float:right"><button id="ux-resetview" class="ux-qbtn">実行</button></span></div>` +
+    `<div>島の地図 <span style="float:right"><button id="ux-openmap" class="ux-qbtn">M</button></span></div>` +
+    `<div style="font:${FONT_MONO};opacity:.45;margin-top:6px">mode: ${NIWA_QUALITY}</div>`;
+  document.body.appendChild(gearPanel);
+  // button styling (one shared rule via <style> so :hover works)
+  const st = document.createElement('style');
+  st.textContent =
+    '.ux-qbtn{background:rgba(200,152,72,.18);border:1px solid rgba(232,220,184,.45);' +
+    'color:#e8dcb8;border-radius:4px;padding:2px 9px;cursor:pointer;font:11px "JetBrains Mono",monospace}' +
+    '.ux-qbtn:hover{background:rgba(200,152,72,.45)}' +
+    '.ux-qbtn.on{background:#c89848;color:#1a2438}' +
+    '#ux-minimap{position:fixed;top:14px;right:68px;z-index:39;cursor:pointer;' +
+    'border:1px solid rgba(232,220,184,.4);border-radius:6px;background:rgba(14,26,38,.55)}' +
+    '@media (max-width:700px){#ux-minimap{top:auto;bottom:210px;right:14px}}';
+  document.head.appendChild(st);
+  gearBtn.onclick = (e) => {
+    e.stopPropagation();
+    gearPanel.style.display = gearPanel.style.display === 'none' ? 'block' : 'none';
+    _syncGearUI();
+  };
+  document.addEventListener('click', (e) => {
+    if(gearPanel.style.display !== 'none' && !gearPanel.contains(e.target) && e.target !== gearBtn){
+      gearPanel.style.display = 'none';
+    }
+  });
+  function _syncGearUI(){
+    gearPanel.querySelectorAll('.ux-qbtn[data-q]').forEach(b => {
+      b.classList.toggle('on', b.dataset.q === NIWA_QUALITY);
+    });
+    const sb = gearPanel.querySelector('#ux-sound');
+    if(sb){ sb.textContent = soundOn ? 'ON' : 'OFF'; sb.classList.toggle('on', soundOn); }
+  }
+  gearPanel.addEventListener('click', (e) => {
+    const q = e.target && e.target.dataset && e.target.dataset.q;
+    if(q && q !== NIWA_QUALITY){
+      try { localStorage.setItem('niwa.quality', q); } catch(_){}
+      // ?q= in the URL would override localStorage on reload — rewrite it.
+      const u = new URL(location.href);
+      u.searchParams.set('q', q);
+      location.assign(u.toString());
+      return;
+    }
+    if(e.target && e.target.id === 'ux-sound'){
+      soundOn = !soundOn;
+      try { localStorage.setItem('niwa.sound', soundOn ? '1' : '0'); } catch(_){}
+      if(soundOn) _ensureAudio();
+      _syncGearUI();
+    }
+    if(e.target && e.target.id === 'ux-resetview'){
+      fpPitch = 0;
+      fpYaw = avatar.rotation.y;
+      gearPanel.style.display = 'none';
+    }
+    if(e.target && e.target.id === 'ux-openmap'){
+      gearPanel.style.display = 'none';
+      toggleMap(true);
+    }
+  });
+  // ---- minimap --------------------------------------------------------
+  const MAP_CELLS = Object.keys(SCENE_WORLD_POS).filter(k => k !== 'heya');
+  const mini = el('canvas');
+  mini.id = 'ux-minimap';
+  mini.width = 132; mini.height = 132;
+  mini.style.width = '110px'; mini.style.height = '110px';
+  mini.title = '島の地図 (M)';
+  document.body.appendChild(mini);
+  const mctx = mini.getContext('2d');
+  function drawMinimap(){
+    const onIsland = currentScene && currentScene.name === 'island';
+    mini.style.display = onIsland ? 'block' : 'none';
+    if(!onIsland) return;
+    const W = mini.width, cell = 36, pad = 12;
+    mctx.clearRect(0, 0, W, W);
+    // grid cells: dx,dz ∈ [-1,1] → canvas
+    for(const k of MAP_CELLS){
+      const p = SCENE_WORLD_POS[k];
+      const cx = pad + (p.dx + 1) * cell + cell / 2;
+      const cy = pad + (p.dz + 1) * cell + cell / 2;
+      const link = window._FLOATING_ISLAND_LINKS && window._FLOATING_ISLAND_LINKS[k];
+      const col = link ? '#' + (link.color || 0xffd890).toString(16).padStart(6, '0') : '#e8dcb8';
+      mctx.globalAlpha = visited.has(k) ? 0.95 : 0.30;
+      mctx.fillStyle = col;
+      mctx.beginPath();
+      mctx.arc(cx, cy, 5.5, 0, Math.PI * 2);
+      mctx.fill();
+    }
+    // player dot
+    mctx.globalAlpha = 1;
+    const sep = (typeof ISLAND_SEPARATION === 'number') ? ISLAND_SEPARATION : 20;
+    const px = pad + (Math.max(-1.5, Math.min(1.5, avatar.position.x / sep)) + 1) * cell + cell / 2;
+    const pz = pad + (Math.max(-1.5, Math.min(1.5, avatar.position.z / sep)) + 1) * cell + cell / 2;
+    mctx.fillStyle = '#6BE07A';
+    mctx.beginPath();
+    mctx.arc(px, pz, 4, 0, Math.PI * 2);
+    mctx.fill();
+    // facing tick
+    const fy = firstPerson ? fpYaw : avatar.rotation.y;
+    mctx.strokeStyle = '#6BE07A';
+    mctx.lineWidth = 2;
+    mctx.beginPath();
+    mctx.moveTo(px, pz);
+    mctx.lineTo(px + Math.sin(fy) * 9, pz + Math.cos(fy) * 9);
+    mctx.stroke();
+  }
+  mini.onclick = () => toggleMap(true);
+  // ---- fullscreen fast-travel map -------------------------------------
+  let mapHost = null;
+  function toggleMap(open){
+    const want = (open === undefined) ? !mapHost : open;
+    if(!want){ if(mapHost){ mapHost.remove(); mapHost = null; } return; }
+    if(mapHost) return;
+    if(!currentScene || currentScene.name !== 'island') return;
+    mapHost = el('div',
+      'position:fixed;inset:0;z-index:480;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(8,14,22,.72)');
+    const grid = el('div',
+      'display:grid;grid-template-columns:repeat(3,minmax(86px,128px));gap:10px;padding:22px;' +
+      'background:rgba(14,26,38,.95);border:1px solid rgba(232,220,184,.4);border-radius:10px');
+    const title = el('div',
+      `grid-column:1/-1;color:#e8dcb8;font-family:${FONT_SERIF};font-size:15px;text-align:center;letter-spacing:.1em`,
+      `浮遊島の地図 — 訪問 ${[...visited].filter(v => MAP_CELLS.includes(v)).length}/${MAP_CELLS.length}` +
+      `<div style="font:${FONT_MONO};opacity:.5;margin-top:2px">クリックで移動 / M か Esc で閉じる</div>`);
+    grid.appendChild(title);
+    // order cells by grid position (dz row-major) for a readable layout
+    const ordered = [...MAP_CELLS].sort((a, b) => {
+      const A = SCENE_WORLD_POS[a], B = SCENE_WORLD_POS[b];
+      return (A.dz - B.dz) || (A.dx - B.dx);
+    });
+    for(const k of ordered){
+      const p = SCENE_WORLD_POS[k];
+      const link = window._FLOATING_ISLAND_LINKS && window._FLOATING_ISLAND_LINKS[k];
+      const col = link ? '#' + (link.color || 0xffd890).toString(16).padStart(6, '0') : '#e8dcb8';
+      const seen = visited.has(k);
+      const b = el('button',
+        `padding:10px 6px;border-radius:6px;cursor:pointer;text-align:center;` +
+        `background:rgba(200,152,72,${seen ? '.22' : '.08'});` +
+        `border:1px solid ${seen ? col : 'rgba(232,220,184,.25)'};` +
+        `color:#e8dcb8;font-family:${FONT_SERIF};font-size:12px;line-height:1.5`,
+        `<span style="color:${col};font-size:15px">●</span><br>` +
+        p.label.replace(/^[^—]+— /, '') +
+        (seen ? '' : `<br><span style="font:${FONT_MONO};opacity:.4">未踏</span>`));
+      b.onclick = () => {
+        toggleMap(false);
+        try { teleportToIslandSection(k); } catch(e){ console.warn('map travel failed', e); }
+      };
+      grid.appendChild(b);
+    }
+    mapHost.appendChild(grid);
+    mapHost.onclick = (e) => { if(e.target === mapHost) toggleMap(false); };
+    document.body.appendChild(mapHost);
+  }
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'm' || e.key === 'M'){
+      const tag = document.activeElement && document.activeElement.tagName;
+      if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+      toggleMap();
+    }
+    if(e.key === 'Escape' && mapHost) toggleMap(false);
+  });
+  // ---- pinch zoom (mobile) --------------------------------------------
+  let _pinchDist = 0;
+  canvas.addEventListener('touchstart', (e) => {
+    if(e.touches.length === 2){
+      _pinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY);
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => {
+    if(e.touches.length !== 2 || !_pinchDist) return;
+    const d = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY);
+    const k = d / _pinchDist;
+    if(Math.abs(k - 1) < 0.01) return;
+    _pinchDist = d;
+    if(firstPerson && camFP){
+      window._fpBaseFov = Math.max(25, Math.min(90, (window._fpBaseFov || 70) / k));
+    } else {
+      camZoomTarget = Math.max(CAM_MIN_SIZE, Math.min(CAM_MAX_SIZE, camZoomTarget / k));
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchend', () => { _pinchDist = 0; }, { passive: true });
+  // ---- per-frame tick (called from animate) ----------------------------
+  window._fpBaseFov = 70;
+  let _stepAcc = 0;
+  let _visitAcc = 0;
+  let _mapAcc = 0;
+  let _fovKick = 0;
+  window._niwaUXTick = function(dt, t, isMoving){
+    // footsteps — interval keyed to walk/run cadence
+    if(isMoving && !climbActive && Math.abs(verticalVel) < 0.5){
+      _stepAcc += dt;
+      const interval = keys.shift ? 0.30 : 0.45;
+      if(_stepAcc >= interval){
+        _stepAcc = 0;
+        playFootstep(keys.shift);
+      }
+    } else {
+      _stepAcc = 0.2;   // first step lands quickly when movement resumes
+    }
+    // run FOV kick (1P only) — additive on top of the wheel-zoom base
+    if(camFP){
+      const want = (firstPerson && isMoving && keys.shift) ? 6 : 0;
+      _fovKick = THREE.MathUtils.damp(_fovKick, want, 6, dt);
+      const fov = (window._fpBaseFov || 70) + _fovKick;
+      if(Math.abs(camFP.fov - fov) > 0.05){
+        camFP.fov = fov;
+        camFP.updateProjectionMatrix();
+      }
+    }
+    // visited-cell proximity (every 0.5 s)
+    _visitAcc += dt;
+    if(_visitAcc > 0.5){
+      _visitAcc = 0;
+      if(currentScene && currentScene.name === 'island'){
+        const sep = (typeof ISLAND_SEPARATION === 'number') ? ISLAND_SEPARATION : 20;
+        for(const k of MAP_CELLS){
+          const p = SCENE_WORLD_POS[k];
+          if(Math.hypot(avatar.position.x - p.dx * sep, avatar.position.z - p.dz * sep) < 8){
+            markVisited(k);
+          }
+        }
+      }
+    }
+    // minimap redraw (every 0.25 s)
+    _mapAcc += dt;
+    if(_mapAcc > 0.25){
+      _mapAcc = 0;
+      drawMinimap();
+    }
+  };
+  drawMinimap();
+  _syncGearUI();
+  return { markVisited, toggleMap, drawMinimap, get visited(){ return visited; } };
+})();
 // v666: rewritten from scratch.  Root cause of the "close button
 // doesn't work" bug: the previous implementation used WINDOW-level
 // capture-phase pointerdown listeners and only removed them when its
@@ -10725,8 +11126,19 @@ composer.addPass(renderPass);
 // + reduced-motion skip the pass entirely (no FBO/screen-quad cost).
 // v662: bloom + SMAA disabled per user perf complaint.  Both add
 // 3-8ms/frame (full-res FBO + screen quad each).  Plain composer.
+// v670: bloom returns on the HIGH tier only, at HALF resolution (the
+// v662 cost was a full-res FBO; half-res is ~1.5ms and the GLB diet
+// freed far more than that).  Lite keeps the plain composer.
 let bloom = null;
-// (intentionally not adding bloom or SMAA — see v662 perf reduction)
+if(!IS_LITE){
+  bloom = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2),
+    0.35,   // strength — soft highlight bleed only
+    0.4,    // radius
+    0.85    // threshold — shadows / midtones stay pristine
+  );
+  composer.addPass(bloom);
+}
 // Sun-shafts / god-rays pass: radial light streaks from the sun direction in screen space.
 // This is the signature look of the HDR Wallpaper reference photos (Yellowstone-style
 // "sun through mist" effect). Cheap radial blur towards sun screen position.
@@ -10772,8 +11184,11 @@ const SunShaftsShader = {
     }
   `,
 };
+// v670: SunShafts NOT added to the composer — uStrength has been
+// pinned to 0 since v66x, yet the pass still ran a 48-tap loop per
+// pixel every frame.  The shader + updateSunShafts stay for future
+// re-enable; re-add the pass here if uStrength ever goes above 0.
 const sunShafts = new ShaderPass(SunShaftsShader);
-composer.addPass(sunShafts);
 // HDR Wallpaper-style color grading: pushed saturation, shadow lift, warm/cool split,
 // plus contrast S-curve and chromatic-vignette for cinematic feel.
 const HDRGradeShader = {
@@ -11102,6 +11517,8 @@ function animate(){
     avatar.rotation.y = cur + diff * Math.min(1, dt * 14);
   }
   moving = Math.hypot(playerVel.x, playerVel.z) > 0.3;
+  // v670: RPG UX per-frame hook (footsteps / FOV kick / minimap / visited)
+  if(window._niwaUXTick) window._niwaUXTick(dt, t, moving);
 
   // v657: interactable proximity — find nearest in-range entry and
   // drive the HUD prompt.  Stashes on window for the keydown handler.
