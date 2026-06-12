@@ -3432,6 +3432,13 @@ const BLENDER_NAMES = [
   'ti_anchor', 'ti_barrel', 'ti_beacon', 'ti_boat', 'ti_cannon',
   'ti_chest', 'ti_crate', 'ti_helm', 'ti_lantern', 'ti_palm',
   'ti_rope', 'ti_skull',
+  // v670 — commercial-scene cell accents extracted by
+  // _blender/multi_pack_extract_v670.py (inventory-driven, exact-name).
+  // TIS ship is the SE-cliff showpiece; the rest theme the island cells.
+  'ti_ship', 'ti_hammock', 'ti_flag', 'ti_torch',
+  'val_bonfire', 'val_totem_a', 'val_totem_b', 'val_fishrack',
+  'val_firewood', 'val_dummy',
+  'df_statue', 'df_fountain', 'df_torch',
 ];
 const KOMINKA_VARIANTS = ['kominka', 'kominka_red', 'kominka_blue', 'kominka_green'];
 const CHIBI_VARIANTS = ['chibi', 'chibi_red', 'chibi_blue', 'chibi_green', 'chibi_yellow', 'chibi_monk', 'chibi_woman', 'chibi_child'];
@@ -8415,6 +8422,16 @@ SCENES.island = {
     if(typeof _streamRemainingIslandPrefabs === 'function'){
       _streamRemainingIslandPrefabs(root);
     }
+    // v670: plaza is not streamed, so its cell accents (fountain,
+    // practise dummy + legacy curation) and the pirate-ship showpiece
+    // are kicked off here.
+    if(typeof placeIslandCellAccents === 'function'){
+      placeIslandCellAccents('plaza', root, 0, 0)
+        .catch(e => console.warn('niwa[island]: plaza accents failed', e));
+    }
+    if(typeof placeIslandShip === 'function'){
+      placeIslandShip(root).catch(e => console.warn('niwa[island]: ship failed', e));
+    }
     // v654b: override the legacy ±SCENE_BOUND playable bounds set by
     // buildScene's fallback path.  Without this the bounds were a 17 m
     // disc at the origin and tab-teleports to monlight / oto etc.
@@ -8693,6 +8710,13 @@ async function _streamRemainingIslandPrefabs(root){
     }
     _islandStreamedCount++;
     console.log(`niwa[island]: streamed ${name} — scanned ${_meshes} meshes, +${_added} AABBs (${_islandStreamedCount}/9)`);
+    // v670: theme accents for this cell (Treasure Island / Valhalla /
+    // Dark Fantasy extracts + the legacy side-pack curation).  Fire and
+    // forget — placement no-ops if the user has left the island.
+    if(typeof placeIslandCellAccents === 'function'){
+      placeIslandCellAccents(name, root, x + offset, z + offset)
+        .catch(e => console.warn(`niwa[island]: accents for ${name} failed`, e));
+    }
   };
   // Run all 9 in parallel and wait for completion
   await Promise.all(ORDER.map(downloadAndPlace));
@@ -9542,6 +9566,104 @@ function placeSidePackAccents(name, root){
   }
   if(placed > 0) console.log(`niwa[${name}]: + ${placed} side-pack accents (solid)`);
   return placed;
+}
+
+/* === v670: island-panorama cell accents ===============================
+ * The SIDE_PACK_ACCENTS table only fires for singleton scenes — on the
+ * island panorama every cell streamed in bare.  This places BOTH the
+ * existing curation and the new v670 kit extracts (Treasure Island /
+ * Valhalla / Dark Fantasy) at each cell's world offset.
+ * Coordinates are cell-local (same convention as SIDE_PACK_ACCENTS);
+ * portals occupy (0, +5) in each cell so center-line spots avoid z≈5.
+ * ==================================================================== */
+const ISLAND_EXTRA_ACCENTS = {
+  mizube:   [['ti_boat',      6.5,  6.5, 0.90,  25],
+             ['ti_torch',    -4.0,  6.0, 0.90,   0],
+             ['ti_flag',      5.0, -5.0, 0.90,   0]],
+  tabi:     [['ti_hammock',   5.5,  4.5, 0.90,  40],
+             ['ti_flag',     -5.0,  5.0, 0.85,   0]],
+  takibi:   [['val_bonfire',  0.0, -5.5, 0.90,   0],
+             ['val_totem_a', -5.5,  4.0, 0.85,  20],
+             ['val_totem_b',  5.5,  4.0, 0.85, -20],
+             ['val_firewood', 1.8,  6.5, 0.90,   0],
+             ['val_fishrack',-3.5,  6.5, 0.85,  90]],
+  toki:     [['df_statue',   -6.0,  4.5, 0.80,  15],
+             ['df_statue',    6.0,  4.5, 0.80, -15],
+             ['df_torch',    -2.5,  6.0, 0.85,   0],
+             ['df_torch',     2.5,  6.0, 0.85,   0]],
+  hoshi:    [['ti_torch',    -4.5,  5.0, 0.85,   0],
+             ['ti_torch',     4.5,  5.0, 0.85,   0]],
+  monlight: [['df_statue',   -6.0, -5.0, 0.75, 160]],
+  amaoto:   [['val_fishrack', 4.5,  5.5, 0.80,   0]],
+  oto:      [['df_torch',    -4.0,  5.5, 0.85,   0],
+             ['df_torch',     4.0,  5.5, 0.85,   0]],
+  plaza:    [['df_fountain',  0.0, -6.5, 0.85,   0],
+             ['val_dummy',    6.5, -4.0, 0.90, -30]],
+};
+
+async function placeIslandCellAccents(cellName, root, cx, cz){
+  const list = [
+    ...(SIDE_PACK_ACCENTS[cellName] || []),
+    ...(ISLAND_EXTRA_ACCENTS[cellName] || []),
+  ];
+  if(!list.length) return 0;
+  // Load every unique asset first (cache-hit after the first cell).
+  const uniq = [...new Set(list.map(e => e[0]))];
+  await Promise.all(uniq.map(a => lazyLoadAsset(a).catch(() => null)));
+  if(!currentScene || currentScene.name !== 'island') return 0;
+  let placed = 0;
+  const _box = new THREE.Box3();
+  for(const [asset, x, z, sc, rot] of list){
+    const src = BLENDER_CACHE[asset];
+    if(!src) continue;
+    const m = src.clone(true);
+    m.scale.setScalar(sc);
+    m.position.set(cx + x, 0, cz + z);
+    m.rotation.y = rot * Math.PI / 180;
+    m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+    m.userData.skipRaycast = true;
+    m.userData.isSidePackAccent = true;
+    root.add(m);
+    try {
+      m.updateMatrixWorld(true);
+      _box.setFromObject(m);
+      const dx = _box.max.x - _box.min.x;
+      const dz = _box.max.z - _box.min.z;
+      let r = Math.min(dx, dz) * 0.45;
+      r = Math.max(0.30, Math.min(1.20, r));
+      if(ENTITIES.obstacles) ENTITIES.obstacles.push({ x: cx + x, z: cz + z, r });
+    } catch(_){}
+    placed++;
+  }
+  if(placed) console.log(`niwa[island/${cellName}]: + ${placed} cell accents`);
+  return placed;
+}
+
+// v670: pirate-ship showpiece moored off the SE cliff (beyond mizube).
+// Decorative — outside the ±35m playable bounds, sails rising over the
+// cloud sea.  Loaded lazily so it never blocks the splash.
+async function placeIslandShip(root){
+  try {
+    await lazyLoadAsset('ti_ship');
+  } catch(_){ return; }
+  if(!BLENDER_CACHE['ti_ship']) return;
+  if(!currentScene || currentScene.name !== 'island') return;
+  const m = blenderClone('ti_ship');
+  if(!m) return;
+  m.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(m);
+  const len = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) || 1;
+  const k = Math.min(1, 22 / len);   // cap hull length at ~22m
+  m.scale.setScalar(k);
+  m.position.set(40, -7.5, 40);      // hull sits below the disc edge
+  m.rotation.y = (-135) * Math.PI / 180;
+  m.traverse(o => {
+    if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; }
+  });
+  m.userData.skipRaycast = true;
+  m.userData.skipObstacle = true;
+  root.add(m);
+  console.log(`niwa[island]: pirate ship moored (scale ${k.toFixed(2)})`);
 }
 
 /* =================================================================
