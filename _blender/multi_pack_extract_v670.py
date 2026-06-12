@@ -58,7 +58,56 @@ def list_objs(blend):
     return _names_cache[blend]
 
 
+_TEX_INDEX = None
+
+def _texture_index():
+    """basename -> full path across all kit texture dirs.  VAL/DKF blends
+    store image paths that don't resolve from the local blend copies, so
+    we remap by filename."""
+    global _TEX_INDEX
+    if _TEX_INDEX is not None:
+        return _TEX_INDEX
+    _TEX_INDEX = {}
+    for d in (
+        r'C:\tmp\blends\ti\KB3DTextures',
+        r'C:\tmp\blends\val\Textures',
+        r'C:\tmp\blends\dkf\Textures',
+        os.path.join(BASE, r'KitBash3D - Valhalla\Blender\Textures'),
+        os.path.join(BASE, r'KitBash3D - Dark Fantasy\Textures'),
+    ):
+        if not os.path.isdir(d):
+            continue
+        for root, _dirs, files in os.walk(d):
+            for fn in files:
+                _TEX_INDEX.setdefault(fn.lower(), os.path.join(root, fn))
+    print(f'  [tex index] {len(_TEX_INDEX)} files', flush=True)
+    return _TEX_INDEX
+
+
+def fix_image_paths():
+    idx = _texture_index()
+    fixed = missing = 0
+    for img in bpy.data.images:
+        try:
+            if img.packed_file:
+                continue
+            ap = bpy.path.abspath(img.filepath)
+            if ap and os.path.exists(ap):
+                continue
+            hit = idx.get(os.path.basename(ap or img.name).lower())
+            if hit:
+                img.filepath = hit
+                fixed += 1
+            else:
+                missing += 1
+        except Exception:
+            pass
+    if fixed or missing:
+        print(f'  [tex fix] remapped {fixed}, unresolved {missing}', flush=True)
+
+
 def downscale_all_images(cap):
+    fix_image_paths()
     for img in bpy.data.images:
         try:
             img.reload()
@@ -67,6 +116,15 @@ def downscale_all_images(cap):
         try:
             if img.has_data and (img.size[0] > cap or img.size[1] > cap):
                 img.scale(cap, cap)
+                # Mark dirty so the glTF exporter encodes the in-memory
+                # downscaled pixels instead of copying the original file
+                # bytes (the ti_extract_v2-era 20-56MB props bug).
+                img.update()
+                if hasattr(img, 'is_dirty') and not img.is_dirty:
+                    try:
+                        img.pack()
+                    except Exception:
+                        pass
         except Exception:
             pass
 
