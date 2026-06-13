@@ -702,7 +702,7 @@ const SCENE_WORLD_POS = {
   plaza:    { dx:  0, dz:  0, label:'中央 — 森の村' },
   monlight: { dx: -1, dz:  0, label:'西 — 月光の書架' },
   oto:      { dx:  0, dz: -1, label:'北 — 音の祠' },
-  tabi:    { dx:  1, dz: -1, label:'北東 — ひとり旅の岸' },
+  tabi:    { dx:  1, dz: -1, label:'北東 — 旅立ちの道' },
   toki:    { dx:  1, dz:  0, label:'東 — 時の砂時計' },
   hoshi:   { dx:  0, dz:  1, label:'南 — 星見台' },
   takibi:  { dx: -1, dz:  1, label:'南西 — 焚き火の森' },
@@ -723,15 +723,15 @@ window._FLOATING_ISLAND_LINKS = {
   oto:      { label: '音楽の宇宙へ', href: 'salon.html',
               desc: '19,000 アーティストの星雲。', color: 0x88c0e8 },
   tabi:     { label: '一人旅へ', href: 'hitoritabi/',
-              desc: '静かな旅の記録。', color: 0xc89848 },
+              desc: 'ここから長い道が始まる。32の旅、1700枚の風景の記録へ。', color: 0xc89848 },
   toki:     { label: 'ストップウォッチ', href: 'stopwatch.html',
-              desc: '時を測る。', color: 0xe0d8b4 },
+              desc: '時計塔の足元で、時を測る。', color: 0xe0d8b4 },
   hoshi:    { label: '瞑想部屋へ', href: 'niwa.html?scene=hoshi_int',
-              desc: '静かな星空の下で。', color: 0xffe890 },
+              desc: '星見台の静かな星空の下で。', color: 0xffe890 },
   takibi:   { label: '小屋へ', href: 'cabin.html',
-              desc: '焚き火と書き物の場所。', color: 0xff9050 },
+              desc: 'この焚き火のそばで書かれた、小屋の記録へ。', color: 0xff9050 },
   mizube:   { label: '浮遊島の地図へ', href: 'world.html',
-              desc: '全島の俯瞰図。', color: 0xa0c8e0 },
+              desc: '桟橋の先に広がる雲海と、島々の俯瞰図へ。', color: 0xa0c8e0 },
   amaoto:   { label: 'TOEIC 模試', href: 'toeic-practice.html',
               desc: '雨音と共に集中。', color: 0x7898a8 },
 };
@@ -8824,6 +8824,11 @@ async function _streamRemainingIslandPrefabs(root){
     // that navigates to the matching homepage content when E pressed.
     const _link = window._FLOATING_ISLAND_LINKS && window._FLOATING_ISLAND_LINKS[name];
     if(_link){
+      // v672: portal sits where the link's CONCEPT lives (road entrance,
+      // pond dock, fireside) — see ISLAND_PORTAL_SPOTS.
+      const _spot = (typeof ISLAND_PORTAL_SPOTS !== 'undefined' && ISLAND_PORTAL_SPOTS[name]) || [0, 5];
+      const _px = x + offset + _spot[0];
+      const _pz = z + offset + _spot[1];
       const _portalRing = new THREE.Mesh(
         new THREE.RingGeometry(0.7, 1.0, 32),
         new THREE.MeshBasicMaterial({
@@ -8833,7 +8838,7 @@ async function _streamRemainingIslandPrefabs(root){
         })
       );
       _portalRing.rotation.x = -Math.PI * 0.5;
-      _portalRing.position.set(x + offset, 0.06, z + offset + 5);
+      _portalRing.position.set(_px, 0.06, _pz);
       _portalRing.userData.skipRaycast = true;
       root.add(_portalRing);
       // Vertical light beam
@@ -8845,7 +8850,7 @@ async function _streamRemainingIslandPrefabs(root){
           blending: THREE.AdditiveBlending,
         })
       );
-      _beam.position.set(x + offset, 7, z + offset + 5);
+      _beam.position.set(_px, 7, _pz);
       _beam.userData.skipRaycast = true;
       root.add(_beam);
       // v661: bright sphere icon hovering above each portal — visible
@@ -8857,16 +8862,16 @@ async function _streamRemainingIslandPrefabs(root){
           transparent: true, opacity: 0.85,
         })
       );
-      _icon.position.set(x + offset, 4.2, z + offset + 5);
+      _icon.position.set(_px, 4.2, _pz);
       _icon.userData.skipRaycast = true;
       _icon.userData.isNavIcon = true;
-      _icon.userData.basePos = { x: x + offset, y: 4.2, z: z + offset + 5 };
+      _icon.userData.basePos = { x: _px, y: 4.2, z: _pz };
       _icon.userData.color = _link.color || 0xffd890;
       root.add(_icon);
       if(!window._niwaNavIcons) window._niwaNavIcons = [];
       window._niwaNavIcons.push(_icon);
       ENTITIES.interactables.push({
-        x: x + offset, z: z + offset + 5, r: 2.5,
+        x: _px, z: _pz, r: 2.5,
         label: 'E: ' + _link.label,
         onActivate: () => {
           // Confirmation modal then navigate
@@ -8895,6 +8900,12 @@ async function _streamRemainingIslandPrefabs(root){
     if(typeof placeIslandCellAccents === 'function'){
       placeIslandCellAccents(name, root, x + offset, z + offset)
         .catch(e => console.warn(`niwa[island]: accents for ${name} failed`, e));
+    }
+    // v672: stage the cell's CONCEPT centrepiece (campfire / pond /
+    // long road / cottage interior) — fire and forget.
+    if(typeof _stageIslandCellConcepts === 'function'){
+      _stageIslandCellConcepts(name, root, x + offset, z + offset)
+        .catch(e => console.warn(`niwa[island]: concept for ${name} failed`, e));
     }
   };
   // Run all 9 in parallel and wait for completion
@@ -9807,7 +9818,14 @@ async function placeIslandCellAccents(cellName, root, cx, cz){
     if(!src) continue;
     const m = src.clone(true);
     m.scale.setScalar(sc);
-    m.position.set(cx + x, 0, cz + z);
+    // v672: snap each accent to the REAL ground under it (cobble discs
+    // sit above/below Y=0 in places) — fixes "オブジェクトが宙に浮く".
+    let gy = 0;
+    try {
+      const s = sampleHeight(cx + x, cz + z);
+      if(isFinite(s) && s > -0.5 && s < 3) gy = s;
+    } catch(_){}
+    m.position.set(cx + x, gy, cz + z);
     m.rotation.y = rot * Math.PI / 180;
     m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     m.userData.skipRaycast = true;
@@ -9854,6 +9872,102 @@ async function placeIslandShip(root){
   root.add(m);
   console.log(`niwa[island]: pirate ship moored (scale ${k.toFixed(2)})`);
 }
+
+/* === v672: per-cell CONCEPT centrepieces on the island ================
+ * The singleton scenes build their concept objects (campfire, pond,
+ * hourglass...) inside their own SCENES.<name>.build() — none of that
+ * ever ran on the island panorama, so 焚き火の森 had no fire and 水辺の岸
+ * had no water.  This stages the load-bearing concept piece per cell,
+ * reusing the module-scope builders (makeCampfire / makeWaterPlane).
+ * ==================================================================== */
+async function _stageIslandCellConcepts(name, root, cx, cz){
+  if(!currentScene || currentScene.name !== 'island') return;
+  try {
+    if(name === 'takibi'){
+      // 焚き火の森 — the fire IS the place.  Placed on the open SOUTH
+      // green (the cell's building occupies the north half; cz-2 put
+      // the first attempt INSIDE it).  Visible from the teleport spawn.
+      root.add(makeCampfire(cx + 0.5, cz + 4.5, 1.6));
+      root.add(makeCampfire(cx - 3.5, cz + 6.0, 1.0));
+      ENTITIES.obstacles.push({ x: cx + 0.5, z: cz + 4.5, r: 0.8 });
+      ENTITIES.obstacles.push({ x: cx - 3.5, z: cz + 6.0, r: 0.6 });
+    } else if(name === 'mizube'){
+      // 水辺の岸 — shader pond + wooden viewing dock.  The dock looks
+      // out over the cloud sea (→ world.html 俯瞰図 link concept).
+      const pond = makeWaterPlane(cx + 4.5, cz + 4.5, 9, 7, 0.05);
+      root.add(pond);
+      ENTITIES.obstacles.push({ x: cx + 4.5, z: cz + 4.5, r: 3.4 });
+      const dockMat = new THREE.MeshStandardMaterial({ color: 0x6a4828, roughness: 0.85 });
+      const dock = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.14, 3.6), dockMat);
+      dock.position.set(cx + 4.5, 0.10, cz + 1.6);
+      dock.castShadow = dock.receiveShadow = true;
+      dock.userData.isGroundMesh = true;
+      dock.userData.isWalkSurface = true;
+      root.add(dock);
+    } else if(name === 'tabi'){
+      // 旅立ちの道 — a long stone path running toward the NE cliff edge
+      // (the island's "way out"), lined with low way-markers.  The
+      // content portal sits at its ENTRANCE: the link to hitoritabi/
+      // reads as "ここから長い道が始まる".
+      const roadMat = new THREE.MeshStandardMaterial({ color: 0x9a8d74, roughness: 0.95 });
+      const road = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 17, 1, 1), roadMat);
+      road.rotation.x = -Math.PI / 2;
+      road.rotation.z = -Math.PI / 4;          // heads NE (+x, -z)
+      road.position.set(cx + 7.0, 0.03, cz - 7.0);
+      road.receiveShadow = true;
+      road.userData.isGroundMesh = true;
+      road.userData.isWalkSurface = true;
+      root.add(road);
+      const postMat = new THREE.MeshStandardMaterial({ color: 0x4a3a28, roughness: 0.9 });
+      const lampMat = new THREE.MeshBasicMaterial({ color: 0xffd890 });
+      for(let i = 0; i < 4; i++){
+        const t = 2.5 + i * 3.6;
+        const px = cx + t * 0.707, pz = cz - t * 0.707;
+        const side = (i % 2 ? 1 : -1) * 1.6;
+        const sx = px + side * 0.707, sz = pz + side * 0.707;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.1, 8), postMat);
+        post.position.set(sx, 0.55, sz);
+        post.castShadow = true;
+        root.add(post);
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), lampMat);
+        lamp.position.set(sx, 1.18, sz);
+        lamp.userData.skipRaycast = true;
+        root.add(lamp);
+        ENTITIES.obstacles.push({ x: sx, z: sz, r: 0.25 });
+      }
+    } else if(name === 'heya'){
+      // 丘の庵 — furnish the cottage INTERIOR (the cell teleport used to
+      // drop you beside an empty shell) and offer the real interior
+      // scene at the door.
+      try { await lazyLoadAsset('enc_int_heya'); } catch(_){}
+      if(BLENDER_CACHE['enc_int_heya'] && currentScene && currentScene.name === 'island'){
+        const fur = BLENDER_CACHE['enc_int_heya'].clone(true);
+        fur.scale.setScalar(0.5);
+        const fy = (typeof sampleHeight === 'function') ? sampleHeight(cx, cz) : 0;
+        fur.position.set(cx, isFinite(fy) ? fy : 0, cz);
+        fur.userData.skipRaycast = true;
+        fur.userData.skipObstacle = true;
+        root.add(fur);
+      }
+      ENTITIES.interactables.push({
+        x: cx, z: cz + 2.5, r: 2.2,
+        label: 'E: 庵に入る',
+        onActivate: () => { try { switchScene('heya', 'island'); } catch(_){} },
+      });
+    }
+  } catch(e){
+    console.warn(`niwa[island]: concept stage failed for ${name}`, e);
+  }
+}
+
+// v672: per-cell content-portal spots — placed where the LINK's concept
+// lives (road entrance, pond dock, fireside...) instead of a uniform
+// (0, +5) south of every cell centre.
+const ISLAND_PORTAL_SPOTS = {
+  tabi:   [ 2.2, -2.2],   // entrance of the long road (NE)
+  mizube: [ 4.5,  0.8],   // landward end of the pond dock
+  takibi: [ 3.5,  4.5],   // beside the central campfire (south green)
+};
 
 /* =================================================================
  * v618 / v619 — Building entry portals + healing interior modal
