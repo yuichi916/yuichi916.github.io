@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>異世界立体数独 ルーン・キューブ</title>
+<meta name="description" content="宙に浮く魔法のキューブに属性ルーンを並べる、異世界立体数独。X/Y/Zの全方向で重複なしに揃えよう。" />
+<style>
+  :root {
+    --accent: #c77dff;
+    --bg0: #07060f;
+    --panel: rgba(18, 16, 34, 0.78);
+    --panel-b: rgba(180, 160, 255, 0.22);
+    --text: #ece8ff;
+    --muted: #9b93c4;
+    --gold: #ffd27d;
+    --danger: #ff5a6e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg0); }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+    color: var(--text); user-select: none; touch-action: none;
+  }
+  #scene { position: fixed; inset: 0; z-index: 0; }
+  canvas { display: block; }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; pointer-events: none;
+  }
+  #hud > * { pointer-events: auto; }
+  .hud-pill {
+    background: var(--panel); border: 1px solid var(--panel-b); border-radius: 999px;
+    padding: 7px 14px; font-size: 14px; backdrop-filter: blur(8px);
+    display: flex; align-items: center; gap: 7px; white-space: nowrap;
+  }
+  .hud-pill b { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .hud-spacer { flex: 1; }
+  .icon-btn {
+    background: var(--panel); border: 1px solid var(--panel-b); color: var(--text);
+    width: 40px; height: 40px; border-radius: 12px; font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px);
+    transition: transform .12s, border-color .12s;
+  }
+  .icon-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .icon-btn.active { border-color: var(--accent); box-shadow: 0 0 14px -2px var(--accent); }
+
+  /* ---------- Slice panel (right) ---------- */
+  #slicePanel {
+    position: fixed; right: 12px; top: 50%; transform: translateY(-50%); z-index: 10;
+    background: var(--panel); border: 1px solid var(--panel-b); border-radius: 16px;
+    padding: 12px 10px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    backdrop-filter: blur(8px); width: 64px;
+  }
+  #slicePanel .axis-row { display: flex; gap: 4px; }
+  .axis-btn {
+    width: 24px; height: 26px; border-radius: 7px; border: 1px solid var(--panel-b);
+    background: transparent; color: var(--muted); font-weight: 700; cursor: pointer; font-size: 12px;
+  }
+  .axis-btn.on { color: #fff; border-color: var(--accent); background: rgba(199,125,255,.18); }
+  #sliceSlider { writing-mode: vertical-lr; direction: rtl; width: 26px; height: 160px; accent-color: var(--accent); }
+  #sliceLabel { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.3; }
+
+  /* ---------- Rune palette ---------- */
+  #palette { position: fixed; z-index: 30; pointer-events: none; }
+  #palette.show { pointer-events: auto; }
+  .pal-wrap {
+    position: absolute; transform: translate(-50%, -50%);
+    display: none; gap: 8px; flex-wrap: wrap; justify-content: center;
+    width: 230px; padding: 12px; border-radius: 18px;
+    background: var(--panel); border: 1px solid var(--panel-b); backdrop-filter: blur(12px);
+    box-shadow: 0 12px 40px -8px rgba(0,0,0,.7);
+  }
+  #palette.show .pal-wrap { display: flex; }
+  .rune-btn {
+    width: 54px; height: 54px; border-radius: 14px; border: 1px solid var(--panel-b);
+    background: rgba(255,255,255,.04); cursor: pointer; font-size: 26px; font-weight: 700;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    transition: transform .1s, box-shadow .1s;
+  }
+  .rune-btn small { font-size: 9px; color: var(--muted); }
+  .rune-btn:hover { transform: scale(1.08); }
+  .rune-btn.erase { color: var(--muted); font-size: 20px; }
+  .pal-toolbar { width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .pal-toolbar span { font-size: 12px; color: var(--muted); }
+  .note-toggle {
+    font-size: 11px; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--panel-b); background: transparent; color: var(--muted);
+  }
+  .note-toggle.on { color: #fff; border-color: var(--accent); background: rgba(199,125,255,.18); }
+
+  /* mobile bottom sheet */
+  @media (max-width: 768px) {
+    .pal-wrap {
+      position: fixed; left: 0 !important; right: 0; bottom: 0; top: auto !important;
+      transform: none; width: 100%; border-radius: 22px 22px 0 0; padding: 16px 16px 26px;
+    }
+  }
+
+  /* ---------- Start screen ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 35%, rgba(40,20,70,.7), rgba(5,4,12,.94));
+    backdrop-filter: blur(4px); padding: 20px;
+  }
+  .overlay.hidden { display: none; }
+  .card {
+    width: min(460px, 94vw); background: var(--panel); border: 1px solid var(--panel-b);
+    border-radius: 22px; padding: 26px 24px; text-align: center; backdrop-filter: blur(10px);
+    box-shadow: 0 20px 60px -12px rgba(0,0,0,.8);
+  }
+  .card h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: .04em; }
+  .card .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  .row-label { font-size: 12px; color: var(--muted); text-align: left; margin: 14px 0 6px; }
+  .seg { display: flex; gap: 8px; }
+  .seg button {
+    flex: 1; padding: 12px 6px; border-radius: 13px; border: 1px solid var(--panel-b);
+    background: rgba(255,255,255,.03); color: var(--text); cursor: pointer; font-size: 14px; line-height: 1.3;
+  }
+  .seg button small { display: block; font-size: 10px; color: var(--muted); }
+  .seg button.on { border-color: var(--accent); background: rgba(199,125,255,.16); box-shadow: 0 0 16px -4px var(--accent); }
+  .seg button:disabled { opacity: .4; cursor: not-allowed; }
+  .play-btn {
+    width: 100%; margin-top: 20px; padding: 15px; border: none; border-radius: 14px; cursor: pointer;
+    font-size: 17px; font-weight: 700; color: #160a26;
+    background: linear-gradient(135deg, var(--accent), #8a5bd6); box-shadow: 0 8px 26px -6px var(--accent);
+  }
+  .ghost-btn {
+    width: 100%; margin-top: 9px; padding: 12px; border-radius: 12px; cursor: pointer; font-size: 14px;
+    background: transparent; border: 1px solid var(--panel-b); color: var(--text);
+  }
+  .progress-strip {
+    display: flex; justify-content: center; gap: 16px; margin-top: 16px; font-size: 12px; color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .progress-strip b { color: var(--gold); }
+
+  /* ---------- Result modal ---------- */
+  .result-stars { font-size: 40px; letter-spacing: 6px; margin: 6px 0 10px; }
+  .result-line { color: var(--muted); font-size: 14px; margin: 3px 0; }
+  .result-line b { color: var(--text); }
+
+  /* ---------- Toast ---------- */
+  #toastWrap { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+  .toast {
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 18px;
+    font-size: 14px; backdrop-filter: blur(8px); box-shadow: 0 8px 24px -6px rgba(0,0,0,.6);
+    animation: toastIn .3s ease, toastOut .4s ease 2.4s forwards;
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(14px); } }
+  @keyframes toastOut { to { opacity: 0; transform: translateY(-10px); } }
+
+  /* ---------- Tutorial ---------- */
+  .tut-card { max-width: 360px; }
+  .tut-step { display: flex; gap: 12px; align-items: flex-start; text-align: left; margin: 12px 0; }
+  .tut-step .em { font-size: 24px; }
+  .tut-step .tx { font-size: 13px; color: var(--text); }
+  .tut-step .tx span { color: var(--muted); display: block; font-size: 12px; margin-top: 2px; }
+
+  /* world swatches */
+  .worlds { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
+  .world-chip {
+    padding: 7px 12px; border-radius: 999px; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--panel-b); background: rgba(255,255,255,.03); color: var(--text);
+  }
+  .world-chip.on { border-color: var(--accent); background: rgba(199,125,255,.16); }
+  .world-chip.locked { opacity: .4; cursor: not-allowed; }
+  .footer-note { margin-top: 14px; font-size: 11px; color: var(--muted); }
+  a.home { color: var(--muted); text-decoration: none; }
+</style>
+</head>
+<body>
+  <div id="scene"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-pill">⏱ <b id="timer">00:00</b></div>
+    <div class="hud-pill">✦ <b id="diffLabel">—</b></div>
+    <div class="hud-pill" title="ミス">✕ <b id="mistakes">0</b></div>
+    <div class="hud-spacer"></div>
+    <button class="icon-btn" id="hintBtn" title="魔法の導き（ヒント）">🔮<span id="hintCount" style="font-size:10px;margin-left:1px"></span></button>
+    <button class="icon-btn" id="explodeBtn" title="展開して全体を見る">🧊</button>
+    <button class="icon-btn" id="symBtn" title="ルーン⇄数字">⟳</button>
+    <button class="icon-btn" id="menuBtn" title="メニュー">☰</button>
+  </div>
+
+  <!-- Slice panel -->
+  <div id="slicePanel" class="hidden">
+    <div class="axis-row">
+      <button class="axis-btn on" data-axis="x">X</button>
+      <button class="axis-btn" data-axis="y">Y</button>
+      <button class="axis-btn" data-axis="z">Z</button>
+    </div>
+    <input type="range" id="sliceSlider" min="0" max="3" step="1" value="0" />
+    <div id="sliceLabel">層<br>全表示</div>
+    <button class="axis-btn" id="sliceAllBtn" style="width:auto;padding:2px 8px">全</button>
+  </div>
+
+  <!-- Palette -->
+  <div id="palette"><div class="pal-wrap" id="palWrap"></div></div>
+
+  <!-- Start / menu screen -->
+  <div class="overlay" id="startScreen">
+    <div class="card">
+      <h1>ルーン・キューブ</h1>
+      <div class="sub">異世界立体数独 — 宙に浮く魔法のキューブ</div>
+
+      <div class="row-label">難易度（キューブの大きさ）</div>
+      <div class="seg" id="diffSeg">
+        <button data-n="3" data-d="easy">初級<small>3×3×3</small></button>
+        <button data-n="4" data-d="normal" class="on">中級<small>4×4×4</small></button>
+        <button data-n="5" data-d="hard">上級<small>5×5×5</small></button>
+      </div>
+
+      <div class="row-label">世界（クリアで解放）</div>
+      <div class="worlds" id="worldRow"></div>
+
+      <button class="play-btn" id="playBtn">▶ 冒険をはじめる</button>
+      <button class="ghost-btn" id="dailyBtn">📅 今日の挑戦（デイリー）</button>
+      <button class="ghost-btn hidden" id="resumeBtn">↺ 続きから</button>
+
+      <div class="progress-strip">
+        <div>Lv <b id="pLevel">1</b></div>
+        <div>🔥 <b id="pStreak">0</b>日</div>
+        <div>🏆 <b id="pClears">0</b>勝</div>
+        <div>🌍 <b id="pWorlds">1</b></div>
+      </div>
+      <div class="footer-note"><a class="home" href="index.html">← トップへ戻る</a></div>
+    </div>
+  </div>
+
+  <!-- Result modal -->
+  <div class="overlay hidden" id="resultScreen">
+    <div class="card">
+      <h1 id="resultTitle">クリア！</h1>
+      <div class="result-stars" id="resultStars">★★★</div>
+      <div class="result-line">タイム <b id="resultTime">00:00</b></div>
+      <div class="result-line">ミス <b id="resultMistakes">0</b> ／ ヒント <b id="resultHints">0</b></div>
+      <div class="result-line" id="resultXp"></div>
+      <button class="play-btn" id="nextBtn">▶ 次の冒険へ</button>
+      <button class="ghost-btn" id="shareBtn">🔗 結果をコピー</button>
+      <button class="ghost-btn" id="resultMenuBtn">メニューへ</button>
+    </div>
+  </div>
+
+  <!-- Tutorial -->
+  <div class="overlay hidden" id="tutorialScreen">
+    <div class="card tut-card">
+      <h1>遊び方</h1>
+      <div class="tut-step"><div class="em">🖱️</div><div class="tx">ドラッグでキューブを回す<span>放置するとゆっくり自転。ホイール/ピンチでズーム。</span></div></div>
+      <div class="tut-step"><div class="em">🎚️</div><div class="tx">右のスライダーで層を1枚だけ見る<span>奥のセルもくっきり。X/Y/Z で切り口を変えられる。</span></div></div>
+      <div class="tut-step"><div class="em">✦</div><div class="tx">セルをタップしてルーンを置く<span>X・Y・Z の全方向で、同じルーンが重ならないように。</span></div></div>
+      <button class="play-btn" id="tutOkBtn">はじめる</button>
+    </div>
+  </div>
+
+  <div id="toastWrap"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ============================================================
+   LatinCube logic (inlined from _dev/latincube.mjs — keep in sync)
+   ============================================================ */
+function permute(N, rng) {
+  const a = [...Array(N).keys()];
+  for (let i = N - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function makeSolution(N, rng) {
+  const pi = permute(N, rng), pj = permute(N, rng), pk = permute(N, rng), sym = permute(N, rng);
+  const g = [];
+  for (let i = 0; i < N; i++) { g[i] = []; for (let j = 0; j < N; j++) { g[i][j] = []; for (let k = 0; k < N; k++) g[i][j][k] = sym[(pi[i] + pj[j] + pk[k]) % N]; } }
+  return g;
+}
+const flatIdx = (N, i, j, k) => (i * N + j) * N + k;
+function candidates(flat, N, i, j, k) {
+  const used = new Set();
+  for (let t = 0; t < N; t++) {
+    const a = flat[flatIdx(N, t, j, k)]; if (a >= 0) used.add(a);
+    const b = flat[flatIdx(N, i, t, k)]; if (b >= 0) used.add(b);
+    const c = flat[flatIdx(N, i, j, t)]; if (c >= 0) used.add(c);
+  }
+  const res = []; for (let v = 0; v < N; v++) if (!used.has(v)) res.push(v); return res;
+}
+function countSolutions(grid3d, N, limit) {
+  const flat = new Int8Array(N * N * N);
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) for (let k = 0; k < N; k++) flat[flatIdx(N, i, j, k)] = grid3d[i][j][k];
+  let count = 0;
+  function solve() {
+    let best = -1, bestC = null;
+    for (let p = 0; p < flat.length; p++) {
+      if (flat[p] !== -1) continue;
+      const i = Math.floor(p / (N * N)), j = Math.floor((p % (N * N)) / N), k = p % N;
+      const c = candidates(flat, N, i, j, k);
+      if (c.length === 0) return;
+      if (bestC === null || c.length < bestC.length) { best = p; bestC = c; if (c.length === 1) break; }
+    }
+    if (best === -1) { count++; return; }
+    for (const v of bestC) { flat[best] = v; solve(); flat[best] = -1; if (count >= limit) return; }
+  }
+  solve();
+  return count;
+}
+const BLANK_RATIO = { easy: 0.35, normal: 0.5, hard: 0.6 };
+function makePuzzle(N, difficulty, rng) {
+  const solution = makeSolution(N, rng);
+  const puzzle = solution.map((p) => p.map((r) => r.slice()));
+  const cells = [];
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) for (let k = 0; k < N; k++) cells.push([i, j, k]);
+  for (let m = cells.length - 1; m > 0; m--) { const r = Math.floor(rng() * (m + 1)); [cells[m], cells[r]] = [cells[r], cells[m]]; }
+  const target = Math.floor(N * N * N * BLANK_RATIO[difficulty]);
+  let blanks = 0;
+  for (const [i, j, k] of cells) {
+    if (blanks >= target) break;
+    const keep = puzzle[i][j][k]; puzzle[i][j][k] = -1;
+    if (countSolutions(puzzle, N, 2) === 1) blanks++; else puzzle[i][j][k] = keep;
+  }
+  return { puzzle, solution };
+}
+function rngSeq(seed) { let s = seed >>> 0; return () => (s = (1664525 * s + 1013904223) >>> 0) / 4294967296; }
+
+/* ============================================================
+   Themes / runes / worlds
+   ============================================================ */
+const RUNES = [
+  { glyph: 'ᚠ', name: '炎', color: '#ff7a45' },
+  { glyph: 'ᚢ', name: '水', color: '#45a8ff' },
+  { glyph: 'ᚦ', name: '風', color: '#5be0a0' },
+  { glyph: 'ᚨ', name: '地', color: '#e0b24a' },
+  { glyph: 'ᚱ', name: '雷', color: '#c77dff' },
+];
+const WORLDS = [
+  { id: 'dark', name: '闇のF', full: '闇のファンタジー', accent: '#c77dff', fallback: '#0a0814', unlockAt: 0 },
+  { id: 'enchanted', name: 'エンチャント', full: 'エンチャント', accent: '#5be0a0', fallback: '#08160f', unlockAt: 2 },
+  { id: 'valhalla', name: 'ヴァルハラ', full: 'ヴァルハラ', accent: '#ffd27d', fallback: '#161007', unlockAt: 5 },
+  { id: 'treasure', name: '宝島', full: 'トレジャーアイランド', accent: '#45c8ff', fallback: '#06141c', unlockAt: 9 },
+];
+const DIFF_NAME = { easy: '初級', normal: '中級', hard: '上級' };
+const HINT_BY_DIFF = { easy: 5, normal: 4, hard: 3 };
+
+/* ============================================================
+   Progression (localStorage)
+   ============================================================ */
+const PROG_KEY = 'isekai_rune_cube_prog_v1';
+const SAVE_KEY = 'isekai_rune_cube_save_v1';
+const TUT_KEY = 'isekai_rune_cube_tutorial_v1';
+
+function todayStr() { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; }
+function loadProg() {
+  try { const p = JSON.parse(localStorage.getItem(PROG_KEY)); if (p) return p; } catch (e) {}
+  return { xp: 0, level: 1, streak: 0, lastDaily: null, clears: 0, byN: { 3: 0, 4: 0, 5: 0 }, bestTimes: {}, achievements: {}, symbolMode: 'rune' };
+}
+function saveProg(p) { localStorage.setItem(PROG_KEY, JSON.stringify(p)); }
+function unlockedWorldCount(p) { return WORLDS.filter((w) => p.clears >= w.unlockAt).length; }
+function levelFromXp(xp) { return 1 + Math.floor(xp / 100); }
+
+let prog = loadProg();
+
+/* ============================================================
+   Game state
+   ============================================================ */
+const G = {
+  N: 4, difficulty: 'normal', world: 'dark', isDaily: false,
+  puzzle: null, solution: null, grid: null, fixed: null, notes: null,
+  selected: null, sliceAxis: 'x', sliceLayer: null, explode: false,
+  symbolMode: prog.symbolMode || 'rune',
+  mistakes: 0, hintsUsed: 0, hintsLeft: 4,
+  elapsed: 0, running: false, lastTick: 0, finished: false,
+};
+
+const key = (i, j, k) => `${i},${j},${k}`;
+
+/* ============================================================
+   Three.js view
+   ============================================================ */
+const sceneEl = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+sceneEl.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0814);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(6, 5, 8);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enablePan = false;
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 4;
+controls.maxDistance = 22;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.6;
+
+scene.add(new THREE.AmbientLight(0xb9a9ff, 0.7));
+const dir = new THREE.DirectionalLight(0xffffff, 1.1); dir.position.set(6, 10, 6); scene.add(dir);
+const rim = new THREE.DirectionalLight(0x7a5bff, 0.6); rim.position.set(-8, -3, -6); scene.add(rim);
+
+const cubeGroup = new THREE.Group();
+scene.add(cubeGroup);
+
+const SPACING = 1.32;
+const CELL = 1.06;
+let cells = [];           // cells[i][j][k] = { group, box, edges, sprite, i,j,k }
+const glyphTexCache = {}; // `${idx}_${mode}` -> texture
+
+function glyphTexture(value) {
+  const id = `${value}_${G.symbolMode}`;
+  if (glyphTexCache[id]) return glyphTexCache[id];
+  const s = 160; const cv = document.createElement('canvas'); cv.width = cv.height = s;
+  const ctx = cv.getContext('2d');
+  const rune = RUNES[value];
+  const txt = G.symbolMode === 'rune' ? rune.glyph : String(value + 1);
+  ctx.clearRect(0, 0, s, s);
+  ctx.font = `700 ${G.symbolMode === 'rune' ? 110 : 96}px "Hiragino Mincho ProN", serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = rune.color; ctx.shadowBlur = 26;
+  ctx.fillStyle = '#fff'; ctx.fillText(txt, s / 2, s / 2 + 6);
+  ctx.shadowBlur = 0; ctx.fillStyle = rune.color; ctx.globalAlpha = 0.9; ctx.fillText(txt, s / 2, s / 2 + 6);
+  const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4;
+  glyphTexCache[id] = tex; return tex;
+}
+
+function disposeCube() {
+  cubeGroup.clear();
+  cells.forEach((p) => p.forEach((r) => r.forEach((c) => {
+    c.box.geometry.dispose(); c.box.material.dispose();
+    c.edges.geometry.dispose(); c.edges.material.dispose();
+    if (c.sprite) c.sprite.material.dispose();
+  })));
+  cells = [];
+}
+
+function cellPos(i, j, k) {
+  const N = G.N; const off = (N - 1) / 2;
+  let sp = SPACING;
+  const p = new THREE.Vector3((i - off) * sp, (j - off) * sp, (k - off) * sp);
+  if (G.explode) {
+    const ax = G.sliceAxis; const mul = 1.9;
+    if (ax === 'x') p.x = (i - off) * SPACING * mul;
+    if (ax === 'y') p.y = (j - off) * SPACING * mul;
+    if (ax === 'z') p.z = (k - off) * SPACING * mul;
+  }
+  return p;
+}
+
+function buildCube() {
+  disposeCube();
+  const N = G.N;
+  const boxGeo = new THREE.BoxGeometry(CELL, CELL, CELL);
+  const edgeGeo = new THREE.EdgesGeometry(boxGeo);
+  for (let i = 0; i < N; i++) {
+    cells[i] = [];
+    for (let j = 0; j < N; j++) {
+      cells[i][j] = [];
+      for (let k = 0; k < N; k++) {
+        const group = new THREE.Group();
+        const box = new THREE.Mesh(boxGeo.clone(), new THREE.MeshStandardMaterial({
+          color: 0x2a2440, transparent: true, opacity: 0.12, roughness: 0.3, metalness: 0.1,
+          emissive: 0x000000, depthWrite: false,
+        }));
+        box.userData = { i, j, k };
+        const edges = new THREE.LineSegments(edgeGeo.clone(), new THREE.LineBasicMaterial({ color: 0x6a5a9a, transparent: true, opacity: 0.5 }));
+        group.add(box); group.add(edges);
+        group.position.copy(cellPos(i, j, k));
+        cubeGroup.add(group);
+        cells[i][j][k] = { group, box, edges, sprite: null, i, j, k };
+      }
+    }
+  }
+  controls.target.set(0, 0, 0);
+  const dist = N * 2.0 + 2.2;
+  camera.position.set(dist * 0.62, dist * 0.5, dist * 0.78);
+  controls.minDistance = N * 0.9; controls.maxDistance = N * 5;
+  updateAllVisuals();
+}
+
+function setSpriteForCell(c, value) {
+  if (c.sprite) { c.group.remove(c.sprite); c.sprite.material.dispose(); c.sprite = null; }
+  if (value < 0) return;
+  const mat = new THREE.SpriteMaterial({ map: glyphTexture(value), transparent: true, depthTest: true, depthWrite: false });
+  const sp = new THREE.Sprite(mat); sp.scale.set(0.82, 0.82, 0.82);
+  c.sprite = sp; c.group.add(sp);
+}
+
+/* visual state per cell, recomputed on change */
+let conflictSet = new Set();
+function computeConflicts() {
+  const N = G.N; const cf = new Set();
+  const scan = (getCell) => {
+    const map = new Map();
+    for (let t = 0; t < N; t++) { const cc = getCell(t); const v = G.grid[cc.i][cc.j][cc.k]; if (v < 0) continue; if (!map.has(v)) map.set(v, []); map.get(v).push(cc); }
+    for (const arr of map.values()) if (arr.length > 1) arr.forEach((cc) => cf.add(key(cc.i, cc.j, cc.k)));
+  };
+  for (let a = 0; a < N; a++) for (let b = 0; b < N; b++) {
+    scan((t) => ({ i: t, j: a, k: b }));
+    scan((t) => ({ i: a, j: t, k: b }));
+    scan((t) => ({ i: a, j: b, k: t }));
+  }
+  conflictSet = cf;
+}
+
+function inGuideLines(i, j, k) {
+  const s = G.selected; if (!s) return false;
+  return (i === s.i && j === s.j) || (j === s.j && k === s.k) || (i === s.i && k === s.k);
+}
+
+function updateAllVisuals() {
+  computeConflicts();
+  const N = G.N;
+  const accent = new THREE.Color(curAccent());
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) for (let k = 0; k < N; k++) {
+    const c = cells[i][j][k]; const v = G.grid[i][j][k]; const fixed = G.fixed[i][j][k];
+    setSpriteForCell(c, v);
+    // base colors
+    let opacity = 0.1, eColor = 0x6a5a9a, eOpacity = 0.45, emissive = 0x000000;
+    if (v >= 0) { opacity = 0.16; emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.28).getHex(); }
+    if (fixed) { eColor = 0xffd27d; eOpacity = 0.85; }
+    // slice ghosting
+    let visible = true;
+    if (G.sliceLayer !== null) {
+      const onLayer = (G.sliceAxis === 'x' && i === G.sliceLayer) || (G.sliceAxis === 'y' && j === G.sliceLayer) || (G.sliceAxis === 'z' && k === G.sliceLayer);
+      if (!onLayer) { opacity *= 0.18; eOpacity *= 0.12; }
+      else { opacity = Math.max(opacity, 0.22); eOpacity = Math.min(1, eOpacity + 0.2); }
+    }
+    // selection / guide
+    if (G.selected && G.selected.i === i && G.selected.j === j && G.selected.k === k) {
+      eColor = accent.getHex(); eOpacity = 1; emissive = accent.clone().multiplyScalar(0.5).getHex(); opacity = Math.max(opacity, 0.3);
+    } else if (inGuideLines(i, j, k)) {
+      eColor = accent.getHex(); eOpacity = Math.min(1, eOpacity + 0.35);
+    }
+    // same-symbol highlight
+    if (G.selected) { const sv = G.grid[G.selected.i][G.selected.j][G.selected.k]; if (sv >= 0 && v === sv) emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.6).getHex(); }
+    c.box.material.opacity = opacity; c.box.material.emissive.setHex(emissive);
+    c.edges.material.color.setHex(eColor); c.edges.material.opacity = eOpacity;
+    c.group.position.copy(cellPos(i, j, k));
+    c.group.visible = visible;
+    c._conflict = conflictSet.has(key(i, j, k));
+  }
+}
+
+function curAccent() { return (WORLDS.find((w) => w.id === G.world) || WORLDS[0]).accent; }
+
+/* ============================================================
+   Interaction: rotate vs click, raycast
+   ============================================================ */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let pdown = null, idleTimer = null;
+
+function resetIdle() { controls.autoRotate = false; clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (!G.finished) controls.autoRotate = true; }, 3000); }
+
+renderer.domElement.addEventListener('pointerdown', (e) => { pdown = { x: e.clientX, y: e.clientY, t: Date.now() }; resetIdle(); });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!pdown) return;
+  const moved = Math.hypot(e.clientX - pdown.x, e.clientY - pdown.y);
+  const dt = Date.now() - pdown.t; pdown = null;
+  if (moved < 6 && dt < 500) handlePick(e.clientX, e.clientY);
+});
+
+function handlePick(cx, cy) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  ndc.x = ((cx - rect.left) / rect.width) * 2 - 1;
+  ndc.y = -((cy - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const meshes = [];
+  cells.forEach((p) => p.forEach((r) => r.forEach((c) => { if (c.group.visible) meshes.push(c.box); })));
+  const hit = raycaster.intersectObjects(meshes, false);
+  if (hit.length) { const { i, j, k } = hit[0].object.userData; selectCell(i, j, k); }
+  else { closePalette(); G.selected = null; updateAllVisuals(); }
+}
+
+function selectCell(i, j, k) {
+  if (G.fixed[i][j][k]) { G.selected = { i, j, k }; updateAllVisuals(); closePalette(); return; }
+  G.selected = { i, j, k };
+  updateAllVisuals();
+  openPalette(i, j, k);
+}
+
+/* ============================================================
+   Palette
+   ============================================================ */
+const paletteEl = document.getElementById('palette');
+const palWrap = document.getElementById('palWrap');
+let noteMode = false;
+
+function buildPaletteButtons() {
+  palWrap.innerHTML = '';
+  const bar = document.createElement('div'); bar.className = 'pal-toolbar';
+  const lbl = document.createElement('span'); lbl.textContent = noteMode ? 'メモ入力' : 'ルーンを置く';
+  const nt = document.createElement('button'); nt.className = 'note-toggle' + (noteMode ? ' on' : ''); nt.textContent = '✎ メモ';
+  nt.onclick = (e) => { e.stopPropagation(); noteMode = !noteMode; buildPaletteButtons(); };
+  bar.appendChild(lbl); bar.appendChild(nt); palWrap.appendChild(bar);
+  for (let v = 0; v < G.N; v++) {
+    const b = document.createElement('button'); b.className = 'rune-btn';
+    b.style.color = RUNES[v].color;
+    b.innerHTML = `${G.symbolMode === 'rune' ? RUNES[v].glyph : (v + 1)}<small>${RUNES[v].name}</small>`;
+    b.onclick = (e) => { e.stopPropagation(); onPick(v); };
+    palWrap.appendChild(b);
+  }
+  const er = document.createElement('button'); er.className = 'rune-btn erase'; er.innerHTML = '⌫<small>消去</small>';
+  er.onclick = (e) => { e.stopPropagation(); onPick(-1); };
+  palWrap.appendChild(er);
+}
+
+function openPalette(i, j, k) {
+  buildPaletteButtons();
+  paletteEl.classList.add('show');
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  if (!isMobile) {
+    const v = cellPos(i, j, k).clone().project(camera);
+    const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+    palWrap.style.left = Math.min(window.innerWidth - 130, Math.max(130, x)) + 'px';
+    palWrap.style.top = Math.min(window.innerHeight - 120, Math.max(120, y - 110)) + 'px';
+  }
+}
+function closePalette() { paletteEl.classList.remove('show'); }
+
+function onPick(v) {
+  const s = G.selected; if (!s) return;
+  if (G.fixed[s.i][s.j][s.k]) return;
+  if (noteMode && v >= 0) {
+    const kk = key(s.i, s.j, s.k); const set = G.notes[kk] || (G.notes[kk] = new Set());
+    if (set.has(v)) set.delete(v); else set.add(v);
+    scheduleSave(); return;
+  }
+  const prev = G.grid[s.i][s.j][s.k];
+  G.grid[s.i][s.j][s.k] = v;
+  if (v >= 0) {
+    G.notes[key(s.i, s.j, s.k)] = new Set();
+    if (v !== G.solution[s.i][s.j][s.k] && v !== prev) { G.mistakes++; document.getElementById('mistakes').textContent = G.mistakes; pulseToast('むむ、その方向に同じルーンが…'); }
+  }
+  updateAllVisuals();
+  scheduleSave();
+  checkClear();
+}
+
+/* ============================================================
+   HUD / timer / hints
+   ============================================================ */
+function fmt(t) { const m = Math.floor(t / 60), s = t % 60; return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`; }
+function tickLoop() {
+  if (G.running && !G.finished) {
+    const now = Date.now();
+    if (now - G.lastTick >= 1000) { G.elapsed += Math.floor((now - G.lastTick) / 1000); G.lastTick = now; document.getElementById('timer').textContent = fmt(G.elapsed); }
+  }
+}
+function useHint() {
+  if (G.hintsLeft <= 0 || G.finished) { pulseToast('ヒントを使い切ったのだ'); return; }
+  const blanks = [];
+  for (let i = 0; i < G.N; i++) for (let j = 0; j < G.N; j++) for (let k = 0; k < G.N; k++) if (G.grid[i][j][k] < 0) blanks.push([i, j, k]);
+  if (!blanks.length) return;
+  const [i, j, k] = blanks[Math.floor(Math.random() * blanks.length)];
+  G.grid[i][j][k] = G.solution[i][j][k];
+  G.hintsUsed++; G.hintsLeft--; document.getElementById('hintCount').textContent = G.hintsLeft;
+  G.selected = { i, j, k };
+  updateAllVisuals(); scheduleSave(); checkClear();
+}
+
+/* ============================================================
+   Clear / result / progression
+   ============================================================ */
+function isComplete() {
+  for (let i = 0; i < G.N; i++) for (let j = 0; j < G.N; j++) for (let k = 0; k < G.N; k++) if (G.grid[i][j][k] < 0) return false;
+  return conflictSet.size === 0;
+}
+function checkClear() {
+  computeConflicts();
+  if (!isComplete()) return;
+  G.finished = true; G.running = false; controls.autoRotate = true; controls.autoRotateSpeed = 2.2;
+  closePalette();
+  const stars = Math.max(1, 3 - Math.min(2, Math.floor(G.mistakes / 3) + (G.hintsUsed > 0 ? 1 : 0)));
+  const gained = (G.N * 10) + stars * 15 + (G.mistakes === 0 ? 20 : 0);
+  prog.xp += gained; prog.level = levelFromXp(prog.xp); prog.clears++; prog.byN[G.N] = (prog.byN[G.N] || 0) + 1;
+  const bkey = `${G.N}_${G.difficulty}`; if (!prog.bestTimes[bkey] || G.elapsed < prog.bestTimes[bkey]) prog.bestTimes[bkey] = G.elapsed;
+  // achievements
+  grantAch('first', '初めての解放');
+  if (G.mistakes === 0) grantAch('flawless', 'ノーミス達成');
+  if (G.hintsUsed === 0) grantAch('nohint', 'ヒント無し');
+  if (G.N === 5) grantAch('master5', '5×5×5 制覇');
+  // world unlock check
+  const before = G._worldsBefore || 1; const after = unlockedWorldCount(prog);
+  saveProg(prog); localStorage.removeItem(SAVE_KEY);
+  showResult(stars, gained, after > before);
+}
+function grantAch(id, label) { if (!prog.achievements[id]) { prog.achievements[id] = true; pulseToast('🏅 実績: ' + label); } }
+
+function showResult(stars, gained, newWorld) {
+  document.getElementById('resultStars').textContent = '★★★☆☆'.slice(3 - stars, 6 - stars);
+  document.getElementById('resultTime').textContent = fmt(G.elapsed);
+  document.getElementById('resultMistakes').textContent = G.mistakes;
+  document.getElementById('resultHints').textContent = G.hintsUsed;
+  document.getElementById('resultXp').innerHTML = `+${gained} XP　Lv.${prog.level}` + (newWorld ? '　🌍 新しい世界が解放！' : '');
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('slicePanel').classList.add('hidden');
+  document.getElementById('resultScreen').classList.remove('hidden');
+}
+
+/* ============================================================
+   Save / restore
+   ============================================================ */
+let saveTimer = null;
+function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(doSave, 400); }
+function doSave() {
+  if (G.finished) return;
+  const notesObj = {}; for (const kk in G.notes) if (G.notes[kk] && G.notes[kk].size) notesObj[kk] = [...G.notes[kk]];
+  localStorage.setItem(SAVE_KEY, JSON.stringify({
+    N: G.N, difficulty: G.difficulty, world: G.world, isDaily: G.isDaily,
+    puzzle: G.puzzle, solution: G.solution, grid: G.grid, fixed: G.fixed, notes: notesObj,
+    mistakes: G.mistakes, hintsUsed: G.hintsUsed, hintsLeft: G.hintsLeft, elapsed: G.elapsed, symbolMode: G.symbolMode,
+  }));
+}
+function hasSave() { return !!localStorage.getItem(SAVE_KEY); }
+function restoreSave() {
+  let s; try { s = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return false; }
+  if (!s) return false;
+  Object.assign(G, {
+    N: s.N, difficulty: s.difficulty, world: s.world, isDaily: s.isDaily,
+    puzzle: s.puzzle, solution: s.solution, grid: s.grid, fixed: s.fixed,
+    notes: {}, mistakes: s.mistakes, hintsUsed: s.hintsUsed, hintsLeft: s.hintsLeft, elapsed: s.elapsed,
+    symbolMode: s.symbolMode || 'rune', selected: null, sliceLayer: null, explode: false, finished: false,
+  });
+  for (const kk in (s.notes || {})) G.notes[kk] = new Set(s.notes[kk]);
+  startRound(true);
+  return true;
+}
+
+/* ============================================================
+   New game
+   ============================================================ */
+function newGame(N, difficulty, world, isDaily) {
+  G.N = N; G.difficulty = difficulty; G.world = world || G.world; G.isDaily = !!isDaily;
+  const rng = isDaily ? rngSeq(parseInt(todayStr(), 10) + N) : Math.random;
+  const { puzzle, solution } = makePuzzle(N, difficulty, rng);
+  G.puzzle = puzzle; G.solution = solution;
+  G.grid = puzzle.map((p) => p.map((r) => r.slice()));
+  G.fixed = puzzle.map((p) => p.map((r) => r.map((v) => v >= 0)));
+  G.notes = {}; G.mistakes = 0; G.hintsUsed = 0; G.hintsLeft = HINT_BY_DIFF[difficulty];
+  G.elapsed = 0; G.selected = null; G.sliceLayer = null; G.explode = false; G.finished = false;
+  startRound(false);
+}
+
+function startRound(resumed) {
+  applyWorld(G.world);
+  buildCube();
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('resultScreen').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('slicePanel').classList.remove('hidden');
+  document.getElementById('diffLabel').textContent = DIFF_NAME[G.difficulty] + (G.isDaily ? '・デイリー' : '');
+  document.getElementById('mistakes').textContent = G.mistakes;
+  document.getElementById('hintCount').textContent = G.hintsLeft;
+  document.getElementById('timer').textContent = fmt(G.elapsed);
+  const slider = document.getElementById('sliceSlider'); slider.max = G.N - 1; slider.value = 0;
+  document.getElementById('sliceLabel').innerHTML = '層<br>全表示';
+  document.querySelectorAll('.axis-btn[data-axis]').forEach((b) => b.classList.toggle('on', b.dataset.axis === G.sliceAxis));
+  G._worldsBefore = unlockedWorldCount(prog);
+  G.running = true; G.lastTick = Date.now();
+  if (!localStorage.getItem(TUT_KEY)) document.getElementById('tutorialScreen').classList.remove('hidden');
+}
+
+/* ============================================================
+   World background
+   ============================================================ */
+const texLoader = new THREE.TextureLoader();
+function applyWorld(worldId) {
+  const w = WORLDS.find((x) => x.id === worldId) || WORLDS[0];
+  G.world = w.id;
+  document.documentElement.style.setProperty('--accent', w.accent);
+  scene.background = new THREE.Color(w.fallback);
+  texLoader.load(`assets/sudoku/${w.id}/bg.jpg`, (tex) => {
+    tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.SRGBColorSpace;
+    scene.background = tex;
+  }, undefined, () => { scene.background = new THREE.Color(w.fallback); });
+}
+
+/* ============================================================
+   UI wiring
+   ============================================================ */
+function pulseToast(msg) {
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  document.getElementById('toastWrap').appendChild(t);
+  setTimeout(() => t.remove(), 2900);
+}
+
+let selDiff = { n: 4, d: 'normal' }, selWorld = 'dark';
+function refreshStartScreen() {
+  prog = loadProg();
+  document.getElementById('pLevel').textContent = prog.level;
+  document.getElementById('pStreak').textContent = prog.streak;
+  document.getElementById('pClears').textContent = prog.clears;
+  document.getElementById('pWorlds').textContent = unlockedWorldCount(prog);
+  // worlds
+  const row = document.getElementById('worldRow'); row.innerHTML = '';
+  WORLDS.forEach((w) => {
+    const unlocked = prog.clears >= w.unlockAt;
+    const chip = document.createElement('button');
+    chip.className = 'world-chip' + (w.id === selWorld ? ' on' : '') + (unlocked ? '' : ' locked');
+    chip.textContent = unlocked ? w.name : `🔒${w.name}`;
+    if (unlocked) chip.onclick = () => { selWorld = w.id; refreshStartScreen(); };
+    else chip.title = `あと${w.unlockAt - prog.clears}勝で解放`;
+    row.appendChild(chip);
+  });
+  document.getElementById('resumeBtn').classList.toggle('hidden', !hasSave());
+}
+
+document.getElementById('diffSeg').querySelectorAll('button').forEach((b) => {
+  b.onclick = () => {
+    document.getElementById('diffSeg').querySelectorAll('button').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on'); selDiff = { n: +b.dataset.n, d: b.dataset.d };
+  };
+});
+document.getElementById('playBtn').onclick = () => newGame(selDiff.n, selDiff.d, selWorld, false);
+document.getElementById('dailyBtn').onclick = () => {
+  // streak update
+  const t = todayStr();
+  if (prog.lastDaily !== t) {
+    const y = new Date(Date.now() - 86400000); const ystr = `${y.getFullYear()}${String(y.getMonth() + 1).padStart(2, '0')}${String(y.getDate()).padStart(2, '0')}`;
+    prog.streak = (prog.lastDaily === ystr) ? prog.streak + 1 : 1; prog.lastDaily = t; saveProg(prog);
+  }
+  newGame(4, 'normal', selWorld, true);
+};
+document.getElementById('resumeBtn').onclick = () => { if (!restoreSave()) pulseToast('保存データが見つからないのだ'); };
+
+document.getElementById('hintBtn').onclick = useHint;
+document.getElementById('symBtn').onclick = () => {
+  G.symbolMode = G.symbolMode === 'rune' ? 'number' : 'rune';
+  prog.symbolMode = G.symbolMode; saveProg(prog);
+  for (const k in glyphTexCache) delete glyphTexCache[k];
+  updateAllVisuals(); if (paletteEl.classList.contains('show')) buildPaletteButtons();
+};
+document.getElementById('explodeBtn').onclick = (e) => { G.explode = !G.explode; e.currentTarget.classList.toggle('active', G.explode); updateAllVisuals(); };
+document.getElementById('menuBtn').onclick = () => { doSave(); G.running = false; document.getElementById('hud').classList.add('hidden'); document.getElementById('slicePanel').classList.add('hidden'); closePalette(); refreshStartScreen(); document.getElementById('startScreen').classList.remove('hidden'); };
+
+document.querySelectorAll('.axis-btn[data-axis]').forEach((b) => {
+  b.onclick = () => {
+    G.sliceAxis = b.dataset.axis;
+    document.querySelectorAll('.axis-btn[data-axis]').forEach((x) => x.classList.toggle('on', x === b));
+    if (G.sliceLayer !== null) setSlice(G.sliceAxis, +document.getElementById('sliceSlider').value);
+    if (G.explode) updateAllVisuals();
+  };
+});
+const slider = document.getElementById('sliceSlider');
+slider.oninput = () => setSlice(G.sliceAxis, +slider.value);
+document.getElementById('sliceAllBtn').onclick = () => { G.sliceLayer = null; document.getElementById('sliceLabel').innerHTML = '層<br>全表示'; updateAllVisuals(); };
+function setSlice(axis, layer) {
+  G.sliceAxis = axis; G.sliceLayer = layer;
+  document.getElementById('sliceLabel').innerHTML = `${axis.toUpperCase()}層<br>${layer + 1}/${G.N}`;
+  updateAllVisuals();
+}
+
+document.getElementById('nextBtn').onclick = () => newGame(G.N, G.difficulty, G.world, false);
+document.getElementById('resultMenuBtn').onclick = () => { document.getElementById('resultScreen').classList.add('hidden'); refreshStartScreen(); document.getElementById('startScreen').classList.remove('hidden'); };
+document.getElementById('shareBtn').onclick = () => {
+  const stars = document.getElementById('resultStars').textContent;
+  const txt = `異世界立体数独 ルーン・キューブ ${G.N}×${G.N}×${G.N}（${DIFF_NAME[G.difficulty]}）${stars} ${fmt(G.elapsed)} ミス${G.mistakes}\nyuichi916.github.io/sudoku.html`;
+  navigator.clipboard?.writeText(txt).then(() => pulseToast('結果をコピーしたのだ'), () => pulseToast(txt));
+};
+document.getElementById('tutOkBtn').onclick = () => { localStorage.setItem(TUT_KEY, '1'); document.getElementById('tutorialScreen').classList.add('hidden'); };
+
+/* ============================================================
+   Render loop
+   ============================================================ */
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  controls.update();
+  tickLoop();
+  // conflict pulse
+  const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+  for (let i = 0; i < G.N; i++) if (cells[i]) for (let j = 0; j < G.N; j++) for (let k = 0; k < G.N; k++) {
+    const c = cells[i] && cells[i][j] && cells[i][j][k]; if (!c) continue;
+    if (c._conflict) { c.edges.material.color.setHex(0xff5a6e); c.edges.material.opacity = 0.5 + 0.5 * pulse; c.box.material.emissive.setRGB(0.4 * pulse, 0.04, 0.08); }
+  }
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ============================================================
+   Boot
+   ============================================================ */
+refreshStartScreen();
+
+// Debug / test hooks
+window.__game = {
+  G, prog, newGame, selectCell, setCell: (i, j, k, v) => { G.grid[i][j][k] = v; updateAllVisuals(); },
+  view: { setSlice, setExplode: (on) => { G.explode = on; updateAllVisuals(); } },
+  fillAllCorrect: () => { for (let i = 0; i < G.N; i++) for (let j = 0; j < G.N; j++) for (let k = 0; k < G.N; k++) G.grid[i][j][k] = G.solution[i][j][k]; updateAllVisuals(); checkClear(); },
+  resetProgress: () => { localStorage.removeItem(PROG_KEY); localStorage.removeItem(SAVE_KEY); prog = loadProg(); refreshStartScreen(); },
+};
+</script>
+</body>
+</html>
