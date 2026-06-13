@@ -5744,6 +5744,10 @@ function makeCampfire(x, z, scale = 1.0){
   flame.userData.isFlame = true;
   flame.userData.phase = Math.random() * Math.PI * 2;
   g.add(flame);
+  // v671: layered GLSL flame tongues over the sprite glow — fbm noise
+  // licking upward reads as REAL burning fire (the sprite alone was a
+  // static cutout).  _addShaderFlame is hoisted from the WORLD FX block.
+  if(typeof _addShaderFlame === 'function') _addShaderFlame(g, scale);
   // PointLight illuminates surroundings
   const light = new THREE.PointLight(0xff9858, 1.8, 8, 1.6);
   light.position.y = 1.0;
@@ -6482,6 +6486,9 @@ function clearScene(){
   ENTITIES.npcs.length = 0;
   ENTITIES.particles.length = 0;
   ENTITIES.flames.length = 0;
+  // v671: world-FX registry (shader fire, rain, stars, gears...) —
+  // entries hold scene objects, so they die with the scene.
+  if(typeof _NIWA_FX !== 'undefined') _NIWA_FX.length = 0;
   // v628b: clear per-frame anim ref caches
   if(ENTITIES._anim){
     ENTITIES._anim.campfires.length = 0;
@@ -6611,6 +6618,13 @@ function buildScene(name){
   ENTITIES.interactables = [];
   window._niwaNavIcons = [];   // v661: clear nav-icon refs on scene swap
   window._currentInteract = null;
+  // v671: clear collision arrays BEFORE def.build too — the keep-setup
+  // stash/restore below re-applies what def.build pushed, and without
+  // this pre-clear the stash would also resurrect the PREVIOUS scene's
+  // leftover colliders (phantom tree trunks inside rooms etc.).
+  ENTITIES.obstacles.length = 0;
+  ENTITIES.boxObstacles = ENTITIES.boxObstacles || [];
+  ENTITIES.boxObstacles.length = 0;
 
   // Build geometry — the prefab provides its own ground + buildings.
   // No procedural fallback disc: user wants "prefab だけの世界".
@@ -6661,6 +6675,12 @@ function buildScene(name){
   const _keepBuildSetup = _isInterior || (def.kind === 'panorama');
   const _stashedInteriorBoxes = _keepBuildSetup
     ? (ENTITIES.boxObstacles || []).slice()
+    : null;
+  // v671: circular obstacles too — forest trunks (island) and interior
+  // furniture colliders are pushed during def.build and were silently
+  // wiped by the reset below.
+  const _stashedCircles = _keepBuildSetup
+    ? (ENTITIES.obstacles || []).slice()
     : null;
   const _stashedInteriorBounds = _keepBuildSetup
     ? (currentScene && currentScene.playableBounds
@@ -6796,6 +6816,9 @@ function buildScene(name){
   if(_keepBuildSetup){
     if(_stashedInteriorBoxes && _stashedInteriorBoxes.length){
       ENTITIES.boxObstacles.push(..._stashedInteriorBoxes);
+    }
+    if(_stashedCircles && _stashedCircles.length){
+      ENTITIES.obstacles.push(..._stashedCircles);
     }
     if(_stashedInteriorBounds){
       currentScene.playableBounds = _stashedInteriorBounds;
@@ -8109,6 +8132,127 @@ const INTERIOR_FURNITURE = {
     ['makeCandleCluster',  3.0,  0.5, 3],
   ],
 };
+/* === v671: procedural room shell for interior scenes ==================
+ * The enc_int_* GLBs are FURNITURE slices, not rooms — placed alone in
+ * fog they read as outdoor片付け場 (部屋のシーンが屋外 complaint).  This
+ * wraps every interior in an enclosed shell: plank floor, three-band
+ * walls (lower band = collider, middle = glowing window strip, upper),
+ * ceiling beams, two hanging lanterns.  Same construction as the v669
+ * heya bakery, parameterized per theme. */
+const INTERIOR_THEMES = {
+  monlight: { wall: '#2a3454', beam: '#1c2440', glow: '#c8b0ff', floor: '#4a3c50' },
+  oto:      { wall: '#4a3826', beam: '#352818', glow: '#88c0e8', floor: '#56432e' },
+  tabi:     { wall: '#4a4034', beam: '#352e24', glow: '#c89848', floor: '#5a4c38' },
+  toki:     { wall: '#3a3430', beam: '#282420', glow: '#e0d8b4', floor: '#46403a' },
+  hoshi:    { wall: '#202840', beam: '#161c30', glow: '#ffe890', floor: '#2c3450' },
+  takibi:   { wall: '#42301e', beam: '#301f12', glow: '#ff9050', floor: '#4e3a26', hearth: true },
+  mizube:   { wall: '#2e4248', beam: '#20302f', glow: '#a0c8e0', floor: '#3a4e50' },
+  amaoto:   { wall: '#32383c', beam: '#22282c', glow: '#9fb8c8', floor: '#3e4448' },
+  heya:     { wall: '#4a3a28', beam: '#352a1c', glow: '#ffc88a', floor: '#56452e' },
+};
+
+function _buildRoomShell(root, theme){
+  const W = 11, D = 11, H = 3.6;
+  // -- plank floor + invisible ground catcher --
+  const floorMat = new THREE.MeshStandardMaterial({ color: theme.floor, roughness: 0.85 });
+  for(let i = 0; i < 8; i++){
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(W, 0.08, D / 8 - 0.04), floorMat);
+    plank.position.set(0, 0.04, -D / 2 + (i + 0.5) * (D / 8));
+    plank.receiveShadow = true;
+    plank.userData.isGroundMesh = true;
+    plank.userData.isWalkSurface = true;
+    root.add(plank);
+  }
+  const catcher = new THREE.Mesh(
+    new THREE.PlaneGeometry(W + 2, D + 2),
+    new THREE.MeshBasicMaterial({ visible: false }));
+  catcher.rotation.x = -Math.PI / 2;
+  catcher.position.y = 0;
+  catcher.userData.isGroundMesh = true;
+  catcher.userData.isWalkSurface = true;
+  root.add(catcher);
+  // -- walls: 3 horizontal bands per side --
+  const wallMat = new THREE.MeshStandardMaterial({ color: theme.wall, roughness: 0.92 });
+  const glowMat = new THREE.MeshStandardMaterial({
+    color: theme.wall, roughness: 0.9,
+    emissive: theme.glow, emissiveIntensity: 0.35,
+    transparent: true, opacity: 0.92,
+  });
+  const sides = [
+    { x: 0, z: -D / 2, w: W, rot: 0 },
+    { x: 0, z:  D / 2, w: W, rot: Math.PI },
+    { x: -W / 2, z: 0, w: D, rot:  Math.PI / 2 },
+    { x:  W / 2, z: 0, w: D, rot: -Math.PI / 2 },
+  ];
+  const bands = [
+    { y0: 0,   y1: 1.5, mat: wallMat, collide: true },
+    { y0: 1.5, y1: 2.4, mat: glowMat, collide: false },   // window strip
+    { y0: 2.4, y1: H,   mat: wallMat, collide: false },
+  ];
+  for(const sd of sides){
+    for(const b of bands){
+      const h = b.y1 - b.y0;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(sd.w, h, 0.22), b.mat);
+      m.position.set(sd.x, b.y0 + h / 2, sd.z);
+      m.rotation.y = sd.rot;
+      m.receiveShadow = true;
+      root.add(m);
+      if(b.collide){
+        m.updateMatrixWorld(true);
+        const bb = new THREE.Box3().setFromObject(m);
+        ENTITIES.boxObstacles = ENTITIES.boxObstacles || [];
+        ENTITIES.boxObstacles.push({
+          minX: bb.min.x, maxX: bb.max.x,
+          minZ: bb.min.z, maxZ: bb.max.z,
+        });
+      }
+    }
+  }
+  // -- ceiling: plane + 4 beams --
+  const ceil = new THREE.Mesh(
+    new THREE.PlaneGeometry(W, D),
+    new THREE.MeshStandardMaterial({ color: theme.beam, roughness: 0.95, side: THREE.DoubleSide }));
+  ceil.rotation.x = Math.PI / 2;
+  ceil.position.y = H;
+  root.add(ceil);
+  const beamMat = new THREE.MeshStandardMaterial({ color: theme.beam, roughness: 0.9 });
+  for(let i = 0; i < 4; i++){
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(W, 0.18, 0.18), beamMat);
+    beam.position.set(0, H - 0.12, -D / 2 + (i + 0.5) * (D / 4));
+    root.add(beam);
+  }
+  // -- two hanging lanterns --
+  for(const lx of [-2.6, 2.6]){
+    const wire = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.012, 0.7, 4),
+      beamMat);
+    wire.position.set(lx, H - 0.45, 0);
+    root.add(wire);
+    const shade = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.2, 0.26, 8),
+      new THREE.MeshStandardMaterial({
+        color: theme.glow, emissive: theme.glow, emissiveIntensity: 0.9,
+      }));
+    shade.position.set(lx, H - 0.9, 0);
+    shade.userData.skipRaycast = true;
+    root.add(shade);
+    const pl = new THREE.PointLight(new THREE.Color(theme.glow), 1.1, 9);
+    pl.position.set(lx, H - 1.0, 0);
+    root.add(pl);
+  }
+  // -- ambient interior fill --
+  const hemi = new THREE.HemisphereLight(new THREE.Color(theme.glow), 0x241a10, 0.55);
+  hemi.position.set(0, H, 0);
+  root.add(hemi);
+  // -- bounds: keep the avatar inside the room --
+  if(currentScene){
+    currentScene.playableBounds = {
+      minX: -W / 2 + 0.6, maxX: W / 2 - 0.6,
+      minZ: -D / 2 + 0.6, maxZ: D / 2 - 0.6,
+    };
+  }
+}
+
 function _buildInteriorScene(parentName){
   const intGlb = 'enc_int_' + parentName;
   return {
@@ -8133,6 +8277,18 @@ function _buildInteriorScene(parentName){
         m.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
         root.add(m);
         return m;
+      }
+      // v671: enclose the room FIRST — walls / plank floor / ceiling /
+      // lanterns / bounds.  Without this the furniture GLB floated in
+      // open fog and the user (rightly) read the scene as outdoors.
+      const _theme = INTERIOR_THEMES[parentName] || INTERIOR_THEMES.heya;
+      if(typeof _buildRoomShell === 'function') _buildRoomShell(root, _theme);
+      if(_theme.hearth && typeof makeRealFire === 'function'){
+        // takibi interior: a real burning hearth against the north wall
+        const hearth = makeRealFire(0.8);
+        hearth.position.set(0, 0, -4.2);
+        root.add(hearth);
+        ENTITIES.obstacles.push({ x: 0, z: -4.2, r: 0.9 });
       }
       placeENC(intGlb, 0, 0, 0, 1.0, 0);
       // v649: drop procedural furniture (book stacks, candle clusters,
@@ -8516,6 +8672,15 @@ SCENES.island = {
     }
     if(typeof placeIslandShip === 'function'){
       placeIslandShip(root).catch(e => console.warn('niwa[island]: ship failed', e));
+    }
+    // v671: plaza fountain jet + the island-wide instanced forest.
+    // The forest plants synchronously (6 draw calls) so the treeline
+    // silhouette is already there during the splash reveal.
+    if(typeof placeIslandCellFx === 'function'){
+      placeIslandCellFx('plaza', root, 0, 0);
+    }
+    if(typeof _plantIslandForest === 'function'){
+      try { _plantIslandForest(root); } catch(e){ console.warn('niwa[island]: forest failed', e); }
     }
     // v654b: override the legacy ±SCENE_BOUND playable bounds set by
     // buildScene's fallback path.  Without this the bounds were a 17 m
@@ -8906,6 +9071,11 @@ async function _streamRemainingIslandPrefabs(root){
     if(typeof _stageIslandCellConcepts === 'function'){
       _stageIslandCellConcepts(name, root, x + offset, z + offset)
         .catch(e => console.warn(`niwa[island]: concept for ${name} failed`, e));
+    }
+    // v671: signature dynamics for this cell (notes / gear / stars /
+    // moonbeam / rain / birds / fireflies)
+    if(typeof placeIslandCellFx === 'function'){
+      placeIslandCellFx(name, root, x + offset, z + offset);
     }
   };
   // Run all 9 in parallel and wait for completion
@@ -9871,6 +10041,667 @@ async function placeIslandShip(root){
   m.userData.skipObstacle = true;
   root.add(m);
   console.log(`niwa[island]: pirate ship moored (scale ${k.toFixed(2)})`);
+}
+
+/* === v671: WORLD FX ====================================================
+ * Per-cell signature dynamics (real fire, water, rain, stars, notes,
+ * gears, moonbeam, birds, fountain) + instanced forest.  Every effect
+ * registers an update(t, dt) in _NIWA_FX; animate() drives them via
+ * _niwaFxTick.  clearScene() empties the registry on scene switch.
+ * ==================================================================== */
+const _NIWA_FX = [];
+function _fxAdd(obj, update){
+  _NIWA_FX.push({ obj, update });
+  return obj;
+}
+function _niwaFxTick(t, dt){
+  for(const fx of _NIWA_FX){
+    try { fx.update(t, dt); } catch(_){}
+  }
+}
+
+// ---- real fire: fbm-noise GLSL flame on crossed billboards ------------
+const _FIRE_FRAG = /* glsl */`
+  uniform float t;
+  varying vec2 vUv;
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p){
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i),               hash(i + vec2(1, 0)), f.x),
+               mix(hash(i + vec2(0, 1)),  hash(i + vec2(1, 1)), f.x), f.y);
+  }
+  float fbm(vec2 p){
+    float v = 0.0, a = 0.5;
+    for(int i = 0; i < 4; i++){ v += a * noise(p); p *= 2.1; a *= 0.5; }
+    return v;
+  }
+  void main(){
+    vec2 uv = vUv;
+    float n = fbm(vec2(uv.x * 3.0, uv.y * 2.5 - t * 2.4));
+    float body = (1.15 - uv.y) * (n * 1.7) - pow(abs(uv.x - 0.5) * 2.4, 1.6);
+    float flame = clamp(body, 0.0, 1.0);
+    float core = smoothstep(0.12, 0.9, flame);
+    vec3 col = mix(vec3(0.85, 0.16, 0.02), vec3(1.0, 0.82, 0.25), core);
+    col += vec3(1.0, 0.95, 0.65) * pow(core, 3.0);
+    float alpha = smoothstep(0.04, 0.3, flame) * smoothstep(0.0, 0.12, uv.y + 0.1);
+    gl_FragColor = vec4(col * alpha * 1.7, alpha);
+  }`;
+const _FIRE_VERT = /* glsl */`
+  varying vec2 vUv;
+  void main(){
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }`;
+
+// Adds two crossed fbm-flame planes to any group and registers their
+// time uniform in _NIWA_FX.  Shared by makeRealFire and makeCampfire.
+function _addShaderFlame(group, s = 1.0){
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { t: { value: Math.random() * 100 } },
+    vertexShader: _FIRE_VERT, fragmentShader: _FIRE_FRAG,
+    transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  });
+  const geo = new THREE.PlaneGeometry(1.25 * s, 1.7 * s);
+  for(const ry of [0, Math.PI / 2]){
+    const pl = new THREE.Mesh(geo, mat);
+    pl.position.y = 0.8 * s;
+    pl.rotation.y = ry;
+    pl.userData.skipRaycast = true;
+    group.add(pl);
+  }
+  _fxAdd(group, (t) => { mat.uniforms.t.value = t; });
+  return mat;
+}
+
+function makeRealFire(s = 1.0, opts = {}){
+  const g = new THREE.Group();
+  const mat = _addShaderFlame(g, s);
+  if(opts.base !== false){
+    const logMat = new THREE.MeshStandardMaterial({ color: 0x4a3018, roughness: 0.95 });
+    for(let i = 0; i < 3; i++){
+      const log = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.07 * s, 0.09 * s, 1.05 * s, 6), logMat);
+      log.rotation.z = Math.PI / 2;
+      log.rotation.y = i * Math.PI / 3;
+      log.position.y = 0.09 * s;
+      log.castShadow = true;
+      g.add(log);
+    }
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x6a675f, roughness: 0.92 });
+    for(let i = 0; i < 7; i++){
+      const st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.11 * s, 0), stoneMat);
+      const a = (i / 7) * Math.PI * 2;
+      st.position.set(Math.cos(a) * 0.6 * s, 0.06 * s, Math.sin(a) * 0.6 * s);
+      st.rotation.set(Math.random(), Math.random(), 0);
+      g.add(st);
+    }
+  }
+  // rising embers
+  const N = IS_LITE ? 16 : 34;
+  const pos = new Float32Array(N * 3);
+  const seeds = new Float32Array(N);
+  for(let i = 0; i < N; i++) seeds[i] = Math.random();
+  const pg = new THREE.BufferGeometry();
+  pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(pg, new THREE.PointsMaterial({
+    color: 0xffb050, size: 0.06 * s, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  pts.userData.skipRaycast = true;
+  g.add(pts);
+  // smoke puffs (high tier only — soft gray planes drifting up)
+  let smoke = null;
+  if(!IS_LITE){
+    smoke = [];
+    for(let i = 0; i < 4; i++){
+      const p = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.7 * s, 0.7 * s),
+        new THREE.MeshBasicMaterial({
+          color: 0x55504a, transparent: true, opacity: 0.16,
+          depthWrite: false, side: THREE.DoubleSide,
+        }));
+      p.userData.skipRaycast = true;
+      g.add(p);
+      smoke.push(p);
+    }
+  }
+  const li = new THREE.PointLight(0xff7726, 2.2, 13 * s);
+  li.position.y = 1.0 * s;
+  g.add(li);
+  g.userData.skipObstacle = true;
+  _fxAdd(g, (t) => {
+    mat.uniforms.t.value = t;
+    li.intensity = 2.0 + Math.sin(t * 11.3) * 0.35 + Math.sin(t * 23.7) * 0.22;
+    const arr = pg.attributes.position.array;
+    for(let i = 0; i < N; i++){
+      const ph = (t * 0.45 + seeds[i]) % 1;
+      const a = seeds[i] * Math.PI * 2 + t * 0.7;
+      arr[i * 3]     = Math.cos(a + ph * 5) * 0.2 * s * (1 - ph * 0.6);
+      arr[i * 3 + 1] = 0.35 * s + ph * 2.0 * s;
+      arr[i * 3 + 2] = Math.sin(a + ph * 5) * 0.2 * s * (1 - ph * 0.6);
+    }
+    pg.attributes.position.needsUpdate = true;
+    if(smoke){
+      for(let i = 0; i < smoke.length; i++){
+        const ph = (t * 0.18 + i * 0.25) % 1;
+        smoke[i].position.set(
+          Math.sin(t * 0.7 + i * 2.1) * 0.25 * s,
+          1.5 * s + ph * 2.6 * s,
+          Math.cos(t * 0.5 + i * 1.7) * 0.25 * s);
+        smoke[i].material.opacity = 0.16 * (1 - ph);
+        smoke[i].scale.setScalar(0.7 + ph * 1.8);
+        smoke[i].rotation.y = t * 0.3 + i;
+      }
+    }
+  });
+  return g;
+}
+
+// ---- small particle FX makers ----------------------------------------
+function _makePointsCloud(n, color, size, opacity){
+  const pg = new THREE.BufferGeometry();
+  pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const pts = new THREE.Points(pg, new THREE.PointsMaterial({
+    color, size, transparent: true, opacity,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  pts.userData.skipRaycast = true;
+  return pts;
+}
+
+function makeFireflies(radius, n){
+  const pts = _makePointsCloud(n, 0xc8e87a, 0.09, 0.85);
+  const seeds = Array.from({ length: n }, () => Math.random() * 100);
+  _fxAdd(pts, (t) => {
+    const arr = pts.geometry.attributes.position.array;
+    for(let i = 0; i < n; i++){
+      const s0 = seeds[i];
+      arr[i * 3]     = Math.sin(t * 0.31 + s0) * radius * Math.sin(s0 * 7);
+      arr[i * 3 + 1] = 1.3 + Math.sin(t * 0.53 + s0 * 3) * 0.5;
+      arr[i * 3 + 2] = Math.cos(t * 0.27 + s0 * 2) * radius * Math.cos(s0 * 5);
+    }
+    pts.geometry.attributes.position.needsUpdate = true;
+    pts.material.opacity = 0.55 + Math.sin(t * 2.2) * 0.3;
+  });
+  return pts;
+}
+
+function makeRainColumn(radius, n){
+  const g = new THREE.Group();
+  const pts = _makePointsCloud(n, 0x9fc8e0, 0.05, 0.55);
+  pts.material.blending = THREE.NormalBlending;
+  g.add(pts);
+  const seeds = Array.from({ length: n }, () => Math.random());
+  const rings = [];
+  for(let i = 0; i < 3; i++){
+    const r = new THREE.Mesh(
+      new THREE.RingGeometry(0.3, 0.36, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0xa8d0e8, transparent: true, opacity: 0.3,
+        side: THREE.DoubleSide, depthWrite: false,
+      }));
+    r.rotation.x = -Math.PI / 2;
+    r.position.y = 0.05;
+    r.userData.skipRaycast = true;
+    g.add(r);
+    rings.push(r);
+  }
+  g.userData.skipObstacle = true;
+  _fxAdd(g, (t) => {
+    const arr = pts.geometry.attributes.position.array;
+    for(let i = 0; i < seeds.length; i++){
+      const ph = (t * 1.6 + seeds[i]) % 1;
+      const a = seeds[i] * Math.PI * 2;
+      const rr = Math.sqrt(seeds[i]) * radius;
+      arr[i * 3]     = Math.cos(a) * rr;
+      arr[i * 3 + 1] = 7.5 * (1 - ph);
+      arr[i * 3 + 2] = Math.sin(a) * rr;
+    }
+    pts.geometry.attributes.position.needsUpdate = true;
+    for(let i = 0; i < rings.length; i++){
+      const ph = (t * 0.8 + i / 3) % 1;
+      rings[i].scale.setScalar(0.4 + ph * 5);
+      rings[i].material.opacity = 0.3 * (1 - ph);
+      rings[i].position.x = Math.sin(i * 2.4) * radius * 0.5;
+      rings[i].position.z = Math.cos(i * 3.1) * radius * 0.5;
+    }
+  });
+  return g;
+}
+
+function makeStarTwinkle(radius, n){
+  const g = new THREE.Group();
+  const pts = _makePointsCloud(n, 0xfff2c0, 0.14, 0.9);
+  g.add(pts);
+  const arr = pts.geometry.attributes.position.array;
+  for(let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2;
+    const rr = Math.sqrt(Math.random()) * radius;
+    arr[i * 3]     = Math.cos(a) * rr;
+    arr[i * 3 + 1] = 7 + Math.random() * 7;
+    arr[i * 3 + 2] = Math.sin(a) * rr;
+  }
+  pts.geometry.attributes.position.needsUpdate = true;
+  // one shooting star: stretched glowing plane that streaks periodically
+  const streak = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.4, 0.045),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff8e0, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    }));
+  streak.userData.skipRaycast = true;
+  g.add(streak);
+  g.userData.skipObstacle = true;
+  _fxAdd(g, (t) => {
+    pts.material.opacity = 0.65 + Math.sin(t * 3.1) * 0.25;
+    const period = 7;
+    const ph = (t % period) / period;
+    if(ph < 0.12){
+      const k = ph / 0.12;
+      streak.material.opacity = Math.sin(k * Math.PI) * 0.9;
+      streak.position.set(-radius + k * radius * 2, 13 - k * 4, -radius * 0.5);
+      streak.rotation.z = -0.35;
+    } else {
+      streak.material.opacity = 0;
+    }
+  });
+  return g;
+}
+
+function makeFountainJet(n){
+  const pts = _makePointsCloud(n, 0xbfe2f2, 0.06, 0.75);
+  pts.material.blending = THREE.NormalBlending;
+  const seeds = Array.from({ length: n }, () => Math.random());
+  _fxAdd(pts, (t) => {
+    const arr = pts.geometry.attributes.position.array;
+    for(let i = 0; i < n; i++){
+      const ph = (t * 0.9 + seeds[i]) % 1;
+      const a = seeds[i] * Math.PI * 2;
+      const v0 = 3.2 + seeds[i] * 0.8;
+      const y = v0 * ph - 4.4 * ph * ph;
+      arr[i * 3]     = Math.cos(a) * ph * 0.55;
+      arr[i * 3 + 1] = Math.max(0.05, 0.6 + y);
+      arr[i * 3 + 2] = Math.sin(a) * ph * 0.55;
+    }
+    pts.geometry.attributes.position.needsUpdate = true;
+  });
+  return pts;
+}
+
+function makeClockGear(){
+  // golden gear: torus rim + 4 box spokes + hub, slow rotation + sand
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xc8a040,
+    metalness: 0.75,
+    roughness: 0.35,
+    emissive: 4204552,
+    emissiveIntensity: 0.4,
+  });
+  const gear = new THREE.Group();
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.12, 8, 24), mat);
+  gear.add(rim);
+  for(let i = 0; i < 4; i++){
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.08, 0.12), mat);
+    spoke.rotation.z = (i / 4) * Math.PI;
+    gear.add(spoke);
+  }
+  for(let i = 0; i < 8; i++){
+    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.14), mat);
+    const a = (i / 8) * Math.PI * 2;
+    tooth.position.set(Math.cos(a) * 1.12, Math.sin(a) * 1.12, 0);
+    tooth.rotation.z = a;
+    gear.add(tooth);
+  }
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.16, 12), mat);
+  hub.rotation.x = Math.PI / 2;
+  gear.add(hub);
+  gear.position.y = 4.2;
+  gear.traverse(o => { if(o.isMesh) o.userData.skipRaycast = true; });
+  g.add(gear);
+  // falling sand stream beneath the gear
+  const n = IS_LITE ? 24 : 48;
+  const sand = _makePointsCloud(n, 0xe8d8a0, 0.05, 0.8);
+  sand.material.blending = THREE.NormalBlending;
+  g.add(sand);
+  const seeds = Array.from({ length: n }, () => Math.random());
+  g.userData.skipObstacle = true;
+  _fxAdd(g, (t) => {
+    gear.rotation.z = t * 0.25;
+    const arr = sand.geometry.attributes.position.array;
+    for(let i = 0; i < n; i++){
+      const ph = (t * 0.55 + seeds[i]) % 1;
+      arr[i * 3]     = Math.sin(seeds[i] * 31) * 0.1;
+      arr[i * 3 + 1] = 3.9 * (1 - ph);
+      arr[i * 3 + 2] = Math.cos(seeds[i] * 47) * 0.1;
+    }
+    sand.geometry.attributes.position.needsUpdate = true;
+  });
+  return g;
+}
+
+function makeNoteOrbit(){
+  // glowing music-note sprites orbiting the shrine
+  const g = new THREE.Group();
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.font = '48px serif';
+  ctx.fillStyle = '#bfe0ff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('♪', 32, 34);
+  const tex = new THREE.CanvasTexture(c);
+  const sprites = [];
+  for(let i = 0; i < 4; i++){
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, opacity: 0.85,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    sp.scale.setScalar(0.55);
+    sp.userData.skipRaycast = true;
+    g.add(sp);
+    sprites.push(sp);
+  }
+  g.userData.skipObstacle = true;
+  _fxAdd(g, (t) => {
+    for(let i = 0; i < sprites.length; i++){
+      const a = t * 0.5 + (i / sprites.length) * Math.PI * 2;
+      sprites[i].position.set(
+        Math.cos(a) * 1.6,
+        2.2 + Math.sin(t * 1.1 + i * 1.8) * 0.5,
+        Math.sin(a) * 1.6);
+      sprites[i].material.opacity = 0.5 + Math.sin(t * 1.7 + i) * 0.35;
+    }
+  });
+  return g;
+}
+
+function makeMoonbeam(){
+  // volumetric-looking additive cone + a floating glowing book
+  const g = new THREE.Group();
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.5, 2.1, 12, 20, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0xc8b0ff, transparent: true, opacity: 0.12,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+      side: THREE.DoubleSide,
+    }));
+  beam.position.y = 6;
+  beam.userData.skipRaycast = true;
+  g.add(beam);
+  const book = new THREE.Group();
+  const coverMat = new THREE.MeshStandardMaterial({
+    color: '#4f3a2f',
+    emissive: '#c8b0ff',
+    emissiveIntensity: 0.25,
+    roughness: 0.7,
+  });
+  const pageMat = new THREE.MeshStandardMaterial({
+    color: '#e8dcc0',
+    emissive: '#fff8e0',
+    emissiveIntensity: 0.35,
+    roughness: 0.9,
+  });
+  const cover = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.06, 0.4), coverMat);
+  const pages = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.35), pageMat);
+  pages.position.y = 0.05;
+  book.add(cover);
+  book.add(pages);
+  book.traverse(o => { o.userData.skipRaycast = true; });
+  g.add(book);
+  g.userData.skipObstacle = true;
+  _fxAdd(g, (t) => {
+    book.position.y = 1.7 + Math.sin(t * 0.9) * 0.25;
+    book.rotation.y = t * 0.4;
+    book.rotation.z = Math.sin(t * 0.6) * 0.12;
+    beam.material.opacity = 0.09 + Math.sin(t * 0.7) * 0.035;
+  });
+  return g;
+}
+
+function makeBirdCircle(){
+  // three simple dark birds circling overhead
+  const g = new THREE.Group();
+  const birdMat = new THREE.MeshBasicMaterial({ color: '#2a2622' });
+  const birds = [];
+  for(let i = 0; i < 3; i++){
+    const b = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 5), birdMat);
+    body.rotation.x = Math.PI / 2;
+    b.add(body);
+    const wingGeo = new THREE.PlaneGeometry(0.5, 0.12);
+    const wL = new THREE.Mesh(wingGeo, birdMat);
+    const wR = new THREE.Mesh(wingGeo, birdMat);
+    wL.position.x = -0.25;
+    wR.position.x = 0.25;
+    b.add(wL);
+    b.add(wR);
+    b.userData.wings = [wL, wR];
+    b.traverse(o => { o.userData.skipRaycast = true; });
+    g.add(b);
+    birds.push(b);
+  }
+  g.userData.skipObstacle = true;
+  _fxAdd(g, (t) => {
+    for(let i = 0; i < birds.length; i++){
+      const a = t * 0.4 + (i / birds.length) * Math.PI * 2;
+      const r = 5.5 + i * 0.7;
+      const b = birds[i];
+      b.position.set(Math.cos(a) * r, 6.5 + Math.sin(t * 0.5 + i) * 0.8, Math.sin(a) * r);
+      b.rotation.y = -a;
+      const flap = Math.sin(t * 6 + i * 2) * 0.5;
+      b.userData.wings[0].rotation.z =  flap;
+      b.userData.wings[1].rotation.z = -flap;
+    }
+  });
+  return g;
+}
+
+// (mizube water is staged by v672's makeWaterPlane — no disc maker here)
+
+/* ---- per-cell signature FX dispatcher --------------------------------
+ * Complements v672's _stageIslandCellConcepts (campfire / pond / road /
+ * cottage): every remaining cell gets its own dynamic identity.
+ * Positions avoid the cell portal and the v672 concept pieces. */
+function placeIslandCellFx(name, root, cx, cz){
+  try {
+    if(name === 'takibi'){
+      // fireflies drifting through the campfire forest
+      const ff = makeFireflies(7, IS_LITE ? 12 : 24);
+      ff.position.set(cx, 0, cz);
+      root.add(ff);
+    } else if(name === 'oto'){
+      const notes = makeNoteOrbit();
+      notes.position.set(cx, 0.4, cz - 3);
+      root.add(notes);
+    } else if(name === 'toki'){
+      const gear = makeClockGear();
+      gear.position.set(cx - 4, 0, cz - 4);
+      root.add(gear);
+    } else if(name === 'hoshi'){
+      const stars = makeStarTwinkle(8, IS_LITE ? 30 : 60);
+      stars.position.set(cx, 0, cz);
+      root.add(stars);
+    } else if(name === 'monlight'){
+      const beam = makeMoonbeam();
+      beam.position.set(cx + 3.5, 0, cz - 3.5);
+      root.add(beam);
+    } else if(name === 'amaoto'){
+      const rain = makeRainColumn(5.5, IS_LITE ? 60 : 130);
+      rain.position.set(cx, 0, cz);
+      root.add(rain);
+    } else if(name === 'tabi'){
+      const birds = makeBirdCircle();
+      birds.position.set(cx + 4, 0, cz - 4);
+      root.add(birds);
+    } else if(name === 'mizube'){
+      // gulls over the pond dock (pond itself staged by v672)
+      const birds = makeBirdCircle();
+      birds.position.set(cx + 4.5, 1.5, cz + 4.5);
+      root.add(birds);
+    } else if(name === 'plaza'){
+      // fountain jet on the Dark Fantasy fountain accent (0, -6.5)
+      const jet = makeFountainJet(IS_LITE ? 30 : 60);
+      jet.position.set(cx, 0.4, cz - 6.5);
+      root.add(jet);
+    }
+  } catch(e){
+    console.warn(`niwa[island]: cell fx failed for ${name}`, e);
+  }
+}
+
+/* ---- v671 FOREST -----------------------------------------------------
+ * Three procedural low-poly tree variants (pine / broadleaf / birch),
+ * instanced across the inter-cell belts and the island rim, with a
+ * dense grove inside takibi (焚き火の森).  Composition rules: forest
+ * biome palette #3F6B3A/#B7C77A, rim trees give the silhouette test
+ * a serrated treeline against the cloud sea. */
+function _plantIslandForest(root){
+  const SEP = (typeof ISLAND_SEPARATION === 'number') ? ISLAND_SEPARATION : 20;
+  const CELLS = [];
+  for(const k in SCENE_WORLD_POS){
+    if(k === 'heya') continue;
+    CELLS.push([SCENE_WORLD_POS[k].dx * SEP, SCENE_WORLD_POS[k].dz * SEP]);
+  }
+  // bridge lanes (segments between adjacent cell centres) to keep clear
+  const lanes = [];
+  if(typeof ISLAND_BRIDGES !== 'undefined'){
+    for(const [a, b] of ISLAND_BRIDGES){
+      const A = SCENE_WORLD_POS[a], B = SCENE_WORLD_POS[b];
+      if(A && B) lanes.push([A.dx * SEP, A.dz * SEP, B.dx * SEP, B.dz * SEP]);
+    }
+  }
+  function nearLane(x, z, pad){
+    for(const [x1, z1, x2, z2] of lanes){
+      const dx = x2 - x1, dz = z2 - z1;
+      const len2 = dx * dx + dz * dz;
+      let u = ((x - x1) * dx + (z - z1) * dz) / (len2 || 1);
+      u = Math.max(0, Math.min(1, u));
+      const px = x1 + u * dx, pz = z1 + u * dz;
+      if(Math.hypot(x - px, z - pz) < pad) return true;
+    }
+    return false;
+  }
+  function insideCell(x, z, pad){
+    for(const [cx, cz] of CELLS){
+      if(Math.hypot(x - cx, z - cz) < pad) return true;
+    }
+    return false;
+  }
+  // gather spots: belts + rim
+  const spots = [];
+  const WANT = IS_LITE ? 130 : 260;
+  let guard = 0;
+  while(spots.length < WANT && guard++ < 4000){
+    const a = Math.random() * Math.PI * 2;
+    const r = 6 + Math.sqrt(Math.random()) * 31;   // up to r=37 rim
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if(insideCell(x, z, 9.6)) continue;
+    if(nearLane(x, z, 2.6)) continue;
+    // denser acceptance near the rim for the silhouette treeline
+    const rimBias = r > 28 ? 1.0 : 0.55;
+    if(Math.random() > rimBias) continue;
+    spots.push([x, z]);
+  }
+  // takibi grove: ring inside 焚き火の森 cell, sparing fire + portal spots
+  const tk = SCENE_WORLD_POS.takibi;
+  if(tk){
+    const tx = tk.dx * SEP, tz = tk.dz * SEP;
+    let g2 = 0;
+    const groveWant = IS_LITE ? 14 : 26;
+    let placed = 0;
+    while(placed < groveWant && g2++ < 400){
+      const a = Math.random() * Math.PI * 2;
+      const r = 5.2 + Math.random() * 3.4;
+      const x = tx + Math.cos(a) * r, z = tz + Math.sin(a) * r;
+      if(Math.hypot(x - (tx + 0.5), z - (tz + 4.5)) < 3.2) continue;  // campfire clearing
+      if(Math.hypot(x - (tx + 3.5), z - (tz + 4.5)) < 2.2) continue;  // portal spot
+      if(nearLane(x, z, 2.6)) continue;
+      spots.push([x, z]);
+      placed++;
+    }
+  }
+  if(!spots.length) return;
+  // three variants, each = trunk instanced mesh + canopy instanced mesh
+  const variants = [
+    { // pine — stacked dark-green cones
+      trunk: new THREE.CylinderGeometry(0.13, 0.18, 1.4, 6),
+      trunkY: 0.7,
+      canopy: new THREE.ConeGeometry(1.05, 2.6, 7),
+      canopyY: 2.6,
+      trunkColor: '#4a3322', canopyColor: '#3f6b3a',
+      share: 0.45,
+    },
+    { // broadleaf — round light canopy
+      trunk: new THREE.CylinderGeometry(0.15, 0.22, 1.6, 6),
+      trunkY: 0.8,
+      canopy: new THREE.IcosahedronGeometry(1.25, 1),
+      canopyY: 2.6,
+      trunkColor: '#56412c', canopyColor: '#6f8f4a',
+      share: 0.35,
+    },
+    { // birch — slim pale trunk, small bright crown
+      trunk: new THREE.CylinderGeometry(0.09, 0.12, 2.0, 6),
+      trunkY: 1.0,
+      canopy: new THREE.IcosahedronGeometry(0.85, 1),
+      canopyY: 2.5,
+      trunkColor: '#cfc7b4', canopyColor: '#b7c77a',
+      share: 0.20,
+    },
+  ];
+  // assign spots to variants
+  const buckets = [[], [], []];
+  for(const sp of spots){
+    const r = Math.random();
+    const vi = r < variants[0].share ? 0 : (r < variants[0].share + variants[1].share ? 1 : 2);
+    buckets[vi].push(sp);
+  }
+  const _m4 = new THREE.Matrix4();
+  const _q = new THREE.Quaternion();
+  const _e = new THREE.Euler();
+  const _v = new THREE.Vector3();
+  const _s = new THREE.Vector3();
+  for(let vi = 0; vi < variants.length; vi++){
+    const v = variants[vi];
+    const list = buckets[vi];
+    if(!list.length) continue;
+    const trunkInst = new THREE.InstancedMesh(
+      v.trunk,
+      new THREE.MeshStandardMaterial({ color: v.trunkColor, roughness: 0.9 }),
+      list.length);
+    const canopyInst = new THREE.InstancedMesh(
+      v.canopy,
+      new THREE.MeshStandardMaterial({ color: v.canopyColor, roughness: 0.85, flatShading: true }),
+      list.length);
+    trunkInst.castShadow = canopyInst.castShadow = !IS_LITE;
+    trunkInst.userData.skipRaycast = true;
+    canopyInst.userData.skipRaycast = true;
+    trunkInst.userData.skipObstacle = true;
+    canopyInst.userData.skipObstacle = true;
+    for(let i = 0; i < list.length; i++){
+      const [x, z] = list[i];
+      const k = 0.75 + Math.random() * 0.55;
+      _e.set(0, Math.random() * Math.PI * 2, 0);
+      _q.setFromEuler(_e);
+      _s.set(k, k, k);
+      _v.set(x, v.trunkY * k, z);
+      _m4.compose(_v, _q, _s);
+      trunkInst.setMatrixAt(i, _m4);
+      _v.set(x, v.canopyY * k, z);
+      _m4.compose(_v, _q, _s);
+      canopyInst.setMatrixAt(i, _m4);
+      // trunk collision so the player weaves between trees
+      ENTITIES.obstacles.push({ x, z, r: 0.3 * k });
+    }
+    trunkInst.instanceMatrix.needsUpdate = true;
+    canopyInst.instanceMatrix.needsUpdate = true;
+    root.add(trunkInst);
+    root.add(canopyInst);
+  }
+  console.log(`niwa[island]: forest planted — ${spots.length} trees (6 draws)`);
 }
 
 /* === v672: per-cell CONCEPT centrepieces on the island ================
@@ -12008,6 +12839,8 @@ function animate(){
   moving = Math.hypot(playerVel.x, playerVel.z) > 0.3;
   // v670: RPG UX per-frame hook (footsteps / FOV kick / minimap / visited)
   if(window._niwaUXTick) window._niwaUXTick(dt, t, moving);
+  // v671: world-FX updates (shader fire, rain, stars, gears, birds...)
+  if(typeof _niwaFxTick === 'function') _niwaFxTick(t, dt);
 
   // v657: interactable proximity — find nearest in-range entry and
   // drive the HUD prompt.  Stashes on window for the keydown handler.

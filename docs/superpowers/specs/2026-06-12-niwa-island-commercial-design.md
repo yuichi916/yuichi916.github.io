@@ -146,3 +146,45 @@ join/flatten は禁止。検証済み: 40ノード→40ノード、名前完全�
 7. 床すり抜け系統テスト + 全バグ修正 + 回帰スイート + デプロイ
 
 各段階で Playwright スモーク → check_dup_const → commit。
+
+---
+
+# v671 追補 (2026-06-13): 世界観ダイナミック強化
+
+要求: 「焚火はリアルに火が燃えている様子。森エリア。部屋のシーンはちゃんと屋内に。
+商用ゲーム並みの世界観・各エリアごとにダイナミックな特色。」
+
+## 1. リアル焚き火 (makeRealFire)
+- GLSL ノイズ炎シェーダ (fbm スクロール + 垂直グラデ + 橙→黄 ramp) を十字ビルボード2枚に。additive・depthWrite off
+- 火の粉 Points (上昇+カール+フェード)、煙スプライト (high のみ)、PointLight フリッカー
+- 配置: takibi セル主役 (構図: 主役1点)、takibi_int 暖炉
+- 全エフェクトは _NIWA_FX レジストリ + animate 内 1 フックで更新
+
+## 2. 森エリア (_plantIslandForest)
+- 手続き低ポリ樹木 3 種 (松/広葉/白樺) を InstancedMesh で 250-400 本 (lite 120)
+- 配置: セル間ベルト + 島縁 r30-38 (シルエット強化)。セル円盤 r10・橋レーン・ポータルは除外
+- takibi セル内は密植 (焚き火の森、biome=森: 深緑 #3F6B3A / 黄緑 #B7C77A / 赤実アクセント)
+- 幹は円形コライダー登録 (r0.35)
+
+## 3. 屋内シーン殻 (_buildRoomShell)
+- v669 heya パターンを一般化: 壁3層 (下段=コライダー / 発光窓帯 / 上段) + 床板 + 天井梁 + 吊りランタン + HemisphereLight
+- INTERIOR_THEMES テーブルで 9 _int シーンに各テーマ (monlight=深藍+月窓 / oto=社殿木組 / takibi=丸太小屋+暖炉火 etc.)
+- playableBounds は interior stash/restore (v669) が保持
+
+## 4. セル別シグネチャ演出 (ISLAND_CELL_FX)
+| セル | 演出 |
+|---|---|
+| takibi | リアル焚き火 + 蛍 Points |
+| mizube | 波打つ水面ディスク (頂点正弦) + 桟橋灯 |
+| oto | 発光音符スプライト周回 + 接近チャイム (soundOn 連動) |
+| toki | 金色歯車回転 + 落砂 Points |
+| hoshi | 頭上星瞬き + 流れ星 |
+| monlight | 月光ビーム円錐 + 浮遊本 |
+| amaoto | 局所雨柱 Points + 波紋リング |
+| tabi | 旋回鳥 3 羽 |
+| plaza | 噴水ジェット Points (df_fountain 位置) |
+
+lite はパーティクル数半減・煙なし。火は signature なので両モード維持。
+
+## 検証
+各セルのスクリーンショット (1P) + FX 数カウント + 既存 16 項スイート回帰。
