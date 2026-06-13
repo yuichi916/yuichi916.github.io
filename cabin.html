@@ -589,7 +589,7 @@ body::after{
 
 /* ════════════════════ 360° IMMERSIVE ROOM ════════════════════ */
 #room{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;display:block;
-  background:#08060a;touch-action:pan-y;cursor:grab;
+  background:#08060a;touch-action:none;cursor:grab;
   filter:brightness(1.16) contrast(1.03) saturate(1.07)}
 #room:active{cursor:grabbing}
 body.immersed #room{touch-action:none}
@@ -680,52 +680,109 @@ body.immersed #immersion{display:flex}
 #immExit:hover{color:var(--lantern-soft)}
 body.immersed #immExit{display:flex}
 @media (prefers-reduced-motion:reduce){.gate-ember{animation:none}}
+
+/* ════════════ 3D-FIRST GAME UI ════════════ */
+#engine{display:none!important}
+html,body{height:100%}
+body{overflow:hidden}
+/* top HUD — edges only, never over the center */
+#hud{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;justify-content:space-between;
+  padding:15px 22px;pointer-events:none;background:linear-gradient(180deg,rgba(8,6,10,.5),transparent)}
+#hud > *{pointer-events:auto}
+#hud .brand{display:flex;align-items:center;gap:10px;color:var(--ash);font-family:"Cormorant Garamond",serif;
+  font-style:italic;font-size:15px;opacity:.78;text-decoration:none}
+#hud .lantern-dot{width:8px;height:8px;border-radius:50%;background:var(--lantern);box-shadow:0 0 12px 3px rgba(240,200,120,.6)}
+#hud .hud-right{display:flex;align-items:center;gap:12px}
+#hud .hud-btn{cursor:pointer;color:var(--ash);background:rgba(10,7,9,.4);border:1px solid rgba(240,200,120,.16);
+  border-radius:30px;padding:8px 15px;font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.1em;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:inline-flex;align-items:center;gap:7px;transition:all .3s}
+#hud .hud-btn:hover{color:var(--lantern-soft);border-color:rgba(240,200,120,.4)}
+#hud .hud-btn.on{color:var(--lantern-soft);border-color:rgba(240,200,120,.5);background:rgba(240,200,120,.1)}
+#hud a.hud-btn{text-decoration:none}
+body.immersed-med #hud{opacity:0;pointer-events:none;transition:opacity .6s}
+/* lang menu (reused) sits in the HUD */
+#hud .lang{position:relative}
+#hud .lang-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:148px;list-style:none;margin:0;padding:6px;
+  background:rgba(14,10,12,.95);border:1px solid rgba(240,200,120,.14);border-radius:12px;backdrop-filter:blur(10px);z-index:60}
+#hud .lang-menu li{padding:8px 12px;border-radius:8px;cursor:pointer;color:var(--ash);font-family:"Inter",sans-serif;
+  font-size:12px;display:flex;align-items:center}
+#hud .lang-menu li:hover{background:rgba(240,200,120,.08);color:var(--lantern)}
+#hud .lang-menu li.on{color:var(--lantern);font-weight:600}
+#hud .lang-menu li::before{content:attr(data-flag);margin-right:10px;font-size:10px;color:var(--ash-dim);letter-spacing:.1em}
+#hud .lang-menu[hidden]{display:none}
+/* reticle (gaze target) */
+#reticle{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:8;pointer-events:none;width:10px;height:10px;opacity:0;transition:opacity .8s}
+body.room-ready #reticle{opacity:.5}
+#reticle span{display:block;width:10px;height:10px;border-radius:50%;border:1.5px solid rgba(248,224,160,.85);transition:transform .25s ease,background .25s,border-color .25s}
+#reticle.hot span{transform:scale(2.2);background:rgba(248,224,160,.22);border-color:rgba(248,224,160,1)}
+body.immersed-med #reticle,body.cap-open #reticle{opacity:0}
+/* focus label — hovered marker name, lower-centre (separate from 3D centre) */
+#focusLabel{position:fixed;left:50%;bottom:148px;transform:translateX(-50%) translateY(8px);z-index:9;pointer-events:none;text-align:center;
+  font-family:"Shippori Mincho",serif;font-size:16px;letter-spacing:.14em;color:var(--lantern-soft);
+  text-shadow:0 2px 20px rgba(0,0,0,.85);opacity:0;transition:opacity .3s,transform .3s;white-space:nowrap}
+#focusLabel.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#focusLabel .sub{display:block;font-family:"Inter",sans-serif;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ash-dim);margin-top:5px}
+/* look hint (game, lower) */
+#lookHint2{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:7;pointer-events:none;display:flex;align-items:center;gap:12px;
+  color:var(--ash);font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.18em;text-transform:uppercase;opacity:0;transition:opacity 1s}
+body.room-ready #lookHint2{opacity:.72}
+body.hint-gone #lookHint2,body.immersed-med #lookHint2,body.cap-open #lookHint2{opacity:0}
+#lookHint2 .swipe{width:36px;height:12px;position:relative}
+#lookHint2 .swipe i{position:absolute;top:1px;left:0;width:10px;height:10px;border-radius:50%;background:var(--lantern-soft);
+  box-shadow:0 0 10px 2px rgba(240,200,120,.5);animation:swipeMove 2.6s ease-in-out infinite}
+@keyframes swipeMove{0%,100%{left:0;opacity:.25}50%{left:26px;opacity:1}}
+/* caption — lower third, never covers the centre/fire */
+#caption{position:fixed;left:0;right:0;bottom:0;z-index:30;transform:translateY(103%);transition:transform .7s cubic-bezier(.2,.7,.2,1);
+  background:linear-gradient(180deg,transparent,rgba(7,5,8,.8) 14%,rgba(7,5,8,.95));
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:42px 28px 40px;max-height:46vh;overflow:auto}
+#caption.show{transform:translateY(0)}
+#caption .cap-inner{max-width:680px;margin:0 auto;position:relative}
+#caption .cap-eyebrow{font-family:"Cormorant Garamond",serif;font-style:italic;color:var(--lantern);font-size:14px;letter-spacing:.1em;margin-bottom:14px}
+#caption .cap-body{font-family:"Shippori Mincho",serif;color:var(--ash);line-height:2.05;font-size:clamp(14px,1.7vw,17px)}
+#caption .cap-body em{color:var(--lantern-soft);font-style:normal}
+#caption .cap-body p{margin-bottom:14px}
+#caption .cap-body p:last-child{margin-bottom:0}
+#capClose{position:fixed;top:auto;bottom:calc(46vh - 6px);right:18px;cursor:pointer;color:var(--ash-dim);background:rgba(10,7,9,.5);
+  border:1px solid rgba(240,200,120,.16);border-radius:50%;width:36px;height:36px;font-size:18px;line-height:1;z-index:31;transition:all .3s}
+#capClose:hover{color:var(--lantern-soft);border-color:rgba(240,200,120,.4)}
+body:not(.cap-open) #capClose{display:none}
+/* meditation bar (minimal, appears in meditation) */
+#medBar{position:fixed;left:50%;bottom:40px;transform:translateX(-50%) translateY(20px);z-index:32;display:none;align-items:center;gap:10px;
+  opacity:0;transition:opacity .5s,transform .5s;pointer-events:none}
+body.immersed-med #medBar{display:flex;opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+#medBar button{cursor:pointer;font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ash);
+  background:rgba(10,7,9,.46);border:1px solid rgba(240,200,120,.18);border-radius:26px;padding:11px 19px;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:all .3s}
+#medBar button:hover{color:var(--lantern-soft);border-color:rgba(240,200,120,.42)}
+#medBar button.on{color:var(--lantern-soft);border-color:rgba(240,200,120,.5);background:rgba(240,200,120,.12)}
+#medBar .seg{display:flex;gap:6px}
+@media (max-width:640px){#focusLabel{bottom:120px;font-size:14px}#lookHint2{bottom:44px}#caption{max-height:54vh}#capClose{bottom:calc(54vh - 6px)}}
 </style>
 </head>
 <body>
 
-<!-- ── LIVE 360° ROOM (behind everything) ── -->
+<!-- ══════════ LIVE 360° ROOM (the whole experience) ══════════ -->
 <canvas id="room" aria-label="森の小屋の中・3D"></canvas>
 <div id="roomFallback" aria-hidden="true"></div>
 <div id="roomScrim" aria-hidden="true"></div>
 
-<!-- drag-to-look hint -->
-<div id="lookHint">ドラッグで見回す · drag&nbsp;to&nbsp;look&nbsp;around</div>
+<!-- center reticle (gaze target) -->
+<div id="reticle" aria-hidden="true"><span></span></div>
 
-<!-- ── THRESHOLD GATE ── -->
-<div id="enterGate" role="button" tabindex="0" aria-label="小屋をひらく">
-  <span class="gate-ember" aria-hidden="true"></span>
-  <p class="gate-poem">森のおく、灯りのともる小屋。<br>木の軋み、暖炉のはぜる音、雨の匂い。<br>どうぞ、靴を脱いで。</p>
-  <span class="gate-enter">ここをひらく</span>
-  <span class="gate-sub">enter the hollow</span>
-</div>
+<!-- hovered-marker name (kept off the centre) -->
+<div id="focusLabel" aria-live="polite"></div>
 
-<!-- ── IMMERSION (sit by the fire) ── -->
-<div id="immersion" aria-hidden="true">
-  <div id="immRing">
-    <span class="imm-time" id="immTime">10:00</span>
-    <span class="imm-phase" id="immPhase"></span>
-  </div>
-  <div id="immCtl">
-    <button id="immPlay" type="button">瞑想を始める · begin</button>
-    <button id="immFire" type="button">焚き火 · fire</button>
-    <button id="immRain" type="button">雨 · rain</button>
-  </div>
-</div>
-<div id="immExit" role="button" tabindex="0" aria-label="閉じる" title="閉じる">✕</div>
+<!-- game-like look guide -->
+<div id="lookHint2" aria-hidden="true"><span class="swipe"><i></i></span><span>ドラッグで見回す</span></div>
 
-<!-- ── BAR ── -->
-<header class="bar">
-  <a href="#top" class="brand"><span class="lantern-icon"></span> <span>Cabin in the Hollow</span></a>
-  <nav class="nav">
-    <a href="#story" data-i18n="nav.story">物語</a>
-    <a href="#method" data-i18n="nav.method">瞑想</a>
-    <a href="#practice" data-i18n="nav.enter">小屋に入る</a>
-  </nav>
-  <div class="right">
+<!-- top HUD (edges only) -->
+<header id="hud">
+  <a class="brand" href="index.html" title="Views Engineer"><span class="lantern-dot"></span> Cabin in the Hollow</a>
+  <div class="hud-right">
+    <button type="button" class="hud-btn" id="soundToggle" aria-pressed="false">♪ <span>音</span></button>
     <div class="lang">
-      <button class="lang-toggle" id="langToggle" type="button" aria-haspopup="listbox" aria-expanded="false">
-        <span id="langCurrent">JP</span><span class="lang-arrow">▼</span>
+      <button class="hud-btn" id="langToggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+        <span id="langCurrent">JP</span><span class="lang-arrow">▾</span>
       </button>
       <ul class="lang-menu" id="langMenu" role="listbox" hidden>
         <li role="option" data-lang="ja"    data-flag="JP">日本語</li>
@@ -740,335 +797,88 @@ body.immersed #immExit{display:flex}
         <li role="option" data-lang="it"    data-flag="IT">Italiano</li>
       </ul>
     </div>
-    <a href="index.html" class="back" data-i18n="bar.back">← Views Engineer へ</a>
   </div>
 </header>
 
-<!-- ── HERO ── -->
-<section class="hero" id="top">
-  <!-- Hero backdrop image -->
-  <div class="hero-image" aria-hidden="true"></div>
+<!-- content caption (lower third — never over the centre/fire) -->
+<div id="caption" aria-hidden="true"><div class="cap-inner"><div class="cap-eyebrow" id="capEyebrow"></div><div class="cap-body" id="capBody"></div></div></div>
+<button id="capClose" type="button" aria-label="閉じる">✕</button>
 
+<!-- meditation bar (minimal; the experience itself is in 3D) -->
+<div id="medBar" aria-hidden="true">
+  <button type="button" id="medPlay">瞑想を始める · begin</button>
+  <div class="seg">
+    <button type="button" data-min="5">5</button>
+    <button type="button" data-min="10" class="on">10</button>
+    <button type="button" data-min="20">20</button>
+  </div>
+  <button type="button" id="medExit">出る · leave</button>
+</div>
+
+<!-- ── THRESHOLD (separate screen, not over the live 3D) ── -->
+<div id="enterGate" role="button" tabindex="0" aria-label="小屋をひらく">
+  <span class="gate-ember" aria-hidden="true"></span>
+  <p class="gate-poem">森のおく、灯りのともる小屋。<br>暖炉に火を入れておきました。<br>どうぞ、靴を脱いで。</p>
+  <span class="gate-enter">中へ入る</span>
+  <span class="gate-sub">enter the hollow</span>
+</div>
+
+<!-- ════ hidden engine: drives the existing timer / ambient / i18n ════ -->
+<div id="engine" aria-hidden="true">
   <div class="stars" id="stars"></div>
-
-  <!-- ── Shared SVG defs (kept for story illustration) ── -->
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <defs>
-      <linearGradient id="trunkGrad" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="#0a0608"/>
-        <stop offset="50%" stop-color="#1a1008"/>
-        <stop offset="100%" stop-color="#0a0608"/>
-      </linearGradient>
-      <linearGradient id="snowGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#3a3328" stop-opacity=".7"/>
-        <stop offset="100%" stop-color="#1a1612" stop-opacity=".3"/>
-      </linearGradient>
-      <filter id="softBlur"><feGaussianBlur stdDeviation="1.2"/></filter>
-
-      <!-- Reusable conifer -->
-      <symbol id="conifer" viewBox="-50 0 100 240">
-        <path d="M -2.5 240 L -1.5 80 L 0 40 L 1.5 80 L 2.5 240 Z" fill="url(#trunkGrad)"/>
-        <g fill="currentColor">
-          <path d="M -42 240 Q -38 222 -32 218 Q -22 212 -14 208 Q -6 198 -2 198 Q 2 198 6 196 Q 14 200 22 208 Q 30 214 36 222 Q 40 230 42 240 Z"/>
-          <path d="M -34 200 Q -28 184 -22 180 Q -14 174 -6 170 Q -2 162 0 162 Q 2 162 4 168 Q 12 172 20 178 Q 28 184 32 196 Q 34 202 30 204 L -30 204 Z"/>
-          <path d="M -26 162 Q -22 148 -16 142 Q -10 136 -4 130 Q -1 124 0 124 Q 1 124 3 128 Q 8 132 14 138 Q 22 146 24 156 Q 26 162 22 164 L -22 164 Z"/>
-          <path d="M -18 122 Q -14 110 -10 104 Q -6 98 -2 92 Q 0 88 0 88 Q 1 90 4 96 Q 8 102 12 108 Q 16 114 16 120 L -16 122 Z"/>
-          <path d="M -10 86 Q -6 72 -3 64 Q -1 56 0 50 Q 1 56 3 64 Q 6 72 10 86 L -10 86 Z"/>
-          <g opacity=".4">
-            <path d="M -42 240 q -2 -8 4 -10 M 42 240 q 2 -8 -4 -10 M -34 200 q -2 -6 3 -8 M 34 200 q 2 -6 -3 -8 M -26 160 q -1 -5 2 -6 M 26 160 q 1 -5 -2 -6"/>
-          </g>
-        </g>
-        <g fill="url(#snowGrad)" opacity=".6">
-          <path d="M -8 86 Q -3 80 0 78 Q 3 80 8 86 Q 4 84 0 84 Q -4 84 -8 86 Z"/>
-          <path d="M -14 122 Q -8 116 -3 114 Q 0 112 3 114 Q 9 117 14 122 Q 8 119 0 119 Q -8 119 -14 122 Z"/>
-          <path d="M -22 162 Q -14 156 -8 154 Q 0 152 8 154 Q 14 156 22 162 Q 12 159 0 159 Q -12 159 -22 162 Z"/>
-        </g>
-      </symbol>
-    </defs>
-  </svg>
-
-  <!-- ── Floating particles (snow / dust motes) ── -->
-  <div class="motes" id="motes" aria-hidden="true"></div>
-
-  <!-- ── Vignette ── -->
-  <div class="vignette" aria-hidden="true"></div>
-
-  <div class="hero-content">
-    <div class="hero-eyebrow eng" data-i18n="hero.eyebrow">In a Hollow, Beyond the Forest</div>
-    <h1 class="hero-title" data-i18n-html="hero.title">森 の <span class="em">奥</span>、<br>灯 り の 灯 る 場 所。</h1>
-    <p class="hero-sub" data-i18n-html="hero.sub">
-      旅 の 終 わ り の よ う に、<br>
-      ひ と つ だ け 灯 り の と も る 小 屋 が あ り ま す。<br>
-      ど う ぞ、靴 を 脱 い で。
-    </p>
-    <div class="hero-cta">
-      <button type="button" class="immerse-btn" id="heroImmerse"><span class="dot" aria-hidden="true"></span>火 の そ ば に 座 る · sit by the fire</button>
-      <a href="#practice" class="btn btn-primary" data-i18n="hero.cta">小屋 に 入る  →</a>
-    </div>
+  <div class="motes" id="motes"></div>
+  <div class="hearth-wrap">
+    <div class="hearth" id="hearth"></div>
+    <svg class="progress-ring" viewBox="0 0 200 200">
+      <circle class="track" cx="100" cy="100" r="96"/>
+      <circle class="bar" id="progressBar" cx="100" cy="100" r="96" stroke-dasharray="603" stroke-dashoffset="603" stroke-linecap="round"/>
+    </svg>
+    <div class="timer-display"><div class="countdown" id="countdown">10:00</div><div class="phase eng" id="phase">ready</div></div>
   </div>
-
-  <div class="cue eng" data-i18n-html="hero.cue">scroll · 物語へ <div class="line"></div></div>
-</section>
-
-<!-- ── STORY ── -->
-<section class="sec story" id="story">
-  <div class="sec-inner">
-    <div class="sec-eyebrow eng" data-i18n="story.eyebrow">A Tale · 小屋 の 物語</div>
-    <h2 class="sec-title serif" data-i18n-html="story.title">道 を 外れた 者 だけ が、<br><em>この 灯り</em> を 見つける。</h2>
-
-    <div class="story-grid">
-      <div class="cabin-illust">
-        <img src="assets/cabin-hero.png" alt="森の中の小屋、暖炉の光" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.92;filter:brightness(.88) saturate(1.15)">
-        <svg viewBox="0 0 200 220" preserveAspectRatio="xMidYMid slice" style="display:none">
-          <defs>
-            <radialGradient id="storyMoon" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#e8dcc0" stop-opacity=".6"/>
-              <stop offset="100%" stop-color="#e8dcc0" stop-opacity="0"/>
-            </radialGradient>
-            <radialGradient id="storyHalo" cx="50%" cy="50%" r="60%">
-              <stop offset="0%" stop-color="#f0c878" stop-opacity=".7"/>
-              <stop offset="50%" stop-color="#a85820" stop-opacity=".25"/>
-              <stop offset="100%" stop-color="#a85820" stop-opacity="0"/>
-            </radialGradient>
-            <linearGradient id="storyWindow" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#fff0c0"/>
-              <stop offset="100%" stop-color="#d97a32"/>
-            </linearGradient>
-            <linearGradient id="storyWall" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#3a2418"/>
-              <stop offset="100%" stop-color="#1a0e08"/>
-            </linearGradient>
-          </defs>
-
-          <!-- night sky -->
-          <rect width="200" height="220" fill="#0a0810"/>
-          <!-- moon -->
-          <circle cx="160" cy="42" r="28" fill="url(#storyMoon)"/>
-          <circle cx="160" cy="42" r="9" fill="#e8dcc0" opacity=".55"/>
-          <circle cx="164" cy="38" r="2" fill="#1a1410" opacity=".25"/>
-          <!-- stars -->
-          <g fill="#e8dcc0">
-            <circle cx="30" cy="30" r=".8" opacity=".7"/>
-            <circle cx="60" cy="20" r=".6" opacity=".5"/>
-            <circle cx="100" cy="40" r=".7" opacity=".6"/>
-            <circle cx="125" cy="25" r=".5" opacity=".4"/>
-            <circle cx="180" cy="80" r=".6" opacity=".5"/>
-            <circle cx="40" cy="70" r=".5" opacity=".4"/>
-          </g>
-
-          <!-- distant ridge -->
-          <path d="M0,160 Q40,140 80,150 Q120,160 160,142 Q180,134 200,148 L200,170 L0,170 Z" fill="#14110d" opacity=".7"/>
-
-          <!-- mid conifer band -->
-          <g fill="#0a0807" filter="url(#softBlur)">
-            <use href="#conifer" x="-10" y="105" width="60" height="80"/>
-            <use href="#conifer" x="30"  y="115" width="55" height="70"/>
-            <use href="#conifer" x="70"  y="110" width="60" height="75"/>
-            <use href="#conifer" x="115" y="118" width="50" height="68"/>
-            <use href="#conifer" x="150" y="108" width="60" height="80"/>
-          </g>
-
-          <!-- cabin halo -->
-          <ellipse cx="100" cy="160" rx="80" ry="32" fill="url(#storyHalo)" opacity=".75"/>
-
-          <!-- cabin -->
-          <g transform="translate(60 110)">
-            <!-- roof -->
-            <polygon points="-2,38 40,12 82,38 82,42 -2,42" fill="#1a0f08"/>
-            <polygon points="-2,38 40,12 82,38" fill="#2a1810"/>
-            <!-- snow on roof -->
-            <path d="M-2,38 Q15,34 30,38 Q40,32 50,32 Q65,34 82,38 L82,40 L-2,40 Z" fill="#3a3328" opacity=".55"/>
-            <!-- chimney -->
-            <rect x="58" y="20" width="6" height="16" fill="#241510"/>
-            <path d="M61,20 Q58,12 64,4 Q70,-4 60,-14" fill="none" stroke="#3a2a20" stroke-width="1.4" stroke-linecap="round" opacity=".55"/>
-            <!-- walls -->
-            <rect x="2" y="38" width="76" height="46" fill="url(#storyWall)"/>
-            <g stroke="#0a0604" stroke-width=".5" opacity=".7">
-              <line x1="2" y1="46" x2="78" y2="46"/>
-              <line x1="2" y1="54" x2="78" y2="54"/>
-              <line x1="2" y1="62" x2="78" y2="62"/>
-              <line x1="2" y1="70" x2="78" y2="70"/>
-              <line x1="2" y1="78" x2="78" y2="78"/>
-            </g>
-            <g fill="#2a1810" stroke="#0a0604" stroke-width=".4">
-              <circle cx="2" cy="46" r="1.6"/><circle cx="2" cy="54" r="1.6"/><circle cx="2" cy="62" r="1.6"/><circle cx="2" cy="70" r="1.6"/><circle cx="2" cy="78" r="1.6"/>
-              <circle cx="78" cy="46" r="1.6"/><circle cx="78" cy="54" r="1.6"/><circle cx="78" cy="62" r="1.6"/><circle cx="78" cy="70" r="1.6"/><circle cx="78" cy="78" r="1.6"/>
-            </g>
-            <!-- door -->
-            <rect x="18" y="60" width="12" height="24" fill="#0a0604"/>
-            <rect x="19" y="61" width="10" height="22" fill="#1a0e08"/>
-            <circle cx="27" cy="72" r=".7" fill="#a85820"/>
-            <!-- main window -->
-            <rect x="46" y="50" width="22" height="18" fill="#0a0604"/>
-            <rect x="47" y="51" width="20" height="16" fill="url(#storyWindow)">
-              <animate attributeName="opacity" values=".88;1;.92;.97" dur="3.6s" repeatCount="indefinite"/>
-            </rect>
-            <line x1="57" y1="51" x2="57" y2="67" stroke="#2a1810" stroke-width="1"/>
-            <line x1="47" y1="59" x2="67" y2="59" stroke="#2a1810" stroke-width="1"/>
-            <!-- light spill at door -->
-            <polygon points="16,84 32,84 38,90 10,90" fill="#a85820" opacity=".4"/>
-            <!-- snow piles -->
-            <path d="M-4,84 Q20,80 40,82 Q60,80 84,84 L84,90 L-4,90 Z" fill="#2a2620" opacity=".7"/>
-          </g>
-
-          <!-- foreground silhouette pines (frame the scene) -->
-          <g fill="#020100">
-            <use href="#conifer" x="-30" y="80" width="80" height="140"/>
-            <use href="#conifer" x="160" y="70" width="80" height="150"/>
-          </g>
-          <rect y="200" width="200" height="20" fill="#020100"/>
-
-          <!-- subtle vignette -->
-          <rect width="200" height="220" fill="url(#storyMoon)" opacity="0"/>
-        </svg>
-      </div>
-
-      <div class="story-text">
-        <p data-i18n-html="story.p1">地図 の 端 が 擦り切れた 頃、 旅人 は 道 を 外れて しまう。 木々 の 影 が 深く なる ほど、 心 の どこか が 静か に <em>ほどけて いく</em>。</p>
-        <p data-i18n-html="story.p2">もう 戻れ ない、 と 思った その 時 — 葉 の 隙間 から、 ひとつ だけ <strong>灯り</strong> が 漏れて いる。 木 の 軋む 音、 暖炉 の 火 の はぜる 音、 雨 の 香り。</p>
-        <p data-i18n-html="story.p3">扉 を 押す と、 中 に は 誰 も いない。 ただ、 椅子 が ひとつ。 茶 が 一杯。 そして — <em>あなた の ため の 時間</em> が、 ここ に 用意 されて いる。</p>
-        <div class="signature eng" data-i18n="story.sig">— Welcome to the Hollow.</div>
-      </div>
-    </div>
+  <div class="duration-pills" id="pills">
+    <button class="pill" data-min="3">3</button>
+    <button class="pill active" data-min="10">10</button>
+    <button class="pill" data-min="20">20</button>
+    <button class="pill" data-min="30">30</button>
   </div>
-</section>
-
-<!-- ── METHOD ── -->
-<section class="sec method" id="method">
-  <div class="sec-inner">
-    <div class="sec-eyebrow eng" data-i18n="method.eyebrow">Three Ways · 三つ の 灯し 方</div>
-    <h2 class="sec-title serif" data-i18n-html="method.title">心 を 鎮める、<br><em>三つ</em> の 方法。</h2>
-
-    <div class="method-grid">
-      <div class="method-card">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>
-        <div class="num eng">i.</div>
-        <h3 class="serif" data-i18n="method.1.h">呼吸 を 数える</h3>
-        <div class="en" data-i18n="method.1.en">Counting the Breath</div>
-        <p data-i18n="method.1.p">4 秒 で 吸い、 2 秒 とどめ、 6 秒 で 吐く。 暖炉 の 火 が ゆれる リズム に、 自分 を 預ける。</p>
-      </div>
-      <div class="method-card">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3c2 4 5 6 5 10a5 5 0 0 1-10 0c0-4 3-6 5-10z"/></svg>
-        <div class="num eng">ii.</div>
-        <h3 class="serif" data-i18n="method.2.h">音 に 浸る</h3>
-        <div class="en" data-i18n="method.2.en">Listening to the Hollow</div>
-        <p data-i18n="method.2.p">雨、 焚き火、 森 の ざわめき、 風。 言葉 を 手放し、 ただ 聴く。 音 だけ が、 部屋 を 満たして いく。</p>
-      </div>
-      <div class="method-card">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>
-        <div class="num eng">iii.</div>
-        <h3 class="serif" data-i18n="method.3.h">灯り を 見つめる</h3>
-        <div class="en" data-i18n="method.3.en">Gazing at the Ember</div>
-        <p data-i18n="method.3.p">暖炉 の 火 を 見つめ ながら、 思考 を 通り過ぎる 雲 の よう に 見送る。 戻って こなくて よい。</p>
-      </div>
-    </div>
+  <button class="play-btn" id="playBtn" aria-label="play / pause"><svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><polygon points="6,4 20,12 6,20"/></svg></button>
+  <button class="reset-btn" id="resetBtn" aria-label="reset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
+  <div class="amb-grid" id="ambGrid">
+    <button class="amb-btn" data-snd="rain"><span class="name" data-i18n="amb.rain">Rain</span><span class="jp" data-i18n="amb.rain.sub">雨</span></button>
+    <button class="amb-btn" data-snd="fire"><span class="name" data-i18n="amb.fire">Fire</span><span class="jp" data-i18n="amb.fire.sub">焚き火</span></button>
+    <button class="amb-btn" data-snd="forest"><span class="name" data-i18n="amb.forest">Forest</span><span class="jp" data-i18n="amb.forest.sub">森</span></button>
+    <button class="amb-btn" data-snd="wind"><span class="name" data-i18n="amb.wind">Wind</span><span class="jp" data-i18n="amb.wind.sub">風</span></button>
   </div>
-</section>
-
-<!-- ── PRACTICE ── -->
-<section class="sec practice" id="practice">
-  <div class="sec-inner">
-    <div class="sec-eyebrow eng" data-i18n="practice.eyebrow">The Hearth · 暖炉 の 前 で</div>
-    <h2 class="sec-title serif" data-i18n-html="practice.title">どうぞ、<em>椅子</em> に。</h2>
-
-    <div class="hearth-wrap">
-      <div class="hearth" id="hearth"></div>
-      <div class="hearth-ring r2"></div>
-      <div class="hearth-ring"></div>
-      <svg class="progress-ring" viewBox="0 0 200 200">
-        <circle class="track" cx="100" cy="100" r="96"/>
-        <circle class="bar" id="progressBar" cx="100" cy="100" r="96" stroke-dasharray="603" stroke-dashoffset="603" stroke-linecap="round"/>
-      </svg>
-      <div class="timer-display">
-        <div class="countdown" id="countdown">10:00</div>
-        <div class="phase eng" id="phase">ready</div>
-      </div>
-    </div>
-
-    <div class="controls">
-      <div class="duration-pills" id="pills">
-        <button class="pill" data-min="3">3 min</button>
-        <button class="pill active" data-min="10">10 min</button>
-        <button class="pill" data-min="20">20 min</button>
-        <button class="pill" data-min="30">30 min</button>
-      </div>
-
-      <div class="play-row">
-        <button class="play-btn" id="playBtn" aria-label="play / pause">
-          <svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><polygon points="6,4 20,12 6,20"/></svg>
-        </button>
-        <button class="reset-btn" id="resetBtn" aria-label="reset">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
-        </button>
-      </div>
-    </div>
-
-    <!-- Ambient -->
-    <div class="ambient">
-      <div class="ambient-label eng" data-i18n="practice.amb_label">Ambient · 環境音</div>
-      <div class="amb-grid" id="ambGrid">
-        <button class="amb-btn" data-snd="rain">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M5 14a4 4 0 1 1 4-7 5 5 0 0 1 9 1 4 4 0 0 1-1 8H6"/><line x1="8" y1="18" x2="7" y2="22"/><line x1="12" y1="18" x2="11" y2="22"/><line x1="16" y1="18" x2="15" y2="22"/></svg>
-          <span class="name" data-i18n="amb.rain">Rain</span><span class="jp" data-i18n="amb.rain.sub">雨</span>
-        </button>
-        <button class="amb-btn" data-snd="fire">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3c1.5 3 5 5 5 9a5 5 0 0 1-10 0c0-2 1-4 2-5 0 2 1 3 2 3-1-2-1-4 1-7z"/></svg>
-          <span class="name" data-i18n="amb.fire">Fire</span><span class="jp" data-i18n="amb.fire.sub">焚き火</span>
-        </button>
-        <button class="amb-btn" data-snd="forest">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 2L6 12h3l-3 6h12l-3-6h3z"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
-          <span class="name" data-i18n="amb.forest">Forest</span><span class="jp" data-i18n="amb.forest.sub">森</span>
-        </button>
-        <button class="amb-btn" data-snd="wind">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 8h13a3 3 0 1 0-3-3"/><path d="M3 14h17a3 3 0 1 1-3 3"/><path d="M3 11h9"/></svg>
-          <span class="name" data-i18n="amb.wind">Wind</span><span class="jp" data-i18n="amb.wind.sub">風</span>
-        </button>
-      </div>
-      <div class="volume-row">
-        <span class="lbl">Ambient</span>
-        <input type="range" id="volumeAmb" min="0" max="100" value="50">
-      </div>
-    </div>
-
-    <!-- Music -->
-    <div class="music">
-      <div class="music-label eng" data-i18n="music.label">Music · 音楽</div>
-      <div class="music-grid" id="musicGrid">
-        <button class="music-btn" data-track="1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-          <span class="title">Hollow Meditation</span><span class="jp" data-i18n="music.1.sub">瞑想の調べ</span>
-        </button>
-        <button class="music-btn" data-track="2">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-          <span class="title">Forest Lullaby</span><span class="jp" data-i18n="music.2.sub">森の子守唄</span>
-        </button>
-        <button class="music-btn" data-track="3">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-          <span class="title">Night Whisper</span><span class="jp" data-i18n="music.3.sub">夜のささやき</span>
-        </button>
-      </div>
-      <div class="volume-row" style="margin-top:18px">
-        <span class="lbl">Music</span>
-        <input type="range" id="volumeMusic" min="0" max="100" value="60">
-      </div>
-    </div>
+  <input type="range" id="volumeAmb" min="0" max="100" value="50">
+  <div class="music-grid" id="musicGrid">
+    <button class="music-btn" data-track="1"></button>
+    <button class="music-btn" data-track="2"></button>
+    <button class="music-btn" data-track="3"></button>
   </div>
-</section>
+  <input type="range" id="volumeMusic" min="0" max="100" value="60">
+  <span id="year"></span>
 
-<!-- ── CLOSING ── -->
-<section class="sec closing">
-  <p class="quote serif" data-i18n-html="closing.quote">
-    あなた が ここ に 来た こと を、<br>
-    <em>森</em> は 知って います。<br>
-    また、 灯り を つけて 待って います。
-  </p>
-  <div class="src eng" data-i18n="closing.src">— The Cabin in the Hollow</div>
-</section>
+  <!-- localized content store (read by the caption; kept localized by applyLang) -->
+  <div id="contentStore">
+    <span data-i18n="story.eyebrow">A Tale · 小屋 の 物語</span>
+    <span data-i18n-html="story.title">道 を 外れた 者 だけ が、<br><em>この 灯り</em> を 見つける。</span>
+    <span data-i18n-html="story.p1">地図 の 端 が 擦り切れた 頃、 旅人 は 道 を 外れて しまう。 木々 の 影 が 深く なる ほど、 心 の どこか が 静か に <em>ほどけて いく</em>。</span>
+    <span data-i18n-html="story.p2">もう 戻れ ない、 と 思った その 時 — 葉 の 隙間 から、 ひとつ だけ <strong>灯り</strong> が 漏れて いる。 木 の 軋む 音、 暖炉 の 火 の はぜる 音、 雨 の 香り。</span>
+    <span data-i18n-html="story.p3">扉 を 押す と、 中 に は 誰 も いない。 ただ、 椅子 が ひとつ。 茶 が 一杯。 そして — <em>あなた の ため の 時間</em> が、 ここ に 用意 されて いる。</span>
+    <span data-i18n="story.sig">— Welcome to the Hollow.</span>
+    <span data-i18n="method.eyebrow">Three Ways · 三つ の 灯し 方</span>
+    <span data-i18n-html="method.title">心 を 鎮める、<br><em>三つ</em> の 方法。</span>
+    <span data-i18n="method.1.h">呼吸 を 数える</span>
+    <span data-i18n="method.1.p">4 秒 で 吸い、 2 秒 とどめ、 6 秒 で 吐く。 暖炉 の 火 が ゆれる リズム に、 自分 を 預ける。</span>
+    <span data-i18n="method.2.h">音 に 浸る</span>
+    <span data-i18n="method.2.p">雨、 焚き火、 森 の ざわめき、 風。 言葉 を 手放し、 ただ 聴く。 音 だけ が、 部屋 を 満たして いく。</span>
+    <span data-i18n="method.3.h">灯り を 見つめる</span>
+    <span data-i18n="method.3.p">暖炉 の 火 を 見つめ ながら、 思考 を 通り過ぎる 雲 の よう に 見送る。 戻って こなくて よい。</span>
+    <span data-i18n="practice.eyebrow">The Hearth · 暖炉 の 前 で</span>
+    <span data-i18n-html="closing.quote">あなた が ここ に 来た こと を、<br><em>森</em> は 知って います。<br>また、 灯り を つけて 待って います。</span>
+  </div>
+</div>
 
-<!-- ── FOOT ── -->
-<footer class="foot">
-  <div>© <span id="year"></span> Cabin in the Hollow · a quiet corner of <a href="index.html">Views Engineer</a></div>
-</footer>
 
 <script>
 // ─── stars ───
@@ -1812,14 +1622,23 @@ if (langToggle && langMenu) {
 <script type="module">
 import * as THREE from 'three';
 
-const HEARTH_LON = 180;          // longitude (deg) of the hearth in the equirect
+const HEARTH_LON = 190;
 const canvas   = document.getElementById('room');
 const fallback = document.getElementById('roomFallback');
 const reduce   = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// in-world points of interest (lon/lat in the equirect; tuned to the render)
+const MARKERS = [
+  { key:'meditate', lon:190, lat:-16, r:5.5, jp:'炎を見つめて瞑想する', en:'gaze into the fire' },
+  { key:'story',    lon:165, lat:-12, r:6,   jp:'小屋の物語',           en:'the tale of the cabin' },
+  { key:'window',   lon:270, lat:1,   r:6,   jp:'夜の森をのぞむ',       en:'the night forest' },
+  { key:'methods',  lon:297, lat:-8,  r:6,   jp:'心の鎮め方',           en:'three ways to quiet' },
+];
+
 let renderer;
 try { renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' }); }
 catch(e){ renderer = null; }
+
 if(!renderer){ if(fallback) fallback.style.display='block'; }
 else {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -1829,164 +1648,289 @@ else {
   const scene  = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.1, 100);
 
-  let lon = HEARTH_LON, lat = -8, targetLon = lon, targetLat = lat, idle = 0;
+  let lon=HEARTH_LON, lat=-10, tLon=lon, tLat=lat, idle=0;
+  let meditating=false, capOpen=false;
 
-  const loader = new THREE.TextureLoader();
-  const tex = loader.load('assets/cabin360.jpg',
-    () => document.body.classList.add('room-ready'),
-    undefined,
-    () => { if(fallback) fallback.style.display='block'; });
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.minFilter  = THREE.LinearMipmapLinearFilter;
-  const sphere = new THREE.Mesh(
-    new THREE.SphereGeometry(12, 64, 40),
-    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide }));
-  scene.add(sphere);
+  // ── equirect room ──
+  const tex = new THREE.TextureLoader().load('assets/cabin360.jpg',
+    ()=>document.body.classList.add('room-ready'), undefined,
+    ()=>{ if(fallback) fallback.style.display='block'; });
+  tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(12,64,40),
+    new THREE.MeshBasicMaterial({ map:tex, side:THREE.BackSide })));
 
   function glowTex(r,g,b){
-    const c=document.createElement('canvas'); c.width=c.height=128;
-    const x=c.getContext('2d'), gr=x.createRadialGradient(64,64,0,64,64,64);
-    gr.addColorStop(0,`rgba(${r},${g},${b},1)`); gr.addColorStop(.4,`rgba(${r},${g},${b},.5)`); gr.addColorStop(1,`rgba(${r},${g},${b},0)`);
+    const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+    const gr=x.createRadialGradient(64,64,0,64,64,64);
+    gr.addColorStop(0,`rgba(${r},${g},${b},1)`); gr.addColorStop(.45,`rgba(${r},${g},${b},.45)`); gr.addColorStop(1,`rgba(${r},${g},${b},0)`);
     x.fillStyle=gr; x.fillRect(0,0,128,128); return new THREE.CanvasTexture(c);
   }
-  function bearing(lonDeg, latDeg, rad){
+  function bearing(lonDeg,latDeg,rad){
     const phi=THREE.MathUtils.degToRad(90-latDeg), th=THREE.MathUtils.degToRad(lonDeg);
     return new THREE.Vector3(rad*Math.sin(phi)*Math.cos(th), rad*Math.cos(phi), rad*Math.sin(phi)*Math.sin(th));
   }
+  function faceOrigin(o){ o.lookAt(0,0,0); }
 
-  // fire glow halo at the hearth
-  const glowMat = new THREE.SpriteMaterial({ map:glowTex(255,140,52), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.4 });
-  const glow = new THREE.Sprite(glowMat);
-  glow.position.copy(bearing(HEARTH_LON, -8, 7)); glow.scale.set(5.6,4.8,1);
-  scene.add(glow);
+  // ── ANIMATED FIRE (procedural shader on a billboard in the hearth) ──
+  const fireUniforms = { uTime:{value:0}, uBreath:{value:1} };
+  const fireMat = new THREE.ShaderMaterial({
+    uniforms: fireUniforms, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+    vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`
+      precision highp float; varying vec2 vUv; uniform float uTime, uBreath;
+      float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+        return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y); }
+      float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=0.5; } return v; }
+      void main(){
+        vec2 uv=vUv; float t=uTime;
+        float n=fbm(vec2(uv.x*3.2, uv.y*2.0 - t*1.8));
+        float n2=fbm(vec2(uv.x*6.0+3.0, uv.y*3.0 - t*2.6));
+        float edge=clamp(1.0-abs(uv.x-0.5)*2.0, 0.0, 1.0);
+        float top=edge*(0.55+0.30*uBreath)*(0.7+0.6*n);   // wavering flame height across width
+        float flame=smoothstep(top, top-0.45, uv.y);       // fill below the top
+        flame*=smoothstep(0.0,0.16,edge);                  // trim thin sides
+        flame*=(0.55+0.5*n2);                              // inner texture
+        flame=clamp(flame,0.0,1.0);
+        float h=uv.y;
+        vec3 col=mix(vec3(1.0,0.82,0.38), vec3(0.95,0.28,0.05), h);     // gold base -> red tips
+        col=mix(col, vec3(1.0,0.97,0.82), (1.0-h)*0.55*flame);          // white-hot base
+        float a=flame*(0.88+0.12*sin(t*24.0));
+        gl_FragColor=vec4(col*1.45, a);
+      }`
+  });
+  const fire = new THREE.Mesh(new THREE.PlaneGeometry(1.2,1.45), fireMat);
+  fire.position.copy(bearing(HEARTH_LON,-12,6.2)); faceOrigin(fire); fire.renderOrder=2;
+  scene.add(fire);
 
-  // rising embers
-  const EN = reduce ? 0 : 80, base = bearing(HEARTH_LON, -9, 6.4);
-  const epos = new Float32Array(EN*3), eseed=[];
-  for(let i=0;i<EN;i++){ eseed.push({x:(Math.random()-.5)*1.5, y:Math.random(), z:(Math.random()-.5)*0.9, sp:.2+Math.random()*.55, sw:Math.random()*6.28});
-    epos[i*3]=base.x; epos[i*3+1]=base.y; epos[i*3+2]=base.z; }
-  const egeo=new THREE.BufferGeometry(); egeo.setAttribute('position', new THREE.BufferAttribute(epos,3));
-  const emberMat=new THREE.PointsMaterial({ map:glowTex(255,170,80), size:.12, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.85 });
-  const embers=new THREE.Points(egeo, emberMat); scene.add(embers);
+  // hearth halo + embers
+  const glowMat = new THREE.SpriteMaterial({ map:glowTex(255,138,50), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.4 });
+  const glow = new THREE.Sprite(glowMat); glow.position.copy(bearing(HEARTH_LON,-12,6.6)); glow.scale.set(4.2,3.8,1); scene.add(glow);
 
-  // ── controls ──
-  let dragging=false, px=0, py=0, gyroOn=false;
-  const immersed = () => document.body.classList.contains('immersed');
-  canvas.addEventListener('pointerdown', e=>{ dragging=true; px=e.clientX; py=e.clientY; idle=0; });
+  const EN=reduce?0:90, ebase=bearing(HEARTH_LON,-14,5.9);
+  const ep=new Float32Array(EN*3), es=[];
+  for(let i=0;i<EN;i++){ es.push({x:(Math.random()-.5)*1.5,y:Math.random(),z:(Math.random()-.5)*0.8,sp:.2+Math.random()*.6,sw:Math.random()*6.28});
+    ep[i*3]=ebase.x; ep[i*3+1]=ebase.y; ep[i*3+2]=ebase.z; }
+  const eg=new THREE.BufferGeometry(); eg.setAttribute('position',new THREE.BufferAttribute(ep,3));
+  const emberMat=new THREE.PointsMaterial({ map:glowTex(255,172,82), size:.12, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.85 });
+  const embers=new THREE.Points(eg,emberMat); scene.add(embers);
+
+  // ── breath orb + in-world timer (meditation, hidden until sitting) ──
+  const orbMat=new THREE.SpriteMaterial({ map:glowTex(255,196,120), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:0 });
+  const orb=new THREE.Sprite(orbMat); orb.position.copy(bearing(HEARTH_LON,-20,4.2)); orb.scale.set(1.6,1.6,1); scene.add(orb);
+
+  const tcv=document.createElement('canvas'); tcv.width=512; tcv.height=160; const tcx=tcv.getContext('2d');
+  const timeTex=new THREE.CanvasTexture(tcv);
+  const timeMat=new THREE.SpriteMaterial({ map:timeTex, transparent:true, depthWrite:false, opacity:0 });
+  const timeSpr=new THREE.Sprite(timeMat); timeSpr.position.copy(bearing(HEARTH_LON,-30,3.6)); timeSpr.scale.set(2.4,0.75,1); scene.add(timeSpr);
+  function drawReadout(time,phase){
+    tcx.clearRect(0,0,512,160);
+    tcx.textAlign='center'; tcx.fillStyle='rgba(248,224,160,0.92)';
+    tcx.font='600 86px "Cormorant Garamond", Georgia, serif';
+    tcx.fillText(time||'', 256, 78);
+    tcx.fillStyle='rgba(200,182,150,0.7)'; tcx.font='26px Inter, sans-serif';
+    tcx.fillText(phase||'', 256, 128);
+    timeTex.needsUpdate=true;
+  }
+
+  // ── in-world markers (gaze targets) ──
+  function markerTex(){
+    const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+    x.translate(64,64);
+    const g=x.createRadialGradient(0,0,2,0,0,30); g.addColorStop(0,'rgba(248,224,160,.95)'); g.addColorStop(1,'rgba(248,224,160,0)');
+    x.fillStyle=g; x.beginPath(); x.arc(0,0,30,0,6.28); x.fill();
+    x.strokeStyle='rgba(255,240,200,.95)'; x.lineWidth=3;
+    x.beginPath(); x.arc(0,0,20,0,6.28); x.stroke();
+    x.fillStyle='rgba(255,244,210,1)'; x.beginPath(); x.arc(0,0,5,0,6.28); x.fill();
+    return new THREE.CanvasTexture(c);
+  }
+  const mTex=markerTex();
+  const markerGroup=new THREE.Group(); scene.add(markerGroup);
+  const markerSprites=MARKERS.map(m=>{
+    const s=new THREE.Sprite(new THREE.SpriteMaterial({ map:mTex, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.9 }));
+    s.position.copy(bearing(m.lon,m.lat,m.r)); s.scale.set(0.7,0.7,1); s.userData=m; markerGroup.add(s); return s;
+  });
+
+  // ── interaction ──
+  const ray=new THREE.Raycaster();
+  let dragging=false, moved=0, px=0, py=0, dx0=0, dy0=0, gyroOn=false, hovered=null;
+  const reticle=document.getElementById('reticle'), focusLabel=document.getElementById('focusLabel');
+  canvas.addEventListener('pointerdown', e=>{ dragging=true; moved=0; px=dx0=e.clientX; py=dy0=e.clientY; idle=0; });
   addEventListener('pointermove', e=>{
     if(!dragging) return;
-    if(!immersed() && e.pointerType!=='mouse') return;     // page mode: only mouse rotates (touch = scroll)
-    targetLon += (px-e.clientX)*0.12;
-    targetLat = Math.max(-52, Math.min(52, targetLat + (e.clientY-py)*0.12));
+    moved+=Math.abs(e.clientX-px)+Math.abs(e.clientY-py);
+    tLon += (px-e.clientX)*0.12; tLat=Math.max(-58,Math.min(58, tLat+(e.clientY-py)*0.12));
     px=e.clientX; py=e.clientY; idle=0;
-    document.body.classList.add('hint-gone');
+    if(moved>14) document.body.classList.add('hint-gone');
   });
-  addEventListener('pointerup', ()=>dragging=false);
-  addEventListener('pointercancel', ()=>dragging=false);
+  function endDrag(e){
+    if(!dragging) return; dragging=false;
+    if(moved<10 && !capOpen){           // a tap → activate marker under the pointer
+      const nx=( (e.clientX||innerWidth/2)/innerWidth)*2-1, ny=-((e.clientY||innerHeight/2)/innerHeight)*2+1;
+      ray.setFromCamera({x:nx,y:ny}, camera);
+      const hit=ray.intersectObjects(markerGroup.children,false)[0];
+      if(hit && hit.object.userData) window.onMarker && window.onMarker(hit.object.userData.key);
+      else if(hovered) window.onMarker && window.onMarker(hovered.userData.key);
+    }
+  }
+  addEventListener('pointerup', endDrag); addEventListener('pointercancel', ()=>dragging=false);
 
-  function onOrient(e){ if(e.alpha==null) return; targetLon = HEARTH_LON - e.alpha; targetLat = Math.max(-52, Math.min(52, (e.beta||0)-90)); }
+  function onOrient(e){ if(e.alpha==null) return; tLon=HEARTH_LON-e.alpha; tLat=Math.max(-58,Math.min(58,(e.beta||0)-90)); }
 
-  let breath=1, breathTarget=1;
+  let breath=1, bt=1;
   window.CabinRoom = {
-    setBreath:(b)=>{ breathTarget=b; },
-    enableGyro(){
-      if(gyroOn) return;
-      const go=()=>{ gyroOn=true; addEventListener('deviceorientation', onOrient); };
+    setBreath:b=>{ bt=b; },
+    enableGyro(){ if(gyroOn) return;
+      const go=()=>{ gyroOn=true; addEventListener('deviceorientation',onOrient); };
       if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission)
-        DeviceOrientationEvent.requestPermission().then(s=>{ if(s==='granted') go(); }).catch(()=>{});
-      else go();
+        DeviceOrientationEvent.requestPermission().then(s=>{ if(s==='granted') go(); }).catch(()=>{}); else go();
     },
-    lookHearth(){ targetLon=HEARTH_LON; targetLat=-8; }
+    lookHearth(){ tLon=HEARTH_LON; tLat=-10; },
+    startMeditation(){ meditating=true; this.lookHearth(); },
+    stopMeditation(){ meditating=false; },
+    setReadout:(t,p)=>drawReadout(t,p),
+    setCapOpen:v=>{ capOpen=v; },
+    _set:(l,la)=>{ tLon=lon=l; tLat=lat=(la===undefined?lat:la); },
+    _fireVis:v=>{ fire.visible=v; glow.visible=v; embers.visible=v; }
   };
+  drawReadout('','');
 
-  addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+  addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
 
   const clock=new THREE.Clock();
   (function animate(){
     requestAnimationFrame(animate);
     const dt=Math.min(clock.getDelta(),.05), t=clock.elapsedTime;
-    if(!dragging && !gyroOn && !reduce){ idle+=dt; if(idle>5) targetLon += dt*0.55; }
-    lon += (targetLon-lon)*0.07; lat += (targetLat-lat)*0.07;
+    fireUniforms.uTime.value=t;
+
+    if(!dragging && !gyroOn && !reduce && !meditating){ idle+=dt; if(idle>6) tLon+=dt*0.5; }
+    lon+=(tLon-lon)*0.08; lat+=(tLat-lat)*0.08;
     const phi=THREE.MathUtils.degToRad(90-lat), th=THREE.MathUtils.degToRad(lon);
     camera.lookAt(Math.sin(phi)*Math.cos(th), Math.cos(phi), Math.sin(phi)*Math.sin(th));
 
-    breath += (breathTarget-breath)*0.05;
-    const flick = reduce ? 1 : (0.82 + Math.sin(t*12.9)*0.06 + Math.sin(t*7.1)*0.05 + Math.random()*0.05);
-    const I = flick*(0.7+0.5*breath);
-    glowMat.opacity = 0.46*I; glow.scale.setScalar(5.4*(0.92+0.14*I));
-    if(EN){
-      const a=egeo.attributes.position.array;
-      for(let i=0;i<EN;i++){ const s=eseed[i]; s.y+=dt*s.sp*0.12; if(s.y>1){ s.y=0; s.x=(Math.random()-.5)*1.5; s.z=(Math.random()-.5)*0.9; }
-        a[i*3]=base.x+s.x+Math.sin(t*0.8+s.sw)*0.18*s.y; a[i*3+1]=base.y+s.y*2.3; a[i*3+2]=base.z+s.z; }
-      egeo.attributes.position.needsUpdate=true; emberMat.opacity=0.8*I;
-    }
-    renderer.render(scene, camera);
+    breath+=(bt-breath)*0.05; fireUniforms.uBreath.value=breath;
+    const flick=reduce?1:(0.82+Math.sin(t*12.9)*0.06+Math.sin(t*7.1)*0.05+Math.random()*0.05);
+    const I=flick*(0.72+0.5*breath);
+    glowMat.opacity=0.38*I; glow.scale.setScalar(4.1*(0.92+0.13*I));
+    if(EN){ const a=eg.attributes.position.array;
+      for(let i=0;i<EN;i++){ const s=es[i]; s.y+=dt*s.sp*0.12; if(s.y>1){ s.y=0; s.x=(Math.random()-.5)*1.5; s.z=(Math.random()-.5)*0.8; }
+        a[i*3]=ebase.x+s.x+Math.sin(t*0.8+s.sw)*0.18*s.y; a[i*3+1]=ebase.y+s.y*2.2; a[i*3+2]=ebase.z+s.z; }
+      eg.attributes.position.needsUpdate=true; emberMat.opacity=0.8*I; }
+
+    // markers pulse + gaze targeting from centre
+    const showMarkers = !meditating && !capOpen && document.body.classList.contains('room-ready') && !document.getElementById('enterGate').classList.contains('gone')===false;
+    markerGroup.visible = !meditating && !capOpen;
+    markerSprites.forEach(s=>{ const base=0.6+0.08*Math.sin(t*2.2+s.position.x); s.scale.set(base,base,1); s.material.opacity=meditating?0:(0.5+0.25*Math.sin(t*2.2+s.position.x)); });
+    if(markerGroup.visible){
+      ray.setFromCamera({x:0,y:0}, camera);
+      const hit=ray.intersectObjects(markerGroup.children,false)[0];
+      const now=hit?hit.object:null;
+      if(now!==hovered){
+        hovered=now;
+        if(reticle) reticle.classList.toggle('hot', !!hovered);
+        if(focusLabel){
+          if(hovered){ const m=hovered.userData; focusLabel.innerHTML=m.jp+'<span class="sub">'+m.en+'</span>'; focusLabel.classList.add('show'); }
+          else focusLabel.classList.remove('show');
+        }
+      }
+    } else if(hovered){ hovered=null; if(reticle) reticle.classList.remove('hot'); if(focusLabel) focusLabel.classList.remove('show'); }
+
+    // meditation visuals
+    const mo=meditating?1:0;
+    orbMat.opacity += (( meditating?(0.34+0.16*breath):0) - orbMat.opacity)*0.08;
+    orb.scale.setScalar(1.5*(0.8+0.32*breath));
+    timeMat.opacity += ((meditating?0.92:0)-timeMat.opacity)*0.08;
+
+    renderer.render(scene,camera);
   })();
 }
 </script>
 
-<!-- ════════════ GATE · IMMERSION · BREATH BRIDGE ════════════ -->
+<!-- ════════════ GAME WIRING: intro · markers · meditation · captions ════════════ -->
 <script>
 (function(){
-  // ── threshold gate ──
-  const gate = document.getElementById('enterGate');
+  const body=document.body, $=s=>document.querySelector(s);
+  function i18nHTML(key){ const el=document.querySelector('[data-i18n-html="'+key+'"],[data-i18n="'+key+'"]'); return el?el.innerHTML:''; }
+
+  // ── threshold ──
+  const gate=$('#enterGate');
   function openHollow(){
-    if(!gate || gate.classList.contains('gone')) return;
-    gate.classList.add('gone');
+    if(!gate||gate.classList.contains('gone')) return;
+    gate.classList.add('gone'); body.classList.add('in-room');
     try{ ensureCtx(); }catch(_){}
-    // gentle hearth crackle on entry
-    try{
-      const fb = document.querySelector('.amb-btn[data-snd="fire"]');
-      if(fb && !fb.classList.contains('on')) toggleSound('fire', fb);
-    }catch(_){}
-    setTimeout(()=>document.body.classList.add('hint-gone'), 7000);
+    const fb=document.querySelector('.amb-btn[data-snd="fire"]');
+    if(fb && !fb.classList.contains('on')){ try{ toggleSound('fire',fb); }catch(_){} updateSound(); }
+    if(window.CabinRoom) window.CabinRoom.enableGyro();
+    setTimeout(()=>body.classList.add('hint-gone'), 9000);
   }
-  if(gate){ gate.addEventListener('click', openHollow);
-    gate.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' ') openHollow(); }); }
+  if(gate){ gate.addEventListener('click',openHollow);
+    gate.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openHollow(); } }); }
 
-  // ── immersion (sit by the fire) ──
-  const body=document.body, immPlay=document.getElementById('immPlay'),
-        immFire=document.getElementById('immFire'), immRain=document.getElementById('immRain'),
-        immTime=document.getElementById('immTime'), immPhase=document.getElementById('immPhase'),
-        immRing=document.getElementById('immRing');
-  function enterImmersion(){
-    if(gate && !gate.classList.contains('gone')) openHollow();
-    body.classList.add('immersed');
+  // ── sound toggle (hearth crackle + rain) ──
+  const soundBtn=$('#soundToggle');
+  function anyAmbOn(){ return !!document.querySelector('.amb-btn.on'); }
+  function updateSound(){ if(soundBtn){ const on=anyAmbOn(); soundBtn.classList.toggle('on',on); soundBtn.setAttribute('aria-pressed',String(on)); } }
+  soundBtn?.addEventListener('click', ()=>{
     try{ ensureCtx(); }catch(_){}
-    if(window.CabinRoom){ window.CabinRoom.enableGyro(); window.CabinRoom.lookHearth(); }
-    if(immTime) immTime.textContent = fmt(STATE.remaining);
-  }
-  function exitImmersion(){ body.classList.remove('immersed'); }
-  document.getElementById('heroImmerse')?.addEventListener('click', enterImmersion);
-  document.getElementById('immExit')?.addEventListener('click', exitImmersion);
-  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && body.classList.contains('immersed')) exitImmersion(); });
-
-  immPlay?.addEventListener('click', ()=>{
-    if(STATE.running){ pause(); immPlay.textContent='瞑想を始める · begin'; immPlay.classList.remove('on'); }
-    else { play(); immPlay.textContent='休む · pause'; immPlay.classList.add('on'); }
+    const fb=document.querySelector('.amb-btn[data-snd="fire"]');
+    if(fb) try{ toggleSound('fire',fb); }catch(_){}
+    updateSound();
   });
-  function bindAmb(btn, snd){
-    btn?.addEventListener('click', ()=>{
-      try{ ensureCtx(); }catch(_){}
-      const real=document.querySelector('.amb-btn[data-snd="'+snd+'"]');
-      if(real) toggleSound(snd, real);
-      btn.classList.toggle('on', !!(real && real.classList.contains('on')));
-    });
-  }
-  bindAmb(immFire,'fire'); bindAmb(immRain,'rain');
 
-  // ── breath bridge: drive 3D fire + immersion ring from the timer ──
-  window.__onBreath = function(scale, bright, remaining, phaseName){
-    if(window.CabinRoom) window.CabinRoom.setBreath(bright);
-    if(immTime) immTime.textContent = fmt(remaining);
-    if(immPhase) immPhase.textContent = phaseName || '';
-    if(immRing){
-      const s = 1 + (scale-1)*0.5;
-      immRing.style.transform = `scale(${s.toFixed(3)})`;
-      immRing.style.boxShadow = `0 0 ${(70+bright*60)|0}px rgba(217,122,50,${(0.12*bright).toFixed(3)}),inset 0 0 70px rgba(217,122,50,.1)`;
-    }
+  // ── caption (separate, lower third) ──
+  const caption=$('#caption'), capEyebrow=$('#capEyebrow'), capBody=$('#capBody');
+  function openCaption(kind){
+    let eyebrow='', html='';
+    if(kind==='story'){ eyebrow=i18nHTML('story.eyebrow');
+      html=`<p style="font-family:'Cormorant Garamond',serif;font-style:italic;color:var(--lantern-soft);font-size:1.15em;margin-bottom:18px">${i18nHTML('story.title')}</p>`
+        +`<p>${i18nHTML('story.p1')}</p><p>${i18nHTML('story.p2')}</p><p>${i18nHTML('story.p3')}</p>`
+        +`<p style="color:var(--ash-dim);font-family:'Cormorant Garamond',serif;font-style:italic">${i18nHTML('story.sig')}</p>`; }
+    else if(kind==='methods'){ eyebrow=i18nHTML('method.eyebrow');
+      html=`<p style="font-family:'Cormorant Garamond',serif;font-style:italic;color:var(--lantern-soft);font-size:1.15em;margin-bottom:18px">${i18nHTML('method.title')}</p>`
+        +['1','2','3'].map(n=>`<p><em>${i18nHTML('method.'+n+'.h')}</em> — ${i18nHTML('method.'+n+'.p')}</p>`).join(''); }
+    else if(kind==='window'){ eyebrow=i18nHTML('practice.eyebrow');
+      html=`<p>${i18nHTML('closing.quote')}</p>`; }
+    capEyebrow.innerHTML=eyebrow; capBody.innerHTML=html;
+    caption.classList.add('show'); body.classList.add('cap-open');
+    if(window.CabinRoom) window.CabinRoom.setCapOpen(true);
+  }
+  function closeCaption(){ caption.classList.remove('show'); body.classList.remove('cap-open'); if(window.CabinRoom) window.CabinRoom.setCapOpen(false); }
+  $('#capClose')?.addEventListener('click', closeCaption);
+
+  // ── meditation (in 3D) ──
+  const medPlay=$('#medPlay');
+  function enterMeditation(){
+    body.classList.add('immersed-med'); closeCaption();
+    try{ ensureCtx(); }catch(_){}
+    if(window.CabinRoom) window.CabinRoom.startMeditation();
+    if($('#medExit')) {}
+    if(!STATE.running){ play(); } syncMedPlay();
+  }
+  function leaveMeditation(){ if(STATE.running) pause(); body.classList.remove('immersed-med'); if(window.CabinRoom) window.CabinRoom.stopMeditation(); }
+  function syncMedPlay(){ if(medPlay){ medPlay.textContent = STATE.running ? '休む · pause' : '瞑想を始める · begin'; medPlay.classList.toggle('on', STATE.running); } }
+  medPlay?.addEventListener('click', ()=>{ if(STATE.running) pause(); else play(); syncMedPlay(); });
+  $('#medExit')?.addEventListener('click', leaveMeditation);
+  document.querySelectorAll('#medBar .seg button').forEach(b=>b.addEventListener('click', ()=>{
+    document.querySelectorAll('#medBar .seg button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    setDuration(parseInt(b.dataset.min,10));
+  }));
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(body.classList.contains('immersed-med')) leaveMeditation(); else if(body.classList.contains('cap-open')) closeCaption(); } });
+
+  // ── marker dispatch (called by the 3D module) ──
+  window.onMarker=function(key){
+    if(key==='meditate') enterMeditation();
+    else if(key==='story') openCaption('story');
+    else if(key==='methods') openCaption('methods');
+    else if(key==='window') openCaption('window');
+  };
+
+  // ── breath bridge → fire + in-world readout ──
+  window.__onBreath=function(scale,bright,remaining,phaseName){
+    if(window.CabinRoom){ window.CabinRoom.setBreath(bright); window.CabinRoom.setReadout(fmt(remaining), phaseName||''); }
+    syncMedPlay();
   };
 })();
 </script>
 </body>
+
 </html>

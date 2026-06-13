@@ -97,3 +97,17 @@ docs/CABIN_MEDITATION_360.md     本仕様
 - [ ] スマホ実寸で操作が直感的、下360pxにUI被りなし
 - [ ] WebGL不可・reduced-motion で破綻しない
 - [ ] Playwright で実描画スクショ確認（火層の動き含む）
+
+---
+
+## v2 — 3Dファースト・ゲーム的没入 (2026-06-14)
+
+スクロール式LPを廃し、**すべてを360°写実3Dの中に集約**。要望反映：
+- **初期表示=暖炉正面**（HEARTH_LON=190°, elev -10°。equirect上の焚き口は u≈0.52, elev≈-12。three.jsスフィア逆算 dir=(cos(lat)cos(lon), sin(lat), cos(lat)sin(lon)) と実測スイープで方位較正）。
+- **メッセージは3Dに被せない**：入口は別画面の「しきいゲート」。本文(story/method/closing)は**下third字幕パネル**(`#caption`、中央/炎を覆わない)にi18nで表示。
+- **ゲーム的な在世ガイド**：中央レティクル＋発光マーカー（暖炉/本/窓/椅子）を**gazeターゲティング**（raycast中央）→フォーカスラベルに名前→タップで起動。「ドラッグで見回す」ヒントは初回操作で消滅。
+- **本物のアニメ炎**：GLSL fire shader billboard（fbmノイズで複数の炎舌・白熱基部・残り火Points・呼吸で揺らぐ）を焚き口に配置。`uBreath` で瞑想の呼吸と同期。
+- **瞑想も3D内**：暖炉マーカー→着座。**呼吸オーブ＋在世タイマー(canvas-textureスプライト「09:58/吸う」)** が3D空間に浮き、炎が呼吸で明滅。`#medBar` は最小操作のみ。
+- 既存 engine（10言語i18n・WebAudio環境音・タイマー/呼吸・ベル）は隠し `#engine` で温存し、3Dから駆動。
+
+実装は単一 `cabin.html`（three.js module + classic wiring）。デバッグ用 `CabinRoom._set(lon,lat)`/`_fireVis()` で方位較正。
