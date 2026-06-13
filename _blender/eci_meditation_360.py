@@ -205,8 +205,7 @@ def spawn_candle(x, y, z, h, r=0.025):
     c = bpy.context.active_object; c.name = 'Candle'; set_mat(c, MAT['wax'])
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.02, location=(x, y, z+h+0.02))
     f = bpy.context.active_object; f.name = 'CandleFlame'; f.scale = (1, 1, 1.8); set_mat(f, MAT['flame'])
-CANDLES = [(-0.5, 1.62, 0.10, 0.20), (0.45, 1.62, 0.10, 0.16), (-0.18, 1.6, 0.10, 0.26),
-           (-1.78, -0.55, 0.43, 0.18), (-0.55, 2.05, 1.67, 0.20), (0.5, 2.05, 1.67, 0.16)]
+CANDLES = [(-0.58, 2.05, 1.67, 0.22), (0.52, 2.05, 1.67, 0.17)]   # two on the mantel only
 for cx, cy, cz, ch in CANDLES:
     spawn_candle(cx, cy, cz, ch)
 
@@ -251,8 +250,7 @@ mo = add_light('AREA', 'MoonLight', (RX+0.3, 0.1, 1.5), 46, (0.42, 0.58, 1.0), s
 mo.rotation_euler = (0, math.radians(82), 0)
 add_light('POINT', 'Lantern', (-1.78, -0.5, 0.66), 7, (1.0, 0.64, 0.3), size=0.16)
 add_light('POINT', 'Brazier', (-2.0, 1.85, 1.05), 11, (1.0, 0.48, 0.2), size=0.22)
-add_light('POINT', 'CandlesF',(0.0, 1.62, 0.4), 7, (1.0, 0.6, 0.28), size=0.3)
-add_light('POINT', 'CandlesM',(0.0, 2.05, 1.85), 5, (1.0, 0.6, 0.28), size=0.3)
+add_light('POINT', 'CandlesM',(0.0, 2.05, 1.85), 6, (1.0, 0.6, 0.28), size=0.3)
 add_light('POINT', 'Magic',   (2.15, 2.25, 1.1), 6, (1.0, 0.72, 0.4), size=0.4)
 
 # ============================================================ world
