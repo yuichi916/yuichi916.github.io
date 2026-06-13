@@ -4,8 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>森の小屋 — Cabin in the Hollow / 瞑想のための場所</title>
-<meta name="description" content="深い森の奥、ひとつだけ灯りのともる小屋。タイマー、環境音、暖炉のゆらぎ。心を静めるための小さな場所。">
+<meta name="description" content="深い森の奥、ひとつだけ灯りのともる小屋。360°で見回せる3Dの暖炉、タイマー、環境音。心を静めるための小さな場所。">
 <meta name="theme-color" content="#1a0f0a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="森の小屋 — Cabin in the Hollow / 瞑想のための場所">
+<meta property="og:description" content="深い森の奥、灯りのともる小屋。360°で見回せる3Dの暖炉と、瞑想のためのタイマー・環境音。">
+<meta property="og:image" content="https://yuichi916.github.io/assets/cabin-still.jpg">
+<meta property="og:url" content="https://yuichi916.github.io/cabin.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://yuichi916.github.io/assets/cabin-still.jpg">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -579,9 +586,133 @@ body::after{
   .sec{padding:96px 20px}
   .hero-content{padding:0 20px;transform:translateY(-2vh)}
 }
+
+/* ════════════════════ 360° IMMERSIVE ROOM ════════════════════ */
+#room{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;display:block;
+  background:#08060a;touch-action:pan-y;cursor:grab;
+  filter:brightness(1.16) contrast(1.03) saturate(1.07)}
+#room:active{cursor:grabbing}
+body.immersed #room{touch-action:none}
+#roomFallback{position:fixed;inset:0;z-index:0;display:none;
+  background:#08060a url('assets/cabin-still.jpg') center/cover no-repeat}
+#roomScrim{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0;transition:opacity 2.2s ease;
+  background:
+    radial-gradient(ellipse 134% 96% at 50% 46%, transparent 42%, rgba(6,5,9,.46) 100%),
+    linear-gradient(180deg, rgba(8,6,10,.34) 0%, transparent 22%, transparent 60%, rgba(5,4,8,.62) 100%)}
+body.room-ready #roomScrim{opacity:1}
+
+/* lift existing chrome above the fixed room; hero becomes a window onto it */
+.bar{z-index:50}
+.hero,.sec,.closing,footer{position:relative;z-index:3}
+.hero{background:transparent;pointer-events:none}
+.hero-image{display:none}
+.hero-content{pointer-events:none}
+.hero-content a,.hero-content .immerse-btn,.cue{pointer-events:auto}
+
+/* drag-to-look hint */
+#lookHint{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);z-index:6;
+  display:flex;align-items:center;gap:9px;padding:9px 18px;border-radius:30px;
+  font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--lantern-soft);background:rgba(10,7,9,.32);
+  border:1px solid rgba(240,200,120,.16);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  opacity:0;transition:opacity 1s ease;pointer-events:none;white-space:nowrap}
+body.room-ready #lookHint{opacity:.8}
+body.hint-gone #lookHint,body.immersed #lookHint{opacity:0}
+@media (max-width:640px){#lookHint{bottom:74px;font-size:10px;padding:8px 14px}}
+
+/* ════ THRESHOLD GATE ════ */
+#enterGate{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;gap:30px;
+  background:radial-gradient(ellipse 62% 52% at 50% 52%, rgba(22,13,8,.5), rgba(4,3,6,.94) 78%);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  transition:opacity 1.8s ease,visibility 1.8s ease;cursor:pointer}
+#enterGate.gone{opacity:0;visibility:hidden;pointer-events:none}
+.gate-ember{width:13px;height:13px;border-radius:50%;
+  background:radial-gradient(circle,#ffd089,#d97a32 55%,transparent 72%);
+  box-shadow:0 0 42px 16px rgba(217,122,50,.5);animation:emberPulse 4.4s ease-in-out infinite}
+@keyframes emberPulse{0%,100%{transform:scale(.82);opacity:.66}50%{transform:scale(1.2);opacity:1}}
+.gate-poem{font-family:"Shippori Mincho",serif;font-size:clamp(14px,2.3vw,19px);
+  color:var(--ash);line-height:2.3;letter-spacing:.13em;max-width:34ch;padding:0 28px}
+.gate-enter{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:clamp(19px,3vw,27px);
+  color:var(--lantern-soft);letter-spacing:.05em;padding:13px 42px;
+  border:1px solid rgba(240,200,120,.3);border-radius:40px;background:rgba(240,200,120,.05);transition:all .5s ease}
+#enterGate:hover .gate-enter{background:rgba(240,200,120,.13);border-color:rgba(240,200,120,.5);
+  box-shadow:0 0 54px rgba(217,122,50,.26)}
+.gate-sub{font-family:"Inter",sans-serif;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--ash-dim)}
+
+/* ════ IMMERSION (sit by the fire) ════ */
+.immerse-btn{display:inline-flex;align-items:center;gap:9px;cursor:pointer;margin-top:14px;
+  font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+  padding:12px 26px;border-radius:30px;color:var(--lantern-soft);
+  background:rgba(240,200,120,.06);border:1px solid rgba(240,200,120,.24);transition:all .4s}
+.immerse-btn:hover{background:rgba(240,200,120,.14);border-color:rgba(240,200,120,.46);
+  box-shadow:0 0 40px rgba(217,122,50,.18)}
+.immerse-btn .dot{width:7px;height:7px;border-radius:50%;background:var(--ember-warm);
+  box-shadow:0 0 10px 3px rgba(217,122,50,.6)}
+#immersion{position:fixed;inset:0;z-index:70;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:54px}
+body.immersed{overflow:hidden}
+body.immersed .bar,body.immersed .hero-content,body.immersed .cue,
+body.immersed .sec,body.immersed .closing,body.immersed footer{
+  opacity:0!important;pointer-events:none;transition:opacity .6s ease}
+body.immersed #immersion{display:flex}
+#immRing{width:min(52vw,320px);height:min(52vw,320px);border-radius:50%;position:relative;
+  display:flex;align-items:center;justify-content:center;pointer-events:none;
+  border:1px solid rgba(240,200,120,.22);
+  box-shadow:0 0 90px rgba(217,122,50,.16),inset 0 0 70px rgba(217,122,50,.1);
+  transition:transform .5s cubic-bezier(.4,0,.2,1),box-shadow .5s ease}
+#immRing .imm-time{font-family:"Cormorant Garamond",serif;font-size:clamp(36px,8vw,60px);
+  color:var(--lantern-soft);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+#immRing .imm-phase{position:absolute;bottom:-40px;left:0;right:0;text-align:center;
+  font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ash-dim);
+  min-height:14px}
+#immCtl{display:flex;gap:13px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
+#immCtl button{cursor:pointer;font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ash);background:rgba(10,7,9,.42);
+  border:1px solid rgba(240,200,120,.18);border-radius:26px;padding:12px 24px;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:all .3s}
+#immCtl button:hover{color:var(--lantern-soft);border-color:rgba(240,200,120,.42)}
+#immCtl button.on{color:var(--lantern-soft);border-color:rgba(240,200,120,.5);background:rgba(240,200,120,.12)}
+#immExit{position:fixed;top:22px;right:24px;z-index:72;cursor:pointer;display:none;
+  width:44px;height:44px;border-radius:50%;align-items:center;justify-content:center;
+  color:var(--ash);background:rgba(10,7,9,.42);border:1px solid rgba(240,200,120,.18);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);font-size:20px;line-height:1}
+#immExit:hover{color:var(--lantern-soft)}
+body.immersed #immExit{display:flex}
+@media (prefers-reduced-motion:reduce){.gate-ember{animation:none}}
 </style>
 </head>
 <body>
+
+<!-- ── LIVE 360° ROOM (behind everything) ── -->
+<canvas id="room" aria-label="森の小屋の中・3D"></canvas>
+<div id="roomFallback" aria-hidden="true"></div>
+<div id="roomScrim" aria-hidden="true"></div>
+
+<!-- drag-to-look hint -->
+<div id="lookHint">ドラッグで見回す · drag&nbsp;to&nbsp;look&nbsp;around</div>
+
+<!-- ── THRESHOLD GATE ── -->
+<div id="enterGate" role="button" tabindex="0" aria-label="小屋をひらく">
+  <span class="gate-ember" aria-hidden="true"></span>
+  <p class="gate-poem">森のおく、灯りのともる小屋。<br>木の軋み、暖炉のはぜる音、雨の匂い。<br>どうぞ、靴を脱いで。</p>
+  <span class="gate-enter">ここをひらく</span>
+  <span class="gate-sub">enter the hollow</span>
+</div>
+
+<!-- ── IMMERSION (sit by the fire) ── -->
+<div id="immersion" aria-hidden="true">
+  <div id="immRing">
+    <span class="imm-time" id="immTime">10:00</span>
+    <span class="imm-phase" id="immPhase"></span>
+  </div>
+  <div id="immCtl">
+    <button id="immPlay" type="button">瞑想を始める · begin</button>
+    <button id="immFire" type="button">焚き火 · fire</button>
+    <button id="immRain" type="button">雨 · rain</button>
+  </div>
+</div>
+<div id="immExit" role="button" tabindex="0" aria-label="閉じる" title="閉じる">✕</div>
 
 <!-- ── BAR ── -->
 <header class="bar">
@@ -671,6 +802,7 @@ body::after{
       ど う ぞ、靴 を 脱 い で。
     </p>
     <div class="hero-cta">
+      <button type="button" class="immerse-btn" id="heroImmerse"><span class="dot" aria-hidden="true"></span>火 の そ ば に 座 る · sit by the fire</button>
       <a href="#practice" class="btn btn-primary" data-i18n="hero.cta">小屋 に 入る  →</a>
     </div>
   </div>
@@ -1077,6 +1209,7 @@ function tick(ts){
   hearth.style.transform = `scale(${scale.toFixed(3)})`;
   hearth.style.filter = `brightness(${bright.toFixed(3)})`;
   phaseEl.textContent = cur.name;
+  if(window.__onBreath) window.__onBreath(scale, bright, STATE.remaining, cur.name);
 
   updateDisplay();
 
@@ -1670,6 +1803,190 @@ if (langToggle && langMenu) {
   });
 }
 
+</script>
+
+<!-- ════════════ THREE.JS 360° ROOM VIEWER ════════════ -->
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.161.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const HEARTH_LON = 180;          // longitude (deg) of the hearth in the equirect
+const canvas   = document.getElementById('room');
+const fallback = document.getElementById('roomFallback');
+const reduce   = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' }); }
+catch(e){ renderer = null; }
+if(!renderer){ if(fallback) fallback.style.display='block'; }
+else {
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.1, 100);
+
+  let lon = HEARTH_LON, lat = -8, targetLon = lon, targetLat = lat, idle = 0;
+
+  const loader = new THREE.TextureLoader();
+  const tex = loader.load('assets/cabin360.jpg',
+    () => document.body.classList.add('room-ready'),
+    undefined,
+    () => { if(fallback) fallback.style.display='block'; });
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter  = THREE.LinearMipmapLinearFilter;
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(12, 64, 40),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide }));
+  scene.add(sphere);
+
+  function glowTex(r,g,b){
+    const c=document.createElement('canvas'); c.width=c.height=128;
+    const x=c.getContext('2d'), gr=x.createRadialGradient(64,64,0,64,64,64);
+    gr.addColorStop(0,`rgba(${r},${g},${b},1)`); gr.addColorStop(.4,`rgba(${r},${g},${b},.5)`); gr.addColorStop(1,`rgba(${r},${g},${b},0)`);
+    x.fillStyle=gr; x.fillRect(0,0,128,128); return new THREE.CanvasTexture(c);
+  }
+  function bearing(lonDeg, latDeg, rad){
+    const phi=THREE.MathUtils.degToRad(90-latDeg), th=THREE.MathUtils.degToRad(lonDeg);
+    return new THREE.Vector3(rad*Math.sin(phi)*Math.cos(th), rad*Math.cos(phi), rad*Math.sin(phi)*Math.sin(th));
+  }
+
+  // fire glow halo at the hearth
+  const glowMat = new THREE.SpriteMaterial({ map:glowTex(255,140,52), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.4 });
+  const glow = new THREE.Sprite(glowMat);
+  glow.position.copy(bearing(HEARTH_LON, -8, 7)); glow.scale.set(5.6,4.8,1);
+  scene.add(glow);
+
+  // rising embers
+  const EN = reduce ? 0 : 80, base = bearing(HEARTH_LON, -9, 6.4);
+  const epos = new Float32Array(EN*3), eseed=[];
+  for(let i=0;i<EN;i++){ eseed.push({x:(Math.random()-.5)*1.5, y:Math.random(), z:(Math.random()-.5)*0.9, sp:.2+Math.random()*.55, sw:Math.random()*6.28});
+    epos[i*3]=base.x; epos[i*3+1]=base.y; epos[i*3+2]=base.z; }
+  const egeo=new THREE.BufferGeometry(); egeo.setAttribute('position', new THREE.BufferAttribute(epos,3));
+  const emberMat=new THREE.PointsMaterial({ map:glowTex(255,170,80), size:.12, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.85 });
+  const embers=new THREE.Points(egeo, emberMat); scene.add(embers);
+
+  // ── controls ──
+  let dragging=false, px=0, py=0, gyroOn=false;
+  const immersed = () => document.body.classList.contains('immersed');
+  canvas.addEventListener('pointerdown', e=>{ dragging=true; px=e.clientX; py=e.clientY; idle=0; });
+  addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    if(!immersed() && e.pointerType!=='mouse') return;     // page mode: only mouse rotates (touch = scroll)
+    targetLon += (px-e.clientX)*0.12;
+    targetLat = Math.max(-52, Math.min(52, targetLat + (e.clientY-py)*0.12));
+    px=e.clientX; py=e.clientY; idle=0;
+    document.body.classList.add('hint-gone');
+  });
+  addEventListener('pointerup', ()=>dragging=false);
+  addEventListener('pointercancel', ()=>dragging=false);
+
+  function onOrient(e){ if(e.alpha==null) return; targetLon = HEARTH_LON - e.alpha; targetLat = Math.max(-52, Math.min(52, (e.beta||0)-90)); }
+
+  let breath=1, breathTarget=1;
+  window.CabinRoom = {
+    setBreath:(b)=>{ breathTarget=b; },
+    enableGyro(){
+      if(gyroOn) return;
+      const go=()=>{ gyroOn=true; addEventListener('deviceorientation', onOrient); };
+      if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission)
+        DeviceOrientationEvent.requestPermission().then(s=>{ if(s==='granted') go(); }).catch(()=>{});
+      else go();
+    },
+    lookHearth(){ targetLon=HEARTH_LON; targetLat=-8; }
+  };
+
+  addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+  const clock=new THREE.Clock();
+  (function animate(){
+    requestAnimationFrame(animate);
+    const dt=Math.min(clock.getDelta(),.05), t=clock.elapsedTime;
+    if(!dragging && !gyroOn && !reduce){ idle+=dt; if(idle>5) targetLon += dt*0.55; }
+    lon += (targetLon-lon)*0.07; lat += (targetLat-lat)*0.07;
+    const phi=THREE.MathUtils.degToRad(90-lat), th=THREE.MathUtils.degToRad(lon);
+    camera.lookAt(Math.sin(phi)*Math.cos(th), Math.cos(phi), Math.sin(phi)*Math.sin(th));
+
+    breath += (breathTarget-breath)*0.05;
+    const flick = reduce ? 1 : (0.82 + Math.sin(t*12.9)*0.06 + Math.sin(t*7.1)*0.05 + Math.random()*0.05);
+    const I = flick*(0.7+0.5*breath);
+    glowMat.opacity = 0.46*I; glow.scale.setScalar(5.4*(0.92+0.14*I));
+    if(EN){
+      const a=egeo.attributes.position.array;
+      for(let i=0;i<EN;i++){ const s=eseed[i]; s.y+=dt*s.sp*0.12; if(s.y>1){ s.y=0; s.x=(Math.random()-.5)*1.5; s.z=(Math.random()-.5)*0.9; }
+        a[i*3]=base.x+s.x+Math.sin(t*0.8+s.sw)*0.18*s.y; a[i*3+1]=base.y+s.y*2.3; a[i*3+2]=base.z+s.z; }
+      egeo.attributes.position.needsUpdate=true; emberMat.opacity=0.8*I;
+    }
+    renderer.render(scene, camera);
+  })();
+}
+</script>
+
+<!-- ════════════ GATE · IMMERSION · BREATH BRIDGE ════════════ -->
+<script>
+(function(){
+  // ── threshold gate ──
+  const gate = document.getElementById('enterGate');
+  function openHollow(){
+    if(!gate || gate.classList.contains('gone')) return;
+    gate.classList.add('gone');
+    try{ ensureCtx(); }catch(_){}
+    // gentle hearth crackle on entry
+    try{
+      const fb = document.querySelector('.amb-btn[data-snd="fire"]');
+      if(fb && !fb.classList.contains('on')) toggleSound('fire', fb);
+    }catch(_){}
+    setTimeout(()=>document.body.classList.add('hint-gone'), 7000);
+  }
+  if(gate){ gate.addEventListener('click', openHollow);
+    gate.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' ') openHollow(); }); }
+
+  // ── immersion (sit by the fire) ──
+  const body=document.body, immPlay=document.getElementById('immPlay'),
+        immFire=document.getElementById('immFire'), immRain=document.getElementById('immRain'),
+        immTime=document.getElementById('immTime'), immPhase=document.getElementById('immPhase'),
+        immRing=document.getElementById('immRing');
+  function enterImmersion(){
+    if(gate && !gate.classList.contains('gone')) openHollow();
+    body.classList.add('immersed');
+    try{ ensureCtx(); }catch(_){}
+    if(window.CabinRoom){ window.CabinRoom.enableGyro(); window.CabinRoom.lookHearth(); }
+    if(immTime) immTime.textContent = fmt(STATE.remaining);
+  }
+  function exitImmersion(){ body.classList.remove('immersed'); }
+  document.getElementById('heroImmerse')?.addEventListener('click', enterImmersion);
+  document.getElementById('immExit')?.addEventListener('click', exitImmersion);
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && body.classList.contains('immersed')) exitImmersion(); });
+
+  immPlay?.addEventListener('click', ()=>{
+    if(STATE.running){ pause(); immPlay.textContent='瞑想を始める · begin'; immPlay.classList.remove('on'); }
+    else { play(); immPlay.textContent='休む · pause'; immPlay.classList.add('on'); }
+  });
+  function bindAmb(btn, snd){
+    btn?.addEventListener('click', ()=>{
+      try{ ensureCtx(); }catch(_){}
+      const real=document.querySelector('.amb-btn[data-snd="'+snd+'"]');
+      if(real) toggleSound(snd, real);
+      btn.classList.toggle('on', !!(real && real.classList.contains('on')));
+    });
+  }
+  bindAmb(immFire,'fire'); bindAmb(immRain,'rain');
+
+  // ── breath bridge: drive 3D fire + immersion ring from the timer ──
+  window.__onBreath = function(scale, bright, remaining, phaseName){
+    if(window.CabinRoom) window.CabinRoom.setBreath(bright);
+    if(immTime) immTime.textContent = fmt(remaining);
+    if(immPhase) immPhase.textContent = phaseName || '';
+    if(immRing){
+      const s = 1 + (scale-1)*0.5;
+      immRing.style.transform = `scale(${s.toFixed(3)})`;
+      immRing.style.boxShadow = `0 0 ${(70+bright*60)|0}px rgba(217,122,50,${(0.12*bright).toFixed(3)}),inset 0 0 70px rgba(217,122,50,.1)`;
+    }
+  };
+})();
 </script>
 </body>
 </html>
