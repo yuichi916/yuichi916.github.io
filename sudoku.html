@@ -955,6 +955,7 @@ function newGame(mode, N, difficulty, world, isDaily) {
 }
 
 function startRound(resumed) {
+  closePalette(); G.selected = null;
   applyWorld(G.world);
   buildCube();
   document.getElementById('startScreen').classList.add('hidden');
@@ -1172,6 +1173,8 @@ refreshStartScreen();
       applySelectedSymbol();
       newGame('plane', 9, q.get('diff') || 'normal', selWorld, false);
       document.getElementById('tutorialScreen').classList.add('hidden');   // land straight on the board
+      // a simple one-line explanation for visitors arriving from the cabin link
+      setTimeout(()=>{ try{ pulseToast('平面9×9数独 — 各行・各列・各3×3に 1〜9 をひとつずつ。マスをタップして置くのだ'); }catch(_){} }, 400);
     }
   }catch(_){}
 })();
@@ -1182,6 +1185,10 @@ window.__game = {
   view: { setSlice, setExplode: (on) => { G.explode = on; updateAllVisuals(); } },
   fillAllCorrect: () => { const [a, b, c] = G.dims; for (let i = 0; i < a; i++) for (let j = 0; j < b; j++) for (let k = 0; k < c; k++) G.grid[i][j][k] = G.solution[i][j][k]; updateAllVisuals(); checkClear(); },
   resetProgress: () => { localStorage.removeItem(PROG_KEY); localStorage.removeItem(SAVE_KEY); prog = loadProg(); refreshStartScreen(); },
+  // capture helpers (used by the intro-video pipeline)
+  three: { get camera() { return camera; }, get controls() { return controls; }, scene, THREE },
+  orbit: (az, el, dist) => { const t = controls.target; camera.position.set(t.x + dist * Math.sin(el) * Math.sin(az), t.y + dist * Math.cos(el), t.z + dist * Math.sin(el) * Math.cos(az)); camera.lookAt(t); controls.update(); },
+  noSpin: () => { controls.autoRotate = false; clearTimeout(idleTimer); },
 };
 </script>
 </body>
