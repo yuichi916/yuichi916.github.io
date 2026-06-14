@@ -107,6 +107,7 @@
     backdrop-filter: blur(4px); padding: 20px;
   }
   .overlay.hidden { display: none; }
+  .hidden { display: none !important; }
   .card {
     width: min(460px, 94vw); background: var(--panel); border: 1px solid var(--panel-b);
     border-radius: 22px; padding: 26px 24px; text-align: center; backdrop-filter: blur(10px);
@@ -212,6 +213,12 @@
       <div class="seg" id="modeSeg">
         <button data-mode="cube" class="on">🧊 立体キューブ<small>X/Y/Z 全方向</small></button>
         <button data-mode="plane">🔲 平面 9×9<small>ふつうの数独</small></button>
+      </div>
+
+      <div class="row-label hidden" id="placeRow">配置</div>
+      <div class="seg hidden" id="placeSeg">
+        <button data-place="float" class="on">🪄 宙に浮く<small>魔法の盤</small></button>
+        <button data-place="table">🪵 テーブルの上<small>卓上で対局</small></button>
       </div>
 
       <div class="row-label" id="diffHead">難易度（キューブの大きさ）</div>
@@ -441,7 +448,7 @@ const G = {
   mode: 'cube', N: 4, dims: [4, 4, 4], difficulty: 'normal', world: 'dark', isDaily: false,
   puzzle: null, solution: null, grid: null, fixed: null, notes: null,
   selected: null, sliceAxis: 'x', sliceLayer: null, explode: false,
-  symbolMode: prog.symbolMode || 'number',
+  symbolMode: 'number',
   mistakes: 0, hintsUsed: 0, hintsLeft: 4,
   elapsed: 0, running: false, lastTick: 0, finished: false,
 };
@@ -478,6 +485,22 @@ const rim = new THREE.DirectionalLight(0x7a5bff, 0.6); rim.position.set(-8, -3, 
 const cubeGroup = new THREE.Group();
 scene.add(cubeGroup);
 
+// Wooden table for the 2D "卓上" placement (hidden otherwise).
+const tableMesh = new THREE.Group();
+{
+  const wood = new THREE.MeshStandardMaterial({ color: 0x4a3220, roughness: 0.85, metalness: 0.04 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x6a4a2c, roughness: 0.8, metalness: 0.05 });
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(9.2, 9.2, 0.7, 56), wood);
+  top.position.y = -0.95; tableMesh.add(top);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(9.2, 0.28, 14, 56), trim);
+  rim.rotation.x = Math.PI / 2; rim.position.y = -0.62; tableMesh.add(rim);
+  const legGeo = new THREE.CylinderGeometry(0.4, 0.5, 5.4, 14);
+  for (const [lx, lz] of [[6.2, 6.2], [6.2, -6.2], [-6.2, 6.2], [-6.2, -6.2]]) {
+    const leg = new THREE.Mesh(legGeo, wood); leg.position.set(lx, -3.9, lz); tableMesh.add(leg);
+  }
+}
+tableMesh.visible = false; scene.add(tableMesh);
+
 const SPACING = 1.32;
 const CELL = 1.06;
 let cells = [];           // cells[i][j][k] = { group, box, edges, sprite, i,j,k }
@@ -493,9 +516,13 @@ function glyphTexture(value) {
   ctx.clearRect(0, 0, s, s);
   ctx.font = `700 ${G.symbolMode === 'rune' ? 110 : 96}px "Hiragino Mincho ProN", serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.shadowColor = rune.color; ctx.shadowBlur = 26;
+  // dark outline first for legibility against any backdrop
+  ctx.lineJoin = 'round'; ctx.lineWidth = 11; ctx.strokeStyle = 'rgba(6,5,16,0.92)';
+  ctx.strokeText(txt, s / 2, s / 2 + 6);
+  ctx.shadowColor = rune.color; ctx.shadowBlur = 24;
   ctx.fillStyle = '#fff'; ctx.fillText(txt, s / 2, s / 2 + 6);
-  ctx.shadowBlur = 0; ctx.fillStyle = rune.color; ctx.globalAlpha = 0.9; ctx.fillText(txt, s / 2, s / 2 + 6);
+  ctx.shadowBlur = 0; ctx.fillStyle = rune.color; ctx.globalAlpha = 0.85; ctx.fillText(txt, s / 2, s / 2 + 6);
+  ctx.globalAlpha = 1;
   const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4;
   glyphTexCache[id] = tex; return tex;
 }
@@ -555,17 +582,36 @@ function buildCube() {
       }
     }
   }
+  applyBoardOrientation();
+  updateAllVisuals();
+}
+
+// Position the board + camera per mode/placement (cube, plane-float, plane-table).
+function applyBoardOrientation() {
+  const plane = G.mode === 'plane';
+  const table = plane && G.placement === 'table';
+  tableMesh.visible = table;
   controls.target.set(0, 0, 0);
-  if (plane) {
+  if (table) {
+    // lay the board nearly flat on the table, viewed from a seated angle.
+    cubeGroup.rotation.set(-Math.PI * 0.46, 0, 0);
+    cubeGroup.position.set(0, 0.1, 0);
+    camera.position.set(0, 10.8, 10.2);
+    controls.target.set(0, -0.6, 0);
+    controls.minDistance = 9; controls.maxDistance = 26;
+  } else if (plane) {
     // floating tablet: face it, slightly from above for a 3D tilt.
+    cubeGroup.rotation.set(0, 0, 0);
+    cubeGroup.position.set(0, 0, 0);
     camera.position.set(0.6, 4.8, 13.8);
     controls.minDistance = 8; controls.maxDistance = 24;
   } else {
+    cubeGroup.rotation.set(0, 0, 0);
+    cubeGroup.position.set(0, 0, 0);
     const N = G.N; const dist = N * 2.0 + 2.2;
     camera.position.set(dist * 0.62, dist * 0.5, dist * 0.78);
     controls.minDistance = N * 0.9; controls.maxDistance = N * 5;
   }
-  updateAllVisuals();
 }
 
 function setSpriteForCell(c, value) {
@@ -621,10 +667,10 @@ function updateAllVisuals() {
     const c = cells[i][j][k]; const v = G.grid[i][j][k]; const fixed = G.fixed[i][j][k];
     setSpriteForCell(c, v);
     // base colors
-    let opacity = 0.1, eColor = 0x6a5a9a, eOpacity = 0.45, emissive = 0x000000;
-    if (plane) { opacity = ((Math.floor(i / 3) + Math.floor(j / 3)) % 2) ? 0.2 : 0.12; }
-    if (v >= 0) { opacity = Math.max(opacity, 0.16); emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.28).getHex(); }
-    if (fixed) { eColor = 0xffd27d; eOpacity = 0.85; }
+    let opacity = 0.16, eColor = 0x8d7ec0, eOpacity = 0.62, emissive = 0x000000;
+    if (plane) { opacity = ((Math.floor(i / 3) + Math.floor(j / 3)) % 2) ? 0.26 : 0.18; }
+    if (v >= 0) { opacity = Math.max(opacity, 0.42); emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.34).getHex(); }
+    if (fixed) { eColor = 0xffd27d; eOpacity = 0.95; }
     // slice ghosting (cube only)
     let visible = true;
     if (!plane && G.sliceLayer !== null) {
@@ -703,7 +749,9 @@ function buildPaletteButtons() {
   for (let v = 0; v < G.N; v++) {
     const b = document.createElement('button'); b.className = 'rune-btn';
     b.style.color = RUNES[v].color;
-    b.innerHTML = `${G.symbolMode === 'rune' ? RUNES[v].glyph : (v + 1)}<small>${RUNES[v].name}</small>`;
+    b.innerHTML = G.symbolMode === 'rune'
+      ? `${RUNES[v].glyph}<small>${RUNES[v].name}</small>`
+      : `${v + 1}`;
     b.onclick = (e) => { e.stopPropagation(); onPick(v); };
     palWrap.appendChild(b);
   }
@@ -717,11 +765,13 @@ function openPalette(i, j, k) {
   paletteEl.classList.add('show');
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
   if (!isMobile) {
-    const v = cellPos(i, j, k).clone().project(camera);
+    const wp = new THREE.Vector3(); cells[i][j][k].group.getWorldPosition(wp);
+    const v = wp.project(camera);
     const x = (v.x * 0.5 + 0.5) * window.innerWidth;
     const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
-    palWrap.style.left = Math.min(window.innerWidth - 130, Math.max(130, x)) + 'px';
-    palWrap.style.top = Math.min(window.innerHeight - 120, Math.max(120, y - 110)) + 'px';
+    // palWrap is centered on this point (translate(-50%,-50%)); clamp so it stays on-screen.
+    palWrap.style.left = Math.min(window.innerWidth - 150, Math.max(150, x)) + 'px';
+    palWrap.style.top = Math.min(window.innerHeight - 190, Math.max(190, y)) + 'px';
   }
 }
 function closePalette() { paletteEl.classList.remove('show'); }
@@ -818,7 +868,7 @@ function doSave() {
   if (G.finished) return;
   const notesObj = {}; for (const kk in G.notes) if (G.notes[kk] && G.notes[kk].size) notesObj[kk] = [...G.notes[kk]];
   localStorage.setItem(SAVE_KEY, JSON.stringify({
-    mode: G.mode, N: G.N, dims: G.dims, difficulty: G.difficulty, world: G.world, isDaily: G.isDaily,
+    mode: G.mode, placement: G.placement, N: G.N, dims: G.dims, difficulty: G.difficulty, world: G.world, isDaily: G.isDaily,
     puzzle: G.puzzle, solution: G.solution, grid: G.grid, fixed: G.fixed, notes: notesObj,
     mistakes: G.mistakes, hintsUsed: G.hintsUsed, hintsLeft: G.hintsLeft, elapsed: G.elapsed, symbolMode: G.symbolMode,
   }));
@@ -828,7 +878,7 @@ function restoreSave() {
   let s; try { s = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return false; }
   if (!s) return false;
   Object.assign(G, {
-    mode: s.mode || 'cube', N: s.N, dims: s.dims || [s.N, s.N, s.N], difficulty: s.difficulty, world: s.world, isDaily: s.isDaily,
+    mode: s.mode || 'cube', placement: s.placement || 'float', N: s.N, dims: s.dims || [s.N, s.N, s.N], difficulty: s.difficulty, world: s.world, isDaily: s.isDaily,
     puzzle: s.puzzle, solution: s.solution, grid: s.grid, fixed: s.fixed,
     notes: {}, mistakes: s.mistakes, hintsUsed: s.hintsUsed, hintsLeft: s.hintsLeft, elapsed: s.elapsed,
     symbolMode: s.symbolMode || 'number', selected: null, sliceLayer: null, explode: false, finished: false,
@@ -845,6 +895,7 @@ function newGame(mode, N, difficulty, world, isDaily) {
   // backward compat: newGame(N, difficulty, world, isDaily) => cube
   if (typeof mode === 'number') { isDaily = world; world = difficulty; difficulty = N; N = mode; mode = 'cube'; }
   G.mode = mode; G.difficulty = difficulty; G.world = world || G.world; G.isDaily = !!isDaily;
+  G.placement = mode === 'plane' ? selPlacement : 'float';
   if (mode === 'plane') {
     G.N = 9; G.dims = [9, 9, 1];
     const rng = isDaily ? rngSeq(parseInt(todayStr(), 10) + 9) : Math.random;
@@ -896,7 +947,10 @@ function applyWorld(worldId) {
   const w = WORLDS.find((x) => x.id === worldId) || WORLDS[0];
   G.world = w.id;
   document.documentElement.style.setProperty('--accent', w.accent);
+  // Dim + blur the backdrop so the cube and numbers keep strong contrast in front.
   scene.background = new THREE.Color(w.fallback);
+  scene.backgroundIntensity = 0.42;
+  scene.backgroundBlurriness = 0.42;
   texLoader.load(`assets/sudoku/${w.id}/bg.jpg`, (tex) => {
     tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.SRGBColorSpace;
     scene.background = tex;
@@ -912,7 +966,7 @@ function pulseToast(msg) {
   setTimeout(() => t.remove(), 2900);
 }
 
-let selDiff = { n: 4, d: 'normal' }, selWorld = 'dark', selMode = 'cube', selSym = prog.symbolMode || 'number';
+let selDiff = { n: 4, d: 'normal' }, selWorld = 'dark', selMode = 'cube', selSym = 'number', selPlacement = 'float';
 const DIFF_SUB = {
   cube: { easy: '3×3×3', normal: '4×4×4', hard: '5×5×5' },
   plane: { easy: 'やさしい', normal: 'ふつう', hard: 'むずかしい' },
@@ -941,7 +995,8 @@ function refreshStartScreen() {
   document.getElementById('resumeBtn').classList.toggle('hidden', !hasSave());
   document.querySelectorAll('#symSeg button').forEach((b) => b.classList.toggle('on', b.dataset.sym === selSym));
   document.querySelectorAll('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === selMode));
-  updateDiffLabels();
+  document.querySelectorAll('#placeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.place === selPlacement));
+  updateDiffLabels(); updatePlacementVisibility();
 }
 
 document.getElementById('diffSeg').querySelectorAll('button').forEach((b) => {
@@ -950,10 +1005,21 @@ document.getElementById('diffSeg').querySelectorAll('button').forEach((b) => {
     b.classList.add('on'); selDiff = { n: +b.dataset.n, d: b.dataset.d };
   };
 });
+function updatePlacementVisibility() {
+  const show = selMode === 'plane';
+  document.getElementById('placeRow').classList.toggle('hidden', !show);
+  document.getElementById('placeSeg').classList.toggle('hidden', !show);
+}
 document.getElementById('modeSeg').querySelectorAll('button').forEach((b) => {
   b.onclick = () => {
     document.getElementById('modeSeg').querySelectorAll('button').forEach((x) => x.classList.remove('on'));
-    b.classList.add('on'); selMode = b.dataset.mode; updateDiffLabels();
+    b.classList.add('on'); selMode = b.dataset.mode; updateDiffLabels(); updatePlacementVisibility();
+  };
+});
+document.getElementById('placeSeg').querySelectorAll('button').forEach((b) => {
+  b.onclick = () => {
+    document.getElementById('placeSeg').querySelectorAll('button').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on'); selPlacement = b.dataset.place;
   };
 });
 document.getElementById('symSeg').querySelectorAll('button').forEach((b) => {
