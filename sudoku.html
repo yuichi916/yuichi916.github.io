@@ -203,7 +203,7 @@
     </div>
     <input type="range" id="sliceSlider" min="0" max="3" step="1" value="0" />
     <div id="sliceLabel">層<br>全表示</div>
-    <button class="axis-btn" id="sliceAllBtn" style="width:auto;padding:2px 8px">全</button>
+    <button class="axis-btn on" id="sliceAllBtn" style="width:auto;padding:3px 7px;font-size:10px;line-height:1.2">全表示<br>ON</button>
   </div>
 
   <!-- Palette -->
@@ -411,16 +411,17 @@ function makeClassicPuzzle(difficulty, rng) {
 /* ============================================================
    Themes / runes / worlds
    ============================================================ */
+// 9 maximally-distinct, ergonomic fill colors (each legible under white text).
 const RUNES = [
-  { glyph: 'ᚠ', name: '炎', color: '#ff7a45' },
-  { glyph: 'ᚢ', name: '水', color: '#45a8ff' },
-  { glyph: 'ᚦ', name: '風', color: '#5be0a0' },
-  { glyph: 'ᚨ', name: '地', color: '#e0b24a' },
-  { glyph: 'ᚱ', name: '雷', color: '#c77dff' },
-  { glyph: 'ᛋ', name: '光', color: '#ffe27a' },
-  { glyph: 'ᛟ', name: '闇', color: '#9b7be0' },
-  { glyph: 'ᛁ', name: '氷', color: '#7fe7ff' },
-  { glyph: 'ᛞ', name: '花', color: '#ff8ac4' },
+  { glyph: 'ᚠ', name: '炎', color: '#e63329' }, // red
+  { glyph: 'ᚢ', name: '水', color: '#2f7bef' }, // blue
+  { glyph: 'ᚦ', name: '風', color: '#27b34a' }, // green
+  { glyph: 'ᚨ', name: '地', color: '#a16a2c' }, // brown
+  { glyph: 'ᚱ', name: '雷', color: '#9b5cf6' }, // violet
+  { glyph: 'ᛋ', name: '光', color: '#f4b400' }, // amber
+  { glyph: 'ᛟ', name: '闇', color: '#33397a' }, // dark indigo
+  { glyph: 'ᛁ', name: '氷', color: '#22d3ee' }, // cyan
+  { glyph: 'ᛞ', name: '花', color: '#ff5fa2' }, // pink
 ];
 const WORLDS = [
   { id: 'dark', name: '闇のF', full: '闇のファンタジー', accent: '#c77dff', fallback: '#0a0814', unlockAt: 0 },
@@ -697,11 +698,16 @@ function updateAllVisuals() {
     // base colors — empty cells stay translucent so the world shows through;
     // filled cells become an opaque dark chip so the glyph keeps strong local
     // contrast against the bright backdrop.
-    let opacity = 0.12, eColor = 0x8d7ec0, eOpacity = 0.6, emissive = 0x000000, boxColor = 0x2a2440;
-    if (plane) { opacity = ((Math.floor(i / 3) + Math.floor(j / 3)) % 2) ? 0.18 : 0.1; }
-    // filled cells: opaque chips on the flat board, but kept semi-transparent in
-    // the cube so the world stays visible behind it.
-    if (v >= 0) { opacity = plane ? 0.86 : 0.5; boxColor = 0x130f1f; emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.32).getHex(); }
+    let opacity = plane ? 0.1 : 0.06, eColor = 0x8d7ec0, eOpacity = plane ? 0.6 : 0.4, emissive = 0x000000, boxColor = 0x2a2440;
+    if (plane) { opacity = ((Math.floor(i / 3) + Math.floor(j / 3)) % 2) ? 0.16 : 0.09; }
+    // filled cells: the tile IS the rune colour (clearly distinguishable). Opaque
+    // chips on the flat board; semi-transparent in the cube so the world shows.
+    if (v >= 0) {
+      const rc = new THREE.Color(RUNES[v].color);
+      boxColor = rc.clone().multiplyScalar(0.92).getHex();
+      emissive = rc.clone().multiplyScalar(0.26).getHex();
+      opacity = plane ? 0.94 : 0.46;
+    }
     if (fixed) { eColor = 0xffd27d; eOpacity = 0.95; }
     // slice focus (cube only): show ONLY the focused layer — others are hidden so
     // they can't be selected and their numbers don't show.
@@ -965,6 +971,7 @@ function startRound(resumed) {
   if (!plane) {
     const slider = document.getElementById('sliceSlider'); slider.max = G.N - 1; slider.value = 0;
     document.getElementById('sliceLabel').innerHTML = '層<br>全表示';
+    setShowAllState(true);
     document.querySelectorAll('.axis-btn[data-axis]').forEach((b) => b.classList.toggle('on', b.dataset.axis === G.sliceAxis));
   }
   controls.autoRotate = !plane; controls.autoRotateSpeed = 0.6;
@@ -984,8 +991,8 @@ function applyWorld(worldId) {
   // Keep the world clearly visible (異世界観); contrast for the numbers comes from
   // the opaque dark chips behind filled cells, not from dimming the backdrop.
   scene.background = new THREE.Color(w.fallback);
-  scene.backgroundIntensity = 0.9;
-  scene.backgroundBlurriness = 0.18;
+  scene.backgroundIntensity = 1.0;
+  scene.backgroundBlurriness = 0.15;
   texLoader.load(`assets/sudoku/${w.id}/bg.jpg`, (tex) => {
     tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.SRGBColorSpace;
     scene.background = tex;
@@ -1098,13 +1105,19 @@ document.querySelectorAll('.axis-btn[data-axis]').forEach((b) => {
 });
 const slider = document.getElementById('sliceSlider');
 slider.oninput = () => setSlice(G.sliceAxis, +slider.value);
-document.getElementById('sliceAllBtn').onclick = () => { G.sliceLayer = null; document.getElementById('sliceLabel').innerHTML = '層<br>全表示'; document.getElementById('sliceHint').classList.add('hidden'); updateAllVisuals(); };
+function setShowAllState(on) {
+  const btn = document.getElementById('sliceAllBtn');
+  btn.classList.toggle('on', on);
+  btn.innerHTML = '全表示<br>' + (on ? 'ON' : 'OFF');
+}
+document.getElementById('sliceAllBtn').onclick = () => { G.sliceLayer = null; document.getElementById('sliceLabel').innerHTML = '層<br>全表示'; document.getElementById('sliceHint').classList.add('hidden'); setShowAllState(true); updateAllVisuals(); };
 function setSlice(axis, layer) {
   G.sliceAxis = axis; G.sliceLayer = layer;
   document.getElementById('sliceLabel').innerHTML = `${axis.toUpperCase()}層<br>${layer + 1}/${G.N}`;
   const hint = document.getElementById('sliceHint');
   hint.querySelector('b').textContent = `${axis.toUpperCase()} 層 ${layer + 1}/${G.N}`;
   hint.classList.remove('hidden');
+  setShowAllState(false);
   updateAllVisuals();
 }
 
