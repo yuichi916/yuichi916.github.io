@@ -872,7 +872,10 @@ function onPick(v) {
     G.notes[key(s.i, s.j, s.k)] = new Set();
     if (v !== G.solution[s.i][s.j][s.k] && v !== prev) { G.mistakes++; document.getElementById('mistakes').textContent = G.mistakes; pulseToast('むむ、その方向に同じルーンが…'); }
   }
-  if (v >= 0 && G.mode === 'cube') closePalette(); // auto-close after placing a rune in 3D
+  // auto-close after placing: always in 3D; on mobile the bottom-sheet covers the
+  // board so close it in every mode.
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  if (v >= 0 && (G.mode === 'cube' || isMobile)) closePalette();
   updateAllVisuals();
   scheduleSave();
   checkClear();
