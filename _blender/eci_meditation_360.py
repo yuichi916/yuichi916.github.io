@@ -120,7 +120,7 @@ MAT = {
 # name -> (mat, x, y, rotz_deg, scale)
 KIT = {
     'KB3D_ECI_PropFireplace_A_Main':    ('stone', 0.0,  2.50, 0,   0.46),
-    'KB3D_ECI_PropFire_C_Main':         ('fire',  0.0,  2.34, 0,   0.55),
+    'KB3D_ECI_PropFireWood_A_Main':     ('beam',  0.0,  2.22, 0,   0.5),
     'KB3D_ECI_PropFloorFabric_A_Main':  ('rug',   0.0,  0.10, 0,   0.50),
     'KB3D_ECI_PropPillow_A_Main':       ('cush',  0.0, -0.45, 0,   1.10),
     'KB3D_ECI_PropRockingChair_A_Main': ('wood',  1.55, 0.95, -125, 1.0),
@@ -158,7 +158,11 @@ for name, (mk, x, y, rz, sc) in KIT.items():
 def lift(name, dz):
     o = bpy.data.objects.get(name)
     if o: o.location.z += dz
-lift('KB3D_ECI_PropFire_C_Main', 0.32)
+lift('KB3D_ECI_PropFireWood_A_Main', 0.30)
+# glowing coals beneath the firewood (the live flames are added in three.js)
+bpy.ops.mesh.primitive_uv_sphere_add(radius=0.16, location=(0, 2.18, 0.36))
+_coals = bpy.context.active_object; _coals.name = 'Coals'; _coals.scale = (1.7, 1.0, 0.45)
+set_mat(_coals, make_emissive('coals_m', (1.0, 0.34, 0.09), 1.4))
 print('[kit] placed', flush=True)
 
 # ============================================================ cabin shell
@@ -244,7 +248,7 @@ def add_light(kind, name, loc, energy, color, size=0.5):
     elif kind == 'POINT': d.shadow_soft_size = size
     o = bpy.data.objects.new(name, d); scene.collection.objects.link(o); o.location = loc
     return o
-add_light('POINT', 'HearthKey',  (0, 2.18, 0.5), 95, (1.0, 0.44, 0.16), size=0.45)
+add_light('POINT', 'HearthKey',  (0, 2.18, 0.62), 100, (1.0, 0.5, 0.22), size=0.5)
 add_light('POINT', 'HearthFill', (0, 1.5, 0.95), 26, (1.0, 0.5, 0.22), size=0.9)
 mo = add_light('AREA', 'MoonLight', (RX+0.3, 0.1, 1.5), 46, (0.42, 0.58, 1.0), size=2.4)
 mo.rotation_euler = (0, math.radians(82), 0)
