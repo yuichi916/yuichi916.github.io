@@ -1667,7 +1667,7 @@ const reduce   = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // in-world points of interest (lon/lat in the equirect; tuned to the render)
 const MARKERS = [
   { key:'meditate', lon:0,   lat:-13, r:5.5, jp:'炎を見つめて瞑想する', en:'gaze into the fire' },
-  { key:'writings', lon:-24, lat:-16, r:6,   jp:'小屋の物語と、整え方', en:'the writings' },
+  { key:'writings', lon:-35, lat:-23, r:5,   jp:'小屋の物語と、整え方', en:'the writings' },
   { key:'window',   lon:-63, lat:1,   r:6,   jp:'夜の森をのぞむ',       en:'the night forest' },
 ];
 
@@ -1742,15 +1742,15 @@ else {
         gl_FragColor=vec4(col*1.18, a*0.86);
       }`
   });
-  const fire = new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.95), fireMat);
-  fire.position.copy(bearing(HEARTH_LON,-8,6.0)); faceOrigin(fire); fire.renderOrder=2;
+  const fire = new THREE.Mesh(new THREE.PlaneGeometry(1.25,1.55), fireMat);
+  fire.position.copy(bearing(HEARTH_LON,-12.5,8.5)); faceOrigin(fire); fire.renderOrder=2;
   scene.add(fire);
 
   // hearth halo + embers
   const glowMat = new THREE.SpriteMaterial({ map:glowTex(255,138,50), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.4 });
-  const glow = new THREE.Sprite(glowMat); glow.position.copy(bearing(HEARTH_LON,-8,6.6)); glow.scale.set(4.4,4.2,1); scene.add(glow);
+  const glow = new THREE.Sprite(glowMat); glow.position.copy(bearing(HEARTH_LON,-12.5,8.6)); glow.scale.set(3.4,3.2,1); scene.add(glow);
 
-  const EN=reduce?0:90, ebase=bearing(HEARTH_LON,-11,5.9);
+  const EN=reduce?0:80, ebase=bearing(HEARTH_LON,-13,7.6);
   const ep=new Float32Array(EN*3), es=[];
   for(let i=0;i<EN;i++){ es.push({x:(Math.random()-.5)*1.5,y:Math.random(),z:(Math.random()-.5)*0.8,sp:.2+Math.random()*.6,sw:Math.random()*6.28});
     ep[i*3]=ebase.x; ep[i*3+1]=ebase.y; ep[i*3+2]=ebase.z; }
@@ -1865,7 +1865,7 @@ else {
     glowMat.opacity=0.30*I; glow.scale.setScalar(4.0*(0.92+0.13*I));
     if(EN){ const a=eg.attributes.position.array;
       for(let i=0;i<EN;i++){ const s=es[i]; s.y+=dt*s.sp*0.12; if(s.y>1){ s.y=0; s.x=(Math.random()-.5)*1.5; s.z=(Math.random()-.5)*0.8; }
-        a[i*3]=ebase.x+s.x+Math.sin(t*0.8+s.sw)*0.18*s.y; a[i*3+1]=ebase.y+s.y*2.2; a[i*3+2]=ebase.z+s.z; }
+        a[i*3]=ebase.x+s.x*0.8+Math.sin(t*0.8+s.sw)*0.16*s.y; a[i*3+1]=ebase.y+s.y*1.7; a[i*3+2]=ebase.z+s.z; }
       eg.attributes.position.needsUpdate=true; emberMat.opacity=0.8*I; }
 
     // markers pulse + gaze targeting from centre
