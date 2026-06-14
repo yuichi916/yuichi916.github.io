@@ -289,6 +289,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /* ============================================================
    LatinCube logic (inlined from _dev/latincube.mjs — keep in sync)
@@ -481,6 +482,7 @@ controls.autoRotateSpeed = 0.6;
 scene.add(new THREE.AmbientLight(0xb9a9ff, 0.7));
 const dir = new THREE.DirectionalLight(0xffffff, 1.1); dir.position.set(6, 10, 6); scene.add(dir);
 const rim = new THREE.DirectionalLight(0x7a5bff, 0.6); rim.position.set(-8, -3, -6); scene.add(rim);
+const tableLight = new THREE.PointLight(0xffcf8a, 0, 60, 1.4); tableLight.position.set(0, 8, 5); scene.add(tableLight);
 
 const cubeGroup = new THREE.Group();
 scene.add(cubeGroup);
@@ -500,6 +502,22 @@ const tableMesh = new THREE.Group();
   }
 }
 tableMesh.visible = false; scene.add(tableMesh);
+
+// Ornate KitBash banquet table (Enchanted Interiors) for the 卓上 placement.
+let tableModel = null;
+new GLTFLoader().load('assets/sudoku/table.glb', (gltf) => {
+  const m = gltf.scene;
+  const box = new THREE.Box3().setFromObject(m);
+  const size = new THREE.Vector3(); box.getSize(size);
+  const center = new THREE.Vector3(); box.getCenter(center);
+  const scl = 17 / Math.max(size.x, size.z, 0.001);
+  m.position.set(-center.x, -center.y, -center.z); // center at origin
+  m.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; if (o.material) { o.material.roughness = Math.min(1, (o.material.roughness ?? 0.8)); } } });
+  const grp = new THREE.Group(); grp.add(m); grp.scale.setScalar(scl);
+  grp.userData.halfH = (size.y / 2) * scl; // tabletop sits at +halfH within grp
+  grp.visible = false; scene.add(grp); tableModel = grp;
+  if (G.mode === 'plane' && G.placement === 'table') applyBoardOrientation();
+}, undefined, () => { console.warn('table.glb load failed; using procedural table'); });
 
 const SPACING = 1.32;
 const CELL = 1.06;
@@ -590,22 +608,31 @@ function buildCube() {
 function applyBoardOrientation() {
   const plane = G.mode === 'plane';
   const table = plane && G.placement === 'table';
-  tableMesh.visible = table;
+  const useModel = table && tableModel;
+  tableMesh.visible = table && !tableModel;
+  if (tableModel) tableModel.visible = useModel;
   controls.target.set(0, 0, 0);
+  tableLight.intensity = useModel ? 90 : 0;
   if (table) {
-    // lay the board nearly flat on the table, viewed from a seated angle.
-    cubeGroup.rotation.set(-Math.PI * 0.46, 0, 0);
-    cubeGroup.position.set(0, 0.1, 0);
-    camera.position.set(0, 10.8, 10.2);
-    controls.target.set(0, -0.6, 0);
-    controls.minDistance = 9; controls.maxDistance = 26;
+    // smaller board resting on the ornate table, viewed from a seated angle so
+    // the table surface, goblets and edge stay in frame.
+    const topY = -0.45;
+    cubeGroup.scale.setScalar(0.78);
+    cubeGroup.rotation.set(-Math.PI * 0.43, 0, 0);
+    cubeGroup.position.set(0, 0.55, 0);
+    if (tableModel) tableModel.position.set(0, topY - tableModel.userData.halfH, 0);
+    camera.position.set(0, 8.4, 15.5);
+    controls.target.set(0, 0.2, 0);
+    controls.minDistance = 10; controls.maxDistance = 30;
   } else if (plane) {
     // floating tablet: face it, slightly from above for a 3D tilt.
+    cubeGroup.scale.setScalar(1);
     cubeGroup.rotation.set(0, 0, 0);
     cubeGroup.position.set(0, 0, 0);
     camera.position.set(0.6, 4.8, 13.8);
     controls.minDistance = 8; controls.maxDistance = 24;
   } else {
+    cubeGroup.scale.setScalar(1);
     cubeGroup.rotation.set(0, 0, 0);
     cubeGroup.position.set(0, 0, 0);
     const N = G.N; const dist = N * 2.0 + 2.2;
@@ -617,8 +644,13 @@ function applyBoardOrientation() {
 function setSpriteForCell(c, value) {
   if (c.sprite) { c.group.remove(c.sprite); c.sprite.material.dispose(); c.sprite = null; }
   if (value < 0) return;
-  const mat = new THREE.SpriteMaterial({ map: glyphTexture(value), transparent: true, depthTest: true, depthWrite: false });
+  const plane = G.mode === 'plane';
+  // On the flat board, lift the glyph above the tile and skip depth test so a
+  // neighbouring raised tile can never clip it at a grazing (table) angle.
+  const mat = new THREE.SpriteMaterial({ map: glyphTexture(value), transparent: true, depthTest: !plane, depthWrite: false });
   const sp = new THREE.Sprite(mat); sp.scale.set(0.82, 0.82, 0.82);
+  if (plane) sp.position.z = 0.28;
+  sp.renderOrder = 5;
   c.sprite = sp; c.group.add(sp);
 }
 
@@ -666,10 +698,12 @@ function updateAllVisuals() {
   for (let i = 0; i < NI; i++) for (let j = 0; j < NJ; j++) for (let k = 0; k < NK; k++) {
     const c = cells[i][j][k]; const v = G.grid[i][j][k]; const fixed = G.fixed[i][j][k];
     setSpriteForCell(c, v);
-    // base colors
-    let opacity = 0.16, eColor = 0x8d7ec0, eOpacity = 0.62, emissive = 0x000000;
-    if (plane) { opacity = ((Math.floor(i / 3) + Math.floor(j / 3)) % 2) ? 0.26 : 0.18; }
-    if (v >= 0) { opacity = Math.max(opacity, 0.42); emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.34).getHex(); }
+    // base colors — empty cells stay translucent so the world shows through;
+    // filled cells become an opaque dark chip so the glyph keeps strong local
+    // contrast against the bright backdrop.
+    let opacity = 0.12, eColor = 0x8d7ec0, eOpacity = 0.6, emissive = 0x000000, boxColor = 0x2a2440;
+    if (plane) { opacity = ((Math.floor(i / 3) + Math.floor(j / 3)) % 2) ? 0.18 : 0.1; }
+    if (v >= 0) { opacity = 0.86; boxColor = 0x130f1f; emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.32).getHex(); }
     if (fixed) { eColor = 0xffd27d; eOpacity = 0.95; }
     // slice ghosting (cube only)
     let visible = true;
@@ -686,7 +720,7 @@ function updateAllVisuals() {
     }
     // same-symbol highlight
     if (G.selected) { const sv = G.grid[G.selected.i][G.selected.j][G.selected.k]; if (sv >= 0 && v === sv) emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.6).getHex(); }
-    c.box.material.opacity = opacity; c.box.material.emissive.setHex(emissive);
+    c.box.material.opacity = opacity; c.box.material.emissive.setHex(emissive); c.box.material.color.setHex(boxColor);
     c.edges.material.color.setHex(eColor); c.edges.material.opacity = eOpacity;
     c.group.position.copy(cellPos(i, j, k));
     c.group.visible = visible;
@@ -947,10 +981,11 @@ function applyWorld(worldId) {
   const w = WORLDS.find((x) => x.id === worldId) || WORLDS[0];
   G.world = w.id;
   document.documentElement.style.setProperty('--accent', w.accent);
-  // Dim + blur the backdrop so the cube and numbers keep strong contrast in front.
+  // Keep the world clearly visible (異世界観); contrast for the numbers comes from
+  // the opaque dark chips behind filled cells, not from dimming the backdrop.
   scene.background = new THREE.Color(w.fallback);
-  scene.backgroundIntensity = 0.42;
-  scene.backgroundBlurriness = 0.42;
+  scene.backgroundIntensity = 0.9;
+  scene.backgroundBlurriness = 0.18;
   texLoader.load(`assets/sudoku/${w.id}/bg.jpg`, (tex) => {
     tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.SRGBColorSpace;
     scene.background = tex;
