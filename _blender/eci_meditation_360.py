@@ -106,7 +106,8 @@ MAT = {
     'metal': make_pbr('cab_metal', 'MetalA',  mapscale=0.6,  rough_add=0.05, base_mult=(0.42, 0.38, 0.34), metal=1.0),
     'door':  make_pbr('cab_door',  'DoorA',   mapscale=0.5,  base_mult=(0.55, 0.42, 0.30)),
     'wood':  make_pbr('cab_wood',  'PlanksC', mapscale=0.5,  base_mult=(0.60, 0.45, 0.32)),
-    'charred': make_pbr('cab_charred', 'BeamB', mapscale=0.3, base_mult=(0.15, 0.09, 0.05)),
+    'charred': make_pbr('cab_charred', 'BeamB', mapscale=0.3, base_mult=(0.07, 0.045, 0.028)),
+    'ceramic': make_solid('cab_ceramic', (0.20, 0.16, 0.13), rough=0.65),
     'rug':   make_solid('cab_rug',  (0.30, 0.10, 0.08), rough=0.95, sheen=0.4),
     'cush':  make_solid('cab_cush', (0.42, 0.20, 0.11), rough=0.88, sheen=0.6),
     'wax':   make_solid('cab_wax',  (0.80, 0.70, 0.52), rough=0.5),
@@ -120,20 +121,17 @@ MAT = {
 # ============================================================ isolate ECI kit
 # name -> (mat, x, y, rotz_deg, scale)
 KIT = {
-    'KB3D_ECI_PropFireplace_A_Main':    ('stone', 0.0,  2.50, 0,   0.46),
-    'KB3D_ECI_PropFireWood_A_Main':     ('charred', 0.0, 2.22, 0,  0.5),
-    'KB3D_ECI_PropFloorFabric_A_Main':  ('rug',   0.0,  0.10, 0,   0.50),
-    'KB3D_ECI_PropPillow_A_Main':       ('cush',  0.0, -0.45, 0,   1.10),
-    'KB3D_ECI_PropRockingChair_A_Main': ('wood',  1.55, 0.95, -125, 1.0),
-    'KB3D_ECI_PropLantern_A_Main':      ('metal', -1.78, -0.55, 20, 1.4),
-    'KB3D_ECI_PropLantern_A_MainTransl':('glow',  -1.78, -0.55, 20, 1.4),
-    'KB3D_ECI_PropSoulSmokers_A_Brazier':('metal', -2.05, 1.85, 0, 1.0),
-    'KB3D_ECI_PropSoulSmokers_A_Fire':  ('flame', -2.05, 1.85, 0, 1.0),
-    'KB3D_ECI_PropMagicalLight_D_Main': ('magic', 2.15, 2.25, 0, 0.6),
-    'KB3D_ECI_PropBookStack_C_Main':    ('book',  1.55, 0.05, 12, 1.0),
-    'KB3D_ECI_PropBookStack_D_Main':    ('book',  -1.6, -0.30, 0, 1.0),
+    'KB3D_ECI_PropFireplace_A_Main':    ('stone',   0.0,  2.50, 0,    0.46),
+    'KB3D_ECI_PropFireWood_A_Main':     ('charred', 0.0,  2.22, 0,    0.40),  # less wood
+    'KB3D_ECI_PropFloorFabric_A_Main':  ('rug',     0.0,  0.10, 0,    0.50),
+    'KB3D_ECI_PropPillow_A_Main':       ('cush',    0.0, -0.45, 0,    1.10),
+    'KB3D_ECI_PropRockingChair_A_Main': ('wood',    1.55, 0.95, -125, 1.0),
+    'KB3D_ECI_PropBowl_A_Main':         ('ceramic', -1.78, -0.55, 0,  1.3),   # subdued, replaces lantern
+    'KB3D_ECI_PropBookStack_D_Main':    ('book',    -1.45, -0.32, 0,  0.95),
 }
-keep = set(KIT.keys()); removed = 0
+# the wizard-office tree, kept only to instance a forest beyond the window
+KEEP_EXTRA = {'KB3D_ECI_IntWizardOffice_A_Tree'}
+keep = set(KIT.keys()) | KEEP_EXTRA; removed = 0
 for o in list(bpy.data.objects):
     if o.name not in keep:
         try: bpy.data.objects.remove(o, do_unlink=True); removed += 1
@@ -146,6 +144,22 @@ def world_bbox(o):
         w = o.matrix_world @ Vector(c)
         for i in range(3): mn[i] = min(mn[i], w[i]); mx[i] = max(mx[i], w[i])
     return mn, mx
+
+def remove_faces_by_material(obj, substrs):
+    """Delete polygons whose material name contains any of substrs (run before set_mat)."""
+    if not obj or obj.type != 'MESH':
+        return
+    kill = set(i for i, m in enumerate(obj.data.materials) if m and any(s in m.name for s in substrs))
+    if not kill:
+        print('[grate] no matching material on', obj.name, flush=True); return
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='DESELECT'); bpy.ops.object.mode_set(mode='OBJECT')
+    for poly in obj.data.polygons:
+        poly.select = (poly.material_index in kill)
+    bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.delete(type='FACE'); bpy.ops.object.mode_set(mode='OBJECT')
+    print('[grate] stripped', substrs, 'from', obj.name, flush=True)
+# strip the ornate iron grate so the firebox shows only logs + flames
+remove_faces_by_material(bpy.data.objects.get('KB3D_ECI_PropFireplace_A_Main'), ['MetalDarkWorn', 'MetalTrimA'])
 
 for name, (mk, x, y, rz, sc) in KIT.items():
     o = bpy.data.objects.get(name)
@@ -210,34 +224,47 @@ def spawn_candle(x, y, z, h, r=0.025):
     c = bpy.context.active_object; c.name = 'Candle'; set_mat(c, MAT['wax'])
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.02, location=(x, y, z+h+0.02))
     f = bpy.context.active_object; f.name = 'CandleFlame'; f.scale = (1, 1, 1.8); set_mat(f, MAT['flame'])
-CANDLES = [(-0.58, 2.05, 1.67, 0.22), (0.52, 2.05, 1.67, 0.17)]   # two on the mantel only
+CANDLES = []   # no candles — keep the hearth to logs + flames only
 for cx, cy, cz, ch in CANDLES:
     spawn_candle(cx, cy, cz, ch)
 
-# ============================================================ night forest beyond the +X window
-# dim moonlit-sky gradient (kept faint so the window doesn't read as a bright bar)
-bpy.ops.mesh.primitive_plane_add(size=1, location=(RX+2.4, 0.1, 1.5))
-bd = bpy.context.active_object; bd.name = 'ForestBackdrop'
-bd.rotation_euler = (math.radians(90), 0, math.radians(90)); bd.scale = (7.0, 4.4, 1)
-bdm = bpy.data.materials.new('forest_bd'); bdm.use_nodes = True
+# ============================================================ deep night forest beyond the +X window
+import random as _rnd; _rnd.seed(7)
+# moonlit night-sky gradient (far backdrop)
+bpy.ops.mesh.primitive_plane_add(size=1, location=(RX+13, 0.2, 3.2))
+bd = bpy.context.active_object; bd.name = 'SkyBackdrop'
+bd.rotation_euler = (math.radians(90), 0, math.radians(90)); bd.scale = (26.0, 14.0, 1)
+bdm = bpy.data.materials.new('night_sky'); bdm.use_nodes = True
 bn, bl = bdm.node_tree.nodes, bdm.node_tree.links
 em = bn.get('Principled BSDF')
 tcg = bn.new('ShaderNodeTexCoord'); grad = bn.new('ShaderNodeTexGradient'); ramp = bn.new('ShaderNodeValToRGB')
 mpg = bn.new('ShaderNodeMapping'); mpg.inputs['Rotation'].default_value = (0, math.radians(90), 0)
 bl.new(tcg.outputs['Generated'], mpg.inputs['Vector']); bl.new(mpg.outputs['Vector'], grad.inputs['Vector'])
 bl.new(grad.outputs['Color'], ramp.inputs['Fac'])
-ramp.color_ramp.elements[0].color = (0.006, 0.014, 0.03, 1)   # horizon dark
-ramp.color_ramp.elements[1].color = (0.05, 0.10, 0.18, 1)     # sky (moonlit)
-bl.new(ramp.outputs['Color'], em.inputs['Emission']); em.inputs['Emission Strength'].default_value = 0.55
+ramp.color_ramp.elements[0].color = (0.004, 0.010, 0.022, 1)   # horizon
+ramp.color_ramp.elements[1].color = (0.028, 0.055, 0.11, 1)    # upper sky (moonlit)
+bl.new(ramp.outputs['Color'], em.inputs['Emission']); em.inputs['Emission Strength'].default_value = 0.6
 set_mat(bd, bdm)
-# soft moon disc
-bpy.ops.mesh.primitive_circle_add(radius=0.5, fill_type='NGON', location=(RX+2.3, 1.3, 2.6))
-moon = bpy.context.active_object; moon.name = 'Moon'; moon.rotation_euler = (0, math.radians(90), 0)
-set_mat(moon, make_emissive('moon_m', (0.7, 0.8, 1.0), 2.2))
-# a near layer of wide, soft tree silhouettes (close to glass -> large, low-contrast)
-for i, tx in enumerate((-1.5, -0.4, 0.7, 1.7)):
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.16+0.06*(i % 2), depth=5.0, location=(RX+0.9, tx, 2.0))
-    t = bpy.context.active_object; t.name = f'Tree_{i}'; set_mat(t, make_solid(f'trunk{i}', (0.004, 0.008, 0.014), 0.98))
+# moon
+bpy.ops.mesh.primitive_circle_add(radius=0.6, fill_type='NGON', location=(RX+12.5, 2.6, 3.4))
+moon = bpy.context.active_object; moon.name = 'MoonDisc'; moon.rotation_euler = (0, math.radians(90), 0)
+set_mat(moon, make_emissive('moon_m', (0.72, 0.8, 1.0), 2.6))
+# forest: instance the wizard-office tree into receding layers of dark silhouettes
+tree = bpy.data.objects.get('KB3D_ECI_IntWizardOffice_A_Tree')
+if tree:
+    set_mat(tree, make_solid('forest_dark', (0.011, 0.017, 0.030), rough=0.96))  # night-blue silhouette
+    tree.hide_render = True
+    placements = []
+    for bx, sb, n in [(RX+2.2, 0.55, 7), (RX+4.8, 0.44, 8), (RX+8.0, 0.34, 9), (RX+11.5, 0.26, 9)]:
+        placements += [(bx, sb)] * n
+    for i, (bx, sb) in enumerate(placements):
+        o = tree.copy(); o.data = tree.data; o.name = f'ForestTree_{i}'
+        scene.collection.objects.link(o); o.hide_render = False
+        sc = sb * _rnd.uniform(0.72, 1.32); o.scale = (sc, sc, sc)
+        o.rotation_euler = (0, 0, _rnd.uniform(0, 6.283))
+        o.location = (bx + _rnd.uniform(-1.1, 1.1), _rnd.uniform(-6.5, 6.5), 0.0)
+        bpy.context.view_layer.update()
+        mn, mx = world_bbox(o); o.location.z += (0.0 - mn.z)
 # window mullions (wood bars) so the opening reads as a window
 for my, mz, msy, msz in [(0.1, 1.45, 0.05, 1.25), (-0.66, 1.45, 0.62, 0.04), (0.86, 1.45, 0.62, 0.04)]:
     add_box('Mullion', 0.10, msy, msz, (RX, my, mz), MAT['wood'])
@@ -253,10 +280,7 @@ add_light('POINT', 'HearthKey',  (0, 2.18, 0.62), 100, (1.0, 0.5, 0.22), size=0.
 add_light('POINT', 'HearthFill', (0, 1.5, 0.95), 26, (1.0, 0.5, 0.22), size=0.9)
 mo = add_light('AREA', 'MoonLight', (RX+0.3, 0.1, 1.5), 46, (0.42, 0.58, 1.0), size=2.4)
 mo.rotation_euler = (0, math.radians(82), 0)
-add_light('POINT', 'Lantern', (-1.78, -0.5, 0.66), 7, (1.0, 0.64, 0.3), size=0.16)
-add_light('POINT', 'Brazier', (-2.0, 1.85, 1.05), 11, (1.0, 0.48, 0.2), size=0.22)
-add_light('POINT', 'CandlesM',(0.0, 2.05, 1.85), 6, (1.0, 0.6, 0.28), size=0.3)
-add_light('POINT', 'Magic',   (2.15, 2.25, 1.1), 6, (1.0, 0.72, 0.4), size=0.4)
+add_light('POINT', 'NookFill', (-1.6, -0.4, 0.7), 5, (1.0, 0.6, 0.3), size=0.4)   # faint warm light by the bowl/books
 
 # ============================================================ world
 world = scene.world or bpy.data.worlds.new('W'); scene.world = world
