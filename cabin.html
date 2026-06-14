@@ -757,6 +757,29 @@ body.immersed-med #medBar{display:flex;opacity:1;transform:translateX(-50%) tran
 #medBar button.on{color:var(--lantern-soft);border-color:rgba(240,200,120,.5);background:rgba(240,200,120,.12)}
 #medBar .seg{display:flex;gap:6px}
 @media (max-width:640px){#focusLabel{bottom:120px;font-size:14px}#lookHint2{bottom:44px}#caption{max-height:54vh}#capClose{bottom:calc(54vh - 6px)}}
+
+/* music control */
+#hud .music-ctl{position:relative}
+#musicPanel{position:absolute;right:0;top:calc(100% + 8px);min-width:204px;padding:12px;
+  background:rgba(14,10,12,.96);border:1px solid rgba(240,200,120,.14);border-radius:14px;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:60;display:flex;flex-direction:column;gap:3px}
+#musicPanel[hidden]{display:none}
+#musicPanel .mp-title{font-family:"Cormorant Garamond",serif;font-style:italic;color:var(--lantern);font-size:12px;letter-spacing:.08em;margin-bottom:6px}
+#musicPanel .mp-track{cursor:pointer;text-align:left;color:var(--ash);background:none;border:none;border-radius:8px;
+  padding:8px 10px;font-family:"Inter",sans-serif;font-size:12px;letter-spacing:.04em;transition:all .25s;display:flex;align-items:center;gap:8px}
+#musicPanel .mp-track::before{content:"\25B7";font-size:9px;color:var(--ash-dim)}
+#musicPanel .mp-track:hover{background:rgba(240,200,120,.08);color:var(--lantern-soft)}
+#musicPanel .mp-track.on{color:var(--lantern-soft)}
+#musicPanel .mp-track.on::before{content:"\275A\275A";color:var(--ember-warm);font-size:8px}
+#musicPanel .mp-vol{display:flex;align-items:center;gap:8px;margin:8px 4px 2px;color:var(--ash-dim);font-size:10px;letter-spacing:.1em}
+#musicPanel .mp-vol input{flex:1;accent-color:var(--ember-warm)}
+#musicPanel .mp-credit{margin-top:8px;padding-top:8px;border-top:1px solid rgba(240,200,120,.08);
+  font-family:"Inter",sans-serif;font-size:10px;letter-spacing:.05em;color:var(--ash-dim)}
+/* discreet now-playing credit (source attribution), bottom-left */
+#npCredit{position:fixed;left:18px;bottom:15px;z-index:6;pointer-events:none;
+  font-family:"Inter",sans-serif;font-size:10px;letter-spacing:.12em;color:var(--ash-dim);opacity:0;transition:opacity .8s;max-width:64vw}
+#npCredit.show{opacity:.5}
+body.immersed-med #npCredit{opacity:.3}
 </style>
 </head>
 <body>
@@ -773,13 +796,27 @@ body.immersed-med #medBar{display:flex;opacity:1;transform:translateX(-50%) tran
 <div id="focusLabel" aria-live="polite"></div>
 
 <!-- game-like look guide -->
-<div id="lookHint2" aria-hidden="true"><span class="swipe"><i></i></span><span>ドラッグで見回す</span></div>
+<div id="lookHint2" aria-hidden="true"><span class="swipe"><i></i></span><span>ドラッグで見回す · ホイールで拡大</span></div>
+
+<!-- discreet now-playing credit (source attribution) -->
+<div id="npCredit" aria-hidden="true"></div>
 
 <!-- top HUD (edges only) -->
 <header id="hud">
   <a class="brand" href="index.html" title="Views Engineer"><span class="lantern-dot"></span> Cabin in the Hollow</a>
   <div class="hud-right">
     <button type="button" class="hud-btn" id="soundToggle" aria-pressed="false">♪ <span>音</span></button>
+    <div class="music-ctl">
+      <button type="button" class="hud-btn" id="musicBtn" aria-haspopup="true" aria-expanded="false">♫ <span>曲</span></button>
+      <div class="music-panel" id="musicPanel" hidden>
+        <div class="mp-title">瞑想のしらべ · BGM</div>
+        <button class="mp-track" data-track="1">Evening breeze</button>
+        <button class="mp-track" data-track="2">Breezy Hill</button>
+        <button class="mp-track" data-track="3">Prism</button>
+        <div class="mp-vol"><span>vol</span><input type="range" id="mpVol" min="0" max="100" value="32"></div>
+        <div class="mp-credit">music · kuhu —「夕日色の列車」</div>
+      </div>
+    </div>
     <div class="lang">
       <button class="hud-btn" id="langToggle" type="button" aria-haspopup="listbox" aria-expanded="false">
         <span id="langCurrent">JP</span><span class="lang-arrow">▾</span>
@@ -1932,6 +1969,28 @@ else {
     setDuration(parseInt(b.dataset.min,10));
   }));
   document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(body.classList.contains('immersed-med')) leaveMeditation(); else if(body.classList.contains('cap-open')) closeCaption(); } });
+
+  // ── BGM (kuhu「夕日色の列車」) ──
+  const musicBtn=$('#musicBtn'), musicPanel=$('#musicPanel'), npCredit=$('#npCredit');
+  const TRACKS={'1':'Evening breeze','2':'Breezy Hill','3':'Prism'};
+  musicBtn?.addEventListener('click', e=>{ e.stopPropagation();
+    const open=!musicPanel.hasAttribute('hidden');
+    if(open) musicPanel.setAttribute('hidden',''); else musicPanel.removeAttribute('hidden');
+    musicBtn.setAttribute('aria-expanded', String(!open)); });
+  document.addEventListener('click', e=>{ if(musicPanel && !musicPanel.hasAttribute('hidden') && !musicPanel.contains(e.target) && !musicBtn.contains(e.target)){ musicPanel.setAttribute('hidden',''); musicBtn.setAttribute('aria-expanded','false'); } });
+  function syncMusic(){
+    document.querySelectorAll('#musicPanel .mp-track').forEach(b=>b.classList.toggle('on', !!(MUSIC[b.dataset.track]&&MUSIC[b.dataset.track].on)));
+    const playing=document.querySelector('#musicPanel .mp-track.on');
+    if(musicBtn) musicBtn.classList.toggle('on', !!playing);
+    if(npCredit){ if(playing){ npCredit.textContent='♪ '+TRACKS[playing.dataset.track]+' · kuhu —「夕日色の列車」'; npCredit.classList.add('show'); } else npCredit.classList.remove('show'); }
+  }
+  document.querySelectorAll('#musicPanel .mp-track').forEach(btn=>btn.addEventListener('click', ()=>{
+    try{ ensureCtx(); }catch(_){}
+    toggleMusic(btn.dataset.track, btn);
+    setTimeout(syncMusic, 60);
+  }));
+  if(typeof setVolumeMusic==='function') setVolumeMusic(0.30);
+  $('#mpVol')?.addEventListener('input', e=>{ if(typeof setVolumeMusic==='function') setVolumeMusic(parseInt(e.target.value,10)/100); });
 
   // ── marker dispatch (called by the 3D module) ──
   window.onMarker=function(key){
