@@ -1767,25 +1767,31 @@ else {
       float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=0.5; } return v; }
       void main(){
         vec2 uv=vUv; float t=uTime;
-        float n1=fbm(vec2(uv.x*3.0, uv.y*2.2 - t*1.7));
-        float n2=fbm(vec2(uv.x*6.8 - 1.0, uv.y*4.4 - t*3.1));
-        float turb=n1*0.6 + n2*0.4;
-        float xc=uv.x + (turb-0.5)*0.24*uv.y;
+        // three incommensurate turbulence layers drifting at different speeds -> chaotic, non-repeating
+        float n1=fbm(vec2(uv.x*3.0,        uv.y*2.2 - t*1.7));
+        float n2=fbm(vec2(uv.x*6.8 - 1.0,  uv.y*4.4 - t*3.1));
+        float n3=fbm(vec2(uv.x*11.0 + 4.0, uv.y*7.0 - t*4.7));
+        float turb=n1*0.5 + n2*0.32 + n3*0.18;
+        // wandering horizontal sway: a slow whole-flame drift plus a faster whip toward the tips
+        float sway=(fbm(vec2(t*0.6, uv.y*1.4 + t*0.5))-0.5)*0.30 + (n3-0.5)*0.16*uv.y;
+        float xc=uv.x + sway*uv.y;
         float edge=clamp(1.0-abs(xc-0.5)*2.0, 0.0, 1.0);
-        // flame height envelope (tall, licking, breathing)
-        float top=pow(edge,1.2)*(0.82+0.34*uBreath)*(0.55+0.85*turb);
+        // breathing, irregular height envelope
+        float top=pow(edge,1.2)*(0.80+0.36*uBreath)*(0.5+0.9*turb);
         // dense near the base, thinning to the tips
         float hfall=clamp(1.0 - uv.y/max(top,0.01), 0.0, 1.0);
-        // separated tongues: flame only where turbulence*falloff crosses a threshold
-        // -> transparent gaps let the logs show through
+        // separated tongues whose threshold wanders in time -> licks flare and gutter at random
+        float thr=0.30 + 0.12*(fbm(vec2(t*1.9, uv.x*2.0))-0.5);
         float d=(n2*0.6+0.42)*hfall*pow(edge,0.55);
-        float flame=smoothstep(0.30, 0.60, d);
-        float ember=smoothstep(0.26,0.0,uv.y)*edge*(0.4+0.5*n2);
+        float flame=smoothstep(thr, thr+0.30, d);
+        float ember=smoothstep(0.26,0.0,uv.y)*edge*(0.4+0.5*n3);
         float h=clamp(uv.y/max(top,0.001),0.0,1.0);
         vec3 col=mix(vec3(1.0,0.93,0.62), vec3(1.0,0.52,0.12), smoothstep(0.0,0.5,h));
         col=mix(col, vec3(0.8,0.13,0.03), smoothstep(0.5,1.0,h));
         col+=vec3(0.9,0.3,0.06)*ember*0.5;
-        float a=max(flame, ember*0.4)*(0.9+0.1*sin(t*27.0+uv.x*9.0));
+        // irregular flicker: noise-driven brightness instead of a single periodic beat
+        float flick=0.74 + 0.34*noise(vec2(t*3.7, t*2.3)) + 0.06*sin(t*19.0+uv.x*7.0);
+        float a=max(flame, ember*0.4)*clamp(flick,0.5,1.25);
         gl_FragColor=vec4(col*1.18, a*0.86);
       }`
   });
@@ -1863,7 +1869,7 @@ else {
     for(let i=0;i<9;i++){ const y=i*15+Math.sin(i*2.1)*3; x.beginPath(); x.moveTo(0,y); x.bezierCurveTo(42,y+4,88,y-4,128,y+2); x.stroke(); }
     const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
   }
-  const _stP=bearing(22, -39, 2.4);   // bottom-right edge of the initial view — just noticeable
+  const _stP=bearing(58, -34, 2.6);   // right edge of the room — glance right to find it
   const _tableBase=new THREE.Mesh(new THREE.BoxGeometry(0.76,0.46,0.76), new THREE.MeshBasicMaterial({map:woodTex()}));
   _tableBase.position.copy(_stP); _tableBase.position.y-=0.27; scene.add(_tableBase);
   const sudokuBoard=new THREE.Mesh(new THREE.PlaneGeometry(0.66,0.66), new THREE.MeshBasicMaterial({map:sudokuBoardTex()}));

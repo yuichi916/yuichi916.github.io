@@ -88,6 +88,37 @@ def make_emissive(name, color, strength):
     b.inputs['Emission Strength'].default_value = strength
     return m
 
+def make_charred(name):
+    """Burning-log look: blackened char patches over warmer ember-lit wood, with
+    a faint glow seeping from the deepest char — 'ところどころ黒ずむ'."""
+    m = bpy.data.materials.new(name); m.use_nodes = True
+    nt = m.node_tree; nodes, links = nt.nodes, nt.links
+    bsdf = nodes.get('Principled BSDF')
+    tc = nodes.new('ShaderNodeTexCoord')
+    mp = nodes.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (0.3,)*3
+    links.new(tc.outputs['Object'], mp.inputs['Vector'])
+    bc = nodes.new('ShaderNodeTexImage'); _img = load_img('BeamB', 'basecolor', False)
+    if _img: bc.image = _img
+    bc.projection = 'BOX'; bc.projection_blend = 0.3
+    links.new(mp.outputs['Vector'], bc.inputs['Vector'])
+    # large-scale noise drives where char goes black vs where burnt wood shows through
+    noise = nodes.new('ShaderNodeTexNoise')
+    # high frequency so every small log gets mottled with black char rather than one flat tone
+    noise.inputs['Scale'].default_value = 16.0; noise.inputs['Detail'].default_value = 6.0
+    links.new(tc.outputs['Object'], noise.inputs['Vector'])
+    ramp = nodes.new('ShaderNodeValToRGB')
+    ramp.color_ramp.elements[0].position = 0.45
+    ramp.color_ramp.elements[0].color = (0.012, 0.010, 0.008, 1.0)   # blackened char patch
+    ramp.color_ramp.elements[1].position = 0.65
+    ramp.color_ramp.elements[1].color = (0.27, 0.15, 0.075, 1.0)     # burnt ember-lit wood
+    links.new(noise.outputs['Fac'], ramp.inputs['Fac'])
+    mix = nodes.new('ShaderNodeMixRGB'); mix.blend_type = 'MULTIPLY'; mix.inputs[0].default_value = 0.6
+    links.new(ramp.outputs['Color'], mix.inputs[1]); links.new(bc.outputs['Color'], mix.inputs[2])
+    links.new(mix.outputs['Color'], bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.93
+    # no emission here: the char patches must read as black, lit only by the coals + three.js fire
+    return m
+
 def set_mat(obj, mat):
     obj.data.materials.clear(); obj.data.materials.append(mat)
 
@@ -106,7 +137,7 @@ MAT = {
     'metal': make_pbr('cab_metal', 'MetalA',  mapscale=0.6,  rough_add=0.05, base_mult=(0.42, 0.38, 0.34), metal=1.0),
     'door':  make_pbr('cab_door',  'DoorA',   mapscale=0.5,  base_mult=(0.55, 0.42, 0.30)),
     'wood':  make_pbr('cab_wood',  'PlanksC', mapscale=0.5,  base_mult=(0.60, 0.45, 0.32)),
-    'charred': make_pbr('cab_charred', 'BeamB', mapscale=0.3, base_mult=(0.038, 0.024, 0.015)),
+    'charred': make_charred('cab_charred'),
     'ceramic': make_solid('cab_ceramic', (0.20, 0.16, 0.13), rough=0.65),
     'rug':   make_solid('cab_rug',  (0.30, 0.10, 0.08), rough=0.95, sheen=0.4),
     'cush':  make_solid('cab_cush', (0.42, 0.20, 0.11), rough=0.88, sheen=0.6),
@@ -122,7 +153,7 @@ MAT = {
 # name -> (mat, x, y, rotz_deg, scale)
 KIT = {
     'KB3D_ECI_PropFireplace_A_Main':    ('stone',   0.0,  2.50, 0,    0.46),
-    'KB3D_ECI_PropFireWood_A_Main':     ('charred', 0.0,  2.22, 0,    0.40),  # less wood
+    'KB3D_ECI_PropFireWood_A_Main':     ('charred', 0.0,  2.22, 0,    0.33),  # fewer logs
     'KB3D_ECI_PropFloorFabric_A_Main':  ('rug',     0.0,  0.10, 0,    0.50),
     'KB3D_ECI_PropPillow_A_Main':       ('cush',    0.0, -0.45, 0,    1.10),
     'KB3D_ECI_PropRockingChair_A_Main': ('wood',    1.55, 0.95, -125, 1.0),
@@ -183,20 +214,25 @@ lift('KB3D_ECI_PropFireWood_A_Main', 0.30)
 # glowing coals beneath the firewood (the live flames are added in three.js)
 bpy.ops.mesh.primitive_uv_sphere_add(radius=0.16, location=(0, 2.18, 0.36))
 _coals = bpy.context.active_object; _coals.name = 'Coals'; _coals.scale = (1.7, 1.0, 0.45)
-set_mat(_coals, make_emissive('coals_m', (1.0, 0.32, 0.08), 2.0))
-# a few extra logs crossed over the pile so it reads as hand-stacked / natural
+set_mat(_coals, make_emissive('coals_m', (1.0, 0.32, 0.08), 1.5))
+# a few logs crossed over the pile so it reads as hand-stacked / natural —
+# fewer than before and randomly jittered so the stack looks casually thrown together
+import random
+random.seed(11)
 def add_log(loc, rot_deg, length, rad):
     bpy.ops.mesh.primitive_cylinder_add(radius=rad, depth=length, location=loc)
     lg = bpy.context.active_object; lg.name = 'StackLog'
     lg.rotation_euler = (math.radians(rot_deg[0]), math.radians(rot_deg[1]), math.radians(rot_deg[2]))
     set_mat(lg, MAT['charred'])
 for loc, rot, ln, rd in [
-    ((0.00, 2.18, 0.50), (0, 90,  6),  0.66, 0.05),    # front horizontal log
-    ((0.06, 2.26, 0.60), (0, 90,  26), 0.60, 0.046),   # crossing right
-    ((-0.08,2.24, 0.62), (0, 90, -22), 0.58, 0.044),   # crossing left
-    ((0.00, 2.20, 0.72), (0, 90,  2),  0.50, 0.04),    # top log
-    ((-0.02,2.10, 0.46), (90, 4, 0),   0.40, 0.045)]:  # one poking toward the viewer
-    add_log(loc, rot, ln, rd)
+    ((0.00, 2.18, 0.52), (0, 90,   6), 0.64, 0.05),    # front log
+    ((0.05, 2.26, 0.62), (0, 90,  25), 0.56, 0.045),   # crossing one way
+    ((-0.07,2.22, 0.60), (0, 90, -21), 0.54, 0.044)]:  # crossing the other
+    jx = (random.random()-0.5)*0.07; jy = (random.random()-0.5)*0.06; jz = (random.random()-0.5)*0.035
+    jrz = (random.random()-0.5)*20
+    add_log((loc[0]+jx, loc[1]+jy, loc[2]+jz),
+            (rot[0], rot[1], rot[2]+jrz),
+            ln*(0.86+random.random()*0.24), rd)
 print('[kit] placed', flush=True)
 
 # ============================================================ cabin shell
