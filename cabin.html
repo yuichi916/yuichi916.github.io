@@ -849,7 +849,7 @@ body.immersed-med #npCredit{opacity:.3}
 <div id="focusLabel" aria-live="polite"></div>
 
 <!-- game-like look guide -->
-<div id="lookHint2" aria-hidden="true"><span class="swipe"><i></i></span><span>ドラッグで見回す · ホイールで拡大</span></div>
+<div id="lookHint2" aria-hidden="true"><span class="swipe"><i></i></span><span>ドラッグで見回す · ピンチ／ホイールで拡大</span></div>
 
 <!-- discreet now-playing credit (source attribution) -->
 <div id="npCredit" aria-hidden="true"></div>
@@ -1932,7 +1932,7 @@ else {
 
   // ── interaction ──
   const ray=new THREE.Raycaster();
-  let dragging=false, moved=0, px=0, py=0, dx0=0, dy0=0, gyroOn=false, hovered=null, pinching=false, fov=72;
+  let dragging=false, moved=0, px=0, py=0, dx0=0, dy0=0, hovered=null, pinching=false, fov=72;
   const reticle=document.getElementById('reticle'), focusLabel=document.getElementById('focusLabel');
   canvas.addEventListener('pointerdown', e=>{ dragging=true; moved=0; px=dx0=e.clientX; py=dy0=e.clientY; idle=0; });
   addEventListener('pointermove', e=>{
@@ -1962,16 +1962,9 @@ else {
   canvas.addEventListener('touchmove', e=>{ if(e.touches.length>=2){ e.preventDefault(); const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); if(pinchD) setFov(fov*(pinchD/d)); pinchD=d; } }, {passive:false});
   canvas.addEventListener('touchend', e=>{ if(e.touches.length<2){ pinching=false; pinchD=0; } }, {passive:true});
 
-  function onOrient(e){ if(e.alpha==null) return; tLon=HEARTH_LON-e.alpha; tLat=Math.max(-58,Math.min(58,(e.beta||0)-90)); }
-
   let breath=1, bt=1;
   window.CabinRoom = {
     setBreath:b=>{ bt=b; },
-    enableGyro(){ if(gyroOn) return;
-      const go=()=>{ gyroOn=true; addEventListener('deviceorientation',onOrient); };
-      if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission)
-        DeviceOrientationEvent.requestPermission().then(s=>{ if(s==='granted') go(); }).catch(()=>{}); else go();
-    },
     lookHearth(){ tLon=HEARTH_LON; tLat=-7; },
     startMeditation(){ meditating=true; this.lookHearth(); },
     stopMeditation(){ meditating=false; },
@@ -1990,7 +1983,7 @@ else {
     const dt=Math.min(clock.getDelta(),.05), t=clock.elapsedTime;
     fireUniforms.uTime.value=t;
 
-    if(!dragging && !gyroOn && !reduce && !meditating){ idle+=dt; if(idle>6) tLon+=dt*0.5; }
+    if(!dragging && !reduce && !meditating){ idle+=dt; if(idle>6) tLon+=dt*0.5; }
     lon+=(tLon-lon)*0.08; lat+=(tLat-lat)*0.08;
     const phi=THREE.MathUtils.degToRad(90-lat), th=THREE.MathUtils.degToRad(lon);
     camera.lookAt(Math.sin(phi)*Math.cos(th), Math.cos(phi), Math.sin(phi)*Math.sin(th));
@@ -2047,7 +2040,6 @@ else {
     try{ ensureCtx(); }catch(_){}
     const fb=document.querySelector('.amb-btn[data-snd="fire"]');
     if(fb && !fb.classList.contains('on')){ try{ toggleSound('fire',fb); }catch(_){} updateSound(); }
-    if(window.CabinRoom) window.CabinRoom.enableGyro();
     setTimeout(()=>body.classList.add('hint-gone'), 9000);
   }
   if(gate){ gate.addEventListener('click',openHollow);
