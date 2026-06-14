@@ -824,6 +824,7 @@ body.immersed-med #npCredit{opacity:.3}
         <button class="mp-track" data-track="2">Forest Lullaby</button>
         <button class="mp-track" data-track="3">Night Whisper</button>
         <button class="mp-track" data-track="4">Lake in the Forest</button>
+        <button class="mp-track" data-track="5">Meditation</button>
         <div class="mp-vol"><span>vol</span><input type="range" id="mpVol" min="0" max="100" value="32"></div>
         <div class="mp-credit" id="mpCredit">music · Yurino (Mozecon4) ほか</div>
       </div>
@@ -1127,6 +1128,11 @@ function makeNoiseBuffer(ctx, dur=2){
 
 function buildSound(name){
   const ctx = ensureCtx();
+  if(name === 'fire'){                                   // real recorded campfire crackle (looped)
+    const audio = new Audio('assets/sfx-fire.mp3'); audio.loop = true; audio.volume = 0;
+    SOUNDS[name] = { audio, on:false, file:true };
+    return;
+  }
   const buf = makeNoiseBuffer(ctx, 4);
   const src = ctx.createBufferSource();
   src.buffer = buf; src.loop = true;
@@ -1196,7 +1202,9 @@ MUSIC.master = .5;
 function setVolumeAmbient(v){
   SOUNDS.master = v;
   Object.entries(SOUNDS).forEach(([k,s])=>{
-    if(s && s.on && s.gain) s.gain.gain.linearRampToValueAtTime(v * .6, audioCtx.currentTime + .2);
+    if(!s || !s.on) return;
+    if(s.file && s.audio) s.audio.volume = v * .8;
+    else if(s.gain) s.gain.gain.linearRampToValueAtTime(v * .6, audioCtx.currentTime + .2);
   });
 }
 function setVolumeMusic(v){
@@ -1209,6 +1217,11 @@ function toggleSound(name, btn){
   if(!SOUNDS[name]) buildSound(name);
   const s = SOUNDS[name];
   const ctx = audioCtx;
+  if(s.file){                                  // real recorded sound (fire)
+    if(s.on){ s.audio.pause(); s.on=false; btn.classList.remove('on'); }
+    else { s.audio.volume = (SOUNDS.master||.5)*.8; s.audio.play().catch(()=>{}); s.on=true; btn.classList.add('on'); }
+    return;
+  }
   if(s.on){
     s.gain.gain.cancelScheduledValues(ctx.currentTime);
     s.gain.gain.linearRampToValueAtTime(0, ctx.currentTime + .8);
@@ -2030,7 +2043,8 @@ else {
     '1':{t:'Hollow Meditation', c:''},
     '2':{t:'Forest Lullaby',    c:''},
     '3':{t:'Night Whisper',     c:''},
-    '4':{t:'Lake in the Forest',c:'Yurino (Mozecon4)'}
+    '4':{t:'Lake in the Forest',c:'Yurino (Mozecon4)'},
+    '5':{t:'Meditation',        c:'leberch (Pixabay)'}
   };
   musicBtn?.addEventListener('click', e=>{ e.stopPropagation();
     const open=!musicPanel.hasAttribute('hidden');

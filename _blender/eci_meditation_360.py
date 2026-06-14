@@ -128,9 +128,11 @@ KIT = {
     'KB3D_ECI_PropRockingChair_A_Main': ('wood',    1.55, 0.95, -125, 1.0),
     'KB3D_ECI_PropBowl_A_Main':         ('ceramic', -1.78, -0.55, 0,  1.3),   # subdued, replaces lantern
     'KB3D_ECI_PropBookStack_D_Main':    ('book',    -1.45, -0.32, 0,  0.95),
-    # old / antique pieces tucked into the dim back corners
-    'KB3D_ECI_PropBookStand_C_Main':    ('wood',    -2.15, -2.25, 18, 0.9),   # worn bookshelf, back-left
-    'KB3D_ECI_PropChest_A_Main':        ('wood',     2.25, -2.10, -22, 1.0),  # antique chest, back-right
+    # old / antique pieces tucked inconspicuously around the room (back + front corners)
+    'KB3D_ECI_PropBookStand_C_Main':    ('wood',    -2.15, -2.25, 18,  0.9),   # worn bookshelf, back-left
+    'KB3D_ECI_PropChest_A_Main':        ('wood',     2.25, -2.10, -22, 1.0),   # antique chest, back-right
+    'KB3D_ECI_PropBarrel_B_Main':       ('wood',    -2.30, -1.35, 12,  0.85),  # old barrel, front-left
+    'KB3D_ECI_PropChest_C_Main':        ('wood',     2.35, -1.45, -34, 0.8),   # antique chest, front-right
 }
 # the wizard-office tree, kept only to instance a forest beyond the window
 KEEP_EXTRA = {'KB3D_ECI_IntWizardOffice_A_Tree'}
@@ -161,10 +163,9 @@ def remove_faces_by_material(obj, substrs):
         poly.select = (poly.material_index in kill)
     bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.delete(type='FACE'); bpy.ops.object.mode_set(mode='OBJECT')
     print('[grate] stripped', substrs, 'from', obj.name, flush=True)
-# strip the iron grate AND the wooden frame/shelf around the firebox so it shows
-# only the burning logs + flames (leave the stone)
+# strip only the ornate iron grate (keep the wooden front beam + stone)
 remove_faces_by_material(bpy.data.objects.get('KB3D_ECI_PropFireplace_A_Main'),
-    ['MetalDarkWorn', 'MetalTrimA', 'WoodBarkWorn', 'WoodGrayBrightOldA', 'WoodHeartwoodAtlas', 'BooksAtlas'])
+    ['MetalDarkWorn', 'MetalTrimA'])
 
 for name, (mk, x, y, rz, sc) in KIT.items():
     o = bpy.data.objects.get(name)
@@ -183,6 +184,19 @@ lift('KB3D_ECI_PropFireWood_A_Main', 0.30)
 bpy.ops.mesh.primitive_uv_sphere_add(radius=0.16, location=(0, 2.18, 0.36))
 _coals = bpy.context.active_object; _coals.name = 'Coals'; _coals.scale = (1.7, 1.0, 0.45)
 set_mat(_coals, make_emissive('coals_m', (1.0, 0.32, 0.08), 2.0))
+# a few extra logs crossed over the pile so it reads as hand-stacked / natural
+def add_log(loc, rot_deg, length, rad):
+    bpy.ops.mesh.primitive_cylinder_add(radius=rad, depth=length, location=loc)
+    lg = bpy.context.active_object; lg.name = 'StackLog'
+    lg.rotation_euler = (math.radians(rot_deg[0]), math.radians(rot_deg[1]), math.radians(rot_deg[2]))
+    set_mat(lg, MAT['charred'])
+for loc, rot, ln, rd in [
+    ((0.00, 2.18, 0.50), (0, 90,  6),  0.66, 0.05),    # front horizontal log
+    ((0.06, 2.26, 0.60), (0, 90,  26), 0.60, 0.046),   # crossing right
+    ((-0.08,2.24, 0.62), (0, 90, -22), 0.58, 0.044),   # crossing left
+    ((0.00, 2.20, 0.72), (0, 90,  2),  0.50, 0.04),    # top log
+    ((-0.02,2.10, 0.46), (90, 4, 0),   0.40, 0.045)]:  # one poking toward the viewer
+    add_log(loc, rot, ln, rd)
 print('[kit] placed', flush=True)
 
 # ============================================================ cabin shell
