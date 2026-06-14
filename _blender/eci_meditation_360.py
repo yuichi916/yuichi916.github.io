@@ -106,7 +106,7 @@ MAT = {
     'metal': make_pbr('cab_metal', 'MetalA',  mapscale=0.6,  rough_add=0.05, base_mult=(0.42, 0.38, 0.34), metal=1.0),
     'door':  make_pbr('cab_door',  'DoorA',   mapscale=0.5,  base_mult=(0.55, 0.42, 0.30)),
     'wood':  make_pbr('cab_wood',  'PlanksC', mapscale=0.5,  base_mult=(0.60, 0.45, 0.32)),
-    'charred': make_pbr('cab_charred', 'BeamB', mapscale=0.3, base_mult=(0.07, 0.045, 0.028)),
+    'charred': make_pbr('cab_charred', 'BeamB', mapscale=0.3, base_mult=(0.038, 0.024, 0.015)),
     'ceramic': make_solid('cab_ceramic', (0.20, 0.16, 0.13), rough=0.65),
     'rug':   make_solid('cab_rug',  (0.30, 0.10, 0.08), rough=0.95, sheen=0.4),
     'cush':  make_solid('cab_cush', (0.42, 0.20, 0.11), rough=0.88, sheen=0.6),
@@ -128,6 +128,9 @@ KIT = {
     'KB3D_ECI_PropRockingChair_A_Main': ('wood',    1.55, 0.95, -125, 1.0),
     'KB3D_ECI_PropBowl_A_Main':         ('ceramic', -1.78, -0.55, 0,  1.3),   # subdued, replaces lantern
     'KB3D_ECI_PropBookStack_D_Main':    ('book',    -1.45, -0.32, 0,  0.95),
+    # old / antique pieces tucked into the dim back corners
+    'KB3D_ECI_PropBookStand_C_Main':    ('wood',    -2.15, -2.25, 18, 0.9),   # worn bookshelf, back-left
+    'KB3D_ECI_PropChest_A_Main':        ('wood',     2.25, -2.10, -22, 1.0),  # antique chest, back-right
 }
 # the wizard-office tree, kept only to instance a forest beyond the window
 KEEP_EXTRA = {'KB3D_ECI_IntWizardOffice_A_Tree'}
@@ -158,8 +161,10 @@ def remove_faces_by_material(obj, substrs):
         poly.select = (poly.material_index in kill)
     bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.delete(type='FACE'); bpy.ops.object.mode_set(mode='OBJECT')
     print('[grate] stripped', substrs, 'from', obj.name, flush=True)
-# strip the ornate iron grate so the firebox shows only logs + flames
-remove_faces_by_material(bpy.data.objects.get('KB3D_ECI_PropFireplace_A_Main'), ['MetalDarkWorn', 'MetalTrimA'])
+# strip the iron grate AND the wooden frame/shelf around the firebox so it shows
+# only the burning logs + flames (leave the stone)
+remove_faces_by_material(bpy.data.objects.get('KB3D_ECI_PropFireplace_A_Main'),
+    ['MetalDarkWorn', 'MetalTrimA', 'WoodBarkWorn', 'WoodGrayBrightOldA', 'WoodHeartwoodAtlas', 'BooksAtlas'])
 
 for name, (mk, x, y, rz, sc) in KIT.items():
     o = bpy.data.objects.get(name)
@@ -177,7 +182,7 @@ lift('KB3D_ECI_PropFireWood_A_Main', 0.30)
 # glowing coals beneath the firewood (the live flames are added in three.js)
 bpy.ops.mesh.primitive_uv_sphere_add(radius=0.16, location=(0, 2.18, 0.36))
 _coals = bpy.context.active_object; _coals.name = 'Coals'; _coals.scale = (1.7, 1.0, 0.45)
-set_mat(_coals, make_emissive('coals_m', (1.0, 0.34, 0.09), 1.4))
+set_mat(_coals, make_emissive('coals_m', (1.0, 0.32, 0.08), 2.0))
 print('[kit] placed', flush=True)
 
 # ============================================================ cabin shell

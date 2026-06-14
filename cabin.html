@@ -825,7 +825,7 @@ body.immersed-med #npCredit{opacity:.3}
         <button class="mp-track" data-track="3">Night Whisper</button>
         <button class="mp-track" data-track="4">Lake in the Forest</button>
         <div class="mp-vol"><span>vol</span><input type="range" id="mpVol" min="0" max="100" value="32"></div>
-        <div class="mp-credit" id="mpCredit">music · Suno AI / Yurino (Mozecon4)</div>
+        <div class="mp-credit" id="mpCredit">music · Yurino (Mozecon4) ほか</div>
       </div>
     </div>
     <div class="lang">
@@ -1146,19 +1146,33 @@ function buildSound(name){
         const s = SOUNDS['fire'];
         if(s && s.on && audioCtx){
           const t = audioCtx.currentTime;
+          const snap = Math.random() < 0.18;   // occasional louder wood "snap"
           const src2 = audioCtx.createBufferSource(); src2.buffer = popNoise;
           const bp = audioCtx.createBiquadFilter(); bp.type='bandpass';
-          bp.frequency.value = 850 + Math.random()*2800; bp.Q.value = 4 + Math.random()*7;
+          bp.frequency.value = snap ? (420 + Math.random()*900) : (1200 + Math.random()*3200);
+          bp.Q.value = snap ? (2 + Math.random()*3) : (5 + Math.random()*9);
+          const hp = audioCtx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value = snap ? 180 : 700;
           const g2 = audioCtx.createGain(); g2.gain.value = 0;
-          src2.connect(bp).connect(g2).connect(gain);
-          const amp = (0.05 + Math.random()*0.14) * (SOUNDS.master||.5);
+          src2.connect(bp).connect(hp).connect(g2).connect(gain);
+          const amp = (snap ? (0.16 + Math.random()*0.18) : (0.05 + Math.random()*0.13)) * (SOUNDS.master||.5);
           g2.gain.setValueAtTime(0, t);
-          g2.gain.linearRampToValueAtTime(amp, t+0.003);
-          g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.03 + Math.random()*0.10);
-          const off = Math.random()*0.25; src2.start(t+off); src2.stop(t+off+0.3);
+          g2.gain.linearRampToValueAtTime(amp, t+0.0015);                         // very sharp attack
+          g2.gain.exponentialRampToValueAtTime(0.0001, t + (snap?0.05:0.022) + Math.random()*0.05);
+          const off = Math.random()*0.16; src2.start(t+off); src2.stop(t+off+0.25);
+          if(!snap && Math.random() < 0.4){                                        // quick double-pop: pachi-pachi
+            const d = 0.04 + Math.random()*0.05;
+            const s3 = audioCtx.createBufferSource(); s3.buffer = popNoise;
+            const bp3 = audioCtx.createBiquadFilter(); bp3.type='bandpass'; bp3.frequency.value = 1500 + Math.random()*2500; bp3.Q.value = 6;
+            const g3 = audioCtx.createGain(); g3.gain.value = 0;
+            s3.connect(bp3).connect(g3).connect(gain);
+            const a3 = (0.04 + Math.random()*0.08) * (SOUNDS.master||.5);
+            g3.gain.setValueAtTime(0, t+d); g3.gain.linearRampToValueAtTime(a3, t+d+0.0015);
+            g3.gain.exponentialRampToValueAtTime(0.0001, t+d+0.05);
+            s3.start(t+d); s3.stop(t+d+0.2);
+          }
         }
         schedulePop();
-      }, 45 + Math.random()*230);
+      }, 28 + Math.random()*150);
     }
     schedulePop();
   } else if(name === 'forest'){
@@ -1940,12 +1954,20 @@ else {
   // ── ambient / SFX panel (薪のぱちぱち / 雨 / 森 / 風) ──
   const soundBtn=$('#soundToggle'), soundPanel=$('#soundPanel');
   function anyAmbOn(){ return !!document.querySelector('#soundPanel .mp-track.on'); }
+  const AMB_JP={fire:'火',rain:'雨',forest:'森',wind:'風'};
   function syncAmb(){
+    const active=[];
     document.querySelectorAll('#soundPanel .mp-track').forEach(b=>{
       const real=document.querySelector('.amb-btn[data-snd="'+b.dataset.snd+'"]');
-      b.classList.toggle('on', !!(real && real.classList.contains('on')));
+      const on=!!(real && real.classList.contains('on'));
+      b.classList.toggle('on', on);
+      if(on) active.push(AMB_JP[b.dataset.snd]||b.dataset.snd);
     });
-    if(soundBtn) soundBtn.classList.toggle('on', anyAmbOn());
+    if(soundBtn){
+      soundBtn.classList.toggle('on', active.length>0);
+      const lbl=soundBtn.querySelector('span');
+      if(lbl) lbl.textContent = active.length ? active.join('・') : '音';
+    }
   }
   function updateSound(){ syncAmb(); }   // kept for openHollow()
   soundBtn?.addEventListener('click', e=>{ e.stopPropagation();
@@ -2005,9 +2027,9 @@ else {
   const musicBtn=$('#musicBtn'), musicPanel=$('#musicPanel'), npCredit=$('#npCredit');
   // per-track { title, credit }
   const MTRACKS={
-    '1':{t:'Hollow Meditation', c:'Suno AI'},
-    '2':{t:'Forest Lullaby',    c:'Suno AI'},
-    '3':{t:'Night Whisper',     c:'Suno AI'},
+    '1':{t:'Hollow Meditation', c:''},
+    '2':{t:'Forest Lullaby',    c:''},
+    '3':{t:'Night Whisper',     c:''},
     '4':{t:'Lake in the Forest',c:'Yurino (Mozecon4)'}
   };
   musicBtn?.addEventListener('click', e=>{ e.stopPropagation();
@@ -2019,7 +2041,7 @@ else {
     document.querySelectorAll('#musicPanel .mp-track').forEach(b=>b.classList.toggle('on', !!(MUSIC[b.dataset.track]&&MUSIC[b.dataset.track].on)));
     const playing=document.querySelector('#musicPanel .mp-track.on');
     if(musicBtn) musicBtn.classList.toggle('on', !!playing);
-    if(npCredit){ if(playing){ const m=MTRACKS[playing.dataset.track]||{t:'',c:''}; npCredit.textContent='♪ '+m.t+' · '+m.c; npCredit.classList.add('show'); } else npCredit.classList.remove('show'); }
+    if(npCredit){ if(playing){ const m=MTRACKS[playing.dataset.track]||{t:'',c:''}; npCredit.textContent='♪ '+m.t+(m.c?' · '+m.c:''); npCredit.classList.add('show'); } else npCredit.classList.remove('show'); }
   }
   document.querySelectorAll('#musicPanel .mp-track').forEach(btn=>btn.addEventListener('click', ()=>{
     try{ ensureCtx(); }catch(_){}
