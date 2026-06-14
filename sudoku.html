@@ -782,12 +782,13 @@ let pdown = null, idleTimer = null;
 
 function resetIdle() { controls.autoRotate = false; clearTimeout(idleTimer); }
 
-renderer.domElement.addEventListener('pointerdown', (e) => { pdown = { x: e.clientX, y: e.clientY, t: Date.now() }; resetIdle(); });
+renderer.domElement.addEventListener('pointerdown', (e) => { pdown = { x: e.clientX, y: e.clientY, t: Date.now(), touch: e.pointerType !== 'mouse' }; resetIdle(); });
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!pdown) return;
   const moved = Math.hypot(e.clientX - pdown.x, e.clientY - pdown.y);
-  const dt = Date.now() - pdown.t; pdown = null;
-  if (moved < 6 && dt < 500) handlePick(e.clientX, e.clientY);
+  const dt = Date.now() - pdown.t; const touch = pdown.touch; pdown = null;
+  // touch needs a larger move tolerance (finger jitter) so a rotate drag isn't read as a tap
+  if (moved < (touch ? 14 : 6) && dt < 500) handlePick(e.clientX, e.clientY);
 });
 
 function handlePick(cx, cy) {
@@ -815,6 +816,7 @@ function selectCell(i, j, k) {
 const paletteEl = document.getElementById('palette');
 const palWrap = document.getElementById('palWrap');
 let noteMode = false;
+let palOpenAt = 0; // guards against the opening tap's ghost-click on mobile
 
 function buildPaletteButtons() {
   palWrap.innerHTML = '';
@@ -840,6 +842,7 @@ function buildPaletteButtons() {
 function openPalette(i, j, k) {
   buildPaletteButtons();
   paletteEl.classList.add('show');
+  palOpenAt = Date.now();
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
   if (!isMobile) {
     const wp = new THREE.Vector3(); cells[i][j][k].group.getWorldPosition(wp);
@@ -854,6 +857,8 @@ function openPalette(i, j, k) {
 function closePalette() { paletteEl.classList.remove('show'); }
 
 function onPick(v) {
+  // ignore the ghost-click fired by the very tap that opened the palette (mobile)
+  if (Date.now() - palOpenAt < 350) return;
   const s = G.selected; if (!s) return;
   if (G.fixed[s.i][s.j][s.k]) return;
   if (noteMode && v >= 0) {
