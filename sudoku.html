@@ -1161,6 +1161,21 @@ window.addEventListener('resize', () => {
    ============================================================ */
 refreshStartScreen();
 
+// deep-link from another page (e.g. the cabin): ?play=plane-table opens the flat
+// 9×9 board resting on the table directly, skipping the start screen
+(function(){
+  try{
+    const q = new URLSearchParams(location.search);
+    if(q.get('play') === 'plane-table' || q.get('mode') === 'plane'){
+      selMode = 'plane';
+      selPlacement = q.get('place') || 'table';
+      applySelectedSymbol();
+      newGame('plane', 9, q.get('diff') || 'normal', selWorld, false);
+      document.getElementById('tutorialScreen').classList.add('hidden');   // land straight on the board
+    }
+  }catch(_){}
+})();
+
 // Debug / test hooks
 window.__game = {
   G, prog, newGame, selectCell, setCell: (i, j, k, v) => { G.grid[i][j][k] = v; updateAllVisuals(); },

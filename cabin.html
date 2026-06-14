@@ -1841,6 +1841,27 @@ else {
     s.position.copy(bearing(m.lon,m.lat,m.r)); s.scale.set(0.7,0.7,1); s.userData=m; markerGroup.add(s); return s;
   });
 
+  // ── sudoku table portal: a small flat 9×9 board on a table in a front corner ──
+  function sudokuBoardTex(){
+    const c=document.createElement('canvas'); c.width=c.height=256; const x=c.getContext('2d');
+    x.fillStyle='#4a3a28'; x.fillRect(0,0,256,256); x.fillStyle='#5a4632'; x.fillRect(16,16,224,224);
+    const o=28, s=(256-2*o)/9;
+    x.strokeStyle='rgba(28,18,10,0.7)'; x.lineWidth=1;
+    for(let i=0;i<=9;i++){ x.beginPath(); x.moveTo(o+i*s,o); x.lineTo(o+i*s,256-o); x.moveTo(o,o+i*s); x.lineTo(256-o,o+i*s); x.stroke(); }
+    x.strokeStyle='rgba(18,10,6,0.95)'; x.lineWidth=2.5;
+    for(let i=0;i<=9;i+=3){ x.beginPath(); x.moveTo(o+i*s,o); x.lineTo(o+i*s,256-o); x.moveTo(o,o+i*s); x.lineTo(256-o,o+i*s); x.stroke(); }
+    x.fillStyle='rgba(232,200,140,0.82)'; x.font='600 18px Georgia'; x.textAlign='center'; x.textBaseline='middle';
+    [[0,1,'5'],[2,3,'7'],[4,4,'3'],[6,2,'9'],[8,7,'1'],[1,6,'4'],[5,5,'6'],[7,0,'2'],[3,8,'8']].forEach(([r,col,g])=>x.fillText(g, o+col*s+s/2, o+r*s+s/2));
+    const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+  }
+  const _stP=bearing(50, -42, 2.6);   // front-right, low on the floor — inconspicuous
+  const _tableBase=new THREE.Mesh(new THREE.BoxGeometry(0.76,0.46,0.76), new THREE.MeshBasicMaterial({color:0x221710}));
+  _tableBase.position.copy(_stP); _tableBase.position.y-=0.27; scene.add(_tableBase);
+  const sudokuBoard=new THREE.Mesh(new THREE.PlaneGeometry(0.66,0.66), new THREE.MeshBasicMaterial({map:sudokuBoardTex()}));
+  sudokuBoard.position.copy(_stP); sudokuBoard.rotation.x=-Math.PI/2; sudokuBoard.renderOrder=3;
+  sudokuBoard.userData={ key:'sudoku', jp:'数独の卓 · 平面9×9', en:'play sudoku on the table' };
+  markerGroup.add(sudokuBoard);
+
   // ── interaction ──
   const ray=new THREE.Raycaster();
   let dragging=false, moved=0, px=0, py=0, dx0=0, dy0=0, gyroOn=false, hovered=null, pinching=false, fov=72;
@@ -2070,6 +2091,7 @@ else {
     if(key==='meditate') enterMeditation();
     else if(key==='writings') openCaption('writings');
     else if(key==='window') openCaption('window');
+    else if(key==='sudoku') window.location.href='sudoku.html?play=plane-table';
   };
 
   // ── breath bridge → fire + in-world readout ──
