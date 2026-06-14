@@ -520,6 +520,7 @@ boardGroup.visible = false; scene.add(boardGroup);
 const SPACING = 1.32;
 const CELL = 1.06;
 let cells = [];           // cells[i][j][k] = { group, box, edges, sprite, i,j,k }
+let gridBars = [];        // bold 3x3 separator bars (plane only)
 const glyphTexCache = {}; // `${idx}_${mode}` -> texture
 
 function glyphTexture(value) {
@@ -551,6 +552,26 @@ function disposeCube() {
     if (c.sprite) c.sprite.material.dispose();
   })));
   cells = [];
+  gridBars.forEach((m) => { m.geometry.dispose(); m.material.dispose(); });
+  gridBars = [];
+}
+
+// bold glowing bars at the 3x3 block boundaries of the 9x9 board
+function buildGridSeparators() {
+  const x0 = cellPos(0, 0).x, x8 = cellPos(0, 8).x;
+  const y0 = cellPos(0, 0).y, y8 = cellPos(8, 0).y;
+  const left = Math.min(x0, x8) - CELL / 2, right = Math.max(x0, x8) + CELL / 2;
+  const top = Math.max(y0, y8) + CELL / 2, bot = Math.min(y0, y8) - CELL / 2;
+  const W = right - left, Hh = top - bot, th = 0.16, z = 0.21;
+  const make = (sx, sy, px, py) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, th), new THREE.MeshStandardMaterial({
+      color: 0xffe7b0, emissive: 0xffce78, emissiveIntensity: 0.9, roughness: 0.4, metalness: 0.1,
+      transparent: true, opacity: 0.96,
+    }));
+    m.position.set(px, py, z); m.renderOrder = 3; cubeGroup.add(m); gridBars.push(m);
+  };
+  for (const c of [2, 5]) make(th, Hh, (cellPos(0, c).x + cellPos(0, c + 1).x) / 2, (top + bot) / 2);
+  for (const r of [2, 5]) make(W, th, (left + right) / 2, (cellPos(r, 0).y + cellPos(r + 1, 0).y) / 2);
 }
 
 function cellPos(i, j, k) {
@@ -599,6 +620,7 @@ function buildCube() {
       }
     }
   }
+  if (plane) buildGridSeparators();
   applyBoardOrientation();
   updateAllVisuals();
 }
@@ -992,8 +1014,8 @@ function applyWorld(worldId) {
   // Keep the world clearly visible (異世界観); contrast for the numbers comes from
   // the opaque dark chips behind filled cells, not from dimming the backdrop.
   scene.background = new THREE.Color(w.fallback);
-  scene.backgroundIntensity = 1.0;
-  scene.backgroundBlurriness = 0.15;
+  scene.backgroundIntensity = 1.18;
+  scene.backgroundBlurriness = 0.0;
   texLoader.load(`assets/sudoku/${w.id}/bg.jpg`, (tex) => {
     tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.SRGBColorSpace;
     scene.background = tex;
