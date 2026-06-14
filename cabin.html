@@ -805,16 +805,24 @@ body.immersed-med #npCredit{opacity:.3}
 <header id="hud">
   <a class="brand" href="index.html" title="Views Engineer"><span class="lantern-dot"></span> Cabin in the Hollow</a>
   <div class="hud-right">
-    <button type="button" class="hud-btn" id="soundToggle" aria-pressed="false">♪ <span>音</span></button>
+    <div class="music-ctl">
+      <button type="button" class="hud-btn" id="soundToggle" aria-haspopup="true" aria-expanded="false">♪ <span>音</span></button>
+      <div class="music-panel" id="soundPanel" hidden>
+        <div class="mp-title">環境音 · ambience</div>
+        <button class="mp-track" data-snd="fire">薪のぱちぱち · fire</button>
+        <button class="mp-track" data-snd="rain">雨 · rain</button>
+        <button class="mp-track" data-snd="forest">森のざわめき · forest</button>
+        <button class="mp-track" data-snd="wind">風 · wind</button>
+        <div class="mp-vol"><span>vol</span><input type="range" id="ambVol" min="0" max="100" value="55"></div>
+      </div>
+    </div>
     <div class="music-ctl">
       <button type="button" class="hud-btn" id="musicBtn" aria-haspopup="true" aria-expanded="false">♫ <span>曲</span></button>
       <div class="music-panel" id="musicPanel" hidden>
         <div class="mp-title">瞑想のしらべ · BGM</div>
-        <button class="mp-track" data-track="1">Evening breeze</button>
-        <button class="mp-track" data-track="2">Breezy Hill</button>
-        <button class="mp-track" data-track="3">Prism</button>
+        <button class="mp-track" data-track="1">Lake in the Forest</button>
         <div class="mp-vol"><span>vol</span><input type="range" id="mpVol" min="0" max="100" value="32"></div>
-        <div class="mp-credit">music · kuhu —「夕日色の列車」</div>
+        <div class="mp-credit" id="mpCredit">music · Yurino — Lake in the Forest</div>
       </div>
     </div>
     <div class="lang">
@@ -1127,20 +1135,29 @@ function buildSound(name){
   if(name === 'rain'){
     filter.type='highpass'; filter.frequency.value=1800; filter.Q.value=.7;
   } else if(name === 'fire'){
-    filter.type='lowpass'; filter.frequency.value=600; filter.Q.value=.6;
-    const crackleGain = ctx.createGain(); crackleGain.gain.value = 0;
-    const oscC = ctx.createOscillator(); oscC.type='triangle'; oscC.frequency.value=120;
-    oscC.connect(crackleGain).connect(gain);
-    oscC.start();
-    SOUNDS[name+'_crackle'] = { osc:oscC, gain:crackleGain };
-    setInterval(()=>{
-      if(!SOUNDS[name] || !SOUNDS[name].on) return;
-      const t = ctx.currentTime;
-      crackleGain.gain.cancelScheduledValues(t);
-      crackleGain.gain.setValueAtTime(0,t);
-      crackleGain.gain.linearRampToValueAtTime(.04 * (SOUNDS.master||.5), t+.01);
-      crackleGain.gain.exponentialRampToValueAtTime(.0001, t+.12);
-    }, 380 + Math.random()*250);
+    filter.type='lowpass'; filter.frequency.value=520; filter.Q.value=.6;   // soft ember bed
+    // sharp "pachi-pachi" crackle: short band-passed noise pops at random intervals
+    const popNoise = makeNoiseBuffer(ctx, 1);
+    function schedulePop(){
+      setTimeout(()=>{
+        const s = SOUNDS['fire'];
+        if(s && s.on && audioCtx){
+          const t = audioCtx.currentTime;
+          const src2 = audioCtx.createBufferSource(); src2.buffer = popNoise;
+          const bp = audioCtx.createBiquadFilter(); bp.type='bandpass';
+          bp.frequency.value = 850 + Math.random()*2800; bp.Q.value = 4 + Math.random()*7;
+          const g2 = audioCtx.createGain(); g2.gain.value = 0;
+          src2.connect(bp).connect(g2).connect(gain);
+          const amp = (0.05 + Math.random()*0.14) * (SOUNDS.master||.5);
+          g2.gain.setValueAtTime(0, t);
+          g2.gain.linearRampToValueAtTime(amp, t+0.003);
+          g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.03 + Math.random()*0.10);
+          const off = Math.random()*0.25; src2.start(t+off); src2.stop(t+off+0.3);
+        }
+        schedulePop();
+      }, 45 + Math.random()*230);
+    }
+    schedulePop();
   } else if(name === 'forest'){
     filter.type='bandpass'; filter.frequency.value=1100; filter.Q.value=2;
   } else if(name === 'wind'){
@@ -1742,15 +1759,15 @@ else {
         gl_FragColor=vec4(col*1.18, a*0.86);
       }`
   });
-  const fire = new THREE.Mesh(new THREE.PlaneGeometry(1.25,1.6), fireMat);
-  fire.position.copy(bearing(HEARTH_LON,-7,8.5)); faceOrigin(fire); fire.renderOrder=2;
+  const fire = new THREE.Mesh(new THREE.PlaneGeometry(1.45,1.85), fireMat);
+  fire.position.copy(bearing(HEARTH_LON,-5.5,10)); faceOrigin(fire); fire.renderOrder=2;
   scene.add(fire);
 
   // hearth halo + embers
   const glowMat = new THREE.SpriteMaterial({ map:glowTex(255,138,50), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.4 });
-  const glow = new THREE.Sprite(glowMat); glow.position.copy(bearing(HEARTH_LON,-9,8.6)); glow.scale.set(3.3,3.1,1); scene.add(glow);
+  const glow = new THREE.Sprite(glowMat); glow.position.copy(bearing(HEARTH_LON,-8,10)); glow.scale.set(3.7,3.5,1); scene.add(glow);
 
-  const EN=reduce?0:80, ebase=bearing(HEARTH_LON,-10,7.6);
+  const EN=reduce?0:80, ebase=bearing(HEARTH_LON,-9,9);
   const ep=new Float32Array(EN*3), es=[];
   for(let i=0;i<EN;i++){ es.push({x:(Math.random()-.5)*1.5,y:Math.random(),z:(Math.random()-.5)*0.8,sp:.2+Math.random()*.6,sw:Math.random()*6.28});
     ep[i*3]=ebase.x; ep[i*3+1]=ebase.y; ep[i*3+2]=ebase.z; }
@@ -1917,16 +1934,30 @@ else {
   if(gate){ gate.addEventListener('click',openHollow);
     gate.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openHollow(); } }); }
 
-  // ── sound toggle (hearth crackle + rain) ──
-  const soundBtn=$('#soundToggle');
-  function anyAmbOn(){ return !!document.querySelector('.amb-btn.on'); }
-  function updateSound(){ if(soundBtn){ const on=anyAmbOn(); soundBtn.classList.toggle('on',on); soundBtn.setAttribute('aria-pressed',String(on)); } }
-  soundBtn?.addEventListener('click', ()=>{
+  // ── ambient / SFX panel (薪のぱちぱち / 雨 / 森 / 風) ──
+  const soundBtn=$('#soundToggle'), soundPanel=$('#soundPanel');
+  function anyAmbOn(){ return !!document.querySelector('#soundPanel .mp-track.on'); }
+  function syncAmb(){
+    document.querySelectorAll('#soundPanel .mp-track').forEach(b=>{
+      const real=document.querySelector('.amb-btn[data-snd="'+b.dataset.snd+'"]');
+      b.classList.toggle('on', !!(real && real.classList.contains('on')));
+    });
+    if(soundBtn) soundBtn.classList.toggle('on', anyAmbOn());
+  }
+  function updateSound(){ syncAmb(); }   // kept for openHollow()
+  soundBtn?.addEventListener('click', e=>{ e.stopPropagation();
+    const open=!soundPanel.hasAttribute('hidden');
+    if(open) soundPanel.setAttribute('hidden',''); else soundPanel.removeAttribute('hidden');
+    soundBtn.setAttribute('aria-expanded', String(!open)); });
+  document.addEventListener('click', e=>{ if(soundPanel && !soundPanel.hasAttribute('hidden') && !soundPanel.contains(e.target) && !soundBtn.contains(e.target)){ soundPanel.setAttribute('hidden',''); soundBtn.setAttribute('aria-expanded','false'); } });
+  document.querySelectorAll('#soundPanel .mp-track').forEach(btn=>btn.addEventListener('click', ()=>{
     try{ ensureCtx(); }catch(_){}
-    const fb=document.querySelector('.amb-btn[data-snd="fire"]');
-    if(fb) try{ toggleSound('fire',fb); }catch(_){}
-    updateSound();
-  });
+    const real=document.querySelector('.amb-btn[data-snd="'+btn.dataset.snd+'"]');
+    if(real) try{ toggleSound(btn.dataset.snd, real); }catch(_){}
+    syncAmb();
+  }));
+  if(typeof setVolumeAmbient==='function') setVolumeAmbient(0.55);
+  $('#ambVol')?.addEventListener('input', e=>{ if(typeof setVolumeAmbient==='function') setVolumeAmbient(parseInt(e.target.value,10)/100); });
 
   // ── caption (separate, lower third) ──
   const caption=$('#caption'), capEyebrow=$('#capEyebrow'), capBody=$('#capBody');
@@ -1967,9 +1998,10 @@ else {
   }));
   document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(body.classList.contains('immersed-med')) leaveMeditation(); else if(body.classList.contains('cap-open')) closeCaption(); } });
 
-  // ── BGM (kuhu「夕日色の列車」) ──
+  // ── BGM ──
   const musicBtn=$('#musicBtn'), musicPanel=$('#musicPanel'), npCredit=$('#npCredit');
-  const TRACKS={'1':'Evening breeze','2':'Breezy Hill','3':'Prism'};
+  // per-track { title, credit }
+  const MTRACKS={'1':{t:'Lake in the Forest', c:'Yurino (Mozecon4)'}};
   musicBtn?.addEventListener('click', e=>{ e.stopPropagation();
     const open=!musicPanel.hasAttribute('hidden');
     if(open) musicPanel.setAttribute('hidden',''); else musicPanel.removeAttribute('hidden');
@@ -1979,7 +2011,7 @@ else {
     document.querySelectorAll('#musicPanel .mp-track').forEach(b=>b.classList.toggle('on', !!(MUSIC[b.dataset.track]&&MUSIC[b.dataset.track].on)));
     const playing=document.querySelector('#musicPanel .mp-track.on');
     if(musicBtn) musicBtn.classList.toggle('on', !!playing);
-    if(npCredit){ if(playing){ npCredit.textContent='♪ '+TRACKS[playing.dataset.track]+' · kuhu —「夕日色の列車」'; npCredit.classList.add('show'); } else npCredit.classList.remove('show'); }
+    if(npCredit){ if(playing){ const m=MTRACKS[playing.dataset.track]||{t:'',c:''}; npCredit.textContent='♪ '+m.t+' · '+m.c; npCredit.classList.add('show'); } else npCredit.classList.remove('show'); }
   }
   document.querySelectorAll('#musicPanel .mp-track').forEach(btn=>btn.addEventListener('click', ()=>{
     try{ ensureCtx(); }catch(_){}

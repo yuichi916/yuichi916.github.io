@@ -106,6 +106,7 @@ MAT = {
     'metal': make_pbr('cab_metal', 'MetalA',  mapscale=0.6,  rough_add=0.05, base_mult=(0.42, 0.38, 0.34), metal=1.0),
     'door':  make_pbr('cab_door',  'DoorA',   mapscale=0.5,  base_mult=(0.55, 0.42, 0.30)),
     'wood':  make_pbr('cab_wood',  'PlanksC', mapscale=0.5,  base_mult=(0.60, 0.45, 0.32)),
+    'charred': make_pbr('cab_charred', 'BeamB', mapscale=0.3, base_mult=(0.15, 0.09, 0.05)),
     'rug':   make_solid('cab_rug',  (0.30, 0.10, 0.08), rough=0.95, sheen=0.4),
     'cush':  make_solid('cab_cush', (0.42, 0.20, 0.11), rough=0.88, sheen=0.6),
     'wax':   make_solid('cab_wax',  (0.80, 0.70, 0.52), rough=0.5),
@@ -120,7 +121,7 @@ MAT = {
 # name -> (mat, x, y, rotz_deg, scale)
 KIT = {
     'KB3D_ECI_PropFireplace_A_Main':    ('stone', 0.0,  2.50, 0,   0.46),
-    'KB3D_ECI_PropFireWood_A_Main':     ('beam',  0.0,  2.22, 0,   0.5),
+    'KB3D_ECI_PropFireWood_A_Main':     ('charred', 0.0, 2.22, 0,  0.5),
     'KB3D_ECI_PropFloorFabric_A_Main':  ('rug',   0.0,  0.10, 0,   0.50),
     'KB3D_ECI_PropPillow_A_Main':       ('cush',  0.0, -0.45, 0,   1.10),
     'KB3D_ECI_PropRockingChair_A_Main': ('wood',  1.55, 0.95, -125, 1.0),
