@@ -153,7 +153,7 @@ MAT = {
 # name -> (mat, x, y, rotz_deg, scale)
 KIT = {
     'KB3D_ECI_PropFireplace_A_Main':    ('stone',   0.0,  2.50, 0,    0.46),
-    'KB3D_ECI_PropFireWood_A_Main':     ('charred', 0.0,  2.22, 0,    0.33),  # fewer logs
+    'KB3D_ECI_PropFireWood_A_Main':     ('charred', 0.0,  2.22, 0,    0.40),  # original pile (blackened via material)
     'KB3D_ECI_PropFloorFabric_A_Main':  ('rug',     0.0,  0.10, 0,    0.50),
     'KB3D_ECI_PropPillow_A_Main':       ('cush',    0.0, -0.45, 0,    1.10),
     'KB3D_ECI_PropRockingChair_A_Main': ('wood',    1.55, 0.95, -125, 1.0),
@@ -164,6 +164,10 @@ KIT = {
     'KB3D_ECI_PropChest_A_Main':        ('wood',     2.25, -2.10, -22, 1.0),   # antique chest, back-right
     'KB3D_ECI_PropBarrel_B_Main':       ('wood',    -2.30, -1.35, 12,  0.85),  # old barrel, front-left
     'KB3D_ECI_PropChest_C_Main':        ('wood',     2.35, -1.45, -34, 0.8),   # antique chest, front-right
+    # subtle meditation decor tucked into corners / shadow — nothing eye-catching
+    'KB3D_ECI_PropJug_A_Main':          ('ceramic', -1.30, -0.95, 0,   0.85),  # clay jug in the left-front contemplative nook
+    'KB3D_ECI_PropOpenBook_A_Main':     ('book',    -1.02, -0.12, -14, 0.95),  # open book beside the writings pile
+    'KB3D_ECI_PropAppleBasket_A_Main':  ('wood',     1.55, -1.05, 15,  0.6),   # small woven basket, right-front
 }
 # the wizard-office tree, kept only to instance a forest beyond the window
 KEEP_EXTRA = {'KB3D_ECI_IntWizardOffice_A_Tree'}
@@ -215,24 +219,20 @@ lift('KB3D_ECI_PropFireWood_A_Main', 0.30)
 bpy.ops.mesh.primitive_uv_sphere_add(radius=0.16, location=(0, 2.18, 0.36))
 _coals = bpy.context.active_object; _coals.name = 'Coals'; _coals.scale = (1.7, 1.0, 0.45)
 set_mat(_coals, make_emissive('coals_m', (1.0, 0.32, 0.08), 1.5))
-# a few logs crossed over the pile so it reads as hand-stacked / natural —
-# fewer than before and randomly jittered so the stack looks casually thrown together
-import random
-random.seed(11)
+# a few extra logs crossed over the pile so it reads as hand-stacked / natural
+# (original arrangement the user preferred — only the char material gained the blackening)
 def add_log(loc, rot_deg, length, rad):
     bpy.ops.mesh.primitive_cylinder_add(radius=rad, depth=length, location=loc)
     lg = bpy.context.active_object; lg.name = 'StackLog'
     lg.rotation_euler = (math.radians(rot_deg[0]), math.radians(rot_deg[1]), math.radians(rot_deg[2]))
     set_mat(lg, MAT['charred'])
 for loc, rot, ln, rd in [
-    ((0.00, 2.18, 0.52), (0, 90,   6), 0.64, 0.05),    # front log
-    ((0.05, 2.26, 0.62), (0, 90,  25), 0.56, 0.045),   # crossing one way
-    ((-0.07,2.22, 0.60), (0, 90, -21), 0.54, 0.044)]:  # crossing the other
-    jx = (random.random()-0.5)*0.07; jy = (random.random()-0.5)*0.06; jz = (random.random()-0.5)*0.035
-    jrz = (random.random()-0.5)*20
-    add_log((loc[0]+jx, loc[1]+jy, loc[2]+jz),
-            (rot[0], rot[1], rot[2]+jrz),
-            ln*(0.86+random.random()*0.24), rd)
+    ((0.00, 2.18, 0.50), (0, 90,  6),  0.66, 0.05),    # front horizontal log
+    ((0.06, 2.26, 0.60), (0, 90,  26), 0.60, 0.046),   # crossing right
+    ((-0.08,2.24, 0.62), (0, 90, -22), 0.58, 0.044),   # crossing left
+    ((0.00, 2.20, 0.72), (0, 90,  2),  0.50, 0.04),    # top log
+    ((-0.02,2.10, 0.46), (90, 4, 0),   0.40, 0.045)]:  # one poking toward the viewer
+    add_log(loc, rot, ln, rd)
 print('[kit] placed', flush=True)
 
 # ============================================================ cabin shell
