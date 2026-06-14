@@ -208,11 +208,23 @@
       <h1>ルーン・キューブ</h1>
       <div class="sub">異世界立体数独 — 宙に浮く魔法のキューブ</div>
 
-      <div class="row-label">難易度（キューブの大きさ）</div>
+      <div class="row-label">モード</div>
+      <div class="seg" id="modeSeg">
+        <button data-mode="cube" class="on">🧊 立体キューブ<small>X/Y/Z 全方向</small></button>
+        <button data-mode="plane">🔲 平面 9×9<small>ふつうの数独</small></button>
+      </div>
+
+      <div class="row-label" id="diffHead">難易度（キューブの大きさ）</div>
       <div class="seg" id="diffSeg">
-        <button data-n="3" data-d="easy">初級<small>3×3×3</small></button>
-        <button data-n="4" data-d="normal" class="on">中級<small>4×4×4</small></button>
-        <button data-n="5" data-d="hard">上級<small>5×5×5</small></button>
+        <button data-n="3" data-d="easy">初級<small class="ds">3×3×3</small></button>
+        <button data-n="4" data-d="normal" class="on">中級<small class="ds">4×4×4</small></button>
+        <button data-n="5" data-d="hard">上級<small class="ds">5×5×5</small></button>
+      </div>
+
+      <div class="row-label">記号</div>
+      <div class="seg" id="symSeg">
+        <button data-sym="number" class="on">１２３<small>数字</small></button>
+        <button data-sym="rune">ᚠᚢᚦ<small>ルーン</small></button>
       </div>
 
       <div class="row-label">世界（クリアで解放）</div>
@@ -332,6 +344,55 @@ function makePuzzle(N, difficulty, rng) {
 }
 function rngSeq(seed) { let s = seed >>> 0; return () => (s = (1664525 * s + 1013904223) >>> 0) / 4294967296; }
 
+/* ---- Classic 9x9 sudoku (row/col/3x3-box), values 0..8, -1 = blank ---- */
+function makeClassicSolution(rng) {
+  const base = 3, side = 9;
+  const pat = (r, c) => (base * (r % base) + Math.floor(r / base) + c) % side;
+  const shuf = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const tri = [0, 1, 2];
+  const rows = [].concat(...shuf(tri).map((g) => shuf(tri).map((r) => g * base + r)));
+  const cols = [].concat(...shuf(tri).map((g) => shuf(tri).map((c) => g * base + c)));
+  const nums = shuf([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  return rows.map((r) => cols.map((c) => nums[pat(r, c)]));
+}
+function countClassicSolutions(grid, limit) {
+  const g = grid.map((r) => r.slice());
+  const cand = (i, j) => {
+    const used = new Set();
+    for (let t = 0; t < 9; t++) { if (g[i][t] >= 0) used.add(g[i][t]); if (g[t][j] >= 0) used.add(g[t][j]); }
+    const bi = Math.floor(i / 3) * 3, bj = Math.floor(j / 3) * 3;
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) if (g[bi + a][bj + b] >= 0) used.add(g[bi + a][bj + b]);
+    const res = []; for (let v = 0; v < 9; v++) if (!used.has(v)) res.push(v); return res;
+  };
+  let count = 0;
+  function solve() {
+    let bi = -1, bj = -1, bc = null;
+    for (let i = 0; i < 9; i++) for (let j = 0; j < 9; j++) if (g[i][j] < 0) {
+      const c = cand(i, j); if (c.length === 0) return;
+      if (bc === null || c.length < bc.length) { bi = i; bj = j; bc = c; }
+    }
+    if (bi === -1) { count++; return; }
+    for (const v of bc) { g[bi][bj] = v; solve(); g[bi][bj] = -1; if (count >= limit) return; }
+  }
+  solve();
+  return count;
+}
+const CLASSIC_BLANKS = { easy: 40, normal: 48, hard: 54 };
+function makeClassicPuzzle(difficulty, rng) {
+  const solution = makeClassicSolution(rng);
+  const puzzle = solution.map((r) => r.slice());
+  const order = [];
+  for (let i = 0; i < 9; i++) for (let j = 0; j < 9; j++) order.push([i, j]);
+  for (let m = order.length - 1; m > 0; m--) { const r = Math.floor(rng() * (m + 1)); [order[m], order[r]] = [order[r], order[m]]; }
+  const target = CLASSIC_BLANKS[difficulty]; let blanks = 0;
+  for (const [i, j] of order) {
+    if (blanks >= target) break;
+    const keep = puzzle[i][j]; puzzle[i][j] = -1;
+    if (countClassicSolutions(puzzle, 2) === 1) blanks++; else puzzle[i][j] = keep;
+  }
+  return { puzzle, solution };
+}
+
 /* ============================================================
    Themes / runes / worlds
    ============================================================ */
@@ -341,6 +402,10 @@ const RUNES = [
   { glyph: 'ᚦ', name: '風', color: '#5be0a0' },
   { glyph: 'ᚨ', name: '地', color: '#e0b24a' },
   { glyph: 'ᚱ', name: '雷', color: '#c77dff' },
+  { glyph: 'ᛋ', name: '光', color: '#ffe27a' },
+  { glyph: 'ᛟ', name: '闇', color: '#9b7be0' },
+  { glyph: 'ᛁ', name: '氷', color: '#7fe7ff' },
+  { glyph: 'ᛞ', name: '花', color: '#ff8ac4' },
 ];
 const WORLDS = [
   { id: 'dark', name: '闇のF', full: '闇のファンタジー', accent: '#c77dff', fallback: '#0a0814', unlockAt: 0 },
@@ -361,7 +426,7 @@ const TUT_KEY = 'isekai_rune_cube_tutorial_v1';
 function todayStr() { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; }
 function loadProg() {
   try { const p = JSON.parse(localStorage.getItem(PROG_KEY)); if (p) return p; } catch (e) {}
-  return { xp: 0, level: 1, streak: 0, lastDaily: null, clears: 0, byN: { 3: 0, 4: 0, 5: 0 }, bestTimes: {}, achievements: {}, symbolMode: 'rune' };
+  return { xp: 0, level: 1, streak: 0, lastDaily: null, clears: 0, byN: { 3: 0, 4: 0, 5: 0 }, bestTimes: {}, achievements: {}, symbolMode: 'number' };
 }
 function saveProg(p) { localStorage.setItem(PROG_KEY, JSON.stringify(p)); }
 function unlockedWorldCount(p) { return WORLDS.filter((w) => p.clears >= w.unlockAt).length; }
@@ -373,10 +438,10 @@ let prog = loadProg();
    Game state
    ============================================================ */
 const G = {
-  N: 4, difficulty: 'normal', world: 'dark', isDaily: false,
+  mode: 'cube', N: 4, dims: [4, 4, 4], difficulty: 'normal', world: 'dark', isDaily: false,
   puzzle: null, solution: null, grid: null, fixed: null, notes: null,
   selected: null, sliceAxis: 'x', sliceLayer: null, explode: false,
-  symbolMode: prog.symbolMode || 'rune',
+  symbolMode: prog.symbolMode || 'number',
   mistakes: 0, hintsUsed: 0, hintsLeft: 4,
   elapsed: 0, running: false, lastTick: 0, finished: false,
 };
@@ -446,6 +511,13 @@ function disposeCube() {
 }
 
 function cellPos(i, j, k) {
+  if (G.mode === 'plane') {
+    // i=row (top→down), j=col (left→right); gap separates the 3x3 boxes.
+    const gap = 0.22;
+    const x = (j - 4) * SPACING + (Math.floor(j / 3) - 1) * gap;
+    const y = (4 - i) * SPACING - (Math.floor(i / 3) - 1) * gap;
+    return new THREE.Vector3(x, y, 0);
+  }
   const N = G.N; const off = (N - 1) / 2;
   let sp = SPACING;
   const p = new THREE.Vector3((i - off) * sp, (j - off) * sp, (k - off) * sp);
@@ -460,14 +532,15 @@ function cellPos(i, j, k) {
 
 function buildCube() {
   disposeCube();
-  const N = G.N;
-  const boxGeo = new THREE.BoxGeometry(CELL, CELL, CELL);
+  const plane = G.mode === 'plane';
+  const [NI, NJ, NK] = G.dims;
+  const boxGeo = plane ? new THREE.BoxGeometry(CELL, CELL, 0.34) : new THREE.BoxGeometry(CELL, CELL, CELL);
   const edgeGeo = new THREE.EdgesGeometry(boxGeo);
-  for (let i = 0; i < N; i++) {
+  for (let i = 0; i < NI; i++) {
     cells[i] = [];
-    for (let j = 0; j < N; j++) {
+    for (let j = 0; j < NJ; j++) {
       cells[i][j] = [];
-      for (let k = 0; k < N; k++) {
+      for (let k = 0; k < NK; k++) {
         const group = new THREE.Group();
         const box = new THREE.Mesh(boxGeo.clone(), new THREE.MeshStandardMaterial({
           color: 0x2a2440, transparent: true, opacity: 0.12, roughness: 0.3, metalness: 0.1,
@@ -483,9 +556,15 @@ function buildCube() {
     }
   }
   controls.target.set(0, 0, 0);
-  const dist = N * 2.0 + 2.2;
-  camera.position.set(dist * 0.62, dist * 0.5, dist * 0.78);
-  controls.minDistance = N * 0.9; controls.maxDistance = N * 5;
+  if (plane) {
+    // floating tablet: face it, slightly from above for a 3D tilt.
+    camera.position.set(0.6, 4.8, 13.8);
+    controls.minDistance = 8; controls.maxDistance = 24;
+  } else {
+    const N = G.N; const dist = N * 2.0 + 2.2;
+    camera.position.set(dist * 0.62, dist * 0.5, dist * 0.78);
+    controls.minDistance = N * 0.9; controls.maxDistance = N * 5;
+  }
   updateAllVisuals();
 }
 
@@ -500,39 +579,55 @@ function setSpriteForCell(c, value) {
 /* visual state per cell, recomputed on change */
 let conflictSet = new Set();
 function computeConflicts() {
-  const N = G.N; const cf = new Set();
-  const scan = (getCell) => {
-    const map = new Map();
-    for (let t = 0; t < N; t++) { const cc = getCell(t); const v = G.grid[cc.i][cc.j][cc.k]; if (v < 0) continue; if (!map.has(v)) map.set(v, []); map.get(v).push(cc); }
-    for (const arr of map.values()) if (arr.length > 1) arr.forEach((cc) => cf.add(key(cc.i, cc.j, cc.k)));
-  };
-  for (let a = 0; a < N; a++) for (let b = 0; b < N; b++) {
-    scan((t) => ({ i: t, j: a, k: b }));
-    scan((t) => ({ i: a, j: t, k: b }));
-    scan((t) => ({ i: a, j: b, k: t }));
+  const cf = new Set();
+  if (G.mode === 'plane') {
+    const add = (grp) => {
+      const m = new Map();
+      for (const [i, j] of grp) { const v = G.grid[i][j][0]; if (v < 0) continue; if (!m.has(v)) m.set(v, []); m.get(v).push([i, j]); }
+      for (const arr of m.values()) if (arr.length > 1) arr.forEach(([i, j]) => cf.add(key(i, j, 0)));
+    };
+    for (let i = 0; i < 9; i++) { const row = [], col = []; for (let j = 0; j < 9; j++) { row.push([i, j]); col.push([j, i]); } add(row); add(col); }
+    for (let bi = 0; bi < 3; bi++) for (let bj = 0; bj < 3; bj++) { const b = []; for (let a = 0; a < 3; a++) for (let c = 0; c < 3; c++) b.push([bi * 3 + a, bj * 3 + c]); add(b); }
+  } else {
+    const N = G.N;
+    const scan = (getCell) => {
+      const map = new Map();
+      for (let t = 0; t < N; t++) { const cc = getCell(t); const v = G.grid[cc.i][cc.j][cc.k]; if (v < 0) continue; if (!map.has(v)) map.set(v, []); map.get(v).push(cc); }
+      for (const arr of map.values()) if (arr.length > 1) arr.forEach((cc) => cf.add(key(cc.i, cc.j, cc.k)));
+    };
+    for (let a = 0; a < N; a++) for (let b = 0; b < N; b++) {
+      scan((t) => ({ i: t, j: a, k: b }));
+      scan((t) => ({ i: a, j: t, k: b }));
+      scan((t) => ({ i: a, j: b, k: t }));
+    }
   }
   conflictSet = cf;
 }
 
 function inGuideLines(i, j, k) {
   const s = G.selected; if (!s) return false;
+  if (G.mode === 'plane') {
+    return i === s.i || j === s.j || (Math.floor(i / 3) === Math.floor(s.i / 3) && Math.floor(j / 3) === Math.floor(s.j / 3));
+  }
   return (i === s.i && j === s.j) || (j === s.j && k === s.k) || (i === s.i && k === s.k);
 }
 
 function updateAllVisuals() {
   computeConflicts();
-  const N = G.N;
+  const [NI, NJ, NK] = G.dims;
+  const plane = G.mode === 'plane';
   const accent = new THREE.Color(curAccent());
-  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) for (let k = 0; k < N; k++) {
+  for (let i = 0; i < NI; i++) for (let j = 0; j < NJ; j++) for (let k = 0; k < NK; k++) {
     const c = cells[i][j][k]; const v = G.grid[i][j][k]; const fixed = G.fixed[i][j][k];
     setSpriteForCell(c, v);
     // base colors
     let opacity = 0.1, eColor = 0x6a5a9a, eOpacity = 0.45, emissive = 0x000000;
-    if (v >= 0) { opacity = 0.16; emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.28).getHex(); }
+    if (plane) { opacity = ((Math.floor(i / 3) + Math.floor(j / 3)) % 2) ? 0.2 : 0.12; }
+    if (v >= 0) { opacity = Math.max(opacity, 0.16); emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.28).getHex(); }
     if (fixed) { eColor = 0xffd27d; eOpacity = 0.85; }
-    // slice ghosting
+    // slice ghosting (cube only)
     let visible = true;
-    if (G.sliceLayer !== null) {
+    if (!plane && G.sliceLayer !== null) {
       const onLayer = (G.sliceAxis === 'x' && i === G.sliceLayer) || (G.sliceAxis === 'y' && j === G.sliceLayer) || (G.sliceAxis === 'z' && k === G.sliceLayer);
       if (!onLayer) { opacity *= 0.18; eOpacity *= 0.12; }
       else { opacity = Math.max(opacity, 0.22); eOpacity = Math.min(1, eOpacity + 0.2); }
@@ -562,7 +657,7 @@ const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 let pdown = null, idleTimer = null;
 
-function resetIdle() { controls.autoRotate = false; clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (!G.finished) controls.autoRotate = true; }, 3000); }
+function resetIdle() { controls.autoRotate = false; clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (!G.finished && G.mode !== 'plane') controls.autoRotate = true; }, 3000); }
 
 renderer.domElement.addEventListener('pointerdown', (e) => { pdown = { x: e.clientX, y: e.clientY, t: Date.now() }; resetIdle(); });
 renderer.domElement.addEventListener('pointerup', (e) => {
@@ -663,7 +758,8 @@ function tickLoop() {
 function useHint() {
   if (G.hintsLeft <= 0 || G.finished) { pulseToast('ヒントを使い切ったのだ'); return; }
   const blanks = [];
-  for (let i = 0; i < G.N; i++) for (let j = 0; j < G.N; j++) for (let k = 0; k < G.N; k++) if (G.grid[i][j][k] < 0) blanks.push([i, j, k]);
+  const [NI, NJ, NK] = G.dims;
+  for (let i = 0; i < NI; i++) for (let j = 0; j < NJ; j++) for (let k = 0; k < NK; k++) if (G.grid[i][j][k] < 0) blanks.push([i, j, k]);
   if (!blanks.length) return;
   const [i, j, k] = blanks[Math.floor(Math.random() * blanks.length)];
   G.grid[i][j][k] = G.solution[i][j][k];
@@ -676,7 +772,8 @@ function useHint() {
    Clear / result / progression
    ============================================================ */
 function isComplete() {
-  for (let i = 0; i < G.N; i++) for (let j = 0; j < G.N; j++) for (let k = 0; k < G.N; k++) if (G.grid[i][j][k] < 0) return false;
+  const [NI, NJ, NK] = G.dims;
+  for (let i = 0; i < NI; i++) for (let j = 0; j < NJ; j++) for (let k = 0; k < NK; k++) if (G.grid[i][j][k] < 0) return false;
   return conflictSet.size === 0;
 }
 function checkClear() {
@@ -685,14 +782,15 @@ function checkClear() {
   G.finished = true; G.running = false; controls.autoRotate = true; controls.autoRotateSpeed = 2.2;
   closePalette();
   const stars = Math.max(1, 3 - Math.min(2, Math.floor(G.mistakes / 3) + (G.hintsUsed > 0 ? 1 : 0)));
-  const gained = (G.N * 10) + stars * 15 + (G.mistakes === 0 ? 20 : 0);
+  const gained = (G.mode === 'plane' ? 60 : G.N * 10) + stars * 15 + (G.mistakes === 0 ? 20 : 0);
   prog.xp += gained; prog.level = levelFromXp(prog.xp); prog.clears++; prog.byN[G.N] = (prog.byN[G.N] || 0) + 1;
-  const bkey = `${G.N}_${G.difficulty}`; if (!prog.bestTimes[bkey] || G.elapsed < prog.bestTimes[bkey]) prog.bestTimes[bkey] = G.elapsed;
+  const bkey = `${G.mode}_${G.N}_${G.difficulty}`; if (!prog.bestTimes[bkey] || G.elapsed < prog.bestTimes[bkey]) prog.bestTimes[bkey] = G.elapsed;
   // achievements
   grantAch('first', '初めての解放');
   if (G.mistakes === 0) grantAch('flawless', 'ノーミス達成');
   if (G.hintsUsed === 0) grantAch('nohint', 'ヒント無し');
-  if (G.N === 5) grantAch('master5', '5×5×5 制覇');
+  if (G.mode === 'cube' && G.N === 5) grantAch('master5', '5×5×5 制覇');
+  if (G.mode === 'plane') grantAch('plane', '平面数独クリア');
   // world unlock check
   const before = G._worldsBefore || 1; const after = unlockedWorldCount(prog);
   saveProg(prog); localStorage.removeItem(SAVE_KEY);
@@ -720,7 +818,7 @@ function doSave() {
   if (G.finished) return;
   const notesObj = {}; for (const kk in G.notes) if (G.notes[kk] && G.notes[kk].size) notesObj[kk] = [...G.notes[kk]];
   localStorage.setItem(SAVE_KEY, JSON.stringify({
-    N: G.N, difficulty: G.difficulty, world: G.world, isDaily: G.isDaily,
+    mode: G.mode, N: G.N, dims: G.dims, difficulty: G.difficulty, world: G.world, isDaily: G.isDaily,
     puzzle: G.puzzle, solution: G.solution, grid: G.grid, fixed: G.fixed, notes: notesObj,
     mistakes: G.mistakes, hintsUsed: G.hintsUsed, hintsLeft: G.hintsLeft, elapsed: G.elapsed, symbolMode: G.symbolMode,
   }));
@@ -730,10 +828,10 @@ function restoreSave() {
   let s; try { s = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return false; }
   if (!s) return false;
   Object.assign(G, {
-    N: s.N, difficulty: s.difficulty, world: s.world, isDaily: s.isDaily,
+    mode: s.mode || 'cube', N: s.N, dims: s.dims || [s.N, s.N, s.N], difficulty: s.difficulty, world: s.world, isDaily: s.isDaily,
     puzzle: s.puzzle, solution: s.solution, grid: s.grid, fixed: s.fixed,
     notes: {}, mistakes: s.mistakes, hintsUsed: s.hintsUsed, hintsLeft: s.hintsLeft, elapsed: s.elapsed,
-    symbolMode: s.symbolMode || 'rune', selected: null, sliceLayer: null, explode: false, finished: false,
+    symbolMode: s.symbolMode || 'number', selected: null, sliceLayer: null, explode: false, finished: false,
   });
   for (const kk in (s.notes || {})) G.notes[kk] = new Set(s.notes[kk]);
   startRound(true);
@@ -743,13 +841,24 @@ function restoreSave() {
 /* ============================================================
    New game
    ============================================================ */
-function newGame(N, difficulty, world, isDaily) {
-  G.N = N; G.difficulty = difficulty; G.world = world || G.world; G.isDaily = !!isDaily;
-  const rng = isDaily ? rngSeq(parseInt(todayStr(), 10) + N) : Math.random;
-  const { puzzle, solution } = makePuzzle(N, difficulty, rng);
-  G.puzzle = puzzle; G.solution = solution;
-  G.grid = puzzle.map((p) => p.map((r) => r.slice()));
-  G.fixed = puzzle.map((p) => p.map((r) => r.map((v) => v >= 0)));
+function newGame(mode, N, difficulty, world, isDaily) {
+  // backward compat: newGame(N, difficulty, world, isDaily) => cube
+  if (typeof mode === 'number') { isDaily = world; world = difficulty; difficulty = N; N = mode; mode = 'cube'; }
+  G.mode = mode; G.difficulty = difficulty; G.world = world || G.world; G.isDaily = !!isDaily;
+  if (mode === 'plane') {
+    G.N = 9; G.dims = [9, 9, 1];
+    const rng = isDaily ? rngSeq(parseInt(todayStr(), 10) + 9) : Math.random;
+    const { puzzle, solution } = makeClassicPuzzle(difficulty, rng);
+    const wrap = (g) => g.map((row) => row.map((v) => [v]));
+    G.puzzle = wrap(puzzle); G.solution = wrap(solution);
+  } else {
+    G.N = N; G.dims = [N, N, N];
+    const rng = isDaily ? rngSeq(parseInt(todayStr(), 10) + N) : Math.random;
+    const { puzzle, solution } = makePuzzle(N, difficulty, rng);
+    G.puzzle = puzzle; G.solution = solution;
+  }
+  G.grid = G.puzzle.map((p) => p.map((r) => r.slice()));
+  G.fixed = G.puzzle.map((p) => p.map((r) => r.map((v) => v >= 0)));
   G.notes = {}; G.mistakes = 0; G.hintsUsed = 0; G.hintsLeft = HINT_BY_DIFF[difficulty];
   G.elapsed = 0; G.selected = null; G.sliceLayer = null; G.explode = false; G.finished = false;
   startRound(false);
@@ -760,15 +869,20 @@ function startRound(resumed) {
   buildCube();
   document.getElementById('startScreen').classList.add('hidden');
   document.getElementById('resultScreen').classList.add('hidden');
+  const plane = G.mode === 'plane';
   document.getElementById('hud').classList.remove('hidden');
-  document.getElementById('slicePanel').classList.remove('hidden');
-  document.getElementById('diffLabel').textContent = DIFF_NAME[G.difficulty] + (G.isDaily ? '・デイリー' : '');
+  document.getElementById('slicePanel').classList.toggle('hidden', plane);
+  document.getElementById('explodeBtn').style.display = plane ? 'none' : '';
+  document.getElementById('diffLabel').textContent = (plane ? '平面 ' : '立体 ') + DIFF_NAME[G.difficulty] + (G.isDaily ? '・デイリー' : '');
   document.getElementById('mistakes').textContent = G.mistakes;
   document.getElementById('hintCount').textContent = G.hintsLeft;
   document.getElementById('timer').textContent = fmt(G.elapsed);
-  const slider = document.getElementById('sliceSlider'); slider.max = G.N - 1; slider.value = 0;
-  document.getElementById('sliceLabel').innerHTML = '層<br>全表示';
-  document.querySelectorAll('.axis-btn[data-axis]').forEach((b) => b.classList.toggle('on', b.dataset.axis === G.sliceAxis));
+  if (!plane) {
+    const slider = document.getElementById('sliceSlider'); slider.max = G.N - 1; slider.value = 0;
+    document.getElementById('sliceLabel').innerHTML = '層<br>全表示';
+    document.querySelectorAll('.axis-btn[data-axis]').forEach((b) => b.classList.toggle('on', b.dataset.axis === G.sliceAxis));
+  }
+  controls.autoRotate = !plane; controls.autoRotateSpeed = 0.6;
   G._worldsBefore = unlockedWorldCount(prog);
   G.running = true; G.lastTick = Date.now();
   if (!localStorage.getItem(TUT_KEY)) document.getElementById('tutorialScreen').classList.remove('hidden');
@@ -798,7 +912,15 @@ function pulseToast(msg) {
   setTimeout(() => t.remove(), 2900);
 }
 
-let selDiff = { n: 4, d: 'normal' }, selWorld = 'dark';
+let selDiff = { n: 4, d: 'normal' }, selWorld = 'dark', selMode = 'cube', selSym = prog.symbolMode || 'number';
+const DIFF_SUB = {
+  cube: { easy: '3×3×3', normal: '4×4×4', hard: '5×5×5' },
+  plane: { easy: 'やさしい', normal: 'ふつう', hard: 'むずかしい' },
+};
+function updateDiffLabels() {
+  document.getElementById('diffHead').textContent = selMode === 'plane' ? '難易度（ヒントの数）' : '難易度（キューブの大きさ）';
+  document.querySelectorAll('#diffSeg button').forEach((b) => { b.querySelector('.ds').textContent = DIFF_SUB[selMode][b.dataset.d]; });
+}
 function refreshStartScreen() {
   prog = loadProg();
   document.getElementById('pLevel').textContent = prog.level;
@@ -817,6 +939,9 @@ function refreshStartScreen() {
     row.appendChild(chip);
   });
   document.getElementById('resumeBtn').classList.toggle('hidden', !hasSave());
+  document.querySelectorAll('#symSeg button').forEach((b) => b.classList.toggle('on', b.dataset.sym === selSym));
+  document.querySelectorAll('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === selMode));
+  updateDiffLabels();
 }
 
 document.getElementById('diffSeg').querySelectorAll('button').forEach((b) => {
@@ -825,7 +950,22 @@ document.getElementById('diffSeg').querySelectorAll('button').forEach((b) => {
     b.classList.add('on'); selDiff = { n: +b.dataset.n, d: b.dataset.d };
   };
 });
-document.getElementById('playBtn').onclick = () => newGame(selDiff.n, selDiff.d, selWorld, false);
+document.getElementById('modeSeg').querySelectorAll('button').forEach((b) => {
+  b.onclick = () => {
+    document.getElementById('modeSeg').querySelectorAll('button').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on'); selMode = b.dataset.mode; updateDiffLabels();
+  };
+});
+document.getElementById('symSeg').querySelectorAll('button').forEach((b) => {
+  b.onclick = () => {
+    document.getElementById('symSeg').querySelectorAll('button').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on'); selSym = b.dataset.sym; prog.symbolMode = selSym; saveProg(prog);
+  };
+});
+function applySelectedSymbol() {
+  if (G.symbolMode !== selSym) { G.symbolMode = selSym; for (const k in glyphTexCache) delete glyphTexCache[k]; }
+}
+document.getElementById('playBtn').onclick = () => { applySelectedSymbol(); newGame(selMode, selDiff.n, selDiff.d, selWorld, false); };
 document.getElementById('dailyBtn').onclick = () => {
   // streak update
   const t = todayStr();
@@ -833,14 +973,14 @@ document.getElementById('dailyBtn').onclick = () => {
     const y = new Date(Date.now() - 86400000); const ystr = `${y.getFullYear()}${String(y.getMonth() + 1).padStart(2, '0')}${String(y.getDate()).padStart(2, '0')}`;
     prog.streak = (prog.lastDaily === ystr) ? prog.streak + 1 : 1; prog.lastDaily = t; saveProg(prog);
   }
-  newGame(4, 'normal', selWorld, true);
+  applySelectedSymbol(); newGame(selMode, selMode === 'plane' ? 9 : 4, 'normal', selWorld, true);
 };
 document.getElementById('resumeBtn').onclick = () => { if (!restoreSave()) pulseToast('保存データが見つからないのだ'); };
 
 document.getElementById('hintBtn').onclick = useHint;
 document.getElementById('symBtn').onclick = () => {
   G.symbolMode = G.symbolMode === 'rune' ? 'number' : 'rune';
-  prog.symbolMode = G.symbolMode; saveProg(prog);
+  selSym = G.symbolMode; prog.symbolMode = G.symbolMode; saveProg(prog);
   for (const k in glyphTexCache) delete glyphTexCache[k];
   updateAllVisuals(); if (paletteEl.classList.contains('show')) buildPaletteButtons();
 };
@@ -864,11 +1004,12 @@ function setSlice(axis, layer) {
   updateAllVisuals();
 }
 
-document.getElementById('nextBtn').onclick = () => newGame(G.N, G.difficulty, G.world, false);
+document.getElementById('nextBtn').onclick = () => newGame(G.mode, G.N, G.difficulty, G.world, false);
 document.getElementById('resultMenuBtn').onclick = () => { document.getElementById('resultScreen').classList.add('hidden'); refreshStartScreen(); document.getElementById('startScreen').classList.remove('hidden'); };
 document.getElementById('shareBtn').onclick = () => {
   const stars = document.getElementById('resultStars').textContent;
-  const txt = `異世界立体数独 ルーン・キューブ ${G.N}×${G.N}×${G.N}（${DIFF_NAME[G.difficulty]}）${stars} ${fmt(G.elapsed)} ミス${G.mistakes}\nyuichi916.github.io/sudoku.html`;
+  const shape = G.mode === 'plane' ? '平面9×9' : `${G.N}×${G.N}×${G.N}`;
+  const txt = `異世界立体数独 ルーン・キューブ ${shape}（${DIFF_NAME[G.difficulty]}）${stars} ${fmt(G.elapsed)} ミス${G.mistakes}\nyuichi916.github.io/sudoku.html`;
   navigator.clipboard?.writeText(txt).then(() => pulseToast('結果をコピーしたのだ'), () => pulseToast(txt));
 };
 document.getElementById('tutOkBtn').onclick = () => { localStorage.setItem(TUT_KEY, '1'); document.getElementById('tutorialScreen').classList.add('hidden'); };
@@ -884,7 +1025,8 @@ function animate() {
   tickLoop();
   // conflict pulse
   const pulse = 0.5 + 0.5 * Math.sin(t * 5);
-  for (let i = 0; i < G.N; i++) if (cells[i]) for (let j = 0; j < G.N; j++) for (let k = 0; k < G.N; k++) {
+  const [PI, PJ, PK] = G.dims;
+  for (let i = 0; i < PI; i++) if (cells[i]) for (let j = 0; j < PJ; j++) for (let k = 0; k < PK; k++) {
     const c = cells[i] && cells[i][j] && cells[i][j][k]; if (!c) continue;
     if (c._conflict) { c.edges.material.color.setHex(0xff5a6e); c.edges.material.opacity = 0.5 + 0.5 * pulse; c.box.material.emissive.setRGB(0.4 * pulse, 0.04, 0.08); }
   }
@@ -906,7 +1048,7 @@ refreshStartScreen();
 window.__game = {
   G, prog, newGame, selectCell, setCell: (i, j, k, v) => { G.grid[i][j][k] = v; updateAllVisuals(); },
   view: { setSlice, setExplode: (on) => { G.explode = on; updateAllVisuals(); } },
-  fillAllCorrect: () => { for (let i = 0; i < G.N; i++) for (let j = 0; j < G.N; j++) for (let k = 0; k < G.N; k++) G.grid[i][j][k] = G.solution[i][j][k]; updateAllVisuals(); checkClear(); },
+  fillAllCorrect: () => { const [a, b, c] = G.dims; for (let i = 0; i < a; i++) for (let j = 0; j < b; j++) for (let k = 0; k < c; k++) G.grid[i][j][k] = G.solution[i][j][k]; updateAllVisuals(); checkClear(); },
   resetProgress: () => { localStorage.removeItem(PROG_KEY); localStorage.removeItem(SAVE_KEY); prog = loadProg(); refreshStartScreen(); },
 };
 </script>
