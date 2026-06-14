@@ -108,6 +108,12 @@
   }
   .overlay.hidden { display: none; }
   .hidden { display: none !important; }
+  #sliceHint {
+    position: fixed; top: 58px; left: 50%; transform: translateX(-50%); z-index: 20;
+    background: rgba(18, 16, 34, 0.86); border: 1px solid var(--accent); border-radius: 999px;
+    padding: 7px 16px; font-size: 13px; backdrop-filter: blur(8px); color: var(--text); white-space: nowrap;
+  }
+  #sliceHint b { color: var(--accent); }
   .card {
     width: min(460px, 94vw); background: var(--panel); border: 1px solid var(--panel-b);
     border-radius: 22px; padding: 26px 24px; text-align: center; backdrop-filter: blur(10px);
@@ -217,8 +223,8 @@
 
       <div class="row-label hidden" id="placeRow">配置</div>
       <div class="seg hidden" id="placeSeg">
-        <button data-place="float" class="on">🪄 宙に浮く<small>魔法の盤</small></button>
-        <button data-place="table">🪵 テーブルの上<small>卓上で対局</small></button>
+        <button data-place="table" class="on">🪵 テーブルの上<small>卓上で対局</small></button>
+        <button data-place="float">🪄 宙に浮く<small>魔法の盤</small></button>
       </div>
 
       <div class="row-label" id="diffHead">難易度（キューブの大きさ）</div>
@@ -275,6 +281,8 @@
       <button class="play-btn" id="tutOkBtn">はじめる</button>
     </div>
   </div>
+
+  <div id="sliceHint" class="hidden">🔍 <b></b> だけを表示中 — この層のセルだけ操作・入力できます</div>
 
   <div id="toastWrap"></div>
 
@@ -510,7 +518,7 @@ new GLTFLoader().load('assets/sudoku/table.glb', (gltf) => {
   const box = new THREE.Box3().setFromObject(m);
   const size = new THREE.Vector3(); box.getSize(size);
   const center = new THREE.Vector3(); box.getCenter(center);
-  const scl = 17 / Math.max(size.x, size.z, 0.001);
+  const scl = 19 / Math.max(size.x, size.z, 0.001);
   m.position.set(-center.x, -center.y, -center.z); // center at origin
   m.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; if (o.material) { o.material.roughness = Math.min(1, (o.material.roughness ?? 0.8)); } } });
   const grp = new THREE.Group(); grp.add(m); grp.scale.setScalar(scl);
@@ -614,16 +622,16 @@ function applyBoardOrientation() {
   controls.target.set(0, 0, 0);
   tableLight.intensity = useModel ? 90 : 0;
   if (table) {
-    // smaller board resting on the ornate table, viewed from a seated angle so
-    // the table surface, goblets and edge stay in frame.
-    const topY = -0.45;
-    cubeGroup.scale.setScalar(0.78);
-    cubeGroup.rotation.set(-Math.PI * 0.43, 0, 0);
-    cubeGroup.position.set(0, 0.55, 0);
+    // complete top-down overhead view: small board flat on a large antique table.
+    const topY = -0.3;
+    tableLight.position.set(0, 11, 2);
+    cubeGroup.scale.setScalar(0.62);
+    cubeGroup.rotation.set(-Math.PI / 2, 0, 0);
+    cubeGroup.position.set(0, 0.25, 0);
     if (tableModel) tableModel.position.set(0, topY - tableModel.userData.halfH, 0);
-    camera.position.set(0, 8.4, 15.5);
-    controls.target.set(0, 0.2, 0);
-    controls.minDistance = 10; controls.maxDistance = 30;
+    camera.position.set(0, 18, 0.9); // ~3° off vertical to avoid orbit gimbal
+    controls.target.set(0, 0, 0);
+    controls.minDistance = 11; controls.maxDistance = 32;
   } else if (plane) {
     // floating tablet: face it, slightly from above for a 3D tilt.
     cubeGroup.scale.setScalar(1);
@@ -703,13 +711,16 @@ function updateAllVisuals() {
     // contrast against the bright backdrop.
     let opacity = 0.12, eColor = 0x8d7ec0, eOpacity = 0.6, emissive = 0x000000, boxColor = 0x2a2440;
     if (plane) { opacity = ((Math.floor(i / 3) + Math.floor(j / 3)) % 2) ? 0.18 : 0.1; }
-    if (v >= 0) { opacity = 0.86; boxColor = 0x130f1f; emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.32).getHex(); }
+    // filled cells: opaque chips on the flat board, but kept semi-transparent in
+    // the cube so the world stays visible behind it.
+    if (v >= 0) { opacity = plane ? 0.86 : 0.5; boxColor = 0x130f1f; emissive = new THREE.Color(RUNES[v].color).multiplyScalar(0.32).getHex(); }
     if (fixed) { eColor = 0xffd27d; eOpacity = 0.95; }
-    // slice ghosting (cube only)
+    // slice focus (cube only): show ONLY the focused layer — others are hidden so
+    // they can't be selected and their numbers don't show.
     let visible = true;
     if (!plane && G.sliceLayer !== null) {
       const onLayer = (G.sliceAxis === 'x' && i === G.sliceLayer) || (G.sliceAxis === 'y' && j === G.sliceLayer) || (G.sliceAxis === 'z' && k === G.sliceLayer);
-      if (!onLayer) { opacity *= 0.18; eOpacity *= 0.12; }
+      if (!onLayer) visible = false;
       else { opacity = Math.max(opacity, 0.22); eOpacity = Math.min(1, eOpacity + 0.2); }
     }
     // selection / guide
@@ -956,6 +967,7 @@ function startRound(resumed) {
   document.getElementById('resultScreen').classList.add('hidden');
   const plane = G.mode === 'plane';
   document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('sliceHint').classList.add('hidden');
   document.getElementById('slicePanel').classList.toggle('hidden', plane);
   document.getElementById('explodeBtn').style.display = plane ? 'none' : '';
   document.getElementById('diffLabel').textContent = (plane ? '平面 ' : '立体 ') + DIFF_NAME[G.difficulty] + (G.isDaily ? '・デイリー' : '');
@@ -1001,7 +1013,7 @@ function pulseToast(msg) {
   setTimeout(() => t.remove(), 2900);
 }
 
-let selDiff = { n: 4, d: 'normal' }, selWorld = 'dark', selMode = 'cube', selSym = 'number', selPlacement = 'float';
+let selDiff = { n: 4, d: 'normal' }, selWorld = 'dark', selMode = 'cube', selSym = 'number', selPlacement = 'table';
 const DIFF_SUB = {
   cube: { easy: '3×3×3', normal: '4×4×4', hard: '5×5×5' },
   plane: { easy: 'やさしい', normal: 'ふつう', hard: 'むずかしい' },
@@ -1098,10 +1110,13 @@ document.querySelectorAll('.axis-btn[data-axis]').forEach((b) => {
 });
 const slider = document.getElementById('sliceSlider');
 slider.oninput = () => setSlice(G.sliceAxis, +slider.value);
-document.getElementById('sliceAllBtn').onclick = () => { G.sliceLayer = null; document.getElementById('sliceLabel').innerHTML = '層<br>全表示'; updateAllVisuals(); };
+document.getElementById('sliceAllBtn').onclick = () => { G.sliceLayer = null; document.getElementById('sliceLabel').innerHTML = '層<br>全表示'; document.getElementById('sliceHint').classList.add('hidden'); updateAllVisuals(); };
 function setSlice(axis, layer) {
   G.sliceAxis = axis; G.sliceLayer = layer;
   document.getElementById('sliceLabel').innerHTML = `${axis.toUpperCase()}層<br>${layer + 1}/${G.N}`;
+  const hint = document.getElementById('sliceHint');
+  hint.querySelector('b').textContent = `${axis.toUpperCase()} 層 ${layer + 1}/${G.N}`;
+  hint.classList.remove('hidden');
   updateAllVisuals();
 }
 
