@@ -93,20 +93,20 @@ body{
 }
 .info .chain.on{opacity:1}
 
-/* next + pending column between/side */
-.meta{display:flex;flex-direction:column;align-items:center;gap:4px}
+/* next + hint column */
+.meta{display:flex;flex-direction:column;align-items:center;gap:6px;width:128px}
 .meta .lbl{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.2em;color:var(--text-dim)}
 .nextcv{background:rgba(20,13,7,.5);border:1px solid rgba(224,169,58,.2);border-radius:6px}
-.pending{
-  display:flex;flex-wrap:wrap;gap:2px;max-width:60px;justify-content:center;min-height:18px;
-  align-content:flex-start;
-}
-.rock{width:13px;height:13px;border-radius:3px;
-  background:radial-gradient(circle at 35% 30%, #9aa0aa, #4a4e57 70%);
-  border:1px solid #2c2f36;display:flex;align-items:center;justify-content:center;
-  font-size:9px;color:#1a1410;font-weight:800;font-family:"Shippori Mincho",serif;
-}
-.rock.big{background:radial-gradient(circle at 35% 30%, #e0a93a, #8a5a14 70%);color:#1a1008}
+.hintbox{margin-top:8px;padding:10px;border:1px dashed rgba(224,169,58,.25);border-radius:8px;text-align:center}
+.hintbox b{font-weight:700}
+
+/* forecast (予告ぷよ) bar above each board */
+.forecast{display:flex;gap:3px;align-items:center;justify-content:center;min-height:22px;flex-wrap:wrap;max-width:100%}
+.forecast .gz{width:15px;height:15px;border-radius:50%;border:1px solid rgba(0,0,0,.4);box-shadow:0 1px 2px rgba(0,0,0,.4)}
+.forecast .gz.rock{background:radial-gradient(circle at 34% 28%, #b6bcc6, #4a4e57 72%)}
+.forecast .gz.star{width:17px;height:17px;border-radius:4px;background:radial-gradient(circle at 34% 28%, #f0c878, #8a5a14 72%);border-color:#5a3a0e}
+.forecast .gz.comet{width:19px;height:19px;border-radius:4px;background:radial-gradient(circle at 34% 28%, #ff9a6c, #a4351c 72%);border-color:#6a1f10;box-shadow:0 0 8px rgba(219,85,50,.6)}
+.forecast .gz.num{width:auto;height:auto;border:none;box-shadow:none;font-family:"JetBrains Mono",monospace;font-size:11px;color:#e8b87a;font-weight:700;padding-left:2px}
 
 /* overlay */
 .overlay{
@@ -183,10 +183,17 @@ body{
 
 @media (max-width:760px){
   .pad{display:flex}
-  .stage{inset:46px 0 96px 0;gap:8px;align-items:flex-start;padding-top:6px}
+  .stage{inset:46px 0 96px 0;gap:6px;align-items:flex-start;padding-top:6px}
   .bar .title{font-size:14px;letter-spacing:.1em}
   .info .score{font-size:11px}
   .info .score b{font-size:13px}
+  .meta{width:auto;gap:4px}
+  .hintbox{display:none}            /* keep it compact so both boards fit */
+  .stage{padding-left:4px;padding-right:4px}
+  .boardwrap .frame{inset:-4px;box-shadow:0 10px 26px rgba(0,0,0,.5),inset 0 0 0 3px var(--wood-edge)}
+  .forecast .gz{width:12px;height:12px}
+  .forecast .gz.star{width:14px;height:14px}
+  .forecast .gz.comet{width:16px;height:16px}
 }
 @media (max-width:380px){
   .bar .title span.en{display:none}
@@ -209,6 +216,7 @@ body{
   <!-- player -->
   <div class="side player">
     <div class="who">あなた / YOU</div>
+    <div class="forecast" id="pForecast" title="降ってくるお邪魔の予告"></div>
     <div class="boardwrap">
       <div class="frame"></div>
       <canvas id="pBoard"></canvas>
@@ -223,13 +231,16 @@ body{
   <div class="meta" id="centerMeta">
     <div class="lbl">NEXT</div>
     <canvas id="pNext" class="nextcv"></canvas>
-    <div class="lbl" style="margin-top:6px">おじゃま</div>
-    <div class="pending" id="pPending"></div>
+    <div class="hintbox">
+      <div class="lbl" style="margin-bottom:4px">予告</div>
+      <div style="font-size:10px;line-height:1.5;color:var(--text-dim)">盤の上の<b style="color:#d8866c">お邪魔予告</b>は次に降る量。<b style="color:var(--gold)">連鎖して消すと相殺</b>できる。</div>
+    </div>
   </div>
 
   <!-- cpu -->
   <div class="side cpu">
     <div class="who">CPU</div>
+    <div class="forecast" id="cForecast" title="CPUに降るお邪魔の予告"></div>
     <div class="boardwrap">
       <div class="frame"></div>
       <canvas id="cBoard"></canvas>
@@ -447,6 +458,9 @@ class Engine {
     this.chainDisplayT = 0;
     this.dead = false;
     this.cpuT = 0;
+    this.particles = [];       // spark FX (grid-unit coords)
+    this.shake = 0;            // screen-shake magnitude 0..1
+    this.popup = null;         // {text,t,cx,cy} on-board chain popup
   }
   gen(){
     if(this.bag.length===0){ this.bag=[0,1,2,3,4,0,1,2,3,4]; for(let i=this.bag.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[this.bag[i],this.bag[j]]=[this.bag[j],this.bag[i]];} }
@@ -541,6 +555,23 @@ class Engine {
     this.chainDisplay = this.chainCount;
     this.chainDisplayT = 0;
     this.phase='pop'; this.phaseT=0;
+    // ---- FX: sparks, chain popup, screen shake ----
+    let sx=0, sy=0, ncnt=0;
+    for(const key of clr){
+      const r=(key/COLS)|0, c=key%COLS, vr=r-HIDDEN; if(vr<0) continue;
+      const cell=this.grid[r][c];
+      const col = cell.promoted ? '#f2c94c' : PIECES[cell.t].col;
+      sx+=c+0.5; sy+=vr+0.5; ncnt++;
+      for(let i=0;i<5;i++){ const a=Math.random()*6.283, sp=0.05+Math.random()*0.10;
+        this.particles.push({cx:c+0.5,cy:vr+0.5,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.06,life:420,maxlife:420,col}); }
+    }
+    if(this.particles.length>240) this.particles.splice(0,this.particles.length-240);
+    if(this.chainCount>=2 && ncnt>0){
+      const c=this.chainCount;
+      const txt = c>=5 ? c+' 大連鎖!!' : c>=4 ? c+' 連鎖!!' : c>=3 ? c+' 連鎖!' : c+' 連鎖';
+      this.popup = { text:txt, t:0, cx:sx/ncnt, cy:Math.max(1.1,sy/ncnt) };
+    }
+    if(this.chainCount>=3 || kings.length>0) this.shake = Math.min(1, this.chainCount*0.13 + (kings.length?0.3:0));
     return this.pop;
   }
   applyPop(){
@@ -634,6 +665,7 @@ function boardToppedOut(g){ return !!g[HIDDEN][2] || !!g[0][2]; }
 let CELL = 36, CELL_C = 26;
 const pBoard=document.getElementById('pBoard'), cBoard=document.getElementById('cBoard');
 const pNext=document.getElementById('pNext');
+const pForecastEl=document.getElementById('pForecast'), cForecastEl=document.getElementById('cForecast');
 const pctx=pBoard.getContext('2d'), cctx=cBoard.getContext('2d'), nctx=pNext.getContext('2d');
 const dpr=()=>Math.min(window.devicePixelRatio||1,2);
 
@@ -646,9 +678,12 @@ function layout(){
   const vw=window.innerWidth, vh=window.innerHeight;
   const mobile = vw<=760;
   const barH=46, padBottom = mobile?96:0;
-  const availH = vh-barH-padBottom-70;
+  // reserve for who-label + forecast bar + score row around each board
+  const availH = vh-barH-padBottom-(mobile?104:84);
   if(mobile){
-    CELL = Math.floor(Math.min((vw*0.50)/COLS, availH/ROWS, 40));
+    // must fit: player(6·CELL)+frames + NEXT(~44) + cpu(6·0.58·CELL)+frames + gaps
+    const reserve = 100;
+    CELL = Math.floor(Math.min((vw-reserve)/(COLS*1.58), availH/ROWS, 38));
     CELL_C = Math.floor(CELL*0.58);
   } else {
     CELL = Math.floor(Math.min((vw*0.30)/COLS, availH/ROWS, 46));
@@ -687,105 +722,167 @@ function komaPath(ctx,x,y,s){
   ctx.lineTo(x-w*0.34, sh);
   ctx.closePath();
 }
-function drawCell(ctx, cell, px, py, s, oppFlip){
-  if(!cell) return;
-  const x=px+s/2, y=py+s/2;
-  ctx.save();
-  if(cell.t==='G'){
-    // garbage rock
-    const r=s*0.40;
-    const g=ctx.createRadialGradient(x-r*0.3,y-r*0.3,r*0.2,x,y,r);
-    g.addColorStop(0,'#aab0ba'); g.addColorStop(1,'#52565f');
-    ctx.fillStyle=g;
-    roundRect(ctx,x-r,y-r,r*2,r*2,r*0.35); ctx.fill();
-    ctx.strokeStyle='#2c2f36'; ctx.lineWidth=Math.max(1,s*0.04); ctx.stroke();
-    ctx.fillStyle='#1a1410'; ctx.font=`800 ${s*0.42}px "Shippori Mincho",serif`;
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('邪',x,y+s*0.02);
-    ctx.restore(); return;
-  }
-  // koma body
-  const isKing = cell.t==='K';
-  const def = isKing ? {col:'#2a2330',col2:'#15121b'} : PIECES[cell.t];
-  komaPath(ctx,x,y,s);
-  const grd=ctx.createLinearGradient(x,y-s/2,x,y+s/2);
-  grd.addColorStop(0, lighten(def.col,28)); grd.addColorStop(0.5, def.col); grd.addColorStop(1, def.col2);
-  ctx.fillStyle=grd; ctx.fill();
-  // edge
-  ctx.lineWidth=Math.max(1.2,s*0.05);
-  ctx.strokeStyle = cell.promoted ? '#f2c94c' : (isKing?'#e0a93a':'rgba(26,17,10,.65)');
-  if(cell.promoted){ ctx.shadowColor='rgba(242,201,76,.85)'; ctx.shadowBlur=s*0.32; }
-  ctx.stroke();
-  ctx.shadowBlur=0;
-  // inner sheen
-  ctx.globalAlpha=0.18; komaPath(ctx,x,y-s*0.06,s*0.82); ctx.fillStyle='#fff'; ctx.fill(); ctx.globalAlpha=1;
-  // kanji
-  let label, color;
-  if(isKing){ label='王'; color='#f2c94c'; }
-  else if(cell.promoted && def.promo){ label=def.promo; color='#b3201a'; }
-  else { label=def.k; color='#15110a'; }
-  ctx.fillStyle=color;
-  ctx.font=`800 ${s*0.5}px "Shippori Mincho",serif`;
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(label, x, y+s*0.04);
-  ctx.restore();
-}
 function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+// rounded rect with independent corner radii (top-left, top-right, bottom-right, bottom-left)
+function pathRRC(ctx,x,y,w,h,tl,tr,br,bl){
+  ctx.beginPath();
+  ctx.moveTo(x+tl,y);
+  ctx.lineTo(x+w-tr,y); if(tr) ctx.arcTo(x+w,y,x+w,y+tr,tr);
+  ctx.lineTo(x+w,y+h-br); if(br) ctx.arcTo(x+w,y+h,x+w-br,y+h,br);
+  ctx.lineTo(x+bl,y+h); if(bl) ctx.arcTo(x,y+h,x,y+h-bl,bl);
+  ctx.lineTo(x,y+tl); if(tl) ctx.arcTo(x,y,x+tl,y,tl);
+  ctx.closePath();
+}
 function lighten(hex,amt){
   const n=parseInt(hex.slice(1),16); let r=(n>>16)+amt,g=((n>>8)&255)+amt,b=(n&255)+amt;
   r=Math.min(255,r);g=Math.min(255,g);b=Math.min(255,b);
   return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
 }
+function easeOut(t){ return 1-Math.pow(1-t,3); }
+
+// Paint one cell. gx,gy = top-left of the cell box; S = cell size.
+// nb = {up,down,left,right} same-color connections (merge like Puyo). scale/alpha for pop FX.
+function paintCell(ctx, cell, gx, gy, S, nb, scale, alpha){
+  if(!cell) return;
+  nb = nb||{}; scale = scale==null?1:scale; alpha = alpha==null?1:alpha;
+  const cx=gx+S/2, cy=gy+S/2;
+  ctx.save();
+  if(alpha<1) ctx.globalAlpha=alpha;
+  if(scale!==1){ ctx.translate(cx,cy); ctx.scale(scale,scale); ctx.translate(-cx,-cy); }
+
+  if(cell.t==='G'){ // garbage rock (never merges)
+    const r=S*0.40;
+    const g=ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,r*0.2,cx,cy,r);
+    g.addColorStop(0,'#aab0ba'); g.addColorStop(1,'#52565f');
+    ctx.fillStyle=g; roundRect(ctx,cx-r,cy-r,r*2,r*2,r*0.34); ctx.fill();
+    ctx.strokeStyle='#2c2f36'; ctx.lineWidth=Math.max(1,S*0.04); ctx.stroke();
+    ctx.fillStyle='#15110a'; ctx.font=`800 ${S*0.42}px "Shippori Mincho",serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('邪',cx,cy+S*0.02);
+    ctx.restore(); return;
+  }
+
+  const isKing = cell.t==='K';
+  const def = isKing ? {col:'#2a2330',col2:'#15121b'} : PIECES[cell.t];
+  // ---- merged Puyo body ----
+  const gap = S*0.05, R = S*0.40;
+  const up=!!nb.up, dn=!!nb.down, lf=!!nb.left, rt=!!nb.right;
+  const x0=gx+(lf?0:gap), x1=gx+S-(rt?0:gap), y0=gy+(up?0:gap), y1=gy+S-(dn?0:gap);
+  const tl=(up||lf)?0:R, tr=(up||rt)?0:R, brc=(dn||rt)?0:R, bl=(dn||lf)?0:R;
+  pathRRC(ctx,x0,y0,x1-x0,y1-y0,tl,tr,brc,bl);
+  const grd=ctx.createLinearGradient(0,gy,0,gy+S);
+  grd.addColorStop(0,lighten(def.col,30)); grd.addColorStop(0.55,def.col); grd.addColorStop(1,def.col2);
+  ctx.fillStyle=grd; ctx.fill();
+  // promoted: golden glow ring
+  if(cell.promoted){ ctx.save(); ctx.shadowColor='rgba(242,201,76,.9)'; ctx.shadowBlur=S*0.34;
+    ctx.lineWidth=Math.max(1.4,S*0.07); ctx.strokeStyle='#f2c94c'; ctx.stroke(); ctx.restore(); }
+  else if(isKing){ ctx.lineWidth=Math.max(1.2,S*0.05); ctx.strokeStyle='#e0a93a'; ctx.stroke(); }
+  else { ctx.lineWidth=Math.max(1,S*0.035); ctx.strokeStyle='rgba(20,14,8,.30)'; ctx.stroke(); }
+  // gloss highlight (top-left)
+  ctx.globalAlpha=(alpha<1?alpha:1)*0.30;
+  ctx.beginPath(); ctx.ellipse(cx-S*0.16,cy-S*0.18,S*0.20,S*0.12,-0.5,0,6.283); ctx.fillStyle='#ffffff'; ctx.fill();
+  ctx.globalAlpha=alpha<1?alpha:1;
+  // koma identity: faint pentagon frame so it still reads as a shogi piece
+  if(!isKing){ ctx.lineWidth=Math.max(.8,S*0.03); ctx.strokeStyle='rgba(20,14,8,.22)';
+    komaPath(ctx,cx,cy,S*0.80); ctx.stroke(); }
+  // kanji
+  let label,color;
+  if(isKing){ label='王'; color='#f2c94c'; }
+  else if(cell.promoted && def.promo){ label=def.promo; color='#b3201a'; }
+  else { label=def.k; color='#15110a'; }
+  ctx.fillStyle=color; ctx.font=`800 ${S*0.52}px "Shippori Mincho",serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,cx,cy+S*0.03);
+  ctx.restore();
+}
 
 function renderEngine(eng, ctx, cell){
   const W=COLS*cell, H=ROWS*cell;
   ctx.clearRect(0,0,W,H);
+  ctx.save();
+  if(eng.shake>0){ const m=eng.shake*cell*0.20; ctx.translate((Math.random()-0.5)*m,(Math.random()-0.5)*m); }
   drawBoardBg(ctx,cell);
   const dropEase = eng.phase==='drop' ? easeOut(Math.min(1,eng.phaseT/DROP_MS)) : 1;
   const popP = eng.phase==='pop' ? Math.min(1,eng.phaseT/POP_MS) : 0;
-  // settled cells
+  const grid=eng.grid;
+  // settled cells (with Puyo-style merging of same color)
   for(let r=HIDDEN;r<TR;r++) for(let c=0;c<COLS;c++){
-    const cl=eng.grid[r][c]; if(!cl) continue;
-    const vr = r-HIDDEN;
-    let py = vr*cell;
+    const cl=grid[r][c]; if(!cl) continue;
+    const vr=r-HIDDEN;
+    let py=vr*cell;
     if(cl._fall){ py -= cl._fall*cell*(1-dropEase); }
-    const s=cell*0.98;
-    // popping animation
+    // popping animation: flash brighter then shrink+fade
     if(eng.pop && eng.pop.remove.has(r*COLS+c)){
-      const s2=s*(1-popP*0.85);
-      ctx.globalAlpha=1-popP*0.9;
-      drawCell(ctx,cl, c*cell+(cell-s2)/2, vr*cell+(cell-s2)/2, s2);
-      ctx.globalAlpha=1;
+      let sc, al;
+      if(popP<0.32){ sc=1+popP*0.5; al=1; }      // flash/swell
+      else { const k=(popP-0.32)/0.68; sc=1.16*(1-k*0.95); al=1-k; } // burst
+      paintCell(ctx,cl, c*cell, vr*cell, cell, null, sc, al);
       continue;
     }
-    drawCell(ctx,cl, c*cell+(cell-s)/2, py+(cell-s)/2, s);
+    // neighbor connection only between settled same-type numeric pieces
+    const t=cl.t, f=cl._fall||0;
+    const same=(rr,cc)=>{ if(rr<0||rr>=TR||cc<0||cc>=COLS) return false; const o=grid[rr][cc];
+      return !!o && o.t===t && typeof t==='number' && (o._fall||0)===0 && f===0
+        && !(eng.pop&&eng.pop.remove.has(rr*COLS+cc)); };
+    const nb={ up:same(r-1,c), down:same(r+1,c), left:same(r,c-1), right:same(r,c+1) };
+    paintCell(ctx,cl, c*cell, py, cell, nb, 1, 1);
   }
-  // falling / waiting pair
+  // falling / waiting pair (connect the two halves if same color & stacked)
   if(eng.pair && (eng.phase==='control'||eng.phase==='cpuwait')){
-    const p=eng.pair; const [sr,sc]=eng.subPos(p);
-    if(p.r>=HIDDEN) drawCell(ctx,p.a, p.c*cell+cell*0.01,(p.r-HIDDEN)*cell+cell*0.01, cell*0.98);
-    if(sr>=HIDDEN) drawCell(ctx,p.b, sc*cell+cell*0.01,(sr-HIDDEN)*cell+cell*0.01, cell*0.98);
+    const p=eng.pair, [sr,sc]=eng.subPos(p);
+    const sameP = p.a.t===p.b.t && typeof p.a.t==='number';
+    const aNb={}, bNb={};
+    if(sameP){
+      if(p.rot===0){ aNb.up=true; bNb.down=true; } else if(p.rot===2){ aNb.down=true; bNb.up=true; }
+      else if(p.rot===1){ aNb.right=true; bNb.left=true; } else { aNb.left=true; bNb.right=true; }
+    }
+    if(p.r>=HIDDEN) paintCell(ctx,p.a, p.c*cell,(p.r-HIDDEN)*cell, cell, aNb,1,1);
+    if(sr>=HIDDEN) paintCell(ctx,p.b, sc*cell,(sr-HIDDEN)*cell, cell, bNb,1,1);
   }
+  // spark particles
+  for(const pt of eng.particles){
+    const a=Math.max(0,pt.life/pt.maxlife);
+    ctx.globalAlpha=a; ctx.fillStyle=pt.col;
+    const rr=Math.max(1,cell*0.11*a);
+    ctx.beginPath(); ctx.arc(pt.cx*cell, pt.cy*cell, rr, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  // on-board chain popup
+  if(eng.popup){
+    const k=Math.min(1,eng.popup.t/900), a=Math.max(0,1-k);
+    const px=Math.min(W-cell, Math.max(cell, eng.popup.cx*cell));
+    const py=eng.popup.cy*cell - k*cell*1.3;
+    ctx.globalAlpha=a; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font=`800 ${cell*0.78}px "Shippori Mincho",serif`;
+    ctx.lineWidth=cell*0.10; ctx.strokeStyle='rgba(20,12,4,.85)'; ctx.strokeText(eng.popup.text,px,py);
+    ctx.fillStyle='#f2c94c'; ctx.fillText(eng.popup.text,px,py);
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
   // clear _fall once drop done
-  if(eng.phase!=='drop'){ for(let r=0;r<TR;r++) for(let c=0;c<COLS;c++){ if(eng.grid[r][c]) eng.grid[r][c]._fall=0; } }
+  if(eng.phase!=='drop'){ for(let r=0;r<TR;r++) for(let c=0;c<COLS;c++){ if(grid[r][c]) grid[r][c]._fall=0; } }
 }
-function easeOut(t){ return 1-Math.pow(1-t,3); }
 
 function renderNext(eng){
   const nc=pNext.width/dpr(), s=nc*0.92;
   nctx.clearRect(0,0,nc,nc*2);
-  // NEXT shows the upcoming pair (queue[0]=top satellite-ish, queue[1]=bottom)
+  // NEXT shows the upcoming pair, connected vertically if same color
   const top={t:eng.queue[0],promoted:false}, bottom={t:eng.queue[1]??eng.queue[0],promoted:false};
-  drawCell(nctx,top,(nc-s)/2,2,s);
-  drawCell(nctx,bottom,(nc-s)/2,nc+2,s);
+  const same = top.t===bottom.t;
+  paintCell(nctx,top,(nc-s)/2,2,s, same?{down:true}:null,1,1);
+  paintCell(nctx,bottom,(nc-s)/2,nc+2,s, same?{up:true}:null,1,1);
 }
 
-/* ----------------------------- pending UI ------------------------------- */
-function renderPending(){
-  const el=document.getElementById('pPending'); el.innerHTML='';
-  let n=player.garbagePending;
-  const bigs=Math.floor(n/6); let rem=n-bigs*6;
-  for(let i=0;i<bigs;i++){ const d=document.createElement('div'); d.className='rock big'; d.textContent='6'; el.appendChild(d); }
-  for(let i=0;i<Math.min(rem,12);i++){ const d=document.createElement('div'); d.className='rock'; el.appendChild(d); }
+/* ----------------------------- forecast (予告ぷよ) ---------------------- */
+// Show incoming garbage above each board so players can plan counters (相殺).
+function renderForecast(el, n){
+  el.innerHTML='';
+  if(n<=0) return;
+  let rem=n, icons=[];
+  // tiers: ✦ comet = 30, ★ star = 6, ● rock = 1
+  while(rem>=30 && icons.length<10){ icons.push('comet'); rem-=30; }
+  while(rem>=6  && icons.length<12){ icons.push('star');  rem-=6; }
+  while(rem>=1  && icons.length<14){ icons.push('rock');  rem-=1; }
+  for(const t of icons){ const d=document.createElement('div'); d.className='gz '+t; el.appendChild(d); }
+  const total=document.createElement('div'); total.className='gz num'; total.textContent=n; el.appendChild(total);
 }
 
 /* ----------------------------- audio ------------------------------------ */
@@ -819,7 +916,16 @@ function setChainLabel(elId, c){
   else el.classList.remove('on');
 }
 
+function decayFX(eng, dt){
+  if(eng.particles.length){
+    for(const p of eng.particles){ p.cx+=p.vx*dt/16; p.cy+=p.vy*dt/16; p.vy+=0.012*dt/16; p.life-=dt; }
+    eng.particles=eng.particles.filter(p=>p.life>0);
+  }
+  if(eng.shake>0) eng.shake=Math.max(0, eng.shake-dt*0.0022);
+  if(eng.popup){ eng.popup.t+=dt; if(eng.popup.t>900) eng.popup=null; }
+}
 function stepEngine(eng, dt, isPlayer){
+  decayFX(eng, dt);
   if(eng.dead) return;
   const d=DIFF[difficulty];
   switch(eng.phase){
@@ -880,8 +986,8 @@ function finishResolve(eng, isPlayer){
     if(eng.chainCount>=4) showToast(eng.chainCount+' 連鎖!! 必殺の一手');
     else if(eng.chainCount>=2) showToast(eng.chainCount+' 連鎖!');
   }
-  // drop my incoming garbage
-  if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.phase='drop'; eng.phaseT=0; eng.chainCount=0; eng.nuisAccum=0; return; }
+  // drop my incoming garbage (one turn after it appears in the forecast = chance to counter)
+  if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.shake=Math.min(1, eng.shake+drop*0.05); if(isPlayer) beep(110,0.12,'square',0.05); eng.phase='drop'; eng.phaseT=0; eng.chainCount=0; eng.nuisAccum=0; return; }
   eng.chainCount=0; eng.nuisAccum=0;
   // spawn next
   if(!eng.spawnPair()){
@@ -910,7 +1016,8 @@ function loop(t){
   renderEngine(player,pctx,CELL);
   renderEngine(cpu,cctx,CELL_C);
   renderNext(player);
-  renderPending();
+  renderForecast(pForecastEl, player.garbagePending);
+  renderForecast(cForecastEl, cpu.garbagePending);
   document.getElementById('pScore').textContent=player.score.toLocaleString();
   document.getElementById('cScore').textContent=cpu.score.toLocaleString();
   setChainLabel('pChain', player.phase==='pop'||player.phase==='drop'? player.chainCount:0);
