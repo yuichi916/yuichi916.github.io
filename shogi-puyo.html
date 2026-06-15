@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>将棋ぷよ「成」 | Shogi Puyo — Views Engineer</title>
+<meta name="description" content="将棋の駒を色に見立てた落ち物パズル。同じ駒を4つつなげて消し、駒の強さに比例したお邪魔駒を相手に送り込む。連鎖・成り・王の討ち取りでCPUを詰ませろ。">
+<meta name="theme-color" content="#1a1410">
+<link rel="canonical" href="https://yuichi916.github.io/shogi-puyo.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="将棋ぷよ「成」 — 駒の強さでお邪魔を送る対戦パズル">
+<meta property="og:description" content="歩・銀・金・角・飛を4つつなげて消す。強い駒・連鎖・成りで大量のお邪魔をCPUに送り、先に詰ませた方が勝ち。">
+<meta property="og:url" content="https://yuichi916.github.io/shogi-puyo.html">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --wood:#2a1d12; --wood-2:#3a2818; --wood-edge:#1a1109;
+  --paper:#efe6cf; --grid-line:rgba(40,26,14,.5);
+  --ink:#1a1410; --gold:#e0a93a; --accent:#c43d2a; --accent-2:#1a4f3a;
+  --panel:#211812; --panel-2:#2d2117; --text:#f0e6cf; --text-dim:#b6a888;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #3a2a1a 0%, transparent 60%),
+    linear-gradient(160deg,#170f08 0%, #241810 55%, #140d07 100%);
+  color:var(--text);
+  font-family:"Shippori Mincho",serif;
+  overflow:hidden;
+  -webkit-user-select:none;user-select:none;
+  touch-action:manipulation;
+}
+.mono{font-family:"JetBrains Mono",monospace}
+
+/* top bar */
+.bar{
+  position:fixed;top:0;left:0;right:0;height:46px;z-index:30;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;
+  background:linear-gradient(180deg,rgba(20,13,7,.92),rgba(20,13,7,.55));
+  border-bottom:1px solid rgba(224,169,58,.25);
+  backdrop-filter:blur(6px);
+}
+.bar a.back{color:var(--text-dim);text-decoration:none;font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.12em}
+.bar a.back:hover{color:var(--gold)}
+.bar .title{font-weight:800;font-size:17px;letter-spacing:.18em;color:var(--paper)}
+.bar .title em{font-style:normal;color:var(--accent)}
+.bar .tools{display:flex;gap:6px}
+.bar button{
+  background:transparent;border:1px solid rgba(224,169,58,.35);color:var(--text-dim);
+  font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.1em;
+  padding:5px 9px;border-radius:4px;cursor:pointer;
+}
+.bar button:hover{border-color:var(--gold);color:var(--gold)}
+
+/* stage */
+.stage{
+  position:fixed;inset:46px 0 0 0;
+  display:flex;align-items:center;justify-content:center;
+  gap:clamp(10px,3vw,46px);
+  padding:8px;
+}
+.side{display:flex;flex-direction:column;align-items:center;gap:6px}
+.side .who{
+  font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--text-dim);
+}
+.side.player .who{color:var(--gold)}
+.side.cpu .who{color:#d8866c}
+.boardwrap{position:relative}
+.boardwrap canvas{display:block;border-radius:6px}
+.boardwrap .frame{
+  position:absolute;inset:-10px;border:2px solid rgba(224,169,58,.35);
+  border-radius:12px;pointer-events:none;
+  box-shadow:0 18px 50px rgba(0,0,0,.55), inset 0 0 0 6px var(--wood-edge);
+}
+.side.player .boardwrap .frame{border-color:rgba(224,169,58,.6)}
+
+/* info row under board */
+.info{
+  display:flex;align-items:center;gap:10px;width:100%;justify-content:space-between;
+  margin-top:4px;
+}
+.info .score{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--paper)}
+.info .score b{color:var(--gold);font-size:16px}
+.info .chain{
+  font-weight:800;font-size:14px;color:var(--accent);min-width:54px;text-align:right;
+  opacity:0;transition:opacity .2s;
+}
+.info .chain.on{opacity:1}
+
+/* next + pending column between/side */
+.meta{display:flex;flex-direction:column;align-items:center;gap:4px}
+.meta .lbl{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.2em;color:var(--text-dim)}
+.nextcv{background:rgba(20,13,7,.5);border:1px solid rgba(224,169,58,.2);border-radius:6px}
+.pending{
+  display:flex;flex-wrap:wrap;gap:2px;max-width:60px;justify-content:center;min-height:18px;
+  align-content:flex-start;
+}
+.rock{width:13px;height:13px;border-radius:3px;
+  background:radial-gradient(circle at 35% 30%, #9aa0aa, #4a4e57 70%);
+  border:1px solid #2c2f36;display:flex;align-items:center;justify-content:center;
+  font-size:9px;color:#1a1410;font-weight:800;font-family:"Shippori Mincho",serif;
+}
+.rock.big{background:radial-gradient(circle at 35% 30%, #e0a93a, #8a5a14 70%);color:#1a1008}
+
+/* overlay */
+.overlay{
+  position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+  background:rgba(12,8,4,.82);backdrop-filter:blur(4px);padding:20px;
+}
+.overlay[hidden]{display:none}
+.card{
+  width:min(440px,92vw);background:linear-gradient(165deg,#2a1d12,#1a120a);
+  border:1px solid rgba(224,169,58,.4);border-radius:14px;padding:30px 26px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6);text-align:center;
+}
+.card .koma-logo{font-size:46px;line-height:1;margin-bottom:6px;letter-spacing:.1em}
+.card h1{font-size:30px;font-weight:800;letter-spacing:.14em;color:var(--paper);margin-bottom:4px}
+.card h1 em{font-style:normal;color:var(--accent)}
+.card .sub{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;color:var(--text-dim);margin-bottom:18px}
+.card p.lead{font-size:14px;line-height:1.85;color:var(--text-dim);margin-bottom:18px;text-align:left}
+.card .rules{text-align:left;font-size:13px;line-height:1.9;color:var(--text-dim);margin-bottom:20px}
+.card .rules b{color:var(--paper)}
+.card .rules .k{color:var(--gold);font-weight:700}
+.diff{display:flex;gap:8px;margin-bottom:18px}
+.diff button{
+  flex:1;background:var(--panel-2);border:1px solid rgba(224,169,58,.25);
+  color:var(--text);border-radius:8px;padding:12px 4px;cursor:pointer;
+  font-family:"Shippori Mincho",serif;font-weight:700;font-size:15px;transition:.15s;
+}
+.diff button .en{display:block;font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.18em;color:var(--text-dim);margin-top:3px}
+.diff button:hover{border-color:var(--gold);transform:translateY(-2px)}
+.diff button.sel{border-color:var(--gold);background:linear-gradient(180deg,#3a2a16,#2a1d12);box-shadow:0 0 0 1px var(--gold) inset}
+.btn-go{
+  width:100%;background:linear-gradient(180deg,var(--accent),#a4351c);color:#fff;
+  border:none;border-radius:8px;padding:14px;font-family:"Shippori Mincho",serif;
+  font-weight:800;font-size:17px;letter-spacing:.12em;cursor:pointer;
+}
+.btn-go:hover{filter:brightness(1.08)}
+.result-title{font-size:40px;font-weight:800;letter-spacing:.1em;margin-bottom:8px}
+.result-title.win{color:var(--gold)}
+.result-title.lose{color:#d8866c}
+
+/* legend in start card */
+.legend{display:flex;justify-content:center;gap:6px;margin-bottom:18px;flex-wrap:wrap}
+.legend .lk{display:flex;flex-direction:column;align-items:center;gap:2px;font-family:"JetBrains Mono",monospace;font-size:9px;color:var(--text-dim)}
+.legend .pc{width:30px;height:32px;display:flex;align-items:center;justify-content:center;font-family:"Shippori Mincho",serif;font-weight:800;font-size:17px;color:#1a1008;clip-path:polygon(50% 0,82% 18%,100% 100%,0 100%,18% 18%)}
+
+/* mobile controls */
+.pad{
+  position:fixed;left:0;right:0;bottom:0;z-index:25;
+  display:none;gap:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+  background:linear-gradient(0deg,rgba(20,13,7,.95),rgba(20,13,7,.4));
+}
+.pad button{
+  flex:1;background:var(--panel-2);border:1px solid rgba(224,169,58,.28);
+  color:var(--text);border-radius:10px;padding:14px 0;font-size:20px;cursor:pointer;
+  font-family:"Shippori Mincho",serif;
+}
+.pad button:active{background:#3a2a16;border-color:var(--gold)}
+.pad .grp{display:flex;flex:1;gap:8px}
+
+/* toast */
+.toast{
+  position:fixed;top:54px;left:50%;transform:translateX(-50%);z-index:40;
+  font-weight:800;font-size:clamp(22px,6vw,40px);letter-spacing:.08em;
+  color:var(--gold);text-shadow:0 2px 14px rgba(0,0,0,.7),0 0 30px rgba(224,169,58,.4);
+  pointer-events:none;opacity:0;
+}
+.toast.show{animation:toastpop 1.05s ease forwards}
+@keyframes toastpop{
+  0%{opacity:0;transform:translateX(-50%) scale(.6)}
+  18%{opacity:1;transform:translateX(-50%) scale(1.12)}
+  35%{transform:translateX(-50%) scale(1)}
+  78%{opacity:1}
+  100%{opacity:0;transform:translateX(-50%) translateY(-30px) scale(1)}
+}
+
+@media (max-width:760px){
+  .pad{display:flex}
+  .stage{inset:46px 0 96px 0;gap:8px;align-items:flex-start;padding-top:6px}
+  .bar .title{font-size:14px;letter-spacing:.1em}
+  .info .score{font-size:11px}
+  .info .score b{font-size:13px}
+}
+@media (max-width:380px){
+  .bar .title span.en{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <a class="back" href="index.html">← TOP</a>
+  <div class="title">将棋ぷよ<em>「成」</em> <span class="en mono" style="font-size:10px;color:var(--text-dim);letter-spacing:.1em"> SHOGI PUYO</span></div>
+  <div class="tools">
+    <button id="soundBtn" title="音">♪</button>
+    <button id="restartBtn" title="やり直し">↻</button>
+    <button id="helpBtn" title="あそびかた">?</button>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <!-- player -->
+  <div class="side player">
+    <div class="who">あなた / YOU</div>
+    <div class="boardwrap">
+      <div class="frame"></div>
+      <canvas id="pBoard"></canvas>
+    </div>
+    <div class="info">
+      <div class="score">SCORE <b id="pScore">0</b></div>
+      <div class="chain" id="pChain">2 連鎖!</div>
+    </div>
+  </div>
+
+  <!-- center meta -->
+  <div class="meta" id="centerMeta">
+    <div class="lbl">NEXT</div>
+    <canvas id="pNext" class="nextcv"></canvas>
+    <div class="lbl" style="margin-top:6px">おじゃま</div>
+    <div class="pending" id="pPending"></div>
+  </div>
+
+  <!-- cpu -->
+  <div class="side cpu">
+    <div class="who">CPU</div>
+    <div class="boardwrap">
+      <div class="frame"></div>
+      <canvas id="cBoard"></canvas>
+    </div>
+    <div class="info">
+      <div class="score">SCORE <b id="cScore">0</b></div>
+      <div class="chain" id="cChain">2 連鎖!</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- mobile controls -->
+<div class="pad">
+  <button data-act="rotL">⟲</button>
+  <button data-act="left">←</button>
+  <div class="grp">
+    <button data-act="soft">↓</button>
+    <button data-act="hard">⤓</button>
+  </div>
+  <button data-act="right">→</button>
+  <button data-act="rotR">⟳</button>
+</div>
+
+<!-- start / result overlay -->
+<div class="overlay" id="overlay">
+  <div class="card" id="startCard">
+    <div class="koma-logo">☖ 歩 ☗</div>
+    <h1>将棋ぷよ<em>「成」</em></h1>
+    <div class="sub">SHOGI PUYO — PIECE-POWERED VERSUS PUZZLE</div>
+    <div class="legend" id="legend"></div>
+    <div class="rules">
+      ・同じ駒を <b>たて・よこに4つ</b> つなげて消す。<br>
+      ・<span class="k">強い駒ほど</span>たくさん <b>お邪魔駒</b> を相手に送る（歩&lt;銀&lt;金&lt;角&lt;飛）。<br>
+      ・連鎖で送る量が激増。先に相手を <b>詰ませた</b> 方の勝ち。<br>
+      ・<span class="k">成り</span>：消えた駒のそばで生き残った駒が成り、次に消すと送る量が <b>2倍</b>。<br>
+      ・<span class="k">王</span>：稀に降る玉将。隣の群を消して <b>討ち取る</b> と必殺のお邪魔。
+    </div>
+    <div class="diff" id="diff">
+      <button data-d="easy">やさしい<span class="en">EASY</span></button>
+      <button data-d="normal" class="sel">ふつう<span class="en">NORMAL</span></button>
+      <button data-d="hard">つよい<span class="en">HARD</span></button>
+    </div>
+    <button class="btn-go" id="goBtn">対局開始</button>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:14px;letter-spacing:.08em">
+      PC: ←→ 移動 / ↓ 落下 / Z・X・↑ 回転 / Space 一気落とし
+    </div>
+  </div>
+
+  <div class="card" id="resultCard" hidden>
+    <div class="result-title" id="resultTitle">勝ち</div>
+    <div class="sub" id="resultSub">YOU WIN</div>
+    <p class="lead" id="resultDetail" style="text-align:center"></p>
+    <button class="btn-go" id="againBtn">もう一局</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   将棋ぷよ「成」 — single-file shogi-themed Puyo with CPU versus play
+   ========================================================================= */
+const COLS = 6, ROWS = 12, HIDDEN = 1, TR = ROWS + HIDDEN; // total rows incl. hidden
+
+// ---- piece definitions: 5 colors = 5 shogi pieces ----
+// t: 0..4 normal pieces, 'G' garbage(お邪魔), 'K' king(王)
+const PIECES = [
+  { k:'歩', val:1, col:'#8d97ad', col2:'#5a6178', promo:'と' },  // pawn  - slate
+  { k:'銀', val:2, col:'#36ac93', col2:'#1d6b58', promo:'全' },  // silver- teal
+  { k:'金', val:3, col:'#e2ad3c', col2:'#a8761a', promo:null },  // gold  - (never promotes)
+  { k:'角', val:4, col:'#9d6ed2', col2:'#633c9c', promo:'馬' },  // bishop- purple
+  { k:'飛', val:5, col:'#db5532', col2:'#a4351c', promo:'龍' },  // rook  - red
+];
+const KING_VAL = 8;
+const KING_RATE = 0.05;       // chance a spawned pair carries a 王
+const KING_MIN_MOVE = 6;      // no kings in the first few moves
+const NUISANCE_DIV = 6;       // points -> お邪魔 conversion
+const MAX_GARBAGE_DROP = 30;  // per turn
+
+const POP_MS = 230, DROP_MS = 130, LOCK_MS = 480;
+
+// timing per difficulty
+const DIFF = {
+  easy:   { grav:820, cpuMove:1500, cpuDepth:1, cpuNoise:90, cpuMiss:0.18 },
+  normal: { grav:680, cpuMove:1000, cpuDepth:1, cpuNoise:30, cpuMiss:0.05 },
+  hard:   { grav:560, cpuMove:660,  cpuDepth:2, cpuNoise:6,  cpuMiss:0.0  },
+};
+let difficulty = 'normal';
+
+const chainFactor = c => Math.pow(1.6, Math.max(0, c-1));
+
+/* ---------------- pure grid helpers (used by live engine + AI) ---------- */
+function emptyGrid(){
+  const g = new Array(TR);
+  for(let r=0;r<TR;r++) g[r] = new Array(COLS).fill(null);
+  return g;
+}
+function cloneGrid(g){
+  const n = new Array(TR);
+  for(let r=0;r<TR;r++){
+    n[r] = new Array(COLS);
+    for(let c=0;c<COLS;c++){
+      const cell = g[r][c];
+      n[r][c] = cell ? { t:cell.t, promoted:!!cell.promoted } : null;
+    }
+  }
+  return n;
+}
+// collapse columns; returns true if anything moved. Sets cell._fall (rows dropped).
+function collapseGrid(g){
+  let moved = false;
+  for(let c=0;c<COLS;c++){
+    let write = TR-1;
+    for(let r=TR-1;r>=0;r--){
+      const cell = g[r][c];
+      if(cell){
+        if(write !== r){
+          cell._fall = write - r;
+          g[write][c] = cell; g[r][c] = null; moved = true;
+        } else { cell._fall = 0; }
+        write--;
+      }
+    }
+  }
+  return moved;
+}
+// find connected groups of same normal type with size>=4
+function findGroups(g){
+  const seen = Array.from({length:TR},()=>new Array(COLS).fill(false));
+  const groups = [];
+  for(let r=0;r<TR;r++) for(let c=0;c<COLS;c++){
+    const cell = g[r][c];
+    if(!cell || seen[r][c] || typeof cell.t !== 'number') continue;
+    const t = cell.t, stack=[[r,c]], grp=[];
+    seen[r][c]=true;
+    while(stack.length){
+      const [cr,cc] = stack.pop(); grp.push([cr,cc]);
+      const nb=[[cr-1,cc],[cr+1,cc],[cr,cc-1],[cr,cc+1]];
+      for(const [nr,nc] of nb){
+        if(nr<0||nr>=TR||nc<0||nc>=COLS||seen[nr][nc]) continue;
+        const o=g[nr][nc];
+        if(o && typeof o.t==='number' && o.t===t){ seen[nr][nc]=true; stack.push([nr,nc]); }
+      }
+    }
+    if(grp.length>=4) groups.push(grp);
+  }
+  return groups;
+}
+function colHeights(g){
+  const h = new Array(COLS).fill(0);
+  for(let c=0;c<COLS;c++){
+    for(let r=0;r<TR;r++){ if(g[r][c]){ h[c]=TR-r; break; } }
+  }
+  return h;
+}
+
+/* simulate full resolution on a grid copy (no animation). Returns metrics for AI. */
+function simulateResolve(g){
+  let chain=0, totalCleared=0, nuis=0;
+  collapseGrid(g);
+  while(true){
+    const groups = findGroups(g);
+    if(!groups.length) break;
+    chain++;
+    let stepVal=0;
+    const clr = new Set();
+    for(const grp of groups){
+      for(const [r,c] of grp){
+        clr.add(r*COLS+c);
+        const cell=g[r][c];
+        stepVal += PIECES[cell.t].val * (cell.promoted?2:1);
+      }
+    }
+    // king captures + garbage clears adjacent to cleared
+    const toRemove = new Set(clr);
+    for(const key of clr){
+      const r=(key/COLS)|0, c=key%COLS;
+      for(const [nr,nc] of [[r-1,c],[r+1,c],[r,c-1],[r,c+1]]){
+        if(nr<0||nr>=TR||nc<0||nc>=COLS) continue;
+        const o=g[nr][nc]; if(!o) continue;
+        const nk=nr*COLS+nc;
+        if(o.t==='G'||o.t==='K'){ toRemove.add(nk); if(o.t==='K') stepVal+=KING_VAL; }
+      }
+    }
+    for(const key of toRemove){ g[(key/COLS)|0][key%COLS]=null; }
+    totalCleared += clr.size;
+    nuis += Math.round(stepVal * chainFactor(chain) / NUISANCE_DIV);
+    collapseGrid(g);
+  }
+  return { chain, totalCleared, nuis };
+}
+
+/* ---------------------------- Engine (one board) ------------------------ */
+class Engine {
+  constructor(isPlayer){
+    this.isPlayer = isPlayer;
+    this.reset();
+  }
+  reset(){
+    this.grid = emptyGrid();
+    this.bag = [];
+    this.queue = [ this.gen(), this.gen(), this.gen(), this.gen() ];
+    this.pair = null;
+    this.phase = 'idle';
+    this.phaseT = 0;
+    this.gravT = 0;
+    this.lockT = 0;
+    this.score = 0;
+    this.chainCount = 0;
+    this.nuisAccum = 0;
+    this.garbagePending = 0;   // incoming to me
+    this.moveCount = 0;
+    this.pop = null;           // {set:Set, kings, garbage, promote, displayChain}
+    this.chainDisplayT = 0;
+    this.dead = false;
+    this.cpuT = 0;
+  }
+  gen(){
+    if(this.bag.length===0){ this.bag=[0,1,2,3,4,0,1,2,3,4]; for(let i=this.bag.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[this.bag[i],this.bag[j]]=[this.bag[j],this.bag[i]];} }
+    return this.bag.pop();
+  }
+  spawnPair(){
+    let aType = this.queue.shift();
+    let bType = this.queue.shift();
+    this.queue.push(this.gen()); this.queue.push(this.gen());
+    // king injection (surprise — not shown in NEXT preview)
+    if(this.moveCount>=KING_MIN_MOVE && Math.random()<KING_RATE){
+      if(Math.random()<0.5) aType='K'; else bType='K';
+    }
+    this.pair = { a:{t:aType,promoted:false}, b:{t:bType,promoted:false}, r:HIDDEN, c:2, rot:0 };
+    this.gravT=0; this.lockT=0;
+    // top-out check
+    if(!this.fits(this.pair)){ this.dead=true; this.phase='dead'; return false; }
+    this.phase = this.isPlayer ? 'control' : 'cpuwait';
+    this.cpuT = 0;
+    return true;
+  }
+  subPos(p){
+    if(p.rot===0) return [p.r-1,p.c];
+    if(p.rot===1) return [p.r,p.c+1];
+    if(p.rot===2) return [p.r+1,p.c];
+    return [p.r,p.c-1];
+  }
+  cellFree(r,c){ return c>=0&&c<COLS&&r>=0&&r<TR&&!this.grid[r][c]; }
+  fits(p){
+    const [sr,sc]=this.subPos(p);
+    return this.cellFree(p.r,p.c) && this.cellFree(sr,sc);
+  }
+  tryMove(dc,dr){
+    const p=this.pair; const np={...p,c:p.c+dc,r:p.r+dr};
+    if(this.fits(np)){ this.pair=np; return true; } return false;
+  }
+  tryRotate(dir){
+    const p=this.pair; let nr=(p.rot+dir+4)%4;
+    let np={...p,rot:nr};
+    if(this.fits(np)){ this.pair=np; return true; }
+    // wall kick: try shifting pivot
+    for(const dc of [-1,1,-2,2]){ const k={...np,c:np.c+dc}; if(this.fits(k)){ this.pair=k; return true; } }
+    // floor kick
+    const up={...np,r:np.r-1}; if(this.fits(up)){ this.pair=up; return true; }
+    return false;
+  }
+  placePairToGrid(){
+    const p=this.pair; const [sr,sc]=this.subPos(p);
+    if(p.r>=0&&p.r<TR) this.grid[p.r][p.c]=p.a;
+    if(sr>=0&&sr<TR) this.grid[sr][sc]=p.b;
+    this.pair=null;
+  }
+  hardDrop(){
+    if(this.phase!=='control'&&this.phase!=='cpuwait') return;
+    while(this.tryMove(0,1)){}
+    this.lockNow();
+  }
+  lockNow(){
+    this.placePairToGrid();
+    this.moveCount++;
+    collapseGrid(this.grid);
+    this.chainCount=0; this.nuisAccum=0;
+    this.phase='drop'; this.phaseT=0;
+  }
+  // begin a pop step from found groups
+  startPop(groups){
+    this.chainCount++;
+    let stepVal=0;
+    const clr=new Set();
+    for(const grp of groups) for(const [r,c] of grp){
+      clr.add(r*COLS+c);
+      const cell=this.grid[r][c];
+      stepVal += PIECES[cell.t].val * (cell.promoted?2:1);
+    }
+    const remove=new Set(clr);
+    const kings=[], garbage=[], promote=[];
+    for(const key of clr){
+      const r=(key/COLS)|0, c=key%COLS;
+      for(const [nr,nc] of [[r-1,c],[r+1,c],[r,c-1],[r,c+1]]){
+        if(nr<0||nr>=TR||nc<0||nc>=COLS) continue;
+        const o=this.grid[nr][nc]; if(!o) continue;
+        const nk=nr*COLS+nc;
+        if(o.t==='G'){ if(!remove.has(nk)){remove.add(nk);garbage.push(nk);} }
+        else if(o.t==='K'){ if(!remove.has(nk)){remove.add(nk);kings.push(nk);stepVal+=KING_VAL;} }
+        else if(typeof o.t==='number' && !clr.has(nk) && PIECES[o.t].promo && !o.promoted){ promote.push(nk); }
+      }
+    }
+    const cf = chainFactor(this.chainCount);
+    this.score += Math.round(stepVal*10*cf);
+    this.nuisAccum += Math.round(stepVal*cf/NUISANCE_DIV);
+    this.pop = { remove, kings, garbage, promote, chain:this.chainCount, hadKing:kings.length>0 };
+    this.chainDisplay = this.chainCount;
+    this.chainDisplayT = 0;
+    this.phase='pop'; this.phaseT=0;
+    return this.pop;
+  }
+  applyPop(){
+    const p=this.pop; if(!p) return;
+    for(const key of p.promote){ const cell=this.grid[(key/COLS)|0][key%COLS]; if(cell) cell.promoted=true; }
+    for(const key of p.remove){ this.grid[(key/COLS)|0][key%COLS]=null; }
+    this.pop=null;
+    collapseGrid(this.grid);
+  }
+  dropGarbage(n){
+    n=Math.min(n,MAX_GARBAGE_DROP);
+    // distribute over columns as evenly as possible, fill from top of each stack
+    let order=[];
+    for(let i=0;i<n;i++) order.push(i%COLS);
+    // shuffle column order a bit for natural look
+    for(let i=order.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[order[i],order[j]]=[order[j],order[i]];}
+    for(const c of order){
+      // rest on top of the column stack (lowest empty cell)
+      for(let r=TR-1;r>=0;r--){ if(!this.grid[r][c]){ this.grid[r][c]={t:'G',promoted:false,_fall:2}; break; } }
+    }
+  }
+}
+
+/* ----------------------------- CPU AI ----------------------------------- */
+function chooseMove(engine, depth){
+  const baseGrid = engine.grid;
+  const pair = engine.pair;
+  const nextType = engine.queue[0];
+  let best=null, bestScore=-1e9;
+  const cands = enumerate(pair);
+  for(const mv of cands){
+    const g = cloneGrid(baseGrid);
+    if(!dropPairOnGrid(g, pair, mv)) continue;
+    const m = simulateResolve(g);
+    let sc = m.nuis*60 + m.chain*m.chain*22 + m.totalCleared*4 + evalBoard(g);
+    if(boardToppedOut(g)) sc -= 200000;
+    if(depth>1 && !boardToppedOut(g)){
+      // one-ply lookahead with next piece (pair of same type both = nextType estimate)
+      const np = { a:{t:nextType,promoted:false}, b:{t:engine.queue[1]??nextType,promoted:false}, r:HIDDEN, c:2, rot:0 };
+      let best2=-1e9;
+      for(const mv2 of enumerate(np)){
+        const g2=cloneGrid(g);
+        if(!dropPairOnGrid(g2,np,mv2)) continue;
+        const m2=simulateResolve(g2);
+        let s2 = m2.nuis*60 + m2.chain*m2.chain*22 + m2.totalCleared*4 + evalBoard(g2);
+        if(boardToppedOut(g2)) s2-=200000;
+        if(s2>best2) best2=s2;
+      }
+      sc += best2*0.5;
+    }
+    const d=DIFF[difficulty];
+    sc += (Math.random()-0.5)*d.cpuNoise;
+    if(sc>bestScore){ bestScore=sc; best=mv; }
+  }
+  // occasional blunder
+  if(DIFF[difficulty].cpuMiss>0 && Math.random()<DIFF[difficulty].cpuMiss && cands.length){
+    best = cands[(Math.random()*cands.length)|0];
+  }
+  return best || {c:2,rot:0};
+}
+function enumerate(pair){
+  const out=[];
+  const rots = pair.a.t===pair.b.t ? [0,1] : [0,1,2,3];
+  for(const rot of rots) for(let c=0;c<COLS;c++) out.push({c,rot});
+  return out;
+}
+// drop a pair into grid at target column/rotation; returns false if impossible
+function dropPairOnGrid(g, pair, mv){
+  const p={ a:{t:pair.a.t,promoted:false}, b:{t:pair.b.t,promoted:false}, r:HIDDEN, c:mv.c, rot:mv.rot };
+  const sub=(pp)=> pp.rot===0?[pp.r-1,pp.c]:pp.rot===1?[pp.r,pp.c+1]:pp.rot===2?[pp.r+1,pp.c]:[pp.r,pp.c-1];
+  const free=(r,c)=> c>=0&&c<COLS&&r>=0&&r<TR&&!g[r][c];
+  const fits=(pp)=>{ const [sr,sc]=sub(pp); return free(pp.r,pp.c)&&free(sr,sc); };
+  if(!fits(p)) return false;
+  while(true){ const np={...p,r:p.r+1}; if(fits(np)) p.r++; else break; }
+  const [sr,sc]=sub(p);
+  if(p.r>=0&&p.r<TR) g[p.r][p.c]=p.a;
+  if(sr>=0&&sr<TR) g[sr][sc]=p.b;
+  collapseGrid(g);
+  return true;
+}
+function evalBoard(g){
+  const h=colHeights(g); let maxH=0,sum=0,bump=0,holes=0;
+  for(let c=0;c<COLS;c++){ maxH=Math.max(maxH,h[c]); sum+=h[c]; }
+  for(let c=0;c<COLS-1;c++) bump+=Math.abs(h[c]-h[c+1]);
+  for(let c=0;c<COLS;c++){ let top=TR-h[c]; for(let r=top+1;r<TR;r++) if(!g[r][c]) holes++; }
+  return -maxH*5 - bump*1.2 - holes*6 - sum*0.3;
+}
+function boardToppedOut(g){ return !!g[HIDDEN][2] || !!g[0][2]; }
+
+/* ----------------------------- rendering -------------------------------- */
+let CELL = 36, CELL_C = 26;
+const pBoard=document.getElementById('pBoard'), cBoard=document.getElementById('cBoard');
+const pNext=document.getElementById('pNext');
+const pctx=pBoard.getContext('2d'), cctx=cBoard.getContext('2d'), nctx=pNext.getContext('2d');
+const dpr=()=>Math.min(window.devicePixelRatio||1,2);
+
+function sizeCanvas(cv,ctx,w,h){
+  const d=dpr();
+  cv.width=w*d; cv.height=h*d; cv.style.width=w+'px'; cv.style.height=h+'px';
+  ctx.setTransform(d,0,0,d,0,0);
+}
+function layout(){
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const mobile = vw<=760;
+  const barH=46, padBottom = mobile?96:0;
+  const availH = vh-barH-padBottom-70;
+  if(mobile){
+    CELL = Math.floor(Math.min((vw*0.50)/COLS, availH/ROWS, 40));
+    CELL_C = Math.floor(CELL*0.58);
+  } else {
+    CELL = Math.floor(Math.min((vw*0.30)/COLS, availH/ROWS, 46));
+    CELL_C = Math.floor(CELL*0.74);
+  }
+  CELL=Math.max(16,CELL); CELL_C=Math.max(11,CELL_C);
+  sizeCanvas(pBoard,pctx,COLS*CELL,ROWS*CELL);
+  sizeCanvas(cBoard,cctx,COLS*CELL_C,ROWS*CELL_C);
+  const nc=Math.floor(CELL*0.92);
+  sizeCanvas(pNext,nctx,nc, nc*2);
+}
+window.addEventListener('resize',()=>{ layout(); });
+
+function drawBoardBg(ctx,cell){
+  const W=COLS*cell, H=ROWS*cell;
+  const grd=ctx.createLinearGradient(0,0,0,H);
+  grd.addColorStop(0,'#efe2c2'); grd.addColorStop(1,'#e3d2a8');
+  ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
+  // wood grain hint
+  ctx.strokeStyle='rgba(120,84,40,.10)'; ctx.lineWidth=1;
+  for(let i=0;i<6;i++){ ctx.beginPath(); const y=H*(i+0.5)/6; ctx.moveTo(0,y); ctx.bezierCurveTo(W*0.3,y-6,W*0.6,y+6,W,y-2); ctx.stroke(); }
+  // grid lines
+  ctx.strokeStyle='rgba(40,26,14,.28)'; ctx.lineWidth=1;
+  for(let c=0;c<=COLS;c++){ ctx.beginPath(); ctx.moveTo(c*cell+.5,0); ctx.lineTo(c*cell+.5,H); ctx.stroke(); }
+  for(let r=0;r<=ROWS;r++){ ctx.beginPath(); ctx.moveTo(0,r*cell+.5); ctx.lineTo(W,r*cell+.5); ctx.stroke(); }
+}
+
+function komaPath(ctx,x,y,s){
+  const w=s*0.84, h=s*0.88;
+  const top=y-h/2, bot=y+h/2, sh=top+h*0.24;
+  ctx.beginPath();
+  ctx.moveTo(x, top);
+  ctx.lineTo(x+w*0.34, sh);
+  ctx.lineTo(x+w*0.5, bot);
+  ctx.lineTo(x-w*0.5, bot);
+  ctx.lineTo(x-w*0.34, sh);
+  ctx.closePath();
+}
+function drawCell(ctx, cell, px, py, s, oppFlip){
+  if(!cell) return;
+  const x=px+s/2, y=py+s/2;
+  ctx.save();
+  if(cell.t==='G'){
+    // garbage rock
+    const r=s*0.40;
+    const g=ctx.createRadialGradient(x-r*0.3,y-r*0.3,r*0.2,x,y,r);
+    g.addColorStop(0,'#aab0ba'); g.addColorStop(1,'#52565f');
+    ctx.fillStyle=g;
+    roundRect(ctx,x-r,y-r,r*2,r*2,r*0.35); ctx.fill();
+    ctx.strokeStyle='#2c2f36'; ctx.lineWidth=Math.max(1,s*0.04); ctx.stroke();
+    ctx.fillStyle='#1a1410'; ctx.font=`800 ${s*0.42}px "Shippori Mincho",serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('邪',x,y+s*0.02);
+    ctx.restore(); return;
+  }
+  // koma body
+  const isKing = cell.t==='K';
+  const def = isKing ? {col:'#2a2330',col2:'#15121b'} : PIECES[cell.t];
+  komaPath(ctx,x,y,s);
+  const grd=ctx.createLinearGradient(x,y-s/2,x,y+s/2);
+  grd.addColorStop(0, lighten(def.col,28)); grd.addColorStop(0.5, def.col); grd.addColorStop(1, def.col2);
+  ctx.fillStyle=grd; ctx.fill();
+  // edge
+  ctx.lineWidth=Math.max(1.2,s*0.05);
+  ctx.strokeStyle = cell.promoted ? '#f2c94c' : (isKing?'#e0a93a':'rgba(26,17,10,.65)');
+  if(cell.promoted){ ctx.shadowColor='rgba(242,201,76,.85)'; ctx.shadowBlur=s*0.32; }
+  ctx.stroke();
+  ctx.shadowBlur=0;
+  // inner sheen
+  ctx.globalAlpha=0.18; komaPath(ctx,x,y-s*0.06,s*0.82); ctx.fillStyle='#fff'; ctx.fill(); ctx.globalAlpha=1;
+  // kanji
+  let label, color;
+  if(isKing){ label='王'; color='#f2c94c'; }
+  else if(cell.promoted && def.promo){ label=def.promo; color='#b3201a'; }
+  else { label=def.k; color='#15110a'; }
+  ctx.fillStyle=color;
+  ctx.font=`800 ${s*0.5}px "Shippori Mincho",serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(label, x, y+s*0.04);
+  ctx.restore();
+}
+function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function lighten(hex,amt){
+  const n=parseInt(hex.slice(1),16); let r=(n>>16)+amt,g=((n>>8)&255)+amt,b=(n&255)+amt;
+  r=Math.min(255,r);g=Math.min(255,g);b=Math.min(255,b);
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+
+function renderEngine(eng, ctx, cell){
+  const W=COLS*cell, H=ROWS*cell;
+  ctx.clearRect(0,0,W,H);
+  drawBoardBg(ctx,cell);
+  const dropEase = eng.phase==='drop' ? easeOut(Math.min(1,eng.phaseT/DROP_MS)) : 1;
+  const popP = eng.phase==='pop' ? Math.min(1,eng.phaseT/POP_MS) : 0;
+  // settled cells
+  for(let r=HIDDEN;r<TR;r++) for(let c=0;c<COLS;c++){
+    const cl=eng.grid[r][c]; if(!cl) continue;
+    const vr = r-HIDDEN;
+    let py = vr*cell;
+    if(cl._fall){ py -= cl._fall*cell*(1-dropEase); }
+    const s=cell*0.98;
+    // popping animation
+    if(eng.pop && eng.pop.remove.has(r*COLS+c)){
+      const s2=s*(1-popP*0.85);
+      ctx.globalAlpha=1-popP*0.9;
+      drawCell(ctx,cl, c*cell+(cell-s2)/2, vr*cell+(cell-s2)/2, s2);
+      ctx.globalAlpha=1;
+      continue;
+    }
+    drawCell(ctx,cl, c*cell+(cell-s)/2, py+(cell-s)/2, s);
+  }
+  // falling / waiting pair
+  if(eng.pair && (eng.phase==='control'||eng.phase==='cpuwait')){
+    const p=eng.pair; const [sr,sc]=eng.subPos(p);
+    if(p.r>=HIDDEN) drawCell(ctx,p.a, p.c*cell+cell*0.01,(p.r-HIDDEN)*cell+cell*0.01, cell*0.98);
+    if(sr>=HIDDEN) drawCell(ctx,p.b, sc*cell+cell*0.01,(sr-HIDDEN)*cell+cell*0.01, cell*0.98);
+  }
+  // clear _fall once drop done
+  if(eng.phase!=='drop'){ for(let r=0;r<TR;r++) for(let c=0;c<COLS;c++){ if(eng.grid[r][c]) eng.grid[r][c]._fall=0; } }
+}
+function easeOut(t){ return 1-Math.pow(1-t,3); }
+
+function renderNext(eng){
+  const nc=pNext.width/dpr(), s=nc*0.92;
+  nctx.clearRect(0,0,nc,nc*2);
+  // NEXT shows the upcoming pair (queue[0]=top satellite-ish, queue[1]=bottom)
+  const top={t:eng.queue[0],promoted:false}, bottom={t:eng.queue[1]??eng.queue[0],promoted:false};
+  drawCell(nctx,top,(nc-s)/2,2,s);
+  drawCell(nctx,bottom,(nc-s)/2,nc+2,s);
+}
+
+/* ----------------------------- pending UI ------------------------------- */
+function renderPending(){
+  const el=document.getElementById('pPending'); el.innerHTML='';
+  let n=player.garbagePending;
+  const bigs=Math.floor(n/6); let rem=n-bigs*6;
+  for(let i=0;i<bigs;i++){ const d=document.createElement('div'); d.className='rock big'; d.textContent='6'; el.appendChild(d); }
+  for(let i=0;i<Math.min(rem,12);i++){ const d=document.createElement('div'); d.className='rock'; el.appendChild(d); }
+}
+
+/* ----------------------------- audio ------------------------------------ */
+let actx=null, soundOn=true;
+function beep(freq,dur,type='sine',gain=0.06){
+  if(!soundOn) return;
+  try{
+    if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.value=freq; o.connect(g); g.connect(actx.destination);
+    g.gain.setValueAtTime(gain,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+function chainSound(c){ beep(420+c*90,0.18,'triangle',0.07); }
+function lockSound(){ beep(180,0.07,'square',0.04); }
+function kingSound(){ beep(660,0.3,'sawtooth',0.08); setTimeout(()=>beep(880,0.3,'sawtooth',0.07),90); }
+function loseSound(){ beep(160,0.5,'sawtooth',0.08); }
+
+/* ----------------------------- toast ------------------------------------ */
+const toastEl=document.getElementById('toast');
+function showToast(txt){ toastEl.textContent=txt; toastEl.classList.remove('show'); void toastEl.offsetWidth; toastEl.classList.add('show'); }
+
+/* ----------------------------- game flow -------------------------------- */
+let player, cpu, running=false, lastT=0, rafId=0;
+
+function setChainLabel(elId, c){
+  const el=document.getElementById(elId);
+  if(c>=2){ el.textContent=c+' 連鎖!'; el.classList.add('on'); }
+  else el.classList.remove('on');
+}
+
+function stepEngine(eng, dt, isPlayer){
+  if(eng.dead) return;
+  const d=DIFF[difficulty];
+  switch(eng.phase){
+    case 'control':
+      eng.gravT+=dt;
+      if(eng.gravT>=d.grav){ eng.gravT=0; eng.tryMove(0,1); }
+      if(!canMoveDown(eng)){
+        eng.lockT+=dt;
+        if(eng.lockT>=LOCK_MS){ eng.lockNow(); lockSound(); }
+      } else { eng.lockT=0; }
+      break;
+    case 'cpuwait':
+      eng.cpuT+=dt;
+      if(eng.cpuT>=d.cpuMove){
+        const mv=chooseMove(eng,d.cpuDepth);
+        // set pair to chosen rotation then drop
+        eng.pair.rot=mv.rot;
+        // ensure column valid given rotation width
+        let target=mv.c;
+        // clamp so sub stays in bounds
+        eng.pair.c=target; if(!eng.fits(eng.pair)){
+          for(const dc of [-1,1,-2,2]){ const k={...eng.pair,c:target+dc}; if(eng.fits(k)){ eng.pair.c=target+dc; break; } }
+        }
+        eng.hardDrop(); lockSound();
+      }
+      break;
+    case 'drop':
+      eng.phaseT+=dt;
+      if(eng.phaseT>=DROP_MS){
+        // chain check
+        const groups=findGroups(eng.grid);
+        if(groups.length){ const pop=eng.startPop(groups); chainSound(eng.chainCount); if(pop.hadKing) kingSound(); }
+        else { finishResolve(eng,isPlayer); }
+      }
+      break;
+    case 'pop':
+      eng.phaseT+=dt;
+      if(eng.phaseT>=POP_MS){ eng.applyPop(); eng.phase='drop'; eng.phaseT=0; }
+      break;
+    case 'dead': break;
+  }
+  if(eng.chainDisplayT!==undefined){ eng.chainDisplayT+=dt; }
+}
+function canMoveDown(eng){
+  const p=eng.pair; if(!p) return false;
+  const np={...p,r:p.r+1}; return eng.fits(np);
+}
+function finishResolve(eng, isPlayer){
+  // send nuisance with offset
+  let sent=eng.nuisAccum;
+  const opp = isPlayer ? cpu : player;
+  if(sent>0){
+    if(eng.garbagePending>0){ const o=Math.min(eng.garbagePending,sent); eng.garbagePending-=o; sent-=o; }
+    if(sent>0) opp.garbagePending += sent;
+  }
+  // chain feedback toast for the player only
+  if(isPlayer){
+    if(eng.chainCount>=4) showToast(eng.chainCount+' 連鎖!! 必殺の一手');
+    else if(eng.chainCount>=2) showToast(eng.chainCount+' 連鎖!');
+  }
+  // drop my incoming garbage
+  if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.phase='drop'; eng.phaseT=0; eng.chainCount=0; eng.nuisAccum=0; return; }
+  eng.chainCount=0; eng.nuisAccum=0;
+  // spawn next
+  if(!eng.spawnPair()){
+    endGame(isPlayer ? false : true); // if player died -> lose
+  }
+}
+
+function endGame(playerWon){
+  running=false;
+  loseSound();
+  const rc=document.getElementById('resultCard'), sc=document.getElementById('startCard');
+  document.getElementById('overlay').hidden=false;
+  sc.hidden=true; rc.hidden=false;
+  const t=document.getElementById('resultTitle'), s=document.getElementById('resultSub');
+  if(playerWon){ t.textContent='勝ち'; t.className='result-title win'; s.textContent='YOU WIN — CPU を詰ませた'; }
+  else { t.textContent='詰み'; t.className='result-title lose'; s.textContent='YOU LOSE — 盤が詰んだ'; }
+  document.getElementById('resultDetail').textContent =
+    `あなた ${player.score.toLocaleString()} 点 / CPU ${cpu.score.toLocaleString()} 点`;
+}
+
+function loop(t){
+  if(!running){ return; }
+  const dt=Math.min(64, t-lastT||16); lastT=t;
+  stepEngine(player,dt,true);
+  stepEngine(cpu,dt,false);
+  renderEngine(player,pctx,CELL);
+  renderEngine(cpu,cctx,CELL_C);
+  renderNext(player);
+  renderPending();
+  document.getElementById('pScore').textContent=player.score.toLocaleString();
+  document.getElementById('cScore').textContent=cpu.score.toLocaleString();
+  setChainLabel('pChain', player.phase==='pop'||player.phase==='drop'? player.chainCount:0);
+  setChainLabel('cChain', cpu.phase==='pop'||cpu.phase==='drop'? cpu.chainCount:0);
+  rafId=requestAnimationFrame(loop);
+}
+
+function startGame(){
+  player=new Engine(true); cpu=new Engine(false);
+  player.spawnPair(); cpu.spawnPair();
+  document.getElementById('overlay').hidden=true;
+  running=true; lastT=performance.now();
+  cancelAnimationFrame(rafId); rafId=requestAnimationFrame(loop);
+  if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+}
+
+/* ----------------------------- input ------------------------------------ */
+function pAction(act){
+  if(!running||!player||player.phase!=='control') return;
+  switch(act){
+    case 'left': player.tryMove(-1,0); break;
+    case 'right': player.tryMove(1,0); break;
+    case 'soft': player.tryMove(0,1)&&(player.gravT=0); beep(120,0.03,'square',0.02); break;
+    case 'hard': player.hardDrop(); lockSound(); break;
+    case 'rotL': player.tryRotate(-1); beep(300,0.04,'sine',0.03); break;
+    case 'rotR': player.tryRotate(1); beep(300,0.04,'sine',0.03); break;
+  }
+}
+window.addEventListener('keydown',e=>{
+  if(!running) return;
+  const k=e.key;
+  if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(k)) e.preventDefault();
+  if(k==='ArrowLeft') pAction('left');
+  else if(k==='ArrowRight') pAction('right');
+  else if(k==='ArrowDown') pAction('soft');
+  else if(k==='ArrowUp'||k==='x'||k==='X') pAction('rotR');
+  else if(k==='z'||k==='Z') pAction('rotL');
+  else if(k===' ') pAction('hard');
+});
+document.querySelectorAll('.pad button').forEach(b=>{
+  b.addEventListener('click',()=>pAction(b.dataset.act));
+});
+
+/* ----------------------------- UI wiring -------------------------------- */
+document.getElementById('diff').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#diff button').forEach(x=>x.classList.remove('sel'));
+  b.classList.add('sel'); difficulty=b.dataset.d;
+});
+document.getElementById('goBtn').addEventListener('click',startGame);
+document.getElementById('againBtn').addEventListener('click',()=>{
+  document.getElementById('resultCard').hidden=true;
+  document.getElementById('startCard').hidden=false;
+});
+document.getElementById('restartBtn').addEventListener('click',()=>{
+  running=false; cancelAnimationFrame(rafId);
+  document.getElementById('overlay').hidden=false;
+  document.getElementById('resultCard').hidden=true;
+  document.getElementById('startCard').hidden=false;
+});
+document.getElementById('helpBtn').addEventListener('click',()=>{
+  running=false; cancelAnimationFrame(rafId);
+  document.getElementById('overlay').hidden=false;
+  document.getElementById('resultCard').hidden=true;
+  document.getElementById('startCard').hidden=false;
+});
+document.getElementById('soundBtn').addEventListener('click',function(){
+  soundOn=!soundOn; this.style.color=soundOn?'':'#6b6f78'; this.textContent=soundOn?'♪':'♪̸';
+  if(soundOn&&!actx){ try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} }
+});
+
+// build legend
+(function(){
+  const el=document.getElementById('legend');
+  PIECES.forEach(p=>{
+    const lk=document.createElement('div'); lk.className='lk';
+    const pc=document.createElement('div'); pc.className='pc';
+    pc.style.background=`linear-gradient(180deg,${lighten(p.col,28)},${p.col2})`;
+    pc.textContent=p.k;
+    const v=document.createElement('div'); v.textContent='×'+p.val;
+    lk.appendChild(pc); lk.appendChild(v); el.appendChild(lk);
+  });
+})();
+
+layout();
+// preview render on start screen
+renderEngine(new Engine(true),pctx,CELL);
+renderEngine(new Engine(false),cctx,CELL_C);
+</script>
+</body>
+</html>
