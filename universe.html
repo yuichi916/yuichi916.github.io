@@ -119,8 +119,11 @@
 
 <!-- Sigma.js + Graphology for WebGL graph rendering -->
 <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/graphology-layout-noverlap@0.4.2/dist/graphology-layout-noverlap.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0/dist/sigma.min.js"></script>
+<!-- @sigma/node-border has no UMD bundle and ESM module identity won't
+     interop cleanly with UMD-loaded Sigma. Border attributes set in the
+     reducer are silently ignored by the default circle program; the
+     enhanced edge/colour reducer changes still apply. -->
 
 <style>
 :root{
@@ -133,36 +136,132 @@
 html,body{height:100%;overflow:hidden;font-family:"Inter",sans-serif;
   background:var(--night);color:var(--paper);}
 .wrap{position:relative;width:100vw;height:100vh;}
-.bar{position:fixed;top:0;left:0;right:0;height:48px;z-index:10;
+.bar{position:fixed;top:0;left:0;right:0;height:54px;z-index:10;
   background:linear-gradient(180deg,rgba(10,8,20,.96),rgba(10,8,20,.7));
-  display:flex;align-items:center;padding:0 18px;gap:18px;
+  display:flex;align-items:center;padding:0 20px;gap:18px;
   border-bottom:1px solid rgba(212,160,80,.18);
   backdrop-filter:blur(12px);}
 .brand{display:flex;align-items:center;gap:8px;
   font-family:"Cormorant Garamond",serif;font-style:italic;color:var(--amber);
-  font-size:18px;letter-spacing:.06em;text-decoration:none;}
+  font-size:20px;letter-spacing:.06em;text-decoration:none;}
 .brand:hover{color:var(--amber-soft)}
-.bar a{color:var(--paper-dim);text-decoration:none;font-size:13px;letter-spacing:.04em;}
+.bar a{color:var(--paper-dim);text-decoration:none;font-size:14px;letter-spacing:.04em;}
 .bar a:hover{color:var(--paper)}
 .search{flex:1;max-width:380px;display:flex;align-items:center;
   background:rgba(28,20,40,.6);border:1px solid rgba(212,160,80,.2);
-  border-radius:18px;padding:0 14px;height:32px;}
+  border-radius:20px;padding:0 16px;height:36px;}
 .search input{flex:1;background:transparent;border:none;color:var(--paper);
-  font-family:"Inter",sans-serif;font-size:13px;outline:none;}
+  font-family:"Inter",sans-serif;font-size:14px;outline:none;}
 .search input::placeholder{color:var(--ink-soft)}
-.stats{font-size:11px;color:var(--ink-soft);letter-spacing:.06em;}
+.stats{font-size:12px;color:var(--ink-soft);letter-spacing:.06em;}
 .stats span.num{color:var(--amber);font-weight:600;}
 
 /* When embedded inside salon.html (?embed=1), hide the top header to
    reclaim the vertical space and merge with the parent's chrome. */
 body.embed .bar{display:none;}
 body.embed #graph{top:0;}
-#graph{position:absolute;top:48px;left:0;right:0;bottom:0;
-  background:radial-gradient(ellipse at 50% 50%,#1a1228 0%,#0a0814 100%);}
-.legend{position:fixed;bottom:16px;left:16px;z-index:10;
-  background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.18);
-  border-radius:6px;padding:14px 18px;
-  backdrop-filter:blur(12px);font-size:11px;max-width:260px;}
+/* ── Enhanced Cosmic Background ── */
+body{background:#060410 !important;}
+.cosmic-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;overflow:hidden;}
+.nebula-layer{position:absolute;top:0;left:0;width:100%;height:100%;
+  background-size:cover;background-position:center;
+  transition:transform .1s ease-out;will-change:transform;}
+.nebula-layer-1{background:
+  radial-gradient(ellipse 420px 320px at 50% 15%,rgba(122,74,240,.28),transparent 75%),
+  radial-gradient(ellipse 280px 240px at 75% 25%,rgba(212,160,80,.20),transparent 70%),
+  radial-gradient(ellipse 460px 360px at 90% 42%,rgba(240,200,120,.24),transparent 72%);
+  opacity:.9;}
+.nebula-layer-2{background:
+  radial-gradient(ellipse 340px 280px at 94% 64%,rgba(84,200,120,.18),transparent 70%),
+  radial-gradient(ellipse 260px 220px at 76% 82%,rgba(95,200,255,.20),transparent 68%),
+  radial-gradient(ellipse 360px 300px at 52% 90%,rgba(255,107,157,.22),transparent 70%);
+  opacity:.85;}
+.nebula-layer-3{background:
+  radial-gradient(ellipse 360px 300px at 28% 82%,rgba(107,190,255,.19),transparent 70%),
+  radial-gradient(ellipse 400px 340px at 14% 64%,rgba(168,122,219,.24),transparent 72%),
+  radial-gradient(ellipse 440px 360px at 10% 42%,rgba(226,58,78,.23),transparent 70%),
+  radial-gradient(ellipse 440px 340px at 29% 25%,rgba(155,88,224,.24),transparent 72%);
+  opacity:.88;}
+.nebula-layer-4{background:radial-gradient(ellipse 1200px 1000px at 50% 50%,rgba(40,30,60,0.65),transparent 85%);opacity:1;}
+.light-rays{position:absolute;top:-50%;left:-50%;width:200%;height:200%;
+  background:
+    linear-gradient(135deg,transparent 30%,rgba(212,160,80,0.08) 50%,transparent 70%),
+    linear-gradient(225deg,transparent 30%,rgba(122,74,240,0.06) 50%,transparent 70%),
+    linear-gradient(45deg,transparent 35%,rgba(95,200,255,0.05) 50%,transparent 65%);
+  opacity:.4;animation:rotateRays 120s linear infinite;pointer-events:none;}
+@keyframes rotateRays{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+#particlesCanvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;opacity:.6;}
+#graph{position:absolute;top:54px;left:0;right:0;bottom:0;background:transparent;z-index:5;}
+/* Enhanced starfield with brighter stars */
+#stars{position:absolute;top:54px;left:0;right:0;bottom:0;pointer-events:none;z-index:2;
+  background-image:
+    radial-gradient(0.7px 0.7px at 11% 17%,rgba(255,255,255,.90),transparent),
+    radial-gradient(0.8px 0.8px at 24% 73%,rgba(220,230,255,.82),transparent),
+    radial-gradient(0.6px 0.6px at 31% 41%,rgba(255,250,220,.78),transparent),
+    radial-gradient(0.8px 0.8px at 47% 88%,rgba(220,230,255,.70),transparent),
+    radial-gradient(0.7px 0.7px at 53% 9%,rgba(255,255,255,.82),transparent),
+    radial-gradient(0.7px 0.7px at 67% 31%,rgba(255,250,220,.78),transparent),
+    radial-gradient(0.6px 0.6px at 71% 64%,rgba(220,230,255,.72),transparent),
+    radial-gradient(0.8px 0.8px at 83% 22%,rgba(255,255,255,.78),transparent),
+    radial-gradient(0.7px 0.7px at 89% 56%,rgba(220,230,255,.68),transparent),
+    radial-gradient(0.6px 0.6px at 18% 92%,rgba(255,250,220,.72),transparent),
+    radial-gradient(1.4px 1.4px at 38% 58%,rgba(255,255,255,1),transparent),
+    radial-gradient(1.6px 1.6px at 78% 78%,rgba(255,250,220,1),transparent),
+    radial-gradient(1.3px 1.3px at 14% 36%,rgba(220,230,255,.95),transparent);
+  background-size:
+    600px 600px,800px 800px,700px 700px,900px 900px,
+    600px 600px,800px 800px,700px 700px,900px 900px,
+    600px 600px,800px 800px,
+    1200px 1200px,1400px 1400px,1100px 1100px;
+  background-repeat:repeat;opacity:.75;animation:twinkle 9s ease-in-out infinite;}
+@keyframes twinkle{0%,100%{opacity:.65}50%{opacity:.92}}
+#constellations{position:absolute;top:54px;left:0;right:0;bottom:0;pointer-events:none;z-index:3;opacity:.25;}
+/* Galaxy labels — large constellation names floating over each cluster */
+#galaxyLayer{position:absolute;top:54px;left:0;right:0;bottom:0;
+  pointer-events:none;overflow:hidden;z-index:6;}
+/* SVG layer for constellation lines connecting related galaxies */
+#constellationLayer{position:absolute;top:54px;left:0;right:0;bottom:0;
+  pointer-events:none;z-index:5;overflow:visible;width:100%;height:calc(100% - 54px);}
+body.embed #constellationLayer{top:0;height:100%;}
+#constellationLayer .const-line{stroke-dasharray:5,7;
+  stroke-linecap:round;fill:none;
+  filter:drop-shadow(0 0 6px currentColor) drop-shadow(0 0 14px currentColor);
+  opacity:.65;}
+#constellationLayer .const-dot{filter:drop-shadow(0 0 5px currentColor) drop-shadow(0 0 10px currentColor);}
+.const-name{position:absolute;transform:translate(-50%,-50%);
+  font-family:"Cormorant Garamond",serif;font-style:italic;font-weight:600;
+  letter-spacing:.32em;text-transform:uppercase;
+  pointer-events:none;user-select:none;text-align:center;
+  white-space:nowrap;
+  text-shadow:0 0 14px rgba(0,0,0,.95), 0 0 6px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,1);}
+.const-name .cn-jp{display:block;font-family:"Shippori Mincho",serif;
+  font-style:normal;font-weight:700;letter-spacing:.2em;
+  margin-top:4px;opacity:.95;
+  text-shadow:0 0 14px rgba(0,0,0,.95), 0 0 6px rgba(0,0,0,.85);}
+
+.galaxy-label{position:absolute;transform:translate(-50%,-50%);
+  font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:rgba(255,236,180,.95);letter-spacing:.26em;text-transform:uppercase;
+  white-space:nowrap;user-select:none;text-align:center;
+  padding:7px 16px;border-radius:16px;
+  background:rgba(10,8,20,.58);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  box-shadow:0 0 14px rgba(0,0,0,.5);
+  transition:opacity .3s, font-size .3s, background-color .2s;}
+.galaxy-label:hover{background:rgba(10,8,20,.85);}
+.galaxy-label .gx-jp{display:block;
+  font-family:"Shippori Mincho",serif;font-style:normal;font-weight:700;
+  color:rgba(255,255,255,.98);letter-spacing:.14em;
+  margin-top:5px;font-size:.62em;}
+body.embed #stars,body.embed #galaxyLayer{top:0;}
+.legend{position:fixed;bottom:60px;left:16px;z-index:10;
+  background:rgba(20,16,26,.95);border:1px solid rgba(212,160,80,.18);
+  border-radius:6px;padding:12px 16px;
+  backdrop-filter:blur(12px);font-size:11px;max-width:260px;
+  /* Hidden by default — visitor opens via the help button. Keeps the
+     initial canvas clean of corner clutter. */
+  display:none;}
+.legend.open{display:block;}
 .legend h3{font-family:"Cormorant Garamond",serif;font-style:italic;
   color:var(--amber);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
   margin-bottom:10px;}
@@ -216,9 +315,12 @@ body.embed #graph{top:0;}
 .info .close:hover{color:var(--amber)}
 
 .filter-panel{position:fixed;top:64px;left:16px;z-index:10;
-  background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.18);
+  background:rgba(20,16,26,.95);border:1px solid rgba(212,160,80,.18);
   border-radius:6px;padding:10px 14px;
-  backdrop-filter:blur(12px);max-width:260px;}
+  backdrop-filter:blur(12px);max-width:260px;
+  /* Collapsed by default on desktop too — visitor opens via the FAB. */
+  display:none;}
+.filter-panel.open{display:block;}
 .filter-panel h3{font-family:"Cormorant Garamond",serif;font-style:italic;
   font-size:11px;letter-spacing:.18em;text-transform:uppercase;
   color:var(--amber);margin-bottom:8px;}
@@ -235,13 +337,22 @@ body.embed #graph{top:0;}
 .filter-panel .toggle-all a{color:var(--amber);text-decoration:none;cursor:pointer;}
 .filter-panel .toggle-all a:hover{color:var(--paper)}
 
-.controls{position:fixed;bottom:16px;right:16px;z-index:10;
-  display:flex;flex-direction:column;gap:6px;}
-.controls button{background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.2);
-  color:var(--paper-dim);width:36px;height:36px;border-radius:4px;
-  font-family:"Inter",sans-serif;font-size:14px;cursor:pointer;
+.controls{position:fixed;bottom:18px;right:18px;z-index:10;
+  display:flex;flex-direction:column;gap:8px;}
+.controls button{background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.25);
+  color:var(--paper-dim);width:52px;height:52px;border-radius:6px;
+  font-family:"Inter",sans-serif;font-size:20px;cursor:pointer;
   transition:all .2s;backdrop-filter:blur(12px);}
-.controls button:hover{border-color:var(--amber);color:var(--paper);}
+.controls button:hover{border-color:var(--amber);color:var(--paper);
+  transform:translateY(-1px);box-shadow:0 4px 14px rgba(212,160,80,.3);}
+/* The dice is the primary CTA — slightly bigger + always-glowing border */
+.controls #dice{width:60px;height:60px;font-size:28px !important;
+  background:linear-gradient(180deg,rgba(122,42,58,.4),rgba(20,16,26,.95));
+  border:2px solid rgba(240,200,120,.55);
+  box-shadow:0 0 18px rgba(212,160,80,.35);}
+.controls #dice:hover{border-color:var(--amber);
+  box-shadow:0 0 26px rgba(212,160,80,.6);
+  transform:translateY(-2px);}
 
 .loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;
   background:rgba(20,16,26,.95);border:1px solid var(--amber);
@@ -250,7 +361,7 @@ body.embed #graph{top:0;}
   color:var(--amber);letter-spacing:.18em;}
 .loading.hidden{display:none}
 
-.suggestions{position:absolute;top:48px;left:18px;z-index:11;
+.suggestions{position:absolute;top:54px;left:18px;z-index:11;
   background:rgba(20,16,26,.97);border:1px solid rgba(212,160,80,.25);
   border-radius:4px;max-width:380px;max-height:380px;overflow-y:auto;
   display:none;}
@@ -266,19 +377,50 @@ body.embed #graph{top:0;}
 /* ── Gamification UI ─────────────────────────────── */
 .game-stats{display:flex;align-items:center;gap:10px;margin-left:auto;
   font-family:"Inter",sans-serif;}
+.loc-pin{display:inline-flex;align-items:center;gap:6px;
+  background:rgba(15,12,22,.85);
+  border:1px solid rgba(212,160,80,.3);border-radius:16px;
+  padding:5px 14px;font-family:"Shippori Mincho",serif;font-size:13.5px;
+  color:var(--paper);letter-spacing:.04em;cursor:default;
+  transition:all .2s;max-width:260px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.loc-pin .loc-icon{font-size:12px;flex-shrink:0;}
+.loc-pin .loc-text{font-weight:700;color:var(--amber-soft);
+  text-shadow:0 0 8px rgba(240,200,120,.35);}
+@media(max-width:780px){
+  .loc-pin{max-width:140px;font-size:11px;padding:2px 8px;}
+  .loc-pin .loc-text{font-size:10.5px;}
+}
+
+/* Selected-node ring on the canvas — shows the artist currently in
+   the info panel. Pulses gently so the visitor never loses sight of
+   where they are. */
+.selected-ring{position:fixed;pointer-events:none;z-index:7;
+  border-radius:50%;transform:translate(-50%,-50%);
+  border:2.5px solid var(--amber);
+  box-shadow:0 0 14px rgba(240,200,120,.7),
+             inset 0 0 10px rgba(240,200,120,.35);
+  animation:selRing 2.4s ease-in-out infinite;
+  display:none;}
+.selected-ring.active{display:block;}
+@keyframes selRing{
+  0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.9;}
+  50%   {transform:translate(-50%,-50%) scale(1.18);opacity:.55;}
+}
+
 .lv-badge{display:inline-flex;align-items:center;gap:6px;
   background:linear-gradient(135deg,rgba(122,42,58,.7),rgba(212,160,80,.3));
-  border:1px solid var(--amber);border-radius:14px;padding:3px 10px;
-  font-size:11px;letter-spacing:.06em;color:var(--paper);
+  border:1px solid var(--amber);border-radius:16px;padding:5px 12px;
+  font-size:12.5px;letter-spacing:.06em;color:var(--paper);
   box-shadow:0 0 12px rgba(212,160,80,.18);}
 .lv-badge .lv-num{color:var(--amber);font-weight:700;}
-.lv-badge .lv-title{font-family:"Shippori Mincho",serif;font-size:11.5px;}
+.lv-badge .lv-title{font-family:"Shippori Mincho",serif;font-size:13px;}
 .score-pill{display:inline-flex;align-items:center;gap:5px;
   background:rgba(28,20,40,.7);border:1px solid rgba(212,160,80,.2);
-  border-radius:14px;padding:3px 10px;font-size:11px;color:var(--paper-dim);
+  border-radius:16px;padding:5px 12px;font-size:12.5px;color:var(--paper-dim);
   font-variant-numeric:tabular-nums;}
 .score-pill .pts{color:var(--amber);font-weight:600;}
-.score-pill .progress{height:3px;width:60px;background:rgba(212,160,80,.15);
+.score-pill .progress{height:3px;width:64px;background:rgba(212,160,80,.15);
   border-radius:2px;overflow:hidden;margin-left:6px;}
 .score-pill .progress span{display:block;height:100%;
   background:linear-gradient(90deg,var(--amber),var(--amber-soft));
@@ -306,13 +448,15 @@ body.embed #graph{top:0;}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
 @keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateX(20px)}}
 
-.achv-panel{position:fixed;bottom:16px;right:64px;z-index:9;
-  background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.18);
-  border-radius:6px;padding:10px 14px;backdrop-filter:blur(12px);
-  font-family:"Inter",sans-serif;font-size:11px;color:var(--paper-dim);
-  cursor:pointer;transition:all .2s;}
-.achv-panel:hover{border-color:var(--amber);color:var(--paper);}
-.achv-panel .achv-count{color:var(--amber);font-weight:700;}
+.achv-panel{position:fixed;bottom:18px;right:90px;z-index:9;
+  background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.25);
+  border-radius:6px;padding:14px 18px;backdrop-filter:blur(12px);
+  font-family:"Inter",sans-serif;font-size:14px;color:var(--paper);
+  cursor:pointer;transition:all .2s;letter-spacing:.06em;
+  display:flex;align-items:center;gap:6px;height:52px;box-sizing:border-box;}
+.achv-panel:hover{border-color:var(--amber);color:var(--paper-soft);
+  transform:translateY(-1px);box-shadow:0 4px 14px rgba(212,160,80,.3);}
+.achv-panel .achv-count{color:var(--amber);font-weight:700;font-size:16px;}
 .achv-panel.minimized{padding:6px 10px;font-size:10px;}
 
 .achv-modal{position:fixed;inset:0;z-index:40;
@@ -355,6 +499,83 @@ body.embed #graph{top:0;}
 }
 .ripple.lvup{border-color:#bf8aff;}
 
+/* Hover halos — pulsing rings on hovered node + its neighbours */
+.halo-layer{position:fixed;inset:0;pointer-events:none;z-index:11;
+  overflow:hidden;}
+.halo{position:absolute;border-radius:50%;pointer-events:none;
+  transform:translate(-50%,-50%);}
+.halo.primary{
+  width:46px;height:46px;
+  border:2px solid var(--amber);
+  box-shadow:0 0 18px rgba(240,200,120,.55), inset 0 0 12px rgba(240,200,120,.25);
+  animation:haloPulse 1.6s ease-in-out infinite;}
+/* Comet trail on chain-navigation */
+.comet{position:fixed;pointer-events:none;z-index:14;
+  width:8px;height:8px;border-radius:50%;
+  background:radial-gradient(circle,#fff,#f0c878 40%,rgba(240,200,120,0));
+  box-shadow:0 0 14px #f0c878,0 0 30px rgba(240,200,120,.5);}
+.comet-tail{position:fixed;pointer-events:none;z-index:13;
+  height:2px;border-radius:1px;
+  background:linear-gradient(90deg,transparent,rgba(240,200,120,.7),rgba(240,200,120,.95));
+  box-shadow:0 0 8px rgba(240,200,120,.6);
+  transform-origin:left center;}
+.halo.neighbor{
+  width:24px;height:24px;
+  border:1.5px solid rgba(240,200,120,.5);
+  box-shadow:0 0 9px rgba(240,200,120,.3);
+  animation:haloPulse 1.8s ease-in-out infinite;
+  animation-delay:.2s;}
+@keyframes haloPulse{
+  0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.85}
+  50%    {transform:translate(-50%,-50%) scale(1.18);opacity:.45}
+}
+.halo-label{position:absolute;transform:translate(-50%,-100%);
+  margin-top:-30px;
+  font-family:"Shippori Mincho",serif;font-weight:700;font-size:12px;
+  color:var(--paper);background:rgba(15,12,22,.94);
+  border:1px solid rgba(240,200,120,.45);border-radius:4px;
+  padding:3px 9px;white-space:nowrap;
+  box-shadow:0 4px 10px rgba(0,0,0,.6);letter-spacing:.04em;
+  pointer-events:none;}
+.halo-label.primary{font-size:14px;
+  border-color:var(--amber);color:var(--amber-soft);
+  box-shadow:0 6px 14px rgba(0,0,0,.7), 0 0 12px rgba(240,200,120,.3);}
+.halo-label .hl-icon{margin-right:4px;}
+.halo-label .hl-yt{color:#ff7080;font-weight:900;}
+.halo-label .hl-hub{color:#ffd070;}
+.halo-label .hl-visited{color:#88e0a0;}
+
+/* Hub stars — twinkling sparkles overlaid on the highest-degree nodes,
+   replacing the plain circle with a real "star" feel. Rendered as
+   absolute-positioned SVG so they scale + rotate independently of the
+   WebGL canvas. */
+#hubLayer{position:absolute;top:54px;left:0;right:0;bottom:0;
+  pointer-events:none;z-index:5;overflow:hidden;}
+body.embed #hubLayer{top:0;}
+.hub-star{position:absolute;transform:translate(-50%,-50%);
+  pointer-events:none;will-change:opacity,transform;
+  filter:drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
+  animation:hubTwinkle 3s ease-in-out infinite;}
+.hub-star.lg{animation-duration:3.6s;}
+.hub-star.lg svg{width:18px;height:18px;}
+.hub-star.md svg{width:12px;height:12px;}
+.hub-star.sm svg{width:8px;height:8px;}
+@keyframes hubTwinkle{
+  0%,100%{opacity:.65;transform:translate(-50%,-50%) scale(.9) rotate(0deg);}
+  50%    {opacity:1.0;transform:translate(-50%,-50%) scale(1.15) rotate(8deg);}
+}
+.hub-star.visited{filter:drop-shadow(0 0 3px #88e0a0) drop-shadow(0 0 6px #88e0a0);
+  animation-duration:5s;}
+.hub-star.fav{filter:drop-shadow(0 0 4px #ffd870) drop-shadow(0 0 12px #ffd870)
+  drop-shadow(0 0 20px rgba(240,200,120,.6));
+  animation-duration:2.4s;}
+.hub-star.fav svg{color:#ffd870 !important;}
+/* Visited mark — a small ✓ ring overlay */
+.visited-mark{position:absolute;transform:translate(-50%,-50%);
+  pointer-events:none;width:6px;height:6px;border-radius:50%;
+  background:rgba(136,224,160,.8);
+  box-shadow:0 0 6px #88e0a0;}
+
 /* Hover tooltip — large legible name + meta floating over the canvas */
 .node-tip{position:fixed;pointer-events:none;z-index:9999;
   background:rgba(15,12,22,.98);border:1px solid var(--amber);
@@ -376,9 +597,452 @@ body.embed #graph{top:0;}
 .node-tip .tip-album{display:block;font-family:"Cormorant Garamond",serif;
   font-style:italic;font-weight:400;font-size:11.5px;color:var(--amber-soft);
   margin-top:4px;letter-spacing:.04em;}
+
+/* ─── History + Favorites drawer ────────────────────────────────
+   A tabbed panel listing the visitor's clicked artists chronologically
+   and their starred favorites. Anchored bottom-left on desktop, slide-up
+   bottom sheet on mobile. */
+.hist-fab{position:fixed;bottom:18px;right:380px;z-index:9;
+  width:52px;height:52px;border-radius:50%;
+  background:rgba(15,12,22,.92);border:1px solid rgba(212,160,80,.3);
+  color:var(--paper-dim);font-size:22px;cursor:pointer;
+  backdrop-filter:blur(12px);transition:all .2s;
+  display:flex;align-items:center;justify-content:center;}
+.hist-fab:hover{border-color:var(--amber);color:var(--paper);
+  box-shadow:0 0 14px rgba(212,160,80,.4);}
+.hist-fab .badge{position:absolute;top:-4px;right:-4px;
+  background:var(--amber);color:var(--night);
+  font-size:9px;font-weight:700;border-radius:9px;padding:1px 5px;
+  font-family:"Inter",sans-serif;letter-spacing:.04em;
+  border:1px solid rgba(0,0,0,.3);}
+
+.hist-panel{position:fixed;right:16px;bottom:60px;z-index:11;
+  width:320px;max-height:min(64vh,520px);
+  background:rgba(15,12,22,.97);border:1px solid var(--amber);
+  border-radius:8px;padding:0;display:none;flex-direction:column;
+  box-shadow:0 14px 36px rgba(0,0,0,.75), 0 0 18px rgba(212,160,80,.18);
+  backdrop-filter:blur(14px);overflow:hidden;}
+.hist-panel.open{display:flex;animation:miniIn .25s ease;}
+.hp-tabs{display:flex;border-bottom:1px solid rgba(212,160,80,.18);}
+.hp-tab{flex:1;padding:10px 4px;text-align:center;cursor:pointer;
+  font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--paper-dim);font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;transition:all .2s;
+  background:transparent;border:none;border-bottom:2px solid transparent;
+  white-space:nowrap;}
+.hp-tab.active{color:var(--amber);border-bottom-color:var(--amber);
+  background:linear-gradient(180deg,rgba(212,160,80,.06),transparent);}
+.hp-tab:hover{color:var(--paper);}
+.hp-toolbar{display:flex;gap:6px;padding:6px 10px;
+  border-bottom:1px solid rgba(212,160,80,.12);
+  background:rgba(20,16,26,.6);}
+.hp-tool-btn{flex:1;font-family:"Inter",sans-serif;font-size:11px;
+  padding:6px 10px;border-radius:3px;cursor:pointer;
+  background:transparent;border:1px solid rgba(212,160,80,.2);
+  color:var(--paper-dim);letter-spacing:.04em;transition:all .15s;}
+.hp-tool-btn:hover{border-color:var(--amber);color:var(--paper);}
+.hp-tool-btn:disabled{opacity:.35;cursor:not-allowed;}
+.hp-list{flex:1;overflow-y:auto;max-height:min(56vh,440px);}
+.hp-item .reason{display:block;font-family:"Cormorant Garamond",serif;
+  font-style:italic;font-size:10px;color:var(--ink-soft);
+  letter-spacing:.04em;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hp-item .score-tag{font-family:"Inter",sans-serif;font-size:9px;
+  font-weight:700;color:var(--amber);background:rgba(212,160,80,.12);
+  padding:2px 6px;border-radius:10px;letter-spacing:.04em;flex-shrink:0;}
+.hp-item{display:flex;align-items:center;gap:10px;
+  padding:8px 14px;border-bottom:1px solid rgba(212,160,80,.08);
+  cursor:pointer;transition:all .15s;}
+.hp-item:hover{background:rgba(122,42,58,.2);}
+.hp-item .swatch{width:8px;height:8px;border-radius:50%;flex-shrink:0;
+  box-shadow:0 0 6px currentColor;}
+.hp-item .label{flex:1;font-family:"Shippori Mincho",serif;font-size:12.5px;
+  color:var(--paper);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-weight:600;}
+.hp-item .sub{font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:10px;color:var(--ink-soft);letter-spacing:.04em;flex-shrink:0;}
+.hp-item .remove{font-family:"Inter",sans-serif;font-size:14px;line-height:1;
+  color:var(--ink-soft);background:transparent;border:none;cursor:pointer;
+  padding:4px 6px;border-radius:3px;}
+.hp-item .remove:hover{color:#e23a4e;background:rgba(226,58,78,.12);}
+.hp-empty{padding:30px 18px;text-align:center;color:var(--ink-soft);
+  font-family:"Shippori Mincho",serif;font-size:12px;line-height:1.7;}
+
+/* ★ Favorite toggle button inside info panel */
+.fav-btn{font-family:"Inter",sans-serif;font-size:13px;font-weight:700;
+  padding:8px 12px;border-radius:4px;cursor:pointer;
+  background:transparent;border:1px solid rgba(212,160,80,.3);
+  color:var(--paper-dim);transition:all .2s;}
+.fav-btn:hover{border-color:var(--amber);color:var(--paper);}
+.fav-btn.active{background:linear-gradient(180deg,#f5c878,#d4a050);
+  color:var(--night);border-color:#d4a050;
+  box-shadow:0 0 12px rgba(212,160,80,.5);}
+
+@media(max-width:780px){
+  .hist-fab{bottom:8px;left:60px;right:auto;width:44px;height:44px;font-size:18px;}
+  .hist-panel{left:8px;right:8px;width:auto;bottom:60px;
+    max-height:60vh;}
+}
+
+/* ─── Persistent mini-player ────────────────────────────────────
+   Detached YouTube iframe that keeps playing across node navigation.
+   Anchored bottom-left, draggable header, minimize + close buttons. */
+.mini-player{position:fixed;bottom:16px;left:286px;z-index:12;
+  width:328px;background:rgba(8,6,16,.98);border:1px solid var(--amber);
+  border-radius:6px;display:none;flex-direction:column;
+  box-shadow:0 14px 36px rgba(0,0,0,.75), 0 0 18px rgba(212,160,80,.18);
+  backdrop-filter:blur(14px);}
+.mini-player.open{display:flex;animation:miniIn .3s ease;}
+@keyframes miniIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.mini-player.minimized{height:32px;}
+.mini-player.minimized .mp-body{display:none;}
+.mp-head{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;
+  background:linear-gradient(180deg,rgba(122,42,58,.35),rgba(20,16,26,0));
+  border-bottom:1px solid rgba(212,160,80,.18);cursor:grab;user-select:none;}
+.mp-head:active{cursor:grabbing;}
+.mp-title{flex:1;font-family:"Shippori Mincho",serif;font-weight:700;
+  font-size:12px;color:var(--paper);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:0 1px 2px rgba(0,0,0,.7);}
+.mp-title .mp-yt-badge{display:inline-block;margin-right:6px;
+  font-family:"Inter",sans-serif;font-size:9px;font-weight:600;
+  color:#fff;background:#e23a4e;padding:1px 5px;border-radius:3px;
+  vertical-align:middle;}
+.mp-btn{background:transparent;border:none;color:var(--paper-dim);
+  cursor:pointer;font-size:13px;line-height:1;padding:4px 6px;
+  border-radius:3px;transition:all .15s;}
+.mp-btn:hover{color:var(--amber);background:rgba(212,160,80,.12);}
+.mp-body{aspect-ratio:16/9;width:100%;background:#000;overflow:hidden;
+  border-radius:0 0 5px 5px;}
+.mp-body iframe{width:100%;height:100%;border:0;display:block;}
+@media(max-width:780px){
+  .mini-player{width:280px;left:auto;right:16px;bottom:60px;}
+}
+
+/* ─── Guided tour ─────────────────────────────────────────────
+   Step-through onboarding: spotlight + tooltip card moves over each
+   UI element while a dark overlay dims everything else. */
+.tour-spot{position:fixed;z-index:78;pointer-events:none;
+  border-radius:12px;
+  box-shadow:0 0 0 9999px rgba(6,4,16,.86),
+             0 0 0 3px var(--amber),
+             0 0 22px rgba(240,200,120,.55);
+  transition:top .35s cubic-bezier(.2,.7,.3,1),
+             left .35s cubic-bezier(.2,.7,.3,1),
+             width .35s cubic-bezier(.2,.7,.3,1),
+             height .35s cubic-bezier(.2,.7,.3,1),
+             border-radius .25s;
+  display:none;}
+.tour-spot.active{display:block;animation:spotPulse 2.2s ease-in-out infinite;}
+.tour-spot.circle{border-radius:50%;}
+@keyframes spotPulse{
+  0%,100%{box-shadow:0 0 0 9999px rgba(6,4,16,.86),
+                     0 0 0 3px var(--amber),
+                     0 0 22px rgba(240,200,120,.55);}
+  50%   {box-shadow:0 0 0 9999px rgba(6,4,16,.86),
+                     0 0 0 4px var(--amber-soft),
+                     0 0 36px rgba(240,200,120,.85);}
+}
+.tour-card{position:fixed;z-index:79;
+  width:min(380px,calc(100vw - 32px));
+  background:rgba(20,16,26,.98);border:1px solid var(--amber);
+  border-radius:8px;padding:18px 22px;
+  box-shadow:0 18px 40px rgba(0,0,0,.7), 0 0 22px rgba(212,160,80,.22);
+  backdrop-filter:blur(14px);
+  font-family:"Shippori Mincho",serif;color:var(--paper);
+  display:none;}
+.tour-card.active{display:block;animation:fadein .3s ease;}
+.tour-card .tc-step{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--amber);font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;margin-bottom:4px;}
+.tour-card h3{font-family:"Shippori Mincho",serif;font-weight:700;
+  font-size:18px;color:var(--paper);margin-bottom:8px;
+  letter-spacing:.04em;line-height:1.4;}
+.tour-card .tc-body{font-size:13px;line-height:1.85;
+  color:var(--paper-dim);margin-bottom:16px;}
+.tour-card .tc-body em{font-style:normal;color:var(--amber);font-weight:600;}
+.tour-card .tc-body kbd{font-family:"Inter",sans-serif;font-size:11px;
+  padding:2px 6px;background:rgba(28,20,40,.7);border:1px solid rgba(212,160,80,.25);
+  border-radius:3px;color:var(--amber-soft);}
+.tour-nav{display:flex;align-items:center;gap:8px;}
+.tour-nav .tc-progress{flex:1;font-family:"Inter",sans-serif;font-size:11px;
+  color:var(--ink-soft);letter-spacing:.06em;}
+.tour-nav button{font-family:"Inter",sans-serif;font-size:12px;font-weight:700;
+  padding:8px 14px;border-radius:4px;cursor:pointer;
+  letter-spacing:.04em;transition:all .15s;border:1px solid transparent;
+  background:transparent;color:var(--paper-dim);}
+.tour-nav button.primary{background:linear-gradient(180deg,#f5c878,#d4a050);
+  color:var(--night);border-color:#d4a050;}
+.tour-nav button.primary:hover{background:linear-gradient(180deg,#ffd890,#e0b060);
+  transform:translateY(-1px);box-shadow:0 4px 12px rgba(212,160,80,.4);}
+.tour-nav button.ghost{border-color:rgba(212,160,80,.3);}
+.tour-nav button.ghost:hover{border-color:var(--amber);color:var(--paper);}
+.tour-skip{position:absolute;top:8px;right:12px;
+  background:transparent;border:none;color:var(--ink-soft);
+  font-size:11px;font-family:"Inter",sans-serif;cursor:pointer;
+  letter-spacing:.06em;padding:4px 6px;}
+.tour-skip:hover{color:var(--amber);}
+
+/* Copyright notice — bottom-center, subtle, single line on desktop */
+.copyright{position:fixed;bottom:6px;left:50%;transform:translateX(-50%);
+  z-index:6;pointer-events:none;
+  font-family:"Cormorant Garamond",serif;font-style:italic;
+  font-size:10.5px;color:rgba(200,184,154,.55);letter-spacing:.04em;
+  background:rgba(10,8,20,.5);backdrop-filter:blur(4px);
+  padding:3px 14px;border-radius:14px;
+  white-space:nowrap;max-width:calc(100vw - 32px);
+  overflow:hidden;text-overflow:ellipsis;}
+.copyright a{color:rgba(240,200,120,.75);pointer-events:auto;
+  text-decoration:none;}
+.copyright a:hover{color:var(--amber-soft);text-decoration:underline;}
+@media(max-width:780px){
+  .copyright{font-size:9px;padding:2px 10px;bottom:auto;top:4px;
+    left:50%;transform:translateX(-50%);
+    background:rgba(10,8,20,.7);}
+}
+body.embed .copyright{display:none;}  /* hide inside salon iframe */
+
+/* ─── Onboarding: welcome modal + dice hint + help button ─────── */
+.welcome-modal{position:fixed;inset:0;z-index:80;
+  background:radial-gradient(ellipse 70% 50% at 50% 40%,rgba(40,30,60,.6),rgba(0,0,0,.85));
+  display:none;align-items:center;justify-content:center;
+  backdrop-filter:blur(8px);animation:welcomeFade .5s ease;}
+.welcome-modal.open{display:flex;}
+@keyframes welcomeFade{from{opacity:0}to{opacity:1}}
+.welcome-card{position:relative;width:min(560px,92vw);
+  background:linear-gradient(180deg,rgba(28,20,40,.98),rgba(20,16,26,.98));
+  border:1px solid var(--amber);border-radius:10px;
+  padding:38px 40px 32px;text-align:center;
+  box-shadow:0 30px 80px rgba(0,0,0,.7), 0 0 40px rgba(212,160,80,.18);}
+.welcome-card .eyebrow{font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--amber);letter-spacing:.32em;text-transform:uppercase;font-size:12px;
+  margin-bottom:8px;}
+.welcome-card h1{font-family:"Shippori Mincho",serif;font-weight:700;
+  font-size:28px;color:var(--paper);margin-bottom:8px;line-height:1.3;
+  text-shadow:0 0 18px rgba(240,200,120,.25);}
+.welcome-card h1 em{font-style:normal;color:var(--amber-soft);}
+.welcome-card .sub{font-family:"Shippori Mincho",serif;font-size:13px;
+  color:var(--paper-dim);line-height:1.9;margin-bottom:24px;}
+.welcome-steps{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:26px;
+  text-align:left;}
+.welcome-step{display:flex;align-items:flex-start;gap:14px;
+  padding:12px 14px;background:rgba(15,12,22,.7);
+  border:1px solid rgba(212,160,80,.18);border-radius:6px;
+  font-family:"Shippori Mincho",serif;}
+.welcome-step .ws-icon{font-size:24px;width:36px;flex-shrink:0;text-align:center;
+  filter:drop-shadow(0 0 6px currentColor);}
+.welcome-step.s1 .ws-icon{color:#f0c878}
+.welcome-step.s2 .ws-icon{color:#ff7080}
+.welcome-step.s3 .ws-icon{color:#bf8aff}
+.welcome-step .ws-text{flex:1;}
+.welcome-step .ws-title{font-weight:700;color:var(--paper);font-size:14px;
+  margin-bottom:3px;letter-spacing:.04em;}
+.welcome-step .ws-desc{font-size:11.5px;color:var(--paper-dim);line-height:1.7;}
+.welcome-actions{display:flex;gap:10px;justify-content:center;}
+.welcome-btn{font-family:"Inter",sans-serif;font-size:13.5px;font-weight:700;
+  padding:13px 28px;border-radius:4px;cursor:pointer;border:none;
+  letter-spacing:.06em;transition:all .2s;display:inline-block;
+  text-decoration:none;}
+.welcome-btn.primary{background:linear-gradient(180deg,#f5c878,#d4a050);
+  color:var(--night);border:1px solid #d4a050;
+  box-shadow:0 4px 14px rgba(212,160,80,.4);}
+.welcome-btn.primary:hover{background:linear-gradient(180deg,#ffd890,#e0b060);
+  transform:translateY(-2px);box-shadow:0 8px 22px rgba(212,160,80,.55);}
+.welcome-btn.ghost{background:transparent;color:var(--paper-dim);
+  border:1px solid rgba(212,160,80,.3);}
+.welcome-btn.ghost:hover{color:var(--paper);border-color:var(--amber);}
+
+/* Dice pulse hint — pulsing ring around the 🎲 button until user clicks once */
+.dice-hint{position:fixed;bottom:16px;right:16px;width:36px;height:36px;
+  border-radius:4px;pointer-events:none;z-index:9;
+  border:2px solid var(--amber);
+  box-shadow:0 0 18px rgba(240,200,120,.6);
+  animation:diceHintPulse 1.6s ease-in-out infinite;}
+@keyframes diceHintPulse{
+  0%,100%{transform:scale(1);opacity:.85;}
+  50%{transform:scale(1.18);opacity:.4;}
+}
+.dice-hint-arrow{position:fixed;bottom:60px;right:24px;z-index:9;
+  font-family:"Cormorant Garamond",serif;font-style:italic;
+  color:var(--amber);font-size:13px;pointer-events:none;
+  text-shadow:0 0 8px rgba(0,0,0,.9), 0 2px 4px rgba(0,0,0,.7);
+  white-space:nowrap;animation:diceHintPulse 2.2s ease-in-out infinite;}
+.dice-hint-arrow::after{content:" ↓";color:var(--amber-soft);font-style:normal;}
+
+/* Persistent help (?) button */
+.help-btn{position:fixed;bottom:18px;right:318px;z-index:9;
+  width:52px;height:52px;border-radius:50%;
+  background:rgba(20,16,26,.92);border:1px solid rgba(212,160,80,.3);
+  color:var(--paper-dim);font-family:"Shippori Mincho",serif;
+  font-size:26px;font-weight:700;cursor:pointer;
+  backdrop-filter:blur(12px);transition:all .2s;
+  display:flex;align-items:center;justify-content:center;}
+.help-btn:hover{border-color:var(--amber);color:var(--paper);
+  box-shadow:0 0 14px rgba(212,160,80,.4);}
+
+/* ─── Mobile (≤780px) — compact layout, touch-friendly targets ──── */
+@media(max-width:780px){
+  /* Top bar: shrink, hide search by default, hide game-stats labels */
+  .bar{padding:0 10px;height:44px;gap:8px;}
+  .brand{font-size:14px;gap:5px;}
+  .bar a{font-size:11px;}
+  .search{max-width:none;height:30px;padding:0 10px;flex:1;}
+  .search input{font-size:12px;}
+  .game-stats{gap:6px;}
+  .lv-badge{padding:2px 8px;font-size:10px;}
+  .lv-badge .lv-title{display:none;}  /* show only Lv number */
+  .score-pill{padding:2px 7px;font-size:10px;}
+  .score-pill .progress{width:32px;}
+  .score-pill[title*="出会"]{display:none;}  /* hide "出会 N / total" pill */
+
+  /* Filter panel becomes a slide-up bottom drawer (hidden by default) */
+  .filter-panel{position:fixed;top:auto;left:0;right:0;bottom:0;
+    max-width:none;width:100%;border-radius:8px 8px 0 0;
+    transform:translateY(calc(100% - 36px));transition:transform .3s ease;
+    padding:8px 14px 14px;max-height:60vh;overflow-y:auto;}
+  .filter-panel.open{transform:translateY(0);}
+  .filter-panel h3{position:relative;text-align:center;padding-top:4px;
+    cursor:pointer;}
+  .filter-panel h3::before{content:"▲";display:block;font-size:8px;
+    color:var(--ink-soft);margin-bottom:4px;transform:rotate(0deg);transition:transform .3s;}
+  .filter-panel.open h3::before{transform:rotate(180deg);}
+
+  /* Info panel becomes a full-width bottom sheet */
+  .info{position:fixed;top:auto;left:0;right:0;bottom:0;
+    width:auto;max-width:none;border-radius:8px 8px 0 0;
+    border-left:none;border-right:none;border-bottom:none;
+    padding:14px 16px 18px;
+    max-height:62vh;overflow-y:auto;
+    transform:translateY(0);}
+  .info .name{font-size:16px;padding-right:36px;}
+  .info .close{top:10px;right:14px;font-size:24px;padding:6px 10px;}
+  .info .player{aspect-ratio:16/9;}
+
+  /* Legend: hide on mobile (info panel handles legibility) */
+  .legend{display:none;}
+
+  /* Achievement panel: smaller, top-right */
+  .achv-panel{bottom:auto;top:54px;right:8px;padding:6px 10px;font-size:10px;}
+
+  /* Controls (dice / zoom / help): smaller, smaller buttons */
+  .controls{bottom:8px;right:8px;gap:4px;}
+  .controls button{width:44px;height:44px;font-size:16px;}  /* 44px tap target */
+  .help-btn{bottom:8px;right:auto;left:8px;width:44px;height:44px;font-size:20px;}
+
+  /* Mini-player: smaller, top-center floating */
+  .mini-player{left:auto;right:8px;bottom:auto;top:96px;width:calc(100vw - 100px);max-width:280px;}
+
+  /* Galaxy labels: smaller font on mobile (avoid overlap) */
+  .galaxy-label{font-size:11px !important;letter-spacing:.2em;}
+  .galaxy-label .gx-jp{font-size:.5em;letter-spacing:.1em;}
+
+  /* Hub stars: smaller on mobile to reduce clutter */
+  .hub-star.lg svg{width:14px;height:14px;}
+  .hub-star.md svg{width:10px;height:10px;}
+  .hub-star.sm svg{width:7px;height:7px;}
+
+  /* Welcome modal: tighter padding, smaller text */
+  .welcome-card{padding:24px 22px 22px;}
+  .welcome-card h1{font-size:20px;line-height:1.35;}
+  .welcome-card .sub{font-size:12px;line-height:1.7;}
+  .welcome-card .eyebrow{font-size:10px;letter-spacing:.24em;margin-bottom:6px;}
+  .welcome-step{padding:10px 12px;gap:10px;}
+  .welcome-step .ws-icon{font-size:20px;width:30px;}
+  .welcome-step .ws-title{font-size:13px;}
+  .welcome-step .ws-desc{font-size:11px;line-height:1.6;}
+  .welcome-btn{padding:12px 22px;font-size:13px;}
+
+  /* Node tip on touch: bigger, centered above tap point */
+  .node-tip{max-width:calc(100vw - 24px);font-size:13px;padding:8px 14px;}
+
+  /* Halo neighbour labels too noisy on small screens — limit visibility */
+  .halo-label{font-size:11px;}
+
+  /* Dice hint arrow further from edge so it's visible */
+  .dice-hint{right:8px;bottom:8px;width:44px;height:44px;}
+  .dice-hint-arrow{right:18px;bottom:60px;}
+
+  #filterToggle{bottom:60px;left:8px;width:44px;height:44px;font-size:18px;}
+}
+/* Filter toggle FAB — visible on desktop too now that the panel
+   defaults to collapsed. Discreet badge bottom-left. */
+#filterToggle{position:fixed;bottom:18px;left:18px;z-index:8;
+  width:52px;height:52px;border-radius:50%;
+  background:rgba(15,12,22,.92);border:1px solid rgba(212,160,80,.3);
+  color:var(--paper-dim);font-size:24px;cursor:pointer;
+  backdrop-filter:blur(12px);display:flex;
+  align-items:center;justify-content:center;transition:all .2s;}
+#filterToggle:hover{border-color:var(--amber);color:var(--paper);
+  box-shadow:0 0 14px rgba(212,160,80,.4);}
+#filterToggle.active{background:linear-gradient(180deg,#f5c878,#d4a050);
+  color:var(--night);border-color:#d4a050;}
+
+/* Stronger backdrop blur + slightly more opaque panels for legibility */
+.legend{background:rgba(15,12,22,.95) !important;}
+.filter-panel{background:rgba(15,12,22,.95) !important;}
+.info{background:rgba(15,12,22,.98) !important;}
+.achv-panel{background:rgba(15,12,22,.95) !important;}
+.controls button{background:rgba(15,12,22,.95) !important;}
+/* Header bar more solid for readability against bright nebulae */
+.bar{background:linear-gradient(180deg,rgba(8,6,16,.97),rgba(8,6,16,.75)) !important;}
+.legend .row,.filter-panel .item{color:#d4c8b0;}
 </style>
 </head>
 <body>
+
+<!-- Enhanced cosmic background -->
+<div class="cosmic-bg">
+  <div class="nebula-layer nebula-layer-1" data-speed="0.5"></div>
+  <div class="nebula-layer nebula-layer-2" data-speed="0.3"></div>
+  <div class="nebula-layer nebula-layer-3" data-speed="0.2"></div>
+  <div class="nebula-layer nebula-layer-4" data-speed="0.1"></div>
+  <div class="light-rays"></div>
+  <canvas id="particlesCanvas"></canvas>
+</div>
+
+<!-- SVG constellation overlay -->
+<svg id="constellations" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="constellation-glow">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g opacity="0.4" filter="url(#constellation-glow)">
+    <circle cx="12%" cy="20%" r="1.5" fill="rgba(255,250,220,0.9)"/>
+    <circle cx="15%" cy="25%" r="1.2" fill="rgba(255,250,220,0.85)"/>
+    <circle cx="18%" cy="22%" r="1.3" fill="rgba(255,250,220,0.88)"/>
+    <circle cx="14%" cy="30%" r="1.6" fill="rgba(255,250,220,0.95)"/>
+    <circle cx="17%" cy="32%" r="1.4" fill="rgba(255,250,220,0.9)"/>
+    <line x1="12%" y1="20%" x2="15%" y2="25%" stroke="rgba(255,250,220,0.3)" stroke-width="0.5"/>
+    <line x1="15%" y1="25%" x2="18%" y2="22%" stroke="rgba(255,250,220,0.3)" stroke-width="0.5"/>
+    <line x1="15%" y1="25%" x2="14%" y2="30%" stroke="rgba(255,250,220,0.3)" stroke-width="0.5"/>
+    <line x1="14%" y1="30%" x2="17%" y2="32%" stroke="rgba(255,250,220,0.3)" stroke-width="0.5"/>
+  </g>
+  <g opacity="0.35" filter="url(#constellation-glow)">
+    <circle cx="75%" cy="18%" r="1.4" fill="rgba(220,230,255,0.9)"/>
+    <circle cx="78%" cy="22%" r="1.3" fill="rgba(220,230,255,0.85)"/>
+    <circle cx="80%" cy="19%" r="1.5" fill="rgba(220,230,255,0.92)"/>
+    <circle cx="83%" cy="24%" r="1.2" fill="rgba(220,230,255,0.88)"/>
+    <circle cx="85%" cy="20%" r="1.3" fill="rgba(220,230,255,0.9)"/>
+    <line x1="75%" y1="18%" x2="78%" y2="22%" stroke="rgba(220,230,255,0.28)" stroke-width="0.5"/>
+    <line x1="78%" y1="22%" x2="80%" y2="19%" stroke="rgba(220,230,255,0.28)" stroke-width="0.5"/>
+    <line x1="80%" y1="19%" x2="83%" y2="24%" stroke="rgba(220,230,255,0.28)" stroke-width="0.5"/>
+    <line x1="83%" y1="24%" x2="85%" y2="20%" stroke="rgba(220,230,255,0.28)" stroke-width="0.5"/>
+  </g>
+  <g opacity="0.32" filter="url(#constellation-glow)">
+    <circle cx="50%" cy="8%" r="1.8" fill="rgba(255,255,255,1)"/>
+    <circle cx="52%" cy="12%" r="1.2" fill="rgba(255,250,220,0.85)"/>
+    <circle cx="48%" cy="13%" r="1.3" fill="rgba(255,250,220,0.88)"/>
+    <circle cx="50%" cy="16%" r="1.4" fill="rgba(255,250,220,0.9)"/>
+    <line x1="50%" y1="8%" x2="52%" y2="12%" stroke="rgba(255,250,220,0.25)" stroke-width="0.5"/>
+    <line x1="52%" y1="12%" x2="50%" y2="16%" stroke="rgba(255,250,220,0.25)" stroke-width="0.5"/>
+    <line x1="48%" y1="13%" x2="50%" y2="16%" stroke="rgba(255,250,220,0.25)" stroke-width="0.5"/>
+  </g>
+</svg>
 
 <header class="bar">
   <a href="index.html" class="brand">◐ Views Engineer</a>
@@ -387,6 +1051,7 @@ body.embed #graph{top:0;}
     <input id="searchInput" type="text" placeholder="アーティスト検索 / search artists..." autocomplete="off"/>
   </div>
   <div class="game-stats">
+    <span class="loc-pin" id="locPin" title="いま見ている銀河"><span class="loc-icon">📍</span><span class="loc-text">音楽宇宙</span></span>
     <span class="lv-badge" id="lvBadge" title="クリックで実績一覧">
       <span class="lv-num" id="lvNum">1</span>
       <span class="lv-title" id="lvTitle">旅人</span>
@@ -424,7 +1089,11 @@ body.embed #graph{top:0;}
 
 <div id="suggestions" class="suggestions"></div>
 
+<div id="stars"></div>
 <div id="graph"></div>
+<div id="hubLayer"></div>
+<svg id="constellationLayer"></svg>
+<div id="galaxyLayer"></div>
 
 <div class="legend">
   <h3>Discovery Map · 出会いの地図</h3>
@@ -443,6 +1112,7 @@ body.embed #graph{top:0;}
   <div class="play-row">
     <button class="play-btn" id="playBtn" type="button">▶ 即試聴</button>
     <button class="play-btn chain" id="chainBtn" type="button" style="background:linear-gradient(180deg,#7a4af0,#5028a8);border-color:#5028a8;display:none">つぎへ →</button>
+    <button class="fav-btn" id="favBtn" type="button" title="お気に入りに追加">☆</button>
   </div>
   <div class="player" id="infoPlayer"></div>
   <div class="meta" id="infoMeta"></div>
@@ -467,8 +1137,108 @@ body.embed #graph{top:0;}
   <button id="zoomReset" title="リセット">⊙</button>
 </div>
 
+<div class="halo-layer" id="haloLayer"></div>
+<div class="selected-ring" id="selectedRing"></div>
 <div class="node-tip" id="nodeTip"></div>
 <div class="loading" id="loading">universe loading…</div>
+
+<!-- Persistent mini-player. Stays playing while the visitor explores
+     other nodes — closing the info panel does NOT stop it. -->
+<div class="mini-player" id="miniPlayer">
+  <div class="mp-head" id="mpHead">
+    <span class="mp-title" id="mpTitle"></span>
+    <button class="mp-btn" id="mpLock" title="クリックしても切り替えない (BG固定)">🔓</button>
+    <button class="mp-btn" id="mpMinimize" title="最小化">―</button>
+    <button class="mp-btn" id="mpClose" title="閉じる">×</button>
+  </div>
+  <div class="mp-body" id="mpBody"></div>
+</div>
+
+<!-- Welcome / onboarding modal -->
+<div class="welcome-modal" id="welcomeModal">
+  <div class="welcome-card">
+    <div class="eyebrow">Welcome · ようこそ</div>
+    <h1>音楽宇宙へ、 <em>はじめての一歩</em>。</h1>
+    <p class="sub">
+      19,810 アーティスト × 42,744 関連の宇宙地図。<br>
+      まだ知らない、 でもきっと好きになる音楽との出会いをデザインしました。<br>
+      下の <strong>3 つの操作</strong> だけ覚えれば、 あとは漂うだけです。
+    </p>
+    <div class="welcome-steps">
+      <div class="welcome-step s1">
+        <div class="ws-icon">🎲</div>
+        <div class="ws-text">
+          <div class="ws-title">サイコロを振る</div>
+          <div class="ws-desc">右下の 🎲 ボタンで、 まだ訪れていないアーティストへランダムに飛ぶ。 迷ったらまずこれ。</div>
+        </div>
+      </div>
+      <div class="welcome-step s2">
+        <div class="ws-icon">✦</div>
+        <div class="ws-text">
+          <div class="ws-title">星をクリック</div>
+          <div class="ws-desc">気になる点をクリックすると、 即座に YouTube で再生 + 推奨アルバムが表示。 訪問した分だけスコアが上がります。</div>
+        </div>
+      </div>
+      <div class="welcome-step s3">
+        <div class="ws-icon">→</div>
+        <div class="ws-text">
+          <div class="ws-title">「つぎへ →」 で旅する</div>
+          <div class="ws-desc">情報パネルの紫ボタンで、 関連する作家へ連鎖。 連鎖が長いほど発見ボーナスが大きい。</div>
+        </div>
+      </div>
+    </div>
+    <div class="welcome-actions">
+      <button class="welcome-btn primary" id="welcomeStart">▶ 機能ツアーを始める</button>
+      <button class="welcome-btn ghost" id="welcomeSkip">スキップ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Persistent help button (re-opens the welcome modal) -->
+<button class="help-btn" id="helpBtn" title="使い方を見る">？</button>
+
+<!-- Guided tour overlay: dark backdrop with a spotlight + tooltip card.
+     Driven by TOUR_STEPS in JS. -->
+<div class="tour-spot" id="tourSpot"></div>
+<div class="tour-card" id="tourCard">
+  <button class="tour-skip" id="tourSkip">スキップ ×</button>
+  <div class="tc-step" id="tcStep">Step 1</div>
+  <h3 id="tcTitle"></h3>
+  <div class="tc-body" id="tcBody"></div>
+  <div class="tour-nav">
+    <span class="tc-progress" id="tcProgress"></span>
+    <button class="ghost" id="tourPrev">← 戻る</button>
+    <button class="primary" id="tourNext">次へ →</button>
+  </div>
+</div>
+
+<!-- Copyright notice -->
+<div class="copyright" id="copyright">
+  © 2026 <a href="https://yuichi916.github.io/" target="_blank" rel="noopener">Views Engineer</a> ·
+  Music data from MusicBrainz, Last.fm, Wikipedia.
+  Built with <a href="https://www.sigmajs.org/" target="_blank" rel="noopener">Sigma.js</a>.
+  All artist names, album titles, and YouTube content remain the property of their respective owners.
+</div>
+
+<!-- Mobile-only filter toggle FAB (hidden on desktop) -->
+<button id="filterToggle" title="ジャンルフィルター">⛬</button>
+
+<!-- History + Favorites FAB and drawer panel -->
+<button class="hist-fab" id="histFab" title="履歴とお気に入り">📜<span class="badge" id="histBadge">0</span></button>
+<div class="hist-panel" id="histPanel">
+  <div class="hp-tabs">
+    <button class="hp-tab active" id="hpTabHistory" type="button">📜 履歴</button>
+    <button class="hp-tab" id="hpTabFavorites" type="button">★ お気に入り</button>
+    <button class="hp-tab" id="hpTabRecs" type="button">✨ おすすめ</button>
+  </div>
+  <div class="hp-toolbar" id="hpToolbar">
+    <button class="hp-tool-btn" id="hpDownload" type="button" title="履歴+お気に入りを JSON でダウンロード">📥 DL</button>
+    <button class="hp-tool-btn" id="hpUpload" type="button" title="JSON ファイルを読み込み (移行・復元)">📤 読込</button>
+    <button class="hp-tool-btn" id="hpClear" type="button" title="このタブの内容をクリア">🗑 クリア</button>
+  </div>
+  <input type="file" id="hpUploadFile" accept="application/json,.json" style="display:none">
+  <div class="hp-list" id="hpList"></div>
+</div>
 
 <script>
 // Genre color palette
@@ -515,17 +1285,24 @@ function buildGraph(data) {
   const g = new Graph({ type: 'undirected', multi: false });
   for (const n of data.nodes) {
     const color = GENRE_COLORS[n.genre] || GENRE_COLORS.unknown;
+    const deg = n.degree || 0;
+    const isHub = deg >= 18;
+    // Hubs render with a brighter fill so they pop visually as "popular"
+    const fill = isHub
+      ? mixColor(color, '#ffffff', 0.18)
+      : color;
     g.addNode(n.id, {
       label: n.name,
       x: n.x ?? Math.random() * 100 - 50,
       y: n.y ?? Math.random() * 100 - 50,
-      size: n.r ?? 2.5,
-      color: color,
-      origColor: color,
+      size: isHub ? (n.r ?? 2.5) * 1.4 : (n.r ?? 2.5),
+      color: fill,
+      origColor: fill,
       genre: n.genre,
       inCollection: n.in_collection,
       album: n.album,
-      degree: n.degree,
+      degree: deg,
+      isHub: isHub,
       yt: n.yt,
       asin: n.asin,
       origin: n.origin,
@@ -572,18 +1349,66 @@ try {
     const loaded = JSON.parse(raw);
     state = { ...state, ...loaded };
   }
-} catch {}
+} catch (e) {
+  // Silently ignore localStorage errors
+}
 let visited = new Set(state.visited || []);
 let earnedAchv = new Set(state.achievements || []);
 let genreSet = new Set(state.genresVisited || []);
+// Chronological visit history (most recent first), kept de-duped to most-recent
+// occurrence of each artist
+state.visitHistory = state.visitHistory || [];   // [{id, label, t}]
+state.favorites = state.favorites || [];          // [id]
+let favorites = new Set(state.favorites);
 let lastClickViaChain = false;  // set by chainBtn handler before focusNode
 
 function saveState(){
   state.visited = [...visited];
   state.achievements = [...earnedAchv];
   state.genresVisited = [...genreSet];
+  state.favorites = [...favorites];
   state.lastVisit = Date.now();
-  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch (e) {
+    // Silently ignore localStorage errors
+  }
+}
+
+// Push a visit to the chronological history (most recent first; keep latest 200)
+function pushHistory(id, label){
+  if (!state.visitHistory) state.visitHistory = [];
+  // Remove existing occurrence so it floats to the top
+  state.visitHistory = state.visitHistory.filter(h => h.id !== id);
+  state.visitHistory.unshift({ id, label, t: Date.now() });
+  if (state.visitHistory.length > 200) state.visitHistory.length = 200;
+}
+
+function toggleFavorite(id, label){
+  if (favorites.has(id)){
+    favorites.delete(id);
+    toast('score', `<span class="pts">★</span> お気に入りから外しました — ${label}`);
+  } else {
+    favorites.add(id);
+    toast('score', `<span class="pts">★</span> お気に入りに追加 — ${label}`);
+  }
+  saveState();
+  refreshFavoritesUI();
+  refreshHubStars();  // favorited stars get gold ring
+  if (sigma) sigma.refresh();
+}
+
+function refreshFavoritesUI(){
+  const favBtn = document.getElementById('favBtn');
+  if (!favBtn || !currentNodeId) return;
+  if (favorites.has(currentNodeId)){
+    favBtn.classList.add('active');
+    favBtn.textContent = '★';
+    favBtn.title = 'クリックでお気に入りから外す';
+  } else {
+    favBtn.classList.remove('active');
+    favBtn.textContent = '☆';
+    favBtn.title = 'クリックでお気に入りに追加';
+  }
+  document.getElementById('histBadge').textContent = favorites.size || 0;
 }
 
 // ─── Levels ──────────────────────────────────────────────────────────
@@ -683,6 +1508,7 @@ function awardClick(id){
     if (a.genre) genreSet.add(a.genre);
   }
   visited.add(id);
+  pushHistory(id, a.label);
   state.score = (state.score || 0) + pts;
   if (isNew && pts > 0){
     toast('score', `<span class="pts">+${pts}</span> pts <span style="color:var(--ink-soft);font-size:11.5px;margin-left:8px">${bits.join(' · ')}</span>`);
@@ -708,6 +1534,8 @@ function awardClick(id){
   lastClickViaChain = false;
   // Refresh sigma to update visited muting + level gating
   if (sigma) sigma.refresh();
+  // Refresh the hub-star overlay so newly-visited hubs flip to green
+  refreshHubStars();
 }
 
 function refreshGameUI(){
@@ -754,24 +1582,65 @@ function markVisited(id){
   awardClick(id);
 }
 
+// Hub-star refresh after any state change. Defined late so closures resolve.
+function refreshHubStars(){
+  if (window.placeHubStars) window.placeHubStars();
+}
+
+// "Selected node" ring overlay — pulses around the artist currently
+// in the info panel so the visitor always sees their position.
+let _selectedNodeId = null;
+function placeSelectedRing(){
+  const ring = document.getElementById('selectedRing');
+  if (!ring) return;
+  if (!_selectedNodeId || !graph || !graph.hasNode(_selectedNodeId)){
+    ring.classList.remove('active');
+    return;
+  }
+  const a = graph.getNodeAttributes(_selectedNodeId);
+  if (a.hidden){ ring.classList.remove('active'); return; }
+  const v = sigma.graphToViewport({ x: a.x, y: a.y });
+  // graphToViewport returns container-local coords; ring uses position:fixed
+  // (window-anchored), so add the container's offset.
+  const rect = sigma.getContainer().getBoundingClientRect();
+  const sx = rect.left + v.x;
+  const sy = rect.top  + v.y;
+  // Hide if outside the visible window
+  if (sx < -60 || sx > window.innerWidth + 60 ||
+      sy < -60 || sy > window.innerHeight + 60){
+    ring.classList.remove('active'); return;
+  }
+  // Ring size scales with current camera ratio so it tracks node size
+  const ratio = sigma.getCamera().getState().ratio;
+  const baseR = (a.size || 3);
+  const sz = Math.max(20, Math.min(80, baseR * 5 / Math.sqrt(ratio + 0.1)));
+  ring.style.left = sx + 'px';
+  ring.style.top  = sy + 'px';
+  ring.style.width  = sz + 'px';
+  ring.style.height = sz + 'px';
+  ring.classList.add('active');
+}
+
 // Detect embed mode (when iframed from salon.html with ?embed=1)
 if (new URLSearchParams(location.search).get('embed') === '1'){
   document.body.classList.add('embed');
 }
 
+// Touch / mobile detection — used to skip heavy effects on phones.
+const IS_TOUCH = matchMedia('(hover: none)').matches || 'ontouchstart' in window;
+const IS_MOBILE = matchMedia('(max-width:780px)').matches;
+if (IS_TOUCH) document.body.classList.add('touch');
+if (IS_MOBILE) document.body.classList.add('mobile');
+
 async function main() {
+
   const data = await loadGraph();
   graph = buildGraph(data);
 
-  // Spread overlapping nodes apart while preserving the layout structure.
-  try {
-    if (window.graphologyLibrary && window.graphologyLibrary.NoverlapLayout){
-      window.graphologyLibrary.NoverlapLayout.assign(graph, {
-        maxIterations: 80,
-        settings: { margin: 1.5, ratio: 1.2, expansion: 1.05, gridSize: 24, speed: 3 },
-      });
-    }
-  } catch (e) { console.warn('noverlap failed', e); }
+  // Note: the Python cluster_layout.py already runs a per-galaxy noverlap
+  // pass that respects the genre-ring layout. We DO NOT run browser-side
+  // noverlap here because it would push galaxies apart and ruin the
+  // constellation grouping.
 
   // statNodes is in the visited counter — set total side
   const sn = document.getElementById('statNodes');
@@ -781,41 +1650,63 @@ async function main() {
 
   sigma = new Sigma(graph, document.getElementById('graph'), {
     renderEdgeLabels: false,
-    labelSize: 11,
-    labelWeight: 'normal',
+    labelSize: 12,
+    labelWeight: '700',
     labelColor: { color: '#f0e8d8' },
-    labelDensity: 1.2,
-    labelGridCellSize: 60,
-    labelRenderedSizeThreshold: 4,  // show more labels at zoom
+    labelDensity: 1.4,
+    labelGridCellSize: 56,
+    labelRenderedSizeThreshold: 6,
     enableEdgeEvents: false,
-    minCameraRatio: 0.005,  // 200x zoom in (was 20x)
+    minCameraRatio: 0.005,
     maxCameraRatio: 80,
-    // Reducer hooks: hover, visited muting, level-based mystery gating.
+    // Reducer hooks: hover (with neighbours rising), visited muting,
+    // level-based mystery gating, state-aware borders.
     nodeReducer: (id, attrs) => {
       const r = { ...attrs };
       const wasVisited = visited.has(id);
       const locked = !wasVisited && isLockedByLevel(attrs);
+      
+      // Enhanced node rendering with glow and border effects
       if (locked){
         r.color = '#2a2138';
         r.size  = Math.max(1.2, (attrs.size || 2) * 0.55);
-        r.label = '';
+        r.borderSize = 0;
       } else if (wasVisited){
-        r.color = mixColor(attrs.origColor, '#3a2438', 0.55);
+        // Visited: dim with subtle green tint + soft border
+        r.color = mixColor(attrs.origColor, '#3a5a48', 0.55);
+        r.borderSize = 0.3;
+        r.borderColor = mixColor(attrs.origColor, '#88e0a0', 0.3);
+      } else {
+        // Unvisited: enhanced glow effect
+        r.borderSize = 0.5;
+        r.borderColor = mixColor(attrs.origColor, '#ffffff', 0.15);
       }
-      // Hide all labels (we render a custom floating tooltip on hover)
+      
       r.label = '';
-      // Hover: enlarge + brighten the focused node and its neighbours
+      // Hover: dramatically enlarge focused node + ALL neighbours, force
+      // their labels visible so the relation becomes obvious at a glance.
       if (hoveredNode){
-        if (id === hoveredNode){
-          r.size = (r.size || 2) * 1.8;
+        const isHovered = id === hoveredNode;
+        const isNeighbor = graph.hasEdge(hoveredNode, id) || graph.hasEdge(id, hoveredNode);
+        if (isHovered){
+          r.size = (r.size || 2) * 2.4;
           r.color = attrs.origColor;
+          r.label = attrs.label;
+          r.forceLabel = true;
           r.zIndex = 10;
-        } else if (graph.hasEdge(hoveredNode, id) || graph.hasEdge(id, hoveredNode)){
-          // neighbours keep colour but get a faint glow via slightly larger size
-          r.size = (r.size || 2) * 1.15;
+          r.borderSize = 1.5;
+          r.borderColor = mixColor(attrs.origColor, '#ffffff', 0.4);
+        } else if (isNeighbor){
+          r.size = (r.size || 2) * 1.7;
           r.color = attrs.origColor;
+          r.label = attrs.label;
+          r.forceLabel = true;
+          r.zIndex = 8;
+          r.borderSize = 1;
+          r.borderColor = 'rgba(240,200,120,0.5)';
         } else {
-          r.color = '#221426';
+          r.color = '#1a0e1c';
+          r.borderSize = 0;
         }
       }
       return r;
@@ -826,8 +1717,14 @@ async function main() {
         r.hidden = true;
       }
       if (hoveredNode && graph.hasExtremity(id, hoveredNode)) {
-        r.color = 'rgba(240,200,120,0.6)';
-        r.size = 1.4;
+        // Enhanced connection lines with gradient-like glow
+        r.color = 'rgba(240,200,120,0.75)';
+        r.size = 1.8;
+      } else {
+        // Subtle enhancement to default edges
+        const baseAlpha = parseFloat(r.color.match(/[\d.]+\)$/)?.[0].replace(')', '')) || 0.04;
+        const enhancedAlpha = Math.min(baseAlpha * 1.5, 0.15);
+        r.color = r.color.replace(/[\d.]+\)$/, enhancedAlpha.toFixed(3) + ')');
       }
       return r;
     },
@@ -871,15 +1768,69 @@ async function main() {
     if (hoveredNode) placeTipAtMouse();
   }, { passive: true });
 
+  // Halo overlay: pulsing rings on hovered node + ALL its neighbours.
+  // Limited to top-N neighbours by edge weight to avoid 100+ DOM elements
+  // for very high-degree hubs.
+  const haloLayer = document.getElementById('haloLayer');
+  function renderHalos(){
+    haloLayer.innerHTML = '';
+    if (!hoveredNode || !graph.hasNode(hoveredNode)) return;
+    const rect = sigma.getContainer().getBoundingClientRect();
+    function place(id, kind){
+      const a = graph.getNodeAttributes(id);
+      if (a.hidden) return;
+      const v = sigma.graphToViewport({ x: a.x, y: a.y });
+      const halo = document.createElement('div');
+      halo.className = 'halo ' + kind;
+      halo.style.left = (rect.left + v.x) + 'px';
+      halo.style.top  = (rect.top  + v.y) + 'px';
+      // Scale by node size for hubs to feel bigger
+      const baseSize = (a.size || 3);
+      const scale = Math.min(2.4, 1 + baseSize / 16);
+      halo.style.transform = `translate(-50%,-50%) scale(${scale})`;
+      haloLayer.appendChild(halo);
+      // Floating label for neighbour
+      if (kind === 'neighbor'){
+        const lab = document.createElement('div');
+        lab.className = 'halo-label';
+        const icons = [];
+        if (a.yt) icons.push('<span class="hl-yt">▶</span>');
+        if (a.isHub) icons.push('<span class="hl-hub">★</span>');
+        if (visited.has(id)) icons.push('<span class="hl-visited">✓</span>');
+        const iconStr = icons.length ? `<span class="hl-icon">${icons.join('')}</span>` : '';
+        lab.innerHTML = iconStr + a.label;
+        lab.style.left = (rect.left + v.x) + 'px';
+        lab.style.top  = (rect.top  + v.y) + 'px';
+        haloLayer.appendChild(lab);
+      }
+    }
+    // Collect neighbours with edge weights, sort, take top 14
+    const nbrs = [];
+    graph.forEachEdge(hoveredNode, (eid, attr, s, t) => {
+      const other = (s === hoveredNode) ? t : s;
+      if (graph.getNodeAttribute(other, 'hidden')) return;
+      nbrs.push({ id: other, w: attr.weight || 1 });
+    });
+    nbrs.sort((a, b) => b.w - a.w);
+    for (const n of nbrs.slice(0, 14)) place(n.id, 'neighbor');
+    place(hoveredNode, 'primary');
+  }
+
   sigma.on('enterNode', ({ node }) => {
     hoveredNode = node;
     fillTip(node);
+    renderHalos();
     sigma.refresh();
   });
   sigma.on('leaveNode', () => {
     hoveredNode = null;
     tipEl.classList.remove('show');
+    haloLayer.innerHTML = '';
     sigma.refresh();
+  });
+  // Reposition halos when camera moves while hovering
+  sigma.getCamera().on('updated', () => {
+    if (hoveredNode) renderHalos();
   });
   sigma.on('clickNode', ({ node, event }) => {
     const attrs = graph.getNodeAttributes(node);
@@ -941,15 +1892,56 @@ async function main() {
   // Initial UI sync
   refreshGameUI();
 
-  // Play button: toggle inline YouTube player
+  // Play button: toggles mini-player for the currently-shown artist
   document.getElementById('playBtn').onclick = () => {
-    const p = document.getElementById('infoPlayer');
-    if (p.classList.contains('open')){
-      resetPlayer();
+    if (currentNodeId && _playingNodeId === currentNodeId){
+      stopMiniPlayer();
     } else {
       startPlayer();
     }
   };
+
+  // Mini-player chrome wiring
+  const miniPlayerEl = document.getElementById('miniPlayer');
+  document.getElementById('mpClose').onclick = () => stopMiniPlayer();
+  document.getElementById('mpMinimize').onclick = () => {
+    miniPlayerEl.classList.toggle('minimized');
+    document.getElementById('mpMinimize').textContent =
+      miniPlayerEl.classList.contains('minimized') ? '+' : '―';
+  };
+  document.getElementById('mpLock').onclick = () => {
+    _miniLocked = !_miniLocked;
+    const lockBtn = document.getElementById('mpLock');
+    lockBtn.textContent = _miniLocked ? '🔒' : '🔓';
+    lockBtn.title = _miniLocked
+      ? 'BG固定中 — 別ノードを押しても再生継続 (クリックで解除)'
+      : 'クリックで BG 固定 (別ノード選択しても再生継続)';
+  };
+  // Drag the mini-player by its header
+  (function dragInit(){
+    const head = document.getElementById('mpHead');
+    let dragging = false, ox = 0, oy = 0;
+    head.addEventListener('pointerdown', (ev) => {
+      // Ignore drags that originated on the buttons themselves
+      if (ev.target.closest('.mp-btn')) return;
+      dragging = true;
+      const r = miniPlayerEl.getBoundingClientRect();
+      ox = ev.clientX - r.left;
+      oy = ev.clientY - r.top;
+      head.setPointerCapture(ev.pointerId);
+    });
+    head.addEventListener('pointermove', (ev) => {
+      if (!dragging) return;
+      const x = Math.max(8, Math.min(window.innerWidth  - miniPlayerEl.offsetWidth  - 8, ev.clientX - ox));
+      const y = Math.max(8, Math.min(window.innerHeight - miniPlayerEl.offsetHeight - 8, ev.clientY - oy));
+      miniPlayerEl.style.left = x + 'px';
+      miniPlayerEl.style.top  = y + 'px';
+      miniPlayerEl.style.bottom = 'auto';
+      miniPlayerEl.style.right  = 'auto';
+    });
+    head.addEventListener('pointerup', () => { dragging = false; });
+    head.addEventListener('pointercancel', () => { dragging = false; });
+  })();
 
   // Genre filter panel
   buildFilterPanel();
@@ -1008,6 +2000,783 @@ async function main() {
 
   document.getElementById('loading').classList.add('hidden');
   document.getElementById('visitedCount').textContent = visited.size.toLocaleString();
+
+  // ── Onboarding: welcome modal on first visit + dice hint until first click
+  const WELCOME_KEY = 'salon_universe_welcome_seen_v1';
+  const HINT_KEY = 'salon_universe_hint_dismissed_v1';
+  const welcomeModal = document.getElementById('welcomeModal');
+  function openWelcome(){
+    welcomeModal.classList.add('open');
+  }
+  function closeWelcome(){
+    welcomeModal.classList.remove('open');
+    try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) {}
+    showDiceHint();
+  }
+  document.getElementById('welcomeStart').onclick = () => {
+    welcomeModal.classList.remove('open');
+    try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) {}
+    startGuidedTour();
+  };
+  document.getElementById('welcomeSkip').onclick = closeWelcome;
+  welcomeModal.addEventListener('click', (ev) => {
+    if (ev.target.id === 'welcomeModal') closeWelcome();
+  });
+  document.getElementById('helpBtn').onclick = openWelcome;
+
+  // ─── Guided tour: spotlight + tooltip drives through every feature ──
+  const TOUR_STEPS = [
+    {
+      target: null,  // hero step — no specific element, centered overlay
+      title: '音楽宇宙へ、 ようこそ',
+      body: '<em>19,810 アーティスト × 42,744 関連</em> の地図を、 これから順番に案内します。 各機能の場所をハイライトしながら進めていきます。',
+    },
+    {
+      target: '#dice',
+      title: '🎲 サイコロ — 迷ったらまずこれ',
+      body: 'まだ訪れていないアーティストへ <em>ランダムに飛ぶ</em> ボタン。 何から聴いていいか迷ったら、 このサイコロを振ってみてください。',
+      shape: 'circle',
+    },
+    {
+      target: '#searchInput',
+      title: 'アーティスト検索',
+      body: '名前で直接探したいときはここ。 例えば <kbd>Yoasobi</kbd> や <kbd>Helloween</kbd> と入力すると、 候補がリスト表示されます。 候補をクリックでカメラが飛びます。',
+    },
+    {
+      target: '.bar .game-stats',
+      title: 'Lv / スコア — あなたの探索の証',
+      body: 'アーティストをクリックするたびにスコアが上がり、 一定値で <em>レベルアップ</em>。 上がるごとに <em>マイナーな領域が解放</em> されていきます。 進捗バーで次のLvまでの距離が見えます。',
+    },
+    {
+      target: '#filterToggle',
+      title: '⛬ フィルター',
+      body: 'ジャンルで絞り込んだり、 <em>「未訪問のみ」</em> や <em>「▶ 即試聴可のみ」</em> に切替えたりできます。 デフォルトは即試聴可だけ表示しています。',
+      shape: 'circle',
+    },
+    {
+      target: '#histFab',
+      title: '📜 履歴・お気に入り・推薦',
+      body: 'クリックした履歴、 <em>★ で保存したお気に入り</em>、 さらに <em>「✨ おすすめ」</em> タブ (お気に入りを起点に「これも好きかも」 を並べる) も。 JSON で書き出し / 読み込みもできます。',
+      shape: 'circle',
+    },
+    {
+      target: '#helpBtn',
+      title: '？ いつでも使い方',
+      body: 'このツアーを後から見直すときはこのボタン。 機能が増えたときも、 ここから最新のガイドに戻れます。',
+      shape: 'circle',
+    },
+    {
+      target: null,
+      title: 'では、 最初の一歩を。',
+      body: 'まずは <em>🎲 サイコロ</em> を押してみるのがおすすめ。 出てきた作家をクリックすると <em>YouTube が即再生</em> され、 関連アーティストを <em>「つぎへ →」</em> で辿れます。 ★ で保存も忘れずに。',
+    },
+  ];
+
+  const tourSpot = document.getElementById('tourSpot');
+  const tourCard = document.getElementById('tourCard');
+  let _tourIdx = 0;
+
+  function startGuidedTour(){
+    _tourIdx = 0;
+    renderTourStep();
+  }
+  function endTour(){
+    tourSpot.classList.remove('active');
+    tourCard.classList.remove('active');
+    showDiceHint();  // gentle nudge once tour is done
+  }
+  function placeTourCard(rect){
+    // Pick a card position that avoids overlapping the spotlight.
+    const card = tourCard;
+    const cw = Math.min(380, window.innerWidth - 32);
+    const ch = card.offsetHeight || 200;
+    const margin = 16;
+    // Prefer placing card on the side with most space
+    const space = {
+      below: window.innerHeight - (rect.bottom + margin) - ch,
+      above: rect.top - margin - ch,
+      right: window.innerWidth - (rect.right + margin) - cw,
+      left:  rect.left - margin - cw,
+    };
+    let pos = 'below';
+    if (space.below < 0){
+      if (space.above >= 0) pos = 'above';
+      else if (space.right >= 0) pos = 'right';
+      else if (space.left  >= 0) pos = 'left';
+      else pos = 'below';
+    }
+    let x, y;
+    if (pos === 'below'){
+      x = Math.max(margin, Math.min(window.innerWidth - cw - margin, rect.left + rect.width/2 - cw/2));
+      y = rect.bottom + margin;
+    } else if (pos === 'above'){
+      x = Math.max(margin, Math.min(window.innerWidth - cw - margin, rect.left + rect.width/2 - cw/2));
+      y = rect.top - margin - ch;
+    } else if (pos === 'right'){
+      x = rect.right + margin;
+      y = Math.max(margin, Math.min(window.innerHeight - ch - margin, rect.top + rect.height/2 - ch/2));
+    } else {
+      x = rect.left - margin - cw;
+      y = Math.max(margin, Math.min(window.innerHeight - ch - margin, rect.top + rect.height/2 - ch/2));
+    }
+    card.style.left = x + 'px';
+    card.style.top  = y + 'px';
+  }
+  function renderTourStep(){
+    const step = TOUR_STEPS[_tourIdx];
+    if (!step){ endTour(); return; }
+    document.getElementById('tcStep').textContent = `Step ${_tourIdx + 1} / ${TOUR_STEPS.length}`;
+    document.getElementById('tcTitle').textContent = step.title;
+    document.getElementById('tcBody').innerHTML = step.body;
+    document.getElementById('tcProgress').textContent = '';
+    document.getElementById('tourPrev').disabled = (_tourIdx === 0);
+    document.getElementById('tourPrev').style.opacity = (_tourIdx === 0) ? '.4' : '1';
+    document.getElementById('tourNext').textContent =
+      (_tourIdx === TOUR_STEPS.length - 1) ? '🚀 探索を始める' : '次へ →';
+
+    if (step.target){
+      const el = document.querySelector(step.target);
+      if (el){
+        const r = el.getBoundingClientRect();
+        const pad = 6;
+        tourSpot.style.left   = (r.left - pad) + 'px';
+        tourSpot.style.top    = (r.top  - pad) + 'px';
+        tourSpot.style.width  = (r.width  + pad * 2) + 'px';
+        tourSpot.style.height = (r.height + pad * 2) + 'px';
+        tourSpot.classList.toggle('circle', step.shape === 'circle');
+        tourSpot.classList.add('active');
+        // Place card after spot is sized (next frame so offsetHeight is correct)
+        tourCard.classList.add('active');
+        requestAnimationFrame(() => placeTourCard(r));
+        return;
+      }
+    }
+    // No target — center the card, hide spotlight
+    tourSpot.classList.remove('active');
+    tourSpot.style.width = '0';
+    tourSpot.style.height = '0';
+    tourCard.classList.add('active');
+    requestAnimationFrame(() => {
+      const cw = tourCard.offsetWidth, ch = tourCard.offsetHeight;
+      tourCard.style.left = ((window.innerWidth  - cw) / 2) + 'px';
+      tourCard.style.top  = ((window.innerHeight - ch) / 2) + 'px';
+    });
+  }
+  document.getElementById('tourNext').onclick = () => {
+    _tourIdx++;
+    if (_tourIdx >= TOUR_STEPS.length){ endTour(); return; }
+    renderTourStep();
+  };
+  document.getElementById('tourPrev').onclick = () => {
+    if (_tourIdx <= 0) return;
+    _tourIdx--;
+    renderTourStep();
+  };
+  document.getElementById('tourSkip').onclick = endTour;
+  // Re-position card on window resize so it stays anchored to target
+  window.addEventListener('resize', () => {
+    if (tourCard.classList.contains('active')) renderTourStep();
+  });
+
+  // Favorite toggle in info panel
+  document.getElementById('favBtn').onclick = () => {
+    if (!currentNodeId) return;
+    const a = graph.getNodeAttributes(currentNodeId);
+    toggleFavorite(currentNodeId, a.label);
+  };
+
+  // History + Favorites drawer
+  const histFab = document.getElementById('histFab');
+  const histPanel = document.getElementById('histPanel');
+  let _hpTab = 'history';
+
+  // ── Recommendation algorithm ─────────────────────────────────────
+  // For every neighbour of a "seed" artist (from sourceSet), score how
+  // strongly the visitor's taste implies it: weighted edge sum, with
+  // favourites counting double. Exclude already-visited (when seed is
+  // history) or simply exclude the seed itself (when seed is favourites).
+  // Respects level gating. Returns top-N candidates with reason text.
+  function computeRecommendations(opts){
+    opts = opts || {};
+    const N = opts.N || 20;
+    const mode = opts.mode || 'history';  // 'history' | 'favorites'
+    let seeds;
+    if (mode === 'favorites'){
+      seeds = [...favorites];
+    } else {
+      seeds = [...visited];
+    }
+    if (!seeds.length) return [];
+
+    const cand = new Map();
+    for (const src of seeds){
+      if (!graph.hasNode(src)) continue;
+      const srcWeight = (mode === 'history' && favorites.has(src)) ? 2.0 : 1.0;
+      graph.forEachEdge(src, (eid, attr, s, t) => {
+        const other = (s === src) ? t : s;
+        // For history mode: skip ALL visited (we want new discoveries).
+        // For favorites mode: skip favorites themselves but allow other
+        // visited artists if the user wants to revisit them, but more
+        // intuitively skip every visited too (they already know it).
+        if (visited.has(other)) return;
+        if (graph.getNodeAttribute(other, 'hidden')) return;
+        const a = graph.getNodeAttributes(other);
+        if (isLockedByLevel(a)) return;
+        const w = (attr.weight || 1) * srcWeight;
+        let e = cand.get(other);
+        if (!e){ e = { score: 0, sources: [] }; cand.set(other, e); }
+        e.score += w;
+        e.sources.push({ src, w });
+      });
+    }
+    const arr = [...cand.entries()].map(([id, e]) => {
+      e.sources.sort((a, b) => b.w - a.w);
+      const topSrc = e.sources.slice(0, 2)
+        .map(s => graph.getNodeAttribute(s.src, 'label')).join(' · ');
+      return {
+        id,
+        label: graph.getNodeAttribute(id, 'label'),
+        score: e.score,
+        reason: topSrc,
+      };
+    });
+    arr.sort((a, b) => b.score - a.score);
+    return arr.slice(0, N);
+  }
+
+  function renderHpList(){
+    const lst = document.getElementById('hpList');
+    const clearBtn = document.getElementById('hpClear');
+    let items = [];
+    let isRec = false;
+    if (_hpTab === 'history'){
+      items = (state.visitHistory || []).slice(0, 100).map(h => ({
+        id: h.id, label: h.label, t: h.t,
+      }));
+      clearBtn.style.display = '';
+    } else if (_hpTab === 'favorites'){
+      items = [...favorites].map(id => {
+        const a = graph.hasNode(id) ? graph.getNodeAttributes(id) : null;
+        return { id, label: a ? a.label : id };
+      });
+      clearBtn.style.display = '';
+    } else if (_hpTab === 'recs'){
+      // Recommendation seeds are ★ favorites only — dice rolls and
+      // accidental clicks in plain history aren't deliberate signals.
+      isRec = true;
+      items = computeRecommendations({ N: 20, mode: 'favorites' });
+      clearBtn.style.display = 'none';
+    }
+    if (!items.length){
+      let msg;
+      if (_hpTab === 'history'){
+        msg = 'まだクリック履歴がありません。<br>🎲 サイコロから始めてみてください。';
+      } else if (_hpTab === 'favorites'){
+        msg = 'お気に入りはまだありません。<br>★ ボタンで気に入った作家を保存できます。';
+      } else {  // recs (favorites-seeded)
+        msg = '★ をつけた作家を起点に、<br>「これも好きかも」 が並びます。<br>気に入った作家には <em style="color:var(--amber)">★</em> を付けてみてください。';
+      }
+      lst.innerHTML = `<div class="hp-empty">${msg}</div>`;
+      return;
+    }
+    lst.innerHTML = items.map(it => {
+      const a = graph.hasNode(it.id) ? graph.getNodeAttributes(it.id) : null;
+      const color = a ? a.origColor : 'var(--paper-dim)';
+      let extra = '';
+      if (isRec){
+        extra = `<span class="score-tag" title="親和度">${Math.round(it.score)}</span>`;
+      } else if (it.t){
+        const sub = new Date(it.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        extra = `<span class="sub">${sub}</span>`;
+      }
+      const remove = _hpTab === 'favorites'
+        ? `<button class="remove" data-id="${it.id}" title="削除">×</button>` : '';
+      const reasonLine = isRec && it.reason
+        ? `<span class="reason">${it.reason} に基づく</span>` : '';
+      return `<div class="hp-item" data-id="${it.id}">
+        <span class="swatch" style="background:${color};color:${color}"></span>
+        <span class="label">${it.label}${reasonLine}</span>
+        ${extra}
+        ${remove}
+      </div>`;
+    }).join('');
+    // Click row → focus the artist
+    lst.querySelectorAll('.hp-item').forEach(row => {
+      row.addEventListener('click', (ev) => {
+        if (ev.target.closest('.remove')) return;
+        const id = row.getAttribute('data-id');
+        if (graph.hasNode(id)) focusNode(id);
+      });
+    });
+    lst.querySelectorAll('.remove').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        const a = graph.hasNode(id) ? graph.getNodeAttributes(id) : null;
+        toggleFavorite(id, a ? a.label : id);
+        renderHpList();
+      });
+    });
+  }
+  function setHpTab(tab){
+    _hpTab = tab;
+    document.getElementById('hpTabHistory').classList.toggle('active', tab === 'history');
+    document.getElementById('hpTabFavorites').classList.toggle('active', tab === 'favorites');
+    document.getElementById('hpTabRecs').classList.toggle('active', tab === 'recs');
+    renderHpList();
+  }
+  histFab.onclick = () => {
+    histPanel.classList.toggle('open');
+    if (histPanel.classList.contains('open')) renderHpList();
+  };
+  document.getElementById('hpTabHistory').onclick = () => setHpTab('history');
+  document.getElementById('hpTabFavorites').onclick = () => setHpTab('favorites');
+  document.getElementById('hpTabRecs').onclick = () => setHpTab('recs');
+
+  // Download history + favorites as JSON
+  document.getElementById('hpDownload').onclick = () => {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      source: 'Salon des Sons · Music Universe',
+      url: location.href,
+      score: state.score || 0,
+      level: levelFor(state.score || 0),
+      visited_count: visited.size,
+      history: (state.visitHistory || []).map(h => ({
+        artist: h.label,
+        id: h.id,
+        visited_at: new Date(h.t).toISOString(),
+      })),
+      favorites: [...favorites].map(id => {
+        const a = graph.hasNode(id) ? graph.getNodeAttributes(id) : null;
+        return {
+          artist: a ? a.label : id,
+          id,
+          genre: a ? a.genre : null,
+          album: a ? a.album : null,
+          youtube: a && a.yt ? `https://www.youtube.com/watch?v=${a.yt}` : null,
+        };
+      }),
+      achievements: [...earnedAchv],
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)],
+                          {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const dt = new Date().toISOString().slice(0,10);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `salon-universe-history-${dt}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('score', `<span class="pts">📥</span> 履歴 ${(state.visitHistory||[]).length}件 / お気に入り ${favorites.size}件 をダウンロードしました`);
+  };
+
+  // 📤 Upload — load a previously-downloaded history JSON.
+  // Asks the visitor whether to merge with current state or replace.
+  const uploadInput = document.getElementById('hpUploadFile');
+  document.getElementById('hpUpload').onclick = () => uploadInput.click();
+  uploadInput.addEventListener('change', async (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    let text;
+    try { text = await file.text(); }
+    catch (e){
+      toast('cheer', `<span class="title">読み込み失敗</span><span class="body">ファイルが開けません</span>`, 4000);
+      return;
+    }
+    let data;
+    try { data = JSON.parse(text); }
+    catch (e){
+      toast('cheer', `<span class="title">読み込み失敗</span><span class="body">JSON 形式ではありません</span>`, 4000);
+      return;
+    }
+    if (!data || (!data.history && !data.favorites && !data.visited)){
+      toast('cheer', `<span class="title">形式不一致</span><span class="body">Salon の履歴 JSON ではないようです</span>`, 4000);
+      return;
+    }
+    // Ask: merge or replace
+    const msg = '📥 読み込んだ JSON を:\n\n'
+              + '・ 「OK」 = 現在の履歴と合体 (おすすめ)\n'
+              + '・ 「キャンセル」 = 何もしない\n\n'
+              + 'もし完全置換したい場合は、 まずクリアしてから読み込んでください。';
+    if (!confirm(msg)){
+      uploadInput.value = '';
+      return;
+    }
+    applyLoadedState(data, /*merge=*/true);
+    uploadInput.value = '';
+  });
+
+  // Merge / replace loaded JSON into the live state. Resolves artist
+  // names to graph node ids (the file may have come from a different
+  // build where ids changed but names are stable).
+  function applyLoadedState(data, merge){
+    // Resolve canonical id by node label (for forward-compat with id changes)
+    const labelToId = new Map();
+    graph.forEachNode((id, attrs) => {
+      labelToId.set((attrs.label || '').toLowerCase(), id);
+    });
+    function resolve(item){
+      // Accept either { id, ... } or { artist, ... } or plain string
+      if (typeof item === 'string') return item;
+      const id = item.id;
+      if (id && graph.hasNode(id)) return id;
+      const name = (item.artist || item.label || '').toLowerCase();
+      const byName = labelToId.get(name);
+      return byName || id;
+    }
+
+    // History (chronological): newest first
+    const incomingHist = (data.history || data.visitHistory || []).map(h => {
+      const id = resolve(h);
+      const label = h.artist || h.label;
+      const t = h.visited_at ? new Date(h.visited_at).getTime()
+              : (h.t || Date.now());
+      return id ? { id, label, t } : null;
+    }).filter(Boolean);
+    if (!merge){
+      state.visitHistory = incomingHist;
+      visited = new Set(incomingHist.map(h => h.id));
+    } else {
+      // Merge: prefer newer timestamps, dedupe by id
+      const existing = new Map();
+      for (const h of (state.visitHistory || [])) existing.set(h.id, h);
+      for (const h of incomingHist){
+        const prev = existing.get(h.id);
+        if (!prev || h.t > prev.t) existing.set(h.id, h);
+      }
+      state.visitHistory = [...existing.values()].sort((a, b) => b.t - a.t).slice(0, 200);
+      // Visited = union
+      for (const h of incomingHist) visited.add(h.id);
+    }
+
+    // Favorites
+    const incomingFavs = (data.favorites || []).map(resolve).filter(Boolean);
+    if (!merge) favorites = new Set();
+    for (const fid of incomingFavs) favorites.add(fid);
+
+    // Achievements (union always)
+    for (const aid of (data.achievements || [])) earnedAchv.add(aid);
+
+    // Score: merge → take max; replace → exact
+    if (typeof data.score === 'number'){
+      if (!merge) state.score = data.score;
+      else state.score = Math.max(state.score || 0, data.score);
+    }
+
+    // Genres visited: union
+    for (const h of state.visitHistory){
+      if (graph.hasNode(h.id)){
+        const g = graph.getNodeAttribute(h.id, 'genre');
+        if (g) genreSet.add(g);
+      }
+    }
+
+    saveState();
+    refreshGameUI();
+    refreshFavoritesUI();
+    refreshHubStars();
+    renderHpList();
+    if (sigma) sigma.refresh();
+
+    toast('cheer', `<span class="title">📤 読み込み完了</span><span class="body">履歴 ${state.visitHistory.length} 件 · お気に入り ${favorites.size} 件 を反映しました</span>`, 5500);
+  }
+
+  // Clear current tab (history or favorites)
+  document.getElementById('hpClear').onclick = () => {
+    if (_hpTab === 'history'){
+      if (!confirm('履歴をすべて削除しますか? お気に入りは残ります。')) return;
+      state.visitHistory = [];
+      saveState();
+    } else if (_hpTab === 'favorites'){
+      if (!confirm('お気に入りをすべて削除しますか?')) return;
+      favorites.clear();
+      saveState();
+      refreshFavoritesUI();
+      refreshHubStars();
+    } else {
+      return;  // recs tab — nothing to clear
+    }
+    renderHpList();
+  };
+  // Update badge initially
+  document.getElementById('histBadge').textContent = favorites.size || 0;
+
+  // Mobile filter drawer: tap the FAB or the panel header to toggle
+  const filterPanelEl = document.getElementById('filterPanel');
+  const filterToggle = document.getElementById('filterToggle');
+  function toggleFilterDrawer(){
+    const opened = filterPanelEl.classList.toggle('open');
+    filterToggle.classList.toggle('active', opened);
+  }
+  if (filterToggle){
+    filterToggle.addEventListener('click', toggleFilterDrawer);
+  }
+  // Tapping the panel h3 (which shows the ▲ caret on mobile) toggles too
+  filterPanelEl.querySelector('h3').addEventListener('click', () => {
+    if (IS_MOBILE) toggleFilterDrawer();
+  });
+
+  // Mobile / touch perf: skip the hover halo + neighbour-label layer
+  // (it lags on weak GPUs and the info bottom sheet is the primary
+  // interaction on mobile anyway).
+  if (IS_MOBILE || IS_TOUCH){
+    // Override renderHalos in scope: do nothing
+    const noop = () => {};
+    // Replace the global helper (defined later in main scope)
+    // by emptying haloLayer on every enterNode instead.
+    sigma.on('enterNode', () => {
+      const hl = document.getElementById('haloLayer');
+      if (hl) hl.innerHTML = '';
+    });
+  }
+
+  // Dice hint: pulsing ring around 🎲 + arrow tag, dismissed on first
+  // node visit or after 20s.
+  let _diceHintTimer = null;
+  function showDiceHint(){
+    if (visited.size > 0) return;  // returning users skip
+    try { if (localStorage.getItem(HINT_KEY) === '1') return; } catch(e) {}
+    if (document.getElementById('diceHintEl')) return;
+    const hint = document.createElement('div');
+    hint.className = 'dice-hint';
+    hint.id = 'diceHintEl';
+    document.body.appendChild(hint);
+    const arr = document.createElement('div');
+    arr.className = 'dice-hint-arrow';
+    arr.id = 'diceHintArrow';
+    arr.textContent = 'ここを押して始める';
+    document.body.appendChild(arr);
+    _diceHintTimer = setTimeout(dismissDiceHint, 20000);
+  }
+  function dismissDiceHint(){
+    document.getElementById('diceHintEl')?.remove();
+    document.getElementById('diceHintArrow')?.remove();
+    clearTimeout(_diceHintTimer);
+    try { localStorage.setItem(HINT_KEY, '1'); } catch (e) {}
+  }
+  // Hook dismissal into any first interaction (dice / node / chain / search)
+  ['dice','playBtn','chainBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', dismissDiceHint, { once: true });
+  });
+  sigma.on('clickNode', dismissDiceHint);
+
+  // Show welcome on first visit OR if user has never visited anything yet
+  let _seen = false;
+  try { _seen = localStorage.getItem(WELCOME_KEY) === '1'; } catch (e) {}
+  if (!_seen){
+    setTimeout(openWelcome, 400);
+  } else if (visited.size === 0){
+    // Returning user but no visits — still show subtle dice hint
+    setTimeout(showDiceHint, 600);
+  }
+
+  // Galaxy labels — render the constellation names at each genre centroid.
+  // Reposition them on every camera update so they track the universe.
+  const galaxyData = data.galaxies || [];
+  const galLayer = document.getElementById('galaxyLayer');
+  const labelEls = [];
+  for (const gx of galaxyData){
+    const el = document.createElement('div');
+    el.className = 'galaxy-label';
+    el.dataset.slug = gx.slug;
+    el.dataset.x = gx.x;
+    el.dataset.y = gx.y;
+    el.dataset.r = gx.radius;
+    el.innerHTML = `${gx.slug.toUpperCase()}<span class="gx-jp">${gx.name_jp}</span>`;
+    galLayer.appendChild(el);
+    labelEls.push(el);
+  }
+  function placeGalaxyLabels(){
+    const ratio = sigma.getCamera().getState().ratio;
+    // Font scales WITH ratio so labels stay readable when zoomed out
+    // and shrink (out of the way of individual artists) when zoomed in.
+    const fontSize = Math.max(11, Math.min(32, 18 * Math.sqrt(ratio)));
+    for (const el of labelEls){
+      const x = parseFloat(el.dataset.x);
+      const y = parseFloat(el.dataset.y);
+      const v = sigma.graphToViewport({ x, y });
+      el.style.left = v.x + 'px';
+      el.style.top  = v.y + 'px';
+      el.style.fontSize = fontSize + 'px';
+      // Fade galaxy labels out at deep zoom so they don't obscure the
+      // node the visitor is inspecting.
+      el.style.opacity = ratio < 0.18 ? '0.35' : (ratio < 0.3 ? '0.7' : '1');
+    }
+  }
+  placeGalaxyLabels();
+
+  // ── Named constellations: 4 imaginary lines connecting related galaxies ──
+  const CONSTELLATIONS = [
+    { id: 'still',  en: 'Quietus',   jp: '静謐座',
+      color: '#f0c878',
+      members: ['nature', 'ambient', 'classic', 'healing'] },
+    { id: 'songs',  en: 'Songlines', jp: '波音座',
+      color: '#5fc8ff',
+      members: ['celt', 'blues-folk', 'jazz'] },
+    { id: 'crowd',  en: 'Crowd',     jp: '大衆座',
+      color: '#ff6b9d',
+      members: ['pop-rock', 'jpop', 'anime', 'game'] },
+    { id: 'flame',  en: 'Pyre',      jp: '炎座',
+      color: '#e23a4e',
+      members: ['indies', 'metal', 'progressive'] },
+  ];
+  const constLayer = document.getElementById('constellationLayer');
+  // Map slug → galaxy data for fast lookup
+  const galaxyBySlug = {};
+  for (const gx of galaxyData) galaxyBySlug[gx.slug] = gx;
+  // Create one <polyline> + endpoint dots + name label per constellation
+  const constElements = [];
+  for (const c of CONSTELLATIONS){
+    const ns = 'http://www.w3.org/2000/svg';
+    const line = document.createElementNS(ns, 'polyline');
+    line.setAttribute('class', 'const-line');
+    line.style.stroke = c.color;
+    line.style.color = c.color;  // for drop-shadow currentColor
+    line.style.strokeWidth = '2.2';
+    constLayer.appendChild(line);
+    const dots = [];
+    for (let i = 0; i < c.members.length; i++){
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('class', 'const-dot');
+      dot.setAttribute('r', '5');
+      dot.style.fill = c.color;
+      dot.style.color = c.color;
+      constLayer.appendChild(dot);
+      dots.push(dot);
+    }
+    // Name label DOM
+    const name = document.createElement('div');
+    name.className = 'const-name';
+    name.style.color = c.color;
+    name.innerHTML = `${c.en}<span class="cn-jp">${c.jp}</span>`;
+    document.getElementById('galaxyLayer').appendChild(name);
+    constElements.push({ c, line, dots, name });
+  }
+  function placeConstellations(){
+    const ratio = sigma.getCamera().getState().ratio;
+    // Hide constellations when zoomed in to focus on individual nodes
+    const visible = ratio > 0.6;
+    constLayer.style.display = visible ? '' : 'none';
+    for (const ce of constElements){
+      ce.name.style.display = visible ? '' : 'none';
+      if (!visible) continue;
+      const pts = [];
+      for (let i = 0; i < ce.c.members.length; i++){
+        const gx = galaxyBySlug[ce.c.members[i]];
+        if (!gx) continue;
+        const v = sigma.graphToViewport({ x: gx.x, y: gx.y });
+        pts.push([v.x, v.y]);
+        ce.dots[i].setAttribute('cx', v.x);
+        ce.dots[i].setAttribute('cy', v.y);
+      }
+      ce.line.setAttribute('points', pts.map(p => p.join(',')).join(' '));
+      // Place name label at midpoint of polyline (just the middle point)
+      if (pts.length){
+        const mid = pts[Math.floor(pts.length / 2)];
+        ce.name.style.left = mid[0] + 'px';
+        ce.name.style.top  = (mid[1] - 50) + 'px';
+        ce.name.style.fontSize = Math.max(12, Math.min(22, 15 * Math.sqrt(ratio))) + 'px';
+        ce.name.style.opacity = Math.min(1.0, 0.5 + (ratio - 0.6) * 0.7);
+      }
+    }
+  }
+  placeConstellations();
+
+  // ── "You are here" location pin in the top bar ──
+  // Picks the galaxy whose centroid is closest to the viewport centre
+  // (in graph coordinates) and shows its Japanese name in the top bar.
+  const locPin = document.getElementById('locPin');
+  const locText = locPin ? locPin.querySelector('.loc-text') : null;
+  function updateLocationPin(){
+    if (!locPin || !galaxyData.length) return;
+    const cam = sigma.getCamera().getState();
+    const ratio = cam.ratio;
+    // If zoomed way out, just say "音楽宇宙"
+    if (ratio > 1.05){
+      locText.textContent = '音楽宇宙';
+      return;
+    }
+    // Camera centre in graph coords: invert sigma.graphToViewport for
+    // a fictional viewport-centre point.
+    const centerVp = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const centerGraph = sigma.viewportToGraph(centerVp);
+    let nearest = null, nearestD = Infinity;
+    for (const gx of galaxyData){
+      const dx = gx.x - centerGraph.x;
+      const dy = gx.y - centerGraph.y;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < nearestD){ nearestD = d; nearest = gx; }
+    }
+    if (nearest){
+      // Only flag a galaxy if we're reasonably close to it relative to
+      // the galaxy's own radius. Otherwise say "音楽宇宙".
+      const inside = nearestD < (nearest.radius || 200) * 2.4;
+      locText.textContent = inside
+        ? nearest.name_jp
+        : '音楽宇宙';
+    }
+  }
+  updateLocationPin();
+  sigma.getCamera().on('updated', () => {
+    placeGalaxyLabels();
+    placeConstellations();
+    updateLocationPin();
+    placeSelectedRing();
+  });
+
+  // ── Hub-star overlay: replace the plain circle for high-degree nodes ──
+  // with twinkling SVG stars. Performance-friendly: only the top ~250 hubs
+  // by degree get an overlay element (and only when zoomed enough to see).
+  const hubLayer = document.getElementById('hubLayer');
+  // Pre-compute the hub list once
+  const HUB_LIST = allNodeIds
+    .filter(id => graph.getNodeAttribute(id, 'isHub'))
+    .sort((a, b) =>
+      (graph.getNodeAttribute(b, 'degree') || 0) -
+      (graph.getNodeAttribute(a, 'degree') || 0))
+    .slice(0, 200);
+
+  const STAR_SVG_4 = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 L13.5 9.5 L21 11 L13.5 12.5 L12 22 L10.5 12.5 L3 11 L10.5 9.5 Z"/></svg>';
+  const STAR_SVG_5 = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 l3 7 l7 1 l-5 5 l1.2 7 l-6.2 -3.5 l-6.2 3.5 l1.2 -7 l-5 -5 l7 -1 z"/></svg>';
+
+  window.placeHubStars = function(){
+    hubLayer.innerHTML = '';
+    const ratio = sigma.getCamera().getState().ratio;
+    // When extremely zoomed in, hubs are big enough as circles — skip overlay
+    if (ratio < 0.05) return;
+    // When zoomed way out, only show the very brightest
+    const maxStars = ratio > 1.4 ? 40 : ratio > 0.7 ? 100 : 200;
+    for (let i = 0; i < HUB_LIST.length && i < maxStars; i++){
+      const id = HUB_LIST[i];
+      const a = graph.getNodeAttributes(id);
+      if (a.hidden) continue;
+      const v = sigma.graphToViewport({ x: a.x, y: a.y });
+      // Skip if outside viewport (saves DOM)
+      if (v.x < -40 || v.x > window.innerWidth + 40 ||
+          v.y < -40 || v.y > window.innerHeight + 40) continue;
+      const star = document.createElement('div');
+      const deg = a.degree || 0;
+      const cls = deg > 60 ? 'lg' : deg > 30 ? 'md' : 'sm';
+      const isVisited = visited.has(id);
+      const isFav = favorites.has(id);
+      star.className = 'hub-star ' + cls
+        + (isFav ? ' fav' : (isVisited ? ' visited' : ''));
+      star.style.left = v.x + 'px';
+      star.style.top  = v.y + 'px';
+      star.style.color = isFav ? '#ffd870' : (isVisited ? '#88e0a0' : a.origColor);
+      star.innerHTML = (deg > 60) ? STAR_SVG_5 : STAR_SVG_4;
+      // Per-node animation phase offset so they don't all twinkle in unison
+      star.style.animationDelay = ((i * 137) % 3000) + 'ms';
+      hubLayer.appendChild(star);
+    }
+  }
+  window.placeHubStars();
+  sigma.getCamera().on('updated', window.placeHubStars);
+  // Re-render hub stars when graph filters change (visibility may change)
+  const _origApply = window.applyFilter;
+  // (deferred binding handled below in the filter panel setup)
 
   // Reset camera to a sensible overview (graph spans roughly [-1000, 1000])
   sigma.getCamera().setState({ x: 0.5, y: 0.5, ratio: 1.1, angle: 0 });
@@ -1107,6 +2876,7 @@ function buildFilterPanel(){
       graph.setNodeAttribute(id, 'hidden', !visible);
     }
     sigma.refresh();
+    refreshHubStars();
   }
 
   document.querySelectorAll('.filter-panel input[type=checkbox]').forEach(cb => {
@@ -1147,13 +2917,81 @@ function focusNode(id) {
   if (!graph.hasNode(id)) return;
   const a = graph.getNodeAttributes(id);
   const cam = sigma.getCamera();
-  cam.animate({ x: a.x, y: a.y, ratio: 0.15 }, { duration: 600 });
-  setTimeout(() => {
+  // Bug fix: cam.animate expects CAMERA-FRAME coords (normalized
+  // around the graph bbox), not raw graph coords. Use Sigma's
+  // getNodeDisplayData() which returns the right frame for the node.
+  const disp = sigma.getNodeDisplayData(id) || { x: 0.5, y: 0.5 };
+  // 0.45 ratio keeps the picked node prominent while leaving 6-10
+  // surrounding artists visible for immediate "つぎへ" exploration.
+  const animPromise = cam.animate({ x: disp.x, y: disp.y, ratio: 0.45 }, { duration: 700 });
+  // Open the info panel + award score immediately at animation end so
+  // the visitor sees feedback the moment the camera settles. We use the
+  // returned promise (Sigma 3) when available so the ring is positioned
+  // against the final camera state, not a mid-tween snapshot.
+  const onDone = () => {
     showInfo(id);
     awardClick(id);
-    // Tiny ripple at the canvas center for the search/dice/chain navigations
     ripple(window.innerWidth / 2, window.innerHeight / 2);
-  }, 600);
+    if (typeof placeSelectedRing === 'function') placeSelectedRing();
+  };
+  if (animPromise && typeof animPromise.then === 'function'){
+    animPromise.then(onDone);
+  } else {
+    setTimeout(onDone, 720);
+  }
+  // Comet flying across the screen to the destination
+  shootComet(window.innerWidth * 0.5, window.innerHeight * 0.5);
+}
+
+function shootComet(targetX, targetY){
+  // Launch from a random edge of the screen toward the target, fading.
+  const W = window.innerWidth, H = window.innerHeight;
+  const startSide = Math.floor(Math.random() * 4);
+  let sx, sy;
+  switch (startSide){
+    case 0: sx = -40; sy = Math.random()*H; break;
+    case 1: sx = W+40; sy = Math.random()*H; break;
+    case 2: sx = Math.random()*W; sy = -40; break;
+    default:sx = Math.random()*W; sy = H+40;
+  }
+  const dx = targetX - sx, dy = targetY - sy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  // Tail
+  const tail = document.createElement('div');
+  tail.className = 'comet-tail';
+  tail.style.left = sx + 'px';
+  tail.style.top  = sy + 'px';
+  tail.style.width = '0px';
+  tail.style.transform = `rotate(${angle}deg)`;
+  document.body.appendChild(tail);
+  // Comet head
+  const head = document.createElement('div');
+  head.className = 'comet';
+  head.style.left = sx + 'px';
+  head.style.top  = sy + 'px';
+  document.body.appendChild(head);
+  // Animate: head moves to target while tail extends behind
+  const dur = Math.min(900, 400 + dist * 0.4);
+  const start = performance.now();
+  function step(now){
+    const t = Math.min(1, (now - start) / dur);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const cx = sx + dx * ease;
+    const cy = sy + dy * ease;
+    head.style.left = (cx - 4) + 'px';
+    head.style.top  = (cy - 4) + 'px';
+    head.style.opacity = String(1 - t * 0.7);
+    // Tail trails behind by ~120px
+    const tailLen = Math.min(140, dist * ease);
+    tail.style.left = (cx - Math.cos(angle*Math.PI/180) * tailLen) + 'px';
+    tail.style.top  = (cy - Math.sin(angle*Math.PI/180) * tailLen) + 'px';
+    tail.style.width = tailLen + 'px';
+    tail.style.opacity = String(1 - t);
+    if (t < 1) requestAnimationFrame(step);
+    else { head.remove(); tail.remove(); }
+  }
+  requestAnimationFrame(step);
 }
 
 let currentNodeId = null;
@@ -1161,6 +2999,14 @@ let currentNodeId = null;
 function showInfo(id) {
   const a = graph.getNodeAttributes(id);
   currentNodeId = id;
+  _selectedNodeId = id;
+  // Re-position the ring across the tail of the camera animation, since
+  // 'updated' events fire only when the camera state mutates and the
+  // final frame can lag the timeout that triggers showInfo.
+  placeSelectedRing();
+  setTimeout(placeSelectedRing, 50);
+  setTimeout(placeSelectedRing, 200);
+  setTimeout(placeSelectedRing, 500);
   document.getElementById('infoName').textContent = a.label;
   const wasVisited = visited.has(id);
   const sub = wasVisited
@@ -1176,14 +3022,22 @@ function showInfo(id) {
     albEl.innerHTML = '';
     albEl.style.display = 'none';
   }
-  // Player & button state — auto-load YouTube embed on click when we have an ID.
+  // Player button state — auto-load YouTube embed on click only when this is
+  // a *new* artist. If the mini-player is already playing this same node we
+  // leave it alone (toggle is via the play button).
   resetPlayer();
   const playBtn = document.getElementById('playBtn');
   if (a.yt){
     playBtn.disabled = false;
-    playBtn.title = 'クリックで停止';
-    // Auto-start player so a click on a node = instant playback
-    setTimeout(() => startPlayer(), 50);
+    if (_playingNodeId === id){
+      playBtn.title = 'クリックで停止';
+    } else if (_miniLocked && _playingNodeId){
+      // Lock active — don't auto-swap; let user explicitly hit ▶ to swap
+      playBtn.title = '🔒 BG固定中 — クリックでこの曲に切替';
+    } else {
+      playBtn.title = 'クリックで再生';
+      setTimeout(() => loadMiniPlayer(id, a.label, a.yt), 50);
+    }
   } else {
     playBtn.disabled = false;
     playBtn.textContent = '▶ YouTube で開く';
@@ -1245,6 +3099,8 @@ function showInfo(id) {
       chainBtn.style.display = 'none';
     }
   }
+  // Sync the ★ favorite button state for this node
+  refreshFavoritesUI();
   document.getElementById('info').classList.add('open');
 }
 
@@ -1263,42 +3119,156 @@ function pickOfTheDay(){
   return top[seed % top.length];
 }
 
+// Track which video is currently in the mini-player so re-clicking the
+// same artist's ▶ button toggles stop instead of reloading. closeInfo()
+// no longer stops playback — closing the info panel just closes the
+// panel; the mini-player keeps going.
+let _playingNodeId = null;
+let _miniLocked = false;  // when true, clicking a new node does NOT swap the mini-player
+
 function resetPlayer(){
-  const p = document.getElementById('infoPlayer');
-  p.innerHTML = '';
-  p.classList.remove('open');
+  // Sync the inline play-row button to whatever the mini-player is doing.
   const btn = document.getElementById('playBtn');
-  btn.classList.remove('playing');
+  if (!btn) return;
+  if (_playingNodeId && currentNodeId === _playingNodeId){
+    btn.classList.add('playing');
+    btn.textContent = '■ 停止';
+  } else {
+    btn.classList.remove('playing');
+    btn.textContent = '▶ 即試聴';
+  }
 }
 
 function startPlayer(){
   if (!currentNodeId) return;
   const a = graph.getNodeAttributes(currentNodeId);
-  const btn = document.getElementById('playBtn');
   if (!a.yt){
-    // Fallback: open YouTube search in new tab
+    // Fallback: open YouTube search in new tab (no playable id)
     const q = encodeURIComponent(a.label + (a.album ? ' ' + a.album : ' full album'));
     window.open(`https://www.youtube.com/results?search_query=${q}`, '_blank', 'noopener');
     return;
   }
-  const p = document.getElementById('infoPlayer');
+  // Same artist already playing? Toggle stop.
+  if (_playingNodeId === currentNodeId){
+    stopMiniPlayer();
+    return;
+  }
+  loadMiniPlayer(currentNodeId, a.label, a.yt);
+}
+
+function loadMiniPlayer(id, label, yt){
+  _playingNodeId = id;
+  const mini = document.getElementById('miniPlayer');
+  const body = document.getElementById('mpBody');
+  const titleEl = document.getElementById('mpTitle');
+  titleEl.innerHTML = `<span class="mp-yt-badge">▶ NOW</span>${label}`;
   // youtube.com/embed (NOT youtube-nocookie) so Premium-logged-in browsers
-  // can pass auth cookies and skip ads. modestbranding=1 dampens YouTube logo.
-  p.innerHTML = `<iframe src="https://www.youtube.com/embed/${a.yt}?autoplay=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
-  p.classList.add('open');
-  btn.classList.add('playing');
-  btn.textContent = '■ 停止';
+  // can pass auth cookies and skip ads.
+  body.innerHTML = `<iframe src="https://www.youtube.com/embed/${yt}?autoplay=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+  mini.classList.add('open');
+  mini.classList.remove('minimized');
+  resetPlayer();
+}
+
+function stopMiniPlayer(){
+  _playingNodeId = null;
+  const mini = document.getElementById('miniPlayer');
+  mini.classList.remove('open');
+  document.getElementById('mpBody').innerHTML = '';
+  resetPlayer();
 }
 
 function closeInfo() {
   document.getElementById('info').classList.remove('open');
-  resetPlayer();
   currentNodeId = null;
+  _selectedNodeId = null;
+  placeSelectedRing();
+  // Note: mini-player keeps playing — user must close it explicitly.
+}
+
+// ── Parallax nebula on mouse move ──
+const nebulaLayers = document.querySelectorAll('.nebula-layer');
+// Skip the parallax handler on mobile / touch devices — saves a layout
+// recalc on every (scroll-triggered) mousemove and avoids subtle jank.
+if (nebulaLayers.length > 0 && !IS_TOUCH && !IS_MOBILE) {
+  document.addEventListener('mousemove', (e) => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 2;
+    const y = (e.clientY / window.innerHeight - 0.5) * 2;
+    nebulaLayers.forEach(layer => {
+      const speed = parseFloat(layer.dataset.speed) || 0.5;
+      const translateX = x * 30 * speed;
+      const translateY = y * 30 * speed;
+      layer.style.transform = `translate(${translateX}px, ${translateY}px)`;
+    });
+  });
+}
+
+// ── Floating particles ──
+const particlesCanvas = document.getElementById('particlesCanvas');
+// Skip the 40-particle animation on mobile to save GPU + battery.
+if (particlesCanvas && !IS_MOBILE) {
+  const pctx = particlesCanvas.getContext('2d');
+  particlesCanvas.width = window.innerWidth;
+  particlesCanvas.height = window.innerHeight;
+
+  const particles = [];
+  const particleCount = 40;
+
+  class Particle {
+    constructor() {
+      this.reset();
+    }
+    reset() {
+      this.x = Math.random() * particlesCanvas.width;
+      this.y = Math.random() * particlesCanvas.height;
+      this.vx = (Math.random() - 0.5) * 0.3;
+      this.vy = (Math.random() - 0.5) * 0.3;
+      this.size = Math.random() * 1.5 + 0.5;
+      this.opacity = Math.random() * 0.4 + 0.2;
+      this.color = ['rgba(212,160,80,', 'rgba(95,200,255,', 'rgba(155,88,224,'][Math.floor(Math.random() * 3)];
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      if (this.x < 0 || this.x > particlesCanvas.width || this.y < 0 || this.y > particlesCanvas.height) {
+        this.reset();
+      }
+    }
+    draw() {
+      pctx.beginPath();
+      pctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      pctx.fillStyle = this.color + this.opacity + ')';
+      pctx.fill();
+    }
+  }
+
+  for (let i = 0; i < particleCount; i++) {
+    particles.push(new Particle());
+  }
+
+  function animateParticles() {
+    pctx.clearRect(0, 0, particlesCanvas.width, particlesCanvas.height);
+    particles.forEach(p => {
+      p.update();
+      p.draw();
+    });
+    requestAnimationFrame(animateParticles);
+  }
+
+  animateParticles();
+
+  window.addEventListener('resize', () => {
+    particlesCanvas.width = window.innerWidth;
+    particlesCanvas.height = window.innerHeight;
+  });
 }
 
 main().catch(err => {
-  console.error(err);
-  document.getElementById('loading').textContent = 'load failed: ' + err.message;
+  if (err) console.error(err);
+  const loadingEl = document.getElementById('loading');
+  if (loadingEl) {
+    loadingEl.textContent = 'load failed: ' + (err ? err.message : 'unknown error');
+  }
 });
 </script>
 </body>
