@@ -638,6 +638,14 @@ body.immersed #room{touch-action:none}
     linear-gradient(180deg, rgba(8,6,10,.34) 0%, transparent 22%, transparent 60%, rgba(5,4,8,.62) 100%)}
 body.room-ready #roomScrim{opacity:1}
 #sceneFade{position:fixed;inset:0;z-index:40;pointer-events:none;background:#05040a;opacity:0;transition:opacity .5s ease}
+#skipScore{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:8;pointer-events:none;
+  font-family:"Shippori Mincho",serif;font-size:17px;color:var(--lantern-soft);letter-spacing:.04em;
+  text-shadow:0 1px 9px rgba(0,0,0,.85);opacity:0;transition:opacity .5s ease;white-space:nowrap;text-align:center}
+#skipScore.show{opacity:.9}
+#skipScore .u{font-size:13px;opacity:.85}
+#skipScore .b{font-size:12px;opacity:.6;margin-left:8px}
+#skipScore.flash{animation:skipPop .55s ease}
+@keyframes skipPop{0%{transform:translateX(-50%) scale(.7);opacity:0}40%{transform:translateX(-50%) scale(1.14);opacity:1}100%{transform:translateX(-50%) scale(1);opacity:.9}}
 
 /* lift existing chrome above the fixed room; hero becomes a window onto it */
 .bar{z-index:50}
@@ -844,6 +852,7 @@ body.immersed-med #npCredit{opacity:.3}
 <div id="roomFallback" aria-hidden="true"></div>
 <div id="roomScrim" aria-hidden="true"></div>
 <div id="sceneFade" aria-hidden="true"></div>
+<div id="skipScore" aria-hidden="true"></div>
 
 <!-- center reticle (gaze target) -->
 <div id="reticle" aria-hidden="true"><span></span></div>
@@ -1777,6 +1786,7 @@ const MARKERS = [
 // out by the lake under the stars
 const MARKERS_OUT = [
   { key:'meditate', lon:0,   lat:-9,  r:5.5, jp:'湖畔で星を見て瞑想する', en:'meditate under the stars' },
+  { key:'universe', lon:0,   lat:50,  r:7,   jp:'19,000人のアーティストの宇宙へ', en:'into the universe of 19,000 artists' },
   { key:'inside',   lon:180, lat:-2,  r:6,   jp:'小屋に戻る',            en:'back inside' },
 ];
 
@@ -1967,6 +1977,7 @@ else {
       ray.setFromCamera({x:nx,y:ny}, camera);
       const hit=ray.intersectObjects(markerGroup.children,false)[0];
       if(hit && hit.object.userData) window.onMarker && window.onMarker(hit.object.userData.key);
+      else if(_outside && ray.ray.direction.y < -0.05) skipStone();   // tap the lake → skip a stone
       else if(hovered) window.onMarker && window.onMarker(hovered.userData.key);
     }
   }
@@ -1983,7 +1994,7 @@ else {
   let breath=1, bt=1;
 
   // ── indoor ⇄ outdoor (step out to the starlit lake) ──
-  let _outside=false;
+  let _outside=false, _flying=false;
   const _fadeEl=document.getElementById('sceneFade');
   function _fade(toBlack,dur){ if(_fadeEl){ _fadeEl.style.transition='opacity '+dur+'ms ease'; _fadeEl.style.opacity=toBlack?'1':'0'; } }
   function _enterOutside(){
@@ -1991,14 +2002,14 @@ else {
     if(markerGroup.children.indexOf(sudokuBoard)>=0) markerGroup.remove(sudokuBoard);
     _tableBase.visible=false; fire.visible=glow.visible=embers.visible=false;
     tLon=lon=HEARTH_LON; tLat=lat=-4; idle=0;
-    document.body.classList.add('outside'); _fade(false,750);
+    document.body.classList.add('outside'); if(window.__skipHud) window.__skipHud(true); _fade(false,750);
   }
   function _enterInside(){
     buildMarkers(MARKERS);
     if(markerGroup.children.indexOf(sudokuBoard)<0) markerGroup.add(sudokuBoard);
     _tableBase.visible=true; fire.visible=glow.visible=embers.visible=true;
     tLon=lon=HEARTH_LON; tLat=lat=-7; idle=0;
-    document.body.classList.remove('outside'); _fade(false,750);
+    document.body.classList.remove('outside'); if(window.__skipHud) window.__skipHud(false); _fade(false,750);
   }
   window.CabinRoom = {
     setBreath:b=>{ bt=b; },
@@ -2026,10 +2037,69 @@ else {
         else loadSky('assets/cabin360.jpg', t=>{ insideTex=t; _enterInside(); });
       },540);
     },
+    flyToUniverse(){
+      if(_flying) return; _flying=true;
+      tLat=72;   // tilt up into the star field (smoothly, in the animate loop)
+      const f0=fov; let k=0;
+      const iv=setInterval(()=>{ k=Math.min(1,k+0.022); setFov(f0-(f0-12)*k); if(k>=1) clearInterval(iv); }, 16);
+      setTimeout(()=>_fade(true,820), 680);
+      setTimeout(()=>{ window.location.href='salon.html'; }, 1560);
+    },
     _set:(l,la)=>{ tLon=lon=l; tLat=lat=(la===undefined?lat:la); },
     _fireVis:v=>{ fire.visible=v; glow.visible=v; embers.visible=v; }
   };
   drawReadout('','');
+
+  // ── water-skipping mini-game (outside: tap the lake surface) ──
+  const WATER_Y = -2.6;
+  const _rippleTex = (()=>{ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); x.translate(64,64);
+    for(let i=0;i<2;i++){ x.beginPath(); x.arc(0,0,38-i*9,0,6.283); x.lineWidth=5-i*2; x.strokeStyle='rgba(205,228,255,'+(0.5-i*0.2)+')'; x.stroke(); }
+    return new THREE.CanvasTexture(c); })();
+  const ripples=[];
+  function spawnRipple(pos, size){
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({ map:_rippleTex, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, opacity:0.6 }));
+    m.rotation.x=-Math.PI/2; m.position.copy(pos); m.scale.setScalar(0.15); m.renderOrder=2; scene.add(m);
+    ripples.push({ mesh:m, t:0, life:1.4, size:size||1 });
+  }
+  const stoneMesh=new THREE.Mesh(new THREE.SphereGeometry(0.06,8,6), new THREE.MeshBasicMaterial({ color:0x15151a }));
+  stoneMesh.visible=false; scene.add(stoneMesh);
+  let stoneFlight=null, skipBest=0;
+  function skipStone(){
+    if(stoneFlight) return;
+    const dir=new THREE.Vector3(); camera.getWorldDirection(dir); dir.y=0;
+    if(dir.lengthSq()<1e-4) dir.set(0,0,1); dir.normalize();
+    // a flatter view (looking out across the water) throws farther → more skips
+    const skips=Math.max(1, Math.min(9, Math.round(8 + (lat+3)*0.16 + (Math.random()-0.35)*1.6)));
+    const pts=[]; let d=1.4, gap=1.7;
+    for(let i=0;i<=skips;i++){ const p=dir.clone().multiplyScalar(Math.min(d,10.5)); p.y=WATER_Y; pts.push(p); d+=gap; gap*=0.9; }
+    stoneFlight={ pts, seg:0, segT:0, segDur:0.22, hopH:0.5 };
+    stoneMesh.visible=true; stoneMesh.position.copy(pts[0]);
+    if(skips>skipBest) skipBest=skips;
+    if(window.__skipScore) window.__skipScore(skips, skipBest);
+  }
+  function updateSkip(dt){
+    if(stoneFlight){
+      const sf=stoneFlight; sf.segT+=dt;
+      const f=Math.min(1, sf.segT/sf.segDur);
+      const a=sf.pts[sf.seg], b=sf.pts[sf.seg+1];
+      const pos=a.clone().lerp(b,f); pos.y += Math.sin(f*Math.PI)*sf.hopH;
+      stoneMesh.position.copy(pos);
+      if(f>=1){
+        spawnRipple(b, 1.0 - sf.seg*0.07);
+        if(window.__waterTick) window.__waterTick(sf.seg, false);
+        sf.seg++;
+        if(sf.seg >= sf.pts.length-1){
+          spawnRipple(sf.pts[sf.pts.length-1], 1.5);
+          if(window.__waterTick) window.__waterTick(sf.seg, true);
+          stoneMesh.visible=false; stoneFlight=null;
+        } else { sf.segT=0; sf.hopH=Math.max(0.13, sf.hopH*0.72); sf.segDur=Math.max(0.11, sf.segDur*0.93); }
+      }
+    }
+    for(let i=ripples.length-1;i>=0;i--){ const r=ripples[i]; r.t+=dt; const f=r.t/r.life;
+      r.mesh.scale.setScalar((0.2+f*2.6)*r.size); r.mesh.material.opacity=Math.max(0,1-f)*0.6;
+      if(f>=1){ scene.remove(r.mesh); r.mesh.geometry.dispose(); r.mesh.material.dispose(); ripples.splice(i,1); }
+    }
+  }
 
   addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
 
@@ -2038,6 +2108,7 @@ else {
     requestAnimationFrame(animate);
     const dt=Math.min(clock.getDelta(),.05), t=clock.elapsedTime;
     fireUniforms.uTime.value=t;
+    updateSkip(dt);
 
     if(!dragging && !reduce && !meditating){ idle+=dt; if(idle>6) tLon+=dt*0.5; }
     lon+=(tLon-lon)*0.08; lat+=(tLat-lat)*0.08;
@@ -2210,6 +2281,7 @@ else {
     else if(key==='sudoku') window.location.href='sudoku.html?play=plane-table';
     else if(key==='outside'){ if(window.CabinRoom&&window.CabinRoom.goOutside) window.CabinRoom.goOutside(); }
     else if(key==='inside'){ if(window.CabinRoom&&window.CabinRoom.goInside) window.CabinRoom.goInside(); }
+    else if(key==='universe'){ if(window.CabinRoom&&window.CabinRoom.flyToUniverse) window.CabinRoom.flyToUniverse(); }
   };
 
   // swap ambience when stepping out / back in: hush the hearth, bring in the night forest
@@ -2226,6 +2298,36 @@ else {
         if(_autoForest && forBtn && forBtn.classList.contains('on')){ toggleSound('forest', forBtn); }
         _autoForest=false;
         if(_fireWasOn && fireBtn && !fireBtn.classList.contains('on')) toggleSound('fire', fireBtn);
+      }
+    }catch(_){}
+  };
+
+  // ── water-skip: score readout + skip/splash sounds ──
+  window.__skipHud=function(show){
+    const el=document.getElementById('skipScore'); if(!el) return;
+    if(show){ el.textContent='水面をタップして石を投げよう'; el.classList.remove('flash'); el.classList.add('show'); }
+    else el.classList.remove('show','flash');
+  };
+  window.__skipScore=function(n, best){
+    const el=document.getElementById('skipScore'); if(!el) return;
+    el.innerHTML = n + ' <span class="u">回スキップ！</span>' + (best? ' <span class="b">最高 '+best+'回</span>':'');
+    el.classList.add('show'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  };
+  window.__waterTick=function(seg, last){
+    try{
+      const ctx=ensureCtx(); if(!ctx) return; const t0=ctx.currentTime;
+      if(last){
+        const dur=0.5, buf=ctx.createBuffer(1, Math.floor(ctx.sampleRate*dur), ctx.sampleRate), d=buf.getChannelData(0);
+        for(let i=0;i<d.length;i++){ const e=1-i/d.length; d[i]=(Math.random()*2-1)*e*e; }
+        const src=ctx.createBufferSource(); src.buffer=buf;
+        const bp=ctx.createBiquadFilter(); bp.type='lowpass'; bp.frequency.value=820;
+        const g=ctx.createGain(); g.gain.value=0.16;
+        src.connect(bp).connect(g).connect(ctx.destination); src.start(t0);
+      } else {
+        const o=ctx.createOscillator(); o.type='sine';
+        o.frequency.setValueAtTime(430+seg*55, t0); o.frequency.exponentialRampToValueAtTime(230+seg*35, t0+0.08);
+        const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(0.11,t0+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.12);
+        o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0+0.14);
       }
     }catch(_){}
   };

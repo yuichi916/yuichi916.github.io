@@ -226,7 +226,7 @@ def place(data, loc, rotz, target_h, mat, jitter_tilt=0.0):
 bpy.ops.mesh.primitive_plane_add(size=800, location=(0, 0, -0.06))
 g = bpy.context.active_object; g.name = 'Ground'; g.data.materials.append(MAT['ground'])
 
-bpy.ops.mesh.primitive_circle_add(radius=78, fill_type='NGON', location=(0, 0, 0.0))
+bpy.ops.mesh.primitive_circle_add(radius=30, fill_type='NGON', location=(0, 0, 0.0))
 lake = bpy.context.active_object; lake.name = 'Lake'; lake.data.materials.append(MAT['water'])
 
 # ---- the small rock you step out onto, ringed by the lake ----
@@ -241,33 +241,37 @@ if rock_datas:
 if log_datas:
     place(random.choice(log_datas), (-1.5, 1.6, 0.12), 1.3, 0.5, None, 0.05)  # a log to sit on
 
-# ---- the deep forest ringing the lake (silhouettes on the far shore) ----
+# ---- the deep, dense forest pressing right up to the small lake ----
 trees = [d for d in (tree_data, eci_tree_data) if d]
 if trees:
-    for i in range(90):
-        a = random.uniform(0, math.tau); r = random.uniform(80, 150)
-        h = random.uniform(10, 22) * (1.0 - 0.2*random.random())
+    for i in range(420):
+        a = random.uniform(0, math.tau)
+        # leave a clearing toward the moon (+Y, a≈pi/2) so it shines over the water
+        diff = (a - math.pi/2 + math.pi) % math.tau - math.pi
+        if abs(diff) < 0.34 and random.random() < 0.82: continue
+        r = 31 + (random.random()**1.4) * 84      # biased toward the near shore = enclosing
+        h = random.uniform(11, 25) * (1.0 - 0.16*random.random())
         place(random.choice(trees), (math.cos(a)*r, math.sin(a)*r, 0.0),
-              random.uniform(0, math.tau), h, None, 0.05)
+              random.uniform(0, math.tau), h, None, 0.06)
 
-# ---- shoreline rocks where the water meets the far forest ----
+# ---- shoreline rocks where the water meets the dense forest ----
 if rock_datas:
-    for i in range(40):
-        a = i/40*math.tau; r = random.uniform(76, 80)
+    for i in range(34):
+        a = i/34*math.tau; r = random.uniform(28.5, 31.5)
         place(random.choice(rock_datas), (math.cos(a)*r, math.sin(a)*r, 0.0),
-              random.uniform(0, math.tau), random.uniform(1.0, 2.6), None, 0.1)
+              random.uniform(0, math.tau), random.uniform(0.8, 2.0), None, 0.1)
 
-# ---- the cabin you came from: a warm window glow on the far shore (-Y) ----
-bpy.ops.mesh.primitive_plane_add(size=2.0, location=(0, -92, 2.0), rotation=(math.radians(90), 0, 0))
+# ---- the cabin you came from: a warm window glow tucked in the trees (-Y) ----
+bpy.ops.mesh.primitive_plane_add(size=1.6, location=(0, -33, 1.8), rotation=(math.radians(90), 0, 0))
 win = bpy.context.active_object; win.name = 'CabinWindow'; win.data.materials.append(MAT['window'])
-bpy.ops.mesh.primitive_cube_add(size=1, location=(0, -94, 2.4)); cb = bpy.context.active_object
-cb.scale = (4.5, 3.2, 2.8); cb.data.materials.append(MAT['tree'])
+bpy.ops.mesh.primitive_cube_add(size=1, location=(0, -34, 2.2)); cb = bpy.context.active_object
+cb.scale = (3.6, 2.8, 2.6); cb.data.materials.append(MAT['tree'])
 
-# ---- the moon, low and large over the far tree line (+Y), mirrored in the lake ----
-bpy.ops.mesh.primitive_uv_sphere_add(radius=6.0, location=(0, 140, 15))
+# ---- the moon, low over the clearing (+Y), mirrored in the small lake ----
+bpy.ops.mesh.primitive_uv_sphere_add(radius=3.0, location=(0, 58, 11))
 moon = bpy.context.active_object; moon.name = 'Moon'; moon.data.materials.append(MAT['moon'])
 for p in moon.data.polygons: p.use_smooth = True
-bpy.ops.mesh.primitive_uv_sphere_add(radius=10.0, location=(0, 140, 15))
+bpy.ops.mesh.primitive_uv_sphere_add(radius=5.2, location=(0, 58, 11))
 halo = bpy.context.active_object; halo.name = 'MoonHalo'; halo.data.materials.append(make_emissive('m_halo', (0.85, 0.9, 1.0), 0.7))
 for p in halo.data.polygons: p.use_smooth = True
 
