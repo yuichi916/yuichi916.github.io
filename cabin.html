@@ -637,6 +637,7 @@ body.immersed #room{touch-action:none}
     radial-gradient(ellipse 134% 96% at 50% 46%, transparent 42%, rgba(6,5,9,.46) 100%),
     linear-gradient(180deg, rgba(8,6,10,.34) 0%, transparent 22%, transparent 60%, rgba(5,4,8,.62) 100%)}
 body.room-ready #roomScrim{opacity:1}
+#sceneFade{position:fixed;inset:0;z-index:40;pointer-events:none;background:#05040a;opacity:0;transition:opacity .5s ease}
 
 /* lift existing chrome above the fixed room; hero becomes a window onto it */
 .bar{z-index:50}
@@ -831,6 +832,7 @@ body.immersed-med #npCredit{opacity:.3}
     <li>瞑想・集中・睡眠のためのタイマー（呼吸ガイド付き）</li>
     <li>パチパチと薪のはぜる焚き火の音、雨・森・風の環境音をオン/オフ</li>
     <li>瞑想のための静かな音楽を選んで再生する</li>
+    <li>扉から外に出て、満天の星空にかこまれた深い森の湖を眺める（湖面に星が映る）</li>
     <li>夜の森をのぞむ窓、小屋の物語、卓上の数独など、世界の中を探索する</li>
     <li>日本語・English・中文・한국어など10言語に対応</li>
   </ul>
@@ -841,6 +843,7 @@ body.immersed-med #npCredit{opacity:.3}
 <canvas id="room" aria-label="森の小屋の中・3D"></canvas>
 <div id="roomFallback" aria-hidden="true"></div>
 <div id="roomScrim" aria-hidden="true"></div>
+<div id="sceneFade" aria-hidden="true"></div>
 
 <!-- center reticle (gaze target) -->
 <div id="reticle" aria-hidden="true"><span></span></div>
@@ -1769,6 +1772,12 @@ const MARKERS = [
   { key:'meditate', lon:0,   lat:-13, r:5.5, jp:'炎を見つめて瞑想する', en:'gaze into the fire' },
   { key:'writings', lon:41,  lat:-30, r:5,   jp:'小屋の物語と、整え方', en:'the writings' },
   { key:'window',   lon:-63, lat:1,   r:6,   jp:'夜の森をのぞむ',       en:'the night forest' },
+  { key:'outside',  lon:-92, lat:-5,  r:6,   jp:'外へ出る · 夜の湖へ',   en:'step out to the lake' },
+];
+// out by the lake under the stars
+const MARKERS_OUT = [
+  { key:'meditate', lon:0,   lat:-9,  r:5.5, jp:'湖畔で星を見て瞑想する', en:'meditate under the stars' },
+  { key:'inside',   lon:180, lat:-2,  r:6,   jp:'小屋に戻る',            en:'back inside' },
 ];
 
 let renderer;
@@ -1787,13 +1796,17 @@ else {
   let lon=HEARTH_LON, lat=-7, tLon=lon, tLat=lat, idle=0;
   let meditating=false, capOpen=false;
 
-  // ── equirect room ──
-  const tex = new THREE.TextureLoader().load('assets/cabin360.jpg',
-    ()=>document.body.classList.add('room-ready'), undefined,
-    ()=>{ if(fallback) fallback.style.display='block'; });
-  tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearMipmapLinearFilter;
-  scene.add(new THREE.Mesh(new THREE.SphereGeometry(12,64,40),
-    new THREE.MeshBasicMaterial({ map:tex, side:THREE.BackSide })));
+  // ── equirect room (skybox; texture is swapped when you step outside) ──
+  const skyMat = new THREE.MeshBasicMaterial({ side:THREE.BackSide });
+  const _texLoader = new THREE.TextureLoader();
+  function loadSky(url, onset){
+    _texLoader.load(url, t=>{ t.colorSpace=THREE.SRGBColorSpace; t.minFilter=THREE.LinearMipmapLinearFilter;
+      skyMat.map=t; skyMat.needsUpdate=true; document.body.classList.add('room-ready'); if(onset) onset(t); },
+      undefined, ()=>{ if(fallback) fallback.style.display='block'; });
+  }
+  let insideTex = null, outsideTex = null;   // outside is lazy-loaded on first step out
+  loadSky('assets/cabin360.jpg', t=>{ insideTex=t; });
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(12,64,40), skyMat));
 
   function glowTex(r,g,b){
     const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
@@ -1895,10 +1908,15 @@ else {
   }
   const mTex=markerTex();
   const markerGroup=new THREE.Group(); scene.add(markerGroup);
-  const markerSprites=MARKERS.map(m=>{
-    const s=new THREE.Sprite(new THREE.SpriteMaterial({ map:mTex, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.9 }));
-    s.position.copy(bearing(m.lon,m.lat,m.r)); s.scale.set(0.7,0.7,1); s.userData=m; markerGroup.add(s); return s;
-  });
+  let markerSprites=[];
+  function buildMarkers(arr){
+    markerSprites.forEach(s=>{ markerGroup.remove(s); s.material.dispose(); });
+    markerSprites = arr.map(m=>{
+      const s=new THREE.Sprite(new THREE.SpriteMaterial({ map:mTex, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.9 }));
+      s.position.copy(bearing(m.lon,m.lat,m.r)); s.scale.set(0.7,0.7,1); s.userData=m; markerGroup.add(s); return s;
+    });
+  }
+  buildMarkers(MARKERS);
 
   // ── sudoku table portal: a small flat 9×9 board on a table in a front corner ──
   function sudokuBoardTex(){
@@ -1963,6 +1981,25 @@ else {
   canvas.addEventListener('touchend', e=>{ if(e.touches.length<2){ pinching=false; pinchD=0; } }, {passive:true});
 
   let breath=1, bt=1;
+
+  // ── indoor ⇄ outdoor (step out to the starlit lake) ──
+  let _outside=false;
+  const _fadeEl=document.getElementById('sceneFade');
+  function _fade(toBlack,dur){ if(_fadeEl){ _fadeEl.style.transition='opacity '+dur+'ms ease'; _fadeEl.style.opacity=toBlack?'1':'0'; } }
+  function _enterOutside(){
+    buildMarkers(MARKERS_OUT);
+    if(markerGroup.children.indexOf(sudokuBoard)>=0) markerGroup.remove(sudokuBoard);
+    _tableBase.visible=false; fire.visible=glow.visible=embers.visible=false;
+    tLon=lon=HEARTH_LON; tLat=lat=-4; idle=0;
+    document.body.classList.add('outside'); _fade(false,750);
+  }
+  function _enterInside(){
+    buildMarkers(MARKERS);
+    if(markerGroup.children.indexOf(sudokuBoard)<0) markerGroup.add(sudokuBoard);
+    _tableBase.visible=true; fire.visible=glow.visible=embers.visible=true;
+    tLon=lon=HEARTH_LON; tLat=lat=-7; idle=0;
+    document.body.classList.remove('outside'); _fade(false,750);
+  }
   window.CabinRoom = {
     setBreath:b=>{ bt=b; },
     lookHearth(){ tLon=HEARTH_LON; tLat=-7; },
@@ -1970,6 +2007,25 @@ else {
     stopMeditation(){ meditating=false; },
     setReadout:(t,p)=>drawReadout(t,p),
     setCapOpen:v=>{ capOpen=v; },
+    isOutside(){ return _outside; },
+    goOutside(){
+      if(_outside) return; _outside=true;
+      try{ window.__setAmbience && window.__setAmbience('outside'); }catch(_){}
+      _fade(true,520);
+      setTimeout(()=>{
+        if(outsideTex){ skyMat.map=outsideTex; skyMat.needsUpdate=true; _enterOutside(); }
+        else loadSky('assets/cabin-outside360.jpg', t=>{ outsideTex=t; _enterOutside(); });
+      },540);
+    },
+    goInside(){
+      if(!_outside) return; _outside=false;
+      try{ window.__setAmbience && window.__setAmbience('inside'); }catch(_){}
+      _fade(true,520);
+      setTimeout(()=>{
+        if(insideTex){ skyMat.map=insideTex; skyMat.needsUpdate=true; _enterInside(); }
+        else loadSky('assets/cabin360.jpg', t=>{ insideTex=t; _enterInside(); });
+      },540);
+    },
     _set:(l,la)=>{ tLon=lon=l; tLat=lat=(la===undefined?lat:la); },
     _fireVis:v=>{ fire.visible=v; glow.visible=v; embers.visible=v; }
   };
@@ -2152,6 +2208,26 @@ else {
     else if(key==='writings') openCaption('writings');
     else if(key==='window') openCaption('window');
     else if(key==='sudoku') window.location.href='sudoku.html?play=plane-table';
+    else if(key==='outside'){ if(window.CabinRoom&&window.CabinRoom.goOutside) window.CabinRoom.goOutside(); }
+    else if(key==='inside'){ if(window.CabinRoom&&window.CabinRoom.goInside) window.CabinRoom.goInside(); }
+  };
+
+  // swap ambience when stepping out / back in: hush the hearth, bring in the night forest
+  let _autoForest=false, _fireWasOn=false;
+  window.__setAmbience=function(mode){
+    const fireBtn=document.querySelector('.amb-btn[data-snd="fire"]');
+    const forBtn=document.querySelector('.amb-btn[data-snd="forest"]');
+    try{
+      if(mode==='outside'){
+        _fireWasOn = !!(fireBtn && fireBtn.classList.contains('on'));
+        if(_fireWasOn) toggleSound('fire', fireBtn);
+        if(forBtn && !forBtn.classList.contains('on')){ toggleSound('forest', forBtn); _autoForest=true; }
+      } else {
+        if(_autoForest && forBtn && forBtn.classList.contains('on')){ toggleSound('forest', forBtn); }
+        _autoForest=false;
+        if(_fireWasOn && fireBtn && !fireBtn.classList.contains('on')) toggleSound('fire', fireBtn);
+      }
+    }catch(_){}
   };
 
   // ── breath bridge → fire + in-world readout ──
