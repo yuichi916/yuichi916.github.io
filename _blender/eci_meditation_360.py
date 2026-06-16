@@ -244,7 +244,7 @@ def add_box(name, sx, sy, sz, loc, mat):
 add_box('Floor', RX*2, RY*2, 0.12, (0, 0, -0.06), MAT['floor'])
 add_box('Ceiling', RX*2, RY*2, 0.18, (0, 0, H+0.09), MAT['ceil'])
 add_box('Wall_N', RX*2, 0.16, H, (0,  RY, H/2), MAT['wall'])
-add_box('Wall_S', RX*2, 0.16, H, (0, -RY, H/2), MAT['wall'])
+wallS = add_box('Wall_S', RX*2, 0.16, H, (0, -RY, H/2), MAT['wall'])
 add_box('Wall_W', 0.16, RY*2, H, (-RX, 0, H/2), MAT['wall'])
 wallE = add_box('Wall_E', 0.16, RY*2, H, (RX, 0, H/2), MAT['wall'])
 
@@ -268,8 +268,12 @@ add_box('Mantel', 1.5, 0.34, 0.10, (0, 2.05, 1.62), MAT['wood'])
 # side stool under lantern
 add_box('StoolTop', 0.40, 0.40, 0.05, (-1.78, -0.55, 0.40), MAT['wood'])
 add_box('StoolLeg', 0.34, 0.34, 0.40, (-1.78, -0.55, 0.20), MAT['wood'])
-# closed plank door on back wall
-add_box('Door', 0.92, 0.06, 2.05, (0.5, -RY+0.11, 1.02), MAT['door'])
+# open doorway to the night — the way outside (cool moonlight spills in)
+boolean_cut(wallS, 1.0, 0.5, 2.15, (0.4, -RY, 1.07))
+add_box('NightOut', 1.04, 0.05, 2.15, (0.4, -RY-0.12, 1.07), make_emissive('door_night', (0.12, 0.17, 0.30), 1.0))
+for fx, fz, fsx, fsz in [(-0.16, 1.07, 0.12, 2.26), (0.96, 1.07, 0.12, 2.26), (0.4, 2.22, 1.28, 0.13)]:
+    add_box('DoorFrame', fsx, 0.24, fsz, (fx, -RY+0.04, fz), MAT['wood'])
+add_box('Door', 0.9, 0.06, 2.05, (1.5, -RY+0.2, 1.02), MAT['door'])   # the plank door, swung open against the wall
 # wall shelf on -X with book stacks feel
 add_box('Shelf', 0.34, 1.2, 0.06, (-RX+0.28, 1.0, 1.5), MAT['wood'])
 
