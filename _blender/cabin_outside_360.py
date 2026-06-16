@@ -105,10 +105,10 @@ def build_star_world():
     links.new(stars.outputs['Color'], starCol.inputs[1]); links.new(cramp.outputs['Color'], starCol.inputs[2])
     # near-black indigo base (no milky-way band — it read as clouds)
     base = nodes.new('ShaderNodeMixRGB'); base.blend_type = 'ADD'; base.inputs[0].default_value = 1.0
-    base.inputs[2].default_value = (0.003, 0.005, 0.012, 1)
+    base.inputs[2].default_value = (0.009, 0.014, 0.028, 1)   # faint indigo sky-glow → fills the forest
     links.new(starCol.outputs['Color'], base.inputs[1])
     links.new(base.outputs['Color'], bg.inputs['Color'])
-    bg.inputs['Strength'].default_value = 3.5
+    bg.inputs['Strength'].default_value = 4.0
     links.new(bg.outputs['Background'], out.inputs['Surface'])
 
 # ============================================================ GPU
@@ -173,10 +173,10 @@ coll = scene.collection
 MAT = {
     'tree':  make_night('m_tree',  (0.010, 0.014, 0.022), 0.92),
     'tree2': make_night('m_tree2', (0.014, 0.020, 0.018), 0.92),
-    'leaf':  make_night('m_leaf',  (0.013, 0.022, 0.014), 0.95),   # dark green, gloomy foliage
-    'leaf2': make_night('m_leaf2', (0.016, 0.025, 0.016), 0.95),   # undergrowth bushes
-    'rock':  make_night('m_rock',  (0.010, 0.013, 0.018), 0.88),
-    'ground':make_night('m_ground',(0.022, 0.027, 0.020), 0.95),
+    'leaf':  make_night('m_leaf',  (0.020, 0.031, 0.020), 0.95),   # dark green, gloomy but readable foliage
+    'leaf2': make_night('m_leaf2', (0.024, 0.035, 0.024), 0.95),   # undergrowth bushes
+    'rock':  make_night('m_rock',  (0.013, 0.016, 0.022), 0.88),
+    'ground':make_night('m_ground',(0.030, 0.035, 0.027), 0.95),
     'log':   make_night('m_log',   (0.020, 0.018, 0.016), 0.9),
     'water': make_water('m_water'),
     'moon':  make_emissive('m_moon', (1.0, 0.97, 0.90), 18.0),
@@ -239,9 +239,9 @@ def make_leafy_tree(seed, bush=False):
         bmesh.ops.create_cone(bm, cap_ends=True, segments=6,
             radius1=rng.uniform(0.13,0.21), radius2=rng.uniform(0.10,0.16), depth=th,
             matrix=Matrix.Translation((0,0,th/2)))
-    nclumps = rng.randint(4,6) if bush else rng.randint(7,11)
-    base_r = rng.uniform(0.45,0.75) if bush else rng.uniform(1.0,1.8)
-    cz = th*0.4 if bush else th*0.82
+    nclumps = rng.randint(5,8) if bush else rng.randint(11,17)    # fuller, lusher canopy
+    base_r = rng.uniform(0.5,0.85) if bush else rng.uniform(1.2,2.3)
+    cz = th*0.4 if bush else th*0.8
     for i in range(nclumps):
         r = base_r * rng.uniform(0.7,1.25)
         ang=rng.uniform(0,math.tau); rad=rng.uniform(0, base_r*0.95)
@@ -266,31 +266,39 @@ KITT   = [d for d in (tree_data, eci_tree_data) if d]        # a few bare kit tr
 # ---- forest floor everywhere; the LAKE fills only the FRONT (+Y) half ----
 bpy.ops.mesh.primitive_plane_add(size=900, location=(0, 0, -0.05))
 g = bpy.context.active_object; g.name = 'Ground'; g.data.materials.append(MAT['ground'])
-bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 100, 0.0))
-lake = bpy.context.active_object; lake.name = 'Lake'; lake.scale = (160, 98, 1)   # x ±160, y 2..198 (front only)
+bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 48, 0.0))
+lake = bpy.context.active_object; lake.name = 'Lake'; lake.scale = (110, 46, 1)   # a small forest lake: x ±110, y 2..94
 lake.data.materials.append(MAT['water'])
 
-FRONT = math.radians(74)   # half-angle of the open lake cone facing +Y
+FRONT = math.radians(52)   # a narrower opening, so the forest frames the lake on the sides too
 def in_lake(x, y, reach): return abs(math.atan2(x, y)) < FRONT and 0 < y < reach
+def moon_gap(x, y): return y > 0 and abs(math.atan2(x, y)) < math.radians(15)   # let the low moon show over the water
 
-# ---- the deep, dense, leafy forest filling the BACK (-Y) and the sides ----
+# ---- the deep, dense, leafy forest closing in all around the little lake ----
 random.seed(5); nplaced = 0
-for i in range(760):
-    a = random.uniform(0, math.tau); r = 14 + (random.random()**1.2) * 116   # forest set BACK from the shore
+for i in range(1040):
+    a = random.uniform(0, math.tau); r = 15 + (random.random()**1.25) * 120
     x, y = math.cos(a)*r, math.sin(a)*r
-    if in_lake(x, y, 108): continue                      # open lake in front out to the far bank
-    use_leafy = (random.random() < 0.82) or not KITT
-    d = random.choice(LEAFY if use_leafy else KITT)
-    h = random.uniform(7, 20) * (1.0 - 0.12*random.random())
-    place(d, (x, y, 0.0), random.uniform(0, math.tau), h, None, 0.05); nplaced += 1
+    if in_lake(x, y, 90): continue                       # keep the lake water open
+    if y >= 88 and moon_gap(x, y): continue              # a gap so the moon shows over the far water
+    use_leafy = (random.random() < 0.85) or not KITT
+    place(random.choice(LEAFY if use_leafy else KITT), (x, y, 0.0), random.uniform(0, math.tau),
+          random.uniform(8, 22) * (1.0 - 0.12*random.random()), None, 0.05); nplaced += 1
+# a denser wall of forest on the FAR shore, across the lake — a forest-enclosed lake
+for i in range(260):
+    x = random.uniform(-100, 100); y = random.uniform(90, 150)
+    if moon_gap(x, y): continue
+    use_leafy = (random.random() < 0.85) or not KITT
+    place(random.choice(LEAFY if use_leafy else KITT), (x, y, 0.0), random.uniform(0, math.tau),
+          random.uniform(9, 22) * (1.0 - 0.1*random.random()), None, 0.05); nplaced += 1
 print(f'[forest] {nplaced} canopy trees', flush=True)
 
-# ---- dense undergrowth (bushes) behind, on the forest floor — 生い茂る ----
-for i in range(360):
-    a = random.uniform(0, math.tau); r = 12 + (random.random()**1.15) * 64
+# ---- dense undergrowth (bushes) crowding the forest floor — 生い茂る ----
+for i in range(500):
+    a = random.uniform(0, math.tau); r = 7 + (random.random()**1.1) * 60
     x, y = math.cos(a)*r, math.sin(a)*r
-    if in_lake(x, y, 70): continue
-    place(random.choice(BUSHES), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(0.9, 2.8), None, 0.12)
+    if in_lake(x, y, 66): continue
+    place(random.choice(BUSHES), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(1.0, 3.2), None, 0.12)
 
 # ---- the near shore you stand on: low rocks + a log at the water's edge ----
 if rock_datas:
@@ -307,15 +315,15 @@ bpy.ops.mesh.primitive_cube_add(size=1, location=(0, -27, 2.1)); cb = bpy.contex
 cb.scale = (3.4, 2.6, 2.4); cb.data.materials.append(MAT['leaf'])
 
 # ---- the moon, low over the lake (+Y), mirrored on the water ----
-bpy.ops.mesh.primitive_uv_sphere_add(radius=4.6, location=(0, 130, 15))
+bpy.ops.mesh.primitive_uv_sphere_add(radius=4.4, location=(0, 104, 16))
 moon = bpy.context.active_object; moon.name = 'Moon'; moon.data.materials.append(MAT['moon'])
 for p in moon.data.polygons: p.use_smooth = True
-bpy.ops.mesh.primitive_uv_sphere_add(radius=8.0, location=(0, 130, 15))
+bpy.ops.mesh.primitive_uv_sphere_add(radius=7.6, location=(0, 104, 16))
 halo = bpy.context.active_object; halo.name = 'MoonHalo'; halo.data.materials.append(make_emissive('m_halo', (0.85, 0.9, 1.0), 0.7))
 for p in halo.data.polygons: p.use_smooth = True
 
 # ---- moonlight: a cool sun from over the lake, lighting the forest's lake-facing side ----
-sun_d = bpy.data.lights.new('Moonlight', 'SUN'); sun_d.energy = 0.72; sun_d.color = (0.66, 0.76, 1.0); sun_d.angle = math.radians(3.0)
+sun_d = bpy.data.lights.new('Moonlight', 'SUN'); sun_d.energy = 0.92; sun_d.color = (0.66, 0.76, 1.0); sun_d.angle = math.radians(3.0)
 sun = bpy.data.objects.new('Moonlight', sun_d); coll.objects.link(sun)
 sun.location = (0, 120, 30); sun.rotation_euler = (math.radians(62), 0, math.radians(180))
 
