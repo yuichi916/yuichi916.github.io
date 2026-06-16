@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -3648,6 +3648,7 @@ async function lazyLoadAsset(name, onProgress){
         'enc_int_monlight', 'enc_int_oto', 'enc_int_tabi', 'enc_int_toki',
         'enc_int_hoshi', 'enc_int_takibi', 'enc_int_mizube', 'enc_int_amaoto',
         'enc_int_heya',
+        'enc_tree_green_lg', 'enc_tree_green_md', 'enc_tree_fruit', 'enc_tree_autumn',
       ]));
       if(_assetBase){
         url = _assetBase.replace(/\/+$/, '') + '/' + name + '.glb';
@@ -8516,6 +8517,9 @@ SCENES.island = {
     if(typeof _plantIslandForest === 'function'){
       try { _plantIslandForest(root); } catch(e){ console.warn('niwa[island]: forest failed', e); }
     }
+    if(typeof _plantIslandTrees === 'function'){
+      _plantIslandTrees(root).catch(e => console.warn('niwa[island]: real trees failed', e));
+    }
     // v654b: override the legacy ±SCENE_BOUND playable bounds set by
     // buildScene's fallback path.  Without this the bounds were a 17 m
     // disc at the origin and tab-teleports to monlight / oto etc.
@@ -8869,6 +8873,31 @@ async function _streamRemainingIslandPrefabs(root){
       root.add(_icon);
       if(!window._niwaNavIcons) window._niwaNavIcons = [];
       window._niwaNavIcons.push(_icon);
+      // v677: readable wooden signpost so the portal gimmick is unmistakable
+      (function(){
+        const sg = new THREE.Group();
+        const wood = new THREE.MeshStandardMaterial({color:0x5a3a22, roughness:0.9});
+        for(const dxp of [-0.42,0.42]){
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,1.5,6), wood);
+          post.position.set(dxp,0.75,0); post.castShadow=true; sg.add(post);
+        }
+        const cv=document.createElement('canvas'); cv.width=320; cv.height=104;
+        const c=cv.getContext('2d');
+        c.fillStyle='#ece0be'; c.fillRect(0,0,320,104);
+        c.strokeStyle='#7a5a36'; c.lineWidth=6; c.strokeRect(5,5,310,94);
+        const hx='#'+((_link.color||0xc89848).toString(16).padStart(6,'0'));
+        c.fillStyle=hx; c.fillRect(5,5,14,94);
+        c.fillStyle='#2a1d10'; c.font='bold 30px serif';
+        c.textAlign='center'; c.textBaseline='middle'; c.fillText('> '+_link.label,168,54);
+        const tx=new THREE.CanvasTexture(cv); tx.colorSpace=THREE.SRGBColorSpace;
+        const board=new THREE.Mesh(new THREE.PlaneGeometry(1.5,0.49), new THREE.MeshBasicMaterial({map:tx,side:THREE.DoubleSide}));
+        board.position.y=1.28; sg.add(board);
+        const back=new THREE.Mesh(new THREE.BoxGeometry(1.55,0.56,0.05),wood); back.position.set(0,1.28,-0.03); back.castShadow=true; sg.add(back);
+        sg.position.set(_px, 0, _pz-1.4);
+        sg.rotation.y=Math.atan2((x+offset)-_px,(z+offset)-(_pz-1.4));
+        sg.userData.skipRaycast=true; sg.userData.skipObstacle=true;
+        root.add(sg);
+      })();
       ENTITIES.interactables.push({
         x: _px, z: _pz, r: 2.5,
         label: 'E: ' + _link.label,
@@ -10393,6 +10422,42 @@ function placeIslandCellFx(name, root, cx, cz){
  * dense grove inside takibi (焚き火の森).  Composition rules: forest
  * biome palette #3F6B3A/#B7C77A, rim trees give the silhouette test
  * a serrated treeline against the cloud sea. */
+// v677: real KB3D Enchanted hero trees at each cell's diagonal corners
+// (cardinal edges are bridge lanes) + a takibi grove.  Ground-snapped.
+async function _plantIslandTrees(root){
+  const SEP=(typeof ISLAND_SEPARATION==='number')?ISLAND_SEPARATION:20;
+  const assets=['enc_tree_green_lg','enc_tree_green_md','enc_tree_fruit','enc_tree_autumn'];
+  await Promise.all(assets.map(a=>lazyLoadAsset(a).catch(()=>null)));
+  if(!currentScene||currentScene.name!=='island') return;
+  const diag=[[7,7],[-7,7],[7,-7],[-7,-7]];
+  const spots=[];
+  for(const k in SCENE_WORLD_POS){
+    if(k==='heya') continue;
+    const cx=SCENE_WORLD_POS[k].dx*SEP, cz=SCENE_WORLD_POS[k].dz*SEP;
+    for(const od of diag) spots.push([cx+od[0],cz+od[1]]);
+    if(k==='takibi'){ spots.push([cx-5,cz+7.5]); spots.push([cx+5,cz+7.5]); }
+  }
+  let n=0;
+  for(const sp of spots){
+    const x=sp[0], z=sp[1];
+    const asset=assets[(Math.abs(Math.round(x*7+z*13)))%assets.length];
+    const src=BLENDER_CACHE[asset];
+    if(!src) continue;
+    const m=src.clone(true);
+    const sc=0.85+((Math.abs(Math.round(x*3-z*5)))%30)/100;
+    m.scale.setScalar(sc);
+    let gy=0; try{const s=sampleHeight(x,z); if(isFinite(s)&&s>-0.5&&s<3)gy=s;}catch(_){}
+    m.position.set(x,gy,z);
+    m.rotation.y=((x*37+z*13)%360)*Math.PI/180;
+    m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+    m.userData.skipRaycast=true;
+    root.add(m);
+    if(ENTITIES.obstacles) ENTITIES.obstacles.push({x:x,z:z,r:0.7});
+    n++;
+  }
+  console.log('niwa[island]: planted '+n+' real KB3D trees');
+}
+
 function _plantIslandForest(root){
   const SEP = (typeof ISLAND_SEPARATION === 'number') ? ISLAND_SEPARATION : 20;
   const CELLS = [];
