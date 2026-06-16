@@ -231,6 +231,8 @@ body{
   <div class="meta" id="centerMeta">
     <div class="lbl">NEXT</div>
     <canvas id="pNext" class="nextcv"></canvas>
+    <div class="lbl" style="margin-top:4px;opacity:.7">NEXT 2</div>
+    <canvas id="pNext2" class="nextcv" style="opacity:.82"></canvas>
     <div class="hintbox">
       <div class="lbl" style="margin-bottom:4px">予告</div>
       <div style="font-size:10px;line-height:1.5;color:var(--text-dim)">盤の上の<b style="color:#d8866c">お邪魔予告</b>は次に降る量。<b style="color:var(--gold)">連鎖して消すと相殺</b>できる。</div>
@@ -321,7 +323,12 @@ const KING_MIN_MOVE = 6;      // no kings in the first few moves
 const NUISANCE_DIV = 6;       // points -> お邪魔 conversion
 const MAX_GARBAGE_DROP = 30;  // per turn
 
-const POP_MS = 230, DROP_MS = 130, LOCK_MS = 480;
+const POP_MS = 230, LOCK_MS = 480;
+const GRAV = 0.00013;        // fall acceleration (cells per ms^2) — drives chigiri & drop
+const HARD_GRAV = GRAV*7;    // hard-drop slam acceleration
+const SQUASH_MS = 210;       // landing squash-&-stretch (ぷるん) duration
+const DAS_DELAY = 150, DAS_RATE = 36, SOFT_RATE = 22; // key repeat tuning
+const MAX_LOCK_RESETS = 12;  // move/rotate lock-delay resets before forced lock
 
 // timing per difficulty
 const DIFF = {
@@ -461,6 +468,10 @@ class Engine {
     this.particles = [];       // spark FX (grid-unit coords)
     this.shake = 0;            // screen-shake magnitude 0..1
     this.popup = null;         // {text,t,cx,cy} on-board chain popup
+    this.dropElapsed = 0;      // ms into current physics drop
+    this.maxFall = 0;          // largest fall distance this drop
+    this.lockResets = 0;       // move-reset count for lock delay
+    this.hardSlam = false;     // current drop is a hard-drop slam
   }
   gen(){
     if(this.bag.length===0){ this.bag=[0,1,2,3,4,0,1,2,3,4]; for(let i=this.bag.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[this.bag[i],this.bag[j]]=[this.bag[j],this.bag[i]];} }
@@ -475,7 +486,7 @@ class Engine {
       if(Math.random()<0.5) aType='K'; else bType='K';
     }
     this.pair = { a:{t:aType,promoted:false}, b:{t:bType,promoted:false}, r:HIDDEN, c:2, rot:0 };
-    this.gravT=0; this.lockT=0;
+    this.gravT=0; this.lockT=0; this.lockResets=0;
     // top-out check
     if(!this.fits(this.pair)){ this.dead=true; this.phase='dead'; return false; }
     this.phase = this.isPlayer ? 'control' : 'cpuwait';
@@ -515,7 +526,8 @@ class Engine {
   }
   hardDrop(){
     if(this.phase!=='control'&&this.phase!=='cpuwait') return;
-    while(this.tryMove(0,1)){}
+    // lock at current height and let the physics drop "slam" it down (big squash)
+    this.hardSlam=true;
     this.lockNow();
   }
   lockNow(){
@@ -523,7 +535,19 @@ class Engine {
     this.moveCount++;
     collapseGrid(this.grid);
     this.chainCount=0; this.nuisAccum=0;
-    this.phase='drop'; this.phaseT=0;
+    this.startDrop();
+  }
+  // begin a physics-based drop: each cell falls under gravity to its rest,
+  // landing at its own time (this is what gives "ちぎり" its feel).
+  startDrop(){
+    let mf=0;
+    for(let r=0;r<TR;r++)for(let c=0;c<COLS;c++){
+      const cl=this.grid[r][c]; if(!cl) continue;
+      const f=cl._fall||0;
+      cl._fellRows=f; cl._landed=(f===0);
+      if(f>mf) mf=f;
+    }
+    this.maxFall=mf; this.dropElapsed=0; this.phase='drop'; this.phaseT=0;
   }
   // begin a pop step from found groups
   startPop(groups){
@@ -664,9 +688,9 @@ function boardToppedOut(g){ return !!g[HIDDEN][2] || !!g[0][2]; }
 /* ----------------------------- rendering -------------------------------- */
 let CELL = 36, CELL_C = 26;
 const pBoard=document.getElementById('pBoard'), cBoard=document.getElementById('cBoard');
-const pNext=document.getElementById('pNext');
+const pNext=document.getElementById('pNext'), pNext2=document.getElementById('pNext2');
 const pForecastEl=document.getElementById('pForecast'), cForecastEl=document.getElementById('cForecast');
-const pctx=pBoard.getContext('2d'), cctx=cBoard.getContext('2d'), nctx=pNext.getContext('2d');
+const pctx=pBoard.getContext('2d'), cctx=cBoard.getContext('2d'), nctx=pNext.getContext('2d'), nctx2=pNext2.getContext('2d');
 const dpr=()=>Math.min(window.devicePixelRatio||1,2);
 
 function sizeCanvas(cv,ctx,w,h){
@@ -694,6 +718,8 @@ function layout(){
   sizeCanvas(cBoard,cctx,COLS*CELL_C,ROWS*CELL_C);
   const nc=Math.floor(CELL*0.92);
   sizeCanvas(pNext,nctx,nc, nc*2);
+  const nc2=Math.floor(nc*0.82);
+  sizeCanvas(pNext2,nctx2,nc2, nc2*2);
 }
 window.addEventListener('resize',()=>{ layout(); });
 
@@ -738,17 +764,27 @@ function lighten(hex,amt){
   r=Math.min(255,r);g=Math.min(255,g);b=Math.min(255,b);
   return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
 }
-function easeOut(t){ return 1-Math.pow(1-t,3); }
+// landing squash-&-stretch: returns [scaleX, scaleY]. p:0..1, fell=rows fallen (amplitude)
+function squashScale(p, fell){
+  const amp=Math.min(0.42, 0.15 + (fell||1)*0.035);
+  const decay=Math.pow(1-p,2), osc=Math.cos(p*Math.PI*3);
+  const sy=1 - amp*decay*osc;            // compressed (<1) on impact, springs back
+  const sx=1 + (1-sy)*0.85;              // widen to conserve volume
+  return [Math.max(0.45,sx), Math.max(0.45,sy)];
+}
 
 // Paint one cell. gx,gy = top-left of the cell box; S = cell size.
-// nb = {up,down,left,right} same-color connections (merge like Puyo). scale/alpha for pop FX.
-function paintCell(ctx, cell, gx, gy, S, nb, scale, alpha){
+// nb = {up,down,left,right} same-color connections (merge like Puyo).
+// scale/alpha = pop FX (center). sx/sy = landing squash (anchored to cell bottom).
+function paintCell(ctx, cell, gx, gy, S, nb, scale, alpha, sx, sy){
   if(!cell) return;
   nb = nb||{}; scale = scale==null?1:scale; alpha = alpha==null?1:alpha;
+  sx = sx==null?1:sx; sy = sy==null?1:sy;
   const cx=gx+S/2, cy=gy+S/2;
   ctx.save();
   if(alpha<1) ctx.globalAlpha=alpha;
   if(scale!==1){ ctx.translate(cx,cy); ctx.scale(scale,scale); ctx.translate(-cx,-cy); }
+  if(sx!==1||sy!==1){ const by=gy+S; ctx.translate(cx,by); ctx.scale(sx,sy); ctx.translate(-cx,-by); }
 
   if(cell.t==='G'){ // garbage rock (never merges)
     const r=S*0.40;
@@ -800,15 +836,17 @@ function renderEngine(eng, ctx, cell){
   ctx.save();
   if(eng.shake>0){ const m=eng.shake*cell*0.20; ctx.translate((Math.random()-0.5)*m,(Math.random()-0.5)*m); }
   drawBoardBg(ctx,cell);
-  const dropEase = eng.phase==='drop' ? easeOut(Math.min(1,eng.phaseT/DROP_MS)) : 1;
   const popP = eng.phase==='pop' ? Math.min(1,eng.phaseT/POP_MS) : 0;
   const grid=eng.grid;
+  // physics fall progress (rows fallen so far this drop)
+  const fallenRows = eng.phase==='drop' ? 0.5*(eng.hardSlam?HARD_GRAV:GRAV)*eng.dropElapsed*eng.dropElapsed : Infinity;
   // settled cells (with Puyo-style merging of same color)
   for(let r=HIDDEN;r<TR;r++) for(let c=0;c<COLS;c++){
     const cl=grid[r][c]; if(!cl) continue;
     const vr=r-HIDDEN;
     let py=vr*cell;
-    if(cl._fall){ py -= cl._fall*cell*(1-dropEase); }
+    // still-falling cell: offset upward by remaining fall distance
+    if(cl._fall && !cl._landed){ const shown=Math.max(0, cl._fall - fallenRows); py -= shown*cell; }
     // popping animation: flash brighter then shrink+fade
     if(eng.pop && eng.pop.remove.has(r*COLS+c)){
       let sc, al;
@@ -817,13 +855,16 @@ function renderEngine(eng, ctx, cell){
       paintCell(ctx,cl, c*cell, vr*cell, cell, null, sc, al);
       continue;
     }
+    // landing squash (ぷるん) — anchored to the cell's bottom
+    let qx=1, qy=1;
+    if(cl._squash!=null){ const sq=squashScale(cl._squash/SQUASH_MS, cl._fellRows); qx=sq[0]; qy=sq[1]; }
     // neighbor connection only between settled same-type numeric pieces
-    const t=cl.t, f=cl._fall||0;
+    const t=cl.t, falling=cl._fall && !cl._landed;
     const same=(rr,cc)=>{ if(rr<0||rr>=TR||cc<0||cc>=COLS) return false; const o=grid[rr][cc];
-      return !!o && o.t===t && typeof t==='number' && (o._fall||0)===0 && f===0
+      return !!o && o.t===t && typeof t==='number' && !(o._fall&&!o._landed) && !falling
         && !(eng.pop&&eng.pop.remove.has(rr*COLS+cc)); };
     const nb={ up:same(r-1,c), down:same(r+1,c), left:same(r,c-1), right:same(r,c+1) };
-    paintCell(ctx,cl, c*cell, py, cell, nb, 1, 1);
+    paintCell(ctx,cl, c*cell, py, cell, nb, 1, 1, qx, qy);
   }
   // falling / waiting pair (connect the two halves if same color & stacked)
   if(eng.pair && (eng.phase==='control'||eng.phase==='cpuwait')){
@@ -857,18 +898,19 @@ function renderEngine(eng, ctx, cell){
     ctx.globalAlpha=1;
   }
   ctx.restore();
-  // clear _fall once drop done
-  if(eng.phase!=='drop'){ for(let r=0;r<TR;r++) for(let c=0;c<COLS;c++){ if(grid[r][c]) grid[r][c]._fall=0; } }
 }
 
+function drawPreview(ctx, cv, ta, tb){
+  const nc=cv.width/dpr(), s=nc*0.92;
+  ctx.clearRect(0,0,nc,nc*2);
+  const top={t:ta,promoted:false}, bottom={t:tb,promoted:false}, same=ta===tb;
+  paintCell(ctx,top,(nc-s)/2,2,s, same?{down:true}:null,1,1);
+  paintCell(ctx,bottom,(nc-s)/2,nc+2,s, same?{up:true}:null,1,1);
+}
 function renderNext(eng){
-  const nc=pNext.width/dpr(), s=nc*0.92;
-  nctx.clearRect(0,0,nc,nc*2);
-  // NEXT shows the upcoming pair, connected vertically if same color
-  const top={t:eng.queue[0],promoted:false}, bottom={t:eng.queue[1]??eng.queue[0],promoted:false};
-  const same = top.t===bottom.t;
-  paintCell(nctx,top,(nc-s)/2,2,s, same?{down:true}:null,1,1);
-  paintCell(nctx,bottom,(nc-s)/2,nc+2,s, same?{up:true}:null,1,1);
+  // NEXT = queue[0,1] (the pair coming next); NEXT2 = queue[2,3]
+  drawPreview(nctx, pNext, eng.queue[0], eng.queue[1]??eng.queue[0]);
+  drawPreview(nctx2, pNext2, eng.queue[2]??eng.queue[0], eng.queue[3]??eng.queue[1]??eng.queue[0]);
 }
 
 /* ----------------------------- forecast (予告ぷよ) ---------------------- */
@@ -923,6 +965,10 @@ function decayFX(eng, dt){
   }
   if(eng.shake>0) eng.shake=Math.max(0, eng.shake-dt*0.0022);
   if(eng.popup){ eng.popup.t+=dt; if(eng.popup.t>900) eng.popup=null; }
+  // advance landing squash on settled cells (cosmetic, runs every frame)
+  const g=eng.grid;
+  for(let r=0;r<TR;r++) for(let c=0;c<COLS;c++){ const cl=g[r][c];
+    if(cl && cl._squash!=null){ cl._squash+=dt; if(cl._squash>=SQUASH_MS) cl._squash=null; } }
 }
 function stepEngine(eng, dt, isPlayer){
   decayFX(eng, dt);
@@ -930,45 +976,63 @@ function stepEngine(eng, dt, isPlayer){
   const d=DIFF[difficulty];
   switch(eng.phase){
     case 'control':
+      if(isPlayer) processPlayerInput(eng, dt);
       eng.gravT+=dt;
       if(eng.gravT>=d.grav){ eng.gravT=0; eng.tryMove(0,1); }
       if(!canMoveDown(eng)){
         eng.lockT+=dt;
-        if(eng.lockT>=LOCK_MS){ eng.lockNow(); lockSound(); }
+        if(eng.lockT>=LOCK_MS || eng.lockResets>=MAX_LOCK_RESETS){ eng.lockNow(); lockSound(); }
       } else { eng.lockT=0; }
       break;
     case 'cpuwait':
       eng.cpuT+=dt;
       if(eng.cpuT>=d.cpuMove){
         const mv=chooseMove(eng,d.cpuDepth);
-        // set pair to chosen rotation then drop
         eng.pair.rot=mv.rot;
-        // ensure column valid given rotation width
-        let target=mv.c;
-        // clamp so sub stays in bounds
-        eng.pair.c=target; if(!eng.fits(eng.pair)){
-          for(const dc of [-1,1,-2,2]){ const k={...eng.pair,c:target+dc}; if(eng.fits(k)){ eng.pair.c=target+dc; break; } }
+        eng.pair.c=mv.c; if(!eng.fits(eng.pair)){
+          for(const dc of [-1,1,-2,2]){ const k={...eng.pair,c:mv.c+dc}; if(eng.fits(k)){ eng.pair.c=mv.c+dc; break; } }
         }
         eng.hardDrop(); lockSound();
       }
       break;
-    case 'drop':
-      eng.phaseT+=dt;
-      if(eng.phaseT>=DROP_MS){
-        // chain check
+    case 'drop': {
+      eng.dropElapsed+=dt;
+      const g = eng.hardSlam ? HARD_GRAV : GRAV, te=eng.dropElapsed;
+      const fallen = 0.5*g*te*te;   // rows fallen so far
+      let allLanded=true;
+      for(let r=TR-1;r>=0;r--) for(let c=0;c<COLS;c++){
+        const cl=eng.grid[r][c]; if(!cl||cl._landed) continue;
+        if(fallen>=cl._fall){ cl._landed=true; cl._fall=0; cl._squash=0; }
+        else allLanded=false;
+      }
+      if(allLanded){
+        eng.hardSlam=false;
         const groups=findGroups(eng.grid);
         if(groups.length){ const pop=eng.startPop(groups); chainSound(eng.chainCount); if(pop.hadKing) kingSound(); }
         else { finishResolve(eng,isPlayer); }
       }
       break;
+    }
     case 'pop':
       eng.phaseT+=dt;
-      if(eng.phaseT>=POP_MS){ eng.applyPop(); eng.phase='drop'; eng.phaseT=0; }
+      if(eng.phaseT>=POP_MS){ eng.applyPop(); eng.startDrop(); }
       break;
     case 'dead': break;
   }
   if(eng.chainDisplayT!==undefined){ eng.chainDisplayT+=dt; }
 }
+// player keyboard/touch input with independent DAS (auto-shift not cancelled by other keys)
+function processPlayerInput(eng, dt){
+  const dir = lastHoriz && keyState[lastHoriz] ? lastHoriz : null;
+  if(dir){
+    dasCharge+=dt;
+    if(dasCharge>=DAS_DELAY){ dasRepeat+=dt; while(dasRepeat>=DAS_RATE){ moveHoriz(eng,dir); dasRepeat-=DAS_RATE; } }
+  } else { dasCharge=0; dasRepeat=0; }
+  if(keyState.down){ softTimer+=dt; while(softTimer>=SOFT_RATE){ if(eng.tryMove(0,1)){ eng.gravT=0; resetLock(eng,false); } softTimer-=SOFT_RATE; } }
+  else softTimer=0;
+}
+function moveHoriz(eng,dir){ if(eng.tryMove(dir==='left'?-1:1,0)) resetLock(eng,true); }
+function resetLock(eng, isMove){ if(!canMoveDown(eng) && eng.lockResets<MAX_LOCK_RESETS){ eng.lockT=0; if(isMove) eng.lockResets++; } }
 function canMoveDown(eng){
   const p=eng.pair; if(!p) return false;
   const np={...p,r:p.r+1}; return eng.fits(np);
@@ -987,7 +1051,7 @@ function finishResolve(eng, isPlayer){
     else if(eng.chainCount>=2) showToast(eng.chainCount+' 連鎖!');
   }
   // drop my incoming garbage (one turn after it appears in the forecast = chance to counter)
-  if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.shake=Math.min(1, eng.shake+drop*0.05); if(isPlayer) beep(110,0.12,'square',0.05); eng.phase='drop'; eng.phaseT=0; eng.chainCount=0; eng.nuisAccum=0; return; }
+  if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.shake=Math.min(1, eng.shake+drop*0.05); if(isPlayer) beep(110,0.12,'square',0.05); eng.chainCount=0; eng.nuisAccum=0; eng.startDrop(); return; }
   eng.chainCount=0; eng.nuisAccum=0;
   // spawn next
   if(!eng.spawnPair()){
@@ -1034,31 +1098,61 @@ function startGame(){
   if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
 }
 
-/* ----------------------------- input ------------------------------------ */
-function pAction(act){
-  if(!running||!player||player.phase!=='control') return;
-  switch(act){
-    case 'left': player.tryMove(-1,0); break;
-    case 'right': player.tryMove(1,0); break;
-    case 'soft': player.tryMove(0,1)&&(player.gravT=0); beep(120,0.03,'square',0.02); break;
-    case 'hard': player.hardDrop(); lockSound(); break;
-    case 'rotL': player.tryRotate(-1); beep(300,0.04,'sine',0.03); break;
-    case 'rotR': player.tryRotate(1); beep(300,0.04,'sine',0.03); break;
-  }
+/* ----------------------------- input ------------------------------------
+   Independent key-state + DAS so a held direction keeps auto-shifting even
+   while other keys (rotate / hard-drop) are pressed. */
+const keyState={left:false,right:false,down:false};
+let lastHoriz=null, dasCharge=0, dasRepeat=0, softTimer=0;
+const canPlay=()=> running&&player&&player.phase==='control';
+
+function pressDir(dir){              // first tap moves once, then DAS repeats
+  keyState[dir]=true; lastHoriz=dir; dasCharge=0; dasRepeat=0;
+  if(canPlay()) moveHoriz(player,dir);
 }
+function releaseDir(dir){
+  keyState[dir]=false;
+  if(lastHoriz===dir) lastHoriz = (dir==='left'&&keyState.right)?'right':(dir==='right'&&keyState.left)?'left':null;
+  dasCharge=0; dasRepeat=0;
+}
+function rotate(d){ if(canPlay()){ if(player.tryRotate(d)) resetLock(player,true); beep(300,0.04,'sine',0.03); } }
+function hardNow(){ if(canPlay()){ player.hardDrop(); lockSound(); } }
+
 window.addEventListener('keydown',e=>{
   if(!running) return;
   const k=e.key;
   if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(k)) e.preventDefault();
-  if(k==='ArrowLeft') pAction('left');
-  else if(k==='ArrowRight') pAction('right');
-  else if(k==='ArrowDown') pAction('soft');
-  else if(k==='ArrowUp'||k==='x'||k==='X') pAction('rotR');
-  else if(k==='z'||k==='Z') pAction('rotL');
-  else if(k===' ') pAction('hard');
+  if(e.repeat) return;               // ignore OS auto-repeat; we run our own DAS
+  if(k==='ArrowLeft') pressDir('left');
+  else if(k==='ArrowRight') pressDir('right');
+  else if(k==='ArrowDown'){ keyState.down=true; softTimer=SOFT_RATE; }
+  else if(k==='ArrowUp'||k==='x'||k==='X') rotate(1);
+  else if(k==='z'||k==='Z') rotate(-1);
+  else if(k===' ') hardNow();
 });
+window.addEventListener('keyup',e=>{
+  const k=e.key;
+  if(k==='ArrowLeft') releaseDir('left');
+  else if(k==='ArrowRight') releaseDir('right');
+  else if(k==='ArrowDown') keyState.down=false;
+});
+window.addEventListener('blur',()=>{ keyState.left=keyState.right=keyState.down=false; lastHoriz=null; });
+
+// touch controls: press-and-hold for ←/→/↓, tap for rotate/hard
 document.querySelectorAll('.pad button').forEach(b=>{
-  b.addEventListener('click',()=>pAction(b.dataset.act));
+  const act=b.dataset.act;
+  const down=e=>{ e.preventDefault();
+    if(act==='left') pressDir('left');
+    else if(act==='right') pressDir('right');
+    else if(act==='soft'){ keyState.down=true; softTimer=SOFT_RATE; }
+    else if(act==='rotL') rotate(-1);
+    else if(act==='rotR') rotate(1);
+    else if(act==='hard') hardNow();
+  };
+  const up=e=>{ if(act==='left') releaseDir('left'); else if(act==='right') releaseDir('right'); else if(act==='soft') keyState.down=false; };
+  b.addEventListener('pointerdown',down);
+  b.addEventListener('pointerup',up);
+  b.addEventListener('pointercancel',up);
+  b.addEventListener('pointerleave',up);
 });
 
 /* ----------------------------- UI wiring -------------------------------- */
