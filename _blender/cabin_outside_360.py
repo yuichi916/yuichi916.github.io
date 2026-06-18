@@ -1,26 +1,30 @@
-"""森の外 — Cabin in the Hollow / the lake at night.
+"""森の外 — the lakeside forest cabin, in DAY or NIGHT.
 
-Step out of the cabin onto a small rock in the middle of a still forest lake.
-The whole sky is filled with stars (満天の星空) and a low moon; the mirror-calm
-water doubles them. Deep forest silhouettes ring the far shore. Built from
-KitBash3D Valhalla (tree, rocks, logs) + Enchanted Interiors (a 2nd tree),
-with a procedural star sky, moon and reflective lake.
+Step out of the cabin onto the shore of a clear forest lake. Real KitBash3D
+Enchanted trees + shrubs make the forest; a small hand-built log cabin (the one
+you came from) sits on the shore; the water is clear by day and a dark mirror by
+night.
 
-  assets/cabin-outside360.jpg   6144x3072 equirectangular (Cycles)
-  assets/cabin-outside-still.jpg 2560x1440 perspective fallback / OGP
+  assets/cabin-outside360.jpg       6144x3072 equirect — NIGHT
+  assets/cabin-outside-day360.jpg   6144x3072 equirect — DAY
+  assets/cabin-outside-still.jpg     2560x1440 OGP
 
-  blender -b --factory-startup --python cabin_outside_360.py -- preview|final|pano
+  blender -b --factory-startup --python cabin_outside_360.py -- pano|final  night|day
 """
-import bpy, os, sys, math, random, bmesh
-from mathutils import Vector, Matrix
+import bpy, os, sys, math, random
+from mathutils import Vector
 random.seed(7)
 
 ARGV = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
 MODE = (ARGV[0] if ARGV else 'preview').lower()
+TIME = (ARGV[1] if len(ARGV) > 1 else 'night').lower()
+DAY = (TIME == 'day')
 
-BLEND_VAL = r'P:\CG fanbook\3D assets\KitBash3D - Valhalla\Blender\KB3D_Valhalla-Native.blend'
-BLEND_ECI = r'C:\tmp\blends\eci\kb3d_enchantedinteriors-native.blend'
-OUT = r'C:\projects\yuichi916.github.io\assets'
+ENCH     = r'C:\tmp\blends\enchanted.blend'
+# textures copied LOCAL (pCloud P:\ stalls find_missing_files / render image loads → hangs for days)
+ENCH_TEX = r'C:\tmp\ench_tex'
+DKF_TEX  = r'C:\tmp\dkf_tex'
+OUT      = r'C:\projects\yuichi916.github.io\assets'
 os.makedirs(OUT, exist_ok=True)
 
 # ============================================================ materials
@@ -32,307 +36,277 @@ def make_emissive(name, color, strength):
     b.inputs['Emission Strength'].default_value = strength
     return m
 
-def make_night(name, color, rough=0.9):
+def make_solid(name, color, rough=0.85, spec=0.3):
     m = bpy.data.materials.new(name); m.use_nodes = True
     b = m.node_tree.nodes.get('Principled BSDF')
     b.inputs['Base Color'].default_value = (*color, 1)
     b.inputs['Roughness'].default_value = rough
-    b.inputs['Specular'].default_value = 0.2
+    b.inputs['Specular'].default_value = spec
     return m
 
-def make_water(name):
-    """Near-mirror dark lake with a gentle ripple, so it reflects the stars + moon."""
+def make_wood(name, fam, mapscale=0.5, base_mult=(1,1,1)):
+    """textured PBR from Dark Fantasy for the cabin."""
     m = bpy.data.materials.new(name); m.use_nodes = True
     nt = m.node_tree; nodes, links = nt.nodes, nt.links
-    b = nodes.get('Principled BSDF')
-    b.inputs['Base Color'].default_value = (0.004, 0.010, 0.020, 1)
-    # a rippled (not mirror) surface: soft star/moon shimmer, and far cheaper to trace
-    b.inputs['Roughness'].default_value = 0.30
-    b.inputs['Specular'].default_value = 0.6
-    if 'Transmission' in b.inputs: b.inputs['Transmission'].default_value = 0.0
-    tc = nodes.new('ShaderNodeTexCoord')
-    nz = nodes.new('ShaderNodeTexNoise'); nz.inputs['Scale'].default_value = 5.5; nz.inputs['Detail'].default_value = 3.0
-    links.new(tc.outputs['Object'], nz.inputs['Vector'])
-    bump = nodes.new('ShaderNodeBump'); bump.inputs['Strength'].default_value = 0.15; bump.inputs['Distance'].default_value = 0.04
-    links.new(nz.outputs['Fac'], bump.inputs['Height']); links.new(bump.outputs['Normal'], b.inputs['Normal'])
+    bsdf = nodes.get('Principled BSDF')
+    tc = nodes.new('ShaderNodeTexCoord'); mp = nodes.new('ShaderNodeMapping')
+    mp.inputs['Scale'].default_value = (mapscale,)*3
+    links.new(tc.outputs['Object'], mp.inputs['Vector'])
+    def img(role, noncol):
+        p = os.path.join(DKF_TEX, f'KB3D_DKF_{fam}_{role}.png')
+        if not os.path.exists(p): return None
+        im = bpy.data.images.load(p, check_existing=True)
+        if noncol: im.colorspace_settings.name = 'Non-Color'
+        try:
+            if max(im.size) > 2048: im.scale(2048, 2048)
+        except Exception: pass
+        n = nodes.new('ShaderNodeTexImage'); n.image = im; n.projection = 'BOX'; n.projection_blend = 0.3
+        links.new(mp.outputs['Vector'], n.inputs['Vector']); return n
+    bc = img('basecolor', False)
+    if bc:
+        mix = nodes.new('ShaderNodeMixRGB'); mix.blend_type = 'MULTIPLY'; mix.inputs[0].default_value = 1.0
+        mix.inputs[2].default_value = (*base_mult, 1)
+        links.new(bc.outputs['Color'], mix.inputs[1]); links.new(mix.outputs['Color'], bsdf.inputs['Base Color'])
+    rg = img('roughness', True)
+    if rg: links.new(rg.outputs['Color'], bsdf.inputs['Roughness'])
+    nm = img('normal', True)
+    if nm:
+        nmap = nodes.new('ShaderNodeNormalMap'); links.new(nm.outputs['Color'], nmap.inputs['Color'])
+        links.new(nmap.outputs['Normal'], bsdf.inputs['Normal'])
     return m
 
-# ============================================================ star sky (満天の星空)
-def build_star_world():
-    """Crisp white stars on a near-black indigo sky + a very faint Milky Way band.
-    Rendered with the Standard view transform so the tiny bright points survive."""
-    w = bpy.data.worlds.new('NightSky'); bpy.context.scene.world = w
-    w.use_nodes = True
+def make_water():
+    """clear blue-green by day (you see the bottom), a dark mirror by night."""
+    m = bpy.data.materials.new('water'); m.use_nodes = True
+    nt = m.node_tree; nodes, links = nt.nodes, nt.links
+    b = nodes.get('Principled BSDF')
+    tc = nodes.new('ShaderNodeTexCoord')
+    # NB the plane's Object coords are -0.5..0.5, so the noise scale must be large to
+    # get many ripples across the huge lake (a small scale = flat mirror = looks like floor)
+    nz = nodes.new('ShaderNodeTexNoise'); nz.inputs['Scale'].default_value = 340.0; nz.inputs['Detail'].default_value = 6.0
+    try: nz.inputs['Roughness'].default_value = 0.65
+    except Exception: pass
+    links.new(tc.outputs['Object'], nz.inputs['Vector'])
+    nz2 = nodes.new('ShaderNodeTexNoise'); nz2.inputs['Scale'].default_value = 90.0; nz2.inputs['Detail'].default_value = 3.0
+    links.new(tc.outputs['Object'], nz2.inputs['Vector'])
+    mix = nodes.new('ShaderNodeMixRGB'); mix.blend_type = 'ADD'; mix.inputs[0].default_value = 0.5
+    links.new(nz.outputs['Fac'], mix.inputs[1]); links.new(nz2.outputs['Fac'], mix.inputs[2])
+    bump = nodes.new('ShaderNodeBump'); bump.inputs['Strength'].default_value = (0.5 if DAY else 0.35); bump.inputs['Distance'].default_value = 0.012
+    links.new(mix.outputs['Color'], bump.inputs['Height']); links.new(bump.outputs['Normal'], b.inputs['Normal'])
+    if DAY:
+        b.inputs['Base Color'].default_value = (0.006, 0.035, 0.060, 1) # dark blue-teal forest lake
+        b.inputs['Roughness'].default_value = 0.03                     # crisp mirror: reflects the far treeline + cabin
+        b.inputs['Transmission'].default_value = 0.12                  # a hint of depth, but the water stays dark
+        b.inputs['IOR'].default_value = 1.333
+        b.inputs['Specular'].default_value = 0.5
+    else:
+        b.inputs['Base Color'].default_value = (0.004, 0.010, 0.020, 1)
+        b.inputs['Roughness'].default_value = 0.10
+        b.inputs['Specular'].default_value = 0.6
+    return m
+
+# NB: MAT is built AFTER open_mainfile (below) — opening a .blend wipes data created before it
+
+# ============================================================ sky / lighting
+def build_world():
+    w = bpy.data.worlds.new('sky'); bpy.context.scene.world = w; w.use_nodes = True
     nt = w.node_tree; nodes, links = nt.nodes, nt.links
     for n in list(nodes): nodes.remove(n)
-    out = nodes.new('ShaderNodeOutputWorld')
-    bg = nodes.new('ShaderNodeBackground')
-    tc = nodes.new('ShaderNodeTexCoord')
-    def starlayer(scale, cut, bright):
-        v = nodes.new('ShaderNodeTexVoronoi'); v.feature = 'F1'; v.inputs['Scale'].default_value = scale
-        links.new(tc.outputs['Generated'], v.inputs['Vector'])
-        r = nodes.new('ShaderNodeValToRGB')
-        r.color_ramp.interpolation = 'EASE'
-        r.color_ramp.elements[0].position = 0.0; r.color_ramp.elements[0].color = (bright, bright, bright, 1)
-        r.color_ramp.elements[1].position = cut; r.color_ramp.elements[1].color = (0, 0, 0, 1)
-        links.new(v.outputs['Distance'], r.inputs['Fac'])
-        return r
-    # three dense layers -> a sky truly full of stars (満天の星空)
-    s1 = starlayer(220, 0.060, 1.2)   # dense fine stars
-    s2 = starlayer(90,  0.042, 2.2)   # bright stars
-    s3 = starlayer(40,  0.032, 3.4)   # rare brilliant stars
-    add1 = nodes.new('ShaderNodeMixRGB'); add1.blend_type = 'ADD'; add1.inputs[0].default_value = 1.0
-    links.new(s1.outputs['Color'], add1.inputs[1]); links.new(s2.outputs['Color'], add1.inputs[2])
-    add2 = nodes.new('ShaderNodeMixRGB'); add2.blend_type = 'ADD'; add2.inputs[0].default_value = 1.0
-    links.new(add1.outputs['Color'], add2.inputs[1]); links.new(s3.outputs['Color'], add2.inputs[2])
-    # only a gentle density variation so stars are nearly everywhere (no cloud look)
-    dn = nodes.new('ShaderNodeTexNoise'); dn.inputs['Scale'].default_value = 1.7; dn.inputs['Detail'].default_value = 2.0
-    links.new(tc.outputs['Generated'], dn.inputs['Vector'])
-    dramp = nodes.new('ShaderNodeValToRGB')
-    dramp.color_ramp.elements[0].position = 0.25; dramp.color_ramp.elements[0].color = (0.78, 0.78, 0.78, 1)
-    dramp.color_ramp.elements[1].position = 0.70; dramp.color_ramp.elements[1].color = (1, 1, 1, 1)
-    links.new(dn.outputs['Fac'], dramp.inputs['Fac'])
-    stars = nodes.new('ShaderNodeMixRGB'); stars.blend_type = 'MULTIPLY'; stars.inputs[0].default_value = 0.4
-    links.new(add2.outputs['Color'], stars.inputs[1]); links.new(dramp.outputs['Color'], stars.inputs[2])
-    # star colour tint (blue / white / warm)
-    cn = nodes.new('ShaderNodeTexNoise'); cn.inputs['Scale'].default_value = 35.0
-    links.new(tc.outputs['Generated'], cn.inputs['Vector'])
-    cramp = nodes.new('ShaderNodeValToRGB')
-    cramp.color_ramp.elements[0].position = 0.30; cramp.color_ramp.elements[0].color = (0.70, 0.80, 1.0, 1)
-    cramp.color_ramp.elements[1].position = 0.72; cramp.color_ramp.elements[1].color = (1.0, 0.88, 0.74, 1)
-    links.new(cn.outputs['Fac'], cramp.inputs['Fac'])
-    starCol = nodes.new('ShaderNodeMixRGB'); starCol.blend_type = 'MULTIPLY'; starCol.inputs[0].default_value = 1.0
-    links.new(stars.outputs['Color'], starCol.inputs[1]); links.new(cramp.outputs['Color'], starCol.inputs[2])
-    # near-black indigo base (no milky-way band — it read as clouds)
-    base = nodes.new('ShaderNodeMixRGB'); base.blend_type = 'ADD'; base.inputs[0].default_value = 1.0
-    base.inputs[2].default_value = (0.009, 0.014, 0.028, 1)   # faint indigo sky-glow → fills the forest
-    links.new(starCol.outputs['Color'], base.inputs[1])
-    links.new(base.outputs['Color'], bg.inputs['Color'])
-    bg.inputs['Strength'].default_value = 4.0
+    out = nodes.new('ShaderNodeOutputWorld'); bg = nodes.new('ShaderNodeBackground')
+    if DAY:
+        sky = nodes.new('ShaderNodeTexSky')
+        try:
+            sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(15); sky.sun_rotation = math.radians(125)
+            sky.air_density = 1.0; sky.dust_density = 1.3; sky.ozone_density = 1.0   # low afternoon sun, gentle gradient, off-centre
+        except Exception: pass
+        links.new(sky.outputs['Color'], bg.inputs['Color']); bg.inputs['Strength'].default_value = 0.35
+    else:
+        tc = nodes.new('ShaderNodeTexCoord')
+        def stars(scale, cut, bright):
+            v = nodes.new('ShaderNodeTexVoronoi'); v.feature = 'F1'; v.inputs['Scale'].default_value = scale
+            links.new(tc.outputs['Generated'], v.inputs['Vector'])
+            r = nodes.new('ShaderNodeValToRGB'); r.color_ramp.interpolation = 'EASE'
+            r.color_ramp.elements[0].position = 0.0; r.color_ramp.elements[0].color = (bright,)*3 + (1,)
+            r.color_ramp.elements[1].position = cut; r.color_ramp.elements[1].color = (0, 0, 0, 1)
+            links.new(v.outputs['Distance'], r.inputs['Fac']); return r
+        s1 = stars(200, 0.05, 1.0); s2 = stars(75, 0.04, 1.6)
+        add = nodes.new('ShaderNodeMixRGB'); add.blend_type = 'ADD'; add.inputs[0].default_value = 1.0
+        links.new(s1.outputs['Color'], add.inputs[1]); links.new(s2.outputs['Color'], add.inputs[2])
+        base = nodes.new('ShaderNodeMixRGB'); base.blend_type = 'ADD'; base.inputs[0].default_value = 1.0
+        base.inputs[2].default_value = (0.010, 0.015, 0.030, 1)
+        links.new(add.outputs['Color'], base.inputs[1])
+        links.new(base.outputs['Color'], bg.inputs['Color']); bg.inputs['Strength'].default_value = 3.2
     links.new(bg.outputs['Background'], out.inputs['Surface'])
 
-# ============================================================ GPU
 def setup_gpu():
     prefs = bpy.context.preferences.addons['cycles'].preferences
-    for dtype in ('OPTIX', 'CUDA'):
+    for dt in ('OPTIX', 'CUDA'):
         try:
-            prefs.compute_device_type = dtype; prefs.refresh_devices()
-            n = 0
+            prefs.compute_device_type = dt; prefs.refresh_devices(); n = 0
             for d in prefs.devices:
                 d.use = (d.type != 'CPU'); n += 1 if d.use else 0
-            if n:
-                bpy.context.scene.cycles.device = 'GPU'
-                print(f'[gpu] {dtype} x{n}', flush=True); return True
-        except Exception as e:
-            print('[gpu] ', dtype, e, flush=True)
+            if n: bpy.context.scene.cycles.device = 'GPU'; print(f'[gpu] {dt} x{n}', flush=True); return True
+        except Exception as e: print('[gpu]', dt, e, flush=True)
     return False
 
-# ============================================================ build the scene
-print('[scene] opening Valhalla...', flush=True)
-bpy.ops.wm.open_mainfile(filepath=BLEND_VAL)
+# ============================================================ assets from Enchanted
+print('[scene] opening Enchanted...', flush=True)
+bpy.ops.wm.open_mainfile(filepath=ENCH)
+# Repoint every Enchanted texture to the LOCAL copy and reload it. We never touch
+# pCloud here (find_missing_files would recursively walk P:\ and hang for days).
+_rebound = 0
+for im in bpy.data.images:
+    if not im.filepath:
+        continue
+    bn = bpy.path.basename(im.filepath)
+    lp = os.path.join(ENCH_TEX, bn)
+    if os.path.exists(lp):
+        im.filepath = lp
+        try: im.reload()
+        except Exception: pass
+        _rebound += 1
+print(f'[tex] rebound {_rebound} images to local', flush=True)
 
-def find_meshes(substr, exclude=()):
-    out = []
+def uniq_datas(substrs, exclude=(), limit=99):
+    seen = {}
     for o in bpy.data.objects:
-        if o.type == 'MESH' and substr.lower() in o.name.lower() and not any(e.lower() in o.name.lower() for e in exclude):
-            out.append(o)
-    return out
+        if o.type != 'MESH': continue
+        nm = o.name.lower()
+        if any(s.lower() in nm for s in substrs) and not any(e.lower() in nm for e in exclude):
+            if o.data.name not in seen and len(o.data.vertices) > 8:
+                seen[o.data.name] = o.data
+        if len(seen) >= limit: break
+    return list(seen.values())
 
-_tree = next(iter(find_meshes('Tree', exclude=['TreeBase'])), None)
-_rocks = find_meshes('Rock')[:8]
-_logs = find_meshes('WoodLogs')[:2] or find_meshes('FireWood')[:2]
-tree_data = _tree.data if _tree else None
-rock_datas = [o.data for o in _rocks]
-log_datas = [o.data for o in _logs]
-print(f'[val] tree={bool(tree_data)} rocks={len(rock_datas)} logs={len(log_datas)}', flush=True)
-
-# a 2nd tree species from Enchanted Interiors
-eci_tree_data = None
-try:
-    with bpy.data.libraries.load(BLEND_ECI, link=False) as (df, dt):
-        want = [n for n in df.objects if 'IntWizardOffice_A_Tree' in n]
-        dt.objects = want[:1]
-    for o in dt.objects:
-        if o:
-            bpy.context.scene.collection.objects.link(o)
-            eci_tree_data = o.data
-    print('[eci] 2nd tree appended:', bool(eci_tree_data), flush=True)
-except Exception as e:
-    print('[eci] append failed', e, flush=True)
-
-# keep wanted data alive, then wipe everything
-for d in [tree_data, eci_tree_data] + rock_datas + log_datas:
-    if d: d.use_fake_user = True
+tree_datas  = uniq_datas(['_Tree'], exclude=['TreeBase'], limit=8)
+shrub_datas = uniq_datas(['Shrub'], limit=14)
+print(f'[enc] trees={len(tree_datas)} shrubs={len(shrub_datas)}', flush=True)
+for d in tree_datas + shrub_datas: d.use_fake_user = True
 for o in list(bpy.data.objects):
     bpy.data.objects.remove(o, do_unlink=True)
 
-scene = bpy.context.scene
-coll = scene.collection
+scene = bpy.context.scene; coll = scene.collection
 
-# materials
+# build materials AFTER opening Enchanted (open_mainfile wipes earlier data)
 MAT = {
-    'tree':  make_night('m_tree',  (0.010, 0.014, 0.022), 0.92),
-    'tree2': make_night('m_tree2', (0.014, 0.020, 0.018), 0.92),
-    'leaf':  make_night('m_leaf',  (0.020, 0.031, 0.020), 0.95),   # dark green, gloomy but readable foliage
-    'leaf2': make_night('m_leaf2', (0.024, 0.035, 0.024), 0.95),   # undergrowth bushes
-    'rock':  make_night('m_rock',  (0.013, 0.016, 0.022), 0.88),
-    'ground':make_night('m_ground',(0.030, 0.035, 0.027), 0.95),
-    'log':   make_night('m_log',   (0.020, 0.018, 0.016), 0.9),
-    'water': make_water('m_water'),
-    'moon':  make_emissive('m_moon', (1.0, 0.97, 0.90), 18.0),
-    'window':make_emissive('m_window',(1.0, 0.55, 0.22), 6.0),
+    'cabinwall': make_wood('m_cabinwall', 'PlanksC', 0.45, (0.62, 0.46, 0.30)),
+    'cabinbeam': make_wood('m_cabinbeam', 'BeamB',   0.30, (0.40, 0.30, 0.20)),
+    'roof':      make_wood('m_roof',      'PlanksD', 0.40, (0.30, 0.22, 0.16)),
+    'chimney':   make_wood('m_chimney',   'BlocksB', 0.30, (0.55, 0.50, 0.44)),
+    'win':       make_emissive('m_win', (1.0, 0.62, 0.26), 5.0),
+    'ground':    make_solid('m_ground', (0.10, 0.13, 0.07) if DAY else (0.020, 0.026, 0.018), 0.95),
+    'shore':     make_solid('m_shore',  (0.30, 0.27, 0.20) if DAY else (0.05, 0.06, 0.06), 0.9),
+    'lakebed':   make_solid('m_lakebed', (0.02, 0.03, 0.035) if DAY else (0.02, 0.03, 0.03), 0.95),
+    'rock':      make_solid('m_rock',   (0.20, 0.20, 0.19) if DAY else (0.012, 0.015, 0.020), 0.85),
+    'water':     make_water(),
+    'moon':      make_emissive('m_moon', (1.0, 0.97, 0.90), 16.0),
 }
 
-# one night material per shared kit mesh (trees are silhouettes; rocks catch moonlight)
-if tree_data: tree_data.materials.clear(); tree_data.materials.append(MAT['tree'])
-if eci_tree_data: eci_tree_data.materials.clear(); eci_tree_data.materials.append(MAT['tree2'])
-for rd in rock_datas: rd.materials.clear(); rd.materials.append(MAT['rock'])
-for ld in log_datas: ld.materials.clear(); ld.materials.append(MAT['log'])
-
-# distant silhouette trees can be heavily decimated — that is what keeps the
-# reflective lake (whose rays trace the whole forest) fast to render
-def _decimate(data, ratio):
-    if not data or not data.polygons: return
-    before = len(data.polygons)
-    tmp = bpy.data.objects.new('decim', data); coll.objects.link(tmp)
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = tmp; tmp.select_set(True)
-    md = tmp.modifiers.new('d', 'DECIMATE'); md.ratio = ratio
-    try: bpy.ops.object.modifier_apply(modifier='d')
-    except Exception as e: print('[decim] fail', e, flush=True)
-    print(f'[decim] {data.name}: {before} -> {len(data.polygons)} polys', flush=True)
-    bpy.data.objects.remove(tmp, do_unlink=True)
-_decimate(tree_data, 0.16)
-_decimate(eci_tree_data, 0.16)
-
 def data_dims(data):
-    xs = [v.co for v in data.vertices]
-    if not xs: return Vector((1,1,1))
-    mn = Vector((min(v.x for v in xs), min(v.y for v in xs), min(v.z for v in xs)))
-    mx = Vector((max(v.x for v in xs), max(v.y for v in xs), max(v.z for v in xs)))
-    return mx - mn, mn, mx
+    vs = data.vertices
+    mn = Vector((min(v.co.x for v in vs), min(v.co.y for v in vs), min(v.co.z for v in vs)))
+    mx = Vector((max(v.co.x for v in vs), max(v.co.y for v in vs), max(v.co.z for v in vs)))
+    return mx - mn, mn
 
-def place(data, loc, rotz, target_h, mat, jitter_tilt=0.0):
-    o = bpy.data.objects.new('o', data)
-    coll.objects.link(o)
-    dim, mn, mx = data_dims(data)
-    h = max(dim.z, 0.001)
-    s = target_h / h
+def place(data, loc, rotz, target_h, tilt=0.0):
+    o = bpy.data.objects.new('o', data); coll.objects.link(o)
+    dim, mn = data_dims(data); s = target_h / max(dim.z, 0.001)
     o.scale = (s, s, s)
-    o.rotation_euler = (random.uniform(-jitter_tilt, jitter_tilt), random.uniform(-jitter_tilt, jitter_tilt), rotz)
-    # drop so the base sits on z=loc[2]
+    o.rotation_euler = (random.uniform(-tilt, tilt), random.uniform(-tilt, tilt), rotz)
     o.location = (loc[0], loc[1], loc[2] - mn.z * s)
-    return o  # material is pre-assigned on the shared mesh data
+    return o
 
-# ── procedural LEAFY tree: a bushy canopy of overlapping, displaced clumps.
-#    Reads as a lush, leaf-heavy silhouette at night — far fuller and gloomier
-#    than the bare kit trees, so the forest actually looks like a deep forest. ──
-def _ico(bm, M):
-    try: bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.0, matrix=M)
-    except TypeError: bmesh.ops.create_icosphere(bm, subdivisions=1, diameter=2.0, matrix=M)
+def box(name, sx, sy, sz, loc, mat, rot=(0,0,0)):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=loc, rotation=rot)
+    o = bpy.context.active_object; o.name = name; o.scale = (sx, sy, sz)
+    o.data.materials.append(mat); return o
 
-def make_leafy_tree(seed, bush=False):
-    rng = random.Random(seed)
-    bm = bmesh.new()
-    th = rng.uniform(0.4, 0.9) if bush else rng.uniform(2.4, 3.8)
-    if not bush:
-        bmesh.ops.create_cone(bm, cap_ends=True, segments=6,
-            radius1=rng.uniform(0.13,0.21), radius2=rng.uniform(0.10,0.16), depth=th,
-            matrix=Matrix.Translation((0,0,th/2)))
-    nclumps = rng.randint(5,8) if bush else rng.randint(11,17)    # fuller, lusher canopy
-    base_r = rng.uniform(0.5,0.85) if bush else rng.uniform(1.2,2.3)
-    cz = th*0.4 if bush else th*0.8
-    for i in range(nclumps):
-        r = base_r * rng.uniform(0.7,1.25)
-        ang=rng.uniform(0,math.tau); rad=rng.uniform(0, base_r*0.95)
-        z = cz + rng.uniform(-0.2, base_r*(0.8 if bush else 1.9))
-        M = Matrix.Translation((math.cos(ang)*rad, math.sin(ang)*rad, z)) @ Matrix.Diagonal((
-            r*rng.uniform(0.85,1.25), r*rng.uniform(0.85,1.25), r*rng.uniform(0.75,1.1), 1.0))
-        _ico(bm, M)
-    # organic lumpiness: nudge every vertex a little
-    for v in bm.verts:
-        v.co.x += (rng.random()-0.5)*0.30; v.co.y += (rng.random()-0.5)*0.30; v.co.z += (rng.random()-0.5)*0.30
-    me = bpy.data.meshes.new(f'leafy{seed}'); bm.to_mesh(me); bm.free()
-    for p in me.polygons: p.use_smooth = True   # soft leafy canopy, not faceted
-    me.materials.append(MAT['leaf2'] if bush else MAT['leaf'])
-    me.use_fake_user = True
-    return me
-
-print('[leafy] building procedural trees...', flush=True)
-LEAFY  = [make_leafy_tree(11+i) for i in range(5)]          # canopy trees
-BUSHES = [make_leafy_tree(60+i, bush=True) for i in range(3)]  # undergrowth
-KITT   = [d for d in (tree_data, eci_tree_data) if d]        # a few bare kit trees for variety
-
-# ---- forest floor everywhere; the LAKE fills only the FRONT (+Y) half ----
-bpy.ops.mesh.primitive_plane_add(size=900, location=(0, 0, -0.05))
-g = bpy.context.active_object; g.name = 'Ground'; g.data.materials.append(MAT['ground'])
-bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 48, 0.0))
-lake = bpy.context.active_object; lake.name = 'Lake'; lake.scale = (110, 46, 1)   # a small forest lake: x ±110, y 2..94
+# ---- ground + clear lake (water fills the whole view in front, +Y) ----
+box('Ground', 600, 600, 0.1, (0, 0, -0.10), MAT['ground'])
+box('LakeBed', 320, 220, 0.05, (0, 33, -0.42), MAT['lakebed'])     # bottom seen through clear water
+bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 33, -0.05))
+lake = bpy.context.active_object; lake.name = 'Lake'; lake.scale = (190, 33, 1)   # y≈0..66, x±95: broad lake, dry far bank
 lake.data.materials.append(MAT['water'])
+box('ShoreStrip', 26, 1.4, 0.05, (0, 0.15, -0.02), MAT['shore'])   # the thin bit of shore you stand on
+box('FarBank', 240, 8, 0.08, (0, 70, -0.06), MAT['shore'])         # the far bank the treeline stands on
 
-FRONT = math.radians(52)   # a narrower opening, so the forest frames the lake on the sides too
-def in_lake(x, y, reach): return abs(math.atan2(x, y)) < FRONT and 0 < y < reach
-def moon_gap(x, y): return y > 0 and abs(math.atan2(x, y)) < math.radians(15)   # let the low moon show over the water
+# ---- the cabin you came from: a log cabin nestled at the forest edge behind-left ----
+CABIN = (-9.5, -7.5)        # turn around from the lake and it's there, among the trees
+cw, cd, ch = 5.4, 4.6, 3.1
+box('CabinWall', cw, cd, ch, (CABIN[0], CABIN[1], ch/2), MAT['cabinwall'])
+for ex in (-cw/2, cw/2):
+    for ey in (-cd/2, cd/2):
+        box('CabinPost', 0.22, 0.22, ch, (CABIN[0]+ex, CABIN[1]+ey, ch/2), MAT['cabinbeam'])
+# gable roof — two slabs meeting at a ridge, overhanging the walls
+box('Roof1', cw*0.66, cd*1.28, 0.18, (CABIN[0]-cw*0.30, CABIN[1], ch+0.62), MAT['roof'], rot=(0, math.radians(36), 0))
+box('Roof2', cw*0.66, cd*1.28, 0.18, (CABIN[0]+cw*0.30, CABIN[1], ch+0.62), MAT['roof'], rot=(0, -math.radians(36), 0))
+box('Gable', cw, 0.12, 1.1, (CABIN[0], CABIN[1]-cd/2, ch+0.52), MAT['cabinwall'])
+# warm glowing windows + plank door facing the lake (+Y), so the light greets you when you turn back
+box('CabinWin', 0.9, 0.06, 0.95, (CABIN[0]-1.1, CABIN[1]+cd/2+0.03, 1.55), MAT['win'])
+box('CabinWin2', 0.9, 0.06, 0.95, (CABIN[0]+1.1, CABIN[1]+cd/2+0.03, 1.55), MAT['win'])
+box('CabinDoor', 1.05, 0.06, 2.1, (CABIN[0], CABIN[1]+cd/2+0.03, 1.05), MAT['cabinbeam'])
+# stone chimney with a soft glow
+box('Chimney', 0.85, 0.85, ch+1.6, (CABIN[0]-cw/2-0.35, CABIN[1], (ch+1.6)/2), MAT['chimney'])
 
-# ---- the deep, dense, leafy forest closing in all around the little lake ----
-random.seed(5); nplaced = 0
-for i in range(1040):
-    a = random.uniform(0, math.tau); r = 15 + (random.random()**1.25) * 120
+# ---- the forest: real trees + shrubs ringing the lake; open water fills the whole front ----
+def in_water(x, y):
+    # the lake footprint: keep all trees/shrubs out of the water; the far bank is ~y=68
+    return (-2.0 < y < 69) and (abs(x) < 96)
+def near_cabin(x, y):
+    if abs(x - CABIN[0]) < 5.0 and abs(y - CABIN[1]) < 5.0: return True
+    # keep a clear sightline (a little path) from the shore to the cabin so it's always visible
+    den = CABIN[0]**2 + CABIN[1]**2
+    t = (x*CABIN[0] + y*CABIN[1]) / den
+    if 0.0 < t < 1.05:
+        px, py = t*CABIN[0], t*CABIN[1]
+        if (x-px)**2 + (y-py)**2 < 6.25: return True
+    return False
+random.seed(5); nT = 0
+for i in range(700):
+    a = random.uniform(0, math.tau); r = 8 + (random.random()**1.25) * 122
     x, y = math.cos(a)*r, math.sin(a)*r
-    if in_lake(x, y, 90): continue                       # keep the lake water open
-    if y >= 88 and moon_gap(x, y): continue              # a gap so the moon shows over the far water
-    use_leafy = (random.random() < 0.85) or not KITT
-    place(random.choice(LEAFY if use_leafy else KITT), (x, y, 0.0), random.uniform(0, math.tau),
-          random.uniform(8, 22) * (1.0 - 0.12*random.random()), None, 0.05); nplaced += 1
-# a denser wall of forest on the FAR shore, across the lake — a forest-enclosed lake
-for i in range(260):
-    x = random.uniform(-100, 100); y = random.uniform(90, 150)
-    if moon_gap(x, y): continue
-    use_leafy = (random.random() < 0.85) or not KITT
-    place(random.choice(LEAFY if use_leafy else KITT), (x, y, 0.0), random.uniform(0, math.tau),
-          random.uniform(9, 22) * (1.0 - 0.1*random.random()), None, 0.05); nplaced += 1
-print(f'[forest] {nplaced} canopy trees', flush=True)
-
-# ---- dense undergrowth (bushes) crowding the forest floor — 生い茂る ----
-for i in range(500):
-    a = random.uniform(0, math.tau); r = 7 + (random.random()**1.1) * 60
+    if in_water(x, y) or near_cabin(x, y): continue
+    place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
+          random.uniform(7, 16) * (1.0 - 0.14*random.random()), 0.04); nT += 1
+print(f'[forest] {nT} trees', flush=True)
+# extra-dense deep forest behind you (-Y hemisphere): turn from the lake into thick woods
+for i in range(360):
+    a = random.uniform(math.radians(190), math.radians(350)); r = 5 + (random.random()**1.05) * 78
     x, y = math.cos(a)*r, math.sin(a)*r
-    if in_lake(x, y, 66): continue
-    place(random.choice(BUSHES), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(1.0, 3.2), None, 0.12)
+    if near_cabin(x, y): continue
+    place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
+          random.uniform(8, 18) * (1.0 - 0.12*random.random()), 0.04)
+# thicken the far treeline across the lake (a deep band, richly reflected)
+for i in range(200):
+    x = random.uniform(-115, 115); y = random.uniform(70, 124)
+    place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
+          random.uniform(7, 14), 0.04)
+for i in range(440):
+    a = random.uniform(0, math.tau); r = 4 + (random.random()**1.1) * 74
+    x, y = math.cos(a)*r, math.sin(a)*r
+    if in_water(x, y) or near_cabin(x, y): continue
+    place(random.choice(shrub_datas), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(0.8, 2.4), 0.1)
+# reeds tuft the shore EDGES only (left/right), never the open water in front of you
+for i in range(48):
+    side = random.choice((-1, 1)); x = side * random.uniform(19, 44); y = random.uniform(-1.0, 9.0)
+    place(random.choice(shrub_datas), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(0.6, 1.6), 0.12)
 
-# ---- the near shore you stand on: low rocks + a log at the water's edge ----
-if rock_datas:
-    for i in range(12):
-        place(random.choice(rock_datas), (random.uniform(-9, 9), random.uniform(2.5, 9.0), 0.05),
-              random.uniform(0, math.tau), random.uniform(0.5, 1.3), None, 0.12)
-if log_datas:
-    place(random.choice(log_datas), (-2.6, 3.2, 0.06), 1.3, 0.5, None, 0.05)
+# ---- key light ----
+if DAY:
+    sd = bpy.data.lights.new('Sun', 'SUN'); sd.energy = 2.4; sd.color = (1.0, 0.88, 0.72); sd.angle = math.radians(2.0)
+    sun = bpy.data.objects.new('Sun', sd); coll.objects.link(sun)
+    sun.rotation_euler = (math.radians(75), 0, math.radians(125))   # low warm afternoon sun, behind-right
+else:
+    # moon over the lake (+Y) + cool moonlight
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=4.0, location=(0, 120, 22))
+    mo = bpy.context.active_object; mo.data.materials.append(MAT['moon'])
+    for p in mo.data.polygons: p.use_smooth = True
+    sd = bpy.data.lights.new('Moon', 'SUN'); sd.energy = 0.5; sd.color = (0.64, 0.74, 1.0); sd.angle = math.radians(3.0)
+    sun = bpy.data.objects.new('Moon', sd); coll.objects.link(sun)
+    sun.rotation_euler = (math.radians(62), 0, math.radians(180))
 
-# ---- the cabin you came from: a warm window glow deep in the forest (-Y) ----
-bpy.ops.mesh.primitive_plane_add(size=1.5, location=(0, -26, 1.7), rotation=(math.radians(90), 0, 0))
-win = bpy.context.active_object; win.name = 'CabinWindow'; win.data.materials.append(MAT['window'])
-bpy.ops.mesh.primitive_cube_add(size=1, location=(0, -27, 2.1)); cb = bpy.context.active_object
-cb.scale = (3.4, 2.6, 2.4); cb.data.materials.append(MAT['leaf'])
-
-# ---- the moon, low over the lake (+Y), mirrored on the water ----
-bpy.ops.mesh.primitive_uv_sphere_add(radius=4.4, location=(0, 104, 16))
-moon = bpy.context.active_object; moon.name = 'Moon'; moon.data.materials.append(MAT['moon'])
-for p in moon.data.polygons: p.use_smooth = True
-bpy.ops.mesh.primitive_uv_sphere_add(radius=7.6, location=(0, 104, 16))
-halo = bpy.context.active_object; halo.name = 'MoonHalo'; halo.data.materials.append(make_emissive('m_halo', (0.85, 0.9, 1.0), 0.7))
-for p in halo.data.polygons: p.use_smooth = True
-
-# ---- moonlight: a cool sun from over the lake, lighting the forest's lake-facing side ----
-sun_d = bpy.data.lights.new('Moonlight', 'SUN'); sun_d.energy = 0.92; sun_d.color = (0.66, 0.76, 1.0); sun_d.angle = math.radians(3.0)
-sun = bpy.data.objects.new('Moonlight', sun_d); coll.objects.link(sun)
-sun.location = (0, 120, 30); sun.rotation_euler = (math.radians(62), 0, math.radians(180))
-
-build_star_world()
-# the moon's Sun lamp is the key light — skip the (very slow) importance map for the
-# high-frequency star world, which otherwise stalls Cycles on 'Updating Lights'
+build_world()
 try: scene.world.cycles.sampling_method = 'NONE'
-except Exception as e: print('[world] sampling_method', e, flush=True)
-try: scene.world.cycles.sample_map_resolution = 256
 except Exception: pass
 
 # ============================================================ camera + render
@@ -340,44 +314,36 @@ pd = bpy.data.cameras.new('Pano'); pd.type = 'PANO'
 try: pd.cycles.panorama_type = 'EQUIRECTANGULAR'
 except Exception: pass
 cam = bpy.data.objects.new('Pano', pd); coll.objects.link(cam)
-cam.location = (0, 0, 1.45); cam.rotation_euler = (math.radians(90), 0, 0)   # face +Y, level
+cam.location = (0, 0, 1.55); cam.rotation_euler = (math.radians(90), 0, 0)   # at the shore, facing the lake
 
-stilld = bpy.data.cameras.new('Still'); stilld.lens = 24
+stilld = bpy.data.cameras.new('Still'); stilld.lens = 26
 still = bpy.data.objects.new('Still', stilld); coll.objects.link(still)
-still.location = (0, 1.5, 1.7); still.rotation_euler = (math.radians(86), 0, math.radians(2))
+still.location = (0, 0.4, 1.7); still.rotation_euler = (math.radians(86), 0, math.radians(6))
 
 _GPU = setup_gpu()
-
-# keep the night render fast: shallow bounces + clamp the fireflies the star emission
-# and the reflective lake would otherwise throw
 cy = scene.cycles
-cy.max_bounces = 3; cy.diffuse_bounces = 2; cy.glossy_bounces = 1
-cy.transmission_bounces = 1; cy.transparent_max_bounces = 2; cy.volume_bounces = 0
-cy.sample_clamp_indirect = 2.5
-try: cy.caustics_reflective = False; cy.caustics_refractive = False
-except Exception: pass
+cy.max_bounces = 4; cy.glossy_bounces = 2; cy.transmission_bounces = 6 if DAY else 1
+cy.transparent_max_bounces = 8; cy.volume_bounces = 0; cy.sample_clamp_indirect = 3.0
 
-def render_to(camobj, path, rx, ry, engine, samples):
-    scene.camera = camobj; scene.render.engine = engine
+def render_to(camobj, path, rx, ry, samples):
+    scene.camera = camobj; scene.render.engine = 'CYCLES'
     scene.render.resolution_x = rx; scene.render.resolution_y = ry
     scene.render.image_settings.file_format = 'JPEG'; scene.render.image_settings.quality = 90
-    if engine == 'CYCLES':
-        scene.cycles.samples = samples; scene.cycles.use_denoising = True
-        try: scene.cycles.denoiser = 'OPTIX' if _GPU else 'OPENIMAGEDENOISE'
-        except Exception: pass
-        scene.view_settings.view_transform = 'Standard'
-        try: scene.view_settings.look = 'None'
-        except Exception: pass
+    scene.cycles.samples = samples; scene.cycles.use_denoising = True
+    try: scene.cycles.denoiser = 'OPTIX' if _GPU else 'OPENIMAGEDENOISE'
+    except Exception: pass
+    scene.view_settings.view_transform = 'Filmic' if DAY else 'Standard'
     scene.render.filepath = path; bpy.ops.render.render(write_still=True)
     print('[render]', path, flush=True)
 
+outname = 'cabin-outside-day360.jpg' if DAY else 'cabin-outside360.jpg'
 if MODE == 'final':
-    render_to(cam,   os.path.join(OUT, 'cabin-outside360.jpg'),    6144, 3072, 'CYCLES', 1024)
-    render_to(still, os.path.join(OUT, 'cabin-outside-still.jpg'), 2560, 1440, 'CYCLES', 768)
+    render_to(cam, os.path.join(OUT, outname), 6144, 3072, 768)
+    if not DAY: render_to(still, os.path.join(OUT, 'cabin-outside-still.jpg'), 2560, 1440, 640)
     print('=== DONE final', flush=True)
 elif MODE == 'pano':
-    render_to(cam, r'C:\tmp\outside_pano_test.jpg', 3072, 1536, 'CYCLES', 256)
+    render_to(cam, r'C:\tmp\outside_pano_test.jpg', 3072, 1536, 256)
     print('=== DONE pano', flush=True)
 else:
-    render_to(still, r'C:\tmp\outside_preview.jpg', 1600, 900, 'BLENDER_EEVEE', 64)
+    render_to(still, r'C:\tmp\outside_preview.jpg', 1600, 900, 96)
     print('=== DONE preview', flush=True)

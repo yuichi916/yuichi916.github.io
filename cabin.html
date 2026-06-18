@@ -745,6 +745,10 @@ body{overflow:hidden}
 #hud .hud-btn:hover{color:var(--lantern-soft);border-color:rgba(240,200,120,.4)}
 #hud .hud-btn.on{color:var(--lantern-soft);border-color:rgba(240,200,120,.5);background:rgba(240,200,120,.1)}
 #hud a.hud-btn{text-decoration:none}
+/* day/night switch — only out on the shore */
+#hud #outDayToggle{display:none}
+body.outside #hud #outDayToggle{display:inline-flex}
+#hud #outDayToggle #outDayIcon{font-size:14px;line-height:1}
 body.immersed-med #hud{opacity:0;pointer-events:none;transition:opacity .6s}
 /* lang menu (reused) sits in the HUD */
 #hud .lang{position:relative}
@@ -870,6 +874,7 @@ body.immersed-med #npCredit{opacity:.3}
 <header id="hud">
   <a class="brand" href="index.html" title="Views Engineer"><span class="lantern-dot"></span> Cabin in the Hollow</a>
   <div class="hud-right">
+    <button type="button" class="hud-btn" id="outDayToggle" aria-label="昼と夜を切り替え"><span id="outDayIcon">☾</span> <span id="outDayLabel">夜</span></button>
     <div class="music-ctl">
       <button type="button" class="hud-btn" id="soundToggle" aria-haspopup="true" aria-expanded="false">♪ <span>音</span></button>
       <div class="music-panel" id="soundPanel" hidden>
@@ -1814,7 +1819,14 @@ else {
       skyMat.map=t; skyMat.needsUpdate=true; document.body.classList.add('room-ready'); if(onset) onset(t); },
       undefined, ()=>{ if(fallback) fallback.style.display='block'; });
   }
-  let insideTex = null, outsideTex = null;   // outside is lazy-loaded on first step out
+  let insideTex = null, outsideTexNight = null, outsideTexDay = null;   // outside is lazy-loaded on first step out
+  let outDay = false;   // outside time-of-day: false = moonlit night, true = day
+  const _outURL = ()=> outDay ? 'assets/cabin-outside-day360.jpg' : 'assets/cabin-outside360.jpg';
+  function loadOutside(cb){
+    const cached = outDay ? outsideTexDay : outsideTexNight;
+    if(cached){ skyMat.map=cached; skyMat.needsUpdate=true; if(cb) cb(cached); return; }
+    loadSky(_outURL(), t=>{ if(outDay) outsideTexDay=t; else outsideTexNight=t; if(cb) cb(t); });
+  }
   loadSky('assets/cabin360.jpg', t=>{ insideTex=t; });
   scene.add(new THREE.Mesh(new THREE.SphereGeometry(12,64,40), skyMat));
 
@@ -2023,10 +2035,13 @@ else {
       if(_outside) return; _outside=true;
       try{ window.__setAmbience && window.__setAmbience('outside'); }catch(_){}
       _fade(true,520);
-      setTimeout(()=>{
-        if(outsideTex){ skyMat.map=outsideTex; skyMat.needsUpdate=true; _enterOutside(); }
-        else loadSky('assets/cabin-outside360.jpg', t=>{ outsideTex=t; _enterOutside(); });
-      },540);
+      setTimeout(()=>{ loadOutside(()=>_enterOutside()); },540);
+    },
+    toggleOutDay(){
+      if(!_outside) return;
+      outDay = !outDay;   // ambience (forest) is unchanged; only the sky swaps
+      _fade(true,420);
+      setTimeout(()=>{ loadOutside(()=>{ _fade(false,520); if(window.__outDayHud) window.__outDayHud(outDay); }); },440);
     },
     goInside(){
       if(!_outside) return; _outside=false;
@@ -2301,6 +2316,17 @@ else {
       }
     }catch(_){}
   };
+
+  // ── day / night switch for the outdoor scene ──
+  window.__outDayHud=function(day){
+    const ic=document.getElementById('outDayIcon'), lb=document.getElementById('outDayLabel');
+    if(ic) ic.textContent = day ? '☀' : '☾';
+    if(lb) lb.textContent = day ? '昼' : '夜';
+  };
+  (function(){
+    const b=document.getElementById('outDayToggle');
+    if(b) b.addEventListener('click', ()=>{ if(window.CabinRoom&&window.CabinRoom.toggleOutDay) window.CabinRoom.toggleOutDay(); });
+  })();
 
   // ── water-skip: score readout + skip/splash sounds ──
   window.__skipHud=function(show){
