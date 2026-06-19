@@ -195,7 +195,7 @@ MAT = {
     'chimney':   make_wood('m_chimney',   'BlocksB', 0.30, (0.55, 0.50, 0.44)),
     'win':       make_emissive('m_win', (1.0, 0.62, 0.26), 5.0),
     'ground':    make_solid('m_ground', (0.10, 0.13, 0.07) if DAY else (0.020, 0.026, 0.018), 0.95),
-    'shore':     make_solid('m_shore',  (0.30, 0.27, 0.20) if DAY else (0.05, 0.06, 0.06), 0.9),
+    'shore':     make_solid('m_shore',  (0.14, 0.15, 0.10) if DAY else (0.04, 0.05, 0.05), 0.92),
     'lakebed':   make_solid('m_lakebed', (0.02, 0.03, 0.035) if DAY else (0.02, 0.03, 0.03), 0.95),
     'rock':      make_solid('m_rock',   (0.20, 0.20, 0.19) if DAY else (0.012, 0.015, 0.020), 0.85),
     'water':     make_water(),
@@ -221,14 +221,15 @@ def box(name, sx, sy, sz, loc, mat, rot=(0,0,0)):
     o = bpy.context.active_object; o.name = name; o.scale = (sx, sy, sz)
     o.data.materials.append(mat); return o
 
-# ---- ground + clear lake (water fills the whole view in front, +Y) ----
+# ---- ground + intimate forest pond (water laps right at your feet, wraps past you) ----
 box('Ground', 600, 600, 0.1, (0, 0, -0.10), MAT['ground'])
-box('LakeBed', 320, 220, 0.05, (0, 33, -0.42), MAT['lakebed'])     # bottom seen through clear water
-bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 33, -0.05))
-lake = bpy.context.active_object; lake.name = 'Lake'; lake.scale = (190, 33, 1)   # y≈0..66, x±95: broad lake, dry far bank
+box('LakeBed', 200, 130, 0.05, (0, 19, -0.42), MAT['lakebed'])     # bottom seen through clear water
+bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 19, -0.05))
+lake = bpy.context.active_object; lake.name = 'Lake'; lake.scale = (84, 23, 1)   # y≈-4..42, x±42: a forest pond hugged by trees; near edge wraps behind the camera
 lake.data.materials.append(MAT['water'])
-box('ShoreStrip', 26, 1.4, 0.05, (0, 0.15, -0.02), MAT['shore'])   # the thin bit of shore you stand on
-box('FarBank', 240, 8, 0.08, (0, 70, -0.06), MAT['shore'])         # the far bank the treeline stands on
+# you stand on a small rock at the very lip — water in front of, beside and below you
+box('ShoreStrip', 8, 2.6, 0.05, (0, -2.4, -0.02), MAT['shore'])    # the small mossy bank just behind you; in front and below is open water
+box('FarBank', 130, 8, 0.08, (0, 45, -0.06), MAT['shore'])         # the near far-bank the treeline stands on
 
 # ---- the cabin you came from: a log cabin nestled at the forest edge behind-left ----
 CABIN = (-9.5, -7.5)        # turn around from the lake and it's there, among the trees
@@ -250,8 +251,8 @@ box('Chimney', 0.85, 0.85, ch+1.6, (CABIN[0]-cw/2-0.35, CABIN[1], (ch+1.6)/2), M
 
 # ---- the forest: real trees + shrubs ringing the lake; open water fills the whole front ----
 def in_water(x, y):
-    # the lake footprint: keep all trees/shrubs out of the water; the far bank is ~y=68
-    return (-2.0 < y < 69) and (abs(x) < 96)
+    # the pond footprint: keep all trees/shrubs out of the water; the far bank is ~y=44
+    return (-5.0 < y < 43) and (abs(x) < 44)
 def near_cabin(x, y):
     if abs(x - CABIN[0]) < 5.0 and abs(y - CABIN[1]) < 5.0: return True
     # keep a clear sightline (a little path) from the shore to the cabin so it's always visible
@@ -262,12 +263,12 @@ def near_cabin(x, y):
         if (x-px)**2 + (y-py)**2 < 6.25: return True
     return False
 random.seed(5); nT = 0
-for i in range(700):
-    a = random.uniform(0, math.tau); r = 8 + (random.random()**1.25) * 122
+for i in range(880):
+    a = random.uniform(0, math.tau); r = 6 + (random.random()**1.2) * 116
     x, y = math.cos(a)*r, math.sin(a)*r
     if in_water(x, y) or near_cabin(x, y): continue
     place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
-          random.uniform(7, 16) * (1.0 - 0.14*random.random()), 0.04); nT += 1
+          random.uniform(8, 17) * (1.0 - 0.12*random.random()), 0.04); nT += 1
 print(f'[forest] {nT} trees', flush=True)
 # extra-dense deep forest behind you (-Y hemisphere): turn from the lake into thick woods
 for i in range(360):
@@ -276,11 +277,19 @@ for i in range(360):
     if near_cabin(x, y): continue
     place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
           random.uniform(8, 18) * (1.0 - 0.12*random.random()), 0.04)
-# thicken the far treeline across the lake (a deep band, richly reflected)
-for i in range(200):
-    x = random.uniform(-115, 115); y = random.uniform(70, 124)
+# thicken the far treeline across the pond — close, tall and dense so the forest walls the water in
+for i in range(340):
+    x = random.uniform(-90, 90); y = random.uniform(43, 96)
     place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
-          random.uniform(7, 14), 0.04)
+          random.uniform(9, 17), 0.04)
+# near framing trees: a few tall trunks just beside/behind you, leaning over the shore
+# so the view reads as a clearing deep inside the woods (canopy at the top corners)
+for sx in (-1, 1):
+    for k in range(3):
+        fx = sx * random.uniform(5.5, 12.0); fy = random.uniform(-8.0, -4.5)
+        if near_cabin(fx, fy): continue
+        place(random.choice(tree_datas), (fx, fy, 0.0), random.uniform(0, math.tau),
+              random.uniform(15, 22), 0.05)
 for i in range(440):
     a = random.uniform(0, math.tau); r = 4 + (random.random()**1.1) * 74
     x, y = math.cos(a)*r, math.sin(a)*r
@@ -288,7 +297,7 @@ for i in range(440):
     place(random.choice(shrub_datas), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(0.8, 2.4), 0.1)
 # reeds tuft the shore EDGES only (left/right), never the open water in front of you
 for i in range(48):
-    side = random.choice((-1, 1)); x = side * random.uniform(19, 44); y = random.uniform(-1.0, 9.0)
+    side = random.choice((-1, 1)); x = side * random.uniform(30, 46); y = random.uniform(-3.0, 8.0)
     place(random.choice(shrub_datas), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(0.6, 1.6), 0.12)
 
 # ---- key light ----
@@ -314,11 +323,11 @@ pd = bpy.data.cameras.new('Pano'); pd.type = 'PANO'
 try: pd.cycles.panorama_type = 'EQUIRECTANGULAR'
 except Exception: pass
 cam = bpy.data.objects.new('Pano', pd); coll.objects.link(cam)
-cam.location = (0, 0, 1.55); cam.rotation_euler = (math.radians(90), 0, 0)   # at the shore, facing the lake
+cam.location = (0, 0, 1.45); cam.rotation_euler = (math.radians(90), 0, 0)   # right at the waterline, low, so the pond fills the foreground below you
 
 stilld = bpy.data.cameras.new('Still'); stilld.lens = 26
 still = bpy.data.objects.new('Still', stilld); coll.objects.link(still)
-still.location = (0, 0.4, 1.7); still.rotation_euler = (math.radians(86), 0, math.radians(6))
+still.location = (0, 1.6, 1.8); still.rotation_euler = (math.radians(87), 0, math.radians(3))   # stand back a touch, near-horizontal: pond → far treeline → stars, water as a calm foreground mirror
 
 _GPU = setup_gpu()
 cy = scene.cycles
@@ -341,6 +350,9 @@ if MODE == 'final':
     render_to(cam, os.path.join(OUT, outname), 6144, 3072, 768)
     if not DAY: render_to(still, os.path.join(OUT, 'cabin-outside-still.jpg'), 2560, 1440, 640)
     print('=== DONE final', flush=True)
+elif MODE == 'still':
+    render_to(still, os.path.join(OUT, 'cabin-outside-still.jpg'), 2560, 1440, 640)
+    print('=== DONE still', flush=True)
 elif MODE == 'pano':
     render_to(cam, r'C:\tmp\outside_pano_test.jpg', 3072, 1536, 256)
     print('=== DONE pano', flush=True)
