@@ -8515,7 +8515,8 @@ SCENES.island = {
       placeIslandCellFx('plaza', root, 0, 0);
     }
     if(typeof _plantIslandForest === 'function'){
-      try { _plantIslandForest(root); } catch(e){ console.warn('niwa[island]: forest failed', e); }
+      // v678: dummy procedural forest disabled — replaced by real KB3D trees in _plantIslandTrees
+      // (kept the function for reference). try { _plantIslandForest(root); } catch(e){}
     }
     if(typeof _plantIslandTrees === 'function'){
       _plantIslandTrees(root).catch(e => console.warn('niwa[island]: real trees failed', e));
@@ -10429,33 +10430,60 @@ async function _plantIslandTrees(root){
   const assets=['enc_tree_green_lg','enc_tree_green_md','enc_tree_fruit','enc_tree_autumn'];
   await Promise.all(assets.map(a=>lazyLoadAsset(a).catch(()=>null)));
   if(!currentScene||currentScene.name!=='island') return;
-  const diag=[[7,7],[-7,7],[7,-7],[-7,-7]];
+  const have=assets.filter(a=>BLENDER_CACHE[a]);
+  if(!have.length){ console.warn('niwa[island]: no real trees loaded'); return; }
+  const CELLS=[];
+  for(const k in SCENE_WORLD_POS){ if(k==='heya')continue; CELLS.push([SCENE_WORLD_POS[k].dx*SEP, SCENE_WORLD_POS[k].dz*SEP]); }
+  const lanes=[];
+  if(typeof ISLAND_BRIDGES!=='undefined'){
+    for(const pr of ISLAND_BRIDGES){ const A=SCENE_WORLD_POS[pr[0]],B=SCENE_WORLD_POS[pr[1]]; if(A&&B)lanes.push([A.dx*SEP,A.dz*SEP,B.dx*SEP,B.dz*SEP]); }
+  }
+  function nearLane(x,z,pad){ for(const ln of lanes){ const dx=ln[2]-ln[0],dz=ln[3]-ln[1],l2=dx*dx+dz*dz; let u=((x-ln[0])*dx+(z-ln[1])*dz)/(l2||1); u=Math.max(0,Math.min(1,u)); const px=ln[0]+u*dx,pz=ln[1]+u*dz; if(Math.hypot(x-px,z-pz)<pad)return true; } return false; }
+  function insideCell(x,z,pad){ for(const c of CELLS){ if(Math.hypot(x-c[0],z-c[1])<pad)return true; } return false; }
   const spots=[];
-  for(const k in SCENE_WORLD_POS){
-    if(k==='heya') continue;
-    const cx=SCENE_WORLD_POS[k].dx*SEP, cz=SCENE_WORLD_POS[k].dz*SEP;
-    for(const od of diag) spots.push([cx+od[0],cz+od[1]]);
-    if(k==='takibi'){ spots.push([cx-5,cz+7.5]); spots.push([cx+5,cz+7.5]); }
+  const WANT=IS_LITE?20:40;   // belts + rim (real trees are heavier than instanced)
+  let guard=0;
+  while(spots.length<WANT && guard++<3000){
+    const a=Math.random()*Math.PI*2;
+    const r=7+Math.sqrt(Math.random())*30;
+    const x=Math.cos(a)*r, z=Math.sin(a)*r;
+    if(insideCell(x,z,9.8))continue;
+    if(nearLane(x,z,2.8))continue;
+    const rimBias=r>27?1.0:0.5;
+    if(Math.random()>rimBias)continue;
+    spots.push([x,z]);
+  }
+  // takibi grove (焚き火の森) — sparing the campfire clearing + portal
+  const tk=SCENE_WORLD_POS.takibi;
+  if(tk){
+    const tx=tk.dx*SEP,tz=tk.dz*SEP; let g2=0,placed=0; const want=IS_LITE?6:11;
+    while(placed<want && g2++<300){
+      const a=Math.random()*Math.PI*2; const r=5.2+Math.random()*3.2;
+      const x=tx+Math.cos(a)*r,z=tz+Math.sin(a)*r;
+      if(Math.hypot(x-(tx+0.5),z-(tz+4.5))<3.2)continue;
+      if(Math.hypot(x-(tx+3.5),z-(tz+4.5))<2.2)continue;
+      if(nearLane(x,z,2.6))continue;
+      spots.push([x,z]); placed++;
+    }
   }
   let n=0;
   for(const sp of spots){
     const x=sp[0], z=sp[1];
-    const asset=assets[(Math.abs(Math.round(x*7+z*13)))%assets.length];
-    const src=BLENDER_CACHE[asset];
-    if(!src) continue;
+    const asset=have[(Math.abs(Math.round(x*7+z*13)))%have.length];
+    const src=BLENDER_CACHE[asset]; if(!src)continue;
     const m=src.clone(true);
-    const sc=0.85+((Math.abs(Math.round(x*3-z*5)))%30)/100;
+    const sc=0.8+((Math.abs(Math.round(x*3-z*5)))%40)/100;
     m.scale.setScalar(sc);
     let gy=0; try{const s=sampleHeight(x,z); if(isFinite(s)&&s>-0.5&&s<3)gy=s;}catch(_){}
     m.position.set(x,gy,z);
     m.rotation.y=((x*37+z*13)%360)*Math.PI/180;
-    m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+    m.traverse(o=>{ if(o.isMesh){ o.castShadow=!IS_LITE; o.receiveShadow=true; } });
     m.userData.skipRaycast=true;
     root.add(m);
-    if(ENTITIES.obstacles) ENTITIES.obstacles.push({x:x,z:z,r:0.7});
+    if(ENTITIES.obstacles) ENTITIES.obstacles.push({x:x,z:z,r:0.5*sc});
     n++;
   }
-  console.log('niwa[island]: planted '+n+' real KB3D trees');
+  console.log('niwa[island]: planted '+n+' real KB3D trees (forest)');
 }
 
 function _plantIslandForest(root){
