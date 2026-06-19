@@ -525,6 +525,7 @@
     let pollTimer = null;
     let autoPlayTriggered = false;
     let autoPlayTimer = null;
+    let waitingForTranslation = false;
     const storedHl = localStorage.getItem('lingo.hl.v2');
     let highlightMode = storedHl === null ? true : storedHl === '1';
     applyHighlightToggleUI();
@@ -656,6 +657,13 @@
       pollTimer = setInterval(() => {
         if (!player || typeof player.getCurrentTime !== 'function') return;
         const t = player.getCurrentTime();
+
+        // Buffering: never let the playhead show one language without the other.
+        // If the current/imminent cue is still being translated, pause until it's
+        // ready (its region is translated first), then resume — so EN+JA always
+        // appear together while watching.
+        updateTranslationBuffer(t);
+
         let active = findActiveCues(cues, t);
         // Only ever show ONE line. YouTube auto-captions overlap (line A and the
         // next line B are both "active" for a moment); the user does not want the
@@ -669,12 +677,47 @@
           for (const c of pool) if (c.start > pick.start) pick = c;
           active = [pick];
         }
-        if (active.length) {
+        // Don't render a cue while it's still missing its partner line (and the
+        // translation is still coming) — show nothing rather than one language alone.
+        if (active.length && !cueAwaitingPair(active[0])) {
           renderActiveCues(active, t);
         } else {
           clearSubtitles();
         }
       }, 200);
+    }
+
+    // A cue is "awaiting its pair" when one side is present but the other is still
+    // being translated (not yet given up after MAX_TRANSLATE_TRY attempts).
+    function sidePending(c, key) {
+      return !c[key] && (c['_' + key + 'fail'] || 0) < MAX_TRANSLATE_TRY;
+    }
+    function cueAwaitingPair(c) {
+      if (!c) return false;
+      if (c.en && sidePending(c, 'ja')) return true;
+      if (c.ja && sidePending(c, 'en')) return true;
+      return false;
+    }
+    function translationNeededSoon(t) {
+      for (const c of findActiveCues(cues, t)) if (cueAwaitingPair(c)) return true;
+      for (const c of cues) {
+        if (c.start > t + 0.5) break;
+        if (c.start > t && cueAwaitingPair(c)) return true;
+      }
+      return false;
+    }
+    function updateTranslationBuffer(t) {
+      if (!player || typeof player.getPlayerState !== 'function') return;
+      const need = translationNeededSoon(t);
+      const playing = player.getPlayerState() === YT.PlayerState.PLAYING;
+      if (need && playing) {
+        waitingForTranslation = true;
+        try { player.pauseVideo(); } catch (e) {}
+        setStatus('日本語訳を準備中… そろい次第、再生を再開します');
+      } else if (waitingForTranslation && !need) {
+        waitingForTranslation = false;
+        try { player.playVideo(); } catch (e) {}
+      }
     }
 
     function stopPolling() {
@@ -775,6 +818,7 @@
       setStatus('字幕を取得中...');
       showProgressIndeterminate();
       autoPlayTriggered = false;
+      waitingForTranslation = false;
       if (autoPlayTimer) { clearTimeout(autoPlayTimer); autoPlayTimer = null; }
       loadBtn.disabled = true;
       hideResults();
@@ -823,6 +867,7 @@
     const SEP_ENC_LEN = encodeURIComponent(SEP).length;
     const LINGVA_BUDGET = 3000;
     const LINGVA = ['https://lingva.ml', 'https://lingva.lunar.icu'];
+    const MAX_TRANSLATE_TRY = 3;
 
     async function backfillMissingTranslations(cuesArr, srcLang) {
       const sides = [];
@@ -839,10 +884,21 @@
       if (!sides.length) { hideProgress(); return; }
 
       setStatus('字幕を逐次補完中...');
-      const totals = { ja: 0, en: 0 };
-      const dones = { ja: 0, en: 0 };
+      const need = {
+        ja: cuesArr.filter((c) => !c.ja).length,
+        en: cuesArr.filter((c) => !c.en).length,
+      };
+      const totalNeed = need.ja + need.en;
+      function report() {
+        const missJa = cuesArr.filter((c) => !c.ja).length;
+        const missEn = cuesArr.filter((c) => !c.en).length;
+        if (totalNeed) setProgress((totalNeed - (missJa + missEn)) / totalNeed);
+        const ja = need.ja ? `JA ${need.ja - missJa}/${need.ja}` : '';
+        const en = need.en ? `EN ${need.en - missEn}/${need.en}` : '';
+        setStatus(`字幕を逐次補完中... ${[ja, en].filter(Boolean).join(' / ')}`);
+      }
 
-      await Promise.all(sides.map((side) => backfillSideIncremental(cuesArr, side, totals, dones)));
+      await Promise.all(sides.map((side) => backfillSideIncremental(cuesArr, side, report)));
 
       hideProgress();
       const remEn = cuesArr.filter((c) => !c.en).length;
@@ -863,24 +919,26 @@
       return (t - cue.end) + 1e6;                            // already passed
     }
 
-    async function backfillSideIncremental(cuesArr, side, totals, dones) {
-      // Total needing this side (with a usable source) — fixed for progress.
-      const need = [];
-      for (let i = 0; i < cuesArr.length; i++) {
-        if (!cuesArr[i][side.target] && side.pickSrc(cuesArr[i])) need.push(i);
-      }
-      if (!need.length) return;
-      totals[side.target] = need.length;
-
-      const attempted = new Set();
-      while (true) {
-        // Remaining = still missing, has a source, not yet attempted.
-        const remaining = [];
+    async function backfillSideIncremental(cuesArr, side, report) {
+      const fk = '_' + side.target + 'fail';
+      // Pending = still missing this side, has a usable source, and hasn't been
+      // given up on yet (failed fewer than MAX_TRANSLATE_TRY times).
+      const pending = () => {
+        const arr = [];
         for (let i = 0; i < cuesArr.length; i++) {
-          if (!cuesArr[i][side.target] && side.pickSrc(cuesArr[i]) && !attempted.has(i)) remaining.push(i);
+          const c = cuesArr[i];
+          if (!c[side.target] && side.pickSrc(c) && (c[fk] || 0) < MAX_TRANSLATE_TRY) arr.push(i);
         }
+        return arr;
+      };
+      if (!pending().length) return;
+
+      while (true) {
+        const remaining = pending();
         if (!remaining.length) break;
 
+        // Re-prioritize by the live playhead every batch so the region the user
+        // is watching (or about to) is translated first.
         const t = (player && typeof player.getCurrentTime === 'function') ? player.getCurrentTime() : 0;
         remaining.sort((a, b) => backfillPriority(cuesArr[a], t) - backfillPriority(cuesArr[b], t));
 
@@ -899,18 +957,13 @@
 
         const parts = await lingvaTranslateGroup(srcBatch, side.from, side.target);
         for (let i = 0; i < idxBatch.length; i++) {
-          if (parts[i]) cuesArr[idxBatch[i]][side.target] = parts[i];
-          attempted.add(idxBatch[i]); // one attempt per cue; failures aren't retried (no infinite loop)
+          const c = cuesArr[idxBatch[i]];
+          if (parts[i]) c[side.target] = parts[i];
+          else c[fk] = (c[fk] || 0) + 1; // retry up to MAX_TRANSLATE_TRY, then give up
         }
-        dones[side.target] += idxBatch.length;
-        const totalAll = (totals.ja || 0) + (totals.en || 0);
-        const doneAll = (dones.ja || 0) + (dones.en || 0);
-        if (totalAll) setProgress(doneAll / totalAll);
-        const ja = totals.ja ? `JA ${dones.ja}/${totals.ja}` : '';
-        const en = totals.en ? `EN ${dones.en}/${totals.en}` : '';
-        setStatus(`字幕を逐次補完中... ${[ja, en].filter(Boolean).join(' / ')}`);
-        // Enough of the opening is translated → let playback begin while the rest
-        // streams in (the loop keeps translating ahead of the playhead).
+        report();
+        // Opening ready → start playback; the loop keeps translating ahead of the
+        // playhead and the buffer pauses if it ever falls behind.
         maybeStartPlayback();
       }
     }
