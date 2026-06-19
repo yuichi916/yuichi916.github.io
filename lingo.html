@@ -632,7 +632,8 @@
       const past = tokens.slice(0, currentTokenIdx).join('');
       const cur = tokens[currentTokenIdx] || '';
       const fut = tokens.slice(currentTokenIdx + 1).join('');
-      const curClass = highlightMode ? 'ka-current' : 'ka-current-plain';
+      // Highlight applies to English only; the Japanese line is never chipped.
+      const curClass = (highlightMode && lang === 'en') ? 'ka-current' : 'ka-current-plain';
 
       if (hideMode === 'line') {
         // Whole line stays visible until progress hits 1; only the current
@@ -853,66 +854,63 @@
       }
     }
 
+    // Order untranslated cues so the region the user is about to watch is filled
+    // first: cues at/after the playhead come first (soonest start wins), already
+    // passed cues last. Re-evaluated before every batch so it keeps up with
+    // playback and seeks — the goal is EN+JA always ready ahead of the playhead.
+    function backfillPriority(cue, t) {
+      if (cue.end >= t) return Math.max(0, cue.start - t);   // current/upcoming
+      return (t - cue.end) + 1e6;                            // already passed
+    }
+
     async function backfillSideIncremental(cuesArr, side, totals, dones) {
-      // Collect cues that need this side, ordered by closeness to current playback position
-      const missIndices = [];
-      for (let i = 0; i < cuesArr.length; i++) if (!cuesArr[i][side.target]) missIndices.push(i);
-      if (!missIndices.length) return;
+      // Total needing this side (with a usable source) — fixed for progress.
+      const need = [];
+      for (let i = 0; i < cuesArr.length; i++) {
+        if (!cuesArr[i][side.target] && side.pickSrc(cuesArr[i])) need.push(i);
+      }
+      if (!need.length) return;
+      totals[side.target] = need.length;
 
-      const sortByCurrent = () => {
+      const attempted = new Set();
+      while (true) {
+        // Remaining = still missing, has a source, not yet attempted.
+        const remaining = [];
+        for (let i = 0; i < cuesArr.length; i++) {
+          if (!cuesArr[i][side.target] && side.pickSrc(cuesArr[i]) && !attempted.has(i)) remaining.push(i);
+        }
+        if (!remaining.length) break;
+
         const t = (player && typeof player.getCurrentTime === 'function') ? player.getCurrentTime() : 0;
-        missIndices.sort((a, b) => {
-          const da = Math.abs((cuesArr[a].start + cuesArr[a].end) / 2 - t);
-          const db = Math.abs((cuesArr[b].start + cuesArr[b].end) / 2 - t);
-          return da - db;
-        });
-      };
-      sortByCurrent();
+        remaining.sort((a, b) => backfillPriority(cuesArr[a], t) - backfillPriority(cuesArr[b], t));
 
-      const orderedSources = missIndices.map((i) => side.pickSrc(cuesArr[i]));
-      const validIndices = [];
-      const validSources = [];
-      for (let k = 0; k < missIndices.length; k++) {
-        if (orderedSources[k]) { validIndices.push(missIndices[k]); validSources.push(orderedSources[k]); }
-      }
-      if (!validSources.length) return;
-
-      totals[side.target] = validSources.length;
-
-      // Chunk by byte budget
-      const groups = [];
-      const groupIdx = [];
-      let cur = [];
-      let curIdx = [];
-      let curBytes = 0;
-      for (let k = 0; k < validSources.length; k++) {
-        const t = validSources[k];
-        const tBytes = encodeURIComponent(t).length;
-        const sepCost = cur.length ? SEP_ENC_LEN : 0;
-        if (cur.length && curBytes + sepCost + tBytes > LINGVA_BUDGET) {
-          groups.push(cur); groupIdx.push(curIdx);
-          cur = []; curIdx = []; curBytes = 0;
+        // Build one byte-budget batch from the front of the prioritized list.
+        const idxBatch = [];
+        const srcBatch = [];
+        let bytes = 0;
+        for (const i of remaining) {
+          const s = side.pickSrc(cuesArr[i]);
+          const sb = encodeURIComponent(s).length;
+          const sep = idxBatch.length ? SEP_ENC_LEN : 0;
+          if (idxBatch.length && bytes + sep + sb > LINGVA_BUDGET) break;
+          idxBatch.push(i); srcBatch.push(s); bytes += sep + sb;
         }
-        cur.push(t); curIdx.push(validIndices[k]);
-        curBytes += (cur.length === 1 ? 0 : SEP_ENC_LEN) + tBytes;
-      }
-      if (cur.length) { groups.push(cur); groupIdx.push(curIdx); }
+        if (!idxBatch.length) break;
 
-      for (let g = 0; g < groups.length; g++) {
-        const parts = await lingvaTranslateGroup(groups[g], side.from, side.target);
-        for (let i = 0; i < groups[g].length; i++) {
-          const cueIdx = groupIdx[g][i];
-          if (parts[i]) cuesArr[cueIdx][side.target] = parts[i];
+        const parts = await lingvaTranslateGroup(srcBatch, side.from, side.target);
+        for (let i = 0; i < idxBatch.length; i++) {
+          if (parts[i]) cuesArr[idxBatch[i]][side.target] = parts[i];
+          attempted.add(idxBatch[i]); // one attempt per cue; failures aren't retried (no infinite loop)
         }
-        dones[side.target] += groups[g].length;
+        dones[side.target] += idxBatch.length;
         const totalAll = (totals.ja || 0) + (totals.en || 0);
         const doneAll = (dones.ja || 0) + (dones.en || 0);
         if (totalAll) setProgress(doneAll / totalAll);
         const ja = totals.ja ? `JA ${dones.ja}/${totals.ja}` : '';
         const en = totals.en ? `EN ${dones.en}/${totals.en}` : '';
         setStatus(`字幕を逐次補完中... ${[ja, en].filter(Boolean).join(' / ')}`);
-        // Enough of the opening is translated → let playback begin while the
-        // rest streams in (cues are translated nearest-to-playhead first).
+        // Enough of the opening is translated → let playback begin while the rest
+        // streams in (the loop keeps translating ahead of the playhead).
         maybeStartPlayback();
       }
     }
