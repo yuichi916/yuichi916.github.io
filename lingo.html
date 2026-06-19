@@ -257,6 +257,48 @@
       min-height: 20px;
     }
     #status.error { color: var(--error); }
+    #progress {
+      width: 100%;
+      max-width: 960px;
+      height: 6px;
+      margin-top: 14px;
+      background: #1a1d24;
+      border: 1px solid #2a2f3a;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    #progress.hidden { display: none; }
+    #progress-bar {
+      height: 100%;
+      width: 0;
+      background: var(--accent);
+      border-radius: 999px;
+      transition: width 0.25s ease;
+    }
+    #progress.indeterminate #progress-bar {
+      width: 40%;
+      transition: none;
+      animation: lingo-indet 1.1s ease-in-out infinite;
+    }
+    @keyframes lingo-indet {
+      0%   { margin-left: -42%; }
+      100% { margin-left: 100%; }
+    }
+    .topbar {
+      width: 100%;
+      max-width: 960px;
+      margin-bottom: 10px;
+    }
+    .home-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--dim);
+      text-decoration: none;
+      font-size: 13px;
+      padding: 4px 0;
+    }
+    .home-link:hover { color: var(--accent); }
     .intro {
       width: 100%;
       max-width: 960px;
@@ -291,6 +333,7 @@
   </style>
 </head>
 <body>
+  <div class="topbar"><a class="home-link" href="index.html">← ホームに戻る</a></div>
   <h1>🌍 <span class="accent">lingo</span> — YouTube English × 日本語</h1>
   <p class="intro">
     YouTube動画の<b>英語字幕</b>と<b>日本語訳</b>を同時に表示するリスニング学習ツールです。<br>
@@ -325,6 +368,7 @@
     <div id="sub-en"></div>
     <div id="sub-ja"></div>
   </div>
+  <div id="progress" class="hidden"><div id="progress-bar"></div></div>
   <div id="status"></div>
   <section class="about">
     <h2>使い方</h2>
@@ -346,6 +390,7 @@
       <li>英語と日本語を<b>同時に確認</b>しながら学びたい</li>
       <li>字幕に頼りすぎず<b>シャドーイング</b>の練習をしたい</li>
     </ul>
+    <p style="margin-top:24px;"><a class="home-link" href="index.html">← ホーム（Views Engineer）に戻る</a></p>
   </section>
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
@@ -455,10 +500,31 @@
     const subEn = document.getElementById('sub-en');
     const subJa = document.getElementById('sub-ja');
     const statusEl = document.getElementById('status');
+    const progressEl = document.getElementById('progress');
+    const progressBar = document.getElementById('progress-bar');
+
+    // Indeterminate while we don't know how long the fetch will take (transcript
+    // download); determinate once we have a real count (translation backfill).
+    function showProgressIndeterminate() {
+      progressEl.classList.remove('hidden');
+      progressEl.classList.add('indeterminate');
+      progressBar.style.width = '';
+    }
+    function setProgress(frac) {
+      progressEl.classList.remove('hidden', 'indeterminate');
+      progressBar.style.width = Math.max(0, Math.min(1, frac)) * 100 + '%';
+    }
+    function hideProgress() {
+      progressEl.classList.add('hidden');
+      progressEl.classList.remove('indeterminate');
+      progressBar.style.width = '0';
+    }
 
     let player = null;
     let cues = [];
     let pollTimer = null;
+    let autoPlayTriggered = false;
+    let autoPlayTimer = null;
     const storedHl = localStorage.getItem('lingo.hl.v2');
     let highlightMode = storedHl === null ? true : storedHl === '1';
     applyHighlightToggleUI();
@@ -639,6 +705,29 @@
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     }
 
+    // Progressive playback: don't make the user wait for the whole transcript to
+    // be translated. Start playing once the opening (~first 8s) has both EN and
+    // JA ready; the rest keeps streaming in during playback (backfill translates
+    // the cues nearest the playhead first).
+    const OPENING_WINDOW = 8;
+    function openingReady() {
+      if (!cues.length) return false;
+      const t0 = cues[0].start;
+      const opening = cues.filter((c) => c.start < t0 + OPENING_WINDOW);
+      const check = opening.length ? opening : cues.slice(0, 3);
+      return check.every((c) => c.en && c.ja);
+    }
+    function maybeStartPlayback(force) {
+      if (autoPlayTriggered) return;
+      if (!player || typeof player.playVideo !== 'function') return;
+      if (!force && !openingReady()) return;
+      autoPlayTriggered = true;
+      if (autoPlayTimer) { clearTimeout(autoPlayTimer); autoPlayTimer = null; }
+      // Browsers may block unmuted autoplay; if so this is a no-op and the user
+      // simply presses play — subtitles/translations still stream regardless.
+      try { player.playVideo(); } catch (e) {}
+    }
+
     function mountPlayer(videoId) {
       playerWrap.innerHTML = '<div id="player"></div>';
       if (player) { try { player.destroy(); } catch (e) {} player = null; }
@@ -646,7 +735,12 @@
         videoId,
         playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
         events: {
-          onReady: () => startPolling(),
+          onReady: () => {
+            startPolling();
+            maybeStartPlayback();
+            // Fallback: start within a couple seconds even if translation is slow.
+            autoPlayTimer = setTimeout(() => maybeStartPlayback(true), 2500);
+          },
           onStateChange: (e) => {
             if (e.data === YT.PlayerState.ENDED || e.data === YT.PlayerState.PAUSED) {
               // keep current cue visible
@@ -703,6 +797,9 @@
 
     async function loadByVideoId(videoId) {
       setStatus('字幕を取得中...');
+      showProgressIndeterminate();
+      autoPlayTriggered = false;
+      if (autoPlayTimer) { clearTimeout(autoPlayTimer); autoPlayTimer = null; }
       loadBtn.disabled = true;
       hideResults();
       clearSubtitles();
@@ -712,16 +809,19 @@
         const res = await fetch(`${WORKER_URL}/api/transcript?v=${videoId}`);
         if (res.status === 404) {
           mountPlayer(videoId);
+          hideProgress();
           setStatus('この動画には英字幕がありません', true);
           return;
         }
         if (res.status === 503) {
           mountPlayer(videoId);
+          hideProgress();
           setStatus('YouTube が一時的に制限中です。数十秒待って再試行してください', true);
           return;
         }
         if (!res.ok) {
           mountPlayer(videoId);
+          hideProgress();
           setStatus('字幕の取得に失敗しました。少し待って再試行してください', true);
           return;
         }
@@ -733,6 +833,7 @@
         setStatus(`${cues.length} cues 読み込み済み`);
       } catch (err) {
         mountPlayer(videoId);
+        hideProgress();
         setStatus('字幕の取得に失敗しました。少し待って再試行してください', true);
         return;
       } finally {
@@ -759,7 +860,7 @@
         const srcFor = srcLang === 'en' ? 'en' : srcLang;
         sides.push({ target: 'en', from: srcFor, pickSrc: (c) => (srcFor === 'en' ? c.en : c.ja || c.en) || '' });
       }
-      if (!sides.length) return;
+      if (!sides.length) { hideProgress(); return; }
 
       setStatus('字幕を逐次補完中...');
       const totals = { ja: 0, en: 0 };
@@ -767,6 +868,7 @@
 
       await Promise.all(sides.map((side) => backfillSideIncremental(cuesArr, side, totals, dones)));
 
+      hideProgress();
       const remEn = cuesArr.filter((c) => !c.en).length;
       const remJa = cuesArr.filter((c) => !c.ja).length;
       if (remEn === 0 && remJa === 0) {
@@ -828,9 +930,15 @@
           if (parts[i]) cuesArr[cueIdx][side.target] = parts[i];
         }
         dones[side.target] += groups[g].length;
+        const totalAll = (totals.ja || 0) + (totals.en || 0);
+        const doneAll = (dones.ja || 0) + (dones.en || 0);
+        if (totalAll) setProgress(doneAll / totalAll);
         const ja = totals.ja ? `JA ${dones.ja}/${totals.ja}` : '';
         const en = totals.en ? `EN ${dones.en}/${totals.en}` : '';
         setStatus(`字幕を逐次補完中... ${[ja, en].filter(Boolean).join(' / ')}`);
+        // Enough of the opening is translated → let playback begin while the
+        // rest streams in (cues are translated nearest-to-playhead first).
+        maybeStartPlayback();
       }
     }
 
