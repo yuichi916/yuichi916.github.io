@@ -656,27 +656,17 @@
         if (!player || typeof player.getCurrentTime !== 'function') return;
         const t = player.getCurrentTime();
         let active = findActiveCues(cues, t);
-        // When multiple cues are stacked, drop the ones the reader has
-        // already finished (user wants line 1 to disappear once read).
-        // Always keep at least one cue visible so the area never blanks.
+        // Only ever show ONE line. YouTube auto-captions overlap (line A and the
+        // next line B are both "active" for a moment); the user does not want the
+        // previous line lingering as a second row. So when cues stack, show only
+        // the most recently started line that the speaker is still on — the new
+        // line takes over and the previous one disappears immediately.
         if (active.length > 1) {
-          const stillReading = active.filter((c) => readerProgress(c, t) < 1);
-          if (stillReading.length) {
-            active = stillReading;
-          } else {
-            // Nobody is still being read. Prefer cues whose speaker is still
-            // talking (latest start), else the most-recently-ended cue.
-            const stillSpeaking = active.filter((c) => t < c.end);
-            let pick;
-            if (stillSpeaking.length) {
-              pick = stillSpeaking[0];
-              for (const c of stillSpeaking) if (c.start > pick.start) pick = c;
-            } else {
-              pick = active[0];
-              for (const c of active) if (c.end > pick.end) pick = c;
-            }
-            active = [pick];
-          }
+          const live = active.filter((c) => t < c.end);
+          const pool = live.length ? live : active;
+          let pick = pool[0];
+          for (const c of pool) if (c.start > pick.start) pick = c;
+          active = [pick];
         }
         if (active.length) {
           renderActiveCues(active, t);
@@ -684,21 +674,6 @@
           clearSubtitles();
         }
       }, 200);
-    }
-
-    function countReadableTokens(text) {
-      if (!text) return 0;
-      return tokenizeForKaraoke(text).filter((tok) => !/^\s+$/.test(tok)).length;
-    }
-
-    function readerProgress(cue, t) {
-      const elapsed = Math.max(0, t - cue.start);
-      const enTokens = countReadableTokens(cue.en);
-      const jaTokens = countReadableTokens(cue.ja);
-      const enProg = enTokens ? (elapsed * READING_TOKENS_PER_SEC.en) / enTokens : 2;
-      const jaProg = jaTokens ? (elapsed * READING_TOKENS_PER_SEC.ja) / jaTokens : 2;
-      // Reader is "done" only when BOTH languages have been consumed.
-      return Math.min(enProg, jaProg);
     }
 
     function stopPolling() {
