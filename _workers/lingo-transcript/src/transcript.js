@@ -104,16 +104,31 @@ export async function fetchSourceCues(videoId, debug = null) {
 }
 
 async function getCaptionTracks(videoId, debug = null) {
+  // Distinguish "genuinely no captions" from "YouTube blocked our datacenter IP".
+  // A block must surface as a retryable rate-limit (503), not as no_captions (404).
+  let blocked = false;
   for (const client of INNERTUBE_CLIENTS) {
-    const tracks = await fetchTracksViaInnerTube(videoId, client);
-    if (debug) (debug.attempts ||= []).push({ client: client.name, count: tracks?.length ?? 0 });
-    if (tracks && tracks.length) return tracks;
+    const r = await fetchTracksViaInnerTube(videoId, client);
+    if (r === 'BLOCKED') { blocked = true; if (debug) (debug.attempts ||= []).push({ client: client.name, blocked: true }); continue; }
+    if (debug) (debug.attempts ||= []).push({ client: client.name, count: Array.isArray(r) ? r.length : 0 });
+    if (Array.isArray(r) && r.length) return r;
   }
-  const tracks = await fetchTracksViaWebPage(videoId, debug);
-  if (debug) (debug.attempts ||= []).push({ client: 'WEBPAGE', count: tracks?.length ?? 0 });
-  return tracks || [];
+  let webTracks = null;
+  try {
+    webTracks = await fetchTracksViaWebPage(videoId, debug);
+  } catch (e) {
+    if (e instanceof CaptchaError) blocked = true;
+    else throw e;
+  }
+  if (debug) (debug.attempts ||= []).push({ client: 'WEBPAGE', count: webTracks?.length ?? 0 });
+  if (webTracks && webTracks.length) return webTracks;
+  if (blocked) throw new CaptchaError(videoId);
+  return [];
 }
 
+// Returns: an array of caption tracks (possibly empty) on a clean response,
+// 'BLOCKED' when YouTube rate-limited/blocked us (403/429/automated-queries),
+// or null on other transient failure.
 async function fetchTracksViaInnerTube(videoId, client) {
   try {
     const headers = { 'Content-Type': 'application/json', 'User-Agent': client.ua };
@@ -123,9 +138,13 @@ async function fetchTracksViaInnerTube(videoId, client) {
       headers,
       body: JSON.stringify({ context: client.context, videoId }),
     });
+    if (res.status === 403 || res.status === 429) return 'BLOCKED';
     if (!res.ok) return null;
-    const data = await res.json();
-    return data?.captions?.playerCaptionsTracklistRenderer?.captionTracks || null;
+    const text = await res.text();
+    if (/automated queries|unusual traffic|\/sorry\//i.test(text)) return 'BLOCKED';
+    let data;
+    try { data = JSON.parse(text); } catch { return null; }
+    return data?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
   } catch {
     return null;
   }
@@ -141,6 +160,7 @@ async function fetchTracksViaWebPage(videoId, debug = null) {
       },
     });
     if (debug) debug.webStatus = res.status;
+    if (res.status === 403 || res.status === 429) throw new CaptchaError(videoId);
     const html = await res.text();
     if (debug) {
       debug.htmlLen = html.length;
@@ -148,7 +168,9 @@ async function fetchTracksViaWebPage(videoId, debug = null) {
       debug.hasPlayerResp = html.includes('ytInitialPlayerResponse');
       debug.hasCaptionsKey = html.includes('playerCaptionsTracklistRenderer');
     }
-    if (html.includes('class="g-recaptcha"')) throw new CaptchaError(videoId);
+    if (html.includes('class="g-recaptcha"') || /automated queries|unusual traffic/i.test(html)) {
+      throw new CaptchaError(videoId);
+    }
     const player = extractInlineJson(html, 'ytInitialPlayerResponse');
     return player?.captions?.playerCaptionsTracklistRenderer?.captionTracks || null;
   } catch (err) {
@@ -197,6 +219,9 @@ async function fetchCaptionXml(baseUrl, videoId, debug = null) {
     await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
   }
   if (debug) debug.fetchStatus = lastStatus;
+  // We already found a caption track, so the captions exist — a 429/403/503 here
+  // is a rate-limit, not a missing transcript. Surface it as retryable.
+  if (lastStatus === 429 || lastStatus === 503 || lastStatus === 403) throw new CaptchaError(videoId);
   throw new NoCaptionsError(videoId);
 }
 
