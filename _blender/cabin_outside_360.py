@@ -223,13 +223,15 @@ def box(name, sx, sy, sz, loc, mat, rot=(0,0,0)):
 
 # ---- ground + intimate forest pond (water laps right at your feet, wraps past you) ----
 box('Ground', 600, 600, 0.1, (0, 0, -0.10), MAT['ground'])
-box('LakeBed', 200, 130, 0.05, (0, 19, -0.42), MAT['lakebed'])     # bottom seen through clear water
-bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 19, -0.05))
-lake = bpy.context.active_object; lake.name = 'Lake'; lake.scale = (84, 23, 1)   # y≈-4..42, x±42: a forest pond hugged by trees; near edge wraps behind the camera
+box('LakeBed', 200, 150, 0.05, (0, 21, -0.42), MAT['lakebed'])     # bottom seen through clear water
+# NB primitive_plane_add(size=1) makes a 1×1 plane, so scale == full size in metres.
+# near edge = loc_y - scale_y/2.  Here y ≈ 0.4 .. 42 → the water laps right at your feet (one step ahead).
+bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 21.2, -0.05))
+lake = bpy.context.active_object; lake.name = 'Lake'; lake.scale = (84, 41.6, 1)   # x±42, y≈0.4..42: water starts ~0.4 m in front of you
 lake.data.materials.append(MAT['water'])
-# you stand on a small rock at the very lip — water in front of, beside and below you
-box('ShoreStrip', 8, 2.6, 0.05, (0, -2.4, -0.02), MAT['shore'])    # the small mossy bank just behind you; in front and below is open water
-box('FarBank', 130, 8, 0.08, (0, 45, -0.06), MAT['shore'])         # the near far-bank the treeline stands on
+# the narrow mossy bank you stand on — its front lip is ~0.1 m ahead, water begins right past it
+box('ShoreStrip', 13, 3.1, 0.05, (0, -1.45, -0.02), MAT['shore'])
+box('FarBank', 130, 8, 0.08, (0, 44, -0.06), MAT['shore'])         # the far-bank the treeline stands on
 
 # ---- the cabin you came from: a log cabin nestled at the forest edge behind-left ----
 CABIN = (-9.5, -7.5)        # turn around from the lake and it's there, among the trees
@@ -251,8 +253,8 @@ box('Chimney', 0.85, 0.85, ch+1.6, (CABIN[0]-cw/2-0.35, CABIN[1], (ch+1.6)/2), M
 
 # ---- the forest: real trees + shrubs ringing the lake; open water fills the whole front ----
 def in_water(x, y):
-    # the pond footprint: keep all trees/shrubs out of the water; the far bank is ~y=44
-    return (-5.0 < y < 43) and (abs(x) < 44)
+    # the pond footprint (water y≈0.4..42, x±42) + the near bank: keep trees/shrubs off the water and out of the view right in front
+    return (-0.5 < y < 43) and (abs(x) < 44)
 def near_cabin(x, y):
     if abs(x - CABIN[0]) < 5.0 and abs(y - CABIN[1]) < 5.0: return True
     # keep a clear sightline (a little path) from the shore to the cabin so it's always visible
@@ -323,11 +325,11 @@ pd = bpy.data.cameras.new('Pano'); pd.type = 'PANO'
 try: pd.cycles.panorama_type = 'EQUIRECTANGULAR'
 except Exception: pass
 cam = bpy.data.objects.new('Pano', pd); coll.objects.link(cam)
-cam.location = (0, 0, 1.45); cam.rotation_euler = (math.radians(90), 0, 0)   # right at the waterline, low, so the pond fills the foreground below you
+cam.location = (0, 0, 1.35); cam.rotation_euler = (math.radians(90), 0, 0)   # standing on the bank lip, low — water begins ~0.4 m in front, filling the view below
 
 stilld = bpy.data.cameras.new('Still'); stilld.lens = 26
 still = bpy.data.objects.new('Still', stilld); coll.objects.link(still)
-still.location = (0, 1.6, 1.8); still.rotation_euler = (math.radians(87), 0, math.radians(3))   # stand back a touch, near-horizontal: pond → far treeline → stars, water as a calm foreground mirror
+still.location = (0, -1.0, 1.6); still.rotation_euler = (math.radians(87), 0, math.radians(3))   # on the bank, near-horizontal: water at your feet → pond → far treeline → stars
 
 _GPU = setup_gpu()
 cy = scene.cycles
