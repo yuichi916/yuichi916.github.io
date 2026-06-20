@@ -3,17 +3,25 @@ import { CaptchaError } from './transcript.js';
 const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36';
 const MAX_RESULTS = 18;
 
-const SORT_SP = {
-  relevance: '',
-  date: 'CAISAhAB',
-  views: 'CAMSAhAB',
-  rating: 'CAESAhAB',
-};
+const SORT_FIELD = { relevance: 0, rating: 1, date: 2, views: 3 };
+
+// Build YouTube's `sp` filter protobuf: sort order + the "Subtitles/CC" feature
+// flag so the results only include videos that actually have a caption track —
+// lingo can't show anything for a video with no subtitles.
+function buildSearchParams(sort) {
+  const sortBy = SORT_FIELD[sort] ?? 0;
+  const bytes = [];
+  if (sortBy) bytes.push(0x08, sortBy);   // field 1: sort order
+  const filt = [];
+  if (sortBy) filt.push(0x10, 0x01);      // type = video (matches prior sorted behaviour)
+  filt.push(0x28, 0x01);                  // has_subtitles = true
+  bytes.push(0x12, filt.length, ...filt); // field 2: filters submessage
+  return btoa(String.fromCharCode(...bytes));
+}
 
 export async function searchYouTube(query, sort = 'relevance') {
-  const sp = SORT_SP[sort] || '';
-  const spParam = sp ? `&sp=${encodeURIComponent(sp)}` : '';
-  const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&hl=en${spParam}`;
+  const sp = buildSearchParams(sort);
+  const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&hl=en&sp=${encodeURIComponent(sp)}`;
   const res = await fetch(url, { headers: { 'User-Agent': BROWSER_UA } });
   if (!res.ok) throw new Error(`search HTTP ${res.status}`);
   const html = await res.text();
