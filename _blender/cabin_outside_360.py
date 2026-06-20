@@ -100,8 +100,8 @@ def make_water():
         b.inputs['IOR'].default_value = 1.333
         b.inputs['Specular'].default_value = 0.5
     else:
-        b.inputs['Base Color'].default_value = (0.004, 0.010, 0.020, 1)
-        b.inputs['Roughness'].default_value = 0.10
+        b.inputs['Base Color'].default_value = (0.013, 0.026, 0.042, 1)
+        b.inputs['Roughness'].default_value = 0.09
         b.inputs['Specular'].default_value = 0.6
     return m
 
@@ -135,7 +135,7 @@ def build_world():
         base = nodes.new('ShaderNodeMixRGB'); base.blend_type = 'ADD'; base.inputs[0].default_value = 1.0
         base.inputs[2].default_value = (0.010, 0.015, 0.030, 1)
         links.new(add.outputs['Color'], base.inputs[1])
-        links.new(base.outputs['Color'], bg.inputs['Color']); bg.inputs['Strength'].default_value = 3.2
+        links.new(base.outputs['Color'], bg.inputs['Color']); bg.inputs['Strength'].default_value = 4.2
     links.new(bg.outputs['Background'], out.inputs['Surface'])
 
 def setup_gpu():
@@ -180,8 +180,10 @@ def uniq_datas(substrs, exclude=(), limit=99):
 
 tree_datas  = uniq_datas(['_Tree'], exclude=['TreeBase'], limit=8)
 shrub_datas = uniq_datas(['Shrub'], limit=14)
-print(f'[enc] trees={len(tree_datas)} shrubs={len(shrub_datas)}', flush=True)
-for d in tree_datas + shrub_datas: d.use_fake_user = True
+fire_datas  = uniq_datas(['Firewood', 'Logs', 'LogPile'], limit=3)   # campfire fuel for the shore
+rock_datas  = uniq_datas(['Rock', 'Boulder', 'Stone'], exclude=['Stonework'], limit=6)
+print(f'[enc] trees={len(tree_datas)} shrubs={len(shrub_datas)} firewood={len(fire_datas)} rocks={len(rock_datas)}', flush=True)
+for d in tree_datas + shrub_datas + fire_datas + rock_datas: d.use_fake_user = True
 for o in list(bpy.data.objects):
     bpy.data.objects.remove(o, do_unlink=True)
 
@@ -193,13 +195,16 @@ MAT = {
     'cabinbeam': make_wood('m_cabinbeam', 'BeamB',   0.30, (0.40, 0.30, 0.20)),
     'roof':      make_wood('m_roof',      'PlanksD', 0.40, (0.30, 0.22, 0.16)),
     'chimney':   make_wood('m_chimney',   'BlocksB', 0.30, (0.55, 0.50, 0.44)),
-    'win':       make_emissive('m_win', (1.0, 0.62, 0.26), 5.0),
-    'ground':    make_solid('m_ground', (0.10, 0.13, 0.07) if DAY else (0.020, 0.026, 0.018), 0.95),
-    'shore':     make_solid('m_shore',  (0.14, 0.15, 0.10) if DAY else (0.04, 0.05, 0.05), 0.92),
+    'win':       make_emissive('m_win', (1.0, 0.62, 0.26), 9.0),
+    'ground':    make_solid('m_ground', (0.10, 0.13, 0.07) if DAY else (0.034, 0.042, 0.030), 0.95),
+    'shore':     make_solid('m_shore',  (0.14, 0.15, 0.10) if DAY else (0.075, 0.085, 0.080), 0.92),
     'lakebed':   make_solid('m_lakebed', (0.02, 0.03, 0.035) if DAY else (0.02, 0.03, 0.03), 0.95),
-    'rock':      make_solid('m_rock',   (0.20, 0.20, 0.19) if DAY else (0.012, 0.015, 0.020), 0.85),
+    'rock':      make_solid('m_rock',   (0.20, 0.20, 0.19) if DAY else (0.018, 0.022, 0.028), 0.85),
     'water':     make_water(),
     'moon':      make_emissive('m_moon', (1.0, 0.97, 0.90), 16.0),
+    'ember':     make_emissive('m_ember', (1.0, 0.42, 0.10), 34.0),    # glowing coals
+    'flame':     make_emissive('m_flame', (1.0, 0.66, 0.26), 46.0),    # billboard flame
+    'firestone': make_solid('m_firestone', (0.16, 0.15, 0.14) if DAY else (0.06, 0.06, 0.06), 0.9),
 }
 
 def data_dims(data):
@@ -221,48 +226,106 @@ def box(name, sx, sy, sz, loc, mat, rot=(0,0,0)):
     o = bpy.context.active_object; o.name = name; o.scale = (sx, sy, sz)
     o.data.materials.append(mat); return o
 
-# ---- ground + intimate forest pond (water laps right at your feet, wraps past you) ----
-box('Ground', 600, 600, 0.1, (0, 0, -0.10), MAT['ground'])
-box('LakeBed', 200, 150, 0.05, (0, 21, -0.42), MAT['lakebed'])     # bottom seen through clear water
-# NB primitive_plane_add(size=1) makes a 1×1 plane, so scale == full size in metres.
-# near edge = loc_y - scale_y/2.  Here y ≈ 0.4 .. 42 → the water laps right at your feet (one step ahead).
-bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 21.2, -0.05))
-lake = bpy.context.active_object; lake.name = 'Lake'; lake.scale = (84, 41.6, 1)   # x±42, y≈0.4..42: water starts ~0.4 m in front of you
-lake.data.materials.append(MAT['water'])
-# the narrow mossy bank you stand on — its front lip is ~0.1 m ahead, water begins right past it
-box('ShoreStrip', 13, 3.1, 0.05, (0, -1.45, -0.02), MAT['shore'])
-box('FarBank', 130, 8, 0.08, (0, 44, -0.06), MAT['shore'])         # the far-bank the treeline stands on
+def organic_disc(name, cx, cy, z, rx, ry, segs, jitter, mat, seedv):
+    """a filled n-gon disc whose rim wobbles -> a natural, non-circular shoreline."""
+    rnd = random.Random(seedv)
+    bpy.ops.mesh.primitive_circle_add(vertices=segs, radius=1.0, fill_type='NGON', location=(cx, cy, z))
+    o = bpy.context.active_object; o.name = name
+    # low-frequency lobes + fine jitter so the edge reads as a real lake, not a wheel
+    ph1, ph2 = rnd.uniform(0, math.tau), rnd.uniform(0, math.tau)
+    for v in o.data.vertices:
+        ang = math.atan2(v.co.y, v.co.x)
+        wob = 1.0 + 0.10*math.sin(ang*3 + ph1) + 0.06*math.sin(ang*5 + ph2) + (rnd.random()-0.5)*jitter
+        v.co.x = math.cos(ang) * rx * wob
+        v.co.y = math.sin(ang) * ry * wob
+        v.co.z = 0.0
+    o.data.materials.append(mat)
+    return o
 
-# ---- the cabin you came from: a log cabin nestled at the forest edge behind-left ----
-CABIN = (-9.5, -7.5)        # turn around from the lake and it's there, among the trees
+# ---- ground + a natural round forest lake, ringed by a shore you stand on ----
+LC = (0.0, 27.0)            # lake centre, out in front (+Y)
+LRX, LRY = 27.0, 23.0       # radii: spans x≈±27, y≈4..50 — a clear few-metre bank at your feet
+box('Ground', 600, 600, 0.1, (0, 0, -0.10), MAT['ground'])
+# a broad organic shore bank (pebble/grass) the lake sits inside — the 湖畔 ring all the way round
+organic_disc('ShoreBank', LC[0], LC[1], -0.07, LRX+5.0, LRY+5.0, 140, 0.10, MAT['shore'], 21)
+# the bed, seen through the clear water by day
+organic_disc('LakeBed', LC[0], LC[1], -0.42, LRX-1.5, LRY-1.5, 96, 0.08, MAT['lakebed'], 23)
+# the water itself — a natural, slightly wavy round lake
+organic_disc('Lake', LC[0], LC[1], -0.05, LRX, LRY, 160, 0.09, MAT['water'], 11)
+
+# ---- the cabin you came from: a log cabin on the near-left shore, FACING you across the lake ----
+CABIN = (-25.0, 12.0)       # left bank, beside the water
+# windows/door sit on the cabin's local +Y face, so aim +Y (not +X) at the viewer: dir-to-origin minus 90°
+YAW = math.atan2(0 - CABIN[1], 0 - CABIN[0]) - math.radians(90)
+_ca, _sa = math.cos(YAW), math.sin(YAW)
+def cpos(lx, ly):           # local cabin coords -> world (rotated by YAW about the cabin centre)
+    return (CABIN[0] + lx*_ca - ly*_sa, CABIN[1] + lx*_sa + ly*_ca)
 cw, cd, ch = 5.4, 4.6, 3.1
-box('CabinWall', cw, cd, ch, (CABIN[0], CABIN[1], ch/2), MAT['cabinwall'])
+box('CabinWall', cw, cd, ch, (*cpos(0, 0), ch/2), MAT['cabinwall'], rot=(0, 0, YAW))
 for ex in (-cw/2, cw/2):
     for ey in (-cd/2, cd/2):
-        box('CabinPost', 0.22, 0.22, ch, (CABIN[0]+ex, CABIN[1]+ey, ch/2), MAT['cabinbeam'])
-# gable roof — two slabs meeting at a ridge, overhanging the walls
-box('Roof1', cw*0.66, cd*1.28, 0.18, (CABIN[0]-cw*0.30, CABIN[1], ch+0.62), MAT['roof'], rot=(0, math.radians(36), 0))
-box('Roof2', cw*0.66, cd*1.28, 0.18, (CABIN[0]+cw*0.30, CABIN[1], ch+0.62), MAT['roof'], rot=(0, -math.radians(36), 0))
-box('Gable', cw, 0.12, 1.1, (CABIN[0], CABIN[1]-cd/2, ch+0.52), MAT['cabinwall'])
-# warm glowing windows + plank door facing the lake (+Y), so the light greets you when you turn back
-box('CabinWin', 0.9, 0.06, 0.95, (CABIN[0]-1.1, CABIN[1]+cd/2+0.03, 1.55), MAT['win'])
-box('CabinWin2', 0.9, 0.06, 0.95, (CABIN[0]+1.1, CABIN[1]+cd/2+0.03, 1.55), MAT['win'])
-box('CabinDoor', 1.05, 0.06, 2.1, (CABIN[0], CABIN[1]+cd/2+0.03, 1.05), MAT['cabinbeam'])
+        box('CabinPost', 0.22, 0.22, ch, (*cpos(ex, ey), ch/2), MAT['cabinbeam'], rot=(0, 0, YAW))
+# gable roof — two slabs meeting at a ridge (pitch about local Y, then yawed)
+box('Roof1', cw*0.66, cd*1.28, 0.18, (*cpos(-cw*0.30, 0), ch+0.62), MAT['roof'], rot=(0, math.radians(36), YAW))
+box('Roof2', cw*0.66, cd*1.28, 0.18, (*cpos( cw*0.30, 0), ch+0.62), MAT['roof'], rot=(0, -math.radians(36), YAW))
+box('Gable', cw, 0.12, 1.1, (*cpos(0, -cd/2), ch+0.52), MAT['cabinwall'], rot=(0, 0, YAW))
+# warm glowing windows + plank door on the front (+local Y) face — turned to greet you across the water
+box('CabinWin',  0.9, 0.06, 0.95, (*cpos(-1.1, cd/2+0.03), 1.55), MAT['win'], rot=(0, 0, YAW))
+box('CabinWin2', 0.9, 0.06, 0.95, (*cpos( 1.1, cd/2+0.03), 1.55), MAT['win'], rot=(0, 0, YAW))
+box('CabinDoor', 1.05, 0.06, 2.1, (*cpos(0, cd/2+0.03), 1.05), MAT['cabinbeam'], rot=(0, 0, YAW))
 # stone chimney with a soft glow
-box('Chimney', 0.85, 0.85, ch+1.6, (CABIN[0]-cw/2-0.35, CABIN[1], (ch+1.6)/2), MAT['chimney'])
+box('Chimney', 0.85, 0.85, ch+1.6, (*cpos(-cw/2-0.35, 0), (ch+1.6)/2), MAT['chimney'], rot=(0, 0, YAW))
+# a small warm light spilling from the cabin windows, reflected in the lake
+cwl = bpy.data.lights.new('CabinGlow', 'POINT'); cwl.color = (1.0, 0.62, 0.26); cwl.energy = 90.0 if DAY else 210.0
+cwlo = bpy.data.objects.new('CabinGlow', cwl); coll.objects.link(cwlo); cwlo.location = (*cpos(0, cd/2+0.6), 1.5)
+
+# ---- a campfire on the near shore (foreground-right): logs, a stone ring, coals + flame + warm light ----
+FC = (5.5, 2.2)             # on the near bank, just in front of you and to the right; lake beyond, cabin to the left
+# the Enchanted firewood/rock materials have no local texture (would render magenta),
+# so we keep the KitBash geometry but swap on our cached wood / solid rock.
+def place_solid(data, loc, rotz, target_h, mat, tilt=0.0):
+    o = place(data, loc, rotz, target_h, tilt)
+    o.data = o.data.copy(); o.data.materials.clear(); o.data.materials.append(mat)
+    return o
+if fire_datas:
+    place_solid(random.choice(fire_datas), (FC[0], FC[1], 0.0), random.uniform(0, math.tau), 0.85, MAT['cabinbeam'])
+else:
+    for k in range(5):                 # fallback: a small log tepee
+        a = k/5*math.tau
+        box('Log%d'%k, 0.12, 0.95, 0.12, (FC[0]+math.cos(a)*0.18, FC[1]+math.sin(a)*0.18, 0.42),
+            MAT['cabinbeam'], rot=(math.radians(58), 0, a))
+for k in range(9):                     # ring of stones round the pit
+    a = k/9*math.tau; rr = 0.62
+    if rock_datas:
+        place_solid(random.choice(rock_datas), (FC[0]+math.cos(a)*rr, FC[1]+math.sin(a)*rr, 0.0),
+                    random.uniform(0, math.tau), random.uniform(0.20, 0.32), MAT['rock'])
+    else:
+        s = 0.12 + random.uniform(0, 0.05)
+        box('FireStone%d'%k, s, s, s*0.7, (FC[0]+math.cos(a)*rr, FC[1]+math.sin(a)*rr, 0.06), MAT['firestone'])
+bpy.ops.mesh.primitive_uv_sphere_add(radius=0.32, location=(FC[0], FC[1], 0.14))   # glowing coal bed
+coal = bpy.context.active_object; coal.name = 'Coals'; coal.scale = (1.0, 1.0, 0.4); coal.data.materials.append(MAT['ember'])
+for ai, a in enumerate((0.0, math.radians(45), math.radians(90), math.radians(135))):  # crossed emissive flame cards
+    box('Flame%d'%ai, 0.002, 0.46, 0.92, (FC[0], FC[1], 0.66), MAT['flame'], rot=(0, 0, a))
+fl = bpy.data.lights.new('FireLight', 'POINT'); fl.color = (1.0, 0.55, 0.20)
+fl.energy = 70.0 if DAY else 340.0
+try: fl.shadow_soft_size = 0.5
+except Exception: pass
+flo = bpy.data.objects.new('FireLight', fl); coll.objects.link(flo); flo.location = (FC[0], FC[1], 0.7)
 
 # ---- the forest: real trees + shrubs ringing the lake; open water fills the whole front ----
+def in_lake(x, y, m=1.0):
+    return ((x-LC[0])/(LRX*m))**2 + ((y-LC[1])/(LRY*m))**2 < 1.0
 def in_water(x, y):
-    # the pond footprint (water y≈0.4..42, x±42) + the near bank: keep trees/shrubs off the water and out of the view right in front
-    return (-0.5 < y < 43) and (abs(x) < 44)
+    if in_lake(x, y, 1.16): return True               # the lake + its surrounding shore ring
+    if abs(x) < 11 and -3.0 < y < 5.0: return True    # the near bank you stand on + the campfire spot
+    return False
 def near_cabin(x, y):
-    if abs(x - CABIN[0]) < 5.0 and abs(y - CABIN[1]) < 5.0: return True
-    # keep a clear sightline (a little path) from the shore to the cabin so it's always visible
-    den = CABIN[0]**2 + CABIN[1]**2
+    if abs(x - CABIN[0]) < 5.4 and abs(y - CABIN[1]) < 5.4: return True
+    den = CABIN[0]**2 + CABIN[1]**2          # keep a clear view corridor from the shore to the cabin
     t = (x*CABIN[0] + y*CABIN[1]) / den
-    if 0.0 < t < 1.05:
+    if 0.0 < t < 1.0:
         px, py = t*CABIN[0], t*CABIN[1]
-        if (x-px)**2 + (y-py)**2 < 6.25: return True
+        if (x-px)**2 + (y-py)**2 < 9.0: return True
     return False
 random.seed(5); nT = 0
 for i in range(880):
@@ -279,9 +342,10 @@ for i in range(360):
     if near_cabin(x, y): continue
     place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
           random.uniform(8, 18) * (1.0 - 0.12*random.random()), 0.04)
-# thicken the far treeline across the pond — close, tall and dense so the forest walls the water in
-for i in range(340):
-    x = random.uniform(-90, 90); y = random.uniform(43, 96)
+# thicken the far treeline across the lake — tall and dense so the forest walls the water in
+for i in range(360):
+    x = random.uniform(-95, 95); y = random.uniform(46, 100)
+    if in_water(x, y): continue
     place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
           random.uniform(9, 17), 0.04)
 # near framing trees: a few tall trunks just beside/behind you, leaning over the shore
@@ -312,7 +376,7 @@ else:
     bpy.ops.mesh.primitive_uv_sphere_add(radius=4.0, location=(0, 120, 22))
     mo = bpy.context.active_object; mo.data.materials.append(MAT['moon'])
     for p in mo.data.polygons: p.use_smooth = True
-    sd = bpy.data.lights.new('Moon', 'SUN'); sd.energy = 0.5; sd.color = (0.64, 0.74, 1.0); sd.angle = math.radians(3.0)
+    sd = bpy.data.lights.new('Moon', 'SUN'); sd.energy = 1.2; sd.color = (0.64, 0.74, 1.0); sd.angle = math.radians(3.0)
     sun = bpy.data.objects.new('Moon', sd); coll.objects.link(sun)
     sun.rotation_euler = (math.radians(62), 0, math.radians(180))
 

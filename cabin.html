@@ -1791,6 +1791,7 @@ const MARKERS = [
 ];
 // out by the lake under the stars
 const MARKERS_OUT = [
+  { key:'firesit',  lon:68,  lat:-12, r:5,   jp:'焚き火のそばに座る',     en:'sit by the campfire' },
   { key:'meditate', lon:0,   lat:-9,  r:5.5, jp:'湖畔で星を見て瞑想する', en:'meditate under the stars' },
   { key:'universe', lon:0,   lat:50,  r:7,   jp:'19,000人のアーティストの宇宙へ', en:'into the universe of 19,000 artists' },
   { key:'inside',   lon:180, lat:-2,  r:6,   jp:'小屋に戻る',            en:'back inside' },
@@ -1975,26 +1976,28 @@ else {
   const ray=new THREE.Raycaster();
   let dragging=false, moved=0, px=0, py=0, dx0=0, dy0=0, hovered=null, pinching=false, fov=72;
   const reticle=document.getElementById('reticle'), focusLabel=document.getElementById('focusLabel');
-  canvas.addEventListener('pointerdown', e=>{ dragging=true; moved=0; px=dx0=e.clientX; py=dy0=e.clientY; idle=0; });
+  canvas.addEventListener('pointerdown', e=>{ dragging=true; moved=0; px=dx0=e.clientX; py=dy0=e.clientY; idle=0;
+    if(_outside && !capOpen) tryStartCharge(e); });
   addEventListener('pointermove', e=>{
     if(!dragging||pinching) return;
     moved+=Math.abs(e.clientX-px)+Math.abs(e.clientY-py);
     tLon += (px-e.clientX)*0.12; tLat=Math.max(-58,Math.min(58, tLat+(e.clientY-py)*0.12));
     px=e.clientX; py=e.clientY; idle=0;
     if(moved>14) document.body.classList.add('hint-gone');
+    if(charging && moved>12) cancelCharge();   // turned into a look-drag → not a throw
   });
   function endDrag(e){
     if(!dragging) return; dragging=false;
+    if(charging){ releaseCharge(); return; }   // a charged tap on the lake → throw a stone
     if(moved<10 && !capOpen){           // a tap → activate marker under the pointer
       const nx=( (e.clientX||innerWidth/2)/innerWidth)*2-1, ny=-((e.clientY||innerHeight/2)/innerHeight)*2+1;
       ray.setFromCamera({x:nx,y:ny}, camera);
       const hit=ray.intersectObjects(markerGroup.children,false)[0];
       if(hit && hit.object.userData) window.onMarker && window.onMarker(hit.object.userData.key);
-      else if(_outside && ray.ray.direction.y < -0.05) skipStone();   // tap the lake → skip a stone
       else if(hovered) window.onMarker && window.onMarker(hovered.userData.key);
     }
   }
-  addEventListener('pointerup', endDrag); addEventListener('pointercancel', ()=>dragging=false);
+  addEventListener('pointerup', endDrag); addEventListener('pointercancel', ()=>{ dragging=false; if(charging) cancelCharge(); });
 
   // zoom — wheel + two-finger pinch
   function setFov(f){ fov=Math.max(40,Math.min(85,f)); camera.fov=fov; camera.updateProjectionMatrix(); }
@@ -2027,6 +2030,7 @@ else {
   window.CabinRoom = {
     setBreath:b=>{ bt=b; },
     lookHearth(){ tLon=HEARTH_LON; tLat=-7; },
+    lookFire(){ tLon=68; tLat=-10; },
     startMeditation(){ meditating=true; this.lookHearth(); },
     stopMeditation(){ meditating=false; },
     setReadout:(t,p)=>drawReadout(t,p),
@@ -2066,8 +2070,14 @@ else {
   };
   drawReadout('','');
 
-  // ── water-skipping mini-game (outside: tap the lake surface) ──
+  // ════════ water-skipping mini-game (outside · face the lake · hold to aim power, release to throw) ════════
   const WATER_Y = -2.6;
+  const LAKE_LON = HEARTH_LON;     // the lake fills the front of the panorama (lon ≈ 0)
+  const FACE_TOL = 72;             // ° off-centre and still "facing the water"
+  function norm180(d){ return ((d+180)%360+360)%360-180; }
+  function lakeFacing(){ return _outside && !meditating && !capOpen && Math.abs(norm180(lon-LAKE_LON))<FACE_TOL && lat<24; }
+
+  // ripples
   const _rippleTex = (()=>{ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); x.translate(64,64);
     for(let i=0;i<2;i++){ x.beginPath(); x.arc(0,0,38-i*9,0,6.283); x.lineWidth=5-i*2; x.strokeStyle='rgba(205,228,255,'+(0.5-i*0.2)+')'; x.stroke(); }
     return new THREE.CanvasTexture(c); })();
@@ -2077,23 +2087,80 @@ else {
     m.rotation.x=-Math.PI/2; m.position.copy(pos); m.scale.setScalar(0.15); m.renderOrder=2; scene.add(m);
     ripples.push({ mesh:m, t:0, life:1.4, size:size||1 });
   }
+
+  // floating paper lanterns = the targets, drifting on the lake
+  const _lanternTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+    const g=x.createRadialGradient(32,32,0,32,32,32); g.addColorStop(0,'rgba(255,232,160,1)'); g.addColorStop(.42,'rgba(255,178,86,.85)'); g.addColorStop(1,'rgba(255,150,60,0)');
+    x.fillStyle=g; x.fillRect(0,0,64,64); return new THREE.CanvasTexture(c); })();
+  const lanternGroup=new THREE.Group(); scene.add(lanternGroup);
+  const lanterns=[];
+  function makeLantern(){
+    const s=new THREE.Sprite(new THREE.SpriteMaterial({ map:_lanternTex, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, opacity:0.5 }));
+    s.userData={ head:THREE.MathUtils.degToRad(LAKE_LON+(Math.random()*2-1)*54), dist:4.4+Math.random()*6.2, drift:(Math.random()*2-1)*0.05, base:0.42+Math.random()*0.22, lit:0, dormant:0 };
+    s.renderOrder=2; lanternGroup.add(s); lanterns.push(s); posLantern(s); return s;
+  }
+  function posLantern(s){ const u=s.userData; s.position.set(Math.cos(u.head)*u.dist, WATER_Y+0.18, Math.sin(u.head)*u.dist); }
+  for(let i=0;i<6;i++) makeLantern();
+
   const stoneMesh=new THREE.Mesh(new THREE.SphereGeometry(0.06,8,6), new THREE.MeshBasicMaterial({ color:0x15151a }));
   stoneMesh.visible=false; scene.add(stoneMesh);
-  let stoneFlight=null, skipBest=0;
-  function skipStone(){
+  let stoneFlight=null;
+  let gScore=0, gCombo=0, gThrows=0;
+  let gBest=0; try{ gBest=parseInt(localStorage.getItem('cabin_skip_best')||'0',10)||0; }catch(_){}
+
+  // ── charge (hold) → power, release → throw ──
+  let charging=false, chargeT=0, power=0;
+  function tryStartCharge(e){
+    if(stoneFlight || !lakeFacing()) return;
+    const nx=((e.clientX)/innerWidth)*2-1, ny=-((e.clientY)/innerHeight)*2+1;
+    ray.setFromCamera({x:nx,y:ny}, camera);
+    if(ray.intersectObjects(markerGroup.children,false)[0]) return;   // a marker tap, not a throw
+    charging=true; chargeT=0; power=0; document.body.classList.add('charging');
+  }
+  function cancelCharge(){ if(!charging) return; charging=false; document.body.classList.remove('charging'); skipPowerHud(-1); }
+  function releaseCharge(){ if(!charging) return; charging=false; document.body.classList.remove('charging'); const p=power; skipPowerHud(-1); skipStone(p); }
+
+  function skipStone(p){
     if(stoneFlight) return;
     const dir=new THREE.Vector3(); camera.getWorldDirection(dir); dir.y=0;
-    if(dir.lengthSq()<1e-4) dir.set(0,0,1); dir.normalize();
-    // a flatter view (looking out across the water) throws farther → more skips
-    const skips=Math.max(1, Math.min(9, Math.round(8 + (lat+3)*0.16 + (Math.random()-0.35)*1.6)));
-    const pts=[]; let d=1.4, gap=1.7;
-    for(let i=0;i<=skips;i++){ const p=dir.clone().multiplyScalar(Math.min(d,10.5)); p.y=WATER_Y; pts.push(p); d+=gap; gap*=0.9; }
-    stoneFlight={ pts, seg:0, segT:0, segDur:0.22, hopH:0.5 };
+    if(dir.lengthSq()<1e-4) dir.set(1,0,0); dir.normalize();
+    p=Math.max(0,Math.min(1, p==null?0.62:p));
+    const flat=Math.max(0,Math.min(1,(24-lat)/42));     // flatter look across the water = better skip
+    const over=p>0.95;                                   // overcooked → it plunges
+    let skips = over ? 1 : Math.max(1, Math.min(13, Math.round(2 + p*7 + flat*2.6 + (Math.random()-0.4)*1.0)));
+    const pts=[]; let d=1.3, gap=1.05+p*1.25;
+    for(let i=0;i<=skips;i++){ const q=dir.clone().multiplyScalar(Math.min(d,11.5)); q.y=WATER_Y; pts.push(q); d+=gap; gap*=0.9; }
+    stoneFlight={ pts, seg:0, segT:0, segDur:0.20, hopH:0.18+p*0.5, skips, hits:0, over };
     stoneMesh.visible=true; stoneMesh.position.copy(pts[0]);
-    if(skips>skipBest) skipBest=skips;
-    if(window.__skipScore) window.__skipScore(skips, skipBest);
+    gThrows++;
   }
+  function hitLanternAt(p){
+    let hit=false;
+    for(const s of lanterns){ const u=s.userData; if(u.dormant>0) continue;
+      const dx=p.x-s.position.x, dz=p.z-s.position.z;
+      if(dx*dx+dz*dz < 0.95*0.95){ u.lit=1; u.dormant=6.0; hit=true; }
+    }
+    return hit;
+  }
+  function finishThrow(sf){
+    if(sf.hits>0) gCombo++; else gCombo=0;
+    const gained = (sf.over?1:sf.skips) + sf.hits*(5 + Math.max(0,gCombo-1)*3);
+    gScore += gained;
+    if(gScore>gBest){ gBest=gScore; try{ localStorage.setItem('cabin_skip_best', String(gBest)); }catch(_){} }
+    skipResultHud({ skips:sf.skips, hits:sf.hits, gained, over:sf.over });
+  }
+
   function updateSkip(dt){
+    lanternGroup.visible = _outside && !meditating && !capOpen;
+    // power meter while charging (a wave you time your release to; sweet spot near the top)
+    if(charging){ chargeT+=dt; power=(Math.sin(chargeT*2.7 - Math.PI/2)+1)/2; skipPowerHud(power); }
+    // lanterns drift + lit ones glow then go dormant
+    for(const s of lanterns){ const u=s.userData; u.head+=u.drift*dt; posLantern(s);
+      if(u.dormant>0){ u.dormant-=dt; u.lit=Math.max(0, u.lit-dt*0.5); }
+      const tw=0.5+0.12*Math.sin(performance.now()*0.002+u.head*7);
+      s.material.opacity=(u.dormant>0?0.18:tw) + u.lit*0.8;
+      s.scale.setScalar(u.base*(1+u.lit*0.8));
+    }
     if(stoneFlight){
       const sf=stoneFlight; sf.segT+=dt;
       const f=Math.min(1, sf.segT/sf.segDur);
@@ -2102,19 +2169,65 @@ else {
       stoneMesh.position.copy(pos);
       if(f>=1){
         spawnRipple(b, 1.0 - sf.seg*0.07);
+        if(hitLanternAt(b)){ sf.hits++; if(window.__waterTick) window.__waterTick(99, false); if(window.__skipChime) window.__skipChime(sf.hits); }
         if(window.__waterTick) window.__waterTick(sf.seg, false);
         sf.seg++;
         if(sf.seg >= sf.pts.length-1){
           spawnRipple(sf.pts[sf.pts.length-1], 1.5);
           if(window.__waterTick) window.__waterTick(sf.seg, true);
-          stoneMesh.visible=false; stoneFlight=null;
-        } else { sf.segT=0; sf.hopH=Math.max(0.13, sf.hopH*0.72); sf.segDur=Math.max(0.11, sf.segDur*0.93); }
+          finishThrow(sf); stoneMesh.visible=false; stoneFlight=null;
+        } else { sf.segT=0; sf.hopH=Math.max(0.12, sf.hopH*0.72); sf.segDur=Math.max(0.10, sf.segDur*0.93); }
       }
     }
     for(let i=ripples.length-1;i>=0;i--){ const r=ripples[i]; r.t+=dt; const f=r.t/r.life;
       r.mesh.scale.setScalar((0.2+f*2.6)*r.size); r.mesh.material.opacity=Math.max(0,1-f)*0.6;
       if(f>=1){ scene.remove(r.mesh); r.mesh.geometry.dispose(); r.mesh.material.dispose(); ripples.splice(i,1); }
     }
+    // reticle reflects whether you can throw
+    if(reticle) reticle.classList.toggle('aim', lakeFacing() && !stoneFlight);
+    updateSkipHud();
+  }
+
+  // ── mini-game HUD (built here so it stays self-contained) ──
+  const _sgStyle=document.createElement('style'); _sgStyle.textContent=`
+    #skipGame{position:fixed;left:50%;top:auto;bottom:96px;transform:translateX(-50%);z-index:38;
+      display:none;flex-direction:column;align-items:center;gap:10px;pointer-events:none;font-family:'Cormorant Garamond',Georgia,serif;text-align:center}
+    body.outside #skipGame{display:flex}
+    #skipGame .sg-stats{display:flex;gap:16px;align-items:baseline;color:var(--ash);font-size:13px;letter-spacing:.1em}
+    #skipGame .sg-stats b{color:var(--lantern-soft);font-size:22px;font-weight:600;font-family:'Cormorant Garamond',serif}
+    #skipGame .sg-combo{color:var(--lantern);opacity:0;transition:opacity .3s}
+    #skipGame.combo .sg-combo{opacity:1}
+    #skipGame .sg-power{width:180px;height:8px;border-radius:6px;background:rgba(255,255,255,.12);overflow:hidden;opacity:0;transition:opacity .2s}
+    #skipGame.charging .sg-power{opacity:1}
+    #skipGame .sg-power i{display:block;height:100%;width:0;background:linear-gradient(90deg,#7fd4c1,var(--lantern),#ff7a2f);transition:width .04s linear}
+    #skipGame .sg-power .sweet{position:absolute}
+    #skipGame .sg-hint{color:var(--ash-dim);font-size:12.5px;letter-spacing:.12em;opacity:.0;transition:opacity .4s}
+    #skipGame.show-hint .sg-hint{opacity:.85}
+    #skipGame .sg-flash{min-height:20px;color:var(--lantern-soft);font-size:15px;letter-spacing:.06em;opacity:0;transition:opacity .25s}
+    #skipGame.flash .sg-flash{opacity:1}
+    #reticle.aim span{border-color:rgba(127,212,193,.95);box-shadow:0 0 10px rgba(127,212,193,.5)}
+    body.charging #reticle span{transform:scale(.7)}`;
+  document.head.appendChild(_sgStyle);
+  const _sg=document.createElement('div'); _sg.id='skipGame';
+  _sg.innerHTML='<div class="sg-flash"></div>'+
+    '<div class="sg-power"><i></i></div>'+
+    '<div class="sg-stats"><span>score <b class="sg-score">0</b></span><span class="sg-combo">combo ×<b class="sg-cn">1</b></span><span>best <b class="sg-best">0</b></span></div>'+
+    '<div class="sg-hint">湖のほうを向いて長押し → 離して水切り</div>';
+  document.body.appendChild(_sg);
+  const _sgScore=_sg.querySelector('.sg-score'), _sgBest=_sg.querySelector('.sg-best'),
+        _sgCN=_sg.querySelector('.sg-cn'), _sgPow=_sg.querySelector('.sg-power i'), _sgFlash=_sg.querySelector('.sg-flash');
+  let _flashT=0;
+  function skipPowerHud(p){ if(p<0){ _sg.classList.remove('charging'); return; } _sg.classList.add('charging'); _sgPow.style.width=(p*100).toFixed(0)+'%'; }
+  function skipResultHud(o){
+    _sgScore.textContent=gScore; _sgBest.textContent=gBest;
+    _sg.classList.toggle('combo', gCombo>0); _sgCN.textContent=gCombo;
+    let msg = o.over ? 'ドボン…' : (o.skips+'回スキップ');
+    if(o.hits>0) msg += ' ＋灯籠'+o.hits+'（+'+o.gained+'）'+(gCombo>1?' 🔥×'+gCombo:'');
+    _sgFlash.textContent=msg; _sg.classList.remove('flash'); void _sg.offsetWidth; _sg.classList.add('flash'); _flashT=2.2;
+  }
+  function updateSkipHud(){
+    if(_flashT>0){ _flashT-=1/60; if(_flashT<=0) _sg.classList.remove('flash'); }
+    _sg.classList.toggle('show-hint', lakeFacing() && !charging && !stoneFlight && gThrows<2);
   }
 
   addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
@@ -2291,7 +2404,8 @@ else {
 
   // ── marker dispatch (called by the 3D module) ──
   window.onMarker=function(key){
-    if(key==='meditate') enterMeditation();
+    if(key==='firesit'){ enterMeditation(); if(window.CabinRoom&&window.CabinRoom.lookFire) window.CabinRoom.lookFire(); }
+    else if(key==='meditate') enterMeditation();
     else if(key==='writings') openCaption('writings');
     else if(key==='window') openCaption('window');
     else if(key==='sudoku') window.location.href='sudoku.html?play=plane-table';
@@ -2329,16 +2443,17 @@ else {
     if(b) b.addEventListener('click', ()=>{ if(window.CabinRoom&&window.CabinRoom.toggleOutDay) window.CabinRoom.toggleOutDay(); });
   })();
 
-  // ── water-skip: score readout + skip/splash sounds ──
-  window.__skipHud=function(show){
-    const el=document.getElementById('skipScore'); if(!el) return;
-    if(show){ el.textContent='水面をタップして石を投げよう'; el.classList.remove('flash'); el.classList.add('show'); }
-    else el.classList.remove('show','flash');
-  };
-  window.__skipScore=function(n, best){
-    const el=document.getElementById('skipScore'); if(!el) return;
-    el.innerHTML = n + ' <span class="u">回スキップ！</span>' + (best? ' <span class="b">最高 '+best+'回</span>':'');
-    el.classList.add('show'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  // ── water-skip: superseded by the in-scene #skipGame HUD; keep the old node hidden ──
+  window.__skipHud=function(show){ const el=document.getElementById('skipScore'); if(el) el.classList.remove('show','flash'); };
+  window.__skipScore=function(){};   // (legacy no-op)
+  // a soft bell when a stone lights a lantern; pitch rises with the combo
+  window.__skipChime=function(hits){
+    try{ const ctx=ensureCtx(); if(!ctx) return; const t0=ctx.currentTime;
+      const o=ctx.createOscillator(); o.type='triangle';
+      const f=620+Math.min(8,hits)*90; o.frequency.setValueAtTime(f,t0);
+      const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(0.12,t0+0.008); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.5);
+      o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0+0.52);
+    }catch(_){}
   };
   window.__waterTick=function(seg, last){
     try{
