@@ -198,6 +198,57 @@
     }
     .ka-current-plain { color: inherit; }
     .ka-pending { color: var(--dim); opacity: 0.55; font-weight: 400; font-size: 0.8em; }
+    #sub-en .w { cursor: pointer; }
+    #sub-en .w:hover { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 4px; }
+    #sub-hint { color: var(--dim); font-size: 11px; opacity: 0.6; margin-top: 10px; }
+    #dict-popup {
+      position: fixed;
+      left: 50%;
+      bottom: 96px;
+      transform: translateX(-50%);
+      width: min(440px, 92vw);
+      background: #161a22;
+      border: 1px solid #343b49;
+      border-radius: 12px;
+      padding: 16px 18px 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+      z-index: 50;
+      text-align: left;
+    }
+    #dict-popup.hidden { display: none; }
+    #dict-close {
+      position: absolute; top: 8px; right: 10px;
+      background: none; border: 0; color: var(--dim); font-size: 16px; cursor: pointer;
+    }
+    #dict-word { font-size: 22px; font-weight: 700; color: var(--fg); }
+    #dict-phon { color: var(--accent); font-size: 14px; margin-top: 2px; }
+    #dict-ja { color: var(--fg); font-size: 17px; margin-top: 10px; }
+    #dict-def { color: var(--dim); font-size: 13px; line-height: 1.5; margin-top: 8px; }
+    #dict-save { margin-top: 14px; }
+    #dict-save.saved { background: rgba(110,168,255,0.18); border-color: var(--accent); color: var(--accent); }
+    #vocab-panel {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      width: min(360px, 92vw);
+      max-height: 70vh;
+      overflow-y: auto;
+      background: #161a22;
+      border: 1px solid #343b49;
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+      z-index: 49;
+      text-align: left;
+    }
+    #vocab-panel.hidden { display: none; }
+    #vocab-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--fg); font-weight: 600; }
+    .vocab-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid #2a2f3a; }
+    .vocab-item .vw { color: var(--fg); font-weight: 600; }
+    .vocab-item .vj { color: var(--dim); font-size: 13px; }
+    .vocab-item .vdel { background: none; border: 0; color: var(--dim); cursor: pointer; font-size: 14px; }
+    .vocab-item .vdel:hover { color: var(--error); }
+    #vocab-empty { color: var(--dim); font-size: 13px; }
     #sub-en .ka-future { color: var(--fg); }
     #sub-ja .ka-future { color: var(--dim); }
     .toggle-btn {
@@ -363,11 +414,47 @@
         <button class="seg-btn" data-hide="line" title="読了したら行ごと消す">行ごと</button>
       </div>
     </div>
+    <div class="control-group">
+      <span class="control-label">速度:</span>
+      <div class="seg" id="speed-seg">
+        <button class="seg-btn" data-rate="0.5">0.5x</button>
+        <button class="seg-btn" data-rate="0.75">0.75x</button>
+        <button class="seg-btn" data-rate="1" title="標準速度">1x</button>
+        <button class="seg-btn" data-rate="1.25">1.25x</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="control-label">区間反復:</span>
+      <button id="ab-a" class="toggle-btn" title="開始点Aをセット">A</button>
+      <button id="ab-b" class="toggle-btn" title="終了点Bをセット">B</button>
+      <button id="ab-line" class="toggle-btn" title="今の字幕の行をループ再生">🔁 この行</button>
+      <button id="ab-clear" class="toggle-btn" title="区間反復を解除" style="display:none;">✕</button>
+      <span id="ab-status" style="color:var(--accent);font-size:12px;"></span>
+    </div>
+    <div class="control-group">
+      <button id="vocab-btn" class="toggle-btn" title="保存した単語の一覧">📒 単語帳 (0)</button>
+    </div>
   </div>
   <div id="results" class="hidden"></div>
   <div id="subtitles">
     <div id="sub-en"></div>
     <div id="sub-ja"></div>
+    <div id="sub-hint">英単語をクリックすると意味が出ます</div>
+  </div>
+  <div id="dict-popup" class="hidden">
+    <button id="dict-close" title="閉じる">✕</button>
+    <div id="dict-word"></div>
+    <div id="dict-phon"></div>
+    <div id="dict-ja"></div>
+    <div id="dict-def"></div>
+    <button id="dict-save" class="toggle-btn">★ 単語帳に保存</button>
+  </div>
+  <div id="vocab-panel" class="hidden">
+    <div id="vocab-head">
+      <span>📒 単語帳</span>
+      <button id="vocab-close" class="toggle-btn">閉じる</button>
+    </div>
+    <div id="vocab-list"></div>
   </div>
   <div id="progress" class="hidden"><div id="progress-bar"></div></div>
   <div id="status"></div>
@@ -378,6 +465,13 @@
       <li>英語字幕のある動画を選ぶと、英語と日本語訳が同期して流れます。</li>
       <li><span class="accent">強調</span>＝今読んでいる箇所をハイライト、<span class="accent">消去</span>＝「単語ずつ」か「行ごと」で読み終わった部分を消す表示を切り替えられます。</li>
     </ol>
+    <h2>学習に役立つ機能</h2>
+    <ul>
+      <li><b>速度</b>：0.5〜1.25倍で再生。聞き取れない箇所はゆっくりに。</li>
+      <li><b>区間反復（A/B）</b>：<span class="accent">A</span>で開始点、<span class="accent">B</span>で終了点をセットすると、その区間をループ再生。<span class="accent">🔁 この行</span>で今の字幕の一文だけを繰り返せます（シャドーイングに最適）。</li>
+      <li><b>単語辞書</b>：英字幕の<b>単語をクリック</b>すると、発音記号・日本語訳・英英定義がポップアップ。気になった語は<span class="accent">★単語帳に保存</span>。</li>
+      <li><b>単語帳</b>：保存した単語を<span class="accent">📒 単語帳</span>からいつでも見返せます（ブラウザに保存）。</li>
+    </ul>
     <h2>lingo とは</h2>
     <p>
       lingo は、YouTube動画を教材にして英語のリスニングを鍛えるための無料Webツールです。
@@ -557,6 +651,144 @@
       });
     }
 
+    // ---- Playback speed ----
+    let playbackRate = parseFloat(localStorage.getItem('lingo.rate')) || 1;
+    function applySpeedUI() {
+      for (const b of document.querySelectorAll('#speed-seg .seg-btn')) {
+        b.classList.toggle('active', parseFloat(b.dataset.rate) === playbackRate);
+      }
+    }
+    applySpeedUI();
+    for (const b of document.querySelectorAll('#speed-seg .seg-btn')) {
+      b.addEventListener('click', () => {
+        playbackRate = parseFloat(b.dataset.rate);
+        localStorage.setItem('lingo.rate', String(playbackRate));
+        applySpeedUI();
+        if (player && player.setPlaybackRate) { try { player.setPlaybackRate(playbackRate); } catch (e) {} }
+      });
+    }
+
+    // ---- A/B repeat ----
+    let loopA = null, loopB = null;
+    const abA = document.getElementById('ab-a');
+    const abB = document.getElementById('ab-b');
+    const abLine = document.getElementById('ab-line');
+    const abClear = document.getElementById('ab-clear');
+    const abStatus = document.getElementById('ab-status');
+    function fmtTime(s) { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+    function abActive() { return loopA != null && loopB != null && loopB > loopA; }
+    function updateAbUI() {
+      abA.classList.toggle('on', loopA != null);
+      abB.classList.toggle('on', loopB != null);
+      abClear.style.display = (loopA != null || loopB != null) ? '' : 'none';
+      abStatus.textContent = abActive() ? `${fmtTime(loopA)}→${fmtTime(loopB)} 反復中` : (loopA != null ? `A=${fmtTime(loopA)}` : '');
+    }
+    abA.addEventListener('click', () => { if (!player || !player.getCurrentTime) return; loopA = player.getCurrentTime(); if (loopB != null && loopB <= loopA) loopB = null; updateAbUI(); });
+    abB.addEventListener('click', () => { if (!player || !player.getCurrentTime) return; loopB = player.getCurrentTime(); if (loopA == null) loopA = Math.max(0, loopB - 5); updateAbUI(); });
+    abLine.addEventListener('click', () => {
+      if (!player || !player.getCurrentTime) return;
+      const t = player.getCurrentTime();
+      const c = findActiveCues(cues, t)[0] || cues.find((x) => x.start >= t);
+      if (c) { loopA = c.start; loopB = c.end; try { player.seekTo(loopA, true); player.playVideo(); } catch (e) {} updateAbUI(); }
+    });
+    abClear.addEventListener('click', () => { loopA = loopB = null; updateAbUI(); });
+    updateAbUI();
+
+    // ---- Dictionary popup ----
+    const dictPopup = document.getElementById('dict-popup');
+    const dictWord = document.getElementById('dict-word');
+    const dictPhon = document.getElementById('dict-phon');
+    const dictJa = document.getElementById('dict-ja');
+    const dictDef = document.getElementById('dict-def');
+    const dictSave = document.getElementById('dict-save');
+    const dictClose = document.getElementById('dict-close');
+    const dictCache = new Map();
+    let dictCurrent = null;
+    async function lookupWord(word) {
+      if (dictCache.has(word)) return dictCache.get(word);
+      const [ja, en] = await Promise.all([
+        translateViaMyMemoryDirect([word], 'en', 'ja').then((r) => r[0] || '').catch(() => ''),
+        fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(word)).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
+      let phon = '', def = '';
+      if (Array.isArray(en) && en[0]) {
+        const e = en[0];
+        phon = e.phonetic || (e.phonetics && e.phonetics.find((p) => p.text)?.text) || '';
+        const defs = [];
+        for (const m of (e.meanings || [])) {
+          if (m.definitions && m.definitions[0]) defs.push(`(${m.partOfSpeech}) ${m.definitions[0].definition}`);
+          if (defs.length >= 2) break;
+        }
+        def = defs.join('\n');
+      }
+      const info = { word, ja, phon, def };
+      dictCache.set(word, info);
+      return info;
+    }
+    async function showDictPopup(word) {
+      dictCurrent = { word, ja: '' };
+      dictWord.textContent = word;
+      dictPhon.textContent = '';
+      dictJa.textContent = '調べています…';
+      dictDef.textContent = '';
+      updateSaveBtn(word);
+      dictPopup.classList.remove('hidden');
+      const info = await lookupWord(word);
+      if (dictPopup.classList.contains('hidden') || dictWord.textContent !== word) return;
+      dictPhon.textContent = info.phon;
+      dictJa.textContent = info.ja || '(訳が取得できませんでした)';
+      dictDef.textContent = info.def || '';
+      dictCurrent = { word: info.word, ja: info.ja };
+    }
+    subEn.addEventListener('click', (e) => {
+      const el = e.target.closest('.w');
+      if (!el || !el.dataset.w) return;
+      if (player && player.pauseVideo) { try { player.pauseVideo(); } catch (e) {} }
+      showDictPopup(el.dataset.w);
+    });
+    dictClose.addEventListener('click', () => dictPopup.classList.add('hidden'));
+
+    // ---- Vocabulary list ----
+    const vocabBtn = document.getElementById('vocab-btn');
+    const vocabPanel = document.getElementById('vocab-panel');
+    const vocabList = document.getElementById('vocab-list');
+    const vocabClose = document.getElementById('vocab-close');
+    function getVocab() { try { return JSON.parse(localStorage.getItem('lingo.vocab') || '[]'); } catch (e) { return []; } }
+    function setVocab(v) { localStorage.setItem('lingo.vocab', JSON.stringify(v)); vocabBtn.textContent = `📒 単語帳 (${v.length})`; }
+    function hasVocab(word) { return getVocab().some((x) => x.word === word); }
+    function updateSaveBtn(word) {
+      const saved = hasVocab(word);
+      dictSave.classList.toggle('saved', saved);
+      dictSave.textContent = saved ? '★ 保存済み（クリックで削除）' : '★ 単語帳に保存';
+    }
+    dictSave.addEventListener('click', () => {
+      if (!dictCurrent) return;
+      const v = getVocab();
+      const i = v.findIndex((x) => x.word === dictCurrent.word);
+      if (i >= 0) v.splice(i, 1); else v.unshift({ word: dictCurrent.word, ja: dictCurrent.ja || '' });
+      setVocab(v);
+      updateSaveBtn(dictCurrent.word);
+      if (!vocabPanel.classList.contains('hidden')) renderVocab();
+    });
+    function renderVocab() {
+      const v = getVocab();
+      if (!v.length) { vocabList.innerHTML = '<div id="vocab-empty">まだ単語がありません。字幕の英単語をクリック →「単語帳に保存」で追加できます。</div>'; return; }
+      vocabList.innerHTML = '';
+      for (const it of v) {
+        const row = document.createElement('div');
+        row.className = 'vocab-item';
+        row.innerHTML = `<div><span class="vw">${escapeHtml(it.word)}</span> <span class="vj">${escapeHtml(it.ja || '')}</span></div><button class="vdel" title="削除">✕</button>`;
+        row.querySelector('.vdel').addEventListener('click', () => { setVocab(getVocab().filter((x) => x.word !== it.word)); renderVocab(); });
+        vocabList.appendChild(row);
+      }
+    }
+    vocabBtn.addEventListener('click', () => {
+      if (vocabPanel.classList.contains('hidden')) { renderVocab(); vocabPanel.classList.remove('hidden'); }
+      else vocabPanel.classList.add('hidden');
+    });
+    vocabClose.addEventListener('click', () => vocabPanel.classList.add('hidden'));
+    setVocab(getVocab());
+
     function setStatus(msg, isError = false) {
       statusEl.textContent = msg || '';
       statusEl.classList.toggle('error', !!isError);
@@ -638,26 +870,26 @@
 
       const currentNth = Math.min(wordIdx.length - 1, Math.floor(progress * wordIdx.length));
       const currentTokenIdx = wordIdx[currentNth];
-      const past = tokens.slice(0, currentTokenIdx).join('');
-      const cur = tokens[currentTokenIdx] || '';
-      const fut = tokens.slice(currentTokenIdx + 1).join('');
       // Highlight applies to English only; the Japanese line is never chipped.
       const curClass = (highlightMode && lang === 'en') ? 'ka-current' : 'ka-current-plain';
+      // In word mode passed words vanish (ka-past); in line mode they stay (ka-future).
+      const pastClass = hideMode === 'line' ? 'ka-future' : 'ka-past';
 
-      if (hideMode === 'line') {
-        // Whole line stays visible until progress hits 1; only the current
-        // word may get the highlight chip (if 強調 ON).
-        return (
-          `<span class="ka-future">${escHtml(past)}</span>` +
-          `<span class="${curClass}">${escHtml(cur)}</span>` +
-          `<span class="ka-future">${escHtml(fut)}</span>`
-        );
+      // Emit one span per token so each English word is individually clickable
+      // for the dictionary (event-delegated on #sub-en).
+      let html = '';
+      for (let i = 0; i < tokens.length; i++) {
+        const tok = tokens[i];
+        if (/^\s+$/.test(tok)) { html += escHtml(tok); continue; }
+        const cls = i < currentTokenIdx ? pastClass : (i === currentTokenIdx ? curClass : 'ka-future');
+        if (lang === 'en' && /[A-Za-z]/.test(tok)) {
+          const w = tok.replace(/[^A-Za-z'-]+/g, '').toLowerCase();
+          html += `<span class="w ${cls}" data-w="${escHtml(w)}">${escHtml(tok)}</span>`;
+        } else {
+          html += `<span class="${cls}">${escHtml(tok)}</span>`;
+        }
       }
-      return (
-        `<span class="ka-past">${escHtml(past)}</span>` +
-        `<span class="${curClass}">${escHtml(cur)}</span>` +
-        `<span class="ka-future">${escHtml(fut)}</span>`
-      );
+      return html;
     }
 
     function startPolling() {
@@ -665,6 +897,9 @@
       pollTimer = setInterval(() => {
         if (!player || typeof player.getCurrentTime !== 'function') return;
         const t = player.getCurrentTime();
+
+        // A/B repeat: jump back to A once playback passes B.
+        if (abActive() && t >= loopB) { try { player.seekTo(loopA, true); } catch (e) {} return; }
 
         let active = findActiveCues(cues, t);
         // Only ever show ONE line. YouTube auto-captions overlap (line A and the
@@ -735,6 +970,7 @@
         playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
         events: {
           onReady: () => {
+            if (playbackRate !== 1) { try { player.setPlaybackRate(playbackRate); } catch (e) {} }
             startPolling();
             maybeStartPlayback();
             // Fallback: start within a couple seconds even if translation is slow.
@@ -821,6 +1057,8 @@
       const myLoad = ++loadSeq;
       setStatus('字幕を取得中...');
       showProgressIndeterminate();
+      loopA = loopB = null; updateAbUI();
+      dictPopup.classList.add('hidden');
       autoPlayTriggered = false;
       if (autoPlayTimer) { clearTimeout(autoPlayTimer); autoPlayTimer = null; }
       loadBtn.disabled = true;
