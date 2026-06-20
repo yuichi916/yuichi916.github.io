@@ -10,6 +10,10 @@ night.
   assets/cabin-outside-still.jpg     2560x1440 OGP
 
   blender -b --factory-startup --python cabin_outside_360.py -- pano|final  night|day
+
+  NB the campfire flame uses a painted RGBA billboard at C:\tmp\flame.png — regenerate it first
+  with `python _blender/cabin_flame_texture.py` (the render bakes it into the JPGs, so the repo
+  only needs the rendered panoramas, not flame.png itself).
 """
 import bpy, os, sys, math, random
 from mathutils import Vector
@@ -103,6 +107,29 @@ def make_water():
         b.inputs['Base Color'].default_value = (0.013, 0.026, 0.042, 1)
         b.inputs['Roughness'].default_value = 0.09
         b.inputs['Specular'].default_value = 0.6
+    return m
+
+def make_flame():
+    """a real flame from a painted RGBA flame texture (C:\\tmp\\flame.png) on a camera-facing billboard."""
+    m = bpy.data.materials.new('flame'); m.use_nodes = True
+    try: m.blend_method = 'BLEND'; m.shadow_method = 'NONE'
+    except Exception: pass
+    nt = m.node_tree; nodes, links = nt.nodes, nt.links
+    for n in list(nodes):
+        if n.type != 'OUTPUT_MATERIAL': nodes.remove(n)
+    out = nodes.get('Material Output') or nodes.new('ShaderNodeOutputMaterial')
+    tex = nodes.new('ShaderNodeTexImage')
+    try:
+        tex.image = bpy.data.images.load(r'C:\tmp\flame.png', check_existing=True); tex.extension = 'CLIP'
+    except Exception as e:
+        print('[flame] image load failed:', e, flush=True)
+    emis = nodes.new('ShaderNodeEmission'); emis.inputs['Strength'].default_value = 13.0
+    links.new(tex.outputs['Color'], emis.inputs['Color'])
+    transp = nodes.new('ShaderNodeBsdfTransparent'); mix = nodes.new('ShaderNodeMixShader')
+    links.new(tex.outputs['Alpha'], mix.inputs['Fac'])
+    links.new(transp.outputs['BSDF'], mix.inputs[1])
+    links.new(emis.outputs['Emission'], mix.inputs[2])
+    links.new(mix.outputs['Shader'], out.inputs['Surface'])
     return m
 
 # NB: MAT is built AFTER open_mainfile (below) — opening a .blend wipes data created before it
@@ -202,9 +229,7 @@ MAT = {
     'rock':      make_solid('m_rock',   (0.20, 0.20, 0.19) if DAY else (0.018, 0.022, 0.028), 0.85),
     'water':     make_water(),
     'moon':      make_emissive('m_moon', (1.0, 0.97, 0.90), 16.0),
-    'ember':     make_emissive('m_ember', (1.0, 0.42, 0.10), 34.0),    # glowing coals
-    'flame':     make_emissive('m_flame', (1.0, 0.66, 0.26), 46.0),    # billboard flame
-    'firestone': make_solid('m_firestone', (0.16, 0.15, 0.14) if DAY else (0.06, 0.06, 0.06), 0.9),
+    'flame':     make_flame(),     # real graded flame (cones), not a flat glowing card
 }
 
 def data_dims(data):
@@ -231,11 +256,11 @@ def organic_disc(name, cx, cy, z, rx, ry, segs, jitter, mat, seedv):
     rnd = random.Random(seedv)
     bpy.ops.mesh.primitive_circle_add(vertices=segs, radius=1.0, fill_type='NGON', location=(cx, cy, z))
     o = bpy.context.active_object; o.name = name
-    # low-frequency lobes + fine jitter so the edge reads as a real lake, not a wheel
-    ph1, ph2 = rnd.uniform(0, math.tau), rnd.uniform(0, math.tau)
+    # smooth low-frequency lobes only (gentle bays/coves) — NO per-vertex random, which makes it jagged
+    ph1, ph2, ph3 = rnd.uniform(0, math.tau), rnd.uniform(0, math.tau), rnd.uniform(0, math.tau)
     for v in o.data.vertices:
         ang = math.atan2(v.co.y, v.co.x)
-        wob = 1.0 + 0.10*math.sin(ang*3 + ph1) + 0.06*math.sin(ang*5 + ph2) + (rnd.random()-0.5)*jitter
+        wob = 1.0 + 0.11*math.sin(ang*2 + ph1) + 0.06*math.sin(ang*3 + ph2) + 0.025*math.sin(ang*5 + ph3)
         v.co.x = math.cos(ang) * rx * wob
         v.co.y = math.sin(ang) * ry * wob
         v.co.z = 0.0
@@ -243,15 +268,15 @@ def organic_disc(name, cx, cy, z, rx, ry, segs, jitter, mat, seedv):
     return o
 
 # ---- ground + a natural round forest lake, ringed by a shore you stand on ----
-LC = (0.0, 27.0)            # lake centre, out in front (+Y)
-LRX, LRY = 27.0, 23.0       # radii: spans x≈±27, y≈4..50 — a clear few-metre bank at your feet
+LC = (0.0, 23.5)            # lake centre, out in front (+Y) — pulled right up close
+LRX, LRY = 28.0, 23.2       # radii: spans x≈±28, near edge y≈0.3 (the water laps at your feet), far edge y≈47
 box('Ground', 600, 600, 0.1, (0, 0, -0.10), MAT['ground'])
 # a broad organic shore bank (pebble/grass) the lake sits inside — the 湖畔 ring all the way round
-organic_disc('ShoreBank', LC[0], LC[1], -0.07, LRX+5.0, LRY+5.0, 140, 0.10, MAT['shore'], 21)
+organic_disc('ShoreBank', LC[0], LC[1], -0.07, LRX+5.0, LRY+5.0, 200, 0.0, MAT['shore'], 21)
 # the bed, seen through the clear water by day
-organic_disc('LakeBed', LC[0], LC[1], -0.42, LRX-1.5, LRY-1.5, 96, 0.08, MAT['lakebed'], 23)
-# the water itself — a natural, slightly wavy round lake
-organic_disc('Lake', LC[0], LC[1], -0.05, LRX, LRY, 160, 0.09, MAT['water'], 11)
+organic_disc('LakeBed', LC[0], LC[1], -0.42, LRX-1.5, LRY-1.5, 150, 0.0, MAT['lakebed'], 23)
+# the water itself — a natural, smoothly-curved round lake (high segment count = no jagged rim)
+organic_disc('Lake', LC[0], LC[1], -0.05, LRX, LRY, 240, 0.0, MAT['water'], 11)
 
 # ---- the cabin you came from: a log cabin on the near-left shore, FACING you across the lake ----
 CABIN = (-25.0, 12.0)       # left bank, beside the water
@@ -279,38 +304,36 @@ box('Chimney', 0.85, 0.85, ch+1.6, (*cpos(-cw/2-0.35, 0), (ch+1.6)/2), MAT['chim
 cwl = bpy.data.lights.new('CabinGlow', 'POINT'); cwl.color = (1.0, 0.62, 0.26); cwl.energy = 90.0 if DAY else 210.0
 cwlo = bpy.data.objects.new('CabinGlow', cwl); coll.objects.link(cwlo); cwlo.location = (*cpos(0, cd/2+0.6), 1.5)
 
-# ---- a campfire on the near shore (foreground-right): logs, a stone ring, coals + flame + warm light ----
-FC = (5.5, 2.2)             # on the near bank, just in front of you and to the right; lake beyond, cabin to the left
-# the Enchanted firewood/rock materials have no local texture (would render magenta),
-# so we keep the KitBash geometry but swap on our cached wood / solid rock.
+# ---- a campfire on the near shore (foreground-right): real logs on the ground + a real flame + warm light ----
+# nothing floating: no stone ring, no glowing orb, no flat cards — just burning logs, flame, and an (invisible) light.
+FC = (4.8, 0.2)             # on the near bank just ahead-right; the water laps a step beyond it
+# the Enchanted firewood material has no local texture (would render magenta), so keep the
+# geometry but swap on our cached wood.
 def place_solid(data, loc, rotz, target_h, mat, tilt=0.0):
     o = place(data, loc, rotz, target_h, tilt)
     o.data = o.data.copy(); o.data.materials.clear(); o.data.materials.append(mat)
     return o
 if fire_datas:
-    place_solid(random.choice(fire_datas), (FC[0], FC[1], 0.0), random.uniform(0, math.tau), 0.85, MAT['cabinbeam'])
+    place_solid(random.choice(fire_datas), (FC[0], FC[1], 0.0), random.uniform(0, math.tau), 0.55, MAT['cabinbeam'])
 else:
-    for k in range(5):                 # fallback: a small log tepee
+    for k in range(5):                 # fallback: a small log tepee resting on the ground
         a = k/5*math.tau
-        box('Log%d'%k, 0.12, 0.95, 0.12, (FC[0]+math.cos(a)*0.18, FC[1]+math.sin(a)*0.18, 0.42),
-            MAT['cabinbeam'], rot=(math.radians(58), 0, a))
-for k in range(9):                     # ring of stones round the pit
-    a = k/9*math.tau; rr = 0.62
-    if rock_datas:
-        place_solid(random.choice(rock_datas), (FC[0]+math.cos(a)*rr, FC[1]+math.sin(a)*rr, 0.0),
-                    random.uniform(0, math.tau), random.uniform(0.20, 0.32), MAT['rock'])
-    else:
-        s = 0.12 + random.uniform(0, 0.05)
-        box('FireStone%d'%k, s, s, s*0.7, (FC[0]+math.cos(a)*rr, FC[1]+math.sin(a)*rr, 0.06), MAT['firestone'])
-bpy.ops.mesh.primitive_uv_sphere_add(radius=0.32, location=(FC[0], FC[1], 0.14))   # glowing coal bed
-coal = bpy.context.active_object; coal.name = 'Coals'; coal.scale = (1.0, 1.0, 0.4); coal.data.materials.append(MAT['ember'])
-for ai, a in enumerate((0.0, math.radians(45), math.radians(90), math.radians(135))):  # crossed emissive flame cards
-    box('Flame%d'%ai, 0.002, 0.46, 0.92, (FC[0], FC[1], 0.66), MAT['flame'], rot=(0, 0, a))
-fl = bpy.data.lights.new('FireLight', 'POINT'); fl.color = (1.0, 0.55, 0.20)
-fl.energy = 70.0 if DAY else 340.0
-try: fl.shadow_soft_size = 0.5
+        box('Log%d'%k, 0.10, 0.78, 0.10, (FC[0]+math.cos(a)*0.16, FC[1]+math.sin(a)*0.16, 0.22),
+            MAT['cabinbeam'], rot=(math.radians(62), 0, a))
+# the flame: a painted flame billboard standing on the logs, turned to face the viewer at the origin
+# (the outdoor scene is a skybox seen only from the centre, so one camera-facing card reads as real fire)
+FACE = math.atan2(-FC[1], -FC[0]) - math.radians(90)
+_fh, _fw = 1.5, 1.3
+bpy.ops.mesh.primitive_plane_add(size=1, location=(FC[0], FC[1], 0.24 + _fh/2))
+flm = bpy.context.active_object; flm.name = 'Flame'
+flm.scale = (_fw, _fh, 1.0)
+flm.rotation_euler = (math.radians(90), 0, FACE)
+flm.data.materials.append(MAT['flame'])
+fl = bpy.data.lights.new('FireLight', 'POINT'); fl.color = (1.0, 0.5, 0.16)
+fl.energy = 70.0 if DAY else 360.0
+try: fl.shadow_soft_size = 0.45
 except Exception: pass
-flo = bpy.data.objects.new('FireLight', fl); coll.objects.link(flo); flo.location = (FC[0], FC[1], 0.7)
+flo = bpy.data.objects.new('FireLight', fl); coll.objects.link(flo); flo.location = (FC[0], FC[1], 0.65)
 
 # ---- the forest: real trees + shrubs ringing the lake; open water fills the whole front ----
 def in_lake(x, y, m=1.0):
