@@ -197,6 +197,7 @@
       padding: 0 2px;
     }
     .ka-current-plain { color: inherit; }
+    .ka-pending { color: var(--dim); opacity: 0.55; font-weight: 400; font-size: 0.8em; }
     #sub-en .ka-future { color: var(--fg); }
     #sub-ja .ka-future { color: var(--dim); }
     .toggle-btn {
@@ -525,7 +526,6 @@
     let pollTimer = null;
     let autoPlayTriggered = false;
     let autoPlayTimer = null;
-    let waitingForTranslation = false;
     const storedHl = localStorage.getItem('lingo.hl.v2');
     let highlightMode = storedHl === null ? true : storedHl === '1';
     applyHighlightToggleUI();
@@ -569,8 +569,14 @@
       // Past tokens always disappear (per user requirement "読み終わった部分は消して").
       // The toggle only controls whether the current token gets highlight styling.
       const enHTML = active.map((c) => renderKaraoke(c.en, c, t, 'en')).filter(Boolean).join('<br>');
-      const jaHTML = active.map((c) => renderKaraoke(c.ja, c, t, 'ja')).filter(Boolean).join('<br>');
-      subEn.innerHTML = enHTML;
+      let jaHTML = active.map((c) => renderKaraoke(c.ja, c, t, 'ja')).filter(Boolean).join('<br>');
+      // If the line is showing but its Japanese is still streaming in, keep the
+      // two rows paired with a quiet placeholder instead of English floating alone.
+      if (!jaHTML && enHTML && active.some(jaStreamingIn)) {
+        jaHTML = '<span class="ka-pending">日本語訳を準備中…</span>';
+      }
+      const enPending = !enHTML && jaHTML && active.some(enStreamingIn);
+      subEn.innerHTML = enPending ? '<span class="ka-pending">English loading…</span>' : enHTML;
       subJa.innerHTML = jaHTML;
     }
 
@@ -658,12 +664,6 @@
         if (!player || typeof player.getCurrentTime !== 'function') return;
         const t = player.getCurrentTime();
 
-        // Buffering: never let the playhead show one language without the other.
-        // If the current/imminent cue is still being translated, pause until it's
-        // ready (its region is translated first), then resume — so EN+JA always
-        // appear together while watching.
-        updateTranslationBuffer(t);
-
         let active = findActiveCues(cues, t);
         // Only ever show ONE line. YouTube auto-captions overlap (line A and the
         // next line B are both "active" for a moment); the user does not want the
@@ -677,9 +677,11 @@
           for (const c of pool) if (c.start > pick.start) pick = c;
           active = [pick];
         }
-        // Don't render a cue while it's still missing its partner line (and the
-        // translation is still coming) — show nothing rather than one language alone.
-        if (active.length && !cueAwaitingPair(active[0])) {
+        // Never pause for translation — keep playing. Show whatever is ready; if
+        // the Japanese is still streaming in, a quiet placeholder keeps the two
+        // rows paired and it's swapped for the real translation the instant it
+        // arrives (the backfill translates the playhead region first).
+        if (active.length) {
           renderActiveCues(active, t);
         } else {
           clearSubtitles();
@@ -687,37 +689,13 @@
       }, 200);
     }
 
-    // A cue is "awaiting its pair" when one side is present but the other is still
-    // being translated (not yet given up after MAX_TRANSLATE_TRY attempts).
-    function sidePending(c, key) {
-      return !c[key] && (c['_' + key + 'fail'] || 0) < MAX_TRANSLATE_TRY;
+    // True while one side is present but its partner is still being translated
+    // (hasn't been given up on after MAX_TRANSLATE_TRY attempts).
+    function jaStreamingIn(c) {
+      return c && c.en && !c.ja && (c._jafail || 0) < MAX_TRANSLATE_TRY;
     }
-    function cueAwaitingPair(c) {
-      if (!c) return false;
-      if (c.en && sidePending(c, 'ja')) return true;
-      if (c.ja && sidePending(c, 'en')) return true;
-      return false;
-    }
-    function translationNeededSoon(t) {
-      for (const c of findActiveCues(cues, t)) if (cueAwaitingPair(c)) return true;
-      for (const c of cues) {
-        if (c.start > t + 0.5) break;
-        if (c.start > t && cueAwaitingPair(c)) return true;
-      }
-      return false;
-    }
-    function updateTranslationBuffer(t) {
-      if (!player || typeof player.getPlayerState !== 'function') return;
-      const need = translationNeededSoon(t);
-      const playing = player.getPlayerState() === YT.PlayerState.PLAYING;
-      if (need && playing) {
-        waitingForTranslation = true;
-        try { player.pauseVideo(); } catch (e) {}
-        setStatus('日本語訳を準備中… そろい次第、再生を再開します');
-      } else if (waitingForTranslation && !need) {
-        waitingForTranslation = false;
-        try { player.playVideo(); } catch (e) {}
-      }
+    function enStreamingIn(c) {
+      return c && c.ja && !c.en && (c._enfail || 0) < MAX_TRANSLATE_TRY;
     }
 
     function stopPolling() {
@@ -818,7 +796,6 @@
       setStatus('字幕を取得中...');
       showProgressIndeterminate();
       autoPlayTriggered = false;
-      waitingForTranslation = false;
       if (autoPlayTimer) { clearTimeout(autoPlayTimer); autoPlayTimer = null; }
       loadBtn.disabled = true;
       hideResults();
@@ -867,6 +844,7 @@
     const SEP_ENC_LEN = encodeURIComponent(SEP).length;
     const LINGVA_BUDGET = 3000;
     const MAX_TRANSLATE_TRY = 3;
+    const BATCH_MAX_CUES = 12;
 
     async function backfillMissingTranslations(cuesArr, srcLang) {
       const sides = [];
@@ -941,11 +919,14 @@
         const t = (player && typeof player.getCurrentTime === 'function') ? player.getCurrentTime() : 0;
         remaining.sort((a, b) => backfillPriority(cuesArr[a], t) - backfillPriority(cuesArr[b], t));
 
-        // Build one byte-budget batch from the front of the prioritized list.
+        // Build a small batch from the front of the prioritized list. Cap the
+        // cue count (not just bytes) so each request returns fast and subtitles
+        // stream in near the playhead, rather than waiting on one big batch.
         const idxBatch = [];
         const srcBatch = [];
         let bytes = 0;
         for (const i of remaining) {
+          if (idxBatch.length >= BATCH_MAX_CUES) break;
           const s = side.pickSrc(cuesArr[i]);
           const sb = encodeURIComponent(s).length;
           const sep = idxBatch.length ? SEP_ENC_LEN : 0;
@@ -961,8 +942,8 @@
           else c[fk] = (c[fk] || 0) + 1; // retry up to MAX_TRANSLATE_TRY, then give up
         }
         report();
-        // Opening ready → start playback; the loop keeps translating ahead of the
-        // playhead and the buffer pauses if it ever falls behind.
+        // Opening ready → start playback; the loop keeps streaming translations
+        // for the playhead region and onward in the background.
         maybeStartPlayback();
       }
     }
