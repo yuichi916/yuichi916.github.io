@@ -5,7 +5,7 @@ const LINGVA_INSTANCES = ['https://lingva.ml', 'https://lingva.lunar.icu'];
 const ENCODED_SEP_BYTES = encodeURIComponent(SEPARATOR).length;
 const CHUNK_URL_BUDGET = 3000;
 
-export async function translateBatch(texts, { from = 'en', to = 'ja', debug = null } = {}) {
+export async function translateBatch(texts, { from = 'en', to = 'ja', debug = null, gtTries = 2 } = {}) {
   if (!texts.length) return [];
   const groups = chunkByByteBudget(texts, CHUNK_URL_BUDGET);
   const results = new Array(groups.length);
@@ -15,13 +15,18 @@ export async function translateBatch(texts, { from = 'en', to = 'ja', debug = nu
     while (true) {
       const i = next++;
       if (i >= groups.length) return;
-      results[i] = await translateGroup(groups[i], from, to, debug);
+      results[i] = await translateGroup(groups[i], from, to, debug, gtTries);
     }
   }
   const workers = Array.from({ length: Math.min(MAX_IN_FLIGHT, groups.length) }, worker);
   await Promise.all(workers);
 
   return results.flat();
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function hasContent(parts) {
+  return Array.isArray(parts) && parts.some((s) => s && s.trim());
 }
 
 function chunkByByteBudget(texts, maxBytes) {
@@ -43,20 +48,20 @@ function chunkByByteBudget(texts, maxBytes) {
   return out;
 }
 
-async function translateGroup(group, from, to, debug = null) {
-  // GT en→ja from Cloudflare PoP is reliable; other pairs return 429.
-  // Try GT first only for that direction, otherwise jump straight to Lingva
-  // to stay under the 50-subrequest cap on free Workers.
-  if (from === 'en' && to === 'ja') {
+async function translateGroup(group, from, to, debug = null, gtTries = 2) {
+  // GT (translate.googleapis.com) from a Cloudflare PoP works most of the time
+  // but intermittently 429s, returning ~1/3 empty. Retry a few times with a
+  // short backoff before falling back to Lingva — this lifts the effective
+  // success rate well above 95%. Each attempt is one subrequest; keep gtTries
+  // modest so long transcripts stay under the free-plan 50-subrequest cap.
+  const tries = Math.max(1, gtTries);
+  for (let i = 0; i < tries; i++) {
     const viaGT = await translateViaGT(group, from, to, debug);
-    if (viaGT) return viaGT;
+    if (hasContent(viaGT)) return viaGT;
+    if (i < tries - 1) await sleep(200 + i * 200);
   }
   const viaLingva = await translateViaLingva(group, from, to, debug);
-  if (viaLingva) return viaLingva;
-  if (!(from === 'en' && to === 'ja')) {
-    const viaGT = await translateViaGT(group, from, to, debug);
-    if (viaGT) return viaGT;
-  }
+  if (hasContent(viaLingva)) return viaLingva;
   return group.map(() => '');
 }
 

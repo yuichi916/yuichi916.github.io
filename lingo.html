@@ -866,7 +866,6 @@
     const SEP = '\n\n␞\n\n';
     const SEP_ENC_LEN = encodeURIComponent(SEP).length;
     const LINGVA_BUDGET = 3000;
-    const LINGVA = ['https://lingva.ml', 'https://lingva.lunar.icu'];
     const MAX_TRANSLATE_TRY = 3;
 
     async function backfillMissingTranslations(cuesArr, srcLang) {
@@ -955,7 +954,7 @@
         }
         if (!idxBatch.length) break;
 
-        const parts = await lingvaTranslateGroup(srcBatch, side.from, side.target);
+        const parts = await translateGroupViaWorker(srcBatch, side.from, side.target);
         for (let i = 0; i < idxBatch.length; i++) {
           const c = cuesArr[idxBatch[i]];
           if (parts[i]) c[side.target] = parts[i];
@@ -968,24 +967,24 @@
       }
     }
 
-    async function lingvaTranslateGroup(group, from, to) {
-      const joined = group.join(SEP);
-      for (const inst of LINGVA) {
-        try {
-          const url = `${inst}/api/v1/${from}/${to}/${encodeURIComponent(joined)}`;
-          const res = await fetch(url);
-          if (!res.ok) continue;
-          const body = await res.json();
-          const tl = body?.translation || '';
-          if (!tl) continue;
-          const parts = tl.split(SEP);
-          if (parts.length === group.length) return parts.map((s) => s.trim());
-          return group.map((_, i) => (parts[i] ?? '').trim());
-        } catch (e) {
-          continue;
-        }
+    // Translate via our Cloudflare Worker (Google Translate first, Lingva
+    // fallback) instead of hitting public Lingva instances from the browser —
+    // far more reliable and no CORS. Returns '' per item on failure so the
+    // caller's retry logic can re-attempt.
+    async function translateGroupViaWorker(group, from, to) {
+      try {
+        const res = await fetch(`${WORKER_URL}/api/translate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texts: group, from, to }),
+        });
+        if (!res.ok) return group.map(() => '');
+        const data = await res.json();
+        const tl = Array.isArray(data?.translations) ? data.translations : [];
+        return group.map((_, i) => String(tl[i] ?? '').trim());
+      } catch (e) {
+        return group.map(() => '');
       }
-      return group.map(() => '');
     }
 
     async function runSearch(query) {
