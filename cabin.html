@@ -1901,6 +1901,19 @@ else {
   const emberMat=new THREE.PointsMaterial({ map:glowTex(255,172,82), size:.12, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.85 });
   const embers=new THREE.Points(eg,emberMat); scene.add(embers);
 
+  // ── OUTDOOR campfire: the same live flame shader, placed at the shore fire (shown only when outside) ──
+  const FIRE_LON=88, FIRE_LAT=-4, FIRE_R=9;
+  const outFire=new THREE.Mesh(new THREE.PlaneGeometry(1.7,2.6), fireMat);
+  outFire.position.copy(bearing(FIRE_LON,FIRE_LAT,FIRE_R)); faceOrigin(outFire); outFire.renderOrder=2; outFire.visible=false; scene.add(outFire);
+  const outGlowMat=new THREE.SpriteMaterial({ map:glowTex(255,140,54), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.4 });
+  const outGlow=new THREE.Sprite(outGlowMat); outGlow.position.copy(bearing(FIRE_LON,FIRE_LAT-4,FIRE_R)); outGlow.scale.set(3.2,3.0,1); outGlow.visible=false; scene.add(outGlow);
+  const OEN=reduce?0:70, oebase=bearing(FIRE_LON,FIRE_LAT-5,FIRE_R-1);
+  const oep=new Float32Array(OEN*3), oes=[];
+  for(let i=0;i<OEN;i++){ oes.push({x:(Math.random()-.5)*1.2,y:Math.random(),z:(Math.random()-.5)*0.7,sp:.2+Math.random()*.6,sw:Math.random()*6.28});
+    oep[i*3]=oebase.x; oep[i*3+1]=oebase.y; oep[i*3+2]=oebase.z; }
+  const oeg=new THREE.BufferGeometry(); oeg.setAttribute('position',new THREE.BufferAttribute(oep,3));
+  const outEmbers=new THREE.Points(oeg,emberMat); outEmbers.visible=false; scene.add(outEmbers);
+
   // ── breath orb + in-world timer (meditation, hidden until sitting) ──
   const orbMat=new THREE.SpriteMaterial({ map:glowTex(255,196,120), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:0 });
   const orb=new THREE.Sprite(orbMat); orb.position.copy(bearing(HEARTH_LON,-20,4.2)); orb.scale.set(1.6,1.6,1); scene.add(orb);
@@ -2017,6 +2030,7 @@ else {
     buildMarkers(MARKERS_OUT);
     if(markerGroup.children.indexOf(sudokuBoard)>=0) markerGroup.remove(sudokuBoard);
     _tableBase.visible=false; fire.visible=glow.visible=embers.visible=false;
+    outFire.visible=outGlow.visible=outEmbers.visible=true;     // live animated campfire on the shore
     tLon=lon=HEARTH_LON; tLat=lat=-4; idle=0;
     document.body.classList.add('outside'); if(window.__skipHud) window.__skipHud(true); _fade(false,750);
   }
@@ -2024,6 +2038,7 @@ else {
     buildMarkers(MARKERS);
     if(markerGroup.children.indexOf(sudokuBoard)<0) markerGroup.add(sudokuBoard);
     _tableBase.visible=true; fire.visible=glow.visible=embers.visible=true;
+    outFire.visible=outGlow.visible=outEmbers.visible=false;
     tLon=lon=HEARTH_LON; tLat=lat=-7; idle=0;
     document.body.classList.remove('outside'); if(window.__skipHud) window.__skipHud(false); _fade(false,750);
   }
@@ -2252,6 +2267,12 @@ else {
       for(let i=0;i<EN;i++){ const s=es[i]; s.y+=dt*s.sp*0.12; if(s.y>1){ s.y=0; s.x=(Math.random()-.5)*1.5; s.z=(Math.random()-.5)*0.8; }
         a[i*3]=ebase.x+s.x*0.8+Math.sin(t*0.8+s.sw)*0.16*s.y; a[i*3+1]=ebase.y+s.y*1.7; a[i*3+2]=ebase.z+s.z; }
       eg.attributes.position.needsUpdate=true; emberMat.opacity=0.8*I; }
+    // outdoor campfire embers + halo (only while outside)
+    if(OEN && outEmbers.visible){ const a=oeg.attributes.position.array;
+      for(let i=0;i<OEN;i++){ const s=oes[i]; s.y+=dt*s.sp*0.12; if(s.y>1){ s.y=0; s.x=(Math.random()-.5)*1.2; s.z=(Math.random()-.5)*0.7; }
+        a[i*3]=oebase.x+s.x*0.7+Math.sin(t*0.8+s.sw)*0.14*s.y; a[i*3+1]=oebase.y+s.y*1.6; a[i*3+2]=oebase.z+s.z; }
+      oeg.attributes.position.needsUpdate=true; }
+    if(outGlow.visible){ outGlowMat.opacity=0.30*I+0.06; outGlow.scale.setScalar(3.1*(0.92+0.13*I)); }
 
     // markers pulse + gaze targeting from centre
     const showMarkers = !meditating && !capOpen && document.body.classList.contains('room-ready') && !document.getElementById('enterGate').classList.contains('gone')===false;

@@ -79,6 +79,62 @@ def make_wood(name, fam, mapscale=0.5, base_mult=(1,1,1)):
         links.new(nmap.outputs['Normal'], bsdf.inputs['Normal'])
     return m
 
+def make_enc_ground(name, fam, mapscale, tint):
+    """tiled PBR forest floor from an Enchanted ground texture (GrassyGroundA), tinted darker."""
+    m = bpy.data.materials.new(name); m.use_nodes = True
+    nt = m.node_tree; nodes, links = nt.nodes, nt.links
+    bsdf = nodes.get('Principled BSDF')
+    tc = nodes.new('ShaderNodeTexCoord'); mp = nodes.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (mapscale,)*3
+    links.new(tc.outputs['Generated'], mp.inputs['Vector'])
+    def img(role, noncol):
+        p = os.path.join(ENCH_TEX, f'KB3D_ENC_{fam}_{role}.png')
+        if not os.path.exists(p): return None
+        im = bpy.data.images.load(p, check_existing=True)
+        if noncol: im.colorspace_settings.name = 'Non-Color'
+        n = nodes.new('ShaderNodeTexImage'); n.image = im
+        links.new(mp.outputs['Vector'], n.inputs['Vector']); return n
+    bc = img('basecolor', False)
+    if bc:
+        mix = nodes.new('ShaderNodeMixRGB'); mix.blend_type = 'MULTIPLY'; mix.inputs[0].default_value = 1.0
+        mix.inputs[2].default_value = (*tint, 1)
+        links.new(bc.outputs['Color'], mix.inputs[1]); links.new(mix.outputs['Color'], bsdf.inputs['Base Color'])
+    else:
+        bsdf.inputs['Base Color'].default_value = (*tint, 1)
+    rg = img('roughness', True)
+    if rg: links.new(rg.outputs['Color'], bsdf.inputs['Roughness'])
+    else: bsdf.inputs['Roughness'].default_value = 0.96
+    nm = img('normal', True)
+    if nm:
+        nmap = nodes.new('ShaderNodeNormalMap'); nmap.inputs['Strength'].default_value = 1.4
+        links.new(nm.outputs['Color'], nmap.inputs['Color']); links.new(nmap.outputs['Normal'], bsdf.inputs['Normal'])
+    try: bsdf.inputs['Specular'].default_value = 0.1
+    except Exception: pass
+    return m
+
+def make_leaf(name, fam, tint):
+    """leaf-litter card: Enchanted leaf atlas with opacity, laid flat on the forest floor."""
+    m = bpy.data.materials.new(name); m.use_nodes = True
+    try: m.blend_method = 'CLIP'; m.shadow_method = 'NONE'
+    except Exception: pass
+    nt = m.node_tree; nodes, links = nt.nodes, nt.links
+    bsdf = nodes.get('Principled BSDF')
+    def img(role, noncol):
+        p = os.path.join(ENCH_TEX, f'KB3D_ENC_{fam}_{role}.png')
+        if not os.path.exists(p): return None
+        im = bpy.data.images.load(p, check_existing=True)
+        if noncol: im.colorspace_settings.name = 'Non-Color'
+        n = nodes.new('ShaderNodeTexImage'); n.image = im; return n
+    bc = img('basecolor', False)
+    if bc:
+        mix = nodes.new('ShaderNodeMixRGB'); mix.blend_type = 'MULTIPLY'; mix.inputs[0].default_value = 1.0
+        mix.inputs[2].default_value = (*tint, 1)
+        links.new(bc.outputs['Color'], mix.inputs[1]); links.new(mix.outputs['Color'], bsdf.inputs['Base Color'])
+    op = img('opacity', True)
+    if op: links.new(op.outputs['Color'], bsdf.inputs['Alpha'])
+    try: bsdf.inputs['Roughness'].default_value = 0.95; bsdf.inputs['Specular'].default_value = 0.05
+    except Exception: pass
+    return m
+
 def make_water():
     """clear blue-green by day (you see the bottom), a dark mirror by night."""
     m = bpy.data.materials.new('water'); m.use_nodes = True
@@ -223,13 +279,15 @@ MAT = {
     'roof':      make_wood('m_roof',      'PlanksD', 0.40, (0.30, 0.22, 0.16)),
     'chimney':   make_wood('m_chimney',   'BlocksB', 0.30, (0.55, 0.50, 0.44)),
     'win':       make_emissive('m_win', (1.0, 0.62, 0.26), 9.0),
-    'ground':    make_solid('m_ground', (0.10, 0.13, 0.07) if DAY else (0.034, 0.042, 0.030), 0.95),
-    'shore':     make_solid('m_shore',  (0.14, 0.15, 0.10) if DAY else (0.075, 0.085, 0.080), 0.92),
+    'ground':    make_enc_ground('m_ground', 'GrassyGroundA', 190, (0.46, 0.50, 0.34) if DAY else (0.60, 0.64, 0.46)),
+    'shore':     make_enc_ground('m_shore',  'GrassyGroundA', 130, (0.52, 0.52, 0.42) if DAY else (0.66, 0.68, 0.56)),
     'lakebed':   make_solid('m_lakebed', (0.02, 0.03, 0.035) if DAY else (0.02, 0.03, 0.03), 0.95),
     'rock':      make_solid('m_rock',   (0.20, 0.20, 0.19) if DAY else (0.018, 0.022, 0.028), 0.85),
     'water':     make_water(),
     'moon':      make_emissive('m_moon', (1.0, 0.97, 0.90), 16.0),
-    'flame':     make_flame(),     # real graded flame (cones), not a flat glowing card
+    'coals':     make_emissive('m_coals', (1.0, 0.36, 0.07), 7.0),   # dim glowing coals (the flame itself is live in three.js)
+    'leafA':     make_leaf('m_leafA', 'AtlasLeafA', (0.42, 0.40, 0.26) if DAY else (0.5, 0.48, 0.34)),
+    'leafB':     make_leaf('m_leafB', 'AtlasLeafC', (0.46, 0.38, 0.22) if DAY else (0.54, 0.46, 0.30)),
 }
 
 def data_dims(data):
@@ -320,17 +378,12 @@ else:
         a = k/5*math.tau
         box('Log%d'%k, 0.10, 0.78, 0.10, (FC[0]+math.cos(a)*0.16, FC[1]+math.sin(a)*0.16, 0.22),
             MAT['cabinbeam'], rot=(math.radians(62), 0, a))
-# the flame: a painted flame billboard standing on the logs, turned to face the viewer at the origin
-# (the outdoor scene is a skybox seen only from the centre, so one camera-facing card reads as real fire)
-FACE = math.atan2(-FC[1], -FC[0]) - math.radians(90)
-_fh, _fw = 1.5, 1.3
-bpy.ops.mesh.primitive_plane_add(size=1, location=(FC[0], FC[1], 0.24 + _fh/2))
-flm = bpy.context.active_object; flm.name = 'Flame'
-flm.scale = (_fw, _fh, 1.0)
-flm.rotation_euler = (math.radians(90), 0, FACE)
-flm.data.materials.append(MAT['flame'])
+# glowing coals on the logs — the tall FLAME itself is drawn LIVE & animated in three.js (cabin.html),
+# so the panorama only bakes the embers bed + the warm light pool it casts on the ground.
+bpy.ops.mesh.primitive_circle_add(vertices=20, radius=0.34, fill_type='NGON', location=(FC[0], FC[1], 0.30))
+coals = bpy.context.active_object; coals.name = 'Coals'; coals.data.materials.append(MAT['coals'])
 fl = bpy.data.lights.new('FireLight', 'POINT'); fl.color = (1.0, 0.5, 0.16)
-fl.energy = 70.0 if DAY else 360.0
+fl.energy = 70.0 if DAY else 330.0
 try: fl.shadow_soft_size = 0.45
 except Exception: pass
 flo = bpy.data.objects.new('FireLight', fl); coll.objects.link(flo); flo.location = (FC[0], FC[1], 0.65)
@@ -351,43 +404,63 @@ def near_cabin(x, y):
         if (x-px)**2 + (y-py)**2 < 9.0: return True
     return False
 random.seed(5); nT = 0
-for i in range(880):
-    a = random.uniform(0, math.tau); r = 6 + (random.random()**1.2) * 116
+# a dense ring of trees crowding right up to the clearing — deep, walled-in woods
+for i in range(1150):
+    a = random.uniform(0, math.tau); r = 4 + (random.random()**1.25) * 116
     x, y = math.cos(a)*r, math.sin(a)*r
     if in_water(x, y) or near_cabin(x, y): continue
     place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
-          random.uniform(8, 17) * (1.0 - 0.12*random.random()), 0.04); nT += 1
+          random.uniform(9, 20) * (1.0 - 0.10*random.random()), 0.05); nT += 1
 print(f'[forest] {nT} trees', flush=True)
-# extra-dense deep forest behind you (-Y hemisphere): turn from the lake into thick woods
-for i in range(360):
-    a = random.uniform(math.radians(190), math.radians(350)); r = 5 + (random.random()**1.05) * 78
+# extra-dense, tall woods behind you (-Y): turn from the lake and you face deep forest
+for i in range(500):
+    a = random.uniform(math.radians(188), math.radians(352)); r = 4 + (random.random()**1.05) * 80
     x, y = math.cos(a)*r, math.sin(a)*r
     if near_cabin(x, y): continue
     place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
-          random.uniform(8, 18) * (1.0 - 0.12*random.random()), 0.04)
-# thicken the far treeline across the lake — tall and dense so the forest walls the water in
-for i in range(360):
-    x = random.uniform(-95, 95); y = random.uniform(46, 100)
+          random.uniform(9, 21) * (1.0 - 0.10*random.random()), 0.05)
+# far treeline across the lake — tall & dense so the forest walls the water in
+for i in range(500):
+    x = random.uniform(-100, 100); y = random.uniform(46, 104)
     if in_water(x, y): continue
     place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
-          random.uniform(9, 17), 0.04)
-# near framing trees: a few tall trunks just beside/behind you, leaning over the shore
-# so the view reads as a clearing deep inside the woods (canopy at the top corners)
+          random.uniform(11, 22), 0.05)
+# near framing trunks leaning over the shore — heavy canopy in the top corners (an enclosed clearing)
 for sx in (-1, 1):
-    for k in range(3):
-        fx = sx * random.uniform(5.5, 12.0); fy = random.uniform(-8.0, -4.5)
+    for k in range(5):
+        fx = sx * random.uniform(4.5, 12.0); fy = random.uniform(-9.0, -3.0)
         if near_cabin(fx, fy): continue
         place(random.choice(tree_datas), (fx, fy, 0.0), random.uniform(0, math.tau),
-              random.uniform(15, 22), 0.05)
-for i in range(440):
-    a = random.uniform(0, math.tau); r = 4 + (random.random()**1.1) * 74
+              random.uniform(18, 27), 0.06)
+# thick wild undergrowth (ferns/shrubs) all around — unkempt forest floor
+for i in range(760):
+    a = random.uniform(0, math.tau); r = 3 + (random.random()**1.1) * 76
     x, y = math.cos(a)*r, math.sin(a)*r
     if in_water(x, y) or near_cabin(x, y): continue
-    place(random.choice(shrub_datas), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(0.8, 2.4), 0.1)
+    place(random.choice(shrub_datas), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(0.7, 2.6), 0.12)
 # reeds tuft the shore EDGES only (left/right), never the open water in front of you
-for i in range(48):
-    side = random.choice((-1, 1)); x = side * random.uniform(30, 46); y = random.uniform(-3.0, 8.0)
+for i in range(60):
+    side = random.choice((-1, 1)); x = side * random.uniform(30, 47); y = random.uniform(-3.0, 8.0)
     place(random.choice(shrub_datas), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(0.6, 1.6), 0.12)
+# a few fallen logs / mossy deadfall — a wild, untrodden, far-from-anywhere feel
+if fire_datas:
+    for i in range(7):
+        a = random.uniform(0, math.tau); r = random.uniform(8, 40)
+        x, y = math.cos(a)*r, math.sin(a)*r
+        if in_water(x, y) or near_cabin(x, y): continue
+        o = place_solid(random.choice(fire_datas), (x, y, 0.0), random.uniform(0, math.tau), random.uniform(0.6, 1.0), MAT['cabinbeam'])
+        o.rotation_euler = (math.radians(90), random.uniform(0, math.tau), random.uniform(0, math.tau))   # toppled, lying down
+# leaf litter scattered over the visible forest floor (avoiding the water + the spot you stand on)
+_leafmats = [MAT['leafA'], MAT['leafB']]
+for i in range(220):
+    a = random.uniform(0, math.tau); r = 2.0 + (random.random()**0.7) * 30.0
+    x, y = math.cos(a)*r, math.sin(a)*r
+    if in_water(x, y) or near_cabin(x, y): continue
+    s = random.uniform(0.5, 1.3)
+    bpy.ops.mesh.primitive_plane_add(size=1, location=(x, y, 0.02 + random.uniform(0, 0.03)))
+    lf = bpy.context.active_object; lf.name = 'Leaf'; lf.scale = (s, s, 1)
+    lf.rotation_euler = (0, 0, random.uniform(0, math.tau))
+    lf.data.materials.append(random.choice(_leafmats))
 
 # ---- key light ----
 if DAY:
