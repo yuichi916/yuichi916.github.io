@@ -936,6 +936,19 @@
         if (!idxBatch.length) break;
 
         const parts = await translateGroupViaWorker(srcBatch, side.from, side.target);
+        // The Worker runs on Cloudflare IPs that Google/MyMemory heavily rate-
+        // limit. For anything it couldn't translate, fall back to MyMemory
+        // directly from the browser — the user's own IP is not throttled the
+        // same way, so this fills reliably even when the Worker comes back empty.
+        const missIdx = [];
+        const missTexts = [];
+        for (let i = 0; i < srcBatch.length; i++) {
+          if (!parts[i] && srcBatch[i]) { missIdx.push(i); missTexts.push(srcBatch[i]); }
+        }
+        if (missTexts.length) {
+          const mm = await translateViaMyMemoryDirect(missTexts, side.from, side.target);
+          for (let k = 0; k < missIdx.length; k++) if (mm[k]) parts[missIdx[k]] = mm[k];
+        }
         for (let i = 0; i < idxBatch.length; i++) {
           const c = cuesArr[idxBatch[i]];
           if (parts[i]) c[side.target] = parts[i];
@@ -966,6 +979,34 @@
       } catch (e) {
         return group.map(() => '');
       }
+    }
+
+    // Browser-side fallback. MyMemory is CORS-enabled and translates one text per
+    // request; called from the user's own (un-throttled) IP it fills reliably
+    // even when the Worker's datacenter IP is rate-limited. Modest concurrency.
+    async function translateViaMyMemoryDirect(texts, from, to) {
+      const out = new Array(texts.length).fill('');
+      let next = 0;
+      async function worker() {
+        while (true) {
+          const i = next++;
+          if (i >= texts.length) return;
+          const text = texts[i];
+          if (!text || !text.trim()) continue;
+          try {
+            const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(from)}|${encodeURIComponent(to)}`;
+            const res = await fetch(url);
+            if (!res.ok) continue;
+            const body = await res.json();
+            const tl = body?.responseData?.translatedText || '';
+            if (tl && String(body?.responseStatus) === '200' && !/MYMEMORY WARNING|QUERY LENGTH LIMIT|INVALID/i.test(tl)) {
+              out[i] = tl.trim();
+            }
+          } catch (e) { /* leave '' so the caller can retry later */ }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(4, texts.length) }, worker));
+      return out;
     }
 
     async function runSearch(query) {

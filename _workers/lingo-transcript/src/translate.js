@@ -1,9 +1,19 @@
 const SEPARATOR = '\n\n␞\n\n';
 const MAX_IN_FLIGHT = 1;
 const ENDPOINT = 'https://translate.googleapis.com/translate_a/single';
-const LINGVA_INSTANCES = ['https://lingva.ml', 'https://lingva.lunar.icu'];
+const FETCH_TIMEOUT_MS = 6000;
 const ENCODED_SEP_BYTES = encodeURIComponent(SEPARATOR).length;
 const CHUNK_URL_BUDGET = 3000;
+
+async function fetchWithTimeout(url, opts = {}, ms = FETCH_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
 
 export async function translateBatch(texts, { from = 'en', to = 'ja', debug = null, gtTries = 2 } = {}) {
   if (!texts.length) return [];
@@ -49,19 +59,16 @@ function chunkByByteBudget(texts, maxBytes) {
 }
 
 async function translateGroup(group, from, to, debug = null, gtTries = 2) {
-  // GT (translate.googleapis.com) from a Cloudflare PoP works most of the time
-  // but intermittently 429s, returning ~1/3 empty. Retry a few times with a
-  // short backoff before falling back to Lingva — this lifts the effective
-  // success rate well above 95%. Each attempt is one subrequest; keep gtTries
-  // modest so long transcripts stay under the free-plan 50-subrequest cap.
+  // GT (translate.googleapis.com) batches well (preserves the separator) and is
+  // fast, but intermittently 429s from Cloudflare PoP IPs. Retry a few times
+  // with a short backoff; the client fills anything still missing via MyMemory
+  // from its own (un-throttled) IP.
   const tries = Math.max(1, gtTries);
   for (let i = 0; i < tries; i++) {
     const viaGT = await translateViaGT(group, from, to, debug);
     if (hasContent(viaGT)) return viaGT;
-    if (i < tries - 1) await sleep(200 + i * 200);
+    if (i < tries - 1) await sleep(150 + i * 150);
   }
-  const viaLingva = await translateViaLingva(group, from, to, debug);
-  if (hasContent(viaLingva)) return viaLingva;
   return group.map(() => '');
 }
 
@@ -72,7 +79,7 @@ async function translateViaGT(group, from, to, debug = null) {
   let body;
   let lastStatus = 0;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -105,34 +112,3 @@ async function translateViaGT(group, from, to, debug = null) {
   return group.map((_, i) => (parts[i] ?? '').trim());
 }
 
-async function translateViaLingva(group, from, to, debug = null) {
-  for (const instance of LINGVA_INSTANCES) {
-    const parts = await lingvaCall(instance, from, to, group, debug);
-    if (!parts) continue;
-    if (parts.length === group.length) return parts.map((s) => s.trim());
-    return group.map((_, i) => (parts[i] ?? '').trim());
-  }
-  return null;
-}
-
-async function lingvaCall(instance, from, to, sg, debug = null) {
-  const joined = sg.join(SEPARATOR);
-  const url = `${instance}/api/v1/${from}/${to}/${encodeURIComponent(joined)}`;
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 lingo-transcript/0.2', 'Accept': 'application/json' },
-    });
-    if (!res.ok) {
-      if (debug) (debug.lingvaFails ||= []).push({ instance, status: res.status });
-      return null;
-    }
-    const body = await res.json();
-    const tl = body?.translation || '';
-    if (!tl) return null;
-    if (debug) (debug.lingvaSuccess ||= []).push({ instance, groupLen: sg.length });
-    return tl.split(SEPARATOR);
-  } catch (err) {
-    if (debug) (debug.lingvaFails ||= []).push({ instance, err: String(err?.message || err) });
-    return null;
-  }
-}
