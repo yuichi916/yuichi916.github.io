@@ -526,6 +526,8 @@
     let pollTimer = null;
     let autoPlayTriggered = false;
     let autoPlayTimer = null;
+    let loadSeq = 0; // bumped each load so a stale auto-retry can bail out
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const storedHl = localStorage.getItem('lingo.hl.v2');
     let highlightMode = storedHl === null ? true : storedHl === '1';
     applyHighlightToggleUI();
@@ -792,7 +794,31 @@
       return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
     }
 
+    // YouTube rate-limits the Worker's datacenter IP intermittently (503). The
+    // block is usually momentary, so auto-retry with a visible countdown instead
+    // of making the user retry by hand. Bails out if a newer load supersedes it.
+    async function fetchTranscriptWithRetry(videoId, seq, maxRetries = 3) {
+      const waits = [12, 25, 40]; // seconds between auto-retries
+      for (let attempt = 0; ; attempt++) {
+        if (seq !== loadSeq) return null;
+        let res = null;
+        try { res = await fetch(`${WORKER_URL}/api/transcript?v=${videoId}`); }
+        catch (e) { if (attempt >= maxRetries) throw e; }
+        if (seq !== loadSeq) return null;
+        if (res && res.status !== 503) return res;
+        if (attempt >= maxRetries) return res;
+        const total = waits[Math.min(attempt, waits.length - 1)];
+        for (let s = total; s > 0; s--) {
+          if (seq !== loadSeq) return null;
+          setStatus(`YouTube制限中… ${s}秒後に自動で再試行します (${attempt + 1}/${maxRetries})`);
+          await sleep(1000);
+        }
+        setStatus('字幕を再取得中...');
+      }
+    }
+
     async function loadByVideoId(videoId) {
+      const myLoad = ++loadSeq;
       setStatus('字幕を取得中...');
       showProgressIndeterminate();
       autoPlayTriggered = false;
@@ -801,23 +827,28 @@
       hideResults();
       clearSubtitles();
       cues = [];
+      // Mount the player right away so the video is watchable even while the
+      // captions are being fetched (or while a rate-limit auto-retry runs).
+      mountPlayer(videoId);
+      // Re-enable input immediately so a long auto-retry doesn't lock the UI —
+      // starting another load just bumps loadSeq and supersedes this one.
+      loadBtn.disabled = false;
       let srcLang = 'en';
       try {
-        const res = await fetch(`${WORKER_URL}/api/transcript?v=${videoId}`);
+        const res = await fetchTranscriptWithRetry(videoId, myLoad);
+        if (myLoad !== loadSeq) return; // superseded by a newer load
+        if (!res) { hideProgress(); setStatus('字幕の取得に失敗しました。少し待って再試行してください', true); return; }
         if (res.status === 404) {
-          mountPlayer(videoId);
           hideProgress();
           setStatus('この動画には英字幕がありません', true);
           return;
         }
         if (res.status === 503) {
-          mountPlayer(videoId);
           hideProgress();
-          setStatus('YouTube が一時的に制限中です。数十秒待って再試行してください', true);
+          setStatus('YouTube の制限が続いています。少し時間をおいて、もう一度読み込んでください', true);
           return;
         }
         if (!res.ok) {
-          mountPlayer(videoId);
           hideProgress();
           setStatus('字幕の取得に失敗しました。少し待って再試行してください', true);
           return;
@@ -826,10 +857,9 @@
         cues = data.cues || [];
         srcLang = data?.lang?.from || 'en';
         computeDisplayEnds(cues);
-        mountPlayer(videoId);
         setStatus(`${cues.length} cues 読み込み済み`);
       } catch (err) {
-        mountPlayer(videoId);
+        if (myLoad !== loadSeq) return;
         hideProgress();
         setStatus('字幕の取得に失敗しました。少し待って再試行してください', true);
         return;
