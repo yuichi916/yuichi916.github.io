@@ -49,14 +49,28 @@ export async function searchYouTube(query, sort = 'relevance') {
         '';
       const duration = vr.lengthText?.simpleText || vr.lengthText?.accessibility?.accessibilityData?.label || '';
       const views = vr.viewCountText?.simpleText || vr.shortViewCountText?.simpleText || '';
+      const published = vr.publishedTimeText?.simpleText || '';
       const thumbs = vr.thumbnail?.thumbnails || [];
       const thumbnail = thumbs[thumbs.length - 1]?.url || `https://i.ytimg.com/vi/${vr.videoId}/hqdefault.jpg`;
 
-      out.push({ videoId: vr.videoId, title, channel, duration, views, thumbnail });
-      if (out.length >= MAX_RESULTS) return out;
+      out.push({ videoId: vr.videoId, title, channel, duration, views, published, thumbnail });
     }
   }
-  return out;
+  // For new queries YouTube sometimes ignores the date sort (entity/brand bias),
+  // returning popular-but-old videos. Re-order the page we got by parsed upload
+  // age so "新着順" actually surfaces the newest of the captioned results.
+  if (sort === 'date') {
+    out.sort((a, b) => publishedAgeSeconds(a.published) - publishedAgeSeconds(b.published));
+  }
+  return out.slice(0, MAX_RESULTS);
+}
+
+function publishedAgeSeconds(text) {
+  if (!text) return Infinity; // unknown / live → sort last
+  const m = String(text).match(/(\d+)\s*(second|minute|hour|day|week|month|year)/i);
+  if (!m) return Infinity;
+  const mult = { second: 1, minute: 60, hour: 3600, day: 86400, week: 604800, month: 2592000, year: 31536000 };
+  return parseInt(m[1], 10) * (mult[m[2].toLowerCase()] || 0);
 }
 
 function extractInlineJson(html, name) {

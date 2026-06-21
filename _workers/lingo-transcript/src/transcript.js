@@ -107,7 +107,12 @@ async function getCaptionTracks(videoId, debug = null) {
   // Distinguish "genuinely no captions" from "YouTube blocked our datacenter IP".
   // A block must surface as a retryable rate-limit (503), not as no_captions (404).
   let blocked = false;
-  for (const client of INNERTUBE_CLIENTS) {
+  // ANDROID innertube is the most resilient from datacenter IPs (IOS is often
+  // blocked first); try it first so most videos succeed on a SINGLE request and
+  // we never burst through every client.
+  const PRIORITY = { ANDROID: 0, IOS: 1, WEB: 2 };
+  const orderedClients = [...INNERTUBE_CLIENTS].sort((a, b) => (PRIORITY[a.name] ?? 9) - (PRIORITY[b.name] ?? 9));
+  for (const client of orderedClients) {
     const r = await fetchTracksViaInnerTube(videoId, client);
     if (r === 'BLOCKED') { blocked = true; if (debug) (debug.attempts ||= []).push({ client: client.name, blocked: true }); continue; }
     if (debug) (debug.attempts ||= []).push({ client: client.name, count: Array.isArray(r) ? r.length : 0 });

@@ -740,9 +740,13 @@
       dictDef.textContent = info.def || '';
       dictCurrent = { word: info.word, ja: info.ja };
     }
-    subEn.addEventListener('click', (e) => {
+    // pointerdown (not click): fires the instant the word is pressed, so it works
+    // even while the subtitle is animating and a re-render would otherwise cancel
+    // a click.
+    subEn.addEventListener('pointerdown', (e) => {
       const el = e.target.closest('.w');
       if (!el || !el.dataset.w) return;
+      e.preventDefault();
       if (player && player.pauseVideo) { try { player.pauseVideo(); } catch (e) {} }
       showDictPopup(el.dataset.w);
     });
@@ -794,10 +798,17 @@
       statusEl.classList.toggle('error', !!isError);
     }
 
-    function clearSubtitles() {
-      subEn.textContent = '';
-      subJa.textContent = '';
+    // Only touch the DOM when the rendered HTML actually changes. The poll runs
+    // every 200ms but the subtitle usually doesn't change between ticks; replacing
+    // innerHTML needlessly would cancel in-flight word clicks (mousedown/up land on
+    // different nodes), which is why the dictionary sometimes didn't open.
+    let lastEnHTML = null, lastJaHTML = null;
+    function setSubHtml(en, ja) {
+      if (en !== lastEnHTML) { subEn.innerHTML = en; lastEnHTML = en; }
+      if (ja !== lastJaHTML) { subJa.innerHTML = ja; lastJaHTML = ja; }
     }
+
+    function clearSubtitles() { setSubHtml('', ''); }
 
     function renderActiveCues(active, t) {
       // Past tokens always disappear (per user requirement "読み終わった部分は消して").
@@ -810,8 +821,7 @@
         jaHTML = '<span class="ka-pending">日本語訳を準備中…</span>';
       }
       const enPending = !enHTML && jaHTML && active.some(enStreamingIn);
-      subEn.innerHTML = enPending ? '<span class="ka-pending">English loading…</span>' : enHTML;
-      subJa.innerHTML = jaHTML;
+      setSubHtml(enPending ? '<span class="ka-pending">English loading…</span>' : enHTML, jaHTML);
     }
 
     function escHtml(s) {
@@ -1019,6 +1029,7 @@
           <div class="result-body">
             <div class="result-title">${escapeHtml(it.title)}</div>
             <div class="result-meta">${escapeHtml(it.channel)}${it.views ? ' · ' + escapeHtml(it.views) : ''}</div>
+            ${it.published ? `<div class="result-meta">🕒 ${escapeHtml(it.published)}</div>` : ''}
           </div>
         `;
         card.addEventListener('click', () => loadByVideoId(it.videoId));
