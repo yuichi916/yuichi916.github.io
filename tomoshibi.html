@@ -74,6 +74,14 @@ body::before{
 @keyframes flicker{0%,100%{opacity:.95;transform:scale(1)}25%{opacity:.8;transform:scale(.95)}50%{opacity:1;transform:scale(1.05)}75%{opacity:.85;transform:scale(.98)}}
 .bar .back{font-family:"Inter",sans-serif;font-size:12px;color:var(--ash-dim);letter-spacing:.08em}
 .bar .back:hover{color:var(--lantern)}
+.bar .right{display:flex;align-items:center;gap:14px}
+.bgmbtn{cursor:pointer;background:transparent;border:1px solid rgba(240,200,120,.22);color:var(--ash-dim);
+  font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  padding:6px 13px;border-radius:30px;display:inline-flex;align-items:center;gap:8px;transition:all .25s}
+.bgmbtn:hover{color:var(--lantern);border-color:rgba(240,200,120,.45)}
+.bgmbtn.on{color:var(--lantern-soft);border-color:rgba(240,200,120,.5);background:rgba(240,200,120,.1)}
+.bgmbtn .wave{width:7px;height:7px;border-radius:50%;background:var(--ash-dim);transition:all .25s}
+.bgmbtn.on .wave{background:var(--ember-warm);box-shadow:0 0 9px 2px rgba(217,122,50,.6);animation:flicker 1.6s ease-in-out infinite}
 
 /* hero */
 .hero{
@@ -239,8 +247,12 @@ body::before{
 
 <header class="bar">
   <a class="brand" href="cabin.html"><span class="dot"></span>森の小屋</a>
-  <a class="back" href="cabin.html">← 小屋へ戻る</a>
+  <div class="right">
+    <button class="bgmbtn" id="bgmbtn" aria-pressed="false" title="BGM: 紫翠の森 - Piano ／ 南雲莉翠（なぐもりずの音楽室）"><span class="wave"></span>BGM</button>
+    <a class="back" href="cabin.html">← 小屋へ戻る</a>
+  </div>
 </header>
+<audio id="bgm" loop preload="none" src="assets/audio/shisui-no-mori-piano.mp3"></audio>
 
 <section class="hero">
   <div class="ember"></div>
@@ -350,6 +362,7 @@ body::before{
 <footer class="foot">
   <a href="cabin.html">森の小屋へ戻る</a>·<a href="hollow-tale.html">短編を読む</a>·<a href="index.html">世界の地図へ</a>
   <span class="disc">この手帖は、つらい朝を過ごす人のための、ささやかな読みものです。<br>専門的な診断・治療の代わりにはなりません。あなたの灯を、どうか消さないでください。</span>
+  <span class="disc" style="margin-top:12px;opacity:.55;font-size:11px;letter-spacing:.04em">BGM：紫翠の森 - Piano ／ 南雲莉翠（なぐもりずの音楽室）</span>
 </footer>
 
 <script>
@@ -374,6 +387,17 @@ if(bl && !matchMedia('(prefers-reduced-motion: reduce)').matches){
   }
   requestAnimationFrame(tick);
 }
+
+// BGM toggle
+(function(){
+  const btn=document.getElementById('bgmbtn'), a=document.getElementById('bgm');
+  if(!btn||!a) return; a.volume=0.42; let on=false;
+  btn.addEventListener('click', ()=>{
+    on=!on; btn.classList.toggle('on',on); btn.setAttribute('aria-pressed',String(on));
+    if(on){ a.play().catch(()=>{ on=false; btn.classList.remove('on'); btn.setAttribute('aria-pressed','false'); }); }
+    else { a.pause(); }
+  });
+})();
 </script>
 </body>
 </html>
