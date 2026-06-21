@@ -371,32 +371,9 @@ def place_solid(data, loc, rotz, target_h, mat, tilt=0.0):
     o = place(data, loc, rotz, target_h, tilt)
     o.data = o.data.copy(); o.data.materials.clear(); o.data.materials.append(mat)
     return o
-# a natural, charred criss-cross log stack: two firewood bundles crossed + a few logs leaning in (teepee)
-charmat = make_wood('m_charlog', 'BeamB', 0.4, (0.30, 0.24, 0.18))   # darkened DKF wood = charred/sooty
-char_top = make_solid('m_chartop', (0.05, 0.04, 0.035), 0.85)        # blackened, burnt ends
-if fire_datas:
-    for k in range(2):                 # two real firewood bundles, crossed
-        o = place(random.choice(fire_datas), (FC[0], FC[1], 0.0), k*math.radians(66) + random.uniform(0, 0.4),
-                  random.uniform(0.42, 0.55))
-        o.data = o.data.copy(); o.data.materials.clear(); o.data.materials.append(charmat)
-    for k in range(3):                 # a few logs leaning into the middle (teepee), burnt
-        a = k*math.radians(60) + 0.3
-        box('TopLog%d'%k, 0.07, 0.92, 0.07, (FC[0]+math.cos(a)*0.10, FC[1]+math.sin(a)*0.10, 0.34),
-            char_top if k == 1 else charmat, rot=(math.radians(8), 0, a))
-else:
-    for k in range(6):                 # fallback: a criss-cross stack of charred logs
-        a = k*math.radians(60); layer = k // 3
-        box('Log%d'%k, 0.08, 1.0, 0.08, (FC[0]+math.cos(a)*0.12, FC[1]+math.sin(a)*0.12, 0.14 + layer*0.12),
-            char_top if k % 3 == 0 else charmat, rot=(0, 0, a))
-# glowing coals on the logs — the tall FLAME itself is drawn LIVE & animated in three.js (cabin.html),
-# so the panorama only bakes the embers bed + the warm light pool it casts on the ground.
-bpy.ops.mesh.primitive_circle_add(vertices=20, radius=0.34, fill_type='NGON', location=(FC[0], FC[1], 0.30))
-coals = bpy.context.active_object; coals.name = 'Coals'; coals.data.materials.append(MAT['coals'])
-fl = bpy.data.lights.new('FireLight', 'POINT'); fl.color = (1.0, 0.5, 0.16)
-fl.energy = 70.0 if DAY else 330.0
-try: fl.shadow_soft_size = 0.45
-except Exception: pass
-flo = bpy.data.objects.new('FireLight', fl); coll.objects.link(flo); flo.location = (FC[0], FC[1], 0.65)
+# NB: the WHOLE campfire (logs + flame + glow + light) is now drawn LIVE in three.js (cabin.html),
+# co-located in one group so the flame always sits exactly on the logs. Nothing fire-related is baked
+# into the panorama any more — that removes the baked-vs-live alignment problem entirely.
 
 # ---- the forest: real trees + shrubs ringing the lake; open water fills the whole front ----
 def in_lake(x, y, m=1.0):
