@@ -147,6 +147,8 @@ MAT = {
     'flame': make_emissive('cab_flame', (1.0, 0.58, 0.22), 9.0),
     'glow':  make_emissive('cab_glow',  (1.0, 0.70, 0.34), 1.6),
     'magic': make_emissive('cab_magic', (1.0, 0.72, 0.40), 2.0),
+    'brass': make_solid('cab_brass', (0.62, 0.46, 0.18), rough=0.34, metal=1.0),
+    'ivory': make_solid('cab_ivory', (0.86, 0.80, 0.64), rough=0.45),
 }
 
 # ============================================================ isolate ECI kit
@@ -283,9 +285,39 @@ def spawn_candle(x, y, z, h, r=0.025):
     c = bpy.context.active_object; c.name = 'Candle'; set_mat(c, MAT['wax'])
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.02, location=(x, y, z+h+0.02))
     f = bpy.context.active_object; f.name = 'CandleFlame'; f.scale = (1, 1, 1.8); set_mat(f, MAT['flame'])
-CANDLES = []   # no candles — keep the hearth to logs + flames only
+CANDLES = [
+    (-0.58, 2.00, 1.67, 0.17), (0.58, 2.00, 1.67, 0.12),   # either side of the mantel clock
+    (-2.40, 0.72, 1.53, 0.15), (-2.40, 1.30, 1.53, 0.10),  # on the wall shelf
+    (-1.92, -0.52, 0.42, 0.14),                            # on the side stool
+]
 for cx, cy, cz, ch in CANDLES:
     spawn_candle(cx, cy, cz, ch)
+
+# ── antique mantel clock (hand-built — the Enchanted Interiors kit has no clock) ──
+def build_clock(cx, cy, cz):
+    cw, cdp, chh = 0.30, 0.14, 0.40
+    add_box('ClockBase',  cw*1.16, cdp*1.12, 0.05, (cx, cy, cz+0.025), MAT['wood'])
+    add_box('ClockCase',  cw, cdp, chh, (cx, cy, cz+chh/2+0.04), MAT['wood'])
+    add_box('ClockCrown', cw*0.66, cdp*1.04, 0.08, (cx, cy, cz+chh+0.06), MAT['wood'])
+    add_box('ClockFinial', 0.04, 0.04, 0.07, (cx, cy, cz+chh+0.13), MAT['brass'])
+    fy = cy - cdp/2 - 0.004; zc = cz + chh*0.62
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.108, depth=0.02, location=(cx, fy, zc))
+    fc = bpy.context.active_object; fc.name = 'ClockFace'; fc.rotation_euler = (math.radians(90), 0, 0); set_mat(fc, MAT['ivory'])
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.112, minor_radius=0.012, location=(cx, fy, zc))
+    rm = bpy.context.active_object; rm.name = 'ClockRim'; rm.rotation_euler = (math.radians(90), 0, 0); set_mat(rm, MAT['brass'])
+    for k in range(12):
+        a = k/12*math.tau
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(cx+math.sin(a)*0.092, fy-0.004, zc+math.cos(a)*0.092))
+        tk = bpy.context.active_object; tk.scale = (0.006, 0.004, 0.015 if k%3==0 else 0.009); tk.rotation_euler = (0, a, 0); set_mat(tk, MAT['brass'])
+    def hand(length, w, ang):
+        a = math.radians(ang)
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(cx+math.sin(a)*length/2, fy-0.012, zc+math.cos(a)*length/2))
+        h = bpy.context.active_object; h.scale = (w, 0.005, length); h.rotation_euler = (0, a, 0); set_mat(h, MAT['brass'])
+    hand(0.060, 0.010, -60)   # hour hand -> ~10
+    hand(0.092, 0.008,  60)   # minute hand -> ~2
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.012, depth=0.02, location=(cx, fy-0.013, zc))
+    cap = bpy.context.active_object; cap.rotation_euler = (math.radians(90), 0, 0); set_mat(cap, MAT['brass'])
+build_clock(0.0, 2.04, 1.63)
 
 # ============================================================ deep night forest beyond the +X window
 import random as _rnd; _rnd.seed(7)
