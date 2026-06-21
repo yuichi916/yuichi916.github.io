@@ -1914,17 +1914,27 @@ else {
     const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
   }
   const outFireGrp=new THREE.Group(); outFireGrp.visible=false; scene.add(outFireGrp);
-  // charred logs: a natural criss-cross / teepee pile
-  const _logMat=new THREE.MeshBasicMaterial({ map:charLogTex() });
-  const _logGeo=new THREE.CylinderGeometry(0.075,0.09,1.15,8);
-  const outLogs=new THREE.Group(); outLogs.position.copy(bearing(FIRE_LON,FIRE_BASE_LAT,FIRE_R)); outLogs.scale.setScalar(1.15); outFireGrp.add(outLogs);
-  for(let i=0;i<7;i++){ const cyl=new THREE.Mesh(_logGeo,_logMat); const layer=Math.floor(i/4);
-    cyl.rotation.z=Math.PI/2; cyl.rotation.y=i*0.9+layer*0.5; cyl.rotation.x=(Math.random()-0.5)*0.12;
-    cyl.position.set((Math.random()-0.5)*0.22, 0.07+layer*0.12, (Math.random()-0.5)*0.22);
+  // ── campfire base/台座: scorched earth + a ring of fire-pit stones + a charred criss-cross log pile ──
+  const outLogs=new THREE.Group(); outLogs.position.copy(bearing(FIRE_LON,FIRE_BASE_LAT,FIRE_R)); outLogs.scale.setScalar(1.2); outFireGrp.add(outLogs);
+  const scorch=new THREE.Mesh(new THREE.CircleGeometry(0.95,28), new THREE.MeshBasicMaterial({ color:0x0c0a08 }));
+  scorch.rotation.x=-Math.PI/2; scorch.position.y=0.01; outLogs.add(scorch);
+  function stoneTex(){ const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+    x.fillStyle='#42392f'; x.fillRect(0,0,64,64);   // dark warm stone (firelit at night)
+    for(let i=0;i<140;i++){ const px=Math.random()*64,py=Math.random()*64,r=Math.random()*6+1,v=70+(Math.random()*70|0); x.fillStyle='rgba('+v+','+((v*0.86)|0)+','+((v*0.7)|0)+','+(0.3+Math.random()*0.45)+')'; x.beginPath(); x.arc(px,py,r,0,6.28); x.fill(); }
+    const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t; }
+  const _stoneMat=new THREE.MeshBasicMaterial({ map:stoneTex() }); const _stoneGeo=new THREE.IcosahedronGeometry(0.2,0);
+  for(let i=0;i<11;i++){ const a=i/11*Math.PI*2; const rk=new THREE.Mesh(_stoneGeo,_stoneMat);
+    rk.position.set(Math.cos(a)*0.72, 0.09, Math.sin(a)*0.72);
+    rk.scale.set(1+Math.random()*0.5, 0.65+Math.random()*0.3, 1+Math.random()*0.5);
+    rk.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3); outLogs.add(rk); }
+  const _logMat=new THREE.MeshBasicMaterial({ map:charLogTex() }); const _logGeo=new THREE.CylinderGeometry(0.07,0.085,1.0,8);
+  for(let i=0;i<6;i++){ const cyl=new THREE.Mesh(_logGeo,_logMat); const layer=Math.floor(i/3);
+    cyl.rotation.z=Math.PI/2; cyl.rotation.y=i*1.05+layer*0.5; cyl.rotation.x=(Math.random()-0.5)*0.1;
+    cyl.position.set((Math.random()-0.5)*0.18, 0.17+layer*0.11, (Math.random()-0.5)*0.18);
     cyl.scale.set(1,0.85+Math.random()*0.3,1); outLogs.add(cyl); }
   // flame (same shader as the hearth), base resting on the logs
-  const outFire=new THREE.Mesh(new THREE.PlaneGeometry(1.5,2.2), fireMat);
-  outFire.position.copy(bearing(FIRE_LON,-5,FIRE_R)); faceOrigin(outFire); outFire.renderOrder=3; outFireGrp.add(outFire);
+  const outFire=new THREE.Mesh(new THREE.PlaneGeometry(1.4,2.0), fireMat);
+  outFire.position.copy(bearing(FIRE_LON,-6,FIRE_R)); faceOrigin(outFire); outFire.renderOrder=3; outFireGrp.add(outFire);
   // warm halo + rising embers
   const outGlowMat=new THREE.SpriteMaterial({ map:glowTex(255,140,54), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.4 });
   const outGlow=new THREE.Sprite(outGlowMat); outGlow.position.copy(bearing(FIRE_LON,FIRE_BASE_LAT,FIRE_R)); outGlow.scale.set(2.8,2.4,1); outFireGrp.add(outGlow);
