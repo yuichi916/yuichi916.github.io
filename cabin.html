@@ -1231,7 +1231,7 @@ function buildSound(name){
           const hp = audioCtx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value = snap ? 180 : 700;
           const g2 = audioCtx.createGain(); g2.gain.value = 0;
           src2.connect(bp).connect(hp).connect(g2).connect(gain);
-          const amp = (snap ? (0.16 + Math.random()*0.18) : (0.05 + Math.random()*0.13)) * (SOUNDS.master||.5);
+          const amp = (snap ? (0.096 + Math.random()*0.108) : (0.03 + Math.random()*0.078)) * (SOUNDS.master||.5);
           g2.gain.setValueAtTime(0, t);
           g2.gain.linearRampToValueAtTime(amp, t+0.0015);                         // very sharp attack
           g2.gain.exponentialRampToValueAtTime(0.0001, t + (snap?0.05:0.022) + Math.random()*0.05);
@@ -1242,7 +1242,7 @@ function buildSound(name){
             const bp3 = audioCtx.createBiquadFilter(); bp3.type='bandpass'; bp3.frequency.value = 1500 + Math.random()*2500; bp3.Q.value = 6;
             const g3 = audioCtx.createGain(); g3.gain.value = 0;
             s3.connect(bp3).connect(g3).connect(gain);
-            const a3 = (0.04 + Math.random()*0.08) * (SOUNDS.master||.5);
+            const a3 = (0.024 + Math.random()*0.048) * (SOUNDS.master||.5);
             g3.gain.setValueAtTime(0, t+d); g3.gain.linearRampToValueAtTime(a3, t+d+0.0015);
             g3.gain.exponentialRampToValueAtTime(0.0001, t+d+0.05);
             s3.start(t+d); s3.stop(t+d+0.2);
@@ -1359,7 +1359,7 @@ function startBellTone(){
   g.gain.value = 0;
   o.connect(g).connect(ctx.destination);
   const t = ctx.currentTime;
-  g.gain.linearRampToValueAtTime(.18, t+.08);
+  g.gain.linearRampToValueAtTime(.108, t+.08);
   g.gain.exponentialRampToValueAtTime(.0001, t+3.2);
   o.start(t); o.stop(t+3.4);
 }
@@ -1371,7 +1371,7 @@ function chime(){
     g.gain.value = 0;
     o.connect(g).connect(ctx.destination);
     const t = ctx.currentTime + i*.4;
-    g.gain.linearRampToValueAtTime(.16, t+.08);
+    g.gain.linearRampToValueAtTime(.096, t+.08);
     g.gain.exponentialRampToValueAtTime(.0001, t+3.6);
     o.start(t); o.stop(t+3.8);
   });
@@ -1785,7 +1785,7 @@ const reduce   = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // in-world points of interest (lon/lat in the equirect; tuned to the render)
 const MARKERS = [
   { key:'meditate', lon:0,   lat:-26, r:5.5, jp:'炎を見つめて瞑想する', en:'gaze into the fire' },
-  { key:'writings', lon:41,  lat:-30, r:5,   jp:'小屋の物語と、整え方', en:'the writings' },
+  { key:'writings', lon:58,  lat:0,   r:5,   jp:'小屋の物語と、整え方', en:'the writings' },
   { key:'window',   lon:-63, lat:1,   r:6,   jp:'夜の森をのぞむ',       en:'the night forest' },
   { key:'outside',  lon:186, lat:-14, r:6,   jp:'扉から外へ出る',        en:'step out the door' },
 ];
@@ -2016,6 +2016,17 @@ else {
   sudokuBoard.userData={ key:'sudoku', jp:'数独の卓 · 平面9×9', en:'play sudoku on the table' };
   markerGroup.add(sudokuBoard);
 
+  // ── a faint rift to another world, tucked in a shadowy corner → the floating island ──
+  const PORTAL_LON=-118, PORTAL_LAT=-7;
+  const _riftTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+    const g=x.createRadialGradient(64,64,1,64,64,64); g.addColorStop(0,'rgba(200,248,255,0.95)'); g.addColorStop(.4,'rgba(96,205,228,0.45)'); g.addColorStop(.75,'rgba(40,120,170,0.12)'); g.addColorStop(1,'rgba(20,60,110,0)');
+    x.fillStyle=g; x.fillRect(0,0,128,128);
+    return new THREE.CanvasTexture(c); })();   // stretched into a vertical rift by the sprite scale
+  const portal=new THREE.Sprite(new THREE.SpriteMaterial({ map:_riftTex, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:0.0 }));
+  portal.position.copy(bearing(PORTAL_LON,PORTAL_LAT,9)); portal.scale.set(0.9,2.0,1); portal.renderOrder=2;
+  portal.userData={ key:'portal', jp:'異世界への入り口', en:'a rift to the floating isles' };
+  markerGroup.add(portal);
+
   // ── interaction ──
   const ray=new THREE.Raycaster();
   let dragging=false, moved=0, px=0, py=0, dx0=0, dy0=0, hovered=null, pinching=false, fov=72;
@@ -2060,7 +2071,7 @@ else {
   function _enterOutside(){
     buildMarkers(MARKERS_OUT);
     if(markerGroup.children.indexOf(sudokuBoard)>=0) markerGroup.remove(sudokuBoard);
-    _tableBase.visible=false; fire.visible=glow.visible=embers.visible=false;
+    _tableBase.visible=false; fire.visible=glow.visible=embers.visible=false; portal.visible=false;
     outFireGrp.visible=true;     // live animated campfire (logs+flame+glow+embers, co-located)
     tLon=lon=HEARTH_LON; tLat=lat=-4; idle=0;
     document.body.classList.add('outside'); if(window.__skipHud) window.__skipHud(true); _fade(false,750);
@@ -2068,7 +2079,7 @@ else {
   function _enterInside(){
     buildMarkers(MARKERS);
     if(markerGroup.children.indexOf(sudokuBoard)<0) markerGroup.add(sudokuBoard);
-    _tableBase.visible=true; fire.visible=glow.visible=embers.visible=true;
+    _tableBase.visible=true; fire.visible=glow.visible=embers.visible=true; portal.visible=true;
     outFireGrp.visible=false;
     tLon=lon=HEARTH_LON; tLat=lat=-7; idle=0;
     document.body.classList.remove('outside'); if(window.__skipHud) window.__skipHud(false); _fade(false,750);
@@ -2110,6 +2121,14 @@ else {
       const iv=setInterval(()=>{ k=Math.min(1,k+0.022); setFov(f0-(f0-12)*k); if(k>=1) clearInterval(iv); }, 16);
       setTimeout(()=>_fade(true,820), 680);
       setTimeout(()=>{ window.location.href='universe.html'; }, 1560);
+    },
+    toPortal(){   // step through the rift → the floating island
+      if(_flying) return; _flying=true;
+      tLon=PORTAL_LON; tLat=PORTAL_LAT;   // turn to face the rift, then zoom in & fade
+      const f0=fov; let k=0;
+      const iv=setInterval(()=>{ k=Math.min(1,k+0.02); setFov(f0-(f0-20)*k); if(k>=1) clearInterval(iv); }, 16);
+      setTimeout(()=>_fade(true,700), 720);
+      setTimeout(()=>{ window.location.href='niwa.html?scene=island'; }, 1480);
     },
     _set:(l,la)=>{ tLon=lon=l; tLat=lat=(la===undefined?lat:la); },
     _fireVis:v=>{ fire.visible=v; glow.visible=v; embers.visible=v; }
@@ -2309,6 +2328,8 @@ else {
     const showMarkers = !meditating && !capOpen && document.body.classList.contains('room-ready') && !document.getElementById('enterGate').classList.contains('gone')===false;
     markerGroup.visible = !meditating && !capOpen;
     markerSprites.forEach(s=>{ const base=0.6+0.08*Math.sin(t*2.2+s.position.x); s.scale.set(base,base,1); s.material.opacity=meditating?0:(0.5+0.25*Math.sin(t*2.2+s.position.x)); });
+    // the rift breathes faintly, and glows a touch brighter when you look right at it
+    if(portal.visible){ portal.material.opacity = meditating?0 : ((0.14+0.06*Math.sin(t*1.3)) + (hovered===portal?0.5:0)); portal.scale.set(0.9+(hovered===portal?0.15:0),2.0,1); }
     if(markerGroup.visible){
       ray.setFromCamera({x:0,y:0}, camera);
       const hit=ray.intersectObjects(markerGroup.children,false)[0];
@@ -2469,6 +2490,7 @@ else {
     else if(key==='outside'){ if(window.CabinRoom&&window.CabinRoom.goOutside) window.CabinRoom.goOutside(); }
     else if(key==='inside'){ if(window.CabinRoom&&window.CabinRoom.goInside) window.CabinRoom.goInside(); }
     else if(key==='universe'){ if(window.CabinRoom&&window.CabinRoom.flyToUniverse) window.CabinRoom.flyToUniverse(); }
+    else if(key==='portal'){ if(window.CabinRoom&&window.CabinRoom.toPortal) window.CabinRoom.toPortal(); }
   };
 
   // swap ambience when stepping out / back in: hush the hearth, bring in the night forest
@@ -2508,7 +2530,7 @@ else {
     try{ const ctx=ensureCtx(); if(!ctx) return; const t0=ctx.currentTime;
       const o=ctx.createOscillator(); o.type='triangle';
       const f=620+Math.min(8,hits)*90; o.frequency.setValueAtTime(f,t0);
-      const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(0.12,t0+0.008); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.5);
+      const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(0.072,t0+0.008); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.5);
       o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0+0.52);
     }catch(_){}
   };
@@ -2520,12 +2542,12 @@ else {
         for(let i=0;i<d.length;i++){ const e=1-i/d.length; d[i]=(Math.random()*2-1)*e*e; }
         const src=ctx.createBufferSource(); src.buffer=buf;
         const bp=ctx.createBiquadFilter(); bp.type='lowpass'; bp.frequency.value=820;
-        const g=ctx.createGain(); g.gain.value=0.16;
+        const g=ctx.createGain(); g.gain.value=0.096;
         src.connect(bp).connect(g).connect(ctx.destination); src.start(t0);
       } else {
         const o=ctx.createOscillator(); o.type='sine';
         o.frequency.setValueAtTime(430+seg*55, t0); o.frequency.exponentialRampToValueAtTime(230+seg*35, t0+0.08);
-        const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(0.11,t0+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.12);
+        const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(0.066,t0+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.12);
         o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0+0.14);
       }
     }catch(_){}

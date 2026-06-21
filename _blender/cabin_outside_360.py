@@ -375,6 +375,26 @@ def place_solid(data, loc, rotz, target_h, mat, tilt=0.0):
 # co-located in one group so the flame always sits exactly on the logs. Nothing fire-related is baked
 # into the panorama any more — that removes the baked-vs-live alignment problem entirely.
 
+# ---- an old brass telescope on the lakeside shore, aimed at the night sky (from the Enchanted Interiors kit) ----
+_ECI = r'C:\tmp\blends\eci\kb3d_enchantedinteriors-native.blend'
+_telmat = make_solid('m_telescope', (0.72, 0.56, 0.28), 0.28, 0.8)   # bright brass so it catches the moonlight (kit textures aren't local)
+try:
+    bpy.ops.wm.append(directory=_ECI + '\\Object\\', filename='KB3D_ECI_PropTelescope_A_Main', link=False)
+    tel = bpy.data.objects.get('KB3D_ECI_PropTelescope_A_Main')
+except Exception as e:
+    tel = None; print('[telescope] append fail', e, flush=True)
+if tel:
+    # the mesh is parented to an empty '..._grp' whose transform would throw off placement -> unparent & reset
+    tel.parent = None; tel.matrix_parent_inverse.identity()
+    tel.location = (0, 0, 0); tel.rotation_euler = (0, 0, math.radians(-20)); tel.scale = (1, 1, 1)
+    dim, _mn = data_dims(tel.data); s = 2.6/max(dim.z, 0.001)   # a big observatory telescope
+    tel.scale = (s, s, s)
+    bpy.context.view_layer.update()
+    mnz = min((tel.matrix_world @ Vector(c)).z for c in tel.bound_box)
+    tel.location = (-4.6, -0.6, -mnz)     # on the near-left bank, in front of the framing trees, moonlit
+    tel.data.materials.clear(); tel.data.materials.append(_telmat)
+    print('[telescope] placed on the shore', flush=True)
+
 # ---- the forest: real trees + shrubs ringing the lake; open water fills the whole front ----
 def in_lake(x, y, m=1.0):
     return ((x-LC[0])/(LRX*m))**2 + ((y-LC[1])/(LRY*m))**2 < 1.0

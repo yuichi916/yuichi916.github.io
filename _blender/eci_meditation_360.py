@@ -169,7 +169,6 @@ KIT = {
     'KB3D_ECI_PropJug_A_Main':          ('ceramic', -1.30, -0.95, 0,   0.85),  # clay jug in the left-front contemplative nook
     'KB3D_ECI_PropAppleBasket_A_Main':  ('wood',     1.55, -1.05, 15,  0.6),   # small woven basket, right-front
     # ── antique pieces (curated from the Enchanted Interiors kit), to enrich the room ──
-    'KB3D_ECI_PropTelescope_A_Main':    ('brass',    2.05, -0.20, 150, 1.0),   # brass telescope by the window — stargazing
     'KB3D_ECI_PropBookShelf_A_Main':    ('wood',    -2.46,  0.85, 90,  0.95),  # tall bookshelf against the left wall
     'KB3D_ECI_PropEarthGlobe_A_Main':   ('brass',   -2.25,  1.95, 25,  0.42),  # small armillary globe, tucked into the left-back corner
     'KB3D_ECI_PropArmorChest_A_Main':   ('wood',     2.40,  2.05, -120,0.9),   # ornate antique chest, right-back corner
