@@ -1293,7 +1293,10 @@
       loadBtn.disabled = true;
       try {
         const sort = sortSelect.value || 'relevance';
-        const res = await fetch(`${WORKER_URL}/api/search?q=${encodeURIComponent(query)}&sort=${encodeURIComponent(sort)}`);
+        // no-store: never reuse a stale browser-cached search response, so sort
+        // changes and fresh ordering always take effect (the Worker still serves
+        // repeat queries cheaply from its own KV cache).
+        const res = await fetch(`${WORKER_URL}/api/search?q=${encodeURIComponent(query)}&sort=${encodeURIComponent(sort)}`, { cache: 'no-store' });
         if (res.status === 503) {
           setStatus('YouTube が一時的に制限中です。数十秒待って再試行してください', true);
           return;
