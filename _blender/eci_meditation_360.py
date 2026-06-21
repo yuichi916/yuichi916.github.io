@@ -160,7 +160,6 @@ KIT = {
     'KB3D_ECI_PropPillow_A_Main':       ('cush',    0.0, -0.45, 0,    1.10),
     'KB3D_ECI_PropRockingChair_A_Main': ('wood',    1.55, 0.95, -125, 1.0),
     'KB3D_ECI_PropBowl_A_Main':         ('ceramic', -1.78, -0.55, 0,  1.3),   # subdued, replaces lantern
-    'KB3D_ECI_PropBookStack_D_Main':    ('book',    -1.45, -0.32, 0,  0.95),
     # old / antique pieces tucked inconspicuously around the room (back + front corners)
     'KB3D_ECI_PropBookStand_C_Main':    ('wood',    -2.15, -2.25, 18,  0.9),   # worn bookshelf, back-left
     'KB3D_ECI_PropChest_A_Main':        ('wood',     2.25, -2.10, -22, 1.0),   # antique chest, back-right
@@ -168,7 +167,6 @@ KIT = {
     'KB3D_ECI_PropChest_C_Main':        ('wood',     2.35, -1.45, -34, 0.8),   # antique chest, front-right
     # subtle meditation decor tucked into corners / shadow — nothing eye-catching
     'KB3D_ECI_PropJug_A_Main':          ('ceramic', -1.30, -0.95, 0,   0.85),  # clay jug in the left-front contemplative nook
-    'KB3D_ECI_PropOpenBook_A_Main':     ('book',    -1.02, -0.12, -14, 0.95),  # open book beside the writings pile
     'KB3D_ECI_PropAppleBasket_A_Main':  ('wood',     1.55, -1.05, 15,  0.6),   # small woven basket, right-front
     # ── antique pieces (curated from the Enchanted Interiors kit), to enrich the room ──
     'KB3D_ECI_PropTelescope_A_Main':    ('brass',    2.05, -0.20, 150, 1.0),   # brass telescope by the window — stargazing
