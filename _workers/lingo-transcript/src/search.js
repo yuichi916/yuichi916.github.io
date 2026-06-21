@@ -5,16 +5,15 @@ const MAX_RESULTS = 18;
 
 const SORT_FIELD = { relevance: 0, rating: 1, date: 2, views: 3 };
 
-// Build YouTube's `sp` filter protobuf: sort order + the "Subtitles/CC" feature
-// flag so the results only include videos that actually have a caption track —
-// lingo can't show anything for a video with no subtitles.
+// Build YouTube's `sp` filter protobuf: sort order + a video-type filter.
+// We intentionally do NOT add the "Subtitles/CC" flag: YouTube only flags videos
+// with *manual* captions there, so it excluded recent auto-captioned videos —
+// which lingo can still use — and made 新着順 return only years-old results.
 function buildSearchParams(sort) {
   const sortBy = SORT_FIELD[sort] ?? 0;
   const bytes = [];
   if (sortBy) bytes.push(0x08, sortBy);   // field 1: sort order
-  const filt = [];
-  if (sortBy) filt.push(0x10, 0x01);      // type = video (matches prior sorted behaviour)
-  filt.push(0x28, 0x01);                  // has_subtitles = true
+  const filt = [0x10, 0x01];              // type = video
   bytes.push(0x12, filt.length, ...filt); // field 2: filters submessage
   return btoa(String.fromCharCode(...bytes));
 }
