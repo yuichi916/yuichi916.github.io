@@ -170,6 +170,12 @@ KIT = {
     'KB3D_ECI_PropJug_A_Main':          ('ceramic', -1.30, -0.95, 0,   0.85),  # clay jug in the left-front contemplative nook
     'KB3D_ECI_PropOpenBook_A_Main':     ('book',    -1.02, -0.12, -14, 0.95),  # open book beside the writings pile
     'KB3D_ECI_PropAppleBasket_A_Main':  ('wood',     1.55, -1.05, 15,  0.6),   # small woven basket, right-front
+    # ── antique pieces (curated from the Enchanted Interiors kit), to enrich the room ──
+    'KB3D_ECI_PropTelescope_A_Main':    ('brass',    2.05, -0.20, 150, 1.0),   # brass telescope by the window — stargazing
+    'KB3D_ECI_PropBookShelf_A_Main':    ('wood',    -2.46,  0.85, 90,  0.95),  # tall bookshelf against the left wall
+    'KB3D_ECI_PropEarthGlobe_A_Main':   ('brass',   -2.25,  1.95, 25,  0.42),  # small armillary globe, tucked into the left-back corner
+    'KB3D_ECI_PropArmorChest_A_Main':   ('wood',     2.40,  2.05, -120,0.9),   # ornate antique chest, right-back corner
+    'KB3D_ECI_PropBookStand_A_Main':    ('wood',     1.30,  2.20, -150,0.9),   # reading lectern near the hearth
 }
 # the wizard-office tree, kept only to instance a forest beyond the window
 KEEP_EXTRA = {'KB3D_ECI_IntWizardOffice_A_Tree'}
@@ -285,39 +291,46 @@ def spawn_candle(x, y, z, h, r=0.025):
     c = bpy.context.active_object; c.name = 'Candle'; set_mat(c, MAT['wax'])
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.02, location=(x, y, z+h+0.02))
     f = bpy.context.active_object; f.name = 'CandleFlame'; f.scale = (1, 1, 1.8); set_mat(f, MAT['flame'])
-CANDLES = [
-    (-0.58, 2.00, 1.67, 0.17), (0.58, 2.00, 1.67, 0.12),   # either side of the mantel clock
-    (-2.40, 0.72, 1.53, 0.15), (-2.40, 1.30, 1.53, 0.10),  # on the wall shelf
-    (-1.92, -0.52, 0.42, 0.14),                            # on the side stool
-]
-for cx, cy, cz, ch in CANDLES:
-    spawn_candle(cx, cy, cz, ch)
+# (no candles — removed at the user's request)
 
-# ── antique mantel clock (hand-built — the Enchanted Interiors kit has no clock) ──
-def build_clock(cx, cy, cz):
-    cw, cdp, chh = 0.30, 0.14, 0.40
-    add_box('ClockBase',  cw*1.16, cdp*1.12, 0.05, (cx, cy, cz+0.025), MAT['wood'])
-    add_box('ClockCase',  cw, cdp, chh, (cx, cy, cz+chh/2+0.04), MAT['wood'])
-    add_box('ClockCrown', cw*0.66, cdp*1.04, 0.08, (cx, cy, cz+chh+0.06), MAT['wood'])
-    add_box('ClockFinial', 0.04, 0.04, 0.07, (cx, cy, cz+chh+0.13), MAT['brass'])
-    fy = cy - cdp/2 - 0.004; zc = cz + chh*0.62
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.108, depth=0.02, location=(cx, fy, zc))
-    fc = bpy.context.active_object; fc.name = 'ClockFace'; fc.rotation_euler = (math.radians(90), 0, 0); set_mat(fc, MAT['ivory'])
-    bpy.ops.mesh.primitive_torus_add(major_radius=0.112, minor_radius=0.012, location=(cx, fy, zc))
-    rm = bpy.context.active_object; rm.name = 'ClockRim'; rm.rotation_euler = (math.radians(90), 0, 0); set_mat(rm, MAT['brass'])
-    for k in range(12):
-        a = k/12*math.tau
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(cx+math.sin(a)*0.092, fy-0.004, zc+math.cos(a)*0.092))
-        tk = bpy.context.active_object; tk.scale = (0.006, 0.004, 0.015 if k%3==0 else 0.009); tk.rotation_euler = (0, a, 0); set_mat(tk, MAT['brass'])
-    def hand(length, w, ang):
-        a = math.radians(ang)
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(cx+math.sin(a)*length/2, fy-0.012, zc+math.cos(a)*length/2))
-        h = bpy.context.active_object; h.scale = (w, 0.005, length); h.rotation_euler = (0, a, 0); set_mat(h, MAT['brass'])
-    hand(0.060, 0.010, -60)   # hour hand -> ~10
-    hand(0.092, 0.008,  60)   # minute hand -> ~2
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.012, depth=0.02, location=(cx, fy-0.013, zc))
-    cap = bpy.context.active_object; cap.rotation_euler = (math.radians(90), 0, 0); set_mat(cap, MAT['brass'])
-build_clock(0.0, 2.04, 1.63)
+# ── antique longcase (grandfather) clock, standing in a corner, facing the room (-Y) ──
+# the Enchanted Interiors kit has no clock, so it's hand-built; the dial is a painted
+# Roman-numeral face texture (assets/clockface.png) for a convincing antique look.
+def clock_face_mat():
+    m = bpy.data.materials.new('clock_face'); m.use_nodes = True
+    try: m.blend_method = 'CLIP'
+    except Exception: pass
+    nt = m.node_tree; nodes, links = nt.nodes, nt.links; bsdf = nodes.get('Principled BSDF')
+    try:
+        img = bpy.data.images.load(r'C:\projects\yuichi916.github.io\assets\clockface.png', check_existing=True)
+        tex = nodes.new('ShaderNodeTexImage'); tex.image = img
+        links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
+        links.new(tex.outputs['Alpha'], bsdf.inputs['Alpha'])
+        links.new(tex.outputs['Color'], bsdf.inputs['Emission']); bsdf.inputs['Emission Strength'].default_value = 0.45
+    except Exception as e:
+        print('[clock] face tex fail', e, flush=True)
+    bsdf.inputs['Roughness'].default_value = 0.5
+    return m
+
+def build_clock(cx, cy):
+    # front faces -Y (toward the seated viewer); stands on the floor against the +Y wall
+    add_box('ClockPlinth', 0.52, 0.36, 0.22, (cx, cy, 0.11), MAT['wood'])
+    add_box('ClockTrunk',  0.40, 0.28, 1.06, (cx, cy, 0.22+0.53), MAT['beam'])
+    # glazed pendulum window + brass pendulum
+    add_box('ClockGlass', 0.24, 0.02, 0.66, (cx, cy-0.145, 0.62), make_solid('clk_glass', (0.03, 0.035, 0.045), rough=0.15))
+    add_box('ClockRod',   0.012, 0.012, 0.34, (cx, cy-0.15, 0.66), MAT['brass'])
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.06, depth=0.02, location=(cx, cy-0.155, 0.47))
+    pb = bpy.context.active_object; pb.name = 'ClockPendulum'; pb.rotation_euler = (math.radians(90), 0, 0); set_mat(pb, MAT['brass'])
+    htop = 0.22 + 1.06
+    add_box('ClockHood',  0.52, 0.34, 0.50, (cx, cy, htop+0.25), MAT['wood'])
+    # painted dial on a plane on the hood front
+    bpy.ops.mesh.primitive_plane_add(size=0.36, location=(cx, cy-0.171, htop+0.27))
+    fc = bpy.context.active_object; fc.name = 'ClockDial'; fc.rotation_euler = (math.radians(90), 0, 0); set_mat(fc, clock_face_mat())
+    add_box('ClockCrown', 0.56, 0.37, 0.10, (cx, cy, htop+0.55), MAT['wood'])
+    for fx in (-0.21, 0.0, 0.21):
+        bpy.ops.mesh.primitive_cone_add(radius1=0.03, radius2=0.0, depth=0.10, location=(cx+fx, cy, htop+0.65))
+        fn = bpy.context.active_object; set_mat(fn, MAT['brass'])
+build_clock(-2.02, 2.55)
 
 # ============================================================ deep night forest beyond the +X window
 import random as _rnd; _rnd.seed(7)
