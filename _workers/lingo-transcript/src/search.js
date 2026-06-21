@@ -66,10 +66,23 @@ export async function searchYouTube(query, sort = 'relevance') {
 
 function publishedAgeSeconds(text) {
   if (!text) return Infinity; // unknown / live → sort last
-  const m = String(text).match(/(\d+)\s*(second|minute|hour|day|week|month|year)/i);
+  // Handle both full ("1 year ago") and abbreviated ("1y", "9mo", "1d") forms —
+  // YouTube returns the abbreviated variant to the Worker's (older) UA, and the
+  // full-word-only parser was failing to match, leaving date-sort unsorted.
+  const m = String(text).toLowerCase().match(/(\d+)\s*(years?|yr|y|months?|mo|weeks?|wk|w|days?|d|hours?|hr|h|minutes?|min|m|seconds?|sec|s)\b/);
   if (!m) return Infinity;
-  const mult = { second: 1, minute: 60, hour: 3600, day: 86400, week: 604800, month: 2592000, year: 31536000 };
-  return parseInt(m[1], 10) * (mult[m[2].toLowerCase()] || 0);
+  const n = parseInt(m[1], 10);
+  const u = m[2];
+  let mult;
+  if (u[0] === 'y') mult = 31536000;
+  else if (u === 'mo' || u.startsWith('month')) mult = 2592000;
+  else if (u[0] === 'w') mult = 604800;
+  else if (u[0] === 'd') mult = 86400;
+  else if (u[0] === 'h') mult = 3600;
+  else if (u.startsWith('min') || u === 'm') mult = 60;
+  else if (u[0] === 's') mult = 1;
+  else mult = 0;
+  return n * mult;
 }
 
 function extractInlineJson(html, name) {
