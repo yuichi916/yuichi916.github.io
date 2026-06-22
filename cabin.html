@@ -1785,7 +1785,8 @@ const reduce   = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // in-world points of interest (lon/lat in the equirect; tuned to the render)
 const MARKERS = [
   { key:'meditate', lon:0,   lat:-26, r:5.5, jp:'炎を見つめて瞑想する', en:'gaze into the fire' },
-  { key:'writings', lon:58,  lat:0,   r:5,   jp:'小屋の物語と、整え方', en:'the writings' },
+  { key:'tale',     lon:46,  lat:-9,  r:4,   jp:'短編小説 · 焚き火は、消えない', en:'a short story' },
+  { key:'remedy',   lon:51,  lat:-15, r:4,   jp:'処方箋 · 朝、ふとんから出られない君へ', en:'a prescription' },
   { key:'window',   lon:-63, lat:1,   r:6,   jp:'夜の森をのぞむ',       en:'the night forest' },
   { key:'outside',  lon:186, lat:-14, r:6,   jp:'扉から外へ出る',        en:'step out the door' },
 ];
@@ -2130,6 +2131,7 @@ else {
       setTimeout(()=>_fade(true,700), 720);
       setTimeout(()=>{ window.location.href='niwa.html?scene=island'; }, 1480);
     },
+    goPage(url){ if(_flying) return; _flying=true; _fade(true,620); setTimeout(()=>{ window.location.href=url; }, 660); },
     _set:(l,la)=>{ tLon=lon=l; tLat=lat=(la===undefined?lat:la); },
     _fireVis:v=>{ fire.visible=v; glow.visible=v; embers.visible=v; }
   };
@@ -2329,7 +2331,7 @@ else {
     markerGroup.visible = !meditating && !capOpen;
     markerSprites.forEach(s=>{ const base=0.6+0.08*Math.sin(t*2.2+s.position.x); s.scale.set(base,base,1); s.material.opacity=meditating?0:(0.5+0.25*Math.sin(t*2.2+s.position.x)); });
     // the rift breathes faintly, and glows a touch brighter when you look right at it
-    if(portal.visible){ portal.material.opacity = meditating?0 : ((0.14+0.06*Math.sin(t*1.3)) + (hovered===portal?0.5:0)); portal.scale.set(0.9+(hovered===portal?0.15:0),2.0,1); }
+    if(portal.visible){ portal.material.opacity = meditating?0 : ((0.40+0.12*Math.sin(t*1.4)) + (hovered===portal?0.4:0)); portal.scale.set(1.15+(hovered===portal?0.2:0),2.5,1); }
     if(markerGroup.visible){
       ray.setFromCamera({x:0,y:0}, camera);
       const hit=ray.intersectObjects(markerGroup.children,false)[0];
@@ -2484,7 +2486,8 @@ else {
   window.onMarker=function(key){
     if(key==='firesit'){ enterMeditation(); if(window.CabinRoom&&window.CabinRoom.lookFire) window.CabinRoom.lookFire(); }
     else if(key==='meditate') enterMeditation();
-    else if(key==='writings') openCaption('writings');
+    else if(key==='tale'){ if(window.CabinRoom&&window.CabinRoom.goPage) window.CabinRoom.goPage('hollow-tale.html'); }
+    else if(key==='remedy'){ if(window.CabinRoom&&window.CabinRoom.goPage) window.CabinRoom.goPage('tomoshibi.html'); }
     else if(key==='window') openCaption('window');
     else if(key==='sudoku') window.location.href='sudoku.html?play=plane-table';
     else if(key==='outside'){ if(window.CabinRoom&&window.CabinRoom.goOutside) window.CabinRoom.goOutside(); }
