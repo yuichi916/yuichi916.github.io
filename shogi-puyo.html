@@ -929,7 +929,7 @@ function renderForecast(el, n){
 
 /* ----------------------------- audio ------------------------------------ */
 let actx=null, soundOn=true;
-function beep(freq,dur,type='sine',gain=0.06){
+function beep(freq,dur,type='sine',gain=0.036){
   if(!soundOn) return;
   try{
     if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
@@ -940,10 +940,10 @@ function beep(freq,dur,type='sine',gain=0.06){
     o.start(); o.stop(actx.currentTime+dur);
   }catch(e){}
 }
-function chainSound(c){ beep(420+c*90,0.18,'triangle',0.07); }
-function lockSound(){ beep(180,0.07,'square',0.04); }
-function kingSound(){ beep(660,0.3,'sawtooth',0.08); setTimeout(()=>beep(880,0.3,'sawtooth',0.07),90); }
-function loseSound(){ beep(160,0.5,'sawtooth',0.08); }
+function chainSound(c){ beep(420+c*90,0.18,'triangle',0.042); }
+function lockSound(){ beep(180,0.07,'square',0.024); }
+function kingSound(){ beep(660,0.3,'sawtooth',0.048); setTimeout(()=>beep(880,0.3,'sawtooth',0.042),90); }
+function loseSound(){ beep(160,0.5,'sawtooth',0.048); }
 
 /* ----------------------------- toast ------------------------------------ */
 const toastEl=document.getElementById('toast');
@@ -1051,7 +1051,7 @@ function finishResolve(eng, isPlayer){
     else if(eng.chainCount>=2) showToast(eng.chainCount+' 連鎖!');
   }
   // drop my incoming garbage (one turn after it appears in the forecast = chance to counter)
-  if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.shake=Math.min(1, eng.shake+drop*0.05); if(isPlayer) beep(110,0.12,'square',0.05); eng.chainCount=0; eng.nuisAccum=0; eng.startDrop(); return; }
+  if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.shake=Math.min(1, eng.shake+drop*0.05); if(isPlayer) beep(110,0.12,'square',0.03); eng.chainCount=0; eng.nuisAccum=0; eng.startDrop(); return; }
   eng.chainCount=0; eng.nuisAccum=0;
   // spawn next
   if(!eng.spawnPair()){
@@ -1114,7 +1114,7 @@ function releaseDir(dir){
   if(lastHoriz===dir) lastHoriz = (dir==='left'&&keyState.right)?'right':(dir==='right'&&keyState.left)?'left':null;
   dasCharge=0; dasRepeat=0;
 }
-function rotate(d){ if(canPlay()){ if(player.tryRotate(d)) resetLock(player,true); beep(300,0.04,'sine',0.03); } }
+function rotate(d){ if(canPlay()){ if(player.tryRotate(d)) resetLock(player,true); beep(300,0.04,'sine',0.018); } }
 function hardNow(){ if(canPlay()){ player.hardDrop(); lockSound(); } }
 
 window.addEventListener('keydown',e=>{

@@ -388,14 +388,21 @@ if(bl && !matchMedia('(prefers-reduced-motion: reduce)').matches){
   requestAnimationFrame(tick);
 }
 
-// BGM toggle
+// BGM toggle — default ON, low volume (autoplay armed on first gesture if blocked)
 (function(){
   const btn=document.getElementById('bgmbtn'), a=document.getElementById('bgm');
-  if(!btn||!a) return; a.volume=0.42; let on=false;
+  if(!btn||!a) return;
+  a.volume=0.16; let on=true;
+  const evs=['pointerdown','keydown','scroll','touchstart','wheel'];
+  function reflect(){ btn.classList.toggle('on',on); btn.setAttribute('aria-pressed',String(on)); }
+  function kick(e){ if(e&&e.target&&e.target.closest&&e.target.closest('#bgmbtn')) return; disarm(); if(on) a.play().catch(()=>{}); }
+  function arm(){ evs.forEach(ev=>window.addEventListener(ev,kick,{passive:true})); }
+  function disarm(){ evs.forEach(ev=>window.removeEventListener(ev,kick)); }
+  reflect();
+  a.play().catch(()=>{ arm(); });
   btn.addEventListener('click', ()=>{
-    on=!on; btn.classList.toggle('on',on); btn.setAttribute('aria-pressed',String(on));
-    if(on){ a.play().catch(()=>{ on=false; btn.classList.remove('on'); btn.setAttribute('aria-pressed','false'); }); }
-    else { a.pause(); }
+    on=!on; reflect(); disarm();
+    if(on) a.play().catch(()=>{ arm(); }); else a.pause();
   });
 })();
 </script>

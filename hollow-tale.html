@@ -312,7 +312,7 @@ document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
   function start(){
     ctx=new (window.AudioContext||window.webkitAudioContext)();
     master=ctx.createGain(); master.gain.value=0; master.connect(ctx.destination);
-    master.gain.linearRampToValueAtTime(0.32, ctx.currentTime+1.2);
+    master.gain.linearRampToValueAtTime(0.18, ctx.currentTime+1.2);
     // low warm bed (filtered brown noise)
     noiseSrc=ctx.createBufferSource(); noiseSrc.buffer=buildNoiseBuffer(ctx); noiseSrc.loop=true;
     const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=480;
@@ -345,14 +345,21 @@ document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
   });
 })();
 
-// BGM toggle (piano, coexists with fire crackle)
+// BGM toggle (piano) — default ON, low volume, coexists with fire crackle
 (function(){
   const btn=document.getElementById('bgmbtn'), a=document.getElementById('bgm');
-  if(!btn||!a) return; a.volume=0.40; let on=false;
+  if(!btn||!a) return;
+  a.volume=0.15; let on=true;
+  const evs=['pointerdown','keydown','scroll','touchstart','wheel'];
+  function reflect(){ btn.classList.toggle('on',on); btn.setAttribute('aria-pressed',String(on)); }
+  function kick(e){ if(e&&e.target&&e.target.closest&&e.target.closest('#bgmbtn')) return; disarm(); if(on) a.play().catch(()=>{}); }
+  function arm(){ evs.forEach(ev=>window.addEventListener(ev,kick,{passive:true})); }
+  function disarm(){ evs.forEach(ev=>window.removeEventListener(ev,kick)); }
+  reflect();
+  a.play().catch(()=>{ arm(); });
   btn.addEventListener('click', ()=>{
-    on=!on; btn.classList.toggle('on',on); btn.setAttribute('aria-pressed',String(on));
-    if(on){ a.play().catch(()=>{ on=false; btn.classList.remove('on'); btn.setAttribute('aria-pressed','false'); }); }
-    else { a.pause(); }
+    on=!on; reflect(); disarm();
+    if(on) a.play().catch(()=>{ arm(); }); else a.pause();
   });
 })();
 </script>
