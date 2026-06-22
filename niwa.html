@@ -8465,6 +8465,195 @@ function _placeDistantMountains(root){
     root.add(m);
   }
 }
+// 10. 森の小屋の外 — a walkable forest clearing reached from cabin.html's
+// outdoor exit.  A single light pillar reaches the sky; stepping into it
+// warps to the existing floating-island panorama (SCENES.island).
+// kind:'panorama' so the custom playableBounds + obstacles set in build()
+// survive buildScene's post-build reset (same path the island uses).
+SCENES.hollow = {
+  num: '10', kind: 'panorama',
+  title: '森の小屋の外', en: 'Outside the Forest Cabin',
+  concept: '人里離れた森の奥。丸太の小屋のそばで焚き火がはぜ、円い湖が空を映す。木立を抜けた先には、天まで伸びる一本の光の柱。近づいて足を踏み入れると、雲の上の浮遊島へと運ばれていく。',
+  sun: [28, 135], turbidity: 4, rayleigh: 2.2,
+  fogColor: '#bcd0c4', fogNear: 24, fogFar: 92, exposure: 1.0,
+  avatarStart: [2, 13.0],
+  preloadAssets: [],
+  build(root){
+    const BOUND = 24;
+
+    // --- Ground: large grassy forest clearing ----------------------
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(BOUND + 6, 64),
+      mat(0x4c6b3e, { roughness: 0.98 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    ground.userData.isGroundMesh = true;   // walkable surface for sampleHeight
+    root.add(ground);
+    // mottled understory patches for depth (decorative, still walkable)
+    for(let i = 0; i < 26; i++){
+      const ang = i * 2.39996;                       // golden-angle scatter
+      const rr  = 3 + (i / 26) * (BOUND + 2);
+      const patch = new THREE.Mesh(
+        new THREE.CircleGeometry(1.2 + (i % 4) * 0.5, 12),
+        mat(i % 2 ? 0x3c5a32 : 0x566b3a, { roughness: 1.0 })
+      );
+      patch.rotation.x = -Math.PI / 2;
+      patch.position.set(Math.cos(ang) * rr, 0.012, Math.sin(ang) * rr);
+      patch.userData.skipRaycast = true;
+      patch.userData.skipObstacle = true;
+      patch.userData.isGroundMesh = true;
+      root.add(patch);
+    }
+
+    function placeTree(kind, x, z, scale){
+      const tr = (typeof makeTree === 'function') && makeTree(kind);
+      if(!tr) return;
+      tr.position.set(x, 0, z);
+      tr.scale.setScalar(scale);
+      tr.rotation.y = (x * 13.1 + z * 7.7) % (Math.PI * 2);
+      tr.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(tr);
+      ENTITIES.obstacles.push({ x, z, r: 0.55 * scale });   // trunk collider
+    }
+
+    // --- Deep forest: dense outer wall + inner scatter -------------
+    const kinds = ['pine', 'pine', 'broad', 'momiji', 'pine', 'sakura'];
+    let k = 0;
+    for(let i = 0; i < 60; i++){
+      const ang = (i / 60) * Math.PI * 2 + (i % 3) * 0.12;
+      const rr  = BOUND - 1 + ((i * 37) % 7);          // ring just inside/at edge
+      placeTree(kinds[k++ % kinds.length],
+                Math.cos(ang) * rr, Math.sin(ang) * rr,
+                2.2 + ((i * 17) % 10) / 10);
+    }
+    // mid scatter — keeps a clear centre + a corridor toward the pillar/cabin
+    const scatter = [
+      [-13, -6], [-15, 4], [-10, 11], [-6, 15], [4, 16], [11, 12], [15, 5],
+      [14, -7], [9, -13], [-4, -15], [-12, -12], [-17, -2], [12, -14], [-9, 8],
+    ];
+    for(const [x, z] of scatter){
+      placeTree(kinds[k++ % kinds.length], x, z,
+                1.8 + ((Math.abs(x) + Math.abs(z)) % 9) / 10);
+    }
+
+    // --- The log cabin (丸太小屋) ----------------------------------
+    if(typeof makeMedievalHouse === 'function'){
+      const cabin = makeMedievalHouse({
+        w: 2.6, d: 2.2, stories: 1,
+        wallColor: 0x8a6a44, beamColor: 0x4a3221, roofColor: 0x5a3826,
+        hasChimney: true,
+      });
+      cabin.scale.setScalar(1.9);
+      cabin.position.set(-8.5, 0, -9);
+      cabin.rotation.y = Math.PI * 0.18;        // turn to face the clearing
+      cabin.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      root.add(cabin);
+      ENTITIES.boxObstacles.push({ minX: -11.5, maxX: -5.5, minZ: -12, maxZ: -6 });
+    }
+    if(typeof makeCampfire === 'function'){
+      root.add(makeCampfire(-4.5, -5.5, 1.3));   // warmth by the cabin door
+    }
+
+    // --- Circular lakeside lake ------------------------------------
+    if(typeof makeWaterPlane === 'function'){
+      root.add(makeWaterPlane(13, 9, 15, 13, -0.04, 0x8fc6d6, 0x2a5070));
+    }
+    if(typeof makeRockCluster === 'function'){
+      root.add(makeRockCluster(8, 6));
+      root.add(makeRockCluster(17, 14));
+    }
+    ENTITIES.obstacles.push({ x: 13, z: 9, r: 6.5 });   // keep avatar out of the water
+
+    // --- 天へ伸びる光の柱 — warp gate to the floating island -------
+    const PILLAR = { x: 7, z: -2 };
+    const pillar = new THREE.Group();
+    pillar.position.set(PILLAR.x, 0, PILLAR.z);
+    pillar.userData.skipObstacle = true;
+    pillar.userData.skipRaycast  = true;
+    const H = 70;
+    const addBeam = (rt, rb, op, col) => {
+      const m = new THREE.Mesh(
+        new THREE.CylinderGeometry(rt, rb, H, 24, 1, true),
+        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+          side: THREE.DoubleSide, fog: false })
+      );
+      m.position.y = H / 2;
+      m.userData.skipRaycast = true; m.userData.skipObstacle = true;
+      return m;
+    };
+    pillar.add(addBeam(0.85, 1.25, 0.16, 0x8fd0ff));  // soft outer beam (slim, blue)
+    pillar.add(addBeam(0.30, 0.48, 0.42, 0xcfeeff));  // gentle core
+    for(let s = 0; s < 2; s++){                        // rotating helix shells
+      const helix = addBeam(0.55 + s * 0.35, 0.85 + s * 0.35, 0.11, s ? 0x6fb8ff : 0xbfe6ff);
+      pillar.add(helix);
+      ENTITIES.spins.push(helix);                      // .rotation.y spun in render loop
+    }
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(1.0, 2.0, 40),
+      new THREE.MeshBasicMaterial({ color: 0x8fd0ff, transparent: true, opacity: 0.38,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+        side: THREE.DoubleSide, fog: false })
+    );
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03;
+    ring.userData.skipRaycast = true; ring.userData.skipObstacle = true;
+    pillar.add(ring);
+    const pl = new THREE.PointLight(0x9ad8ff, 1.1, 20);
+    pl.position.set(0, 4, 0);
+    pillar.add(pl);
+    root.add(pillar);
+    // rising motes inside the column
+    if(typeof makeFallingParticles === 'function'){
+      const motes = makeFallingParticles('snow', 70,
+        { range: 3.4, yMax: 18, yMin: 0, fallSpeed: -0.7, swayAmp: 0.2, swayFreq: 0.8 });
+      motes.position.set(PILLAR.x, 0, PILLAR.z);
+      motes.userData.skipRaycast = true; motes.userData.skipObstacle = true;
+      root.add(motes);
+      ENTITIES.particles.push({ obj: motes, type: 'rise' });
+    }
+    // interactable — step in to warp to the existing floating island
+    ENTITIES.interactables.push({
+      x: PILLAR.x, z: PILLAR.z, r: 2.6,
+      label: 'E: 光の柱に入る — 浮遊島へ',
+      onActivate: () => {
+        if(window._hollowWarping) return;
+        window._hollowWarping = true;
+        // White flash, then load the island front-door (?scene=island).
+        // A real navigation — the same pattern cabin.html's portal uses —
+        // so the island's own splash + 9-prefab streaming run cleanly.
+        const flash = document.createElement('div');
+        flash.style.cssText = 'position:fixed;inset:0;opacity:0;pointer-events:none;z-index:9999;'
+          + 'transition:opacity .55s ease;background:radial-gradient(ellipse at center,'
+          + 'rgba(220,244,255,0.95),rgba(170,224,255,0.7) 55%,rgba(120,180,230,0.92))';
+        document.body.appendChild(flash);
+        requestAnimationFrame(() => { flash.style.opacity = '1'; });
+        setTimeout(() => { window.location.href = 'niwa.html?scene=island'; }, 600);
+      },
+    });
+
+    // --- drifting dust / pollen in the clearing --------------------
+    if(typeof makeFallingParticles === 'function'){
+      const dust = makeFallingParticles('snow', 80,
+        { range: BOUND, yMax: 6, yMin: 0.3, fallSpeed: 0.05, swayAmp: 0.7, swayFreq: 0.5 });
+      root.add(dust);
+      ENTITIES.particles.push({ obj: dust, type: 'fall' });
+    }
+
+    // --- misty forest daylight -------------------------------------
+    root.add(new THREE.HemisphereLight(0xbcd0c4, 0x32402c, 0.75));
+    const sun = new THREE.DirectionalLight(0xfff0d8, 0.85);
+    sun.position.set(-14, 22, 10);
+    sun.castShadow = true;
+    root.add(sun);
+
+    // --- override the ±8.5 fallback so 森の奥 is reachable ----------
+    if(currentScene){
+      currentScene.playableBounds = { minX: -BOUND, maxX: BOUND, minZ: -BOUND, maxZ: BOUND };
+    }
+  }
+};
+
 SCENES.island = {
   num: '∞', kind: 'panorama',
   title: '浮遊島 — 全景', en: 'Floating Island Panorama',
