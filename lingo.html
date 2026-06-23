@@ -361,6 +361,17 @@
       text-align: center;
     }
     .intro b { color: var(--fg); font-weight: 600; }
+    #helper-hint, #helper-ok {
+      width: 100%; max-width: 960px; margin: -6px 0 14px;
+      font-size: 13px; line-height: 1.6; text-align: center;
+      padding: 9px 12px; border-radius: 8px;
+    }
+    #helper-hint { background: rgba(110,168,255,0.10); border: 1px solid #2a3a5a; color: var(--dim); }
+    #helper-ok { background: rgba(110,168,255,0.10); border: 1px solid #34507e; color: var(--accent); }
+    #helper-hint.hidden, #helper-ok.hidden { display: none; }
+    #helper-hint a { color: var(--accent); font-weight: 600; }
+    #helper-hint .dim { color: var(--dim); font-size: 12px; }
+    #helper-hint .dim a { color: var(--dim); text-decoration: underline; font-weight: 400; }
     .about {
       width: 100%;
       max-width: 960px;
@@ -435,6 +446,12 @@
     YouTube動画の<b>英語字幕</b>と<b>日本語訳</b>を同時に表示するリスニング学習ツールです。<br>
     読み終わった単語・行は自動で消えるので、今聞いている部分だけに集中できます。
   </p>
+  <div id="helper-hint" class="hidden">
+    💡 一部の動画で字幕が出ないときは、<b>字幕ヘルパー（無料）</b>を入れると全動画で出せます →
+    <a href="_userscript/lingo-helper.user.js" id="helper-link">字幕ヘルパーを導入</a>
+    <span class="dim">（先に <a href="https://violentmonkey.github.io/" target="_blank" rel="noopener">Violentmonkey</a> / Tampermonkey が必要）</span>
+  </div>
+  <div id="helper-ok" class="hidden">✅ 字幕ヘルパー有効 — 全動画で字幕取得できます</div>
   <div class="input-row">
     <input id="url-input" type="text" placeholder="YouTube URL or 検索キーワード" autocomplete="off" />
     <select id="sort-select" title="検索ソート (URLのときは無視)">
@@ -628,7 +645,135 @@
   </script>
   <script>
     const WORKER_URL = 'https://lingo-transcript.yuichi916.workers.dev';
+    // Google Apps Script caption proxy (Google IP). Zero-install fallback — works
+    // for some (popular) videos. The userscript helper covers everything.
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbyeueY3xTw7CkiZ2SP-zJdDWzloDI4gYcunlLZenyF6IV8aPKjHpMrZ5oHPUuyKHCmj/exec';
     const { extractVideoId, findActiveCue, findActiveCues, computeDisplayEnds } = window.__lingo;
+
+    // ---- Captions via Google Apps Script + browser-side timedtext ----
+    // The Worker's Cloudflare IP is permanently blocked by YouTube for the caption
+    // endpoint. So: GAS returns the caption track list (signed baseUrls) from
+    // Google's IP, then the browser fetches the caption text directly from
+    // timedtext (CORS-enabled, the user's own un-blocked IP).
+    function jsonp(url, timeoutMs) {
+      return new Promise((resolve, reject) => {
+        const cb = '__lingo_cb_' + Math.random().toString(36).slice(2);
+        const s = document.createElement('script');
+        let done = false;
+        const cleanup = () => { try { delete window[cb]; } catch (e) { window[cb] = undefined; } s.remove(); };
+        window[cb] = (data) => { done = true; cleanup(); resolve(data); };
+        s.onerror = () => { if (!done) { cleanup(); reject(new Error('jsonp error')); } };
+        s.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + cb;
+        document.head.appendChild(s);
+        setTimeout(() => { if (!done) { cleanup(); reject(new Error('jsonp timeout')); } }, timeoutMs || 15000);
+      });
+    }
+    function pickCaptionTrack(tracks) {
+      const enManual = tracks.find((t) => /^en/i.test(t.lang) && t.kind !== 'asr');
+      if (enManual) return { track: enManual, srcLang: 'en' };
+      const enAsr = tracks.find((t) => /^en/i.test(t.lang) && t.kind === 'asr');
+      if (enAsr) return { track: enAsr, srcLang: 'en' };
+      const jaT = tracks.find((t) => /^ja/i.test(t.lang));
+      if (jaT) return { track: jaT, srcLang: 'ja' };
+      const any = tracks.find((t) => t.kind !== 'asr') || tracks[0];
+      return any ? { track: any, srcLang: (any.lang || 'en').split('-')[0].replace(/^a\./, '') } : null;
+    }
+    function decodeEntities(s) {
+      return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n));
+    }
+    function parseTimedTextXml(xml) {
+      const cues = [];
+      const pRe = /<p\s+t="(\d+)"\s+d="(\d+)"[^>]*>([\s\S]*?)<\/p>/g;
+      let m;
+      while ((m = pRe.exec(xml)) !== null) {
+        const start = +m[1] / 1000, dur = +m[2] / 1000;
+        let text = '';
+        const sRe = /<s[^>]*>([^<]*)<\/s>/g; let sm;
+        while ((sm = sRe.exec(m[3])) !== null) text += sm[1];
+        if (!text) text = m[3].replace(/<[^>]+>/g, '');
+        text = decodeEntities(text.replace(/\s+/g, ' ').trim());
+        if (text) cues.push({ start, end: start + dur, text });
+      }
+      if (cues.length) return cues;
+      const tRe = /<text\s+start="([^"]+)"\s+dur="([^"]+)"[^>]*>([\s\S]*?)<\/text>/g;
+      while ((m = tRe.exec(xml)) !== null) {
+        const start = parseFloat(m[1]), dur = parseFloat(m[2]);
+        const text = decodeEntities(m[3].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+        if (text) cues.push({ start, end: start + dur, text });
+      }
+      return cues;
+    }
+    // Given a caption track list ({lang,kind,baseUrl}), pick the best track, fetch
+    // the timedtext XML directly from the browser (CORS-enabled, residential IP),
+    // and build {cues, srcLang}. { error:'no_captions' } if none, null on failure.
+    async function buildCuesFromTracks(tracks) {
+      if (!Array.isArray(tracks)) return null;
+      if (!tracks.length) return { error: 'no_captions' };
+      const pick = pickCaptionTrack(tracks);
+      if (!pick || !pick.track.baseUrl) return { error: 'no_captions' };
+      let xml;
+      try {
+        const res = await fetch(pick.track.baseUrl);
+        if (!res.ok) return null;
+        xml = await res.text();
+      } catch (e) { return null; }
+      const raw = parseTimedTextXml(xml);
+      if (!raw.length) return null;
+      const isEn = pick.srcLang === 'en', isJa = pick.srcLang === 'ja';
+      const cues = raw.map((c) => ({
+        start: c.start, end: c.end,
+        en: isEn || (!isJa) ? c.text : '',   // non-en/ja source: use as the base line
+        ja: isJa ? c.text : '',
+      }));
+      return { cues, srcLang: pick.srcLang };
+    }
+
+    // Userscript helper (Tampermonkey/Violentmonkey) — fetches the caption track
+    // list from the user's OWN residential IP via GM_xmlhttpRequest (bypasses CORS
+    // and YouTube's datacenter-IP block). Best path: works for every video, free.
+    function helperPresent() {
+      return document.documentElement.getAttribute('data-lingo-helper') === '1';
+    }
+    function getTracksViaHelper(videoId, timeoutMs) {
+      return new Promise((resolve, reject) => {
+        const reqId = 'h' + Math.random().toString(36).slice(2);
+        const onMsg = (e) => {
+          const d = e.data;
+          if (!d || d.type !== 'lingo-helper-res' || d.reqId !== reqId) return;
+          window.removeEventListener('message', onMsg);
+          if (d.error) reject(new Error(d.error)); else resolve(d.tracks || []);
+        };
+        window.addEventListener('message', onMsg);
+        window.postMessage({ type: 'lingo-helper-req', reqId, videoId }, '*');
+        setTimeout(() => { window.removeEventListener('message', onMsg); reject(new Error('helper timeout')); }, timeoutMs || 22000);
+      });
+    }
+    async function fetchCuesViaHelper(videoId) {
+      if (!helperPresent()) return null;
+      let tracks;
+      try { tracks = await getTracksViaHelper(videoId); }
+      catch (e) { return null; }
+      return buildCuesFromTracks(tracks);
+    }
+
+    // GAS proxy (Google IP) — zero-install fallback; works for some (popular) videos.
+    async function fetchCuesViaGAS(videoId) {
+      if (!GAS_URL) return null;
+      let data;
+      try { data = await jsonp(`${GAS_URL}?v=${encodeURIComponent(videoId)}`); }
+      catch (e) { return null; }
+      if (!data || data.error || !Array.isArray(data.tracks)) return null;
+      return buildCuesFromTracks(data.tracks);
+    }
+
+    // Banner: helper installed → confirm; not installed → how to enable full coverage.
+    (function () {
+      const hint = document.getElementById('helper-hint');
+      const ok = document.getElementById('helper-ok');
+      if (helperPresent()) ok.classList.remove('hidden');
+      else if (hint) hint.classList.remove('hidden');
+    })();
 
     const urlInput = document.getElementById('url-input');
     const sortSelect = document.getElementById('sort-select');
@@ -1127,6 +1272,32 @@
       // starting another load just bumps loadSeq and supersedes this one.
       loadBtn.disabled = false;
       let srcLang = 'en';
+
+      // Caption sources, best first:
+      //  1. Userscript helper — user's residential IP, every video (free, install once)
+      //  2. GAS proxy — Google IP, popular videos (zero-install)
+      // Both end with the browser fetching timedtext directly. Neither uses the
+      // Worker's blocked Cloudflare IP.
+      const usingHelper = helperPresent();
+      if (usingHelper) setStatus('字幕を取得中…（あなたのIP経由）');
+      const viaCaptions = await fetchCuesViaHelper(videoId) || await fetchCuesViaGAS(videoId);
+      if (myLoad !== loadSeq) return;
+      if (viaCaptions && viaCaptions.cues && viaCaptions.cues.length) {
+        cues = viaCaptions.cues;
+        srcLang = viaCaptions.srcLang || 'en';
+        computeDisplayEnds(cues);
+        setStatus(`${cues.length} cues 読み込み済み`);
+        backfillMissingTranslations(cues, srcLang).catch(() => {});
+        return;
+      }
+      // A definite "no captions" only counts if the helper (residential, reliable)
+      // said so. GAS false-negatives fall through to the Worker instead.
+      if (usingHelper && viaCaptions && viaCaptions.error === 'no_captions') {
+        hideProgress();
+        setStatus('この動画には英字幕がありません', true);
+        return;
+      }
+      // Fallback: Worker transcript path (works for cached videos; may be rate-limited).
       try {
         const res = await fetchTranscriptWithRetry(videoId, myLoad);
         if (myLoad !== loadSeq) return; // superseded by a newer load
