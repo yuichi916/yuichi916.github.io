@@ -8582,7 +8582,7 @@ function _buildLogCabin(){
     tri.position.set(0, ridge + 0.35, gz); tri.rotation.y = Math.PI / 2; tri.scale.set(1, 1, 0.12);
     g.add(tri);
   }
-  const winMat = new THREE.MeshStandardMaterial({ color: 0xffc878, emissive: 0xff9030, emissiveIntensity: 1.6, roughness: 0.4 });
+  const winMat = new THREE.MeshStandardMaterial({ color: 0xffce86, emissive: 0xff9836, emissiveIntensity: 2.6, roughness: 0.4 });
   for(const wx of [-1.25, 1.25]){
     const win = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.0, 0.08), winMat);
     win.position.set(wx, 1.65, cd / 2 + 0.02); g.add(win);
@@ -8593,7 +8593,8 @@ function _buildLogCabin(){
   door.position.set(0, 1.02, cd / 2 + 0.03); g.add(door);
   const chim = new THREE.Mesh(new THREE.BoxGeometry(0.92, ch + 1.9, 0.92), stoneMat);
   chim.position.set(-cw / 2 - 0.35, (ch + 1.9) / 2, 0.2); g.add(chim);
-  const glow = new THREE.PointLight(0xff9a44, 1.5, 13); glow.position.set(0, 1.7, cd / 2 + 1.0); g.add(glow);
+  const glow = new THREE.PointLight(0xff9a44, 3.0, 17); glow.position.set(0, 1.7, cd / 2 + 1.2); g.add(glow);
+  const glowBack = new THREE.PointLight(0xff8a3a, 1.4, 12); glowBack.position.set(0, 1.6, -cd / 2 - 0.6); g.add(glowBack);
   g.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
   return g;
 }
@@ -8625,23 +8626,23 @@ async function _plantHollowForest(root, BOUND, keep){
   //    edge outward in every direction (decorative; the ±BOUND bound
   //    stops the avatar before it, so no collider needed).
   let g = 0, n = 0;
-  const wallWant = LITE ? 110 : 230;
-  while(n < wallWant && g++ < 6000){
+  const wallWant = LITE ? 150 : 300;
+  while(n < wallWant && g++ < 8000){
     const a = Math.random() * Math.PI * 2;
-    const r = BOUND - 10 + Math.pow(Math.random(), 0.55) * 22;   // edge → deep
+    const r = BOUND - 14 + Math.pow(Math.random(), 0.5) * 28;   // edge → far deep
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if(keep(x, z)) continue;
-    place(x, z, 1.5, 2.6, false); n++;
+    place(x, z, 1.7, 3.0, false); n++;     // tall, looming
   }
-  // 2) mid-ground trees that enclose the clearing (these DO collide)
+  // 2) mid-ground trees that crowd the clearing edge (these DO collide)
   let g2 = 0, n2 = 0;
-  const midWant = LITE ? 40 : 84;
-  while(n2 < midWant && g2++ < 4000){
+  const midWant = LITE ? 55 : 120;
+  while(n2 < midWant && g2++ < 5000){
     const a = Math.random() * Math.PI * 2;
-    const r = 9 + Math.random() * (BOUND - 11);
+    const r = 8 + Math.random() * (BOUND - 9);
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if(keep(x, z)) continue;
-    place(x, z, 1.0, 1.7, true); n2++;
+    place(x, z, 1.0, 1.9, true); n2++;
   }
   // 3) a few big framing trunks leaning over the clearing corners
   for(const [fx, fz] of [[-22, -16], [20, -18], [24, 10], [-24, 14]]){
@@ -8695,11 +8696,11 @@ async function _plantHollowForest(root, BOUND, keep){
 SCENES.hollow = {
   num: '10', kind: 'panorama',
   title: '森の小屋の外', en: 'Outside the Forest Cabin',
-  concept: '人里離れた森の奥。丸太の小屋のそばで焚き火がはぜ、澄んだ湖が夕空を映す。深い木立がぐるりと囲み、その切れ間に天まで伸びる一本の光の柱。足を踏み入れると、雲の上の浮遊島へ運ばれていく。',
-  // warm late-afternoon sun + light, airy forest haze — matches the DAY
-  // bake in cabin_outside_360.py (low golden sun, rotation 125°).
-  sun: [22, 125], turbidity: 3, rayleigh: 1.8,
-  fogColor: '#d4ddc6', fogNear: 36, fogFar: 200, exposure: 1.1,
+  concept: '人里離れた森の奥、凍えるような夜。丸太の小屋の窓があたたかく灯り、岸では焚き火がはぜる。月をうつす暗い湖、見上げれば降るような星。深い木立が四方を黒く囲み、その切れ間に天へ伸びる一本の光の柱。足を踏み入れると、雲の上の浮遊島へ運ばれていく。',
+  // deep moonlit night — matches the NIGHT bake in cabin_outside_360.py
+  // (sun below the horizon, cool moonlight, dark mirror lake, stars).
+  sun: [-10, 125], turbidity: 10, rayleigh: 3.0,
+  fogColor: '#0b1422', fogNear: 12, fogFar: 64, exposure: 0.62,
   avatarStart: [0, -3.0],
   preloadAssets: [],
   build(root){
@@ -8714,10 +8715,15 @@ SCENES.hollow = {
     const PILLARP = { x: 13, z: -11 };
     const SPAWN = { x: 0, z: -3 };
 
-    // --- forest-floor ground (mossy, leaf-flecked) -----------------
+    // Deep-night mist closes the forest in (outdoor scenes carry no global
+    // fog, so we set it here; buildScene resets it on the next scene swap).
+    scene.fog = new THREE.Fog(0x09111e, 9, 60);
+    scene.background = new THREE.Color(0x070d18);
+
+    // --- forest-floor ground (mossy, leaf-flecked; dark at night) --
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(BOUND + 12, 80),
-      new THREE.MeshStandardMaterial({ map: T.ground, roughness: 1.0 })
+      new THREE.MeshStandardMaterial({ map: T.ground, color: 0x3a4234, roughness: 1.0 })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -8750,24 +8756,24 @@ SCENES.hollow = {
     // --- the clear forest lake (湖畔 / negative space) -------------
     const shore = new THREE.Mesh(
       new THREE.CircleGeometry(LAKE.r + 1.4, 56),
-      new THREE.MeshStandardMaterial({ map: T.ground, color: 0x8a8460, roughness: 1.0 })
+      new THREE.MeshStandardMaterial({ map: T.ground, color: 0x4a4838, roughness: 1.0 })
     );
     shore.rotation.x = -Math.PI / 2; shore.position.set(LAKE.x, 0.01, LAKE.z);
     shore.userData.isGroundMesh = true; shore.userData.skipObstacle = true;
     root.add(shore);
     const bed = new THREE.Mesh(
       new THREE.CircleGeometry(LAKE.r, 56),
-      new THREE.MeshStandardMaterial({ color: 0x0e1c24, roughness: 0.9 })
+      new THREE.MeshStandardMaterial({ color: 0x060d14, roughness: 0.9 })
     );
     bed.rotation.x = -Math.PI / 2; bed.position.set(LAKE.x, -0.45, LAKE.z);
     bed.userData.skipRaycast = true; bed.userData.skipObstacle = true;
     root.add(bed);
-    // a dark blue-teal forest lake — a clear mirror reflecting the treeline,
-    // exactly like the DAY water in cabin_outside_360.py.
+    // a dark mirror that catches the moon + treeline — the NIGHT water in
+    // cabin_outside_360.py (base ~0.013,0.026,0.042, near-mirror).
     if(typeof WATER_VS === 'string' && typeof WATER_FS === 'string'){
       const wgeo = new THREE.CircleGeometry(LAKE.r, 72); wgeo.rotateX(-Math.PI / 2);
       const wmat = new THREE.ShaderMaterial({
-        uniforms: { uTime: { value: 0 }, uShallow: { value: new THREE.Color(0x356670) }, uDeep: { value: new THREE.Color(0x102530) } },
+        uniforms: { uTime: { value: 0 }, uShallow: { value: new THREE.Color(0x16323e) }, uDeep: { value: new THREE.Color(0x05101a) } },
         vertexShader: WATER_VS, fragmentShader: WATER_FS, transparent: true,
       });
       const water = new THREE.Mesh(wgeo, wmat);
@@ -8775,8 +8781,17 @@ SCENES.hollow = {
       water.userData.skipRaycast = true; water.userData.skipObstacle = true;
       root.add(water);
       if(ENTITIES._anim) ENTITIES._anim.waterMats.push(wmat);
+      // a soft moon glint reflected on the water
+      const glint = new THREE.Mesh(
+        new THREE.CircleGeometry(2.0, 24),
+        new THREE.MeshBasicMaterial({ color: 0xcfe0ff, transparent: true, opacity: 0.35,
+          blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
+      );
+      glint.rotation.x = -Math.PI / 2; glint.position.set(LAKE.x, -0.02, LAKE.z + LAKE.r * 0.45);
+      glint.scale.set(0.5, 1, 2.2); glint.userData.skipRaycast = true; glint.userData.skipObstacle = true;
+      root.add(glint);
     } else if(typeof makeWaterPlane === 'function'){
-      root.add(makeWaterPlane(LAKE.x, LAKE.z, LAKE.r * 1.8, LAKE.r * 1.8, -0.04, 0x356670, 0x102530));
+      root.add(makeWaterPlane(LAKE.x, LAKE.z, LAKE.r * 1.8, LAKE.r * 1.8, -0.04, 0x16323e, 0x05101a));
     }
     if(typeof makeRockCluster === 'function'){
       root.add(makeRockCluster(LAKE.x - LAKE.r + 1, LAKE.z - LAKE.r + 3));
@@ -8795,16 +8810,42 @@ SCENES.hollow = {
     }
     ENTITIES.obstacles.push({ x: LAKE.x, z: LAKE.z, r: LAKE.r + 0.6 });   // out of the water
 
-    // --- god-ray shafts through the canopy (木漏れ日) --------------
-    const shaftMat = new THREE.MeshBasicMaterial({
-      color: 0xfff0cc, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending,
+    // --- the moon over the lake + its halo ------------------------
+    const moonG = new THREE.Group();
+    const moonBall = new THREE.Mesh(
+      new THREE.SphereGeometry(4.0, 28, 20),
+      new THREE.MeshBasicMaterial({ color: 0xeef2ff, fog: false })
+    );
+    moonG.add(moonBall);
+    for(const [rr, op] of [[6.0, 0.22], [9.0, 0.12], [14, 0.06]]){
+      const halo = new THREE.Mesh(
+        new THREE.SphereGeometry(rr, 20, 14),
+        new THREE.MeshBasicMaterial({ color: 0xcfe0ff, transparent: true, opacity: op, depthWrite: false, fog: false })
+      );
+      moonG.add(halo);
+    }
+    moonG.position.set(LAKE.x + 6, 34, LAKE.z + 46);   // high, far across the lake
+    moonG.userData.skipRaycast = true; moonG.userData.skipObstacle = true;
+    root.add(moonG);
+
+    // --- a sky full of stars --------------------------------------
+    if(typeof makeFallingParticles === 'function'){
+      const stars = makeFallingParticles('star', 320, { range: 320, yMax: 130, yMin: 38, fallSpeed: 0, swayAmp: 0, swayFreq: 0 });
+      if(stars.material){ stars.material.color = new THREE.Color(0xdce6ff); stars.material.size = 0.9; }
+      stars.userData.skipRaycast = true; stars.userData.skipObstacle = true;
+      root.add(stars); ENTITIES.particles.push({ obj: stars, type: 'static' });
+    }
+
+    // --- faint cool moonbeams slanting through the canopy ---------
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xaecbff, transparent: true, opacity: 0.04, blending: THREE.AdditiveBlending,
       depthWrite: false, side: THREE.DoubleSide, fog: false,
     });
-    for(const [sx, sz] of [[-6, 5], [9, -7], [-2, -11], [12, 14]]){
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 3.4, 17, 14, 1, true), shaftMat);
-      shaft.position.set(sx, 8.5, sz); shaft.rotation.z = 0.2; shaft.rotation.x = 0.08;
-      shaft.userData.skipRaycast = true; shaft.userData.skipObstacle = true;
-      root.add(shaft);
+    for(const [sx, sz] of [[-5, 6], [8, -6], [3, 12]]){
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 3.0, 18, 12, 1, true), beamMat);
+      beam.position.set(sx, 9, sz); beam.rotation.z = -0.28; beam.rotation.x = 0.1;
+      beam.userData.skipRaycast = true; beam.userData.skipObstacle = true;
+      root.add(beam);
     }
 
     // --- keep-clear test shared with the async forest planter ------
@@ -8894,24 +8935,27 @@ SCENES.hollow = {
       },
     });
 
-    // --- drifting dust / pollen in the clearing --------------------
+    // --- fireflies drifting low through the clearing ---------------
     if(typeof makeFallingParticles === 'function'){
-      const dust = makeFallingParticles('snow', 80,
-        { range: BOUND, yMax: 6, yMin: 0.3, fallSpeed: 0.05, swayAmp: 0.7, swayFreq: 0.5 });
-      root.add(dust);
-      ENTITIES.particles.push({ obj: dust, type: 'fall' });
+      const flies = makeFallingParticles('snow', 70,
+        { range: BOUND - 4, yMax: 3.2, yMin: 0.4, fallSpeed: -0.04, swayAmp: 1.1, swayFreq: 0.4 });
+      if(flies.material){ flies.material.color = new THREE.Color(0xffd982); flies.material.size = 0.5;
+        flies.material.opacity = 0.9; flies.material.blending = THREE.AdditiveBlending; }
+      flies.userData.skipRaycast = true; flies.userData.skipObstacle = true;
+      root.add(flies); ENTITIES.particles.push({ obj: flies, type: 'rise' });
     }
 
-    // --- warm late-afternoon light (matches cabin DAY bake) --------
-    root.add(new THREE.HemisphereLight(0xdfe6c4, 0x33402a, 0.95));
-    const sun = new THREE.DirectionalLight(0xffdc9a, 1.75);
-    sun.position.set(-32, 19, -24);     // low, warm, behind-left (azim ~125°)
-    sun.castShadow = true;
-    if(sun.shadow){ sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.far = 90;
-      sun.shadow.camera.left = -40; sun.shadow.camera.right = 40;
-      sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40; }
-    root.add(sun);
-    const fill = new THREE.DirectionalLight(0x9ab0c0, 0.25);   // cool sky fill
+    // --- deep moonlit night (matches cabin NIGHT bake) -------------
+    root.add(new THREE.HemisphereLight(0x2a3a58, 0x05080f, 0.4));   // faint cool sky
+    root.add(new THREE.AmbientLight(0x0c1424, 0.55));
+    const moonLight = new THREE.DirectionalLight(0x9fb6e8, 0.7);    // cool moonlight
+    moonLight.position.set(LAKE.x + 6, 30, LAKE.z + 40);            // from the moon
+    moonLight.castShadow = true;
+    if(moonLight.shadow){ moonLight.shadow.mapSize.set(1024, 1024); moonLight.shadow.camera.far = 110;
+      moonLight.shadow.camera.left = -42; moonLight.shadow.camera.right = 42;
+      moonLight.shadow.camera.top = 42; moonLight.shadow.camera.bottom = -42; }
+    root.add(moonLight);
+    const fill = new THREE.DirectionalLight(0x24406a, 0.18);   // dim cool back-fill
     fill.position.set(20, 18, 24);
     root.add(fill);
 
