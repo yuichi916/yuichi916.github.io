@@ -8505,7 +8505,28 @@ function _hollowFireTextures(){
     for(let i = 0; i < 140; i++){ const px = Math.random() * 64, py = Math.random() * 64, r = Math.random() * 6 + 1, v = 70 + (Math.random() * 70 | 0); x.fillStyle = 'rgba(' + v + ',' + ((v * 0.86) | 0) + ',' + ((v * 0.7) | 0) + ',' + (0.3 + Math.random() * 0.45) + ')'; x.beginPath(); x.arc(px, py, r, 0, 6.28); x.fill(); }
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
   };
-  return (_hollowFireTex = { glow, charLog: charLog(), stone: stone(), warmGlow: glow(255, 140, 54), ember: glow(255, 172, 82) });
+  // dark forest floor — soil base + dead leaves + moss + twigs (tiled)
+  const floor = () => {
+    const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
+    x.fillStyle = '#1a1610'; x.fillRect(0, 0, 256, 256);
+    for(let i = 0; i < 1400; i++){          // soil grain
+      const v = 0.1 + Math.random() * 0.5;
+      x.fillStyle = `rgba(${30 + Math.random() * 26 | 0},${24 + Math.random() * 22 | 0},${14 + Math.random() * 14 | 0},${v})`;
+      x.fillRect(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 4, 2 + Math.random() * 4);
+    }
+    for(let i = 0; i < 220; i++){           // dead leaves
+      x.save(); x.translate(Math.random() * 256, Math.random() * 256); x.rotate(Math.random() * 6.28);
+      x.fillStyle = `rgba(${70 + Math.random() * 50 | 0},${48 + Math.random() * 34 | 0},${20 + Math.random() * 16 | 0},0.5)`;
+      x.beginPath(); x.ellipse(0, 0, 4 + Math.random() * 5, 2 + Math.random() * 2, 0, 0, 6.28); x.fill(); x.restore();
+    }
+    for(let i = 0; i < 300; i++){           // moss flecks
+      x.fillStyle = `rgba(${30 + Math.random() * 30 | 0},${50 + Math.random() * 36 | 0},${24 + Math.random() * 16 | 0},0.4)`;
+      x.beginPath(); x.arc(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 3, 0, 6.28); x.fill();
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(12, 12); return t;
+  };
+  return (_hollowFireTex = { glow, charLog: charLog(), stone: stone(), warmGlow: glow(255, 140, 54), ember: glow(255, 172, 82), floor: floor() });
 }
 function _makeCabinCampfire(x, z){
   const T = _hollowFireTextures();
@@ -8601,17 +8622,17 @@ function _plantHollowForest(root, keep, BOUND){
   const LITE = IS_LITE;
   let n = 0, guard = 0;
   // 1) tall trunk layer — crowds right up to the campfire ring
-  const want = LITE ? 180 : 320;
+  const want = LITE ? 130 : 210;
   while(n < want && guard++ < 26000){
     const a = Math.random() * Math.PI * 2;
-    const r = 3.2 + Math.pow(Math.random(), 1.8) * (BOUND + 8 - 3.2);   // packed near the fire
+    const r = 3.2 + Math.pow(Math.random(), 2.2) * (BOUND + 6 - 3.2);   // packed tight around the fire
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if(keep(x, z)) continue;
     plant(x, z, 1.4, 3.2, true);
     n++;
   }
   // 2) canopy giants — roof the sky directly over the clearing edge
-  let cn = 0, cg = 0; const cwant = LITE ? 12 : 20;
+  let cn = 0, cg = 0; const cwant = LITE ? 10 : 14;
   while(cn < cwant && cg++ < 900){
     const a = Math.random() * Math.PI * 2;
     const r = 4.5 + Math.random() * 7.5;
@@ -8620,18 +8641,46 @@ function _plantHollowForest(root, keep, BOUND){
     plant(x, z, 3.6, 5.4, true);
     cn++;
   }
-  // 3) low undergrowth — a thick carpet of saplings filling every gap
-  //    (no collider; you brush straight through the 草木)
-  let un = 0, ug = 0; const uwant = LITE ? 160 : 260;
-  while(un < uwant && ug++ < 16000){
-    const a = Math.random() * Math.PI * 2;
-    const r = 2.6 + Math.pow(Math.random(), 1.6) * (BOUND + 4 - 2.6);   // carpet near the fire
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if(Math.hypot(x, z) < 2.4) continue;        // keep the fire itself clear
-    plant(x, z, 0.45, 1.25, false);
-    un++;
+  // 3) low undergrowth — ONE InstancedMesh built from a KB3D tree's own
+  //    foliage mesh, so a few hundred leafy clumps cost a SINGLE draw
+  //    call (the old 260 multi-mesh sapling clones were the heaviest,
+  //    most wasteful part of the scene — ~600 draw calls gone).
+  let un = 0;
+  const fsrc = BLENDER_CACHE['enc_tree_green_md'] || BLENDER_CACHE[have[0]];
+  let foliage = null;
+  if(fsrc){
+    fsrc.traverse(o => {
+      if(!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
+      if(!foliage || o.geometry.attributes.position.count > foliage.geometry.attributes.position.count) foliage = o;
+    });
   }
-  console.log(`niwa[hollow]: planted ${n} trees + ${cn} giants + ${un} undergrowth`);
+  if(foliage){
+    const geo = foliage.geometry.clone();
+    geo.computeBoundingBox();
+    geo.translate(0, -geo.boundingBox.min.y, 0);   // seat the clump's base at the ground
+    const fmat = Array.isArray(foliage.material) ? foliage.material[0] : foliage.material;
+    const COUNT = LITE ? 220 : 380;
+    const inst = new THREE.InstancedMesh(geo, fmat, COUNT);
+    inst.castShadow = false; inst.receiveShadow = false; inst.frustumCulled = false;
+    inst.userData.skipRaycast = true; inst.userData.skipObstacle = true;
+    const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _e = new THREE.Euler();
+    let placed = 0, g3 = 0;
+    while(placed < COUNT && g3++ < 24000){
+      const a = Math.random() * Math.PI * 2;
+      const r = 2.8 + Math.pow(Math.random(), 1.5) * (BOUND + 2 - 2.8);
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if(Math.hypot(x, z) < 2.4) continue;     // keep the fire clear
+      const sc = 0.10 + Math.random() * 0.16;  // small leafy clumps of 草木
+      _e.set((Math.random() - 0.5) * 0.3, Math.random() * 6.28, (Math.random() - 0.5) * 0.3);
+      _q.setFromEuler(_e);
+      _s.set(sc * (1 + Math.random() * 0.4), sc * (0.7 + Math.random() * 0.5), sc * (1 + Math.random() * 0.4));
+      _p.set(x, gy(x, z), z);
+      _m.compose(_p, _q, _s); inst.setMatrixAt(placed++, _m);
+    }
+    inst.count = placed; inst.instanceMatrix.needsUpdate = true;
+    root.add(inst); un = placed;
+  }
+  console.log(`niwa[hollow]: planted ${n} trees + ${cn} giants + ${un} instanced undergrowth (1 draw call)`);
   return n + cn + un;
 }
 
@@ -8643,7 +8692,7 @@ SCENES.hollow = {
   // dense trees are clearly lit so you SEE the woods crowding in.
   sun: [-12, 125], turbidity: 8, rayleigh: 3.0,
   fogColor: '#0a1018', fogNear: 34, fogFar: 150, exposure: 1.32,
-  avatarStart: [0, 4.5],
+  avatarStart: [0, 2.4],   // start right beside the campfire (inside the clear ring)
   preloadAssets: ['enc_tree_green_lg', 'enc_tree_green_md', 'enc_tree_fruit', 'enc_tree_autumn'],
   build(root){
     const BOUND = 26;
@@ -8652,10 +8701,10 @@ SCENES.hollow = {
     scene.fog = new THREE.Fog(0x0a1018, 32, 145);   // fades to dark night, not milky mist
     scene.background = new THREE.Color(0x162338);
 
-    // --- dark forest floor (carpeted over by the undergrowth) ------
+    // --- textured dark forest floor (soil + leaves + moss) --------
     const floor = new THREE.Mesh(
       new THREE.CircleGeometry(BOUND + 18, 64),
-      new THREE.MeshStandardMaterial({ color: 0x0d120a, roughness: 1.0 })
+      new THREE.MeshStandardMaterial({ map: _hollowFireTextures().floor, color: 0x8a8270, roughness: 1.0 })
     );
     floor.rotation.x = -Math.PI / 2; floor.position.y = -0.02;
     floor.userData.isGroundMesh = true; floor.receiveShadow = true; floor.renderOrder = -1;
@@ -8664,10 +8713,8 @@ SCENES.hollow = {
     // --- the campfire — cabin.html's own fire (logs + GLSL flame +
     //     glow + embers), the heart and main light of the scene -----
     root.add(_makeCabinCampfire(0, 0));
-    const fire = new THREE.PointLight(0xff8636, 3.6, 20, 2);
+    const fire = new THREE.PointLight(0xff8636, 4.0, 22, 2);   // single firelight (was 2 — lighter)
     fire.position.set(0, 1.4, 0); root.add(fire);
-    const fire2 = new THREE.PointLight(0xff6a24, 1.7, 10, 2);
-    fire2.position.set(0, 0.5, 0); root.add(fire2);
 
     // --- warp: a will-o'-the-wisp glow deep in the trees ----------
     const WISP = { x: 0, z: 11 };
