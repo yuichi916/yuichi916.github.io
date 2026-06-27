@@ -8474,6 +8474,108 @@ function _placeDistantMountains(root){
 // kind:'panorama' so the playableBounds + obstacles set in build()
 // survive buildScene's post-build reset (same path the island uses).
 // =================================================================
+// cabin.html's own campfire, ported verbatim: a charred criss-cross
+// log pile in a ring of fire-pit stones, a procedural fbm GLSL flame,
+// a warm halo and rising embers.  Two crossed flame planes so it reads
+// from every angle in the walkable scene; the flame uTime is animated
+// by reusing the engine's waterMats uTime loop.
+let _hollowFireTex = null;
+function _hollowFireTextures(){
+  if(_hollowFireTex) return _hollowFireTex;
+  const glow = (r, g, b) => {
+    const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+    const gr = x.createRadialGradient(32, 32, 1, 32, 32, 32);
+    gr.addColorStop(0, `rgba(${r},${g},${b},1)`); gr.addColorStop(0.5, `rgba(${r},${g},${b},0.5)`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  };
+  const charLog = () => {
+    const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 0, 128); g.addColorStop(0, '#3a2616'); g.addColorStop(.5, '#241509'); g.addColorStop(1, '#160d06');
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    x.strokeStyle = 'rgba(8,5,3,.6)'; x.lineWidth = 1;
+    for(let i = 0; i < 11; i++){ const y = i * 12 + Math.sin(i * 1.7) * 3; x.beginPath(); x.moveTo(0, y); x.bezierCurveTo(40, y + 3, 90, y - 3, 128, y + 2); x.stroke(); }
+    for(let i = 0; i < 70; i++){ const px = Math.random() * 128, py = Math.random() * 128, r = Math.random() * 9 + 2; x.fillStyle = 'rgba(6,5,5,' + (0.15 + Math.random() * 0.45) + ')'; x.beginPath(); x.arc(px, py, r, 0, 6.28); x.fill(); }
+    for(let i = 0; i < 8; i++){ const px = Math.random() * 128, py = 72 + Math.random() * 48; x.fillStyle = 'rgba(255,' + (90 + (Math.random() * 60 | 0)) + ',30,' + (0.25 + Math.random() * 0.35) + ')'; x.fillRect(px, py, Math.random() * 7 + 2, 2); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+  };
+  const stone = () => {
+    const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+    x.fillStyle = '#42392f'; x.fillRect(0, 0, 64, 64);
+    for(let i = 0; i < 140; i++){ const px = Math.random() * 64, py = Math.random() * 64, r = Math.random() * 6 + 1, v = 70 + (Math.random() * 70 | 0); x.fillStyle = 'rgba(' + v + ',' + ((v * 0.86) | 0) + ',' + ((v * 0.7) | 0) + ',' + (0.3 + Math.random() * 0.45) + ')'; x.beginPath(); x.arc(px, py, r, 0, 6.28); x.fill(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  };
+  return (_hollowFireTex = { glow, charLog: charLog(), stone: stone(), warmGlow: glow(255, 140, 54), ember: glow(255, 172, 82) });
+}
+function _makeCabinCampfire(x, z){
+  const T = _hollowFireTextures();
+  const grp = new THREE.Group(); grp.position.set(x, 0, z); grp.scale.setScalar(1.25);
+  // scorched earth
+  const scorch = new THREE.Mesh(new THREE.CircleGeometry(0.95, 28), new THREE.MeshBasicMaterial({ color: 0x0c0a08 }));
+  scorch.rotation.x = -Math.PI / 2; scorch.position.y = 0.01; scorch.userData.skipRaycast = true; grp.add(scorch);
+  // fire-pit stones
+  const stoneMat = new THREE.MeshBasicMaterial({ map: T.stone }); const stoneGeo = new THREE.IcosahedronGeometry(0.2, 0);
+  for(let i = 0; i < 11; i++){ const a = i / 11 * Math.PI * 2; const rk = new THREE.Mesh(stoneGeo, stoneMat);
+    rk.position.set(Math.cos(a) * 0.72, 0.09, Math.sin(a) * 0.72);
+    rk.scale.set(1 + Math.random() * 0.5, 0.65 + Math.random() * 0.3, 1 + Math.random() * 0.5);
+    rk.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); grp.add(rk); }
+  // charred criss-cross logs
+  const logMat = new THREE.MeshBasicMaterial({ map: T.charLog }); const logGeo = new THREE.CylinderGeometry(0.07, 0.085, 1.0, 8);
+  for(let i = 0; i < 6; i++){ const cyl = new THREE.Mesh(logGeo, logMat); const layer = Math.floor(i / 3);
+    cyl.rotation.z = Math.PI / 2; cyl.rotation.y = i * 1.05 + layer * 0.5; cyl.rotation.x = (Math.random() - 0.5) * 0.1;
+    cyl.position.set((Math.random() - 0.5) * 0.18, 0.17 + layer * 0.11, (Math.random() - 0.5) * 0.18);
+    cyl.scale.set(1, 0.85 + Math.random() * 0.3, 1); grp.add(cyl); }
+  // procedural fbm flame (cabin.html shader) — two crossed planes
+  const fireMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uBreath: { value: 1 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader: `precision highp float; varying vec2 vUv; uniform float uTime, uBreath;
+      float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+        return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y); }
+      float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=0.5; } return v; }
+      void main(){ vec2 uv=vUv; float t=uTime;
+        float n1=fbm(vec2(uv.x*3.0, uv.y*2.2 - t*1.7));
+        float n2=fbm(vec2(uv.x*6.8 - 1.0, uv.y*4.4 - t*3.1));
+        float n3=fbm(vec2(uv.x*11.0 + 4.0, uv.y*7.0 - t*4.7));
+        float turb=n1*0.5 + n2*0.32 + n3*0.18;
+        float sway=(fbm(vec2(t*0.6, uv.y*1.4 + t*0.5))-0.5)*0.30 + (n3-0.5)*0.16*uv.y;
+        float xc=uv.x + sway*uv.y;
+        float edge=clamp(1.0-abs(xc-0.5)*2.0, 0.0, 1.0);
+        float top=pow(edge,1.2)*(0.80+0.36*uBreath)*(0.5+0.9*turb);
+        float hfall=clamp(1.0 - uv.y/max(top,0.01), 0.0, 1.0);
+        float thr=0.30 + 0.12*(fbm(vec2(t*1.9, uv.x*2.0))-0.5);
+        float d=(n2*0.6+0.42)*hfall*pow(edge,0.55);
+        float flame=smoothstep(thr, thr+0.30, d);
+        float ember=smoothstep(0.26,0.0,uv.y)*edge*(0.4+0.5*n3);
+        float h=clamp(uv.y/max(top,0.001),0.0,1.0);
+        vec3 col=mix(vec3(1.0,0.93,0.62), vec3(1.0,0.52,0.12), smoothstep(0.0,0.5,h));
+        col=mix(col, vec3(0.8,0.13,0.03), smoothstep(0.5,1.0,h));
+        col+=vec3(0.9,0.3,0.06)*ember*0.5;
+        float flick=0.74 + 0.34*noise(vec2(t*3.7, t*2.3)) + 0.06*sin(t*19.0+uv.x*7.0);
+        float a=max(flame, ember*0.4)*clamp(flick,0.5,1.25);
+        gl_FragColor=vec4(col*1.18, a*0.86); }`
+  });
+  for(const ry of [0, Math.PI / 2]){
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.0), fireMat);
+    fl.position.y = 0.95; fl.rotation.y = ry; fl.renderOrder = 3; fl.userData.skipRaycast = true; grp.add(fl);
+  }
+  if(ENTITIES._anim) ENTITIES._anim.waterMats.push(fireMat);   // drives uTime each frame
+  // warm halo
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: T.warmGlow, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.45 }));
+  halo.position.y = 0.9; halo.scale.set(2.8, 2.4, 1); grp.add(halo);
+  // rising embers (engine particle system)
+  if(typeof makeFallingParticles === 'function'){
+    const em = makeFallingParticles('snow', 60, { range: 1.1, yMax: 4.5, yMin: 0.2, fallSpeed: -0.6, swayAmp: 0.25, swayFreq: 1.4 });
+    if(em.material){ em.material.color = new THREE.Color(0xffac52); em.material.size = 0.14; em.material.blending = THREE.AdditiveBlending; }
+    em.position.set(0, 0, 0); em.userData.skipRaycast = true; em.userData.skipObstacle = true;
+    ENTITIES.particles.push({ obj: em, type: 'rise' }); grp.add(em);
+  }
+  grp.userData.skipRaycast = true;
+  return grp;
+}
+
+// =================================================================
 // Countless real KB3D Enchanted trees in three layers: a tall trunk
 // layer you weave between, a canopy of giants roofing the sky, and a
 // dense low carpet of saplings (the 生い茂る草木). The only gap is a
@@ -8491,7 +8593,7 @@ function _plantHollowForest(root, keep, BOUND){
     m.scale.setScalar(sc);
     m.position.set(x, gy(x, z), z);
     m.rotation.y = ((x * 37 + z * 13) % 360) * Math.PI / 180;
-    m.traverse(o => { if(o.isMesh){ o.castShadow = !IS_LITE; o.receiveShadow = true; } });
+    m.traverse(o => { if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });   // no tree shadows = light
     m.userData.skipRaycast = true;
     root.add(m);
     if(collide && ENTITIES.obstacles) ENTITIES.obstacles.push({ x, z, r: 0.45 * sc });
@@ -8499,7 +8601,7 @@ function _plantHollowForest(root, keep, BOUND){
   const LITE = IS_LITE;
   let n = 0, guard = 0;
   // 1) tall trunk layer — crowds right up to the campfire ring
-  const want = LITE ? 220 : 460;
+  const want = LITE ? 180 : 320;
   while(n < want && guard++ < 26000){
     const a = Math.random() * Math.PI * 2;
     const r = 3.2 + Math.pow(Math.random(), 1.8) * (BOUND + 8 - 3.2);   // packed near the fire
@@ -8509,7 +8611,7 @@ function _plantHollowForest(root, keep, BOUND){
     n++;
   }
   // 2) canopy giants — roof the sky directly over the clearing edge
-  let cn = 0, cg = 0; const cwant = LITE ? 16 : 34;
+  let cn = 0, cg = 0; const cwant = LITE ? 12 : 20;
   while(cn < cwant && cg++ < 900){
     const a = Math.random() * Math.PI * 2;
     const r = 4.5 + Math.random() * 7.5;
@@ -8520,7 +8622,7 @@ function _plantHollowForest(root, keep, BOUND){
   }
   // 3) low undergrowth — a thick carpet of saplings filling every gap
   //    (no collider; you brush straight through the 草木)
-  let un = 0, ug = 0; const uwant = LITE ? 260 : 540;
+  let un = 0, ug = 0; const uwant = LITE ? 160 : 260;
   while(un < uwant && ug++ < 16000){
     const a = Math.random() * Math.PI * 2;
     const r = 2.6 + Math.pow(Math.random(), 1.6) * (BOUND + 4 - 2.6);   // carpet near the fire
@@ -8540,14 +8642,14 @@ SCENES.hollow = {
   // moonlit night under a closed canopy — dark and enclosing, but the
   // dense trees are clearly lit so you SEE the woods crowding in.
   sun: [-12, 125], turbidity: 8, rayleigh: 3.0,
-  fogColor: '#22324c', fogNear: 30, fogFar: 175, exposure: 1.3,
+  fogColor: '#0a1018', fogNear: 34, fogFar: 150, exposure: 1.32,
   avatarStart: [0, 4.5],
   preloadAssets: ['enc_tree_green_lg', 'enc_tree_green_md', 'enc_tree_fruit', 'enc_tree_autumn'],
   build(root){
-    const BOUND = 30;
+    const BOUND = 26;
     // claustrophobic forest night — blue moonlit haze closes the woods in
     // ~30m out, but the trees crowding the fire read clearly.
-    scene.fog = new THREE.Fog(0x22324c, 28, 170);
+    scene.fog = new THREE.Fog(0x0a1018, 32, 145);   // fades to dark night, not milky mist
     scene.background = new THREE.Color(0x162338);
 
     // --- dark forest floor (carpeted over by the undergrowth) ------
@@ -8559,14 +8661,12 @@ SCENES.hollow = {
     floor.userData.isGroundMesh = true; floor.receiveShadow = true; floor.renderOrder = -1;
     root.add(floor);
 
-    // --- the campfire (the only light + the heart of the scene) ----
-    if(typeof makeCampfire === 'function'){
-      root.add(makeCampfire(0, 0, 1.5));
-    }
-    // warm pooled firelight on the surrounding trunks
-    const fire = new THREE.PointLight(0xff8636, 3.4, 18, 2);
+    // --- the campfire — cabin.html's own fire (logs + GLSL flame +
+    //     glow + embers), the heart and main light of the scene -----
+    root.add(_makeCabinCampfire(0, 0));
+    const fire = new THREE.PointLight(0xff8636, 3.6, 20, 2);
     fire.position.set(0, 1.4, 0); root.add(fire);
-    const fire2 = new THREE.PointLight(0xff6a24, 1.6, 9, 2);
+    const fire2 = new THREE.PointLight(0xff6a24, 1.7, 10, 2);
     fire2.position.set(0, 0.5, 0); root.add(fire2);
 
     // --- warp: a will-o'-the-wisp glow deep in the trees ----------
@@ -8626,7 +8726,7 @@ SCENES.hollow = {
     root.add(new THREE.AmbientLight(0x24344e, 0.8));
     const moonLight = new THREE.DirectionalLight(0xbcd0f0, 1.35);   // strong rim moonlight
     moonLight.position.set(-18, 28, -20);
-    moonLight.castShadow = !IS_LITE;
+    moonLight.castShadow = false;   // no shadow map = light
     if(moonLight.shadow){ moonLight.shadow.mapSize.set(1024, 1024); moonLight.shadow.camera.far = 90;
       moonLight.shadow.camera.left = -38; moonLight.shadow.camera.right = 38;
       moonLight.shadow.camera.top = 38; moonLight.shadow.camera.bottom = -38; }
