@@ -80,11 +80,15 @@ def make_solid(name, color, rough=0.8, metal=0.0, sheen=0.0):
     if 'Sheen' in b.inputs: b.inputs['Sheen'].default_value = sheen
     return m
 
+def _emit_in(b):
+    # Principled BSDF emission socket: 'Emission Color' (Blender 4.0+) or 'Emission' (3.x)
+    return 'Emission Color' if 'Emission Color' in b.inputs else 'Emission'
+
 def make_emissive(name, color, strength):
     m = bpy.data.materials.new(name); m.use_nodes = True
     b = m.node_tree.nodes.get('Principled BSDF')
     b.inputs['Base Color'].default_value = (*color, 1)
-    b.inputs['Emission'].default_value = (*color, 1)
+    b.inputs[_emit_in(b)].default_value = (*color, 1)
     b.inputs['Emission Strength'].default_value = strength
     return m
 
@@ -173,9 +177,13 @@ KIT = {
     'KB3D_ECI_PropEarthGlobe_A_Main':   ('brass',   -2.25,  1.95, 25,  0.42),  # small armillary globe, tucked into the left-back corner
     'KB3D_ECI_PropArmorChest_A_Main':   ('wood',     2.40,  2.05, -120,0.9),   # ornate antique chest, right-back corner
     'KB3D_ECI_PropBookStand_A_Main':    ('wood',     1.30,  2.20, -150,0.9),   # reading lectern near the hearth
+    'KB3D_ECI_PropTable_C_Main':        ('wood',    -1.42,  1.62,  10,  0.8),   # 灯火の文箱: writing desk left of the hearth (letters nook)
 }
 # the wizard-office tree, kept only to instance a forest beyond the window
-KEEP_EXTRA = {'KB3D_ECI_IntWizardOffice_A_Tree'}
+KEEP_EXTRA = {'KB3D_ECI_IntWizardOffice_A_Tree',
+              'KB3D_ECI_PropRolledPapersCrate_A_Main',  # the 文箱 (crate of rolled letters)
+              'KB3D_ECI_PropOpenBook_A_Main',           # open guestbook
+              'KB3D_ECI_PropInkwell_A_Main'}            # inkwell
 keep = set(KIT.keys()) | KEEP_EXTRA; removed = 0
 for o in list(bpy.data.objects):
     if o.name not in keep:
@@ -303,7 +311,7 @@ def clock_face_mat():
         tex = nodes.new('ShaderNodeTexImage'); tex.image = img
         links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
         links.new(tex.outputs['Alpha'], bsdf.inputs['Alpha'])
-        links.new(tex.outputs['Color'], bsdf.inputs['Emission']); bsdf.inputs['Emission Strength'].default_value = 0.45
+        links.new(tex.outputs['Color'], bsdf.inputs[_emit_in(bsdf)]); bsdf.inputs['Emission Strength'].default_value = 0.45
     except Exception as e:
         print('[clock] face tex fail', e, flush=True)
     bsdf.inputs['Roughness'].default_value = 0.5
@@ -344,7 +352,7 @@ bl.new(tcg.outputs['Generated'], mpg.inputs['Vector']); bl.new(mpg.outputs['Vect
 bl.new(grad.outputs['Color'], ramp.inputs['Fac'])
 ramp.color_ramp.elements[0].color = (0.004, 0.010, 0.022, 1)   # horizon
 ramp.color_ramp.elements[1].color = (0.028, 0.055, 0.11, 1)    # upper sky (moonlit)
-bl.new(ramp.outputs['Color'], em.inputs['Emission']); em.inputs['Emission Strength'].default_value = 0.6
+bl.new(ramp.outputs['Color'], em.inputs[_emit_in(em)]); em.inputs['Emission Strength'].default_value = 0.6
 set_mat(bd, bdm)
 # moon
 bpy.ops.mesh.primitive_circle_add(radius=0.6, fill_type='NGON', location=(RX+12.5, 2.6, 3.4))
@@ -382,6 +390,32 @@ add_light('POINT', 'HearthFill', (0, 1.5, 0.95), 26, (1.0, 0.5, 0.22), size=0.9)
 mo = add_light('AREA', 'MoonLight', (RX+0.3, 0.1, 1.5), 46, (0.42, 0.58, 1.0), size=2.4)
 mo.rotation_euler = (0, math.radians(82), 0)
 add_light('POINT', 'NookFill', (-1.6, -0.4, 0.7), 5, (1.0, 0.6, 0.3), size=0.4)   # faint warm light by the bowl/books
+
+# ── 灯火の文箱 (letters nook): on the writing desk left of the hearth, set an open
+#    guestbook (write here), an inkwell, a lit candle, and a crate of rolled letters
+#    (the 文箱 itself — letters left by others). Lit so it draws the eye. ──
+def _letters_nook():
+    desk = bpy.data.objects.get('KB3D_ECI_PropTable_C_Main')
+    if not desk:
+        print('[nook] desk missing', flush=True); return
+    mn, mx = world_bbox(desk); top = mx.z; cx = (mn.x + mx.x) / 2; cy = (mn.y + mx.y) / 2
+    def place_on(name, mat, dx, dy, sc, rz=0.0):
+        o = bpy.data.objects.get(name)
+        if not o:
+            print('[nook MISS]', name, flush=True); return
+        o.rotation_euler = (0, 0, math.radians(rz)); o.scale = (sc, sc, sc)
+        bpy.context.view_layer.update()
+        bm, bxx = world_bbox(o)
+        o.location.x += (cx + dx - (bm.x + bxx.x) / 2)
+        o.location.y += (cy + dy - (bm.y + bxx.y) / 2)
+        o.location.z += (top - bm.z)
+        set_mat(o, MAT[mat]); bpy.context.view_layer.update()
+    place_on('KB3D_ECI_PropRolledPapersCrate_A_Main', 'wood',  -0.22, 0.12, 0.78, 14)  # crate of letters (the 文箱)
+    place_on('KB3D_ECI_PropOpenBook_A_Main',          'ivory',  0.10, -0.06, 1.05, -8)  # open guestbook
+    place_on('KB3D_ECI_PropInkwell_A_Main',           'brass',  0.30, 0.12, 1.0)         # inkwell
+    spawn_candle(cx + 0.34, cy - 0.04, top, 0.12)                                        # a small lit candle
+    add_light('POINT', 'NookGlow', (cx, cy, top + 0.26), 16, (1.0, 0.58, 0.26), size=0.22)
+_letters_nook()
 
 # ============================================================ world
 world = scene.world or bpy.data.worlds.new('W'); scene.world = world
