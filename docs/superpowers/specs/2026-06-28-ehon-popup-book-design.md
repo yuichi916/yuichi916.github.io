@@ -45,7 +45,7 @@ cabin.html（森の小屋 360°瞑想）の世界観の延長として、「本�
 ### 4.2 方式A：水彩レイヤー飛び出し絵本
 **制作パイプライン**
 1. Blender で `P:\CG fanbook\3D assets\KitBash3D - Enchanted` の .blend を開き、妖精建築＋大樹＋水辺のヒーロー・ジオラマを構図（カメラ仰角 30〜40°、参照画像に合わせる）
-2. Cycles レンダ → reForge/SDXL img2img で水彩スタイライズ（既存パイプライン流用、`memory/feedback_reforge_chain.md` のチェイン直結）
+2. **水彩化は Blender 内で完結する**（外部 SD img2img は使わない）。手段: NPR/トゥーンシェーディング + 水彩テクスチャオーバーレイ + コンポジタ（エッジ・にじみ・紙テクスチャ）。線画パス + 水彩塗りパスを合成して参照画像の水彩タッチに寄せる
 3. 深度パス / オブジェクトグループ分けで **空・遠景山・中景街・前景キャラ&地面** の3〜4層に分解 → 透過 PNG 書き出し
 4. Web: 本ベース画像 + 各層をカード化。開いた瞬間に各層が上にせり上がり + 傾く（CSS 3D transform or Three.js 平面）。マウスで層ごとに視差オフセット → 立体錯覚
 
@@ -55,28 +55,31 @@ cabin.html（森の小屋 360°瞑想）の世界観の延長として、「本�
 
 ### 4.3 方式B：リアル3Dジオラマ飛び出し
 **制作パイプライン**
-1. Blender で Enchanted の一角を「小島ジオラマ」に厳選 → 重メッシュをデシメート → テクスチャをアトラス/ベイク → GLTF 書き出し（Draco 圧縮、目標数十MB以内、モバイル容量を見て調整）
-2. Web（Three.js）: 本ベース → 開くと GLTF ジオラマがせり上がってスケール拡大 → 限定 OrbitControls で回り込み。照明をシーンに合わせる
+1. Blender で Enchanted の一角を「小島ジオラマ」に厳選 → 重メッシュをデシメート → テクスチャをアトラス/ベイク → GLTF 書き出し（Draco/meshopt 圧縮）
+2. **モバイル配信を捨てない**: GLTF はモバイルで実用的な容量に収める（目標 数十MB 以内 / テクスチャは KTX2 圧縮も検討）。容量を計測しながら厳選・デシメート・テクスチャ解像度で調整する。低スペック端末向けに LOD or 簡易版も視野
+3. Web（Three.js）: 本ベース → 開くと GLTF ジオラマがせり上がってスケール拡大 → 限定 OrbitControls で回り込み。照明をシーンに合わせる
 
 **Web 実装の単位**
 - `DioramaScene`: GLTF をロードし、pop-up 用の rise+scale アニメと限定オービットを管理
 - 入力: GLTF URL + ライティング設定。依存: Three.js, GLTFLoader, DRACOLoader
 
 ### 4.4 大容量アセットの置き場
-- 中間レンダ / GLTF / PNG レイヤー等の重い成果物は `P:\Public Folder` を作業/配布置き場に利用可
-- 最終 Web 配信アセットは `C:\projects\yuichi916.github.io` 配下の適切なディレクトリ（例 `assets/ehon/`）に配置
+- **配信アセット（GLTF / 水彩 PNG レイヤー / 本ベース画像）は pCloud public folder（`P:\Public Folder` = pCloud public）に置き、`ehon.html` から pCloud の public 直リンクで参照する**。リポジトリに巨大バイナリを入れない
+- 中間レンダ等の作業ファイルも `P:\Public Folder` 配下でよい
+- `ehon.html` 自体は `C:\projects\yuichi916.github.io` 配下（リポジトリ）に置き GitHub Pages で配信。アセット URL は pCloud public リンクを定数化
 
 ## 5. データフロー
 
 ```
-Blender (.blend) ──A──> Cycles render ──> SD img2img watercolor ──> depth split ──> PNG layers ──> ehon.html (LayerStack)
-                 ──B──> decimate/bake ──> GLTF(Draco) ──> ehon.html (DioramaScene via Three.js)
+Blender (.blend) ──A──> NPR+watercolor compositor ──> depth split ──> PNG layers ─┐
+                 ──B──> decimate/bake ──> GLTF(Draco/KTX2) ───────────────────────┤
+                                                                                    └─> pCloud public ──> ehon.html
 ```
 
 ## 6. エラー処理 / フォールバック
 - GLTF / 画像ロード失敗時: トグルの該当モードに「読み込み失敗」表示、もう片方へ誘導
 - WebGL 非対応端末: 方式A（CSS）を既定にフォールバック
-- 大容量 GLTF のモバイル: ロード前に容量警告 or 自動で方式A へ
+- モバイル: 方式B を捨てないため GLTF を容量最適化して配信。極端な低スペック端末のみ方式A へ自動フォールバック
 
 ## 7. 検証
 - ローカル http サーバで `ehon.html` を開き、開閉アニメ・ポップアップ・視差/オービット・トグル切替を目視確認
