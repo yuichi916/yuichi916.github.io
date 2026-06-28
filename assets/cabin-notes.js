@@ -87,6 +87,12 @@
   background:rgba(10,7,9,.5);border:1px solid rgba(240,200,120,.22);color:var(--ash,#c9beaa);font-size:18px;line-height:1;
   display:flex;align-items:center;justify-content:center;transition:all .25s}
 #cn-close:hover{color:var(--lantern-soft,#f8e0a0);border-color:rgba(240,200,120,.5)}
+#cn-bgm{position:absolute;top:18px;right:62px;width:38px;height:38px;border-radius:50%;cursor:pointer;
+  background:rgba(10,7,9,.5);border:1px solid rgba(240,200,120,.22);color:var(--ash-dim,#897b65);font-size:15px;line-height:1;
+  display:flex;align-items:center;justify-content:center;transition:all .25s}
+#cn-bgm:hover{color:var(--lantern-soft,#f8e0a0);border-color:rgba(240,200,120,.5)}
+#cn-bgm.on{color:var(--ember-warm,#d97a32);border-color:rgba(240,200,120,.5);background:rgba(240,200,120,.1)}
+#cn-credit{text-align:center;font-size:10.5px;color:var(--ash-dim,#897b65);padding:6px 12px 12px;letter-spacing:.04em;opacity:.7}
 #cn-crisis{margin-top:14px;font-size:12px;line-height:1.7;color:var(--ash-dim,#897b65);
   padding:10px 14px;border:1px solid rgba(240,200,120,.14);border-radius:8px;background:rgba(168,88,32,.06)}
 #cn-crisis b{color:var(--lantern-soft,#f8e0a0);font-weight:700}
@@ -162,6 +168,10 @@
     head.appendChild(Object.assign(el('div', 'cn-eye'), { textContent: 'Letters by the Fire' }));
     head.appendChild(el('h2', null, '灯火の文箱'));
     head.appendChild(el('p', null, 'ここは、名前のいらない場所。今かかえている悩みも、乗り越えた言葉も、そっと置いていけます。だれかの手紙が、あなたの灯になりますように。'));
+    const bgm = el('div'); bgm.id = 'cn-bgm'; bgm.textContent = '♪'; bgm.title = 'BGM: 月光のカプリース ／ 南雲莉翠';
+    if (bgmOn) bgm.classList.add('on');
+    bgm.addEventListener('click', () => bgmToggle(bgm));
+    head.appendChild(bgm);
     const close = el('div'); close.id = 'cn-close'; close.textContent = '×'; close.title = '閉じる';
     close.addEventListener('click', api.close);
     head.appendChild(close);
@@ -210,6 +220,7 @@
 
     const list = el('div'); list.id = 'cn-list'; body.appendChild(list);
     panel.appendChild(body);
+    panel.appendChild(el('div', null, '♪ 月光のカプリース ／ 南雲莉翠（なぐもりずの音楽室）')).id = 'cn-credit';
     ov.appendChild(panel);
     ov.addEventListener('click', (e) => { if (e.target === ov) api.close(); });
     document.body.appendChild(ov);
@@ -329,6 +340,18 @@
     catch (_) {}
   }
 
+  /* ---- 文箱BGM: 月光のカプリース ／ 南雲莉翠（なぐもりずの音楽室）---- */
+  const BGM_SRC = 'assets/music-moonlight-caprice.mp3';
+  let bgmAudio = null, bgmOn = (localStorage.getItem('cnBgm') !== 'off');
+  function bgmEl() { if (!bgmAudio) { bgmAudio = new Audio(BGM_SRC); bgmAudio.loop = true; bgmAudio.volume = 0.18; } return bgmAudio; }
+  function bgmPlay() { if (bgmOn) { try { bgmEl().play().catch(() => {}); } catch (_) {} } }
+  function bgmStop() { try { if (bgmAudio) bgmAudio.pause(); } catch (_) {} }
+  function bgmToggle(btn) {
+    bgmOn = !bgmOn; try { localStorage.setItem('cnBgm', bgmOn ? 'on' : 'off'); } catch (_) {}
+    if (btn) btn.classList.toggle('on', bgmOn);
+    if (bgmOn) bgmPlay(); else bgmStop();
+  }
+
   /* ---- 公開API ---- */
   const api = {
     open() {
@@ -337,11 +360,13 @@
       ov.classList.add('on');
       try { if (window.CabinRoom && window.CabinRoom.setCapOpen) window.CabinRoom.setCapOpen(true); } catch (_) {}
       load();
+      bgmPlay();
     },
     close() {
       const ov = $('#cn-overlay'); if (!ov) return;
       ov.classList.remove('on');
       try { if (window.CabinRoom && window.CabinRoom.setCapOpen) window.CabinRoom.setCapOpen(false); } catch (_) {}
+      bgmStop();
     },
   };
   window.CabinNotes = api;
