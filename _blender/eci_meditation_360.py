@@ -174,7 +174,6 @@ KIT = {
     'KB3D_ECI_PropAppleBasket_A_Main':  ('wood',     1.55, -1.05, 15,  0.6),   # small woven basket, right-front
     # ── antique pieces (curated from the Enchanted Interiors kit), to enrich the room ──
     'KB3D_ECI_PropBookShelf_A_Main':    ('wood',    -2.46,  0.85, 90,  0.95),  # tall bookshelf against the left wall
-    'KB3D_ECI_PropEarthGlobe_A_Main':   ('brass',   -2.25,  1.95, 25,  0.42),  # small armillary globe, tucked into the left-back corner
     'KB3D_ECI_PropArmorChest_A_Main':   ('wood',     2.40,  2.05, -120,0.9),   # ornate antique chest, right-back corner
     'KB3D_ECI_PropBookStand_A_Main':    ('wood',     1.30,  2.20, -150,0.9),   # reading lectern near the hearth
     'KB3D_ECI_PropTable_C_Main':        ('wood',    -1.42,  1.62,  10,  0.8),   # 灯火の文箱: writing desk left of the hearth (letters nook)
@@ -431,8 +430,13 @@ still = bpy.data.objects.new('Still', cd); scene.collection.objects.link(still);
 tgt = bpy.data.objects.new('Tgt', None); scene.collection.objects.link(tgt); tgt.location = LOOK
 cc = still.constraints.new('TRACK_TO'); cc.target = tgt; cc.track_axis = 'TRACK_NEGATIVE_Z'; cc.up_axis = 'UP_Y'
 pd = bpy.data.cameras.new('Pano'); pd.type = 'PANO'
-try: pd.cycles.panorama_type = 'EQUIRECTANGULAR'
-except Exception: pass
+# Blender 4.0+ moved panorama_type onto the camera data; older builds keep it on .cycles.
+# (Without this, 5.x silently defaults to FISHEYE and the 360 comes out circular/distorted.)
+try:
+    pd.panorama_type = 'EQUIRECTANGULAR'
+except Exception:
+    try: pd.cycles.panorama_type = 'EQUIRECTANGULAR'
+    except Exception: pass
 pano = bpy.data.objects.new('Pano', pd); scene.collection.objects.link(pano); pano.location = SEAT
 pano.rotation_euler = (math.radians(90), 0, 0)
 
