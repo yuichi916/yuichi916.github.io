@@ -17,20 +17,20 @@
     background-blend-mode:multiply;overflow:hidden;height:100%}
   #stage{position:fixed;inset:0;display:grid;place-items:center;perspective:1700px}
 
-  /* ステージ枠(本+世界を載せる領域) */
-  .ehon-stage{position:relative;width:min(94vw,760px);height:min(92vh,940px)}
+  /* ステージ枠(本+世界を載せる領域) — 大きめに */
+  .ehon-stage{position:relative;width:min(99vw,1180px);height:min(97vh,1120px)}
   #world-a,#world-b{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .45s}
   #world-a.active,#world-b.active{opacity:1;pointer-events:auto}
 
   /* 本の土台(方式A=水彩画像) */
-  .book-base{position:absolute;left:50%;bottom:5%;width:100%;
+  .book-base{position:absolute;left:50%;bottom:4%;width:108%;
     transform:translateX(-50%);transform-origin:50% 90%;
-    filter:drop-shadow(0 22px 26px rgba(0,0,0,.42));
+    filter:drop-shadow(0 26px 30px rgba(0,0,0,.45));
     transition:transform .7s cubic-bezier(.2,.8,.2,1);cursor:pointer}
   #world-a.closed .book-base{transform:translateX(-50%) scale(.9) rotateX(14deg)}
 
   /* 本の上にせり上がる世界(方式A) */
-  .world-pop{position:absolute;left:50%;bottom:34%;width:60%;transform:translateX(-50%);
+  .world-pop{position:absolute;left:50%;bottom:33%;width:70%;transform:translateX(-50%);
     pointer-events:none}
   .world-pop .layer{position:absolute;left:50%;bottom:0;width:100%;
     transform:translate(-50%,46%) scale(.6);transform-origin:50% 100%;
@@ -258,7 +258,7 @@ window.bootWorldB = async function () {
 
   const scene = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(40, host.clientWidth / host.clientHeight, 0.1, 500);
-  cam.position.set(0, 5.5, 11);
+  cam.position.set(0, 7, 14);
   const fit = () => {
     const w = host.clientWidth, h = host.clientHeight;
     renderer.setSize(w, h, false);
@@ -266,7 +266,7 @@ window.bootWorldB = async function () {
   };
 
   const controls = new OrbitControls(cam, renderer.domElement);
-  controls.enablePan = false; controls.minDistance = 7; controls.maxDistance = 22;
+  controls.enablePan = false; controls.minDistance = 9; controls.maxDistance = 30;
   controls.maxPolarAngle = Math.PI * 0.49; controls.target.set(0, 1.5, 0);
   controls.autoRotate = true; controls.autoRotateSpeed = 0.55;
 
@@ -297,7 +297,7 @@ window.bootWorldB = async function () {
       const book = bookGltf.scene;
       let bb = new THREE.Box3().setFromObject(book);
       let bs = bb.getSize(new THREE.Vector3());
-      const bScale = 9 / Math.max(bs.x, bs.z);      // 本の幅を約9に正規化
+      const bScale = 11 / Math.max(bs.x, bs.z);     // 本の幅を約11に正規化(大きめ)
       book.scale.setScalar(bScale);
       bb = new THREE.Box3().setFromObject(book);
       const bc = bb.getCenter(new THREE.Vector3());
@@ -311,7 +311,7 @@ window.bootWorldB = async function () {
       const dio = dioGltf.scene;
       let db = new THREE.Box3().setFromObject(dio);
       let ds = db.getSize(new THREE.Vector3());
-      const dScale = 6 / Math.max(ds.x, ds.y, ds.z);
+      const dScale = 7.5 / Math.max(ds.x, ds.y, ds.z);
       dio.scale.setScalar(dScale);
       db = new THREE.Box3().setFromObject(dio);
       const dc = db.getCenter(new THREE.Vector3());

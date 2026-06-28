@@ -29,15 +29,35 @@ for o in bpy.data.objects:
 bpy.context.view_layer.update()
 print(f'[ehon] book meshes={len(book_objs)}')
 
-# 簡易マテリアル(羊皮紙)を全パートに付与。SDが表紙/ページを描き分ける。
-mat = bpy.data.materials.new('Parchment')
-mat.use_nodes = True
-bsdf = mat.node_tree.nodes.get('Principled BSDF')
-bsdf.inputs['Base Color'].default_value = (0.86, 0.80, 0.66, 1.0)
-bsdf.inputs['Roughness'].default_value = 0.85
-for o in book_objs:
+# ECIのテクスチャパックが無いため、面の向きで「ページ(羊皮紙)/表紙・背表紙(革)」を振り分け。
+# 上向き面=開いたページ(クリーム)、それ以外=革の表紙・背表紙(濃茶)。
+from mathutils import Vector as _V
+
+
+def apply_book_materials(o):
+    pages = bpy.data.materials.new('BookPages'); pages.use_nodes = True
+    p = pages.node_tree.nodes.get('Principled BSDF')
+    p.inputs['Base Color'].default_value = (0.91, 0.85, 0.71, 1.0)
+    p.inputs['Roughness'].default_value = 0.93
+    leather = bpy.data.materials.new('BookLeather'); leather.use_nodes = True
+    l = leather.node_tree.nodes.get('Principled BSDF')
+    l.inputs['Base Color'].default_value = (0.22, 0.11, 0.06, 1.0)
+    l.inputs['Roughness'].default_value = 0.5
+    try:
+        l.inputs['Sheen Weight'].default_value = 0.3
+    except Exception:
+        pass
     o.data.materials.clear()
-    o.data.materials.append(mat)
+    o.data.materials.append(pages)    # index 0 = ページ
+    o.data.materials.append(leather)  # index 1 = 革(表紙/背表紙)
+    n3 = o.matrix_world.to_3x3()
+    for poly in o.data.polygons:
+        nz = (n3 @ poly.normal).normalized().z
+        poly.material_index = 0 if nz > 0.35 else 1
+
+
+for o in book_objs:
+    apply_book_materials(o)
 
 # bbox
 mins = Vector((1e9,) * 3); maxs = Vector((-1e9,) * 3)
@@ -54,8 +74,8 @@ print(f'[ehon] book bbox center={center} size={size}')
 # カメラ: 開いたページが見える、やや上から手前に傾けた俯瞰
 cam_data = bpy.data.cameras.new('BookCam'); cam_data.lens = 45
 cam = bpy.data.objects.new('BookCam', cam_data); sc.collection.objects.link(cam); sc.camera = cam
-ang = math.radians(42)
-cam.location = center + Vector((0, -radius * 1.9 * math.cos(ang), radius * 1.9 * math.sin(ang)))
+ang = math.radians(30)   # 低めの俯瞰で革の表紙・背表紙の厚みを見せる
+cam.location = center + Vector((0, -radius * 2.0 * math.cos(ang), radius * 2.0 * math.sin(ang)))
 cam.rotation_euler = (center - cam.location).to_track_quat('-Z', 'Y').to_euler()
 
 # ライティング(明るい昼光)

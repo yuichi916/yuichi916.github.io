@@ -37,12 +37,22 @@ ctr = (mn + mx) / 2
 o.location -= Vector((ctr.x, ctr.y, mn.z))
 bpy.context.view_layer.update()
 
-# 簡易マテリアル(羊皮紙/革)。テクスチャ無しなので単色。
-mat = bpy.data.materials.new('BookParchment'); mat.use_nodes = True
-b = mat.node_tree.nodes.get('Principled BSDF')
-b.inputs['Base Color'].default_value = (0.82, 0.74, 0.58, 1.0)
-b.inputs['Roughness'].default_value = 0.9
-o.data.materials.clear(); o.data.materials.append(mat)
+# ECIテクスチャパックが無いため、面の向きで「ページ(羊皮紙)/表紙・背表紙(革)」を振り分け。
+pages = bpy.data.materials.new('BookPages'); pages.use_nodes = True
+pp = pages.node_tree.nodes.get('Principled BSDF')
+pp.inputs['Base Color'].default_value = (0.90, 0.84, 0.70, 1.0)
+pp.inputs['Roughness'].default_value = 0.92
+leather = bpy.data.materials.new('BookLeather'); leather.use_nodes = True
+ll = leather.node_tree.nodes.get('Principled BSDF')
+ll.inputs['Base Color'].default_value = (0.22, 0.11, 0.06, 1.0)
+ll.inputs['Roughness'].default_value = 0.5
+o.data.materials.clear()
+o.data.materials.append(pages)    # index 0 = ページ
+o.data.materials.append(leather)  # index 1 = 革(表紙/背表紙)
+_n3 = o.matrix_world.to_3x3()
+for poly in o.data.polygons:
+    nz = (_n3 @ poly.normal).normalized().z
+    poly.material_index = 0 if nz > 0.35 else 1
 
 bpy.ops.export_scene.gltf(filepath=OUT, export_format='GLB', use_selection=False,
                           export_apply=True, export_yup=True)
