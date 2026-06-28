@@ -151,10 +151,6 @@
   /* ---- パネル構築 ---- */
   let built = false, state = { filter: 'all', cat: 'worry', notes: [] };
 
-  const CRISIS_HTML = 'つらくて消えてしまいたいときは、ひとりで抱えないで。 ' +
-    '<b>よりそいホットライン 0120-279-338</b>（24時間・無料） / ' +
-    '<a href="tomoshibi.html">心を軽くする手帖はこちら</a>';
-
   function build() {
     if (built) return; built = true;
     injectCSS();
@@ -166,8 +162,6 @@
     head.appendChild(Object.assign(el('div', 'cn-eye'), { textContent: 'Letters by the Fire' }));
     head.appendChild(el('h2', null, '灯火の文箱'));
     head.appendChild(el('p', null, 'ここは、名前のいらない場所。今かかえている悩みも、乗り越えた言葉も、そっと置いていけます。だれかの手紙が、あなたの灯になりますように。'));
-    const crisis = el('div'); crisis.id = 'cn-crisis'; crisis.innerHTML = CRISIS_HTML;
-    head.appendChild(crisis);
     const close = el('div'); close.id = 'cn-close'; close.textContent = '×'; close.title = '閉じる';
     close.addEventListener('click', api.close);
     head.appendChild(close);
@@ -306,7 +300,7 @@
       state.filter = 'all'; $('#cn-tabs').querySelectorAll('.cn-tab').forEach(x => x.classList.toggle('on', x.dataset.k === 'all'));
       render();
       if (state.cat === 'worry') {
-        setMsg('置いていってくれて、ありがとう。つらいときは よりそいホットライン 0120-279-338（24時間・無料）も。');
+        setMsg('置いていってくれて、ありがとう。あなたの声は、ちゃんとここに灯っています。');
       } else {
         setMsg('あたたかい言葉を、ありがとう。だれかの灯になります。');
       }
