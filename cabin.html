@@ -1285,6 +1285,7 @@ function setVolumeMusic(v){
     if(m.audio && m.on) m.audio.volume = v * .7;
   });
 }
+const SND_VOL = { forest: 0.18 };   // per-sound loudness factor (forest kept very faint outdoors)
 function toggleSound(name, btn){
   if(!SOUNDS[name]) buildSound(name);
   const s = SOUNDS[name];
@@ -1300,7 +1301,7 @@ function toggleSound(name, btn){
     s.on = false; btn.classList.remove('on');
   } else {
     s.gain.gain.cancelScheduledValues(ctx.currentTime);
-    s.gain.gain.linearRampToValueAtTime(SOUNDS.master * .6, ctx.currentTime + .8);
+    s.gain.gain.linearRampToValueAtTime(SOUNDS.master * .6 * (SND_VOL[name]||1), ctx.currentTime + .8);
     s.on = true; btn.classList.add('on');
   }
 }
@@ -1798,7 +1799,7 @@ const MARKERS_OUT = [
   { key:'meditate', lon:0,   lat:-9,  r:5.5, jp:'湖畔で星を見て瞑想する', en:'meditate under the stars' },
   { key:'universe', lon:0,   lat:50,  r:7,   jp:'19,000人のアーティストの宇宙へ', en:'into the universe of 19,000 artists' },
   { key:'forest',   lon:96,  lat:-8,  r:6,   jp:'森の奥へ歩いていく',     en:'walk into the deep forest' },
-  { key:'inside',   lon:180, lat:-2,  r:6,   jp:'小屋に戻る',            en:'back inside' },
+  { key:'inside',   lon:65,  lat:0,   r:5,   jp:'小屋に戻る',            en:'back inside' },
 ];
 
 let renderer;
@@ -1892,6 +1893,33 @@ else {
   const fire = new THREE.Mesh(new THREE.PlaneGeometry(1.45,1.85), fireMat);
   fire.position.copy(bearing(HEARTH_LON,-5.5,10)); faceOrigin(fire); fire.renderOrder=2;
   scene.add(fire);
+
+  // ── WATER SHIMMER on the lake (outdoors only): a faint, slow ripple of moonlight glints ──
+  const waterUniforms = { uTime:{value:0} };
+  const waterMat = new THREE.ShaderMaterial({
+    uniforms: waterUniforms, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending,
+    vertexShader:`varying vec2 vP; void main(){ vP=position.xy; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`
+      precision highp float; varying vec2 vP; uniform float uTime;
+      float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+        return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y); }
+      void main(){
+        vec2 p=vP*0.5; float t=uTime*0.22;
+        float r1=noise(vec2(p.x*2.0,       p.y*7.0  - t*2.0));
+        float r2=noise(vec2(p.x*3.4 + 5.0, p.y*12.0 + t*1.3));
+        float ripple=pow(0.5+0.5*sin((r1+r2)*6.2831 + t*3.0), 3.0);   // crests of light
+        float fade=smoothstep(1.0,0.12,length(vP));                   // soft-edged pool
+        float a=ripple*fade*0.16;
+        vec3 col=mix(vec3(0.52,0.66,0.86), vec3(0.96,0.98,1.0), ripple);
+        gl_FragColor=vec4(col, a);
+      }`
+  });
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(16,16,1,1), waterMat);
+  water.rotation.x = -Math.PI/2;            // lay flat
+  water.position.set(4.6,-2.5,0);           // in front (lake, lon≈0) and below eye level
+  water.renderOrder=1; water.visible=false;
+  scene.add(water);
 
   // hearth halo + embers
   const glowMat = new THREE.SpriteMaterial({ map:glowTex(255,138,50), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.4 });
@@ -2100,6 +2128,7 @@ else {
     goOutside(){
       if(_outside) return; _outside=true;
       try{ window.__setAmbience && window.__setAmbience('outside'); }catch(_){}
+      try{ const _m4=document.querySelector('#musicPanel .mp-track[data-track="4"]'); if(_m4 && !_m4.classList.contains('on')) _m4.click(); }catch(_){}  // outdoor BGM: Lake in the Forest
       _fade(true,520);
       setTimeout(()=>{ loadOutside(()=>_enterOutside()); },540);
     },
@@ -2112,6 +2141,7 @@ else {
     goInside(){
       if(!_outside) return; _outside=false;
       try{ window.__setAmbience && window.__setAmbience('inside'); }catch(_){}
+      try{ const _m4=document.querySelector('#musicPanel .mp-track[data-track="4"]'); if(_m4 && _m4.classList.contains('on')) _m4.click(); }catch(_){}  // stop outdoor BGM on return
       _fade(true,520);
       setTimeout(()=>{
         if(insideTex){ skyMat.map=insideTex; skyMat.needsUpdate=true; _enterInside(); }
@@ -2307,6 +2337,7 @@ else {
     requestAnimationFrame(animate);
     const dt=Math.min(clock.getDelta(),.05), t=clock.elapsedTime;
     fireUniforms.uTime.value=t;
+    waterUniforms.uTime.value=t; water.visible = _outside && !meditating && !capOpen;
     updateSkip(dt);
 
     if(!dragging && !reduce && !meditating){ idle+=dt; if(idle>6) tLon+=dt*0.5; }

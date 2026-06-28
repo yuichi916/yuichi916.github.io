@@ -19,6 +19,12 @@ import bpy, os, sys, math, random
 from mathutils import Vector
 random.seed(7)
 
+# Blender 4.0+/5.x renamed Principled BSDF sockets: 'Emission'->'Emission Color',
+# 'Specular'->'Specular IOR Level'. These shims keep the script working on 5.1.1.
+def _emit_in(b): return 'Emission Color' if 'Emission Color' in b.inputs else 'Emission'
+def _set_spec(b, v):
+    b.inputs['Specular IOR Level' if 'Specular IOR Level' in b.inputs else 'Specular'].default_value = v
+
 ARGV = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
 MODE = (ARGV[0] if ARGV else 'preview').lower()
 TIME = (ARGV[1] if len(ARGV) > 1 else 'night').lower()
@@ -36,7 +42,7 @@ def make_emissive(name, color, strength):
     m = bpy.data.materials.new(name); m.use_nodes = True
     b = m.node_tree.nodes.get('Principled BSDF')
     b.inputs['Base Color'].default_value = (*color, 1)
-    b.inputs['Emission'].default_value = (*color, 1)
+    b.inputs[_emit_in(b)].default_value = (*color, 1)
     b.inputs['Emission Strength'].default_value = strength
     return m
 
@@ -45,7 +51,7 @@ def make_solid(name, color, rough=0.85, spec=0.3):
     b = m.node_tree.nodes.get('Principled BSDF')
     b.inputs['Base Color'].default_value = (*color, 1)
     b.inputs['Roughness'].default_value = rough
-    b.inputs['Specular'].default_value = spec
+    _set_spec(b, spec)
     return m
 
 def make_wood(name, fam, mapscale=0.5, base_mult=(1,1,1)):
@@ -107,7 +113,7 @@ def make_enc_ground(name, fam, mapscale, tint):
     if nm:
         nmap = nodes.new('ShaderNodeNormalMap'); nmap.inputs['Strength'].default_value = 1.4
         links.new(nm.outputs['Color'], nmap.inputs['Color']); links.new(nmap.outputs['Normal'], bsdf.inputs['Normal'])
-    try: bsdf.inputs['Specular'].default_value = 0.1
+    try: _set_spec(bsdf, 0.1)
     except Exception: pass
     return m
 
@@ -131,7 +137,7 @@ def make_leaf(name, fam, tint):
         links.new(bc.outputs['Color'], mix.inputs[1]); links.new(mix.outputs['Color'], bsdf.inputs['Base Color'])
     op = img('opacity', True)
     if op: links.new(op.outputs['Color'], bsdf.inputs['Alpha'])
-    try: bsdf.inputs['Roughness'].default_value = 0.95; bsdf.inputs['Specular'].default_value = 0.05
+    try: bsdf.inputs['Roughness'].default_value = 0.95; _set_spec(bsdf, 0.05)
     except Exception: pass
     return m
 
@@ -156,13 +162,13 @@ def make_water():
     if DAY:
         b.inputs['Base Color'].default_value = (0.006, 0.035, 0.060, 1) # dark blue-teal forest lake
         b.inputs['Roughness'].default_value = 0.03                     # crisp mirror: reflects the far treeline + cabin
-        b.inputs['Transmission'].default_value = 0.12                  # a hint of depth, but the water stays dark
+        b.inputs['Transmission Weight' if 'Transmission Weight' in b.inputs else 'Transmission'].default_value = 0.12
         b.inputs['IOR'].default_value = 1.333
-        b.inputs['Specular'].default_value = 0.5
+        _set_spec(b, 0.5)
     else:
         b.inputs['Base Color'].default_value = (0.013, 0.026, 0.042, 1)
         b.inputs['Roughness'].default_value = 0.09
-        b.inputs['Specular'].default_value = 0.6
+        _set_spec(b, 0.6)
     return m
 
 def make_flame():
@@ -432,13 +438,14 @@ for i in range(500):
     if in_water(x, y): continue
     place(random.choice(tree_datas), (x, y, 0.0), random.uniform(0, math.tau),
           random.uniform(11, 22), 0.05)
-# near framing trunks leaning over the shore — heavy canopy in the top corners (an enclosed clearing)
+# a few framing trunks set well BACK on each side — they frame the view without arching
+# a heavy canopy overhead, so the night sky stays open above the lake.
 for sx in (-1, 1):
-    for k in range(5):
-        fx = sx * random.uniform(4.5, 12.0); fy = random.uniform(-9.0, -3.0)
+    for k in range(2):
+        fx = sx * random.uniform(10.0, 18.0); fy = random.uniform(-18.0, -9.0)
         if near_cabin(fx, fy): continue
         place(random.choice(tree_datas), (fx, fy, 0.0), random.uniform(0, math.tau),
-              random.uniform(18, 27), 0.06)
+              random.uniform(13, 19), 0.06)
 # thick wild undergrowth (ferns/shrubs) all around — unkempt forest floor
 for i in range(760):
     a = random.uniform(0, math.tau); r = 3 + (random.random()**1.1) * 76
@@ -489,8 +496,12 @@ except Exception: pass
 
 # ============================================================ camera + render
 pd = bpy.data.cameras.new('Pano'); pd.type = 'PANO'
-try: pd.cycles.panorama_type = 'EQUIRECTANGULAR'
-except Exception: pass
+# Blender 4.0+ moved panorama_type onto camera data (silent fisheye fallback otherwise)
+try:
+    pd.panorama_type = 'EQUIRECTANGULAR'
+except Exception:
+    try: pd.cycles.panorama_type = 'EQUIRECTANGULAR'
+    except Exception: pass
 cam = bpy.data.objects.new('Pano', pd); coll.objects.link(cam)
 cam.location = (0, 0, 1.35); cam.rotation_euler = (math.radians(90), 0, 0)   # standing on the bank lip, low — water begins ~0.4 m in front, filling the view below
 
