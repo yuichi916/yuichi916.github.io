@@ -1,10 +1,10 @@
-"""Enchanted シーン棚卸し: コレクション/オブジェクト/bbox/カメラを inspect.json に出力。
+"""Enchanted シーン棚卸し: コレクション/オブジェクト/メッシュ名とカテゴリを inspect.json に出力。
    bpy.data.libraries.load() を使いオブジェクト名だけを取得し、フルロードを回避。
    blender -b --factory-startup --python ehon_enchanted_inspect.py
 """
 import bpy, json, os
 
-BLEND = r'P:\CG fanbook\3D assets\KitBash3D - Enchanted\kb3d_enchanted-native.blend'
+BLEND = r'C:\tmp\blends\enchanted\kb3d_enchanted-native.blend'
 OUT   = r'C:\tmp\ehon\inspect.json'
 
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
