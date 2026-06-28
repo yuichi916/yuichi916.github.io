@@ -1,0 +1,324 @@
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>飛び出す絵本 — Enchanted</title>
+<script type="importmap">
+{ "imports": {
+  "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<style>
+  :root{--ink:#3a2f25}
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%}
+  body{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;color:var(--ink);
+    background:radial-gradient(120% 100% at 50% 0%,#d8c7a8 0%,#9c8a6a 60%,#5b4a36 100%),
+      repeating-linear-gradient(90deg,#6b5742 0 38px,#7a6450 38px 40px);
+    background-blend-mode:multiply;overflow:hidden;height:100%}
+  #stage{position:fixed;inset:0;display:grid;place-items:center;perspective:1600px}
+  #book{position:relative;width:min(92vw,820px);aspect-ratio:4/3;cursor:pointer;
+    transform-style:preserve-3d;transition:transform .6s ease}
+  #book.closed{transform:rotateX(8deg)}
+  #book.open{cursor:default}
+  #world-a,#world-b{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .4s}
+  #world-a.active,#world-b.active{opacity:1;pointer-events:auto}
+  #title-card{position:fixed;left:24px;top:20px;max-width:46vw;padding:10px 14px;
+    background:rgba(250,245,235,.82);border:1px solid #b9a784;border-radius:4px;
+    box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;transition:opacity .6s}
+  #title-card.show{opacity:1}
+  #title-card h1{font-size:clamp(16px,3.2vw,26px);letter-spacing:.04em}
+  #title-card p{font-size:13px;color:#6b5b45;margin-top:4px}
+  #mode-toggle{position:fixed;right:18px;bottom:18px;display:none;gap:0;z-index:10;
+    border-radius:999px;overflow:hidden;border:1px solid #b9a784;background:#faf5eb}
+  #mode-toggle.show{display:flex}
+  #mode-toggle button{border:0;padding:10px 18px;background:transparent;font:inherit;cursor:pointer;color:#8a7860}
+  #mode-toggle button.sel{background:#7a6450;color:#fdf8ee}
+  #hint{position:fixed;left:0;right:0;bottom:64px;text-align:center;color:#fdf8ee;
+    text-shadow:0 1px 3px rgba(0,0,0,.5);opacity:.9;font-size:14px}
+  #hint.gone{opacity:0;transition:opacity .5s}
+
+  /* 方式A: 水彩レイヤー視差ポップアップ */
+  #world-a .layer{position:absolute;left:50%;bottom:6%;width:96%;
+    transform:translateX(-50%) translateY(40px);transform-origin:50% 100%;
+    opacity:0;transition:transform .9s cubic-bezier(.2,.8,.2,1),opacity .6s;
+    will-change:transform;background-size:contain;background-repeat:no-repeat;background-position:bottom center}
+  #world-a.popped .layer{opacity:1}
+  #world-a.popped .layer.sky{transform:translateX(-50%) translateY(0) scale(1.04)}
+  #world-a.popped .layer.far{transform:translateX(-50%) translateY(0) rotateX(2deg)}
+  #world-a.popped .layer.mid{transform:translateX(-50%) translateY(0) rotateX(4deg)}
+  #world-a.popped .layer.fore{transform:translateX(-50%) translateY(0) rotateX(7deg)}
+
+  /* 方式B: Three.js canvas */
+  #world-b{display:block}
+  #world-b canvas{width:100%;height:100%;display:block}
+  #world-b .loading-msg{position:absolute;inset:0;display:grid;place-items:center;
+    color:#fdf8ee;font-size:15px;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+</style></head>
+<body>
+<div id="stage">
+  <div id="book" class="closed">
+    <div id="world-a"></div>
+    <div id="world-b"></div>
+  </div>
+</div>
+<div id="title-card"><h1>Enchanted — 妖精の森の箱庭</h1><p>魔法の森に芽吹く、妖精たちの箱庭</p></div>
+<div id="mode-toggle">
+  <button id="btn-a" class="sel">水彩</button>
+  <button id="btn-b">3D</button>
+</div>
+<div id="hint">本をひらく</div>
+
+<script>
+/* ---- ASSET_BASE: ローカルvsGitHub Pages切り替え ---- */
+const PCLOUD_PROXY = 'https://niwa-cors.yuichi916.workers.dev';
+const PCLOUD_PUBLINK = 'kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk';
+
+const _IS_GITHUB = location.hostname.endsWith('github.io');
+const ASSET_BASE = _IS_GITHUB ? null : './_ehon_assets';
+
+/* pCloud fileid解決(github.io時のみ使用) */
+let _EHON_FILEID_PROMISE = null;
+let _EHON_FILEIDS = {};
+
+function resolveEhonFileids() {
+  if (_EHON_FILEID_PROMISE) return _EHON_FILEID_PROMISE;
+  _EHON_FILEID_PROMISE = (async () => {
+    try {
+      const r = await fetch(
+        `https://api.pcloud.com/showpublink?code=${PCLOUD_PUBLINK}`,
+        { referrerPolicy: 'no-referrer', credentials: 'omit', mode: 'cors' }
+      );
+      const d = await r.json();
+      const md = d.metadata || {};
+      const map = {};
+      for (const c of (md.contents || [])) {
+        if (c.isfolder && c.name === 'ehon-assets') {
+          for (const f of (c.contents || [])) {
+            if (!f.isfolder && f.name) {
+              map[f.name] = f.fileid;
+            }
+          }
+        }
+      }
+      _EHON_FILEIDS = map;
+      console.log('ehon: pCloud fileids resolved', map);
+      return map;
+    } catch (e) {
+      console.warn('ehon: pCloud showpublink failed, using local fallback', e);
+      _EHON_FILEID_PROMISE = null;
+      return {};
+    }
+  })();
+  return _EHON_FILEID_PROMISE;
+}
+
+function getAssetUrl(filename) {
+  if (!_IS_GITHUB) {
+    return `${ASSET_BASE}/ehon/${filename}`;
+  }
+  const fileid = _EHON_FILEIDS[filename];
+  if (fileid) {
+    return `${PCLOUD_PROXY}/g/${fileid}`;
+  }
+  console.warn(`ehon: fileid not found for ${filename}, falling back to local`);
+  return `./_ehon_assets/ehon/${filename}`;
+}
+
+/* ---- 共通シェル ---- */
+const EHON = {
+  state: { open: false, mode: 'a', booted: { a: false, b: false } },
+  open() {
+    if (this.state.open) return;
+    this.state.open = true;
+    document.getElementById('book').className = 'open';
+    document.getElementById('hint').classList.add('gone');
+    document.getElementById('title-card').classList.add('show');
+    document.getElementById('mode-toggle').classList.add('show');
+    this.setMode(this.state.mode);
+  },
+  setMode(m) {
+    this.state.mode = m;
+    document.getElementById('btn-a').classList.toggle('sel', m === 'a');
+    document.getElementById('btn-b').classList.toggle('sel', m === 'b');
+    document.getElementById('world-a').classList.toggle('active', m === 'a');
+    document.getElementById('world-b').classList.toggle('active', m === 'b');
+    if (m === 'a' && !this.state.booted.a) { this.state.booted.a = true; window.bootWorldA && window.bootWorldA(); }
+    if (m === 'b' && !this.state.booted.b) { this.state.booted.b = true; window.bootWorldB && window.bootWorldB(); }
+  }
+};
+window.EHON = EHON;
+/* module scriptからアクセス可能にする */
+window._IS_GITHUB = _IS_GITHUB;
+window.resolveEhonFileids = resolveEhonFileids;
+window.getAssetUrl = getAssetUrl;
+
+document.getElementById('book').addEventListener('click', () => EHON.open());
+document.getElementById('btn-a').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('a'); });
+document.getElementById('btn-b').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('b'); });
+
+/* github.io時はあらかじめfileid解決 */
+if (_IS_GITHUB) {
+  resolveEhonFileids().catch(() => {});
+}
+
+/* ---- 方式A: 水彩レイヤー視差ポップアップ ---- */
+window.bootWorldA = async function () {
+  if (_IS_GITHUB) await resolveEhonFileids();
+  const root = document.getElementById('world-a');
+  const layers = [
+    { k: 'sky',  z: 0, depth: 0.0 },
+    { k: 'far',  z: 1, depth: 0.25 },
+    { k: 'mid',  z: 2, depth: 0.55 },
+    { k: 'fore', z: 3, depth: 1.0 },
+  ];
+  root.innerHTML = '';
+  layers.forEach(L => {
+    const d = document.createElement('div');
+    d.className = 'layer ' + L.k;
+    d.style.zIndex = L.z;
+    d.dataset.depth = L.depth;
+    d.style.height = (70 + L.z * 8) + '%';
+    d.style.backgroundImage = `url(${getAssetUrl('A_layer_' + L.k + '.png')})`;
+    root.appendChild(d);
+  });
+  requestAnimationFrame(() => root.classList.add('popped'));
+
+  function onMove(e) {
+    if (EHON.state.mode !== 'a') return;
+    const cx = (e.clientX / innerWidth - 0.5);
+    const cy = (e.clientY / innerHeight - 0.5);
+    root.querySelectorAll('.layer').forEach(el => {
+      const dp = parseFloat(el.dataset.depth);
+      el.style.transform = `translateX(calc(-50% + ${cx * dp * 36}px)) translateY(${cy * dp * -14}px)`;
+    });
+  }
+  window.addEventListener('mousemove', onMove, { passive: true });
+  window.addEventListener('deviceorientation', ev => {
+    if (EHON.state.mode !== 'a' || ev.gamma == null) return;
+    const cx = Math.max(-.5, Math.min(.5, ev.gamma / 45));
+    const cy = Math.max(-.5, Math.min(.5, (ev.beta - 45) / 45));
+    root.querySelectorAll('.layer').forEach(el => {
+      const dp = parseFloat(el.dataset.depth);
+      el.style.transform = `translateX(calc(-50% + ${cx * dp * 36}px)) translateY(${cy * dp * -14}px)`;
+    });
+  }, { passive: true });
+};
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* WebGL非対応フォールバック */
+(function () {
+  try {
+    const c = document.createElement('canvas');
+    if (!(c.getContext('webgl2') || c.getContext('webgl'))) {
+      const btn = document.getElementById('btn-b');
+      btn.disabled = true;
+      btn.title = 'この端末は3D非対応';
+    }
+  } catch (e) {
+    document.getElementById('btn-b').disabled = true;
+  }
+})();
+
+window.bootWorldB = async function () {
+  if (window._IS_GITHUB) await window.resolveEhonFileids();
+  const host = document.getElementById('world-b');
+  host.innerHTML = '';
+
+  /* ローディング表示 */
+  const msg = document.createElement('div');
+  msg.className = 'loading-msg';
+  msg.textContent = '3Dを読み込み中…';
+  host.appendChild(msg);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+
+  const fit = () => {
+    const w = host.clientWidth, h = host.clientHeight;
+    renderer.setSize(w, h, false);
+    cam.aspect = w / h;
+    cam.updateProjectionMatrix();
+  };
+  host.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(38, host.clientWidth / host.clientHeight, 0.1, 200);
+  cam.position.set(0, 6, 12);
+
+  const controls = new OrbitControls(cam, renderer.domElement);
+  controls.enablePan = false;
+  controls.minDistance = 6;
+  controls.maxDistance = 20;
+  controls.maxPolarAngle = Math.PI * 0.49;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.6;
+
+  scene.add(new THREE.HemisphereLight(0xfff2d8, 0x4a5a6a, 1.1));
+  const sun = new THREE.DirectionalLight(0xfff0d0, 1.4);
+  sun.position.set(6, 12, 6);
+  scene.add(sun);
+
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/');
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(draco);
+
+  const glbUrl = window.getAssetUrl('B_diorama.glb');
+
+  loader.load(
+    glbUrl,
+    gltf => {
+      msg.remove();
+      const m = gltf.scene;
+      /* bbox正規化: 中心化&スケール */
+      const box = new THREE.Box3().setFromObject(m);
+      const c = box.getCenter(new THREE.Vector3());
+      const sz = box.getSize(new THREE.Vector3());
+      const s = 8 / Math.max(sz.x, sz.y, sz.z);
+      m.position.sub(c);
+      m.scale.setScalar(s);
+      m.position.y -= (box.min.y - c.y) * s;
+      const grp = new THREE.Group();
+      grp.add(m);
+      grp.scale.setScalar(0.01);
+      scene.add(grp);
+
+      /* せり上がりアニメ */
+      const t0 = performance.now();
+      (function pop() {
+        const k = Math.min(1, (performance.now() - t0) / 900);
+        const e = 1 - Math.pow(1 - k, 3);
+        grp.scale.setScalar(0.01 + e * 0.99);
+        grp.position.y = -4 + e * 4;
+        if (k < 1) requestAnimationFrame(pop);
+      })();
+    },
+    undefined,
+    err => {
+      host.innerHTML = '<div style="position:absolute;inset:0;display:grid;place-items:center;color:#fff;text-shadow:0 1px 3px #000">3Dの読み込みに失敗しました。水彩でお楽しみください</div>';
+      console.error('GLB load error', err);
+    }
+  );
+
+  fit();
+  addEventListener('resize', fit);
+
+  (function loop() {
+    if (EHON.state.mode === 'b') {
+      controls.update();
+      renderer.render(scene, cam);
+    }
+    requestAnimationFrame(loop);
+  })();
+};
+</script>
+</body></html>
