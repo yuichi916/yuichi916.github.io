@@ -12,56 +12,62 @@
   *{box-sizing:border-box;margin:0}
   html,body{height:100%}
   body{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;color:var(--ink);
-    background:radial-gradient(120% 100% at 50% 0%,#d8c7a8 0%,#9c8a6a 60%,#5b4a36 100%),
-      repeating-linear-gradient(90deg,#6b5742 0 38px,#7a6450 38px 40px);
+    background:radial-gradient(130% 110% at 50% 8%,#e7d9bd 0%,#b59c77 45%,#5e4c37 100%),
+      repeating-linear-gradient(94deg,#6b5742 0 40px,#7a6450 40px 42px);
     background-blend-mode:multiply;overflow:hidden;height:100%}
-  #stage{position:fixed;inset:0;display:grid;place-items:center;perspective:1600px}
-  #book{position:relative;width:min(92vw,820px);aspect-ratio:4/3;cursor:pointer;
-    transform-style:preserve-3d;transition:transform .6s ease}
-  #book.closed{transform:rotateX(8deg)}
-  #book.open{cursor:default}
-  #world-a,#world-b{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .4s}
+  #stage{position:fixed;inset:0;display:grid;place-items:center;perspective:1700px}
+
+  /* ステージ枠(本+世界を載せる領域) */
+  .ehon-stage{position:relative;width:min(94vw,760px);height:min(92vh,940px)}
+  #world-a,#world-b{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .45s}
   #world-a.active,#world-b.active{opacity:1;pointer-events:auto}
-  #title-card{position:fixed;left:24px;top:20px;max-width:46vw;padding:10px 14px;
-    background:rgba(250,245,235,.82);border:1px solid #b9a784;border-radius:4px;
+
+  /* 本の土台(方式A=水彩画像) */
+  .book-base{position:absolute;left:50%;bottom:5%;width:100%;
+    transform:translateX(-50%);transform-origin:50% 90%;
+    filter:drop-shadow(0 22px 26px rgba(0,0,0,.42));
+    transition:transform .7s cubic-bezier(.2,.8,.2,1);cursor:pointer}
+  #world-a.closed .book-base{transform:translateX(-50%) scale(.9) rotateX(14deg)}
+
+  /* 本の上にせり上がる世界(方式A) */
+  .world-pop{position:absolute;left:50%;bottom:34%;width:60%;transform:translateX(-50%);
+    pointer-events:none}
+  .world-pop .layer{position:absolute;left:50%;bottom:0;width:100%;
+    transform:translate(-50%,46%) scale(.6);transform-origin:50% 100%;
+    opacity:0;transition:transform 1s cubic-bezier(.2,.85,.25,1),opacity .7s;
+    will-change:transform}
+  #world-a.popped .world-pop .layer{opacity:1;transform:translate(-50%,0) scale(1)}
+
+  /* 方式B: Three.js canvas */
+  #world-b canvas{width:100%;height:100%;display:block}
+
+  /* UI */
+  #title-card{position:fixed;left:24px;top:20px;max-width:50vw;padding:10px 14px;
+    background:rgba(250,245,235,.85);border:1px solid #b9a784;border-radius:5px;
     box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;transition:opacity .6s}
   #title-card.show{opacity:1}
   #title-card h1{font-size:clamp(16px,3.2vw,26px);letter-spacing:.04em}
   #title-card p{font-size:13px;color:#6b5b45;margin-top:4px}
-  #mode-toggle{position:fixed;right:18px;bottom:18px;display:none;gap:0;z-index:10;
+  #mode-toggle{position:fixed;right:18px;bottom:18px;display:none;z-index:10;
     border-radius:999px;overflow:hidden;border:1px solid #b9a784;background:#faf5eb}
   #mode-toggle.show{display:flex}
   #mode-toggle button{border:0;padding:10px 18px;background:transparent;font:inherit;cursor:pointer;color:#8a7860}
   #mode-toggle button.sel{background:#7a6450;color:#fdf8ee}
+  #mode-toggle button:disabled{opacity:.4;cursor:not-allowed}
   #hint{position:fixed;left:0;right:0;bottom:64px;text-align:center;color:#fdf8ee;
-    text-shadow:0 1px 3px rgba(0,0,0,.5);opacity:.9;font-size:14px}
+    text-shadow:0 1px 3px rgba(0,0,0,.55);opacity:.92;font-size:15px;pointer-events:none}
   #hint.gone{opacity:0;transition:opacity .5s}
-
-  /* 方式A: 水彩レイヤー視差ポップアップ */
-  #world-a .layer{position:absolute;left:50%;bottom:6%;width:96%;
-    transform:translateX(-50%) translateY(40px);transform-origin:50% 100%;
-    opacity:0;transition:transform .9s cubic-bezier(.2,.8,.2,1),opacity .6s;
-    will-change:transform;background-size:contain;background-repeat:no-repeat;background-position:bottom center}
-  #world-a.popped .layer{opacity:1}
-  #world-a.popped .layer.sky{transform:translateX(-50%) translateY(0) scale(1.04)}
-  #world-a.popped .layer.far{transform:translateX(-50%) translateY(0) rotateX(2deg)}
-  #world-a.popped .layer.mid{transform:translateX(-50%) translateY(0) rotateX(4deg)}
-  #world-a.popped .layer.fore{transform:translateX(-50%) translateY(0) rotateX(7deg)}
-
-  /* 方式B: Three.js canvas */
-  #world-b{display:block}
-  #world-b canvas{width:100%;height:100%;display:block}
-  #world-b .loading-msg{position:absolute;inset:0;display:grid;place-items:center;
-    color:#fdf8ee;font-size:15px;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+  .status-msg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;
+    color:#fdf8ee;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,.7);padding:0 24px;line-height:1.6}
 </style></head>
 <body>
 <div id="stage">
-  <div id="book" class="closed">
-    <div id="world-a"></div>
+  <div class="ehon-stage">
+    <div id="world-a" class="closed active"></div>
     <div id="world-b"></div>
   </div>
 </div>
-<div id="title-card"><h1>Enchanted — 妖精の森の箱庭</h1><p>魔法の森に芽吹く、妖精たちの箱庭</p></div>
+<div id="title-card"><h1>Enchanted — 妖精の森の絵本</h1><p>本をひらくと、ページの上に魔法の世界がたちあがる</p></div>
 <div id="mode-toggle">
   <button id="btn-a" class="sel">水彩</button>
   <button id="btn-b">3D</button>
@@ -69,34 +75,26 @@
 <div id="hint">本をひらく</div>
 
 <script>
-/* ---- ASSET_BASE: ローカルvsGitHub Pages切り替え ---- */
+/* ---- アセット参照: ローカル vs GitHub Pages(pCloud) ---- */
 const PCLOUD_PROXY = 'https://niwa-cors.yuichi916.workers.dev';
 const PCLOUD_PUBLINK = 'kZqt6O5Z4gUlPEmDoLyJhwfgiE5ztFhhp9Fk';
-
 const _IS_GITHUB = location.hostname.endsWith('github.io');
-const ASSET_BASE = _IS_GITHUB ? null : './_ehon_assets';
+const ASSET_BASE = './_ehon_assets';
 
-/* pCloud fileid解決(github.io時のみ使用) */
 let _EHON_FILEID_PROMISE = null;
 let _EHON_FILEIDS = {};
-
 function resolveEhonFileids() {
   if (_EHON_FILEID_PROMISE) return _EHON_FILEID_PROMISE;
   _EHON_FILEID_PROMISE = (async () => {
     try {
-      const r = await fetch(
-        `https://api.pcloud.com/showpublink?code=${PCLOUD_PUBLINK}`,
-        { referrerPolicy: 'no-referrer', credentials: 'omit', mode: 'cors' }
-      );
+      const r = await fetch(`https://api.pcloud.com/showpublink?code=${PCLOUD_PUBLINK}`,
+        { referrerPolicy: 'no-referrer', credentials: 'omit', mode: 'cors' });
       const d = await r.json();
-      const md = d.metadata || {};
       const map = {};
-      for (const c of (md.contents || [])) {
+      for (const c of ((d.metadata || {}).contents || [])) {
         if (c.isfolder && c.name === 'ehon-assets') {
           for (const f of (c.contents || [])) {
-            if (!f.isfolder && f.name) {
-              map[f.name] = f.fileid;
-            }
+            if (!f.isfolder && f.name) map[f.name] = f.fileid;
           }
         }
       }
@@ -111,18 +109,18 @@ function resolveEhonFileids() {
   })();
   return _EHON_FILEID_PROMISE;
 }
-
 function getAssetUrl(filename) {
-  if (!_IS_GITHUB) {
-    return `${ASSET_BASE}/ehon/${filename}`;
+  if (_IS_GITHUB) {
+    const id = _EHON_FILEIDS[filename];
+    if (id) return `${PCLOUD_PROXY}/g/${id}`;
+    console.warn(`ehon: fileid not found for ${filename}, falling back to local`);
   }
-  const fileid = _EHON_FILEIDS[filename];
-  if (fileid) {
-    return `${PCLOUD_PROXY}/g/${fileid}`;
-  }
-  console.warn(`ehon: fileid not found for ${filename}, falling back to local`);
-  return `./_ehon_assets/ehon/${filename}`;
+  return `${ASSET_BASE}/ehon/${filename}`;
 }
+window._IS_GITHUB = _IS_GITHUB;
+window.resolveEhonFileids = resolveEhonFileids;
+window.getAssetUrl = getAssetUrl;
+if (_IS_GITHUB) resolveEhonFileids().catch(() => {});
 
 /* ---- 共通シェル ---- */
 const EHON = {
@@ -130,11 +128,14 @@ const EHON = {
   open() {
     if (this.state.open) return;
     this.state.open = true;
-    document.getElementById('book').className = 'open';
     document.getElementById('hint').classList.add('gone');
     document.getElementById('title-card').classList.add('show');
     document.getElementById('mode-toggle').classList.add('show');
-    this.setMode(this.state.mode);
+    if (this.state.mode === 'a') {
+      document.getElementById('world-a').classList.remove('closed');
+      document.getElementById('world-a').classList.add('popped');
+    }
+    if (this.state.mode === 'b' && window.popWorldB) window.popWorldB();
   },
   setMode(m) {
     this.state.mode = m;
@@ -142,67 +143,81 @@ const EHON = {
     document.getElementById('btn-b').classList.toggle('sel', m === 'b');
     document.getElementById('world-a').classList.toggle('active', m === 'a');
     document.getElementById('world-b').classList.toggle('active', m === 'b');
-    if (m === 'a' && !this.state.booted.a) { this.state.booted.a = true; window.bootWorldA && window.bootWorldA(); }
-    if (m === 'b' && !this.state.booted.b) { this.state.booted.b = true; window.bootWorldB && window.bootWorldB(); }
+    if (m === 'a') {
+      if (!this.state.booted.a) { this.state.booted.a = true; window.bootWorldA && window.bootWorldA(); }
+      if (this.state.open) {
+        document.getElementById('world-a').classList.remove('closed');
+        document.getElementById('world-a').classList.add('popped');
+      }
+    }
+    if (m === 'b') {
+      if (!this.state.booted.b) { this.state.booted.b = true; window.bootWorldB && window.bootWorldB(); }
+      else if (this.state.open && window.popWorldB) window.popWorldB();
+    }
   }
 };
 window.EHON = EHON;
-/* module scriptからアクセス可能にする */
-window._IS_GITHUB = _IS_GITHUB;
-window.resolveEhonFileids = resolveEhonFileids;
-window.getAssetUrl = getAssetUrl;
-
-document.getElementById('book').addEventListener('click', () => EHON.open());
 document.getElementById('btn-a').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('a'); });
 document.getElementById('btn-b').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('b'); });
 
-/* github.io時はあらかじめfileid解決 */
-if (_IS_GITHUB) {
-  resolveEhonFileids().catch(() => {});
-}
-
-/* ---- 方式A: 水彩レイヤー視差ポップアップ ---- */
+/* ---- 方式A: 水彩の本ステージ + 上にせり上がる世界 ---- */
 window.bootWorldA = async function () {
   if (_IS_GITHUB) await resolveEhonFileids();
   const root = document.getElementById('world-a');
-  const layers = [
-    { k: 'sky',  z: 0, depth: 0.0 },
-    { k: 'far',  z: 1, depth: 0.25 },
-    { k: 'mid',  z: 2, depth: 0.55 },
-    { k: 'fore', z: 3, depth: 1.0 },
-  ];
   root.innerHTML = '';
-  layers.forEach(L => {
-    const d = document.createElement('div');
-    d.className = 'layer ' + L.k;
-    d.style.zIndex = L.z;
-    d.dataset.depth = L.depth;
-    d.style.height = (70 + L.z * 8) + '%';
-    d.style.backgroundImage = `url(${getAssetUrl('A_layer_' + L.k + '.png')})`;
-    root.appendChild(d);
+  /* 本の土台(水彩) */
+  const book = document.createElement('img');
+  book.className = 'book-base';
+  book.alt = '';
+  book.src = getAssetUrl('book_wc.png');
+  book.addEventListener('click', () => EHON.open());
+  root.appendChild(book);
+  /* 本の上にせり上がる世界(奥→手前) */
+  const pop = document.createElement('div');
+  pop.className = 'world-pop';
+  const layers = [
+    { k: 'far',  depth: 0.30 },
+    { k: 'mid',  depth: 0.60 },
+    { k: 'fore', depth: 1.0 },
+  ];
+  layers.forEach((L, i) => {
+    const img = document.createElement('img');
+    img.className = 'layer ' + L.k;
+    img.alt = '';
+    img.style.zIndex = i + 1;
+    img.dataset.depth = L.depth;
+    img.style.transitionDelay = (i * 90) + 'ms';
+    img.src = getAssetUrl('A_layer_' + L.k + '.png');
+    pop.appendChild(img);
   });
-  requestAnimationFrame(() => root.classList.add('popped'));
+  root.appendChild(pop);
 
-  function onMove(e) {
-    if (EHON.state.mode !== 'a') return;
-    const cx = (e.clientX / innerWidth - 0.5);
-    const cy = (e.clientY / innerHeight - 0.5);
-    root.querySelectorAll('.layer').forEach(el => {
+  /* 視差(マウス/ジャイロ): 手前ほど大きく動く */
+  function applyParallax(cx, cy) {
+    if (EHON.state.mode !== 'a' || !root.classList.contains('popped')) return;
+    pop.querySelectorAll('.layer').forEach(el => {
       const dp = parseFloat(el.dataset.depth);
-      el.style.transform = `translateX(calc(-50% + ${cx * dp * 36}px)) translateY(${cy * dp * -14}px)`;
+      el.style.transform = `translate(calc(-50% + ${cx * dp * 30}px), ${cy * dp * -12}px) scale(1)`;
     });
   }
-  window.addEventListener('mousemove', onMove, { passive: true });
-  window.addEventListener('deviceorientation', ev => {
-    if (EHON.state.mode !== 'a' || ev.gamma == null) return;
-    const cx = Math.max(-.5, Math.min(.5, ev.gamma / 45));
-    const cy = Math.max(-.5, Math.min(.5, (ev.beta - 45) / 45));
-    root.querySelectorAll('.layer').forEach(el => {
-      const dp = parseFloat(el.dataset.depth);
-      el.style.transform = `translateX(calc(-50% + ${cx * dp * 36}px)) translateY(${cy * dp * -14}px)`;
-    });
+  window.addEventListener('mousemove', e => {
+    applyParallax(e.clientX / innerWidth - 0.5, e.clientY / innerHeight - 0.5);
   }, { passive: true });
+  window.addEventListener('deviceorientation', ev => {
+    if (ev.gamma == null) return;
+    applyParallax(Math.max(-.5, Math.min(.5, ev.gamma / 45)),
+                  Math.max(-.5, Math.min(.5, (ev.beta - 45) / 45)));
+  }, { passive: true });
+
+  /* 既にopen済みならpop */
+  if (EHON.state.open) { root.classList.remove('closed'); root.classList.add('popped'); }
 };
+
+/* 初期表示: 方式Aの本を載せておく(クリックで開く) */
+window.addEventListener('DOMContentLoaded', () => {
+  EHON.state.booted.a = true;
+  window.bootWorldA();
+});
 </script>
 
 <script type="module">
@@ -217,22 +232,20 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     const c = document.createElement('canvas');
     if (!(c.getContext('webgl2') || c.getContext('webgl'))) {
       const btn = document.getElementById('btn-b');
-      btn.disabled = true;
-      btn.title = 'この端末は3D非対応';
+      btn.disabled = true; btn.title = 'この端末は3D非対応';
     }
-  } catch (e) {
-    document.getElementById('btn-b').disabled = true;
-  }
+  } catch (e) { document.getElementById('btn-b').disabled = true; }
 })();
+
+let _popB = null;
+window.popWorldB = () => { if (_popB) _popB(); };
 
 window.bootWorldB = async function () {
   if (window._IS_GITHUB) await window.resolveEhonFileids();
   const host = document.getElementById('world-b');
   host.innerHTML = '';
-
-  /* ローディング表示 */
   const msg = document.createElement('div');
-  msg.className = 'loading-msg';
+  msg.className = 'status-msg';
   msg.textContent = '3Dを読み込み中…';
   host.appendChild(msg);
 
@@ -240,83 +253,99 @@ window.bootWorldB = async function () {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
-
-  const fit = () => {
-    const w = host.clientWidth, h = host.clientHeight;
-    renderer.setSize(w, h, false);
-    cam.aspect = w / h;
-    cam.updateProjectionMatrix();
-  };
+  renderer.toneMappingExposure = 1.05;
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(38, host.clientWidth / host.clientHeight, 0.1, 200);
-  cam.position.set(0, 6, 12);
+  const cam = new THREE.PerspectiveCamera(40, host.clientWidth / host.clientHeight, 0.1, 500);
+  cam.position.set(0, 5.5, 11);
+  const fit = () => {
+    const w = host.clientWidth, h = host.clientHeight;
+    renderer.setSize(w, h, false);
+    cam.aspect = w / h; cam.updateProjectionMatrix();
+  };
 
   const controls = new OrbitControls(cam, renderer.domElement);
-  controls.enablePan = false;
-  controls.minDistance = 6;
-  controls.maxDistance = 20;
-  controls.maxPolarAngle = Math.PI * 0.49;
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 0.6;
+  controls.enablePan = false; controls.minDistance = 7; controls.maxDistance = 22;
+  controls.maxPolarAngle = Math.PI * 0.49; controls.target.set(0, 1.5, 0);
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.55;
 
-  scene.add(new THREE.HemisphereLight(0xfff2d8, 0x4a5a6a, 1.1));
-  const sun = new THREE.DirectionalLight(0xfff0d0, 1.4);
-  sun.position.set(6, 12, 6);
-  scene.add(sun);
+  scene.add(new THREE.HemisphereLight(0xfff2d8, 0x55607a, 1.2));
+  const sun = new THREE.DirectionalLight(0xfff0d0, 1.5);
+  sun.position.set(6, 12, 6); scene.add(sun);
 
   const draco = new DRACOLoader();
-  draco.setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/');
+  draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
 
-  const glbUrl = window.getAssetUrl('B_diorama.glb');
+  const fail = (label, url, err) => {
+    msg.innerHTML = `3Dの読み込みに失敗: ${label}<br><small>${url}</small><br>水彩でお楽しみください`;
+    console.error('ehon 3D load error', label, url, err);
+  };
+  const loadGLB = (url) => new Promise((res, rej) =>
+    loader.load(url, g => res(g), undefined, e => rej(e)));
 
-  loader.load(
-    glbUrl,
-    gltf => {
+  const bookUrl = window.getAssetUrl('book.glb');
+  const dioUrl = window.getAssetUrl('B_diorama.glb');
+
+  let dioramaGrp = null, targetY = 0;
+  (async () => {
+    try {
+      /* 本(土台)を読み込み接地 */
+      const bookGltf = await loadGLB(bookUrl).catch(e => { fail('本(book.glb)', bookUrl, e); throw e; });
+      const book = bookGltf.scene;
+      let bb = new THREE.Box3().setFromObject(book);
+      let bs = bb.getSize(new THREE.Vector3());
+      const bScale = 9 / Math.max(bs.x, bs.z);      // 本の幅を約9に正規化
+      book.scale.setScalar(bScale);
+      bb = new THREE.Box3().setFromObject(book);
+      const bc = bb.getCenter(new THREE.Vector3());
+      book.position.x -= bc.x; book.position.z -= bc.z;
+      book.position.y -= bb.min.y;                  // 接地
+      scene.add(book);
+      const bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
+
+      /* 城ジオラマを本の上に乗せる */
+      const dioGltf = await loadGLB(dioUrl).catch(e => { fail('ジオラマ(B_diorama.glb)', dioUrl, e); throw e; });
+      const dio = dioGltf.scene;
+      let db = new THREE.Box3().setFromObject(dio);
+      let ds = db.getSize(new THREE.Vector3());
+      const dScale = 6 / Math.max(ds.x, ds.y, ds.z);
+      dio.scale.setScalar(dScale);
+      db = new THREE.Box3().setFromObject(dio);
+      const dc = db.getCenter(new THREE.Vector3());
+      dio.position.x -= dc.x; dio.position.z -= dc.z;
+      dio.position.y -= db.min.y;                   // ジオラマ最低点を0に
+      dioramaGrp = new THREE.Group();
+      dioramaGrp.add(dio);
+      dioramaGrp.position.y = bookTopY;             // 本の上面に配置
+      targetY = bookTopY;
+      dioramaGrp.scale.setScalar(EHON.state.open ? 1 : 0.001);
+      scene.add(dioramaGrp);
+      controls.target.set(0, bookTopY + 1.5, 0);
       msg.remove();
-      const m = gltf.scene;
-      /* bbox正規化: 中心化&スケール */
-      const box = new THREE.Box3().setFromObject(m);
-      const c = box.getCenter(new THREE.Vector3());
-      const sz = box.getSize(new THREE.Vector3());
-      const s = 8 / Math.max(sz.x, sz.y, sz.z);
-      m.position.sub(c);
-      m.scale.setScalar(s);
-      m.position.y -= (box.min.y - c.y) * s;
-      const grp = new THREE.Group();
-      grp.add(m);
-      grp.scale.setScalar(0.01);
-      scene.add(grp);
+      if (EHON.state.open) window.popWorldB();
+    } catch (e) { /* fail() already shown */ }
+  })();
 
-      /* せり上がりアニメ */
-      const t0 = performance.now();
-      (function pop() {
-        const k = Math.min(1, (performance.now() - t0) / 900);
-        const e = 1 - Math.pow(1 - k, 3);
-        grp.scale.setScalar(0.01 + e * 0.99);
-        grp.position.y = -4 + e * 4;
-        if (k < 1) requestAnimationFrame(pop);
-      })();
-    },
-    undefined,
-    err => {
-      host.innerHTML = '<div style="position:absolute;inset:0;display:grid;place-items:center;color:#fff;text-shadow:0 1px 3px #000">3Dの読み込みに失敗しました。水彩でお楽しみください</div>';
-      console.error('GLB load error', err);
-    }
-  );
+  /* せり上がりアニメ */
+  _popB = () => {
+    if (!dioramaGrp) return;
+    const t0 = performance.now();
+    (function pop() {
+      const k = Math.min(1, (performance.now() - t0) / 950);
+      const e = 1 - Math.pow(1 - k, 3);
+      dioramaGrp.scale.setScalar(0.001 + e * 0.999);
+      dioramaGrp.position.y = targetY - 3 * (1 - e);
+      if (k < 1) requestAnimationFrame(pop);
+    })();
+  };
 
   fit();
   addEventListener('resize', fit);
-
   (function loop() {
-    if (EHON.state.mode === 'b') {
-      controls.update();
-      renderer.render(scene, cam);
-    }
+    if (EHON.state.mode === 'b') { controls.update(); renderer.render(scene, cam); }
     requestAnimationFrame(loop);
   })();
 };
