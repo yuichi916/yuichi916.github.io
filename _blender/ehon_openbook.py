@@ -29,35 +29,18 @@ for o in bpy.data.objects:
 bpy.context.view_layer.update()
 print(f'[ehon] book meshes={len(book_objs)}')
 
-# ECIのテクスチャパックが無いため、面の向きで「ページ(羊皮紙)/表紙・背表紙(革)」を振り分け。
-# 上向き面=開いたページ(クリーム)、それ以外=革の表紙・背表紙(濃茶)。
-from mathutils import Vector as _V
-
-
-def apply_book_materials(o):
-    pages = bpy.data.materials.new('BookPages'); pages.use_nodes = True
-    p = pages.node_tree.nodes.get('Principled BSDF')
-    p.inputs['Base Color'].default_value = (0.91, 0.85, 0.71, 1.0)
-    p.inputs['Roughness'].default_value = 0.93
-    leather = bpy.data.materials.new('BookLeather'); leather.use_nodes = True
-    l = leather.node_tree.nodes.get('Principled BSDF')
-    l.inputs['Base Color'].default_value = (0.22, 0.11, 0.06, 1.0)
-    l.inputs['Roughness'].default_value = 0.5
-    try:
-        l.inputs['Sheen Weight'].default_value = 0.3
-    except Exception:
-        pass
-    o.data.materials.clear()
-    o.data.materials.append(pages)    # index 0 = ページ
-    o.data.materials.append(leather)  # index 1 = 革(表紙/背表紙)
-    n3 = o.matrix_world.to_3x3()
-    for poly in o.data.polygons:
-        nz = (n3 @ poly.normal).normalized().z
-        poly.material_index = 0 if nz > 0.35 else 1
-
-
-for o in book_objs:
-    apply_book_materials(o)
+# 本物の装飾写本テクスチャ(KB3D_ECI_BooksAtlas_*)を再リンク。
+# ECIのテクスチャは kb3d_enchantedinteriors.png.2k フォルダにある(ローカルコピー済)。
+# 元の BooksAtlas マテリアルをそのまま使い、城と同じく find_missing_files で解決する。
+for _texdir in (r'C:\tmp\blends\eci\eci_textures',
+                r'P:\CG fanbook\3D assets\Kitbash3D - Enchanted Interiors\kb3d_enchantedinteriors.png.2k'):
+    if os.path.isdir(_texdir):
+        try:
+            bpy.ops.file.find_missing_files(directory=_texdir)
+            print(f'[ehon] find_missing_files: {_texdir}')
+            break
+        except Exception as e:
+            print(f'[ehon] ffm err {e}')
 
 # bbox
 mins = Vector((1e9,) * 3); maxs = Vector((-1e9,) * 3)
