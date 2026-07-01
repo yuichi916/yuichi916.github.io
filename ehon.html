@@ -31,7 +31,7 @@
 
   /* 本の上にせり上がる世界(方式A) */
   .world-pop{position:absolute;left:50%;bottom:33%;width:70%;transform:translateX(-50%);
-    pointer-events:none}
+    pointer-events:none;cursor:pointer}
   .world-pop .layer{position:absolute;left:50%;bottom:0;width:100%;
     transform:translate(-50%,46%) scale(.6);transform-origin:50% 100%;
     opacity:0;transition:transform 1s cubic-bezier(.2,.85,.25,1),opacity .7s;
@@ -59,6 +59,67 @@
   #hint.gone{opacity:0;transition:opacity .5s}
   .status-msg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;
     color:#fdf8ee;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,.7);padding:0 24px;line-height:1.6}
+
+  /* ページめくりナビ */
+  #nav-prev, #nav-next {
+    position:fixed; top:50%; transform:translateY(-50%);
+    width:52px; height:52px; border-radius:50%;
+    background:rgba(250,245,235,.88); border:1px solid #b9a784;
+    box-shadow:0 3px 12px rgba(0,0,0,.3); cursor:pointer;
+    font-size:22px; display:none; align-items:center; justify-content:center;
+    z-index:20; color:#5e4c37; transition:opacity .3s;
+    user-select:none;
+  }
+  #nav-prev { left:14px; }
+  #nav-next { right:14px; }
+  #nav-prev.show, #nav-next.show { display:flex; }
+  #nav-prev:disabled, #nav-next:disabled { opacity:.3; cursor:not-allowed; }
+
+  /* ページめくりアニメ */
+  .ehon-stage.page-turning { animation: page-turn 0.4s ease-in-out; }
+  @keyframes page-turn {
+    0%   { opacity:1; transform:translateX(0) rotateY(0deg); }
+    40%  { opacity:.4; transform:translateX(-8px) rotateY(-6deg); }
+    60%  { opacity:.4; transform:translateX(8px)  rotateY(6deg); }
+    100% { opacity:1; transform:translateX(0) rotateY(0deg); }
+  }
+
+  /* world counter dots */
+  #world-dots {
+    position:fixed; bottom:110px; left:50%; transform:translateX(-50%);
+    display:none; gap:8px; z-index:20;
+  }
+  #world-dots.show { display:flex; }
+  #world-dots .dot {
+    width:8px; height:8px; border-radius:50%;
+    background:#b9a784; transition:background .3s;
+  }
+  #world-dots .dot.active { background:#5e4c37; }
+
+  /* 没入ズーム */
+  #world-a.immersed .world-pop {
+    position:fixed; inset:0; width:100vw; height:100vh;
+    bottom:unset; left:unset; transform:none;
+    z-index:50; background:#000a;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #immerse-back {
+    position:fixed; top:16px; right:16px; z-index:60;
+    background:rgba(250,245,235,.9); border:1px solid #b9a784;
+    border-radius:999px; padding:8px 18px; cursor:pointer;
+    font-family:inherit; font-size:14px; display:none;
+  }
+  #immerse-back.show { display:block; }
+
+  /* cabin link */
+  #cabin-link {
+    position:fixed; left:16px; bottom:16px; z-index:10;
+    font-size:13px; color:#8a7860; text-decoration:none;
+    background:rgba(250,245,235,.75); border:1px solid #b9a784;
+    border-radius:4px; padding:5px 10px;
+    transition:opacity .3s; opacity:.7;
+  }
+  #cabin-link:hover { opacity:1; }
 </style></head>
 <body>
 <div id="stage">
@@ -73,6 +134,11 @@
   <button id="btn-b">3D</button>
 </div>
 <div id="hint">本をひらく</div>
+<button id="nav-prev" aria-label="前の世界">◀</button>
+<button id="nav-next" aria-label="次の世界">▶</button>
+<div id="world-dots"></div>
+<button id="immerse-back">✕ もどる</button>
+<a id="cabin-link" href="cabin.html">← 小屋へ</a>
 
 <script>
 /* ---- アセット参照: ローカル vs GitHub Pages(pCloud) ---- */
@@ -122,15 +188,36 @@ window.resolveEhonFileids = resolveEhonFileids;
 window.getAssetUrl = getAssetUrl;
 if (_IS_GITHUB) resolveEhonFileids().catch(() => {});
 
+/* ---- 世界一覧 ---- */
+const WORLDS = [
+  {id:'enchanted',   title:'Enchanted',    sub:'妖精の森の絵本'},
+  {id:'valhalla',    title:'Valhalla',     sub:'北欧の神々の広間'},
+  {id:'darkfantasy', title:'Dark Fantasy', sub:'崩れゆく大聖堂'},
+];
+
+/* ---- ナビボタン状態更新 ---- */
+function updateNavButtons() {
+  const idx = EHON.state.currentWorldIdx;
+  const prev = document.getElementById('nav-prev');
+  const next = document.getElementById('nav-next');
+  prev.disabled = (idx === 0);
+  next.disabled = (idx === WORLDS.length - 1);
+}
+
 /* ---- 共通シェル ---- */
 const EHON = {
-  state: { open: false, mode: 'a', booted: { a: false, b: false } },
+  state: { open: false, mode: 'a', booted: { a: false, b: false }, currentWorldIdx: 0 },
+  immerse: false,
   open() {
     if (this.state.open) return;
     this.state.open = true;
     document.getElementById('hint').classList.add('gone');
     document.getElementById('title-card').classList.add('show');
     document.getElementById('mode-toggle').classList.add('show');
+    document.getElementById('nav-prev').classList.add('show');
+    document.getElementById('nav-next').classList.add('show');
+    document.getElementById('world-dots').classList.add('show');
+    updateNavButtons();
     if (this.state.mode === 'a') {
       document.getElementById('world-a').classList.remove('closed');
       document.getElementById('world-a').classList.add('popped');
@@ -154,17 +241,112 @@ const EHON = {
       if (!this.state.booted.b) { this.state.booted.b = true; window.bootWorldB && window.bootWorldB(); }
       else if (this.state.open && window.popWorldB) window.popWorldB();
     }
+  },
+  switchWorld(newIdx) {
+    if (newIdx < 0 || newIdx >= WORLDS.length) return;
+    if (newIdx === this.state.currentWorldIdx) return;
+    this.state.currentWorldIdx = newIdx;
+    const world = WORLDS[newIdx];
+
+    /* ページめくりアニメ */
+    const stage = document.querySelector('.ehon-stage');
+    stage.classList.add('page-turning');
+    stage.addEventListener('animationend', () => stage.classList.remove('page-turning'), {once:true});
+
+    /* タイトルカード更新 */
+    document.querySelector('#title-card h1').textContent = world.title + ' — ' + world.sub;
+
+    /* 現在モードのアセット再ロード */
+    const mode = this.state.mode;
+    if (mode === 'a') {
+      this.state.booted.a = false;
+      window.bootWorldA && window.bootWorldA();
+      if (this.state.open) {
+        const wa = document.getElementById('world-a');
+        wa.classList.remove('popped');
+        requestAnimationFrame(() => requestAnimationFrame(() => wa.classList.add('popped')));
+      }
+    }
+    if (mode === 'b') {
+      window.disposeWorldB && window.disposeWorldB();
+      this.state.booted.b = false;
+      window.bootWorldB && window.bootWorldB();
+      if (this.state.open && window.popWorldB) {
+        setTimeout(() => window.popWorldB(), 200);
+      }
+    }
+
+    /* ドット更新 */
+    document.querySelectorAll('#world-dots .dot').forEach((d, i) =>
+      d.classList.toggle('active', i === newIdx));
+
+    /* ナビボタン状態更新 */
+    updateNavButtons();
+  },
+  enterWorld() {
+    if (this.immerse) return;
+    this.immerse = true;
+    if (this.state.mode === 'a') {
+      document.getElementById('world-a').classList.add('immersed');
+    }
+    if (this.state.mode === 'b' && window.immerseWorldB) {
+      window.immerseWorldB();
+    }
+    document.getElementById('immerse-back').classList.add('show');
+    document.getElementById('nav-prev').classList.remove('show');
+    document.getElementById('nav-next').classList.remove('show');
+    document.getElementById('mode-toggle').classList.remove('show');
+    document.getElementById('world-dots').classList.remove('show');
+  },
+  exitWorld() {
+    if (!this.immerse) return;
+    this.immerse = false;
+    document.getElementById('world-a').classList.remove('immersed');
+    if (window.exitImmerseB) window.exitImmerseB();
+    document.getElementById('immerse-back').classList.remove('show');
+    if (this.state.open) {
+      document.getElementById('nav-prev').classList.add('show');
+      document.getElementById('nav-next').classList.add('show');
+      document.getElementById('mode-toggle').classList.add('show');
+      document.getElementById('world-dots').classList.add('show');
+    }
   }
 };
 window.EHON = EHON;
+
 document.getElementById('btn-a').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('a'); });
 document.getElementById('btn-b').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('b'); });
+document.getElementById('nav-prev').addEventListener('click', e => { e.stopPropagation(); EHON.switchWorld(EHON.state.currentWorldIdx - 1); });
+document.getElementById('nav-next').addEventListener('click', e => { e.stopPropagation(); EHON.switchWorld(EHON.state.currentWorldIdx + 1); });
+document.getElementById('immerse-back').addEventListener('click', e => { e.stopPropagation(); EHON.exitWorld(); });
+
+/* キーボードナビ */
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') EHON.switchWorld(EHON.state.currentWorldIdx - 1);
+  if (e.key === 'ArrowRight') EHON.switchWorld(EHON.state.currentWorldIdx + 1);
+});
+
+/* タッチスワイプ */
+(function () {
+  let _tx = null;
+  window.addEventListener('touchstart', e => { _tx = e.changedTouches[0].clientX; }, { passive: true });
+  window.addEventListener('touchend', e => {
+    if (_tx === null) return;
+    const dx = e.changedTouches[0].clientX - _tx;
+    _tx = null;
+    if (Math.abs(dx) < 50) return;
+    if (dx < 0) EHON.switchWorld(EHON.state.currentWorldIdx + 1);
+    else EHON.switchWorld(EHON.state.currentWorldIdx - 1);
+  }, { passive: true });
+})();
 
 /* ---- 方式A: 水彩の本ステージ + 上にせり上がる世界 ---- */
 window.bootWorldA = async function () {
   if (_IS_GITHUB) await resolveEhonFileids();
+  const worldId = WORLDS[EHON.state.currentWorldIdx].id;
   const root = document.getElementById('world-a');
   root.innerHTML = '';
+
   /* 本の土台(水彩) */
   const book = document.createElement('img');
   book.className = 'book-base';
@@ -172,9 +354,26 @@ window.bootWorldA = async function () {
   book.src = getAssetUrl('book_wc.png');
   book.addEventListener('click', () => EHON.open());
   root.appendChild(book);
+
+  /* 404/onerror フォールバック用フラグ */
+  let failShown = false;
+  function showPrepMsg(pop) {
+    if (failShown) return;
+    failShown = true;
+    pop.innerHTML = '';
+    const msg = document.createElement('div');
+    msg.className = 'status-msg';
+    msg.textContent = 'この世界は準備中なのだ';
+    pop.appendChild(msg);
+  }
+
   /* 本の上にせり上がる世界(奥→手前) */
   const pop = document.createElement('div');
   pop.className = 'world-pop';
+  pop.addEventListener('click', e => {
+    e.stopPropagation();
+    if (EHON.state.open) EHON.enterWorld();
+  });
   const layers = [
     { k: 'far',  depth: 0.30 },
     { k: 'mid',  depth: 0.60 },
@@ -187,7 +386,8 @@ window.bootWorldA = async function () {
     img.style.zIndex = i + 1;
     img.dataset.depth = L.depth;
     img.style.transitionDelay = (i * 90) + 'ms';
-    img.src = getAssetUrl('A_layer_' + L.k + '.png');
+    img.src = getAssetUrl(worldId + '_' + L.k + '.png');
+    img.onerror = () => showPrepMsg(pop);
     pop.appendChild(img);
   });
   root.appendChild(pop);
@@ -195,6 +395,7 @@ window.bootWorldA = async function () {
   /* 視差(マウス/ジャイロ): 手前ほど大きく動く */
   function applyParallax(cx, cy) {
     if (EHON.state.mode !== 'a' || !root.classList.contains('popped')) return;
+    if (EHON.immerse) return;
     pop.querySelectorAll('.layer').forEach(el => {
       const dp = parseFloat(el.dataset.depth);
       el.style.transform = `translate(calc(-50% + ${cx * dp * 30}px), ${cy * dp * -12}px) scale(1)`;
@@ -213,8 +414,18 @@ window.bootWorldA = async function () {
   if (EHON.state.open) { root.classList.remove('closed'); root.classList.add('popped'); }
 };
 
-/* 初期表示: 方式Aの本を載せておく(クリックで開く) */
+/* ---- DOMContentLoaded: 初期化 ---- */
 window.addEventListener('DOMContentLoaded', () => {
+  /* ドット生成 */
+  const dotsEl = document.getElementById('world-dots');
+  WORLDS.forEach((w, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dot.title = w.title;
+    dotsEl.appendChild(dot);
+  });
+
+  /* 方式Aの初期ロード */
   EHON.state.booted.a = true;
   window.bootWorldA();
 });
@@ -238,12 +449,43 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 })();
 
 let _popB = null;
+let _renderer = null;
+let _bDisposed = false;
+let _controls = null;
+
 window.popWorldB = () => { if (_popB) _popB(); };
+
+window.disposeWorldB = () => {
+  _bDisposed = true;
+  if (_renderer) { _renderer.dispose(); _renderer = null; }
+  const host = document.getElementById('world-b');
+  host.innerHTML = '';
+  _popB = null;
+  _controls = null;
+};
+
+window.immerseWorldB = () => {
+  if (_controls) {
+    _controls.minDistance = 2;
+    _controls.maxDistance = 8;
+  }
+};
+
+window.exitImmerseB = () => {
+  if (_controls) {
+    _controls.minDistance = 9;
+    _controls.maxDistance = 30;
+  }
+};
 
 window.bootWorldB = async function () {
   if (window._IS_GITHUB) await window.resolveEhonFileids();
+  const worldId = WORLDS[EHON.state.currentWorldIdx].id;
   const host = document.getElementById('world-b');
   host.innerHTML = '';
+
+  _bDisposed = false;
+
   const msg = document.createElement('div');
   msg.className = 'status-msg';
   msg.textContent = '3Dを読み込み中…';
@@ -254,6 +496,7 @@ window.bootWorldB = async function () {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
+  _renderer = renderer;
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -269,6 +512,7 @@ window.bootWorldB = async function () {
   controls.enablePan = false; controls.minDistance = 9; controls.maxDistance = 30;
   controls.maxPolarAngle = Math.PI * 0.49; controls.target.set(0, 1.5, 0);
   controls.autoRotate = true; controls.autoRotateSpeed = 0.55;
+  _controls = controls;
 
   scene.add(new THREE.HemisphereLight(0xfff2d8, 0x55607a, 1.2));
   const sun = new THREE.DirectionalLight(0xfff0d0, 1.5);
@@ -280,34 +524,40 @@ window.bootWorldB = async function () {
   loader.setDRACOLoader(draco);
 
   const fail = (label, url, err) => {
-    msg.innerHTML = `3Dの読み込みに失敗: ${label}<br><small>${url}</small><br>水彩でお楽しみください`;
+    host.innerHTML = '';
+    const failMsg = document.createElement('div');
+    failMsg.className = 'status-msg';
+    failMsg.textContent = 'この世界は準備中なのだ';
+    host.appendChild(failMsg);
     console.error('ehon 3D load error', label, url, err);
   };
   const loadGLB = (url) => new Promise((res, rej) =>
     loader.load(url, g => res(g), undefined, e => rej(e)));
 
   const bookUrl = window.getAssetUrl('book.glb');
-  const dioUrl = window.getAssetUrl('B_diorama.glb');
+  const dioUrl = window.getAssetUrl(worldId + '_diorama.glb');
 
   let dioramaGrp = null, targetY = 0;
   (async () => {
     try {
       /* 本(土台)を読み込み接地 */
       const bookGltf = await loadGLB(bookUrl).catch(e => { fail('本(book.glb)', bookUrl, e); throw e; });
+      if (_bDisposed) return;
       const book = bookGltf.scene;
       let bb = new THREE.Box3().setFromObject(book);
       let bs = bb.getSize(new THREE.Vector3());
-      const bScale = 11 / Math.max(bs.x, bs.z);     // 本の幅を約11に正規化(大きめ)
+      const bScale = 11 / Math.max(bs.x, bs.z);
       book.scale.setScalar(bScale);
       bb = new THREE.Box3().setFromObject(book);
       const bc = bb.getCenter(new THREE.Vector3());
       book.position.x -= bc.x; book.position.z -= bc.z;
-      book.position.y -= bb.min.y;                  // 接地
+      book.position.y -= bb.min.y;
       scene.add(book);
       const bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
 
-      /* 城ジオラマを本の上に乗せる */
-      const dioGltf = await loadGLB(dioUrl).catch(e => { fail('ジオラマ(B_diorama.glb)', dioUrl, e); throw e; });
+      /* ジオラマを本の上に乗せる */
+      const dioGltf = await loadGLB(dioUrl).catch(e => { fail('ジオラマ', dioUrl, e); throw e; });
+      if (_bDisposed) return;
       const dio = dioGltf.scene;
       let db = new THREE.Box3().setFromObject(dio);
       let ds = db.getSize(new THREE.Vector3());
@@ -316,15 +566,15 @@ window.bootWorldB = async function () {
       db = new THREE.Box3().setFromObject(dio);
       const dc = db.getCenter(new THREE.Vector3());
       dio.position.x -= dc.x; dio.position.z -= dc.z;
-      dio.position.y -= db.min.y;                   // ジオラマ最低点を0に
+      dio.position.y -= db.min.y;
       dioramaGrp = new THREE.Group();
       dioramaGrp.add(dio);
-      dioramaGrp.position.y = bookTopY;             // 本の上面に配置
+      dioramaGrp.position.y = bookTopY;
       targetY = bookTopY;
       dioramaGrp.scale.setScalar(EHON.state.open ? 1 : 0.001);
       scene.add(dioramaGrp);
       controls.target.set(0, bookTopY + 1.5, 0);
-      msg.remove();
+      if (msg.parentNode) msg.remove();
       if (EHON.state.open) window.popWorldB();
     } catch (e) { /* fail() already shown */ }
   })();
@@ -334,6 +584,7 @@ window.bootWorldB = async function () {
     if (!dioramaGrp) return;
     const t0 = performance.now();
     (function pop() {
+      if (_bDisposed) return;
       const k = Math.min(1, (performance.now() - t0) / 950);
       const e = 1 - Math.pow(1 - k, 3);
       dioramaGrp.scale.setScalar(0.001 + e * 0.999);
@@ -345,6 +596,7 @@ window.bootWorldB = async function () {
   fit();
   addEventListener('resize', fit);
   (function loop() {
+    if (_bDisposed) return;
     if (EHON.state.mode === 'b') { controls.update(); renderer.render(scene, cam); }
     requestAnimationFrame(loop);
   })();
