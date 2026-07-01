@@ -206,8 +206,7 @@ function updateNavButtons() {
 
 /* ---- 共通シェル ---- */
 const EHON = {
-  state: { open: false, mode: 'a', booted: { a: false, b: false }, currentWorldIdx: 0 },
-  immerse: false,
+  state: { open: false, mode: 'a', booted: { a: false, b: false }, currentWorldIdx: 0, immerse: false },
   open() {
     if (this.state.open) return;
     this.state.open = true;
@@ -284,8 +283,8 @@ const EHON = {
     updateNavButtons();
   },
   enterWorld() {
-    if (this.immerse) return;
-    this.immerse = true;
+    if (this.state.immerse) return;
+    this.state.immerse = true;
     if (this.state.mode === 'a') {
       document.getElementById('world-a').classList.add('immersed');
     }
@@ -299,8 +298,8 @@ const EHON = {
     document.getElementById('world-dots').classList.remove('show');
   },
   exitWorld() {
-    if (!this.immerse) return;
-    this.immerse = false;
+    if (!this.state.immerse) return;
+    this.state.immerse = false;
     document.getElementById('world-a').classList.remove('immersed');
     if (window.exitImmerseB) window.exitImmerseB();
     document.getElementById('immerse-back').classList.remove('show');
@@ -395,20 +394,28 @@ window.bootWorldA = async function () {
   /* 視差(マウス/ジャイロ): 手前ほど大きく動く */
   function applyParallax(cx, cy) {
     if (EHON.state.mode !== 'a' || !root.classList.contains('popped')) return;
-    if (EHON.immerse) return;
+    if (EHON.state.immerse) return;
     pop.querySelectorAll('.layer').forEach(el => {
       const dp = parseFloat(el.dataset.depth);
       el.style.transform = `translate(calc(-50% + ${cx * dp * 30}px), ${cy * dp * -12}px) scale(1)`;
     });
   }
-  window.addEventListener('mousemove', e => {
+  /* 古いリスナーを除去してから登録 (ワールド切替ごとの蓄積防止) */
+  if (window._ehonParallaxListeners) {
+    window.removeEventListener('mousemove', window._ehonParallaxListeners.mouse, { passive: true });
+    window.removeEventListener('deviceorientation', window._ehonParallaxListeners.gyro, { passive: true });
+  }
+  const onMouseMove = e => {
     applyParallax(e.clientX / innerWidth - 0.5, e.clientY / innerHeight - 0.5);
-  }, { passive: true });
-  window.addEventListener('deviceorientation', ev => {
+  };
+  const onDeviceOrientation = ev => {
     if (ev.gamma == null) return;
     applyParallax(Math.max(-.5, Math.min(.5, ev.gamma / 45)),
                   Math.max(-.5, Math.min(.5, (ev.beta - 45) / 45)));
-  }, { passive: true });
+  };
+  window.addEventListener('mousemove', onMouseMove, { passive: true });
+  window.addEventListener('deviceorientation', onDeviceOrientation, { passive: true });
+  window._ehonParallaxListeners = { mouse: onMouseMove, gyro: onDeviceOrientation };
 
   /* 既にopen済みならpop */
   if (EHON.state.open) { root.classList.remove('closed'); root.classList.add('popped'); }
