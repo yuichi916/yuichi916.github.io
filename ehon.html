@@ -259,12 +259,7 @@ const EHON = {
     const mode = this.state.mode;
     if (mode === 'a') {
       this.state.booted.a = false;
-      window.bootWorldA && window.bootWorldA();
-      if (this.state.open) {
-        const wa = document.getElementById('world-a');
-        wa.classList.remove('popped');
-        requestAnimationFrame(() => requestAnimationFrame(() => wa.classList.add('popped')));
-      }
+      window.bootWorldA && window.bootWorldA();  /* bootWorldA が open時に自前でpopする */
     }
     if (mode === 'b') {
       window.disposeWorldB && window.disposeWorldB();
@@ -417,8 +412,11 @@ window.bootWorldA = async function () {
   window.addEventListener('deviceorientation', onDeviceOrientation, { passive: true });
   window._ehonParallaxListeners = { mouse: onMouseMove, gyro: onDeviceOrientation };
 
-  /* 既にopen済みならpop */
-  if (EHON.state.open) { root.classList.remove('closed'); root.classList.add('popped'); }
+  /* 既にopen済みなら、1フレーム空けてからpop(せり上がりアニメを効かせる) */
+  if (EHON.state.open) {
+    root.classList.remove('closed', 'popped');
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add('popped')));
+  }
 };
 
 /* ---- DOMContentLoaded: 初期化 ---- */
