@@ -129,6 +129,156 @@
     transition:opacity .3s; opacity:.7;
   }
   #cabin-link:hover { opacity:1; }
+
+  /* ---- ミニクエスト UI ---- */
+  @keyframes questPulse {
+    0%,100%{ box-shadow:0 0 8px 3px #ffd700aa, 0 0 20px 6px #ffd70044; transform:translate(-50%,-50%) scale(1); }
+    50%{ box-shadow:0 0 14px 6px #ffd700cc, 0 0 32px 12px #ffd70066; transform:translate(-50%,-50%) scale(1.15); }
+  }
+  @keyframes questPulseLit {
+    0%,100%{ box-shadow:0 0 10px 5px #ffe566cc, 0 0 26px 10px #fff08866; transform:translate(-50%,-50%) scale(1); }
+    50%{ box-shadow:0 0 18px 9px #ffe566ee, 0 0 40px 16px #fff08899; transform:translate(-50%,-50%) scale(1.12); }
+  }
+  @keyframes questShake {
+    0%,100%{ transform:translate(-50%,-50%) scale(1); }
+    20%{ transform:translate(calc(-50% - 6px),-50%) scale(1); }
+    40%{ transform:translate(calc(-50% + 6px),-50%) scale(1); }
+    60%{ transform:translate(calc(-50% - 4px),-50%) scale(1); }
+    80%{ transform:translate(calc(-50% + 4px),-50%) scale(1); }
+  }
+  @keyframes questSpark {
+    0%{ opacity:1; transform:translate(-50%,-50%) scale(0.5); }
+    100%{ opacity:0; transform:translate(-50%,-50%) scale(3); }
+  }
+  @keyframes questBannerIn {
+    from{ opacity:0; transform:translateX(-50%) translateY(-24px); }
+    to{ opacity:1; transform:translateX(-50%) translateY(0); }
+  }
+  @keyframes questClearIn {
+    from{ opacity:0; transform:translate(-50%,-50%) scale(.8); }
+    to{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+  }
+  @keyframes questMetaIn {
+    from{ opacity:0; }
+    to{ opacity:1; }
+  }
+  @keyframes questGoldPop {
+    0%{ opacity:0; transform:translateX(-50%) scale(.5); }
+    60%{ opacity:1; transform:translateX(-50%) scale(1.1); }
+    100%{ opacity:1; transform:translateX(-50%) scale(1); }
+  }
+
+  /* バナー */
+  .quest-banner {
+    position:fixed; top:16px; left:50%; transform:translateX(-50%);
+    z-index:65; max-width:380px; width:90vw;
+    background:linear-gradient(160deg,#f7edd5 0%,#e9d8a8 60%,#d4b96a 100%);
+    border:2px solid #b08a32; border-radius:8px;
+    box-shadow:0 4px 18px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,200,.4);
+    padding:10px 16px 10px;
+    animation:questBannerIn .5s cubic-bezier(.18,.9,.24,1) both;
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  }
+  .quest-banner .qb-title {
+    font-size:13px; font-weight:bold; color:#5a3a00;
+    letter-spacing:.06em; margin-bottom:4px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .quest-banner .qb-progress {
+    font-size:12px; color:#7a5a10; font-weight:normal;
+    background:rgba(255,220,80,.3); border-radius:4px; padding:1px 6px;
+  }
+  .quest-banner .qb-intro {
+    font-size:12px; color:#5a3a00; line-height:1.55;
+  }
+  .quest-banner.quest-cleared-banner .qb-title { color:#3a6a00; }
+  .quest-banner.quest-cleared-banner .qb-progress { color:#3a6a00; background:rgba(80,220,80,.25); }
+
+  /* ホットスポット */
+  .quest-spot {
+    position:fixed; width:28px; height:28px; border-radius:50%;
+    background:rgba(255,215,0,.25); border:2px solid #ffd700;
+    cursor:pointer; z-index:62;
+    transform:translate(-50%,-50%);
+    animation:questPulse 2.2s ease-in-out infinite;
+    transition:background .3s;
+  }
+  .quest-spot.lit {
+    background:rgba(255,230,100,.7); border-color:#fff088;
+    animation:questPulseLit 1.8s ease-in-out infinite;
+  }
+  .quest-spot.shaking {
+    animation:questShake .4s ease-in-out;
+  }
+  .quest-spot .spot-inner {
+    position:absolute; inset:5px; border-radius:50%;
+    background:rgba(255,230,80,.5);
+  }
+  .quest-spot.lit .spot-inner { background:rgba(255,250,150,.9); }
+
+  /* 世界ドット: クリア済み */
+  #world-dots .dot.quest-cleared {
+    background:#c8a020;
+    box-shadow:0 0 6px 2px #ffd70088;
+  }
+
+  /* クリアオーバーレイ */
+  .quest-clear-overlay {
+    position:fixed; left:50%; top:50%;
+    transform:translate(-50%,-50%);
+    z-index:70; text-align:center;
+    background:linear-gradient(160deg,#f7edd5 0%,#e9d8a8 60%,#d4b96a 100%);
+    border:2px solid #b08a32; border-radius:12px;
+    box-shadow:0 8px 32px rgba(0,0,0,.55), 0 0 60px rgba(255,215,0,.25);
+    padding:28px 32px 24px;
+    max-width:340px; width:88vw;
+    animation:questClearIn .5s cubic-bezier(.18,.9,.24,1) both;
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  }
+  .quest-clear-overlay .qco-star { font-size:36px; margin-bottom:8px; }
+  .quest-clear-overlay .qco-title { font-size:15px; font-weight:bold; color:#5a3a00; margin-bottom:10px; }
+  .quest-clear-overlay .qco-msg { font-size:13px; color:#5a3a00; line-height:1.6; margin-bottom:16px; }
+  .quest-clear-overlay button {
+    border:1px solid #b08a32; background:#5a3a00; color:#fdf8ee;
+    border-radius:6px; padding:7px 22px; cursor:pointer;
+    font-family:inherit; font-size:13px;
+  }
+  .quest-clear-overlay button:hover { background:#7a5a20; }
+
+  /* メタ報酬オーバーレイ */
+  .quest-meta-overlay {
+    position:fixed; inset:0; z-index:80;
+    background:rgba(20,10,0,.82);
+    display:flex; align-items:center; justify-content:center;
+    animation:questMetaIn .8s ease both;
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  }
+  .quest-meta-inner {
+    text-align:center; max-width:360px; width:88vw;
+    padding:36px 28px 28px;
+    background:linear-gradient(170deg,#f7edd5 0%,#e9d8a8 60%,#d4b96a 100%);
+    border:2px solid #b08a32; border-radius:14px;
+    box-shadow:0 10px 40px rgba(0,0,0,.6), 0 0 80px rgba(255,215,0,.3);
+    position:relative;
+  }
+  .quest-meta-inner .qm-deco {
+    font-size:42px; margin-bottom:12px;
+    display:block; animation:questGoldPop .8s .2s cubic-bezier(.18,.9,.24,1) both;
+    position:relative; left:50%; transform:translateX(-50%);
+  }
+  .quest-meta-inner .qm-title {
+    font-size:18px; font-weight:bold; color:#5a3a00;
+    letter-spacing:.05em; margin-bottom:12px; line-height:1.4;
+  }
+  .quest-meta-inner .qm-msg {
+    font-size:13px; color:#5a3a00; line-height:1.7; margin-bottom:20px;
+  }
+  .quest-meta-inner button {
+    border:1px solid #b08a32; background:#5a3a00; color:#fdf8ee;
+    border-radius:8px; padding:10px 28px; cursor:pointer;
+    font-family:inherit; font-size:14px;
+  }
+  .quest-meta-inner button:hover { background:#7a5a20; }
 </style></head>
 <body>
 <div id="stage">
@@ -316,6 +466,8 @@ const EHON = {
     this.state.immerse = true;
     if (this.state.mode === 'a') {
       document.getElementById('world-a').classList.add('immersed');
+      const worldId = WORLDS[this.state.currentWorldIdx].id;
+      QuestEngine.enter(worldId);
     }
     if (this.state.mode === 'b' && window.immerseWorldB) {
       window.immerseWorldB();
@@ -329,6 +481,7 @@ const EHON = {
   exitWorld() {
     if (!this.state.immerse) return;
     this.state.immerse = false;
+    QuestEngine.exit();
     document.getElementById('world-a').classList.remove('immersed');
     if (window.exitImmerseB) window.exitImmerseB();
     document.getElementById('immerse-back').classList.remove('show');
@@ -353,6 +506,268 @@ window.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft') EHON.switchWorld(EHON.state.currentWorldIdx - 1);
   if (e.key === 'ArrowRight') EHON.switchWorld(EHON.state.currentWorldIdx + 1);
 });
+
+/* ================================================================
+   ミニクエストシステム
+   ================================================================ */
+const QUESTS = {
+  enchanted: {
+    title: '眠れる妖精の森',
+    intro: '森のあかりが消えている。3つの灯りをともして妖精を目覚めさせよう。',
+    type: 'find',
+    spots: [{x:0.34,y:0.5},{x:0.52,y:0.34},{x:0.66,y:0.56}],
+    clear: '森に灯がともり、妖精たちが舞いはじめた！'
+  },
+  valhalla: {
+    title: 'ルーンの儀',
+    intro: '3つのルーンを左→中→右の順にともせ。',
+    type: 'sequence',
+    spots: [{x:0.34,y:0.44,order:1},{x:0.5,y:0.36,order:2},{x:0.66,y:0.46,order:3}],
+    clear: 'ルーンが輝き、広間にオーロラが満ちた！'
+  },
+  darkfantasy: {
+    title: '鎮魂の鐘',
+    intro: '崩れた大聖堂の鐘を3つ鳴らし、影を払え。',
+    type: 'find',
+    spots: [{x:0.36,y:0.34},{x:0.52,y:0.28},{x:0.66,y:0.42}],
+    clear: '鐘が鳴り、影が晴れて光が差した！'
+  },
+};
+
+const QuestEngine = (function () {
+  const LS_KEY = 'ehon_quest';
+  const LS_META = 'ehon_quest_meta';
+
+  function loadState() {
+    try {
+      const s = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+      if (!s.cleared) s.cleared = {};
+      return s;
+    } catch (e) { return { cleared: {} }; }
+  }
+  function saveState(s) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) {}
+  }
+  function isMetaShown() {
+    try { return !!localStorage.getItem(LS_META); } catch (e) { return false; }
+  }
+  function markMetaShown() {
+    try { localStorage.setItem(LS_META, '1'); } catch (e) {}
+  }
+
+  /* 現在アクティブなクエスト状態 */
+  let _worldId = null;
+  let _quest = null;
+  let _litCount = 0;
+  let _nextOrder = 1;         /* sequence用 */
+  let _spotEls = [];
+  let _bannerEl = null;
+  let _clearPending = false;
+
+  function _removeBanner() {
+    if (_bannerEl && _bannerEl.parentNode) _bannerEl.parentNode.removeChild(_bannerEl);
+    _bannerEl = null;
+  }
+  function _removeSpots() {
+    _spotEls.forEach(el => { if (el.parentNode) el.parentNode.removeChild(el); });
+    _spotEls = [];
+  }
+  function _removeClearOverlay() {
+    const el = document.getElementById('_quest-clear-overlay');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  function _updateBanner() {
+    if (!_bannerEl || !_quest) return;
+    const prog = _bannerEl.querySelector('.qb-progress');
+    if (prog) prog.textContent = _litCount + '/' + _quest.spots.length;
+  }
+
+  function _markDotCleared(worldId) {
+    const idx = WORLDS.findIndex(w => w.id === worldId);
+    if (idx < 0) return;
+    const dots = document.querySelectorAll('#world-dots .dot');
+    if (dots[idx]) dots[idx].classList.add('quest-cleared');
+  }
+
+  function _checkAllCleared() {
+    const state = loadState();
+    const allIds = Object.keys(QUESTS);
+    return allIds.every(id => state.cleared[id]);
+  }
+
+  function _showMeta() {
+    if (isMetaShown()) return;
+    markMetaShown();
+    const overlay = document.createElement('div');
+    overlay.className = 'quest-meta-overlay';
+    overlay.innerHTML = `
+      <div class="quest-meta-inner">
+        <span class="qm-deco">✦ 📖 ✦</span>
+        <div class="qm-title">3つの世界を巡り、絵本は完成した</div>
+        <div class="qm-msg">妖精の森・北欧の広間・崩れゆく大聖堂。<br>すべての物語が一冊の絵本へと綴じられた。<br>おとぎ話の結末は、旅人の心の中にある。</div>
+        <button id="_quest-meta-close">絵本を閉じる</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('_quest-meta-close').addEventListener('click', () => {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    });
+  }
+
+  function _showClear() {
+    if (!_quest) return;
+    _clearPending = true;
+    _removeClearOverlay();
+    const overlay = document.createElement('div');
+    overlay.id = '_quest-clear-overlay';
+    overlay.className = 'quest-clear-overlay';
+    overlay.innerHTML = `
+      <div class="qco-star">✨</div>
+      <div class="qco-title">クエスト達成！</div>
+      <div class="qco-msg">${_quest.clear}</div>
+      <button id="_quest-clear-close">つづける</button>`;
+    document.body.appendChild(overlay);
+    document.getElementById('_quest-clear-close').addEventListener('click', () => {
+      _removeClearOverlay();
+      _clearPending = false;
+      if (_checkAllCleared()) _showMeta();
+    });
+  }
+
+  function _lightSpot(el, idx) {
+    el.classList.add('lit');
+    /* 簡易スパーク効果 */
+    const spark = document.createElement('div');
+    spark.style.cssText = `position:fixed;
+      width:48px;height:48px;border-radius:50%;
+      left:${el.style.left};top:${el.style.top};
+      transform:translate(-50%,-50%);
+      background:radial-gradient(circle,rgba(255,230,80,.9) 0%,rgba(255,215,0,.0) 70%);
+      pointer-events:none;z-index:63;
+      animation:questSpark .5s ease-out forwards;`;
+    document.body.appendChild(spark);
+    setTimeout(() => { if (spark.parentNode) spark.parentNode.removeChild(spark); }, 600);
+  }
+
+  function _handleSpotClick(el, spotData, idx) {
+    if (el.classList.contains('lit')) return;
+    const state = loadState();
+    if (state.cleared[_worldId]) return; /* クリア済みは再チャレンジ不要 */
+
+    if (_quest.type === 'find') {
+      _litCount++;
+      _lightSpot(el, idx);
+      _updateBanner();
+      if (_litCount >= _quest.spots.length) {
+        state.cleared[_worldId] = true;
+        saveState(state);
+        _markDotCleared(_worldId);
+        setTimeout(() => _showClear(), 400);
+      }
+    } else if (_quest.type === 'sequence') {
+      const required = spotData.order;
+      if (required === _nextOrder) {
+        _litCount++;
+        _nextOrder++;
+        _lightSpot(el, idx);
+        _updateBanner();
+        if (_litCount >= _quest.spots.length) {
+          state.cleared[_worldId] = true;
+          saveState(state);
+          _markDotCleared(_worldId);
+          setTimeout(() => _showClear(), 400);
+        }
+      } else {
+        /* 順番違い: 全スポットをシェイク+リセット */
+        _spotEls.forEach(s => {
+          s.classList.remove('lit');
+          s.classList.add('shaking');
+          s.addEventListener('animationend', () => s.classList.remove('shaking'), { once: true });
+        });
+        _litCount = 0;
+        _nextOrder = 1;
+        _updateBanner();
+      }
+    }
+  }
+
+  function enter(worldId) {
+    exit(); /* 念のため前回分クリーンアップ */
+    const quest = QUESTS[worldId];
+    if (!quest) return; /* 定義なし世界はスキップ */
+
+    _worldId = worldId;
+    _quest = quest;
+    _litCount = 0;
+    _nextOrder = 1;
+    _clearPending = false;
+
+    const state = loadState();
+    const alreadyCleared = !!state.cleared[worldId];
+
+    /* バナー */
+    const banner = document.createElement('div');
+    banner.className = 'quest-banner' + (alreadyCleared ? ' quest-cleared-banner' : '');
+    banner.innerHTML = `
+      <div class="qb-title">
+        ${alreadyCleared ? '✓ ' : ''}${quest.title}
+        <span class="qb-progress">${alreadyCleared ? 'クリア済' : '0/' + quest.spots.length}</span>
+      </div>
+      <div class="qb-intro">${alreadyCleared ? 'この世界のクエストはクリア済みです。' : quest.intro}</div>`;
+    document.body.appendChild(banner);
+    _bannerEl = banner;
+
+    /* ホットスポット */
+    quest.spots.forEach((spotData, idx) => {
+      const el = document.createElement('div');
+      el.className = 'quest-spot' + (alreadyCleared ? ' lit' : '');
+      el.innerHTML = '<div class="spot-inner"></div>';
+      /* ウィンドウ座標(immersed時は全画面) */
+      el.style.left = (spotData.x * 100) + 'vw';
+      el.style.top  = (spotData.y * 100) + 'vh';
+      if (alreadyCleared) {
+        _litCount++;
+      } else {
+        el.addEventListener('click', e => {
+          e.stopPropagation();
+          _handleSpotClick(el, spotData, idx);
+        });
+      }
+      document.body.appendChild(el);
+      _spotEls.push(el);
+    });
+
+    if (alreadyCleared) _updateBannerCleared();
+  }
+
+  function _updateBannerCleared() {
+    if (!_bannerEl) return;
+    const prog = _bannerEl.querySelector('.qb-progress');
+    if (prog) prog.textContent = 'クリア済 ✓';
+  }
+
+  function exit() {
+    _removeBanner();
+    _removeSpots();
+    _removeClearOverlay();
+    _worldId = null;
+    _quest = null;
+    _litCount = 0;
+    _nextOrder = 1;
+    _clearPending = false;
+  }
+
+  function markDotsOnLoad() {
+    const state = loadState();
+    Object.keys(state.cleared).forEach(id => {
+      if (state.cleared[id]) _markDotCleared(id);
+    });
+  }
+
+  return { enter, exit, markDotsOnLoad };
+})();
+
+window.QuestEngine = QuestEngine;
 
 /* タッチスワイプ */
 (function () {
@@ -468,6 +883,9 @@ window.addEventListener('DOMContentLoaded', () => {
   /* 方式Aの初期ロード */
   EHON.state.booted.a = true;
   window.bootWorldA();
+
+  /* クリア済みドットをマーク */
+  QuestEngine.markDotsOnLoad();
 });
 </script>
 
