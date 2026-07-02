@@ -42,6 +42,42 @@ for _texdir in (r'C:\tmp\blends\eci\eci_textures',
         except Exception as e:
             print(f'[ehon] ffm err {e}')
 
+
+# ── 分厚い本にする: 開いた本の下にページ束ブロックを追加(ページ数を増やす) ──
+def add_page_stack(objs):
+    mn = Vector((1e9,) * 3); mx = Vector((-1e9,) * 3)
+    for o in objs:
+        for c in o.bound_box:
+            w = o.matrix_world @ Vector(c)
+            mn = Vector((min(mn[i], w[i]) for i in range(3)))
+            mx = Vector((max(mx[i], w[i]) for i in range(3)))
+    ctr = (mn + mx) / 2; sx = mx.x - mn.x; sy = mx.y - mn.y; th = mx.z - mn.z
+    stackh = max(th * 3.2, 0.12)
+    # ブロック上面を本の下半分に食い込ませて一体化(隙間なし=分厚い一冊に見せる)
+    top_z = mn.z + th * 0.5
+    bpy.ops.mesh.primitive_cube_add(size=1.0, location=(ctr.x, ctr.y, top_z - stackh * 0.5))
+    blk = bpy.context.active_object; blk.name = 'PageStack'
+    blk.scale = (sx * 0.985 * 0.5, sy * 0.985 * 0.5, stackh * 0.5)
+    pages = bpy.data.materials.new('StackPages'); pages.use_nodes = True
+    pbs = pages.node_tree.nodes.get('Principled BSDF'); pbs.inputs['Roughness'].default_value = 0.95
+    tex = pages.node_tree.nodes.new('ShaderNodeTexImage')
+    tex.image = bpy.data.images.load(r'C:\tmp\ehon\pageedge.png', check_existing=True)
+    pages.node_tree.links.new(tex.outputs['Color'], pbs.inputs['Base Color'])
+    leather = bpy.data.materials.new('StackLeather'); leather.use_nodes = True
+    lbs = leather.node_tree.nodes.get('Principled BSDF')
+    lbs.inputs['Base Color'].default_value = (0.20, 0.10, 0.06, 1.0); lbs.inputs['Roughness'].default_value = 0.5
+    blk.data.materials.append(pages)    # 0 = ページ小口
+    blk.data.materials.append(leather)  # 1 = 革(底)
+    for poly in blk.data.polygons:
+        poly.material_index = 1 if poly.normal.z < -0.5 else 0
+    return blk
+
+
+# 開いた本のページ束を分厚く: Z方向にスケール(各ページの束が厚い豪華本に)
+for _o in book_objs:
+    _o.scale.z *= 1.4
+bpy.context.view_layer.update()
+
 # bbox
 mins = Vector((1e9,) * 3); maxs = Vector((-1e9,) * 3)
 for o in book_objs:
@@ -58,7 +94,7 @@ print(f'[ehon] book bbox center={center} size={size}')
 cam_data = bpy.data.cameras.new('BookCam'); cam_data.lens = 45
 cam = bpy.data.objects.new('BookCam', cam_data); sc.collection.objects.link(cam); sc.camera = cam
 ang = math.radians(30)   # 低めの俯瞰で革の表紙・背表紙の厚みを見せる
-cam.location = center + Vector((0, -radius * 2.0 * math.cos(ang), radius * 2.0 * math.sin(ang)))
+cam.location = center + Vector((0, -radius * 1.5 * math.cos(ang), radius * 1.5 * math.sin(ang)))
 cam.rotation_euler = (center - cam.location).to_track_quat('-Z', 'Y').to_euler()
 
 # ライティング(明るい昼光)
