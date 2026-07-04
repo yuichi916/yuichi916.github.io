@@ -316,6 +316,28 @@
   .po-enter{display:inline-block;margin-top:10px;font-weight:700;color:#fff;background:#a3552f;
     padding:10px 18px;border-radius:99px;text-decoration:none;box-shadow:0 3px 10px rgba(120,50,10,.35)}
   .po-enter:hover{background:#c26a3d}
+
+  /* ---- 目次: 世界の地図 ---- */
+  .toc-wrap{position:absolute;inset:6% 8% 10%;overflow:auto;z-index:30;
+    background:rgba(252,246,232,.94);border-radius:14px;padding:22px 26px;
+    box-shadow:0 8px 40px rgba(60,40,10,.3)}
+  .toc-title{font-size:1.3rem;margin:0 0 12px;color:#4a3a24;letter-spacing:.12em}
+  .toc-ch{margin-bottom:14px}
+  .toc-ch-name{font-size:.8rem;color:#8c6d46;letter-spacing:.2em}
+  .toc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:6px}
+  .toc-card{position:relative;border:none;border-radius:10px;overflow:hidden;cursor:pointer;
+    background:#efe5d0;min-height:96px;padding:8px;text-align:left;display:flex;flex-direction:column;justify-content:flex-end}
+  .toc-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.85}
+  .toc-card-t{position:relative;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.7);font-size:.95rem}
+  .toc-card-s{position:relative;color:#ffe;text-shadow:0 1px 3px rgba(0,0,0,.7);font-size:.7rem}
+  .toc-soon{filter:grayscale(.6);opacity:.75}
+  .toc-zukan{margin-top:8px;border:none;border-radius:99px;padding:10px 20px;font-weight:700;
+    background:#4a6b48;color:#fff;cursor:pointer}
+
+  /* goto-toc ボタン */
+  #goto-toc{position:fixed;top:14px;left:14px;z-index:60;font-size:1.3rem;border:none;border-radius:50%;
+    width:44px;height:44px;background:rgba(74,58,36,.8);color:#fff;cursor:pointer;opacity:0;pointer-events:none;transition:.4s}
+  #goto-toc.show{opacity:1;pointer-events:auto}
 </style></head>
 <body>
 <div id="stage">
@@ -336,6 +358,7 @@
 <button id="nav-next" aria-label="次の世界">▶</button>
 <div id="world-dots"></div>
 <button id="immerse-back">✕ もどる</button>
+<button id="goto-toc" aria-label="目次">🗺</button>
 <a id="cabin-link" href="cabin.html">← 小屋へ</a>
 
 <script>
@@ -378,6 +401,10 @@ function resolveEhonFileids() {
 function getAssetUrl(filename) {
   return `${ASSET_BASE}/ehon/${filename}`;
 }
+/* CORS 不要メディア (img/audio)。Task 15 で pCloud getpubthumb に切替 */
+function getMediaUrl(filename) {
+  return `${ASSET_BASE}/ehon/${filename}`;
+}
 async function getImageUrl(filename) {
   return `${ASSET_BASE}/ehon/${filename}`;
 }
@@ -385,6 +412,7 @@ window.getImageUrl = getImageUrl;
 window._IS_GITHUB = _IS_GITHUB;
 window.resolveEhonFileids = () => Promise.resolve({});
 window.getAssetUrl = getAssetUrl;
+window.getMediaUrl = getMediaUrl;
 
 /* ---- 頁一覧 (絵本の見開き) ---- */
 const CH = { TOTONOU:{jp:'整える',en:'Calm'}, ASOBU:{jp:'遊ぶ',en:'Play'},
@@ -515,7 +543,98 @@ function renderPageOverlay(page) {
   link.textContent = tt(I18N.ui.enter) + ' →';
   ov.appendChild(link);
 }
-function renderToc() {}
+function renderToc() {
+  const host = document.getElementById('world-b');
+  window.disposeWorldB && window.disposeWorldB();
+  host.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'toc-wrap';
+
+  /* Title */
+  const title = document.createElement('h2');
+  title.className = 'toc-title';
+  title.textContent = tt(I18N.ui.toc);
+  wrap.appendChild(title);
+
+  /* Group pages by chapter */
+  const chapters = [];
+  PAGES.forEach((p, i) => {
+    if (p.type !== 'content' && p.type !== 'adventure') return;
+    const ch = p.chapter ? tt(p.chapter) : '';
+    let grp = chapters.find(c => c.name === ch);
+    if (!grp) { grp = { name: ch, items: [] }; chapters.push(grp); }
+    grp.items.push({ p, i });
+  });
+
+  /* Build chapter sections */
+  for (const ch of chapters) {
+    const chDiv = document.createElement('div');
+    chDiv.className = 'toc-ch';
+
+    const chName = document.createElement('span');
+    chName.className = 'toc-ch-name';
+    chName.textContent = ch.name;
+    chDiv.appendChild(chName);
+
+    const grid = document.createElement('div');
+    grid.className = 'toc-grid';
+
+    for (const { p, i } of ch.items) {
+      const ready = !!p.story || p.type === 'adventure';
+      const card = document.createElement('button');
+      card.className = 'toc-card' + (ready ? '' : ' toc-soon');
+      card.dataset.page = i;
+
+      /* Image */
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.alt = '';
+      img.src = getMediaUrl('toc_' + p.id.replace(/-/g, '') + '_v1.webp');
+      img.onerror = function() { this.style.display = 'none'; };
+      card.appendChild(img);
+
+      /* Title */
+      const cardTitle = document.createElement('span');
+      cardTitle.className = 'toc-card-t';
+      cardTitle.textContent = tt(p.title);
+      card.appendChild(cardTitle);
+
+      /* Subtitle */
+      const cardSub = document.createElement('span');
+      cardSub.className = 'toc-card-s';
+      cardSub.textContent = tt(p.sub);
+      card.appendChild(cardSub);
+
+      grid.appendChild(card);
+    }
+
+    chDiv.appendChild(grid);
+    wrap.appendChild(chDiv);
+  }
+
+  /* Zukan button */
+  const zukanBtn = document.createElement('button');
+  zukanBtn.className = 'toc-zukan';
+  zukanBtn.id = 'toc-zukan-btn';
+  zukanBtn.textContent = '🐾 ' + tt(I18N.ui.zukan);
+  wrap.appendChild(zukanBtn);
+
+  host.appendChild(wrap);
+
+  /* Event listeners */
+  wrap.querySelectorAll('.toc-card').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      EHON.switchPage(parseInt(b.dataset.page, 10));
+    });
+  });
+
+  const zb = wrap.querySelector('#toc-zukan-btn');
+  zb.addEventListener('click', e => {
+    e.stopPropagation();
+    if (window.ZukanEngine) window.ZukanEngine.openModal();
+  });
+}
 function renderColophon() {}
 
 /* ---- ナビボタン状態更新 ---- */
@@ -546,6 +665,7 @@ const EHON = {
     document.getElementById('nav-prev').classList.add('show');
     document.getElementById('nav-next').classList.add('show');
     document.getElementById('world-dots').classList.add('show');
+    document.getElementById('goto-toc').classList.add('show');
     updateNavButtons();
     updateModeToggle(PAGES[this.state.currentPageIdx]);
     if (this.state.mode === 'a') {
@@ -655,6 +775,7 @@ document.getElementById('lang-toggle').addEventListener('click', e => {
   setEhonLang(ehonLang() === 'jp' ? 'en' : 'jp');
 });
 document.getElementById('lang-toggle').textContent = (ehonLang() === 'jp') ? 'A' : 'あ';
+document.getElementById('goto-toc').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(0); });
 document.getElementById('immerse-back').addEventListener('click', e => { e.stopPropagation(); EHON.exitWorld(); });
 document.documentElement.lang = (ehonLang() === 'jp') ? 'ja' : 'en';
 
