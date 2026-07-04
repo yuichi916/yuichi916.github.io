@@ -86,6 +86,19 @@
   #nav-prev.show, #nav-next.show { display:flex; }
   #nav-prev:disabled, #nav-next:disabled { opacity:.3; cursor:not-allowed; }
 
+  /* 言語トグルボタン */
+  #lang-toggle {
+    position:fixed; right:18px; bottom:76px;
+    width:44px; height:44px; border-radius:50%;
+    background:rgba(250,245,235,.88); border:1px solid #b9a784;
+    box-shadow:0 3px 12px rgba(0,0,0,.3); cursor:pointer;
+    font-size:18px; display:none; align-items:center; justify-content:center;
+    z-index:20; color:#5e4c37; transition:opacity .3s;
+    user-select:none; font-weight:bold;
+  }
+  #lang-toggle.show { display:flex; }
+  #lang-toggle:hover { background:rgba(250,245,235,1); }
+
   /* ページめくりアニメ: 本のページが背表紙(中央)を軸に回転してめくれる */
   /* 注: .ehon-stage に preserve-3d を付けると 3D本canvasと2D世界のz順が壊れるため付けない。
      page-flip 自身に perspective を持たせて回転を立体化する。 */
@@ -291,6 +304,18 @@
     font-family:inherit; font-size:14px;
   }
   .quest-meta-inner button:hover { background:#7a5a20; }
+
+  /* ---- ページオーバーレイ (右頁: story + ボタン + JP バッジ) ---- */
+  #page-overlay{position:absolute;right:4%;bottom:18%;width:min(34vw,320px);z-index:40;
+    opacity:0;pointer-events:none;transition:opacity .5s .4s;text-align:left}
+  #page-overlay.show{opacity:1;pointer-events:auto}
+  .po-story{font-size:.92rem;line-height:1.9;color:#3a2f22;background:rgba(255,250,238,.82);
+    border-radius:10px;padding:12px 14px;box-shadow:0 2px 12px rgba(60,40,10,.18)}
+  .po-jp-badge{display:inline-block;margin-top:8px;font-size:.7rem;padding:2px 8px;border-radius:99px;
+    background:#8c6d46;color:#fff;letter-spacing:.06em}
+  .po-enter{display:inline-block;margin-top:10px;font-weight:700;color:#fff;background:#a3552f;
+    padding:10px 18px;border-radius:99px;text-decoration:none;box-shadow:0 3px 10px rgba(120,50,10,.35)}
+  .po-enter:hover{background:#c26a3d}
 </style></head>
 <body>
 <div id="stage">
@@ -305,6 +330,7 @@
   <button id="btn-a" class="sel">水彩</button>
   <button id="btn-b">3D</button>
 </div>
+<button id="lang-toggle" class="nav-round" aria-label="Language"></button>
 <div id="hint">本をひらく</div>
 <button id="nav-prev" aria-label="前の世界">◀</button>
 <button id="nav-next" aria-label="次の世界">▶</button>
@@ -421,11 +447,59 @@ const PAGES = [
 /* 後方互換: 既存コードの WORLDS 参照は adventure 頁のみを指す */
 const WORLDS = PAGES.filter(p => p.type === 'adventure');
 
-/* ---- i18n セレクタ (Task 3 で正式版に置換) ---- */
-const tt = v => (v && v.jp) || v;
+/* ---- i18n ---- */
+const I18N = { ui: {
+  enter:        {jp:'この世界に入る',   en:'Enter this world'},
+  jpBadge:      {jp:'日本語コンテンツ', en:'Japanese content'},
+  zukan:        {jp:'いきもの図鑑',     en:'Creature Book'},
+  found:        {jp:'はっけん！',       en:'Found!'},
+  notFound:     {jp:'？？？',           en:'???'},
+  complete:     {jp:'全部あつめた！',   en:'All found!'},
+  share:        {jp:'じまんする',       en:'Share'},
+  toc:          {jp:'世界の地図',       en:'Map of Worlds'},
+  windows:      {jp:'外の窓',           en:'Windows to Outside'},
+  close:        {jp:'とじる',           en:'Close'},
+  preparing:    {jp:'この世界は準備中なのだ', en:'This world is still being drawn…'},
+}};
+function ehonLang() {
+  try { const s = localStorage.getItem('ehon_lang'); if (s === 'jp' || s === 'en') return s; } catch (e) {}
+  const q = new URLSearchParams(location.search).get('lang');
+  if (q === 'en') return 'en';
+  if (q === 'ja' || q === 'jp') return 'jp';
+  return (navigator.language || 'ja').toLowerCase().startsWith('ja') ? 'jp' : 'en';
+}
+function setEhonLang(l) {
+  try { localStorage.setItem('ehon_lang', l); } catch (e) {}
+  document.documentElement.lang = (l === 'jp') ? 'ja' : 'en';
+  refreshAllText();
+}
+function tt(v) { if (!v) return ''; return v[ehonLang()] || v.jp || v; }
+function refreshAllText() {
+  const page = PAGES[EHON.state.currentPageIdx];
+  document.querySelector('#title-card h1').textContent = tt(page.title) + ' — ' + tt(page.sub);
+  renderPageOverlay(page);
+  document.getElementById('lang-toggle').textContent = (ehonLang() === 'jp') ? 'A' : 'あ';
+  if (page.type === 'toc') renderToc();
+  if (page.type === 'colophon') renderColophon();
+}
 
 /* ---- 頁オーバーレイ・目次・奥付スタブ (Task 3-5 で本実装) ---- */
-function renderPageOverlay() {}
+function renderPageOverlay(page) {
+  let ov = document.getElementById('page-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'page-overlay';
+    document.querySelector('.ehon-stage').appendChild(ov);
+  }
+  if (page.type !== 'content' || !EHON.state.open) { ov.innerHTML = ''; ov.className = ''; return; }
+  ov.className = 'show';
+  const story = page.story ? tt(page.story) : '';
+  ov.innerHTML =
+    '<div class="po-story">' + story + '</div>' +
+    (page.linkJpOnly && ehonLang() === 'en'
+      ? '<span class="po-jp-badge">' + tt(I18N.ui.jpBadge) + '</span>' : '') +
+    '<a class="po-enter" href="' + page.link + '">' + tt(I18N.ui.enter) + ' →</a>';
+}
 function renderToc() {}
 function renderColophon() {}
 
@@ -453,6 +527,7 @@ const EHON = {
     document.getElementById('hint').classList.add('gone');
     document.getElementById('title-card').classList.add('show');
     document.getElementById('mode-toggle').classList.add('show');
+    document.getElementById('lang-toggle').classList.add('show');
     document.getElementById('nav-prev').classList.add('show');
     document.getElementById('nav-next').classList.add('show');
     document.getElementById('world-dots').classList.add('show');
@@ -535,6 +610,7 @@ const EHON = {
     document.getElementById('nav-prev').classList.remove('show');
     document.getElementById('nav-next').classList.remove('show');
     document.getElementById('mode-toggle').classList.remove('show');
+    document.getElementById('lang-toggle').classList.remove('show');
     document.getElementById('world-dots').classList.remove('show');
   },
   exitWorld() {
@@ -548,6 +624,7 @@ const EHON = {
       document.getElementById('nav-prev').classList.add('show');
       document.getElementById('nav-next').classList.add('show');
       document.getElementById('mode-toggle').classList.add('show');
+      document.getElementById('lang-toggle').classList.add('show');
       document.getElementById('world-dots').classList.add('show');
     }
   }
@@ -558,7 +635,12 @@ document.getElementById('btn-a').addEventListener('click', e => { e.stopPropagat
 document.getElementById('btn-b').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('b'); });
 document.getElementById('nav-prev').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(EHON.state.currentPageIdx - 1); });
 document.getElementById('nav-next').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(EHON.state.currentPageIdx + 1); });
+document.getElementById('lang-toggle').addEventListener('click', e => {
+  e.stopPropagation();
+  setEhonLang(ehonLang() === 'jp' ? 'en' : 'jp');
+});
 document.getElementById('immerse-back').addEventListener('click', e => { e.stopPropagation(); EHON.exitWorld(); });
+document.documentElement.lang = (ehonLang() === 'jp') ? 'ja' : 'en';
 
 /* キーボードナビ */
 window.addEventListener('keydown', e => {
