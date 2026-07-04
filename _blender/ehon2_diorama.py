@@ -84,9 +84,8 @@ bpy.ops.export_scene.gltf(filepath=OUT, export_format='GLB', use_selection=False
                           export_apply=True, export_yup=True)
 size_mb = os.path.getsize(OUT) / 1048576
 print(f'[ehon2] {OUT} = {size_mb:.2f} MB')
-assert size_mb <= 4.0, f'GLB over budget: {size_mb:.2f} MB > 4 MB — include_prefixes を絞るか max_tex を下げる'
 
-# ---- サムネレンダ (目次用) ----
+# ---- サムネレンダ (目次用) — 予算判定より先に必ず出す (吟味ゲート用画像) ----
 tc = CFG.get('thumb_cam', {'dist': 30, 'elev_deg': 28, 'azim_deg': 35})
 sz = (mx - mn)
 rad = max(sz.x, sz.y, sz.z) * 1.15 if max(sz.x, sz.y, sz.z) > 0 else tc['dist']
@@ -98,13 +97,21 @@ cam_o.location = tgt + Vector((rad*math.cos(el)*math.cos(az), -rad*math.cos(el)*
 d = tgt - cam_o.location
 cam_o.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
 bpy.context.scene.camera = cam_o
-sun = bpy.data.lights.new('sun', 'SUN'); sun.energy = 3.5
+sun = bpy.data.lights.new('sun', 'SUN'); sun.energy = 5.0
 sun_o = bpy.data.objects.new('sun', sun); bpy.context.scene.collection.objects.link(sun_o)
 sun_o.rotation_euler = (math.radians(50), 0, math.radians(20))
+# 内装セットでも中まで見えるよう環境光を敷く (サムネ用。GLB には含まれない)
+w = bpy.data.worlds.new('thumbworld'); w.use_nodes = True
+bg = w.node_tree.nodes.get('Background')
+if bg:
+    bg.inputs[0].default_value = (0.9, 0.87, 0.8, 1.0)
+    bg.inputs[1].default_value = 0.8
+bpy.context.scene.world = w
 bpy.context.scene.render.engine = 'CYCLES'   # 前回実績 (ehon_world_render.py)。EEVEE系はBlender5.1で名称流動のため使わない
 bpy.context.scene.cycles.samples = 64
 bpy.context.scene.render.resolution_x = 640
 bpy.context.scene.render.resolution_y = 400
 bpy.context.scene.render.filepath = os.path.join(OUT_DIR, f'thumb_{SLUG}.png')
 bpy.ops.render.render(write_still=True)
+assert size_mb <= 4.0, f'GLB over budget: {size_mb:.2f} MB > 4 MB — include_prefixes を絞るか max_tex を下げる (サムネは出力済み)'
 print(f'{SLUG.upper()}_EHON2_DONE')
