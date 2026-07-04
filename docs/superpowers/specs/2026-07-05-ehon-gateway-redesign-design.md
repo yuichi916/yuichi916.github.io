@@ -147,6 +147,25 @@ yuichi916.github.io 全体を、飛び出す絵本 `ehon.html` を実質の入�
 - 目次サムネは静止画 WebP (~50KB/枚) で、3D 初期化前でも目次は即表示。
 - **WebGL フォールバック**: WebGL 初期化失敗・低スペック端末では目次サムネ静止画+リンクボタンのみの簡易表示に切替 (リンクとしての機能は常に生きる)。
 
+## 11.5 配信アーキテクチャ (GitHub × pCloud ハイブリッド、2026-07-05実測に基づく)
+
+ユーザー要件: GitHub には容量制限があるため pCloud Public Folder (`P:\Public Folder`) を活用する。
+実測 (2026-07-05): pCloud ダウンロードホスト (ptok2.pcloud.com 等) は `Access-Control-Allow-Origin: https://www.pcloud.com` のみ返し、**github.io オリジンからの fetch/GLTFLoader は CORS でブロックされる**。Worker 仲介は署名URLのIP束縛で間欠410 (2026-07-04事故)。よって:
+
+| 置き場所 | 対象 | 理由 |
+|---|---|---|
+| **GitHub 同梱** (`_ehon_assets/ehon/`) | ehon.html 本体、**diorama GLB 全部・動物 GLB 全部**、WebGLフォールバック用最小サムネ | GLB は GLTFLoader=fetch であり CORS 必須 → 同一オリジン以外に選択肢なし。tracked 合計は現在206MB、GLB追加 ≤60MB で 1GB 制限内 |
+| **pCloud Public Folder** (`P:\Public Folder\ehon2-assets\`) | 目次サムネ・本テーマ画像・方式A水彩画像 (後日)・動物実音源・シェアカード装飾など **`<img>`/`<audio>` で使う全メディア** | CORS 不要な用途は pCloud 直リンクで安定 (hitoritabi 1,700枚の実績)。GitHub 増分を GLB のみに抑える |
+
+pCloud 利用ルール (事故再発防止):
+1. **Cloudflare Worker 等のプロキシ仲介は全面禁止** (IP束縛410の根本原因)。
+2. 中解像度画像 (≤2048px) は `https://apitok2.pcloud.com/getpubthumb?code=<publink>&fileid=<id>&size=WxH` を**静的ハードコード** (hitoritabi 実績方式)。
+3. 原寸画像・音声はブラウザから `api.pcloud.com/getpublinkdownload` を都度叩いて解決 (リクエスト元IP=利用IPなので束縛一致。旧 ehon 実装の getImageUrl 方式を流用)。
+4. ファイルは**バージョン付きファイル名** (`toc_thumb_v1.webp`) で追加し、上書き更新しない (CDNキャッシュ/伝播問題の回避)。
+5. デプロイ手順: pCloud アップロード → `showpublink` で fileid 採取 → `curl -sI` で 200 確認 → PAGES データに fileid 記入 → commit。
+
+GLB 容量バジェット (GitHub 増分を抑えるため §11 より強化): diorama 1頁 **≤4MB**、動物 1体 **≤1MB**。
+
 ## 12. エラーハンドリング
 
 - 画像ロード失敗: 現行同様 onerror でグラデ背景フォールバック。
@@ -175,4 +194,4 @@ yuichi916.github.io 全体を、飛び出す絵本 `ehon.html` を実質の入�
 - 既存3世界の体験・クエスト保存データ (`ehon_quest`) の後方互換。
 - journal.html (旧トップバックアップ)・universe.html は削除しない。
 - index.html の訪問者カウント・GoatCounter・`?nofx=1` 規約・既存i18n機構は非破壊。
-- `_ehon_assets/ehon/` 同一オリジン配信方針 (pCloud/Worker 依存に戻さない)。
+- GLB の同一オリジン配信 (`_ehon_assets/ehon/`) は継続 (CORS 技術制約)。pCloud は §11.5 の CORS 不要メディアに限定し、**Worker プロキシには何があっても戻さない**。
