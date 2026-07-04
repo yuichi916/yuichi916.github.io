@@ -37,3 +37,11 @@ assert.strictEqual(s.found.turtle, '2026-07-05', 'first-found date is kept');
 assert.strictEqual(E.zukanIsComplete(s, ['turtle']), true);
 assert.strictEqual(E.zukanIsComplete(s, ['turtle', 'wolfpup']), false);
 console.log('ehon2_core_test: ALL PASS');
+
+// ANIMALS と PAGES の整合 (HTML テキストレベルの静的チェック)
+const animalIds = [...html.matchAll(/\{id:'([a-z]+)',\s*page:'([a-z\-]+)'/g)].map(m => ({ id: m[1], page: m[2] }));
+assert.strictEqual(animalIds.length, 11, '11 animals defined');
+const pageIds = [...html.matchAll(/\{id:'([a-z\-]+)', type:'content'/g)].map(m => m[1]);
+for (const a of animalIds) assert.ok(pageIds.includes(a.page), `animal ${a.id} page exists: ${a.page}`);
+assert.ok(!animalIds.some(a => a.page === 'hollow-tale'), 'hollow-tale has no animal');
+console.log('animals/pages consistency: PASS');

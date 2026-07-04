@@ -350,6 +350,27 @@
   .colo-icon{font-size:1.8rem}
   .colo-name{font-weight:700}
   .colo-sub{font-size:.72rem;opacity:.7}
+
+  /* ---- いきもの図鑑 ---- */
+  #zukan-toast{position:fixed;left:50%;bottom:9%;transform:translateX(-50%) translateY(20px);z-index:90;
+    background:rgba(40,60,36,.95);color:#fff;border-radius:12px;padding:12px 22px;text-align:center;
+    opacity:0;pointer-events:none;transition:.35s}
+  #zukan-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #zukan-toast span{font-size:.85rem;opacity:.85}
+  #zukan-modal{position:fixed;inset:0;z-index:95;background:rgba(20,16,10,.6);display:none;
+    align-items:center;justify-content:center}
+  #zukan-modal.show{display:flex}
+  .zk-box{background:#fbf4e4;border-radius:16px;max-width:640px;width:92%;max-height:84vh;overflow:auto;
+    padding:20px 24px;color:#463823}
+  .zk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+  .zk-cell{background:#e8dcc2;border-radius:10px;padding:8px;text-align:center;filter:grayscale(1);opacity:.66}
+  .zk-cell.zk-found{filter:none;opacity:1;background:#fff8e6;box-shadow:0 2px 8px rgba(150,110,40,.25)}
+  .zk-cell img{width:100%;aspect-ratio:1;object-fit:contain}
+  .zk-name{display:block;font-weight:700;font-size:.8rem}
+  .zk-date{display:block;font-size:.66rem;opacity:.6}
+  .zk-comp{font-weight:700;color:#a3552f;text-align:center}
+  .zk-close{margin-top:12px;border:none;border-radius:99px;padding:8px 22px;background:#8c6d46;color:#fff;cursor:pointer}
+  body.zukan-complete #title-card h1::after{content:' 👑'}
 </style></head>
 <body>
 <div id="stage">
@@ -529,6 +550,175 @@ function refreshAllText() {
   if (page.type === 'toc') renderToc();
   if (page.type === 'colophon') renderColophon();
 }
+
+/* ---- いきもの図鑑 ---- */
+const ANIMALS = [
+  {id:'wolfpup',    page:'cabin',      glb:'animal_wolfpup_v1.glb',    name:{jp:'オオカミのこども', en:'Wolf Pup'},
+   quote:{jp:'小屋の焚き火、ぼくもすき。', en:'I love the cabin fire too.'},
+   cry:{type:'sawtooth', f0:520, f1:380, dur:0.5, repeat:1, vib:6}},
+  {id:'hare',       page:'niwa',       glb:'animal_hare_v1.glb',       name:{jp:'ホッキョクウサギ', en:'Arctic Hare'},
+   quote:{jp:'庭のはっぱは、やわらかいの。', en:'The garden leaves are so soft.'},
+   cry:{type:'sine', f0:900, f1:1200, dur:0.12, repeat:2, vib:0}},
+  {id:'warthog',    page:'tomoshibi',  glb:'animal_warthog_v1.glb',    name:{jp:'イボイノシシ', en:'Warthog'},
+   quote:{jp:'酒場のパン、ひとつちょうだい。', en:'One bread from the tavern, please.'},
+   cry:{type:'sawtooth', f0:140, f1:90, dur:0.3, repeat:2, vib:0}},
+  {id:'penguin',    page:'stopwatch',  glb:'animal_penguin_v1.glb',    name:{jp:'ジェンツーペンギン', en:'Gentoo Penguin'},
+   quote:{jp:'時間ぴったりに、あるくのだ。', en:'I march right on time.'},
+   cry:{type:'square', f0:700, f1:500, dur:0.2, repeat:3, vib:0}},
+  {id:'binturong',  page:'sudoku',     glb:'animal_binturong_v1.glb',  name:{jp:'ビントロング', en:'Binturong'},
+   quote:{jp:'大聖堂のはり、ねごこち最高。', en:'Cathedral beams make the best beds.'},
+   cry:{type:'sine', f0:300, f1:200, dur:0.6, repeat:1, vib:3}},
+  {id:'snowleopard',page:'shogi-puyo', glb:'animal_snowleopard_v1.glb',name:{jp:'ユキヒョウ', en:'Snow Leopard'},
+   quote:{jp:'次の一手、みえた。', en:'I see the next move.'},
+   cry:{type:'sawtooth', f0:220, f1:160, dur:0.7, repeat:1, vib:2}},
+  {id:'polecat',    page:'lingo',      glb:'animal_polecat_v1.glb',    name:{jp:'ケナガイタチ', en:'European Polecat'},
+   quote:{jp:'ことばって、すばしっこいね。', en:'Words are quick little things.'},
+   cry:{type:'square', f0:1100, f1:800, dur:0.1, repeat:3, vib:0}},
+  {id:'lioncub',    page:'toeic',      glb:'animal_lioncub_v1.glb',    name:{jp:'ライオンのこども', en:'Lion Cub'},
+   quote:{jp:'30問、ぜんぶ挑むぞ！', en:'I will face all thirty trials!'},
+   cry:{type:'sawtooth', f0:330, f1:240, dur:0.4, repeat:1, vib:4}},
+  {id:'toad',       page:'salon',      glb:'animal_toad_v1.glb',       name:{jp:'ジムグリガエル', en:'Burrowing Toad'},
+   quote:{jp:'ぼくの歌も、銀河にとどく？', en:'Will my song reach the galaxy?'},
+   cry:{type:'square', f0:180, f1:220, dur:0.25, repeat:2, vib:0}},
+  {id:'turtle',     page:'hitoritabi', glb:'animal_turtle_v1.glb',     name:{jp:'オサガメ', en:'Leatherback Turtle'},
+   quote:{jp:'海はぜんぶ、つながってる。', en:'Every sea is connected.'},
+   cry:{type:'sine', f0:400, f1:300, dur:0.5, repeat:1, vib:2}},
+  {id:'dingo',      page:'world',      glb:'animal_dingo_v1.glb',      name:{jp:'ディンゴ', en:'Dingo'},
+   quote:{jp:'地図のはしっこまで、いこう。', en:'To the very edge of the map.'},
+   cry:{type:'sawtooth', f0:600, f1:450, dur:0.45, repeat:1, vib:5}},
+];
+function playCry(animalId) {
+  const a = ANIMALS.find(x => x.id === animalId); if (!a) return;
+  try {
+    const ctx = playCry._ctx || (playCry._ctx = new (window.AudioContext || window.webkitAudioContext)());
+    let t = ctx.currentTime;
+    for (let r = 0; r < (a.cry.repeat || 1); r++) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = a.cry.type;
+      o.frequency.setValueAtTime(a.cry.f0, t);
+      o.frequency.exponentialRampToValueAtTime(Math.max(40, a.cry.f1), t + a.cry.dur);
+      if (a.cry.vib) { const lfo = ctx.createOscillator(), lg = ctx.createGain();
+        lfo.frequency.value = a.cry.vib; lg.gain.value = a.cry.f0 * 0.05;
+        lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t + a.cry.dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + a.cry.dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t); o.stop(t + a.cry.dur + 0.05);
+      t += a.cry.dur + 0.07;
+    }
+  } catch (e) { /* 音は飾り: 失敗しても図鑑登録は進める */ }
+}
+const ZukanEngine = (function () {
+  const LS = 'ehon_zukan';
+  function load() {
+    try { const s = JSON.parse(localStorage.getItem(LS) || '{}'); return { found: s.found || {} }; }
+    catch (e) { return { found: {} }; }
+  }
+  function save(s) { try { localStorage.setItem(LS, JSON.stringify(s)); } catch (e) {} }
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  const ids = ANIMALS.map(a => a.id);
+  function isComplete() { return window.EHON2.zukanIsComplete(load(), ids); }
+  function onAnimalClick(animalId) {
+    const a = ANIMALS.find(x => x.id === animalId); if (!a) return;
+    playCry(animalId);
+    const before = isComplete();
+    save(window.EHON2.zukanAdd(load(), animalId, todayStr()));
+    showFoundToast(a);
+    if (!before && isComplete()) setTimeout(showCompleteReward, 1200);
+  }
+  function showFoundToast(a) {
+    let el = document.getElementById('zukan-toast');
+    if (!el) { el = document.createElement('div'); el.id = 'zukan-toast'; document.body.appendChild(el); }
+    el.innerHTML = '';
+    const bold = document.createElement('b');
+    bold.textContent = tt(I18N.ui.found);
+    el.appendChild(bold);
+    el.appendChild(document.createTextNode(' ' + tt(a.name)));
+    el.appendChild(document.createElement('br'));
+    const span = document.createElement('span');
+    span.textContent = '「' + tt(a.quote) + '」';
+    el.appendChild(span);
+    el.classList.add('show');
+    clearTimeout(showFoundToast._t);
+    showFoundToast._t = setTimeout(() => el.classList.remove('show'), 3200);
+  }
+  function showCompleteReward() {
+    document.body.classList.add('zukan-complete');
+    openModal();
+  }
+  function openModal() {
+    const st = load();
+    let mod = document.getElementById('zukan-modal');
+    if (!mod) { mod = document.createElement('div'); mod.id = 'zukan-modal'; document.body.appendChild(mod); }
+    mod.innerHTML = '';
+    const box = document.createElement('div');
+    box.className = 'zk-box';
+    const h3 = document.createElement('h3');
+    h3.textContent = '🐾 ' + tt(I18N.ui.zukan);
+    box.appendChild(h3);
+    const grid = document.createElement('div');
+    grid.className = 'zk-grid';
+    for (const a of ANIMALS) {
+      const f = st.found[a.id];
+      const cell = document.createElement('div');
+      cell.className = 'zk-cell' + (f ? ' zk-found' : '');
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.alt = '';
+      img.src = getMediaUrl('zukan_' + a.id + '_v1.webp');
+      img.onerror = function() { this.style.visibility = 'hidden'; };
+      cell.appendChild(img);
+      const name = document.createElement('span');
+      name.className = 'zk-name';
+      name.textContent = f ? tt(a.name) : tt(I18N.ui.notFound);
+      cell.appendChild(name);
+      if (f) {
+        const date = document.createElement('span');
+        date.className = 'zk-date';
+        date.textContent = f;
+        cell.appendChild(date);
+      }
+      grid.appendChild(cell);
+    }
+    box.appendChild(grid);
+    if (isComplete()) {
+      const comp = document.createElement('p');
+      comp.className = 'zk-comp';
+      comp.textContent = '👑 ' + tt(I18N.ui.complete);
+      box.appendChild(comp);
+      const shareDiv = document.createElement('div');
+      shareDiv.id = 'zk-share';
+      box.appendChild(shareDiv);
+    }
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'zk-close';
+    closeBtn.textContent = tt(I18N.ui.close);
+    box.appendChild(closeBtn);
+    mod.appendChild(box);
+    mod.classList.add('show');
+    closeBtn.addEventListener('click', () => mod.classList.remove('show'));
+    if (window.renderShareButton && isComplete()) window.renderShareButton(mod.querySelector('#zk-share'));
+  }
+  function renderSummary(el) {
+    if (!el) return;
+    const st = load();
+    const n = ids.filter(id => st.found[id]).length;
+    el.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.className = 'toc-zukan';
+    btn.style.marginTop = '16px';
+    btn.textContent = '🐾 ' + tt(I18N.ui.zukan) + ' ' + n + '/' + ids.length;
+    btn.addEventListener('click', e => { e.stopPropagation(); openModal(); });
+    el.appendChild(btn);
+  }
+  if (isComplete()) document.body.classList.add('zukan-complete');
+  return { onAnimalClick, openModal, renderSummary, isComplete };
+})();
+window.ZukanEngine = ZukanEngine;
 
 /* ---- 頁オーバーレイ・目次・奥付スタブ (Task 3-5 で本実装) ---- */
 function renderPageOverlay(page) {
