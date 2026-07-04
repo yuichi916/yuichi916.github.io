@@ -837,7 +837,6 @@ window.bootWorldB = async function () {
 
   const msg = document.createElement('div');
   msg.className = 'status-msg';
-  msg.textContent = tt(I18N.ui.preparing).replace('準備中なのだ', '読み込み中…'); /* JP: 読み込み中表示 */
   msg.textContent = (ehonLang() === 'jp') ? '3Dを読み込み中…' : 'Loading 3D…';
   host.appendChild(msg);
 
@@ -1015,7 +1014,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(HERE, 'ehon2_pages.json'), encoding='utf-8'))[PAGE]
 OUT_DIR = r'C:\tmp\ehon2'
 os.makedirs(OUT_DIR, exist_ok=True)
-OUT = os.path.join(OUT_DIR, f'{PAGE}_diorama.glb')
+SLUG = PAGE.replace('-', '')   # hollow-tale → hollowtale (PAGES の diorama 名・toc 名と一致させる)
+OUT = os.path.join(OUT_DIR, f'{SLUG}_diorama.glb')
 
 bpy.ops.wm.open_mainfile(filepath=CFG['blend'])
 if CFG.get('tex') and os.path.isdir(CFG['tex']):
@@ -1100,12 +1100,13 @@ bpy.context.scene.camera = cam_o
 sun = bpy.data.lights.new('sun', 'SUN'); sun.energy = 3.5
 sun_o = bpy.data.objects.new('sun', sun); bpy.context.scene.collection.objects.link(sun_o)
 sun_o.rotation_euler = (math.radians(50), 0, math.radians(20))
-bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
+bpy.context.scene.render.engine = 'CYCLES'   # 前回実績 (ehon_world_render.py)。EEVEE系はBlender5.1で名称流動のため使わない
+bpy.context.scene.cycles.samples = 64
 bpy.context.scene.render.resolution_x = 640
 bpy.context.scene.render.resolution_y = 400
-bpy.context.scene.render.filepath = os.path.join(OUT_DIR, f'thumb_{PAGE}.png')
+bpy.context.scene.render.filepath = os.path.join(OUT_DIR, f'thumb_{SLUG}.png')
 bpy.ops.render.render(write_still=True)
-print(f'{PAGE.upper()}_EHON2_DONE')
+print(f'{SLUG.upper()}_EHON2_DONE')
 ```
 
 - [ ] **Step 2: ehon2_animal.py を作成**
