@@ -567,9 +567,9 @@ cd "C:/projects/yuichi916.github.io" && git add ehon.html && git commit -m "feat
 
 ```js
 const OUTSIDE_WINDOWS = [
-  {icon:'▶️', name:{jp:'ずんだもんAIラボ', en:'Zundamon AI Lab'}, sub:'YouTube', url:'https://www.youtube.com/@zundamonnoairabo'},
+  {icon:'▶️', name:{jp:'ずんだもんAIラボ', en:'Zundamon AI Lab'}, sub:'YouTube', url:'https://www.youtube.com/@zundamon_ai_lab'},
   {icon:'🐦', name:{jp:'X (旧Twitter)', en:'X (Twitter)'}, sub:'@ViewsEngineer', url:'https://x.com/ViewsEngineer'},
-  {icon:'📝', name:{jp:'note — 月光の書架', en:'note (blog)'}, sub:'note.com', url:'https://note.com/views_engineer'},
+  {icon:'📝', name:{jp:'note — 月光の書架', en:'note (blog)'}, sub:'note.com', url:'https://note.com/views_of_life'},
   {icon:'🐙', name:{jp:'GitHub', en:'GitHub'}, sub:'yuichi916', url:'https://github.com/yuichi916'},
 ];
 function renderColophon() {
