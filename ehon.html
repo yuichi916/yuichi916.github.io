@@ -335,41 +335,18 @@ function resolveEhonFileids() {
   })();
   return _EHON_FILEID_PROMISE;
 }
+/* アセットはリポジトリ同梱(_ehon_assets/ehon/)で同一オリジン配信。
+   pCloud/Worker/CDN伝播の不安定さを排除し、github.io でも確実に配信される。 */
 function getAssetUrl(filename) {
-  if (_IS_GITHUB) {
-    const id = _EHON_FILEIDS[filename];
-    if (id) return `${PCLOUD_PROXY}/g/${id}`;
-    console.warn(`ehon: fileid not found for ${filename}, falling back to local`);
-  }
   return `${ASSET_BASE}/ehon/${filename}`;
 }
-/* 画像は CORS 不要(<img>)なので、ブラウザ自身が getpublinkdownload で直CDN URLを取得して読む。
-   ブラウザIPで署名されるためWorkerプロキシのIP束縛フレーキー(間欠410)を回避でき確実。
-   GLB は fetch(CORS必須)のため Worker /g/ を使う(getAssetUrl)。 */
-const _ehonDlCache = {};
 async function getImageUrl(filename) {
-  if (!_IS_GITHUB) return `${ASSET_BASE}/ehon/${filename}`;
-  if (_ehonDlCache[filename]) return _ehonDlCache[filename];
-  await resolveEhonFileids();
-  const id = _EHON_FILEIDS[filename];
-  if (!id) return `${ASSET_BASE}/ehon/${filename}`;
-  try {
-    const r = await fetch(`https://api.pcloud.com/getpublinkdownload?code=${PCLOUD_PUBLINK}&fileid=${id}`,
-      { referrerPolicy: 'no-referrer', credentials: 'omit', mode: 'cors' });
-    const d = await r.json();
-    if (d.result === 0 && d.hosts && d.hosts.length) {
-      const u = `https://${d.hosts[0]}${d.path}`;
-      _ehonDlCache[filename] = u;
-      return u;
-    }
-  } catch (e) { console.warn('ehon: getpublinkdownload failed', filename, e); }
-  return `${PCLOUD_PROXY}/g/${id}`;  /* 最後の砦: Workerプロキシ */
+  return `${ASSET_BASE}/ehon/${filename}`;
 }
 window.getImageUrl = getImageUrl;
 window._IS_GITHUB = _IS_GITHUB;
-window.resolveEhonFileids = resolveEhonFileids;
+window.resolveEhonFileids = () => Promise.resolve({});
 window.getAssetUrl = getAssetUrl;
-if (_IS_GITHUB) resolveEhonFileids().catch(() => {});
 
 /* ---- 世界一覧 ---- */
 const WORLDS = [
