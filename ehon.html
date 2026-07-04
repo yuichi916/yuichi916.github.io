@@ -757,7 +757,35 @@ const QuestEngine = (function () {
 })();
 
 window.QuestEngine = QuestEngine;
+</script>
 
+<script id="ehon2-core">
+/* ehon2 コア純関数 (Node テスト対象: tests/ehon2_core_test.mjs が id 抽出で評価する)
+   DOM・localStorage 非依存の純関数のみ置くこと */
+window.EHON2 = (function () {
+  /* 日替わり配置: 日付+動物IDのFNV風ハッシュで候補スポットから1つ選ぶ */
+  function dailySpotIndex(dateStr, animalId, spotCount) {
+    if (!spotCount) return 0;
+    const s = dateStr + ':' + animalId;
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < s.length; i++) { h = ((h ^ s.charCodeAt(i)) * 16777619) >>> 0; }
+    return h % spotCount;
+  }
+  /* 図鑑状態 reducer (localStorage 読み書きは呼び出し側 ZukanEngine の責務) */
+  function zukanAdd(state, animalId, dateStr) {
+    const found = Object.assign({}, state && state.found);
+    if (!found[animalId]) found[animalId] = dateStr; /* 初発見日を保持 */
+    return { found: found };
+  }
+  function zukanIsComplete(state, animalIds) {
+    const found = (state && state.found) || {};
+    return animalIds.every(function (id) { return !!found[id]; });
+  }
+  return { dailySpotIndex: dailySpotIndex, zukanAdd: zukanAdd, zukanIsComplete: zukanIsComplete };
+})();
+</script>
+
+<script>
 /* タッチスワイプ */
 (function () {
   let _tx = null;
