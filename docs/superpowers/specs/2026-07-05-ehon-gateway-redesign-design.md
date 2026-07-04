@@ -21,7 +21,9 @@ yuichi916.github.io 全体を、飛び出す絵本 `ehon.html` を実質の入�
 | リピート仕掛け | **日替わりの動物の居場所** (日付seed)。それ以外 (スタンプ帳/時間帯挿絵/隠しページ) は入れない |
 | 言語 | **絵本はJP/EN完全両対応**。日本語専用リンク先に「Japanese content」バッジ |
 | 宣伝導線 | **奥付「外の窓」+ 達成シェアカード + OGP/SEO全面整備** (紹介動画は今回スコープ外) |
-| 世界ビジュアル制作 | **KitBashレンダ中心。インテリア・パーツ単位まで厳密に吟味し「城でごまかし」禁止。不足分はネット調達や自作も検討** |
+| 世界ビジュアル制作 | **KitBash素材中心。インテリア・パーツ単位まで厳密に吟味し「城でごまかし」禁止。不足分はネット調達や自作も検討** |
+| 表現方式 (2026-07-05追記) | **3D (GLB diorama) ベースが主軸。水彩 (方式A) はオプション扱い** — 後日追加できるデータ構造は残すが新規頁では制作しない |
+| 動物の扱い (2026-07-05追記) | **STLジオメトリをそのまま活かして3D配置** (単色クレイ/彫像質感)。水彩化は後日のオプション |
 
 ## 3. 本の全体構成 (表紙+17見開き)
 
@@ -38,8 +40,8 @@ yuichi916.github.io 全体を、飛び出す絵本 `ehon.html` を実質の入�
  └─ 奥付「外の窓」  : YouTube / X / note / GitHub + 図鑑コンプ状況
 ```
 
-- 各コンテンツ見開き = 左ページ**飛び出す世界** (水彩3層せり上がり+視差、現行 world-pop 機構) + 右ページ**短い物語文 (JP/EN) と「この世界に入る」ボタン** (=コンテンツへのリンク)。
-- 新規12ページは**方式A (水彩) のみ**。方式B (3D GLB) は既存3世界だけ維持 (制作コストとモバイル負荷のため)。
+- 各コンテンツ見開き = 開いた本 (book.glb) の上に**3D diorama (GLB) がせり上がる** (現行方式Bの `bootWorldB`/`popWorldB` 機構を全頁に拡張) + **短い物語文 (JP/EN) と「この世界に入る」ボタン** (=コンテンツへのリンク) のオーバーレイ。
+- 新規12ページは**方式B (3D GLB) ベース**。方式A (水彩) は既存3世界のみ維持し、新規頁では制作しない (PAGES データ構造上は後日追加可能にしておく)。A/Bトグルは方式Aを持つ頁 (既存3世界) でのみ表示。
 - toeic-practice.html は toeic 見開きの副リンク。journal.html / universe.html / quest_test_tmp.html はリンク対象外 (それぞれバックアップ / salon重複 / テスト)。
 
 ## 4. コンテンツ×素材マッピング (台帳根拠付き)
@@ -61,12 +63,12 @@ yuichi916.github.io 全体を、飛び出す絵本 `ehon.html` を実質の入�
 | world | 地図師の机と浮遊島群 | ECI WizardOffice 机 + PropBook22種 + 既存world島マップ |
 | hollow-tale | 雪夜の焚き火 | VAL Firewood + ECI PropFire + cabin焚き火資産 |
 
-選定原則: 内装セット・小物単位で意味が通ること (書斎=言葉の学び、武具庫=試験の試練、酒場の灯=tomoshibi)。SD水彩化で全頁のトーンを統一。
+選定原則: 内装セット・小物単位で意味が通ること (書斎=言葉の学び、武具庫=試験の試練、酒場の灯=tomoshibi)。トーン統一は**共通ライティング (暖色キーライト+リム) と共通背景・地面台座のシーン設計**で行う。salon (銀河) は KitBash に該当素材がないため、パーティクル/発光マテリアルの自作 3D シーンまたは既存ビジュアルのビルボード合成で表現する。
 
 ## 5. 動物図鑑システム
 
 素材: `P:\CG fanbook\3D assets\01. Fre Model Collection\` の11種 (**STL、テクスチャ無し** — Wolf Pup.zip で確認済み)。
-パイプライン: STL→Blenderクレイレンダ→SD img2img水彩化→透過スプライト。
+パイプライン: STL→Blenderでデシメート (数百万頂点→5万前後) →単色クレイ/彫像質感マテリアル→**GLB化 (Draco圧縮) して各頁 diorama に3D配置**。ジオメトリをそのまま活かす。水彩スプライト化は後日のオプション。
 
 | 動物 | 頁 | 選定理由 |
 |---|---|---|
@@ -83,8 +85,8 @@ yuichi916.github.io 全体を、飛び出す絵本 `ehon.html` を実質の入�
 | ディンゴ | world | 地図を歩く探検者 |
 
 - コンテンツ12頁のうち hollow-tale のみ動物ゼロ (物語が主役)。目次・奥付・既存3世界にも動物は置かない。
-- **日替わり**: `hash(YYYYMMDD + 動物ID) % spots.length` で各頁3〜5候補スポット (正規化x,y) から当日の隠れ場所を決定。
-- クリック→鳴き声+ひとことセリフ (JP/EN) →図鑑登録。鳴き声は**Web Audio合成の絵本調の音 (動物ごとに音程・音色を変える) を基本**とし、フリー実音源が入手できた動物は差し替え (ビントロング等は実音入手困難のため合成が確実)。
+- **日替わり**: `hash(YYYYMMDD + 動物ID) % spots.length` で各頁3〜5候補スポット (diorama 内の3D配置点) から当日の隠れ場所を決定。
+- クリック (Three.js raycaster で動物メッシュ判定) →鳴き声+ひとことセリフ (JP/EN) →図鑑登録。鳴き声は**Web Audio合成の絵本調の音 (動物ごとに音程・音色を変える) を基本**とし、フリー実音源が入手できた動物は差し替え (ビントロング等は実音入手困難のため合成が確実)。
 - 保存: localStorage `ehon_zukan` = `{found: {animalId: firstFoundDate}}`。
 - 図鑑UI: 目次頁+常設ボタンからモーダル。未発見はシルエット、発見済みは水彩画+名前+セリフ+初発見日。
 - メタ報酬: 全11匹発見で表紙に金の動物紋章+シェアカード解禁。
@@ -115,19 +117,23 @@ yuichi916.github.io 全体を、飛び出す絵本 `ehon.html` を実質の入�
   {id, chapter, type: 'toc'|'content'|'adventure'|'colophon',
    title:{jp,en}, sub:{jp,en}, story:{jp,en},
    link, linkJpOnly:bool,
-   animal:{id, name:{jp,en}, quote:{jp,en}, spots:[{x,y},...]} | null,
+   modes: ['b'] | ['a','b'],            // 新規頁は 'b' のみ。既存3世界は両方
+   diorama: '<pageId>_diorama.glb',      // 方式B用GLB
+   camPos, lookAtY,                      // 頁ごとのカメラ定義
+   animal:{id, name:{jp,en}, quote:{jp,en}, spots:[{x,y,z},...]} | null,  // diorama内3D配置点
    quest: (既存QUESTS参照) | null}
   ```
-- ページめくり (`flipping` アニメ)・EHON シェル・QuestEngine・localStorage・方式A/Bトグル・`getImageUrl`/`getAssetUrl` (ローカル `_ehon_assets/ehon/`) は現行実装を流用。
+- ページめくり (`flipping` アニメ)・EHON シェル・QuestEngine・localStorage・方式Bの `bootWorldB`/`popWorldB`/`disposeWorldB`/`mountBook3D`・`getImageUrl`/`getAssetUrl` (ローカル `_ehon_assets/ehon/`) は現行実装を流用・拡張。A/Bトグルは `modes` に 'a' を持つ頁のみ表示。
 - 単一ファイル ehon.html 継続 (リポジトリ文化)。commit 前に `python C:/tmp/check_dup_const.py` 必須。
 
 ## 10. 制作パイプライン (1頁あたり)
 
-1. Blender headless で対象アセットのシーン構成+レンダ (既存 `_blender/ehon_*.py` 流用、ローカルコピー `C:\tmp\blends\` 使用)
-2. reForge SD img2img 水彩化 (既存パイプライン、`--api` 起動)
-3. 距離マスクで far/mid/fore 3層切出し (既存 `ehon_layer_cut.py`)
-4. 本テーマページ `<pageId>_book.png` (book_render.png を頁別プロンプトで img2img)
-5. 動物: STL→クレイレンダ→水彩化→透過スプライト
+1. Blender headless で対象キット (ローカルコピー `C:\tmp\blends\`) から選定アセットを抽出し、台座付き diorama シーンを構成 (既存 `_blender/ehon_openbook_gltf.py` の手法を頁別スクリプトに展開)
+2. デシメート+テクスチャ縮小 (WebP) → **GLB エクスポート (Draco圧縮)**。容量バジェット内に収める (§11)
+3. 動物: STL→デシメート (数百万→~5万頂点) →クレイ/彫像質感→GLB (Draco)
+4. Three.js 組込み: 頁ごとの camPos/ライティング定義、`bootWorldB` の頁対応拡張、raycaster クリック判定
+5. 目次サムネ: 各 diorama の Blender レンダ静止画 (小サイズWebP)
+6. (後日オプション) SD img2img 水彩化で方式A画像を追加制作
 
 制約 (メモリ済み教訓):
 - ECI テクスチャは `P:\CG fanbook\3D assets\Kitbash3D - Enchanted Interiors\kb3d_enchantedinteriors.png.2k\` (変則名) — `find_missing_files` で再リンク。ローカル: `C:\tmp\blends\eci\eci_textures\`
@@ -136,9 +142,10 @@ yuichi916.github.io 全体を、飛び出す絵本 `ehon.html` を実質の入�
 
 ## 11. パフォーマンス
 
-- 新規画像は **WebP (q80-85)** で書き出し。追加容量見積 ~50MB (12頁×4枚×~1MB)。リポジトリ同梱継続 (GitHub Pages 1GB内)。
-- 頁画像は現行同様、切替時遅延ロード。動物スプライトは頁表示時ロード。
-- 目次サムネは小さい別ファイル (~50KB/枚)。
+- **GLB容量バジェット**: diorama 1頁 ≤5MB (Draco + WebPテクスチャ)、動物 1体 ≤1.5MB。追加容量見積 ~75MB (12頁 + 11体 + サムネ)。リポジトリ同梱継続 (GitHub Pages 1GB内)。
+- **遅延ロード + dispose**: 頁切替時に該当 diorama GLB をロードし、旧 diorama は `disposeWorldB` で解放 (現行機構)。同時に GPU に載る diorama は1つ。
+- 目次サムネは静止画 WebP (~50KB/枚) で、3D 初期化前でも目次は即表示。
+- **WebGL フォールバック**: WebGL 初期化失敗・低スペック端末では目次サムネ静止画+リンクボタンのみの簡易表示に切替 (リンクとしての機能は常に生きる)。
 
 ## 12. エラーハンドリング
 
@@ -149,16 +156,16 @@ yuichi916.github.io 全体を、飛び出す絵本 `ehon.html` を実質の入�
 ## 13. テスト・検証
 
 - `python C:/tmp/check_dup_const.py ehon.html` (commit 前必須)。
-- Chrome headless `--screenshot` で方式A各頁の実描画確認 (方式Bは実機GPU必須)。
-- 日替わりロジックは純関数化し Node で単体テスト (将棋ぷよ方式)。
+- diorama の構図・見栄えは Blender レンダのプレビュー静止画で先に確認 (headless Chrome は大 GLB を描画できないため)。ブラウザ上の最終確認は実機 GPU ブラウザで行う。book.glb 級の小 GLB のみ headless ソフト WebGL で構図確認可。
+- 日替わりロジック・図鑑保存は純関数化し Node で単体テスト (将棋ぷよ方式)。
 - i18n は JP/EN 両方でスクショ比較。
 - デプロイ後、github.io 本番で全頁+図鑑+シェアの動作確認。
 
 ## 14. リリース段階
 
-- **Phase 1**: 骨格 — PAGES 配列化・目次・奥付・i18n 機構・図鑑機構 (世界ビジュアルは既存3世界+仮画像)
-- **Phase 2**: 頁制作を1頁ずつ完成度MAXで (先行4頁: hitoritabi / lingo / tomoshibi / salon)
-- **Phase 3**: 残り8頁+動物全配置
+- **Phase 1**: 骨格 — PAGES 配列化・目次・奥付・i18n 機構・図鑑機構 (世界ビジュアルは既存3世界+仮サムネ)
+- **Phase 2**: 頁制作を1頁ずつ完成度MAXで — diorama GLB + 動物3D配置 + 物語文 + 目次サムネを頁単位で完成 (先行4頁: hitoritabi / lingo / tomoshibi / salon)
+- **Phase 3**: 残り8頁 (Phase 2 と同じ頁単位完成)
 - **Phase 4**: OGP/シェアカード/index.html CTA切替/デプロイ
 
 各Phase末に検証 (13章) を通してから commit。「まだXが残ってる」状態での未完成リスト放置は禁止 (feedback_niwa_world_design 準拠)。
