@@ -493,12 +493,27 @@ function renderPageOverlay(page) {
   }
   if (page.type !== 'content' || !EHON.state.open) { ov.innerHTML = ''; ov.className = ''; return; }
   ov.className = 'show';
-  const story = page.story ? tt(page.story) : '';
-  ov.innerHTML =
-    '<div class="po-story">' + story + '</div>' +
-    (page.linkJpOnly && ehonLang() === 'en'
-      ? '<span class="po-jp-badge">' + tt(I18N.ui.jpBadge) + '</span>' : '') +
-    '<a class="po-enter" href="' + page.link + '">' + tt(I18N.ui.enter) + ' →</a>';
+
+  /* Clear and rebuild DOM programmatically to prevent HTML injection */
+  ov.innerHTML = '';
+
+  const storyDiv = document.createElement('div');
+  storyDiv.className = 'po-story';
+  storyDiv.textContent = page.story ? tt(page.story) : '';
+  ov.appendChild(storyDiv);
+
+  if (page.linkJpOnly && ehonLang() === 'en') {
+    const badge = document.createElement('span');
+    badge.className = 'po-jp-badge';
+    badge.textContent = tt(I18N.ui.jpBadge);
+    ov.appendChild(badge);
+  }
+
+  const link = document.createElement('a');
+  link.className = 'po-enter';
+  link.setAttribute('href', page.link);
+  link.textContent = tt(I18N.ui.enter) + ' →';
+  ov.appendChild(link);
 }
 function renderToc() {}
 function renderColophon() {}
@@ -639,6 +654,7 @@ document.getElementById('lang-toggle').addEventListener('click', e => {
   e.stopPropagation();
   setEhonLang(ehonLang() === 'jp' ? 'en' : 'jp');
 });
+document.getElementById('lang-toggle').textContent = (ehonLang() === 'jp') ? 'A' : 'あ';
 document.getElementById('immerse-back').addEventListener('click', e => { e.stopPropagation(); EHON.exitWorld(); });
 document.documentElement.lang = (ehonLang() === 'jp') ? 'ja' : 'en';
 
