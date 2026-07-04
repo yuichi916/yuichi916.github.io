@@ -360,25 +360,93 @@ window._IS_GITHUB = _IS_GITHUB;
 window.resolveEhonFileids = () => Promise.resolve({});
 window.getAssetUrl = getAssetUrl;
 
-/* ---- 世界一覧 ---- */
-const WORLDS = [
-  {id:'enchanted',   title:'Enchanted',    sub:'妖精の森の絵本'},
-  {id:'valhalla',    title:'Valhalla',     sub:'北欧の神々の広間'},
-  {id:'darkfantasy', title:'Dark Fantasy', sub:'崩れゆく大聖堂'},
+/* ---- 頁一覧 (絵本の見開き) ---- */
+const CH = { TOTONOU:{jp:'整える',en:'Calm'}, ASOBU:{jp:'遊ぶ',en:'Play'},
+             MANABU:{jp:'学ぶ',en:'Learn'}, KIKU:{jp:'聴く',en:'Listen'},
+             TABI:{jp:'旅する',en:'Travel'}, MONOGATARI:{jp:'物語',en:'Story'},
+             BOUKEN:{jp:'冒険',en:'Adventure'} };
+const PAGES = [
+  {id:'toc', type:'toc', chapter:null,
+   title:{jp:'世界の地図', en:'Map of Worlds'}, sub:{jp:'この本のすべての頁', en:'All pages of this book'},
+   story:null, link:null, linkJpOnly:false, modes:[], diorama:null, camPos:null, animal:null, quest:null},
+  {id:'cabin', type:'content', chapter:CH.TOTONOU,
+   title:{jp:'森の小屋', en:'The Forest Cabin'}, sub:{jp:'焚き火と360°の静けさ', en:'A fire and 360° of quiet'},
+   story:null, link:'cabin.html', linkJpOnly:false, modes:['b'], diorama:'cabin_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'niwa', type:'content', chapter:CH.TOTONOU,
+   title:{jp:'心の庭', en:'The Mind Garden'}, sub:{jp:'浮遊島をめぐる瞑想', en:'Meditation over floating isles'},
+   story:null, link:'niwa.html', linkJpOnly:false, modes:['b'], diorama:'niwa_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'tomoshibi', type:'content', chapter:CH.TOTONOU,
+   title:{jp:'小さな灯', en:'A Little Lamp'}, sub:{jp:'朝がつらい君への手帖', en:'A notebook for heavy mornings'},
+   story:null, link:'tomoshibi.html', linkJpOnly:true, modes:['b'], diorama:'tomoshibi_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'stopwatch', type:'content', chapter:CH.TOTONOU,
+   title:{jp:'時の計り手', en:'The Timekeeper'}, sub:{jp:'高精度ストップウォッチ', en:'A precise stopwatch'},
+   story:null, link:'stopwatch.html', linkJpOnly:false, modes:['b'], diorama:'stopwatch_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'sudoku', type:'content', chapter:CH.ASOBU,
+   title:{jp:'ルーンの大聖堂', en:'The Rune Cathedral'}, sub:{jp:'異世界立体数独', en:'3D sudoku from another world'},
+   story:null, link:'sudoku.html', linkJpOnly:false, modes:['b'], diorama:'sudoku_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'shogi-puyo', type:'content', chapter:CH.ASOBU,
+   title:{jp:'北の対局場', en:'The Northern Game Hall'}, sub:{jp:'将棋ぷよ「成」', en:'Shogi-puyo "Nari"'},
+   story:null, link:'shogi-puyo.html', linkJpOnly:false, modes:['b'], diorama:'shogipuyo_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'lingo', type:'content', chapter:CH.MANABU,
+   title:{jp:'ことばの書斎', en:"The Word Wizard's Study"}, sub:{jp:'YouTubeで英語リスニング', en:'English listening via YouTube'},
+   story:null, link:'lingo.html', linkJpOnly:true, modes:['b'], diorama:'lingo_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'toeic', type:'content', chapter:CH.MANABU,
+   title:{jp:'試練の武具庫', en:'The Armory of Trials'}, sub:{jp:'TOEIC Part5 三十番勝負', en:'30 TOEIC Part-5 trials'},
+   story:null, link:'toeic.html', linkJpOnly:true, modes:['b'], diorama:'toeic_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'salon', type:'content', chapter:CH.KIKU,
+   title:{jp:'歌う銀河', en:'The Singing Galaxy'}, sub:{jp:'一万九千人の音楽の宇宙', en:'A universe of 19,000 artists'},
+   story:null, link:'salon.html', linkJpOnly:false, modes:['b'], diorama:'salon_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'hitoritabi', type:'content', chapter:CH.TABI,
+   title:{jp:'出航の港', en:'The Departure Harbor'}, sub:{jp:'32の一人旅の記録', en:'Records of 32 solo journeys'},
+   story:null, link:'hitoritabi/index.html', linkJpOnly:false, modes:['b'], diorama:'hitoritabi_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'world', type:'content', chapter:CH.TABI,
+   title:{jp:'地図師の机', en:"The Cartographer's Desk"}, sub:{jp:'浮遊島群の地図', en:'A map of floating isles'},
+   story:null, link:'world.html', linkJpOnly:false, modes:['b'], diorama:'world_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'hollow-tale', type:'content', chapter:CH.MONOGATARI,
+   title:{jp:'消えない焚き火', en:'The Fire That Never Dies'}, sub:{jp:'森の小屋の、ある夜の物語', en:'One night at the forest cabin'},
+   story:null, link:'hollow-tale.html', linkJpOnly:true, modes:['b'], diorama:'hollowtale_diorama.glb', camPos:[0,7,14], animal:null, quest:null},
+  {id:'enchanted', type:'adventure', chapter:CH.BOUKEN,
+   title:{jp:'Enchanted', en:'Enchanted'}, sub:{jp:'妖精の森の絵本', en:'A fairy-forest picture book'},
+   story:null, link:null, linkJpOnly:false, modes:['a','b'], diorama:'enchanted_diorama.glb', camPos:[0,7,14], animal:null, quest:'enchanted'},
+  {id:'valhalla', type:'adventure', chapter:CH.BOUKEN,
+   title:{jp:'Valhalla', en:'Valhalla'}, sub:{jp:'北欧の神々の広間', en:'The hall of Norse gods'},
+   story:null, link:null, linkJpOnly:false, modes:['a','b'], diorama:'valhalla_diorama.glb', camPos:[0,7,14], animal:null, quest:'valhalla'},
+  {id:'darkfantasy', type:'adventure', chapter:CH.BOUKEN,
+   title:{jp:'Dark Fantasy', en:'Dark Fantasy'}, sub:{jp:'崩れゆく大聖堂', en:'A crumbling cathedral'},
+   story:null, link:null, linkJpOnly:false, modes:['a','b'], diorama:'darkfantasy_diorama.glb', camPos:[0,7,14], animal:null, quest:'darkfantasy'},
+  {id:'colophon', type:'colophon', chapter:null,
+   title:{jp:'外の窓', en:'Windows to Outside'}, sub:{jp:'この本のつくり手より', en:'From the maker of this book'},
+   story:null, link:null, linkJpOnly:false, modes:[], diorama:null, camPos:null, animal:null, quest:null},
 ];
+/* 後方互換: 既存コードの WORLDS 参照は adventure 頁のみを指す */
+const WORLDS = PAGES.filter(p => p.type === 'adventure');
+
+/* ---- i18n セレクタ (Task 3 で正式版に置換) ---- */
+const tt = v => (v && v.jp) || v;
+
+/* ---- 頁オーバーレイ・目次・奥付スタブ (Task 3-5 で本実装) ---- */
+function renderPageOverlay() {}
+function renderToc() {}
+function renderColophon() {}
 
 /* ---- ナビボタン状態更新 ---- */
 function updateNavButtons() {
-  const idx = EHON.state.currentWorldIdx;
+  const idx = EHON.state.currentPageIdx;
   const prev = document.getElementById('nav-prev');
   const next = document.getElementById('nav-next');
   prev.disabled = (idx === 0);
-  next.disabled = (idx === WORLDS.length - 1);
+  next.disabled = (idx === PAGES.length - 1);
+}
+
+function updateModeToggle(page) {
+  const tg = document.getElementById('mode-toggle');
+  /* 方式A を持つ頁 (既存3世界) のみトグルを見せる */
+  tg.style.display = (page.modes.includes('a') && EHON.state.open) ? '' : 'none';
 }
 
 /* ---- 共通シェル ---- */
 const EHON = {
-  state: { open: false, mode: 'a', booted: { a: false, b: false }, currentWorldIdx: 0, immerse: false },
+  state: { open: false, mode: 'b', booted: { a: false, b: false }, currentPageIdx: 1, immerse: false },
   open() {
     if (this.state.open) return;
     this.state.open = true;
@@ -389,6 +457,7 @@ const EHON = {
     document.getElementById('nav-next').classList.add('show');
     document.getElementById('world-dots').classList.add('show');
     updateNavButtons();
+    updateModeToggle(PAGES[this.state.currentPageIdx]);
     if (this.state.mode === 'a') {
       document.getElementById('world-a').classList.remove('closed');
       document.getElementById('world-a').classList.add('popped');
@@ -413,11 +482,11 @@ const EHON = {
       else if (this.state.open && window.popWorldB) window.popWorldB();
     }
   },
-  switchWorld(newIdx) {
-    if (newIdx < 0 || newIdx >= WORLDS.length) return;
-    if (newIdx === this.state.currentWorldIdx) return;
-    this.state.currentWorldIdx = newIdx;
-    const world = WORLDS[newIdx];
+  switchPage(newIdx) {
+    if (newIdx < 0 || newIdx >= PAGES.length) return;
+    if (newIdx === this.state.currentPageIdx) return;
+    this.state.currentPageIdx = newIdx;
+    const page = PAGES[newIdx];
 
     /* ページめくりアニメ(背表紙を軸にページが回転) */
     const stage = document.querySelector('.ehon-stage');
@@ -426,15 +495,16 @@ const EHON = {
     stage.classList.add('flipping');
     stage.addEventListener('animationend', () => stage.classList.remove('flipping'), { once: true });
 
-    /* めくり中盤(ページが世界を覆う頃)で世界を差し替え */
-    const mode = this.state.mode;
     const self = this;
     setTimeout(() => {
-      document.querySelector('#title-card h1').textContent = world.title + ' — ' + world.sub;
-      if (mode === 'a') {
-        self.state.booted.a = false;
-        window.bootWorldA && window.bootWorldA();  /* open時は自前でpop */
-      }
+      document.querySelector('#title-card h1').textContent = tt(page.title) + ' — ' + tt(page.sub);
+      renderPageOverlay(page);            /* Task 3: 右頁オーバーレイ (story/リンク/バッジ) */
+      updateModeToggle(page);             /* modes に応じて A/B トグル表示切替 */
+      if (page.type === 'toc') { renderToc(); return; }        /* Task 4 */
+      if (page.type === 'colophon') { renderColophon(); return; } /* Task 5 */
+      const mode = (page.modes.includes(self.state.mode)) ? self.state.mode : page.modes[0];
+      self.state.mode = mode;
+      if (mode === 'a') { self.state.booted.a = false; window.bootWorldA && window.bootWorldA(); }
       if (mode === 'b') {
         window.disposeWorldB && window.disposeWorldB();
         self.state.booted.b = false;
@@ -455,8 +525,8 @@ const EHON = {
     this.state.immerse = true;
     if (this.state.mode === 'a') {
       document.getElementById('world-a').classList.add('immersed');
-      const worldId = WORLDS[this.state.currentWorldIdx].id;
-      QuestEngine.enter(worldId);
+      const page = PAGES[this.state.currentPageIdx];
+      if (page.quest) QuestEngine.enter(page.id);
     }
     if (this.state.mode === 'b' && window.immerseWorldB) {
       window.immerseWorldB();
@@ -486,14 +556,14 @@ window.EHON = EHON;
 
 document.getElementById('btn-a').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('a'); });
 document.getElementById('btn-b').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('b'); });
-document.getElementById('nav-prev').addEventListener('click', e => { e.stopPropagation(); EHON.switchWorld(EHON.state.currentWorldIdx - 1); });
-document.getElementById('nav-next').addEventListener('click', e => { e.stopPropagation(); EHON.switchWorld(EHON.state.currentWorldIdx + 1); });
+document.getElementById('nav-prev').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(EHON.state.currentPageIdx - 1); });
+document.getElementById('nav-next').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(EHON.state.currentPageIdx + 1); });
 document.getElementById('immerse-back').addEventListener('click', e => { e.stopPropagation(); EHON.exitWorld(); });
 
 /* キーボードナビ */
 window.addEventListener('keydown', e => {
-  if (e.key === 'ArrowLeft') EHON.switchWorld(EHON.state.currentWorldIdx - 1);
-  if (e.key === 'ArrowRight') EHON.switchWorld(EHON.state.currentWorldIdx + 1);
+  if (e.key === 'ArrowLeft') EHON.switchPage(EHON.state.currentPageIdx - 1);
+  if (e.key === 'ArrowRight') EHON.switchPage(EHON.state.currentPageIdx + 1);
 });
 
 /* ================================================================
@@ -573,7 +643,7 @@ const QuestEngine = (function () {
   }
 
   function _markDotCleared(worldId) {
-    const idx = WORLDS.findIndex(w => w.id === worldId);
+    const idx = PAGES.findIndex(p => p.id === worldId);
     if (idx < 0) return;
     const dots = document.querySelectorAll('#world-dots .dot');
     if (dots[idx]) dots[idx].classList.add('quest-cleared');
@@ -795,15 +865,15 @@ window.EHON2 = (function () {
     const dx = e.changedTouches[0].clientX - _tx;
     _tx = null;
     if (Math.abs(dx) < 50) return;
-    if (dx < 0) EHON.switchWorld(EHON.state.currentWorldIdx + 1);
-    else EHON.switchWorld(EHON.state.currentWorldIdx - 1);
+    if (dx < 0) EHON.switchPage(EHON.state.currentPageIdx + 1);
+    else EHON.switchPage(EHON.state.currentPageIdx - 1);
   }, { passive: true });
 })();
 
 /* ---- 方式A: 3D本ステージ + 上にせり上がる世界 ---- */
 window.bootWorldA = async function () {
   if (_IS_GITHUB) await resolveEhonFileids();
-  const worldId = WORLDS[EHON.state.currentWorldIdx].id;
+  const worldId = PAGES[EHON.state.currentPageIdx].id;
   const root = document.getElementById('world-a');
 
   /* 前回の mountBook3D を破棄（メモリリーク防止） */
@@ -902,17 +972,19 @@ window.bootWorldA = async function () {
 /* ---- DOMContentLoaded: 初期化 ---- */
 window.addEventListener('DOMContentLoaded', () => {
   /* ドット生成 */
-  const dotsEl = document.getElementById('world-dots');
-  WORLDS.forEach((w, i) => {
-    const dot = document.createElement('div');
-    dot.className = 'dot' + (i === 0 ? ' active' : '');
-    dot.title = w.title;
-    dotsEl.appendChild(dot);
+  const dotsWrap = document.getElementById('world-dots');
+  dotsWrap.innerHTML = '';
+  PAGES.forEach((p, i) => {
+    const d = document.createElement('button');
+    d.className = 'dot' + (i === EHON.state.currentPageIdx ? ' active' : '');
+    d.setAttribute('aria-label', tt(p.title));
+    d.addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(i); });
+    dotsWrap.appendChild(d);
   });
 
-  /* 方式Aの初期ロード */
-  EHON.state.booted.a = true;
-  window.bootWorldA();
+  /* 初期ロード: 初期頁が mode:'b' なので bootWorldB を起動 */
+  EHON.state.booted.b = true;
+  window.bootWorldB && window.bootWorldB();
 
   /* クリア済みドットをマーク */
   QuestEngine.markDotsOnLoad();
@@ -1088,7 +1160,7 @@ window.exitImmerseB = () => {
 
 window.bootWorldB = async function () {
   if (window._IS_GITHUB) await window.resolveEhonFileids();
-  const worldId = WORLDS[EHON.state.currentWorldIdx].id;
+  const worldId = PAGES[EHON.state.currentPageIdx].id;
   const host = document.getElementById('world-b');
   host.innerHTML = '';
 
