@@ -394,6 +394,33 @@
 <button id="goto-toc" aria-label="目次">🗺</button>
 <a id="cabin-link" href="cabin.html">← 小屋へ</a>
 
+<script id="ehon2-core">
+/* ehon2 コア純関数 (Node テスト対象: tests/ehon2_core_test.mjs が id 抽出で評価する)
+   DOM・localStorage 非依存の純関数のみ置くこと。
+   メインscriptより前に置く: ZukanEngine 等が定義時に window.EHON2 を参照するため */
+window.EHON2 = (function () {
+  /* 日替わり配置: 日付+動物IDのFNV風ハッシュで候補スポットから1つ選ぶ */
+  function dailySpotIndex(dateStr, animalId, spotCount) {
+    if (!spotCount) return 0;
+    const s = dateStr + ':' + animalId;
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < s.length; i++) { h = ((h ^ s.charCodeAt(i)) * 16777619) >>> 0; }
+    return h % spotCount;
+  }
+  /* 図鑑状態 reducer (localStorage 読み書きは呼び出し側 ZukanEngine の責務) */
+  function zukanAdd(state, animalId, dateStr) {
+    const found = Object.assign({}, state && state.found);
+    if (!found[animalId]) found[animalId] = dateStr; /* 初発見日を保持 */
+    return { found: found };
+  }
+  function zukanIsComplete(state, animalIds) {
+    const found = (state && state.found) || {};
+    return animalIds.every(function (id) { return !!found[id]; });
+  }
+  return { dailySpotIndex: dailySpotIndex, zukanAdd: zukanAdd, zukanIsComplete: zukanIsComplete };
+})();
+</script>
+
 <script>
 /* ---- アセット参照: ローカル vs GitHub Pages(pCloud) ---- */
 const PCLOUD_PROXY = 'https://niwa-cors.yuichi916.workers.dev';
@@ -937,6 +964,7 @@ const EHON = {
     document.getElementById('goto-toc').classList.add('show');
     updateNavButtons();
     updateModeToggle(PAGES[this.state.currentPageIdx]);
+    refreshAllText();  /* 開いた瞬間に現在頁のタイトル/オーバーレイへ更新 (HTML初期値のままにしない) */
     if (this.state.mode === 'a') {
       document.getElementById('world-a').classList.remove('closed');
       document.getElementById('world-a').classList.add('popped');
@@ -1315,35 +1343,7 @@ const QuestEngine = (function () {
 })();
 
 window.QuestEngine = QuestEngine;
-</script>
 
-<script id="ehon2-core">
-/* ehon2 コア純関数 (Node テスト対象: tests/ehon2_core_test.mjs が id 抽出で評価する)
-   DOM・localStorage 非依存の純関数のみ置くこと */
-window.EHON2 = (function () {
-  /* 日替わり配置: 日付+動物IDのFNV風ハッシュで候補スポットから1つ選ぶ */
-  function dailySpotIndex(dateStr, animalId, spotCount) {
-    if (!spotCount) return 0;
-    const s = dateStr + ':' + animalId;
-    let h = 2166136261 >>> 0;
-    for (let i = 0; i < s.length; i++) { h = ((h ^ s.charCodeAt(i)) * 16777619) >>> 0; }
-    return h % spotCount;
-  }
-  /* 図鑑状態 reducer (localStorage 読み書きは呼び出し側 ZukanEngine の責務) */
-  function zukanAdd(state, animalId, dateStr) {
-    const found = Object.assign({}, state && state.found);
-    if (!found[animalId]) found[animalId] = dateStr; /* 初発見日を保持 */
-    return { found: found };
-  }
-  function zukanIsComplete(state, animalIds) {
-    const found = (state && state.found) || {};
-    return animalIds.every(function (id) { return !!found[id]; });
-  }
-  return { dailySpotIndex: dailySpotIndex, zukanAdd: zukanAdd, zukanIsComplete: zukanIsComplete };
-})();
-</script>
-
-<script>
 /* タッチスワイプ */
 (function () {
   let _tx = null;
@@ -1470,9 +1470,8 @@ window.addEventListener('DOMContentLoaded', () => {
     dotsWrap.appendChild(d);
   });
 
-  /* 初期ロード: 初期頁が mode:'b' なので bootWorldB を起動 */
-  EHON.state.booted.b = true;
-  window.bootWorldB && window.bootWorldB();
+  /* 初期ロード: setMode でクラス切替 + 起動（booted フラグはsetMode内で管理） */
+  EHON.setMode(EHON.state.mode);
 
   /* クリア済みドットをマーク */
   QuestEngine.markDotsOnLoad();
@@ -1671,8 +1670,22 @@ window.bootWorldB = async function () {
   controls.autoRotate = true; controls.autoRotateSpeed = 0.55;
   _controls = controls;
 
-  const fail = (label, url, err) => {
+  const failBook = (label, url, err) => {
+    /* book.glb 失敗: canvas は既に mountBook3D 内でクリア済み → 完全静的フォールバック */
     showStaticFallback(host, page);
+    console.error('ehon 3D load error', label, url, err);
+  };
+  const fail = (label, url, err) => {
+    /* diorama 404 等: book canvas は生きているので overlay のみ表示 */
+    if (msg.parentNode) msg.remove();
+    let overlay = host.querySelector('.status-msg');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'status-msg';
+      overlay.style.pointerEvents = 'none';
+      host.appendChild(overlay);
+    }
+    overlay.textContent = tt(I18N.ui.preparing);
     console.error('ehon 3D load error', label, url, err);
   };
   const loadGLB = (url) => {
@@ -1688,7 +1701,7 @@ window.bootWorldB = async function () {
 
   (async () => {
     try {
-      const bookTopY = await bookMount.bookTopYPromise.catch(e => { fail('本(book.glb)', '', e); throw e; });
+      const bookTopY = await bookMount.bookTopYPromise.catch(e => { failBook('本(book.glb)', '', e); throw e; });
       if (_bDisposed) return;
       const dioGltf = await loadGLB(dioUrl).catch(e => { fail('ジオラマ', dioUrl, e); throw e; });
       if (_bDisposed) return;
