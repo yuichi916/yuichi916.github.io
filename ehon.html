@@ -42,6 +42,16 @@
   /* 方式B: Three.js canvas */
   #world-b canvas{width:100%;height:100%;display:block}
 
+  /* 方式A 3D本コンテナ */
+  .book-base-3d {
+    position:absolute;left:50%;bottom:4%;width:108%;height:56%;
+    transform:translateX(-50%);transform-origin:50% 90%;
+    cursor:pointer;
+    transition:transform .7s cubic-bezier(.2,.8,.2,1);
+  }
+  .book-base-3d canvas{width:100%;height:100%;display:block}
+  #world-a.closed .book-base-3d{transform:translateX(-50%) scale(.9) rotateX(14deg)}
+
   /* UI */
   #title-card{position:fixed;left:24px;top:20px;max-width:50vw;padding:10px 14px;
     background:rgba(250,245,235,.85);border:1px solid #b9a784;border-radius:5px;
@@ -760,20 +770,33 @@ window.QuestEngine = QuestEngine;
   }, { passive: true });
 })();
 
-/* ---- 方式A: 水彩の本ステージ + 上にせり上がる世界 ---- */
+/* ---- 方式A: 3D本ステージ + 上にせり上がる世界 ---- */
 window.bootWorldA = async function () {
   if (_IS_GITHUB) await resolveEhonFileids();
   const worldId = WORLDS[EHON.state.currentWorldIdx].id;
   const root = document.getElementById('world-a');
+
+  /* 前回の mountBook3D を破棄（メモリリーク防止） */
+  if (window._bookA3dDispose) {
+    try { window._bookA3dDispose(); } catch (e) {}
+    window._bookA3dDispose = null;
+  }
+
   root.innerHTML = '';
 
-  /* 本の土台(水彩) */
-  const book = document.createElement('img');
-  book.className = 'book-base';
-  book.alt = '';
-  getImageUrl(worldId + '_book.png').then(u => { book.src = u; });
-  book.addEventListener('click', () => EHON.open());
-  root.appendChild(book);
+  /* 本の土台(3D) */
+  const bookContainer = document.createElement('div');
+  bookContainer.className = 'book-base-3d';
+  root.appendChild(bookContainer);
+  /* mountBook3D は module script 側で定義。非同期で呼び出しリトライ */
+  (function tryMount(attempts) {
+    if (typeof window.mountBook3D === 'function') {
+      const handle = window.mountBook3D(bookContainer);
+      if (handle && handle.dispose) window._bookA3dDispose = handle.dispose;
+    } else if (attempts < 20) {
+      setTimeout(() => tryMount(attempts + 1), 100);
+    }
+  })(0);
 
   /* 404/onerror フォールバック用フラグ */
   let failShown = false;
@@ -899,6 +922,125 @@ window.disposeWorldB = () => {
   _controls = null;
 };
 
+/* ---- 共有: 3D本コンテナをホスト要素にマウント ---- */
+/**
+ * hostEl 内に Three.js renderer + book.glb をマウントする。
+ * @param {HTMLElement} hostEl - canvasを挿入する親要素
+ * @param {object} [opts] - オプション
+ * @param {boolean} [opts.noLoop=false] - trueのとき内部rAFループを起動しない(呼び元がループ管理)
+ * @param {number[]} [opts.camPos=[0,5,12]] - カメラ初期位置 [x,y,z]
+ * @returns {{ dispose:function, scene:THREE.Scene, renderer:THREE.WebGLRenderer, cam:THREE.PerspectiveCamera, bookTopYPromise:Promise<number> }}
+ */
+window.mountBook3D = function mountBook3D(hostEl, opts) {
+  opts = opts || {};
+  let _disposed = false;
+  let _rafId = null;
+
+  try {
+    /* WebGLRenderer 生成 */
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    hostEl.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const cp = opts.camPos || [0, 5, 12];
+    const cam = new THREE.PerspectiveCamera(40, hostEl.clientWidth / Math.max(hostEl.clientHeight, 1), 0.1, 500);
+    cam.position.set(cp[0], cp[1], cp[2]);
+
+    /* リサイズ対応 */
+    const fit = () => {
+      const w = hostEl.clientWidth, h = hostEl.clientHeight;
+      if (w === 0 || h === 0) return;
+      renderer.setSize(w, h, false);
+      cam.aspect = w / h; cam.updateProjectionMatrix();
+    };
+    fit();
+    const resizeObserver = new ResizeObserver(fit);
+    resizeObserver.observe(hostEl);
+
+    /* 照明 (方式Bと同じ) */
+    scene.add(new THREE.HemisphereLight(0xfff2d8, 0x55607a, 1.2));
+    const sun = new THREE.DirectionalLight(0xfff0d0, 1.5);
+    sun.position.set(6, 12, 6); scene.add(sun);
+
+    /* GLB読込 */
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+
+    /* bookTopY を呼び元に渡すためのPromise */
+    let _resolveBookTopY, _rejectBookTopY;
+    const bookTopYPromise = new Promise((res, rej) => {
+      _resolveBookTopY = res; _rejectBookTopY = rej;
+    });
+
+    const bookUrl = window.getAssetUrl('book.glb');
+    loader.load(bookUrl, (gltf) => {
+      if (_disposed) { _rejectBookTopY(new Error('disposed')); return; }
+      /* bbox正規化・接地 */
+      const book = gltf.scene;
+      let bb = new THREE.Box3().setFromObject(book);
+      let bs = bb.getSize(new THREE.Vector3());
+      const bScale = 11 / Math.max(bs.x, bs.z);
+      book.scale.setScalar(bScale);
+      bb = new THREE.Box3().setFromObject(book);
+      const bc = bb.getCenter(new THREE.Vector3());
+      book.position.x -= bc.x; book.position.z -= bc.z;
+      book.position.y -= bb.min.y;
+      scene.add(book);
+      const bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
+      _resolveBookTopY(bookTopY);
+    }, undefined, (err) => {
+      /* GLB読込失敗時フォールバック */
+      console.error('mountBook3D: book.glb 読み込み失敗', err);
+      _rejectBookTopY(err);
+      const msg = document.createElement('div');
+      msg.className = 'status-msg';
+      msg.textContent = '本の読み込みに失敗しました';
+      hostEl.innerHTML = '';
+      hostEl.appendChild(msg);
+    });
+
+    /* クリックで絵本を開く(方式A用。方式Bは自前クリック管理のため不要だがあっても無害) */
+    hostEl.addEventListener('click', () => { if (window.EHON) window.EHON.open(); });
+
+    /* rAFレンダリングループ(noLoop=trueのとき呼び元がループを管理) */
+    if (!opts.noLoop) {
+      const loop = () => {
+        if (_disposed) return;
+        renderer.render(scene, cam);
+        _rafId = requestAnimationFrame(loop);
+      };
+      _rafId = requestAnimationFrame(loop);
+    }
+
+    /* dispose関数 */
+    const dispose = () => {
+      _disposed = true;
+      resizeObserver.disconnect();
+      if (_rafId !== null) { cancelAnimationFrame(_rafId); _rafId = null; }
+      renderer.dispose();
+    };
+
+    return { dispose, scene, renderer, cam, bookTopYPromise };
+
+  } catch (err) {
+    /* WebGL非対応など致命的エラー */
+    console.error('mountBook3D: 初期化失敗', err);
+    const msg = document.createElement('div');
+    msg.className = 'status-msg';
+    msg.textContent = '本の読み込みに失敗しました';
+    hostEl.innerHTML = '';
+    hostEl.appendChild(msg);
+    const noop = () => {};
+    return { dispose: noop, scene: null, renderer: null, cam: null, bookTopYPromise: Promise.reject(err) };
+  }
+};
+
 window.immerseWorldB = () => {
   if (_controls) {
     _controls.minDistance = 2;
@@ -926,37 +1068,18 @@ window.bootWorldB = async function () {
   msg.textContent = '3Dを読み込み中…';
   host.appendChild(msg);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
-  _renderer = renderer;
-  host.appendChild(renderer.domElement);
+  /* mountBook3D で本(土台)・renderer・scene・camを共有生成。noLoop=trueで自前ループ管理 */
+  const bookMount = window.mountBook3D(host, { noLoop: true, camPos: [0, 7, 14] });
+  _renderer = bookMount.renderer;
+  const scene = bookMount.scene;
+  const cam = bookMount.cam;
 
-  const scene = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(40, host.clientWidth / host.clientHeight, 0.1, 500);
-  cam.position.set(0, 7, 14);
-  const fit = () => {
-    const w = host.clientWidth, h = host.clientHeight;
-    renderer.setSize(w, h, false);
-    cam.aspect = w / h; cam.updateProjectionMatrix();
-  };
-
-  const controls = new OrbitControls(cam, renderer.domElement);
+  /* OrbitControls をrenderer domElementに設定 */
+  const controls = new OrbitControls(cam, _renderer.domElement);
   controls.enablePan = false; controls.minDistance = 9; controls.maxDistance = 30;
   controls.maxPolarAngle = Math.PI * 0.49; controls.target.set(0, 1.5, 0);
   controls.autoRotate = true; controls.autoRotateSpeed = 0.55;
   _controls = controls;
-
-  scene.add(new THREE.HemisphereLight(0xfff2d8, 0x55607a, 1.2));
-  const sun = new THREE.DirectionalLight(0xfff0d0, 1.5);
-  sun.position.set(6, 12, 6); scene.add(sun);
-
-  const draco = new DRACOLoader();
-  draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
-  const loader = new GLTFLoader();
-  loader.setDRACOLoader(draco);
 
   const fail = (label, url, err) => {
     host.innerHTML = '';
@@ -966,29 +1089,22 @@ window.bootWorldB = async function () {
     host.appendChild(failMsg);
     console.error('ehon 3D load error', label, url, err);
   };
-  const loadGLB = (url) => new Promise((res, rej) =>
-    loader.load(url, g => res(g), undefined, e => rej(e)));
+  const loadGLB = (url) => {
+    const draco2 = new DRACOLoader();
+    draco2.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    const ldr = new GLTFLoader();
+    ldr.setDRACOLoader(draco2);
+    return new Promise((res, rej) => ldr.load(url, g => res(g), undefined, e => rej(e)));
+  };
 
-  const bookUrl = window.getAssetUrl('book.glb');
   const dioUrl = window.getAssetUrl(worldId + '_diorama.glb');
 
   let dioramaGrp = null, targetY = 0;
   (async () => {
     try {
-      /* 本(土台)を読み込み接地 */
-      const bookGltf = await loadGLB(bookUrl).catch(e => { fail('本(book.glb)', bookUrl, e); throw e; });
+      /* book.glb の正規化・接地は mountBook3D が行う。bookTopY を待つ */
+      const bookTopY = await bookMount.bookTopYPromise.catch(e => { fail('本(book.glb)', '', e); throw e; });
       if (_bDisposed) return;
-      const book = bookGltf.scene;
-      let bb = new THREE.Box3().setFromObject(book);
-      let bs = bb.getSize(new THREE.Vector3());
-      const bScale = 11 / Math.max(bs.x, bs.z);
-      book.scale.setScalar(bScale);
-      bb = new THREE.Box3().setFromObject(book);
-      const bc = bb.getCenter(new THREE.Vector3());
-      book.position.x -= bc.x; book.position.z -= bc.z;
-      book.position.y -= bb.min.y;
-      scene.add(book);
-      const bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
 
       /* ジオラマを本の上に乗せる */
       const dioGltf = await loadGLB(dioUrl).catch(e => { fail('ジオラマ', dioUrl, e); throw e; });
@@ -1028,11 +1144,10 @@ window.bootWorldB = async function () {
     })();
   };
 
-  fit();
-  addEventListener('resize', fit);
+  /* 方式B専用 rAFループ: controls.update + render */
   (function loop() {
     if (_bDisposed) return;
-    if (EHON.state.mode === 'b') { controls.update(); renderer.render(scene, cam); }
+    if (EHON.state.mode === 'b') { controls.update(); _renderer.render(scene, cam); }
     requestAnimationFrame(loop);
   })();
 };
