@@ -591,6 +591,7 @@ function playCry(animalId) {
   const a = ANIMALS.find(x => x.id === animalId); if (!a) return;
   try {
     const ctx = playCry._ctx || (playCry._ctx = new (window.AudioContext || window.webkitAudioContext)());
+    if (ctx.state === 'suspended') ctx.resume();
     let t = ctx.currentTime;
     for (let r = 0; r < (a.cry.repeat || 1); r++) {
       const o = ctx.createOscillator(), g = ctx.createGain();
@@ -652,6 +653,7 @@ const ZukanEngine = (function () {
   }
   function openModal() {
     const st = load();
+    const complete = window.EHON2.zukanIsComplete(st, ids);
     let mod = document.getElementById('zukan-modal');
     if (!mod) { mod = document.createElement('div'); mod.id = 'zukan-modal'; document.body.appendChild(mod); }
     mod.innerHTML = '';
@@ -685,7 +687,7 @@ const ZukanEngine = (function () {
       grid.appendChild(cell);
     }
     box.appendChild(grid);
-    if (isComplete()) {
+    if (complete) {
       const comp = document.createElement('p');
       comp.className = 'zk-comp';
       comp.textContent = '👑 ' + tt(I18N.ui.complete);
@@ -701,7 +703,7 @@ const ZukanEngine = (function () {
     mod.appendChild(box);
     mod.classList.add('show');
     closeBtn.addEventListener('click', () => mod.classList.remove('show'));
-    if (window.renderShareButton && isComplete()) window.renderShareButton(mod.querySelector('#zk-share'));
+    if (window.renderShareButton && complete) window.renderShareButton(mod.querySelector('#zk-share'));
   }
   function renderSummary(el) {
     if (!el) return;
