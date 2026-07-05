@@ -112,24 +112,9 @@
   #lang-toggle.show { display:flex; }
   #lang-toggle:hover { background:rgba(250,245,235,1); }
 
-  /* ページめくりアニメ: 本のページが背表紙(中央)を軸に回転してめくれる */
-  /* 注: .ehon-stage に preserve-3d を付けると 3D本canvasと2D世界のz順が壊れるため付けない。
-     page-flip 自身に perspective を持たせて回転を立体化する。 */
-  #page-flip{position:absolute; left:50%; bottom:9%; width:33%; height:32%;
-    perspective:900px;
-    transform-origin:left center; transform:rotateY(0deg);
-    background:linear-gradient(100deg,#efe6d1 0%,#f7f1e2 55%,#e8dcc2 100%);
-    border:1px solid #d6c9ae; border-radius:3px 10px 10px 3px;
-    box-shadow:-8px 8px 18px rgba(0,0,0,.30);
-    opacity:0; pointer-events:none; z-index:40; backface-visibility:hidden;}
-  .ehon-stage.flipping #page-flip{ animation: pageflip .66s cubic-bezier(.4,.05,.35,1); }
-  @keyframes pageflip{
-    0%   { opacity:0; transform:rotateY(0deg); }
-    10%  { opacity:.98; }
-    50%  { box-shadow:-16px 10px 26px rgba(0,0,0,.38); }
-    92%  { opacity:.98; }
-    100% { opacity:0; transform:rotateY(-172deg); }
-  }
+  /* mode-a page fade-in */
+  #world-a.page-fade { animation: pageFadeIn .3s ease; }
+  @keyframes pageFadeIn { from { opacity:0; } to { opacity:1; } }
 
   /* world counter dots */
   #world-dots {
@@ -390,7 +375,7 @@
   <div class="ehon-stage">
     <div id="world-a" class="closed active"></div>
     <div id="world-b"></div>
-    <div id="page-flip"></div>
+
   </div>
 </div>
 <div id="title-card"><h1>Enchanted — 妖精の森の絵本</h1><p>本をひらくと、ページの上に魔法の世界がたちあがる</p></div>
@@ -883,7 +868,8 @@ function renderPageOverlay(page) {
 function renderToc() {
   const host = document.getElementById('world-b');
   window.disposeWorldB && window.disposeWorldB();
-  host.innerHTML = '';
+  /* Remove any existing wrap overlays; preserve canvas */
+  host.querySelectorAll('.toc-wrap,.colo-wrap,.status-msg').forEach(el => el.remove());
   const wrap = document.createElement('div');
   wrap.className = 'toc-wrap';
 
@@ -975,7 +961,8 @@ function renderToc() {
 function renderColophon() {
   const host = document.getElementById('world-b');
   window.disposeWorldB && window.disposeWorldB();
-  host.innerHTML = '';
+  /* Remove any existing wrap overlays; preserve canvas */
+  host.querySelectorAll('.toc-wrap,.colo-wrap,.status-msg').forEach(el => el.remove());
   const wrap = document.createElement('div');
   wrap.className = 'colo-wrap';
 
@@ -1079,33 +1066,43 @@ const EHON = {
   switchPage(newIdx) {
     if (newIdx < 0 || newIdx >= PAGES.length) return;
     if (newIdx === this.state.currentPageIdx) return;
+    const prevIdx = this.state.currentPageIdx;
     this.state.currentPageIdx = newIdx;
     const page = PAGES[newIdx];
 
-    /* ページめくりアニメ(背表紙を軸にページが回転) */
-    const stage = document.querySelector('.ehon-stage');
-    stage.classList.remove('flipping');
-    void stage.offsetWidth;  /* リフローでアニメ再起動 */
-    stage.classList.add('flipping');
-    stage.addEventListener('animationend', () => stage.classList.remove('flipping'), { once: true });
-
     const self = this;
-    setTimeout(() => {
-      document.querySelector('#title-card h1').textContent = tt(page.title) + ' — ' + tt(page.sub);
-      renderPageOverlay(page);            /* Task 3: 右頁オーバーレイ (story/リンク/バッジ) */
-      updateModeToggle(page);             /* modes に応じて A/B トグル表示切替 */
-      if (page.type === 'toc') { renderToc(); return; }        /* Task 4 */
-      if (page.type === 'colophon') { renderColophon(); return; } /* Task 5 */
-      const mode = (page.modes.includes(self.state.mode)) ? self.state.mode : page.modes[0];
+    function _doPageSwap(idx) {
+      const pg = PAGES[idx];
+      document.querySelector('#title-card h1').textContent = tt(pg.title) + ' — ' + tt(pg.sub);
+      renderPageOverlay(pg);
+      updateModeToggle(pg);
+      if (pg.type === 'toc') { renderToc(); return; }
+      if (pg.type === 'colophon') { renderColophon(); return; }
+      const mode = (pg.modes.includes(self.state.mode)) ? self.state.mode : pg.modes[0];
       self.state.mode = mode;
-      if (mode === 'a') { self.state.booted.a = false; window.bootWorldA && window.bootWorldA(); }
+      if (mode === 'a') {
+        self.state.booted.a = false;
+        window.bootWorldA && window.bootWorldA();
+        const wa = document.getElementById('world-a');
+        wa.classList.remove('page-fade');
+        void wa.offsetWidth;
+        wa.classList.add('page-fade');
+        wa.addEventListener('animationend', () => wa.classList.remove('page-fade'), { once: true });
+      }
       if (mode === 'b') {
-        window.disposeWorldB && window.disposeWorldB();
         self.state.booted.b = false;
         window.bootWorldB && window.bootWorldB();
         if (self.state.open && window.popWorldB) setTimeout(() => window.popWorldB(), 200);
       }
-    }, 300);
+    }
+
+    /* 3D フリップ or 直接スワップ */
+    const dir = newIdx > prevIdx ? 'next' : 'prev';
+    if (window.flipPageTransition) {
+      window.flipPageTransition(prevIdx, newIdx, dir, _doPageSwap);
+    } else {
+      _doPageSwap(newIdx);
+    }
 
     /* ドット更新 */
     document.querySelectorAll('#world-dots .dot').forEach((d, i) =>
@@ -1582,188 +1579,326 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
   } catch (e) { document.getElementById('btn-b').disabled = true; }
 })();
 
+/* ------------------------------------------------------------------ */
+/* 永続3Dビュー: V = { renderer, scene, cam, controls, bookGrp,        */
+/*   bookTopY, host, spreadPlane, spreadTex, spreadCache }              */
+/* ------------------------------------------------------------------ */
+let V = null;
+let _currentAnimalMesh = null;
 let _popB = null;
-let _renderer = null;
-let _bDisposed = false;
-let _controls = null;
 
-window.popWorldB = () => { if (_popB) _popB(); };
+/* ------ helpers ------ */
+function makeGLBLoader() {
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+  const ldr = new GLTFLoader();
+  ldr.setDRACOLoader(draco);
+  return ldr;
+}
+function loadGLB(url) {
+  return new Promise((res, rej) => makeGLBLoader().load(url, g => res(g), undefined, e => rej(e)));
+}
+function easeInOut(t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
 
-window.disposeWorldB = () => {
-  _bDisposed = true;
-  if (_renderer) { _renderer.dispose(); _renderer = null; }
+/* ------ spread texture ------ */
+function spreadSlugFromPage(page) {
+  return page.id.replace(/-/g, '');
+}
+function spreadUrl(slug) {
+  return './_ehon_assets/ehon/pages/page_' + slug + '_v1.webp';
+}
+function loadSpreadTex(slug) {
+  if (!V) return Promise.resolve(null);
+  if (V.spreadCache.has(slug)) return Promise.resolve(V.spreadCache.get(slug));
+  return new Promise((res) => {
+    new THREE.TextureLoader().load(
+      spreadUrl(slug),
+      (tex) => { tex.colorSpace = THREE.SRGBColorSpace; V.spreadCache.set(slug, tex); res(tex); },
+      undefined,
+      () => res(null)   /* missing texture is non-fatal */
+    );
+  });
+}
+function applySpreadTex(tex) {
+  if (!V || !V.spreadPlane) return;
+  if (tex) {
+    V.spreadPlane.material.map = tex;
+    V.spreadPlane.material.needsUpdate = true;
+    V.spreadPlane.visible = true;
+  } else {
+    V.spreadPlane.visible = false;
+  }
+  V.spreadTex = tex;
+}
+
+/* ------ ensureBook3D: create renderer/scene/cam/controls/book ONCE -- */
+async function ensureBook3D(camPos) {
+  if (V) return V;
+
   const host = document.getElementById('world-b');
-  host.innerHTML = '';
-  _popB = null;
-  _controls = null;
-};
+  if (!window.WebGLRenderingContext) return null;
 
-/* ---- 共有: 3D本コンテナをホスト要素にマウント ---- */
-/**
- * hostEl 内に Three.js renderer + book.glb をマウントする。
- * @param {HTMLElement} hostEl - canvasを挿入する親要素
- * @param {object} [opts] - オプション
- * @param {boolean} [opts.noLoop=false] - trueのとき内部rAFループを起動しない(呼び元がループ管理)
- * @param {number[]} [opts.camPos=[0,5,12]] - カメラ初期位置 [x,y,z]
- * @returns {{ dispose:function, scene:THREE.Scene, renderer:THREE.WebGLRenderer, cam:THREE.PerspectiveCamera, bookTopYPromise:Promise<number> }}
- */
-window.mountBook3D = function mountBook3D(hostEl, opts) {
-  opts = opts || {};
-  let _disposed = false;
-  let _rafId = null;
-
+  let renderer;
   try {
-    /* WebGLRenderer 生成 */
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
-    hostEl.appendChild(renderer.domElement);
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  } catch (e) { return null; }
 
-    const scene = new THREE.Scene();
-    const cp = opts.camPos || [0, 5, 12];
-    const cam = new THREE.PerspectiveCamera(40, hostEl.clientWidth / Math.max(hostEl.clientHeight, 1), 0.1, 500);
-    cam.position.set(cp[0], cp[1], cp[2]);
-    cam.lookAt(0, (opts.lookAtY != null ? opts.lookAtY : 1.0), 0);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  host.appendChild(renderer.domElement);
 
-    /* リサイズ対応 */
-    const fit = () => {
-      const w = hostEl.clientWidth, h = hostEl.clientHeight;
-      if (w === 0 || h === 0) return;
-      renderer.setSize(w, h, false);
-      cam.aspect = w / h; cam.updateProjectionMatrix();
-    };
-    fit();
-    const resizeObserver = new ResizeObserver(fit);
-    resizeObserver.observe(hostEl);
+  const scene = new THREE.Scene();
+  const cp = camPos || [0, 7, 14];
+  const cam = new THREE.PerspectiveCamera(40, host.clientWidth / Math.max(host.clientHeight, 1), 0.1, 500);
+  cam.position.set(cp[0], cp[1], cp[2]);
+  cam.lookAt(0, 1.0, 0);
 
-    /* 照明 (方式Bと同じ) */
-    scene.add(new THREE.HemisphereLight(0xfff2d8, 0x55607a, 1.2));
-    const sun = new THREE.DirectionalLight(0xfff0d0, 1.5);
-    sun.position.set(6, 12, 6); scene.add(sun);
+  const fit = () => {
+    const w = host.clientWidth, h = host.clientHeight;
+    if (w === 0 || h === 0) return;
+    renderer.setSize(w, h, false);
+    cam.aspect = w / h; cam.updateProjectionMatrix();
+  };
+  fit();
+  new ResizeObserver(fit).observe(host);
 
-    /* GLB読込 */
-    const draco = new DRACOLoader();
-    draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
-    const loader = new GLTFLoader();
-    loader.setDRACOLoader(draco);
+  scene.add(new THREE.HemisphereLight(0xfff2d8, 0x55607a, 1.2));
+  const sun = new THREE.DirectionalLight(0xfff0d0, 1.5);
+  sun.position.set(6, 12, 6); scene.add(sun);
 
-    /* bookTopY を呼び元に渡すためのPromise */
-    let _resolveBookTopY, _rejectBookTopY;
-    const bookTopYPromise = new Promise((res, rej) => {
-      _resolveBookTopY = res; _rejectBookTopY = rej;
-    });
-
-    const bookUrl = window.getAssetUrl('book.glb');
-    loader.load(bookUrl, (gltf) => {
-      if (_disposed) { _rejectBookTopY(new Error('disposed')); return; }
-      /* bbox正規化・接地 */
-      const book = gltf.scene;
-      let bb = new THREE.Box3().setFromObject(book);
-      let bs = bb.getSize(new THREE.Vector3());
-      const bScale = 11 / Math.max(bs.x, bs.z);
-      book.scale.setScalar(bScale);
-      bb = new THREE.Box3().setFromObject(book);
-      const bc = bb.getCenter(new THREE.Vector3());
-      book.position.x -= bc.x; book.position.z -= bc.z;
-      book.position.y -= bb.min.y;
-      scene.add(book);
-      const bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
-      _resolveBookTopY(bookTopY);
-    }, undefined, (err) => {
-      /* GLB読込失敗時フォールバック */
-      console.error('mountBook3D: book.glb 読み込み失敗', err);
-      _rejectBookTopY(err);
-      const msg = document.createElement('div');
-      msg.className = 'status-msg';
-      msg.textContent = '本の読み込みに失敗しました';
-      hostEl.innerHTML = '';
-      hostEl.appendChild(msg);
-    });
-
-    /* クリックで絵本を開く(方式A用。方式Bは自前クリック管理のため不要だがあっても無害) */
-    hostEl.addEventListener('click', () => { if (window.EHON) window.EHON.open(); });
-
-    /* rAFレンダリングループ(noLoop=trueのとき呼び元がループを管理) */
-    if (!opts.noLoop) {
-      const loop = () => {
-        if (_disposed) return;
-        renderer.render(scene, cam);
-        _rafId = requestAnimationFrame(loop);
-      };
-      _rafId = requestAnimationFrame(loop);
-    }
-
-    /* dispose関数 */
-    const dispose = () => {
-      _disposed = true;
-      resizeObserver.disconnect();
-      if (_rafId !== null) { cancelAnimationFrame(_rafId); _rafId = null; }
-      renderer.dispose();
-    };
-
-    return { dispose, scene, renderer, cam, bookTopYPromise };
-
-  } catch (err) {
-    /* WebGL非対応など致命的エラー */
-    console.error('mountBook3D: 初期化失敗', err);
-    const msg = document.createElement('div');
-    msg.className = 'status-msg';
-    msg.textContent = '本の読み込みに失敗しました';
-    hostEl.innerHTML = '';
-    hostEl.appendChild(msg);
-    const noop = () => {};
-    return { dispose: noop, scene: null, renderer: null, cam: null, bookTopYPromise: Promise.reject(err) };
-  }
-};
-
-window.immerseWorldB = () => {
-  if (_controls) {
-    _controls.minDistance = 2;
-    _controls.maxDistance = 8;
-  }
-};
-
-window.exitImmerseB = () => {
-  if (_controls) {
-    _controls.minDistance = 9;
-    _controls.maxDistance = 30;
-  }
-};
-
-window.bootWorldB = async function () {
-  const page = PAGES[EHON.state.currentPageIdx];
-  if (!page.diorama) return;                       /* toc/colophon は renderToc/renderColophon が描く */
-  const host = document.getElementById('world-b');
-  host.innerHTML = '';
-  _bDisposed = false;
-
-  const msg = document.createElement('div');
-  msg.className = 'status-msg';
-  msg.textContent = (ehonLang() === 'jp') ? '3Dを読み込み中…' : 'Loading 3D…';
-  host.appendChild(msg);
-
-  if (!window.WebGLRenderingContext) { showStaticFallback(host, page); return; }
-
-  const bookMount = window.mountBook3D(host, { noLoop: true, camPos: page.camPos || [0, 7, 14] });
-  _renderer = bookMount.renderer;
-  const scene = bookMount.scene;
-  const cam = bookMount.cam;
-
-  const controls = new OrbitControls(cam, _renderer.domElement);
+  const controls = new OrbitControls(cam, renderer.domElement);
   controls.enablePan = false; controls.minDistance = 9; controls.maxDistance = 30;
   controls.maxPolarAngle = Math.PI * 0.49; controls.target.set(0, 1.5, 0);
   controls.autoRotate = true; controls.autoRotateSpeed = 0.55;
-  _controls = controls;
 
-  const failBook = (label, url, err) => {
-    /* book.glb 失敗: canvas は既に mountBook3D 内でクリア済み → 完全静的フォールバック */
-    showStaticFallback(host, page);
-    console.error('ehon 3D load error', label, url, err);
-  };
+  /* bookGrp wraps book.glb + spread plane; persists across page switches */
+  const bookGrp = new THREE.Group();
+  scene.add(bookGrp);
+
+  /* Initialise V early so spreadCache is usable during async load */
+  V = { renderer, scene, cam, controls, bookGrp, bookTopY: 0, host,
+        spreadPlane: null, spreadTex: null, spreadCache: new Map() };
+
+  /* rAF loop — always running */
+  (function loop() {
+    controls.update();
+    renderer.render(scene, cam);
+    requestAnimationFrame(loop);
+  })();
+
+  /* raycaster — attached ONCE to the canvas */
+  const ray = new THREE.Raycaster(); const ptr = new THREE.Vector2();
+  renderer.domElement.addEventListener('pointerdown', (ev) => {
+    if (!_currentAnimalMesh) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    ptr.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
+    ptr.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
+    ray.setFromCamera(ptr, cam);
+    const hits = ray.intersectObject(_currentAnimalMesh, true);
+    if (hits.length) { ev.stopPropagation(); window.ZukanEngine.onAnimalClick(hits[0].object.userData.animalId); }
+  });
+
+  /* Load book.glb */
+  try {
+    const bookUrl = window.getAssetUrl('book.glb');
+    const gltf = await loadGLB(bookUrl);
+    const book = gltf.scene;
+    let bb = new THREE.Box3().setFromObject(book);
+    let bs = bb.getSize(new THREE.Vector3());
+    const bScale = 11 / Math.max(bs.x, bs.z);
+    book.scale.setScalar(bScale);
+    bb = new THREE.Box3().setFromObject(book);
+    const bc = bb.getCenter(new THREE.Vector3());
+    book.position.x -= bc.x; book.position.z -= bc.z;
+    book.position.y -= bb.min.y;
+    bookGrp.add(book);
+    const bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
+    V.bookTopY = bookTopY;
+
+    /* Spread plane: covers open-book top */
+    const bboxW = bs.x * bScale * 0.94;
+    const bboxD = bs.z * bScale * 0.90;
+    const spreadGeo = new THREE.PlaneGeometry(bboxW, bboxD);
+    const spreadMat = new THREE.MeshBasicMaterial({ map: null, toneMapped: false, side: THREE.FrontSide, transparent: true, opacity: 1 });
+    const spreadPlane = new THREE.Mesh(spreadGeo, spreadMat);
+    spreadPlane.rotation.x = -Math.PI / 2;
+    spreadPlane.position.y = bookTopY + 0.015;
+    spreadPlane.visible = false;
+    bookGrp.add(spreadPlane);
+    V.spreadPlane = spreadPlane;
+    V._spreadHalfW = bboxW / 2;
+    V._spreadDepth = bboxD;
+    controls.target.set(0, bookTopY + 1.5, 0);
+  } catch (e) {
+    console.error('ensureBook3D: book.glb 読み込み失敗', e);
+    /* Keep V alive but without book; diorama will still load */
+  }
+
+  return V;
+}
+
+/* ------ disposeDiorama: remove only diorama group (canvas stays) -- */
+function disposeDiorama() {
+  if (!V) return;
+  /* Remove all children of bookGrp EXCEPT book.glb mesh and spread plane */
+  const toRemove = [];
+  V.bookGrp.children.forEach(child => {
+    if (child !== V.spreadPlane && !child.isLight && child.userData._isBook !== true) {
+      toRemove.push(child);
+    }
+  });
+  toRemove.forEach(child => {
+    V.bookGrp.remove(child);
+    child.traverse(o => { if (o.isMesh) { o.geometry && o.geometry.dispose(); if (o.material) { if (Array.isArray(o.material)) o.material.forEach(m => m.dispose()); else o.material.dispose(); } } });
+  });
+  /* Also remove scene-level diorama group if present */
+  if (V._dioramaGrp) {
+    V.scene.remove(V._dioramaGrp);
+    V._dioramaGrp.traverse(o => { if (o.isMesh) { o.geometry && o.geometry.dispose(); if (o.material) { if (Array.isArray(o.material)) o.material.forEach(m => m.dispose()); else o.material.dispose(); } } });
+    V._dioramaGrp = null;
+  }
+  _currentAnimalMesh = null;
+  _popB = null;
+}
+
+/* ------ disposeWorldB (external API for renderToc / renderColophon) -- */
+window.disposeWorldB = () => {
+  disposeDiorama();
+  /* canvas stays; just remove any status-msg overlays */
+  if (V && V.host) {
+    V.host.querySelectorAll('.status-msg').forEach(el => el.remove());
+    /* Remove toc/colophon wraps */
+    V.host.querySelectorAll('.toc-wrap,.colo-wrap').forEach(el => el.remove());
+  }
+};
+
+window.popWorldB = () => { if (_popB) _popB(); };
+
+window.immerseWorldB = () => {
+  if (V && V.controls) { V.controls.minDistance = 2; V.controls.maxDistance = 8; }
+};
+window.exitImmerseB = () => {
+  if (V && V.controls) { V.controls.minDistance = 9; V.controls.maxDistance = 30; }
+};
+
+/* ------ flipPage3D: real page flip animation -- */
+function flipPage3D(prevSlug, nextSlug, dir, onHalfway) {
+  if (!V || !V.spreadPlane) { onHalfway(); return; }
+  const halfW = V._spreadHalfW;
+  const depth = V._spreadDepth;
+  const bookTopY = V.bookTopY;
+
+  /* load both textures; animate after both ready */
+  Promise.all([loadSpreadTex(prevSlug), loadSpreadTex(nextSlug)]).then(([prevTex, nextTex]) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(0, bookTopY + 0.02, 0);
+    V.bookGrp.add(pivot);
+
+    const mkPlane = (tex, offsetU, flipY) => {
+      const geo = new THREE.PlaneGeometry(halfW, depth);
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex, toneMapped: false, side: THREE.DoubleSide, transparent: true, opacity: 0.98
+      });
+      if (tex) {
+        tex.repeat.set(0.5, 1);
+        tex.offset.set(offsetU, 0);
+        tex.needsUpdate = true;
+      }
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.x = halfW / 2;
+      if (flipY) mesh.rotation.y = Math.PI;
+      pivot.add(mesh);
+      return { geo, mat };
+    };
+
+    let frontParts, backParts;
+    if (dir === 'next') {
+      frontParts = mkPlane(prevTex, 0.5, false); /* current right half */
+      backParts  = mkPlane(nextTex, 0.0, true);  /* next left half */
+    } else {
+      frontParts = mkPlane(nextTex, 0.0, false); /* next left half on front */
+      backParts  = mkPlane(prevTex, 0.5, true);  /* current right half on back */
+    }
+
+    const startRot = dir === 'next' ? 0 : Math.PI;
+    const endRot   = dir === 'next' ? -Math.PI : 0;  /* negative z lifts right page up and over */
+    pivot.rotation.z = startRot;
+
+    const duration = 850;
+    const t0 = performance.now();
+    let halfwayCalled = false;
+
+    (function animate() {
+      const elapsed = performance.now() - t0;
+      const rawT = Math.min(1, elapsed / duration);
+      const t = easeInOut(rawT);
+      pivot.rotation.z = startRot + (endRot - startRot) * t;
+
+      if (rawT >= 0.5 && !halfwayCalled) {
+        halfwayCalled = true;
+        onHalfway();
+        /* Update spread plane to next page */
+        loadSpreadTex(nextSlug).then(tex => applySpreadTex(tex));
+      }
+
+      if (rawT < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        /* cleanup */
+        V.bookGrp.remove(pivot);
+        [frontParts, backParts].forEach(p => { p.geo.dispose(); p.mat.dispose(); });
+      }
+    })();
+  });
+}
+
+/* ------ flipPageTransition: called from switchPage -- */
+window.flipPageTransition = function(prevIdx, newIdx, dir, doPageSwap) {
+  const prevPage = PAGES[prevIdx];
+  const newPage  = PAGES[newIdx];
+  const prevSlug = prevPage ? spreadSlugFromPage(prevPage) : '';
+  const nextSlug = newPage  ? spreadSlugFromPage(newPage)  : '';
+
+  if (!V) {
+    /* V not ready yet — direct swap */
+    doPageSwap(newIdx);
+    return;
+  }
+
+  /* For toc/colophon targets: direct swap (no 3D flip needed) */
+  if (!newPage.diorama || !prevPage || !prevPage.diorama) {
+    doPageSwap(newIdx);
+    return;
+  }
+
+  flipPage3D(prevSlug, nextSlug, dir, () => doPageSwap(newIdx));
+};
+
+/* ------ bootWorldB: per-page diorama load -- */
+window.bootWorldB = async function () {
+  const page = PAGES[EHON.state.currentPageIdx];
+  if (!page.diorama) return;
+  const host = document.getElementById('world-b');
+
+  /* Show loading msg overlay (on top of existing canvas) */
+  let msg = host.querySelector('.status-msg');
+  if (!msg) {
+    msg = document.createElement('div');
+    msg.className = 'status-msg';
+    host.appendChild(msg);
+  }
+  msg.textContent = (ehonLang() === 'jp') ? '3Dを読み込み中…' : 'Loading 3D…';
+
+  if (!window.WebGLRenderingContext) { showStaticFallback(host, page); return; }
+
+  const v = await ensureBook3D(page.camPos || [0, 7, 14]);
+  if (!v) { showStaticFallback(host, page); return; }
+
+  disposeDiorama();
+
   const fail = (label, url, err) => {
-    /* diorama 404 等: book canvas は生きているので overlay のみ表示 */
     if (msg.parentNode) msg.remove();
     let overlay = host.querySelector('.status-msg');
     if (!overlay) {
@@ -1775,83 +1910,60 @@ window.bootWorldB = async function () {
     overlay.textContent = tt(I18N.ui.preparing);
     console.error('ehon 3D load error', label, url, err);
   };
-  const loadGLB = (url) => {
-    const draco2 = new DRACOLoader();
-    draco2.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
-    const ldr = new GLTFLoader();
-    ldr.setDRACOLoader(draco2);
-    return new Promise((res, rej) => ldr.load(url, g => res(g), undefined, e => rej(e)));
-  };
 
   const dioUrl = window.getAssetUrl(page.diorama);
-  let dioramaGrp = null, targetY = 0, animalMesh = null;
+  let dioramaGrp = null, targetY = v.bookTopY;
 
-  (async () => {
-    try {
-      const bookTopY = await bookMount.bookTopYPromise.catch(e => { failBook('本(book.glb)', '', e); throw e; });
-      if (_bDisposed) return;
-      const dioGltf = await loadGLB(dioUrl).catch(e => { fail('ジオラマ', dioUrl, e); throw e; });
-      if (_bDisposed) return;
-      const dio = dioGltf.scene;
-      let db = new THREE.Box3().setFromObject(dio);
-      let ds = db.getSize(new THREE.Vector3());
-      const dScale = 7.5 / Math.max(ds.x, ds.y, ds.z);
-      dio.scale.setScalar(dScale);
-      db = new THREE.Box3().setFromObject(dio);
-      const dc = db.getCenter(new THREE.Vector3());
-      dio.position.x -= dc.x; dio.position.z -= dc.z;
-      dio.position.y -= db.min.y;
-      dioramaGrp = new THREE.Group();
-      dioramaGrp.add(dio);
+  try {
+    const dioGltf = await loadGLB(dioUrl).catch(e => { fail('ジオラマ', dioUrl, e); throw e; });
+    const dio = dioGltf.scene;
+    let db = new THREE.Box3().setFromObject(dio);
+    let ds = db.getSize(new THREE.Vector3());
+    const dScale = 7.5 / Math.max(ds.x, ds.y, ds.z);
+    dio.scale.setScalar(dScale);
+    db = new THREE.Box3().setFromObject(dio);
+    const dc = db.getCenter(new THREE.Vector3());
+    dio.position.x -= dc.x; dio.position.z -= dc.z;
+    dio.position.y -= db.min.y;
+    dioramaGrp = new THREE.Group();
+    dioramaGrp.add(dio);
 
-      /* ---- 動物 (この頁の住人・日替わり位置) ---- */
-      const animal = ANIMALS.find(a => a.page === page.id);
-      if (animal && page.animalSpots && page.animalSpots.length) {
-        try {
-          const ag = await loadGLB(window.getAssetUrl(animal.glb));
-          if (!_bDisposed) {
-            const am = ag.scene;
-            const ab = new THREE.Box3().setFromObject(am);
-            const asz = ab.getSize(new THREE.Vector3());
-            am.scale.setScalar(1.1 / Math.max(asz.x, asz.y, asz.z)); /* 本の上で約1.1ユニット */
-            const today = new Date();
-            const ds8 = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-            const spot = page.animalSpots[window.EHON2.dailySpotIndex(ds8, animal.id, page.animalSpots.length)];
-            am.position.set(spot.x, spot.y, spot.z);
-            am.traverse(o => { if (o.isMesh) o.userData.animalId = animal.id; });
-            animalMesh = am;
-            dioramaGrp.add(am);
-          }
-        } catch (e) { console.warn('animal load failed (non-fatal)', e); }
-      }
+    /* ---- 動物 ---- */
+    const animal = ANIMALS.find(a => a.page === page.id);
+    if (animal && page.animalSpots && page.animalSpots.length) {
+      try {
+        const ag = await loadGLB(window.getAssetUrl(animal.glb));
+        const am = ag.scene;
+        const ab = new THREE.Box3().setFromObject(am);
+        const asz = ab.getSize(new THREE.Vector3());
+        am.scale.setScalar(1.1 / Math.max(asz.x, asz.y, asz.z));
+        const today = new Date();
+        const ds8 = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+        const spot = page.animalSpots[window.EHON2.dailySpotIndex(ds8, animal.id, page.animalSpots.length)];
+        am.position.set(spot.x, spot.y, spot.z);
+        am.traverse(o => { if (o.isMesh) o.userData.animalId = animal.id; });
+        _currentAnimalMesh = am;
+        dioramaGrp.add(am);
+      } catch (e) { console.warn('animal load failed (non-fatal)', e); }
+    }
 
-      dioramaGrp.position.y = bookTopY;
-      targetY = bookTopY;
-      dioramaGrp.scale.setScalar(EHON.state.open ? 1 : 0.001);
-      scene.add(dioramaGrp);
-      controls.target.set(0, bookTopY + 1.5, 0);
-      if (msg.parentNode) msg.remove();
-      if (EHON.state.open) window.popWorldB();
-    } catch (e) { /* fail() 済み */ }
-  })();
+    dioramaGrp.position.y = targetY;
+    dioramaGrp.scale.setScalar(EHON.state.open ? 1 : 0.001);
+    v.scene.add(dioramaGrp);
+    v._dioramaGrp = dioramaGrp;
+    v.controls.target.set(0, targetY + 1.5, 0);
+    if (msg.parentNode) msg.remove();
 
-  /* ---- クリック: raycaster で動物ヒット判定 ---- */
-  const ray = new THREE.Raycaster(); const ptr = new THREE.Vector2();
-  _renderer.domElement.addEventListener('pointerdown', (ev) => {
-    if (!animalMesh || _bDisposed) return;
-    const r = _renderer.domElement.getBoundingClientRect();
-    ptr.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
-    ptr.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
-    ray.setFromCamera(ptr, cam);
-    const hits = ray.intersectObject(animalMesh, true);
-    if (hits.length) { ev.stopPropagation(); window.ZukanEngine.onAnimalClick(hits[0].object.userData.animalId); }
-  });
+    /* Load spread texture for this page */
+    loadSpreadTex(spreadSlugFromPage(page)).then(tex => applySpreadTex(tex));
+
+    if (EHON.state.open) window.popWorldB();
+  } catch (e) { /* fail() already called */ }
 
   _popB = () => {
     if (!dioramaGrp) return;
     const t0 = performance.now();
     (function pop() {
-      if (_bDisposed) return;
       const k = Math.min(1, (performance.now() - t0) / 950);
       const e = 1 - Math.pow(1 - k, 3);
       dioramaGrp.scale.setScalar(0.001 + e * 0.999);
@@ -1859,29 +1971,30 @@ window.bootWorldB = async function () {
       if (k < 1) requestAnimationFrame(pop);
     })();
   };
-
-  (function loop() {
-    if (_bDisposed) return;
-    if (EHON.state.mode === 'b') { controls.update(); _renderer.render(scene, cam); }
-    requestAnimationFrame(loop);
-  })();
 };
 
-/* WebGL 不可・GLB 失敗時の静的フォールバック (リンクは常に生かす) */
+/* ------ mountBook3D: kept as no-op shim for any external callers -- */
+window.mountBook3D = function mountBook3D(hostEl, opts) {
+  console.warn('mountBook3D: deprecated; use ensureBook3D instead');
+  const noop = () => {};
+  return { dispose: noop, scene: null, renderer: null, cam: null, bookTopYPromise: Promise.resolve(0) };
+};
+
+/* WebGL 不可・GLB 失敗時の静的フォールバック */
 function showStaticFallback(host, page) {
-  host.innerHTML = '';
-  const d = document.createElement('div');
-  d.className = 'status-msg';
+  /* Do NOT wipe canvas — only show overlay */
+  let d = host.querySelector('.status-msg');
+  if (!d) { d = document.createElement('div'); d.className = 'status-msg'; host.appendChild(d); }
   const img = document.createElement('img');
   img.alt = '';
   img.style.maxWidth = '60%';
   img.style.borderRadius = '12px';
   img.src = getMediaUrl('toc_' + page.id.replace(/-/g, '') + '_v1.webp');
   img.onerror = function () { this.remove(); };
+  d.innerHTML = '';
   d.appendChild(img);
   d.appendChild(document.createElement('br'));
   d.appendChild(document.createTextNode(tt(I18N.ui.preparing)));
-  host.appendChild(d);
 }
 </script>
 </body></html>
