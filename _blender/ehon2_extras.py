@@ -36,9 +36,9 @@ def clock_face(params):
     pos = Vector(params.get('pos', [0, 0, 10]))
     r = params.get('radius', 2.0)
     yaw = math.radians(params.get('yaw', 0))
-    face_mat = _mat('clock_face', (0.90, 0.86, 0.74))
-    rim_mat = _mat('clock_rim', (0.72, 0.55, 0.22), rough=0.4)
-    hand_mat = _mat('clock_hand', (0.12, 0.10, 0.08), rough=0.5)
+    face_mat = _mat('clock_face', (0.04, 0.07, 0.14), rough=0.5)  # 夜空色: 石壁と対比
+    rim_mat = _mat('clock_rim', (0.85, 0.65, 0.25), rough=0.35)
+    hand_mat = _mat('clock_hand', (0.92, 0.88, 0.75), rough=0.4)  # 明るい針
     grp = []
     # 盤面 (薄い円柱を横倒し: 軸=Y)
     bpy.ops.mesh.primitive_cylinder_add(vertices=48, radius=r, depth=0.08, location=pos)
@@ -52,7 +52,7 @@ def clock_face(params):
     rim.rotation_euler = (math.radians(90), 0, yaw)
     _assign(rim, rim_mat); grp.append(rim)
     # 目盛り (12個の小箱)
-    fwd = Vector((math.sin(yaw), -math.cos(yaw), 0)) * 0.06
+    fwd = Vector((math.sin(yaw), -math.cos(yaw), 0)) * 0.14
     for k in range(12):
         a = k * math.pi / 6
         off = Vector((math.cos(a) * r * 0.85, 0, math.sin(a) * r * 0.85))
@@ -95,10 +95,16 @@ def floating_runes(params):
     size = params.get('size', 1.2)
     mat = _mat('rune_glow', (1.0, 0.82, 0.42), emissive=True, strength=1.0)
     grp = []
+    rr = params.get('radius_range')   # [r0, r1] 指定時は環状 (建物の外周) に配置
     for i in range(count):
         strokes = RUNE_STROKES[i % len(RUNE_STROKES)]
-        cx = rnd.uniform(-area[0], area[0])
-        cy = rnd.uniform(-area[1], area[1])
+        if rr:
+            a = rnd.uniform(0, math.pi * 2)
+            rad0 = rnd.uniform(rr[0], rr[1])
+            cx, cy = math.cos(a) * rad0, math.sin(a) * rad0
+        else:
+            cx = rnd.uniform(-area[0], area[0])
+            cy = rnd.uniform(-area[1], area[1])
         cz = rnd.uniform(zr[0], zr[1])
         yaw = rnd.uniform(0, math.pi * 2)
         s = size * rnd.uniform(0.7, 1.3)
@@ -119,18 +125,24 @@ def floating_runes(params):
 
 
 def flame(params):
-    """ローポリ炎: 2-3 層の icosphere 変形 + emissive (橙→黄)"""
+    """おき火 (残り火): 薪の間で光る小さな発光半球クラスタ。
+    炎ジオメトリは絵本スケールで嘘くさくなるため、静かな残り火で「消えない火」を表す"""
     pos = Vector(params.get('pos', [0, 0, 0.3]))
     s = params.get('scale', 0.8)
-    layers = [((1.0, 0.45, 0.10), 1.0, 1.0), ((1.0, 0.72, 0.20), 0.62, 1.25), ((1.0, 0.92, 0.55), 0.34, 1.45)]
+    rnd = random.Random(params.get('seed', 6))
+    cols = [(0.55, 0.10, 0.02), (0.75, 0.22, 0.04), (0.95, 0.42, 0.08)]  # 暗赤の熾き
+    mats = [_mat(f'ember{i}', c, emissive=True, strength=1.0) for i, c in enumerate(cols)]
     grp = []
-    for i, (rgb, rad, hscale) in enumerate(layers):
-        mat = _mat(f'flame{i}', rgb, emissive=True, strength=1.0)
-        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=rad * s, location=pos + Vector((0, 0, 0.25 * s * i)))
-        f = bpy.context.object
-        f.scale = (0.7, 0.7, hscale)
-        _assign(f, mat)
-        grp.append(f)
+    for i in range(6):
+        a = rnd.uniform(0, math.pi * 2)
+        rr = abs(rnd.gauss(0, 0.24)) * s
+        r = rnd.uniform(0.06, 0.13) * s
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=10, ring_count=6, radius=r,
+            location=pos + Vector((math.cos(a) * rr, math.sin(a) * rr, r * 0.35)))
+        e = bpy.context.object
+        e.scale = (1, 1, 0.45)
+        _assign(e, mats[i % 3])
+        grp.append(e)
     return grp
 
 
@@ -138,8 +150,8 @@ def floor_disc(params):
     """石畳風の円形床: セグメント分割した円盤 (単色2トーンでタイル感)"""
     r = params.get('radius', 5.0)
     pos = Vector(params.get('pos', [0, 0, 0]))
-    m1 = _mat('floor_a', (0.52, 0.47, 0.40), rough=0.95)
-    m2 = _mat('floor_b', (0.44, 0.40, 0.34), rough=0.95)
+    m1 = _mat('floor_a', (0.20, 0.17, 0.13), rough=0.95)
+    m2 = _mat('floor_b', (0.15, 0.13, 0.10), rough=0.95)
     rnd = random.Random(9)
     grp = []
     rings = 4
@@ -154,7 +166,7 @@ def floor_disc(params):
             rm = (r0 + r1) / 2
             bpy.ops.mesh.primitive_cube_add(size=1)
             tile = bpy.context.object
-            tile.scale = ((r1 - r0) * 0.44, rm * (a1 - a0) * 0.44, 0.06)
+            tile.scale = ((r1 - r0) * 0.985, rm * (a1 - a0) * 0.985, 0.05)
             tile.rotation_euler = (0, 0, am)
             tile.location = pos + Vector((math.cos(am) * rm, math.sin(am) * rm, 0.03))
             _assign(tile, m1 if rnd.random() < 0.6 else m2)
