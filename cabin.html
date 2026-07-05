@@ -679,6 +679,12 @@ body.hint-gone #lookHint,body.immersed #lookHint{opacity:0}
 @keyframes emberPulse{0%,100%{transform:scale(.82);opacity:.66}50%{transform:scale(1.2);opacity:1}}
 .gate-poem{font-family:"Shippori Mincho",serif;font-size:clamp(14px,2.3vw,19px);
   color:var(--ash);line-height:2.3;letter-spacing:.13em;max-width:34ch;padding:0 28px}
+/* 案内人(魔法使いの女の子): ゲート右下にそっと立つ */
+.guide-portrait{position:fixed;right:clamp(8px,4vw,80px);bottom:0;height:min(72vh,620px);
+  width:auto;pointer-events:none;opacity:0;filter:drop-shadow(0 6px 26px rgba(0,0,0,.55));
+  animation:guideIn 1.6s ease .5s forwards;z-index:1}
+@keyframes guideIn{from{opacity:0;transform:translateY(24px)}to{opacity:.97;transform:translateY(0)}}
+@media(max-width:720px){.guide-portrait{height:44vh;right:2px;opacity:.9}}
 .gate-enter{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:clamp(19px,3vw,27px);
   color:var(--lantern-soft);letter-spacing:.05em;padding:13px 42px;
   border:1px solid rgba(240,200,120,.3);border-radius:40px;background:rgba(240,200,120,.05);transition:all .5s ease}
@@ -940,7 +946,8 @@ body.immersed-med #npCredit{opacity:.3}
 <!-- ── THRESHOLD (separate screen, not over the live 3D) ── -->
 <div id="enterGate" role="button" tabindex="0" aria-label="小屋をひらく">
   <span class="gate-ember" aria-hidden="true"></span>
-  <p class="gate-poem">森のおく、灯りのともる小屋。<br>暖炉に火を入れておきました。<br>どうぞ、靴を脱いで。</p>
+  <img class="guide-portrait" src="assets/guide-witch.png" alt="案内人の魔法使いの女の子" aria-hidden="true">
+  <p class="gate-poem">…森のおくの、灯りのともる小屋へようこそ。<br>暖炉に、火を入れておいたの。<br>……どうぞ、靴を脱いで、ゆっくりして？</p>
   <span class="gate-enter">中へ入る</span>
   <span class="gate-sub">enter the hollow</span>
 </div>
@@ -1905,14 +1912,29 @@ else {
       float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
       float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
         return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y); }
+      float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<4;i++){ v+=a*noise(p); p=p*2.02+1.7; a*=0.5; } return v; }
       void main(){
-        vec2 p=vP*0.5; float t=uTime*0.22;
-        float r1=noise(vec2(p.x*2.0,       p.y*7.0  - t*2.0));
-        float r2=noise(vec2(p.x*3.4 + 5.0, p.y*12.0 + t*1.3));
-        float ripple=pow(0.5+0.5*sin((r1+r2)*6.2831 + t*3.0), 3.0);   // crests of light
-        float fade=smoothstep(1.0,0.12,length(vP));                   // soft-edged pool
-        float a=ripple*fade*0.16;
-        vec3 col=mix(vec3(0.52,0.66,0.86), vec3(0.96,0.98,1.0), ripple);
+        vec2 uv=vP; float d=length(uv);
+        float fade=smoothstep(1.0,0.06,d);
+        float t=uTime;
+        // 奥ほど空/月あかりを映して明るく、手前ほど深い藍
+        float depth=smoothstep(-1.0,1.0,uv.y);
+        // 流れる細波を2層交差 (fbmで有機的に、遠近で縦に伸ばす)
+        float r1=fbm(vec2(uv.x*2.6,       uv.y*8.0 - t*0.55));
+        float r2=fbm(vec2(uv.x*4.3 + 4.0, uv.y*13.0 + t*0.34));
+        float ripple=pow(0.5+0.5*sin((r1+r2)*6.2831 + t*1.6), 3.0);
+        // ゆったりしたうねり
+        float swell=0.5+0.5*sin(uv.y*3.4 - t*0.6 + fbm(uv*1.4)*3.0);
+        // 月あかりの反射柱 (中央がゆらゆら横に揺れる)
+        float mx=uv.x + (fbm(vec2(uv.y*2.6, t*0.35))-0.5)*0.55;
+        float moon=smoothstep(0.20,0.0,abs(mx)) * depth * (0.45+0.55*swell);
+        // 星のきらめき (鋭い点)
+        float spec=pow(ripple,5.0);
+        // 深い藍 → 月光の白へ
+        vec3 base=mix(vec3(0.06,0.10,0.20), vec3(0.34,0.48,0.72), depth*0.65 + swell*0.18);
+        vec3 glint=vec3(0.96,0.98,1.0);
+        vec3 col=base + glint*(spec*0.65 + moon*0.6);
+        float a=fade*(0.22 + spec*0.5 + moon*0.45);
         gl_FragColor=vec4(col, a);
       }`
   });
