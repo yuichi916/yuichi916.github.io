@@ -115,6 +115,18 @@
   }
   #lang-toggle.show { display:flex; }
   #lang-toggle:hover { background:rgba(250,245,235,1); }
+  #bgm-toggle {
+    position:fixed; right:18px; bottom:128px;
+    width:44px; height:44px; border-radius:50%;
+    background:rgba(250,245,235,.88); border:1px solid #b9a784;
+    box-shadow:0 3px 12px rgba(0,0,0,.3); cursor:pointer;
+    font-size:18px; display:none; align-items:center; justify-content:center;
+    z-index:20; color:#8c7a54; transition:opacity .3s,color .3s;
+    user-select:none;
+  }
+  #bgm-toggle.show { display:flex; }
+  #bgm-toggle.playing { color:#a3552f; }
+  #bgm-toggle:hover { background:rgba(250,245,235,1); }
 
   /* mode-a page fade-in */
   #world-a.page-fade { animation: pageFadeIn .3s ease; }
@@ -388,6 +400,8 @@
   <button id="btn-b">3D</button>
 </div>
 <button id="lang-toggle" class="nav-round" aria-label="Language"></button>
+<button id="bgm-toggle" class="nav-round" aria-label="音楽">♪</button>
+<audio id="bgm" loop preload="none" src="assets/bgm/gensou-silfineth.mp3"></audio>
 <div id="hint">本をひらく</div>
 <button id="nav-prev" aria-label="前の世界">◀</button>
 <button id="nav-next" aria-label="次の世界">▶</button>
@@ -1007,6 +1021,14 @@ function renderColophon() {
   zukanDiv.id = 'colo-zukan';
   wrap.appendChild(zukanDiv);
 
+  /* 音楽クレジット */
+  const credit = document.createElement('p');
+  credit.style.cssText = 'margin-top:18px;font-size:.72rem;line-height:1.7;opacity:.7';
+  credit.textContent = (ehonLang() === 'jp')
+    ? '♪ 音楽: 「幻想世界シルフィネス」 Ether（フリーBGM素材集）'
+    : '♪ Music: "Gensou Sekai Silfineth" by Ether (royalty-free BGM)';
+  wrap.appendChild(credit);
+
   host.appendChild(wrap);
   if (window.ZukanEngine) window.ZukanEngine.renderSummary(zukanDiv);
 }
@@ -1036,6 +1058,8 @@ const EHON = {
     document.getElementById('title-card').classList.add('show');
     document.getElementById('mode-toggle').classList.add('show');
     document.getElementById('lang-toggle').classList.add('show');
+    document.getElementById('bgm-toggle').classList.add('show');
+    startBGM();  /* 本を開く=ユーザー操作なので自動再生できる */
     document.getElementById('nav-prev').classList.add('show');
     document.getElementById('nav-next').classList.add('show');
     document.getElementById('world-dots').classList.add('show');
@@ -1155,6 +1179,20 @@ document.getElementById('btn-a').addEventListener('click', e => { e.stopPropagat
 document.getElementById('btn-b').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('b'); });
 document.getElementById('nav-prev').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(EHON.state.currentPageIdx - 1); });
 document.getElementById('nav-next').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(EHON.state.currentPageIdx + 1); });
+/* ---- BGM: 幻想世界シルフィネス (Ether) ---- */
+function startBGM() {
+  const a = document.getElementById('bgm');
+  if (!a) return;
+  a.volume = 0.42;
+  a.play().then(() => document.getElementById('bgm-toggle').classList.add('playing'))
+          .catch(() => {});
+}
+document.getElementById('bgm-toggle').addEventListener('click', e => {
+  e.stopPropagation();
+  const a = document.getElementById('bgm'), btn = document.getElementById('bgm-toggle');
+  if (a.paused) { a.volume = 0.42; a.play().then(() => btn.classList.add('playing')).catch(() => {}); }
+  else { a.pause(); btn.classList.remove('playing'); }
+});
 document.getElementById('lang-toggle').addEventListener('click', e => {
   e.stopPropagation();
   setEhonLang(ehonLang() === 'jp' ? 'en' : 'jp');
