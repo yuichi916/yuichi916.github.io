@@ -1858,38 +1858,45 @@ function flipPage3D(prevSlug, nextSlug, dir, onHalfway) {
     pivot.position.set(0, bookTopY + 0.02, 0);
     V.bookGrp.add(pivot);
 
-    const mkPlane = (tex, offsetU, flipY) => {
-      const geo = new THREE.PlaneGeometry(halfW, depth);
-      /* キャッシュ共有テクスチャの repeat/offset を書き換えるとスプレッド側も半分表示になるため必ず clone */
+    /* 本の紙面に寝かせた(水平 XZ)ページを、背表紙(Z軸, x=0)を軸にめくる。紙のしなり付き */
+    const mkPlane = (tex, offsetU, mirror, underside) => {
+      const geo = new THREE.PlaneGeometry(halfW, depth, 20, 2);
+      geo.translate(halfW / 2, 0, 0);   /* 背表紙 x=0 から外側へ span */
+      geo.rotateX(-Math.PI / 2);        /* 水平に寝かせる(幅=X, 奥行=Z) */
+      const posA = geo.attributes.position;
+      for (let i = 0; i < posA.count; i++) {
+        const f = posA.getX(i) / halfW;                                  /* 0(背)→1(外) */
+        posA.setY(i, posA.getY(i) + Math.sin(f * Math.PI) * depth * 0.06); /* 紙のしなり(弓なり) */
+      }
+      posA.needsUpdate = true; geo.computeVertexNormals();
+      /* 共有テクスチャの repeat/offset 変更がスプレッドに波及しないよう必ず clone */
       const t = tex ? tex.clone() : null;
       if (t) {
         t.colorSpace = THREE.SRGBColorSpace;
-        t.repeat.set(0.5, 1);
-        t.offset.set(offsetU, 0);
+        t.repeat.set(mirror ? -0.5 : 0.5, 1);              /* 裏面は左右反転 */
+        t.offset.set(mirror ? offsetU + 0.5 : offsetU, 0);
         t.needsUpdate = true;
       }
       const mat = new THREE.MeshBasicMaterial({
-        map: t, toneMapped: false, side: THREE.DoubleSide, transparent: true, opacity: 0.98,
-        color: new THREE.Color(1, 1, 1)
+        map: t, toneMapped: false, side: underside ? THREE.BackSide : THREE.FrontSide,
+        transparent: true, opacity: 1, color: new THREE.Color(1, 1, 1)
       });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.x = halfW / 2;
-      if (flipY) mesh.rotation.y = Math.PI;
       pivot.add(mesh);
       return { geo, mat };
     };
 
     let frontParts, backParts;
     if (dir === 'next') {
-      frontParts = mkPlane(prevTex, 0.5, false); /* current right half */
-      backParts  = mkPlane(nextTex, 0.0, true);  /* next left half */
+      frontParts = mkPlane(prevTex, 0.5, false, false); /* 今の右頁(上面) */
+      backParts  = mkPlane(nextTex, 0.0, true,  true);  /* 次の左頁(裏面・反転) */
     } else {
-      frontParts = mkPlane(nextTex, 0.0, false); /* next left half on front */
-      backParts  = mkPlane(prevTex, 0.5, true);  /* current right half on back */
+      frontParts = mkPlane(nextTex, 0.0, false, false);
+      backParts  = mkPlane(prevTex, 0.5, true,  true);
     }
 
     const startRot = dir === 'next' ? 0 : Math.PI;
-    const endRot   = dir === 'next' ? -Math.PI : 0;  /* negative z lifts right page up and over */
+    const endRot   = dir === 'next' ? Math.PI : 0;   /* 背表紙(Z)を軸に +x(右) → 上 → -x(左) */
     pivot.rotation.z = startRot;
 
     const duration = 850;
@@ -1948,24 +1955,24 @@ window.bootWorldB = async function () {
   if (!page.diorama) return;
   const host = document.getElementById('world-b');
 
-  /* Show loading msg overlay (on top of existing canvas) */
-  let msg = host.querySelector('.status-msg');
-  if (!msg) {
-    msg = document.createElement('div');
-    msg.className = 'status-msg';
-    host.appendChild(msg);
-  }
-  msg.textContent = (ehonLang() === 'jp') ? '3Dを読み込み中…' : 'Loading 3D…';
-
   if (!window.WebGLRenderingContext) { showStaticFallback(host, page); return; }
 
   const v = await ensureBook3D(page.camPos || [0, 7, 14]);
   if (!v) { showStaticFallback(host, page); return; }
 
-  disposeDiorama();
+  /* 前の diorama を保持したまま新しいのを読み込み、完成してから差し替える(途切れ防止)。
+     初回だけ軽い「ひらいています…」表示。 */
+  const hadDiorama = !!v._dioramaGrp;
+  let msg = null;
+  if (!hadDiorama) {
+    msg = document.createElement('div');
+    msg.className = 'status-msg';
+    msg.textContent = (ehonLang() === 'jp') ? '本をひらいています…' : 'Opening the book…';
+    host.appendChild(msg);
+  }
 
   const fail = (label, url, err) => {
-    if (msg.parentNode) msg.remove();
+    if (msg && msg.parentNode) msg.remove();
     let overlay = host.querySelector('.status-msg');
     if (!overlay) {
       overlay = document.createElement('div');
@@ -2015,10 +2022,11 @@ window.bootWorldB = async function () {
 
     dioramaGrp.position.y = targetY;
     dioramaGrp.scale.setScalar(EHON.state.open ? 1 : 0.001);
+    disposeDiorama();   /* 新しいのが完成した今、初めて前のを外す(途切れ防止) */
     v.scene.add(dioramaGrp);
     v._dioramaGrp = dioramaGrp;
     v.controls.target.set(0, targetY + 1.5, 0);
-    if (msg.parentNode) msg.remove();
+    if (msg && msg.parentNode) msg.remove();
 
     /* Load spread texture for this page */
     loadSpreadTex(spreadSlugFromPage(page)).then(tex => applySpreadTex(tex));
