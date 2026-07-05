@@ -60,10 +60,12 @@ def sepia_watercolor(im, size):
     """dioramaサムネ → セピア水彩調の挿絵"""
     im = ImageOps.fit(im.convert('RGB'), size, Image.LANCZOS)
     g = ImageOps.grayscale(im)
-    g = ImageOps.autocontrast(g, cutoff=2)
-    sep = ImageOps.colorize(g, (58, 40, 22), (238, 226, 198), mid=(150, 120, 82))
-    sep = sep.filter(ImageFilter.GaussianBlur(0.8))
-    sep = ImageEnhance.Contrast(sep).enhance(0.92)
+    g = ImageOps.autocontrast(g, cutoff=1)
+    # 濃いインクトーン (暗部をしっかり) で挿絵をはっきり見せる
+    sep = ImageOps.colorize(g, (36, 24, 12), (244, 232, 205), mid=(138, 104, 66))
+    sep = sep.filter(ImageFilter.GaussianBlur(0.5))
+    sep = ImageEnhance.Contrast(sep).enhance(1.28)
+    sep = ImageEnhance.Color(sep).enhance(1.15)
     mask = Image.new('L', size, 0)
     dm = ImageDraw.Draw(mask)
     dm.rounded_rectangle([6, 6, size[0] - 6, size[1] - 6], radius=18, fill=235)
