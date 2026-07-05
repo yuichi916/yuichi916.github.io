@@ -1642,6 +1642,22 @@ function loadGLB(url) {
 }
 function easeInOut(t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
 
+/* ジオラマの接地影 (ページの上に落ちる柔らかい影 → 「絵から生えている」馴染み) */
+let _shadowTex = null;
+function getShadowTexture() {
+  if (_shadowTex) return _shadowTex;
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const rad = g.createRadialGradient(128, 128, 8, 128, 128, 128);
+  rad.addColorStop(0, 'rgba(30,22,12,0.62)');
+  rad.addColorStop(0.55, 'rgba(30,22,12,0.28)');
+  rad.addColorStop(1, 'rgba(30,22,12,0)');
+  g.fillStyle = rad; g.fillRect(0, 0, 256, 256);
+  _shadowTex = new THREE.CanvasTexture(c);
+  _shadowTex.colorSpace = THREE.SRGBColorSpace;
+  return _shadowTex;
+}
+
 /* ------ spread texture ------ */
 function spreadSlugFromPage(page) {
   return page.id.replace(/-/g, '');
@@ -2000,6 +2016,19 @@ window.bootWorldB = async function () {
     dio.position.y -= db.min.y;
     dioramaGrp = new THREE.Group();
     dioramaGrp.add(dio);
+
+    /* ---- 接地影: ジオラマの足元にページへ落ちる柔らかい影 (絵から生えている馴染み) ---- */
+    const footprint = Math.max(ds.x, ds.z) * dScale * 1.35;
+    const shadowGeo = new THREE.PlaneGeometry(footprint, footprint);
+    const shadowMat = new THREE.MeshBasicMaterial({
+      map: getShadowTexture(), transparent: true, depthWrite: false,
+      blending: THREE.MultiplyBlending, opacity: 0.9, toneMapped: false
+    });
+    const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.02;   /* ページ直上 */
+    shadow.renderOrder = 1;
+    dioramaGrp.add(shadow);
 
     /* ---- 動物 ---- */
     const animal = ANIMALS.find(a => a.page === page.id);
