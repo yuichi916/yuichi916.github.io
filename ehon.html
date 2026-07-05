@@ -1687,6 +1687,7 @@ async function ensureBook3D(camPos) {
   /* rAF loop — always running */
   (function loop() {
     controls.update();
+    if (V && V.mascot) V.mascot.position.y = Math.sin(performance.now() / 900) * 0.12; /* 案内人のふわり */
     renderer.render(scene, cam);
     requestAnimationFrame(loop);
   })();
@@ -1736,6 +1737,20 @@ async function ensureBook3D(camPos) {
     V._spreadHalfW = bboxW / 2;
     V._spreadDepth = bboxD;
     controls.target.set(0, bookTopY + 1.5, 0);
+
+    /* マスコット (絵本の案内人・紙人形): 本の右脇に立ち、ふわりと上下する */
+    try {
+      const mGltf = await loadGLB(window.getAssetUrl('mascot_v1.glb'));
+      const mas = mGltf.scene;
+      const mb = new THREE.Box3().setFromObject(mas);
+      const msz = mb.getSize(new THREE.Vector3());
+      mas.scale.setScalar(4.2 / Math.max(0.001, msz.y));
+      mas.position.set(4.6, 0, 3.6);   /* 本の右手前の角 */
+      mas.rotation.y = -0.5;   /* 少し本へ向く */
+      mas.traverse(n => { if (n.isMesh) n.userData._isMascot = true; });
+      V.mascot = mas;
+      bookGrp.add(mas);
+    } catch (e) { console.warn('mascot load failed (non-fatal)', e); }
   } catch (e) {
     console.error('ensureBook3D: book.glb 読み込み失敗', e);
     /* Keep V alive but without book; diorama will still load */
@@ -1747,10 +1762,10 @@ async function ensureBook3D(camPos) {
 /* ------ disposeDiorama: remove only diorama group (canvas stays) -- */
 function disposeDiorama() {
   if (!V) return;
-  /* Remove all children of bookGrp EXCEPT book.glb mesh and spread plane */
+  /* Remove all children of bookGrp EXCEPT book.glb mesh, spread plane, and mascot */
   const toRemove = [];
   V.bookGrp.children.forEach(child => {
-    if (child !== V.spreadPlane && !child.isLight && child.userData._isBook !== true) {
+    if (child !== V.spreadPlane && child !== V.mascot && !child.isLight && child.userData._isBook !== true) {
       toRemove.push(child);
     }
   });
