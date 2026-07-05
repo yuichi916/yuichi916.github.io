@@ -1718,14 +1718,15 @@ async function ensureBook3D(camPos) {
     const bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
     V.bookTopY = bookTopY;
 
-    /* Spread plane: covers open-book top */
-    const bboxW = bs.x * bScale * 0.94;
-    const bboxD = bs.z * bScale * 0.90;
+    /* Spread plane: 本の「紙面」にだけ重ねる (bbox は表紙の縁まで含むので8割程度が紙面) */
+    const bboxW = bs.x * bScale * 0.80;
+    const bboxD = bs.z * bScale * 0.78;
     const spreadGeo = new THREE.PlaneGeometry(bboxW, bboxD);
-    const spreadMat = new THREE.MeshBasicMaterial({ map: null, toneMapped: false, side: THREE.FrontSide, transparent: true, opacity: 1 });
+    const spreadMat = new THREE.MeshBasicMaterial({ map: null, toneMapped: false, side: THREE.FrontSide, transparent: true, opacity: 1,
+      color: new THREE.Color(0.90, 0.85, 0.76) /* 羊皮紙トーンに沈めて本と馴染ませる */ });
     const spreadPlane = new THREE.Mesh(spreadGeo, spreadMat);
     spreadPlane.rotation.x = -Math.PI / 2;
-    spreadPlane.position.y = bookTopY + 0.015;
+    spreadPlane.position.y = bookTopY + 0.012;
     spreadPlane.visible = false;
     bookGrp.add(spreadPlane);
     V.spreadPlane = spreadPlane;
@@ -1799,14 +1800,18 @@ function flipPage3D(prevSlug, nextSlug, dir, onHalfway) {
 
     const mkPlane = (tex, offsetU, flipY) => {
       const geo = new THREE.PlaneGeometry(halfW, depth);
-      const mat = new THREE.MeshBasicMaterial({
-        map: tex, toneMapped: false, side: THREE.DoubleSide, transparent: true, opacity: 0.98
-      });
-      if (tex) {
-        tex.repeat.set(0.5, 1);
-        tex.offset.set(offsetU, 0);
-        tex.needsUpdate = true;
+      /* キャッシュ共有テクスチャの repeat/offset を書き換えるとスプレッド側も半分表示になるため必ず clone */
+      const t = tex ? tex.clone() : null;
+      if (t) {
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.repeat.set(0.5, 1);
+        t.offset.set(offsetU, 0);
+        t.needsUpdate = true;
       }
+      const mat = new THREE.MeshBasicMaterial({
+        map: t, toneMapped: false, side: THREE.DoubleSide, transparent: true, opacity: 0.98,
+        color: new THREE.Color(0.90, 0.85, 0.76)
+      });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.x = halfW / 2;
       if (flipY) mesh.rotation.y = Math.PI;
