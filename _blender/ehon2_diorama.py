@@ -68,6 +68,12 @@ ctr = (mn + mx) / 2
 for o in keep:
     o.location -= Vector((ctr.x, ctr.y, mn.z))
 
+# ---- 自作追加パーツ (時計盤・ルーン・炎・床・地図机など)。center 後の座標系で配置 ----
+if CFG.get('extras'):
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import ehon2_extras
+    keep += ehon2_extras.apply_extras(CFG['extras'])
+
 MAXTEX = int(CFG.get('max_tex', 1024))
 for im in bpy.data.images:
     try:
