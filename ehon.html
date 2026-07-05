@@ -34,8 +34,8 @@
     overflow:hidden;height:100%}
   #stage{position:fixed;inset:0;display:grid;place-items:center;perspective:1700px}
 
-  /* ステージ枠(本+世界を載せる領域) — 大きめに */
-  .ehon-stage{position:relative;width:min(99vw,1180px);height:min(97vh,1120px)}
+  /* ステージ枠(本+世界を載せる領域) — 全画面。透明レンダラーで背景と一体 */
+  .ehon-stage{position:relative;width:100vw;height:100vh}
   #world-a,#world-b{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .45s}
   #world-a.active,#world-b.active{opacity:1;pointer-events:auto}
 
@@ -1692,7 +1692,6 @@ async function ensureBook3D(camPos) {
   (function loop() {
     controls.update();
     if (V && V.mascot) V.mascot.position.y = Math.sin(performance.now() / 900) * 0.12; /* 案内人のふわり */
-    if (V && V.zundamon) V.zundamon.position.y = Math.sin(performance.now() / 720 + 1.2) * 0.10; /* ずんだもんの弾み */
     renderer.render(scene, cam);
     requestAnimationFrame(loop);
   })();
@@ -1756,20 +1755,6 @@ async function ensureBook3D(camPos) {
       V.mascot = mas;
       bookGrp.add(mas);
     } catch (e) { console.warn('mascot load failed (non-fatal)', e); }
-
-    /* ずんだもん (ずんだもんAIラボの看板): 本の左脇にちょこんと立つ */
-    try {
-      const zGltf = await loadGLB(window.getAssetUrl('zundamon_v1.glb'));
-      const zun = zGltf.scene;
-      const zb = new THREE.Box3().setFromObject(zun);
-      const zsz = zb.getSize(new THREE.Vector3());
-      zun.scale.setScalar(4.4 / Math.max(0.001, zsz.y));   /* 少女より小さめ */
-      zun.position.set(-3.4, 0, 5.5);   /* 本の左手前 */
-      zun.rotation.y = 0.6;   /* 本の方へ向く */
-      zun.traverse(n => { if (n.isMesh) n.userData._isMascot = true; });
-      V.zundamon = zun;
-      bookGrp.add(zun);
-    } catch (e) { console.warn('zundamon load failed (non-fatal)', e); }
   } catch (e) {
     console.error('ensureBook3D: book.glb 読み込み失敗', e);
     /* Keep V alive but without book; diorama will still load */
@@ -1784,7 +1769,7 @@ function disposeDiorama() {
   /* Remove all children of bookGrp EXCEPT book.glb mesh, spread plane, and mascot */
   const toRemove = [];
   V.bookGrp.children.forEach(child => {
-    if (child !== V.spreadPlane && child !== V.mascot && child !== V.zundamon && !child.isLight && child.userData._isBook !== true) {
+    if (child !== V.spreadPlane && child !== V.mascot && !child.isLight && child.userData._isBook !== true) {
       toRemove.push(child);
     }
   });
