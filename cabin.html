@@ -1902,45 +1902,65 @@ else {
   fire.position.copy(bearing(HEARTH_LON,-5.5,10)); faceOrigin(fire); fire.renderOrder=2;
   scene.add(fire);
 
-  // ── WATER SHIMMER on the lake (outdoors only): a faint, slow ripple of moonlight glints ──
-  const waterUniforms = { uTime:{value:0} };
+  // ── LAKE: full-surface night-water reflection (minamo-studio style: heightfield normal → sky reflection → fresnel → moon glints → fog) ──
+  const waterUniforms = { uTime:{value:0}, uCamPos:{value:new THREE.Vector3()}, uLightDir:{value:new THREE.Vector3(0.16,0.62,-0.28).normalize()}, uStars:{value:1.0} };
   const waterMat = new THREE.ShaderMaterial({
-    uniforms: waterUniforms, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending,
-    vertexShader:`varying vec2 vP; void main(){ vP=position.xy; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    uniforms: waterUniforms, transparent:false, depthWrite:false, depthTest:false, blending:THREE.NormalBlending,
+    vertexShader:`varying vec3 vW; void main(){ vec4 wp=modelMatrix*vec4(position,1.0); vW=wp.xyz; gl_Position=projectionMatrix*viewMatrix*wp; }`,
     fragmentShader:`
-      precision highp float; varying vec2 vP; uniform float uTime;
-      float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
-      float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
-        return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y); }
-      float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<4;i++){ v+=a*noise(p); p=p*2.02+1.7; a*=0.5; } return v; }
+      precision highp float; varying vec3 vW;
+      uniform float uTime, uStars; uniform vec3 uCamPos, uLightDir;
+      float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123); }
+      float noise(vec2 p){ vec2 i=floor(p),f=fract(p); vec2 u=f*f*(3.0-2.0*f);
+        return mix(mix(hash(i),hash(i+vec2(1,0)),u.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x),u.y); }
+      float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<4;i++){ v+=a*noise(p); p=p*2.03+1.7; a*=0.5; } return v; }
+      // 夜空 (反射先): 天頂の深藍 → 地平の淡明, 星, 月
+      vec3 skyColor(vec3 dir){
+        float y=clamp(dir.y,0.0,1.0);
+        vec3 sky=mix(vec3(0.10,0.14,0.24), vec3(0.02,0.04,0.10), pow(y,0.55));
+        vec2 sc=dir.xz/(abs(dir.y)+0.25)*9.0;
+        vec2 cell=floor(sc); vec2 fr=fract(sc)-0.5;
+        float star=smoothstep(0.07,0.0, length(fr)) * step(0.93, hash(cell+7.3));
+        sky += vec3(0.85,0.9,1.0)*star*uStars*(0.45+0.55*sin(uTime*3.0+hash(cell)*30.0));
+        float md=max(dot(normalize(dir), normalize(uLightDir)),0.0);
+        sky += vec3(0.95,0.96,1.0)*pow(md,90.0)*0.9;     // 月
+        sky += vec3(0.5,0.6,0.85)*pow(md,7.0)*0.12;       // 月暈
+        return sky;
+      }
+      float heightField(vec2 p){
+        float t=uTime, h=0.0;
+        h+=sin(p.x*0.55+t*0.65)*0.05;
+        h+=sin(p.y*0.48-t*0.55)*0.05;
+        h+=fbm(p*0.85+vec2(t*0.14,-t*0.09))*0.12;
+        h+=fbm(p*2.2-vec2(t*0.19,t*0.11))*0.05;
+        return h;
+      }
       void main(){
-        vec2 uv=vP; float d=length(uv);
-        float fade=smoothstep(1.0,0.06,d);
-        float t=uTime;
-        // 奥ほど空/月あかりを映して明るく、手前ほど深い藍
-        float depth=smoothstep(-1.0,1.0,uv.y);
-        // 流れる細波を2層交差 (fbmで有機的に、遠近で縦に伸ばす)
-        float r1=fbm(vec2(uv.x*2.6,       uv.y*8.0 - t*0.55));
-        float r2=fbm(vec2(uv.x*4.3 + 4.0, uv.y*13.0 + t*0.34));
-        float ripple=pow(0.5+0.5*sin((r1+r2)*6.2831 + t*1.6), 3.0);
-        // ゆったりしたうねり
-        float swell=0.5+0.5*sin(uv.y*3.4 - t*0.6 + fbm(uv*1.4)*3.0);
-        // 月あかりの反射柱 (中央がゆらゆら横に揺れる)
-        float mx=uv.x + (fbm(vec2(uv.y*2.6, t*0.35))-0.5)*0.55;
-        float moon=smoothstep(0.20,0.0,abs(mx)) * depth * (0.45+0.55*swell);
-        // 星のきらめき (鋭い点)
-        float spec=pow(ripple,5.0);
-        // 深い藍 → 月光の白へ
-        vec3 base=mix(vec3(0.06,0.10,0.20), vec3(0.34,0.48,0.72), depth*0.65 + swell*0.18);
-        vec3 glint=vec3(0.96,0.98,1.0);
-        vec3 col=base + glint*(spec*0.65 + moon*0.6);
-        float a=fade*(0.22 + spec*0.5 + moon*0.45);
-        gl_FragColor=vec4(col, a);
+        vec3 ro=uCamPos;
+        vec3 rd=normalize(vW-ro);
+        vec2 p=vW.xz;
+        float dist=length(vW.xz-ro.xz);
+        float eps=0.08+dist*0.012;
+        float h=heightField(p), hx=heightField(p+vec2(eps,0.0)), hz=heightField(p+vec2(0.0,eps));
+        vec3 n=normalize(vec3(h-hx, eps*1.6, h-hz));
+        vec3 R=reflect(rd,n); R.y=abs(R.y);
+        vec3 refl=skyColor(R);
+        vec3 L=normalize(uLightDir);
+        float spec=pow(max(dot(R,L),0.0),300.0);
+        float glit=pow(max(dot(R,L),0.0),40.0);
+        float sparkle=0.6+0.4*noise(p*10.0+uTime*1.4);
+        vec3 light=vec3(0.95,0.97,1.0)*(spec*3.0+glit*0.28)*sparkle;
+        float fres=0.03+0.97*pow(1.0-max(dot(-rd,n),0.0),5.0);
+        vec3 deep=mix(vec3(0.02,0.05,0.10), vec3(0.05,0.09,0.17), clamp(h*5.0+0.5,0.0,1.0));
+        vec3 col=mix(deep, refl, clamp(fres*1.5,0.0,1.0))+light;
+        float fog=1.0-exp(-dist*0.02);
+        col=mix(col, skyColor(vec3(rd.x,0.03,rd.z)), fog*0.85);
+        gl_FragColor=vec4(col,1.0);
       }`
   });
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(16,16,1,1), waterMat);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(400,400,1,1), waterMat);
   water.rotation.x = -Math.PI/2;            // lay flat
-  water.position.set(4.6,-2.5,0);           // in front (lake, lon≈0) and below eye level
+  water.position.set(0,-2.5,0);             // centred, below eye level → covers the whole foreground lake
   water.renderOrder=1; water.visible=false;
   scene.add(water);
 
@@ -2361,7 +2381,7 @@ else {
     requestAnimationFrame(animate);
     const dt=Math.min(clock.getDelta(),.05), t=clock.elapsedTime;
     fireUniforms.uTime.value=t;
-    waterUniforms.uTime.value=t; water.visible = _outside && !meditating && !capOpen;
+    waterUniforms.uTime.value=t; waterUniforms.uCamPos.value.copy(camera.position); water.visible = _outside && !meditating && !capOpen;
     updateSkip(dt);
 
     if(!dragging && !reduce && !meditating){ idle+=dt; if(idle>6) tLon+=dt*0.5; }
