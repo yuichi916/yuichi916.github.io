@@ -1746,6 +1746,7 @@ async function ensureBook3D(camPos) {
   (function loop() {
     controls.update();
     if (V && V.mascot) V.mascot.position.y = Math.sin(performance.now() / 900) * 0.12; /* 案内人のふわり */
+    if (V && V.boy) V.boy.position.y = Math.sin(performance.now() / 900 + 2.0) * 0.11; /* 男の子のふわり */
     renderer.render(scene, cam);
     requestAnimationFrame(loop);
   })();
@@ -1809,6 +1810,20 @@ async function ensureBook3D(camPos) {
       V.mascot = mas;
       bookGrp.add(mas);
     } catch (e) { console.warn('mascot load failed (non-fatal)', e); }
+
+    /* 男の子(対の案内人): 本の左脇に立つ */
+    try {
+      const bGltf = await loadGLB(window.getAssetUrl('boy_v1.glb'));
+      const boy = bGltf.scene;
+      const bbx = new THREE.Box3().setFromObject(boy);
+      const bsz = bbx.getSize(new THREE.Vector3());
+      boy.scale.setScalar(5.6 / Math.max(0.001, bsz.y));
+      boy.position.set(-3.1, 0, 5.7);   /* 本の左手前 */
+      boy.rotation.y = 0.66;            /* 本と読者のあいだを向く */
+      boy.traverse(n => { if (n.isMesh) n.userData._isMascot = true; });
+      V.boy = boy;
+      bookGrp.add(boy);
+    } catch (e) { console.warn('boy load failed (non-fatal)', e); }
   } catch (e) {
     console.error('ensureBook3D: book.glb 読み込み失敗', e);
     /* Keep V alive but without book; diorama will still load */
@@ -1823,7 +1838,7 @@ function disposeDiorama() {
   /* Remove all children of bookGrp EXCEPT book.glb mesh, spread plane, and mascot */
   const toRemove = [];
   V.bookGrp.children.forEach(child => {
-    if (child !== V.spreadPlane && child !== V.mascot && !child.isLight && child.userData._isBook !== true) {
+    if (child !== V.spreadPlane && child !== V.mascot && child !== V.boy && !child.isLight && child.userData._isBook !== true) {
       toRemove.push(child);
     }
   });
