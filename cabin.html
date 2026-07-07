@@ -2757,11 +2757,13 @@ else {
     const CH=['ch1','ch2','ch3'];
     const NAME={tomori:'灯里 · Tomori', sou:'蒼 · Sou', narr:'', you:'あなた'};
     const LS='cabin_story';
-    let st={ch:0, beat:0, lit:0, cleared:false};
+    let st={ch:0, beat:0, lit:0, fragments:{}, unlocked:0, cleared:false};
     let cur=null, stack=[], locked=false;
 
     function _save(){ try{ localStorage.setItem(LS, JSON.stringify(st)); }catch(e){} }
-    function _load(){ try{ const s=JSON.parse(localStorage.getItem(LS)||'null'); if(s&&s.ch!=null) st=s; }catch(e){} return st; }
+    function _load(){ try{ const s=JSON.parse(localStorage.getItem(LS)||'null');
+      if(s&&s.ch!=null){ st={ ch:s.ch||0, beat:s.beat||0, lit:s.lit||0,
+        fragments:s.fragments||{}, unlocked:(s.unlocked!=null?s.unlocked:(s.ch||0)), cleared:!!s.cleared }; } }catch(e){} return st; }
 
     function setBGM(file){ const a=el('story-bgm'); if(!a) return;
       if(a.dataset.file===file) return; a.dataset.file=file; a.src='assets/bgm/'+file; a.volume=0.42; a.play().catch(()=>{}); }
