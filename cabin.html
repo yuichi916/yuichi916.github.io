@@ -871,6 +871,20 @@ body.story-mode #enterGate{opacity:0!important;visibility:hidden!important;point
 .sb-choices button:hover{background:rgba(240,200,120,.14);border-color:rgba(240,200,120,.6)}
 .sb-hint{margin-top:12px;font-size:.72rem;color:#c9bfa8;opacity:.55;text-align:right}
 .sb-hint.gone{opacity:0}
+/* 記憶の断片・探索モード */
+body.story-investigate #story{pointer-events:none}
+body.story-investigate .story-box{opacity:0;pointer-events:none}
+body.story-investigate .story-guide{opacity:.1!important}
+body.story-investigate #reticle{opacity:.75!important}
+#fragBar{position:fixed;left:50%;top:22px;transform:translateX(-50%);z-index:92;opacity:0;transition:opacity .5s;
+  font-family:"Shippori Mincho",serif;color:#f0e6d2;background:rgba(24,20,14,.72);border:1px solid rgba(201,180,140,.34);
+  border-radius:99px;padding:9px 20px;font-size:.86rem;letter-spacing:.06em;pointer-events:none;white-space:nowrap}
+body.story-investigate #fragBar{opacity:1}
+#fragReveal{position:fixed;left:50%;bottom:16vh;transform:translateX(-50%);z-index:92;max-width:min(560px,90vw);
+  text-align:center;font-family:"Shippori Mincho",serif;color:#efe6d4;font-style:italic;line-height:2.0;
+  background:linear-gradient(180deg,rgba(24,20,14,0),rgba(20,16,11,.86) 34%);padding:22px 24px;border-radius:12px;
+  opacity:0;transition:opacity .6s;pointer-events:none}
+#fragReveal.show{opacity:1}
 .story-look{position:fixed;inset:0;z-index:1}
 .look-spot{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;cursor:pointer;
   background:radial-gradient(circle,rgba(255,220,150,.5),rgba(255,220,150,0) 70%);animation:lookPulse 1.8s ease-in-out infinite}
@@ -999,6 +1013,8 @@ body.story-mode #enterGate{opacity:0!important;visibility:hidden!important;point
   <div class="story-fx" id="storyFx" hidden></div>
   <button class="story-quit" id="storyQuit" type="button" aria-label="物語をとじる">✕</button>
 </div>
+<div id="fragBar" aria-hidden="true"></div>
+<div id="fragReveal" aria-hidden="true"></div>
 
 <!-- meditation bar (minimal; the experience itself is in 3D) -->
 <div id="medBar" aria-hidden="true">
@@ -2135,6 +2151,30 @@ else {
   }
   buildMarkers(MARKERS);
 
+  // ── 記憶の断片（物語モードの謎解き：実オブジェクト方位に置く）──
+  const FRAGMENTS = [
+    { key:'fire',  lon:0,   lat:-18, r:5.2, jp:'消えない焚き火' },
+    { key:'tea',   lon:24,  lat:-9,  r:4.6, jp:'冷めない茶' },
+    { key:'chair', lon:-33, lat:-11, r:4.8, jp:'二脚目の椅子' },
+    { key:'clock', lon:30,  lat:3,   r:5.0, jp:'止まった時計' },
+    { key:'tally', lon:-72, lat:-8,  r:5.2, jp:'柱の刻み' },
+    { key:'snow',  lon:-61, lat:0,   r:6.0, jp:'窓の外の足跡' },
+  ];
+  function fragTex(){ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); x.translate(64,64);
+    const g=x.createRadialGradient(0,0,2,0,0,34); g.addColorStop(0,'rgba(255,236,190,.98)'); g.addColorStop(.5,'rgba(255,210,150,.55)'); g.addColorStop(1,'rgba(255,210,150,0)');
+    x.fillStyle=g; x.beginPath(); x.arc(0,0,34,0,6.28); x.fill();
+    x.strokeStyle='rgba(255,246,220,.95)'; x.lineWidth=2.4; x.beginPath(); x.arc(0,0,15,0,6.28); x.stroke();
+    return new THREE.CanvasTexture(c); }
+  const fTex=fragTex();
+  const fragmentGroup=new THREE.Group(); fragmentGroup.visible=false; scene.add(fragmentGroup);
+  let fragmentSprites=[];
+  function buildFragments(keys){
+    fragmentSprites.forEach(s=>{ fragmentGroup.remove(s); s.material.dispose(); }); fragmentSprites=[];
+    const set=(keys&&keys.length)?FRAGMENTS.filter(f=>keys.indexOf(f.key)>=0):FRAGMENTS;
+    fragmentSprites = set.map(m=>{ const s=new THREE.Sprite(new THREE.SpriteMaterial({ map:fTex, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.95 }));
+      s.position.copy(bearing(m.lon,m.lat,m.r)); s.scale.set(0.85,0.85,1); s.userData={ key:'frag:'+m.key, fkey:m.key, _done:false }; fragmentGroup.add(s); return s; });
+  }
+
   // ── sudoku table portal: a small flat 9×9 board on a table in a front corner ──
   function sudokuBoardTex(){
     const c=document.createElement('canvas'); c.width=c.height=256; const x=c.getContext('2d');
@@ -2196,9 +2236,10 @@ else {
     if(moved<10 && !capOpen){           // a tap → activate marker under the pointer
       const nx=( (e.clientX||innerWidth/2)/innerWidth)*2-1, ny=-((e.clientY||innerHeight/2)/innerHeight)*2+1;
       ray.setFromCamera({x:nx,y:ny}, camera);
-      const hit=ray.intersectObjects(markerGroup.children,false)[0];
+      const grp = fragmentGroup.visible ? fragmentGroup.children : markerGroup.children;
+      const hit=ray.intersectObjects(grp,false)[0];
       if(hit && hit.object.userData) window.onMarker && window.onMarker(hit.object.userData.key);
-      else if(hovered) window.onMarker && window.onMarker(hovered.userData.key);
+      else if(hovered && !fragmentGroup.visible) window.onMarker && window.onMarker(hovered.userData.key);
     }
   }
   addEventListener('pointerup', endDrag); addEventListener('pointercancel', ()=>{ dragging=false; if(charging) cancelCharge(); });
@@ -2241,6 +2282,10 @@ else {
     stopMeditation(){ meditating=false; },
     setReadout:(t,p)=>drawReadout(t,p),
     setCapOpen:v=>{ capOpen=v; },
+    showFragments(keys){ buildFragments(keys||[]); fragmentGroup.visible=true; },
+    hideFragments(){ fragmentGroup.visible=false; },
+    setFragmentCollected(key){ const s=fragmentSprites.find(s=>s.userData.fkey===key); if(s) s.userData._done=true; },
+    _probe(lon,lat){ tLon=lon; tLat=(lat==null?-7:lat); },
     isOutside(){ return _outside; },
     goOutside(){
       if(_outside) return; _outside=true;
@@ -2482,6 +2527,8 @@ else {
     const showMarkers = !meditating && !capOpen && document.body.classList.contains('room-ready') && !document.getElementById('enterGate').classList.contains('gone')===false;
     markerGroup.visible = !meditating && !capOpen && !document.body.classList.contains('story-mode');
     markerSprites.forEach(s=>{ const base=0.6+0.08*Math.sin(t*2.2+s.position.x); s.scale.set(base,base,1); s.material.opacity=meditating?0:(0.5+0.25*Math.sin(t*2.2+s.position.x)); });
+    if(fragmentGroup.visible){ fragmentSprites.forEach(s=>{ const b=0.78+0.14*Math.sin(t*2.6+s.position.x); s.scale.set(b,b,1);
+      s.material.opacity = s.userData._done ? 0.16 : (0.6+0.32*Math.sin(t*2.6+s.position.x)); }); }
     // the rift breathes faintly, and glows a touch brighter when you look right at it
     if(portal.visible){ portal.material.opacity = meditating?0 : ((0.40+0.12*Math.sin(t*1.4)) + (hovered===portal?0.4:0)); portal.scale.set(1.15+(hovered===portal?0.2:0),2.5,1); }
     if(markerGroup.visible){
@@ -2658,6 +2705,7 @@ else {
     else if(key==='universe'){ if(window.CabinRoom&&window.CabinRoom.flyToUniverse) window.CabinRoom.flyToUniverse(); }
     else if(key==='forest'){ if(window.CabinRoom&&window.CabinRoom.goPage) window.CabinRoom.goPage('niwa.html?scene=hollow'); }
     else if(key==='portal'){ if(window.CabinRoom&&window.CabinRoom.toPortal) window.CabinRoom.toPortal(); }
+    else if(key.indexOf('frag:')===0){ if(window.CabinStory&&window.CabinStory.collectFragment) window.CabinStory.collectFragment(key.slice(5)); }
   };
 
   /* ══════════ 物語モード「灯を継ぐもの」 ══════════ */
@@ -2669,82 +2717,143 @@ else {
       {say:'sou', text:'「よかった。ずいぶん、冷えてたから。」'},
       {say:'tomori', text:'「わたしは灯里(ともり)。この小屋で、火を守ってるの。」'},
       {say:'sou', text:'「ぼくは蒼(そう)。……ふたりで、ここにいるんだ。」'},
-      {say:'tomori', text:'「あなた、雪の中を歩いてきたでしょう。……どうして?」'},
-      {choose:[
-        {label:'「……わからない。ただ、どこか遠くへ行きたかった」', reply:[
-          {say:'sou', text:'「うん。……遠くへ、ね。ぼくも、そうだった。」'},
-          {say:'tomori', text:'「ここまで来たなら、もう歩かなくていいよ。」'} ]},
-        {label:'「消えてしまいたかったのかもしれない」', reply:[
-          {say:'tomori', text:'「……そっか。」'},
-          {say:'tomori', text:'「その言葉、わたしも、昔ここで言ったの。」'},
-          {say:'sou', text:'「……。」'} ]},
-        {label:'何も言わず、火を見つめる', reply:[
-          {say:'sou', text:'「……いいよ。無理に、話さなくて。」'},
-          {say:'tomori', text:'「火は、だまってても、あたためてくれるから。」'} ]},
-      ]},
-      {say:'narr', text:'——ふと、部屋の様子に目がとまる。'},
-      {look:{ prompt:'小屋を、そっと見回してみる（光る点を、みっつ）', done:'——誰かが、あなたが来るのを、知っていたみたいに。', spots:[
-        {key:'tea',   label:'湯気を立てる茶',   line:'小卓に、あたたかい茶が一杯。まるで、あなたのために。'},
-        {key:'chair', label:'ふたつの椅子',     line:'火を挟んで、椅子がふたつ。……最初から、ふたつ。'},
-        {key:'snow',  label:'窓の外の雪',       line:'外は静かな雪。あなたの足跡は、もう消えかけている。'},
-      ]}},
+      {say:'tomori', text:'「あなたも、雪の中を歩いてきたんでしょう。……つらい夜だったね。」'},
+      {say:'sou', text:'「この小屋はね、少し、ふしぎなんだ。」'},
+      {say:'tomori', text:'「気づくかな。……ゆっくり、見回してみて。」'},
+      {investigate:{ prompt:'小屋を、そっと見回してみる', need:['fire','tea','chair','clock','tally','snow'],
+        done:'——誰かが、あなたのために、火を絶やさずにいてくれた。……この二人のことを、もっと知りたい。' }},
       {say:'tomori', text:'「気づいた? この小屋の火はね、ずっと消えないの。」'},
       {say:'sou', text:'「道に迷った人が来たとき、いつでもあたたかいように。」'},
-      {say:'tomori', text:'「……ねえ。もう少しだけ、いっしょにいてくれる?」'},
+      {say:'you', text:'「……ねえ。二人は、どうして、ここにいるの?」'},
+      {say:'tomori', text:'「……わたしたちのこと。聞いて、くれる?」'},
+      {say:'sou', text:'「長い、話だ。……でも、聞いてほしい。」'},
       {end:true},
     ]},
-    ch2: { title:'二章 秘密', bgm:'story-ch2-minasoko.mp3', beats:[
-      {say:'narr', text:'火のそばで、蒼が、ぽつりと話しはじめた。'},
-      {say:'sou', text:'「……ぼくもね、雪の夜に、ここに来たんだ。」'},
-      {say:'sou', text:'「もう、どこにも居場所がなくて。消えるつもりで、森に入った。」'},
-      {say:'tomori', text:'「わたしも。同じ夜だった。」'},
-      {say:'tomori', text:'「凍えて、たどり着いたら……火が、燃えてたの。茶が、一杯あったの。」'},
-      {say:'sou', text:'「火を挟んで、はじめて会った。おたがい、同じ目をしてた。」'},
-      {say:'tomori', text:'「わたし、言ったの。『消えちゃおうと思って、ここまで来た』って。」'},
-      {say:'sou', text:'「ぼくは、息を呑んだ。……それ、ぼくが誰にも言えなかった言葉だったから。」'},
+    ch2: { title:'二章 蒼のかけら', bgm:'story-ame.mp3', beats:[
+      {say:'narr', text:'蒼が、火に薪をくべながら、ぽつりと話しはじめた。'},
+      {say:'sou', text:'「ぼくの家には、母さんとぼくだけだった。父さんは、早くにいなくなって。」'},
+      {say:'sou', text:'「母さんは、ぼくが十二のとき、病気になった。だんだん、動けなくなっていった。」'},
+      {say:'sou', text:'「ぼくは、学校をやめた。友だちとも、会わなくなった。夢も……あきらめた。」'},
+      {say:'sou', text:'「朝は薬。昼はごはんを刻んで。夜は、何度も起きて。」'},
+      {say:'sou', text:'「気づいたら、ぼくの世界は……母さんの部屋の、あの小さな窓だけに、なっていた。」'},
       {choose:[
-        {label:'「……その言葉、わたしにも、わかる気がする」', reply:[
-          {say:'tomori', text:'「うん。……わかってくれる人が、いるだけで。」'},
-          {say:'sou', text:'「凍えた心が、少しだけ、ほどけるんだ。」'} ]},
-        {label:'「ふたりは、それから、どうなったの?」', reply:[
-          {say:'sou', text:'「朝まで、火を見てた。ただ、それだけ。」'},
-          {say:'tomori', text:'「でも、朝が来たとき……歩いてみようって、思えたの。」'} ]},
+        {label:'蒼のとなりに、そっと座る', reply:[
+          {say:'sou', text:'「……それでも、母さんが『ありがとう』って笑うと、報われた気がしたんだ。」'},
+          {say:'tomori', text:'「うん。……やさしい子だね、蒼は。ほんとうに。」'} ]},
+        {label:'黙って、うなずく', reply:[
+          {say:'sou', text:'「……ありがとう。聞いてくれるだけで、いいんだ。ずっと、誰にも言えなかったから。」'} ]},
       ]},
-      {say:'tomori', text:'「この火はね、前の灯守(ひもり)が、わたしたちのために灯してくれてたの。」'},
-      {say:'sou', text:'「その人は、ぼくらが来た朝、静かに旅立った。役目を、渡すみたいに。」'},
-      {say:'narr', text:'——もう一度、小屋を見回す。今度は、ちがって見える。'},
-      {look:{ prompt:'ふたりが過ごした面影を、さがす', done:'——ふたりは、ずっと、次の誰かのために火を守ってきた。', spots:[
-        {key:'cups',  label:'古い茶碗の数',   line:'棚に、いくつもの茶碗。ここで救われた人の、数だけ。'},
-        {key:'names', label:'柱の小さな刻み', line:'柱に、小さな刻み。名前ではなく、通り過ぎた温もりの記録。'},
-        {key:'fire2', label:'絶えない焚き火', line:'火は、一度も消えていない。誰かが、ずっと継いできたから。'},
-      ]}},
-      {say:'tomori', text:'「ねえ。……気づいてる? 火が、少し弱くなってること。」'},
-      {say:'sou', text:'「ぼくらが、そろそろ……旅立つ時なんだ。」'},
+      {say:'sou', text:'「でもね。……人は、優しさだけじゃ、もたないんだ。」'},
+      {say:'narr', text:'蒼の声が、少しだけ、震えた。'},
       {end:true},
     ]},
-    ch3: { title:'三章 継ぐ', bgm:'story-ch3-kizuna.mp3', beats:[
-      {say:'tomori', text:'「わたしたちも、いつまでも、ここにはいられないの。」'},
-      {say:'sou', text:'「救われた者は、いつか、次の誰かのために火を継ぐ。」'},
-      {say:'tomori', text:'「そうやって、この火は、消えずに続いてきた。」'},
-      {say:'sou', text:'「……あなたが今夜ここへ来たのは、きっと、そういうことなんだと思う。」'},
+    ch3: { title:'三章 蒼の夜', bgm:'story-ch2-minasoko.mp3', beats:[
+      {say:'sou', text:'「あれは、雪の降る夜だった。」'},
+      {say:'sou', text:'「ぼくは、何日も眠っていなかった。母さんの息が、少しでも変わると、飛び起きて。」'},
+      {say:'sou', text:'「その夜、ぼくは……つかれて、眠ってしまったんだ。母さんが呼ぶ声に、気づかないまま。」'},
+      {say:'sou', text:'「朝、目がさめたら……母さんは、もう、冷たくなっていた。ぼくは、間に合わなかった。」'},
+      {say:'narr', text:'火が、ぱちり、と爆ぜた。'},
+      {say:'sou', text:'「——ううん。ちがう。ほんとうの罪は、それじゃないんだ。」'},
+      {say:'sou', text:'「母さんの亡骸を見つけたとき……悲しみの底で、ぼくは、ほっと、したんだ。」'},
+      {say:'sou', text:'「『やっと、終わった。やっと、眠れる』って。……そう、思ってしまった。」'},
+      {say:'sou', text:'「母さんが死んで、ぼくは、安心した。……ぼくは、化け物だ。」'},
+      {choose:[
+        {label:'「そんなこと、ない」', reply:[
+          {say:'sou', text:'「……いいんだ。慰めなくて。ぼくは、自分を、ずっと赦せなかったんだ。」'} ]},
+        {label:'蒼の手を、そっと握る', reply:[
+          {say:'narr', text:'蒼の手は、氷のように冷たく、かすかに震えていた。'},
+          {say:'sou', text:'「……あたたかい。あの夜は、だれも……こうして、くれなかった。」'} ]},
+        {label:'……言葉が、出ない', reply:[
+          {say:'sou', text:'「うん。……言葉になんて、ならないよね。ぼくも、そうだった。」'} ]},
+      ]},
+      {say:'sou', text:'「だから、ぼくは、雪の中へ歩いていった。消えて、しまおうと思って。」'},
+      {say:'sou', text:'「……そうして、この小屋の、火に、たどり着いたんだ。」'},
+      {end:true},
+    ]},
+    ch4: { title:'四章 灯里のかけら', bgm:'story-utsuroi.mp3', beats:[
+      {say:'narr', text:'今度は、灯里が、火を見つめたまま話しはじめた。'},
+      {say:'tomori', text:'「わたしは、四人きょうだいの、いちばん上だった。下に、小さな弟がいてね。」'},
+      {say:'tomori', text:'「お父さんも、お母さんも、いそがしくて。……わたしが、みんなの『お姉ちゃん』だった。」'},
+      {say:'tomori', text:'「泣かないで、笑って、しっかりして。心配をかけないように、いつも笑ってた。」'},
+      {say:'tomori', text:'「わたしが笑っていれば、みんな安心した。だから、ずっと、笑ってたの。」'},
+      {say:'tomori', text:'「弟にも、教えたわ。『強くね。笑ってね。人に、迷惑をかけないでね』って。」'},
+      {choose:[
+        {label:'「灯里も、つらかったんだね」', reply:[
+          {say:'tomori', text:'「……どうかな。わたしは、弱音の吐き方を、忘れていただけ、かもしれない。」'} ]},
+        {label:'「それは、優しさだよ」', reply:[
+          {say:'tomori', text:'「優しさ、か。……わたしも、そう思ってた。あの日までは。」'} ]},
+      ]},
+      {say:'tomori', text:'「弟は、いい子に育った。わたしの言うとおり、いつも、笑ってた。」'},
+      {say:'narr', text:'——その笑顔の意味を、灯里は、まだ知らなかった。'},
+      {end:true},
+    ]},
+    ch5: { title:'五章 灯里の夜', bgm:'story-shiroi-door.mp3', beats:[
+      {say:'tomori', text:'「弟はね。……わたしの真似を、していたの。」'},
+      {say:'tomori', text:'「つらくても笑って、なんでもないふりをして。……わたしが、そう教えたから。」'},
+      {say:'tomori', text:'「あの子、学校で、ずっとつらい目にあっていたみたい。でも、一度も、言わなかった。」'},
+      {say:'tomori', text:'「『迷惑をかけちゃいけない』って。……わたしの言葉を、まもって。」'},
+      {say:'tomori', text:'「ある朝。あの子は……目を、覚まさなかった。」'},
+      {say:'narr', text:'灯里の声が、途切れた。'},
+      {say:'tomori', text:'「すぐそばにいたのに。毎日、顔を見ていたのに。……わたしは、何も、気づかなかった。」'},
+      {say:'tomori', text:'「わたしの笑顔が、あの子に『隠すこと』を教えたの。わたしが、あの子を、追いつめた。」'},
+      {say:'tomori', text:'「わたしは、自分の弟に……間に、合わなかった。」'},
+      {choose:[
+        {label:'「灯里の、せいじゃない」', reply:[
+          {say:'tomori', text:'「やさしいね。……でも、その言葉を、わたしは信じられなかったの。ずっと、ずっと。」'} ]},
+        {label:'灯里を、抱きしめたい', reply:[
+          {say:'narr', text:'灯里は、笑おうとして、笑えなかった。'},
+          {say:'tomori', text:'「……わたし、ずっと、こうして、泣きたかったのかもしれない。」'} ]},
+      ]},
+      {say:'tomori', text:'「わたしも、雪の中へ歩いていった。笑顔の下で、とっくに、こわれていたから。」'},
+      {say:'tomori', text:'「そうして——この小屋の、火に、たどり着いたの。」'},
+      {end:true},
+    ]},
+    ch6: { title:'六章 秘密', bgm:'story-sorekara.mp3', beats:[
+      {say:'narr', text:'二人は、同じ雪の夜に、この火のそばで、出会った。'},
+      {say:'sou', text:'「火を挟んで、はじめて会ったとき。おたがい、同じ目を、していた。」'},
+      {say:'tomori', text:'「わたし、言ったの。『消えちゃおうと思って、ここまで来た』って。」'},
+      {say:'sou', text:'「ぼくは、息を呑んだ。……それ、ぼくが、誰にも言えなかった言葉だったから。」'},
+      {say:'narr', text:'そして、二人は、それぞれの夜を、打ち明けあった。'},
+      {say:'tomori', text:'「蒼の話を聞いて、わたし、言ったの。」'},
+      {say:'tomori', text:'「『何年も、たったひとりで、お母さんを愛したんでしょう。その果ての、ほっとした気持ちは……罪じゃないよ』って。」'},
+      {say:'tomori', text:'「『体は、こわれる。眠ってしまったのは、殺意じゃない。あなたは、じゅうぶん、愛した』。」'},
+      {say:'sou', text:'「……その言葉で、ぼくの中の、凍りついていた何かが、溶けたんだ。」'},
+      {say:'sou', text:'「今度は、ぼくが、灯里に言った。」'},
+      {say:'sou', text:'「『見えなかったことは、そうさせたことじゃない。弟くんが隠したのは、君の笑顔のせいじゃないよ』。」'},
+      {say:'sou', text:'「『君の笑顔は……ほんとうに、あの子を、愛してた証なんだ』。」'},
+      {say:'tomori', text:'「自分では、どうしても、赦せなかった。……でも、この人になら、赦してもらえた。」'},
+      {say:'sou', text:'「自分の罪は、自分では、抱えきれない。……だれかに、赦してもらうしか、ないんだ。」'},
+      {say:'narr', text:'二人は、その夜、たがいの罪を、そっと、引き受けあった。'},
+      {say:'sou', text:'「あの火は、前の灯守が、ぼくらのために灯してくれてた。その人も……消えるつもりで、来た人だった。」'},
+      {say:'tomori', text:'「救われた者が、次の誰かのために、火を継ぐ。そうやって、この火は、消えずに続いてきたの。」'},
+      {say:'narr', text:'ふと、部屋のすみで、古い時計が、止まっているのに気づく。'},
+      {say:'tomori', text:'「あの時計はね。……わたしと蒼が、出会った時刻で、止まっているの。」'},
+      {say:'tomori', text:'「……ねえ。気づいてる? その火が、少し、弱くなってきていること。」'},
+      {say:'sou', text:'「ぼくらの番が……そろそろ、終わろうとしているんだ。」'},
+      {end:true},
+    ]},
+    ch7: { title:'七章 継ぐ', bgm:'story-ch3-kizuna.mp3', beats:[
+      {say:'tomori', text:'「あなたにも、あったでしょう。……誰にも言えない、夜が。」'},
+      {say:'tomori', text:'「消えてしまいたくて、雪をかき分けて、ここまで来た。……ちがう?」'},
+      {say:'sou', text:'「だいじょうぶ。ここでは、その罪ごと、あなたを赦すよ。ぼくらが、赦されたように。」'},
       {say:'tomori', text:'「ねえ。——この火を、継いでくれる?」'},
       {say:'narr', text:'火が、あなたの答えを待っている。'},
       {choose:[
         {label:'「うん。……わたしが、火を継ぐ」', reply:[
           {say:'tomori', text:'「……ありがとう。」'} ]},
         {label:'「わたしなんかに、できるのかな」', reply:[
-          {say:'sou', text:'「だいじょうぶ。あなたは、もう火のそばに座れた。」'},
+          {say:'sou', text:'「できるよ。あなたは、もう、火のそばに座れた。」'},
           {say:'tomori', text:'「凍えた人の気持ちが、わかるでしょう? それだけで、いいの。」'},
-          {say:'tomori', text:'「……継いでくれる?」'},
           {say:'you', text:'「……うん。継ぐ。」'} ]},
       ]},
       {say:'narr', text:'あなたが火に手をかざすと、焚き火が、大きく燃えあがった。'},
       {fx:'flareFire'},
       {say:'tomori', text:'「あったかいでしょう。……これが、あなたの火。」'},
-      {say:'sou', text:'「もう、ひとりじゃない。誰かが、火を灯して待っていてくれる。」'},
-      {say:'tomori', text:'「そして今度は、あなたが……次の、道に迷った誰かのために。」'},
-      {say:'sou', text:'「ぼくらは、ずっと、この火のなかにいるから。」'},
+      {say:'sou', text:'「もう、ひとりじゃない。誰かが、火を灯して、待っていてくれる。」'},
+      {say:'tomori', text:'「そして今度は、あなたが……次の、消えたい夜を抱えた誰かのために。」'},
+      {say:'sou', text:'「その人の罪を、そっと、赦してあげて。ぼくらが、あなたに、してくれたように。」'},
       {say:'tomori', text:'「……ありがとう。やっと、安心して、旅立てる。」'},
+      {say:'sou', text:'「ぼくらは、ずっと、この火の中にいるから。」'},
       {fx:'dissolveGuides'},
       {say:'narr', text:'灯里と蒼は、やわらかな光になって、火のなかへ溶けていった。'},
       {fx:'fadeEnding'},
@@ -2754,11 +2863,19 @@ else {
 
   window.CabinStory = (function(){
     const el=id=>document.getElementById(id);
-    const CH=['ch1','ch2','ch3'];
+    const CH=['ch1','ch2','ch3','ch4','ch5','ch6','ch7'];
     const NAME={tomori:'灯里 · Tomori', sou:'蒼 · Sou', narr:'', you:'あなた'};
     const LS='cabin_story';
+    const FRAG_LINES={
+      fire:'消えない焚き火。薪は絶えず、灰の底に、いつも次の火種がある。……誰かが、ずっと継いできた。',
+      tea:'冷めない茶が、一杯。あなたが来るのを、知っていたみたいに。ずっと、あたたかいまま。',
+      chair:'火を挟んで、椅子がふたつ。ひとつは灯里、ひとつは蒼。……最初から、ふたつ。',
+      clock:'古い時計は、止まっている。針はいつも、同じ刻。……"その夜"で、時間が止まったみたいに。',
+      tally:'柱に、いくつもの小さな刻み。名前ではなく——ここで救われて、旅立った人の、数だけ。',
+      snow:'窓の外の雪。入ってきた足跡は、ひとつ。……出ていった足跡は、どこにもない。',
+    };
     let st={ch:0, beat:0, lit:0, fragments:{}, unlocked:0, cleared:false};
-    let cur=null, stack=[], locked=false;
+    let cur=null, stack=[], locked=false, inv=null;
 
     function _save(){ try{ localStorage.setItem(LS, JSON.stringify(st)); }catch(e){} }
     function _load(){ try{ const s=JSON.parse(localStorage.getItem(LS)||'null');
@@ -2789,6 +2906,8 @@ else {
           btn.addEventListener('click', ev=>{ ev.stopPropagation(); choose(i); }); el('sbChoices').appendChild(btn); });
       } else if(b.look){
         talk(null); el('sbName').textContent=''; el('sbText').textContent=b.look.prompt; el('sbText').style.fontStyle='normal'; el('sbHint').classList.add('gone'); renderLook(b.look);
+      } else if(b.investigate){ startInvestigate(b.investigate);
+      } else if(b.fragment){ talk(null); el('sbName').textContent=''; el('sbText').textContent=b.fragment.line; el('sbText').style.fontStyle='italic'; el('sbHint').classList.remove('gone');
       } else if(b.fx){ locked=true; runFx(b.fx); }
     }
 
@@ -2828,13 +2947,40 @@ else {
       });
     }
 
+    /* ── 記憶の断片・探索 ── */
+    function updateFragBar(prompt){ const bar=el('fragBar'); if(!bar) return;
+      bar.dataset.prompt = prompt||bar.dataset.prompt||'小屋を調べる';
+      bar.textContent=(bar.dataset.prompt)+' ― かけら '+((inv&&inv.got.size)||0)+' / '+((inv&&inv.need.size)||0); }
+    function startInvestigate(cfg){ locked=true; inv={need:new Set(cfg.need), got:new Set(), done:cfg.done};
+      // セーブ済みの断片は既収集としてスキップ
+      cfg.need.forEach(k=>{ if(st.fragments&&st.fragments[k]) inv.got.add(k); });
+      document.body.classList.add('story-investigate');
+      const remain=cfg.need.filter(k=>!inv.got.has(k));
+      try{ window.CabinRoom&&window.CabinRoom.showFragments&&window.CabinRoom.showFragments(remain); }catch(e){}
+      updateFragBar(cfg.prompt);
+      if(inv.got.size>=inv.need.size){ setTimeout(exitInvestigate, 300); } }
+    function collectFragment(key){ if(!inv||!inv.need.has(key)||inv.got.has(key)) return;
+      inv.got.add(key); st.fragments[key]=true; _save();
+      try{ window.CabinRoom&&window.CabinRoom.setFragmentCollected&&window.CabinRoom.setFragmentCollected(key); }catch(e){}
+      const rv=el('fragReveal'); if(rv){ rv.textContent=FRAG_LINES[key]||''; rv.classList.add('show'); setTimeout(()=>{ if(rv) rv.classList.remove('show'); }, 3600); }
+      try{ if(window.__skipChime) window.__skipChime(inv.got.size); }catch(e){}
+      updateFragBar();
+      if(inv.got.size>=inv.need.size) setTimeout(exitInvestigate, 1600); }
+    function exitInvestigate(){ if(!inv) return; const d=inv.done; inv=null;
+      document.body.classList.remove('story-investigate');
+      try{ window.CabinRoom&&window.CabinRoom.hideFragments&&window.CabinRoom.hideFragments(); }catch(e){}
+      const rv=el('fragReveal'); if(rv) rv.classList.remove('show');
+      if(d){ talk(null); el('sbName').textContent=''; el('sbText').style.fontStyle='italic'; el('sbText').textContent=d; }
+      locked=false; setTimeout(()=>step(), d?1700:200); }
+
     function nextChapterOrEnd(){
-      if(st.ch < CH.length-1){ st.ch++; st.beat=0; _save(); startChapter(); }
+      if(st.ch < CH.length-1){ st.ch++; st.beat=0; st.unlocked=Math.max(st.unlocked||0, st.ch); _save(); startChapter(); }
       else { if(window._storyEnding) window._storyEnding(st.lit); }
     }
-    function startChapter(){ const c=STORY[CH[st.ch]]; setBGM(c.bgm); cur={beats:c.beats, i:st.beat||0}; stack=[]; locked=false; step(); }
-    function start(fresh){ if(fresh){ st={ch:0,beat:0,lit:0,cleared:false}; } open(); startChapter(); }
+    function startChapter(){ st.unlocked=Math.max(st.unlocked||0, st.ch); const c=STORY[CH[st.ch]]; setBGM(c.bgm); cur={beats:c.beats, i:st.beat||0}; stack=[]; locked=false; inv=null; document.body.classList.remove('story-investigate'); step(); }
+    function start(fresh){ if(fresh){ st={ch:0,beat:0,lit:0,fragments:{},unlocked:0,cleared:false}; } open(); startChapter(); }
     function resume(){ _load(); open(); startChapter(); }
+    function jumpChapter(idx, fromBeat){ st.ch=idx; st.beat=fromBeat||0; st.unlocked=Math.max(st.unlocked||0, idx); _save(); open(); startChapter(); }
 
     function runFx(kind){ if(window._storyFx) window._storyFx(kind); else next(); }
 
@@ -2845,7 +2991,7 @@ else {
     document.addEventListener('keydown', e=>{ if(document.body.classList.contains('story-mode') && (e.key===' '||e.key==='Enter'||e.key==='ArrowRight')){ e.preventDefault(); advance(); }});
     el('storyQuit') && el('storyQuit').addEventListener('click', close);
 
-    return { start, resume, close, next, advance, choose, _state:()=>st, _save, _load };
+    return { start, resume, close, next, advance, choose, collectFragment, exitInvestigate, jumpChapter, _state:()=>st, _save, _load };
   })();
 
   /* ── エンディング演出 fx + 締め画面 ── */
