@@ -901,6 +901,24 @@ body.story-investigate #fragBar{opacity:1}
 .gate-story{display:inline-block;margin-top:20px;font-family:"Shippori Mincho",serif;font-size:clamp(12px,1.7vw,15px);
   letter-spacing:.14em;color:#c9b98a;cursor:pointer;opacity:.82;transition:.3s;border-bottom:1px solid rgba(201,180,140,.3);padding-bottom:3px}
 .gate-story:hover{color:#f0d9a6;opacity:1}
+/* 章セレクト盤 */
+#chapterSelect{position:fixed;inset:0;z-index:86;display:none;flex-direction:column;align-items:center;justify-content:center;gap:13px;
+  background:radial-gradient(ellipse at 50% 38%,rgba(30,24,17,.95),rgba(11,9,6,.99));font-family:"Shippori Mincho",serif;color:#efe6d4;padding:24px}
+#chapterSelect.open{display:flex}
+#chapterSelect .cs-title{font-size:clamp(20px,3.4vw,30px);letter-spacing:.12em;color:#f0d9a6}
+#chapterSelect .cs-sub{font-size:.82rem;opacity:.7;margin-bottom:2px}
+#chapterSelect .cs-list{display:flex;flex-direction:column;gap:8px;width:min(460px,92vw);max-height:52vh;overflow:auto}
+.cs-item{display:flex;align-items:center;gap:12px;padding:11px 16px;border-radius:10px;border:1px solid rgba(201,180,140,.3);
+  background:rgba(240,225,190,.05);cursor:pointer;transition:.2s;text-align:left;font-size:.95rem;color:#efe6d4;font-family:"Shippori Mincho",serif}
+.cs-item:hover:not(.locked){background:rgba(240,200,120,.13);border-color:rgba(240,200,120,.5)}
+.cs-item.locked{opacity:.4;cursor:not-allowed}
+.cs-item .cs-no{color:#c9b98a;font-size:.8rem;min-width:1.6em}
+.cs-item .cs-mark{margin-left:auto;font-size:.9rem;opacity:.85}
+.cs-actions{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;justify-content:center}
+.cs-actions button{font-family:"Shippori Mincho",serif;padding:9px 20px;border-radius:99px;background:rgba(240,225,190,.08);
+  border:1px solid rgba(201,180,140,.4);color:#efe6d4;cursor:pointer;font-size:.9rem}
+.cs-actions button:hover{background:rgba(240,200,120,.14)}
+#chapterSelect .cs-credit{font-size:.62rem;opacity:.45;margin-top:8px;text-align:center;max-width:90vw}
 </style>
 </head>
 <body>
@@ -1040,6 +1058,19 @@ body.story-investigate #fragBar{opacity:1}
   <span class="gate-enter">中へ入る</span>
   <span class="gate-sub">enter the hollow</span>
   <span class="gate-story" id="storyStartGate" role="button" tabindex="0">✦ 小屋の謎をとく · a tale to unravel</span>
+</div>
+
+<!-- ════ 物語 章セレクト＋セーブ ════ -->
+<div id="chapterSelect" hidden>
+  <div class="cs-title">灯を継ぐもの ―七つの夜―</div>
+  <div class="cs-sub" id="csProgress"></div>
+  <div class="cs-list" id="csList"></div>
+  <div class="cs-actions">
+    <button type="button" id="csResume">つづきから</button>
+    <button type="button" id="csRestart">最初から</button>
+    <button type="button" id="csClose">とじる</button>
+  </div>
+  <div class="cs-credit">♪ 物語音楽: 君の音。(真島こころ)『映画風ピアノ音楽素材集 vol.2 水のうつろい』</div>
 </div>
 
 <!-- ════ hidden engine: drives the existing timer / ambient / i18n ════ -->
@@ -3035,13 +3066,31 @@ else {
 
   /* ── 起動配線（ゲート & HUD の物語ボタン）── */
   (function wireStory(){
-    function launch(){ let s=null; try{ s=JSON.parse(localStorage.getItem('cabin_story')||'null'); }catch(e){}
-      if(s && !s.cleared && (s.ch>0 || s.beat>0)) window.CabinStory.resume(); else window.CabinStory.start(true); }
+    const CH_TITLES=['一章 灯る','二章 蒼のかけら','三章 蒼の夜','四章 灯里のかけら','五章 灯里の夜','六章 秘密','七章 継ぐ'];
+    const NUM=['①','②','③','④','⑤','⑥','⑦'];
+    function closeCS(){ const cs=$('#chapterSelect'); if(cs){ cs.classList.remove('open'); cs.hidden=true; } }
+    function openChapterSelect(){ const S=window.CabinStory; if(!S) return;
+      S._load(); const st=S._state(); const list=$('#csList'); if(!list) return; list.innerHTML='';
+      const maxu = st.cleared?6:(st.unlocked||0);
+      CH_TITLES.forEach((tt,i)=>{ const it=document.createElement('button'); it.type='button'; it.className='cs-item'+(i>maxu?' locked':'');
+        const mark = st.cleared?'✓' : (i<st.ch?'✓' : (i===st.ch?'▸' : (i>maxu?'🔒':'')));
+        it.innerHTML='<span class="cs-no">'+NUM[i]+'</span><span>'+tt+'</span><span class="cs-mark">'+mark+'</span>';
+        if(i<=maxu) it.addEventListener('click',()=>{ closeCS(); S.jumpChapter(i,0); });
+        list.appendChild(it); });
+      const hasProg=(st.ch>0||st.beat>0)&&!st.cleared;
+      $('#csProgress').textContent = st.cleared ? ('物語を見届けた · あなたが灯した灯 '+st.lit) : (hasProg ? ('つづき: '+CH_TITLES[st.ch]+' ・ 灯 '+st.lit) : 'はじまりの、雪の夜へ');
+      const rb=$('#csResume'); if(rb) rb.style.display = hasProg ? '' : 'none';
+      const cs=$('#chapterSelect'); cs.hidden=false; cs.classList.add('open');
+    }
+    window.__openChapterSelect=openChapterSelect;
     const gate=$('#storyStartGate');
-    gate && gate.addEventListener('click', e=>{ e.stopPropagation(); $('#enterGate') && $('#enterGate').classList.add('gone'); launch(); });
-    gate && gate.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); $('#enterGate') && $('#enterGate').classList.add('gone'); launch(); } });
+    gate && gate.addEventListener('click', e=>{ e.stopPropagation(); openChapterSelect(); });
+    gate && gate.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); openChapterSelect(); } });
     const hb=$('#storyStart');
-    hb && hb.addEventListener('click', e=>{ e.stopPropagation(); launch(); });
+    hb && hb.addEventListener('click', e=>{ e.stopPropagation(); openChapterSelect(); });
+    $('#csResume') && $('#csResume').addEventListener('click', e=>{ e.stopPropagation(); closeCS(); window.CabinStory.resume(); });
+    $('#csRestart') && $('#csRestart').addEventListener('click', e=>{ e.stopPropagation(); closeCS(); window.CabinStory.start(true); });
+    $('#csClose') && $('#csClose').addEventListener('click', e=>{ e.stopPropagation(); closeCS(); });
   })();
 
   // swap ambience when stepping out / back in: hush the hearth, bring in the night forest
