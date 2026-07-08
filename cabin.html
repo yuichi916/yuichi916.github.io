@@ -911,9 +911,18 @@ body.story-investigate #fragBar{opacity:1}
 .cs-item{display:flex;align-items:center;gap:12px;padding:11px 16px;border-radius:10px;border:1px solid rgba(201,180,140,.3);
   background:rgba(240,225,190,.05);cursor:pointer;transition:.2s;text-align:left;font-size:.95rem;color:#efe6d4;font-family:"Shippori Mincho",serif}
 .cs-item:hover:not(.locked){background:rgba(240,200,120,.13);border-color:rgba(240,200,120,.5)}
-.cs-item.locked{opacity:.4;cursor:not-allowed}
+.cs-item.locked{opacity:.34;cursor:not-allowed;filter:grayscale(.5)}
+.cs-item.locked .cs-tt{letter-spacing:.3em;color:#9a917f}
+.cs-item.cs-new{border-color:rgba(240,200,120,.55);background:rgba(240,200,120,.10)}
+.cs-item.cs-new .cs-mark{color:#f4cf7a;opacity:1;text-shadow:0 0 8px rgba(244,207,122,.6)}
 .cs-item .cs-no{color:#c9b98a;font-size:.8rem;min-width:1.6em}
+.cs-item .cs-tt{flex:1}
 .cs-item .cs-mark{margin-left:auto;font-size:.9rem;opacity:.85}
+#chapterSelect .cs-ends{font-size:.74rem;opacity:.9;margin-top:4px}
+#chapterSelect .cs-ends .cs-on{color:#f0d9a6}
+#chapterSelect .cs-ends .cs-off{color:#8f8779;opacity:.55;font-weight:400}
+#chapterSelect .cs-hint-new{font-size:.72rem;color:#f4cf7a;opacity:.9;margin-top:3px}
+#chapterSelect .cs-legend{font-size:.64rem;opacity:.5;margin-top:4px;letter-spacing:.04em}
 .cs-actions{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;justify-content:center}
 .cs-actions button{font-family:"Shippori Mincho",serif;padding:9px 20px;border-radius:99px;background:rgba(240,225,190,.08);
   border:1px solid rgba(201,180,140,.4);color:#efe6d4;cursor:pointer;font-size:.9rem}
@@ -1062,7 +1071,7 @@ body.story-investigate #fragBar{opacity:1}
 
 <!-- ════ 物語 章セレクト＋セーブ ════ -->
 <div id="chapterSelect" hidden>
-  <div class="cs-title">灯を継ぐもの ―七つの夜―</div>
+  <div class="cs-title">灯を継ぐもの ―幾夜の噓―</div>
   <div class="cs-sub" id="csProgress"></div>
   <div class="cs-list" id="csList"></div>
   <div class="cs-actions">
@@ -2966,7 +2975,7 @@ else {
         '窓の外。……雪が、おかしい。同じ夜が、ずっと続いている。空が、一度も、明けない。',
         '窓の外は、あなたが歩いてきた夜ではない。もう、何十年も過ぎている。あなたが知っていた世界は、とうに、無くなっている。' ],
     };
-    let st={ch:0, beat:0, lit:0, fragments:{}, unlocked:0, cleared:false, loops:0, ending:''};
+    let st={ch:0, beat:0, lit:0, fragments:{}, unlocked:0, cleared:false, loops:0, ending:'', seen:0, seenTruth:{}};
     let cur=null, stack=[], locked=false, inv=null;
     function truthLevel(){ return Math.max(0, Math.min(2, st.loops||0)); }
     function beatVisible(b){ if(!b || b.loop==null) return true; const T=truthLevel();
@@ -2979,7 +2988,10 @@ else {
     function _load(){ try{ const s=JSON.parse(localStorage.getItem(LS)||'null');
       if(s&&s.ch!=null){ st={ ch:s.ch||0, beat:s.beat||0, lit:s.lit||0,
         fragments:s.fragments||{}, unlocked:(s.unlocked!=null?s.unlocked:(s.ch||0)), cleared:!!s.cleared,
-        loops:s.loops||0, ending:s.ending||'' }; } }catch(e){} return st; }
+        loops:s.loops||0, ending:s.ending||'',
+        seen:(s.seen!=null?s.seen:(s.cleared?11:(s.unlocked||s.ch||0))), seenTruth:s.seenTruth||{} }; } }catch(e){} return st; }
+    function markSeen(){ st.seen=Math.max(st.seen||0, st.ch); if(!st.seenTruth) st.seenTruth={};
+      st.seenTruth[st.ch]=Math.max(st.seenTruth[st.ch]||0, truthLevel()); }
 
     function setBGM(file){ const a=el('story-bgm'); if(!a) return;
       if(a.dataset.file===file) return; a.dataset.file=file; a.src='assets/bgm/'+file; a.volume=0.42; a.play().catch(()=>{}); }
@@ -3080,8 +3092,8 @@ else {
       if(st.ch < CH.length-1){ st.ch++; st.beat=0; st.unlocked=Math.max(st.unlocked||0, st.ch); _save(); startChapter(); }
       else { if(window._storyEnding) window._storyEnding(st.lit); }
     }
-    function startChapter(){ st.unlocked=Math.max(st.unlocked||0, st.ch); const c=STORY[CH[st.ch]]; setBGM(c.bgm); cur={beats:c.beats, i:st.beat||0}; stack=[]; locked=false; inv=null; document.body.classList.remove('story-investigate'); step(); }
-    function start(fresh){ if(fresh){ const lp=st.loops||0, ed=st.ending||''; st={ch:0,beat:0,lit:0,fragments:{},unlocked:0,cleared:false,loops:lp,ending:ed}; _save(); } open(); startChapter(); }
+    function startChapter(){ st.unlocked=Math.max(st.unlocked||0, st.ch); markSeen(); const c=STORY[CH[st.ch]]; setBGM(c.bgm); cur={beats:c.beats, i:st.beat||0}; stack=[]; locked=false; inv=null; document.body.classList.remove('story-investigate'); _save(); step(); }
+    function start(fresh){ if(fresh){ const lp=st.loops||0, ed=st.ending||'', sn=st.seen||0, stt=st.seenTruth||{}; st={ch:0,beat:0,lit:0,fragments:{},unlocked:0,cleared:false,loops:lp,ending:ed,seen:sn,seenTruth:stt}; _save(); } open(); startChapter(); }
     function resume(){ _load(); open(); startChapter(); }
     function jumpChapter(idx, fromBeat){ st.ch=idx; st.beat=fromBeat||0; st.unlocked=Math.max(st.unlocked||0, idx); _save(); open(); startChapter(); }
 
@@ -3178,16 +3190,35 @@ else {
     function closeCS(){ const cs=$('#chapterSelect'); if(cs){ cs.classList.remove('open'); cs.hidden=true; } }
     function openChapterSelect(){ const S=window.CabinStory; if(!S) return;
       S._load(); const st=S._state(); const list=$('#csList'); if(!list) return; list.innerHTML='';
-      const maxu = st.cleared?(CH_TITLES.length-1):(st.unlocked||0);
-      CH_TITLES.forEach((tt,i)=>{ const it=document.createElement('button'); it.type='button'; it.className='cs-item'+(i>maxu?' locked':'');
-        const mark = st.cleared?'✓' : (i<st.ch?'✓' : (i===st.ch?'▸' : (i>maxu?'🔒':'')));
-        const label = (i<=maxu)? tt : '？？？';           // 未到達の章題は伏せる（真相を先出ししない）
-        it.innerHTML='<span class="cs-no">'+NUM[i]+'</span><span>'+label+'</span><span class="cs-mark">'+mark+'</span>';
-        if(i<=maxu) it.addEventListener('click',()=>{ closeCS(); S.jumpChapter(i,0); });
-        list.appendChild(it); });
+      const T=(S.truthLevel?S.truthLevel():0), seenTruth=st.seenTruth||{};
+      const seen = (st.seen!=null?st.seen:(st.cleared?11:(st.unlocked||0)));   // 到達済みの最大章＝選べる範囲
       const hasProg=(st.ch>0||st.beat>0)&&!st.cleared;
-      const loopNote = (st.loops>0)? ('　◇ 周回 '+st.loops+(st.ending?('・見た結末「'+(ENDNAME[st.ending]||st.ending)+'」'):'')) : '';
-      $('#csProgress').textContent = (st.cleared ? ('一度、見届けた物語'+loopNote) : (hasProg ? ('つづき: '+CH_TITLES[st.ch]+' ・ 灯 '+st.lit) : 'はじまりの、雪の夜へ')) + (!st.cleared?loopNote:'');
+      CH_TITLES.forEach((tt,i)=>{
+        const available = i<=seen;                                   // 未到達(未開放)の章は選べない
+        const it=document.createElement('button'); it.type='button';
+        const isNew = available && (T > (seenTruth[i]||0));           // この周回で新たな真実がある章
+        it.className='cs-item'+(available?'':' locked')+(isNew?' cs-new':'');
+        it.setAttribute('aria-disabled', available?'false':'true');
+        let mark='🔒';
+        if(available) mark = (hasProg && i===st.ch) ? '▸' : (isNew ? '◆' : '✓');
+        const label = available ? tt : '？？？';                       // 未到達の章題は伏せる
+        it.innerHTML='<span class="cs-no">'+NUM[i]+'</span><span class="cs-tt">'+label+'</span><span class="cs-mark" title="'+(available?(isNew?'新たな真実':(mark==='▸'?'つづき':'既読')):'未踏')+'">'+mark+'</span>';
+        if(available) it.addEventListener('click',()=>{ closeCS(); S.jumpChapter(i,0); });
+        list.appendChild(it);
+      });
+      // 進行・周回・解放された結末・凡例
+      const loops=st.loops||0;
+      const endCell=(name,ok,cond)=> ok? ('<b class="cs-on">'+name+'</b>') : ('<span class="cs-off">'+name+'（'+cond+'）</span>');
+      const endsHtml = endCell('継ぐ',true,'') +'　'+ endCell('去る',loops>=1,'周回2で解放') +'　'+ endCell('消す',loops>=2,'周回3で解放');
+      const loopNote = (loops>0)? ('周回 '+loops+(st.ending?('・見た結末「'+(ENDNAME[st.ending]||st.ending)+'」'):'')) : '';
+      const head = st.cleared ? ('一度、見届けた物語　'+loopNote)
+                 : hasProg ? ('つづき: '+CH_TITLES[st.ch]+' ・ 灯 '+st.lit+(loopNote?('　'+loopNote):''))
+                 : ('はじまりの、雪の夜へ'+(loopNote?('　'+loopNote):''));
+      const newCount = CH_TITLES.reduce((a,_,i)=> a + ((i<=seen && T>(seenTruth[i]||0))?1:0), 0);
+      $('#csProgress').innerHTML = '<div>'+head+'</div>'
+        + '<div class="cs-ends">解放された結末 ― '+endsHtml+'</div>'
+        + (newCount? '<div class="cs-hint-new">◆ 新たな真実がひらいた章が '+newCount+' つ。もう一度、たどってみて。</div>' : '')
+        + '<div class="cs-legend">🔒 未踏　▸ つづき　◆ 新たな真実　✓ 既読</div>';
       const rb=$('#csResume'); if(rb) rb.style.display = hasProg ? '' : 'none';
       const cs=$('#chapterSelect'); cs.hidden=false; cs.classList.add('open');
     }
