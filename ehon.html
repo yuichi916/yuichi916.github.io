@@ -1071,7 +1071,7 @@ const EHON = {
       document.getElementById('world-a').classList.remove('closed');
       document.getElementById('world-a').classList.add('popped');
     }
-    if (this.state.mode === 'b' && window.popWorldB) window.popWorldB();
+    if (this.state.mode === 'b') { if (window.openBookThenPop) window.openBookThenPop(); else if (window.popWorldB) window.popWorldB(); }
   },
   setMode(m) {
     this.state.mode = m;
@@ -1803,9 +1803,9 @@ async function ensureBook3D(camPos) {
       const mas = mGltf.scene;
       const mb = new THREE.Box3().setFromObject(mas);
       const msz = mb.getSize(new THREE.Vector3());
-      mas.scale.setScalar(5.6 / Math.max(0.001, msz.y));   /* 大きめに見せる */
-      mas.position.set(3.1, 0, 5.7);   /* 本の右手前・中央寄り (よく見える位置) */
-      mas.rotation.y = -0.66;   /* 本と読者のあいだを向く */
+      mas.scale.setScalar(3.5 / Math.max(0.001, msz.y));   /* 控えめのサイズ (目立たせない) */
+      mas.position.set(4.9, 0, -3.0);   /* 本の右奥のすみに、後ろへ控える (世界の脇からそっと) */
+      mas.rotation.y = 2.7;   /* 後ろから、本と読者の方をゆるく向く */
       mas.traverse(n => { if (n.isMesh) n.userData._isMascot = true; });
       V.mascot = mas;
       bookGrp.add(mas);
@@ -1817,9 +1817,9 @@ async function ensureBook3D(camPos) {
       const boy = bGltf.scene;
       const bbx = new THREE.Box3().setFromObject(boy);
       const bsz = bbx.getSize(new THREE.Vector3());
-      boy.scale.setScalar(5.6 / Math.max(0.001, bsz.y));
-      boy.position.set(-3.1, 0, 5.7);   /* 本の左手前 */
-      boy.rotation.y = 0.66;            /* 本と読者のあいだを向く */
+      boy.scale.setScalar(3.5 / Math.max(0.001, bsz.y));
+      boy.position.set(-4.9, 0, -3.0);   /* 本の左奥のすみに、後ろへ控える (世界の脇からそっと) */
+      boy.rotation.y = -2.7;             /* 後ろから、本と読者の方をゆるく向く */
       boy.traverse(n => { if (n.isMesh) n.userData._isMascot = true; });
       V.boy = boy;
       bookGrp.add(boy);
@@ -2089,6 +2089,23 @@ window.bootWorldB = async function () {
       if (k < 1) requestAnimationFrame(pop);
     })();
   };
+};
+
+/* ------ 本が「ひらく」ひと呼吸を置いてから、世界を飛び出させる ------ */
+window.openBookThenPop = function () {
+  const v = V;
+  /* ページ面がふわっと開くように、わずかに持ち上がって落ち着く（本が開く合図）*/
+  if (v && v.spreadPlane) {
+    const sp = v.spreadPlane; const baseY = sp.position.y; const t0 = performance.now();
+    (function bloom() {
+      const k = Math.min(1, (performance.now() - t0) / 640);
+      const e = 1 - Math.pow(1 - k, 3);
+      sp.position.y = baseY + 0.22 * Math.sin(e * Math.PI);
+      if (k < 1) requestAnimationFrame(bloom); else sp.position.y = baseY;
+    })();
+  }
+  /* 本が開ききってから、世界が飛び出す */
+  setTimeout(() => { if (window.popWorldB) window.popWorldB(); }, 820);
 };
 
 /* ------ mountBook3D: kept as no-op shim for any external callers -- */
