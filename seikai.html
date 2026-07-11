@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>正解の外側 ― サウンドノベル</title>
+<meta name="description" content="すべての正解が視える俺が、答えのない少女と世界を変えるまで。地下世界アビスを舞台にしたサウンドノベル。原作: kernel_yu。">
+<style>
+:root{
+  --ink:#e9edf2; --dim:#9fb0c2; --faint:#6b7a8c;
+  --kai:#9fd0ff; --rin:#e7e2f0; --haha:#f2c98a; --narr:#c8d4e0; --you:#bfe8d0; --sub:#f0d9a6;
+  --panel:rgba(10,14,22,.78); --panel2:rgba(14,20,30,.9);
+  --line:rgba(159,192,232,.22); --neon:#37e0d0; --neon2:#ff5c7a; --amber:#f4cf7a;
+  --serif:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+  --sans:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic UI",system-ui,sans-serif;
+  --mono:"SFMono-Regular",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#05070c;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;user-select:none}
+#stage{position:fixed;inset:0;overflow:hidden;cursor:pointer}
+img{-webkit-user-drag:none}
+
+/* ===== background layers (crossfade) ===== */
+.bg{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.1s ease;transform:scale(1.06);will-change:opacity}
+.bg.show{opacity:1}
+.bg.ken{animation:kenburns 24s ease-out both}
+@keyframes kenburns{from{transform:scale(1.06) translate(0,0)}to{transform:scale(1.14) translate(-1.5%,-1%)}}
+#vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 42%,transparent 40%,rgba(0,0,0,.55) 100%);z-index:5}
+#grain{position:absolute;inset:0;pointer-events:none;opacity:.05;z-index:6;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>")}
+
+/* ===== sprites ===== */
+#sprites{position:absolute;inset:0;z-index:8;pointer-events:none}
+.sprite{position:absolute;bottom:-2%;height:92%;width:auto;opacity:0;filter:brightness(.5) saturate(.85);
+  transition:opacity .5s ease,filter .45s ease,transform .5s cubic-bezier(.2,.7,.2,1);will-change:opacity,transform,filter}
+.sprite.on{opacity:1}
+.sprite.left{left:2%;transform:translateX(-6%)}
+.sprite.center{left:50%;transform:translateX(-50%) translateY(2%)}
+.sprite.right{right:2%;transform:translateX(6%)}
+.sprite.on.left{transform:translateX(0)}
+.sprite.on.center{transform:translateX(-50%)}
+.sprite.on.right{transform:translateX(0)}
+.sprite.speaking{filter:brightness(1.04) saturate(1);z-index:2}
+.sprite.dim{filter:brightness(.42) saturate(.7) blur(.4px)}
+
+/* ===== dialogue ===== */
+#textwrap{position:absolute;left:0;right:0;bottom:0;z-index:12;padding:0 clamp(12px,4vw,80px) clamp(14px,3.5vh,42px)}
+#namebar{display:inline-flex;align-items:center;gap:10px;margin:0 0 -1px 10px;padding:7px 20px 6px;
+  background:linear-gradient(180deg,rgba(20,28,40,.94),rgba(12,18,28,.94));border:1px solid var(--line);border-bottom:none;
+  border-radius:10px 10px 0 0;font-family:var(--serif);font-size:clamp(15px,2vw,19px);letter-spacing:.06em;min-height:20px}
+#namebar::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--who,transparent);box-shadow:0 0 10px var(--who,transparent)}
+#namebar.empty{opacity:0}
+#tbox{background:var(--panel);border:1px solid var(--line);border-radius:4px 16px 16px 16px;
+  padding:clamp(16px,2.6vh,26px) clamp(20px,3vw,40px);backdrop-filter:blur(7px);box-shadow:0 -4px 40px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);
+  min-height:clamp(96px,15vh,150px);position:relative}
+#ttext{font-family:var(--serif);font-size:clamp(16px,2.15vw,21px);line-height:1.95;letter-spacing:.03em;color:var(--tcolor,var(--narr));
+  text-shadow:0 1px 8px rgba(0,0,0,.6);min-height:1.9em}
+#ttext.narr{font-style:italic;color:var(--narr);opacity:.94}
+#ttext .cursor{display:inline-block;width:.5em;color:var(--neon);animation:blink 1s steps(1) infinite;transform:translateY(1px)}
+@keyframes blink{50%{opacity:0}}
+#adv{position:absolute;right:16px;bottom:12px;font-family:var(--mono);font-size:11px;color:var(--faint);opacity:.7;animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-3px)}}
+#adv.hide{opacity:0}
+
+/* choices */
+#choices{position:absolute;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:radial-gradient(ellipse at 50% 45%,rgba(4,8,14,.6),rgba(4,8,14,.86));backdrop-filter:blur(3px)}
+#choices.show{display:flex}
+.choice{font-family:var(--serif);font-size:clamp(15px,2vw,19px);color:var(--ink);background:linear-gradient(180deg,rgba(22,32,46,.9),rgba(14,20,30,.92));
+  border:1px solid var(--line);border-left:2px solid var(--neon);padding:15px 34px;border-radius:8px;cursor:pointer;min-width:min(560px,86vw);text-align:center;
+  transition:.18s;letter-spacing:.03em}
+.choice:hover{background:linear-gradient(180deg,rgba(40,60,84,.95),rgba(24,36,52,.95));border-left-color:var(--neon2);transform:translateY(-2px);box-shadow:0 6px 24px rgba(55,224,208,.15)}
+
+/* ===== scene / chapter card ===== */
+#scard{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  background:radial-gradient(ellipse at 50% 45%,rgba(6,9,16,.86),rgba(2,3,7,.97));opacity:0;visibility:hidden;transition:opacity 1s;text-align:center;padding:24px}
+#scard.show{opacity:1;visibility:visible}
+#scard .rule{width:50px;height:1px;background:linear-gradient(90deg,transparent,var(--neon),transparent);opacity:0;transition:opacity 1.2s .2s}
+#scard .no{font-family:var(--mono);font-size:clamp(12px,1.8vw,15px);letter-spacing:.5em;color:var(--neon);text-indent:.5em;opacity:0;transform:translateY(8px);transition:all 1.1s .25s}
+#scard .ttl{font-family:var(--serif);font-size:clamp(30px,6vw,60px);letter-spacing:.14em;text-indent:.14em;color:#eaf2ff;opacity:0;transform:translateY(10px);transition:all 1.2s .5s;text-shadow:0 0 40px rgba(55,224,208,.25)}
+#scard .sb{font-family:var(--serif);font-size:clamp(13px,2vw,17px);color:var(--dim);opacity:0;max-width:min(600px,90vw);line-height:2;transform:translateY(8px);transition:all 1.2s .9s}
+#scard.show .rule,#scard.show .no,#scard.show .ttl,#scard.show .sb{opacity:1;transform:none}
+
+/* ===== HUD controls ===== */
+#hud{position:absolute;top:0;right:0;z-index:14;display:flex;gap:4px;padding:12px 14px}
+.hbtn{font-family:var(--sans);font-size:12px;letter-spacing:.08em;color:var(--dim);background:rgba(10,16,24,.6);border:1px solid var(--line);
+  border-radius:7px;padding:7px 12px;cursor:pointer;transition:.15s;backdrop-filter:blur(4px)}
+.hbtn:hover{color:var(--ink);border-color:var(--neon);background:rgba(20,32,46,.7)}
+.hbtn.act{color:#04121a;background:var(--neon);border-color:var(--neon);font-weight:700}
+
+/* backlog */
+#backlog{position:absolute;inset:0;z-index:40;display:none;background:rgba(3,6,11,.94);backdrop-filter:blur(6px);padding:5vh 0}
+#backlog.show{display:block}
+#blinner{max-width:820px;margin:0 auto;height:90vh;overflow-y:auto;padding:0 24px}
+#blinner h3{font-family:var(--serif);color:var(--sub);font-size:16px;letter-spacing:.1em;margin-bottom:18px;text-align:center;position:sticky;top:0;background:linear-gradient(rgba(3,6,11,.95),transparent);padding:6px 0 14px}
+.blrow{margin:0 0 14px;font-family:var(--serif);line-height:1.8;font-size:15px}
+.blrow .bn{font-size:12px;color:var(--who,var(--faint));letter-spacing:.08em;display:block;margin-bottom:2px}
+.blrow .bt{color:var(--ink)}
+.blrow.narr .bt{font-style:italic;color:var(--dim)}
+#blclose{position:absolute;top:14px;right:18px;z-index:41}
+
+/* settings */
+#settings{position:absolute;inset:0;z-index:42;display:none;align-items:center;justify-content:center;background:rgba(3,6,11,.9);backdrop-filter:blur(6px)}
+#settings.show{display:flex}
+.setpanel{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:26px 30px;width:min(440px,92vw);font-size:14px}
+.setpanel h3{font-family:var(--serif);color:var(--sub);letter-spacing:.1em;margin-bottom:18px;font-size:18px}
+.setrow{display:flex;align-items:center;gap:14px;margin:14px 0}
+.setrow label{flex:0 0 120px;color:var(--dim)}
+.setrow input[type=range]{flex:1;accent-color:var(--neon)}
+.setrow .val{flex:0 0 44px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--faint)}
+.setrow.seg{gap:8px}
+.segbtn{flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--dim);cursor:pointer;font-size:13px}
+.segbtn.on{background:var(--neon);color:#04121a;border-color:var(--neon);font-weight:700}
+
+/* ===== title screen ===== */
+#title{position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 30%,#0b1420,#05070c 70%);text-align:center;padding:24px;transition:opacity 1s}
+#title.gone{opacity:0;visibility:hidden;pointer-events:none}
+#title .tembers{position:absolute;inset:0;pointer-events:none;opacity:.5;background:
+  radial-gradient(2px 2px at 20% 40%,rgba(55,224,208,.5),transparent),
+  radial-gradient(1.5px 1.5px at 75% 25%,rgba(255,92,122,.4),transparent),
+  radial-gradient(1.5px 1.5px at 55% 70%,rgba(159,208,255,.4),transparent),
+  radial-gradient(2px 2px at 85% 60%,rgba(55,224,208,.35),transparent)}
+#title .eye{font-family:var(--mono);font-size:12px;letter-spacing:.4em;color:var(--neon);text-indent:.4em;margin-bottom:18px;z-index:2}
+#title h1{font-family:var(--serif);font-size:clamp(34px,7vw,74px);letter-spacing:.1em;color:#eaf2ff;line-height:1.15;z-index:2;text-shadow:0 0 50px rgba(55,224,208,.3)}
+#title .sub{font-family:var(--serif);font-size:clamp(13px,2.2vw,18px);color:var(--dim);margin-top:16px;letter-spacing:.14em;z-index:2;max-width:min(680px,92vw)}
+#title .menu{display:flex;flex-direction:column;gap:12px;margin-top:44px;z-index:2}
+#title .menu button{font-family:var(--serif);font-size:clamp(15px,2vw,18px);letter-spacing:.14em;color:var(--ink);
+  background:transparent;border:1px solid var(--line);border-radius:99px;padding:12px 40px;cursor:pointer;transition:.2s;min-width:240px}
+#title .menu button:hover{border-color:var(--neon);color:#eaf6ff;box-shadow:0 0 24px rgba(55,224,208,.2);background:rgba(55,224,208,.06)}
+#title .menu button:disabled{opacity:.35;cursor:not-allowed}
+#title .cred{position:absolute;bottom:18px;font-size:11px;color:var(--faint);z-index:2;letter-spacing:.06em;line-height:1.7;padding:0 16px}
+
+/* fx overlays */
+#flash{position:absolute;inset:0;z-index:50;background:#fff;opacity:0;pointer-events:none}
+#fade{position:absolute;inset:0;z-index:48;background:#000;opacity:0;pointer-events:none;transition:opacity .8s}
+#fade.black{opacity:1}
+.shake{animation:shake .5s cubic-bezier(.36,.07,.19,.97) both}
+@keyframes shake{10%,90%{transform:translate(-1px,0)}20%,80%{transform:translate(3px,-2px)}30%,50%,70%{transform:translate(-6px,3px)}40%,60%{transform:translate(6px,-1px)}}
+#stage.sepia .bg{filter:sepia(.55) contrast(1.05) brightness(.85) saturate(.7)}
+#pline{position:absolute;inset:0;z-index:9;pointer-events:none;opacity:0;transition:opacity .5s;
+  background:linear-gradient(115deg,transparent 44%,rgba(244,207,122,.5) 49%,rgba(255,240,190,.9) 50%,rgba(244,207,122,.5) 51%,transparent 56%);
+  mix-blend-mode:screen;filter:blur(.3px)}
+#pline.show{opacity:.85;animation:plmove 1.4s ease-out}
+@keyframes plmove{from{background-position:-30% 0}to{background-position:30% 0}}
+@media (prefers-reduced-motion: reduce){.bg,.sprite,#scard,.bg.ken{transition-duration:.2s;animation:none!important}}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="bg" id="bg0"></div>
+  <div class="bg" id="bg1"></div>
+  <div id="vignette"></div>
+  <div id="pline"></div>
+  <div id="grain"></div>
+  <div id="sprites"></div>
+
+  <div id="hud">
+    <button class="hbtn" id="btnAuto" title="オート">AUTO</button>
+    <button class="hbtn" id="btnSkip" title="スキップ(既読)">SKIP</button>
+    <button class="hbtn" id="btnLog" title="バックログ">LOG</button>
+    <button class="hbtn" id="btnSave" title="セーブ">SAVE</button>
+    <button class="hbtn" id="btnSet" title="設定">⚙</button>
+    <button class="hbtn" id="btnTitle" title="タイトルへ">▮▮</button>
+  </div>
+
+  <div id="textwrap">
+    <div id="namebar" class="empty"><span id="nm"></span></div>
+    <div id="tbox">
+      <div id="ttext"></div>
+      <div id="adv">▸ クリック / Space</div>
+    </div>
+  </div>
+
+  <div id="choices"></div>
+  <div id="scard"><div class="rule"></div><div class="no" id="scNo"></div><div class="ttl" id="scTtl"></div><div class="sb" id="scSub"></div><div class="rule"></div></div>
+  <div id="flash"></div>
+  <div id="fade"></div>
+
+  <div id="backlog"><button class="hbtn" id="blclose">✕ 閉じる</button><div id="blinner"><h3>― バックログ ―</h3><div id="bllist"></div></div></div>
+  <div id="settings"><div class="setpanel"><h3>設定</h3>
+    <div class="setrow"><label>文字速度</label><input type="range" id="setSpeed" min="0" max="100" value="60"><span class="val" id="vSpeed"></span></div>
+    <div class="setrow"><label>オート速度</label><input type="range" id="setAuto" min="0" max="100" value="50"><span class="val" id="vAuto"></span></div>
+    <div class="setrow"><label>BGM音量</label><input type="range" id="setBgm" min="0" max="100" value="70"><span class="val" id="vBgm"></span></div>
+    <div class="setrow"><label>効果音音量</label><input type="range" id="setSe" min="0" max="100" value="80"><span class="val" id="vSe"></span></div>
+    <div class="setrow"><label>環境音</label><input type="range" id="setAmb" min="0" max="100" value="55"><span class="val" id="vAmb"></span></div>
+    <div style="text-align:right;margin-top:20px"><button class="hbtn" id="setClose">閉じる</button></div>
+  </div></div>
+
+  <div id="title">
+    <div class="tembers"></div>
+    <div class="eye">A SOUND NOVEL</div>
+    <h1>正解の外側</h1>
+    <div class="sub">すべての正解が視える俺が、<br>答えのない少女と世界を変えるまで</div>
+    <div class="menu">
+      <button id="tStart">はじめから</button>
+      <button id="tCont" disabled>つづきから</button>
+      <button id="tScene" disabled>シーン選択</button>
+    </div>
+    <div class="cred">原作: kernel_yu ／ Music: 君の音。(真島こころ)『ピアノ音楽素材集 vol.7 ～シリアス・ダーク～』<br>Background: KitBash3D Future Slums 2 ／ Art: Stable Diffusion によるオリジナル生成</div>
+  </div>
+</div>
+
+<audio id="bgmA" loop></audio>
+<audio id="bgmB" loop></audio>
+<audio id="amb" loop></audio>
+
+<script>
+"use strict";
+/* ============ 正解の外側 ― Sound Novel Engine ============ */
+const A='assets/seikai/';
+/* 登場人物: 立ち絵ベース名と名前・色 */
+const CHARS={
+  kai:{name:'カイ', color:'var(--kai)', file:'cg-kai', expr:['surprised','pained','soft']},
+  rin:{name:'リーン', color:'var(--rin)', file:'cg-rin', expr:['flat','unease','sharp']},
+  haha:{name:'母', color:'var(--haha)', file:null, expr:[]},
+  potz:{name:'ポッツ', color:'#c9b48a', file:null, expr:[]},
+  della:{name:'デッラ', color:'#e08a6a', file:null, expr:[]},
+  jin:{name:'ジン', color:'#a8c0b0', file:null, expr:[]},
+  narr:{name:'', color:'transparent', file:null, expr:[]},
+  you:{name:'', color:'var(--you)', file:null, expr:[]},
+};
+/* 背景: CSS グラデ（実画像 assets/seikai/bg-*.jpg があれば差し替え） */
+const BGS={
+  void:  {grad:'radial-gradient(ellipse at 50% 40%,#0a1a22,#04060a 75%)'},
+  collapse:{grad:'linear-gradient(180deg,#1a0e0a,#0a0604),radial-gradient(circle at 60% 30%,rgba(240,120,60,.25),transparent 50%)'},
+  hideout:{grad:'linear-gradient(180deg,#0a1016,#060a0e),radial-gradient(circle at 30% 60%,rgba(60,90,110,.18),transparent 55%)'},
+  hall:   {grad:'linear-gradient(180deg,#0c1118,#070b10),radial-gradient(circle at 50% 80%,rgba(80,60,40,.16),transparent 60%)'},
+  waste:  {grad:'linear-gradient(180deg,#0e1410,#070c0a),radial-gradient(circle at 40% 50%,rgba(90,140,90,.14),transparent 55%)'},
+  ration: {grad:'linear-gradient(180deg,#0d1016,#08090e)'},
+  slum:   {grad:'linear-gradient(180deg,#0a1420,#05080e),radial-gradient(circle at 70% 40%,rgba(55,224,208,.14),transparent 45%),radial-gradient(circle at 20% 60%,rgba(255,92,122,.1),transparent 45%)'},
+  dream:  {grad:'radial-gradient(ellipse at 50% 45%,#0a1626,#04060c 75%),radial-gradient(circle at 50% 45%,rgba(120,180,240,.12),transparent 45%)'},
+};
+/* BGM ファイル */
+const BGM={ima:'seikai-ima',anohi:'seikai-anohi',hibi:'seikai-hibi',bikou:'seikai-bikou',rekishi:'seikai-rekishi',
+  timelimit:'seikai-timelimit',yami:'seikai-yami',yuki:'seikai-yuki',haikyo:'seikai-haikyo',ed:'seikai-ed'};
+
+/* SCRIPT は seikai-ep1.js で window.SEIKAI_SCRIPT に定義（分割ロード） */
+const SCRIPT = window.SEIKAI_SCRIPT || { ep1:{ title:'第一話', scenes:[] } };
+const EPS=['ep1'];
+
+/* ---------- 状態 ---------- */
+const el=id=>document.getElementById(id);
+let st={ ep:0, scene:0, beat:0, seen:{}, cleared:false, choices:{} };
+const LS='seikai_save';
+const cfg={ speed:60, auto:50, bgm:70, se:80, amb:55 };
+const CLS='seikai_cfg';
+function loadCfg(){ try{ const c=JSON.parse(localStorage.getItem(CLS)||'null'); if(c) Object.assign(cfg,c);}catch(e){} }
+function saveCfg(){ try{ localStorage.setItem(CLS, JSON.stringify(cfg)); }catch(e){} }
+function save(){ try{ localStorage.setItem(LS, JSON.stringify(st)); }catch(e){} }
+function load(){ try{ const s=JSON.parse(localStorage.getItem(LS)||'null'); if(s&&s.ep!=null){ st=Object.assign(st,s); return true; } }catch(e){} return false; }
+
+/* ---------- 背景 ---------- */
+let bgCur=0;
+function setBG(key){
+  const b=BGS[key]||BGS.void; const next=bgCur?el('bg0'):el('bg1'); const cur=bgCur?el('bg1'):el('bg0');
+  const img=new Image(); const url=A+'bg-'+key+'.jpg';
+  const apply=(bgval)=>{ next.style.background=bgval; next.style.backgroundSize='cover'; next.style.backgroundPosition='center';
+    next.classList.remove('ken'); void next.offsetWidth; next.classList.add('show','ken'); cur.classList.remove('show'); bgCur=bgCur?0:1; };
+  img.onload=()=>apply("url('"+url+"') center/cover"); img.onerror=()=>apply(b.grad); img.src=url;
+}
+
+/* ---------- 立ち絵 ---------- */
+const shown={}; // who -> {el,pos,expr}
+function spriteURL(who,expr){ const c=CHARS[who]; if(!c||!c.file) return null;
+  if(expr && c.expr.indexOf(expr)>=0) return A+c.file+'-'+expr+'.png'; return A+c.file+'.png'; }
+function showSprite(who,pos,expr){
+  const c=CHARS[who]; if(!c||!c.file) return;
+  let s=shown[who];
+  if(!s){ const img=document.createElement('img'); img.className='sprite '+(pos||'center'); img.alt=c.name;
+    img.onerror=()=>{img.style.display='none';}; el('sprites').appendChild(img); s={el:img,pos:pos||'center',expr:null}; shown[who]=s; }
+  s.el.className='sprite '+(pos||s.pos); s.pos=pos||s.pos;
+  const url=spriteURL(who,expr); if(url && s.el.getAttribute('src')!==url) s.el.setAttribute('src',url); s.expr=expr||null;
+  requestAnimationFrame(()=>s.el.classList.add('on'));
+}
+function hideSprite(who){ const s=shown[who]; if(s){ s.el.classList.remove('on'); const e=s.el; setTimeout(()=>{ e&&e.parentNode&&e.parentNode.removeChild(e); },500); delete shown[who]; } }
+function clearSprites(){ Object.keys(shown).forEach(hideSprite); }
+function setExpr(who,expr){ const s=shown[who]; if(!s) return; const url=spriteURL(who,expr); if(url&&s.el.getAttribute('src')!==url) s.el.setAttribute('src',url); s.expr=expr; }
+function speaking(who){ Object.keys(shown).forEach(k=>{ shown[k].el.classList.toggle('speaking',k===who); shown[k].el.classList.toggle('dim',who&&k!==who&&who!=='narr'&&who!=='you'); }); }
+
+/* ---------- 音 ---------- */
+let bgmCur='A', bgmKey=null;
+function playBGM(key){ if(key===bgmKey) return; bgmKey=key; const file=BGM[key]; if(!file) return;
+  const nEl=el('bgm'+(bgmCur==='A'?'B':'A')), cEl=el('bgm'+bgmCur);
+  nEl.src=A+'bgm/'+file+'.mp3'; nEl.volume=0; nEl.play().catch(()=>{});
+  const tgt=cfg.bgm/100*0.85; let k=0; const iv=setInterval(()=>{ k++; nEl.volume=Math.min(tgt,tgt*k/14); cEl.volume=Math.max(0,(cEl.volume||0)*(1-k/14)); if(k>=14){ clearInterval(iv); cEl.pause(); } },70);
+  bgmCur=bgmCur==='A'?'B':'A';
+}
+function stopBGM(){ ['bgmA','bgmB'].forEach(id=>{const a=el(id);a.pause();}); bgmKey=null; }
+/* 環境音 (procedural WebAudio: 低いハム＋ぱたぱた滴) */
+let actx,ambNodes=null;
+function ensureCtx(){ if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return actx; }
+function ambient(on){ const ctx=ensureCtx(); if(!ctx) return;
+  if(on && !ambNodes){ const g=ctx.createGain(); g.gain.value=cfg.amb/100*0.16; g.connect(ctx.destination);
+    const o1=ctx.createOscillator(); o1.type='sawtooth'; o1.frequency.value=42; const f=ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=120; const g1=ctx.createGain(); g1.gain.value=0.5; o1.connect(f); f.connect(g1); g1.connect(g); o1.start();
+    const o2=ctx.createOscillator(); o2.type='sine'; o2.frequency.value=63; const g2=ctx.createGain(); g2.gain.value=0.25; o2.connect(g2); g2.connect(g); o2.start();
+    ambNodes={g,o1,o2}; }
+  else if(!on && ambNodes){ try{ambNodes.o1.stop();ambNodes.o2.stop();}catch(e){} ambNodes=null; }
+  else if(ambNodes){ ambNodes.g.gain.value=cfg.amb/100*0.16; }
+}
+function se(kind){ const ctx=ensureCtx(); if(!ctx) return; const t=ctx.currentTime; const vol=cfg.se/100;
+  if(kind==='rubble'){ const b=ctx.createBufferSource(); const buf=ctx.createBuffer(1,ctx.sampleRate*0.6,ctx.sampleRate); const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2); b.buffer=buf; const f=ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=400; const g=ctx.createGain(); g.gain.value=0.9*vol; b.connect(f); f.connect(g); g.connect(ctx.destination); b.start(); }
+  else if(kind==='hit'){ const o=ctx.createOscillator(); o.type='square'; o.frequency.setValueAtTime(180,t); o.frequency.exponentialRampToValueAtTime(60,t+0.12); const g=ctx.createGain(); g.gain.setValueAtTime(0.4*vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.16); o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t+0.18); }
+  else if(kind==='power'){ const o=ctx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(900,t); o.frequency.exponentialRampToValueAtTime(1700,t+0.25); const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.12*vol,t+0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+0.4); o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t+0.42); }
+  else if(kind==='heart'){ const o=ctx.createOscillator(); o.type='sine'; o.frequency.value=55; const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.3*vol,t+0.04); g.gain.exponentialRampToValueAtTime(0.0001,t+0.5); o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t+0.5); }
+}
+
+/* ---------- fx ---------- */
+function fx(kind){
+  if(kind==='shake'){ el('stage').classList.remove('shake'); void el('stage').offsetWidth; el('stage').classList.add('shake'); se('rubble'); }
+  else if(kind==='flash'){ const f=el('flash'); f.style.transition='none'; f.style.opacity='.85'; requestAnimationFrame(()=>{ f.style.transition='opacity .5s'; f.style.opacity='0'; }); }
+  else if(kind==='pline'){ const p=el('pline'); p.classList.remove('show'); void p.offsetWidth; p.classList.add('show'); se('power'); setTimeout(()=>p.classList.remove('show'),1400); }
+  else if(kind==='sepia_on'){ el('stage').classList.add('sepia'); }
+  else if(kind==='sepia_off'){ el('stage').classList.remove('sepia'); }
+  else if(kind==='heart'){ se('heart'); }
+  else if(kind==='hit'){ se('hit'); el('stage').classList.add('shake'); setTimeout(()=>el('stage').classList.remove('shake'),500); }
+}
+
+/* ---------- タイプライタ ---------- */
+let typing=false, typeTimer=null, fullText='', shownLen=0, ttEl, curColor='var(--narr)';
+function typeStart(text,color,narr){
+  fullText=text; shownLen=0; typing=true; ttEl=el('ttext'); curColor=color;
+  ttEl.className=narr?'narr':''; ttEl.style.setProperty('--tcolor',color);
+  const speed=Math.max(4, 46-cfg.speed*0.42); // ms/char
+  clearInterval(typeTimer);
+  typeTimer=setInterval(()=>{
+    shownLen++; render();
+    if(shownLen>=fullText.length){ clearInterval(typeTimer); typing=false; render(); onLineDone(); }
+  }, speed);
+  render();
+  function render(){ ttEl.innerHTML= esc(fullText.slice(0,shownLen)) + (typing?'<span class="cursor">▍</span>':''); }
+}
+function typeFinish(){ if(!typing) return; clearInterval(typeTimer); shownLen=fullText.length; typing=false; el('ttext').innerHTML=esc(fullText); onLineDone(); }
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ---------- 進行 ---------- */
+let cur=null;         // {beats,i}
+let stack=[];         // choice reply 合流
+let locked=false;     // カード/fx 中
+let autoOn=false, skipOn=false, autoTimer=null;
+function curScenes(){ return (SCRIPT[EPS[st.ep]]||{scenes:[]}).scenes; }
+function curScene(){ return curScenes()[st.scene]; }
+
+function beatVisible(b){ if(!b) return false; return true; }
+function step(){
+  if(!cur) return;
+  while(true){
+    if(cur.i>=cur.beats.length){
+      if(stack.length){ cur=stack.pop(); continue; }
+      return nextScene();
+    }
+    const b=cur.beats[cur.i++];
+    if(!stack.length){ st.beat=cur.i; save(); }
+    if(b.bg){ setBG(b.bg); continue; }
+    if(b.bgm){ playBGM(b.bgm); continue; }
+    if(b.amb!=null){ ambient(!!b.amb); continue; }
+    if(b.se){ se(b.se); continue; }
+    if(b.fx){ locked=true; runFx(b.fx); return; }
+    if(b.show){ showSprite(b.show, b.pos, b.expr); continue; }
+    if(b.hide){ if(b.hide==='all') clearSprites(); else hideSprite(b.hide); continue; }
+    if(b.expr){ setExpr(b.who||b.expr.who, b.expr); continue; }
+    if(b.wait){ locked=true; setTimeout(()=>{ locked=false; step(); }, b.wait); return; }
+    if(b.choose){ renderChoices(b.choose); return; }
+    if(b.card){ locked=true; showCard(b.card); return; }
+    if(b.end){ if(stack.length){cur=stack.pop();continue;} return nextScene(); }
+    if(b.say!=null){ renderSay(b); return; }
+  }
+}
+function renderSay(b){
+  const c=CHARS[b.say]||CHARS.narr; const isNarr=(b.say==='narr');
+  el('namebar').className = c.name? '' : 'empty';
+  el('nm').textContent=c.name||''; el('namebar').style.setProperty('--who', c.color);
+  if((b.say==='kai'||b.say==='rin') && b.ex!==undefined){ setExpr(b.say, b.ex); }
+  speaking(b.say);
+  const color = isNarr?'var(--narr)': (c.color.indexOf('var')===0? getComputedStyle(document.documentElement).getPropertyValue(c.color.slice(4,-1)).trim()||'#e9edf2' : c.color);
+  markSeen(b.text);
+  el('adv').classList.remove('hide');
+  if(skipOn && wasSeen(b.text)){ el('ttext').innerHTML=esc(b.text); el('ttext').className=isNarr?'narr':''; el('ttext').style.setProperty('--tcolor',color); pushLog(b.say,c.name,b.text); onLineDone(); return; }
+  pushLog(b.say,c.name,b.text);
+  typeStart(b.text, color, isNarr);
+}
+function onLineDone(){
+  if(autoOn && !locked){ const wait= 700 + fullText.length*(60 - cfg.auto*0.5)*0.5 + (30-cfg.auto*0.28)*fullText.length; clearTimeout(autoTimer); autoTimer=setTimeout(()=>{ if(autoOn) advance(); }, Math.max(600, 900+fullText.length*(38-cfg.auto*0.3))); }
+  else if(skipOn){ clearTimeout(autoTimer); autoTimer=setTimeout(()=>{ if(skipOn) advance(); }, 40); }
+}
+function advance(){
+  if(locked) return;
+  if(el('choices').classList.contains('show')) return;
+  if(typing){ typeFinish(); return; }
+  step();
+}
+function nextScene(){
+  const scs=curScenes();
+  if(st.scene < scs.length-1){ st.scene++; st.beat=0; save(); enterScene(); }
+  else { // episode end
+    st.cleared=true; save(); endEpisode();
+  }
+}
+function enterScene(){
+  const sc=curScene(); if(!sc){ endEpisode(); return; }
+  clearSprites(); speaking(null);
+  if(sc.bg) setBG(sc.bg); if(sc.bgm) playBGM(sc.bgm); if(sc.amb!=null) ambient(!!sc.amb);
+  cur={beats:sc.beats, i:st.beat||0}; stack=[]; locked=false;
+  if((st.beat||0)===0 && sc.card){ locked=true; showCard(sc.card); }
+  else step();
+}
+function runFx(kind){ fx(kind); const dur=(kind==='shake'||kind==='hit')?600:(kind==='pline'?1500:400); setTimeout(()=>{ locked=false; step(); }, dur); }
+
+/* ---------- カード ---------- */
+function showCard(card){
+  el('scNo').textContent=card.no||''; el('scTtl').textContent=card.ttl||''; el('scSub').textContent=card.sub||'';
+  const c=el('scard'); c.classList.add('show'); locked=true;
+  const done=()=>{ c.classList.remove('show'); c._done=true; setTimeout(()=>{ locked=false; step(); }, 700); };
+  c._fin=done; clearTimeout(c._t); c._t=setTimeout(done, card.hold||4200);
+}
+
+/* ---------- 選択肢 ---------- */
+function renderChoices(list){
+  const box=el('choices'); box.innerHTML=''; box.classList.add('show'); el('adv').classList.add('hide');
+  list.forEach((o,i)=>{ const b=document.createElement('button'); b.className='choice'; b.textContent=o.label;
+    b.addEventListener('click',ev=>{ ev.stopPropagation(); box.classList.remove('show'); if(o.set) st.choices[o.set]=true; save();
+      stack.push(cur); cur={beats:o.reply||[], i:0}; step(); });
+    box.appendChild(b); });
+}
+
+/* ---------- 既読/ログ ---------- */
+function keyOf(t){ let h=0; for(let i=0;i<t.length;i++){ h=(h*31+t.charCodeAt(i))|0; } return 'k'+h; }
+function markSeen(t){ st.seen[keyOf(t)]=1; }
+function wasSeen(t){ return !!st.seen[keyOf(t)]; }
+const backlog=[];
+function pushLog(who,name,text){ backlog.push({who,name,text}); if(backlog.length>200) backlog.shift(); }
+function openLog(){ const list=el('bllist'); list.innerHTML=''; backlog.slice(-120).forEach(r=>{ const d=document.createElement('div'); d.className='blrow'+(r.who==='narr'?' narr':''); const c=CHARS[r.who]||CHARS.narr; d.style.setProperty('--who',c.color); d.innerHTML='<span class="bn">'+esc(r.name||'')+'</span><span class="bt">'+esc(r.text)+'</span>'; list.appendChild(d); }); el('backlog').classList.add('show'); el('blinner').scrollTop=el('blinner').scrollHeight; }
+
+/* ---------- タイトル/開始 ---------- */
+function startGame(fresh){
+  if(fresh){ st={ ep:0, scene:0, beat:0, seen:st.seen||{}, cleared:st.cleared||false, choices:{} }; }
+  el('title').classList.add('gone'); ensureCtx(); if(actx&&actx.state==='suspended') actx.resume();
+  enterScene();
+}
+function endEpisode(){
+  stopBGM(); ambient(false); clearSprites();
+  playBGM('ed');
+  el('namebar').className='empty'; el('adv').classList.add('hide');
+  const c=el('scard'); el('scNo').textContent='第一話 ／ 完'; el('scTtl').textContent='つづく'; el('scSub').textContent='——正解が視える少年と、正解の外側にいる少女の物語は、まだ始まったばかり。';
+  c.classList.add('show'); locked=true;
+  setTimeout(()=>{ el('tCont').disabled=false; el('tScene').disabled=false; el('title').classList.remove('gone'); c.classList.remove('show'); }, 6000);
+}
+
+/* ---------- 入力 ---------- */
+el('stage').addEventListener('click',e=>{ if(e.target.closest('#hud')||e.target.closest('#choices')||e.target.closest('#backlog')||e.target.closest('#settings')||e.target.closest('#title')) return;
+  if(el('scard').classList.contains('show')){ const c=el('scard'); if(c._fin&&!c._done) c._fin(); return; }
+  advance(); });
+document.addEventListener('keydown',e=>{ if(el('title').classList.contains('gone')===false) return;
+  if(e.key===' '||e.key==='Enter'){ e.preventDefault(); if(el('scard').classList.contains('show')){ const c=el('scard'); if(c._fin&&!c._done) c._fin(); return; } advance(); }
+  if(e.key==='Control') skipHold(true);
+});
+document.addEventListener('keyup',e=>{ if(e.key==='Control') skipHold(false); });
+function skipHold(on){ if(on!==skipOn){ toggleSkip(on); } }
+
+el('btnAuto').addEventListener('click',()=>{ autoOn=!autoOn; el('btnAuto').classList.toggle('act',autoOn); if(autoOn){ skipOn=false; el('btnSkip').classList.remove('act'); if(!typing) onLineDone(); } else clearTimeout(autoTimer); });
+function toggleSkip(v){ skipOn=(v!=null)?v:!skipOn; el('btnSkip').classList.toggle('act',skipOn); if(skipOn){ autoOn=false; el('btnAuto').classList.remove('act'); if(!typing&&!locked) advance(); else if(typing) typeFinish(); } else clearTimeout(autoTimer); }
+el('btnSkip').addEventListener('click',()=>toggleSkip());
+el('btnLog').addEventListener('click',openLog);
+el('blclose').addEventListener('click',()=>el('backlog').classList.remove('show'));
+el('btnSave').addEventListener('click',()=>{ save(); const b=el('btnSave'); b.textContent='SAVED'; setTimeout(()=>b.textContent='SAVE',1200); });
+el('btnSet').addEventListener('click',()=>el('settings').classList.add('show'));
+el('setClose').addEventListener('click',()=>{ el('settings').classList.remove('show'); saveCfg(); });
+el('btnTitle').addEventListener('click',()=>{ save(); el('title').classList.remove('gone'); el('tCont').disabled=false; el('tScene').disabled=(!st.cleared); });
+
+/* 設定スライダ */
+function bindSet(id,key,fmt){ const s=el(id); s.value=cfg[key]; el('v'+id.slice(3)).textContent=(fmt?fmt(cfg[key]):cfg[key]); s.addEventListener('input',()=>{ cfg[key]=+s.value; el('v'+id.slice(3)).textContent=(fmt?fmt(cfg[key]):cfg[key]); if(key==='bgm'){ const a=el('bgm'+bgmCur); a.volume=cfg.bgm/100*0.85; } if(key==='amb') ambient(!!ambNodes); saveCfg(); }); }
+bindSet('setSpeed','speed'); bindSet('setAuto','auto'); bindSet('setBgm','bgm'); bindSet('setSe','se'); bindSet('setAmb','amb');
+
+el('tStart').addEventListener('click',()=>startGame(true));
+el('tCont').addEventListener('click',()=>{ if(load()){ el('title').classList.add('gone'); ensureCtx(); if(actx&&actx.state==='suspended')actx.resume(); enterScene(); } });
+el('tScene').addEventListener('click',()=>{ /* シーン選択は後日: 今は最初から */ startGame(true); });
+
+/* init */
+loadCfg();
+if(load()){ el('tCont').disabled=false; if(st.cleared) el('tScene').disabled=false; }
+</script>
+<script src="assets/seikai/seikai-ep1.js"></script>
+<script>
+/* SCRIPT を後読みした場合の再バインド */
+if(window.SEIKAI_SCRIPT){ for(const k in window.SEIKAI_SCRIPT) SCRIPT[k]=window.SEIKAI_SCRIPT[k]; }
+</script>
+</body>
+</html>
