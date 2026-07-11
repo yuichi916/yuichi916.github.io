@@ -100,8 +100,15 @@ img{-webkit-user-drag:none}
 #blclose{position:absolute;top:14px;right:18px;z-index:41}
 
 /* settings */
-#settings{position:absolute;inset:0;z-index:42;display:none;align-items:center;justify-content:center;background:rgba(3,6,11,.9);backdrop-filter:blur(6px)}
-#settings.show{display:flex}
+#settings,#chapsel{position:absolute;inset:0;z-index:42;display:none;align-items:center;justify-content:center;background:rgba(3,6,11,.9);backdrop-filter:blur(6px)}
+#settings.show,#chapsel.show{display:flex}
+#chaplist{display:flex;flex-direction:column;gap:9px;max-height:58vh;overflow-y:auto;margin:6px 0 2px;padding-right:4px}
+.chapbtn{display:flex;align-items:center;gap:13px;text-align:left;font-family:var(--serif);font-size:15px;letter-spacing:.05em;color:var(--ink);background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:12px 16px;cursor:pointer;transition:.2s}
+.chapbtn:hover:not(:disabled){border-color:var(--neon);color:#eaf6ff;box-shadow:0 0 20px rgba(55,224,208,.16);background:rgba(55,224,208,.06)}
+.chapbtn:disabled{opacity:.4;cursor:not-allowed}
+.chapbtn .cno{font-family:var(--mono);font-size:11px;color:var(--neon);flex:0 0 auto;letter-spacing:.1em}
+.chapbtn .clk{margin-left:auto;font-size:13px;opacity:.75}
+#chapsel{z-index:70}/* タイトル(z60)より前面に */
 .setpanel{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:26px 30px;width:min(440px,92vw);font-size:14px}
 .setpanel h3{font-family:var(--serif);color:var(--sub);letter-spacing:.1em;margin-bottom:18px;font-size:18px}
 .setrow{display:flex;align-items:center;gap:14px;margin:14px 0}
@@ -188,6 +195,10 @@ img{-webkit-user-drag:none}
     <div style="text-align:right;margin-top:20px"><button class="hbtn" id="setClose">閉じる</button></div>
   </div></div>
 
+  <div id="chapsel"><div class="setpanel"><h3>章を選ぶ</h3><div id="chaplist"></div>
+    <div style="text-align:right;margin-top:18px"><button class="hbtn" id="chapClose">閉じる</button></div>
+  </div></div>
+
   <div id="title">
     <div class="tembers"></div>
     <div class="eye">A SOUND NOVEL</div>
@@ -196,7 +207,7 @@ img{-webkit-user-drag:none}
     <div class="menu">
       <button id="tStart">はじめから</button>
       <button id="tCont" disabled>つづきから</button>
-      <button id="tScene" disabled>シーン選択</button>
+      <button id="tScene" disabled>章を選ぶ</button>
     </div>
     <div class="cred">原作: kernel_yu ／ Music: 君の音。(真島こころ)『ピアノ音楽素材集 vol.7 ～シリアス・ダーク～』<br>Background: KitBash3D Future Slums 2 ／ Art: Stable Diffusion によるオリジナル生成</div>
   </div>
@@ -218,6 +229,7 @@ const CHARS={
   potz:{name:'ポッツ', color:'#c9b48a', file:null, expr:[]},
   della:{name:'デッラ', color:'#e08a6a', file:null, expr:[]},
   jin:{name:'ジン', color:'#a8c0b0', file:null, expr:[]},
+  garudo:{name:'ガルド', color:'#b7a58c', file:null, expr:[]},
   narr:{name:'', color:'transparent', file:null, expr:[]},
   you:{name:'', color:'var(--you)', file:null, expr:[]},
 };
@@ -238,11 +250,11 @@ const BGM={ima:'seikai-ima',anohi:'seikai-anohi',hibi:'seikai-hibi',bikou:'seika
 
 /* SCRIPT は seikai-ep1.js で window.SEIKAI_SCRIPT に定義（分割ロード） */
 const SCRIPT = window.SEIKAI_SCRIPT || { ep1:{ title:'第一話', scenes:[] } };
-const EPS=['ep1'];
+const EPS=['ep1','ep2','ep3'];
 
 /* ---------- 状態 ---------- */
 const el=id=>document.getElementById(id);
-let st={ ep:0, scene:0, beat:0, seen:{}, cleared:false, choices:{} };
+let st={ ep:0, scene:0, beat:0, seen:{}, cleared:false, choices:{}, maxEp:0 };
 const LS='seikai_save';
 const cfg={ speed:60, auto:50, bgm:70, se:80, amb:55 };
 const CLS='seikai_cfg';
@@ -439,17 +451,33 @@ function startGame(fresh){
   el('title').classList.add('gone'); ensureCtx(); if(actx&&actx.state==='suspended') actx.resume();
   enterScene();
 }
+function numJP(n){ return ['零','一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五'][n]||(''+n); }
+function startEpisode(idx){
+  st={ ep:idx, scene:0, beat:0, seen:st.seen||{}, cleared:st.cleared||false, choices:{}, maxEp:st.maxEp||0 };
+  el('chapsel').classList.remove('show'); el('title').classList.add('gone');
+  ensureCtx(); if(actx&&actx.state==='suspended') actx.resume(); enterScene();
+}
 function endEpisode(){
   stopBGM(); ambient(false); clearSprites();
+  const isLast = st.ep >= EPS.length-1;
+  st.cleared=true; if(!isLast) st.maxEp=Math.max(st.maxEp||0, st.ep+1); save();
   playBGM('ed');
   el('namebar').className='empty'; el('adv').classList.add('hide');
-  const c=el('scard'); el('scNo').textContent='第一話 ／ 完'; el('scTtl').textContent='つづく'; el('scSub').textContent='——正解が視える少年と、正解の外側にいる少女の物語は、まだ始まったばかり。';
+  const c=el('scard'); c._done=true; clearTimeout(c._t);
+  el('scNo').textContent='第'+numJP(st.ep+1)+'話 ／ 完';
+  el('scTtl').textContent= isLast? '第一部 完' : 'つづく';
+  el('scSub').textContent= isLast? '——正解が視える少年と、正解の外側にいる少女の物語は、いつか続く。'
+    : '次の話へ —— '+((SCRIPT[EPS[st.ep+1]]||{}).title||'').replace(/^第[^\s]+話\s*/,'');
   c.classList.add('show'); locked=true;
-  setTimeout(()=>{ el('tCont').disabled=false; el('tScene').disabled=false; el('title').classList.remove('gone'); c.classList.remove('show'); }, 6000);
+  c._t=setTimeout(()=>{
+    c.classList.remove('show');
+    if(isLast){ el('tCont').disabled=false; el('tScene').disabled=false; el('title').classList.remove('gone'); }
+    else { st.ep++; st.scene=0; st.beat=0; save(); enterScene(); }
+  }, 6400);
 }
 
 /* ---------- 入力 ---------- */
-el('stage').addEventListener('click',e=>{ if(e.target.closest('#hud')||e.target.closest('#choices')||e.target.closest('#backlog')||e.target.closest('#settings')||e.target.closest('#title')) return;
+el('stage').addEventListener('click',e=>{ if(e.target.closest('#hud')||e.target.closest('#choices')||e.target.closest('#backlog')||e.target.closest('#settings')||e.target.closest('#chapsel')||e.target.closest('#title')) return;
   if(el('scard').classList.contains('show')){ const c=el('scard'); if(c._fin&&!c._done) c._fin(); return; }
   advance(); });
 document.addEventListener('keydown',e=>{ if(el('title').classList.contains('gone')===false) return;
@@ -467,7 +495,7 @@ el('blclose').addEventListener('click',()=>el('backlog').classList.remove('show'
 el('btnSave').addEventListener('click',()=>{ save(); const b=el('btnSave'); b.textContent='SAVED'; setTimeout(()=>b.textContent='SAVE',1200); });
 el('btnSet').addEventListener('click',()=>el('settings').classList.add('show'));
 el('setClose').addEventListener('click',()=>{ el('settings').classList.remove('show'); saveCfg(); });
-el('btnTitle').addEventListener('click',()=>{ save(); el('title').classList.remove('gone'); el('tCont').disabled=false; el('tScene').disabled=(!st.cleared); });
+el('btnTitle').addEventListener('click',()=>{ save(); el('title').classList.remove('gone'); el('tCont').disabled=false; el('tScene').disabled=(!(st.cleared||(st.maxEp||0)>0)); });
 
 /* 設定スライダ */
 function bindSet(id,key,fmt){ const s=el(id); s.value=cfg[key]; el('v'+id.slice(3)).textContent=(fmt?fmt(cfg[key]):cfg[key]); s.addEventListener('input',()=>{ cfg[key]=+s.value; el('v'+id.slice(3)).textContent=(fmt?fmt(cfg[key]):cfg[key]); if(key==='bgm'){ const a=el('bgm'+bgmCur); a.volume=cfg.bgm/100*0.85; } if(key==='amb') ambient(!!ambNodes); saveCfg(); }); }
@@ -475,13 +503,29 @@ bindSet('setSpeed','speed'); bindSet('setAuto','auto'); bindSet('setBgm','bgm');
 
 el('tStart').addEventListener('click',()=>startGame(true));
 el('tCont').addEventListener('click',()=>{ if(load()){ el('title').classList.add('gone'); ensureCtx(); if(actx&&actx.state==='suspended')actx.resume(); enterScene(); } });
-el('tScene').addEventListener('click',()=>{ /* シーン選択は後日: 今は最初から */ startGame(true); });
+el('tScene').addEventListener('click',openChap);
+el('chapClose').addEventListener('click',()=>el('chapsel').classList.remove('show'));
+function openChap(){
+  const list=el('chaplist'); list.innerHTML='';
+  EPS.forEach((k,i)=>{
+    const ep=SCRIPT[k]||{title:'第'+numJP(i+1)+'話'};
+    const unlocked = i<=(st.maxEp||0);
+    const ttl=(ep.title||'').replace(/^第[^\s]+話\s*/,'');
+    const b=document.createElement('button'); b.className='chapbtn'; b.disabled=!unlocked;
+    b.innerHTML='<span class="cno">CH.'+String(i+1).padStart(2,'0')+'</span><span>'+(unlocked?esc(ttl):'？？？')+'</span>'+(unlocked?'':'<span class="clk">🔒</span>');
+    if(unlocked) b.addEventListener('click',()=>startEpisode(i));
+    list.appendChild(b);
+  });
+  el('chapsel').classList.add('show');
+}
 
 /* init */
 loadCfg();
-if(load()){ el('tCont').disabled=false; if(st.cleared) el('tScene').disabled=false; }
+if(load()){ if(st.cleared && (st.maxEp||0)<1) st.maxEp=1; el('tCont').disabled=false; if(st.cleared||(st.maxEp||0)>0) el('tScene').disabled=false; }
 </script>
 <script src="assets/seikai/seikai-ep1.js"></script>
+<script src="assets/seikai/seikai-ep2.js"></script>
+<script src="assets/seikai/seikai-ep3.js"></script>
 <script>
 /* SCRIPT を後読みした場合の再バインド */
 if(window.SEIKAI_SCRIPT){ for(const k in window.SEIKAI_SCRIPT) SCRIPT[k]=window.SEIKAI_SCRIPT[k]; }
