@@ -48,17 +48,12 @@ img{-webkit-user-drag:none}
 
 /* ===== sprites ===== */
 #sprites{position:absolute;inset:0;z-index:8;pointer-events:none}
-.sprite{position:absolute;bottom:-2%;height:92%;width:auto;opacity:0;filter:brightness(.86) saturate(.94);
-  transition:opacity .5s ease,filter .7s ease,transform .5s cubic-bezier(.2,.7,.2,1);will-change:opacity,transform,filter}
-.sprite.on{opacity:1}
-.sprite.left{left:2%;transform:translateX(-6%)}
-.sprite.center{left:50%;transform:translateX(-50%) translateY(2%)}
-.sprite.right{right:2%;transform:translateX(6%)}
-.sprite.on.left{transform:translateX(0)}
-.sprite.on.center{transform:translateX(-50%)}
-.sprite.on.right{transform:translateX(0)}
-.sprite.speaking{filter:brightness(1.02) saturate(1);z-index:2}
-.sprite.dim{filter:brightness(.66) saturate(.85)}
+.sprite{position:absolute;bottom:-2%;left:50%;height:92%;width:auto;opacity:0;transform-origin:bottom center;
+  transform:translateX(-50%) scale(var(--sc,1)) translateY(7%);filter:brightness(.86) saturate(.94);
+  transition:opacity .5s ease,filter .7s ease,transform .55s cubic-bezier(.2,.7,.2,1),left .55s cubic-bezier(.2,.7,.2,1);will-change:opacity,transform,filter}
+.sprite.on{opacity:1;transform:translateX(-50%) scale(var(--sc,1)) translateY(0)}
+.sprite.speaking{filter:brightness(1.03) saturate(1);z-index:3}
+.sprite.dim{filter:brightness(.6) saturate(.8)}
 
 /* ===== dialogue ===== */
 #textwrap{position:absolute;left:0;right:0;bottom:0;z-index:12;padding:0 clamp(12px,4vw,80px) clamp(14px,3.5vh,42px)}
@@ -191,10 +186,7 @@ img{-webkit-user-drag:none}
 @media (prefers-reduced-motion: reduce){.bg,.sprite,#scard,.bg.ken{transition-duration:.2s;animation:none!important}}
 /* ===== モバイル(縦画面) ===== */
 @media (max-aspect-ratio: 3/4){
-  .sprite{height:62%;bottom:20%}
-  .sprite.left{left:-6%}
-  .sprite.center{left:50%}
-  .sprite.right{right:-6%}
+  .sprite{height:60%;bottom:21%}
   #textwrap{padding:0 9px calc(10px + env(safe-area-inset-bottom))}
   #tbox{min-height:20vh;padding:16px 18px;border-radius:4px 14px 14px 14px}
   #ttext{font-size:16.5px;line-height:1.82}
@@ -367,30 +359,40 @@ function setBG(key){
 }
 
 /* ---------- 立ち絵 ---------- */
-const shown={}; // who -> {el,pos,expr}
+const shown={}; // who -> {el,lane,seq,expr}
+let _seq=0;
 function spriteURL(who,expr){ const c=CHARS[who]; if(!c||!c.file) return null;
   if(expr && c.expr.indexOf(expr)>=0) return A+c.file+'-'+expr+'.png'; return A+c.file+'.png'; }
+function laneFor(who,pos){ if(pos==='left') return 0; if(pos==='right') return 100; if(pos==='center') return 50;
+  return who==='kai'?0 : who==='rin'?100 : 50; }
+/* 表示中の立ち絵を人数に応じて等間隔に自動整列(重なり防止)＋人数が増えるほど縮小 */
+function layoutSprites(){
+  const ks=Object.keys(shown); const n=ks.length; if(!n) return;
+  ks.sort((a,b)=> (shown[a].lane-shown[b].lane) || (shown[a].seq-shown[b].seq));
+  const sc = n>=4?0.6 : n===3?0.74 : n===2?0.9 : 1;
+  for(let i=0;i<n;i++){ const x = n===1?50 : Math.round(16 + 68*i/(n-1));
+    const s=shown[ks[i]]; s.el.style.left=x+'%'; s.el.style.setProperty('--sc',sc); }
+}
 function showSprite(who,pos,expr){
   const c=CHARS[who]; if(!c||!c.file) return;
   let s=shown[who];
-  if(!s){ const img=document.createElement('img'); img.className='sprite '+(pos||'center'); img.alt=c.name;
-    img.onerror=()=>{img.style.display='none';}; el('sprites').appendChild(img); s={el:img,pos:pos||'center',expr:null}; shown[who]=s; }
-  s.el.className='sprite '+(pos||s.pos); s.pos=pos||s.pos;
+  if(!s){ const img=document.createElement('img'); img.className='sprite'; img.alt=c.name;
+    img.onerror=()=>{img.style.display='none';}; el('sprites').appendChild(img);
+    s={el:img,lane:laneFor(who,pos),seq:_seq++,expr:null}; shown[who]=s; }
+  else if(pos){ s.lane=laneFor(who,pos); }
   const url=spriteURL(who,expr); if(url && s.el.getAttribute('src')!==url) s.el.setAttribute('src',url); s.expr=expr||null;
+  layoutSprites();
   requestAnimationFrame(()=>s.el.classList.add('on'));
 }
-function hideSprite(who){ const s=shown[who]; if(s){ s.el.classList.remove('on'); const e=s.el; setTimeout(()=>{ e&&e.parentNode&&e.parentNode.removeChild(e); },500); delete shown[who]; } }
+function hideSprite(who){ const s=shown[who]; if(s){ s.el.classList.remove('on'); const e=s.el; setTimeout(()=>{ e&&e.parentNode&&e.parentNode.removeChild(e); },500); delete shown[who]; layoutSprites(); } }
 function clearSprites(){ Object.keys(shown).forEach(hideSprite); }
 function setExpr(who,expr){ const s=shown[who]; if(!s) return; const url=spriteURL(who,expr); if(url&&s.el.getAttribute('src')!==url) s.el.setAttribute('src',url); s.expr=expr; }
 function speaking(who){ if(!who||who==='narr'||who==='you') return; /* 地の文/心の声では立ち絵の明暗を変えない(明滅防止) */
   Object.keys(shown).forEach(k=>{ shown[k].el.classList.toggle('speaking',k===who); shown[k].el.classList.toggle('dim',k!==who); }); }
-/* 発話者に立ち絵があれば必ず表示(表示漏れ防止)。既出なら表情のみ更新 */
+/* 発話者に立ち絵があれば必ず表示(表示漏れ防止)。整列はlayoutSpritesが担当 */
 function ensureShown(who,ex){ const c=CHARS[who]; if(!c||!c.file) return;
   if(shown[who]){ if(ex!==undefined) setExpr(who,ex); return; }
-  const used=Object.keys(shown).map(k=>shown[k].pos);
-  let pos=(who==='kai')?'left':(who==='rin')?'right':'center';
-  if(used.indexOf(pos)>=0){ pos = used.indexOf('right')<0?'right':(used.indexOf('left')<0?'left':'center'); }
-  showSprite(who,pos,ex); }
+  showSprite(who, null, ex); }
 
 /* ---------- 音 ---------- */
 let bgmCur='A', bgmKey=null;
@@ -709,17 +711,6 @@ if(renderer){
   function mkSphere(){ const m=new THREE.MeshBasicMaterial({side:THREE.BackSide,transparent:true,opacity:0,depthTest:false,depthWrite:false});
     const s=new THREE.Mesh(geo,m); s.rotation.y=Math.PI/2; scene.add(s); return s; }
   const sA=mkSphere(), sB=mkSphere(); let cur=sA;
-  // 大気パーティクル(塵・埃・火の粉)= 視差で没入感
-  function makeParticles(n, spread, col, size, op){
-    const g=new THREE.BufferGeometry(), pos=new Float32Array(n*3), sp=new Float32Array(n);
-    for(let i=0;i<n;i++){ const r=1.4+Math.random()*spread, th=Math.random()*6.283, ph=Math.acos(2*Math.random()-1);
-      pos[i*3]=r*Math.sin(ph)*Math.cos(th); pos[i*3+1]=(Math.random()*2-1)*spread*0.7; pos[i*3+2]=r*Math.sin(ph)*Math.sin(th); sp[i]=0.3+Math.random(); }
-    g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.userData.sp=sp;
-    const m=new THREE.PointsMaterial({color:col,size:size,transparent:true,opacity:op,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending,sizeAttenuation:true});
-    const p=new THREE.Points(g,m); p.renderOrder=3; scene.add(p); return p;
-  }
-  const dust=makeParticles(560, 7.5, 0x9fbcd0, 0.028, 0.42);
-  const motes=makeParticles(90, 6, 0xffb268, 0.05, 0.4);
   const cache={}; let fades=[];
   function loadTex(key, ok, fail){
     if(cache[key]){ ok(cache[key]); return; }
@@ -757,9 +748,6 @@ if(renderer){
     camera.lookAt(Math.sin(phi)*Math.sin(th), Math.cos(phi), -Math.sin(phi)*Math.cos(th));
     for(const f of fades){ f.t=Math.min(1,f.t+0.02); f.inc.material.opacity=f.t; f.out.material.opacity=Math.max(0,1-f.t); }
     fades=fades.filter(f=>f.t<1);
-    dust.rotation.y+=0.00035; dust.position.y=Math.sin(auto*1.6)*0.05;
-    { const pa=motes.geometry.attributes.position, sp=motes.geometry.userData.sp;
-      for(let i=0;i<pa.count;i++){ let y=pa.getY(i)+0.0045*sp[i]; if(y>4.2) y=-4.2; pa.setY(i,y); } pa.needsUpdate=true; motes.rotation.y-=0.0002; }
     renderer.render(scene,camera);
   }
   tick();
