@@ -247,6 +247,7 @@ img{-webkit-user-drag:none}
     <div class="setrow"><label>BGM音量</label><input type="range" id="setBgm" min="0" max="100" value="70"><span class="val" id="vBgm"></span></div>
     <div class="setrow"><label>効果音音量</label><input type="range" id="setSe" min="0" max="100" value="80"><span class="val" id="vSe"></span></div>
     <div class="setrow"><label>環境音</label><input type="range" id="setAmb" min="0" max="100" value="55"><span class="val" id="vAmb"></span></div>
+    <div class="setrow"><label>ボイス音量</label><input type="range" id="setVoice" min="0" max="100" value="88"><span class="val" id="vVoice"></span></div>
     <div style="text-align:right;margin-top:20px"><button class="hbtn" id="setClose">閉じる</button></div>
   </div></div>
 
@@ -282,6 +283,7 @@ img{-webkit-user-drag:none}
 <audio id="bgmA" loop></audio>
 <audio id="bgmB" loop></audio>
 <audio id="amb" loop></audio>
+<audio id="voice"></audio>
 
 <script>
 "use strict";
@@ -336,7 +338,7 @@ const EPS=['ep1','ep2','ep3','ep4','ep5','ep6','ep7','ep8','ep9','ep10','ep11','
 const el=id=>document.getElementById(id);
 let st={ ep:0, scene:0, beat:0, seen:{}, cleared:false, choices:{}, maxEp:0 };
 const LS='seikai_save';
-const cfg={ speed:60, auto:50, bgm:70, se:80, amb:55 };
+const cfg={ speed:60, auto:50, bgm:70, se:80, amb:55, voice:88 };
 const CLS='seikai_cfg';
 function loadCfg(){ try{ const c=JSON.parse(localStorage.getItem(CLS)||'null'); if(c) Object.assign(cfg,c);}catch(e){} }
 function saveCfg(){ try{ localStorage.setItem(CLS, JSON.stringify(cfg)); }catch(e){} }
@@ -494,6 +496,7 @@ function renderSay(b){
   el('adv').classList.remove('hide');
   if(skipOn && wasSeen(b.text)){ el('ttext').innerHTML=esc(b.text); el('ttext').className=isNarr?'narr':''; el('ttext').style.setProperty('--tcolor',color); pushLog(b.say,c.name,b.text); onLineDone(); return; }
   pushLog(b.say,c.name,b.text);
+  if(b.say==='kai'||b.say==='rin') playVoice(b.say,b.text); else stopVoice();
   typeStart(b.text, color, isNarr);
 }
 function onLineDone(){
@@ -542,6 +545,11 @@ function renderChoices(list){
 
 /* ---------- 既読/ログ ---------- */
 function keyOf(t){ let h=0; for(let i=0;i<t.length;i++){ h=(h*31+t.charCodeAt(i))|0; } return 'k'+h; }
+/* ---------- ボイス(ElevenLabs生成音声) ---------- */
+function voiceFile(who,text){ return A+'voice/v'+keyOf(who+'|'+text)+'.mp3'; }
+function playVoice(who,text){ const v=el('voice'); try{v.pause();}catch(e){} if(cfg.voice<=0) return;
+  v.src=voiceFile(who,text); v.volume=cfg.voice/100; try{ v.currentTime=0; }catch(e){} v.play().catch(()=>{}); }
+function stopVoice(){ const v=el('voice'); try{ v.pause(); }catch(e){} }
 function markSeen(t){ st.seen[keyOf(t)]=1; }
 function wasSeen(t){ return !!st.seen[keyOf(t)]; }
 const backlog=[];
@@ -603,7 +611,7 @@ el('btnTitle').addEventListener('click',()=>{ save(); el('title').classList.remo
 
 /* 設定スライダ */
 function bindSet(id,key,fmt){ const s=el(id); s.value=cfg[key]; el('v'+id.slice(3)).textContent=(fmt?fmt(cfg[key]):cfg[key]); s.addEventListener('input',()=>{ cfg[key]=+s.value; el('v'+id.slice(3)).textContent=(fmt?fmt(cfg[key]):cfg[key]); if(key==='bgm'){ const a=el('bgm'+bgmCur); a.volume=cfg.bgm/100*0.85; } if(key==='amb') ambient(!!ambNodes); saveCfg(); }); }
-bindSet('setSpeed','speed'); bindSet('setAuto','auto'); bindSet('setBgm','bgm'); bindSet('setSe','se'); bindSet('setAmb','amb');
+bindSet('setSpeed','speed'); bindSet('setAuto','auto'); bindSet('setBgm','bgm'); bindSet('setSe','se'); bindSet('setAmb','amb'); bindSet('setVoice','voice');
 
 el('tStart').addEventListener('click',()=>startGame(true));
 el('tCont').addEventListener('click',()=>{ if(load()){ el('title').classList.add('gone'); ensureCtx(); if(actx&&actx.state==='suspended')actx.resume(); enterScene(); } });
