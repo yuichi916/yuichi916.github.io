@@ -709,6 +709,17 @@ if(renderer){
   function mkSphere(){ const m=new THREE.MeshBasicMaterial({side:THREE.BackSide,transparent:true,opacity:0,depthTest:false,depthWrite:false});
     const s=new THREE.Mesh(geo,m); s.rotation.y=Math.PI/2; scene.add(s); return s; }
   const sA=mkSphere(), sB=mkSphere(); let cur=sA;
+  // 大気パーティクル(塵・埃・火の粉)= 視差で没入感
+  function makeParticles(n, spread, col, size, op){
+    const g=new THREE.BufferGeometry(), pos=new Float32Array(n*3), sp=new Float32Array(n);
+    for(let i=0;i<n;i++){ const r=1.4+Math.random()*spread, th=Math.random()*6.283, ph=Math.acos(2*Math.random()-1);
+      pos[i*3]=r*Math.sin(ph)*Math.cos(th); pos[i*3+1]=(Math.random()*2-1)*spread*0.7; pos[i*3+2]=r*Math.sin(ph)*Math.sin(th); sp[i]=0.3+Math.random(); }
+    g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.userData.sp=sp;
+    const m=new THREE.PointsMaterial({color:col,size:size,transparent:true,opacity:op,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending,sizeAttenuation:true});
+    const p=new THREE.Points(g,m); p.renderOrder=3; scene.add(p); return p;
+  }
+  const dust=makeParticles(560, 7.5, 0x9fbcd0, 0.028, 0.42);
+  const motes=makeParticles(90, 6, 0xffb268, 0.05, 0.4);
   const cache={}; let fades=[];
   function loadTex(key, ok, fail){
     if(cache[key]){ ok(cache[key]); return; }
@@ -746,6 +757,9 @@ if(renderer){
     camera.lookAt(Math.sin(phi)*Math.sin(th), Math.cos(phi), -Math.sin(phi)*Math.cos(th));
     for(const f of fades){ f.t=Math.min(1,f.t+0.02); f.inc.material.opacity=f.t; f.out.material.opacity=Math.max(0,1-f.t); }
     fades=fades.filter(f=>f.t<1);
+    dust.rotation.y+=0.00035; dust.position.y=Math.sin(auto*1.6)*0.05;
+    { const pa=motes.geometry.attributes.position, sp=motes.geometry.userData.sp;
+      for(let i=0;i<pa.count;i++){ let y=pa.getY(i)+0.0045*sp[i]; if(y>4.2) y=-4.2; pa.setY(i,y); } pa.needsUpdate=true; motes.rotation.y-=0.0002; }
     renderer.render(scene,camera);
   }
   tick();
