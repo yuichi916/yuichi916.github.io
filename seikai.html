@@ -49,11 +49,19 @@ img{-webkit-user-drag:none}
 /* ===== sprites ===== */
 #sprites{position:absolute;inset:0;z-index:8;pointer-events:none}
 .sprite{position:absolute;bottom:-2%;left:50%;height:92%;width:auto;opacity:0;transform-origin:bottom center;
-  transform:translateX(-50%) scale(var(--sc,1)) translateY(7%);filter:brightness(.86) saturate(.94);
-  transition:opacity .5s ease,filter .7s ease,transform .55s cubic-bezier(.2,.7,.2,1),left .55s cubic-bezier(.2,.7,.2,1);will-change:opacity,transform,filter}
-.sprite.on{opacity:1;transform:translateX(-50%) scale(var(--sc,1)) translateY(0)}
-.sprite.speaking{filter:brightness(1.03) saturate(1);z-index:3}
-.sprite.dim{filter:brightness(.6) saturate(.8)}
+  transform:translateX(-50%) scale(var(--sc,1)) translateY(7%);filter:brightness(.82) saturate(.92);
+  transition:opacity .5s ease,filter .7s ease,transform .55s cubic-bezier(.2,.7,.2,1),left .55s cubic-bezier(.2,.7,.2,1),margin-bottom .45s ease;will-change:opacity,transform,filter}
+.sprite.on{opacity:1;animation:spbreathe 5.2s ease-in-out infinite}
+@keyframes spbreathe{0%,100%{transform:translateX(-50%) scale(var(--sc,1)) translateY(0)}50%{transform:translateX(-50%) scale(var(--sc,1)) translateY(-0.7%)}}
+.sprite.speaking{filter:brightness(1.02) saturate(1);z-index:3;margin-bottom:1.7%}
+.sprite.dim{filter:brightness(.5) saturate(.76)}
+/* 感情マーク(会話ギミック) */
+#emark{position:absolute;z-index:11;left:50%;top:14%;transform:translate(-50%,-50%);pointer-events:none;opacity:0;
+  font-size:clamp(30px,4.4vw,54px);filter:drop-shadow(0 2px 7px rgba(0,0,0,.65))}
+#emark.show{animation:emarkpop 1s cubic-bezier(.2,1.3,.4,1)}
+@keyframes emarkpop{0%{opacity:0;transform:translate(-50%,-20%) scale(.3) rotate(-12deg)}22%{opacity:1;transform:translate(-50%,-64%) scale(1.18) rotate(7deg)}62%{opacity:1;transform:translate(-50%,-66%) scale(1) rotate(0)}100%{opacity:0;transform:translate(-50%,-80%) scale(.85)}}
+/* 蛍光灯フリッカー(地下の薄暗さ) */
+#flick{position:absolute;inset:0;z-index:7;background:#05070c;opacity:0;pointer-events:none}
 
 /* ===== dialogue ===== */
 #textwrap{position:absolute;left:0;right:0;bottom:0;z-index:12;padding:0 clamp(12px,4vw,80px) clamp(14px,3.5vh,42px)}
@@ -214,9 +222,11 @@ img{-webkit-user-drag:none}
   <div class="bg" id="bg0"></div>
   <div class="bg" id="bg1"></div>
   <div id="vignette"></div>
+  <div id="flick"></div>
   <div id="pline"></div>
   <div id="grain"></div>
   <div id="sprites"></div>
+  <div id="emark"></div>
 
   <div id="hud">
     <button class="hbtn" id="btnAuto" title="オート">AUTO</button>
@@ -356,6 +366,7 @@ function setBGcss(key){
 }
 /* 3D(three.js 360°パノラマ)を優先。無ければCSS背景にフォールバック */
 function setBG(key){
+  setUnderground(key);
   if(window.BG3D && window.BG3D.ok){
     window.BG3D.setPano(key, ()=>{ el('bg0').classList.remove('show'); el('bg1').classList.remove('show'); }, ()=>{ setBGcss(key); });
   } else setBGcss(key);
@@ -374,14 +385,15 @@ function layoutSprites(){
   ks.sort((a,b)=> (shown[a].lane-shown[b].lane) || (shown[a].seq-shown[b].seq));
   const sc = n>=4?0.6 : n===3?0.74 : n===2?0.9 : 1;
   for(let i=0;i<n;i++){ const x = n===1?50 : Math.round(16 + 68*i/(n-1));
-    const s=shown[ks[i]]; s.el.style.left=x+'%'; s.el.style.setProperty('--sc',sc); }
+    const s=shown[ks[i]]; s.x=x; s.el.style.left=x+'%'; s.el.style.setProperty('--sc',sc); }
 }
 function showSprite(who,pos,expr){
   const c=CHARS[who]; if(!c||!c.file) return;
   let s=shown[who];
   if(!s){ const img=document.createElement('img'); img.className='sprite'; img.alt=c.name;
     img.onerror=()=>{img.style.display='none';}; el('sprites').appendChild(img);
-    s={el:img,lane:laneFor(who,pos),seq:_seq++,expr:null}; shown[who]=s; }
+    s={el:img,lane:laneFor(who,pos),seq:_seq++,expr:null}; shown[who]=s;
+    img.style.animationDelay=(-((s.seq*1.7)%5.2)).toFixed(2)+'s'; }
   else if(pos){ s.lane=laneFor(who,pos); }
   const url=spriteURL(who,expr); if(url && s.el.getAttribute('src')!==url) s.el.setAttribute('src',url); s.expr=expr||null;
   layoutSprites();
@@ -396,6 +408,34 @@ function speaking(who){ if(!who||who==='narr'||who==='you') return; /* 地の文
 function ensureShown(who,ex){ const c=CHARS[who]; if(!c||!c.file) return;
   if(shown[who]){ if(ex!==undefined) setExpr(who,ex); return; }
   showSprite(who, null, ex); }
+/* ---------- 会話ギミック: 感情マーク ---------- */
+function emojiFor(who,text,ex){
+  if(ex==='surprised' || /[！]|びっく|まさか|なっ|えっ|は[？!]|うそ|そんな/.test(text)) return '❗';
+  if(ex==='angry' || /怒|むかつ|うるさ|黙れ|ふざ|許さ|くそ/.test(text)) return '💢';
+  if(ex==='unease' || /ごめん|えっと|あれ|困|焦|やば|しまっ|どうし|まさか/.test(text)) return '💦';
+  if(ex==='smile' || /笑|嬉し|ありがと|やった|よかっ|えへ|好き/.test(text)) return '♪';
+  if(ex==='tears' || /涙|泣|さよなら/.test(text)) return '💧';
+  return null;
+}
+let _markT=null;
+function showMark(who,text,ex){
+  const s=shown[who]; if(!s) return; const sym=emojiFor(who,text,ex); if(!sym) return;
+  const m=el('emark'); m.textContent=sym; m.style.left=((s.x!=null?s.x:50))+'%';
+  m.classList.remove('show'); void m.offsetWidth; m.classList.add('show');
+  clearTimeout(_markT); _markT=setTimeout(()=>m.classList.remove('show'),1000);
+}
+/* ---------- 地下の蛍光灯フリッカー ---------- */
+let _under=false;
+const UNDERGROUND={hideout:1,slum:1,hall:1,ration:1,waste:1,duct:1,collapse:1};
+function setUnderground(key){ _under=!!UNDERGROUND[key]; if(!_under){ const f=el('flick'); if(f) f.style.opacity=0; } }
+function doFlick(){ if(!_under) return; const f=el('flick'); if(!f) return;
+  f.style.transition='none'; f.style.opacity='.32';
+  setTimeout(()=>{ f.style.transition='opacity .09s'; f.style.opacity='0';
+    setTimeout(()=>{ f.style.transition='none'; f.style.opacity='.2';
+      setTimeout(()=>{ f.style.transition='opacity .13s'; f.style.opacity='0'; },55); },80); },50);
+}
+function flickLoop(){ setTimeout(()=>{ if(_under && !document.hidden && Math.random()<0.6) doFlick(); flickLoop(); }, 2400+Math.random()*3600); }
+flickLoop();
 
 /* ---------- 音 ---------- */
 let bgmCur='A', bgmKey=null;
@@ -496,7 +536,7 @@ function renderSay(b){
   el('adv').classList.remove('hide');
   if(skipOn && wasSeen(b.text)){ el('ttext').innerHTML=esc(b.text); el('ttext').className=isNarr?'narr':''; el('ttext').style.setProperty('--tcolor',color); pushLog(b.say,c.name,b.text); onLineDone(); return; }
   pushLog(b.say,c.name,b.text);
-  if(b.say==='kai'||b.say==='rin') playVoice(b.say,b.text); else stopVoice();
+  if(b.say==='kai'||b.say==='rin'){ playVoice(b.say,b.text); showMark(b.say,b.text,b.ex); } else stopVoice();
   typeStart(b.text, color, isNarr);
 }
 function onLineDone(){
