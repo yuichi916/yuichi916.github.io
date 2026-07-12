@@ -28,12 +28,17 @@
   --mono:"SFMono-Regular",Consolas,monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;background:#05070c;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;user-select:none}
+html,body{height:100%;overflow:hidden;background:#05070c;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;overscroll-behavior:none}
 #stage{position:fixed;inset:0;overflow:hidden;cursor:pointer}
+button{-webkit-tap-highlight-color:transparent}
+button:focus{outline:none}
 img{-webkit-user-drag:none}
 
-/* ===== background layers (crossfade) ===== */
-.bg{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.1s ease;transform:scale(1.06);will-change:opacity}
+/* ===== 3D 360 background (three.js) ===== */
+#bg3d{position:absolute;inset:0;z-index:0;display:block;touch-action:none}
+/* ===== background layers (crossfade fallback) ===== */
+.bg{position:absolute;inset:0;z-index:1;pointer-events:none;background-size:cover;background-position:center;opacity:0;transition:opacity 1.1s ease;transform:scale(1.06);will-change:opacity}
 .bg.show{opacity:1}
 .bg.ken{animation:kenburns 24s ease-out both}
 @keyframes kenburns{from{transform:scale(1.06) translate(0,0)}to{transform:scale(1.14) translate(-1.5%,-1%)}}
@@ -73,6 +78,10 @@ img{-webkit-user-drag:none}
 #adv{position:absolute;right:16px;bottom:12px;font-family:var(--mono);font-size:11px;color:var(--faint);opacity:.7;animation:bob 1.6s ease-in-out infinite}
 @keyframes bob{50%{transform:translateY(-3px)}}
 #adv.hide{opacity:0}
+#hint3d{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(24vh + 8px);z-index:9;pointer-events:none;
+  font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:rgba(210,230,245,.8);background:rgba(6,12,20,.5);
+  border:1px solid var(--line);border-radius:999px;padding:6px 16px;opacity:0;transition:opacity .6s;backdrop-filter:blur(4px);white-space:nowrap}
+#hint3d.show{opacity:1}
 
 /* choices */
 #choices{position:absolute;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;
@@ -173,18 +182,43 @@ img{-webkit-user-drag:none}
 #fade.black{opacity:1}
 .shake{animation:shake .5s cubic-bezier(.36,.07,.19,.97) both}
 @keyframes shake{10%,90%{transform:translate(-1px,0)}20%,80%{transform:translate(3px,-2px)}30%,50%,70%{transform:translate(-6px,3px)}40%,60%{transform:translate(6px,-1px)}}
-#stage.sepia .bg{filter:sepia(.55) contrast(1.05) brightness(.85) saturate(.7)}
+#stage.sepia .bg,#stage.sepia #bg3d{filter:sepia(.55) contrast(1.05) brightness(.85) saturate(.7)}
 #pline{position:absolute;inset:0;z-index:9;pointer-events:none;opacity:0;transition:opacity .5s;
   background:linear-gradient(115deg,transparent 44%,rgba(244,207,122,.5) 49%,rgba(255,240,190,.9) 50%,rgba(244,207,122,.5) 51%,transparent 56%);
   mix-blend-mode:screen;filter:blur(.3px)}
 #pline.show{opacity:.85;animation:plmove 1.4s ease-out}
 @keyframes plmove{from{background-position:-30% 0}to{background-position:30% 0}}
 @media (prefers-reduced-motion: reduce){.bg,.sprite,#scard,.bg.ken{transition-duration:.2s;animation:none!important}}
+/* ===== モバイル(縦画面) ===== */
+@media (max-aspect-ratio: 3/4){
+  .sprite{height:62%;bottom:20%}
+  .sprite.left{left:-6%}
+  .sprite.center{left:50%}
+  .sprite.right{right:-6%}
+  #textwrap{padding:0 9px calc(10px + env(safe-area-inset-bottom))}
+  #tbox{min-height:20vh;padding:16px 18px;border-radius:4px 14px 14px 14px}
+  #ttext{font-size:16.5px;line-height:1.82}
+  #namebar{font-size:14.5px;margin-left:6px;padding:6px 16px}
+  #hud{padding:8px 8px;gap:5px}
+  .hbtn{font-size:11.5px;padding:9px 10px;border-radius:8px}
+  #adv{font-size:10px;right:12px;bottom:10px}
+  #title h1{font-size:16vw}
+  #title .sub{font-size:14px}
+  #title .menu{margin-top:30px;gap:11px}
+  #title .menu button{padding:13px 40px;font-size:16px}
+  .sharerow{margin-top:16px}
+  .setpanel{width:94vw;padding:20px 18px}
+  #scNo{font-size:12px}
+  #hint3d{font-size:11px;bottom:calc(24vh + 8px)}
+}
+/* タッチ端末: HUDを押しやすく */
+@media (hover:none){ .hbtn{padding:10px 11px} #title .menu button{padding:14px 44px} }
 .hide{display:none!important}
 </style>
 </head>
 <body>
 <div id="stage">
+  <canvas id="bg3d"></canvas>
   <div class="bg" id="bg0"></div>
   <div class="bg" id="bg1"></div>
   <div id="vignette"></div>
@@ -235,6 +269,7 @@ img{-webkit-user-drag:none}
   </div></div>
 
   <div id="toast"></div>
+  <div id="hint3d">◐ ドラッグ／端末を傾けて見回す</div>
 
   <div id="title">
     <div class="tembers"></div>
@@ -317,12 +352,18 @@ function load(){ try{ const s=JSON.parse(localStorage.getItem(LS)||'null'); if(s
 
 /* ---------- 背景 ---------- */
 let bgCur=0;
-function setBG(key){
+function setBGcss(key){
   const b=BGS[key]||BGS.void; const next=bgCur?el('bg0'):el('bg1'); const cur=bgCur?el('bg1'):el('bg0');
   const img=new Image(); const url=A+'bg-'+key+'.jpg';
   const apply=(bgval)=>{ next.style.background=bgval; next.style.backgroundSize='cover'; next.style.backgroundPosition='center';
     next.classList.remove('ken'); void next.offsetWidth; next.classList.add('show','ken'); cur.classList.remove('show'); bgCur=bgCur?0:1; };
   img.onload=()=>apply("url('"+url+"') center/cover"); img.onerror=()=>apply(b.grad); img.src=url;
+}
+/* 3D(three.js 360°パノラマ)を優先。無ければCSS背景にフォールバック */
+function setBG(key){
+  if(window.BG3D && window.BG3D.ok){
+    window.BG3D.setPano(key, ()=>{ el('bg0').classList.remove('show'); el('bg1').classList.remove('show'); }, ()=>{ setBGcss(key); });
+  } else setBGcss(key);
 }
 
 /* ---------- 立ち絵 ---------- */
@@ -537,6 +578,7 @@ function endEpisode(){
 
 /* ---------- 入力 ---------- */
 el('stage').addEventListener('click',e=>{ if(e.target.closest('#hud')||e.target.closest('#choices')||e.target.closest('#backlog')||e.target.closest('#settings')||e.target.closest('#chapsel')||e.target.closest('#savemenu')||e.target.closest('#title')) return;
+  if(window.BG3D && window.BG3D._moved){ window.BG3D._moved=false; return; } /* 見回しドラッグは送らない */
   if(el('scard').classList.contains('show')){ const c=el('scard'); if(c._fin&&!c._done) c._fin(); return; }
   advance(); });
 document.addEventListener('keydown',e=>{ if(el('title').classList.contains('gone')===false) return;
@@ -643,6 +685,73 @@ if(load()){ if(st.cleared && (st.maxEp||0)<1) st.maxEp=1; el('tCont').disabled=f
 <script>
 /* SCRIPT を後読みした場合の再バインド */
 if(window.SEIKAI_SCRIPT){ for(const k in window.SEIKAI_SCRIPT) SCRIPT[k]=window.SEIKAI_SCRIPT[k]; }
+</script>
+
+<!-- ════════ THREE.JS 360° 背景ビューア ════════ -->
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.161.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+const AP='assets/seikai/';
+const canvas=document.getElementById('bg3d');
+let renderer=null;
+try{ renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'}); }
+catch(e){ window.BG3D={ok:false}; }
+if(renderer){
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.1, 100);
+  const loader=new THREE.TextureLoader();
+  const geo=new THREE.SphereGeometry(10,64,44);
+  function applyTex(t){ t.colorSpace=THREE.SRGBColorSpace; t.minFilter=THREE.LinearMipmapLinearFilter; t.magFilter=THREE.LinearFilter; return t; }
+  function mkSphere(){ const m=new THREE.MeshBasicMaterial({side:THREE.BackSide,transparent:true,opacity:0,depthTest:false,depthWrite:false});
+    const s=new THREE.Mesh(geo,m); s.rotation.y=Math.PI/2; scene.add(s); return s; }
+  const sA=mkSphere(), sB=mkSphere(); let cur=sA;
+  const cache={}; let fades=[];
+  function loadTex(key, ok, fail){
+    if(cache[key]){ ok(cache[key]); return; }
+    loader.load(AP+'pano-'+key+'.jpg', t=>{ cache[key]=applyTex(t); ok(cache[key]); }, undefined, ()=>fail&&fail());
+  }
+  window.BG3D={ ok:true, _moved:false,
+    setPano(key, onOk, onFail){
+      loadTex(key, t=>{
+        const inc=(cur===sA)?sB:sA, out=cur;
+        inc.material.map=t; inc.material.needsUpdate=true; inc.renderOrder=2; out.renderOrder=1;
+        fades=fades.filter(f=>f.inc!==inc && f.inc!==out);
+        fades.push({inc,out,t:(inc.material.opacity||0)}); cur=inc; onOk&&onOk();
+      }, ()=>{ onFail&&onFail(); });
+    } };
+  // 見回し操作
+  let lon=0,lat=2,tlon=0,tlat=0, drag=false, sx=0,sy=0, dist=0, auto=0, gyroOn=false, glon=0,glat=0;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  function down(x,y){ drag=true; sx=x; sy=y; dist=0; window.BG3D._moved=false; }
+  function move(x,y){ if(!drag) return; const dx=x-sx, dy=y-sy; dist+=Math.abs(dx)+Math.abs(dy);
+    tlon=clamp(tlon - dx*0.09, -28,28); tlat=clamp(tlat + dy*0.08, -17,17); sx=x; sy=y; if(dist>10) window.BG3D._moved=true; }
+  function up(){ drag=false; }
+  window.addEventListener('pointerdown',e=>{ if(e.target.closest&&e.target.closest('#hud,#textwrap,#choices,#backlog,#settings,#chapsel,#savemenu,#title')) return; down(e.clientX,e.clientY); });
+  window.addEventListener('pointermove',e=>move(e.clientX,e.clientY),{passive:true});
+  window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
+  window.addEventListener('deviceorientation',e=>{ if(e.gamma==null) return; gyroOn=true;
+    glon=clamp(e.gamma*0.7,-22,22); glat=clamp((e.beta-45)*0.35,-15,15); }, true);
+  function resize(){ const a=innerWidth/innerHeight; camera.aspect=a; camera.fov=a<1?58:72; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight,false); }
+  window.addEventListener('resize',resize); resize();
+  function tick(){ requestAnimationFrame(tick);
+    auto+=0.0015; const ax=Math.sin(auto)*6, ay=Math.cos(auto*0.6)*2.2;
+    const goalLon=tlon+ax+(gyroOn?glon:0), goalLat=tlat+ay+(gyroOn?glat:0)+2;
+    lon+=(goalLon-lon)*0.045; lat+=(goalLat-lat)*0.045;
+    if(!drag){ tlon*=0.985; tlat*=0.985; }
+    const phi=THREE.MathUtils.degToRad(90-lat), th=THREE.MathUtils.degToRad(lon);
+    camera.lookAt(Math.sin(phi)*Math.sin(th), Math.cos(phi), -Math.sin(phi)*Math.cos(th));
+    for(const f of fades){ f.t=Math.min(1,f.t+0.02); f.inc.material.opacity=f.t; f.out.material.opacity=Math.max(0,1-f.t); }
+    fades=fades.filter(f=>f.t<1);
+    renderer.render(scene,camera);
+  }
+  tick();
+  const hint=document.getElementById('hint3d');
+  if(hint){ setTimeout(()=>{ hint.classList.add('show'); setTimeout(()=>hint.classList.remove('show'),4200); }, 1800); }
+}
 </script>
 </body>
 </html>
