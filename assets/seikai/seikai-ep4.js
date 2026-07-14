@@ -2,6 +2,14 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
 
+  /* 0. ［今］冒頭の手紙 */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——この章を書くのに、三日かかった。'},
+    {say:'narr', text:'ペンが、何度も止まった。五。一。九。数字を書くたび、左手の小指が疼く。'},
+    {say:'narr', text:'それでも書く。彼が三年間、俺の隣で息をしていたことを——世界のどこにも残さないまま、終わらせないために。'},
+    {wait:600},
+  ]},
+
   /* 1. 翌朝・作業割当板とジンの夢 */
   { bg:'hall', bgm:'rekishi', amb:1, card:{no:'第 四 話', ttl:'道を組む者たち', sub:'いつもと同じ番号。いつもと同じ班。けれど、昨夜の夢が、胸に嫌な予感を残していた。', hold:4200}, beats:[
     {say:'narr', text:'ガルドの区画で計画を詰め終えた翌朝、廃棄層の空気は、普段より冷たかった。'},
@@ -42,7 +50,7 @@ window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
     {hide:'rin'},
     {show:'kai', pos:'left'},
     {say:'narr', text:'カイは、列の少し後ろで、その一部始終を聞いていた。廃液処理まであと三時間。'},
-    {say:'kai', text:'（リーンの「今日、誰か死ぬかも」という昨日の呟きが、頭の隅で、冷たく点滅していた）', ex:'pained'},
+    {say:'kai', text:'（リーンの「今日、誰か死ぬかも」という、いつかの呟きが、頭の隅で、冷たく点滅していた）', ex:'pained'},
     {say:'narr', text:'「なんとなく」が、いつもの「なんとなく」じゃない気がした。それが何かは、わからなかった。'},
     {hide:'all'},
   ]},
@@ -65,6 +73,12 @@ window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
       {label:'ジンの矜持を、信じる', reply:[
         {say:'kai', text:'（——待て。ここで動けば、ジンが自分で決めた役割を、踏みにじる）', ex:'pained'},
         {say:'narr', text:'カイは足を止めた。'},
+      ]},
+      {label:'それでも、足が出る', reply:[
+        {say:'narr', text:'カイの足が、半歩、前に出た。'},
+        {say:'narr', text:'——その瞬間、ジンの目がカイを捉えた。咳をこらえたまま、首を、ほんの数ミリだけ横に振った。「来るな」。'},
+        {say:'kai', text:'（……ジンが、自分で決めた役割を、俺が奪うところだった）', ex:'pained'},
+        {say:'narr', text:'カイは、出かけた足を戻した。爪が、掌に食い込んだ。'},
       ]},
     ]},
     {say:'narr', text:'ジンが、一瞬だけカイの方を見た。咳をこらえたまま。目で、何かを伝えた。'},

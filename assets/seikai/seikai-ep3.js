@@ -2,6 +2,14 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
 
+  /* 0. ［今］冒頭の手紙 */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——この夜、俺は君に、妹の話をした。'},
+    {say:'narr', text:'君は、俺より先に泣いた。会ったこともない子のために。初めて聞く話のはずなのに、「もう一回聞いてるみたい」だと言って。'},
+    {say:'narr', text:'その涙の意味を知るのは、ずっと後になる。……いや、本当は。知るのが怖かったんだ。'},
+    {wait:600},
+  ]},
+
   /* 1. その夜・壁の「空」 */
   { bg:'hideout', bgm:'hibi', amb:1, card:{no:'第 三 話', ttl:'壁に書いた空', sub:'見たことのない青の名を、指先だけが覚えている。', hold:4200}, beats:[
     {show:'kai', pos:'center'},
@@ -146,6 +154,7 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
     {say:'garudo', text:'「嬢ちゃん。お前さんは、人間かどうかじゃない。そういう話を、わしがしたら、気にするか」'},
     {say:'rin', text:'「……気にする」', ex:'unease'},
     {say:'garudo', text:'「だろうな。だが一つ言っておく」'},
+    {fx:'flash'},
     {say:'narr', text:'ガルドが腰の脇から、小さな金属の欠片を取り出した。リーンが何も言っていないのに。'},
     {say:'garudo', text:'「わしが第四層から落とされた時、研究区の床から持ち出した。似た金属片が、たくさんあった。わしのは『参考資料七号』と書かれとる。お前さんのは——」'},
     {say:'narr', text:'リーンが、自分の作業服のポケットから、同じような金属片を取り出した。二つを並べる。ほぼ同じ形。刻印だけが、違った。'},
@@ -179,7 +188,7 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
   ]},
 
   /* 7. 計画・ジンの「手伝う」 */
-  { bg:'hideout', bgm:'bikou', amb:1, card:{no:'', ttl:'計画', sub:'', hold:1800}, beats:[
+  { bg:'hideout', bgm:'bikou', amb:1, card:{no:'', ttl:'計画', sub:'決行まで、十三日。', hold:2000}, beats:[
     {say:'narr', text:'三人で計画を詰めた。ガルドの情報で、第四層以降のルートが見えてきた。物資輸送用の昇降機。電子制御。第三層からの認証が要る。'},
     {show:'rin', pos:'right', expr:'sharp'},
     {say:'rin', text:'「認証キー。これ、実験体七号って刻印があるってことは、何かのシステムに登録されてた可能性がある」', ex:'sharp'},
@@ -233,6 +242,9 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
     {say:'narr', text:'ざらざらした錆の感触。その上の、小さな凹凸。カイと同じ動きで、文字の形をなぞった。——空。'},
     {say:'rin', text:'（温かくて、怖くない青。記憶のないあたしには、それが何かわからない。でも、カイが壁に指を当てた時の、あの指の優しさだけは、わかった気がする）'},
     {say:'rin', text:'（空って、どんな青なのかな。——カイ、連れてって）'},
+    {wait:500},
+    {say:'narr', text:'——その頃。三番通路の暗がりで、ジンが膝を折って、咳をしていた。'},
+    {say:'narr', text:'口を押さえた手のひらに、黒いものが混じり始めていることを、まだ、誰も知らない。'},
     {wait:700},
   ]},
 

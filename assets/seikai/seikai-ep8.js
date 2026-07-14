@@ -2,6 +2,14 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
 
+  /* 0. ［今］冒頭の手紙 */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——誰も泣かない街の話をしよう。'},
+    {say:'narr', text:'あの街で、泣けるのは君だけだった。'},
+    {say:'narr', text:'そして君は、会う前から、一人の少女の絵を「待って」いた。……その意味に、俺はもっと早く気づくべきだったんだ。'},
+    {wait:600},
+  ]},
+
   /* 1. 三日目の朝・感情の配給制 */
   { bg:'town', bgm:'rekishi', amb:1, card:{no:'第 八 話', ttl:'誰も泣かない街', sub:'誰も泣かない街で、その少女だけが、はみ出した色で絵を描いていた。', hold:4200}, beats:[
     {say:'narr', text:'三日目の朝。ユーゴが二人に町を案内した。'},
@@ -60,7 +68,15 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
 
   /* 3. ミーラとの出会い・待ってた、逆だった */
   { bg:'town', bgm:'yuki', amb:1, beats:[
-    {say:'narr', text:'リーンが少しずつミーラに近づいた。カイが止めようとしたが、ユーゴが首を振った。'},
+    {say:'narr', text:'リーンが少しずつミーラに近づいた。'},
+    {choose:[
+      {label:'止めようとする', reply:[
+        {say:'narr', text:'カイが腕を伸ばしかけた。ユーゴが、静かに首を振った。'},
+      ]},
+      {label:'黙って見守る', reply:[
+        {say:'narr', text:'カイは足を止めた。ユーゴが、小さく頷いた。'},
+      ]},
+    ]},
     {say:'yuugo', text:'「大丈夫だ。ミーラは人と話すのが好きだ。配給されていない感情は——『孤独』と『好奇心』を含んでいる」'},
     {say:'narr', text:'リーンがミーラの隣にしゃがんだ。ミーラが顔を上げる前に——リーンの目から、涙が一粒、零れた。'},
     {show:'kai', pos:'left'},
@@ -206,6 +222,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
     {say:'rin', text:'「あたしは——管理者のシステムと、何か関係があるのかも」', ex:'unease'},
     {say:'yuugo', text:'「お前は、管理者の配給の影響を受けない。逆に——お前の言葉が、管理者のシステムに影響を与える」'},
     {say:'rin', text:'「え？」', ex:'unease'},
+    {fx:'flash'},
     {say:'yuugo', text:'「お前は人工人間だ。いや、もう察している頃だろう。お前の体はこの世界のシステムと同じ素材で作られている。だから——お前の言葉は、システムに対して『内部からの指示』として機能する」'},
     {say:'narr', text:'リーンが立ち止まった。'},
     {say:'rin', text:'「人工人間」', ex:'unease'},

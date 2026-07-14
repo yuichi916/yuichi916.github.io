@@ -2,9 +2,17 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep12 = { title:'第十二話 おはようが言えない朝', scenes:[
 
-  /* 1. 六日目の朝・寝室／違う静けさ */
+  /* 0. ［今］冒頭の手紙 */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——「おはよう」という言葉を、俺は今、うまく使えない。'},
+    {say:'narr', text:'朝が来るたび、口の中でその四文字を転がして、そのまま、飲み込む。'},
+    {say:'narr', text:'これは、君が最初に「おはよう」を言えなかった朝の話だ。'},
+    {wait:600},
+  ]},
+
+  /* 1. 七日目の朝・寝室／違う静けさ */
   { bg:'home', bgm:'yuki', amb:1, card:{no:'第 十二 話', ttl:'おはようが言えない朝', sub:'君の「おはよう」は、まだ会っていない未来の分の君を、手渡す行為だった。', hold:4200}, beats:[
-    {say:'narr', text:'六日目の朝。カイは目を開けた。天井が見える。ユーゴの家の白い天井。'},
+    {say:'narr', text:'七日目の朝。カイは目を開けた。天井が見える。ユーゴの家の白い天井。'},
     {show:'kai', pos:'left', expr:''},
     {say:'narr', text:'隣のベッドを見た。リーンがいた。目を閉じている。呼吸は聞こえない。いつも通りだ。'},
     {say:'narr', text:'——いつも通り、のはずだった。何かが違った。'},
@@ -119,7 +127,7 @@ window.SEIKAI_SCRIPT.ep12 = { title:'第十二話 おはようが言えない朝
     {show:'rin', pos:'right', expr:''},
     {say:'rin', text:'「誰」', ex:''},
     {say:'narr', text:'カイは、止まった。'},
-    {say:'kai', text:'「ミーラ。先週、会っただろう。絵を描いていた少女だ」', ex:'surprised'},
+    {say:'kai', text:'「ミーラ。数日前、会っただろう。絵を描いていた少女だ」', ex:'surprised'},
     {say:'rin', text:'「……ああ」', ex:''},
     {say:'kai', text:'「覚えてないのか」', ex:''},
     {say:'rin', text:'「覚えてる」', ex:''},
@@ -215,6 +223,7 @@ window.SEIKAI_SCRIPT.ep12 = { title:'第十二話 おはようが言えない朝
     {say:'kai', text:'「どういうことだ」', ex:''},
     {say:'rin', text:'「言えなかったんじゃなくて——言わなかったの」', ex:''},
     {wait:600},
+    {fx:'flash'},
     {say:'rin', text:'「今日はおはようって、言えない。だって、今日、カイを忘れる日だから」', ex:'pained'},
     {say:'kai', text:'（——呼吸が、止まった）', ex:'pained'},
     {say:'kai', text:'「忘れる——」', ex:''},
@@ -259,7 +268,15 @@ window.SEIKAI_SCRIPT.ep12 = { title:'第十二話 おはようが言えない朝
     {say:'narr', text:'もう一度、言った。'},
     {say:'kai', text:'「リーン。聞け」', ex:''},
     {say:'rin', text:'「うん」', ex:''},
-    {say:'kai', text:'「俺が、お前を守る」', ex:''},
+    {choose:[
+      {label:'「俺が、お前を守る」', reply:[
+        {say:'kai', text:'「俺が、お前を守る」', ex:''},
+      ]},
+      {label:'手を、強く握る', reply:[
+        {say:'narr', text:'言葉より先に、手が動いた。リーンの冷たい手を、両手で包んだ。それから、言葉が追いついた。'},
+        {say:'kai', text:'「——俺が、お前を守る」', ex:''},
+      ]},
+    ]},
     {say:'narr', text:'リーンの目が、見開かれた。'},
     {say:'rin', text:'「……え」', ex:'surprised'},
     {say:'kai', text:'「俺が、お前を守る。プロトコルがお前を書き換えようとするなら、俺がそれを止める。俺が、お前を、お前のままにしておく」', ex:''},

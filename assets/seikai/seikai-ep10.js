@@ -2,6 +2,14 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep10 = { title:'第十話 正解のない問い', scenes:[
 
+  /* 0. ［今］冒頭の手紙 */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——「あたしって、何」。'},
+    {say:'narr', text:'君のその問いに、あの日の俺は、答えを持っていなかった。'},
+    {say:'narr', text:'今は、持っている。……だから、この手紙を書いている。'},
+    {wait:600},
+  ]},
+
   /* 1. 五日目の朝・ユーゴの家 */
   { bg:'home', bgm:'hibi', amb:1, card:{no:'第 十 話', ttl:'正解のない問い', sub:'あたしって、何。作られたものが、それでも問う。', hold:4200}, beats:[
     {say:'narr', text:'五日目の朝。リーンは、朝食の席で、静かにパンを食べていた。'},

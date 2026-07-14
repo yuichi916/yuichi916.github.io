@@ -2,6 +2,14 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep9 = { title:'第九話 影を視る者', scenes:[
 
+  /* 0. ［今］冒頭の手紙 */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——影を視る男の話を書く。ペンが、少し重い。'},
+    {say:'narr', text:'彼は俺に言った。「リーンがいない方が、君の未来は長い」と。'},
+    {say:'narr', text:'……なあ、ノーグ。あんたは嘘を言わない。だが——間違うことは、あるんだ。'},
+    {wait:600},
+  ]},
+
   /* 1. 四日目の朝・視界のメッセージ */
   { bg:'home', bgm:'yami', amb:1, card:{no:'第 九 話', ttl:'影を視る者', sub:'道筋を読む者は、君が動く前に、君の答えを知っている。', hold:4200}, beats:[
     {say:'narr', text:'四日目の朝。カイが目を覚ました時、何かがおかしかった。部屋の空気が、昨日と違った。'},
@@ -13,6 +21,7 @@ window.SEIKAI_SCRIPT.ep9 = { title:'第九話 影を視る者', scenes:[
     {say:'narr', text:'でも、今朝は違う。何かが、この家の周りに来ている。カイは目を閉じた。最小限の展開。一秒だけ。'},
     {say:'kai', text:'（目的——この家の周囲の脅威を確認する）', ex:''},
     {fx:'pline'},
+    {fx:'flash'},
     {say:'narr', text:'金色の線が——展開する前に、文字が現れた。カイの視界に、直接。黒い文字が、一文字ずつ浮かび上がった。'},
     {say:'nogu', text:'「お は よ う」', ex:''},
     {say:'nogu', text:'「よ く 眠 れ た か ?」', ex:''},
@@ -125,10 +134,19 @@ window.SEIKAI_SCRIPT.ep9 = { title:'第九話 影を視る者', scenes:[
     {say:'kai', text:'（質問に答えるたびに、道筋を読み取られている）', ex:'pained'},
     {say:'nogu', text:'「続けようか。次の質問。君は、リーンを守りたいか？」', ex:''},
     {say:'narr', text:'カイの手が止まった。どう答えるべきか。正解が見えない。'},
-    {say:'kai', text:'「……答えなくてもいいゲームか？」', ex:''},
-    {say:'nogu', text:'「答えたくなければ、答えなくていい。ただ、沈黙も一つの答えだ」', ex:''},
-    {say:'narr', text:'カイは沈黙を選んだ。'},
-    {say:'nogu', text:'「なるほど。沈黙で答えたか。ということは——答えは『はい』だ。否定したいなら即答するはず。沈黙は、肯定を隠すための動作だ」', ex:''},
+    {choose:[
+      {label:'沈黙を選ぶ', reply:[
+        {say:'kai', text:'「……答えなくてもいいゲームか？」', ex:''},
+        {say:'nogu', text:'「答えたくなければ、答えなくていい。ただ、沈黙も一つの答えだ」', ex:''},
+        {say:'narr', text:'カイは沈黙を選んだ。'},
+        {say:'nogu', text:'「なるほど。沈黙で答えたか。ということは——答えは『はい』だ。否定したいなら即答するはず。沈黙は、肯定を隠すための動作だ」', ex:''},
+      ]},
+      {label:'「守りたい」と即答する', reply:[
+        {say:'kai', text:'「守りたい」', ex:''},
+        {say:'narr', text:'考えるより先に、声が出ていた。'},
+        {say:'nogu', text:'「即答か。……いいね。隠す気がない。だが、まっすぐな道筋ほど、読みやすいものはない」', ex:''},
+      ]},
+    ]},
     {say:'kai', text:'（読まれている。道筋ではなく、ただの言葉のやり取りで）', ex:'pained'},
     {say:'nogu', text:'「リーン。君にも質問がある。君は、自分が人工人間だと、いつ気づいた？」', ex:''},
     {say:'rin', text:'「……まだ、確信はない」', ex:'unease'},
@@ -249,6 +267,7 @@ window.SEIKAI_SCRIPT.ep9 = { title:'第九話 影を視る者', scenes:[
   { bg:'home', bgm:'yami', amb:1, card:{no:'', ttl:'深夜', sub:'', hold:1800}, beats:[
     {say:'narr', text:'深夜。リーンが自分のベッドに戻っていった。カイは、ようやく眠りかけた。'},
     {show:'kai', pos:'center', expr:''},
+    {fx:'flash'},
     {say:'narr', text:'その時——視界に、また文字が浮かんだ。'},
     {say:'nogu', text:'「お や す み、カ イ」', ex:''},
     {say:'nogu', text:'「君 と リ ー ン の 会 話 は、と て も 美 し か っ た」', ex:''},

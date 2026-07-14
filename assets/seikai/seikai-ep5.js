@@ -2,6 +2,14 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
 
+  /* 0. ［今］冒頭の手紙 */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——決行の夜のことを、俺は千回は反芻した。'},
+    {say:'narr', text:'あの夜、俺の道筋は三人分あった。朝には、二人になっていた。'},
+    {say:'narr', text:'それでも、あの夜を「後悔」と呼びたくない。呼べば——あの人の敬礼が、嘘になる。'},
+    {wait:600},
+  ]},
+
   /* 1. 決行前・最後の道筋 */
   { bg:'hideout', bgm:'timelimit', amb:1, card:{no:'第 五 話', ttl:'選べない道', sub:'すべての正解が視える。だが、正解を選べない夜が来る。', hold:4200}, beats:[
     {say:'narr', text:'決行の刻。カイは配管の裏で、最後に道筋を展開した。'},
@@ -38,10 +46,21 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
   ]},
 
   /* 2. 隔壁突破・四十秒 */
-  { bg:'duct', bgm:'bikou', amb:1, card:{no:'', ttl:'第一段階', sub:'', hold:2000}, beats:[
+  { bg:'duct', bgm:'bikou', amb:1, card:{no:'', ttl:'第一段階', sub:'持ち時間は、四十秒。', hold:2200}, beats:[
     {say:'narr', text:'通路は暗かった。試験の日は照明が試験場に集中する。他の区画は最低限の明かりしかない。'},
     {fx:'pline'},
     {say:'narr', text:'道筋が示す。右の通路。十二歩直進。左に曲がる。'},
+    {say:'narr', text:'——右。'},
+    {say:'narr', text:'一瞬、足が竦んだ。二つに分かれた通路。右か、左か。……あの日と、同じ形だった。'},
+    {choose:[
+      {label:'道筋を信じて、右へ', reply:[
+        {say:'kai', text:'（あの日の俺には、道筋がなかった。今は、ある。……行ける）', ex:'pained'},
+      ]},
+      {label:'一拍おいて、息を吸う', reply:[
+        {say:'narr', text:'カイは一拍だけ立ち止まり、深く息を吸った。掌に、あの日の小さな手の記憶。'},
+        {say:'kai', text:'（見ててくれ、ノノ。今度は——間違えない）', ex:'pained'},
+      ]},
+    ]},
     {say:'narr', text:'隔壁が見えた。灰色の金属壁。高さ三メートル。中央に電子錠つきの扉。赤いランプが点灯している。その前に、監視員フェルツが立っていた。'},
     {say:'narr', text:'カイは壁の影に三人を押し込んだ。道筋を展開。フェルツの巡回。あと四十秒で隔壁を離れる。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:'sharp'},
@@ -213,6 +232,17 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
     {say:'garudo', text:'「カイ。考えることをやめるな」', ex:''},
     {say:'narr', text:'母の言葉と、同じだった。カイの膝から、力が抜けた。'},
     {say:'kai', text:'「ガルド——」', ex:'pained'},
+    {choose:[
+      {label:'「……必ず、迎えに来る」', reply:[
+        {say:'garudo', text:'「おう。二度目の約束だ。破ったら化けて出るぞ」', ex:''},
+        {say:'kai', text:'「死なないんだろ。化けるな」', ex:'pained'},
+        {say:'narr', text:'ガルドが、声を出して笑った。血の気の引いた顔で、それでも、笑った。'},
+      ]},
+      {label:'言葉が、出ない', reply:[
+        {say:'narr', text:'言葉が、出なかった。ガルドは、それでいいというように、ゆっくり頷いた。'},
+        {say:'garudo', text:'「言葉はいらん。生きて、空を見ろ。それが返事だ」', ex:''},
+      ]},
+    ]},
     {say:'garudo', text:'「行け。嬢ちゃん、頼んだ」', ex:''},
     {hide:'kai'},
     {show:'rin', pos:'left', expr:''},
@@ -353,6 +383,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
     {say:'narr', text:'東の空が、薄く白んでいた。夜が明け始めていた。リーンが東を向いた。'},
     {say:'narr', text:'唇が、微かに動いた。いつもの子守唄の旋律が、少しだけ漏れた。けれど、途中で止まった。代わりに、リーンは、別の言葉を発した。'},
     {say:'rin', text:'「おはよう」', ex:''},
+    {fx:'heart'},
     {say:'narr', text:'カイの心臓が跳ねた。'},
     {say:'rin', text:'「おはよう、カイ。今日もよろしく」', ex:'soft'},
     {say:'narr', text:'——夢の中の言葉と、同じだった。声が違う。場所が違う。何もかもが違う。なのに——同じだった。声のトーン。語尾の跳ね方。'},

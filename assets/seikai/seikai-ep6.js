@@ -2,6 +2,14 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
 
+  /* 0. ［今］冒頭の手紙 */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——初めて泣いた日の君を、俺は、世界で一番きれいだと思った。'},
+    {say:'narr', text:'ごめん。こんなことを書いて。でも、本当のことだ。'},
+    {say:'narr', text:'そして、あの涙の意味を、俺はまだ知らなかった。……君は、「初めて」泣いたんじゃなかったんだ。'},
+    {wait:600},
+  ]},
+
   /* 1. 丘の上・初めての空 */
   { bg:'surface', bgm:'yuki', amb:1, card:{no:'第 六 話', ttl:'空', sub:'記憶のない少女が、生まれて初めて泣いた日。地上には、泣くことが許される空があった。', hold:4200}, beats:[
     {say:'narr', text:'朝日が昇りきった。'},
@@ -95,9 +103,18 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
     {say:'kai', text:'「止めなくていい」', ex:''},
     {say:'narr', text:'リーンが顔を覆った手を、ゆっくりと下ろした。赤い目が、カイを見た。水で濡れた頬が、朝日を反射していた。'},
     {say:'rin', text:'「泣いていいの？」', ex:'unease'},
-    {say:'narr', text:'カイは一瞬、言葉に詰まった。道筋なら正解を教えてくれる。道筋がない今、カイには自分の言葉しかない。でも、口が動いた。'},
-    {say:'kai', text:'「泣いていい」', ex:'soft'},
-    {say:'narr', text:'声が少し震えた。'},
+    {say:'narr', text:'カイは一瞬、言葉に詰まった。道筋なら正解を教えてくれる。道筋がない今、カイには自分の言葉しかない。'},
+    {choose:[
+      {label:'「泣いていい」', reply:[
+        {say:'kai', text:'「泣いていい」', ex:'soft'},
+        {say:'narr', text:'声が少し震えた。'},
+      ]},
+      {label:'黙って、背中に手を置く', reply:[
+        {say:'narr', text:'カイは言葉の代わりに、リーンの背中に手を置いた。'},
+        {say:'rin', text:'「……あったかい」', ex:'pained'},
+        {say:'kai', text:'「……泣いていい」', ex:'soft'},
+      ]},
+    ]},
     {say:'kai', text:'「泣いていいんだ、ここは」', ex:'soft'},
     {say:'narr', text:'ここは。地下ではない。廃棄層ではない。番号で呼ばれる場所ではない。ここは——地上だ。'},
     {say:'narr', text:'空があって、風があって、光があって、草があって。そして、泣くことが許される場所だ。'},

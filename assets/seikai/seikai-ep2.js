@@ -2,6 +2,14 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:[
 
+  /* 0. ［今］冒頭の手紙 — 章の予告(劇的アイロニー) */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——君と過ごした最初の二十日間を、俺は今も、一日ずつ数え直せる。'},
+    {say:'narr', text:'君は三日で監督官の癖を暴き、十二日目に人の死を予感し、二十日目に、俺を三年ぶりに笑わせた。'},
+    {say:'narr', text:'そのどれか一つでも欠けていたら、世界は、今の形をしていない。'},
+    {wait:600},
+  ]},
+
   /* 1. 翌朝・作業割当板 */
   { bg:'hall', bgm:'rekishi', amb:1, card:{no:'第 二 話', ttl:'なんとなくの少女', sub:'記憶のない少女は、知らないはずの手順を、指先が覚えている。', hold:4200}, beats:[
     {say:'narr', text:'翌朝、リーンは予想通りの場所にいた。'},
@@ -70,6 +78,16 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
     {say:'narr', text:'沈黙。'},
     {say:'rin', text:'「あたしが、外にいてあげる」', ex:'soft'},
     {say:'kai', text:'「……は？」', ex:'surprised'},
+    {choose:[
+      {label:'「危険だ。目立てば消される」', reply:[
+        {say:'rin', text:'「大丈夫。あたし、目立たない歩き方、もう見つけたから」', ex:''},
+        {say:'kai', text:'「……新入り一週間目の台詞じゃないな」', ex:''},
+      ]},
+      {label:'「なぜ、そこまでする」', reply:[
+        {say:'rin', text:'「んー。カイの頭の中って、たぶんすごく広いのに、出口が一個しかないの。もったいないじゃん」', ex:'soft'},
+        {say:'kai', text:'「人の頭を物置みたいに言うな」', ex:''},
+      ]},
+    ]},
     {say:'rin', text:'「情報を集める係。カイが説明できない場所を、あたしが代わりに見に行く。それで二人で組み立てる」', ex:''},
     {say:'narr', text:'押しつけがましくない、ただの事実を言うような声だった。カイは頷くしかなかった。'},
     {hide:'all'},
@@ -109,7 +127,9 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
     {say:'rin', text:'「ここが電源。ここが通信モジュール。これは……記憶装置かな」', ex:''},
     {say:'kai', text:'「なぜわかる」', ex:''},
     {say:'rin', text:'「わからない。でも指が知ってる」', ex:''},
-    {say:'narr', text:'リーンの指が一点で止まる。押さえた。端末の表面に、一瞬だけ光が走った。文字が浮かんで、消えた。'},
+    {say:'narr', text:'リーンの指が一点で止まる。押さえた。'},
+    {fx:'flash'},
+    {say:'narr', text:'端末の表面に、一瞬だけ光が走った。文字が浮かんで、消えた。'},
     {say:'kai', text:'「……ABYSS-OS、v4.7」', ex:'surprised'},
     {say:'narr', text:'意味はわからない。だが「OS」という文字の並びに、知らないはずの親しみを感じた。'},
     {say:'narr', text:'その時、リーンがふと指を止めた。唇が小さく動く。音にならない旋律。抑揚。でも歌詞はない。'},
@@ -177,7 +197,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
   ]},
 
   /* 6. 十二日目・視えなかった道 */
-  { bg:'waste', bgm:'anohi', amb:1, card:{no:'', ttl:'十二日目', sub:'', hold:2000}, beats:[
+  { bg:'waste', bgm:'anohi', amb:1, card:{no:'', ttl:'十二日目', sub:'決行まで、二十六日。', hold:2200}, beats:[
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'narr', text:'十二日目の朝、点呼の前。リーンがふと呟いた。'},
     {say:'rin', text:'「カイ。今日、誰か死ぬかも」', ex:'unease'},
@@ -199,6 +219,8 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
     {say:'narr', text:'ジンは、いつも通り顎を引いた。カイも、顎を引いた。'},
     {say:'narr', text:'でも——ジンの目の奥には、何かがあった。責めてはいない。怒ってもいない。ただ、カイが助けに来なかったことを、静かに見届けた目だった。'},
     {say:'kai', text:'（——また、爪の跡を刻んでいた）', ex:'pained'},
+    {say:'narr', text:'その夜。リーンの「誰か死ぬかも」は、外れたように見えた。誰も、死ななかった。'},
+    {say:'narr', text:'——外れていなかった。予感には、期限がないだけだった。それを知るのは、もう少し先の話だ。'},
     {hide:'all'},
   ]},
 
@@ -229,7 +251,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
   ]},
 
   /* 8. 十五日目 夜・忘れることと、聞こえない呼吸 */
-  { bg:'hideout', bgm:'yuki', amb:1, card:{no:'', ttl:'十五日目の夜', sub:'', hold:2000}, beats:[
+  { bg:'hideout', bgm:'yuki', amb:1, card:{no:'', ttl:'十五日目の夜', sub:'決行まで、二十三日。', hold:2200}, beats:[
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'narr', text:'リーンが端末の修理を続けていた。瓦礫から拾った部品を組み合わせ、切れたケーブルを繋ぎ直している。'},
     {say:'narr', text:'ふと、気づいた。リーンの呼吸音が、聞こえない。'},
@@ -257,7 +279,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
   ]},
 
   /* 9. 二十日目・道が、繋がった */
-  { bg:'hideout', bgm:'hibi', amb:1, card:{no:'', ttl:'二十日目の朝', sub:'', hold:2000}, beats:[
+  { bg:'hideout', bgm:'hibi', amb:1, card:{no:'', ttl:'二十日目の朝', sub:'決行まで、十八日。', hold:2200}, beats:[
     {say:'narr', text:'二十日目の朝。点呼の後、リーンがカイのところに走ってきた。息を切らしている。走ってきたのに、足音がほとんどしなかった。'},
     {show:'rin', pos:'right', expr:''},
     {say:'rin', text:'「カイ。端末、動いた」', ex:''},
@@ -274,6 +296,17 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
     {say:'kai', text:'「……使える。この情報は、使える」', ex:''},
     {say:'rin', text:'「でしょ？」', ex:'soft'},
     {say:'narr', text:'リーンが、笑っていた。徹夜したらしい目の下の隈と、その上の、小さな笑み。'},
+    {choose:[
+      {label:'「……無茶しやがって」', reply:[
+        {say:'rin', text:'「無茶じゃないよ、計算。眠気と成果を天秤にかけただけ」', ex:''},
+        {say:'kai', text:'「その計算に、自分の体が入ってない」', ex:''},
+      ]},
+      {label:'「よくやった」', reply:[
+        {say:'rin', text:'「……いま、素直に褒めた？ 明日は雨かな」', ex:'soft'},
+        {say:'kai', text:'「地下に雨は降らない」', ex:''},
+        {say:'rin', text:'「じゃあ地上で降られてみたいね、いつか」', ex:'soft'},
+      ]},
+    ]},
     {say:'narr', text:'カイは自分の口の形を、確かめた。——口の端が、上がっていた。笑っていた。三年ぶりだった。'},
     {say:'narr', text:'母が死んでから、自分が笑うことはないと思っていた。笑う筋肉はもう動かないのだと、諦めていた。'},
     {say:'rin', text:'「……カイ、今。ちょっと笑った」', ex:'soft'},
@@ -290,6 +323,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
     {say:'narr', text:'君が笑った日を、俺は間違えるかもしれない。'},
     {say:'narr', text:'でも、君が笑ったことは、間違いない。'},
     {say:'narr', text:'それだけは、この指が覚えている。'},
+    {say:'narr', text:'——そして、笑った俺たちの隣で、一人の少年の時間が、もう尽きかけていたことも。'},
     {wait:800},
   ]},
 

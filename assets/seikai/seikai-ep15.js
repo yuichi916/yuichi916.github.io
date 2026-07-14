@@ -3,6 +3,14 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep15 = { title:'第十五話 正解の外側で', scenes:[
 
+  /* 0. ［今］冒頭の手紙 */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——最後の章だ。ここから先は、手が震えるかもしれない。'},
+    {say:'narr', text:'でも、一つだけ、約束する。'},
+    {say:'narr', text:'この物語は、「おはよう」で終わる。'},
+    {wait:700},
+  ]},
+
   /* 1. 研究所裏口 */
   { bg:'lab', bgm:'timelimit', amb:1, card:{no:'第 十五 話', ttl:'正解の外側で', sub:'正解が視えない道を、それでも二人で選ぶ。', hold:4200}, beats:[
     {say:'narr', text:'ユーゴの研究所の、裏口。月は頂点を過ぎていた。零時まで、あと二時間。'},

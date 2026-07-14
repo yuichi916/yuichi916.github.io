@@ -2,6 +2,14 @@
 window.SEIKAI_SCRIPT = window.SEIKAI_SCRIPT || {};
 window.SEIKAI_SCRIPT.ep7 = { title:'第七話 楽園の色／パンケーキ', scenes:[
 
+  /* 0. ［今］冒頭の手紙 */
+  { bg:'void', bgm:'ima', amb:0, beats:[
+    {say:'narr', text:'——幸福の記憶ほど、あとで痛むものはない。'},
+    {say:'narr', text:'これは、パンケーキの章だ。笑って読んでほしい。'},
+    {say:'narr', text:'俺たちが一番、何も知らずに笑っていた頃の話だ。'},
+    {wait:600},
+  ]},
+
   /* 1. 翌朝・空き家の扉 */
   { bg:'home', bgm:'hibi', amb:1, card:{no:'第 七 話', ttl:'楽園の色／パンケーキ', sub:'作られた甘さ。誰かの手が組み立てた、甘さ。', hold:4200}, beats:[
     {say:'narr', text:'翌朝、空き家の扉が軽く叩かれた。'},
@@ -111,7 +119,19 @@ window.SEIKAI_SCRIPT.ep7 = { title:'第七話 楽園の色／パンケーキ', s
     {say:'rin', text:'「……ううん」', ex:''},
     {say:'kai', text:'「嘘つくな」', ex:''},
     {say:'rin', text:'「嘘じゃないよ。自分のがあるし」', ex:''},
-    {say:'narr', text:'でもリーンの目はカイの皿から離れなかった。カイは自分のナイフを取った。パンケーキを半分に切った。残り四切れのうち、二切れをリーンの皿に移した。'},
+    {say:'narr', text:'でもリーンの目はカイの皿から離れなかった。カイは自分のナイフを取った。'},
+    {choose:[
+      {label:'半分、皿に移す', reply:[
+        {say:'narr', text:'パンケーキを半分に切った。残り四切れのうち、二切れをリーンの皿に移した。'},
+      ]},
+      {label:'「……全部食っていいぞ」', reply:[
+        {say:'rin', text:'「それはダメ」', ex:''},
+        {say:'kai', text:'「なぜだ」', ex:''},
+        {say:'rin', text:'「カイが食べてる時の顔、見たいんだもん」', ex:'soft'},
+        {say:'kai', text:'「……なんだ、それは」', ex:''},
+        {say:'narr', text:'結局、二切れだけが、リーンの皿に移った。'},
+      ]},
+    ]},
     {say:'kai', text:'「食え」', ex:''},
     {say:'rin', text:'「え、でも——カイの分は？」', ex:'surprised'},
     {say:'narr', text:'カイは少し考えた。答えに詰まった。'},
@@ -184,6 +204,7 @@ window.SEIKAI_SCRIPT.ep7 = { title:'第七話 楽園の色／パンケーキ', s
     {say:'rin', text:'「でも——喜びは？」', ex:''},
     {say:'yuugo', text:'「それも——管理されている」'},
     {say:'narr', text:'ユーゴが一瞬、言葉を切った。'},
+    {fx:'flash'},
     {say:'yuugo', text:'「管理者は、住人に『感情』を配給している」'},
     {say:'kai', text:'「配給？」', ex:'surprised'},
     {say:'yuugo', text:'「朝、住人の端末に『今日の感情設定』が送られる。穏やかさ、満足、協調——管理者が『社会の維持に最適』と判断した感情だけが配布される」'},
@@ -240,6 +261,7 @@ window.SEIKAI_SCRIPT.ep7 = { title:'第七話 楽園の色／パンケーキ', s
     {say:'kai', text:'「……なぜ、そう思うんですか」', ex:'surprised'},
     {say:'yuugo', text:'「歩き方だ。廊下を歩く時、お前は家具の位置を知らないはずなのに、当たらない。視線の使い方が、普通の人間と違う。先を読んでいる目だ」'},
     {say:'narr', text:'カイは答えなかった。ユーゴが肩をすくめた。'},
+    {fx:'heart'},
     {say:'yuugo', text:'「答えなくていい。隠したいなら隠せ。だが、一つだけ言っておく。この町で能力を使うな。管理者が検知する。お前の能力は、管理者にとっては『異分子』だ」'},
     {say:'kai', text:'「……わかりました」', ex:''},
     {say:'yuugo', text:'「よし。おやすみ」'},
