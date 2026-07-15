@@ -14,6 +14,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
   { bg:'hall', bgm:'rekishi', amb:1, card:{no:'第 二 話', ttl:'なんとなくの少女', sub:'記憶のない少女は、知らないはずの手順を、指先が覚えている。', hold:4200}, beats:[
     {say:'narr', text:'翌朝、リーンは予想通りの場所にいた。'},
     {say:'narr', text:'カイが起きる前に配管の隙間から抜け出して、作業割当板の前に立っている。錆びた金属板の番号と区画の対応表を、指でなぞりながら読んでいた。'},
+    {explore:{id:'bangou', label:'壁のどこかに、古い刻み跡がある——見回して、探す', yaw:52, pitch:-4}},
     {show:'kai', pos:'left'},
     {say:'kai', text:'「早いな」', ex:''},
     {show:'rin', pos:'right', expr:''},
@@ -168,6 +169,10 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
     {say:'narr', text:'カイは言葉に詰まった。「管理」でもなく「助けてる」でもなく、正確に言い表す言葉が、見つからない。'},
     {say:'potz', text:'「お前のその『管理』のおかげで、俺も先月助かったんだろうよ」', ex:''},
     {say:'kai', text:'「偶然だ」', ex:''},
+    {say:'potz', text:'「なあ、五一七。俺はな、上昇試験に十四回落ちてる」', ex:''},
+    {say:'kai', text:'「……知ってる」', ex:''},
+    {say:'potz', text:'「出来レースだって噂も、知ってる。それでも、来年も応募するんだ。希望ってのはな——やめ方が、わからねえんだよ」', ex:''},
+    {say:'narr', text:'ポッツは笑った。歯の欠けた口で。カイはその笑いを、胸の奥の、ジンの顎の引き方と同じ棚に、そっとしまった。'},
     {hide:'all'},
   ]},
 
