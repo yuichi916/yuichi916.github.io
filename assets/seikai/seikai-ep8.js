@@ -37,6 +37,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
   /* 2. 公園・笑わない子供たちと、絵を描く少女ミーラ */
   { bg:'town', bgm:'yami', amb:1, card:{no:'', ttl:'公園', sub:'', hold:2000}, beats:[
     {say:'narr', text:'ユーゴが公園に入った。ベンチが並び、緑の芝生が広がっている。子どもたちが遊具で遊んでいた。滑り台。ブランコ。シーソー。'},
+    {explore:{id:'haikyu', label:'公園のどこかで、紙が風に揺れている——見回して、探す', yaw:66, pitch:-8}},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'rin', text:'「カイ、見て」', ex:''},
     {say:'narr', text:'子どもたちは遊具の上にいた。でも——笑い声がなかった。'},

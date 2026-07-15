@@ -34,7 +34,7 @@ window.SEIKAI_SCRIPT.ep14 = { title:'第十四話 能力が示さない道', sce
     {say:'narr', text:'カイは、目を閉じた。目的を、定めた。'},
     {say:'kai', text:'（——リーンを、救う道）', ex:''},
     {say:'narr', text:'金色の線が——。'},
-    {wait:1100},
+    {game:{type:'path', mode:'void', goal:'リーンを、救う道', wait:6, void:[] }},
     {say:'narr', text:'現れなかった。'},
     {say:'narr', text:'カイは、目を開けた。何も、見えなかった。もう一度、目を閉じ、念じた。'},
     {say:'kai', text:'（リーンを、救う道）', ex:'pained'},
