@@ -475,6 +475,8 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
     {say:'narr', text:'片脚で、息を整えながら、俺たちを待っている。'},
     {say:'narr', text:'君を連れて行く約束は、まだ果たせていない。'},
     {say:'narr', text:'だからこの手紙は、まだ終われない。'},
+    {wait:700},
+    {say:'rin', text:'（……うん。まだ、終わらせないで）', ex:''},
     {wait:900},
   ]},
 

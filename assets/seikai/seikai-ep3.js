@@ -253,6 +253,8 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
     {say:'narr', text:'——［ 今 ］'},
     {say:'narr', text:'ノノと書いた「空」は、今、俺の机の上にある。七年分の錆を、壁ごと削り取って持ち帰った。'},
     {say:'narr', text:'君が読むかもしれない。読んでくれたら、またあの日みたいに、泣いてくれてもいい。'},
+    {wait:700},
+    {say:'rin', text:'（……泣いた）', ex:''},
     {wait:800},
   ]},
 

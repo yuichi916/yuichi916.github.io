@@ -303,6 +303,8 @@ window.SEIKAI_SCRIPT.ep15 = { title:'第十五話 正解の外側で', scenes:[
     {say:'narr', text:'──もう一度、会いに来てくれ。'},
     {say:'narr', text:'今日、俺は君を待つ。'},
     {say:'you', text:'明日の君が、今日の俺を、見つけてくれるから。'},
+    {wait:1100},
+    {say:'rin', text:'（——見つけた）', ex:'soft'},
     {wait:900},
     {say:'narr', text:'——『正解の外側 ～すべての正解が視える俺が、答えのない少女と世界を変えるまで～』 第一部 完。'},
     {say:'narr', text:'第二部「沈黙の地平線」に続く。'},
