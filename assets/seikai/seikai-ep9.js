@@ -195,7 +195,7 @@ window.SEIKAI_SCRIPT.ep9 = { title:'第九話 影を視る者', scenes:[
     {say:'kai', text:'「行くぞ」', ex:''},
     {say:'rin', text:'「うん」', ex:''},
     {say:'narr', text:'二人は公園を離れた。ノーグはベンチに座ったまま、動かなかった。一人でチェスの駒を動かし続けていた。'},
-    {explore:{id:'nogu_note', label:'……振り返った視界の端、ベンチの脚元に、白い紙片——見回して、探す', yaw:96, pitch:-10}},
+    {explore:{id:'nogu_note', label:'……去り際、背後のベンチの脚元に、白い紙片——振り返って、探す', yaw:-134, pitch:-14}},
     {hide:'all'},
   ]},
 

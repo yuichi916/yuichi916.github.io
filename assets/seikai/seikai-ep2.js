@@ -14,7 +14,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
   { bg:'hall', bgm:'rekishi', amb:1, card:{no:'第 二 話', ttl:'なんとなくの少女', sub:'記憶のない少女は、知らないはずの手順を、指先が覚えている。', hold:4200}, beats:[
     {say:'narr', text:'翌朝、リーンは予想通りの場所にいた。'},
     {say:'narr', text:'カイが起きる前に配管の隙間から抜け出して、作業割当板の前に立っている。錆びた金属板の番号と区画の対応表を、指でなぞりながら読んでいた。'},
-    {explore:{id:'bangou', label:'壁のどこかに、古い刻み跡がある——見回して、探す', yaw:52, pitch:-4}},
+    {explore:{id:'bangou', label:'壁の高いところに、古い刻み跡がある——見上げて、探す', yaw:-38, pitch:16}},
     {show:'kai', pos:'left'},
     {say:'kai', text:'「早いな」', ex:''},
     {show:'rin', pos:'right', expr:''},
