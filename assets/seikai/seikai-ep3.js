@@ -119,6 +119,7 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
   /* 5. ガルドの区画・母の言葉 */
   { bg:'ration', bgm:'rekishi', amb:1, card:{no:'', ttl:'東端 ― ガルドの区画', sub:'', hold:2400}, beats:[
     {say:'narr', text:'その夜、カイはリーンと共に、第五層東端のガルドの区画へ向かった。監督官の巡回から外れた、ガルドが二十年かけて確保した静寂。'},
+    {map:'garudo'},
     {say:'garudo', text:'「来たか」'},
     {say:'narr', text:'白髪。深い皺。だが目だけが若い。諦めていない目だ。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
