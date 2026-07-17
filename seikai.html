@@ -102,7 +102,18 @@ img{-webkit-user-drag:none}
 #mgtimer i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#37e0d0,#ffd24a)}
 .mggrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:320px;margin:0 auto}
 .mgg{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:26px;color:#cfe6ff;border:1px solid rgba(120,180,240,.25);border-radius:10px;background:rgba(16,26,42,.8);cursor:pointer;transition:all .15s;user-select:none}
-.mgg.lit{background:rgba(90,190,255,.35);color:#fff;box-shadow:0 0 24px rgba(90,190,255,.5);border-color:#8fd0ff}
+.mgg.lit{background:rgba(90,190,255,.5);color:#fff;box-shadow:0 0 34px rgba(120,200,255,.9);border-color:#bfe4ff;transform:scale(1.1)}
+.mgintro{margin:6px 0 2px}
+.mgirule p{margin:5px 0;color:#c6d2e2;font-size:13px;line-height:1.8;letter-spacing:.04em}
+.mgibtns{display:flex;gap:10px;margin-top:16px;justify-content:center}
+.mgigo{font-size:14px;letter-spacing:.2em;padding:10px 32px;border-radius:8px;border:1px solid rgba(87,200,255,.55);background:linear-gradient(180deg,rgba(60,130,190,.5),rgba(30,70,110,.5));color:#eaf6ff;cursor:pointer}
+.mgigo:hover{background:linear-gradient(180deg,rgba(80,160,220,.65),rgba(40,90,140,.65))}
+.mgiskip2{font-size:12px;padding:10px 18px;border-radius:8px;border:1px solid rgba(160,180,200,.35);background:rgba(20,28,40,.6);color:#9aa7b8;cursor:pointer}
+.mgphase{text-align:center;font-family:var(--serif);font-size:15px;letter-spacing:.32em;margin:4px 0 10px;color:#ffd88f;min-height:22px}
+.mgphase.go{color:#57e0c8}
+.mgdots{display:flex;gap:7px;justify-content:center;margin-top:12px;min-height:10px}
+.mgdots i{width:9px;height:9px;border-radius:50%;background:rgba(150,180,220,.22);border:1px solid rgba(150,180,220,.4)}
+.mgdots i.on{background:#57e0c8;border-color:#57e0c8}
 .mgg.ok{background:rgba(55,224,150,.3);border-color:#4fe0a0}
 .mgg.ng{background:rgba(255,80,80,.3);border-color:#ff6a6a;animation:mgshake .3s}
 @keyframes mgshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
@@ -660,7 +671,7 @@ function enterScene(){
   if((st.beat||0)===0 && sc.card){ locked=true; showCard(sc.card); }
   else step();
 }
-function runFx(kind){ fx(kind); const dur=(kind==='shake'||kind==='hit')?600:(kind==='pline'?1500:400); setTimeout(()=>{ locked=false; step(); }, dur); }
+function runFx(kind){ if(kind==='lookup'&&window.BG3D&&window.BG3D.lookUp) window.BG3D.lookUp(); fx(kind); const dur=(kind==='shake'||kind==='hit')?600:(kind==='pline'?1500:(kind==='lookup'?2600:400)); setTimeout(()=>{ locked=false; step(); }, dur); }
 
 /* ---------- カード ---------- */
 function showCard(card){
@@ -823,78 +834,117 @@ function renderGame(g){
 function mgTimer(box,sec,onout){ const t=document.createElement('div'); t.id='mgtimer'; t.innerHTML='<i></i>'; box.appendChild(t);
   const bar=t.querySelector('i'); const t0=Date.now(); const iv=setInterval(()=>{ const r=1-(Date.now()-t0)/(sec*1000);
     bar.style.width=Math.max(0,r*100)+'%'; if(r<=0){ clearInterval(iv); onout&&onout(); } },200); return ()=>clearInterval(iv); }
+function mgIntroPanel(p, lines, onStart, onSkip){
+  const iv=document.createElement('div'); iv.className='mgintro';
+  iv.innerHTML=lines.map(l=>'<p>'+l+'</p>').join('');
+  const row=document.createElement('div'); row.className='mgibtns';
+  const go=document.createElement('button'); go.className='mgigo'; go.textContent='はじめる';
+  const sk=document.createElement('button'); sk.className='mgiskip2'; sk.textContent='スキップ';
+  go.addEventListener('click',ev=>{ ev.stopPropagation(); iv.remove(); onStart(); });
+  sk.addEventListener('click',ev=>{ ev.stopPropagation(); onSkip(); });
+  row.appendChild(go); row.appendChild(sk); iv.appendChild(row); p.appendChild(iv);
+}
 function mgLock(g){
   const mg=el('mg'); mg.classList.add('show');
   const p=document.createElement('div'); p.className='mgpanel';
-  p.innerHTML='<div class="mgttl">ABYSS-OS ／ 認証シーケンス</div><div class="mgsub">光る印の順を、覚えて、なぞれ。</div>';
+  p.innerHTML='<div class="mgttl">ABYSS-OS ／ 認証シーケンス</div><div class="mgsub">リーンの指の記憶を、なぞる。</div>';
   const skip=document.createElement('button'); skip.className='mgskip'; skip.textContent='スキップ';
   let stopT=null; const st_={dead:false};
-  skip.onclick=(ev)=>{ ev.stopPropagation(); st_.dead=true; stopT&&stopT(); mgFinish(g,'skip'); };
+  const doSkip=()=>{ if(st_.dead) return; st_.dead=true; stopT&&stopT(); mgFinish(g,'skip'); };
+  skip.onclick=(ev)=>{ ev.stopPropagation(); doSkip(); };
   p.appendChild(skip); mg.innerHTML=''; mg.appendChild(p);
-  stopT=mgTimer(p, g.time||40, ()=>{ if(!st_.dead){ st_.dead=true; mgFinish(g,'lose'); } });
-  const grid=document.createElement('div'); grid.className='mggrid'; p.appendChild(grid);
-  const cells=[];
-  for(let i=0;i<9;i++){ const c=document.createElement('div'); c.className='mgg'; c.textContent=GLYPHS[i]; grid.appendChild(c); cells.push(c); }
-  let round=0; const rounds=g.rounds||2;
-  function playRound(){
-    round++; const len=2+round; const seq=[];
-    while(seq.length<len){ const r=Math.floor(Math.random()*9); if(seq[seq.length-1]!==r) seq.push(r); }
-    let k=0; cells.forEach(c=>c.onclick=null);
-    const showNext=()=>{ if(st_.dead) return;
-      if(k<seq.length){ const c=cells[seq[k]]; c.classList.add('lit'); setTimeout(()=>{ c.classList.remove('lit'); k++; setTimeout(showNext,180); },430); }
-      else input(); };
-    const input=()=>{ let j=0;
-      cells.forEach((c,idx)=>{ c.onclick=(ev)=>{ ev.stopPropagation(); if(st_.dead) return;
-        if(idx===seq[j]){ c.classList.add('ok'); setTimeout(()=>c.classList.remove('ok'),240); j++;
-          if(j>=seq.length){ cells.forEach(x=>x.onclick=null);
-            if(round>=rounds){ st_.dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'win'),420); }
-            else setTimeout(playRound,600); } }
-        else{ c.classList.add('ng'); setTimeout(()=>c.classList.remove('ng'),380); st_.dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'lose'),650); }
-      };});
-    };
-    setTimeout(showNext,600);
+  mgIntroPanel(p, [
+    '九つのグリフが、順番に光る。',
+    '光った順を、目で覚えろ。',
+    '光が止まったら、同じ順に、押せ。',
+    '（間違えても、物語は先へ進む）',
+  ], start, doSkip);
+  function start(){
+    stopT=mgTimer(p, g.time||40, ()=>{ if(!st_.dead){ st_.dead=true; mgFinish(g,'lose'); } });
+    const ph=document.createElement('div'); ph.className='mgphase'; p.appendChild(ph);
+    const grid=document.createElement('div'); grid.className='mggrid'; p.appendChild(grid);
+    const dots=document.createElement('div'); dots.className='mgdots'; p.appendChild(dots);
+    const cells=[];
+    for(let i=0;i<9;i++){ const c=document.createElement('div'); c.className='mgg'; c.textContent=GLYPHS[i]; grid.appendChild(c); cells.push(c); }
+    let round=0; const rounds=g.rounds||2;
+    function playRound(){
+      round++; const len=2+round; const seq=[];
+      while(seq.length<len){ const r=Math.floor(Math.random()*9); if(seq[seq.length-1]!==r) seq.push(r); }
+      ph.textContent='見 て 、 覚 え ろ'; ph.classList.remove('go');
+      dots.innerHTML=seq.map(()=>'<i></i>').join('');
+      let k=0; cells.forEach(c=>c.onclick=null);
+      const showNext=()=>{ if(st_.dead) return;
+        if(k<seq.length){ const c=cells[seq[k]]; c.classList.add('lit'); setTimeout(()=>{ c.classList.remove('lit'); k++; setTimeout(showNext,280); },620); }
+        else input(); };
+      const input=()=>{ ph.textContent='同 じ 順 に 、 な ぞ れ'; ph.classList.add('go'); let j=0;
+        const dd=dots.querySelectorAll('i');
+        cells.forEach((c,idx)=>{ c.onclick=(ev)=>{ ev.stopPropagation(); if(st_.dead) return;
+          if(idx===seq[j]){ c.classList.add('ok'); setTimeout(()=>c.classList.remove('ok'),240); dd[j].classList.add('on'); j++;
+            if(j>=seq.length){ cells.forEach(x=>x.onclick=null);
+              if(round>=rounds){ st_.dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'win'),420); }
+              else setTimeout(playRound,700); } }
+          else{ c.classList.add('ng'); setTimeout(()=>c.classList.remove('ng'),380); st_.dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'lose'),650); }
+        };});
+      };
+      setTimeout(showNext,700);
+    }
+    playRound();
   }
-  playRound();
 }
 function mgPath(g){
   const mg=el('mg'); mg.classList.add('show');
   const p=document.createElement('div'); p.className='mgpanel';
-  p.innerHTML='<div class="mgttl">道 筋</div><div class="mgsub">'+(g.mode==='void'? '目的：'+esc(g.goal||'') : '金色の線を、目に焼き付けて、順になぞれ。')+'</div>';
+  p.innerHTML='<div class="mgttl">道 筋</div><div class="mgsub">'+(g.mode==='void'? '目的：'+esc(g.goal||'') : 'カイの目に映る、金色の線。')+'</div>';
   const skip=document.createElement('button'); skip.className='mgskip'; skip.textContent='スキップ';
   let stopT=null, dead=false;
-  skip.onclick=(ev)=>{ ev.stopPropagation(); dead=true; stopT&&stopT(); mgFinish(g, g.mode==='void'?'void':'skip'); };
+  const doSkip=()=>{ if(dead) return; dead=true; stopT&&stopT(); mgFinish(g, g.mode==='void'?'void':'skip'); };
+  skip.onclick=(ev)=>{ ev.stopPropagation(); doSkip(); };
   p.appendChild(skip); mg.innerHTML=''; mg.appendChild(p);
-  const area=document.createElement('div'); area.id='mgarea'; p.appendChild(area);
-  if(g.mode==='void'){ stopT=mgTimer(p, g.wait||6, ()=>{ if(!dead){ dead=true; mgFinish(g,'void'); } }); return; }
-  stopT=mgTimer(p, g.time||22, ()=>{ if(!dead){ dead=true; mgFinish(g,'lose'); } });
-  const rounds=g.rounds||1; const sub=p.querySelector('.mgsub');
-  function buildRound(r){
-    area.innerHTML='';
-    if(rounds>1) sub.textContent='金色の線を、目に焼き付けて、順になぞれ。（'+r+' / '+rounds+'）';
-    const n=(g.n||5)+(r-1); const showMs=Math.max(750, Math.round((g.show||1700)*Math.pow(0.82,r-1)));
-    const pts=[];
-    for(let i=0;i<n;i++){ pts.push({x:8+(84*i/(n-1))+(i>0&&i<n-1? (Math.random()*16-8):0), y:18+Math.random()*64}); }
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.id='mgsvg';
-    svg.setAttribute('viewBox','0 0 100 100'); svg.setAttribute('preserveAspectRatio','none');
-    const pl=document.createElementNS('http://www.w3.org/2000/svg','polyline');
-    pl.setAttribute('points', pts.map(q=>q.x+','+q.y).join(' '));
-    pl.setAttribute('fill','none'); pl.setAttribute('stroke','#ffd24a'); pl.setAttribute('stroke-width','1.2');
-    pl.setAttribute('style','filter:drop-shadow(0 0 3px #ffca4a);opacity:1;transition:opacity 1s');
-    svg.appendChild(pl); area.appendChild(svg);
-    const nodes=[];
-    pts.forEach((q,i)=>{ const d=document.createElement('div'); d.className='mgn lit'; d.textContent=i+1;
-      d.style.left=q.x+'%'; d.style.top=q.y+'%'; area.appendChild(d); nodes.push(d); });
-    setTimeout(()=>{ if(dead) return; pl.style.opacity='0'; nodes.forEach(d=>{ d.classList.remove('lit'); d.textContent='?'; });
-      let j=0;
-      nodes.forEach((d,idx)=>{ d.onclick=(ev)=>{ ev.stopPropagation(); if(dead) return;
-        if(idx===j){ d.classList.add('ok'); d.textContent=idx+1; j++;
-          if(j>=n){ if(r>=rounds){ dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'win'),420); }
-            else setTimeout(()=>buildRound(r+1), 700); } }
-        else{ d.classList.add('ng'); setTimeout(()=>d.classList.remove('ng'),380); dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'lose'),650); }
-      };});
-    }, showMs);
+  if(g.mode==='void'){
+    const area0=document.createElement('div'); area0.id='mgarea'; p.appendChild(area0);
+    stopT=mgTimer(p, g.wait||6, ()=>{ if(!dead){ dead=true; mgFinish(g,'void'); } });
+    return;
   }
-  buildRound(1);
+  mgIntroPanel(p, [
+    '一瞬だけ、金色の道筋が光る。',
+    '線の通り道と、番号の順を、目に焼き付けろ。',
+    '線が消えたら、番号の順に、点をなぞれ。',
+    '（間違えても、物語は先へ進む）',
+  ], start, doSkip);
+  function start(){
+    stopT=mgTimer(p, g.time||22, ()=>{ if(!dead){ dead=true; mgFinish(g,'lose'); } });
+    const ph=document.createElement('div'); ph.className='mgphase'; p.appendChild(ph);
+    const area=document.createElement('div'); area.id='mgarea'; p.appendChild(area);
+    const rounds=g.rounds||1;
+    function buildRound(r){
+      area.innerHTML='';
+      ph.textContent='目 に 焼 き 付 け ろ'+(rounds>1?'（'+r+' / '+rounds+'）':''); ph.classList.remove('go');
+      const n=(g.n||5)+(r-1); const showMs=Math.max(850, Math.round((g.show||1700)*Math.pow(0.82,r-1)));
+      const pts=[];
+      for(let i=0;i<n;i++){ pts.push({x:8+(84*i/(n-1))+(i>0&&i<n-1? (Math.random()*16-8):0), y:18+Math.random()*64}); }
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.id='mgsvg';
+      svg.setAttribute('viewBox','0 0 100 100'); svg.setAttribute('preserveAspectRatio','none');
+      const pl=document.createElementNS('http://www.w3.org/2000/svg','polyline');
+      pl.setAttribute('points', pts.map(q=>q.x+','+q.y).join(' '));
+      pl.setAttribute('fill','none'); pl.setAttribute('stroke','#ffd24a'); pl.setAttribute('stroke-width','1.4');
+      pl.setAttribute('style','filter:drop-shadow(0 0 4px #ffca4a);opacity:1;transition:opacity 1s');
+      svg.appendChild(pl); area.appendChild(svg);
+      const nodes=[];
+      pts.forEach((q,i)=>{ const d=document.createElement('div'); d.className='mgn lit'; d.textContent=i+1;
+        d.style.left=q.x+'%'; d.style.top=q.y+'%'; area.appendChild(d); nodes.push(d); });
+      setTimeout(()=>{ if(dead) return; pl.style.opacity='0'; nodes.forEach(d=>{ d.classList.remove('lit'); d.textContent='?'; });
+        ph.textContent='順 に 、 な ぞ れ'; ph.classList.add('go');
+        let j=0;
+        nodes.forEach((d,idx)=>{ d.onclick=(ev)=>{ ev.stopPropagation(); if(dead) return;
+          if(idx===j){ d.classList.add('ok'); d.textContent=idx+1; j++;
+            if(j>=n){ if(r>=rounds){ dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'win'),420); }
+              else setTimeout(()=>buildRound(r+1), 750); } }
+          else{ d.classList.add('ng'); setTimeout(()=>d.classList.remove('ng'),380); dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'lose'),650); }
+        };});
+      }, showMs);
+    }
+    buildRound(1);
+  }
 }
 
 /* ---------- 既読/ログ ---------- */
@@ -1091,6 +1141,7 @@ if(renderer){
   window.BG3D={ ok:true, _moved:false,
     setFree(on){ freeMode=on; if(!on){ tlon=Math.max(-28,Math.min(28,tlon)); tlat=Math.max(-17,Math.min(17,tlat)); } },
     view(){ return {lon:lon, lat:lat}; },
+    lookUp(){ tlat=44; tlon=tlon*0.3; },
     project(lonH,latH){ const phi=THREE.MathUtils.degToRad(90-latH), th=THREE.MathUtils.degToRad(lonH);
       const v=new THREE.Vector3(Math.sin(phi)*Math.sin(th), Math.cos(phi), -Math.sin(phi)*Math.cos(th));
       const dir=new THREE.Vector3(); camera.getWorldDirection(dir); const front=v.dot(dir)>0.15;
