@@ -79,6 +79,7 @@ window.SEIKAI_SCRIPT.ep11 = { title:'第十一話 実験体七号', scenes:[
 
   /* 4. 第七研究室・報告書 */
   { bg:'lab', bgm:'timelimit', amb:1, card:{no:'', ttl:'第七研究室', sub:'', hold:2200}, beats:[
+    {map:'l2_lab7'},
     {say:'narr', text:'第七研究室の前に着いた。灰色の扉。昨日と同じ、壊れた電子錠。'},
     {say:'narr', text:'扉が軋んで開いた。倒れた棚。散乱した書類。ひっくり返った椅子。昨日、リーンが崩れ落ちた床が、そこにあった。'},
     {show:'rin', pos:'right', expr:'unease'},

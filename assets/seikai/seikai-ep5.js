@@ -104,6 +104,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
   { bg:'duct', bgm:'bikou', amb:1, card:{no:'', ttl:'第二段階', sub:'', hold:2000}, beats:[
     {say:'narr', text:'第四層。第五層とは空気が違った。廃液の匂いがない。壁が滑らかだ。試験期間中で、通路は無人だった。'},
     {say:'narr', text:'配管室に着いた。ガルドが壁のパネルを外した。排水路の入口。暗い穴。水の音が聞こえる。'},
+    {map:'l4_pipe'},
     {say:'narr', text:'カイが先に入った。水が足首まであった。冷たい。リーンが続いた。水の中に足を下ろした瞬間、小さく声を上げた。'},
     {show:'rin', pos:'center', expr:''},
     {say:'rin', text:'「冷たっ——」', ex:''},
@@ -139,6 +140,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
   /* 4. 崩落・ガルドの脚 */
   { bg:'duct', bgm:'timelimit', amb:1, card:{no:'', ttl:'狭路', sub:'', hold:2000}, beats:[
     {say:'narr', text:'十五分が経過した。狭い場所が近い。'},
+    {map:'l4_narrow'},
     {show:'kai', pos:'left'},
     {say:'kai', text:'「止まれ」', ex:''},
     {say:'narr', text:'前方に、排水路の壁が両側から迫っている場所があった。幅五十センチ。カイとリーンは問題なく通れる。'},
@@ -315,6 +317,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
 
   /* 8. 昇降機・肩を預ける */
   { bg:'duct', bgm:'yami', amb:1, card:{no:'', ttl:'昇降機', sub:'', hold:1800}, beats:[
+    {map:'l4_lift'},
     {say:'narr', text:'昇降機に到着した。リーンが端末をパネルに押し当てた。金属片も添えた。画面が光った。文字が流れた。リーンの指が叩いた。'},
     {say:'narr', text:'昇降機のドアが開いた。二人は飛び込んだ。ドアが閉まった。昇降機が動き出した。上へ。'},
     {show:'kai', pos:'left'},
@@ -327,6 +330,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
 
   /* 9. 第三層・第二層 白い研究施設 */
   { bg:'lab', bgm:'yami', amb:1, card:{no:'', ttl:'上層', sub:'', hold:2000}, beats:[
+    {map:'l3_hall'},
     {say:'narr', text:'第三層。ドアが開いた瞬間、カイは目を疑った。光。第五層の蛍光灯とは比べものにならない光が、通路の天井から降り注いでいた。'},
     {show:'rin', pos:'right', expr:''},
     {say:'rin', text:'「明るい……」', ex:''},
@@ -334,7 +338,9 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
     {say:'kai', text:'「動くぞ」', ex:''},
     {fx:'pline'},
     {say:'narr', text:'道筋を展開。目的：第三層を突破し、第二層へ移動する。金色の線が走る。二人は走った。'},
+    {map:'l3_stair'},
     {say:'narr', text:'第二層。白い壁。白い床。白い天井。研究施設の層だった。'},
+    {map:'l2_lab'},
     {say:'narr', text:'リーンの足が一瞬、止まった。'},
     {say:'kai', text:'「どうした」', ex:''},
     {say:'rin', text:'「……この場所、知ってる気がする」', ex:'unease'},
@@ -342,6 +348,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
     {say:'kai', text:'「行けるか」', ex:''},
     {say:'rin', text:'「行ける。行こう」', ex:''},
     {say:'narr', text:'カイは何も言わずに、少しだけ歩く速度を落とした。リーンが追いつける速度に。'},
+    {map:'l2_lift'},
     {say:'narr', text:'中央昇降機までの道筋を辿った。リーンが端末をパネルに押し当てた。金属片も添えた。'},
     {say:'rin', text:'「これ……知ってる。このプロトコル、知ってる」', ex:'unease'},
     {say:'kai', text:'「リーン？」', ex:''},
@@ -352,6 +359,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
 
   /* 10. 第一層「天蓋」・地上接続口 */
   { bg:'lab', bgm:'timelimit', amb:1, card:{no:'', ttl:'天蓋', sub:'', hold:2000}, beats:[
+    {map:'l1_dome'},
     {say:'narr', text:'第一層「天蓋」。昇降機を出た瞬間、カイの道筋が爆発的に広がった。'},
     {fx:'pline'},
     {say:'narr', text:'目的：地上への出口を見つける。金色の線が一本に集約された。まっすぐ上に伸びている。'},
@@ -359,6 +367,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
     {say:'kai', text:'「こっちだ」', ex:''},
     {say:'narr', text:'螺旋階段を上った。息が切れる。リーンも息を切らしている。だが二人とも止まらなかった。'},
     {say:'narr', text:'階段の終点に、扉があった。重い金属の扉。表面に文字が刻まれている。「地上接続口。許可なき開門を禁ず」'},
+    {map:'l1_exit'},
     {show:'rin', pos:'right', expr:''},
     {say:'narr', text:'リーンが端末を扉のパネルに押し当てた。金属片も添えた。扉が振動した。重い音がして、ロックが外れた。'},
     {say:'narr', text:'扉がゆっくりと開いた。風が入ってきた。'},

@@ -112,19 +112,28 @@ img{-webkit-user-drag:none}
 .mgn.ok{border-color:#4fe0a0;color:#4fe0a0}
 .mgn.ng{border-color:#ff6a6a;animation:mgshake .3s}
 #mgsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-#mmap{position:absolute;top:54px;right:10px;z-index:15;width:150px;background:rgba(8,13,22,.78);border:1px solid rgba(150,180,220,.22);border-radius:10px;padding:7px 8px 5px;cursor:pointer;backdrop-filter:blur(2px);transition:opacity .5s;opacity:0;pointer-events:none}
+#mmap{position:absolute;top:54px;right:10px;z-index:15;width:150px;background:rgba(10,16,26,.9);border:1px solid rgba(150,180,220,.22);border-radius:10px;padding:7px 8px 5px;cursor:pointer;backdrop-filter:blur(2px);transition:opacity .5s;opacity:0;pointer-events:none}
 #mmap.show{opacity:1;pointer-events:auto}
 #mmap .mmttl{font-size:9px;letter-spacing:.18em;color:#8fa4bd;margin:0 0 3px 2px;display:flex;justify-content:space-between}
 #mmap .mmttl b{color:#d9c98f;font-weight:normal}
 #mmap svg{display:block;width:100%;height:auto}
-.mmedge{stroke:rgba(150,180,220,.3);stroke-width:1;stroke-dasharray:2 2}
+.mmedge{stroke:rgba(170,200,235,.5);stroke-width:1.4;stroke-dasharray:2 2}
 .mmnode{fill:rgba(150,180,220,.55)}
 .mmnode.cur{fill:#ffd24a}
-.mmlbl{font-size:6.5px;fill:#b9c6d6;letter-spacing:.05em}
+.mmlbl{font-size:7px;fill:#e2eaf4;letter-spacing:.04em;paint-order:stroke;stroke:rgba(5,9,15,.85);stroke-width:1.6px}
 .mmlbl.cur{fill:#ffe9a8}
 .mmcur{fill:none;stroke:#ffd24a;stroke-width:1;opacity:.9;animation:mmpulse 1.8s ease-out infinite}
 @keyframes mmpulse{0%{r:3;opacity:.9}100%{r:9;opacity:0}}
 @media (max-aspect-ratio:3/4){ #mmap{width:118px;top:50px;right:6px} }
+.mmroom{fill:rgba(130,165,205,.24);stroke:rgba(175,205,235,.8);stroke-width:.8}
+.mmroom.cur{stroke:#ffd24a;fill:rgba(255,210,74,.13)}
+.mflayer{margin-bottom:6px;border:1px solid rgba(150,180,220,.14);border-radius:8px;padding:6px 10px 4px}
+.mflayer.cur{border-color:rgba(255,210,74,.4)}
+.mflayer h4{margin:0 0 4px;font-size:11.5px;font-weight:normal;color:#aebccd;font-family:var(--serif);letter-spacing:.14em;display:flex;justify-content:space-between}
+.mflayer h4 span{color:#d9c98f;font-size:10px}
+.mflayer svg{display:block;width:100%;height:auto}
+.mflayer svg .mmlbl{font-size:4.6px}
+#mfnotes{margin-top:8px}
 #mapfull{position:absolute;inset:0;z-index:31;display:none;align-items:center;justify-content:center;padding:12px;background:rgba(3,5,9,.78)}
 #mapfull.show{display:flex}
 .mfbox{width:min(94vw,640px);max-height:88vh;overflow:auto;border:1px solid rgba(150,180,220,.3);border-radius:12px;padding:18px 20px;background:rgba(10,15,24,.97)}
@@ -317,7 +326,7 @@ img{-webkit-user-drag:none}
   </div>
 
   <div id="choices"></div>
-<div id="mmap"><div class="mmttl"><span>廃 棄 層</span><b id="mmprog"></b></div><svg id="mmsvg" viewBox="0 0 100 82"></svg></div>
+<div id="mmap"><div class="mmttl"><span id="mmttlname">第五層</span><b id="mmprog"></b></div><svg id="mmsvg" viewBox="0 0 100 82"></svg></div>
 <div id="mapfull"></div>
 <div id="exhint"><span id="exlabel"></span><button id="exskip">スキップ</button></div>
 <div id="hs"><div class="c"></div><div class="a">▶</div></div>
@@ -447,7 +456,7 @@ function setBGcss(key){
 /* 3D(three.js 360°パノラマ)を優先。無ければCSS背景にフォールバック */
 function setBG(key){
   setUnderground(key);
-  bgKeyCur=key; if(UNDERGROUND[key]) unlockMap(key,true); renderMinimap();
+  bgKeyCur=key; if(mapNodeLayer(key)) unlockMap(key,true); renderMinimap();
   if(window.BG3D && window.BG3D.ok){
     window.BG3D.setPano(key, ()=>{ el('bg0').classList.remove('show'); el('bg1').classList.remove('show'); }, ()=>{ setBGcss(key); });
   } else setBGcss(key);
@@ -670,50 +679,82 @@ function renderChoices(list){
     box.appendChild(b); });
 }
 
-/* ---------- 廃棄層ミニマップ(訪問/情報で段階解放) ---------- */
-const MAPDEF={
- nodes:{
-  collapse:{x:30,y:12,n:'崩落区',d:'三年前の崩落で閉鎖された旧区画。ノノが眠る場所。立入は禁じられている。'},
-  hideout:{x:74,y:20,n:'隠れ家',d:'配管の裏の二畳の空間。カイが三年かけて見つけた、誰にも知られていない場所。壁に「空」の字。'},
-  slum:{x:52,y:30,n:'居住区',d:'第五層の寝床が並ぶ区画。三番通路の蛍光灯は四十秒周期で点滅し、三秒間の完全な暗闇を作る。'},
-  hall:{x:50,y:48,n:'中央広場',d:'朝の点呼場。百二十六人が番号順に壁沿いへ並ぶ。作業割当板がある。'},
-  garudo:{x:86,y:48,n:'東端区画',d:'ガルドが二十年かけて確保した静寂。監督官の巡回から外れている。'},
-  ration:{x:66,y:62,n:'配給所',d:'灰色のペーストが配られる。不味いという概念を超越した味。'},
-  waste:{x:20,y:44,n:'廃液処理槽',d:'地下世界全体の有害廃液が集まる。防護服はない。素手で汲み、運ぶ。'},
-  duct:{x:32,y:66,n:'排水路',d:'第四層へ通じる古い水路。幅五十センチの狭路がある。'},
-  gate:{x:12,y:74,n:'隔  壁',d:'上層への電子錠つきの扉。上昇試験の間だけ、一日に四十分、監視が薄くなる。'},
- },
- edges:[['collapse','slum'],['hideout','slum'],['slum','hall'],['hall','garudo'],['hall','ration'],['hall','waste'],['waste','duct'],['duct','gate']]
-};
-function mapCount(){ return Object.keys(MAPDEF.nodes).filter(k=>st.map&&st.map[k]).length; }
-function unlockMap(key,silent){ if(!MAPDEF.nodes[key]) return; st.map=st.map||{};
-  if(st.map[key]) return; st.map[key]=1; save(); renderMinimap();
-  if(!silent) toast('地図に「'+MAPDEF.nodes[key].n.replace(/\s/g,'')+'」が加わった');
+/* ---------- 地下全図ミニマップ(間取り式・全5層・段階解放) ---------- */
+const MAPDEF={ layers:[
+ {id:'L1', name:'第一層 ― 天蓋', h:40, nodes:{
+   l1_vent:{x:15,y:28,w:12,h:8,n:'通気口',d:'管理者にも忘れられた古い通気口。地上と地下を繋ぐ、記録にない道。'},
+   l1_dome:{x:48,y:20,w:26,h:12,n:'天蓋区画',d:'地下世界の最上部。螺旋階段が地表へと伸びる。'},
+   l1_exit:{x:82,y:14,w:14,h:9,n:'地上接続口',d:'「許可なき開門を禁ず」。その扉の向こうに、空がある。'},
+  }, edges:[['l1_vent','l1_dome'],['l1_dome','l1_exit']]},
+ {id:'L2', name:'第二層 ― 研究層', h:44, nodes:{
+   l2_lab:{x:30,y:22,w:24,h:12,n:'研究施設区',d:'白い壁、白い床、白い天井。人工人間計画が進められていた層。ノーグのテリトリー。'},
+   l2_lab7:{x:62,y:30,w:14,h:9,n:'第七研究室',d:'実験体七号=リーンが生まれた場所。今は放棄され、書類だけが散乱している。'},
+   l2_nav:{x:72,y:12,w:15,h:8,n:'航路管理室',d:'ノーグがかつて勤めていた部署。彼はここで自分の道筋を信じ——そして、捨てた。'},
+   l2_lift:{x:12,y:32,w:11,h:8,n:'中央昇降機',d:'第一層へ直通する大型昇降機。認証には管理者の鍵が要る。'},
+  }, edges:[['l2_lift','l2_lab'],['l2_lab','l2_lab7'],['l2_lab','l2_nav']]},
+ {id:'L3', name:'第三層 ― 中間層', h:34, nodes:{
+   l3_hall:{x:42,y:18,w:30,h:9,n:'白光通路',d:'天井から白い光が降る通路。第五層の蛍光灯とは、別の世界の明るさ。'},
+   l3_stair:{x:78,y:24,w:13,h:8,n:'連絡階段',d:'第二層への階段。試験期間中は、無人になる。'},
+  }, edges:[['l3_hall','l3_stair']]},
+ {id:'L4', name:'第四層 ― 整備層', h:48, nodes:{
+   l4_exam:{x:70,y:14,w:18,h:10,n:'試験場',d:'上昇試験の会場。合格者は毎年五名、全員が班Aから出る。'},
+   l4_pipe:{x:45,y:34,w:15,h:9,n:'配管室',d:'排水路への入口が隠されている。ガルドだけが知っていた道。'},
+   l4_narrow:{x:18,y:36,w:13,h:8,n:'狭  路',d:'幅五十センチの隘路。天井が崩れ、ガルドがここに残った。'},
+   l4_lift:{x:78,y:36,w:11,h:8,n:'昇降機',d:'物資輸送用の昇降機。第三層へ通じる。'},
+  }, edges:[['l4_narrow','l4_pipe'],['l4_pipe','l4_lift'],['l4_pipe','l4_exam']]},
+ {id:'L5', name:'第五層 ― 廃棄層', h:82, nodes:{
+   collapse:{x:28,y:12,w:20,h:10,n:'崩落区',d:'三年前の崩落で閉鎖された旧区画。ノノが眠る場所。立入は禁じられている。'},
+   hideout:{x:75,y:19,w:11,h:8,n:'隠れ家',d:'配管の裏の二畳の空間。カイが三年かけて見つけた、誰にも知られていない場所。壁に「空」の字。'},
+   slum:{x:52,y:30,w:17,h:9,n:'居住区',d:'第五層の寝床が並ぶ区画。三番通路の蛍光灯は四十秒周期で点滅する。'},
+   hall:{x:50,y:48,w:21,h:12,n:'中央広場',d:'朝の点呼場。百二十六人が番号順に壁沿いへ並ぶ。作業割当板がある。'},
+   garudo:{x:86,y:48,w:12,h:9,n:'東端区画',d:'ガルドが二十年かけて確保した静寂。監督官の巡回から外れている。'},
+   ration:{x:66,y:63,w:14,h:9,n:'配給所',d:'灰色のペーストが配られる。不味いという概念を超越した味。'},
+   waste:{x:19,y:44,w:17,h:11,n:'廃液処理槽',d:'地下世界全体の有害廃液が集まる。防護服はない。素手で汲み、運ぶ。'},
+   duct:{x:32,y:68,w:14,h:8,n:'排水路',d:'第四層へ通じる古い水路。冷たい水が足首まである。'},
+   gate:{x:11,y:75,w:11,h:8,n:'隔  壁',d:'上層への電子錠つきの扉。上昇試験の間だけ、一日に四十分、監視が薄くなる。'},
+  }, edges:[['collapse','slum'],['hideout','slum'],['slum','hall'],['hall','garudo'],['hall','ration'],['hall','waste'],['waste','duct'],['duct','gate']]},
+]};
+function mapNodeLayer(key){ for(const L of MAPDEF.layers){ if(L.nodes[key]) return L; } return null; }
+function mapCountL(L){ return Object.keys(L.nodes).filter(k=>st.map&&st.map[k]).length; }
+function mapCountAll(){ let n=0; MAPDEF.layers.forEach(L=>n+=mapCountL(L)); return n; }
+function mapTotal(){ let n=0; MAPDEF.layers.forEach(L=>n+=Object.keys(L.nodes).length); return n; }
+function unlockMap(key,silent){ const L=mapNodeLayer(key); if(!L) return; st.map=st.map||{};
+  st.mapCur=key;
+  if(!st.map[key]){ st.map[key]=1; if(!silent) toast('地図に「'+L.nodes[key].n.replace(/\s/g,'')+'」が加わった'); }
+  save(); renderMinimap();
 }
-function mmapSVG(cur, forFull){
+function mmapLayerSVG(L, cur){
   let h='';
-  MAPDEF.edges.forEach(e=>{ const a=MAPDEF.nodes[e[0]], b=MAPDEF.nodes[e[1]];
+  L.edges.forEach(e=>{ const a=L.nodes[e[0]], b=L.nodes[e[1]];
     if(st.map&&st.map[e[0]]&&st.map[e[1]]) h+='<line class="mmedge" x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'"/>'; });
-  Object.keys(MAPDEF.nodes).forEach(k=>{ if(!(st.map&&st.map[k])) return; const nd=MAPDEF.nodes[k]; const c=(k===cur);
+  Object.keys(L.nodes).forEach(k=>{ if(!(st.map&&st.map[k])) return; const nd=L.nodes[k]; const c=(k===cur);
+    h+='<rect class="mmroom'+(c?' cur':'')+'" x="'+(nd.x-nd.w/2)+'" y="'+(nd.y-nd.h/2)+'" width="'+nd.w+'" height="'+nd.h+'" rx="1.6"/>';
     if(c) h+='<circle class="mmcur" cx="'+nd.x+'" cy="'+nd.y+'" r="3"/>';
-    h+='<circle class="mmnode'+(c?' cur':'')+'" cx="'+nd.x+'" cy="'+nd.y+'" r="'+(c?2.6:1.9)+'"/>';
-    h+='<text class="mmlbl'+(c?' cur':'')+'" x="'+(nd.x+3.4)+'" y="'+(nd.y+2)+'">'+nd.n+'</text>'; });
+    h+='<text class="mmlbl'+(c?' cur':'')+'" x="'+nd.x+'" y="'+(nd.y+1.8)+'" text-anchor="middle">'+nd.n+'</text>'; });
   return h;
 }
+function curLayer(){ return mapNodeLayer(st.mapCur) || mapNodeLayer(bgKeyCur) || MAPDEF.layers[4]; }
 function renderMinimap(){
   const box=el('mmap'); if(!box) return;
-  const cur=UNDERGROUND[bgKeyCur]?bgKeyCur:null;
-  el('mmsvg').innerHTML=mmapSVG(cur,false);
-  el('mmprog').textContent=mapCount()+'/'+Object.keys(MAPDEF.nodes).length;
-  box.classList.toggle('show', !!_under && !el('title').classList.contains('gone')===false && mapCount()>0);
+  const L=curLayer(); const cur=(st.mapCur&&L.nodes[st.mapCur])?st.mapCur:(L.nodes[bgKeyCur]?bgKeyCur:null);
+  el('mmsvg').setAttribute('viewBox','0 0 100 '+L.h);
+  el('mmsvg').innerHTML=mmapLayerSVG(L,cur);
+  el('mmttlname').textContent=L.name.split(' ― ')[0];
+  el('mmprog').textContent=mapCountL(L)+'/'+Object.keys(L.nodes).length;
+  const undergroundish=_under || bgKeyCur==='lab';
+  box.classList.toggle('show', undergroundish && el('title').classList.contains('gone') && mapCountAll()>0);
 }
 function openMapfull(){
-  const box=el('mapfull'); const cur=UNDERGROUND[bgKeyCur]?bgKeyCur:null;
-  let h='<div class="mfbox"><h3>廃棄層 ― 第五層</h3><svg viewBox="0 0 100 82">'+mmapSVG(cur,true)+'</svg>';
-  Object.keys(MAPDEF.nodes).forEach(k=>{ const nd=MAPDEF.nodes[k];
-    h+= (st.map&&st.map[k])? '<div class="mfrow"><b>'+nd.n+'</b> ― '+nd.d+'</div>'
-       : '<div class="mfrow lock">？？？ ― まだ知らない場所。</div>'; });
-  h+='<div class="loreb"><button>閉じる</button></div></div>';
+  const box=el('mapfull'); const L0=curLayer(); const cur=st.mapCur;
+  let h='<div class="mfbox"><h3>地下世界アビス ― 全図 <span style="float:right;font-size:11px;color:#8fa4bd">'+mapCountAll()+' / '+mapTotal()+'</span></h3>';
+  MAPDEF.layers.forEach(L=>{ const c=mapCountL(L);
+    h+='<div class="mflayer'+(L===L0?' cur':'')+'"><h4>'+L.name+' <span>'+(c? c+'/'+Object.keys(L.nodes).length : '未 踏')+'</span></h4>';
+    if(c) h+='<svg viewBox="0 0 100 '+L.h+'">'+mmapLayerSVG(L,(L===L0)?cur:null)+'</svg>';
+    h+='</div>'; });
+  h+='<div id="mfnotes">';
+  MAPDEF.layers.forEach(L=>{ Object.keys(L.nodes).forEach(k=>{ if(st.map&&st.map[k]){ const nd=L.nodes[k];
+    h+='<div class="mfrow"><b>'+nd.n+'</b> ― '+nd.d+'</div>'; } }); });
+  h+='</div><div class="loreb"><button>閉じる</button></div></div>';
   box.innerHTML=h; box.classList.add('show');
   box.querySelector('.loreb button').addEventListener('click',ev=>{ ev.stopPropagation(); box.classList.remove('show'); });
 }
