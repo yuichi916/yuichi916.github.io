@@ -272,7 +272,7 @@ window.SEIKAI_SCRIPT.ep12 = { title:'第十二話 おはようが言えない朝
       {label:'「俺が、お前を守る」', reply:[
         {say:'kai', text:'「俺が、お前を守る」', ex:''},
       ]},
-      {label:'手を、強く握る', reply:[
+      {label:'手を、強く握る', set:'yasashii', reply:[
         {say:'narr', text:'言葉より先に、手が動いた。リーンの冷たい手を、両手で包んだ。それから、言葉が追いついた。'},
         {say:'kai', text:'「——俺が、お前を守る」', ex:''},
       ]},

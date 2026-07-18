@@ -239,6 +239,30 @@ window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
     {hide:'all'},
   ]},
 
+  /* 7.5 決行前夜・巡回 ― デッラ */
+  { bg:'hall', bgm:'timelimit', amb:1, card:{no:'', ttl:'決行前夜 ― 巡回', sub:'', hold:2000}, beats:[
+    {say:'narr', text:'深夜。最後の物資を取りに、カイは配管路を出た。角を曲がった、その瞬間だった。'},
+    {fx:'flash'},
+    {say:'narr', text:'懐中電灯の光が、正面から、カイを撃った。'},
+    {show:'della', pos:'center'},
+    {say:'della', text:'「……五一七」'},
+    {say:'narr', text:'デッラだった。定時外の巡回。手には点呼簿。カイの体が、凍った。逃げ場はない。言い訳もない。深夜に、寝床の外にいる。それだけで、営倉行きだ。'},
+    {say:'kai', text:'（終わりだ。計画が——全部）', ex:'pained'},
+    {say:'narr', text:'デッラの目が、カイを、上から下まで、ゆっくりと見た。それから——懐中電灯が、ふいと、逸れた。'},
+    {say:'della', text:'「……水汲みか。夜中の水汲みは五分までだ。行け」'},
+    {say:'kai', text:'「……え」', ex:'surprised'},
+    {say:'della', text:'「二度は言わねえ。次の巡回は、三十分後だ」'},
+    {say:'narr', text:'デッラが背を向けた。数歩、歩いて。——立ち止まった。'},
+    {wait:700},
+    {say:'della', text:'「————エレナは。最後まで、あの調子だったか」'},
+    {fx:'heart'},
+    {say:'narr', text:'心臓が、止まった。母の、名前。この男の、口から。'},
+    {say:'kai', text:'「……なぜ、母の名前を」', ex:'surprised'},
+    {say:'narr', text:'デッラは、答えなかった。革靴の音だけが、通路の奥へ遠ざかっていった。いつもと同じ、重い足音。けれど今夜だけ、その音の意味が、わからなかった。'},
+    {say:'kai', text:'（——この層は、俺が思っているより、ずっと複雑にできている）', ex:'pained'},
+    {hide:'all'},
+  ]},
+
   /* 8. 決行三時間前・混ざる旋律 */
   { bg:'hideout', bgm:'yuki', amb:1, card:{no:'', ttl:'決行まで、あと三時間', sub:'', hold:2200}, beats:[
     {say:'narr', text:'夜が更けた。決行の時刻まで、あと三時間だった。'},

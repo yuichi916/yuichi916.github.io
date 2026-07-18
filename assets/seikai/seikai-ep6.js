@@ -110,7 +110,7 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
         {say:'kai', text:'「泣いていい」', ex:'soft'},
         {say:'narr', text:'声が少し震えた。'},
       ]},
-      {label:'黙って、背中に手を置く', reply:[
+      {label:'黙って、背中に手を置く', set:'yasashii', reply:[
         {say:'narr', text:'カイは言葉の代わりに、リーンの背中に手を置いた。'},
         {say:'rin', text:'「……あったかい」', ex:'pained'},
         {say:'kai', text:'「……泣いていい」', ex:'soft'},

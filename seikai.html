@@ -164,6 +164,13 @@ img{-webkit-user-drag:none}
 #hs .a{display:none;font-size:26px;color:#ffd24a;text-shadow:0 0 12px rgba(255,200,90,.8)}
 #hs.arrow .a{display:block;animation:hspulse 1.2s ease-in-out infinite}
 @keyframes hspulse{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.35);opacity:1}}
+#cdark{position:absolute;inset:0;z-index:29;display:none;align-items:center;justify-content:center;background:#000;cursor:pointer}
+#cdark.show{display:flex}
+#cdark .n{font-family:var(--serif);font-size:clamp(60px,12vw,130px);color:#dfe8f2;opacity:0;letter-spacing:.1em;text-shadow:0 0 40px rgba(160,200,255,.35)}
+#cdark .n.on{animation:cdpop 1s ease-out}
+@keyframes cdpop{0%{opacity:0;transform:scale(.86)}18%{opacity:1;transform:scale(1)}80%{opacity:.95}100%{opacity:.35}}
+#cdark .hintc{position:absolute;bottom:12%;left:0;right:0;text-align:center;color:#5c6a7c;font-size:13px;letter-spacing:.3em;animation:cdhint 2.2s ease-in-out infinite}
+@keyframes cdhint{0%,100%{opacity:.25}50%{opacity:.8}}
 #lorecard{position:absolute;inset:0;z-index:32;display:none;align-items:center;justify-content:center;padding:12px;background:rgba(3,5,9,.7)}
 #lorecard.show{display:flex}
 .lorebox{width:min(90vw,520px);max-height:80vh;overflow:auto;border:1px solid rgba(255,210,120,.35);border-radius:10px;padding:26px 26px 20px;background:linear-gradient(180deg,rgba(24,20,12,.97),rgba(12,10,6,.98));box-shadow:0 0 70px rgba(255,190,80,.1)}
@@ -342,6 +349,7 @@ img{-webkit-user-drag:none}
 <div id="exhint"><span id="exlabel"></span><button id="exskip">スキップ</button></div>
 <div id="hs"><div class="c"></div><div class="a">▶</div></div>
 <div id="mg"></div>
+<div id="cdark"><div class="n"></div><div class="hintc">タップして、数える</div></div>
 <div id="lorecard"></div>
 <div id="loredex"></div>
   <div id="scard"><div class="rule"></div><div class="no" id="scNo"></div><div class="ttl" id="scTtl"></div><div class="sb" id="scSub"></div><div class="rule"></div></div>
@@ -378,7 +386,7 @@ img{-webkit-user-drag:none}
     <div class="tembers"></div>
     <div class="eye">A SOUND NOVEL</div>
     <h1>正解の外側</h1>
-    <div class="sub">すべての正解が視える俺が、<br>答えのない少女と世界を変えるまで</div>
+    <div class="sub" id="tSub">すべての正解が視える俺が、<br>答えのない少女と世界を変えるまで</div>
     <div class="menu">
       <button id="tStart">はじめから</button>
       <button id="tCont" disabled>つづきから</button>
@@ -624,6 +632,8 @@ function step(){
     if(b.game){ renderGame(b.game); return; }
     if(b.explore){ renderExplore(b.explore); return; }
     if(b.map){ unlockMap(b.map); continue; }
+    if(b.countdark){ renderCountdark(b.countdark); return; }
+    if(b.when){ if(st.choices && st.choices[b.when]){ stack.push(cur); cur={beats:b.reply||[], i:0}; } continue; }
     if(b.card){ locked=true; showCard(b.card); return; }
     if(b.end){ if(stack.length){cur=stack.pop();continue;} return nextScene(); }
     if(b.say!=null){ renderSay(b); return; }
@@ -650,7 +660,7 @@ function onLineDone(){
 function advance(){
   if(locked) return;
   if(el('choices').classList.contains('show')) return;
-  if(el('mg').classList.contains('show') || _exOpen || el('lorecard').classList.contains('show')) return;
+  if(el('mg').classList.contains('show') || _exOpen || el('lorecard').classList.contains('show') || el('cdark').classList.contains('show')) return;
   if(typing){ typeFinish(); return; }
   step();
 }
@@ -768,6 +778,20 @@ function openMapfull(){
   h+='</div><div class="loreb"><button>閉じる</button></div></div>';
   box.innerHTML=h; box.classList.add('show');
   box.querySelector('.loreb button').addEventListener('click',ev=>{ ev.stopPropagation(); box.classList.remove('show'); });
+}
+/* ---------- 数える暗闇(プレイヤーがリーンを存在させる) ---------- */
+const CDNUM=['一','二','三'];
+function renderCountdark(n){
+  const box=el('cdark'), num=box.querySelector('.n');
+  let k=0; box.classList.add('show'); el('adv').classList.add('hide');
+  num.textContent=''; num.classList.remove('on');
+  const onTap=(ev)=>{ ev.stopPropagation();
+    if(k>=3) return;
+    num.textContent=CDNUM[k]; num.classList.remove('on'); void num.offsetWidth; num.classList.add('on');
+    se('page'); k++;
+    if(k>=3){ setTimeout(()=>{ box.classList.remove('show'); box.removeEventListener('pointerdown',onTap); step(); }, 900); }
+  };
+  box.addEventListener('pointerdown', onTap);
 }
 /* ---------- 断章(世界観ロア) ---------- */
 const LORE={
@@ -1014,7 +1038,14 @@ el('blclose').addEventListener('click',()=>el('backlog').classList.remove('show'
 el('btnSave').addEventListener('click',()=>{ save(); openSaveMenu('save'); });
 el('btnSet').addEventListener('click',()=>el('settings').classList.add('show'));
 el('setClose').addEventListener('click',()=>{ el('settings').classList.remove('show'); saveCfg(); });
-el('btnTitle').addEventListener('click',()=>{ save(); el('title').classList.remove('gone'); el('tCont').disabled=false; el('tScene').disabled=(!(st.cleared||(st.maxEp||0)>0)); });
+el('btnTitle').addEventListener('click',()=>{ save(); el('title').classList.remove('gone'); el('tCont').disabled=false; el('tScene').disabled=(!(st.cleared||(st.maxEp||0)>0)); paintTitle(); });
+function paintTitle(){
+  const sub=el('tSub'); if(!sub) return;
+  const mx=st.maxEp||0;
+  if(st.cleared && mx>=14){ sub.innerHTML='——読んでるよ、カイ。<br><span style="opacity:.7">（——見つけた）</span>'; }
+  else if(mx>=5){ sub.innerHTML='空があった。広かった。果てが、なかった。<br><span style="opacity:.75">第二部 沈黙の地平線 へ</span>'; }
+  else { sub.innerHTML='すべての正解が視える俺が、<br>答えのない少女と世界を変えるまで'; }
+}
 
 /* 設定スライダ */
 function bindSet(id,key,fmt){ const s=el(id); s.value=cfg[key]; el('v'+id.slice(3)).textContent=(fmt?fmt(cfg[key]):cfg[key]); s.addEventListener('input',()=>{ cfg[key]=+s.value; el('v'+id.slice(3)).textContent=(fmt?fmt(cfg[key]):cfg[key]); if(key==='bgm'){ const a=el('bgm'+bgmCur); a.volume=cfg.bgm/100*0.85; } if(key==='amb') ambient(!!ambNodes); saveCfg(); }); }
@@ -1088,6 +1119,7 @@ el('shCopy').addEventListener('click',shareCopy);
 
 /* init */
 loadCfg();
+try{ paintTitle(); }catch(e){}
 if(load()){ if(st.cleared && (st.maxEp||0)<1) st.maxEp=1; el('tCont').disabled=false; if(st.cleared||(st.maxEp||0)>0) el('tScene').disabled=false; }
 </script>
 <script src="assets/seikai/seikai-ep1.js"></script>
@@ -1163,7 +1195,7 @@ if(renderer){
     const LN=freeMode?170:28, LT=freeMode?58:17;
     tlon=clamp(tlon - dx*0.09, -LN,LN); tlat=clamp(tlat + dy*0.08, -LT,LT); sx=x; sy=y; if(dist>10) window.BG3D._moved=true; }
   function up(){ drag=false; }
-  window.addEventListener('pointerdown',e=>{ if(e.target.closest&&e.target.closest('#hud,#textwrap,#choices,#backlog,#settings,#chapsel,#savemenu,#title,#mg,#lorecard,#loredex,#exhint,#hs,#mmap,#mapfull')) return; down(e.clientX,e.clientY); });
+  window.addEventListener('pointerdown',e=>{ if(e.target.closest&&e.target.closest('#hud,#textwrap,#choices,#backlog,#settings,#chapsel,#savemenu,#title,#mg,#lorecard,#loredex,#exhint,#hs,#mmap,#mapfull,#cdark')) return; down(e.clientX,e.clientY); });
   window.addEventListener('pointermove',e=>move(e.clientX,e.clientY),{passive:true});
   window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
   window.addEventListener('deviceorientation',e=>{ if(e.gamma==null) return; gyroOn=true;

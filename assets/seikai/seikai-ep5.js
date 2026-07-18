@@ -103,6 +103,17 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
     {hide:'all'},
   ]},
 
+  /* 2.5 幕間 ― 点呼簿 */
+  { bg:'hall', bgm:'yami', amb:1, beats:[
+    {say:'narr', text:'——同じ頃。監督官詰所。'},
+    {say:'narr', text:'フェルツの無線を受けたデッラは、しばらく、黙っていた。それから、点呼簿を開いた。'},
+    {say:'narr', text:'五一七の欄。ペンが、一度だけ迷って——それから、短く走った。'},
+    {say:'narr', text:'「病欠」。'},
+    {say:'narr', text:'デッラは点呼簿を閉じ、無線に向かって言った。「誤作動だ。認証ログのバグは前からある。騒ぐな」'},
+    {say:'narr', text:'人間の帳簿は、こうして口をつぐんだ。——ここから先、二人を追うのは、機械だけだった。'},
+    {hide:'all'},
+  ]},
+
   /* 3. 排水路・冷たい水と漫才 */
   { bg:'duct', bgm:'bikou', amb:1, card:{no:'', ttl:'第二段階', sub:'', hold:2000}, beats:[
     {say:'narr', text:'第四層。第五層とは空気が違った。廃液の匂いがない。壁が滑らかだ。試験期間中で、通路は無人だった。'},
@@ -137,6 +148,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
     {say:'kai', text:'「三歩直進。しゃがめ」', ex:''},
     {say:'rin', text:'「うん」', ex:''},
     {say:'narr', text:'三番通路より、深い闇だった。カイは、指示の合間に、時々、小さく数を数えた。'},
+    {countdark:1},
     {say:'kai', text:'「一、二、三。——いるか」', ex:''},
     {say:'rin', text:'「……いる。ちゃんと、いるよ」', ex:'soft'},
     {say:'narr', text:'冷たい水の中で、その声だけが、温かかった。'},
