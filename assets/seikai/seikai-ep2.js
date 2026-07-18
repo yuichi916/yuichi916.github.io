@@ -146,6 +146,33 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
     {hide:'all'},
   ]},
 
+  /* 3.5 三番通路・三秒の暗闇 */
+  { bg:'slum', bgm:'yuki', amb:1, card:{no:'', ttl:'三番通路', sub:'', hold:1800}, beats:[
+    {say:'narr', text:'その夜、カイはリーンの報告を実地で確かめに、三番通路へ出た。蛍光灯の点滅周期、約四十秒。リーンも、ついてきた。'},
+    {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
+    {say:'kai', text:'「来るぞ。……三、二、一」', ex:''},
+    {say:'narr', text:'蛍光灯が、落ちた。完全な暗闇。リーンの報告通り、三秒。'},
+    {say:'narr', text:'——その三秒の間に、カイの袖が、強く掴まれた。'},
+    {say:'narr', text:'明かりが戻る。リーンの指が、カイの袖を握りしめていた。指の関節が、白くなるほど。'},
+    {say:'kai', text:'「……どうした」', ex:''},
+    {say:'rin', text:'「……ごめん。暗いの、だめみたい」', ex:'unease'},
+    {say:'kai', text:'「お前が。観察の女王が」', ex:''},
+    {say:'rin', text:'「暗いと、観察できないでしょ。誰のことも見えなくて、誰からも見えなくて——」', ex:'unease'},
+    {say:'narr', text:'リーンは、少しだけ黙った。それから、いつもより小さい声で言った。'},
+    {say:'rin', text:'「あたし、記憶がないから。誰かが見ててくれないと、自分がここにいるって、証拠がないの。暗闇の三秒間、あたし、どこにもいない気がする」', ex:'unease'},
+    {say:'narr', text:'記憶を持たない者にとって、存在の証拠は、他人の目の中にしかない。カイは、その理屈の冷たさを、噛んだ。'},
+    {say:'kai', text:'「なら、次の点滅で、俺が数える」', ex:''},
+    {say:'rin', text:'「数える？」', ex:''},
+    {say:'narr', text:'蛍光灯が、また落ちた。暗闇。カイは、声を出した。'},
+    {say:'kai', text:'「一、二、三。——ほら、いた」', ex:'soft'},
+    {say:'narr', text:'明かりが戻る。リーンが、目を丸くしていた。'},
+    {say:'rin', text:'「……何それ」', ex:'soft'},
+    {say:'kai', text:'「見えなくても、数えてる間は、俺はお前を見てる。それでいいだろう」', ex:''},
+    {say:'narr', text:'リーンは、袖から手を離さなかった。でも、指の関節の白さは、消えていた。'},
+    {say:'rin', text:'「……うん。それで、いい」', ex:'soft'},
+    {hide:'all'},
+  ]},
+
   /* 4. 廃液処理・「管理」 */
   { bg:'waste', bgm:'timelimit', amb:1, card:{no:'', ttl:'廃液処理槽', sub:'', hold:2000}, beats:[
     {show:'kai', pos:'center'},
