@@ -118,11 +118,16 @@ img{-webkit-user-drag:none}
 .mgg.ng{background:rgba(255,80,80,.3);border-color:#ff6a6a;animation:mgshake .3s}
 @keyframes mgshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 #mgarea{position:relative;height:min(52vw,300px)}
-.mgn{position:absolute;width:36px;height:36px;margin:-18px;border-radius:50%;border:1px solid rgba(255,210,90,.5);background:radial-gradient(circle,rgba(255,220,120,.25),rgba(255,220,120,.05));color:#ffd24a;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;transition:background .15s,border-color .15s}
+.mgn{position:absolute;width:50px;height:50px;margin:-25px;border-radius:50%;border:2px solid rgba(255,210,90,.55);background:radial-gradient(circle,rgba(255,220,120,.28),rgba(255,220,120,.06));color:#ffd24a;display:flex;align-items:center;justify-content:center;font-size:21px;font-weight:bold;cursor:pointer;transition:background .15s,border-color .15s;text-shadow:0 0 8px rgba(0,0,0,.6)}
 .mgn.lit{box-shadow:0 0 22px rgba(255,210,90,.8);background:radial-gradient(circle,rgba(255,220,120,.6),rgba(255,220,120,.1));color:#fff}
 .mgn.ok{border-color:#4fe0a0;color:#4fe0a0}
 .mgn.ng{border-color:#ff6a6a;animation:mgshake .3s}
 #mgsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#daybox{position:absolute;top:54px;left:10px;z-index:15;padding:7px 14px;border-radius:999px;background:rgba(10,16,26,.88);border:1px solid rgba(150,180,220,.22);color:#cfdae8;font-family:var(--serif);font-size:12.5px;letter-spacing:.22em;opacity:0;pointer-events:none;transition:opacity .5s;backdrop-filter:blur(2px)}
+#daybox.show{opacity:1}
+#daybox.pulse{animation:daypulse .9s ease-out}
+@keyframes daypulse{0%{transform:scale(1);border-color:rgba(255,210,90,.6)}100%{transform:scale(1);border-color:rgba(150,180,220,.22)}}
+@media (max-aspect-ratio:3/4){ #daybox{top:50px;left:6px;font-size:11px;padding:6px 10px} }
 #mmap{position:absolute;top:54px;right:10px;z-index:15;width:150px;background:rgba(10,16,26,.9);border:1px solid rgba(150,180,220,.22);border-radius:10px;padding:7px 8px 5px;cursor:pointer;backdrop-filter:blur(2px);transition:opacity .5s;opacity:0;pointer-events:none}
 #mmap.show{opacity:1;pointer-events:auto}
 #mmap .mmttl{font-size:9px;letter-spacing:.18em;color:#8fa4bd;margin:0 0 3px 2px;display:flex;justify-content:space-between}
@@ -344,6 +349,7 @@ img{-webkit-user-drag:none}
   </div>
 
   <div id="choices"></div>
+<div id="daybox"></div>
 <div id="mmap"><div class="mmttl"><span id="mmttlname">第五層</span><b id="mmprog"></b></div><svg id="mmsvg" viewBox="0 0 100 82"></svg></div>
 <div id="mapfull"></div>
 <div id="exhint"><span id="exlabel"></span><button id="exskip">スキップ</button></div>
@@ -570,13 +576,16 @@ function se(kind){ const ctx=ensureCtx(); if(!ctx) return; const t=ctx.currentTi
   if(kind==='rubble'){ const b=ctx.createBufferSource(); const buf=ctx.createBuffer(1,ctx.sampleRate*0.6,ctx.sampleRate); const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2); b.buffer=buf; const f=ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=400; const g=ctx.createGain(); g.gain.value=0.9*vol; b.connect(f); f.connect(g); g.connect(ctx.destination); b.start(); }
   else if(kind==='hit'){ const o=ctx.createOscillator(); o.type='square'; o.frequency.setValueAtTime(180,t); o.frequency.exponentialRampToValueAtTime(60,t+0.12); const g=ctx.createGain(); g.gain.setValueAtTime(0.4*vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.16); o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t+0.18); }
   else if(kind==='power'){ const o=ctx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(900,t); o.frequency.exponentialRampToValueAtTime(1700,t+0.25); const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.12*vol,t+0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+0.4); o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t+0.42); }
-  else if(kind==='heart'){ const o=ctx.createOscillator(); o.type='sine'; o.frequency.value=55; const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.3*vol,t+0.04); g.gain.exponentialRampToValueAtTime(0.0001,t+0.5); o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t+0.5); }
+  else if(kind==='heart'){ [0,0.34].forEach(dt=>{ const o=ctx.createOscillator(); o.type='sine'; o.frequency.value=52; const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t+dt); g.gain.exponentialRampToValueAtTime((dt?0.22:0.3)*vol,t+dt+0.035); g.gain.exponentialRampToValueAtTime(0.0001,t+dt+0.3); o.connect(g); g.connect(ctx.destination); o.start(t+dt); o.stop(t+dt+0.32); }); }
+  else if(kind==='page'){ const b=ctx.createBufferSource(); const buf=ctx.createBuffer(1,ctx.sampleRate*0.05,ctx.sampleRate); const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3); b.buffer=buf; const f=ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value=1800; const g=ctx.createGain(); g.gain.value=0.25*vol; b.connect(f); f.connect(g); g.connect(ctx.destination); b.start(); }
+  else if(kind==='boom'){ const o=ctx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(90,t); o.frequency.exponentialRampToValueAtTime(32,t+0.6); const g=ctx.createGain(); g.gain.setValueAtTime(0.5*vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.7); o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t+0.72); }
+  else if(kind==='chime'){ [660,990].forEach((fr,i)=>{ const o=ctx.createOscillator(); o.type='sine'; o.frequency.value=fr; const g=ctx.createGain(); const st_=t+i*0.12; g.gain.setValueAtTime(0.0001,st_); g.gain.exponentialRampToValueAtTime(0.12*vol,st_+0.02); g.gain.exponentialRampToValueAtTime(0.0001,st_+0.7); o.connect(g); g.connect(ctx.destination); o.start(st_); o.stop(st_+0.72); }); }
 }
 
 /* ---------- fx ---------- */
 function fx(kind){
   if(kind==='shake'){ el('stage').classList.remove('shake'); void el('stage').offsetWidth; el('stage').classList.add('shake'); se('rubble'); }
-  else if(kind==='flash'){ const f=el('flash'); f.style.transition='none'; f.style.opacity='.85'; requestAnimationFrame(()=>{ f.style.transition='opacity .5s'; f.style.opacity='0'; }); }
+  else if(kind==='flash'){ se('boom'); const f=el('flash'); f.style.transition='none'; f.style.opacity='.85'; requestAnimationFrame(()=>{ f.style.transition='opacity .5s'; f.style.opacity='0'; }); }
   else if(kind==='pline'){ const p=el('pline'); p.classList.remove('show'); void p.offsetWidth; p.classList.add('show'); se('power'); setTimeout(()=>p.classList.remove('show'),1400); }
   else if(kind==='sepia_on'){ el('stage').classList.add('sepia'); }
   else if(kind==='sepia_off'){ el('stage').classList.remove('sepia'); }
@@ -633,6 +642,7 @@ function step(){
     if(b.explore){ renderExplore(b.explore); return; }
     if(b.map){ unlockMap(b.map); continue; }
     if(b.countdark){ renderCountdark(b.countdark); return; }
+    if(b.tm){ st.tm=b.tm; save(); renderDay(true); continue; }
     if(b.when){ if(st.choices && st.choices[b.when]){ stack.push(cur); cur={beats:b.reply||[], i:0}; } continue; }
     if(b.card){ locked=true; showCard(b.card); return; }
     if(b.end){ if(stack.length){cur=stack.pop();continue;} return nextScene(); }
@@ -677,7 +687,7 @@ function enterScene(){
   /* 場面転換: 前の文/名前/タイピング/ボイスを消して新しい文から始める */
   typing=false; clearInterval(typeTimer); el('ttext').innerHTML=''; el('ttext').className=''; el('namebar').className='empty'; el('adv').classList.add('hide'); stopVoice();
   if(sc.bg) setBG(sc.bg); if(sc.bgm) playBGM(sc.bgm); if(sc.amb!=null) ambient(!!sc.amb);
-  cur={beats:sc.beats, i:st.beat||0}; stack=[]; locked=false;
+  cur={beats:sc.beats, i:st.beat||0}; stack=[]; locked=false; renderDay(false);
   if((st.beat||0)===0 && sc.card){ locked=true; showCard(sc.card); }
   else step();
 }
@@ -695,7 +705,7 @@ function showCard(card){
 function renderChoices(list){
   const box=el('choices'); box.innerHTML=''; box.classList.add('show'); el('adv').classList.add('hide');
   list.forEach((o,i)=>{ const b=document.createElement('button'); b.className='choice'; b.textContent=o.label;
-    b.addEventListener('click',ev=>{ ev.stopPropagation(); box.classList.remove('show'); if(o.set) st.choices[o.set]=true; save();
+    b.addEventListener('click',ev=>{ ev.stopPropagation(); se('page'); box.classList.remove('show'); if(o.set) st.choices[o.set]=true; save();
       stack.push(cur); cur={beats:o.reply||[], i:0}; step(); });
     box.appendChild(b); });
 }
@@ -741,7 +751,7 @@ function mapCountAll(){ let n=0; MAPDEF.layers.forEach(L=>n+=mapCountL(L)); retu
 function mapTotal(){ let n=0; MAPDEF.layers.forEach(L=>n+=Object.keys(L.nodes).length); return n; }
 function unlockMap(key,silent){ const L=mapNodeLayer(key); if(!L) return; st.map=st.map||{};
   st.mapCur=key;
-  if(!st.map[key]){ st.map[key]=1; if(!silent) toast('地図に「'+L.nodes[key].n.replace(/\s/g,'')+'」が加わった'); }
+  if(!st.map[key]){ st.map[key]=1; if(!silent){ toast('地図に「'+L.nodes[key].n.replace(/\s/g,'')+'」が加わった'); se('chime'); } }
   save(); renderMinimap();
 }
 function mmapLayerSVG(L, cur){
@@ -755,6 +765,13 @@ function mmapLayerSVG(L, cur){
   return h;
 }
 function curLayer(){ return mapNodeLayer(st.mapCur) || mapNodeLayer(bgKeyCur) || MAPDEF.layers[4]; }
+function renderDay(pulse){
+  const d=el('daybox'); if(!d) return;
+  const on = !!st.tm && el('title').classList.contains('gone');
+  d.textContent = st.tm||'';
+  d.classList.toggle('show', on);
+  if(pulse && on){ d.classList.remove('pulse'); void d.offsetWidth; d.classList.add('pulse'); }
+}
 function renderMinimap(){
   const box=el('mmap'); if(!box) return;
   const L=curLayer(); const cur=(st.mapCur&&L.nodes[st.mapCur])?st.mapCur:(L.nodes[bgKeyCur]?bgKeyCur:null);
@@ -806,7 +823,7 @@ let _exOpen=false, _exRAF=0;
 function showLore(id, after){
   const L=LORE[id]; const box=el('lorecard');
   box.innerHTML='<div class="lorebox"><div class="loret">'+esc(L.t)+'</div><div class="loreg">'+esc(L.g)+' ／ 断章を手に入れた</div><div class="lorex">'+esc(L.x)+'</div><div class="loreb"><button>閉じる</button></div></div>';
-  box.classList.add('show'); (st.lore=st.lore||{})[id]=1; save();
+  box.classList.add('show'); se('chime'); (st.lore=st.lore||{})[id]=1; save();
   box.querySelector('button').addEventListener('click',ev=>{ ev.stopPropagation(); box.classList.remove('show'); after&&after(); });
 }
 function openLoredex(){
@@ -945,7 +962,16 @@ function mgPath(g){
       ph.textContent='目 に 焼 き 付 け ろ'+(rounds>1?'（'+r+' / '+rounds+'）':''); ph.classList.remove('go');
       const n=(g.n||5)+(r-1); const showMs=Math.max(850, Math.round((g.show||1700)*Math.pow(0.82,r-1)));
       const pts=[];
-      for(let i=0;i<n;i++){ pts.push({x:8+(84*i/(n-1))+(i>0&&i<n-1? (Math.random()*16-8):0), y:18+Math.random()*64}); }
+      if(g.shuffle){
+        for(let i=0;i<n;i++){
+          let px, py, tries=0;
+          do{ px=10+Math.random()*80; py=14+Math.random()*72; tries++; }
+          while(tries<40 && pts.some(q=>Math.hypot(q.x-px,(q.y-py)*0.55)<20));
+          pts.push({x:px,y:py});
+        }
+      } else {
+        for(let i=0;i<n;i++){ pts.push({x:8+(84*i/(n-1))+(i>0&&i<n-1? (Math.random()*16-8):0), y:18+Math.random()*64}); }
+      }
       const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.id='mgsvg';
       svg.setAttribute('viewBox','0 0 100 100'); svg.setAttribute('preserveAspectRatio','none');
       const pl=document.createElementNS('http://www.w3.org/2000/svg','polyline');

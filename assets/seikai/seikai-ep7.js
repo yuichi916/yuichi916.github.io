@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep7 = { title:'第七話 楽園の色／パンケーキ', s
 
   /* 1. 翌朝・空き家の扉 */
   { bg:'home', bgm:'hibi', amb:1, card:{no:'第 七 話', ttl:'楽園の色／パンケーキ', sub:'作られた甘さ。誰かの手が組み立てた、甘さ。', hold:4200}, beats:[
+    {tm:'地上二日目・朝'},
     {say:'narr', text:'翌朝、空き家の扉が軽く叩かれた。'},
     {say:'narr', text:'カイは跳ね起きた。道筋を展開する前に、体が動いた。リーンを背後に庇う位置に立った。'},
     {say:'narr', text:'扉の向こうから、穏やかな声が聞こえた。'},
@@ -254,6 +255,7 @@ window.SEIKAI_SCRIPT.ep7 = { title:'第七話 楽園の色／パンケーキ', s
 
   /* 6. 夕方・ユーゴの警告 */
   { bg:'home', bgm:'bikou', amb:1, card:{no:'', ttl:'夕', sub:'', hold:1800}, beats:[
+    {tm:'地上二日目・夕'},
     {say:'narr', text:'夕方、ユーゴが二人に部屋を用意してくれた。'},
     {say:'yuugo', text:'「二階の奥の部屋だ。ベッドが二つある。今夜は泊まれ。行くあてがないなら、しばらくいていい」'},
     {show:'kai', pos:'left'},

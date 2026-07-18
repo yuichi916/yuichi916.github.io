@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep9 = { title:'第九話 影を視る者', scenes:[
 
   /* 1. 四日目の朝・視界のメッセージ */
   { bg:'home', bgm:'yami', amb:1, card:{no:'第 九 話', ttl:'影を視る者', sub:'道筋を読む者は、君が動く前に、君の答えを知っている。', hold:4200}, beats:[
+    {tm:'地上四日目・朝'},
     {say:'narr', text:'四日目の朝。カイが目を覚ました時、何かがおかしかった。部屋の空気が、昨日と違った。'},
     {say:'narr', text:'いつもの朝は、窓から光が差し込んでいる。今朝は——光の「質」が違う。ざらついて、埃っぽい。空気の中に、何かが混じっている。'},
     {show:'kai', pos:'center'},
@@ -84,6 +85,7 @@ window.SEIKAI_SCRIPT.ep9 = { title:'第九話 影を視る者', scenes:[
 
   /* 3. 公園・チェス盤の対峙 */
   { bg:'town', bgm:'bikou', amb:1, card:{no:'', ttl:'午後三時 — 公園', sub:'', hold:2200}, beats:[
+    {tm:'地上四日目・午後'},
     {say:'narr', text:'午後三時。公園の東の端。木陰のベンチに、男が座っていた。'},
     {say:'narr', text:'白髪混じりの黒髪を後ろに撫でつけている。細身。黒いシャツ、黒いズボン、靴まで黒い。この町の住人とは違う。'},
     {say:'narr', text:'男の前に、小さなテーブル。その上に——チェス盤。白と黒の升目。白と黒の駒が、既に配置されている。'},
@@ -214,6 +216,7 @@ window.SEIKAI_SCRIPT.ep9 = { title:'第九話 影を視る者', scenes:[
 
   /* 5. その夜・命を軽く扱う言葉 */
   { bg:'home', bgm:'yuki', amb:1, card:{no:'', ttl:'その夜', sub:'', hold:1800}, beats:[
+    {tm:'地上四日目・夜'},
     {say:'narr', text:'その夜。カイはベッドで眠れずにいた。天井を見上げていた。ノーグの黒い目が、まだ頭に残っていた。'},
     {say:'narr', text:'「君の道筋は、美しい。だが、もう私に見られている」——あの言葉が、耳の中で繰り返されていた。'},
     {show:'kai', pos:'center', expr:'pained'},
@@ -278,6 +281,7 @@ window.SEIKAI_SCRIPT.ep9 = { title:'第九話 影を視る者', scenes:[
 
   /* 6. 深夜・ノーグの次の手 */
   { bg:'home', bgm:'yami', amb:1, card:{no:'', ttl:'深夜', sub:'', hold:1800}, beats:[
+    {tm:'地上四日目・深夜'},
     {say:'narr', text:'深夜。リーンが自分のベッドに戻っていった。カイは、ようやく眠りかけた。'},
     {show:'kai', pos:'center', expr:''},
     {fx:'flash'},

@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
 
   /* 1. 翌朝・作業割当板 */
   { bg:'hall', bgm:'rekishi', amb:1, card:{no:'第 二 話', ttl:'なんとなくの少女', sub:'記憶のない少女は、知らないはずの手順を、指先が覚えている。', hold:4200}, beats:[
+    {tm:'二日目・朝'},
     {say:'narr', text:'翌朝、リーンは予想通りの場所にいた。'},
     {say:'narr', text:'カイが起きる前に配管の隙間から抜け出して、作業割当板の前に立っている。錆びた金属板の番号と区画の対応表を、指でなぞりながら読んでいた。'},
     {explore:{id:'bangou', label:'壁の高いところに、古い刻み跡がある——見上げて、探す', yaw:-38, pitch:16}},
@@ -97,6 +98,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
 
   /* 3. 三日後・異常な観察力と、端末 */
   { bg:'hideout', bgm:'yami', amb:1, card:{no:'', ttl:'三日後', sub:'', hold:2000}, beats:[
+    {tm:'三日目'},
     {say:'narr', text:'三日が経った。リーンの観察力は、異常だった。'},
     {show:'rin', pos:'center', expr:'sharp'},
     {say:'rin', text:'「デッラ。巡回は固定。朝六時に東通路、六時十五分に中央広場、六時半に西通路。でも水曜だけ中央広場を飛ばす。たぶん腹を下してる。右手で腹を押さえてたから」', ex:'sharp'},
@@ -148,6 +150,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
 
   /* 3.5 三番通路・三秒の暗闇 */
   { bg:'slum', bgm:'yuki', amb:1, card:{no:'', ttl:'三番通路', sub:'', hold:1800}, beats:[
+    {tm:'三日目・夜'},
     {say:'narr', text:'その夜、カイはリーンの報告を実地で確かめに、三番通路へ出た。蛍光灯の点滅周期、約四十秒。リーンも、ついてきた。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'kai', text:'「来るぞ。……三、二、一」', ex:''},
@@ -176,6 +179,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
 
   /* 4. 廃液処理・「管理」 */
   { bg:'waste', bgm:'timelimit', amb:1, card:{no:'', ttl:'廃液処理槽', sub:'', hold:2000}, beats:[
+    {tm:'四日目'},
     {show:'kai', pos:'center'},
     {say:'narr', text:'廃液処理の作業中。ふと、ポッツが危険区域に踏み込みかけた。足場が不安定だ。一歩間違えれば、廃液の溜まりに落ちる。'},
     {fx:'pline'},
@@ -209,6 +213,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
 
   /* 5. 夕方・ジンの干し肉 */
   { bg:'ration', bgm:'hibi', amb:1, card:{no:'', ttl:'夕', sub:'', hold:1800}, beats:[
+    {tm:'四日目・夕'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'narr', text:'夕方、ジンが咳をしながら配管の裏を通りかかった。通り過ぎようとして、立ち止まる。カイの前に、何かを転がした。'},
     {say:'narr', text:'干し肉の切れ端だった。ジンは何も言わない。三年前の夜と同じように。ただ咳を一度して、リーンを見て、顎を引いた。'},
@@ -234,6 +239,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
 
   /* 6. 十二日目・視えなかった道 */
   { bg:'waste', bgm:'anohi', amb:1, card:{no:'', ttl:'十二日目', sub:'決行まで、二十六日。', hold:2200}, beats:[
+    {tm:'十二日目'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'narr', text:'十二日目の朝、点呼の前。リーンがふと呟いた。'},
     {say:'rin', text:'「カイ。今日、誰か死ぬかも」', ex:'unease'},
@@ -288,6 +294,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
 
   /* 8. 十五日目 夜・忘れることと、聞こえない呼吸 */
   { bg:'hideout', bgm:'yuki', amb:1, card:{no:'', ttl:'十五日目の夜', sub:'決行まで、二十三日。', hold:2200}, beats:[
+    {tm:'十五日目・夜'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'narr', text:'リーンが端末の修理を続けていた。瓦礫から拾った部品を組み合わせ、切れたケーブルを繋ぎ直している。'},
     {say:'narr', text:'ふと、気づいた。リーンの呼吸音が、聞こえない。'},
@@ -316,6 +323,7 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
 
   /* 9. 二十日目・道が、繋がった */
   { bg:'hideout', bgm:'hibi', amb:1, card:{no:'', ttl:'二十日目の朝', sub:'決行まで、十八日。', hold:2200}, beats:[
+    {tm:'二十日目・朝'},
     {say:'narr', text:'二十日目の朝。点呼の後、リーンがカイのところに走ってきた。息を切らしている。走ってきたのに、足音がほとんどしなかった。'},
     {show:'rin', pos:'right', expr:''},
     {say:'rin', text:'「カイ。端末、動いた」', ex:''},

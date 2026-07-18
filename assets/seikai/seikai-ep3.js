@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
 
   /* 1. その夜・壁の「空」 */
   { bg:'hideout', bgm:'hibi', amb:1, card:{no:'第 三 話', ttl:'壁に書いた空', sub:'見たことのない青の名を、指先だけが覚えている。', hold:4200}, beats:[
+    {tm:'二十日目・夜'},
     {show:'kai', pos:'center'},
     {say:'narr', text:'その夜、カイは壁に触れた。配管の裏の、錆がほとんど剥がれかけている一角。'},
     {say:'narr', text:'指でなぞる。凹凸が残っている。七年前の、九歳の自分が書いた文字——「空」。'},
@@ -25,6 +26,7 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
 
   /* 2. 回想・母と「空」 */
   { bg:'dream', bgm:'anohi', amb:0, card:{no:'', ttl:'——七年前', sub:'', hold:2400}, beats:[
+    {tm:'［回想］七年前'},
     {fx:'sepia_on'},
     {say:'narr', text:'「空」という言葉を、カイに教えたのは、母だった。まだ幼い頃、暗闇の中で、壁に指を導いてくれた。'},
     {say:'narr', text:'——「考えることをやめるな」。それだけを遺して、母は早くに逝った。カイの手に残ったのは、その言葉と、もう一人の家族だけだった。'},
@@ -99,6 +101,7 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
 
   /* 4. 翌日・ジン倒れる */
   { bg:'waste', bgm:'timelimit', amb:1, card:{no:'', ttl:'翌日', sub:'', hold:2000}, beats:[
+    {tm:'二十一日目'},
     {say:'narr', text:'翌日、ジンが作業場で崩れた。足が止まって、膝が折れて、壁に寄りかかった。咳が止まらない。顔が青白い。'},
     {say:'della', text:'「立て」'},
     {say:'narr', text:'ジンは立てなかった。デッラが蹴った。ジンの体が、廃液の溜まりの手前まで滑った。'},
@@ -121,6 +124,7 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
 
   /* 5. ガルドの区画・母の言葉 */
   { bg:'ration', bgm:'rekishi', amb:1, card:{no:'', ttl:'東端 ― ガルドの区画', sub:'', hold:2400}, beats:[
+    {tm:'二十一日目・夜'},
     {say:'narr', text:'その夜、カイはリーンと共に、第五層東端のガルドの区画へ向かった。監督官の巡回から外れた、ガルドが二十年かけて確保した静寂。'},
     {map:'garudo'},
     {say:'garudo', text:'「来たか」'},
@@ -193,6 +197,7 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
 
   /* 7. 計画・ジンの「手伝う」 */
   { bg:'hideout', bgm:'bikou', amb:1, card:{no:'', ttl:'計画', sub:'決行まで、十三日。', hold:2000}, beats:[
+    {tm:'二十五日目・夜'},
     {say:'narr', text:'三人で計画を詰めた。ガルドの情報で、第四層以降のルートが見えてきた。物資輸送用の昇降機。電子制御。第三層からの認証が要る。'},
     {show:'rin', pos:'right', expr:'sharp'},
     {say:'rin', text:'「認証キー。これ、実験体七号って刻印があるってことは、何かのシステムに登録されてた可能性がある」', ex:'sharp'},

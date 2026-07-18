@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep11 = { title:'第十一話 実験体七号', scenes:[
 
   /* 1. 六日目の朝・食卓 / もう一度、第七研究室へ */
   { bg:'home', bgm:'hibi', amb:1, card:{no:'第 十一 話', ttl:'実験体七号', sub:'泣いて終わった昨日に、もう一度。今度は、自分の目で。', hold:4200}, beats:[
+    {tm:'地上六日目・朝'},
     {say:'narr', text:'六日目の朝。リーンが、もう一度、朝食の席で言った。'},
     {show:'rin', pos:'right', expr:''},
     {say:'rin', text:'「もう一度、第七研究室に行きたい」', ex:''},
@@ -245,6 +246,7 @@ window.SEIKAI_SCRIPT.ep11 = { title:'第十一話 実験体七号', scenes:[
 
   /* 10. その夜・寝室 */
   { bg:'home', bgm:'yuki', amb:1, card:{no:'', ttl:'その夜', sub:'', hold:1800}, beats:[
+    {tm:'地上六日目・夜'},
     {say:'narr', text:'その夜。ユーゴの家の寝室で。リーンは、ベッドの上で膝を抱えていた。暗い中、月明かりだけが、銀色の髪を照らしていた。'},
     {show:'rin', pos:'center', expr:''},
     {say:'narr', text:'隣のベッドから、カイが聞いた。'},

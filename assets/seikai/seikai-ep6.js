@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
 
   /* 1. 丘の上・初めての空 */
   { bg:'surface', bgm:'yuki', amb:1, card:{no:'第 六 話', ttl:'空', sub:'記憶のない少女が、生まれて初めて泣いた日。地上には、泣くことが許される空があった。', hold:4200}, beats:[
+    {tm:'地上一日目・朝'},
     {say:'narr', text:'朝日が昇りきった。'},
     {say:'narr', text:'カイとリーンは丘の上に立っていた。地下からの出口——錆びた金属の蓋を閉めた場所から、もう五十歩も離れていた。'},
     {explore:{id:'sky', label:'——空を、見上げる', yaw:12, pitch:48}},
@@ -225,6 +226,7 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
 
   /* 6. 町・整いすぎた笑顔 */
   { bg:'town', bgm:'haikyo', amb:1, card:{no:'', ttl:'町', sub:'', hold:2000}, beats:[
+    {tm:'地上一日目・昼'},
     {say:'narr', text:'二時間ほど歩いて、森を抜けた。目の前に、町があった。'},
     {say:'narr', text:'白い建物が整然と並んでいる。花壇。石畳。噴水。地下では考えられない光景が、そこに広がっていた。'},
     {show:'rin', pos:'right', expr:''},
@@ -302,6 +304,7 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
 
   /* 8. 空き家・夜、記憶に残る一日 */
   { bg:'home', bgm:'yuki', amb:1, card:{no:'', ttl:'夜', sub:'', hold:1800}, beats:[
+    {tm:'地上一日目・夜'},
     {say:'narr', text:'夕方、町の外れに空き家があった。二人はその空き家に忍び込んで、床の上で眠った。窓から月が見えた。丸い白い月。'},
     {show:'rin', pos:'right', expr:''},
     {show:'kai', pos:'left'},

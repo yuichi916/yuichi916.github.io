@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
 
   /* 1. 決行前・最後の道筋 */
   { bg:'hideout', bgm:'timelimit', amb:1, card:{no:'第 五 話', ttl:'選べない道', sub:'すべての正解が視える。だが、正解を選べない夜が来る。', hold:4200}, beats:[
+    {tm:'三十八日目・決行の夜'},
     {say:'narr', text:'決行の刻。カイは配管の裏で、最後に道筋を展開した。'},
     {fx:'pline'},
     {say:'narr', text:'目的：三人で第五層を脱出し、第一層の地上接続口に到達する。'},
@@ -138,7 +139,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
     {say:'narr', text:'ガルドが最後に入った。体が大きいため、入口で少し苦労した。三人は暗闇の中を進んだ。'},
     {fx:'pline'},
     {say:'narr', text:'カイの道筋が先を照らす。見えない光だが、カイには見える。右に曲がれ。段差がある。頭上に配管。しゃがめ。'},
-    {game:{type:'path', n:5, show:1300, rounds:2, time:26,
+    {game:{type:'path', n:5, show:1300, rounds:2, time:26, shuffle:1,
       win:[{say:'narr', text:'暗闇の中、カイの足は一度も迷わなかった。後ろの二人の足音も、乱れなかった。'}],
       lose:[{say:'narr', text:'一箇所、段差を読み違えた。跳ねた水音が、暗い管の中に長く響いた。三人は、しばらく、息を止めた。'}],
       skip:[] }},
@@ -431,6 +432,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
 
   /* 11. 地上・空 */
   { bg:'surface', bgm:'yuki', amb:1, card:{no:'', ttl:'地上', sub:'', hold:2600}, beats:[
+    {tm:'——地上・夜'},
     {say:'narr', text:'——音が、消えた。'},
     {wait:900},
     {say:'narr', text:'追手の足音も、警報も、扉の軋みも。全部、背中の向こうに置き去りにして。'},
@@ -487,6 +489,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
 
   /* 13. 日の出・金色 */
   { bg:'surface', bgm:'yuki', amb:1, card:{no:'', ttl:'夜明け', sub:'', hold:2200}, beats:[
+    {tm:'地上・夜明け'},
     {say:'narr', text:'太陽が昇ってきた。地平線から、赤い光が溢れ出した。空が藍色から紫に変わり、紫から橙に変わり、橙から——'},
     {fx:'flash'},
     {say:'narr', text:'金色に変わった。カイの道筋と同じ色だった。'},

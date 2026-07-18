@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
 
   /* 1. 三日目の朝・感情の配給制 */
   { bg:'town', bgm:'rekishi', amb:1, card:{no:'第 八 話', ttl:'誰も泣かない街', sub:'誰も泣かない街で、その少女だけが、はみ出した色で絵を描いていた。', hold:4200}, beats:[
+    {tm:'地上三日目・朝'},
     {say:'narr', text:'三日目の朝。ユーゴが二人に町を案内した。'},
     {show:'kai', pos:'left'},
     {say:'yuugo', text:'「今日は、この町を一緒に歩こう。お前たちが見るべきものを、俺が案内する」'},
@@ -311,6 +312,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
 
   /* 9. その夜・ユーゴの家・正解の外側で生まれる正解 */
   { bg:'home', bgm:'yuki', amb:1, card:{no:'', ttl:'その夜・ユーゴの家', sub:'', hold:2000}, beats:[
+    {tm:'地上三日目・夜'},
     {say:'narr', text:'その夜。ユーゴの家の食卓で。リーンがスープを飲みながら、呟いた。'},
     {show:'rin', pos:'right', expr:''},
     {say:'rin', text:'「ミーラの絵、もう一度見たいな」', ex:'soft'},

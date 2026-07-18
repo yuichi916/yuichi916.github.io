@@ -13,6 +13,7 @@ window.SEIKAI_SCRIPT.ep15 = { title:'第十五話 正解の外側で', scenes:[
 
   /* 1. 研究所裏口 */
   { bg:'lab', bgm:'timelimit', amb:1, card:{no:'第 十五 話', ttl:'正解の外側で', sub:'正解が視えない道を、それでも二人で選ぶ。', hold:4200}, beats:[
+    {tm:'地上八日目・深夜'},
     {say:'narr', text:'ユーゴの研究所の、裏口。月は頂点を過ぎていた。零時まで、あと二時間。'},
     {say:'narr', text:'カイはノーグから逃げ、リーンを背負い、ユーゴの「零時」より先に、ここへ回り込んでいた。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:'unease'},
@@ -181,6 +182,7 @@ window.SEIKAI_SCRIPT.ep15 = { title:'第十五話 正解の外側で', scenes:[
 
   /* 11. 朝焼け・ミーラ */
   { bg:'surface', bgm:'yuki', amb:0, card:{no:'', ttl:'夜明け', sub:'', hold:2400}, beats:[
+    {tm:'九日目・夜明け'},
     {say:'narr', text:'夜が明け始めた。東の空に、朝焼けが広がっていた。赤と、橙と、紫が混じった空。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:'soft'},
     {say:'rin', text:'「きれい。……カイ、あたし、ちゃんと『きれい』って感じてる。あたしの、本当の『きれい』」', ex:'soft'},

@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep12 = { title:'第十二話 おはようが言えない朝
 
   /* 1. 七日目の朝・寝室／違う静けさ */
   { bg:'home', bgm:'yuki', amb:1, card:{no:'第 十二 話', ttl:'おはようが言えない朝', sub:'君の「おはよう」は、まだ会っていない未来の分の君を、手渡す行為だった。', hold:4200}, beats:[
+    {tm:'地上七日目・朝'},
     {say:'narr', text:'七日目の朝。カイは目を開けた。天井が見える。ユーゴの家の白い天井。'},
     {show:'kai', pos:'left', expr:''},
     {say:'narr', text:'隣のベッドを見た。リーンがいた。目を閉じている。呼吸は聞こえない。いつも通りだ。'},
@@ -351,6 +352,7 @@ window.SEIKAI_SCRIPT.ep12 = { title:'第十二話 おはようが言えない朝
 
   /* 15. その夜・寄せたベッド */
   { bg:'home', bgm:'yuki', amb:1, card:{no:'', ttl:'その夜', sub:'', hold:1800}, beats:[
+    {tm:'地上七日目・夜'},
     {say:'narr', text:'その夜。リーンは、カイのベッドの隣に、自分のベッドを寄せた。'},
     {show:'kai', pos:'left', expr:''},{show:'rin', pos:'right', expr:'soft'},
     {say:'rin', text:'「こうすれば、カイが、近くにいるから。プロトコルが動いても、カイの体温で、気づけるかもしれない」', ex:'soft'},

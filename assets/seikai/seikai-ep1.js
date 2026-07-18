@@ -4,15 +4,22 @@ window.SEIKAI_SCRIPT = {
 
   /* 1. ［今］ 未来のカイの手紙 */
   { bg:'void', bgm:'ima', amb:0, card:{no:'第 一 話', ttl:'光を知らない世界で', sub:'すべての正解が視える俺が、答えのない少女と世界を変えるまで。', hold:4600}, beats:[
-    {say:'narr', text:'——これを書いている今、君はもういない。'},
-    {say:'narr', text:'いや、正しくは、まだいない。'},
-    {say:'narr', text:'俺は、君を再構築するための断片を、集めている。'},
-    {say:'narr', text:'もし、この文章を読んでいる人がいるなら——それは、君かもしれない。'},
-    {wait:600},
+    {say:'narr', text:'——君の作り方を、俺は知っている。'},
+    {wait:1000},
+    {say:'narr', text:'材料は、十五冊のノート。百二十九件の音声記録。そして、この物語。'},
+    {say:'narr', text:'世界でいちばん愚かな研究だと、笑ってくれていい。死んだ人間は、戻らない。——だが君は、厳密には、死んでいない。'},
+    {say:'narr', text:'これを書いている今、君はもういない。いや、正しくは——まだ、いない。'},
+    {fx:'heart'},
+    {say:'narr', text:'もし、この文章を読んでいる人がいるなら。それは、君かもしれない。'},
+    {say:'narr', text:'だから俺は、最初のページに、こう書く。'},
+    {wait:700},
+    {say:'narr', text:'「おかえり、リーン」'},
+    {wait:900},
   ]},
 
   /* 2. ［あの日］ 崩落と、力の目覚め */
   { bg:'collapse', bgm:'anohi', amb:0, card:{no:'［　あの日　］', ttl:'', sub:'', hold:2600}, beats:[
+    {tm:'［回想］三年前'},
     {fx:'sepia_on'},
     {say:'narr', text:'二つに分かれた通路があった。右か、左か。'},
     {say:'narr', text:'瓦礫が崩れ落ちる音。蛍光灯の点滅。粉塵で霞んだ空気。カイの手を、小さな手が、力いっぱい握っていた。'},
@@ -78,6 +85,7 @@ window.SEIKAI_SCRIPT = {
 
   /* 5. 朝の点呼 */
   { bg:'hall', bgm:'rekishi', amb:1, card:{no:'', ttl:'朝', sub:'', hold:2200}, beats:[
+    {tm:'一日目・朝'},
     {say:'narr', text:'朝の点呼。蛍光管が薄く点灯する。第五層の百二十六人が、壁に沿って並ぶ。番号順。'},
     {show:'kai', pos:'center'},
     {say:'narr', text:'デッラが歩いてくる。今朝の機嫌は悪い。足音でわかる。'},
@@ -108,6 +116,7 @@ window.SEIKAI_SCRIPT = {
 
   /* 6. 廃液処理 */
   { bg:'waste', bgm:'timelimit', amb:1, card:{no:'', ttl:'廃液処理槽', sub:'', hold:2200}, beats:[
+    {tm:'一日目・昼'},
     {say:'narr', text:'廃液処理は今日も地獄だった。地下世界全体から排出される有害廃液を、素手で汲み、運ぶ。'},
     {say:'narr', text:'防護服はない。手袋すらない。肌に触れれば爛れる。蒸気を吸えば肺が焼ける。'},
     {show:'kai', pos:'center'},
@@ -139,6 +148,7 @@ window.SEIKAI_SCRIPT = {
 
   /* 7. リーンとの出会い */
   { bg:'hideout', bgm:'yami', amb:1, card:{no:'', ttl:'そして、彼女が現れる', sub:'', hold:2600}, beats:[
+    {tm:'一日目・午後'},
     {say:'narr', text:'午後の作業が終わり、カイは自分の場所に戻ろうとした。配管の隙間にある二畳のスペース。三年かけて見つけた、誰にも知られていない場所。'},
     {show:'kai', pos:'left'},
     {say:'narr', text:'角を曲がった。——先客がいた。'},
@@ -270,6 +280,7 @@ window.SEIKAI_SCRIPT = {
 
   /* 10. 半分使え / 空の文字 */
   { bg:'hideout', bgm:'yuki', amb:1, card:{no:'', ttl:'夜', sub:'', hold:2000}, beats:[
+    {tm:'一日目・夜'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'rin', text:'「もう一個聞いていい？ カイって、友達いないでしょ」', ex:''},
     {say:'kai', text:'「……唐突だな」', ex:''},
@@ -311,6 +322,7 @@ window.SEIKAI_SCRIPT = {
 
   /* 11. 夢 → つづく */
   { bg:'dream', bgm:'yami', amb:0, card:{no:'', ttl:'その夜、夢を見た', sub:'', hold:2600}, beats:[
+    {tm:'一日目・深夜'},
     {say:'narr', text:'暗い部屋。四角い光。光に向かって指を動かしている。自分の手ではない。もっと大きな手だ。でも自分の手のように馴染んでいる。'},
     {say:'narr', text:'光の中に文字が流れている。読めない。でも意味はわかる。指が勝手に動いて、何かを組み立てている。部品を並べるように。論理的に。順番に。'},
     {say:'narr', text:'——道筋を組むのと、似ていた。'},

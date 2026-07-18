@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep14 = { title:'第十四話 能力が示さない道', sce
 
   /* 1. 午後三時・眠るリーンの傍で */
   { bg:'home', bgm:'timelimit', amb:1, card:{no:'第 十四 話', ttl:'能力が示さない道', sub:'すべての正解が視える俺が、初めて、答えのない場所に立った。', hold:4200}, beats:[
+    {tm:'地上八日目・午後'},
     {say:'narr', text:'午後三時。カイは、リビングに座って、リーンの寝顔を見ていた。'},
     {say:'narr', text:'リーンは、ソファに横になっていた。呼吸は聞こえない。プロトコルが、リーンの体を、静止させていた。'},
     {say:'narr', text:'手の冷たさは、進んでいた。あと、九時間。零時まで、九時間。'},
@@ -270,6 +271,7 @@ window.SEIKAI_SCRIPT.ep14 = { title:'第十四話 能力が示さない道', sce
 
   /* 13. 森を走る・リーンが戻る */
   { bg:'ruins', bgm:'anohi', amb:1, card:{no:'', ttl:'月明かりの森', sub:'', hold:1800}, beats:[
+    {tm:'地上八日目・夜'},
     {say:'narr', text:'廃墟を、飛び出した。月明かりの森を、走った。リーンの手を、握ったまま。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:'unease'},
     {say:'rin', text:'「——カイ。あたし、動けてる」', ex:''},

@@ -12,6 +12,7 @@ window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
 
   /* 1. 翌朝・作業割当板とジンの夢 */
   { bg:'hall', bgm:'rekishi', amb:1, card:{no:'第 四 話', ttl:'道を組む者たち', sub:'いつもと同じ番号。いつもと同じ班。けれど、昨夜の夢が、胸に嫌な予感を残していた。', hold:4200}, beats:[
+    {tm:'二十六日目・朝'},
     {say:'narr', text:'ガルドの区画で計画を詰め終えた翌朝、廃棄層の空気は、普段より冷たかった。'},
     {show:'kai', pos:'center'},
     {say:'narr', text:'カイは作業割当板の前に立っていた。今朝の割当を確認するためだった。'},
@@ -58,10 +59,11 @@ window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
 
   /* 3. 廃液処理・介入するか、止まるか */
   { bg:'waste', bgm:'timelimit', amb:1, card:{no:'', ttl:'廃液処理槽', sub:'', hold:2000}, beats:[
+    {tm:'二十六日目・昼'},
     {say:'narr', text:'廃液処理の現場は、今日も蒸気で充満していた。'},
     {show:'kai', pos:'center'},
     {say:'narr', text:'カイは道筋を展開していた。飛沫を避けながら、容器を運ぶ。いつもの手順。ジンの姿を、視界の端で確認し続けていた。'},
-    {game:{type:'path', n:5, show:1500, time:20,
+    {game:{type:'path', n:5, show:1500, time:20, shuffle:1,
       win:[{say:'narr', text:'手順は、体に馴染んでいた。飛沫の全てが、カイの輪郭を避けて落ちた。'}],
       lose:[{say:'narr', text:'ジンに気を取られた一瞬、足の置き場が半歩ずれた。飛沫が、作業靴の縁を焼いた。'}],
       skip:[] }},
@@ -128,6 +130,7 @@ window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
 
   /* 5. ジンの寝床・金属片の箱 */
   { bg:'hideout', bgm:'yuki', amb:1, card:{no:'', ttl:'ジンの寝床', sub:'', hold:2000}, beats:[
+    {tm:'二十六日目・夜'},
     {say:'narr', text:'作業が終わった後、カイはジンの寝床にいた。'},
     {show:'kai', pos:'left'},
     {say:'narr', text:'ジンの私物はほとんど何もなかった。毛布一枚。ボロボロの配給袋。小さな金属の破片を集めた箱。そして、干し肉の切れ端がいくつか。'},
@@ -175,6 +178,7 @@ window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
 
   /* 6. 決行前夜・小指に刻む */
   { bg:'hideout', bgm:'anohi', amb:1, card:{no:'', ttl:'三十七日目・決行前夜', sub:'', hold:2400}, beats:[
+    {tm:'三十七日目・夜'},
     {say:'narr', text:'三十七日目の決行前夜。夜更け。配管の裏の二畳の空間で、カイは一人、壁の前に座っていた。リーンは端末の最終確認のため、別の場所にいた。'},
     {show:'kai', pos:'center', expr:'pained'},
     {say:'narr', text:'カイの前には、ジンから預かった細い金属ピンがあった。配管整備用の針金。先端だけが細く尖っている。ジンが「計画に使ってくれ」と渡してくれたものだった。'},
@@ -241,6 +245,7 @@ window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
 
   /* 7.5 決行前夜・巡回 ― デッラ */
   { bg:'hall', bgm:'timelimit', amb:1, card:{no:'', ttl:'決行前夜 ― 巡回', sub:'', hold:2000}, beats:[
+    {tm:'三十七日目・深夜'},
     {say:'narr', text:'深夜。最後の物資を取りに、カイは配管路を出た。角を曲がった、その瞬間だった。'},
     {fx:'flash'},
     {say:'narr', text:'懐中電灯の光が、正面から、カイを撃った。'},
@@ -265,6 +270,7 @@ window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
 
   /* 8. 決行三時間前・混ざる旋律 */
   { bg:'hideout', bgm:'yuki', amb:1, card:{no:'', ttl:'決行まで、あと三時間', sub:'', hold:2200}, beats:[
+    {tm:'三十八日目・未明'},
     {say:'narr', text:'夜が更けた。決行の時刻まで、あと三時間だった。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'narr', text:'カイとリーンは、配管の裏の二畳のスペースで、最後の休息を取っていた。並んで壁に背を預けて。'},
