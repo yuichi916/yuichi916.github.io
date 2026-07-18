@@ -14,7 +14,7 @@ window.SEIKAI_SCRIPT.ep15 = { title:'第十五話 正解の外側で', scenes:[
   /* 1. 研究所裏口 */
   { bg:'lab', bgm:'timelimit', amb:1, card:{no:'第 十五 話', ttl:'正解の外側で', sub:'正解が視えない道を、それでも二人で選ぶ。', hold:4200}, beats:[
     {tm:'地上八日目・深夜'},
-    {say:'narr', text:'ユーゴの研究所の、裏口。月は頂点を過ぎていた。零時まで、あと二時間。'},
+    {say:'narr', text:'ユーゴの研究所、裏口。月は頂点を過ぎた。零時まで、あと二時間。——約束も、猶予も、全部が零時に集まっていく。'},
     {say:'narr', text:'カイはノーグから逃げ、リーンを背負い、ユーゴの「零時」より先に、ここへ回り込んでいた。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:'unease'},
     {say:'rin', text:'「カイ、なんで、ここに来たの」', ex:'unease'},

@@ -322,7 +322,7 @@ window.SEIKAI_SCRIPT.ep12 = { title:'第十二話 おはようが言えない朝
 
   /* 14. ユーゴへの疑念 */
   { bg:'home', bgm:'bikou', amb:1, card:{no:'', ttl:'書斎の声', sub:'', hold:1800}, beats:[
-    {say:'narr', text:'リーンの手が、少しずつ、温かくなっていった。完全に温かくなったわけではない。でも、最初の冷たさから、一つだけ、温度が上がっていた。'},
+    {say:'narr', text:'リーンの手に、少しずつ、温度が戻っていった。完全に、ではない。それでも、一目盛りだけ、確かに。'},
     {show:'kai', pos:'left', expr:''},{show:'rin', pos:'right', expr:''},
     {say:'kai', text:'「お前の状態を、ユーゴさんに相談するか」', ex:''},
     {say:'narr', text:'リーンの目が、一瞬、揺らいだ。'},
