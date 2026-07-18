@@ -163,7 +163,7 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
     {say:'narr', text:'カイは言葉を探した。'},
     {say:'kai', text:'「溶けた、って言うのかもしれない」', ex:'soft'},
     {say:'rin', text:'「溶けた」', ex:''},
-    {say:'kai', text:'「地下では、凍ってた。何もかも。泣く機能も、多分。でもここに出てきて、光が当たって、風が当たって——氷が溶けた」', ex:'soft'},
+    {say:'kai', text:'「地下では、凍ってた。何もかも。泣く機能も、たぶん一緒に。……ここに出て、光と風が当たって——氷の方が、先に泣いたんだ」', ex:'soft'},
     {say:'narr', text:'リーンがカイを見た。'},
     {say:'rin', text:'「カイ、詩人みたい」', ex:'soft'},
     {say:'kai', text:'「うるさい」', ex:''},

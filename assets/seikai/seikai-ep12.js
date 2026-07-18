@@ -203,7 +203,7 @@ window.SEIKAI_SCRIPT.ep12 = { title:'第十二話 おはようが言えない朝
     {say:'narr', text:'リーンが、やっと、名前を呼んだ。朝から初めて、「カイ」と呼んだ。'},
     {say:'rin', text:'「カイ、あたし——」', ex:'unease'},
     {say:'kai', text:'「何だ」', ex:''},
-    {say:'rin', text:'「言葉が——出ない。あたしの言葉が、出てこないの」', ex:'unease'},
+    {say:'rin', text:'「言葉が、出ない。あたしの言葉なのに——順番待ちみたいに、出てこないの」', ex:'unease'},
     {say:'narr', text:'リーンの手が、震えた。今朝から初めて、震えた。'},
     {say:'rin', text:'「あたしの中に、あたしじゃないものが、いるの」', ex:'unease'},
     {say:'kai', text:'（——背筋が、凍った）', ex:'surprised'},

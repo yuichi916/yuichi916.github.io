@@ -77,7 +77,7 @@ window.SEIKAI_SCRIPT.ep3 = { title:'第三話 壁に書いた空', scenes:[
     {say:'kai', text:'「わかるのか」', ex:''},
     {say:'rin', text:'「うん。なんとなく」', ex:''},
     {say:'narr', text:'いつもの「なんとなく」だった。けれどカイの耳には、その一言が、少しだけ湿って聞こえた。'},
-    {say:'rin', text:'「カイ。ノノちゃんとの約束、叶えようね」', ex:'soft'},
+    {say:'rin', text:'「ねえ、カイ。その約束——あたしも、乗せてよ」', ex:'soft'},
     {say:'rin', text:'「空って、どんな青なのかな」', ex:''},
     {say:'kai', text:'「……温かくて怖くない青だと、俺がノノに言ったんだ」', ex:''},
     {say:'rin', text:'「——カイ、連れてって」', ex:'unease'},
