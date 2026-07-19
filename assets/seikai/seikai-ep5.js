@@ -53,7 +53,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
     {say:'narr', text:'道筋が示す。右の通路。十二歩直進。左に曲がる。'},
     {say:'narr', text:'——右。'},
     {say:'narr', text:'一瞬、足が竦んだ。二つに分かれた通路。右か、左か。……あの日と、同じ形だった。'},
-    {choose:[
+    {timed:5, timeout:0, choose:[
       {label:'道筋を信じて、右へ', reply:[
         {say:'kai', text:'（あの日の俺には、道筋がなかった。今は、ある。……行ける）', ex:'pained'},
       ]},

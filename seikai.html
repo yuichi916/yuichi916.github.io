@@ -90,6 +90,11 @@ img{-webkit-user-drag:none}
 #choices{position:absolute;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;
   background:radial-gradient(ellipse at 50% 45%,rgba(4,8,14,.6),rgba(4,8,14,.86));backdrop-filter:blur(3px)}
 #choices.show{display:flex}
+#chtimer{width:min(60vw,420px);height:4px;margin:2px auto 0;border-radius:2px;background:rgba(150,180,220,.15);overflow:hidden}
+#chtimer i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff9a4a,#ffd24a)}
+#hbeat{position:absolute;inset:0;z-index:13;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center, transparent 52%, rgba(140,12,24,.55) 100%)}
+#hbeat.on{animation:hbv 1.05s ease-out}
+@keyframes hbv{0%{opacity:0}10%{opacity:.8}30%{opacity:.12}44%{opacity:.55}100%{opacity:0}}
 /* minigame / 探索 / 断章 */
 #mg{position:absolute;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:12px;background:rgba(4,7,12,.72);backdrop-filter:blur(3px)}
 #mg.show{display:flex}
@@ -325,6 +330,7 @@ img{-webkit-user-drag:none}
   <div class="bg" id="bg1"></div>
   <div id="vignette"></div>
   <div id="flick"></div>
+<div id="hbeat"></div>
   <div id="pline"></div>
   <div id="grain"></div>
   <div id="sprites"></div>
@@ -589,7 +595,7 @@ function fx(kind){
   else if(kind==='pline'){ const p=el('pline'); p.classList.remove('show'); void p.offsetWidth; p.classList.add('show'); se('power'); setTimeout(()=>p.classList.remove('show'),1400); }
   else if(kind==='sepia_on'){ el('stage').classList.add('sepia'); }
   else if(kind==='sepia_off'){ el('stage').classList.remove('sepia'); }
-  else if(kind==='heart'){ se('heart'); }
+  else if(kind==='heart'){ se('heart'); const hv=el('hbeat'); hv.classList.remove('on'); void hv.offsetWidth; hv.classList.add('on'); }
   else if(kind==='hit'){ se('hit'); el('stage').classList.add('shake'); setTimeout(()=>el('stage').classList.remove('shake'),500); }
 }
 
@@ -637,7 +643,7 @@ function step(){
     if(b.hide){ if(b.hide==='all') clearSprites(); else hideSprite(b.hide); continue; }
     if(b.expr){ setExpr(b.who||b.expr.who, b.expr); continue; }
     if(b.wait){ locked=true; setTimeout(()=>{ locked=false; step(); }, b.wait); return; }
-    if(b.choose){ renderChoices(b.choose); return; }
+    if(b.choose){ renderChoices(b.choose, b); return; }
     if(b.game){ renderGame(b.game); return; }
     if(b.explore){ renderExplore(b.explore); return; }
     if(b.map){ unlockMap(b.map); continue; }
@@ -702,12 +708,21 @@ function showCard(card){
 }
 
 /* ---------- 選択肢 ---------- */
-function renderChoices(list){
+function renderChoices(list, meta){
   const box=el('choices'); box.innerHTML=''; box.classList.add('show'); el('adv').classList.add('hide');
+  let tIv=null; const stopT=()=>{ if(tIv){ clearInterval(tIv); tIv=null; } };
+  const pick=(o)=>{ stopT(); se('page'); box.classList.remove('show'); if(o.set) st.choices[o.set]=true; save();
+    stack.push(cur); cur={beats:o.reply||[], i:0}; step(); };
+  const btns=[];
   list.forEach((o,i)=>{ const b=document.createElement('button'); b.className='choice'; b.textContent=o.label;
-    b.addEventListener('click',ev=>{ ev.stopPropagation(); se('page'); box.classList.remove('show'); if(o.set) st.choices[o.set]=true; save();
-      stack.push(cur); cur={beats:o.reply||[], i:0}; step(); });
-    box.appendChild(b); });
+    b.addEventListener('click',ev=>{ ev.stopPropagation(); pick(o); });
+    box.appendChild(b); btns.push(b); });
+  if(meta && meta.timed){
+    const tw=document.createElement('div'); tw.id='chtimer'; tw.innerHTML='<i></i>'; box.appendChild(tw);
+    const bar=tw.querySelector('i'); const t0=Date.now(); const total=meta.timed*1000;
+    tIv=setInterval(()=>{ const r=1-(Date.now()-t0)/total; bar.style.width=Math.max(0,r*100)+'%';
+      if(r<=0){ const idx=Math.min(meta.timeout||0, list.length-1); pick(list[idx]); } },100);
+  }
 }
 
 /* ---------- 地下全図ミニマップ(間取り式・全5層・段階解放) ---------- */

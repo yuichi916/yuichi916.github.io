@@ -128,7 +128,7 @@ window.SEIKAI_SCRIPT.ep13 = { title:'第十三話 ユーゴの仮面', scenes:[
     {say:'kai', text:'「計画」', ex:''},
     {say:'yuugo', text:'「そうだ。計画だよ」', ex:''},
     {say:'narr', text:'ユーゴが目を細めた。穏やかな笑みのまま。でも、目の奥が、G線上の魔王のように、鳴っていた。'},
-    {choose:[
+    {timed:5, timeout:0, choose:[
       {label:'「あんたを、信じてた」', reply:[
         {say:'kai', text:'「……あんたを、信じてた」', ex:'pained'},
       ]},

@@ -136,7 +136,7 @@ window.SEIKAI_SCRIPT.ep9 = { title:'第九話 影を視る者', scenes:[
     {say:'kai', text:'（質問に答えるたびに、道筋を読み取られている）', ex:'pained'},
     {say:'nogu', text:'「続けようか。次の質問。君は、リーンを守りたいか？」', ex:''},
     {say:'narr', text:'カイの手が止まった。どう答えるべきか。正解が見えない。'},
-    {choose:[
+    {timed:6, timeout:0, choose:[
       {label:'沈黙を選ぶ', reply:[
         {say:'kai', text:'「……答えなくてもいいゲームか？」', ex:''},
         {say:'nogu', text:'「答えたくなければ、答えなくていい。ただ、沈黙も一つの答えだ」', ex:''},
