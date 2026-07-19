@@ -121,6 +121,7 @@ window.SEIKAI_SCRIPT.ep4 = { title:'第四話 道を組む者たち', scenes:[
     {hide:'kai'},
     {show:'rin', pos:'right', expr:'unease'},
     {say:'narr', text:'リーンが近づいてきた。ポッツも、遠くからこちらを見ていた。廃棄層の全員が、カイとジンを見ていた。けれど、誰も近づかなかった。近づけば、次は自分だった。'},
+    {say:'narr', text:'ただ——何人かの唇が、声を出さずに、同じ形に動いた。五。一。九。近づけない者たちの、番号だけの弔いだった。'},
     {say:'della', text:'「五一七。離れろ。お前も廃棄物になりたいか」'},
     {hide:'rin'},
     {show:'kai', pos:'left', expr:'pained'},
