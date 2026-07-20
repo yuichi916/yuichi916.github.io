@@ -346,6 +346,7 @@ img{-webkit-user-drag:none}
 .hide{display:none!important}
 /* ===== OP ===== */
 #opseq{position:absolute;inset:0;z-index:200;background:#000;display:none;overflow:hidden;cursor:pointer}
+#opvideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
 #opseq.show{display:block}
 #opstage{position:absolute;inset:0}
 .opbg{position:absolute;inset:-6%;background-size:cover;background-position:center;animation:opPan 8s ease-out forwards}
@@ -450,7 +451,7 @@ img{-webkit-user-drag:none}
     <div style="text-align:right;margin-top:16px"><button class="hbtn" id="smClose">閉じる</button></div>
   </div></div>
 
-  <div id="opseq"><div id="opstage"></div><div id="opskip">CLICK TO SKIP ▸</div></div>
+  <div id="opseq"><video id="opvideo" playsinline preload="auto" src="assets/seikai/op.mp4"></video><div id="opskip">CLICK TO SKIP ▸</div></div>
   <div id="toast"></div>
   <div id="hint3d">◐ ドラッグ／端末を傾けて見回す</div>
 
@@ -728,7 +729,7 @@ function renderSay(b){
   el('adv').classList.remove('hide');
   if(skipOn && wasSeen(b.text)){ el('ttext').innerHTML=esc(b.text); el('ttext').className=isNarr?'narr':''; el('ttext').style.setProperty('--tcolor',color); pushLog(b.say,c.name,b.text); onLineDone(); return; }
   pushLog(b.say,c.name,b.text);
-  if(b.say==='kai'||b.say==='rin'){ playVoice(b.say,b.text); showMark(b.say,b.text,b.ex); } else stopVoice();
+  if(b.say==='kai'||b.say==='rin'){ if(!/^[（(]/.test(b.text.trim())) playVoice(b.say,b.text); else stopVoice(); showMark(b.say,b.text,b.ex); } else stopVoice();
   typeStart(b.text, color, isNarr);
 }
 function onLineDone(){
@@ -1224,54 +1225,25 @@ el('shCopy').addEventListener('click',shareCopy);
 loadCfg();
 try{ paintTitle(); }catch(e){}
 
-/* ---------- オープニング ---------- */
+/* ---------- オープニング (mp4) ---------- */
 (function(){
-  const seq=el('opseq'), stage=el('opstage');
-  if(!seq) return;
-  let timers=[], playing=false;
-  const at=(ms,fn)=>{ timers.push(setTimeout(fn,ms)); };
-  const cut=html=>{ stage.innerHTML=html; };
-  const bg=(k,cls)=>'<div class="opbg '+(cls||'')+'" style="background-image:url('+A+'bg-'+k+'.jpg)"></div><div class="opdark"></div>';
-  const ch=(f,cls,delay)=>'<img class="opch '+(cls||'')+'" src="'+A+f+'.png" alt="" style="animation-delay:'+(delay||0)+'ms">';
-  const tx=(html,cls,delay)=>'<div class="optxt '+(cls||'')+'" style="animation-delay:'+(delay||0)+'ms">'+html+'</div>';
-
+  const seq=el('opseq'), vid=el('opvideo');
+  if(!seq||!vid) return;
+  let playing=false;
   function opEnd(){
     if(!playing) return; playing=false;
-    timers.forEach(clearTimeout); timers=[];
     seq.classList.add('ending');
-    setTimeout(()=>{ seq.classList.remove('show','ending'); stage.innerHTML=''; },1600);
-    stopBGM();
+    try{ vid.pause(); }catch(e){}
+    setTimeout(()=>{ seq.classList.remove('show','ending'); try{ vid.currentTime=0; }catch(e){} }, 800);
   }
   function opStart(){
     if(playing) return; playing=true;
-    seq.classList.remove('ending'); seq.classList.add('show'); stage.innerHTML='';
-    ensureCtx(); if(actx&&actx.state==='suspended')actx.resume();
-    playBGM('yuki');
-    /* 1. 導入 */
-    at(300,  ()=>cut(tx('地下世界、アビス。','',0)));
-    at(3400, ()=>cut(tx('その底に——<span class="opline" style="animation-delay:.9s">廃棄層と呼ばれる、終わりの場所がある。</span>','',0)));
-    /* 2. 廃棄層 */
-    at(7600, ()=>cut(bg('waste')+tx('名前ではなく、番号で呼ばれる——百二十六人。','',900)));
-    /* 3. カイ */
-    at(14000,()=>cut(bg('hideout')+ch('cg-kai','',300)+tx('すべての正解が、視える少年。','',1100)));
-    /* 4. リーン */
-    at(20500,()=>cut(bg('hideout')+ch('cg-rin','',300)+tx('なにひとつ、覚えていない少女。','',1100)));
-    /* 5. 出会いの台詞 */
-    at(27000,()=>cut(tx('<span class="opline">「ここ、あなたの場所？」</span><span class="opline" style="animation-delay:1.3s">「……どうやって見つけた」</span><span class="opline gold" style="animation-delay:2.6s">「なんとなく」</span>','',0)));
-    /* 6. 地の底の人々 */
-    at(32000,()=>cut(bg('duct')+ch('cg-jin','tl',200)+ch('cg-garudo','tc',900)+ch('cg-potz','tr',1600)+tx('地の底にも、人がいた。','',2400)));
-    /* 7. 決行 */
-    at(39000,()=>cut(bg('duct','fast')+ch('cg-della','',200)+tx('決行は——三十八日目の夜。','gold',1000)));
-    /* 8. 空 */
-    at(44500,()=>cut('<div class="opflash"></div>'));
-    at(45300,()=>cut(bg('surface')+tx('空が、あった。','big',600)));
-    /* 9. 誰も泣かない街 */
-    at(50500,()=>cut(bg('town')+ch('cg-yuugo','tl',200)+ch('cg-miira','tc',900)+ch('cg-nogu','tr',1600)+tx('けれど地上の街では——誰も、泣かない。','',2400)));
-    /* 10. リーンの問い */
-    at(57000,()=>cut(bg('lab')+ch('cg-rin-tears','zoom',200)+tx('あたしって、——なに？','gold',1400)));
-    /* 11. タイトルロゴ */
-    at(62500,()=>cut('<div class="oplogo"><div class="lg-eye">SEIKAI SAGA — CASE 01</div><h2>正解の外側</h2><div class="lg-sub">すべての正解が視える俺が、<br>答えのない少女と世界を変えるまで</div></div>'));
-    at(69500, opEnd);
+    stopBGM();
+    seq.classList.remove('ending'); seq.classList.add('show');
+    try{ vid.currentTime=0; }catch(e){}
+    vid.muted=false; vid.volume=Math.max(0, Math.min(1,(cfg.bgm||70)/100));
+    vid.play().catch(()=>{ vid.muted=true; vid.play().catch(()=>{}); });
+    vid.onended=opEnd;
   }
   seq.addEventListener('click', opEnd);
   const opBtn=el('tOp'); if(opBtn) opBtn.addEventListener('click', opStart);
