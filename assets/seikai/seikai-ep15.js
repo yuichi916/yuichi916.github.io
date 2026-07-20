@@ -136,7 +136,7 @@ window.SEIKAI_SCRIPT.ep15 = { title:'第十五話 正解の外側で', scenes:[
   ]},
 
   /* 8. リーン戻る */
-  { bg:'aicore', bgm:'yuki', amb:1, beats:[
+  { bg:'aicore', bgm:'kizuna', amb:1, beats:[
     {say:'narr', text:'リーンの体が、崩れた。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'narr', text:'カイが駆け寄る。リーンが、カイの腕の中で息を吐いた。'},
@@ -186,7 +186,7 @@ window.SEIKAI_SCRIPT.ep15 = { title:'第十五話 正解の外側で', scenes:[
   ]},
 
   /* 11. 朝焼け・ミーラ */
-  { bg:'surface', bgm:'yuki', amb:0, card:{no:'', ttl:'夜明け', sub:'', hold:2400}, beats:[
+  { bg:'surface', bgm:'asayake', amb:0, card:{no:'', ttl:'夜明け', sub:'', hold:2400}, beats:[
     {tm:'九日目・夜明け'},
     {say:'narr', text:'夜が明け始めた。東の空に、朝焼けが広がっていた。赤と、橙と、紫が混じった空。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:'soft'},
@@ -250,7 +250,7 @@ window.SEIKAI_SCRIPT.ep15 = { title:'第十五話 正解の外側で', scenes:[
   ]},
 
   /* 13. 519・おはよう(核心フィナーレ・全分岐合流) */
-  { bg:'field', bgm:'yuki', amb:0, beats:[
+  { bg:'field', bgm:'kizuna', amb:0, beats:[
     {say:'narr', text:'草原と森の境目。朝日が完全に昇り、草原が黄金色に輝いていた。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'narr', text:'リーンが、カイの左手の小指を指差した。内側に、薄い傷跡。何かを彫った跡。'},
@@ -261,7 +261,7 @@ window.SEIKAI_SCRIPT.ep15 = { title:'第十五話 正解の外側で', scenes:[
     {say:'kai', text:'「決行の前夜、俺はあいつの番号を、小指の内側に彫った。外側から消えた名前を、内側に残すために。血が出て——お前が、自分の袖を破いて、巻いてくれた」', ex:'pained'},
     {say:'kai', text:'「そしてお前は、あいつが死ぬ朝、配給の列で『ありがとうね』と言ったんだ。三年も隣にいた俺より先に、礼を、言葉にして渡した。ジンは——最後の朝に、それを受け取ってから、逝った」', ex:'soft'},
     {say:'narr', text:'リーンの目から、涙が一粒、落ちた。覚えていない記憶に、体だけが、泣いていた。'},
-    {say:'rin', text:'「……思い出せないのに、胸のここが、知ってるって言ってる。ジンに、会いたかったな。もう一回、ありがとうって、言いたかったな」', ex:'pained'},
+    {say:'rin', text:'「……思い出せないのに、胸のここが、知ってるって言ってる。ジンさんに、会いたかったな。もう一回、ありがとうって、言いたかったな」', ex:'pained'},
     {say:'narr', text:'カイの胸が、熱くなった。二人は、歩き始めた。'},
     {say:'narr', text:'——リーンが、ふと立ち止まった。'},
     {say:'rin', text:'「カイ。言い忘れてたことがある」', ex:'soft'},

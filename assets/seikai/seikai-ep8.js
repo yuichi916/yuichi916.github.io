@@ -18,7 +18,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
     {say:'yuugo', text:'「今日は、この町を一緒に歩こう。お前たちが見るべきものを、俺が案内する」'},
     {say:'kai', text:'「見るべきもの？」', ex:''},
     {say:'yuugo', text:'「ああ。誰も泣かない街を」'},
-    {say:'narr', text:'ユーゴが先を歩いた。朝の通りは穏やかだった。白い服の人々が通りを歩いている。昨日と同じ風景。'},
+    {say:'narr', text:'ユーゴが先を歩いた。朝の通りは穏やかだった。皺ひとつない灰色の服の人々が、石畳を歩いている。昨日と同じ風景。'},
     {say:'narr', text:'でも、昨日とは違うものが、カイの目に映り始めていた。ユーゴに「感情の配給制」の話を聞いてから、町の見え方が変わった。'},
     {say:'narr', text:'通行人とすれ違うたびに、カイは彼らの目を見た。目が——揺れていなかった。'},
     {say:'narr', text:'何を見ても、何を聞いても、反応の幅が狭い。怒りも、喜びも、驚きも、ほとんど表情に出ない。ただ、穏やかな表情が貼り付いている。'},
@@ -69,7 +69,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
   ]},
 
   /* 3. ミーラとの出会い・待ってた、逆だった */
-  { bg:'town', bgm:'yuki', amb:1, beats:[
+  { bg:'town', bgm:'kaori', amb:1, beats:[
     {say:'narr', text:'リーンが少しずつミーラに近づいた。'},
     {choose:[
       {label:'止めようとする', reply:[
@@ -135,7 +135,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
   ]},
 
   /* 4. 折れた筆・リーンが自分の髪を与える */
-  { bg:'town', bgm:'yuki', amb:1, beats:[
+  { bg:'town', bgm:'kaori', amb:1, beats:[
     {show:'rin', pos:'right', expr:''},
     {say:'narr', text:'ミーラが、ふと思い出したように呟いた。'},
     {say:'miira', text:'「筆が折れちゃったの」'},
@@ -169,7 +169,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
     {say:'rin', text:'「魔法じゃないよ。ただの髪」', ex:'soft'},
     {say:'miira', text:'「ううん。魔法だよ」'},
     {say:'narr', text:'ミーラが本気で言っていた。魔法を信じる十歳の目で。'},
-    {say:'narr', text:'その時、公園の入口から、白い服の男が歩いてきた。ミーラの父だった。配給の穏やかな笑みで、決められた台詞のように言う。'},
+    {say:'narr', text:'その時、公園の入口から、仕立ての揃った灰色の服の男が歩いてきた。ミーラの父だった。配給の穏やかな笑みで、決められた台詞のように言う。'},
     {say:'narr', text:'「娘が、ご迷惑をおかけしていませんか」'},
     {say:'rin', text:'「してません。ミーラの絵、すごいんですよ」', ex:'soft'},
     {say:'narr', text:'「それは良かった」と、抑揚まで設計された声が言った。もう行くのだろう、と思った。——だが男の足は、動かなかった。'},
@@ -185,7 +185,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
   ]},
 
   /* 5. 白い球体・管理端末を、リーンの言葉が退ける */
-  { bg:'town', bgm:'aicore', amb:1, card:{no:'', ttl:'管理端末', sub:'', hold:2000}, beats:[
+  { bg:'town', bgm:'yami', amb:1, card:{no:'', ttl:'管理端末', sub:'', hold:2000}, beats:[
     {say:'narr', text:'公園の端から、何かが近づいてきた。'},
     {say:'narr', text:'白い球体。直径三十センチほどの、滑らかな白い球体が、地面から数十センチ浮いた状態で移動している。音もなく。影もなく。'},
     {show:'kai', pos:'left'},
@@ -266,7 +266,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
   ]},
 
   /* 7. 夕方・リーンの歩く道に、笑顔が生まれる */
-  { bg:'town', bgm:'hibi', amb:1, card:{no:'', ttl:'夕', sub:'', hold:1800}, beats:[
+  { bg:'town', bgm:'asayake', amb:1, card:{no:'', ttl:'夕', sub:'', hold:1800}, beats:[
     {say:'narr', text:'その日の夕方。リーンは通りを歩きながら、すれ違う人に、小さな挨拶を落としていった。'},
     {show:'rin', pos:'center', expr:'soft'},
     {say:'rin', text:'「おはようございます」', ex:'soft'},
@@ -325,7 +325,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
   ]},
 
   /* 9. その夜・ユーゴの家・正解の外側で生まれる正解 */
-  { bg:'home', bgm:'yuki', amb:1, card:{no:'', ttl:'その夜・ユーゴの家', sub:'', hold:2000}, beats:[
+  { bg:'home', bgm:'kaori', amb:1, card:{no:'', ttl:'その夜・ユーゴの家', sub:'', hold:2000}, beats:[
     {tm:'地上三日目・夜'},
     {say:'narr', text:'その夜。ユーゴの家の食卓で。リーンがスープを飲みながら、呟いた。'},
     {show:'rin', pos:'right', expr:''},

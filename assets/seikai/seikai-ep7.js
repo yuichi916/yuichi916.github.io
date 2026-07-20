@@ -52,8 +52,8 @@ window.SEIKAI_SCRIPT.ep7 = { title:'第七話 楽園の色／パンケーキ', s
   ]},
 
   /* 2. ユーゴの家・本と、パンケーキ */
-  { bg:'home', bgm:'yuki', amb:1, card:{no:'', ttl:'ユーゴの家', sub:'', hold:2000}, beats:[
-    {say:'narr', text:'ユーゴの家は、町の外れにあった。他の白い家とは違っていた。壁は薄い灰色で、窓枠は木製。花の種類がバラバラで、統一感がない。管理されていない花壇。'},
+  { bg:'home', bgm:'kaori', amb:1, card:{no:'', ttl:'ユーゴの家', sub:'', hold:2000}, beats:[
+    {say:'narr', text:'ユーゴの家は、町の外れにあった。整いすぎた他の家々と、どこか違っていた。窓枠の木は日に焼け、漆喰には継ぎの跡がある。花の種類がバラバラで、統一感がない。——管理されていない、生活の匂いのする家だった。'},
     {say:'yuugo', text:'「散らかってるが、気にしないでくれ」'},
     {say:'narr', text:'中は広かった。テーブル。椅子。棚。棚には本が並んでいる。カイは足を止めた。'},
     {show:'kai', pos:'left'},
@@ -108,7 +108,7 @@ window.SEIKAI_SCRIPT.ep7 = { title:'第七話 楽園の色／パンケーキ', s
   ]},
 
   /* 3. 二切れの皿 */
-  { bg:'home', bgm:'yuki', amb:1, beats:[
+  { bg:'home', bgm:'kaori', amb:1, beats:[
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'rin', text:'「……カイ、食べてる？」', ex:''},
     {say:'kai', text:'「食ってる」', ex:''},
@@ -290,7 +290,7 @@ window.SEIKAI_SCRIPT.ep7 = { title:'第七話 楽園の色／パンケーキ', s
   ]},
 
   /* 7. 部屋・夕日と「うまい」 */
-  { bg:'home', bgm:'yuki', amb:1, card:{no:'', ttl:'夕日の部屋', sub:'', hold:2000}, beats:[
+  { bg:'home', bgm:'kaori', amb:1, card:{no:'', ttl:'夕日の部屋', sub:'', hold:2000}, beats:[
     {say:'narr', text:'部屋に入ると、リーンがベッドに座っていた。窓から夕日が差し込んでいた。オレンジ色の光が、リーンの銀髪を染めていた。'},
     {show:'rin', pos:'right', expr:'soft'},
     {say:'rin', text:'「カイ。あたし、今日、うまいって言葉、初めて使った」', ex:'soft'},

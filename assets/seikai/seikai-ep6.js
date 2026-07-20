@@ -11,7 +11,7 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
   ]},
 
   /* 1. 丘の上・初めての空 */
-  { bg:'surface', bgm:'yuki', amb:1, card:{no:'第 六 話', ttl:'空', sub:'記憶のない少女が、生まれて初めて泣いた日。地上には、泣くことが許される空があった。', hold:4200}, beats:[
+  { bg:'surface', bgm:'asayake', amb:1, card:{no:'第 六 話', ttl:'空', sub:'記憶のない少女が、生まれて初めて泣いた日。地上には、泣くことが許される空があった。', hold:4200}, beats:[
     {tm:'地上一日目・朝'},
     {say:'narr', text:'朝日が昇りきった。'},
     {say:'narr', text:'カイとリーンは丘の上に立っていた。地下からの出口——錆びた金属の蓋を閉めた場所から、もう五十歩も離れていた。'},
@@ -188,7 +188,7 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
   ]},
 
   /* 5. 丘の上・この青を覚えておく */
-  { bg:'surface', bgm:'yuki', amb:1, beats:[
+  { bg:'surface', bgm:'asayake', amb:1, beats:[
     {show:'rin', pos:'right', expr:''},
     {show:'kai', pos:'left'},
     {say:'narr', text:'太陽が高くなっていく。気温が上がっていく。地下では感じたことのない熱が、体全体を包んでいった。'},
@@ -225,10 +225,10 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
   ]},
 
   /* 6. 町・整いすぎた笑顔 */
-  { bg:'town', bgm:'haikyo', amb:1, card:{no:'', ttl:'町', sub:'', hold:2000}, beats:[
+  { bg:'town', bgm:'glass', amb:1, card:{no:'', ttl:'町', sub:'', hold:2000}, beats:[
     {tm:'地上一日目・昼'},
     {say:'narr', text:'二時間ほど歩いて、森を抜けた。目の前に、町があった。'},
-    {say:'narr', text:'白い建物が整然と並んでいる。花壇。石畳。噴水。地下では考えられない光景が、そこに広がっていた。'},
+    {say:'narr', text:'灰色の石畳が、まっすぐに伸びている。木組みの古い家並み。黒い石の噴水。絵本から切り出したような街並みが、そこに広がっていた。どの壁にもひびひとつなく、どの敷石も同じ形に磨かれている。——古い街のはずなのに、昨日作られたばかりのように、完璧だった。'},
     {show:'rin', pos:'right', expr:''},
     {show:'kai', pos:'left'},
     {say:'rin', text:'「きれい」', ex:''},
@@ -250,7 +250,7 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
     {say:'kai', text:'「……何でもない。行こう」', ex:''},
     {say:'narr', text:'カイはリーンの手を握り直した。町に一歩を踏み入れた。'},
     {say:'narr', text:'温度が変わった。外の草原では風が吹くたびに暑さが変わったのに、ここでは完璧に均一。湿度も同じだ。人工的に管理されている。'},
-    {say:'narr', text:'通行人とすれ違った。白い服の男性。三十代くらい。「おはようございます」と男が言った。声は穏やかだった。抑揚もあった。目も合った。'},
+    {say:'narr', text:'通行人とすれ違った。皺ひとつない灰色の服の男性。三十代くらい。「おはようございます」と男が言った。声は穏やかだった。抑揚もあった。目も合った。'},
     {say:'narr', text:'リーンの手が——カイの手を、きゅっと握った。'},
     {say:'narr', text:'カイはその意味を理解した。この町は、地下より遥かに「整っている」。廃棄層の住人のような虚ろさはない。だからこそ——何かが、おかしい。'},
     {say:'kai', text:'「おはようございます」', ex:''},
@@ -271,8 +271,8 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
   ]},
 
   /* 7. 広場・ミーラの絵 */
-  { bg:'town', bgm:'hibi', amb:1, card:{no:'', ttl:'広場の絵', sub:'', hold:1800}, beats:[
-    {say:'narr', text:'町の奥に、広場が見えた。白い石畳。中央に噴水。水が透明で、光を弾いている。'},
+  { bg:'town', bgm:'kaori', amb:1, card:{no:'', ttl:'広場の絵', sub:'', hold:1800}, beats:[
+    {say:'narr', text:'町の奥に、広場が見えた。磨き上げられた石畳。中央に、黒い石の噴水。水は透明で、いつ見ても、同じ高さで、同じ形に跳ねていた。'},
     {say:'narr', text:'そして、広場の端に——小さな絵が見えた。ベンチの上に、一枚の紙。風に煽られて、ぱたぱたと動いていた。誰かが描いた絵だった。'},
     {show:'rin', pos:'right', expr:''},
     {say:'rin', text:'「カイ。あれ」', ex:''},
@@ -303,7 +303,7 @@ window.SEIKAI_SCRIPT.ep6 = { title:'第六話 空', scenes:[
   ]},
 
   /* 8. 空き家・夜、記憶に残る一日 */
-  { bg:'home', bgm:'yuki', amb:1, card:{no:'', ttl:'夜', sub:'', hold:1800}, beats:[
+  { bg:'home', bgm:'kaori', amb:1, card:{no:'', ttl:'夜', sub:'', hold:1800}, beats:[
     {tm:'地上一日目・夜'},
     {say:'narr', text:'夕方、町の外れに空き家があった。二人はその空き家に忍び込んで、床の上で眠った。窓から月が見えた。丸い白い月。'},
     {show:'rin', pos:'right', expr:''},

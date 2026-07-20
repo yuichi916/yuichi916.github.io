@@ -182,7 +182,7 @@ window.SEIKAI_SCRIPT = {
     {say:'kai', text:'「……五一七」', ex:''},
     {say:'rin', text:'「番号じゃなくて」'},
     {say:'kai', text:'「ここでは番号が名前だ」', ex:''},
-    {say:'rin', text:'「ふーん。じゃあ私が名前をつけてあげようか」', ex:'flat'},
+    {say:'rin', text:'「ふーん。じゃああたしが名前をつけてあげようか」', ex:'flat'},
     {say:'kai', text:'「いらない」', ex:''},
     {say:'rin', text:'「カイ、とかどう？」', ex:''},
     {fx:'heart'},

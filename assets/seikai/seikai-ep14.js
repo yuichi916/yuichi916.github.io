@@ -312,7 +312,7 @@ window.SEIKAI_SCRIPT.ep14 = { title:'第十四話 能力が示さない道', sce
   ]},
 
   /* 15. 背負って歩く・今日あれば、いい */
-  { bg:'ruins', bgm:'yuki', amb:1, card:{no:'', ttl:'今日あれば、いい', sub:'', hold:2400}, beats:[
+  { bg:'ruins', bgm:'kizuna', amb:1, card:{no:'', ttl:'今日あれば、いい', sub:'', hold:2400}, beats:[
     {say:'narr', text:'カイが、リーンを背負って、歩き出した。森の中を。月明かりの下を。'},
     {show:'kai', pos:'center'},
     {say:'rin', text:'「カイ。あたしを、背負うの、疲れない」', ex:''},
