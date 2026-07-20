@@ -217,7 +217,7 @@ window.SEIKAI_SCRIPT.ep5 = { title:'第五話 選べない道', scenes:[
   { bg:'duct', bgm:'anohi', amb:1, beats:[
     {show:'kai', pos:'left'},{show:'garudo', pos:'right'},
     {say:'garudo', text:'「お前の母親に、約束したんだ」', ex:''},
-    {say:'narr', text:'カイの世界が、止まった。'},
+    {say:'narr', text:'カイの道筋が、止まった。世界のあらゆる分岐を計算してきた金色の線が、その一言の前で、凍りついた。'},
     {say:'garudo', text:'「お前を、地上に出すと」', ex:''},
     {say:'narr', text:'水音が遠くなった。後方の音も、リーンの息遣いも。全部が遠くなった。ガルドの声だけが、カイの耳に入った。'},
     {say:'garudo', text:'「三年かかった。長くかかりすぎた。だが——今、果たす。わしはここに残る。お前たちを、先に行かせる」', ex:''},
