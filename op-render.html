@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
-<title>OP render (dynamic)</title>
+<title>OP render (dynamic v2 kinetic)</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:1280px;height:720px;overflow:hidden;background:#000;
   font-family:"Yu Mincho","Hiragino Mincho ProN","Noto Serif JP",serif}
 #stage{position:relative;width:1280px;height:720px;background:#000;overflow:hidden}
-.bg{position:absolute;inset:-8%;background-size:cover;background-position:center;opacity:0}
-.dark{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 46%,rgba(0,0,0,.25),rgba(0,0,0,.82) 100%);opacity:0}
-.ch{position:absolute;bottom:-3%;height:94%;filter:drop-shadow(0 12px 44px rgba(0,0,0,.85));opacity:0;left:50%;transform:translateX(-50%)}
+.bg{position:absolute;inset:-10%;background-size:cover;background-position:center;opacity:0;will-change:transform,filter}
+.dark{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 46%,rgba(0,0,0,.22),rgba(0,0,0,.82) 100%);opacity:0}
+.ch{position:absolute;bottom:-3%;height:94%;filter:drop-shadow(0 12px 44px rgba(0,0,0,.85));opacity:0;left:50%;transform:translateX(-50%);will-change:transform,opacity}
 .tx{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);width:92%;text-align:center;
   color:#eef1f8;font-size:30px;letter-spacing:.3em;line-height:2.3;text-shadow:0 2px 22px rgba(0,0,0,.95);opacity:0}
 .tx.big{font-size:58px;letter-spacing:.4em;color:#fff}
@@ -17,9 +17,17 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 .tx .l2{display:block;font-size:.6em;margin-top:12px;letter-spacing:.3em;opacity:.9}
 .tx .l3{display:block;color:#ffd24a;margin-top:14px}
 .flash{position:absolute;inset:0;background:#fff;opacity:0}
+/* スピードライン(集中線) */
+#streak{position:absolute;inset:-20%;opacity:0;pointer-events:none;mix-blend-mode:screen;
+  background:repeating-conic-gradient(from 0deg at 50% 50%,
+    rgba(255,255,255,0) 0deg,rgba(255,255,255,0) 1.6deg,rgba(255,255,255,.5) 2deg,rgba(255,255,255,0) 2.4deg)}
+/* 横ホイップの流し */
+#whip{position:absolute;inset:0;opacity:0;pointer-events:none;mix-blend-mode:screen;
+  background:linear-gradient(90deg,transparent,rgba(220,235,255,.6),transparent)}
 .pline{position:absolute;inset:0;opacity:0;background:
-  linear-gradient(115deg,transparent 46%,rgba(255,210,74,.5) 49%,transparent 52%),
-  linear-gradient(70deg,transparent 60%,rgba(255,210,74,.35) 63%,transparent 66%)}
+  linear-gradient(115deg,transparent 44%,rgba(255,210,74,.6) 49%,transparent 54%),
+  linear-gradient(70deg,transparent 58%,rgba(255,210,74,.4) 63%,transparent 68%),
+  linear-gradient(150deg,transparent 30%,rgba(120,190,255,.35) 34%,transparent 38%)}
 #logo{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);text-align:center;width:94%;opacity:0}
 #logo .eye{font-size:15px;letter-spacing:.62em;color:#9aa3b5;margin-bottom:20px}
 #logo h1{font-size:92px;letter-spacing:.16em;font-weight:600;
@@ -33,9 +41,11 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 <div id="stage">
   <div class="bg" id="bg"></div><div class="dark" id="dark"></div>
   <img class="ch" id="chL"><img class="ch" id="chM"><img class="ch" id="chR"><img class="ch" id="chC">
+  <div id="streak"></div>
   <div class="pline" id="pline"></div>
   <div class="tx" id="tx"></div>
   <div id="vig"></div>
+  <div id="whip"></div>
   <div class="flash" id="flash"></div>
   <div id="logo"><div class="eye">SEIKAI SAGA &mdash; CASE 01</div><h1>正解の外側</h1>
     <div class="sub">すべての正解が視える俺が、<br>答えのない少女と世界を変えるまで</div></div>
@@ -46,70 +56,88 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 const A='assets/seikai/';
 const el=id=>document.getElementById(id);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const eIO=p=>p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;        // easeInOut
+const eOut=p=>1-Math.pow(1-p,3);                        // easeOutCubic
+const eIn=p=>p*p*p;                                     // easeInCubic
 function env(t,s,e,fin,fout){ if(t<s||t>e)return 0; let a=fin?clamp((t-s)/fin,0,1):1; let b=fout?clamp((e-t)/fout,0,1):1; return Math.min(a,b); }
 
-/* motion: 進捗p(0-1)から bg transform を返す */
+/* motion: 進捗p(0-1)から bg transform を返す — 大きく動くカメラワーク */
 function mo(kind,p){
+  const e=eIO(p);
   switch(kind){
-   case 'push':     return 'scale('+(1.03+0.10*p)+') translateX(0%)';
-   case 'pushfast': return 'scale('+(1.06+0.20*p)+') translateX(0%)';
-   case 'panL':     return 'scale(1.12) translateX('+(4-8*p)+'%)';
-   case 'panR':     return 'scale(1.12) translateX('+(-4+8*p)+'%)';
-   case 'drift':    return 'scale('+(1.10-0.04*p)+') translateX('+(1.5-3*p)+'%)';
-   default:         return 'scale(1.05)';
+   case 'push':     return 'scale('+(1.05+0.13*e)+')';
+   case 'pushfast': return 'scale('+(1.08+0.24*p)+')';
+   case 'punch':    return 'scale('+(1.02+0.36*eOut(p))+')';                          // 一気に寄る
+   case 'pull':     return 'scale('+(1.52-0.42*eOut(p))+')';                          // 引きで見せる
+   case 'sweepL':   return 'scale(1.34) translateX('+(15-30*e)+'%)';                  // 左→右カメラパン
+   case 'sweepR':   return 'scale(1.34) translateX('+(-15+30*e)+'%)';                 // 右→左
+   case 'sweepLf':  return 'scale(1.30) translateX('+(13-26*eOut(p))+'%)';            // 速い流しパン
+   case 'sweepRf':  return 'scale(1.30) translateX('+(-13+26*eOut(p))+'%)';
+   case 'tiltup':   return 'scale(1.36) translateY('+(14-26*e)+'%)';                  // 地→空へティルト
+   case 'tiltdn':   return 'scale(1.30) translateY('+(-11+22*e)+'%)';
+   case 'roll':     return 'scale(1.18) rotate('+(-2.4+4.8*p).toFixed(2)+'deg) translateX('+(2.5-5*p)+'%)';
+   case 'diagL':    return 'scale(1.30) translate('+(11-22*e)+'%,'+(7-14*e)+'%)';     // 斜め移動
+   case 'diagR':    return 'scale(1.30) translate('+(-11+22*e)+'%,'+(-7+14*e)+'%)';
+   case 'drift':    return 'scale('+(1.14-0.05*p)+') translateX('+(1.6-3.2*p)+'%)';
+   default:         return 'scale(1.07)';
   }
 }
 /* character slot classes -> element */
-const SLOT={l:'chL',m:'chM',r:'chR',c:'chC'};
-function chPos(cls){ return cls==='l'?'22%':cls==='r'?'78%':'50%'; }
-function chH(cls){ return (cls==='l'||cls==='r')?'70%':(cls==='m'?'76%':'94%'); }
+const SLOT={l:'chL',m:'chM',r:'chR',c:'chC',ml:'chL',mr:'chR'};
+function chPos(cls){ return cls==='l'?'22%':cls==='r'?'78%':(cls==='ml'?'38%':cls==='mr'?'62%':'50%'); }
+function chH(cls){ return (cls==='l'||cls==='r'||cls==='ml'||cls==='mr')?'70%':(cls==='m'?'76%':'94%'); }
 
-/* ===== カット定義 (t基準/秒) — 動的・多カット ===== */
+/* ===== カット定義 (t基準/秒) — 多背景・キネティック ===== */
+/* mo: カメラワーク / shake: 衝撃px / streak: 集中線 / whip: 横流し導入 / par: bg方向にキャラ逆パララックス */
 const C=[
- // --- INTRO (静, 0-16) ---
- {s:0.0, e:4.5,  tx:'地下世界、アビス。'},
- {s:4.5, e:9.0,  tx:'その底に——終わりの場所が、ある。'},
- {s:9.0, e:16.0, bg:'bg-waste.jpg', dark:1, mo:'push', tx:'名前ではなく、番号で呼ばれる——百二十六人。'},
- // --- VERSE (キャラ紹介, 16-40) ---
- {s:16.0,e:21.0, bg:'bg-hideout.jpg', dark:1, mo:'push', ch:[{i:'cg-kai.png',c:'c'}], tx:'すべての正解が、視える少年。'},
- {s:21.0,e:24.0, bg:'bg-hideout.jpg', dark:1, mo:'pushfast', ch:[{i:'cg-kai-surprised.png',c:'c'}], pline:1},
- {s:24.0,e:29.0, bg:'bg-hideout.jpg', dark:1, mo:'push', ch:[{i:'cg-rin.png',c:'c'}], tx:'なにひとつ、覚えていない少女。'},
- {s:29.0,e:32.2, mo:'pushfast', tx:'「なんとなく」', cls:'gold big'},
- {s:32.2,e:36.0, bg:'bg-hideout.jpg', dark:1, mo:'panR', ch:[{i:'cg-kai-soft.png',c:'l'},{i:'cg-rin-smile.png',c:'r'}]},
- {s:36.0,e:40.0, bg:'bg-waste.jpg', dark:1, mo:'panL', tx:'——ここから、始まった。'},
- // --- BUILD (加速, 40-54) ---
- {s:40.0,e:43.2, bg:'bg-duct.jpg', dark:1, mo:'push', ch:[{i:'cg-jin.png',c:'l'},{i:'cg-garudo.png',c:'m'},{i:'cg-potz.png',c:'r'}], tx:'地の底にも、人がいた。'},
- {s:43.2,e:46.0, bg:'bg-ration.jpg', dark:1, mo:'pushfast', ch:[{i:'cg-jin.png',c:'c'}]},
- {s:46.0,e:49.2, bg:'bg-hall.jpg', dark:1, mo:'push', ch:[{i:'cg-della.png',c:'c'}], tx:'決行は——三十八日目の夜。', cls:'gold'},
- {s:49.2,e:51.4, bg:'bg-duct.jpg', dark:1, mo:'pushfast'},
- {s:51.4,e:52.5, bg:'bg-hideout.jpg', dark:1, mo:'pushfast', ch:[{i:'cg-kai-pained.png',c:'c'}]},
- {s:52.5,e:53.6, bg:'bg-duct.jpg', dark:1, mo:'pushfast', ch:[{i:'cg-rin-sharp.png',c:'c'}]},
- {s:53.6,e:54.6, flash:1},
- // --- CHORUS payoff (空) 54.6-61 ---
- {s:54.6,e:61.0, bg:'op-bg-surface.jpg', mo:'push', tx:'空が、あった。', cls:'big'},
- // --- CHORUS montage (高速, 61-84) ---
- {s:61.0,e:63.5, bg:'op-bg-town.jpg', dark:1, mo:'drift', tx:'誰も泣かない街。'},
- {s:63.5,e:65.0, bg:'op-bg-town.jpg', dark:1, mo:'pushfast', ch:[{i:'cg-yuugo.png',c:'c'}]},
- {s:65.0,e:66.5, bg:'op-bg-town.jpg', dark:1, mo:'pushfast', ch:[{i:'cg-miira.png',c:'c'}]},
- {s:66.5,e:68.0, bg:'op-bg-town.jpg', dark:1, mo:'pushfast', ch:[{i:'cg-nogu.png',c:'c'}]},
- {s:68.0,e:70.5, bg:'op-bg-town.jpg', dark:1, mo:'drift', tx:'——誰も、泣かない。'},
- {s:70.5,e:72.5, bg:'bg-lab.jpg', dark:1, mo:'push', ch:[{i:'cg-rin-unease.png',c:'c'}]},
- {s:72.5,e:76.0, bg:'bg-lab.jpg', dark:1, mo:'pushfast', ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'gold'},
- // rapid 0.9s flashes
- {s:76.0,e:77.0, bg:'op-bg-surface.jpg', mo:'pushfast', ch:[{i:'cg-kai-tears.png',c:'c'}]},
- {s:77.0,e:78.0, bg:'op-bg-surface.jpg', mo:'pushfast', ch:[{i:'cg-rin-tears.png',c:'c'}]},
- {s:78.0,e:79.0, bg:'bg-hideout.jpg', dark:1, mo:'pushfast', ch:[{i:'cg-kai.png',c:'c'}]},
- {s:79.0,e:80.0, bg:'bg-surface.jpg', mo:'pushfast', ch:[{i:'cg-rin-smile.png',c:'c'}]},
+ // ===== INTRO (深淵, 0-16) 荘厳にゆっくり大きく =====
+ {s:0.0, e:4.6,  bg:'pano-void.jpg',   dark:1, mo:'pull',   tx:'地下世界、アビス。'},
+ {s:4.6, e:9.0,  bg:'bg-collapse.jpg', dark:1, mo:'push',   shake:2, tx:'その底に——終わりの場所が、ある。'},
+ {s:9.0, e:12.6, bg:'bg-waste.jpg',    dark:1, mo:'sweepL', tx:'名前ではなく、番号で呼ばれて。'},
+ {s:12.6,e:16.0, bg:'bg-slum.jpg',     dark:1, mo:'sweepR', tx:'——百二十六人の、行き止まり。'},
+ // ===== VERSE (キャラ紹介, 16-40) =====
+ {s:16.0,e:20.6, bg:'bg-hideout.jpg', dark:1, mo:'punch', ch:[{i:'cg-kai.png',c:'c',from:'l'}], tx:'すべての正解が、視える少年。'},
+ {s:20.6,e:23.0, bg:'bg-duct.jpg',    dark:1, mo:'sweepRf', ch:[{i:'cg-kai-surprised.png',c:'c'}], pline:1, streak:.5},
+ {s:23.0,e:27.4, bg:'bg-dream.jpg',   dark:1, mo:'push',  ch:[{i:'cg-rin.png',c:'c',from:'r'}], tx:'なにひとつ、覚えていない少女。'},
+ {s:27.4,e:29.0, bg:'bg-lab.jpg',     dark:1, mo:'punch', ch:[{i:'cg-rin-sharp.png',c:'c'}], streak:.4},
+ {s:29.0,e:32.2, bg:'bg-hideout.jpg', dark:1, mo:'push',  ch:[{i:'cg-kai-soft.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], tx:'「なんとなく」', cls:'gold big'},
+ {s:32.2,e:36.0, bg:'bg-slum.jpg',    dark:1, mo:'sweepL', ch:[{i:'cg-kai-soft.png',c:'l'},{i:'cg-rin-smile.png',c:'r'}], par:1},
+ {s:36.0,e:40.0, bg:'bg-ruins.jpg',   dark:1, mo:'tiltup', tx:'——ここから、始まった。'},
+ // ===== BUILD (加速・仲間・計画, 40-54.6) ビート同期の速いカット =====
+ {s:40.0,e:42.6, bg:'bg-duct.jpg',   dark:1, mo:'diagL',  ch:[{i:'cg-jin.png',c:'l'},{i:'cg-garudo.png',c:'m'},{i:'cg-potz.png',c:'r'}], tx:'地の底にも、人がいた。'},
+ {s:42.6,e:44.4, bg:'bg-ration.jpg', dark:1, mo:'punch',  ch:[{i:'cg-jin.png',c:'c'}], whip:1},
+ {s:44.4,e:46.2, bg:'bg-hall.jpg',   dark:1, mo:'sweepRf',ch:[{i:'cg-garudo.png',c:'c'}], whip:1},
+ {s:46.2,e:49.0, bg:'bg-hall.jpg',   dark:1, mo:'push',   ch:[{i:'cg-della.png',c:'c'}], tx:'決行は——三十八日目の夜。', cls:'gold'},
+ {s:49.0,e:50.3, bg:'bg-duct.jpg',   dark:1, mo:'sweepLf', streak:.6, whip:1},
+ {s:50.3,e:51.5, bg:'bg-collapse.jpg',dark:1, mo:'punch', shake:5, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1},
+ {s:51.5,e:52.7, bg:'bg-waste.jpg',  dark:1, mo:'diagR',  shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1},
+ {s:52.7,e:53.7, bg:'bg-duct.jpg',   dark:1, mo:'punch',  shake:6, streak:.8, whip:1},
+ {s:53.7,e:54.6, flash:1},
+ // ===== CHORUS payoff — 空 54.6-61 地から空へティルトアップ(荘厳) =====
+ {s:54.6,e:61.0, bg:'op-bg-surface.jpg', mo:'tiltup', tx:'空が、あった。', cls:'big'},
+ // ===== CHORUS montage 61-84 高速・多背景 =====
+ {s:61.0,e:63.5, bg:'op-bg-town.jpg', dark:1, mo:'sweepR', tx:'誰も泣かない街。'},
+ {s:63.5,e:65.0, bg:'bg-field.jpg',   dark:1, mo:'punch',  ch:[{i:'cg-yuugo.png',c:'c'}], whip:1},
+ {s:65.0,e:66.5, bg:'bg-home.jpg',    dark:1, mo:'punch',  ch:[{i:'cg-miira.png',c:'c'}], whip:1},
+ {s:66.5,e:68.0, bg:'op-bg-town.jpg', dark:1, mo:'punch',  ch:[{i:'cg-nogu.png',c:'c'}], whip:1},
+ {s:68.0,e:70.5, bg:'op-bg-town.jpg', dark:1, mo:'drift',  tx:'——誰も、泣かない。'},
+ {s:70.5,e:72.5, bg:'bg-lab.jpg',     dark:1, mo:'roll',   ch:[{i:'cg-rin-unease.png',c:'c'}]},
+ {s:72.5,e:76.0, bg:'bg-aicore.jpg',  dark:1, mo:'push',   ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'gold'},
+ // rapid 1s フラッシュ切り(表情の応酬)
+ {s:76.0,e:77.0, bg:'op-bg-surface.jpg', mo:'punch',  ch:[{i:'cg-kai-tears.png',c:'c'}], whip:1},
+ {s:77.0,e:78.0, bg:'bg-dream.jpg',   dark:1, mo:'punch', ch:[{i:'cg-rin-tears.png',c:'c'}], whip:1},
+ {s:78.0,e:79.0, bg:'bg-hideout.jpg', dark:1, mo:'sweepRf', ch:[{i:'cg-kai.png',c:'c'}], whip:1, streak:.5},
+ {s:79.0,e:80.0, bg:'bg-field.jpg',   mo:'sweepLf', ch:[{i:'cg-rin-smile.png',c:'c'}], whip:1, streak:.5},
  {s:80.0,e:82.5, bg:'op-bg-surface.jpg', mo:'push', ch:[{i:'cg-kai-smile.png',c:'l'},{i:'cg-rin-smile.png',c:'r'}], tx:'おはよう。', cls:'gold big'},
  {s:82.5,e:83.6, flash:1},
- // --- TITLE 83.6-92 ---
+ // ===== TITLE 83.6-92 =====
  {s:83.6,e:92.0, logo:1},
 ];
 
 function setTime(t){
-  const bg=el('bg'),dark=el('dark'),tx=el('tx'),flash=el('flash'),logo=el('logo'),fo=el('fadeout'),pl=el('pline');
+  const bg=el('bg'),dark=el('dark'),tx=el('tx'),flash=el('flash'),logo=el('logo'),fo=el('fadeout'),pl=el('pline'),stk=el('streak'),wp=el('whip');
   ['chL','chM','chR','chC'].forEach(id=>{ el(id).style.opacity=0; });
-  bg.style.opacity=0; dark.style.opacity=0; tx.style.opacity=0; flash.style.opacity=0; logo.style.opacity=0; pl.style.opacity=0;
+  bg.style.opacity=0; bg.style.filter='none'; dark.style.opacity=0; tx.style.opacity=0; flash.style.opacity=0; logo.style.opacity=0; pl.style.opacity=0; stk.style.opacity=0; wp.style.opacity=0;
   let cur=null; for(const c of C){ if(t>=c.s && t<c.e){ cur=c; break; } }
   if(!cur){ fo.style.opacity = t>=92?1:0; return; }
   const p=(t-cur.s)/(cur.e-cur.s);
@@ -120,25 +148,39 @@ function setTime(t){
     fo.style.opacity=clamp((t-90.4)/1.6,0,1);
     return;
   }
-  const fin = (cur.e-cur.s)<2.0 ? 0.28 : 0.7;   // 短カットは速いフェード
-  const fout = (cur.e-cur.s)<2.0 ? 0.22 : 0.55;
+  const dur=cur.e-cur.s;
+  const fin = dur<1.6 ? 0.22 : (dur<2.6?0.34:0.7);
+  const fout= dur<1.6 ? 0.18 : (dur<2.6?0.28:0.55);
+  // shake(衝撃): 減衰する高周波ジッタ(tベースで決定的)
+  let jit='';
+  if(cur.shake){ const amp=cur.shake*(1-eOut(clamp(p*1.4,0,1))); jit=' translate('+(Math.sin(t*94)*amp).toFixed(1)+'px,'+(Math.cos(t*81)*amp).toFixed(1)+'px)'; }
   if(cur.bg){
     bg.style.backgroundImage='url('+A+cur.bg+')';
     bg.style.opacity=env(t,cur.s,cur.e,fin,fout);
-    bg.style.transform=mo(cur.mo||'still', clamp(p,0,1));
-    if(cur.dark) dark.style.opacity=env(t,cur.s,cur.e,fin,fout)*0.92;
+    bg.style.transform=mo(cur.mo||'still', clamp(p,0,1))+jit;
+    // whip導入: 立ち上がりに横ブラー+わずかな流れ
+    if(cur.whip && p<0.22){ const w=1-p/0.22; bg.style.filter='blur('+(7*w).toFixed(1)+'px)'; wp.style.opacity=w*0.5; wp.style.transform='translateX('+(-30+140*(p/0.22))+'%)'; }
+    if(cur.dark) dark.style.opacity=env(t,cur.s,cur.e,fin,fout)*0.9;
   }
-  if(cur.pline){ pl.style.opacity=Math.sin(clamp(p,0,1)*Math.PI)*0.9; }
+  if(cur.streak){ stk.style.opacity=Math.sin(clamp(p,0,1)*Math.PI)*cur.streak; stk.style.transform='scale('+(1.0+0.12*p)+') rotate('+(p*6).toFixed(1)+'deg)'; }
+  if(cur.pline){ pl.style.opacity=Math.sin(clamp(p,0,1)*Math.PI)*0.95; pl.style.transform='translateX('+(-3+6*p)+'%)'; }
   if(cur.ch){
+    // bgパン方向へキャラ逆移動(パララックス)
+    const moK=cur.mo||'';
+    let px=0;
+    if(cur.par){ if(moK.indexOf('sweepL')===0)px=6-12*eIO(p); else if(moK.indexOf('sweepR')===0)px=-6+12*eIO(p); }
     cur.ch.forEach((c,i)=>{
       const im=el(SLOT[c.c]); im.src=A+c.i;
       im.style.left=chPos(c.c); im.style.height=chH(c.c);
       const d=i*0.12;
-      const o=env(t,cur.s+d,cur.e,fin+0.2,fout);
+      const o=env(t,cur.s+d,cur.e,fin+0.25,fout);
       im.style.opacity=o;
-      const rise=clamp((t-cur.s-d)/0.6,0,1);
-      const zoom = (cur.mo==='pushfast')?(1+0.10*p):(cur.mo==='push')?(1+0.05*p):1;
-      im.style.transform='translateX(-50%) translateY('+((1-rise)*22)+'px) scale('+zoom+')';
+      // スライドイン方向(from) + 立ち上がり
+      const rise=clamp((t-cur.s-d)/0.55,0,1);
+      let sx=0; if(c.from==='l')sx=(1-eOut(rise))*-90; else if(c.from==='r')sx=(1-eOut(rise))*90;
+      const yoff=(1-rise)*20;
+      const pop = (moK==='punch')?(1.04-0.06*eOut(p)) : (moK==='pushfast')?(1+0.10*p):(moK.indexOf('push')===0)?(1+0.05*p):1;
+      im.style.transform='translateX(-50%) translate('+(sx+px).toFixed(1)+'px,'+yoff.toFixed(1)+'px) scale('+pop.toFixed(3)+')';
     });
   }
   if(cur.tx){
@@ -148,6 +190,7 @@ function setTime(t){
     tx.style.opacity=env(t,cur.s+0.2,cur.e,big?0.8:fin+0.3,fout);
     const base= big?0.4:((cur.cls||'').indexOf('small')>=0?0.5:0.3);
     tx.style.letterSpacing=(base+0.14*(1-clamp((t-cur.s-0.2)/0.9,0,1)))+'em';
+    tx.style.transform='translate(-50%,-50%) translateY('+(6*(1-clamp((t-cur.s-0.2)/0.7,0,1))).toFixed(1)+'px)';
   }
 }
 window.__setTime=setTime;
