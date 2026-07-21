@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<title>OP render</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1280px;height:720px;overflow:hidden;background:#000;
+  font-family:"Yu Mincho","Hiragino Mincho ProN","Noto Serif JP",serif}
+#stage{position:relative;width:1280px;height:720px;background:#000;overflow:hidden}
+.bg{position:absolute;inset:-6%;background-size:cover;background-position:center;opacity:0}
+.dark{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,.28),rgba(0,0,0,.82) 100%)}
+.ch{position:absolute;bottom:-3%;height:92%;filter:drop-shadow(0 12px 44px rgba(0,0,0,.85));opacity:0}
+.ch.c{left:50%;transform:translateX(-50%)}
+.ch.l{left:23%;height:70%;transform:translateX(-50%)}
+.ch.m{left:50%;height:76%;transform:translateX(-50%)}
+.ch.r{left:77%;height:70%;transform:translateX(-50%)}
+.tx{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);width:92%;text-align:center;
+  color:#eef1f8;font-size:30px;letter-spacing:.3em;line-height:2.3;text-shadow:0 2px 22px rgba(0,0,0,.95);opacity:0}
+.tx.big{font-size:60px;letter-spacing:.42em;color:#fff}
+.tx.gold{color:#ffd24a}
+.tx .l2{display:block;font-size:.62em;margin-top:14px;letter-spacing:.32em;opacity:.9}
+.tx .l3{display:block;color:#ffd24a;margin-top:16px}
+.flash{position:absolute;inset:0;background:#fff;opacity:0}
+#logo{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);text-align:center;width:94%;opacity:0}
+#logo .eye{font-size:15px;letter-spacing:.62em;color:#9aa3b5;margin-bottom:20px}
+#logo h1{font-size:92px;letter-spacing:.16em;font-weight:600;
+  background:linear-gradient(180deg,#fff 18%,#ffd24a 72%,#ff9a4a 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  text-shadow:0 0 80px rgba(255,210,74,.25)}
+#logo .sub{margin-top:22px;font-size:20px;letter-spacing:.24em;color:#c9cede;line-height:2.1}
+#fadeout{position:absolute;inset:0;background:#000;opacity:0}
+</style></head>
+<body>
+<div id="stage">
+  <div class="bg" id="bg"></div><div class="dark" id="dark" style="opacity:0"></div>
+  <img class="ch" id="chL"><img class="ch" id="chM"><img class="ch" id="chR"><img class="ch" id="chC">
+  <div class="tx" id="tx"></div>
+  <div class="flash" id="flash"></div>
+  <div id="logo"><div class="eye">SEIKAI SAGA &mdash; CASE 01</div><h1>正解の外側</h1>
+    <div class="sub">すべての正解が視える俺が、<br>答えのない少女と世界を変えるまで</div></div>
+  <div id="fadeout"></div>
+</div>
+<script>
+"use strict";
+const A='assets/seikai/';
+const el=id=>document.getElementById(id);
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+// フェード補助: t が [s, s+fin] で0→1, [e-fout, e] で1→0
+function env(t,s,e,fin,fout){ if(t<s||t>e)return 0; let a=fin?clamp((t-s)/fin,0,1):1; let b=fout?clamp((e-t)/fout,0,1):1; return Math.min(a,b); }
+// パン: 進捗0→1 で scale/translate
+function panStyle(p){ const sc=1.14-0.12*p, tx=(2.5-5*p); return `scale(${sc}) translateX(${tx}%)`; }
+
+// カット定義 (t0,t1, bg, dark, chars[{img,cls}], text, cls, flash?, logo?)
+const CUTS=[
+ {s:0.0, e:7.5,  bg:null, tx:'地下世界、アビス。'},
+ {s:7.5, e:15.5, bg:null, tx:'その底に——廃棄層と呼ばれる、終わりの場所がある。'},
+ {s:15.5,e:24.0, bg:'bg-waste.jpg', dark:1, tx:'名前ではなく、番号で呼ばれる——百二十六人。'},
+ {s:24.0,e:34.0, bg:'bg-hideout.jpg', dark:1, ch:[{img:'cg-kai.png',cls:'c'}], tx:'すべての正解が、視える少年。'},
+ {s:34.0,e:44.0, bg:'bg-hideout.jpg', dark:1, ch:[{img:'cg-rin.png',cls:'c'}], tx:'なにひとつ、覚えていない少女。'},
+ {s:44.0,e:50.5, bg:null, tx:'「ここ、あなたの場所？」<span class="l2">「……どうやって、見つけた」</span><span class="l3">「なんとなく」</span>'},
+ {s:50.5,e:54.6, bg:'bg-duct.jpg', dark:1, ch:[{img:'cg-jin.png',cls:'l'},{img:'cg-garudo.png',cls:'m'},{img:'cg-potz.png',cls:'r'}], tx:'地の底にも、人がいた。'},
+ {s:54.6,e:55.7, flash:1},
+ {s:55.5,e:64.0, bg:'op-bg-surface.jpg', tx:'空が、あった。', cls:'big'},
+ {s:64.0,e:74.0, bg:'op-bg-town.jpg', dark:1, ch:[{img:'cg-yuugo.png',cls:'l'},{img:'cg-miira.png',cls:'m'},{img:'cg-nogu.png',cls:'r'}], tx:'けれど地上の街では——誰も、泣かない。'},
+ {s:74.0,e:84.0, bg:'bg-lab.jpg', dark:1, ch:[{img:'cg-rin-tears.png',cls:'c'}], tx:'あたしって、——なに？', cls:'gold'},
+ {s:84.0,e:92.0, logo:1},
+];
+
+function setTime(t){
+  const bg=el('bg'),dark=el('dark'),tx=el('tx'),flash=el('flash'),logo=el('logo'),fo=el('fadeout');
+  ['chL','chM','chR','chC'].forEach(id=>el(id).style.opacity=0);
+  let cur=null;
+  for(const c of CUTS){ if(t>=c.s && t<c.e){ cur=c; break; } }
+  // 全消し初期化
+  bg.style.opacity=0; dark.style.opacity=0; tx.style.opacity=0; flash.style.opacity=0; logo.style.opacity=0;
+  if(!cur){ fo.style.opacity = t>=92?1:0; return; }
+  const p=(t-cur.s)/(cur.e-cur.s); // カット内進捗
+  if(cur.flash){ flash.style.opacity = Math.sin(p*Math.PI); return; }
+  if(cur.logo){
+    logo.style.opacity = env(t,cur.s,cur.e,1.6,0);
+    logo.style.transform = `translate(-50%,-50%) scale(${0.97+0.03*clamp(p*3,0,1)})`;
+    fo.style.opacity = clamp((t-90.5)/1.5,0,1); // 末尾フェードアウト
+    return;
+  }
+  if(cur.bg){
+    bg.style.backgroundImage=`url(${A}${cur.bg})`;
+    bg.style.opacity=env(t,cur.s,cur.e,1.0,0.7);
+    bg.style.transform=panStyle(clamp(p,0,1));
+    if(cur.dark) dark.style.opacity=env(t,cur.s,cur.e,1.0,0.7);
+  }
+  if(cur.ch){
+    const slots={l:'chL',m:'chM',r:'chR',c:'chC'};
+    cur.ch.forEach((c,i)=>{
+      const im=el(slots[c.cls]); im.src=A+c.img; im.className='ch '+c.cls;
+      const delay=i*0.5;
+      const o=env(t,cur.s+delay,cur.e,1.1,0.6);
+      im.style.opacity=o;
+      const rise=clamp((t-cur.s-delay)/1.2,0,1);
+      const base=c.cls==='c'?'translateX(-50%)':(c.cls==='l'?'translateX(-50%)':c.cls==='r'?'translateX(-50%)':'translateX(-50%)');
+      im.style.transform=`${base} translateY(${(1-rise)*28}px)`+(c.cls==='c'?` scale(${1+0.06*p})`:'');
+    });
+  }
+  if(cur.tx){
+    tx.className='tx'+(cur.cls?(' '+cur.cls):'');
+    tx.innerHTML=cur.tx;
+    const fin = cur.cls==='big'?0.9:1.4;
+    tx.style.opacity=env(t,cur.s+0.3,cur.e,fin,0.7);
+    const spread=cur.cls==='big'?0.42:0.3;
+    tx.style.letterSpacing=(spread+0.15*(1-clamp((t-cur.s-0.3)/1.4,0,1)))+'em';
+  }
+}
+window.__setTime=setTime;
+setTime(0);
+</script>
+</body></html>
