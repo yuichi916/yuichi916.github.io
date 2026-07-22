@@ -1025,9 +1025,10 @@ function mgPath(g){
     return;
   }
   mgIntroPanel(p, [
-    '一瞬だけ、金色の道筋が光る。',
-    '線の通り道と、番号の順を、目に焼き付けろ。',
-    '線が消えたら、番号の順に、点をなぞれ。',
+    '一瞬だけ、番号のついた点が光る。',
+    'どの点が何番か、位置と順を、目に焼き付けろ。',
+    '光が消えたら、番号の順に、点をなぞれ。',
+    'すべて繋げたとき、金色の道筋がひとつになる。',
     '（間違えても、物語は先へ進む）',
   ], start, doSkip);
   function start(){
@@ -1055,18 +1056,30 @@ function mgPath(g){
       const pl=document.createElementNS('http://www.w3.org/2000/svg','polyline');
       pl.setAttribute('points', pts.map(q=>q.x+','+q.y).join(' '));
       pl.setAttribute('fill','none'); pl.setAttribute('stroke','#ffd24a'); pl.setAttribute('stroke-width','1.4');
-      pl.setAttribute('style','filter:drop-shadow(0 0 4px #ffca4a);opacity:1;transition:opacity 1s');
+      /* 暗記中は線を出さない(数字だけ)。完成時にだけ線がつながる */
+      pl.setAttribute('style','filter:drop-shadow(0 0 4px #ffca4a);opacity:0');
       svg.appendChild(pl); area.appendChild(svg);
       const nodes=[];
       pts.forEach((q,i)=>{ const d=document.createElement('div'); d.className='mgn lit'; d.textContent=i+1;
         d.style.left=q.x+'%'; d.style.top=q.y+'%'; area.appendChild(d); nodes.push(d); });
-      setTimeout(()=>{ if(dead) return; pl.style.opacity='0'; nodes.forEach(d=>{ d.classList.remove('lit'); d.textContent='?'; });
+      /* 完成演出: 番号順に点を結ぶ金色の道筋を描き上げる */
+      function drawPath(){
+        nodes.forEach((d,i)=>{ d.classList.add('lit'); d.textContent=i+1; });
+        let len=100; try{ len=pl.getTotalLength()||100; }catch(e){}
+        pl.style.transition='none'; pl.style.opacity='1';
+        pl.style.strokeDasharray=len; pl.style.strokeDashoffset=len;
+        pl.getBoundingClientRect();
+        pl.style.transition='stroke-dashoffset .85s ease-out';
+        pl.style.strokeDashoffset='0';
+      }
+      setTimeout(()=>{ if(dead) return; nodes.forEach(d=>{ d.classList.remove('lit'); d.textContent='?'; });
         ph.textContent='順 に 、 な ぞ れ'; ph.classList.add('go');
         let j=0;
         nodes.forEach((d,idx)=>{ d.onclick=(ev)=>{ ev.stopPropagation(); if(dead) return;
           if(idx===j){ d.classList.add('ok'); d.textContent=idx+1; j++;
-            if(j>=n){ if(r>=rounds){ dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'win'),420); }
-              else setTimeout(()=>buildRound(r+1), 750); } }
+            if(j>=n){ drawPath();   /* 完成=初めて線がつながる */
+              if(r>=rounds){ dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'win'),1150); }
+              else setTimeout(()=>buildRound(r+1), 1350); } }
           else{ d.classList.add('ng'); setTimeout(()=>d.classList.remove('ng'),380); dead=true; stopT&&stopT(); setTimeout(()=>mgFinish(g,'lose'),650); }
         };});
       }, showMs);
