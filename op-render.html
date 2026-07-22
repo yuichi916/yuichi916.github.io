@@ -87,9 +87,15 @@ function mo(kind,p){
 /* ===== Blender 3D カメラ移動クリップ(連番JPG) ===== */
 /* frames は seikai_op3d.py の CLIPS(duration×FPS24)と一致させる */
 const CLIP={
-  rise:     {dir:'op3d/rise/',      n:120},   // 地下→地上クレーンアップ
-  cityfly:  {dir:'op3d/cityfly/',   n:96},    // 高所横ドリフト(城郭スカイライン)
-  townorbit:{dir:'op3d/townorbit/', n:86},    // 鳥瞰オービット(街全体)
+  // 地下(FS2 EEVEE) — 30fps
+  slumfacade:{dir:'op3d/slumfacade/', n:108},  // スラム詳細ファサードを横トラック
+  slumshack: {dir:'op3d/slumshack/',  n:96},   // 掘っ立て小屋をパン
+  wasteup:   {dir:'op3d/wasteup/',    n:102},  // 廃棄層上層=上方の光へクレーン
+  // 地上・自然(DKF EEVEE)
+  emerge:    {dir:'op3d/emerge/',     n:150},  // 地下→地上, 空/森/草原(人なし・空中心)
+  journey:   {dir:'op3d/journey/',    n:135},  // 草原を町へ旅(二人が歩ける目線)
+  cityfly:   {dir:'op3d/cityfly/',    n:120},  // 高所横ドリフト(城郭スカイライン)
+  townorbit: {dir:'op3d/townorbit/',  n:108},  // 鳥瞰オービット(街全体)
 };
 function clipFrame(name,p){ const c=CLIP[name]; const i=Math.max(0,Math.min(c.n-1,Math.round(p*(c.n-1)))); return A+c.dir+'f'+String(i).padStart(4,'0')+'.jpg'; }
 /* character slot classes -> element */
@@ -100,49 +106,47 @@ function chH(cls){ return (cls==='l'||cls==='r'||cls==='ml'||cls==='mr')?'70%':(
 /* ===== カット定義 (t基準/秒) — 多背景・キネティック ===== */
 /* mo: カメラワーク / shake: 衝撃px / streak: 集中線 / whip: 横流し導入 / par: bg方向にキャラ逆パララックス */
 const C=[
- // ===== INTRO (深淵, 0-16) 荘厳にゆっくり大きく =====
- {s:0.0, e:4.6,  bg:'pano-void.jpg',   dark:1, mo:'pull',   tx:'地下世界、アビス。'},
- {s:4.6, e:9.0,  bg:'bg-collapse.jpg', dark:1, mo:'push',   shake:2, tx:'その底に——終わりの場所が、ある。'},
- {s:9.0, e:12.6, bg:'bg-waste.jpg',    dark:1, mo:'sweepL', tx:'名前ではなく、番号で呼ばれて。'},
- {s:12.6,e:16.0, bg:'bg-slum.jpg',     dark:1, mo:'sweepR', tx:'——百二十六人の、行き止まり。'},
- // ===== VERSE (キャラ紹介, 16-40) =====
- {s:16.0,e:20.6, bg:'bg-hideout.jpg', dark:1, mo:'punch', ch:[{i:'cg-kai.png',c:'c',from:'l'}], tx:'すべての正解が、視える少年。'},
- {s:20.6,e:23.0, bg:'bg-duct.jpg',    dark:1, mo:'sweepRf', ch:[{i:'cg-kai-surprised.png',c:'c'}], pline:1, streak:.5},
- {s:23.0,e:27.4, bg:'bg-dream.jpg',   dark:1, mo:'push',  ch:[{i:'cg-rin.png',c:'c',from:'r'}], tx:'なにひとつ、覚えていない少女。'},
- {s:27.4,e:29.0, bg:'bg-lab.jpg',     dark:1, mo:'punch', ch:[{i:'cg-rin-sharp.png',c:'c'}], streak:.4},
- {s:29.0,e:32.2, bg:'bg-hideout.jpg', dark:1, mo:'push',  ch:[{i:'cg-kai-soft.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], tx:'「なんとなく」', cls:'gold big'},
- {s:32.2,e:36.0, bg:'bg-slum.jpg',    dark:1, mo:'sweepL', ch:[{i:'cg-kai-soft.png',c:'l'},{i:'cg-rin-smile.png',c:'r'}], par:1},
- {s:36.0,e:40.0, bg:'bg-ruins.jpg',   dark:1, mo:'tiltup', tx:'——ここから、始まった。'},
- // ===== BUILD (加速・仲間・計画, 40-54.6) ビート同期の速いカット =====
- {s:40.0,e:42.6, bg:'bg-duct.jpg',   dark:1, mo:'diagL',  ch:[{i:'cg-jin.png',c:'l'},{i:'cg-garudo.png',c:'m'},{i:'cg-potz.png',c:'r'}], tx:'地の底にも、人がいた。'},
- {s:42.6,e:44.4, bg:'bg-ration.jpg', dark:1, mo:'punch',  ch:[{i:'cg-jin.png',c:'c'}], whip:1},
- {s:44.4,e:46.2, bg:'bg-hall.jpg',   dark:1, mo:'sweepRf',ch:[{i:'cg-garudo.png',c:'c'}], whip:1},
- {s:46.2,e:49.0, bg:'bg-hall.jpg',   dark:1, mo:'push',   ch:[{i:'cg-della.png',c:'c'}], tx:'決行は——三十八日目の夜。', cls:'gold'},
- {s:49.0,e:50.3, bg:'bg-duct.jpg',   dark:1, mo:'sweepLf', streak:.6, whip:1},
- {s:50.3,e:51.5, bg:'bg-collapse.jpg',dark:1, mo:'punch', shake:5, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1},
- {s:51.5,e:52.7, bg:'bg-waste.jpg',  dark:1, mo:'diagR',  shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1},
- {s:52.7,e:53.7, bg:'bg-duct.jpg',   dark:1, mo:'punch',  shake:6, streak:.8, whip:1},
+ // ===== INTRO 地下アビス (0-16) FS2の3Dスラム =====
+ {s:0.0, e:4.6,  clip:'slumfacade', dark:1, mo:'slow', tx:'地下世界、アビス。'},
+ {s:4.6, e:9.0,  clip:'slumshack',  dark:1, mo:'slow', tx:'その底に——終わりの場所が、ある。'},
+ {s:9.0, e:12.6, clip:'wasteup',    dark:1, mo:'slow', tx:'名前ではなく、番号で呼ばれて。'},
+ {s:12.6,e:16.0, clip:'slumfacade', dark:1, mo:'slow', tx:'——百二十六人の、行き止まり。'},
+ // ===== VERSE キャラ紹介 地下 (16-40) =====
+ {s:16.0,e:20.6, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-kai.png',c:'c',from:'l'}], tx:'すべての正解が、視える少年。'},
+ {s:20.6,e:23.0, clip:'slumshack',  dark:1, mo:'slow', ch:[{i:'cg-kai-surprised.png',c:'c'}], pline:1, streak:.5},
+ {s:23.0,e:27.4, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-rin.png',c:'c',from:'r'}], tx:'なにひとつ、覚えていない少女。'},
+ {s:27.4,e:29.0, clip:'slumshack',  dark:1, mo:'slow', ch:[{i:'cg-rin-sharp.png',c:'c'}], streak:.4},
+ {s:29.0,e:32.2, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-kai-soft.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], tx:'「なんとなく」', cls:'gold big'},
+ {s:32.2,e:36.0, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-kai-soft.png',c:'l',walk:'r'},{i:'cg-rin-smile.png',c:'r',walk:'r'}]},  // 二人が歩く(景色も動く)
+ {s:36.0,e:40.0, clip:'wasteup',    dark:1, mo:'slow', tx:'——ここから、始まった。'},
+ // ===== BUILD 仲間・計画・脱出 地下 (40-54.6) =====
+ {s:40.0,e:42.6, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-jin.png',c:'l'},{i:'cg-garudo.png',c:'m'},{i:'cg-potz.png',c:'r'}], tx:'地の底にも、人がいた。'},
+ {s:42.6,e:44.4, clip:'slumshack',  dark:1, mo:'slow', ch:[{i:'cg-jin.png',c:'c'}], whip:1},
+ {s:44.4,e:46.2, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-garudo.png',c:'c'}], whip:1},
+ {s:46.2,e:49.0, clip:'slumshack',  dark:1, mo:'slow', ch:[{i:'cg-della.png',c:'c'}], tx:'決行は——三十八日目の夜。', cls:'gold'},
+ {s:49.0,e:50.3, clip:'slumfacade', dark:1, mo:'slow', streak:.6, whip:1},
+ {s:50.3,e:51.5, clip:'slumshack',  dark:1, mo:'slow', shake:5, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1},
+ {s:51.5,e:52.7, clip:'slumfacade', dark:1, mo:'slow', shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1},
+ {s:52.7,e:53.7, clip:'wasteup',    dark:1, mo:'slow', shake:6, streak:.8, whip:1},   // 上方の光へ脱出
  {s:53.7,e:54.6, flash:1},
- // ===== CHORUS payoff 54.6-61 ★地下→地上: rise(3D大クレーンアップで空が開ける) =====
- {s:54.6,e:61.0, clip:'rise', mo:'slow', tx:'空が、あった。', cls:'big'},
- // ===== CHORUS montage 61-84 動く3D街ショット+表情の応酬 =====
- {s:61.0,e:64.4, clip:'cityfly', mo:'slow', tx:'誰も泣かない街。'},               // 城郭都市を進む
- {s:64.4,e:66.0, bg:'bg-field.jpg',  dark:1, mo:'punch',  ch:[{i:'cg-yuugo.png',c:'c'}], whip:1},
- {s:66.0,e:67.6, bg:'bg-home.jpg',   dark:1, mo:'punch',  ch:[{i:'cg-miira.png',c:'c'}], whip:1},
- {s:67.6,e:69.2, bg:'op-bg-town.jpg', dark:1, mo:'punch', ch:[{i:'cg-nogu.png',c:'c'}], whip:1},   // ノーグ(地面あり静止)
- {s:69.2,e:72.0, clip:'townorbit', mo:'slow', tx:'——誰も、泣かない。'},            // 鳥瞰オービット(景観)
- {s:72.0,e:73.6, bg:'bg-lab.jpg',    dark:1, mo:'roll',   ch:[{i:'cg-rin-unease.png',c:'c'}]},
- {s:73.6,e:76.6, bg:'bg-aicore.jpg', dark:1, mo:'push',   ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'gold'},
- // rapid フラッシュ切り(表情の応酬・地面ある目線静止)
- {s:76.6,e:77.6, bg:'op-bg-surface.jpg', mo:'punch', ch:[{i:'cg-kai-tears.png',c:'c'}], whip:1},
- {s:77.6,e:78.6, bg:'bg-dream.jpg',  dark:1, mo:'punch', ch:[{i:'cg-rin-tears.png',c:'c'}], whip:1},
- {s:78.6,e:79.6, bg:'bg-hideout.jpg',dark:1, mo:'sweepRf', ch:[{i:'cg-kai.png',c:'c'}], whip:1, streak:.5},
- {s:79.6,e:80.4, bg:'op-bg-town.jpg', mo:'sweepLf', ch:[{i:'cg-rin-smile.png',c:'c'}], whip:1, streak:.5},
- // ★地上の朝: おはよう(目線の地上背景で二人) =====
- {s:80.4,e:83.0, bg:'op-bg-surface.jpg', mo:'push', ch:[{i:'cg-kai-smile.png',c:'l'},{i:'cg-rin-smile.png',c:'r'}], tx:'おはよう。', cls:'gold big'},
- {s:83.0,e:83.6, flash:1},
- // ===== TITLE 83.6-92 =====
- {s:83.6,e:92.0, logo:1},
+ // ===== ★おはよう=サビ=地上へ切替 (54.6) : 空/森/草原のみ・人なし・空中心 (尺=クリップ5.0s) =====
+ {s:54.6,e:59.6, clip:'emerge', tx:'おはよう。', cls:'gold big'},
+ // ===== 2時間の旅: 草原を町へ、二人が歩く(景色が動く) (尺=クリップ4.5s) =====
+ {s:59.6,e:64.1, clip:'journey', ch:[{i:'cg-kai.png',c:'ml',walk:'r'},{i:'cg-rin-smile.png',c:'mr',walk:'r'}], tx:'空が、あった。広かった。'},
+ // ===== 町へ到着 (尺=クリップ) =====
+ {s:64.1,e:68.1, clip:'cityfly',  tx:'誰も泣かない街。'},
+ {s:68.1,e:71.7, clip:'townorbit', tx:'——誰も、泣かない。'},
+ // ===== 町の人々 : 地上に出た後なので描写OK =====
+ {s:71.7,e:73.3, bg:'op-bg-town.jpg', dark:1, mo:'punch', ch:[{i:'cg-yuugo.png',c:'c'}], whip:1},
+ {s:73.3,e:74.9, bg:'op-bg-town.jpg', dark:1, mo:'punch', ch:[{i:'cg-miira.png',c:'c'}], whip:1},
+ // ===== リーンの揺らぎ =====
+ {s:74.9,e:78.1, bg:'bg-aicore.jpg', dark:1, mo:'push', ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'gold'},
+ {s:78.1,e:79.1, bg:'op-bg-surface.jpg', mo:'punch', ch:[{i:'cg-kai-tears.png',c:'c'}], whip:1},
+ // ===== 二人の朝 : journeyの草原で寄り添う (尺≒クリップ4.5s) =====
+ {s:79.1,e:83.4, clip:'journey', ch:[{i:'cg-kai-smile.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], tx:'——ずっと、隣で。', cls:'gold big'},
+ {s:83.4,e:84.0, flash:1},
+ // ===== TITLE 84-92 =====
+ {s:84.0,e:92.0, logo:1},
 ];
 
 function setTime(t){
@@ -189,9 +193,12 @@ function setTime(t){
       // スライドイン方向(from) + 立ち上がり
       const rise=clamp((t-cur.s-d)/0.55,0,1);
       let sx=0; if(c.from==='l')sx=(1-eOut(rise))*-90; else if(c.from==='r')sx=(1-eOut(rise))*90;
-      const yoff=(1-rise)*20;
+      let yoff=(1-rise)*20;
+      // 歩行(walk): 横移動+上下の弾み(景色が動く中をキャラが歩く3D演出)
+      let wx=0;
+      if(c.walk){ const dir=c.walk==='l'?-1:1; wx=dir*(-150+300*p); yoff+= -Math.abs(Math.sin(p*Math.PI*7))*5; }
       const pop = (moK==='punch')?(1.04-0.06*eOut(p)) : (moK==='pushfast')?(1+0.10*p):(moK.indexOf('push')===0)?(1+0.05*p):1;
-      im.style.transform='translateX(-50%) translate('+(sx+px).toFixed(1)+'px,'+yoff.toFixed(1)+'px) scale('+pop.toFixed(3)+')';
+      im.style.transform='translateX(-50%) translate('+(sx+px+wx).toFixed(1)+'px,'+yoff.toFixed(1)+'px) scale('+pop.toFixed(3)+')';
     });
   }
   if(cur.tx){
