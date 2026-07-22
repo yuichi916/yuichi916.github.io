@@ -1139,6 +1139,18 @@ el('btnLog').addEventListener('click',openLog);
 el('btnLore').addEventListener('click',ev=>{ ev.stopPropagation(); openLoredex(); });
 el('mmap').addEventListener('click',ev=>{ ev.stopPropagation(); openMapfull(); });
 el('blclose').addEventListener('click',()=>el('backlog').classList.remove('show'));
+/* マウスホイール: 上スクロールでバックログ表示 / 表示中は下スクロール最下端で閉じる */
+window.addEventListener('wheel',e=>{
+  if(!el('title').classList.contains('gone')) return;                 // タイトル表示中は無効
+  const bl=el('backlog');
+  if(bl.classList.contains('show')){
+    const inner=el('blinner');
+    if(e.deltaY>0 && inner.scrollTop+inner.clientHeight >= inner.scrollHeight-4) bl.classList.remove('show');
+    return;                                                            // 表示中はリスト内スクロールに任せる
+  }
+  if(['opseq','choices','settings','chapsel','savemenu'].some(id=>el(id).classList.contains('show'))) return;
+  if(e.deltaY<0) openLog();                                            // 上スクロール=バックログ
+},{passive:true});
 el('btnSave').addEventListener('click',()=>{ save(); openSaveMenu('save'); });
 el('btnSet').addEventListener('click',()=>el('settings').classList.add('show'));
 el('setClose').addEventListener('click',()=>{ el('settings').classList.remove('show'); saveCfg(); });

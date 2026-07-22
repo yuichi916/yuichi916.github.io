@@ -79,9 +79,19 @@ function mo(kind,p){
    case 'diagL':    return 'scale(1.30) translate('+(11-22*e)+'%,'+(7-14*e)+'%)';     // 斜め移動
    case 'diagR':    return 'scale(1.30) translate('+(-11+22*e)+'%,'+(-7+14*e)+'%)';
    case 'drift':    return 'scale('+(1.14-0.05*p)+') translateX('+(1.6-3.2*p)+'%)';
+   case 'slow':     return 'scale('+(1.02+0.05*e)+')';                                // 3Dクリップ用の控えめな追い足し
+   case 'slowdn':   return 'scale('+(1.04+0.05*e)+') translateY('+(-2+4*e)+'%)';
    default:         return 'scale(1.07)';
   }
 }
+/* ===== Blender 3D カメラ移動クリップ(連番JPG) ===== */
+/* frames は seikai_op3d.py の CLIPS(duration×FPS24)と一致させる */
+const CLIP={
+  rise:     {dir:'op3d/rise/',      n:120},   // 地下→地上クレーンアップ
+  cityfly:  {dir:'op3d/cityfly/',   n:96},    // 高所横ドリフト(城郭スカイライン)
+  townorbit:{dir:'op3d/townorbit/', n:86},    // 鳥瞰オービット(街全体)
+};
+function clipFrame(name,p){ const c=CLIP[name]; const i=Math.max(0,Math.min(c.n-1,Math.round(p*(c.n-1)))); return A+c.dir+'f'+String(i).padStart(4,'0')+'.jpg'; }
 /* character slot classes -> element */
 const SLOT={l:'chL',m:'chM',r:'chR',c:'chC',ml:'chL',mr:'chR'};
 function chPos(cls){ return cls==='l'?'22%':cls==='r'?'78%':(cls==='ml'?'38%':cls==='mr'?'62%':'50%'); }
@@ -113,23 +123,24 @@ const C=[
  {s:51.5,e:52.7, bg:'bg-waste.jpg',  dark:1, mo:'diagR',  shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1},
  {s:52.7,e:53.7, bg:'bg-duct.jpg',   dark:1, mo:'punch',  shake:6, streak:.8, whip:1},
  {s:53.7,e:54.6, flash:1},
- // ===== CHORUS payoff — 空 54.6-61 地から空へティルトアップ(荘厳) =====
- {s:54.6,e:61.0, bg:'op-bg-surface.jpg', mo:'tiltup', tx:'空が、あった。', cls:'big'},
- // ===== CHORUS montage 61-84 高速・多背景 =====
- {s:61.0,e:63.5, bg:'op-bg-town.jpg', dark:1, mo:'sweepR', tx:'誰も泣かない街。'},
- {s:63.5,e:65.0, bg:'bg-field.jpg',   dark:1, mo:'punch',  ch:[{i:'cg-yuugo.png',c:'c'}], whip:1},
- {s:65.0,e:66.5, bg:'bg-home.jpg',    dark:1, mo:'punch',  ch:[{i:'cg-miira.png',c:'c'}], whip:1},
- {s:66.5,e:68.0, bg:'op-bg-town.jpg', dark:1, mo:'punch',  ch:[{i:'cg-nogu.png',c:'c'}], whip:1},
- {s:68.0,e:70.5, bg:'op-bg-town.jpg', dark:1, mo:'drift',  tx:'——誰も、泣かない。'},
- {s:70.5,e:72.5, bg:'bg-lab.jpg',     dark:1, mo:'roll',   ch:[{i:'cg-rin-unease.png',c:'c'}]},
- {s:72.5,e:76.0, bg:'bg-aicore.jpg',  dark:1, mo:'push',   ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'gold'},
- // rapid 1s フラッシュ切り(表情の応酬)
- {s:76.0,e:77.0, bg:'op-bg-surface.jpg', mo:'punch',  ch:[{i:'cg-kai-tears.png',c:'c'}], whip:1},
- {s:77.0,e:78.0, bg:'bg-dream.jpg',   dark:1, mo:'punch', ch:[{i:'cg-rin-tears.png',c:'c'}], whip:1},
- {s:78.0,e:79.0, bg:'bg-hideout.jpg', dark:1, mo:'sweepRf', ch:[{i:'cg-kai.png',c:'c'}], whip:1, streak:.5},
- {s:79.0,e:80.0, bg:'bg-field.jpg',   mo:'sweepLf', ch:[{i:'cg-rin-smile.png',c:'c'}], whip:1, streak:.5},
- {s:80.0,e:82.5, bg:'op-bg-surface.jpg', mo:'push', ch:[{i:'cg-kai-smile.png',c:'l'},{i:'cg-rin-smile.png',c:'r'}], tx:'おはよう。', cls:'gold big'},
- {s:82.5,e:83.6, flash:1},
+ // ===== CHORUS payoff 54.6-61 ★地下→地上: rise(3D大クレーンアップで空が開ける) =====
+ {s:54.6,e:61.0, clip:'rise', mo:'slow', tx:'空が、あった。', cls:'big'},
+ // ===== CHORUS montage 61-84 動く3D街ショット+表情の応酬 =====
+ {s:61.0,e:64.4, clip:'cityfly', mo:'slow', tx:'誰も泣かない街。'},               // 城郭都市を進む
+ {s:64.4,e:66.0, bg:'bg-field.jpg',  dark:1, mo:'punch',  ch:[{i:'cg-yuugo.png',c:'c'}], whip:1},
+ {s:66.0,e:67.6, bg:'bg-home.jpg',   dark:1, mo:'punch',  ch:[{i:'cg-miira.png',c:'c'}], whip:1},
+ {s:67.6,e:69.2, bg:'op-bg-town.jpg', dark:1, mo:'punch', ch:[{i:'cg-nogu.png',c:'c'}], whip:1},   // ノーグ(地面あり静止)
+ {s:69.2,e:72.0, clip:'townorbit', mo:'slow', tx:'——誰も、泣かない。'},            // 鳥瞰オービット(景観)
+ {s:72.0,e:73.6, bg:'bg-lab.jpg',    dark:1, mo:'roll',   ch:[{i:'cg-rin-unease.png',c:'c'}]},
+ {s:73.6,e:76.6, bg:'bg-aicore.jpg', dark:1, mo:'push',   ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'gold'},
+ // rapid フラッシュ切り(表情の応酬・地面ある目線静止)
+ {s:76.6,e:77.6, bg:'op-bg-surface.jpg', mo:'punch', ch:[{i:'cg-kai-tears.png',c:'c'}], whip:1},
+ {s:77.6,e:78.6, bg:'bg-dream.jpg',  dark:1, mo:'punch', ch:[{i:'cg-rin-tears.png',c:'c'}], whip:1},
+ {s:78.6,e:79.6, bg:'bg-hideout.jpg',dark:1, mo:'sweepRf', ch:[{i:'cg-kai.png',c:'c'}], whip:1, streak:.5},
+ {s:79.6,e:80.4, bg:'op-bg-town.jpg', mo:'sweepLf', ch:[{i:'cg-rin-smile.png',c:'c'}], whip:1, streak:.5},
+ // ★地上の朝: おはよう(目線の地上背景で二人) =====
+ {s:80.4,e:83.0, bg:'op-bg-surface.jpg', mo:'push', ch:[{i:'cg-kai-smile.png',c:'l'},{i:'cg-rin-smile.png',c:'r'}], tx:'おはよう。', cls:'gold big'},
+ {s:83.0,e:83.6, flash:1},
  // ===== TITLE 83.6-92 =====
  {s:83.6,e:92.0, logo:1},
 ];
@@ -154,8 +165,8 @@ function setTime(t){
   // shake(衝撃): 減衰する高周波ジッタ(tベースで決定的)
   let jit='';
   if(cur.shake){ const amp=cur.shake*(1-eOut(clamp(p*1.4,0,1))); jit=' translate('+(Math.sin(t*94)*amp).toFixed(1)+'px,'+(Math.cos(t*81)*amp).toFixed(1)+'px)'; }
-  if(cur.bg){
-    bg.style.backgroundImage='url('+A+cur.bg+')';
+  if(cur.bg||cur.clip){
+    bg.style.backgroundImage='url('+(cur.clip?clipFrame(cur.clip,clamp(p,0,1)):A+cur.bg)+')';
     bg.style.opacity=env(t,cur.s,cur.e,fin,fout);
     bg.style.transform=mo(cur.mo||'still', clamp(p,0,1))+jit;
     // whip導入: 立ち上がりに横ブラー+わずかな流れ
@@ -194,6 +205,20 @@ function setTime(t){
   }
 }
 window.__setTime=setTime;
+
+/* ===== 全背景(3Dクリップ連番/静止/立ち絵)をプリロード ===== */
+/* キャプチャは setTime 直後にスクショするため、未デコードのクリップフレームだと黒落ちする。 */
+window.__ready=false;
+(function preload(){
+  const urls=new Set();
+  for(const k in CLIP){ const c=CLIP[k]; for(let i=0;i<c.n;i++) urls.add(A+c.dir+'f'+String(i).padStart(4,'0')+'.jpg'); }
+  for(const c of C){ if(c.bg) urls.add(A+c.bg); if(c.ch) c.ch.forEach(x=>urls.add(A+x.i)); }
+  const list=[...urls]; let left=list.length;
+  if(!left){ window.__ready=true; return; }
+  const done=()=>{ if(--left<=0) window.__ready=true; };
+  list.forEach(u=>{ const im=new Image(); im.onload=done; im.onerror=done; im.src=u; });
+})();
+
 setTime(0);
 </script>
 </body></html>
