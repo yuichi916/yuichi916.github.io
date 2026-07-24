@@ -39,7 +39,7 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 </style></head>
 <body>
 <div id="stage">
-  <div class="bg" id="bg"></div><div class="dark" id="dark"></div>
+  <div class="bg" id="bg2"></div><div class="bg" id="bg"></div><div class="dark" id="dark"></div>
   <img class="ch" id="chL"><img class="ch" id="chM"><img class="ch" id="chR"><img class="ch" id="chC">
   <div id="streak"></div>
   <div class="pline" id="pline"></div>
@@ -87,17 +87,24 @@ function mo(kind,p){
 /* ===== Blender 3D カメラ移動クリップ(連番JPG) ===== */
 /* frames は seikai_op3d.py の CLIPS(duration×FPS24)と一致させる */
 const CLIP={
-  // 地下(FS2 EEVEE) — 30fps
-  slumfacade:{dir:'op3d/slumfacade/', n:108},  // スラム詳細ファサードを横トラック
-  slumshack: {dir:'op3d/slumshack/',  n:96},   // 掘っ立て小屋をパン
-  wasteup:   {dir:'op3d/wasteup/',    n:102},  // 廃棄層上層=上方の光へクレーン
-  // 地上・自然(DKF EEVEE)
+  // 地下=FS2密集ストリートキャニオン(EEVEE 30fps)
+  canyon:    {dir:'op3d/canyon/',     n:126},  // 街路ドリー前進(両列スライド視差)
+  canyonlow: {dir:'op3d/canyonlow/',  n:102},  // 低アングルで小物の脇を抜ける
+  neonpan:   {dir:'op3d/neonpan/',    n:90},   // ネオン壁を舐めるパン
+  craneup:   {dir:'op3d/craneup/',    n:114},  // 谷間を上昇し出口の暖光へ
+  alleytrack:{dir:'op3d/alleytrack/', n:102},  // 街路を横切る横トラック
+  overhead:  {dir:'op3d/overhead/',   n:96},   // 俯瞰ドリフト(密集屋根)
+  // 地上・自然(DKF+Valhalla実木)
   emerge:    {dir:'op3d/emerge/',     n:150},  // 地下→地上, 空/森/草原(人なし・空中心)
   journey:   {dir:'op3d/journey/',    n:135},  // 草原を町へ旅(二人が歩ける目線)
   cityfly:   {dir:'op3d/cityfly/',    n:120},  // 高所横ドリフト(城郭スカイライン)
   townorbit: {dir:'op3d/townorbit/',  n:108},  // 鳥瞰オービット(街全体)
 };
 function clipFrame(name,p){ const c=CLIP[name]; const i=Math.max(0,Math.min(c.n-1,Math.round(p*(c.n-1)))); return A+c.dir+'f'+String(i).padStart(4,'0')+'.jpg'; }
+/* カットの背景URL(クリップは cs/ce で区間指定可・静止画はそのまま) */
+function bgUrl(cut,p){ if(cut.clip){ const f=(cut.cs!=null)?(cut.cs+((cut.ce!=null?cut.ce:1)-cut.cs)*p):p; return clipFrame(cut.clip,clamp(f,0,1)); } return A+cut.bg; }
+/* 直前の「絵を持つ」カット(フラッシュ越しにも遡る) */
+function prevVisual(idx){ for(let k=idx-1;k>=0;k--){ const c=C[k]; if(c.bg||c.clip) return c; if(c.logo) return null; } return null; }
 /* character slot classes -> element */
 const SLOT={l:'chL',m:'chM',r:'chR',c:'chC',ml:'chL',mr:'chR'};
 function chPos(cls){ return cls==='l'?'22%':cls==='r'?'78%':(cls==='ml'?'38%':cls==='mr'?'62%':'50%'); }
@@ -106,28 +113,28 @@ function chH(cls){ return (cls==='l'||cls==='r'||cls==='ml'||cls==='mr')?'70%':(
 /* ===== カット定義 (t基準/秒) — 多背景・キネティック ===== */
 /* mo: カメラワーク / shake: 衝撃px / streak: 集中線 / whip: 横流し導入 / par: bg方向にキャラ逆パララックス */
 const C=[
- // ===== INTRO 地下アビス (0-16) FS2の3Dスラム =====
- {s:0.0, e:4.6,  clip:'slumfacade', dark:1, mo:'slow', tx:'地下世界、アビス。'},
- {s:4.6, e:9.0,  clip:'slumshack',  dark:1, mo:'slow', tx:'その底に——終わりの場所が、ある。'},
- {s:9.0, e:12.6, clip:'wasteup',    dark:1, mo:'slow', tx:'名前ではなく、番号で呼ばれて。'},
- {s:12.6,e:16.0, clip:'slumfacade', dark:1, mo:'slow', tx:'——百二十六人の、行き止まり。'},
+ // ===== INTRO 地下アビス (0-16) FS2密集キャニオン: 毎カット別のカメラワーク =====
+ {s:0.0, e:4.6,  clip:'canyon',     cs:0.00, ce:0.38, dark:1, tx:'地下世界、アビス。'},
+ {s:4.6, e:9.0,  clip:'overhead',   cs:0.00, ce:0.55, dark:1, tx:'その底に——終わりの場所が、ある。'},
+ {s:9.0, e:12.6, clip:'alleytrack', cs:0.00, ce:0.55, dark:1, tx:'名前ではなく、番号で呼ばれて。'},
+ {s:12.6,e:16.0, clip:'neonpan',    cs:0.25, ce:0.75, dark:1, tx:'——百二十六人の、行き止まり。'},
  // ===== VERSE キャラ紹介 地下 (16-40) =====
- {s:16.0,e:20.6, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-kai.png',c:'c',from:'l'}], tx:'すべての正解が、視える少年。'},
- {s:20.6,e:23.0, clip:'slumshack',  dark:1, mo:'slow', ch:[{i:'cg-kai-surprised.png',c:'c'}], pline:1, streak:.5},
- {s:23.0,e:27.4, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-rin.png',c:'c',from:'r'}], tx:'なにひとつ、覚えていない少女。'},
- {s:27.4,e:29.0, clip:'slumshack',  dark:1, mo:'slow', ch:[{i:'cg-rin-sharp.png',c:'c'}], streak:.4},
- {s:29.0,e:32.2, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-kai-soft.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], tx:'「なんとなく」', cls:'gold big'},
- {s:32.2,e:36.0, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-kai-soft.png',c:'l',walk:'r'},{i:'cg-rin-smile.png',c:'r',walk:'r'}]},  // 二人が歩く(景色も動く)
- {s:36.0,e:40.0, clip:'wasteup',    dark:1, mo:'slow', tx:'——ここから、始まった。'},
- // ===== BUILD 仲間・計画・脱出 地下 (40-54.6) =====
- {s:40.0,e:42.6, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-jin.png',c:'l'},{i:'cg-garudo.png',c:'m'},{i:'cg-potz.png',c:'r'}], tx:'地の底にも、人がいた。'},
- {s:42.6,e:44.4, clip:'slumshack',  dark:1, mo:'slow', ch:[{i:'cg-jin.png',c:'c'}], whip:1},
- {s:44.4,e:46.2, clip:'slumfacade', dark:1, mo:'slow', ch:[{i:'cg-garudo.png',c:'c'}], whip:1},
- {s:46.2,e:49.0, clip:'slumshack',  dark:1, mo:'slow', ch:[{i:'cg-della.png',c:'c'}], tx:'決行は——三十八日目の夜。', cls:'gold'},
- {s:49.0,e:50.3, clip:'slumfacade', dark:1, mo:'slow', streak:.6, whip:1},
- {s:50.3,e:51.5, clip:'slumshack',  dark:1, mo:'slow', shake:5, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1},
- {s:51.5,e:52.7, clip:'slumfacade', dark:1, mo:'slow', shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1},
- {s:52.7,e:53.7, clip:'wasteup',    dark:1, mo:'slow', shake:6, streak:.8, whip:1},   // 上方の光へ脱出
+ {s:16.0,e:20.6, clip:'canyonlow',  cs:0.00, ce:0.62, dark:1, ch:[{i:'cg-kai.png',c:'c',from:'l'}], tx:'すべての正解が、視える少年。'},
+ {s:20.6,e:23.0, clip:'canyon',     cs:0.38, ce:0.60, dark:1, ch:[{i:'cg-kai-surprised.png',c:'c'}], pline:1, streak:.5},
+ {s:23.0,e:27.4, clip:'alleytrack', cs:0.55, ce:1.00, dark:1, ch:[{i:'cg-rin.png',c:'c',from:'r'}], tx:'なにひとつ、覚えていない少女。'},
+ {s:27.4,e:29.0, clip:'neonpan',    cs:0.55, ce:1.00, dark:1, ch:[{i:'cg-rin-sharp.png',c:'c'}], streak:.4},
+ {s:29.0,e:32.2, clip:'canyon',     cs:0.60, ce:0.84, dark:1, ch:[{i:'cg-kai-soft.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], tx:'「なんとなく」', cls:'gold big'},
+ {s:32.2,e:36.0, clip:'canyonlow',  cs:0.62, ce:1.00, dark:1, ch:[{i:'cg-kai-soft.png',c:'l',walk:'r'},{i:'cg-rin-smile.png',c:'r',walk:'r'}]},  // 二人が歩く(景色も動く)
+ {s:36.0,e:40.0, clip:'craneup',    cs:0.00, ce:0.50, dark:1, tx:'——ここから、始まった。'},
+ // ===== BUILD 仲間・計画・脱出 地下 (40-54.6) ビート同期の速いカット =====
+ {s:40.0,e:42.6, clip:'canyon',     cs:0.84, ce:1.00, dark:1, ch:[{i:'cg-jin.png',c:'l'},{i:'cg-garudo.png',c:'m'},{i:'cg-potz.png',c:'r'}], tx:'地の底にも、人がいた。'},
+ {s:42.6,e:44.4, clip:'overhead',   cs:0.55, ce:0.80, dark:1, ch:[{i:'cg-jin.png',c:'c'}], whip:1},
+ {s:44.4,e:46.2, clip:'neonpan',    cs:0.30, ce:0.62, dark:1, ch:[{i:'cg-garudo.png',c:'c'}], whip:1},
+ {s:46.2,e:49.0, clip:'canyonlow',  cs:0.30, ce:0.62, dark:1, ch:[{i:'cg-della.png',c:'c'}], tx:'決行は——三十八日目の夜。', cls:'gold'},
+ {s:49.0,e:50.3, clip:'alleytrack', cs:0.30, ce:0.55, dark:1, streak:.6, whip:1},
+ {s:50.3,e:51.5, clip:'craneup',    cs:0.50, ce:0.68, dark:1, shake:5, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1},
+ {s:51.5,e:52.7, clip:'overhead',   cs:0.80, ce:1.00, dark:1, shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1},
+ {s:52.7,e:53.7, clip:'craneup',    cs:0.55, ce:0.82, dark:1, shake:6, streak:.8, whip:1},   // 出口の暖光へ駆け上がる
  {s:53.7,e:54.6, flash:1},
  // ===== ★おはよう=サビ=地上へ切替 (54.6) : 空/森/草原のみ・人なし・空中心 (尺=クリップ5.0s) =====
  {s:54.6,e:59.6, clip:'emerge', tx:'おはよう。', cls:'gold big'},
@@ -150,13 +157,18 @@ const C=[
 ];
 
 function setTime(t){
-  const bg=el('bg'),dark=el('dark'),tx=el('tx'),flash=el('flash'),logo=el('logo'),fo=el('fadeout'),pl=el('pline'),stk=el('streak'),wp=el('whip');
+  const bg=el('bg'),bg2=el('bg2'),dark=el('dark'),tx=el('tx'),flash=el('flash'),logo=el('logo'),fo=el('fadeout'),pl=el('pline'),stk=el('streak'),wp=el('whip');
   ['chL','chM','chR','chC'].forEach(id=>{ el(id).style.opacity=0; });
-  bg.style.opacity=0; bg.style.filter='none'; dark.style.opacity=0; tx.style.opacity=0; flash.style.opacity=0; logo.style.opacity=0; pl.style.opacity=0; stk.style.opacity=0; wp.style.opacity=0;
-  let cur=null; for(const c of C){ if(t>=c.s && t<c.e){ cur=c; break; } }
+  bg.style.opacity=0; bg.style.filter='none'; bg2.style.opacity=0; bg2.style.filter='none'; dark.style.opacity=0; tx.style.opacity=0; flash.style.opacity=0; logo.style.opacity=0; pl.style.opacity=0; stk.style.opacity=0; wp.style.opacity=0;
+  let cur=null, idx=-1; for(let k=0;k<C.length;k++){ const c=C[k]; if(t>=c.s && t<c.e){ cur=c; idx=k; break; } }
   if(!cur){ fo.style.opacity = t>=92?1:0; return; }
   const p=(t-cur.s)/(cur.e-cur.s);
-  if(cur.flash){ flash.style.opacity=Math.sin(clamp(p,0,1)*Math.PI); return; }
+  if(cur.flash){
+    // フラッシュ中も直前の絵を保持(黒を経由しない)
+    const pv=prevVisual(idx);
+    if(pv){ bg.style.backgroundImage='url('+bgUrl(pv,1)+')'; bg.style.opacity=1; bg.style.transform=mo(pv.mo||'still',1); if(pv.dark) dark.style.opacity=0.88; }
+    flash.style.opacity=Math.sin(clamp(p,0,1)*Math.PI); return;
+  }
   if(cur.logo){
     logo.style.opacity=env(t,cur.s,cur.e,1.4,0);
     logo.style.transform='translate(-50%,-50%) scale('+(0.97+0.03*clamp(p*3,0,1))+')';
@@ -170,12 +182,21 @@ function setTime(t){
   let jit='';
   if(cur.shake){ const amp=cur.shake*(1-eOut(clamp(p*1.4,0,1))); jit=' translate('+(Math.sin(t*94)*amp).toFixed(1)+'px,'+(Math.cos(t*81)*amp).toFixed(1)+'px)'; }
   if(cur.bg||cur.clip){
-    bg.style.backgroundImage='url('+(cur.clip?clipFrame(cur.clip,clamp(p,0,1)):A+cur.bg)+')';
-    bg.style.opacity=env(t,cur.s,cur.e,fin,fout);
+    // ===== 2層クロスフェード: 黒を経由せず前カットから溶ける =====
+    const pv=prevVisual(idx);
+    const TW=Math.min(dur*0.5, cur.whip?0.12:0.45);
+    const inRamp = pv ? clamp((t-cur.s)/TW,0,1) : env(t,cur.s,cur.e,fin,0);  // 先頭カットのみ黒からF.I.
+    bg.style.backgroundImage='url('+bgUrl(cur,clamp(p,0,1))+')';
+    bg.style.opacity=inRamp;
     bg.style.transform=mo(cur.mo||'still', clamp(p,0,1))+jit;
+    if(pv && inRamp<1){
+      bg2.style.backgroundImage='url('+bgUrl(pv,1)+')';
+      bg2.style.opacity=1;
+      bg2.style.transform=mo(pv.mo||'still',1);
+    }
     // whip導入: 立ち上がりに横ブラー+わずかな流れ
     if(cur.whip && p<0.22){ const w=1-p/0.22; bg.style.filter='blur('+(7*w).toFixed(1)+'px)'; wp.style.opacity=w*0.5; wp.style.transform='translateX('+(-30+140*(p/0.22))+'%)'; }
-    if(cur.dark) dark.style.opacity=env(t,cur.s,cur.e,fin,fout)*0.9;
+    if(cur.dark) dark.style.opacity=0.88;
   }
   if(cur.streak){ stk.style.opacity=Math.sin(clamp(p,0,1)*Math.PI)*cur.streak; stk.style.transform='scale('+(1.0+0.12*p)+') rotate('+(p*6).toFixed(1)+'deg)'; }
   if(cur.pline){ pl.style.opacity=Math.sin(clamp(p,0,1)*Math.PI)*0.95; pl.style.transform='translateX('+(-3+6*p)+'%)'; }
