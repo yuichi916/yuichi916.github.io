@@ -38,6 +38,13 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 .ncard .nbar{position:absolute;top:-6px;bottom:-6px;width:1px;background:linear-gradient(180deg,transparent,#c9a24a,transparent)}
 .ncard.right .nbar{right:-16px}
 .ncard.left .nbar{left:-16px}
+/* 道筋オーバーレイ(ミニゲームモチーフ: 番号ノード+金の線が描き上がる) */
+#mgfx{position:absolute;inset:0;opacity:0;z-index:11;pointer-events:none}
+/* ミニマップオーバーレイ(本編UIモチーフ: 経路が灯る) */
+#mapfx{position:absolute;right:5%;top:9%;width:236px;opacity:0;z-index:11;pointer-events:none;
+  background:rgba(4,8,14,.72);border:1px solid rgba(201,162,74,.5);border-radius:4px;padding:10px 12px 8px;
+  backdrop-filter:blur(2px)}
+#mapfx .mlab{font-family:Georgia,serif;font-size:9px;letter-spacing:.4em;color:#c9a24a;margin-top:6px;text-transform:uppercase;text-align:right}
 .flash{position:absolute;inset:0;background:#fff;opacity:0}
 /* スピードライン(集中線) */
 #streak{position:absolute;inset:-20%;opacity:0;pointer-events:none;mix-blend-mode:screen;
@@ -63,6 +70,21 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 <div id="stage">
   <div class="bg" id="bg2"></div><div class="bg" id="bg"></div><div class="dark" id="dark"></div>
   <img class="ch" id="chL"><img class="ch" id="chM"><img class="ch" id="chR"><img class="ch" id="chC">
+  <img class="ch" id="chL2"><img class="ch" id="chM2"><img class="ch" id="chR2"><img class="ch" id="chC2">
+  <svg id="mgfx" viewBox="0 0 1280 720" preserveAspectRatio="none">
+    <polyline id="mgline" points="170,565 430,350 705,445 950,240 1135,335" fill="none" stroke="#ffd24a" stroke-width="3.2" style="filter:drop-shadow(0 0 9px #ffca4a)"/>
+    <g id="mgnodes"></g>
+  </svg>
+  <div id="mapfx"><svg viewBox="0 0 212 96" width="212" height="96">
+    <g stroke="#3d5a74" stroke-width="1.6" fill="none">
+      <path d="M18,74 L52,58 L88,70 L122,50 L156,58 L192,26"/>
+      <path d="M52,58 L70,30 M122,50 L118,22"/>
+    </g>
+    <path id="mroute" d="M18,74 L52,58 L88,70 L122,50 L156,58 L192,26" fill="none" stroke="#ffd24a" stroke-width="2.4" style="filter:drop-shadow(0 0 5px #ffca4a)"/>
+    <g fill="#5b7c9c"><circle cx="18" cy="74" r="3"/><circle cx="52" cy="58" r="3"/><circle cx="88" cy="70" r="3"/><circle cx="122" cy="50" r="3"/><circle cx="156" cy="58" r="3"/><circle cx="70" cy="30" r="2.4"/><circle cx="118" cy="22" r="2.4"/></g>
+    <circle id="mgoal" cx="192" cy="26" r="4.5" fill="#ffd24a" style="filter:drop-shadow(0 0 6px #ffca4a)"/>
+    <circle id="mpos" cx="18" cy="74" r="4" fill="#7fd7ff" style="filter:drop-shadow(0 0 6px #7fd7ff)"/>
+  </svg><div class="mlab">ROUTE — GATE 03</div></div>
   <div id="streak"></div>
   <div class="pline" id="pline"></div>
   <div class="tx" id="tx"></div>
@@ -125,6 +147,8 @@ const CLIP={
   townorbit: {dir:'op3d/townorbit/',  n:108},  // 鳥瞰オービット(街全体)
   townarc:   {dir:'op3d/townarc/',    n:108},  // 広場の噴水を回る低アーク(町の中)
   skyup:     {dir:'op3d/skyup/',      n:105},  // 尖塔の縁と朝の空(空が主役)
+  townpan:   {dir:'op3d/townpan/',    n:126},  // 広場を見渡す大パン(町の中の没入)
+  townrise2: {dir:'op3d/townrise2/',  n:120},  // 噴水→尖塔→空への大クレーン
 };
 function clipFrame(name,p){ const c=CLIP[name]; const i=Math.max(0,Math.min(c.n-1,Math.round(p*(c.n-1)))); return A+c.dir+'f'+String(i).padStart(4,'0')+'.jpg'; }
 /* カットの背景URL(クリップは cs/ce で区間指定可・静止画はそのまま) */
@@ -133,6 +157,17 @@ function bgUrl(cut,p){ if(cut.clip){ const f=(cut.cs!=null)?(cut.cs+((cut.ce!=nu
 function prevVisual(idx){ for(let k=idx-1;k>=0;k--){ const c=C[k]; if(c.bg||c.clip) return c; if(c.logo) return null; } return null; }
 /* character slot classes -> element */
 const SLOT={l:'chL',m:'chM',r:'chR',c:'chC',ml:'chL',mr:'chR'};
+const SLOT2={l:'chL2',m:'chM2',r:'chR2',c:'chC2',ml:'chL2',mr:'chR2'};
+/* 道筋ノード(番号付き)を初期構築 */
+(function(){
+  const pts=[[170,565],[430,350],[705,445],[950,240],[1135,335]];
+  const g=document.getElementById('mgnodes'); let h='';
+  pts.forEach((q,i)=>{
+    h+='<circle cx="'+q[0]+'" cy="'+q[1]+'" r="17" fill="none" stroke="#ffd24a" stroke-width="2" style="filter:drop-shadow(0 0 7px #ffca4a)"/>';
+    h+='<text x="'+q[0]+'" y="'+(q[1]+7)+'" font-family="Georgia" font-size="21" fill="#ffd24a" text-anchor="middle">'+(i+1)+'</text>';
+  });
+  g.innerHTML=h;
+})();
 function chPos(cls){ return cls==='l'?'22%':cls==='r'?'78%':(cls==='ml'?'38%':cls==='mr'?'62%':'50%'); }
 function chH(cls){ return (cls==='l'||cls==='r'||cls==='ml'||cls==='mr')?'70%':(cls==='m'?'76%':'94%'); }
 
@@ -156,18 +191,18 @@ const C=[
  // 「君はなんとなくで笑ってた」(21.7-27.5) 会話は残す(歌詞・ボイスと同期)
  {s:22.3,e:25.6, clip:'canyon',     cs:0.60, ce:0.85, dark:1, ch:[{i:'cg-kai-soft.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], tx:'「 なんとなく 」', cls:'quote'},
  {s:25.6,e:28.6, clip:'canyonlow',  cs:0.50, ce:0.85, dark:1, ch:[{i:'cg-kai-soft.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}]},   // カメラが運ぶ(歩かせない)
- // 「正しい道ばかり見えすぎて怖いんだ」(28.6-35.8)
- {s:28.6,e:32.6, clip:'neonpan',    cs:0.60, ce:1.00, dark:1, ch:[{i:'cg-kai.png',c:'c'}], pline:1},
+ // 「正しい道ばかり見えすぎて怖いんだ」(28.6-35.8) ★道筋ミニゲームの金ルートが空間に描かれる
+ {s:28.6,e:32.6, clip:'neonpan',    cs:0.60, ce:1.00, dark:1, ch:[{i:'cg-kai.png',c:'c',to:'cg-kai-surprised.png',at:0.62}], mgfx:1},
  {s:32.6,e:35.9, clip:'canyon',     cs:0.35, ce:0.60, dark:1, ch:[{i:'cg-kai-surprised.png',c:'c'}], streak:.5},
  // 「間違える自由さえ持てない僕に」(35.9-42.0)
  {s:35.9,e:39.2, clip:'craneup',    cs:0.00, ce:0.40, dark:1},
  {s:39.2,e:42.0, clip:'overhead',   cs:0.55, ce:0.80, dark:1, ch:[{i:'cg-jin.png',c:'l'},{i:'cg-garudo.png',c:'m'},{i:'cg-potz.png',c:'r'}], cap:{en:'THE OUTCASTS', jp:'地の底の、隣人たち。', pos:'bl'}},
- // 「それでも指がなぞる壁に刻んだ」(43.0-50.1)
- {s:42.0,e:44.4, clip:'alleytrack', cs:0.30, ce:0.55, dark:1, ch:[{i:'cg-della.png',c:'c'}], cap:{en:'DAY 38 — THE ESCAPE', jp:'決行、三十八日目の夜。', pos:'tr'}},
+ // 「それでも指がなぞる壁に刻んだ」(43.0-50.1) ★ミニマップに脱出経路が灯る
+ {s:42.0,e:44.4, clip:'alleytrack', cs:0.30, ce:0.55, dark:1, ch:[{i:'cg-della.png',c:'c'}], cap:{en:'DAY 38 — THE ESCAPE', jp:'決行、三十八日目の夜。', pos:'tl'}, mapfx:[0,0.55]},
  {s:44.4,e:46.8, clip:'neonpan',    cs:0.00, ce:0.25, dark:1, ch:[{i:'cg-garudo.png',c:'c'}], whip:1},
  {s:46.8,e:49.2, clip:'canyonlow',  cs:0.85, ce:1.00, dark:1, ch:[{i:'cg-jin.png',c:'c'}], whip:1},
- // 「見たこともないあの青の名前」(50.1-55.9) 逃走→出口の光へ
- {s:49.2,e:51.2, clip:'overhead',   cs:0.80, ce:1.00, dark:1, shake:4, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1},
+ // 「見たこともないあの青の名前」(50.1-55.9) 逃走→出口の光へ(ミニマップの現在地が走る)
+ {s:49.2,e:51.2, clip:'overhead',   cs:0.80, ce:1.00, dark:1, shake:4, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1, mapfx:[0.55,1.0]},
  {s:51.2,e:53.2, clip:'alleytrack', cs:0.85, ce:1.00, dark:1, shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1},
  {s:53.2,e:55.9, clip:'craneup',    cs:0.40, ce:0.82, dark:1, shake:6, streak:.8, whip:1},
  // 間奏: 坑口の中(暗)
@@ -178,14 +213,14 @@ const C=[
  {s:63.6,e:66.1, clip:'skyup',      cs:0.00, ce:0.55, cap:{en:'MORNING', jp:'空が、あった。', pos:'bl'}},
  // 「忘れてしまってもきっと見つけるよ」: リーンの記憶
  {s:66.1,e:69.3, bg:'bg-aicore.jpg', dark:1, mo:'push', ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'quote'},
- {s:69.3,e:71.6, clip:'journey',    cs:0.35, ce:0.60, ch:[{i:'cg-kai.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}]},   // カメラドリーが二人を運ぶ
- // 「正解の外側で」: 町の中
- {s:71.6,e:74.4, clip:'cityfly',    cs:0.00, ce:0.60, cap:{en:'THE TOWN', jp:'誰も、泣かない街。', pos:'br'}},
+ // 「正解の外側で」: 町の中を見渡す(街の外の草原/空撮は廃止)
+ {s:69.3,e:71.9, clip:'townpan',    cs:0.00, ce:0.55, ch:[{i:'cg-kai.png',c:'ml',to:'cg-kai-soft.png',at:0.5},{i:'cg-rin.png',c:'mr',to:'cg-rin-smile.png',at:0.62}]},  // 広場に立つ二人・表情がやわらぐ
+ {s:71.9,e:74.4, clip:'townrise2',  cs:0.00, ce:0.60, cap:{en:'THE TOWN', jp:'誰も、泣かない街。', pos:'br'}},
  {s:74.4,e:77.2, clip:'townarc',    cs:0.00, ce:1.00},
  {s:77.2,e:78.6, bg:'op-bg-town.jpg', dark:1, mo:'punch', ch:[{i:'cg-yuugo.png',c:'c'}], whip:1},
- // 「手を伸ばす答えのない空へ」: 二人→空
- {s:78.6,e:83.2, clip:'journey',    cs:0.60, ce:1.00, ch:[{i:'cg-kai-smile.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}]},
- {s:83.2,e:85.6, clip:'skyup',      cs:0.55, ce:1.00},
+ // 「手を伸ばす答えのない空へ」: 見渡しの中の二人(おはようの交換)→町から空への大クレーン
+ {s:78.6,e:83.2, clip:'townpan',    cs:0.55, ce:1.00, ch:[{i:'cg-kai-smile.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}]},
+ {s:83.2,e:85.6, clip:'townrise2',  cs:0.60, ce:1.00},
  {s:85.6,e:86.3, flash:1},
  // TITLE (「二人で」85.6-87.7に重ねて)
  {s:86.3,e:92.0, logo:1},
@@ -193,9 +228,9 @@ const C=[
 
 function setTime(t){
   const bg=el('bg'),bg2=el('bg2'),dark=el('dark'),tx=el('tx'),flash=el('flash'),logo=el('logo'),fo=el('fadeout'),pl=el('pline'),stk=el('streak'),wp=el('whip');
-  ['chL','chM','chR','chC'].forEach(id=>{ el(id).style.opacity=0; });
+  ['chL','chM','chR','chC','chL2','chM2','chR2','chC2'].forEach(id=>{ el(id).style.opacity=0; });
   bg.style.opacity=0; bg.style.filter='none'; bg2.style.opacity=0; bg2.style.filter='none'; dark.style.opacity=0; tx.style.opacity=0; flash.style.opacity=0; logo.style.opacity=0; pl.style.opacity=0; stk.style.opacity=0; wp.style.opacity=0;
-  el('cap').style.opacity=0; el('ncard').style.opacity=0;
+  el('cap').style.opacity=0; el('ncard').style.opacity=0; el('mgfx').style.opacity=0; el('mapfx').style.opacity=0;
   let cur=null, idx=-1; for(let k=0;k<C.length;k++){ const c=C[k]; if(t>=c.s && t<c.e){ cur=c; idx=k; break; } }
   if(!cur){ fo.style.opacity = t>=92?1:0; return; }
   const p=(t-cur.s)/(cur.e-cur.s);
@@ -251,11 +286,20 @@ function setTime(t){
       const rise=clamp((t-cur.s-d)/0.55,0,1);
       let sx=0; if(c.from==='l')sx=(1-eOut(rise))*-90; else if(c.from==='r')sx=(1-eOut(rise))*90;
       let yoff=(1-rise)*20;
-      // 歩行(walk): 横移動+上下の弾み(景色が動く中をキャラが歩く3D演出)
-      let wx=0;
-      if(c.walk){ const dir=c.walk==='l'?-1:1; wx=dir*(-150+300*p); yoff+= -Math.abs(Math.sin(p*Math.PI*7))*5; }
       const pop = (moK==='punch')?(1.04-0.06*eOut(p)) : (moK==='pushfast')?(1+0.10*p):(moK.indexOf('push')===0)?(1+0.05*p):1;
-      im.style.transform='translateX(-50%) translate('+(sx+px+wx).toFixed(1)+'px,'+yoff.toFixed(1)+'px) scale('+pop.toFixed(3)+')';
+      // 生きたスプライト: 呼吸(縦微伸縮+微沈み)と微スウェイ(決定的=tベース)
+      const br=Math.sin(t*1.9+i*2.1);
+      const breathY=1+0.006*br, swayR=0.45*Math.sin(t*0.8+i*1.7);
+      yoff += 1.5*Math.max(0,br)*0.6;
+      const tf='translateX(-50%) translate('+(sx+px).toFixed(1)+'px,'+yoff.toFixed(1)+'px) rotate('+swayR.toFixed(2)+'deg) scale('+pop.toFixed(3)+') scaleY('+breathY.toFixed(4)+')';
+      im.style.transform=tf; im.style.transformOrigin='50% 100%';
+      // 表情クロスフェード(同一体・顔差分): to/at で表情が変わる=簡単なアニメ
+      if(c.to){
+        const ov=el(SLOT2[c.c]); ov.src=A+c.to;
+        ov.style.left=chPos(c.c); ov.style.height=chH(c.c);
+        ov.style.transform=tf; ov.style.transformOrigin='50% 100%';
+        ov.style.opacity=o*clamp((p-(c.at!=null?c.at:0.5))/0.22,0,1);
+      }
     });
   }
   if(cur.tx){
@@ -286,6 +330,27 @@ function setTime(t){
     nc.children[2].style.opacity=eOut(r2);
     nc.children[3].style.opacity=eOut(r3); nc.children[3].style.transform='translateY('+((1-eOut(r3))*8).toFixed(1)+'px)';
   }
+  // 道筋オーバーレイ(ミニゲームモチーフ): 番号ノードが灯り金の線が描き上がる
+  if(cur.mgfx){
+    const mg=el('mgfx'), ln=el('mgline'), nds=el('mgnodes');
+    const pp=clamp((p-0.08)/0.8,0,1);
+    mg.style.opacity=Math.min(0.9, env(t,cur.s+0.2,cur.e,0.5,0.35));
+    let len=1400; try{ len=ln.getTotalLength()||1400; }catch(e){}
+    ln.style.strokeDasharray=len; ln.style.strokeDashoffset=len*(1-eIO(pp));
+    [...nds.children].forEach((nd,k)=>{ const ni=Math.floor(k/2); nd.style.opacity=clamp((pp-(ni/4-0.06))/0.1,0,1); });
+  }
+  // ミニマップオーバーレイ(本編UIモチーフ): 経路が灯りGATEへ
+  if(cur.mapfx){
+    const mp=el('mapfx'), rt=el('mroute'), pos=el('mpos'), gl=el('mgoal');
+    const seg=Array.isArray(cur.mapfx)?cur.mapfx:[0,1];
+    const pp=clamp(seg[0]+(seg[1]-seg[0])*p,0,1);
+    mp.style.opacity=env(t,cur.s+0.25,cur.e,0.45,0.3);
+    let len=260; try{ len=rt.getTotalLength()||260; }catch(e){}
+    rt.style.strokeDasharray=len; rt.style.strokeDashoffset=len*(1-pp);
+    try{ const pt=rt.getPointAtLength(len*pp); pos.setAttribute('cx',pt.x); pos.setAttribute('cy',pt.y); }catch(e){}
+    pos.style.opacity=0.6+0.4*Math.sin(t*7);
+    gl.style.opacity=0.55+0.45*Math.sin(t*4);
+  }
 }
 window.__setTime=setTime;
 
@@ -295,7 +360,7 @@ window.__ready=false;
 (function preload(){
   const urls=new Set();
   for(const k in CLIP){ const c=CLIP[k]; for(let i=0;i<c.n;i++) urls.add(A+c.dir+'f'+String(i).padStart(4,'0')+'.jpg'); }
-  for(const c of C){ if(c.bg) urls.add(A+c.bg); if(c.ch) c.ch.forEach(x=>urls.add(A+x.i)); }
+  for(const c of C){ if(c.bg) urls.add(A+c.bg); if(c.ch) c.ch.forEach(x=>{ urls.add(A+x.i); if(x.to) urls.add(A+x.to); }); }
   const list=[...urls]; let left=list.length;
   if(!left){ window.__ready=true; return; }
   const done=()=>{ if(--left<=0) window.__ready=true; };
