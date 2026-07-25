@@ -14,8 +14,30 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 .tx.big{font-size:58px;letter-spacing:.4em;color:#fff}
 .tx.gold{color:#ffd24a}
 .tx.small{font-size:24px;letter-spacing:.5em}
+.tx.quote{font-size:38px;letter-spacing:.4em;color:#f2f4f8;font-weight:400;text-shadow:0 2px 30px rgba(0,0,0,.95)}
 .tx .l2{display:block;font-size:.6em;margin-top:12px;letter-spacing:.3em;opacity:.9}
 .tx .l3{display:block;color:#ffd24a;margin-top:14px}
+/* ===== 商用OP風キャプション(隅アンカー英日ロックアップ) ===== */
+.cap{position:absolute;opacity:0;z-index:12;pointer-events:none}
+.cap .en{font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:.52em;color:#c9a24a;text-transform:uppercase;white-space:nowrap}
+.cap .jp{font-size:20px;letter-spacing:.30em;margin-top:9px;color:#e9edf5;text-shadow:0 1px 16px rgba(0,0,0,.9);white-space:nowrap}
+.cap .rule{width:52px;height:1px;background:linear-gradient(90deg,#c9a24a,transparent);margin-top:11px}
+.cap.bl{left:6.5%;bottom:11%}
+.cap.br{right:6.5%;bottom:11%;text-align:right}
+.cap.br .rule{margin-left:auto;background:linear-gradient(270deg,#c9a24a,transparent)}
+.cap.tr{right:6.5%;top:9%;text-align:right}
+.cap.tr .rule{margin-left:auto;background:linear-gradient(270deg,#c9a24a,transparent)}
+.cap.tl{left:6.5%;top:9%}
+/* キャラ名カード */
+.ncard{position:absolute;top:33%;opacity:0;z-index:12;pointer-events:none}
+.ncard.right{right:7%;text-align:right}
+.ncard.left{left:7%}
+.ncard .njp{font-size:46px;letter-spacing:.2em;color:#f4f6fa;text-shadow:0 2px 26px rgba(0,0,0,.9)}
+.ncard .nen{font-family:Georgia,serif;font-size:11px;letter-spacing:.62em;color:#c9a24a;margin-top:7px;text-transform:uppercase}
+.ncard .nsub{font-size:14px;letter-spacing:.24em;color:#c3cbdc;margin-top:12px}
+.ncard .nbar{position:absolute;top:-6px;bottom:-6px;width:1px;background:linear-gradient(180deg,transparent,#c9a24a,transparent)}
+.ncard.right .nbar{right:-16px}
+.ncard.left .nbar{left:-16px}
 .flash{position:absolute;inset:0;background:#fff;opacity:0}
 /* スピードライン(集中線) */
 #streak{position:absolute;inset:-20%;opacity:0;pointer-events:none;mix-blend-mode:screen;
@@ -44,6 +66,8 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
   <div id="streak"></div>
   <div class="pline" id="pline"></div>
   <div class="tx" id="tx"></div>
+  <div class="cap" id="cap"><div class="en"></div><div class="jp"></div><div class="rule"></div></div>
+  <div class="ncard" id="ncard"><div class="nbar"></div><div class="njp"></div><div class="nen"></div><div class="nsub"></div></div>
   <div id="vig"></div>
   <div id="whip"></div>
   <div class="flash" id="flash"></div>
@@ -99,6 +123,8 @@ const CLIP={
   journey:   {dir:'op3d/journey/',    n:135},  // 草原を町へ旅(二人が歩ける目線)
   cityfly:   {dir:'op3d/cityfly/',    n:120},  // 高所横ドリフト(城郭スカイライン)
   townorbit: {dir:'op3d/townorbit/',  n:108},  // 鳥瞰オービット(街全体)
+  townarc:   {dir:'op3d/townarc/',    n:108},  // 広場の噴水を回る低アーク(町の中)
+  skyup:     {dir:'op3d/skyup/',      n:105},  // 尖塔の縁と朝の空(空が主役)
 };
 function clipFrame(name,p){ const c=CLIP[name]; const i=Math.max(0,Math.min(c.n-1,Math.round(p*(c.n-1)))); return A+c.dir+'f'+String(i).padStart(4,'0')+'.jpg'; }
 /* カットの背景URL(クリップは cs/ce で区間指定可・静止画はそのまま) */
@@ -119,49 +145,49 @@ function chH(cls){ return (cls==='l'||cls==='r'||cls==='ml'||cls==='mr')?'70%':(
    ★58.18 おはよう / 60.5-65.6 また今日が始まる / 66.1-73.4 忘れてしまってもきっと見つけるよ
    73.4-78.5 正解の外側で / 78.5-85.2 手を伸ばす答えのない空へ / 85.6-87.7 二人で ===== */
 const C=[
- // ===== INTRO 穴倉の廃棄層 (0-15) =====
- {s:0.0, e:4.6,  clip:'canyon',     cs:0.00, ce:0.35, dark:1, tx:'地下世界、アビス。'},
- {s:4.6, e:9.0,  clip:'overhead',   cs:0.00, ce:0.55, dark:1, tx:'その底に——終わりの場所が、ある。'},
- {s:9.0, e:12.8, clip:'alleytrack', cs:0.00, ce:0.50, dark:1, tx:'——百二十六人の、行き止まり。'},
+ // ===== INTRO 閉鎖穴倉の廃棄層 (0-15) — ナレーションテロップ廃止 =====
+ {s:0.0, e:4.6,  clip:'canyon',     cs:0.00, ce:0.35, dark:1},
+ {s:4.6, e:9.0,  clip:'overhead',   cs:0.00, ce:0.55, dark:1, cap:{en:'SEIKAI SAGA — CASE 01', jp:'', pos:'br'}},
+ {s:9.0, e:12.8, clip:'alleytrack', cs:0.00, ce:0.50, dark:1, cap:{en:'THE ABYSS', jp:'廃棄層、第五層。', pos:'bl'}},
  {s:12.8,e:15.0, clip:'neonpan',    cs:0.25, ce:0.60, dark:1, whip:1},
- // ===== VERSE1「番号で呼ばれた光のない朝」(15.0-21.5) =====
- {s:15.0,e:19.5, clip:'canyonlow',  cs:0.00, ce:0.50, dark:1, ch:[{i:'cg-kai.png',c:'c',from:'l'}], tx:'名前ではなく、番号で呼ばれて。'},
- {s:19.5,e:22.3, clip:'alleytrack', cs:0.55, ce:0.85, dark:1, ch:[{i:'cg-rin.png',c:'c',from:'r'}], tx:'なにひとつ、覚えていない少女。'},
- // 「君はなんとなくで笑ってた」(21.7-27.5)
- {s:22.3,e:25.6, clip:'canyon',     cs:0.60, ce:0.85, dark:1, ch:[{i:'cg-kai-soft.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], tx:'「なんとなく」', cls:'gold big'},
- {s:25.6,e:28.6, clip:'canyonlow',  cs:0.50, ce:0.85, dark:1, ch:[{i:'cg-kai-soft.png',c:'l',walk:'r'},{i:'cg-rin-smile.png',c:'r',walk:'r'}]},  // 二人が歩く
+ // 「番号で呼ばれた光のない朝」(15.0-21.5) キャラ名カード
+ {s:15.0,e:19.5, clip:'canyonlow',  cs:0.00, ce:0.50, dark:1, ch:[{i:'cg-kai.png',c:'c',from:'l'}], name:{jp:'カイ', en:'KAI — No.126', sub:'すべての正解が、視える。', pos:'r'}},
+ {s:19.5,e:22.3, clip:'alleytrack', cs:0.55, ce:0.85, dark:1, ch:[{i:'cg-rin.png',c:'c',from:'r'}], name:{jp:'リーン', en:'RIN', sub:'なにも、覚えていない。', pos:'l'}},
+ // 「君はなんとなくで笑ってた」(21.7-27.5) 会話は残す(歌詞・ボイスと同期)
+ {s:22.3,e:25.6, clip:'canyon',     cs:0.60, ce:0.85, dark:1, ch:[{i:'cg-kai-soft.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], tx:'「 なんとなく 」', cls:'quote'},
+ {s:25.6,e:28.6, clip:'canyonlow',  cs:0.50, ce:0.85, dark:1, ch:[{i:'cg-kai-soft.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}]},   // カメラが運ぶ(歩かせない)
  // 「正しい道ばかり見えすぎて怖いんだ」(28.6-35.8)
- {s:28.6,e:32.6, clip:'neonpan',    cs:0.60, ce:1.00, dark:1, ch:[{i:'cg-kai.png',c:'c'}], tx:'すべての正解が、視える少年。'},
- {s:32.6,e:35.9, clip:'canyon',     cs:0.35, ce:0.60, dark:1, ch:[{i:'cg-kai-surprised.png',c:'c'}], pline:1, streak:.5},
+ {s:28.6,e:32.6, clip:'neonpan',    cs:0.60, ce:1.00, dark:1, ch:[{i:'cg-kai.png',c:'c'}], pline:1},
+ {s:32.6,e:35.9, clip:'canyon',     cs:0.35, ce:0.60, dark:1, ch:[{i:'cg-kai-surprised.png',c:'c'}], streak:.5},
  // 「間違える自由さえ持てない僕に」(35.9-42.0)
- {s:35.9,e:39.2, clip:'craneup',    cs:0.00, ce:0.40, dark:1, tx:'——ここから、始まった。'},
- {s:39.2,e:42.0, clip:'overhead',   cs:0.55, ce:0.80, dark:1, ch:[{i:'cg-jin.png',c:'l'},{i:'cg-garudo.png',c:'m'},{i:'cg-potz.png',c:'r'}], tx:'地の底にも、人がいた。'},
- // 「それでも指がなぞる壁に刻んだ」(43.0-50.1) 計画→決行
- {s:42.0,e:44.4, clip:'alleytrack', cs:0.30, ce:0.55, dark:1, ch:[{i:'cg-della.png',c:'c'}], tx:'決行は——三十八日目の夜。', cls:'gold'},
+ {s:35.9,e:39.2, clip:'craneup',    cs:0.00, ce:0.40, dark:1},
+ {s:39.2,e:42.0, clip:'overhead',   cs:0.55, ce:0.80, dark:1, ch:[{i:'cg-jin.png',c:'l'},{i:'cg-garudo.png',c:'m'},{i:'cg-potz.png',c:'r'}], cap:{en:'THE OUTCASTS', jp:'地の底の、隣人たち。', pos:'bl'}},
+ // 「それでも指がなぞる壁に刻んだ」(43.0-50.1)
+ {s:42.0,e:44.4, clip:'alleytrack', cs:0.30, ce:0.55, dark:1, ch:[{i:'cg-della.png',c:'c'}], cap:{en:'DAY 38 — THE ESCAPE', jp:'決行、三十八日目の夜。', pos:'tr'}},
  {s:44.4,e:46.8, clip:'neonpan',    cs:0.00, ce:0.25, dark:1, ch:[{i:'cg-garudo.png',c:'c'}], whip:1},
  {s:46.8,e:49.2, clip:'canyonlow',  cs:0.85, ce:1.00, dark:1, ch:[{i:'cg-jin.png',c:'c'}], whip:1},
  // 「見たこともないあの青の名前」(50.1-55.9) 逃走→出口の光へ
  {s:49.2,e:51.2, clip:'overhead',   cs:0.80, ce:1.00, dark:1, shake:4, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1},
  {s:51.2,e:53.2, clip:'alleytrack', cs:0.85, ce:1.00, dark:1, shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1},
- {s:53.2,e:55.9, clip:'craneup',    cs:0.40, ce:0.82, dark:1, shake:6, streak:.8, whip:1},   // 「あの青の名前」=出口の暖光へ駆け上がる
- // ===== 間奏(55.9-58.18): 坑口の中・暗・空の裂け目を見上げる =====
+ {s:53.2,e:55.9, clip:'craneup',    cs:0.40, ce:0.82, dark:1, shake:6, streak:.8, whip:1},
+ // 間奏: 坑口の中(暗)
  {s:55.9,e:58.18, clip:'emerge',    cs:0.00, ce:0.30, dark:1},
- // ===== ★「おはよう」(58.18)=天井が開く: 一気に上昇し空/森/朝日の町がダイナミックに開ける =====
- {s:58.18,e:63.6, clip:'emerge',    cs:0.30, ce:1.00, tx:'おはよう。', cls:'gold big'},
- // 「また今日が始まる」(60.5-65.6): 草原を二人が歩く
- {s:63.6,e:66.1, clip:'journey',    cs:0.00, ce:0.30, ch:[{i:'cg-kai.png',c:'ml',walk:'r'},{i:'cg-rin-smile.png',c:'mr',walk:'r'}], tx:'空が、あった。広かった。'},
- // 「忘れてしまってもきっと見つけるよ」(66.1-73.4): リーンの記憶
- {s:66.1,e:69.3, bg:'bg-aicore.jpg', dark:1, mo:'push', ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'gold'},
- {s:69.3,e:71.6, clip:'journey',    cs:0.30, ce:0.55, ch:[{i:'cg-kai.png',c:'ml',walk:'r'},{i:'cg-rin-smile.png',c:'mr',walk:'r'}]},  // それでも並んで歩く
- // 「正解の外側で」(73.4-78.5): 町
- {s:71.6,e:74.4, clip:'cityfly',    cs:0.00, ce:0.60, tx:'誰も泣かない街。'},
- {s:74.4,e:77.2, clip:'townorbit',  cs:0.00, ce:0.60, tx:'——誰も、泣かない。'},
+ // ★「おはよう」(58.18)=天井開放。テロップなし=歌が歌う
+ {s:58.18,e:63.6, clip:'emerge',    cs:0.30, ce:1.00},
+ // 「また今日が始まる」: 空中心
+ {s:63.6,e:66.1, clip:'skyup',      cs:0.00, ce:0.55, cap:{en:'MORNING', jp:'空が、あった。', pos:'bl'}},
+ // 「忘れてしまってもきっと見つけるよ」: リーンの記憶
+ {s:66.1,e:69.3, bg:'bg-aicore.jpg', dark:1, mo:'push', ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'quote'},
+ {s:69.3,e:71.6, clip:'journey',    cs:0.35, ce:0.60, ch:[{i:'cg-kai.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}]},   // カメラドリーが二人を運ぶ
+ // 「正解の外側で」: 町の中
+ {s:71.6,e:74.4, clip:'cityfly',    cs:0.00, ce:0.60, cap:{en:'THE TOWN', jp:'誰も、泣かない街。', pos:'br'}},
+ {s:74.4,e:77.2, clip:'townarc',    cs:0.00, ce:1.00},
  {s:77.2,e:78.6, bg:'op-bg-town.jpg', dark:1, mo:'punch', ch:[{i:'cg-yuugo.png',c:'c'}], whip:1},
- // 「手を伸ばす答えのない空へ」(78.5-85.2): 二人の朝→空
- {s:78.6,e:83.2, clip:'journey',    cs:0.60, ce:1.00, ch:[{i:'cg-kai-smile.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], tx:'——ずっと、隣で。', cls:'gold big'},
- {s:83.2,e:85.6, clip:'emerge',     cs:0.72, ce:1.00, tx:'答えのない、空へ。', cls:'big'},
+ // 「手を伸ばす答えのない空へ」: 二人→空
+ {s:78.6,e:83.2, clip:'journey',    cs:0.60, ce:1.00, ch:[{i:'cg-kai-smile.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}]},
+ {s:83.2,e:85.6, clip:'skyup',      cs:0.55, ce:1.00},
  {s:85.6,e:86.3, flash:1},
- // ===== TITLE (「二人で」85.6-87.7に重ねて) =====
+ // TITLE (「二人で」85.6-87.7に重ねて)
  {s:86.3,e:92.0, logo:1},
 ];
 
@@ -169,6 +195,7 @@ function setTime(t){
   const bg=el('bg'),bg2=el('bg2'),dark=el('dark'),tx=el('tx'),flash=el('flash'),logo=el('logo'),fo=el('fadeout'),pl=el('pline'),stk=el('streak'),wp=el('whip');
   ['chL','chM','chR','chC'].forEach(id=>{ el(id).style.opacity=0; });
   bg.style.opacity=0; bg.style.filter='none'; bg2.style.opacity=0; bg2.style.filter='none'; dark.style.opacity=0; tx.style.opacity=0; flash.style.opacity=0; logo.style.opacity=0; pl.style.opacity=0; stk.style.opacity=0; wp.style.opacity=0;
+  el('cap').style.opacity=0; el('ncard').style.opacity=0;
   let cur=null, idx=-1; for(let k=0;k<C.length;k++){ const c=C[k]; if(t>=c.s && t<c.e){ cur=c; idx=k; break; } }
   if(!cur){ fo.style.opacity = t>=92?1:0; return; }
   const p=(t-cur.s)/(cur.e-cur.s);
@@ -236,9 +263,28 @@ function setTime(t){
     tx.innerHTML=cur.tx;
     const big=(cur.cls||'').indexOf('big')>=0;
     tx.style.opacity=env(t,cur.s+0.2,cur.e,big?0.8:fin+0.3,fout);
-    const base= big?0.4:((cur.cls||'').indexOf('small')>=0?0.5:0.3);
+    const base= big?0.4:((cur.cls||'').indexOf('small')>=0?0.5:(cur.cls||'').indexOf('quote')>=0?0.42:0.3);
     tx.style.letterSpacing=(base+0.14*(1-clamp((t-cur.s-0.2)/0.9,0,1)))+'em';
     tx.style.transform='translate(-50%,-50%) translateY('+(6*(1-clamp((t-cur.s-0.2)/0.7,0,1))).toFixed(1)+'px)';
+  }
+  // 隅アンカーキャプション(EN小+JP+金ライン)
+  if(cur.cap){
+    const cp=el('cap'); cp.className='cap '+(cur.cap.pos||'bl');
+    cp.children[0].textContent=cur.cap.en||''; cp.children[1].textContent=cur.cap.jp||'';
+    cp.children[1].style.display=cur.cap.jp?'block':'none';
+    const r=clamp((t-cur.s-0.35)/0.6,0,1);
+    cp.style.opacity=Math.min(eOut(r), clamp((cur.e-t)/0.4,0,1));
+    cp.style.transform='translateY('+((1-eOut(r))*10).toFixed(1)+'px)';
+  }
+  // キャラ名カード(段違いリビール)
+  if(cur.name){
+    const nc=el('ncard'); nc.className='ncard '+(cur.name.pos==='l'?'left':'right');
+    nc.children[1].textContent=cur.name.jp||''; nc.children[2].textContent=cur.name.en||''; nc.children[3].textContent=cur.name.sub||'';
+    const r1=clamp((t-cur.s-0.45)/0.5,0,1), r2=clamp((t-cur.s-0.75)/0.5,0,1), r3=clamp((t-cur.s-1.05)/0.5,0,1);
+    nc.style.opacity=clamp((cur.e-t)/0.4,0,1);
+    nc.children[1].style.opacity=eOut(r1); nc.children[1].style.transform='translateY('+((1-eOut(r1))*12).toFixed(1)+'px)';
+    nc.children[2].style.opacity=eOut(r2);
+    nc.children[3].style.opacity=eOut(r3); nc.children[3].style.transform='translateY('+((1-eOut(r3))*8).toFixed(1)+'px)';
   }
 }
 window.__setTime=setTime;
