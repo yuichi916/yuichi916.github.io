@@ -48,8 +48,7 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 /* ===== シネマティック層 ===== */
 .cbar{position:absolute;left:0;right:0;height:9.5%;background:#000;z-index:13;pointer-events:none}
 #cbarT{top:0}#cbarB{bottom:0}
-#grain{position:absolute;inset:0;z-index:15;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
-  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='0.9'/%3E%3C/svg%3E")}
+#grain{display:none}  /* 動くノイズが暗部で黒ちらつきに見えるため撤去 */
 #gradeU{position:absolute;inset:0;z-index:9;pointer-events:none;mix-blend-mode:soft-light;background:linear-gradient(180deg,rgba(24,64,92,.85),rgba(10,30,52,.7));opacity:0}
 #gradeS{position:absolute;inset:0;z-index:9;pointer-events:none;mix-blend-mode:soft-light;background:linear-gradient(180deg,rgba(255,196,120,.75),rgba(255,150,80,.35));opacity:0}
 /* 5層ストラータHUD(世界の全体感) */
@@ -69,6 +68,37 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 #obsv .olab{position:absolute;left:34px;top:2px;font-family:Consolas,monospace;font-size:11px;letter-spacing:.28em;color:rgba(127,215,255,.75)}
 #obsv .odot{position:absolute;left:16px;top:6px;width:7px;height:7px;border-radius:50%;background:#7fd7ff}
 #logo .saga{margin-top:26px;font-size:13px;letter-spacing:.42em;color:#7d8698;opacity:0}
+/* 断章カード(探索で見つかるロアの気配) */
+#frag{position:absolute;right:9%;top:26%;width:190px;opacity:0;z-index:12;pointer-events:none;
+  background:linear-gradient(160deg,rgba(10,14,22,.92),rgba(18,24,36,.88));border:1px solid rgba(201,162,74,.65);
+  border-radius:3px;padding:13px 15px;box-shadow:0 0 26px rgba(201,162,74,.22)}
+#frag .fen{font-family:Georgia,serif;font-size:9px;letter-spacing:.5em;color:#c9a24a;text-transform:uppercase}
+#frag .fjp{font-size:15px;letter-spacing:.2em;color:#e6ebf4;margin-top:8px}
+#frag .fln{height:1px;background:linear-gradient(90deg,#c9a24a,transparent);margin-top:10px}
+/* 時限の決断UI */
+#choiceui{position:absolute;left:50%;top:56%;transform:translateX(-50%);opacity:0;z-index:12;pointer-events:none;text-align:center}
+#choiceui .cbtn{display:inline-block;margin:0 10px;padding:9px 34px;border:1px solid rgba(233,237,245,.75);
+  color:#e9edf5;font-size:17px;letter-spacing:.34em;background:rgba(8,12,20,.62)}
+#choiceui .cbtn.sel{border-color:#ffd24a;color:#ffd24a;box-shadow:0 0 18px rgba(255,210,74,.35)}
+#choiceui .tbar{height:2px;background:#ffd24a;margin:14px auto 0;box-shadow:0 0 8px rgba(255,210,74,.6)}
+/* 電子錠ハッキングUI */
+#hack{position:absolute;left:8%;top:30%;opacity:0;z-index:12;pointer-events:none;
+  background:rgba(4,8,14,.78);border:1px solid rgba(127,215,255,.5);border-radius:3px;padding:11px 13px}
+#hack .hlab{font-family:Consolas,monospace;font-size:9px;letter-spacing:.34em;color:#7fd7ff}
+#hack .hgrid{display:grid;grid-template-columns:repeat(4,26px);gap:4px;margin-top:8px}
+#hack .hc{height:22px;border:1px solid rgba(127,215,255,.35);color:#7fd7ff;font-family:Consolas,monospace;
+  font-size:12px;display:flex;align-items:center;justify-content:center;background:rgba(10,20,32,.5)}
+#hack .hc.on{background:rgba(127,215,255,.28);color:#eaf7ff}
+#hack .hbar{height:2px;background:#7fd7ff;margin-top:8px;box-shadow:0 0 8px rgba(127,215,255,.7)}
+/* 3本に分かれる道筋(3エンディングの気配) */
+#routes3{position:absolute;inset:0;opacity:0;z-index:11;pointer-events:none}
+/* 方位コンパス帯(360°見回しの気配) */
+#compass{position:absolute;left:50%;top:11.5%;transform:translateX(-50%);width:340px;height:26px;opacity:0;z-index:12;
+  pointer-events:none;overflow:hidden;border-bottom:1px solid rgba(201,162,74,.45)}
+#compass .cstrip{position:absolute;top:2px;white-space:nowrap;font-family:Georgia,serif;font-size:11px;
+  letter-spacing:.1em;color:#cfd6e2}
+#compass .cstrip b{color:#ffd24a;font-weight:400;margin:0 26px}
+#compass .cstrip s{text-decoration:none;color:#6d7890;margin:0 26px}
 .flash{position:absolute;inset:0;background:#fff;opacity:0}
 /* スピードライン(集中線) */
 #streak{position:absolute;inset:-20%;opacity:0;pointer-events:none;mix-blend-mode:screen;
@@ -120,6 +150,15 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
   <div id="gradeU"></div><div id="gradeS"></div>
   <div id="strata"><div class="slab">Ⅰ</div><div class="slab">Ⅱ</div><div class="slab">Ⅲ</div><div class="slab">Ⅳ</div><div class="slab">Ⅴ</div><div class="slb">STRATA</div></div>
   <div id="obsv"><div class="bk tl"></div><div class="bk tr"></div><div class="bk blb"></div><div class="bk brb"></div><div class="odot"></div><div class="olab">OBSERVING — CASE 01 / LOG.126</div></div>
+  <div id="frag"><div class="fen">FRAGMENT — 断章</div><div class="fjp">光のない朝</div><div class="fln"></div></div>
+  <div id="choiceui"><div><span class="cbtn" id="cb1">進 む</span><span class="cbtn" id="cb2">戻 る</span></div><div class="tbar" id="ctbar"></div></div>
+  <div id="hack"><div class="hlab">E-LOCK // OVERRIDE</div><div class="hgrid" id="hgrid"></div><div class="hbar" id="hbar"></div></div>
+  <svg id="routes3" viewBox="0 0 1280 720" preserveAspectRatio="none">
+    <path id="r3a" d="M640,700 C640,520 640,430 640,360 C640,290 520,220 400,150" fill="none" stroke="#ffd24a" stroke-width="2.6" style="filter:drop-shadow(0 0 8px #ffca4a)"/>
+    <path id="r3b" d="M640,700 C640,520 640,430 640,360 C640,270 640,190 640,110" fill="none" stroke="#ffd24a" stroke-width="2.6" style="filter:drop-shadow(0 0 8px #ffca4a)"/>
+    <path id="r3c" d="M640,700 C640,520 640,430 640,360 C640,290 760,220 880,150" fill="none" stroke="#ffd24a" stroke-width="2.6" style="filter:drop-shadow(0 0 8px #ffca4a)"/>
+  </svg>
+  <div id="compass"><div class="cstrip" id="cstrip"></div></div>
   <div class="cbar" id="cbarT"></div><div class="cbar" id="cbarB"></div>
   <div id="grain"></div>
   <div id="logo"><div class="eye">SEIKAI SAGA &mdash; CASE 01</div><h1>正解の外側</h1>
@@ -163,23 +202,21 @@ function mo(kind,p){
 /* ===== Blender 3D カメラ移動クリップ(連番JPG) ===== */
 /* frames は seikai_op3d.py の CLIPS(duration×FPS24)と一致させる */
 const CLIP={
-  // 地下=FS2密集ストリートキャニオン(EEVEE 30fps)
+  // 地下=FS2閉鎖穴倉(EEVEE 30fps)
   canyon:    {dir:'op3d/canyon/',     n:126},  // 街路ドリー前進(両列スライド視差)
   canyonlow: {dir:'op3d/canyonlow/',  n:102},  // 低アングルで小物の脇を抜ける
   neonpan:   {dir:'op3d/neonpan/',    n:90},   // ネオン壁を舐めるパン
   craneup:   {dir:'op3d/craneup/',    n:114},  // 谷間を上昇し出口の暖光へ
   alleytrack:{dir:'op3d/alleytrack/', n:102},  // 街路を横切る横トラック
   overhead:  {dir:'op3d/overhead/',   n:96},   // 俯瞰ドリフト(密集屋根)
-  // 地上・自然(DKF+Valhalla実木)
-  emerge:    {dir:'op3d/emerge/',     n:195},  // ★坑口→天井が開けて空/森/朝日の町(6.5s)
-  journey:   {dir:'op3d/journey/',    n:135},  // 草原を町へ旅(二人が歩ける目線)
-  cityfly:   {dir:'op3d/cityfly/',    n:120},  // 高所横ドリフト(城郭スカイライン)
-  townorbit: {dir:'op3d/townorbit/',  n:108},  // 鳥瞰オービット(街全体)
-  townarc:   {dir:'op3d/townarc/',    n:108},  // 広場の噴水を回る低アーク(町の中)
-  skyup:     {dir:'op3d/skyup/',      n:105},  // 尖塔の縁と朝の空(空が主役)
-  townpan:   {dir:'op3d/townpan/',    n:126},  // 広場を見渡す大パン(町の中の没入)
-  townrise2: {dir:'op3d/townrise2/',  n:120},  // 噴水→尖塔→空への大クレーン
   layers5:   {dir:'op3d/layers5/',    n:165},  // アビス5層断面の縦シャフト(下降=世界開示/上昇=脱出)
+  // 地上=町の中と空(DKF)
+  emerge2:   {dir:'op3d/emerge2/',    n:195},  // ★町の中のハッチ→尖塔の町並みが開ける(6.5s)
+  townarc:   {dir:'op3d/townarc/',    n:108},  // 広場の噴水を回る低アーク(市場の中)
+  skyup:     {dir:'op3d/skyup/',      n:105},  // 尖塔の縁と朝の空(空が主役)
+  townrise2: {dir:'op3d/townrise2/',  n:120},  // 噴水→尖塔→空への大クレーン
+  tstreetd:  {dir:'op3d/tstreetd/',   n:120},  // 町中の通りをドリー(屋台と旗の間)
+  tstreett:  {dir:'op3d/tstreett/',   n:108},  // 通りの斜め横トラック(ファサード流し)
 };
 function clipFrame(name,p){ const c=CLIP[name]; const i=Math.max(0,Math.min(c.n-1,Math.round(p*(c.n-1)))); return A+c.dir+'f'+String(i).padStart(4,'0')+'.jpg'; }
 /* カットの背景URL(クリップは cs/ce で区間指定可・静止画はそのまま) */
@@ -199,6 +236,15 @@ const SLOT2={l:'chL2',m:'chM2',r:'chR2',c:'chC2',ml:'chL2',mr:'chR2'};
   });
   g.innerHTML=h;
 })();
+/* ハッキンググリッド+コンパス帯を初期構築 */
+(function(){
+  const HG='7A2F0C4E9B15D638'; let h='';
+  for(let i=0;i<16;i++) h+='<div class="hc" data-i="'+i+'">'+HG[i]+'</div>';
+  document.getElementById('hgrid').innerHTML=h;
+  let cs='';
+  for(let r=0;r<3;r++) cs+='<b>N</b><s>·</s><b>NE</b><s>·</s><b>E</b><s>·</s><b>SE</b><s>·</s><b>S</b><s>·</s><b>SW</b><s>·</s><b>W</b><s>·</s><b>NW</b><s>·</s>';
+  document.getElementById('cstrip').innerHTML=cs;
+})();
 function chPos(cls){ return cls==='l'?'22%':cls==='r'?'78%':(cls==='ml'?'38%':cls==='mr'?'62%':'50%'); }
 function chH(cls){ return (cls==='l'||cls==='r'||cls==='ml'||cls==='mr')?'70%':(cls==='m'?'76%':'94%'); }
 
@@ -213,8 +259,8 @@ function chH(cls){ return (cls==='l'||cls==='r'||cls==='ml'||cls==='mr')?'70%':(
 const C=[
  // ===== INTRO: 5層断面を下降=世界の全体感を最初に開示 (0-15) =====
  {s:0.0, e:5.4,  clip:'layers5',    cs:1.00, ce:0.24, dark:1, strata:[1,5], cap:{en:'THE ABYSS — FIVE STRATA', jp:'', pos:'br'}},
- {s:5.4, e:9.0,  clip:'overhead',   cs:0.00, ce:0.55, dark:1, obsv:1, cap:{en:'SEIKAI SAGA — CASE 01', jp:'', pos:'br'}},
- {s:9.0, e:12.8, clip:'alleytrack', cs:0.00, ce:0.50, dark:1, cap:{en:'STRATUM V', jp:'廃棄層、第五層。', pos:'bl'}},
+ {s:5.4, e:9.0,  clip:'overhead',   cs:0.00, ce:0.55, dark:1, obsv:1, cap:{en:'SEIKAI SAGA — CASE 01', jp:'十五話の記録、その始まり。', pos:'br'}},
+ {s:9.0, e:12.8, clip:'alleytrack', cs:0.00, ce:0.50, dark:1, cap:{en:'STRATUM V', jp:'廃棄層、第五層。', pos:'bl'}, fragfx:1},
  {s:12.8,e:15.0, clip:'neonpan',    cs:0.25, ce:0.60, dark:1, whip:1},
  // 「番号で呼ばれた光のない朝」(15.0-21.5) キャラ名カード
  {s:15.0,e:19.5, clip:'canyonlow',  cs:0.00, ce:0.50, dark:1, ch:[{i:'cg-kai.png',c:'c',from:'l'}], name:{jp:'カイ', en:'KAI — No.126', sub:'すべての正解が、視える。', pos:'r'}},
@@ -225,33 +271,33 @@ const C=[
  // 「正しい道ばかり見えすぎて怖いんだ」(28.6-35.8) ★道筋ミニゲームの金ルートが空間に描かれる
  {s:28.6,e:32.6, clip:'neonpan',    cs:0.60, ce:1.00, dark:1, ch:[{i:'cg-kai.png',c:'c',to:'cg-kai-surprised.png',at:0.62}], mgfx:1},
  {s:32.6,e:35.9, clip:'canyon',     cs:0.35, ce:0.60, dark:1, ch:[{i:'cg-kai-surprised.png',c:'c'}], streak:.5},
- // 「間違える自由さえ持てない僕に」(35.9-42.0)
- {s:35.9,e:39.2, clip:'craneup',    cs:0.00, ce:0.40, dark:1},
+ // 「間違える自由さえ持てない僕に」(35.9-42.0) 物語: 空を見に行く約束
+ {s:35.9,e:39.2, clip:'craneup',    cs:0.00, ce:0.40, dark:1, cap:{en:'THE PROMISE', jp:'空を、見に行こう。', pos:'bl'}},
  {s:39.2,e:42.0, clip:'overhead',   cs:0.55, ce:0.80, dark:1, ch:[{i:'cg-jin.png',c:'l'},{i:'cg-garudo.png',c:'m'},{i:'cg-potz.png',c:'r'}], cap:{en:'THE OUTCASTS', jp:'地の底の、隣人たち。', pos:'bl'}},
  // 「それでも指がなぞる壁に刻んだ」(43.0-50.1) ★ミニマップに脱出経路が灯る
- {s:42.0,e:44.4, clip:'alleytrack', cs:0.30, ce:0.55, dark:1, ch:[{i:'cg-della.png',c:'c'}], cap:{en:'DAY 38 — THE ESCAPE', jp:'決行、三十八日目の夜。', pos:'tl'}, mapfx:[0,0.55]},
+ {s:42.0,e:44.4, clip:'alleytrack', cs:0.30, ce:0.55, dark:1, ch:[{i:'cg-della.png',c:'c'}], cap:{en:'DAY 38 — THE ESCAPE', jp:'決行、三十八日目の夜。', pos:'tl'}, mapfx:[0,1.0]},
  {s:44.4,e:46.8, clip:'neonpan',    cs:0.00, ce:0.25, dark:1, ch:[{i:'cg-garudo.png',c:'c'}], whip:1},
  {s:46.8,e:49.2, clip:'canyonlow',  cs:0.85, ce:1.00, dark:1, ch:[{i:'cg-jin.png',c:'c'}], whip:1},
  // 「見たこともないあの青の名前」(50.1-55.9) 逃走→出口の光へ(ミニマップの現在地が走る)
- {s:49.2,e:51.2, clip:'overhead',   cs:0.80, ce:1.00, dark:1, shake:4, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1, mapfx:[0.55,1.0]},
- {s:51.2,e:53.2, clip:'alleytrack', cs:0.85, ce:1.00, dark:1, shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1},
+ {s:49.2,e:51.2, clip:'overhead',   cs:0.80, ce:1.00, dark:1, shake:4, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1, choicefx:1},   // 時限の決断UI
+ {s:51.2,e:53.2, clip:'alleytrack', cs:0.85, ce:1.00, dark:1, shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1, cap:{en:'BREAK OUT', jp:'廃棄層からの、脱出。', pos:'bl'}, hackfx:1},   // 電子錠ハッキングUI
  {s:53.2,e:55.9, clip:'layers5',    cs:0.24, ce:1.00, dark:1, shake:4, streak:.6, whip:1, strata:[5,1]},   // 5層を一気に駆け上がる(全体感の反復)
- // 間奏: 坑口の中(暗)
- {s:55.9,e:58.18, clip:'emerge',    cs:0.00, ce:0.30, dark:1},
- // ★「おはよう」(58.18)=天井開放。テロップなし=歌が歌う
- {s:58.18,e:63.6, clip:'emerge',    cs:0.30, ce:1.00},
+ // 間奏: 町の中のハッチの下(暗・見上げ)
+ {s:55.9,e:58.18, clip:'emerge2',   cs:0.00, ce:0.30, dark:1},
+ // ★「おはよう」(58.18)=天井開放: 尖塔の町並みと空が開ける。テロップなし=歌が歌う
+ {s:58.18,e:63.6, clip:'emerge2',   cs:0.30, ce:1.00},
  // 「また今日が始まる」: 空中心
  {s:63.6,e:66.1, clip:'skyup',      cs:0.00, ce:0.55, cap:{en:'MORNING', jp:'空が、あった。', pos:'bl'}},
  // 「忘れてしまってもきっと見つけるよ」: リーンの記憶
  {s:66.1,e:69.3, bg:'bg-aicore.jpg', dark:1, mo:'push', ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'quote', obsv:1},
- // 「正解の外側で」: 町の中を見渡す(街の外の草原/空撮は廃止)
- {s:69.3,e:71.9, clip:'townpan',    cs:0.00, ce:0.55, ch:[{i:'cg-kai.png',c:'ml',to:'cg-kai-soft.png',at:0.5},{i:'cg-rin.png',c:'mr',to:'cg-rin-smile.png',at:0.62}]},  // 広場に立つ二人・表情がやわらぐ
- {s:71.9,e:74.4, clip:'townrise2',  cs:0.00, ce:0.60, cap:{en:'THE TOWN', jp:'誰も、泣かない街。', pos:'br'}},
- {s:74.4,e:77.2, clip:'townarc',    cs:0.00, ce:1.00},
+ // 「正解の外側で」: 町中の通りを行く(広場は1拍のみ=飽きさせない)
+ {s:69.3,e:71.9, clip:'tstreetd',   cs:0.00, ce:0.42, ch:[{i:'cg-kai.png',c:'ml',to:'cg-kai-soft.png',at:0.5},{i:'cg-rin.png',c:'mr',to:'cg-rin-smile.png',at:0.62}]},  // 屋台の通りを行く二人・表情がやわらぐ
+ {s:71.9,e:74.4, clip:'tstreett',   cs:0.00, ce:0.80, cap:{en:'THE TOWN', jp:'誰も、泣かない街。', pos:'br'}},   // ファサードと屋台の流し
+ {s:74.4,e:77.2, clip:'townarc',    cs:0.00, ce:1.00, compassfx:1},   // 広場の噴水(1拍)+方位帯=360°見回しの気配
  {s:77.2,e:78.6, bg:'op-bg-town.jpg', dark:1, mo:'punch', ch:[{i:'cg-yuugo.png',c:'c'}], whip:1},
- // 「手を伸ばす答えのない空へ」: 見渡しの中の二人(おはようの交換)→町から空への大クレーン
- {s:78.6,e:83.2, clip:'townpan',    cs:0.55, ce:1.00, ch:[{i:'cg-kai-smile.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}]},
- {s:83.2,e:85.6, clip:'townrise2',  cs:0.60, ce:1.00},
+ // 「手を伸ばす答えのない空へ」: 通りの奥へ二人(おはようの交換)→町から空への大クレーン
+ {s:78.6,e:83.2, clip:'tstreetd',   cs:0.42, ce:0.80, ch:[{i:'cg-kai-smile.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], cap:{en:'TOGETHER', jp:'ふたりの、朝。', pos:'bl'}},
+ {s:83.2,e:85.6, clip:'townrise2',  cs:0.60, ce:1.00, routesfx:1, cap:{en:'', jp:'——どの朝を、選ぶ。', pos:'bl'}},   // 道筋が3本に分かれる=3つの結末
  {s:85.6,e:86.3, flash:1},
  // TITLE (「二人で」85.6-87.7に重ねて)
  {s:86.3,e:92.0, logo:1},
@@ -263,8 +309,8 @@ function setTime(t){
   bg.style.opacity=0; bg.style.filter='none'; bg2.style.opacity=0; bg2.style.filter='none'; dark.style.opacity=0; tx.style.opacity=0; flash.style.opacity=0; logo.style.opacity=0; pl.style.opacity=0; stk.style.opacity=0; wp.style.opacity=0;
   el('cap').style.opacity=0; el('ncard').style.opacity=0; el('mgfx').style.opacity=0; el('mapfx').style.opacity=0;
   el('strata').style.opacity=0; el('obsv').style.opacity=0;
-  // シネマ層(常時): グレイン移動+セクション別グレード(地下=冷/地上=暖, おはよう周辺でクロス)
-  el('grain').style.backgroundPosition=(((t*140)%240).toFixed(0))+'px '+(((t*89)%240).toFixed(0))+'px';
+  el('frag').style.opacity=0; el('choiceui').style.opacity=0; el('hack').style.opacity=0; el('routes3').style.opacity=0; el('compass').style.opacity=0;
+  // シネマ層(常時): セクション別グレード(地下=冷/地上=暖, おはよう周辺でクロス)
   const sMix=clamp((t-55.9)/2.6,0,1);
   el('gradeU').style.opacity=(0.55*(1-sMix)).toFixed(2);
   el('gradeS').style.opacity=(0.42*sMix).toFixed(2);
@@ -389,6 +435,47 @@ function setTime(t){
   if(cur.obsv){
     const ob=el('obsv'); ob.style.opacity=env(t,cur.s+0.4,cur.e,0.6,0.4)*0.85;
     ob.children[4].style.opacity=0.4+0.6*(Math.sin(t*5.2)>0?1:0.15);
+  }
+  // 断章カード: 探索で見つかるロアの気配(ふわりと浮かぶ)
+  if(cur.fragfx){
+    const fg=el('frag');
+    fg.style.opacity=env(t,cur.s+0.5,cur.e,0.9,0.4)*0.94;
+    fg.style.transform='translateY('+(-4*Math.sin(t*1.1)).toFixed(1)+'px)';
+    fg.style.boxShadow='0 0 '+(22+8*Math.sin(t*2.3)).toFixed(0)+'px rgba(201,162,74,.3)';
+  }
+  // 時限の決断UI: 選択肢+減っていくタイマー
+  if(cur.choicefx){
+    const cu2=el('choiceui');
+    cu2.style.opacity=env(t,cur.s+0.15,cur.e,0.3,0.25)*0.95;
+    const rem=1-clamp(p*1.15,0,1);
+    el('ctbar').style.width=(210*rem).toFixed(0)+'px';
+    el('cb1').className='cbtn'+(p>0.55?' sel':'');   // 終盤「進む」が選ばれる
+  }
+  // 電子錠ハッキングUI: セルが順に点灯し解錠へ
+  if(cur.hackfx){
+    const hk=el('hack');
+    hk.style.opacity=env(t,cur.s+0.15,cur.e,0.3,0.25)*0.95;
+    const lit=Math.floor(clamp(p*1.1,0,1)*16);
+    const cells=el('hgrid').children;
+    for(let k=0;k<16;k++) cells[k].className='hc'+(k<lit?' on':'');
+    el('hbar').style.width=(88*clamp(p*1.1,0,1)).toFixed(0)+'px';
+  }
+  // 3本に分かれる金の道筋(3エンディングの気配)
+  if(cur.routesfx){
+    const r3=el('routes3');
+    r3.style.opacity=env(t,cur.s+0.3,cur.e,0.8,0.4)*0.85;
+    ['r3a','r3b','r3c'].forEach((id,k)=>{
+      const pa=el(id); let len=900;
+      try{ len=pa.getTotalLength()||900; }catch(e){}
+      const pp=clamp((p-0.08-k*0.06)/0.7,0,1);
+      pa.style.strokeDasharray=len; pa.style.strokeDashoffset=len*(1-eIO(pp));
+    });
+  }
+  // 方位コンパス帯(360°見回しの気配): アークの回転に同期して流れる
+  if(cur.compassfx){
+    const cp2=el('compass');
+    cp2.style.opacity=env(t,cur.s+0.3,cur.e,0.5,0.35)*0.85;
+    el('cstrip').style.transform='translateX('+(-40-p*420).toFixed(0)+'px)';
   }
   // ミニマップオーバーレイ(本編UIモチーフ): 経路が灯りGATEへ
   if(cur.mapfx){
