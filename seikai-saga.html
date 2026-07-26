@@ -59,7 +59,14 @@ img{max-width:100%}
 main{position:relative;z-index:1}
 
 /* ===== HERO ===== */
-.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:48px 20px;position:relative}
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:48px 20px;position:relative;overflow:hidden}
+/* キービジュアル背景(文字なし版)+可読性のための暗幕 */
+.hero::before{content:'';position:absolute;inset:0;background:url('assets/seikai/keyvisual-bg.jpg') center/cover;
+  opacity:.5;filter:saturate(.95)}
+.hero::after{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 46%,rgba(7,10,18,.42),rgba(7,10,18,.86) 78%),
+             linear-gradient(0deg,var(--bg,#070a12) 0%,transparent 30%)}
+.hero>*{position:relative;z-index:2}
 .hero .eye{letter-spacing:.5em;font-size:12px;color:var(--dim);margin-bottom:26px}
 .hero h1{font-size:clamp(34px,7vw,64px);font-weight:600;letter-spacing:.14em;
   background:linear-gradient(180deg,#fff 20%, #ffd24a 75%, #ff9a4a 100%);
@@ -401,14 +408,43 @@ nav .nv a:hover{color:var(--gold)}
 <button id="bgmbtn" style="position:fixed;right:18px;bottom:18px;z-index:20;padding:10px 18px;border:1px solid var(--line);border-radius:20px;background:rgba(5,7,13,.8);color:var(--gold);font-family:inherit;font-size:12px;letter-spacing:.2em;cursor:pointer;backdrop-filter:blur(3px)">♪ BGM</button>
 <script>
 "use strict";
-/* BGM トグル (『水のうつろい』) */
+/* BGM トグル & 自動再生 (『水のうつろい』) */
 (function(){
   const a=document.getElementById('sagabgm'), b=document.getElementById('bgmbtn');
   a.volume=0.55;
+
+  // localStorage から BGM 状態を取得 (デフォルト: true = ON)
+  let bgmEnabled = localStorage.getItem('seikai-saga-bgm') !== 'false';
+
+  // BGM 状態を更新
+  function updateBGMUI(){
+    if(bgmEnabled){
+      a.play().catch(()=>{});
+      b.textContent='♪ BGM 停止';
+      b.style.color='#fff';
+    } else {
+      a.pause();
+      b.textContent='♪ BGM';
+      b.style.color='';
+    }
+  }
+
+  // 初期状態を反映
+  updateBGMUI();
+
+  // ボタンクリック時
   b.addEventListener('click',()=>{
-    if(a.paused){ a.play().catch(()=>{}); b.textContent='♪ BGM 停止'; b.style.color='#fff'; }
-    else{ a.pause(); b.textContent='♪ BGM'; b.style.color=''; }
+    bgmEnabled = !bgmEnabled;
+    localStorage.setItem('seikai-saga-bgm', bgmEnabled);
+    updateBGMUI();
   });
+
+  // ユーザー操作後に autoplay ブロック対策
+  document.addEventListener('click', ()=>{
+    if(bgmEnabled && a.paused){
+      a.play().catch(()=>{});
+    }
+  }, { once: true });
 })();
 /* 星空 */
 (function(){
