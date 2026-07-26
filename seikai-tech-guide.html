@@ -1512,6 +1512,12 @@ curl https://yuichi916.github.io/seikai.html | grep -o "SEIKAI_SCRIPT"
   </div>
 </div>
 
+<!-- ===== 画像拡大ライトボックス ===== -->
+<div id="imageLightbox" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.95);backdrop-filter:blur(6px);animation:fadeIn .3s ease;padding:20px">
+  <button id="closeLightbox" style="position:absolute;top:20px;right:20px;background:none;border:none;color:#ffd24a;width:48px;height:48px;border-radius:50%;cursor:pointer;font-size:32px;display:flex;align-items:center;justify-content:center;z-index:1001">✕</button>
+  <img id="lightboxImage" src="" alt="" style="max-width:100%;max-height:90vh;object-fit:contain;margin:auto;display:block">
+</div>
+
 <style>
 @keyframes fadeIn {
   from { opacity:0 }
@@ -1522,6 +1528,10 @@ curl https://yuichi916.github.io/seikai.html | grep -o "SEIKAI_SCRIPT"
   to { transform:translate(-50%, -50%);opacity:1 }
 }
 #detailModal.show { display:flex !important; }
+#imageLightbox { display:none !important; }
+#imageLightbox.show { display:flex !important; flex-direction:column;justify-content:center }
+.guide-image { cursor:zoom-in; transition:.2s;border-radius:8px }
+.guide-image:hover { opacity:.8;box-shadow:0 0 20px rgba(255,210,74,.3) }
 </style>
 
 <!-- ===== CTA ===== -->
@@ -1609,7 +1619,7 @@ const archDetail = {
     text: '別セッションで完成。物語企画、キャラクター設定、世界観構築から原作執筆まで。第一部全15話完結。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/00-novel-concept.jpg" alt="小説構成図" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/00-novel-concept.jpg" alt="小説構成図" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】15話構成と分岐エンド概要</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">📖 概要</h3>
@@ -1641,7 +1651,7 @@ const archDetail = {
     text: '小説形式の原作を15話に分割。ep01.md～ep15.md形式。各話は複数場面で構成。186場面総計。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/01-manuscript-structure.jpg" alt="台本構造" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/01-manuscript-structure.jpg" alt="台本構造" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】マークダウン形式の原作構成（各話11～15場面）</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">📄 仕様</h3>
@@ -1676,7 +1686,7 @@ const archDetail = {
     text: 'キャラクター設定書、ムードボード、コンセプトアート。世界観デザイン、カラーパレット、質感設定。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/02-character-mood.jpg" alt="キャラクター設定" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/02-character-mood.jpg" alt="キャラクター設定" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【ビジュアル】キャラクター設定書 + ムードボード</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🎨 含まれる要素</h3>
@@ -1701,7 +1711,7 @@ const archDetail = {
     text: 'KitBash3D Future Slums 2 / Dark Fantasy 素材。参照BGM。Suno AI で OP・SE 生成。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/03-suno-pipeline.jpg" alt="Suno AI パイプライン" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/03-suno-pipeline.jpg" alt="Suno AI パイプライン" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】Suno AI OP・SE 生成パイプライン</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">3D 素材</h3>
@@ -1745,11 +1755,11 @@ const archDetail = {
     text: 'ElevenLabsのカイ・リーン音声ID登録済。言語設定：multilingual、モデル：eleven_v3。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/04-elevenlabs-voices.jpg" alt="ElevenLabs音声設定" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/04-elevenlabs-voices.jpg" alt="ElevenLabs音声設定" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】ElevenLabs カイ・リーン音声プロファイル設定</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/04-elevenlabs-voices.jpg" alt="ElevenLabs音声設定" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/04-elevenlabs-voices.jpg" alt="ElevenLabs音声設定" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】ElevenLabs カイ・リーン音声プロファイル設定</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🎤 登録済み音声</h3>
@@ -1781,11 +1791,11 @@ const archDetail = {
     text: '9体の立ち絵と複数表情差分を生成。832x1216 PNG形式。reForge waiNSFWIllustrious。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/05-stable-diffusion-chars.jpg" alt="キャラクター生成" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/05-stable-diffusion-chars.jpg" alt="キャラクター生成" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【キャプチャ】Stable Diffusion 9体キャラクター立ち絵</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/05-stable-diffusion-chars.jpg" alt="キャラクター生成" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/05-stable-diffusion-chars.jpg" alt="キャラクター生成" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【キャプチャ】Stable Diffusion 9体キャラクター立ち絵</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🎨 生成設定</h3>
@@ -1819,11 +1829,11 @@ txt2img → rembg (isnet-anime) → binary_fill_holes<br/>
     text: '16枚の360°等矩形パノラマをレンダリング。3072x1536。Future Slums/Dark Fantasy。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/06-blender-panorama.jpg" alt="パノラマレンダリング" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/06-blender-panorama.jpg" alt="パノラマレンダリング" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【ビジュアル】Blender Cycles 360°等矩形パノラマレンダリング</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/06-blender-panorama.jpg" alt="パノラマレンダリング" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/06-blender-panorama.jpg" alt="パノラマレンダリング" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【ビジュアル】Blender Cycles 360°等矩形パノラマレンダリング</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🔧 レンダリング設定</h3>
@@ -1857,11 +1867,11 @@ txt2img → rembg (isnet-anime) → binary_fill_holes<br/>
     text: '118行のセリフを自動音声合成。カイ67行、リーン51行。キャラ毎にVoice ID指定。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/07-elevenlabs-tts.jpg" alt="TTS処理" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/07-elevenlabs-tts.jpg" alt="TTS処理" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】ElevenLabs TTS 音声合成パイプライン</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/07-elevenlabs-tts.jpg" alt="TTS処理" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/07-elevenlabs-tts.jpg" alt="TTS処理" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】ElevenLabs TTS 音声合成パイプライン</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🎤 音声設定</h3>
@@ -1892,11 +1902,11 @@ keyOf = (who + '|' + text) → 31進 int32<br/>
     text: '背景最適化、透過抽出（rembg），inpaint表情差分、色調補正。Python PIL/NumPy。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/08-post-processing.jpg" alt="ポストプロセス" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/08-post-processing.jpg" alt="ポストプロセス" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【ビジュアル】背景抽出・透過処理ワークフロー</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/08-post-processing.jpg" alt="ポストプロセス" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/08-post-processing.jpg" alt="ポストプロセス" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【ビジュアル】背景抽出・透過処理ワークフロー</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🔧 処理ステップ</h3>
@@ -1922,11 +1932,11 @@ keyOf = (who + '|' + text) → 31進 int32<br/>
     text: '立ち絵・背景・ボイスを assets/ ディレクトリに整理。ファイル名ハッシュ一致確保。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/09-assets-structure.jpg" alt="アセット構成" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/09-assets-structure.jpg" alt="アセット構成" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】assets/ ディレクトリ構成と素材統合</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/09-assets-structure.jpg" alt="アセット構成" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/09-assets-structure.jpg" alt="アセット構成" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】assets/ ディレクトリ構成と素材統合</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">📂 ディレクトリ構造</h3>
@@ -1955,11 +1965,11 @@ assets/seikai/<br/>
     text: '台本をJavaScriptビート型に変換。状態管理コード生成。seikai-ep{1..15}.js出力。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/10-script-pipeline.jpg" alt="スクリプト処理" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/10-script-pipeline.jpg" alt="スクリプト処理" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】原作 MD → JavaScript ビート型変換パイプライン</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/10-script-pipeline.jpg" alt="スクリプト処理" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/10-script-pipeline.jpg" alt="スクリプト処理" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】原作 MD → JavaScript ビート型変換パイプライン</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🔄 脚色プロセス</h3>
@@ -2010,11 +2020,11 @@ assets/seikai/<br/>
     text: 'Playwrightで全分岐を自動検証（200+シナリオ）。構文チェック、エラー検出。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/11-playwright-qa.jpg" alt="テスト実行" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/11-playwright-qa.jpg" alt="テスト実行" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【キャプチャ】Playwright QA テスト実行結果</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/11-playwright-qa.jpg" alt="テスト実行" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/11-playwright-qa.jpg" alt="テスト実行" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【キャプチャ】Playwright QA テスト実行結果</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">✅ テスト内容</h3>
@@ -2043,11 +2053,11 @@ assets/seikai/<br/>
     text: 'Vanilla JavaScriptの状態機。UI制御、セーブロード、分岐マージ、ビート処理。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/12-game-engine-ui.jpg" alt="ゲームUI" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/12-game-engine-ui.jpg" alt="ゲームUI" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【スクリーンショット】ゲームエンジン UI パネル群</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/12-game-engine-ui.jpg" alt="ゲームUI" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/12-game-engine-ui.jpg" alt="ゲームUI" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【スクリーンショット】ゲームエンジン UI パネル群</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🎮 エンジン構成</h3>
@@ -2080,11 +2090,11 @@ assets/seikai/<br/>
     text: 'three.js 0.161で360°パノラマ表示。クロスフェード、ドリフト、ジャイロ対応。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/13-webgl-panorama.jpg" alt="360°表示" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/13-webgl-panorama.jpg" alt="360°表示" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【スクリーンショット】three.js WebGL パノラマ表示</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/13-webgl-panorama.jpg" alt="360°表示" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/13-webgl-panorama.jpg" alt="360°表示" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【スクリーンショット】three.js WebGL パノラマ表示</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🎨 3D 実装</h3>
@@ -2113,11 +2123,11 @@ assets/seikai/<br/>
     text: 'WebAudio API。BGM 10曲、SE複数、ボイス再生の混音制御・音量バランス。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/14-audio-mixer.jpg" alt="オーディオ" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/14-audio-mixer.jpg" alt="オーディオ" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】WebAudio API トラック構成・ミキサー</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/14-audio-mixer.jpg" alt="オーディオ" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/14-audio-mixer.jpg" alt="オーディオ" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】WebAudio API トラック構成・ミキサー</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🎵 トラック構成</h3>
@@ -2150,11 +2160,11 @@ assets/seikai/<br/>
     text: 'ゲーム全機能の統合。UI、セーブロード、設定パネル、バックログ管理。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/15-game-ui-system.jpg" alt="統合UI" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/15-game-ui-system.jpg" alt="統合UI" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【スクリーンショット】ゲーム統合 UI パネル</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/15-game-ui-system.jpg" alt="統合UI" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/15-game-ui-system.jpg" alt="統合UI" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【スクリーンショット】ゲーム統合 UI パネル</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🎛️ UI パネル</h3>
@@ -2186,11 +2196,11 @@ assets/seikai/<br/>
     text: '完全なHTML5アプリケーション。100%クライアント側で動作。160MB素材完全内包。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/16-browser-output.jpg" alt="ブラウザ実行" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/16-browser-output.jpg" alt="ブラウザ実行" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【スクリーンショット】HTML5 ブラウザ実行画面</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/16-browser-output.jpg" alt="ブラウザ実行" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/16-browser-output.jpg" alt="ブラウザ実行" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【スクリーンショット】HTML5 ブラウザ実行画面</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">📦 デリバリー形式</h3>
@@ -2222,11 +2232,11 @@ assets/seikai/<br/>
     text: '無料CDN配信。git push で自動反映（30秒）。世界中エッジから高速配信。',
     detail: `
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/17-github-pages.jpg" alt="GitHub Pages" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/17-github-pages.jpg" alt="GitHub Pages" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】GitHub Pages デプロイメント・CDN 構成</p>
       </div>
       <div style="margin-bottom:24px;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.3)">
-        <img src="assets/seikai/guide/17-github-pages.jpg" alt="GitHub Pages" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
+        <img class="guide-image" src="assets/seikai/guide/17-github-pages.jpg" alt="GitHub Pages" style="width:100%;height:auto;display:block;background:rgba(107,163,255,.1)">
         <p style="font-size:12px;color:var(--dim);margin:12px;margin-bottom:8px">【図】GitHub Pages デプロイメント・CDN 構成</p>
       </div>
       <h3 style="color:var(--accent1);margin-top:16px;margin-bottom:8px">🚀 デプロイメント</h3>
@@ -2315,6 +2325,35 @@ document.getElementById('closeModal').addEventListener('click', function(){
 document.getElementById('detailModal').addEventListener('click', function(e){
   if(e.target === this){
     this.classList.remove('show');
+  }
+});
+
+// ライトボックス機能
+const lightbox = document.getElementById('imageLightbox');
+const lightboxImage = document.getElementById('lightboxImage');
+const closeLightbox = document.getElementById('closeLightbox');
+
+document.addEventListener('click', function(e){
+  if(e.target.classList.contains('guide-image')){
+    lightboxImage.src = e.target.src;
+    lightboxImage.alt = e.target.alt;
+    lightbox.classList.add('show');
+  }
+});
+
+closeLightbox.addEventListener('click', function(){
+  lightbox.classList.remove('show');
+});
+
+lightbox.addEventListener('click', function(e){
+  if(e.target === this){
+    this.classList.remove('show');
+  }
+});
+
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape' && lightbox.classList.contains('show')){
+    lightbox.classList.remove('show');
   }
 });
 
