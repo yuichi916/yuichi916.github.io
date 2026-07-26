@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>「正解の外側」サーガ 開発技術ガイド — エンジニア向け構築ガイド</title>
+<meta name="description" content="シンギュラリティSFサウンドノベル『正解の外側』の開発フロー・技術スタック・実装手法を図解。">
+<meta name="keywords" content="開発技術,サウンドノベルエンジン,StableDiffusion,ElevenLabs,Blender,WebGL,ゲーム開発">
+<link rel="canonical" href="https://yuichi916.github.io/seikai-tech-guide.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="正解の外側 開発技術ガイド">
+<meta property="og:url" content="https://yuichi916.github.io/seikai-tech-guide.html">
+<style>
+:root{
+  --bg:#05070d; --bg2:#0a0e1a; --ink:#d8dce8; --dim:#8a90a5;
+  --gold:#ffd24a; --gold2:#ff9a4a; --line:rgba(255,210,74,.25);
+  --card:#0d1220; --edge:rgba(150,170,220,.14);
+  --accent1:#6ba3ff; --accent2:#ff6b8a; --accent3:#4dd9ff;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:"Yu Mincho","Hiragino Mincho ProN","Noto Serif JP",serif;line-height:1.8;overflow-x:hidden}
+a{color:var(--gold);text-decoration:none;transition:.3s}
+a:hover{color:var(--gold2)}
+h1,h2,h3{letter-spacing:.08em}
+
+/* ===== 星空背景 ===== */
+#sky{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 120% 80% at 50% -10%, #101a33 0%, #05070d 55%, #030409 100%)}
+#sky i{position:absolute;width:2px;height:2px;border-radius:50%;background:#cfe0ff;opacity:.6;animation:tw 4s ease-in-out infinite}
+@keyframes tw{0%,100%{opacity:.15}50%{opacity:.7}}
+main{position:relative;z-index:1}
+
+/* ===== HERO ===== */
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:48px 20px;position:relative}
+.hero .eye{letter-spacing:.5em;font-size:12px;color:var(--dim);margin-bottom:26px}
+.hero h1{font-size:clamp(32px,6.5vw,56px);font-weight:600;letter-spacing:.12em;
+  background:linear-gradient(180deg,#6ba3ff 20%, #4dd9ff 50%, #ffd24a 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .sub{font-size:clamp(14px,2.2vw,18px);color:var(--dim);margin-top:12px;letter-spacing:.06em}
+.hero .desc{margin-top:48px;max-width:700px;font-size:15px;color:var(--ink);line-height:1.9}
+.hero .desc b{color:var(--accent1)}
+.hero .cta{margin-top:42px}
+.btn{display:inline-block;padding:14px 34px;border:1px solid var(--line);border-radius:2px;color:var(--ink);
+  letter-spacing:.2em;font-size:14px;background:rgba(255,210,74,.05);transition:.3s;font-family:inherit;cursor:pointer}
+.btn:hover{background:rgba(255,210,74,.14);border-color:var(--gold);color:#fff}
+
+/* ===== セクション共通 ===== */
+section{max-width:1200px;margin:0 auto;padding:100px 22px}
+.sec-eye{color:var(--gold);letter-spacing:.5em;font-size:11px;text-align:center;text-transform:uppercase}
+.sec-h{font-size:clamp(28px,5vw,42px);text-align:center;letter-spacing:.12em;margin:16px 0 24px;color:#fff}
+.sec-lead{text-align:center;color:var(--dim);font-size:14px;letter-spacing:.06em;max-width:760px;margin:0 auto 60px}
+
+/* ===== フロー図 ===== */
+.flow-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px;margin-bottom:60px}
+.flow-step{background:linear-gradient(135deg, rgba(107,163,255,.12), rgba(77,217,255,.08));
+  border:1px solid var(--edge);border-radius:8px;padding:28px 24px;text-align:center;
+  transition:.4s;cursor:pointer;position:relative}
+.flow-step:hover{transform:translateY(-8px);border-color:var(--accent1);
+  box-shadow:0 12px 40px rgba(107,163,255,.15)}
+.flow-step .num{font-size:28px;font-weight:600;color:var(--accent1);margin-bottom:8px}
+.flow-step .title{font-size:16px;font-weight:600;color:#fff;margin-bottom:12px;letter-spacing:.06em}
+.flow-step .tools{font-size:13px;color:var(--dim);line-height:1.6}
+.flow-step .tools strong{color:var(--accent3);display:block;margin-top:8px}
+
+/* ===== パイプラインダイアグラム ===== */
+.pipeline{position:relative;margin:60px 0;padding:40px 0}
+.pipeline svg{display:block;margin:0 auto;width:100%;height:auto;max-width:900px}
+
+/* ===== 詳細セクション ===== */
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:24px;margin-bottom:60px}
+.detail-card{background:linear-gradient(135deg, rgba(15,24,48,.8), rgba(20,35,70,.6));
+  border:1px solid var(--edge);border-radius:8px;padding:32px;
+  position:relative;overflow:hidden}
+.detail-card::before{content:'';position:absolute;top:-50%;right:-50%;width:300px;height:300px;
+  background:radial-gradient(circle, rgba(107,163,255,.1), transparent);border-radius:50%;pointer-events:none}
+.detail-card > *{position:relative;z-index:1}
+.detail-card .icon{font-size:28px;margin-bottom:12px}
+.detail-card h3{font-size:18px;color:#fff;margin-bottom:12px;letter-spacing:.08em}
+.detail-card .tech-list{list-style:none;margin:16px 0;font-size:13px;color:var(--dim)}
+.detail-card .tech-list li{padding:6px 0;padding-left:20px;position:relative}
+.detail-card .tech-list li::before{content:'▸';position:absolute;left:0;color:var(--accent1)}
+.detail-card .tech-list li strong{color:var(--accent3);font-weight:600}
+
+/* ===== スタック図 ===== */
+.tech-stack{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:20px;margin:50px 0}
+.stack-box{background:rgba(107,163,255,.08);border:1.5px solid var(--accent1);border-radius:6px;padding:20px;
+  text-align:center;transition:.3s}
+.stack-box:hover{background:rgba(107,163,255,.16);transform:scale(1.05)}
+.stack-box .layer{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.3em;margin-bottom:10px}
+.stack-box .tech{font-size:15px;font-weight:600;color:#fff}
+
+/* ===== ケーススタディ ===== */
+.case-example{background:linear-gradient(135deg, rgba(107,163,255,.15), rgba(77,217,255,.08));
+  border:1px solid var(--accent1);border-radius:8px;padding:40px;margin:40px 0;
+  position:relative}
+.case-example h3{color:var(--accent1);font-size:18px;margin-bottom:16px;letter-spacing:.08em}
+.case-example .code-block{background:rgba(0,0,0,.4);border-left:3px solid var(--accent3);
+  padding:16px;margin:20px 0;border-radius:4px;overflow-x:auto;font-size:12px;
+  font-family:"Consolas","Monaco","Courier New",monospace;color:#8dd4ff;line-height:1.5}
+.case-example p{margin:12px 0;font-size:14px}
+.case-example p code{background:rgba(107,163,255,.2);padding:2px 6px;border-radius:3px;
+  color:var(--accent3);font-size:13px}
+
+/* ===== CTA ===== */
+.cta-section{text-align:center;padding:80px 20px}
+.cta-section h2{margin-bottom:24px}
+.cta-section p{color:var(--dim);margin-bottom:32px;font-size:15px}
+.cta-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.btn.primary{background:linear-gradient(135deg, rgba(107,163,255,.3), rgba(77,217,255,.2));
+  border-color:var(--accent1);color:#fff}
+.btn.primary:hover{background:linear-gradient(135deg, rgba(107,163,255,.45), rgba(77,217,255,.35))}
+.btn.secondary{background:rgba(255,210,74,.08);border-color:var(--gold)}
+.btn.secondary:hover{background:rgba(255,210,74,.16)}
+
+/* ===== フッター ===== */
+footer{background:var(--bg2);border-top:1px solid var(--edge);padding:40px 20px;text-align:center;margin-top:80px;color:var(--dim);font-size:13px}
+footer a{color:var(--gold)}
+.back-link{display:inline-block;padding:10px 20px;border:1px solid var(--line);border-radius:4px;
+  margin-bottom:20px;transition:.3s}
+.back-link:hover{border-color:var(--gold);color:var(--gold2)}
+
+/* ===== レスポンシブ ===== */
+@media (max-width: 768px){
+  section{padding:60px 16px}
+  .flow-grid{grid-template-columns:1fr}
+  .detail-grid{grid-template-columns:1fr}
+  .tech-stack{grid-template-columns:repeat(2, 1fr)}
+  .case-example{padding:24px}
+}
+</style>
+</head>
+<body>
+<div id="sky">
+  <i style="left:15%;top:20%;animation-delay:-0.5s"></i>
+  <i style="left:75%;top:15%;animation-delay:-1.2s"></i>
+  <i style="left:85%;top:40%;animation-delay:-1.8s"></i>
+  <i style="left:10%;top:60%;animation-delay:-2.3s"></i>
+  <i style="left:70%;top:65%;animation-delay:-3.1s"></i>
+</div>
+
+<main>
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="eye">SOFTWARE ENGINEERING GUIDE</div>
+  <h1>開発技術ガイド</h1>
+  <p class="sub">シンギュラリティSFサウンドノベル「正解の外側」の構築全体像</p>
+  <div class="desc">
+    <p><b>AIが世界を支配した後の世界</b>を描くサウンドノベル<b>CASE 01</b>の開発技術すべてを図解。</p>
+    <p>プロットから最終デプロイまで、<b>15話の商用品質エンジン</b>を支える開発フロー・技術スタック・実装パターンを、エンジニア向けに完全解剖。</p>
+  </div>
+  <div class="cta">
+    <button class="btn primary" onclick="document.querySelector('#flow').scrollIntoView({behavior:'smooth'})">
+      開発フロー図を見る
+    </button>
+  </div>
+</section>
+
+<!-- ===== 開発フロー ===== -->
+<section id="flow">
+  <div class="sec-eye">DEVELOPMENT PIPELINE</div>
+  <h2 class="sec-h">開発フロー全体</h2>
+  <p class="sec-lead">プロット企画から最終デプロイまで、8つのステップで完全な商用品質サウンドノベルを完成。</p>
+
+  <div class="flow-grid">
+    <div class="flow-step">
+      <div class="num">01</div>
+      <div class="title">プロット構成</div>
+      <div class="tools">
+        原作の小説を<br>脚色・台本化<br><strong>Node.js / JavaScript</strong>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="num">02</div>
+      <div class="title">キャラ生成</div>
+      <div class="tools">
+        SD + Blenderで<br>立ち絵・表情差分<br><strong>Stable Diffusion / Blender</strong>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="num">03</div>
+      <div class="title">音声合成</div>
+      <div class="tools">
+        テキストからセリフの<br>音声生成（自動ハッシュ化）<br><strong>ElevenLabs API</strong>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="num">04</div>
+      <div class="title">背景・3D</div>
+      <div class="tools">
+        Blenderから360°パノラマを<br>レンダリング・最適化<br><strong>Blender / Python</strong>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="num">05</div>
+      <div class="title">ゲーム実装</div>
+      <div class="tools">
+        ミニゲーム・探索・<br>分岐システム実装<br><strong>Vanilla JavaScript</strong>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="num">06</div>
+      <div class="title">BGM・SE</div>
+      <div class="tools">
+        楽曲・効果音の<br>統合・マスタリング<br><strong>WebAudio API</strong>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="num">07</div>
+      <div class="title">QA・検証</div>
+      <div class="tools">
+        全話の脚本検証、<br>エラーチェック<br><strong>Playwright / Node.js</strong>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="num">08</div>
+      <div class="title">デプロイ</div>
+      <div class="tools">
+        GitHub Pagesへの<br>自動発行と最適化<br><strong>GitHub / Git</strong>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 詳細セクション ===== -->
+<section id="details">
+  <div class="sec-eye">TECHNICAL DETAILS</div>
+  <h2 class="sec-h">各ステップの詳細</h2>
+
+  <div class="detail-grid">
+    <!-- プロット -->
+    <div class="detail-card">
+      <div class="icon">📖</div>
+      <h3>プロット構成</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        原作15話をサウンドノベル用に脚色し、11場面単位で台本化。
+      </p>
+      <ul class="tech-list">
+        <li><strong>形式:</strong> JavaScript オブジェクト配列</li>
+        <li><strong>構造:</strong> ビート型 (beat, choose, game, explore)</li>
+        <li><strong>スクリプト:</strong> seikai-ep{1..15}.js</li>
+        <li><strong>手法:</strong> 並列サブエージェント脚色</li>
+        <li><strong>検証:</strong> node --check 構文・選択肢合流</li>
+      </ul>
+    </div>
+
+    <!-- キャラ生成 -->
+    <div class="detail-card">
+      <div class="icon">🎨</div>
+      <h3>キャラクター生成</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        Stable Diffusion + Blender + 手動修正で、立ち絵・表情差分を完成。
+      </p>
+      <ul class="tech-list">
+        <li><strong>生成:</strong> Stable Diffusion (Illustrious)</li>
+        <li><strong>抽出:</strong> rembg (isnet-anime 透過)</li>
+        <li><strong>修正:</strong> Blender inpaint 表情差分</li>
+        <li><strong>出力:</strong> PNG 背景透過 (832x1216)</li>
+        <li><strong>数:</strong> 立ち絵9体 + 表情差分15種</li>
+      </ul>
+    </div>
+
+    <!-- 音声 -->
+    <div class="detail-card">
+      <div class="icon">🎤</div>
+      <h3>音声合成</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        ElevenLabs TTS でセリフを自動生成。ハッシュ一致で再再生成を回避。
+      </p>
+      <ul class="tech-list">
+        <li><strong>API:</strong> ElevenLabs eleven_v3/multilingual</li>
+        <li><strong>データ:</strong> カイ67行 / リーン51行</li>
+        <li><strong>ハッシュ:</strong> 31進int32 (who+'|'+text)</li>
+        <li><strong>ファイル:</strong> v&lt;hash&gt;.mp3 自動命名</li>
+        <li><strong>技術:</strong> Python requests + UTF-8</li>
+      </ul>
+    </div>
+
+    <!-- 背景・3D -->
+    <div class="detail-card">
+      <div class="icon">🌍</div>
+      <h3>背景・3D パノラマ</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        Blender から 360° 等矩形パノラマをレンダリング。three.js で WebGL 表示。
+      </p>
+      <ul class="tech-list">
+        <li><strong>素材:</strong> KitBash3D Future Slums</li>
+        <li><strong>レンダ:</strong> Cycles GPU OPTIX (3072x1536)</li>
+        <li><strong>表示:</strong> three.js SphereGeometry BackSide</li>
+        <li><strong>機能:</strong> 自動ドリフト + ドラッグ回転 + ジャイロ</li>
+        <li><strong>最適化:</strong> WebGL フォールバック + クロスフェード</li>
+      </ul>
+    </div>
+
+    <!-- ゲーム -->
+    <div class="detail-card">
+      <div class="icon">🎮</div>
+      <h3>ゲーム・インタラクション</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        記憶ゲーム (lock)、線追跡 (path) 、3D 探索など複数モード。
+      </p>
+      <ul class="tech-list">
+        <li><strong>ゲーム種:</strong> lock (グリフ9マス) / path (線追跡)</li>
+        <li><strong>探索:</strong> 360° 見回し + ホットスポット検知</li>
+        <li><strong>選択肢:</strong> 時限選択・分岐マージ・断章解禁</li>
+        <li><strong>エンジン:</strong> Vanilla JavaScript (依存ゼロ)</li>
+        <li><strong>状態管理:</strong> localStorage (セーブ6スロット)</li>
+      </ul>
+    </div>
+
+    <!-- 音楽・SE -->
+    <div class="detail-card">
+      <div class="icon">🎵</div>
+      <h3>音楽・サウンドデザイン</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        10 曲の BGM + 環境音 + 効果音を WebAudio で統合。
+      </p>
+      <ul class="tech-list">
+        <li><strong>BGM:</strong> 君の音。vol.7 (シリアス・ダーク)</li>
+        <li><strong>トラック:</strong> ima/anohi/hibi/yuki/haikyo/ed 他</li>
+        <li><strong>SE:</strong> heart / boom / page / chime 等</li>
+        <li><strong>環境音:</strong> 蛍光灯フリッカー / 配管水音</li>
+        <li><strong>API:</strong> Web Audio Context + Fader</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 技術スタック ===== -->
+<section id="stack">
+  <div class="sec-eye">TECH STACK</div>
+  <h2 class="sec-h">技術スタック</h2>
+  <p class="sec-lead">フロントエンドから AI 生成、3D レンダリング、デプロイまでの全技術層。</p>
+
+  <div class="tech-stack">
+    <div class="stack-box">
+      <div class="layer">Frontend</div>
+      <div class="tech">Vanilla JS<br>three.js 0.161<br>Canvas / SVG</div>
+    </div>
+    <div class="stack-box">
+      <div class="layer">3D / Graphics</div>
+      <div class="tech">Blender 5.1.1<br>Cycles GPU OPTIX<br>WebGL</div>
+    </div>
+    <div class="stack-box">
+      <div class="layer">AI / Generation</div>
+      <div class="tech">Stable Diffusion<br>ElevenLabs TTS<br>reForge WebUI</div>
+    </div>
+    <div class="stack-box">
+      <div class="layer">Processing</div>
+      <div class="tech">Python 3.11+<br>NumPy / SciPy<br>PIL / rembg</div>
+    </div>
+    <div class="stack-box">
+      <div class="layer">Testing</div>
+      <div class="tech">Playwright<br>Node.js assert<br>Headless Chrome</div>
+    </div>
+    <div class="stack-box">
+      <div class="layer">Deployment</div>
+      <div class="tech">GitHub Pages<br>Git / GitHub CLI<br>Actions (optional)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== ケーススタディ ===== -->
+<section id="case">
+  <div class="sec-eye">CASE STUDY</div>
+  <h2 class="sec-h">ケーススタディ: Case 1 ゲーム部分</h2>
+
+  <div class="case-example">
+    <h3>📌 記憶ゲーム (LOCK TYPE)</h3>
+    <p>アビスの管理システム「ABYSS-OS」の認証グリフを 9 マスで記憶。下記は実装概要。</p>
+    <div class="code-block">
+// Beat 構造
+{
+  game: {
+    type: 'lock',
+    win: [...beatWin],    // クリア時
+    lose: [...beatLose],  // 失敗時
+    skip: [...beatSkip]   // スキップ時
+  }
+}
+
+// UI
+.mgphase: "見て、覚えろ"     // 記憶フェーズ
+          → "同じ順に、なぞれ"  // 入力フェーズ
+.mgdots: 進捗表示
+グリフ発光: 620ms + scale1.1
+難度進化: ep1=4n2.0s → ep5=5n1.3s×2R
+    </div>
+    <p>
+      <strong>技術ポイント:</strong><br>
+      • ゲーム状態を <code>st.game</code> に永続<br>
+      • セーブ/ロード時に状態復元<br>
+      • スキップで自動パス (ユーザー操作なし)<br>
+      • E2E: Playwright で click/keydown をシミュレート
+    </p>
+  </div>
+
+  <div class="case-example">
+    <h3>📌 線追跡ゲーム (PATH TYPE)</h3>
+    <p>廃液排出路で「光の線 (道筋)」をなぞるゲーム。カイ固有の能力を体験。</p>
+    <div class="code-block">
+{
+  game: {
+    type: 'path',
+    mode: 'normal' | 'void',  // 線が見える/見えない
+    rounds: 1 | 2,             // ラウンド数
+    shuffle: 1,                // ランダム散布
+  }
+}
+
+// グリフ群 config
+.mgn = { w: 50px, h: 21px }  // 太字サイズ
+表示: shuffle=1 で min距離20の再試配置
+端拡大検知: #hs ArrowKey で方向キー分岐
+    </div>
+    <p>
+      <strong>技術ポイント:</strong><br>
+      • 放物線パスを Canvas drawImage で描画<br>
+      • ドラッグで path tracking (mouse/touch 両対応)<br>
+      • 時間制限: timer が 0 で自動判定<br>
+      • mode='void': 時間切れで線が消えたまま (エモーショナル演出)
+    </p>
+  </div>
+
+  <div class="case-example">
+    <h3>📌 3D 探索 (EXPLORE TYPE)</h3>
+    <p>360° パノラマ内でホットスポットを見つけ、「断章」を解禁。</p>
+    <div class="code-block">
+{
+  explore: {
+    id: 'wall_sora',           // 断章キー
+    label: '天の穴',            // ラベル
+    yaw: 142,                  // 水平角度
+    pitch: -35                 // 垂直角度
+  }
+}
+
+// ホットスポット検知
+const marker = BG3D.project(yaw, pitch)  // equirect → スクリーン投影
+if (inViewport) showMarker('◆')
+else showArrow('◀')  // 方向インジケータ
+    </div>
+    <p>
+      <strong>技術ポイント:</strong><br>
+      • BG3D.setFree(true) で 360° 自由回転を有効化<br>
+      • getBoundingClientRect で UI 避け衝突判定<br>
+      • 発見 → showLore → st.lore に永続化<br>
+      • メニュー「断章」で図鑑表示 (未取得: ???)</p>
+  </div>
+</section>
+
+<!-- ===== 実装レシピ ===== -->
+<section id="recipes">
+  <div class="sec-eye">IMPLEMENTATION RECIPES</div>
+  <h2 class="sec-h">実装パターン集</h2>
+
+  <div class="detail-grid">
+    <div class="detail-card">
+      <div class="icon">💾</div>
+      <h3>セーブ・ロードシステム</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        6 スロット + 自動セーブ。localStorage で復元。
+      </p>
+      <ul class="tech-list">
+        <li>状態: <code>st = {ep, scene, choices, lore, map, ...}</code></li>
+        <li>キー: <code>seikai_slot_1..6</code></li>
+        <li>メタ: タイムスタンプ・タイトル保存</li>
+        <li>復元時: lore/map が無いと消えるバグ対策済み</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="icon">🎬</div>
+      <h3>シーン遷移・フェード</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        背景 Ken Burns + 立ち絵フェード。</p>
+      <ul class="tech-list">
+        <li>背景: CSS animation 6s ease</li>
+        <li>立ち絵: opacity 0.4s + transform 回転差分</li>
+        <li>fx: flash (真実) / heart (心拍) / shake (衝撃)</li>
+        <li>非同期制御: async/await で順序保証</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="icon">🔀</div>
+      <h3>分岐・マージシステム</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        選択肢で分岐 → 必ず合流 (物語は分岐しない)。
+      </p>
+      <ul class="tech-list">
+        <li>構造: <code>choose: [{text, set?, reply}]</code></li>
+        <li>フラグ: <code>st.choices['flag'] = idx</code></li>
+        <li>マージ: 分岐後の beats で必ず結合</li>
+        <li>条件: <code>when: 'flag'</code> で条件分岐</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="icon">🔍</div>
+      <h3>バックログ・スキップ</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        全テキスト記録 + 自動/手動スキップ対応。</p>
+      <ul class="tech-list">
+        <li>ログ: ビート毎にテキスト記録</li>
+        <li>表示: モーダル #backlog (スクロール可)</li>
+        <li>スキップ中: 画面クリックで停止</li>
+        <li>ゲーム中: スキップ不可 (手動操作必須)</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="icon">🌐</div>
+      <h3>360° WebGL 背景</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        three.js で等矩形パノラマをスフィアマッピング。</p>
+      <ul class="tech-list">
+        <li>ジオメトリ: SphereGeometry(100, 64, 64)</li>
+        <li>マテリアル: BackSide で内側にテクスチャ</li>
+        <li>クロスフェード: 2 球 blend weight で実装</li>
+        <li>FOV 適応: aspect 比に応じて動的変更</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="icon">📊</div>
+      <h3>検証・QA 手法</h3>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+        Playwright による自動 E2E 検証。</p>
+      <ul class="tech-list">
+        <li>ナビゲーション: scrollIntoView + waitForLoadState</li>
+        <li>ゲーム: 選択肢クリック → assert 成功ビート</li>
+        <li>検証: page.errors.length === 0</li>
+        <li>カバレッジ: 全15話 × 全分岐 = 200+ シナリオ</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 開発ワークフロー ===== -->
+<section id="workflow">
+  <div class="sec-eye">WORKFLOW</div>
+  <h2 class="sec-h">開発ワークフロー</h2>
+
+  <div style="max-width:900px;margin:0 auto">
+    <div class="detail-card" style="margin-bottom:24px">
+      <h3 style="color:var(--accent1);margin-bottom:16px">🔄 脚色ループ</h3>
+      <p style="font-size:14px;margin-bottom:12px">
+        各話は<strong>並列サブエージェント</strong>で脚色。原作 Markdown から JavaScript 台本へ。
+      </p>
+      <div class="code-block">
+# 入力
+ep0N.md (原作)
+
+# スクリプト
+Agent (general-purpose) × 5
+- 各エージェント: 3話担当
+- 制約: 誤記禁止・既存キー再利用・核心ネタバレ禁止
+
+# 出力
+seikai-ep{1..15}.js (台本 186 場面)
+
+# QA
+node --check 構文検証 → git commit
+      </div>
+    </div>
+
+    <div class="detail-card" style="margin-bottom:24px">
+      <h3 style="color:var(--accent1);margin-bottom:16px">🖼️ キャラ生成パイプライン</h3>
+      <p style="font-size:14px;margin-bottom:12px">
+        Stable Diffusion → rembg → 表情差分 inpaint → PNG 出力。
+      </p>
+      <div class="code-block">
+1. txt2img (SD Illustrious)
+   Prompt: "1girl, amazing quality, absurdres..."
+   cfg: 5.0, seed: random, steps: 32
+
+2. rembg isnet-anime
+   PNG 背景透過 (832x1216)
+
+3. img2img inpaint (表情差分)
+   Denoise: 0.52, inpaint_full_res
+   → smile/tears/angry 生成
+
+4. 手動 QC
+   montage で一括目視
+      </div>
+    </div>
+
+    <div class="detail-card">
+      <h3 style="color:var(--accent1);margin-bottom:16px">🎬 背景レンダリング</h3>
+      <p style="font-size:14px;margin-bottom:12px">
+        Blender Cycles → 360° 等矩形パノラマ → 後処理最適化。
+      </p>
+      <div class="code-block">
+1. Blender setup
+   Render: Cycles GPU OPTIX
+   Samples: 150, Time Limit: 240s
+   Image: 3072x1536
+
+2. Camera PANO
+   Type: EQUIRECTANGULAR
+   Rotation: 水平ロール = 建物帯基準
+
+3. Post-process
+   pano_haze.py    (霧フィル + 明度)
+   pano_roll.py    (輝度中央化)
+   pano_floor.py   (床暗転)
+
+4. Output
+   pano-{key}.jpg (WebGL マッピング)
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== チューニング・最適化 ===== -->
+<section id="tuning">
+  <div class="sec-eye">OPTIMIZATION NOTES</div>
+  <h2 class="sec-h">性能・品質チューニング</h2>
+
+  <div class="detail-grid">
+    <div class="detail-card">
+      <div class="icon">⚡</div>
+      <h3>Blender クラッシュ回避</h3>
+      <ul class="tech-list">
+        <li><strong>原因 1:</strong> FS2 メッシュの n-gon 法線エラー</li>
+        <li><strong>対策:</strong> Blender 5.1.1 を使用 (3.3.6 廃止)</li>
+        <li><strong>原因 2:</strong> pCloud デハイドレート + access violation</li>
+        <li><strong>対策:</strong> ローカル複製で開く</li>
+        <li><strong>メモリ:</strong> Cycles simplify + cluster KEEP=0.30</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="icon">🎨</div>
+      <h3>ビジュアル品質</h3>
+      <ul class="tech-list">
+        <li><strong>白飛び:</strong> exposure -0.6 + world 強度 0.04</li>
+        <li><strong>床:</strong> 暗い濡れ路面 (base 0.018, rough 0.72)</li>
+        <li><strong>天井:</strong> 配管密集で空洞を塞ぐ</li>
+        <li><strong>閉塞感:</strong> 建物を箱状配置 (半径 17)</li>
+        <li><strong>大気:</strong> パーティクル 560 + 火の粉 90</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="icon">📦</div>
+      <h3>ファイルサイズ最適化</h3>
+      <ul class="tech-list">
+        <li><strong>背景:</strong> JPG quality 92 (約 200-300KB/枚)</li>
+        <li><strong>立ち絵:</strong> PNG 背景透過 (約 150-250KB/枚)</li>
+        <li><strong>BGM:</strong> MP3 @ -26.6dB 統一 (3-6MB/曲)</li>
+        <li><strong>SE:</strong> WAV → MP3 圧縮</li>
+        <li><strong>総容量:</strong> 全素材 ~150MB</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="icon">🔊</div>
+      <h3>WebAudio 音量統一</h3>
+      <ul class="tech-list">
+        <li><strong>測定:</strong> ffprobe -show_entries で分析</li>
+        <li><strong>基準:</strong> BGM mean -26.6dB</li>
+        <li><strong>ボイス:</strong> ElevenLabs は自動 normalize</li>
+        <li><strong>SE:</strong> 振幅をマッチさせて統一感</li>
+        <li><strong>ユーザー:</strong> 設定で Master / BGM / Voice 個別調整</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="icon">📱</div>
+      <h3>モバイル対応</h3>
+      <ul class="tech-list">
+        <li><strong>縦画面:</strong> @media (max-aspect-ratio:3/4) で UI 縮小</li>
+        <li><strong>タップ:</strong> tap-highlight 透過 + touch-action manipulation</li>
+        <li><strong>ドラッグ:</strong> ポインタ移動量を判定して本文送り防止</li>
+        <li><strong>ジャイロ:</strong> deviceorientation で 360° 見回し</li>
+        <li><strong>セーフエリア:</strong> env(safe-area-inset-*) 対応</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="icon">🔐</div>
+      <h3>ハッシュ一致 (ボイス)</h3>
+      <ul class="tech-list">
+        <li><strong>問題:</strong> セリフ改変で既存ボイスが孤児化</li>
+        <li><strong>解決:</strong> keyOf(who+'|'+text) の 31 進 int32 で一意化</li>
+        <li><strong>検証:</strong> エンジン ⇔ 生成スクリプトのハッシュ一致確認</li>
+        <li><strong>安全装置:</strong> ボイス音声ライブラリ ID は変更禁止</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 本番チェックリスト ===== -->
+<section id="checklist">
+  <div class="sec-eye">PRODUCTION CHECKLIST</div>
+  <h2 class="sec-h">本番デプロイ チェックリスト</h2>
+
+  <div style="max-width:900px;margin:0 auto">
+    <div class="case-example">
+      <h3>✅ デプロイ前検証</h3>
+      <div class="code-block">
+# 構文検証
+node --check seikai.html  (インラインスクリプト)
+node --check seikai-ep*.js (全台本)
+
+# E2E テスト
+npx playwright test ep1-5-game.js
+✓ 選択肢・分岐・マージ
+✓ ゲーム成功・失敗・スキップ
+✓ セーブ・ロード往復
+✓ 3D 背景ロード
+✓ ボイス再生
+✓ pageerror: 0
+
+# ビジュアル QC
+python montage_all.py
+✓ 立ち絵レイアウト
+✓ 背景色調・明度
+✓ 選択肢表示位置
+✓ 縦画面モバイル
+
+# 本番前
+git status (コミット漏れなし)
+du -sh assets/ (容量確認)
+lighthouse seikai.html (Core Web Vitals)
+      </div>
+    </div>
+
+    <div class="case-example">
+      <h3>🚀 デプロイ手順</h3>
+      <div class="code-block">
+# 1. ローカル確認
+npm test
+
+# 2. Staging (GitHub Pages Preview)
+git push origin feature-branch
+(GitHub Actions で自動ビルド)
+
+# 3. 本番コミット
+git add seikai.html seikai-ep*.js assets/
+git commit -m "fix: ep15 ending condition + voice sync"
+git push origin main
+
+# 4. 配信確認
+curl https://yuichi916.github.io/seikai.html | grep -o "SEIKAI_SCRIPT"
+(レスポンス 200 + JS ロード確認)
+
+# 5. モニタリング (24h)
+- XSS/CSRF 攻撃ブロック確認
+- console.error の報告 (sentry.io 連携)
+- Google Analytics: ページロード時間
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section class="cta-section">
+  <h2>では、プレイしてみましょう。</h2>
+  <p>上記の技術すべてで作られたサウンドノベル「正解の外側 CASE 01」。<br>
+  全 15 話・分岐エンド・360° 背景・ボイス・ミニゲーム完装備。</p>
+  <div class="cta-btns">
+    <button class="btn primary" onclick="window.open('seikai.html')">
+      CASE 01 をプレイ →
+    </button>
+    <button class="btn secondary" onclick="window.open('seikai-saga.html')">
+      サーガ公式サイト ↗
+    </button>
+  </div>
+</section>
+
+<!-- ===== フッター ===== -->
+<footer>
+  <div class="back-link">
+    <a href="seikai-saga.html">← 公式サイトへ戻る</a>
+  </div>
+  <p>開発: kernel_yu |
+  <a href="https://github.com/yuichi916/yuichi916.github.io">GitHub Repository</a> |
+  <a href="https://twitter.com/ViewsEngineer">@ViewsEngineer</a></p>
+  <p style="font-size:12px;margin-top:16px;color:var(--dim)">
+    本ガイドはエンジニアの学習・参考用です。<br>
+    技術詳細は <code>C:\projects\yuichi916.github.io\docs\SEIKAI_STORY_CRAFT.md</code> を参照してください。
+  </p>
+</footer>
+</main>
+
+<script>
+// 星空エフェクト初期化
+function initStars(){
+  const sky = document.getElementById('sky');
+  for(let i=0; i<50; i++){
+    const star = document.createElement('i');
+    star.style.left = Math.random()*100 + '%';
+    star.style.top = Math.random()*100 + '%';
+    star.style.animationDelay = Math.random()*4 + 's';
+    sky.appendChild(star);
+  }
+}
+initStars();
+
+// スムーズスクロール
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const id = a.getAttribute('href');
+    document.querySelector(id)?.scrollIntoView({behavior:'smooth'});
+  });
+});
+
+// ボタンリップル効果
+document.querySelectorAll('.btn').forEach(btn => {
+  btn.addEventListener('click', function(e){
+    const rect = this.getBoundingClientRect();
+    const ripple = document.createElement('span');
+    ripple.style.cssText = `
+      position: absolute; border-radius: 50%;
+      background: rgba(255,255,255,.5);
+      width: 20px; height: 20px;
+      pointer-events: none;
+      animation: ripple-anim .6s ease-out;
+      left: ${e.clientX - rect.left}px;
+      top: ${e.clientY - rect.top}px;
+    `;
+    this.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
+  });
+});
+
+// アニメーション定義
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes ripple-anim {
+    to {
+      transform: scale(8);
+      opacity: 0;
+    }
+  }
+`;
+document.head.appendChild(style);
+</script>
+</body>
+</html>
