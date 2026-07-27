@@ -50,7 +50,24 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 #cbarT{top:0}#cbarB{bottom:0}
 #grain{display:none}  /* 動くノイズが暗部で黒ちらつきに見えるため撤去 */
 #gradeU{position:absolute;inset:0;z-index:9;pointer-events:none;mix-blend-mode:soft-light;background:linear-gradient(180deg,rgba(24,64,92,.85),rgba(10,30,52,.7));opacity:0}
-#gradeS{position:absolute;inset:0;z-index:9;pointer-events:none;mix-blend-mode:soft-light;background:linear-gradient(180deg,rgba(255,196,120,.75),rgba(255,150,80,.35));opacity:0}
+#gradeS{position:absolute;inset:0;z-index:9;pointer-events:none;mix-blend-mode:soft-light;background:linear-gradient(180deg,rgba(255,196,120,.55),rgba(255,150,80,.25));opacity:0}
+/* 空を青く: 上部に深い空色(surface/town cutで有効) */
+#skyblue{position:absolute;inset:0;z-index:9;pointer-events:none;opacity:0;mix-blend-mode:multiply;
+  background:linear-gradient(180deg,#5b9fe0 0%,#8cc0ec 26%,rgba(200,224,244,.4) 46%,transparent 60%)}
+#skyblue2{position:absolute;inset:0;z-index:10;pointer-events:none;opacity:0;mix-blend-mode:screen;
+  background:radial-gradient(ellipse at 72% 16%,rgba(255,240,200,.5),transparent 46%)}
+/* 管理者の球体(光りながら漂う=世界を統べる目) */
+#orb{position:absolute;z-index:11;pointer-events:none;opacity:0;width:64px;height:64px;border-radius:50%;
+  background:radial-gradient(circle at 42% 38%,#ffffff 0%,#eaf4ff 34%,#bcd8f4 62%,rgba(140,190,240,.2) 100%);
+  box-shadow:0 0 60px 18px rgba(200,230,255,.7),0 0 130px 44px rgba(150,200,255,.35)}
+#orb .ring{position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(200,230,255,.5)}
+#orb .ring2{position:absolute;inset:-30px;border-radius:50%;border:1px solid rgba(200,230,255,.22)}
+/* サビの光芒(神々しい放射) */
+#godray{position:absolute;inset:-20%;z-index:10;pointer-events:none;opacity:0;mix-blend-mode:screen;
+  background:repeating-conic-gradient(from 0deg at 72% 20%,rgba(255,246,214,0) 0deg,rgba(255,246,214,0) 4deg,rgba(255,246,214,.5) 5.5deg,rgba(255,246,214,0) 7deg)}
+/* 末尾サムネ挿入 */
+#thumb{position:absolute;inset:0;z-index:13;pointer-events:none;opacity:0;
+  background:url('assets/seikai/keyvisual.jpg') center/cover}
 /* 5層ストラータHUD(世界の全体感) */
 #strata{position:absolute;left:5%;top:50%;transform:translateY(-50%);z-index:12;opacity:0;pointer-events:none}
 #strata .slab{width:34px;height:22px;margin:5px 0;border:1px solid rgba(150,165,190,.5);color:#8fa0b8;
@@ -148,6 +165,9 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
   <div id="whip"></div>
   <div class="flash" id="flash"></div>
   <div id="gradeU"></div><div id="gradeS"></div>
+  <div id="skyblue"></div><div id="skyblue2"></div><div id="godray"></div>
+  <div id="orb"><div class="ring"></div><div class="ring2"></div></div>
+  <div id="thumb"></div>
   <div id="strata"><div class="slab">Ⅰ</div><div class="slab">Ⅱ</div><div class="slab">Ⅲ</div><div class="slab">Ⅳ</div><div class="slab">Ⅴ</div><div class="slb">STRATA</div></div>
   <div id="obsv"><div class="bk tl"></div><div class="bk tr"></div><div class="bk blb"></div><div class="bk brb"></div><div class="odot"></div><div class="olab">ADMINISTRATOR — OBSERVING</div></div>
   <div id="frag"><div class="fen">FRAGMENT — 断章</div><div class="fjp">光のない朝</div><div class="fln"></div></div>
@@ -259,7 +279,7 @@ function chH(cls){ return (cls==='l'||cls==='r'||cls==='ml'||cls==='mr')?'70%':(
 const C=[
  // ===== INTRO: 5層断面を下降=世界の全体感を最初に開示 (0-15) =====
  {s:0.0, e:5.4,  clip:'layers5',    cs:1.00, ce:0.24, dark:1, strata:[1,5], cap:{en:'THE ABYSS', jp:'地下五層。堕ちるほど、忘れられる世界。', pos:'br'}},
- {s:5.4, e:9.0,  clip:'overhead',   cs:0.00, ce:0.55, dark:1, obsv:1, cap:{en:'THE ADMINISTRATOR', jp:'空を統べるのは、ひとつの人工知性。', pos:'br'}},
+ {s:5.4, e:9.0,  clip:'overhead',   cs:0.00, ce:0.55, dark:1, obsv:1, orbfar:[78,17], cap:{en:'THE ADMINISTRATOR', jp:'空を統べるのは、ひとつの人工知性。', pos:'br'}},
  {s:9.0, e:12.8, clip:'alleytrack', cs:0.00, ce:0.50, dark:1, cap:{en:'THE DISCARDED', jp:'名前は奪われ、番号で呼ばれる。', pos:'bl'}, fragfx:1},
  {s:12.8,e:15.0, clip:'neonpan',    cs:0.25, ce:0.60, dark:1, whip:1},
  // 「番号で呼ばれた光のない朝」(15.0-21.5) キャラ名カード
@@ -279,28 +299,31 @@ const C=[
  {s:44.4,e:46.8, clip:'neonpan',    cs:0.00, ce:0.25, dark:1, ch:[{i:'cg-garudo.png',c:'c'}], whip:1},
  {s:46.8,e:49.2, clip:'canyonlow',  cs:0.85, ce:1.00, dark:1, ch:[{i:'cg-jin.png',c:'c'}], whip:1},
  // 「見たこともないあの青の名前」(50.1-55.9) 逃走→出口の光へ(ミニマップの現在地が走る)
- {s:49.2,e:51.2, clip:'overhead',   cs:0.80, ce:1.00, dark:1, shake:4, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1, choicefx:1},   // 時限の決断UI
+ {s:49.2,e:50.4, bg:'cg-collapse-garudo.jpg', mo:'punch', shake:7, whip:1, cap:{en:'THE COST', jp:'誰かが、代償を払う。', pos:'br'}},   // ★崩落一枚絵(ガルド)
+ {s:50.4,e:51.2, clip:'overhead',   cs:0.80, ce:1.00, dark:1, shake:4, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1, choicefx:1},   // 時限の決断UI
  {s:51.2,e:53.2, clip:'alleytrack', cs:0.85, ce:1.00, dark:1, shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1, cap:{en:'BREAK OUT', jp:'廃棄層からの、脱出。', pos:'bl'}, hackfx:1},   // 電子錠ハッキングUI
  {s:53.2,e:55.9, clip:'layers5',    cs:0.24, ce:1.00, dark:1, shake:4, streak:.6, whip:1, strata:[5,1]},   // 5層を一気に駆け上がる(全体感の反復)
  // 間奏: 町の中のハッチの下(暗・見上げ)
  {s:55.9,e:58.18, clip:'emerge2',   cs:0.02, ce:0.30, cap:{en:'THE SURFACE', jp:'見たこともない、あの青の名前を。', pos:'bl'}},
- // ★「おはよう」(58.18)=天井開放: 尖塔の町並みと空が開ける。テロップなし=歌が歌う
- {s:58.18,e:63.6, clip:'emerge2',   cs:0.30, ce:1.00},
- // 「また今日が始まる」: 空中心
- {s:63.6,e:66.1, clip:'skyup',      cs:0.00, ce:0.55, cap:{en:'MORNING', jp:'空が、あった。', pos:'bl'}},
+ // ★「おはよう」(58.18)=天井開放: 尖塔の町並みと青空が開ける。管理者の球体が光り、光芒が差す
+ {s:58.18,e:63.6, clip:'emerge2',   cs:0.30, ce:1.00, sky:'full', godray:1},
+ // 「また今日が始まる」: 青空中心+球体
+ {s:63.6,e:66.1, clip:'skyup',      cs:0.00, ce:0.55, sky:'full', cap:{en:'MORNING', jp:'空が、あった。青かった。', pos:'bl'}},
  // 「忘れてしまってもきっと見つけるよ」: リーンの記憶
- {s:66.1,e:69.3, bg:'bg-aicore.jpg', dark:1, mo:'push', ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'quote', obsv:1},
+ {s:66.1,e:69.3, bg:'bg-aicore.jpg', dark:1, mo:'push', ch:[{i:'cg-rin-tears.png',c:'c'}], tx:'あたしって、——なに？', cls:'quote', obsv:1, orbfar:[18,20]},
  // 「正解の外側で」: 町中の通りを行く(広場は1拍のみ=飽きさせない)
  {s:69.3,e:71.9, clip:'tstreetd',   cs:0.00, ce:0.42, ch:[{i:'cg-kai.png',c:'ml',to:'cg-kai-soft.png',at:0.5},{i:'cg-rin.png',c:'mr',to:'cg-rin-smile.png',at:0.62}]},  // 屋台の通りを行く二人・表情がやわらぐ
  {s:71.9,e:74.4, clip:'tstreett',   cs:0.00, ce:0.80, cap:{en:'THE TOWN', jp:'誰も、泣かない街。', pos:'br'}},   // ファサードと屋台の流し
- {s:74.4,e:77.2, clip:'townarc',    cs:0.00, ce:1.00, compassfx:1},   // 広場の噴水(1拍)+方位帯=360°見回しの気配
+ {s:74.4,e:77.2, clip:'townarc',    cs:0.00, ce:1.00, sky:1, compassfx:1},   // 広場の噴水(1拍)+方位帯=360°見回しの気配
  {s:77.2,e:78.6, bg:'op-bg-town.jpg', dark:1, mo:'punch', ch:[{i:'cg-yuugo.png',c:'c'}], whip:1},
  // 「手を伸ばす答えのない空へ」: 通りの奥へ二人(おはようの交換)→町から空への大クレーン
  {s:78.6,e:83.2, clip:'tstreetd',   cs:0.42, ce:0.80, ch:[{i:'cg-kai-smile.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], cap:{en:'TOGETHER', jp:'ふたりの、朝。', pos:'bl'}},
- {s:83.2,e:85.6, clip:'townrise2',  cs:0.60, ce:1.00, routesfx:1, cap:{en:'', jp:'——どの朝を、選ぶ。', pos:'bl'}},   // 道筋が3本に分かれる=3つの結末
+ {s:83.2,e:85.6, clip:'townrise2',  cs:0.60, ce:1.00, sky:'full', routesfx:1, cap:{en:'', jp:'——どの朝を、選ぶ。', pos:'bl'}},   // 道筋が3本に分かれる=3つの結末
  {s:85.6,e:86.3, flash:1},
  // TITLE (「二人で」85.6-87.7に重ねて)
- {s:86.3,e:92.0, logo:1},
+ {s:86.3,e:89.3, logo:1},
+ // ★末尾: 作品キービジュアル(サムネ)を挿す=ポスターで締める
+ {s:89.3,e:92.0, thumbfx:1},
 ];
 
 function setTime(t){
@@ -310,6 +333,7 @@ function setTime(t){
   el('cap').style.opacity=0; el('ncard').style.opacity=0; el('mgfx').style.opacity=0; el('mapfx').style.opacity=0;
   el('strata').style.opacity=0; el('obsv').style.opacity=0;
   el('frag').style.opacity=0; el('choiceui').style.opacity=0; el('hack').style.opacity=0; el('routes3').style.opacity=0; el('compass').style.opacity=0;
+  el('skyblue').style.opacity=0; el('skyblue2').style.opacity=0; el('godray').style.opacity=0; el('orb').style.opacity=0; el('thumb').style.opacity=0;
   // シネマ層(常時): セクション別グレード(地下=冷/地上=暖, おはよう周辺でクロス)
   const sMix=clamp((t-55.9)/2.6,0,1);
   el('gradeU').style.opacity=(0.55*(1-sMix)).toFixed(2);
@@ -327,8 +351,7 @@ function setTime(t){
     logo.style.opacity=env(t,cur.s,cur.e,1.4,0);
     logo.style.transform='translate(-50%,-50%) scale('+(0.97+0.03*clamp(p*3,0,1))+')';
     // sagaの一行: タイトルの後に静かに(ネタバレなしの含み)
-    logo.querySelector('.saga').style.opacity=clamp((t-89.0)/1.0,0,1)*0.9;
-    fo.style.opacity=clamp((t-90.4)/1.6,0,1);
+    logo.querySelector('.saga').style.opacity=clamp((t-87.6)/1.0,0,1)*0.9;
     return;
   }
   const dur=cur.e-cur.s;
@@ -423,6 +446,29 @@ function setTime(t){
     let len=1400; try{ len=ln.getTotalLength()||1400; }catch(e){}
     ln.style.strokeDasharray=len; ln.style.strokeDashoffset=len*(1-eIO(pp));
     [...nds.children].forEach((nd,k)=>{ const ni=Math.floor(k/2); nd.style.opacity=clamp((pp-(ni/4-0.06))/0.1,0,1); });
+  }
+  // 空を青く(surface/town cut)
+  if(cur.sky){
+    const r=env(t,cur.s+0.2,cur.e,0.7,0.5);
+    el('skyblue').style.opacity=((cur.sky==='full'?0.6:0.44)*r).toFixed(3);
+    el('skyblue2').style.opacity=(0.5*r).toFixed(3);
+  }
+  // 管理者の球体: 光りながら漂う(surfaceで大きく、地下では遠い監視光)
+  {
+    const ob=el('orb'); let show=0,x=70,y=14,sc=1;
+    if(cur.sky){ show=env(t,cur.s+0.3,cur.e,0.8,0.5); x=66+9*Math.sin(t*0.5); y=13+4*Math.cos(t*0.42); sc=1.0; }
+    else if(cur.orbfar){ show=env(t,cur.s+0.3,cur.e,0.6,0.4)*0.55; x=cur.orbfar[0]+3*Math.sin(t*0.7); y=cur.orbfar[1]; sc=0.42; }
+    if(show>0){ const pulse=1+0.07*Math.sin(t*2.3); ob.style.opacity=show.toFixed(3);
+      ob.style.left=x.toFixed(1)+'%'; ob.style.top=y.toFixed(1)+'%';
+      ob.style.transform='translate(-50%,-50%) scale('+(sc*pulse).toFixed(3)+')'; }
+  }
+  // サビの光芒(神々しい放射)
+  if(cur.godray){ el('godray').style.opacity=(Math.sin(clamp(p,0,1)*Math.PI)*0.5).toFixed(3); el('godray').style.transform='rotate('+(p*9).toFixed(1)+'deg)'; }
+  // 末尾サムネ挿入(ポスターで締める+最後にフェードアウト)
+  if(cur.thumbfx){
+    el('thumb').style.opacity=clamp((t-cur.s)/1.0,0,1).toFixed(3);
+    el('fadeout').style.opacity=clamp((t-90.6)/1.4,0,1);
+    return;
   }
   // 5層ストラータHUD: 現在層が金に灯る(世界の全体感)
   if(cur.strata){

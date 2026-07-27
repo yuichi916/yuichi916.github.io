@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>CG render</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1280px;height:720px;overflow:hidden;background:#000;font-family:"Yu Mincho","Noto Serif JP",serif}
+#st{position:relative;width:1280px;height:720px;overflow:hidden;background:#05070c}
+.bgi{position:absolute;inset:-6%;background:url('assets/seikai/bg-collapse.jpg') center 60%/cover;filter:brightness(.62) saturate(.85) contrast(1.08)}
+.dust{position:absolute;inset:0;background:
+  radial-gradient(ellipse at 30% 74%,rgba(120,90,60,.28),transparent 52%),
+  radial-gradient(ellipse at 70% 30%,rgba(90,120,160,.16),transparent 46%)}
+/* 瓦礫(手前に積み上がる岩塊シルエット) */
+.rub{position:absolute;background:linear-gradient(155deg,#3a3733,#17161a 62%,#0d0d10);box-shadow:0 -8px 30px rgba(0,0,0,.75);
+  clip-path:polygon(6% 38%,26% 8%,58% 0%,86% 16%,100% 46%,92% 84%,64% 100%,28% 96%,4% 72%)}
+/* ガルド: 下半身が瓦礫に埋まる=腰から下を隠す */
+#gar{position:absolute;left:41%;bottom:23%;height:60%;transform:translateX(-50%) rotate(-58deg);
+  transform-origin:50% 90%;
+  filter:drop-shadow(0 14px 36px rgba(0,0,0,.95)) brightness(.42) contrast(1.25) saturate(.7);
+  clip-path:inset(0 0 40% 0)}
+/* 駆け寄る二人(奥・小さめ) */
+#kai{position:absolute;left:14%;bottom:0%;height:74%;transform:translateX(-50%) rotate(14deg);
+  filter:drop-shadow(0 12px 30px rgba(0,0,0,.9)) brightness(.62) contrast(1.1)}
+#rin{position:absolute;left:85%;bottom:1%;height:70%;transform:translateX(-50%) rotate(-13deg);
+  filter:drop-shadow(0 12px 30px rgba(0,0,0,.9)) brightness(.66) contrast(1.1)}
+/* 非常灯の赤い明滅光(緊迫) */
+.emg{position:absolute;inset:0;background:
+  radial-gradient(ellipse at 48% 62%,rgba(255,60,50,.44),transparent 44%),
+  radial-gradient(ellipse at 10% 18%,rgba(255,90,70,.22),transparent 38%),
+  radial-gradient(ellipse at 88% 30%,rgba(255,70,60,.18),transparent 36%);mix-blend-mode:screen}
+.hazes{position:absolute;left:-10%;right:-10%;top:40%;height:38%;background:linear-gradient(180deg,rgba(190,150,110,.38),transparent);filter:blur(16px)}
+.beam{position:absolute;left:36%;top:-10%;width:30%;height:120%;background:linear-gradient(180deg,rgba(255,80,60,.34),transparent 68%);
+  filter:blur(10px);transform:rotate(9deg)}
+.beam2{position:absolute;left:8%;top:-10%;width:22%;height:120%;background:linear-gradient(180deg,rgba(255,110,70,.2),transparent 62%);
+  filter:blur(12px);transform:rotate(-13deg)}
+/* 落下する粉塵 */
+.mote{position:absolute;background:rgba(220,210,195,.5);border-radius:50%}
+.vig{position:absolute;inset:0;box-shadow:inset 0 0 200px rgba(2,4,10,.85)}
+.grade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(60,90,130,.16),rgba(20,10,6,.30));mix-blend-mode:soft-light}
+.cbar{position:absolute;left:0;right:0;height:9.5%;background:#000}
+#cT{top:0}#cB{bottom:0}
+</style></head>
+<body>
+<div id="st">
+  <div class="bgi"></div><div class="dust"></div>
+  <img id="gar" src="assets/seikai/cg-garudo.png">
+  <div id="rubs"></div>
+  <div id="falls"></div>
+  <div class="beam"></div><div class="beam2"></div><div class="emg"></div><div class="hazes"></div>
+  <div id="motes"></div>
+  <div class="grade"></div><div class="vig"></div>
+  <div class="cbar" id="cT"></div><div class="cbar" id="cB"></div>
+</div>
+<script>
+// 瓦礫: ガルドの下半身を覆う岩塊群
+const R=[[34,66,22,20,-12],[46,62,26,24,8],[58,66,20,20,-6],[26,74,24,20,14],[66,74,24,20,-10],[40,78,30,20,4],[14,80,24,18,-8],[72,82,26,18,9],[52,84,32,18,-3],[2,86,26,16,6],[84,86,24,16,-7]];
+let h='';
+R.forEach(([x,y,w,hh,rot])=>{ h+='<div class="rub" style="left:'+x+'%;top:'+y+'%;width:'+w+'%;height:'+hh+'%;transform:rotate('+rot+'deg)"></div>'; });
+document.getElementById('rubs').innerHTML=h;
+// 上から迫る落石(モーションブラー付き)
+let fh='';
+[[30,-6,16,22,-14,7],[58,-14,20,26,9,9],[76,-4,13,18,-8,6],[16,-12,12,16,12,5]].forEach(([x,y,w,hh,rot,bl])=>{
+  fh+='<div class="rub" style="left:'+x+'%;top:'+y+'%;width:'+w+'%;height:'+hh+'%;transform:rotate('+rot+'deg);filter:blur('+bl+'px);opacity:.9"></div>';
+});
+document.getElementById('falls').innerHTML=fh;
+// 粉塵
+let m='';
+for(let i=0;i<70;i++){ const s=(0.9+Math.random()*2.6).toFixed(1);
+  m+='<div class="mote" style="left:'+(Math.random()*100).toFixed(1)+'%;top:'+(Math.random()*88).toFixed(1)+'%;width:'+s+'px;height:'+s+'px;opacity:'+(0.2+Math.random()*0.5).toFixed(2)+'"></div>'; }
+document.getElementById('motes').innerHTML=m;
+</script>
+</body></html>
