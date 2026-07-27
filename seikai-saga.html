@@ -62,16 +62,20 @@ main{position:relative;z-index:1}
 .hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:48px 20px;position:relative;overflow:hidden}
 /* キービジュアル背景(文字なし版)+可読性のための暗幕 */
 .hero::before{content:'';position:absolute;inset:0;background:url('assets/seikai/keyvisual-bg.jpg') center/cover;
-  opacity:.5;filter:saturate(.95)}
+  opacity:.82;filter:saturate(1.05) contrast(1.06);animation:heroKen 30s ease-in-out infinite alternate}
+@keyframes heroKen{0%{transform:scale(1.03)}100%{transform:scale(1.11) translate(-1.2%,-.8%)}}
 .hero::after{content:'';position:absolute;inset:0;
-  background:radial-gradient(ellipse at 50% 46%,rgba(7,10,18,.42),rgba(7,10,18,.86) 78%),
-             linear-gradient(0deg,var(--bg,#070a12) 0%,transparent 30%)}
+  background:radial-gradient(ellipse at 50% 44%,rgba(7,10,18,.10),rgba(7,10,18,.66) 80%),
+             linear-gradient(0deg,var(--bg,#070a12) 2%,transparent 42%)}
 .hero>*{position:relative;z-index:2}
-.hero .eye{letter-spacing:.5em;font-size:12px;color:var(--dim);margin-bottom:26px}
-.hero h1{font-size:clamp(34px,7vw,64px);font-weight:600;letter-spacing:.14em;
+.hero .eye{letter-spacing:.5em;font-size:12px;color:#e6ecf6;margin-bottom:26px;
+  text-shadow:0 1px 3px rgba(0,0,0,1),0 0 12px rgba(0,0,0,1),0 0 26px rgba(0,0,0,.9)}
+.hero h1{font-size:clamp(34px,7vw,64px);font-weight:600;letter-spacing:.14em;position:relative;
   background:linear-gradient(180deg,#fff 20%, #ffd24a 75%, #ff9a4a 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent;
-  text-shadow:0 0 60px rgba(255,210,74,.18)}
+  filter:drop-shadow(0 2px 16px rgba(0,0,0,.95)) drop-shadow(0 0 60px rgba(255,210,74,.28))}
+.hero .eye,.hero .tag,.hero .free{text-shadow:0 2px 14px rgba(0,0,0,.95),0 0 30px rgba(0,0,0,.85)}
+.hero .saga{text-shadow:0 2px 14px rgba(0,0,0,.95),0 0 24px rgba(255,210,74,.3)}
 .hero .saga{font-size:clamp(13px,2.4vw,18px);letter-spacing:.7em;color:var(--gold);margin-top:6px;padding-left:.7em}
 .hero .tag{margin-top:34px;font-size:clamp(14px,2.6vw,19px);color:var(--ink);letter-spacing:.12em}
 .hero .tag b{color:var(--gold);font-weight:600}
@@ -94,7 +98,16 @@ main{position:relative;z-index:1}
 @keyframes orbRing{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.08);opacity:.15}}
 
 /* ===== セクション共通 ===== */
-section{max-width:1060px;margin:0 auto;padding:110px 22px 30px}
+section{max-width:1060px;margin:0 auto;padding:110px 22px 30px;position:relative}
+/* 物語の舞台を各セクションの地色に(下層→地上へ降りていく順) */
+section[id]::before{content:'';position:fixed;inset:0;z-index:-1;opacity:0;pointer-events:none;
+  background-size:cover;background-position:center;transition:opacity 1.4s ease;filter:saturate(.8) blur(1px)}
+section[id].lit::before{opacity:.20}
+#about::before{background-image:url('assets/seikai/pano-hideout.jpg')}
+#story::before{background-image:url('assets/seikai/pano-slum.jpg')}
+#world::before{background-image:url('assets/seikai/pano-hall.jpg')}
+#cases::before{background-image:url('assets/seikai/pano-surface.jpg')}
+#chars::before{background-image:url('assets/seikai/pano-town.jpg')}
 .sec-eye{color:var(--gold);letter-spacing:.5em;font-size:12px;text-align:center}
 .sec-h{font-size:clamp(24px,4.6vw,36px);text-align:center;letter-spacing:.22em;margin:14px 0 18px;color:#fff}
 .sec-lead{text-align:center;color:var(--dim);font-size:14.5px;letter-spacing:.06em;max-width:640px;margin:0 auto 56px}
@@ -467,6 +480,15 @@ nav .nv a:hover{color:var(--gold)}
   },{threshold:.12});
   all.forEach(el=>io.observe(el));
   setTimeout(()=>{ all.forEach(el=>el.classList.add('on')); }, 2500);
+})();
+/* 読み進めるほど舞台が地下から地上へ変わる */
+(function(){
+  const secs=document.querySelectorAll('section[id]');
+  if(!secs.length || !('IntersectionObserver' in window)) return;
+  const io=new IntersectionObserver(es=>{
+    es.forEach(e=>e.target.classList.toggle('lit', e.isIntersecting && e.intersectionRatio>.3));
+  },{threshold:[.3,.6]});
+  secs.forEach(s=>io.observe(s));
 })();
 </script>
 </body>
