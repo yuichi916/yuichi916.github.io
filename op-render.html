@@ -7,6 +7,7 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
   font-family:"Yu Mincho","Hiragino Mincho ProN","Noto Serif JP",serif}
 #stage{position:relative;width:1280px;height:720px;background:#000;overflow:hidden}
 .bg{position:absolute;inset:-10%;background-size:cover;background-position:center;opacity:0;will-change:transform,filter}
+.cvs{width:100%;height:100%;display:block;object-fit:cover}
 .dark{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 46%,rgba(0,0,0,.22),rgba(0,0,0,.82) 100%);opacity:0}
 .ch{position:absolute;bottom:-3%;height:94%;filter:drop-shadow(0 12px 44px rgba(0,0,0,.85));opacity:0;left:50%;transform:translateX(-50%);will-change:transform,opacity}
 .tx{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);width:92%;text-align:center;
@@ -140,7 +141,9 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 </style></head>
 <body>
 <div id="stage">
-  <div class="bg" id="bg2"></div><div class="bg" id="bg"></div><div class="dark" id="dark"></div>
+  <div class="bg" id="bg2"><canvas class="cvs" id="cv2" width="1280" height="720"></canvas></div>
+  <div class="bg" id="bg"><canvas class="cvs" id="cv" width="1280" height="720"></canvas></div>
+  <div class="dark" id="dark"></div>
   <img class="ch" id="chL"><img class="ch" id="chM"><img class="ch" id="chR"><img class="ch" id="chC">
   <img class="ch" id="chL2"><img class="ch" id="chM2"><img class="ch" id="chR2"><img class="ch" id="chC2">
   <svg id="mgfx" viewBox="0 0 1280 720" preserveAspectRatio="none">
@@ -242,6 +245,18 @@ const CLIP={
 function clipFrame(name,p){ const c=CLIP[name]; const i=Math.max(0,Math.min(c.n-1,Math.round(p*(c.n-1)))); return A+c.dir+'f'+String(i).padStart(4,'0')+'.jpg'; }
 /* カットの背景URL(クリップは cs/ce で区間指定可・静止画はそのまま) */
 function bgUrl(cut,p){ if(cut.clip){ const f=(cut.cs!=null)?(cut.cs+((cut.ce!=null?cut.ce:1)-cut.cs)*p):p; return clipFrame(cut.clip,clamp(f,0,1)); } return A+cut.bg; }
+/* canvasへ同期描画(cover相当)。未ロードなら描かず前フレームを保持=黒落ち防止 */
+const _last={};
+function paint(cv,url){
+  if(_last[cv.id]===url) return true;
+  const im=window.IMG && window.IMG[url];
+  if(!im || !im.complete || !im.naturalWidth) return false;
+  const c=cv.getContext('2d');
+  const cw=cv.width, ch=cv.height, iw=im.naturalWidth, ih=im.naturalHeight;
+  const s=Math.max(cw/iw, ch/ih), dw=iw*s, dh=ih*s;
+  c.drawImage(im,(cw-dw)/2,(ch-dh)/2,dw,dh);
+  _last[cv.id]=url; return true;
+}
 /* 直前の「絵を持つ」カット(フラッシュ越しにも遡る) */
 function prevVisual(idx){ for(let k=idx-1;k>=0;k--){ const c=C[k]; if(c.bg||c.clip) return c; if(c.logo) return null; } return null; }
 /* character slot classes -> element */
@@ -309,17 +324,16 @@ const C=[
  // 「それでも指がなぞる壁に刻んだ」(43.0-50.1) ★ミニマップに脱出経路が灯る
  {s:47.2,e:49.0, clip:'alleytrack', cs:0.30, ce:0.55, dark:1, ch:[{i:'cg-della.png',c:'c'}], cap:{en:'DAY 38 — THE ESCAPE', jp:'決行、三十八日目の夜。', pos:'tl'}, mapfx:[0,1.0]},
  // ガルド: カイの母と交わした約束(自己犠牲の伏線)
- {s:49.0,e:50.8, bg:'bg-slumC.jpg', dark:1, mo:'punch', ch:[{i:'cg-garudo.png',c:'c'}], tx:'「お前の母親に、約束したんだ」', cls:'quote'},
+ {s:49.0,e:51.4, bg:'bg-slumC.jpg', dark:1, mo:'push',  ch:[{i:'cg-garudo.png',c:'c'}], tx:'「お前の母親に、約束したんだ」', cls:'quote'},
  // ジン: 言葉は出ないが、それでも手を挙げる
- {s:50.8,e:52.2, bg:'bg-slumB.jpg', dark:1, mo:'pull',  ch:[{i:'cg-jin.png',c:'c'}], tx:'「……て、伝う。——手伝う」', cls:'quote'},
+ {s:51.4,e:53.2, bg:'bg-slumB.jpg', dark:1, mo:'pull',  ch:[{i:'cg-jin.png',c:'c'}], tx:'「……て、伝う。——手伝う」', cls:'quote'},
  // 「見たこともないあの青の名前」(50.1-55.9) 逃走→出口の光へ(ミニマップの現在地が走る)
- {s:52.2,e:53.4, bg:'cg-collapse-garudo.jpg', mo:'punch', shake:7, whip:1, cap:{en:'THE COST', jp:'誰かが、代償を払う。', pos:'br'}},   // ★崩落一枚絵
- {s:53.4,e:54.2, clip:'overhead',   cs:0.80, ce:1.00, dark:1, shake:4, ch:[{i:'cg-kai-pained.png',c:'c'}], whip:1, choicefx:1},   // 時限の決断UI
- {s:54.2,e:55.0, clip:'alleytrack', cs:0.85, ce:1.00, dark:1, shake:4, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1, cap:{en:'BREAK OUT', jp:'廃棄層からの、脱出。', pos:'bl'}, hackfx:1},   // 電子錠ハッキングUI
- {s:55.0,e:55.9, clip:'layers5',    cs:0.24, ce:1.00, dark:1, shake:6, streak:.8, whip:1, strata:[5,1]},   // 5層を一気に駆け上がる(全体感の反復)
+ {s:53.2,e:54.8, bg:'cg-collapse-garudo.jpg', mo:'punch', shake:7, whip:1, cap:{en:'THE COST', jp:'誰かが、代償を払う。', pos:'br'}},   // ★崩落一枚絵
+ {s:54.8,e:56.4, clip:'alleytrack', cs:0.85, ce:1.00, dark:1, shake:3, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1, cap:{en:'BREAK OUT', jp:'廃棄層からの、脱出。', pos:'bl'}, hackfx:1},   // 電子錠ハッキング
+ {s:56.4,e:57.4, clip:'layers5',    cs:0.24, ce:1.00, dark:1, shake:5, streak:.7, whip:1, strata:[5,1]},   // 5層を一気に駆け上がる(全体感の反復)
  // 間奏: 町の中のハッチの下(暗・見上げ)
  // 間奏: まだ地下。閉じた天井を見上げ、細い光だけが差す(地上はまだ見せない)
- {s:55.9,e:58.18, clip:'craneup',   cs:0.62, ce:0.98, dark:1, mo:'slow', cap:{en:'THE SURFACE', jp:'見たこともない、あの青の名前を。', pos:'bl'}},
+ {s:57.4,e:58.18, clip:'craneup',   cs:0.86, ce:0.99, dark:1, mo:'slow'},
  // ★「おはよう」(58.18)=天井開放: 尖塔の町並みと青空が開ける。管理者の球体が光り、光芒が差す
  // ★「おはよう」の瞬間=白フラッシュで抜ける(地下→地上の断絶)
  {s:58.18,e:58.62, flash:1},
@@ -365,7 +379,7 @@ function setTime(t){
   if(cur.flash){
     // フラッシュ中も直前の絵を保持(黒を経由しない)
     const pv=prevVisual(idx);
-    if(pv){ bg.style.backgroundImage='url('+bgUrl(pv,1)+')'; bg.style.opacity=1; bg.style.transform=mo(pv.mo||'still',1); if(pv.dark) dark.style.opacity=0.88; }
+    if(pv){ paint(el('cv'), bgUrl(pv,1)); bg.style.opacity=1; bg.style.transform=mo(pv.mo||'still',1); if(pv.dark) dark.style.opacity=0.88; }
     flash.style.opacity=Math.sin(clamp(p,0,1)*Math.PI); return;
   }
   if(cur.logo){
@@ -386,11 +400,12 @@ function setTime(t){
     const pv=prevVisual(idx);
     const TW=Math.min(dur*0.5, cur.whip?0.12:0.45);
     const inRamp = pv ? clamp((t-cur.s)/TW,0,1) : env(t,cur.s,cur.e,fin,0);  // 先頭カットのみ黒からF.I.
-    bg.style.backgroundImage='url('+bgUrl(cur,clamp(p,0,1))+')';
+    // ★canvasへ同期描画: 未デコードでも前フレームを保持=黒落ちしない
+    paint(el('cv'), bgUrl(cur,clamp(p,0,1)));
     bg.style.opacity=inRamp;
     bg.style.transform=mo(cur.mo||'still', clamp(p,0,1))+jit;
     if(pv && inRamp<1){
-      bg2.style.backgroundImage='url('+bgUrl(pv,1)+')';
+      paint(el('cv2'), bgUrl(pv,1));
       bg2.style.opacity=1;
       bg2.style.transform=mo(pv.mo||'still',1);
     }
@@ -560,10 +575,21 @@ function setTime(t){
   }
 }
 window.__setTime=setTime;
+/* キャプチャ用: そのtで必要な背景がキャッシュ済みか(未ロードなら待たせる) */
+window.__frameReady=function(t){
+  let cur=null,idx=-1;
+  for(let k=0;k<C.length;k++){ const c=C[k]; if(t>=c.s && t<c.e){ cur=c; idx=k; break; } }
+  if(!cur) return true;
+  const need=[];
+  if(cur.bg||cur.clip) need.push(bgUrl(cur, clamp((t-cur.s)/(cur.e-cur.s),0,1)));
+  if(cur.flash){ const pv=prevVisual(idx); if(pv) need.push(bgUrl(pv,1)); }
+  return need.every(u=>{ const im=window.IMG&&window.IMG[u]; return !!(im&&im.complete&&im.naturalWidth); });
+};
 
 /* ===== 全背景(3Dクリップ連番/静止/立ち絵)をプリロード ===== */
 /* キャプチャは setTime 直後にスクショするため、未デコードのクリップフレームだと黒落ちする。 */
 window.__ready=false;
+window.IMG={};   /* url -> decoded Image (canvas描画用キャッシュ) */
 (function preload(){
   const urls=new Set();
   for(const k in CLIP){ const c=CLIP[k]; for(let i=0;i<c.n;i++) urls.add(A+c.dir+'f'+String(i).padStart(4,'0')+'.jpg'); }
@@ -571,7 +597,11 @@ window.__ready=false;
   const list=[...urls]; let left=list.length;
   if(!left){ window.__ready=true; return; }
   const done=()=>{ if(--left<=0) window.__ready=true; };
-  list.forEach(u=>{ const im=new Image(); im.onload=done; im.onerror=done; im.src=u; });
+  list.forEach(u=>{
+    const im=new Image();
+    im.onload=()=>{ window.IMG[u]=im; (im.decode?im.decode().catch(()=>{}):Promise.resolve()).then(done); };
+    im.onerror=done; im.src=u;
+  });
 })();
 
 setTime(0);
