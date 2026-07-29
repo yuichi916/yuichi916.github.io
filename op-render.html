@@ -54,9 +54,12 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 #gradeS{position:absolute;inset:0;z-index:9;pointer-events:none;mix-blend-mode:soft-light;background:linear-gradient(180deg,rgba(255,196,120,.55),rgba(255,150,80,.25));opacity:0}
 /* 空を青く: 上部に深い空色(surface/town cutで有効) */
 #skyblue{position:absolute;inset:0;z-index:9;pointer-events:none;opacity:0;mix-blend-mode:multiply;
-  background:linear-gradient(180deg,#5b9fe0 0%,#8cc0ec 26%,rgba(200,224,244,.4) 46%,transparent 60%)}
+  background:linear-gradient(180deg,#2f7fd4 0%,#4f9ce0 20%,#7bb8e8 38%,rgba(170,206,236,.55) 52%,transparent 66%)}
 #skyblue2{position:absolute;inset:0;z-index:10;pointer-events:none;opacity:0;mix-blend-mode:screen;
-  background:radial-gradient(ellipse at 72% 16%,rgba(255,240,200,.5),transparent 46%)}
+  background:radial-gradient(ellipse at 72% 16%,rgba(255,244,214,.55),transparent 46%)}
+/* 晴天化: 上空の青を色乗せ(overlayで彩度と抜けを出す) */
+#skysat{position:absolute;inset:0;z-index:10;pointer-events:none;opacity:0;mix-blend-mode:overlay;
+  background:linear-gradient(180deg,rgba(40,130,220,.85) 0%,rgba(90,170,235,.6) 30%,rgba(160,205,235,.2) 50%,transparent 64%)}
 /* 管理者の球体(光りながら漂う=世界を統べる目) */
 #orb{position:absolute;z-index:11;pointer-events:none;opacity:0;width:64px;height:64px;border-radius:50%;
   background:radial-gradient(circle at 42% 38%,#ffffff 0%,#eaf4ff 34%,#bcd8f4 62%,rgba(140,190,240,.2) 100%);
@@ -169,7 +172,7 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
   <div id="whip"></div>
   <div class="flash" id="flash"></div>
   <div id="gradeU"></div><div id="gradeS"></div>
-  <div id="skyblue"></div><div id="skyblue2"></div><div id="godray"></div>
+  <div id="skyblue"></div><div id="skysat"></div><div id="skyblue2"></div><div id="godray"></div>
   <div id="orb"><div class="ring"></div><div class="ring2"></div></div>
   <div id="thumb"></div>
   <div id="strata"><div class="slab">Ⅰ</div><div class="slab">Ⅱ</div><div class="slab">Ⅲ</div><div class="slab">Ⅳ</div><div class="slab">Ⅴ</div><div class="slb">STRATA</div></div>
@@ -329,11 +332,11 @@ const C=[
  {s:51.4,e:53.2, bg:'bg-slumB.jpg', dark:1, mo:'pull',  ch:[{i:'cg-jin.png',c:'c'}], tx:'「……て、伝う。——手伝う」', cls:'quote'},
  // 「見たこともないあの青の名前」(50.1-55.9) 逃走→出口の光へ(ミニマップの現在地が走る)
  {s:53.2,e:54.8, bg:'cg-collapse-garudo.jpg', mo:'punch', shake:7, whip:1, cap:{en:'THE COST', jp:'誰かが、代償を払う。', pos:'br'}},   // ★崩落一枚絵
- {s:54.8,e:56.4, clip:'alleytrack', cs:0.85, ce:1.00, dark:1, shake:3, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1, cap:{en:'BREAK OUT', jp:'廃棄層からの、脱出。', pos:'bl'}, hackfx:1},   // 電子錠ハッキング
- {s:56.4,e:57.4, clip:'layers5',    cs:0.24, ce:1.00, dark:1, shake:5, streak:.7, whip:1, strata:[5,1]},   // 5層を一気に駆け上がる(全体感の反復)
+ {s:54.8,e:56.6, clip:'alleytrack', cs:0.85, ce:1.00, dark:1, shake:3, ch:[{i:'cg-rin-sharp.png',c:'c'}], whip:1, cap:{en:'BREAK OUT', jp:'廃棄層からの、脱出。', pos:'bl'}, hackfx:1},   // 電子錠ハッキング
+ // 5層を駆け上がる=長い上昇(ためを作る)
+ {s:56.6,e:58.18, clip:'layers5',    cs:0.24, ce:1.00, dark:1, shake:4, streak:.6, strata:[5,1]},   // 5層を一気に駆け上がる(全体感の反復)
  // 間奏: 町の中のハッチの下(暗・見上げ)
  // 間奏: まだ地下。閉じた天井を見上げ、細い光だけが差す(地上はまだ見せない)
- {s:57.4,e:58.18, clip:'craneup',   cs:0.86, ce:0.99, dark:1, mo:'slow'},
  // ★「おはよう」(58.18)=天井開放: 尖塔の町並みと青空が開ける。管理者の球体が光り、光芒が差す
  // ★「おはよう」の瞬間=白フラッシュで抜ける(地下→地上の断絶)
  {s:58.18,e:58.62, flash:1},
@@ -350,7 +353,7 @@ const C=[
  // ★ミイラの絵: 誰も泣かない街で、一人だけ「はみ出した色」で描く少女
  {s:76.4,e:78.0, bg:'cg-miira-drawing.jpg', mo:'punch', cap:{en:'THE ONE WHO COLORS', jp:'正解じゃない線。でも、生きている線。', pos:'br'}},
  // ★ノーグ: 道筋を捨てた追跡者(不気味な一字区切りの挨拶)
- {s:78.0,e:79.6, bg:'bg-slumD.jpg', dark:1, mo:'punch', ch:[{i:'cg-nogu.png',c:'c'}], tx:'「お は よ う」', cls:'quote', streak:.45, cap:{en:'THE HUNTER', jp:'だが、もう僕に見られている。', pos:'tl'}},
+ {s:78.0,e:79.6, bg:'bg-slumD.jpg', dark:1, mo:'punch', ch:[{i:'cg-nogu.png',c:'c'}], streak:.45, cap:{en:'THE HUNTER', jp:'だが、もう僕に見られている。', pos:'tl'}},
  // 「手を伸ばす答えのない空へ」: 通りの奥へ二人(ノーグの歪んだ挨拶と対をなす本物の「おはよう」)
  {s:79.6,e:83.2, clip:'tstreetd',   cs:0.42, ce:0.80, ch:[{i:'cg-kai-smile.png',c:'ml'},{i:'cg-rin-smile.png',c:'mr'}], cap:{en:'TOGETHER', jp:'ふたりの、朝。', pos:'bl'}},
  {s:83.2,e:85.6, clip:'townrise2',  cs:0.60, ce:1.00, sky:'full', routesfx:1, cap:{en:'', jp:'——どの朝を、選ぶ。', pos:'bl'}},   // 道筋が3本に分かれる=3つの結末
@@ -368,7 +371,7 @@ function setTime(t){
   el('cap').style.opacity=0; el('ncard').style.opacity=0; el('mgfx').style.opacity=0; el('mapfx').style.opacity=0;
   el('strata').style.opacity=0; el('obsv').style.opacity=0;
   el('frag').style.opacity=0; el('choiceui').style.opacity=0; el('hack').style.opacity=0; el('routes3').style.opacity=0; el('compass').style.opacity=0;
-  el('skyblue').style.opacity=0; el('skyblue2').style.opacity=0; el('godray').style.opacity=0; el('orb').style.opacity=0; el('thumb').style.opacity=0;
+  el('skyblue').style.opacity=0; el('skysat').style.opacity=0; el('skyblue2').style.opacity=0; el('godray').style.opacity=0; el('orb').style.opacity=0; el('thumb').style.opacity=0;
   // シネマ層(常時): セクション別グレード(地下=冷/地上=暖, おはよう周辺でクロス)
   const sMix=clamp((t-55.9)/2.6,0,1);
   el('gradeU').style.opacity=(0.55*(1-sMix)).toFixed(2);
@@ -486,7 +489,8 @@ function setTime(t){
   // 空を青く(surface/town cut)
   if(cur.sky){
     const r=env(t,cur.s+0.2,cur.e,0.7,0.5);
-    el('skyblue').style.opacity=((cur.sky==='full'?0.6:0.44)*r).toFixed(3);
+    el('skyblue').style.opacity=((cur.sky==='full'?0.72:0.55)*r).toFixed(3);
+    el('skysat').style.opacity=((cur.sky==='full'?0.8:0.62)*r).toFixed(3);
     el('skyblue2').style.opacity=(0.5*r).toFixed(3);
   }
   // 管理者の球体: 光りながら漂う(surfaceで大きく、地下では遠い監視光)
