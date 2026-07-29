@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>正解の外側 — 正典アーカイブ（重大なネタバレ）</title>
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="非公開の作業用アーカイブ。物語の結末まで含みます。">
+<style>
+:root{
+  --bg:#05070d; --bg2:#0a0e1a; --ink:#d8dce8; --dim:#8a90a5;
+  --gold:#ffd24a; --gold2:#ff9a4a; --line:rgba(255,210,74,.25);
+  --card:#0d1220; --edge:rgba(150,170,220,.14);
+  --accent1:#6ba3ff; --accent2:#ff6b8a; --accent3:#4dd9ff;
+  --serif:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  --mono:"SFMono-Regular",Consolas,"Courier New",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--serif);line-height:1.9;
+  -webkit-font-smoothing:antialiased}
+a{color:var(--gold);text-decoration:none;transition:.2s}
+a:hover{color:var(--gold2)}
+
+/* ===== ネタバレゲート ===== */
+#gate{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:32px 22px;background:radial-gradient(ellipse at 50% 32%,#0b1420,#05070c 72%);overflow-y:auto}
+#gate.gone{display:none}
+#gate .mark{font-size:44px;margin-bottom:22px;filter:drop-shadow(0 0 24px rgba(255,107,138,.4))}
+#gate h1{font-size:clamp(21px,4.2vw,30px);letter-spacing:.14em;color:#fff;margin-bottom:8px}
+#gate .lead{color:var(--accent2);letter-spacing:.2em;font-size:12px;font-family:var(--mono);margin-bottom:28px}
+#gate .body{max-width:620px;color:var(--dim);font-size:14.5px;text-align:left;
+  border:1px solid rgba(255,107,138,.3);border-radius:8px;padding:24px 26px;background:rgba(255,107,138,.05)}
+#gate .body p{margin-bottom:1em}
+#gate .body p:last-child{margin-bottom:0}
+#gate .body b{color:var(--ink)}
+#gate .btns{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:30px}
+.btn{display:inline-block;padding:13px 30px;border:1px solid var(--line);border-radius:2px;color:var(--ink);
+  letter-spacing:.16em;font-size:13.5px;background:rgba(255,210,74,.05);transition:.25s;font-family:inherit;cursor:pointer}
+.btn:hover{background:rgba(255,210,74,.14);border-color:var(--gold);color:#fff}
+.btn.danger{border-color:rgba(255,107,138,.5);background:rgba(255,107,138,.08);color:#ffc9d4}
+.btn.danger:hover{background:rgba(255,107,138,.18);border-color:var(--accent2);color:#fff}
+
+/* ===== 本体 ===== */
+#app{display:none;max-width:1180px;margin:0 auto;padding:0 22px 120px}
+#app.on{display:block}
+header{padding:56px 0 30px;border-bottom:1px solid var(--edge);margin-bottom:34px}
+header .eye{font-family:var(--mono);font-size:11px;letter-spacing:.4em;color:var(--accent2);text-transform:uppercase}
+header h1{font-size:clamp(24px,4.4vw,36px);letter-spacing:.12em;color:#fff;margin:14px 0 10px}
+header .note{color:var(--dim);font-size:13px;letter-spacing:.04em}
+header .back{margin-top:18px;font-size:12.5px;letter-spacing:.1em}
+
+/* タブ */
+.tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px}
+.tab{padding:10px 22px;border:1px solid var(--edge);border-radius:2px;background:transparent;color:var(--dim);
+  font-family:inherit;font-size:13.5px;letter-spacing:.1em;cursor:pointer;transition:.25s}
+.tab:hover{border-color:var(--line);color:var(--ink)}
+.tab.on{border-color:var(--gold);color:var(--gold);background:rgba(255,210,74,.08)}
+
+/* レイアウト */
+.wrap{display:grid;grid-template-columns:250px 1fr;gap:40px;align-items:start}
+#toc{position:sticky;top:22px;max-height:calc(100vh - 44px);overflow-y:auto;
+  border-left:1px solid var(--edge);padding-left:18px;font-size:12.5px;line-height:1.75}
+#toc .tt{font-family:var(--mono);font-size:10.5px;letter-spacing:.3em;color:var(--dim);margin-bottom:12px;text-transform:uppercase}
+#toc a{display:block;color:var(--dim);padding:3px 0;border-left:2px solid transparent;margin-left:-20px;padding-left:18px}
+#toc a:hover{color:var(--ink)}
+#toc a.h3{padding-left:32px;font-size:11.5px;opacity:.8}
+#toc a.cur{color:var(--gold);border-left-color:var(--gold)}
+
+/* Markdown 描画 */
+#doc{min-width:0;font-size:15px}
+#doc h1{font-size:clamp(22px,3.4vw,30px);letter-spacing:.1em;color:#fff;margin:8px 0 24px;
+  padding-bottom:14px;border-bottom:1px solid var(--line)}
+#doc h2{font-size:clamp(18px,2.6vw,23px);letter-spacing:.08em;color:var(--gold);margin:52px 0 16px;
+  padding-left:14px;border-left:3px solid var(--gold);scroll-margin-top:22px}
+#doc h3{font-size:16.5px;letter-spacing:.06em;color:var(--accent1);margin:34px 0 12px;scroll-margin-top:22px}
+#doc h4{font-size:15px;color:var(--accent3);margin:24px 0 10px}
+#doc p{margin:0 0 1.15em;text-align:justify}
+#doc ul,#doc ol{margin:0 0 1.15em 1.5em}
+#doc li{margin-bottom:.5em}
+#doc li>ul,#doc li>ol{margin:.5em 0 .2em 1.2em}
+#doc strong{color:#fff;font-weight:600}
+#doc em{color:var(--gold);font-style:normal}
+#doc code{font-family:var(--mono);font-size:.86em;background:rgba(107,163,255,.12);
+  border:1px solid rgba(107,163,255,.2);border-radius:3px;padding:1px 6px;color:var(--accent3)}
+#doc pre{background:var(--card);border:1px solid var(--edge);border-radius:6px;padding:16px 18px;
+  overflow-x:auto;margin:0 0 1.15em}
+#doc pre code{background:none;border:none;padding:0;color:var(--ink);font-size:12.5px;line-height:1.7}
+#doc blockquote{border-left:3px solid var(--edge);padding:2px 0 2px 18px;margin:0 0 1.15em;color:var(--dim)}
+#doc hr{border:none;border-top:1px solid var(--edge);margin:40px 0}
+#doc a{text-decoration:underline;text-underline-offset:3px}
+.tablewrap{overflow-x:auto;margin:0 0 1.3em;border:1px solid var(--edge);border-radius:6px}
+#doc table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px}
+#doc th{background:rgba(255,210,74,.08);color:var(--gold);font-weight:600;text-align:left;
+  padding:11px 14px;border-bottom:1px solid var(--line);letter-spacing:.04em;white-space:nowrap}
+#doc td{padding:11px 14px;border-bottom:1px solid var(--edge);vertical-align:top;line-height:1.75}
+#doc tr:last-child td{border-bottom:none}
+
+#loading{color:var(--dim);font-size:13.5px;padding:40px 0;text-align:center}
+#loading .err{color:var(--accent2);line-height:2}
+#loading .err code{font-family:var(--mono);font-size:12px}
+
+/* 上部の常設ネタバレ帯 */
+#band{position:sticky;top:0;z-index:50;background:rgba(255,107,138,.1);border-bottom:1px solid rgba(255,107,138,.28);
+  backdrop-filter:blur(8px);font-family:var(--mono);font-size:10.5px;letter-spacing:.28em;color:#ffc9d4;
+  text-align:center;padding:7px 12px;margin:0 -22px 0}
+#top{position:fixed;right:20px;bottom:20px;z-index:60;padding:11px 17px;border-radius:99px;
+  border:1px solid var(--edge);background:rgba(10,14,26,.85);backdrop-filter:blur(6px);color:var(--dim);
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;cursor:pointer;opacity:0;transition:.3s;pointer-events:none}
+#top.on{opacity:1;pointer-events:auto}
+#top:hover{color:var(--gold);border-color:var(--line)}
+
+@media (max-width:900px){
+  .wrap{grid-template-columns:1fr;gap:0}
+  #toc{position:static;max-height:none;border-left:none;border-bottom:1px solid var(--edge);
+    padding:0 0 20px;margin-bottom:28px;columns:2;column-gap:20px}
+  #toc a{margin-left:0;padding-left:0;border-left:none}
+  #toc a.h3{display:none}
+  #doc{font-size:14.5px}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== ネタバレゲート ===== -->
+<div id="gate">
+  <div class="mark">⚠</div>
+  <h1>この先は、物語の全部です。</h1>
+  <div class="lead">SPOILER ARCHIVE — NOT FOR FIRST-TIME READERS</div>
+  <div class="body">
+    <p>このページは <b>「正解の外側」サーガの正典（設定資料）</b> を、執筆用にそのまま置いてある作業アーカイブです。検索には出ません。公開ページからも辿れません。</p>
+    <p>ここには <b>CASE 01 の結末、リーンの正体、管理者の真意、そして未執筆の本編（幹）の結末まで</b> が、隠さずに書かれています。読むと、初回プレイで用意されている驚きは、ほぼ全て失われます。</p>
+    <p>まだ本編を読んでいない方は、<a href="seikai.html">CASE 01 をプレイ</a>してから戻ってきてください。無料で、3〜4時間です。</p>
+  </div>
+  <div class="btns">
+    <a class="btn" href="seikai.html">▶ 先に本編を読む</a>
+    <button class="btn danger" id="gateGo">ネタバレを承知で読む</button>
+  </div>
+</div>
+
+<!-- ===== 本体 ===== -->
+<main id="app">
+  <div id="band">⚠ SPOILER — 本編未読の方はブラウザを閉じてください</div>
+
+  <header>
+    <div class="eye">Internal Archive</div>
+    <h1>正解の外側 — 正典アーカイブ</h1>
+    <p class="note">執筆の拠りどころにしている設定資料を、加工せずそのまま置いています。<br>
+      仕様書ではなく作業メモなので、書きかけの節や、本編に反映されていない検討も混じっています。</p>
+    <p class="back"><a href="seikai-tech-guide.html">← 開発技術ガイドへ戻る</a></p>
+  </header>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="wrap">
+    <nav id="toc"></nav>
+    <article id="doc"><div id="loading">読み込み中…</div></article>
+  </div>
+</main>
+
+<button id="top">▲ TOP</button>
+
+<script>
+"use strict";
+
+/* ============ Markdown → HTML（依存ゼロの最小実装） ============ */
+function esc(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function inline(s){
+  let t = esc(s);
+  // コードは他の記法より先に確保する
+  const code = [];
+  t = t.replace(/`([^`]+)`/g, (m, c) => '' + (code.push(c) - 1) + '');
+  t = t.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  t = t.replace(/~~([^~]+)~~/g, '<s>$1</s>');
+  t = t.replace(/(\d+)/g, (m, i) => '<code>' + code[i] + '</code>');
+  return t;
+}
+function slug(s, used){
+  let base = s.trim().toLowerCase()
+    .replace(/[\s　]+/g, '-')
+    .replace(/[^\w\-぀-ヿ一-鿿]/g, '');
+  if (!base) base = 'h';
+  let id = base, n = 2;
+  while (used.has(id)) id = base + '-' + (n++);
+  used.add(id);
+  return id;
+}
+
+function mdToHtml(src){
+  const lines = src.replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  const heads = [];
+  const usedIds = new Set();
+  const listStack = [];   // {tag, indent}
+  let para = [];
+  let inFence = false, fence = [];
+
+  const closeLists = (toIndent) => {
+    while (listStack.length && listStack[listStack.length - 1].indent >= toIndent){
+      out.push('</' + listStack.pop().tag + '>');
+    }
+  };
+  const flushPara = () => {
+    if (para.length){ out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; }
+  };
+  const flushAll = () => { flushPara(); closeLists(0); };
+
+  for (let i = 0; i < lines.length; i++){
+    const raw = lines[i];
+
+    // código フェンス
+    if (/^\s*```/.test(raw)){
+      if (inFence){ out.push('<pre><code>' + esc(fence.join('\n')) + '</code></pre>'); fence = []; inFence = false; }
+      else { flushAll(); inFence = true; }
+      continue;
+    }
+    if (inFence){ fence.push(raw); continue; }
+
+    const line = raw.trimEnd();
+
+    // 空行
+    if (!line.trim()){ flushPara(); continue; }
+
+    // 見出し
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h){
+      flushAll();
+      const lv = h[1].length, txt = h[2].trim();
+      const id = slug(txt, usedIds);
+      out.push('<h' + lv + ' id="' + id + '">' + inline(txt) + '</h' + lv + '>');
+      if (lv === 2 || lv === 3) heads.push({ id, lv, txt: txt.replace(/[*`]/g, '') });
+      continue;
+    }
+
+    // 水平線
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)){ flushAll(); out.push('<hr>'); continue; }
+
+    // テーブル（次行が区切りなら開始）
+    if (/^\s*\|/.test(line) && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1])){
+      flushAll();
+      const cells = (r) => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      const head = cells(line);
+      let html = '<div class="tablewrap"><table><thead><tr>' +
+        head.map(c => '<th>' + inline(c) + '</th>').join('') + '</tr></thead><tbody>';
+      i += 2;
+      for (; i < lines.length && /^\s*\|/.test(lines[i]); i++){
+        const row = cells(lines[i]);
+        html += '<tr>' + head.map((_, k) => '<td>' + inline(row[k] || '') + '</td>').join('') + '</tr>';
+      }
+      i--;
+      out.push(html + '</tbody></table></div>');
+      continue;
+    }
+
+    // 引用
+    const q = line.match(/^\s*>\s?(.*)$/);
+    if (q){ flushAll(); out.push('<blockquote>' + inline(q[1]) + '</blockquote>'); continue; }
+
+    // リスト
+    const li = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+    if (li){
+      flushPara();
+      const indent = li[1].replace(/\t/g, '  ').length;
+      const tag = /^\d/.test(li[2]) ? 'ol' : 'ul';
+      const top = listStack[listStack.length - 1];
+      if (!top || indent > top.indent){
+        out.push('<' + tag + '>');
+        listStack.push({ tag, indent });
+      } else {
+        closeLists(indent + 1);
+        const cur = listStack[listStack.length - 1];
+        if (!cur){ out.push('<' + tag + '>'); listStack.push({ tag, indent }); }
+        else if (cur.tag !== tag){
+          out.push('</' + listStack.pop().tag + '><' + tag + '>');
+          listStack.push({ tag, indent });
+        }
+      }
+      out.push('<li>' + inline(li[3]) + '</li>');
+      continue;
+    }
+
+    // 段落（リスト継続行は畳む）
+    if (listStack.length && /^\s{2,}\S/.test(raw)){
+      const last = out.length - 1;
+      if (out[last] && out[last].startsWith('<li>')){
+        out[last] = out[last].replace(/<\/li>$/, ' ' + inline(line.trim()) + '</li>');
+        continue;
+      }
+    }
+    closeLists(0);
+    para.push(line.trim());
+  }
+  if (inFence && fence.length) out.push('<pre><code>' + esc(fence.join('\n')) + '</code></pre>');
+  flushAll();
+  return { html: out.join('\n'), heads };
+}
+
+/* ============ ドキュメント ============ */
+const DOCS = [
+  { id: 'saga',  label: 'サーガ正典（幹と枝の全骨格）', file: 'docs/SEIKAI_SAGA.md' },
+  { id: 'craft', label: 'CASE 01 物語クラフト指針',     file: 'docs/SEIKAI_STORY_CRAFT.md' }
+];
+
+const el = (id) => document.getElementById(id);
+const cache = {};
+let current = null;
+
+function renderTabs(){
+  el('tabs').innerHTML = DOCS.map(d =>
+    '<button class="tab' + (d.id === current ? ' on' : '') + '" data-doc="' + d.id + '">' + d.label + '</button>'
+  ).join('');
+}
+
+function renderToc(heads){
+  el('toc').innerHTML = '<div class="tt">Contents</div>' + heads.map(h =>
+    '<a href="#' + h.id + '" class="' + (h.lv === 3 ? 'h3' : '') + '">' + esc(h.txt) + '</a>'
+  ).join('');
+}
+
+async function load(id){
+  const d = DOCS.find(x => x.id === id);
+  if (!d) return;
+  current = id;
+  renderTabs();
+  history.replaceState(null, '', '#' + id);
+
+  if (cache[id]){ paint(cache[id]); return; }
+
+  el('doc').innerHTML = '<div id="loading">読み込み中…</div>';
+  el('toc').innerHTML = '';
+  try {
+    const res = await fetch(d.file, { cache: 'no-cache' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    cache[id] = mdToHtml(await res.text());
+    paint(cache[id]);
+  } catch (e) {
+    el('doc').innerHTML = '<div id="loading"><div class="err">' +
+      '資料を読み込めませんでした（' + esc(String(e.message)) + '）<br>' +
+      '原文はこちら: <a href="' + d.file + '">' + d.file + '</a><br>' +
+      '<span style="color:var(--dim);font-size:12px">※ ローカルの <code>file://</code> では読めません。HTTP 経由で開いてください。</span>' +
+      '</div></div>';
+  }
+}
+
+function paint(parsed){
+  el('doc').innerHTML = parsed.html;
+  renderToc(parsed.heads);
+  window.scrollTo(0, 0);
+  observeHeads(parsed.heads);
+}
+
+/* 現在位置を目次に反映 */
+let headObserver = null;
+function observeHeads(heads){
+  if (headObserver) headObserver.disconnect();
+  if (!('IntersectionObserver' in window) || !heads.length) return;
+  const links = new Map();
+  document.querySelectorAll('#toc a').forEach(a => links.set(a.getAttribute('href').slice(1), a));
+  headObserver = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      links.forEach(a => a.classList.remove('cur'));
+      const a = links.get(en.target.id);
+      if (a) a.classList.add('cur');
+    });
+  }, { rootMargin: '0px 0px -78% 0px', threshold: 0 });
+  heads.forEach(h => { const n = document.getElementById(h.id); if (n) headObserver.observe(n); });
+}
+
+/* ============ ゲート ============ */
+const GATE_KEY = 'seikai-plot-spoiler-ok';
+function openArchive(){
+  el('gate').classList.add('gone');
+  el('app').classList.add('on');
+  const want = location.hash.replace('#', '');
+  load(DOCS.some(d => d.id === want) ? want : DOCS[0].id);
+}
+el('gateGo').addEventListener('click', () => {
+  try { sessionStorage.setItem(GATE_KEY, '1'); } catch (e) {}
+  openArchive();
+});
+// 同じセッション内で一度承諾していれば聞き直さない
+try { if (sessionStorage.getItem(GATE_KEY) === '1') openArchive(); } catch (e) {}
+
+/* ============ 操作 ============ */
+el('tabs').addEventListener('click', e => {
+  const b = e.target.closest('.tab');
+  if (b) load(b.dataset.doc);
+});
+el('top').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+window.addEventListener('scroll', () => {
+  el('top').classList.toggle('on', window.scrollY > 700);
+}, { passive: true });
+</script>
+</body>
+</html>
