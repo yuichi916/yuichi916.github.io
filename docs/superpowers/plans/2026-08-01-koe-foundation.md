@@ -1374,8 +1374,8 @@ window.KOE.ep1 = { scenes: [
     {pickup:'mem-13', main:1}, {tryvoice:1},
     {pickup:'mem-14'},
     {choose:[
-      {t:'（仮）先に進む', reply:[{say:'kanata', text:'（仮）行こう。'}]},
-      {t:'（仮）少し休む', reply:[{say:'kanata', text:'（仮）少しだけ。'}]}
+      {label:'（仮）先に進む', reply:[{say:'kanata', text:'（仮）行こう。'}]},
+      {label:'（仮）少し休む', reply:[{say:'kanata', text:'（仮）少しだけ。'}]}
     ]},
     {end:1}
   ]},
@@ -1412,6 +1412,23 @@ node dump_script.mjs ../../assets/koe/koe-ep1.js > C:/tmp/koe-ep1.json
 set PYTHONUTF8=1 && python voice_audit.py C:/tmp/koe-ep1.json C:/projects/yuichi916.github.io/assets/koe/voice
 ```
 Expected: ボイスが1本も無いので `missing` が全件、`orphan` と `unpaired` は空。**`unpaired` が空であること**をここで確認する（`_k`/`_r` の対の論理が正しく働く前提が取れる）。
+
+- [ ] **Step 2b: BGMキーの実在アサートを足す**
+
+設計書 8-9 の要件。**未定義BGMキーは無音でスキップされて気づけない**ので、起動時に台本が参照する全BGMキーが `BGM` 定義表に存在することを検査する。エンジン側（`koe.html`）に置く。
+
+```javascript
+function assertBgmKeys(){
+  const script = (window.KOE && window.KOE.ep1) || null;
+  if(!script) return;
+  const bad = [];
+  (script.scenes||[]).forEach(s=>{ if(s.bgm && !BGM[s.bgm]) bad.push(s.bgm);
+    (s.beats||[]).forEach(b=>{ if(b.bgm && !BGM[b.bgm]) bad.push(b.bgm); }); });
+  if(bad.length) throw new Error('未定義のBGMキー: '+[...new Set(bad)].join(', '));
+}
+```
+
+台本読み込み後・タイトル表示前に1回呼ぶ。**握り潰さずに throw すること** — 無音で進むのがこの検査で防ぎたい当のものなので、コンソールに警告を出すだけでは足りない。
 
 - [ ] **Step 3: ブラウザで通し読みする**
 
@@ -1511,7 +1528,7 @@ def main():
                                "&& !document.getElementById('title').classList.contains('gone')"):
                     break
                 pg.evaluate("""() => {
-                  const c = document.querySelector('#choices.show .ch');
+                  const c = document.querySelector('#choices.show .choice');
                   if (c) { c.click(); return; }
                   const a = document.getElementById('adv');
                   if (a) a.click();
