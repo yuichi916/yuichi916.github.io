@@ -219,11 +219,13 @@ img{-webkit-user-drag:none}
 #title.gone{opacity:0;visibility:hidden;pointer-events:none}
 /* ===== タップゲート(起動時に声を1本確実に聞かせるための黒画面) ===== */
 #gate{position:fixed;inset:0;z-index:200;background:#000;display:flex;
-  align-items:center;justify-content:center;cursor:pointer}
+  align-items:center;justify-content:center;cursor:pointer;transition:opacity 1.2s,visibility 0s 1.2s}
 #gatetx{color:#6a7480;font-size:14px;letter-spacing:.5em;
   animation:gblink 2.6s ease-in-out infinite}
 @keyframes gblink{0%,100%{opacity:.25}50%{opacity:.8}}
-#gate.gone{opacity:0;pointer-events:none;transition:opacity 1.2s}
+/* visibility も落とす: 消えた後も要素が残っていると、その下の #title を
+   スクリーンリーダーが「画面をタップ」と読み続けてしまう */
+#gate.gone{opacity:0;visibility:hidden;pointer-events:none}
 #title .tembers{position:absolute;inset:0;pointer-events:none;opacity:.5;background:
   radial-gradient(2px 2px at 20% 40%,rgba(55,224,208,.5),transparent),
   radial-gradient(1.5px 1.5px at 75% 25%,rgba(255,92,122,.4),transparent),
@@ -300,7 +302,7 @@ img{-webkit-user-drag:none}
 </style>
 </head>
 <body>
-<div id="gate"><div id="gatetx">画面をタップ</div></div>
+<div id="gate" role="button" tabindex="0" aria-label="タップ、クリック、またはEnter/Spaceキーで開始"><div id="gatetx">画面をタップ</div></div>
 <audio id="titlekoe" preload="auto" src="assets/koe/voice/title-koe.mp3"></audio>
 <div id="stage">
   <canvas id="bg3d"></canvas>
@@ -899,9 +901,13 @@ function startGame(fresh){
   enterScene();
 }
 /* タイトルを再表示する唯一の入口。「つづきから」を必ず解禁する。
-   Task 8 のタップゲートはここに追加する。 */
+   タイトルの可視性は2つの独立した仕組みで管理されている: 起動時のタップゲート(openGate)が
+   #title に .ready を一度だけ付け(以後は外さない)、ここから先は .gone の付け外しだけで
+   表示/非表示を切り替える。.ready を保険として明示的に付けておくのは、万一 openGate 側の
+   経路をすべて通らずここに来ても(理論上あり得ないはずだが)黒画面のまま固まらないため。 */
 function showTitle(){
   el('tCont').disabled=false;
+  el('title').classList.add('ready');
   el('title').classList.remove('gone');
 }
 
@@ -910,38 +916,64 @@ function showTitle(){
    終盤でこの声が「あのとき聞いた声だ」と気づかせる仕掛けの前提なので、
    autoplayブロックで素通りされると仕掛けごと死ぬ。ゲートのタップ/クリック/キー入力を
    ユーザー操作の起点にして、そこで鳴らす。
-   404・デコード失敗・play()拒否・再生停止・タブが陰に回った、いずれの経路でも
-   6秒の保険タイムアウトを含めて必ず reveal() に辿り着き、黒画面のまま固まらない。
+   404・デコード失敗・play()拒否・再生停止・タブが陰に回った・準備段階での同期例外、
+   いずれの経路でも6秒の保険タイムアウト(floor)を含めて必ず reveal() に辿り着き、
+   黒画面のまま固まらない。reveal() は毎回 el() で要素を取り直すので、準備の途中で
+   例外が飛んで g/a のクロージャ変数が未確定でも道連れにしない。
    reason で「本当に鳴り終えた(ended)」と「保険/失敗で開けた」を区別できるようにする
    ——これが無いと、声が一度も鳴らないビルドでもテストが素通りしてしまう。 */
-window.__koeGate={played:false, ended:false, currentTime:0, reason:null, revealCount:0};
+window.__koeGate={played:false, ended:false, currentTime:0, reason:null, detail:null, revealCount:0};
 let _gateRevealed=false;
 function openGate(){
-  if(window.__koeGate.played) return;   // click/touchstart が同じタップで両方発火しても一度だけ
+  if(window.__koeGate.played) return;   // 同じタップで click が二重発火しても一度だけ
   window.__koeGate.played=true;
-  const g=el('gate'), a=el('titlekoe');
-  ensureCtx(); if(actx&&actx.state==='suspended') actx.resume();
-  /* この1本だけは音量下限を張る。聞き流させるが、聞こえないのは困る。
-     cfg.voice 自体は触らない——ミュートしたプレイヤーは後でミュートのまま見つけられる。 */
-  a.volume=Math.max(0.20, cfg.voice/100);
-  const reveal=(reason)=>{
+  const reveal=(reason,detail)=>{
     if(_gateRevealed) return;           // onended/onerror/timeout/play().catch が重なっても一度だけ
     _gateRevealed=true;
     window.__koeGate.revealCount++;     // E2E検証用: 実際に画面が開いた回数。常に1でなければならない
     window.__koeGate.reason=reason;
+    window.__koeGate.detail=detail||null;   // NotAllowedError/NotSupportedError や MediaError.code など
     window.__koeGate.ended=(reason==='ended');
-    window.__koeGate.currentTime=a.currentTime||0;
-    g.classList.add('gone');
+    const a0=el('titlekoe');
+    window.__koeGate.currentTime=(a0&&a0.currentTime)||0;
+    const g0=el('gate'); if(g0) g0.classList.add('gone');
     el('title').classList.add('ready');
     playBGM('title');
   };
-  a.onended=()=>reveal('ended');
-  a.onerror=()=>reveal('error');        // 音源が無くても(今日の実態=404)進める
-  setTimeout(()=>{ reveal('timeout'); }, 6000);   // 保険。ended済みなら reveal 内部で無視される
-  a.play().catch(()=>reveal('rejected'));
+  /* 保険タイムアウトを最初に組む。以降(要素取得・音量計算・play())のどこかで
+     同期的に例外が飛んでも、これだけは必ず動いて黒画面のまま固まらせない。
+     6秒は「metadataが取れない/取れる前に落ちた」場合の床(floor)。取れれば下で伸ばす。 */
+  let gateTimer=setTimeout(()=>{ reveal('timeout'); }, 6000);
+  try{
+    const a=el('titlekoe');
+    ensureCtx(); if(actx&&actx.state==='suspended') actx.resume();
+    /* この1本だけは音量下限を張る。聞き流させるが、聞こえないのは困る。
+       cfg.voice 自体は触らない——ミュートしたプレイヤーは後でミュートのまま見つけられる。
+       localStorage 由来の壊れた値(undefined/範囲外)でも volume の setter が例外を投げないよう
+       0-100 にクランプしてから正規化する。 */
+    const vRaw=Number(cfg.voice);
+    const vNorm=isFinite(vRaw)?Math.min(100,Math.max(0,vRaw)):0;
+    a.volume=Math.max(0.20, vNorm/100);
+    a.onended=()=>reveal('ended');
+    a.onerror=()=>{                     // 音源が無くても(今日の実態=404)進める
+      console.warn('[koe] title-koe.mp3 failed to load'+(a.error?' (code='+a.error.code+')':''));
+      reveal('error', a.error&&a.error.code);
+    };
+    a.addEventListener('loadedmetadata',()=>{
+      // 曲の長さが分かったら保険を「曲の長さ+余裕」まで伸ばす。metadataが来ない(=404等)場合は
+      // 上の6秒床のまま——健全な短い声を保険タイムアウト側で誤って刈り取らないための調整。
+      if(_gateRevealed) return;
+      const durMs=isFinite(a.duration)?a.duration*1000:0;
+      if(durMs>6000){ clearTimeout(gateTimer); gateTimer=setTimeout(()=>{ reveal('timeout'); }, durMs+1500); }
+    });
+    a.play().catch(err=>reveal('rejected', err&&err.name));
+  }catch(e){ reveal('threw', e&&e.message); }
 }
+/* touchstart は使わない: passive のため preventDefault できず、タップ後の合成 click が
+   #gate.gone(pointer-events:none)の下に透けて #title の「はじめから」等に落ちることがある
+   (スマホ実機で確認済みのゴーストクリック)。html,body の touch-action:manipulation で
+   300ms遅延はすでに無いので、click 一本で十分。 */
 el('gate').addEventListener('click', openGate, {once:true});
-el('gate').addEventListener('touchstart', openGate, {once:true, passive:true});
 document.addEventListener('keydown', e=>{
   if(el('gate').classList.contains('gone')) return;   // ゲート通過後は無視
   if(e.key===' '||e.key==='Enter'){ e.preventDefault(); openGate(); }
