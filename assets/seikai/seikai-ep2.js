@@ -154,8 +154,10 @@ window.SEIKAI_SCRIPT.ep2 = { title:'第二話 なんとなくの少女', scenes:
   /* 3.5 三番通路・三秒の暗闇 */
   { bg:'slum', bgm:'yuki', amb:1, card:{no:'', ttl:'三番通路', sub:'', hold:1800}, beats:[
     {tm:'三日目・夜'},
+    {cg:'cg-slumcanyon'},
     {say:'narr', text:'その夜、カイはリーンの報告を実地で確かめに、三番通路へ出た。蛍光灯の点滅周期、約四十秒。リーンも、ついてきた。'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
+    {cg:null},
     {say:'kai', text:'「来るぞ。……三、二、一」', ex:''},
     {say:'narr', text:'蛍光灯が、落ちた。完全な暗闇。リーンの報告通り、三秒。'},
     {say:'narr', text:'——その三秒の間に、カイの袖が、強く掴まれた。'},

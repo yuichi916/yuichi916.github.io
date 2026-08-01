@@ -120,9 +120,11 @@ window.SEIKAI_SCRIPT = {
 
   /* 6. 廃液処理 */
   { bg:'waste', bgm:'timelimit', amb:1, card:{no:'', ttl:'廃液処理槽', sub:'', hold:2200}, beats:[
+    {cg:'cg-underlook'},
     {tm:'一日目・昼'},
     {say:'narr', text:'廃液処理。第五層で、最も多くの人間が死ぬ持ち場だ。地下世界全体から流れ着く有害廃液を、素手で汲み、運ぶ。'},
     {say:'narr', text:'防護服はない。手袋すらない。肌に触れれば爛れる。蒸気を吸えば肺が焼ける。'},
+    {cg:null},
     {show:'kai', pos:'center'},
     {fx:'pline'},
     {say:'narr', text:'カイは道筋を常に展開していた。目的：廃液処理を、負傷なく完了する。'},

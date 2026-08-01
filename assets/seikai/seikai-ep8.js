@@ -110,6 +110,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
     {say:'rin', text:'「描いてる絵、見ていい？」', ex:''},
     {say:'miira', text:'「いいよ」'},
     {say:'narr', text:'ミーラが紙をリーンに見せた。空の絵だった。青い空。白い雲。雲の形が——鳥だった。翼を広げた鳥の形の雲。'},
+    {cg:'cg-miira-drawing'},
     {say:'rin', text:'「鳥——」', ex:''},
     {say:'miira', text:'「うん。雲って、時々、鳥みたいな形になるよね」'},
     {say:'rin', text:'「鳥、見たことある？」', ex:''},
@@ -118,6 +119,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
     {say:'rin', text:'「ない？」', ex:'unease'},
     {say:'miira', text:'「鳥は、この町にはいないの。管理者が、鳥は『非効率な動物』だから、町の空気を浄化する時に全部遠ざけちゃったって、お父さんが昔言ってた」'},
     {say:'narr', text:'リーンが絵を見つめた。絵の中の雲は、鳥の形をしていた。ミーラは、鳥を見たことがなかった。'},
+    {cg:null},
     {say:'narr', text:'見たこともない鳥の形を、雲の中に見出して、描いている。記憶にないもの、配給されたことのないものを、この子は心の中で生み出せる。'},
     {say:'rin', text:'「ミーラ。あなたの絵、すごくきれい」', ex:'soft'},
     {say:'miira', text:'「ありがとう。でも、うまく描けないの。色がはみ出す」'},
@@ -228,6 +230,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
   /* 6. 町を歩く・リーンは人工人間 */
   { bg:'town', bgm:'yami', amb:1, beats:[
     {say:'narr', text:'ミーラと別れて、三人は公園を離れた。町の通りを歩きながら、カイはリーンを見た。'},
+    {cg:'cg-townplaza'},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:''},
     {say:'kai', text:'「さっきの——どうやった」', ex:''},
     {say:'rin', text:'「わかんない。でも、あたしが話しかけたら、球体が止まった」', ex:''},
@@ -267,6 +270,7 @@ window.SEIKAI_SCRIPT.ep8 = { title:'第八話 誰も泣かない街', scenes:[
 
   /* 7. 夕方・リーンの歩く道に、笑顔が生まれる */
   { bg:'town', bgm:'asayake', amb:1, card:{no:'', ttl:'夕', sub:'', hold:1800}, beats:[
+    {cg:null},
     {say:'narr', text:'その日の夕方。リーンは通りを歩きながら、すれ違う人に、小さな挨拶を落としていった。'},
     {show:'rin', pos:'center', expr:'soft'},
     {say:'rin', text:'「おはようございます」', ex:'soft'},
