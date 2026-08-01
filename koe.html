@@ -208,11 +208,22 @@ img{-webkit-user-drag:none}
 /* ===== title screen ===== */
 #title{position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
   background:radial-gradient(ellipse at 50% 30%,#0b1420,#05070c 70%);text-align:center;padding:24px;transition:opacity 1s;
-  overflow-y:auto;overscroll-behavior:contain}
+  overflow-y:auto;overscroll-behavior:contain;opacity:0}
+/* タップゲート通過前は既定で不可視。.ready は一度付いたら以後外さない(通過は一回きり)。
+   ゲーム中の表示/非表示は引き続き .gone が担当するので、.gone は下に置いて後勝ちさせる
+   (同特異度の場合、後に定義した方がカスケードで勝つ)。 */
+#title.ready{opacity:1}
 /* 画面に収まるときは中央、収まらないときはスクロール */
 #title .eye{margin-top:auto}
 #title .cred{margin-bottom:auto}
 #title.gone{opacity:0;visibility:hidden;pointer-events:none}
+/* ===== タップゲート(起動時に声を1本確実に聞かせるための黒画面) ===== */
+#gate{position:fixed;inset:0;z-index:200;background:#000;display:flex;
+  align-items:center;justify-content:center;cursor:pointer}
+#gatetx{color:#6a7480;font-size:14px;letter-spacing:.5em;
+  animation:gblink 2.6s ease-in-out infinite}
+@keyframes gblink{0%,100%{opacity:.25}50%{opacity:.8}}
+#gate.gone{opacity:0;pointer-events:none;transition:opacity 1.2s}
 #title .tembers{position:absolute;inset:0;pointer-events:none;opacity:.5;background:
   radial-gradient(2px 2px at 20% 40%,rgba(55,224,208,.5),transparent),
   radial-gradient(1.5px 1.5px at 75% 25%,rgba(255,92,122,.4),transparent),
@@ -289,6 +300,8 @@ img{-webkit-user-drag:none}
 </style>
 </head>
 <body>
+<div id="gate"><div id="gatetx">画面をタップ</div></div>
+<audio id="titlekoe" preload="auto" src="assets/koe/voice/title-koe.mp3"></audio>
 <div id="stage">
   <canvas id="bg3d"></canvas>
   <div class="bg" id="bg0"></div>
@@ -891,6 +904,49 @@ function showTitle(){
   el('tCont').disabled=false;
   el('title').classList.remove('gone');
 }
+
+/* ---------- タップゲート ----------
+   起動直後、彼女の声を1本だけ確実に聞かせてからタイトルを出す。
+   終盤でこの声が「あのとき聞いた声だ」と気づかせる仕掛けの前提なので、
+   autoplayブロックで素通りされると仕掛けごと死ぬ。ゲートのタップ/クリック/キー入力を
+   ユーザー操作の起点にして、そこで鳴らす。
+   404・デコード失敗・play()拒否・再生停止・タブが陰に回った、いずれの経路でも
+   6秒の保険タイムアウトを含めて必ず reveal() に辿り着き、黒画面のまま固まらない。
+   reason で「本当に鳴り終えた(ended)」と「保険/失敗で開けた」を区別できるようにする
+   ——これが無いと、声が一度も鳴らないビルドでもテストが素通りしてしまう。 */
+window.__koeGate={played:false, ended:false, currentTime:0, reason:null, revealCount:0};
+let _gateRevealed=false;
+function openGate(){
+  if(window.__koeGate.played) return;   // click/touchstart が同じタップで両方発火しても一度だけ
+  window.__koeGate.played=true;
+  const g=el('gate'), a=el('titlekoe');
+  ensureCtx(); if(actx&&actx.state==='suspended') actx.resume();
+  /* この1本だけは音量下限を張る。聞き流させるが、聞こえないのは困る。
+     cfg.voice 自体は触らない——ミュートしたプレイヤーは後でミュートのまま見つけられる。 */
+  a.volume=Math.max(0.20, cfg.voice/100);
+  const reveal=(reason)=>{
+    if(_gateRevealed) return;           // onended/onerror/timeout/play().catch が重なっても一度だけ
+    _gateRevealed=true;
+    window.__koeGate.revealCount++;     // E2E検証用: 実際に画面が開いた回数。常に1でなければならない
+    window.__koeGate.reason=reason;
+    window.__koeGate.ended=(reason==='ended');
+    window.__koeGate.currentTime=a.currentTime||0;
+    g.classList.add('gone');
+    el('title').classList.add('ready');
+    playBGM('title');
+  };
+  a.onended=()=>reveal('ended');
+  a.onerror=()=>reveal('error');        // 音源が無くても(今日の実態=404)進める
+  setTimeout(()=>{ reveal('timeout'); }, 6000);   // 保険。ended済みなら reveal 内部で無視される
+  a.play().catch(()=>reveal('rejected'));
+}
+el('gate').addEventListener('click', openGate, {once:true});
+el('gate').addEventListener('touchstart', openGate, {once:true, passive:true});
+document.addEventListener('keydown', e=>{
+  if(el('gate').classList.contains('gone')) return;   // ゲート通過後は無視
+  if(e.key===' '||e.key==='Enter'){ e.preventDefault(); openGate(); }
+});
+
 function endEpisode(){
   stopBGM(); ambient(false); clearSprites();
   /* ここでは round を触らない。呼び出し元は2つあり、片方 (enterScene():766 の
