@@ -7,6 +7,9 @@
 本作固有の検査:
   - ren の台詞は v:1 のときだけボイスを期待する（既定は無音）
   - narr は _k / _r の対で存在しなければならない
+  - kanata/toki の台詞のうち、本文が全角/半角の開き括弧で始まるものは
+    （心の声）として扱いボイスを期待しない（koe.html:renderSay() の
+    `mono` 判定と同一条件。is_mono() 参照）
 
 このモジュールが唯一の防衛線であるがゆえに、誤ってCLEANと報告する（＝偽陰性）ことは
 クラッシュより悪い。fix round 1（レビュー指摘）で以下を直した:
@@ -19,6 +22,15 @@
   - key_of(): エンジンはUTF-16コード単位でハッシュするため、Pythonの
     コードポイント単位のord()だと非BMP文字だけ食い違う。
   - 台本外の正規音声（title-koe/final-*/synth-*、design 8-5）をorphanから除外。
+
+fix round 2（koe-ep1スタブのレビュー指摘）で以下を直した:
+  - expected_files(): kanata/toki の（心の声）行を無条件でボイス期待に
+    数えていたのを、koe.html の mono 判定（is_mono()）と揃えた。
+    エンジン側は「（」「(」で始まる kanata/toki の台詞のボイスを鳴らさない
+    (renderSay() の `const mono = ...`) のに、この棚卸しがそれを知らずに
+    ボイスファイルを期待すると、その手の台詞は本編でもスタブでも永久に
+    missing のまま消えず、ゲートが恒久的にDIRTYになって誰も見なくなる
+    （ALLOWED_NON_SCRIPT_STEMS を足した理由と同じ失敗モード）。
 """
 import json
 import struct
@@ -55,6 +67,19 @@ def key_of(text):
         if h >= 0x80000000:
             h -= 0x100000000
     return "k" + str(h)
+
+
+def is_mono(text):
+    """kanata/toki の（心の声）判定。
+
+    koe.html:renderSay() の
+      const mono = (b.say==='kanata'||b.say==='toki') && /^[（(]/.test(b.text.trim());
+    と一字一句同じ条件をここに転記したもの（「再導出」ではなく書き写し）。
+    エンジン側のこの1行だけが唯一の定義で、ここはその写し。ズレて良いのは
+    エンジン側が変わったときにここを更新し忘れる場合だけで、それは
+    tests/koe_audit_test.py の対応するケースが検出する。
+    """
+    return text.strip().startswith(("（", "("))
 
 
 def _walk(node, seen):
@@ -102,7 +127,8 @@ def expected_files(script):
             if b.get("v"):
                 exp.add("v" + key_of("ren|" + text))
         elif who in VOICED:
-            exp.add("v" + key_of(who + "|" + text))
+            if not is_mono(text):
+                exp.add("v" + key_of(who + "|" + text))
     return exp
 
 

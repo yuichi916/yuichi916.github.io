@@ -376,9 +376,9 @@ img{-webkit-user-drag:none}
     <h1>声を、あげる</h1>
     <div class="sub" id="tSub">音が売り買いされる街で、<br>声を持たない少女に、声を作る話</div>
     <div class="menu">
-      <button id="tStart">はじめから</button>
+      <button id="tStart" disabled>はじめから</button>
       <button id="tCont" disabled>つづきから</button>
-      <button id="tLoad">ロード</button>
+      <button id="tLoad" disabled>ロード</button>
     </div>
     <div class="sharerow"><button class="sharebtn" id="shX">𝕏 で紹介</button><button class="sharebtn" id="shCopy">リンクをコピー</button><a class="sharebtn" href="./" style="text-decoration:none;display:inline-block">🌿 ほかの作品へ</a></div>
     <div class="cred">原作: kernel_yu ／ Music: Ether・君の音。(真島こころ)・mozell・なぐもりず<br>Background: KitBash3D ／ Art: Stable Diffusion によるオリジナル生成</div>
@@ -1113,47 +1113,84 @@ el('shCopy').addEventListener('click',shareCopy);
 
 /* init */
 loadCfg();
-if(load()){ el('tCont').disabled=false; }
+/* 保存の有無だけここで確定させる。ボタンの解禁自体は assertScriptLoaded()
+   （台本読み込み確認後）まで遅らせる — fail-closed。#tStart/#tCont/#tLoad は
+   マークアップ側で最初から disabled にしてあるので、ここで tCont だけ解禁すると
+   台本(koe-ep1.js)がまだ読み込めているか分からない段階でボタンが動いてしまう。 */
+const hasSave = load();
 </script>
 <script src="assets/koe/koe-ep1.js"></script>
 <script>
 /* 台本を後読みした場合の再バインド */
 if(window.KOE){ for(const k in window.KOE) SCRIPT[k]=window.KOE[k]; }
 
-/* 台本ロード検査。ここに置く理由: assets/koe/koe-ep1.js が404/オフライン/ブロックで
-   読み込めなかった場合、直前の再バインドは何もせず、SCRIPT は関数冒頭の
-   フォールバック（{ ep1:{ title:..., scenes:[] } }）のまま残る。curScenes() は
-   これを「場面が0個の台本」として扱い、はじめから→即 enterScene() の「場面が無い」
+/* あらゆる深さの choose[].reply[] / when の reply などを再帰的に辿る。
+   scenes/beats/reply/choose のようなキー名を決め打ちで1〜2段だけ辿ると、
+   分岐の中の分岐（choose の reply の中の choose、等）が無言で検査から漏れる。
+   これは scripts/koe/voice_audit.py の _walk() が一度やらかして直した設計判断と
+   まったく同じ理由なので、同じ形（キー名を決め打ちしない再帰）に揃える。 */
+function walkNodes(node, visit, seen){
+  seen = seen || new Set();
+  if(Array.isArray(node)){ node.forEach(n=>walkNodes(n, visit, seen)); return; }
+  if(node && typeof node==='object'){
+    if(seen.has(node)) return; // 循環参照があっても無限ループしない
+    seen.add(node);
+    visit(node);
+    for(const k in node) walkNodes(node[k], visit, seen);
+  }
+}
+
+/* 台本ロード検査 + 背景(bg)/BGM(bgm)キー実在検査。両方をここに置く理由:
+   assets/koe/koe-ep1.js が404/オフライン/ブロックで読み込めなかった場合、直前の
+   再バインドは何もせず、SCRIPT は関数冒頭のフォールバック
+   （{ ep1:{ title:..., scenes:[] } }）のまま残る。curScenes() はこれを
+   「場面が0個の台本」として扱い、はじめから→即 enterScene() の「場面が無い」
    ガード(endEpisode())に落ちて、プレイヤーには「完」カードが正常に出る＝
    台本が1文字も読めていないのに完走したように見える。
-   これはBGMキー検査より前に置く: BGMキー検査は script が無ければ何もせず return
-   するだけなので、台本未読込そのものは検出できない。両方をタイトル表示より前・
-   台本読み込み後の同じ場所（この後読みスクリプトタグの直後）で一度だけ走らせる。 */
-(function assertScriptLoaded(){
+   bg/bgm キーの実在検査も同じ場所に置く: 未定義キーは setBGcss()（BGS.voidの
+   グラデーションに黙って差し替わる）/ playBGM()（`if(!file) return;` で
+   無音スキップ）のどちらも当人の手前で握り潰すので、外から気づけない。
+   両方をタイトル表示より前・台本読み込み後の同じ場所
+   （koe-ep1.js の後読み再バインド関数 = 直前のコードブロック の直後）で
+   一度だけ走らせる。台本ロード検査を先に置くのは、bg/bgmキー検査が
+   `if(!script) return;` で台本未読込そのものは黙って見逃すため
+   （script が無ければ「調べる対象が無い」だけで、それ自体は別の異常）。 */
+(function assertScriptLoadedAndKeys(){
   const ep = SCRIPT[EPS[0]];
-  if(!ep || !Array.isArray(ep.scenes) || ep.scenes.length===0){
+  const ok = ep && Array.isArray(ep.scenes) && ep.scenes.length>0;
+  if(!ok){
     /* throw するだけでは足りない: この <script> が例外で止まっても、既に前の
        <script> でバインド済みの #gate/#tStart のクリックハンドラは生きたまま
        残るので、プレイヤーはタップ→はじめからと普通に進めてしまい、結局
        enterScene() の「場面が無い」ガードで「完」に無言で落ち着く。
        それでは「うるさくする」ことにならないので、開始系ボタンをここで
-       物理的に潰し、「完」に辿り着く経路そのものを断つ。 */
+       物理的に潰し、「完」に辿り着く経路そのものを断つ。
+       なお #tStart/#tLoad はマークアップ側で最初から disabled にしてある
+       (fail-closed)。koe-ep1.js の取得が遅い/ハングしている間（きれいな404では
+       ない場合）は、この <script> タグ自体がまだ実行されておらず、ここに
+       辿り着く前にユーザー入力だけは処理され得る——その間もボタンが
+       disabled のままであることが安全側のデフォルトになる。ここでの
+       .disabled=true は「念のための再確認」であって、安全性の主因ではない。 */
     ['tStart','tCont','tLoad'].forEach(id=>{ const b=el(id); if(b) b.disabled=true; });
     throw new Error('koe: 台本 assets/koe/koe-ep1.js が読み込めていません（scenesが空）。404・オフライン・パス間違いの可能性。開始ボタンを無効化した。');
   }
+  const badBg = [], badBgm = [];
+  walkNodes(ep.scenes, node=>{
+    if(node.bg!=null && !BGS[node.bg]) badBg.push(node.bg);
+    if(node.bgm!=null && !BGM[node.bgm]) badBgm.push(node.bgm);
+  });
+  if(badBg.length || badBgm.length){
+    const parts=[];
+    if(badBg.length) parts.push('未定義のBGキー: '+[...new Set(badBg)].join(', '));
+    if(badBgm.length) parts.push('未定義のBGMキー: '+[...new Set(badBgm)].join(', '));
+    throw new Error('koe: '+parts.join(' / '));
+  }
+  /* ここまで通れば台本は読めていて bg/bgm キーもすべて実在する。
+     fail-closed で最初から disabled にしていた開始系ボタンをここで解禁する。
+     tCont は「保存があるとき」だけ解禁する（保存が無ければ従来どおり無効のまま）。 */
+  ['tStart','tLoad'].forEach(id=>{ const b=el(id); if(b) b.disabled=false; });
+  if(hasSave) el('tCont').disabled=false;
 })();
-
-/* BGMキー実在検査。未定義キーは playBGM() 内の `if(!file) return;` で無音スキップされ、
-   誰にも気づかれない（設計書 8-9）。握り潰さずthrowで止める。 */
-function assertBgmKeys(){
-  const script = SCRIPT[EPS[0]] || null;
-  if(!script) return;
-  const bad = [];
-  (script.scenes||[]).forEach(s=>{ if(s.bgm && !BGM[s.bgm]) bad.push(s.bgm);
-    (s.beats||[]).forEach(b=>{ if(b.bgm && !BGM[b.bgm]) bad.push(b.bgm); }); });
-  if(bad.length) throw new Error('koe: 未定義のBGMキー: '+[...new Set(bad)].join(', '));
-}
-assertBgmKeys();
 </script>
 
 <!-- ════════ THREE.JS 360° 背景ビューア ════════ -->

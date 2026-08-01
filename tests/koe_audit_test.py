@@ -7,6 +7,13 @@ fix round 1（レビュー指摘）で追加した回帰テスト:
     かつCLIがそれをCLEANとして通さないこと（Critical 2）
   - 非BMP文字（サロゲートペア）でもJSのkeyOfと一致すること（Important 3）
   - 台本外の正規音声（title-koe/final-*/synth-*）がorphan誤検知にならないこと（追加分）
+
+fix round 2（koe-ep1スタブのレビュー指摘, Important 2）で追加した回帰テスト:
+  - is_mono() が koe.html:renderSay() の mono 判定と一致すること
+  - kanata/toki の（心の声）行が expected_files() から除外されること
+  - narr/ren は同じ見た目の括弧始まりでも mono 対象外のまま変わらないこと
+    （mono はkanata/tokiだけの条件——ここが崩れるとnarr/renのボイスが
+    無言で期待から漏れるという、別方向の偽陰性になる）
 """
 import json
 import os
@@ -57,6 +64,36 @@ def main():
     # v:1 でない ren はボイスを期待しない
     assert "v" + va.key_of("ren|（文字盤を指す）") not in exp
     assert len(exp) == 5, sorted(exp)
+
+    # --- Important 2: is_mono() は koe.html:renderSay() の mono 判定と一致する ---
+    # const mono = (b.say==='kanata'||b.say==='toki') && /^[（(]/.test(b.text.trim());
+    assert va.is_mono("（心の声）") is True
+    assert va.is_mono("(parenthesis)") is True
+    assert va.is_mono("  （前後に空白があっても検出する）  ") is True  # .trim()相当
+    assert va.is_mono("台詞。") is False
+    assert va.is_mono("") is False
+
+    # kanata/toki の（心の声）行は expected_files() から除外される。
+    # 除外し忘れると、その行のボイスファイルは実際には一度も要求されないのに
+    # 「missing」に永久に載り続け、ゲートが恒久的にDIRTYになる
+    # （ALLOWED_NON_SCRIPT_STEMS を足したのと同じ理由の逆側）。
+    mono_script = {"scenes": [{"beats": [
+        {"say": "kanata", "text": "（心の声）今日も拾いに行く"},   # mono → 期待しない
+        {"say": "kanata", "text": "仮：地の声、鳴る方"},           # 括弧始まりでない → 期待する
+        {"say": "toki",   "text": "(半角括弧も同じ扱い)"},        # mono → 期待しない
+        {"say": "narr",   "text": "（narrは常に地の文。mono対象外）"},  # narrはmono判定の対象外
+        {"say": "ren",    "text": "（renも常に対象外。v:1）", "v": 1},  # renはmono判定の対象外
+    ]}]}
+    mono_exp = va.expected_files(mono_script)
+    assert "v" + va.key_of("kanata|（心の声）今日も拾いに行く") not in mono_exp, sorted(mono_exp)
+    assert "v" + va.key_of("kanata|仮：地の声、鳴る方") in mono_exp, sorted(mono_exp)
+    assert "v" + va.key_of("toki|(半角括弧も同じ扱い)") not in mono_exp, sorted(mono_exp)
+    # narr/ren は mono の対象外なので、丸括弧で始まっていても普通に期待される
+    n_k = "n" + va.key_of("（narrは常に地の文。mono対象外）")
+    assert n_k + "_k" in mono_exp and n_k + "_r" in mono_exp, sorted(mono_exp)
+    assert "v" + va.key_of("ren|（renも常に対象外。v:1）") in mono_exp, sorted(mono_exp)
+    # 上の5行のうち mono で落ちる2行(kanata1・toki1)を除いた分だけが期待される
+    assert len(mono_exp) == 4, sorted(mono_exp)  # kanata1本 + narr2本(_k/_r) + ren1本
 
     # --- Critical 1: 2段より深いネストも棚卸しから漏れない ---
     # scenes -> beats -> choose[].reply -> choose[].reply -> beat という
