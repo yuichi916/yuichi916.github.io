@@ -1005,6 +1005,8 @@ function freshState(keep){
 }
 ```
 
+**`startGame(fresh)` は必ず `st = freshState(st)` の形で呼ぶこと**（`st={ep:0,...}` と直書きしない）。`seen` / `cleared` / `round` は周回をまたいで持ち越す値なので、直書きすると2周目が成立しなくなる。`seikai.html:1202-1212` の `startGame` / `startEpisode` は直書きなので、ここは移植ではなく書き換えになる。本作は1話構成なので `startEpisode` は移植しない。
+
 - [ ] **Step 3: 構文チェック**
 
 ```
@@ -1079,8 +1081,8 @@ function doPickup(b){
   if(b.main){ st.synth=Math.min(SYNTH_MAX, st.synth+1);
               if(!st.firstMain) st.firstMain=b.pickup; }
   save();
-  flashMem(b.pickup, 1400, ()=>{ locked=false; step(); });
   locked=true;
+  flashMem(b.pickup, 1400, ()=>{ locked=false; step(); });
 }
 function flashMem(key, ms, done){
   const e=el('memflash');
@@ -1521,18 +1523,7 @@ def main():
 
             # --- 検証1: セイレンの無音が守られているか ---
             log = pg.evaluate("window.__koeVoiceLog")
-            script = pg.evaluate("window.KOE.ep1")
-            import hashlib  # noqa: F401  (未使用。keyOfはJS側で計算させる)
-            allowed = pg.evaluate("""() => {
-              const out = [];
-              (window.KOE.ep1.scenes||[]).forEach(s=>(s.beats||[]).forEach(b=>{
-                if (b.say === 'ren' && b.v) out.push(voiceFile('ren', b.text));
-              }));
-              return out;
-            }""")
-            ren_calls = [f for f in log if "/v" in f and f not in allowed]
-            # ren の無音台詞はそもそも playVoice を通らないので、
-            # ren 由来の再生は allowed にしか現れないはず
+            # ren の無音台詞は playVoice を通らないので、ログに現れてはいけない
             leaked = pg.evaluate("""(log) => {
               const bad = [];
               (window.KOE.ep1.scenes||[]).forEach(s=>(s.beats||[]).forEach(b=>{
