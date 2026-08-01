@@ -61,6 +61,21 @@ def main():
         d75 = float(np.mean((s75[:n] - s100[:n]) ** 2))
         assert d75 < d50, f"75%が50%より元に近くない d75={d75:.5f} d50={d50:.5f}"
 
+        # 75%: ピッチ揺らぎが実際にかかっている（drop+quantizeだけに退化していないか）
+        # librosa.effects.pitch_shift が例外で握りつぶされて無効化されても、
+        # d75<d50 など他のどのアサーションもそれを検知できない
+        # （drop+quantizeだけのほうがむしろ元に近くなり通ってしまう）。
+        # 同じrng消費順序でpitch shiftなし版を計算し、実際のs75と
+        # 有意に異なることを直接確認する。
+        rng_ref = np.random.default_rng(0)
+        ss.stage_breath(y_src, rng_ref)
+        ss.stage_grain(y_src, rng_ref)
+        ss.stage_fragment(y_src, rng_ref)
+        ref_no_pitch = ss.stage_broken(y_src, rng_ref, pitch=False)
+        d_pitch = float(np.mean((s75[:n] - ref_no_pitch[:n]) ** 2))
+        assert d_pitch > 2e-3, \
+            f"75%にピッチ揺らぎがかかっていない（drop+quantizeだけに退化） d_pitch={d_pitch:.5f}"
+
         # 100%: 正規化した元と一致
         assert np.allclose(s100[:n], ss._norm(y_src)[:n], atol=2e-3), "100%が元と一致しない"
 

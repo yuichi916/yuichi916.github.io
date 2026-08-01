@@ -90,13 +90,26 @@ def stage_fragment(y, rng, keep=0.5, frame_ms=90):
     return _norm(out)
 
 
-def stage_broken(y, rng, drop=0.15, frame_ms=120, cents=15.0, bits=7):
+PITCH_SHIFT_MIN_LEN = 2048  # librosa.effects.pitch_shift の内部 stft (time_stretch
+# 経由) は n_fft をこちらから渡していないため既定値 2048 が使われる
+# (librosa 0.11.0 の time_stretch/stft の実ソースで確認済み)。それより短い
+# 入力はSTFTのパディングで著しく劣化するので、この長さ未満のフレームだけを
+# 「シフトしない」対象とする。それ以外の失敗（API変更・依存の欠落等）は
+# 握りつぶさず伝播させる — 全フレームで失敗してもテストが気付けない
+# 沈黙した劣化を避けるため。
+
+
+def stage_broken(y, rng, drop=0.15, frame_ms=120, cents=15.0, bits=7, pitch=True):
     """75%: 15%を欠落、±15centのピッチ揺らぎ、7bit量子化。片言になる。
 
     cents=40だとphase vocoder（librosa.effects.pitch_shift）のフレーム間
     位相ずれが支配的な誤差源になり、50%（半分をノイズ置換）より元から
     遠くなってしまい「回復していく」という設計の核（d75<d50<d25）を破る。
     ±15centは可聴なピッチ揺らぎを残しつつ、この破綻を避けられる上限。
+
+    pitch=False はテスト専用のフック。ピッチ揺らぎ抜き（drop+quantizeのみ）
+    の参照波形を、同じrng消費順序で計算するために使う
+    （tests/koe_synth_test.py の劣化検知アサーション参照）。
     """
     f = max(1, int(SR * frame_ms / 1000))
     out = np.zeros_like(y)
@@ -107,10 +120,8 @@ def stage_broken(y, rng, drop=0.15, frame_ms=120, cents=15.0, bits=7):
         if rng.random() < drop:
             continue  # 欠落
         n_steps = float(rng.uniform(-cents, cents)) / 100.0
-        try:
+        if pitch and len(seg) >= PITCH_SHIFT_MIN_LEN:
             seg = librosa.effects.pitch_shift(y=seg.astype(np.float32), sr=SR, n_steps=n_steps)
-        except Exception:
-            pass
         out[s:s + len(seg)] = seg[:len(out) - s]
     q = float(2 ** (bits - 1))
     out = np.round(out * q) / q
