@@ -1503,11 +1503,16 @@ def main():
             pg.wait_for_selector("#gate")
 
             # --- 検証3: タイトルの声が鳴るか ---
+            # 注意: `ended` は本物の onended でのみ true になる。title-koe.mp3 は
+            # Plan 2 まで存在しないので、今日の健全なビルドでは常に false。
+            # ここで ended===true を待つとハングする。revealCount で待つこと。
             pg.evaluate("document.getElementById('gate').click()")
-            pg.wait_for_function("window.__koeGate && window.__koeGate.ended === true",
+            pg.wait_for_function("window.__koeGate && window.__koeGate.revealCount >= 1",
                                  timeout=12000)
             gate = pg.evaluate("window.__koeGate")
             assert gate["played"] is True, "タイトル声が再生されていない"
+            assert gate["revealCount"] == 1, f"ゲートが複数回開いた: {gate}"
+            assert gate["reason"] in ("ended", "error", "timeout", "rejected", "threw"), gate
 
             # --- 台本が全ビート型を含むこと（スタブの退化を防ぐ） ---
             kinds = pg.evaluate("""() => {
