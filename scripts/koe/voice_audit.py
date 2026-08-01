@@ -31,7 +31,11 @@ VOICED = ("kanata", "toki")
 # 恒久的に非0になり、ゲートが常にDIRTYで誰も見なくなる。
 # 新カテゴリを足すときはここに明示的に追記する（キャッチオール禁止＝
 # 「見覚えのないファイルは全部許す」にしてしまうと、本物の孤児を隠す）。
-ALLOWED_NON_SCRIPT_STEMS = ("title-koe", "final-a", "final-d")
+# 完成声は4パターン（設計書 8-5「完成声 4パターン | 4」、finalKey()の
+# mem-01/07/13/19 -> a/b/c/d）。fix round 2: a/dの2つだけを列挙していたのは
+# 誤り（final-b/final-cが将来ずっとorphan扱いになり、ゲートが恒久的にDIRTY
+# になっていた）。
+ALLOWED_NON_SCRIPT_STEMS = ("title-koe", "final-a", "final-b", "final-c", "final-d")
 ALLOWED_NON_SCRIPT_PREFIXES = ("synth-",)  # synth_stages.py の合成度5段階ステージング出力
 
 
@@ -59,9 +63,12 @@ def _walk(node, seen):
 
     reply/beats/choose のようなキー名を決め打ちで列挙しない。決め打ちは、
     将来キーが増えたときや、それらの中にさらにネストした構造が来たときに
-    棚卸しから無言で漏れる。id()ベースのvisitedは、通常のJSON由来の値には
-    循環が起きないが、プログラム的に組んだ自己参照構造が来ても無限ループ
-    しないための安全策。
+    棚卸しから無言で漏れる。id()ベースのvisitedはdictの自己参照だけを防ぐ
+    （dictを再訪したら打ち切る）。list自身の自己参照は追跡していないため、
+    自己参照するlistが来た場合はRecursionErrorで止まる（JSON由来の値には
+    通常どちらの循環も起きない）。ここで重要なのは「無言でCLEANと嘘をつく」
+    のではなく「派手に落ちる」ことなので、dict/listどちらの循環も
+    "fail loud" にはなっており、この非対称は許容している。
     """
     if isinstance(node, dict):
         if id(node) in seen:

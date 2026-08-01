@@ -97,13 +97,22 @@ def main():
         assert "vk999999" in r["orphan"], r
 
         # --- 追加分: 台本外の正規音声はorphan誤検知にならない（design 8-5） ---
+        # 完成声は4パターン（設計書 8-5「完成声 4パターン | 4」、finalKey()の
+        # mem-01/07/13/19 -> a/b/c/d）。fix round 2: a/dの代表2つだけをピン止め
+        # すると b/c の欠落に気付けない（実際、最初の実装は a/d の2つしか
+        # 許可しておらず b/c が永久にorphan扱いになる欠陥があった）ため、
+        # 4つ全部を個別に確認する。
         touch(td, "title-koe")
         touch(td, "final-a")
+        touch(td, "final-b")
+        touch(td, "final-c")
         touch(td, "final-d")
         touch(td, "synth-abc123-s00")
         r = va.audit(script, td)
         assert "title-koe" not in r["orphan"], r
         assert "final-a" not in r["orphan"], r
+        assert "final-b" not in r["orphan"], r
+        assert "final-c" not in r["orphan"], r
         assert "final-d" not in r["orphan"], r
         assert "synth-abc123-s00" not in r["orphan"], r
         # 本当に無関係なファイルはちゃんとorphanのまま（アローリストが
