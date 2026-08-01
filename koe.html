@@ -593,6 +593,16 @@ let stack=[];         // choice reply 合流
 let locked=false;     // カード/fx 中
 let autoOn=false, skipOn=false, autoTimer=null;
 function curScenes(){ return (SCRIPT[EPS[st.ep]]||{scenes:[]}).scenes; }
+/* 例外メッセージ用の台本座標。when/choose の reply に入ると cur は入れ子の配列に
+   差し替わるので、cur.i だけでは st.scene と噛み合わず、作者が探せない座標になる。
+   入れ子のときは入口ビートを stack から辿って併記する。
+   例) 素の場合   : ep0 / scene3 / beat12
+       入れ子の場合: ep0 / scene3 / beat12 の reply / beat2 */
+function beatAddr(){
+  let s='ep'+st.ep+' / scene'+st.scene;
+  for(let k=0;k<stack.length;k++) s+=' / beat'+(stack[k].i-1)+' の reply';
+  return s+' / beat'+(cur?cur.i-1:'?');
+}
 function curScene(){ return curScenes()[st.scene]; }
 
 function step(){
@@ -628,8 +638,7 @@ function step(){
          console.warn では誰も気づかないので投げる。2周目は初手から彼女の声なので対象外。
          注意: narrator:'ren' 自体は正しい演出（終盤で必ず使う）。禁じるのは順序だけ。 */
       if(b.narrator==='ren' && !(st.round>=2) && !st.revealed){
-        throw new Error('koe: 台本の順序エラー — 1周目の {narrator:"ren"} は {say:"ren", v:1} より後にしか置けません'
-          +' (ep'+st.ep+' / scene'+st.scene+' / beat'+(cur.i-1)+')');
+        throw new Error('koe: 台本の順序エラー — 1周目の {narrator:"ren"} は {say:"ren", v:1} より後にしか置けません ('+beatAddr()+')');
       }
       st.narr=b.narrator; save(); continue;
     }
@@ -729,14 +738,23 @@ function playFinalVoice(){
   v.onended=go; v.onerror=go;
   v.play().catch(go);
 }
-/* 完走の記録。round を進める唯一の場所。
-   完走の入口は2つある——{title:1} ビート(toTitle) と、場面を使い切る経路(endEpisode)。
+/* 完走の記録。round を進める唯一の場所。呼び出し元は次の2つだけ、いずれも「完走」を意味する:
+     1. toTitle()   — {title:1} ビート。step():638 からのみ呼ばれる
+     2. nextScene() — 最後の場面を読み終えた枝 (:762)
    片方にしか置かないと、台本が {title:1} で終わっていない限り round が 1 のまま固定され、
-   地の文の _r トラックが永久に鳴らない（しかも無言で）。だから両方をここに通す。
-   showTitle() ではなくここに置く理由: showTitle() は中断(btnTitle)でも呼ばれる。
-   途中でやめたのは完走ではない。
+   地の文の _r トラックが永久に鳴らない（しかも無言で）。だから両方から呼ぶ。
+
+   置き場所として却下したもの（どちらも「完走ではない経路」を巻き込む）:
+     - showTitle()  : btnTitle(中断) からも呼ばれる。途中でやめたのは完走ではない。
+                      st.cleared で見分けることもできない——freshState が cleared を持ち越すため、
+                      2周目以降は中断時にも既に true になっている。
+     - endEpisode() : enterScene():765 の「場面が無い」ガードからも呼ばれる。台本の取得に
+                      失敗しただけ（404・オフライン・assets 未配置）で完走扱いになり、
+                      round=2 が永続化されて次回の地の文が彼女の声になる＝仕掛けが割れる。
+                      あちらは表示だけの経路のままにしておくこと。
+
    roundDone で二重加算を防ぐ。台本が {title:1} で終わったあと「つづきから」で
-   再開して場面を使い切ると endEpisode も走るため。roundDone は freshState が
+   再開して場面を使い切ると nextScene の完走枝も走るため。roundDone は freshState が
    持ち越さないので、次の周では自然に false に戻る。 */
 function completeRound(){
   st.cleared=true;
@@ -759,9 +777,10 @@ function advance(){
 function nextScene(){
   const scs=curScenes();
   if(st.scene < scs.length-1){ st.scene++; st.beat=0; save(); enterScene(); }
-  else { st.cleared=true; save(); endEpisode(); }
+  else { completeRound(); endEpisode(); }   /* ここだけが「読み切った」＝完走 */
 }
 function enterScene(){
+  /* 台本が無い/場面が足りないときのガード。完走ではないので completeRound() は通さない。 */
   const sc=curScene(); if(!sc){ endEpisode(); return; }
   clearSprites(); speaking(null);
   /* 場面転換: 前の文/名前/タイピング/ボイスを消して新しい文から始める */
@@ -874,7 +893,9 @@ function showTitle(){
 }
 function endEpisode(){
   stopBGM(); ambient(false); clearSprites();
-  completeRound();
+  /* ここでは round を触らない。呼び出し元は2つあり、片方 (enterScene():766 の
+     「場面が無い」ガード) は完走ではないため。round は completeRound() 側の責務。 */
+  st.cleared=true; save();
   playBGM('ed');
   el('namebar').className='empty'; el('adv').classList.add('hide');
   const c=el('scard'); c._done=true; clearTimeout(c._t);
