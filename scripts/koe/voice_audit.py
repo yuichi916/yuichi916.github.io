@@ -69,6 +69,34 @@ def key_of(text):
     return "k" + str(h)
 
 
+# JS String.prototype.trim() が落とす文字集合（ECMA-262 WhiteSpace + LineTerminator）。
+# TAB/LF/VT/FF/CR/SP、NBSP、OGHAM SPACE MARK、EN QUAD..HAIR SPACE、LINE/PARAGRAPH
+# SEPARATOR、NARROW NBSP、MEDIUM MATHEMATICAL SPACE、IDEOGRAPHIC SPACE、
+# ZERO WIDTH NO-BREAK SPACE(BOM, U+FEFF)。
+# Python の str.strip() は既定でUnicodeの「空白圏」をまとめて剥がすが、この集合とは
+# 完全には一致しない: JSはU+FEFF(BOM)を剥がすがPythonの str.isspace() は剥がさず、
+# 逆にU+001C-001F・U+0085はPythonは剥がすがJSは剥がさない。is_mono() はエンジンの
+# `.trim()` と1文字も食い違ってはならないので、Python組み込みのstrip()には頼らず
+# この集合を明示して stripする。
+_JS_TRIM_CHARS = (
+    "\t\n\x0b\x0c\r\x20"       # TAB LF VT FF CR SP (U+0009,000A,000B,000C,000D,0020)
+    "\xa0\u1680"                  # NBSP, OGHAM SPACE MARK
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"  # EN QUAD..HAIR SPACE
+    "\u2028\u2029"                # LINE SEPARATOR, PARAGRAPH SEPARATOR
+    "\u202f\u205f\u3000"         # NARROW NBSP, MEDIUM MATHEMATICAL SPACE, IDEOGRAPHIC SPACE
+    "\ufeff"                      # ZERO WIDTH NO-BREAK SPACE (BOM)
+)
+
+
+def _js_trim(text):
+    """JS の String.prototype.trim() と同じ結果になるように先頭/末尾を剥がす。
+
+    Python の str.strip() ではなく _JS_TRIM_CHARS を明示的に渡すのがポイント
+    （上のコメント参照）。
+    """
+    return text.strip(_JS_TRIM_CHARS)
+
+
 def is_mono(text):
     """kanata/toki の（心の声）判定。
 
@@ -77,9 +105,13 @@ def is_mono(text):
     と一字一句同じ条件をここに転記したもの（「再導出」ではなく書き写し）。
     エンジン側のこの1行だけが唯一の定義で、ここはその写し。ズレて良いのは
     エンジン側が変わったときにここを更新し忘れる場合だけで、それは
-    tests/koe_audit_test.py の対応するケースが検出する。
+    tests/koe_audit_test.py の対応するケースが検出する
+    （fix round 2: そのケースは実際に koe.html を読みにいく。self-referential な
+    Pythonリテラルだけを比べるテストは、エンジン側が変わってもPythonが
+    追従していない事態を検出できない——「ドリフトを検査するテストがドリフトを
+    検査していない」という指摘そのもの）。
     """
-    return text.strip().startswith(("（", "("))
+    return _js_trim(text).startswith(("（", "("))
 
 
 def _walk(node, seen):

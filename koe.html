@@ -1113,7 +1113,7 @@ el('shCopy').addEventListener('click',shareCopy);
 
 /* init */
 loadCfg();
-/* 保存の有無だけここで確定させる。ボタンの解禁自体は assertScriptLoaded()
+/* 保存の有無だけここで確定させる。ボタンの解禁自体は assertScriptLoadedAndKeys()
    （台本読み込み確認後）まで遅らせる — fail-closed。#tStart/#tCont/#tLoad は
    マークアップ側で最初から disabled にしてあるので、ここで tCont だけ解禁すると
    台本(koe-ep1.js)がまだ読み込めているか分からない段階でボタンが動いてしまう。 */
@@ -1133,7 +1133,13 @@ function walkNodes(node, visit, seen){
   seen = seen || new Set();
   if(Array.isArray(node)){ node.forEach(n=>walkNodes(n, visit, seen)); return; }
   if(node && typeof node==='object'){
-    if(seen.has(node)) return; // 循環参照があっても無限ループしない
+    /* seen はオブジェクトの循環参照だけ止める。自己参照する配列は Array.isArray()
+       の分岐で seen に触れる前に再帰してしまうため、ここでは防げず RangeError
+       (スタックオーバーフロー)で落ちる。台本データにそんな配列が来ることは
+       想定していないので、直さず落ちるままにしてある——scripts/koe/voice_audit.py
+       の _walk() が同じ非対称を正直に書いている(id()ベースのvisitedはdictの
+       自己参照だけ防ぐ)のに合わせた。 */
+    if(seen.has(node)) return;
     seen.add(node);
     visit(node);
     for(const k in node) walkNodes(node[k], visit, seen);
