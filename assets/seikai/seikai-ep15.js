@@ -108,8 +108,10 @@ window.SEIKAI_SCRIPT.ep15 = { title:'第十五話 正解の外側で', scenes:[
 
   /* 6. AI中枢 */
   { bg:'aicore', bgm:'yami', amb:1, card:{no:'', ttl:'AI 中枢', sub:'', hold:2200}, beats:[
+    {cg:'cg-aicore-chamber'},
     {say:'narr', text:'扉の向こうは、光の部屋だった。円形のホール。高い天井。壁には無数のスクリーンが並び、管理下の人間たちの映像が流れていた。'},
     {say:'narr', text:'中央に、棺のような装置。ガラスと金属でできた、透明な箱。AI中枢の、インターフェース装置。'},
+    {cg:null},
     {show:'kai', pos:'left'},{show:'rin', pos:'right', expr:'unease'},
     {say:'rin', text:'「あたしを、これに入れるつもりだった。入ったら、あたしは消える」', ex:'unease'},
     {say:'kai', text:'「入らせない」', ex:''},
