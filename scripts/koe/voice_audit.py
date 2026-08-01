@@ -7,33 +7,77 @@
 本作固有の検査:
   - ren の台詞は v:1 のときだけボイスを期待する（既定は無音）
   - narr は _k / _r の対で存在しなければならない
+
+このモジュールが唯一の防衛線であるがゆえに、誤ってCLEANと報告する（＝偽陰性）ことは
+クラッシュより悪い。fix round 1（レビュー指摘）で以下を直した:
+  - _beats(): キー名（reply/beats/choose等）を決め打ちで1段だけ辿っていたのを、
+    あらゆる深さを再帰的に辿るように変更。決め打ちは、それより深いネストや
+    将来増えるキーを無言で棚卸しから漏らす。
+  - audit(): expected_files()が0件の台本形（キー名の取り違え等）を、
+    見た目だけ missing=[] / orphan=[] のクリーンな結果にしない。
+    expected_count/found_count を返し、__main__ 側で0件をエラー扱いにする。
+  - key_of(): エンジンはUTF-16コード単位でハッシュするため、Pythonの
+    コードポイント単位のord()だと非BMP文字だけ食い違う。
+  - 台本外の正規音声（title-koe/final-*/synth-*、design 8-5）をorphanから除外。
 """
 import json
+import struct
 from pathlib import Path
 
 VOICED = ("kanata", "toki")
 
+# 台本には現れないが voice/ に正規に置かれる非台詞音声（設計書 8-5）。
+# expected_files() の対象外なので、除外しないと orphan がこの分だけ
+# 恒久的に非0になり、ゲートが常にDIRTYで誰も見なくなる。
+# 新カテゴリを足すときはここに明示的に追記する（キャッチオール禁止＝
+# 「見覚えのないファイルは全部許す」にしてしまうと、本物の孤児を隠す）。
+ALLOWED_NON_SCRIPT_STEMS = ("title-koe", "final-a", "final-d")
+ALLOWED_NON_SCRIPT_PREFIXES = ("synth-",)  # synth_stages.py の合成度5段階ステージング出力
+
 
 def key_of(text):
-    """JSの keyOf と同じ32bit符号付きハッシュ。"""
+    """JSの keyOf と同じ32bit符号付きハッシュ。
+
+    エンジン(seikai.html:1189)は `for(i=0;i<t.length;i++) t.charCodeAt(i)` で
+    UTF-16コード単位を走査する。Pythonのstrはコードポイント単位のため、
+    非BMP文字（サロゲートペア）を素朴に ord() すると1文字を2ユニットに
+    数えず、その台詞だけハッシュがJS側と分岐する。
+    text.encode('utf-16-le') で明示的にUTF-16コード単位の並びに変換してから
+    2バイトずつ読むことで、エンジンと同じ単位で走査する。
+    """
     h = 0
-    for ch in text:
-        h = (h * 31 + ord(ch)) & 0xFFFFFFFF
+    for (u,) in struct.iter_unpack("<H", text.encode("utf-16-le")):
+        h = (h * 31 + u) & 0xFFFFFFFF
         if h >= 0x80000000:
             h -= 0x100000000
     return "k" + str(h)
 
 
+def _walk(node, seen):
+    """dict/listを再帰的に辿り、'say'キーを持つdict（＝1台詞ぶんのbeat）を
+    見つかった深さに関係なくすべて yield する。
+
+    reply/beats/choose のようなキー名を決め打ちで列挙しない。決め打ちは、
+    将来キーが増えたときや、それらの中にさらにネストした構造が来たときに
+    棚卸しから無言で漏れる。id()ベースのvisitedは、通常のJSON由来の値には
+    循環が起きないが、プログラム的に組んだ自己参照構造が来ても無限ループ
+    しないための安全策。
+    """
+    if isinstance(node, dict):
+        if id(node) in seen:
+            return
+        seen.add(id(node))
+        if "say" in node:
+            yield node
+        for v in node.values():
+            yield from _walk(v, seen)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _walk(item, seen)
+
+
 def _beats(script):
-    for sc in script.get("scenes", []):
-        for b in sc.get("beats", []):
-            yield b
-            for key in ("reply", "beats"):
-                for nb in (b.get(key) or []):
-                    yield nb
-            for ch in (b.get("choose") or []):
-                for nb in (ch.get("reply") or []):
-                    yield nb
+    yield from _walk(script.get("scenes", []), set())
 
 
 def expected_files(script):
@@ -55,16 +99,30 @@ def expected_files(script):
     return exp
 
 
+def _is_allowed_non_script(stem):
+    """台本外だが design 8-5 で正規に voice/ に置かれるファイルか。"""
+    return stem in ALLOWED_NON_SCRIPT_STEMS or stem.startswith(ALLOWED_NON_SCRIPT_PREFIXES)
+
+
 def audit(script, voice_dir):
-    """欠落・孤児・地の文の片側欠けを返す。"""
+    """欠落・孤児・地の文の片側欠けを返す。
+
+    expected_count（台本から期待した本数）と found_count（voice_dir にある
+    .mp3の本数）も返す。expected_count が 0 の台本形は「全部揃っている」の
+    見せかけになるが実際は「棚卸しが台本を読めていない」ので、呼び出し側
+    （下の__main__）で別扱いにできるよう数を出す。
+    """
     exp = expected_files(script)
     have = {p.stem for p in Path(voice_dir).glob("*.mp3")}
     missing = sorted(exp - have)
-    orphan = sorted(have - exp)
+    orphan = sorted(s for s in (have - exp) if not _is_allowed_non_script(s))
     unpaired = sorted({s[:-2] for s in have
                        if s.startswith("n") and s.endswith(("_k", "_r"))
                        and (s[:-2] + ("_r" if s.endswith("_k") else "_k")) not in have})
-    return {"missing": missing, "orphan": orphan, "unpaired": unpaired}
+    return {
+        "missing": missing, "orphan": orphan, "unpaired": unpaired,
+        "expected_count": len(exp), "found_count": len(have),
+    }
 
 
 if __name__ == "__main__":
@@ -76,6 +134,14 @@ if __name__ == "__main__":
         sc = json.load(f)
     r = audit(sc, sys.argv[2])
     print(json.dumps(r, ensure_ascii=False, indent=1))
+    print("expected: %d  found(.mp3): %d" % (r["expected_count"], r["found_count"]))
+    if r["expected_count"] == 0:
+        # 0件は「クリーン」ではなく「台本の形（scenes/beatsキー等）を
+        # 読み違えている」合図。ここをCLEANとして通すと棚卸し自体が
+        # 無意味になるため、DIRTYより強く止める。
+        print("AUDIT: ERROR — expected_files() が0件。台本の形が想定と違う可能性が高い。"
+              "0件を「クリーン」として通さない。")
+        raise SystemExit(2)
     ok = not (r["missing"] or r["orphan"] or r["unpaired"])
     print("AUDIT:", "CLEAN" if ok else "DIRTY")
     raise SystemExit(0 if ok else 1)
