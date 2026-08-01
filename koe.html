@@ -411,6 +411,10 @@ function freshState(keep){
   return { ep:0, scene:0, beat:0,
     seen: keep.seen||{}, cleared: keep.cleared||false,
     choices:{}, mem:[], synth:0, firstMain:null,
+    /* revealed / roundDone は「その周だけ」の値。keep に載せない＝新しい周で必ず落ちる。
+       revealed: セイレンの v:1 ビートを通過したか（地の文を彼女に渡してよいか）
+       roundDone: この周の完走を round に加算済みか（二重加算よけ） */
+    revealed:false, roundDone:false,
     narr:'kanata', round: keep.round||1 };
 }
 let st=freshState();
@@ -618,7 +622,17 @@ function step(){
     if(b.end){ if(stack.length){cur=stack.pop();continue;} return nextScene(); }
     if(b.pickup){ doPickup(b); return; }
     if(b.tryvoice){ tryVoice(); return; }
-    if(b.narrator){ st.narr=b.narrator; save(); continue; }
+    if(b.narrator){
+      /* 台本の順序ミスを開発時に落とす。1周目に、まだセイレンの v:1 を通っていない段階で
+         地の文を彼女に渡すと、そこで仕掛けが割れる——しかも無言で割れる。
+         console.warn では誰も気づかないので投げる。2周目は初手から彼女の声なので対象外。
+         注意: narrator:'ren' 自体は正しい演出（終盤で必ず使う）。禁じるのは順序だけ。 */
+      if(b.narrator==='ren' && !(st.round>=2) && !st.revealed){
+        throw new Error('koe: 台本の順序エラー — 1周目の {narrator:"ren"} は {say:"ren", v:1} より後にしか置けません'
+          +' (ep'+st.ep+' / scene'+st.scene+' / beat'+(cur.i-1)+')');
+      }
+      st.narr=b.narrator; save(); continue;
+    }
     if(b.montage){ runMontage(); return; }
     if(b.finalvoice){ playFinalVoice(); return; }
     if(b.title){ toTitle(); return; }
@@ -634,6 +648,9 @@ function nameFor(who,b){
 function renderSay(b){
   const c=CHARS[b.say]||CHARS.narr; const isNarr=(b.say==='narr'); const isSoft=(b.say==='ren');
   const nm=nameFor(b.say,b);
+  /* 名前欄・声・この印はすべて同じ b.v を見る。スキップ既読で抜ける場合も通過扱いにする
+     （声は鳴らなくても「正体が割れるビートを読んだ」ことに変わりはないため）。 */
+  if(b.say==='ren' && b.v) st.revealed=true;
   el('namebar').className = nm? '' : 'empty';
   el('nm').textContent=nm||''; el('namebar').style.setProperty('--who', c.color);
   if(b.say!=='narr'){ ensureShown(b.say, b.ex); }
@@ -644,20 +661,18 @@ function renderSay(b){
   /* スキップ既読は声の分岐に到達せず抜ける。無音側に倒れるので仕掛けは安全（下の注記参照） */
   if(skipOn && wasSeen(b.text)){ el('ttext').innerHTML=esc(b.text); el('ttext').className=(isNarr?'narr':'')+(isSoft?' saysoft':''); el('ttext').style.setProperty('--tcolor',color); pushLog(b.say,nm,b.text); onLineDone(); return; }
   pushLog(b.say,nm,b.text);
-  /* ボイス分岐。既定は「鳴らさない」で、鳴らす方が例外。
-     セイレンの腕を最初に置き、b.v が無ければ必ず stopVoice() に落ちる。
-     ここを編集する人が、うっかり彼女に声を与えられないようにするための並び順。 */
-  if(b.say==='ren'){
-    if(b.v) playVoice('ren', b.text);   // 例外：v:1 のときだけ鳴らす
-    else stopVoice();                   // 既定：絶対に鳴らさない
-  } else if(b.say==='kanata'||b.say==='toki'){
-    if(!/^[（(]/.test(b.text.trim())) playVoice(b.say,b.text); else stopVoice();
-    showMark(b.say,b.text,b.ex);
-  } else if(b.say==='narr'){
-    playVoice(st.narr||'kanata', b.text, 'narr');
-  } else {
-    stopVoice();
-  }
+  /* 「鳴らすか」は if の並び順ではなくデータで決める。
+     セイレンだけは b.v が真のときに限り true。誰かが下の分岐の上に別の腕を挿し込んでも、
+     この式そのものを書き換えない限り彼女の声は出ない。 */
+  const willVoice = (b.say==='ren') ? !!b.v
+                  : (b.say==='kanata' || b.say==='toki' || b.say==='narr');
+  /* カナタ/トキの（心の声）だけは従来どおり鳴らさない。ren には掛からない。 */
+  const mono = (b.say==='kanata'||b.say==='toki') && /^[（(]/.test(b.text.trim());
+  if(willVoice && !mono){
+    if(b.say==='narr') playVoice(st.narr||'kanata', b.text, 'narr');
+    else playVoice(b.say, b.text);
+  } else stopVoice();
+  if(b.say==='kanata'||b.say==='toki') showMark(b.say,b.text,b.ex);
   typeStart(b.text, color, isNarr, isSoft);
 }
 function onLineDone(){
@@ -714,8 +729,22 @@ function playFinalVoice(){
   v.onended=go; v.onerror=go;
   v.play().catch(go);
 }
+/* 完走の記録。round を進める唯一の場所。
+   完走の入口は2つある——{title:1} ビート(toTitle) と、場面を使い切る経路(endEpisode)。
+   片方にしか置かないと、台本が {title:1} で終わっていない限り round が 1 のまま固定され、
+   地の文の _r トラックが永久に鳴らない（しかも無言で）。だから両方をここに通す。
+   showTitle() ではなくここに置く理由: showTitle() は中断(btnTitle)でも呼ばれる。
+   途中でやめたのは完走ではない。
+   roundDone で二重加算を防ぐ。台本が {title:1} で終わったあと「つづきから」で
+   再開して場面を使い切ると endEpisode も走るため。roundDone は freshState が
+   持ち越さないので、次の周では自然に false に戻る。 */
+function completeRound(){
+  st.cleared=true;
+  if(!st.roundDone){ st.roundDone=true; st.round=Math.max(2,(st.round||1)+1); }
+  save();
+}
 function toTitle(){
-  st.cleared=true; st.round=Math.max(2,(st.round||1)+1); save();
+  completeRound();
   stopBGM(); ambient(false); clearSprites(); setCG(null);
   showTitle();
 }
@@ -845,7 +874,7 @@ function showTitle(){
 }
 function endEpisode(){
   stopBGM(); ambient(false); clearSprites();
-  st.cleared=true; save();
+  completeRound();
   playBGM('ed');
   el('namebar').className='empty'; el('adv').classList.add('hide');
   const c=el('scard'); c._done=true; clearTimeout(c._t);
