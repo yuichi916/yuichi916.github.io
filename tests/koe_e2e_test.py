@@ -3,14 +3,18 @@
 
   set PYTHONUTF8=1 && python tests/koe_e2e_test.py
 
-守っているのは設計書10章の「本作固有の必須チェック3つ」:
+守っているのは設計書10章の必須チェック:
 
   検証1 セイレンの無音 — v:1 でないセイレンの台詞は、どの経路からも音を鳴らさない。
   検証2 地の文の2系統 — 同じ本文が1周目は _k(カナタ)、2周目は _r(セイレン)で読まれる。
                         1周目でも終盤の {narrator:'ren'} 以降だけは _r になる——それが
                         仕掛けの開示そのものなので、「1周目は全部 _k」ではなく
                         「彼女が声を出す前に _r は無い／開示後は確かに _r になる」を見る。
-  検証3 起動時の声    — タップゲートが一度だけ開き、その裏で声を1本鳴らしにいく。
+  検証3 起動時の声    — タップゲートが一度だけ開き、その裏で「その1本」を鳴らしにいく。
+                        どのファイルを掴むかまで見る（play() の回数だけ数えていると、
+                        #titlekoe の src を別物に差し替えても緑のままになる）。
+  検証4 セーブ往復    — 途中でやめて読み直して再開したとき、語り手・開示フラグ・
+                        周回・位置がそのまま生きている。save_roundtrip() 参照。
 
 「素通りしないこと」をこのファイル自身が担保する仕掛け:
   - 無音チェックは「実際に読んだ行の台帳」と突き合わせる。対象の台詞を読み終えた
@@ -18,9 +22,13 @@
     台帳はエンジンの backlog ではなくテスト側で pushLog をラップして持つ——backlog は
     200件で頭から捨てるリングバッファなので、周の境目を index で持つと本編台本
     (281ボイス行)で必ず狂い、正しいビルドでこのテストが落ちる。
-  - 無音チェックは3本の物差しで見る: playVoice() のログ／#voice の src 属性／
-    台詞ボイスの本数。前2つは voiceFile() が作った名前どうしの照合なので、
-    命名規則ごと変えられると共倒れになる。本数は名前に依存しない。
+  - 無音チェックは4本の物差しで見る: playVoice() のログ／#voice の src 属性／
+    台詞ボイスの本数／実際に出た /voice/ へのネットワーク要求。
+    最初の2つは voiceFile() が作った名前どうしの照合なので、命名規則ごと
+    変えられると共倒れになる。本数は名前に依存しない。4本目はページ内の
+    仕掛けに一切依存しない唯一の物差しで、`new Audio(...)` や fetch() のような
+    エンジンを迂回した再生経路も拾える（前3本はどれもページの中にいるので
+    迂回されると3本まとめて盲目になる）。
   - 地の文チェックも同じ台帳と突き合わせる。読んだ地の文すべてにボイス参照が
     あることまで見る（1本も鳴らないビルドで合格、を封じる）。
   - SKIP/AUTO が入っていないことを先に確かめる。SKIP中の renderSay() は
@@ -198,7 +206,52 @@ def play_through(pg, label):
         pg.wait_for_timeout(110)
 
 
-def check_silence(pg, log, srclog, label):
+def install_spies(pg):
+    """ページ読み込み直後に仕込む3つの覗き見。goto() のたびに消えるので毎回呼ぶ。"""
+    assert pg.evaluate(INSTALL_SRC_SPY_JS), "#voice が見つからない"
+    assert pg.evaluate(INSTALL_READ_SPY_JS), "pushLog が見つからない（読んだ行を追えない）"
+    # タップする前に仕込む。openGate() は el('titlekoe') をその場で取り直すので、
+    # 要素のメソッドを差し替えておけば必ず経由する。
+    assert pg.evaluate(INSTALL_TITLE_PLAY_SPY_JS), "#titlekoe が見つからない"
+
+
+def open_gate(pg):
+    """タップゲートを通す。revealCount が 1 以上になるまで待つ。"""
+    pg.evaluate("document.getElementById('gate').click()")
+    try:
+        pg.wait_for_function("window.__koeGate && window.__koeGate.revealCount >= 1",
+                             timeout=12000)
+    except PWTimeout:
+        raise AssertionError(
+            "ゲートをタップしても声を鳴らす経路に入らなかった（__koeGate.revealCount が 0 のまま）。"
+            f" 現在値: {pg.evaluate('window.__koeGate')}")
+
+
+def step_until(pg, cond_js, label, budget=120):
+    """条件が真になるまでプレイヤーと同じ入口で進める。
+    play_through() と同じく、反復回数ではなく壁時計と進行停滞で打ち切る。"""
+    t0 = time.time()
+    last, last_change = None, time.time()
+    while True:
+        if pg.evaluate(cond_js):
+            return time.time() - t0
+        now = time.time()
+        if now - t0 > budget:
+            raise AssertionError(
+                f"{label}: {budget}秒で条件に到達しなかった。"
+                f"停止位置: {pg.evaluate(WHERE_JS)} / 状態: {pg.evaluate(PROGRESS_JS)}")
+        sig = pg.evaluate(PROGRESS_JS)
+        if sig != last:
+            last, last_change = sig, now
+        elif now - last_change > STALL_AFTER:
+            raise AssertionError(
+                f"{label}: {STALL_AFTER}秒進行が止まった（例外で止まっている可能性が高い）。"
+                f"停止位置: {pg.evaluate(WHERE_JS)} / 状態: {sig}")
+        pg.evaluate(STEP_JS)
+        pg.wait_for_timeout(110)
+
+
+def check_silence(pg, log, srclog, reqs, label):
     """検証1: v:1 でないセイレンの台詞が、実際に読まれた上で1音も鳴っていないこと。
 
     「読んだ行」は __koeReadLog（周のはじめに空にするテスト側の台帳）で見る。
@@ -243,7 +296,134 @@ def check_silence(pg, log, srclog, label):
     assert actual == info["expected"], (
         f"{label}: 台詞ボイスの本数が読んだ行と合わない（無音のはずの行が鳴った/鳴るはずの行が死んだ）: "
         f"期待 {info['expected']}本 / 実測 {actual}本")
+    # 4本目の物差し。上3つはどれもページの中にいる（playVoice のラップ・#voice の
+    # src・その名前の数え上げ）ので、`new Audio(url).play()` や fetch() のように
+    # エンジンを迂回して鳴らす経路が入ると3本まとめて盲目になる。
+    # ブラウザが実際に出した /voice/ へのHTTP要求だけはページ側の仕掛けに依存しない。
+    assert reqs, (f"{label}: /voice/ へのネットワーク要求が1本も無い。"
+                  "第4の物差しが空回りしている（音源を一度も取りに行っていない）")
+    rq = set(base(u) for u in reqs)
+    leaked3 = [f for f in info["silentFiles"] if base(f) in rq]
+    assert leaked3 == [], f"{label}: セイレンの無音が破れている(ネットワーク要求): {leaked3}"
     return info
+
+
+# セーブ往復で突き合わせる状態。周回(round)・語り手(narr)・開示(revealed)・位置(ep/scene/beat)。
+SNAP_JS = """() => ({narr: st.narr, revealed: st.revealed, round: st.round,
+  ep: st.ep, scene: st.scene, beat: st.beat})"""
+# localStorage に「実際に書かれている」もの。メモリ上の st と食い違っていないかを見る。
+SAVED_JS = """() => { const s = JSON.parse(localStorage.getItem('koe_save') || 'null');
+  return s && {narr: s.narr, revealed: s.revealed, round: s.round,
+    ep: s.ep, scene: s.scene, beat: s.beat}; }"""
+
+
+def _reload_and_load(pg):
+    """ページを読み直し、ゲートを通し、「つづきから」を押す。
+
+    戻り値は (loaded, after):
+      loaded — tCont を押す *前* の st。koe.html は初期化の最後で load() を呼ぶので、
+               この時点の st は「セーブから復元しただけの状態」そのもの。位置(beat)を
+               含めて厳密に突き合わせられる唯一のタイミング。
+      after  — tCont を押した *後* の st。startGame(false) が復元済みの値を
+               踏み潰していないかを見る（beat は再開後に進むので比較対象外）。
+    """
+    pg.goto(URL)
+    pg.wait_for_selector("#gate")
+    pg.wait_for_selector("#voice", state="attached")
+    install_spies(pg)
+    open_gate(pg)
+    loaded = pg.evaluate(SNAP_JS)
+    assert pg.evaluate("!document.getElementById('tCont').disabled"), \
+        "「つづきから」が無効のまま（セーブが読めていない＝往復が成立しない）"
+    pg.evaluate("document.getElementById('tCont').click()")
+    pg.wait_for_function("document.getElementById('title').classList.contains('gone')",
+                         timeout=5000)
+    return loaded, pg.evaluate(SNAP_JS)
+
+
+def save_roundtrip(pg, errors):
+    """検証4: セーブ往復（設計書10章の必須チェック）。
+
+    途中でセーブ → ページを読み直す → つづきから → 語り手・開示フラグ・周回・位置が
+    そのまま生きていること。ここまで通していない状態が Plan 1 の穴だった。
+
+    往復を2回する。1回だけでは2つの欠陥のうち片方しか踏めないため:
+      A) 開示の一行（{say:'ren', v:1}）でやめたとき。
+         step() の save() はビートを取り出した直後＝その行を描く前に走るので、
+         保存された beat は v:1 の「次」を指しているのに revealed は false のまま、
+         という1ビートぶんのズレが残っていた。再開すると正しい台本の
+         {narrator:'ren'} を revealed:false で踏んで throw する。
+         renderSay() 側で revealed を立てた瞬間に save() するのが直し。
+      B) 語り手が切り替わったあと（st.narr==='ren'、まだ1周目）でやめたとき。
+         再開の入口 startGame(false) が st.narr を fresh かどうかに関係なく
+         round から再計算していたため、セーブに入っていた 'ren' を 'kanata' で
+         踏み潰した。st.narr の決定を if(fresh) の中に入れるのが直し。
+    """
+    pg.evaluate("localStorage.clear()")
+    pg.goto(URL)
+    pg.wait_for_selector("#gate")
+    pg.wait_for_selector("#voice", state="attached")
+    install_spies(pg)
+    open_gate(pg)
+    assert pg.evaluate("!document.getElementById('tStart').disabled"), \
+        "「はじめから」が無効のまま（台本ロード検査が通っていない）"
+    pg.evaluate("document.getElementById('tStart').click()")
+    pg.wait_for_function("document.getElementById('title').classList.contains('gone')",
+                         timeout=5000)
+
+    # --- 往復A: 開示の一行で中断する ---
+    step_until(pg, "() => st.revealed === true", "セーブ往復A: 開示の一行まで")
+    mem_a = pg.evaluate(SNAP_JS)
+    saved_a = pg.evaluate(SAVED_JS)
+    assert saved_a is not None, "セーブ往復A: localStorage に koe_save が書かれていない"
+    assert mem_a["revealed"] is True and mem_a["round"] == 1, \
+        f"セーブ往復A: 前提が崩れている（1周目・開示済みで止まっていない）: {mem_a}"
+    assert saved_a["revealed"] is True, (
+        "セーブ往復A: 開示の一行を読んだのに、保存された revealed が false のまま。"
+        "この状態で再開すると、正しい {narrator:'ren'} ビートで throw する。"
+        f" メモリ上={mem_a} / 保存済み={saved_a}")
+    assert saved_a == mem_a, \
+        f"セーブ往復A: 保存済みの状態がメモリ上と食い違う: 保存={saved_a} / メモリ={mem_a}"
+
+    loaded_a, after_a = _reload_and_load(pg)
+    assert loaded_a == mem_a, \
+        f"セーブ往復A: 読み直した状態が保存時と違う: 復元={loaded_a} / 保存時={mem_a}"
+    # 再開位置は {narrator:'ren'} の直前なので、つづきから を押した時点で
+    # そのビートを踏み直す。revealed が復元できていなければここで throw する。
+    assert errors == [], (
+        "セーブ往復A: 再開した瞬間にページ例外。開示済みのセーブから再開したのに "
+        "{narrator:'ren'} の順序チェックが発火している（revealed が保存されていない）。"
+        f" 例外: {errors}")
+    assert after_a["narr"] == "ren", \
+        f"セーブ往復A: 再開後に {{narrator:'ren'}} を踏んでいない: {after_a}"
+
+    # --- 往復B: 語り手が切り替わった位置で中断する ---
+    step_until(pg, "() => st.narr === 'ren'", "セーブ往復B: 語り手の切替まで")
+    mem_b = pg.evaluate(SNAP_JS)
+    saved_b = pg.evaluate(SAVED_JS)
+    assert mem_b["narr"] == "ren" and mem_b["round"] == 1, \
+        f"セーブ往復B: 前提が崩れている（1周目で語り手がセイレンになっていない）: {mem_b}"
+    assert saved_b == mem_b, \
+        f"セーブ往復B: 保存済みの状態がメモリ上と食い違う: 保存={saved_b} / メモリ={mem_b}"
+
+    loaded_b, after_b = _reload_and_load(pg)
+    assert loaded_b == mem_b, \
+        f"セーブ往復B: 読み直した状態が保存時と違う: 復元={loaded_b} / 保存時={mem_b}"
+    # beat は再開後に進むので比べない。それ以外は再開の入口を通っても不変でなければならない。
+    for k in ("narr", "revealed", "round", "ep", "scene"):
+        assert after_b[k] == mem_b[k], (
+            f"セーブ往復B: つづきから を押した時点で {k} が書き換わった "
+            f"（startGame(false) が復元済みの値を踏み潰している）: "
+            f"再開後={after_b} / 保存時={mem_b}")
+    assert after_b["beat"] >= mem_b["beat"], \
+        f"セーブ往復B: 保存位置より前に巻き戻っている: 再開後={after_b} / 保存時={mem_b}"
+
+    # 再開したセーブから最後まで読み切れること（往復が「開くだけ」で終わっていない）。
+    play_through(pg, "セーブ往復: 再開後の続き")
+    fin = pg.evaluate("() => ({round: st.round, done: st.roundDone})")
+    assert fin["done"] is True and fin["round"] >= 2, \
+        f"セーブ往復: 再開したセーブから完走できていない: {fin}"
+    return {"a": mem_a, "b": mem_b}
 
 
 def main():
@@ -258,29 +438,34 @@ def main():
             pg = br.new_page()
             errors = []
             pg.on("pageerror", lambda e: errors.append(str(e)))
+            # 4本目の物差し（ページ内の仕掛けに依存しない唯一の目）。
+            # 音源をどう鳴らそうと、ブラウザがHTTPで取りに行けばここに出る。
+            voice_reqs = []
+            pg.on("request",
+                  lambda r: voice_reqs.append(r.url) if "/voice/" in r.url else None)
             pg.goto(URL)
             pg.wait_for_selector("#gate")
             pg.wait_for_selector("#voice", state="attached")
-            assert pg.evaluate(INSTALL_SRC_SPY_JS), "#voice が見つからない"
-            assert pg.evaluate(INSTALL_READ_SPY_JS), "pushLog が見つからない（読んだ行を追えない）"
-            # タップする前に仕込む。openGate() は el('titlekoe') をその場で取り直すので、
-            # 要素のメソッドを差し替えておけば必ず経由する。
-            assert pg.evaluate(INSTALL_TITLE_PLAY_SPY_JS), "#titlekoe が見つからない"
+            install_spies(pg)
 
             # --- 検証3: タイトルの声が鳴るか ---
+            # まず「どのファイルを鳴らしにいくのか」。play() の回数だけを数えていると、
+            # #titlekoe の src を別ファイルに差し替えてもテストは緑のままになる
+            # （src はマークアップ側にあり、エンジンのどのログにも現れない）。
+            # 期待値はエンジンのアセット根 A から組み立てる——A を動かせばここが落ちる。
+            # 'title-koe' は設計書8-5の正規名で、scripts/koe/voice_audit.py の
+            # ALLOWED_NON_SCRIPT_STEMS にも同じ名前で載っている（棚卸しと突き合う）。
+            want_src = pg.evaluate("() => A + 'voice/title-koe.mp3'")
+            got_src = pg.evaluate("() => document.getElementById('titlekoe').getAttribute('src')")
+            assert got_src == want_src, (
+                f"#titlekoe が鳴らすファイルが違う: 期待 {want_src} / 実際 {got_src}。"
+                "起動時に聞かせる声はこの1本だけで、終盤の「あのとき聞いた声」の前提になっている。")
+
             # 注意: `ended` は本物の onended でのみ true になる。title-koe.mp3 は
-            # Plan 2 まで存在しないので、今日の健全なビルドでは常に false
+            # Plan 2 まで存在せず、今日の健全なビルドでは常に false
             # （404 → play() が NotSupportedError で reject → reason:'rejected'）。
             # ここで ended===true を待つとハングする。revealCount で待つこと。
-            pg.evaluate("document.getElementById('gate').click()")
-            try:
-                pg.wait_for_function("window.__koeGate && window.__koeGate.revealCount >= 1",
-                                     timeout=12000)
-            except PWTimeout:
-                raise AssertionError(
-                    "ゲートをタップしても声を鳴らす経路に入らなかった（__koeGate.revealCount が 0 のまま）。"
-                    "画面だけ開いて声が死んでいる＝終盤の「あのとき聞いた声」が成立しない。"
-                    f" 現在値: {pg.evaluate('window.__koeGate')}")
+            open_gate(pg)
             gate = pg.evaluate("window.__koeGate")
             # ここが検証3の本体。__koeGate.played は openGate() の1行目（try の外）で立ち、
             # reason は5値すべてを受理しているので、この2つはゲートが開いた時点で必ず真になる
@@ -322,6 +507,7 @@ def main():
             assert pg.evaluate("!document.getElementById('tStart').disabled"), \
                 "「はじめから」が無効のまま（台本ロード検査が通っていない）"
             pg.evaluate("window.__koeVoiceLog=[]; window.__koeSrcLog=[]; window.__koeReadLog=[]")
+            voice_reqs.clear()
             pg.evaluate("document.getElementById('tStart').click()")
             pg.wait_for_function("document.getElementById('title').classList.contains('gone')",
                                  timeout=5000)
@@ -343,11 +529,12 @@ def main():
 
             log1 = pg.evaluate("window.__koeVoiceLog")
             src1 = pg.evaluate("window.__koeSrcLog")
+            req1 = list(voice_reqs)
             assert log1, "1周目でボイスが1本も参照されていない"
             assert src1, "1周目で #voice に音源が1本も渡っていない"
 
             # --- 検証1: セイレンの無音が守られているか（1周目） ---
-            info1 = check_silence(pg, log1, src1, "1周目")
+            info1 = check_silence(pg, log1, src1, req1, "1周目")
 
             # --- 検証2: 地の文が1周目は _k で参照されているか ---
             # 1周目でも終盤の {narrator:'ren'} 以降だけは _r になる（それが仕掛けの開示そのもの）。
@@ -384,6 +571,7 @@ def main():
             # そのすぐ後の st.narr 決定に使われる（＝最初の1行が出る前に効く）。
             pg.evaluate("st.round = 2")
             pg.evaluate("window.__koeVoiceLog=[]; window.__koeSrcLog=[]; window.__koeReadLog=[]")
+            voice_reqs.clear()
             pg.evaluate("document.getElementById('tStart').click()")
             pg.wait_for_function("document.getElementById('title').classList.contains('gone')",
                                  timeout=5000)
@@ -397,6 +585,7 @@ def main():
 
             log2 = pg.evaluate("window.__koeVoiceLog")
             src2 = pg.evaluate("window.__koeSrcLog")
+            req2 = list(voice_reqs)
             narr2 = [f for f in log2 if is_narr(f)]
             assert narr2, "2周目で地の文が参照されていない"
             bad2 = [f for f in narr2 if not f.endswith("_r.mp3")]
@@ -415,7 +604,10 @@ def main():
                             f"2周目={sorted(set(map(stem, narr2)))[:3]}")
 
             # 2周目でもセイレンの無音は破れない（b.v だけを見ているので周回に依らない）
-            check_silence(pg, log2, src2, "2周目")
+            check_silence(pg, log2, src2, req2, "2周目")
+
+            # --- 検証4: セーブ往復（設計書10章「セーブ往復」） ---
+            rt = save_roundtrip(pg, errors)
 
             assert errors == [], f"ページエラー: {errors}"
             # src は oldValue も積むので生の件数には重複が入る。物差しとしては集合なので、
@@ -424,6 +616,9 @@ def main():
                   f"/ src {len(set(map(base, src1)))}種 / titlekoe.play {plays}回")
             print(f"  2周目 {elapsed2:.1f}s / ボイス参照 {len(log2)}本(地の文 {len(narr2)}本) "
                   f"/ src {len(set(map(base, src2)))}種 / 共有する地の文 {len(shared)}本")
+            print(f"  /voice/ 要求 1周目 {len(set(map(base, req1)))}種 / "
+                  f"2周目 {len(set(map(base, req2)))}種")
+            print(f"  セーブ往復 A={rt['a']} / B={rt['b']}")
             br.close()
     finally:
         srv.terminate()

@@ -416,6 +416,30 @@ const BGS={
 const BGM={ title:'koe-title', hibi:'koe-hibi', shigoto:'koe-shigoto', deai:'koe-deai',
   tansaku:'koe-tansaku', mizu:'koe-mizu', fuon:'koe-fuon',
   shoutai:'koe-shoutai', kansei:'koe-kansei', ed:'koe-ed' };
+/* 台本のビートからではなく、エンジンのコードから直接名指しされる BGM キー。
+   今の呼び出し元は2か所だけ: openGate() の reveal() が 'title'、endEpisode() が 'ed'。
+   台本を歩く検査（assertScriptLoadedAndKeys）はビートしか見ないので、ここを
+   宣言しておかないと BGM.title をリネームしただけでタイトル曲が無言で死ぬ
+   （設計書8-9が「キー実在をassertせよ」と言っているのは、まさにこの死に方）。
+   playBGM() 側も未定義キーで throw するので、実行時にも黙って無音にはならない。 */
+const ENGINE_BGM=['title','ed'];
+/* イベントCG(一枚絵)。{cg:'<key>'} の <key> がそのまま画像ファイル名になる
+   (assets/koe/<key>.jpg)。値は用途のメモ——ここに列挙されていないキーは
+   setCG() が throw し、台本ロード検査も落とす。
+   ★Plan 2 で一枚絵を足すときは、この表に1行足すだけでよい。
+   なぜ「キー→説明」の表かというと、すぐ上の BGS/BGM と同じ形にしておけば
+   「キーの実在表はここに並んでいる」という一箇所の約束で済むから。
+   実在検査を持たなかった頃の setCG() は、404 のとき cgCur を黙って戻すだけで
+   コンソールに何も出さなかった（＝存在しないCGを指した台本が無言で素通りした）。 */
+const CGS={ 'cg-owari':'結：最後の一枚絵' };
+/* 記憶フラッシュ絵。{pickup:'<key>'} の <key> がそのまま画像ファイル名になる
+   (assets/koe/<key>.jpg)。設計書8-1 の「mem-*.jpg (24)」がそのまま枚数。
+   採取4か所と24枚の対応表は Plan 2 の成果物（設計書9章）なので、ここでは
+   「どの範囲のIDが正当か」だけを宣言する——決まっていない対応をダミーの
+   説明文で埋めると、それ自体が嘘のデータになるため。
+   ★Plan 2 で枚数が変わるときは MEM_COUNT の数字1つだけを直す。 */
+const MEM_COUNT=24;
+const MEMS={}; for(let _i=1;_i<=MEM_COUNT;_i++) MEMS['mem-'+String(_i).padStart(2,'0')]=1;
 
 /* 台本は assets/koe/koe-ep1.js が window.KOE.ep1 に定義（後読み→末尾で再バインド） */
 const SCRIPT = window.KOE || { ep1:{ title:'声を、あげる', scenes:[] } };
@@ -471,6 +495,7 @@ function setCG(name){
   const e=el('evcg'), stg=el('stage');
   if(!name){ if(!cgCur) return; cgCur=null; e.classList.remove('on'); stg.classList.remove('hascg');
     setTimeout(()=>{ if(!cgCur) e.style.backgroundImage=''; }, 1200); return; }
+  if(!CGS[name]) throw new Error('koe: 未定義のCGキー: '+name+'（koe.html の CGS に無い）');
   if(cgCur===name) return;
   cgCur=name;
   const url=A+name+'.jpg';
@@ -478,7 +503,9 @@ function setCG(name){
   im.onload=()=>{ if(cgCur!==name) return;
     e.style.backgroundImage="url('"+url+"')";
     e.classList.remove('on'); void e.offsetWidth; e.classList.add('on'); stg.classList.add('hascg'); };
-  im.onerror=()=>{ if(cgCur===name){ cgCur=null; } };
+  /* 404。キー自体は正当（CGSにある）ので throw はしないが、黙って状態を戻すと
+     「一枚絵が出ないまま話が進む」ことに誰も気づけない。必ず声を出す。 */
+  im.onerror=()=>{ console.warn('[koe] イベントCGが読み込めない: '+url); if(cgCur===name){ cgCur=null; } };
   im.src=url;
 }
 
@@ -549,7 +576,11 @@ flickLoop();
 
 /* ---------- 音 ---------- */
 let bgmCur='A', bgmKey=null;
-function playBGM(key){ if(key===bgmKey) return; bgmKey=key; const file=BGM[key]; if(!file) return;
+/* 未定義キーは throw する。以前は `if(!file) return;` で黙って無音スキップしていたが、
+   それだと BGM.title を1文字リネームしただけでタイトル曲が消え、誰も気づけない。 */
+function playBGM(key){ if(key===bgmKey) return; const file=BGM[key];
+  if(!file) throw new Error('koe: 未定義のBGMキー: '+key+'（koe.html の BGM に無い）');
+  bgmKey=key;
   const nEl=el('bgm'+(bgmCur==='A'?'B':'A')), cEl=el('bgm'+bgmCur);
   nEl.src=A+'bgm/'+file+'.mp3'; nEl.volume=0; nEl.play().catch(()=>{});
   const tgt=cfg.bgm/100*0.85; let k=0; const iv=setInterval(()=>{ k++; nEl.volume=Math.min(tgt,tgt*k/14); cEl.volume=Math.max(0,(cEl.volume||0)*(1-k/14)); if(k>=14){ clearInterval(iv); cEl.pause(); } },70);
@@ -624,6 +655,42 @@ function beatAddr(){
 }
 function curScene(){ return curScenes()[st.scene]; }
 
+/* ---------- {say} と「先にディスパッチされるキー」の同居を禁じる ----------
+   step() は上から順に判定して、当たった腕で continue/return する。だから
+   {say:'kanata', text:'…', expr:'sad'} のようなビートは expr の腕で continue し、
+   renderSay() に一度も届かない——本文も声も出ないのに、例外もログも出ない。
+   さらに悪いことに scripts/koe/voice_audit.py の _walk() はそのノードに "say" を
+   見つけるので v<hash>.mp3 を期待し、一度も鳴らない行のためにボイスを収録した上で
+   ゲートは CLEAN と報告する。棚卸しからは絶対に見えない偽CLEANの入口。
+
+   禁止する腕の一覧は step() のソースそのものから読み取る。手で並べた配列を
+   置くと、step() の if を1本足した/並べ替えた瞬間に静かにズレる（そしてズレても
+   何も起きない＝また無言の穴になる）。読み取りに失敗したら空集合を返して
+   検査を素通りさせるのではなく throw する——「対象を見失っている」ことこそが
+   この検査の知りたい異常なので。 */
+let _sayConflictKeys=null;
+function sayConflictKeys(){
+  if(_sayConflictKeys) return _sayConflictKeys;
+  const src=String(step), order=[], re=/\bif\s*\(\s*b\.([A-Za-z_$][\w$]*)/g;
+  let m;
+  while((m=re.exec(src))!==null){ if(order.indexOf(m[1])<0) order.push(m[1]); }
+  const i=order.indexOf('say');
+  if(i<1) throw new Error('koe: step() のディスパッチ順を読み取れなかった（say の腕が見つからない / 先行する腕が無い）。'
+    +'sayConflictKeys() の正規表現を step() の実際の書式に合わせて直すこと。読めた順: '+order.join(','));
+  _sayConflictKeys=order.slice(0,i);
+  return _sayConflictKeys;
+}
+/* say を持つビートに、say より先にディスパッチされるキーが同居していたら落とす。
+   表情を台詞と同時に指定したいときは expr ではなく ex:（renderSay() が
+   ensureShown(b.say, b.ex) に渡す）を使うか、ビートを2つに分ける。 */
+function assertNoSayConflict(b, where){
+  if(!b || typeof b!=='object' || b.say==null) return;
+  const bad=sayConflictKeys().filter(k=>Object.prototype.hasOwnProperty.call(b,k));
+  if(bad.length) throw new Error('koe: 台本のビートエラー — {say} と同じビートに '
+    +bad.join(', ')+' を置けません（step() が先に処理して台詞が無言で消える）。'
+    +'ビートを分けてください（表情だけなら ex: が使えます）。'+(where?' ('+where+')':''));
+}
+
 function step(){
   if(!cur) return;
   while(true){
@@ -633,6 +700,11 @@ function step(){
     }
     const b=cur.beats[cur.i++];
     if(!stack.length){ st.beat=cur.i; save(); }
+    /* 実行時の二重の網。台本ロード検査(assertScriptLoadedAndKeys)が同じ関数で
+       全ビートを先に検査するので通常ここには来ないが、検査を通らない経路
+       （検査ブロックの改変、実行時に組み立てたビート等）でも無言では消させない。
+       beatAddr() は毎ビート組み立てると無駄なので、say を持つビートに限って呼ぶ。 */
+    if(b && b.say!=null) assertNoSayConflict(b, beatAddr());
     if(b.bg){ setCG(null); setBG(b.bg); continue; }
     if(b.cg!==undefined){ setCG(b.cg); continue; }
     if(b.bgm){ playBGM(b.bgm); continue; }
@@ -678,7 +750,13 @@ function renderSay(b){
   const nm=nameFor(b.say,b);
   /* 名前欄・声・この印はすべて同じ b.v を見る。スキップ既読で抜ける場合も通過扱いにする
      （声は鳴らなくても「正体が割れるビートを読んだ」ことに変わりはないため）。 */
-  if(b.say==='ren' && b.v) st.revealed=true;
+  /* ここで save() まで済ませる。step() の save() はビートを取り出した直後
+     ＝この行を描く前に走るので、保存済みの beat は v:1 のビートの「次」を指しているのに
+     revealed は false のまま、という1ビートぶんのズレが残る。プレイヤーがこの
+     クライマックスの一行でタブを閉じると（いちばん止まりやすい行）、次回の
+     「つづきから」は {narrator:'ren'} を revealed:false で踏んで throw する
+     ——正しい台本・正しい演出なのに、セーブのズレだけで落ちる。 */
+  if(b.say==='ren' && b.v){ st.revealed=true; save(); }
   el('namebar').className = nm? '' : 'empty';
   el('nm').textContent=nm||''; el('namebar').style.setProperty('--who', c.color);
   if(b.say!=='narr'){ ensureShown(b.say, b.ex); }
@@ -718,7 +796,11 @@ function doPickup(b){
   locked=true;
   flashMem(b.pickup, 1400, ()=>{ locked=false; step(); });
 }
+/* CSS の background-image には onerror が無い。IDを1文字打ち間違えると
+   1400ms のあいだ真っ黒が出るだけで、コンソールにも何も出ない——だから
+   「そのIDが正当か」だけは手前で必ず落とす（MEMS は koe.html 冒頭の宣言）。 */
 function flashMem(key, ms, done){
+  if(!MEMS[key]) throw new Error('koe: 未定義の記憶絵キー: '+key+'（koe.html の MEMS に無い）');
   const e=el('memflash');
   e.style.backgroundImage="url('"+A+key+".jpg')";
   e.classList.add('on');
@@ -737,7 +819,17 @@ function tryVoice(){
 function finalKey(){
   // 最初に取った主素材で4パターンに分かれる(設計書 5章「結」)
   const map={'mem-01':'a','mem-07':'b','mem-13':'c','mem-19':'d'};
-  return map[st.firstMain]||'a';
+  /* まだ主素材を1つも取っていない段階（tryvoice の試聴など）は 'a' で構わない。
+     だが「取ったのに表に無いID」を 'a' に丸めてはいけない: 主素材のIDを1文字
+     打ち間違えると全プレイヤーが同じ take a になり、「あなたの声」という
+     この作品の核が無言で崩れる。final-a〜final-d はどれも
+     voice_audit.py の ALLOWED_NON_SCRIPT_STEMS に載っているので棚卸しでも見えない。 */
+  if(st.firstMain==null) return 'a';
+  const k=map[st.firstMain];
+  if(!k) throw new Error('koe: 主素材 '+st.firstMain+' が完成声の4パターン('
+    +Object.keys(map).join(', ')+')のどれにも割り当てられていません。'
+    +'{pickup:..., main:1} のIDか finalKey() の対応表のどちらかが間違っています。');
+  return k;
 }
 function runMontage(){
   const list=st.mem.slice(); locked=true;
@@ -758,8 +850,8 @@ function playFinalVoice(){
   v.play().catch(go);
 }
 /* 完走の記録。round を進める唯一の場所。呼び出し元は次の2つだけ、いずれも「完走」を意味する:
-     1. toTitle()   — {title:1} ビート。step():638 からのみ呼ばれる
-     2. nextScene() — 最後の場面を読み終えた枝 (:762)
+     1. toTitle()   — {title:1} ビート。step() の {title} の腕からのみ呼ばれる
+     2. nextScene() — 最後の場面を読み終えた枝（nextScene() の else 側）
    片方にしか置かないと、台本が {title:1} で終わっていない限り round が 1 のまま固定され、
    地の文の _r トラックが永久に鳴らない（しかも無言で）。だから両方から呼ぶ。
 
@@ -767,7 +859,7 @@ function playFinalVoice(){
      - showTitle()  : btnTitle(中断) からも呼ばれる。途中でやめたのは完走ではない。
                       st.cleared で見分けることもできない——freshState が cleared を持ち越すため、
                       2周目以降は中断時にも既に true になっている。
-     - endEpisode() : enterScene():765 の「場面が無い」ガードからも呼ばれる。台本の取得に
+     - endEpisode() : enterScene() の「場面が無い」ガードからも呼ばれる。台本の取得に
                       失敗しただけ（404・オフライン・assets 未配置）で完走扱いになり、
                       round=2 が永続化されて次回の地の文が彼女の声になる＝仕掛けが割れる。
                       あちらは表示だけの経路のままにしておくこと。
@@ -898,9 +990,15 @@ function openLog(){ const list=el('bllist'); list.innerHTML=''; backlog.slice(-1
 
 /* ---------- タイトル/開始 ---------- */
 function startGame(fresh){
-  if(fresh){ st=freshState(st); }   /* freshState(keep) は round を持ち越す */
-  /* 2周目の地の文はセイレンの声。round を見て場面開始前に決める。 */
-  st.narr = (st.round && st.round>=2) ? 'ren' : 'kanata';
+  /* fresh=true は「はじめから」、false は「つづきから」(load() 済みの st を使う)。
+     st.narr の決定は fresh のときだけ。再開時にも走らせると、セーブに入っている
+     語り手の切り替え（終盤の {narrator:'ren'} 以降）を round=1 のまま 'kanata' で
+     踏み潰し、彼女が語り始めたところから再開したのに声だけカナタに戻る。 */
+  if(fresh){
+    st=freshState(st);              /* freshState(keep) は round を持ち越す */
+    /* 2周目の地の文はセイレンの声。round を見て場面開始前に決める。 */
+    st.narr = (st.round && st.round>=2) ? 'ren' : 'kanata';
+  }
   el('title').classList.add('gone'); ensureCtx(); if(actx&&actx.state==='suspended') actx.resume();
   enterScene();
 }
@@ -994,7 +1092,7 @@ document.addEventListener('keydown', e=>{
 
 function endEpisode(){
   stopBGM(); ambient(false); clearSprites();
-  /* ここでは round を触らない。呼び出し元は2つあり、片方 (enterScene():766 の
+  /* ここでは round を触らない。呼び出し元は2つあり、片方 (enterScene() の
      「場面が無い」ガード) は完走ではないため。round は completeRound() 側の責務。 */
   st.cleared=true; save();
   playBGM('ed');
@@ -1066,7 +1164,9 @@ bindTgl('setDrift','fixview','固定中','ゆっくり動く',()=>{ window.KOE_F
 window.KOE_FIXVIEW=!!cfg.fixview;
 
 el('tStart').addEventListener('click',()=>startGame(true));
-el('tCont').addEventListener('click',()=>{ if(load()){ el('title').classList.add('gone'); ensureCtx(); if(actx&&actx.state==='suspended')actx.resume(); enterScene(); } });
+/* 再開も startGame() を通す。ここに開始手順を写経すると startGame() と二重管理になり、
+   「fresh のときだけ」という条件（st.narr）がこちら側だけ抜ける。実際その形だった。 */
+el('tCont').addEventListener('click',()=>{ if(load()) startGame(false); });
 
 /* ---------- 複数セーブスロット ---------- */
 const SLOTS=6;
@@ -1146,19 +1246,29 @@ function walkNodes(node, visit, seen){
   }
 }
 
-/* 台本ロード検査 + 背景(bg)/BGM(bgm)キー実在検査。両方をここに置く理由:
+/* 台本ロード検査 + キー実在検査(bg / bgm / cg / pickup / エンジンが名指しするBGM)
+   + {say} の同居禁止検査。すべてをここに置く理由:
    assets/koe/koe-ep1.js が404/オフライン/ブロックで読み込めなかった場合、直前の
    再バインドは何もせず、SCRIPT は関数冒頭のフォールバック
    （{ ep1:{ title:..., scenes:[] } }）のまま残る。curScenes() はこれを
    「場面が0個の台本」として扱い、はじめから→即 enterScene() の「場面が無い」
    ガード(endEpisode())に落ちて、プレイヤーには「完」カードが正常に出る＝
    台本が1文字も読めていないのに完走したように見える。
-   bg/bgm キーの実在検査も同じ場所に置く: 未定義キーは setBGcss()（BGS.voidの
-   グラデーションに黙って差し替わる）/ playBGM()（`if(!file) return;` で
-   無音スキップ）のどちらも当人の手前で握り潰すので、外から気づけない。
-   両方をタイトル表示より前・台本読み込み後の同じ場所
+   キーの実在検査も同じ場所に置く。どれも「間違えても画面に何も出ない」ものだから:
+     bg     — setBGcss() が BGS.void のグラデーションに黙って差し替わる
+     bgm    — 以前は playBGM() が `if(!file) return;` で無音スキップしていた
+              （今は throw する。だが鳴らそうとする前に落としたい）
+     cg     — setCG() が404で cgCur を戻すだけ（今は console.warn を足したが、
+              キー自体の間違いはここで殺す方が早い）
+     pickup — flashMem() が CSS の background-image を差すだけ。onerror が無いので
+              1400ms 真っ黒が出て終わり
+     エンジンが名指しするBGM(ENGINE_BGM) — ビートを歩く検査には現れない
+   {say} の同居禁止検査（assertNoSayConflict）も同じ理由でここ: step() が先行する腕で
+   continue するとその台詞は本文も声も出ないのに、voice_audit.py は "say" を見つけて
+   ボイスを期待するので、鳴らない行のためにボイスを収録した上でゲートはCLEANになる。
+   すべてをタイトル表示より前・台本読み込み後の同じ場所
    （koe-ep1.js の後読み再バインド関数 = 直前のコードブロック の直後）で
-   一度だけ走らせる。台本ロード検査を先に置くのは、bg/bgmキー検査が
+   一度だけ走らせる。台本ロード検査を先に置くのは、キー検査が
    `if(!script) return;` で台本未読込そのものは黙って見逃すため
    （script が無ければ「調べる対象が無い」だけで、それ自体は別の異常）。 */
 (function assertScriptLoadedAndKeys(){
@@ -1180,18 +1290,35 @@ function walkNodes(node, visit, seen){
     ['tStart','tCont','tLoad'].forEach(id=>{ const b=el(id); if(b) b.disabled=true; });
     throw new Error('koe: 台本 assets/koe/koe-ep1.js が読み込めていません（scenesが空）。404・オフライン・パス間違いの可能性。開始ボタンを無効化した。');
   }
-  const badBg = [], badBgm = [];
+  const badBg = [], badBgm = [], badCg = [], badMem = [];
   walkNodes(ep.scenes, node=>{
     if(node.bg!=null && !BGS[node.bg]) badBg.push(node.bg);
     if(node.bgm!=null && !BGM[node.bgm]) badBgm.push(node.bgm);
+    /* cg/pickup も同じ walk で見る。どちらも失敗が画面に出ない種類の命令:
+       setCG() は404で状態を黙って戻すだけ、flashMem() は CSS の background-image を
+       差すだけで onerror が存在しない（＝1400ms 真っ黒が出て終わり）。
+       {cg:null} は「解除」なので != null で除く。 */
+    if(node.cg!=null && !CGS[node.cg]) badCg.push(node.cg);
+    if(node.pickup!=null && !MEMS[node.pickup]) badMem.push(node.pickup);
+    /* {say} が step() の先行する腕と同居していたら落とす。ここが「書けなくする」側。
+       同じ関数を step() も実行時に呼ぶ（定義は1つ）。 */
+    assertNoSayConflict(node, '台本ロード検査');
   });
-  if(badBg.length || badBgm.length){
+  /* 台本には現れないが、エンジンのコードが直接名指しする BGM キー。
+     ビートを歩くだけの検査では見えないので、ここで明示的に突き合わせる。 */
+  const badEngineBgm = ENGINE_BGM.filter(k=>!BGM[k]);
+  if(badBg.length || badBgm.length || badCg.length || badMem.length || badEngineBgm.length){
     const parts=[];
     if(badBg.length) parts.push('未定義のBGキー: '+[...new Set(badBg)].join(', '));
     if(badBgm.length) parts.push('未定義のBGMキー: '+[...new Set(badBgm)].join(', '));
+    if(badCg.length) parts.push('未定義のCGキー: '+[...new Set(badCg)].join(', '));
+    if(badMem.length) parts.push('未定義の記憶絵キー: '+[...new Set(badMem)].join(', '));
+    if(badEngineBgm.length) parts.push('エンジンが名指ししているBGMキーが存在しない: '
+      +badEngineBgm.join(', ')+'（openGate()/endEpisode() が鳴らす曲）');
     throw new Error('koe: '+parts.join(' / '));
   }
-  /* ここまで通れば台本は読めていて bg/bgm キーもすべて実在する。
+  /* ここまで通れば台本は読めていて bg/bgm/cg/pickup キーもすべて実在し、
+     エンジンが名指しする BGM キーも実在する。
      fail-closed で最初から disabled にしていた開始系ボタンをここで解禁する。
      tCont は「保存があるとき」だけ解禁する（保存が無ければ従来どおり無効のまま）。 */
   ['tStart','tLoad'].forEach(id=>{ const b=el(id); if(b) b.disabled=false; });
