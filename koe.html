@@ -112,6 +112,8 @@ img{-webkit-user-drag:none}
 #ttext{font-family:var(--serif);font-size:clamp(16px,2.15vw,21px);line-height:1.95;letter-spacing:.03em;color:var(--tcolor,var(--narr));
   text-shadow:0 1px 8px rgba(0,0,0,.6);min-height:1.9em}
 #ttext.narr{font-style:italic;color:var(--narr);opacity:.94}
+/* セイレンの台詞。声ではない伝え方であることを字面で示す(一段小さく・字間広く) */
+#ttext.saysoft{font-size:calc(clamp(16px,2.15vw,21px)*.94);letter-spacing:.06em;opacity:.92}
 #ttext .cursor{display:inline-block;width:.5em;color:var(--neon);animation:blink 1s steps(1) infinite;transform:translateY(1px)}
 @keyframes blink{50%{opacity:0}}
 #adv{position:absolute;right:16px;bottom:12px;font-family:var(--mono);font-size:11px;color:var(--faint);opacity:.7;animation:bob 1.6s ease-in-out infinite}
@@ -565,10 +567,11 @@ function fx(kind){
 
 /* ---------- タイプライタ ---------- */
 let typing=false, typeTimer=null, fullText='', shownLen=0, ttEl, curColor='var(--narr)';
-function typeStart(text,color,narr){
+/* soft=true はセイレンの台詞。字送りを1.6倍ゆっくりにして「別の伝え方」に見せる */
+function typeStart(text,color,narr,soft){
   fullText=text; shownLen=0; typing=true; ttEl=el('ttext'); curColor=color;
-  ttEl.className=narr?'narr':''; ttEl.style.setProperty('--tcolor',color);
-  const speed=Math.max(4, 46-cfg.speed*0.42); // ms/char
+  ttEl.className=(narr?'narr':'')+(soft?' saysoft':''); ttEl.style.setProperty('--tcolor',color);
+  const speed=Math.max(4, 46-cfg.speed*0.42)*(soft?1.6:1); // ms/char
   clearInterval(typeTimer);
   typeTimer=setInterval(()=>{
     shownLen++; render();
@@ -622,19 +625,40 @@ function step(){
     if(b.say!=null){ renderSay(b); return; }
   }
 }
+/* 名前欄はビートの関数にする。セイレンは既定 '—'、v:1 のビートでだけ名前が出る。
+   声を鳴らす条件と同じ b.v を見るので、名前欄と声が食い違うことがない。 */
+function nameFor(who,b){
+  if(who==='ren') return (b && b.v) ? 'セイレン' : '—';
+  return (CHARS[who]||CHARS.narr).name;
+}
 function renderSay(b){
-  const c=CHARS[b.say]||CHARS.narr; const isNarr=(b.say==='narr');
-  el('namebar').className = c.name? '' : 'empty';
-  el('nm').textContent=c.name||''; el('namebar').style.setProperty('--who', c.color);
+  const c=CHARS[b.say]||CHARS.narr; const isNarr=(b.say==='narr'); const isSoft=(b.say==='ren');
+  const nm=nameFor(b.say,b);
+  el('namebar').className = nm? '' : 'empty';
+  el('nm').textContent=nm||''; el('namebar').style.setProperty('--who', c.color);
   if(b.say!=='narr'){ ensureShown(b.say, b.ex); }
   speaking(b.say);
   const color = isNarr?'var(--narr)': (c.color.indexOf('var')===0? getComputedStyle(document.documentElement).getPropertyValue(c.color.slice(4,-1)).trim()||'#e9edf2' : c.color);
   markSeen(b.text);
   el('adv').classList.remove('hide');
-  if(skipOn && wasSeen(b.text)){ el('ttext').innerHTML=esc(b.text); el('ttext').className=isNarr?'narr':''; el('ttext').style.setProperty('--tcolor',color); pushLog(b.say,c.name,b.text); onLineDone(); return; }
-  pushLog(b.say,c.name,b.text);
-  if(b.say==='kanata'||b.say==='toki'){ if(!/^[（(]/.test(b.text.trim())) playVoice(b.say,b.text); else stopVoice(); showMark(b.say,b.text,b.ex); } else stopVoice();
-  typeStart(b.text, color, isNarr);
+  /* スキップ既読は声の分岐に到達せず抜ける。無音側に倒れるので仕掛けは安全（下の注記参照） */
+  if(skipOn && wasSeen(b.text)){ el('ttext').innerHTML=esc(b.text); el('ttext').className=(isNarr?'narr':'')+(isSoft?' saysoft':''); el('ttext').style.setProperty('--tcolor',color); pushLog(b.say,nm,b.text); onLineDone(); return; }
+  pushLog(b.say,nm,b.text);
+  /* ボイス分岐。既定は「鳴らさない」で、鳴らす方が例外。
+     セイレンの腕を最初に置き、b.v が無ければ必ず stopVoice() に落ちる。
+     ここを編集する人が、うっかり彼女に声を与えられないようにするための並び順。 */
+  if(b.say==='ren'){
+    if(b.v) playVoice('ren', b.text);   // 例外：v:1 のときだけ鳴らす
+    else stopVoice();                   // 既定：絶対に鳴らさない
+  } else if(b.say==='kanata'||b.say==='toki'){
+    if(!/^[（(]/.test(b.text.trim())) playVoice(b.say,b.text); else stopVoice();
+    showMark(b.say,b.text,b.ex);
+  } else if(b.say==='narr'){
+    playVoice(st.narr||'kanata', b.text, 'narr');
+  } else {
+    stopVoice();
+  }
+  typeStart(b.text, color, isNarr, isSoft);
 }
 function onLineDone(){
   if(autoOn && !locked){ clearTimeout(autoTimer); autoTimer=setTimeout(()=>{ if(autoOn) advance(); }, Math.max(600, 900+fullText.length*(38-cfg.auto*0.3))); }
@@ -780,9 +804,24 @@ function renderExplore(e){
 /* ---------- 既読/ログ ---------- */
 function keyOf(t){ let h=0; for(let i=0;i<t.length;i++){ h=(h*31+t.charCodeAt(i))|0; } return 'k'+h; }
 /* ---------- ボイス(ElevenLabs生成音声) ---------- */
-function voiceFile(who,text,kind){ return A+'voice/v'+keyOf(who+'|'+text)+'.mp3'; }
-function playVoice(who,text,kind){ const v=el('voice'); try{v.pause();}catch(e){} if(cfg.voice<=0) return;
-  v.src=voiceFile(who,text,kind); v.volume=cfg.voice/100; try{ v.currentTime=0; }catch(e){} v.play().catch(()=>{}); }
+/* 地の文は本文だけをハッシュし、話者は接尾辞にする。_k と _r が同じハッシュを共有するので、
+   台詞を1文字直せば2本まとめて無効化される（片方だけ古いまま残るのを防ぐ）。 */
+function voiceFile(who,text,kind){
+  if(kind==='narr') return A+'voice/n'+keyOf(text)+(who==='ren'?'_r':'_k')+'.mp3';
+  return A+'voice/v'+keyOf(who+'|'+text)+'.mp3';
+}
+/* E2E検証用。エンジンが「どのファイルを選んだか」を記録する。
+   音量0でも記録されるよう、cfg.voice の早期returnより前で push する。 */
+window.__koeVoiceLog=[];
+function playVoice(who,text,kind){
+  const v=el('voice'); try{v.pause();}catch(e){}
+  const f=voiceFile(who,text,kind);
+  window.__koeVoiceLog.push(f);
+  if(cfg.voice<=0) return;
+  v.src=f; v.volume=cfg.voice/100;
+  try{ v.currentTime=0; }catch(e){}
+  v.play().catch(()=>{});
+}
 function stopVoice(){ const v=el('voice'); try{ v.pause(); }catch(e){} }
 function markSeen(t){ st.seen[keyOf(t)]=1; }
 function wasSeen(t){ return !!st.seen[keyOf(t)]; }
@@ -792,7 +831,9 @@ function openLog(){ const list=el('bllist'); list.innerHTML=''; backlog.slice(-1
 
 /* ---------- タイトル/開始 ---------- */
 function startGame(fresh){
-  if(fresh){ st=freshState(st); }
+  if(fresh){ st=freshState(st); }   /* freshState(keep) は round を持ち越す */
+  /* 2周目の地の文はセイレンの声。round を見て場面開始前に決める。 */
+  st.narr = (st.round && st.round>=2) ? 'ren' : 'kanata';
   el('title').classList.add('gone'); ensureCtx(); if(actx&&actx.state==='suspended') actx.resume();
   enterScene();
 }
