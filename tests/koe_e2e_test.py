@@ -13,12 +13,15 @@
   検証3 起動時の声    — タップゲートが一度だけ開き、その裏で声を1本鳴らしにいく。
 
 「素通りしないこと」をこのファイル自身が担保する仕掛け:
-  - 無音チェックは backlog と突き合わせる。対象の台詞を実際に読み終えたことを
-    確かめてから「鳴っていない」と言う（読まずに素通りしても合格、を封じる）。
+  - 無音チェックは「実際に読んだ行の台帳」と突き合わせる。対象の台詞を読み終えた
+    ことを確かめてから「鳴っていない」と言う（読まずに素通りしても合格、を封じる）。
+    台帳はエンジンの backlog ではなくテスト側で pushLog をラップして持つ——backlog は
+    200件で頭から捨てるリングバッファなので、周の境目を index で持つと本編台本
+    (281ボイス行)で必ず狂い、正しいビルドでこのテストが落ちる。
   - 無音チェックは3本の物差しで見る: playVoice() のログ／#voice の src 属性／
     台詞ボイスの本数。前2つは voiceFile() が作った名前どうしの照合なので、
     命名規則ごと変えられると共倒れになる。本数は名前に依存しない。
-  - 地の文チェックも backlog と突き合わせる。読んだ地の文すべてにボイス参照が
+  - 地の文チェックも同じ台帳と突き合わせる。読んだ地の文すべてにボイス参照が
     あることまで見る（1本も鳴らないビルドで合格、を封じる）。
   - SKIP/AUTO が入っていないことを先に確かめる。SKIP中の renderSay() は
     声の分岐に到達せず抜けるので、ログが空になるのは「守れている」証拠にならない。
@@ -34,7 +37,8 @@
     tests/koe_audit_test.py、音そのものは tests/koe_synth_test.py の担当。
   - __koeGate.ended===true（＝声を最後まで鳴らし切ったか）。title-koe.mp3 は
     Plan 2 まで存在せず、今日の健全なビルドでは必ず false になる。ここで真を
-    要求すると正しいビルドが落ちるので、開いた回数と理由までで止めてある。
+    要求すると正しいビルドが落ちるので、「play() を1回呼んだこと」までで止めてある
+    （鳴らしにいったことは証明できるが、鳴り切ったことは Plan 2 まで証明できない）。
   - 分岐網羅。選択肢は常に先頭を選ぶので、2つ目の reply と when の偽枝は通らない。
   - BGM・効果音・立ち絵・背景の見た目。BGMは tests/koe_bgm_test.py の担当。
 """
@@ -79,7 +83,7 @@ AT_TITLE_JS = """() => { const t = document.getElementById('title');
 PROGRESS_JS = """() => ({
   scene: st.scene, i: cur ? cur.i : -1, stack: stack.length,
   mem: st.mem.length, synth: st.synth, log: window.__koeVoiceLog.length,
-  src: window.__koeSrcLog.length, backlog: backlog.length,
+  src: window.__koeSrcLog.length, read: window.__koeReadLog.length,
   locked: locked, ex: _exOpen,
   choices: document.getElementById('choices').classList.contains('show')
 })"""
@@ -89,14 +93,56 @@ WHERE_JS = """() => { try { return beatAddr(); } catch(e) { return '(beatAddr失
 # #voice の src を直接見る第2の経路。playVoice() は __koeVoiceLog に積むが、
 # tryVoice()/playFinalVoice() は v.src へ直接代入するのでログに載らない。
 # src属性の変化を拾えば、エンジンが実際に音源として掴んだものを取りこぼさない。
+#
+# attributeOldValue が要る理由: MutationObserver のコールバックはマイクロタスクで
+# まとめて走るので、同じタスク内で src を2回代入されると「今の値」を読むだけでは
+# 1本目が消える。ここは tryVoice()/playFinalVoice() を見張る唯一の目なので、
+# set→即差し替えの漏れが3本の物差し全部から見えなくなる。各レコードの oldValue も
+# 積んで取りこぼしを防ぐ（同じ値が重複して入るが、この物差しは集合として使うので無害）。
 INSTALL_SRC_SPY_JS = """() => {
   if (window.__koeSrcLog) return true;
   window.__koeSrcLog = [];
   const v = document.getElementById('voice');
   if (!v) return false;
-  const rec = () => { const s = v.getAttribute('src'); if (s) window.__koeSrcLog.push(s); };
-  new MutationObserver(rec).observe(v, { attributes: true, attributeFilter: ['src'] });
-  rec();
+  const now = v.getAttribute('src');
+  if (now) window.__koeSrcLog.push(now);
+  new MutationObserver(recs => {
+    for (const r of recs) if (r.oldValue) window.__koeSrcLog.push(r.oldValue);
+    const s = v.getAttribute('src');
+    if (s) window.__koeSrcLog.push(s);
+  }).observe(v, { attributes: true, attributeFilter: ['src'], attributeOldValue: true });
+  return true;
+}"""
+
+# 起動時の声を「本当に鳴らしにいったか」を数える。
+# __koeGate.played は openGate() の1行目（try の外）で立つので、play() を消しても真になる。
+# reason も5値すべてを受理していて、6秒の保険タイマーで開いた 'timeout' と区別できない。
+# つまりゲートの状態だけを見ていると「画面は開くが声は一度も鳴らない」ビルドが素通りする。
+# HTMLMediaElement.play() の呼び出し自体を数えるのが唯一の直接証拠。
+INSTALL_TITLE_PLAY_SPY_JS = """() => {
+  if (window.__koeTitlePlay != null) return true;
+  const a = document.getElementById('titlekoe');
+  if (!a) return false;
+  const orig = a.play.bind(a);
+  window.__koeTitlePlay = 0;
+  a.play = function(){ window.__koeTitlePlay++; return orig(); };
+  return true;
+}"""
+
+# 「その行を実際に読んだか」を数える台帳。
+# エンジンの backlog は pushLog() が200件でリングバッファ化する（shift()する）ので、
+# 絶対index を保存して slice する方式は本編台本(281ボイス行)で必ず破綻し、
+# 正しいビルドでこのテストが落ちる。pushLog をラップして無制限の台帳を別に持ち、
+# 周のはじめに空にする。エンジンには一切触らない。
+INSTALL_READ_SPY_JS = """() => {
+  if (window.__koeReadLog) return true;
+  if (typeof window.pushLog !== 'function') return false;
+  window.__koeReadLog = [];
+  const orig = window.pushLog;
+  window.pushLog = function(who, name, text){
+    window.__koeReadLog.push({who: who, name: name, text: text});
+    return orig.apply(this, arguments);
+  };
   return true;
 }"""
 
@@ -152,12 +198,13 @@ def play_through(pg, label):
         pg.wait_for_timeout(110)
 
 
-def check_silence(pg, log, srclog, label, since=0):
+def check_silence(pg, log, srclog, label):
     """検証1: v:1 でないセイレンの台詞が、実際に読まれた上で1音も鳴っていないこと。
 
-    since は backlog の開始位置。周ごとに切り出さないと、前の周に読んだ分で
-    「読んだこと」の確認が通ってしまい、その周ぶんの空回りを見逃す。"""
-    info = pg.evaluate("""(since) => {
+    「読んだ行」は __koeReadLog（周のはじめに空にするテスト側の台帳）で見る。
+    エンジンの backlog は200件で頭から捨てるので、周の境目を index で持つと
+    行数の多い本編台本で必ず狂う。"""
+    info = pg.evaluate("""() => {
       const silent = [], voiced = [];
       (window.KOE.ep1.scenes || []).forEach(function walk(n) {
         if (Array.isArray(n)) { n.forEach(walk); return; }
@@ -169,16 +216,18 @@ def check_silence(pg, log, srclog, label, since=0):
         silent: silent,
         silentFiles: silent.map(t => voiceFile('ren', t)),
         voicedFiles: voiced.map(t => voiceFile('ren', t)),
-        renRead: backlog.slice(since).filter(r => r.who === 'ren').map(r => r.text),
+        read: window.__koeReadLog.length,
+        renRead: window.__koeReadLog.filter(r => r.who === 'ren').map(r => r.text),
         /* この周に読んだ行のうち「鳴るはず」の本数。
            renderSay() と同じ規則で数える: カナタ/トキは丸括弧始まり(心の声)を除く。
            セイレンは名前欄が出た行だけ——nameFor() が b.v を見て 'セイレン' か '—' を
-           返すので、backlog の name がそのまま v:1 の記録になっている。 */
-        expected: backlog.slice(since).filter(r =>
+           返すので、記録された name がそのまま v:1 の記録になっている。 */
+        expected: window.__koeReadLog.filter(r =>
           ((r.who === 'kanata' || r.who === 'toki') && !/^[（(]/.test((r.text||'').trim()))
           || (r.who === 'ren' && r.name === 'セイレン')).length
       };
-    }""", since)
+    }""")
+    assert info["read"], f"{label}: 読んだ行の台帳が空（pushLogのラップが効いていない＝全チェックが空回りする）"
     assert info["silent"], f"{label}: 台本に無音のセイレン台詞が1つも無い（このチェックが空回りする）"
     unread = [t for t in info["silent"] if t not in info["renRead"]]
     assert not unread, (f"{label}: 無音のはずのセイレン台詞を読まずに終わった＝検証が空回りしている: {unread}")
@@ -213,6 +262,10 @@ def main():
             pg.wait_for_selector("#gate")
             pg.wait_for_selector("#voice", state="attached")
             assert pg.evaluate(INSTALL_SRC_SPY_JS), "#voice が見つからない"
+            assert pg.evaluate(INSTALL_READ_SPY_JS), "pushLog が見つからない（読んだ行を追えない）"
+            # タップする前に仕込む。openGate() は el('titlekoe') をその場で取り直すので、
+            # 要素のメソッドを差し替えておけば必ず経由する。
+            assert pg.evaluate(INSTALL_TITLE_PLAY_SPY_JS), "#titlekoe が見つからない"
 
             # --- 検証3: タイトルの声が鳴るか ---
             # 注意: `ended` は本物の onended でのみ true になる。title-koe.mp3 は
@@ -229,6 +282,16 @@ def main():
                     "画面だけ開いて声が死んでいる＝終盤の「あのとき聞いた声」が成立しない。"
                     f" 現在値: {pg.evaluate('window.__koeGate')}")
             gate = pg.evaluate("window.__koeGate")
+            # ここが検証3の本体。__koeGate.played は openGate() の1行目（try の外）で立ち、
+            # reason は5値すべてを受理しているので、この2つはゲートが開いた時点で必ず真になる
+            # ＝それだけでは何も証明しない。play() を実際に呼んだ回数だけが直接の証拠になる。
+            # （play() を消して6秒の保険タイマーで開かせると played:true/reason:'timeout' で
+            #  素通りする。それがまさにこのチェックが防ぐ「声が死んだまま出荷」の形。）
+            plays = pg.evaluate("window.__koeTitlePlay")
+            assert plays == 1, (
+                f"起動時の声を鳴らしにいっていない（titlekoe.play() の呼び出し {plays}回）。"
+                f"ゲートは開いたが声は一度も鳴っていない＝終盤の「あのとき聞いた声」が成立しない。"
+                f" ゲート状態: {gate}")
             assert gate["played"] is True, f"タイトル声を鳴らしにいっていない: {gate}"
             assert gate["revealCount"] == 1, f"ゲートが複数回開いた: {gate}"
             assert gate["reason"] in ("ended", "error", "timeout", "rejected", "threw"), gate
@@ -258,8 +321,7 @@ def main():
             # 何も起きず、以降の検証がまるごと空回りするので先に確かめる。
             assert pg.evaluate("!document.getElementById('tStart').disabled"), \
                 "「はじめから」が無効のまま（台本ロード検査が通っていない）"
-            pg.evaluate("window.__koeVoiceLog=[]; window.__koeSrcLog=[]")
-            n0 = pg.evaluate("backlog.length")
+            pg.evaluate("window.__koeVoiceLog=[]; window.__koeSrcLog=[]; window.__koeReadLog=[]")
             pg.evaluate("document.getElementById('tStart').click()")
             pg.wait_for_function("document.getElementById('title').classList.contains('gone')",
                                  timeout=5000)
@@ -285,7 +347,7 @@ def main():
             assert src1, "1周目で #voice に音源が1本も渡っていない"
 
             # --- 検証1: セイレンの無音が守られているか（1周目） ---
-            info1 = check_silence(pg, log1, src1, "1周目", since=n0)
+            info1 = check_silence(pg, log1, src1, "1周目")
 
             # --- 検証2: 地の文が1周目は _k で参照されているか ---
             # 1周目でも終盤の {narrator:'ren'} 以降だけは _r になる（それが仕掛けの開示そのもの）。
@@ -311,18 +373,17 @@ def main():
                             f"（1周目の地の文 {len(narr1)}本すべて _k のまま）")
             # 読んだ地の文すべてにボイス参照があること（数本だけ鳴って合格、を封じる）。
             # どちらの系統かは上で見ているので、ここは「1本も引かれていない」だけを潰す。
-            miss1 = pg.evaluate("""(log) => backlog.slice(%d).filter(r=>r.who==='narr')
+            miss1 = pg.evaluate("""(log) => window.__koeReadLog.filter(r=>r.who==='narr')
               .filter(r => !log.includes(voiceFile('kanata', r.text, 'narr'))
                         && !log.includes(voiceFile('ren', r.text, 'narr')))
-              .map(r=>r.text);""" % n0, log1)
+              .map(r=>r.text);""", log1)
             assert miss1 == [], f"1周目: 読んだのにボイス参照が無い地の文がある: {miss1}"
 
             # --- 2周目: 同じ地の文が _r で読まれるか ---
             # st.round は startGame() の冒頭 freshState(keep) で持ち越され、
             # そのすぐ後の st.narr 決定に使われる（＝最初の1行が出る前に効く）。
-            n_before = pg.evaluate("backlog.length")
             pg.evaluate("st.round = 2")
-            pg.evaluate("window.__koeVoiceLog=[]; window.__koeSrcLog=[]")
+            pg.evaluate("window.__koeVoiceLog=[]; window.__koeSrcLog=[]; window.__koeReadLog=[]")
             pg.evaluate("document.getElementById('tStart').click()")
             pg.wait_for_function("document.getElementById('title').classList.contains('gone')",
                                  timeout=5000)
@@ -340,9 +401,9 @@ def main():
             assert narr2, "2周目で地の文が参照されていない"
             bad2 = [f for f in narr2 if not f.endswith("_r.mp3")]
             assert not bad2, f"2周目で _k が参照された: {bad2}"
-            miss2 = pg.evaluate("""(log) => backlog.slice(%d).filter(r=>r.who==='narr')
+            miss2 = pg.evaluate("""(log) => window.__koeReadLog.filter(r=>r.who==='narr')
               .map(r=>voiceFile('ren', r.text, 'narr'))
-              .filter(f => !log.includes(f));""" % n_before, log2)
+              .filter(f => !log.includes(f));""", log2)
             assert miss2 == [], f"2周目: 読んだのにボイス参照が無い地の文がある: {miss2}"
 
             # 「同じ本文の2系統」であること。接尾辞を外した幹が両周で一致していなければ、
@@ -354,13 +415,15 @@ def main():
                             f"2周目={sorted(set(map(stem, narr2)))[:3]}")
 
             # 2周目でもセイレンの無音は破れない（b.v だけを見ているので周回に依らない）
-            check_silence(pg, log2, src2, "2周目", since=n_before)
+            check_silence(pg, log2, src2, "2周目")
 
             assert errors == [], f"ページエラー: {errors}"
+            # src は oldValue も積むので生の件数には重複が入る。物差しとしては集合なので、
+            # 表示は異なり数（＝エンジンが実際に掴んだ音源の種類数）にする。
             print(f"  1周目 {elapsed1:.1f}s / ボイス参照 {len(log1)}本(地の文 {len(narr1)}本) "
-                  f"/ src {len(src1)}本")
+                  f"/ src {len(set(map(base, src1)))}種 / titlekoe.play {plays}回")
             print(f"  2周目 {elapsed2:.1f}s / ボイス参照 {len(log2)}本(地の文 {len(narr2)}本) "
-                  f"/ src {len(src2)}本 / 共有する地の文 {len(shared)}本")
+                  f"/ src {len(set(map(base, src2)))}種 / 共有する地の文 {len(shared)}本")
             br.close()
     finally:
         srv.terminate()
