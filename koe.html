@@ -1119,6 +1119,41 @@ if(load()){ el('tCont').disabled=false; }
 <script>
 /* 台本を後読みした場合の再バインド */
 if(window.KOE){ for(const k in window.KOE) SCRIPT[k]=window.KOE[k]; }
+
+/* 台本ロード検査。ここに置く理由: assets/koe/koe-ep1.js が404/オフライン/ブロックで
+   読み込めなかった場合、直前の再バインドは何もせず、SCRIPT は関数冒頭の
+   フォールバック（{ ep1:{ title:..., scenes:[] } }）のまま残る。curScenes() は
+   これを「場面が0個の台本」として扱い、はじめから→即 enterScene() の「場面が無い」
+   ガード(endEpisode())に落ちて、プレイヤーには「完」カードが正常に出る＝
+   台本が1文字も読めていないのに完走したように見える。
+   これはBGMキー検査より前に置く: BGMキー検査は script が無ければ何もせず return
+   するだけなので、台本未読込そのものは検出できない。両方をタイトル表示より前・
+   台本読み込み後の同じ場所（この後読みスクリプトタグの直後）で一度だけ走らせる。 */
+(function assertScriptLoaded(){
+  const ep = SCRIPT[EPS[0]];
+  if(!ep || !Array.isArray(ep.scenes) || ep.scenes.length===0){
+    /* throw するだけでは足りない: この <script> が例外で止まっても、既に前の
+       <script> でバインド済みの #gate/#tStart のクリックハンドラは生きたまま
+       残るので、プレイヤーはタップ→はじめからと普通に進めてしまい、結局
+       enterScene() の「場面が無い」ガードで「完」に無言で落ち着く。
+       それでは「うるさくする」ことにならないので、開始系ボタンをここで
+       物理的に潰し、「完」に辿り着く経路そのものを断つ。 */
+    ['tStart','tCont','tLoad'].forEach(id=>{ const b=el(id); if(b) b.disabled=true; });
+    throw new Error('koe: 台本 assets/koe/koe-ep1.js が読み込めていません（scenesが空）。404・オフライン・パス間違いの可能性。開始ボタンを無効化した。');
+  }
+})();
+
+/* BGMキー実在検査。未定義キーは playBGM() 内の `if(!file) return;` で無音スキップされ、
+   誰にも気づかれない（設計書 8-9）。握り潰さずthrowで止める。 */
+function assertBgmKeys(){
+  const script = SCRIPT[EPS[0]] || null;
+  if(!script) return;
+  const bad = [];
+  (script.scenes||[]).forEach(s=>{ if(s.bgm && !BGM[s.bgm]) bad.push(s.bgm);
+    (s.beats||[]).forEach(b=>{ if(b.bgm && !BGM[b.bgm]) bad.push(b.bgm); }); });
+  if(bad.length) throw new Error('koe: 未定義のBGMキー: '+[...new Set(bad)].join(', '));
+}
+assertBgmKeys();
 </script>
 
 <!-- ════════ THREE.JS 360° 背景ビューア ════════ -->
