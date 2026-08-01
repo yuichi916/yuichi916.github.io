@@ -1600,15 +1600,24 @@ Expected: `koe_e2e_test: OK`
 
 ```
 cd C:/projects/yuichi916.github.io
-set PYTHONUTF8=1 && python tests/koe_synth_test.py && python tests/koe_kana_test.py && python tests/koe_audit_test.py && python tests/koe_bgm_test.py && python tests/koe_e2e_test.py
+set PYTHONUTF8=1 && python tests/run_koe_tests.py
 ```
-Expected: 5本すべて `OK`
+Expected: `run_koe_tests: OK (6/6)`
+
+このリポジトリには CI も Makefile も無いので、ここに書いたコマンドがそのまま
+「全テストを回す」ことの定義になる。個々のスイートをここに並べる形だと、
+書き漏らしたスイートは誰も回さない＝ゲートとして存在しないのと同じになる
+（実際 `tests/koe_dump_script_test.mjs` はどの手順にも載っておらず、
+一度も自動で回っていなかった）。だからスイート一覧は `tests/run_koe_tests.py`
+の `PY_SUITES` / `NODE_SUITES` に置き、ドキュメント側はランナーだけを指す。
+ランナーは `tests/koe_*.py` と `tests/koe_*.mjs` を実際に走査して、
+宣言に載っていないスイートがあればそれ自体をエラーにする。
 
 - [ ] **Step 4: コミット**
 
 ```bash
 cd C:/projects/yuichi916.github.io
-git add tests/koe_e2e_test.py
+git add tests/koe_e2e_test.py tests/run_koe_tests.py
 git commit -m "test(koe): add e2e verification for silence guard, dual narration and title voice"
 ```
 
