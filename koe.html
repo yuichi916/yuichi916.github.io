@@ -76,6 +76,12 @@ img{-webkit-user-drag:none}
 #evcg.on{opacity:1;transform:scale(1)}
 #stage.hascg .sprite{opacity:0 !important}
 
+/* ===== 記憶絵フラッシュ(採取/モンタージュ) ===== */
+#memflash{position:absolute;inset:0;z-index:8;opacity:0;pointer-events:none;
+  background-size:cover;background-position:center;
+  transition:opacity .38s ease;filter:saturate(.55) contrast(1.06)}
+#memflash.on{opacity:1}
+
 /* ===== sprites ===== */
 #sprites{position:absolute;inset:0;z-index:8;pointer-events:none}
 .sprite{position:absolute;bottom:-2%;left:50%;height:92%;width:auto;opacity:0;transform-origin:bottom center;
@@ -291,6 +297,7 @@ img{-webkit-user-drag:none}
   <div id="pline"></div>
   <div id="grain"></div>
   <div id="evcg"></div>
+  <div id="memflash"></div>
   <div id="sprites"></div>
   <div id="emark"></div>
 
@@ -606,6 +613,12 @@ function step(){
     if(b.when){ if(st.choices && st.choices[b.when]){ stack.push(cur); cur={beats:b.reply||[], i:0}; } continue; }
     if(b.card){ locked=true; showCard(b.card); return; }
     if(b.end){ if(stack.length){cur=stack.pop();continue;} return nextScene(); }
+    if(b.pickup){ doPickup(b); return; }
+    if(b.tryvoice){ tryVoice(); return; }
+    if(b.narrator){ st.narr=b.narrator; save(); continue; }
+    if(b.montage){ runMontage(); return; }
+    if(b.finalvoice){ playFinalVoice(); return; }
+    if(b.title){ toTitle(); return; }
     if(b.say!=null){ renderSay(b); return; }
   }
 }
@@ -627,6 +640,62 @@ function onLineDone(){
   if(autoOn && !locked){ clearTimeout(autoTimer); autoTimer=setTimeout(()=>{ if(autoOn) advance(); }, Math.max(600, 900+fullText.length*(38-cfg.auto*0.3))); }
   else if(skipOn){ clearTimeout(autoTimer); autoTimer=setTimeout(()=>{ if(skipOn) advance(); }, 40); }
 }
+
+/* ---------- 音の採取・合成度 ---------- */
+const SYNTH_MAX=4;
+function doPickup(b){
+  if(st.mem.indexOf(b.pickup)<0) st.mem.push(b.pickup);
+  if(b.main){ st.synth=Math.min(SYNTH_MAX, st.synth+1);
+              if(!st.firstMain) st.firstMain=b.pickup; }
+  save();
+  locked=true;
+  flashMem(b.pickup, 1400, ()=>{ locked=false; step(); });
+}
+function flashMem(key, ms, done){
+  const e=el('memflash');
+  e.style.backgroundImage="url('"+A+key+".jpg')";
+  e.classList.add('on');
+  setTimeout(()=>{ e.classList.remove('on'); setTimeout(done, 420); }, ms);
+}
+function tryVoice(){
+  const stage=['00','25','50','75','100'][Math.min(SYNTH_MAX, st.synth)];
+  const v=el('voice'); locked=true;
+  v.src=A+'voice/synth-'+finalKey()+'-s'+stage+'.mp3';
+  v.volume=cfg.voice/100;
+  let done=false;
+  const go=()=>{ if(done) return; done=true; v.onended=null; v.onerror=null; locked=false; step(); };
+  v.onended=go; v.onerror=go;
+  v.play().catch(go);
+}
+function finalKey(){
+  // 最初に取った主素材で4パターンに分かれる(設計書 5章「結」)
+  const map={'mem-01':'a','mem-07':'b','mem-13':'c','mem-19':'d'};
+  return map[st.firstMain]||'a';
+}
+function runMontage(){
+  const list=st.mem.slice(); locked=true;
+  let i=0, wait=520;
+  const tick=()=>{
+    if(i>=list.length){ locked=false; step(); return; }
+    flashMem(list[i], wait, ()=>{ i++; wait=Math.max(90, wait*0.82); tick(); });
+  };
+  tick();
+}
+function playFinalVoice(){
+  const v=el('voice'); locked=true;
+  v.src=A+'voice/final-'+finalKey()+'.mp3';
+  v.volume=cfg.voice/100;
+  let done=false;
+  const go=()=>{ if(done) return; done=true; v.onended=null; v.onerror=null; locked=false; step(); };
+  v.onended=go; v.onerror=go;
+  v.play().catch(go);
+}
+function toTitle(){
+  st.cleared=true; st.round=Math.max(2,(st.round||1)+1); save();
+  stopBGM(); clearSprites(); setCG(null);
+  el('title').classList.remove('gone');
+}
+
 function advance(){
   if(locked) return;
   if(el('choices').classList.contains('show')) return;
