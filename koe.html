@@ -224,8 +224,12 @@ img{-webkit-user-drag:none}
   animation:gblink 2.6s ease-in-out infinite}
 @keyframes gblink{0%,100%{opacity:.25}50%{opacity:.8}}
 /* visibility も落とす: 消えた後も要素が残っていると、その下の #title を
-   スクリーンリーダーが「画面をタップ」と読み続けてしまう */
-#gate.gone{opacity:0;visibility:hidden;pointer-events:none}
+   スクリーンリーダーが「画面をタップ」と読み続けてしまう。
+   pointer-events:none は付けない(付けるとフェード中の~1.2秒、#title側に
+   pointer-events を切る仕組みが無いので裏の「はじめから」がヒットテスト可能になる)。
+   visibility:hidden が transition-delay で t=1.2s に落ちるまでは #gate が
+   最前面で全タップを飲み続け、それはちょうど #title が opacity:1 になる瞬間と一致する。 */
+#gate.gone{opacity:0;visibility:hidden}
 #title .tembers{position:absolute;inset:0;pointer-events:none;opacity:.5;background:
   radial-gradient(2px 2px at 20% 40%,rgba(55,224,208,.5),transparent),
   radial-gradient(1.5px 1.5px at 75% 25%,rgba(255,92,122,.4),transparent),
@@ -930,6 +934,7 @@ function openGate(){
   const reveal=(reason,detail)=>{
     if(_gateRevealed) return;           // onended/onerror/timeout/play().catch が重なっても一度だけ
     _gateRevealed=true;
+    clearTimeout(gateTimer);            // 保険タイマーが本編より後に無駄撃ちしないよう止める
     window.__koeGate.revealCount++;     // E2E検証用: 実際に画面が開いた回数。常に1でなければならない
     window.__koeGate.reason=reason;
     window.__koeGate.detail=detail||null;   // NotAllowedError/NotSupportedError や MediaError.code など
@@ -959,18 +964,26 @@ function openGate(){
       console.warn('[koe] title-koe.mp3 failed to load'+(a.error?' (code='+a.error.code+')':''));
       reveal('error', a.error&&a.error.code);
     };
-    a.addEventListener('loadedmetadata',()=>{
-      // 曲の長さが分かったら保険を「曲の長さ+余裕」まで伸ばす。metadataが来ない(=404等)場合は
-      // 上の6秒床のまま——健全な短い声を保険タイムアウト側で誤って刈り取らないための調整。
+    /* 曲の長さが分かったら保険を「曲の長さ+余裕」まで伸ばす。metadataが来ない(=404等)場合は
+       上の6秒床のまま——健全な短い声を保険タイムアウト側で誤って刈り取らないための調整。
+       preload=auto はパース時点から読み込みが進んでいるので、タップした瞬間には
+       既に readyState>=HAVE_METADATA(=1) になっていることがある(キャッシュ済みなら普通に起こる)。
+       その場合 loadedmetadata は二度と発火しないので、イベント待ちだけでは伸びない
+       ——だから「今の状態」も同じ関数で即座にチェックする。 */
+    const extendForDuration=()=>{
       if(_gateRevealed) return;
       const durMs=isFinite(a.duration)?a.duration*1000:0;
       if(durMs>6000){ clearTimeout(gateTimer); gateTimer=setTimeout(()=>{ reveal('timeout'); }, durMs+1500); }
-    });
+    };
+    a.addEventListener('loadedmetadata', extendForDuration);
+    if(a.readyState>=1) extendForDuration();   // HAVE_METADATA 相当。読み込み済みなら今すぐ反映
     a.play().catch(err=>reveal('rejected', err&&err.name));
   }catch(e){ reveal('threw', e&&e.message); }
 }
-/* touchstart は使わない: passive のため preventDefault できず、タップ後の合成 click が
-   #gate.gone(pointer-events:none)の下に透けて #title の「はじめから」等に落ちることがある
+/* touchstart は使わない: passive のため preventDefault できず、タップ後にブラウザが合成する
+   互換 click は "その時点で指の下にある要素" に対してヒットテストされる。今日の404では
+   reveal() がタップの直後(マイクロタスク内)に走るため、合成clickの時点では既にゲートが
+   閉じかけていて、下の #title の「はじめから」などに落ちることがある
    (スマホ実機で確認済みのゴーストクリック)。html,body の touch-action:manipulation で
    300ms遅延はすでに無いので、click 一本で十分。 */
 el('gate').addEventListener('click', openGate, {once:true});
@@ -1161,7 +1174,7 @@ if(renderer){
     const LN=freeMode?170:28, LT=freeMode?58:17;
     tlon=clamp(tlon - dx*0.09, -LN,LN); tlat=clamp(tlat + dy*0.08, -LT,LT); sx=x; sy=y; if(dist>10) window.BG3D._moved=true; }
   function up(){ drag=false; }
-  window.addEventListener('pointerdown',e=>{ if(e.target.closest&&e.target.closest('#hud,#textwrap,#choices,#backlog,#settings,#savemenu,#title,#exhint,#hs')) return; down(e.clientX,e.clientY); });
+  window.addEventListener('pointerdown',e=>{ if(e.target.closest&&e.target.closest('#hud,#textwrap,#choices,#backlog,#settings,#savemenu,#title,#exhint,#hs,#gate')) return; down(e.clientX,e.clientY); });
   window.addEventListener('pointermove',e=>move(e.clientX,e.clientY),{passive:true});
   window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
   window.addEventListener('deviceorientation',e=>{ if(e.gamma==null) return; gyroOn=true;
