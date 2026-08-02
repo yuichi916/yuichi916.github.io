@@ -655,40 +655,70 @@ function beatAddr(){
 }
 function curScene(){ return curScenes()[st.scene]; }
 
-/* ---------- {say} と「先にディスパッチされるキー」の同居を禁じる ----------
+/* ---------- 「先にディスパッチされるキー」との同居を禁じる ----------
    step() は上から順に判定して、当たった腕で continue/return する。だから
    {say:'kanata', text:'…', expr:'sad'} のようなビートは expr の腕で continue し、
    renderSay() に一度も届かない——本文も声も出ないのに、例外もログも出ない。
    さらに悪いことに scripts/koe/voice_audit.py の _walk() はそのノードに "say" を
    見つけるので v<hash>.mp3 を期待し、一度も鳴らない行のためにボイスを収録した上で
    ゲートは CLEAN と報告する。棚卸しからは絶対に見えない偽CLEANの入口。
+   {bgm} も同じ死に方をする: {bg:'soko', bgm:'deai'} は bg の腕で continue するので
+   その曲は一度も鳴らないのに、bgm キーの実在検査は通り、ゲートは全部緑になる
+   （実際に koe-ep1.js の 'deai' と 'ed' がこれで丸ごと鳴っていなかった）。
 
    禁止する腕の一覧は step() のソースそのものから読み取る。手で並べた配列を
    置くと、step() の if を1本足した/並べ替えた瞬間に静かにズレる（そしてズレても
    何も起きない＝また無言の穴になる）。読み取りに失敗したら空集合を返して
    検査を素通りさせるのではなく throw する——「対象を見失っている」ことこそが
-   この検査の知りたい異常なので。 */
-let _sayConflictKeys=null;
-function sayConflictKeys(){
-  if(_sayConflictKeys) return _sayConflictKeys;
+   この検査の知りたい異常なので。
+
+   守るキーを say と bgm の2つに限っているのは、この2つの腕より前にある腕が
+   「同じビートの他のキーを一緒に食う」ことをしないと確認できているから。
+   say の前は全部、bgm の前は bg と cg だけで、setBG(b.bg) / setCG(b.cg) は
+   どちらも引数を1つしか取らない＝衛星キーを持たない。
+   これを全22腕へ広げるには「どの腕がどの衛星キーを正当に消費するか」の表
+   （show の pos/expr、pickup の main、choose の timed/timeout、when の reply、
+   say の text/v/ex …）が要る。その設計は Plan 2 の仕事なので、ここでは広げない。 */
+/* 守るキー → 同居していたときに作者へ出す代替案。ここに1行足せば守る対象が増える。 */
+const LOST_KEY_HINT={
+  say:'ビートを分けてください（表情だけなら ex: が使えます）。',
+  bgm:'ビートを分けてください（場面まるごとの指定なら場面(scene)側の bgm: が使えます）。'
+};
+let _lostKeyConflicts=null;
+function lostKeyConflicts(){
+  if(_lostKeyConflicts) return _lostKeyConflicts;
   const src=String(step), order=[], re=/\bif\s*\(\s*b\.([A-Za-z_$][\w$]*)/g;
   let m;
   while((m=re.exec(src))!==null){ if(order.indexOf(m[1])<0) order.push(m[1]); }
-  const i=order.indexOf('say');
-  if(i<1) throw new Error('koe: step() のディスパッチ順を読み取れなかった（say の腕が見つからない / 先行する腕が無い）。'
-    +'sayConflictKeys() の正規表現を step() の実際の書式に合わせて直すこと。読めた順: '+order.join(','));
-  _sayConflictKeys=order.slice(0,i);
-  return _sayConflictKeys;
+  const map={};
+  Object.keys(LOST_KEY_HINT).forEach(key=>{
+    const i=order.indexOf(key);
+    if(i<1) throw new Error('koe: step() のディスパッチ順を読み取れなかった（'+key+' の腕が見つからない / 先行する腕が無い）。'
+      +'lostKeyConflicts() の正規表現を step() の実際の書式に合わせて直すこと。読めた順: '+order.join(','));
+    map[key]=order.slice(0,i);
+  });
+  _lostKeyConflicts=map;
+  return _lostKeyConflicts;
 }
-/* say を持つビートに、say より先にディスパッチされるキーが同居していたら落とす。
+/* 守るキーを持つビートに、それより先にディスパッチされるキーが同居していたら落とす。
    表情を台詞と同時に指定したいときは expr ではなく ex:（renderSay() が
-   ensureShown(b.say, b.ex) に渡す）を使うか、ビートを2つに分ける。 */
-function assertNoSayConflict(b, where){
-  if(!b || typeof b!=='object' || b.say==null) return;
-  const bad=sayConflictKeys().filter(k=>Object.prototype.hasOwnProperty.call(b,k));
-  if(bad.length) throw new Error('koe: 台本のビートエラー — {say} と同じビートに '
-    +bad.join(', ')+' を置けません（step() が先に処理して台詞が無言で消える）。'
-    +'ビートを分けてください（表情だけなら ex: が使えます）。'+(where?' ('+where+')':''));
+   ensureShown(b.say, b.ex) に渡す）を使うか、ビートを2つに分ける。
+
+   場面(scene)ノードは対象外。台本ロード検査の walkNodes() はビートだけでなく場面も
+   訪ねるが、場面の bg/bgm/amb は step() ではなく enterScene() がフィールドごとに
+   適用する（if(sc.bg)… if(sc.bgm)… と個別に見る）ので、{bg,bgm} の同居は正しい。
+   場面は beats 配列を持つノード——見分けはこの1行で足りる。 */
+function assertNoLostKey(b, where){
+  if(!b || typeof b!=='object') return;
+  if(Array.isArray(b.beats)) return;               /* 場面ノード: enterScene() の担当 */
+  const map=lostKeyConflicts();
+  for(const key in map){
+    if(b[key]==null) continue;
+    const bad=map[key].filter(k=>Object.prototype.hasOwnProperty.call(b,k));
+    if(bad.length) throw new Error('koe: 台本のビートエラー — {'+key+'} と同じビートに '
+      +bad.join(', ')+' を置けません（step() が '+bad[0]+' を先に処理して '+key+' が無言で消える）。'
+      +LOST_KEY_HINT[key]+(where?' ('+(typeof where==='function'?where():where)+')':''));
+  }
 }
 
 function step(){
@@ -703,8 +733,11 @@ function step(){
     /* 実行時の二重の網。台本ロード検査(assertScriptLoadedAndKeys)が同じ関数で
        全ビートを先に検査するので通常ここには来ないが、検査を通らない経路
        （検査ブロックの改変、実行時に組み立てたビート等）でも無言では消させない。
-       beatAddr() は毎ビート組み立てると無駄なので、say を持つビートに限って呼ぶ。 */
-    if(b && b.say!=null) assertNoSayConflict(b, beatAddr());
+       beatAddr() は毎ビート組み立てると無駄なので関数のまま渡す——
+       assertNoLostKey() は throw する瞬間にしか呼ばない。ここで「どのキーを
+       持つビートか」を先読みして絞ると守るキーの一覧が2か所に分かれるので、
+       絞り込みも含めて向こうに任せる（一覧は LOST_KEY_HINT だけ）。 */
+    assertNoLostKey(b, beatAddr);
     if(b.bg){ setCG(null); setBG(b.bg); continue; }
     if(b.cg!==undefined){ setCG(b.cg); continue; }
     if(b.bgm){ playBGM(b.bgm); continue; }
@@ -1263,9 +1296,11 @@ function walkNodes(node, visit, seen){
      pickup — flashMem() が CSS の background-image を差すだけ。onerror が無いので
               1400ms 真っ黒が出て終わり
      エンジンが名指しするBGM(ENGINE_BGM) — ビートを歩く検査には現れない
-   {say} の同居禁止検査（assertNoSayConflict）も同じ理由でここ: step() が先行する腕で
+   {say}/{bgm} の同居禁止検査（assertNoLostKey）も同じ理由でここ: step() が先行する腕で
    continue するとその台詞は本文も声も出ないのに、voice_audit.py は "say" を見つけて
    ボイスを期待するので、鳴らない行のためにボイスを収録した上でゲートはCLEANになる。
+   {bgm} も同じで、上のBGMキー実在検査は「キーが在るか」しか見ないため、
+   {bg,bgm} 同居で一度も鳴らない曲があってもゲートは全部緑のままになる。
    すべてをタイトル表示より前・台本読み込み後の同じ場所
    （koe-ep1.js の後読み再バインド関数 = 直前のコードブロック の直後）で
    一度だけ走らせる。台本ロード検査を先に置くのは、キー検査が
@@ -1300,9 +1335,10 @@ function walkNodes(node, visit, seen){
        {cg:null} は「解除」なので != null で除く。 */
     if(node.cg!=null && !CGS[node.cg]) badCg.push(node.cg);
     if(node.pickup!=null && !MEMS[node.pickup]) badMem.push(node.pickup);
-    /* {say} が step() の先行する腕と同居していたら落とす。ここが「書けなくする」側。
-       同じ関数を step() も実行時に呼ぶ（定義は1つ）。 */
-    assertNoSayConflict(node, '台本ロード検査');
+    /* {say}/{bgm} が step() の先行する腕と同居していたら落とす。ここが「書けなくする」側。
+       同じ関数を step() も実行時に呼ぶ（定義は1つ）。場面ノードは向こうで除外する
+       （場面の bg/bgm は enterScene() がフィールドごとに適用するので同居して良い）。 */
+    assertNoLostKey(node, '台本ロード検査');
   });
   /* 台本には現れないが、エンジンのコードが直接名指しする BGM キー。
      ビートを歩くだけの検査では見えないので、ここで明示的に突き合わせる。 */

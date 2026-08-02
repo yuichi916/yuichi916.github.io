@@ -28,7 +28,11 @@ window.KOE.ep1 = { scenes: [
       {se:'page'},
       {fx:'flash'},
       {wait:400},
-      {bg:'soko', bgm:'deai'},
+      /* 場面の途中の転換なので場面(scene)側には書けない。bg と bgm は必ず別ビートに
+         分ける——同じビートに置くと step() が bg の腕で continue して bgm が無言で
+         消える（assertNoLostKey が落とす）。並びは enterScene() と同じ bg→bgm→amb。 */
+      {bg:'soko'},
+      {bgm:'deai'},
       {amb:1},
       {show:'ren', pos:'right'},
       {say:'ren', text:'（仮）（文字盤を指す）'},
@@ -95,7 +99,11 @@ window.KOE.ep1 = { scenes: [
     {say:'ren', text:'（仮）ありがとう', v:1},
     {narrator:'ren'},
     {say:'narr', text:'（仮）——ここから先は、わたしの声で話す。'},
-    {bg:'zanky', bgm:'ed'},
+    /* エンディング。ここも場面の途中なので bg と bgm を別ビートに分ける。
+       この2ビートが ed を鳴らす唯一の経路——最後の {title:1} は toTitle() へ行き、
+       endEpisode() の playBGM('ed') までは普通のプレイでは辿り着かない。 */
+    {bg:'zanky'},
+    {bgm:'ed'},
     {cg:'cg-owari'},
     {say:'ren', text:'（仮）——おはよう', v:1},
     {cg:null},
