@@ -397,10 +397,19 @@ img{-webkit-user-drag:none}
    エンジンのみ。物語は assets/koe/koe-ep1.js (window.KOE.ep1) が持つ。 */
 const A='assets/koe/';
 /* 登場人物: 名前・色（立ち絵は file を持たせたときだけ出る） */
+/* 立ち絵: assets/koe/<file>.png が既定、<file>-<expr>.png が差分。
+   expr に載っていないキーを台本が指定しても既定画に落ちるだけなので、
+   キーを足したら必ず画像も足すこと（欠けても静かに既定へ落ちる）。
+   セイレンは声が出ない＝表情が唯一の言語なので、差分を厚く持たせている。 */
 const CHARS={
-  kanata:{name:'カナタ', color:'#8fd0e8', file:null, expr:[]},
-  ren   :{name:'—',      color:'#e8e2d6', file:null, expr:[]},
-  toki  :{name:'トキ',   color:'#c8b48a', file:null, expr:[]},
+  kanata:{name:'カナタ', color:'#8fd0e8', file:'cg-kanata',
+          expr:['smile','shout','pained']},
+  ren   :{name:'—',      color:'#e8e2d6', file:'cg-ren',
+          expr:['blank','look','nod','shake','tilt','smile','smile2','laugh','write',
+                'throat','reach','down','sad','pained','curl','surprise','shock','step',
+                'tears','cry','resolve','peace','speak']},
+  toki  :{name:'トキ',   color:'#c8b48a', file:'cg-toki',
+          expr:['wry','grave','away']},
   narr  :{name:'',       color:'#9aa6b2', file:null, expr:[]},
 };
 /* 背景: CSS グラデ（実画像 assets/koe/bg-*.jpg があれば差し替え） */
@@ -529,7 +538,11 @@ function showSprite(who,pos,expr){
   const c=CHARS[who]; if(!c||!c.file) return;
   let s=shown[who];
   if(!s){ const img=document.createElement('img'); img.className='sprite'; img.alt=c.name;
-    img.onerror=()=>{img.style.display='none';}; el('sprites').appendChild(img);
+    /* 立ち絵が404でも進行は止めない。ただし黙って消すと「なぜか誰も出ない」に
+       なるので、必ず何が読めなかったかを言う。 */
+    img.onerror=()=>{ console.warn('[koe] 立ち絵が読み込めない:', img.getAttribute('src'));
+                      img.style.display='none'; };
+    el('sprites').appendChild(img);
     s={el:img,lane:laneFor(who,pos),seq:_seq++,expr:null}; shown[who]=s;
     img.style.animationDelay=(-((s.seq*1.7)%5.2)).toFixed(2)+'s'; }
   else if(pos){ s.lane=laneFor(who,pos); }
