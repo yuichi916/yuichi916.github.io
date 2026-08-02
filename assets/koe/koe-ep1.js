@@ -90,7 +90,7 @@ window.KOE.ep1 = { title:'声を、あげる', scenes: [
   {say:'ren', text:'（うなずく）', ex:'nod'},
 
   {say:'narr', text:'きみは床に指で字を書いた。埃の上に、ゆっくり。'},
-  {say:'ren', text:'『ここが どこか わからない』', ex:'down'},
+  {say:'ren', text:'『ここが どこか わからない』', ex:'write'},
   {say:'ren', text:'『わたしが だれかも』'},
   {say:'kanata', text:'……記憶が無いってことか。'},
   {say:'ren', text:'（うなずく）', ex:'nod'},
@@ -114,7 +114,7 @@ window.KOE.ep1 = { title:'声を、あげる', scenes: [
   {say:'kanata', text:'なあ。俺、音の拾い屋なんだ。'},
   {say:'kanata', text:'街じゅうの音を採って売ってる。'},
   {say:'kanata', text:'……声だって、音だ。'},
-  {say:'ren', text:'（顔を上げる）', ex:'look'},
+  {say:'ren', text:'（顔を上げる）', ex:'surprise'},
   {say:'kanata', text:'集めて、組めば、作れるかもしれない。'},
   {say:'kanata', text:'きみの声。'},
 
@@ -439,8 +439,8 @@ window.KOE.ep1 = { title:'声を、あげる', scenes: [
   {say:'ren', text:'『ためた おとは ぜんぶ まちに かえる』', ex:'resolve'},
   {say:'kanata', text:'……じゃあ、それでいいじゃんか。'},
   {wait:700},
-  {say:'ren', text:'『わたしの なかみは ぬすんだ おとで できてる』', ex:'sad'},
-  {say:'ren', text:'『かえしたら わたしは のこらない』', ex:'down'},
+  {say:'ren', text:'『わたしの なかみは ぬすんだ おとで できてる』', ex:'cry'},
+  {say:'ren', text:'『かえしたら わたしは のこらない』', ex:'tears'},
 
   {say:'narr', text:'きみは逃げなかった。'},
   {say:'narr', text:'俺のほうが、後ずさった。'},
