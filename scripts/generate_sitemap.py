@@ -22,7 +22,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\yuich\yuichi916.github.io")
+# スクリプトが置かれているリポジトリを対象にする。以前は特定のクローンを
+# 絶対パスで直書きしていたため、別のクローンから実行すると無関係な作業ツリーの
+# sitemap.xml を書き換えてしまっていた。
+ROOT = Path(__file__).resolve().parents[1]
 SITE = "https://yuichi916.github.io"
 OUT = ROOT / "sitemap.xml"
 

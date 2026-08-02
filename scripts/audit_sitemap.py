@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-ROOT = Path(r'C:\Users\yuich\yuichi916.github.io')
+ROOT = Path(__file__).resolve().parents[1]   # 絶対パス直書きをやめ、スクリプトのあるリポジトリを対象にする
 SITE = 'https://yuichi916.github.io'
 
 # 1) Local HTML files
