@@ -16,6 +16,26 @@ SOLO_BRANDS = [
 ]
 
 _SOLO_RE = re.compile("|".join(re.escape(b) for b in SOLO_BRANDS))
+
+# チェーン判定用。SOLO_BRANDS を包含する上位集合。
+# 「チェーンを隠す」フィルタのためだけに使い、スコアには影響しない。
+CHAIN_BRANDS = SOLO_BRANDS + [
+    # 飲食
+    "幸楽苑", "一風堂", "丸源ラーメン", "山田うどん", "小諸そば",
+    "ばんどう太郎", "王将", "らあめん花月嵐", "スシロー", "はま寿司",
+    # 湯
+    "極楽湯", "万葉倶楽部", "おふろの王様", "湯けむりの里", "スパリゾート",
+    "竜泉寺の湯", "野天風呂", "コナミスポーツ",
+    # 娯楽
+    "ビッグエコー", "カラオケ館", "まねきねこ", "ジョイサウンド", "シダックス",
+    "快活CLUB", "自遊空間", "アプレシオ", "マンボー", "イオンシネマ",
+    "TOHOシネマズ", "ユナイテッド・シネマ", "MOVIX",
+    # 滞在
+    "東横INN", "東横イン", "スーパーホテル", "ドーミーイン", "APAホテル",
+    "アパホテル", "ルートイン", "コンフォートホテル",
+]
+
+_CHAIN_RE = re.compile("|".join(re.escape(b) for b in CHAIN_BRANDS))
 _STANDING = re.compile(r"立ち食い|立ち飲み|立喰|立呑|角打ち")
 _YAKINIKU_SOLO = re.compile(r"焼肉ライク|一人焼肉|ひとり焼肉|ひとり焼き肉")
 _EAT_AMENITY = {"restaurant", "fast_food"}
@@ -137,3 +157,19 @@ def confidence(evidence):
     if srcs & {"user", "visit"}:
         return 2
     return 1
+
+
+def is_chain(tags, curated=None):
+    """0=独立店 / 1=チェーン。判定順は spec §5「チェーン判定」に従う。
+
+    0 は「チェーンだと分からなかった」という不在証明にすぎず、
+    リストに載っていない地域チェーンは独立店として残る。
+    画面では「個人店だけ」ではなく「チェーンを隠す」と表現すること。
+    """
+    if curated and "chain" in curated:
+        return int(curated["chain"])
+    if tags.get("brand") or tags.get("brand:wikidata"):
+        return 1
+    if _CHAIN_RE.search(tags.get("name", "") or ""):
+        return 1
+    return 0
