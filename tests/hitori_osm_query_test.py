@@ -53,21 +53,38 @@ def test_retry_then_success():
 
 
 def test_mirror_fallback():
-    # 1ミラーあたり3回まで試すので、4回目は次のミラーに移る
-    op = FakeOpener(fail_times=3)
+    # 1ミラーの試行回数を使い切ったら次のミラーへ移る
+    n = osm_query.ATTEMPTS_PER_MIRROR
+    op = FakeOpener(fail_times=n)
     osm_query.run_query("[out:json];out count;", opener=op, sleep=lambda s: None)
     assert op.calls[0].startswith(osm_query.MIRRORS[0])
-    assert op.calls[3].startswith(osm_query.MIRRORS[1]), f"4回目がミラー2でない: {op.calls[3]}"
+    assert op.calls[n].startswith(osm_query.MIRRORS[1]), f"{n+1}回目がミラー2でない: {op.calls[n]}"
 
 
 def test_all_mirrors_fail():
     op = FakeOpener(fail_times=999)
     try:
         osm_query.run_query("[out:json];out count;", opener=op, sleep=lambda s: None)
-    except osm_query.OverpassError:
-        assert len(op.calls) == 3 * len(osm_query.MIRRORS)
+    except osm_query.OverpassError as e:
+        assert len(op.calls) == osm_query.ATTEMPTS_PER_MIRROR * len(osm_query.MIRRORS)
+        # 最後のミラーの例外だけでなく、全ミラー分の理由が出ること
+        for m in osm_query.MIRRORS:
+            assert m.split("/")[2] in str(e), f"{m} のエラーが報告に含まれていない: {e}"
         return
     raise AssertionError("全ミラー失敗時に OverpassError が上がらなかった")
+
+
+def test_backoff_grows():
+    slept = []
+    op = FakeOpener(fail_times=999)
+    try:
+        osm_query.run_query("[out:json];out count;", opener=op, sleep=slept.append)
+    except osm_query.OverpassError:
+        pass
+    n = osm_query.ATTEMPTS_PER_MIRROR
+    assert slept[:n] == [min(osm_query.BACKOFF_MAX_SEC, osm_query.BACKOFF_BASE_SEC * 2 ** i)
+                         for i in range(n)], slept[:n]
+    assert slept[0] >= 5, "初回バックオフが短すぎるとレート制限窓を越えられない"
 
 
 def main():
@@ -75,6 +92,7 @@ def main():
     test_retry_then_success()
     test_mirror_fallback()
     test_all_mirrors_fail()
+    test_backoff_grows()
     print("OK: osm_query")
 
 
