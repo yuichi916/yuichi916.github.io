@@ -210,9 +210,13 @@ function syncUrl() {
 
 function restoreFromUrl() {
   const h = new URLSearchParams(location.hash.slice(1));
+  // cat が無いときは必ず全カテゴリへ戻す。URLに書かれていない項目を前の状態の
+  // まま残すと、hashchange 経由の遷移で直前の絞り込みが漏れて残る。
   if (h.has('cat')) {
     state.cats = new Set(h.get('cat').split('.').filter(c => CATS.includes(c)));
     if (!state.cats.size) state.cats = new Set(CATS);
+  } else {
+    state.cats = new Set(CATS);
   }
   state.nochain = h.get('nochain') === '1';
   state.minConf = parseInt(h.get('conf') || '0', 10) || 0;

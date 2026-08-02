@@ -88,6 +88,23 @@ def test_url_restore(page):
     assert page.evaluate("document.querySelector('#f-cat-bath').checked") is True
 
 
+def test_hashchange_resets_absent_params(page):
+    """URLに書かれていない項目は初期値へ戻す。
+
+    hashchange は文書を再読込しないため、前の状態を残すと絞り込みが漏れて残る。
+    """
+    page.goto(BASE + "#cat=stay")
+    page.wait_for_function("window.__ready === true", timeout=15000)
+    assert page.evaluate("state.cats.size") == 1
+
+    page.evaluate("location.hash = 'nochain=1'")   # cat を書かずに遷移
+    page.wait_for_timeout(300)
+    assert page.evaluate("state.cats.size") == 4, "cat 不在なのに前の絞り込みが残っている"
+    assert page.evaluate("state.nochain") is True
+    for c in ("bath", "eat", "play", "stay"):
+        assert page.evaluate(f"document.getElementById('f-cat-{c}').checked") is True
+
+
 def test_detail(page):
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
@@ -206,6 +223,7 @@ def main():
             test_chain_toggle_changes_map(page)
             test_category_filter_changes_map(page)
             test_url_restore(page)
+            test_hashchange_resets_absent_params(page)
             test_detail(page)
             test_detail_caps_are_disclosed(page)
             test_scatter_frames_the_items(page)
