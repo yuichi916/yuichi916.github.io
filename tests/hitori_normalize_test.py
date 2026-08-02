@@ -1,0 +1,122 @@
+# -*- coding: utf-8 -*-
+"""OSM要素→施設レコードの正規化と重複除去の検証。"""
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts" / "hitori"))
+
+import normalize
+
+
+def test_element_id():
+    assert normalize.element_id({"type": "node", "id": 123}) == "n123"
+    assert normalize.element_id({"type": "way", "id": 456}) == "w456"
+    assert normalize.element_id({"type": "relation", "id": 789}) == "r789"
+
+
+def test_distance_m():
+    # 東京駅と有楽町駅はおよそ800m
+    d = normalize.distance_m(35.6812, 139.7671, 35.6749, 139.7630)
+    assert 600 < d < 1000, d
+    # 同一点は0
+    assert normalize.distance_m(35.0, 139.0, 35.0, 139.0) < 0.001
+    # 緯度35度で経度0.00033度はおよそ30m
+    d2 = normalize.distance_m(35.0, 139.0, 35.0, 139.00033)
+    assert 25 < d2 < 35, d2
+
+
+def test_to_record_node():
+    el = {"type": "node", "id": 1, "lat": 35.65894, "lon": 139.70043,
+          "tags": {"amenity": "restaurant", "name": "一蘭 渋谷店", "cuisine": "ramen"}}
+    r = normalize.to_record(el, {})
+    assert r["id"] == "n1"
+    assert r["name"] == "一蘭 渋谷店"
+    assert r["cat"] == "eat" and r["kind"] == "ramen"
+    assert r["score"] == 5           # base4 + SOLO_BRANDS加点
+    assert r["chain"] == 1           # CHAIN_BRANDS一致
+    assert r["conf"] == 0
+    assert r["note"] == ""
+    assert r["lat"] == 35.65894 and r["lon"] == 139.70043
+
+
+def test_to_record_way_uses_center():
+    el = {"type": "way", "id": 2, "center": {"lat": 35.1, "lon": 139.2},
+          "tags": {"amenity": "public_bath", "name": "はやし湯"}}
+    r = normalize.to_record(el, {})
+    assert r["lat"] == 35.1 and r["lon"] == 139.2
+    assert r["cat"] == "bath" and r["kind"] == "sento" and r["score"] == 4
+    assert r["chain"] == 0
+
+
+def test_to_record_rounds_coords():
+    el = {"type": "node", "id": 3, "lat": 35.123456789, "lon": 139.987654321,
+          "tags": {"amenity": "library", "name": "○○図書館"}}
+    r = normalize.to_record(el, {})
+    assert r["lat"] == 35.12346 and r["lon"] == 139.98765
+
+
+def test_to_record_rejects():
+    # 名前なしは収録しない
+    assert normalize.to_record(
+        {"type": "node", "id": 4, "lat": 35.0, "lon": 139.0,
+         "tags": {"amenity": "public_bath"}}, {}) is None
+    # 業態が対象外
+    assert normalize.to_record(
+        {"type": "node", "id": 5, "lat": 35.0, "lon": 139.0,
+         "tags": {"amenity": "restaurant", "name": "居酒屋", "cuisine": "izakaya"}}, {}) is None
+    # 座標なし
+    assert normalize.to_record(
+        {"type": "way", "id": 6, "tags": {"amenity": "library", "name": "○○図書館"}}, {}) is None
+
+
+def test_to_record_curated():
+    el = {"type": "node", "id": 7, "lat": 35.0, "lon": 139.0,
+          "tags": {"amenity": "public_bath", "name": "はやし湯"}}
+    curated = {"n7": {
+        "note": "黙浴の掲示あり",
+        "chain": 1,
+        "evidence": [{"src": "user", "id": "gh-issue-42", "checked": "2026-08-01", "polarity": "+"}],
+    }}
+    r = normalize.to_record(el, curated)
+    assert r["score"] == 5      # base4 + 肯定エビデンス
+    assert r["conf"] == 2       # user 由来
+    assert r["chain"] == 1      # curated の明示指定
+    assert r["note"] == "黙浴の掲示あり"
+
+    # excluded は収録しない
+    assert normalize.to_record(el, {"n7": {"excluded": True}}) is None
+
+
+def test_dedupe():
+    a = {"id": "n1", "name": "はやし湯", "lat": 35.00000, "lon": 139.00000,
+         "cat": "bath", "kind": "sento", "score": 4, "conf": 0, "chain": 0, "note": ""}
+    b = {"id": "w2", "name": "はやし湯", "lat": 35.00010, "lon": 139.00010,
+         "cat": "bath", "kind": "sento", "score": 4, "conf": 0, "chain": 0, "note": ""}
+    c = {"id": "n3", "name": "はやし湯", "lat": 35.50000, "lon": 139.00000,
+         "cat": "bath", "kind": "sento", "score": 4, "conf": 0, "chain": 0, "note": ""}
+    d = {"id": "n4", "name": "べつの湯", "lat": 35.00000, "lon": 139.00000,
+         "cat": "bath", "kind": "sento", "score": 4, "conf": 0, "chain": 0, "note": ""}
+
+    out = normalize.dedupe([a, b, c, d])
+    ids = sorted(r["id"] for r in out)
+    # a と b は同名30m以内なので統合され、way 側(w2)が残る
+    assert ids == ["n3", "n4", "w2"], ids
+    # 離れた同名(c)と、同一地点の別名(d)は残る
+    assert len(out) == 3
+
+
+def main():
+    test_element_id()
+    test_distance_m()
+    test_to_record_node()
+    test_to_record_way_uses_center()
+    test_to_record_rounds_coords()
+    test_to_record_rejects()
+    test_to_record_curated()
+    test_dedupe()
+    print("OK: normalize")
+
+
+if __name__ == "__main__":
+    main()
