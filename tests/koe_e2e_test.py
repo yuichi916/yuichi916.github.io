@@ -16,12 +16,33 @@
   検証4 セーブ往復    — 途中でやめて読み直して再開したとき、語り手・開示フラグ・
                         周回・位置がそのまま生きている。save_roundtrip() 参照。
 
+2周の選び方（分岐網羅）:
+  1周目は選択肢の先頭、2周目は末尾を選ぶ。プレイヤーが2周目に別の枝を選ぶのと
+  同じ形で、追加の通し再生を1本も増やさずに両枝を通せる。
+  これが要るのは、無音チェックの「素通り封じ」を1周で成立させられないため——
+  本編台本の無音セイレン台詞62行のうち8行は選択肢の reply / when の中にあり、
+  常に先頭を選ぶ1周では原理的に読めない。「1周で台本の全行を読む」という
+  前提はもう成り立たないので、担保の形を次の2段に組み替えてある:
+    周ごと  — 分岐に依らず必ず通る行（choose/when の外にある無音セイレン台詞）を
+              全部読んだこと。読んだ行が1音も鳴っていないこと（本来の保証）。
+    2周合計 — 読んだ行の和集合が台本の無音セイレン台詞ぜんぶを覆うこと。
+              「黙って飛ばした行は無い」という元の保証を取り戻すと同時に、
+              両方の枝を実際に通ったことの証明にもなる。
+  先頭と末尾では3択以上の真ん中が漏れるので、choose が2択であることを
+  台本から数えて先に確かめる（後述）。
+
 「素通りしないこと」をこのファイル自身が担保する仕掛け:
   - 無音チェックは「実際に読んだ行の台帳」と突き合わせる。対象の台詞を読み終えた
     ことを確かめてから「鳴っていない」と言う（読まずに素通りしても合格、を封じる）。
     台帳はエンジンの backlog ではなくテスト側で pushLog をラップして持つ——backlog は
     200件で頭から捨てるリングバッファなので、周の境目を index で持つと本編台本
     (281ボイス行)で必ず狂い、正しいビルドでこのテストが落ちる。
+  - choose が3択以上になったら落とす。先頭と末尾の2周では真ん中の枝を通れないので、
+    和集合チェックが「真ん中の reply の台詞は誰も読んでいないのに、同じ本文が
+    他所にもあるので和集合は埋まっている」形で静かに素通りしうる（本編台本には
+    実際に同じ本文の無音セイレン台詞が3組ある）。台帳が持っているのは本文だけで
+    出現箇所を区別できない以上、和集合だけでは塞げない。選択肢の数を先に数えて
+    落とすほうが確実で、直し方（1択につき1周に一般化する）も一意に決まる。
   - 無音チェックは4本の物差しで見る: playVoice() のログ／#voice の src 属性／
     台詞ボイスの本数／実際に出た /voice/ へのネットワーク要求。
     最初の2つは voiceFile() が作った名前どうしの照合なので、命名規則ごと
@@ -40,6 +61,8 @@
     素通りする経路は無い（回数ではなく壁時計と進行停滞で判定し、必ず落とす）。
 
 意図的に見ていないこと（別の道具の担当・または前提が未成立）:
+  - when の偽枝。1周目は先頭を選ぶので set が立ち、2周目は末尾を選ぶので立たない
+    ＝真偽どちらも通るが、「偽のとき reply を読まないこと」自体は見ていない。
   - ファイルが実在するか・中身が正しいか。ここで見ているのは「エンジンがどの
     ファイルを掴みにいったか」だけ。実在と棚卸しは scripts/koe/voice_audit.py と
     tests/koe_audit_test.py、音そのものは tests/koe_synth_test.py の担当。
@@ -47,7 +70,6 @@
     Plan 2 まで存在せず、今日の健全なビルドでは必ず false になる。ここで真を
     要求すると正しいビルドが落ちるので、「play() を1回呼んだこと」までで止めてある
     （鳴らしにいったことは証明できるが、鳴り切ったことは Plan 2 まで証明できない）。
-  - 分岐網羅。選択肢は常に先頭を選ぶので、2つ目の reply と when の偽枝は通らない。
   - BGM・効果音・立ち絵・背景の見た目。BGMは tests/koe_bgm_test.py の担当。
 """
 import subprocess, sys, time, socket, os
@@ -68,9 +90,12 @@ STALL_AFTER = 25
 # プレイヤーと同じ入口を叩く。選択肢だけは actionability チェックで詰まるので JS の .click()。
 # #adv も #scard(z-index:30) に覆われることがあるため同様に .click() で送る。
 # どちらも #stage のクリックハンドラまでバブルするので、経路はプレイヤーと同じ。
-STEP_JS = """() => {
-  const ch = document.querySelector('#choices.show .choice');
-  if (ch) { ch.click(); return 'choice'; }
+#
+# pick は 'first'（1周目）か 'last'（2周目）。renderChoices() は .choice のほかに
+# タイマーの div も #choices に足すので、必ず .choice で絞ってから端を取る。
+STEP_JS = """(pick) => {
+  const chs = document.querySelectorAll('#choices.show .choice');
+  if (chs.length) { (pick === 'last' ? chs[chs.length - 1] : chs[0]).click(); return 'choice'; }
   const hint = document.getElementById('exhint');
   if (hint && hint.classList.contains('show')) {
     const hs = document.getElementById('hs');
@@ -182,8 +207,9 @@ def is_line(f):
     return base(f).startswith("v")
 
 
-def play_through(pg, label):
+def play_through(pg, label, pick="first"):
     """タイトルに戻るまでプレイヤーと同じ入口で進める。
+    pick は選択肢の取り方（'first'=先頭 / 'last'=末尾）。周ごとに変えて両枝を通す。
     反復回数ではなく壁時計と進行停滞で打ち切るので、「回数を使い切ったので合格」は起きない。"""
     t0 = time.time()
     last, last_change = None, time.time()
@@ -202,7 +228,7 @@ def play_through(pg, label):
             raise AssertionError(
                 f"{label}: {STALL_AFTER}秒進行が止まった（onerrorで先へ進めていないビートがある）。"
                 f"停止位置: {pg.evaluate(WHERE_JS)} / 状態: {sig}")
-        pg.evaluate(STEP_JS)
+        pg.evaluate(STEP_JS, pick)
         pg.wait_for_timeout(110)
 
 
@@ -227,9 +253,14 @@ def open_gate(pg):
             f" 現在値: {pg.evaluate('window.__koeGate')}")
 
 
-def step_until(pg, cond_js, label, budget=120):
+def step_until(pg, cond_js, label, budget=PLAY_BUDGET, pick="first"):
     """条件が真になるまでプレイヤーと同じ入口で進める。
-    play_through() と同じく、反復回数ではなく壁時計と進行停滞で打ち切る。"""
+    play_through() と同じく、反復回数ではなく壁時計と進行停滞で打ち切る。
+
+    既定の予算が PLAY_BUDGET と同じなのは、ここで待つ条件（開示の一行・語り手の切替）が
+    どれも通し再生の途中にあるものだから。1周ぶんの予算より短く切ると、台本が伸びた
+    だけで「進行不能」と誤って落ちる（実際、本編台本の開示は7シーン中の6番目にあり、
+    旧値の120秒では届かなかった）。詰まりは壁時計ではなく STALL_AFTER が捕まえる。"""
     t0 = time.time()
     last, last_change = None, time.time()
     while True:
@@ -247,7 +278,7 @@ def step_until(pg, cond_js, label, budget=120):
             raise AssertionError(
                 f"{label}: {STALL_AFTER}秒進行が止まった（例外で止まっている可能性が高い）。"
                 f"停止位置: {pg.evaluate(WHERE_JS)} / 状態: {sig}")
-        pg.evaluate(STEP_JS)
+        pg.evaluate(STEP_JS, pick)
         pg.wait_for_timeout(110)
 
 
@@ -256,17 +287,29 @@ def check_silence(pg, log, srclog, reqs, label):
 
     「読んだ行」は __koeReadLog（周のはじめに空にするテスト側の台帳）で見る。
     エンジンの backlog は200件で頭から捨てるので、周の境目を index で持つと
-    行数の多い本編台本で必ず狂う。"""
+    行数の多い本編台本で必ず狂う。
+
+    素通り封じ（この周ぶん）は「分岐に依らず必ず通る無音セイレン台詞」を全部
+    読んだこと、で見る。台本の全行ではない——選択肢の reply の中の行は、
+    その枝を選ばなかった周では読めないのが正しい挙動だから。台本ぜんぶを
+    読んだことは main() 側で2周の和集合として確かめる。"""
     info = pg.evaluate("""() => {
-      const silent = [], voiced = [];
-      (window.KOE.ep1.scenes || []).forEach(function walk(n) {
-        if (Array.isArray(n)) { n.forEach(walk); return; }
+      const silent = [], voiced = [], uncond = [];
+      /* cond は「choose か when の下にいるか」。その下の台詞は枝を選んだ周にしか
+         読まれないので、周ごとの素通り封じの分母から外す。 */
+      (function walk(n, cond) {
+        if (Array.isArray(n)) { n.forEach(x => walk(x, cond)); return; }
         if (!n || typeof n !== 'object') return;
-        if (n.say === 'ren') (n.v ? voiced : silent).push(n.text);
-        for (const k in n) walk(n[k]);
-      });
+        if (n.say === 'ren') {
+          if (n.v) voiced.push(n.text);
+          else { silent.push(n.text); if (!cond) uncond.push(n.text); }
+        }
+        const inner = cond || n.choose != null || n.when != null;
+        for (const k in n) walk(n[k], inner);
+      })(window.KOE.ep1.scenes || [], false);
       return {
         silent: silent,
+        uncond: [...new Set(uncond)],
         silentFiles: silent.map(t => voiceFile('ren', t)),
         voicedFiles: voiced.map(t => voiceFile('ren', t)),
         read: window.__koeReadLog.length,
@@ -282,8 +325,13 @@ def check_silence(pg, log, srclog, reqs, label):
     }""")
     assert info["read"], f"{label}: 読んだ行の台帳が空（pushLogのラップが効いていない＝全チェックが空回りする）"
     assert info["silent"], f"{label}: 台本に無音のセイレン台詞が1つも無い（このチェックが空回りする）"
-    unread = [t for t in info["silent"] if t not in info["renRead"]]
-    assert not unread, (f"{label}: 無音のはずのセイレン台詞を読まずに終わった＝検証が空回りしている: {unread}")
+    assert info["uncond"], (f"{label}: 分岐の外に無音のセイレン台詞が1つも無い"
+                            "（周ごとの素通り封じが空回りする）")
+    read = set(info["renRead"])
+    unread = [t for t in info["uncond"] if t not in read]
+    assert not unread, (
+        f"{label}: どの枝を選んでも通るはずの無音セイレン台詞を読まずに終わった"
+        f"＝検証が空回りしている（{len(unread)}/{len(info['uncond'])}行）: {unread[:8]}")
     leaked = [f for f in info["silentFiles"] if f in log]
     assert leaked == [], f"{label}: セイレンの無音が破れている(playVoiceのログ): {leaked}"
     sl = set(base(s) for s in srclog)
@@ -372,7 +420,7 @@ def save_roundtrip(pg, errors):
                          timeout=5000)
 
     # --- 往復A: 開示の一行で中断する ---
-    step_until(pg, "() => st.revealed === true", "セーブ往復A: 開示の一行まで")
+    t_rev = step_until(pg, "() => st.revealed === true", "セーブ往復A: 開示の一行まで")
     mem_a = pg.evaluate(SNAP_JS)
     saved_a = pg.evaluate(SAVED_JS)
     assert saved_a is not None, "セーブ往復A: localStorage に koe_save が書かれていない"
@@ -388,17 +436,31 @@ def save_roundtrip(pg, errors):
     loaded_a, after_a = _reload_and_load(pg)
     assert loaded_a == mem_a, \
         f"セーブ往復A: 読み直した状態が保存時と違う: 復元={loaded_a} / 保存時={mem_a}"
-    # 再開位置は {narrator:'ren'} の直前なので、つづきから を押した時点で
-    # そのビートを踏み直す。revealed が復元できていなければここで throw する。
+    # 再開位置は開示の一行の直後で、{narrator:'ren'} はその数ビート先にある。
+    # 本編台本では間に {wait:1000} が挟まっていて、そこでいったんエンジンの手を離れる
+    # ——つづきから を押した直後の st を見るだけでは narr がまだ 'kanata' のままで、
+    # 正しいビルドが落ちる。narratorビートを踏むまで進めてから見る。
+    # revealed が復元できていなければ、その順序チェックが throw して進行が止まるので、
+    # ここは到達できずに落ちる（下の errors で理由を出す）。
+    try:
+        step_until(pg, "() => st.narr === 'ren'",
+                   "セーブ往復A: 再開後の {narrator:'ren'} まで", budget=60)
+    except AssertionError:
+        assert errors == [], (
+            "セーブ往復A: 再開した瞬間にページ例外。開示済みのセーブから再開したのに "
+            "{narrator:'ren'} の順序チェックが発火している（revealed が保存されていない）。"
+            f" 例外: {errors}")
+        raise
+    after_a = pg.evaluate(SNAP_JS)
     assert errors == [], (
-        "セーブ往復A: 再開した瞬間にページ例外。開示済みのセーブから再開したのに "
+        "セーブ往復A: 再開した直後にページ例外。開示済みのセーブから再開したのに "
         "{narrator:'ren'} の順序チェックが発火している（revealed が保存されていない）。"
         f" 例外: {errors}")
     assert after_a["narr"] == "ren", \
         f"セーブ往復A: 再開後に {{narrator:'ren'}} を踏んでいない: {after_a}"
 
     # --- 往復B: 語り手が切り替わった位置で中断する ---
-    step_until(pg, "() => st.narr === 'ren'", "セーブ往復B: 語り手の切替まで")
+    t_narr = step_until(pg, "() => st.narr === 'ren'", "セーブ往復B: 語り手の切替まで")
     mem_b = pg.evaluate(SNAP_JS)
     saved_b = pg.evaluate(SAVED_JS)
     assert mem_b["narr"] == "ren" and mem_b["round"] == 1, \
@@ -419,11 +481,12 @@ def save_roundtrip(pg, errors):
         f"セーブ往復B: 保存位置より前に巻き戻っている: 再開後={after_b} / 保存時={mem_b}"
 
     # 再開したセーブから最後まで読み切れること（往復が「開くだけ」で終わっていない）。
-    play_through(pg, "セーブ往復: 再開後の続き")
+    t_tail = play_through(pg, "セーブ往復: 再開後の続き")
     fin = pg.evaluate("() => ({round: st.round, done: st.roundDone})")
     assert fin["done"] is True and fin["round"] >= 2, \
         f"セーブ往復: 再開したセーブから完走できていない: {fin}"
-    return {"a": mem_a, "b": mem_b}
+    return {"a": mem_a, "b": mem_b,
+            "t": (round(t_rev, 1), round(t_narr, 1), round(t_tail, 1))}
 
 
 def main():
@@ -496,6 +559,29 @@ def main():
                          "finalvoice", "title", "choose"]:
                 assert need in kinds, f"台本に {need} ビートが無い"
 
+            # --- 分岐は2択であること（2周で網羅できる前提そのもの） ---
+            # 1周目=先頭 / 2周目=末尾 では3択以上の真ん中を通れない。通れないだけなら
+            # 下の和集合チェックが落ちるはずだが、台帳が持っているのは本文だけなので
+            # 「真ん中の reply の台詞と同じ本文が他所にもある」と静かに埋まってしまう
+            # （本編台本には同じ本文の無音セイレン台詞が実際に3組ある）。
+            # だから選択肢の数そのものをここで落とす。
+            opt_counts = pg.evaluate("""() => {
+              const out = [];
+              (function walk(n) {
+                if (Array.isArray(n)) { n.forEach(walk); return; }
+                if (!n || typeof n !== 'object') return;
+                if (Array.isArray(n.choose)) out.push(n.choose.length);
+                for (const k in n) walk(n[k]);
+              })(window.KOE.ep1.scenes || []);
+              return out;
+            }""")
+            assert opt_counts, "台本に choose ビートが無い（分岐網羅のチェックが空回りする）"
+            assert all(c == 2 for c in opt_counts), (
+                f"3択以上の選択肢がある: 各 choose の選択肢数 {opt_counts}。"
+                "このテストは1周目に先頭・2周目に末尾を選ぶ2周で分岐を網羅しているので、"
+                "真ん中の枝は誰も通らないまま（和集合チェックも本文の重複で埋まりうる）。"
+                "選択肢を2択に戻すか、選択肢の数だけ周を回すようこのテストを一般化すること。")
+
             # --- 前提: 声の経路が生きていること ---
             # cfg.voice<=0 だと playVoice() は src を触らずに抜けるので、
             # #voice の src を見る第2経路が丸ごと死ぬ（そして無音チェックが空回りする）。
@@ -513,7 +599,8 @@ def main():
                                  timeout=5000)
             assert pg.evaluate("st.narr") == "kanata", \
                 f"1周目の地の文がカナタになっていない: {pg.evaluate('st.narr')}"
-            elapsed1 = play_through(pg, "1周目")
+            # 1周目は選択肢の先頭を選ぶ（2周目は末尾。2周で両枝を通す）。
+            elapsed1 = play_through(pg, "1周目", pick="first")
 
             # 「タイトルが見えた」だけでは完走の証明にならない（中断でも同じ絵になる）。
             # round を進める唯一の関数 completeRound() が走った痕跡まで見る。
@@ -577,7 +664,9 @@ def main():
                                  timeout=5000)
             assert pg.evaluate("st.narr") == "ren", \
                 f"2周目の地の文がセイレンになっていない: {pg.evaluate('st.narr')}"
-            elapsed2 = play_through(pg, "2周目")
+            # 2周目は末尾を選ぶ。プレイヤーが2周目に別の枝を選ぶのと同じ形で、
+            # 通し再生を増やさずに1周目が通れない reply を通す。
+            elapsed2 = play_through(pg, "2周目", pick="last")
 
             mode2 = pg.evaluate("() => ({skip: skipOn, auto: autoOn})")
             assert mode2["skip"] is False and mode2["auto"] is False, \
@@ -604,7 +693,22 @@ def main():
                             f"2周目={sorted(set(map(stem, narr2)))[:3]}")
 
             # 2周目でもセイレンの無音は破れない（b.v だけを見ているので周回に依らない）
-            check_silence(pg, log2, src2, req2, "2周目")
+            info2 = check_silence(pg, log2, src2, req2, "2周目")
+
+            # --- 2周合計: 台本の無音セイレン台詞を1行も飛ばしていないこと ---
+            # 周ごとのチェックは「分岐の外」しか分母にできない（選ばなかった枝の行を
+            # 読まないのは正しい挙動）。台本ぜんぶを読んだことは、ここで和集合として
+            # 取り戻す。1周目=先頭 / 2周目=末尾 なので、これは同時に
+            # 「両方の枝を実際に通った」ことの証明にもなる（片方でも選び損ねれば、
+            # その枝にしか無い台詞が欠けて落ちる）。
+            all_silent = set(info1["silent"])
+            read1, read2 = set(info1["renRead"]), set(info2["renRead"])
+            never = sorted(all_silent - (read1 | read2))
+            assert not never, (
+                "2周まわしても読まれなかった無音のセイレン台詞がある"
+                f"（{len(never)}/{len(all_silent)}行）: {never}。"
+                "どちらの周でも通らない枝に台詞が残っている＝その行については"
+                "「鳴っていない」を一度も確かめていない。")
 
             # --- 検証4: セーブ往復（設計書10章「セーブ往復」） ---
             rt = save_roundtrip(pg, errors)
@@ -616,9 +720,19 @@ def main():
                   f"/ src {len(set(map(base, src1)))}種 / titlekoe.play {plays}回")
             print(f"  2周目 {elapsed2:.1f}s / ボイス参照 {len(log2)}本(地の文 {len(narr2)}本) "
                   f"/ src {len(set(map(base, src2)))}種 / 共有する地の文 {len(shared)}本")
+            print(f"  無音セイレン台詞 台本 {len(all_silent)}種(うち分岐の外 {len(info1['uncond'])}種) "
+                  f"/ 読了 1周目 {len(read1 & all_silent)}種・2周目 {len(read2 & all_silent)}種 "
+                  f"/ 和集合 {len((read1 | read2) & all_silent)}種 / choose {opt_counts}")
+            # 台帳の行数はエンジンの backlog の上限(200)を超えているのが正常。
+            # 超えていなければ、この台本ではラップが効いていないか周が短すぎる。
+            print(f"  読んだ行の台帳 1周目 {info1['read']}行 / 2周目 {info2['read']}行"
+                  "（エンジンのbacklogは200件で頭から捨てるので、別台帳が要る）")
             print(f"  /voice/ 要求 1周目 {len(set(map(base, req1)))}種 / "
                   f"2周目 {len(set(map(base, req2)))}種")
             print(f"  セーブ往復 A={rt['a']} / B={rt['b']}")
+            print(f"  壁時計 予算{PLAY_BUDGET}s・停滞{STALL_AFTER}s に対して "
+                  f"1周目 {elapsed1:.1f}s / 2周目 {elapsed2:.1f}s / "
+                  f"往復A {rt['t'][0]}s・B {rt['t'][1]}s・再開後 {rt['t'][2]}s")
             br.close()
     finally:
         srv.terminate()
