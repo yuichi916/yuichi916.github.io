@@ -507,8 +507,19 @@ async function init() {
 }
 
 init().catch(err => {
-  document.getElementById('map').outerHTML =
-    `<p class="error">データの読み込みに失敗しました: ${err.message}</p>`;
+  // file:// で開くとブラウザが fetch をブロックする。原因が分からないと
+  // ページ側の不具合に見えてしまうので、対処まで書く。
+  const isFile = location.protocol === 'file:';
+  const msg = isFile
+    ? `このページはファイルとして直接開くと動きません。ブラウザが
+       <code>file://</code> からのデータ読み込みをブロックするためです。<br>
+       公開版は <a href="https://yuichi916.github.io/hitori.html">yuichi916.github.io/hitori.html</a> で見られます。<br>
+       手元で確認する場合は、このフォルダで
+       <code>python -m http.server 8000</code> を実行し
+       <code>http://localhost:8000/hitori.html</code> を開いてください。`
+    : `データの読み込みに失敗しました（${escapeHtml(err.message)}）。
+       通信環境を確認して再読み込みしてください。`;
+  document.getElementById('map').outerHTML = `<div class="error">${msg}</div>`;
   window.__ready = true;
 });
 </script>

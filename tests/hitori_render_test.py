@@ -201,6 +201,17 @@ def test_detail_fetch_failure_is_contained(page):
     page.unroute("**/data/hitori/pref/*.json")
 
 
+def test_file_protocol_explains_itself(page):
+    """file:// で開かれたら、ページの不具合ではなく開き方の問題だと分かる案内を出す。"""
+    uri = (ROOT / "hitori.html").resolve().as_uri()
+    page.goto(uri)
+    page.wait_for_function("window.__ready === true", timeout=15000)
+    body = page.inner_text("body")
+    assert "file://" in body, body[:300]
+    assert "localhost:8000" in body, body[:300]
+    assert "yuichi916.github.io/hitori.html" in body, body[:300]
+
+
 def test_mobile(page):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(BASE + "#pref=13")
@@ -229,6 +240,7 @@ def main():
             test_scatter_frames_the_items(page)
             test_detail_chain_filter(page)
             test_detail_fetch_failure_is_contained(page)
+            test_file_protocol_explains_itself(page)
             page.goto(BASE)
             page.wait_for_function("window.__ready === true", timeout=15000)
             page.screenshot(path="C:/tmp/hitori_overview.png", full_page=True)
