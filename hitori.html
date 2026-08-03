@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ひとり歓迎マップ | ひとりが標準の店だけを集めた日本地図</title>
+<meta name="description" content="黙浴サウナ、カウンター飲食、ヒトカラ、図書館。ひとりでも行ける店ではなく、ひとりが標準の店だけを都道府県別に可視化した日本地図。">
+<link rel="icon" href="favicon.svg">
+<style>
+:root {
+  --bg: #ffffff; --fg: #1a202c; --line: #cbd5e1; --muted: #64748b;
+  --accent: #2b5f96;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0f172a; --fg: #e2e8f0; --line: #334155; --muted: #94a3b8;
+          --accent: #8fb3d4; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+       font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+       line-height: 1.7; }
+main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 6rem; }
+h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
+.lede { margin: 0; color: var(--muted); }
+.filters { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.5rem 0; }
+.filters fieldset { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .9rem; margin: 0; }
+.filters legend { font-size: .8rem; color: var(--muted); padding: 0 .3rem; }
+.filters label { display: inline-flex; align-items: center; gap: .3rem; margin-right: .8rem; }
+.filters small { display: block; color: var(--muted); font-size: .78rem; }
+.board { display: grid; grid-template-columns: 1fr 260px; gap: 1.5rem; align-items: start;
+         position: relative; }
+#map { width: 100%; height: auto; }
+#map path { cursor: pointer; transition: opacity .15s; }
+#map path:hover, #map path:focus { opacity: .75; outline: none; stroke: var(--fg); stroke-width: 1.5; }
+/* 日本列島は右上から左下へ斜めに走るため左半分が大きく空く。凡例をそこへ置く。
+   左下は沖縄の島列が通るので、完全に空いている左上に寄せる。 */
+#legend { position: absolute; left: 0; top: 0; width: 46%; max-width: 260px;
+          font-size: .75rem; color: var(--muted); pointer-events: none; }
+#legend .ramp { display: flex; height: 10px; border-radius: 3px; overflow: hidden; margin: .2rem 0; }
+#legend .ramp i { flex: 1; }
+#legend .ends { display: flex; justify-content: space-between; }
+#ranking { padding-left: 1.4rem; margin: .4rem 0 0; }
+#ranking li { display: flex; justify-content: space-between; gap: .5rem; }
+#ranking button { background: none; border: none; color: var(--accent);
+                  cursor: pointer; padding: 0; font: inherit; text-align: left; }
+#ranking button:hover { text-decoration: underline; }
+aside h2 { font-size: 1rem; margin: 0; }
+aside .unit { font-size: .75rem; color: var(--muted); }
+footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: 1rem;
+         color: var(--muted); font-size: .8rem; }
+.error { color: #c53030; }
+img, svg, table { max-width: 100%; }
+
+#detail { position: relative; margin-top: 2rem; border-top: 1px solid var(--line);
+          padding-top: 1rem; }
+#detail h2 { margin: 0; font-size: 1.2rem; }
+#detail .stat { margin: .2rem 0; }
+#detail .counts { margin: 0 0 .6rem; color: var(--muted); font-size: .82rem; }
+#detail .close { position: absolute; right: 0; top: .8rem; background: none;
+                 border: 1px solid var(--line); border-radius: 6px; color: var(--fg);
+                 cursor: pointer; font-size: 1.1rem; line-height: 1; padding: .2rem .5rem; }
+#detail .items { list-style: none; padding: 0; margin: .6rem 0 0;
+                 max-height: 60vh; overflow-y: auto; }
+#detail .item { display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline;
+                padding: .35rem 0; border-bottom: 1px solid var(--line); }
+#detail .item .kind, #detail .item .score { color: var(--muted); font-size: .8rem; }
+#detail .item .chip { font-size: .72rem; border: 1px solid var(--line);
+                      border-radius: 999px; padding: 0 .5rem; color: var(--muted); }
+#detail .item .note { font-size: .8rem; }
+#detail .submit { font-size: .85rem; }
+#scatter { width: 100%; max-width: 420px; height: auto; display: block; }
+.pin { opacity: .85; }
+.pin.cat-bath { fill: #2b6cb0; } .pin.cat-eat { fill: #c05621; }
+.pin.cat-play { fill: #6b46c1; } .pin.cat-stay { fill: #2f855a; }
+.pin.conf-0 { fill-opacity: .35; } .pin.conf-1 { fill-opacity: .7; }
+.pin.conf-2 { stroke: #1a202c; stroke-width: .4; }
+
+@media (max-width: 720px) {
+  .board { grid-template-columns: 1fr; }
+  #legend { position: static; width: auto; max-width: none; }
+  #detail { position: fixed; inset: auto 0 0 0; max-height: 72vh; overflow-y: auto;
+            background: var(--bg); border-top: 2px solid var(--line);
+            border-radius: 12px 12px 0 0; padding: 1rem; margin-top: 0;
+            box-shadow: 0 -4px 16px rgba(0,0,0,.15); z-index: 20; }
+  #detail .items { max-height: none; overflow-y: visible; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>ひとり歓迎マップ</h1>
+    <p class="lede">ひとりで行ける店ではなく、ひとりが標準の店だけを集めた日本地図。</p>
+  </header>
+
+  <div class="filters">
+    <fieldset><legend>カテゴリ</legend>
+      <label><input type="checkbox" id="f-cat-bath" checked> 湯・サウナ</label>
+      <label><input type="checkbox" id="f-cat-eat"  checked> カウンター飲食</label>
+      <label><input type="checkbox" id="f-cat-play" checked> ひとり娯楽</label>
+      <label><input type="checkbox" id="f-cat-stay" checked> ひとり滞在</label>
+    </fieldset>
+    <fieldset><legend>チェーン</legend>
+      <label><input type="checkbox" id="f-nochain"> チェーンを隠す</label>
+      <small>判明しているチェーンのみ。地域チェーンは残る場合があります</small>
+    </fieldset>
+    <fieldset><legend>信頼度</legend>
+      <label><input type="radio" name="conf" value="0" checked> すべて</label>
+      <label><input type="radio" name="conf" value="1"> ◍出典あり以上</label>
+      <label><input type="radio" name="conf" value="2"> ◉現地確認のみ</label>
+      <small>県を開いたときの一覧に適用されます。地図の塗りは全件で計算しています</small>
+    </fieldset>
+    <fieldset><legend>県を開く</legend>
+      <label>
+        <select id="pref-select"><option value="">選択してください</option></select>
+      </label>
+      <small>東京・大阪など小さい県は地図上でタップしづらいため</small>
+    </fieldset>
+  </div>
+
+  <div class="board">
+    <svg id="map" role="img" aria-label="都道府県別ひとり歓迎度マップ"></svg>
+    <div id="legend">
+      <div>ひとり度（10万人あたりの件数）</div>
+      <div class="ramp"></div>
+      <div class="ends"><span id="legend-min"></span><span id="legend-max"></span></div>
+    </div>
+    <aside>
+      <h2>ひとり度ランキング</h2>
+      <div class="unit">件 / 10万人</div>
+      <ol id="ranking"></ol>
+    </aside>
+  </div>
+
+  <section id="detail" hidden></section>
+
+  <footer>
+    <p class="disclaimer">この分類は OpenStreetMap のタグと業態から機械的に推定したものです。実際の座席形態や黙浴の有無を保証するものではありません。</p>
+    <p class="credits">地図データ: 地球地図日本（国土地理院） / 施設データ: © OpenStreetMap contributors (ODbL) / 人口: Wikidata (CC0) / 令和2年国勢調査</p>
+  </footer>
+</main>
+
+<script>
+const CATS = ['bath', 'eat', 'play', 'stay'];
+const CAT_JA = { bath: '湯・サウナ', eat: 'カウンター飲食', play: 'ひとり娯楽', stay: 'ひとり滞在' };
+const state = { cats: new Set(CATS), nochain: false, minConf: 0, pref: null };
+let SUMMARY = null, GEO = null;
+const BY_CODE = {};
+
+// 単一色相のシーケンシャルスケール。5分位ビン。
+const RAMP = ['#e7edf3', '#c3d4e6', '#8fb3d4', '#5688bd', '#2b5f96'];
+const NODATA = '#f1f5f9';
+
+function getDensity(p, nochain) {
+  const useIndie = nochain === undefined ? state.nochain : nochain;
+  const src = useIndie ? p.density_indie : p.density;
+  // 選択カテゴリの密度を合算する。all をそのまま使わないのは部分選択に対応するため。
+  let sum = 0;
+  for (const c of state.cats) sum += src[c] || 0;
+  return sum;
+}
+
+function quantileBins(values) {
+  const sorted = values.filter(v => v > 0).sort((a, b) => a - b);
+  if (!sorted.length) return [0, 0, 0, 0];
+  return [0.2, 0.4, 0.6, 0.8].map(q => sorted[Math.floor(q * (sorted.length - 1))]);
+}
+
+function binIndex(v, bins) {
+  let i = 0;
+  while (i < bins.length && v > bins[i]) i++;
+  return i;
+}
+
+function renderMap() {
+  // 色スケールは「チェーン込み」の分布で固定する。表示中の値で毎回引き直すと、
+  // チェーンを隠しても順位が変わらず同じ色になり、「隠すと薄くなる」という
+  // この機能の肝が見えなくなる。カテゴリを変えたときだけスケールを引き直す。
+  const bins = quantileBins(SUMMARY.prefectures.map(p => getDensity(p, false)));
+  const vals = SUMMARY.prefectures.map(p => getDensity(p));
+  for (const p of SUMMARY.prefectures) {
+    const el = document.querySelector(`#map path[data-code='${p.code}']`);
+    if (!el) continue;
+    const v = getDensity(p);
+    el.setAttribute('fill', v > 0 ? RAMP[binIndex(v, bins)] : NODATA);
+    el.setAttribute('aria-label', `${p.name} ${v.toFixed(1)}件/10万人`);
+    el.querySelector('title').textContent = `${p.name}　${v.toFixed(1)} 件/10万人`;
+  }
+  const pos = vals.filter(v => v > 0);
+  document.getElementById('legend-min').textContent = pos.length ? Math.min(...pos).toFixed(1) : '0';
+  document.getElementById('legend-max').textContent = pos.length ? Math.max(...pos).toFixed(1) : '0';
+}
+
+function renderRanking() {
+  const rows = SUMMARY.prefectures.map(p => ({ p, v: getDensity(p) }))
+    .sort((a, b) => b.v - a.v).slice(0, 10);
+  document.getElementById('ranking').innerHTML = rows.map(({ p, v }) =>
+    `<li><button type="button" data-code="${p.code}">${p.name}</button>
+     <span>${v.toFixed(1)}</span></li>`).join('');
+}
+
+function syncUrl() {
+  const parts = [];
+  if (state.pref) parts.push(`pref=${state.pref}`);
+  if (state.cats.size !== CATS.length) parts.push(`cat=${[...state.cats].join('.')}`);
+  if (state.nochain) parts.push('nochain=1');
+  if (state.minConf) parts.push(`conf=${state.minConf}`);
+  history.replaceState(null, '', parts.length ? '#' + parts.join('&') : location.pathname);
+}
+
+function restoreFromUrl() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  // cat が無いときは必ず全カテゴリへ戻す。URLに書かれていない項目を前の状態の
+  // まま残すと、hashchange 経由の遷移で直前の絞り込みが漏れて残る。
+  if (h.has('cat')) {
+    state.cats = new Set(h.get('cat').split('.').filter(c => CATS.includes(c)));
+    if (!state.cats.size) state.cats = new Set(CATS);
+  } else {
+    state.cats = new Set(CATS);
+  }
+  state.nochain = h.get('nochain') === '1';
+  state.minConf = parseInt(h.get('conf') || '0', 10) || 0;
+  state.pref = h.has('pref') ? parseInt(h.get('pref'), 10) : null;
+  for (const c of CATS) document.getElementById('f-cat-' + c).checked = state.cats.has(c);
+  document.getElementById('f-nochain').checked = state.nochain;
+  document.querySelector(`input[name=conf][value='${state.minConf}']`).checked = true;
+}
+
+function applyFilters() {
+  renderMap();
+  renderRanking();
+  syncUrl();
+  if (state.pref && PREF_CACHE[state.pref]) renderDetail(state.pref, PREF_CACHE[state.pref]);
+}
+
+// ---- 県詳細 ----
+
+const PREF_CACHE = {};
+const CONF_MARK = ['◌', '◍', '◉'];
+const CONF_LABEL = ['推定', '出典あり', '現地確認'];
+// 東京都は6,000件近くある。全部DOMに出すと描画が破綻するので打ち切る。
+// 打ち切ったことは画面に必ず出す（黙って隠すと「これで全部」と読めてしまう）。
+const LIST_LIMIT = 300;
+let listLimit = LIST_LIMIT;   // 「もっと見る」で増える。県を開くたびに戻す。
+const PIN_LIMIT = 1500;
+const KIND_JA = {
+  standing: '立ち食い・立ち飲み', yakiniku_solo: 'ひとり焼肉', ramen: 'ラーメン',
+  soba_udon: 'そば・うどん', gyudon: '牛丼・丼', curry: 'カレー',
+  sauna: 'サウナ', onsen: '日帰り温泉', sento: '銭湯',
+  netcafe: 'ネットカフェ', karaoke: 'カラオケ', cinema: '映画館',
+  library: '図書館', hostel: 'ゲストハウス', museum: '美術館・博物館',
+  capsule: 'カプセルホテル',
+};
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function loadPrefecture(code) {
+  if (PREF_CACHE[code]) return PREF_CACHE[code];
+  const res = await fetch(`data/hitori/pref/${String(code).padStart(2, '0')}.json`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const doc = await res.json();
+  PREF_CACHE[code] = doc;
+  return doc;
+}
+
+function visibleItems(doc) {
+  return doc.items
+    .map(row => Object.fromEntries(doc.fields.map((f, i) => [f, row[i]])))
+    .filter(it => state.cats.has(it.cat))
+    .filter(it => !(state.nochain && it.chain === 1))
+    .filter(it => it.conf >= state.minConf);
+}
+
+function toXY(lat, lon) {
+  const g = GEO.bounds;
+  return [
+    (lon * Math.cos(g.lat0 * Math.PI / 180) - g.minx) * g.scale,
+    (-lat - g.miny) * g.scale,
+  ];
+}
+
+function percentile(sorted, q) {
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
+}
+
+// 施設の分布から表示枠を決める。ただし min/max では外れ値に引きずられる。
+// 東京都のデータには小笠原の施設が入っており、素直に全点を囲むと本土が
+// 1ピクセルに潰れる。分位で枠を取り、外れた件数は画面に出す。
+function scatterFrame(pts) {
+  const xs = pts.map(p => p[0]).sort((a, b) => a - b);
+  const ys = pts.map(p => p[1]).sort((a, b) => a - b);
+  let minx = percentile(xs, 0.02), maxx = percentile(xs, 0.98);
+  let miny = percentile(ys, 0.02), maxy = percentile(ys, 0.98);
+  // 一点集中や極端に細長い県でも潰れないよう下限を入れる
+  const MIN_SPAN = 3;
+  if (maxx - minx < MIN_SPAN) { const c = (maxx + minx) / 2; minx = c - MIN_SPAN / 2; maxx = c + MIN_SPAN / 2; }
+  if (maxy - miny < MIN_SPAN) { const c = (maxy + miny) / 2; miny = c - MIN_SPAN / 2; maxy = c + MIN_SPAN / 2; }
+  return { minx, maxx, miny, maxy };
+}
+
+function renderScatter(items, code) {
+  if (!items.length) return { html: '', outside: 0 };
+  const pts = items.map(it => toXY(it.lat, it.lon));
+  const f = scatterFrame(pts);
+
+  const span = Math.max(f.maxx - f.minx, f.maxy - f.miny);
+  const pad = span * 0.08;
+  const vb = `${(f.minx - pad).toFixed(1)} ${(f.miny - pad).toFixed(1)} ` +
+             `${(f.maxx - f.minx + pad * 2).toFixed(1)} ${(f.maxy - f.miny + pad * 2).toFixed(1)}`;
+  const r = Math.max(span * 0.008, 0.35);
+
+  let outside = 0;
+  const pins = [];
+  for (let i = 0; i < items.length; i++) {
+    const [x, y] = pts[i];
+    const inside = x >= f.minx - pad && x <= f.maxx + pad && y >= f.miny - pad && y <= f.maxy + pad;
+    if (!inside) { outside++; continue; }
+    if (pins.length >= PIN_LIMIT) continue;
+    pins.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}"
+      class="pin cat-${items[i].cat} conf-${items[i].conf}"><title>${escapeHtml(items[i].name)}</title></circle>`);
+  }
+
+  const outline = GEO.paths[String(code)]
+    ? `<path d="${GEO.paths[String(code)]}" fill="none" stroke="#94a3b8" stroke-width="${(span * 0.004).toFixed(2)}"/>`
+    : '';
+  return {
+    html: `<svg id="scatter" viewBox="${vb}" role="img" aria-label="県内の分布">${outline}${pins.join('')}</svg>`,
+    outside,
+  };
+}
+
+function renderDetail(code, doc) {
+  const p = BY_CODE[code];
+  const items = visibleItems(doc);
+  const rank = SUMMARY.prefectures.map(x => ({ c: x.code, v: getDensity(x) }))
+    .sort((a, b) => b.v - a.v).findIndex(x => x.c === code) + 1;
+
+  const breakdown = CATS.filter(c => state.cats.has(c))
+    .map(c => `${CAT_JA[c]} ${items.filter(i => i.cat === c).length}`).join(' / ');
+
+  const listed = items.slice(0, listLimit);
+  const scatter = renderScatter(items, code);
+  const counts = items.length > listed.length
+    ? `該当 ${items.length.toLocaleString()} 件のうち上位 ${listed.length} 件を表示`
+    : `該当 ${items.length.toLocaleString()} 件`;
+  const notes = [];
+  if (items.length > PIN_LIMIT) notes.push(`分布図は ${PIN_LIMIT.toLocaleString()} 件まで`);
+  if (scatter.outside) notes.push(`離島など ${scatter.outside} 件は分布図の範囲外`);
+  const pinNote = notes.length ? `（${notes.join('、')}）` : '';
+
+  const list = listed.map(it => `
+    <li class="item" data-score="${it.score}">
+      <span class="conf" title="${CONF_LABEL[it.conf]}">${CONF_MARK[it.conf]}</span>
+      <a href="https://www.google.com/maps/search/?api=1&amp;query=${it.lat},${it.lon}"
+         target="_blank" rel="noopener">${escapeHtml(it.name)}</a>
+      <span class="kind">${KIND_JA[it.kind] || it.kind}</span>
+      <span class="score">ひとり度 ${it.score}</span>
+      ${it.chain ? '<span class="chip">チェーン</span>' : ''}
+      ${it.note ? `<span class="note">${escapeHtml(it.note)}</span>` : ''}
+    </li>`).join('');
+
+  const el = document.getElementById('detail');
+  el.hidden = false;
+  el.innerHTML = `
+    <button type="button" class="close" aria-label="閉じる">×</button>
+    <h2>${p.name}</h2>
+    <p class="stat">${getDensity(p).toFixed(1)} 件/10万人（全国 ${rank} 位）　${breakdown}</p>
+    <p class="counts">${counts}${pinNote}</p>
+    ${scatter.html}
+    <ol class="items">${list}</ol>
+    ${items.length > listed.length
+      ? `<p class="more"><button type="button" class="more-btn">もっと見る（残り ${(items.length - listed.length).toLocaleString()} 件）</button></p>`
+      : ''}
+    <p class="submit"><a href="${issueUrl(code, p.name)}" target="_blank" rel="noopener">
+      この県の情報を送る</a></p>`;
+  el.querySelector('.close').addEventListener('click', closePrefecture);
+  const more = el.querySelector('.more-btn');
+  if (more) {
+    more.addEventListener('click', () => {
+      // 同スコア内は名前順なので、打ち切ったままだと「ひとり度5かつ名前が
+      // 早い順」しか見えない。段階的に全件へ到達できるようにする。
+      listLimit += LIST_LIMIT;
+      renderDetail(code, doc);
+    });
+  }
+}
+
+function renderDetailError(code, err) {
+  const el = document.getElementById('detail');
+  el.hidden = false;
+  el.innerHTML = `<button type="button" class="close" aria-label="閉じる">×</button>
+    <h2>${BY_CODE[code].name}</h2>
+    <p class="error">データの取得に失敗しました（${escapeHtml(err.message)}）</p>
+    <button type="button" class="retry">再試行</button>`;
+  el.querySelector('.close').addEventListener('click', closePrefecture);
+  el.querySelector('.retry').addEventListener('click', () => openPrefecture(code));
+}
+
+async function openPrefecture(code) {
+  state.pref = code;
+  listLimit = LIST_LIMIT;
+  syncUrl();
+  const el = document.getElementById('detail');
+  el.hidden = false;
+  // 読み込み中も見出しを出す。差し替え時にタイトルが一瞬消えるのを避ける。
+  el.innerHTML = `<h2>${BY_CODE[code].name}</h2><p class="loading">読み込み中…</p>`;
+  try {
+    renderDetail(code, await loadPrefecture(code));
+  } catch (err) {
+    renderDetailError(code, err);
+  }
+}
+
+function issueUrl(code, name) {
+  const base = 'https://github.com/yuichi916/yuichi916.github.io/issues/new';
+  const q = new URLSearchParams({
+    template: 'hitori-submission.yml',
+    labels: 'hitori-submission',
+    title: `[ひとり歓迎マップ] ${name}`,
+  });
+  return `${base}?${q}`;
+}
+
+function buildLegendRamp() {
+  document.querySelector('#legend .ramp').innerHTML =
+    RAMP.map(c => `<i style="background:${c}"></i>`).join('');
+}
+
+function buildMapSvg() {
+  const svg = document.getElementById('map');
+  svg.setAttribute('viewBox', GEO.viewBox);
+  svg.innerHTML = Object.entries(GEO.paths).map(([code, d]) =>
+    `<path data-code="${code}" d="${d}" stroke="#94a3b8" stroke-width="0.8"
+      tabindex="0" role="button"><title></title></path>`).join('');
+  svg.addEventListener('click', e => {
+    const p = e.target.closest('path[data-code]');
+    if (p) openPrefecture(parseInt(p.dataset.code, 10));
+  });
+  svg.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const p = e.target.closest('path[data-code]');
+    if (p) { e.preventDefault(); openPrefecture(parseInt(p.dataset.code, 10)); }
+  });
+}
+
+function bindFilters() {
+  for (const c of CATS) {
+    document.getElementById('f-cat-' + c).addEventListener('change', e => {
+      if (e.target.checked) state.cats.add(c); else state.cats.delete(c);
+      applyFilters();
+    });
+  }
+  document.getElementById('f-nochain').addEventListener('change', e => {
+    state.nochain = e.target.checked; applyFilters();
+  });
+  for (const r of document.querySelectorAll('input[name=conf]')) {
+    r.addEventListener('change', e => { state.minConf = parseInt(e.target.value, 10); applyFilters(); });
+  }
+  document.getElementById('ranking').addEventListener('click', e => {
+    const b = e.target.closest('button[data-code]');
+    if (b) openPrefecture(parseInt(b.dataset.code, 10));
+  });
+
+  // 地図クリックだけだと東京・大阪・香川のような小さい県に到達しにくい。
+  // 東京都は伊豆諸島まで含むため、形の重心が海上に来てしまうことすらある。
+  const sel = document.getElementById('pref-select');
+  sel.innerHTML = '<option value="">選択してください</option>' +
+    SUMMARY.prefectures.map(p => `<option value="${p.code}">${p.name}</option>`).join('');
+  sel.addEventListener('change', e => {
+    if (e.target.value) openPrefecture(parseInt(e.target.value, 10));
+  });
+
+  // 共有URLを同じタブで開いてもハッシュ変更だけでは文書が再読込されないため、
+  // hashchange でも状態を復元する。syncUrl は replaceState なので再帰しない。
+  window.addEventListener('hashchange', () => {
+    const before = state.pref;
+    restoreFromUrl();
+    applyFilters();
+    if (state.pref && state.pref !== before) openPrefecture(state.pref);
+    else if (!state.pref && before) closePrefecture();
+  });
+}
+
+function closePrefecture() {
+  state.pref = null;
+  document.getElementById('detail').hidden = true;
+  syncUrl();
+}
+
+async function init() {
+  const [s, g] = await Promise.all([
+    fetch('data/hitori/summary.json').then(r => r.json()),
+    fetch('data/hitori/prefectures_svg.json').then(r => r.json()),
+  ]);
+  SUMMARY = s; GEO = g;
+  for (const p of SUMMARY.prefectures) BY_CODE[p.code] = p;
+  buildLegendRamp();
+  buildMapSvg();
+  bindFilters();
+  restoreFromUrl();
+  applyFilters();
+  if (state.pref) openPrefecture(state.pref);
+  window.__ready = true;
+}
+
+init().catch(err => {
+  // file:// で開くとブラウザが fetch をブロックする。原因が分からないと
+  // ページ側の不具合に見えてしまうので、対処まで書く。
+  const isFile = location.protocol === 'file:';
+  const msg = isFile
+    ? `このページはファイルとして直接開くと動きません。ブラウザが
+       <code>file://</code> からのデータ読み込みをブロックするためです。<br>
+       公開版は <a href="https://yuichi916.github.io/hitori.html">yuichi916.github.io/hitori.html</a> で見られます。<br>
+       手元で確認する場合は、このフォルダで
+       <code>python -m http.server 8000</code> を実行し
+       <code>http://localhost:8000/hitori.html</code> を開いてください。`
+    : `データの読み込みに失敗しました（${escapeHtml(err.message)}）。
+       通信環境を確認して再読み込みしてください。`;
+  document.getElementById('map').outerHTML = `<div class="error">${msg}</div>`;
+  window.__ready = true;
+});
+</script>
+</body>
+</html>

@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\yuich\yuichi916.github.io")
+ROOT = Path(__file__).resolve().parents[1]   # 絶対パス直書きをやめ、スクリプトのあるリポジトリを対象にする
 SITE = "https://yuichi916.github.io"
 SOURCE = ROOT / "sitemap.xml"
 OUT_V2 = ROOT / "sitemap-v2.xml"
