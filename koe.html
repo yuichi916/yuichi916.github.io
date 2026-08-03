@@ -537,7 +537,14 @@ function layoutSprites(){
 function showSprite(who,pos,expr){
   const c=CHARS[who]; if(!c||!c.file) return;
   let s=shown[who];
-  if(!s){ const img=document.createElement('img'); img.className='sprite'; img.alt=c.name;
+  if(!s){
+    /* hideSprite は <img> をフェードのため 500ms 後に消すが、shown からは即座に消す。
+       台本は {hide:'all'} の直後に {show:...} を置き、どちらも止まらない命令なので
+       同じ step() ループで連続実行される。つまり消えかけの古い <img> が残ったまま
+       新しいものが作られ、同じキャラが二重に立つ。立ち絵が無い間は見えなかった。 */
+    const ghosts=el('sprites').querySelectorAll('img[data-who="'+who+'"]');
+    for(let g=0; g<ghosts.length; g++) ghosts[g].remove();
+    const img=document.createElement('img'); img.className='sprite'; img.alt=c.name; img.dataset.who=who;
     /* 立ち絵が404でも進行は止めない。ただし黙って消すと「なぜか誰も出ない」に
        なるので、必ず何が読めなかったかを言う。 */
     img.onerror=()=>{ console.warn('[koe] 立ち絵が読み込めない:', img.getAttribute('src'));
