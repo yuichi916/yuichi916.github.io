@@ -78,7 +78,9 @@ def test_mixed_ratio():
 def test_is_hidden_gem():
     assert hidden.is_hidden_gem({"chain": 0, "hidden": 0.8, "hidden_n": 5})
     assert not hidden.is_hidden_gem({"chain": 1, "hidden": 0.8, "hidden_n": 5})
-    assert not hidden.is_hidden_gem({"chain": 0, "hidden": 0.5, "hidden_n": 5})
+    # 閾値0.4の境界: すぐ下は穴場でなく、閾値ちょうどは穴場
+    assert not hidden.is_hidden_gem({"chain": 0, "hidden": 0.39, "hidden_n": 5})
+    assert hidden.is_hidden_gem({"chain": 0, "hidden": 0.4, "hidden_n": 5})
     assert not hidden.is_hidden_gem({"chain": 0, "hidden": 0.8, "hidden_n": 2})
 
 

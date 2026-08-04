@@ -9,6 +9,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import chains
 import hidden
 import normalize
 import scoring
@@ -68,8 +69,14 @@ def build(raw_by_pref, prefs, curated, updated):
         records = [r for r in (normalize.to_record(el, curated) for el in elements) if r]
         records += manual_records(curated, code)
         records = normalize.dedupe(records)
+        for r in records:
+            r["_pref"] = code
         by_pref[code] = records
         all_records.extend(records)
+
+    # 複数県にまたがる同名店をチェーンへ昇格させる。穴場スコアがchainを
+    # 読むので、これは必ず compute_hidden より前に行う。
+    chains.detect_multi_pref_chains(all_records)
 
     # 穴場は全国の点集合に対して計算する。県別にやると県境で半径500mが切れる。
     hidden.compute_hidden(all_records)
