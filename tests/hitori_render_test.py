@@ -265,26 +265,100 @@ def test_mobile(page):
     page.screenshot(path="C:/tmp/hitori_mobile.png", full_page=True)
 
 
+TOKYO = {"latitude": 35.6812, "longitude": 139.7671}
+
+
+def test_search_with_location(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.goto(BASE)
+    page.wait_for_function("window.__searchReady === true", timeout=30000)
+    assert not errors, f"JSエラー: {errors}"
+
+    n = page.eval_on_selector_all("#search-list li.item", "els => els.length")
+    assert n > 0, "現在地の一覧が空"
+
+    # 近い順に並んでいる
+    d = page.eval_on_selector_all("#search-list li.item", "els => els.map(e => +e.dataset.dist)")
+    assert d == sorted(d), d[:20]
+
+    # 各行に徒歩分と直線距離の両方が出ている
+    first = page.inner_text("#search-list li.item")
+    assert "徒歩" in first and "直線" in first, first
+
+    # 東京にいるので東京都が読まれている
+    assert 13 in page.evaluate("Object.keys(PREF_CACHE).map(Number)")
+
+
+def test_search_distance_filter(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    page.goto(BASE)
+    page.wait_for_function("window.__searchReady === true", timeout=30000)
+    before = page.eval_on_selector_all("#search-list li.item", "els => els.length")
+    page.select_option("#f-dist", "400")
+    page.wait_for_timeout(400)
+    after = page.eval_on_selector_all("#search-list li.item", "els => els.length")
+    assert after < before, f"距離を絞っても減らない ({before} -> {after})"
+    maxd = page.eval_on_selector_all("#search-list li.item", "els => Math.max(...els.map(e => +e.dataset.dist))")
+    assert maxd <= 400, maxd
+
+
+def test_search_quiet_filter(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    page.goto(BASE)
+    page.wait_for_function("window.__searchReady === true", timeout=30000)
+    page.check("#f-quiet")
+    page.wait_for_timeout(400)
+    quiets = page.eval_on_selector_all("#search-list li.item", "els => els.map(e => +e.dataset.quiet)")
+    assert quiets, "静かフィルタで0件になった"
+    assert min(quiets) >= 4, quiets[:20]
+
+
+def test_search_without_location(context, page):
+    # 権限を与えない → 拒否系統
+    context.clear_permissions()
+    page.goto(BASE)
+    page.wait_for_function("window.__searchReady === true", timeout=30000)
+    body = page.inner_text("#panel-search")
+    assert "位置情報" in body, body[:200]
+    # 全国で見るへの導線が出ている
+    assert page.eval_on_selector_all("#panel-search a[href*='tab=nation'], #panel-search button.to-nation",
+                                     "els => els.length") >= 1
+    # 地図と一覧が壊れていない
+    page.click("#tab-nation")
+    page.wait_for_selector("#map path[data-code='13']", timeout=15000)
+    assert page.eval_on_selector_all("#map path[data-code]", "els => els.length") == 47
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
-            page = browser.new_page(viewport={"width": 1280, "height": 900})
+            context = browser.new_context(viewport={"width": 1280, "height": 900})
+            page = context.new_page()
             test_overview(page)
             test_chain_toggle_changes_map(page)
             test_category_filter_changes_map(page)
             test_url_restore(page)
+            test_hashchange_resets_absent_params(page)
             test_tabs(page)
             test_nation_tab_restores_from_url(page)
-            test_hashchange_resets_absent_params(page)
             test_detail(page)
             test_detail_caps_are_disclosed(page)
             test_scatter_frames_the_items(page)
             test_detail_chain_filter(page)
             test_detail_fetch_failure_is_contained(page)
             test_file_protocol_explains_itself(page)
+            test_search_with_location(context, page)
+            test_search_distance_filter(context, page)
+            test_search_quiet_filter(context, page)
+            test_search_without_location(context, page)
             page.goto(BASE)
             page.wait_for_function("window.__ready === true", timeout=15000)
             page.screenshot(path="C:/tmp/hitori_overview.png", full_page=True)

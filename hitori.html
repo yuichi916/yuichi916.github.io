@@ -79,6 +79,22 @@ img, svg, table { max-width: 100%; }
 .pin.conf-0 { fill-opacity: .35; } .pin.conf-1 { fill-opacity: .7; }
 .pin.conf-2 { stroke: #1a202c; stroke-width: .4; }
 
+#search-list { list-style: none; padding: 0; margin: .8rem 0 0; }
+#search-list .item { display: grid; grid-template-columns: 1fr auto; gap: .2rem .8rem;
+                     padding: .7rem 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+#search-list .item:hover { background: rgba(127,127,127,.06); }
+#search-list .nm { font-weight: 600; }
+#search-list .meta, #search-list .dist { color: var(--muted); font-size: .82rem; }
+#search-list .dist { text-align: right; white-space: nowrap; }
+#search-list .badges { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .35rem; }
+.badge-ax { font-size: .72rem; border: 1px solid var(--line); border-radius: 999px;
+            padding: 0 .5rem; color: var(--muted); }
+.badge-gem { border-color: #c05621; color: #c05621; }
+.badge-open { border-color: #2f855a; color: #2f855a; }
+.badge-shut { border-color: var(--line); }
+.more-filters { margin: .6rem 0; font-size: .85rem; color: var(--muted); }
+.placeholder { color: var(--muted); }
+
 @media (max-width: 720px) {
   .board { grid-template-columns: 1fr; }
   #legend { position: static; width: auto; max-width: none; }
@@ -103,7 +119,36 @@ img, svg, table { max-width: 100%; }
   </nav>
 
   <section id="panel-search" role="tabpanel">
-    <p class="placeholder">（Task 11 で実装）</p>
+    <div class="filters">
+      <fieldset><legend>カテゴリ</legend>
+        <label><input type="checkbox" id="s-cat-bath" checked> 湯・サウナ</label>
+        <label><input type="checkbox" id="s-cat-eat"  checked> カウンター飲食</label>
+        <label><input type="checkbox" id="s-cat-play" checked> ひとり娯楽</label>
+        <label><input type="checkbox" id="s-cat-stay" checked> ひとり滞在</label>
+      </fieldset>
+      <fieldset><legend>距離</legend>
+        <select id="f-dist">
+          <option value="400">徒歩5分（直線400m）</option>
+          <option value="800" selected>徒歩10分（直線800m）</option>
+          <option value="1600">徒歩20分（直線1.6km）</option>
+          <option value="">指定なし</option>
+        </select>
+      </fieldset>
+      <fieldset><legend>ひとり条件</legend>
+        <label><input type="checkbox" id="f-solo"> 一人が標準のみ</label>
+        <label><input type="checkbox" id="f-quiet"> 静かなところ</label>
+        <label><input type="checkbox" id="f-easy"> 作法不要</label>
+      </fieldset>
+    </div>
+    <details class="more-filters">
+      <summary>その他の条件</summary>
+      <label><input type="checkbox" id="f-hours"> 営業時間が分かる店だけ</label>
+      <small id="hours-note"></small>
+      <label><input type="checkbox" id="f-verified"> 出典で確認済みの店だけ</label>
+      <small>現状ほぼすべてが業態からの推定です</small>
+    </details>
+    <p id="search-status" class="counts"></p>
+    <ol id="search-list" class="items"></ol>
   </section>
 
   <section id="panel-nation" role="tabpanel" hidden>
@@ -155,10 +200,39 @@ img, svg, table { max-width: 100%; }
   </footer>
 </main>
 
+<script>
+// file:// で開くと、type="module" 内の `import ... from './assets/hitori/core.js'`
+// が CORS でブロックされ、module スクリプトは丸ごと実行されない
+// （init() の catch にも届かない）。この classic script は import を持たないので
+// file:// でも実行できる。module が動かない場合の案内をここで先に出しておく。
+if (location.protocol === 'file:') {
+  document.getElementById('map').outerHTML = `<div class="error">
+    このページはファイルとして直接開くと動きません。ブラウザが
+    <code>file://</code> からのデータ読み込みをブロックするためです。<br>
+    公開版は <a href="https://yuichi916.github.io/hitori.html">yuichi916.github.io/hitori.html</a> で見られます。<br>
+    手元で確認する場合は、このフォルダで
+    <code>python -m http.server 8000</code> を実行し
+    <code>http://localhost:8000/hitori.html</code> を開いてください。</div>`;
+  document.getElementById('panel-search').hidden = true;
+  document.getElementById('panel-nation').hidden = false;
+  document.getElementById('tab-search').setAttribute('aria-selected', 'false');
+  document.getElementById('tab-nation').setAttribute('aria-selected', 'true');
+  window.__ready = true;
+  window.__searchReady = true;
+}
+</script>
 <script type="module">
+import * as core from './assets/hitori/core.js';
 const CATS = ['bath', 'eat', 'play', 'stay'];
 const CAT_JA = { bath: '湯・サウナ', eat: 'カウンター飲食', play: 'ひとり娯楽', stay: 'ひとり滞在' };
-const state = { tab: 'search', cats: new Set(CATS), nochain: false, minConf: 0, pref: null };
+const state = {
+  tab: 'search', pref: null,
+  cats: new Set(CATS), nochain: false, minConf: 0,   // 全国タブ用
+  here: null,
+  search: { cats: new Set(CATS), maxDistM: 800, minSolo: 0, minQuiet: 0, minEasy: 0,
+            minConf: 0, requireHours: false },
+};
+let NEIGHBORS = null;
 let SUMMARY = null, GEO = null;
 const BY_CODE = {};
 
@@ -299,6 +373,173 @@ function visibleItems(doc) {
     .filter(it => state.cats.has(it.cat))
     .filter(it => !(state.nochain && it.chain === 1))
     .filter(it => it.conf >= state.minConf);
+}
+
+// ---- 探すタブ（現在地から近い順） ----
+
+const GEM_MIN_HIDDEN = 0.6;
+const GEM_MIN_N = 3;
+
+function isGem(it) {
+  return it.chain === 0 && it.hidden_n >= GEM_MIN_N && it.hidden >= GEM_MIN_HIDDEN;
+}
+
+function collectItems(codes) {
+  const out = [];
+  for (const c of codes) {
+    const doc = PREF_CACHE[c];
+    if (doc) out.push(...core.rowsToObjects(doc));
+  }
+  return out;
+}
+
+function currentSearchResults() {
+  if (!state.here) return [];
+  const loaded = Object.keys(PREF_CACHE).map(Number);
+  const withD = core.withDistance(collectItems(loaded), state.here.lat, state.here.lon);
+  return core.sortByDistance(core.filterItems(withD, state.search));
+}
+
+function renderSearchList() {
+  const items = currentSearchResults();
+  const list = document.getElementById('search-list');
+  const status = document.getElementById('search-status');
+
+  if (!items.length) {
+    list.innerHTML = '';
+    status.innerHTML = state.search.maxDistM
+      ? `この条件に該当する施設はありませんでした。<button type="button" class="widen">距離を広げる</button>`
+      : 'この条件に該当する施設はありませんでした。';
+    const w = status.querySelector('.widen');
+    if (w) w.addEventListener('click', () => {
+      document.getElementById('f-dist').value = '';
+      state.search.maxDistM = null;
+      renderSearchList();
+    });
+    return;
+  }
+
+  const failed = [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
+  status.textContent = `${items.length.toLocaleString()} 件`
+    + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
+  const now = new Date();
+  list.innerHTML = items.slice(0, 200).map(it => {
+    const st = core.openState(it.oh, now);
+    const openBadge = st === 'open' ? '<span class="badge-ax badge-open">営業中</span>'
+      : st === 'closed' ? '<span class="badge-ax badge-shut">営業時間外</span>'
+      : '<span class="badge-ax">営業時間不明</span>';
+    const m = core.walkMinutes(it.distM);
+    const dist = it.distM >= 1000 ? `直線${(it.distM / 1000).toFixed(1)}km` : `直線${Math.round(it.distM)}m`;
+    return `<li class="item" data-id="${it.id}" data-dist="${Math.round(it.distM)}"
+              data-quiet="${it.quiet}" data-solo="${it.solo}" tabindex="0">
+      <span class="nm">${escapeHtml(it.name)}</span>
+      <span class="dist">徒歩${m}分<br><small>${dist} ${core.bearing8(state.here.lat, state.here.lon, it.lat, it.lon)}</small></span>
+      <span class="meta">${KIND_JA[it.kind] || it.kind}</span>
+      <span class="badges">
+        <span class="badge-ax">ひとり度${it.solo}</span>
+        <span class="badge-ax">静けさ${it.quiet}</span>
+        <span class="badge-ax">入りやすさ${it.easy}</span>
+        ${openBadge}
+        ${it.chain ? '<span class="badge-ax">チェーン</span>' : ''}
+        ${isGem(it) ? `<span class="badge-ax badge-gem">穴場 ${Math.round(it.hidden * 100)}%</span>` : ''}
+      </span>
+    </li>`;
+  }).join('');
+}
+
+const FAILED_PREFS = new Set();
+
+async function loadPrefIntoCache(code) {
+  try {
+    await loadPrefecture(code);
+    FAILED_PREFS.delete(code);
+    return true;
+  } catch (err) {
+    // spec §9: その県だけエラー表示し、取得できた県の結果は出す。
+    // 黙って落とすと「その県には何も無い」と読めてしまう。
+    FAILED_PREFS.add(code);
+    return false;
+  }
+}
+
+async function locateAndSearch() {
+  const status = document.getElementById('search-status');
+  if (!navigator.geolocation) {
+    showLocationFallback('この端末では位置情報を利用できません。');
+    return;
+  }
+  status.textContent = '現在地を取得しています…';
+
+  let pos;
+  try {
+    pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+    });
+  } catch (err) {
+    showLocationFallback('位置情報が取得できませんでした。');
+    return;
+  }
+
+  const lat = pos.coords.latitude, lon = pos.coords.longitude;
+  if (lat < 20 || lat > 46 || lon < 122 || lon > 154) {
+    showLocationFallback('日本国内のみ対応しています。');
+    return;
+  }
+  state.here = { lat, lon };
+
+  const code = core.prefectureAt(lat, lon, GEO);
+  status.textContent = `${BY_CODE[code].name} の施設を読み込んでいます…`;
+
+  // 自県を先に描画する。隣接県は後から差し込む。
+  await loadPrefIntoCache(code);
+  renderSearchList();
+  window.__searchReady = true;
+
+  const neighbors = (NEIGHBORS && NEIGHBORS[String(code)]) || [];
+  for (const n of neighbors) {
+    if (await loadPrefIntoCache(n)) renderSearchList();
+  }
+}
+
+function showLocationFallback(reason) {
+  document.getElementById('search-list').innerHTML = '';
+  document.getElementById('search-status').innerHTML =
+    `${escapeHtml(reason)}位置情報を許可すると、現在地から近い順に探せます。<br>
+     <button type="button" class="to-nation">全国で見る</button>`;
+  document.querySelector('#search-status .to-nation')
+    .addEventListener('click', () => switchTab('nation'));
+  window.__searchReady = true;
+}
+
+function bindSearchFilters() {
+  for (const c of CATS) {
+    document.getElementById('s-cat-' + c).addEventListener('change', e => {
+      if (e.target.checked) state.search.cats.add(c); else state.search.cats.delete(c);
+      renderSearchList();
+    });
+  }
+  document.getElementById('f-dist').addEventListener('change', e => {
+    state.search.maxDistM = e.target.value ? +e.target.value : null;
+    renderSearchList();
+  });
+  document.getElementById('f-solo').addEventListener('change', e => {
+    state.search.minSolo = e.target.checked ? 5 : 0; renderSearchList();
+  });
+  document.getElementById('f-quiet').addEventListener('change', e => {
+    state.search.minQuiet = e.target.checked ? 4 : 0; renderSearchList();
+  });
+  document.getElementById('f-easy').addEventListener('change', e => {
+    state.search.minEasy = e.target.checked ? 4 : 0; renderSearchList();
+  });
+  document.getElementById('f-verified').addEventListener('change', e => {
+    state.search.minConf = e.target.checked ? 1 : 0; renderSearchList();
+  });
+  document.getElementById('f-hours').addEventListener('change', e => {
+    state.search.requireHours = e.target.checked;
+    document.getElementById('hours-note').textContent = e.target.checked
+      ? '営業時間が登録されているのは全体の約17%です' : '';
+    renderSearchList();
+  });
 }
 
 function toXY(lat, lon) {
@@ -522,11 +763,12 @@ function closePrefecture() {
 }
 
 async function init() {
-  const [s, g] = await Promise.all([
+  const [s, g, nb] = await Promise.all([
     fetch('data/hitori/summary.json').then(r => r.json()),
     fetch('data/hitori/prefectures_svg.json').then(r => r.json()),
+    fetch('data/hitori/neighbors.json').then(r => r.json()),
   ]);
-  SUMMARY = s; GEO = g;
+  SUMMARY = s; GEO = g; NEIGHBORS = nb;
   for (const p of SUMMARY.prefectures) BY_CODE[p.code] = p;
   buildLegendRamp();
   buildMapSvg();
@@ -535,6 +777,8 @@ async function init() {
   applyFilters();
   switchTab(state.tab);
   if (state.pref) openPrefecture(state.pref);
+  bindSearchFilters();
+  if (state.tab === 'search') locateAndSearch();
   window.__ready = true;
 }
 
@@ -562,6 +806,7 @@ init().catch(err => {
   // 表示されたままだと黙って隠れてしまうため、エラー時はそちらへ切り替える。
   switchTab('nation');
   window.__ready = true;
+  window.__searchReady = true;
 });
 </script>
 </body>
