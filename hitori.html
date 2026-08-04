@@ -6,6 +6,8 @@
 <title>ひとり歓迎マップ | ひとりが標準の店だけを集めた日本地図</title>
 <meta name="description" content="黙浴サウナ、カウンター飲食、ヒトカラ、図書館。ひとりでも行ける店ではなく、ひとりが標準の店だけを都道府県別に可視化した日本地図。">
 <link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
 :root {
   --bg: #ffffff; --fg: #1a202c; --line: #cbd5e1; --muted: #64748b;
@@ -95,6 +97,10 @@ img, svg, table { max-width: 100%; }
 .more-filters { margin: .6rem 0; font-size: .85rem; color: var(--muted); }
 .placeholder { color: var(--muted); }
 
+#facility-map { width: 100%; height: 220px; border-radius: 8px; overflow: hidden;
+                margin: .8rem 0; background: #eef2f6; }
+#facility-map .maplibregl-ctrl-attrib { font-size: 10px; }
+.map-credit { font-size: .75rem; color: var(--muted); margin: -.4rem 0 .4rem; }
 #facility { position: fixed; inset: auto 0 0 0; max-height: 80vh; overflow-y: auto;
             background: var(--bg); border-top: 2px solid var(--line);
             border-radius: 12px 12px 0 0; padding: 1.2rem 1rem 2rem;
@@ -214,7 +220,7 @@ img, svg, table { max-width: 100%; }
 
   <footer>
     <p class="disclaimer">この分類は OpenStreetMap のタグと業態から機械的に推定したものです。実際の座席形態や黙浴の有無を保証するものではありません。</p>
-    <p class="credits">地図データ: 地球地図日本（国土地理院） / 施設データ: © OpenStreetMap contributors (ODbL) / 人口: Wikidata (CC0) / 令和2年国勢調査</p>
+    <p class="credits">地図データ: 地球地図日本（国土地理院） / 地図タイル: 地理院タイル（国土地理院） / 施設データ: © OpenStreetMap contributors (ODbL) / 人口: Wikidata (CC0) / 令和2年国勢調査</p>
   </footer>
 
   <section id="facility" hidden aria-live="polite"></section>
@@ -526,11 +532,50 @@ function openFacility(id) {
   renderFacilityMap(it);   // Task 13 で実装。ここでは空関数でよい。
 }
 
+let _facilityMap = null;
+
+// 地理院タイル（国土地理院）。APIキー不要・無料。出典明記のみで利用できる。
+// 淡色地図を使う。標準地図は色が強く、施設ピンが埋もれる。
+const GSI_TILE = 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png';
+const GSI_ATTR = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル（国土地理院）</a>';
+
 function closeFacility() {
+  if (_facilityMap) { _facilityMap.remove(); _facilityMap = null; }
   document.getElementById('facility').hidden = true;
 }
 
-function renderFacilityMap(it) { /* Task 13 で実装 */ }
+function renderFacilityMap(it) {
+  const el = document.getElementById('facility-map');
+  if (!el || typeof maplibregl === 'undefined') {
+    if (el) el.innerHTML = `<p class="map-credit">地図を表示できませんでした。${GSI_ATTR}</p>`;
+    return;
+  }
+
+  if (_facilityMap) { _facilityMap.remove(); _facilityMap = null; }
+
+  _facilityMap = new maplibregl.Map({
+    container: el,
+    style: {
+      version: 8,
+      sources: { gsi: { type: 'raster', tiles: [GSI_TILE], tileSize: 256, attribution: GSI_ATTR } },
+      layers: [{ id: 'gsi', type: 'raster', source: 'gsi' }],
+    },
+    center: [it.lon, it.lat],
+    zoom: 16,
+    attributionControl: { compact: false },
+  });
+  _facilityMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+  new maplibregl.Marker({ color: '#c05621' }).setLngLat([it.lon, it.lat]).addTo(_facilityMap);
+  if (state.here) {
+    new maplibregl.Marker({ color: '#2b5f96' })
+      .setLngLat([state.here.lon, state.here.lat]).addTo(_facilityMap);
+    // 現在地と施設の両方が入るように寄せる
+    const b = new maplibregl.LngLatBounds([it.lon, it.lat], [it.lon, it.lat]);
+    b.extend([state.here.lon, state.here.lat]);
+    _facilityMap.fitBounds(b, { padding: 48, maxZoom: 17, duration: 0 });
+  }
+}
 
 const FAILED_PREFS = new Set();
 

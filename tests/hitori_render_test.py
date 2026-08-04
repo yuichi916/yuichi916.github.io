@@ -364,6 +364,50 @@ def test_facility_shows_gem_reason(context, page):
     assert "周辺" in reason and "チェーン" in reason, reason
 
 
+def test_facility_map(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    page.add_init_script("""
+      window.__tileHosts = [];
+      // MapLibre GL 4.7.1 はタイル取得を fetch(new Request(url, opts)) で行う
+      // （素の文字列URLではない）。Request を new URL() にそのまま渡すと
+      // toString() が "[object Request]" になり host を取り違えるため、
+      // .url を持つオブジェクトはそちらを優先して読む。
+      const toUrl = u => (u && typeof u === 'object' && u.url) ? u.url : u;
+      const _f = window.fetch;
+      window.fetch = function (u, ...rest) {
+        try { window.__tileHosts.push(new URL(toUrl(u), location.href).host); } catch (e) {}
+        return _f.call(this, u, ...rest);
+      };
+      const _open = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function (m, u, ...rest) {
+        try { window.__tileHosts.push(new URL(toUrl(u), location.href).host); } catch (e) {}
+        return _open.call(this, m, u, ...rest);
+      };
+    """)
+    page.goto(BASE)
+    page.wait_for_function("window.__searchReady === true", timeout=30000)
+    page.click("#search-list li.item")
+    page.wait_for_selector("#facility-map canvas", timeout=20000)
+    # canvas は Map 生成直後に同期で現れるが、タイルの fetch() はスタイル読込
+    # 後の非同期タイミングで発火する。canvas 出現直後に __tileHosts を読むと
+    # 発火前に読んでしまうことがあるため、実際に来るまで待つ。
+    page.wait_for_function(
+        "(window.__tileHosts || []).some(h => h.includes('gsi.go.jp'))", timeout=15000)
+
+    # 地理院タイルを実際に取りに行っていること
+    reqs = page.evaluate("window.__tileHosts || []")
+    assert any("cyberjapandata.gsi.go.jp" in h for h in reqs), reqs
+
+    # 出典が出ている
+    body = page.inner_text("#facility")
+    assert "地理院タイル" in body, body[:300]
+
+    # 施設と現在地の2つのマーカー
+    n = page.eval_on_selector_all("#facility-map .maplibregl-marker", "els => els.length")
+    assert n == 2, f"マーカーが {n} 個"
+
+
 def test_search_without_location(context, page):
     # 権限を与えない → 拒否系統
     context.clear_permissions()
@@ -480,6 +524,7 @@ def main():
             test_search_quiet_filter(context, page)
             test_facility_sheet(context, page)
             test_facility_shows_gem_reason(context, page)
+            test_facility_map(context, page)
             test_search_without_location(context, page)
             test_search_retry_after_permission_denied(context, page)
             test_search_prefecture_fetch_failure_surfaces(context, page)
