@@ -28,16 +28,15 @@ def test_distance_m():
 
 def test_to_record_node():
     el = {"type": "node", "id": 1, "lat": 35.65894, "lon": 139.70043,
-          "tags": {"amenity": "restaurant", "name": "一蘭 渋谷店", "cuisine": "ramen"}}
+          "tags": {"amenity": "restaurant", "name": "一蘭 渋谷店", "cuisine": "ramen",
+                   "addr:city": "渋谷区", "opening_hours": "11:00-23:00"}}
     r = normalize.to_record(el, {})
     assert r["id"] == "n1"
-    assert r["name"] == "一蘭 渋谷店"
     assert r["cat"] == "eat" and r["kind"] == "ramen"
-    assert r["score"] == 5           # base4 + SOLO_BRANDS加点
-    assert r["chain"] == 1           # CHAIN_BRANDS一致
-    assert r["conf"] == 0
-    assert r["note"] == ""
-    assert r["lat"] == 35.65894 and r["lon"] == 139.70043
+    assert r["solo"] == 5 and r["quiet"] == 4 and r["easy"] == 3
+    assert r["chain"] == 1 and r["conf"] == 0
+    assert r["city"] == "渋谷区" and r["oh"] == "11:00-23:00"
+    assert r["hidden"] == 0.0 and r["hidden_n"] == 0
 
 
 def test_to_record_way_uses_center():
@@ -45,7 +44,7 @@ def test_to_record_way_uses_center():
           "tags": {"amenity": "public_bath", "name": "はやし湯"}}
     r = normalize.to_record(el, {})
     assert r["lat"] == 35.1 and r["lon"] == 139.2
-    assert r["cat"] == "bath" and r["kind"] == "sento" and r["score"] == 4
+    assert r["cat"] == "bath" and r["kind"] == "sento" and r["solo"] == 4
     assert r["chain"] == 0
 
 
@@ -70,6 +69,23 @@ def test_to_record_rejects():
         {"type": "way", "id": 6, "tags": {"amenity": "library", "name": "○○図書館"}}, {}) is None
 
 
+def test_to_record_drops_low_solo():
+    # spec §5 の収録条件。solo が3を割ったら収録しない。
+    # v1 ではこの条件が強制されておらず、否定エビデンスの付いた施設が残っていた。
+    el = {"type": "node", "id": 8, "lat": 35.0, "lon": 139.0,
+          "tags": {"tourism": "hostel", "name": "○○ゲストハウス"}}   # 業態ベース solo=3
+    assert normalize.to_record(el, {}) is not None
+
+    neg = {"n8": {"evidence": [{"src": "user", "checked": "2026-08-01", "polarity": "-"}]}}
+    assert normalize.to_record(el, neg) is None, "solo=2 の施設が収録されている"
+
+    # curated で明示的に下げた場合も同じ
+    assert normalize.to_record(el, {"n8": {"solo": 1}}) is None
+
+    # solo=3 ちょうどは収録する（境界）
+    assert normalize.to_record(el, {"n8": {"solo": 3}}) is not None
+
+
 def test_to_record_curated():
     el = {"type": "node", "id": 7, "lat": 35.0, "lon": 139.0,
           "tags": {"amenity": "public_bath", "name": "はやし湯"}}
@@ -79,7 +95,7 @@ def test_to_record_curated():
         "evidence": [{"src": "user", "id": "gh-issue-42", "checked": "2026-08-01", "polarity": "+"}],
     }}
     r = normalize.to_record(el, curated)
-    assert r["score"] == 5      # base4 + 肯定エビデンス
+    assert r["solo"] == 5      # base4 + 肯定エビデンス
     assert r["conf"] == 2       # user 由来
     assert r["chain"] == 1      # curated の明示指定
     assert r["note"] == "黙浴の掲示あり"
@@ -90,13 +106,13 @@ def test_to_record_curated():
 
 def test_dedupe():
     a = {"id": "n1", "name": "はやし湯", "lat": 35.00000, "lon": 139.00000,
-         "cat": "bath", "kind": "sento", "score": 4, "conf": 0, "chain": 0, "note": ""}
+         "cat": "bath", "kind": "sento", "solo": 4, "quiet": 4, "easy": 3, "conf": 0, "chain": 0, "note": ""}
     b = {"id": "w2", "name": "はやし湯", "lat": 35.00010, "lon": 139.00010,
-         "cat": "bath", "kind": "sento", "score": 4, "conf": 0, "chain": 0, "note": ""}
+         "cat": "bath", "kind": "sento", "solo": 4, "quiet": 4, "easy": 3, "conf": 0, "chain": 0, "note": ""}
     c = {"id": "n3", "name": "はやし湯", "lat": 35.50000, "lon": 139.00000,
-         "cat": "bath", "kind": "sento", "score": 4, "conf": 0, "chain": 0, "note": ""}
+         "cat": "bath", "kind": "sento", "solo": 4, "quiet": 4, "easy": 3, "conf": 0, "chain": 0, "note": ""}
     d = {"id": "n4", "name": "べつの湯", "lat": 35.00000, "lon": 139.00000,
-         "cat": "bath", "kind": "sento", "score": 4, "conf": 0, "chain": 0, "note": ""}
+         "cat": "bath", "kind": "sento", "solo": 4, "quiet": 4, "easy": 3, "conf": 0, "chain": 0, "note": ""}
 
     out = normalize.dedupe([a, b, c, d])
     ids = sorted(r["id"] for r in out)
@@ -113,6 +129,7 @@ def main():
     test_to_record_way_uses_center()
     test_to_record_rounds_coords()
     test_to_record_rejects()
+    test_to_record_drops_low_solo()
     test_to_record_curated()
     test_dedupe()
     print("OK: normalize")
