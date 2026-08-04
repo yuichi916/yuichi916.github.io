@@ -95,6 +95,24 @@ img, svg, table { max-width: 100%; }
 .more-filters { margin: .6rem 0; font-size: .85rem; color: var(--muted); }
 .placeholder { color: var(--muted); }
 
+#facility { position: fixed; inset: auto 0 0 0; max-height: 80vh; overflow-y: auto;
+            background: var(--bg); border-top: 2px solid var(--line);
+            border-radius: 12px 12px 0 0; padding: 1.2rem 1rem 2rem;
+            box-shadow: 0 -4px 24px rgba(0,0,0,.2); z-index: 40; }
+#facility h3 { margin: 0 .5rem 0 0; font-size: 1.2rem; }
+#facility .close { position: absolute; right: 1rem; top: 1rem; background: none;
+                   border: 1px solid var(--line); border-radius: 6px; color: var(--fg);
+                   cursor: pointer; font-size: 1.1rem; line-height: 1; padding: .2rem .5rem; }
+#facility dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .9rem; margin: .8rem 0; }
+#facility dt { color: var(--muted); font-size: .85rem; }
+#facility dd { margin: 0; }
+#facility .gem-reason { color: #c05621; font-size: .85rem; }
+#facility .to-maps { display: inline-block; margin-top: .8rem; }
+@media (min-width: 721px) {
+  #facility { inset: auto auto 1.5rem 50%; transform: translateX(-50%);
+              width: min(560px, 92vw); border-radius: 12px; border: 1px solid var(--line); }
+}
+
 @media (max-width: 720px) {
   .board { grid-template-columns: 1fr; }
   #legend { position: static; width: auto; max-width: none; }
@@ -198,6 +216,8 @@ img, svg, table { max-width: 100%; }
     <p class="disclaimer">この分類は OpenStreetMap のタグと業態から機械的に推定したものです。実際の座席形態や黙浴の有無を保証するものではありません。</p>
     <p class="credits">地図データ: 地球地図日本（国土地理院） / 施設データ: © OpenStreetMap contributors (ODbL) / 人口: Wikidata (CC0) / 令和2年国勢調査</p>
   </footer>
+
+  <section id="facility" hidden aria-live="polite"></section>
 </main>
 
 <script>
@@ -393,7 +413,7 @@ function collectItems(codes) {
   const out = [];
   for (const c of codes) {
     const doc = PREF_CACHE[c];
-    if (doc) out.push(...core.rowsToObjects(doc));
+    if (doc) for (const o of core.rowsToObjects(doc)) out.push({ ...o, prefCode: c });
   }
   return out;
 }
@@ -460,6 +480,58 @@ function renderSearchList() {
   }).join('');
 }
 
+const AX_LABEL = {
+  solo: ['', '', '一人でも浮かない', '一人でも浮かない', '一人が多数', '一人が標準'],
+  quiet: ['', '', '声を出す場', '', '静か寄り', '会話が発生しない'],
+  easy: ['', '', '常連文化・暗黙の作法', '軽い作法あり', 'ほぼ作法不要', '作法不要'],
+};
+
+function mapsUrl(it) {
+  // 座標だけを渡すと無名のピンが立つだけで店の情報に着かない。店名で検索させる。
+  // 市区町村を足すのは同名店の誤爆を減らすため。無ければ都道府県名で代用する。
+  const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
+  const q = [it.name, where].filter(Boolean).join(' ');
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+}
+
+function openFacility(id) {
+  const it = currentSearchResults().find(x => x.id === id);
+  if (!it) return;
+  const el = document.getElementById('facility');
+  const st = core.openState(it.oh, new Date());
+  const hours = it.oh
+    ? `${escapeHtml(it.oh)}（${st === 'open' ? '営業中' : st === 'closed' ? '営業時間外' : '解釈できない書式'}）`
+    : '営業時間不明';
+  const dist = it.distM >= 1000 ? `${(it.distM / 1000).toFixed(1)}km` : `${Math.round(it.distM)}m`;
+
+  el.hidden = false;
+  el.innerHTML = `
+    <button type="button" class="close" aria-label="閉じる">×</button>
+    <h3>${escapeHtml(it.name)}</h3>
+    <p class="meta">${KIND_JA[it.kind] || it.kind}${it.city ? ' · ' + escapeHtml(it.city) : ''}</p>
+    <dl>
+      <dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.here.lat, state.here.lon, it.lat, it.lon)}）</dd>
+      <dt>ひとり度</dt><dd>${it.solo} — ${AX_LABEL.solo[it.solo]}</dd>
+      <dt>静けさ</dt><dd>${it.quiet} — ${AX_LABEL.quiet[it.quiet]}</dd>
+      <dt>入りやすさ</dt><dd>${it.easy} — ${AX_LABEL.easy[it.easy]}</dd>
+      <dt>営業時間</dt><dd>${hours}</dd>
+      ${it.tel ? `<dt>電話</dt><dd><a href="tel:${escapeHtml(it.tel)}">${escapeHtml(it.tel)}</a></dd>` : ''}
+      ${it.web ? `<dt>サイト</dt><dd><a href="${escapeHtml(it.web)}" target="_blank" rel="noopener">公式サイト</a></dd>` : ''}
+    </dl>
+    ${isGem(it) ? `<p class="gem-reason">穴場度 ${Math.round(it.hidden * 100)}%（周辺${it.hidden_n}件中${Math.round(it.hidden * it.hidden_n)}件がチェーン）</p>` : ''}
+    ${it.note ? `<p class="note">${escapeHtml(it.note)}</p>` : ''}
+    <div id="facility-map"></div>
+    <a class="to-maps" href="${mapsUrl(it)}" target="_blank" rel="noopener">経路を調べる（Googleマップ）</a>`;
+  el.querySelector('.close').addEventListener('click', closeFacility);
+  renderFacilityMap(it);   // Task 13 で実装。ここでは空関数でよい。
+}
+
+function closeFacility() {
+  document.getElementById('facility').hidden = true;
+}
+
+function renderFacilityMap(it) { /* Task 13 で実装 */ }
+
 const FAILED_PREFS = new Set();
 
 async function loadPrefIntoCache(code) {
@@ -524,7 +596,15 @@ function showLocationFallback(reason) {
   document.getElementById('search-list').innerHTML = '';
   document.getElementById('search-status').innerHTML =
     `${escapeHtml(reason)}位置情報を許可すると、現在地から近い順に探せます。<br>
+     <button type="button" class="retry-location">再試行</button>
      <button type="button" class="to-nation">全国で見る</button>`;
+  document.querySelector('#search-status .retry-location')
+    .addEventListener('click', () => {
+      // searchStarted は初回到達時に一度きり立てる番人のため、拒否後に
+      // 許可し直しても自動では戻れない。ここで番人を下ろして再実行する。
+      searchStarted = false;
+      ensureSearchStarted();
+    });
   document.querySelector('#search-status .to-nation')
     .addEventListener('click', () => switchTab('nation'));
   window.__searchReady = true;
@@ -795,9 +875,20 @@ async function init() {
   restoreFromUrl();
   applyFilters();
   bindSearchFilters();
+  document.getElementById('search-list').addEventListener('click', e => {
+    const li = e.target.closest('li.item');
+    if (li) openFacility(li.dataset.id);
+  });
+  document.getElementById('search-list').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const li = e.target.closest('li.item');
+    if (li) { e.preventDefault(); openFacility(li.dataset.id); }
+  });
   switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
   if (state.pref) openPrefecture(state.pref);
   window.__ready = true;
+  // 描画テストから触るために公開する
+  Object.assign(window, { state, core, PREF_CACHE, currentSearchResults, isGem, openFacility });
 }
 
 // module scriptはトップレベル宣言がモジュールスコープに閉じ、window の

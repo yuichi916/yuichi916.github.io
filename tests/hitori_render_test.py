@@ -318,6 +318,52 @@ def test_search_quiet_filter(context, page):
     assert min(quiets) >= 4, quiets[:20]
 
 
+def test_facility_sheet(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    page.goto(BASE)
+    page.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    page.click("#search-list li.item")
+    page.wait_for_selector("#facility[open], #facility:not([hidden])", timeout=10000)
+
+    body = page.inner_text("#facility")
+    assert "徒歩" in body and "直線" in body
+    for label in ("ひとり度", "静けさ", "入りやすさ"):
+        assert label in body, f"{label} が詳細に無い: {body[:300]}"
+
+    # Google マップのリンクは座標ではなく店名で検索する
+    href = page.get_attribute("#facility a.to-maps", "href")
+    assert "google.com/maps" in href
+    name = page.inner_text("#facility h3")
+    from urllib.parse import unquote
+    assert name.split()[0] in unquote(href), f"店名がクエリに入っていない: {href}"
+    import re
+    assert not re.search(r"query=3[0-9]\.\d+,1[0-9]{2}\.\d+", href), f"座標クエリのまま: {href}"
+
+    # 閉じられる
+    page.click("#facility .close")
+    page.wait_for_timeout(200)
+    assert page.eval_on_selector("#facility", "el => el.hidden") is True
+
+
+def test_facility_shows_gem_reason(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    page.goto(BASE + "#tab=search")
+    page.wait_for_function("window.__searchReady === true", timeout=30000)
+    # 穴場が1件でもあれば、その理由が数字で出ていること
+    gem = page.evaluate("""
+      () => { const r = currentSearchResults().find(isGem); return r ? r.id : null; }
+    """)
+    if not gem:
+        return   # この地点に穴場が無いのは異常ではない
+    page.evaluate(f"openFacility({gem!r})")
+    page.wait_for_selector("#facility .gem-reason", timeout=10000)
+    reason = page.inner_text("#facility .gem-reason")
+    assert "周辺" in reason and "チェーン" in reason, reason
+
+
 def test_search_without_location(context, page):
     # 権限を与えない → 拒否系統
     context.clear_permissions()
@@ -332,6 +378,32 @@ def test_search_without_location(context, page):
     page.click("#tab-nation")
     page.wait_for_selector("#map path[data-code='13']", timeout=15000)
     assert page.eval_on_selector_all("#map path[data-code]", "els => els.length") == 47
+
+
+def test_search_retry_after_permission_denied(context, page):
+    """権限拒否後に再試行ボタンで検索をやり直せる。
+
+    searchStarted は初回到達時に一度だけ立つ番人で、拒否/失敗後も戻らない
+    ため、拒否後にブラウザ側で許可を出し直しても再読み込みしない限り
+    一覧に戻れなかった。再試行ボタンが番人を下ろして locateAndSearch() を
+    やり直すことを確認する。新しいページで開き、直前のテストのモジュール
+    状態（searchStarted 等）を引きずらないようにする。
+    """
+    context.clear_permissions()
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    body = p.inner_text("#panel-search")
+    assert "位置情報" in body, body[:200]
+    assert p.eval_on_selector_all("#search-status button.retry-location", "els => els.length") == 1
+
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p.click("#search-status button.retry-location")
+    p.wait_for_selector("#search-list li.item", timeout=30000)
+    n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
+    assert n > 0, "再試行しても一覧が populate されない"
+    p.close()
 
 
 def test_search_prefecture_fetch_failure_surfaces(context, page):
@@ -406,7 +478,10 @@ def main():
             test_search_with_location(context, page)
             test_search_distance_filter(context, page)
             test_search_quiet_filter(context, page)
+            test_facility_sheet(context, page)
+            test_facility_shows_gem_reason(context, page)
             test_search_without_location(context, page)
+            test_search_retry_after_permission_denied(context, page)
             test_search_prefecture_fetch_failure_surfaces(context, page)
             test_search_starts_on_first_tab_entry(context, page)
             page.goto(BASE)
