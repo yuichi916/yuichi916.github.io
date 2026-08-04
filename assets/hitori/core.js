@@ -72,6 +72,18 @@ function _parseSpans(part) {
   return out.length ? out : null;
 }
 
+const _OFF_RE = /^([A-Za-z][A-Za-z,\- ]*?)\s+off$/i;
+
+// OSM の通常ルールは後方が前方を上書きする。指定曜日を、既に積んだ各ルールの
+// days から取り除き、空になったルールは捨てる（off はここで曜日だけ消して終わり）。
+function _applyOverride(rules, days) {
+  const remove = new Set(days);
+  for (let i = rules.length - 1; i >= 0; i--) {
+    rules[i].days = rules[i].days.filter(d => !remove.has(d));
+    if (rules[i].days.length === 0) rules.splice(i, 1);
+  }
+}
+
 export function parseOpeningHours(str) {
   if (!str) return null;
   const src = String(str).trim();
@@ -83,15 +95,21 @@ export function parseOpeningHours(str) {
   for (const chunk of src.split(';')) {
     const rule = chunk.trim();
     if (!rule) continue;
-    const m = rule.match(_RULE_RE);
-    if (!m) {
-      // 「その曜日は休み」はルール不在と同義なので落としてよい
-      if (/\boff\b/i.test(rule)) continue;
-      return null;
+
+    const offM = rule.match(_OFF_RE);
+    if (offM) {
+      const days = _parseDays(offM[1]);
+      if (!days) return null;
+      _applyOverride(rules, days);  // 休みとして前方ルールを上書き。ルール自体は追加しない
+      continue;
     }
+
+    const m = rule.match(_RULE_RE);
+    if (!m) return null;
     const days = _parseDays(m[1]);
     const spans = _parseSpans(m[2]);
     if (!days || !spans) return null;
+    _applyOverride(rules, days);    // 同じ曜日を持つ前方ルールをこのルールで上書き
     rules.push({ days, spans });
   }
   return rules.length ? rules : null;

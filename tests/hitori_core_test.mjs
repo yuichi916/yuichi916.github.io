@@ -106,6 +106,25 @@ check('openState', () => {
   eq(core.openState('sunrise-sunset', tue14), null);
 });
 
+check('openState: off は前方の広いルールも上書きする', () => {
+  // 2026-08-04(火) / 2026-08-05(水) は共に 'Mo-Sa 11:00-18:30' の範囲内だが、
+  // 'Tu off' は火曜日だけをその上書きで休みにする。水曜は影響を受けない。
+  const tue12 = new Date(2026, 7, 4, 12, 0);
+  const wed12 = new Date(2026, 7, 5, 12, 0);
+  eq(core.openState('Mo-Sa 11:00-18:30; Tu off', tue12), 'closed', 'Tu off が前方ルールを上書きしていない');
+  eq(core.openState('Mo-Sa 11:00-18:30; Tu off', wed12), 'open', '上書きが火曜以外にも及んでいる');
+});
+
+check('openState: 後続の営業時間ルールが前方ルールを上書きする', () => {
+  // 水曜だけ短縮営業。'We 09:00-12:00' が 'Mo-Fr 09:00-18:00' の水曜分を置き換える。
+  const wed10 = new Date(2026, 7, 5, 10, 0);
+  const wed15 = new Date(2026, 7, 5, 15, 0);
+  const thu15 = new Date(2026, 7, 6, 15, 0);
+  eq(core.openState('Mo-Fr 09:00-18:00; We 09:00-12:00', wed10), 'open', '水曜10時は短縮営業の時間内');
+  eq(core.openState('Mo-Fr 09:00-18:00; We 09:00-12:00', wed15), 'closed', '水曜15時は短縮営業で閉店のはず');
+  eq(core.openState('Mo-Fr 09:00-18:00; We 09:00-12:00', thu15), 'open', '木曜は元のルールのまま営業中');
+});
+
 // 100x100 の正方形を2つ持つ疑似 geo。左=県1、右=県2。
 const FAKE_GEO = {
   bounds: { minx: 0, miny: 0, scale: 1, lat0: 0 },
