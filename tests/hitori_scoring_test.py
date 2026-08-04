@@ -144,12 +144,52 @@ def test_is_chain():
         assert b in scoring.CHAIN_BRANDS, f"{b} が CHAIN_BRANDS にない"
 
 
+# 穴場出力の目視監査で追加した14件。CHAIN_BRANDS は _CHAIN_RE の部分一致
+# （search）で判定されるため、ここが最も誤爆・見落としの起きやすい面。
+# 支店名サフィックス付きの表記は「◯◯ △△店」がそのまま別名扱いされる
+# chains.py（完全一致）では拾えず、このリストでしか防げない。
+_NEW_CHAIN_BRANCH_SUFFIXED = {
+    "来来亭": "来来亭 青梅店",
+    "AFURI": "AFURI 中目黒本店",
+    "蒙古タンメン中本": "蒙古タンメン中本 池袋本店",
+    "ラーメン豚山": "ラーメン豚山 新宿店",
+    "東京油組総本店": "東京油組総本店 新宿店",
+    "新福菜館": "新福菜館 京都駅前店",
+    "彩華ラーメン": "彩華ラーメン 本店",
+    "ラーメンショップ": "ラーメンショップ 前橋店",
+    "ラーメン山岡家": "ラーメン山岡家 千葉店",
+    "優勝軒": "優勝軒 上尾店",
+    "ジャンカラ": "ジャンカラ道頓堀店",
+    "カラオケBanBan": "カラオケBanBan 高松店",
+    "カラオケマック": "カラオケマック 札幌店",
+    "109シネマズ": "109シネマズ川崎",
+}
+
+
+def test_new_chain_brands_bare_and_branch_suffixed():
+    assert set(_NEW_CHAIN_BRANCH_SUFFIXED) == {
+        "来来亭", "AFURI", "蒙古タンメン中本", "ラーメン豚山", "東京油組総本店",
+        "新福菜館", "彩華ラーメン", "ラーメンショップ", "ラーメン山岡家", "優勝軒",
+        "ジャンカラ", "カラオケBanBan", "カラオケマック", "109シネマズ",
+    }, "監査で追加された14件と一致していない"
+
+    for bare, suffixed in _NEW_CHAIN_BRANCH_SUFFIXED.items():
+        assert scoring.is_chain({"name": bare}) == 1, f"{bare} が素の屋号でchain判定されない"
+        assert scoring.is_chain({"name": suffixed}) == 1, f"{suffixed} が支店名付きでchain判定されない"
+
+    # 誤検出ガード。どちらも「自動生成アプローチ」検討時に実際に誤爆した
+    # 独立店名で、部分一致リストの副作用がここに出ないことを固定する。
+    assert scoring.is_chain({"name": "そば処 おかあやん"}) == 0
+    assert scoring.is_chain({"name": "ラーメンたかはし"}) == 0
+
+
 def main():
     test_classify()
     test_axes()
     test_axes_table_covers_all_kinds()
     test_confidence()
     test_is_chain()
+    test_new_chain_brands_bare_and_branch_suffixed()
     print("OK: scoring")
 
 
