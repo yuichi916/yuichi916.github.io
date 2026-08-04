@@ -398,17 +398,24 @@ async function loadPrefecture(code) {
   return doc;
 }
 
-function visibleItems(doc) {
+function visibleItems(doc, code) {
+  // code（都道府県コード）は mapsUrl() の prefCode フォールバック用。city が
+  // 空の施設でも県名検索まではできるようにするため、ここで全件に付与する。
   return doc.items
     .map(row => Object.fromEntries(doc.fields.map((f, i) => [f, row[i]])))
     .filter(it => state.cats.has(it.cat))
     .filter(it => !(state.nochain && it.chain === 1))
-    .filter(it => it.conf >= state.minConf);
+    .filter(it => it.conf >= state.minConf)
+    .map(it => ({ ...it, prefCode: code }));
 }
 
 // ---- 探すタブ（現在地から近い順） ----
 
-const GEM_MIN_HIDDEN = 0.6;
+// 0.6は想定分布からの初期値で、chains.py導入後の実測では穴場が1.2%しか
+// 出ず機能として使い物にならなかった。0.4はhidden.HIDDEN_THRESHOLDと同じ値。
+// ここが揺れると2つの穴場定義が同時に存在してしまうため、
+// tests/hitori_hidden_test.py で hidden.py の値との一致を検証している。
+const GEM_MIN_HIDDEN = 0.4;
 const GEM_MIN_N = 3;
 
 function isGem(it) {
@@ -760,7 +767,7 @@ function renderScatter(items, code) {
 
 function renderDetail(code, doc) {
   const p = BY_CODE[code];
-  const items = visibleItems(doc);
+  const items = visibleItems(doc, code);
   const rank = SUMMARY.prefectures.map(x => ({ c: x.code, v: getDensity(x) }))
     .sort((a, b) => b.v - a.v).findIndex(x => x.c === code) + 1;
 
@@ -778,12 +785,12 @@ function renderDetail(code, doc) {
   const pinNote = notes.length ? `（${notes.join('、')}）` : '';
 
   const list = listed.map(it => `
-    <li class="item" data-score="${it.score}">
+    <li class="item" data-score="${it.solo}">
       <span class="conf" title="${CONF_LABEL[it.conf]}">${CONF_MARK[it.conf]}</span>
-      <a href="https://www.google.com/maps/search/?api=1&amp;query=${it.lat},${it.lon}"
+      <a href="${mapsUrl(it)}"
          target="_blank" rel="noopener">${escapeHtml(it.name)}</a>
       <span class="kind">${KIND_JA[it.kind] || it.kind}</span>
-      <span class="score">ひとり度 ${it.score}</span>
+      <span class="score">ひとり度 ${it.solo}</span>
       ${it.chain ? '<span class="chip">チェーン</span>' : ''}
       ${it.note ? `<span class="note">${escapeHtml(it.note)}</span>` : ''}
     </li>`).join('');

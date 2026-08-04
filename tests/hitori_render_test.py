@@ -166,10 +166,22 @@ def test_detail(page):
     n = page.eval_on_selector_all("#detail li.item", "els => els.length")
     assert n > 0, "施設が1件も出ていない"
 
-    # スコア降順
+    # スコア（ひとり度）降順。以前は it.score という削除済みフィールドを
+    # 読んでいたため data-score="undefined" になり、+"undefined" は NaN で
+    # [nan, nan] == sorted([nan, nan]) が恒真になって検証が素通りしていた。
+    # ここでは実際の値が1..5の整数であることをまず確認し、NaNが混入したら
+    # sorted() の呼び出し自体が失敗するリストと素直な比較で降順を確かめる。
     scores = page.eval_on_selector_all(
-        "#detail li.item", "els => els.map(e => +e.dataset.score)")
-    assert scores == sorted(scores, reverse=True), scores[:20]
+        "#detail li.item", "els => els.map(e => e.dataset.score)")
+    assert scores, "施設が1件も出ていない"
+    int_scores = []
+    for s in scores:
+        assert s is not None and s.strip() != "", f"data-score が空: {s!r}"
+        assert s.strip().lstrip("-").isdigit(), f"data-score が整数でない: {s!r}"
+        v = int(s)
+        assert 1 <= v <= 5, f"ひとり度が範囲外: {v}"
+        int_scores.append(v)
+    assert int_scores == sorted(int_scores, reverse=True), int_scores[:20]
 
     # 各件に Google Maps リンクがある
     links = page.eval_on_selector_all(
