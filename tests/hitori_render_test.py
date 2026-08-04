@@ -359,6 +359,12 @@ def test_facility_keyboard_open_close(context, page):
     context.set_geolocation(TOKYO)
     page.goto(BASE)
     page.wait_for_function("window.__searchReady === true", timeout=30000)
+    # __searchReady は自県データの読み込み完了時点で立つが、隣接県は
+    # その後も非同期に読み込まれ、届くたびに renderSearchList() が
+    # #search-list の innerHTML を丸ごと差し替える。ここで focus() した
+    # 直後にその差し替えが起きると、フォーカスしたノードごと消えて
+    # フォーカスが失われるため、ネットワークが落ち着くまで待つ。
+    page.wait_for_load_state("networkidle")
 
     page.eval_on_selector("#search-list li.item", "el => el.focus()")
     page.keyboard.press("Enter")
