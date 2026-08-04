@@ -334,6 +334,54 @@ def test_search_without_location(context, page):
     assert page.eval_on_selector_all("#map path[data-code]", "els => els.length") == 47
 
 
+def test_search_prefecture_fetch_failure_surfaces(context, page):
+    """自県のデータ取得に失敗したとき「該当なし」ではなく読み込み失敗を伝える。
+
+    PREF_CACHE が空のまま items.length === 0 になる経路で、黙って「近くには
+    何もありませんでした」と出すと、実際は調べられていないのに調べた上で
+    無かったと誤解させる。renderSearchList() の空件数分岐で FAILED_PREFS を
+    見ているかを確認する。
+
+    直前のテストが残した URL のハッシュ違いだけで page.goto() すると、
+    Playwright/Chromium はフラグメントだけのナビゲーションとみなして
+    ページを再読込せず、前のテストのモジュール状態（FAILED_PREFS 等）を
+    引きずってしまう。新しいページで開き、直前のテストから完全に隔離する。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.route("**/data/hitori/pref/*.json", lambda route: route.abort())
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
+    assert n == 0, f"取得失敗のはずが一覧に {n} 件出ている"
+    status = p.inner_text("#search-status")
+    assert "東京都" in status, status
+    assert "読み込めませんでした" in status, status
+    p.close()
+
+
+def test_search_starts_on_first_tab_entry(context, page):
+    """共有URL等で「全国で見る」から入っても、探すタブへ切り替えた時点で検索が始まる。
+
+    init() は起動時の state.tab が 'search' のときしか locateAndSearch() を
+    呼ばない旧実装だと、#tab=nation で開いてから探すタブに切り替えても
+    #search-list が永久に空のままになる。新しいページで開き、直前のテストの
+    モジュール状態（searchStarted 等）を引きずらないようにする（フラグメント
+    のみが違うURLへの page.goto() は Chromium がページ再読込をしないため）。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE + "#tab=nation")
+    p.wait_for_selector("#map path[data-code='13']", timeout=15000)
+    p.click("#tab-search")
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
+    assert n > 0, "探すタブへ切り替えても一覧が始まらない"
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -359,6 +407,8 @@ def main():
             test_search_distance_filter(context, page)
             test_search_quiet_filter(context, page)
             test_search_without_location(context, page)
+            test_search_prefecture_fetch_failure_surfaces(context, page)
+            test_search_starts_on_first_tab_entry(context, page)
             page.goto(BASE)
             page.wait_for_function("window.__ready === true", timeout=15000)
             page.screenshot(path="C:/tmp/hitori_overview.png", full_page=True)

@@ -233,6 +233,7 @@ const state = {
             minConf: 0, requireHours: false },
 };
 let NEIGHBORS = null;
+let searchStarted = false;   // locateAndSearch() を探すタブへの初回到達時に一度だけ走らせるための番人
 let SUMMARY = null, GEO = null;
 const BY_CODE = {};
 
@@ -295,6 +296,10 @@ function switchTab(name) {
     document.getElementById('tab-' + t).setAttribute('aria-selected', String(on));
     document.getElementById('panel-' + t).hidden = !on;
   }
+  // 初期表示が「全国で見る」のとき（共有URLなど）は探すタブに一度も
+  // 入らないままなので locateAndSearch() が走らず #search-list が空のまま
+  // 固まる。探すタブに初めて入った瞬間に一度だけ起動する。
+  if (state.tab === 'search') ensureSearchStarted();
   syncUrl();
 }
 
@@ -404,22 +409,30 @@ function renderSearchList() {
   const items = currentSearchResults();
   const list = document.getElementById('search-list');
   const status = document.getElementById('search-status');
+  const failed = [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
 
   if (!items.length) {
     list.innerHTML = '';
-    status.innerHTML = state.search.maxDistM
-      ? `この条件に該当する施設はありませんでした。<button type="button" class="widen">距離を広げる</button>`
-      : 'この条件に該当する施設はありませんでした。';
-    const w = status.querySelector('.widen');
-    if (w) w.addEventListener('click', () => {
-      document.getElementById('f-dist').value = '';
-      state.search.maxDistM = null;
-      renderSearchList();
-    });
+    if (failed.length) {
+      // 「該当なし」より読み込み失敗を優先して伝える。自県のデータが読めて
+      // いないだけで PREF_CACHE が空になっているとき、それを黙って「近くには
+      // 何も無い」という表示にすると、実際には何も調べられていないのに
+      // 調べた上で無かったと誤解させてしまう。
+      status.textContent = `${failed.join('・')}のデータを読み込めませんでした。`;
+    } else {
+      status.innerHTML = state.search.maxDistM
+        ? `この条件に該当する施設はありませんでした。<button type="button" class="widen">距離を広げる</button>`
+        : 'この条件に該当する施設はありませんでした。';
+      const w = status.querySelector('.widen');
+      if (w) w.addEventListener('click', () => {
+        document.getElementById('f-dist').value = '';
+        state.search.maxDistM = null;
+        renderSearchList();
+      });
+    }
     return;
   }
 
-  const failed = [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
   status.textContent = `${items.length.toLocaleString()} 件`
     + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
   const now = new Date();
@@ -460,6 +473,12 @@ async function loadPrefIntoCache(code) {
     FAILED_PREFS.add(code);
     return false;
   }
+}
+
+function ensureSearchStarted() {
+  if (searchStarted) return;
+  searchStarted = true;
+  locateAndSearch();
 }
 
 async function locateAndSearch() {
@@ -775,10 +794,9 @@ async function init() {
   bindFilters();
   restoreFromUrl();
   applyFilters();
-  switchTab(state.tab);
-  if (state.pref) openPrefecture(state.pref);
   bindSearchFilters();
-  if (state.tab === 'search') locateAndSearch();
+  switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
+  if (state.pref) openPrefecture(state.pref);
   window.__ready = true;
 }
 
