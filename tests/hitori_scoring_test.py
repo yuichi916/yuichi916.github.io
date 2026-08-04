@@ -53,30 +53,57 @@ def test_classify():
     assert scoring.classify({"amenity": "public_bath", "cuisine": "izakaya"}) == ("bath", "sento", 4)
 
 
-def test_score():
-    # チェーン加点なし・エビデンスなし
-    assert scoring.score(4, "はやしや", []) == 4
-    # SOLO_BRANDS 一致で +1
-    assert scoring.score(4, "一蘭 渋谷店", []) == 5
-    # 上限5でクランプ（base5 + ブランド加点）
-    assert scoring.score(5, "焼肉ライク 新宿店", []) == 5
-    # 肯定エビデンスで +1
-    assert scoring.score(3, "○○温泉", [{"src": "web", "checked": "2026-08-01", "polarity": "+"}]) == 4
-    # 否定エビデンスで -1
-    assert scoring.score(4, "はやしや", [{"src": "user", "checked": "2026-08-01", "polarity": "-"}]) == 3
-    # 賛否が混在したら確認日が新しいほうが勝つ
-    mixed = [
-        {"src": "web", "checked": "2026-01-01", "polarity": "+"},
-        {"src": "user", "checked": "2026-08-01", "polarity": "-"},
-    ]
-    assert scoring.score(4, "はやしや", mixed) == 3
-    mixed2 = [
-        {"src": "user", "checked": "2026-08-01", "polarity": "+"},
-        {"src": "web", "checked": "2026-01-01", "polarity": "-"},
-    ]
-    assert scoring.score(4, "はやしや", mixed2) == 5
-    # 下限1でクランプ
-    assert scoring.score(1, "はやしや", [{"src": "user", "checked": "2026-08-01", "polarity": "-"}]) == 1
+def test_axes():
+    # 業態ベース値。spec §5 の表がそのまま期待値。
+    assert scoring.axes("library", "○○図書館", [], {}) == {"solo": 4, "quiet": 5, "easy": 5}
+    assert scoring.axes("standing", "立ち食いそば まる", [], {}) == {"solo": 5, "quiet": 2, "easy": 2}
+    assert scoring.axes("netcafe", "快活CLUB", [], {}) == {"solo": 5, "quiet": 5, "easy": 5}
+    assert scoring.axes("sauna", "サウナ○○", [], {}) == {"solo": 5, "quiet": 5, "easy": 3}
+    assert scoring.axes("karaoke", "○○カラオケ", [], {}) == {"solo": 4, "quiet": 2, "easy": 4}
+    assert scoring.axes("sento", "はやし湯", [], {}) == {"solo": 4, "quiet": 4, "easy": 3}
+    assert scoring.axes("onsen", "○○温泉", [], {}) == {"solo": 3, "quiet": 4, "easy": 3}
+    assert scoring.axes("museum", "○○美術館", [], {}) == {"solo": 3, "quiet": 5, "easy": 5}
+
+    # チェーン加点は solo にだけ効く。チェーンかどうかは静けさや作法と無関係。
+    a = scoring.axes("ramen", "一蘭 渋谷店", [], {})
+    assert a == {"solo": 5, "quiet": 4, "easy": 3}
+    b = scoring.axes("ramen", "はやしや", [], {})
+    assert b == {"solo": 4, "quiet": 4, "easy": 3}
+
+    # エビデンスも solo にだけ効く
+    pos = [{"src": "visit", "checked": "2026-08-01", "polarity": "+"}]
+    assert scoring.axes("onsen", "○○温泉", pos, {}) == {"solo": 4, "quiet": 4, "easy": 3}
+    neg = [{"src": "user", "checked": "2026-08-01", "polarity": "-"}]
+    assert scoring.axes("sento", "はやし湯", neg, {}) == {"solo": 3, "quiet": 4, "easy": 3}
+
+    # クランプ
+    assert scoring.axes("standing", "焼肉ライク", pos, {})["solo"] == 5
+
+    # curated は軸ごとに上書きできる
+    assert scoring.axes("sento", "はやし湯", [], {"quiet": 2})["quiet"] == 2
+    assert scoring.axes("library", "○○図書館", [], {"easy": 3, "solo": 5}) == \
+        {"solo": 5, "quiet": 5, "easy": 3}
+
+    # 未知の kind は例外にする（表の追加漏れを黙って通さない）
+    try:
+        scoring.axes("unknown_kind", "○○", [], {})
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("未知のkindが素通りした")
+
+
+def test_axes_table_covers_all_kinds():
+    # classify が返しうる kind はすべて AXES に載っていること
+    kinds = {
+        "standing", "yakiniku_solo", "ramen", "soba_udon", "gyudon", "curry",
+        "sauna", "onsen", "sento", "netcafe", "karaoke", "cinema",
+        "library", "hostel", "museum",
+    }
+    assert kinds <= set(scoring.AXES), kinds - set(scoring.AXES)
+    for k, v in scoring.AXES.items():
+        assert len(v) == 3, k
+        assert all(1 <= x <= 5 for x in v), k
 
 
 def test_confidence():
@@ -119,7 +146,8 @@ def test_is_chain():
 
 def main():
     test_classify()
-    test_score()
+    test_axes()
+    test_axes_table_covers_all_kinds()
     test_confidence()
     test_is_chain()
     print("OK: scoring")
