@@ -223,7 +223,7 @@ img, svg, table { max-width: 100%; }
     <p class="credits">地図データ: 地球地図日本（国土地理院） / 地図タイル: 地理院タイル（国土地理院） / 施設データ: © OpenStreetMap contributors (ODbL) / 人口: Wikidata (CC0) / 令和2年国勢調査</p>
   </footer>
 
-  <section id="facility" hidden aria-live="polite"></section>
+  <section id="facility" hidden aria-live="polite" tabindex="-1"></section>
 </main>
 
 <script>
@@ -500,7 +500,10 @@ function mapsUrl(it) {
   return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
 }
 
-function openFacility(id) {
+// 直前にシートを開いた一覧項目。閉じたときにここへフォーカスを戻す。
+let _facilityOpener = null;
+
+function openFacility(id, opener) {
   const it = currentSearchResults().find(x => x.id === id);
   if (!it) return;
   const el = document.getElementById('facility');
@@ -530,6 +533,13 @@ function openFacility(id) {
     <a class="to-maps" href="${mapsUrl(it)}" target="_blank" rel="noopener">経路を調べる（Googleマップ）</a>`;
   el.querySelector('.close').addEventListener('click', closeFacility);
   renderFacilityMap(it);   // Task 13 で実装。ここでは空関数でよい。
+
+  // #facility は <footer> の後の <main> 末尾にあり、閉じるボタンへ
+  // フォーカスすると一覧の残り項目とフッター全体をタブで飛ばさないと
+  // 辿り着けない。見出しから読ませるため、シート自体（tabindex="-1"）に
+  // フォーカスする。
+  _facilityOpener = opener || null;
+  el.focus();
 }
 
 let _facilityMap = null;
@@ -542,6 +552,10 @@ const GSI_ATTR = '<a href="https://maps.gsi.go.jp/development/ichiran.html" targ
 function closeFacility() {
   if (_facilityMap) { _facilityMap.remove(); _facilityMap = null; }
   document.getElementById('facility').hidden = true;
+  // 開いた場所（一覧項目）へフォーカスを戻す。ボタンやEscapeなど
+  // 閉じ方によらず、ユーザーが元いた位置に戻れるようにする。
+  if (_facilityOpener && document.contains(_facilityOpener)) _facilityOpener.focus();
+  _facilityOpener = null;
 }
 
 function renderFacilityMap(it) {
@@ -922,12 +936,20 @@ async function init() {
   bindSearchFilters();
   document.getElementById('search-list').addEventListener('click', e => {
     const li = e.target.closest('li.item');
-    if (li) openFacility(li.dataset.id);
+    if (li) openFacility(li.dataset.id, li);
   });
   document.getElementById('search-list').addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const li = e.target.closest('li.item');
-    if (li) { e.preventDefault(); openFacility(li.dataset.id); }
+    if (li) { e.preventDefault(); openFacility(li.dataset.id, li); }
+  });
+  // Escape でシートを閉じる。開いている間だけ有効（hidden なら何もしない）。
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const facility = document.getElementById('facility');
+    if (facility.hidden) return;
+    e.preventDefault();
+    closeFacility();
   });
   switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
   if (state.pref) openPrefecture(state.pref);

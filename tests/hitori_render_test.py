@@ -347,6 +347,43 @@ def test_facility_sheet(context, page):
     assert page.eval_on_selector("#facility", "el => el.hidden") is True
 
 
+def test_facility_keyboard_open_close(context, page):
+    """一覧項目にフォーカスした状態で Enter → シート内にフォーカスが移り、
+    Escape で閉じると元の一覧項目にフォーカスが戻ることを確認する。
+
+    #facility は <footer> の後の <main> 末尾にあるため、閉じるボタンへ
+    フォーカスすると一覧の残り項目とフッター全体をタブで飛ばさないと
+    辿り着けない、という回帰を防ぐ。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    page.goto(BASE)
+    page.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    page.eval_on_selector("#search-list li.item", "el => el.focus()")
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#facility:not([hidden])", timeout=10000)
+
+    # フォーカスがシート（#facility自身、または内部の要素）に入っている
+    in_sheet = page.evaluate("""
+      () => {
+        const facility = document.getElementById('facility');
+        return facility === document.activeElement || facility.contains(document.activeElement);
+      }
+    """)
+    assert in_sheet, "Enterで開いてもフォーカスがシート内に無い"
+
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+    assert page.eval_on_selector("#facility", "el => el.hidden") is True, "Escapeでシートが閉じない"
+
+    # 元のリスト項目にフォーカスが戻っている
+    back_on_item = page.evaluate("""
+      () => document.activeElement === document.querySelector('#search-list li.item')
+    """)
+    assert back_on_item, "Escape後にフォーカスが元の一覧項目に戻っていない"
+
+
 def test_facility_shows_gem_reason(context, page):
     context.grant_permissions(["geolocation"])
     context.set_geolocation(TOKYO)
@@ -523,6 +560,7 @@ def main():
             test_search_distance_filter(context, page)
             test_search_quiet_filter(context, page)
             test_facility_sheet(context, page)
+            test_facility_keyboard_open_close(context, page)
             test_facility_shows_gem_reason(context, page)
             test_facility_map(context, page)
             test_search_without_location(context, page)
