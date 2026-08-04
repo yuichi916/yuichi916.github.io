@@ -117,3 +117,67 @@ export function openState(str, date) {
   }
   return 'closed';
 }
+
+// --- 現在地 → 都道府県 ---
+// 県境ポリゴンは簡略化されている（許容誤差0.012度≒1.3km）ため、県境付近では
+// 1km程度ずれうる。隣接県も読むので実害はない。
+
+export function projectToSvg(lat, lon, bounds) {
+  return [
+    (lon * Math.cos(bounds.lat0 * Math.PI / 180) - bounds.minx) * bounds.scale,
+    (-lat - bounds.miny) * bounds.scale,
+  ];
+}
+
+export function parseSvgPath(d) {
+  const rings = [];
+  for (const seg of String(d).split('M').slice(1)) {
+    const nums = seg.match(/-?\d+(?:\.\d+)?/g);
+    if (!nums) continue;
+    const pts = [];
+    for (let i = 0; i + 1 < nums.length; i += 2) pts.push([+nums[i], +nums[i + 1]]);
+    if (pts.length >= 3) rings.push(pts);
+  }
+  return rings;
+}
+
+export function pointInRing(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+let _ringCache = null;
+
+function _ringsOf(geo) {
+  if (_ringCache && _ringCache.geo === geo) return _ringCache.rings;
+  const rings = {};
+  for (const [code, d] of Object.entries(geo.paths)) rings[code] = parseSvgPath(d);
+  _ringCache = { geo, rings };
+  return rings;
+}
+
+export function prefectureAt(lat, lon, geo) {
+  const [x, y] = projectToSvg(lat, lon, geo.bounds);
+  const rings = _ringsOf(geo);
+
+  for (const [code, subpaths] of Object.entries(rings)) {
+    for (const ring of subpaths) if (pointInRing(x, y, ring)) return +code;
+  }
+
+  // 海上・国外。最寄りの県へ寄せる。null を返すと呼び出し側が詰む。
+  let best = null, bestD = Infinity;
+  for (const [code, subpaths] of Object.entries(rings)) {
+    for (const ring of subpaths) {
+      for (const [px, py] of ring) {
+        const d = (px - x) ** 2 + (py - y) ** 2;
+        if (d < bestD) { bestD = d; best = +code; }
+      }
+    }
+  }
+  return best;
+}

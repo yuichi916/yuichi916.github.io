@@ -106,5 +106,52 @@ check('openState', () => {
   eq(core.openState('sunrise-sunset', tue14), null);
 });
 
+// 100x100 の正方形を2つ持つ疑似 geo。左=県1、右=県2。
+const FAKE_GEO = {
+  bounds: { minx: 0, miny: 0, scale: 1, lat0: 0 },
+  paths: {
+    1: 'M0 0L100 0L100 100L0 100Z',
+    2: 'M200 0L300 0L300 100L200 100Z',
+  },
+};
+
+check('projectToSvg は可逆な向き', () => {
+  const b = { minx: 100, miny: -40, scale: 2, lat0: 36 };
+  const [x1, y1] = core.projectToSvg(35, 139, b);
+  const [x2, y2] = core.projectToSvg(36, 139, b);
+  if (!(y2 < y1)) throw new Error('北にあるほど y が小さくない');
+  const [x3] = core.projectToSvg(35, 140, b);
+  if (!(x3 > x1)) throw new Error('東にあるほど x が大きくない');
+});
+
+check('parseSvgPath', () => {
+  const rings = core.parseSvgPath('M0 0L10 0L10 10Z M20 20L30 20L30 30Z');
+  eq(rings.length, 2);
+  eq(rings[0].length, 3);
+  eq(rings[1][0][0], 20);
+});
+
+check('pointInRing', () => {
+  const sq = [[0, 0], [10, 0], [10, 10], [0, 10]];
+  eq(core.pointInRing(5, 5, sq), true);
+  eq(core.pointInRing(15, 5, sq), false);
+  eq(core.pointInRing(-1, 5, sq), false);
+});
+
+check('prefectureAt: 内包', () => {
+  // bounds が恒等変換なので lat/lon はそのまま x,y になる（y は符号反転）
+  eq(core.prefectureAt(-50, 50, FAKE_GEO), 1);
+  eq(core.prefectureAt(-50, 250, FAKE_GEO), 2);
+});
+
+check('prefectureAt: どこにも入らなければ最寄り', () => {
+  // x=160 は県1(0-100)より県2(200-300)に近い…わけではないので県1が返る
+  eq(core.prefectureAt(-50, 140, FAKE_GEO), 1);
+  eq(core.prefectureAt(-50, 260, FAKE_GEO), 2);
+  // 遥か遠方でも必ず何かを返す（null を返さない）
+  const far = core.prefectureAt(-9999, 9999, FAKE_GEO);
+  if (far !== 1 && far !== 2) throw new Error('遠方で県が返らない: ' + far);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');
