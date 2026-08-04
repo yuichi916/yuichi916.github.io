@@ -22,6 +22,10 @@ body { margin: 0; background: var(--bg); color: var(--fg);
 main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 6rem; }
 h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
 .lede { margin: 0; color: var(--muted); }
+.tabs { display: flex; gap: .5rem; margin: 1.2rem 0 0; border-bottom: 1px solid var(--line); }
+.tabs button { background: none; border: none; border-bottom: 2px solid transparent;
+               color: var(--muted); cursor: pointer; font: inherit; padding: .5rem 1rem; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
 .filters { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.5rem 0; }
 .filters fieldset { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .9rem; margin: 0; }
 .filters legend { font-size: .8rem; color: var(--muted); padding: 0 .3rem; }
@@ -93,6 +97,16 @@ img, svg, table { max-width: 100%; }
     <p class="lede">ひとりで行ける店ではなく、ひとりが標準の店だけを集めた日本地図。</p>
   </header>
 
+  <nav class="tabs" role="tablist">
+    <button type="button" id="tab-search" role="tab" aria-selected="true">探す</button>
+    <button type="button" id="tab-nation" role="tab" aria-selected="false">全国で見る</button>
+  </nav>
+
+  <section id="panel-search" role="tabpanel">
+    <p class="placeholder">（Task 11 で実装）</p>
+  </section>
+
+  <section id="panel-nation" role="tabpanel" hidden>
   <div class="filters">
     <fieldset><legend>カテゴリ</legend>
       <label><input type="checkbox" id="f-cat-bath" checked> 湯・サウナ</label>
@@ -133,6 +147,7 @@ img, svg, table { max-width: 100%; }
   </div>
 
   <section id="detail" hidden></section>
+  </section>
 
   <footer>
     <p class="disclaimer">この分類は OpenStreetMap のタグと業態から機械的に推定したものです。実際の座席形態や黙浴の有無を保証するものではありません。</p>
@@ -140,10 +155,10 @@ img, svg, table { max-width: 100%; }
   </footer>
 </main>
 
-<script>
+<script type="module">
 const CATS = ['bath', 'eat', 'play', 'stay'];
 const CAT_JA = { bath: '湯・サウナ', eat: 'カウンター飲食', play: 'ひとり娯楽', stay: 'ひとり滞在' };
-const state = { cats: new Set(CATS), nochain: false, minConf: 0, pref: null };
+const state = { tab: 'search', cats: new Set(CATS), nochain: false, minConf: 0, pref: null };
 let SUMMARY = null, GEO = null;
 const BY_CODE = {};
 
@@ -199,8 +214,19 @@ function renderRanking() {
      <span>${v.toFixed(1)}</span></li>`).join('');
 }
 
+function switchTab(name) {
+  state.tab = name === 'nation' ? 'nation' : 'search';
+  for (const t of ['search', 'nation']) {
+    const on = state.tab === t;
+    document.getElementById('tab-' + t).setAttribute('aria-selected', String(on));
+    document.getElementById('panel-' + t).hidden = !on;
+  }
+  syncUrl();
+}
+
 function syncUrl() {
   const parts = [];
+  if (state.tab === 'nation') parts.push('tab=nation');
   if (state.pref) parts.push(`pref=${state.pref}`);
   if (state.cats.size !== CATS.length) parts.push(`cat=${[...state.cats].join('.')}`);
   if (state.nochain) parts.push('nochain=1');
@@ -210,6 +236,7 @@ function syncUrl() {
 
 function restoreFromUrl() {
   const h = new URLSearchParams(location.hash.slice(1));
+  state.tab = h.get('tab') === 'nation' ? 'nation' : 'search';
   // cat が無いときは必ず全カテゴリへ戻す。URLに書かれていない項目を前の状態の
   // まま残すと、hashchange 経由の遷移で直前の絞り込みが漏れて残る。
   if (h.has('cat')) {
@@ -479,9 +506,13 @@ function bindFilters() {
     const before = state.pref;
     restoreFromUrl();
     applyFilters();
+    switchTab(state.tab);
     if (state.pref && state.pref !== before) openPrefecture(state.pref);
     else if (!state.pref && before) closePrefecture();
   });
+
+  document.getElementById('tab-search').addEventListener('click', () => switchTab('search'));
+  document.getElementById('tab-nation').addEventListener('click', () => switchTab('nation'));
 }
 
 function closePrefecture() {
@@ -502,9 +533,16 @@ async function init() {
   bindFilters();
   restoreFromUrl();
   applyFilters();
+  switchTab(state.tab);
   if (state.pref) openPrefecture(state.pref);
   window.__ready = true;
 }
+
+// module scriptはトップレベル宣言がモジュールスコープに閉じ、window の
+// プロパティにならない。page.evaluate() が素の識別子で参照できるよう公開する。
+window.state = state;
+window.PREF_CACHE = PREF_CACHE;
+window.visibleItems = visibleItems;
 
 init().catch(err => {
   // file:// で開くとブラウザが fetch をブロックする。原因が分からないと
@@ -520,6 +558,9 @@ init().catch(err => {
     : `データの読み込みに失敗しました（${escapeHtml(err.message)}）。
        通信環境を確認して再読み込みしてください。`;
   document.getElementById('map').outerHTML = `<div class="error">${msg}</div>`;
+  // エラーメッセージは「全国で見る」パネルの中にある。既定タブの「探す」が
+  // 表示されたままだと黙って隠れてしまうため、エラー時はそちらへ切り替える。
+  switchTab('nation');
   window.__ready = true;
 });
 </script>

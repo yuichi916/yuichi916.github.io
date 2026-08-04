@@ -28,6 +28,8 @@ def test_overview(page):
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.goto(BASE)
+    page.click("#tab-nation")
+    page.wait_for_selector("#map path[data-code='13']", timeout=15000)
     page.wait_for_selector("#map path[data-code='13']", timeout=15000)
     page.wait_for_function("window.__ready === true", timeout=15000)
     assert not errors, f"JSエラー: {errors}"
@@ -57,6 +59,8 @@ def test_overview(page):
 
 def test_chain_toggle_changes_map(page):
     page.goto(BASE)
+    page.click("#tab-nation")
+    page.wait_for_selector("#map path[data-code='13']", timeout=15000)
     page.wait_for_function("window.__ready === true", timeout=15000)
     before = page.eval_on_selector_all(
         "#map path[data-code]", "els => els.map(e => e.getAttribute('fill')).join(',')")
@@ -70,6 +74,8 @@ def test_chain_toggle_changes_map(page):
 
 def test_category_filter_changes_map(page):
     page.goto(BASE)
+    page.click("#tab-nation")
+    page.wait_for_selector("#map path[data-code='13']", timeout=15000)
     page.wait_for_function("window.__ready === true", timeout=15000)
     before = page.eval_on_selector_all(
         "#map path[data-code]", "els => els.map(e => e.getAttribute('fill')).join(',')")
@@ -81,7 +87,7 @@ def test_category_filter_changes_map(page):
 
 
 def test_url_restore(page):
-    page.goto(BASE + "#cat=bath&nochain=1")
+    page.goto(BASE + "#tab=nation&cat=bath&nochain=1")
     page.wait_for_function("window.__ready === true", timeout=15000)
     assert page.evaluate("document.querySelector('#f-nochain').checked") is True
     assert page.evaluate("document.querySelector('#f-cat-eat').checked") is False
@@ -93,7 +99,7 @@ def test_hashchange_resets_absent_params(page):
 
     hashchange は文書を再読込しないため、前の状態を残すと絞り込みが漏れて残る。
     """
-    page.goto(BASE + "#cat=stay")
+    page.goto(BASE + "#tab=nation&cat=stay")
     page.wait_for_function("window.__ready === true", timeout=15000)
     assert page.evaluate("state.cats.size") == 1
 
@@ -105,10 +111,44 @@ def test_hashchange_resets_absent_params(page):
         assert page.evaluate(f"document.getElementById('f-cat-{c}').checked") is True
 
 
+def test_tabs(page):
+    page.goto(BASE)
+    page.wait_for_function("window.__ready === true", timeout=15000)
+
+    # 既定は「探す」
+    assert page.evaluate("state.tab") == "search"
+    assert page.is_visible("#panel-search")
+    assert page.is_hidden("#panel-nation")
+
+    # 「全国で見る」へ切り替えると地図が出る
+    page.click("#tab-nation")
+    page.wait_for_selector("#map path[data-code='13']", timeout=15000)
+    assert page.evaluate("state.tab") == "nation"
+    assert page.is_hidden("#panel-search")
+    n = page.eval_on_selector_all("#map path[data-code]", "els => els.length")
+    assert n == 47, f"県パスが {n} 件"
+    assert "tab=nation" in page.evaluate("location.hash")
+
+    # 戻れる
+    page.click("#tab-search")
+    page.wait_for_timeout(200)
+    assert page.evaluate("state.tab") == "search"
+    assert page.is_visible("#panel-search")
+
+
+def test_nation_tab_restores_from_url(page):
+    page.goto(BASE + "#tab=nation&cat=bath")
+    page.wait_for_selector("#map path[data-code='13']", timeout=15000)
+    assert page.evaluate("state.tab") == "nation"
+    assert page.evaluate("document.querySelector('#f-cat-bath').checked") is True
+
+
 def test_detail(page):
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.goto(BASE)
+    page.click("#tab-nation")
+    page.wait_for_selector("#map path[data-code='13']", timeout=15000)
     page.wait_for_function("window.__ready === true", timeout=15000)
 
     # 地図クリックの配線確認は形の大きい北海道で行う。東京都は伊豆諸島まで
@@ -145,7 +185,7 @@ def test_detail(page):
 
 def test_detail_caps_are_disclosed(page):
     """大量件数は打ち切るが、打ち切ったことを黙って隠さない。"""
-    page.goto(BASE + "#pref=13")
+    page.goto(BASE + "#tab=nation&pref=13")
     page.wait_for_selector("#detail li.item", timeout=15000)
 
     total = page.evaluate("PREF_CACHE[13].items.length")
@@ -167,7 +207,7 @@ def test_scatter_frames_the_items(page):
 
     県ポリゴンのbboxを使うと、伊豆諸島を持つ東京都では本土がごく一部に潰れる。
     """
-    page.goto(BASE + "#pref=13")
+    page.goto(BASE + "#tab=nation&pref=13")
     page.wait_for_selector("#scatter circle", timeout=15000)
     vb = [float(v) for v in page.get_attribute("#scatter", "viewBox").split()]
     cx = page.eval_on_selector_all("#scatter circle", "els => els.map(e => +e.getAttribute('cx'))")
@@ -179,7 +219,7 @@ def test_scatter_frames_the_items(page):
 
 
 def test_detail_chain_filter(page):
-    page.goto(BASE + "#pref=13")
+    page.goto(BASE + "#tab=nation&pref=13")
     page.wait_for_selector("#detail li.item", timeout=15000)
     before = page.evaluate("visibleItems(PREF_CACHE[13]).length")
     page.click("#f-nochain")
@@ -190,6 +230,8 @@ def test_detail_chain_filter(page):
 
 def test_detail_fetch_failure_is_contained(page):
     page.goto(BASE)
+    page.click("#tab-nation")
+    page.wait_for_selector("#map path[data-code='13']", timeout=15000)
     page.wait_for_function("window.__ready === true", timeout=15000)
     page.route("**/data/hitori/pref/*.json", lambda route: route.abort())
     page.select_option("#pref-select", "26")
@@ -214,7 +256,7 @@ def test_file_protocol_explains_itself(page):
 
 def test_mobile(page):
     page.set_viewport_size({"width": 390, "height": 844})
-    page.goto(BASE + "#pref=13")
+    page.goto(BASE + "#tab=nation&pref=13")
     page.wait_for_selector("#detail li.item", timeout=15000)
     # 横スクロールが発生していないこと
     overflow = page.evaluate(
@@ -234,6 +276,8 @@ def main():
             test_chain_toggle_changes_map(page)
             test_category_filter_changes_map(page)
             test_url_restore(page)
+            test_tabs(page)
+            test_nation_tab_restores_from_url(page)
             test_hashchange_resets_absent_params(page)
             test_detail(page)
             test_detail_caps_are_disclosed(page)
