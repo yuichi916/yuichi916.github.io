@@ -181,3 +181,37 @@ export function prefectureAt(lat, lon, geo) {
   }
   return best;
 }
+
+// --- 絞り込みと並べ替え ---
+
+export function rowsToObjects(doc) {
+  const f = doc.fields;
+  return doc.items.map(row => {
+    const o = {};
+    for (let i = 0; i < f.length; i++) o[f[i]] = row[i];
+    return o;
+  });
+}
+
+export function withDistance(items, lat, lon) {
+  return items.map(it => ({ ...it, distM: haversineM(lat, lon, it.lat, it.lon) }));
+}
+
+export function sortByDistance(items) {
+  return items.slice().sort((a, b) => a.distM - b.distM);
+}
+
+export function filterItems(items, opts) {
+  const o = opts || {};
+  return items.filter(it => {
+    if (o.cats && !o.cats.has(it.cat)) return false;
+    if (o.maxDistM != null && it.distM > o.maxDistM) return false;
+    if (o.minSolo && it.solo < o.minSolo) return false;
+    if (o.minQuiet && it.quiet < o.minQuiet) return false;
+    if (o.minEasy && it.easy < o.minEasy) return false;
+    if (o.nochain && it.chain === 1) return false;
+    if (o.minConf && it.conf < o.minConf) return false;
+    if (o.requireHours && !it.oh) return false;
+    return true;
+  });
+}

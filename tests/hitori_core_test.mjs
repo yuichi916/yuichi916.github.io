@@ -153,5 +153,74 @@ check('prefectureAt: どこにも入らなければ最寄り', () => {
   if (far !== 1 && far !== 2) throw new Error('遠方で県が返らない: ' + far);
 });
 
+const DOC = {
+  fields: ['id', 'name', 'lat', 'lon', 'cat', 'kind', 'solo', 'quiet', 'easy',
+           'conf', 'chain', 'hidden', 'hidden_n', 'city', 'oh', 'tel', 'web', 'note'],
+  items: [
+    ['n1', '近いチェーン', 35.0010, 139.0, 'eat', 'gyudon', 5, 4, 4, 0, 1, 0.0, 8, '', '11:00-23:00', '', '', ''],
+    ['n2', '遠い独立店', 35.0500, 139.0, 'eat', 'soba_udon', 4, 4, 3, 0, 0, 0.83, 12, '', '', '', '', ''],
+    ['n3', '近い図書館', 35.0005, 139.0, 'stay', 'library', 4, 5, 5, 1, 0, 0.0, 2, '', '', '', '', ''],
+    ['n4', '近い立ち飲み', 35.0008, 139.0, 'eat', 'standing', 5, 2, 2, 0, 0, 0.7, 6, '', '', '', '', ''],
+  ],
+};
+
+check('rowsToObjects', () => {
+  const o = core.rowsToObjects(DOC);
+  eq(o.length, 4);
+  eq(o[0].id, 'n1');
+  eq(o[0].solo, 5);
+  eq(o[1].hidden, 0.83);
+});
+
+check('withDistance', () => {
+  const o = core.withDistance(core.rowsToObjects(DOC), 35.0, 139.0);
+  near(o[0].distM, 111, 30);
+  if (!(o[1].distM > o[0].distM)) throw new Error('遠い店の距離が近い店以下');
+});
+
+check('sortByDistance', () => {
+  const o = core.sortByDistance(core.withDistance(core.rowsToObjects(DOC), 35.0, 139.0));
+  eq(JSON.stringify(o.map(x => x.id)), JSON.stringify(['n3', 'n4', 'n1', 'n2']));
+});
+
+check('filterItems: カテゴリ', () => {
+  const all = core.withDistance(core.rowsToObjects(DOC), 35.0, 139.0);
+  const r = core.filterItems(all, { cats: new Set(['stay']) });
+  eq(r.length, 1);
+  eq(r[0].id, 'n3');
+});
+
+check('filterItems: 距離', () => {
+  const all = core.withDistance(core.rowsToObjects(DOC), 35.0, 139.0);
+  eq(core.filterItems(all, { maxDistM: 400 }).length, 3, '400m以内は3件');
+  eq(core.filterItems(all, { maxDistM: null }).length, 4, 'null は無制限');
+});
+
+check('filterItems: 3軸の下限', () => {
+  const all = core.withDistance(core.rowsToObjects(DOC), 35.0, 139.0);
+  eq(core.filterItems(all, { minSolo: 5 }).length, 2, 'solo>=5 は n1,n4');
+  eq(core.filterItems(all, { minQuiet: 5 }).length, 1, 'quiet>=5 は図書館だけ');
+  eq(core.filterItems(all, { minEasy: 4 }).length, 2, 'easy>=4 は n1,n3');
+});
+
+check('filterItems: チェーンと信頼度と営業時間', () => {
+  const all = core.withDistance(core.rowsToObjects(DOC), 35.0, 139.0);
+  eq(core.filterItems(all, { nochain: true }).length, 3);
+  eq(core.filterItems(all, { minConf: 1 }).length, 1);
+  eq(core.filterItems(all, { requireHours: true }).length, 1, 'oh があるのは n1 だけ');
+});
+
+check('filterItems: 条件は積で効く', () => {
+  const all = core.withDistance(core.rowsToObjects(DOC), 35.0, 139.0);
+  const r = core.filterItems(all, { cats: new Set(['eat']), nochain: true, minQuiet: 4 });
+  eq(r.length, 1);
+  eq(r[0].id, 'n2');
+});
+
+check('filterItems: 空の opts は素通し', () => {
+  const all = core.withDistance(core.rowsToObjects(DOC), 35.0, 139.0);
+  eq(core.filterItems(all, {}).length, 4);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');
