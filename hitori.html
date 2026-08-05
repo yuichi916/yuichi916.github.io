@@ -6,6 +6,8 @@
 <title>ひとり歓迎マップ | ひとりが標準の店だけを集めた日本地図</title>
 <meta name="description" content="黙浴サウナ、カウンター飲食、ヒトカラ、図書館。ひとりでも行ける店ではなく、ひとりが標準の店だけを都道府県別に可視化した日本地図。">
 <link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
 :root {
   --bg: #ffffff; --fg: #1a202c; --line: #cbd5e1; --muted: #64748b;
@@ -22,6 +24,10 @@ body { margin: 0; background: var(--bg); color: var(--fg);
 main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 6rem; }
 h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
 .lede { margin: 0; color: var(--muted); }
+.tabs { display: flex; gap: .5rem; margin: 1.2rem 0 0; border-bottom: 1px solid var(--line); }
+.tabs button { background: none; border: none; border-bottom: 2px solid transparent;
+               color: var(--muted); cursor: pointer; font: inherit; padding: .5rem 1rem; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
 .filters { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.5rem 0; }
 .filters fieldset { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .9rem; margin: 0; }
 .filters legend { font-size: .8rem; color: var(--muted); padding: 0 .3rem; }
@@ -75,6 +81,44 @@ img, svg, table { max-width: 100%; }
 .pin.conf-0 { fill-opacity: .35; } .pin.conf-1 { fill-opacity: .7; }
 .pin.conf-2 { stroke: #1a202c; stroke-width: .4; }
 
+#search-list { list-style: none; padding: 0; margin: .8rem 0 0; }
+#search-list .item { display: grid; grid-template-columns: 1fr auto; gap: .2rem .8rem;
+                     padding: .7rem 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+#search-list .item:hover { background: rgba(127,127,127,.06); }
+#search-list .nm { font-weight: 600; }
+#search-list .meta, #search-list .dist { color: var(--muted); font-size: .82rem; }
+#search-list .dist { text-align: right; white-space: nowrap; }
+#search-list .badges { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .35rem; }
+.badge-ax { font-size: .72rem; border: 1px solid var(--line); border-radius: 999px;
+            padding: 0 .5rem; color: var(--muted); }
+.badge-gem { border-color: #c05621; color: #c05621; }
+.badge-open { border-color: #2f855a; color: #2f855a; }
+.badge-shut { border-color: var(--line); }
+.more-filters { margin: .6rem 0; font-size: .85rem; color: var(--muted); }
+.placeholder { color: var(--muted); }
+
+#facility-map { width: 100%; height: 220px; border-radius: 8px; overflow: hidden;
+                margin: .8rem 0; background: #eef2f6; }
+#facility-map .maplibregl-ctrl-attrib { font-size: 10px; }
+.map-credit { font-size: .75rem; color: var(--muted); margin: -.4rem 0 .4rem; }
+#facility { position: fixed; inset: auto 0 0 0; max-height: 80vh; overflow-y: auto;
+            background: var(--bg); border-top: 2px solid var(--line);
+            border-radius: 12px 12px 0 0; padding: 1.2rem 1rem 2rem;
+            box-shadow: 0 -4px 24px rgba(0,0,0,.2); z-index: 40; }
+#facility h3 { margin: 0 .5rem 0 0; font-size: 1.2rem; }
+#facility .close { position: absolute; right: 1rem; top: 1rem; background: none;
+                   border: 1px solid var(--line); border-radius: 6px; color: var(--fg);
+                   cursor: pointer; font-size: 1.1rem; line-height: 1; padding: .2rem .5rem; }
+#facility dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .9rem; margin: .8rem 0; }
+#facility dt { color: var(--muted); font-size: .85rem; }
+#facility dd { margin: 0; }
+#facility .gem-reason { color: #c05621; font-size: .85rem; }
+#facility .to-maps { display: inline-block; margin-top: .8rem; }
+@media (min-width: 721px) {
+  #facility { inset: auto auto 1.5rem 50%; transform: translateX(-50%);
+              width: min(560px, 92vw); border-radius: 12px; border: 1px solid var(--line); }
+}
+
 @media (max-width: 720px) {
   .board { grid-template-columns: 1fr; }
   #legend { position: static; width: auto; max-width: none; }
@@ -93,6 +137,45 @@ img, svg, table { max-width: 100%; }
     <p class="lede">ひとりで行ける店ではなく、ひとりが標準の店だけを集めた日本地図。</p>
   </header>
 
+  <nav class="tabs" role="tablist">
+    <button type="button" id="tab-search" role="tab" aria-selected="true">探す</button>
+    <button type="button" id="tab-nation" role="tab" aria-selected="false">全国で見る</button>
+  </nav>
+
+  <section id="panel-search" role="tabpanel">
+    <div class="filters">
+      <fieldset><legend>カテゴリ</legend>
+        <label><input type="checkbox" id="s-cat-bath" checked> 湯・サウナ</label>
+        <label><input type="checkbox" id="s-cat-eat"  checked> カウンター飲食</label>
+        <label><input type="checkbox" id="s-cat-play" checked> ひとり娯楽</label>
+        <label><input type="checkbox" id="s-cat-stay" checked> ひとり滞在</label>
+      </fieldset>
+      <fieldset><legend>距離</legend>
+        <select id="f-dist">
+          <option value="400">徒歩5分（直線400m）</option>
+          <option value="800" selected>徒歩10分（直線800m）</option>
+          <option value="1600">徒歩20分（直線1.6km）</option>
+          <option value="">指定なし</option>
+        </select>
+      </fieldset>
+      <fieldset><legend>ひとり条件</legend>
+        <label><input type="checkbox" id="f-solo"> 一人が標準のみ</label>
+        <label><input type="checkbox" id="f-quiet"> 静かなところ</label>
+        <label><input type="checkbox" id="f-easy"> 作法不要</label>
+      </fieldset>
+    </div>
+    <details class="more-filters">
+      <summary>その他の条件</summary>
+      <label><input type="checkbox" id="f-hours"> 営業時間が分かる店だけ</label>
+      <small id="hours-note"></small>
+      <label><input type="checkbox" id="f-verified"> 出典で確認済みの店だけ</label>
+      <small>現状ほぼすべてが業態からの推定です</small>
+    </details>
+    <p id="search-status" class="counts"></p>
+    <ol id="search-list" class="items"></ol>
+  </section>
+
+  <section id="panel-nation" role="tabpanel" hidden>
   <div class="filters">
     <fieldset><legend>カテゴリ</legend>
       <label><input type="checkbox" id="f-cat-bath" checked> 湯・サウナ</label>
@@ -133,17 +216,50 @@ img, svg, table { max-width: 100%; }
   </div>
 
   <section id="detail" hidden></section>
+  </section>
 
   <footer>
     <p class="disclaimer">この分類は OpenStreetMap のタグと業態から機械的に推定したものです。実際の座席形態や黙浴の有無を保証するものではありません。</p>
-    <p class="credits">地図データ: 地球地図日本（国土地理院） / 施設データ: © OpenStreetMap contributors (ODbL) / 人口: Wikidata (CC0) / 令和2年国勢調査</p>
+    <p class="credits">地図データ: 地球地図日本（国土地理院） / 地図タイル: 地理院タイル（国土地理院） / 施設データ: © OpenStreetMap contributors (ODbL) / 人口: Wikidata (CC0) / 令和2年国勢調査</p>
   </footer>
+
+  <section id="facility" hidden aria-live="polite" tabindex="-1"></section>
 </main>
 
 <script>
+// file:// で開くと、type="module" 内の `import ... from './assets/hitori/core.js'`
+// が CORS でブロックされ、module スクリプトは丸ごと実行されない
+// （init() の catch にも届かない）。この classic script は import を持たないので
+// file:// でも実行できる。module が動かない場合の案内をここで先に出しておく。
+if (location.protocol === 'file:') {
+  document.getElementById('map').outerHTML = `<div class="error">
+    このページはファイルとして直接開くと動きません。ブラウザが
+    <code>file://</code> からのデータ読み込みをブロックするためです。<br>
+    公開版は <a href="https://yuichi916.github.io/hitori.html">yuichi916.github.io/hitori.html</a> で見られます。<br>
+    手元で確認する場合は、このフォルダで
+    <code>python -m http.server 8000</code> を実行し
+    <code>http://localhost:8000/hitori.html</code> を開いてください。</div>`;
+  document.getElementById('panel-search').hidden = true;
+  document.getElementById('panel-nation').hidden = false;
+  document.getElementById('tab-search').setAttribute('aria-selected', 'false');
+  document.getElementById('tab-nation').setAttribute('aria-selected', 'true');
+  window.__ready = true;
+  window.__searchReady = true;
+}
+</script>
+<script type="module">
+import * as core from './assets/hitori/core.js';
 const CATS = ['bath', 'eat', 'play', 'stay'];
 const CAT_JA = { bath: '湯・サウナ', eat: 'カウンター飲食', play: 'ひとり娯楽', stay: 'ひとり滞在' };
-const state = { cats: new Set(CATS), nochain: false, minConf: 0, pref: null };
+const state = {
+  tab: 'search', pref: null,
+  cats: new Set(CATS), nochain: false, minConf: 0,   // 全国タブ用
+  here: null,
+  search: { cats: new Set(CATS), maxDistM: 800, minSolo: 0, minQuiet: 0, minEasy: 0,
+            minConf: 0, requireHours: false },
+};
+let NEIGHBORS = null;
+let searchStarted = false;   // locateAndSearch() を探すタブへの初回到達時に一度だけ走らせるための番人
 let SUMMARY = null, GEO = null;
 const BY_CODE = {};
 
@@ -199,8 +315,23 @@ function renderRanking() {
      <span>${v.toFixed(1)}</span></li>`).join('');
 }
 
+function switchTab(name) {
+  state.tab = name === 'nation' ? 'nation' : 'search';
+  for (const t of ['search', 'nation']) {
+    const on = state.tab === t;
+    document.getElementById('tab-' + t).setAttribute('aria-selected', String(on));
+    document.getElementById('panel-' + t).hidden = !on;
+  }
+  // 初期表示が「全国で見る」のとき（共有URLなど）は探すタブに一度も
+  // 入らないままなので locateAndSearch() が走らず #search-list が空のまま
+  // 固まる。探すタブに初めて入った瞬間に一度だけ起動する。
+  if (state.tab === 'search') ensureSearchStarted();
+  syncUrl();
+}
+
 function syncUrl() {
   const parts = [];
+  if (state.tab === 'nation') parts.push('tab=nation');
   if (state.pref) parts.push(`pref=${state.pref}`);
   if (state.cats.size !== CATS.length) parts.push(`cat=${[...state.cats].join('.')}`);
   if (state.nochain) parts.push('nochain=1');
@@ -210,6 +341,7 @@ function syncUrl() {
 
 function restoreFromUrl() {
   const h = new URLSearchParams(location.hash.slice(1));
+  state.tab = h.get('tab') === 'nation' ? 'nation' : 'search';
   // cat が無いときは必ず全カテゴリへ戻す。URLに書かれていない項目を前の状態の
   // まま残すと、hashchange 経由の遷移で直前の絞り込みが漏れて残る。
   if (h.has('cat')) {
@@ -266,12 +398,313 @@ async function loadPrefecture(code) {
   return doc;
 }
 
-function visibleItems(doc) {
+function visibleItems(doc, code) {
+  // code（都道府県コード）は mapsUrl() の prefCode フォールバック用。city が
+  // 空の施設でも県名検索まではできるようにするため、ここで全件に付与する。
   return doc.items
     .map(row => Object.fromEntries(doc.fields.map((f, i) => [f, row[i]])))
     .filter(it => state.cats.has(it.cat))
     .filter(it => !(state.nochain && it.chain === 1))
-    .filter(it => it.conf >= state.minConf);
+    .filter(it => it.conf >= state.minConf)
+    .map(it => ({ ...it, prefCode: code }));
+}
+
+// ---- 探すタブ（現在地から近い順） ----
+
+// 0.6は想定分布からの初期値で、chains.py導入後の実測では穴場が1.2%しか
+// 出ず機能として使い物にならなかった。0.4はhidden.HIDDEN_THRESHOLDと同じ値。
+// ここが揺れると2つの穴場定義が同時に存在してしまうため、
+// tests/hitori_hidden_test.py で hidden.py の値との一致を検証している。
+const GEM_MIN_HIDDEN = 0.4;
+const GEM_MIN_N = 3;
+
+function isGem(it) {
+  return it.chain === 0 && it.hidden_n >= GEM_MIN_N && it.hidden >= GEM_MIN_HIDDEN;
+}
+
+function collectItems(codes) {
+  const out = [];
+  for (const c of codes) {
+    const doc = PREF_CACHE[c];
+    if (doc) for (const o of core.rowsToObjects(doc)) out.push({ ...o, prefCode: c });
+  }
+  return out;
+}
+
+function currentSearchResults() {
+  if (!state.here) return [];
+  const loaded = Object.keys(PREF_CACHE).map(Number);
+  const withD = core.withDistance(collectItems(loaded), state.here.lat, state.here.lon);
+  return core.sortByDistance(core.filterItems(withD, state.search));
+}
+
+function renderSearchList() {
+  const items = currentSearchResults();
+  const list = document.getElementById('search-list');
+  const status = document.getElementById('search-status');
+  const failed = [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
+
+  if (!items.length) {
+    list.innerHTML = '';
+    if (failed.length) {
+      // 「該当なし」より読み込み失敗を優先して伝える。自県のデータが読めて
+      // いないだけで PREF_CACHE が空になっているとき、それを黙って「近くには
+      // 何も無い」という表示にすると、実際には何も調べられていないのに
+      // 調べた上で無かったと誤解させてしまう。
+      status.textContent = `${failed.join('・')}のデータを読み込めませんでした。`;
+    } else {
+      status.innerHTML = state.search.maxDistM
+        ? `この条件に該当する施設はありませんでした。<button type="button" class="widen">距離を広げる</button>`
+        : 'この条件に該当する施設はありませんでした。';
+      const w = status.querySelector('.widen');
+      if (w) w.addEventListener('click', () => {
+        document.getElementById('f-dist').value = '';
+        state.search.maxDistM = null;
+        renderSearchList();
+      });
+    }
+    return;
+  }
+
+  status.textContent = `${items.length.toLocaleString()} 件`
+    + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
+  const now = new Date();
+  list.innerHTML = items.slice(0, 200).map(it => {
+    const st = core.openState(it.oh, now);
+    const openBadge = st === 'open' ? '<span class="badge-ax badge-open">営業中</span>'
+      : st === 'closed' ? '<span class="badge-ax badge-shut">営業時間外</span>'
+      : '<span class="badge-ax">営業時間不明</span>';
+    const m = core.walkMinutes(it.distM);
+    const dist = it.distM >= 1000 ? `直線${(it.distM / 1000).toFixed(1)}km` : `直線${Math.round(it.distM)}m`;
+    return `<li class="item" data-id="${it.id}" data-dist="${Math.round(it.distM)}"
+              data-quiet="${it.quiet}" data-solo="${it.solo}" tabindex="0">
+      <span class="nm">${escapeHtml(it.name)}</span>
+      <span class="dist">徒歩${m}分<br><small>${dist} ${core.bearing8(state.here.lat, state.here.lon, it.lat, it.lon)}</small></span>
+      <span class="meta">${KIND_JA[it.kind] || it.kind}</span>
+      <span class="badges">
+        <span class="badge-ax">ひとり度${it.solo}</span>
+        <span class="badge-ax">静けさ${it.quiet}</span>
+        <span class="badge-ax">入りやすさ${it.easy}</span>
+        ${openBadge}
+        ${it.chain ? '<span class="badge-ax">チェーン</span>' : ''}
+        ${isGem(it) ? `<span class="badge-ax badge-gem">穴場 ${Math.round(it.hidden * 100)}%</span>` : ''}
+      </span>
+    </li>`;
+  }).join('');
+}
+
+const AX_LABEL = {
+  solo: ['', '', '一人でも浮かない', '一人でも浮かない', '一人が多数', '一人が標準'],
+  quiet: ['', '', '声を出す場', '', '静か寄り', '会話が発生しない'],
+  easy: ['', '', '常連文化・暗黙の作法', '軽い作法あり', 'ほぼ作法不要', '作法不要'],
+};
+
+function mapsUrl(it) {
+  // 座標だけを渡すと無名のピンが立つだけで店の情報に着かない。店名で検索させる。
+  // 市区町村を足すのは同名店の誤爆を減らすため。無ければ都道府県名で代用する。
+  const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
+  const q = [it.name, where].filter(Boolean).join(' ');
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+}
+
+// 直前にシートを開いた一覧項目。閉じたときにここへフォーカスを戻す。
+let _facilityOpener = null;
+
+function openFacility(id, opener) {
+  const it = currentSearchResults().find(x => x.id === id);
+  if (!it) return;
+  const el = document.getElementById('facility');
+  const st = core.openState(it.oh, new Date());
+  const hours = it.oh
+    ? `${escapeHtml(it.oh)}（${st === 'open' ? '営業中' : st === 'closed' ? '営業時間外' : '解釈できない書式'}）`
+    : '営業時間不明';
+  const dist = it.distM >= 1000 ? `${(it.distM / 1000).toFixed(1)}km` : `${Math.round(it.distM)}m`;
+
+  el.hidden = false;
+  el.innerHTML = `
+    <button type="button" class="close" aria-label="閉じる">×</button>
+    <h3>${escapeHtml(it.name)}</h3>
+    <p class="meta">${KIND_JA[it.kind] || it.kind}${it.city ? ' · ' + escapeHtml(it.city) : ''}</p>
+    <dl>
+      <dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.here.lat, state.here.lon, it.lat, it.lon)}）</dd>
+      <dt>ひとり度</dt><dd>${it.solo} — ${AX_LABEL.solo[it.solo]}</dd>
+      <dt>静けさ</dt><dd>${it.quiet} — ${AX_LABEL.quiet[it.quiet]}</dd>
+      <dt>入りやすさ</dt><dd>${it.easy} — ${AX_LABEL.easy[it.easy]}</dd>
+      <dt>営業時間</dt><dd>${hours}</dd>
+      ${it.tel ? `<dt>電話</dt><dd><a href="tel:${escapeHtml(it.tel)}">${escapeHtml(it.tel)}</a></dd>` : ''}
+      ${it.web ? `<dt>サイト</dt><dd><a href="${escapeHtml(it.web)}" target="_blank" rel="noopener">公式サイト</a></dd>` : ''}
+    </dl>
+    ${isGem(it) ? `<p class="gem-reason">穴場度 ${Math.round(it.hidden * 100)}%（周辺${it.hidden_n}件中${Math.round(it.hidden * it.hidden_n)}件がチェーン）</p>` : ''}
+    ${it.note ? `<p class="note">${escapeHtml(it.note)}</p>` : ''}
+    <div id="facility-map"></div>
+    <a class="to-maps" href="${mapsUrl(it)}" target="_blank" rel="noopener">経路を調べる（Googleマップ）</a>`;
+  el.querySelector('.close').addEventListener('click', closeFacility);
+  renderFacilityMap(it);   // Task 13 で実装。ここでは空関数でよい。
+
+  // #facility は <footer> の後の <main> 末尾にあり、閉じるボタンへ
+  // フォーカスすると一覧の残り項目とフッター全体をタブで飛ばさないと
+  // 辿り着けない。見出しから読ませるため、シート自体（tabindex="-1"）に
+  // フォーカスする。
+  _facilityOpener = opener || null;
+  el.focus();
+}
+
+let _facilityMap = null;
+
+// 地理院タイル（国土地理院）。APIキー不要・無料。出典明記のみで利用できる。
+// 淡色地図を使う。標準地図は色が強く、施設ピンが埋もれる。
+const GSI_TILE = 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png';
+const GSI_ATTR = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル（国土地理院）</a>';
+
+function closeFacility() {
+  if (_facilityMap) { _facilityMap.remove(); _facilityMap = null; }
+  document.getElementById('facility').hidden = true;
+  // 開いた場所（一覧項目）へフォーカスを戻す。ボタンやEscapeなど
+  // 閉じ方によらず、ユーザーが元いた位置に戻れるようにする。
+  if (_facilityOpener && document.contains(_facilityOpener)) _facilityOpener.focus();
+  _facilityOpener = null;
+}
+
+function renderFacilityMap(it) {
+  const el = document.getElementById('facility-map');
+  if (!el || typeof maplibregl === 'undefined') {
+    if (el) el.innerHTML = `<p class="map-credit">地図を表示できませんでした。${GSI_ATTR}</p>`;
+    return;
+  }
+
+  if (_facilityMap) { _facilityMap.remove(); _facilityMap = null; }
+
+  _facilityMap = new maplibregl.Map({
+    container: el,
+    style: {
+      version: 8,
+      sources: { gsi: { type: 'raster', tiles: [GSI_TILE], tileSize: 256, attribution: GSI_ATTR } },
+      layers: [{ id: 'gsi', type: 'raster', source: 'gsi' }],
+    },
+    center: [it.lon, it.lat],
+    zoom: 16,
+    attributionControl: { compact: false },
+  });
+  _facilityMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+  new maplibregl.Marker({ color: '#c05621' }).setLngLat([it.lon, it.lat]).addTo(_facilityMap);
+  if (state.here) {
+    new maplibregl.Marker({ color: '#2b5f96' })
+      .setLngLat([state.here.lon, state.here.lat]).addTo(_facilityMap);
+    // 現在地と施設の両方が入るように寄せる
+    const b = new maplibregl.LngLatBounds([it.lon, it.lat], [it.lon, it.lat]);
+    b.extend([state.here.lon, state.here.lat]);
+    _facilityMap.fitBounds(b, { padding: 48, maxZoom: 17, duration: 0 });
+  }
+}
+
+const FAILED_PREFS = new Set();
+
+async function loadPrefIntoCache(code) {
+  try {
+    await loadPrefecture(code);
+    FAILED_PREFS.delete(code);
+    return true;
+  } catch (err) {
+    // spec §9: その県だけエラー表示し、取得できた県の結果は出す。
+    // 黙って落とすと「その県には何も無い」と読めてしまう。
+    FAILED_PREFS.add(code);
+    return false;
+  }
+}
+
+function ensureSearchStarted() {
+  if (searchStarted) return;
+  searchStarted = true;
+  locateAndSearch();
+}
+
+async function locateAndSearch() {
+  const status = document.getElementById('search-status');
+  if (!navigator.geolocation) {
+    showLocationFallback('この端末では位置情報を利用できません。');
+    return;
+  }
+  status.textContent = '現在地を取得しています…';
+
+  let pos;
+  try {
+    pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+    });
+  } catch (err) {
+    showLocationFallback('位置情報が取得できませんでした。');
+    return;
+  }
+
+  const lat = pos.coords.latitude, lon = pos.coords.longitude;
+  if (lat < 20 || lat > 46 || lon < 122 || lon > 154) {
+    showLocationFallback('日本国内のみ対応しています。');
+    return;
+  }
+  state.here = { lat, lon };
+
+  const code = core.prefectureAt(lat, lon, GEO);
+  status.textContent = `${BY_CODE[code].name} の施設を読み込んでいます…`;
+
+  // 自県を先に描画する。隣接県は後から差し込む。
+  await loadPrefIntoCache(code);
+  renderSearchList();
+  window.__searchReady = true;
+
+  const neighbors = (NEIGHBORS && NEIGHBORS[String(code)]) || [];
+  for (const n of neighbors) {
+    if (await loadPrefIntoCache(n)) renderSearchList();
+  }
+}
+
+function showLocationFallback(reason) {
+  document.getElementById('search-list').innerHTML = '';
+  document.getElementById('search-status').innerHTML =
+    `${escapeHtml(reason)}位置情報を許可すると、現在地から近い順に探せます。<br>
+     <button type="button" class="retry-location">再試行</button>
+     <button type="button" class="to-nation">全国で見る</button>`;
+  document.querySelector('#search-status .retry-location')
+    .addEventListener('click', () => {
+      // searchStarted は初回到達時に一度きり立てる番人のため、拒否後に
+      // 許可し直しても自動では戻れない。ここで番人を下ろして再実行する。
+      searchStarted = false;
+      ensureSearchStarted();
+    });
+  document.querySelector('#search-status .to-nation')
+    .addEventListener('click', () => switchTab('nation'));
+  window.__searchReady = true;
+}
+
+function bindSearchFilters() {
+  for (const c of CATS) {
+    document.getElementById('s-cat-' + c).addEventListener('change', e => {
+      if (e.target.checked) state.search.cats.add(c); else state.search.cats.delete(c);
+      renderSearchList();
+    });
+  }
+  document.getElementById('f-dist').addEventListener('change', e => {
+    state.search.maxDistM = e.target.value ? +e.target.value : null;
+    renderSearchList();
+  });
+  document.getElementById('f-solo').addEventListener('change', e => {
+    state.search.minSolo = e.target.checked ? 5 : 0; renderSearchList();
+  });
+  document.getElementById('f-quiet').addEventListener('change', e => {
+    state.search.minQuiet = e.target.checked ? 4 : 0; renderSearchList();
+  });
+  document.getElementById('f-easy').addEventListener('change', e => {
+    state.search.minEasy = e.target.checked ? 4 : 0; renderSearchList();
+  });
+  document.getElementById('f-verified').addEventListener('change', e => {
+    state.search.minConf = e.target.checked ? 1 : 0; renderSearchList();
+  });
+  document.getElementById('f-hours').addEventListener('change', e => {
+    state.search.requireHours = e.target.checked;
+    document.getElementById('hours-note').textContent = e.target.checked
+      ? '営業時間が登録されているのは全体の約17%です' : '';
+    renderSearchList();
+  });
 }
 
 function toXY(lat, lon) {
@@ -334,7 +767,7 @@ function renderScatter(items, code) {
 
 function renderDetail(code, doc) {
   const p = BY_CODE[code];
-  const items = visibleItems(doc);
+  const items = visibleItems(doc, code);
   const rank = SUMMARY.prefectures.map(x => ({ c: x.code, v: getDensity(x) }))
     .sort((a, b) => b.v - a.v).findIndex(x => x.c === code) + 1;
 
@@ -352,12 +785,12 @@ function renderDetail(code, doc) {
   const pinNote = notes.length ? `（${notes.join('、')}）` : '';
 
   const list = listed.map(it => `
-    <li class="item" data-score="${it.score}">
+    <li class="item" data-score="${it.solo}">
       <span class="conf" title="${CONF_LABEL[it.conf]}">${CONF_MARK[it.conf]}</span>
-      <a href="https://www.google.com/maps/search/?api=1&amp;query=${it.lat},${it.lon}"
+      <a href="${mapsUrl(it)}"
          target="_blank" rel="noopener">${escapeHtml(it.name)}</a>
       <span class="kind">${KIND_JA[it.kind] || it.kind}</span>
-      <span class="score">ひとり度 ${it.score}</span>
+      <span class="score">ひとり度 ${it.solo}</span>
       ${it.chain ? '<span class="chip">チェーン</span>' : ''}
       ${it.note ? `<span class="note">${escapeHtml(it.note)}</span>` : ''}
     </li>`).join('');
@@ -479,9 +912,13 @@ function bindFilters() {
     const before = state.pref;
     restoreFromUrl();
     applyFilters();
+    switchTab(state.tab);
     if (state.pref && state.pref !== before) openPrefecture(state.pref);
     else if (!state.pref && before) closePrefecture();
   });
+
+  document.getElementById('tab-search').addEventListener('click', () => switchTab('search'));
+  document.getElementById('tab-nation').addEventListener('click', () => switchTab('nation'));
 }
 
 function closePrefecture() {
@@ -491,20 +928,48 @@ function closePrefecture() {
 }
 
 async function init() {
-  const [s, g] = await Promise.all([
+  const [s, g, nb] = await Promise.all([
     fetch('data/hitori/summary.json').then(r => r.json()),
     fetch('data/hitori/prefectures_svg.json').then(r => r.json()),
+    fetch('data/hitori/neighbors.json').then(r => r.json()),
   ]);
-  SUMMARY = s; GEO = g;
+  SUMMARY = s; GEO = g; NEIGHBORS = nb;
   for (const p of SUMMARY.prefectures) BY_CODE[p.code] = p;
   buildLegendRamp();
   buildMapSvg();
   bindFilters();
   restoreFromUrl();
   applyFilters();
+  bindSearchFilters();
+  document.getElementById('search-list').addEventListener('click', e => {
+    const li = e.target.closest('li.item');
+    if (li) openFacility(li.dataset.id, li);
+  });
+  document.getElementById('search-list').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const li = e.target.closest('li.item');
+    if (li) { e.preventDefault(); openFacility(li.dataset.id, li); }
+  });
+  // Escape でシートを閉じる。開いている間だけ有効（hidden なら何もしない）。
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const facility = document.getElementById('facility');
+    if (facility.hidden) return;
+    e.preventDefault();
+    closeFacility();
+  });
+  switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
   if (state.pref) openPrefecture(state.pref);
   window.__ready = true;
+  // 描画テストから触るために公開する
+  Object.assign(window, { state, core, PREF_CACHE, currentSearchResults, isGem, openFacility });
 }
+
+// module scriptはトップレベル宣言がモジュールスコープに閉じ、window の
+// プロパティにならない。page.evaluate() が素の識別子で参照できるよう公開する。
+window.state = state;
+window.PREF_CACHE = PREF_CACHE;
+window.visibleItems = visibleItems;
 
 init().catch(err => {
   // file:// で開くとブラウザが fetch をブロックする。原因が分からないと
@@ -520,7 +985,11 @@ init().catch(err => {
     : `データの読み込みに失敗しました（${escapeHtml(err.message)}）。
        通信環境を確認して再読み込みしてください。`;
   document.getElementById('map').outerHTML = `<div class="error">${msg}</div>`;
+  // エラーメッセージは「全国で見る」パネルの中にある。既定タブの「探す」が
+  // 表示されたままだと黙って隠れてしまうため、エラー時はそちらへ切り替える。
+  switchTab('nation');
   window.__ready = true;
+  window.__searchReady = true;
 });
 </script>
 </body>

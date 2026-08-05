@@ -33,6 +33,17 @@ CHAIN_BRANDS = SOLO_BRANDS + [
     # 滞在
     "東横INN", "東横イン", "スーパーホテル", "ドーミーイン", "APAホテル",
     "アパホテル", "ルートイン", "コンフォートホテル",
+
+    # 穴場（hidden gem）出力の目視監査で見つかった漏れ。3県以上で完全一致する
+    # 店名を自動でチェーン昇格する chains.py は「◯◯ △△店」のような支店名
+    # サフィックスを別名として扱ってしまうため拾えない。ここは _CHAIN_RE が
+    # 部分一致（search）なので、素の屋号だけ足せば支店名付きの表記も自動的に
+    # マッチする。
+    # 飲食（追加）
+    "来来亭", "AFURI", "蒙古タンメン中本", "ラーメン豚山", "東京油組総本店",
+    "新福菜館", "彩華ラーメン", "ラーメンショップ", "ラーメン山岡家", "優勝軒",
+    # 娯楽（追加）
+    "ジャンカラ", "カラオケBanBan", "カラオケマック", "109シネマズ",
 ]
 
 _CHAIN_RE = re.compile("|".join(re.escape(b) for b in CHAIN_BRANDS))
@@ -136,17 +147,63 @@ def _decisive_polarity(evidence):
     return "-" if "-" in same_day else "+"
 
 
-def score(base, name, evidence):
-    """業態ベース点 + チェーン加点 + エビデンス加減 を 1〜5 にクランプして返す。"""
-    s = base
+# 業態 → (solo, quiet, easy)。spec §5 の表。
+#   solo  5=一人が標準 / 4=一人が多数 / 3=一人でも浮かない
+#   quiet 5=会話が発生しない / 4=静か寄り / 2=声を出す場
+#   easy  5=作法不要 / 4=ほぼ不要 / 3=軽い作法 / 2=常連文化
+# 日本では業態が静けさと作法をかなり正確に予測する。図書館は静かで作法不要、
+# 立ち飲みは声を出す場で常連文化がある、一蘭は静かだが食券と記入用紙の作法がある。
+AXES = {
+    "standing":      (5, 2, 2),
+    "yakiniku_solo": (5, 4, 4),
+    "netcafe":       (5, 5, 5),
+    "sauna":         (5, 5, 3),
+    "ramen":         (4, 4, 3),
+    "gyudon":        (4, 4, 4),
+    "soba_udon":     (4, 4, 3),
+    "curry":         (4, 4, 4),
+    "sento":         (4, 4, 3),
+    "onsen":         (3, 4, 3),
+    "karaoke":       (4, 2, 4),
+    "library":       (4, 5, 5),
+    "cinema":        (3, 5, 5),
+    "museum":        (3, 5, 5),
+    "hostel":        (3, 3, 3),
+    # capsule は classify() が一切返さない手動限定の種別。OSMに全国1件しかタグ付けが
+    # 無いため、curated.json の "c-" エントリでのみ登場する（spec §5.1参照）。
+    # easy は sento(3) を基準に据えている。sento の3はかけ湯の作法だけで付く値だが、
+    # capsule は初見の作法がそれより明確に多い（下駄箱、フロントでのロッカーキー交換、
+    # 館内着への着替え、大浴場、カプセル内通話禁止）ため、sentoより易しくはできない。
+    "capsule":       (5, 5, 3),
+}
+
+
+def axes(kind, name, evidence, curated=None):
+    """業態 → 3軸スコア。curated で軸ごとに上書きできる。
+
+    チェーン加点とエビデンス加減は solo にだけ効く。
+    チェーンかどうかは静けさや作法とは無関係だからである。
+    表に無い kind は KeyError を上げる。追加漏れを黙って通さないため。
+    """
+    solo, quiet, easy = AXES[kind]
+
     if _SOLO_RE.search(name or ""):
-        s += 1
+        solo += 1
     pol = _decisive_polarity(evidence)
     if pol == "+":
-        s += 1
+        solo += 1
     elif pol == "-":
-        s -= 1
-    return max(1, min(5, s))
+        solo -= 1
+
+    out = {
+        "solo": max(1, min(5, solo)),
+        "quiet": max(1, min(5, quiet)),
+        "easy": max(1, min(5, easy)),
+    }
+    for k in ("solo", "quiet", "easy"):
+        if curated and k in curated:
+            out[k] = max(1, min(5, int(curated[k])))
+    return out
 
 
 def confidence(evidence):

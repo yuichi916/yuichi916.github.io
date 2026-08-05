@@ -53,30 +53,57 @@ def test_classify():
     assert scoring.classify({"amenity": "public_bath", "cuisine": "izakaya"}) == ("bath", "sento", 4)
 
 
-def test_score():
-    # チェーン加点なし・エビデンスなし
-    assert scoring.score(4, "はやしや", []) == 4
-    # SOLO_BRANDS 一致で +1
-    assert scoring.score(4, "一蘭 渋谷店", []) == 5
-    # 上限5でクランプ（base5 + ブランド加点）
-    assert scoring.score(5, "焼肉ライク 新宿店", []) == 5
-    # 肯定エビデンスで +1
-    assert scoring.score(3, "○○温泉", [{"src": "web", "checked": "2026-08-01", "polarity": "+"}]) == 4
-    # 否定エビデンスで -1
-    assert scoring.score(4, "はやしや", [{"src": "user", "checked": "2026-08-01", "polarity": "-"}]) == 3
-    # 賛否が混在したら確認日が新しいほうが勝つ
-    mixed = [
-        {"src": "web", "checked": "2026-01-01", "polarity": "+"},
-        {"src": "user", "checked": "2026-08-01", "polarity": "-"},
-    ]
-    assert scoring.score(4, "はやしや", mixed) == 3
-    mixed2 = [
-        {"src": "user", "checked": "2026-08-01", "polarity": "+"},
-        {"src": "web", "checked": "2026-01-01", "polarity": "-"},
-    ]
-    assert scoring.score(4, "はやしや", mixed2) == 5
-    # 下限1でクランプ
-    assert scoring.score(1, "はやしや", [{"src": "user", "checked": "2026-08-01", "polarity": "-"}]) == 1
+def test_axes():
+    # 業態ベース値。spec §5 の表がそのまま期待値。
+    assert scoring.axes("library", "○○図書館", [], {}) == {"solo": 4, "quiet": 5, "easy": 5}
+    assert scoring.axes("standing", "立ち食いそば まる", [], {}) == {"solo": 5, "quiet": 2, "easy": 2}
+    assert scoring.axes("netcafe", "快活CLUB", [], {}) == {"solo": 5, "quiet": 5, "easy": 5}
+    assert scoring.axes("sauna", "サウナ○○", [], {}) == {"solo": 5, "quiet": 5, "easy": 3}
+    assert scoring.axes("karaoke", "○○カラオケ", [], {}) == {"solo": 4, "quiet": 2, "easy": 4}
+    assert scoring.axes("sento", "はやし湯", [], {}) == {"solo": 4, "quiet": 4, "easy": 3}
+    assert scoring.axes("onsen", "○○温泉", [], {}) == {"solo": 3, "quiet": 4, "easy": 3}
+    assert scoring.axes("museum", "○○美術館", [], {}) == {"solo": 3, "quiet": 5, "easy": 5}
+
+    # チェーン加点は solo にだけ効く。チェーンかどうかは静けさや作法と無関係。
+    a = scoring.axes("ramen", "一蘭 渋谷店", [], {})
+    assert a == {"solo": 5, "quiet": 4, "easy": 3}
+    b = scoring.axes("ramen", "はやしや", [], {})
+    assert b == {"solo": 4, "quiet": 4, "easy": 3}
+
+    # エビデンスも solo にだけ効く
+    pos = [{"src": "visit", "checked": "2026-08-01", "polarity": "+"}]
+    assert scoring.axes("onsen", "○○温泉", pos, {}) == {"solo": 4, "quiet": 4, "easy": 3}
+    neg = [{"src": "user", "checked": "2026-08-01", "polarity": "-"}]
+    assert scoring.axes("sento", "はやし湯", neg, {}) == {"solo": 3, "quiet": 4, "easy": 3}
+
+    # クランプ
+    assert scoring.axes("standing", "焼肉ライク", pos, {})["solo"] == 5
+
+    # curated は軸ごとに上書きできる
+    assert scoring.axes("sento", "はやし湯", [], {"quiet": 2})["quiet"] == 2
+    assert scoring.axes("library", "○○図書館", [], {"easy": 3, "solo": 5}) == \
+        {"solo": 5, "quiet": 5, "easy": 3}
+
+    # 未知の kind は例外にする（表の追加漏れを黙って通さない）
+    try:
+        scoring.axes("unknown_kind", "○○", [], {})
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("未知のkindが素通りした")
+
+
+def test_axes_table_covers_all_kinds():
+    # classify が返しうる kind はすべて AXES に載っていること
+    kinds = {
+        "standing", "yakiniku_solo", "ramen", "soba_udon", "gyudon", "curry",
+        "sauna", "onsen", "sento", "netcafe", "karaoke", "cinema",
+        "library", "hostel", "museum",
+    }
+    assert kinds <= set(scoring.AXES), kinds - set(scoring.AXES)
+    for k, v in scoring.AXES.items():
+        assert len(v) == 3, k
+        assert all(1 <= x <= 5 for x in v), k
 
 
 def test_confidence():
@@ -117,11 +144,52 @@ def test_is_chain():
         assert b in scoring.CHAIN_BRANDS, f"{b} が CHAIN_BRANDS にない"
 
 
+# 穴場出力の目視監査で追加した14件。CHAIN_BRANDS は _CHAIN_RE の部分一致
+# （search）で判定されるため、ここが最も誤爆・見落としの起きやすい面。
+# 支店名サフィックス付きの表記は「◯◯ △△店」がそのまま別名扱いされる
+# chains.py（完全一致）では拾えず、このリストでしか防げない。
+_NEW_CHAIN_BRANCH_SUFFIXED = {
+    "来来亭": "来来亭 青梅店",
+    "AFURI": "AFURI 中目黒本店",
+    "蒙古タンメン中本": "蒙古タンメン中本 池袋本店",
+    "ラーメン豚山": "ラーメン豚山 新宿店",
+    "東京油組総本店": "東京油組総本店 新宿店",
+    "新福菜館": "新福菜館 京都駅前店",
+    "彩華ラーメン": "彩華ラーメン 本店",
+    "ラーメンショップ": "ラーメンショップ 前橋店",
+    "ラーメン山岡家": "ラーメン山岡家 千葉店",
+    "優勝軒": "優勝軒 上尾店",
+    "ジャンカラ": "ジャンカラ道頓堀店",
+    "カラオケBanBan": "カラオケBanBan 高松店",
+    "カラオケマック": "カラオケマック 札幌店",
+    "109シネマズ": "109シネマズ川崎",
+}
+
+
+def test_new_chain_brands_bare_and_branch_suffixed():
+    assert set(_NEW_CHAIN_BRANCH_SUFFIXED) == {
+        "来来亭", "AFURI", "蒙古タンメン中本", "ラーメン豚山", "東京油組総本店",
+        "新福菜館", "彩華ラーメン", "ラーメンショップ", "ラーメン山岡家", "優勝軒",
+        "ジャンカラ", "カラオケBanBan", "カラオケマック", "109シネマズ",
+    }, "監査で追加された14件と一致していない"
+
+    for bare, suffixed in _NEW_CHAIN_BRANCH_SUFFIXED.items():
+        assert scoring.is_chain({"name": bare}) == 1, f"{bare} が素の屋号でchain判定されない"
+        assert scoring.is_chain({"name": suffixed}) == 1, f"{suffixed} が支店名付きでchain判定されない"
+
+    # 誤検出ガード。どちらも「自動生成アプローチ」検討時に実際に誤爆した
+    # 独立店名で、部分一致リストの副作用がここに出ないことを固定する。
+    assert scoring.is_chain({"name": "そば処 おかあやん"}) == 0
+    assert scoring.is_chain({"name": "ラーメンたかはし"}) == 0
+
+
 def main():
     test_classify()
-    test_score()
+    test_axes()
+    test_axes_table_covers_all_kinds()
     test_confidence()
     test_is_chain()
+    test_new_chain_brands_bare_and_branch_suffixed()
     print("OK: scoring")
 
 

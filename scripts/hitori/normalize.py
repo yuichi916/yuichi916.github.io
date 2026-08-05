@@ -46,7 +46,7 @@ def to_record(el, curated):
     cls = scoring.classify(tags)
     if cls is None:
         return None
-    cat, kind, base = cls
+    cat, kind, _base = cls
 
     fid = element_id(el)
     cur = curated.get(fid) or {}
@@ -54,6 +54,11 @@ def to_record(el, curated):
         return None
 
     evidence = cur.get("evidence") or []
+    ax = scoring.axes(kind, name, evidence, cur)
+    # spec §5 の収録条件。否定エビデンスや curated で solo が2以下に落ちた施設は収録しない。
+    # v1 ではこの条件が仕様に書かれていながら一度も強制されていなかった。
+    if ax["solo"] < 3:
+        return None
     return {
         "id": fid,
         "name": name,
@@ -61,9 +66,17 @@ def to_record(el, curated):
         "lon": round(lon, COORD_DIGITS),
         "cat": cat,
         "kind": kind,
-        "score": scoring.score(base, name, evidence),
+        "solo": ax["solo"],
+        "quiet": ax["quiet"],
+        "easy": ax["easy"],
         "conf": scoring.confidence(evidence),
         "chain": scoring.is_chain(tags, cur),
+        "hidden": 0.0,      # compute_hidden が全国計算のあとに上書きする
+        "hidden_n": 0,
+        "city": (tags.get("addr:city") or "").strip(),
+        "oh": (tags.get("opening_hours") or "").strip(),
+        "tel": (tags.get("phone") or tags.get("contact:phone") or "").strip(),
+        "web": (tags.get("website") or tags.get("contact:website") or "").strip(),
         "note": cur.get("note", ""),
     }
 

@@ -9,6 +9,8 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import chains
+import hidden
 import normalize
 import scoring
 import validate
@@ -39,16 +41,18 @@ def manual_records(curated, code):
         if rec.get("pref") != code:
             continue
         evidence = rec.get("evidence") or []
+        ax = scoring.axes(rec["kind"], rec["name"], evidence, rec)
         out.append({
-            "id": fid,
-            "name": rec["name"],
+            "id": fid, "name": rec["name"],
             "lat": round(rec["lat"], normalize.COORD_DIGITS),
             "lon": round(rec["lon"], normalize.COORD_DIGITS),
-            "cat": rec["cat"],
-            "kind": rec["kind"],
-            "score": scoring.score(rec["base"], rec["name"], evidence),
+            "cat": rec["cat"], "kind": rec["kind"],
+            "solo": ax["solo"], "quiet": ax["quiet"], "easy": ax["easy"],
             "conf": scoring.confidence(evidence),
             "chain": int(rec.get("chain", 0)),
+            "hidden": 0.0, "hidden_n": 0,
+            "city": rec.get("city", ""), "oh": rec.get("oh", ""),
+            "tel": rec.get("tel", ""), "web": rec.get("web", ""),
             "note": rec.get("note", ""),
         })
     return out
@@ -56,18 +60,34 @@ def manual_records(curated, code):
 
 def build(raw_by_pref, prefs, curated, updated):
     """(summary, {code: pref_doc}) を返す。ファイルI/Oはしない。"""
-    summary_prefs = []
-    prefdocs = {}
-    total = 0
+    by_pref = {}
+    all_records = []
 
     for p in prefs:
-        code, pop = p["code"], p["pop"]
+        code = p["code"]
         elements = (raw_by_pref.get(code) or {}).get("elements", [])
-
         records = [r for r in (normalize.to_record(el, curated) for el in elements) if r]
         records += manual_records(curated, code)
         records = normalize.dedupe(records)
-        records.sort(key=lambda r: (-r["score"], r["name"]))
+        for r in records:
+            r["_pref"] = code
+        by_pref[code] = records
+        all_records.extend(records)
+
+    # 複数県にまたがる同名店をチェーンへ昇格させる。穴場スコアがchainを
+    # 読むので、これは必ず compute_hidden より前に行う。
+    chains.detect_multi_pref_chains(all_records)
+
+    # 穴場は全国の点集合に対して計算する。県別にやると県境で半径500mが切れる。
+    hidden.compute_hidden(all_records)
+
+    summary_prefs = []
+    prefdocs = {}
+    total = 0
+    for p in prefs:
+        code, pop = p["code"], p["pop"]
+        records = by_pref[code]
+        records.sort(key=lambda r: (-r["solo"], r["name"]))
         total += len(records)
 
         counts = {c: 0 for c in CATS}

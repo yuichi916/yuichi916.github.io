@@ -8,14 +8,18 @@ sys.path.insert(0, str(ROOT / "scripts" / "hitori"))
 
 import validate
 
-FIELDS = ["id", "name", "lat", "lon", "cat", "kind", "score", "conf", "chain", "note"]
+FIELDS = ["id", "name", "lat", "lon", "cat", "kind",
+          "solo", "quiet", "easy", "conf", "chain",
+          "hidden", "hidden_n", "city", "oh", "tel", "web", "note"]
 
 GOOD_PREF = {
-    "pref": 13, "name": "東京都", "updated": "2026-08-02",
+    "pref": 13, "name": "東京都", "updated": "2026-08-04",
     "fields": FIELDS,
     "items": [
-        ["n1", "一蘭 渋谷店", 35.65894, 139.70043, "eat", "ramen", 5, 2, 1, "仕切りカウンター12席"],
-        ["n2", "はやしや", 35.70112, 139.75820, "eat", "soba_udon", 4, 0, 0, ""],
+        ["n1", "一蘭 渋谷店", 35.65894, 139.70043, "eat", "ramen",
+         5, 4, 3, 2, 1, 0.0, 8, "渋谷区", "11:00-23:00", "03-0000-0000", "https://ichiran.com/", "仕切りカウンター12席"],
+        ["n2", "はやしや", 35.70112, 139.75820, "eat", "soba_udon",
+         4, 4, 3, 0, 0, 0.83, 12, "新宿区", "", "", "", ""],
     ],
 }
 
@@ -53,17 +57,30 @@ def test_pref_empty_name():
     assert any("name" in e for e in validate.validate_pref(d))
 
 
-def test_pref_score_range():
-    for bad in (0, 6, 3.5, "4"):
+def test_pref_axis_ranges():
+    for axis, col in (("solo", 6), ("quiet", 7), ("easy", 8)):
+        for bad in (0, 6, 3.5, "4"):
+            d = copy.deepcopy(GOOD_PREF)
+            d["items"][0][col] = bad
+            errs = validate.validate_pref(d)
+            assert any(axis in e for e in errs), f"{axis}={bad!r} が通ってしまった"
+
+
+def test_pref_hidden_range():
+    for bad in (-0.1, 1.1, "0.5"):
         d = copy.deepcopy(GOOD_PREF)
-        d["items"][0][6] = bad
-        assert any("score" in e for e in validate.validate_pref(d)), bad
+        d["items"][0][11] = bad
+        assert any("hidden" in e for e in validate.validate_pref(d)), bad
+    # hidden_n が3未満なら hidden は0でなければならない
+    d = copy.deepcopy(GOOD_PREF)
+    d["items"][1][12] = 2
+    assert any("hidden" in e for e in validate.validate_pref(d))
 
 
 def test_pref_chain_flag():
     for bad in (2, -1, "1", None):
         d = copy.deepcopy(GOOD_PREF)
-        d["items"][0][8] = bad
+        d["items"][0][10] = bad
         assert any("chain" in e for e in validate.validate_pref(d)), bad
 
 
@@ -125,7 +142,8 @@ def main():
     test_pref_ok()
     test_pref_bbox()
     test_pref_empty_name()
-    test_pref_score_range()
+    test_pref_axis_ranges()
+    test_pref_hidden_range()
     test_pref_chain_flag()
     test_pref_duplicate_id()
     test_pref_fields_mismatch()

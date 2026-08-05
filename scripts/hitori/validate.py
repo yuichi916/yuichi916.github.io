@@ -2,7 +2,9 @@
 """出力JSONのスキーマ検証。ビルドからもテストからも同じ関数を呼ぶ。"""
 
 JAPAN_BBOX = (20.0, 46.0, 122.0, 154.0)  # 南, 北, 西, 東
-EXPECTED_FIELDS = ["id", "name", "lat", "lon", "cat", "kind", "score", "conf", "chain", "note"]
+EXPECTED_FIELDS = ["id", "name", "lat", "lon", "cat", "kind",
+                   "solo", "quiet", "easy", "conf", "chain",
+                   "hidden", "hidden_n", "city", "oh", "tel", "web", "note"]
 CATS = ("bath", "eat", "play", "stay")
 
 
@@ -32,9 +34,18 @@ def validate_pref(doc):
         if not (s <= lat <= n and w <= lon <= e):
             errs.append(f"bbox 外の座標: {fid} ({lat}, {lon})")
 
-        sc = row[idx["score"]]
-        if not isinstance(sc, int) or isinstance(sc, bool) or not (1 <= sc <= 5):
-            errs.append(f"score が不正: {fid} -> {sc!r}")
+        for axis in ("solo", "quiet", "easy"):
+            v = row[idx[axis]]
+            if not isinstance(v, int) or isinstance(v, bool) or not (1 <= v <= 5):
+                errs.append(f"{axis} が不正: {fid} -> {v!r}")
+
+        hv, hn = row[idx["hidden"]], row[idx["hidden_n"]]
+        if not isinstance(hv, (int, float)) or isinstance(hv, bool) or not (0.0 <= hv <= 1.0):
+            errs.append(f"hidden が不正: {fid} -> {hv!r}")
+        if not isinstance(hn, int) or isinstance(hn, bool) or hn < 0:
+            errs.append(f"hidden_n が不正: {fid} -> {hn!r}")
+        elif hn < 3 and hv != 0.0:
+            errs.append(f"hidden_n が3未満なのに hidden が0でない: {fid}")
 
         cf = row[idx["conf"]]
         if cf not in (0, 1, 2) or isinstance(cf, bool):
@@ -67,7 +78,7 @@ def validate_summary(doc):
 
 
 VALID_SRC = ("web", "user", "visit", "review")
-MANUAL_REQUIRED = ("name", "lat", "lon", "cat", "kind", "base", "pref")
+MANUAL_REQUIRED = ("name", "lat", "lon", "cat", "kind", "pref")
 
 
 def validate_curated(curated):
