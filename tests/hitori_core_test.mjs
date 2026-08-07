@@ -241,5 +241,57 @@ check('filterItems: 空の opts は素通し', () => {
   eq(core.filterItems(all, {}).length, 4);
 });
 
+const PLACES = [
+  { name: '渋谷', lat: 35.658, lon: 139.701, type: 's', pref: 13 },
+  { name: '渋谷駅', lat: 35.659, lon: 139.702, type: 's', pref: 13 },
+  { name: '渋谷区', lat: 35.664, lon: 139.698, type: 'c', pref: 13 },
+  { name: '府中駅', lat: 35.672, lon: 139.478, type: 's', pref: 13 },
+  { name: '府中駅', lat: 34.567, lon: 133.235, type: 's', pref: 34 },
+  { name: '新宿三丁目駅', lat: 35.690, lon: 139.705, type: 's', pref: 13 },
+];
+
+check('searchPlaces: 部分一致', () => {
+  const r = core.searchPlaces(PLACES, '渋谷');
+  eq(r.length, 3);
+});
+
+check('searchPlaces: 駅ありでも駅なしの名前に当たる', () => {
+  // 入力「渋谷駅」で、OSM側の名前が「渋谷」の駅を取りこぼさない
+  const names = core.searchPlaces(PLACES, '渋谷駅').map(p => p.name);
+  if (!names.includes('渋谷')) throw new Error('駅を外した名前に当たらない: ' + names);
+  if (!names.includes('渋谷駅')) throw new Error('そのままの名前に当たらない: ' + names);
+});
+
+check('searchPlaces: 駅が市区町村より上', () => {
+  const r = core.searchPlaces(PLACES, '渋谷');
+  eq(r[r.length - 1].type, 'c', '市区町村が最後でない');
+  if (r.slice(0, -1).some(p => p.type === 'c')) throw new Error('駅より上に市区町村がある');
+});
+
+check('searchPlaces: 完全一致を優先', () => {
+  const r = core.searchPlaces(PLACES, '渋谷');
+  eq(r[0].name, '渋谷');
+});
+
+check('searchPlaces: 同名は県違いで両方残る', () => {
+  const r = core.searchPlaces(PLACES, '府中');
+  eq(r.length, 2);
+  eq(new Set(r.map(p => p.pref)).size, 2);
+});
+
+check('searchPlaces: 空・空白は空配列', () => {
+  eq(core.searchPlaces(PLACES, '').length, 0);
+  eq(core.searchPlaces(PLACES, '   ').length, 0);
+  eq(core.searchPlaces(PLACES, null).length, 0);
+});
+
+check('searchPlaces: 一致なし', () => {
+  eq(core.searchPlaces(PLACES, 'ぜったいにない地名').length, 0);
+});
+
+check('searchPlaces: limit', () => {
+  eq(core.searchPlaces(PLACES, '駅', 2).length, 2);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

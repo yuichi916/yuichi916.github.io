@@ -233,3 +233,30 @@ export function filterItems(items, opts) {
     return true;
   });
 }
+
+// --- 地名・駅名検索 ---
+// 外部ジオコーディングに依存せず、同梱インデックスへの部分一致で引く。
+
+export function searchPlaces(items, query, limit = 20) {
+  const q = String(query == null ? '' : query).trim();
+  if (!q) return [];
+  // 入力の末尾の「駅」を外したものでも照合する。単純な部分一致だけだと、
+  // 入力「渋谷駅」に対して OSM 側の名前が「渋谷」の駅を取りこぼす。
+  const alt = q.endsWith('駅') && q.length > 1 ? q.slice(0, -1) : null;
+
+  const hits = [];
+  for (const p of items) {
+    const n = p.name;
+    if (n.includes(q) || (alt && n.includes(alt))) hits.push(p);
+  }
+
+  hits.sort((a, b) => {
+    // 駅を市区町村より先に出す。利用者が打つのは駅名のほうが多い。
+    if (a.type !== b.type) return a.type === 's' ? -1 : 1;
+    const ae = a.name === q ? 0 : 1, be = b.name === q ? 0 : 1;
+    if (ae !== be) return ae - be;
+    if (a.name.length !== b.name.length) return a.name.length - b.name.length;
+    return a.pref - b.pref;
+  });
+  return hits.slice(0, limit);
+}
