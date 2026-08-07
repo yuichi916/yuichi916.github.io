@@ -562,7 +562,18 @@ function renderSearchList() {
   const status = document.getElementById('search-status');
   const failed = [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
 
-  if (!items.length) {
+  // お気に入り表示中は件数だけを出す。フィルタを適用しない仕様（保存した
+  // 場所を条件で消さないため）なので、通常の0件分岐（「距離を広げる」）は
+  // お気に入りには効かず出す意味がない。県の取得失敗もお気に入りの表示とは
+  // 無関係なので、favView の判定を通常の0件分岐より先に行う。
+  if (state.favView) {
+    list.innerHTML = '';
+    if (!items.length) {
+      status.textContent = '保存した場所はまだありません';
+      return;
+    }
+    status.textContent = `保存した ${items.length} 件`;
+  } else if (!items.length) {
     list.innerHTML = '';
     if (failed.length) {
       // 「該当なし」より読み込み失敗を優先して伝える。自県のデータが読めて
@@ -582,13 +593,6 @@ function renderSearchList() {
       });
     }
     return;
-  }
-
-  // お気に入り表示中は件数だけを出す。県の取得失敗はお気に入りの表示と無関係で、
-  // ここで混ぜると「保存した場所が読めない」と誤解させる。
-  if (state.favView) {
-    document.getElementById('search-status').textContent =
-      items.length ? `保存した ${items.length} 件` : '保存した場所はまだありません';
   } else {
     status.textContent = `${items.length.toLocaleString()} 件`
       + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');

@@ -699,6 +699,29 @@ def test_stale_favorite_is_flagged(context, page):
     p.close()
 
 
+def test_favorites_empty_view_has_no_dead_widen_button(context, page):
+    """お気に入りが空のときは「まだありません」と出し、効かない「距離を広げる」は出さない。
+
+    favView はフィルタを適用しないため、通常の0件分岐が出す widen ボタンは
+    お気に入りには無意味（クリックしても favView の結果は変わらない）。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    # localStorage は同一コンテキストの他ページと共有される。直前のテストが
+    # 保存したお気に入りを引きずらないよう、読み込み前に明示的に空にする。
+    p.add_init_script("localStorage.removeItem('hitori.favs');")
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.click("#fav-toggle")
+    p.wait_for_timeout(300)
+    assert "保存した場所はまだありません" in p.inner_text("#search-status")
+    assert p.eval_on_selector_all("#search-status .widen", "els => els.length") == 0
+    assert p.eval_on_selector_all("#search-list li.item", "els => els.length") == 0
+    p.close()
+
+
 def test_favorites_disabled_when_storage_blocked(context, page):
     p = context.new_page()
     p.add_init_script("""
@@ -753,6 +776,7 @@ def main():
             test_favorites_roundtrip(context, page)
             test_isolation_badge_and_detail(context, page)
             test_stale_favorite_is_flagged(context, page)
+            test_favorites_empty_view_has_no_dead_widen_button(context, page)
             test_favorites_disabled_when_storage_blocked(context, page)
             page.goto(BASE)
             page.wait_for_function("window.__ready === true", timeout=15000)
