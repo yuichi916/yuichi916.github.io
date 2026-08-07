@@ -28,6 +28,23 @@ h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
 .tabs button { background: none; border: none; border-bottom: 2px solid transparent;
                color: var(--muted); cursor: pointer; font: inherit; padding: .5rem 1rem; }
 .tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.origin-bar { position: relative; margin: 1rem 0 .5rem; }
+.place-search input { width: 100%; padding: .6rem .8rem; font: inherit;
+                      border: 1px solid var(--line); border-radius: 8px;
+                      background: var(--bg); color: var(--fg); }
+#place-hits { position: absolute; z-index: 30; left: 0; right: 0; top: 3rem;
+              list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto;
+              background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+              box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+#place-hits li { padding: .55rem .8rem; cursor: pointer; border-bottom: 1px solid var(--line); }
+#place-hits li:hover, #place-hits li:focus { background: rgba(127,127,127,.1); outline: none; }
+#place-hits .kindmark { color: var(--muted); font-size: .78rem; margin-left: .4rem; }
+#place-hits .empty { padding: .6rem .8rem; color: var(--muted); }
+.origin { margin: .5rem 0 0; color: var(--muted); font-size: .88rem; }
+.origin strong { color: var(--fg); }
+#origin-reset { background: none; border: 1px solid var(--line); border-radius: 999px;
+                color: var(--fg); cursor: pointer; font: inherit; font-size: .78rem;
+                padding: .05rem .6rem; margin-left: .5rem; }
 .filters { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.5rem 0; }
 .filters fieldset { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .9rem; margin: 0; }
 .filters legend { font-size: .8rem; color: var(--muted); padding: 0 .3rem; }
@@ -143,6 +160,15 @@ img, svg, table { max-width: 100%; }
   </nav>
 
   <section id="panel-search" role="tabpanel">
+    <div class="origin-bar">
+      <label class="place-search">
+        <input type="search" id="place-q" placeholder="駅名・地名で探す（例: 渋谷、梅田）"
+               autocomplete="off" spellcheck="false">
+      </label>
+      <ul id="place-hits" hidden></ul>
+      <p class="origin"><strong id="origin-label">現在地</strong> から近い順
+        <button type="button" id="origin-reset" hidden>現在地に戻す</button></p>
+    </div>
     <div class="filters">
       <fieldset><legend>カテゴリ</legend>
         <label><input type="checkbox" id="s-cat-bath" checked> 湯・サウナ</label>
@@ -255,6 +281,8 @@ const state = {
   tab: 'search', pref: null,
   cats: new Set(CATS), nochain: false, minConf: 0,   // 全国タブ用
   here: null,
+  // 検索の起点。GPSの現在地とは別に持つ。地図の現在地ピンには here を使う。
+  origin: { kind: 'here', lat: null, lon: null, label: '現在地' },
   search: { cats: new Set(CATS), maxDistM: 800, minSolo: 0, minQuiet: 0, minEasy: 0,
             minConf: 0, requireHours: false },
 };
@@ -432,9 +460,10 @@ function collectItems(codes) {
 }
 
 function currentSearchResults() {
-  if (!state.here) return [];
+  const o = state.origin;
+  if (o.lat == null) return [];
   const loaded = Object.keys(PREF_CACHE).map(Number);
-  const withD = core.withDistance(collectItems(loaded), state.here.lat, state.here.lon);
+  const withD = core.withDistance(collectItems(loaded), o.lat, o.lon);
   return core.sortByDistance(core.filterItems(withD, state.search));
 }
 
@@ -479,7 +508,7 @@ function renderSearchList() {
     return `<li class="item" data-id="${it.id}" data-dist="${Math.round(it.distM)}"
               data-quiet="${it.quiet}" data-solo="${it.solo}" tabindex="0">
       <span class="nm">${escapeHtml(it.name)}</span>
-      <span class="dist">徒歩${m}分<br><small>${dist} ${core.bearing8(state.here.lat, state.here.lon, it.lat, it.lon)}</small></span>
+      <span class="dist">徒歩${m}分<br><small>${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</small></span>
       <span class="meta">${KIND_JA[it.kind] || it.kind}</span>
       <span class="badges">
         <span class="badge-ax">ひとり度${it.solo}</span>
@@ -526,7 +555,7 @@ function openFacility(id, opener) {
     <h3>${escapeHtml(it.name)}</h3>
     <p class="meta">${KIND_JA[it.kind] || it.kind}${it.city ? ' · ' + escapeHtml(it.city) : ''}</p>
     <dl>
-      <dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.here.lat, state.here.lon, it.lat, it.lon)}）</dd>
+      <dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}）</dd>
       <dt>ひとり度</dt><dd>${it.solo} — ${AX_LABEL.solo[it.solo]}</dd>
       <dt>静けさ</dt><dd>${it.quiet} — ${AX_LABEL.quiet[it.quiet]}</dd>
       <dt>入りやすさ</dt><dd>${it.easy} — ${AX_LABEL.easy[it.easy]}</dd>
@@ -643,11 +672,21 @@ async function locateAndSearch() {
     return;
   }
   state.here = { lat, lon };
+  state.origin = { kind: 'here', lat, lon, label: '現在地' };
+  document.getElementById('origin-label').textContent = '現在地';
+  document.getElementById('origin-reset').hidden = true;
 
-  const code = core.prefectureAt(lat, lon, GEO);
+  await runSearchFromOrigin();
+}
+
+// 起点（現在地でも選んだ地点でも）から県を判定して読み、一覧を描く。
+async function runSearchFromOrigin() {
+  const o = state.origin;
+  if (o.lat == null) return;
+  const status = document.getElementById('search-status');
+  const code = core.prefectureAt(o.lat, o.lon, GEO);
   status.textContent = `${BY_CODE[code].name} の施設を読み込んでいます…`;
 
-  // 自県を先に描画する。隣接県は後から差し込む。
   await loadPrefIntoCache(code);
   renderSearchList();
   window.__searchReady = true;
@@ -661,7 +700,7 @@ async function locateAndSearch() {
 function showLocationFallback(reason) {
   document.getElementById('search-list').innerHTML = '';
   document.getElementById('search-status').innerHTML =
-    `${escapeHtml(reason)}位置情報を許可すると、現在地から近い順に探せます。<br>
+    `${escapeHtml(reason)}上の検索欄から駅名・地名で探せます。<br>
      <button type="button" class="retry-location">再試行</button>
      <button type="button" class="to-nation">全国で見る</button>`;
   document.querySelector('#search-status .retry-location')
@@ -674,6 +713,94 @@ function showLocationFallback(reason) {
   document.querySelector('#search-status .to-nation')
     .addEventListener('click', () => switchTab('nation'));
   window.__searchReady = true;
+}
+
+// ---- 駅名・地名検索と検索起点の切り替え ----
+
+let PLACES = null;
+let placesLoading = null;
+
+// 初期ロードには含めない。検索欄に触れて初めて取りにいく。
+// 現在地から使う人に無駄な100KBを負わせないため。
+function ensurePlaces() {
+  if (PLACES) return Promise.resolve(PLACES);
+  if (placesLoading) return placesLoading;
+  placesLoading = fetch('data/hitori/places.json')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(doc => {
+      PLACES = doc.items.map(row =>
+        Object.fromEntries(doc.fields.map((f, i) => [f, row[i]])));
+      window.__placesReady = true;
+      return PLACES;
+    })
+    .catch(err => {
+      placesLoading = null;
+      throw err;
+    });
+  return placesLoading;
+}
+
+function renderPlaceHits(hits) {
+  const el = document.getElementById('place-hits');
+  el.hidden = false;
+  if (!hits.length) {
+    el.innerHTML = '<li class="empty">該当する駅・地名がありません</li>';
+    return;
+  }
+  el.innerHTML = hits.map((p, i) => `
+    <li data-i="${i}" tabindex="0">${escapeHtml(p.name)}<span class="kindmark">${
+      p.type === 's' ? '駅' : '市区町村'}・${escapeHtml(BY_CODE[p.pref].name)}</span></li>`).join('');
+  el._hits = hits;
+}
+
+function setOrigin(origin) {
+  state.origin = origin;
+  document.getElementById('origin-label').textContent = origin.label;
+  document.getElementById('origin-reset').hidden = origin.kind === 'here';
+  document.getElementById('place-hits').hidden = true;
+  document.getElementById('place-q').value = '';
+  runSearchFromOrigin();
+}
+
+function bindPlaceSearch() {
+  const q = document.getElementById('place-q');
+  const hits = document.getElementById('place-hits');
+
+  const update = () => {
+    const text = q.value.trim();
+    if (!text) { hits.hidden = true; return; }
+    ensurePlaces()
+      .then(items => renderPlaceHits(core.searchPlaces(items, text)))
+      .catch(() => {
+        hits.hidden = false;
+        hits.innerHTML = '<li class="empty">地名データを読み込めませんでした</li>';
+      });
+  };
+
+  q.addEventListener('input', update);
+  q.addEventListener('focus', () => { ensurePlaces().catch(() => {}); });
+
+  const choose = el => {
+    const p = hits._hits && hits._hits[+el.dataset.i];
+    if (p) setOrigin({ kind: 'place', lat: p.lat, lon: p.lon, label: p.name });
+  };
+  hits.addEventListener('click', e => {
+    const li = e.target.closest('li[data-i]');
+    if (li) choose(li);
+  });
+  hits.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const li = e.target.closest('li[data-i]');
+    if (li) { e.preventDefault(); choose(li); }
+  });
+
+  document.getElementById('origin-reset').addEventListener('click', () => {
+    if (state.here) {
+      setOrigin({ kind: 'here', lat: state.here.lat, lon: state.here.lon, label: '現在地' });
+    } else {
+      locateAndSearch();
+    }
+  });
 }
 
 function bindSearchFilters() {
@@ -941,6 +1068,7 @@ async function init() {
   restoreFromUrl();
   applyFilters();
   bindSearchFilters();
+  bindPlaceSearch();
   document.getElementById('search-list').addEventListener('click', e => {
     const li = e.target.closest('li.item');
     if (li) openFacility(li.dataset.id, li);
@@ -962,7 +1090,8 @@ async function init() {
   if (state.pref) openPrefecture(state.pref);
   window.__ready = true;
   // 描画テストから触るために公開する
-  Object.assign(window, { state, core, PREF_CACHE, currentSearchResults, isGem, openFacility });
+  Object.assign(window, { state, core, PREF_CACHE, currentSearchResults, isGem, openFacility,
+    setOrigin, ensurePlaces });
 }
 
 // module scriptはトップレベル宣言がモジュールスコープに閉じ、window の

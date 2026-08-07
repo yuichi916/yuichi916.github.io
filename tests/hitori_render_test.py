@@ -553,6 +553,56 @@ def test_search_starts_on_first_tab_entry(context, page):
     p.close()
 
 
+def test_place_search_without_location(context, page):
+    """位置情報が無くても地名から探せる。これがフェーズ1の核心。"""
+    context.clear_permissions()
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.fill("#place-q", "渋谷")
+    p.wait_for_selector("#place-hits li", timeout=20000)
+    hits = p.eval_on_selector_all("#place-hits li", "els => els.map(e => e.innerText)")
+    assert any("渋谷" in h for h in hits), hits
+    # 同名の取り違えを防ぐため県名が併記されている
+    assert any("東京都" in h for h in hits), hits
+
+    p.click("#place-hits li")
+    p.wait_for_selector("#search-list li.item", timeout=30000)
+    assert "渋谷" in p.inner_text("#origin-label"), p.inner_text("#origin-label")
+    n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
+    assert n > 0, "地名を選んでも一覧が空"
+    p.close()
+
+
+def test_origin_back_to_here(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.fill("#place-q", "梅田")
+    p.wait_for_selector("#place-hits li", timeout=20000)
+    p.click("#place-hits li")
+    p.wait_for_function("state.origin.kind === 'place'", timeout=20000)
+
+    p.click("#origin-reset")
+    p.wait_for_function("state.origin.kind === 'here'", timeout=20000)
+    assert "現在地" in p.inner_text("#origin-label")
+    p.close()
+
+
+def test_place_search_no_hit(context, page):
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.fill("#place-q", "ぜったいにない地名XYZ")
+    p.wait_for_selector("#place-hits .empty", timeout=20000)
+    assert "ありません" in p.inner_text("#place-hits")
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -582,6 +632,9 @@ def main():
             test_facility_shows_gem_reason(context, page)
             test_facility_map(context, page)
             test_search_without_location(context, page)
+            test_place_search_without_location(context, page)
+            test_origin_back_to_here(context, page)
+            test_place_search_no_hit(context, page)
             test_search_retry_after_permission_denied(context, page)
             test_search_prefecture_fetch_failure_surfaces(context, page)
             test_search_starts_on_first_tab_entry(context, page)
