@@ -242,12 +242,12 @@ check('filterItems: 空の opts は素通し', () => {
 });
 
 const PLACES = [
-  { name: '渋谷', lat: 35.658, lon: 139.701, type: 's', pref: 13 },
-  { name: '渋谷駅', lat: 35.659, lon: 139.702, type: 's', pref: 13 },
-  { name: '渋谷区', lat: 35.664, lon: 139.698, type: 'c', pref: 13 },
-  { name: '府中駅', lat: 35.672, lon: 139.478, type: 's', pref: 13 },
-  { name: '府中駅', lat: 34.567, lon: 133.235, type: 's', pref: 34 },
-  { name: '新宿三丁目駅', lat: 35.690, lon: 139.705, type: 's', pref: 13 },
+  { name: '渋谷', lat: 35.658, lon: 139.701, type: 's', pref: 13, n: 0 },
+  { name: '渋谷駅', lat: 35.659, lon: 139.702, type: 's', pref: 13, n: 0 },
+  { name: '渋谷区', lat: 35.664, lon: 139.698, type: 'c', pref: 13, n: 0 },
+  { name: '府中駅', lat: 35.672, lon: 139.478, type: 's', pref: 13, n: 0 },
+  { name: '府中駅', lat: 34.567, lon: 133.235, type: 's', pref: 34, n: 0 },
+  { name: '新宿三丁目駅', lat: 35.690, lon: 139.705, type: 's', pref: 13, n: 0 },
 ];
 
 check('searchPlaces: 部分一致', () => {
@@ -271,6 +271,19 @@ check('searchPlaces: 駅が市区町村より上', () => {
 check('searchPlaces: 完全一致を優先', () => {
   const r = core.searchPlaces(PLACES, '渋谷');
   eq(r[0].name, '渋谷');
+});
+
+check('searchPlaces: 知名度（n）が「駅を先に」より優先する', () => {
+  // 別府＝大分県の有名な温泉地（周辺施設が多い＝nが高い）と、
+  // 兵庫県の目立たない駅（nが低い）。型だけで駅を先に出す既定ルールでは
+  // 無名の駅が有名な自治体より上に来てしまうため、nがその逆転を正す。
+  const beppu = [
+    { name: '別府駅', lat: 34.72, lon: 135.17, type: 's', pref: 28, n: 3 },
+    { name: '別府市', lat: 33.28, lon: 131.49, type: 'c', pref: 44, n: 250 },
+  ];
+  const r = core.searchPlaces(beppu, '別府');
+  eq(r[0].name, '別府市', '知名度が高い自治体が駅より下に沈んでいる');
+  eq(r[0].pref, 44, '大分県が兵庫県より先に来ていない');
 });
 
 check('searchPlaces: 同名は県違いで両方残る', () => {

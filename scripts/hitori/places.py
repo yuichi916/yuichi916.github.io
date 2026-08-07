@@ -30,17 +30,27 @@ import json, math, re, sys, urllib.parse, urllib.request
 from collections import defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import iso   # 知名度カウントの格子バケットを流用する（下記 _facility_grid 参照）
+
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "data" / "hitori" / "places.json"
 GEOJSON = ROOT / "_local" / "hitori_raw" / "japan.geojson"
 STATION_CACHE = ROOT / "_local" / "hitori_raw" / "places_stations.json"
 MUNI_CACHE = ROOT / "_local" / "hitori_raw" / "places_municipalities.json"
+PREF_DATA_DIR = ROOT / "data" / "hitori" / "pref"
 
 WIKIDATA_ENDPOINT = "https://query.wikidata.org/sparql"
 UA = "hitori-map/1.0 (https://yuichi916.github.io/hitori.html)"
 
-FIELDS = ["name", "lat", "lon", "type", "pref"]
+FIELDS = ["name", "lat", "lon", "type", "pref", "n"]
 COORD_DIGITS = 5
+
+# 知名度（prominence）の代理指標。「別府」で検索したとき、無名の駅より
+# 温泉地として有名な大分県別府市を上に出したい。外部の知名度データは
+# 持たないので、自前データセット内でその地点の半径2000m以内に施設が
+# どれだけあるかを数え、代理指標として使う。
+PROMINENCE_RADIUS_M = 2000.0
 
 # 重複排除で「同一実体」とみなす距離。日本には事業者の異なる別施設が偶然
 # 同じ駅名を名乗るケースが多く（高井田駅=JR片町線/近鉄道明寺線で13.4km、
@@ -253,6 +263,56 @@ def dedupe(rows):
     return sorted(out, key=lambda r: (r[4], r[3], r[0]))
 
 
+# ---- 知名度（周辺施設数）----------------------------------------------
+# 11,000件の地名 × 37,000件の施設を総当たりすると4億回超の距離計算になり
+# 実用的でない。iso.py が孤立度計算で使っているのと同じ格子バケット方式
+# （セル辺 iso.CELL_DEG 度）を流用し、地名ごとに周辺セルだけを見る。
+
+def _facility_grid(pref_dir):
+    """data/hitori/pref/*.json 全県分の施設座標を格子に積む。"""
+    grid = defaultdict(list)
+    for path in sorted(pref_dir.glob("*.json")):
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        idx = {f: i for i, f in enumerate(doc["fields"])}
+        lat_i, lon_i = idx["lat"], idx["lon"]
+        for row in doc["items"]:
+            lat, lon = row[lat_i], row[lon_i]
+            cell = (int(math.floor(lat / iso.CELL_DEG)), int(math.floor(lon / iso.CELL_DEG)))
+            grid[cell].append((lat, lon))
+    return grid
+
+
+def _count_nearby(lat, lon, grid, radius_m=PROMINENCE_RADIUS_M):
+    """(lat, lon) から radius_m 以内にある施設数を数える。
+
+    iso.MIN_CELL_M（セル1辺の最小メートル数の安全側の見積り）を使い、
+    半径を確実にカバーするリング数を決める。動的な打ち切りをする
+    iso._nearest_same_cat と違い、こちらは固定半径の件数カウントなので
+    リング数は固定でよい。
+    """
+    cy = int(math.floor(lat / iso.CELL_DEG))
+    cx = int(math.floor(lon / iso.CELL_DEG))
+    rings = int(math.ceil(radius_m / iso.MIN_CELL_M)) + 1
+    n = 0
+    for dy in range(-rings, rings + 1):
+        for dx in range(-rings, rings + 1):
+            for flat, flon in grid.get((cy + dy, cx + dx), ()):
+                if iso._distance_m(lat, lon, flat, flon) <= radius_m:
+                    n += 1
+    return n
+
+
+def add_prominence(rows, pref_dir):
+    """各行 (name, lat, lon, type, pref) に n（半径2000m以内の施設数）を足す。
+
+    穴場度・孤立度は data/hitori/pref/*.json 側（build_data.py）で計算済みの
+    値をそのまま使っているのに対し、こちらは地名側の知名度シグナルなので
+    別に計算する。孤立度のしきい値のような固定値はここに置かない。
+    """
+    grid = _facility_grid(pref_dir)
+    return [list(r) + [_count_nearby(r[1], r[2], grid)] for r in rows]
+
+
 def main():
     STATION_CACHE.parent.mkdir(parents=True, exist_ok=True)
     prefs = _load_prefectures()
@@ -279,6 +339,9 @@ def main():
         print(f"ok   municipalities (wikidata): {len(muni_rows)} rows", flush=True)
 
     rows = dedupe(station_rows + muni_rows)
+    print(f"prominence: {PREF_DATA_DIR} を走査して周辺{PROMINENCE_RADIUS_M:.0f}m施設数を計算しています…", flush=True)
+    rows = add_prominence(rows, PREF_DATA_DIR)
+
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({
         "updated": __import__("datetime").date.today().isoformat(),

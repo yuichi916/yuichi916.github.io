@@ -15,7 +15,7 @@ import places
 # に対し、将来の駅・市区町村の増加ぶんの余裕を見た値。
 MAX_RAW = 520 * 1024
 MAX_GZIP = 165 * 1024
-FIELDS = ["name", "lat", "lon", "type", "pref"]
+FIELDS = ["name", "lat", "lon", "type", "pref", "n"]
 
 # 従来の重複排除件数（500m判定を入れる前）。修正が実際に取りこぼしを
 # 回収したことを、この数より増えたことで検証する。
@@ -148,6 +148,9 @@ def test_generated_file():
         assert 20.0 <= lat <= 46.0 and 122.0 <= lon <= 154.0, f"bbox外: {r}"
         assert r[idx["type"]] in ("s", "c"), r
         assert 1 <= r[idx["pref"]] <= 47, r
+        n = r[idx["n"]]
+        assert isinstance(n, int) and not isinstance(n, bool) and n >= 0, \
+            f"n（知名度＝半径2000m以内の施設数）が非負整数でない: {r}"
 
     # (名前, 種別, 県) が同じ行が複数残っていてもよいが、その場合は
     # DEDUPE_RADIUS_M より離れていること（統合すべきなのに統合されて
@@ -173,6 +176,15 @@ def test_generated_file():
     # 主要駅が引けること
     for want in ("渋谷駅", "梅田駅", "札幌駅"):
         assert any(want in n for n in names), f"{want} が見つからない"
+
+    # 知名度（n）が実際に効いていること。「別府」は大分県の温泉地（有名）と
+    # 兵庫県の小さな駅（無名）の同名があり、施設密度は大分県側が高いはず。
+    beppu = [r for r in doc["items"] if "別府" in r[idx["name"]]]
+    oita = [r for r in beppu if r[idx["pref"]] == 44]
+    hyogo = [r for r in beppu if r[idx["pref"]] == 28]
+    assert oita and hyogo, f"別府の大分/兵庫どちらかが見つからない: {beppu}"
+    assert max(r[idx["n"]] for r in oita) > max(r[idx["n"]] for r in hyogo), (
+        f"大分県別府のnが兵庫県別府以下: oita={oita} hyogo={hyogo}")
 
     print(f"OK: places（駅 {len(stations):,} / 市区町村 {len(cities):,} / "
           f"生 {len(raw)/1024:.0f}KB gzip {gz/1024:.0f}KB）")

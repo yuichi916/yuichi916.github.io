@@ -246,15 +246,23 @@ export function searchPlaces(items, query, limit = 20) {
 
   const hits = [];
   for (const p of items) {
-    const n = p.name;
-    if (n.includes(q) || (alt && n.includes(alt))) hits.push(p);
+    const nm = p.name;
+    if (nm.includes(q) || (alt && nm.includes(alt))) hits.push(p);
   }
 
   hits.sort((a, b) => {
-    // 駅を市区町村より先に出す。利用者が打つのは駅名のほうが多い。
-    if (a.type !== b.type) return a.type === 's' ? -1 : 1;
+    // 完全一致を最優先。
     const ae = a.name === q ? 0 : 1, be = b.name === q ? 0 : 1;
     if (ae !== be) return ae - be;
+    // 同名の地名は全国に複数ありうる（例: 「別府」＝大分の温泉地／兵庫の
+    // 小さな駅）。駅を市区町村より先に出す既定ルールだけでは、無名の駅が
+    // 有名な自治体より上に来てしまう。places.py が付与する n（自前データ
+    // セット内、その地点から半径2000m以内の施設数）を知名度の代理指標として
+    // 使い、型（駅/市区町村）より先に効かせる。
+    const an = a.n || 0, bn = b.n || 0;
+    if (an !== bn) return bn - an;
+    // 駅を市区町村より先に出す。利用者が打つのは駅名のほうが多い。
+    if (a.type !== b.type) return a.type === 's' ? -1 : 1;
     if (a.name.length !== b.name.length) return a.name.length - b.name.length;
     return a.pref - b.pref;
   });
