@@ -293,5 +293,67 @@ check('searchPlaces: limit', () => {
   eq(core.searchPlaces(PLACES, '駅', 2).length, 2);
 });
 
+const TH = { bath: 3000, eat: 900, play: 5000, stay: 2000 };
+const SORTABLE = [
+  { id: 'a', cat: 'eat', solo: 3, quiet: 5, hidden: 0.0, iso: 100,  distM: 100, oh: '' },
+  { id: 'b', cat: 'eat', solo: 5, quiet: 2, hidden: 0.9, iso: 200,  distM: 300, oh: '00:00-24:00' },
+  { id: 'c', cat: 'bath', solo: 4, quiet: 4, hidden: 0.0, iso: 6000, distM: 200, oh: 'Mo 01:00-02:00' },
+];
+
+check('findScore: 飲食は穴場度、湯は孤立度が効く', () => {
+  near(core.findScore(SORTABLE[1], TH), 0.9, 0.001);
+  // bath: iso 6000 / threshold 3000 → 1.0 に丸まる
+  near(core.findScore(SORTABLE[2], TH), 1.0, 0.001);
+  near(core.findScore(SORTABLE[0], TH), 100 / 900, 0.001);
+});
+
+check('findScore: しきい値が無いカテゴリでも落ちない', () => {
+  near(core.findScore({ cat: 'unknown', hidden: 0.3, iso: 500 }, TH), 0.3, 0.001);
+});
+
+check('openRank: 営業中→不明→営業時間外', () => {
+  // 2026-08-04 は火曜
+  const tue = new Date(2026, 7, 4, 12, 0);
+  eq(core.openRank({ oh: '00:00-24:00' }, tue), 0, '営業中');
+  eq(core.openRank({ oh: '' }, tue), 1, '不明は営業時間外より上');
+  eq(core.openRank({ oh: 'Mo 01:00-02:00' }, tue), 2, '営業時間外');
+});
+
+check('sortItems: 距離順が既定', () => {
+  const r = core.sortItems(SORTABLE, 'dist', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r.map(x => x.id).join(''), 'acb');
+});
+
+check('sortItems: ひとり度は降順、同点は距離', () => {
+  const r = core.sortItems(SORTABLE, 'solo', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r[0].id, 'b');
+});
+
+check('sortItems: 発見度', () => {
+  const r = core.sortItems(SORTABLE, 'find', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r[0].id, 'c', 'iso で 1.0 の bath が先頭');
+});
+
+check('sortItems: 静けさ', () => {
+  const r = core.sortItems(SORTABLE, 'quiet', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r[0].id, 'a');
+});
+
+check('sortItems: 営業中優先は 営業中→不明→営業時間外', () => {
+  const r = core.sortItems(SORTABLE, 'open', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r.map(x => x.id).join(''), 'bac', '不明(a)が営業時間外(c)より上にない');
+});
+
+check('sortItems: 入力を破壊しない', () => {
+  const before = SORTABLE.map(x => x.id).join('');
+  core.sortItems(SORTABLE, 'solo', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(SORTABLE.map(x => x.id).join(''), before);
+});
+
+check('sortItems: 未知の並べ替えは距離順に落とす', () => {
+  const r = core.sortItems(SORTABLE, 'なにか', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r.map(x => x.id).join(''), 'acb');
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

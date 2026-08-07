@@ -260,3 +260,46 @@ export function searchPlaces(items, query, limit = 20) {
   });
   return hits.slice(0, limit);
 }
+
+// --- 並べ替え ---
+
+export const SORTS = ['dist', 'solo', 'find', 'quiet', 'open'];
+
+// 発見スコア。カテゴリによって効く指標が違うため、穴場度と正規化した孤立度の
+// 大きいほうを採る。飲食・娯楽では穴場度が、湯・滞在では孤立度が効く。
+export function findScore(item, isoThreshold) {
+  const t = isoThreshold && isoThreshold[item.cat];
+  const isoPart = t > 0 ? Math.min(1, (item.iso || 0) / t) : 0;
+  return Math.max(item.hidden || 0, isoPart);
+}
+
+// 0=営業中 / 1=不明 / 2=営業時間外。
+// 不明を営業時間外より下に置いてはならない。不明な店は開いている可能性があり、
+// 閉まっていると確定した店より見込みがある。
+export function openRank(item, date) {
+  const st = openState(item.oh, date);
+  if (st === 'open') return 0;
+  if (st === null) return 1;
+  return 2;
+}
+
+export function sortItems(items, sort, ctx) {
+  const c = ctx || {};
+  const now = c.now || new Date();
+  const th = c.isoThreshold;
+  const out = items.slice();
+  const byDist = (a, b) => a.distM - b.distM;
+
+  switch (sort) {
+    case 'solo':
+      return out.sort((a, b) => (b.solo - a.solo) || byDist(a, b));
+    case 'quiet':
+      return out.sort((a, b) => (b.quiet - a.quiet) || byDist(a, b));
+    case 'find':
+      return out.sort((a, b) => (findScore(b, th) - findScore(a, th)) || byDist(a, b));
+    case 'open':
+      return out.sort((a, b) => (openRank(a, now) - openRank(b, now)) || byDist(a, b));
+    default:
+      return out.sort(byDist);
+  }
+}
