@@ -8,6 +8,7 @@ sys.path.insert(0, str(ROOT / "scripts" / "hitori"))
 
 import build_data
 import hidden
+import iso
 import validate
 
 PREFS = [
@@ -202,6 +203,13 @@ def test_build_computes_iso_and_threshold():
     assert isinstance(summary["iso_threshold"]["bath"], int)
 
 
+def test_build_publishes_iso_max():
+    # hitori.html の formatIso はこの値をブラウザ側の 50km 判定に使う。
+    # iso.py と二重管理にならないよう、summary.json 経由の一本化を検証する。
+    summary, _ = build_data.build(RAW, PREFS, {}, "2026-08-02")
+    assert summary["iso_max"] == iso.MAX_ISO_M
+
+
 def main():
     test_build_shapes()
     test_build_output_passes_validation()
@@ -211,6 +219,7 @@ def main():
     test_build_computes_hidden_across_prefectures()
     test_chain_detection_runs_before_hidden_score()
     test_build_computes_iso_and_threshold()
+    test_build_publishes_iso_max()
     print("OK: build_data")
 
 

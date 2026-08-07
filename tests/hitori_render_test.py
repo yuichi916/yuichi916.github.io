@@ -695,7 +695,53 @@ def test_stale_favorite_is_flagged(context, page):
     p.wait_for_selector("#search-list li.item", timeout=10000)
     p.click("#search-list li.item")
     p.wait_for_selector("#facility .stale", timeout=15000)
-    assert "存在しません" in p.inner_text("#facility .stale")
+    facility_text = p.inner_text("#facility")
+    assert "存在しません" in facility_text
+    # FAV_FIELDS に無いフィールド(iso等)を、無いのに出力していないこと。
+    # formatIso(undefined) は "undefinedm" という文字列を作ってしまう不具合があった。
+    assert "undefined" not in facility_text, facility_text
+    # 現在データに見つからない(stale)ので、孤立度の行自体を出さない。
+    has_iso_row = p.evaluate("""
+      () => [...document.querySelectorAll('#facility dt')].some(d => d.textContent === '孤立度')
+    """)
+    assert not has_iso_row, "stale なお気に入りに孤立度の行が出ている"
+    p.close()
+
+
+def test_favorite_detail_shows_real_iso_not_undefined(context, page):
+    """お気に入りは iso を保存しない(FAV_FIELDS参照)。詳細シートは stale でない限り
+    現在データから引いた実測の孤立度を出す。undefined を出してはいけない。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.add_init_script("localStorage.removeItem('hitori.favs');")
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.evaluate("""
+      () => {
+        const it = currentSearchResults()[0];
+        state.favs = [core.favSnapshot(it)];
+        core.saveFavs(window.localStorage, state.favs);
+      }
+    """)
+    p.click("#fav-toggle")
+    p.wait_for_selector("#search-list li.item", timeout=10000)
+    p.click("#search-list li.item")
+    p.wait_for_selector("#facility dl", timeout=15000)
+
+    facility_text = p.inner_text("#facility")
+    assert "undefined" not in facility_text, facility_text
+    assert "存在しません" not in facility_text, "非staleなのに古い扱いになっている"
+
+    iso_row = p.evaluate("""
+      () => {
+        const dt = [...document.querySelectorAll('#facility dt')].find(d => d.textContent === '孤立度');
+        return dt ? dt.nextElementSibling.textContent : null;
+      }
+    """)
+    assert iso_row, "孤立度の行が出ていない"
+    assert any(ch.isdigit() for ch in iso_row) and ("m" in iso_row), iso_row
     p.close()
 
 
@@ -776,6 +822,7 @@ def main():
             test_favorites_roundtrip(context, page)
             test_isolation_badge_and_detail(context, page)
             test_stale_favorite_is_flagged(context, page)
+            test_favorite_detail_shows_real_iso_not_undefined(context, page)
             test_favorites_empty_view_has_no_dead_widen_button(context, page)
             test_favorites_disabled_when_storage_blocked(context, page)
             page.goto(BASE)

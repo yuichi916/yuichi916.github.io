@@ -546,13 +546,16 @@ function updateFavCount() {
 }
 
 // 孤立バッジ・詳細の孤立度表示。しきい値は SUMMARY.iso_threshold だけを見る。
-function isIsolated(it) {
+// iso 省略時は it.iso を見る。お気に入り詳細では現在データから引いた値を
+// 明示的に渡す（FAV_FIELDS が iso を保存していないため）。
+function isIsolated(it, iso) {
   const t = SUMMARY.iso_threshold && SUMMARY.iso_threshold[it.cat];
-  return !!t && (it.iso || 0) >= t;
+  const v = iso == null ? it.iso : iso;
+  return !!t && (v || 0) >= t;
 }
 
 function formatIso(m) {
-  if (m >= 50000) return '50km以上';
+  if (m >= SUMMARY.iso_max) return `${Math.round(SUMMARY.iso_max / 1000)}km以上`;
   return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
 }
 
@@ -654,13 +657,19 @@ async function openFacility(id, opener) {
 
   // 保存は時点のスナップショット。再ビルドで施設が消えていることがある。
   // 黙って古い情報を見せない。
+  // iso は FAV_FIELDS に含まれない（お気に入りは11フィールドのスナップショットで、
+  // 孤立度は保存時点で古くなりうるため対象外）。現在データに施設が見つかれば
+  // そこから孤立度を引き、見つからなければ（stale）行自体を出さない。
   let stale = false;
+  let liveIso = it.iso;
   if (state.favView && it.prefCode) {
     if (!PREF_CACHE[it.prefCode]) await loadPrefIntoCache(it.prefCode);
     const doc = PREF_CACHE[it.prefCode];
     if (doc) {
       const idIdx = doc.fields.indexOf('id');
-      stale = !doc.items.some(row => row[idIdx] === it.id);
+      const row = doc.items.find(r => r[idIdx] === it.id);
+      stale = !row;
+      liveIso = row ? row[doc.fields.indexOf('iso')] : undefined;
     }
   }
 
@@ -675,8 +684,8 @@ async function openFacility(id, opener) {
       <dt>ひとり度</dt><dd>${it.solo} — ${AX_LABEL.solo[it.solo]}</dd>
       <dt>静けさ</dt><dd>${it.quiet} — ${AX_LABEL.quiet[it.quiet]}</dd>
       <dt>入りやすさ</dt><dd>${it.easy} — ${AX_LABEL.easy[it.easy]}</dd>
-      <dt>孤立度</dt><dd>最寄りの${KIND_JA[it.kind] || it.kind}まで ${formatIso(it.iso)}${
-        isIsolated(it) ? '（この一帯で唯一）' : ''}</dd>
+      ${liveIso != null ? `<dt>孤立度</dt><dd>最寄りの${KIND_JA[it.kind] || it.kind}まで ${formatIso(liveIso)}${
+        isIsolated(it, liveIso) ? '（この一帯で唯一）' : ''}</dd>` : ''}
       <dt>営業時間</dt><dd>${hours}</dd>
       ${it.tel ? `<dt>電話</dt><dd><a href="tel:${escapeHtml(it.tel)}">${escapeHtml(it.tel)}</a></dd>` : ''}
       ${it.web ? `<dt>サイト</dt><dd><a href="${escapeHtml(it.web)}" target="_blank" rel="noopener">公式サイト</a></dd>` : ''}

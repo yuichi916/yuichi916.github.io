@@ -122,6 +122,7 @@ def build(raw_by_pref, prefs, curated, updated):
         "total": total,
         "population_source": "Wikidata (CC0) / 令和2年国勢調査",
         "iso_threshold": iso.iso_thresholds(all_records),
+        "iso_max": iso.MAX_ISO_M,
         "prefectures": summary_prefs,
     }
     return summary, prefdocs

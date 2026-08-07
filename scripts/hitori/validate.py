@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 """出力JSONのスキーマ検証。ビルドからもテストからも同じ関数を呼ぶ。"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import iso as iso_mod  # 上限値の単一の出典。ここにも 50000 を書かない。
 
 JAPAN_BBOX = (20.0, 46.0, 122.0, 154.0)  # 南, 北, 西, 東
 EXPECTED_FIELDS = ["id", "name", "lat", "lon", "cat", "kind",
@@ -48,7 +53,7 @@ def validate_pref(doc):
             errs.append(f"hidden_n が3未満なのに hidden が0でない: {fid}")
 
         iv = row[idx["iso"]]
-        if not isinstance(iv, int) or isinstance(iv, bool) or not (0 <= iv <= 50000):
+        if not isinstance(iv, int) or isinstance(iv, bool) or not (0 <= iv <= iso_mod.MAX_ISO_M):
             errs.append(f"iso が不正: {fid} -> {iv!r}")
 
         cf = row[idx["conf"]]
@@ -75,6 +80,12 @@ def validate_summary(doc):
             v = th.get(c)
             if not isinstance(v, int) or isinstance(v, bool) or v < 0:
                 errs.append(f"iso_threshold.{c} が不正: {v!r}")
+
+    # ブラウザ側 (hitori.html の formatIso) が同じ上限を summary.json から読む。
+    # Python と JS の二重管理で閾値がずれた前例があるため、ここでも必須にする。
+    im = doc.get("iso_max")
+    if not isinstance(im, int) or isinstance(im, bool) or im != iso_mod.MAX_ISO_M:
+        errs.append(f"iso_max が不正: {im!r}")
 
     prefs = doc.get("prefectures", [])
     for p in prefs:

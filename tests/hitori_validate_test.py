@@ -28,6 +28,7 @@ GOOD_SUMMARY = {
     "updated": "2026-08-02", "total": 2,
     "population_source": "Wikidata (CC0) / 令和2年国勢調査",
     "iso_threshold": {"bath": 3200, "eat": 900, "play": 5400, "stay": 2100},
+    "iso_max": validate.iso_mod.MAX_ISO_M,
     "prefectures": [
         {"code": 13, "name": "東京都", "pop": 14047594,
          "counts": {"all": 2, "bath": 0, "eat": 2, "play": 0, "stay": 0},
@@ -119,6 +120,18 @@ def test_summary_needs_iso_threshold():
     assert any("iso_threshold" in e for e in validate.validate_summary(d3))
 
 
+def test_summary_needs_iso_max():
+    # hitori.html の formatIso が SUMMARY.iso_max を読む。iso.py の値とJS側の
+    # 50000 決め打ちが乖離した前例があるため、summary.json に必ず載せる。
+    d = copy.deepcopy(GOOD_SUMMARY)
+    del d["iso_max"]
+    assert any("iso_max" in e for e in validate.validate_summary(d))
+
+    d2 = copy.deepcopy(GOOD_SUMMARY)
+    d2["iso_max"] = validate.iso_mod.MAX_ISO_M + 1   # iso.py の値と不一致
+    assert any("iso_max" in e for e in validate.validate_summary(d2))
+
+
 def test_summary_ok():
     assert validate.validate_summary(GOOD_SUMMARY) == []
 
@@ -172,6 +185,7 @@ def main():
     test_pref_fields_mismatch()
     test_pref_iso_range()
     test_summary_needs_iso_threshold()
+    test_summary_needs_iso_max()
     test_summary_ok()
     test_summary_indie_not_exceeding()
     test_curated_web_needs_url()
