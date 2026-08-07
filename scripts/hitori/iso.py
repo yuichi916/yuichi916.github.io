@@ -61,8 +61,6 @@ def _nearest_same_cat(rec, grid):
         # best がそれ以下になった時点で初めて確定できる。
         if best is not None and best <= ring * MIN_CELL_M:
             break
-        if best is not None and best >= MAX_ISO_M:
-            break
         ring += 1
     if best is None:
         return MAX_ISO_M

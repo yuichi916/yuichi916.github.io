@@ -41,14 +41,31 @@ def test_capped_at_max():
 
 
 def test_picks_the_nearest_not_the_first_found():
-    # グリッドの隅にある候補より、外側リングの辺の中央にある候補のほうが近いことがある。
-    # 中心セルの隅に遠い候補、2リング外の真横に近い候補を置く。
+    # リング1の隅にある遠い候補（約2860m）より、リング2の辺上にある近い候補
+    # （約1867m）のほうが近い。両者が別リングに落ちるよう座標を選んである
+    # （同じセルに落ちると ring0 で両方まとめて見つかり、打ち切り条件を
+    # 検証できないテストになってしまう＝過去のレビュー指摘）。
+    # best <= ring * MIN_CELL_M の判定を「最初に見つかったリングで打ち切る」に
+    # 弱めると、この期待値では通らない。
     center = rec(1, 35.0000, 139.0000)
-    corner = rec(2, 35.0095, 139.0095)     # 斜め約1.4km（リング0〜1に入る）
-    straight = rec(3, 35.0000, 139.0090)   # 真東約820m（リング0〜1に入る）
-    recs = [center, corner, straight]
+    far_inner = rec(2, 35.0199, 139.0199)   # ring1の隅、約2860m
+    near_outer = rec(3, 35.0000, 139.0205)  # ring2の辺、約1867m
+    recs = [center, far_inner, near_outer]
     iso.compute_iso(recs)
-    assert 780 <= center["iso"] <= 860, f"最寄を取り違えている: {center['iso']}"
+    assert 1860 <= center["iso"] <= 1875, f"最寄を取り違えている: {center['iso']}"
+
+
+def test_far_candidate_does_not_shortcut_the_cap():
+    # 50kmを超える候補（ring34、約50251m）を先に見つけても、そこで打ち切っては
+    # いけない。さらに外側の ring40 に約45034m（50km未満）の候補があり、これが
+    # 正しい最寄り。「best が MAX_ISO_M 以上になったら打ち切る」という条件を
+    # 入れると、ring34時点で誤って MAX_ISO_M を返してしまう回帰を検出する。
+    center = rec(1, 35.0000, 139.0000)
+    far_over_cap = rec(2, 35.3499, 139.3499)    # ring34、約50251m（50km超）
+    near_under_cap = rec(3, 35.4050, 139.0000)  # ring40、約45034m（50km未満）
+    recs = [center, far_over_cap, near_under_cap]
+    iso.compute_iso(recs)
+    assert 45025 <= center["iso"] <= 45045, f"上限打ち切りで丸めている: {center['iso']}"
 
 
 def test_crosses_prefecture_boundary():
@@ -93,6 +110,7 @@ def main():
     test_alone_in_country()
     test_capped_at_max()
     test_picks_the_nearest_not_the_first_found()
+    test_far_candidate_does_not_shortcut_the_cap()
     test_crosses_prefecture_boundary()
     test_thresholds_are_per_category()
     test_thresholds_ignore_missing_category()
