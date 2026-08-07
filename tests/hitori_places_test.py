@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 """駅・市区町村の検索インデックス。外部ジオコーディングに依存しないための同梱データ。"""
 import sys, json, gzip
+from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "hitori" / "places.json"
+sys.path.insert(0, str(ROOT / "scripts" / "hitori"))
+
+import places
 
 # 上限は初期ロードではなく遅延取得されるファイルに対するもの。検索欄に触れて
 # 初めて取得され、以後はメモリとHTTPキャッシュに載る。実測 449.6KB / gzip 141.4KB
@@ -13,8 +17,41 @@ MAX_RAW = 520 * 1024
 MAX_GZIP = 165 * 1024
 FIELDS = ["name", "lat", "lon", "type", "pref"]
 
+# 従来の重複排除件数（500m判定を入れる前）。修正が実際に取りこぼしを
+# 回収したことを、この数より増えたことで検証する。
+PREV_STATION_COUNT = 9105
 
-def main():
+
+def _row(name, lat, lon, kind, pref):
+    return [name, lat, lon, kind, pref]
+
+
+def test_dedupe_merges_same_point():
+    # 和田岬駅: Wikidata側で同一実体が重複登録されている実測ケース（0m）
+    rows = [_row("和田岬駅", 34.6569, 135.175, "s", 28),
+            _row("和田岬駅", 34.6569, 135.175, "s", 28)]
+    out = places.dedupe(rows)
+    assert len(out) == 1, out
+
+
+def test_dedupe_keeps_stations_1_1km_apart():
+    # 御影駅: 阪神本線と阪急神戸線で別施設。実測で約1,135m離れている
+    # （DEDUPE_RADIUS_M=500mを超えるので別物として残る）
+    rows = [_row("御影駅", 34.72472, 135.2525, "s", 28),
+            _row("御影駅", 34.71484, 135.25563, "s", 28)]
+    out = places.dedupe(rows)
+    assert len(out) == 2, out
+
+
+def test_dedupe_keeps_same_name_different_prefecture():
+    # 座標が同一でも県が違えば別物（そもそもキーが分かれる）
+    rows = [_row("中央駅", 35.0, 135.0, "s", 1),
+            _row("中央駅", 35.0, 135.0, "s", 2)]
+    out = places.dedupe(rows)
+    assert len(out) == 2, out
+
+
+def test_generated_file():
     assert OUT.exists(), f"not found: {OUT} — places.py を実行してください"
 
     raw = OUT.read_bytes()
@@ -31,6 +68,10 @@ def main():
 
     # 2026-08-07 実測: OSM の name 付き鉄道駅は 9,128 件。取りこぼしを検出する。
     assert len(stations) >= 9000, f"駅が {len(stations)} 件しかない"
+    # 500m以内の重複だけをまとめる修正で回収した分、従来件数より増えているはず。
+    assert len(stations) > PREV_STATION_COUNT, (
+        f"重複排除の500m修正が効いていない: 駅 {len(stations)} 件"
+        f"（修正前 {PREV_STATION_COUNT} 件から増えていない）")
     # 日本の市区町村は約1,741。政令市の区を含めても2,000を大きく超えない。
     assert 1700 <= len(cities) <= 2100, f"市区町村が {len(cities)} 件"
 
@@ -42,9 +83,19 @@ def main():
         assert r[idx["type"]] in ("s", "c"), r
         assert 1 <= r[idx["pref"]] <= 47, r
 
-    # (名前, 種別, 県) の重複が無いこと
-    keys = [(r[idx["name"]], r[idx["type"]], r[idx["pref"]]) for r in doc["items"]]
-    assert len(keys) == len(set(keys)), f"重複が {len(keys) - len(set(keys))} 件"
+    # (名前, 種別, 県) が同じ行が複数残っていてもよいが、その場合は
+    # DEDUPE_RADIUS_M より離れていること（統合漏れの検出）。
+    by_key = defaultdict(list)
+    for r in doc["items"]:
+        by_key[(r[idx["name"]], r[idx["type"]], r[idx["pref"]])].append(r)
+    for key, group in by_key.items():
+        for i in range(len(group)):
+            for j in range(i + 1, len(group)):
+                d = places._distance_m(group[i][idx["lat"]], group[i][idx["lon"]],
+                                        group[j][idx["lat"]], group[j][idx["lon"]])
+                assert d > places.DEDUPE_RADIUS_M, (
+                    f"{key} が {d:.0f}m しか離れておらず統合漏れ: "
+                    f"{group[i]} / {group[j]}")
 
     names = [r[idx["name"]] for r in doc["items"]]
     # 主要駅が引けること
@@ -53,6 +104,13 @@ def main():
 
     print(f"OK: places（駅 {len(stations):,} / 市区町村 {len(cities):,} / "
           f"生 {len(raw)/1024:.0f}KB gzip {gz/1024:.0f}KB）")
+
+
+def main():
+    test_dedupe_merges_same_point()
+    test_dedupe_keeps_stations_1_1km_apart()
+    test_dedupe_keeps_same_name_different_prefecture()
+    test_generated_file()
 
 
 if __name__ == "__main__":

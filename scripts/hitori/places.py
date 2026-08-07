@@ -27,6 +27,7 @@
 上2桁がそのまま県コードなので、この判定は不要。
 """
 import json, math, re, sys, urllib.parse, urllib.request
+from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -40,6 +41,13 @@ UA = "hitori-map/1.0 (https://yuichi916.github.io/hitori.html)"
 
 FIELDS = ["name", "lat", "lon", "type", "pref"]
 COORD_DIGITS = 5
+
+# 重複排除で「同一実体」とみなす距離。日本には事業者の異なる別施設が偶然
+# 同じ駅名を名乗るケースが多く（高井田駅=JR片町線/近鉄道明寺線で13.4km、
+# 御影駅=阪神本線/阪急神戸線で1.1km、いずれも大阪府・兵庫県内の実測）、
+# (名前, 種別, 県) だけで1件に潰すと実在する別の駅を失う。0mの完全一致
+# （同一実体の重複登録）と、実測最短1.1kmの別施設を分ける値として500mを選ぶ。
+DEDUPE_RADIUS_M = 500.0
 
 # 駅: 日本(Q17)にある「鉄道駅(Q55488)またはそのサブクラス」で、廃駅
 # (P576あり)を除く。SERVICE wikibase:label で日本語ラベルを引く。
@@ -69,6 +77,16 @@ SELECT DISTINCT ?m ?mLabel ?code ?coord WHERE {
 # （逆にすると海に落ちる）。
 COORD_RE = re.compile(r"Point\(([-\d.]+) ([-\d.]+)\)")
 BARE_QID_RE = re.compile(r"^Q\d+$")
+
+
+def _distance_m(lat1, lon1, lat2, lon2):
+    """2点間の距離（メートル）。scripts/hitori/iso.py の実装と同じ形。"""
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
 
 
 def _sparql(query, timeout=180):
@@ -205,13 +223,28 @@ def fetch_municipalities():
 
 
 def dedupe(rows):
-    """同じ (名前, 種別, 県) は1件にまとめる。同名でも県が違えば別物として残す。"""
-    seen = {}
+    """同じ (名前, 種別, 県) かつ DEDUPE_RADIUS_M 以内にある行だけを1件にまとめる。
+
+    同名でも県が違えば別物として残す。同じ県内でも DEDUPE_RADIUS_M より
+    離れていれば別物として残す（事業者違いの同名駅を守るため）。距離は
+    単純な連鎖（AがBと近い、BがCと近い）で単連結クラスタとしてまとめる。
+    """
+    groups = defaultdict(list)
     for r in rows:
-        key = (r[0], r[3], r[4])
-        if key not in seen:
-            seen[key] = r
-    return sorted(seen.values(), key=lambda r: (r[4], r[3], r[0]))
+        groups[(r[0], r[3], r[4])].append(r)
+
+    out = []
+    for group in groups.values():
+        clusters = []
+        for r in group:
+            for cluster in clusters:
+                if any(_distance_m(r[1], r[2], m[1], m[2]) <= DEDUPE_RADIUS_M for m in cluster):
+                    cluster.append(r)
+                    break
+            else:
+                clusters.append([r])
+        out.extend(cluster[0] for cluster in clusters)
+    return sorted(out, key=lambda r: (r[4], r[3], r[0]))
 
 
 def main():
