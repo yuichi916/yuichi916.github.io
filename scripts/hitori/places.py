@@ -226,8 +226,14 @@ def dedupe(rows):
     """同じ (名前, 種別, 県) かつ DEDUPE_RADIUS_M 以内にある行だけを1件にまとめる。
 
     同名でも県が違えば別物として残す。同じ県内でも DEDUPE_RADIUS_M より
-    離れていれば別物として残す（事業者違いの同名駅を守るため）。距離は
-    単純な連鎖（AがBと近い、BがCと近い）で単連結クラスタとしてまとめる。
+    離れていれば別物として残す（事業者違いの同名駅を守るため）。
+
+    クラスタリングは完全連結（complete linkage）: 新しい行は、既存クラスタの
+    「全員」が閾値以内のときだけそのクラスタに加える。単連結（誰か1人が
+    近ければ加える）だと、A-B が400m・B-C が400m・A-C が800mのような
+    連鎖で、直接は500m超離れている A と C まで1件に潰れてしまう。
+    駅が実在するのに消える方が、重複が1件残るより悪い（前者は誰にも
+    気づかれない）ので、判定に迷ったら別物のまま残す側に倒す。
     """
     groups = defaultdict(list)
     for r in rows:
@@ -238,7 +244,7 @@ def dedupe(rows):
         clusters = []
         for r in group:
             for cluster in clusters:
-                if any(_distance_m(r[1], r[2], m[1], m[2]) <= DEDUPE_RADIUS_M for m in cluster):
+                if all(_distance_m(r[1], r[2], m[1], m[2]) <= DEDUPE_RADIUS_M for m in cluster):
                     cluster.append(r)
                     break
             else:

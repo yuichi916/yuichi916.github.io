@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """駅・市区町村の検索インデックス。外部ジオコーディングに依存しないための同梱データ。"""
-import sys, json, gzip
+import sys, json, gzip, math
 from collections import defaultdict
 from pathlib import Path
 
@@ -26,6 +26,21 @@ def _row(name, lat, lon, kind, pref):
     return [name, lat, lon, kind, pref]
 
 
+def _north(lat, lon, meters):
+    """(lat, lon) から真北へ meters だけ移動した点。
+
+    経度を固定した南北移動なら、places._distance_m のhaversine式は
+    dlon=0 のとき a = sin(dphi/2)^2 に簡約され、
+    distance = 2R*asin(|sin(dphi/2)|) = R*dphi（dphi/2 が主値域内なら厳密に
+    一致）になる。よって dphi = meters / R とすれば、生成した2点間の距離は
+    近似ではなく指定した meters に厳密に一致する。閾値ぎりぎりのテストで
+    「本当にその距離になっているか」を実測(assert)できるのはこのため。
+    """
+    r = 6371000.0
+    dphi = meters / r
+    return lat + math.degrees(dphi), lon
+
+
 def test_dedupe_merges_same_point():
     # 和田岬駅: Wikidata側で同一実体が重複登録されている実測ケース（0m）
     rows = [_row("和田岬駅", 34.6569, 135.175, "s", 28),
@@ -49,6 +64,57 @@ def test_dedupe_keeps_same_name_different_prefecture():
             _row("中央駅", 35.0, 135.0, "s", 2)]
     out = places.dedupe(rows)
     assert len(out) == 2, out
+
+
+def test_dedupe_chain_does_not_transitively_merge():
+    # A-B ≈ 400m（統合対象）、B-C ≈ 400m（統合対象）、しかし A-C ≈ 800m
+    # （統合不可）。単連結（誰か1人が近ければクラスタに加える）だとBを
+    # 介してA-B-Cが全部1件に潰れてしまうが、完全連結（クラスタ全員が
+    # 閾値以内のときだけ加える）ではA-Cが500mを超えるため別クラスタに
+    # 分かれ、2件残るのが正しい。
+    lat0, lon0 = 35.0, 139.0
+    a = _row("連結駅", lat0, lon0, "s", 1)
+    blat, blon = _north(lat0, lon0, 400.0)
+    b = _row("連結駅", blat, blon, "s", 1)
+    clat, clon = _north(lat0, lon0, 800.0)
+    c = _row("連結駅", clat, clon, "s", 1)
+
+    d_ab = places._distance_m(a[1], a[2], b[1], b[2])
+    d_bc = places._distance_m(b[1], b[2], c[1], c[2])
+    d_ac = places._distance_m(a[1], a[2], c[1], c[2])
+    assert d_ab <= places.DEDUPE_RADIUS_M, d_ab
+    assert d_bc <= places.DEDUPE_RADIUS_M, d_bc
+    assert d_ac > places.DEDUPE_RADIUS_M, d_ac
+
+    out = places.dedupe([a, b, c])
+    assert len(out) == 2, (
+        f"A-C が {d_ac:.0f}m離れている（B経由の連鎖で誤って1件に潰れた）: {out}")
+
+
+def test_dedupe_merges_just_under_threshold():
+    # 500m閾値のすぐ内側（約480m）。統合されるべき。
+    lat0, lon0 = 35.0, 139.0
+    a = _row("境界駅", lat0, lon0, "s", 1)
+    blat, blon = _north(lat0, lon0, 480.0)
+    b = _row("境界駅", blat, blon, "s", 1)
+    d = places._distance_m(a[1], a[2], b[1], b[2])
+    assert d < places.DEDUPE_RADIUS_M, d
+
+    out = places.dedupe([a, b])
+    assert len(out) == 1, f"{d:.0f}m は閾値未満なのに統合されていない: {out}"
+
+
+def test_dedupe_keeps_just_over_threshold():
+    # 500m閾値のすぐ外側（約520m）。別物として残るべき。
+    lat0, lon0 = 35.0, 139.0
+    a = _row("境界駅", lat0, lon0, "s", 1)
+    blat, blon = _north(lat0, lon0, 520.0)
+    b = _row("境界駅", blat, blon, "s", 1)
+    d = places._distance_m(a[1], a[2], b[1], b[2])
+    assert d > places.DEDUPE_RADIUS_M, d
+
+    out = places.dedupe([a, b])
+    assert len(out) == 2, f"{d:.0f}m は閾値超なのに統合されている: {out}"
 
 
 def test_generated_file():
@@ -84,7 +150,13 @@ def test_generated_file():
         assert 1 <= r[idx["pref"]] <= 47, r
 
     # (名前, 種別, 県) が同じ行が複数残っていてもよいが、その場合は
-    # DEDUPE_RADIUS_M より離れていること（統合漏れの検出）。
+    # DEDUPE_RADIUS_M より離れていること（統合すべきなのに統合されて
+    # いない「統合漏れ」の検出）。
+    # 注意: これは片方向のチェックでしかない。過剰統合（本来別物の駅が
+    # 誤って1件に潰された）は、その時点で行が1件しか残らないため比較対象が
+    # 無く、このループでは検出できない。過剰統合（単連結の連鎖バグなど）は
+    # test_dedupe_chain_does_not_transitively_merge のような dedupe() への
+    # 直接的なユニットテストで別途検証する。
     by_key = defaultdict(list)
     for r in doc["items"]:
         by_key[(r[idx["name"]], r[idx["type"]], r[idx["pref"]])].append(r)
@@ -110,6 +182,9 @@ def main():
     test_dedupe_merges_same_point()
     test_dedupe_keeps_stations_1_1km_apart()
     test_dedupe_keeps_same_name_different_prefecture()
+    test_dedupe_chain_does_not_transitively_merge()
+    test_dedupe_merges_just_under_threshold()
+    test_dedupe_keeps_just_over_threshold()
     test_generated_file()
 
 
