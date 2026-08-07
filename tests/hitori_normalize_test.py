@@ -37,6 +37,7 @@ def test_to_record_node():
     assert r["chain"] == 1 and r["conf"] == 0
     assert r["city"] == "渋谷区" and r["oh"] == "11:00-23:00"
     assert r["hidden"] == 0.0 and r["hidden_n"] == 0
+    assert r["iso"] == 0
 
 
 def test_to_record_way_uses_center():

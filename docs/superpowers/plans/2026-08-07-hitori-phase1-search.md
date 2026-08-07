@@ -1860,10 +1860,16 @@ git commit -m "feat(hitori): テストランナーを更新しサイトの説明
 
 ```bash
 PYTHONUTF8=1 python scripts/hitori/fetch_osm.py     # 施設データ（30〜60分）
-PYTHONUTF8=1 python scripts/hitori/places.py        # 駅・市区町村（15〜30分、初回のみ）
-PYTHONUTF8=1 python scripts/hitori/build_data.py    # 3軸・穴場・孤立度・分割出力
+PYTHONUTF8=1 python scripts/hitori/build_data.py    # 3軸・穴場・孤立度・分割出力（data/hitori/pref/*.json を書く）
+PYTHONUTF8=1 python scripts/hitori/places.py        # 駅・市区町村＋知名度n（15〜30分、初回のみ）
 PYTHONUTF8=1 python tests/hitori_all.py             # 全16スイート
 ```
+
+**順序が重要。** `places.py` は地名の知名度シグナル `n`（半径2000m以内の施設数）を
+`data/hitori/pref/*.json` から集計するため、`build_data.py` より後に実行する
+必要がある。逆の順（`places.py` を先に走らせる、または `data/hitori/pref/` が
+47県揃っていない状態で走らせる）だと `places.py` は `MissingPrefDataError` で
+即座に停止する（`n` が全件0のまま黙って書き出すことはしない）。
 
 ## フェーズ2以降（この計画には含まない）
 

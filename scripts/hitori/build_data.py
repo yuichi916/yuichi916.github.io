@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import chains
 import hidden
+import iso
 import normalize
 import scoring
 import validate
@@ -50,7 +51,7 @@ def manual_records(curated, code):
             "solo": ax["solo"], "quiet": ax["quiet"], "easy": ax["easy"],
             "conf": scoring.confidence(evidence),
             "chain": int(rec.get("chain", 0)),
-            "hidden": 0.0, "hidden_n": 0,
+            "hidden": 0.0, "hidden_n": 0, "iso": 0,
             "city": rec.get("city", ""), "oh": rec.get("oh", ""),
             "tel": rec.get("tel", ""), "web": rec.get("web", ""),
             "note": rec.get("note", ""),
@@ -80,6 +81,9 @@ def build(raw_by_pref, prefs, curated, updated):
 
     # 穴場は全国の点集合に対して計算する。県別にやると県境で半径500mが切れる。
     hidden.compute_hidden(all_records)
+
+    # 孤立度も全国の点集合に対して計算する。県別にやると県境で最寄が誤る。
+    iso.compute_iso(all_records)
 
     summary_prefs = []
     prefdocs = {}
@@ -117,6 +121,8 @@ def build(raw_by_pref, prefs, curated, updated):
         "updated": updated,
         "total": total,
         "population_source": "Wikidata (CC0) / 令和2年国勢調査",
+        "iso_threshold": iso.iso_thresholds(all_records),
+        "iso_max": iso.MAX_ISO_M,
         "prefectures": summary_prefs,
     }
     return summary, prefdocs

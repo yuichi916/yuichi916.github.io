@@ -241,5 +241,208 @@ check('filterItems: 空の opts は素通し', () => {
   eq(core.filterItems(all, {}).length, 4);
 });
 
+const PLACES = [
+  { name: '渋谷', lat: 35.658, lon: 139.701, type: 's', pref: 13, n: 0 },
+  { name: '渋谷駅', lat: 35.659, lon: 139.702, type: 's', pref: 13, n: 0 },
+  { name: '渋谷区', lat: 35.664, lon: 139.698, type: 'c', pref: 13, n: 0 },
+  { name: '府中駅', lat: 35.672, lon: 139.478, type: 's', pref: 13, n: 0 },
+  { name: '府中駅', lat: 34.567, lon: 133.235, type: 's', pref: 34, n: 0 },
+  { name: '新宿三丁目駅', lat: 35.690, lon: 139.705, type: 's', pref: 13, n: 0 },
+];
+
+check('searchPlaces: 部分一致', () => {
+  const r = core.searchPlaces(PLACES, '渋谷');
+  eq(r.length, 3);
+});
+
+check('searchPlaces: 駅ありでも駅なしの名前に当たる', () => {
+  // 入力「渋谷駅」で、OSM側の名前が「渋谷」の駅を取りこぼさない
+  const names = core.searchPlaces(PLACES, '渋谷駅').map(p => p.name);
+  if (!names.includes('渋谷')) throw new Error('駅を外した名前に当たらない: ' + names);
+  if (!names.includes('渋谷駅')) throw new Error('そのままの名前に当たらない: ' + names);
+});
+
+check('searchPlaces: 駅が市区町村より上', () => {
+  const r = core.searchPlaces(PLACES, '渋谷');
+  eq(r[r.length - 1].type, 'c', '市区町村が最後でない');
+  if (r.slice(0, -1).some(p => p.type === 'c')) throw new Error('駅より上に市区町村がある');
+});
+
+check('searchPlaces: 完全一致を優先', () => {
+  const r = core.searchPlaces(PLACES, '渋谷');
+  eq(r[0].name, '渋谷');
+});
+
+check('searchPlaces: 知名度（n）が「駅を先に」より優先する', () => {
+  // 別府＝大分県の有名な温泉地（周辺施設が多い＝nが高い）と、
+  // 兵庫県の目立たない駅（nが低い）。型だけで駅を先に出す既定ルールでは
+  // 無名の駅が有名な自治体より上に来てしまうため、nがその逆転を正す。
+  const beppu = [
+    { name: '別府駅', lat: 34.72, lon: 135.17, type: 's', pref: 28, n: 3 },
+    { name: '別府市', lat: 33.28, lon: 131.49, type: 'c', pref: 44, n: 250 },
+  ];
+  const r = core.searchPlaces(beppu, '別府');
+  eq(r[0].name, '別府市', '知名度が高い自治体が駅より下に沈んでいる');
+  eq(r[0].pref, 44, '大分県が兵庫県より先に来ていない');
+});
+
+check('searchPlaces: 同名は県違いで両方残る', () => {
+  const r = core.searchPlaces(PLACES, '府中');
+  eq(r.length, 2);
+  eq(new Set(r.map(p => p.pref)).size, 2);
+});
+
+check('searchPlaces: 空・空白は空配列', () => {
+  eq(core.searchPlaces(PLACES, '').length, 0);
+  eq(core.searchPlaces(PLACES, '   ').length, 0);
+  eq(core.searchPlaces(PLACES, null).length, 0);
+});
+
+check('searchPlaces: 一致なし', () => {
+  eq(core.searchPlaces(PLACES, 'ぜったいにない地名').length, 0);
+});
+
+check('searchPlaces: limit', () => {
+  eq(core.searchPlaces(PLACES, '駅', 2).length, 2);
+});
+
+const TH = { bath: 3000, eat: 900, play: 5000, stay: 2000 };
+const SORTABLE = [
+  { id: 'a', cat: 'eat', solo: 3, quiet: 5, hidden: 0.0, iso: 100,  distM: 100, oh: '' },
+  { id: 'b', cat: 'eat', solo: 5, quiet: 2, hidden: 0.9, iso: 200,  distM: 300, oh: '00:00-24:00' },
+  { id: 'c', cat: 'bath', solo: 4, quiet: 4, hidden: 0.0, iso: 6000, distM: 200, oh: 'Mo 01:00-02:00' },
+];
+
+check('findScore: 飲食は穴場度、湯は孤立度が効く', () => {
+  near(core.findScore(SORTABLE[1], TH), 0.9, 0.001);
+  // bath: iso 6000 / threshold 3000 → 1.0 に丸まる
+  near(core.findScore(SORTABLE[2], TH), 1.0, 0.001);
+  near(core.findScore(SORTABLE[0], TH), 100 / 900, 0.001);
+});
+
+check('findScore: しきい値が無いカテゴリでも落ちない', () => {
+  near(core.findScore({ cat: 'unknown', hidden: 0.3, iso: 500 }, TH), 0.3, 0.001);
+});
+
+check('openRank: 営業中→不明→営業時間外', () => {
+  // 2026-08-04 は火曜
+  const tue = new Date(2026, 7, 4, 12, 0);
+  eq(core.openRank({ oh: '00:00-24:00' }, tue), 0, '営業中');
+  eq(core.openRank({ oh: '' }, tue), 1, '不明は営業時間外より上');
+  eq(core.openRank({ oh: 'Mo 01:00-02:00' }, tue), 2, '営業時間外');
+});
+
+check('sortItems: 距離順が既定', () => {
+  const r = core.sortItems(SORTABLE, 'dist', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r.map(x => x.id).join(''), 'acb');
+});
+
+check('sortItems: ひとり度は降順、同点は距離', () => {
+  const r = core.sortItems(SORTABLE, 'solo', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r[0].id, 'b');
+});
+
+check('sortItems: 発見度', () => {
+  const r = core.sortItems(SORTABLE, 'find', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r[0].id, 'c', 'iso で 1.0 の bath が先頭');
+});
+
+check('sortItems: 静けさ', () => {
+  const r = core.sortItems(SORTABLE, 'quiet', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r[0].id, 'a');
+});
+
+check('sortItems: 営業中優先は 営業中→不明→営業時間外', () => {
+  const r = core.sortItems(SORTABLE, 'open', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r.map(x => x.id).join(''), 'bac', '不明(a)が営業時間外(c)より上にない');
+});
+
+check('sortItems: 入力を破壊しない', () => {
+  const before = SORTABLE.map(x => x.id).join('');
+  core.sortItems(SORTABLE, 'solo', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(SORTABLE.map(x => x.id).join(''), before);
+});
+
+check('sortItems: 未知の並べ替えは距離順に落とす', () => {
+  const r = core.sortItems(SORTABLE, 'なにか', { isoThreshold: TH, now: new Date(2026, 7, 4, 12, 0) });
+  eq(r.map(x => x.id).join(''), 'acb');
+});
+
+function fakeStorage(broken) {
+  const map = new Map();
+  return {
+    getItem: k => (broken ? (() => { throw new Error('denied'); })() : (map.has(k) ? map.get(k) : null)),
+    setItem: (k, v) => { if (broken) throw new Error('denied'); map.set(k, v); },
+  };
+}
+
+const FAV_ITEM = {
+  id: 'n1', name: 'はやし湯', lat: 35.0, lon: 139.0, cat: 'bath', kind: 'sento',
+  solo: 4, quiet: 4, easy: 3, chain: 0, prefCode: 13,
+  distM: 500, oh: '', note: 'メモ', hidden: 0.1, iso: 800,
+};
+
+check('favSnapshot: 11項目だけ持つ', () => {
+  const s = core.favSnapshot(FAV_ITEM);
+  eq(JSON.stringify(Object.keys(s).sort()),
+     JSON.stringify(['cat','chain','easy','id','kind','lat','lon','name','prefCode','quiet','solo']));
+  eq(s.id, 'n1');
+  eq(s.distM, undefined, '距離は起点依存なので保存しない');
+});
+
+check('loadFavs: 空なら空配列', () => {
+  eq(JSON.stringify(core.loadFavs(fakeStorage(false))), '[]');
+});
+
+check('loadFavs: 使えない環境では null', () => {
+  eq(core.loadFavs(fakeStorage(true)), null);
+});
+
+check('saveFavs: 成否を返す', () => {
+  eq(core.saveFavs(fakeStorage(false), [core.favSnapshot(FAV_ITEM)]), true);
+  eq(core.saveFavs(fakeStorage(true), []), false);
+});
+
+check('保存して読み戻せる', () => {
+  const st = fakeStorage(false);
+  core.saveFavs(st, [core.favSnapshot(FAV_ITEM)]);
+  const back = core.loadFavs(st);
+  eq(back.length, 1);
+  eq(back[0].name, 'はやし湯');
+});
+
+check('toggleFav: 追加と削除', () => {
+  let favs = [];
+  favs = core.toggleFav(favs, FAV_ITEM);
+  eq(favs.length, 1);
+  eq(core.isFav(favs, 'n1'), true);
+  favs = core.toggleFav(favs, FAV_ITEM);
+  eq(favs.length, 0);
+  eq(core.isFav(favs, 'n1'), false);
+});
+
+check('toggleFav: 新しい配列を返し元を壊さない', () => {
+  const favs = [];
+  const next = core.toggleFav(favs, FAV_ITEM);
+  eq(favs.length, 0);
+  eq(next.length, 1);
+});
+
+check('toggleFav: 上限を超えたら古いものを落とす', () => {
+  let favs = [];
+  for (let i = 0; i < core.FAV_MAX + 5; i++) {
+    favs = core.toggleFav(favs, { ...FAV_ITEM, id: 'n' + i });
+  }
+  eq(favs.length, core.FAV_MAX);
+  eq(core.isFav(favs, 'n0'), false, '最古が残っている');
+  eq(core.isFav(favs, 'n' + (core.FAV_MAX + 4)), true, '最新が無い');
+});
+
+check('loadFavs: 壊れたJSONは空配列にフォールバック', () => {
+  const st = fakeStorage(false);
+  st.setItem(core.FAV_KEY, '{壊れている');
+  eq(JSON.stringify(core.loadFavs(st)), '[]');
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

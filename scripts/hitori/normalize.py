@@ -73,6 +73,7 @@ def to_record(el, curated):
         "chain": scoring.is_chain(tags, cur),
         "hidden": 0.0,      # compute_hidden が全国計算のあとに上書きする
         "hidden_n": 0,
+        "iso": 0,           # compute_iso が全国計算のあとに上書きする
         "city": (tags.get("addr:city") or "").strip(),
         "oh": (tags.get("opening_hours") or "").strip(),
         "tel": (tags.get("phone") or tags.get("contact:phone") or "").strip(),

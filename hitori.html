@@ -28,6 +28,23 @@ h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
 .tabs button { background: none; border: none; border-bottom: 2px solid transparent;
                color: var(--muted); cursor: pointer; font: inherit; padding: .5rem 1rem; }
 .tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.origin-bar { position: relative; margin: 1rem 0 .5rem; }
+.place-search input { width: 100%; padding: .6rem .8rem; font: inherit;
+                      border: 1px solid var(--line); border-radius: 8px;
+                      background: var(--bg); color: var(--fg); }
+#place-hits { position: absolute; z-index: 30; left: 0; right: 0; top: 3rem;
+              list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto;
+              background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+              box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+#place-hits li { padding: .55rem .8rem; cursor: pointer; border-bottom: 1px solid var(--line); }
+#place-hits li:hover, #place-hits li:focus { background: rgba(127,127,127,.1); outline: none; }
+#place-hits .kindmark { color: var(--muted); font-size: .78rem; margin-left: .4rem; }
+#place-hits .empty { padding: .6rem .8rem; color: var(--muted); }
+.origin { margin: .5rem 0 0; color: var(--muted); font-size: .88rem; }
+.origin strong { color: var(--fg); }
+#origin-reset { background: none; border: 1px solid var(--line); border-radius: 999px;
+                color: var(--fg); cursor: pointer; font: inherit; font-size: .78rem;
+                padding: .05rem .6rem; margin-left: .5rem; }
 .filters { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.5rem 0; }
 .filters fieldset { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .9rem; margin: 0; }
 .filters legend { font-size: .8rem; color: var(--muted); padding: 0 .3rem; }
@@ -94,8 +111,17 @@ img, svg, table { max-width: 100%; }
 .badge-gem { border-color: #c05621; color: #c05621; }
 .badge-open { border-color: #2f855a; color: #2f855a; }
 .badge-shut { border-color: var(--line); }
+.badge-iso { border-color: #2b6cb0; color: #2b6cb0; }
 .more-filters { margin: .6rem 0; font-size: .85rem; color: var(--muted); }
 .placeholder { color: var(--muted); }
+.favbar { margin: .4rem 0 0; }
+#fav-toggle { background: none; border: 1px solid var(--line); border-radius: 999px;
+              color: var(--fg); cursor: pointer; font: inherit; font-size: .82rem;
+              padding: .15rem .8rem; }
+#fav-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.fav { background: none; border: none; cursor: pointer; font-size: 1rem;
+       color: var(--muted); padding: 0 .2rem; line-height: 1; }
+.fav[aria-pressed="true"] { color: #c05621; }
 
 #facility-map { width: 100%; height: 220px; border-radius: 8px; overflow: hidden;
                 margin: .8rem 0; background: #eef2f6; }
@@ -113,6 +139,7 @@ img, svg, table { max-width: 100%; }
 #facility dt { color: var(--muted); font-size: .85rem; }
 #facility dd { margin: 0; }
 #facility .gem-reason { color: #c05621; font-size: .85rem; }
+#facility .stale { color: #c05621; font-size: .85rem; margin: .3rem 0; }
 #facility .to-maps { display: inline-block; margin-top: .8rem; }
 @media (min-width: 721px) {
   #facility { inset: auto auto 1.5rem 50%; transform: translateX(-50%);
@@ -143,6 +170,15 @@ img, svg, table { max-width: 100%; }
   </nav>
 
   <section id="panel-search" role="tabpanel">
+    <div class="origin-bar">
+      <label class="place-search">
+        <input type="search" id="place-q" placeholder="駅名・地名で探す（例: 渋谷、梅田）"
+               autocomplete="off" spellcheck="false">
+      </label>
+      <ul id="place-hits" hidden></ul>
+      <p class="origin"><strong id="origin-label">現在地</strong> から近い順
+        <button type="button" id="origin-reset" hidden>現在地に戻す</button></p>
+    </div>
     <div class="filters">
       <fieldset><legend>カテゴリ</legend>
         <label><input type="checkbox" id="s-cat-bath" checked> 湯・サウナ</label>
@@ -163,6 +199,15 @@ img, svg, table { max-width: 100%; }
         <label><input type="checkbox" id="f-quiet"> 静かなところ</label>
         <label><input type="checkbox" id="f-easy"> 作法不要</label>
       </fieldset>
+      <fieldset><legend>並べ替え</legend>
+        <select id="f-sort">
+          <option value="dist" selected>近い順</option>
+          <option value="solo">ひとり度が高い順</option>
+          <option value="find">発見が多い順</option>
+          <option value="quiet">静かな順</option>
+          <option value="open">営業中を優先</option>
+        </select>
+      </fieldset>
     </div>
     <details class="more-filters">
       <summary>その他の条件</summary>
@@ -171,6 +216,7 @@ img, svg, table { max-width: 100%; }
       <label><input type="checkbox" id="f-verified"> 出典で確認済みの店だけ</label>
       <small>現状ほぼすべてが業態からの推定です</small>
     </details>
+    <p class="favbar"><button type="button" id="fav-toggle" hidden>★ 保存した場所（<span id="fav-count">0</span>）</button></p>
     <p id="search-status" class="counts"></p>
     <ol id="search-list" class="items"></ol>
   </section>
@@ -255,9 +301,25 @@ const state = {
   tab: 'search', pref: null,
   cats: new Set(CATS), nochain: false, minConf: 0,   // 全国タブ用
   here: null,
+  // 検索の起点。GPSの現在地とは別に持つ。地図の現在地ピンには here を使う。
+  origin: { kind: 'here', lat: null, lon: null, label: '現在地' },
   search: { cats: new Set(CATS), maxDistM: 800, minSolo: 0, minQuiet: 0, minEasy: 0,
             minConf: 0, requireHours: false },
 };
+state.sort = 'dist';
+state.favs = core.loadFavs(safeStorage());   // null なら保存領域が使えない
+state.favView = false;
+
+// プライベートブラウジング等では localStorage への参照自体が例外を投げる。
+function safeStorage() {
+  try {
+    return window.localStorage;
+  } catch (e) {
+    return { getItem() { throw e; }, setItem() { throw e; } };
+  }
+}
+
+const FAVS_OK = () => state.favs !== null;
 let NEIGHBORS = null;
 let searchStarted = false;   // locateAndSearch() を探すタブへの初回到達時に一度だけ走らせるための番人
 let SUMMARY = null, GEO = null;
@@ -432,10 +494,69 @@ function collectItems(codes) {
 }
 
 function currentSearchResults() {
-  if (!state.here) return [];
-  const loaded = Object.keys(PREF_CACHE).map(Number);
-  const withD = core.withDistance(collectItems(loaded), state.here.lat, state.here.lon);
-  return core.sortByDistance(core.filterItems(withD, state.search));
+  const o = state.origin;
+  if (o.lat == null) return [];
+  const src = state.favView
+    ? (state.favs || [])
+    : collectItems(Object.keys(PREF_CACHE).map(Number));
+  const withD = core.withDistance(src, o.lat, o.lon);
+  // お気に入り表示中はスナップショットなので絞り込みを適用しない。
+  // 保存した場所が条件から外れて消えると、保存した意味がなくなる。
+  const filtered = state.favView ? withD : core.filterItems(withD, state.search);
+  return core.sortItems(filtered, state.sort,
+                        { isoThreshold: SUMMARY.iso_threshold, now: new Date() });
+}
+
+function bindSortAndFavs() {
+  document.getElementById('f-sort').addEventListener('change', e => {
+    state.sort = e.target.value;
+    renderSearchList();
+  });
+
+  const toggle = document.getElementById('fav-toggle');
+  if (FAVS_OK()) {
+    toggle.hidden = false;
+    updateFavCount();
+    toggle.addEventListener('click', () => {
+      state.favView = !state.favView;
+      toggle.setAttribute('aria-pressed', String(state.favView));
+      renderSearchList();
+    });
+  }
+
+  document.getElementById('search-list').addEventListener('click', e => {
+    const btn = e.target.closest('.fav');
+    if (!btn) return;
+    e.stopPropagation();          // 詳細シートを開かない
+    const li = btn.closest('li.item');
+    const it = currentSearchResults().find(x => x.id === li.dataset.id);
+    if (!it) return;
+    state.favs = core.toggleFav(state.favs, it);
+    if (!core.saveFavs(safeStorage(), state.favs)) {
+      state.favs = null;          // 途中で書けなくなったら機能を畳む
+    }
+    updateFavCount();
+    renderSearchList();
+  }, true);
+}
+
+function updateFavCount() {
+  const el = document.getElementById('fav-count');
+  if (el) el.textContent = String((state.favs || []).length);
+}
+
+// 孤立バッジ・詳細の孤立度表示。しきい値は SUMMARY.iso_threshold だけを見る。
+// iso 省略時は it.iso を見る。お気に入り詳細では現在データから引いた値を
+// 明示的に渡す（FAV_FIELDS が iso を保存していないため）。
+function isIsolated(it, iso) {
+  const t = SUMMARY.iso_threshold && SUMMARY.iso_threshold[it.cat];
+  const v = iso == null ? it.iso : iso;
+  return !!t && (v || 0) >= t;
+}
+
+function formatIso(m) {
+  if (m >= SUMMARY.iso_max) return `${Math.round(SUMMARY.iso_max / 1000)}km以上`;
+  return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
 }
 
 function renderSearchList() {
@@ -444,7 +565,18 @@ function renderSearchList() {
   const status = document.getElementById('search-status');
   const failed = [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
 
-  if (!items.length) {
+  // お気に入り表示中は件数だけを出す。フィルタを適用しない仕様（保存した
+  // 場所を条件で消さないため）なので、通常の0件分岐（「距離を広げる」）は
+  // お気に入りには効かず出す意味がない。県の取得失敗もお気に入りの表示とは
+  // 無関係なので、favView の判定を通常の0件分岐より先に行う。
+  if (state.favView) {
+    list.innerHTML = '';
+    if (!items.length) {
+      status.textContent = '保存した場所はまだありません';
+      return;
+    }
+    status.textContent = `保存した ${items.length} 件`;
+  } else if (!items.length) {
     list.innerHTML = '';
     if (failed.length) {
       // 「該当なし」より読み込み失敗を優先して伝える。自県のデータが読めて
@@ -464,10 +596,10 @@ function renderSearchList() {
       });
     }
     return;
+  } else {
+    status.textContent = `${items.length.toLocaleString()} 件`
+      + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
   }
-
-  status.textContent = `${items.length.toLocaleString()} 件`
-    + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
   const now = new Date();
   list.innerHTML = items.slice(0, 200).map(it => {
     const st = core.openState(it.oh, now);
@@ -479,15 +611,18 @@ function renderSearchList() {
     return `<li class="item" data-id="${it.id}" data-dist="${Math.round(it.distM)}"
               data-quiet="${it.quiet}" data-solo="${it.solo}" tabindex="0">
       <span class="nm">${escapeHtml(it.name)}</span>
-      <span class="dist">徒歩${m}分<br><small>${dist} ${core.bearing8(state.here.lat, state.here.lon, it.lat, it.lon)}</small></span>
+      <span class="dist">徒歩${m}分<br><small>${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</small></span>
       <span class="meta">${KIND_JA[it.kind] || it.kind}</span>
       <span class="badges">
+        ${FAVS_OK() ? `<button type="button" class="fav" aria-pressed="${core.isFav(state.favs, it.id)}"
+           aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
         <span class="badge-ax">ひとり度${it.solo}</span>
         <span class="badge-ax">静けさ${it.quiet}</span>
         <span class="badge-ax">入りやすさ${it.easy}</span>
         ${openBadge}
         ${it.chain ? '<span class="badge-ax">チェーン</span>' : ''}
         ${isGem(it) ? `<span class="badge-ax badge-gem">穴場 ${Math.round(it.hidden * 100)}%</span>` : ''}
+        ${isIsolated(it) ? `<span class="badge-ax badge-iso">最寄り${formatIso(it.iso)}</span>` : ''}
       </span>
     </li>`;
   }).join('');
@@ -510,7 +645,7 @@ function mapsUrl(it) {
 // 直前にシートを開いた一覧項目。閉じたときにここへフォーカスを戻す。
 let _facilityOpener = null;
 
-function openFacility(id, opener) {
+async function openFacility(id, opener) {
   const it = currentSearchResults().find(x => x.id === id);
   if (!it) return;
   const el = document.getElementById('facility');
@@ -520,16 +655,37 @@ function openFacility(id, opener) {
     : '営業時間不明';
   const dist = it.distM >= 1000 ? `${(it.distM / 1000).toFixed(1)}km` : `${Math.round(it.distM)}m`;
 
+  // 保存は時点のスナップショット。再ビルドで施設が消えていることがある。
+  // 黙って古い情報を見せない。
+  // iso は FAV_FIELDS に含まれない（お気に入りは11フィールドのスナップショットで、
+  // 孤立度は保存時点で古くなりうるため対象外）。現在データに施設が見つかれば
+  // そこから孤立度を引き、見つからなければ（stale）行自体を出さない。
+  let stale = false;
+  let liveIso = it.iso;
+  if (state.favView && it.prefCode) {
+    if (!PREF_CACHE[it.prefCode]) await loadPrefIntoCache(it.prefCode);
+    const doc = PREF_CACHE[it.prefCode];
+    if (doc) {
+      const idIdx = doc.fields.indexOf('id');
+      const row = doc.items.find(r => r[idIdx] === it.id);
+      stale = !row;
+      liveIso = row ? row[doc.fields.indexOf('iso')] : undefined;
+    }
+  }
+
   el.hidden = false;
   el.innerHTML = `
     <button type="button" class="close" aria-label="閉じる">×</button>
     <h3>${escapeHtml(it.name)}</h3>
+    ${stale ? '<p class="stale">この施設は現在のデータに存在しません。閉店したか、地図から削除された可能性があります。</p>' : ''}
     <p class="meta">${KIND_JA[it.kind] || it.kind}${it.city ? ' · ' + escapeHtml(it.city) : ''}</p>
     <dl>
-      <dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.here.lat, state.here.lon, it.lat, it.lon)}）</dd>
+      <dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}）</dd>
       <dt>ひとり度</dt><dd>${it.solo} — ${AX_LABEL.solo[it.solo]}</dd>
       <dt>静けさ</dt><dd>${it.quiet} — ${AX_LABEL.quiet[it.quiet]}</dd>
       <dt>入りやすさ</dt><dd>${it.easy} — ${AX_LABEL.easy[it.easy]}</dd>
+      ${liveIso != null ? `<dt>孤立度</dt><dd>最寄りの${KIND_JA[it.kind] || it.kind}まで ${formatIso(liveIso)}${
+        isIsolated(it, liveIso) ? '（この一帯で唯一）' : ''}</dd>` : ''}
       <dt>営業時間</dt><dd>${hours}</dd>
       ${it.tel ? `<dt>電話</dt><dd><a href="tel:${escapeHtml(it.tel)}">${escapeHtml(it.tel)}</a></dd>` : ''}
       ${it.web ? `<dt>サイト</dt><dd><a href="${escapeHtml(it.web)}" target="_blank" rel="noopener">公式サイト</a></dd>` : ''}
@@ -643,11 +799,21 @@ async function locateAndSearch() {
     return;
   }
   state.here = { lat, lon };
+  state.origin = { kind: 'here', lat, lon, label: '現在地' };
+  document.getElementById('origin-label').textContent = '現在地';
+  document.getElementById('origin-reset').hidden = true;
 
-  const code = core.prefectureAt(lat, lon, GEO);
+  await runSearchFromOrigin();
+}
+
+// 起点（現在地でも選んだ地点でも）から県を判定して読み、一覧を描く。
+async function runSearchFromOrigin() {
+  const o = state.origin;
+  if (o.lat == null) return;
+  const status = document.getElementById('search-status');
+  const code = core.prefectureAt(o.lat, o.lon, GEO);
   status.textContent = `${BY_CODE[code].name} の施設を読み込んでいます…`;
 
-  // 自県を先に描画する。隣接県は後から差し込む。
   await loadPrefIntoCache(code);
   renderSearchList();
   window.__searchReady = true;
@@ -661,7 +827,7 @@ async function locateAndSearch() {
 function showLocationFallback(reason) {
   document.getElementById('search-list').innerHTML = '';
   document.getElementById('search-status').innerHTML =
-    `${escapeHtml(reason)}位置情報を許可すると、現在地から近い順に探せます。<br>
+    `${escapeHtml(reason)}上の検索欄から駅名・地名で探せます。<br>
      <button type="button" class="retry-location">再試行</button>
      <button type="button" class="to-nation">全国で見る</button>`;
   document.querySelector('#search-status .retry-location')
@@ -674,6 +840,94 @@ function showLocationFallback(reason) {
   document.querySelector('#search-status .to-nation')
     .addEventListener('click', () => switchTab('nation'));
   window.__searchReady = true;
+}
+
+// ---- 駅名・地名検索と検索起点の切り替え ----
+
+let PLACES = null;
+let placesLoading = null;
+
+// 初期ロードには含めない。検索欄に触れて初めて取りにいく。
+// 現在地から使う人に無駄な100KBを負わせないため。
+function ensurePlaces() {
+  if (PLACES) return Promise.resolve(PLACES);
+  if (placesLoading) return placesLoading;
+  placesLoading = fetch('data/hitori/places.json')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(doc => {
+      PLACES = doc.items.map(row =>
+        Object.fromEntries(doc.fields.map((f, i) => [f, row[i]])));
+      window.__placesReady = true;
+      return PLACES;
+    })
+    .catch(err => {
+      placesLoading = null;
+      throw err;
+    });
+  return placesLoading;
+}
+
+function renderPlaceHits(hits) {
+  const el = document.getElementById('place-hits');
+  el.hidden = false;
+  if (!hits.length) {
+    el.innerHTML = '<li class="empty">該当する駅・地名がありません</li>';
+    return;
+  }
+  el.innerHTML = hits.map((p, i) => `
+    <li data-i="${i}" tabindex="0">${escapeHtml(p.name)}<span class="kindmark">${
+      p.type === 's' ? '駅' : '市区町村'}・${escapeHtml(BY_CODE[p.pref].name)}</span></li>`).join('');
+  el._hits = hits;
+}
+
+function setOrigin(origin) {
+  state.origin = origin;
+  document.getElementById('origin-label').textContent = origin.label;
+  document.getElementById('origin-reset').hidden = origin.kind === 'here';
+  document.getElementById('place-hits').hidden = true;
+  document.getElementById('place-q').value = '';
+  runSearchFromOrigin();
+}
+
+function bindPlaceSearch() {
+  const q = document.getElementById('place-q');
+  const hits = document.getElementById('place-hits');
+
+  const update = () => {
+    const text = q.value.trim();
+    if (!text) { hits.hidden = true; return; }
+    ensurePlaces()
+      .then(items => renderPlaceHits(core.searchPlaces(items, text)))
+      .catch(() => {
+        hits.hidden = false;
+        hits.innerHTML = '<li class="empty">地名データを読み込めませんでした</li>';
+      });
+  };
+
+  q.addEventListener('input', update);
+  q.addEventListener('focus', () => { ensurePlaces().catch(() => {}); });
+
+  const choose = el => {
+    const p = hits._hits && hits._hits[+el.dataset.i];
+    if (p) setOrigin({ kind: 'place', lat: p.lat, lon: p.lon, label: p.name });
+  };
+  hits.addEventListener('click', e => {
+    const li = e.target.closest('li[data-i]');
+    if (li) choose(li);
+  });
+  hits.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const li = e.target.closest('li[data-i]');
+    if (li) { e.preventDefault(); choose(li); }
+  });
+
+  document.getElementById('origin-reset').addEventListener('click', () => {
+    if (state.here) {
+      setOrigin({ kind: 'here', lat: state.here.lat, lon: state.here.lon, label: '現在地' });
+    } else {
+      locateAndSearch();
+    }
+  });
 }
 
 function bindSearchFilters() {
@@ -941,6 +1195,8 @@ async function init() {
   restoreFromUrl();
   applyFilters();
   bindSearchFilters();
+  bindPlaceSearch();
+  bindSortAndFavs();
   document.getElementById('search-list').addEventListener('click', e => {
     const li = e.target.closest('li.item');
     if (li) openFacility(li.dataset.id, li);
@@ -962,7 +1218,8 @@ async function init() {
   if (state.pref) openPrefecture(state.pref);
   window.__ready = true;
   // 描画テストから触るために公開する
-  Object.assign(window, { state, core, PREF_CACHE, currentSearchResults, isGem, openFacility });
+  Object.assign(window, { state, core, PREF_CACHE, currentSearchResults, isGem, openFacility,
+    setOrigin, ensurePlaces, SUMMARY, isIsolated });
 }
 
 // module scriptはトップレベル宣言がモジュールスコープに閉じ、window の

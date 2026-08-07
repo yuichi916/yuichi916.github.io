@@ -8,6 +8,7 @@ sys.path.insert(0, str(ROOT / "scripts" / "hitori"))
 
 import build_data
 import hidden
+import iso
 import validate
 
 PREFS = [
@@ -55,7 +56,14 @@ def test_build_shapes():
 
 
 def test_build_output_passes_validation():
-    summary, prefdocs = build_data.build(RAW, PREFS, {}, "2026-08-02")
+    # RAW単体には play カテゴリの施設がないため、iso_threshold が全カテゴリ分
+    # 揃わない。ここだけ play を1件足した別データで検証する（RAW自体を変えると
+    # 他テストの件数アサーションが崩れるため）。
+    raw = {**RAW, 26: {"elements": RAW[26]["elements"] + [
+        {"type": "node", "id": 11, "lat": 35.02, "lon": 135.77,
+         "tags": {"amenity": "internet_cafe", "name": "○○ネットカフェ"}},
+    ]}}
+    summary, prefdocs = build_data.build(raw, PREFS, {}, "2026-08-02")
     assert validate.validate_summary(summary) == []
     for code, doc in prefdocs.items():
         errs = validate.validate_pref(doc)
@@ -171,6 +179,37 @@ def test_chain_detection_runs_before_hidden_score():
         assert crow[idx2["chain"]] == 1, f"pref{code}の来来亭が昇格していない"
 
 
+def test_build_computes_iso_and_threshold():
+    prefs = [{"code": 13, "name": "東京都", "pop": 1_000_000},
+             {"code": 14, "name": "神奈川県", "pop": 1_000_000}]
+    raw = {
+        13: {"elements": [
+            {"type": "node", "id": 1, "lat": 35.5000, "lon": 139.5000,
+             "tags": {"amenity": "public_bath", "name": "はやし湯"}},
+        ]},
+        14: {"elements": [
+            {"type": "node", "id": 2, "lat": 35.5010, "lon": 139.5000,
+             "tags": {"amenity": "public_bath", "name": "べつの湯"}},
+        ]},
+    }
+    summary, prefdocs = build_data.build(raw, prefs, {}, "2026-08-07")
+    idx = {k: i for i, k in enumerate(prefdocs[13]["fields"])}
+    row = prefdocs[13]["items"][0]
+    # 県をまたいで約111m先に同業態がある
+    assert 90 <= row[idx["iso"]] <= 130, row[idx["iso"]]
+
+    assert "iso_threshold" in summary
+    assert "bath" in summary["iso_threshold"]
+    assert isinstance(summary["iso_threshold"]["bath"], int)
+
+
+def test_build_publishes_iso_max():
+    # hitori.html の formatIso はこの値をブラウザ側の 50km 判定に使う。
+    # iso.py と二重管理にならないよう、summary.json 経由の一本化を検証する。
+    summary, _ = build_data.build(RAW, PREFS, {}, "2026-08-02")
+    assert summary["iso_max"] == iso.MAX_ISO_M
+
+
 def main():
     test_build_shapes()
     test_build_output_passes_validation()
@@ -179,6 +218,8 @@ def main():
     test_build_includes_manual_entries()
     test_build_computes_hidden_across_prefectures()
     test_chain_detection_runs_before_hidden_score()
+    test_build_computes_iso_and_threshold()
+    test_build_publishes_iso_max()
     print("OK: build_data")
 
 

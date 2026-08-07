@@ -8,6 +8,7 @@ TESTS = [
     "hitori_master_test.py",
     "hitori_scoring_test.py",
     "hitori_hidden_test.py",
+    "hitori_iso_test.py",
     "hitori_neighbors_test.py",
     "hitori_chains_test.py",
     "hitori_osm_query_test.py",
@@ -15,6 +16,7 @@ TESTS = [
     "hitori_validate_test.py",
     "hitori_build_test.py",
     "hitori_mapsvg_test.py",
+    "hitori_places_test.py",
     "hitori_ingest_test.py",
     "hitori_queue_test.py",
     "hitori_render_test.py",   # Playwright を使うので最後

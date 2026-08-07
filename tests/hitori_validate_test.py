@@ -10,22 +10,25 @@ import validate
 
 FIELDS = ["id", "name", "lat", "lon", "cat", "kind",
           "solo", "quiet", "easy", "conf", "chain",
-          "hidden", "hidden_n", "city", "oh", "tel", "web", "note"]
+          "hidden", "hidden_n", "iso", "city", "oh", "tel", "web", "note"]
 
 GOOD_PREF = {
     "pref": 13, "name": "東京都", "updated": "2026-08-04",
     "fields": FIELDS,
     "items": [
         ["n1", "一蘭 渋谷店", 35.65894, 139.70043, "eat", "ramen",
-         5, 4, 3, 2, 1, 0.0, 8, "渋谷区", "11:00-23:00", "03-0000-0000", "https://ichiran.com/", "仕切りカウンター12席"],
+         5, 4, 3, 2, 1, 0.0, 8, 240, "渋谷区", "11:00-23:00",
+         "03-0000-0000", "https://ichiran.com/", "仕切りカウンター12席"],
         ["n2", "はやしや", 35.70112, 139.75820, "eat", "soba_udon",
-         4, 4, 3, 0, 0, 0.83, 12, "新宿区", "", "", "", ""],
+         4, 4, 3, 0, 0, 0.83, 12, 1500, "新宿区", "", "", "", ""],
     ],
 }
 
 GOOD_SUMMARY = {
     "updated": "2026-08-02", "total": 2,
     "population_source": "Wikidata (CC0) / 令和2年国勢調査",
+    "iso_threshold": {"bath": 3200, "eat": 900, "play": 5400, "stay": 2100},
+    "iso_max": validate.iso_mod.MAX_ISO_M,
     "prefectures": [
         {"code": 13, "name": "東京都", "pop": 14047594,
          "counts": {"all": 2, "bath": 0, "eat": 2, "play": 0, "stay": 0},
@@ -96,6 +99,39 @@ def test_pref_fields_mismatch():
     assert any("fields" in e for e in validate.validate_pref(d))
 
 
+def test_pref_iso_range():
+    for bad in (-1, 50001, 1.5, "300"):
+        d = copy.deepcopy(GOOD_PREF)
+        d["items"][0][13] = bad
+        assert any("iso" in e for e in validate.validate_pref(d)), bad
+
+
+def test_summary_needs_iso_threshold():
+    d = copy.deepcopy(GOOD_SUMMARY)
+    del d["iso_threshold"]
+    assert any("iso_threshold" in e for e in validate.validate_summary(d))
+
+    d2 = copy.deepcopy(GOOD_SUMMARY)
+    d2["iso_threshold"] = {"bath": 3200}          # カテゴリ不足
+    assert any("iso_threshold" in e for e in validate.validate_summary(d2))
+
+    d3 = copy.deepcopy(GOOD_SUMMARY)
+    d3["iso_threshold"]["eat"] = -5
+    assert any("iso_threshold" in e for e in validate.validate_summary(d3))
+
+
+def test_summary_needs_iso_max():
+    # hitori.html の formatIso が SUMMARY.iso_max を読む。iso.py の値とJS側の
+    # 50000 決め打ちが乖離した前例があるため、summary.json に必ず載せる。
+    d = copy.deepcopy(GOOD_SUMMARY)
+    del d["iso_max"]
+    assert any("iso_max" in e for e in validate.validate_summary(d))
+
+    d2 = copy.deepcopy(GOOD_SUMMARY)
+    d2["iso_max"] = validate.iso_mod.MAX_ISO_M + 1   # iso.py の値と不一致
+    assert any("iso_max" in e for e in validate.validate_summary(d2))
+
+
 def test_summary_ok():
     assert validate.validate_summary(GOOD_SUMMARY) == []
 
@@ -147,6 +183,9 @@ def main():
     test_pref_chain_flag()
     test_pref_duplicate_id()
     test_pref_fields_mismatch()
+    test_pref_iso_range()
+    test_summary_needs_iso_threshold()
+    test_summary_needs_iso_max()
     test_summary_ok()
     test_summary_indie_not_exceeding()
     test_curated_web_needs_url()

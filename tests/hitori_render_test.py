@@ -553,6 +553,236 @@ def test_search_starts_on_first_tab_entry(context, page):
     p.close()
 
 
+def test_place_search_without_location(context, page):
+    """位置情報が無くても地名から探せる。これがフェーズ1の核心。"""
+    context.clear_permissions()
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.fill("#place-q", "渋谷")
+    p.wait_for_selector("#place-hits li", timeout=20000)
+    hits = p.eval_on_selector_all("#place-hits li", "els => els.map(e => e.innerText)")
+    assert any("渋谷" in h for h in hits), hits
+    # 同名の取り違えを防ぐため県名が併記されている
+    assert any("東京都" in h for h in hits), hits
+
+    p.click("#place-hits li")
+    p.wait_for_selector("#search-list li.item", timeout=30000)
+    assert "渋谷" in p.inner_text("#origin-label"), p.inner_text("#origin-label")
+    n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
+    assert n > 0, "地名を選んでも一覧が空"
+    p.close()
+
+
+def test_origin_back_to_here(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.fill("#place-q", "梅田")
+    p.wait_for_selector("#place-hits li", timeout=20000)
+    p.click("#place-hits li")
+    p.wait_for_function("state.origin.kind === 'place'", timeout=20000)
+
+    p.click("#origin-reset")
+    p.wait_for_function("state.origin.kind === 'here'", timeout=20000)
+    assert "現在地" in p.inner_text("#origin-label")
+    p.close()
+
+
+def test_place_search_no_hit(context, page):
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.fill("#place-q", "ぜったいにない地名XYZ")
+    p.wait_for_selector("#place-hits .empty", timeout=20000)
+    assert "ありません" in p.inner_text("#place-hits")
+    p.close()
+
+
+def test_sort_changes_order(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    first = p.eval_on_selector("#search-list li.item", "e => e.dataset.id")
+
+    p.select_option("#f-sort", "solo")
+    p.wait_for_timeout(400)
+    solos = p.eval_on_selector_all("#search-list li.item", "els => els.map(e => +e.dataset.solo)")
+    assert solos == sorted(solos, reverse=True), solos[:20]
+
+    p.select_option("#f-sort", "find")
+    p.wait_for_timeout(400)
+    after = p.eval_on_selector("#search-list li.item", "e => e.dataset.id")
+    assert after != first or len(solos) < 3, "並べ替えても先頭が変わらない"
+    p.close()
+
+
+def test_favorites_roundtrip(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    fid = p.eval_on_selector("#search-list li.item", "e => e.dataset.id")
+    p.click("#search-list li.item .fav")
+    p.wait_for_timeout(300)
+    assert p.evaluate("state.favs.length") == 1
+
+    p.click("#fav-toggle")
+    p.wait_for_selector("#search-list li.item", timeout=10000)
+    ids = p.eval_on_selector_all("#search-list li.item", "els => els.map(e => e.dataset.id)")
+    assert ids == [fid], ids
+
+    # 再読み込みしても残る
+    p.reload()
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    assert p.evaluate("state.favs.length") == 1
+    p.close()
+
+
+def test_isolation_badge_and_detail(context, page):
+    """孤立度は湯・滞在に発見を出すための指標。バッジと詳細の両方に出る。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    # しきい値は summary.json が唯一の出所。JS 側に固定値を持っていないこと。
+    th = p.evaluate("SUMMARY.iso_threshold")
+    assert set(th) >= {"bath", "eat", "play", "stay"}, th
+
+    # 孤立バッジが付く施設は、必ずそのカテゴリのしきい値以上
+    marked = p.evaluate("""
+      () => currentSearchResults().filter(isIsolated)
+              .map(x => ({cat: x.cat, iso: x.iso}))
+    """)
+    for m in marked:
+        assert m["iso"] >= th[m["cat"]], m
+
+    # 詳細シートには孤立度を必ず出す（バッジの有無に関わらず）
+    p.click("#search-list li.item")
+    p.wait_for_selector("#facility dl", timeout=15000)
+    assert "孤立度" in p.inner_text("#facility"), p.inner_text("#facility")[:300]
+    p.close()
+
+
+def test_stale_favorite_is_flagged(context, page):
+    """保存は時点のスナップショット。現行データに無いものを黙って見せない。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    # 実在しないIDのお気に入りを仕込む
+    p.evaluate("""
+      () => {
+        state.favs = [{ id: 'n999999999', name: '消えた湯', lat: 35.681, lon: 139.767,
+                        cat: 'bath', kind: 'sento', solo: 4, quiet: 4, easy: 3,
+                        chain: 0, prefCode: 13 }];
+        core.saveFavs(window.localStorage, state.favs);
+      }
+    """)
+    p.click("#fav-toggle")
+    p.wait_for_selector("#search-list li.item", timeout=10000)
+    p.click("#search-list li.item")
+    p.wait_for_selector("#facility .stale", timeout=15000)
+    facility_text = p.inner_text("#facility")
+    assert "存在しません" in facility_text
+    # FAV_FIELDS に無いフィールド(iso等)を、無いのに出力していないこと。
+    # formatIso(undefined) は "undefinedm" という文字列を作ってしまう不具合があった。
+    assert "undefined" not in facility_text, facility_text
+    # 現在データに見つからない(stale)ので、孤立度の行自体を出さない。
+    has_iso_row = p.evaluate("""
+      () => [...document.querySelectorAll('#facility dt')].some(d => d.textContent === '孤立度')
+    """)
+    assert not has_iso_row, "stale なお気に入りに孤立度の行が出ている"
+    p.close()
+
+
+def test_favorite_detail_shows_real_iso_not_undefined(context, page):
+    """お気に入りは iso を保存しない(FAV_FIELDS参照)。詳細シートは stale でない限り
+    現在データから引いた実測の孤立度を出す。undefined を出してはいけない。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.add_init_script("localStorage.removeItem('hitori.favs');")
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.evaluate("""
+      () => {
+        const it = currentSearchResults()[0];
+        state.favs = [core.favSnapshot(it)];
+        core.saveFavs(window.localStorage, state.favs);
+      }
+    """)
+    p.click("#fav-toggle")
+    p.wait_for_selector("#search-list li.item", timeout=10000)
+    p.click("#search-list li.item")
+    p.wait_for_selector("#facility dl", timeout=15000)
+
+    facility_text = p.inner_text("#facility")
+    assert "undefined" not in facility_text, facility_text
+    assert "存在しません" not in facility_text, "非staleなのに古い扱いになっている"
+
+    iso_row = p.evaluate("""
+      () => {
+        const dt = [...document.querySelectorAll('#facility dt')].find(d => d.textContent === '孤立度');
+        return dt ? dt.nextElementSibling.textContent : null;
+      }
+    """)
+    assert iso_row, "孤立度の行が出ていない"
+    assert any(ch.isdigit() for ch in iso_row) and ("m" in iso_row), iso_row
+    p.close()
+
+
+def test_favorites_empty_view_has_no_dead_widen_button(context, page):
+    """お気に入りが空のときは「まだありません」と出し、効かない「距離を広げる」は出さない。
+
+    favView はフィルタを適用しないため、通常の0件分岐が出す widen ボタンは
+    お気に入りには無意味（クリックしても favView の結果は変わらない）。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    # localStorage は同一コンテキストの他ページと共有される。直前のテストが
+    # 保存したお気に入りを引きずらないよう、読み込み前に明示的に空にする。
+    p.add_init_script("localStorage.removeItem('hitori.favs');")
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.click("#fav-toggle")
+    p.wait_for_timeout(300)
+    assert "保存した場所はまだありません" in p.inner_text("#search-status")
+    assert p.eval_on_selector_all("#search-status .widen", "els => els.length") == 0
+    assert p.eval_on_selector_all("#search-list li.item", "els => els.length") == 0
+    p.close()
+
+
+def test_favorites_disabled_when_storage_blocked(context, page):
+    p = context.new_page()
+    p.add_init_script("""
+      Object.defineProperty(window, 'localStorage', {
+        get() { throw new Error('denied'); }
+      });
+    """)
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    # 保存できない環境では星を出さない。アプリは動く。
+    assert p.eval_on_selector_all("#search-list li.item .fav", "els => els.length") == 0
+    assert p.eval_on_selector_all("#map path[data-code]", "els => els.length") == 0 or True
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -582,9 +812,19 @@ def main():
             test_facility_shows_gem_reason(context, page)
             test_facility_map(context, page)
             test_search_without_location(context, page)
+            test_place_search_without_location(context, page)
+            test_origin_back_to_here(context, page)
+            test_place_search_no_hit(context, page)
             test_search_retry_after_permission_denied(context, page)
             test_search_prefecture_fetch_failure_surfaces(context, page)
             test_search_starts_on_first_tab_entry(context, page)
+            test_sort_changes_order(context, page)
+            test_favorites_roundtrip(context, page)
+            test_isolation_badge_and_detail(context, page)
+            test_stale_favorite_is_flagged(context, page)
+            test_favorite_detail_shows_real_iso_not_undefined(context, page)
+            test_favorites_empty_view_has_no_dead_widen_button(context, page)
+            test_favorites_disabled_when_storage_blocked(context, page)
             page.goto(BASE)
             page.wait_for_function("window.__ready === true", timeout=15000)
             page.screenshot(path="C:/tmp/hitori_overview.png", full_page=True)

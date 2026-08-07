@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
 """出力JSONのスキーマ検証。ビルドからもテストからも同じ関数を呼ぶ。"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import iso as iso_mod  # 上限値の単一の出典。ここにも 50000 を書かない。
 
 JAPAN_BBOX = (20.0, 46.0, 122.0, 154.0)  # 南, 北, 西, 東
 EXPECTED_FIELDS = ["id", "name", "lat", "lon", "cat", "kind",
                    "solo", "quiet", "easy", "conf", "chain",
-                   "hidden", "hidden_n", "city", "oh", "tel", "web", "note"]
+                   "hidden", "hidden_n", "iso", "city", "oh", "tel", "web", "note"]
 CATS = ("bath", "eat", "play", "stay")
 
 
@@ -47,6 +52,10 @@ def validate_pref(doc):
         elif hn < 3 and hv != 0.0:
             errs.append(f"hidden_n が3未満なのに hidden が0でない: {fid}")
 
+        iv = row[idx["iso"]]
+        if not isinstance(iv, int) or isinstance(iv, bool) or not (0 <= iv <= iso_mod.MAX_ISO_M):
+            errs.append(f"iso が不正: {fid} -> {iv!r}")
+
         cf = row[idx["conf"]]
         if cf not in (0, 1, 2) or isinstance(cf, bool):
             errs.append(f"conf が不正: {fid} -> {cf!r}")
@@ -63,6 +72,21 @@ def validate_pref(doc):
 
 def validate_summary(doc):
     errs = []
+    th = doc.get("iso_threshold")
+    if not isinstance(th, dict):
+        errs.append("iso_threshold がない")
+    else:
+        for c in CATS:
+            v = th.get(c)
+            if not isinstance(v, int) or isinstance(v, bool) or v < 0:
+                errs.append(f"iso_threshold.{c} が不正: {v!r}")
+
+    # ブラウザ側 (hitori.html の formatIso) が同じ上限を summary.json から読む。
+    # Python と JS の二重管理で閾値がずれた前例があるため、ここでも必須にする。
+    im = doc.get("iso_max")
+    if not isinstance(im, int) or isinstance(im, bool) or im != iso_mod.MAX_ISO_M:
+        errs.append(f"iso_max が不正: {im!r}")
+
     prefs = doc.get("prefectures", [])
     for p in prefs:
         c, ci = p.get("counts", {}), p.get("counts_indie", {})
