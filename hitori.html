@@ -867,6 +867,18 @@ function ensurePlaces() {
   return placesLoading;
 }
 
+// 種別マーカーを決める。名称の末尾がすでに種別を表す文字で終わっている場合、
+// マーカーを重ねると「別府駅駅」「渋谷区市区町村」のように冗長で読みにくくなるため付けない。
+// 駅名はほぼ全て「駅」で終わり、市区町村名もほぼ全て市/区/町/村で終わるので、
+// この判定は両方の種別で同じ考え方（末尾文字による抑制）を適用する。
+function placeKindMark(p) {
+  if (p.type === 's') {
+    return p.name.endsWith('駅') ? '' : '駅';
+  }
+  const last = p.name.slice(-1);
+  return '市区町村'.includes(last) ? '' : '市区町村';
+}
+
 function renderPlaceHits(hits) {
   const el = document.getElementById('place-hits');
   el.hidden = false;
@@ -874,9 +886,12 @@ function renderPlaceHits(hits) {
     el.innerHTML = '<li class="empty">該当する駅・地名がありません</li>';
     return;
   }
-  el.innerHTML = hits.map((p, i) => `
-    <li data-i="${i}" tabindex="0">${escapeHtml(p.name)}<span class="kindmark">${
-      p.type === 's' ? '駅' : '市区町村'}・${escapeHtml(BY_CODE[p.pref].name)}</span></li>`).join('');
+  el.innerHTML = hits.map((p, i) => {
+    const kind = placeKindMark(p);
+    const pref = escapeHtml(BY_CODE[p.pref].name);
+    const label = kind ? `${kind}・${pref}` : pref;
+    return `<li data-i="${i}" tabindex="0">${escapeHtml(p.name)}<span class="kindmark">${label}</span></li>`;
+  }).join('');
   el._hits = hits;
 }
 

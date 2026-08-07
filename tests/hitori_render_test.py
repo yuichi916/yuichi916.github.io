@@ -575,6 +575,29 @@ def test_place_search_without_location(context, page):
     p.close()
 
 
+def test_place_search_station_marker_not_doubled(context, page):
+    """駅名候補で「別府駅駅」のような種別マーカーの二重表示が起きない。
+
+    フェーズ1公開直後に見つかった不具合：駅名はほぼ全て「駅」で終わるのに、
+    種別マーカーとして無条件に「駅」を追記していたため「別府駅駅」のように
+    重複していた。ここでは県名の併記(別名前空間の識別)は保ったまま、
+    「駅駅」という文字列が出ないことだけを確認する。他テストとページ状態を
+    共有しないよう自前の page を使う（フラグメントのみのナビゲーションは
+    モジュール状態を引きずるため）。
+    """
+    context.clear_permissions()
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.fill("#place-q", "別府")
+    p.wait_for_selector("#place-hits li", timeout=20000)
+    hits = p.eval_on_selector_all("#place-hits li", "els => els.map(e => e.innerText)")
+    assert hits, "「別府」の候補が空"
+    assert not any("駅駅" in h for h in hits), hits
+    p.close()
+
+
 def test_origin_back_to_here(context, page):
     context.grant_permissions(["geolocation"])
     context.set_geolocation(TOKYO)
@@ -813,6 +836,7 @@ def main():
             test_facility_map(context, page)
             test_search_without_location(context, page)
             test_place_search_without_location(context, page)
+            test_place_search_station_marker_not_doubled(context, page)
             test_origin_back_to_here(context, page)
             test_place_search_no_hit(context, page)
             test_search_retry_after_permission_denied(context, page)
