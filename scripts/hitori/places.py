@@ -52,6 +52,22 @@ COORD_DIGITS = 5
 # どれだけあるかを数え、代理指標として使う。
 PROMINENCE_RADIUS_M = 2000.0
 
+# 都道府県の総数。data/hitori/pref/ にこれ未満しか無ければ build_data.py が
+# 未実行（または pref/ が空、あるいは places.py を build_data.py より先に
+# 走らせた）とみなす。実行順は docs/superpowers/plans/…実行後の運用 参照。
+MIN_PREF_FILES = 47
+
+
+class MissingPrefDataError(RuntimeError):
+    """data/hitori/pref/*.json（build_data.py の出力）が揃っていないときに送出する。
+
+    ここが空/不足のまま知名度カウント（_facility_grid）を走らせると、格子が
+    空になり全地名の n が黙って0になる。n=0は「知名度シグナルなし」＝旧挙動
+    （駅を無条件優先）へ静かに戻ることを意味し、検索結果がおかしくなっても
+    ここが原因だと誰も気づけない。黙って劣化したファイルを書くより、
+    ここで止めて原因を言う。
+    """
+
 # 重複排除で「同一実体」とみなす距離。日本には事業者の異なる別施設が偶然
 # 同じ駅名を名乗るケースが多く（高井田駅=JR片町線/近鉄道明寺線で13.4km、
 # 御影駅=阪神本線/阪急神戸線で1.1km、いずれも大阪府・兵庫県内の実測）、
@@ -269,9 +285,18 @@ def dedupe(rows):
 # （セル辺 iso.CELL_DEG 度）を流用し、地名ごとに周辺セルだけを見る。
 
 def _facility_grid(pref_dir):
-    """data/hitori/pref/*.json 全県分の施設座標を格子に積む。"""
+    """data/hitori/pref/*.json 全県分の施設座標を格子に積む。
+
+    pref_dir が無い、または47県に満たない場合は MissingPrefDataError を
+    送出する（黙って空/不完全な格子を返さない。理由は同クラスの docstring）。
+    """
+    files = sorted(pref_dir.glob("*.json")) if pref_dir.is_dir() else []
+    if len(files) < MIN_PREF_FILES:
+        raise MissingPrefDataError(
+            f"{pref_dir} に県データが {len(files)} 件しかありません（{MIN_PREF_FILES}件必要）。"
+            f"先に `python scripts/hitori/build_data.py` を実行してください。")
     grid = defaultdict(list)
-    for path in sorted(pref_dir.glob("*.json")):
+    for path in files:
         doc = json.loads(path.read_text(encoding="utf-8"))
         idx = {f: i for i, f in enumerate(doc["fields"])}
         lat_i, lon_i = idx["lat"], idx["lon"]
@@ -340,7 +365,13 @@ def main():
 
     rows = dedupe(station_rows + muni_rows)
     print(f"prominence: {PREF_DATA_DIR} を走査して周辺{PROMINENCE_RADIUS_M:.0f}m施設数を計算しています…", flush=True)
-    rows = add_prominence(rows, PREF_DATA_DIR)
+    try:
+        rows = add_prominence(rows, PREF_DATA_DIR)
+    except MissingPrefDataError as e:
+        # 劣化した places.json（n が全件0）を書くくらいなら、ここで止めて
+        # 原因を言う。実行順は「実行後の運用」（build_data.py が先）参照。
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({

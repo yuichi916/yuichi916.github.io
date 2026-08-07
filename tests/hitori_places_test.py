@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """駅・市区町村の検索インデックス。外部ジオコーディングに依存しないための同梱データ。"""
-import sys, json, gzip, math
+import sys, json, gzip, math, tempfile
 from collections import defaultdict
 from pathlib import Path
 
@@ -117,6 +117,34 @@ def test_dedupe_keeps_just_over_threshold():
     assert len(out) == 2, f"{d:.0f}m は閾値超なのに統合されている: {out}"
 
 
+def test_facility_grid_refuses_incomplete_pref_data():
+    """build_data.py 未実行（または pref/ が空・不完全）だと、知名度 n が
+    黙って全件0になるのではなく、例外で止まることを確認する。
+
+    実データを消して壊すわけにはいかないので、空の一時ディレクトリを
+    facility_grid に渡して検証する（実行順を誤って places.py を
+    build_data.py より先に走らせた状況を再現している）。
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        empty_dir = Path(tmp)
+        try:
+            places._facility_grid(empty_dir)
+        except places.MissingPrefDataError:
+            pass
+        else:
+            raise AssertionError("空のディレクトリでも例外を出さず処理を続けた（nが黙って0になる）")
+
+    # 存在しないディレクトリでも同様（pref/ そのものが未生成のケース）
+    missing_dir = Path(tempfile.gettempdir()) / "hitori_places_test_missing_pref_dir_なし"
+    assert not missing_dir.exists()
+    try:
+        places._facility_grid(missing_dir)
+    except places.MissingPrefDataError:
+        pass
+    else:
+        raise AssertionError("存在しないディレクトリでも例外を出さず処理を続けた")
+
+
 def test_generated_file():
     assert OUT.exists(), f"not found: {OUT} — places.py を実行してください"
 
@@ -197,6 +225,7 @@ def main():
     test_dedupe_chain_does_not_transitively_merge()
     test_dedupe_merges_just_under_threshold()
     test_dedupe_keeps_just_over_threshold()
+    test_facility_grid_refuses_incomplete_pref_data()
     test_generated_file()
 
 
