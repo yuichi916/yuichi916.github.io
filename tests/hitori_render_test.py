@@ -598,6 +598,59 @@ def test_place_search_station_marker_not_doubled(context, page):
     p.close()
 
 
+def test_place_search_keeps_parenthetical_disambiguator(context, page):
+    """括弧書きの駅名は削らず、種別マーカーだけ抑制する。
+
+    「別府駅駅」修正の残課題：「新富士駅 (北海道)」のように末尾ではなく
+    括弧内に事業者名・都道府県名を抱えた駅名が実データに32件ある。
+    実データを数えたところ、括弧の中身は県名(17件)だけでなく「六地蔵駅 (JR)」
+    「六地蔵駅 (京都市営地下鉄)」「六地蔵駅 (京阪)」のような事業者名・路線名
+    (15件)も多く、しかもこの3件はいずれも京都府で県名だけでは区別できない。
+    括弧を機械的に削ると意味のある情報を破壊してしまうため、削らずに残し、
+    種別マーカーは名称に「駅」を含むかどうかで抑制する方式にした
+    (hitori.html の placeKindMark 参照)。ここでは:
+      - マーカー重複「駅駅」が出ない
+      - 括弧書きが消えずに残り、同一県内の同名駅を区別できる
+      - 名称と県名の間の区切りが失われて直接くっつかない
+        (「新富士駅 (北海道)北海道」のような表記にならない)
+      - 「駅」を含まない素の形で検索しても括弧付きの表記に当たる
+    ことを確認する。
+    """
+    context.clear_permissions()
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    # 同一県(京都府)内に事業者名で区別する同名駅が4件ある実例
+    p.fill("#place-q", "六地蔵")
+    p.wait_for_selector("#place-hits li", timeout=20000)
+    hits = p.eval_on_selector_all("#place-hits li", "els => els.map(e => e.innerText)")
+    assert len(hits) >= 4, hits
+    assert not any("駅駅" in h for h in hits), hits
+    # 括弧書き(事業者名)が残っていて、同一県内でも見分けが付く
+    assert len(set(hits)) == len(hits), f"表示が重複して見分けが付かない: {hits}"
+    with_paren = [h for h in hits if "(" in h or "（" in h]
+    assert len(with_paren) >= 3, hits
+    # 名称と県名がくっつかず、区切りがある
+    for h in hits:
+        assert "・京都府" in h, h
+
+    # 「駅」を含まない素の形で検索しても、括弧付きの表記(新富士駅 (北海道))に当たる。
+    # 直前の検索結果を引きずらないよう新しいページで開き直す。
+    p2 = context.new_page()
+    p2.goto(BASE)
+    p2.wait_for_function("window.__searchReady === true", timeout=30000)
+    p2.fill("#place-q", "新富士")
+    p2.wait_for_selector("#place-hits li", timeout=20000)
+    hits2 = p2.eval_on_selector_all("#place-hits li", "els => els.map(e => e.innerText)")
+    assert any("新富士駅 (北海道)" in h for h in hits2), hits2
+    assert not any("駅駅" in h for h in hits2), hits2
+    # 名称(括弧含む)と県名の間に区切りがあり、直接くっついていない
+    assert any("(北海道)・北海道" in h for h in hits2), hits2
+    p2.close()
+    p.close()
+
+
 def test_origin_back_to_here(context, page):
     context.grant_permissions(["geolocation"])
     context.set_geolocation(TOKYO)
@@ -837,6 +890,7 @@ def main():
             test_search_without_location(context, page)
             test_place_search_without_location(context, page)
             test_place_search_station_marker_not_doubled(context, page)
+            test_place_search_keeps_parenthetical_disambiguator(context, page)
             test_origin_back_to_here(context, page)
             test_place_search_no_hit(context, page)
             test_search_retry_after_permission_denied(context, page)

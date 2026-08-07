@@ -867,13 +867,17 @@ function ensurePlaces() {
   return placesLoading;
 }
 
-// 種別マーカーを決める。名称の末尾がすでに種別を表す文字で終わっている場合、
+// 種別マーカーを決める。名称にすでに種別を表す文字が含まれている場合、
 // マーカーを重ねると「別府駅駅」「渋谷区市区町村」のように冗長で読みにくくなるため付けない。
-// 駅名はほぼ全て「駅」で終わり、市区町村名もほぼ全て市/区/町/村で終わるので、
-// この判定は両方の種別で同じ考え方（末尾文字による抑制）を適用する。
+// 駅名は「新富士駅 (北海道)」のように末尾ではなく括弧内に事業者名・都道府県名を
+// 抱えた表記も一定数あり、括弧を機械的に削ると「六地蔵駅 (JR)」「六地蔵駅 (京都市営地下鉄)」
+// のような同名・同一都道府県の別事業者を区別できなくなる（詳細は
+// tests/hitori_render_test.py の該当テストのコメント参照）。そのため名称の末尾ではなく
+// 「駅」を含むかどうかで判定し、括弧の中身はそのまま残す。市区町村名は括弧書きが無く
+// 常に末尾が市/区/町/村のいずれかなので、そちらは末尾文字での判定のままでよい。
 function placeKindMark(p) {
   if (p.type === 's') {
-    return p.name.endsWith('駅') ? '' : '駅';
+    return p.name.includes('駅') ? '' : '駅';
   }
   const last = p.name.slice(-1);
   return '市区町村'.includes(last) ? '' : '市区町村';
@@ -889,7 +893,10 @@ function renderPlaceHits(hits) {
   el.innerHTML = hits.map((p, i) => {
     const kind = placeKindMark(p);
     const pref = escapeHtml(BY_CODE[p.pref].name);
-    const label = kind ? `${kind}・${pref}` : pref;
+    // マーカーを抑制した行でも名称と県名の間に区切りが要る。区切りを
+    // マーカーと県名の間だけに置くと、マーカーが空のとき「新富士駅 (北海道)北海道」
+    // のように名称と県名が直接くっついてしまうため、区切りは常に置く。
+    const label = `${kind}・${pref}`;
     return `<li data-i="${i}" tabindex="0">${escapeHtml(p.name)}<span class="kindmark">${label}</span></li>`;
   }).join('');
   el._hits = hits;
