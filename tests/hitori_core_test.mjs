@@ -355,5 +355,81 @@ check('sortItems: 未知の並べ替えは距離順に落とす', () => {
   eq(r.map(x => x.id).join(''), 'acb');
 });
 
+function fakeStorage(broken) {
+  const map = new Map();
+  return {
+    getItem: k => (broken ? (() => { throw new Error('denied'); })() : (map.has(k) ? map.get(k) : null)),
+    setItem: (k, v) => { if (broken) throw new Error('denied'); map.set(k, v); },
+  };
+}
+
+const FAV_ITEM = {
+  id: 'n1', name: 'はやし湯', lat: 35.0, lon: 139.0, cat: 'bath', kind: 'sento',
+  solo: 4, quiet: 4, easy: 3, chain: 0, prefCode: 13,
+  distM: 500, oh: '', note: 'メモ', hidden: 0.1, iso: 800,
+};
+
+check('favSnapshot: 11項目だけ持つ', () => {
+  const s = core.favSnapshot(FAV_ITEM);
+  eq(JSON.stringify(Object.keys(s).sort()),
+     JSON.stringify(['cat','chain','easy','id','kind','lat','lon','name','prefCode','quiet','solo']));
+  eq(s.id, 'n1');
+  eq(s.distM, undefined, '距離は起点依存なので保存しない');
+});
+
+check('loadFavs: 空なら空配列', () => {
+  eq(JSON.stringify(core.loadFavs(fakeStorage(false))), '[]');
+});
+
+check('loadFavs: 使えない環境では null', () => {
+  eq(core.loadFavs(fakeStorage(true)), null);
+});
+
+check('saveFavs: 成否を返す', () => {
+  eq(core.saveFavs(fakeStorage(false), [core.favSnapshot(FAV_ITEM)]), true);
+  eq(core.saveFavs(fakeStorage(true), []), false);
+});
+
+check('保存して読み戻せる', () => {
+  const st = fakeStorage(false);
+  core.saveFavs(st, [core.favSnapshot(FAV_ITEM)]);
+  const back = core.loadFavs(st);
+  eq(back.length, 1);
+  eq(back[0].name, 'はやし湯');
+});
+
+check('toggleFav: 追加と削除', () => {
+  let favs = [];
+  favs = core.toggleFav(favs, FAV_ITEM);
+  eq(favs.length, 1);
+  eq(core.isFav(favs, 'n1'), true);
+  favs = core.toggleFav(favs, FAV_ITEM);
+  eq(favs.length, 0);
+  eq(core.isFav(favs, 'n1'), false);
+});
+
+check('toggleFav: 新しい配列を返し元を壊さない', () => {
+  const favs = [];
+  const next = core.toggleFav(favs, FAV_ITEM);
+  eq(favs.length, 0);
+  eq(next.length, 1);
+});
+
+check('toggleFav: 上限を超えたら古いものを落とす', () => {
+  let favs = [];
+  for (let i = 0; i < core.FAV_MAX + 5; i++) {
+    favs = core.toggleFav(favs, { ...FAV_ITEM, id: 'n' + i });
+  }
+  eq(favs.length, core.FAV_MAX);
+  eq(core.isFav(favs, 'n0'), false, '最古が残っている');
+  eq(core.isFav(favs, 'n' + (core.FAV_MAX + 4)), true, '最新が無い');
+});
+
+check('loadFavs: 壊れたJSONは空配列にフォールバック', () => {
+  const st = fakeStorage(false);
+  st.setItem(core.FAV_KEY, '{壊れている');
+  eq(JSON.stringify(core.loadFavs(st)), '[]');
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

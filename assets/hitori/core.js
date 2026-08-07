@@ -303,3 +303,56 @@ export function sortItems(items, sort, ctx) {
       return out.sort(byDist);
   }
 }
+
+// --- お気に入り ---
+// サーバーもアカウントも持たない。保存先は localStorage のみ。
+
+export const FAV_KEY = 'hitori.favs';
+export const FAV_MAX = 200;
+
+const FAV_FIELDS = ['id', 'name', 'lat', 'lon', 'cat', 'kind',
+                    'solo', 'quiet', 'easy', 'chain', 'prefCode'];
+
+// IDだけでなくスナップショットを保存する。IDだけだと表示のたびに県ファイル
+// （東京都は466KB）の取得が要り、複数県のお気に入りを開くと数MBになる。
+export function favSnapshot(item) {
+  const out = {};
+  for (const f of FAV_FIELDS) out[f] = item[f];
+  return out;
+}
+
+export function loadFavs(storage) {
+  let raw;
+  try {
+    raw = storage.getItem(FAV_KEY);
+  } catch (e) {
+    return null;   // プライベートブラウジング等。呼び出し側が機能を隠す。
+  }
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : [];
+  } catch (e) {
+    return [];     // 壊れた値で機能ごと死なせない
+  }
+}
+
+export function saveFavs(storage, favs) {
+  try {
+    storage.setItem(FAV_KEY, JSON.stringify(favs));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+export function isFav(favs, id) {
+  return (favs || []).some(f => f.id === id);
+}
+
+export function toggleFav(favs, item) {
+  const cur = favs || [];
+  if (isFav(cur, item.id)) return cur.filter(f => f.id !== item.id);
+  const next = cur.concat([favSnapshot(item)]);
+  return next.length > FAV_MAX ? next.slice(next.length - FAV_MAX) : next;
+}
