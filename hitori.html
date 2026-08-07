@@ -111,8 +111,17 @@ img, svg, table { max-width: 100%; }
 .badge-gem { border-color: #c05621; color: #c05621; }
 .badge-open { border-color: #2f855a; color: #2f855a; }
 .badge-shut { border-color: var(--line); }
+.badge-iso { border-color: #2b6cb0; color: #2b6cb0; }
 .more-filters { margin: .6rem 0; font-size: .85rem; color: var(--muted); }
 .placeholder { color: var(--muted); }
+.favbar { margin: .4rem 0 0; }
+#fav-toggle { background: none; border: 1px solid var(--line); border-radius: 999px;
+              color: var(--fg); cursor: pointer; font: inherit; font-size: .82rem;
+              padding: .15rem .8rem; }
+#fav-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.fav { background: none; border: none; cursor: pointer; font-size: 1rem;
+       color: var(--muted); padding: 0 .2rem; line-height: 1; }
+.fav[aria-pressed="true"] { color: #c05621; }
 
 #facility-map { width: 100%; height: 220px; border-radius: 8px; overflow: hidden;
                 margin: .8rem 0; background: #eef2f6; }
@@ -130,6 +139,7 @@ img, svg, table { max-width: 100%; }
 #facility dt { color: var(--muted); font-size: .85rem; }
 #facility dd { margin: 0; }
 #facility .gem-reason { color: #c05621; font-size: .85rem; }
+#facility .stale { color: #c05621; font-size: .85rem; margin: .3rem 0; }
 #facility .to-maps { display: inline-block; margin-top: .8rem; }
 @media (min-width: 721px) {
   #facility { inset: auto auto 1.5rem 50%; transform: translateX(-50%);
@@ -189,6 +199,15 @@ img, svg, table { max-width: 100%; }
         <label><input type="checkbox" id="f-quiet"> 静かなところ</label>
         <label><input type="checkbox" id="f-easy"> 作法不要</label>
       </fieldset>
+      <fieldset><legend>並べ替え</legend>
+        <select id="f-sort">
+          <option value="dist" selected>近い順</option>
+          <option value="solo">ひとり度が高い順</option>
+          <option value="find">発見が多い順</option>
+          <option value="quiet">静かな順</option>
+          <option value="open">営業中を優先</option>
+        </select>
+      </fieldset>
     </div>
     <details class="more-filters">
       <summary>その他の条件</summary>
@@ -197,6 +216,7 @@ img, svg, table { max-width: 100%; }
       <label><input type="checkbox" id="f-verified"> 出典で確認済みの店だけ</label>
       <small>現状ほぼすべてが業態からの推定です</small>
     </details>
+    <p class="favbar"><button type="button" id="fav-toggle" hidden>★ 保存した場所（<span id="fav-count">0</span>）</button></p>
     <p id="search-status" class="counts"></p>
     <ol id="search-list" class="items"></ol>
   </section>
@@ -286,6 +306,20 @@ const state = {
   search: { cats: new Set(CATS), maxDistM: 800, minSolo: 0, minQuiet: 0, minEasy: 0,
             minConf: 0, requireHours: false },
 };
+state.sort = 'dist';
+state.favs = core.loadFavs(safeStorage());   // null なら保存領域が使えない
+state.favView = false;
+
+// プライベートブラウジング等では localStorage への参照自体が例外を投げる。
+function safeStorage() {
+  try {
+    return window.localStorage;
+  } catch (e) {
+    return { getItem() { throw e; }, setItem() { throw e; } };
+  }
+}
+
+const FAVS_OK = () => state.favs !== null;
 let NEIGHBORS = null;
 let searchStarted = false;   // locateAndSearch() を探すタブへの初回到達時に一度だけ走らせるための番人
 let SUMMARY = null, GEO = null;
@@ -462,9 +496,64 @@ function collectItems(codes) {
 function currentSearchResults() {
   const o = state.origin;
   if (o.lat == null) return [];
-  const loaded = Object.keys(PREF_CACHE).map(Number);
-  const withD = core.withDistance(collectItems(loaded), o.lat, o.lon);
-  return core.sortByDistance(core.filterItems(withD, state.search));
+  const src = state.favView
+    ? (state.favs || [])
+    : collectItems(Object.keys(PREF_CACHE).map(Number));
+  const withD = core.withDistance(src, o.lat, o.lon);
+  // お気に入り表示中はスナップショットなので絞り込みを適用しない。
+  // 保存した場所が条件から外れて消えると、保存した意味がなくなる。
+  const filtered = state.favView ? withD : core.filterItems(withD, state.search);
+  return core.sortItems(filtered, state.sort,
+                        { isoThreshold: SUMMARY.iso_threshold, now: new Date() });
+}
+
+function bindSortAndFavs() {
+  document.getElementById('f-sort').addEventListener('change', e => {
+    state.sort = e.target.value;
+    renderSearchList();
+  });
+
+  const toggle = document.getElementById('fav-toggle');
+  if (FAVS_OK()) {
+    toggle.hidden = false;
+    updateFavCount();
+    toggle.addEventListener('click', () => {
+      state.favView = !state.favView;
+      toggle.setAttribute('aria-pressed', String(state.favView));
+      renderSearchList();
+    });
+  }
+
+  document.getElementById('search-list').addEventListener('click', e => {
+    const btn = e.target.closest('.fav');
+    if (!btn) return;
+    e.stopPropagation();          // 詳細シートを開かない
+    const li = btn.closest('li.item');
+    const it = currentSearchResults().find(x => x.id === li.dataset.id);
+    if (!it) return;
+    state.favs = core.toggleFav(state.favs, it);
+    if (!core.saveFavs(safeStorage(), state.favs)) {
+      state.favs = null;          // 途中で書けなくなったら機能を畳む
+    }
+    updateFavCount();
+    renderSearchList();
+  }, true);
+}
+
+function updateFavCount() {
+  const el = document.getElementById('fav-count');
+  if (el) el.textContent = String((state.favs || []).length);
+}
+
+// 孤立バッジ・詳細の孤立度表示。しきい値は SUMMARY.iso_threshold だけを見る。
+function isIsolated(it) {
+  const t = SUMMARY.iso_threshold && SUMMARY.iso_threshold[it.cat];
+  return !!t && (it.iso || 0) >= t;
+}
+
+function formatIso(m) {
+  if (m >= 50000) return '50km以上';
+  return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
 }
 
 function renderSearchList() {
@@ -495,8 +584,15 @@ function renderSearchList() {
     return;
   }
 
-  status.textContent = `${items.length.toLocaleString()} 件`
-    + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
+  // お気に入り表示中は件数だけを出す。県の取得失敗はお気に入りの表示と無関係で、
+  // ここで混ぜると「保存した場所が読めない」と誤解させる。
+  if (state.favView) {
+    document.getElementById('search-status').textContent =
+      items.length ? `保存した ${items.length} 件` : '保存した場所はまだありません';
+  } else {
+    status.textContent = `${items.length.toLocaleString()} 件`
+      + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
+  }
   const now = new Date();
   list.innerHTML = items.slice(0, 200).map(it => {
     const st = core.openState(it.oh, now);
@@ -511,12 +607,15 @@ function renderSearchList() {
       <span class="dist">徒歩${m}分<br><small>${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</small></span>
       <span class="meta">${KIND_JA[it.kind] || it.kind}</span>
       <span class="badges">
+        ${FAVS_OK() ? `<button type="button" class="fav" aria-pressed="${core.isFav(state.favs, it.id)}"
+           aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
         <span class="badge-ax">ひとり度${it.solo}</span>
         <span class="badge-ax">静けさ${it.quiet}</span>
         <span class="badge-ax">入りやすさ${it.easy}</span>
         ${openBadge}
         ${it.chain ? '<span class="badge-ax">チェーン</span>' : ''}
         ${isGem(it) ? `<span class="badge-ax badge-gem">穴場 ${Math.round(it.hidden * 100)}%</span>` : ''}
+        ${isIsolated(it) ? `<span class="badge-ax badge-iso">最寄り${formatIso(it.iso)}</span>` : ''}
       </span>
     </li>`;
   }).join('');
@@ -539,7 +638,7 @@ function mapsUrl(it) {
 // 直前にシートを開いた一覧項目。閉じたときにここへフォーカスを戻す。
 let _facilityOpener = null;
 
-function openFacility(id, opener) {
+async function openFacility(id, opener) {
   const it = currentSearchResults().find(x => x.id === id);
   if (!it) return;
   const el = document.getElementById('facility');
@@ -549,16 +648,31 @@ function openFacility(id, opener) {
     : '営業時間不明';
   const dist = it.distM >= 1000 ? `${(it.distM / 1000).toFixed(1)}km` : `${Math.round(it.distM)}m`;
 
+  // 保存は時点のスナップショット。再ビルドで施設が消えていることがある。
+  // 黙って古い情報を見せない。
+  let stale = false;
+  if (state.favView && it.prefCode) {
+    if (!PREF_CACHE[it.prefCode]) await loadPrefIntoCache(it.prefCode);
+    const doc = PREF_CACHE[it.prefCode];
+    if (doc) {
+      const idIdx = doc.fields.indexOf('id');
+      stale = !doc.items.some(row => row[idIdx] === it.id);
+    }
+  }
+
   el.hidden = false;
   el.innerHTML = `
     <button type="button" class="close" aria-label="閉じる">×</button>
     <h3>${escapeHtml(it.name)}</h3>
+    ${stale ? '<p class="stale">この施設は現在のデータに存在しません。閉店したか、地図から削除された可能性があります。</p>' : ''}
     <p class="meta">${KIND_JA[it.kind] || it.kind}${it.city ? ' · ' + escapeHtml(it.city) : ''}</p>
     <dl>
       <dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}）</dd>
       <dt>ひとり度</dt><dd>${it.solo} — ${AX_LABEL.solo[it.solo]}</dd>
       <dt>静けさ</dt><dd>${it.quiet} — ${AX_LABEL.quiet[it.quiet]}</dd>
       <dt>入りやすさ</dt><dd>${it.easy} — ${AX_LABEL.easy[it.easy]}</dd>
+      <dt>孤立度</dt><dd>最寄りの${KIND_JA[it.kind] || it.kind}まで ${formatIso(it.iso)}${
+        isIsolated(it) ? '（この一帯で唯一）' : ''}</dd>
       <dt>営業時間</dt><dd>${hours}</dd>
       ${it.tel ? `<dt>電話</dt><dd><a href="tel:${escapeHtml(it.tel)}">${escapeHtml(it.tel)}</a></dd>` : ''}
       ${it.web ? `<dt>サイト</dt><dd><a href="${escapeHtml(it.web)}" target="_blank" rel="noopener">公式サイト</a></dd>` : ''}
@@ -1069,6 +1183,7 @@ async function init() {
   applyFilters();
   bindSearchFilters();
   bindPlaceSearch();
+  bindSortAndFavs();
   document.getElementById('search-list').addEventListener('click', e => {
     const li = e.target.closest('li.item');
     if (li) openFacility(li.dataset.id, li);
@@ -1091,7 +1206,7 @@ async function init() {
   window.__ready = true;
   // 描画テストから触るために公開する
   Object.assign(window, { state, core, PREF_CACHE, currentSearchResults, isGem, openFacility,
-    setOrigin, ensurePlaces });
+    setOrigin, ensurePlaces, SUMMARY, isIsolated });
 }
 
 // module scriptはトップレベル宣言がモジュールスコープに閉じ、window の

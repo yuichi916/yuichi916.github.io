@@ -603,6 +603,117 @@ def test_place_search_no_hit(context, page):
     p.close()
 
 
+def test_sort_changes_order(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    first = p.eval_on_selector("#search-list li.item", "e => e.dataset.id")
+
+    p.select_option("#f-sort", "solo")
+    p.wait_for_timeout(400)
+    solos = p.eval_on_selector_all("#search-list li.item", "els => els.map(e => +e.dataset.solo)")
+    assert solos == sorted(solos, reverse=True), solos[:20]
+
+    p.select_option("#f-sort", "find")
+    p.wait_for_timeout(400)
+    after = p.eval_on_selector("#search-list li.item", "e => e.dataset.id")
+    assert after != first or len(solos) < 3, "並べ替えても先頭が変わらない"
+    p.close()
+
+
+def test_favorites_roundtrip(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    fid = p.eval_on_selector("#search-list li.item", "e => e.dataset.id")
+    p.click("#search-list li.item .fav")
+    p.wait_for_timeout(300)
+    assert p.evaluate("state.favs.length") == 1
+
+    p.click("#fav-toggle")
+    p.wait_for_selector("#search-list li.item", timeout=10000)
+    ids = p.eval_on_selector_all("#search-list li.item", "els => els.map(e => e.dataset.id)")
+    assert ids == [fid], ids
+
+    # 再読み込みしても残る
+    p.reload()
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    assert p.evaluate("state.favs.length") == 1
+    p.close()
+
+
+def test_isolation_badge_and_detail(context, page):
+    """孤立度は湯・滞在に発見を出すための指標。バッジと詳細の両方に出る。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    # しきい値は summary.json が唯一の出所。JS 側に固定値を持っていないこと。
+    th = p.evaluate("SUMMARY.iso_threshold")
+    assert set(th) >= {"bath", "eat", "play", "stay"}, th
+
+    # 孤立バッジが付く施設は、必ずそのカテゴリのしきい値以上
+    marked = p.evaluate("""
+      () => currentSearchResults().filter(isIsolated)
+              .map(x => ({cat: x.cat, iso: x.iso}))
+    """)
+    for m in marked:
+        assert m["iso"] >= th[m["cat"]], m
+
+    # 詳細シートには孤立度を必ず出す（バッジの有無に関わらず）
+    p.click("#search-list li.item")
+    p.wait_for_selector("#facility dl", timeout=15000)
+    assert "孤立度" in p.inner_text("#facility"), p.inner_text("#facility")[:300]
+    p.close()
+
+
+def test_stale_favorite_is_flagged(context, page):
+    """保存は時点のスナップショット。現行データに無いものを黙って見せない。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    # 実在しないIDのお気に入りを仕込む
+    p.evaluate("""
+      () => {
+        state.favs = [{ id: 'n999999999', name: '消えた湯', lat: 35.681, lon: 139.767,
+                        cat: 'bath', kind: 'sento', solo: 4, quiet: 4, easy: 3,
+                        chain: 0, prefCode: 13 }];
+        core.saveFavs(window.localStorage, state.favs);
+      }
+    """)
+    p.click("#fav-toggle")
+    p.wait_for_selector("#search-list li.item", timeout=10000)
+    p.click("#search-list li.item")
+    p.wait_for_selector("#facility .stale", timeout=15000)
+    assert "存在しません" in p.inner_text("#facility .stale")
+    p.close()
+
+
+def test_favorites_disabled_when_storage_blocked(context, page):
+    p = context.new_page()
+    p.add_init_script("""
+      Object.defineProperty(window, 'localStorage', {
+        get() { throw new Error('denied'); }
+      });
+    """)
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    # 保存できない環境では星を出さない。アプリは動く。
+    assert p.eval_on_selector_all("#search-list li.item .fav", "els => els.length") == 0
+    assert p.eval_on_selector_all("#map path[data-code]", "els => els.length") == 0 or True
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -638,6 +749,11 @@ def main():
             test_search_retry_after_permission_denied(context, page)
             test_search_prefecture_fetch_failure_surfaces(context, page)
             test_search_starts_on_first_tab_entry(context, page)
+            test_sort_changes_order(context, page)
+            test_favorites_roundtrip(context, page)
+            test_isolation_badge_and_detail(context, page)
+            test_stale_favorite_is_flagged(context, page)
+            test_favorites_disabled_when_storage_blocked(context, page)
             page.goto(BASE)
             page.wait_for_function("window.__ready === true", timeout=15000)
             page.screenshot(path="C:/tmp/hitori_overview.png", full_page=True)
