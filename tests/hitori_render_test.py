@@ -277,6 +277,7 @@ def test_mobile(page):
     page.screenshot(path="C:/tmp/hitori_mobile.png", full_page=True)
 
 
+BEPPU = {"latitude": 33.2794, "longitude": 131.5006}
 TOKYO = {"latitude": 35.6812, "longitude": 139.7671}
 # 町田駅。東京都だが神奈川県(14)に三方を囲まれ、隣接県が読み込まれるまでは
 # 星座図の点数が少ない状態になる(I10のキャッシュ無効化の再現に使う)。
@@ -1634,6 +1635,94 @@ def test_checked_count_is_not_exaggerated(context, page):
     assert "推定" in body, body
     p.close()
 
+
+def test_cards_are_colour_coded_by_category(context, page):
+    """カテゴリ色が無いと37,189件が同じ見た目の行として流れる。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(BEPPU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=25000)
+
+    got = p.eval_on_selector_all("#search-list .item",
+        "els => els.slice(0, 12).map(e => [e.dataset.cat,"
+        " getComputedStyle(e, '::before').backgroundColor])")
+    assert all(c for c, _ in got), "data-cat が無いカードがある"
+    colours = {c: col for c, col in got}
+    assert len(set(colours.values())) >= 2, f"カテゴリで色が変わっていない: {colours}"
+    for cat, col in colours.items():
+        assert col not in ("rgba(0, 0, 0, 0)", "transparent"), (cat, col)
+    p.close()
+
+
+def test_curated_facts_appear_on_the_card(context, page):
+    """一人だと同行者に聞けないので、行く前に要る情報はカードに出す。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(BEPPU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=25000)
+    p.wait_for_selector("#search-list .tips", timeout=20000)
+
+    card = p.locator("#search-list .item").filter(has=p.locator(".tips")).first
+    body = card.inner_text()
+    assert "円" in body or "支払い" in body or "券売機" in body, body
+    assert "複数の情報源で確認済み" in body, body
+    # 未調査のカードには印を出さない
+    total = p.eval_on_selector_all("#search-list .item", "e => e.length")
+    marked = p.eval_on_selector_all("#search-list .verified", "e => e.length")
+    assert 0 < marked < total, (marked, total)
+    p.close()
+
+
+def test_curated_load_does_not_clobber_location_notice(context, page):
+    """事実の読み込み完了で位置情報の案内を消さないこと。
+
+    実際に消していた。非同期の完了で再描画すると、その時点で出ている
+    案内文（位置情報の拒否、取得失敗）を上書きしてしまう。
+    """
+    ctx = page.context.browser.new_context(viewport={"width": 390, "height": 844})
+    ctx.set_default_timeout(20000)
+    p = ctx.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_timeout(3500)          # curated の取得が終わるのを待つ
+    body = p.inner_text("#search-status")
+    assert "位置情報" in body, body[:200]
+    ctx.close()
+
+
+def test_seasonal_warning_does_not_misfire(context, page):
+    """「年中無休（臨時休業あり）」を期間限定と呼ばない。
+
+    「休業」だけを見て判定すると無休の施設に限定営業の警告が出る。
+    実際にその誤検知を出した。嘘の警告は無い警告より悪い。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    cases = p.evaluate("""() => {
+      const mk = cd => ({ checked: '2026-08-08', facts: [
+        { k: 'closed_days', v: cd, n: 2, src: ['a','b'], urls: ['https://a/','https://b/'],
+          official: false, conflict: false }] });
+      const probe = cd => { CURATED.__probe = mk(cd);
+        const w = tipsFor({ id: '__probe' }).warn; delete CURATED.__probe;
+        return w.includes('期間限定の営業'); };
+      return {
+        nenchu: probe('年中無休(設備点検等による臨時休業有)'),
+        touki:  probe('毎週火曜日、冬期間休業'),
+        only:   probe('内湯は土日祝日のみ営業'),
+        plain:  probe('毎週月曜（祝日の場合は翌日）'),
+      };
+    }""")
+    assert cases["nenchu"] is False, "年中無休を期間限定と誤判定している"
+    assert cases["touki"] is True, cases
+    assert cases["only"] is True, cases
+    assert cases["plain"] is False, cases
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1682,6 +1771,10 @@ def main():
             test_list_card_shows_characteristics(context, page)
             test_every_axis_value_has_a_label(context, page)
             test_checked_count_is_not_exaggerated(context, page)
+            test_cards_are_colour_coded_by_category(context, page)
+            test_curated_facts_appear_on_the_card(context, page)
+            test_curated_load_does_not_clobber_location_notice(context, page)
+            test_seasonal_warning_does_not_misfire(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)

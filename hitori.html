@@ -104,25 +104,56 @@ img, svg, table { max-width: 100%; }
 .pin.conf-0 { fill-opacity: .35; } .pin.conf-1 { fill-opacity: .7; }
 .pin.conf-2 { stroke: #1a202c; stroke-width: .4; }
 
-#search-list { list-style:none; padding:0; margin:.6rem 0 0; display:grid; gap:.55rem; }
-#search-list .item { border:1px solid var(--line); border-radius:12px; padding:.55rem .7rem;
-                     cursor:pointer; }
-#search-list .item:hover, #search-list .item:focus-visible { background:rgba(127,127,127,.06); }
-#search-list .r1 { display:flex; align-items:baseline; gap:.5rem; }
-#search-list .nm { font-weight:700; font-size:1rem; flex:1; min-width:0; }
-#search-list .walk { white-space:nowrap; font-size:.75rem; color:var(--muted); }
-#search-list .walk b { font-size:1.2rem; color:var(--fg); }
-#search-list .r2 { color:var(--muted); font-size:.76rem; margin-top:.1rem; }
-#search-list .lead { font-size:.78rem; margin:.3rem 0 0; line-height:1.5; }
-/* 3軸は数字だけだと何段階中いくつか分からない。目盛りと言葉を必ず添える。 */
-#search-list .axes { list-style:none; padding:0; margin:.35rem 0 0; display:grid; gap:.14rem; }
-#search-list .axes li { display:grid; grid-template-columns:5.4em auto 1fr;
-                        align-items:center; gap:.5rem; font-size:.76rem; }
+/* カテゴリの色。湯・飲食・娯楽・滞在をひと目で見分けられるようにする。
+   色が一切ないと、37,189件が同じ見た目の行として流れてしまう。 */
+#search-list { list-style:none; padding:0; margin:.6rem 0 0; display:grid; gap:.6rem; }
+#search-list .item { position:relative; border:1px solid var(--line); border-radius:14px;
+                     padding:.7rem .8rem .7rem 1rem; cursor:pointer;
+                     background:var(--bg); transition:box-shadow .12s, transform .12s; }
+/* 左端の色帯がカテゴリ。太さより彩度で差をつけ、文字を邪魔しない */
+#search-list .item::before { content:""; position:absolute; left:0; top:.55rem; bottom:.55rem;
+                             width:4px; border-radius:0 4px 4px 0; background:var(--cat, var(--line)); }
+#search-list .item:hover, #search-list .item:focus-visible {
+  box-shadow:0 2px 12px rgba(0,0,0,.09); transform:translateY(-1px); }
+#search-list .item[data-cat="bath"] { --cat:#2f6f9f; }
+#search-list .item[data-cat="eat"]  { --cat:#c2622e; }
+#search-list .item[data-cat="play"] { --cat:#7a52b3; }
+#search-list .item[data-cat="stay"] { --cat:#2f8f68; }
+
+#search-list .r1 { display:flex; align-items:baseline; gap:.6rem; }
+#search-list .nm { font-weight:700; font-size:1.04rem; flex:1; min-width:0; line-height:1.35; }
+#search-list .walk { white-space:nowrap; font-size:.72rem; color:var(--muted); text-align:right; }
+#search-list .walk b { font-size:1.35rem; color:var(--fg); font-variant-numeric:tabular-nums; }
+#search-list .r2 { color:var(--muted); font-size:.75rem; margin-top:.15rem; }
+#search-list .r2 .kindmark { color:var(--cat); font-weight:600; }
+#search-list .lead { font-size:.79rem; margin:.45rem 0 0; line-height:1.65; }
+
+/* 3軸は数字だけだと何段階中いくつか分からない。目盛りと言葉を必ず添える。
+   目盛りはカテゴリ色にして、灰色の点が主張しすぎるのを避ける。 */
+#search-list .axes { list-style:none; padding:0; margin:.45rem 0 0; display:grid; gap:.16rem; }
+#search-list .axes li { display:grid; grid-template-columns:5.2em auto 1fr;
+                        align-items:center; gap:.55rem; font-size:.75rem; }
 #search-list .ax-k { color:var(--muted); }
-#search-list .dots { display:flex; gap:2px; }
-#search-list .dot { width:7px; height:7px; border-radius:50%; background:rgba(127,127,127,.3); }
-#search-list .dot.on { background:var(--accent); }
-#search-list .badges { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.4rem; align-items:center; }
+#search-list .dots { display:flex; gap:2.5px; }
+#search-list .dot { width:6px; height:6px; border-radius:50%;
+                    background:color-mix(in srgb, var(--cat) 18%, transparent); }
+#search-list .dot.on { background:var(--cat); }
+#search-list .ax-w { color:var(--fg); }
+
+/* 行く前に知っておきたいこと。一人だと同行者に聞けないので、ここを目立たせる */
+#search-list .tips { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.45rem; }
+#search-list .tips span { font-size:.7rem; padding:.1rem .5rem; border-radius:6px;
+                          background:color-mix(in srgb, var(--cat) 10%, transparent);
+                          color:color-mix(in srgb, var(--cat) 78%, var(--fg)); }
+/* 行っても入れない可能性は最優先で伝える。一人だと下調べを他人に任せられない */
+#search-list .warn { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.4rem; }
+#search-list .warn span { font-size:.72rem; font-weight:600; padding:.12rem .55rem;
+                          border-radius:6px; background:#fdf0e3; color:#a3541c; }
+@media (prefers-color-scheme:dark){
+  #search-list .warn span { background:#3a2a17; color:#f0b76e; }
+}
+#search-list .badges { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.45rem; align-items:center; }
+#search-list .verified { font-size:.68rem; color:var(--muted); margin-left:auto; }
 .viewbar { display:flex; gap:.5rem; margin:.6rem 0; flex-wrap:wrap; }
 .viewbar button { background:none; border:1px solid var(--line); border-radius:999px;
                   color:var(--fg); cursor:pointer; font:inherit; font-size:.82rem;
@@ -723,14 +754,18 @@ function renderSearchList() {
     const m = core.walkMinutes(it.distM);
     const dist = it.distM >= 1000 ? `直線${(it.distM / 1000).toFixed(1)}km` : `直線${Math.round(it.distM)}m`;
     const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
-    return `<li class="item" data-id="${it.id}" data-dist="${Math.round(it.distM)}"
+    const { tips, warn } = tipsFor(it);
+    return `<li class="item" data-id="${it.id}" data-cat="${it.cat}" data-dist="${Math.round(it.distM)}"
               data-quiet="${it.quiet}" data-solo="${it.solo}" tabindex="0">
       <div class="r1">
         <span class="nm">${escapeHtml(it.name)}</span>
         <span class="walk">徒歩<b>${m}</b>分</span>
       </div>
-      <div class="r2">${escapeHtml(KIND_JA[it.kind] || it.kind)}${where ? ' ・ ' + escapeHtml(where) : ''}
-        ・ ${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</div>
+      <div class="r2"><span class="kindmark">${escapeHtml(KIND_JA[it.kind] || it.kind)}</span>${
+        where ? ' ・ ' + escapeHtml(where) : ''} ・ ${dist} ${
+        core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</div>
+      ${warn.length ? `<div class="warn">${warn.map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+      ${tips.length ? `<div class="tips">${tips.map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>` : ''}
       <p class="lead">${escapeHtml(core.leadFact(it, leadCtx(it)))}</p>
       ${axesRows(it)}
       <div class="badges">
@@ -740,6 +775,7 @@ function renderSearchList() {
         ${isIsolated(it) ? `<span class="badge-ax badge-iso">最寄り${formatIso(it.iso)}</span>` : ''}
         ${FAVS_OK() ? `<button type="button" class="fav" aria-pressed="${core.isFav(state.favs, it.id)}"
            aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
+        ${it.checked ? '<span class="verified">複数の情報源で確認済み</span>' : ''}
       </div>
     </li>`;
   }).join('');
@@ -893,6 +929,41 @@ function leadCtx(it) {
     gem: isGem(it),
     sameKindNearby: sameKindNearby(it),
   };
+}
+
+// 一人で行く前に知っておきたいこと。同行者に聞けないぶん、事前に分かると
+// 助かる順に並べる。多すぎると読まれないので上限を設ける。
+const TIP_MAX = 4;
+
+function tipsFor(it) {
+  const e = CURATED[it.id];
+  if (!e) return { tips: [], warn: [] };
+  const v = {};
+  for (const f of e.facts) if (!f.conflict) v[f.k] = f.v;
+  const out = [];
+  if (v.price != null) out.push(`${v.price}円`);
+  if (v.unstaffed === 'yes') out.push('無人・料金箱');
+  else if (v.payment_method === 'ticket_machine') out.push('券売機');
+  else if (v.payment_method === 'counter_person') out.push('番台で支払い');
+  if (v.payment_method === 'cash_only') out.push('現金のみ');
+  if (v.bring_towel === 'required') out.push('タオル持参');
+  else if (v.bring_towel === 'rental') out.push('タオル貸出あり');
+  if (v.wash_area === 'no') out.push('洗い場なし');
+  if (v.stay_limit) out.push(`滞在${v.stay_limit}分まで`);
+  if (v.luggage === 'locker') out.push('ロッカーあり');
+  else if (v.luggage === 'none') out.push('荷物置き場なし');
+  if (v.busy_time === 'morning_quiet') out.push('朝は空いている');
+  if (v.closed_days) out.push(`定休 ${v.closed_days}`);
+  const warn = [];
+  if (v.status === 'closed_temporarily') warn.push('休業中');
+  if (v.renamed_to) warn.push(`現在は「${v.renamed_to}」`);
+  // 季節・曜日で営業が限定される施設は、行ってから気づくと痛い。
+  // ただし「年中無休（臨時休業あり）」を限定営業と呼ぶのは嘘なので、
+  // 無休と書いてあるものは除く。「休業」だけを見ると誤判定する。
+  const cd = String(v.closed_days || '');
+  const seasonal = /冬[季期][^。]{0,6}休|季節営業|のみ営業|期間[^。]{0,4}休業|休館期間/.test(cd);
+  if (seasonal && !/年中無休|通年/.test(cd)) warn.push('期間限定の営業');
+  return { tips: out.slice(0, TIP_MAX), warn };
 }
 
 // 3軸は数字だけだと何段階中いくつか分からない。目盛りと言葉を必ず添える。
@@ -1832,9 +1903,19 @@ async function init() {
     e.preventDefault();
     closeFacility();
   });
-  // 数を誇張しない。37,193件のうち実際に確認できた件数だけを出す。
+  // 数を誇張しない。37,189件のうち実際に確認できた件数だけを出す。
   const cc = document.getElementById('checked-count');
   if (cc) cc.textContent = (SUMMARY.checked_count || 0).toLocaleString();
+
+  // 集めた事実は一覧のカードにも出すので、詳細シートを待たずに取りに行く。
+  // 調査済みは全体の一部なのでファイルは小さい。取れなくても一覧は出る。
+  ensureCurated().then(() => {
+    // 起点が無いときは描き直さない。位置情報を拒否されたときの案内文が
+    // 出ている状態で再描画すると、その案内を消してしまう。
+    if (state.origin.lat != null) rerenderView();
+  }).catch(err => {
+    console.warn('確認済みの事実を読み込めませんでした:', err.message);
+  });
   switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
   if (state.pref) openPrefecture(state.pref);
   bindDeck();
@@ -1852,6 +1933,7 @@ window.state = state;
 window.PREF_CACHE = PREF_CACHE;
 window.visibleItems = visibleItems;
 window.AX_LABEL = AX_LABEL;
+window.tipsFor = tipsFor;
 window.FAILED_PREFS = FAILED_PREFS;
 window.FOUND_BY_SEARCH = FOUND_BY_SEARCH;
 window.CURATED = CURATED;
