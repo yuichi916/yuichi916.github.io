@@ -30,6 +30,21 @@ FACT_VOCAB = {
     "hours": str,
     "closed_days": str,
     "price": int,
+    # 「そこへ一人で行けるか」以前の問題を表す事実。収集を始めて初めて必要に
+    # なった。地元住民専用の共同浴場や休業中の施設を「ひとりで行ける場所」と
+    # して載せると、行った人が門前払いになる。
+    "access": {"public", "residents_only", "members_only"},
+    "status": {"open", "closed_temporarily", "closed_permanently"},
+    "renamed_to": str,
+}
+
+# この事実が裏付け MIN_SUPPORT 件以上で立つと、その施設を一覧から外す。
+# 「一人で行ける場所」として成立しないため。件数は必ず報告する（黙って
+# 消すと、なぜ件数が減ったのか誰にも分からなくなる）。
+EXCLUDING = {
+    ("access", "residents_only"): "地元住民専用",
+    ("access", "members_only"): "会員専用",
+    ("status", "closed_permanently"): "閉業",
 }
 
 # 公式サイト1件で採用してよい事実。客観的で、自治体や施設自身が
@@ -83,6 +98,23 @@ def _conflicting_keys(facts):
             bad.add(k)
         seen.setdefault(k, v)
     return bad
+
+
+def exclusion_reason(facts):
+    """一覧から外すべき施設なら理由を返す。そうでなければ None。
+
+    矛盾している事実では外さない（判断を保留する側に倒す）。
+    """
+    conflicts = _conflicting_keys(facts)
+    for f in facts:
+        if f["k"] in conflicts:
+            continue
+        if f.get("n", 0) < MIN_SUPPORT:
+            continue
+        hit = EXCLUDING.get((f["k"], f["v"]))
+        if hit:
+            return hit
+    return None
 
 
 def apply_adjust(est, facts):

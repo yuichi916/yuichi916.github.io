@@ -95,6 +95,39 @@ def test_does_not_mutate_input():
     assert est == before
 
 
+def test_exclusion_needs_support():
+    """一覧から外すのは重い判断なので、裏付け1件では外さない。"""
+    assert enrich.exclusion_reason([{"k": "access", "v": "residents_only", "n": 2}]) == "地元住民専用"
+    assert enrich.exclusion_reason([{"k": "access", "v": "residents_only", "n": 1}]) is None
+    assert enrich.exclusion_reason([{"k": "access", "v": "members_only", "n": 2}]) == "会員専用"
+    assert enrich.exclusion_reason([{"k": "status", "v": "closed_permanently", "n": 3}]) == "閉業"
+
+
+def test_temporary_closure_does_not_exclude():
+    """一時休業は外さない。再開するので、消すのではなく出して伝える。"""
+    assert enrich.exclusion_reason([{"k": "status", "v": "closed_temporarily", "n": 3}]) is None
+
+
+def test_conflict_does_not_exclude():
+    """情報が分かれているときは外さない。判断を保留する側に倒す。"""
+    f = [{"k": "access", "v": "residents_only", "n": 2},
+         {"k": "access", "v": "public", "n": 2}]
+    assert enrich.exclusion_reason(f) is None
+
+
+def test_normal_facility_is_not_excluded():
+    assert enrich.exclusion_reason([{"k": "payment_method", "v": "ticket_machine", "n": 3}]) is None
+    assert enrich.exclusion_reason([]) is None
+
+
+def test_new_vocab_is_validated():
+    assert enrich.valid_fact("access", "residents_only")
+    assert not enrich.valid_fact("access", "だれでも")
+    assert enrich.valid_fact("status", "closed_temporarily")
+    assert enrich.valid_fact("renamed_to", "喜楽来の湯")
+    assert not enrich.valid_fact("renamed_to", "")
+
+
 def main():
     test_normalize_domain()
     test_blocked_domains()
@@ -106,6 +139,11 @@ def main():
     test_adjust_stays_in_range()
     test_conflict_freezes_the_axis()
     test_does_not_mutate_input()
+    test_exclusion_needs_support()
+    test_temporary_closure_does_not_exclude()
+    test_conflict_does_not_exclude()
+    test_normal_facility_is_not_excluded()
+    test_new_vocab_is_validated()
     print("OK: enrich")
 
 

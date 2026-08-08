@@ -21,14 +21,18 @@ AXES = ("solo", "quiet", "easy")
 _PUBLIC_RE = re.compile(r"(市営|町営|村営|公衆浴場|共同浴場)")
 
 
-def _nearest_city(lat, lon, munis):
+def _nearest_city(lat, lon, munis, pref=None):
     """最寄りの市区町村名。OSMに city が無い施設のため。
 
     「町営公衆浴場」のような一般名は、地名が無いと検索のしようがない。
-    正確な所在自治体である必要はなく、検索クエリの手掛かりになればよい。
+
+    県をまたいで探すと誤る。濁河温泉（岐阜県下呂市）で、重心距離だけを見て
+    長野県の王滝村を選んでしまった。県境の施設ほどこの誤りが起きるので、
+    pref が分かるときは同一県の市区町村だけを見る。
     """
+    cands = [m for m in munis if pref is None or m[3] == pref] or munis
     best, bestd = "", float("inf")
-    for name, mlat, mlon in munis:
+    for name, mlat, mlon, _p in cands:
         d = (mlat - lat) ** 2 + ((mlon - lon) * 0.82) ** 2
         if d < bestd:
             bestd, best = d, name
@@ -41,7 +45,7 @@ def _load_municipalities():
         return []
     doc = json.loads(f.read_text(encoding="utf-8"))
     i = {k: n for n, k in enumerate(doc["fields"])}
-    return [(r[i["name"]], r[i["lat"]], r[i["lon"]])
+    return [(r[i["name"]], r[i["lat"]], r[i["lon"]], r[i["pref"]])
             for r in doc["items"] if r[i["type"]] == "c"]   # c=市区町村, s=駅
 
 
@@ -91,7 +95,11 @@ def rank_targets(prefdocs, curated, limit=50, iso_threshold=None, munis=None):
             targets.append({
                 "id": r["id"], "name": r["name"], "pref": code,
                 "cat": r["cat"], "kind": r["kind"],
-                "city": r.get("city") or _nearest_city(r["lat"], r["lon"], munis),
+                "city": r.get("city", ""),
+                # OSMに市区町村があるのは12.2%だけ。残りは重心距離からの推定で、
+                # 秋保温泉共同浴場（仙台市太白区）に川崎町を当てるなど実際に外す。
+                # 検索の手掛かりにはなるが所在地として扱ってはならない。
+                "city_guess": "" if r.get("city") else _nearest_city(r["lat"], r["lon"], munis, code),
                 "axes": [r["solo"], r["quiet"], r["easy"]],
                 "weight": weight, "reason": " / ".join(reasons),
                 "maps": f"https://www.google.com/maps/search/?api=1&query={r['lat']},{r['lon']}",
@@ -124,8 +132,8 @@ def main():
 
     for t in rank_targets(prefdocs, curated, args.limit,
                           summary.get("iso_threshold"), _load_municipalities()):
-        where = t["city"] or f"pref{t['pref']:02d}"
-        print(f"[{t['weight']:>2}] {t['id']:<12} {t['name'][:20]:<22} {where[:10]:<12} "
+        where = t["city"] or (t["city_guess"] + "?" if t["city_guess"] else "")
+        print(f"[{t['weight']:>2}] {t['id']:<12} {t['name'][:20]:<22} {where[:11]:<13} "
               f"{t['cat']}/{t['kind']:<10} {t['reason']}")
         print(f"     {t['maps']}")
 

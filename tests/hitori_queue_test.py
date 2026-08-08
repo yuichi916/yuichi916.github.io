@@ -49,12 +49,25 @@ def test_isolated_gets_bonus():
     assert "孤立" in next(t["reason"] for t in got if t["id"] == "n1")
 
 
-def test_city_filled_from_nearest_municipality():
-    """「市営浴場」のような一般名は地名が無いと検索できない。"""
+def test_guessed_city_is_kept_separate():
+    """推定した地名を所在地として出さない。
+
+    OSMに市区町村があるのは12.2%だけで、残りは重心距離からの推定になる。
+    秋保温泉共同浴場（仙台市太白区）に川崎町を当てるなど実際に外れるため、
+    検索の手掛かりとしてだけ渡し、事実と混ぜない。
+    """
     docs = _doc(_row("n1", "町営公衆浴場", city=""))
-    munis = [("網走市", 44.02, 144.27), ("別府市", 33.28, 131.49)]
+    munis = [("網走市", 44.02, 144.27, 44), ("別府市", 33.28, 131.49, 44)]
     got = research_queue.rank_targets(docs, {}, limit=1, munis=munis)
-    assert got[0]["city"] == "別府市", got[0]
+    assert got[0]["city"] == "", got[0]
+    assert got[0]["city_guess"] == "別府市", got[0]
+
+
+def test_real_city_is_not_overwritten_by_guess():
+    docs = _doc(_row("n1", "田の湯温泉", city="別府市"))
+    got = research_queue.rank_targets(docs, {}, limit=1, munis=[("網走市", 44.02, 144.27, 1)])
+    assert got[0]["city"] == "別府市"
+    assert got[0]["city_guess"] == ""
 
 
 def test_axes_are_reported_not_score():
@@ -74,14 +87,15 @@ def test_runs_on_real_data():
                                       iso_threshold=summary.get("iso_threshold"),
                                       munis=research_queue._load_municipalities())
     assert len(got) == 10, len(got)
-    assert all(t["id"] and t["city"] for t in got), [t for t in got if not t["city"]]
+    assert all(t["id"] and (t["city"] or t["city_guess"]) for t in got)
 
 
 def main():
     test_public_baths_rank_high()
     test_checked_are_excluded()
     test_isolated_gets_bonus()
-    test_city_filled_from_nearest_municipality()
+    test_guessed_city_is_kept_separate()
+    test_real_city_is_not_overwritten_by_guess()
     test_axes_are_reported_not_score()
     test_runs_on_real_data()
     print("OK: research_queue")

@@ -66,18 +66,33 @@ def _enrich(records, curated):
     上書きにすると、あとから「なぜこの値なのか」を追えなくなる。
     """
     applied = 0
+    excluded = []
+    kept = []
     for r in records:
         r["solo_est"], r["quiet_est"], r["easy_est"] = r["solo"], r["quiet"], r["easy"]
         r["checked"] = ""
         entry = curated.get(r["id"])
         if not entry:
+            kept.append(r)
             continue
+
+        facts = entry.get("facts", [])
+        # 「一人で行けるか」以前に、そこへ行けるのかを先に見る。地元住民専用や
+        # 閉業が裏付けられた施設を載せると、行った人が門前払いになる。
+        reason = enrich.exclusion_reason(facts)
+        if reason:
+            excluded.append((r["id"], r["name"], reason))
+            continue
+
         r["checked"] = entry.get("checked", "")
         eff = enrich.apply_adjust(
-            {"solo": r["solo"], "quiet": r["quiet"], "easy": r["easy"]}, entry.get("facts", []))
+            {"solo": r["solo"], "quiet": r["quiet"], "easy": r["easy"]}, facts)
         r["solo"], r["quiet"], r["easy"] = eff["solo"], eff["quiet"], eff["easy"]
         applied += 1
-    return applied
+        kept.append(r)
+
+    records[:] = kept
+    return applied, excluded
 
 
 def build(raw_by_pref, prefs, curated, updated):
@@ -108,7 +123,12 @@ def build(raw_by_pref, prefs, curated, updated):
 
     # 集めた事実で3軸を補正する。solo/quiet/easy が並べ替えにも使われるため、
     # ソートより前に実効値へ差し替えておく必要がある。
-    applied = _enrich(all_records, curated)
+    applied, excluded = _enrich(all_records, curated)
+    # 黙って消さない。なぜ件数が減ったのか分かるように必ず出す。
+    for eid, ename, reason in excluded:
+        print(f"除外: {ename}（{eid}）— {reason}", file=sys.stderr)
+    if excluded:
+        print(f"合計 {len(excluded)} 件を一覧から外した", file=sys.stderr)
     missing = set(curated) - {r["id"] for r in all_records}
     if missing:
         print(f"警告: curated.json の {len(missing)} 件が現データに見つからない", file=sys.stderr)
