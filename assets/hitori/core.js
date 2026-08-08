@@ -441,3 +441,20 @@ export function constellation(center, items, opts) {
   pts.sort((a, b) => a.distM - b.distM);
   return { points: pts.slice(0, maxPoints), r: R, rings: [R / 3, (R * 2) / 3, R] };
 }
+
+// --- 施設名の照合 ---
+// 読み込み済みの県に対して使う。全国検索は別ファイルを取得したうえで
+// 同じ関数を使う（items の中身が違うだけ）。
+
+export function searchFacilities(items, query, limit = 20) {
+  const q = String(query == null ? '' : query).trim();
+  if (!q) return [];
+  const hits = items.filter(it => it.name.includes(q));
+  hits.sort((a, b) => {
+    const ae = a.name === q ? 0 : 1, be = b.name === q ? 0 : 1;
+    if (ae !== be) return ae - be;
+    if (a.name.length !== b.name.length) return a.name.length - b.name.length;
+    return (a.distM || 0) - (b.distM || 0);
+  });
+  return hits.slice(0, limit);
+}

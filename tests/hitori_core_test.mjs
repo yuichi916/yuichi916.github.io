@@ -579,5 +579,45 @@ check('constellation: 周辺0件でも落ちない', () => {
   eq(c.r > 0, true);
 });
 
+const FAC = [
+  { id: 'a', name: '駅前高等温泉', cat: 'bath', kind: 'onsen', distM: 135 },
+  { id: 'b', name: '高等温泉', cat: 'bath', kind: 'onsen', distM: 900 },
+  { id: 'c', name: '別府ブルーバード劇場', cat: 'play', kind: 'cinema', distM: 207 },
+  { id: 'd', name: '温泉たまご屋', cat: 'eat', kind: 'ramen', distM: 50 },
+];
+
+check('searchFacilities: 部分一致', () => {
+  eq(core.searchFacilities(FAC, '温泉').length, 3);
+});
+
+check('searchFacilities: 完全一致を先頭に', () => {
+  eq(core.searchFacilities(FAC, '高等温泉')[0].id, 'b');
+});
+
+check('searchFacilities: 同点なら短い名前が先', () => {
+  const r = core.searchFacilities(FAC, '温泉');
+  eq(r[0].name.length <= r[1].name.length, true, r.map(x => x.name).join(','));
+});
+
+check('searchFacilities: 空・空白・nullは空配列', () => {
+  eq(core.searchFacilities(FAC, '').length, 0);
+  eq(core.searchFacilities(FAC, '  ').length, 0);
+  eq(core.searchFacilities(FAC, null).length, 0);
+});
+
+check('searchFacilities: 一致なし', () => {
+  eq(core.searchFacilities(FAC, 'ぜったいにない').length, 0);
+});
+
+check('searchFacilities: limit', () => {
+  eq(core.searchFacilities(FAC, '温泉', 2).length, 2);
+});
+
+check('searchFacilities: 入力を破壊しない', () => {
+  const before = FAC.map(x => x.id).join('');
+  core.searchFacilities(FAC, '温泉');
+  eq(FAC.map(x => x.id).join(''), before);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');
