@@ -444,5 +444,180 @@ check('loadFavs: 壊れたJSONは空配列にフォールバック', () => {
   eq(JSON.stringify(core.loadFavs(st)), '[]');
 });
 
+const LEAD_BASE = { cat: 'bath', kind: 'sento', solo: 4, quiet: 4, easy: 3, hidden: 0.0, hidden_n: 2, iso: 400 };
+
+check('leadSentence: 孤立が最優先', () => {
+  const s = core.leadSentence(LEAD_BASE, { kindJa: '銭湯', catJa: '湯・サウナ', isolated: true, isoText: '4.2km' });
+  // iso は同カテゴリまでの距離なので、業態名（銭湯）ではなくカテゴリ名を使う
+  eq(s.startsWith('最寄りの湯・サウナまで4.2km。この一帯で唯一。'), true, s);
+  eq(s.includes('最寄りの銭湯'), false, '業態名で孤立を語っている: ' + s);
+});
+
+check('leadSentence: 密集は孤立でないときだけ', () => {
+  const s = core.leadSentence(LEAD_BASE, { kindJa: '銭湯', isolated: false, sameKindNearby: 4 });
+  eq(s.startsWith('半径500mに同じ銭湯が4軒。'), true, s);
+  const t = core.leadSentence(LEAD_BASE, { kindJa: '銭湯', catJa: '湯・サウナ', isolated: true, isoText: '4.2km', sameKindNearby: 4 });
+  eq(t.includes('半径500m'), false, '孤立と密集が同時に出ている: ' + t);
+});
+
+check('leadSentence: 穴場は件数を出す', () => {
+  const it = { ...LEAD_BASE, hidden: 0.83, hidden_n: 12 };
+  const s = core.leadSentence(it, { kindJa: '銭湯', gem: true });
+  eq(s.includes('周辺12軒中10軒がチェーン。'), true, s);
+});
+
+check('leadSentence: 静けさと入りやすさ', () => {
+  eq(core.leadSentence({ ...LEAD_BASE, quiet: 5 }, { kindJa: '図書館' }).includes('会話が発生しない。'), true);
+  eq(core.leadSentence({ ...LEAD_BASE, quiet: 2 }, { kindJa: '立ち飲み' }).includes('声を出す場。'), true);
+  eq(core.leadSentence({ ...LEAD_BASE, easy: 2 }, { kindJa: '角打ち' }).includes('常連の作法がある。'), true);
+  eq(core.leadSentence({ ...LEAD_BASE, easy: 5 }, { kindJa: '映画館' }).includes('作法は要らない。'), true);
+});
+
+check('leadSentence: 1文目は具体的な事実、2文目は軸の節ひとつだけ', () => {
+  // 軸の節を2つ並べると、静か5・入りやすさ5の業態がすべて同じ文になる
+  // （実測で全体の17%）。1文目に必ず数字を入れることでそれを避ける。
+  const it = { ...LEAD_BASE, quiet: 5, easy: 5, solo: 5, hidden: 0.9, hidden_n: 10 };
+  const s = core.leadSentence(it, { kindJa: '銭湯', catJa: '湯・サウナ', isolated: true, isoText: '4.2km', gem: true });
+  eq(s, '最寄りの湯・サウナまで4.2km。この一帯で唯一。会話が発生しない。');
+  eq(s.includes('作法は要らない。'), false, '軸の節が2つ採られている: ' + s);
+  eq(s.includes('ひとりが標準。'), false, '軸の節が2つ採られている: ' + s);
+});
+
+check('leadSentence: 1文目の優先順位は 孤立 > 穴場 > 密集 > 最寄り距離', () => {
+  const it = { ...LEAD_BASE, quiet: 3, easy: 3, solo: 3, hidden: 0.83, hidden_n: 12 };
+  const base = { kindJa: '銭湯', catJa: '湯・サウナ', isoText: '340m' };
+  eq(core.leadSentence(it, { ...base, isolated: true, isoText: '4.2km', gem: true, sameKindNearby: 5 }),
+     '最寄りの湯・サウナまで4.2km。この一帯で唯一。');
+  eq(core.leadSentence(it, { ...base, gem: true, sameKindNearby: 5 }),
+     '周辺12軒中10軒がチェーン。その中の一軒。');
+  eq(core.leadSentence(it, { ...base, sameKindNearby: 5 }),
+     '半径500mに同じ銭湯が5軒。');
+  eq(core.leadSentence(it, base), '最寄りの湯・サウナまで340m。');
+});
+
+check('leadSentence: どの文にも施設ごとに異なる数字か性質が入る', () => {
+  // 汎用の文だけで終わる施設が出ないこと
+  const s = core.leadSentence({ ...LEAD_BASE, quiet: 3, easy: 3, solo: 3 },
+                              { kindJa: '銭湯', catJa: '湯・サウナ', isoText: '340m' });
+  eq(/\d/.test(s), true, '数字が1つも入っていない: ' + s);
+});
+
+check('leadSentence: どれにも当たらなくても空にしない', () => {
+  const it = { ...LEAD_BASE, solo: 3, quiet: 3, easy: 3, hidden: 0, hidden_n: 0 };
+  // 孤立度が渡されていれば、それを事実として述べる（約4分の1の施設がここに来る）
+  const s = core.leadSentence(it, { kindJa: 'ゲストハウス', catJa: 'ひとり滞在', isoText: '340m' });
+  eq(s, '最寄りのひとり滞在まで340m。');
+  // 孤立度すら無いときだけ業態とひとり度に落とす
+  const t = core.leadSentence(it, { kindJa: 'ゲストハウス', catJa: 'ひとり滞在' });
+  eq(t, 'ゲストハウス。ひとり度3。');
+});
+
+check('leadSentence: 断定しない語を使わない', () => {
+  // 「静かです」「空いています」のような断定は3軸が推定である以上使えない
+  const bad = ['静かです', '空いて', '必ず', 'おすすめです'];
+  for (const q of [5, 4, 2]) for (const e of [5, 3, 2]) {
+    const s = core.leadSentence({ ...LEAD_BASE, quiet: q, easy: e }, { kindJa: '銭湯' });
+    for (const b of bad) eq(s.includes(b), false, `${b} が含まれる: ${s}`);
+  }
+});
+
+const CEN = { id: 'n1', lat: 35.0, lon: 139.0, cat: 'bath' };
+
+check('constellation: 中心は原点', () => {
+  const c = core.constellation(CEN, [CEN], {});
+  eq(c.points.length, 1);
+  near(c.points[0].x, 0, 0.01);
+  near(c.points[0].y, 0, 0.01);
+  eq(c.points[0].self, true);
+});
+
+check('constellation: 北が上（yが負）', () => {
+  const north = { id: 'n2', lat: 35.009, lon: 139.0, cat: 'eat' };   // 約1km北
+  const c = core.constellation(CEN, [CEN, north], {});
+  const p = c.points.find(x => !x.self);
+  eq(p.y < 0, true, '北の点が下にある: ' + p.y);
+  near(p.x, 0, 1);
+});
+
+check('constellation: 東が右（xが正）', () => {
+  const east = { id: 'n3', lat: 35.0, lon: 139.011, cat: 'eat' };    // 約1km東
+  const c = core.constellation(CEN, [CEN, east], {});
+  const p = c.points.find(x => !x.self);
+  eq(p.x > 0, true, '東の点が左にある: ' + p.x);
+});
+
+check('constellation: 半径外は落とす', () => {
+  const far = { id: 'n4', lat: 35.03, lon: 139.0, cat: 'eat' };      // 約3.3km
+  const c = core.constellation(CEN, [CEN, far], {});
+  eq(c.points.length, 1);
+});
+
+check('constellation: 距離が線形に写像される', () => {
+  const half = { id: 'n5', lat: 35.00674, lon: 139.0, cat: 'eat' };  // 約750m = 半径の半分
+  const c = core.constellation(CEN, [CEN, half], { r: 130, radiusM: 1500 });
+  const p = c.points.find(x => !x.self);
+  near(Math.abs(p.y), 65, 6);
+});
+
+check('constellation: 中心に近い順に上限で切る', () => {
+  const many = [CEN];
+  for (let i = 0; i < 300; i++) {
+    many.push({ id: 'x' + i, lat: 35.0 + 0.00004 * (i + 1), lon: 139.0, cat: 'eat' });
+  }
+  const c = core.constellation(CEN, many, { maxPoints: 120 });
+  eq(c.points.length, 120);
+  // 中心に近い順
+  const ds = c.points.map(p => p.distM);
+  eq(JSON.stringify(ds), JSON.stringify(ds.slice().sort((a, b) => a - b)));
+  eq(c.points[0].self, true, '中心が落ちている');
+});
+
+check('constellation: 周辺0件でも落ちない', () => {
+  const c = core.constellation(CEN, [], {});
+  eq(c.points.length, 0);
+  eq(c.rings.length, 3);
+  eq(c.r > 0, true);
+});
+
+const FAC = [
+  { id: 'a', name: '駅前高等温泉', cat: 'bath', kind: 'onsen', distM: 135 },
+  { id: 'b', name: '高等温泉', cat: 'bath', kind: 'onsen', distM: 900 },
+  { id: 'c', name: '別府ブルーバード劇場', cat: 'play', kind: 'cinema', distM: 207 },
+  { id: 'd', name: '温泉たまご屋', cat: 'eat', kind: 'ramen', distM: 50 },
+];
+
+check('searchFacilities: 部分一致', () => {
+  eq(core.searchFacilities(FAC, '温泉').length, 3);
+});
+
+check('searchFacilities: 完全一致を先頭に', () => {
+  eq(core.searchFacilities(FAC, '高等温泉')[0].id, 'b');
+});
+
+check('searchFacilities: 同点なら短い名前が先', () => {
+  const r = core.searchFacilities(FAC, '温泉');
+  eq(r[0].name.length <= r[1].name.length, true, r.map(x => x.name).join(','));
+});
+
+check('searchFacilities: 空・空白・nullは空配列', () => {
+  eq(core.searchFacilities(FAC, '').length, 0);
+  eq(core.searchFacilities(FAC, '  ').length, 0);
+  eq(core.searchFacilities(FAC, null).length, 0);
+});
+
+check('searchFacilities: 一致なし', () => {
+  eq(core.searchFacilities(FAC, 'ぜったいにない').length, 0);
+});
+
+check('searchFacilities: limit', () => {
+  eq(core.searchFacilities(FAC, '温泉', 2).length, 2);
+});
+
+check('searchFacilities: 入力を破壊しない', () => {
+  const before = FAC.map(x => x.id).join('');
+  core.searchFacilities(FAC, '温泉');
+  eq(FAC.map(x => x.id).join(''), before);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

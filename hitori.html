@@ -40,6 +40,12 @@ h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
 #place-hits li:hover, #place-hits li:focus { background: rgba(127,127,127,.1); outline: none; }
 #place-hits .kindmark { color: var(--muted); font-size: .78rem; margin-left: .4rem; }
 #place-hits .empty { padding: .6rem .8rem; color: var(--muted); }
+#place-hits li.label { padding: .3rem .8rem; font-size: .72rem; color: var(--muted);
+                        background: rgba(127,127,127,.06); cursor: default; }
+#place-hits li.label .grp-rows { list-style: none; margin: 0; padding: 0; }
+#place-hits li.stale { color: #c05621; }
+#nationwide { background: none; border: 1px solid var(--line); border-radius: 8px;
+              color: var(--accent); cursor: pointer; font: inherit; padding: .4rem .7rem; }
 .origin { margin: .5rem 0 0; color: var(--muted); font-size: .88rem; }
 .origin strong { color: var(--fg); }
 #origin-reset { background: none; border: 1px solid var(--line); border-radius: 999px;
@@ -106,6 +112,46 @@ img, svg, table { max-width: 100%; }
 #search-list .meta, #search-list .dist { color: var(--muted); font-size: .82rem; }
 #search-list .dist { text-align: right; white-space: nowrap; }
 #search-list .badges { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .35rem; }
+.viewbar { display:flex; gap:.5rem; margin:.6rem 0; flex-wrap:wrap; }
+.viewbar button { background:none; border:1px solid var(--line); border-radius:999px;
+                  color:var(--fg); cursor:pointer; font:inherit; font-size:.82rem;
+                  padding:.2rem .9rem; }
+.viewbar button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+#deck { min-height:60vh; }
+#deck .empty { color:var(--muted); padding:2rem 0; text-align:center; }
+#deck .card { position:relative; min-height:64vh; border-radius:14px; overflow:hidden;
+              background:#0e1a24; color:#fdfaf4; cursor:pointer;
+              display:flex; flex-direction:column; justify-content:space-between;
+              padding:1.4rem 1.3rem; }
+#deck .card svg.constellation { position:absolute; inset:0; width:100%; height:100%;
+                                opacity:.62; pointer-events:none; }
+#deck .card > * { position:relative; }
+#deck .eyebrow { font-size:.6rem; letter-spacing:.3em; color:#e0b978; }
+#deck .nm { font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+            font-size:2.1rem; line-height:1.15; font-weight:600; margin:.5rem 0 0; }
+#deck .meta { font-size:.7rem; color:#8fa3b2; margin-top:.5rem; }
+#deck .lead { font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+              font-size:.85rem; line-height:2; color:#cfd9e0; margin:0 0 1rem; }
+#deck .walk { font-weight:800; font-size:2.4rem; line-height:1; }
+#deck .walk small { font-size:.9rem; font-weight:600; }
+#deck .sub { font-size:.66rem; color:#7f95a5; margin-top:.2rem; }
+#deck .chips { display:flex; gap:.35rem; flex-wrap:wrap; justify-content:flex-end; }
+#deck .chips span { border:1px solid #3c5468; color:#b9cad6; font-size:.66rem;
+                    padding:.1rem .6rem; border-radius:999px; }
+#deck .chips .hot { border-color:#d29922; color:#f0c98a; }
+#deck .foot { display:flex; align-items:flex-end; gap:1rem;
+              border-top:1px solid #24394a; padding-top:.8rem; }
+#deck .chips .fav { background:none; border:1px solid #3c5468; border-radius:999px;
+                    color:#f0c98a; cursor:pointer; font:inherit; font-size:.72rem;
+                    padding:.1rem .55rem; }
+#deck .chips .fav[aria-pressed="true"] { border-color:#d29922; }
+.deck-nav { display:flex; align-items:center; justify-content:center; gap:1rem;
+            margin:.6rem 0 0; color:var(--muted); font-size:.82rem; }
+/* I6: 作者スタイルの display:flex が UA の [hidden]{display:none} に勝ってしまい、
+   .deck-nav だけ hidden 属性が効かない状態になっていた。 */
+.deck-nav[hidden] { display:none; }
+.deck-nav button { background:none; border:1px solid var(--line); border-radius:50%;
+                   color:var(--fg); cursor:pointer; width:2.2rem; height:2.2rem; font-size:1rem; }
 .badge-ax { font-size: .72rem; border: 1px solid var(--line); border-radius: 999px;
             padding: 0 .5rem; color: var(--muted); }
 .badge-gem { border-color: #c05621; color: #c05621; }
@@ -114,7 +160,6 @@ img, svg, table { max-width: 100%; }
 .badge-iso { border-color: #2b6cb0; color: #2b6cb0; }
 .more-filters { margin: .6rem 0; font-size: .85rem; color: var(--muted); }
 .placeholder { color: var(--muted); }
-.favbar { margin: .4rem 0 0; }
 #fav-toggle { background: none; border: 1px solid var(--line); border-radius: 999px;
               color: var(--fg); cursor: pointer; font: inherit; font-size: .82rem;
               padding: .15rem .8rem; }
@@ -155,6 +200,16 @@ img, svg, table { max-width: 100%; }
             box-shadow: 0 -4px 16px rgba(0,0,0,.15); z-index: 20; }
   #detail .items { max-height: none; overflow-y: visible; }
 }
+
+/* 1軒を大きく見せるのが「探す」の主目的なので、そこではページ見出しを畳む。
+   見出しと説明文だけで画面の3割を使うと、カードが画面の外へ押し出される。 */
+body.deck-mode header { margin-bottom:.2rem; }
+body.deck-mode header h1 { font-size:1.05rem; margin:0; }
+body.deck-mode header .lede { display:none; }
+body.deck-mode .tabs { margin:.3rem 0; }
+body.deck-mode .origin-bar { margin-bottom:.2rem; }
+.viewbar { margin:.4rem 0 .5rem; }
+#deck .card { min-height:min(66vh, 560px); }
 </style>
 </head>
 <body>
@@ -179,6 +234,13 @@ img, svg, table { max-width: 100%; }
       <p class="origin"><strong id="origin-label">現在地</strong> から近い順
         <button type="button" id="origin-reset" hidden>現在地に戻す</button></p>
     </div>
+    <div class="viewbar">
+      <button type="button" id="view-deck" aria-pressed="true">1軒ずつ</button>
+      <button type="button" id="view-list" aria-pressed="false">一覧</button>
+      <button type="button" id="open-filters" aria-expanded="false" aria-controls="filter-sheet">絞り込み</button>
+      <button type="button" id="fav-toggle" aria-label="保存した場所" hidden>★ <span id="fav-count">0</span></button>
+    </div>
+    <div id="filter-sheet" hidden>
     <div class="filters">
       <fieldset><legend>カテゴリ</legend>
         <label><input type="checkbox" id="s-cat-bath" checked> 湯・サウナ</label>
@@ -216,7 +278,13 @@ img, svg, table { max-width: 100%; }
       <label><input type="checkbox" id="f-verified"> 出典で確認済みの店だけ</label>
       <small>現状ほぼすべてが業態からの推定です</small>
     </details>
-    <p class="favbar"><button type="button" id="fav-toggle" hidden>★ 保存した場所（<span id="fav-count">0</span>）</button></p>
+    </div>
+    <section id="deck" aria-live="polite"></section>
+    <div class="deck-nav">
+      <button type="button" id="deck-prev" aria-label="前の施設">↑</button>
+      <span id="deck-pos"></span>
+      <button type="button" id="deck-next" aria-label="次の施設">↓</button>
+    </div>
     <p id="search-status" class="counts"></p>
     <ol id="search-list" class="items"></ol>
   </section>
@@ -305,6 +373,8 @@ const state = {
   origin: { kind: 'here', lat: null, lon: null, label: '現在地' },
   search: { cats: new Set(CATS), maxDistM: 800, minSolo: 0, minQuiet: 0, minEasy: 0,
             minConf: 0, requireHours: false },
+  view: 'deck', deckIndex: 0,
+  _deckId: null,   // 直近にデッキへ表示した施設のID。refreshResults() が位置を保つのに使う (I9)
 };
 state.sort = 'dist';
 state.favs = core.loadFavs(safeStorage());   // null なら保存領域が使えない
@@ -387,6 +457,8 @@ function switchTab(name) {
   // 初期表示が「全国で見る」のとき（共有URLなど）は探すタブに一度も
   // 入らないままなので locateAndSearch() が走らず #search-list が空のまま
   // 固まる。探すタブに初めて入った瞬間に一度だけ起動する。
+  // 「全国で見る」ではページ見出しを畳まない（デッキが無いので圧縮の理由がない）
+  document.body.classList.toggle('deck-mode', state.tab === 'search' && state.view === 'deck');
   if (state.tab === 'search') ensureSearchStarted();
   syncUrl();
 }
@@ -510,7 +582,7 @@ function currentSearchResults() {
 function bindSortAndFavs() {
   document.getElementById('f-sort').addEventListener('change', e => {
     state.sort = e.target.value;
-    renderSearchList();
+    refreshResults();
   });
 
   const toggle = document.getElementById('fav-toggle');
@@ -520,24 +592,30 @@ function bindSortAndFavs() {
     toggle.addEventListener('click', () => {
       state.favView = !state.favView;
       toggle.setAttribute('aria-pressed', String(state.favView));
-      renderSearchList();
+      refreshResults();
     });
   }
 
-  document.getElementById('search-list').addEventListener('click', e => {
+  const handleFavClick = e => {
     const btn = e.target.closest('.fav');
     if (!btn) return;
     e.stopPropagation();          // 詳細シートを開かない
-    const li = btn.closest('li.item');
-    const it = currentSearchResults().find(x => x.id === li.dataset.id);
+    const host = btn.closest('[data-id]');   // 一覧は li.item、デッキは article.card
+    if (!host) return;
+    const it = currentSearchResults().find(x => x.id === host.dataset.id);
     if (!it) return;
     state.favs = core.toggleFav(state.favs, it);
     if (!core.saveFavs(safeStorage(), state.favs)) {
       state.favs = null;          // 途中で書けなくなったら機能を畳む
     }
     updateFavCount();
-    renderSearchList();
-  }, true);
+    rerenderView();               // デッキの位置は保つ
+  };
+  // 一覧は li.item、デッキは article.card。どちらも .fav ボタンを持つので同じ
+  // ハンドラを両方に配線する。capture にするのは、カード自身の click（詳細を
+  // 開く）より先に星のクリックを止めて stopPropagation を効かせるため。
+  document.getElementById('search-list').addEventListener('click', handleFavClick, true);
+  document.getElementById('deck').addEventListener('click', handleFavClick, true);
 }
 
 function updateFavCount() {
@@ -554,52 +632,69 @@ function isIsolated(it, iso) {
   return !!t && (v || 0) >= t;
 }
 
+// C1: お気に入りのスナップショット(FAV_FIELDS)は iso を保存しないため、
+// お気に入り表示のカードでは it.iso が undefined で渡ってくる。
+// undefined >= 1000 は false なので、素通りすると文字列 "undefinedm" を
+// 返してしまい、それが生成文にそのまま載って「最寄りの◯◯までundefinedm。」
+// という存在しない事実を表示していた。数値でなければ null を返し、
+// 呼び出し側で分岐させる。
 function formatIso(m) {
+  if (!Number.isFinite(m)) return null;
   if (m >= SUMMARY.iso_max) return `${Math.round(SUMMARY.iso_max / 1000)}km以上`;
   return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
 }
 
-function renderSearchList() {
-  const items = currentSearchResults();
-  const list = document.getElementById('search-list');
+// 取得に失敗した県名の一覧。renderSearchStatus() と renderDeck() の両方が
+// 同じ判定を必要とするため、ここで一本化する（別々に書くと、しきい値の
+// 二重管理と同じ形でどちらかだけ直し忘れる事故が起きる）。
+function failedPrefNames() {
+  return [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
+}
+
+// 件数と県データの取得失敗を出す。デッキでも一覧でも同じものを出す必要がある。
+// 失敗の告知を一覧でだけ出すと、デッキを見ている人には結果が空に見えるだけで、
+// 実際には何も調べられていないことが伝わらない。
+function renderSearchStatus(items) {
   const status = document.getElementById('search-status');
-  const failed = [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
+  const failed = failedPrefNames();
 
   // お気に入り表示中は件数だけを出す。フィルタを適用しない仕様（保存した
   // 場所を条件で消さないため）なので、通常の0件分岐（「距離を広げる」）は
   // お気に入りには効かず出す意味がない。県の取得失敗もお気に入りの表示とは
   // 無関係なので、favView の判定を通常の0件分岐より先に行う。
   if (state.favView) {
-    list.innerHTML = '';
-    if (!items.length) {
-      status.textContent = '保存した場所はまだありません';
-      return;
-    }
-    status.textContent = `保存した ${items.length} 件`;
-  } else if (!items.length) {
-    list.innerHTML = '';
+    status.textContent = items.length ? `保存した ${items.length} 件` : '保存した場所はまだありません';
+    return;
+  }
+  if (!items.length) {
     if (failed.length) {
       // 「該当なし」より読み込み失敗を優先して伝える。自県のデータが読めて
       // いないだけで PREF_CACHE が空になっているとき、それを黙って「近くには
       // 何も無い」という表示にすると、実際には何も調べられていないのに
       // 調べた上で無かったと誤解させてしまう。
       status.textContent = `${failed.join('・')}のデータを読み込めませんでした。`;
-    } else {
-      status.innerHTML = state.search.maxDistM
-        ? `この条件に該当する施設はありませんでした。<button type="button" class="widen">距離を広げる</button>`
-        : 'この条件に該当する施設はありませんでした。';
-      const w = status.querySelector('.widen');
-      if (w) w.addEventListener('click', () => {
-        document.getElementById('f-dist').value = '';
-        state.search.maxDistM = null;
-        renderSearchList();
-      });
+      return;
     }
+    status.innerHTML = state.search.maxDistM
+      ? `この条件に該当する施設はありませんでした。<button type="button" class="widen">距離を広げる</button>`
+      : 'この条件に該当する施設はありませんでした。';
+    const w = status.querySelector('.widen');
+    if (w) w.addEventListener('click', () => {
+      document.getElementById('f-dist').value = '';
+      state.search.maxDistM = null;
+      refreshResults();          // デッキでも一覧でも効かせる
+    });
     return;
-  } else {
-    status.textContent = `${items.length.toLocaleString()} 件`
-      + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
   }
+  status.textContent = `${items.length.toLocaleString()} 件`
+    + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
+}
+
+function renderSearchList() {
+  const items = currentSearchResults();
+  const list = document.getElementById('search-list');
+  renderSearchStatus(items);
+  if (!items.length) { list.innerHTML = ''; return; }
   const now = new Date();
   list.innerHTML = items.slice(0, 200).map(it => {
     const st = core.openState(it.oh, now);
@@ -628,6 +723,221 @@ function renderSearchList() {
   }).join('');
 }
 
+// 表示だけ描き直す（保存の星を押したときなど）。デッキの位置は保つ。
+function rerenderView() {
+  if (state.view === 'deck') renderDeck(); else renderSearchList();
+}
+
+// 結果集合そのものが変わったとき（絞り込み・並べ替え・起点・隣接県の到着）。
+// I9: 無条件に先頭へ戻すと、隣接県が届くたびに読んでいた施設から飛ばされる。
+// いま見ていた施設がまだ新しい結果集合に残っているなら、その位置に留まる。
+// 残っていなければ（絞り込みで外れた等）先頭へ戻す。
+function refreshResults() {
+  const keepId = state._deckId;
+  const items = currentSearchResults();
+  const idx = keepId != null ? items.findIndex(it => it.id === keepId) : -1;
+  state.deckIndex = idx >= 0 ? idx : 0;
+  rerenderView();
+}
+
+function setView(v) {
+  state.view = v === 'list' ? 'list' : 'deck';
+  const deckOn = state.view === 'deck';
+  document.body.classList.toggle('deck-mode', deckOn && state.tab === 'search');
+  document.getElementById('view-deck').setAttribute('aria-pressed', String(deckOn));
+  document.getElementById('view-list').setAttribute('aria-pressed', String(!deckOn));
+  document.getElementById('deck').hidden = !deckOn;
+  document.querySelector('.deck-nav').hidden = !deckOn;
+  document.getElementById('search-list').hidden = deckOn;
+  // デッキは1軒に没入するための表示なので絞り込みを畳む。一覧は絞り込んで
+  // 見渡すための表示なので開く。利用者が手で開閉した状態は setView まで残る。
+  openFilterSheet(!deckOn);
+  if (deckOn) renderDeck(); else renderSearchList();
+}
+
+function deckMove(step) {
+  const items = currentSearchResults();
+  if (!items.length) return;
+  state.deckIndex = Math.max(0, Math.min(items.length - 1, state.deckIndex + step));
+  renderDeck();
+}
+
+function deckNext() { deckMove(1); }
+function deckPrev() { deckMove(-1); }
+
+function renderDeck() {
+  const el = document.getElementById('deck');
+  const items = currentSearchResults();
+  const pos = document.getElementById('deck-pos');
+  renderSearchStatus(items);      // 件数と取得失敗はデッキでも出す
+
+  if (!items.length) {
+    state.deckIndex = 0;
+    state._deckId = null;
+    pos.textContent = '';
+    const failed = failedPrefNames();
+    if (failed.length) {
+      // C2: 取得失敗が原因で0件のときに「絞り込みを見直す」を出すと、原因で
+      // ない絞り込みを直せと促してしまう（過去に同じ事故を起こしている）。
+      el.innerHTML = `<div class="empty">${escapeHtml(failed.join('・'))}のデータを読み込めませんでした。
+        ページを再読み込みしてください。</div>`;
+    } else if (state.favView) {
+      // M12: お気に入り表示は絞り込みを適用しない仕様なので、押しても何も
+      // 変わらない「絞り込みを見直す」を出さない。
+      el.innerHTML = `<div class="empty">保存した場所はまだありません。</div>`;
+    } else {
+      el.innerHTML = `<div class="empty">該当する施設はありません。
+        <button type="button" class="open-filters">絞り込みを見直す</button></div>`;
+      el.querySelector('.open-filters').addEventListener('click', () => openFilterSheet(true));
+    }
+    return;
+  }
+  state.deckIndex = Math.max(0, Math.min(items.length - 1, state.deckIndex));
+  const it = items[state.deckIndex];
+  state._deckId = it.id;
+  pos.textContent = `${state.deckIndex + 1} / ${items.length}`;
+  el.innerHTML = renderCard(it);
+  const card = el.querySelector('.card');
+  if (card) {
+    card.addEventListener('click', () => openFacility(it.id));
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFacility(it.id); }
+    });
+  }
+}
+
+const CAT_COLOR = { bath: '#2f6f9f', eat: '#c2622e', play: '#7a52b3', stay: '#2f8f68' };
+const _constCache = new Map();          // 施設ID → 星座図。高速スワイプで再計算しない
+const CONST_CACHE_MAX = 200;
+
+// 読み込み済みの県からのみ拾う。追加の取得はしない。
+// 既存の collectItems(codes) をそのまま使う（同じ処理を二度書かない）。
+function loadedItems() {
+  return collectItems(Object.keys(PREF_CACHE).map(Number));
+}
+
+// I10: 星座図は loadedItems()（= PREF_CACHE 全件）から作るので、読み込み済み
+// 県が増えると同じ施設でも点数が変わる。施設IDだけをキーにすると、隣接県が
+// 届く前に描いた1枚目が古い点数のままキャッシュされ続け、県境の施設ほど
+// 実際より孤立して見える方向に誤り続ける。読み込み済み県の一覧をキーに
+// 含めることで、県が増えるたびに自然に再計算させる。
+function constellationCacheKey(it) {
+  return it.id + '@' + Object.keys(PREF_CACHE).sort().join(',');
+}
+
+function constellationSvg(it) {
+  const key = constellationCacheKey(it);
+  if (_constCache.has(key)) return _constCache.get(key);
+  const c = core.constellation(it, loadedItems(), {});
+  const R = c.r;
+  const rings = c.rings.map(r =>
+    `<circle cx="0" cy="0" r="${r.toFixed(1)}" fill="none" stroke="#22384a" stroke-width=".7"/>`).join('');
+  const pts = c.points.map(p =>
+    `<circle class="pt${p.self ? ' self' : ''}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}"
+      r="${p.self ? 4 : 2.8}" fill="${CAT_COLOR[p.cat] || '#8fa3b2'}"/>`).join('');
+  const ring = c.points.some(p => p.self)
+    ? `<circle cx="0" cy="0" r="9" fill="none" stroke="#f5c884" stroke-width="1.4"/>` : '';
+  const svg = `<svg class="constellation" viewBox="${-R - 8} ${-R - 8} ${(R + 8) * 2} ${(R + 8) * 2}"
+    role="img" aria-label="周辺1.5kmの施設分布">${rings}${pts}${ring}</svg>`;
+
+  if (_constCache.size >= CONST_CACHE_MAX) _constCache.delete(_constCache.keys().next().value);
+  _constCache.set(key, svg);
+  return svg;
+}
+
+// I11: 半径は core.SAME_KIND_RADIUS_M に一本化。leadSentence() の文言生成
+// 側と同じ値を使うことで、片方だけ変えて文言と実際の集計範囲がずれる事故を防ぐ。
+function sameKindNearby(it) {
+  let n = 0;
+  for (const o of loadedItems()) {
+    if (o.id === it.id || o.kind !== it.kind) continue;
+    if (core.haversineM(it.lat, it.lon, o.lat, o.lon) <= core.SAME_KIND_RADIUS_M) n++;
+  }
+  return n;
+}
+
+function renderCard(it) {
+  const kindJa = KIND_JA[it.kind] || it.kind;
+  // C1: お気に入りは iso を保存しない(FAV_FIELDS参照)ので it.iso は undefined
+  // になりうる。formatIso() はその場合 null を返すので、isolated/isoText は
+  // leadSentence の他の分岐(kindJa+solo)へ自然にフォールバックする。
+  const isoText = formatIso(it.iso);
+  const isolated = isoText != null && isIsolated(it, it.iso);
+  const lead = core.leadSentence(it, {
+    kindJa,
+    catJa: CAT_JA[it.cat] || it.cat,   // iso は同カテゴリまでの距離なのでカテゴリ名を渡す
+    isolated,
+    isoText,
+    gem: isGem(it),
+    sameKindNearby: sameKindNearby(it),
+  });
+  const st = core.openState(it.oh, new Date());
+  const openTxt = st === 'open' ? '営業中' : st === 'closed' ? '営業時間外' : '営業時間不明';
+  const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
+
+  // I7: 起点が無い、あるいは距離を算出できていない（全国検索で開いた施設など）
+  // ときは、徒歩・直線距離・方角のブロックごと出さない。方角まで捏造する
+  // くらいなら空白のほうがまし。
+  const hasDist = state.origin.lat != null && Number.isFinite(it.distM);
+  const distText = it.distM >= 1000 ? `直線${(it.distM / 1000).toFixed(1)}km` : `直線${Math.round(it.distM)}m`;
+  const distBlock = hasDist ? `<div>
+          <div class="walk"><small>徒歩</small>${core.walkMinutes(it.distM)}<small>分</small></div>
+          <div class="sub">${distText} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</div>
+        </div>` : '';
+
+  return `<article class="card" data-id="${it.id}" tabindex="0">
+    ${constellationSvg(it)}
+    <div>
+      <div class="eyebrow">${escapeHtml(where)} / ${escapeHtml(kindJa)}</div>
+      <h3 class="nm">${escapeHtml(it.name)}</h3>
+    </div>
+    <div>
+      <p class="lead">${escapeHtml(lead)}</p>
+      <div class="foot">
+        ${distBlock}
+        <div class="chips" style="flex:1">
+          ${FAVS_OK() ? `<button type="button" class="fav" aria-pressed="${core.isFav(state.favs, it.id)}"
+             aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
+          <span>ひとり ${it.solo}</span><span>静けさ ${it.quiet}</span><span>入りやすさ ${it.easy}</span>
+          <span${st === 'open' ? ' class="hot"' : ''}>${openTxt}</span>
+          ${isGem(it) ? `<span class="hot">穴場 ${Math.round(it.hidden * 100)}%</span>` : ''}
+          ${isolated ? `<span class="hot">最寄り${isoText}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  </article>`;
+}
+
+// 全画面の絵をUIで埋めては意味がないので、絞り込みは既定で畳んでおく。
+// 常時表示のままだと、1軒を大きく見せるカードが画面の外へ押し出される。
+function openFilterSheet(force) {
+  const sheet = document.getElementById('filter-sheet');
+  const btn = document.getElementById('open-filters');
+  const open = force === undefined ? sheet.hidden : !!force;
+  sheet.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  if (open) sheet.scrollIntoView({ block: 'nearest' });
+}
+
+function bindDeck() {
+  document.getElementById('view-deck').addEventListener('click', () => setView('deck'));
+  document.getElementById('view-list').addEventListener('click', () => setView('list'));
+  document.getElementById('deck-next').addEventListener('click', deckNext);
+  document.getElementById('deck-prev').addEventListener('click', deckPrev);
+  document.getElementById('open-filters').addEventListener('click', () => openFilterSheet());
+  document.addEventListener('keydown', e => {
+    // I8: フォーム部品にフォーカスがあるときは奪わない。<select> や検索欄で
+    // ↑↓を押すと、値を変えたりカーソルを動かしたりするはずが、代わりに
+    // デッキが進んでしまっていた。
+    const t = e.target;
+    const tag = t && t.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+    if (state.tab !== 'search' || state.view !== 'deck') return;
+    if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); deckNext(); }
+    if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); deckPrev(); }
+  });
+}
+
 const AX_LABEL = {
   solo: ['', '', '一人でも浮かない', '一人でも浮かない', '一人が多数', '一人が標準'],
   quiet: ['', '', '声を出す場', '', '静か寄り', '会話が発生しない'],
@@ -646,13 +956,16 @@ function mapsUrl(it) {
 let _facilityOpener = null;
 
 async function openFacility(id, opener) {
-  const it = currentSearchResults().find(x => x.id === id);
+  let it = currentSearchResults().find(x => x.id === id) || FOUND_BY_SEARCH.get(id);
   if (!it) return;
   const el = document.getElementById('facility');
   const st = core.openState(it.oh, new Date());
   const hours = it.oh
     ? `${escapeHtml(it.oh)}（${st === 'open' ? '営業中' : st === 'closed' ? '営業時間外' : '解釈できない書式'}）`
     : '営業時間不明';
+  // I7: 起点が無い、あるいは距離を算出できていない（全国検索で開いた施設など）
+  // ときは「距離」行そのものを出さない。徒歩NaN分・直線NaNm・方角の捏造を防ぐ。
+  const hasDist = state.origin.lat != null && Number.isFinite(it.distM);
   const dist = it.distM >= 1000 ? `${(it.distM / 1000).toFixed(1)}km` : `${Math.round(it.distM)}m`;
 
   // 保存は時点のスナップショット。再ビルドで施設が消えていることがある。
@@ -680,11 +993,11 @@ async function openFacility(id, opener) {
     ${stale ? '<p class="stale">この施設は現在のデータに存在しません。閉店したか、地図から削除された可能性があります。</p>' : ''}
     <p class="meta">${KIND_JA[it.kind] || it.kind}${it.city ? ' · ' + escapeHtml(it.city) : ''}</p>
     <dl>
-      <dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}）</dd>
+      ${hasDist ? `<dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}）</dd>` : ''}
       <dt>ひとり度</dt><dd>${it.solo} — ${AX_LABEL.solo[it.solo]}</dd>
       <dt>静けさ</dt><dd>${it.quiet} — ${AX_LABEL.quiet[it.quiet]}</dd>
       <dt>入りやすさ</dt><dd>${it.easy} — ${AX_LABEL.easy[it.easy]}</dd>
-      ${liveIso != null ? `<dt>孤立度</dt><dd>最寄りの${KIND_JA[it.kind] || it.kind}まで ${formatIso(liveIso)}${
+      ${liveIso != null ? `<dt>孤立度</dt><dd>最寄りの${CAT_JA[it.cat] || it.cat}まで ${formatIso(liveIso)}${
         isIsolated(it, liveIso) ? '（この一帯で唯一）' : ''}</dd>` : ''}
       <dt>営業時間</dt><dd>${hours}</dd>
       ${it.tel ? `<dt>電話</dt><dd><a href="tel:${escapeHtml(it.tel)}">${escapeHtml(it.tel)}</a></dd>` : ''}
@@ -815,12 +1128,12 @@ async function runSearchFromOrigin() {
   status.textContent = `${BY_CODE[code].name} の施設を読み込んでいます…`;
 
   await loadPrefIntoCache(code);
-  renderSearchList();
+  refreshResults();
   window.__searchReady = true;
 
   const neighbors = (NEIGHBORS && NEIGHBORS[String(code)]) || [];
   for (const n of neighbors) {
-    if (await loadPrefIntoCache(n)) renderSearchList();
+    if (await loadPrefIntoCache(n)) refreshResults();
   }
 }
 
@@ -867,6 +1180,64 @@ function ensurePlaces() {
   return placesLoading;
 }
 
+let FACILITIES = null;
+let facLoading = null;
+
+// 全国インデックスは「探すためだけ」の索引。表示用の実体は県ファイルから引く。
+// 添字は生成時点の県ファイルに対応するので、updated が食い違ったら使わない。
+// 誤った施設を開くより、機能を止めるほうがよい。
+function ensureFacilities() {
+  if (FACILITIES) return Promise.resolve(FACILITIES);
+  if (facLoading) return facLoading;
+  facLoading = fetch('data/hitori/facilities.json')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(doc => {
+      FACILITIES = doc;
+      window.__facilitiesReady = true;
+      return doc;
+    })
+    .catch(err => { facLoading = null; throw err; });
+  return facLoading;
+}
+
+function facIndexMatches(doc, prefCode) {
+  const local = PREF_CACHE[prefCode];
+  return !local || local.updated === doc.updated;
+}
+
+// 読み込み済みの県が1つでも全国索引と食い違えば、索引全体を信用しない。
+// searchNationwide() と bindPlaceSearch() の自動マージ(C3)の両方が使うので
+// ここで一本化する。
+function facilitiesStale(doc) {
+  return Object.keys(PREF_CACHE).map(Number).some(c => !facIndexMatches(doc, c));
+}
+
+// Task 6 で追加した loadedItems()（= collectItems の薄い包み）を使う。
+// 同じ収集処理を二度書かない。距離は起点があるときだけ付ける。
+function localFacilities() {
+  const out = loadedItems();
+  return state.origin.lat == null
+    ? out : core.withDistance(out, state.origin.lat, state.origin.lon);
+}
+
+const FOUND_BY_SEARCH = new Map();
+
+async function openFacilityByIndex(prefCode, i) {
+  await loadPrefIntoCache(prefCode);
+  const doc = PREF_CACHE[prefCode];
+  if (!doc || !facIndexMatches(FACILITIES, prefCode)) return false;
+  const row = doc.items[i];
+  if (!row) return false;
+  const it = Object.fromEntries(doc.fields.map((f, n) => [f, row[n]]));
+  it.prefCode = prefCode;
+  if (state.origin.lat != null) {
+    it.distM = core.haversineM(state.origin.lat, state.origin.lon, it.lat, it.lon);
+  }
+  FOUND_BY_SEARCH.set(it.id, it);   // openFacility が現在の結果集合の外でも引けるように
+  openFacility(it.id);
+  return true;
+}
+
 // 種別マーカーを決める。名称にすでに種別を表す文字が含まれている場合、
 // マーカーを重ねると「別府駅駅」「渋谷区市区町村」のように冗長で読みにくくなるため付けない。
 // 駅名は「新富士駅 (北海道)」のように末尾ではなく括弧内に事業者名・都道府県名を
@@ -883,23 +1254,45 @@ function placeKindMark(p) {
   return '市区町村'.includes(last) ? '' : '市区町村';
 }
 
-function renderPlaceHits(hits) {
+function renderPlaceHits(places, facs, opts) {
   const el = document.getElementById('place-hits');
   el.hidden = false;
-  if (!hits.length) {
-    el.innerHTML = '<li class="empty">該当する駅・地名がありません</li>';
-    return;
+  const o = opts || {};
+  const parts = [];
+
+  // 見出し(.grp-place/.grp-fac)の配下に行を入れ子にする。兄弟のまま並べると
+  // 「.grp-fac li」のようなCSS子孫セレクタが一件も拾えなくなるため、
+  // ul.grp-rows で包んで実際の子孫にする（HTMLの<li>は新しい<li>で暗黙に
+  // 閉じられるため、間に<ul>を挟まないと見出しと行が兄弟として展開されてしまう）。
+  if (places.length) {
+    parts.push(`<li class="grp grp-place label">駅・地名<ul class="grp-rows">` + places.map((p, i) => `
+      <li data-kind="place" data-i="${i}" tabindex="0">${escapeHtml(p.name)}<span class="kindmark">${
+        placeKindMark(p)}・${escapeHtml(BY_CODE[p.pref].name)}</span></li>`).join('') + `</ul></li>`);
   }
-  el.innerHTML = hits.map((p, i) => {
-    const kind = placeKindMark(p);
-    const pref = escapeHtml(BY_CODE[p.pref].name);
-    // マーカーを抑制した行でも名称と県名の間に区切りが要る。区切りを
-    // マーカーと県名の間だけに置くと、マーカーが空のとき「新富士駅 (北海道)北海道」
-    // のように名称と県名が直接くっついてしまうため、区切りは常に置く。
-    const label = `${kind}・${pref}`;
-    return `<li data-i="${i}" tabindex="0">${escapeHtml(p.name)}<span class="kindmark">${label}</span></li>`;
-  }).join('');
-  el._hits = hits;
+  if (facs.length) {
+    // M13: 駅・地名側(placeKindMark)はマーカーが空でも区切りを常に置いている。
+    // 施設側だけ区切りが無く「別府ブルーバード劇場大分県」のようにくっつい
+    // ていたので、同じく先頭に「・」を置いて揃える。
+    parts.push(`<li class="grp grp-fac label">施設<ul class="grp-rows">` + facs.map((f, i) => `
+      <li data-kind="fac" data-i="${i}" tabindex="0">${escapeHtml(f.name)}<span class="kindmark">・${
+        escapeHtml(f.city || BY_CODE[f.prefCode || f.pref].name)}${
+        f.kind ? '・' + escapeHtml(KIND_JA[f.kind] || f.kind) : ''}</span></li>`).join('') + `</ul></li>`);
+  }
+  if (!parts.length) {
+    parts.push('<li class="empty">該当する駅・地名・施設がありません</li>');
+  }
+  // I4: 以前は「駅・地名も施設も0件」のときにしか出さなかったため、「別府」
+  // 「道後温泉」のようにローカルで何か1件でも当たると、全国の施設名検索へ
+  // 進む手段が無かった。索引が未取得で、入力が2文字以上あるときは常に
+  // （0件のときに限らず）末尾に出す。
+  if (o.showNationwide) {
+    parts.push(`<li class="empty"><button type="button" id="nationwide">全国の施設から探す（初回のみ約380KB）</button></li>`);
+  }
+  if (o.stale) parts.unshift('<li class="empty stale">データの更新中です。全国検索は一時的に使えません。</li>');
+
+  el.innerHTML = parts.join('');
+  el._places = places;
+  el._facs = facs;
 }
 
 function setOrigin(origin) {
@@ -919,19 +1312,87 @@ function bindPlaceSearch() {
     const text = q.value.trim();
     if (!text) { hits.hidden = true; return; }
     ensurePlaces()
-      .then(items => renderPlaceHits(core.searchPlaces(items, text)))
+      .then(items => {
+        const places = core.searchPlaces(items, text, 8);
+        const localFacs = core.searchFacilities(localFacilities(), text, 8);
+        let facs = localFacs;
+        // C3: 全国索引を一度取得すると FACILITIES が真になり、以後
+        // #nationwide ボタンの表示条件(!FACILITIES)を二度と満たさなくなる。
+        // 索引はもうメモリにあるので、以後の検索ではローカル検索と同時に
+        // 全国検索も自動で行う（追加の取得コストは無い）。誤った施設を混ぜ
+        // ないよう、県データと索引が食い違っているときは行わない。
+        if (FACILITIES && !facilitiesStale(FACILITIES)) {
+          const localKeys = new Set(localFacs.map(f => f.name + '@' + f.prefCode));
+          const nationwideFacs = FACILITIES.items
+            .map(([name, pref, i]) => ({ name, pref, i }))
+            .filter(r => r.name.includes(text) && !localKeys.has(r.name + '@' + r.pref))
+            .slice(0, 12);
+          facs = localFacs.concat(nationwideFacs).slice(0, 12);
+        }
+        // I4: 索引が未取得で、入力が2文字以上あるときは常にボタンを出す
+        // （以前は駅・地名も施設も0件のときだけだった）。
+        renderPlaceHits(places, facs, { showNationwide: !FACILITIES && text.length >= 2 });
+        const nw = document.getElementById('nationwide');
+        if (nw) nw.addEventListener('click', () => searchNationwide(text));
+      })
       .catch(() => {
         hits.hidden = false;
         hits.innerHTML = '<li class="empty">地名データを読み込めませんでした</li>';
       });
   };
 
+  async function searchNationwide(text) {
+    try {
+      const doc = await ensureFacilities();
+      // 誤った施設を開くより、機能を止めるほうがよい（facilitiesStale 参照）。
+      const stale = facilitiesStale(doc);
+      const rows = stale ? [] : doc.items
+        .map(([name, pref, i]) => ({ name, pref, i }))
+        .filter(r => r.name.includes(text))
+        .slice(0, 12);
+      renderPlaceHits([], rows, { stale });
+    } catch (e) {
+      hits.innerHTML = '<li class="empty">全国データを読み込めませんでした</li>';
+    }
+  }
+
   q.addEventListener('input', update);
   q.addEventListener('focus', () => { ensurePlaces().catch(() => {}); });
 
   const choose = el => {
-    const p = hits._hits && hits._hits[+el.dataset.i];
-    if (p) setOrigin({ kind: 'place', lat: p.lat, lon: p.lon, label: p.name });
+    const kind = el.dataset.kind;
+    const idx = +el.dataset.i;
+    if (kind === 'place') {
+      const p = hits._places[idx];
+      if (p) setOrigin({ kind: 'place', lat: p.lat, lon: p.lon, label: p.name });
+    } else if (kind === 'fac') {
+      const f = hits._facs[idx];
+      if (!f) return;
+      // 直前のクリックで出した失敗メッセージが残っていたら消す。
+      const prevFail = hits.querySelector('.open-fail');
+      if (prevFail) prevFail.remove();
+      // 施設は起点を変えずにカードを開く。ローカル検索の結果は距離フィルタ
+      // (state.search.maxDistM、既定800m)の外側にあることが多く、そのままでは
+      // currentSearchResults() から見つからない。FOUND_BY_SEARCH に登録して
+      // openFacility が現在の結果集合の外でも引けるようにする。
+      if (f.i !== undefined) {
+        // I5: openFacilityByIndex() は版ずれ・県データ取得失敗で false を
+        // 返すことがある。以前はその戻り値を見ておらず、候補が閉じるだけで
+        // 何も起きず、利用者にはクリックが効かなかったのか壊れたのか判別
+        // できなかった。開けるまで候補は閉じず、失敗したら理由を出す。
+        openFacilityByIndex(f.pref, f.i).then(ok => {
+          if (ok) { hits.hidden = true; return; }
+          const msg = document.createElement('li');
+          msg.className = 'empty stale open-fail';
+          msg.textContent = 'この施設を開けませんでした。データの更新中かもしれません。';
+          el.insertAdjacentElement('afterend', msg);
+        });
+      } else {
+        hits.hidden = true;
+        FOUND_BY_SEARCH.set(f.id, f);
+        openFacility(f.id);
+      }
+    }
   };
   hits.addEventListener('click', e => {
     const li = e.target.closest('li[data-i]');
@@ -956,30 +1417,30 @@ function bindSearchFilters() {
   for (const c of CATS) {
     document.getElementById('s-cat-' + c).addEventListener('change', e => {
       if (e.target.checked) state.search.cats.add(c); else state.search.cats.delete(c);
-      renderSearchList();
+      refreshResults();
     });
   }
   document.getElementById('f-dist').addEventListener('change', e => {
     state.search.maxDistM = e.target.value ? +e.target.value : null;
-    renderSearchList();
+    refreshResults();
   });
   document.getElementById('f-solo').addEventListener('change', e => {
-    state.search.minSolo = e.target.checked ? 5 : 0; renderSearchList();
+    state.search.minSolo = e.target.checked ? 5 : 0; refreshResults();
   });
   document.getElementById('f-quiet').addEventListener('change', e => {
-    state.search.minQuiet = e.target.checked ? 4 : 0; renderSearchList();
+    state.search.minQuiet = e.target.checked ? 4 : 0; refreshResults();
   });
   document.getElementById('f-easy').addEventListener('change', e => {
-    state.search.minEasy = e.target.checked ? 4 : 0; renderSearchList();
+    state.search.minEasy = e.target.checked ? 4 : 0; refreshResults();
   });
   document.getElementById('f-verified').addEventListener('change', e => {
-    state.search.minConf = e.target.checked ? 1 : 0; renderSearchList();
+    state.search.minConf = e.target.checked ? 1 : 0; refreshResults();
   });
   document.getElementById('f-hours').addEventListener('change', e => {
     state.search.requireHours = e.target.checked;
     document.getElementById('hours-note').textContent = e.target.checked
       ? '営業時間が登録されているのは全体の約17%です' : '';
-    renderSearchList();
+    refreshResults();
   });
 }
 
@@ -1238,10 +1699,13 @@ async function init() {
   });
   switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
   if (state.pref) openPrefecture(state.pref);
+  bindDeck();
+  setView(state.view);
   window.__ready = true;
-  // 描画テストから触るために公開する
-  Object.assign(window, { state, core, PREF_CACHE, currentSearchResults, isGem, openFacility,
-    setOrigin, ensurePlaces, SUMMARY, isIsolated });
+  // 描画テストから触るために公開する。state / PREF_CACHE / currentSearchResults /
+  // renderDeck / setView はモジュール末尾で init() 前に公開済みなのでここでは
+  // 重複させない（M16: 二重の公開はどちらが正か読めなくなる）。
+  Object.assign(window, { core, isGem, openFacility, setOrigin, ensurePlaces, SUMMARY, isIsolated });
 }
 
 // module scriptはトップレベル宣言がモジュールスコープに閉じ、window の
@@ -1249,6 +1713,13 @@ async function init() {
 window.state = state;
 window.PREF_CACHE = PREF_CACHE;
 window.visibleItems = visibleItems;
+window.FAILED_PREFS = FAILED_PREFS;
+window.currentSearchResults = currentSearchResults;
+window.renderDeck = renderDeck;
+window.refreshResults = refreshResults;
+window.setView = setView;
+window.openFilterSheet = openFilterSheet;
+window.ensureFacilities = ensureFacilities;
 
 init().catch(err => {
   // file:// で開くとブラウザが fetch をブロックする。原因が分からないと

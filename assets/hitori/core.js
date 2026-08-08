@@ -364,3 +364,102 @@ export function toggleFav(favs, item) {
   const next = cur.concat([favSnapshot(item)]);
   return next.length > FAV_MAX ? next.slice(next.length - FAV_MAX) : next;
 }
+
+// --- 紹介文の生成 ---
+// 37,193件すべてに付けるため、手書きではなくデータから決定的に生成する。
+// 3軸は業態からの推定なので「静かです」とは断定せず、「会話が発生しない」という
+// 業態の性質として書く。既存の免責文と整合させるための制約。
+
+const LEAD_MAX_CLAUSES = 2;
+
+// I11: 「半径500mに同じ◯◯が◯軒」の半径は、この文言生成側と hitori.html の
+// sameKindNearby() の実際の集計側の両方で使う。片方だけ数値リテラルを変えると
+// 文言と実際の集計範囲がずれる（過去にしきい値の二重管理で事故を起こしている）。
+export const SAME_KIND_RADIUS_M = 500;
+
+// iso は同じ「カテゴリ」（湯／飲食／娯楽／滞在）までの距離であり、同じ業態まで
+// の距離ではない（scripts/hitori/iso.py の _nearest_same_cat）。したがって
+// 孤立を語る節では業態名ではなくカテゴリ名を使う。業態名を使うと
+// 「最寄りのネットカフェまで4.6km」のような事実でない文になる。
+export function leadSentence(item, ctx) {
+  const c = ctx || {};
+  const kind = c.kindJa || item.kind;
+  const cat = c.catJa || item.cat;
+  const out = [];
+
+  // 1文目は必ず数字を伴う具体的な事実にする。軸の節（会話が発生しない等）を
+  // 2つ並べると、静か5・入りやすさ5の業態（ネットカフェ・映画館・図書館）が
+  // 全部同じ文になり、実測で全体の17%が「会話が発生しない。作法は要らない。」
+  // に潰れた。施設ごとに異なる数字を必ず1つ入れることでそれを避ける。
+  if (c.isolated && c.isoText) {
+    out.push(`最寄りの${cat}まで${c.isoText}。この一帯で唯一。`);
+  } else if (c.gem) {
+    const chains = Math.round((item.hidden || 0) * (item.hidden_n || 0));
+    out.push(`周辺${item.hidden_n}軒中${chains}軒がチェーン。その中の一軒。`);
+  } else if (c.sameKindNearby >= 3) {
+    out.push(`半径${SAME_KIND_RADIUS_M}mに同じ${kind}が${c.sameKindNearby}軒。`);
+  } else if (c.isoText) {
+    out.push(`最寄りの${cat}まで${c.isoText}。`);
+  } else {
+    out.push(`${kind}。ひとり度${item.solo}。`);
+  }
+
+  // 2文目は軸の節をひとつだけ。当たらなければ1文で終える。
+  if (item.quiet >= 5) out.push('会話が発生しない。');
+  else if (item.quiet <= 2) out.push('声を出す場。');
+  else if (item.easy <= 2) out.push('常連の作法がある。');
+  else if (item.easy >= 5) out.push('作法は要らない。');
+  else if (item.solo === 5) out.push('ひとりが標準。');
+
+  return out.slice(0, LEAD_MAX_CLAUSES).join('');
+}
+
+// --- 星座図 ---
+// 写真が1枚も無いので、周辺施設の分布そのものを絵にする。
+// 「密集」も「孤立」も同じ絵で語れ、他所から持ってこられない絵になる。
+
+const CONST_RADIUS_M = 1500;
+const CONST_R = 130;
+const CONST_MAX_POINTS = 120;   // 都心では1.5km圏に数百件あり、全部打つと黒い塊になる
+
+export function constellation(center, items, opts) {
+  const o = opts || {};
+  const radiusM = o.radiusM || CONST_RADIUS_M;
+  const R = o.r || CONST_R;
+  const maxPoints = o.maxPoints || CONST_MAX_POINTS;
+  const cos = Math.cos(center.lat * Math.PI / 180);
+
+  const pts = [];
+  for (const it of items) {
+    const dx = (it.lon - center.lon) * cos * 111320;
+    const dy = -(it.lat - center.lat) * 111320;   // SVGは下が正なので反転
+    const distM = Math.sqrt(dx * dx + dy * dy);
+    if (distM > radiusM) continue;
+    pts.push({
+      x: (dx / radiusM) * R,
+      y: (dy / radiusM) * R,
+      cat: it.cat,
+      distM,
+      self: it.id === center.id,
+    });
+  }
+  pts.sort((a, b) => a.distM - b.distM);
+  return { points: pts.slice(0, maxPoints), r: R, rings: [R / 3, (R * 2) / 3, R] };
+}
+
+// --- 施設名の照合 ---
+// 読み込み済みの県に対して使う。全国検索は別ファイルを取得したうえで
+// 同じ関数を使う（items の中身が違うだけ）。
+
+export function searchFacilities(items, query, limit = 20) {
+  const q = String(query == null ? '' : query).trim();
+  if (!q) return [];
+  const hits = items.filter(it => it.name.includes(q));
+  hits.sort((a, b) => {
+    const ae = a.name === q ? 0 : 1, be = b.name === q ? 0 : 1;
+    if (ae !== be) return ae - be;
+    if (a.name.length !== b.name.length) return a.name.length - b.name.length;
+    return (a.distM || 0) - (b.distM || 0);
+  });
+  return hits.slice(0, limit);
+}

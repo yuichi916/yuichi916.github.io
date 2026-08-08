@@ -17,6 +17,7 @@ TESTS = [
     "hitori_build_test.py",
     "hitori_mapsvg_test.py",
     "hitori_places_test.py",
+    "hitori_facilities_test.py",
     "hitori_ingest_test.py",
     "hitori_queue_test.py",
     "hitori_render_test.py",   # Playwright を使うので最後
