@@ -444,5 +444,55 @@ check('loadFavs: 壊れたJSONは空配列にフォールバック', () => {
   eq(JSON.stringify(core.loadFavs(st)), '[]');
 });
 
+const LEAD_BASE = { cat: 'bath', kind: 'sento', solo: 4, quiet: 4, easy: 3, hidden: 0.0, hidden_n: 2, iso: 400 };
+
+check('leadSentence: 孤立が最優先', () => {
+  const s = core.leadSentence(LEAD_BASE, { kindJa: '銭湯', isolated: true, isoText: '4.2km' });
+  eq(s.startsWith('最寄りの銭湯まで4.2km。この一帯で唯一。'), true, s);
+});
+
+check('leadSentence: 密集は孤立でないときだけ', () => {
+  const s = core.leadSentence(LEAD_BASE, { kindJa: '銭湯', isolated: false, sameKindNearby: 4 });
+  eq(s.startsWith('半径500mに同じ銭湯が4軒。'), true, s);
+  const t = core.leadSentence(LEAD_BASE, { kindJa: '銭湯', isolated: true, isoText: '4.2km', sameKindNearby: 4 });
+  eq(t.includes('半径500m'), false, '孤立と密集が同時に出ている: ' + t);
+});
+
+check('leadSentence: 穴場は件数を出す', () => {
+  const it = { ...LEAD_BASE, hidden: 0.83, hidden_n: 12 };
+  const s = core.leadSentence(it, { kindJa: '銭湯', gem: true });
+  eq(s.includes('周辺12軒中10軒がチェーン。'), true, s);
+});
+
+check('leadSentence: 静けさと入りやすさ', () => {
+  eq(core.leadSentence({ ...LEAD_BASE, quiet: 5 }, { kindJa: '図書館' }).includes('会話が発生しない。'), true);
+  eq(core.leadSentence({ ...LEAD_BASE, quiet: 2 }, { kindJa: '立ち飲み' }).includes('声を出す場。'), true);
+  eq(core.leadSentence({ ...LEAD_BASE, easy: 2 }, { kindJa: '角打ち' }).includes('常連の作法がある。'), true);
+  eq(core.leadSentence({ ...LEAD_BASE, easy: 5 }, { kindJa: '映画館' }).includes('作法は要らない。'), true);
+});
+
+check('leadSentence: 最大2節', () => {
+  const it = { ...LEAD_BASE, quiet: 5, easy: 5, solo: 5, hidden: 0.9, hidden_n: 10 };
+  const s = core.leadSentence(it, { kindJa: '銭湯', isolated: true, isoText: '4.2km', gem: true });
+  eq(s.split('。').filter(Boolean).length <= 3, true, '節が多すぎる: ' + s);
+  eq(s.includes('この一帯で唯一。'), true, '最優先の節が落ちている: ' + s);
+});
+
+check('leadSentence: どれにも当たらなくても空にしない', () => {
+  const it = { ...LEAD_BASE, solo: 3, quiet: 3, easy: 3, hidden: 0, hidden_n: 0 };
+  const s = core.leadSentence(it, { kindJa: 'ゲストハウス' });
+  eq(s.length > 0, true);
+  eq(s, 'ゲストハウス。ひとり度3。');
+});
+
+check('leadSentence: 断定しない語を使わない', () => {
+  // 「静かです」「空いています」のような断定は3軸が推定である以上使えない
+  const bad = ['静かです', '空いて', '必ず', 'おすすめです'];
+  for (const q of [5, 4, 2]) for (const e of [5, 3, 2]) {
+    const s = core.leadSentence({ ...LEAD_BASE, quiet: q, easy: e }, { kindJa: '銭湯' });
+    for (const b of bad) eq(s.includes(b), false, `${b} が含まれる: ${s}`);
+  }
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

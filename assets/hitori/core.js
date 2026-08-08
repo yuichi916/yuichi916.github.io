@@ -364,3 +364,35 @@ export function toggleFav(favs, item) {
   const next = cur.concat([favSnapshot(item)]);
   return next.length > FAV_MAX ? next.slice(next.length - FAV_MAX) : next;
 }
+
+// --- 紹介文の生成 ---
+// 37,193件すべてに付けるため、手書きではなくデータから決定的に生成する。
+// 3軸は業態からの推定なので「静かです」とは断定せず、「会話が発生しない」という
+// 業態の性質として書く。既存の免責文と整合させるための制約。
+
+const LEAD_MAX_CLAUSES = 2;
+
+export function leadSentence(item, ctx) {
+  const c = ctx || {};
+  const kind = c.kindJa || item.kind;
+  const out = [];
+
+  if (c.isolated && c.isoText) {
+    out.push(`最寄りの${kind}まで${c.isoText}。この一帯で唯一。`);
+  } else if (c.sameKindNearby >= 3) {
+    out.push(`半径500mに同じ${kind}が${c.sameKindNearby}軒。`);
+  }
+  if (c.gem) {
+    const chains = Math.round((item.hidden || 0) * (item.hidden_n || 0));
+    out.push(`周辺${item.hidden_n}軒中${chains}軒がチェーン。`);
+  }
+  if (item.quiet >= 5) out.push('会話が発生しない。');
+  else if (item.quiet <= 2) out.push('声を出す場。');
+  if (item.easy <= 2) out.push('常連の作法がある。');
+  else if (item.easy >= 5) out.push('作法は要らない。');
+  if (item.solo === 5) out.push('ひとりが標準。');
+
+  // 空欄を出すくらいなら素っ気ない事実のほうがまし
+  if (!out.length) return `${kind}。ひとり度${item.solo}。`;
+  return out.slice(0, LEAD_MAX_CLAUSES).join('');
+}
