@@ -104,14 +104,25 @@ img, svg, table { max-width: 100%; }
 .pin.conf-0 { fill-opacity: .35; } .pin.conf-1 { fill-opacity: .7; }
 .pin.conf-2 { stroke: #1a202c; stroke-width: .4; }
 
-#search-list { list-style: none; padding: 0; margin: .8rem 0 0; }
-#search-list .item { display: grid; grid-template-columns: 1fr auto; gap: .2rem .8rem;
-                     padding: .7rem 0; border-bottom: 1px solid var(--line); cursor: pointer; }
-#search-list .item:hover { background: rgba(127,127,127,.06); }
-#search-list .nm { font-weight: 600; }
-#search-list .meta, #search-list .dist { color: var(--muted); font-size: .82rem; }
-#search-list .dist { text-align: right; white-space: nowrap; }
-#search-list .badges { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .35rem; }
+#search-list { list-style:none; padding:0; margin:.6rem 0 0; display:grid; gap:.55rem; }
+#search-list .item { border:1px solid var(--line); border-radius:12px; padding:.55rem .7rem;
+                     cursor:pointer; }
+#search-list .item:hover, #search-list .item:focus-visible { background:rgba(127,127,127,.06); }
+#search-list .r1 { display:flex; align-items:baseline; gap:.5rem; }
+#search-list .nm { font-weight:700; font-size:1rem; flex:1; min-width:0; }
+#search-list .walk { white-space:nowrap; font-size:.75rem; color:var(--muted); }
+#search-list .walk b { font-size:1.2rem; color:var(--fg); }
+#search-list .r2 { color:var(--muted); font-size:.76rem; margin-top:.1rem; }
+#search-list .lead { font-size:.78rem; margin:.3rem 0 0; line-height:1.5; }
+/* 3軸は数字だけだと何段階中いくつか分からない。目盛りと言葉を必ず添える。 */
+#search-list .axes { list-style:none; padding:0; margin:.35rem 0 0; display:grid; gap:.14rem; }
+#search-list .axes li { display:grid; grid-template-columns:5.4em auto 1fr;
+                        align-items:center; gap:.5rem; font-size:.76rem; }
+#search-list .ax-k { color:var(--muted); }
+#search-list .dots { display:flex; gap:2px; }
+#search-list .dot { width:7px; height:7px; border-radius:50%; background:rgba(127,127,127,.3); }
+#search-list .dot.on { background:var(--accent); }
+#search-list .badges { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.4rem; align-items:center; }
 .viewbar { display:flex; gap:.5rem; margin:.6rem 0; flex-wrap:wrap; }
 .viewbar button { background:none; border:1px solid var(--line); border-radius:999px;
                   color:var(--fg); cursor:pointer; font:inherit; font-size:.82rem;
@@ -201,8 +212,8 @@ img, svg, table { max-width: 100%; }
   #detail .items { max-height: none; overflow-y: visible; }
 }
 
-/* 1軒を大きく見せるのが「探す」の主目的なので、そこではページ見出しを畳む。
-   見出しと説明文だけで画面の3割を使うと、カードが画面の外へ押し出される。 */
+/* 「探す」は道具なので、そこではページ見出しを畳む。見出しと説明文だけで
+   画面の3割を使うと、見比べたい施設が画面の外へ押し出される。 */
 body.deck-mode header { margin-bottom:.2rem; }
 body.deck-mode header h1 { font-size:1.05rem; margin:0; }
 body.deck-mode header .lede { display:none; }
@@ -235,8 +246,8 @@ body.deck-mode .origin-bar { margin-bottom:.2rem; }
         <button type="button" id="origin-reset" hidden>現在地に戻す</button></p>
     </div>
     <div class="viewbar">
-      <button type="button" id="view-deck" aria-pressed="true">1軒ずつ</button>
-      <button type="button" id="view-list" aria-pressed="false">一覧</button>
+      <button type="button" id="view-list" aria-pressed="true">一覧</button>
+      <button type="button" id="view-deck" aria-pressed="false">1軒ずつ</button>
       <button type="button" id="open-filters" aria-expanded="false" aria-controls="filter-sheet">絞り込み</button>
       <button type="button" id="fav-toggle" aria-label="保存した場所" hidden>★ <span id="fav-count">0</span></button>
     </div>
@@ -373,7 +384,7 @@ const state = {
   origin: { kind: 'here', lat: null, lon: null, label: '現在地' },
   search: { cats: new Set(CATS), maxDistM: 800, minSolo: 0, minQuiet: 0, minEasy: 0,
             minConf: 0, requireHours: false },
-  view: 'deck', deckIndex: 0,
+  view: 'list', deckIndex: 0,
   _deckId: null,   // 直近にデッキへ表示した施設のID。refreshResults() が位置を保つのに使う (I9)
 };
 state.sort = 'dist';
@@ -458,7 +469,7 @@ function switchTab(name) {
   // 入らないままなので locateAndSearch() が走らず #search-list が空のまま
   // 固まる。探すタブに初めて入った瞬間に一度だけ起動する。
   // 「全国で見る」ではページ見出しを畳まない（デッキが無いので圧縮の理由がない）
-  document.body.classList.toggle('deck-mode', state.tab === 'search' && state.view === 'deck');
+  document.body.classList.toggle('deck-mode', state.tab === 'search');
   if (state.tab === 'search') ensureSearchStarted();
   syncUrl();
 }
@@ -703,22 +714,25 @@ function renderSearchList() {
       : '<span class="badge-ax">営業時間不明</span>';
     const m = core.walkMinutes(it.distM);
     const dist = it.distM >= 1000 ? `直線${(it.distM / 1000).toFixed(1)}km` : `直線${Math.round(it.distM)}m`;
+    const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
     return `<li class="item" data-id="${it.id}" data-dist="${Math.round(it.distM)}"
               data-quiet="${it.quiet}" data-solo="${it.solo}" tabindex="0">
-      <span class="nm">${escapeHtml(it.name)}</span>
-      <span class="dist">徒歩${m}分<br><small>${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</small></span>
-      <span class="meta">${KIND_JA[it.kind] || it.kind}</span>
-      <span class="badges">
-        ${FAVS_OK() ? `<button type="button" class="fav" aria-pressed="${core.isFav(state.favs, it.id)}"
-           aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
-        <span class="badge-ax">ひとり度${it.solo}</span>
-        <span class="badge-ax">静けさ${it.quiet}</span>
-        <span class="badge-ax">入りやすさ${it.easy}</span>
+      <div class="r1">
+        <span class="nm">${escapeHtml(it.name)}</span>
+        <span class="walk">徒歩<b>${m}</b>分</span>
+      </div>
+      <div class="r2">${escapeHtml(KIND_JA[it.kind] || it.kind)}${where ? ' ・ ' + escapeHtml(where) : ''}
+        ・ ${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</div>
+      <p class="lead">${escapeHtml(core.leadFact(it, leadCtx(it)))}</p>
+      ${axesRows(it)}
+      <div class="badges">
         ${openBadge}
         ${it.chain ? '<span class="badge-ax">チェーン</span>' : ''}
         ${isGem(it) ? `<span class="badge-ax badge-gem">穴場 ${Math.round(it.hidden * 100)}%</span>` : ''}
         ${isIsolated(it) ? `<span class="badge-ax badge-iso">最寄り${formatIso(it.iso)}</span>` : ''}
-      </span>
+        ${FAVS_OK() ? `<button type="button" class="fav" aria-pressed="${core.isFav(state.favs, it.id)}"
+           aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
+      </div>
     </li>`;
   }).join('');
 }
@@ -743,15 +757,15 @@ function refreshResults() {
 function setView(v) {
   state.view = v === 'list' ? 'list' : 'deck';
   const deckOn = state.view === 'deck';
-  document.body.classList.toggle('deck-mode', deckOn && state.tab === 'search');
+  document.body.classList.toggle('deck-mode', state.tab === 'search');
   document.getElementById('view-deck').setAttribute('aria-pressed', String(deckOn));
   document.getElementById('view-list').setAttribute('aria-pressed', String(!deckOn));
   document.getElementById('deck').hidden = !deckOn;
   document.querySelector('.deck-nav').hidden = !deckOn;
   document.getElementById('search-list').hidden = deckOn;
-  // デッキは1軒に没入するための表示なので絞り込みを畳む。一覧は絞り込んで
-  // 見渡すための表示なので開く。利用者が手で開閉した状態は setView まで残る。
-  openFilterSheet(!deckOn);
+  // 絞り込みは表示に関わらず既定で畳んでおく。一覧で開いたままにすると
+  // 画面が絞り込みUIで埋まり、施設が1枚しか見えなくなる（複数を見比べたい
+  // という一覧の目的そのものを潰す）。開閉は利用者の操作に任せる。
   if (deckOn) renderDeck(); else renderSearchList();
 }
 
@@ -856,21 +870,43 @@ function sameKindNearby(it) {
   return n;
 }
 
-function renderCard(it) {
-  const kindJa = KIND_JA[it.kind] || it.kind;
-  // C1: お気に入りは iso を保存しない(FAV_FIELDS参照)ので it.iso は undefined
-  // になりうる。formatIso() はその場合 null を返すので、isolated/isoText は
-  // leadSentence の他の分岐(kindJa+solo)へ自然にフォールバックする。
+// 紹介文は一覧とデッキで同じものを出す。組み立てを1か所に置くことで、
+// お気に入りの iso 欠落（FAV_FIELDS に iso が無い）への対処も片方だけに
+// 入るという事故を防ぐ。
+function leadCtx(it) {
+  // お気に入りは iso を保存しないので it.iso は undefined になりうる。
+  // formatIso() はその場合 null を返し、leadSentence は他の分岐へ落ちる。
   const isoText = formatIso(it.iso);
-  const isolated = isoText != null && isIsolated(it, it.iso);
-  const lead = core.leadSentence(it, {
-    kindJa,
+  return {
+    kindJa: KIND_JA[it.kind] || it.kind,
     catJa: CAT_JA[it.cat] || it.cat,   // iso は同カテゴリまでの距離なのでカテゴリ名を渡す
-    isolated,
+    isolated: isoText != null && isIsolated(it, it.iso),
     isoText,
     gem: isGem(it),
     sameKindNearby: sameKindNearby(it),
-  });
+  };
+}
+
+// 3軸は数字だけだと何段階中いくつか分からない。目盛りと言葉を必ず添える。
+const AX_ROWS = [['solo', 'ひとり度'], ['quiet', '静けさ'], ['easy', '入りやすさ']];
+
+function axesRows(it) {
+  const rows = AX_ROWS.map(([k, label]) => {
+    const v = it[k];
+    let dots = '';
+    for (let i = 1; i <= 5; i++) dots += `<span class="dot${i <= v ? ' on' : ''}"></span>`;
+    const word = (AX_LABEL[k] && AX_LABEL[k][v]) || '';
+    return `<li><span class="ax-k">${label}</span><span class="dots"
+      role="img" aria-label="5段階中${v}">${dots}</span><span class="ax-w">${escapeHtml(word)}</span></li>`;
+  }).join('');
+  return `<ul class="axes">${rows}</ul>`;
+}
+
+function renderCard(it) {
+  const kindJa = KIND_JA[it.kind] || it.kind;
+  const isoText = formatIso(it.iso);
+  const isolated = isoText != null && isIsolated(it, it.iso);
+  const lead = core.leadSentence(it, leadCtx(it));
   const st = core.openState(it.oh, new Date());
   const openTxt = st === 'open' ? '営業中' : st === 'closed' ? '営業時間外' : '営業時間不明';
   const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
@@ -940,7 +976,7 @@ function bindDeck() {
 
 const AX_LABEL = {
   solo: ['', '', '一人でも浮かない', '一人でも浮かない', '一人が多数', '一人が標準'],
-  quiet: ['', '', '声を出す場', '', '静か寄り', '会話が発生しない'],
+  quiet: ['', '', '声を出す場', '静かでも騒がしくもない', '静か寄り', '会話が発生しない'],
   easy: ['', '', '常連文化・暗黙の作法', '軽い作法あり', 'ほぼ作法不要', '作法不要'],
 };
 

@@ -376,42 +376,47 @@ const LEAD_MAX_CLAUSES = 2;
 // sameKindNearby() の実際の集計側の両方で使う。片方だけ数値リテラルを変えると
 // 文言と実際の集計範囲がずれる（過去にしきい値の二重管理で事故を起こしている）。
 export const SAME_KIND_RADIUS_M = 500;
+// 「密集している」と言うのに必要な同業態の件数（自分を除く）
+export const SAME_KIND_MIN = 3;
 
 // iso は同じ「カテゴリ」（湯／飲食／娯楽／滞在）までの距離であり、同じ業態まで
 // の距離ではない（scripts/hitori/iso.py の _nearest_same_cat）。したがって
 // 孤立を語る節では業態名ではなくカテゴリ名を使う。業態名を使うと
 // 「最寄りのネットカフェまで4.6km」のような事実でない文になる。
-export function leadSentence(item, ctx) {
+// 1文目は必ず数字を伴う具体的な事実にする。軸の節（会話が発生しない等）を
+// 2つ並べると、静か5・入りやすさ5の業態（ネットカフェ・映画館・図書館）が
+// 全部同じ文になり、実測で全体の17%が「会話が発生しない。作法は要らない。」
+// に潰れた。施設ごとに異なる数字を必ず1つ入れることでそれを避ける。
+export function leadFact(item, ctx) {
   const c = ctx || {};
   const kind = c.kindJa || item.kind;
   const cat = c.catJa || item.cat;
-  const out = [];
-
-  // 1文目は必ず数字を伴う具体的な事実にする。軸の節（会話が発生しない等）を
-  // 2つ並べると、静か5・入りやすさ5の業態（ネットカフェ・映画館・図書館）が
-  // 全部同じ文になり、実測で全体の17%が「会話が発生しない。作法は要らない。」
-  // に潰れた。施設ごとに異なる数字を必ず1つ入れることでそれを避ける。
-  if (c.isolated && c.isoText) {
-    out.push(`最寄りの${cat}まで${c.isoText}。この一帯で唯一。`);
-  } else if (c.gem) {
+  if (c.isolated && c.isoText) return `最寄りの${cat}まで${c.isoText}。この一帯で唯一。`;
+  if (c.gem) {
     const chains = Math.round((item.hidden || 0) * (item.hidden_n || 0));
-    out.push(`周辺${item.hidden_n}軒中${chains}軒がチェーン。その中の一軒。`);
-  } else if (c.sameKindNearby >= 3) {
-    out.push(`半径${SAME_KIND_RADIUS_M}mに同じ${kind}が${c.sameKindNearby}軒。`);
-  } else if (c.isoText) {
-    out.push(`最寄りの${cat}まで${c.isoText}。`);
-  } else {
-    out.push(`${kind}。ひとり度${item.solo}。`);
+    return `周辺${item.hidden_n}軒中${chains}軒がチェーン。その中の一軒。`;
   }
+  if (c.sameKindNearby >= SAME_KIND_MIN) {
+    return `半径${SAME_KIND_RADIUS_M}mに同じ${kind}が${c.sameKindNearby}軒。`;
+  }
+  if (c.isoText) return `最寄りの${cat}まで${c.isoText}。`;
+  return `${kind}。ひとり度${item.solo}。`;
+}
 
-  // 2文目は軸の節をひとつだけ。当たらなければ1文で終える。
-  if (item.quiet >= 5) out.push('会話が発生しない。');
-  else if (item.quiet <= 2) out.push('声を出す場。');
-  else if (item.easy <= 2) out.push('常連の作法がある。');
-  else if (item.easy >= 5) out.push('作法は要らない。');
-  else if (item.solo === 5) out.push('ひとりが標準。');
+// 軸の節はひとつだけ。当たらなければ空文字。
+// 一覧のように3軸を言葉で別途出す画面では、これを足すと同じことを二度言う
+// ことになるので leadFact() だけを使う。
+export function leadAxis(item) {
+  if (item.quiet >= 5) return '会話が発生しない。';
+  if (item.quiet <= 2) return '声を出す場。';
+  if (item.easy <= 2) return '常連の作法がある。';
+  if (item.easy >= 5) return '作法は要らない。';
+  if (item.solo === 5) return 'ひとりが標準。';
+  return '';
+}
 
-  return out.slice(0, LEAD_MAX_CLAUSES).join('');
+export function leadSentence(item, ctx) {
+  return leadFact(item, ctx) + leadAxis(item);
 }
 
 // --- 星座図 ---

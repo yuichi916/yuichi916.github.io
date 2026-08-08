@@ -619,5 +619,32 @@ check('searchFacilities: 入力を破壊しない', () => {
   eq(FAC.map(x => x.id).join(''), before);
 });
 
+check('leadFact / leadAxis: 合成すると leadSentence と一致する', () => {
+  const it = { ...LEAD_BASE, quiet: 5, easy: 5, solo: 5 };
+  const ctx = { kindJa: '銭湯', catJa: '湯・サウナ', isolated: true, isoText: '4.2km' };
+  eq(core.leadFact(it, ctx) + core.leadAxis(it), core.leadSentence(it, ctx));
+});
+
+check('leadFact: 軸の言い回しを含まない', () => {
+  // 一覧は3軸を言葉で別途出すので、事実だけを返せないと同じことを二度言う
+  const axisWords = ['会話が発生しない', '声を出す場', '常連の作法がある', '作法は要らない', 'ひとりが標準'];
+  for (const q of [5, 3, 2]) for (const e of [5, 3, 2]) for (const so of [5, 4, 3]) {
+    const f = core.leadFact({ ...LEAD_BASE, quiet: q, easy: e, solo: so },
+                            { kindJa: '銭湯', catJa: '湯・サウナ', isoText: '340m' });
+    for (const w of axisWords) eq(f.includes(w), false, `${w} が事実の節に混ざっている: ${f}`);
+  }
+});
+
+check('leadAxis: 該当しなければ空文字', () => {
+  eq(core.leadAxis({ ...LEAD_BASE, quiet: 3, easy: 3, solo: 3 }), '');
+});
+
+check('半径のリテラルが二重に存在しない', () => {
+  eq(core.SAME_KIND_RADIUS_M, 500);
+  eq(core.SAME_KIND_MIN, 3);
+  const f = core.leadFact(LEAD_BASE, { kindJa: '銭湯', catJa: '湯・サウナ', sameKindNearby: core.SAME_KIND_MIN });
+  eq(f.includes(`半径${core.SAME_KIND_RADIUS_M}m`), true, f);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

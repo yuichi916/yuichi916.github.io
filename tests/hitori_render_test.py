@@ -309,14 +309,60 @@ def test_search_with_location(context, page):
     assert 13 in page.evaluate("Object.keys(PREF_CACHE).map(Number)")
 
 
-def test_deck_is_default_and_swipes(context, page):
+def test_list_is_default_and_shows_several(context, page):
+    """既定は一覧。複数の施設を見比べられることが「探す」の目的なので、
+    1枚しか見えない状態（絞り込みUIで埋まる等）を回帰として禁じる。"""
     context.grant_permissions(["geolocation"])
     context.set_geolocation(TOKYO)
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
 
-    assert p.evaluate("state.view") == "deck"
+    assert p.evaluate("state.view") == "list"
+    p.wait_for_selector("#search-list .item", timeout=20000)
+    assert p.eval_on_selector("#filter-sheet", "e => e.hidden") is True, "絞り込みが開いたまま"
+    visible = p.eval_on_selector_all(
+        "#search-list .item",
+        "els => els.filter(e => { const r = e.getBoundingClientRect();"
+        " return r.top < window.innerHeight && r.bottom > 0; }).length")
+    assert visible >= 2, f"画面内に{visible}枚しか見えない"
+    p.close()
+
+
+def test_list_card_shows_characteristics(context, page):
+    """3軸は数字だけでは何段階中いくつか分からない。目盛りと言葉を必ず添える。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=20000)
+
+    first = p.eval_on_selector("#search-list .item", "e => e.innerText")
+    for label in ("ひとり度", "静けさ", "入りやすさ", "徒歩"):
+        assert label in first, f"{label} が出ていない: {first}"
+    assert p.eval_on_selector_all("#search-list .item:first-child .axes .dot", "e => e.length") == 15
+    assert p.eval_on_selector_all("#search-list .item:first-child .axes .dot.on", "e => e.length") > 0
+    # 軸の言葉が空でない（quiet=3 のラベルが空欄だった不具合の回帰）
+    words = p.eval_on_selector_all("#search-list .item .ax-w", "els => els.map(e => e.textContent.trim())")
+    assert all(words), f"軸の言葉が空の行がある: {words[:12]}"
+    # 紹介文と軸の行が同じことを二度言わない
+    axis_phrases = ["会話が発生しない", "声を出す場", "常連の作法がある", "作法は要らない", "ひとりが標準"]
+    leads = p.eval_on_selector_all("#search-list .lead", "els => els.map(e => e.textContent)")
+    for lead in leads:
+        for ph in axis_phrases:
+            assert ph not in lead, f"軸の言い回しが紹介文に混ざっている: {lead}"
+    p.close()
+
+
+def test_deck_swipes(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=20000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
     first = p.eval_on_selector("#deck .card", "e => e.dataset.id")
 
@@ -338,6 +384,7 @@ def test_deck_and_list_share_results(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
 
     p.evaluate("state.sort = 'find'; renderDeck()")
     deck_ids = p.evaluate("currentSearchResults().slice(0,5).map(x => x.id)")
@@ -359,6 +406,7 @@ def test_deck_empty_state(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     # 絶対に0件になる条件
     p.evaluate("state.search.maxDistM = 1; renderDeck()")
     p.wait_for_selector("#deck .empty", timeout=10000)
@@ -374,6 +422,7 @@ def test_search_distance_filter(context, page):
     page.goto(BASE)
     page.wait_for_function("window.__searchReady === true", timeout=30000)
     page.click("#view-list")
+    page.click("#open-filters")
     before = page.eval_on_selector_all("#search-list li.item", "els => els.length")
     page.select_option("#f-dist", "400")
     page.wait_for_timeout(400)
@@ -389,6 +438,7 @@ def test_search_quiet_filter(context, page):
     page.goto(BASE)
     page.wait_for_function("window.__searchReady === true", timeout=30000)
     page.click("#view-list")
+    page.click("#open-filters")
     page.check("#f-quiet")
     page.wait_for_timeout(400)
     quiets = page.eval_on_selector_all("#search-list li.item", "els => els.map(e => +e.dataset.quiet)")
@@ -759,6 +809,7 @@ def test_sort_changes_order(context, page):
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
     p.click("#view-list")
+    p.click("#open-filters")
     first = p.eval_on_selector("#search-list li.item", "e => e.dataset.id")
 
     p.select_option("#f-sort", "solo")
@@ -954,6 +1005,7 @@ def test_deck_shows_status_and_load_failure(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
 
     assert p.evaluate("state.view") == "deck"
@@ -979,6 +1031,7 @@ def test_card_has_constellation_and_lead(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
 
     # 星座図が描かれ、点が打たれている
@@ -1005,6 +1058,7 @@ def test_card_lead_varies_between_facilities(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
 
     leads = []
@@ -1023,6 +1077,7 @@ def test_card_star_saves_without_jumping(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
     p.click("#deck-next")
     p.wait_for_timeout(300)
@@ -1044,6 +1099,7 @@ def test_card_opens_detail_sheet(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
     p.click("#deck .card")
     p.wait_for_selector("#facility dl", timeout=15000)
@@ -1140,6 +1196,7 @@ def test_deck_favorite_card_has_no_undefined_distance(context, page):
     p.add_init_script("localStorage.removeItem('hitori.favs');")
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.evaluate("""
       () => {
         state.favs = currentSearchResults().slice(0, 30).map(core.favSnapshot);
@@ -1169,6 +1226,7 @@ def test_deck_shows_prefecture_fetch_failure_not_dead_widen(context, page):
     p.route("**/data/hitori/pref/*.json", lambda route: route.abort())
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_timeout(500)
     deck_text = p.inner_text("#deck")
     assert "読み込めませんでした" in deck_text, deck_text
@@ -1185,6 +1243,7 @@ def test_deck_empty_favorites_has_no_dead_widen_button(context, page):
     p.add_init_script("localStorage.removeItem('hitori.favs');")
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
     p.click("#fav-toggle")
     p.wait_for_timeout(300)
@@ -1301,6 +1360,7 @@ def test_deck_nav_hidden_in_list_view(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
     p.click("#view-list")
     p.wait_for_timeout(300)
@@ -1345,6 +1405,7 @@ def test_deck_keydown_ignores_form_focus(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
     p.click("#open-filters")
     p.focus("#f-sort")
@@ -1362,6 +1423,7 @@ def test_deck_keydown_ignores_form_focus(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
     p.focus("#place-q")
     p.keyboard.type("abc")
@@ -1384,6 +1446,7 @@ def test_refresh_results_keeps_viewed_facility(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
     p.click("#deck-next")
     p.click("#deck-next")
@@ -1413,6 +1476,7 @@ def test_constellation_cache_invalidated_by_pref_cache_growth(context, page):
     p.route("**/data/hitori/pref/14.json", lambda route: route.abort())
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-deck")
     p.wait_for_selector("#deck .card", timeout=15000)
     pts_before = p.eval_on_selector_all("#deck .card svg.constellation circle.pt", "els => els.length")
 
@@ -1493,7 +1557,9 @@ def main():
             test_favorite_detail_shows_real_iso_not_undefined(context, page)
             test_favorites_empty_view_has_no_dead_widen_button(context, page)
             test_favorites_disabled_when_storage_blocked(context, page)
-            test_deck_is_default_and_swipes(context, page)
+            test_list_is_default_and_shows_several(context, page)
+            test_list_card_shows_characteristics(context, page)
+            test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)
             test_deck_shows_status_and_load_failure(context, page)
