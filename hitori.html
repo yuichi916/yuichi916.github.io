@@ -40,6 +40,12 @@ h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
 #place-hits li:hover, #place-hits li:focus { background: rgba(127,127,127,.1); outline: none; }
 #place-hits .kindmark { color: var(--muted); font-size: .78rem; margin-left: .4rem; }
 #place-hits .empty { padding: .6rem .8rem; color: var(--muted); }
+#place-hits li.label { padding: .3rem .8rem; font-size: .72rem; color: var(--muted);
+                        background: rgba(127,127,127,.06); cursor: default; }
+#place-hits li.label .grp-rows { list-style: none; margin: 0; padding: 0; }
+#place-hits li.stale { color: #c05621; }
+#nationwide { background: none; border: 1px solid var(--line); border-radius: 8px;
+              color: var(--accent); cursor: pointer; font: inherit; padding: .4rem .7rem; }
 .origin { margin: .5rem 0 0; color: var(--muted); font-size: .88rem; }
 .origin strong { color: var(--fg); }
 #origin-reset { background: none; border: 1px solid var(--line); border-radius: 999px;
@@ -884,7 +890,7 @@ function mapsUrl(it) {
 let _facilityOpener = null;
 
 async function openFacility(id, opener) {
-  const it = currentSearchResults().find(x => x.id === id);
+  let it = currentSearchResults().find(x => x.id === id) || FOUND_BY_SEARCH.get(id);
   if (!it) return;
   const el = document.getElementById('facility');
   const st = core.openState(it.oh, new Date());
@@ -1105,6 +1111,57 @@ function ensurePlaces() {
   return placesLoading;
 }
 
+let FACILITIES = null;
+let facLoading = null;
+
+// 全国インデックスは「探すためだけ」の索引。表示用の実体は県ファイルから引く。
+// 添字は生成時点の県ファイルに対応するので、updated が食い違ったら使わない。
+// 誤った施設を開くより、機能を止めるほうがよい。
+function ensureFacilities() {
+  if (FACILITIES) return Promise.resolve(FACILITIES);
+  if (facLoading) return facLoading;
+  facLoading = fetch('data/hitori/facilities.json')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(doc => {
+      FACILITIES = doc;
+      window.__facilitiesReady = true;
+      return doc;
+    })
+    .catch(err => { facLoading = null; throw err; });
+  return facLoading;
+}
+
+function facIndexMatches(doc, prefCode) {
+  const local = PREF_CACHE[prefCode];
+  return !local || local.updated === doc.updated;
+}
+
+// Task 6 で追加した loadedItems()（= collectItems の薄い包み）を使う。
+// 同じ収集処理を二度書かない。距離は起点があるときだけ付ける。
+function localFacilities() {
+  const out = loadedItems();
+  return state.origin.lat == null
+    ? out : core.withDistance(out, state.origin.lat, state.origin.lon);
+}
+
+const FOUND_BY_SEARCH = new Map();
+
+async function openFacilityByIndex(prefCode, i) {
+  await loadPrefIntoCache(prefCode);
+  const doc = PREF_CACHE[prefCode];
+  if (!doc || !facIndexMatches(FACILITIES, prefCode)) return false;
+  const row = doc.items[i];
+  if (!row) return false;
+  const it = Object.fromEntries(doc.fields.map((f, n) => [f, row[n]]));
+  it.prefCode = prefCode;
+  if (state.origin.lat != null) {
+    it.distM = core.haversineM(state.origin.lat, state.origin.lon, it.lat, it.lon);
+  }
+  FOUND_BY_SEARCH.set(it.id, it);   // openFacility が現在の結果集合の外でも引けるように
+  openFacility(it.id);
+  return true;
+}
+
 // 種別マーカーを決める。名称にすでに種別を表す文字が含まれている場合、
 // マーカーを重ねると「別府駅駅」「渋谷区市区町村」のように冗長で読みにくくなるため付けない。
 // 駅名は「新富士駅 (北海道)」のように末尾ではなく括弧内に事業者名・都道府県名を
@@ -1121,23 +1178,38 @@ function placeKindMark(p) {
   return '市区町村'.includes(last) ? '' : '市区町村';
 }
 
-function renderPlaceHits(hits) {
+function renderPlaceHits(places, facs, opts) {
   const el = document.getElementById('place-hits');
   el.hidden = false;
-  if (!hits.length) {
-    el.innerHTML = '<li class="empty">該当する駅・地名がありません</li>';
-    return;
+  const o = opts || {};
+  const parts = [];
+
+  // 見出し(.grp-place/.grp-fac)の配下に行を入れ子にする。兄弟のまま並べると
+  // 「.grp-fac li」のようなCSS子孫セレクタが一件も拾えなくなるため、
+  // ul.grp-rows で包んで実際の子孫にする（HTMLの<li>は新しい<li>で暗黙に
+  // 閉じられるため、間に<ul>を挟まないと見出しと行が兄弟として展開されてしまう）。
+  if (places.length) {
+    parts.push(`<li class="grp grp-place label">駅・地名<ul class="grp-rows">` + places.map((p, i) => `
+      <li data-kind="place" data-i="${i}" tabindex="0">${escapeHtml(p.name)}<span class="kindmark">${
+        placeKindMark(p)}・${escapeHtml(BY_CODE[p.pref].name)}</span></li>`).join('') + `</ul></li>`);
   }
-  el.innerHTML = hits.map((p, i) => {
-    const kind = placeKindMark(p);
-    const pref = escapeHtml(BY_CODE[p.pref].name);
-    // マーカーを抑制した行でも名称と県名の間に区切りが要る。区切りを
-    // マーカーと県名の間だけに置くと、マーカーが空のとき「新富士駅 (北海道)北海道」
-    // のように名称と県名が直接くっついてしまうため、区切りは常に置く。
-    const label = `${kind}・${pref}`;
-    return `<li data-i="${i}" tabindex="0">${escapeHtml(p.name)}<span class="kindmark">${label}</span></li>`;
-  }).join('');
-  el._hits = hits;
+  if (facs.length) {
+    parts.push(`<li class="grp grp-fac label">施設<ul class="grp-rows">` + facs.map((f, i) => `
+      <li data-kind="fac" data-i="${i}" tabindex="0">${escapeHtml(f.name)}<span class="kindmark">${
+        escapeHtml(f.city || BY_CODE[f.prefCode || f.pref].name)}${
+        f.kind ? '・' + escapeHtml(KIND_JA[f.kind] || f.kind) : ''}</span></li>`).join('') + `</ul></li>`);
+  }
+  if (!parts.length) {
+    parts.push('<li class="empty">該当する駅・地名・施設がありません</li>');
+    if (!FACILITIES) {
+      parts.push(`<li class="empty"><button type="button" id="nationwide">全国の施設から探す（初回のみ約380KB）</button></li>`);
+    }
+  }
+  if (o.stale) parts.unshift('<li class="empty stale">データの更新中です。全国検索は一時的に使えません。</li>');
+
+  el.innerHTML = parts.join('');
+  el._places = places;
+  el._facs = facs;
 }
 
 function setOrigin(origin) {
@@ -1157,19 +1229,57 @@ function bindPlaceSearch() {
     const text = q.value.trim();
     if (!text) { hits.hidden = true; return; }
     ensurePlaces()
-      .then(items => renderPlaceHits(core.searchPlaces(items, text)))
+      .then(items => {
+        const places = core.searchPlaces(items, text, 8);
+        const facs = core.searchFacilities(localFacilities(), text, 8);
+        renderPlaceHits(places, facs, {});
+        const nw = document.getElementById('nationwide');
+        if (nw) nw.addEventListener('click', () => searchNationwide(text));
+      })
       .catch(() => {
         hits.hidden = false;
         hits.innerHTML = '<li class="empty">地名データを読み込めませんでした</li>';
       });
   };
 
+  async function searchNationwide(text) {
+    try {
+      const doc = await ensureFacilities();
+      // facilities.json は1ファイル1個の updated しか持たない（行ごとではない）。
+      // 読み込み済みの県が1つでもこれと食い違えば、その1件が偶然古いのではなく
+      // 索引全体が今のビルドと揃っていない徴候なので、対象行の有無に関わらず
+      // 索引全体を信用しない。誤った施設を開くより、機能を止めるほうがよい。
+      const stale = Object.keys(PREF_CACHE).map(Number).some(c => !facIndexMatches(doc, c));
+      const rows = stale ? [] : doc.items
+        .map(([name, pref, i]) => ({ name, pref, i }))
+        .filter(r => r.name.includes(text))
+        .slice(0, 12);
+      renderPlaceHits([], rows, { stale });
+    } catch (e) {
+      hits.innerHTML = '<li class="empty">全国データを読み込めませんでした</li>';
+    }
+  }
+
   q.addEventListener('input', update);
   q.addEventListener('focus', () => { ensurePlaces().catch(() => {}); });
 
   const choose = el => {
-    const p = hits._hits && hits._hits[+el.dataset.i];
-    if (p) setOrigin({ kind: 'place', lat: p.lat, lon: p.lon, label: p.name });
+    const kind = el.dataset.kind;
+    const idx = +el.dataset.i;
+    if (kind === 'place') {
+      const p = hits._places[idx];
+      if (p) setOrigin({ kind: 'place', lat: p.lat, lon: p.lon, label: p.name });
+    } else if (kind === 'fac') {
+      const f = hits._facs[idx];
+      if (!f) return;
+      hits.hidden = true;
+      // 施設は起点を変えずにカードを開く。ローカル検索の結果は距離フィルタ
+      // (state.search.maxDistM、既定800m)の外側にあることが多く、そのままでは
+      // currentSearchResults() から見つからない。FOUND_BY_SEARCH に登録して
+      // openFacility が現在の結果集合の外でも引けるようにする。
+      if (f.i !== undefined) openFacilityByIndex(f.pref, f.i);
+      else { FOUND_BY_SEARCH.set(f.id, f); openFacility(f.id); }
+    }
   };
   hits.addEventListener('click', e => {
     const li = e.target.closest('li[data-i]');
@@ -1495,6 +1605,7 @@ window.renderDeck = renderDeck;
 window.refreshResults = refreshResults;
 window.setView = setView;
 window.openFilterSheet = openFilterSheet;
+window.ensureFacilities = ensureFacilities;
 
 init().catch(err => {
   // file:// で開くとブラウザが fetch をブロックする。原因が分からないと

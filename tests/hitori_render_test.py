@@ -636,7 +636,7 @@ def test_place_search_without_location(context, page):
     # 同名の取り違えを防ぐため県名が併記されている
     assert any("東京都" in h for h in hits), hits
 
-    p.click("#place-hits li")
+    p.click("#place-hits li[data-kind='place']")
     p.click("#view-list")
     p.wait_for_selector("#search-list li.item", timeout=30000)
     assert "渋谷" in p.inner_text("#origin-label"), p.inner_text("#origin-label")
@@ -693,8 +693,8 @@ def test_place_search_keeps_parenthetical_disambiguator(context, page):
 
     # 同一県(京都府)内に事業者名で区別する同名駅が4件ある実例
     p.fill("#place-q", "六地蔵")
-    p.wait_for_selector("#place-hits li", timeout=20000)
-    hits = p.eval_on_selector_all("#place-hits li", "els => els.map(e => e.innerText)")
+    p.wait_for_selector("#place-hits li[data-kind='place']", timeout=20000)
+    hits = p.eval_on_selector_all("#place-hits li[data-kind='place']", "els => els.map(e => e.innerText)")
     assert len(hits) >= 4, hits
     assert not any("駅駅" in h for h in hits), hits
     # 括弧書き(事業者名)が残っていて、同一県内でも見分けが付く
@@ -711,8 +711,8 @@ def test_place_search_keeps_parenthetical_disambiguator(context, page):
     p2.goto(BASE)
     p2.wait_for_function("window.__searchReady === true", timeout=30000)
     p2.fill("#place-q", "新富士")
-    p2.wait_for_selector("#place-hits li", timeout=20000)
-    hits2 = p2.eval_on_selector_all("#place-hits li", "els => els.map(e => e.innerText)")
+    p2.wait_for_selector("#place-hits li[data-kind='place']", timeout=20000)
+    hits2 = p2.eval_on_selector_all("#place-hits li[data-kind='place']", "els => els.map(e => e.innerText)")
     assert any("新富士駅 (北海道)" in h for h in hits2), hits2
     assert not any("駅駅" in h for h in hits2), hits2
     # 名称(括弧含む)と県名の間に区切りがあり、直接くっついていない
@@ -729,8 +729,8 @@ def test_origin_back_to_here(context, page):
     p.wait_for_function("window.__searchReady === true", timeout=30000)
 
     p.fill("#place-q", "梅田")
-    p.wait_for_selector("#place-hits li", timeout=20000)
-    p.click("#place-hits li")
+    p.wait_for_selector("#place-hits li[data-kind='place']", timeout=20000)
+    p.click("#place-hits li[data-kind='place']")
     p.wait_for_function("state.origin.kind === 'place'", timeout=20000)
 
     p.click("#origin-reset")
@@ -1048,6 +1048,77 @@ def test_card_opens_detail_sheet(context, page):
     p.close()
 
 
+def test_facility_search_local(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.fill("#place-q", "図書館")
+    p.wait_for_selector("#place-hits .grp-fac li", timeout=20000)
+    # 駅・地名が施設より上
+    order = p.eval_on_selector_all("#place-hits .grp", "els => els.map(e => e.className)")
+    assert order[0].endswith("grp-place") or "grp-place" in order[0], order
+    p.close()
+
+
+def test_facility_search_opens_card_without_moving_origin(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    before = p.evaluate("state.origin.label")
+
+    p.fill("#place-q", "図書館")
+    p.wait_for_selector("#place-hits .grp-fac li", timeout=20000)
+    p.click("#place-hits .grp-fac li")
+    p.wait_for_selector("#facility dl", timeout=20000)
+    assert p.evaluate("state.origin.label") == before, "施設を選んだのに起点が動いた"
+    p.close()
+
+
+def test_nationwide_search_is_opt_in(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    reqs = []
+    p.on("request", lambda r: reqs.append(r.url))
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.fill("#place-q", "ぜったいにない施設名XYZ")
+    p.wait_for_selector("#nationwide", timeout=20000)
+    assert "facilities.json" not in " ".join(reqs), "押す前に全国データを取得している"
+    assert "KB" in p.inner_text("#nationwide"), "取得量が明記されていない"
+
+    p.click("#nationwide")
+    p.wait_for_function("window.__facilitiesReady === true", timeout=40000)
+    assert any("facilities.json" in u for u in reqs)
+    p.close()
+
+
+def test_nationwide_disabled_on_version_mismatch(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.route("**/data/hitori/facilities.json", lambda route: route.fulfill(
+        status=200, content_type="application/json",
+        body='{"updated":"1999-01-01","fields":["name","pref","i"],"items":[["\\u5618",13,0]]}'))
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.fill("#place-q", "ぜったいにない施設名XYZ")
+    p.wait_for_selector("#nationwide", timeout=20000)
+    p.click("#nationwide")
+    p.wait_for_selector("#place-hits .stale", timeout=20000)
+    txt = p.inner_text("#place-hits")
+    assert "更新" in txt, txt
+    # 嘘の施設を出していない
+    assert "嘘" not in txt
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1100,6 +1171,10 @@ def main():
             test_card_lead_varies_between_facilities(context, page)
             test_card_star_saves_without_jumping(context, page)
             test_card_opens_detail_sheet(context, page)
+            test_facility_search_local(context, page)
+            test_facility_search_opens_card_without_moving_origin(context, page)
+            test_nationwide_search_is_opt_in(context, page)
+            test_nationwide_disabled_on_version_mismatch(context, page)
             page.goto(BASE)
             page.wait_for_function("window.__ready === true", timeout=15000)
             page.screenshot(path="C:/tmp/hitori_overview.png", full_page=True)
