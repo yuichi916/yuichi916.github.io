@@ -372,6 +372,11 @@ export function toggleFav(favs, item) {
 
 const LEAD_MAX_CLAUSES = 2;
 
+// I11: 「半径500mに同じ◯◯が◯軒」の半径は、この文言生成側と hitori.html の
+// sameKindNearby() の実際の集計側の両方で使う。片方だけ数値リテラルを変えると
+// 文言と実際の集計範囲がずれる（過去にしきい値の二重管理で事故を起こしている）。
+export const SAME_KIND_RADIUS_M = 500;
+
 // iso は同じ「カテゴリ」（湯／飲食／娯楽／滞在）までの距離であり、同じ業態まで
 // の距離ではない（scripts/hitori/iso.py の _nearest_same_cat）。したがって
 // 孤立を語る節では業態名ではなくカテゴリ名を使う。業態名を使うと
@@ -392,7 +397,7 @@ export function leadSentence(item, ctx) {
     const chains = Math.round((item.hidden || 0) * (item.hidden_n || 0));
     out.push(`周辺${item.hidden_n}軒中${chains}軒がチェーン。その中の一軒。`);
   } else if (c.sameKindNearby >= 3) {
-    out.push(`半径500mに同じ${kind}が${c.sameKindNearby}軒。`);
+    out.push(`半径${SAME_KIND_RADIUS_M}mに同じ${kind}が${c.sameKindNearby}軒。`);
   } else if (c.isoText) {
     out.push(`最寄りの${cat}まで${c.isoText}。`);
   } else {
