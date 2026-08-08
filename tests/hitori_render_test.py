@@ -746,7 +746,11 @@ def test_isolation_badge_and_detail(context, page):
     # 詳細シートには孤立度を必ず出す（バッジの有無に関わらず）
     p.click("#search-list li.item")
     p.wait_for_selector("#facility dl", timeout=15000)
-    assert "孤立度" in p.inner_text("#facility"), p.inner_text("#facility")[:300]
+    body = p.inner_text("#facility")
+    assert "孤立度" in body, body[:300]
+    # iso は同カテゴリまでの距離（iso.py の _nearest_same_cat）なので、
+    # 業態名で語ると事実でない文になる。カテゴリ名が出ていること。
+    assert any(c in body for c in ("湯・サウナ", "カウンター飲食", "ひとり娯楽", "ひとり滞在")), body[:300]
     p.close()
 
 

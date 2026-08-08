@@ -372,27 +372,39 @@ export function toggleFav(favs, item) {
 
 const LEAD_MAX_CLAUSES = 2;
 
+// iso は同じ「カテゴリ」（湯／飲食／娯楽／滞在）までの距離であり、同じ業態まで
+// の距離ではない（scripts/hitori/iso.py の _nearest_same_cat）。したがって
+// 孤立を語る節では業態名ではなくカテゴリ名を使う。業態名を使うと
+// 「最寄りのネットカフェまで4.6km」のような事実でない文になる。
 export function leadSentence(item, ctx) {
   const c = ctx || {};
   const kind = c.kindJa || item.kind;
+  const cat = c.catJa || item.cat;
   const out = [];
 
+  // 1文目は必ず数字を伴う具体的な事実にする。軸の節（会話が発生しない等）を
+  // 2つ並べると、静か5・入りやすさ5の業態（ネットカフェ・映画館・図書館）が
+  // 全部同じ文になり、実測で全体の17%が「会話が発生しない。作法は要らない。」
+  // に潰れた。施設ごとに異なる数字を必ず1つ入れることでそれを避ける。
   if (c.isolated && c.isoText) {
-    out.push(`最寄りの${kind}まで${c.isoText}。この一帯で唯一。`);
+    out.push(`最寄りの${cat}まで${c.isoText}。この一帯で唯一。`);
+  } else if (c.gem) {
+    const chains = Math.round((item.hidden || 0) * (item.hidden_n || 0));
+    out.push(`周辺${item.hidden_n}軒中${chains}軒がチェーン。その中の一軒。`);
   } else if (c.sameKindNearby >= 3) {
     out.push(`半径500mに同じ${kind}が${c.sameKindNearby}軒。`);
+  } else if (c.isoText) {
+    out.push(`最寄りの${cat}まで${c.isoText}。`);
+  } else {
+    out.push(`${kind}。ひとり度${item.solo}。`);
   }
-  if (c.gem) {
-    const chains = Math.round((item.hidden || 0) * (item.hidden_n || 0));
-    out.push(`周辺${item.hidden_n}軒中${chains}軒がチェーン。`);
-  }
+
+  // 2文目は軸の節をひとつだけ。当たらなければ1文で終える。
   if (item.quiet >= 5) out.push('会話が発生しない。');
   else if (item.quiet <= 2) out.push('声を出す場。');
-  if (item.easy <= 2) out.push('常連の作法がある。');
+  else if (item.easy <= 2) out.push('常連の作法がある。');
   else if (item.easy >= 5) out.push('作法は要らない。');
-  if (item.solo === 5) out.push('ひとりが標準。');
+  else if (item.solo === 5) out.push('ひとりが標準。');
 
-  // 空欄を出すくらいなら素っ気ない事実のほうがまし
-  if (!out.length) return `${kind}。ひとり度${item.solo}。`;
   return out.slice(0, LEAD_MAX_CLAUSES).join('');
 }
