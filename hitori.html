@@ -113,6 +113,32 @@ img, svg, table { max-width: 100%; }
 .viewbar button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
 #deck { min-height:60vh; }
 #deck .empty { color:var(--muted); padding:2rem 0; text-align:center; }
+#deck .card { position:relative; min-height:64vh; border-radius:14px; overflow:hidden;
+              background:#0e1a24; color:#fdfaf4; cursor:pointer;
+              display:flex; flex-direction:column; justify-content:space-between;
+              padding:1.4rem 1.3rem; }
+#deck .card svg.constellation { position:absolute; inset:0; width:100%; height:100%;
+                                opacity:.42; pointer-events:none; }
+#deck .card > * { position:relative; }
+#deck .eyebrow { font-size:.6rem; letter-spacing:.3em; color:#e0b978; }
+#deck .nm { font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+            font-size:2.1rem; line-height:1.15; font-weight:600; margin:.5rem 0 0; }
+#deck .meta { font-size:.7rem; color:#8fa3b2; margin-top:.5rem; }
+#deck .lead { font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+              font-size:.85rem; line-height:2; color:#cfd9e0; margin:0 0 1rem; }
+#deck .walk { font-weight:800; font-size:2.4rem; line-height:1; }
+#deck .walk small { font-size:.9rem; font-weight:600; }
+#deck .sub { font-size:.66rem; color:#7f95a5; margin-top:.2rem; }
+#deck .chips { display:flex; gap:.35rem; flex-wrap:wrap; justify-content:flex-end; }
+#deck .chips span { border:1px solid #3c5468; color:#b9cad6; font-size:.66rem;
+                    padding:.1rem .6rem; border-radius:999px; }
+#deck .chips .hot { border-color:#d29922; color:#f0c98a; }
+#deck .foot { display:flex; align-items:flex-end; gap:1rem;
+              border-top:1px solid #24394a; padding-top:.8rem; }
+#deck .chips .fav { background:none; border:1px solid #3c5468; border-radius:999px;
+                    color:#f0c98a; cursor:pointer; font:inherit; font-size:.72rem;
+                    padding:.1rem .55rem; }
+#deck .chips .fav[aria-pressed="true"] { border-color:#d29922; }
 .deck-nav { display:flex; align-items:center; justify-content:center; gap:1rem;
             margin:.6rem 0 0; color:var(--muted); font-size:.82rem; }
 .deck-nav button { background:none; border:1px solid var(--line); border-radius:50%;
@@ -547,20 +573,26 @@ function bindSortAndFavs() {
     });
   }
 
-  document.getElementById('search-list').addEventListener('click', e => {
+  const handleFavClick = e => {
     const btn = e.target.closest('.fav');
     if (!btn) return;
     e.stopPropagation();          // 詳細シートを開かない
-    const li = btn.closest('li.item');
-    const it = currentSearchResults().find(x => x.id === li.dataset.id);
+    const host = btn.closest('[data-id]');   // 一覧は li.item、デッキは article.card
+    if (!host) return;
+    const it = currentSearchResults().find(x => x.id === host.dataset.id);
     if (!it) return;
     state.favs = core.toggleFav(state.favs, it);
     if (!core.saveFavs(safeStorage(), state.favs)) {
       state.favs = null;          // 途中で書けなくなったら機能を畳む
     }
     updateFavCount();
-    refreshResults();
-  }, true);
+    rerenderView();               // デッキの位置は保つ
+  };
+  // 一覧は li.item、デッキは article.card。どちらも .fav ボタンを持つので同じ
+  // ハンドラを両方に配線する。capture にするのは、カード自身の click（詳細を
+  // 開く）より先に星のクリックを止めて stopPropagation を効かせるため。
+  document.getElementById('search-list').addEventListener('click', handleFavClick, true);
+  document.getElementById('deck').addEventListener('click', handleFavClick, true);
 }
 
 function updateFavCount() {
@@ -705,12 +737,92 @@ function renderDeck() {
   pos.textContent = `${state.deckIndex + 1} / ${items.length}`;
   el.innerHTML = renderCard(it);       // Task 6 で中身を実装する
   const card = el.querySelector('.card');
-  if (card) card.addEventListener('click', () => openFacility(it.id));
+  if (card) {
+    card.addEventListener('click', () => openFacility(it.id));
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFacility(it.id); }
+    });
+  }
 }
 
-// Task 6 で本実装する。ここでは最小の骨格だけ置く。
+const CAT_COLOR = { bath: '#2f6f9f', eat: '#c2622e', play: '#7a52b3', stay: '#2f8f68' };
+const _constCache = new Map();          // 施設ID → 星座図。高速スワイプで再計算しない
+const CONST_CACHE_MAX = 200;
+
+// 読み込み済みの県からのみ拾う。追加の取得はしない。
+// 既存の collectItems(codes) をそのまま使う（同じ処理を二度書かない）。
+function loadedItems() {
+  return collectItems(Object.keys(PREF_CACHE).map(Number));
+}
+
+function constellationSvg(it) {
+  if (_constCache.has(it.id)) return _constCache.get(it.id);
+  const c = core.constellation(it, loadedItems(), {});
+  const R = c.r;
+  const rings = c.rings.map(r =>
+    `<circle cx="0" cy="0" r="${r.toFixed(1)}" fill="none" stroke="#22384a" stroke-width=".7"/>`).join('');
+  const pts = c.points.map(p =>
+    `<circle class="pt${p.self ? ' self' : ''}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}"
+      r="${p.self ? 3.4 : 2.2}" fill="${CAT_COLOR[p.cat] || '#8fa3b2'}"/>`).join('');
+  const ring = c.points.some(p => p.self)
+    ? `<circle cx="0" cy="0" r="9" fill="none" stroke="#f5c884" stroke-width="1.4"/>` : '';
+  const svg = `<svg class="constellation" viewBox="${-R - 8} ${-R - 8} ${(R + 8) * 2} ${(R + 8) * 2}"
+    role="img" aria-label="周辺1.5kmの施設分布">${rings}${pts}${ring}</svg>`;
+
+  if (_constCache.size >= CONST_CACHE_MAX) _constCache.delete(_constCache.keys().next().value);
+  _constCache.set(it.id, svg);
+  return svg;
+}
+
+function sameKindNearby(it) {
+  let n = 0;
+  for (const o of loadedItems()) {
+    if (o.id === it.id || o.kind !== it.kind) continue;
+    if (core.haversineM(it.lat, it.lon, o.lat, o.lon) <= 500) n++;
+  }
+  return n;
+}
+
 function renderCard(it) {
-  return `<article class="card" data-id="${it.id}"><h3>${escapeHtml(it.name)}</h3></article>`;
+  const kindJa = KIND_JA[it.kind] || it.kind;
+  const lead = core.leadSentence(it, {
+    kindJa,
+    catJa: CAT_JA[it.cat] || it.cat,   // iso は同カテゴリまでの距離なのでカテゴリ名を渡す
+    isolated: isIsolated(it, it.iso),
+    isoText: formatIso(it.iso),
+    gem: isGem(it),
+    sameKindNearby: sameKindNearby(it),
+  });
+  const st = core.openState(it.oh, new Date());
+  const openTxt = st === 'open' ? '営業中' : st === 'closed' ? '営業時間外' : '営業時間不明';
+  const dist = it.distM >= 1000 ? `直線${(it.distM / 1000).toFixed(1)}km` : `直線${Math.round(it.distM)}m`;
+  const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
+
+  return `<article class="card" data-id="${it.id}" tabindex="0">
+    ${constellationSvg(it)}
+    <div>
+      <div class="eyebrow">${escapeHtml(where)} / ${escapeHtml(kindJa)}</div>
+      <h3 class="nm">${escapeHtml(it.name)}</h3>
+      <div class="meta">${escapeHtml(kindJa)}${where ? ' ・ ' + escapeHtml(where) : ''}</div>
+    </div>
+    <div>
+      <p class="lead">${escapeHtml(lead)}</p>
+      <div class="foot">
+        <div>
+          <div class="walk"><small>徒歩</small>${core.walkMinutes(it.distM)}<small>分</small></div>
+          <div class="sub">${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</div>
+        </div>
+        <div class="chips" style="flex:1">
+          ${FAVS_OK() ? `<button type="button" class="fav" aria-pressed="${core.isFav(state.favs, it.id)}"
+             aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
+          <span>ひとり ${it.solo}</span><span>静けさ ${it.quiet}</span><span>入りやすさ ${it.easy}</span>
+          <span${st === 'open' ? ' class="hot"' : ''}>${openTxt}</span>
+          ${isGem(it) ? `<span class="hot">穴場 ${Math.round(it.hidden * 100)}%</span>` : ''}
+          ${isIsolated(it, it.iso) ? `<span class="hot">最寄り${formatIso(it.iso)}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  </article>`;
 }
 
 function openFilterSheet() {

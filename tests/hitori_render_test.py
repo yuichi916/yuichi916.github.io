@@ -969,6 +969,85 @@ def test_deck_shows_status_and_load_failure(context, page):
     assert p.evaluate("state.search.maxDistM") is None
     p.close()
 
+
+def test_card_has_constellation_and_lead(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#deck .card", timeout=15000)
+
+    # 星座図が描かれ、点が打たれている
+    pts = p.eval_on_selector_all("#deck .card svg.constellation circle.pt", "els => els.length")
+    assert pts > 0, "星座図の点が0"
+    assert p.eval_on_selector_all("#deck .card svg.constellation circle.self", "els => els.length") == 1
+
+    body = p.inner_text("#deck .card")
+    assert "徒歩" in body and "直線" in body
+    lead = p.inner_text("#deck .card .lead")
+    assert len(lead) > 0, "生成文が空"
+    assert "undefined" not in body, body[:200]
+
+    # 断定しない
+    for bad in ("静かです", "おすすめです", "空いています"):
+        assert bad not in body, f"{bad} が出ている"
+    p.close()
+
+
+def test_card_lead_varies_between_facilities(context, page):
+    """生成文が全部同じなら条件分岐が効いていない。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#deck .card", timeout=15000)
+
+    leads = []
+    for _ in range(8):
+        leads.append(p.inner_text("#deck .card .lead"))
+        p.click("#deck-next")
+        p.wait_for_timeout(200)
+    assert len(set(leads)) >= 2, f"8軒すべて同じ文: {leads[0]}"
+    p.close()
+
+
+def test_card_star_saves_without_jumping(context, page):
+    """星を押しても詳細シートが開かず、デッキの位置も動かない。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#deck .card", timeout=15000)
+    p.click("#deck-next")
+    p.wait_for_timeout(300)
+    pos = p.inner_text("#deck-pos")
+    before = p.eval_on_selector("#deck .card", "e => e.dataset.id")
+
+    p.click("#deck .card .fav")
+    p.wait_for_timeout(400)
+    assert p.eval_on_selector("#deck .card .fav", "e => e.getAttribute('aria-pressed')") == "true"
+    assert p.inner_text("#deck-pos") == pos, "星を押してデッキの位置が動いた"
+    assert p.eval_on_selector("#deck .card", "e => e.dataset.id") == before
+    assert p.eval_on_selector_all("#facility dl", "e => e.length") == 0, "星で詳細シートが開いた"
+    p.close()
+
+
+def test_card_opens_detail_sheet(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#deck .card", timeout=15000)
+    p.click("#deck .card")
+    p.wait_for_selector("#facility dl", timeout=15000)
+    assert "孤立度" in p.inner_text("#facility")
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1017,6 +1096,10 @@ def main():
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)
             test_deck_shows_status_and_load_failure(context, page)
+            test_card_has_constellation_and_lead(context, page)
+            test_card_lead_varies_between_facilities(context, page)
+            test_card_star_saves_without_jumping(context, page)
+            test_card_opens_detail_sheet(context, page)
             page.goto(BASE)
             page.wait_for_function("window.__ready === true", timeout=15000)
             page.screenshot(path="C:/tmp/hitori_overview.png", full_page=True)
