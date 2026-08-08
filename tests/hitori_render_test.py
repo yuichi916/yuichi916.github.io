@@ -1617,6 +1617,23 @@ def test_conflict_is_disclosed(context, page):
     p.close()
 
 
+
+def test_checked_count_is_not_exaggerated(context, page):
+    """調査済み件数は summary.json の実数をそのまま出す。誇張しない。"""
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    summary = json.loads((root / "data" / "hitori" / "summary.json").read_text(encoding="utf-8"))
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    shown = p.inner_text("#checked-count").replace(",", "")
+    assert int(shown) == summary["checked_count"], (shown, summary["checked_count"])
+    # 総数と混同させない
+    body = p.inner_text(".disclaimer")
+    assert "推定" in body, body
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1664,6 +1681,7 @@ def main():
             test_list_is_default_and_shows_several(context, page)
             test_list_card_shows_characteristics(context, page)
             test_every_axis_value_has_a_label(context, page)
+            test_checked_count_is_not_exaggerated(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)

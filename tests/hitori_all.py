@@ -7,6 +7,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TESTS = [
     "hitori_master_test.py",
     "hitori_scoring_test.py",
+    "hitori_enrich_test.py",
+    "hitori_curate_test.py",
     "hitori_hidden_test.py",
     "hitori_iso_test.py",
     "hitori_neighbors_test.py",
