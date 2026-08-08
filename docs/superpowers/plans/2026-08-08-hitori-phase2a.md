@@ -830,7 +830,7 @@ git commit -m "feat(hitori): 探すタブを1軒ずつのデッキ表示にす�
 
 **Interfaces:**
 - Consumes: Task 1 の `core.leadSentence`、Task 2 の `core.constellation`、既存の `isIsolated` / `formatIso` / `isGem` / `PREF_CACHE`
-- Produces: `renderCard(it)` の本実装、`constellationSvg(it)`、`nearbyItems(it)`
+- Produces: `renderCard(it)` の本実装、`constellationSvg(it)`、`loadedItems()`、`sameKindNearby(it)`
 
 - [ ] **Step 1: 失敗するテストを追加**
 
