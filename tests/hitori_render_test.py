@@ -1513,6 +1513,27 @@ def test_same_kind_radius_is_single_source(context, page):
     p.close()
 
 
+
+def test_every_axis_value_has_a_label(context, page):
+    """1..5 のすべてに言葉があること。
+
+    値1は業態からの推定だけでは出なかったが、集めた事実による補正で出る。
+    ラベルが空だと「静けさ 1 — 」のように尻切れになる（quiet=3 で実際に
+    起きた不具合と同じ形）。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    missing = p.evaluate("""() => {
+      const out = [];
+      for (const k of ['solo', 'quiet', 'easy'])
+        for (let v = 1; v <= 5; v++)
+          if (!AX_LABEL[k][v]) out.push(k + '=' + v);
+      return out;
+    }""")
+    assert missing == [], f"言葉の無い軸の値: {missing}"
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1559,6 +1580,7 @@ def main():
             test_favorites_disabled_when_storage_blocked(context, page)
             test_list_is_default_and_shows_several(context, page)
             test_list_card_shows_characteristics(context, page)
+            test_every_axis_value_has_a_label(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)
