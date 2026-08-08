@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """出力JSONのスキーマ検証。ビルドからもテストからも同じ関数を呼ぶ。"""
+import re
 import sys
 from pathlib import Path
 
@@ -9,8 +10,10 @@ import iso as iso_mod  # 上限値の単一の出典。ここにも 50000 を書
 JAPAN_BBOX = (20.0, 46.0, 122.0, 154.0)  # 南, 北, 西, 東
 EXPECTED_FIELDS = ["id", "name", "lat", "lon", "cat", "kind",
                    "solo", "quiet", "easy", "conf", "chain",
-                   "hidden", "hidden_n", "iso", "city", "oh", "tel", "web", "note"]
+                   "hidden", "hidden_n", "iso", "city", "oh", "tel", "web", "note",
+                   "solo_est", "quiet_est", "easy_est", "checked"]
 CATS = ("bath", "eat", "play", "stay")
+CHECKED_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # 空文字 または YYYY-MM-DD
 
 
 def validate_pref(doc):
@@ -66,6 +69,10 @@ def validate_pref(doc):
 
         if row[idx["cat"]] not in CATS:
             errs.append(f"cat が不正: {fid} -> {row[idx['cat']]!r}")
+
+        checked = row[idx["checked"]]
+        if checked != "" and not CHECKED_RE.match(str(checked)):
+            errs.append(f"checked が不正: {fid} -> {checked!r}")
 
     return errs
 

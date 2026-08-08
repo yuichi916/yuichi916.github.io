@@ -210,6 +210,31 @@ def test_build_publishes_iso_max():
     assert summary["iso_max"] == iso.MAX_ISO_M
 
 
+def test_enriched_axes_keep_the_estimate():
+    """実効値と推定値の両方が出ること。何を根拠に変えたか隠さないため。"""
+    import enrich
+    rec = {"id": "n1", "cat": "bath", "kind": "sento", "solo": 4, "quiet": 4, "easy": 3}
+    facts = [{"k": "payment_method", "v": "counter_person", "n": 2},
+             {"k": "clientele", "v": "local", "n": 2}]
+    eff = enrich.apply_adjust({"solo": 4, "quiet": 4, "easy": 3}, facts)
+    assert eff["easy"] == 1, eff       # 3 - 2（上限）
+    assert rec["easy"] == 3, "推定値が壊されている"
+
+
+def test_unchecked_facility_has_empty_checked():
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    d = json.loads((root / "data" / "hitori" / "pref" / "44.json").read_text(encoding="utf-8"))
+    for f in ("solo_est", "quiet_est", "easy_est", "checked"):
+        assert f in d["fields"], f"{f} が列に無い"
+    i = {k: n for n, k in enumerate(d["fields"])}
+    unchecked = [r for r in d["items"] if not r[i["checked"]]]
+    assert unchecked, "未調査の施設が1件も無いのはおかしい"
+    for r in unchecked[:50]:
+        assert r[i["solo"]] == r[i["solo_est"]], "未調査なのに実効値が推定値と違う"
+
+
 def main():
     test_build_shapes()
     test_build_output_passes_validation()
@@ -220,6 +245,8 @@ def main():
     test_chain_detection_runs_before_hidden_score()
     test_build_computes_iso_and_threshold()
     test_build_publishes_iso_max()
+    test_enriched_axes_keep_the_estimate()
+    test_unchecked_facility_has_empty_checked()
     print("OK: build_data")
 
 

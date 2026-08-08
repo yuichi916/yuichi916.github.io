@@ -10,7 +10,8 @@ import validate
 
 FIELDS = ["id", "name", "lat", "lon", "cat", "kind",
           "solo", "quiet", "easy", "conf", "chain",
-          "hidden", "hidden_n", "iso", "city", "oh", "tel", "web", "note"]
+          "hidden", "hidden_n", "iso", "city", "oh", "tel", "web", "note",
+          "solo_est", "quiet_est", "easy_est", "checked"]
 
 GOOD_PREF = {
     "pref": 13, "name": "東京都", "updated": "2026-08-04",
@@ -18,9 +19,11 @@ GOOD_PREF = {
     "items": [
         ["n1", "一蘭 渋谷店", 35.65894, 139.70043, "eat", "ramen",
          5, 4, 3, 2, 1, 0.0, 8, 240, "渋谷区", "11:00-23:00",
-         "03-0000-0000", "https://ichiran.com/", "仕切りカウンター12席"],
+         "03-0000-0000", "https://ichiran.com/", "仕切りカウンター12席",
+         4, 4, 3, "2026-08-01"],
         ["n2", "はやしや", 35.70112, 139.75820, "eat", "soba_udon",
-         4, 4, 3, 0, 0, 0.83, 12, 1500, "新宿区", "", "", "", ""],
+         4, 4, 3, 0, 0, 0.83, 12, 1500, "新宿区", "", "", "", "",
+         4, 4, 3, ""],
     ],
 }
 
@@ -106,6 +109,18 @@ def test_pref_iso_range():
         assert any("iso" in e for e in validate.validate_pref(d)), bad
 
 
+def test_pref_checked_format():
+    # checked は空文字（未調査）または YYYY-MM-DD（調査日）のみを許す。
+    d = copy.deepcopy(GOOD_PREF)
+    d["items"][0][22] = "調査済み"
+    errs = validate.validate_pref(d)
+    assert any("checked" in e for e in errs), errs
+
+    d2 = copy.deepcopy(GOOD_PREF)
+    d2["items"][0][22] = "2026-8-1"      # ゼロ埋めされていない
+    assert any("checked" in e for e in validate.validate_pref(d2))
+
+
 def test_summary_needs_iso_threshold():
     d = copy.deepcopy(GOOD_SUMMARY)
     del d["iso_threshold"]
@@ -184,6 +199,7 @@ def main():
     test_pref_duplicate_id()
     test_pref_fields_mismatch()
     test_pref_iso_range()
+    test_pref_checked_format()
     test_summary_needs_iso_threshold()
     test_summary_needs_iso_max()
     test_summary_ok()
