@@ -393,8 +393,12 @@ export function leadFact(item, ctx) {
   const cat = c.catJa || item.cat;
   if (c.isolated && c.isoText) return `最寄りの${cat}まで${c.isoText}。この一帯で唯一。`;
   if (c.gem) {
+    // 「その中の一軒」と書くと、チェーン側の一軒に読める。実際は逆で、
+    // その数に入っていないほうである。また chain=0 は「チェーンとして
+    // 検出されなかった」であって独立店の証明ではないので、この店について
+    // 断定せず、周辺の構成という事実だけを述べる。
     const chains = Math.round((item.hidden || 0) * (item.hidden_n || 0));
-    return `周辺${item.hidden_n}軒中${chains}軒がチェーン。その中の一軒。`;
+    return `周辺${item.hidden_n}軒のうち${chains}軒がチェーン。ここはその${chains}軒に入っていない。`;
   }
   if (c.sameKindNearby >= SAME_KIND_MIN) {
     return `半径${SAME_KIND_RADIUS_M}mに同じ${kind}が${c.sameKindNearby}軒。`;

@@ -10,28 +10,51 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
 :root {
-  --bg: #ffffff; --fg: #1a202c; --line: #cbd5e1; --muted: #64748b;
-  --accent: #2b5f96;
+  /* 面ではなく階層で見せる。背景をわずかに沈め、カードを浮かせる。
+     真っ白の上に灰色の枠を置くだけの作りが古く見える原因だった。 */
+  --bg: #f6f7f9; --surface: #ffffff; --fg: #16191d; --muted: #6b7280;
+  --line: #e6e8ec; --line-strong: #d3d7dd;
+  --accent: #1f6feb; --accent-soft: #e8f0fe;
+  --r: 14px; --r-sm: 9px;
+  --sh-1: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.06);
+  --sh-2: 0 4px 12px rgba(16,24,40,.08), 0 2px 4px rgba(16,24,40,.04);
+  --ease: cubic-bezier(.2,.7,.3,1);
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #0f172a; --fg: #e2e8f0; --line: #334155; --muted: #94a3b8;
-          --accent: #8fb3d4; }
+  :root { --bg: #0d1117; --surface: #161b22; --fg: #e6edf3; --muted: #9198a1;
+          --line: #262c34; --line-strong: #343b45;
+          --accent: #5aa2ff; --accent-soft: #16233a;
+          --sh-1: 0 1px 2px rgba(0,0,0,.4);
+          --sh-2: 0 6px 20px rgba(0,0,0,.45); }
 }
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--fg);
-       font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
-       line-height: 1.7; }
+       font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+       font-feature-settings: "palt" 1;
+       line-height: 1.7; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--accent-soft); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 6rem; }
-h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
+h1 { font-size: 1.45rem; margin: 0 0 .25rem; letter-spacing: -.01em; font-weight: 700; }
 .lede { margin: 0; color: var(--muted); }
-.tabs { display: flex; gap: .5rem; margin: 1.2rem 0 0; border-bottom: 1px solid var(--line); }
-.tabs button { background: none; border: none; border-bottom: 2px solid transparent;
-               color: var(--muted); cursor: pointer; font: inherit; padding: .5rem 1rem; }
-.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.tabs { display: inline-flex; gap: .2rem; margin: 1rem 0 0; padding: .22rem;
+         background: var(--line); border-radius: 999px; }
+.tabs button { background: none; border: none; border-radius: 999px;
+               color: var(--muted); cursor: pointer; font: inherit; font-size: .88rem;
+               font-weight: 600; padding: .34rem 1.05rem; transition: all .16s var(--ease); }
+.tabs button[aria-selected="true"] { color: var(--fg); background: var(--surface);
+                                     box-shadow: var(--sh-1); }
 .origin-bar { position: relative; margin: 1rem 0 .5rem; }
-.place-search input { width: 100%; padding: .6rem .8rem; font: inherit;
-                      border: 1px solid var(--line); border-radius: 8px;
-                      background: var(--bg); color: var(--fg); }
+.place-search input { width: 100%; padding: .68rem .9rem; font: inherit;
+                      border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+                      background: var(--surface); color: var(--fg);
+                      box-shadow: var(--sh-1); transition: box-shadow .16s var(--ease),
+                      border-color .16s var(--ease); }
+.place-search input:focus { outline: none; border-color: var(--accent);
+                            box-shadow: 0 0 0 3px var(--accent-soft); }
+.place-search input::placeholder { color: var(--muted); }
 #place-hits { position: absolute; z-index: 30; left: 0; right: 0; top: 3rem;
               list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto;
               background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
@@ -107,14 +130,16 @@ img, svg, table { max-width: 100%; }
 /* カテゴリの色。湯・飲食・娯楽・滞在をひと目で見分けられるようにする。
    色が一切ないと、37,189件が同じ見た目の行として流れてしまう。 */
 #search-list { list-style:none; padding:0; margin:.6rem 0 0; display:grid; gap:.6rem; }
-#search-list .item { position:relative; border:1px solid var(--line); border-radius:14px;
-                     padding:.7rem .8rem .7rem 1rem; cursor:pointer;
-                     background:var(--bg); transition:box-shadow .12s, transform .12s; }
+#search-list .item { position:relative; border:1px solid var(--line); border-radius:var(--r);
+                     padding:.75rem .85rem .75rem 1.05rem; cursor:pointer;
+                     background:var(--surface); box-shadow:var(--sh-1);
+                     transition:box-shadow .16s var(--ease), transform .16s var(--ease),
+                     border-color .16s var(--ease); }
 /* 左端の色帯がカテゴリ。太さより彩度で差をつけ、文字を邪魔しない */
 #search-list .item::before { content:""; position:absolute; left:0; top:.55rem; bottom:.55rem;
                              width:4px; border-radius:0 4px 4px 0; background:var(--cat, var(--line)); }
 #search-list .item:hover, #search-list .item:focus-visible {
-  box-shadow:0 2px 12px rgba(0,0,0,.09); transform:translateY(-1px); }
+  box-shadow:var(--sh-2); transform:translateY(-2px); border-color:var(--line-strong); }
 #search-list .item[data-cat="bath"] { --cat:#2f6f9f; }
 #search-list .item[data-cat="eat"]  { --cat:#c2622e; }
 #search-list .item[data-cat="play"] { --cat:#7a52b3; }
@@ -155,10 +180,13 @@ img, svg, table { max-width: 100%; }
 #search-list .badges { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.45rem; align-items:center; }
 #search-list .verified { font-size:.68rem; color:var(--muted); margin-left:auto; }
 .viewbar { display:flex; gap:.5rem; margin:.6rem 0; flex-wrap:wrap; }
-.viewbar button { background:none; border:1px solid var(--line); border-radius:999px;
-                  color:var(--fg); cursor:pointer; font:inherit; font-size:.82rem;
-                  padding:.2rem .9rem; }
-.viewbar button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+.viewbar button { background:var(--surface); border:1px solid var(--line); border-radius:999px;
+                  color:var(--fg); cursor:pointer; font:inherit; font-size:.8rem; font-weight:600;
+                  padding:.3rem 1rem; box-shadow:var(--sh-1);
+                  transition:all .16s var(--ease); }
+.viewbar button:hover { border-color:var(--line-strong); }
+.viewbar button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent);
+                                       color:#fff; box-shadow:none; }
 #deck { min-height:60vh; }
 #deck .empty { color:var(--muted); padding:2rem 0; text-align:center; }
 #deck .card { position:relative; min-height:64vh; border-radius:14px; overflow:hidden;
@@ -214,13 +242,18 @@ img, svg, table { max-width: 100%; }
                 margin: .8rem 0; background: #eef2f6; }
 #facility-map .maplibregl-ctrl-attrib { font-size: 10px; }
 .map-credit { font-size: .75rem; color: var(--muted); margin: -.4rem 0 .4rem; }
-#facility { position: fixed; inset: auto 0 0 0; max-height: 80vh; overflow-y: auto;
-            background: var(--bg); border-top: 2px solid var(--line);
-            border-radius: 12px 12px 0 0; padding: 1.2rem 1rem 2rem;
-            box-shadow: 0 -4px 24px rgba(0,0,0,.2); z-index: 40; }
+#facility { position: fixed; inset: auto 0 0 0; max-height: 84vh; overflow-y: auto;
+            background: var(--surface); border-top: 1px solid var(--line);
+            border-radius: 18px 18px 0 0; padding: 1.3rem 1.1rem 2.2rem;
+            box-shadow: 0 -8px 40px rgba(16,24,40,.18); z-index: 40;
+            animation: sheet-up .22s var(--ease); }
+@keyframes sheet-up { from { transform: translateY(14px); opacity: .6 } to { transform: none; opacity: 1 } }
+#facility::before { content: ""; display: block; width: 34px; height: 4px; border-radius: 99px;
+                    background: var(--line-strong); margin: -.5rem auto .9rem; }
 #facility h3 { margin: 0 .5rem 0 0; font-size: 1.2rem; }
-#facility .close { position: absolute; right: 1rem; top: 1rem; background: none;
-                   border: 1px solid var(--line); border-radius: 6px; color: var(--fg);
+#facility .close { position: absolute; right: 1rem; top: 1.1rem; background: var(--bg);
+                   border: 1px solid var(--line); border-radius: 999px; color: var(--muted);
+                   width: 30px; height: 30px;
                    cursor: pointer; font-size: 1.1rem; line-height: 1; padding: .2rem .5rem; }
 #facility dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .9rem; margin: .8rem 0; }
 #facility dt { color: var(--muted); font-size: .85rem; }
@@ -260,6 +293,16 @@ body.deck-mode .tabs { margin:.3rem 0; }
 body.deck-mode .origin-bar { margin-bottom:.2rem; }
 .viewbar { margin:.4rem 0 .5rem; }
 #deck .card { min-height:min(66vh, 560px); }
+
+/* 根拠は常時開かない。読みたい人だけが開ける形にする。 */
+.basis { font-size:.8rem; margin-top:.8rem; border-top:1px solid var(--line); padding-top:.7rem; }
+.basis summary { cursor:pointer; color:var(--accent); font-weight:600; }
+.basis h4 { font-size:.82rem; margin:.8rem 0 .3rem; }
+.basis p { margin:.3rem 0; line-height:1.7; color:var(--muted); }
+.basis .caveat { font-size:.75rem; }
+.basis-src { list-style:none; padding:0; margin:.4rem 0 0; display:grid; gap:.2rem; }
+.basis-src li { font-size:.76rem; }
+.basis-src a { margin-left:.3rem; }
 </style>
 </head>
 <body>
@@ -771,7 +814,8 @@ function renderSearchList() {
       <div class="badges">
         ${openBadge}
         ${it.chain ? '<span class="badge-ax">チェーン</span>' : ''}
-        ${isGem(it) ? `<span class="badge-ax badge-gem">穴場 ${Math.round(it.hidden * 100)}%</span>` : ''}
+        ${isGem(it) ? `<span class="badge-ax badge-gem" title="周辺${it.hidden_n}軒のうち${
+          Math.round(it.hidden * it.hidden_n)}軒がチェーン。この施設はその数に入っていない">周辺はチェーン中心</span>` : ''}
         ${isIsolated(it) ? `<span class="badge-ax badge-iso">最寄り${formatIso(it.iso)}</span>` : ''}
         ${FAVS_OK() ? `<button type="button" class="fav" aria-pressed="${core.isFav(state.favs, it.id)}"
            aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
@@ -1015,7 +1059,7 @@ function renderCard(it) {
              aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
           <span>ひとり ${it.solo}</span><span>静けさ ${it.quiet}</span><span>入りやすさ ${it.easy}</span>
           <span${st === 'open' ? ' class="hot"' : ''}>${openTxt}</span>
-          ${isGem(it) ? `<span class="hot">穴場 ${Math.round(it.hidden * 100)}%</span>` : ''}
+          ${isGem(it) ? `<span class="hot">周辺はチェーン中心</span>` : ''}
           ${isolated ? `<span class="hot">最寄り${isoText}</span>` : ''}
         </div>
       </div>
@@ -1118,6 +1162,55 @@ function renderCurated(it) {
 }
 
 // 補正が入っているときは推定値も出す。何を根拠に変えたのかを隠さない。
+// すべての記述について、何をどう測ったのかを辿れるようにする。
+// 指標には性質の違う2種類がある。周辺の分布から機械的に計算したもの
+// （孤立度・周辺の構成）と、外部の情報源から集めた事実（料金・支払い方法）。
+// 前者の根拠は計算方法そのもの、後者の根拠は出典URLである。混ぜない。
+function basisHtml(it, liveIso) {
+  const parts = [];
+  const kindJa = KIND_JA[it.kind] || it.kind;
+  const catJa = CAT_JA[it.cat] || it.cat;
+
+  parts.push(`<h4>3軸（ひとり度・静けさ・入りやすさ）</h4>
+    <p>業態「${escapeHtml(kindJa)}」から機械的に推定した初期値です。
+    同じ業態の施設は同じ値から始まります。実際の座席形態や黙浴の有無を
+    確かめたものではありません。</p>`);
+
+  const e = CURATED[it.id];
+  const moved = ['solo', 'quiet', 'easy'].filter(k => it[k + '_est'] != null && it[k + '_est'] !== it[k]);
+  if (moved.length && e) {
+    const used = e.facts.filter(f => !f.conflict && f.n >= 2);
+    parts.push(`<p>このうち ${moved.map(k => AX_NAME[k]).join('・')} は、
+      下の「確認できたこと」のうち<strong>独立した2つ以上の情報源で裏付けが取れた事実</strong>
+      によって補正しています。補正の幅は軸ごとに±2までに制限しています。</p>
+      ${used.length ? `<ul class="basis-src">${used.map(f =>
+        `<li>${escapeHtml(factLabel(f))} — ${f.urls.map((u, i) =>
+          `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">出典${i + 1}</a>`
+        ).join(' ')}</li>`).join('')}</ul>` : ''}`);
+  } else if (!it.checked) {
+    parts.push(`<p>この施設はまだ調べていないため、推定値のままです。</p>`);
+  }
+
+  if (liveIso != null) {
+    const th = (SUMMARY.iso_threshold || {})[it.cat];
+    parts.push(`<h4>孤立度</h4>
+      <p>全国の施設から、この施設に最も近い<strong>同じカテゴリ（${escapeHtml(catJa)}）</strong>の
+      施設までの直線距離を計算しました。結果は ${formatIso(liveIso)} です。
+      同じ業態までの距離ではありません。</p>
+      ${th ? `<p>「この一帯で唯一」は、カテゴリごとに上位10%にあたる距離
+      （${escapeHtml(catJa)}では ${formatIso(th)}）を超えた場合に表示しています。</p>` : ''}`);
+  }
+
+  parts.push(`<h4>データの出所</h4>
+    <p>施設の位置・名称・業態は OpenStreetMap（ODbL）によります。
+    ${it.checked ? `事実の確認は ${escapeHtml(it.checked)} 時点のもので、出典は上に示したとおりです。`
+      : 'この施設について外部の情報源は確認していません。'}</p>`);
+
+  return `<details class="basis"><summary>この情報の根拠</summary>${parts.join('')}</details>`;
+}
+
+const AX_NAME = { solo: 'ひとり度', quiet: '静けさ', easy: '入りやすさ' };
+
 function axCell(it, k) {
   const est = it[k + '_est'];
   const base = `${it[k]} — ${AX_LABEL[k][it[k]]}`;
@@ -1209,7 +1302,13 @@ async function openFacility(id, opener) {
       ${it.web ? `<dt>サイト</dt><dd><a href="${escapeHtml(it.web)}" target="_blank" rel="noopener">公式サイト</a></dd>` : ''}
     </dl>
     ${curatedHtml}
-    ${isGem(it) ? `<p class="gem-reason">穴場度 ${Math.round(it.hidden * 100)}%（周辺${it.hidden_n}件中${Math.round(it.hidden * it.hidden_n)}件がチェーン）</p>` : ''}
+    ${isGem(it) ? `<div class="basis"><h4>「周辺はチェーン中心」の根拠</h4>
+      <p>半径500m以内にある同じカテゴリの施設 ${it.hidden_n} 軒のうち、${
+        Math.round(it.hidden * it.hidden_n)} 軒が全国チェーンとして検出されました。
+      この施設はその ${Math.round(it.hidden * it.hidden_n)} 軒に含まれていません。</p>
+      <p class="caveat">チェーンの判定は、同じ名称が3県以上に5件以上あることを条件にした機械的なものです。
+      検出されなかったことは、個人店であることの証明にはなりません。</p></div>` : ''}
+    ${basisHtml(it, liveIso)}
     ${it.note ? `<p class="note">${escapeHtml(it.note)}</p>` : ''}
     <div id="facility-map"></div>
     <a class="to-maps" href="${mapsUrl(it)}" target="_blank" rel="noopener">経路を調べる（Googleマップ）</a>`;

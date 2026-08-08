@@ -533,9 +533,18 @@ def test_facility_shows_gem_reason(context, page):
     if not gem:
         return   # この地点に穴場が無いのは異常ではない
     page.evaluate(f"openFacility({gem!r})")
-    page.wait_for_selector("#facility .gem-reason", timeout=10000)
-    reason = page.inner_text("#facility .gem-reason")
-    assert "周辺" in reason and "チェーン" in reason, reason
+    page.wait_for_selector("#facility .basis", timeout=10000)
+    body = page.inner_text("#facility")
+    assert "周辺" in body and "チェーン" in body, body[:300]
+    # 「その中の一軒」はチェーン側の一軒に読める。実際は逆である。
+    assert "その中の一軒" not in body, body[:300]
+    assert "含まれていません" in body or "入っていない" in body, body[:300]
+    # chain=0 は「検出されなかった」であって独立店の証明ではないので断定しない。
+    # 注意書きは「個人店であることの証明にはなりません」と否定形で使うので、
+    # 語の有無ではなく肯定の断定だけを禁じる。
+    for w in ("個人店です", "個人店の", "独立店です", "独立店の", "地元の名店"):
+        assert w not in body, f"{w} と断定している"
+    assert "証明にはなりません" in body, "検出されなかったことの限界を書いていない"
 
 
 def test_facility_map(context, page):
@@ -1723,6 +1732,46 @@ def test_seasonal_warning_does_not_misfire(context, page):
     assert cases["plain"] is False, cases
     p.close()
 
+
+def test_every_claim_has_a_traceable_basis(context, page):
+    """機械的に計算した指標も、集めた事実も、根拠を辿れること。
+
+    計算した指標の根拠は計算方法そのもの、集めた事実の根拠は出典URL。
+    性質が違うので混ぜず、どちらも出す。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(BEPPU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=25000)
+    p.wait_for_timeout(2500)
+
+    # 調査済みの施設
+    p.evaluate("""() => {
+      const it = currentSearchResults().find(x => x.checked);
+      if (it) { FOUND_BY_SEARCH.set(it.id, it); openFacility(it.id); }
+    }""")
+    p.wait_for_selector("#facility .basis", timeout=15000)
+    p.eval_on_selector("#facility .basis", "e => e.open = true")
+    body = p.inner_text("#facility .basis")
+    assert "業態" in body and "推定" in body, body[:300]
+    assert "OpenStreetMap" in body, body[:300]
+    assert "同じカテゴリ" in body, "孤立度が同カテゴリ基準であることを書いていない"
+    assert p.eval_on_selector_all("#facility .basis a", "e => e.length") > 0, "出典リンクが無い"
+
+    # 未調査の施設には、推定のままだと明示する
+    p.keyboard.press("Escape")
+    p.evaluate("""() => {
+      const it = currentSearchResults().find(x => !x.checked);
+      FOUND_BY_SEARCH.set(it.id, it); openFacility(it.id);
+    }""")
+    p.wait_for_selector("#facility .basis", timeout=15000)
+    p.eval_on_selector("#facility .basis", "e => e.open = true")
+    b2 = p.inner_text("#facility .basis")
+    assert "まだ調べていない" in b2 or "確認していません" in b2, b2[:300]
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1775,6 +1824,7 @@ def main():
             test_curated_facts_appear_on_the_card(context, page)
             test_curated_load_does_not_clobber_location_notice(context, page)
             test_seasonal_warning_does_not_misfire(context, page)
+            test_every_claim_has_a_traceable_basis(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)
