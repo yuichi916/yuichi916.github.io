@@ -992,6 +992,7 @@ function renderCard(it) {
   const kindJa = KIND_JA[it.kind] || it.kind;
   const lead = core.leadSentence(it, {
     kindJa,
+    catJa: CAT_JA[it.cat] || it.cat,   // iso は同カテゴリまでの距離なのでカテゴリ名を渡す
     isolated: isIsolated(it, it.iso),
     isoText: formatIso(it.iso),
     gem: isGem(it),
