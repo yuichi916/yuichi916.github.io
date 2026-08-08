@@ -463,7 +463,7 @@ check('leadSentence: 密集は孤立でないときだけ', () => {
 check('leadSentence: 穴場は件数を出す', () => {
   const it = { ...LEAD_BASE, hidden: 0.83, hidden_n: 12 };
   const s = core.leadSentence(it, { kindJa: '銭湯', gem: true });
-  eq(s.includes('周辺12軒中10軒がチェーン。'), true, s);
+  eq(s.includes('周辺12軒のうち10軒がチェーン。ここはその10軒に入っていない。'), true, s);
 });
 
 check('leadSentence: 静けさと入りやすさ', () => {
@@ -489,7 +489,7 @@ check('leadSentence: 1文目の優先順位は 孤立 > 穴場 > 密集 > 最寄
   eq(core.leadSentence(it, { ...base, isolated: true, isoText: '4.2km', gem: true, sameKindNearby: 5 }),
      '最寄りの湯・サウナまで4.2km。この一帯で唯一。');
   eq(core.leadSentence(it, { ...base, gem: true, sameKindNearby: 5 }),
-     '周辺12軒中10軒がチェーン。その中の一軒。');
+     '周辺12軒のうち10軒がチェーン。ここはその10軒に入っていない。');
   eq(core.leadSentence(it, { ...base, sameKindNearby: 5 }),
      '半径500mに同じ銭湯が5軒。');
   eq(core.leadSentence(it, base), '最寄りの湯・サウナまで340m。');
@@ -644,6 +644,19 @@ check('半径のリテラルが二重に存在しない', () => {
   eq(core.SAME_KIND_MIN, 3);
   const f = core.leadFact(LEAD_BASE, { kindJa: '銭湯', catJa: '湯・サウナ', sameKindNearby: core.SAME_KIND_MIN });
   eq(f.includes(`半径${core.SAME_KIND_RADIUS_M}m`), true, f);
+});
+
+
+check('leadFact: 穴場の文がこの店をチェーン側と読ませない', () => {
+  // 「その中の一軒」はチェーン側の一軒に読める。実際は逆である。
+  const it = { ...LEAD_BASE, hidden: 0.83, hidden_n: 12 };
+  const f = core.leadFact(it, { kindJa: '銭湯', catJa: '湯・サウナ', gem: true });
+  eq(f.includes('その中の一軒'), false, '誤解を招く表現が残っている: ' + f);
+  eq(f.includes('入っていない'), true, f);
+  // chain=0 は「検出されなかった」であって独立店の証明ではないので断定しない
+  for (const w of ['独立店', '個人店', '地元の名店']) {
+    eq(f.includes(w), false, `${w} と断定している: ${f}`);
+  }
 });
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
