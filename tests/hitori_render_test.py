@@ -939,6 +939,36 @@ def test_favorites_disabled_when_storage_blocked(context, page):
     p.close()
 
 
+
+def test_deck_shows_status_and_load_failure(context, page):
+    """件数と県データの取得失敗は、デッキでも一覧でも出す。
+
+    失敗の告知を一覧でだけ出すと、デッキを見ている人には結果が空に見えるだけで、
+    実際には何も調べられていないことが伝わらない。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#deck .card", timeout=15000)
+
+    assert p.evaluate("state.view") == "deck"
+    assert "件" in p.inner_text("#search-status"), p.inner_text("#search-status")
+
+    # 県の取得に失敗した状態を作り、デッキのまま告知が出ることを確かめる
+    p.evaluate("FAILED_PREFS.add(13); renderDeck()")
+    assert "読み込めませんでした" in p.inner_text("#search-status"), p.inner_text("#search-status")
+    p.evaluate("FAILED_PREFS.delete(13); renderDeck()")
+
+    # 0件のとき「距離を広げる」がデッキでも効く
+    p.evaluate("state.search.maxDistM = 1; refreshResults()")
+    p.wait_for_selector("#search-status .widen", timeout=10000)
+    p.click("#search-status .widen")
+    p.wait_for_selector("#deck .card", timeout=20000)
+    assert p.evaluate("state.search.maxDistM") is None
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -983,6 +1013,10 @@ def main():
             test_favorite_detail_shows_real_iso_not_undefined(context, page)
             test_favorites_empty_view_has_no_dead_widen_button(context, page)
             test_favorites_disabled_when_storage_blocked(context, page)
+            test_deck_is_default_and_swipes(context, page)
+            test_deck_and_list_share_results(context, page)
+            test_deck_empty_state(context, page)
+            test_deck_shows_status_and_load_failure(context, page)
             page.goto(BASE)
             page.wait_for_function("window.__ready === true", timeout=15000)
             page.screenshot(path="C:/tmp/hitori_overview.png", full_page=True)

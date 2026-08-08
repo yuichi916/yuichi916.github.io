@@ -582,9 +582,10 @@ function formatIso(m) {
   return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
 }
 
-function renderSearchList() {
-  const items = currentSearchResults();
-  const list = document.getElementById('search-list');
+// 件数と県データの取得失敗を出す。デッキでも一覧でも同じものを出す必要がある。
+// 失敗の告知を一覧でだけ出すと、デッキを見ている人には結果が空に見えるだけで、
+// 実際には何も調べられていないことが伝わらない。
+function renderSearchStatus(items) {
   const status = document.getElementById('search-status');
   const failed = [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
 
@@ -593,36 +594,38 @@ function renderSearchList() {
   // お気に入りには効かず出す意味がない。県の取得失敗もお気に入りの表示とは
   // 無関係なので、favView の判定を通常の0件分岐より先に行う。
   if (state.favView) {
-    list.innerHTML = '';
-    if (!items.length) {
-      status.textContent = '保存した場所はまだありません';
-      return;
-    }
-    status.textContent = `保存した ${items.length} 件`;
-  } else if (!items.length) {
-    list.innerHTML = '';
+    status.textContent = items.length ? `保存した ${items.length} 件` : '保存した場所はまだありません';
+    return;
+  }
+  if (!items.length) {
     if (failed.length) {
       // 「該当なし」より読み込み失敗を優先して伝える。自県のデータが読めて
       // いないだけで PREF_CACHE が空になっているとき、それを黙って「近くには
       // 何も無い」という表示にすると、実際には何も調べられていないのに
       // 調べた上で無かったと誤解させてしまう。
       status.textContent = `${failed.join('・')}のデータを読み込めませんでした。`;
-    } else {
-      status.innerHTML = state.search.maxDistM
-        ? `この条件に該当する施設はありませんでした。<button type="button" class="widen">距離を広げる</button>`
-        : 'この条件に該当する施設はありませんでした。';
-      const w = status.querySelector('.widen');
-      if (w) w.addEventListener('click', () => {
-        document.getElementById('f-dist').value = '';
-        state.search.maxDistM = null;
-        renderSearchList();
-      });
+      return;
     }
+    status.innerHTML = state.search.maxDistM
+      ? `この条件に該当する施設はありませんでした。<button type="button" class="widen">距離を広げる</button>`
+      : 'この条件に該当する施設はありませんでした。';
+    const w = status.querySelector('.widen');
+    if (w) w.addEventListener('click', () => {
+      document.getElementById('f-dist').value = '';
+      state.search.maxDistM = null;
+      refreshResults();          // デッキでも一覧でも効かせる
+    });
     return;
-  } else {
-    status.textContent = `${items.length.toLocaleString()} 件`
-      + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
   }
+  status.textContent = `${items.length.toLocaleString()} 件`
+    + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
+}
+
+function renderSearchList() {
+  const items = currentSearchResults();
+  const list = document.getElementById('search-list');
+  renderSearchStatus(items);
+  if (!items.length) { list.innerHTML = ''; return; }
   const now = new Date();
   list.innerHTML = items.slice(0, 200).map(it => {
     const st = core.openState(it.oh, now);
@@ -687,6 +690,7 @@ function renderDeck() {
   const el = document.getElementById('deck');
   const items = currentSearchResults();
   const pos = document.getElementById('deck-pos');
+  renderSearchStatus(items);      // 件数と取得失敗はデッキでも出す
 
   if (!items.length) {
     state.deckIndex = 0;
@@ -1350,6 +1354,11 @@ async function init() {
 window.state = state;
 window.PREF_CACHE = PREF_CACHE;
 window.visibleItems = visibleItems;
+window.FAILED_PREFS = FAILED_PREFS;
+window.currentSearchResults = currentSearchResults;
+window.renderDeck = renderDeck;
+window.refreshResults = refreshResults;
+window.setView = setView;
 
 init().catch(err => {
   // file:// で開くとブラウザが fetch をブロックする。原因が分からないと
