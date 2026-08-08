@@ -659,5 +659,41 @@ check('leadFact: 穴場の文がこの店をチェーン側と読ませない', 
   }
 });
 
+
+check('filterItems: 確認済みだけに絞る', () => {
+  const all = [{ id: 'a', cat: 'bath', distM: 10, checked: '2026-08-08' },
+               { id: 'b', cat: 'bath', distM: 20, checked: '' }];
+  eq(core.filterItems(all, { verifiedOnly: true }).length, 1);
+  eq(core.filterItems(all, { verifiedOnly: true })[0].id, 'a');
+  eq(core.filterItems(all, {}).length, 2, '指定が無ければ絞らない');
+});
+
+check('filterItems: 集めた事実で絞る', () => {
+  const facts = { a: { payment_method: 'ticket_machine' }, b: { payment_method: 'counter_person' } };
+  const all = [{ id: 'a', cat: 'bath', distM: 10 }, { id: 'b', cat: 'bath', distM: 20 },
+               { id: 'c', cat: 'bath', distM: 30 }];
+  const opts = { factsOf: it => facts[it.id], factFilters: [{ k: 'payment_method', v: 'ticket_machine' }] };
+  const got = core.filterItems(all, opts);
+  eq(got.length, 1);
+  eq(got[0].id, 'a');
+});
+
+check('filterItems: 調べていない施設を「該当しない」扱いにしない', () => {
+  // 事実で絞ったとき、未調査は結果から外れる。これは「条件に合わない」の
+  // ではなく「分からない」なので、絞り込みを外せば戻ることが大事。
+  const all = [{ id: 'c', cat: 'bath', distM: 30 }];
+  eq(core.filterItems(all, { factsOf: () => null, factFilters: [{ k: 'x', v: 'y' }] }).length, 0);
+  eq(core.filterItems(all, {}).length, 1, '絞り込みを外せば戻る');
+});
+
+
+check('filterItems: 述語での絞り込み（チェーンの有無）', () => {
+  const all = [{ id: 'a', cat: 'eat', distM: 1, chain: 1 },
+               { id: 'b', cat: 'eat', distM: 2, chain: 0 }];
+  eq(core.filterItems(all, { preds: [it => it.chain !== 1] }).map(x => x.id).join(''), 'b');
+  eq(core.filterItems(all, { preds: [it => it.chain === 1] }).map(x => x.id).join(''), 'a');
+  eq(core.filterItems(all, {}).length, 2);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

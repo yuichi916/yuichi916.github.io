@@ -309,6 +309,19 @@ body.deck-mode .origin-bar { margin-bottom:.2rem; }
 .basis-src { list-style:none; padding:0; margin:.4rem 0 0; display:grid; gap:.2rem; }
 .basis-src li { font-size:.76rem; }
 .basis-src a { margin-left:.3rem; }
+
+/* よく使う絞り込みは、シートを開かせずすぐ押せる位置に置く。
+   横スクロールで並べ、画面の縦を食わない。 */
+.quickbar { display:flex; gap:.35rem; overflow-x:auto; padding:.1rem 0 .35rem;
+            margin:0 0 .2rem; scrollbar-width:none; }
+.quickbar::-webkit-scrollbar { display:none; }
+.quickbar button { flex:none; background:var(--surface); border:1px solid var(--line);
+                   border-radius:999px; color:var(--muted); cursor:pointer; font:inherit;
+                   font-size:.75rem; padding:.24rem .8rem; white-space:nowrap;
+                   transition:all .16s var(--ease); }
+.quickbar button:hover { border-color:var(--line-strong); color:var(--fg); }
+.quickbar button[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--accent);
+                                        color:var(--accent); font-weight:700; }
 </style>
 </head>
 <body>
@@ -338,6 +351,15 @@ body.deck-mode .origin-bar { margin-bottom:.2rem; }
       <button type="button" id="view-deck" aria-pressed="false">1軒ずつ</button>
       <button type="button" id="open-filters" aria-expanded="false" aria-controls="filter-sheet">絞り込み</button>
       <button type="button" id="fav-toggle" aria-label="保存した場所" hidden>★ <span id="fav-count">0</span></button>
+    </div>
+    <div class="quickbar" role="group" aria-label="よく使う絞り込み">
+      <button type="button" data-q="nochain" aria-pressed="false">チェーンを隠す</button>
+      <button type="button" data-q="chainonly" aria-pressed="false">チェーンだけ</button>
+      <button type="button" data-q="verified" aria-pressed="false">確認済み</button>
+      <button type="button" data-q="ticket" aria-pressed="false">券売機</button>
+      <button type="button" data-q="unstaffed" aria-pressed="false">無人</button>
+      <button type="button" data-q="towel" aria-pressed="false">タオル貸出</button>
+      <button type="button" data-q="solo" aria-pressed="false">一人客が多い</button>
     </div>
     <div id="filter-sheet" hidden>
     <div class="filters">
@@ -472,7 +494,7 @@ const state = {
   origin: { kind: 'here', lat: null, lon: null, label: '現在地' },
   search: { cats: new Set(CATS), maxDistM: 800, minSolo: 0, minQuiet: 0, minEasy: 0,
             minConf: 0, requireHours: false },
-  view: 'list', deckIndex: 0,
+  view: 'list', deckIndex: 0, quick: new Set(),
   _deckId: null,   // 直近にデッキへ表示した施設のID。refreshResults() が位置を保つのに使う (I9)
 };
 state.sort = 'dist';
@@ -664,6 +686,66 @@ function collectItems(codes) {
   return out;
 }
 
+// よく使う絞り込み。集めた事実を検索条件として使えるようにする。
+// 事実が無い施設は「該当しない」ではなく「分からない」ので、条件を
+// 外せば必ず戻る（居ないことにしない）。
+const QUICK = {
+  // 「個人店だけ」とは書かない。chain=0 は多県展開のチェーンとして検出され
+  // なかっただけで、独立店であることの証明ではない。
+  nochain:  { label: 'チェーンを隠す', pred: it => it.chain !== 1, excl: 'chainonly' },
+  chainonly:{ label: 'チェーンだけ',   pred: it => it.chain === 1, excl: 'nochain' },
+  verified: { label: '確認済み', verified: true },
+  ticket:   { label: '券売機',   fact: { k: 'payment_method', v: 'ticket_machine' } },
+  unstaffed:{ label: '無人',     fact: { k: 'unstaffed', v: 'yes' } },
+  towel:    { label: 'タオル貸出', fact: { k: 'bring_towel', v: 'rental' } },
+  solo:     { label: '一人客が多い', fact: { k: 'clientele', v: 'solo_common' } },
+};
+
+// 矛盾している事実は条件に使わない。判断が割れているものを根拠に
+// 絞ると、外れた施設が「条件に合わない」と誤解される。
+function factsOf(it) {
+  const e = CURATED[it.id];
+  if (!e) return null;
+  const seen = {}, bad = new Set();
+  for (const f of e.facts) {
+    if (f.k in seen && seen[f.k] !== f.v) bad.add(f.k);
+    if (!(f.k in seen)) seen[f.k] = f.v;
+  }
+  for (const k of bad) delete seen[k];
+  return seen;
+}
+
+function quickOpts() {
+  const on = [...state.quick];
+  return {
+    verifiedOnly: on.some(k => QUICK[k] && QUICK[k].verified),
+    factFilters: on.map(k => QUICK[k] && QUICK[k].fact).filter(Boolean),
+    preds: on.map(k => QUICK[k] && QUICK[k].pred).filter(Boolean),
+    factsOf,
+  };
+}
+
+function bindQuickbar() {
+  for (const b of document.querySelectorAll('.quickbar button')) {
+    b.addEventListener('click', () => {
+      const k = b.dataset.q;
+      if (state.quick.has(k)) {
+        state.quick.delete(k);
+      } else {
+        state.quick.add(k);
+        // 相反する条件は同時に押せない。両方 on にすると必ず0件になり、
+        // 押した本人にも理由が分からなくなる。
+        const excl = (QUICK[k] || {}).excl;
+        if (excl) state.quick.delete(excl);
+      }
+      for (const o of document.querySelectorAll('.quickbar button')) {
+        o.setAttribute('aria-pressed', String(state.quick.has(o.dataset.q)));
+      }
+      refreshResults();
+    });
+  }
+}
+
 function currentSearchResults() {
   const o = state.origin;
   if (o.lat == null) return [];
@@ -673,7 +755,9 @@ function currentSearchResults() {
   const withD = core.withDistance(src, o.lat, o.lon);
   // お気に入り表示中はスナップショットなので絞り込みを適用しない。
   // 保存した場所が条件から外れて消えると、保存した意味がなくなる。
-  const filtered = state.favView ? withD : core.filterItems(withD, state.search);
+  const filtered = state.favView
+    ? withD
+    : core.filterItems(withD, { ...state.search, ...quickOpts() });
   return core.sortItems(filtered, state.sort,
                         { isoThreshold: SUMMARY.iso_threshold, now: new Date() });
 }
@@ -772,6 +856,22 @@ function renderSearchStatus(items) {
       // 何も無い」という表示にすると、実際には何も調べられていないのに
       // 調べた上で無かったと誤解させてしまう。
       status.textContent = `${failed.join('・')}のデータを読み込めませんでした。`;
+      return;
+    }
+    // クイック絞り込みが効いているときは、それが原因だと分かるようにする。
+    // 「該当なし」とだけ出すと、その地域に施設が無いのだと誤解される。
+    if (state.quick.size) {
+      const on = [...state.quick].map(k => (QUICK[k] || {}).label).filter(Boolean);
+      status.innerHTML = `「${escapeHtml(on.join('・'))}」で絞り込んでいます。
+        <button type="button" class="clear-quick">絞り込みを外す</button><br>
+        <small>確認できた事実がある施設は現在 ${(SUMMARY.checked_count || 0).toLocaleString()} 件です。
+        調べていない施設は条件に合わないのではなく、分からないだけです。</small>`;
+      const cq = status.querySelector('.clear-quick');
+      if (cq) cq.addEventListener('click', () => {
+        state.quick.clear();
+        for (const b of document.querySelectorAll('.quickbar button')) b.setAttribute('aria-pressed', 'false');
+        refreshResults();
+      });
       return;
     }
     status.innerHTML = state.search.maxDistM
@@ -2063,6 +2163,7 @@ async function init() {
   switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
   if (state.pref) openPrefecture(state.pref);
   bindDeck();
+  bindQuickbar();
   setView(state.view);
   window.__ready = true;
   // 描画テストから触るために公開する。state / PREF_CACHE / currentSearchResults /

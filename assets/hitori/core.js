@@ -230,6 +230,17 @@ export function filterItems(items, opts) {
     if (o.nochain && it.chain === 1) return false;
     if (o.minConf && it.conf < o.minConf) return false;
     if (o.requireHours && !it.oh) return false;
+    // 集めた事実による絞り込み。調べていない施設は「該当しない」ではなく
+    // 「分からない」なので、条件が指定されたら除く（居ないことにしない）。
+    if (o.verifiedOnly && !it.checked) return false;
+    if (o.preds && o.preds.length) {
+      for (const fn of o.preds) if (!fn(it)) return false;
+    }
+    if (o.factFilters && o.factFilters.length) {
+      const f = o.factsOf ? o.factsOf(it) : null;
+      if (!f) return false;
+      for (const need of o.factFilters) if (f[need.k] !== need.v) return false;
+    }
     return true;
   });
 }

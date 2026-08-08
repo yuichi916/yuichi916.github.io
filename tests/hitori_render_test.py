@@ -1825,6 +1825,78 @@ def test_conflicting_price_shows_a_range(context, page):
     assert "情報が分かれています" in joined, tips
     p.close()
 
+
+def test_quick_filters_narrow_and_can_be_cleared(context, page):
+    """集めた事実で絞れること。0件になったら原因と戻し方を出すこと。
+
+    「該当なし」とだけ出すと、その地域に施設が無いのだと誤解される。
+    調べていない施設は条件に合わないのではなく、分からないだけである。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(BEPPU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=25000)
+    p.wait_for_timeout(2500)
+
+    before = p.eval_on_selector_all("#search-list .item", "e => e.length")
+    assert before > 1, before
+
+    p.click('.quickbar button[data-q="verified"]')
+    p.wait_for_timeout(600)
+    after = p.eval_on_selector_all("#search-list .item", "e => e.length")
+    assert after < before, f"確認済みで絞っても件数が減らない: {before} -> {after}"
+    assert p.eval_on_selector('.quickbar button[data-q="verified"]',
+                              "e => e.getAttribute('aria-pressed')") == "true"
+
+    # 0件まで絞って、原因の説明と復帰手段が出ること
+    p.click('.quickbar button[data-q="towel"]')
+    p.click('.quickbar button[data-q="unstaffed"]')
+    p.wait_for_timeout(700)
+    if p.eval_on_selector_all("#search-list .item", "e => e.length") == 0:
+        body = p.inner_text("#search-status")
+        assert "絞り込んでいます" in body, body[:200]
+        assert "分からない" in body, "未調査を『該当なし』と誤解させている"
+        p.click("#search-status .clear-quick")
+        p.wait_for_timeout(700)
+        assert p.eval_on_selector_all("#search-list .item", "e => e.length") == before
+    p.close()
+
+
+def test_chain_chips_are_mutually_exclusive(context, page):
+    """「チェーンを隠す」と「チェーンだけ」は同時に押せない。
+
+    両方 on にすると必ず0件になり、押した本人にも理由が分からなくなる。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(BEPPU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=25000)
+    p.wait_for_timeout(2000)
+
+    all_n = p.eval_on_selector_all("#search-list .item", "e => e.length")
+    p.click('.quickbar button[data-q="nochain"]')
+    p.wait_for_timeout(600)
+    no_chain = p.eval_on_selector_all("#search-list .item", "e => e.length")
+    chains_shown = p.eval_on_selector_all("#search-list .item .badges",
+                                          "els => els.filter(e => e.innerText.includes('チェーン')).length")
+    assert chains_shown == 0, f"チェーンを隠したのに{chains_shown}件残っている"
+
+    p.click('.quickbar button[data-q="chainonly"]')
+    p.wait_for_timeout(600)
+    assert p.eval_on_selector('.quickbar button[data-q="nochain"]',
+                              "e => e.getAttribute('aria-pressed')") == "false", "排他になっていない"
+    only = p.eval_on_selector_all("#search-list .item", "e => e.length")
+    assert only + no_chain <= all_n + 1, (all_n, no_chain, only)
+    # 「個人店だけ」と断定しない（検出されなかっただけで証明ではない）
+    labels = p.eval_on_selector_all(".quickbar button", "els => els.map(e => e.textContent.trim())")
+    for bad in ("個人店だけ", "独立店だけ"):
+        assert bad not in labels, f"{bad} と断定している: {labels}"
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1880,6 +1952,8 @@ def main():
             test_every_claim_has_a_traceable_basis(context, page)
             test_single_source_closure_is_not_silently_ignored(context, page)
             test_conflicting_price_shows_a_range(context, page)
+            test_quick_filters_narrow_and_can_be_cleared(context, page)
+            test_chain_chips_are_mutually_exclusive(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)
