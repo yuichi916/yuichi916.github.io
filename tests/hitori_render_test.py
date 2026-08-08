@@ -1654,14 +1654,17 @@ def test_cards_are_colour_coded_by_category(context, page):
     p.wait_for_function("window.__searchReady === true", timeout=30000)
     p.wait_for_selector("#search-list .item", timeout=25000)
 
+    # 色帯はグラデーションなので backgroundColor ではなく backgroundImage に入る。
+    # どちらの実装でも色が付いていることを見る。
     got = p.eval_on_selector_all("#search-list .item",
-        "els => els.slice(0, 12).map(e => [e.dataset.cat,"
-        " getComputedStyle(e, '::before').backgroundColor])")
+        "els => els.slice(0, 12).map(e => { const cs = getComputedStyle(e, '::before');"
+        " return [e.dataset.cat, cs.backgroundImage !== 'none' ? cs.backgroundImage"
+        " : cs.backgroundColor]; })")
     assert all(c for c, _ in got), "data-cat が無いカードがある"
     colours = {c: col for c, col in got}
     assert len(set(colours.values())) >= 2, f"カテゴリで色が変わっていない: {colours}"
     for cat, col in colours.items():
-        assert col not in ("rgba(0, 0, 0, 0)", "transparent"), (cat, col)
+        assert col not in ("rgba(0, 0, 0, 0)", "transparent", "none"), (cat, col)
     p.close()
 
 
@@ -1772,6 +1775,56 @@ def test_every_claim_has_a_traceable_basis(context, page):
     assert "まだ調べていない" in b2 or "確認していません" in b2, b2[:300]
     p.close()
 
+
+def test_single_source_closure_is_not_silently_ignored(context, page):
+    """裏付け1件の閉業を無表示にしない。
+
+    一覧から外すには2件必要という設計だが、1件のとき何も出さないと
+    2022年に閉店した店が平常どおり並ぶ。実データで6施設がそうなっていた。
+    外さない代わりに、確認を促す警告として必ず出す。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    r = p.evaluate("""() => {
+      const mk = (k, v, n) => ({ checked: '2026-08-08', facts: [
+        { k, v, n, src: ['a'], urls: ['https://a/'], official: false, conflict: false }] });
+      const probe = (k, v, n) => { CURATED.__p = mk(k, v, n);
+        const w = tipsFor({ id: '__p' }).warn; delete CURATED.__p; return w; };
+      return {
+        closed1: probe('status', 'closed_permanently', 1),
+        closed2: probe('status', 'closed_permanently', 2),
+        resid1:  probe('access', 'residents_only', 1),
+        solo1:   probe('solo_ok', 'no', 1),
+      };
+    }""")
+    assert any("閉業" in w for w in r["closed1"]), r
+    assert any("住民専用" in w for w in r["resid1"]), r
+    assert any("一人不可" in w for w in r["solo1"]), r
+    p.close()
+
+
+def test_conflicting_price_shows_a_range(context, page):
+    """値が割れている料金を無表示にしない。
+
+    矛盾を落とすだけだと、料金改定のあった施設で何も出なくなる
+    （実データで37施設が1.5倍以上ひらいていた）。範囲で出し、
+    割れていること自体を伝える。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    tips = p.evaluate("""() => {
+      CURATED.__q = { checked: '2026-08-08', facts: [
+        { k: 'price', v: 100, n: 2, src: ['a','b'], urls: ['https://a/','https://b/'], official: false, conflict: true },
+        { k: 'price', v: 200, n: 2, src: ['c','d'], urls: ['https://c/','https://d/'], official: false, conflict: true }] };
+      const t = tipsFor({ id: '__q' }).tips; delete CURATED.__q; return t;
+    }""")
+    joined = " ".join(tips)
+    assert "100" in joined and "200" in joined, tips
+    assert "情報が分かれています" in joined, tips
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1825,6 +1878,8 @@ def main():
             test_curated_load_does_not_clobber_location_notice(context, page)
             test_seasonal_warning_does_not_misfire(context, page)
             test_every_claim_has_a_traceable_basis(context, page)
+            test_single_source_closure_is_not_silently_ignored(context, page)
+            test_conflicting_price_shows_a_range(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)

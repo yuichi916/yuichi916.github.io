@@ -129,15 +129,17 @@ img, svg, table { max-width: 100%; }
 
 /* カテゴリの色。湯・飲食・娯楽・滞在をひと目で見分けられるようにする。
    色が一切ないと、37,189件が同じ見た目の行として流れてしまう。 */
-#search-list { list-style:none; padding:0; margin:.6rem 0 0; display:grid; gap:.6rem; }
+/* カードは「名前・徒歩・特徴」の三層。名前を主役にし、徒歩は数字として
+   独立した塊に、特徴は色で分類する。要素を均等に並べると設計に見えない。 */
+#search-list { list-style:none; padding:0; margin:.7rem 0 0; display:grid; gap:.7rem; }
 #search-list .item { position:relative; border:1px solid var(--line); border-radius:var(--r);
-                     padding:.75rem .85rem .75rem 1.05rem; cursor:pointer;
+                     padding:.85rem .9rem .8rem 1.15rem; cursor:pointer;
                      background:var(--surface); box-shadow:var(--sh-1);
-                     transition:box-shadow .16s var(--ease), transform .16s var(--ease),
-                     border-color .16s var(--ease); }
-/* 左端の色帯がカテゴリ。太さより彩度で差をつけ、文字を邪魔しない */
-#search-list .item::before { content:""; position:absolute; left:0; top:.55rem; bottom:.55rem;
-                             width:4px; border-radius:0 4px 4px 0; background:var(--cat, var(--line)); }
+                     transition:box-shadow .18s var(--ease), transform .18s var(--ease),
+                     border-color .18s var(--ease); }
+#search-list .item::before { content:""; position:absolute; left:0; top:0; bottom:0;
+                             width:5px; border-radius:var(--r) 0 0 var(--r);
+                             background:linear-gradient(180deg, var(--cat), color-mix(in srgb, var(--cat) 55%, transparent)); }
 #search-list .item:hover, #search-list .item:focus-visible {
   box-shadow:var(--sh-2); transform:translateY(-2px); border-color:var(--line-strong); }
 #search-list .item[data-cat="bath"] { --cat:#2f6f9f; }
@@ -145,40 +147,44 @@ img, svg, table { max-width: 100%; }
 #search-list .item[data-cat="play"] { --cat:#7a52b3; }
 #search-list .item[data-cat="stay"] { --cat:#2f8f68; }
 
-#search-list .r1 { display:flex; align-items:baseline; gap:.6rem; }
-#search-list .nm { font-weight:700; font-size:1.04rem; flex:1; min-width:0; line-height:1.35; }
-#search-list .walk { white-space:nowrap; font-size:.72rem; color:var(--muted); text-align:right; }
-#search-list .walk b { font-size:1.35rem; color:var(--fg); font-variant-numeric:tabular-nums; }
-#search-list .r2 { color:var(--muted); font-size:.75rem; margin-top:.15rem; }
-#search-list .r2 .kindmark { color:var(--cat); font-weight:600; }
-#search-list .lead { font-size:.79rem; margin:.45rem 0 0; line-height:1.65; }
+/* 名前を主役に。行間を詰め、字間をわずかに締めると締まって見える */
+#search-list .r1 { display:flex; align-items:flex-start; gap:.7rem; }
+#search-list .nm { font-weight:700; font-size:1.12rem; line-height:1.32;
+                   letter-spacing:-.01em; flex:1; min-width:0; }
+/* 徒歩は独立した塊にする。数字が一番大きい情報 */
+#search-list .walk { flex:none; text-align:center; line-height:1.05;
+                     padding:.1rem .15rem 0; min-width:3.1rem; }
+#search-list .walk b { display:block; font-size:1.6rem; font-weight:800;
+                       font-variant-numeric:tabular-nums; letter-spacing:-.03em; }
+#search-list .walk i { display:block; font-style:normal; font-size:.6rem;
+                       color:var(--muted); letter-spacing:.08em; margin-top:.1rem; }
+#search-list .walk i.cap { margin:0 0 -.1rem; }
+/* 業態はカテゴリ色の面で示す。文字色だけだと弱い */
+#search-list .r2 { margin-top:.4rem; font-size:.74rem; color:var(--muted);
+                   display:flex; align-items:center; gap:.45rem; flex-wrap:wrap; }
+#search-list .r2 .kindmark { background:color-mix(in srgb, var(--cat) 13%, transparent);
+                             color:color-mix(in srgb, var(--cat) 82%, var(--fg));
+                             font-weight:700; font-size:.7rem; padding:.1rem .5rem;
+                             border-radius:5px; letter-spacing:.02em; }
+#search-list .lead { font-size:.79rem; margin:.5rem 0 0; line-height:1.7; }
 
-/* 3軸は数字だけだと何段階中いくつか分からない。目盛りと言葉を必ず添える。
-   目盛りはカテゴリ色にして、灰色の点が主張しすぎるのを避ける。 */
-#search-list .axes { list-style:none; padding:0; margin:.45rem 0 0; display:grid; gap:.16rem; }
-#search-list .axes li { display:grid; grid-template-columns:5.2em auto 1fr;
-                        align-items:center; gap:.55rem; font-size:.75rem; }
-#search-list .ax-k { color:var(--muted); }
+#search-list .axes { list-style:none; padding:0; margin:.55rem 0 0; display:grid; gap:.2rem; }
+#search-list .axes li { display:grid; grid-template-columns:5.1em auto 1fr;
+                        align-items:center; gap:.55rem; font-size:.74rem; }
+#search-list .ax-k { color:var(--muted); letter-spacing:.02em; }
 #search-list .dots { display:flex; gap:2.5px; }
 #search-list .dot { width:6px; height:6px; border-radius:50%;
-                    background:color-mix(in srgb, var(--cat) 18%, transparent); }
+                    background:color-mix(in srgb, var(--cat) 16%, transparent); }
 #search-list .dot.on { background:var(--cat); }
 #search-list .ax-w { color:var(--fg); }
 
-/* 行く前に知っておきたいこと。一人だと同行者に聞けないので、ここを目立たせる */
-#search-list .tips { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.45rem; }
-#search-list .tips span { font-size:.7rem; padding:.1rem .5rem; border-radius:6px;
-                          background:color-mix(in srgb, var(--cat) 10%, transparent);
-                          color:color-mix(in srgb, var(--cat) 78%, var(--fg)); }
-/* 行っても入れない可能性は最優先で伝える。一人だと下調べを他人に任せられない */
-#search-list .warn { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.4rem; }
-#search-list .warn span { font-size:.72rem; font-weight:600; padding:.12rem .55rem;
-                          border-radius:6px; background:#fdf0e3; color:#a3541c; }
-@media (prefers-color-scheme:dark){
-  #search-list .warn span { background:#3a2a17; color:#f0b76e; }
-}
-#search-list .badges { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.45rem; align-items:center; }
-#search-list .verified { font-size:.68rem; color:var(--muted); margin-left:auto; }
+#search-list .tips { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.55rem; }
+#search-list .tips span { font-size:.7rem; padding:.14rem .55rem; border-radius:6px;
+                          background:color-mix(in srgb, var(--cat) 9%, transparent);
+                          color:color-mix(in srgb, var(--cat) 80%, var(--fg)); }
+#search-list .badges { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.55rem;
+                       padding-top:.55rem; border-top:1px dashed var(--line); align-items:center; }
+#search-list .verified { font-size:.66rem; color:var(--muted); margin-left:auto; letter-spacing:.02em; }
 .viewbar { display:flex; gap:.5rem; margin:.6rem 0; flex-wrap:wrap; }
 .viewbar button { background:var(--surface); border:1px solid var(--line); border-radius:999px;
                   color:var(--fg); cursor:pointer; font:inherit; font-size:.8rem; font-weight:600;
@@ -790,8 +796,14 @@ function renderSearchList() {
   if (!items.length) { list.innerHTML = ''; return; }
   const now = new Date();
   list.innerHTML = items.slice(0, 200).map(it => {
-    const st = core.openState(it.oh, now);
-    const openBadge = st === 'open' ? '<span class="badge-ax badge-open">営業中</span>'
+    // 収集した営業時間があるときは、OSM由来の判定を断定に使わない。
+    // 書式が違って突き合わせられないため、片方だけを根拠に「営業中」と
+    // 言うと誤りになりうる（実データで20施設が併存していた）。
+    const hasCuratedHours = !!(CURATED[it.id] || {}).facts?.some(f => f.k === 'hours');
+    const st = hasCuratedHours ? null : core.openState(it.oh, now);
+    const openBadge = hasCuratedHours
+      ? `<span class="badge-ax">営業時間は下記のとおり</span>`
+      : st === 'open' ? '<span class="badge-ax badge-open">営業中</span>'
       : st === 'closed' ? '<span class="badge-ax badge-shut">営業時間外</span>'
       : '<span class="badge-ax">営業時間不明</span>';
     const m = core.walkMinutes(it.distM);
@@ -802,7 +814,7 @@ function renderSearchList() {
               data-quiet="${it.quiet}" data-solo="${it.solo}" tabindex="0">
       <div class="r1">
         <span class="nm">${escapeHtml(it.name)}</span>
-        <span class="walk">徒歩<b>${m}</b>分</span>
+        <span class="walk"><i class="cap">徒歩</i><b>${m}</b><i>分</i></span>
       </div>
       <div class="r2"><span class="kindmark">${escapeHtml(KIND_JA[it.kind] || it.kind)}</span>${
         where ? ' ・ ' + escapeHtml(where) : ''} ・ ${dist} ${
@@ -977,15 +989,30 @@ function leadCtx(it) {
 
 // 一人で行く前に知っておきたいこと。同行者に聞けないぶん、事前に分かると
 // 助かる順に並べる。多すぎると読まれないので上限を設ける。
-const TIP_MAX = 4;
+const TIP_MAX = 5;
 
 function tipsFor(it) {
   const e = CURATED[it.id];
   if (!e) return { tips: [], warn: [] };
-  const v = {};
-  for (const f of e.facts) if (!f.conflict) v[f.k] = f.v;
+
+  // 矛盾している事実を落とすだけだと、料金が改定された施設で何も出なくなる
+  // （実データで37施設が1.5倍以上ひらいていた）。値が割れているときは
+  // 範囲で出し、割れていること自体を伝える。黙って消すより役に立つ。
+  const v = {}, ranges = {};
+  const byKey = {};
+  for (const f of e.facts) (byKey[f.k] = byKey[f.k] || []).push(f);
+  for (const [k, fs] of Object.entries(byKey)) {
+    const vals = [...new Set(fs.map(f => f.v))];
+    if (vals.length === 1) { v[k] = vals[0]; continue; }
+    if (typeof vals[0] === 'number') {
+      const ns = vals.filter(x => typeof x === 'number').sort((a, b) => a - b);
+      if (ns.length >= 2) ranges[k] = [ns[0], ns[ns.length - 1]];
+    }
+  }
+
   const out = [];
   if (v.price != null) out.push(`${v.price}円`);
+  else if (ranges.price) out.push(`${ranges.price[0]}〜${ranges.price[1]}円（情報が分かれています）`);
   if (v.unstaffed === 'yes') out.push('無人・料金箱');
   else if (v.payment_method === 'ticket_machine') out.push('券売機');
   else if (v.payment_method === 'counter_person') out.push('番台で支払い');
@@ -997,20 +1024,33 @@ function tipsFor(it) {
   if (v.luggage === 'locker') out.push('ロッカーあり');
   else if (v.luggage === 'none') out.push('荷物置き場なし');
   if (v.busy_time === 'morning_quiet') out.push('朝は空いている');
+  if (v.hours) out.push(v.hours.length > 24 ? v.hours.slice(0, 23) + '…' : v.hours);
+  else if (byKey.hours) out.push('営業時間は情報が分かれています');
   if (v.closed_days) out.push(`定休 ${v.closed_days}`);
+
   const warn = [];
-  // 一人で使えるかどうかは、このアプリで最も重要な警告。2名以上が前提で
-  // 一人旅の受入が年2回だけという宿が実在した。
+  // 一人で使えるかどうかは、このアプリで最も重要な警告。
   if (v.solo_ok === 'limited') warn.push('一人利用は期間限定');
   if (v.status === 'closed_temporarily') warn.push('休業中');
   if (v.renamed_to) warn.push(`現在は「${v.renamed_to}」`);
-  // 季節・曜日で営業が限定される施設は、行ってから気づくと痛い。
-  // ただし「年中無休（臨時休業あり）」を限定営業と呼ぶのは嘘なので、
-  // 無休と書いてあるものは除く。「休業」だけを見ると誤判定する。
+
+  // 裏付けが1件しかない閉業・入れない情報は、一覧から外す条件を満たさない。
+  // それを何も出さずに済ませると、閉業した施設を平常どおり見せることになる
+  // （実データで6施設。2022年閉店の店が普通に並んでいた）。
+  // 外さない代わりに、確認を促す警告として必ず出す。
+  for (const f of e.facts) {
+    if (f.n >= 2) continue;
+    if (f.k === 'status' && f.v === 'closed_permanently') warn.push('閉業の情報あり（要確認）');
+    if (f.k === 'access' && f.v === 'residents_only') warn.push('地元住民専用の情報あり（要確認）');
+    if (f.k === 'access' && f.v === 'members_only') warn.push('会員・関係者専用の情報あり（要確認）');
+    if (f.k === 'solo_ok' && f.v === 'no') warn.push('一人不可の情報あり（要確認）');
+  }
+
   const cd = String(v.closed_days || '');
   const seasonal = /冬[季期][^。]{0,6}休|季節営業|のみ営業|期間[^。]{0,4}休業|休館期間/.test(cd);
   if (seasonal && !/年中無休|通年/.test(cd)) warn.push('期間限定の営業');
-  return { tips: out.slice(0, TIP_MAX), warn };
+
+  return { tips: out.slice(0, TIP_MAX), warn: [...new Set(warn)] };
 }
 
 // 3軸は数字だけだと何段階中いくつか分からない。目盛りと言葉を必ず添える。
