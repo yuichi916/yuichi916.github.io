@@ -1,61 +1,89 @@
 # -*- coding: utf-8 -*-
-"""調査キューの優先度付け検証。"""
+"""次に調べる施設の優先順位。
+
+score 列を削除したときに、このテストが架空データを使っていたせいで
+research_queue.py の破綻（KeyError: 'score'）を検出できなかった。
+実データで動かすテストを必ず含める。
+"""
+import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "hitori"))
 
-import research_queue as rq
+import research_queue
 
-FIELDS = ["id", "name", "lat", "lon", "cat", "kind", "score", "conf", "chain", "note"]
-
-PREFDOCS = {
-    13: {"pref": 13, "name": "東京都", "fields": FIELDS, "items": [
-        ["n1", "投稿あり店", 35.6, 139.7, "eat", "ramen", 4, 2, 0, ""],
-        ["n2", "境界スコア店", 35.6, 139.7, "bath", "onsen", 3, 0, 0, ""],
-        ["n3", "高スコア店", 35.6, 139.7, "eat", "standing", 5, 0, 0, ""],
-        ["n4", "少数カテゴリ店", 35.6, 139.7, "play", "cinema", 3, 0, 0, ""],
-    ]},
-}
-CURATED = {"n1": {"evidence": [{"src": "user", "id": "gh-issue-9",
-                                "checked": "2026-08-01", "polarity": "+"}]}}
+FIELDS = ["id", "name", "lat", "lon", "cat", "kind", "solo", "quiet", "easy",
+          "conf", "chain", "hidden", "hidden_n", "iso", "city"]
 
 
-def test_investigated_are_excluded():
-    # 既に conf>=1 のものは調査済みなので出さない
-    out = rq.rank_targets(PREFDOCS, CURATED)
-    assert all(t["id"] != "n1" for t in out), "調査済みが混ざっている"
+def _doc(*rows):
+    return {44: {"fields": FIELDS, "items": list(rows)}}
 
 
-def test_boundary_score_first():
-    out = rq.rank_targets(PREFDOCS, CURATED)
-    assert out[0]["id"] in ("n2", "n4"), f"境界スコアが先頭でない: {out[0]}"
+def _row(id_, name, cat="bath", kind="sento", solo=4, quiet=4, easy=3,
+         chain=0, hidden=0.0, hidden_n=2, iso=300, city="別府市"):
+    return [id_, name, 33.28, 131.5, cat, kind, solo, quiet, easy,
+            0, chain, hidden, hidden_n, iso, city]
 
 
-def test_reason_is_present():
-    for t in rq.rank_targets(PREFDOCS, CURATED):
-        assert t["reason"], f"reason が空: {t}"
-        assert t["maps"].startswith("https://"), t
+def test_public_baths_rank_high():
+    """公営の入浴施設は自治体が施設ページを持つので必ず当たる。先に調べる。"""
+    docs = _doc(_row("n1", "市営 田の湯温泉"), _row("n2", "適当なラーメン", cat="eat", kind="ramen"))
+    got = [t["id"] for t in research_queue.rank_targets(docs, {}, limit=2)]
+    assert got[0] == "n1", got
 
 
-def test_limit():
-    out = rq.rank_targets(PREFDOCS, CURATED, limit=2)
-    assert len(out) == 2
+def test_checked_are_excluded():
+    docs = _doc(_row("n1", "市営 田の湯温泉"))
+    assert research_queue.rank_targets(docs, {"n1": {"checked": "2026-08-08"}}, limit=5) == []
 
 
-def test_sorted_by_weight_desc():
-    out = rq.rank_targets(PREFDOCS, CURATED)
-    weights = [t["weight"] for t in out]
-    assert weights == sorted(weights, reverse=True), weights
+def test_isolated_gets_bonus():
+    """しきい値はモジュールに書かず summary.json から渡す。"""
+    docs = _doc(_row("n1", "ふつうの銭湯", iso=9999), _row("n2", "ふつうの銭湯2", iso=10))
+    got = research_queue.rank_targets(docs, {}, limit=2, iso_threshold={"bath": 7215})
+    by = {t["id"]: t["weight"] for t in got}
+    assert by["n1"] > by["n2"], by
+    assert "孤立" in next(t["reason"] for t in got if t["id"] == "n1")
+
+
+def test_city_filled_from_nearest_municipality():
+    """「市営浴場」のような一般名は地名が無いと検索できない。"""
+    docs = _doc(_row("n1", "町営公衆浴場", city=""))
+    munis = [("網走市", 44.02, 144.27), ("別府市", 33.28, 131.49)]
+    got = research_queue.rank_targets(docs, {}, limit=1, munis=munis)
+    assert got[0]["city"] == "別府市", got[0]
+
+
+def test_axes_are_reported_not_score():
+    docs = _doc(_row("n1", "市営 田の湯温泉", solo=4, quiet=4, easy=3))
+    t = research_queue.rank_targets(docs, {}, limit=1)[0]
+    assert t["axes"] == [4, 4, 3], t
+    assert "score" not in t
+
+
+def test_runs_on_real_data():
+    """架空データだけだと列名の変更に気づけない（score 削除時に実際に見逃した）。"""
+    docs = {}
+    for f in sorted((ROOT / "data" / "hitori" / "pref").glob("*.json"))[:3]:
+        docs[int(f.stem)] = json.loads(f.read_text(encoding="utf-8"))
+    summary = json.loads((ROOT / "data" / "hitori" / "summary.json").read_text(encoding="utf-8"))
+    got = research_queue.rank_targets(docs, {}, limit=10,
+                                      iso_threshold=summary.get("iso_threshold"),
+                                      munis=research_queue._load_municipalities())
+    assert len(got) == 10, len(got)
+    assert all(t["id"] and t["city"] for t in got), [t for t in got if not t["city"]]
 
 
 def main():
-    test_investigated_are_excluded()
-    test_boundary_score_first()
-    test_reason_is_present()
-    test_limit()
-    test_sorted_by_weight_desc()
+    test_public_baths_rank_high()
+    test_checked_are_excluded()
+    test_isolated_gets_bonus()
+    test_city_filled_from_nearest_municipality()
+    test_axes_are_reported_not_score()
+    test_runs_on_real_data()
     print("OK: research_queue")
 
 
