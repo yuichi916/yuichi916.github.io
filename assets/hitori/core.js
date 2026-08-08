@@ -483,3 +483,29 @@ export function searchFacilities(items, query, limit = 20) {
   });
   return hits.slice(0, limit);
 }
+
+// --- 一人で入るときの動線 ---
+// 一蘭が味集中カウンターで解決したのは「入店後に何が起きるか分からない」
+// 不安である。物理的な設計は真似できないが、確認できた事実から入店から
+// 着席までの流れを組み立てて先に見せることはできる。
+// 推測はしない。確認できた事実だけを順に並べる。
+
+export function entryFlow(facts) {
+  if (!facts) return [];
+  const f = [];
+  if (facts.unstaffed === 'yes') f.push('入口に人はいない');
+  if (facts.payment_method === 'ticket_machine') f.push('券売機で先に買う');
+  else if (facts.payment_method === 'counter_person') f.push('番台で先に払う');
+  if (facts.unstaffed === 'yes' && !facts.payment_method) f.push('料金箱に入れる');
+  if (facts.reservation === 'required') f.unshift('事前の予約が要る');
+  else if (facts.reservation === 'none') f.push('予約は要らない');
+  if (facts.payment_method === 'cash_only') f.push('現金だけ');
+  if (facts.bring_towel === 'required') f.push('タオルは持参');
+  else if (facts.bring_towel === 'rental') f.push('タオルは借りられる');
+  if (facts.luggage === 'locker') f.push('ロッカーに荷物を置ける');
+  else if (facts.luggage === 'shelf_only') f.push('荷物は棚に置く');
+  else if (facts.luggage === 'none') f.push('荷物の置き場は無い');
+  if (facts.wash_area === 'no') f.push('洗い場は無い');
+  if (facts.stay_limit) f.push(`${facts.stay_limit}分で上がる`);
+  return f;
+}

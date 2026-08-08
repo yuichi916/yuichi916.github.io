@@ -322,6 +322,17 @@ body.deck-mode .origin-bar { margin-bottom:.2rem; }
 .quickbar button:hover { border-color:var(--line-strong); color:var(--fg); }
 .quickbar button[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--accent);
                                         color:var(--accent); font-weight:700; }
+
+/* 一人で入るときの流れ。番号付きにして順序を伝える */
+.flowbox { margin-top:.9rem; padding:.8rem .9rem; border-radius:var(--r-sm);
+           background:var(--bg); border:1px solid var(--line); }
+.flowbox h4 { margin:0 0 .4rem; font-size:.82rem; }
+.flowbox h4 + * { margin-top:0; }
+.flowbox h4 ~ h4 { margin-top:.9rem; }
+ol.flow { margin:0; padding-left:1.3rem; font-size:.82rem; line-height:1.9; }
+ol.flow li::marker { color:var(--accent); font-weight:700; }
+.guide { margin:0; font-size:.8rem; line-height:1.85; color:var(--fg); }
+.guide-note { margin:.35rem 0 0; font-size:.72rem; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -630,6 +641,40 @@ const CONF_LABEL = ['推定', '出典あり', '現地確認'];
 const LIST_LIMIT = 300;
 let listLimit = LIST_LIMIT;   // 「もっと見る」で増える。県を開くたびに戻す。
 const PIN_LIMIT = 1500;
+// 業態ごとの「初めての一人利用」ガイド。個別施設の体験談は持てないが、
+// 業態単位の作法なら一度書けば全施設に使える。サウナイキタイのサ活が
+// 担う予行演習の役割を、一般化した作法として代替する。
+// 特定の施設について断定しないこと。あくまで業態一般の話として書く。
+const KIND_GUIDE = {
+  sento: '下足箱に靴を入れ、番台か券売機で料金を払う。脱衣所のかごか'
+       + 'ロッカーに服を入れ、浴室に入ったらまずかけ湯をしてから湯船へ。'
+       + '湯船で体や頭を洗わない。上がるときは体を拭いてから脱衣所へ戻る。',
+  onsen: '下足箱に靴を入れ、受付で料金を払う。脱衣所で服を脱ぎ、浴室では'
+       + 'まずかけ湯。湯船にタオルを浸けない。上がるときは体を拭いてから戻る。',
+  sauna: '浴室で体を洗ってからサウナへ。マットかタオルを敷いて座る。'
+       + '水風呂の前にはかけ湯で汗を流す。',
+  ramen: '券売機があれば先に食券を買う。無ければ席に着いてから注文する。'
+       + 'カウンターは詰めて座り、食べ終えたら長居しない。',
+  soba_udon: '立ち食いなら券売機で買って番号を待つ。座席の店は着席してから注文。',
+  gyudon: '券売機か、席のタッチパネルか、店員への口頭。店により違う。',
+  curry: '券売機の店が多い。辛さやライス量を先に決めておくと迷わない。',
+  standing: '先に現金で払う店（キャッシュオン）が多い。混んだら詰めて立つ。',
+  yakiniku_solo: '一人用の席と焼き台がある。注文はタッチパネルの店が多い。',
+  netcafe: '受付で会員登録（初回は身分証が要ることが多い）。席種を選んで入室、'
+         + '退室時に精算する。',
+  karaoke: '受付で人数と時間を伝える。一人利用可の店なら「ひとりカラオケ」と'
+         + '伝えると早い。飲み物は自分で取りに行く店もある。',
+  cinema: '窓口か券売機か事前予約で座席を指定する。上映中は静かにする。',
+  library: '基本は無料で予約も要らない。飲食と通話は所定の場所だけ。',
+  museum: '受付で入館料を払う。大きな荷物はロッカーに預ける。',
+  hostel: '受付でチェックイン（身分証が要る）。共用部と個室の区別を確認する。',
+  capsule: '受付でチェックイン。靴とスーツケースは所定の場所へ。'
+         + '館内着に着替える形式が多い。',
+};
+
+// このカテゴリでは作法ガイドを出さない、という判断が要るときのため
+const GUIDE_CAT_JA = { bath: '入浴施設', eat: '飲食店', play: '娯楽施設', stay: '滞在施設' };
+
 const KIND_JA = {
   standing: '立ち食い・立ち飲み', yakiniku_solo: 'ひとり焼肉', ramen: 'ラーメン',
   soba_udon: 'そば・うどん', gyudon: '牛丼・丼', curry: 'カレー',
@@ -1311,6 +1356,28 @@ function renderCurated(it) {
 // 指標には性質の違う2種類がある。周辺の分布から機械的に計算したもの
 // （孤立度・周辺の構成）と、外部の情報源から集めた事実（料金・支払い方法）。
 // 前者の根拠は計算方法そのもの、後者の根拠は出典URLである。混ぜない。
+// 一人で入るときの流れと、業態一般の作法。
+// 動線は「確認できた事実」から、作法は「業態一般」から作る。出所が
+// 違うので節を分ける。混ぜると、一般論をその施設の確認済み情報だと
+// 誤解される。
+function flowHtml(it) {
+  const facts = factsOf(it);
+  const flow = core.entryFlow(facts);
+  const guide = KIND_GUIDE[it.kind];
+  if (!flow.length && !guide) return '';
+
+  const flowPart = flow.length
+    ? `<h4>この施設で確認できた流れ</h4>
+       <ol class="flow">${flow.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ol>`
+    : '';
+  const guidePart = guide
+    ? `<h4>${escapeHtml(KIND_JA[it.kind] || it.kind)}の一般的な作法</h4>
+       <p class="guide">${escapeHtml(guide)}</p>
+       <p class="guide-note">この施設について確認したものではなく、業態一般の説明です。</p>`
+    : '';
+  return `<div class="flowbox">${flowPart}${guidePart}</div>`;
+}
+
 function basisHtml(it, liveIso) {
   const parts = [];
   const kindJa = KIND_JA[it.kind] || it.kind;
@@ -1453,6 +1520,7 @@ async function openFacility(id, opener) {
       この施設はその ${Math.round(it.hidden * it.hidden_n)} 軒に含まれていません。</p>
       <p class="caveat">チェーンの判定は、同じ名称が3県以上に5件以上あることを条件にした機械的なものです。
       検出されなかったことは、個人店であることの証明にはなりません。</p></div>` : ''}
+    ${flowHtml(it)}
     ${basisHtml(it, liveIso)}
     ${it.note ? `<p class="note">${escapeHtml(it.note)}</p>` : ''}
     <div id="facility-map"></div>
@@ -2178,6 +2246,7 @@ window.state = state;
 window.PREF_CACHE = PREF_CACHE;
 window.visibleItems = visibleItems;
 window.AX_LABEL = AX_LABEL;
+window.KIND_GUIDE = KIND_GUIDE;
 window.tipsFor = tipsFor;
 window.FAILED_PREFS = FAILED_PREFS;
 window.FOUND_BY_SEARCH = FOUND_BY_SEARCH;

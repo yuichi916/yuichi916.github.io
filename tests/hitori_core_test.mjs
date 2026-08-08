@@ -695,5 +695,26 @@ check('filterItems: 述語での絞り込み（チェーンの有無）', () => 
   eq(core.filterItems(all, {}).length, 2);
 });
 
+
+check('entryFlow: 確認できた事実だけを順に並べる', () => {
+  const f = core.entryFlow({ payment_method: 'ticket_machine', bring_towel: 'required',
+                             luggage: 'locker', stay_limit: 30 });
+  eq(f[0], '券売機で先に買う', f.join('/'));
+  eq(f.includes('タオルは持参'), true);
+  eq(f.includes('30分で上がる'), true);
+  // 分かっていないことは書かない
+  eq(f.some(x => x.includes('洗い場')), false, f.join('/'));
+});
+
+check('entryFlow: 予約が要るときは先頭に来る', () => {
+  const f = core.entryFlow({ reservation: 'required', payment_method: 'counter_person' });
+  eq(f[0], '事前の予約が要る', f.join('/'));
+});
+
+check('entryFlow: 事実が無ければ空', () => {
+  eq(core.entryFlow(null).length, 0);
+  eq(core.entryFlow({}).length, 0);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

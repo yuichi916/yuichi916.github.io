@@ -1897,6 +1897,46 @@ def test_chain_chips_are_mutually_exclusive(context, page):
         assert bad not in labels, f"{bad} と断定している: {labels}"
     p.close()
 
+
+def test_entry_flow_and_guide_are_kept_apart(context, page):
+    """確認できた事実と業態一般の説明を混ぜないこと。
+
+    一蘭が物理設計で解決した「入店後に何が起きるか分からない不安」に、
+    情報で応える節。ただし一般論をその施設の確認済み情報だと誤解させては
+    ならないので、出所ごとに節を分け、一般論にはその旨を明記する。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(BEPPU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=25000)
+    p.wait_for_timeout(2500)
+
+    # 調査済みの施設: 事実からの動線と業態の作法が両方出る
+    p.evaluate("""() => {
+      const it = currentSearchResults().find(x => x.checked && CURATED[x.id]);
+      if (it) { FOUND_BY_SEARCH.set(it.id, it); openFacility(it.id); }
+    }""")
+    p.wait_for_selector("#facility .flowbox", timeout=15000)
+    body = p.inner_text("#facility .flowbox")
+    assert "確認できた流れ" in body or "一般的な作法" in body, body[:200]
+    if "一般的な作法" in body:
+        assert "業態一般の説明です" in body, "一般論であることを明示していない"
+
+    # 未調査の施設でも、業態の作法だけは出る（一度書けば全施設に効く）
+    p.keyboard.press("Escape")
+    p.evaluate("""() => {
+      const it = currentSearchResults().find(x => !x.checked && KIND_GUIDE[x.kind]);
+      if (it) { FOUND_BY_SEARCH.set(it.id, it); openFacility(it.id); }
+    }""")
+    p.wait_for_timeout(1500)
+    if p.eval_on_selector_all("#facility .flowbox", "e => e.length"):
+        b2 = p.inner_text("#facility .flowbox")
+        assert "確認できた流れ" not in b2, "未調査なのに確認済みの流れを出している"
+        assert "業態一般の説明です" in b2, b2[:200]
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1954,6 +1994,7 @@ def main():
             test_conflicting_price_shows_a_range(context, page)
             test_quick_filters_narrow_and_can_be_cleared(context, page)
             test_chain_chips_are_mutually_exclusive(context, page)
+            test_entry_flow_and_guide_are_kept_apart(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)
