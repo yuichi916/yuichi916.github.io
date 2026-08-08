@@ -13,6 +13,7 @@ TESTS = [
     "hitori_iso_test.py",
     "hitori_neighbors_test.py",
     "hitori_chains_test.py",
+    "hitori_brands_test.py",
     "hitori_osm_query_test.py",
     "hitori_normalize_test.py",
     "hitori_validate_test.py",
