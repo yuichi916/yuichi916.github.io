@@ -289,6 +289,8 @@ def test_search_with_location(context, page):
     page.wait_for_function("window.__searchReady === true", timeout=30000)
     assert not errors, f"JSエラー: {errors}"
 
+    # 既定はデッキ表示なので #search-list は空のまま。一覧に切り替えて検証する。
+    page.click("#view-list")
     n = page.eval_on_selector_all("#search-list li.item", "els => els.length")
     assert n > 0, "現在地の一覧が空"
 
@@ -304,11 +306,71 @@ def test_search_with_location(context, page):
     assert 13 in page.evaluate("Object.keys(PREF_CACHE).map(Number)")
 
 
+def test_deck_is_default_and_swipes(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    assert p.evaluate("state.view") == "deck"
+    p.wait_for_selector("#deck .card", timeout=15000)
+    first = p.eval_on_selector("#deck .card", "e => e.dataset.id")
+
+    p.click("#deck-next")
+    p.wait_for_timeout(300)
+    second = p.eval_on_selector("#deck .card", "e => e.dataset.id")
+    assert second != first, "次へ押しても変わらない"
+
+    p.click("#deck-prev")
+    p.wait_for_timeout(300)
+    assert p.eval_on_selector("#deck .card", "e => e.dataset.id") == first
+    p.close()
+
+
+def test_deck_and_list_share_results(context, page):
+    """絞り込みと並べ替えはデッキと一覧で同じ結果集合を返す。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    p.evaluate("state.sort = 'find'; renderDeck()")
+    deck_ids = p.evaluate("currentSearchResults().slice(0,5).map(x => x.id)")
+
+    p.click("#view-list")
+    p.wait_for_selector("#search-list li.item", timeout=15000)
+    list_ids = p.eval_on_selector_all("#search-list li.item", "els => els.slice(0,5).map(e => e.dataset.id)")
+    assert deck_ids == list_ids, f"デッキと一覧で結果が違う\n{deck_ids}\n{list_ids}"
+
+    p.click("#view-deck")
+    p.wait_for_selector("#deck .card", timeout=15000)
+    assert p.eval_on_selector("#deck .card", "e => e.dataset.id") == deck_ids[0]
+    p.close()
+
+
+def test_deck_empty_state(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    # 絶対に0件になる条件
+    p.evaluate("state.search.maxDistM = 1; renderDeck()")
+    p.wait_for_selector("#deck .empty", timeout=10000)
+    body = p.inner_text("#deck")
+    assert "該当" in body
+    assert p.eval_on_selector_all("#deck .open-filters", "els => els.length") == 1
+    p.close()
+
+
 def test_search_distance_filter(context, page):
     context.grant_permissions(["geolocation"])
     context.set_geolocation(TOKYO)
     page.goto(BASE)
     page.wait_for_function("window.__searchReady === true", timeout=30000)
+    page.click("#view-list")
     before = page.eval_on_selector_all("#search-list li.item", "els => els.length")
     page.select_option("#f-dist", "400")
     page.wait_for_timeout(400)
@@ -323,6 +385,7 @@ def test_search_quiet_filter(context, page):
     context.set_geolocation(TOKYO)
     page.goto(BASE)
     page.wait_for_function("window.__searchReady === true", timeout=30000)
+    page.click("#view-list")
     page.check("#f-quiet")
     page.wait_for_timeout(400)
     quiets = page.eval_on_selector_all("#search-list li.item", "els => els.map(e => +e.dataset.quiet)")
@@ -335,6 +398,7 @@ def test_facility_sheet(context, page):
     context.set_geolocation(TOKYO)
     page.goto(BASE)
     page.wait_for_function("window.__searchReady === true", timeout=30000)
+    page.click("#view-list")
 
     page.click("#search-list li.item")
     page.wait_for_selector("#facility[open], #facility:not([hidden])", timeout=10000)
@@ -371,6 +435,7 @@ def test_facility_keyboard_open_close(context, page):
     context.set_geolocation(TOKYO)
     page.goto(BASE)
     page.wait_for_function("window.__searchReady === true", timeout=30000)
+    page.click("#view-list")
     # __searchReady は自県データの読み込み完了時点で立つが、隣接県は
     # その後も非同期に読み込まれ、届くたびに renderSearchList() が
     # #search-list の innerHTML を丸ごと差し替える。ここで focus() した
@@ -442,6 +507,7 @@ def test_facility_map(context, page):
     """)
     page.goto(BASE)
     page.wait_for_function("window.__searchReady === true", timeout=30000)
+    page.click("#view-list")
     page.click("#search-list li.item")
     page.wait_for_selector("#facility-map canvas", timeout=20000)
     # canvas は Map 生成直後に同期で現れるが、タイルの fetch() はスタイル読込
@@ -499,6 +565,7 @@ def test_search_retry_after_permission_denied(context, page):
     context.grant_permissions(["geolocation"])
     context.set_geolocation(TOKYO)
     p.click("#search-status button.retry-location")
+    p.click("#view-list")
     p.wait_for_selector("#search-list li.item", timeout=30000)
     n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
     assert n > 0, "再試行しても一覧が populate されない"
@@ -524,6 +591,7 @@ def test_search_prefecture_fetch_failure_surfaces(context, page):
     p.route("**/data/hitori/pref/*.json", lambda route: route.abort())
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
     n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
     assert n == 0, f"取得失敗のはずが一覧に {n} 件出ている"
     status = p.inner_text("#search-status")
@@ -548,6 +616,7 @@ def test_search_starts_on_first_tab_entry(context, page):
     p.wait_for_selector("#map path[data-code='13']", timeout=15000)
     p.click("#tab-search")
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
     n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
     assert n > 0, "探すタブへ切り替えても一覧が始まらない"
     p.close()
@@ -568,6 +637,7 @@ def test_place_search_without_location(context, page):
     assert any("東京都" in h for h in hits), hits
 
     p.click("#place-hits li")
+    p.click("#view-list")
     p.wait_for_selector("#search-list li.item", timeout=30000)
     assert "渋谷" in p.inner_text("#origin-label"), p.inner_text("#origin-label")
     n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
@@ -685,6 +755,7 @@ def test_sort_changes_order(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
     first = p.eval_on_selector("#search-list li.item", "e => e.dataset.id")
 
     p.select_option("#f-sort", "solo")
@@ -705,6 +776,7 @@ def test_favorites_roundtrip(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
 
     fid = p.eval_on_selector("#search-list li.item", "e => e.dataset.id")
     p.click("#search-list li.item .fav")
@@ -744,6 +816,7 @@ def test_isolation_badge_and_detail(context, page):
         assert m["iso"] >= th[m["cat"]], m
 
     # 詳細シートには孤立度を必ず出す（バッジの有無に関わらず）
+    p.click("#view-list")
     p.click("#search-list li.item")
     p.wait_for_selector("#facility dl", timeout=15000)
     body = p.inner_text("#facility")
@@ -761,6 +834,7 @@ def test_stale_favorite_is_flagged(context, page):
     p = context.new_page()
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
 
     # 実在しないIDのお気に入りを仕込む
     p.evaluate("""
@@ -797,6 +871,7 @@ def test_favorite_detail_shows_real_iso_not_undefined(context, page):
     p.add_init_script("localStorage.removeItem('hitori.favs');")
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
 
     p.evaluate("""
       () => {
@@ -839,6 +914,7 @@ def test_favorites_empty_view_has_no_dead_widen_button(context, page):
     p.add_init_script("localStorage.removeItem('hitori.favs');")
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
 
     p.click("#fav-toggle")
     p.wait_for_timeout(300)

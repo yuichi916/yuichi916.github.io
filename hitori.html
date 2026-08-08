@@ -106,6 +106,17 @@ img, svg, table { max-width: 100%; }
 #search-list .meta, #search-list .dist { color: var(--muted); font-size: .82rem; }
 #search-list .dist { text-align: right; white-space: nowrap; }
 #search-list .badges { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .35rem; }
+.viewbar { display:flex; gap:.5rem; margin:.6rem 0; flex-wrap:wrap; }
+.viewbar button { background:none; border:1px solid var(--line); border-radius:999px;
+                  color:var(--fg); cursor:pointer; font:inherit; font-size:.82rem;
+                  padding:.2rem .9rem; }
+.viewbar button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+#deck { min-height:60vh; }
+#deck .empty { color:var(--muted); padding:2rem 0; text-align:center; }
+.deck-nav { display:flex; align-items:center; justify-content:center; gap:1rem;
+            margin:.6rem 0 0; color:var(--muted); font-size:.82rem; }
+.deck-nav button { background:none; border:1px solid var(--line); border-radius:50%;
+                   color:var(--fg); cursor:pointer; width:2.2rem; height:2.2rem; font-size:1rem; }
 .badge-ax { font-size: .72rem; border: 1px solid var(--line); border-radius: 999px;
             padding: 0 .5rem; color: var(--muted); }
 .badge-gem { border-color: #c05621; color: #c05621; }
@@ -217,6 +228,17 @@ img, svg, table { max-width: 100%; }
       <small>現状ほぼすべてが業態からの推定です</small>
     </details>
     <p class="favbar"><button type="button" id="fav-toggle" hidden>★ 保存した場所（<span id="fav-count">0</span>）</button></p>
+    <div class="viewbar">
+      <button type="button" id="view-deck" aria-pressed="true">1軒ずつ</button>
+      <button type="button" id="view-list" aria-pressed="false">一覧で見る</button>
+      <button type="button" id="open-filters">絞り込み</button>
+    </div>
+    <section id="deck" aria-live="polite"></section>
+    <div class="deck-nav">
+      <button type="button" id="deck-prev" aria-label="前の施設">↑</button>
+      <span id="deck-pos"></span>
+      <button type="button" id="deck-next" aria-label="次の施設">↓</button>
+    </div>
     <p id="search-status" class="counts"></p>
     <ol id="search-list" class="items"></ol>
   </section>
@@ -305,6 +327,7 @@ const state = {
   origin: { kind: 'here', lat: null, lon: null, label: '現在地' },
   search: { cats: new Set(CATS), maxDistM: 800, minSolo: 0, minQuiet: 0, minEasy: 0,
             minConf: 0, requireHours: false },
+  view: 'deck', deckIndex: 0,
 };
 state.sort = 'dist';
 state.favs = core.loadFavs(safeStorage());   // null なら保存領域が使えない
@@ -510,7 +533,7 @@ function currentSearchResults() {
 function bindSortAndFavs() {
   document.getElementById('f-sort').addEventListener('change', e => {
     state.sort = e.target.value;
-    renderSearchList();
+    refreshResults();
   });
 
   const toggle = document.getElementById('fav-toggle');
@@ -520,7 +543,7 @@ function bindSortAndFavs() {
     toggle.addEventListener('click', () => {
       state.favView = !state.favView;
       toggle.setAttribute('aria-pressed', String(state.favView));
-      renderSearchList();
+      refreshResults();
     });
   }
 
@@ -536,7 +559,7 @@ function bindSortAndFavs() {
       state.favs = null;          // 途中で書けなくなったら機能を畳む
     }
     updateFavCount();
-    renderSearchList();
+    refreshResults();
   }, true);
 }
 
@@ -626,6 +649,82 @@ function renderSearchList() {
       </span>
     </li>`;
   }).join('');
+}
+
+// 表示だけ描き直す（保存の星を押したときなど）。デッキの位置は保つ。
+function rerenderView() {
+  if (state.view === 'deck') renderDeck(); else renderSearchList();
+}
+
+// 結果集合そのものが変わったとき（絞り込み・並べ替え・起点）。先頭に戻す。
+function refreshResults() {
+  state.deckIndex = 0;
+  rerenderView();
+}
+
+function setView(v) {
+  state.view = v === 'list' ? 'list' : 'deck';
+  const deckOn = state.view === 'deck';
+  document.getElementById('view-deck').setAttribute('aria-pressed', String(deckOn));
+  document.getElementById('view-list').setAttribute('aria-pressed', String(!deckOn));
+  document.getElementById('deck').hidden = !deckOn;
+  document.querySelector('.deck-nav').hidden = !deckOn;
+  document.getElementById('search-list').hidden = deckOn;
+  if (deckOn) renderDeck(); else renderSearchList();
+}
+
+function deckMove(step) {
+  const items = currentSearchResults();
+  if (!items.length) return;
+  state.deckIndex = Math.max(0, Math.min(items.length - 1, state.deckIndex + step));
+  renderDeck();
+}
+
+function deckNext() { deckMove(1); }
+function deckPrev() { deckMove(-1); }
+
+function renderDeck() {
+  const el = document.getElementById('deck');
+  const items = currentSearchResults();
+  const pos = document.getElementById('deck-pos');
+
+  if (!items.length) {
+    state.deckIndex = 0;
+    pos.textContent = '';
+    el.innerHTML = `<div class="empty">該当する施設はありません。
+      <button type="button" class="open-filters">絞り込みを見直す</button></div>`;
+    el.querySelector('.open-filters').addEventListener('click', openFilterSheet);
+    return;
+  }
+  state.deckIndex = Math.max(0, Math.min(items.length - 1, state.deckIndex));
+  const it = items[state.deckIndex];
+  pos.textContent = `${state.deckIndex + 1} / ${items.length}`;
+  el.innerHTML = renderCard(it);       // Task 6 で中身を実装する
+  const card = el.querySelector('.card');
+  if (card) card.addEventListener('click', () => openFacility(it.id));
+}
+
+// Task 6 で本実装する。ここでは最小の骨格だけ置く。
+function renderCard(it) {
+  return `<article class="card" data-id="${it.id}"><h3>${escapeHtml(it.name)}</h3></article>`;
+}
+
+function openFilterSheet() {
+  document.querySelector('#panel-search .filters').hidden = false;
+  document.getElementById('open-filters').setAttribute('aria-expanded', 'true');
+}
+
+function bindDeck() {
+  document.getElementById('view-deck').addEventListener('click', () => setView('deck'));
+  document.getElementById('view-list').addEventListener('click', () => setView('list'));
+  document.getElementById('deck-next').addEventListener('click', deckNext);
+  document.getElementById('deck-prev').addEventListener('click', deckPrev);
+  document.getElementById('open-filters').addEventListener('click', openFilterSheet);
+  document.addEventListener('keydown', e => {
+    if (state.tab !== 'search' || state.view !== 'deck') return;
+    if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); deckNext(); }
+    if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); deckPrev(); }
+  });
 }
 
 const AX_LABEL = {
@@ -815,12 +914,12 @@ async function runSearchFromOrigin() {
   status.textContent = `${BY_CODE[code].name} の施設を読み込んでいます…`;
 
   await loadPrefIntoCache(code);
-  renderSearchList();
+  refreshResults();
   window.__searchReady = true;
 
   const neighbors = (NEIGHBORS && NEIGHBORS[String(code)]) || [];
   for (const n of neighbors) {
-    if (await loadPrefIntoCache(n)) renderSearchList();
+    if (await loadPrefIntoCache(n)) refreshResults();
   }
 }
 
@@ -956,30 +1055,30 @@ function bindSearchFilters() {
   for (const c of CATS) {
     document.getElementById('s-cat-' + c).addEventListener('change', e => {
       if (e.target.checked) state.search.cats.add(c); else state.search.cats.delete(c);
-      renderSearchList();
+      refreshResults();
     });
   }
   document.getElementById('f-dist').addEventListener('change', e => {
     state.search.maxDistM = e.target.value ? +e.target.value : null;
-    renderSearchList();
+    refreshResults();
   });
   document.getElementById('f-solo').addEventListener('change', e => {
-    state.search.minSolo = e.target.checked ? 5 : 0; renderSearchList();
+    state.search.minSolo = e.target.checked ? 5 : 0; refreshResults();
   });
   document.getElementById('f-quiet').addEventListener('change', e => {
-    state.search.minQuiet = e.target.checked ? 4 : 0; renderSearchList();
+    state.search.minQuiet = e.target.checked ? 4 : 0; refreshResults();
   });
   document.getElementById('f-easy').addEventListener('change', e => {
-    state.search.minEasy = e.target.checked ? 4 : 0; renderSearchList();
+    state.search.minEasy = e.target.checked ? 4 : 0; refreshResults();
   });
   document.getElementById('f-verified').addEventListener('change', e => {
-    state.search.minConf = e.target.checked ? 1 : 0; renderSearchList();
+    state.search.minConf = e.target.checked ? 1 : 0; refreshResults();
   });
   document.getElementById('f-hours').addEventListener('change', e => {
     state.search.requireHours = e.target.checked;
     document.getElementById('hours-note').textContent = e.target.checked
       ? '営業時間が登録されているのは全体の約17%です' : '';
-    renderSearchList();
+    refreshResults();
   });
 }
 
@@ -1238,10 +1337,12 @@ async function init() {
   });
   switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
   if (state.pref) openPrefecture(state.pref);
+  bindDeck();
+  setView(state.view);
   window.__ready = true;
   // 描画テストから触るために公開する
   Object.assign(window, { state, core, PREF_CACHE, currentSearchResults, isGem, openFacility,
-    setOrigin, ensurePlaces, SUMMARY, isIsolated });
+    setOrigin, ensurePlaces, SUMMARY, isIsolated, renderDeck, setView });
 }
 
 // module scriptはトップレベル宣言がモジュールスコープに閉じ、window の
