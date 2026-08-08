@@ -408,3 +408,36 @@ export function leadSentence(item, ctx) {
 
   return out.slice(0, LEAD_MAX_CLAUSES).join('');
 }
+
+// --- 星座図 ---
+// 写真が1枚も無いので、周辺施設の分布そのものを絵にする。
+// 「密集」も「孤立」も同じ絵で語れ、他所から持ってこられない絵になる。
+
+const CONST_RADIUS_M = 1500;
+const CONST_R = 130;
+const CONST_MAX_POINTS = 120;   // 都心では1.5km圏に数百件あり、全部打つと黒い塊になる
+
+export function constellation(center, items, opts) {
+  const o = opts || {};
+  const radiusM = o.radiusM || CONST_RADIUS_M;
+  const R = o.r || CONST_R;
+  const maxPoints = o.maxPoints || CONST_MAX_POINTS;
+  const cos = Math.cos(center.lat * Math.PI / 180);
+
+  const pts = [];
+  for (const it of items) {
+    const dx = (it.lon - center.lon) * cos * 111320;
+    const dy = -(it.lat - center.lat) * 111320;   // SVGは下が正なので反転
+    const distM = Math.sqrt(dx * dx + dy * dy);
+    if (distM > radiusM) continue;
+    pts.push({
+      x: (dx / radiusM) * R,
+      y: (dy / radiusM) * R,
+      cat: it.cat,
+      distM,
+      self: it.id === center.id,
+    });
+  }
+  pts.sort((a, b) => a.distM - b.distM);
+  return { points: pts.slice(0, maxPoints), r: R, rings: [R / 3, (R * 2) / 3, R] };
+}

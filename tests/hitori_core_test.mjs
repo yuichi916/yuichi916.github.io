@@ -521,5 +521,63 @@ check('leadSentence: 断定しない語を使わない', () => {
   }
 });
 
+const CEN = { id: 'n1', lat: 35.0, lon: 139.0, cat: 'bath' };
+
+check('constellation: 中心は原点', () => {
+  const c = core.constellation(CEN, [CEN], {});
+  eq(c.points.length, 1);
+  near(c.points[0].x, 0, 0.01);
+  near(c.points[0].y, 0, 0.01);
+  eq(c.points[0].self, true);
+});
+
+check('constellation: 北が上（yが負）', () => {
+  const north = { id: 'n2', lat: 35.009, lon: 139.0, cat: 'eat' };   // 約1km北
+  const c = core.constellation(CEN, [CEN, north], {});
+  const p = c.points.find(x => !x.self);
+  eq(p.y < 0, true, '北の点が下にある: ' + p.y);
+  near(p.x, 0, 1);
+});
+
+check('constellation: 東が右（xが正）', () => {
+  const east = { id: 'n3', lat: 35.0, lon: 139.011, cat: 'eat' };    // 約1km東
+  const c = core.constellation(CEN, [CEN, east], {});
+  const p = c.points.find(x => !x.self);
+  eq(p.x > 0, true, '東の点が左にある: ' + p.x);
+});
+
+check('constellation: 半径外は落とす', () => {
+  const far = { id: 'n4', lat: 35.03, lon: 139.0, cat: 'eat' };      // 約3.3km
+  const c = core.constellation(CEN, [CEN, far], {});
+  eq(c.points.length, 1);
+});
+
+check('constellation: 距離が線形に写像される', () => {
+  const half = { id: 'n5', lat: 35.00674, lon: 139.0, cat: 'eat' };  // 約750m = 半径の半分
+  const c = core.constellation(CEN, [CEN, half], { r: 130, radiusM: 1500 });
+  const p = c.points.find(x => !x.self);
+  near(Math.abs(p.y), 65, 6);
+});
+
+check('constellation: 中心に近い順に上限で切る', () => {
+  const many = [CEN];
+  for (let i = 0; i < 300; i++) {
+    many.push({ id: 'x' + i, lat: 35.0 + 0.00004 * (i + 1), lon: 139.0, cat: 'eat' });
+  }
+  const c = core.constellation(CEN, many, { maxPoints: 120 });
+  eq(c.points.length, 120);
+  // 中心に近い順
+  const ds = c.points.map(p => p.distM);
+  eq(JSON.stringify(ds), JSON.stringify(ds.slice().sort((a, b) => a - b)));
+  eq(c.points[0].self, true, '中心が落ちている');
+});
+
+check('constellation: 周辺0件でも落ちない', () => {
+  const c = core.constellation(CEN, [], {});
+  eq(c.points.length, 0);
+  eq(c.rings.length, 3);
+  eq(c.r > 0, true);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');
