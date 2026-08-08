@@ -235,6 +235,41 @@ def test_unchecked_facility_has_empty_checked():
         assert r[i["solo"]] == r[i["solo_est"]], "未調査なのに実効値が推定値と違う"
 
 
+
+def test_excluded_facilities_leave_the_output():
+    """除外は県別リストにも届くこと。
+
+    出力は by_pref から作られるので、all_records だけを絞っても
+    ファイルには残ってしまう（実際にそのバグを出した）。
+    """
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    curated = json.loads((root / "data" / "hitori" / "curated.json").read_text(encoding="utf-8"))
+
+    import enrich
+    should_go = {i for i, e in curated.items() if enrich.exclusion_reason(e["facts"])}
+    assert should_go, "除外対象が1件も無いとこのテストは何も検証しない"
+
+    ids = set()
+    for f in sorted((root / "data" / "hitori" / "pref").glob("*.json")):
+        d = json.loads(f.read_text(encoding="utf-8"))
+        i = d["fields"].index("id")
+        ids |= {r[i] for r in d["items"]}
+    left = should_go & ids
+    assert not left, f"除外されるはずの施設が残っている: {left}"
+
+
+def test_total_reflects_exclusions():
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    summary = json.loads((root / "data" / "hitori" / "summary.json").read_text(encoding="utf-8"))
+    n = 0
+    for f in sorted((root / "data" / "hitori" / "pref").glob("*.json")):
+        n += len(json.loads(f.read_text(encoding="utf-8"))["items"])
+    assert summary["total"] == n, (summary["total"], n)
+
 def main():
     test_build_shapes()
     test_build_output_passes_validation()
@@ -247,6 +282,8 @@ def main():
     test_build_publishes_iso_max()
     test_enriched_axes_keep_the_estimate()
     test_unchecked_facility_has_empty_checked()
+    test_excluded_facilities_leave_the_output()
+    test_total_reflects_exclusions()
     print("OK: build_data")
 
 

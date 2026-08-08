@@ -123,15 +123,24 @@ def build(raw_by_pref, prefs, curated, updated):
 
     # 集めた事実で3軸を補正する。solo/quiet/easy が並べ替えにも使われるため、
     # ソートより前に実効値へ差し替えておく必要がある。
+    # 現データに無い施設の警告は除外より前に取る。除外した施設まで
+    # 「見つからない」と報告してしまうため。
+    missing = set(curated) - {r["id"] for r in all_records}
+    if missing:
+        print(f"警告: curated.json の {len(missing)} 件が現データに見つからない", file=sys.stderr)
+
     applied, excluded = _enrich(all_records, curated)
+    # 出力は by_pref から作られるので、県別リストにも除外を反映する。
+    # all_records だけを絞っても出力には届かない。
+    dropped = {eid for eid, _, _ in excluded}
+    if dropped:
+        for code in by_pref:
+            by_pref[code] = [r for r in by_pref[code] if r["id"] not in dropped]
     # 黙って消さない。なぜ件数が減ったのか分かるように必ず出す。
     for eid, ename, reason in excluded:
         print(f"除外: {ename}（{eid}）— {reason}", file=sys.stderr)
     if excluded:
         print(f"合計 {len(excluded)} 件を一覧から外した", file=sys.stderr)
-    missing = set(curated) - {r["id"] for r in all_records}
-    if missing:
-        print(f"警告: curated.json の {len(missing)} 件が現データに見つからない", file=sys.stderr)
 
     summary_prefs = []
     prefdocs = {}
