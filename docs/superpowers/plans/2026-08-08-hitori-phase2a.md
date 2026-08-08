@@ -1285,7 +1285,8 @@ function renderPlaceHits(places, facs, opts) {
   if (facs.length) {
     parts.push(`<li class="grp grp-fac label">施設</li>` + facs.map((f, i) => `
       <li data-kind="fac" data-i="${i}" tabindex="0">${escapeHtml(f.name)}<span class="kindmark">${
-        escapeHtml(BY_CODE[f.prefCode || f.pref].name)}${f.kind ? '・' + escapeHtml(KIND_JA[f.kind] || f.kind) : ''}</span></li>`).join(''));
+        escapeHtml(f.city || BY_CODE[f.prefCode || f.pref].name)}${
+        f.kind ? '・' + escapeHtml(KIND_JA[f.kind] || f.kind) : ''}</span></li>`).join(''));
   }
   if (!parts.length) {
     parts.push('<li class="empty">該当する駅・地名・施設がありません</li>');
