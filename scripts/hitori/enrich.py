@@ -36,6 +36,15 @@ FACT_VOCAB = {
     "access": {"public", "residents_only", "members_only"},
     "status": {"open", "closed_temporarily", "closed_permanently"},
     "renamed_to": str,
+    # 一人で行く前に知らないと困ること。実際の収集で情報源が書いていたのに
+    # 語彙が無くて捨てていた（「30分制限」「無人料金箱」「洗い場なし」など）。
+    # 同行者に聞けないので、一人客ほどこれを事前に知る必要がある。
+    "stay_limit": int,                                   # 滞在時間の上限（分）
+    "luggage": {"locker", "shelf_only", "none"},         # 荷物の置き場
+    "bring_towel": {"required", "rental", "included"},   # タオル
+    "wash_area": {"yes", "no"},                          # 洗い場（体を洗えるか）
+    "busy_time": {"morning_quiet", "evening_busy", "weekend_busy", "usually_quiet"},
+    "unstaffed": {"yes", "no"},                          # 無人（料金箱など）
 }
 
 # この事実が裏付け MIN_SUPPORT 件以上で立つと、その施設を一覧から外す。
