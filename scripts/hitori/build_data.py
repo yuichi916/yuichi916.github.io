@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import chains
+import enrich
 import hidden
 import iso
 import normalize
@@ -59,6 +60,41 @@ def manual_records(curated, code):
     return out
 
 
+def _enrich(records, curated):
+    """curated.json の事実で3軸を補正する。推定値は別列に残す。
+
+    上書きにすると、あとから「なぜこの値なのか」を追えなくなる。
+    """
+    applied = 0
+    excluded = []
+    kept = []
+    for r in records:
+        r["solo_est"], r["quiet_est"], r["easy_est"] = r["solo"], r["quiet"], r["easy"]
+        r["checked"] = ""
+        entry = curated.get(r["id"])
+        if not entry:
+            kept.append(r)
+            continue
+
+        facts = entry.get("facts", [])
+        # 「一人で行けるか」以前に、そこへ行けるのかを先に見る。地元住民専用や
+        # 閉業が裏付けられた施設を載せると、行った人が門前払いになる。
+        reason = enrich.exclusion_reason(facts)
+        if reason:
+            excluded.append((r["id"], r["name"], reason))
+            continue
+
+        r["checked"] = entry.get("checked", "")
+        eff = enrich.apply_adjust(
+            {"solo": r["solo"], "quiet": r["quiet"], "easy": r["easy"]}, facts)
+        r["solo"], r["quiet"], r["easy"] = eff["solo"], eff["quiet"], eff["easy"]
+        applied += 1
+        kept.append(r)
+
+    records[:] = kept
+    return applied, excluded
+
+
 def build(raw_by_pref, prefs, curated, updated):
     """(summary, {code: pref_doc}) を返す。ファイルI/Oはしない。"""
     by_pref = {}
@@ -84,6 +120,27 @@ def build(raw_by_pref, prefs, curated, updated):
 
     # 孤立度も全国の点集合に対して計算する。県別にやると県境で最寄が誤る。
     iso.compute_iso(all_records)
+
+    # 集めた事実で3軸を補正する。solo/quiet/easy が並べ替えにも使われるため、
+    # ソートより前に実効値へ差し替えておく必要がある。
+    # 現データに無い施設の警告は除外より前に取る。除外した施設まで
+    # 「見つからない」と報告してしまうため。
+    missing = set(curated) - {r["id"] for r in all_records}
+    if missing:
+        print(f"警告: curated.json の {len(missing)} 件が現データに見つからない", file=sys.stderr)
+
+    applied, excluded = _enrich(all_records, curated)
+    # 出力は by_pref から作られるので、県別リストにも除外を反映する。
+    # all_records だけを絞っても出力には届かない。
+    dropped = {eid for eid, _, _ in excluded}
+    if dropped:
+        for code in by_pref:
+            by_pref[code] = [r for r in by_pref[code] if r["id"] not in dropped]
+    # 黙って消さない。なぜ件数が減ったのか分かるように必ず出す。
+    for eid, ename, reason in excluded:
+        print(f"除外: {ename}（{eid}）— {reason}", file=sys.stderr)
+    if excluded:
+        print(f"合計 {len(excluded)} 件を一覧から外した", file=sys.stderr)
 
     summary_prefs = []
     prefdocs = {}
@@ -123,6 +180,7 @@ def build(raw_by_pref, prefs, curated, updated):
         "population_source": "Wikidata (CC0) / 令和2年国勢調査",
         "iso_threshold": iso.iso_thresholds(all_records),
         "iso_max": iso.MAX_ISO_M,
+        "checked_count": applied,
         "prefectures": summary_prefs,
     }
     return summary, prefdocs
@@ -178,6 +236,7 @@ def main():
     size_kb = (OUT_DIR / "pref" / f"{biggest:02d}.json").stat().st_size / 1024
     print(f"total {summary['total']:,} 件 / 最大 {biggest:02d} = "
           f"{len(prefdocs[biggest]['items']):,} 件 {size_kb:.0f}KB")
+    print(f"curated.json による調査済み件数: {summary['checked_count']:,}")
 
 
 if __name__ == "__main__":

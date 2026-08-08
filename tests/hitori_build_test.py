@@ -210,6 +210,66 @@ def test_build_publishes_iso_max():
     assert summary["iso_max"] == iso.MAX_ISO_M
 
 
+def test_enriched_axes_keep_the_estimate():
+    """実効値と推定値の両方が出ること。何を根拠に変えたか隠さないため。"""
+    import enrich
+    rec = {"id": "n1", "cat": "bath", "kind": "sento", "solo": 4, "quiet": 4, "easy": 3}
+    facts = [{"k": "payment_method", "v": "counter_person", "n": 2},
+             {"k": "clientele", "v": "local", "n": 2}]
+    eff = enrich.apply_adjust({"solo": 4, "quiet": 4, "easy": 3}, facts)
+    assert eff["easy"] == 1, eff       # 3 - 2（上限）
+    assert rec["easy"] == 3, "推定値が壊されている"
+
+
+def test_unchecked_facility_has_empty_checked():
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    d = json.loads((root / "data" / "hitori" / "pref" / "44.json").read_text(encoding="utf-8"))
+    for f in ("solo_est", "quiet_est", "easy_est", "checked"):
+        assert f in d["fields"], f"{f} が列に無い"
+    i = {k: n for n, k in enumerate(d["fields"])}
+    unchecked = [r for r in d["items"] if not r[i["checked"]]]
+    assert unchecked, "未調査の施設が1件も無いのはおかしい"
+    for r in unchecked[:50]:
+        assert r[i["solo"]] == r[i["solo_est"]], "未調査なのに実効値が推定値と違う"
+
+
+
+def test_excluded_facilities_leave_the_output():
+    """除外は県別リストにも届くこと。
+
+    出力は by_pref から作られるので、all_records だけを絞っても
+    ファイルには残ってしまう（実際にそのバグを出した）。
+    """
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    curated = json.loads((root / "data" / "hitori" / "curated.json").read_text(encoding="utf-8"))
+
+    import enrich
+    should_go = {i for i, e in curated.items() if enrich.exclusion_reason(e["facts"])}
+    assert should_go, "除外対象が1件も無いとこのテストは何も検証しない"
+
+    ids = set()
+    for f in sorted((root / "data" / "hitori" / "pref").glob("*.json")):
+        d = json.loads(f.read_text(encoding="utf-8"))
+        i = d["fields"].index("id")
+        ids |= {r[i] for r in d["items"]}
+    left = should_go & ids
+    assert not left, f"除外されるはずの施設が残っている: {left}"
+
+
+def test_total_reflects_exclusions():
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    summary = json.loads((root / "data" / "hitori" / "summary.json").read_text(encoding="utf-8"))
+    n = 0
+    for f in sorted((root / "data" / "hitori" / "pref").glob("*.json")):
+        n += len(json.loads(f.read_text(encoding="utf-8"))["items"])
+    assert summary["total"] == n, (summary["total"], n)
+
 def main():
     test_build_shapes()
     test_build_output_passes_validation()
@@ -220,6 +280,10 @@ def main():
     test_chain_detection_runs_before_hidden_score()
     test_build_computes_iso_and_threshold()
     test_build_publishes_iso_max()
+    test_enriched_axes_keep_the_estimate()
+    test_unchecked_facility_has_empty_checked()
+    test_excluded_facilities_leave_the_output()
+    test_total_reflects_exclusions()
     print("OK: build_data")
 
 

@@ -1513,6 +1513,127 @@ def test_same_kind_radius_is_single_source(context, page):
     p.close()
 
 
+
+def test_every_axis_value_has_a_label(context, page):
+    """1..5 のすべてに言葉があること。
+
+    値1は業態からの推定だけでは出なかったが、集めた事実による補正で出る。
+    ラベルが空だと「静けさ 1 — 」のように尻切れになる（quiet=3 で実際に
+    起きた不具合と同じ形）。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    missing = p.evaluate("""() => {
+      const out = [];
+      for (const k of ['solo', 'quiet', 'easy'])
+        for (let v = 1; v <= 5; v++)
+          if (!AX_LABEL[k][v]) out.push(k + '=' + v);
+      return out;
+    }""")
+    assert missing == [], f"言葉の無い軸の値: {missing}"
+    p.close()
+
+
+def test_unchecked_facility_says_so(context, page):
+    """調べていない施設に、調べた上で何も無かったと読める表示をしない。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=20000)
+    p.click("#search-list .item")
+    p.wait_for_selector("#facility dl", timeout=15000)
+    body = p.inner_text("#facility")
+    assert ("まだ調べていません" in body) or ("確認できたこと" in body), body[:300]
+    p.close()
+
+
+def test_axis_shows_estimate_when_adjusted(context, page):
+    """実効値が推定値と違うとき、両方を出す。何を根拠に変えたか隠さない。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=20000)
+    # 補正が入った施設を人工的に作って描画する
+    p.evaluate("""() => {
+      const it = currentSearchResults()[0];
+      it.checked = '2026-08-08'; it.easy_est = it.easy; it.easy = Math.min(5, it.easy + 1);
+      FOUND_BY_SEARCH.set(it.id, it); openFacility(it.id);
+    }""")
+    p.wait_for_selector("#facility dl", timeout=15000)
+    body = p.inner_text("#facility")
+    assert "推定" in body, body[:300]
+    p.close()
+
+
+def test_curated_urls_shown_without_quoting(context, page):
+    """出典URLは出す。主張の文章は出さない（自由記述は保存していない）。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=20000)
+    p.evaluate("""() => {
+      const it = currentSearchResults()[0];
+      it.checked = '2026-08-08';
+      CURATED[it.id] = { checked: '2026-08-08', facts: [
+        { k: 'payment_method', v: 'ticket_machine', n: 2,
+          src: ['a.example','b.example'], urls: ['https://a.example/1','https://b.example/2'],
+          official: false, conflict: false }] };
+      FOUND_BY_SEARCH.set(it.id, it); openFacility(it.id);
+    }""")
+    p.wait_for_selector("#facility .curated", timeout=15000)
+    body = p.inner_text("#facility .curated")
+    assert "券売機" in body, body
+    assert "2件" in body, body
+    assert p.eval_on_selector_all("#facility .curated a", "e => e.length") == 2
+    p.close()
+
+
+def test_conflict_is_disclosed(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=20000)
+    p.evaluate("""() => {
+      const it = currentSearchResults()[0];
+      it.checked = '2026-08-08';
+      CURATED[it.id] = { checked: '2026-08-08', facts: [
+        { k: 'payment_method', v: 'ticket_machine', n: 2, src: ['a.example','b.example'],
+          urls: ['https://a.example/1','https://b.example/2'], official: false, conflict: true },
+        { k: 'payment_method', v: 'counter_person', n: 2, src: ['c.example','d.example'],
+          urls: ['https://c.example/1','https://d.example/2'], official: false, conflict: true }] };
+      FOUND_BY_SEARCH.set(it.id, it); openFacility(it.id);
+    }""")
+    p.wait_for_selector("#facility .curated", timeout=15000)
+    assert "情報が分かれています" in p.inner_text("#facility .curated")
+    p.close()
+
+
+
+def test_checked_count_is_not_exaggerated(context, page):
+    """調査済み件数は summary.json の実数をそのまま出す。誇張しない。"""
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    summary = json.loads((root / "data" / "hitori" / "summary.json").read_text(encoding="utf-8"))
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    shown = p.inner_text("#checked-count").replace(",", "")
+    assert int(shown) == summary["checked_count"], (shown, summary["checked_count"])
+    # 総数と混同させない
+    body = p.inner_text(".disclaimer")
+    assert "推定" in body, body
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1559,6 +1680,8 @@ def main():
             test_favorites_disabled_when_storage_blocked(context, page)
             test_list_is_default_and_shows_several(context, page)
             test_list_card_shows_characteristics(context, page)
+            test_every_axis_value_has_a_label(context, page)
+            test_checked_count_is_not_exaggerated(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)
@@ -1584,6 +1707,10 @@ def main():
             test_refresh_results_keeps_viewed_facility(context, page)
             test_constellation_cache_invalidated_by_pref_cache_growth(context, page)
             test_same_kind_radius_is_single_source(context, page)
+            test_unchecked_facility_says_so(context, page)
+            test_axis_shows_estimate_when_adjusted(context, page)
+            test_curated_urls_shown_without_quoting(context, page)
+            test_conflict_is_disclosed(context, page)
             page.goto(BASE)
             page.wait_for_function("window.__ready === true", timeout=15000)
             page.screenshot(path="C:/tmp/hitori_overview.png", full_page=True)

@@ -196,6 +196,14 @@ img, svg, table { max-width: 100%; }
 #facility dd { margin: 0; }
 #facility .gem-reason { color: #c05621; font-size: .85rem; }
 #facility .stale { color: #c05621; font-size: .85rem; margin: .3rem 0; }
+.curated { border-top:1px solid var(--line); margin-top:.8rem; padding-top:.7rem; font-size:.82rem; }
+.curated h4 { margin:0 0 .4rem; font-size:.85rem; }
+.curated ul { list-style:none; padding:0; margin:0; display:grid; gap:.25rem; }
+.curated li.conflict { opacity:.7; }
+.curated .sup { color:var(--muted); font-size:.75rem; margin-left:.4rem; }
+.curated .srcs a { margin-left:.25rem; }
+.curated .conflict-note { color:var(--muted); margin:.5rem 0 0; }
+.curated.unchecked { color:var(--muted); }
 #facility .to-maps { display: inline-block; margin-top: .8rem; }
 @media (min-width: 721px) {
   #facility { inset: auto auto 1.5rem 50%; transform: translateX(-50%);
@@ -344,7 +352,7 @@ body.deck-mode .origin-bar { margin-bottom:.2rem; }
   </section>
 
   <footer>
-    <p class="disclaimer">この分類は OpenStreetMap のタグと業態から機械的に推定したものです。実際の座席形態や黙浴の有無を保証するものではありません。</p>
+    <p class="disclaimer">この分類は OpenStreetMap のタグと業態から機械的に推定したものです。実際の座席形態や黙浴の有無を保証するものではありません。うち <strong id="checked-count">0</strong> 件は、複数の情報源で事実を確認しています。</p>
     <p class="credits">地図データ: 地球地図日本（国土地理院） / 地図タイル: 地理院タイル（国土地理院） / 施設データ: © OpenStreetMap contributors (ODbL) / 人口: Wikidata (CC0) / 令和2年国勢調査</p>
   </footer>
 
@@ -974,10 +982,86 @@ function bindDeck() {
   });
 }
 
+// 集めた事実。ビルド時に curated.json から埋め込むのではなく、必要になった
+// 時点で取りに行く（未調査が大半なので全員に配らない）。
+const CURATED = {};
+let curatedLoading = null;
+
+function ensureCurated() {
+  if (curatedLoading) return curatedLoading;
+  curatedLoading = fetch('data/hitori/curated.json')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(doc => { Object.assign(CURATED, doc); return CURATED; })
+    .catch(err => { curatedLoading = null; throw err; });
+  return curatedLoading;
+}
+
+const FACT_JA = {
+  'payment_method:ticket_machine': '券売機あり',
+  'payment_method:counter_person': '番台・対面での支払い',
+  'payment_method:cashless_ok': 'キャッシュレス可',
+  'payment_method:cash_only': '現金のみ',
+  'reservation:none': '予約不可（当日入店）',
+  'reservation:possible': '予約可',
+  'reservation:required': '予約が必要',
+  'silence:posted': '黙浴の掲示あり',
+  'silence:observed': '会話が少ない',
+  'clientele:local': '地元の人が中心',
+  'clientele:tourist': '観光客が多い',
+  'clientele:solo_common': '一人客が多い',
+  'first_timer:easy': '初めてでも入りやすい',
+  'first_timer:custom_exists': '作法がある',
+};
+const FACT_KEY_JA = { counter_seats: 'カウンター席', seats_total: '席数',
+                      hours: '営業時間', closed_days: '定休日', price: '料金' };
+
+function factLabel(f) {
+  const fixed = FACT_JA[`${f.k}:${f.v}`];
+  if (fixed) return fixed;
+  const unit = f.k === 'price' ? '円' : (f.k === 'counter_seats' || f.k === 'seats_total') ? '席' : '';
+  return `${FACT_KEY_JA[f.k] || f.k} ${f.v}${unit}`;
+}
+
+// 出典URLは出す。主張の文章は出さない（そもそも保存していない）。
+function renderCurated(it) {
+  const entry = CURATED[it.id];
+  if (!it.checked) {
+    return `<div class="curated unchecked">この施設はまだ調べていません。
+      3軸は業態からの推定です。</div>`;
+  }
+  if (!entry || !entry.facts.length) return '';
+  const rows = entry.facts.map(f => {
+    const support = f.official ? '公式サイト' : `${f.n}件`;
+    const links = f.urls.map((u, i) =>
+      `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${i + 1}</a>`).join(' ');
+    return `<li${f.conflict ? ' class="conflict"' : ''}>${escapeHtml(factLabel(f))}
+      <span class="sup">${support}</span> <span class="srcs">${links}</span></li>`;
+  }).join('');
+  const conflicted = [...new Set(entry.facts.filter(f => f.conflict)
+    .map(f => FACT_KEY_JA[f.k] || FACT_JA[`${f.k}:${f.v}`] || f.k))];
+  const note = conflicted.length
+    ? `<p class="conflict-note">情報が分かれています: ${escapeHtml(conflicted.join('・'))}。
+       この点は判断を保留し、3軸に反映していません。</p>` : '';
+  return `<div class="curated"><h4>確認できたこと（${escapeHtml(entry.checked)} 時点）</h4>
+    <ul>${rows}</ul>${note}</div>`;
+}
+
+// 補正が入っているときは推定値も出す。何を根拠に変えたのかを隠さない。
+function axCell(it, k) {
+  const est = it[k + '_est'];
+  const base = `${it[k]} — ${AX_LABEL[k][it[k]]}`;
+  return (est != null && est !== it[k])
+    ? `${base}<br><small>業態からの推定は ${est}。確認できた事実により補正</small>`
+    : base;
+}
+
+// 添字が値。1..5 のすべてに言葉を入れる。値1は業態からの推定だけでは
+// 出なかったが、集めた事実による補正で出るようになったため（補正前は
+// 実データで solo 3-5 / quiet 2-5 / easy 2-5 しか存在しなかった）。
 const AX_LABEL = {
-  solo: ['', '', '一人でも浮かない', '一人でも浮かない', '一人が多数', '一人が標準'],
-  quiet: ['', '', '声を出す場', '静かでも騒がしくもない', '静か寄り', '会話が発生しない'],
-  easy: ['', '', '常連文化・暗黙の作法', '軽い作法あり', 'ほぼ作法不要', '作法不要'],
+  solo: ['', '一人だと目立つ', '一人でも浮かない', '一人でも浮かない', '一人が多数', '一人が標準'],
+  quiet: ['', '賑やかな場', '声を出す場', '静かでも騒がしくもない', '静か寄り', '会話が発生しない'],
+  easy: ['', '一見では入りにくい', '常連文化・暗黙の作法', '軽い作法あり', 'ほぼ作法不要', '作法不要'],
 };
 
 function mapsUrl(it) {
@@ -992,7 +1076,10 @@ function mapsUrl(it) {
 let _facilityOpener = null;
 
 async function openFacility(id, opener) {
-  let it = currentSearchResults().find(x => x.id === id) || FOUND_BY_SEARCH.get(id);
+  // FOUND_BY_SEARCH を先に見る。currentSearchResults() は core.withDistance()
+  // が毎回スプレッドで新しいオブジェクトを作るため、呼び出しごとに別参照になる
+  // （全国検索・施設名検索で明示的に解決した施設を渡すための仕組みが素通りする）。
+  let it = FOUND_BY_SEARCH.get(id) || currentSearchResults().find(x => x.id === id);
   if (!it) return;
   const el = document.getElementById('facility');
   const st = core.openState(it.oh, new Date());
@@ -1022,6 +1109,17 @@ async function openFacility(id, opener) {
     }
   }
 
+  // curated.json は必要になった時点で取りに行く。取得に失敗しても詳細
+  // シート自体は開く（劣化がひどすぎる）。renderCurated 側は空文字にする。
+  let curatedHtml = '';
+  try {
+    await ensureCurated();
+    curatedHtml = renderCurated(it);
+  } catch (err) {
+    console.warn('curated.json の取得に失敗しました', err);
+    curatedHtml = '';
+  }
+
   el.hidden = false;
   el.innerHTML = `
     <button type="button" class="close" aria-label="閉じる">×</button>
@@ -1030,15 +1128,16 @@ async function openFacility(id, opener) {
     <p class="meta">${KIND_JA[it.kind] || it.kind}${it.city ? ' · ' + escapeHtml(it.city) : ''}</p>
     <dl>
       ${hasDist ? `<dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}）</dd>` : ''}
-      <dt>ひとり度</dt><dd>${it.solo} — ${AX_LABEL.solo[it.solo]}</dd>
-      <dt>静けさ</dt><dd>${it.quiet} — ${AX_LABEL.quiet[it.quiet]}</dd>
-      <dt>入りやすさ</dt><dd>${it.easy} — ${AX_LABEL.easy[it.easy]}</dd>
+      <dt>ひとり度</dt><dd>${axCell(it, 'solo')}</dd>
+      <dt>静けさ</dt><dd>${axCell(it, 'quiet')}</dd>
+      <dt>入りやすさ</dt><dd>${axCell(it, 'easy')}</dd>
       ${liveIso != null ? `<dt>孤立度</dt><dd>最寄りの${CAT_JA[it.cat] || it.cat}まで ${formatIso(liveIso)}${
         isIsolated(it, liveIso) ? '（この一帯で唯一）' : ''}</dd>` : ''}
       <dt>営業時間</dt><dd>${hours}</dd>
       ${it.tel ? `<dt>電話</dt><dd><a href="tel:${escapeHtml(it.tel)}">${escapeHtml(it.tel)}</a></dd>` : ''}
       ${it.web ? `<dt>サイト</dt><dd><a href="${escapeHtml(it.web)}" target="_blank" rel="noopener">公式サイト</a></dd>` : ''}
     </dl>
+    ${curatedHtml}
     ${isGem(it) ? `<p class="gem-reason">穴場度 ${Math.round(it.hidden * 100)}%（周辺${it.hidden_n}件中${Math.round(it.hidden * it.hidden_n)}件がチェーン）</p>` : ''}
     ${it.note ? `<p class="note">${escapeHtml(it.note)}</p>` : ''}
     <div id="facility-map"></div>
@@ -1733,6 +1832,9 @@ async function init() {
     e.preventDefault();
     closeFacility();
   });
+  // 数を誇張しない。37,193件のうち実際に確認できた件数だけを出す。
+  const cc = document.getElementById('checked-count');
+  if (cc) cc.textContent = (SUMMARY.checked_count || 0).toLocaleString();
   switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
   if (state.pref) openPrefecture(state.pref);
   bindDeck();
@@ -1749,7 +1851,11 @@ async function init() {
 window.state = state;
 window.PREF_CACHE = PREF_CACHE;
 window.visibleItems = visibleItems;
+window.AX_LABEL = AX_LABEL;
 window.FAILED_PREFS = FAILED_PREFS;
+window.FOUND_BY_SEARCH = FOUND_BY_SEARCH;
+window.CURATED = CURATED;
+window.ensureCurated = ensureCurated;
 window.currentSearchResults = currentSearchResults;
 window.renderDeck = renderDeck;
 window.refreshResults = refreshResults;
