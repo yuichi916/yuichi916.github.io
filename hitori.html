@@ -145,6 +145,13 @@ img, svg, table { max-width: 100%; }
 #search-list .tips span { font-size:.7rem; padding:.1rem .5rem; border-radius:6px;
                           background:color-mix(in srgb, var(--cat) 10%, transparent);
                           color:color-mix(in srgb, var(--cat) 78%, var(--fg)); }
+/* 行っても入れない可能性は最優先で伝える。一人だと下調べを他人に任せられない */
+#search-list .warn { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.4rem; }
+#search-list .warn span { font-size:.72rem; font-weight:600; padding:.12rem .55rem;
+                          border-radius:6px; background:#fdf0e3; color:#a3541c; }
+@media (prefers-color-scheme:dark){
+  #search-list .warn span { background:#3a2a17; color:#f0b76e; }
+}
 #search-list .badges { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.45rem; align-items:center; }
 #search-list .verified { font-size:.68rem; color:var(--muted); margin-left:auto; }
 .viewbar { display:flex; gap:.5rem; margin:.6rem 0; flex-wrap:wrap; }
@@ -747,7 +754,7 @@ function renderSearchList() {
     const m = core.walkMinutes(it.distM);
     const dist = it.distM >= 1000 ? `直線${(it.distM / 1000).toFixed(1)}km` : `直線${Math.round(it.distM)}m`;
     const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
-    const tips = tipsFor(it);
+    const { tips, warn } = tipsFor(it);
     return `<li class="item" data-id="${it.id}" data-cat="${it.cat}" data-dist="${Math.round(it.distM)}"
               data-quiet="${it.quiet}" data-solo="${it.solo}" tabindex="0">
       <div class="r1">
@@ -757,6 +764,7 @@ function renderSearchList() {
       <div class="r2"><span class="kindmark">${escapeHtml(KIND_JA[it.kind] || it.kind)}</span>${
         where ? ' ・ ' + escapeHtml(where) : ''} ・ ${dist} ${
         core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</div>
+      ${warn.length ? `<div class="warn">${warn.map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>` : ''}
       ${tips.length ? `<div class="tips">${tips.map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>` : ''}
       <p class="lead">${escapeHtml(core.leadFact(it, leadCtx(it)))}</p>
       ${axesRows(it)}
@@ -929,7 +937,7 @@ const TIP_MAX = 4;
 
 function tipsFor(it) {
   const e = CURATED[it.id];
-  if (!e) return [];
+  if (!e) return { tips: [], warn: [] };
   const v = {};
   for (const f of e.facts) if (!f.conflict) v[f.k] = f.v;
   const out = [];
@@ -945,10 +953,17 @@ function tipsFor(it) {
   if (v.luggage === 'locker') out.push('ロッカーあり');
   else if (v.luggage === 'none') out.push('荷物置き場なし');
   if (v.busy_time === 'morning_quiet') out.push('朝は空いている');
-  if (v.status === 'closed_temporarily') out.unshift('休業中');
-  if (v.renamed_to) out.unshift(`現在は「${v.renamed_to}」`);
   if (v.closed_days) out.push(`定休 ${v.closed_days}`);
-  return out.slice(0, TIP_MAX);
+  const warn = [];
+  if (v.status === 'closed_temporarily') warn.push('休業中');
+  if (v.renamed_to) warn.push(`現在は「${v.renamed_to}」`);
+  // 季節・曜日で営業が限定される施設は、行ってから気づくと痛い。
+  // ただし「年中無休（臨時休業あり）」を限定営業と呼ぶのは嘘なので、
+  // 無休と書いてあるものは除く。「休業」だけを見ると誤判定する。
+  const cd = String(v.closed_days || '');
+  const seasonal = /冬[季期][^。]{0,6}休|季節営業|のみ営業|期間[^。]{0,4}休業|休館期間/.test(cd);
+  if (seasonal && !/年中無休|通年/.test(cd)) warn.push('期間限定の営業');
+  return { tips: out.slice(0, TIP_MAX), warn };
 }
 
 // 3軸は数字だけだと何段階中いくつか分からない。目盛りと言葉を必ず添える。
@@ -1918,6 +1933,7 @@ window.state = state;
 window.PREF_CACHE = PREF_CACHE;
 window.visibleItems = visibleItems;
 window.AX_LABEL = AX_LABEL;
+window.tipsFor = tipsFor;
 window.FAILED_PREFS = FAILED_PREFS;
 window.FOUND_BY_SEARCH = FOUND_BY_SEARCH;
 window.CURATED = CURATED;

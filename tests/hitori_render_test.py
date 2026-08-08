@@ -1693,6 +1693,36 @@ def test_curated_load_does_not_clobber_location_notice(context, page):
     assert "位置情報" in body, body[:200]
     ctx.close()
 
+
+def test_seasonal_warning_does_not_misfire(context, page):
+    """「年中無休（臨時休業あり）」を期間限定と呼ばない。
+
+    「休業」だけを見て判定すると無休の施設に限定営業の警告が出る。
+    実際にその誤検知を出した。嘘の警告は無い警告より悪い。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    cases = p.evaluate("""() => {
+      const mk = cd => ({ checked: '2026-08-08', facts: [
+        { k: 'closed_days', v: cd, n: 2, src: ['a','b'], urls: ['https://a/','https://b/'],
+          official: false, conflict: false }] });
+      const probe = cd => { CURATED.__probe = mk(cd);
+        const w = tipsFor({ id: '__probe' }).warn; delete CURATED.__probe;
+        return w.includes('期間限定の営業'); };
+      return {
+        nenchu: probe('年中無休(設備点検等による臨時休業有)'),
+        touki:  probe('毎週火曜日、冬期間休業'),
+        only:   probe('内湯は土日祝日のみ営業'),
+        plain:  probe('毎週月曜（祝日の場合は翌日）'),
+      };
+    }""")
+    assert cases["nenchu"] is False, "年中無休を期間限定と誤判定している"
+    assert cases["touki"] is True, cases
+    assert cases["only"] is True, cases
+    assert cases["plain"] is False, cases
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1744,6 +1774,7 @@ def main():
             test_cards_are_colour_coded_by_category(context, page)
             test_curated_facts_appear_on_the_card(context, page)
             test_curated_load_does_not_clobber_location_notice(context, page)
+            test_seasonal_warning_does_not_misfire(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)
