@@ -45,12 +45,16 @@ FACT_VOCAB = {
     "wash_area": {"yes", "no"},                          # 洗い場（体を洗えるか）
     "busy_time": {"morning_quiet", "evening_busy", "weekend_busy", "usually_quiet"},
     "unstaffed": {"yes", "no"},                          # 無人（料金箱など）
+    # このアプリの根幹。一人で利用できない施設を「ひとりで行ける場所」として
+    # 載せてはならない。2名以上が前提の宿（一人旅の受入は年2回だけ）が実在した。
+    "solo_ok": {"yes", "no", "limited"},
 }
 
 # この事実が裏付け MIN_SUPPORT 件以上で立つと、その施設を一覧から外す。
 # 「一人で行ける場所」として成立しないため。件数は必ず報告する（黙って
 # 消すと、なぜ件数が減ったのか誰にも分からなくなる）。
 EXCLUDING = {
+    ("solo_ok", "no"): "一人では利用できない",
     ("access", "residents_only"): "地元住民専用",
     ("access", "members_only"): "会員専用",
     ("status", "closed_permanently"): "閉業",

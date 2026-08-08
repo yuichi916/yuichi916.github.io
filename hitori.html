@@ -999,6 +999,9 @@ function tipsFor(it) {
   if (v.busy_time === 'morning_quiet') out.push('朝は空いている');
   if (v.closed_days) out.push(`定休 ${v.closed_days}`);
   const warn = [];
+  // 一人で使えるかどうかは、このアプリで最も重要な警告。2名以上が前提で
+  // 一人旅の受入が年2回だけという宿が実在した。
+  if (v.solo_ok === 'limited') warn.push('一人利用は期間限定');
   if (v.status === 'closed_temporarily') warn.push('休業中');
   if (v.renamed_to) warn.push(`現在は「${v.renamed_to}」`);
   // 季節・曜日で営業が限定される施設は、行ってから気づくと痛い。
@@ -1127,11 +1130,13 @@ const FACT_JA = {
   'first_timer:easy': '初めてでも入りやすい',
   'first_timer:custom_exists': '作法がある',
 };
+const FACT_JA_SOLO = { 'solo_ok:yes': '一人でも利用できる',
+  'solo_ok:limited': '一人での利用は期間が限られる', 'solo_ok:no': '一人では利用できない' };
 const FACT_KEY_JA = { counter_seats: 'カウンター席', seats_total: '席数',
                       hours: '営業時間', closed_days: '定休日', price: '料金' };
 
 function factLabel(f) {
-  const fixed = FACT_JA[`${f.k}:${f.v}`];
+  const fixed = FACT_JA[`${f.k}:${f.v}`] || FACT_JA_SOLO[`${f.k}:${f.v}`];
   if (fixed) return fixed;
   const unit = f.k === 'price' ? '円' : (f.k === 'counter_seats' || f.k === 'seats_total') ? '席' : '';
   return `${FACT_KEY_JA[f.k] || f.k} ${f.v}${unit}`;
