@@ -2075,6 +2075,59 @@ def test_doubtful_facilities_sink_in_the_list(context, page):
         assert min(pos["doubtful"]) >= pos["total"] - len(pos["doubtful"]), pos
     p.close()
 
+def test_density_note_appears_once_not_on_every_card(context, page):
+    """一帯の密集は見出しに一度だけ出し、カードでは繰り返さないこと。
+
+    東京駅では隣り合うラーメン店すべてに「半径500mに同じラーメンが14軒。」
+    という同じ文が出ていた。施設ではなく一帯についての事実なので、最も
+    目立つ行がどのカードでも同じ文で埋まっていた。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+
+    status = p.text_content("#search-status")
+    assert "この一帯は" in status and "半径500m" in status, status
+
+    leads = p.eval_on_selector_all("#search-list .lead", "els => els.map(e => e.textContent)")
+    dense = [t for t in leads if "半径500mに同じ" in t]
+    assert dense == [], f"カードに密集の文が残っている: {dense[:3]}"
+    # 残った紹介文は施設ごとに違うものだけ（孤立・穴場）
+    assert len(set(leads)) == len(leads) or len(leads) == 0, leads[:5]
+
+
+def test_same_kind_count_is_recomputed_when_a_prefecture_arrives(context, page):
+    """県が増えたら同業態の軒数を数え直すこと。
+
+    描画のたびに数百万オブジェクトを作っていたので結果を覚えるようにした。
+    県境の施設は隣接県が届くと軒数が増えるので、覚えたままだと少なく出る。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+
+    got = p.evaluate("""async () => {
+      const before = Object.keys(window.PREF_CACHE).map(Number);
+      const it = window.currentSearchResults()[0];
+      const n1 = window.sameKindNearby(it);
+      // まだ読んでいない県を1つ足す
+      const add = [11, 12, 14, 8, 9, 10].find(c => !before.includes(c));
+      if (add == null) return { skipped: true };
+      await window.loadPrefIntoCache(add);
+      const n2 = window.sameKindNearby(it);
+      return { n1, n2, cleared: window.sameKindNearby(it) === n2 };
+    }""")
+    if got.get("skipped"):
+        return
+    assert got["n2"] >= got["n1"], got
+    assert got["cleared"], "2回目の呼び出しで値がぶれている"
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2097,6 +2150,8 @@ def main():
             test_detail_fetch_failure_is_contained(page)
             test_file_protocol_explains_itself(page)
             test_search_with_location(context, page)
+            test_density_note_appears_once_not_on_every_card(context, page)
+            test_same_kind_count_is_recomputed_when_a_prefecture_arrives(context, page)
             test_search_distance_filter(context, page)
             test_search_quiet_filter(context, page)
             test_facility_sheet(context, page)

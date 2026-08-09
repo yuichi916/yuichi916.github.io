@@ -772,3 +772,69 @@ check('entryFlow: 追加した値が既存の分岐を潰していない', () =>
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');
+
+check('leadFact: 一覧では一帯の密集を繰り返さない', () => {
+  // 東京駅の周辺では、隣り合うラーメン店14軒すべてに
+  // 「半径500mに同じラーメンが14軒。」と同じ文が出ていた。
+  // 施設ではなく一帯についての事実なので、カードごとに言う意味がない。
+  const it = { kind: 'ramen', cat: 'eat', solo: 4, hidden: 0, hidden_n: 0 };
+  const ctx = { kindJa: 'ラーメン', catJa: '飲食店', sameKindNearby: 14 };
+  eq(core.leadFact(it, ctx), '半径500mに同じラーメンが14軒。', 'デッキでは今までどおり');
+  eq(core.leadFact(it, { ...ctx, suppressDensity: true }), '', '一覧では黙る');
+});
+
+check('leadFact: 施設について言えることがあるなら抑制しない', () => {
+  const it = { kind: 'sento', cat: 'bath', solo: 4, hidden: 0.8, hidden_n: 10 };
+  const iso = { kindJa: '銭湯', catJa: '入浴施設', isolated: true, isoText: '4.6km',
+                suppressDensity: true };
+  eq(core.leadFact(it, iso), '最寄りの入浴施設まで4.6km。この一帯で唯一。');
+  const gem = { kindJa: '銭湯', catJa: '入浴施設', gem: true, suppressDensity: true };
+  eq(core.leadFact(it, gem).startsWith('周辺10軒のうち8軒がチェーン'), true, core.leadFact(it, gem));
+});
+
+check('leadFact: 一覧では一帯の話も埋め草も出さない', () => {
+  // 「最寄りのカウンター飲食まで19m。」も「ラーメン。ひとり度4。」も、
+  // 店の性質を何ひとつ伝えないまま隣の店と同じ文になる。
+  const it = { kind: 'ramen', cat: 'eat', solo: 4, hidden: 0, hidden_n: 0 };
+  const base = { kindJa: 'ラーメン', catJa: 'カウンター飲食', sameKindNearby: 1 };
+  eq(core.leadFact(it, { ...base, isoText: '19m' }), '最寄りのカウンター飲食まで19m。');
+  eq(core.leadFact(it, base), 'ラーメン。ひとり度4。');
+  eq(core.leadFact(it, { ...base, isoText: '19m', suppressDensity: true }), '');
+  eq(core.leadFact(it, { ...base, suppressDensity: true }), '');
+});
+
+check('leadFact: 一覧に残るのは、その施設について言えることだけ', () => {
+  // 空文字を返す条件を広げすぎると、唯一・穴場まで消える。
+  const it = { kind: 'sento', cat: 'bath', solo: 4, hidden: 0.8, hidden_n: 10 };
+  const c = { kindJa: '銭湯', catJa: '入浴施設', suppressDensity: true,
+              sameKindNearby: 9, isoText: '4.6km' };
+  eq(core.leadFact(it, { ...c, isolated: true }),
+     '最寄りの入浴施設まで4.6km。この一帯で唯一。');
+  eq(core.leadFact(it, { ...c, gem: true }),
+     '周辺10軒のうち8軒がチェーン。ここはその8軒に入っていない。');
+});
+
+check('densityNote: 一帯の密集を一度だけ言う', () => {
+  const items = [{ id: 'a', kind: 'ramen' }, { id: 'b', kind: 'ramen' },
+                 { id: 'c', kind: 'sento' }];
+  const near = { a: 14, b: 14, c: 1 };
+  const note = core.densityNote(items, {
+    sameKindNearby: it => near[it.id],
+    kindJa: k => ({ ramen: 'ラーメン', sento: '銭湯' })[k],
+  });
+  eq(note, 'この一帯はラーメンが多く、半径500mに14軒あります。');
+});
+
+check('densityNote: 密集していなければ何も言わない', () => {
+  const items = [{ id: 'a', kind: 'ramen' }];
+  eq(core.densityNote(items, { sameKindNearby: () => 2, kindJa: k => k }), '');
+  eq(core.densityNote([], { sameKindNearby: () => 99, kindJa: k => k }), '');
+  eq(core.densityNote(null, {}), '');
+});
+
+check('densityNote: いちばん多い業態を選ぶ', () => {
+  const items = [{ id: 'a', kind: 'sento' }, { id: 'b', kind: 'ramen' }];
+  const near = { a: 5, b: 20 };
+  eq(core.densityNote(items, { sameKindNearby: it => near[it.id], kindJa: k => k }),
+     'この一帯はramenが多く、半径500mに20軒あります。');
+});

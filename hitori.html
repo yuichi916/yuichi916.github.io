@@ -952,6 +952,10 @@ function failedPrefNames() {
   return [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
 }
 
+// 一覧に描くカードの上限。sameKindNearby は読み込み済み全件を走査するので、
+// ここを上げると描画コストが二次で効く。
+const LIST_MAX = 200;
+
 // 件数と県データの取得失敗を出す。デッキでも一覧でも同じものを出す必要がある。
 // 失敗の告知を一覧でだけ出すと、デッキを見ている人には結果が空に見えるだけで、
 // 実際には何も調べられていないことが伝わらない。
@@ -1003,7 +1007,15 @@ function renderSearchStatus(items) {
     });
     return;
   }
+  // 密集は一帯についての事実で、隣り合う店では同じ値になる。カード全部に
+  // 書くと最も目立つ行が同じ文で埋まるので、ここで一度だけ言う。
+  // 一覧に出るぶんだけを見る。sameKindNearby は読み込み済み全件を走査するので、
+  // 6,000件に掛けると描画のたびに数千万回の距離計算になる。
+  const note = core.densityNote(items.slice(0, LIST_MAX), {
+    sameKindNearby, kindJa: k => KIND_JA[k] || k,
+  });
   status.textContent = `${items.length.toLocaleString()} 件`
+    + (note ? ` ・ ${note}` : '')
     + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
 }
 
@@ -1013,7 +1025,7 @@ function renderSearchList() {
   renderSearchStatus(items);
   if (!items.length) { list.innerHTML = ''; return; }
   const now = new Date();
-  list.innerHTML = items.slice(0, 200).map(it => {
+  list.innerHTML = items.slice(0, LIST_MAX).map(it => {
     // 収集した営業時間があるときは、OSM由来の判定を断定に使わない。
     // 書式が違って突き合わせられないため、片方だけを根拠に「営業中」と
     // 言うと誤りになりうる（実データで20施設が併存していた）。
@@ -1039,7 +1051,8 @@ function renderSearchList() {
         core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</div>
       ${warn.length ? `<div class="warn">${warn.map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>` : ''}
       ${tips.length ? `<div class="tips">${tips.map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>` : ''}
-      <p class="lead">${escapeHtml(core.leadFact(it, leadCtx(it)))}</p>
+      ${(() => { const s = core.leadFact(it, { ...leadCtx(it), suppressDensity: true });
+                 return s ? `<p class="lead">${escapeHtml(s)}</p>` : ''; })()}
       ${axesRows(it)}
       <div class="badges">
         ${openBadge}
@@ -1144,8 +1157,28 @@ const CONST_CACHE_MAX = 200;
 
 // 読み込み済みの県からのみ拾う。追加の取得はしない。
 // 既存の collectItems(codes) をそのまま使う（同じ処理を二度書かない）。
+// 同じ施設について一覧の見出しとカードの両方から呼ばれ、絞り込みのたびに
+// 200件分やり直す。読み込み済み県が変わるまで結果は変わらないので覚えておく。
+// キャッシュは loadedItems() が県の集合の変化を見て捨てる。
+const _sameKindCache = new Map();
+
+// 読み込み済み県の一覧が変わるまで使い回す。collectItems は行配列から
+// オブジェクトを作り直すので、1回で全国分（数万件）を確保する。
+// sameKindNearby がカードごとにこれを呼んでいて、200枚描くたびに
+// 数百万個のオブジェクトを作っていた。
+let _loadedCache = { key: null, items: null };
+
+function prefSetKey() {
+  return Object.keys(PREF_CACHE).sort().join(',');
+}
+
 function loadedItems() {
-  return collectItems(Object.keys(PREF_CACHE).map(Number));
+  const key = prefSetKey();
+  if (_loadedCache.key !== key) {
+    _loadedCache = { key, items: collectItems(Object.keys(PREF_CACHE).map(Number)) };
+    _sameKindCache.clear();
+  }
+  return _loadedCache.items;
 }
 
 // I10: 星座図は loadedItems()（= PREF_CACHE 全件）から作るので、読み込み済み
@@ -1180,11 +1213,14 @@ function constellationSvg(it) {
 // I11: 半径は core.SAME_KIND_RADIUS_M に一本化。leadSentence() の文言生成
 // 側と同じ値を使うことで、片方だけ変えて文言と実際の集計範囲がずれる事故を防ぐ。
 function sameKindNearby(it) {
+  const all = loadedItems();          // 先に呼ぶ。県が増えていればここで捨てられる
+  if (_sameKindCache.has(it.id)) return _sameKindCache.get(it.id);
   let n = 0;
-  for (const o of loadedItems()) {
+  for (const o of all) {
     if (o.id === it.id || o.kind !== it.kind) continue;
     if (core.haversineM(it.lat, it.lon, o.lat, o.lon) <= core.SAME_KIND_RADIUS_M) n++;
   }
+  _sameKindCache.set(it.id, n);
   return n;
 }
 
@@ -2354,6 +2390,8 @@ window.refreshResults = refreshResults;
 window.setView = setView;
 window.openFilterSheet = openFilterSheet;
 window.ensureFacilities = ensureFacilities;
+window.sameKindNearby = sameKindNearby;
+window.loadPrefIntoCache = loadPrefIntoCache;
 
 init().catch(err => {
   // file:// で開くとブラウザが fetch をブロックする。原因が分からないと

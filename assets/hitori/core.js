@@ -421,10 +421,36 @@ export function leadFact(item, ctx) {
     return `周辺${item.hidden_n}軒のうち${chains}軒がチェーン。ここはその${chains}軒に入っていない。`;
   }
   if (c.sameKindNearby >= SAME_KIND_MIN) {
-    return `半径${SAME_KIND_RADIUS_M}mに同じ${kind}が${c.sameKindNearby}軒。`;
+    // 密集は施設ではなく一帯についての事実なので、隣り合う店で同じ文になる。
+    // 一覧では14軒すべてに「半径500mに同じラーメンが14軒。」と出ていた。
+    // 一覧側は見出しで一度だけ言い、カードでは黙る。
+    if (!c.suppressDensity) return `半径${SAME_KIND_RADIUS_M}mに同じ${kind}が${c.sameKindNearby}軒。`;
   }
+  // ここから下は、この施設ではなく一帯についての事実か、業態名と軸の
+  // 言い換えでしかない。1軒ずつ見るデッキでは文脈として役に立つが、
+  // 並べて見る一覧では隣の店と同じ文が並ぶだけになる。
+  //
+  // 「最寄りのカウンター飲食まで19m。」が実際にそうだった。密集地では
+  // どのカードもこれになり、しかも店の性質を何ひとつ伝えていない。
+  // 離れているときは isolated 側の分岐が「この一帯で唯一」を出す。
+  if (c.suppressDensity) return '';
   if (c.isoText) return `最寄りの${cat}まで${c.isoText}。`;
   return `${kind}。ひとり度${item.solo}。`;
+}
+
+// 一覧の先頭に一度だけ出す、この一帯についての事実。
+// 該当が無ければ空文字。
+export function densityNote(items, ctx) {
+  const c = ctx || {};
+  const counts = {};
+  for (const it of items || []) {
+    const n = c.sameKindNearby ? c.sameKindNearby(it) : 0;
+    if (n >= SAME_KIND_MIN) counts[it.kind] = Math.max(counts[it.kind] || 0, n);
+  }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  if (!top) return '';
+  const label = (c.kindJa && c.kindJa(top[0])) || top[0];
+  return `この一帯は${label}が多く、半径${SAME_KIND_RADIUS_M}mに${top[1]}軒あります。`;
 }
 
 // 軸の節はひとつだけ。当たらなければ空文字。
