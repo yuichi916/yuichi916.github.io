@@ -153,6 +153,33 @@ def test_open_period_does_not_move_the_axes():
     assert enrich.apply_adjust(est, facts) == est
 
 
+def _f(k, v, n=1, conflict=False):
+    return {"k": k, "v": v, "n": n, "src": ["a"] * n, "urls": [],
+            "official": False, "conflict": conflict}
+
+
+def test_curated_city_is_used_when_known():
+    """調べて分かった所在地を採る。OSMには12%しか入っていない。"""
+    assert enrich.curated_city([_f("city", "由利本荘市")]) == "由利本荘市"
+    assert enrich.curated_city([_f("price", 400)]) is None
+    assert enrich.curated_city([]) is None
+
+
+def test_curated_city_is_dropped_when_sources_disagree():
+    """食い違うなら採らない。誤った所在地は無いより悪い。"""
+    facts = [_f("city", "由利本荘市"), _f("city", "羽後町")]
+    assert enrich.curated_city(facts) is None
+
+
+def test_blank_city_is_not_taken():
+    assert enrich.curated_city([_f("city", "   ")]) is None
+
+
+def test_curated_city_does_not_move_the_axes():
+    est = {"solo": 4, "quiet": 4, "easy": 3}
+    assert enrich.apply_adjust(est, [_f("city", "大館市", n=3)]) == est
+
+
 def main():
     test_normalize_domain()
     test_blocked_domains()
@@ -171,6 +198,10 @@ def main():
     test_new_vocab_is_validated()
     test_open_period_is_recorded_but_never_excludes()
     test_open_period_does_not_move_the_axes()
+    test_curated_city_is_used_when_known()
+    test_curated_city_is_dropped_when_sources_disagree()
+    test_blank_city_is_not_taken()
+    test_curated_city_does_not_move_the_axes()
     print("OK: enrich")
 
 

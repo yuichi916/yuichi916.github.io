@@ -356,6 +356,34 @@ def test_ambiguous_address_falls_through_to_the_polygon():
     assert pref_of.pref_from_address("長野県山ノ内町", PREFS_FOR_ADDR) == 20
 
 
+def test_curated_city_reaches_the_output():
+    """調べて分かった所在地が県ファイルに載ること。
+
+    enrich に関数を足しても build から呼ばなければ何も変わらない。
+    実際に「テストは通るが出力は変わらない」を何度かやっている。
+    """
+    recs = [{"id": "n1", "name": "湯", "lat": 39.0, "lon": 140.0, "cat": "bath",
+             "kind": "sento", "solo": 4, "quiet": 4, "easy": 3, "conf": 0,
+             "chain": 0, "hidden": 0.0, "hidden_n": 0, "iso": 0,
+             "city": "", "oh": "", "tel": "", "web": "", "note": ""}]
+    curated = {"n1": {"checked": "2026-08-10", "facts": [
+        {"k": "city", "v": "由利本荘市", "n": 2, "src": ["a", "b"], "urls": [],
+         "official": True, "conflict": False}]}}
+    build_data._enrich(recs, curated)
+    assert recs[0]["city"] == "由利本荘市", recs[0]["city"]
+
+
+def test_osm_city_is_kept_when_nothing_was_collected():
+    recs = [{"id": "n1", "name": "湯", "lat": 39.0, "lon": 140.0, "cat": "bath",
+             "kind": "sento", "solo": 4, "quiet": 4, "easy": 3, "conf": 0,
+             "chain": 0, "hidden": 0.0, "hidden_n": 0, "iso": 0,
+             "city": "大館市", "oh": "", "tel": "", "web": "", "note": ""}]
+    build_data._enrich(recs, {"n1": {"checked": "2026-08-10", "facts": [
+        {"k": "price", "v": 400, "n": 1, "src": ["a"], "urls": [],
+         "official": True, "conflict": False}]}})
+    assert recs[0]["city"] == "大館市"
+
+
 def main():
     test_build_shapes()
     test_build_output_passes_validation()
@@ -377,6 +405,8 @@ def main():
     test_ambiguous_address_falls_through_to_the_polygon()
     test_cross_pref_dedupe_leaves_clean_data_alone()
     test_cross_pref_dedupe_is_reported_not_silent()
+    test_curated_city_reaches_the_output()
+    test_osm_city_is_kept_when_nothing_was_collected()
     print("OK: build_data")
 
 

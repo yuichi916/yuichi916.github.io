@@ -86,6 +86,11 @@ def _enrich(records, curated):
             continue
 
         r["checked"] = entry.get("checked", "")
+        # 調べて分かった所在地は OSM より強い。OSM に addr:city があるのは
+        # 12%だけで、残りは県名しか出せなかった。
+        city = enrich.curated_city(facts)
+        if city:
+            r["city"] = city
         eff = enrich.apply_adjust(
             {"solo": r["solo"], "quiet": r["quiet"], "easy": r["easy"]}, facts)
         r["solo"], r["quiet"], r["easy"] = eff["solo"], eff["quiet"], eff["easy"]

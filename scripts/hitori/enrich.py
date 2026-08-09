@@ -36,6 +36,11 @@ FACT_VOCAB = {
     "access": {"public", "residents_only", "members_only"},
     "status": {"open", "closed_temporarily", "closed_permanently"},
     "renamed_to": str,
+    # 所在地。OSMに addr:city があるのは12%だけで、残りは県名しか出せない。
+    # 調べるたびに正しい市区町村が分かるのに、記録する場所が無かった
+    # （黄桜温泉湯楽里は羽後町ではなく由利本荘市、大葛温泉は鹿角市ではなく
+    # 大館市、UFOふれあい館は川俣町ではなく福島市、といった報告が続いた）。
+    "city": str,
     # 「やっているが、いつやっているか決まっていない」施設。閉業でも休業でも
     # ないので status では表せず、収集のたびに捨てていた。実際に何度も出た:
     # 後生掛温泉 湯治部（期間限定・不定期）、そば処 山の内分校（月2日のみ）、
@@ -133,6 +138,22 @@ def exclusion_reason(facts):
         hit = EXCLUDING.get((f["k"], f["v"]))
         if hit:
             return hit
+    return None
+
+
+def curated_city(facts):
+    """調べて分かった所在地。分からない・情報が割れているときは None。
+
+    OSM の addr:city より強い。OSM に無いことのほうが多く、有っても
+    県境の施設では誤っていることがある。ただし1件でも食い違えば採らない。
+    """
+    conflicts = _conflicting_keys(facts)
+    for f in facts:
+        if f["k"] != "city" or f["k"] in conflicts:
+            continue
+        v = str(f["v"]).strip()
+        if v:
+            return v
     return None
 
 
