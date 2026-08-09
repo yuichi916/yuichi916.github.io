@@ -90,6 +90,29 @@ def test_runs_on_real_data():
     assert all(t["id"] and (t["city"] or t["city_guess"]) for t in got)
 
 
+
+def test_yield_bonus_prefers_kinds_that_actually_hit():
+    """当たらない対象に時間を使わない。
+
+    実測で温泉91%・ゲストハウス93%に対し、そば55%・ラーメン51%だった。
+    田舎の小規模飲食店は食べログ以外に情報源がほとんど無く、そこは
+    自動アクセスが禁止されている。
+    """
+    docs = _doc(_row("n1", "どこかの温泉", cat="bath", kind="onsen"),
+                _row("n2", "どこかのラーメン", cat="eat", kind="ramen"))
+    got = research_queue.rank_targets(docs, {}, limit=2)
+    by = {t["id"]: t["weight"] for t in got}
+    assert by["n1"] > by["n2"], by
+    assert got[0]["id"] == "n1", [t["id"] for t in got]
+
+
+def test_yield_bonus_does_not_erase_other_signals():
+    """当たりやすさだけで並べない。孤立や公営のほうが重い。"""
+    docs = _doc(_row("n1", "ふつうの温泉", cat="bath", kind="onsen", iso=10),
+                _row("n2", "市営 どこかの湯", cat="bath", kind="sento", iso=9999))
+    got = research_queue.rank_targets(docs, {}, limit=2, iso_threshold={"bath": 7215})
+    assert got[0]["id"] == "n2", [(t["id"], t["weight"], t["reason"]) for t in got]
+
 def main():
     test_public_baths_rank_high()
     test_checked_are_excluded()
@@ -98,6 +121,8 @@ def main():
     test_real_city_is_not_overwritten_by_guess()
     test_axes_are_reported_not_score()
     test_runs_on_real_data()
+    test_yield_bonus_prefers_kinds_that_actually_hit()
+    test_yield_bonus_does_not_erase_other_signals()
     print("OK: research_queue")
 
 

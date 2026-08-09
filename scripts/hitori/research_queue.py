@@ -13,6 +13,17 @@ OUT_DIR = ROOT / "data" / "hitori"
 
 BOUNDARY_VALUE = 3        # 3軸の中央。ここが一番判定を間違えやすい
 RARE_CAT_THRESHOLD = 5
+# 業態ごとの当たりやすさ。実測した当たり率（調べて事実が取れた割合）。
+# 温泉91% ゲストハウス93% 銭湯89% サウナ90% 美術館75% 映画館82% に対し、
+# そば55% ラーメン51% と大きく差がある。田舎の小規模飲食店は食べログ
+# 以外に情報源がほとんど無く、そこは自動アクセスが禁止されている。
+# 当たらない対象に時間を使うより、当たるところを厚くする。
+YIELD_BONUS = {
+    "hostel": 5, "onsen": 5, "sauna": 5, "sento": 4,
+    "cinema": 3, "museum": 3, "library": 3, "karaoke": 2, "netcafe": 2,
+    "ramen": 0, "soba_udon": 0, "gyudon": 0, "curry": 0, "standing": 0,
+}
+
 PUBLIC_BATH_BONUS = 6     # 自治体が施設ページを持つので必ず当たる
 ISOLATED_BONUS = 4        # そこしか無いので調べる価値が高い
 GEM_BONUS = 3
@@ -84,6 +95,9 @@ def rank_targets(prefdocs, curated, limit=50, iso_threshold=None, munis=None):
             if r["chain"] == 0 and r.get("hidden_n", 0) >= 3 and r.get("hidden", 0) >= 0.4:
                 weight += GEM_BONUS
                 reasons.append("穴場")
+            yb = YIELD_BONUS.get(r["kind"], 1)
+            if yb:
+                weight += yb
             if cat_counts[r["cat"]] <= RARE_CAT_THRESHOLD:
                 weight += 5
                 reasons.append(f"県内で{r['cat']}が{cat_counts[r['cat']]}件のみ")
