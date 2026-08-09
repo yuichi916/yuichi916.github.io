@@ -223,6 +223,7 @@ export function filterItems(items, opts) {
   const o = opts || {};
   return items.filter(it => {
     if (o.cats && !o.cats.has(it.cat)) return false;
+    if (o.kind && it.kind !== o.kind) return false;
     if (o.maxDistM != null && it.distM > o.maxDistM) return false;
     if (o.minSolo && it.solo < o.minSolo) return false;
     if (o.minQuiet && it.quiet < o.minQuiet) return false;

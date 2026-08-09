@@ -716,5 +716,13 @@ check('entryFlow: 事実が無ければ空', () => {
   eq(core.entryFlow({}).length, 0);
 });
 
+check('filterItems: 業態で絞る', () => {
+  const all = [{ id: 'a', cat: 'eat', kind: 'ramen', distM: 1 },
+               { id: 'b', cat: 'eat', kind: 'soba_udon', distM: 2 }];
+  eq(core.filterItems(all, { kind: 'ramen' }).map(x => x.id).join(''), 'a');
+  eq(core.filterItems(all, { kind: null }).length, 2, '未指定なら絞らない');
+  eq(core.filterItems(all, {}).length, 2);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

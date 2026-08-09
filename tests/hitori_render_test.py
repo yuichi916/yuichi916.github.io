@@ -1981,6 +1981,42 @@ def test_axis_shows_both_bar_and_number(context, page):
         assert n.isdigit() and 1 <= int(n) <= 5, nums
     p.close()
 
+
+def test_kind_filter_offers_only_what_exists(context, page):
+    """業態で絞れること。選択肢はいま結果にあるものだけにすること。
+
+    カテゴリは4つしかなく「そばだけ見たい」が選べなかった。
+    また、空振りする選択肢を並べると、選んでから0件だと気づくことになる。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(BEPPU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=25000)
+    p.wait_for_timeout(2000)
+    p.click("#open-filters")
+    p.wait_for_timeout(400)
+
+    vals = p.eval_on_selector_all("#f-kind option", "els => els.map(e => e.value).filter(Boolean)")
+    assert vals, "業態の選択肢が無い"
+    labels = p.eval_on_selector_all("#f-kind option", "els => els.map(e => e.textContent)")
+    assert all("（" in l for l in labels[1:]), f"件数が出ていない: {labels[:4]}"
+
+    before = p.eval_on_selector_all("#search-list .item", "e => e.length")
+    p.select_option("#f-kind", vals[0])
+    p.wait_for_timeout(700)
+    after = p.eval_on_selector_all("#search-list .item", "e => e.length")
+    assert 0 < after < before, (before, after)
+    kinds = p.eval_on_selector_all("#search-list .item .kindmark",
+                                   "els => [...new Set(els.map(e => e.textContent))]")
+    assert len(kinds) == 1, f"絞ったのに複数の業態が出ている: {kinds}"
+
+    p.select_option("#f-kind", "")
+    p.wait_for_timeout(700)
+    assert p.eval_on_selector_all("#search-list .item", "e => e.length") == before
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2041,6 +2077,7 @@ def main():
             test_entry_flow_and_guide_are_kept_apart(context, page)
             test_method_is_stated_up_front(context, page)
             test_axis_shows_both_bar_and_number(context, page)
+            test_kind_filter_offers_only_what_exists(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)

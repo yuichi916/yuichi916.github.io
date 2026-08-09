@@ -403,6 +403,12 @@ body.deck-mode .method { display:none; }
         <label><input type="checkbox" id="s-cat-play" checked> ひとり娯楽</label>
         <label><input type="checkbox" id="s-cat-stay" checked> ひとり滞在</label>
       </fieldset>
+      <fieldset><legend>業態</legend>
+        <select id="f-kind">
+          <option value="">すべての業態</option>
+        </select>
+        <small>この地点の結果にある業態だけを出します</small>
+      </fieldset>
       <fieldset><legend>距離</legend>
         <select id="f-dist">
           <option value="400">徒歩5分（直線400m）</option>
@@ -786,6 +792,25 @@ function factsOf(it) {
   return seen;
 }
 
+// 業態での絞り込み。カテゴリは4つしかなく「そばだけ見たい」が選べなかった。
+// 選べる業態は、いま結果に出ているものだけにする。空振りする選択肢を
+// 並べると、選んでから0件だと気づくことになる。
+function refreshKindOptions() {
+  const sel = document.getElementById('f-kind');
+  if (!sel) return;
+  const o = state.origin;
+  if (o.lat == null) return;
+  const src = core.withDistance(collectItems(Object.keys(PREF_CACHE).map(Number)), o.lat, o.lon);
+  const base = core.filterItems(src, { ...state.search, kind: null, ...quickOpts() });
+  const counts = {};
+  for (const it of base) counts[it.kind] = (counts[it.kind] || 0) + 1;
+  const cur = state.search.kind || '';
+  const opts = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${
+      escapeHtml(KIND_JA[k] || k)}（${n}）</option>`).join('');
+  sel.innerHTML = `<option value=""${cur ? '' : ' selected'}>すべての業態</option>` + opts;
+}
+
 function quickOpts() {
   const on = [...state.quick];
   return {
@@ -829,6 +854,7 @@ function currentSearchResults() {
   const filtered = state.favView
     ? withD
     : core.filterItems(withD, { ...state.search, ...quickOpts() });
+  if (!state.favView) refreshKindOptions();
   return core.sortItems(filtered, state.sort,
                         { isoThreshold: SUMMARY.iso_threshold, now: new Date() });
 }
@@ -2259,6 +2285,10 @@ async function init() {
   if (state.pref) openPrefecture(state.pref);
   bindDeck();
   bindQuickbar();
+  document.getElementById('f-kind').addEventListener('change', e => {
+    state.search.kind = e.target.value || null;
+    refreshResults();
+  });
   setView(state.view);
   window.__ready = true;
   // 描画テストから触るために公開する。state / PREF_CACHE / currentSearchResults /
