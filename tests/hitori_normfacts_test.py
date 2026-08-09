@@ -91,6 +91,37 @@ def test_conditionally_free_is_still_dropped():
     assert got is None and why
 
 
+def test_blocked_source_is_stripped_not_fatal():
+    """禁止サイトの出典は外す。1本混ざっただけで取り込み全体を止めない。
+
+    curate.py は見つけると例外で止める設計だが、それは「黙って通さない」
+    ためであって、収集の取りこぼし1件で数百施設の取り込みを落とすためでは
+    ない。実際に s.tabelog.com が1本混ざって取り込みが止まった。
+    """
+    f, n = nf.strip_blocked_urls({"k": "price", "v": 400,
+                                  "urls": ["https://a.jp/", "https://s.tabelog.com/x/"]})
+    assert n == 1 and f["urls"] == ["https://a.jp/"]
+
+
+def test_record_with_only_blocked_sources_is_dropped():
+    """禁止サイトしか出典が無い事実は残さない。出典なしで載せてはならない。"""
+    recs = [{"id": "n1", "checked": "2026-08-10", "facts": [
+        {"k": "price", "v": 400, "urls": ["https://tabelog.com/x/"]}]}]
+    out, dropped = nf.normalize(recs)
+    assert out == [], out
+    assert any("禁止サイト" in why for _, why in dropped), dropped
+    assert any("出典URLが無い" in why for _, why in dropped), dropped
+
+
+def test_fact_without_urls_is_dropped():
+    recs = [{"id": "n1", "checked": "2026-08-10",
+             "facts": [{"k": "price", "v": 400, "urls": []},
+                       {"k": "wash_area", "v": "yes", "urls": ["https://a.jp/"]}]}]
+    out, dropped = nf.normalize(recs)
+    assert [f["k"] for f in out[0]["facts"]] == ["wash_area"], out
+    assert any("出典URLが無い" in why for _, why in dropped), dropped
+
+
 def main():
     test_passes_valid_facts_untouched()
     test_extracts_single_number()
@@ -103,6 +134,9 @@ def main():
     test_free_price_becomes_zero()
     test_free_price_variants()
     test_conditionally_free_is_still_dropped()
+    test_blocked_source_is_stripped_not_fatal()
+    test_record_with_only_blocked_sources_is_dropped()
+    test_fact_without_urls_is_dropped()
     print("OK: normalize_facts")
 
 

@@ -35,6 +35,20 @@ _UNIT_MIN = {"時間": 60, "h": 60, "hour": 60, "hours": 60, "分": 1, "min": 1,
 _FREE = re.compile(r"(無料|free|0\s*円)", re.I)
 
 
+def strip_blocked_urls(f):
+    """自動アクセスを禁止しているサイトのURLを外す。(事実, 外した数) を返す。
+
+    curate.py はこれを見つけると例外で止める（黙って通さないため）。だが
+    収集は人やエージェントが行うので、検索結果に出た食べログを1本混ぜて
+    しまうことは起きる。その1本のために取り込み全体が止まるのは筋が悪い。
+    ここで外して数を報告し、curate へは綺麗なものだけ渡す。
+    残る出典が無くなった事実は落とす（normalize_fact が urls 空を弾く）。
+    """
+    urls = f.get("urls") or []
+    keep = [u for u in urls if not enrich.is_blocked(u)]
+    return ({**f, "urls": keep}, len(urls) - len(keep))
+
+
 def normalize_fact(f):
     """(整えた事実, 落とした理由) を返す。落とさないなら理由は None。"""
     k, v = f.get("k"), f.get("v")
@@ -89,6 +103,14 @@ def normalize(records):
             dropped.append((e["id"], "事実がひとつも無い")); continue
         facts = []
         for f in e["facts"]:
+            f, blocked_n = strip_blocked_urls(f)
+            if blocked_n:
+                dropped.append((e["id"], f"{f.get('k')}: 禁止サイトの出典を{blocked_n}件外した"))
+            # 出典が1本も残らない事実は載せられない。curate も弾くが、
+            # 例外で全体を止めるのではなく、ここで理由つきで落とす。
+            if not (f.get("urls") or []):
+                dropped.append((e["id"], f"{f.get('k')}: 出典URLが無い"))
+                continue
             got, why = normalize_fact(f)
             if got:
                 facts.append(got)
