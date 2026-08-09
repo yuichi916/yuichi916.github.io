@@ -797,7 +797,9 @@ function refreshKindOptions() {
   if (!sel) return;
   const o = state.origin;
   if (o.lat == null) return;
-  const src = core.withDistance(collectItems(Object.keys(PREF_CACHE).map(Number)), o.lat, o.lon);
+  // loadedItems() は読み込み済み県が変わるまで結果を使い回す。ここで
+  // collectItems を直に呼ぶと、絞り込みのたびに全国分を作り直すことになる。
+  const src = core.withDistance(loadedItems(), o.lat, o.lon);
   const base = core.filterItems(src, { ...state.search, kind: null, ...quickOpts() });
   const counts = {};
   for (const it of base) counts[it.kind] = (counts[it.kind] || 0) + 1;
@@ -840,6 +842,19 @@ function quickOpts() {
     preds: on.map(k => QUICK[k] && QUICK[k].pred).filter(Boolean),
     factsOf,
   };
+}
+
+// お気に入り表示中は絞り込みを適用しない（保存した場所が条件で消えると
+// 保存した意味がなくなる）。それなのにボタンは押せて aria-pressed も立つので、
+// 押しても何も起きないのに効いているように見えていた。押せなくする。
+function setFilterControlsEnabled(on) {
+  const why = on ? '' : '保存した場所には絞り込みを適用しません';
+  for (const b of document.querySelectorAll('.quickbar button')) {
+    b.disabled = !on;
+    b.title = why;
+  }
+  const kind = document.getElementById('f-kind');
+  if (kind) { kind.disabled = !on; kind.title = why; }
 }
 
 function bindQuickbar() {
@@ -893,6 +908,7 @@ function bindSortAndFavs() {
     toggle.addEventListener('click', () => {
       state.favView = !state.favView;
       toggle.setAttribute('aria-pressed', String(state.favView));
+      setFilterControlsEnabled(!state.favView);
       refreshResults();
     });
   }

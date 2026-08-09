@@ -2156,6 +2156,33 @@ def test_open_period_warns_without_calling_it_closed(context, page):
         assert not any("休業" in w or "閉業" in w for w in got[k]), (k, got[k])
 
 
+def test_filters_are_disabled_in_favorites_view(context, page):
+    """お気に入り表示中は絞り込みを押せなくすること。
+
+    保存した場所には絞り込みを適用しない仕様なのに、ボタンは押せて
+    aria-pressed も立っていた。押しても結果が変わらないのに効いて
+    いるように見える。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+
+    before = p.eval_on_selector_all(".quickbar button", "els => els.map(e => e.disabled)")
+    assert before and not any(before), "通常表示で絞り込みが押せない"
+
+    p.click("#fav-toggle")
+    after = p.eval_on_selector_all(".quickbar button", "els => els.map(e => e.disabled)")
+    assert after and all(after), "お気に入り表示で絞り込みが押せてしまう"
+    assert p.eval_on_selector("#f-kind", "e => e.disabled") is True
+
+    p.click("#fav-toggle")
+    back = p.eval_on_selector_all(".quickbar button", "els => els.map(e => e.disabled)")
+    assert not any(back), "通常表示に戻しても押せないまま"
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2180,6 +2207,7 @@ def main():
             test_search_with_location(context, page)
             test_density_note_appears_once_not_on_every_card(context, page)
             test_open_period_warns_without_calling_it_closed(context, page)
+            test_filters_are_disabled_in_favorites_view(context, page)
             test_same_kind_count_is_recomputed_when_a_prefecture_arrives(context, page)
             test_search_distance_filter(context, page)
             test_search_quiet_filter(context, page)
