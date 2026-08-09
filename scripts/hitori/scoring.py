@@ -61,6 +61,38 @@ _SOBA_UDON = {"soba", "udon", "noodle", "noodles"}
 _GYUDON = {"gyudon", "donburi", "katsudon", "oyakodon"}
 _CURRY = {"curry"}
 
+# cuisine タグが当てにならないチェーン。OSMでは cuisine=japanese としか
+# 付いていないことが多く、cuisine 条件だけでは丸ごと取りこぼす。
+# 店名の前方一致で業態を決める。ここに無い fast_food は収録しない
+# （ハンバーガーチェーン等まで入れると、一人が標準という前提が薄まる）。
+_BRAND_KIND = [
+    ("gyudon", ("すき家", "吉野家", "松屋", "なか卯", "松のや", "東京チカラめし",
+                "神戸らんぷ亭", "伝説のすた丼屋")),
+    ("curry", ("CoCo壱番屋", "ココイチ", "ゴーゴーカレー", "日乃屋カレー",
+               "カレーハウスCoCo壱番屋", "松屋カレー")),
+    ("soba_udon", ("富士そば", "名代富士そば", "ゆで太郎", "小諸そば", "箱根そば",
+                   "いろり庵きらく", "しぶそば", "そば処 吉野家", "はなまるうどん",
+                   "丸亀製麺", "資さんうどん", "山田うどん")),
+    ("ramen", ("日高屋", "らあめん花月嵐", "町田商店", "らーめん山岡家",
+               "幸楽苑", "天下一品", "来来亭")),
+]
+
+
+def brand_kind(name):
+    """店名から業態を決める。cuisine が当てにならないチェーン向け。
+
+    前方一致にすると「そば処 おかあやん」のような独立店を巻き込むため、
+    ブランド名がそのまま先頭に来る場合だけを見る。
+    """
+    n = (name or "").strip()
+    if not n:
+        return None
+    for kind, brands in _BRAND_KIND:
+        for b in brands:
+            if n.startswith(b):
+                return kind
+    return None
+
 
 def _cuisine_tokens(cuisine):
     return {t for t in _CUISINE_SEP.split((cuisine or "").lower()) if t}
@@ -107,6 +139,11 @@ def classify(tags):
             return ("eat", "standing", 5)
         if _YAKINIKU_SOLO.search(name):
             return ("eat", "yakiniku_solo", 5)
+        # 店名が分かっているチェーンは cuisine より優先する。すき家に
+        # cuisine=curry だけが付いていて「カレー」に分類された実例がある。
+        bk = brand_kind(name)
+        if bk:
+            return ("eat", bk, 4)
         hit = _classify_cuisine(cuisine)
         if hit:
             return ("eat",) + hit

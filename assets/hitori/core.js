@@ -303,24 +303,36 @@ export function openRank(item, date) {
   return 2;
 }
 
+// 行けない可能性がある施設を先頭に出さない。閉業や住民専用の情報が
+// 1件だけあるものは、一覧から外す条件（2件以上）を満たさないので残るが、
+// 徒歩1分だからといって最初に見せるのは不親切である。並びでは後ろへ回す。
+// 消さずに後ろへ、という扱いにしているのは、1件の情報が誤りである
+// 可能性も残すため。
+export function isDoubtful(it, doubtfulOf) {
+  return !!(doubtfulOf && doubtfulOf(it));
+}
+
 export function sortItems(items, sort, ctx) {
   const c = ctx || {};
   const now = c.now || new Date();
   const th = c.isoThreshold;
   const out = items.slice();
   const byDist = (a, b) => a.distM - b.distM;
+  const doubt = it => (c.doubtfulOf && c.doubtfulOf(it)) ? 1 : 0;
+  // どの並び順でも、行けない疑いのあるものは最後に回す
+  const withDoubt = cmp => (a, b) => (doubt(a) - doubt(b)) || cmp(a, b);
 
   switch (sort) {
     case 'solo':
-      return out.sort((a, b) => (b.solo - a.solo) || byDist(a, b));
+      return out.sort(withDoubt((a, b) => (b.solo - a.solo) || byDist(a, b)));
     case 'quiet':
-      return out.sort((a, b) => (b.quiet - a.quiet) || byDist(a, b));
+      return out.sort(withDoubt((a, b) => (b.quiet - a.quiet) || byDist(a, b)));
     case 'find':
-      return out.sort((a, b) => (findScore(b, th) - findScore(a, th)) || byDist(a, b));
+      return out.sort(withDoubt((a, b) => (findScore(b, th) - findScore(a, th)) || byDist(a, b)));
     case 'open':
-      return out.sort((a, b) => (openRank(a, now) - openRank(b, now)) || byDist(a, b));
+      return out.sort(withDoubt((a, b) => (openRank(a, now) - openRank(b, now)) || byDist(a, b)));
     default:
-      return out.sort(byDist);
+      return out.sort(withDoubt(byDist));
   }
 }
 

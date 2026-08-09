@@ -811,6 +811,17 @@ function refreshKindOptions() {
   sel.innerHTML = `<option value=""${cur ? '' : ' selected'}>すべての業態</option>` + opts;
 }
 
+// 行けない疑いがあるか。一覧から外す条件（独立2ドメイン以上）を満たさない
+// 1件だけの閉業・住民専用の情報がここに当たる。消さずに並びで後ろへ回す。
+function doubtfulOf(it) {
+  const e = CURATED[it.id];
+  if (!e) return false;
+  return e.facts.some(f =>
+    (f.k === 'status' && (f.v === 'closed_permanently' || f.v === 'closed_temporarily')) ||
+    (f.k === 'access' && (f.v === 'residents_only' || f.v === 'members_only')) ||
+    (f.k === 'solo_ok' && f.v === 'no'));
+}
+
 function quickOpts() {
   const on = [...state.quick];
   return {
@@ -856,7 +867,7 @@ function currentSearchResults() {
     : core.filterItems(withD, { ...state.search, ...quickOpts() });
   if (!state.favView) refreshKindOptions();
   return core.sortItems(filtered, state.sort,
-                        { isoThreshold: SUMMARY.iso_threshold, now: new Date() });
+                        { isoThreshold: SUMMARY.iso_threshold, now: new Date(), doubtfulOf });
 }
 
 function bindSortAndFavs() {
@@ -2304,6 +2315,7 @@ window.PREF_CACHE = PREF_CACHE;
 window.visibleItems = visibleItems;
 window.AX_LABEL = AX_LABEL;
 window.KIND_GUIDE = KIND_GUIDE;
+window.doubtfulOf = doubtfulOf;
 window.tipsFor = tipsFor;
 window.FAILED_PREFS = FAILED_PREFS;
 window.FOUND_BY_SEARCH = FOUND_BY_SEARCH;

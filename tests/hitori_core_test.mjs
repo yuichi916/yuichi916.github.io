@@ -724,5 +724,17 @@ check('filterItems: 業態で絞る', () => {
   eq(core.filterItems(all, {}).length, 2);
 });
 
+check('sortItems: 行けない疑いのあるものは後ろへ回す', () => {
+  const all = [{ id: 'near', distM: 10, solo: 5, quiet: 5, iso: 0, hidden: 0 },
+               { id: 'far',  distM: 900, solo: 3, quiet: 3, iso: 0, hidden: 0 }];
+  const ctx = { doubtfulOf: it => it.id === 'near' };
+  // 近い順でも、疑いのあるものは後ろ
+  eq(core.sortItems(all, 'dist', ctx).map(x => x.id).join(','), 'far,near');
+  // ひとり度順でも同じ（疑いの判定がすべての並びに効く）
+  eq(core.sortItems(all, 'solo', ctx).map(x => x.id).join(','), 'far,near');
+  // 疑いが無ければ従来どおり
+  eq(core.sortItems(all, 'dist', {}).map(x => x.id).join(','), 'near,far');
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

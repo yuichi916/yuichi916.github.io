@@ -42,6 +42,12 @@ area["ISO3166-2"="{iso}"]["admin_level"="4"]->.pref;
   nwr["amenity"="public_bath"](area.pref);
   nwr["leisure"="sauna"](area.pref);
   nwr["amenity"~"^(restaurant|fast_food)$"]["cuisine"~"{SOLO_CUISINE}"](area.pref);
+  // 牛丼・定食チェーンは cuisine=japanese としか付いていないことが多く、
+  // cuisine 条件では丸ごと取りこぼす（すき家は全国約1,900店あるのに4件
+  // しか取れていなかった）。fast_food を丸ごと取り、業態の判定は
+  // scoring.py の店名照合に任せる。brand タグへの正規表現は Overpass が
+  // 504 を返すので使えない。
+  nwr["amenity"="fast_food"](area.pref);
   nwr["amenity"="karaoke_box"](area.pref);
   nwr["amenity"="cinema"](area.pref);
   nwr["amenity"="internet_cafe"](area.pref);

@@ -183,6 +183,46 @@ def test_new_chain_brands_bare_and_branch_suffixed():
     assert scoring.is_chain({"name": "ラーメンたかはし"}) == 0
 
 
+
+def test_brand_beats_wrong_cuisine():
+    """店名が分かっているチェーンは cuisine より優先する。
+
+    OSMでは牛丼チェーンに cuisine=japanese しか付いていないことが多く、
+    すき家に cuisine=curry だけが付いて「カレー」に分類された実例がある。
+    """
+    assert scoring.classify({"amenity": "fast_food", "name": "すき家 高松店",
+                             "cuisine": "curry"}) == ("eat", "gyudon", 4)
+    assert scoring.classify({"amenity": "fast_food", "name": "吉野家 1号店",
+                             "cuisine": "japanese"}) == ("eat", "gyudon", 4)
+    assert scoring.classify({"amenity": "fast_food", "name": "松屋 三条店",
+                             "cuisine": ""}) == ("eat", "gyudon", 4)
+
+
+def test_brand_match_is_prefix_only():
+    """前方一致だけ。含んでいるだけの独立店を巻き込まない。"""
+    assert scoring.brand_kind("すき家 高松店") == "gyudon"
+    assert scoring.brand_kind("元祖すき家風どんぶり") is None
+    assert scoring.brand_kind("そば処 おかあやん") is None
+    assert scoring.brand_kind("") is None
+    assert scoring.brand_kind(None) is None
+
+
+def test_unlisted_fast_food_is_excluded():
+    """ブランド表に無い fast_food は収録しない。
+
+    ハンバーガーチェーンまで入れると「一人が標準」という前提が薄まる。
+    """
+    assert scoring.classify({"amenity": "fast_food", "name": "マクドナルド",
+                             "cuisine": "burger"}) is None
+    assert scoring.classify({"amenity": "fast_food", "name": "名もなき店",
+                             "cuisine": ""}) is None
+
+
+def test_cuisine_still_works_without_brand():
+    """ブランドに無くても cuisine が正しければ従来どおり拾う。"""
+    assert scoring.classify({"amenity": "restaurant", "name": "町の中華そば",
+                             "cuisine": "ramen"}) == ("eat", "ramen", 4)
+
 def main():
     test_classify()
     test_axes()
@@ -190,6 +230,10 @@ def main():
     test_confidence()
     test_is_chain()
     test_new_chain_brands_bare_and_branch_suffixed()
+    test_brand_beats_wrong_cuisine()
+    test_brand_match_is_prefix_only()
+    test_unlisted_fast_food_is_excluded()
+    test_cuisine_still_works_without_brand()
     print("OK: scoring")
 
 

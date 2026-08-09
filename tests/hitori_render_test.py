@@ -2017,6 +2017,45 @@ def test_kind_filter_offers_only_what_exists(context, page):
     assert p.eval_on_selector_all("#search-list .item", "e => e.length") == before
     p.close()
 
+
+def test_doubtful_facilities_sink_in_the_list(context, page):
+    """行けない疑いのある施設を先頭に出さない。
+
+    閉業や住民専用の情報が1件だけのものは、一覧から外す条件（2件以上）を
+    満たさないので残る。だが徒歩1分だからといって最初に見せるのは不親切。
+    消さずに並びで後ろへ回す。1件の情報が誤っている可能性も残すため。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(BEPPU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=25000)
+    p.wait_for_timeout(2500)
+
+    pos = p.evaluate("""() => {
+      const r = currentSearchResults();
+      const idx = r.map((x, i) => doubtfulOf(x) ? i : -1).filter(i => i >= 0);
+      return { total: r.length, doubtful: idx };
+    }""")
+    if not pos["doubtful"]:
+        # この地点に疑いのある施設が無いのは異常ではない。人工的に確かめる。
+        ok = p.evaluate("""() => {
+          const r = currentSearchResults();
+          if (r.length < 2) return true;
+          const id = r[0].id;
+          CURATED[id] = { checked: '2026-08-09', facts: [
+            { k: 'status', v: 'closed_permanently', n: 1, src: ['a'],
+              urls: ['https://a/'], official: false, conflict: false }] };
+          const after = currentSearchResults();
+          delete CURATED[id];
+          return after[after.length - 1].id === id;
+        }""")
+        assert ok, "疑いのある施設が末尾へ回っていない"
+    else:
+        assert min(pos["doubtful"]) >= pos["total"] - len(pos["doubtful"]), pos
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2078,6 +2117,7 @@ def main():
             test_method_is_stated_up_front(context, page)
             test_axis_shows_both_bar_and_number(context, page)
             test_kind_filter_offers_only_what_exists(context, page)
+            test_doubtful_facilities_sink_in_the_list(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)
