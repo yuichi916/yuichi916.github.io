@@ -127,6 +127,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=50)
     ap.add_argument("--pref", type=int, default=None, help="この県だけ")
+    ap.add_argument("--json", action="store_true",
+                    help="収集エージェントに渡す形で標準出力へ書く")
     args = ap.parse_args()
 
     curated_path = OUT_DIR / "curated.json"
@@ -144,8 +146,13 @@ def main():
         print("pref/*.json がありません。build_data.py を先に実行してください。")
         sys.exit(1)
 
-    for t in rank_targets(prefdocs, curated, args.limit,
-                          summary.get("iso_threshold"), _load_municipalities()):
+    targets = rank_targets(prefdocs, curated, args.limit,
+                           summary.get("iso_threshold"), _load_municipalities())
+    if args.json:
+        json.dump(targets, sys.stdout, ensure_ascii=False, indent=1)
+        return
+
+    for t in targets:
         where = t["city"] or (t["city_guess"] + "?" if t["city_guess"] else "")
         print(f"[{t['weight']:>2}] {t['id']:<12} {t['name'][:20]:<22} {where[:11]:<13} "
               f"{t['cat']}/{t['kind']:<10} {t['reason']}")
