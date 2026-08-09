@@ -743,5 +743,32 @@ check('entryFlow: 分かっていないことを書かない', () => {
   eq(f.includes('入口に人はいない'), true, f.join('/'));
 });
 
+check('entryFlow: 語彙にある値をひとつ残らず扱う', () => {
+  // 集めた事実が動線に出ないのは、収集した手間がそのまま無駄になる。
+  // reservation=possible / payment_method=cashless_ok / bring_towel=included /
+  // wash_area=yes は語彙にあるのに扱われていなかった。
+  const cases = [
+    [{ reservation: 'possible' }, '予約もできる'],
+    [{ payment_method: 'cashless_ok' }, '現金以外も使える'],
+    [{ bring_towel: 'included' }, 'タオルは料金に含まれる'],
+    [{ wash_area: 'yes' }, '洗い場がある'],
+  ];
+  for (const [facts, want] of cases) {
+    const f = core.entryFlow(facts);
+    eq(f.includes(want), true, JSON.stringify(facts) + ' → ' + f.join('/'));
+  }
+});
+
+check('entryFlow: 追加した値が既存の分岐を潰していない', () => {
+  // else if で繋いだので、先に来る値が消えていないかを確かめる。
+  eq(core.entryFlow({ reservation: 'required' }).includes('事前の予約が要る'), true);
+  eq(core.entryFlow({ reservation: 'none' }).includes('予約は要らない'), true);
+  eq(core.entryFlow({ payment_method: 'cash_only' }).includes('現金だけ'), true);
+  eq(core.entryFlow({ bring_towel: 'required' }).includes('タオルは持参'), true);
+  eq(core.entryFlow({ bring_towel: 'rental' }).includes('タオルは借りられる'), true);
+  eq(core.entryFlow({ wash_area: 'no' }).includes('洗い場は無い'), true);
+  eq(core.entryFlow({ wash_area: 'no' }).includes('洗い場がある'), false);
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

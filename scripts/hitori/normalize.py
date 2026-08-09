@@ -100,6 +100,11 @@ def to_record(el, curated):
         "tel": (tags.get("phone") or tags.get("contact:phone") or "").strip(),
         "web": (tags.get("website") or tags.get("contact:website") or "").strip(),
         "note": cur.get("note", ""),
+        # 県境で両県に入った施設をどちらに載せるかの手がかり。出力には出さない。
+        # 県境ポリゴンは簡略化されていて、稜線上の施設を取り違える
+        # （横手山頂ヒュッテは長野県山ノ内町だが群馬県側と判定された）。
+        # 住所タグがあるならそちらが強い。
+        "_addr": " ".join(v for k, v in tags.items() if k.startswith("addr:")),
     }
 
 

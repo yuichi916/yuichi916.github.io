@@ -165,3 +165,23 @@ def validate_exclusions(prefdocs, curated):
         if why:
             errs.append(f"除外すべき施設が残っている（build_data.py を流し直す）: {fid} — {why}")
     return errs
+
+
+def validate_no_cross_pref_duplicates(prefdocs):
+    """同じ id が複数の県ファイルに入っていないかを検査する。エラーのリストを返す。
+
+    validate_pref は doc 単位でしか重複を見ないので、県境の施設が両隣の
+    area クエリに入って二重に出ることを検出できなかった。実際に5件あり、
+    summary.total が実ユニーク数より5多くなっていた。
+    """
+    where = {}
+    for code, doc in sorted(prefdocs.items()):
+        if doc.get("fields") is None:
+            continue
+        i = doc["fields"].index("id")
+        for row in doc["items"]:
+            # 県内の重複は validate_pref の担当。ここで二重に報告しないよう
+            # 県コードは集合で持つ。
+            where.setdefault(row[i], set()).add(code)
+    return [f"県をまたぐ duplicate id: {fid} — {sorted(codes)}"
+            for fid, codes in sorted(where.items()) if len(codes) > 1]

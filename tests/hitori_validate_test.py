@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """出力スキーマ検証。spec §9 のビルド時チェックがそのまま期待値。"""
-import sys, copy
+import json, sys, copy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -205,6 +205,39 @@ def test_exclusion_leak_is_detected():
     assert "n2" in errs[0] and "閉業" in errs[0], errs
 
 
+def test_cross_pref_duplicate_is_detected():
+    """同じ id が2つの県ファイルに入っていたら気づけること。
+
+    validate_pref は doc 単位でしか重複を見ないので、県境の施設が両隣の
+    area クエリに入ると素通りしていた。実データに5件あり、summary.total が
+    実ユニーク数より5多くなっていた。
+    """
+    docs = {
+        13: {"fields": ["id", "name"], "items": [["w1", "県境の店"], ["w2", "都内の店"]]},
+        14: {"fields": ["id", "name"], "items": [["w1", "県境の店"], ["w3", "県内の店"]]},
+    }
+    errs = validate.validate_no_cross_pref_duplicates(docs)
+    assert len(errs) == 1, errs
+    assert "w1" in errs[0] and "13" in errs[0] and "14" in errs[0], errs
+
+
+def test_same_id_in_one_pref_is_not_a_cross_pref_error():
+    """県内の重複は validate_pref の担当。ここで二重に報告しない。"""
+    docs = {13: {"fields": ["id", "name"], "items": [["w1", "店"], ["w1", "店"]]}}
+    assert validate.validate_no_cross_pref_duplicates(docs) == []
+
+
+def test_real_data_has_no_cross_pref_duplicate():
+    """実データで県をまたぐ重複が残っていないこと。"""
+    docs = {}
+    for f in sorted((ROOT / "data" / "hitori" / "pref").glob("*.json")):
+        docs[int(f.stem)] = json.loads(f.read_text(encoding="utf-8"))
+    if not docs:
+        return
+    errs = validate.validate_no_cross_pref_duplicates(docs)
+    assert errs == [], errs[:5]
+
+
 def test_no_leak_when_already_excluded():
     docs = {13: {"fields": ["id", "name"], "items": [["n1", "生きてる店"]]}}
     curated = {"n2": {"checked": "2026-08-09", "facts": [
@@ -253,6 +286,9 @@ def main():
     test_no_leak_when_already_excluded()
     test_single_source_closure_is_not_a_leak()
     test_real_data_has_no_exclusion_leak()
+    test_cross_pref_duplicate_is_detected()
+    test_same_id_in_one_pref_is_not_a_cross_pref_error()
+    test_real_data_has_no_cross_pref_duplicate()
     print("OK: validate")
 
 

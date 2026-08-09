@@ -66,6 +66,31 @@ def test_partially_valid_record_keeps_the_good_facts():
     assert len(dropped) == 1
 
 
+def test_free_price_becomes_zero():
+    """「無料」は 0 円として残る。
+
+    数字が0個なので「どれを指すか決められない」で落ちていた。無料の施設は
+    実在し（七ヶ宿町水と歴史の館ほか）、料金が分かるかどうかは一人で行く
+    ときに効く。落とす理由の文言も実態と合っていなかった。
+    """
+    got, why = nf.normalize_fact({"k": "price", "v": "無料", "urls": ["https://a/"]})
+    assert why is None, why
+    assert got["v"] == 0
+
+
+def test_free_price_variants():
+    for v in ("無料 ", "0円", "free", "Free"):
+        got, why = nf.normalize_fact({"k": "price", "v": v, "urls": ["https://a/"]})
+        assert why is None and got["v"] == 0, (v, why)
+
+
+def test_conditionally_free_is_still_dropped():
+    """但し書き付きは 0 と決めつけない。「無料開放日あり」は通常有料。"""
+    got, why = nf.normalize_fact(
+        {"k": "price", "v": "無料開放日あり", "urls": ["https://a/"]})
+    assert got is None and why
+
+
 def main():
     test_passes_valid_facts_untouched()
     test_extracts_single_number()
@@ -75,6 +100,9 @@ def main():
     test_refuses_unknown_key()
     test_record_with_no_valid_fact_is_dropped()
     test_partially_valid_record_keeps_the_good_facts()
+    test_free_price_becomes_zero()
+    test_free_price_variants()
+    test_conditionally_free_is_still_dropped()
     print("OK: normalize_facts")
 
 

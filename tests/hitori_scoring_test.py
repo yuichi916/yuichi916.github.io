@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """スコアリングの純関数テスト。spec §5 の判定表がそのまま期待値になっている。"""
+import re
 import sys
 from pathlib import Path
 
@@ -104,6 +105,30 @@ def test_axes_table_covers_all_kinds():
     for k, v in scoring.AXES.items():
         assert len(v) == 3, k
         assert all(1 <= x <= 5 for x in v), k
+
+
+def test_kind_guide_covers_every_kind():
+    """hitori.html の KIND_GUIDE が全業態を網羅していること。
+
+    AXES には test_axes_table_covers_all_kinds があるが KIND_GUIDE には
+    無かった。新しい業態を足すと、その業態だけ作法ガイドが黙って消える。
+    ソースを読むのは、ここが Playwright を使わない層だから。
+    """
+    src = (ROOT / "hitori.html").read_text(encoding="utf-8")
+    m = re.search(r"const KIND_GUIDE = \{(.*?)\n\};", src, re.S)
+    assert m, "hitori.html に KIND_GUIDE が見つからない"
+    keys = set(re.findall(r"^\s{2}(\w+):", m.group(1), re.M))
+    assert keys, "KIND_GUIDE の項目を読み取れない"
+    assert set(scoring.AXES) <= keys, set(scoring.AXES) - keys
+
+
+def test_kind_guide_test_would_catch_a_missing_kind():
+    """上のテストが空振りでないこと。1業態を消せば落ちる、を確かめる。"""
+    src = (ROOT / "hitori.html").read_text(encoding="utf-8")
+    m = re.search(r"const KIND_GUIDE = \{(.*?)\n\};", src, re.S)
+    keys = set(re.findall(r"^\s{2}(\w+):", m.group(1), re.M))
+    keys.discard("sento")
+    assert not (set(scoring.AXES) <= keys), "業態を1つ消しても通ってしまう"
 
 
 def test_confidence():
@@ -227,6 +252,8 @@ def main():
     test_classify()
     test_axes()
     test_axes_table_covers_all_kinds()
+    test_kind_guide_covers_every_kind()
+    test_kind_guide_test_would_catch_a_missing_kind()
     test_confidence()
     test_is_chain()
     test_new_chain_brands_bare_and_branch_suffixed()

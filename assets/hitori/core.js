@@ -308,10 +308,6 @@ export function openRank(item, date) {
 // 徒歩1分だからといって最初に見せるのは不親切である。並びでは後ろへ回す。
 // 消さずに後ろへ、という扱いにしているのは、1件の情報が誤りである
 // 可能性も残すため。
-export function isDoubtful(it, doubtfulOf) {
-  return !!(doubtfulOf && doubtfulOf(it));
-}
-
 export function sortItems(items, sort, ctx) {
   const c = ctx || {};
   const now = c.now || new Date();
@@ -513,13 +509,17 @@ export function entryFlow(facts) {
   // （前払い不要・後払い・宿泊者のみ等もある）。推測しない。
   if (facts.reservation === 'required') f.unshift('事前の予約が要る');
   else if (facts.reservation === 'none') f.push('予約は要らない');
+  else if (facts.reservation === 'possible') f.push('予約もできる');
   if (facts.payment_method === 'cash_only') f.push('現金だけ');
+  else if (facts.payment_method === 'cashless_ok') f.push('現金以外も使える');
   if (facts.bring_towel === 'required') f.push('タオルは持参');
   else if (facts.bring_towel === 'rental') f.push('タオルは借りられる');
+  else if (facts.bring_towel === 'included') f.push('タオルは料金に含まれる');
   if (facts.luggage === 'locker') f.push('ロッカーに荷物を置ける');
   else if (facts.luggage === 'shelf_only') f.push('荷物は棚に置く');
   else if (facts.luggage === 'none') f.push('荷物の置き場は無い');
   if (facts.wash_area === 'no') f.push('洗い場は無い');
+  else if (facts.wash_area === 'yes') f.push('洗い場がある');
   if (facts.stay_limit) f.push(`${facts.stay_limit}分で上がる`);
   return f;
 }

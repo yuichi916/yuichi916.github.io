@@ -14,6 +14,7 @@ import enrich
 import hidden
 import iso
 import normalize
+import pref_of
 import scoring
 import validate
 
@@ -95,6 +96,51 @@ def _enrich(records, curated):
     return applied, excluded
 
 
+def _drop_cross_pref_duplicates(by_pref, prefs=()):
+    """県をまたぐ id 重複を解消する。(id, 名前, 残した県, 外した県) の一覧を返す。
+
+    by_pref を破壊的に書き換える。どちらに残すかは、
+    1. OSM の住所タグ（最も強い。人が書いた所在地）
+    2. 県境ポリゴン（地球地図日本）
+    3. 若い県コード
+    の順に決める。
+
+    住所を先に見るのは、稜線上の施設をポリゴンが取り違えるため。横手山頂
+    ヒュッテは addr に "Yamanochi, Shimotakai District, Nagano" とあるのに、
+    簡略化されたポリゴンでは群馬県側に落ちた。
+    3 は結果を再現させるためだけの規則で、正しさの根拠は無い。
+    """
+    dup = {}
+    for code in sorted(by_pref):
+        for r in by_pref[code]:
+            dup.setdefault(r["id"], []).append((code, r))
+
+    home = {}
+    for fid, rows in dup.items():
+        codes = [c for c, _ in rows]
+        if len(set(codes)) > 1:
+            r = rows[0][1]
+            addr = next((x.get("_addr") for _, x in rows if x.get("_addr")), "")
+            for guess in (pref_of.pref_from_address(addr, prefs),
+                          pref_of.pref_of(r["lat"], r["lon"])):
+                if guess in codes:
+                    home[fid] = guess
+                    break
+            if fid in home:
+                continue
+        home[fid] = min(codes)
+    report = []
+    for code in sorted(by_pref):
+        keep = []
+        for r in by_pref[code]:
+            if home[r["id"]] == code:
+                keep.append(r)
+            else:
+                report.append((r["id"], r["name"], home[r["id"]], code))
+        by_pref[code] = keep
+    return report
+
+
 def build(raw_by_pref, prefs, curated, updated):
     """(summary, {code: pref_doc}) を返す。ファイルI/Oはしない。"""
     by_pref = {}
@@ -110,6 +156,17 @@ def build(raw_by_pref, prefs, curated, updated):
             r["_pref"] = code
         by_pref[code] = records
         all_records.extend(records)
+
+    # 県境の施設は、隣り合う県の area クエリの両方に入ってくる。normalize.dedupe
+    # は県単位なので県をまたぐ重複を落とせない。放っておくと同じ施設が一覧に
+    # 二度出るうえ、summary.total が実ユニーク数より多くなる。
+    cross = _drop_cross_pref_duplicates(by_pref, prefs)
+    if cross:
+        for fid, name, kept, gone in cross:
+            print(f"県境の重複: {name}（{fid}）— {kept:02d} に残し {gone:02d} から外した",
+                  file=sys.stderr)
+        print(f"合計 {len(cross)} 件の県境重複を解消した", file=sys.stderr)
+        all_records = [r for code in by_pref for r in by_pref[code]]
 
     # 複数県にまたがる同名店をチェーンへ昇格させる。穴場スコアがchainを
     # 読むので、これは必ず compute_hidden より前に行う。
@@ -225,6 +282,7 @@ def main():
     errs = validate.validate_summary(summary)
     for code, doc in prefdocs.items():
         errs += [f"pref{code}: {e}" for e in validate.validate_pref(doc)]
+    errs += validate.validate_no_cross_pref_duplicates(prefdocs)
     if errs:
         print(f"検証エラー {len(errs)} 件:")
         for e in errs[:30]:

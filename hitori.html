@@ -704,9 +704,6 @@ const KIND_GUIDE = {
          + '館内着に着替える形式が多い。',
 };
 
-// このカテゴリでは作法ガイドを出さない、という判断が要るときのため
-const GUIDE_CAT_JA = { bath: '入浴施設', eat: '飲食店', play: '娯楽施設', stay: '滞在施設' };
-
 const KIND_JA = {
   standing: '立ち食い・立ち飲み', yakiniku_solo: 'ひとり焼肉', ramen: 'ラーメン',
   soba_udon: 'そば・うどん', gyudon: '牛丼・丼', curry: 'カレー',
@@ -2321,7 +2318,10 @@ async function init() {
   if (state.pref) openPrefecture(state.pref);
   bindDeck();
   bindQuickbar();
-  document.getElementById('f-kind').addEventListener('change', e => {
+  // 要素が無くても init() を止めない。ここで例外が出ると window.__ready が
+  // 立たず、業態絞り込み以外の機能まで丸ごと使えなくなる。
+  const kindSel = document.getElementById('f-kind');
+  if (kindSel) kindSel.addEventListener('change', e => {
     state.search.kind = e.target.value || null;
     refreshResults();
   });

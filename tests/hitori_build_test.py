@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "hitori"))
 
 import build_data
+import pref_of
 import hidden
 import iso
 import validate
@@ -270,6 +271,91 @@ def test_total_reflects_exclusions():
         n += len(json.loads(f.read_text(encoding="utf-8"))["items"])
     assert summary["total"] == n, (summary["total"], n)
 
+def test_cross_pref_duplicate_goes_to_the_prefecture_that_contains_it():
+    """県境で両県に入った施設は、座標が示す県だけに残ること。
+
+    Overpass の area クエリは県境の施設を両隣に返す。normalize.dedupe は
+    県単位なので落とせず、同じ施設が一覧に二度出ていた（実データで5件）。
+    横手山頂ヒュッテ(36.6842, 138.4966)は長野県。若い県コードを採る規則
+    だと群馬県(10)の一覧に出てしまう。
+    """
+    yokote = {"id": "w522077073", "name": "横手山頂ヒュッテ", "lat": 36.6842, "lon": 138.4966}
+    by_pref = {10: [dict(yokote), {"id": "w2", "name": "群馬の店", "lat": 36.39, "lon": 139.06}],
+               20: [dict(yokote), {"id": "w3", "name": "長野の店", "lat": 36.65, "lon": 138.18}]}
+    report = build_data._drop_cross_pref_duplicates(by_pref)
+    if not pref_of.pref_of(36.6842, 138.4966):
+        return   # 県境ポリゴンが無い環境。決め打ち規則の側は下のテストで見る
+    assert [r["id"] for r in by_pref[20]] == ["w522077073", "w3"], by_pref[20]
+    assert [r["id"] for r in by_pref[10]] == ["w2"], by_pref[10]
+    assert report == [("w522077073", "横手山頂ヒュッテ", 20, 10)], report
+
+
+def test_cross_pref_falls_back_to_the_lowest_code_at_sea():
+    """ポリゴンがどの県も指さないときは、若い県コードへ落として消えないこと。
+
+    黙って両方から消すのが最悪。どちらかには必ず残す。
+    """
+    off = {"id": "w9", "name": "沖合の何か", "lat": 30.0, "lon": 140.0}
+    by_pref = {13: [dict(off)], 47: [dict(off)]}
+    report = build_data._drop_cross_pref_duplicates(by_pref)
+    assert [r["id"] for r in by_pref[13]] == ["w9"]
+    assert by_pref[47] == []
+    assert len(report) == 1 and report[0][2] == 13
+
+
+def test_cross_pref_dedupe_leaves_clean_data_alone():
+    by_pref = {13: [{"id": "w1", "name": "a", "lat": 35.68, "lon": 139.76}],
+               14: [{"id": "w2", "name": "b", "lat": 35.44, "lon": 139.63}]}
+    assert build_data._drop_cross_pref_duplicates(by_pref) == []
+    assert len(by_pref[13]) == 1 and len(by_pref[14]) == 1
+
+
+def test_cross_pref_dedupe_is_reported_not_silent():
+    """黙って消さないこと。報告が空なら、件数が減った理由が誰にも分からない。"""
+    tokyo = {"id": "w1", "name": "都内の店", "lat": 35.6812, "lon": 139.7671}
+    by_pref = {13: [dict(tokyo)], 47: [dict(tokyo)]}
+    report = build_data._drop_cross_pref_duplicates(by_pref)
+    assert len(report) == 1 and report[0][0] == "w1"
+    assert by_pref[47] == []
+
+
+PREFS_FOR_ADDR = [{"code": 10, "name": "群馬県", "pop": 1}, {"code": 20, "name": "長野県", "pop": 1}]
+
+
+def test_cross_pref_prefers_the_address_over_the_polygon():
+    """住所タグがあれば、それがポリゴンより優先されること。
+
+    横手山頂ヒュッテ(36.67111, 138.52417)は addr に Nagano とあるが、
+    簡略化された県境ポリゴンは群馬県側と判定する。稜線上の施設で実際に
+    起きた。人が書いた所在地のほうが強い。
+    """
+    yokote = {"id": "w522077073", "name": "横手山頂ヒュッテ",
+              "lat": 36.67111, "lon": 138.52417,
+              "_addr": "7149-17 Hirao, Yamanochi, Shimotakai District, Nagano 381-0401 Japan"}
+    by_pref = {10: [dict(yokote)], 20: [dict(yokote)]}
+    report = build_data._drop_cross_pref_duplicates(by_pref, PREFS_FOR_ADDR)
+    assert [r["id"] for r in by_pref[20]] == ["w522077073"], by_pref[20]
+    assert by_pref[10] == []
+    assert report == [("w522077073", "横手山頂ヒュッテ", 20, 10)], report
+
+
+def test_polygon_alone_would_have_got_it_wrong():
+    """上のテストが空振りでないこと。住所を外すと群馬県側に落ちる。"""
+    if not pref_of.pref_of(36.67111, 138.52417):
+        return   # 県境ポリゴンが無い環境
+    yokote = {"id": "w1", "name": "横手山頂ヒュッテ", "lat": 36.67111, "lon": 138.52417}
+    by_pref = {10: [dict(yokote)], 20: [dict(yokote)]}
+    build_data._drop_cross_pref_duplicates(by_pref, PREFS_FOR_ADDR)
+    assert [r["id"] for r in by_pref[10]] == ["w1"], "住所なしでも長野に入るならテストが無意味"
+
+
+def test_ambiguous_address_falls_through_to_the_polygon():
+    """住所に2県が出てきたら決めない。ポリゴンへ落とす。"""
+    assert pref_of.pref_from_address("群馬県と長野県の境", PREFS_FOR_ADDR) is None
+    assert pref_of.pref_from_address("", PREFS_FOR_ADDR) is None
+    assert pref_of.pref_from_address("長野県山ノ内町", PREFS_FOR_ADDR) == 20
+
+
 def main():
     test_build_shapes()
     test_build_output_passes_validation()
@@ -284,6 +370,13 @@ def main():
     test_unchecked_facility_has_empty_checked()
     test_excluded_facilities_leave_the_output()
     test_total_reflects_exclusions()
+    test_cross_pref_duplicate_goes_to_the_prefecture_that_contains_it()
+    test_cross_pref_falls_back_to_the_lowest_code_at_sea()
+    test_cross_pref_prefers_the_address_over_the_polygon()
+    test_polygon_alone_would_have_got_it_wrong()
+    test_ambiguous_address_falls_through_to_the_polygon()
+    test_cross_pref_dedupe_leaves_clean_data_alone()
+    test_cross_pref_dedupe_is_reported_not_silent()
     print("OK: build_data")
 
 

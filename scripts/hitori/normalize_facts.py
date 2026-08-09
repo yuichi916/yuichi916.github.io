@@ -31,6 +31,9 @@ _ANNOT_OPEN = "（(【［[〔"
 # 取ると「2時間」が「2分」になる。実際にそうなっていた。
 _UNIT_MIN = {"時間": 60, "h": 60, "hour": 60, "hours": 60, "分": 1, "min": 1, "minutes": 1}
 
+# 「無料」だけを 0 円と読む。「無料開放日あり」のような但し書きは読まない。
+_FREE = re.compile(r"(無料|free|0\s*円)", re.I)
+
 
 def normalize_fact(f):
     """(整えた事実, 落とした理由) を返す。落とさないなら理由は None。"""
@@ -44,6 +47,10 @@ def normalize_fact(f):
 
     # 整数の項目に文字列。数字がひとつだけ読めるときに限り直す。
     if spec is int and isinstance(v, str):
+        # 「無料」は数字が0個なので落ちていた。無料の施設は実在するうえ、
+        # 一人で行くときに料金が分かるかどうかは効くので 0 として残す。
+        if k == "price" and _FREE.fullmatch(v.strip()):
+            return {**f, "v": 0}, None
         nums = {n for n in re.findall(r"\d+", v.replace(",", ""))}
         if len(nums) != 1:
             return None, f"{k}: 数字が{len(nums)}個あり、どれを指すか決められない"

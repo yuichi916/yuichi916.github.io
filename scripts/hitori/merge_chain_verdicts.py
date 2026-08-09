@@ -62,9 +62,18 @@ def merge(notes, rows):
 
 def main():
     if len(sys.argv) < 2:
-        print("使い方: merge_chain_verdicts.py <判定JSON>", file=sys.stderr)
+        print("使い方: merge_chain_verdicts.py <判定JSON> [<判定JSON> ...]", file=sys.stderr)
         sys.exit(1)
-    rows = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    # 複数ファイルを一度に取り込む。以前は1つ目しか読まず、残りが黙って
+    # 捨てられていた（8体で分担した監査のうち33件しか反映されなかった）。
+    rows = []
+    for arg in sys.argv[1:]:
+        part = json.loads(Path(arg).read_text(encoding="utf-8"))
+        if not isinstance(part, list):
+            print(f"配列でない: {arg}", file=sys.stderr)
+            sys.exit(1)
+        rows.extend(part)
+        print(f"読み込み {arg}: {len(part)}件", file=sys.stderr)
     notes = json.loads(NOTES.read_text(encoding="utf-8")) if NOTES.exists() else {}
     merged, counts = merge(notes, rows)
     NOTES.write_text(json.dumps(merged, ensure_ascii=False, indent=1), encoding="utf-8")
