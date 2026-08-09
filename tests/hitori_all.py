@@ -9,6 +9,7 @@ TESTS = [
     "hitori_scoring_test.py",
     "hitori_enrich_test.py",
     "hitori_curate_test.py",
+    "hitori_normfacts_test.py",
     "hitori_hidden_test.py",
     "hitori_iso_test.py",
     "hitori_neighbors_test.py",
