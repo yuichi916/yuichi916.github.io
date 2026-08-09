@@ -1937,6 +1937,50 @@ def test_entry_flow_and_guide_are_kept_apart(context, page):
         assert "業態一般の説明です" in b2, b2[:200]
     p.close()
 
+
+def test_method_is_stated_up_front(context, page):
+    """何をどう作っているかを冒頭で述べる。
+
+    口コミ集合知でも単一の公式情報でもなく、複数の独立した情報源を
+    突き合わせる方式であること。投稿機能を持たないのは作れないからでは
+    なく選んだ結果であること。この位置づけが書かれていないと、点数の
+    無い口コミサイトに見える。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    p.eval_on_selector(".method", "e => e.open = true")
+    body = p.inner_text(".method")
+    assert "口コミを集めていません" in body, body[:200]
+    assert "独立した情報源" in body, body[:200]
+    assert "出典" in body, body[:200]
+    assert "広告" in body, body[:200]
+    p.close()
+
+
+def test_axis_shows_both_bar_and_number(context, page):
+    """写真が無いぶん、数値の見せ方の情報密度で返す。
+
+    バーだけだと正確な値が読めず、数字だけだと量が掴めない。両方出す。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(BEPPU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.wait_for_selector("#search-list .item", timeout=25000)
+
+    seg = p.eval_on_selector_all("#search-list .item:first-child .axes .dot", "e => e.length")
+    assert seg == 15, f"3軸×5段階のはずが{seg}"
+    on = p.eval_on_selector_all("#search-list .item:first-child .axes .dot.on", "e => e.length")
+    assert 3 <= on <= 15, on
+    nums = p.eval_on_selector_all("#search-list .item:first-child .ax-w b",
+                                  "els => els.map(e => e.textContent)")
+    assert len(nums) == 3, nums
+    for n in nums:
+        assert n.isdigit() and 1 <= int(n) <= 5, nums
+    p.close()
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -1995,6 +2039,8 @@ def main():
             test_quick_filters_narrow_and_can_be_cleared(context, page)
             test_chain_chips_are_mutually_exclusive(context, page)
             test_entry_flow_and_guide_are_kept_apart(context, page)
+            test_method_is_stated_up_front(context, page)
+            test_axis_shows_both_bar_and_number(context, page)
             test_deck_swipes(context, page)
             test_deck_and_list_share_results(context, page)
             test_deck_empty_state(context, page)

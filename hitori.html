@@ -172,11 +172,16 @@ img, svg, table { max-width: 100%; }
 #search-list .axes li { display:grid; grid-template-columns:5.1em auto 1fr;
                         align-items:center; gap:.55rem; font-size:.74rem; }
 #search-list .ax-k { color:var(--muted); letter-spacing:.02em; }
-#search-list .dots { display:flex; gap:2.5px; }
-#search-list .dot { width:6px; height:6px; border-radius:50%;
-                    background:color-mix(in srgb, var(--cat) 16%, transparent); }
+/* 点の列より連続したバーのほうが量として読める。写真が無いぶん、
+   数値の見せ方の情報密度でそこを返す。 */
+#search-list .dots { display:flex; width:4.2rem; height:5px; border-radius:99px;
+                     overflow:hidden; background:color-mix(in srgb, var(--cat) 12%, transparent); }
+#search-list .dot { flex:1; }
 #search-list .dot.on { background:var(--cat); }
+#search-list .dot.on + .dot:not(.on) { box-shadow:-1px 0 0 var(--surface); }
 #search-list .ax-w { color:var(--fg); }
+#search-list .ax-w b { font-variant-numeric:tabular-nums; font-weight:800; margin-right:.35rem;
+                       color:color-mix(in srgb, var(--cat) 80%, var(--fg)); }
 
 #search-list .tips { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.55rem; }
 #search-list .tips span { font-size:.7rem; padding:.14rem .55rem; border-radius:6px;
@@ -333,6 +338,13 @@ ol.flow { margin:0; padding-left:1.3rem; font-size:.82rem; line-height:1.9; }
 ol.flow li::marker { color:var(--accent); font-weight:700; }
 .guide { margin:0; font-size:.8rem; line-height:1.85; color:var(--fg); }
 .guide-note { margin:.35rem 0 0; font-size:.72rem; color:var(--muted); }
+
+/* 作り方は畳んでおく。読みたい人だけが開けばよい。 */
+.method { margin:.5rem 0 0; font-size:.8rem; }
+.method summary { cursor:pointer; color:var(--accent); font-weight:600; }
+.method p { margin:.5rem 0; line-height:1.85; color:var(--muted); max-width:44em; }
+.method strong { color:var(--fg); }
+body.deck-mode .method { display:none; }
 </style>
 </head>
 <body>
@@ -340,6 +352,17 @@ ol.flow li::marker { color:var(--accent); font-weight:700; }
   <header>
     <h1>ひとり歓迎マップ</h1>
     <p class="lede">ひとりで行ける店ではなく、ひとりが標準の店だけを集めた日本地図。</p>
+    <details class="method">
+      <summary>このサイトの作り方</summary>
+      <p><strong>口コミを集めていません。</strong>点数も付けていません。
+      自治体の公式ページ、観光協会、地域の新聞、個人のブログなど
+      <strong>複数の独立した情報源を突き合わせて、一致した事実だけ</strong>を載せています。
+      料金・支払い方法・タオルの要否のような、確かめれば答えが決まることだけを扱います。</p>
+      <p>投稿機能はありません。作れないのではなく、持たないことを選んでいます。
+      投稿を受け付けないので、点数の操作も、宣伝目的の書き込みも起きません。
+      そのぶん件数は増えませんが、載っている事実には必ず出典が付きます。</p>
+      <p>広告もアフィリエイトもありません。どの施設を上に出しても、こちらに得はありません。</p>
+    </details>
   </header>
 
   <nav class="tabs" role="tablist">
@@ -465,7 +488,10 @@ ol.flow li::marker { color:var(--accent); font-weight:700; }
   </section>
 
   <footer>
-    <p class="disclaimer">この分類は OpenStreetMap のタグと業態から機械的に推定したものです。実際の座席形態や黙浴の有無を保証するものではありません。うち <strong id="checked-count">0</strong> 件は、複数の情報源で事実を確認しています。</p>
+    <p class="disclaimer">3軸（ひとり度・静けさ・入りやすさ）は OpenStreetMap のタグと業態から機械的に推定したものです。
+    実際の座席形態や黙浴の有無を保証するものではありません。
+    うち <strong id="checked-count">0</strong> 件は複数の情報源で事実を確認し、その結果を反映しています。
+    確認済みの施設には出典を付けてあり、詳細画面の「この情報の根拠」から辿れます。</p>
     <p class="credits">地図データ: 地球地図日本（国土地理院） / 地図タイル: 地理院タイル（国土地理院） / 施設データ: © OpenStreetMap contributors (ODbL) / 人口: Wikidata (CC0) / 令和2年国勢調査</p>
   </footer>
 
@@ -1208,7 +1234,8 @@ function axesRows(it) {
     for (let i = 1; i <= 5; i++) dots += `<span class="dot${i <= v ? ' on' : ''}"></span>`;
     const word = (AX_LABEL[k] && AX_LABEL[k][v]) || '';
     return `<li><span class="ax-k">${label}</span><span class="dots"
-      role="img" aria-label="5段階中${v}">${dots}</span><span class="ax-w">${escapeHtml(word)}</span></li>`;
+      role="img" aria-label="5段階中${v}">${dots}</span><span class="ax-w"><b>${v}</b>${
+      escapeHtml(word)}</span></li>`;
   }).join('');
   return `<ul class="axes">${rows}</ul>`;
 }
