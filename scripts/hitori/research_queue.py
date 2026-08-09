@@ -66,6 +66,78 @@ def _is_boundary(r):
     return any(r[a] == BOUNDARY_VALUE for a in AXES)
 
 
+# 個人の記録が載りやすい場所。ここのドメインが1つも無い施設は、公式に
+# 書いてあることしか分かっていない（番台か券売機か、洗い場があるか、
+# 常連ばかりかは公式には載らない）。
+PERSONAL_HOSTS = ("blog", "ameblo", "hatena", "note.com", "livedoor", "fc2",
+                  "exblog", "seesaa", "4travel", "jugem", "cocolog", "ekiten")
+
+DENSITY_TARGET_DOMAINS = 3   # これ未満なら薄いとみなす
+
+
+def coverage(entry):
+    """(独立ドメイン数, 個人の記録のドメイン数) を返す。"""
+    doms = set()
+    for f in entry.get("facts", []):
+        doms |= set(f.get("src", []))
+    personal = {d for d in doms if any(h in d for h in PERSONAL_HOSTS)}
+    return len(doms), len(personal)
+
+
+def rank_deepen(prefdocs, curated, limit=50, munis=None):
+    """もう一度調べる価値がある「調査済みだが薄い」施設を優先度順に返す。
+
+    調査済みでも、公式1件だけで済ませた施設は「行く前に知らないと困ること」が
+    何も分かっていない。524件中397件がこれに当たる。件数を増やすより、
+    この薄いところを厚くするほうが利用者には効く。
+    """
+    munis = munis or []
+    byid = {}
+    for code, doc in prefdocs.items():
+        for r in doc["items"]:
+            row = dict(zip(doc["fields"], r))
+            byid[row["id"]] = (code, row)
+
+    targets = []
+    for fid, entry in curated.items():
+        hit = byid.get(fid)
+        if not hit:
+            continue          # 一覧から外れた施設は掘り下げても出ない
+        code, r = hit
+        doms, personal = coverage(entry)
+        weight, reasons = 0, []
+        if doms < DENSITY_TARGET_DOMAINS:
+            weight += (DENSITY_TARGET_DOMAINS - doms) * 6
+            reasons.append(f"情報源{doms}件のみ")
+        if not personal:
+            weight += 8
+            reasons.append("個人の記録なし")
+        # 一人で行く前に知りたいことが取れていない施設を優先する
+        keys = {f["k"] for f in entry.get("facts", [])}
+        missing = {"payment_method", "bring_towel", "wash_area", "luggage",
+                   "busy_time", "first_timer"} - keys
+        if len(missing) >= 5:
+            weight += 4
+            reasons.append("入り方が不明")
+        weight += YIELD_BONUS.get(r["kind"], 1)
+        if weight == 0:
+            continue
+        targets.append({
+            "id": fid, "name": r["name"], "pref": code,
+            "cat": r["cat"], "kind": r["kind"],
+            "city": r.get("city", ""),
+            "city_guess": "" if r.get("city") else _nearest_city(r["lat"], r["lon"], munis, code),
+            "axes": [r["solo"], r["quiet"], r["easy"]],
+            "have": sorted(keys),
+            "domains": doms,
+            "weight": weight, "reason": " / ".join(reasons),
+            "maps": f"https://www.google.com/maps/search/?api=1&query={r['lat']},{r['lon']}",
+        })
+
+    targets.sort(key=lambda t: (-t["weight"], t["pref"], t["id"]))
+    return targets[:limit]
+
+
 def rank_targets(prefdocs, curated, limit=50, iso_threshold=None, munis=None):
     """優先度降順の調査対象。curated.json にある施設は調査済みなので除外する。
 
@@ -127,6 +199,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=50)
     ap.add_argument("--pref", type=int, default=None, help="この県だけ")
+    ap.add_argument("--deepen", action="store_true",
+                    help="調査済みだが情報源が薄い施設を出す（件数より密度）")
     ap.add_argument("--json", action="store_true",
                     help="収集エージェントに渡す形で標準出力へ書く")
     args = ap.parse_args()
@@ -146,8 +220,10 @@ def main():
         print("pref/*.json がありません。build_data.py を先に実行してください。")
         sys.exit(1)
 
-    targets = rank_targets(prefdocs, curated, args.limit,
-                           summary.get("iso_threshold"), _load_municipalities())
+    munis = _load_municipalities()
+    targets = (rank_deepen(prefdocs, curated, args.limit, munis) if args.deepen
+               else rank_targets(prefdocs, curated, args.limit,
+                                 summary.get("iso_threshold"), munis))
     if args.json:
         json.dump(targets, sys.stdout, ensure_ascii=False, indent=1)
         return

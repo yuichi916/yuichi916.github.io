@@ -113,6 +113,93 @@ def test_yield_bonus_does_not_erase_other_signals():
     got = research_queue.rank_targets(docs, {}, limit=2, iso_threshold={"bath": 7215})
     assert got[0]["id"] == "n2", [(t["id"], t["weight"], t["reason"]) for t in got]
 
+def _entry(*facts):
+    return {"checked": "2026-08-10", "facts": [
+        {"k": k, "v": v, "n": len(src), "src": list(src), "urls": [],
+         "official": False, "conflict": False} for k, v, src in facts]}
+
+
+def test_coverage_counts_domains_and_personal_records():
+    """公式だけで固めた施設と、個人の記録がある施設を区別できること。"""
+    only_official = _entry(("price", 400, ["city.example.jp"]))
+    assert research_queue.coverage(only_official) == (1, 0)
+    with_blog = _entry(("price", 400, ["city.example.jp", "ameblo.jp"]),
+                       ("wash_area", "yes", ["ameblo.jp"]))
+    assert research_queue.coverage(with_blog) == (2, 1)
+
+
+def test_deepen_prefers_the_thinnest():
+    """情報源1件の施設が、3件そろっている施設より先に来ること。"""
+    docs = _doc(_row("n1", "薄い湯"), _row("n2", "厚い湯"))
+    curated = {
+        "n1": _entry(("price", 400, ["a.jp"])),
+        "n2": _entry(("price", 400, ["a.jp", "b.jp", "ameblo.jp"]),
+                     ("payment_method", "ticket_machine", ["ameblo.jp"]),
+                     ("wash_area", "yes", ["b.jp"]),
+                     ("bring_towel", "required", ["a.jp"]),
+                     ("luggage", "locker", ["b.jp"]),
+                     ("busy_time", "usually_quiet", ["ameblo.jp"]),
+                     ("first_timer", "easy", ["ameblo.jp"])),
+    }
+    out = research_queue.rank_deepen(docs, curated, limit=10)
+    assert [t["id"] for t in out][0] == "n1", out
+    assert "情報源1件のみ" in out[0]["reason"]
+
+
+def test_deepen_flags_missing_personal_record_even_when_domains_suffice():
+    """公式3件でも、個人の記録が無ければ掘り下げ対象にすること。
+
+    番台か券売機か、洗い場があるか、常連ばかりかは公式には載らない。
+    """
+    docs = _doc(_row("n1", "公式だけの湯"))
+    curated = {"n1": _entry(("price", 400, ["a.jp", "b.jp", "c.jp"]),
+                            ("payment_method", "ticket_machine", ["a.jp"]),
+                            ("wash_area", "yes", ["a.jp"]),
+                            ("bring_towel", "required", ["a.jp"]),
+                            ("luggage", "locker", ["a.jp"]),
+                            ("busy_time", "usually_quiet", ["a.jp"]),
+                            ("first_timer", "easy", ["a.jp"]))}
+    out = research_queue.rank_deepen(docs, curated, limit=10)
+    assert len(out) == 1 and "個人の記録なし" in out[0]["reason"], out
+
+
+def test_deepen_skips_facilities_that_left_the_list():
+    """除外された施設を掘り下げても一覧には出ない。対象にしない。"""
+    docs = _doc(_row("n1", "残っている湯"))
+    curated = {"n1": _entry(("price", 400, ["a.jp"])),
+               "n9": _entry(("price", 400, ["a.jp"]))}
+    out = research_queue.rank_deepen(docs, curated, limit=10)
+    assert [t["id"] for t in out] == ["n1"], out
+
+
+def test_deepen_leaves_well_covered_facilities_alone():
+    """厚い施設だけなら対象は空。空振りの再調査に時間を使わせない。"""
+    docs = _doc(_row("n1", "厚い湯", kind="ramen"))
+    curated = {"n1": _entry(("price", 400, ["a.jp", "b.jp", "ameblo.jp"]),
+                            ("payment_method", "ticket_machine", ["ameblo.jp"]),
+                            ("wash_area", "yes", ["b.jp"]),
+                            ("bring_towel", "required", ["a.jp"]),
+                            ("luggage", "locker", ["b.jp"]),
+                            ("busy_time", "usually_quiet", ["ameblo.jp"]),
+                            ("first_timer", "easy", ["ameblo.jp"]))}
+    assert research_queue.rank_deepen(docs, curated, limit=10) == []
+
+
+def test_deepen_runs_on_real_data():
+    """実データで落ちないこと。fixture だけのテストは前に破綻を見逃した。"""
+    pref_dir = ROOT / "data" / "hitori" / "pref"
+    if not pref_dir.exists():
+        return
+    docs = {int(f.stem): json.loads(f.read_text(encoding="utf-8"))
+            for f in sorted(pref_dir.glob("*.json"))}
+    curated = json.loads((ROOT / "data" / "hitori" / "curated.json").read_text(encoding="utf-8"))
+    out = research_queue.rank_deepen(docs, curated, limit=20)
+    assert out, "実データで掘り下げ対象が1件も出ない"
+    for t in out:
+        assert t["id"] in curated
+        assert t["weight"] > 0 and t["reason"]
+
+
 def main():
     test_public_baths_rank_high()
     test_checked_are_excluded()
@@ -123,6 +210,12 @@ def main():
     test_runs_on_real_data()
     test_yield_bonus_prefers_kinds_that_actually_hit()
     test_yield_bonus_does_not_erase_other_signals()
+    test_coverage_counts_domains_and_personal_records()
+    test_deepen_prefers_the_thinnest()
+    test_deepen_flags_missing_personal_record_even_when_domains_suffice()
+    test_deepen_skips_facilities_that_left_the_list()
+    test_deepen_leaves_well_covered_facilities_alone()
+    test_deepen_runs_on_real_data()
     print("OK: research_queue")
 
 
