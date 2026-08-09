@@ -78,19 +78,31 @@ _BRAND_KIND = [
 ]
 
 
+# ブランド名の直後に来てよい文字。ここで切らないと「松屋製麺所」（ラーメン）や
+# 「松屋うどん」が牛丼になる。実際にその回帰を出した。
+# 取りこぼす側（「すき家高松店」のように区切りが無い表記）に倒す。
+# 誤って業態を書き換えるより、拾えないほうがましである。
+_BRAND_TAIL = " 　・･（）()[]〔〕-–—/／、,"
+
+
 def brand_kind(name):
     """店名から業態を決める。cuisine が当てにならないチェーン向け。
 
-    前方一致にすると「そば処 おかあやん」のような独立店を巻き込むため、
-    ブランド名がそのまま先頭に来る場合だけを見る。
+    完全一致か、ブランド名の直後が区切り文字のときだけ採る。単純な
+    前方一致にすると「松屋製麺所」のような無関係な独立店を巻き込む
+    （chains.py と brands.py が前置き一致を却下したのと同じ理由）。
     """
     n = (name or "").strip()
     if not n:
         return None
     for kind, brands in _BRAND_KIND:
         for b in brands:
-            if n.startswith(b):
+            if n == b:
                 return kind
+            if n.startswith(b):
+                tail = n[len(b):]
+                if tail[0] in _BRAND_TAIL or tail[0].isdigit():
+                    return kind
     return None
 
 

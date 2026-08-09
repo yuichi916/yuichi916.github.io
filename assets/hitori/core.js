@@ -509,7 +509,8 @@ export function entryFlow(facts) {
   if (facts.unstaffed === 'yes') f.push('入口に人はいない');
   if (facts.payment_method === 'ticket_machine') f.push('券売機で先に買う');
   else if (facts.payment_method === 'counter_person') f.push('番台で先に払う');
-  if (facts.unstaffed === 'yes' && !facts.payment_method) f.push('料金箱に入れる');
+  // unstaffed だけでは支払い方法は分からない。料金箱とは限らない
+  // （前払い不要・後払い・宿泊者のみ等もある）。推測しない。
   if (facts.reservation === 'required') f.unshift('事前の予約が要る');
   else if (facts.reservation === 'none') f.push('予約は要らない');
   if (facts.payment_method === 'cash_only') f.push('現金だけ');

@@ -117,6 +117,37 @@ def test_merge_replaces_by_id():
     assert a["n1"]["checked"] == "2026-01-01", "入力を破壊している"
 
 
+
+def test_merge_keeps_previously_collected_facts():
+    """ブランド単位の判定で、個別に集めた事実を消さないこと。
+
+    以前は entry 全体を差し替えていたため、閉業の判定をブランド単位で
+    流すと料金・支払い方法などが黙って消えていた。
+    """
+    prev = {"n1": {"checked": "2026-08-01", "facts": [
+        {"k": "price", "v": 200, "n": 2, "src": ["a", "b"],
+         "urls": ["https://a/", "https://b/"], "official": False, "conflict": False}]}}
+    brand = curate.build_entry({"id": "n1", "checked": "2026-08-09", "facts": [
+        {"k": "status", "v": "closed_permanently",
+         "urls": ["https://c.example/", "https://d.example/"]}]})
+    brand["id"] = "n1"
+    got = curate.merge(prev, [brand])
+    keys = {f["k"] for f in got["n1"]["facts"]}
+    assert keys == {"price", "status"}, keys
+    assert prev["n1"]["facts"][0]["k"] == "price", "入力を破壊している"
+
+
+def test_merge_overwrites_the_same_fact():
+    prev = {"n1": {"checked": "2026-08-01", "facts": [
+        {"k": "price", "v": 200, "n": 1, "src": ["a"], "urls": ["https://a/"],
+         "official": False, "conflict": False}]}}
+    e = curate.build_entry({"id": "n1", "checked": "2026-08-09", "facts": [
+        {"k": "price", "v": 200, "urls": ["https://a.example/", "https://b.example/"]}]})
+    e["id"] = "n1"
+    got = curate.merge(prev, [e])
+    assert len(got["n1"]["facts"]) == 1
+    assert got["n1"]["facts"][0]["n"] == 2, "新しい裏付けで上書きされていない"
+
 def main():
     test_blocked_domain_raises()
     test_unknown_fact_raises()
@@ -128,6 +159,8 @@ def main():
     test_urls_without_scheme_raise()
     test_empty_urls_raise()
     test_merge_replaces_by_id()
+    test_merge_keeps_previously_collected_facts()
+    test_merge_overwrites_the_same_fact()
     print("OK: curate")
 
 

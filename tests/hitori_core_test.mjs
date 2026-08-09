@@ -736,5 +736,12 @@ check('sortItems: 行けない疑いのあるものは後ろへ回す', () => {
   eq(core.sortItems(all, 'dist', {}).map(x => x.id).join(','), 'near,far');
 });
 
+check('entryFlow: 分かっていないことを書かない', () => {
+  // 無人だと分かっているだけでは支払い方法は決まらない。料金箱とは限らない。
+  const f = core.entryFlow({ unstaffed: 'yes' });
+  eq(f.includes('料金箱に入れる'), false, '推測している: ' + f.join('/'));
+  eq(f.includes('入口に人はいない'), true, f.join('/'));
+});
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log('OK: core');

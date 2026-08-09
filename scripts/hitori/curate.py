@@ -86,11 +86,29 @@ def build_entry(raw):
     return entry
 
 
+def _fact_key(f):
+    return (f["k"], json.dumps(f["v"], ensure_ascii=False))
+
+
 def merge(curated, entries):
-    """施設IDごとに置き換える。入力の dict は変更しない。"""
-    out = {k: v for k, v in curated.items()}
+    """施設IDごとに事実を足し込む。入力の dict は変更しない。
+
+    以前は entry 全体を差し替えていた。そのためブランド単位の判定
+    （閉業など1つの事実だけを持つ）を流すと、個別に集めた料金・支払い
+    方法などが黙って消えていた。同じ (事実名, 値) は新しい側で上書きし、
+    それ以外は残す。
+    """
+    out = {k: {"checked": v["checked"], "facts": list(v["facts"])}
+           for k, v in curated.items()}
     for e in entries:
-        out[e["id"]] = {"checked": e["checked"], "facts": e["facts"]}
+        prev = out.get(e["id"])
+        if not prev:
+            out[e["id"]] = {"checked": e["checked"], "facts": e["facts"]}
+            continue
+        by_key = {_fact_key(f): f for f in prev["facts"]}
+        for f in e["facts"]:
+            by_key[_fact_key(f)] = f
+        out[e["id"]] = {"checked": e["checked"], "facts": list(by_key.values())}
     return out
 
 

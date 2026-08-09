@@ -22,6 +22,15 @@ import enrich
 
 INT_KEYS = ("price", "stay_limit", "counter_seats", "seats_total")
 
+# 注釈の始まりとして認める文字。括弧だけに限る。
+# 空白を認めると "no staff" が unstaffed="no"（無人）に化けて意味が反転する。
+# 実際にその危険があった。
+_ANNOT_OPEN = "（(【［[〔"
+
+# 単位ごとの分換算。stay_limit は分で持つので、単位を無視して数字だけを
+# 取ると「2時間」が「2分」になる。実際にそうなっていた。
+_UNIT_MIN = {"時間": 60, "h": 60, "hour": 60, "hours": 60, "分": 1, "min": 1, "minutes": 1}
+
 
 def normalize_fact(f):
     """(整えた事実, 落とした理由) を返す。落とさないなら理由は None。"""
@@ -35,15 +44,25 @@ def normalize_fact(f):
 
     # 整数の項目に文字列。数字がひとつだけ読めるときに限り直す。
     if spec is int and isinstance(v, str):
-        nums = {n for n in re.findall(r"\d[\d,]*", v.replace(",", ""))}
-        if len(nums) == 1:
-            return {**f, "v": int(nums.pop())}, None
-        return None, f"{k}: 数字が{len(nums)}個あり、どれを指すか決められない"
+        nums = {n for n in re.findall(r"\d+", v.replace(",", ""))}
+        if len(nums) != 1:
+            return None, f"{k}: 数字が{len(nums)}個あり、どれを指すか決められない"
+        num = int(nums.pop())
+        if k == "stay_limit":
+            # 単位を無視すると「2時間」が「2分」になる。単位が読めなければ落とす。
+            m = re.search(r"\d+\s*(時間|分|hours?|h|min(?:utes)?)", v, re.I)
+            if not m:
+                return None, f"stay_limit: 単位が読めない {v[:24]!r}"
+            return {**f, "v": num * _UNIT_MIN[m.group(1).lower()]}, None
+        return {**f, "v": num}, None
 
-    # 語彙の値に注釈が付いているだけなら、値だけを取り出す。
-    # 前方一致がちょうど1つのときだけ。複数当たるなら判断しない。
+    # 語彙の値に括弧書きの注釈が付いているだけなら、値だけを取り出す。
+    # 区切りを括弧に限るのが要。空白を認めると "no staff" が
+    # unstaffed="no"（無人）になり、有人の施設が無人と表示される。
     if isinstance(spec, set) and isinstance(v, str):
-        hit = [x for x in spec if v.startswith(x)]
+        t = v.strip()
+        hit = [x for x in spec
+               if t == x or (t.startswith(x) and t[len(x):len(x) + 1] in _ANNOT_OPEN)]
         if len(hit) == 1:
             return {**f, "v": hit[0]}, None
         return None, f"{k}: 語彙に無い値 {v[:30]!r}"
@@ -54,8 +73,13 @@ def normalize_fact(f):
 def normalize(records):
     out, dropped = [], []
     for e in records:
-        if not isinstance(e, dict) or not e.get("id") or not e.get("facts"):
-            continue
+        # 黙って捨てない。何件がなぜ落ちたかを必ず数える。
+        if not isinstance(e, dict):
+            dropped.append(("(不明)", "レコードが辞書でない")); continue
+        if not e.get("id"):
+            dropped.append(("(id無し)", "施設IDが無い")); continue
+        if not e.get("facts"):
+            dropped.append((e["id"], "事実がひとつも無い")); continue
         facts = []
         for f in e["facts"]:
             got, why = normalize_fact(f)

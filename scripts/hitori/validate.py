@@ -139,3 +139,29 @@ def validate_curated(curated):
             if not ev.get("checked"):
                 errs.append(f"{fid}: checked がありません")
     return errs
+
+def validate_exclusions(prefdocs, curated):
+    """除外すべき施設が県ファイルに残っていないかを検査する。エラーのリストを返す。
+
+    「裏付け2件以上はビルド時に除外」「1件未満はブラウザ側で警告」という
+    分担にしているため、ビルドを流し忘れると誰も気づかないまま閉業施設が
+    並ぶ。実際に status=closed_permanently で出典3件の施設が2件残っていた。
+    どちらの担当でもない穴なので、ここで塞ぐ。
+    """
+    import enrich
+
+    alive = set()
+    for doc in prefdocs.values():
+        if doc.get("fields") is None:
+            continue
+        i = doc["fields"].index("id")
+        alive |= {r[i] for r in doc["items"]}
+
+    errs = []
+    for fid in sorted(curated):
+        if fid not in alive:
+            continue
+        why = enrich.exclusion_reason(curated[fid].get("facts", []))
+        if why:
+            errs.append(f"除外すべき施設が残っている（build_data.py を流し直す）: {fid} — {why}")
+    return errs

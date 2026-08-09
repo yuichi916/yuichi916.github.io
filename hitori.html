@@ -805,6 +805,10 @@ function refreshKindOptions() {
   const counts = {};
   for (const it of base) counts[it.kind] = (counts[it.kind] || 0) + 1;
   const cur = state.search.kind || '';
+  // 選択中の業態は、いま0件でも必ず選択肢に残す。消すと select の表示が
+  // 「すべての業態」に戻るのに絞り込みは効いたままになり、選び直しても
+  // change が起きないので解除できなくなる。
+  if (cur && !(cur in counts)) counts[cur] = 0;
   const opts = Object.entries(counts).sort((a, b) => b[1] - a[1])
     .map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${
       escapeHtml(KIND_JA[k] || k)}（${n}）</option>`).join('');
@@ -816,10 +820,19 @@ function refreshKindOptions() {
 function doubtfulOf(it) {
   const e = CURATED[it.id];
   if (!e) return false;
+  // 矛盾している事実では判断しない。status が open と closed で割れている
+  // だけの施設を、警告も出さずに最下位へ沈めるのは筋が通らない。
+  // factsOf が矛盾キーを落としているのと同じ扱いに揃える。
+  const seen = {}, bad = new Set();
+  for (const f of e.facts) {
+    if (f.k in seen && seen[f.k] !== f.v) bad.add(f.k);
+    if (!(f.k in seen)) seen[f.k] = f.v;
+  }
   return e.facts.some(f =>
-    (f.k === 'status' && (f.v === 'closed_permanently' || f.v === 'closed_temporarily')) ||
-    (f.k === 'access' && (f.v === 'residents_only' || f.v === 'members_only')) ||
-    (f.k === 'solo_ok' && f.v === 'no'));
+    !bad.has(f.k) && (
+      (f.k === 'status' && (f.v === 'closed_permanently' || f.v === 'closed_temporarily')) ||
+      (f.k === 'access' && (f.v === 'residents_only' || f.v === 'members_only')) ||
+      (f.k === 'solo_ok' && f.v === 'no')));
 }
 
 function quickOpts() {
@@ -1353,6 +1366,7 @@ function bindDeck() {
 // 時点で取りに行く（未調査が大半なので全員に配らない）。
 const CURATED = {};
 let curatedLoading = null;
+let curatedFailed = false;
 
 function ensureCurated() {
   if (curatedLoading) return curatedLoading;
@@ -2290,7 +2304,18 @@ async function init() {
     // 出ている状態で再描画すると、その案内を消してしまう。
     if (state.origin.lat != null) rerenderView();
   }).catch(err => {
-    console.warn('確認済みの事実を読み込めませんでした:', err.message);
+    // 黙って諦めない。確認済みの事実が読めていないのに、事実での絞り込みを
+    // 押せる状態にしておくと「0件＝該当なし」と誤解される。
+    console.warn('確認できた事実を読み込めませんでした:', err.message);
+    curatedFailed = true;
+    for (const b of document.querySelectorAll('.quickbar button')) {
+      if (b.dataset.q !== 'nochain' && b.dataset.q !== 'chainonly') {
+        b.disabled = true;
+        b.title = '確認できた事実を読み込めていないため、いまは使えません';
+      }
+    }
+    const cc = document.getElementById('checked-count');
+    if (cc) cc.textContent = '—';
   });
   switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
   if (state.pref) openPrefecture(state.pref);
@@ -2316,6 +2341,8 @@ window.visibleItems = visibleItems;
 window.AX_LABEL = AX_LABEL;
 window.KIND_GUIDE = KIND_GUIDE;
 window.doubtfulOf = doubtfulOf;
+window.factsOf = factsOf;
+window.core = core;
 window.tipsFor = tipsFor;
 window.FAILED_PREFS = FAILED_PREFS;
 window.FOUND_BY_SEARCH = FOUND_BY_SEARCH;

@@ -189,6 +189,49 @@ def test_curated_field_shapes():
         "cat": "stay", "kind": "capsule", "base": 5}}) == []
 
 
+
+def test_exclusion_leak_is_detected():
+    """除外すべき施設が県ファイルに残っていたら気づけること。
+
+    「2件以上はビルド時に除外」「1件未満はブラウザで警告」という分担の
+    どちらの担当でもない穴があり、出典3件の閉業施設が2件並んでいた。
+    """
+    docs = {13: {"fields": ["id", "name"], "items": [["n1", "生きてる店"], ["n2", "閉業した店"]]}}
+    curated = {"n2": {"checked": "2026-08-09", "facts": [
+        {"k": "status", "v": "closed_permanently", "n": 3,
+         "src": ["a", "b", "c"], "urls": ["https://a/"], "official": False, "conflict": False}]}}
+    errs = validate.validate_exclusions(docs, curated)
+    assert len(errs) == 1, errs
+    assert "n2" in errs[0] and "閉業" in errs[0], errs
+
+
+def test_no_leak_when_already_excluded():
+    docs = {13: {"fields": ["id", "name"], "items": [["n1", "生きてる店"]]}}
+    curated = {"n2": {"checked": "2026-08-09", "facts": [
+        {"k": "status", "v": "closed_permanently", "n": 3,
+         "src": ["a", "b", "c"], "urls": ["https://a/"], "official": False, "conflict": False}]}}
+    assert validate.validate_exclusions(docs, curated) == []
+
+
+def test_single_source_closure_is_not_a_leak():
+    """出典1件は除外の条件を満たさない。残っていて正しい（警告で伝える）。"""
+    docs = {13: {"fields": ["id", "name"], "items": [["n2", "閉業かもしれない店"]]}}
+    curated = {"n2": {"checked": "2026-08-09", "facts": [
+        {"k": "status", "v": "closed_permanently", "n": 1,
+         "src": ["a"], "urls": ["https://a/"], "official": False, "conflict": False}]}}
+    assert validate.validate_exclusions(docs, curated) == []
+
+
+def test_real_data_has_no_exclusion_leak():
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    docs = {int(f.stem): json.loads(f.read_text(encoding="utf-8"))
+            for f in sorted((root / "data" / "hitori" / "pref").glob("*.json"))}
+    cur = json.loads((root / "data" / "hitori" / "curated.json").read_text(encoding="utf-8"))
+    errs = validate.validate_exclusions(docs, cur)
+    assert not errs, "; ".join(errs[:10])
+
 def main():
     test_pref_ok()
     test_pref_bbox()
@@ -206,6 +249,10 @@ def main():
     test_summary_indie_not_exceeding()
     test_curated_web_needs_url()
     test_curated_field_shapes()
+    test_exclusion_leak_is_detected()
+    test_no_leak_when_already_excluded()
+    test_single_source_closure_is_not_a_leak()
+    test_real_data_has_no_exclusion_leak()
     print("OK: validate")
 
 

@@ -1890,7 +1890,14 @@ def test_chain_chips_are_mutually_exclusive(context, page):
     assert p.eval_on_selector('.quickbar button[data-q="nochain"]',
                               "e => e.getAttribute('aria-pressed')") == "false", "排他になっていない"
     only = p.eval_on_selector_all("#search-list .item", "e => e.length")
-    assert only + no_chain <= all_n + 1, (all_n, no_chain, only)
+    # 「チェーンだけ」で出たものは全部チェーンであること。
+    # 件数の和を見るだけだと、0件でも通ってしまう。
+    if only:
+        non_chain = p.eval_on_selector_all(
+            "#search-list .item .badges",
+            "els => els.filter(e => !e.innerText.includes('チェーン')).length")
+        assert non_chain == 0, f"チェーンだけのはずが{non_chain}件は非チェーン"
+    assert only + no_chain <= all_n, (all_n, no_chain, only)
     # 「個人店だけ」と断定しない（検出されなかっただけで証明ではない）
     labels = p.eval_on_selector_all(".quickbar button", "els => els.map(e => e.textContent.trim())")
     for bad in ("個人店だけ", "独立店だけ"):
@@ -1920,9 +1927,20 @@ def test_entry_flow_and_guide_are_kept_apart(context, page):
     }""")
     p.wait_for_selector("#facility .flowbox", timeout=15000)
     body = p.inner_text("#facility .flowbox")
-    assert "確認できた流れ" in body or "一般的な作法" in body, body[:200]
-    if "一般的な作法" in body:
+    # .flowbox が出る条件は「動線がある」か「作法がある」なので、
+    # その or を assert しても常に真になる。中身を個別に見る。
+    kind = p.evaluate("() => { const it = [...FOUND_BY_SEARCH.values()].pop(); return it && it.kind; }")
+    has_guide = p.evaluate(f"() => !!KIND_GUIDE[{kind!r}]")
+    if has_guide:
+        assert "一般的な作法" in body, body[:200]
         assert "業態一般の説明です" in body, "一般論であることを明示していない"
+    has_flow = p.evaluate("""() => {
+      const it = [...FOUND_BY_SEARCH.values()].pop();
+      return core.entryFlow(factsOf(it)).length > 0;
+    }""")
+    if has_flow:
+        assert "確認できた流れ" in body, body[:200]
+    assert has_guide or has_flow, "flowbox が出たのに中身の根拠が無い"
 
     # 未調査の施設でも、業態の作法だけは出る（一度書けば全施設に効く）
     p.keyboard.press("Escape")
@@ -2040,9 +2058,10 @@ def test_doubtful_facilities_sink_in_the_list(context, page):
     }""")
     if not pos["doubtful"]:
         # この地点に疑いのある施設が無いのは異常ではない。人工的に確かめる。
+        n = p.evaluate("() => currentSearchResults().length")
+        assert n >= 2, f"検証に必要な件数が無い（{n}件）。地点を見直すこと"
         ok = p.evaluate("""() => {
           const r = currentSearchResults();
-          if (r.length < 2) return true;
           const id = r[0].id;
           CURATED[id] = { checked: '2026-08-09', facts: [
             { k: 'status', v: 'closed_permanently', n: 1, src: ['a'],
