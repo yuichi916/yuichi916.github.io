@@ -114,6 +114,12 @@ def build(raw_by_pref, prefs, curated, updated):
     # 複数県にまたがる同名店をチェーンへ昇格させる。穴場スコアがchainを
     # 読むので、これは必ず compute_hidden より前に行う。
     chains.detect_multi_pref_chains(all_records)
+    # 調べて確定した分類は機械的な検出より強い。県数の条件（3県以上）は
+    # 2県展開のチェーンを取りこぼし、逆に緩めると同名の独立店を巻き込む。
+    added, removed = chains.apply_brand_notes(all_records)
+    if added or removed:
+        print(f"ブランド名簿の反映: チェーンに {added} 件、非チェーンに {removed} 件",
+              file=sys.stderr)
 
     # 穴場は全国の点集合に対して計算する。県別にやると県境で半径500mが切れる。
     hidden.compute_hidden(all_records)

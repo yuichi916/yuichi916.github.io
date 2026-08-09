@@ -123,6 +123,34 @@ def test_dedupe():
     assert len(out) == 3
 
 
+
+def test_disused_facilities_are_excluded():
+    """OSM が「もう無い」と言っている施設を載せない。行っても何も無い。"""
+    assert normalize.is_gone({"disused:amenity": "restaurant"})
+    assert normalize.is_gone({"abandoned:shop": "yes"})
+    assert normalize.is_gone({"removed:amenity": "library"})
+    assert normalize.is_gone({"operational_status": "closed"})
+    assert normalize.to_record(
+        {"type": "node", "id": 1, "lat": 35.0, "lon": 139.0,
+         "tags": {"disused:amenity": "restaurant", "name": "元ラーメン屋",
+                  "cuisine": "ramen"}}, {}) is None
+
+
+def test_was_name_is_not_a_closure():
+    """was:name は旧店名の記録で、閉業を意味しない。
+
+    実測で was:name が8件あり、これを閉業扱いすると営業中の店が消える。
+    disused:phone（使われなくなった番号）も同じ。
+    """
+    assert not normalize.is_gone({"was:name": "旧スタミナ軒", "amenity": "restaurant"})
+    assert not normalize.is_gone({"disused:phone": "000", "amenity": "public_bath"})
+    assert not normalize.is_gone({"disused:name:ja": "旧称", "amenity": "restaurant"})
+    got = normalize.to_record(
+        {"type": "node", "id": 2, "lat": 35.0, "lon": 139.0,
+         "tags": {"was:name": "旧スタミナ軒", "amenity": "restaurant",
+                  "name": "今の店", "cuisine": "ramen"}}, {})
+    assert got is not None and got["name"] == "今の店"
+
 def main():
     test_element_id()
     test_distance_m()
@@ -133,6 +161,8 @@ def main():
     test_to_record_drops_low_solo()
     test_to_record_curated()
     test_dedupe()
+    test_disused_facilities_are_excluded()
+    test_was_name_is_not_a_closure()
     print("OK: normalize")
 
 

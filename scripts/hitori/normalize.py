@@ -32,11 +32,32 @@ def _coords(el):
     return None, None
 
 
+# OSM で「施設そのものが無い」ことを示す接頭辞。disused:amenity のように
+# 主タグに付く。これが付いた施設を載せると、行っても何も無い。
+# was:name（旧店名の記録）や disused:phone（使われなくなった番号）は
+# 閉業を意味しないので使わない。実測で前者44件、後者21件あった。
+_GONE_PREFIX = ("disused:", "abandoned:", "removed:", "demolished:", "razed:")
+_GONE_MAIN = ("amenity", "leisure", "tourism", "shop", "building:use")
+
+
+def is_gone(tags):
+    """OSM のタグが「もう無い」と言っているか。"""
+    for k in tags:
+        if not k.startswith(_GONE_PREFIX):
+            continue
+        rest = k.split(":", 1)[1]
+        if rest in _GONE_MAIN:
+            return True
+    return tags.get("operational_status") == "closed"
+
+
 def to_record(el, curated):
     """OSM要素 → 施設レコード。収録対象外なら None。"""
     tags = el.get("tags") or {}
     name = (tags.get("name") or "").strip()
     if not name:
+        return None
+    if is_gone(tags):
         return None
 
     lat, lon = _coords(el)
