@@ -36,6 +36,12 @@ FACT_VOCAB = {
     "access": {"public", "residents_only", "members_only"},
     "status": {"open", "closed_temporarily", "closed_permanently"},
     "renamed_to": str,
+    # 「やっているが、いつやっているか決まっていない」施設。閉業でも休業でも
+    # ないので status では表せず、収集のたびに捨てていた。実際に何度も出た:
+    # 後生掛温泉 湯治部（期間限定・不定期）、そば処 山の内分校（月2日のみ）、
+    # かわい木の博物館（4〜11月・10日前までに要予約）、萬代舘（役場へ要問合せ）。
+    # 一人で遠出して閉まっていたときの損失が大きいので、必ず伝える。
+    "open_period": {"year_round", "seasonal", "irregular", "by_appointment"},
     # 一人で行く前に知らないと困ること。実際の収集で情報源が書いていたのに
     # 語彙が無くて捨てていた（「30分制限」「無人料金箱」「洗い場なし」など）。
     # 同行者に聞けないので、一人客ほどこれを事前に知る必要がある。

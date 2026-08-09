@@ -838,3 +838,24 @@ check('densityNote: いちばん多い業態を選ぶ', () => {
   eq(core.densityNote(items, { sameKindNearby: it => near[it.id], kindJa: k => k }),
      'この一帯はramenが多く、半径500mに20軒あります。');
 });
+
+check('entryFlow: 開いている日が決まっていない施設は、それを最初に置く', () => {
+  // 一人で遠出して閉まっていた、が最も痛い。券売機の話より先に来る。
+  for (const v of ['irregular', 'seasonal', 'by_appointment']) {
+    const f = core.entryFlow({ open_period: v, payment_method: 'ticket_machine' });
+    eq(f[0], '開いている日をまず確かめる', v + ': ' + f.join('/'));
+    eq(f.includes('券売機で先に買う'), true, v);
+  }
+});
+
+check('entryFlow: 通年営業なら何も足さない', () => {
+  const f = core.entryFlow({ open_period: 'year_round' });
+  eq(f.length, 0, f.join('/'));
+});
+
+check('entryFlow: 予約必須のほうが先に来る', () => {
+  // どちらも unshift するので、後から unshift した予約が先頭に立つ。
+  const f = core.entryFlow({ open_period: 'seasonal', reservation: 'required' });
+  eq(f[0], '事前の予約が要る', f.join('/'));
+  eq(f[1], '開いている日をまず確かめる', f.join('/'));
+});

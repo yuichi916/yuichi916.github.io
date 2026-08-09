@@ -533,6 +533,11 @@ export function entryFlow(facts) {
   else if (facts.payment_method === 'counter_person') f.push('番台で先に払う');
   // unstaffed だけでは支払い方法は分からない。料金箱とは限らない
   // （前払い不要・後払い・宿泊者のみ等もある）。推測しない。
+  // 開いている日が決まっていない施設は、まず開いているかを確かめる所から。
+  if (facts.open_period === 'irregular' || facts.open_period === 'seasonal'
+      || facts.open_period === 'by_appointment') {
+    f.unshift('開いている日をまず確かめる');
+  }
   if (facts.reservation === 'required') f.unshift('事前の予約が要る');
   else if (facts.reservation === 'none') f.push('予約は要らない');
   else if (facts.reservation === 'possible') f.push('予約もできる');

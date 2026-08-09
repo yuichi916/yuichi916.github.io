@@ -128,6 +128,31 @@ def test_new_vocab_is_validated():
     assert not enrich.valid_fact("renamed_to", "")
 
 
+def test_open_period_is_recorded_but_never_excludes():
+    """「不定期営業」は閉業ではない。一覧から外してはならない。
+
+    後生掛温泉 湯治部は公式が「期間限定・不定期での営業」と書いている。
+    閉業でも休業でもないので status では表せず、これまで捨てていた。
+    """
+    assert enrich.valid_fact("open_period", "irregular")
+    assert enrich.valid_fact("open_period", "seasonal")
+    assert enrich.valid_fact("open_period", "by_appointment")
+    assert enrich.valid_fact("open_period", "year_round")
+    assert not enrich.valid_fact("open_period", "sometimes")
+
+    facts = [{"k": "open_period", "v": "irregular", "n": 3,
+              "src": ["a", "b", "c"], "urls": [], "official": True, "conflict": False}]
+    assert enrich.exclusion_reason(facts) is None, "不定期営業で一覧から外してはならない"
+
+
+def test_open_period_does_not_move_the_axes():
+    """営業日の話は「一人で行きやすいか」とは別。軸を動かさない。"""
+    est = {"solo": 4, "quiet": 4, "easy": 3}
+    facts = [{"k": "open_period", "v": "seasonal", "n": 2,
+              "src": ["a", "b"], "urls": [], "official": True, "conflict": False}]
+    assert enrich.apply_adjust(est, facts) == est
+
+
 def main():
     test_normalize_domain()
     test_blocked_domains()
@@ -144,6 +169,8 @@ def main():
     test_conflict_does_not_exclude()
     test_normal_facility_is_not_excluded()
     test_new_vocab_is_validated()
+    test_open_period_is_recorded_but_never_excludes()
+    test_open_period_does_not_move_the_axes()
     print("OK: enrich")
 
 

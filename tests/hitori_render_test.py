@@ -2128,6 +2128,34 @@ def test_same_kind_count_is_recomputed_when_a_prefecture_arrives(context, page):
     assert got["cleared"], "2回目の呼び出しで値がぶれている"
 
 
+def test_open_period_warns_without_calling_it_closed(context, page):
+    """不定期・季節営業は警告で伝える。閉業・休業とは別に扱うこと。
+
+    後生掛温泉 湯治部は公式が「期間限定・不定期での営業」と書いている。
+    これを休業と書けば嘘になり、何も書かなければ行った人が閉まった建物を
+    見ることになる。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    got = p.evaluate("""() => {
+      const mk = v => ({ checked: '2026-08-10', facts: [
+        { k: 'open_period', v, n: 2, src: ['a','b'], urls: ['https://a/','https://b/'],
+          official: true, conflict: false }] });
+      const probe = v => { CURATED.__op = mk(v);
+        const r = tipsFor({ id: '__op' }); delete CURATED.__op; return r.warn; };
+      return { irregular: probe('irregular'), seasonal: probe('seasonal'),
+               appt: probe('by_appointment'), year: probe('year_round') };
+    }""")
+    assert "不定期営業（事前に確認を）" in got["irregular"], got
+    assert "季節営業（事前に確認を）" in got["seasonal"], got
+    assert "事前連絡が要る" in got["appt"], got
+    assert got["year"] == [], "通年営業に警告を出している"
+    # 休業・閉業とは言わないこと
+    for k in ("irregular", "seasonal", "appt"):
+        assert not any("休業" in w or "閉業" in w for w in got[k]), (k, got[k])
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2151,6 +2179,7 @@ def main():
             test_file_protocol_explains_itself(page)
             test_search_with_location(context, page)
             test_density_note_appears_once_not_on_every_card(context, page)
+            test_open_period_warns_without_calling_it_closed(context, page)
             test_same_kind_count_is_recomputed_when_a_prefecture_arrives(context, page)
             test_search_distance_filter(context, page)
             test_search_quiet_filter(context, page)
