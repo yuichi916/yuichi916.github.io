@@ -180,6 +180,26 @@ def test_curated_city_does_not_move_the_axes():
     assert enrich.apply_adjust(est, [_f("city", "大館市", n=3)]) == est
 
 
+def test_scheduled_closure_never_removes_a_facility():
+    """閉業の予定日はまだ来ていない。一覧から外してはならない。
+
+    ディノスシネマズ室蘭は2026-08-31閉館の発表が2件の情報源にあったが、
+    確認日はその3週間前だった。closed_permanently にすると、まだ営業して
+    いる映画館を消してしまう。
+    """
+    assert enrich.valid_fact("closes_on", "2026-08-31")
+    facts = [{"k": "closes_on", "v": "2026-08-31", "n": 2,
+              "src": ["a", "b"], "urls": [], "official": True, "conflict": False}]
+    assert enrich.exclusion_reason(facts) is None
+
+
+def test_scheduled_closure_does_not_move_the_axes():
+    est = {"solo": 3, "quiet": 3, "easy": 3}
+    facts = [{"k": "closes_on", "v": "2026-08-31", "n": 2,
+              "src": ["a", "b"], "urls": [], "official": True, "conflict": False}]
+    assert enrich.apply_adjust(est, facts) == est
+
+
 def main():
     test_normalize_domain()
     test_blocked_domains()
@@ -202,6 +222,8 @@ def main():
     test_curated_city_is_dropped_when_sources_disagree()
     test_blank_city_is_not_taken()
     test_curated_city_does_not_move_the_axes()
+    test_scheduled_closure_never_removes_a_facility()
+    test_scheduled_closure_does_not_move_the_axes()
     print("OK: enrich")
 
 

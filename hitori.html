@@ -1377,6 +1377,9 @@ function tipsFor(it) {
   if (v.solo_ok === 'limited') warn.push('一人利用は期間限定');
   if (v.status === 'closed_temporarily') warn.push('休業中');
   if (v.renamed_to) warn.push(`現在は「${v.renamed_to}」`);
+  // 閉業の予定が出ているが、その日はまだ来ていない施設。いま行けば入れる
+  // ので一覧からは外さない。日付を出して、その先の予定を立てさせない。
+  if (v.closes_on) warn.push(`${v.closes_on} に閉業予定`);
 
   // 裏付けが1件しかない閉業・入れない情報は、一覧から外す条件を満たさない。
   // それを何も出さずに済ませると、閉業した施設を平常どおり見せることになる
@@ -1547,7 +1550,7 @@ const FACT_JA_SOLO = { 'solo_ok:yes': '一人でも利用できる',
 const FACT_KEY_JA = { counter_seats: 'カウンター席', seats_total: '席数',
                       hours: '営業時間', closed_days: '定休日', price: '料金',
                       stay_limit: '滞在の上限', renamed_to: '現在の名称',
-                      city: '所在地' };
+                      city: '所在地', closes_on: '閉業予定日' };
 
 function factLabel(f) {
   const fixed = FACT_JA[`${f.k}:${f.v}`] || FACT_JA_SOLO[`${f.k}:${f.v}`];

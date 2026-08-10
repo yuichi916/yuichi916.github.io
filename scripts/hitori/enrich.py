@@ -36,6 +36,11 @@ FACT_VOCAB = {
     "access": {"public", "residents_only", "members_only"},
     "status": {"open", "closed_temporarily", "closed_permanently"},
     "renamed_to": str,
+    # 閉業が発表されているが、その日はまだ来ていない施設。closed_permanently に
+    # すると、まだ営業している施設を一覧から消してしまう（ディノスシネマズ室蘭は
+    # 2026-08-31 閉館の発表があり、確認日の3週間先だった）。かといって何も
+    # 書かないと、その日以降に行った人が閉まった建物を見る。日付で持つ。
+    "closes_on": str,
     # 所在地。OSMに addr:city があるのは12%だけで、残りは県名しか出せない。
     # 調べるたびに正しい市区町村が分かるのに、記録する場所が無かった
     # （黄桜温泉湯楽里は羽後町ではなく由利本荘市、大葛温泉は鹿角市ではなく

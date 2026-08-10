@@ -2339,6 +2339,21 @@ def test_every_collected_fact_has_a_japanese_label(context, page):
     assert bad == [], bad[:10]
 
 
+def test_scheduled_closure_is_warned_with_its_date(context, page):
+    """閉業予定は日付つきで警告し、閉業とは書かないこと。"""
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    got = p.evaluate("""() => {
+      CURATED.__c = { checked: '2026-08-11', facts: [
+        { k: 'closes_on', v: '2026-08-31', n: 2, src: ['a','b'],
+          urls: ['https://a/','https://b/'], official: true, conflict: false }] };
+      const r = tipsFor({ id: '__c' }); delete CURATED.__c; return r.warn;
+    }""")
+    assert any("2026-08-31" in w and "閉業予定" in w for w in got), got
+    assert not any(w == "閉業" or "閉業の情報あり" in w for w in got), got
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2367,6 +2382,7 @@ def main():
             test_widen_button_actually_widens(context, page)
             test_density_note_appears_once_not_on_every_card(context, page)
             test_open_period_warns_without_calling_it_closed(context, page)
+            test_scheduled_closure_is_warned_with_its_date(context, page)
             test_collected_vocabulary_reaches_the_screen(context, page)
             test_every_collected_fact_has_a_japanese_label(context, page)
             test_tips_keep_price_and_hours_when_the_new_ones_are_present(context, page)
