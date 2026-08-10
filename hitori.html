@@ -414,6 +414,7 @@ body.deck-mode .method { display:none; }
           <option value="400">徒歩5分（直線400m）</option>
           <option value="800" selected>徒歩10分（直線800m）</option>
           <option value="1600">徒歩20分（直線1.6km）</option>
+          <option value="4000">直線4km</option>
           <option value="">指定なし</option>
         </select>
       </fieldset>
@@ -878,9 +879,45 @@ function bindQuickbar() {
   }
 }
 
+// 既定の800mは都市部を想定した値で、地方だと数件しか出ない（会津若松で7件）。
+// 0件なら「距離を広げる」ボタンが出るが、7件では出ないまま「この辺には
+// 何も無い」と読めてしまう。少なすぎるときだけ自動で広げ、広げたことを
+// 必ず知らせる。利用者が自分で距離を選んだあとは触らない。
+const AUTO_WIDEN_MIN = 12;
+const DIST_STEPS = [800, 1600, 4000, null];
+
+function autoWiden() {
+  // 自分で選んだあとに「広げました」と出したままにしない。前回広げた
+  // 記録が残って、400mを選んでも案内が消えなかった。
+  if (state.distTouched || state.favView) { state.autoWidened = false; return; }
+  const o = state.origin;
+  if (o.lat == null) return;
+  // 起点ごとに一度だけ。描画のたびに走らせると、他の処理が入れた距離を
+  // 上書きしてしまう（「距離を広げる」ボタンが効かなくなった）。
+  const key = o.lat.toFixed(3) + ',' + o.lon.toFixed(3);
+  if (state.autoWidenFor === key) return;
+  // 県データが届く前に走ると全部0件になり、いきなり「指定なし」まで
+  // 広がって全国4,500件が並ぶ。データが来るまで判断しない。
+  if (!loadedItems().length) return;
+  state.autoWidenFor = key;
+  // 距離だけで決める。絞り込みの状態を混ぜると、チップを押すたびに半径が
+  // 変わって件数が比べられなくなる（「チェーンだけ」を押した瞬間に半径が
+  // 広がり、全件39に対しチェーンだけ200という表示になった）。
+  const base = core.withDistance(loadedItems(), o.lat, o.lon);
+  for (const step of DIST_STEPS) {
+    const n = step == null ? base.length : base.filter(it => it.distM <= step).length;
+    state.search.maxDistM = step;
+    state.autoWidened = step !== DIST_STEPS[0];
+    if (n >= AUTO_WIDEN_MIN || step === null) break;
+  }
+  const sel = document.getElementById('f-dist');
+  if (sel) sel.value = state.search.maxDistM == null ? '' : String(state.search.maxDistM);
+}
+
 function currentSearchResults() {
   const o = state.origin;
   if (o.lat == null) return [];
+  if (!state.favView) autoWiden();
   const src = state.favView
     ? (state.favs || [])
     : collectItems(Object.keys(PREF_CACHE).map(Number));
@@ -1019,6 +1056,9 @@ function renderSearchStatus(items) {
     if (w) w.addEventListener('click', () => {
       document.getElementById('f-dist').value = '';
       state.search.maxDistM = null;
+      // これを立てないと autoWiden が既定の800mへ戻してしまい、
+      // ボタンを押しても何も起きない。
+      state.distTouched = true;
       refreshResults();          // デッキでも一覧でも効かせる
     });
     return;
@@ -1030,7 +1070,14 @@ function renderSearchStatus(items) {
   const note = core.densityNote(items.slice(0, LIST_MAX), {
     sameKindNearby, kindJa: k => KIND_JA[k] || k,
   });
-  status.textContent = `${items.length.toLocaleString()} 件`
+  // 勝手に広げたなら必ず言う。黙って広げると、徒歩10分のつもりの人が
+  // 4km先の施設を見ることになる。
+  const widened = state.autoWidened
+    ? `（近くに少ないので${state.search.maxDistM == null ? '距離の指定を外しました'
+        : state.search.maxDistM >= 1000
+          ? (state.search.maxDistM / 1000) + 'kmまで広げました' : state.search.maxDistM + 'mまで広げました'}）`
+    : '';
+  status.textContent = `${items.length.toLocaleString()} 件${widened}`
     + (note ? ` ・ ${note}` : '')
     + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
 }
@@ -2072,6 +2119,7 @@ function bindSearchFilters() {
   }
   document.getElementById('f-dist').addEventListener('change', e => {
     state.search.maxDistM = e.target.value ? +e.target.value : null;
+    state.distTouched = true;      // 以後、自動で広げない
     refreshResults();
   });
   document.getElementById('f-solo').addEventListener('change', e => {

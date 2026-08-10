@@ -2075,6 +2075,60 @@ def test_doubtful_facilities_sink_in_the_list(context, page):
         assert min(pos["doubtful"]) >= pos["total"] - len(pos["doubtful"]), pos
     p.close()
 
+AIZU = {"latitude": 37.4948, "longitude": 139.9297}   # 地方都市。既定800mでは数件しか出ない
+
+
+def test_search_widens_itself_where_facilities_are_sparse(context, page):
+    """近くに少なすぎるときは自動で距離を広げ、広げたことを言うこと。
+
+    既定の800mは都市部を想定した値で、会津若松では7件しか出なかった。
+    0件なら「距離を広げる」ボタンが出るが、7件では出ないまま
+    「この辺には何も無い」と読めてしまう。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(AIZU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+
+    status = p.text_content("#search-status")
+    assert "広げました" in status, status
+    n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
+    assert n >= 12, f"広げたのに{n}件しかない"
+    # select の表示と実際の絞り込みがずれていないこと
+    assert p.eval_on_selector("#f-dist", "e => e.value") == p.evaluate(
+        "() => window.state.search.maxDistM == null ? '' : String(window.state.search.maxDistM)")
+
+
+def test_user_chosen_distance_is_not_overridden(context, page):
+    """利用者が自分で距離を選んだら、以後は勝手に広げないこと。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(AIZU)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+    p.evaluate("() => window.openFilterSheet()")     # 絞り込みは既定で畳まれている
+    p.select_option("#f-dist", "400")
+    p.wait_for_timeout(300)
+    assert p.eval_on_selector("#f-dist", "e => e.value") == "400"
+    assert p.evaluate("() => window.state.search.maxDistM") == 400
+    assert "広げました" not in p.text_content("#search-status")
+
+
+def test_dense_area_is_left_at_the_default(context, page):
+    """都市部では広げないこと。広げなくても足りている。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+    assert p.evaluate("() => window.state.search.maxDistM") == 800
+    assert "広げました" not in p.text_content("#search-status")
+
+
 def test_density_note_appears_once_not_on_every_card(context, page):
     """一帯の密集は見出しに一度だけ出し、カードでは繰り返さないこと。
 
@@ -2183,6 +2237,27 @@ def test_filters_are_disabled_in_favorites_view(context, page):
     assert not any(back), "通常表示に戻しても押せないまま"
 
 
+def test_widen_button_actually_widens(context, page):
+    """0件のときの「距離を広げる」が効くこと。
+
+    自動で広げる仕組みを入れたとき、このボタンが設定した値を
+    autoWiden が既定の800mへ戻してしまい、押しても何も起きなくなった。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+    p.evaluate("state.search.maxDistM = 1; refreshResults()")
+    p.wait_for_selector("#search-status .widen", timeout=10000)
+    p.click("#search-status .widen")
+    p.wait_for_timeout(400)
+    assert p.evaluate("() => window.state.search.maxDistM") is None, "距離の指定が外れていない"
+    n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
+    assert n > 0, "広げたのに0件のまま"
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2205,6 +2280,10 @@ def main():
             test_detail_fetch_failure_is_contained(page)
             test_file_protocol_explains_itself(page)
             test_search_with_location(context, page)
+            test_search_widens_itself_where_facilities_are_sparse(context, page)
+            test_user_chosen_distance_is_not_overridden(context, page)
+            test_dense_area_is_left_at_the_default(context, page)
+            test_widen_button_actually_widens(context, page)
             test_density_note_appears_once_not_on_every_card(context, page)
             test_open_period_warns_without_calling_it_closed(context, page)
             test_filters_are_disabled_in_favorites_view(context, page)
