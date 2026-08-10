@@ -1306,7 +1306,9 @@ function leadCtx(it) {
 
 // 一人で行く前に知っておきたいこと。同行者に聞けないぶん、事前に分かると
 // 助かる順に並べる。多すぎると読まれないので上限を設ける。
-const TIP_MAX = 5;
+// 写真が無いぶん、ここの情報密度が判断材料そのものになる。客層・作法・
+// 混み方を先頭に足したので、5では料金と営業時間が押し出されていた。
+const TIP_MAX = 7;
 
 function tipsFor(it) {
   const e = CURATED[it.id];
@@ -1328,6 +1330,22 @@ function tipsFor(it) {
   }
 
   const out = [];
+  // 一人で行くときにいちばん効くのは「浮かないか」。料金や営業時間は
+  // どこにでも書いてあるが、客層・作法・混み方は行った人の記録にしか
+  // 出てこない。せっかく集めたのに、これまで一度も画面に出していなかった
+  // （客層89件・混雑30件・作法16件・黙浴6件が死んでいた）。先に出す。
+  if (v.clientele === 'solo_common') out.push('一人客が多い');
+  else if (v.clientele === 'local') out.push('地元客が中心');
+  else if (v.clientele === 'tourist') out.push('観光客が多い');
+  if (v.first_timer === 'easy') out.push('初めてでも入りやすい');
+  else if (v.first_timer === 'custom_exists') out.push('作法がある');
+  if (v.silence === 'posted') out.push('黙浴の掲示あり');
+  else if (v.silence === 'observed') out.push('会話は少なめ');
+  if (v.busy_time === 'usually_quiet') out.push('いつも空いている');
+  else if (v.busy_time === 'morning_quiet') out.push('朝は空いている');
+  else if (v.busy_time === 'evening_busy') out.push('夕方は混む');
+  else if (v.busy_time === 'weekend_busy') out.push('週末は混む');
+
   if (v.price != null) out.push(`${v.price}円`);
   else if (ranges.price) out.push(`${ranges.price[0]}〜${ranges.price[1]}円（情報が分かれています）`);
   if (v.unstaffed === 'yes') out.push('無人・料金箱');
@@ -1340,7 +1358,6 @@ function tipsFor(it) {
   if (v.stay_limit) out.push(`滞在${v.stay_limit}分まで`);
   if (v.luggage === 'locker') out.push('ロッカーあり');
   else if (v.luggage === 'none') out.push('荷物置き場なし');
-  if (v.busy_time === 'morning_quiet') out.push('朝は空いている');
   if (v.hours) out.push(v.hours.length > 24 ? v.hours.slice(0, 23) + '…' : v.hours);
   else if (byKey.hours) out.push('営業時間は情報が分かれています');
   if (v.closed_days) out.push(`定休 ${v.closed_days}`);
@@ -1493,16 +1510,46 @@ const FACT_JA = {
   'clientele:solo_common': '一人客が多い',
   'first_timer:easy': '初めてでも入りやすい',
   'first_timer:custom_exists': '作法がある',
+  // ここから下は語彙を足したのにラベルを足し忘れていた分。詳細シートに
+  // 「busy_time usually_quiet」のような生の英語が1,019件出ていた。
+  'busy_time:usually_quiet': 'いつも空いている',
+  'busy_time:morning_quiet': '朝は空いている',
+  'busy_time:evening_busy': '夕方は混む',
+  'busy_time:weekend_busy': '週末は混む',
+  'luggage:locker': 'コインロッカーあり',
+  'luggage:shelf_only': '棚のみ（鍵なし）',
+  'luggage:none': '荷物の置き場なし',
+  'bring_towel:required': 'タオルは持参',
+  'bring_towel:rental': 'タオルの貸出あり',
+  'bring_towel:included': 'タオルは料金に込み',
+  'wash_area:yes': '洗い場あり',
+  'wash_area:no': '洗い場なし',
+  'unstaffed:yes': '無人（料金箱など）',
+  'unstaffed:no': '人がいる',
+  'access:public': '誰でも利用できる',
+  'access:residents_only': '地元住民専用',
+  'access:members_only': '会員・関係者専用',
+  'status:open': '営業している',
+  'status:closed_temporarily': '休業中',
+  'status:closed_permanently': '閉業',
+  'open_period:year_round': '通年で営業',
+  'open_period:seasonal': '季節営業',
+  'open_period:irregular': '不定期・期間限定の営業',
+  'open_period:by_appointment': '事前連絡が要る',
 };
 const FACT_JA_SOLO = { 'solo_ok:yes': '一人でも利用できる',
   'solo_ok:limited': '一人での利用は期間が限られる', 'solo_ok:no': '一人では利用できない' };
 const FACT_KEY_JA = { counter_seats: 'カウンター席', seats_total: '席数',
-                      hours: '営業時間', closed_days: '定休日', price: '料金' };
+                      hours: '営業時間', closed_days: '定休日', price: '料金',
+                      stay_limit: '滞在の上限', renamed_to: '現在の名称',
+                      city: '所在地' };
 
 function factLabel(f) {
   const fixed = FACT_JA[`${f.k}:${f.v}`] || FACT_JA_SOLO[`${f.k}:${f.v}`];
   if (fixed) return fixed;
-  const unit = f.k === 'price' ? '円' : (f.k === 'counter_seats' || f.k === 'seats_total') ? '席' : '';
+  const unit = f.k === 'price' ? '円'
+    : (f.k === 'counter_seats' || f.k === 'seats_total') ? '席'
+    : f.k === 'stay_limit' ? '分' : '';
   return `${FACT_KEY_JA[f.k] || f.k} ${f.v}${unit}`;
 }
 
@@ -2449,6 +2496,7 @@ window.doubtfulOf = doubtfulOf;
 window.factsOf = factsOf;
 window.core = core;
 window.tipsFor = tipsFor;
+window.factLabel = factLabel;
 window.FAILED_PREFS = FAILED_PREFS;
 window.FOUND_BY_SEARCH = FOUND_BY_SEARCH;
 window.CURATED = CURATED;

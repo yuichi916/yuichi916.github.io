@@ -2258,6 +2258,87 @@ def test_widen_button_actually_widens(context, page):
     assert n > 0, "広げたのに0件のまま"
 
 
+def test_collected_vocabulary_reaches_the_screen(context, page):
+    """集めた事実が画面に出ること。
+
+    客層89件・混雑30件・作法16件・黙浴6件を集めていたのに、tipsFor が
+    どれも扱っておらず一度も表示されていなかった。集める手間がそのまま
+    無駄になっていた。写真が無いぶん、ここが判断材料そのものになる。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    got = p.evaluate("""() => {
+      const mk = (k, v) => ({ checked: '2026-08-11', facts: [
+        { k, v, n: 2, src: ['a','b'], urls: ['https://a/','https://b/'],
+          official: false, conflict: false }] });
+      const probe = (k, v) => { CURATED.__t = mk(k, v);
+        const r = tipsFor({ id: '__t' }); delete CURATED.__t; return r.tips; };
+      const out = {};
+      for (const [k, vs] of Object.entries({
+        clientele: ['solo_common', 'local', 'tourist'],
+        first_timer: ['easy', 'custom_exists'],
+        silence: ['posted', 'observed'],
+        busy_time: ['usually_quiet', 'morning_quiet', 'evening_busy', 'weekend_busy'],
+      })) for (const v of vs) out[k + '=' + v] = probe(k, v);
+      return out;
+    }""")
+    for key, tips in got.items():
+        assert tips, f"{key} が画面に出ない"
+    # 値ごとに違う文言であること（全部同じでは意味がない）
+    flat = [t[0] for t in got.values()]
+    assert len(set(flat)) == len(flat), flat
+
+
+def test_tips_keep_price_and_hours_when_the_new_ones_are_present(context, page):
+    """新しい項目を先頭に足しても、料金と営業時間が押し出されないこと。
+
+    上限5のままだと、客層・作法・混雑を足した時点で料金が消えた。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    tips = p.evaluate("""() => {
+      const f = (k, v) => ({ k, v, n: 2, src: ['a','b'],
+        urls: ['https://a/','https://b/'], official: false, conflict: false });
+      CURATED.__t = { checked: '2026-08-11', facts: [
+        f('clientele','local'), f('first_timer','easy'), f('silence','posted'),
+        f('busy_time','usually_quiet'), f('price', 450), f('hours','10:00-21:00'),
+        f('bring_towel','required')] };
+      const r = tipsFor({ id: '__t' }); delete CURATED.__t; return r.tips;
+    }""")
+    joined = " / ".join(tips)
+    assert "450円" in joined, joined
+    assert "10:00-21:00" in joined, joined
+
+
+def test_every_collected_fact_has_a_japanese_label(context, page):
+    """詳細シートに生の英語が出ないこと。
+
+    語彙を足すたびにラベルを足し忘れ、「busy_time usually_quiet」
+    「access public」のような表示が1,019件出ていた。実データの全事実を
+    factLabel に通して、英字のまま残るものが無いことを確かめる。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    bad = p.evaluate("""async () => {
+      await window.ensureCurated();
+      const seen = new Set(), bad = [];
+      for (const e of Object.values(window.CURATED))
+        for (const f of e.facts) {
+          const key = f.k + ':' + f.v;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const label = window.factLabel(f);
+          // 値そのものが英字（hours の "10:00-21:00" などは値なので除く）
+          if (/^[a-z_]+ /.test(label) || /[a-z_]{4,}/.test(label.split(' ')[0])) bad.push(label);
+        }
+      return bad;
+    }""")
+    assert bad == [], bad[:10]
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2286,6 +2367,9 @@ def main():
             test_widen_button_actually_widens(context, page)
             test_density_note_appears_once_not_on_every_card(context, page)
             test_open_period_warns_without_calling_it_closed(context, page)
+            test_collected_vocabulary_reaches_the_screen(context, page)
+            test_every_collected_fact_has_a_japanese_label(context, page)
+            test_tips_keep_price_and_hours_when_the_new_ones_are_present(context, page)
             test_filters_are_disabled_in_favorites_view(context, page)
             test_same_kind_count_is_recomputed_when_a_prefecture_arrives(context, page)
             test_search_distance_filter(context, page)
