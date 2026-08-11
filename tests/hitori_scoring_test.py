@@ -131,6 +131,36 @@ def test_kind_guide_test_would_catch_a_missing_kind():
     assert not (set(scoring.AXES) <= keys), "業態を1つ消しても通ってしまう"
 
 
+def test_footbath_is_not_a_sento():
+    """足湯・手湯を銭湯として出さない。
+
+    服を脱がず、番台も洗い場も無い。銭湯にすると「かけ湯をしてから
+    湯船へ、湯船で体を洗わない」という作法ガイドまで付く。
+    別府駅前広場モニュメント「手湯」が銭湯として一覧の先頭に出ていた。
+    """
+    for name in ("別府駅前広場モニュメント「手湯」", "羊ヶ丘ほっと足湯", "足湯",
+                 "薬師如来の手・足湯", "道の駅 遠軽 森のオホーツク 足湯"):
+        assert scoring.classify({"amenity": "public_bath", "name": name})             == ("bath", "footbath", 5), name
+    # bath:type=onsen が付いていても足湯は足湯
+    assert scoring.classify({"amenity": "public_bath", "bath:type": "onsen",
+                             "name": "大湯沼川天然足湯"}) == ("bath", "footbath", 5)
+
+
+def test_footbath_rule_does_not_swallow_real_baths():
+    """本物の浴場を巻き込まないこと。「湯」を含むだけの名前は銭湯のまま。"""
+    for name, want in (("松の湯", "sento"), ("旭湯", "sento"),
+                       ("あしかがフラワーパーク", "sento"), ("手打ちそば湯本", "sento")):
+        got = scoring.classify({"amenity": "public_bath", "name": name})
+        assert got == ("bath", want, 4), (name, got)
+    assert scoring.classify({"amenity": "public_bath", "bath:type": "onsen",
+                             "name": "○○温泉"}) == ("bath", "onsen", 3)
+
+
+def test_footbath_axes_say_it_is_easy():
+    """服を脱がず作法も無い。solo と easy は最大。屋外なので quiet は下げる。"""
+    assert scoring.axes("footbath", "足湯", [], {}) == {"solo": 5, "quiet": 3, "easy": 5}
+
+
 def test_confidence():
     assert scoring.confidence([]) == 0
     assert scoring.confidence([{"src": "web", "checked": "2026-08-01", "polarity": "+"}]) == 1
@@ -253,6 +283,9 @@ def main():
     test_axes()
     test_axes_table_covers_all_kinds()
     test_kind_guide_covers_every_kind()
+    test_footbath_is_not_a_sento()
+    test_footbath_rule_does_not_swallow_real_baths()
+    test_footbath_axes_say_it_is_easy()
     test_kind_guide_test_would_catch_a_missing_kind()
     test_confidence()
     test_is_chain()

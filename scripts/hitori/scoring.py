@@ -51,6 +51,11 @@ _STANDING = re.compile(r"立ち食い|立ち飲み|立喰|立呑|角打ち")
 _YAKINIKU_SOLO = re.compile(r"焼肉ライク|一人焼肉|ひとり焼肉|ひとり焼き肉")
 _EAT_AMENITY = {"restaurant", "fast_food"}
 
+# 足湯・手湯。服を脱がず、番台も洗い場も無く、たいてい無料で屋外。
+# 一人で立ち寄るのに最も気楽な部類なので solo/easy は最大値にする。
+# 屋外で人通りがあることが多いので quiet は銭湯より下げる。
+_FOOTBATH = re.compile(r"(足湯|手湯|あし湯|て湯|足の湯)")
+
 # cuisine は ";" 区切りが標準だが実データは "," や空白も混ざる。
 _CUISINE_SEP = re.compile(r"[;,/\s]+")
 
@@ -170,6 +175,12 @@ def classify(tags):
     if tags.get("leisure") == "sauna":
         return ("bath", "sauna", 5)
     if amenity == "public_bath":
+        # 足湯・手湯は服を脱がず、洗い場も番台も無い。銭湯として出すと
+        # 「かけ湯をしてから湯船へ」という作法ガイドまで付いてしまう。
+        # 別府駅前広場モニュメント「手湯」が銭湯として並んでいた。
+        # 一人で立ち寄る場所としては良いので、消さずに別の業態にする。
+        if _FOOTBATH.search(name):
+            return ("bath", "footbath", 5)
         if tags.get("bath:type") == "onsen":
             return ("bath", "onsen", 3)
         return ("bath", "sento", 4)
@@ -219,6 +230,7 @@ AXES = {
     "soba_udon":     (4, 4, 3),
     "curry":         (4, 4, 4),
     "sento":         (4, 4, 3),
+    "footbath":      (5, 3, 5),
     "onsen":         (3, 4, 3),
     "karaoke":       (4, 2, 4),
     "library":       (4, 5, 5),
