@@ -931,3 +931,86 @@ check('sortItems fit: 行けない疑いのあるものは後ろのまま', () =
   eq(core.sortItems(items, 'fit', { now, doubtfulOf: it => it.id === 'doubt' })
        .map(x => x.id).join(','), 'ok,doubt');
 });
+
+// --- facilityTips: 集めた事実が画面に出るか ---
+// これまで hitori.html の中にあり、確かめるのに Playwright が要った。
+// 語彙を足すたびに追従を忘れて「集めたのに出ない」を繰り返した層なので、
+// ここで全値を総当たりする。
+const _f = (k, v, n = 2) =>
+  ({ k, v, n, src: ['a', 'b'], urls: ['https://a/', 'https://b/'],
+     official: false, conflict: false });
+const _entry = (...facts) => ({ checked: '2026-08-12', facts });
+
+check('facilityTips: 事実が無ければ空', () => {
+  eq(JSON.stringify(core.facilityTips(null)), '{"tips":[],"warn":[]}');
+  eq(JSON.stringify(core.facilityTips({ facts: [] })), '{"tips":[],"warn":[]}');
+});
+
+check('facilityTips: 語彙の値がひとつ残らず画面に出る', () => {
+  const cases = {
+    clientele: ['solo_common', 'local', 'tourist'],
+    first_timer: ['easy', 'custom_exists'],
+    silence: ['posted', 'observed'],
+    busy_time: ['usually_quiet', 'morning_quiet', 'evening_busy', 'weekend_busy'],
+    payment_method: ['ticket_machine', 'counter_person', 'cash_only'],
+    bring_towel: ['required', 'rental'],
+    wash_area: ['no'],
+    luggage: ['locker', 'none'],
+    unstaffed: ['yes'],
+  };
+  const seen = new Set();
+  for (const [k, vals] of Object.entries(cases)) {
+    for (const v of vals) {
+      const { tips } = core.facilityTips(_entry(_f(k, v)));
+      if (!tips.length) throw new Error(`${k}=${v} が出ない`);
+      seen.add(tips[0]);
+    }
+  }
+  // 値ごとに違う文言であること
+  const total = Object.values(cases).reduce((a, b) => a + b.length, 0);
+  eq(seen.size, total, '同じ文言を使い回している値がある');
+});
+
+check('facilityTips: 行けないかもしれない事実は警告に出る', () => {
+  const w = v => core.facilityTips(_entry(_f('open_period', v))).warn;
+  eq(w('irregular')[0], '不定期営業（事前に確認を）');
+  eq(w('seasonal')[0], '季節営業（事前に確認を）');
+  eq(w('by_appointment')[0], '事前連絡が要る');
+  eq(core.facilityTips(_entry(_f('open_period', 'year_round'))).warn.length, 0);
+  eq(core.facilityTips(_entry(_f('status', 'closed_temporarily'))).warn[0], '休業中');
+  eq(core.facilityTips(_entry(_f('closes_on', '2026-08-31'))).warn[0], '2026-08-31 に閉業予定');
+  eq(core.facilityTips(_entry(_f('renamed_to', '新名称'))).warn[0], '現在は「新名称」');
+});
+
+check('facilityTips: 裏付け1件の閉業は消さずに警告する', () => {
+  const w = core.facilityTips(_entry(_f('status', 'closed_permanently', 1))).warn;
+  eq(w.includes('閉業の情報あり（要確認）'), true, w.join('/'));
+  // 2件以上ならビルド時に外れているので、ここでは警告しない
+  eq(core.facilityTips(_entry(_f('status', 'closed_permanently', 2)))
+       .warn.includes('閉業の情報あり（要確認）'), false);
+});
+
+check('facilityTips: 料金が割れているときは範囲で出す', () => {
+  const { tips } = core.facilityTips(_entry(_f('price', 400), _f('price', 700)));
+  eq(tips[0], '400〜700円（情報が分かれています）');
+  // 営業時間が割れているときは、どちらかを選ばない
+  const t2 = core.facilityTips(_entry(_f('hours', '10:00-20:00'), _f('hours', '11:00-21:00'))).tips;
+  eq(t2[0], '営業時間は情報が分かれています');
+});
+
+check('facilityTips: 上限で料金と営業時間が押し出されない', () => {
+  const { tips } = core.facilityTips(_entry(
+    _f('clientele', 'local'), _f('first_timer', 'easy'), _f('silence', 'posted'),
+    _f('busy_time', 'usually_quiet'), _f('price', 450), _f('hours', '10:00-21:00'),
+    _f('bring_towel', 'required')));
+  const joined = tips.join(' / ');
+  eq(joined.includes('450円'), true, joined);
+  eq(joined.includes('10:00-21:00'), true, joined);
+});
+
+check('facilityTips: 年中無休を期間限定と呼ばない', () => {
+  const w = cd => core.facilityTips(_entry(_f('closed_days', cd))).warn;
+  eq(w('年中無休(設備点検等による臨時休業有)').includes('期間限定の営業'), false);
+  eq(w('毎週火曜日、冬期間休業').includes('期間限定の営業'), true);
+  eq(w('毎週月曜（祝日の場合は翌日）').includes('期間限定の営業'), false);
+});
