@@ -554,3 +554,69 @@ export function entryFlow(facts) {
   if (facts.stay_limit) f.push(`${facts.stay_limit}分で上がる`);
   return f;
 }
+
+// 一人で行くなら、空いている時間に行けるかどうかが効く。Googleマップの
+// 「混雑する時間帯」は位置情報のビッグデータが前提で、サーバの無いこの
+// サイトでは同じことができない。代わりに業態から静的に推定する。
+//
+// これは実測ではなく推定である。ひとり度・静けさ・入りやすさと同じ扱いで、
+// 画面でも必ず「業態からの推定」と書く。個々の施設について調べた busy_time
+// があるときは、そちらが上に立つ（推定より確認できた事実が強い）。
+//
+// 値は 0=空いている 1=ふつう 2=混む。時刻は0..23の整数。
+export const BUSY_LEVELS = ['空いている', 'ふつう', '混む'];
+
+// 業態 → [[開始時, 終了時, 度合い], ...]。ここに無い時間帯は「ふつう」。
+// 終了時は含まない（[12, 14, 2] は12:00〜13:59）。
+export const BUSY_PROFILE = {
+  // 飲食は昼の休憩と夕食に寄る。立ち食いは朝の通勤帯も混む。
+  ramen:      [[11, 14, 2], [18, 20, 2], [14, 17, 0]],
+  soba_udon:  [[11, 14, 2], [18, 20, 2], [14, 17, 0]],
+  gyudon:     [[7, 9, 1], [11, 14, 2], [18, 20, 2], [14, 17, 0], [22, 24, 0]],
+  curry:      [[11, 14, 2], [18, 20, 2], [14, 17, 0]],
+  standing:   [[17, 21, 2], [11, 14, 1], [14, 17, 0]],
+  yakiniku_solo: [[11, 14, 1], [18, 21, 2], [14, 17, 0]],
+  // 湯は仕事帰りに寄る。開店直後がいちばん空く。
+  sento:      [[15, 17, 0], [17, 21, 2], [21, 24, 1]],
+  onsen:      [[10, 13, 0], [13, 16, 1], [16, 20, 2]],
+  sauna:      [[10, 15, 0], [19, 23, 2]],
+  footbath:   [[10, 16, 1], [16, 20, 0]],
+  // 娯楽は夜と週末。ネットカフェは深夜が本番。
+  netcafe:    [[9, 16, 0], [22, 24, 2], [0, 5, 2]],
+  karaoke:    [[11, 16, 0], [19, 23, 2]],
+  cinema:     [[10, 13, 0], [13, 17, 1], [17, 21, 2]],
+  // 滞在は昼が静か。宿はチェックインの時間帯が混む。
+  library:    [[9, 12, 0], [12, 17, 1], [17, 20, 0]],
+  museum:     [[9, 11, 0], [11, 15, 1], [15, 17, 0]],
+  hostel:     [[16, 20, 2], [20, 24, 1]],
+  capsule:    [[16, 20, 2], [20, 24, 1]],
+};
+
+export function busyBands(kind) {
+  const spec = BUSY_PROFILE[kind];
+  if (!spec) return null;         // 表に無い業態は推定しない
+  const hours = new Array(24).fill(1);
+  for (const [from, to, level] of spec) {
+    for (let h = from; h < to; h++) hours[h % 24] = level;
+  }
+  return hours;
+}
+
+// 「何時ごろが狙い目か」を一文にする。推定が無ければ空文字。
+export function quietHint(kind) {
+  const hours = busyBands(kind);
+  if (!hours) return '';
+  // 続いている「空いている」帯のうち、いちばん長いものを選ぶ。
+  let best = null, run = null;
+  for (let h = 0; h <= 24; h++) {
+    if (h < 24 && hours[h] === 0) {
+      run = run || { from: h, to: h };
+      run.to = h + 1;
+    } else if (run) {
+      if (!best || run.to - run.from > best.to - best.from) best = run;
+      run = null;
+    }
+  }
+  if (!best) return '';
+  return `${best.from}時ごろから${best.to}時ごろが空いている見込み`;
+}

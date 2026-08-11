@@ -2366,6 +2366,45 @@ def test_scheduled_closure_is_warned_with_its_date(context, page):
     p.close()
 
 
+def test_busy_estimate_is_shown_and_marked_as_an_estimate(context, page):
+    """時間帯の目安を出し、推定であることを必ず書くこと。
+
+    Googleマップの「混雑する時間帯」は位置情報のビッグデータが前提で、
+    サーバの無いこのサイトでは同じことができない。業態から推定する代わりに、
+    実測だと誤解させないことが条件になる。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+    p.wait_for_selector("#search-list .item", timeout=25000)
+    p.click("#search-list .item")
+    p.wait_for_selector("#facility .busybox", timeout=15000)
+
+    box = p.inner_text("#facility .busybox")
+    assert "空いている時間帯の目安" in box, box[:200]
+    assert "推定" in box and "調べた結果ではありません" in box, box[:300]
+    bars = p.eval_on_selector_all("#facility .busybar .bh", "els => els.length")
+    assert bars == 24, bars
+    # 色が1種類だけなら帯として意味がない
+    kinds = p.eval_on_selector_all("#facility .busybar .bh",
+                                   "els => [...new Set(els.map(e => e.className))].length")
+    assert kinds >= 2, kinds
+    p.close()
+
+
+def test_busy_estimate_absent_for_kinds_without_a_profile(context, page):
+    """表に無い業態では何も出さない。空の枠や当てずっぽうを出さない。"""
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    got = p.evaluate("() => window.core.busyBands('__no_such_kind')")
+    assert got is None, got
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2396,6 +2435,8 @@ def main():
             test_open_period_warns_without_calling_it_closed(context, page)
             test_scheduled_closure_is_warned_with_its_date(context, page)
             test_collected_vocabulary_reaches_the_screen(context, page)
+            test_busy_estimate_is_shown_and_marked_as_an_estimate(context, page)
+            test_busy_estimate_absent_for_kinds_without_a_profile(context, page)
             test_every_collected_fact_has_a_japanese_label(context, page)
             test_tips_keep_price_and_hours_when_the_new_ones_are_present(context, page)
             test_filters_are_disabled_in_favorites_view(context, page)

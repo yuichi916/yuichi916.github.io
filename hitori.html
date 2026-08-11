@@ -137,6 +137,18 @@ img, svg, table { max-width: 100%; }
                      background:var(--surface); box-shadow:var(--sh-1);
                      transition:box-shadow .18s var(--ease), transform .18s var(--ease),
                      border-color .18s var(--ease); }
+.busybox { font-size:.8rem; margin-top:.8rem; border-top:1px solid var(--line); padding-top:.7rem; }
+.busybox h4 { font-size:.82rem; margin:.8rem 0 .3rem; }
+.busybox p { margin:.3rem 0; line-height:1.7; color:var(--muted); }
+.busybox .caveat { font-size:.75rem; }
+.busybox .busybar { display:flex; gap:1px; margin:.4rem 0 .2rem; height:18px; border-radius:4px; overflow:hidden; }
+.busybox .bh { flex:1; }
+.bh-q { background:#cfe6d6; } .bh-n { background:#e6dfcf; } .bh-b { background:#e0b7a8; }
+.busybox .busyaxis { display:flex; justify-content:space-between; font-size:.68rem; color:var(--muted); }
+.busy-legend { font-size:.72rem; color:var(--muted); margin:.35rem 0 0; }
+.busy-legend .bh { display:inline-block; width:.8rem; height:.8rem; border-radius:2px; vertical-align:-1px; margin:0 .15rem 0 .5rem; }
+.busy-hint { margin:.35rem 0 0; font-weight:600; }
+.busy-known { margin:.2rem 0; }
 #search-list .item::before { content:""; position:absolute; left:0; top:0; bottom:0;
                              width:5px; border-radius:var(--r) 0 0 var(--r);
                              background:linear-gradient(180deg, var(--cat), color-mix(in srgb, var(--cat) 55%, transparent)); }
@@ -1615,6 +1627,39 @@ function flowHtml(it) {
   return `<div class="flowbox">${flowPart}${guidePart}</div>`;
 }
 
+// 時間帯の目安。Googleマップの「混雑する時間帯」は位置情報のビッグデータが
+// 前提で、サーバの無いこのサイトでは同じことができない。業態から推定して、
+// 推定であることを必ず書く。個別に調べた busy_time があるならそちらが上に立つ。
+const BUSY_CLASS = ['q', 'n', 'b'];
+
+function busyHtml(it) {
+  const hours = core.busyBands(it.kind);
+  if (!hours) return '';
+  const facts = factsOf(it) || {};
+  const kindJa = KIND_JA[it.kind] || it.kind;
+  const cells = hours.map((lv, h) =>
+    `<div class="bh bh-${BUSY_CLASS[lv]}" title="${h}時 ${escapeHtml(core.BUSY_LEVELS[lv])}"></div>`
+  ).join('');
+  const hint = core.quietHint(it.kind);
+  // 調べて分かっている混み方があるなら、推定より先に出す。
+  const known = facts.busy_time
+    ? `<p class="busy-known">この施設について確認できたこと: ${
+        escapeHtml(FACT_JA[`busy_time:${facts.busy_time}`] || facts.busy_time)}</p>`
+    : '';
+  return `<div class="busybox">
+    <h4>空いている時間帯の目安</h4>
+    ${known}
+    <div class="busybar" role="img" aria-label="${escapeHtml(
+      `${kindJa}の時間帯ごとの混み方の目安。${hint}`)}">${cells}</div>
+    <div class="busyaxis"><span>0時</span><span>6時</span><span>12時</span><span>18時</span><span>24時</span></div>
+    <p class="busy-legend"><i class="bh bh-q"></i>空いている
+      <i class="bh bh-n"></i>ふつう <i class="bh bh-b"></i>混む</p>
+    ${hint ? `<p class="busy-hint">${escapeHtml(hint)}</p>` : ''}
+    <p class="caveat">これは${escapeHtml(kindJa)}という業態からの推定で、
+    この施設を調べた結果ではありません。実際に数えたものでもありません。</p>
+  </div>`;
+}
+
 function basisHtml(it, liveIso) {
   const parts = [];
   const kindJa = KIND_JA[it.kind] || it.kind;
@@ -1757,6 +1802,7 @@ async function openFacility(id, opener) {
       この施設はその ${Math.round(it.hidden * it.hidden_n)} 軒に含まれていません。</p>
       <p class="caveat">チェーンの判定は、同じ名称が3県以上に5件以上あることを条件にした機械的なものです。
       検出されなかったことは、個人店であることの証明にはなりません。</p></div>` : ''}
+    ${busyHtml(it)}
     ${flowHtml(it)}
     ${basisHtml(it, liveIso)}
     ${it.note ? `<p class="note">${escapeHtml(it.note)}</p>` : ''}

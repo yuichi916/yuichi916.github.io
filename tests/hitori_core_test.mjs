@@ -859,3 +859,41 @@ check('entryFlow: 予約必須のほうが先に来る', () => {
   eq(f[0], '事前の予約が要る', f.join('/'));
   eq(f[1], '開いている日をまず確かめる', f.join('/'));
 });
+
+check('busyBands: 業態ごとの狙い目を24時間で返す', () => {
+  const sento = core.busyBands('sento');
+  eq(sento.length, 24);
+  eq(sento[16], 0, '銭湯の16時は空いている想定');
+  eq(sento[18], 2, '銭湯の18時は混む想定');
+  eq(core.busyBands('unknown_kind'), null, '表に無い業態は推定しない');
+});
+
+check('busyBands: 深夜をまたぐ業態も24時間に収まる', () => {
+  const nc = core.busyBands('netcafe');
+  eq(nc.length, 24);
+  eq(nc[2], 2, 'ネットカフェの深夜2時は混む想定');
+  eq(nc[10], 0);
+  for (const v of nc) if (![0, 1, 2].includes(v)) throw new Error('範囲外の値: ' + v);
+});
+
+check('busyBands: すべての業態が0..2に収まる', () => {
+  for (const k of Object.keys(core.BUSY_PROFILE)) {
+    const b = core.busyBands(k);
+    eq(b.length, 24, k);
+    for (const v of b) if (![0, 1, 2].includes(v)) throw new Error(k + ' に範囲外の値');
+  }
+});
+
+check('quietHint: いちばん長い空き帯を言う', () => {
+  eq(core.quietHint('netcafe'), '9時ごろから16時ごろが空いている見込み');
+  eq(core.quietHint('sento'), '15時ごろから17時ごろが空いている見込み');
+  eq(core.quietHint('unknown_kind'), '', '推定できないなら黙る');
+});
+
+check('quietHint: 空き帯が無ければ黙る', () => {
+  // 全部「混む」の業態を作っても、無い時間を捏造しない
+  const saved = core.BUSY_PROFILE.__t;
+  core.BUSY_PROFILE.__t = [[0, 24, 2]];
+  eq(core.quietHint('__t'), '');
+  if (saved === undefined) delete core.BUSY_PROFILE.__t; else core.BUSY_PROFILE.__t = saved;
+});
