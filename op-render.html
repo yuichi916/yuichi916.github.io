@@ -9,7 +9,7 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
 .bg{position:absolute;inset:-10%;background-size:cover;background-position:center;opacity:0;will-change:transform,filter}
 .cvs{width:100%;height:100%;display:block;object-fit:cover}
 .dark{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 46%,rgba(0,0,0,.22),rgba(0,0,0,.82) 100%);opacity:0}
-.ch{position:absolute;bottom:-3%;height:94%;filter:drop-shadow(0 12px 44px rgba(0,0,0,.85));opacity:0;left:50%;transform:translateX(-50%);will-change:transform,opacity}
+.ch{position:absolute;bottom:-3%;height:94%;width:auto;aspect-ratio:832/1216;filter:drop-shadow(0 12px 44px rgba(0,0,0,.85));opacity:0;left:50%;transform:translateX(-50%);will-change:transform,opacity}
 .tx{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);width:92%;text-align:center;
   color:#eef1f8;font-size:30px;letter-spacing:.3em;line-height:2.3;text-shadow:0 2px 22px rgba(0,0,0,.95);opacity:0}
 .tx.big{font-size:58px;letter-spacing:.4em;color:#fff}
@@ -151,8 +151,8 @@ html,body{width:1280px;height:720px;overflow:hidden;background:#000;
   <div class="bg" id="bg2"><canvas class="cvs" id="cv2" width="1280" height="720"></canvas></div>
   <div class="bg" id="bg"><canvas class="cvs" id="cv" width="1280" height="720"></canvas></div>
   <div class="dark" id="dark"></div>
-  <img class="ch" id="chL"><img class="ch" id="chM"><img class="ch" id="chR"><img class="ch" id="chC">
-  <img class="ch" id="chL2"><img class="ch" id="chM2"><img class="ch" id="chR2"><img class="ch" id="chC2">
+  <canvas class="ch" id="chL" width="832" height="1216"></canvas><canvas class="ch" id="chM" width="832" height="1216"></canvas><canvas class="ch" id="chR" width="832" height="1216"></canvas><canvas class="ch" id="chC" width="832" height="1216"></canvas>
+  <canvas class="ch" id="chL2" width="832" height="1216"></canvas><canvas class="ch" id="chM2" width="832" height="1216"></canvas><canvas class="ch" id="chR2" width="832" height="1216"></canvas><canvas class="ch" id="chC2" width="832" height="1216"></canvas>
   <svg id="mgfx" viewBox="0 0 1280 720" preserveAspectRatio="none">
     <polyline id="mgline" points="170,565 430,350 705,445 950,240 1135,335" fill="none" stroke="#ffd24a" stroke-width="3.2" style="filter:drop-shadow(0 0 9px #ffca4a)"/>
     <g id="mgnodes"></g>
@@ -390,6 +390,85 @@ C.forEach((c,i)=>{
   CAPS.push({cap:c.cap, s:c.s, e:e});
 });
 
+/* ── 立ち絵のメッシュ変形(髪と裾をなびかせる) ─────────────────────────
+   平面のPNGを1枚の格子として歪ませる。頭頂に近いほど、また輪郭の外側ほど
+   大きく振れ、顔の中心と足元はほぼ固定。位相を高さでずらすことで
+   「毛先が遅れて追ってくる」揺れになる。時刻tだけで決まる=毎回同じ絵。
+   WebGLが無い環境では素通しで描くので、従来と同じ見た目に落ちる。       */
+const WARP=(()=>{
+  const gw=832, gh=1216;
+  const gc=document.createElement('canvas'); gc.width=gw; gc.height=gh;
+  const gl=gc.getContext('webgl',{premultipliedAlpha:false,antialias:false,preserveDrawingBuffer:true});
+  const IMGC=new Map(), TEX=new Map();
+  function pic(url){
+    const g=window.IMG&&window.IMG[url];
+    if(g&&g.complete&&g.naturalWidth) return g;
+    let i=IMGC.get(url);
+    if(!i){ i=new Image(); i.src=url; IMGC.set(url,i); }
+    return (i.complete&&i.naturalWidth)?i:null;
+  }
+  if(!gl) return {draw(dst,url){ const c=dst.getContext('2d'),im=pic(url);
+    c.clearRect(0,0,gw,gh); if(im) c.drawImage(im,0,0,gw,gh); }};
+  const VS='attribute vec2 p;varying vec2 v;'+
+    'void main(){v=vec2(p.x*0.5+0.5,0.5-p.y*0.5);gl_Position=vec4(p,0.,1.);}';
+  const FS='precision highp float;varying vec2 v;uniform sampler2D tx;'+
+    'uniform float t;uniform float sd;uniform float am;'+
+    'void main(){'+
+    ' float ex=abs(v.x-0.5);'+
+    /* 髪: 上端から34%までで減衰し、顔の中心(±0.035)は動かさない */
+    ' float hair=smoothstep(0.48,0.02,v.y)*smoothstep(0.065,0.170,ex);'+
+    /* 裾・上着: 中腹から下、ただし接地点はピン留め */
+    ' float cloth=smoothstep(0.55,0.82,v.y)*(1.0-smoothstep(0.94,1.0,v.y));'+
+    /* 頭部全体のごく浅い傾ぎ */
+    ' float head=smoothstep(0.30,0.05,v.y);'+
+    ' float dx=am*(0.0220*hair*sin(t*1.32+sd+v.y*7.5)'+
+    '             +0.0100*hair*sin(t*2.45+sd*1.7+v.y*13.0)'+
+    '             +0.0160*cloth*sin(t*1.05+sd*2.3+v.y*4.2)'+
+    '             +0.0030*head*sin(t*0.62+sd));'+
+    ' float dy=am*0.0050*hair*sin(t*1.32+sd+v.y*7.5+1.57);'+
+    ' vec2 u=v+vec2(dx,dy);'+
+    ' if(u.x<0.0||u.x>1.0||u.y<0.0||u.y>1.0){gl_FragColor=vec4(0.);return;}'+
+    ' gl_FragColor=texture2D(tx,u);}';
+  function sh(ty,src){ const s=gl.createShader(ty); gl.shaderSource(s,src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+  const P=gl.createProgram();
+  gl.attachShader(P,sh(gl.VERTEX_SHADER,VS)); gl.attachShader(P,sh(gl.FRAGMENT_SHADER,FS));
+  gl.linkProgram(P); gl.useProgram(P);
+  const buf=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  const aP=gl.getAttribLocation(P,'p');
+  gl.enableVertexAttribArray(aP); gl.vertexAttribPointer(aP,2,gl.FLOAT,false,0,0);
+  const uTx=gl.getUniformLocation(P,'tx'), uT=gl.getUniformLocation(P,'t'),
+        uSd=gl.getUniformLocation(P,'sd'), uAm=gl.getUniformLocation(P,'am');
+  gl.disable(gl.BLEND); gl.viewport(0,0,gw,gh);
+  function tex(url){
+    let T=TEX.get(url); if(T) return T;
+    const im=pic(url); if(!im) return null;
+    T=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,T);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    TEX.set(url,T); return T;
+  }
+  return {draw(dst,url,t,seed,amp){
+    const c=dst.getContext('2d'), T=tex(url);
+    c.clearRect(0,0,gw,gh);
+    if(!T){ const im=pic(url); if(im) c.drawImage(im,0,0,gw,gh); return; }
+    gl.useProgram(P); gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+    gl.enableVertexAttribArray(aP); gl.vertexAttribPointer(aP,2,gl.FLOAT,false,0,0);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,T);
+    gl.uniform1i(uTx,0); gl.uniform1f(uT,t); gl.uniform1f(uSd,seed);
+    gl.uniform1f(uAm,amp==null?1:amp);
+    gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    c.drawImage(gc,0,0);
+  }};
+})();
+
 function setTime(t){
   const bg=el('bg'),bg2=el('bg2'),dark=el('dark'),tx=el('tx'),flash=el('flash'),logo=el('logo'),fo=el('fadeout'),pl=el('pline'),stk=el('streak'),wp=el('whip');
   ['chL','chM','chR','chC','chL2','chM2','chR2','chC2'].forEach(id=>{ el(id).style.opacity=0; });
@@ -450,7 +529,10 @@ function setTime(t){
     let px=0;
     if(cur.par){ if(moK.indexOf('sweepL')===0)px=6-12*eIO(p); else if(moK.indexOf('sweepR')===0)px=-6+12*eIO(p); }
     cur.ch.forEach((c,i)=>{
-      const im=el(SLOT[c.c]); im.src=A+c.i;
+      const im=el(SLOT[c.c]);
+      // 髪と裾のなびき。位相はキャラごとにずらし、揃って揺れないようにする
+      const seed=i*2.1+(c.c==='r'||c.c==='mr'?1.1:0), amp=cur.champ!=null?cur.champ:1;
+      WARP.draw(im, A+c.i, t, seed, amp);
       im.style.left=chPos(c.c); im.style.height=chH(c.c);
       const d=i*0.12;
       const o=env(t,cur.s+d,cur.e,fin+0.25,fout);
@@ -468,7 +550,9 @@ function setTime(t){
       im.style.transform=tf; im.style.transformOrigin='50% 100%';
       // 表情クロスフェード(同一体・顔差分): to/at で表情が変わる=簡単なアニメ
       if(c.to){
-        const ov=el(SLOT2[c.c]); ov.src=A+c.to;
+        const ov=el(SLOT2[c.c]);
+        // 表情差分は同じ位相で歪ませる(ずれるとクロスフェードが二重像になる)
+        WARP.draw(ov, A+c.to, t, seed, amp);
         ov.style.left=chPos(c.c); ov.style.height=chH(c.c);
         ov.style.transform=tf; ov.style.transformOrigin='50% 100%';
         ov.style.opacity=o*clamp((p-(c.at!=null?c.at:0.5))/0.22,0,1);
