@@ -2099,6 +2099,7 @@ def test_search_widens_itself_where_facilities_are_sparse(context, page):
     # select の表示と実際の絞り込みがずれていないこと
     assert p.eval_on_selector("#f-dist", "e => e.value") == p.evaluate(
         "() => window.state.search.maxDistM == null ? '' : String(window.state.search.maxDistM)")
+    p.close()
 
 
 def test_user_chosen_distance_is_not_overridden(context, page):
@@ -2115,6 +2116,7 @@ def test_user_chosen_distance_is_not_overridden(context, page):
     assert p.eval_on_selector("#f-dist", "e => e.value") == "400"
     assert p.evaluate("() => window.state.search.maxDistM") == 400
     assert "広げました" not in p.text_content("#search-status")
+    p.close()
 
 
 def test_dense_area_is_left_at_the_default(context, page):
@@ -2127,6 +2129,7 @@ def test_dense_area_is_left_at_the_default(context, page):
     p.click("#view-list")
     assert p.evaluate("() => window.state.search.maxDistM") == 800
     assert "広げました" not in p.text_content("#search-status")
+    p.close()
 
 
 def test_density_note_appears_once_not_on_every_card(context, page):
@@ -2151,6 +2154,7 @@ def test_density_note_appears_once_not_on_every_card(context, page):
     assert dense == [], f"カードに密集の文が残っている: {dense[:3]}"
     # 残った紹介文は施設ごとに違うものだけ（孤立・穴場）
     assert len(set(leads)) == len(leads) or len(leads) == 0, leads[:5]
+    p.close()
 
 
 def test_same_kind_count_is_recomputed_when_a_prefecture_arrives(context, page):
@@ -2180,6 +2184,7 @@ def test_same_kind_count_is_recomputed_when_a_prefecture_arrives(context, page):
         return
     assert got["n2"] >= got["n1"], got
     assert got["cleared"], "2回目の呼び出しで値がぶれている"
+    p.close()
 
 
 def test_open_period_warns_without_calling_it_closed(context, page):
@@ -2208,6 +2213,7 @@ def test_open_period_warns_without_calling_it_closed(context, page):
     # 休業・閉業とは言わないこと
     for k in ("irregular", "seasonal", "appt"):
         assert not any("休業" in w or "閉業" in w for w in got[k]), (k, got[k])
+    p.close()
 
 
 def test_filters_are_disabled_in_favorites_view(context, page):
@@ -2235,6 +2241,7 @@ def test_filters_are_disabled_in_favorites_view(context, page):
     p.click("#fav-toggle")
     back = p.eval_on_selector_all(".quickbar button", "els => els.map(e => e.disabled)")
     assert not any(back), "通常表示に戻しても押せないまま"
+    p.close()
 
 
 def test_widen_button_actually_widens(context, page):
@@ -2256,6 +2263,7 @@ def test_widen_button_actually_widens(context, page):
     assert p.evaluate("() => window.state.search.maxDistM") is None, "距離の指定が外れていない"
     n = p.eval_on_selector_all("#search-list li.item", "els => els.length")
     assert n > 0, "広げたのに0件のまま"
+    p.close()
 
 
 def test_collected_vocabulary_reaches_the_screen(context, page):
@@ -2288,6 +2296,7 @@ def test_collected_vocabulary_reaches_the_screen(context, page):
     # 値ごとに違う文言であること（全部同じでは意味がない）
     flat = [t[0] for t in got.values()]
     assert len(set(flat)) == len(flat), flat
+    p.close()
 
 
 def test_tips_keep_price_and_hours_when_the_new_ones_are_present(context, page):
@@ -2310,6 +2319,7 @@ def test_tips_keep_price_and_hours_when_the_new_ones_are_present(context, page):
     joined = " / ".join(tips)
     assert "450円" in joined, joined
     assert "10:00-21:00" in joined, joined
+    p.close()
 
 
 def test_every_collected_fact_has_a_japanese_label(context, page):
@@ -2337,6 +2347,7 @@ def test_every_collected_fact_has_a_japanese_label(context, page):
       return bad;
     }""")
     assert bad == [], bad[:10]
+    p.close()
 
 
 def test_scheduled_closure_is_warned_with_its_date(context, page):
@@ -2352,6 +2363,7 @@ def test_scheduled_closure_is_warned_with_its_date(context, page):
     }""")
     assert any("2026-08-31" in w and "閉業予定" in w for w in got), got
     assert not any(w == "閉業" or "閉業の情報あり" in w for w in got), got
+    p.close()
 
 
 def main():
