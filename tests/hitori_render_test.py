@@ -2449,6 +2449,77 @@ def test_fit_sort_is_offered(context, page):
     p.close()
 
 
+def test_now_card_answers_the_one_question_first(context, page):
+    """一覧の前に「いま行くなら」の一枚を出すこと。
+
+    研究(§1)が言うのは、一人客が最初に知りたいのは味でも近さでもなく
+    「いま自分がそこへ行って浮かないか」の一点だということ。汎用の一覧を
+    上から読ませるのは、その問いに答えていない。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+    p.wait_for_selector("#now-card:not([hidden])", timeout=20000)
+
+    body = p.inner_text("#now-card")
+    assert "いま行くなら" in body, body[:200]
+    assert "徒歩" in body, body[:300]
+    # 根拠を書かずに「おすすめ」とだけ出さない
+    assert "選びました" in body, body[:400]
+    # 一覧より前にあること
+    order = p.evaluate("""() => {
+      const n = document.getElementById('now-card');
+      const l = document.getElementById('search-list');
+      return n.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING ? 'before' : 'after';
+    }""")
+    assert order == "before", order
+    p.close()
+
+
+def test_now_card_opens_the_facility(context, page):
+    """一枚をタップすると、その施設の詳細が開くこと。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+    p.wait_for_selector("#now-card:not([hidden])", timeout=20000)
+    want = p.eval_on_selector("#now-card", "e => e.dataset.id")
+    assert want, "施設IDが付いていない"
+    p.click("#now-card")
+    p.wait_for_selector("#facility:not([hidden])", timeout=15000)
+    assert p.evaluate("() => window.state.facility || null") in (want, None)
+    p.close()
+
+
+def test_now_card_is_hidden_in_deck_and_favorites(context, page):
+    """1軒ずつ見る画面と、お気に入り表示では出さないこと。
+
+    デッキは同じ役割なので重ねて出す意味がない。お気に入りは絞り込みを
+    適用しない一覧なので「いま行くなら」を選ぶ根拠が無い。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+    p.wait_for_selector("#now-card:not([hidden])", timeout=20000)
+    p.click("#view-deck")
+    p.wait_for_timeout(400)
+    assert p.eval_on_selector("#now-card", "e => e.hidden") is True, "デッキで出ている"
+    p.click("#view-list")
+    p.wait_for_selector("#now-card:not([hidden])", timeout=20000)
+    p.click("#fav-toggle")
+    p.wait_for_timeout(400)
+    assert p.eval_on_selector("#now-card", "e => e.hidden") is True, "お気に入りで出ている"
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2483,6 +2554,9 @@ def main():
             test_busy_estimate_absent_for_kinds_without_a_profile(context, page)
             test_exclusions_are_stated_with_a_count(context, page)
             test_fit_sort_is_offered(context, page)
+            test_now_card_answers_the_one_question_first(context, page)
+            test_now_card_opens_the_facility(context, page)
+            test_now_card_is_hidden_in_deck_and_favorites(context, page)
             test_every_collected_fact_has_a_japanese_label(context, page)
             test_tips_keep_price_and_hours_when_the_new_ones_are_present(context, page)
             test_filters_are_disabled_in_favorites_view(context, page)

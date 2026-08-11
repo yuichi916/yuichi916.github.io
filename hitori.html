@@ -131,6 +131,15 @@ img, svg, table { max-width: 100%; }
    色が一切ないと、37,189件が同じ見た目の行として流れてしまう。 */
 /* カードは「名前・徒歩・特徴」の三層。名前を主役にし、徒歩は数字として
    独立した塊に、特徴は色で分類する。要素を均等に並べると設計に見えない。 */
+#now-card { margin:.8rem 0 0; border:1px solid var(--line); border-radius:var(--r);
+  background:var(--surface); box-shadow:var(--sh-1); padding:.9rem 1rem; cursor:pointer; }
+#now-card:hover, #now-card:focus-visible { box-shadow:var(--sh-2); }
+#now-card h3 { margin:0; font-size:.78rem; letter-spacing:.04em; color:var(--muted); font-weight:700; }
+#now-card .nm { display:block; margin:.25rem 0 .1rem; font-weight:700; font-size:1.18rem; line-height:1.32; }
+#now-card .meta { margin:0; font-size:.82rem; color:var(--muted); }
+#now-card .why { margin:.45rem 0 0; line-height:1.75; }
+#now-card .steps { margin:.4rem 0 0; padding-left:1.1rem; font-size:.85rem; line-height:1.7; color:var(--muted); }
+#now-card .caveat { margin:.45rem 0 0; font-size:.74rem; color:var(--muted); }
 #search-list { list-style:none; padding:0; margin:.7rem 0 0; display:grid; gap:.7rem; }
 #search-list .item { position:relative; border:1px solid var(--line); border-radius:var(--r);
                      padding:.85rem .9rem .8rem 1.15rem; cursor:pointer;
@@ -471,6 +480,7 @@ body.deck-mode .method { display:none; }
       <button type="button" id="deck-next" aria-label="次の施設">↓</button>
     </div>
     <p id="search-status" class="counts"></p>
+    <section id="now-card" hidden aria-labelledby="now-card-h"></section>
     <ol id="search-list" class="items"></ol>
   </section>
 
@@ -1108,10 +1118,59 @@ function renderSearchStatus(items) {
     + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
 }
 
+// 研究(§1)が言うのは、一人客が最初に知りたいのは「いま自分がそこへ行って
+// 浮かないか」の一点だということ。一覧を上から読ませるのは、その問いに
+// 答えていない。いまの条件で最も浮かなそうな一軒を先に出し、行ってから
+// 何が起きるか（§2b の予行演習）まで一枚に収める。
+//
+// 選び方は fit の並びの先頭。理由も書く。理由を書かずに「おすすめ」とだけ
+// 出すのは、根拠を出すというこのサイトの方針に反する。
+function renderNowCard(items) {
+  const el = document.getElementById('now-card');
+  if (!el) return;
+  // お気に入り表示中と、絞り込みで1件しか無いときは出さない。
+  // 1件しかないなら一覧そのものが答えになっている。
+  if (state.favView || state.origin.lat == null || items.length < 2) {
+    el.hidden = true; el.innerHTML = ''; return;
+  }
+  const pick = core.sortItems(items, 'fit',
+    { isoThreshold: SUMMARY.iso_threshold, now: new Date(), doubtfulOf })[0];
+  if (!pick) { el.hidden = true; el.innerHTML = ''; return; }
+
+  const st = core.openState(pick.oh, new Date());
+  const open = st === 'open' ? 'いま営業中' : st === 'closed' ? '営業時間外' : '営業時間不明';
+  const { tips } = tipsFor(pick);
+  const facts = factsOf(pick);
+  const flow = core.entryFlow(facts);
+  const guide = KIND_GUIDE[pick.kind];
+  // 動線は確認できた事実から、作法は業態一般から。出所が違うので混ぜない。
+  const steps = flow.length ? flow : (guide ? [guide] : []);
+  const hint = core.quietHint(pick.kind);
+  const why = [
+    `ひとり度${pick.solo}`, `静けさ${pick.quiet}`, `入りやすさ${pick.easy}`,
+  ].join(' / ');
+
+  el.hidden = false;
+  el.tabIndex = 0;
+  el.dataset.id = pick.id;
+  el.innerHTML = `<h3 id="now-card-h">いま行くなら</h3>
+    <b class="nm">${escapeHtml(pick.name)}</b>
+    <p class="meta">${escapeHtml(KIND_JA[pick.kind] || pick.kind)} ・ 徒歩${
+      core.walkMinutes(pick.distM)}分 ・ ${escapeHtml(open)}${
+      pick.city ? ' ・ ' + escapeHtml(pick.city) : ''}</p>
+    <p class="why">${escapeHtml(why)}${tips.length ? ' ・ ' + escapeHtml(tips.slice(0, 3).join(' / ')) : ''}</p>
+    ${steps.length ? `<ol class="steps">${
+      steps.slice(0, 4).map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ol>` : ''}
+    ${hint ? `<p class="caveat">${escapeHtml(hint)}（業態からの推定）</p>` : ''}
+    <p class="caveat">いま開いていること、ひとり度、入りやすさ、静けさ、距離の順に見て選びました。${
+      flow.length ? '' : '手順はこの施設を調べた結果ではなく、業態一般の説明です。'}</p>`;
+}
+
 function renderSearchList() {
   const items = currentSearchResults();
   const list = document.getElementById('search-list');
   renderSearchStatus(items);
+  renderNowCard(items);
   if (!items.length) { list.innerHTML = ''; return; }
   const now = new Date();
   list.innerHTML = items.slice(0, LIST_MAX).map(it => {
@@ -1200,6 +1259,9 @@ function deckNext() { deckMove(1); }
 function deckPrev() { deckMove(-1); }
 
 function renderDeck() {
+  // 1軒ずつ見る画面では、同じ役割の「いま行くなら」を重ねて出さない。
+  const nowEl = document.getElementById('now-card');
+  if (nowEl) { nowEl.hidden = true; nowEl.innerHTML = ''; }
   const el = document.getElementById('deck');
   const items = currentSearchResults();
   const pos = document.getElementById('deck-pos');
@@ -2497,6 +2559,18 @@ async function init() {
     const li = e.target.closest('li.item');
     if (li) { e.preventDefault(); openFacility(li.dataset.id, li); }
   });
+  // 「いま行くなら」の一枚もカードと同じように開ける。
+  const nowEl = document.getElementById('now-card');
+  if (nowEl) {
+    nowEl.addEventListener('click', () => {
+      if (nowEl.dataset.id) openFacility(nowEl.dataset.id, nowEl);
+    });
+    nowEl.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (!nowEl.dataset.id) return;
+      e.preventDefault(); openFacility(nowEl.dataset.id, nowEl);
+    });
+  }
   // Escape でシートを閉じる。開いている間だけ有効（hidden なら何もしない）。
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
@@ -2555,6 +2629,7 @@ async function init() {
 // プロパティにならない。page.evaluate() が素の識別子で参照できるよう公開する。
 window.state = state;
 window.SUMMARY = SUMMARY;
+window.renderNowCard = renderNowCard;
 window.PREF_CACHE = PREF_CACHE;
 window.visibleItems = visibleItems;
 window.AX_LABEL = AX_LABEL;
