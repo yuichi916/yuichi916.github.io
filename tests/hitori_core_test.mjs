@@ -897,3 +897,37 @@ check('quietHint: 空き帯が無ければ黙る', () => {
   eq(core.quietHint('__t'), '');
   if (saved === undefined) delete core.BUSY_PROFILE.__t; else core.BUSY_PROFILE.__t = saved;
 });
+
+check('sortItems fit: 開いていて浮かないものを先に出す', () => {
+  const now = new Date(2026, 7, 11, 14, 0);   // 火曜14時
+  const items = [
+    { id: 'far_good',  distM: 900, solo: 5, quiet: 5, easy: 5, oh: '10:00-22:00', iso: 0, hidden: 0 },
+    { id: 'near_shut', distM: 10,  solo: 5, quiet: 5, easy: 5, oh: '18:00-22:00', iso: 0, hidden: 0 },
+    { id: 'near_meh',  distM: 20,  solo: 3, quiet: 3, easy: 3, oh: '10:00-22:00', iso: 0, hidden: 0 },
+  ];
+  eq(core.sortItems(items, 'fit', { now }).map(x => x.id).join(','),
+     'far_good,near_meh,near_shut', '閉まっている店が上に来ている');
+  // 近い順は今までどおり
+  eq(core.sortItems(items, 'dist', { now }).map(x => x.id).join(','),
+     'near_shut,near_meh,far_good');
+});
+
+check('sortItems fit: ひとり度を静けさより重く見る', () => {
+  const now = new Date(2026, 7, 11, 14, 0);
+  const items = [
+    { id: 'solo5', distM: 100, solo: 5, quiet: 2, easy: 3, oh: '', iso: 0, hidden: 0 },
+    { id: 'quiet5', distM: 100, solo: 3, quiet: 5, easy: 3, oh: '', iso: 0, hidden: 0 },
+  ];
+  // 研究(§1)が主指標に据えるのは「浮かないか」。静けさは従。
+  eq(core.sortItems(items, 'fit', { now })[0].id, 'solo5');
+});
+
+check('sortItems fit: 行けない疑いのあるものは後ろのまま', () => {
+  const now = new Date(2026, 7, 11, 14, 0);
+  const items = [
+    { id: 'doubt', distM: 10, solo: 5, quiet: 5, easy: 5, oh: '10:00-22:00', iso: 0, hidden: 0 },
+    { id: 'ok',    distM: 900, solo: 3, quiet: 3, easy: 3, oh: '10:00-22:00', iso: 0, hidden: 0 },
+  ];
+  eq(core.sortItems(items, 'fit', { now, doubtfulOf: it => it.id === 'doubt' })
+       .map(x => x.id).join(','), 'ok,doubt');
+});

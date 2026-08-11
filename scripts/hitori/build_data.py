@@ -249,6 +249,10 @@ def build(raw_by_pref, prefs, curated, updated):
         "iso_threshold": iso.iso_thresholds(all_records),
         "iso_max": iso.MAX_ISO_M,
         "checked_count": applied,
+        # 一覧から外した施設の数。研究(§2c)が言うのは、対象外を明示すること
+        # 自体が安心材料になるということ。黙って消すと「無い」のか「外した」
+        # のか分からない。
+        "excluded_count": len(excluded),
         "prefectures": summary_prefs,
     }
     return summary, prefdocs

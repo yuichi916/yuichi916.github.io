@@ -1419,11 +1419,15 @@ def test_deck_keydown_ignores_form_focus(context, page):
     p.wait_for_selector("#deck .card", timeout=15000)
     p.click("#open-filters")
     p.focus("#f-sort")
+    # 並べ替えの選択肢を増やすたびに落ちないよう、順番を決め打ちしない。
+    # 「ArrowDown で次の選択肢に移る」ことだけを見る。
+    nxt = p.eval_on_selector("#f-sort",
+        "e => e.options[Math.min(e.selectedIndex + 1, e.options.length - 1)].value")
     id_before = p.eval_on_selector("#deck .card", "e => e.dataset.id")
     p.keyboard.press("ArrowDown")
     p.wait_for_timeout(200)
     id_after = p.eval_on_selector("#deck .card", "e => e.dataset.id")
-    assert p.eval_on_selector("#f-sort", "e => e.value") == "solo", "select 自体の値が動いていない"
+    assert p.eval_on_selector("#f-sort", "e => e.value") == nxt, "select 自体の値が動いていない"
     # <select> の ArrowDown は値を変える(正しい)。並べ替えが変わって表示位置
     # がずれるのは自然だが、キー操作が deckNext() を「追加で」呼んでいれば
     # ここで表示される施設のIDがずれる(I9の並べ替え後もIDを保つ仕組み参照)。
@@ -2405,6 +2409,46 @@ def test_busy_estimate_absent_for_kinds_without_a_profile(context, page):
     p.close()
 
 
+def test_exclusions_are_stated_with_a_count(context, page):
+    """外した施設があることを数つきで言うこと。
+
+    研究(§2c)が言うのは、対象外を明示すること自体が安心材料になるということ。
+    黙って消すと「その地域に無い」のか「外した」のか区別が付かない。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    p.eval_on_selector(".method", "e => e.open = true")
+    body = p.inner_text(".method")
+    assert "行けないと分かった施設は一覧から外しています" in body, body[:300]
+    n = p.inner_text("#excluded-count")
+    assert n != "—" and n.replace(",", "").isdigit() and int(n.replace(",", "")) > 0, n
+    # 数字は summary.json の実値と一致すること（画面に固定値を書かない）
+    assert int(n.replace(",", "")) == p.evaluate("() => window.SUMMARY.excluded_count")
+    p.close()
+
+
+def test_fit_sort_is_offered(context, page):
+    """「いま行って浮かない順」を選べること。"""
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+    p.evaluate("() => window.openFilterSheet()")
+    p.select_option("#f-sort", "fit")
+    p.wait_for_timeout(400)
+    assert p.evaluate("() => window.state.sort") == "fit"
+    ids = p.eval_on_selector_all("#search-list li.item", "els => els.map(e => e.dataset.id)")
+    assert len(ids) > 1, ids
+    # 先頭のカードに「営業時間外」が付いていないこと（開いているものが先）
+    shut = p.eval_on_selector_all("#search-list li.item:first-child .badge-shut",
+                                  "els => els.length")
+    assert shut == 0, "営業時間外の施設が先頭に来ている"
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2437,6 +2481,8 @@ def main():
             test_collected_vocabulary_reaches_the_screen(context, page)
             test_busy_estimate_is_shown_and_marked_as_an_estimate(context, page)
             test_busy_estimate_absent_for_kinds_without_a_profile(context, page)
+            test_exclusions_are_stated_with_a_count(context, page)
+            test_fit_sort_is_offered(context, page)
             test_every_collected_fact_has_a_japanese_label(context, page)
             test_tips_keep_price_and_hours_when_the_new_ones_are_present(context, page)
             test_filters_are_disabled_in_favorites_view(context, page)

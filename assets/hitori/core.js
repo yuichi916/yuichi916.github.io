@@ -319,6 +319,16 @@ export function sortItems(items, sort, ctx) {
   const withDoubt = cmp => (a, b) => (doubt(a) - doubt(b)) || cmp(a, b);
 
   switch (sort) {
+    // 研究(§1)が言うのは、一人客が最初に知りたいのは味でも近さでもなく
+    // 「いま行って浮かないか」の一点だということ。近い順だと、いま閉まって
+    // いる店や一人だと居心地の悪い店が上に来る。開いていること・一人で
+    // 浮かないこと・作法が要らないことをまとめて上に出す並びを用意する。
+    // 距離は最後の同点処理に回す（近くても入れなければ意味がない）。
+    case 'fit': {
+      const fit = it => (it.solo * 2) + it.easy + it.quiet;
+      return out.sort(withDoubt((a, b) =>
+        (openRank(a, now) - openRank(b, now)) || (fit(b) - fit(a)) || byDist(a, b)));
+    }
     case 'solo':
       return out.sort(withDoubt((a, b) => (b.solo - a.solo) || byDist(a, b)));
     case 'quiet':

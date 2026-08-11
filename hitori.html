@@ -378,6 +378,11 @@ body.deck-mode .method { display:none; }
       <p>投稿機能はありません。作れないのではなく、持たないことを選んでいます。
       投稿を受け付けないので、点数の操作も、宣伝目的の書き込みも起きません。
       そのぶん件数は増えませんが、載っている事実には必ず出典が付きます。</p>
+      <p><strong>行けないと分かった施設は一覧から外しています。</strong>
+      閉業、地元住民専用、会員専用、一人では利用できない、と独立した2件以上で
+      裏付けが取れたものです。いま <span id="excluded-count">—</span> 件を外してあります。
+      外した理由は施設ごとに記録してあり、裏付けが1件しかないものは外さずに
+      「要確認」と出します。</p>
       <p>広告もアフィリエイトもありません。どの施設を上に出しても、こちらに得はありません。</p>
     </details>
   </header>
@@ -443,6 +448,7 @@ body.deck-mode .method { display:none; }
       <fieldset><legend>並べ替え</legend>
         <select id="f-sort">
           <option value="dist" selected>近い順</option>
+          <option value="fit">いま行って浮かない順</option>
           <option value="solo">ひとり度が高い順</option>
           <option value="find">発見が多い順</option>
           <option value="quiet">静かな順</option>
@@ -2534,6 +2540,9 @@ async function init() {
     state.search.kind = e.target.value || null;
     refreshResults();
   });
+  const exEl = document.getElementById('excluded-count');
+  // 数字を書いておいて実データと食い違うより、読めたときだけ出す。
+  if (exEl) exEl.textContent = (SUMMARY.excluded_count || 0).toLocaleString();
   setView(state.view);
   window.__ready = true;
   // 描画テストから触るために公開する。state / PREF_CACHE / currentSearchResults /
@@ -2545,6 +2554,7 @@ async function init() {
 // module scriptはトップレベル宣言がモジュールスコープに閉じ、window の
 // プロパティにならない。page.evaluate() が素の識別子で参照できるよう公開する。
 window.state = state;
+window.SUMMARY = SUMMARY;
 window.PREF_CACHE = PREF_CACHE;
 window.visibleItems = visibleItems;
 window.AX_LABEL = AX_LABEL;
