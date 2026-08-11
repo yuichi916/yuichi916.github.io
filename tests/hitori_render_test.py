@@ -2520,6 +2520,34 @@ def test_now_card_is_hidden_in_deck_and_favorites(context, page):
     p.close()
 
 
+def test_gaze_section_is_separate_from_the_guide(context, page):
+    """「周りからどう見えるか」を作法とは別の節で出すこと。
+
+    研究(§2a)が一蘭の例で言うのは、一人客の最大の障壁は他人の視線だという
+    こと。「自分は何をするのか」（作法）とは別の問いなので、混ぜない。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__searchReady === true", timeout=30000)
+    p.click("#view-list")
+    p.wait_for_selector("#search-list .item", timeout=25000)
+    p.click("#search-list .item")
+    p.wait_for_selector("#facility .flowbox", timeout=15000)
+
+    box = p.inner_text("#facility .flowbox")
+    assert "周りからどう見えるか" in box, box[:300]
+    assert "の一般的な作法" in box, box[:300]
+    # 見に行った結果だと誤解させないこと
+    assert "この施設を見に行った結果ではありません" in box, box[:400]
+    # 節が2つに分かれていること
+    heads = p.eval_on_selector_all("#facility .flowbox h4", "els => els.map(e => e.textContent)")
+    assert len([h for h in heads if "周りから" in h]) == 1, heads
+    assert len([h for h in heads if "作法" in h]) == 1, heads
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2554,6 +2582,7 @@ def main():
             test_busy_estimate_absent_for_kinds_without_a_profile(context, page)
             test_exclusions_are_stated_with_a_count(context, page)
             test_fit_sort_is_offered(context, page)
+            test_gaze_section_is_separate_from_the_guide(context, page)
             test_now_card_answers_the_one_question_first(context, page)
             test_now_card_opens_the_facility(context, page)
             test_now_card_is_hidden_in_deck_and_favorites(context, page)

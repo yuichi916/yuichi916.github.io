@@ -107,6 +107,44 @@ def test_axes_table_covers_all_kinds():
         assert all(1 <= x <= 5 for x in v), k
 
 
+def _entries(block):
+    """業態名 → 連結した文字列。テンプレートの + 連結をつないで比べる。"""
+    out = {}
+    for k, v in re.findall(r"^\s{2}(\w+): (.*?)(?=\n\s{2}\w+:|\Z)", block, re.S | re.M):
+        out[k] = "".join(re.findall(r"'([^']*)'", v))
+    return out
+
+
+def test_kind_gaze_covers_every_kind():
+    """「周りからどう見えるか」が全業態にあること。
+
+    研究(§2a)が一蘭の例で言うのは、一人客の最大の障壁は味でも値段でもなく
+    他人の視線だということ。業態を足したときにここだけ抜けると、
+    いちばん効く説明が黙って消える。
+    """
+    src = (ROOT / "hitori.html").read_text(encoding="utf-8")
+    m = re.search(r"const KIND_GAZE = \{(.*?)\n\};", src, re.S)
+    assert m, "hitori.html に KIND_GAZE が見つからない"
+    keys = set(re.findall(r"^\s{2}(\w+):", m.group(1), re.M))
+    assert set(scoring.AXES) <= keys, set(scoring.AXES) - keys
+
+
+def test_kind_gaze_is_not_the_same_text_as_the_guide():
+    """作法の言い換えになっていないこと。
+
+    「自分は何をするのか」と「周りからどう見えるのか」は別の問い。
+    同じ文を二度出すなら節を分ける意味がない。
+    """
+    src = (ROOT / "hitori.html").read_text(encoding="utf-8")
+    g = _entries(re.search(r"const KIND_GAZE = \{(.*?)\n\};", src, re.S).group(1))
+    d = _entries(re.search(r"const KIND_GUIDE = \{(.*?)\n\};", src, re.S).group(1))
+    both = set(g) & set(d)
+    assert both, "比べる業態が無い"
+    for k in both:
+        assert g[k], k
+        assert g[k] != d[k], k
+
+
 def test_kind_guide_covers_every_kind():
     """hitori.html の KIND_GUIDE が全業態を網羅していること。
 
@@ -283,6 +321,8 @@ def main():
     test_axes()
     test_axes_table_covers_all_kinds()
     test_kind_guide_covers_every_kind()
+    test_kind_gaze_covers_every_kind()
+    test_kind_gaze_is_not_the_same_text_as_the_guide()
     test_footbath_is_not_a_sento()
     test_footbath_rule_does_not_swallow_real_baths()
     test_footbath_axes_say_it_is_easy()
