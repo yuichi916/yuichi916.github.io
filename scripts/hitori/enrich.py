@@ -33,7 +33,12 @@ FACT_VOCAB = {
     # 「そこへ一人で行けるか」以前の問題を表す事実。収集を始めて初めて必要に
     # なった。地元住民専用の共同浴場や休業中の施設を「ひとりで行ける場所」と
     # して載せると、行った人が門前払いになる。
-    "access": {"public", "residents_only", "members_only"},
+    # male_only/female_only は川崎の調査で見つかった。カプセル&サウナ
+    # 川崎ビッグは男性専用で、女性の一人客はそもそも行けない。一律で
+    # 一覧から外すと男性客には有効な施設が消えるので EXCLUDING には
+    # 入れず、常に警告として出す（性別を問わないアプリの前提が
+    # 崩れる施設なので、裏付けの件数に関わらず必ず伝える）。
+    "access": {"public", "residents_only", "members_only", "male_only", "female_only"},
     "status": {"open", "closed_temporarily", "closed_permanently"},
     "renamed_to": str,
     # 閉業が発表されているが、その日はまだ来ていない施設。closed_permanently に

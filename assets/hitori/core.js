@@ -698,6 +698,11 @@ export function facilityTips(entry, max) {
   if (v.open_period === 'irregular') warn.push('不定期営業（事前に確認を）');
   else if (v.open_period === 'seasonal') warn.push('季節営業（事前に確認を）');
   else if (v.open_period === 'by_appointment') warn.push('事前連絡が要る');
+  // 性別限定。EXCLUDING に入れていない（男性専用の施設は男性客には
+  // 有効に行けるので一律除外は不適切）。裏付けの件数に関わらず必ず出す。
+  // カプセル&サウナ川崎ビッグの調査で見つかった。
+  if (v.access === 'male_only') warn.push('男性専用');
+  else if (v.access === 'female_only') warn.push('女性専用');
   // 一人で使えるかどうかは、このアプリで最も重要な警告。
   if (v.solo_ok === 'limited') warn.push('一人利用は期間限定');
   if (v.status === 'closed_temporarily') warn.push('休業中');

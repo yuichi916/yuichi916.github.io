@@ -128,6 +128,19 @@ def test_new_vocab_is_validated():
     assert not enrich.valid_fact("renamed_to", "")
 
 
+def test_gender_restricted_access_is_not_a_blanket_exclusion():
+    """男性専用・女性専用は EXCLUDING に入れない。
+
+    カプセル&サウナ川崎ビッグは男性専用で、女性の一人客はそもそも行けない。
+    しかし男性客には有効な施設なので、一律で一覧から外すのは不適切。
+    residents_only/members_only とは扱いを分ける。
+    """
+    assert enrich.valid_fact("access", "male_only")
+    assert enrich.valid_fact("access", "female_only")
+    assert enrich.exclusion_reason([{"k": "access", "v": "male_only", "n": 3}]) is None
+    assert enrich.exclusion_reason([{"k": "access", "v": "female_only", "n": 3}]) is None
+
+
 def test_open_period_is_recorded_but_never_excludes():
     """「不定期営業」は閉業ではない。一覧から外してはならない。
 
@@ -216,6 +229,7 @@ def main():
     test_conflict_does_not_exclude()
     test_normal_facility_is_not_excluded()
     test_new_vocab_is_validated()
+    test_gender_restricted_access_is_not_a_blanket_exclusion()
     test_open_period_is_recorded_but_never_excludes()
     test_open_period_does_not_move_the_axes()
     test_curated_city_is_used_when_known()

@@ -1014,3 +1014,19 @@ check('facilityTips: 年中無休を期間限定と呼ばない', () => {
   eq(w('毎週火曜日、冬期間休業').includes('期間限定の営業'), true);
   eq(w('毎週月曜（祝日の場合は翌日）').includes('期間限定の営業'), false);
 });
+
+check('facilityTips: 性別限定は裏付け1件でも常に警告する', () => {
+  // カプセル&サウナ川崎ビッグは男性専用。residents_only/members_only とは
+  // 違い一覧からは外さないが、行けるかどうかを左右する重い事実なので
+  // 裏付けの件数に関わらず必ず警告する。
+  const male = core.facilityTips(_entry(_f('access', 'male_only', 1))).warn;
+  eq(male.includes('男性専用'), true, male.join('/'));
+  const female = core.facilityTips(_entry(_f('access', 'female_only', 1))).warn;
+  eq(female.includes('女性専用'), true, female.join('/'));
+});
+
+check('facilityTips: 通常の公開施設では性別限定の警告を出さない', () => {
+  const w = core.facilityTips(_entry(_f('access', 'public'))).warn;
+  eq(w.includes('男性専用'), false, w.join('/'));
+  eq(w.includes('女性専用'), false, w.join('/'));
+});
