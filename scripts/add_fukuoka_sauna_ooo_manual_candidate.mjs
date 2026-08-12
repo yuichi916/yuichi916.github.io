@@ -9,7 +9,7 @@ const candidate = {
   id: "manual-fukuoka-sauna-ooo-fukuoka-20260813",
   facility: [
     "manual-fukuoka-sauna-ooo-fukuoka-20260813", "SAUNA OOO FUKUOKA", 33.5934698, 130.4047847,
-    "bath", "private_sauna", 5, 4, 3, 2, 1, 0.0, 0, 1, 0, "福岡市",
+    "bath", "private_sauna", 5, 4, 3, 2, 1, 0.0, 0, 1, "福岡市",
     null, null, "https://ooo-sauna.com/fukuoka.html",
     "公式サイトでソロ利用、1名料金、完全予約制、タオルを含むリネン類を確認。公式サイトが複数都市の店舗を案内するためチェーンとして表示。営業時間は公式ページで確認できないため要確認。",
     5, 4, 3, checked,

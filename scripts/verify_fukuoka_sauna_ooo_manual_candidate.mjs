@@ -15,7 +15,9 @@ const rows = pref.items.filter(row => row[0] === id);
 if (rows.length !== 1) throw new Error(`福岡県データの対象件数が不正です: ${rows.length}`);
 const row = rows[0];
 if (row[2] !== 33.5934698 || row[3] !== 130.4047847) throw new Error("座標が不正です。");
-if (row[10] !== 1 || row[13] !== 1) throw new Error("チェーン判定またはタオル情報が不正です。");
+if (row.length !== 23 || row[10] !== 1 || row[13] !== 1 || row[14] !== "福岡市" || row[22] !== "2026-08-13") {
+  throw new Error("静的施設配列のチェーン判定・タオル・都市名・確認日が不正です。");
+}
 const entry = curated[id];
 if (!entry || entry.checked !== "2026-08-13" || entry.facts?.length !== 4) throw new Error("確認済み情報が不正です。");
 if (!entry.facts.every(fact => fact.official && fact.urls?.some(url => url === "https://ooo-sauna.com/fukuoka.html"))) {
