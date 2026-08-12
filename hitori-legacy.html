@@ -1,0 +1,2685 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ひとり歓迎マップ | ひとりが標準の店だけを集めた日本地図</title>
+<meta name="description" content="黙浴サウナ、カウンター飲食、ヒトカラ、図書館。ひとりでも行ける店ではなく、ひとりが標準の店だけを都道府県別に可視化した日本地図。">
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+:root {
+  /* 面ではなく階層で見せる。背景をわずかに沈め、カードを浮かせる。
+     真っ白の上に灰色の枠を置くだけの作りが古く見える原因だった。 */
+  --bg: #f6f7f9; --surface: #ffffff; --fg: #16191d; --muted: #6b7280;
+  --line: #e6e8ec; --line-strong: #d3d7dd;
+  --accent: #1f6feb; --accent-soft: #e8f0fe;
+  --r: 14px; --r-sm: 9px;
+  --sh-1: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.06);
+  --sh-2: 0 4px 12px rgba(16,24,40,.08), 0 2px 4px rgba(16,24,40,.04);
+  --ease: cubic-bezier(.2,.7,.3,1);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0d1117; --surface: #161b22; --fg: #e6edf3; --muted: #9198a1;
+          --line: #262c34; --line-strong: #343b45;
+          --accent: #5aa2ff; --accent-soft: #16233a;
+          --sh-1: 0 1px 2px rgba(0,0,0,.4);
+          --sh-2: 0 6px 20px rgba(0,0,0,.45); }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+       font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+       font-feature-settings: "palt" 1;
+       line-height: 1.7; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--accent-soft); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 6rem; }
+h1 { font-size: 1.45rem; margin: 0 0 .25rem; letter-spacing: -.01em; font-weight: 700; }
+.lede { margin: 0; color: var(--muted); }
+.tabs { display: inline-flex; gap: .2rem; margin: 1rem 0 0; padding: .22rem;
+         background: var(--line); border-radius: 999px; }
+.tabs button { background: none; border: none; border-radius: 999px;
+               color: var(--muted); cursor: pointer; font: inherit; font-size: .88rem;
+               font-weight: 600; padding: .34rem 1.05rem; transition: all .16s var(--ease); }
+.tabs button[aria-selected="true"] { color: var(--fg); background: var(--surface);
+                                     box-shadow: var(--sh-1); }
+.origin-bar { position: relative; margin: 1rem 0 .5rem; }
+.place-search input { width: 100%; padding: .68rem .9rem; font: inherit;
+                      border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+                      background: var(--surface); color: var(--fg);
+                      box-shadow: var(--sh-1); transition: box-shadow .16s var(--ease),
+                      border-color .16s var(--ease); }
+.place-search input:focus { outline: none; border-color: var(--accent);
+                            box-shadow: 0 0 0 3px var(--accent-soft); }
+.place-search input::placeholder { color: var(--muted); }
+#place-hits { position: absolute; z-index: 30; left: 0; right: 0; top: 3rem;
+              list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto;
+              background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+              box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+#place-hits li { padding: .55rem .8rem; cursor: pointer; border-bottom: 1px solid var(--line); }
+#place-hits li:hover, #place-hits li:focus { background: rgba(127,127,127,.1); outline: none; }
+#place-hits .kindmark { color: var(--muted); font-size: .78rem; margin-left: .4rem; }
+#place-hits .empty { padding: .6rem .8rem; color: var(--muted); }
+#place-hits li.label { padding: .3rem .8rem; font-size: .72rem; color: var(--muted);
+                        background: rgba(127,127,127,.06); cursor: default; }
+#place-hits li.label .grp-rows { list-style: none; margin: 0; padding: 0; }
+#place-hits li.stale { color: #c05621; }
+#nationwide { background: none; border: 1px solid var(--line); border-radius: 8px;
+              color: var(--accent); cursor: pointer; font: inherit; padding: .4rem .7rem; }
+.origin { margin: .5rem 0 0; color: var(--muted); font-size: .88rem; }
+.origin strong { color: var(--fg); }
+#origin-reset { background: none; border: 1px solid var(--line); border-radius: 999px;
+                color: var(--fg); cursor: pointer; font: inherit; font-size: .78rem;
+                padding: .05rem .6rem; margin-left: .5rem; }
+.filters { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.5rem 0; }
+.filters fieldset { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .9rem; margin: 0; }
+.filters legend { font-size: .8rem; color: var(--muted); padding: 0 .3rem; }
+.filters label { display: inline-flex; align-items: center; gap: .3rem; margin-right: .8rem; }
+.filters small { display: block; color: var(--muted); font-size: .78rem; }
+.board { display: grid; grid-template-columns: 1fr 260px; gap: 1.5rem; align-items: start;
+         position: relative; }
+#map { width: 100%; height: auto; }
+#map path { cursor: pointer; transition: opacity .15s; }
+#map path:hover, #map path:focus { opacity: .75; outline: none; stroke: var(--fg); stroke-width: 1.5; }
+/* 日本列島は右上から左下へ斜めに走るため左半分が大きく空く。凡例をそこへ置く。
+   左下は沖縄の島列が通るので、完全に空いている左上に寄せる。 */
+#legend { position: absolute; left: 0; top: 0; width: 46%; max-width: 260px;
+          font-size: .75rem; color: var(--muted); pointer-events: none; }
+#legend .ramp { display: flex; height: 10px; border-radius: 3px; overflow: hidden; margin: .2rem 0; }
+#legend .ramp i { flex: 1; }
+#legend .ends { display: flex; justify-content: space-between; }
+#ranking { padding-left: 1.4rem; margin: .4rem 0 0; }
+#ranking li { display: flex; justify-content: space-between; gap: .5rem; }
+#ranking button { background: none; border: none; color: var(--accent);
+                  cursor: pointer; padding: 0; font: inherit; text-align: left; }
+#ranking button:hover { text-decoration: underline; }
+aside h2 { font-size: 1rem; margin: 0; }
+aside .unit { font-size: .75rem; color: var(--muted); }
+footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: 1rem;
+         color: var(--muted); font-size: .8rem; }
+.error { color: #c53030; }
+img, svg, table { max-width: 100%; }
+
+#detail { position: relative; margin-top: 2rem; border-top: 1px solid var(--line);
+          padding-top: 1rem; }
+#detail h2 { margin: 0; font-size: 1.2rem; }
+#detail .stat { margin: .2rem 0; }
+#detail .counts { margin: 0 0 .6rem; color: var(--muted); font-size: .82rem; }
+#detail .close { position: absolute; right: 0; top: .8rem; background: none;
+                 border: 1px solid var(--line); border-radius: 6px; color: var(--fg);
+                 cursor: pointer; font-size: 1.1rem; line-height: 1; padding: .2rem .5rem; }
+#detail .items { list-style: none; padding: 0; margin: .6rem 0 0;
+                 max-height: 60vh; overflow-y: auto; }
+#detail .item { display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline;
+                padding: .35rem 0; border-bottom: 1px solid var(--line); }
+#detail .item .kind, #detail .item .score { color: var(--muted); font-size: .8rem; }
+#detail .item .chip { font-size: .72rem; border: 1px solid var(--line);
+                      border-radius: 999px; padding: 0 .5rem; color: var(--muted); }
+#detail .item .note { font-size: .8rem; }
+#detail .submit { font-size: .85rem; }
+#scatter { width: 100%; max-width: 420px; height: auto; display: block; }
+.pin { opacity: .85; }
+.pin.cat-bath { fill: #2b6cb0; } .pin.cat-eat { fill: #c05621; }
+.pin.cat-play { fill: #6b46c1; } .pin.cat-stay { fill: #2f855a; }
+.pin.conf-0 { fill-opacity: .35; } .pin.conf-1 { fill-opacity: .7; }
+.pin.conf-2 { stroke: #1a202c; stroke-width: .4; }
+
+/* カテゴリの色。湯・飲食・娯楽・滞在をひと目で見分けられるようにする。
+   色が一切ないと、37,189件が同じ見た目の行として流れてしまう。 */
+/* カードは「名前・徒歩・特徴」の三層。名前を主役にし、徒歩は数字として
+   独立した塊に、特徴は色で分類する。要素を均等に並べると設計に見えない。 */
+#now-card { margin:.8rem 0 0; border:1px solid var(--line); border-radius:var(--r);
+  background:var(--surface); box-shadow:var(--sh-1); padding:.9rem 1rem; cursor:pointer; }
+#now-card:hover, #now-card:focus-visible { box-shadow:var(--sh-2); }
+#now-card h3 { margin:0; font-size:.78rem; letter-spacing:.04em; color:var(--muted); font-weight:700; }
+#now-card .nm { display:block; margin:.25rem 0 .1rem; font-weight:700; font-size:1.18rem; line-height:1.32; }
+#now-card .meta { margin:0; font-size:.82rem; color:var(--muted); }
+#now-card .why { margin:.45rem 0 0; line-height:1.75; }
+#now-card .steps { margin:.4rem 0 0; padding-left:1.1rem; font-size:.85rem; line-height:1.7; color:var(--muted); }
+#now-card .caveat { margin:.45rem 0 0; font-size:.74rem; color:var(--muted); }
+#search-list { list-style:none; padding:0; margin:.7rem 0 0; display:grid; gap:.7rem; }
+#search-list .item { position:relative; border:1px solid var(--line); border-radius:var(--r);
+                     padding:.85rem .9rem .8rem 1.15rem; cursor:pointer;
+                     background:var(--surface); box-shadow:var(--sh-1);
+                     transition:box-shadow .18s var(--ease), transform .18s var(--ease),
+                     border-color .18s var(--ease); }
+.busybox { font-size:.8rem; margin-top:.8rem; border-top:1px solid var(--line); padding-top:.7rem; }
+.busybox h4 { font-size:.82rem; margin:.8rem 0 .3rem; }
+.busybox p { margin:.3rem 0; line-height:1.7; color:var(--muted); }
+.busybox .caveat { font-size:.75rem; }
+.busybox .busybar { display:flex; gap:1px; margin:.4rem 0 .2rem; height:18px; border-radius:4px; overflow:hidden; }
+.busybox .bh { flex:1; }
+.bh-q { background:#cfe6d6; } .bh-n { background:#e6dfcf; } .bh-b { background:#e0b7a8; }
+.busybox .busyaxis { display:flex; justify-content:space-between; font-size:.68rem; color:var(--muted); }
+.busy-legend { font-size:.72rem; color:var(--muted); margin:.35rem 0 0; }
+.busy-legend .bh { display:inline-block; width:.8rem; height:.8rem; border-radius:2px; vertical-align:-1px; margin:0 .15rem 0 .5rem; }
+.busy-hint { margin:.35rem 0 0; font-weight:600; }
+.busy-known { margin:.2rem 0; }
+#search-list .item::before { content:""; position:absolute; left:0; top:0; bottom:0;
+                             width:5px; border-radius:var(--r) 0 0 var(--r);
+                             background:linear-gradient(180deg, var(--cat), color-mix(in srgb, var(--cat) 55%, transparent)); }
+#search-list .item:hover, #search-list .item:focus-visible {
+  box-shadow:var(--sh-2); transform:translateY(-2px); border-color:var(--line-strong); }
+#search-list .item[data-cat="bath"] { --cat:#2f6f9f; }
+#search-list .item[data-cat="eat"]  { --cat:#c2622e; }
+#search-list .item[data-cat="play"] { --cat:#7a52b3; }
+#search-list .item[data-cat="stay"] { --cat:#2f8f68; }
+
+/* 名前を主役に。行間を詰め、字間をわずかに締めると締まって見える */
+#search-list .r1 { display:flex; align-items:flex-start; gap:.7rem; }
+#search-list .nm { font-weight:700; font-size:1.12rem; line-height:1.32;
+                   letter-spacing:-.01em; flex:1; min-width:0; }
+/* 徒歩は独立した塊にする。数字が一番大きい情報 */
+#search-list .walk { flex:none; text-align:center; line-height:1.05;
+                     padding:.1rem .15rem 0; min-width:3.1rem; }
+#search-list .walk b { display:block; font-size:1.6rem; font-weight:800;
+                       font-variant-numeric:tabular-nums; letter-spacing:-.03em; }
+#search-list .walk i { display:block; font-style:normal; font-size:.6rem;
+                       color:var(--muted); letter-spacing:.08em; margin-top:.1rem; }
+#search-list .walk i.cap { margin:0 0 -.1rem; }
+/* 業態はカテゴリ色の面で示す。文字色だけだと弱い */
+#search-list .r2 { margin-top:.4rem; font-size:.74rem; color:var(--muted);
+                   display:flex; align-items:center; gap:.45rem; flex-wrap:wrap; }
+#search-list .r2 .kindmark { background:color-mix(in srgb, var(--cat) 13%, transparent);
+                             color:color-mix(in srgb, var(--cat) 82%, var(--fg));
+                             font-weight:700; font-size:.7rem; padding:.1rem .5rem;
+                             border-radius:5px; letter-spacing:.02em; }
+#search-list .lead { font-size:.79rem; margin:.5rem 0 0; line-height:1.7; }
+
+#search-list .axes { list-style:none; padding:0; margin:.55rem 0 0; display:grid; gap:.2rem; }
+#search-list .axes li { display:grid; grid-template-columns:5.1em auto 1fr;
+                        align-items:center; gap:.55rem; font-size:.74rem; }
+#search-list .ax-k { color:var(--muted); letter-spacing:.02em; }
+/* 点の列より連続したバーのほうが量として読める。写真が無いぶん、
+   数値の見せ方の情報密度でそこを返す。 */
+#search-list .dots { display:flex; width:4.2rem; height:5px; border-radius:99px;
+                     overflow:hidden; background:color-mix(in srgb, var(--cat) 12%, transparent); }
+#search-list .dot { flex:1; }
+#search-list .dot.on { background:var(--cat); }
+#search-list .dot.on + .dot:not(.on) { box-shadow:-1px 0 0 var(--surface); }
+#search-list .ax-w { color:var(--fg); }
+#search-list .ax-w b { font-variant-numeric:tabular-nums; font-weight:800; margin-right:.35rem;
+                       color:color-mix(in srgb, var(--cat) 80%, var(--fg)); }
+
+#search-list .tips { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.55rem; }
+#search-list .tips span { font-size:.7rem; padding:.14rem .55rem; border-radius:6px;
+                          background:color-mix(in srgb, var(--cat) 9%, transparent);
+                          color:color-mix(in srgb, var(--cat) 80%, var(--fg)); }
+#search-list .badges { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.55rem;
+                       padding-top:.55rem; border-top:1px dashed var(--line); align-items:center; }
+#search-list .verified { font-size:.66rem; color:var(--muted); margin-left:auto; letter-spacing:.02em; }
+.viewbar { display:flex; gap:.5rem; margin:.6rem 0; flex-wrap:wrap; }
+.viewbar button { background:var(--surface); border:1px solid var(--line); border-radius:999px;
+                  color:var(--fg); cursor:pointer; font:inherit; font-size:.8rem; font-weight:600;
+                  padding:.3rem 1rem; box-shadow:var(--sh-1);
+                  transition:all .16s var(--ease); }
+.viewbar button:hover { border-color:var(--line-strong); }
+.viewbar button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent);
+                                       color:#fff; box-shadow:none; }
+#deck { min-height:60vh; }
+#deck .empty { color:var(--muted); padding:2rem 0; text-align:center; }
+#deck .card { position:relative; min-height:64vh; border-radius:14px; overflow:hidden;
+              background:#0e1a24; color:#fdfaf4; cursor:pointer;
+              display:flex; flex-direction:column; justify-content:space-between;
+              padding:1.4rem 1.3rem; }
+#deck .card svg.constellation { position:absolute; inset:0; width:100%; height:100%;
+                                opacity:.62; pointer-events:none; }
+#deck .card > * { position:relative; }
+#deck .eyebrow { font-size:.6rem; letter-spacing:.3em; color:#e0b978; }
+#deck .nm { font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+            font-size:2.1rem; line-height:1.15; font-weight:600; margin:.5rem 0 0; }
+#deck .meta { font-size:.7rem; color:#8fa3b2; margin-top:.5rem; }
+#deck .lead { font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+              font-size:.85rem; line-height:2; color:#cfd9e0; margin:0 0 1rem; }
+#deck .walk { font-weight:800; font-size:2.4rem; line-height:1; }
+#deck .walk small { font-size:.9rem; font-weight:600; }
+#deck .sub { font-size:.66rem; color:#7f95a5; margin-top:.2rem; }
+#deck .chips { display:flex; gap:.35rem; flex-wrap:wrap; justify-content:flex-end; }
+#deck .chips span { border:1px solid #3c5468; color:#b9cad6; font-size:.66rem;
+                    padding:.1rem .6rem; border-radius:999px; }
+#deck .chips .hot { border-color:#d29922; color:#f0c98a; }
+#deck .foot { display:flex; align-items:flex-end; gap:1rem;
+              border-top:1px solid #24394a; padding-top:.8rem; }
+#deck .chips .fav { background:none; border:1px solid #3c5468; border-radius:999px;
+                    color:#f0c98a; cursor:pointer; font:inherit; font-size:.72rem;
+                    padding:.1rem .55rem; }
+#deck .chips .fav[aria-pressed="true"] { border-color:#d29922; }
+.deck-nav { display:flex; align-items:center; justify-content:center; gap:1rem;
+            margin:.6rem 0 0; color:var(--muted); font-size:.82rem; }
+/* I6: 作者スタイルの display:flex が UA の [hidden]{display:none} に勝ってしまい、
+   .deck-nav だけ hidden 属性が効かない状態になっていた。 */
+.deck-nav[hidden] { display:none; }
+.deck-nav button { background:none; border:1px solid var(--line); border-radius:50%;
+                   color:var(--fg); cursor:pointer; width:2.2rem; height:2.2rem; font-size:1rem; }
+.badge-ax { font-size: .72rem; border: 1px solid var(--line); border-radius: 999px;
+            padding: 0 .5rem; color: var(--muted); }
+.badge-gem { border-color: #c05621; color: #c05621; }
+.badge-open { border-color: #2f855a; color: #2f855a; }
+.badge-shut { border-color: var(--line); }
+.badge-iso { border-color: #2b6cb0; color: #2b6cb0; }
+.more-filters { margin: .6rem 0; font-size: .85rem; color: var(--muted); }
+.placeholder { color: var(--muted); }
+#fav-toggle { background: none; border: 1px solid var(--line); border-radius: 999px;
+              color: var(--fg); cursor: pointer; font: inherit; font-size: .82rem;
+              padding: .15rem .8rem; }
+#fav-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.fav { background: none; border: none; cursor: pointer; font-size: 1rem;
+       color: var(--muted); padding: 0 .2rem; line-height: 1; }
+.fav[aria-pressed="true"] { color: #c05621; }
+
+#facility-map { width: 100%; height: 220px; border-radius: 8px; overflow: hidden;
+                margin: .8rem 0; background: #eef2f6; }
+#facility-map .maplibregl-ctrl-attrib { font-size: 10px; }
+.map-credit { font-size: .75rem; color: var(--muted); margin: -.4rem 0 .4rem; }
+#facility { position: fixed; inset: auto 0 0 0; max-height: 84vh; overflow-y: auto;
+            background: var(--surface); border-top: 1px solid var(--line);
+            border-radius: 18px 18px 0 0; padding: 1.3rem 1.1rem 2.2rem;
+            box-shadow: 0 -8px 40px rgba(16,24,40,.18); z-index: 40;
+            animation: sheet-up .22s var(--ease); }
+@keyframes sheet-up { from { transform: translateY(14px); opacity: .6 } to { transform: none; opacity: 1 } }
+#facility::before { content: ""; display: block; width: 34px; height: 4px; border-radius: 99px;
+                    background: var(--line-strong); margin: -.5rem auto .9rem; }
+#facility h3 { margin: 0 .5rem 0 0; font-size: 1.2rem; }
+#facility .close { position: absolute; right: 1rem; top: 1.1rem; background: var(--bg);
+                   border: 1px solid var(--line); border-radius: 999px; color: var(--muted);
+                   width: 30px; height: 30px;
+                   cursor: pointer; font-size: 1.1rem; line-height: 1; padding: .2rem .5rem; }
+#facility dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .9rem; margin: .8rem 0; }
+#facility dt { color: var(--muted); font-size: .85rem; }
+#facility dd { margin: 0; }
+#facility .gem-reason { color: #c05621; font-size: .85rem; }
+#facility .stale { color: #c05621; font-size: .85rem; margin: .3rem 0; }
+.curated { border-top:1px solid var(--line); margin-top:.8rem; padding-top:.7rem; font-size:.82rem; }
+.curated h4 { margin:0 0 .4rem; font-size:.85rem; }
+.curated ul { list-style:none; padding:0; margin:0; display:grid; gap:.25rem; }
+.curated li.conflict { opacity:.7; }
+.curated .sup { color:var(--muted); font-size:.75rem; margin-left:.4rem; }
+.curated .srcs a { margin-left:.25rem; }
+.curated .visit-note { display:inline-block; margin-left:.35rem; color:#8a5a1a; font-size:.72rem; }
+.curated .conflict-note { color:var(--muted); margin:.5rem 0 0; }
+.curated.unchecked { color:var(--muted); }
+#facility .to-maps { display: inline-block; margin-top: .8rem; }
+@media (min-width: 721px) {
+  #facility { inset: auto auto 1.5rem 50%; transform: translateX(-50%);
+              width: min(560px, 92vw); border-radius: 12px; border: 1px solid var(--line); }
+}
+
+@media (max-width: 720px) {
+  .board { grid-template-columns: 1fr; }
+  #legend { position: static; width: auto; max-width: none; }
+  #detail { position: fixed; inset: auto 0 0 0; max-height: 72vh; overflow-y: auto;
+            background: var(--bg); border-top: 2px solid var(--line);
+            border-radius: 12px 12px 0 0; padding: 1rem; margin-top: 0;
+            box-shadow: 0 -4px 16px rgba(0,0,0,.15); z-index: 20; }
+  #detail .items { max-height: none; overflow-y: visible; }
+}
+
+/* 「探す」は道具なので、そこではページ見出しを畳む。見出しと説明文だけで
+   画面の3割を使うと、見比べたい施設が画面の外へ押し出される。 */
+body.deck-mode header { margin-bottom:.2rem; }
+body.deck-mode header h1 { font-size:1.05rem; margin:0; }
+body.deck-mode header .lede { display:none; }
+body.deck-mode .tabs { margin:.3rem 0; }
+body.deck-mode .origin-bar { margin-bottom:.2rem; }
+.viewbar { margin:.4rem 0 .5rem; }
+#deck .card { min-height:min(66vh, 560px); }
+
+/* 根拠は常時開かない。読みたい人だけが開ける形にする。 */
+.basis { font-size:.8rem; margin-top:.8rem; border-top:1px solid var(--line); padding-top:.7rem; }
+.basis summary { cursor:pointer; color:var(--accent); font-weight:600; }
+.basis h4 { font-size:.82rem; margin:.8rem 0 .3rem; }
+.basis p { margin:.3rem 0; line-height:1.7; color:var(--muted); }
+.basis .caveat { font-size:.75rem; }
+.basis-src { list-style:none; padding:0; margin:.4rem 0 0; display:grid; gap:.2rem; }
+.basis-src li { font-size:.76rem; }
+.basis-src a { margin-left:.3rem; }
+
+/* よく使う絞り込みは、シートを開かせずすぐ押せる位置に置く。
+   横スクロールで並べ、画面の縦を食わない。 */
+.quickbar { display:flex; gap:.35rem; overflow-x:auto; padding:.1rem 0 .35rem;
+            margin:0 0 .2rem; scrollbar-width:none; }
+.quickbar::-webkit-scrollbar { display:none; }
+.quickbar button { flex:none; background:var(--surface); border:1px solid var(--line);
+                   border-radius:999px; color:var(--muted); cursor:pointer; font:inherit;
+                   font-size:.75rem; padding:.24rem .8rem; white-space:nowrap;
+                   transition:all .16s var(--ease); }
+.quickbar button:hover { border-color:var(--line-strong); color:var(--fg); }
+.quickbar button[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--accent);
+                                        color:var(--accent); font-weight:700; }
+
+/* 一人で入るときの流れ。番号付きにして順序を伝える */
+.flowbox { margin-top:.9rem; padding:.8rem .9rem; border-radius:var(--r-sm);
+           background:var(--bg); border:1px solid var(--line); }
+.flowbox h4 { margin:0 0 .4rem; font-size:.82rem; }
+.flowbox h4 + * { margin-top:0; }
+.flowbox h4 ~ h4 { margin-top:.9rem; }
+ol.flow { margin:0; padding-left:1.3rem; font-size:.82rem; line-height:1.9; }
+ol.flow li::marker { color:var(--accent); font-weight:700; }
+.guide { margin:0; font-size:.8rem; line-height:1.85; color:var(--fg); }
+.guide-note { margin:.35rem 0 0; font-size:.72rem; color:var(--muted); }
+
+/* 作り方は畳んでおく。読みたい人だけが開けばよい。 */
+.method { margin:.5rem 0 0; font-size:.8rem; }
+.method summary { cursor:pointer; color:var(--accent); font-weight:600; }
+.method p { margin:.5rem 0; line-height:1.85; color:var(--muted); max-width:44em; }
+.method strong { color:var(--fg); }
+body.deck-mode .method { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>ひとり歓迎マップ</h1>
+    <p class="lede">ひとりで行ける店ではなく、ひとりが標準の店だけを集めた日本地図。</p>
+    <details class="method">
+      <summary>このサイトの作り方</summary>
+      <p><strong>口コミを集めていません。</strong>点数も付けていません。
+      自治体の公式ページ、観光協会、地域の新聞、個人のブログなどに当たり、
+      料金・支払い方法・タオルの要否のような
+      <strong>確かめれば答えが決まることだけ</strong>を、出典URLとともに載せています。</p>
+      <p>ひとつの事実に<strong>いくつの情報源が言っているかも一緒に出します</strong>。
+      1件しか見つからなかったものは「1件」と書きます。情報が食い違うときは
+      どちらかを選ばず、両方を出して分かれていることを伝えます。
+      施設を一覧から外したり、ひとり度などの指標を動かしたりするのは、
+      <strong>独立した情報源</strong>が2件以上そろって一致したときだけにしています。</p>
+      <p>投稿機能はありません。作れないのではなく、持たないことを選んでいます。
+      投稿を受け付けないので、点数の操作も、宣伝目的の書き込みも起きません。
+      そのぶん件数は増えませんが、載っている事実には必ず出典が付きます。</p>
+      <p><strong>行けないと分かった施設は一覧から外しています。</strong>
+      閉業、地元住民専用、会員専用、一人では利用できない、と独立した2件以上で
+      裏付けが取れたものです。いま <span id="excluded-count">—</span> 件を外してあります。
+      外した理由は施設ごとに記録してあり、裏付けが1件しかないものは外さずに
+      「要確認」と出します。</p>
+      <p id="chain-audit-summary">チェーン判定の監査状況を読み込んでいます。</p>
+      <p>広告もアフィリエイトもありません。どの施設を上に出しても、こちらに得はありません。</p>
+    </details>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button type="button" id="tab-search" role="tab" aria-selected="true">探す</button>
+    <button type="button" id="tab-nation" role="tab" aria-selected="false">全国で見る</button>
+  </nav>
+
+  <section id="panel-search" role="tabpanel">
+    <div class="origin-bar">
+      <label class="place-search">
+        <input type="search" id="place-q" placeholder="駅名・地名で探す（例: 渋谷、梅田）"
+               autocomplete="off" spellcheck="false">
+      </label>
+      <ul id="place-hits" hidden></ul>
+      <p class="origin"><strong id="origin-label">現在地</strong> から近い順
+        <button type="button" id="origin-reset" hidden>現在地に戻す</button></p>
+    </div>
+    <div class="viewbar">
+      <button type="button" id="view-list" aria-pressed="true">一覧</button>
+      <button type="button" id="view-deck" aria-pressed="false">1軒ずつ</button>
+      <button type="button" id="open-filters" aria-expanded="false" aria-controls="filter-sheet">絞り込み</button>
+      <button type="button" id="fav-toggle" aria-label="保存した場所" hidden>★ <span id="fav-count">0</span></button>
+    </div>
+    <div class="quickbar" role="group" aria-label="よく使う絞り込み">
+      <button type="button" data-q="nochain" aria-pressed="false">チェーンを隠す</button>
+      <button type="button" data-q="chainonly" aria-pressed="false">チェーンだけ</button>
+      <button type="button" data-q="gemonly" aria-pressed="false">穴場候補</button>
+      <button type="button" data-q="verified" aria-pressed="false">確認済み</button>
+      <button type="button" data-q="ticket" aria-pressed="false">券売機</button>
+      <button type="button" data-q="unstaffed" aria-pressed="false">無人</button>
+      <button type="button" data-q="towel" aria-pressed="false">タオル貸出</button>
+      <button type="button" data-q="solo" aria-pressed="false">一人客が多い</button>
+    </div>
+    <div id="filter-sheet" hidden>
+    <div class="filters">
+      <fieldset><legend>カテゴリ</legend>
+        <label><input type="checkbox" id="s-cat-bath" checked> 湯・サウナ</label>
+        <label><input type="checkbox" id="s-cat-eat"  checked> カウンター飲食</label>
+        <label><input type="checkbox" id="s-cat-play" checked> ひとり娯楽</label>
+        <label><input type="checkbox" id="s-cat-stay" checked> ひとり滞在</label>
+      </fieldset>
+      <fieldset><legend>業態</legend>
+        <select id="f-kind">
+          <option value="">すべての業態</option>
+        </select>
+        <small>この地点の結果にある業態だけを出します</small>
+      </fieldset>
+      <fieldset><legend>距離</legend>
+        <select id="f-dist">
+          <option value="400">徒歩5分（直線400m）</option>
+          <option value="800" selected>徒歩10分（直線800m）</option>
+          <option value="1600">徒歩20分（直線1.6km）</option>
+          <option value="4000">直線4km</option>
+          <option value="">指定なし</option>
+        </select>
+      </fieldset>
+      <fieldset><legend>ひとり条件</legend>
+        <label><input type="checkbox" id="f-solo"> 一人が標準のみ</label>
+        <label><input type="checkbox" id="f-quiet"> 静かなところ</label>
+        <label><input type="checkbox" id="f-easy"> 作法不要</label>
+      </fieldset>
+      <fieldset><legend>並べ替え</legend>
+        <select id="f-sort">
+          <option value="dist" selected>近い順</option>
+          <option value="fit">いま行って浮かない順</option>
+          <option value="solo">ひとり度が高い順</option>
+          <option value="find">発見が多い順</option>
+          <option value="quiet">静かな順</option>
+          <option value="open">営業中を優先</option>
+        </select>
+      </fieldset>
+    </div>
+    <details class="more-filters">
+      <summary>その他の条件</summary>
+      <label><input type="checkbox" id="f-hours"> 営業時間が分かる店だけ</label>
+      <small id="hours-note"></small>
+      <label><input type="checkbox" id="f-verified"> 出典で確認済みの店だけ</label>
+      <small>現状ほぼすべてが業態からの推定です</small>
+    </details>
+    </div>
+    <section id="deck" aria-live="polite"></section>
+    <div class="deck-nav">
+      <button type="button" id="deck-prev" aria-label="前の施設">↑</button>
+      <span id="deck-pos"></span>
+      <button type="button" id="deck-next" aria-label="次の施設">↓</button>
+    </div>
+    <p id="search-status" class="counts"></p>
+    <section id="now-card" hidden aria-labelledby="now-card-h"></section>
+    <ol id="search-list" class="items"></ol>
+  </section>
+
+  <section id="panel-nation" role="tabpanel" hidden>
+  <div class="filters">
+    <fieldset><legend>カテゴリ</legend>
+      <label><input type="checkbox" id="f-cat-bath" checked> 湯・サウナ</label>
+      <label><input type="checkbox" id="f-cat-eat"  checked> カウンター飲食</label>
+      <label><input type="checkbox" id="f-cat-play" checked> ひとり娯楽</label>
+      <label><input type="checkbox" id="f-cat-stay" checked> ひとり滞在</label>
+    </fieldset>
+    <fieldset><legend>チェーン</legend>
+      <label><input type="checkbox" id="f-nochain"> チェーンを隠す</label>
+      <small>判明しているチェーンのみ。地域チェーンは残る場合があります</small>
+    </fieldset>
+    <fieldset><legend>信頼度</legend>
+      <label><input type="radio" name="conf" value="0" checked> すべて</label>
+      <label><input type="radio" name="conf" value="1"> ◍出典あり以上</label>
+      <label><input type="radio" name="conf" value="2"> ◉現地確認のみ</label>
+      <small>県を開いたときの一覧に適用されます。地図の塗りは全件で計算しています</small>
+    </fieldset>
+    <fieldset><legend>県を開く</legend>
+      <label>
+        <select id="pref-select"><option value="">選択してください</option></select>
+      </label>
+      <small>東京・大阪など小さい県は地図上でタップしづらいため</small>
+    </fieldset>
+  </div>
+
+  <div class="board">
+    <svg id="map" role="img" aria-label="都道府県別ひとり歓迎度マップ"></svg>
+    <div id="legend">
+      <div>ひとり度（10万人あたりの件数）</div>
+      <div class="ramp"></div>
+      <div class="ends"><span id="legend-min"></span><span id="legend-max"></span></div>
+    </div>
+    <aside>
+      <h2>ひとり度ランキング</h2>
+      <div class="unit">件 / 10万人</div>
+      <ol id="ranking"></ol>
+    </aside>
+  </div>
+
+  <section id="detail" hidden></section>
+  </section>
+
+  <footer>
+    <p class="disclaimer">3軸（ひとり度・静けさ・入りやすさ）は OpenStreetMap のタグと業態から機械的に推定したものです。
+    実際の座席形態や黙浴の有無を保証するものではありません。
+    うち <strong id="checked-count">0</strong> 件は複数の情報源で事実を確認し、その結果を反映しています。
+    確認済みの施設には出典を付けてあり、詳細画面の「この情報の根拠」から辿れます。</p>
+    <p class="credits">地図データ: 地球地図日本（国土地理院） / 地図タイル: 地理院タイル（国土地理院） / 施設データ: © OpenStreetMap contributors (ODbL) / 人口: Wikidata (CC0) / 令和2年国勢調査</p>
+  </footer>
+
+  <section id="facility" hidden aria-live="polite" tabindex="-1"></section>
+</main>
+
+<script>
+// file:// で開くと、type="module" 内の `import ... from './assets/hitori/core.js'`
+// が CORS でブロックされ、module スクリプトは丸ごと実行されない
+// （init() の catch にも届かない）。この classic script は import を持たないので
+// file:// でも実行できる。module が動かない場合の案内をここで先に出しておく。
+if (location.protocol === 'file:') {
+  document.getElementById('map').outerHTML = `<div class="error">
+    このページはファイルとして直接開くと動きません。ブラウザが
+    <code>file://</code> からのデータ読み込みをブロックするためです。<br>
+    公開版は <a href="https://yuichi916.github.io/hitori.html">yuichi916.github.io/hitori.html</a> で見られます。<br>
+    手元で確認する場合は、このフォルダで
+    <code>python -m http.server 8000</code> を実行し
+    <code>http://localhost:8000/hitori.html</code> を開いてください。</div>`;
+  document.getElementById('panel-search').hidden = true;
+  document.getElementById('panel-nation').hidden = false;
+  document.getElementById('tab-search').setAttribute('aria-selected', 'false');
+  document.getElementById('tab-nation').setAttribute('aria-selected', 'true');
+  window.__ready = true;
+  window.__searchReady = true;
+}
+</script>
+<script type="module">
+import * as core from './assets/hitori/core.js';
+const CATS = ['bath', 'eat', 'play', 'stay'];
+const CAT_JA = { bath: '湯・サウナ', eat: 'カウンター飲食', play: 'ひとり娯楽', stay: 'ひとり滞在' };
+const state = {
+  tab: 'search', pref: null,
+  cats: new Set(CATS), nochain: false, minConf: 0,   // 全国タブ用
+  here: null,
+  // 検索の起点。GPSの現在地とは別に持つ。地図の現在地ピンには here を使う。
+  origin: { kind: 'here', lat: null, lon: null, label: '現在地' },
+  search: { cats: new Set(CATS), maxDistM: 800, minSolo: 0, minQuiet: 0, minEasy: 0,
+            minConf: 0, requireHours: false },
+  view: 'list', deckIndex: 0, quick: new Set(),
+  _deckId: null,   // 直近にデッキへ表示した施設のID。refreshResults() が位置を保つのに使う (I9)
+};
+state.sort = 'dist';
+state.favs = core.loadFavs(safeStorage());   // null なら保存領域が使えない
+state.favView = false;
+
+// プライベートブラウジング等では localStorage への参照自体が例外を投げる。
+function safeStorage() {
+  try {
+    return window.localStorage;
+  } catch (e) {
+    return { getItem() { throw e; }, setItem() { throw e; } };
+  }
+}
+
+const FAVS_OK = () => state.favs !== null;
+let NEIGHBORS = null;
+let searchStarted = false;   // locateAndSearch() を探すタブへの初回到達時に一度だけ走らせるための番人
+let SUMMARY = null, GEO = null;
+const BY_CODE = {};
+
+// 単一色相のシーケンシャルスケール。5分位ビン。
+const RAMP = ['#e7edf3', '#c3d4e6', '#8fb3d4', '#5688bd', '#2b5f96'];
+const NODATA = '#f1f5f9';
+
+function getDensity(p, nochain) {
+  const useIndie = nochain === undefined ? state.nochain : nochain;
+  const src = useIndie ? p.density_indie : p.density;
+  // 選択カテゴリの密度を合算する。all をそのまま使わないのは部分選択に対応するため。
+  let sum = 0;
+  for (const c of state.cats) sum += src[c] || 0;
+  return sum;
+}
+
+function quantileBins(values) {
+  const sorted = values.filter(v => v > 0).sort((a, b) => a - b);
+  if (!sorted.length) return [0, 0, 0, 0];
+  return [0.2, 0.4, 0.6, 0.8].map(q => sorted[Math.floor(q * (sorted.length - 1))]);
+}
+
+function binIndex(v, bins) {
+  let i = 0;
+  while (i < bins.length && v > bins[i]) i++;
+  return i;
+}
+
+function renderMap() {
+  // 色スケールは「チェーン込み」の分布で固定する。表示中の値で毎回引き直すと、
+  // チェーンを隠しても順位が変わらず同じ色になり、「隠すと薄くなる」という
+  // この機能の肝が見えなくなる。カテゴリを変えたときだけスケールを引き直す。
+  const bins = quantileBins(SUMMARY.prefectures.map(p => getDensity(p, false)));
+  const vals = SUMMARY.prefectures.map(p => getDensity(p));
+  for (const p of SUMMARY.prefectures) {
+    const el = document.querySelector(`#map path[data-code='${p.code}']`);
+    if (!el) continue;
+    const v = getDensity(p);
+    el.setAttribute('fill', v > 0 ? RAMP[binIndex(v, bins)] : NODATA);
+    el.setAttribute('aria-label', `${p.name} ${v.toFixed(1)}件/10万人`);
+    el.querySelector('title').textContent = `${p.name}　${v.toFixed(1)} 件/10万人`;
+  }
+  const pos = vals.filter(v => v > 0);
+  document.getElementById('legend-min').textContent = pos.length ? Math.min(...pos).toFixed(1) : '0';
+  document.getElementById('legend-max').textContent = pos.length ? Math.max(...pos).toFixed(1) : '0';
+}
+
+function renderRanking() {
+  const rows = SUMMARY.prefectures.map(p => ({ p, v: getDensity(p) }))
+    .sort((a, b) => b.v - a.v).slice(0, 10);
+  document.getElementById('ranking').innerHTML = rows.map(({ p, v }) =>
+    `<li><button type="button" data-code="${p.code}">${p.name}</button>
+     <span>${v.toFixed(1)}</span></li>`).join('');
+}
+
+function switchTab(name) {
+  state.tab = name === 'nation' ? 'nation' : 'search';
+  for (const t of ['search', 'nation']) {
+    const on = state.tab === t;
+    document.getElementById('tab-' + t).setAttribute('aria-selected', String(on));
+    document.getElementById('panel-' + t).hidden = !on;
+  }
+  // 初期表示が「全国で見る」のとき（共有URLなど）は探すタブに一度も
+  // 入らないままなので locateAndSearch() が走らず #search-list が空のまま
+  // 固まる。探すタブに初めて入った瞬間に一度だけ起動する。
+  // 「全国で見る」ではページ見出しを畳まない（デッキが無いので圧縮の理由がない）
+  document.body.classList.toggle('deck-mode', state.tab === 'search');
+  if (state.tab === 'search') ensureSearchStarted();
+  syncUrl();
+}
+
+function syncUrl() {
+  const parts = [];
+  if (state.tab === 'nation') parts.push('tab=nation');
+  if (state.pref) parts.push(`pref=${state.pref}`);
+  if (state.cats.size !== CATS.length) parts.push(`cat=${[...state.cats].join('.')}`);
+  if (state.nochain) parts.push('nochain=1');
+  if (state.minConf) parts.push(`conf=${state.minConf}`);
+  history.replaceState(null, '', parts.length ? '#' + parts.join('&') : location.pathname);
+}
+
+function restoreFromUrl() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  state.tab = h.get('tab') === 'nation' ? 'nation' : 'search';
+  // cat が無いときは必ず全カテゴリへ戻す。URLに書かれていない項目を前の状態の
+  // まま残すと、hashchange 経由の遷移で直前の絞り込みが漏れて残る。
+  if (h.has('cat')) {
+    state.cats = new Set(h.get('cat').split('.').filter(c => CATS.includes(c)));
+    if (!state.cats.size) state.cats = new Set(CATS);
+  } else {
+    state.cats = new Set(CATS);
+  }
+  state.nochain = h.get('nochain') === '1';
+  state.minConf = parseInt(h.get('conf') || '0', 10) || 0;
+  state.pref = h.has('pref') ? parseInt(h.get('pref'), 10) : null;
+  for (const c of CATS) document.getElementById('f-cat-' + c).checked = state.cats.has(c);
+  document.getElementById('f-nochain').checked = state.nochain;
+  document.querySelector(`input[name=conf][value='${state.minConf}']`).checked = true;
+}
+
+function applyFilters() {
+  renderMap();
+  renderRanking();
+  syncUrl();
+  if (state.pref && PREF_CACHE[state.pref]) renderDetail(state.pref, PREF_CACHE[state.pref]);
+}
+
+// ---- 県詳細 ----
+
+const PREF_CACHE = {};
+const CONF_MARK = ['◌', '◍', '◉'];
+const CONF_LABEL = ['推定', '出典あり', '現地確認'];
+// 東京都は6,000件近くある。全部DOMに出すと描画が破綻するので打ち切る。
+// 打ち切ったことは画面に必ず出す（黙って隠すと「これで全部」と読めてしまう）。
+const LIST_LIMIT = 300;
+let listLimit = LIST_LIMIT;   // 「もっと見る」で増える。県を開くたびに戻す。
+const PIN_LIMIT = 1500;
+// 業態ごとの「初めての一人利用」ガイド。個別施設の体験談は持てないが、
+// 業態単位の作法なら一度書けば全施設に使える。サウナイキタイのサ活が
+// 担う予行演習の役割を、一般化した作法として代替する。
+// 特定の施設について断定しないこと。あくまで業態一般の話として書く。
+const KIND_GUIDE = {
+  sento: '下足箱に靴を入れ、番台か券売機で料金を払う。脱衣所のかごか'
+       + 'ロッカーに服を入れ、浴室に入ったらまずかけ湯をしてから湯船へ。'
+       + '湯船で体や頭を洗わない。上がるときは体を拭いてから脱衣所へ戻る。',
+  footbath: '服は脱がない。靴と靴下を脱いで座り、足だけ湯に入れる。'
+          + 'タオルは自分で用意する（拭くものが無いことが多い）。'
+          + '無料で出入り自由の場所が多く、番台も受付も無い。',
+  onsen: '下足箱に靴を入れ、受付で料金を払う。脱衣所で服を脱ぎ、浴室では'
+       + 'まずかけ湯。湯船にタオルを浸けない。上がるときは体を拭いてから戻る。',
+  sauna: '浴室で体を洗ってからサウナへ。マットかタオルを敷いて座る。'
+       + '水風呂の前にはかけ湯で汗を流す。',
+  ramen: '券売機があれば先に食券を買う。無ければ席に着いてから注文する。'
+       + 'カウンターは詰めて座り、食べ終えたら長居しない。',
+  soba_udon: '立ち食いなら券売機で買って番号を待つ。座席の店は着席してから注文。',
+  gyudon: '券売機か、席のタッチパネルか、店員への口頭。店により違う。',
+  curry: '券売機の店が多い。辛さやライス量を先に決めておくと迷わない。',
+  standing: '先に現金で払う店（キャッシュオン）が多い。混んだら詰めて立つ。',
+  yakiniku_solo: '一人用の席と焼き台がある。注文はタッチパネルの店が多い。',
+  netcafe: '受付で会員登録（初回は身分証が要ることが多い）。席種を選んで入室、'
+         + '退室時に精算する。',
+  karaoke: '受付で人数と時間を伝える。一人利用可の店なら「ひとりカラオケ」と'
+         + '伝えると早い。飲み物は自分で取りに行く店もある。',
+  cinema: '窓口か券売機か事前予約で座席を指定する。上映中は静かにする。',
+  library: '基本は無料で予約も要らない。飲食と通話は所定の場所だけ。',
+  museum: '受付で入館料を払う。大きな荷物はロッカーに預ける。',
+  hostel: '受付でチェックイン（身分証が要る）。共用部と個室の区別を確認する。',
+  capsule: '受付でチェックイン。靴とスーツケースは所定の場所へ。'
+         + '館内着に着替える形式が多い。',
+};
+
+// 研究(§2a)が一蘭の例で言うのは、一人客の最大の障壁は味でも値段でもなく
+// 「他人の視線」だということ。一蘭は仕切りを作ってその発生源を物理的に
+// 消した。こちらは施設を作れないので、代わりに「行ったら周りからどう
+// 見えるか」を先に見せる。見られ方が分かっていれば、想像の中で膨らむ
+// 分の不安は減る。
+//
+// 作法（KIND_GUIDE）とは別の問いに答える。作法は「自分は何をするのか」、
+// こちらは「周りから自分がどう見えるのか」。混ぜない。
+// 特定の施設について断定しない。業態一般の話として書く。
+const KIND_GAZE = {
+  sento: '脱衣所と浴室は他の客と同じ空間。ただし裸なのは全員で、'
+       + '一人で来ている人も多い。誰かに話しかけられることはまず無い。',
+  onsen: '観光地なら家族連れやグループが多い。一人客も普通にいる。'
+       + '湯船では皆それぞれ黙って浸かっている。',
+  sauna: '一人で来る人が最も多い場所のひとつ。座って黙っているのが普通で、'
+       + '会話をしているほうが目立つ。',
+  footbath: '通りがかりの人が横に座る。数分で去る人がほとんどで、'
+          + '誰が誰と来ているかを気にする人はいない。',
+  ramen: 'カウンターに横並び。隣と目が合う向きに座らない。'
+       + '食べ終えたら出るのが普通で、長居しないことを見咎められない。',
+  soba_udon: '立ち食いなら全員が前を向いて数分で去る。座席の店でも'
+           + '一人客が多数で、注文から退店までを見られている感覚は薄い。',
+  gyudon: '一人客が前提の業態。カウンターに一人で座っていることが'
+        + '目立たない数少ない飲食店。',
+  curry: 'カウンター中心で一人客が多い。辛さや量を伝えるやり取りが'
+       + '一往復あるが、それ以外は放っておかれる。',
+  standing: '客同士の距離は近いが、皆が立って飲み食いしているので'
+          + '一人でいることは目立たない。常連同士の会話に入る必要はない。',
+  yakiniku_solo: '一人用の席と焼き台が用意されている。一人で焼いている'
+               + 'ことが前提の設計なので、周りも同じ状況にある。',
+  netcafe: '個室か仕切りの中に入るので、入室後は誰からも見えない。'
+         + '受付でのやり取りだけが人と会う場面。',
+  karaoke: '部屋に入れば密室。受付で「一人です」と言う一瞬だけが'
+         + '人目に触れる場面で、一人利用を受け付けている店なら驚かれない。',
+  cinema: '上映中は暗く、誰も他人を見ていない。一人で来ている人は'
+        + '平日ほど多い。',
+  library: '一人でいることが標準。むしろ複数で来て話すほうが目立つ。',
+  museum: '各自が自分の速さで見て回る。一人客は珍しくなく、'
+        + '立ち止まる時間を誰にも合わせなくてよい。',
+  hostel: '共用部があるので他の客と顔は合う。一人旅の客が多く、'
+        + '話しかけられても断って構わない雰囲気の宿が多い。',
+  capsule: '各自が自分の寝床に入る。館内では誰もが一人で行動しており、'
+         + '連れがいないことが前提になっている。',
+};
+
+const KIND_JA = {
+  standing: '立ち食い・立ち飲み', yakiniku_solo: 'ひとり焼肉', ramen: 'ラーメン',
+  soba_udon: 'そば・うどん', gyudon: '牛丼・丼', curry: 'カレー',
+  sauna: 'サウナ', onsen: '日帰り温泉', sento: '銭湯', footbath: '足湯・手湯',
+  netcafe: 'ネットカフェ', karaoke: 'カラオケ', cinema: '映画館',
+  library: '図書館', hostel: 'ゲストハウス', museum: '美術館・博物館',
+  capsule: 'カプセルホテル',
+};
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function loadPrefecture(code) {
+  if (PREF_CACHE[code]) return PREF_CACHE[code];
+  const res = await fetch(`data/hitori/pref/${String(code).padStart(2, '0')}.json`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const doc = await res.json();
+  PREF_CACHE[code] = doc;
+  return doc;
+}
+
+function visibleItems(doc, code) {
+  // code（都道府県コード）は mapsUrl() の prefCode フォールバック用。city が
+  // 空の施設でも県名検索まではできるようにするため、ここで全件に付与する。
+  return doc.items
+    .map(row => Object.fromEntries(doc.fields.map((f, i) => [f, row[i]])))
+    .filter(it => state.cats.has(it.cat))
+    .filter(it => !(state.nochain && it.chain === 1))
+    .filter(it => it.conf >= state.minConf)
+    .map(it => ({ ...it, prefCode: code }));
+}
+
+// ---- 探すタブ（現在地から近い順） ----
+
+// 0.6は想定分布からの初期値で、chains.py導入後の実測では穴場が1.2%しか
+// 出ず機能として使い物にならなかった。0.4はhidden.HIDDEN_THRESHOLDと同じ値。
+// ここが揺れると2つの穴場定義が同時に存在してしまうため、
+// tests/hitori_hidden_test.py で hidden.py の値との一致を検証している。
+const GEM_MIN_HIDDEN = 0.4;
+const GEM_MIN_N = 3;
+
+function isGem(it) {
+  return it.chain === 0 && it.hidden_n >= GEM_MIN_N && it.hidden >= GEM_MIN_HIDDEN;
+}
+
+function collectItems(codes) {
+  const out = [];
+  for (const c of codes) {
+    const doc = PREF_CACHE[c];
+    if (doc) for (const o of core.rowsToObjects(doc)) out.push({ ...o, prefCode: c });
+  }
+  return out;
+}
+
+// よく使う絞り込み。集めた事実を検索条件として使えるようにする。
+// 事実が無い施設は「該当しない」ではなく「分からない」ので、条件を
+// 外せば必ず戻る（居ないことにしない）。
+const QUICK = {
+  // 「個人店だけ」とは書かない。chain=0 は多県展開のチェーンとして検出され
+  // なかっただけで、独立店であることの証明ではない。
+  nochain:  { label: 'チェーンを隠す', pred: it => it.chain !== 1, excl: 'chainonly' },
+  chainonly:{ label: 'チェーンだけ',   pred: it => it.chain === 1, excl: 'nochain' },
+  gemonly:  { label: '穴場候補',       pred: it => isGem(it) },
+  verified: { label: '確認済み', verified: true },
+  ticket:   { label: '券売機',   fact: { k: 'payment_method', v: 'ticket_machine' } },
+  unstaffed:{ label: '無人',     fact: { k: 'unstaffed', v: 'yes' } },
+  towel:    { label: 'タオル貸出', fact: { k: 'bring_towel', v: 'rental' } },
+  solo:     { label: '一人客が多い', fact: { k: 'clientele', v: 'solo_common' } },
+};
+
+// 矛盾している事実は条件に使わない。判断が割れているものを根拠に
+// 絞ると、外れた施設が「条件に合わない」と誤解される。
+function factsOf(it) {
+  const e = CURATED[it.id];
+  if (!e) return null;
+  const seen = {}, bad = new Set();
+  for (const f of e.facts) {
+    if (f.k in seen && seen[f.k] !== f.v) bad.add(f.k);
+    if (!(f.k in seen)) seen[f.k] = f.v;
+  }
+  for (const k of bad) delete seen[k];
+  return seen;
+}
+
+// 業態での絞り込み。カテゴリは4つしかなく「そばだけ見たい」が選べなかった。
+// 選べる業態は、いま結果に出ているものだけにする。空振りする選択肢を
+// 並べると、選んでから0件だと気づくことになる。
+function refreshKindOptions() {
+  const sel = document.getElementById('f-kind');
+  if (!sel) return;
+  const o = state.origin;
+  if (o.lat == null) return;
+  // loadedItems() は読み込み済み県が変わるまで結果を使い回す。ここで
+  // collectItems を直に呼ぶと、絞り込みのたびに全国分を作り直すことになる。
+  const src = core.withDistance(loadedItems(), o.lat, o.lon);
+  const base = core.filterItems(src, { ...state.search, kind: null, ...quickOpts() });
+  const counts = {};
+  for (const it of base) counts[it.kind] = (counts[it.kind] || 0) + 1;
+  const cur = state.search.kind || '';
+  // 選択中の業態は、いま0件でも必ず選択肢に残す。消すと select の表示が
+  // 「すべての業態」に戻るのに絞り込みは効いたままになり、選び直しても
+  // change が起きないので解除できなくなる。
+  if (cur && !(cur in counts)) counts[cur] = 0;
+  const opts = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${
+      escapeHtml(KIND_JA[k] || k)}（${n}）</option>`).join('');
+  sel.innerHTML = `<option value=""${cur ? '' : ' selected'}>すべての業態</option>` + opts;
+}
+
+// 行けない疑いがあるか。一覧から外す条件（独立2ドメイン以上）を満たさない
+// 1件だけの閉業・住民専用の情報がここに当たる。消さずに並びで後ろへ回す。
+function doubtfulOf(it) {
+  const e = CURATED[it.id];
+  if (!e) return false;
+  // 矛盾している事実では判断しない。status が open と closed で割れている
+  // だけの施設を、警告も出さずに最下位へ沈めるのは筋が通らない。
+  // factsOf が矛盾キーを落としているのと同じ扱いに揃える。
+  const seen = {}, bad = new Set();
+  for (const f of e.facts) {
+    if (f.k in seen && seen[f.k] !== f.v) bad.add(f.k);
+    if (!(f.k in seen)) seen[f.k] = f.v;
+  }
+  return e.facts.some(f =>
+    !bad.has(f.k) && (
+      (f.k === 'status' && (f.v === 'closed_permanently' || f.v === 'closed_temporarily')) ||
+      (f.k === 'access' && (f.v === 'residents_only' || f.v === 'members_only')) ||
+      (f.k === 'solo_ok' && f.v === 'no')));
+}
+
+function quickOpts() {
+  const on = [...state.quick];
+  return {
+    verifiedOnly: on.some(k => QUICK[k] && QUICK[k].verified),
+    factFilters: on.map(k => QUICK[k] && QUICK[k].fact).filter(Boolean),
+    preds: on.map(k => QUICK[k] && QUICK[k].pred).filter(Boolean),
+    factsOf,
+  };
+}
+
+// お気に入り表示中は絞り込みを適用しない（保存した場所が条件で消えると
+// 保存した意味がなくなる）。それなのにボタンは押せて aria-pressed も立つので、
+// 押しても何も起きないのに効いているように見えていた。押せなくする。
+function setFilterControlsEnabled(on) {
+  const why = on ? '' : '保存した場所には絞り込みを適用しません';
+  for (const b of document.querySelectorAll('.quickbar button')) {
+    b.disabled = !on;
+    b.title = why;
+  }
+  const kind = document.getElementById('f-kind');
+  if (kind) { kind.disabled = !on; kind.title = why; }
+}
+
+function bindQuickbar() {
+  for (const b of document.querySelectorAll('.quickbar button')) {
+    b.addEventListener('click', () => {
+      const k = b.dataset.q;
+      if (state.quick.has(k)) {
+        state.quick.delete(k);
+      } else {
+        state.quick.add(k);
+        // 相反する条件は同時に押せない。両方 on にすると必ず0件になり、
+        // 押した本人にも理由が分からなくなる。
+        const excl = (QUICK[k] || {}).excl;
+        if (excl) state.quick.delete(excl);
+      }
+      for (const o of document.querySelectorAll('.quickbar button')) {
+        o.setAttribute('aria-pressed', String(state.quick.has(o.dataset.q)));
+      }
+      refreshResults();
+    });
+  }
+}
+
+// 既定の800mは都市部を想定した値で、地方だと数件しか出ない（会津若松で7件）。
+// 0件なら「距離を広げる」ボタンが出るが、7件では出ないまま「この辺には
+// 何も無い」と読めてしまう。少なすぎるときだけ自動で広げ、広げたことを
+// 必ず知らせる。利用者が自分で距離を選んだあとは触らない。
+const AUTO_WIDEN_MIN = 12;
+const DIST_STEPS = [800, 1600, 4000, null];
+
+function autoWiden() {
+  // 自分で選んだあとに「広げました」と出したままにしない。前回広げた
+  // 記録が残って、400mを選んでも案内が消えなかった。
+  if (state.distTouched || state.favView) { state.autoWidened = false; return; }
+  const o = state.origin;
+  if (o.lat == null) return;
+  // 起点ごとに一度だけ。描画のたびに走らせると、他の処理が入れた距離を
+  // 上書きしてしまう（「距離を広げる」ボタンが効かなくなった）。
+  const key = o.lat.toFixed(3) + ',' + o.lon.toFixed(3);
+  if (state.autoWidenFor === key) return;
+  // 県データが届く前に走ると全部0件になり、いきなり「指定なし」まで
+  // 広がって全国4,500件が並ぶ。データが来るまで判断しない。
+  if (!loadedItems().length) return;
+  state.autoWidenFor = key;
+  // 距離だけで決める。絞り込みの状態を混ぜると、チップを押すたびに半径が
+  // 変わって件数が比べられなくなる（「チェーンだけ」を押した瞬間に半径が
+  // 広がり、全件39に対しチェーンだけ200という表示になった）。
+  const base = core.withDistance(loadedItems(), o.lat, o.lon);
+  for (const step of DIST_STEPS) {
+    const n = step == null ? base.length : base.filter(it => it.distM <= step).length;
+    state.search.maxDistM = step;
+    state.autoWidened = step !== DIST_STEPS[0];
+    if (n >= AUTO_WIDEN_MIN || step === null) break;
+  }
+  const sel = document.getElementById('f-dist');
+  if (sel) sel.value = state.search.maxDistM == null ? '' : String(state.search.maxDistM);
+}
+
+function currentSearchResults() {
+  const o = state.origin;
+  if (o.lat == null) return [];
+  if (!state.favView) autoWiden();
+  const src = state.favView
+    ? (state.favs || [])
+    : collectItems(Object.keys(PREF_CACHE).map(Number));
+  const withD = core.withDistance(src, o.lat, o.lon);
+  // お気に入り表示中はスナップショットなので絞り込みを適用しない。
+  // 保存した場所が条件から外れて消えると、保存した意味がなくなる。
+  const filtered = state.favView
+    ? withD
+    : core.filterItems(withD, { ...state.search, ...quickOpts() });
+  if (!state.favView) refreshKindOptions();
+  return core.sortItems(filtered, state.sort,
+                        { isoThreshold: SUMMARY.iso_threshold, now: new Date(), doubtfulOf });
+}
+
+function bindSortAndFavs() {
+  document.getElementById('f-sort').addEventListener('change', e => {
+    state.sort = e.target.value;
+    refreshResults();
+  });
+
+  const toggle = document.getElementById('fav-toggle');
+  if (FAVS_OK()) {
+    toggle.hidden = false;
+    updateFavCount();
+    toggle.addEventListener('click', () => {
+      state.favView = !state.favView;
+      toggle.setAttribute('aria-pressed', String(state.favView));
+      setFilterControlsEnabled(!state.favView);
+      refreshResults();
+    });
+  }
+
+  const handleFavClick = e => {
+    const btn = e.target.closest('.fav');
+    if (!btn) return;
+    e.stopPropagation();          // 詳細シートを開かない
+    const host = btn.closest('[data-id]');   // 一覧は li.item、デッキは article.card
+    if (!host) return;
+    const it = currentSearchResults().find(x => x.id === host.dataset.id);
+    if (!it) return;
+    state.favs = core.toggleFav(state.favs, it);
+    if (!core.saveFavs(safeStorage(), state.favs)) {
+      state.favs = null;          // 途中で書けなくなったら機能を畳む
+    }
+    updateFavCount();
+    rerenderView();               // デッキの位置は保つ
+  };
+  // 一覧は li.item、デッキは article.card。どちらも .fav ボタンを持つので同じ
+  // ハンドラを両方に配線する。capture にするのは、カード自身の click（詳細を
+  // 開く）より先に星のクリックを止めて stopPropagation を効かせるため。
+  document.getElementById('search-list').addEventListener('click', handleFavClick, true);
+  document.getElementById('deck').addEventListener('click', handleFavClick, true);
+}
+
+function updateFavCount() {
+  const el = document.getElementById('fav-count');
+  if (el) el.textContent = String((state.favs || []).length);
+}
+
+// 孤立バッジ・詳細の孤立度表示。しきい値は SUMMARY.iso_threshold だけを見る。
+// iso 省略時は it.iso を見る。お気に入り詳細では現在データから引いた値を
+// 明示的に渡す（FAV_FIELDS が iso を保存していないため）。
+function isIsolated(it, iso) {
+  const t = SUMMARY.iso_threshold && SUMMARY.iso_threshold[it.cat];
+  const v = iso == null ? it.iso : iso;
+  return !!t && (v || 0) >= t;
+}
+
+// C1: お気に入りのスナップショット(FAV_FIELDS)は iso を保存しないため、
+// お気に入り表示のカードでは it.iso が undefined で渡ってくる。
+// undefined >= 1000 は false なので、素通りすると文字列 "undefinedm" を
+// 返してしまい、それが生成文にそのまま載って「最寄りの◯◯までundefinedm。」
+// という存在しない事実を表示していた。数値でなければ null を返し、
+// 呼び出し側で分岐させる。
+function formatIso(m) {
+  if (!Number.isFinite(m)) return null;
+  if (m >= SUMMARY.iso_max) return `${Math.round(SUMMARY.iso_max / 1000)}km以上`;
+  return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
+}
+
+// 取得に失敗した県名の一覧。renderSearchStatus() と renderDeck() の両方が
+// 同じ判定を必要とするため、ここで一本化する（別々に書くと、しきい値の
+// 二重管理と同じ形でどちらかだけ直し忘れる事故が起きる）。
+function failedPrefNames() {
+  return [...FAILED_PREFS].map(c => BY_CODE[c] && BY_CODE[c].name).filter(Boolean);
+}
+
+// 一覧に描くカードの上限。sameKindNearby は読み込み済み全件を走査するので、
+// ここを上げると描画コストが二次で効く。
+const LIST_MAX = 200;
+
+// 件数と県データの取得失敗を出す。デッキでも一覧でも同じものを出す必要がある。
+// 失敗の告知を一覧でだけ出すと、デッキを見ている人には結果が空に見えるだけで、
+// 実際には何も調べられていないことが伝わらない。
+function renderSearchStatus(items) {
+  const status = document.getElementById('search-status');
+  const failed = failedPrefNames();
+
+  // お気に入り表示中は件数だけを出す。フィルタを適用しない仕様（保存した
+  // 場所を条件で消さないため）なので、通常の0件分岐（「距離を広げる」）は
+  // お気に入りには効かず出す意味がない。県の取得失敗もお気に入りの表示とは
+  // 無関係なので、favView の判定を通常の0件分岐より先に行う。
+  if (state.favView) {
+    status.textContent = items.length ? `保存した ${items.length} 件` : '保存した場所はまだありません';
+    return;
+  }
+  if (!items.length) {
+    if (failed.length) {
+      // 「該当なし」より読み込み失敗を優先して伝える。自県のデータが読めて
+      // いないだけで PREF_CACHE が空になっているとき、それを黙って「近くには
+      // 何も無い」という表示にすると、実際には何も調べられていないのに
+      // 調べた上で無かったと誤解させてしまう。
+      status.textContent = `${failed.join('・')}のデータを読み込めませんでした。`;
+      return;
+    }
+    // クイック絞り込みが効いているときは、それが原因だと分かるようにする。
+    // 「該当なし」とだけ出すと、その地域に施設が無いのだと誤解される。
+    if (state.quick.size) {
+      const on = [...state.quick].map(k => (QUICK[k] || {}).label).filter(Boolean);
+      status.innerHTML = `「${escapeHtml(on.join('・'))}」で絞り込んでいます。
+        <button type="button" class="clear-quick">絞り込みを外す</button><br>
+        <small>確認できた事実がある施設は現在 ${(SUMMARY.checked_count || 0).toLocaleString()} 件です。
+        調べていない施設は条件に合わないのではなく、分からないだけです。</small>`;
+      const cq = status.querySelector('.clear-quick');
+      if (cq) cq.addEventListener('click', () => {
+        state.quick.clear();
+        for (const b of document.querySelectorAll('.quickbar button')) b.setAttribute('aria-pressed', 'false');
+        refreshResults();
+      });
+      return;
+    }
+    status.innerHTML = state.search.maxDistM
+      ? `この条件に該当する施設はありませんでした。<button type="button" class="widen">距離を広げる</button>`
+      : 'この条件に該当する施設はありませんでした。';
+    const w = status.querySelector('.widen');
+    if (w) w.addEventListener('click', () => {
+      document.getElementById('f-dist').value = '';
+      state.search.maxDistM = null;
+      // これを立てないと autoWiden が既定の800mへ戻してしまい、
+      // ボタンを押しても何も起きない。
+      state.distTouched = true;
+      refreshResults();          // デッキでも一覧でも効かせる
+    });
+    return;
+  }
+  // 密集は一帯についての事実で、隣り合う店では同じ値になる。カード全部に
+  // 書くと最も目立つ行が同じ文で埋まるので、ここで一度だけ言う。
+  // 一覧に出るぶんだけを見る。sameKindNearby は読み込み済み全件を走査するので、
+  // 6,000件に掛けると描画のたびに数千万回の距離計算になる。
+  const note = core.densityNote(items.slice(0, LIST_MAX), {
+    sameKindNearby, kindJa: k => KIND_JA[k] || k,
+  });
+  // 勝手に広げたなら必ず言う。黙って広げると、徒歩10分のつもりの人が
+  // 4km先の施設を見ることになる。
+  const widened = state.autoWidened
+    ? `（近くに少ないので${state.search.maxDistM == null ? '距離の指定を外しました'
+        : state.search.maxDistM >= 1000
+          ? (state.search.maxDistM / 1000) + 'kmまで広げました' : state.search.maxDistM + 'mまで広げました'}）`
+    : '';
+  status.textContent = `${items.length.toLocaleString()} 件${widened}`
+    + (note ? ` ・ ${note}` : '')
+    + (failed.length ? `（${failed.join('・')}のデータを読み込めませんでした）` : '');
+}
+
+// 研究(§1)が言うのは、一人客が最初に知りたいのは「いま自分がそこへ行って
+// 浮かないか」の一点だということ。一覧を上から読ませるのは、その問いに
+// 答えていない。いまの条件で最も浮かなそうな一軒を先に出し、行ってから
+// 何が起きるか（§2b の予行演習）まで一枚に収める。
+//
+// 選び方は fit の並びの先頭。理由も書く。理由を書かずに「おすすめ」とだけ
+// 出すのは、根拠を出すというこのサイトの方針に反する。
+function renderNowCard(items) {
+  const el = document.getElementById('now-card');
+  if (!el) return;
+  // お気に入り表示中と、絞り込みで1件しか無いときは出さない。
+  // 1件しかないなら一覧そのものが答えになっている。
+  if (state.favView || state.origin.lat == null || items.length < 2) {
+    el.hidden = true; el.innerHTML = ''; return;
+  }
+  const pick = core.sortItems(items, 'fit',
+    { isoThreshold: SUMMARY.iso_threshold, now: new Date(), doubtfulOf })[0];
+  if (!pick) { el.hidden = true; el.innerHTML = ''; return; }
+
+  const st = core.openState(pick.oh, new Date());
+  const open = st === 'open' ? 'いま営業中' : st === 'closed' ? '営業時間外' : '営業時間不明';
+  const { tips } = tipsFor(pick);
+  const facts = factsOf(pick);
+  const flow = core.entryFlow(facts);
+  const guide = KIND_GUIDE[pick.kind];
+  // 動線は確認できた事実から、作法は業態一般から。出所が違うので混ぜない。
+  const steps = flow.length ? flow : (guide ? [guide] : []);
+  const hint = core.quietHint(pick.kind);
+  const why = [
+    `ひとり度${pick.solo}`, `静けさ${pick.quiet}`, `入りやすさ${pick.easy}`,
+  ].join(' / ');
+
+  el.hidden = false;
+  el.tabIndex = 0;
+  el.dataset.id = pick.id;
+  el.innerHTML = `<h3 id="now-card-h">いま行くなら</h3>
+    <b class="nm">${escapeHtml(pick.name)}</b>
+    <p class="meta">${escapeHtml(KIND_JA[pick.kind] || pick.kind)} ・ 徒歩${
+      core.walkMinutes(pick.distM)}分 ・ ${escapeHtml(open)}${
+      pick.city ? ' ・ ' + escapeHtml(pick.city) : ''}</p>
+    <p class="why">${escapeHtml(why)}${tips.length ? ' ・ ' + escapeHtml(tips.slice(0, 3).join(' / ')) : ''}</p>
+    ${steps.length ? `<ol class="steps">${
+      steps.slice(0, 4).map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ol>` : ''}
+    ${hint ? `<p class="caveat">${escapeHtml(hint)}（業態からの推定）</p>` : ''}
+    <p class="caveat">いま開いていること、ひとり度、入りやすさ、静けさ、距離の順に見て選びました。${
+      flow.length ? '' : '手順はこの施設を調べた結果ではなく、業態一般の説明です。'}</p>`;
+}
+
+function renderSearchList() {
+  const items = currentSearchResults();
+  const list = document.getElementById('search-list');
+  renderSearchStatus(items);
+  renderNowCard(items);
+  if (!items.length) { list.innerHTML = ''; return; }
+  const now = new Date();
+  list.innerHTML = items.slice(0, LIST_MAX).map(it => {
+    // 収集した営業時間があるときは、OSM由来の判定を断定に使わない。
+    // 書式が違って突き合わせられないため、片方だけを根拠に「営業中」と
+    // 言うと誤りになりうる（実データで20施設が併存していた）。
+    const hasCuratedHours = !!(CURATED[it.id] || {}).facts?.some(f => f.k === 'hours');
+    const st = hasCuratedHours ? null : core.openState(it.oh, now);
+    const openBadge = hasCuratedHours
+      ? `<span class="badge-ax">営業時間は下記のとおり</span>`
+      : st === 'open' ? '<span class="badge-ax badge-open">営業中</span>'
+      : st === 'closed' ? '<span class="badge-ax badge-shut">営業時間外</span>'
+      : '<span class="badge-ax">営業時間不明</span>';
+    const m = core.walkMinutes(it.distM);
+    const dist = it.distM >= 1000 ? `直線${(it.distM / 1000).toFixed(1)}km` : `直線${Math.round(it.distM)}m`;
+    const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
+    const { tips, warn } = tipsFor(it);
+    return `<li class="item" data-id="${it.id}" data-cat="${it.cat}" data-dist="${Math.round(it.distM)}"
+              data-quiet="${it.quiet}" data-solo="${it.solo}" tabindex="0">
+      <div class="r1">
+        <span class="nm">${escapeHtml(it.name)}</span>
+        <span class="walk"><i class="cap">徒歩</i><b>${m}</b><i>分</i></span>
+      </div>
+      <div class="r2"><span class="kindmark">${escapeHtml(KIND_JA[it.kind] || it.kind)}</span>${
+        where ? ' ・ ' + escapeHtml(where) : ''} ・ ${dist} ${
+        core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</div>
+      ${warn.length ? `<div class="warn">${warn.map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+      ${tips.length ? `<div class="tips">${tips.map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+      ${(() => { const s = core.leadFact(it, { ...leadCtx(it), suppressDensity: true });
+                 return s ? `<p class="lead">${escapeHtml(s)}</p>` : ''; })()}
+      ${axesRows(it)}
+      <div class="badges">
+        ${openBadge}
+        ${it.chain ? '<span class="badge-ax">チェーン</span>' : ''}
+        ${isGem(it) ? `<span class="badge-ax badge-gem" title="周辺${it.hidden_n}軒のうち${
+          Math.round(it.hidden * it.hidden_n)}軒がチェーン。この施設はその数に入っていない">周辺はチェーン中心</span>` : ''}
+        ${isIsolated(it) ? `<span class="badge-ax badge-iso">最寄り${formatIso(it.iso)}</span>` : ''}
+        ${FAVS_OK() ? `<button type="button" class="fav" aria-pressed="${core.isFav(state.favs, it.id)}"
+           aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
+        ${it.checked ? '<span class="verified">複数の情報源で確認済み</span>' : ''}
+      </div>
+    </li>`;
+  }).join('');
+}
+
+// 表示だけ描き直す（保存の星を押したときなど）。デッキの位置は保つ。
+function rerenderView() {
+  if (state.view === 'deck') renderDeck(); else renderSearchList();
+}
+
+// 結果集合そのものが変わったとき（絞り込み・並べ替え・起点・隣接県の到着）。
+// I9: 無条件に先頭へ戻すと、隣接県が届くたびに読んでいた施設から飛ばされる。
+// いま見ていた施設がまだ新しい結果集合に残っているなら、その位置に留まる。
+// 残っていなければ（絞り込みで外れた等）先頭へ戻す。
+function refreshResults() {
+  const keepId = state._deckId;
+  const items = currentSearchResults();
+  const idx = keepId != null ? items.findIndex(it => it.id === keepId) : -1;
+  state.deckIndex = idx >= 0 ? idx : 0;
+  rerenderView();
+}
+
+function setView(v) {
+  state.view = v === 'list' ? 'list' : 'deck';
+  const deckOn = state.view === 'deck';
+  document.body.classList.toggle('deck-mode', state.tab === 'search');
+  document.getElementById('view-deck').setAttribute('aria-pressed', String(deckOn));
+  document.getElementById('view-list').setAttribute('aria-pressed', String(!deckOn));
+  document.getElementById('deck').hidden = !deckOn;
+  document.querySelector('.deck-nav').hidden = !deckOn;
+  document.getElementById('search-list').hidden = deckOn;
+  // 絞り込みは表示に関わらず既定で畳んでおく。一覧で開いたままにすると
+  // 画面が絞り込みUIで埋まり、施設が1枚しか見えなくなる（複数を見比べたい
+  // という一覧の目的そのものを潰す）。開閉は利用者の操作に任せる。
+  if (deckOn) renderDeck(); else renderSearchList();
+}
+
+function deckMove(step) {
+  const items = currentSearchResults();
+  if (!items.length) return;
+  state.deckIndex = Math.max(0, Math.min(items.length - 1, state.deckIndex + step));
+  renderDeck();
+}
+
+function deckNext() { deckMove(1); }
+function deckPrev() { deckMove(-1); }
+
+function renderDeck() {
+  // 1軒ずつ見る画面では、同じ役割の「いま行くなら」を重ねて出さない。
+  const nowEl = document.getElementById('now-card');
+  if (nowEl) { nowEl.hidden = true; nowEl.innerHTML = ''; }
+  const el = document.getElementById('deck');
+  const items = currentSearchResults();
+  const pos = document.getElementById('deck-pos');
+  renderSearchStatus(items);      // 件数と取得失敗はデッキでも出す
+
+  if (!items.length) {
+    state.deckIndex = 0;
+    state._deckId = null;
+    pos.textContent = '';
+    const failed = failedPrefNames();
+    if (failed.length) {
+      // C2: 取得失敗が原因で0件のときに「絞り込みを見直す」を出すと、原因で
+      // ない絞り込みを直せと促してしまう（過去に同じ事故を起こしている）。
+      el.innerHTML = `<div class="empty">${escapeHtml(failed.join('・'))}のデータを読み込めませんでした。
+        ページを再読み込みしてください。</div>`;
+    } else if (state.favView) {
+      // M12: お気に入り表示は絞り込みを適用しない仕様なので、押しても何も
+      // 変わらない「絞り込みを見直す」を出さない。
+      el.innerHTML = `<div class="empty">保存した場所はまだありません。</div>`;
+    } else {
+      el.innerHTML = `<div class="empty">該当する施設はありません。
+        <button type="button" class="open-filters">絞り込みを見直す</button></div>`;
+      el.querySelector('.open-filters').addEventListener('click', () => openFilterSheet(true));
+    }
+    return;
+  }
+  state.deckIndex = Math.max(0, Math.min(items.length - 1, state.deckIndex));
+  const it = items[state.deckIndex];
+  state._deckId = it.id;
+  pos.textContent = `${state.deckIndex + 1} / ${items.length}`;
+  el.innerHTML = renderCard(it);
+  const card = el.querySelector('.card');
+  if (card) {
+    card.addEventListener('click', () => openFacility(it.id));
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFacility(it.id); }
+    });
+  }
+}
+
+const CAT_COLOR = { bath: '#2f6f9f', eat: '#c2622e', play: '#7a52b3', stay: '#2f8f68' };
+const _constCache = new Map();          // 施設ID → 星座図。高速スワイプで再計算しない
+const CONST_CACHE_MAX = 200;
+
+// 読み込み済みの県からのみ拾う。追加の取得はしない。
+// 既存の collectItems(codes) をそのまま使う（同じ処理を二度書かない）。
+// 同じ施設について一覧の見出しとカードの両方から呼ばれ、絞り込みのたびに
+// 200件分やり直す。読み込み済み県が変わるまで結果は変わらないので覚えておく。
+// キャッシュは loadedItems() が県の集合の変化を見て捨てる。
+const _sameKindCache = new Map();
+
+// 読み込み済み県の一覧が変わるまで使い回す。collectItems は行配列から
+// オブジェクトを作り直すので、1回で全国分（数万件）を確保する。
+// sameKindNearby がカードごとにこれを呼んでいて、200枚描くたびに
+// 数百万個のオブジェクトを作っていた。
+let _loadedCache = { key: null, items: null };
+
+function prefSetKey() {
+  return Object.keys(PREF_CACHE).sort().join(',');
+}
+
+function loadedItems() {
+  const key = prefSetKey();
+  if (_loadedCache.key !== key) {
+    _loadedCache = { key, items: collectItems(Object.keys(PREF_CACHE).map(Number)) };
+    _sameKindCache.clear();
+  }
+  return _loadedCache.items;
+}
+
+// I10: 星座図は loadedItems()（= PREF_CACHE 全件）から作るので、読み込み済み
+// 県が増えると同じ施設でも点数が変わる。施設IDだけをキーにすると、隣接県が
+// 届く前に描いた1枚目が古い点数のままキャッシュされ続け、県境の施設ほど
+// 実際より孤立して見える方向に誤り続ける。読み込み済み県の一覧をキーに
+// 含めることで、県が増えるたびに自然に再計算させる。
+function constellationCacheKey(it) {
+  return it.id + '@' + Object.keys(PREF_CACHE).sort().join(',');
+}
+
+function constellationSvg(it) {
+  const key = constellationCacheKey(it);
+  if (_constCache.has(key)) return _constCache.get(key);
+  const c = core.constellation(it, loadedItems(), {});
+  const R = c.r;
+  const rings = c.rings.map(r =>
+    `<circle cx="0" cy="0" r="${r.toFixed(1)}" fill="none" stroke="#22384a" stroke-width=".7"/>`).join('');
+  const pts = c.points.map(p =>
+    `<circle class="pt${p.self ? ' self' : ''}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}"
+      r="${p.self ? 4 : 2.8}" fill="${CAT_COLOR[p.cat] || '#8fa3b2'}"/>`).join('');
+  const ring = c.points.some(p => p.self)
+    ? `<circle cx="0" cy="0" r="9" fill="none" stroke="#f5c884" stroke-width="1.4"/>` : '';
+  const svg = `<svg class="constellation" viewBox="${-R - 8} ${-R - 8} ${(R + 8) * 2} ${(R + 8) * 2}"
+    role="img" aria-label="周辺1.5kmの施設分布">${rings}${pts}${ring}</svg>`;
+
+  if (_constCache.size >= CONST_CACHE_MAX) _constCache.delete(_constCache.keys().next().value);
+  _constCache.set(key, svg);
+  return svg;
+}
+
+// I11: 半径は core.SAME_KIND_RADIUS_M に一本化。leadSentence() の文言生成
+// 側と同じ値を使うことで、片方だけ変えて文言と実際の集計範囲がずれる事故を防ぐ。
+function sameKindNearby(it) {
+  const all = loadedItems();          // 先に呼ぶ。県が増えていればここで捨てられる
+  if (_sameKindCache.has(it.id)) return _sameKindCache.get(it.id);
+  let n = 0;
+  for (const o of all) {
+    if (o.id === it.id || o.kind !== it.kind) continue;
+    if (core.haversineM(it.lat, it.lon, o.lat, o.lon) <= core.SAME_KIND_RADIUS_M) n++;
+  }
+  _sameKindCache.set(it.id, n);
+  return n;
+}
+
+// 紹介文は一覧とデッキで同じものを出す。組み立てを1か所に置くことで、
+// お気に入りの iso 欠落（FAV_FIELDS に iso が無い）への対処も片方だけに
+// 入るという事故を防ぐ。
+function leadCtx(it) {
+  // お気に入りは iso を保存しないので it.iso は undefined になりうる。
+  // formatIso() はその場合 null を返し、leadSentence は他の分岐へ落ちる。
+  const isoText = formatIso(it.iso);
+  return {
+    kindJa: KIND_JA[it.kind] || it.kind,
+    catJa: CAT_JA[it.cat] || it.cat,   // iso は同カテゴリまでの距離なのでカテゴリ名を渡す
+    isolated: isoText != null && isIsolated(it, it.iso),
+    isoText,
+    gem: isGem(it),
+    sameKindNearby: sameKindNearby(it),
+  };
+}
+
+// 一人で行く前に知っておきたいこと。同行者に聞けないぶん、事前に分かると
+// 助かる順に並べる。多すぎると読まれないので上限を設ける。
+// 写真が無いぶん、ここの情報密度が判断材料そのものになる。客層・作法・
+// 混み方を先頭に足したので、5では料金と営業時間が押し出されていた。
+const TIP_MAX = 7;
+
+function tipsFor(it) {
+  // 実体は core.facilityTips。CURATED を引く責任だけここに残す。
+  return core.facilityTips(CURATED[it.id], TIP_MAX);
+}
+
+// 3軸は数字だけだと何段階中いくつか分からない。目盛りと言葉を必ず添える。
+const AX_ROWS = [['solo', 'ひとり度'], ['quiet', '静けさ'], ['easy', '入りやすさ']];
+
+function axesRows(it) {
+  const rows = AX_ROWS.map(([k, label]) => {
+    const v = it[k];
+    let dots = '';
+    for (let i = 1; i <= 5; i++) dots += `<span class="dot${i <= v ? ' on' : ''}"></span>`;
+    const word = (AX_LABEL[k] && AX_LABEL[k][v]) || '';
+    return `<li><span class="ax-k">${label}</span><span class="dots"
+      role="img" aria-label="5段階中${v}">${dots}</span><span class="ax-w"><b>${v}</b>${
+      escapeHtml(word)}</span></li>`;
+  }).join('');
+  return `<ul class="axes">${rows}</ul>`;
+}
+
+function renderCard(it) {
+  const kindJa = KIND_JA[it.kind] || it.kind;
+  const isoText = formatIso(it.iso);
+  const isolated = isoText != null && isIsolated(it, it.iso);
+  const lead = core.leadSentence(it, leadCtx(it));
+  const st = core.openState(it.oh, new Date());
+  const openTxt = st === 'open' ? '営業中' : st === 'closed' ? '営業時間外' : '営業時間不明';
+  const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
+
+  // I7: 起点が無い、あるいは距離を算出できていない（全国検索で開いた施設など）
+  // ときは、徒歩・直線距離・方角のブロックごと出さない。方角まで捏造する
+  // くらいなら空白のほうがまし。
+  const hasDist = state.origin.lat != null && Number.isFinite(it.distM);
+  const distText = it.distM >= 1000 ? `直線${(it.distM / 1000).toFixed(1)}km` : `直線${Math.round(it.distM)}m`;
+  const distBlock = hasDist ? `<div>
+          <div class="walk"><small>徒歩</small>${core.walkMinutes(it.distM)}<small>分</small></div>
+          <div class="sub">${distText} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}</div>
+        </div>` : '';
+
+  return `<article class="card" data-id="${it.id}" tabindex="0">
+    ${constellationSvg(it)}
+    <div>
+      <div class="eyebrow">${escapeHtml(where)} / ${escapeHtml(kindJa)}</div>
+      <h3 class="nm">${escapeHtml(it.name)}</h3>
+    </div>
+    <div>
+      <p class="lead">${escapeHtml(lead)}</p>
+      <div class="foot">
+        ${distBlock}
+        <div class="chips" style="flex:1">
+          ${FAVS_OK() ? `<button type="button" class="fav" aria-pressed="${core.isFav(state.favs, it.id)}"
+             aria-label="保存">${core.isFav(state.favs, it.id) ? '★' : '☆'}</button>` : ''}
+          <span>ひとり ${it.solo}</span><span>静けさ ${it.quiet}</span><span>入りやすさ ${it.easy}</span>
+          <span${st === 'open' ? ' class="hot"' : ''}>${openTxt}</span>
+          ${isGem(it) ? `<span class="hot">周辺はチェーン中心</span>` : ''}
+          ${isolated ? `<span class="hot">最寄り${isoText}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  </article>`;
+}
+
+// 全画面の絵をUIで埋めては意味がないので、絞り込みは既定で畳んでおく。
+// 常時表示のままだと、1軒を大きく見せるカードが画面の外へ押し出される。
+function openFilterSheet(force) {
+  const sheet = document.getElementById('filter-sheet');
+  const btn = document.getElementById('open-filters');
+  const open = force === undefined ? sheet.hidden : !!force;
+  sheet.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  if (open) sheet.scrollIntoView({ block: 'nearest' });
+}
+
+function bindDeck() {
+  document.getElementById('view-deck').addEventListener('click', () => setView('deck'));
+  document.getElementById('view-list').addEventListener('click', () => setView('list'));
+  document.getElementById('deck-next').addEventListener('click', deckNext);
+  document.getElementById('deck-prev').addEventListener('click', deckPrev);
+  document.getElementById('open-filters').addEventListener('click', () => openFilterSheet());
+  document.addEventListener('keydown', e => {
+    // I8: フォーム部品にフォーカスがあるときは奪わない。<select> や検索欄で
+    // ↑↓を押すと、値を変えたりカーソルを動かしたりするはずが、代わりに
+    // デッキが進んでしまっていた。
+    const t = e.target;
+    const tag = t && t.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+    if (state.tab !== 'search' || state.view !== 'deck') return;
+    if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); deckNext(); }
+    if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); deckPrev(); }
+  });
+}
+
+// 集めた事実。ビルド時に curated.json から埋め込むのではなく、必要になった
+// 時点で取りに行く（未調査が大半なので全員に配らない）。
+const CURATED = {};
+let curatedLoading = null;
+let curatedFailed = false;
+
+function ensureCurated() {
+  if (curatedLoading) return curatedLoading;
+  curatedLoading = fetch('data/hitori/curated.json')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(doc => { Object.assign(CURATED, doc); return CURATED; })
+    .catch(err => { curatedLoading = null; throw err; });
+  return curatedLoading;
+}
+
+const FACT_JA = {
+  'payment_method:ticket_machine': '券売機あり',
+  'payment_method:counter_person': '番台・対面での支払い',
+  'payment_method:cashless_ok': 'キャッシュレス可',
+  'payment_method:cash_only': '現金のみ',
+  'reservation:none': '予約不可（当日入店）',
+  'reservation:possible': '予約可',
+  'reservation:required': '予約が必要',
+  'silence:posted': '黙浴の掲示あり',
+  'silence:observed': '会話が少ない',
+  'clientele:local': '地元の人が中心',
+  'clientele:tourist': '観光客が多い',
+  'clientele:solo_common': '一人客が多い',
+  'first_timer:easy': '初めてでも入りやすい',
+  'first_timer:custom_exists': '作法がある',
+  // ここから下は語彙を足したのにラベルを足し忘れていた分。詳細シートに
+  // 「busy_time usually_quiet」のような生の英語が1,019件出ていた。
+  'busy_time:usually_quiet': 'いつも空いている',
+  'busy_time:morning_quiet': '朝は空いている',
+  'busy_time:evening_busy': '夕方は混む',
+  'busy_time:weekend_busy': '週末は混む',
+  'luggage:locker': 'コインロッカーあり',
+  'luggage:shelf_only': '棚のみ（鍵なし）',
+  'luggage:none': '荷物の置き場なし',
+  'bring_towel:required': 'タオルは持参',
+  'bring_towel:rental': 'タオルの貸出あり',
+  'bring_towel:included': 'タオルは料金に込み',
+  'wash_area:yes': '洗い場あり',
+  'wash_area:no': '洗い場なし',
+  'unstaffed:yes': '無人（料金箱など）',
+  'unstaffed:no': '人がいる',
+  'access:public': '誰でも利用できる',
+  'access:residents_only': '地元住民専用',
+  'access:members_only': '会員・関係者専用',
+  'access:male_only': '男性専用',
+  'access:female_only': '女性専用',
+  'status:open': '営業している',
+  'status:closed_temporarily': '休業中',
+  'status:closed_permanently': '閉業',
+  'open_period:year_round': '通年で営業',
+  'open_period:seasonal': '季節営業',
+  'open_period:irregular': '不定期・期間限定の営業',
+  'open_period:by_appointment': '事前連絡が要る',
+};
+const FACT_JA_SOLO = { 'solo_ok:yes': '一人でも利用できる',
+  'solo_ok:limited': '一人での利用は期間が限られる', 'solo_ok:no': '一人では利用できない' };
+const FACT_KEY_JA = { counter_seats: 'カウンター席', seats_total: '席数',
+                      hours: '営業時間', closed_days: '定休日', price: '料金',
+                      stay_limit: '滞在の上限', renamed_to: '現在の名称',
+                      city: '所在地', closes_on: '閉業予定日' };
+const BLOG_SOURCE_DOMAINS = new Set(['zatsu-ke.blog.jp', 'sanukiudon-ranking.com']);
+
+function factLabel(f) {
+  const fixed = FACT_JA[`${f.k}:${f.v}`] || FACT_JA_SOLO[`${f.k}:${f.v}`];
+  if (fixed) return fixed;
+  const unit = f.k === 'price' ? '円'
+    : (f.k === 'counter_seats' || f.k === 'seats_total') ? '席'
+    : f.k === 'stay_limit' ? '分' : '';
+  return `${FACT_KEY_JA[f.k] || f.k} ${f.v}${unit}`;
+}
+
+// 出典URLは出す。主張の文章は出さない（そもそも保存していない）。
+function renderCurated(it) {
+  const entry = CURATED[it.id];
+  // 調べたかどうかは curated.json の実体で決める。it.checked は県ファイルの
+  // 列で、お気に入りのスナップショット（FAV_FIELDS）には入っていない。
+  // 列を見ていたせいで、保存した施設を開くと調査済みでも
+  // 「この施設はまだ調べていません」と出ていた。
+  if (!entry || !entry.facts || !entry.facts.length) {
+    return `<div class="curated unchecked">この施設はまだ調べていません。
+      3軸は業態からの推定です。</div>`;
+  }
+  const rows = entry.facts.map(f => {
+    const support = f.official ? '公式サイト' : `${f.n}件`;
+    const links = f.urls.map((u, i) =>
+      `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${i + 1}</a>`).join(' ');
+    const blogNote = (f.src || []).some(domain => BLOG_SOURCE_DOMAINS.has(domain))
+      ? '<span class="visit-note">個人訪問記・要確認</span>' : '';
+    return `<li${f.conflict ? ' class="conflict"' : ''}>${escapeHtml(factLabel(f))}
+      <span class="sup">${support}</span> <span class="srcs">${links}</span>${blogNote}</li>`;
+  }).join('');
+  const conflicted = [...new Set(entry.facts.filter(f => f.conflict)
+    .map(f => FACT_KEY_JA[f.k] || FACT_JA[`${f.k}:${f.v}`] || f.k))];
+  const note = conflicted.length
+    ? `<p class="conflict-note">情報が分かれています: ${escapeHtml(conflicted.join('・'))}。
+       この点は判断を保留し、3軸に反映していません。</p>` : '';
+  return `<div class="curated"><h4>確認できたこと（${escapeHtml(entry.checked)} 時点）</h4>
+    <ul>${rows}</ul>${note}</div>`;
+}
+
+// 補正が入っているときは推定値も出す。何を根拠に変えたのかを隠さない。
+// すべての記述について、何をどう測ったのかを辿れるようにする。
+// 指標には性質の違う2種類がある。周辺の分布から機械的に計算したもの
+// （孤立度・周辺の構成）と、外部の情報源から集めた事実（料金・支払い方法）。
+// 前者の根拠は計算方法そのもの、後者の根拠は出典URLである。混ぜない。
+// 一人で入るときの流れと、業態一般の作法。
+// 動線は「確認できた事実」から、作法は「業態一般」から作る。出所が
+// 違うので節を分ける。混ぜると、一般論をその施設の確認済み情報だと
+// 誤解される。
+function flowHtml(it) {
+  const facts = factsOf(it);
+  const flow = core.entryFlow(facts);
+  const guide = KIND_GUIDE[it.kind];
+  if (!flow.length && !guide) return '';
+
+  const flowPart = flow.length
+    ? `<h4>この施設で確認できた流れ</h4>
+       <ol class="flow">${flow.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ol>`
+    : '';
+  const guidePart = guide
+    ? `<h4>${escapeHtml(KIND_JA[it.kind] || it.kind)}の一般的な作法</h4>
+       <p class="guide">${escapeHtml(guide)}</p>
+       <p class="guide-note">この施設について確認したものではなく、業態一般の説明です。</p>`
+    : '';
+  // 「自分は何をするのか」（作法）と「周りからどう見えるのか」は別の問い。
+  // 一人で入りにくい最大の理由は後者なので、節を分けて必ず出す。
+  const gaze = KIND_GAZE[it.kind];
+  const gazePart = gaze
+    ? `<h4>周りからどう見えるか</h4>
+       <p class="guide">${escapeHtml(gaze)}</p>
+       <p class="guide-note">これも業態一般の話で、この施設を見に行った結果ではありません。</p>`
+    : '';
+  return `<div class="flowbox">${flowPart}${gazePart}${guidePart}</div>`;
+}
+
+// 時間帯の目安。Googleマップの「混雑する時間帯」は位置情報のビッグデータが
+// 前提で、サーバの無いこのサイトでは同じことができない。業態から推定して、
+// 推定であることを必ず書く。個別に調べた busy_time があるならそちらが上に立つ。
+const BUSY_CLASS = ['q', 'n', 'b'];
+
+function busyHtml(it) {
+  const hours = core.busyBands(it.kind);
+  if (!hours) return '';
+  const facts = factsOf(it) || {};
+  const kindJa = KIND_JA[it.kind] || it.kind;
+  const cells = hours.map((lv, h) =>
+    `<div class="bh bh-${BUSY_CLASS[lv]}" title="${h}時 ${escapeHtml(core.BUSY_LEVELS[lv])}"></div>`
+  ).join('');
+  const hint = core.quietHint(it.kind);
+  // 調べて分かっている混み方があるなら、推定より先に出す。
+  const known = facts.busy_time
+    ? `<p class="busy-known">この施設について確認できたこと: ${
+        escapeHtml(FACT_JA[`busy_time:${facts.busy_time}`] || facts.busy_time)}</p>`
+    : '';
+  return `<div class="busybox">
+    <h4>空いている時間帯の目安</h4>
+    ${known}
+    <div class="busybar" role="img" aria-label="${escapeHtml(
+      `${kindJa}の時間帯ごとの混み方の目安。${hint}`)}">${cells}</div>
+    <div class="busyaxis"><span>0時</span><span>6時</span><span>12時</span><span>18時</span><span>24時</span></div>
+    <p class="busy-legend"><i class="bh bh-q"></i>空いている
+      <i class="bh bh-n"></i>ふつう <i class="bh bh-b"></i>混む</p>
+    ${hint ? `<p class="busy-hint">${escapeHtml(hint)}</p>` : ''}
+    <p class="caveat">これは${escapeHtml(kindJa)}という業態からの推定で、
+    この施設を調べた結果ではありません。実際に数えたものでもありません。</p>
+  </div>`;
+}
+
+function basisHtml(it, liveIso) {
+  const parts = [];
+  const kindJa = KIND_JA[it.kind] || it.kind;
+  const catJa = CAT_JA[it.cat] || it.cat;
+
+  parts.push(`<h4>3軸（ひとり度・静けさ・入りやすさ）</h4>
+    <p>業態「${escapeHtml(kindJa)}」から機械的に推定した初期値です。
+    同じ業態の施設は同じ値から始まります。実際の座席形態や黙浴の有無を
+    確かめたものではありません。</p>`);
+
+  const e = CURATED[it.id];
+  const moved = ['solo', 'quiet', 'easy'].filter(k => it[k + '_est'] != null && it[k + '_est'] !== it[k]);
+  if (moved.length && e) {
+    const used = e.facts.filter(f => !f.conflict && f.n >= 2);
+    parts.push(`<p>このうち ${moved.map(k => AX_NAME[k]).join('・')} は、
+      下の「確認できたこと」のうち<strong>独立した2つ以上の情報源で裏付けが取れた事実</strong>
+      によって補正しています。補正の幅は軸ごとに±2までに制限しています。</p>
+      ${used.length ? `<ul class="basis-src">${used.map(f =>
+        `<li>${escapeHtml(factLabel(f))} — ${f.urls.map((u, i) =>
+          `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">出典${i + 1}</a>`
+        ).join(' ')}</li>`).join('')}</ul>` : ''}`);
+  } else if (!it.checked) {
+    parts.push(`<p>この施設はまだ調べていないため、推定値のままです。</p>`);
+  }
+
+  if (liveIso != null) {
+    const th = (SUMMARY.iso_threshold || {})[it.cat];
+    parts.push(`<h4>孤立度</h4>
+      <p>全国の施設から、この施設に最も近い<strong>同じカテゴリ（${escapeHtml(catJa)}）</strong>の
+      施設までの直線距離を計算しました。結果は ${formatIso(liveIso)} です。
+      同じ業態までの距離ではありません。</p>
+      ${th ? `<p>「この一帯で唯一」は、カテゴリごとに上位10%にあたる距離
+      （${escapeHtml(catJa)}では ${formatIso(th)}）を超えた場合に表示しています。</p>` : ''}`);
+  }
+
+  parts.push(`<h4>データの出所</h4>
+    <p>施設の位置・名称・業態は OpenStreetMap（ODbL）によります。
+    ${it.checked ? `事実の確認は ${escapeHtml(it.checked)} 時点のもので、出典は上に示したとおりです。`
+      : 'この施設について外部の情報源は確認していません。'}</p>`);
+
+  return `<details class="basis"><summary>この情報の根拠</summary>${parts.join('')}</details>`;
+}
+
+const AX_NAME = { solo: 'ひとり度', quiet: '静けさ', easy: '入りやすさ' };
+
+function axCell(it, k) {
+  const est = it[k + '_est'];
+  const base = `${it[k]} — ${AX_LABEL[k][it[k]]}`;
+  return (est != null && est !== it[k])
+    ? `${base}<br><small>業態からの推定は ${est}。確認できた事実により補正</small>`
+    : base;
+}
+
+// 添字が値。1..5 のすべてに言葉を入れる。値1は業態からの推定だけでは
+// 出なかったが、集めた事実による補正で出るようになったため（補正前は
+// 実データで solo 3-5 / quiet 2-5 / easy 2-5 しか存在しなかった）。
+const AX_LABEL = {
+  solo: ['', '一人だと目立つ', '一人でも浮かない', '一人でも浮かない', '一人が多数', '一人が標準'],
+  quiet: ['', '賑やかな場', '声を出す場', '静かでも騒がしくもない', '静か寄り', '会話が発生しない'],
+  easy: ['', '一見では入りにくい', '常連文化・暗黙の作法', '軽い作法あり', 'ほぼ作法不要', '作法不要'],
+};
+
+function mapsUrl(it) {
+  // 座標だけを渡すと無名のピンが立つだけで店の情報に着かない。店名で検索させる。
+  // 市区町村を足すのは同名店の誤爆を減らすため。無ければ都道府県名で代用する。
+  const where = it.city || (BY_CODE[it.prefCode] && BY_CODE[it.prefCode].name) || '';
+  const q = [it.name, where].filter(Boolean).join(' ');
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+}
+
+// 直前にシートを開いた一覧項目。閉じたときにここへフォーカスを戻す。
+let _facilityOpener = null;
+
+async function openFacility(id, opener) {
+  // FOUND_BY_SEARCH を先に見る。currentSearchResults() は core.withDistance()
+  // が毎回スプレッドで新しいオブジェクトを作るため、呼び出しごとに別参照になる
+  // （全国検索・施設名検索で明示的に解決した施設を渡すための仕組みが素通りする）。
+  let it = FOUND_BY_SEARCH.get(id) || currentSearchResults().find(x => x.id === id);
+  if (!it) return;
+  const el = document.getElementById('facility');
+  const st = core.openState(it.oh, new Date());
+  const hours = it.oh
+    ? `${escapeHtml(it.oh)}（${st === 'open' ? '営業中' : st === 'closed' ? '営業時間外' : '解釈できない書式'}）`
+    : '営業時間不明';
+  // I7: 起点が無い、あるいは距離を算出できていない（全国検索で開いた施設など）
+  // ときは「距離」行そのものを出さない。徒歩NaN分・直線NaNm・方角の捏造を防ぐ。
+  const hasDist = state.origin.lat != null && Number.isFinite(it.distM);
+  const dist = it.distM >= 1000 ? `${(it.distM / 1000).toFixed(1)}km` : `${Math.round(it.distM)}m`;
+
+  // 保存は時点のスナップショット。再ビルドで施設が消えていることがある。
+  // 黙って古い情報を見せない。
+  // iso は FAV_FIELDS に含まれない（お気に入りは11フィールドのスナップショットで、
+  // 孤立度は保存時点で古くなりうるため対象外）。現在データに施設が見つかれば
+  // そこから孤立度を引き、見つからなければ（stale）行自体を出さない。
+  let stale = false;
+  let liveIso = it.iso;
+  if (state.favView && it.prefCode) {
+    if (!PREF_CACHE[it.prefCode]) await loadPrefIntoCache(it.prefCode);
+    const doc = PREF_CACHE[it.prefCode];
+    if (doc) {
+      const idIdx = doc.fields.indexOf('id');
+      const row = doc.items.find(r => r[idIdx] === it.id);
+      stale = !row;
+      liveIso = row ? row[doc.fields.indexOf('iso')] : undefined;
+      // checked も FAV_FIELDS に無い。現在データにあるなら引き直す。
+      // 引かないと、保存した施設のカードに「複数の情報源で確認済み」が
+      // 出ないままになる。
+      if (row) it.checked = row[doc.fields.indexOf('checked')] || '';
+    }
+  }
+
+  // curated.json は必要になった時点で取りに行く。取得に失敗しても詳細
+  // シート自体は開く（劣化がひどすぎる）。renderCurated 側は空文字にする。
+  let curatedHtml = '';
+  try {
+    await ensureCurated();
+    curatedHtml = renderCurated(it);
+  } catch (err) {
+    console.warn('curated.json の取得に失敗しました', err);
+    curatedHtml = '';
+  }
+
+  el.hidden = false;
+  el.innerHTML = `
+    <button type="button" class="close" aria-label="閉じる">×</button>
+    <h3>${escapeHtml(it.name)}</h3>
+    ${stale ? '<p class="stale">この施設は現在のデータに存在しません。閉店したか、地図から削除された可能性があります。</p>' : ''}
+    <p class="meta">${KIND_JA[it.kind] || it.kind}${it.city ? ' · ' + escapeHtml(it.city) : ''}</p>
+    <dl>
+      ${hasDist ? `<dt>距離</dt><dd>徒歩${core.walkMinutes(it.distM)}分（直線${dist} ${core.bearing8(state.origin.lat, state.origin.lon, it.lat, it.lon)}）</dd>` : ''}
+      <dt>ひとり度</dt><dd>${axCell(it, 'solo')}</dd>
+      <dt>静けさ</dt><dd>${axCell(it, 'quiet')}</dd>
+      <dt>入りやすさ</dt><dd>${axCell(it, 'easy')}</dd>
+      ${liveIso != null ? `<dt>孤立度</dt><dd>最寄りの${CAT_JA[it.cat] || it.cat}まで ${formatIso(liveIso)}${
+        isIsolated(it, liveIso) ? '（この一帯で唯一）' : ''}</dd>` : ''}
+      <dt>営業時間</dt><dd>${hours}</dd>
+      ${it.tel ? `<dt>電話</dt><dd><a href="tel:${escapeHtml(it.tel)}">${escapeHtml(it.tel)}</a></dd>` : ''}
+      ${it.web ? `<dt>サイト</dt><dd><a href="${escapeHtml(it.web)}" target="_blank" rel="noopener">公式サイト</a></dd>` : ''}
+    </dl>
+    ${curatedHtml}
+    ${isGem(it) ? `<div class="basis"><h4>「周辺はチェーン中心」の根拠</h4>
+      <p>半径500m以内にある同じカテゴリの施設 ${it.hidden_n} 軒のうち、${
+        Math.round(it.hidden * it.hidden_n)} 軒が全国チェーンとして検出されました。
+      この施設はその ${Math.round(it.hidden * it.hidden_n)} 軒に含まれていません。</p>
+      <p class="caveat">チェーンの判定は、同じ名称が3県以上に5件以上あることを条件にした機械的なものです。
+      検出されなかったことは、個人店であることの証明にはなりません。</p></div>` : ''}
+    ${busyHtml(it)}
+    ${flowHtml(it)}
+    ${basisHtml(it, liveIso)}
+    ${it.note ? `<p class="note">${escapeHtml(it.note)}</p>` : ''}
+    <div id="facility-map"></div>
+    <a class="to-maps" href="${mapsUrl(it)}" target="_blank" rel="noopener">経路を調べる（Googleマップ）</a>`;
+  el.querySelector('.close').addEventListener('click', closeFacility);
+  renderFacilityMap(it);   // Task 13 で実装。ここでは空関数でよい。
+
+  // #facility は <footer> の後の <main> 末尾にあり、閉じるボタンへ
+  // フォーカスすると一覧の残り項目とフッター全体をタブで飛ばさないと
+  // 辿り着けない。見出しから読ませるため、シート自体（tabindex="-1"）に
+  // フォーカスする。
+  _facilityOpener = opener || null;
+  el.focus();
+}
+
+let _facilityMap = null;
+
+// 地理院タイル（国土地理院）。APIキー不要・無料。出典明記のみで利用できる。
+// 淡色地図を使う。標準地図は色が強く、施設ピンが埋もれる。
+const GSI_TILE = 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png';
+const GSI_ATTR = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル（国土地理院）</a>';
+
+function closeFacility() {
+  if (_facilityMap) { _facilityMap.remove(); _facilityMap = null; }
+  document.getElementById('facility').hidden = true;
+  // 開いた場所（一覧項目）へフォーカスを戻す。ボタンやEscapeなど
+  // 閉じ方によらず、ユーザーが元いた位置に戻れるようにする。
+  if (_facilityOpener && document.contains(_facilityOpener)) _facilityOpener.focus();
+  _facilityOpener = null;
+}
+
+function renderFacilityMap(it) {
+  const el = document.getElementById('facility-map');
+  if (!el || typeof maplibregl === 'undefined') {
+    if (el) el.innerHTML = `<p class="map-credit">地図を表示できませんでした。${GSI_ATTR}</p>`;
+    return;
+  }
+
+  if (_facilityMap) { _facilityMap.remove(); _facilityMap = null; }
+
+  _facilityMap = new maplibregl.Map({
+    container: el,
+    style: {
+      version: 8,
+      sources: { gsi: { type: 'raster', tiles: [GSI_TILE], tileSize: 256, attribution: GSI_ATTR } },
+      layers: [{ id: 'gsi', type: 'raster', source: 'gsi' }],
+    },
+    center: [it.lon, it.lat],
+    zoom: 16,
+    attributionControl: { compact: false },
+  });
+  _facilityMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+  new maplibregl.Marker({ color: '#c05621' }).setLngLat([it.lon, it.lat]).addTo(_facilityMap);
+  if (state.here) {
+    new maplibregl.Marker({ color: '#2b5f96' })
+      .setLngLat([state.here.lon, state.here.lat]).addTo(_facilityMap);
+    // 現在地と施設の両方が入るように寄せる
+    const b = new maplibregl.LngLatBounds([it.lon, it.lat], [it.lon, it.lat]);
+    b.extend([state.here.lon, state.here.lat]);
+    _facilityMap.fitBounds(b, { padding: 48, maxZoom: 17, duration: 0 });
+  }
+}
+
+const FAILED_PREFS = new Set();
+
+async function loadPrefIntoCache(code) {
+  try {
+    await loadPrefecture(code);
+    FAILED_PREFS.delete(code);
+    return true;
+  } catch (err) {
+    // spec §9: その県だけエラー表示し、取得できた県の結果は出す。
+    // 黙って落とすと「その県には何も無い」と読めてしまう。
+    FAILED_PREFS.add(code);
+    return false;
+  }
+}
+
+function ensureSearchStarted() {
+  if (searchStarted) return;
+  searchStarted = true;
+  locateAndSearch();
+}
+
+async function locateAndSearch() {
+  const status = document.getElementById('search-status');
+  if (!navigator.geolocation) {
+    showLocationFallback('この端末では位置情報を利用できません。');
+    return;
+  }
+  status.textContent = '現在地を取得しています…';
+
+  let pos;
+  try {
+    pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+    });
+  } catch (err) {
+    showLocationFallback('位置情報が取得できませんでした。');
+    return;
+  }
+
+  const lat = pos.coords.latitude, lon = pos.coords.longitude;
+  if (lat < 20 || lat > 46 || lon < 122 || lon > 154) {
+    showLocationFallback('日本国内のみ対応しています。');
+    return;
+  }
+  state.here = { lat, lon };
+  state.origin = { kind: 'here', lat, lon, label: '現在地' };
+  document.getElementById('origin-label').textContent = '現在地';
+  document.getElementById('origin-reset').hidden = true;
+
+  await runSearchFromOrigin();
+}
+
+// 起点（現在地でも選んだ地点でも）から県を判定して読み、一覧を描く。
+async function runSearchFromOrigin() {
+  const o = state.origin;
+  if (o.lat == null) return;
+  const status = document.getElementById('search-status');
+  const code = core.prefectureAt(o.lat, o.lon, GEO);
+  status.textContent = `${BY_CODE[code].name} の施設を読み込んでいます…`;
+
+  await loadPrefIntoCache(code);
+  refreshResults();
+  window.__searchReady = true;
+
+  const neighbors = (NEIGHBORS && NEIGHBORS[String(code)]) || [];
+  for (const n of neighbors) {
+    if (await loadPrefIntoCache(n)) refreshResults();
+  }
+}
+
+function showLocationFallback(reason) {
+  document.getElementById('search-list').innerHTML = '';
+  document.getElementById('search-status').innerHTML =
+    `${escapeHtml(reason)}上の検索欄から駅名・地名で探せます。<br>
+     <button type="button" class="retry-location">再試行</button>
+     <button type="button" class="to-nation">全国で見る</button>`;
+  document.querySelector('#search-status .retry-location')
+    .addEventListener('click', () => {
+      // searchStarted は初回到達時に一度きり立てる番人のため、拒否後に
+      // 許可し直しても自動では戻れない。ここで番人を下ろして再実行する。
+      searchStarted = false;
+      ensureSearchStarted();
+    });
+  document.querySelector('#search-status .to-nation')
+    .addEventListener('click', () => switchTab('nation'));
+  window.__searchReady = true;
+}
+
+// ---- 駅名・地名検索と検索起点の切り替え ----
+
+let PLACES = null;
+let placesLoading = null;
+
+// 初期ロードには含めない。検索欄に触れて初めて取りにいく。
+// 現在地から使う人に無駄な100KBを負わせないため。
+function ensurePlaces() {
+  if (PLACES) return Promise.resolve(PLACES);
+  if (placesLoading) return placesLoading;
+  placesLoading = fetch('data/hitori/places.json')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(doc => {
+      PLACES = doc.items.map(row =>
+        Object.fromEntries(doc.fields.map((f, i) => [f, row[i]])));
+      window.__placesReady = true;
+      return PLACES;
+    })
+    .catch(err => {
+      placesLoading = null;
+      throw err;
+    });
+  return placesLoading;
+}
+
+let FACILITIES = null;
+let facLoading = null;
+
+// 全国インデックスは「探すためだけ」の索引。表示用の実体は県ファイルから引く。
+// 添字は生成時点の県ファイルに対応するので、updated が食い違ったら使わない。
+// 誤った施設を開くより、機能を止めるほうがよい。
+function ensureFacilities() {
+  if (FACILITIES) return Promise.resolve(FACILITIES);
+  if (facLoading) return facLoading;
+  facLoading = fetch('data/hitori/facilities.json')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(doc => {
+      FACILITIES = doc;
+      window.__facilitiesReady = true;
+      return doc;
+    })
+    .catch(err => { facLoading = null; throw err; });
+  return facLoading;
+}
+
+function facIndexMatches(doc, prefCode) {
+  const local = PREF_CACHE[prefCode];
+  return !local || local.updated === doc.updated;
+}
+
+// 読み込み済みの県が1つでも全国索引と食い違えば、索引全体を信用しない。
+// searchNationwide() と bindPlaceSearch() の自動マージ(C3)の両方が使うので
+// ここで一本化する。
+function facilitiesStale(doc) {
+  return Object.keys(PREF_CACHE).map(Number).some(c => !facIndexMatches(doc, c));
+}
+
+// Task 6 で追加した loadedItems()（= collectItems の薄い包み）を使う。
+// 同じ収集処理を二度書かない。距離は起点があるときだけ付ける。
+function localFacilities() {
+  const out = loadedItems();
+  return state.origin.lat == null
+    ? out : core.withDistance(out, state.origin.lat, state.origin.lon);
+}
+
+const FOUND_BY_SEARCH = new Map();
+
+async function openFacilityByIndex(prefCode, i) {
+  await loadPrefIntoCache(prefCode);
+  const doc = PREF_CACHE[prefCode];
+  if (!doc || !facIndexMatches(FACILITIES, prefCode)) return false;
+  const row = doc.items[i];
+  if (!row) return false;
+  const it = Object.fromEntries(doc.fields.map((f, n) => [f, row[n]]));
+  it.prefCode = prefCode;
+  if (state.origin.lat != null) {
+    it.distM = core.haversineM(state.origin.lat, state.origin.lon, it.lat, it.lon);
+  }
+  FOUND_BY_SEARCH.set(it.id, it);   // openFacility が現在の結果集合の外でも引けるように
+  openFacility(it.id);
+  return true;
+}
+
+// 種別マーカーを決める。名称にすでに種別を表す文字が含まれている場合、
+// マーカーを重ねると「別府駅駅」「渋谷区市区町村」のように冗長で読みにくくなるため付けない。
+// 駅名は「新富士駅 (北海道)」のように末尾ではなく括弧内に事業者名・都道府県名を
+// 抱えた表記も一定数あり、括弧を機械的に削ると「六地蔵駅 (JR)」「六地蔵駅 (京都市営地下鉄)」
+// のような同名・同一都道府県の別事業者を区別できなくなる（詳細は
+// tests/hitori_render_test.py の該当テストのコメント参照）。そのため名称の末尾ではなく
+// 「駅」を含むかどうかで判定し、括弧の中身はそのまま残す。市区町村名は括弧書きが無く
+// 常に末尾が市/区/町/村のいずれかなので、そちらは末尾文字での判定のままでよい。
+function placeKindMark(p) {
+  if (p.type === 's') {
+    return p.name.includes('駅') ? '' : '駅';
+  }
+  const last = p.name.slice(-1);
+  return '市区町村'.includes(last) ? '' : '市区町村';
+}
+
+function renderPlaceHits(places, facs, opts) {
+  const el = document.getElementById('place-hits');
+  el.hidden = false;
+  const o = opts || {};
+  const parts = [];
+
+  // 見出し(.grp-place/.grp-fac)の配下に行を入れ子にする。兄弟のまま並べると
+  // 「.grp-fac li」のようなCSS子孫セレクタが一件も拾えなくなるため、
+  // ul.grp-rows で包んで実際の子孫にする（HTMLの<li>は新しい<li>で暗黙に
+  // 閉じられるため、間に<ul>を挟まないと見出しと行が兄弟として展開されてしまう）。
+  if (places.length) {
+    parts.push(`<li class="grp grp-place label">駅・地名<ul class="grp-rows">` + places.map((p, i) => `
+      <li data-kind="place" data-i="${i}" tabindex="0">${escapeHtml(p.name)}<span class="kindmark">${
+        placeKindMark(p)}・${escapeHtml(BY_CODE[p.pref].name)}</span></li>`).join('') + `</ul></li>`);
+  }
+  if (facs.length) {
+    // M13: 駅・地名側(placeKindMark)はマーカーが空でも区切りを常に置いている。
+    // 施設側だけ区切りが無く「別府ブルーバード劇場大分県」のようにくっつい
+    // ていたので、同じく先頭に「・」を置いて揃える。
+    parts.push(`<li class="grp grp-fac label">施設<ul class="grp-rows">` + facs.map((f, i) => `
+      <li data-kind="fac" data-i="${i}" tabindex="0">${escapeHtml(f.name)}<span class="kindmark">・${
+        escapeHtml(f.city || BY_CODE[f.prefCode || f.pref].name)}${
+        f.kind ? '・' + escapeHtml(KIND_JA[f.kind] || f.kind) : ''}</span></li>`).join('') + `</ul></li>`);
+  }
+  if (!parts.length) {
+    parts.push('<li class="empty">該当する駅・地名・施設がありません</li>');
+  }
+  // I4: 以前は「駅・地名も施設も0件」のときにしか出さなかったため、「別府」
+  // 「道後温泉」のようにローカルで何か1件でも当たると、全国の施設名検索へ
+  // 進む手段が無かった。索引が未取得で、入力が2文字以上あるときは常に
+  // （0件のときに限らず）末尾に出す。
+  if (o.showNationwide) {
+    parts.push(`<li class="empty"><button type="button" id="nationwide">全国の施設から探す（初回のみ約380KB）</button></li>`);
+  }
+  if (o.stale) parts.unshift('<li class="empty stale">データの更新中です。全国検索は一時的に使えません。</li>');
+
+  el.innerHTML = parts.join('');
+  el._places = places;
+  el._facs = facs;
+}
+
+function setOrigin(origin) {
+  state.origin = origin;
+  document.getElementById('origin-label').textContent = origin.label;
+  document.getElementById('origin-reset').hidden = origin.kind === 'here';
+  document.getElementById('place-hits').hidden = true;
+  document.getElementById('place-q').value = '';
+  runSearchFromOrigin();
+}
+
+function bindPlaceSearch() {
+  const q = document.getElementById('place-q');
+  const hits = document.getElementById('place-hits');
+
+  const update = () => {
+    const text = q.value.trim();
+    if (!text) { hits.hidden = true; return; }
+    ensurePlaces()
+      .then(items => {
+        const places = core.searchPlaces(items, text, 8);
+        const localFacs = core.searchFacilities(localFacilities(), text, 8);
+        let facs = localFacs;
+        // C3: 全国索引を一度取得すると FACILITIES が真になり、以後
+        // #nationwide ボタンの表示条件(!FACILITIES)を二度と満たさなくなる。
+        // 索引はもうメモリにあるので、以後の検索ではローカル検索と同時に
+        // 全国検索も自動で行う（追加の取得コストは無い）。誤った施設を混ぜ
+        // ないよう、県データと索引が食い違っているときは行わない。
+        if (FACILITIES && !facilitiesStale(FACILITIES)) {
+          const localKeys = new Set(localFacs.map(f => f.name + '@' + f.prefCode));
+          const nationwideFacs = FACILITIES.items
+            .map(([name, pref, i]) => ({ name, pref, i }))
+            .filter(r => r.name.includes(text) && !localKeys.has(r.name + '@' + r.pref))
+            .slice(0, 12);
+          facs = localFacs.concat(nationwideFacs).slice(0, 12);
+        }
+        // I4: 索引が未取得で、入力が2文字以上あるときは常にボタンを出す
+        // （以前は駅・地名も施設も0件のときだけだった）。
+        renderPlaceHits(places, facs, { showNationwide: !FACILITIES && text.length >= 2 });
+        const nw = document.getElementById('nationwide');
+        if (nw) nw.addEventListener('click', () => searchNationwide(text));
+      })
+      .catch(() => {
+        hits.hidden = false;
+        hits.innerHTML = '<li class="empty">地名データを読み込めませんでした</li>';
+      });
+  };
+
+  async function searchNationwide(text) {
+    try {
+      const doc = await ensureFacilities();
+      // 誤った施設を開くより、機能を止めるほうがよい（facilitiesStale 参照）。
+      const stale = facilitiesStale(doc);
+      const rows = stale ? [] : doc.items
+        .map(([name, pref, i]) => ({ name, pref, i }))
+        .filter(r => r.name.includes(text))
+        .slice(0, 12);
+      renderPlaceHits([], rows, { stale });
+    } catch (e) {
+      hits.innerHTML = '<li class="empty">全国データを読み込めませんでした</li>';
+    }
+  }
+
+  q.addEventListener('input', update);
+  q.addEventListener('focus', () => { ensurePlaces().catch(() => {}); });
+
+  const choose = el => {
+    const kind = el.dataset.kind;
+    const idx = +el.dataset.i;
+    if (kind === 'place') {
+      const p = hits._places[idx];
+      if (p) setOrigin({ kind: 'place', lat: p.lat, lon: p.lon, label: p.name });
+    } else if (kind === 'fac') {
+      const f = hits._facs[idx];
+      if (!f) return;
+      // 直前のクリックで出した失敗メッセージが残っていたら消す。
+      const prevFail = hits.querySelector('.open-fail');
+      if (prevFail) prevFail.remove();
+      // 施設は起点を変えずにカードを開く。ローカル検索の結果は距離フィルタ
+      // (state.search.maxDistM、既定800m)の外側にあることが多く、そのままでは
+      // currentSearchResults() から見つからない。FOUND_BY_SEARCH に登録して
+      // openFacility が現在の結果集合の外でも引けるようにする。
+      if (f.i !== undefined) {
+        // I5: openFacilityByIndex() は版ずれ・県データ取得失敗で false を
+        // 返すことがある。以前はその戻り値を見ておらず、候補が閉じるだけで
+        // 何も起きず、利用者にはクリックが効かなかったのか壊れたのか判別
+        // できなかった。開けるまで候補は閉じず、失敗したら理由を出す。
+        openFacilityByIndex(f.pref, f.i).then(ok => {
+          if (ok) { hits.hidden = true; return; }
+          const msg = document.createElement('li');
+          msg.className = 'empty stale open-fail';
+          msg.textContent = 'この施設を開けませんでした。データの更新中かもしれません。';
+          el.insertAdjacentElement('afterend', msg);
+        });
+      } else {
+        hits.hidden = true;
+        FOUND_BY_SEARCH.set(f.id, f);
+        openFacility(f.id);
+      }
+    }
+  };
+  hits.addEventListener('click', e => {
+    const li = e.target.closest('li[data-i]');
+    if (li) choose(li);
+  });
+  hits.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const li = e.target.closest('li[data-i]');
+    if (li) { e.preventDefault(); choose(li); }
+  });
+
+  document.getElementById('origin-reset').addEventListener('click', () => {
+    if (state.here) {
+      setOrigin({ kind: 'here', lat: state.here.lat, lon: state.here.lon, label: '現在地' });
+    } else {
+      locateAndSearch();
+    }
+  });
+}
+
+function bindSearchFilters() {
+  for (const c of CATS) {
+    document.getElementById('s-cat-' + c).addEventListener('change', e => {
+      if (e.target.checked) state.search.cats.add(c); else state.search.cats.delete(c);
+      refreshResults();
+    });
+  }
+  document.getElementById('f-dist').addEventListener('change', e => {
+    state.search.maxDistM = e.target.value ? +e.target.value : null;
+    state.distTouched = true;      // 以後、自動で広げない
+    refreshResults();
+  });
+  document.getElementById('f-solo').addEventListener('change', e => {
+    state.search.minSolo = e.target.checked ? 5 : 0; refreshResults();
+  });
+  document.getElementById('f-quiet').addEventListener('change', e => {
+    state.search.minQuiet = e.target.checked ? 4 : 0; refreshResults();
+  });
+  document.getElementById('f-easy').addEventListener('change', e => {
+    state.search.minEasy = e.target.checked ? 4 : 0; refreshResults();
+  });
+  document.getElementById('f-verified').addEventListener('change', e => {
+    state.search.minConf = e.target.checked ? 1 : 0; refreshResults();
+  });
+  document.getElementById('f-hours').addEventListener('change', e => {
+    state.search.requireHours = e.target.checked;
+    document.getElementById('hours-note').textContent = e.target.checked
+      ? '営業時間が登録されているのは全体の約17%です' : '';
+    refreshResults();
+  });
+}
+
+function toXY(lat, lon) {
+  const g = GEO.bounds;
+  return [
+    (lon * Math.cos(g.lat0 * Math.PI / 180) - g.minx) * g.scale,
+    (-lat - g.miny) * g.scale,
+  ];
+}
+
+function percentile(sorted, q) {
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
+}
+
+// 施設の分布から表示枠を決める。ただし min/max では外れ値に引きずられる。
+// 東京都のデータには小笠原の施設が入っており、素直に全点を囲むと本土が
+// 1ピクセルに潰れる。分位で枠を取り、外れた件数は画面に出す。
+function scatterFrame(pts) {
+  const xs = pts.map(p => p[0]).sort((a, b) => a - b);
+  const ys = pts.map(p => p[1]).sort((a, b) => a - b);
+  let minx = percentile(xs, 0.02), maxx = percentile(xs, 0.98);
+  let miny = percentile(ys, 0.02), maxy = percentile(ys, 0.98);
+  // 一点集中や極端に細長い県でも潰れないよう下限を入れる
+  const MIN_SPAN = 3;
+  if (maxx - minx < MIN_SPAN) { const c = (maxx + minx) / 2; minx = c - MIN_SPAN / 2; maxx = c + MIN_SPAN / 2; }
+  if (maxy - miny < MIN_SPAN) { const c = (maxy + miny) / 2; miny = c - MIN_SPAN / 2; maxy = c + MIN_SPAN / 2; }
+  return { minx, maxx, miny, maxy };
+}
+
+function renderScatter(items, code) {
+  if (!items.length) return { html: '', outside: 0 };
+  const pts = items.map(it => toXY(it.lat, it.lon));
+  const f = scatterFrame(pts);
+
+  const span = Math.max(f.maxx - f.minx, f.maxy - f.miny);
+  const pad = span * 0.08;
+  const vb = `${(f.minx - pad).toFixed(1)} ${(f.miny - pad).toFixed(1)} ` +
+             `${(f.maxx - f.minx + pad * 2).toFixed(1)} ${(f.maxy - f.miny + pad * 2).toFixed(1)}`;
+  const r = Math.max(span * 0.008, 0.35);
+
+  let outside = 0;
+  const pins = [];
+  for (let i = 0; i < items.length; i++) {
+    const [x, y] = pts[i];
+    const inside = x >= f.minx - pad && x <= f.maxx + pad && y >= f.miny - pad && y <= f.maxy + pad;
+    if (!inside) { outside++; continue; }
+    if (pins.length >= PIN_LIMIT) continue;
+    pins.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}"
+      class="pin cat-${items[i].cat} conf-${items[i].conf}"><title>${escapeHtml(items[i].name)}</title></circle>`);
+  }
+
+  const outline = GEO.paths[String(code)]
+    ? `<path d="${GEO.paths[String(code)]}" fill="none" stroke="#94a3b8" stroke-width="${(span * 0.004).toFixed(2)}"/>`
+    : '';
+  return {
+    html: `<svg id="scatter" viewBox="${vb}" role="img" aria-label="県内の分布">${outline}${pins.join('')}</svg>`,
+    outside,
+  };
+}
+
+function renderDetail(code, doc) {
+  const p = BY_CODE[code];
+  const items = visibleItems(doc, code);
+  const rank = SUMMARY.prefectures.map(x => ({ c: x.code, v: getDensity(x) }))
+    .sort((a, b) => b.v - a.v).findIndex(x => x.c === code) + 1;
+
+  const breakdown = CATS.filter(c => state.cats.has(c))
+    .map(c => `${CAT_JA[c]} ${items.filter(i => i.cat === c).length}`).join(' / ');
+
+  const listed = items.slice(0, listLimit);
+  const scatter = renderScatter(items, code);
+  const counts = items.length > listed.length
+    ? `該当 ${items.length.toLocaleString()} 件のうち上位 ${listed.length} 件を表示`
+    : `該当 ${items.length.toLocaleString()} 件`;
+  const notes = [];
+  if (items.length > PIN_LIMIT) notes.push(`分布図は ${PIN_LIMIT.toLocaleString()} 件まで`);
+  if (scatter.outside) notes.push(`離島など ${scatter.outside} 件は分布図の範囲外`);
+  const pinNote = notes.length ? `（${notes.join('、')}）` : '';
+
+  const list = listed.map(it => `
+    <li class="item" data-score="${it.solo}">
+      <span class="conf" title="${CONF_LABEL[it.conf]}">${CONF_MARK[it.conf]}</span>
+      <a href="${mapsUrl(it)}"
+         target="_blank" rel="noopener">${escapeHtml(it.name)}</a>
+      <span class="kind">${KIND_JA[it.kind] || it.kind}</span>
+      <span class="score">ひとり度 ${it.solo}</span>
+      ${it.chain ? '<span class="chip">チェーン</span>' : ''}
+      ${it.note ? `<span class="note">${escapeHtml(it.note)}</span>` : ''}
+    </li>`).join('');
+
+  const el = document.getElementById('detail');
+  el.hidden = false;
+  el.innerHTML = `
+    <button type="button" class="close" aria-label="閉じる">×</button>
+    <h2>${p.name}</h2>
+    <p class="stat">${getDensity(p).toFixed(1)} 件/10万人（全国 ${rank} 位）　${breakdown}</p>
+    <p class="counts">${counts}${pinNote}</p>
+    ${scatter.html}
+    <ol class="items">${list}</ol>
+    ${items.length > listed.length
+      ? `<p class="more"><button type="button" class="more-btn">もっと見る（残り ${(items.length - listed.length).toLocaleString()} 件）</button></p>`
+      : ''}
+    <p class="submit"><a href="${issueUrl(code, p.name)}" target="_blank" rel="noopener">
+      この県の情報を送る</a></p>`;
+  el.querySelector('.close').addEventListener('click', closePrefecture);
+  const more = el.querySelector('.more-btn');
+  if (more) {
+    more.addEventListener('click', () => {
+      // 同スコア内は名前順なので、打ち切ったままだと「ひとり度5かつ名前が
+      // 早い順」しか見えない。段階的に全件へ到達できるようにする。
+      listLimit += LIST_LIMIT;
+      renderDetail(code, doc);
+    });
+  }
+}
+
+function renderDetailError(code, err) {
+  const el = document.getElementById('detail');
+  el.hidden = false;
+  el.innerHTML = `<button type="button" class="close" aria-label="閉じる">×</button>
+    <h2>${BY_CODE[code].name}</h2>
+    <p class="error">データの取得に失敗しました（${escapeHtml(err.message)}）</p>
+    <button type="button" class="retry">再試行</button>`;
+  el.querySelector('.close').addEventListener('click', closePrefecture);
+  el.querySelector('.retry').addEventListener('click', () => openPrefecture(code));
+}
+
+async function openPrefecture(code) {
+  state.pref = code;
+  listLimit = LIST_LIMIT;
+  syncUrl();
+  const el = document.getElementById('detail');
+  el.hidden = false;
+  // 読み込み中も見出しを出す。差し替え時にタイトルが一瞬消えるのを避ける。
+  el.innerHTML = `<h2>${BY_CODE[code].name}</h2><p class="loading">読み込み中…</p>`;
+  try {
+    renderDetail(code, await loadPrefecture(code));
+  } catch (err) {
+    renderDetailError(code, err);
+  }
+}
+
+function issueUrl(code, name) {
+  const base = 'https://github.com/yuichi916/yuichi916.github.io/issues/new';
+  const q = new URLSearchParams({
+    template: 'hitori-submission.yml',
+    labels: 'hitori-submission',
+    title: `[ひとり歓迎マップ] ${name}`,
+  });
+  return `${base}?${q}`;
+}
+
+function buildLegendRamp() {
+  document.querySelector('#legend .ramp').innerHTML =
+    RAMP.map(c => `<i style="background:${c}"></i>`).join('');
+}
+
+function renderChainAudit(audit) {
+  const el = document.getElementById('chain-audit-summary');
+  if (!el) return;
+  if (!audit || !audit.statuses) {
+    el.textContent = 'チェーン判定の監査状況を読み込めませんでした。';
+    return;
+  }
+  const s = audit.statuses;
+  el.textContent = `チェーン判定は ${audit.updated} 時点で、根拠を確認済み ${Number(s.verified || 0).toLocaleString()} 件、` +
+    `多県展開による機械判定 ${Number(s.heuristic || 0).toLocaleString()} 件、` +
+    `非チェーン確認済み ${Number(s.not_chain || 0).toLocaleString()} 件です。` +
+    `要再確認 ${Number(s.needs_review || 0).toLocaleString()} 件は、チェーンを隠す条件の利用前に詳細をご確認ください。`;
+}
+
+function buildMapSvg() {
+  const svg = document.getElementById('map');
+  svg.setAttribute('viewBox', GEO.viewBox);
+  svg.innerHTML = Object.entries(GEO.paths).map(([code, d]) =>
+    `<path data-code="${code}" d="${d}" stroke="#94a3b8" stroke-width="0.8"
+      tabindex="0" role="button"><title></title></path>`).join('');
+  svg.addEventListener('click', e => {
+    const p = e.target.closest('path[data-code]');
+    if (p) openPrefecture(parseInt(p.dataset.code, 10));
+  });
+  svg.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const p = e.target.closest('path[data-code]');
+    if (p) { e.preventDefault(); openPrefecture(parseInt(p.dataset.code, 10)); }
+  });
+}
+
+function bindFilters() {
+  for (const c of CATS) {
+    document.getElementById('f-cat-' + c).addEventListener('change', e => {
+      if (e.target.checked) state.cats.add(c); else state.cats.delete(c);
+      applyFilters();
+    });
+  }
+  document.getElementById('f-nochain').addEventListener('change', e => {
+    state.nochain = e.target.checked; applyFilters();
+  });
+  for (const r of document.querySelectorAll('input[name=conf]')) {
+    r.addEventListener('change', e => { state.minConf = parseInt(e.target.value, 10); applyFilters(); });
+  }
+  document.getElementById('ranking').addEventListener('click', e => {
+    const b = e.target.closest('button[data-code]');
+    if (b) openPrefecture(parseInt(b.dataset.code, 10));
+  });
+
+  // 地図クリックだけだと東京・大阪・香川のような小さい県に到達しにくい。
+  // 東京都は伊豆諸島まで含むため、形の重心が海上に来てしまうことすらある。
+  const sel = document.getElementById('pref-select');
+  sel.innerHTML = '<option value="">選択してください</option>' +
+    SUMMARY.prefectures.map(p => `<option value="${p.code}">${p.name}</option>`).join('');
+  sel.addEventListener('change', e => {
+    if (e.target.value) openPrefecture(parseInt(e.target.value, 10));
+  });
+
+  // 共有URLを同じタブで開いてもハッシュ変更だけでは文書が再読込されないため、
+  // hashchange でも状態を復元する。syncUrl は replaceState なので再帰しない。
+  window.addEventListener('hashchange', () => {
+    const before = state.pref;
+    restoreFromUrl();
+    applyFilters();
+    switchTab(state.tab);
+    if (state.pref && state.pref !== before) openPrefecture(state.pref);
+    else if (!state.pref && before) closePrefecture();
+  });
+
+  document.getElementById('tab-search').addEventListener('click', () => switchTab('search'));
+  document.getElementById('tab-nation').addEventListener('click', () => switchTab('nation'));
+}
+
+function closePrefecture() {
+  state.pref = null;
+  document.getElementById('detail').hidden = true;
+  syncUrl();
+}
+
+async function init() {
+  const [s, g, nb, chainAudit] = await Promise.all([
+    fetch('data/hitori/summary.json').then(r => r.json()),
+    fetch('data/hitori/prefectures_svg.json').then(r => r.json()),
+    fetch('data/hitori/neighbors.json').then(r => r.json()),
+    fetch('data/hitori/chain_audit.json').then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+  SUMMARY = s; GEO = g; NEIGHBORS = nb;
+  renderChainAudit(chainAudit);
+  for (const p of SUMMARY.prefectures) BY_CODE[p.code] = p;
+  buildLegendRamp();
+  buildMapSvg();
+  bindFilters();
+  restoreFromUrl();
+  applyFilters();
+  bindSearchFilters();
+  bindPlaceSearch();
+  bindSortAndFavs();
+  document.getElementById('search-list').addEventListener('click', e => {
+    const li = e.target.closest('li.item');
+    if (li) openFacility(li.dataset.id, li);
+  });
+  document.getElementById('search-list').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const li = e.target.closest('li.item');
+    if (li) { e.preventDefault(); openFacility(li.dataset.id, li); }
+  });
+  // 「いま行くなら」の一枚もカードと同じように開ける。
+  const nowEl = document.getElementById('now-card');
+  if (nowEl) {
+    nowEl.addEventListener('click', () => {
+      if (nowEl.dataset.id) openFacility(nowEl.dataset.id, nowEl);
+    });
+    nowEl.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (!nowEl.dataset.id) return;
+      e.preventDefault(); openFacility(nowEl.dataset.id, nowEl);
+    });
+  }
+  // Escape でシートを閉じる。開いている間だけ有効（hidden なら何もしない）。
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const facility = document.getElementById('facility');
+    if (facility.hidden) return;
+    e.preventDefault();
+    closeFacility();
+  });
+  // 数を誇張しない。37,189件のうち実際に確認できた件数だけを出す。
+  const cc = document.getElementById('checked-count');
+  if (cc) cc.textContent = (SUMMARY.checked_count || 0).toLocaleString();
+
+  // 集めた事実は一覧のカードにも出すので、詳細シートを待たずに取りに行く。
+  // 調査済みは全体の一部なのでファイルは小さい。取れなくても一覧は出る。
+  ensureCurated().then(() => {
+    // 起点が無いときは描き直さない。位置情報を拒否されたときの案内文が
+    // 出ている状態で再描画すると、その案内を消してしまう。
+    if (state.origin.lat != null) rerenderView();
+  }).catch(err => {
+    // 黙って諦めない。確認済みの事実が読めていないのに、事実での絞り込みを
+    // 押せる状態にしておくと「0件＝該当なし」と誤解される。
+    console.warn('確認できた事実を読み込めませんでした:', err.message);
+    curatedFailed = true;
+    for (const b of document.querySelectorAll('.quickbar button')) {
+      if (b.dataset.q !== 'nochain' && b.dataset.q !== 'chainonly' && b.dataset.q !== 'gemonly') {
+        b.disabled = true;
+        b.title = '確認できた事実を読み込めていないため、いまは使えません';
+      }
+    }
+    const cc = document.getElementById('checked-count');
+    if (cc) cc.textContent = '—';
+  });
+  switchTab(state.tab);   // 探すタブが初期表示なら ensureSearchStarted() 経由でここから起動する
+  if (state.pref) openPrefecture(state.pref);
+  bindDeck();
+  bindQuickbar();
+  // 要素が無くても init() を止めない。ここで例外が出ると window.__ready が
+  // 立たず、業態絞り込み以外の機能まで丸ごと使えなくなる。
+  const kindSel = document.getElementById('f-kind');
+  if (kindSel) kindSel.addEventListener('change', e => {
+    state.search.kind = e.target.value || null;
+    refreshResults();
+  });
+  const exEl = document.getElementById('excluded-count');
+  // 数字を書いておいて実データと食い違うより、読めたときだけ出す。
+  if (exEl) exEl.textContent = (SUMMARY.excluded_count || 0).toLocaleString();
+  setView(state.view);
+  window.__ready = true;
+  // 描画テストから触るために公開する。state / PREF_CACHE / currentSearchResults /
+  // renderDeck / setView はモジュール末尾で init() 前に公開済みなのでここでは
+  // 重複させない（M16: 二重の公開はどちらが正か読めなくなる）。
+  Object.assign(window, { core, isGem, openFacility, setOrigin, ensurePlaces, SUMMARY, isIsolated });
+}
+
+// module scriptはトップレベル宣言がモジュールスコープに閉じ、window の
+// プロパティにならない。page.evaluate() が素の識別子で参照できるよう公開する。
+window.state = state;
+window.SUMMARY = SUMMARY;
+window.renderNowCard = renderNowCard;
+window.PREF_CACHE = PREF_CACHE;
+window.visibleItems = visibleItems;
+window.AX_LABEL = AX_LABEL;
+window.KIND_GUIDE = KIND_GUIDE;
+window.KIND_GAZE = KIND_GAZE;
+window.doubtfulOf = doubtfulOf;
+window.factsOf = factsOf;
+window.core = core;
+window.renderCurated = renderCurated;
+window.openFacility = openFacility;
+window.tipsFor = tipsFor;
+window.factLabel = factLabel;
+window.FAILED_PREFS = FAILED_PREFS;
+window.FOUND_BY_SEARCH = FOUND_BY_SEARCH;
+window.CURATED = CURATED;
+window.ensureCurated = ensureCurated;
+window.currentSearchResults = currentSearchResults;
+window.renderDeck = renderDeck;
+window.refreshResults = refreshResults;
+window.setView = setView;
+window.openFilterSheet = openFilterSheet;
+window.ensureFacilities = ensureFacilities;
+window.sameKindNearby = sameKindNearby;
+window.loadPrefIntoCache = loadPrefIntoCache;
+
+init().catch(err => {
+  // file:// で開くとブラウザが fetch をブロックする。原因が分からないと
+  // ページ側の不具合に見えてしまうので、対処まで書く。
+  const isFile = location.protocol === 'file:';
+  const msg = isFile
+    ? `このページはファイルとして直接開くと動きません。ブラウザが
+       <code>file://</code> からのデータ読み込みをブロックするためです。<br>
+       公開版は <a href="https://yuichi916.github.io/hitori.html">yuichi916.github.io/hitori.html</a> で見られます。<br>
+       手元で確認する場合は、このフォルダで
+       <code>python -m http.server 8000</code> を実行し
+       <code>http://localhost:8000/hitori.html</code> を開いてください。`
+    : `データの読み込みに失敗しました（${escapeHtml(err.message)}）。
+       通信環境を確認して再読み込みしてください。`;
+  document.getElementById('map').outerHTML = `<div class="error">${msg}</div>`;
+  // エラーメッセージは「全国で見る」パネルの中にある。既定タブの「探す」が
+  // 表示されたままだと黙って隠れてしまうため、エラー時はそちらへ切り替える。
+  switchTab('nation');
+  window.__ready = true;
+  window.__searchReady = true;
+});
+</script>
+</body>
+</html>
