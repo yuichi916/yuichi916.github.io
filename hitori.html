@@ -298,6 +298,7 @@ img, svg, table { max-width: 100%; }
 .curated li.conflict { opacity:.7; }
 .curated .sup { color:var(--muted); font-size:.75rem; margin-left:.4rem; }
 .curated .srcs a { margin-left:.25rem; }
+.curated .visit-note { display:inline-block; margin-left:.35rem; color:#8a5a1a; font-size:.72rem; }
 .curated .conflict-note { color:var(--muted); margin:.5rem 0 0; }
 .curated.unchecked { color:var(--muted); }
 #facility .to-maps { display: inline-block; margin-top: .8rem; }
@@ -420,6 +421,7 @@ body.deck-mode .method { display:none; }
     <div class="quickbar" role="group" aria-label="よく使う絞り込み">
       <button type="button" data-q="nochain" aria-pressed="false">チェーンを隠す</button>
       <button type="button" data-q="chainonly" aria-pressed="false">チェーンだけ</button>
+      <button type="button" data-q="gemonly" aria-pressed="false">穴場候補</button>
       <button type="button" data-q="verified" aria-pressed="false">確認済み</button>
       <button type="button" data-q="ticket" aria-pressed="false">券売機</button>
       <button type="button" data-q="unstaffed" aria-pressed="false">無人</button>
@@ -850,6 +852,7 @@ const QUICK = {
   // なかっただけで、独立店であることの証明ではない。
   nochain:  { label: 'チェーンを隠す', pred: it => it.chain !== 1, excl: 'chainonly' },
   chainonly:{ label: 'チェーンだけ',   pred: it => it.chain === 1, excl: 'nochain' },
+  gemonly:  { label: '穴場候補',       pred: it => isGem(it) },
   verified: { label: '確認済み', verified: true },
   ticket:   { label: '券売機',   fact: { k: 'payment_method', v: 'ticket_machine' } },
   unstaffed:{ label: '無人',     fact: { k: 'unstaffed', v: 'yes' } },
@@ -1601,6 +1604,7 @@ const FACT_KEY_JA = { counter_seats: 'カウンター席', seats_total: '席数'
                       hours: '営業時間', closed_days: '定休日', price: '料金',
                       stay_limit: '滞在の上限', renamed_to: '現在の名称',
                       city: '所在地', closes_on: '閉業予定日' };
+const BLOG_SOURCE_DOMAINS = new Set(['zatsu-ke.blog.jp', 'sanukiudon-ranking.com']);
 
 function factLabel(f) {
   const fixed = FACT_JA[`${f.k}:${f.v}`] || FACT_JA_SOLO[`${f.k}:${f.v}`];
@@ -1626,8 +1630,10 @@ function renderCurated(it) {
     const support = f.official ? '公式サイト' : `${f.n}件`;
     const links = f.urls.map((u, i) =>
       `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${i + 1}</a>`).join(' ');
+    const blogNote = (f.src || []).some(domain => BLOG_SOURCE_DOMAINS.has(domain))
+      ? '<span class="visit-note">個人訪問記・要確認</span>' : '';
     return `<li${f.conflict ? ' class="conflict"' : ''}>${escapeHtml(factLabel(f))}
-      <span class="sup">${support}</span> <span class="srcs">${links}</span></li>`;
+      <span class="sup">${support}</span> <span class="srcs">${links}</span>${blogNote}</li>`;
   }).join('');
   const conflicted = [...new Set(entry.facts.filter(f => f.conflict)
     .map(f => FACT_KEY_JA[f.k] || FACT_JA[`${f.k}:${f.v}`] || f.k))];
@@ -2577,7 +2583,7 @@ async function init() {
     console.warn('確認できた事実を読み込めませんでした:', err.message);
     curatedFailed = true;
     for (const b of document.querySelectorAll('.quickbar button')) {
-      if (b.dataset.q !== 'nochain' && b.dataset.q !== 'chainonly') {
+      if (b.dataset.q !== 'nochain' && b.dataset.q !== 'chainonly' && b.dataset.q !== 'gemonly') {
         b.disabled = true;
         b.title = '確認できた事実を読み込めていないため、いまは使えません';
       }
