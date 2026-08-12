@@ -9,6 +9,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import chain_audit
 import chains
 import enrich
 import hidden
@@ -301,6 +302,7 @@ def main():
     (OUT_DIR / "pref").mkdir(parents=True, exist_ok=True)
     (OUT_DIR / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    chain_audit.write_audit(OUT_DIR, summary["total"], summary["updated"])
     for code, doc in prefdocs.items():
         (OUT_DIR / "pref" / f"{code:02d}.json").write_text(
             json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
