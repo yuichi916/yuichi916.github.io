@@ -316,6 +316,41 @@ def test_cuisine_still_works_without_brand():
     assert scoring.classify({"amenity": "restaurant", "name": "町の中華そば",
                              "cuisine": "ramen"}) == ("eat", "ramen", 4)
 
+
+def test_ambiguous_noodle_cuisine_is_resolved_by_name():
+    """cuisine=noodle は「麺類」全般を指す曖昧タグで、そば・うどん確定タグ
+    （soba/udon）と同列に扱うと誤る。実データで826件、店名にラーメン系の
+    語を持つ店が「そば・うどん」に分類されていた
+    （川崎駅そばの「家系らーめん横崎家」「喜多方ラーメン」など）。
+    """
+    ramen_named = ("家系らーめん横崎家", "喜多方ラーメン", "らーめん山岡家",
+                   "中華そば大勝軒", "横浜家系ラーメン いなせ家", "支那そば や",
+                   "旭川らーめん 鷹の爪")
+    for name in ramen_named:
+        got = scoring.classify({"amenity": "fast_food", "name": name, "cuisine": "noodle"})
+        assert got == ("eat", "ramen", 4), (name, got)
+
+    # 表記ゆれ側（部分一致救済経路）でも同じ結果になること
+    got = scoring.classify({"amenity": "fast_food", "name": "家系ラーメン",
+                            "cuisine": "asian_noodle_shop"})
+    assert got == ("eat", "ramen", 4), got
+
+
+def test_ambiguous_noodle_cuisine_falls_back_when_name_is_unclear():
+    """店名からラーメンと判断できないときは、これまでどおりそば・うどんへ
+    倒す。無理に決めつけない。"""
+    got = scoring.classify({"amenity": "fast_food", "name": "えきめんや", "cuisine": "noodle"})
+    assert got == ("eat", "soba_udon", 4), got
+
+
+def test_confirmed_soba_udon_tags_are_unaffected_by_the_noodle_fix():
+    """soba / udon は元々の確定タグ。noodle の曖昧さと混ぜていないこと。"""
+    assert scoring.classify({"amenity": "fast_food", "name": "ラーメン二郎",
+                             "cuisine": "soba"}) == ("eat", "soba_udon", 4)
+    assert scoring.classify({"amenity": "restaurant", "name": "○○",
+                             "cuisine": "udon"}) == ("eat", "soba_udon", 4)
+
+
 def main():
     test_classify()
     test_axes()
@@ -327,6 +362,9 @@ def main():
     test_footbath_rule_does_not_swallow_real_baths()
     test_footbath_axes_say_it_is_easy()
     test_kind_guide_test_would_catch_a_missing_kind()
+    test_ambiguous_noodle_cuisine_is_resolved_by_name()
+    test_ambiguous_noodle_cuisine_falls_back_when_name_is_unclear()
+    test_confirmed_soba_udon_tags_are_unaffected_by_the_noodle_fix()
     test_confidence()
     test_is_chain()
     test_new_chain_brands_bare_and_branch_suffixed()

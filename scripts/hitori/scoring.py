@@ -62,7 +62,15 @@ _CUISINE_SEP = re.compile(r"[;,/\s]+")
 # 部分文字列で判定すると "gyudon" が "udon" を含むため牛丼がそば屋になる。
 # トークン単位で照合し、取りこぼしたときだけ安全な順序の部分一致に落とす。
 _RAMEN = {"ramen"}
-_SOBA_UDON = {"soba", "udon", "noodle", "noodles"}
+_SOBA_UDON = {"soba", "udon"}
+# noodle/noodles は「麺類」全般を指す曖昧タグで、ラーメンかそば・うどんかを
+# 決めない。以前は _SOBA_UDON に含めていたため、cuisine=noodle が付いた
+# ラーメン店が軒並み「そば・うどん」に化けていた（実データで826件。
+# 「家系らーめん横崎家」「赤備」「喜多方ラーメン」など店名に疑いの余地が
+# 無いものまで含む）。店名で判断できるならそちらを、できなければ
+# 元のとおりそば・うどんへ倒す。
+_NOODLE_AMBIGUOUS = {"noodle", "noodles"}
+_RAMEN_NAME = re.compile(r"ラーメン|らーめん|らあめん|拉麺|中華そば|支那そば|家系")
 _GYUDON = {"gyudon", "donburi", "katsudon", "oyakodon"}
 _CURRY = {"curry"}
 
@@ -122,8 +130,8 @@ def _cuisine_tokens(cuisine):
     return {t for t in _CUISINE_SEP.split((cuisine or "").lower()) if t}
 
 
-def _classify_cuisine(cuisine):
-    """cuisine 文字列 → (kind, base) または None。"""
+def _classify_cuisine(cuisine, name=""):
+    """cuisine 文字列（+ 判断材料としての店名）→ (kind, base) または None。"""
     toks = _cuisine_tokens(cuisine)
     if toks & _RAMEN:
         return ("ramen", 4)
@@ -133,6 +141,8 @@ def _classify_cuisine(cuisine):
         return ("gyudon", 4)
     if toks & _CURRY:
         return ("curry", 4)
+    if toks & _NOODLE_AMBIGUOUS:
+        return ("ramen", 4) if _RAMEN_NAME.search(name) else ("soba_udon", 4)
 
     # トークンに割れない表記ゆれ("ramen_shop" 等)の救済。
     # Overpass 側は部分一致で取得しているので、ここで落とすと取得済みの行を捨ててしまう。
@@ -143,6 +153,8 @@ def _classify_cuisine(cuisine):
         return ("gyudon", 4)
     if any(k in c for k in _SOBA_UDON):
         return ("soba_udon", 4)
+    if "noodle" in c:
+        return ("ramen", 4) if _RAMEN_NAME.search(name) else ("soba_udon", 4)
     if "curry" in c:
         return ("curry", 4)
     return None
@@ -168,7 +180,7 @@ def classify(tags):
         bk = brand_kind(name)
         if bk:
             return ("eat", bk, 4)
-        hit = _classify_cuisine(cuisine)
+        hit = _classify_cuisine(cuisine, name)
         if hit:
             return ("eat",) + hit
 
