@@ -4,10 +4,11 @@ import path from "node:path";
 const root = "/home/ubuntu/hitori-source/data/hitori";
 const id = "n11917182769";
 const sourceUrl = "https://yogan-sauna-fukuoka-tenjin.jp/price/";
-const [prefText, curatedText, summaryText] = await Promise.all([
+const [prefText, curatedText, summaryText, pageText] = await Promise.all([
   fs.readFile(path.join(root, "pref/40.json"), "utf8"),
   fs.readFile(path.join(root, "curated.json"), "utf8"),
   fs.readFile(path.join(root, "summary.json"), "utf8"),
+  fs.readFile("/home/ubuntu/hitori-source/hitori.html", "utf8"),
 ]);
 const pref = JSON.parse(prefText);
 const curated = JSON.parse(curatedText);
@@ -26,4 +27,5 @@ if (entry.facts.map(fact => fact.k).sort().join(",") !== expectedKeys.join(","))
 if (summary.total !== 40570 || summary.checked_count !== Object.keys(curated).length || summary.checked_count < 750) {
   throw new Error("全国集計が不正です。");
 }
+if (!pageText.includes('conditions:"利用条件"')) throw new Error("利用条件ラベルの日本語表示が不正です。");
 console.log(JSON.stringify({ status: "ok", id, total: summary.total, checkedCount: summary.checked_count }, null, 2));
