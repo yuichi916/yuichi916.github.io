@@ -1612,11 +1612,14 @@ function factLabel(f) {
 // 出典URLは出す。主張の文章は出さない（そもそも保存していない）。
 function renderCurated(it) {
   const entry = CURATED[it.id];
-  if (!it.checked) {
+  // 調べたかどうかは curated.json の実体で決める。it.checked は県ファイルの
+  // 列で、お気に入りのスナップショット（FAV_FIELDS）には入っていない。
+  // 列を見ていたせいで、保存した施設を開くと調査済みでも
+  // 「この施設はまだ調べていません」と出ていた。
+  if (!entry || !entry.facts || !entry.facts.length) {
     return `<div class="curated unchecked">この施設はまだ調べていません。
       3軸は業態からの推定です。</div>`;
   }
-  if (!entry || !entry.facts.length) return '';
   const rows = entry.facts.map(f => {
     const support = f.official ? '公式サイト' : `${f.n}件`;
     const links = f.urls.map((u, i) =>
@@ -1805,6 +1808,10 @@ async function openFacility(id, opener) {
       const row = doc.items.find(r => r[idIdx] === it.id);
       stale = !row;
       liveIso = row ? row[doc.fields.indexOf('iso')] : undefined;
+      // checked も FAV_FIELDS に無い。現在データにあるなら引き直す。
+      // 引かないと、保存した施設のカードに「複数の情報源で確認済み」が
+      // 出ないままになる。
+      if (row) it.checked = row[doc.fields.indexOf('checked')] || '';
     }
   }
 
@@ -2611,6 +2618,8 @@ window.KIND_GAZE = KIND_GAZE;
 window.doubtfulOf = doubtfulOf;
 window.factsOf = factsOf;
 window.core = core;
+window.renderCurated = renderCurated;
+window.openFacility = openFacility;
 window.tipsFor = tipsFor;
 window.factLabel = factLabel;
 window.FAILED_PREFS = FAILED_PREFS;

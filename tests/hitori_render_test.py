@@ -2548,6 +2548,38 @@ def test_gaze_section_is_separate_from_the_guide(context, page):
     p.close()
 
 
+def test_saved_facility_is_not_called_unchecked(context, page):
+    """checked 列が無い施設でも、調べてあれば「まだ調べていません」と出ないこと。
+
+    お気に入りは11項目のスナップショットで checked 列を保存していない。
+    調べたかどうかを列で判定していたため、調査済みの施設を保存して開くと
+    「この施設はまだ調べていません。3軸は業態からの推定です。」と出ていた。
+    近くに調査済み施設があるかに依存しないよう、curated.json から直接選ぶ。
+    """
+    p = context.new_page()
+    p.goto(BASE)
+    p.wait_for_function("window.__ready === true", timeout=30000)
+    got = p.evaluate("""async () => {
+      await window.ensureCurated();
+      const id = Object.keys(window.CURATED)
+        .find(k => (window.CURATED[k].facts || []).length);
+      if (!id) return null;
+      // checked を持たない項目（お気に入りのスナップショットと同じ状態）
+      const bare = { id, name: 'x', cat: 'bath', kind: 'sento', solo: 4, quiet: 4, easy: 3 };
+      const withCol = { ...bare, checked: '2026-08-12' };
+      return { bare: window.renderCurated(bare), withCol: window.renderCurated(withCol),
+               none: window.renderCurated({ id: '__no_such_id__', cat: 'bath', kind: 'sento' }) };
+    }""")
+    assert got, "curated.json に事実のある施設が無い"
+    assert "まだ調べていません" not in got["bare"], got["bare"][:200]
+    assert "確認できたこと" in got["bare"], got["bare"][:200]
+    # checked 列があるときと同じ結果になること
+    assert got["bare"] == got["withCol"]
+    # 本当に調べていない施設では今までどおり出すこと
+    assert "まだ調べていません" in got["none"], got["none"][:200]
+    p.close()
+
+
 def main():
     from playwright.sync_api import sync_playwright
     httpd = serve()
@@ -2583,6 +2615,7 @@ def main():
             test_exclusions_are_stated_with_a_count(context, page)
             test_fit_sort_is_offered(context, page)
             test_gaze_section_is_separate_from_the_guide(context, page)
+            test_saved_facility_is_not_called_unchecked(context, page)
             test_now_card_answers_the_one_question_first(context, page)
             test_now_card_opens_the_facility(context, page)
             test_now_card_is_hidden_in_deck_and_favorites(context, page)
