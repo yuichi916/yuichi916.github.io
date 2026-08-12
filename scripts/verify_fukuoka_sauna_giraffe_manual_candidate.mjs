@@ -23,7 +23,12 @@ if (!entry.facts.every(fact => fact.official && fact.urls?.some(url => url.start
 }
 if (!entry.sources?.some(url => url.includes('google.com/maps'))) throw new Error('地図根拠が不正です。');
 const fukuoka = summary.prefectures.find(prefecture => prefecture.code === 40);
-if (!fukuoka || summary.total < 40568 || summary.checked_count < 816 || fukuoka.counts.bath < 1) {
+if (
+  !fukuoka ||
+  summary.total < 40568 ||
+  summary.checked_count !== Object.keys(curated).length ||
+  fukuoka.counts.bath < 1
+) {
   throw new Error('福岡県または全国の集計が不正です。');
 }
 console.log(JSON.stringify({ status: 'ok', id, total: summary.total, checkedCount: summary.checked_count, fukuoka: fukuoka.counts }, null, 2));
