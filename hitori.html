@@ -393,6 +393,7 @@ body.deck-mode .method { display:none; }
       裏付けが取れたものです。いま <span id="excluded-count">—</span> 件を外してあります。
       外した理由は施設ごとに記録してあり、裏付けが1件しかないものは外さずに
       「要確認」と出します。</p>
+      <p id="chain-audit-summary">チェーン判定の監査状況を読み込んでいます。</p>
       <p>広告もアフィリエイトもありません。どの施設を上に出しても、こちらに得はありません。</p>
     </details>
   </header>
@@ -2457,6 +2458,20 @@ function buildLegendRamp() {
     RAMP.map(c => `<i style="background:${c}"></i>`).join('');
 }
 
+function renderChainAudit(audit) {
+  const el = document.getElementById('chain-audit-summary');
+  if (!el) return;
+  if (!audit || !audit.statuses) {
+    el.textContent = 'チェーン判定の監査状況を読み込めませんでした。';
+    return;
+  }
+  const s = audit.statuses;
+  el.textContent = `チェーン判定は ${audit.updated} 時点で、根拠を確認済み ${Number(s.verified || 0).toLocaleString()} 件、` +
+    `多県展開による機械判定 ${Number(s.heuristic || 0).toLocaleString()} 件、` +
+    `非チェーン確認済み ${Number(s.not_chain || 0).toLocaleString()} 件です。` +
+    `要再確認 ${Number(s.needs_review || 0).toLocaleString()} 件は、チェーンを隠す条件の利用前に詳細をご確認ください。`;
+}
+
 function buildMapSvg() {
   const svg = document.getElementById('map');
   svg.setAttribute('viewBox', GEO.viewBox);
@@ -2523,12 +2538,14 @@ function closePrefecture() {
 }
 
 async function init() {
-  const [s, g, nb] = await Promise.all([
+  const [s, g, nb, chainAudit] = await Promise.all([
     fetch('data/hitori/summary.json').then(r => r.json()),
     fetch('data/hitori/prefectures_svg.json').then(r => r.json()),
     fetch('data/hitori/neighbors.json').then(r => r.json()),
+    fetch('data/hitori/chain_audit.json').then(r => r.ok ? r.json() : null).catch(() => null),
   ]);
   SUMMARY = s; GEO = g; NEIGHBORS = nb;
+  renderChainAudit(chainAudit);
   for (const p of SUMMARY.prefectures) BY_CODE[p.code] = p;
   buildLegendRamp();
   buildMapSvg();
