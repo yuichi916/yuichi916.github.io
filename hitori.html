@@ -59,5 +59,38 @@
   async function loadPref(code){ $("list").innerHTML='<div class="loading">施設データを読み込んでいます。</div>'; const doc=await loadJson(`data/hitori/pref/${String(code).padStart(2,"0")}.json`); state.rows=doc.items.map(rowObject.bind(null,doc)); state.current=null; render(); }
   load().catch(err=>{ $("list").innerHTML=`<div class="empty">データを読み込めませんでした。<br>${escapeHTML(err.message)}</div>`; });
   </script>
+  <style>
+    .solo-lens { margin-top:14px; padding:13px; border:1px solid #ead8cc; border-radius:13px; background:#fffaf4; }.lens-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }.lens-head b { color:#8d4734; font-size:12px; }.lens-head small { color:#81746d; font-size:9px; }.lens-copy { margin:6px 0 0; color:#756b64; font-size:10px; line-height:1.55; }.lens-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:10px; }.lens-item { padding:9px; border:1px solid #f0e8e1; border-radius:9px; background:#fff; }.lens-item b { display:block; color:#5e554f; font-size:10px; }.lens-item strong { display:block; margin-top:3px; color:#352d29; font-size:11px; }.lens-item small { display:block; margin-top:3px; color:#786d66; font-size:9px; line-height:1.45; }.lens-origin { display:inline-block; margin-top:4px; padding:2px 5px; border-radius:999px; background:#f4e9df; color:#99452f; font-size:8px; font-weight:700; }.lens-origin.official { background:#e7f4ef; color:#276b60; }.lens-origin.review { background:#fff4dc; color:#835c1f; }
+  </style>
+  <script>
+    (() => {
+      const baseDetail = detail;
+      const compactSoloText = (value, max = 58) => { const text = String(value || ""); return text.length <= max ? text : `${text.slice(0, max - 1)}…`; };
+      const originClass = origin => origin === "公式情報" ? "official" : origin === "要確認" ? "review" : "";
+      const renderSoloLens = (facility, curated) => {
+        const usable = key => (curated?.facts || []).find(fact => fact.k === key && !fact.conflict);
+        const solo = usable("solo_ok");
+        const reservation = usable("reservation");
+        const towel = usable("towel") || usable("bring_towel");
+        const privateRoom = facility.kind === "private_sauna";
+        const item = (label, value, note, origin) => ({ label, value, note, origin });
+        const insights = [
+          solo?.official ? item("一人利用の確かさ", "公式に一人利用を案内", compactSoloText(solo.v), "公式情報") : item("一人利用の確かさ", "公式明示は未確認", "掲載スコアとは別に、公式の一人利用案内は確認できていません。", "要確認"),
+          privateRoom ? item("ひとり空間", "個室型", "業態がprivate_saunaとして登録されています。", "OSM・マップ分類") : item("ひとり空間", "共有空間が中心", `業態「${facility.kind}」から整理しています。`, "マップ分析"),
+          reservation?.official ? item("予約の段取り", "予約の案内あり", compactSoloText(reservation.v), "公式情報") : item("予約の段取り", "予約要否は確認前", "当日の受付方法・予約要否は利用前にご確認ください。", "要確認"),
+          towel?.official ? item("手ぶら準備", "タオル情報あり", compactSoloText(towel.v), "公式情報") : item("手ぶら準備", "持ち物は要確認", "タオル・アメニティの個別情報は未確認です。", "要確認"),
+          item("マップの見立て", `ひとり度 ${facility.solo}/5`, `静けさ ${facility.quiet}/5・入りやすさ ${facility.easy}/5。業態と既存属性による比較用の推定です。`, "マップ分析"),
+        ];
+        return `<section class="solo-lens"><div class="lens-head"><div><b>SOLO MAP ORIGINAL　ひとり利用ナビ</b><p class="lens-copy">公式根拠とマップ分析を分けて、初回の一人利用で迷いやすい点を整理します。</p></div><small>推定は利用保証ではありません</small></div><div class="lens-grid">${insights.map(insight => `<div class="lens-item"><b>${escapeHTML(insight.label)}</b><strong>${escapeHTML(insight.value)}</strong><small>${escapeHTML(insight.note)}</small><span class="lens-origin ${originClass(insight.origin)}">${escapeHTML(insight.origin)}</span></div>`).join("")}</div></section>`;
+      };
+      detail = function detailWithSoloLens(facility) {
+        baseDetail(facility);
+        const container = document.getElementById("detail");
+        const lens = document.createRange().createContextualFragment(renderSoloLens(facility, state.curated[facility.id]));
+        const facts = container.querySelector(".facts");
+        if (facts) facts.before(lens); else container.append(lens);
+      };
+    })();
+  </script>
 </body>
 </html>
