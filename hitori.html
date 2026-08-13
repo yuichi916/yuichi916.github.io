@@ -70,13 +70,15 @@
       const renderSoloLens = (facility, curated) => {
         const usable = key => (curated?.facts || []).find(fact => fact.k === key && !fact.conflict);
         const solo = usable("solo_ok");
+        const silence = usable("silence");
         const reservation = usable("reservation");
         const towel = usable("towel") || usable("bring_towel");
         const privateRoom = facility.kind === "private_sauna";
         const item = (label, value, note, origin) => ({ label, value, note, origin });
         const insights = [
           solo?.official ? item("一人利用の確かさ", "公式に一人利用を案内", compactSoloText(solo.v), "公式情報") : item("一人利用の確かさ", "公式明示は未確認", "掲載スコアとは別に、公式の一人利用案内は確認できていません。", "要確認"),
-          privateRoom ? item("ひとり空間", "個室型", "業態がprivate_saunaとして登録されています。", "OSM・マップ分類") : item("ひとり空間", "共有空間が中心", `業態「${facility.kind}」から整理しています。`, "マップ分析"),
+          privateRoom ? item("ひとり滞在適性", "個室型", "業態がprivate_saunaとして登録されています。", "OSM・マップ分類") : item("ひとり滞在適性", "共有空間が中心", `業態「${facility.kind}」から整理しています。`, "マップ分析"),
+          silence?.official ? item("会話負荷", "会話配慮の案内あり", compactSoloText(silence.v), "公式情報") : item("会話負荷", "会話環境は要確認", "黙浴・会話量・周囲の雰囲気について、公式の個別案内は未確認です。", "要確認"),
           reservation?.official ? item("予約の段取り", "予約の案内あり", compactSoloText(reservation.v), "公式情報") : item("予約の段取り", "予約要否は確認前", "当日の受付方法・予約要否は利用前にご確認ください。", "要確認"),
           towel?.official ? item("手ぶら準備", "タオル情報あり", compactSoloText(towel.v), "公式情報") : item("手ぶら準備", "持ち物は要確認", "タオル・アメニティの個別情報は未確認です。", "要確認"),
           item("マップの見立て", `ひとり度 ${facility.solo}/5`, `静けさ ${facility.quiet}/5・入りやすさ ${facility.easy}/5。業態と既存属性による比較用の推定です。`, "マップ分析"),
