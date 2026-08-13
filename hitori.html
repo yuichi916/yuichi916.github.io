@@ -96,6 +96,38 @@
     })();
   </script>
   <style>
+    .solo-summary { margin-top:14px; padding:12px; border:1px solid #ead8cc; border-radius:12px; background:#fffaf4; }.solo-summary b { color:#8d4734; font-size:11px; }.solo-summary p { margin:6px 0 0; color:#675c55; font-size:10px; line-height:1.6; }.summary-origin { display:inline-block; margin-right:5px; padding:2px 5px; border-radius:999px; background:#f4e9df; color:#99452f; font-size:8px; font-weight:700; }.summary-origin.official { background:#e7f4ef; color:#276b60; }.summary-origin.review { background:#fff4dc; color:#835c1f; }
+  </style>
+  <script>
+    (() => {
+      const baseDetailWithCategoryGuard = detail;
+      const originalSummary = (facility, curated) => {
+        const facts = (curated?.facts || []).filter(fact => !fact.conflict);
+        const officialSolo = facts.some(fact => fact.k === "solo_ok" && fact.official);
+        const officialReservation = facts.some(fact => fact.k === "reservation" && fact.official);
+        const officialTowel = facts.some(fact => (fact.k === "towel" || fact.k === "bring_towel") && fact.official);
+        const official = officialSolo ? "一人利用について公式案内を確認済みです。" : "一人利用について公式の個別案内は未確認です。";
+        let analysis;
+        if (facility.cat === "bath") analysis = `マップの見立て: ${facility.kind === "private_sauna" ? "個室型" : "温浴施設"}として、${officialReservation || officialTowel ? "予約・持ち物の公式案内も確認できます。" : "予約・持ち物は利用前に要確認です。"}`;
+        else if (facility.cat === "eat") analysis = `マップの見立て: ひとり度${facility.solo}/5。席・支払い・混雑は飲食店向けの根拠情報がある項目だけを確認して選びます。`;
+        else if (facility.cat === "stay") analysis = `マップの見立て: ひとり度${facility.solo}/5。チェックイン、荷物、リネンなど宿泊向けの案内を確認して選びます。`;
+        else analysis = `マップの見立て: ひとり度${facility.solo}/5。予約・入場方法・混雑など体験向けの案内を確認して選びます。`;
+        return `<section class="solo-summary"><b>一人マップのひとこと</b><p><span class="summary-origin ${officialSolo ? "official" : "review"}">${officialSolo ? "公式情報" : "要確認"}</span>${escapeHTML(official)}</p><p><span class="summary-origin">マップ分析</span>${escapeHTML(analysis)}</p></section>`;
+      };
+      detail = function detailWithCategoryGuard(facility) {
+        baseDetailWithCategoryGuard(facility);
+        const container = document.getElementById("detail");
+        if (facility.cat === "eat" || facility.cat === "play") {
+          container.querySelectorAll(".fact").forEach(node => { if (/^(タオル|洗い場)/.test(node.querySelector("b")?.textContent || "")) node.remove(); });
+          container.querySelectorAll(".lens-item").forEach(node => { if (node.querySelector("b")?.textContent === "手ぶら準備") { node.querySelector("b").textContent = "入店の準備"; node.querySelector("strong").textContent = "席・支払いは要確認"; node.querySelector("small").textContent = "温浴アメニティは表示せず、席・支払い・混雑の案内を優先します。"; } });
+        }
+        const lens = container.querySelector(".solo-lens");
+        const fragment = document.createRange().createContextualFragment(originalSummary(facility, state.curated[facility.id]));
+        if (lens) lens.before(fragment); else container.append(fragment);
+      };
+    })();
+  </script>
+  <style>
     .share-promo { margin-top:12px; padding:11px; border:1px solid #ead8cc; border-radius:11px; background:#fffaf4; }.share-promo b { color:#8d4734; font-size:11px; }.share-promo p { margin:4px 0 0; color:#756b64; font-size:10px; line-height:1.5; }.share-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }.share-actions button,.share-actions a { min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #d7b8aa; border-radius:8px; padding:0 11px; color:#8f4938; background:#fff; font:700 11px "Noto Sans JP",sans-serif; text-decoration:none; }.share-actions button.primary { border-color:#713422; color:#fff; background:#713422; }.share-actions a { border-color:#e1dfdc; color:#5f5852; }.share-map-trigger { margin-top:12px; min-height:44px; border:1px solid #c99d8b; border-radius:9px; padding:0 12px; color:#8f4938; background:rgba(255,253,250,.74); font:700 11px "Noto Sans JP",sans-serif; }
   </style>
   <script>
