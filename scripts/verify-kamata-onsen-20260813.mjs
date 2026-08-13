@@ -26,6 +26,6 @@ assert.deepEqual(record.facts.map(fact => fact.k), ['price', 'hours', 'towel', '
 assert.ok(record.facts.find(fact => fact.k === 'silence')?.v.includes('会話環境は要確認'));
 assert.ok(record.facts.filter(fact => fact.k !== 'silence').every(fact => fact.official));
 assert.equal(summary.total, 40581);
-assert.equal(summary.checked_count, 765);
+assert.equal(summary.checked_count, 766);
 
 console.log(JSON.stringify({ facilityId, factCount: record.facts.length, checkedCount: summary.checked_count }, null, 2));
