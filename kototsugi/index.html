@@ -290,23 +290,28 @@
   </div>
 </section>
 
-<!-- 星が消えた空にだけ読める残響。「消す」を選び、戻さなかった者にしか見えない。 -->
+<!-- 書き換えた空にだけ読める残響。三つの空にそれぞれ一字ずつ隠してある。
+     ページを最後まで読んだ者（星6つ）にしか、そもそも現れない。 -->
 <div id="residue" aria-hidden="true">
-  <div class="res-lead">――星が、ひとつも堕ちてこない空。<br>その静けさの底に、消えなかった言葉がひとつ、まだ光っている。</div>
-  <span class="res-word" id="res-word">つづく</span>
+  <div class="res-lead" id="res-lead"></div>
+  <span class="res-word" id="res-word"></span>
 </div>
 
-<!-- 残響を拾った者にだけ現れる最後の欠け。 -->
+<!-- 三字すべてを拾った者にだけ現れる最後の欠け。順序も問う。 -->
 <section id="shelf-sec">
   <h2>閉じた書架</h2>
   <div class="ask">
     <div style="font-size:.9rem;color:var(--dim);margin-bottom:26px">
-      拾った言葉を、最後の欠けに継いでください。
+      三つの空から拾った字を、順に継いでください。<br>
+      <span style="font-size:.8rem;color:#5d6478">――順が違えば、言葉にはなりません。</span>
     </div>
     <div class="premise">
-      この物語は、まだ<span class="blank" id="shelf-blank">　　</span>。
+      この物語は、まだ<span class="blank" id="shelf-blank">　　　</span>。
     </div>
     <div class="chips" id="shelf-chips"></div>
+    <div id="shelf-reset" style="display:none;margin-top:12px">
+      <button class="chip" id="shelf-reset-btn">……はじめから継ぎ直す</button>
+    </div>
     <div class="ans" id="shelf-ans"></div>
   </div>
 </section>
@@ -490,6 +495,8 @@
       }
     }
     try{ localStorage.setItem('kototsugi_premise',k); }catch(e){}
+    // 書き換えた空にも、それぞれ一字が残る（silent=再訪時は静かに出す）。
+    setTimeout(function(){ showResidue(k); }, silent?0:6000);
   }
 
   pword.addEventListener('click',function(){
@@ -509,7 +516,7 @@
       undo.style.display='block';
       try{ localStorage.removeItem('kototsugi_premise'); }catch(e){}
       // 星が消えきってから残響が読めるようになる。急かさない。
-      setTimeout(revealResidue,6000);
+      setTimeout(function(){ showResidue('kesu'); },6000);
       return;
     }
     applyPremise(k,false);
@@ -522,56 +529,109 @@
     sky.style.opacity='1'; undo.style.display='none';
     pans.innerHTML='あなたはいま、「消す」力の重さを知りました。<br>――本編では、その重さごと、あなたに預けます。';
     whisper('……ありがとう。',5000);
-    // 星が戻れば残響はまた掻き消される。ただし既に拾った言葉は手の中に残る。
-    if(!residuePicked()) residue.classList.remove('show');
+    // 星が戻れば残響は掻き消される。拾った字は手元に残る。
+    hideResidue();
   });
 
-  // ---------- 残響 → 閉じた書架 ----------
-  // 「消す」を選び、戻さなかった者にだけ読める言葉。星が堕ちなくなった空に、
-  // それでも残る一語――どの物語も最後に置く言葉。
+  // ---------- 三つの空の残響 → 閉じた書架 ----------
+  // 紹介ページには書き換えが三通りある（のぼる／還る／消す）。そのどれか一つを
+  // 選んだだけでは何も起きない。三つの空をすべて見た者だけが、各々の空に残る一字を
+  // 拾い集められる。三つの力をすべて行使させること自体が、このページの主題
+  //（言継ぎの権限は「継ぐ」だけでなく「書き換える」「消す」に及ぶ）の実演になる。
+  // さらに、ページを最後まで読んでいない（星が6つ灯っていない）うちは字が現れない。
+  var SKIES = {
+    noboru: { ch:'つ', lead:'――星が、堕ちずにのぼっていく空。<br>下りてくるものが無くなったぶん、上に一字だけ、置き去りにされている。' },
+    kaeru:  { ch:'づ', lead:'――星が、来た道を憶えている空。<br>集まってくる光のあいだに、一字だけ、帰りそびれている。' },
+    kesu:   { ch:'く', lead:'――星が、ひとつも無い空。<br>消しても消えなかったものが、一字だけ残っている。' }
+  };
+  var ORDER = ['つ','づ','く'];
   var residue=document.getElementById('residue'), resWord=document.getElementById('res-word'),
-      shelfSec=document.getElementById('shelf-sec'), shelfChips=document.getElementById('shelf-chips'),
-      shelfBlank=document.getElementById('shelf-blank'), shelfAns=document.getElementById('shelf-ans');
-  var RES='つづく';
-  function residuePicked(){ return words.indexOf(RES)>=0; }
-  function revealResidue(){
+      resLead=document.getElementById('res-lead'), shelfSec=document.getElementById('shelf-sec'),
+      shelfChips=document.getElementById('shelf-chips'), shelfBlank=document.getElementById('shelf-blank'),
+      shelfAns=document.getElementById('shelf-ans'), shelfReset=document.getElementById('shelf-reset');
+  var glyphs=[], woven=[];
+  try{ glyphs=JSON.parse(localStorage.getItem('kototsugi_glyphs')||'[]'); }catch(e){ glyphs=[]; }
+  function hasAllGlyphs(){ return ORDER.every(function(c){ return glyphs.indexOf(c)>=0; }); }
+  function readEverything(){ return count>=6; }
+
+  // 空を切り替えたら、その空の字を出す（まだ拾っていなければ）。
+  function showResidue(kind){
+    var sky=SKIES[kind];
+    if(!sky) return;
+    if(!readEverything()){
+      // 読み終えていない者には、そもそも何も残らない。
+      residue.classList.remove('show');
+      return;
+    }
+    resLead.innerHTML=sky.lead;
+    resWord.textContent=sky.ch;
+    resWord.dataset.ch=sky.ch;
     residue.classList.add('show');
-    if(residuePicked()){ resWord.classList.add('picked'); showShelf(); return; }
-    whisper('……いま、なにか読めませんでしたか。',7000);
+    if(glyphs.indexOf(sky.ch)>=0){ resWord.classList.add('picked'); }
+    else{
+      resWord.classList.remove('picked');
+      whisper('……いま、なにか読めませんでしたか。',7000);
+    }
   }
+  function hideResidue(){ residue.classList.remove('show'); }
+
+  resWord.addEventListener('click',function(){
+    var ch=resWord.dataset.ch;
+    if(!ch || resWord.classList.contains('picked'))return;
+    resWord.classList.add('picked');
+    if(glyphs.indexOf(ch)<0){
+      glyphs.push(ch);
+      try{ localStorage.setItem('kototsugi_glyphs',JSON.stringify(glyphs)); }catch(e){}
+    }
+    if(hasAllGlyphs()){
+      whisper('……三つ、そろいましたね。',8000);
+      setTimeout(showShelf,1200);
+    }else{
+      whisper('「'+ch+'」を拾いました。――空は、まだ他にもあります。',7000);
+    }
+  });
+
   function showShelf(){
+    if(!hasAllGlyphs())return;
     shelfSec.classList.add('show');
-    if(shelfChips.childElementCount) return;
-    words.forEach(function(w){
-      var b=document.createElement('button'); b.className='chip'; b.dataset.w=w; b.textContent=w;
+    if(shelfChips.childElementCount)return;
+    // 提示順は固定しない。正しい並びを知らなければ組めない。
+    ['く','つ','づ'].forEach(function(c){
+      var b=document.createElement('button'); b.className='chip'; b.dataset.ch=c; b.textContent=c;
       shelfChips.appendChild(b);
     });
   }
-  resWord.addEventListener('click',function(){
-    if(resWord.classList.contains('picked'))return;
-    resWord.classList.add('picked');
-    if(!residuePicked()){
-      words.push(RES);
-      try{ localStorage.setItem('kototsugi_words',JSON.stringify(words)); }catch(e){}
-    }
-    renderBag();
-    whisper('「'+RES+'」を、ことば袋にしまいました。',6000);
-    setTimeout(showShelf,900);
-  });
+  function renderWoven(){
+    shelfBlank.textContent = woven.length ? woven.join('') : '　　　';
+    shelfReset.style.display = woven.length ? 'block' : 'none';
+  }
   shelfChips.addEventListener('click',function(ev){
-    var c=ev.target.closest('.chip'); if(!c)return;
-    if(c.dataset.w!==RES){
-      shelfAns.innerHTML='<span style="color:#c97a7a">――その言葉では、頁はひらきません。</span>';
+    var c=ev.target.closest('.chip'); if(!c||c.disabled)return;
+    var ch=c.dataset.ch;
+    if(ch!==ORDER[woven.length]){
+      // 順が違う。継いだ字はほどけて、はじめからやり直しになる。
+      shelfAns.innerHTML='<span style="color:#c97a7a">――その順では、言葉になりません。</span>';
       shelfAns.classList.add('show');
+      woven=[]; renderWoven();
+      shelfChips.querySelectorAll('.chip').forEach(function(x){ x.disabled=false; x.classList.remove('selected'); });
       return;
     }
-    shelfBlank.textContent=RES;
+    woven.push(ch); c.disabled=true; c.classList.add('selected');
+    renderWoven();
+    if(woven.length<ORDER.length){ shelfAns.classList.remove('show'); return; }
+    var word=ORDER.join('');
     shelfAns.innerHTML='――書架が、ひらきます。<br>'+
-      '<a class="shelf-open" href="bible.html?w='+encodeURIComponent(RES)+'">閉じた書架へ →</a>';
+      '<a class="shelf-open" href="bible.html?w='+encodeURIComponent(word)+'">閉じた書架へ →</a>';
     shelfAns.classList.add('show');
     whisper('……よく、ここまで来ましたね。',8000);
   });
-  // 再訪時の復元は、ことば袋(words)が組み上がったあとで行う（下の renderBag の直後）。
+  document.getElementById('shelf-reset-btn').addEventListener('click',function(){
+    woven=[]; renderWoven(); shelfAns.classList.remove('show');
+    shelfChips.querySelectorAll('.chip').forEach(function(x){ x.disabled=false; x.classList.remove('selected'); });
+  });
+  renderWoven();
+  if(hasAllGlyphs()) showShelf();
+
   // 再訪時: 書き換えた空のまま
   try{
     var saved=localStorage.getItem('kototsugi_premise');
@@ -648,8 +708,6 @@
     });
   });
   renderBag();
-  // 再訪時: すでに残響を拾っているなら、書架は開いたままにしておく。
-  if(residuePicked()){ residue.classList.add('show'); resWord.classList.add('picked'); showShelf(); }
 
   // ---------- ルート開通デモ ----------
   var routeText=document.getElementById('route-text');
