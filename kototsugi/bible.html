@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>閉じた書架 — ことつぎの星</title>
+<link rel="icon" href="../favicon.svg">
+<style>
+  :root{ --ink:#e8e3d6; --dim:#8b8578; --gold:#e8c56a; --bg:#07080d; }
+  *{ box-sizing:border-box }
+  html,body{ margin:0; height:100%; }
+  body{
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #131a2e 0%, transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+    display:grid; place-items:center; padding:24px;
+  }
+  .shelf{ width:min(560px,100%); text-align:center }
+  .mark{ font-size:34px; letter-spacing:.5em; color:var(--gold); opacity:.85; margin-bottom:8px }
+  h1{ font-size:18px; font-weight:400; letter-spacing:.22em; margin:0 0 22px; color:var(--dim) }
+  p{ line-height:2; font-size:14.5px; color:#b9b3a5; margin:0 0 26px }
+  .gap{
+    display:flex; gap:10px; justify-content:center; align-items:stretch;
+  }
+  input{
+    flex:1; max-width:260px; background:transparent; color:var(--gold);
+    border:0; border-bottom:1px solid rgba(232,197,106,.35);
+    font-family:inherit; font-size:19px; text-align:center; letter-spacing:.3em;
+    padding:10px 6px; outline:none; transition:border-color .3s;
+  }
+  input:focus{ border-bottom-color:var(--gold) }
+  button{
+    background:transparent; color:var(--gold); cursor:pointer;
+    border:1px solid rgba(232,197,106,.4); border-radius:2px;
+    font-family:inherit; font-size:14px; letter-spacing:.2em; padding:10px 20px;
+    transition:background .3s;
+  }
+  button:hover{ background:rgba(232,197,106,.09) }
+  button:disabled{ opacity:.4; cursor:default }
+  .note{ margin-top:22px; font-size:12.5px; color:#6f6a5e; min-height:1.6em; letter-spacing:.06em }
+  .note.bad{ color:#b4705f }
+  .back{ margin-top:34px; font-size:12px; letter-spacing:.18em }
+  .back a{ color:#6f6a5e; text-decoration:none; border-bottom:1px solid rgba(111,106,94,.4) }
+  .back a:hover{ color:var(--gold); border-bottom-color:var(--gold) }
+  @keyframes shake{ 10%,90%{transform:translateX(-2px)} 30%,70%{transform:translateX(4px)} 50%{transform:translateX(-6px)} }
+  .shake{ animation:shake .45s }
+</style>
+</head>
+<body>
+<main class="shelf">
+  <div class="mark">✦</div>
+  <h1>閉 じ た 書 架</h1>
+  <p>
+    この書架は、鍵のかかった言葉でできている。<br>
+    合う言葉を継いだ者にだけ、頁がひらく。
+  </p>
+  <form class="gap" id="form">
+    <input id="word" type="text" autocomplete="off" spellcheck="false" placeholder="＿＿＿＿" aria-label="合言葉">
+    <button id="go" type="submit">継ぐ</button>
+  </form>
+  <div class="note" id="note">紹介ページのどこかに、拾える言葉がひとつ落ちている。</div>
+  <div class="back"><a href="./">← 紹介ページへ戻る</a></div>
+</main>
+
+<script>
+// 設定集は暗号文としてのみ置かれている。ここで復号できなければ、サーバにもリポジトリにも
+// 平文は存在しない。合言葉は「ページを出し分ける鍵」ではなく、本物の復号鍵である。
+const NOTE = document.getElementById('note');
+const FORM = document.getElementById('form');
+const INPUT = document.getElementById('word');
+const GO = document.getElementById('go');
+
+const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+async function unlock(pass) {
+  const meta = await (await fetch('bible.enc.json', { cache: 'no-store' })).json();
+  const material = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(pass.normalize('NFC')), 'PBKDF2', false, ['deriveKey']
+  );
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: b64(meta.salt), iterations: meta.iterations, hash: 'SHA-256' },
+    material, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+  );
+  // 合言葉が違えば AES-GCM の認証タグ検証が落ち、ここが例外になる。総当たりは
+  // PBKDF2 25万回のコストがかかる。
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: b64(meta.iv) }, key, b64(meta.ct)
+  );
+  return new TextDecoder().decode(plain);
+}
+
+FORM.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const pass = INPUT.value.trim();
+  if (!pass) return;
+  GO.disabled = true;
+  NOTE.className = 'note';
+  NOTE.textContent = '……書架が、その言葉を確かめている';
+  try {
+    const html = await unlock(pass);
+    NOTE.textContent = '――ひらいた';
+    // 復号済みの資料はメモリ内でだけ組み立てる。ネットワークには一度も出さない。
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    setTimeout(() => { location.replace(URL.createObjectURL(blob)); }, 700);
+  } catch (e) {
+    NOTE.className = 'note bad';
+    NOTE.textContent = '――その言葉では、頁はひらかない';
+    FORM.classList.remove('shake');
+    void FORM.offsetWidth;
+    FORM.classList.add('shake');
+    GO.disabled = false;
+  }
+});
+
+// 紹介ページで言葉を拾っていれば、それを添えて渡してくれる。
+const handed = new URLSearchParams(location.search).get('w');
+if (handed) {
+  INPUT.value = handed;
+  NOTE.textContent = '拾った言葉が、手の中にある。';
+}
+</script>
+</body>
+</html>
