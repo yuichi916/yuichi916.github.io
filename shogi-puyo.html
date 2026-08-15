@@ -177,16 +177,24 @@ body{
 /* mobile controls */
 .pad{
   position:fixed;left:0;right:0;bottom:0;z-index:25;
-  display:none;gap:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));
-  background:linear-gradient(0deg,rgba(20,13,7,.95),rgba(20,13,7,.4));
+  display:none;grid-template-columns:1fr 1.18fr 1fr;gap:7px;
+  padding:6px 8px calc(7px + env(safe-area-inset-bottom));
+  background:linear-gradient(0deg,rgba(20,13,7,.97),rgba(20,13,7,.52));
+  border-top:1px solid rgba(224,169,58,.20);backdrop-filter:blur(8px);
 }
+.pad .pad-cluster{display:flex;gap:6px;min-width:0}
 .pad button{
-  flex:1;background:var(--panel-2);border:1px solid rgba(224,169,58,.28);
-  color:var(--text);border-radius:10px;padding:14px 0;font-size:20px;cursor:pointer;
-  font-family:"Shippori Mincho",serif;
+  flex:1;min-height:50px;background:linear-gradient(180deg,#352719,#241a11);
+  border:1px solid rgba(224,169,58,.38);color:var(--text);border-radius:12px;
+  padding:4px 1px;cursor:pointer;font-family:"Shippori Mincho",serif;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+  box-shadow:inset 0 1px rgba(255,255,255,.06),0 3px 10px rgba(0,0,0,.24);
 }
-.pad button:active{background:#3a2a16;border-color:var(--gold)}
-.pad .grp{display:flex;flex:1;gap:8px}
+.pad button b{font-size:22px;line-height:1;font-weight:700}
+.pad button span{font-family:"JetBrains Mono",monospace;font-size:8px;line-height:1.4;letter-spacing:.04em;color:var(--text-dim)}
+.pad button.hard{border-color:rgba(212,87,50,.78);background:linear-gradient(180deg,#9c4329,#6b2619)}
+.pad button:active{background:#4a341b;border-color:var(--gold);transform:translateY(1px)}
+.pad button.hard:active{background:#c75230}
 
 /* toast */
 .toast{
@@ -205,27 +213,55 @@ body{
 }
 
 @media (max-width:760px){
-  .pad{display:flex}
-  .stage{inset:46px 0 96px 0;gap:6px;align-items:flex-start;padding-top:6px}
-  .bar .title{font-size:14px;letter-spacing:.1em}
-  .info .score{font-size:11px}
-  .info .score b{font-size:13px}
-  .spirit{font-size:8px;gap:3px}
-  .spirit .spirit-track{height:5px}
-  .spirit .spirit-value{font-size:7px;min-width:29px}
-  .result-stats{gap:5px;margin:14px 0}
-  .result-stat{padding:6px 4px}
-  .result-stat b{font-size:13px}
-  .meta{width:auto;gap:4px}
-  .hintbox{display:none}            /* keep it compact so both boards fit */
-  .stage{padding-left:4px;padding-right:4px}
-  .boardwrap .frame{inset:-4px;box-shadow:0 10px 26px rgba(0,0,0,.5),inset 0 0 0 3px var(--wood-edge)}
-  .forecast .gz{width:12px;height:12px}
-  .forecast .gz.star{width:14px;height:14px}
-  .forecast .gz.comet{width:16px;height:16px}
+  .card{max-height:calc(100dvh - 16px);overflow-y:auto;padding:20px 20px}
+  .card .koma-logo{font-size:38px}.card h1{font-size:26px}.card .sub{margin-bottom:12px}
+  .card .rules{font-size:12px;line-height:1.75;margin-bottom:14px}
+  .control-guide{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:12px;line-height:1.55;letter-spacing:.03em}
+  .pc-guide{display:none}.mobile-guide{display:block}
+  .pad{display:grid}
+  .stage{inset:46px 0 76px 0;display:block;padding:150px 8px 4px;overflow:hidden}
+  .bar{padding:0 9px}.bar .title{font-size:13px;letter-spacing:.06em}
+  .bar .tools{gap:3px}.bar button{padding:5px 7px}
+  .side.player{width:max-content;margin:0 auto;gap:2px}
+  .side.player .who{font-size:10px;line-height:1.1}
+  .side.player .forecast{min-height:12px}
+  .side.cpu{position:fixed;top:52px;right:8px;z-index:12;gap:1px;align-items:center;pointer-events:none}
+  .side.cpu .who{font-size:8px;letter-spacing:.1em}
+  .side.cpu .forecast{min-height:8px;transform:scale(.76);transform-origin:center}
+  .side.cpu .info{display:none}
+  .meta{position:fixed;top:52px;left:8px;z-index:12;width:auto;display:grid;grid-template-columns:auto auto;grid-template-rows:1fr 1fr;gap:2px 3px;align-items:center}
+  .meta .lbl,.hintbox{display:none}
+  .nextcv{border-radius:4px}
+  .info{gap:2px 8px;margin-top:2px}
+  .info .score{font-size:10px}.info .score b{font-size:13px}
+  .info .chain{font-size:12px;min-width:44px}
+  .spirit{font-size:8px;gap:3px}.spirit .spirit-track{height:5px}.spirit .spirit-value{font-size:7px;min-width:29px}
+  .result-stats{gap:5px;margin:14px 0}.result-stat{padding:6px 4px}.result-stat b{font-size:13px}
+  .boardwrap .frame{inset:-4px;box-shadow:0 9px 24px rgba(0,0,0,.5),inset 0 0 0 3px var(--wood-edge)}
+  #pBoard{touch-action:none}
+  .forecast .gz{width:11px;height:11px}.forecast .gz.star{width:13px;height:13px}.forecast .gz.comet{width:15px;height:15px}
+}
+@media (min-width:761px){
+  .control-guide{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:14px;letter-spacing:.08em}
+  .mobile-guide{display:none}
 }
 @media (max-width:380px){
   .bar .title span.en{display:none}
+  .stage{padding-left:4px;padding-right:4px}
+  .pad{gap:4px;padding-left:5px;padding-right:5px}.pad .pad-cluster{gap:4px}
+  .pad button{min-height:48px}.pad button b{font-size:20px}
+}
+@media (max-height:700px) and (max-width:760px){
+  .card{padding:14px 16px;overflow-y:auto}
+  .card .koma-logo{font-size:30px;margin-bottom:2px}.card h1{font-size:23px}
+  .card .sub{font-size:9px;margin-bottom:8px}.legend{margin-bottom:8px}
+  .card .rules{font-size:10.5px;line-height:1.52;margin-bottom:10px}
+  .diff{margin-bottom:10px}.diff button{padding:8px 3px;font-size:13px}
+  .btn-go{padding:10px}.control-guide{margin-top:8px;font-size:8px}
+  .stage{padding-top:58px}.side.cpu,.meta{top:49px}
+  .side.cpu .boardwrap,.side.cpu .forecast{display:none}
+  .side.cpu .who::after{content:' · 盤面省略';color:var(--text-dim)}
+  .pad button{min-height:45px}.pad button span{display:none}
 }
 </style>
 <script type="application/ld+json">
@@ -263,7 +299,8 @@ body{
   <a class="back" href="index.html">← TOP</a>
   <div class="title">将棋ぷよ<em>「成」</em> <span class="en mono" style="font-size:10px;color:var(--text-dim);letter-spacing:.1em"> SHOGI PUYO</span></div>
   <div class="tools">
-    <button id="soundBtn" title="音">♪</button>
+    <button id="soundBtn" title="効果音" aria-label="効果音を切り替え" aria-pressed="true">♪</button>
+    <button id="musicBtn" title="BGM" aria-label="BGMを切り替え" aria-pressed="true">♫</button>
     <button id="restartBtn" title="やり直し">↻</button>
     <button id="helpBtn" title="あそびかた">?</button>
   </div>
@@ -282,7 +319,7 @@ body{
       <div class="score">SCORE <b id="pScore">0</b></div>
       <div class="chain" id="pChain">2 連鎖!</div>
       <div class="spirit" id="pSpirit" aria-label="あなたの将棋魂">
-        <span class="spirit-label">将棋魂</span><span class="spirit-track"><i class="spirit-fill"></i></span><span class="spirit-value">0/100</span><span class="ousete-badge">王手</span>
+        <span class="spirit-label">将棋魂</span><span class="spirit-track"><i class="spirit-fill"></i></span><span class="spirit-value">0/72</span><span class="ousete-badge">王手</span>
       </div>
     </div>
   </div>
@@ -311,7 +348,7 @@ body{
       <div class="score">SCORE <b id="cScore">0</b></div>
       <div class="chain" id="cChain">2 連鎖!</div>
       <div class="spirit" id="cSpirit" aria-label="CPUの将棋魂">
-        <span class="spirit-label">将棋魂</span><span class="spirit-track"><i class="spirit-fill"></i></span><span class="spirit-value">0/100</span><span class="ousete-badge">王手</span>
+        <span class="spirit-label">将棋魂</span><span class="spirit-track"><i class="spirit-fill"></i></span><span class="spirit-value">0/72</span><span class="ousete-badge">王手</span>
       </div>
     </div>
   </div>
@@ -320,15 +357,19 @@ body{
 <div class="toast" id="toast"></div>
 
 <!-- mobile controls -->
-<div class="pad">
-  <button data-act="rotL">⟲</button>
-  <button data-act="left">←</button>
-  <div class="grp">
-    <button data-act="soft">↓</button>
-    <button data-act="hard">⤓</button>
+<div class="pad" id="touchPad" aria-label="タッチ操作パッド">
+  <div class="pad-cluster">
+    <button data-act="rotL" aria-label="左回転"><b>⟲</b><span>左回転</span></button>
+    <button data-act="rotR" aria-label="右回転"><b>⟳</b><span>右回転</span></button>
   </div>
-  <button data-act="right">→</button>
-  <button data-act="rotR">⟳</button>
+  <div class="pad-cluster">
+    <button data-act="left" aria-label="左へ移動"><b>←</b><span>左</span></button>
+    <button data-act="right" aria-label="右へ移動"><b>→</b><span>右</span></button>
+  </div>
+  <div class="pad-cluster">
+    <button data-act="soft" aria-label="ソフトドロップ"><b>↓</b><span>落下</span></button>
+    <button class="hard" data-act="hard" aria-label="一気落とし"><b>⤓</b><span>一気</span></button>
+  </div>
 </div>
 
 <!-- start / result overlay -->
@@ -343,8 +384,9 @@ body{
       ・<span class="k">強い駒ほど</span>たくさん <b>お邪魔駒</b> を相手に送る（歩&lt;銀&lt;金&lt;角&lt;飛）。<br>
       ・連鎖で送る量が激増。先に相手を <b>詰ませた</b> 方の勝ち。<br>
       ・<span class="k">成り</span>：消えた駒のそばで生き残った駒が成り、次に消すと送る量が <b>2倍</b>。<br>
-      ・<span class="k">王</span>：6手目以降に降る玉将。14手出なければ必ず出現し、隣の群を消して <b>討ち取る</b> と必殺のお邪魔。<br>
-      ・消した駒の価値で <span class="k">将棋魂</span> をためる。100で <b>王手</b>、次に相手へ送るお邪魔が <b>+6</b>。
+      ・<span class="k">王</span>：6手目以降に降る玉将。16手出なければ必ず出現し、隣の群を消して <b>討ち取る</b> と強力なお邪魔。<br>
+      ・消した駒の価値で <span class="k">将棋魂</span> をためる。72で <b>王手</b>、次に相手へ送るお邪魔が <b>+4</b>。<br>
+      ・<span class="k">三駒連携</span>：一連鎖で3種類の駒を消すと、お邪魔 <b>+2</b>・将棋魂 <b>+12</b>。
     </div>
     <div class="diff" id="diff">
       <button data-d="easy">やさしい<span class="en">EASY</span></button>
@@ -352,8 +394,9 @@ body{
       <button data-d="hard">つよい<span class="en">HARD</span></button>
     </div>
     <button class="btn-go" id="goBtn">対局開始</button>
-    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:14px;letter-spacing:.08em">
-      PC: ←→ 移動 / ↓ 落下 / Z・X・↑ 回転 / Space 一気落とし
+    <div class="control-guide">
+      <span class="pc-guide">PC: ←→ 移動 / ↓ 落下 / Z・X・↑ 回転 / Space 一気落とし</span>
+      <span class="mobile-guide">スマホ: 盤面タップで回転 / 横スワイプで移動 / ↓フリックで一気落とし</span>
     </div>
   </div>
 
@@ -383,13 +426,16 @@ const PIECES = [
   { k:'飛', val:5, col:'#db5532', col2:'#a4351c', promo:'龍' },  // rook  - red
 ];
 const KING_VAL = 8;
-const KING_RATE = 0.05;       // chance a spawned pair carries a 王
+const KING_RATE = 0.035;      // chance a spawned pair carries a 王
 const KING_MIN_MOVE = 6;      // no kings in the first few moves
-const KING_FORCE_MOVE = 14;   // guarantee a king after this many eligible pairs without one
-const KING_CAPTURE_GARBAGE = 10; // bonus nuisance for capturing a king
-const KING_SPIRIT_BONUS = 30; // tactical meter reward for capturing a king
-const SPIRIT_MAX = 100;
-const OUSETE_BONUS = 6;       // bonus nuisance for the next unblocked attack after charging
+const KING_FORCE_MOVE = 16;   // guarantee a king after this many eligible pairs without one
+const KING_CAPTURE_GARBAGE = 6;  // bonus nuisance for capturing a king
+const KING_SPIRIT_BONUS = 18; // tactical meter reward for capturing a king
+const SPIRIT_MAX = 72;
+const OUSETE_BONUS = 4;       // bonus nuisance for the next unblocked attack after charging
+const FORMATION_TYPES = 3;    // distinct piece types needed for 三駒連携
+const FORMATION_GARBAGE = 2;
+const FORMATION_SPIRIT = 12;
 const NUISANCE_DIV = 6;       // points -> お邪魔 conversion
 const MAX_GARBAGE_DROP = 30;  // per turn
 
@@ -477,7 +523,8 @@ function colHeights(g){
 
 /* simulate full resolution on a grid copy (no animation). Returns metrics for AI. */
 function simulateResolve(g){
-  let chain=0, totalCleared=0, nuis=0;
+  let chain=0, totalCleared=0, nuis=0, formation=false;
+  const resolvedTypes=new Set();
   collapseGrid(g);
   while(true){
     const groups = findGroups(g);
@@ -489,6 +536,7 @@ function simulateResolve(g){
       for(const [r,c] of grp){
         clr.add(r*COLS+c);
         const cell=g[r][c];
+        resolvedTypes.add(cell.t);
         stepVal += PIECES[cell.t].val * (cell.promoted?2:1);
       }
     }
@@ -507,9 +555,10 @@ function simulateResolve(g){
     for(const key of toRemove){ g[(key/COLS)|0][key%COLS]=null; }
     totalCleared += clr.size;
     nuis += Math.round(stepVal * chainFactor(chain) / NUISANCE_DIV) + kingCaptures*KING_CAPTURE_GARBAGE;
+    if(!formation && resolvedTypes.size>=FORMATION_TYPES){ nuis+=FORMATION_GARBAGE; formation=true; }
     collapseGrid(g);
   }
-  return { chain, totalCleared, nuis };
+  return { chain, totalCleared, nuis, formation };
 }
 
 /* ---------------------------- Engine (one board) ------------------------ */
@@ -535,7 +584,9 @@ class Engine {
     this.kingDrought = 0;      // eligible pairs since the last king appeared
     this.spirit = 0;
     this.ouseteReady = false;
-    this.stats = { maxChain:0, promotedClears:0, kingCaptures:0, maxAttack:0, ouseteUsed:0, garbageCancelled:0 };
+    this.turnTypes = new Set();
+    this.formationAwarded = false;
+    this.stats = { maxChain:0, promotedClears:0, kingCaptures:0, formations:0, maxAttack:0, ouseteUsed:0, garbageCancelled:0 };
     this.pop = null;           // {set:Set, kings, garbage, promote, displayChain}
     this.chainDisplayT = 0;
     this.dead = false;
@@ -615,6 +666,7 @@ class Engine {
     this.moveCount++;
     collapseGrid(this.grid);
     this.chainCount=0; this.nuisAccum=0;
+    this.turnTypes.clear(); this.formationAwarded=false;
     this.startDrop();
   }
   // begin a physics-based drop: each cell falls under gravity to its rest,
@@ -639,6 +691,7 @@ class Engine {
       clr.add(r*COLS+c);
       const cell=this.grid[r][c];
       const val=PIECES[cell.t].val * (cell.promoted?2:1);
+      this.turnTypes.add(cell.t);
       stepVal += val;
       spiritGain += val;
       if(cell.promoted) this.stats.promotedClears++;
@@ -662,10 +715,22 @@ class Engine {
       spiritGain+=kings.length*KING_SPIRIT_BONUS;
       this.nuisAccum+=kings.length*KING_CAPTURE_GARBAGE;
     }
+    const formation=!this.formationAwarded && this.turnTypes.size>=FORMATION_TYPES;
+    if(formation){
+      this.formationAwarded=true;
+      this.stats.formations++;
+      spiritGain+=FORMATION_SPIRIT;
+      this.nuisAccum+=FORMATION_GARBAGE;
+    }
     const charged=this.addSpirit(spiritGain);
+    if(this.isPlayer){
+      if(promote.length) promoteSound();
+      if(formation) formationSound();
+      if(charged) ouseteSound();
+    }
     this.score += Math.round(stepVal*10*cf);
     this.nuisAccum += Math.round(stepVal*cf/NUISANCE_DIV);
-    this.pop = { remove, kings, garbage, promote, chain:this.chainCount, hadKing:kings.length>0, charged };
+    this.pop = { remove, kings, garbage, promote, chain:this.chainCount, hadKing:kings.length>0, formation, charged };
     this.chainDisplay = this.chainCount;
     this.chainDisplayT = 0;
     this.phase='pop'; this.phaseT=0;
@@ -683,10 +748,10 @@ class Engine {
     if(ncnt>0){
       const c=this.chainCount;
       const chainTxt = c>=5 ? c+' 大連鎖!!' : c>=4 ? c+' 連鎖!!' : c>=3 ? c+' 連鎖!' : c>=2 ? c+' 連鎖' : '';
-      const eventTxt = kings.length ? '王を討ち取った！ +10' : charged ? '王手！ 次の攻撃 +6' : chainTxt;
+      const eventTxt = kings.length ? '王を討ち取った！ +6' : charged ? '王手！ 次の攻撃 +4' : formation ? '三駒連携！ +2' : chainTxt;
       if(eventTxt) this.popup = { text:eventTxt, t:0, cx:sx/ncnt, cy:Math.max(1.1,sy/ncnt) };
     }
-    if(this.chainCount>=3 || kings.length>0 || charged) this.shake = Math.min(1, this.chainCount*0.13 + (kings.length?0.3:0) + (charged?0.16:0));
+    if(this.chainCount>=3 || kings.length>0 || formation || charged) this.shake = Math.min(1, this.chainCount*0.13 + (kings.length?0.3:0) + (formation?0.10:0) + (charged?0.16:0));
     return this.pop;
   }
   addSpirit(amount){
@@ -733,6 +798,7 @@ function chooseMove(engine, depth){
     const m = simulateResolve(g);
     const projectedSpirit=Math.min(SPIRIT_MAX,engine.spirit+m.nuis*NUISANCE_DIV);
     let sc = m.nuis*60 + m.chain*m.chain*22 + m.totalCleared*4 + evalBoard(g);
+    if(m.formation) sc+=FORMATION_GARBAGE*60+45;
     if(projectedSpirit>=SPIRIT_MAX) sc+=85;
     if(engine.ouseteReady && m.nuis>0) sc+=OUSETE_BONUS*60;
     if(boardToppedOut(g)) sc -= 200000;
@@ -805,14 +871,13 @@ function sizeCanvas(cv,ctx,w,h){
 function layout(){
   const vw=window.innerWidth, vh=window.innerHeight;
   const mobile = vw<=760;
-  const barH=46, padBottom = mobile?96:0;
-  // reserve for who-label + forecast bar + score row around each board
-  const availH = vh-barH-padBottom-(mobile?104:84);
+  const barH=46, padBottom = mobile?80:0;
+  const compactMobile = mobile && vh<=700;
+  // Mobile dedicates the width to the player's board; CPU and NEXT live in the compact upper HUD.
+  const availH = vh-barH-padBottom-(mobile?(compactMobile?100:190):84);
   if(mobile){
-    // must fit: player(6·CELL)+frames + NEXT(~44) + cpu(6·0.58·CELL)+frames + gaps
-    const reserve = 100;
-    CELL = Math.floor(Math.min((vw-reserve)/(COLS*1.58), availH/ROWS, 38));
-    CELL_C = Math.floor(CELL*0.58);
+    CELL = Math.floor(Math.min((vw-24)/COLS, availH/ROWS, compactMobile?38:40));
+    CELL_C = Math.floor(CELL*0.30);
   } else {
     CELL = Math.floor(Math.min((vw*0.30)/COLS, availH/ROWS, 46));
     CELL_C = Math.floor(CELL*0.74);
@@ -1032,22 +1097,47 @@ function renderForecast(el, n){
 }
 
 /* ----------------------------- audio ------------------------------------ */
-let actx=null, soundOn=true;
-function beep(freq,dur,type='sine',gain=0.036){
-  if(!soundOn) return;
+let actx=null, soundOn=true, musicOn=true;
+const bgm=new Audio('assets/audio/shogi-puyo-battle.mp3');
+bgm.loop=true; bgm.preload='metadata'; bgm.volume=0.28;
+function unlockAudio(){
   try{
     if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+  }catch(e){}
+}
+function playMusic(){
+  if(!musicOn) return;
+  bgm.play().catch(()=>{});
+}
+function pauseMusic(reset=false){
+  bgm.pause(); if(reset) bgm.currentTime=0;
+}
+function beep(freq,dur,type='sine',gain=0.036,slide=0){
+  if(!soundOn) return;
+  try{
+    unlockAudio();
     const o=actx.createOscillator(), g=actx.createGain();
-    o.type=type; o.frequency.value=freq; o.connect(g); g.connect(actx.destination);
+    o.type=type; o.frequency.setValueAtTime(freq,actx.currentTime);
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),actx.currentTime+dur);
+    o.connect(g); g.connect(actx.destination);
     g.gain.setValueAtTime(gain,actx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur);
     o.start(); o.stop(actx.currentTime+dur);
   }catch(e){}
 }
-function chainSound(c){ beep(420+c*90,0.18,'triangle',0.042); }
-function lockSound(){ beep(180,0.07,'square',0.024); }
-function kingSound(){ beep(660,0.3,'sawtooth',0.048); setTimeout(()=>beep(880,0.3,'sawtooth',0.042),90); }
-function loseSound(){ beep(160,0.5,'sawtooth',0.048); }
+function moveSound(){ beep(340,0.025,'triangle',0.014,28); }
+function rotateSound(){ beep(470,0.05,'sine',0.020,120); }
+function dropSound(){ beep(220,0.10,'square',0.026,-80); }
+function chainSound(c){ beep(410+c*78,0.16,'triangle',0.040,70); if(c>=3) setTimeout(()=>beep(570+c*76,0.11,'sine',0.025,60),48); }
+function lockSound(){ beep(150,0.07,'square',0.022,-25); }
+function promoteSound(){ beep(530,0.10,'sine',0.025,150); }
+function formationSound(){ beep(490,0.09,'triangle',0.028,140); setTimeout(()=>beep(690,0.13,'triangle',0.026,90),70); }
+function ouseteSound(){ beep(740,0.13,'sawtooth',0.036,110); setTimeout(()=>beep(980,0.20,'sine',0.032,70),100); }
+function kingSound(){ beep(620,0.28,'sawtooth',0.044,90); setTimeout(()=>beep(880,0.28,'sawtooth',0.038,120),90); }
+function garbageSound(){ beep(115,0.13,'square',0.027,-35); }
+function winSound(){ beep(523,0.13,'triangle',0.030,60); setTimeout(()=>beep(659,0.16,'triangle',0.030,60),90); setTimeout(()=>beep(784,0.24,'sine',0.034,90),190); }
+function loseSound(){ beep(160,0.5,'sawtooth',0.042,-65); }
 
 /* ----------------------------- toast ------------------------------------ */
 const toastEl=document.getElementById('toast');
@@ -1142,7 +1232,7 @@ function processPlayerInput(eng, dt){
   if(keyState.down){ softTimer+=dt; while(softTimer>=SOFT_RATE){ if(eng.tryMove(0,1)){ eng.gravT=0; resetLock(eng,false); } softTimer-=SOFT_RATE; } }
   else softTimer=0;
 }
-function moveHoriz(eng,dir){ if(eng.tryMove(dir==='left'?-1:1,0)) resetLock(eng,true); }
+function moveHoriz(eng,dir){ if(eng.tryMove(dir==='left'?-1:1,0)){ resetLock(eng,true); if(eng.isPlayer) moveSound(); } }
 function resetLock(eng, isMove){ if(!canMoveDown(eng) && eng.lockResets<MAX_LOCK_RESETS){ eng.lockT=0; if(isMove) eng.lockResets++; } }
 function canMoveDown(eng){
   const p=eng.pair; if(!p) return false;
@@ -1177,8 +1267,8 @@ function finishResolve(eng, isPlayer){
     else if(cancelled>=6) showToast('相殺 '+cancelled+'！');
   }
   // drop my incoming garbage (one turn after it appears in the forecast = chance to counter)
-  if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.shake=Math.min(1, eng.shake+drop*0.05); if(isPlayer) beep(110,0.12,'square',0.03); eng.chainCount=0; eng.nuisAccum=0; eng.startDrop(); return; }
-  eng.chainCount=0; eng.nuisAccum=0;
+  if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.shake=Math.min(1, eng.shake+drop*0.05); if(isPlayer) garbageSound(); eng.chainCount=0; eng.nuisAccum=0; eng.turnTypes.clear(); eng.formationAwarded=false; eng.startDrop(); return; }
+  eng.chainCount=0; eng.nuisAccum=0; eng.turnTypes.clear(); eng.formationAwarded=false;
   // spawn next
   if(!eng.spawnPair()){
     endGame(isPlayer ? false : true); // if player died -> lose
@@ -1191,6 +1281,7 @@ function renderResultStats(eng){
     ['最大送付',eng.stats.maxAttack+'個'],
     ['成り活用',eng.stats.promotedClears+'駒'],
     ['王討ち取り',eng.stats.kingCaptures+'回'],
+    ['三駒連携',eng.stats.formations+'回'],
     ['王手発動',eng.stats.ouseteUsed+'回'],
     ['相殺',eng.stats.garbageCancelled+'個'],
   ];
@@ -1198,7 +1289,8 @@ function renderResultStats(eng){
 }
 function endGame(playerWon){
   running=false;
-  loseSound();
+  pauseMusic();
+  if(playerWon) winSound(); else loseSound();
   const rc=document.getElementById('resultCard'), sc=document.getElementById('startCard');
   document.getElementById('overlay').hidden=false;
   sc.hidden=true; rc.hidden=false;
@@ -1230,12 +1322,12 @@ function loop(t){
 }
 
 function startGame(){
+  unlockAudio(); playMusic();
   player=new Engine(true); cpu=new Engine(false);
   player.spawnPair(); cpu.spawnPair();
   document.getElementById('overlay').hidden=true;
   running=true; lastT=performance.now();
   cancelAnimationFrame(rafId); rafId=requestAnimationFrame(loop);
-  if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
 }
 
 /* ----------------------------- input ------------------------------------
@@ -1254,8 +1346,8 @@ function releaseDir(dir){
   if(lastHoriz===dir) lastHoriz = (dir==='left'&&keyState.right)?'right':(dir==='right'&&keyState.left)?'left':null;
   dasCharge=0; dasRepeat=0;
 }
-function rotate(d){ if(canPlay()){ if(player.tryRotate(d)) resetLock(player,true); beep(300,0.04,'sine',0.018); } }
-function hardNow(){ if(canPlay()){ player.hardDrop(); lockSound(); } }
+function rotate(d){ if(canPlay()&&player.tryRotate(d)){ resetLock(player,true); rotateSound(); } }
+function hardNow(){ if(canPlay()){ player.hardDrop(); dropSound(); } }
 
 window.addEventListener('keydown',e=>{
   if(!running) return;
@@ -1277,7 +1369,7 @@ window.addEventListener('keyup',e=>{
 });
 window.addEventListener('blur',()=>{ keyState.left=keyState.right=keyState.down=false; lastHoriz=null; });
 
-// touch controls: press-and-hold for ←/→/↓, tap for rotate/hard
+// Touch pad: press-and-hold for ←/→/↓, tap for rotate/hard.
 document.querySelectorAll('.pad button').forEach(b=>{
   const act=b.dataset.act;
   const down=e=>{ e.preventDefault();
@@ -1295,6 +1387,40 @@ document.querySelectorAll('.pad button').forEach(b=>{
   b.addEventListener('pointerleave',up);
 });
 
+// Direct board gestures: tap = rotate, horizontal swipe = move, quick downward flick = hard drop.
+const boardGesture={ active:false, id:null, x:0, y:0, step:0, moved:false, hard:false, started:0 };
+const GESTURE_STEP=0.42, TAP_SLOP=10;
+function boardDown(e){
+  if(e.pointerType==='mouse'||!canPlay()) return;
+  e.preventDefault();
+  boardGesture.active=true; boardGesture.id=e.pointerId; boardGesture.x=e.clientX; boardGesture.y=e.clientY;
+  boardGesture.step=0; boardGesture.moved=false; boardGesture.hard=false; boardGesture.started=performance.now();
+  try{ pBoard.setPointerCapture(e.pointerId); }catch(_e){}
+}
+function boardMove(e){
+  if(!boardGesture.active||e.pointerId!==boardGesture.id||!canPlay()) return;
+  e.preventDefault();
+  const dx=e.clientX-boardGesture.x, dy=e.clientY-boardGesture.y;
+  if(Math.abs(dx)>TAP_SLOP||Math.abs(dy)>TAP_SLOP) boardGesture.moved=true;
+  const target=Math.trunc(dx/(CELL*GESTURE_STEP));
+  while(boardGesture.step<target){ moveHoriz(player,'right'); boardGesture.step++; }
+  while(boardGesture.step>target){ moveHoriz(player,'left'); boardGesture.step--; }
+  const elapsed=performance.now()-boardGesture.started;
+  if(!boardGesture.hard && dy>CELL*0.72 && dy>Math.abs(dx)*1.25 && elapsed<420){ boardGesture.hard=true; hardNow(); }
+}
+function boardUp(e){
+  if(!boardGesture.active||e.pointerId!==boardGesture.id) return;
+  e.preventDefault();
+  const elapsed=performance.now()-boardGesture.started;
+  if(!boardGesture.moved&&!boardGesture.hard&&elapsed<260) rotate(1);
+  boardGesture.active=false;
+}
+pBoard.addEventListener('pointerdown',boardDown,{passive:false});
+pBoard.addEventListener('pointermove',boardMove,{passive:false});
+pBoard.addEventListener('pointerup',boardUp,{passive:false});
+pBoard.addEventListener('pointercancel',boardUp,{passive:false});
+pBoard.addEventListener('contextmenu',e=>e.preventDefault());
+
 /* ----------------------------- UI wiring -------------------------------- */
 document.getElementById('diff').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
@@ -1307,20 +1433,24 @@ document.getElementById('againBtn').addEventListener('click',()=>{
   document.getElementById('startCard').hidden=false;
 });
 document.getElementById('restartBtn').addEventListener('click',()=>{
-  running=false; cancelAnimationFrame(rafId);
+  running=false; pauseMusic(); cancelAnimationFrame(rafId);
   document.getElementById('overlay').hidden=false;
   document.getElementById('resultCard').hidden=true;
   document.getElementById('startCard').hidden=false;
 });
 document.getElementById('helpBtn').addEventListener('click',()=>{
-  running=false; cancelAnimationFrame(rafId);
+  running=false; pauseMusic(); cancelAnimationFrame(rafId);
   document.getElementById('overlay').hidden=false;
   document.getElementById('resultCard').hidden=true;
   document.getElementById('startCard').hidden=false;
 });
 document.getElementById('soundBtn').addEventListener('click',function(){
-  soundOn=!soundOn; this.style.color=soundOn?'':'#6b6f78'; this.textContent=soundOn?'♪':'♪̸';
-  if(soundOn&&!actx){ try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} }
+  soundOn=!soundOn; this.style.color=soundOn?'':'#6b6f78'; this.textContent=soundOn?'♪':'♪̸'; this.setAttribute('aria-pressed',String(soundOn));
+  if(soundOn){ unlockAudio(); rotateSound(); }
+});
+document.getElementById('musicBtn').addEventListener('click',function(){
+  musicOn=!musicOn; this.style.color=musicOn?'':'#6b6f78'; this.textContent=musicOn?'♫':'♫̸'; this.setAttribute('aria-pressed',String(musicOn));
+  if(musicOn&&running){ unlockAudio(); playMusic(); } else if(!musicOn) pauseMusic();
 });
 
 // build legend
