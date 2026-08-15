@@ -1801,15 +1801,18 @@ async function ensureBook3D(camPos) {
     const bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
     V.bookTopY = bookTopY;
 
-    /* Spread plane: 本の「紙面」にだけ重ねる (bbox は表紙の縁まで含むので8割程度が紙面) */
+    /* Stable page surface: its dimensions are the source of truth for every
+       turning leaf. A warm, high-roughness material matches the imported book's
+       parchment instead of reading as a separate bright panel. */
     const bboxW = bs.x * bScale * 0.80;
     const bboxD = bs.z * bScale * 0.78;
     const spreadGeo = new THREE.PlaneGeometry(bboxW, bboxD);
-    const spreadMat = new THREE.MeshBasicMaterial({ map: null, toneMapped: false, side: THREE.FrontSide, transparent: true, opacity: 1,
-      color: new THREE.Color(1, 1, 1) /* 全輝度で絵をはっきり見せる */ });
+    const spreadMat = new THREE.MeshStandardMaterial({ map: null, side: THREE.FrontSide, transparent: true, opacity: 1,
+      color: new THREE.Color(0xfff3dc), roughness: 0.96, metalness: 0,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
     const spreadPlane = new THREE.Mesh(spreadGeo, spreadMat);
     spreadPlane.rotation.x = -Math.PI / 2;
-    spreadPlane.position.y = bookTopY + 0.012;
+    spreadPlane.position.y = bookTopY + 0.006;
     spreadPlane.visible = false;
     bookGrp.add(spreadPlane);
     V.spreadPlane = spreadPlane;
@@ -1906,31 +1909,39 @@ function flipPage3D(prevSlug, nextSlug, dir, onHalfway) {
   /* load both textures; animate after both ready */
   Promise.all([loadSpreadTex(prevSlug), loadSpreadTex(nextSlug)]).then(([prevTex, nextTex]) => {
     const pivot = new THREE.Group();
-    pivot.position.set(0, bookTopY + 0.02, 0);
+    /* The leaf begins just 0.002 above the resting page, so it emerges from
+       the book's paper stack rather than floating above the cover. */
+    pivot.position.set(0, bookTopY + 0.008, 0);
     V.bookGrp.add(pivot);
 
     /* 本の紙面に寝かせた(水平 XZ)ページを、背表紙(Z軸, x=0)を軸にめくる。紙のしなり付き */
     const mkPlane = (tex, offsetU, mirror, underside) => {
-      const geo = new THREE.PlaneGeometry(halfW, depth, 20, 2);
+      const geo = new THREE.PlaneGeometry(halfW, depth, 32, 6);
       geo.translate(halfW / 2, 0, 0);   /* 背表紙 x=0 から外側へ span */
       geo.rotateX(-Math.PI / 2);        /* 水平に寝かせる(幅=X, 奥行=Z) */
       const posA = geo.attributes.position;
       for (let i = 0; i < posA.count; i++) {
         const f = posA.getX(i) / halfW;                                  /* 0(背)→1(外) */
-        posA.setY(i, posA.getY(i) + Math.sin(f * Math.PI) * depth * 0.06); /* 紙のしなり(弓なり) */
+        /* Resting paper stays almost flush with the base spread; only a fine
+           natural ripple remains before the rotation starts. */
+        posA.setY(i, posA.getY(i) + Math.sin(f * Math.PI) * depth * 0.012);
       }
       posA.needsUpdate = true; geo.computeVertexNormals();
       /* 共有テクスチャの repeat/offset 変更がスプレッドに波及しないよう必ず clone */
       const t = tex ? tex.clone() : null;
       if (t) {
         t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = THREE.RepeatWrapping;
         t.repeat.set(mirror ? -0.5 : 0.5, 1);              /* 裏面は左右反転 */
         t.offset.set(mirror ? offsetU + 0.5 : offsetU, 0);
+        t.anisotropy = Math.min(4, V.renderer.capabilities.getMaxAnisotropy());
         t.needsUpdate = true;
       }
-      const mat = new THREE.MeshBasicMaterial({
-        map: t, toneMapped: false, side: underside ? THREE.BackSide : THREE.FrontSide,
-        transparent: true, opacity: 1, color: new THREE.Color(1, 1, 1)
+      const mat = new THREE.MeshStandardMaterial({
+        map: t, side: underside ? THREE.BackSide : THREE.FrontSide,
+        transparent: true, opacity: 1, color: new THREE.Color(0xfff3dc),
+        roughness: 0.96, metalness: 0, polygonOffset: true,
+        polygonOffsetFactor: -2, polygonOffsetUnits: -2
       });
       const mesh = new THREE.Mesh(geo, mat);
       pivot.add(mesh);
