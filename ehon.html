@@ -2036,7 +2036,7 @@ window.bootWorldB = async function () {
   };
 
   const dioUrl = window.getAssetUrl(page.diorama);
-  let dioramaGrp = null, targetY = v.bookTopY;
+  let dioramaGrp = null, targetY = v.paperDeck ? (v.paperDeck.baseY + 0.018) : (v.bookTopY + 0.055);
 
   try {
     const dioGltf = await loadGLB(dioUrl).catch(e => { fail('ジオラマ', dioUrl, e); throw e; });
@@ -2085,17 +2085,16 @@ window.bootWorldB = async function () {
     }
 
     dioramaGrp.position.y = targetY;
-    dioramaGrp.scale.setScalar(EHON.state.open ? 1 : 0.001);
+    /* Always wait in a collapsed state. The page controller reveals it only
+       after the independent paper leaf has fully settled. */
+    dioramaGrp.scale.setScalar(0.001);
     disposeDiorama();   /* 新しいのが完成した今、初めて前のを外す(途切れ防止) */
     v.scene.add(dioramaGrp);
     v._dioramaGrp = dioramaGrp;
     v.controls.target.set(0, targetY + 1.5, 0);
     if (msg && msg.parentNode) msg.remove();
 
-    /* Load spread texture for this page */
-    loadSpreadTex(spreadSlugFromPage(page)).then(tex => applySpreadTex(tex));
-
-    if (EHON.state.open) window.popWorldB();
+    /* The independent paper deck receives this spread texture in the page controller. */
   } catch (e) { /* fail() already called */ }
 
   _popB = () => {
@@ -2109,6 +2108,12 @@ window.bootWorldB = async function () {
       if (k < 1) requestAnimationFrame(pop);
     })();
   };
+  /* Bind the new pop action before asking it to appear. During a page turn,
+     the controller releases it only after the paper has settled. */
+  if (EHON.state.open) {
+    if (window.__ehonTurnInFlight) window.__ehonQueuedPop = true;
+    else setTimeout(() => { if (_popB) _popB(); }, 70);
+  }
 };
 
 /* ------ 本が「ひらく」ひと呼吸を置いてから、世界を飛び出させる ------ */
@@ -2151,9 +2156,18 @@ function showStaticFallback(host, page) {
   d.appendChild(document.createElement('br'));
   d.appendChild(document.createTextNode(tt(I18N.ui.preparing)));
 }
+/* Expose only the minimal 3D runtime needed by the independent paper controller. */
+window.__ehon3DRuntime = {
+  THREE,
+  getV: () => V,
+  loadSpreadTex,
+  easeInOut,
+  hideAnimal: () => { _currentAnimalMesh = null; }
+};
+window.dispatchEvent(new Event('ehon3d-ready'));
 </script>
 <!-- Ehon refinement: tactile page turns, chapter guidance and motion preferences -->
-<script id="ehon-refinement">
+<script type="application/x-disabled" id="ehon-refinement-legacy">
 (() => {
   const status = document.getElementById('book-turn-status');
   const title = document.getElementById('book-chapter-title');
@@ -2222,6 +2236,218 @@ function showStaticFallback(host, page) {
     if(!prevSlug || !nextSlug || !V || !V.spreadPlane || prevPage.type === 'toc' || nextPage.type === 'toc' || prevPage.type === 'colophon' || nextPage.type === 'colophon') { doPageSwap(newIdx); window.dispatchEvent(new Event('ehon:turnend')); return; }
     enhancedFlipPage3D(prevSlug,nextSlug,dir,()=>doPageSwap(newIdx));
   };
+})();
+</script>
+<!-- Ehon physical-page controller: independent paper deck + synchronized pop-up world -->
+<script id="ehon-physical-pages">
+(() => {
+  const init = () => {
+  const runtime = window.__ehon3DRuntime;
+  if (!runtime) return;
+  const { THREE, loadSpreadTex, easeInOut } = runtime;
+  const getV = runtime.getV;
+  const status = document.getElementById('book-turn-status');
+  const title = document.getElementById('book-chapter-title');
+  const count = document.getElementById('book-chapter-count');
+  const motionBtn = document.getElementById('quiet-motion-toggle');
+  let statusTimer = 0, turnLocked = false, spreadToken = 0;
+  const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  const reducedByOS = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const setQuietMotion = (on) => {
+    window.__ehonQuietMotion = !!on;
+    document.documentElement.classList.toggle('quiet-turns', !!on);
+    motionBtn.setAttribute('aria-pressed', String(!!on));
+    motionBtn.textContent = on ? '通常の動き' : '静かな動き';
+    try { localStorage.setItem('ehon-quiet-motion', on ? '1' : '0'); } catch (_) {}
+  };
+  let savedQuiet = false; try { savedQuiet = localStorage.getItem('ehon-quiet-motion') === '1'; } catch (_) {}
+  setQuietMotion(savedQuiet || reducedByOS());
+  motionBtn.addEventListener('click', () => setQuietMotion(!window.__ehonQuietMotion));
+  const inform = (text, hold = 2200) => { status.textContent = text; status.classList.add('show'); clearTimeout(statusTimer); statusTimer = setTimeout(() => status.classList.remove('show'), hold); };
+  const pageName = (idx) => { const page = PAGES[idx]; return page ? tt(page.title) : ''; };
+  const updateCompass = () => {
+    const idx = EHON.state.currentPageIdx;
+    title.textContent = pageName(idx) || '本をひらく';
+    count.textContent = `${String(idx + 1).padStart(2, '0')} / ${String(PAGES.length).padStart(2, '0')}`;
+    const prev = document.getElementById('nav-prev'), next = document.getElementById('nav-next');
+    if (prev) prev.setAttribute('aria-label', idx > 0 ? `前の世界：${pageName(idx - 1)}` : '前の世界はありません');
+    if (next) next.setAttribute('aria-label', idx < PAGES.length - 1 ? `次の世界：${pageName(idx + 1)}` : '次の世界はありません');
+  };
+
+  function textureHalf(full, side, mirror = false) {
+    if (!full) return null;
+    const tex = full.clone(); tex.colorSpace = THREE.SRGBColorSpace;
+    if (mirror) { tex.repeat.set(-.5, 1); tex.offset.set(side === 'left' ? .5 : 1, 0); }
+    else { tex.repeat.set(.5, 1); tex.offset.set(side === 'left' ? 0 : .5, 0); }
+    tex.needsUpdate = true; return tex;
+  }
+  function makeRestLeaf(halfW, depth, side) {
+    const sign = side === 'left' ? -1 : 1;
+    const geo = new THREE.PlaneGeometry(halfW, depth, 32, 8);
+    geo.rotateX(-Math.PI / 2); geo.translate(sign * halfW / 2, 0, 0);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const f = Math.min(1, Math.abs(pos.getX(i)) / halfW);
+      pos.setY(i, Math.sin(f * Math.PI) * .018 + .004);
+    }
+    pos.needsUpdate = true; geo.computeVertexNormals();
+    const mat = new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, opacity: 1, color: 0xfff9e7 });
+    const mesh = new THREE.Mesh(geo, mat); mesh.renderOrder = 4;
+    return mesh;
+  }
+  function ensurePaperDeck() {
+    const V = getV();
+    if (!V || !V._spreadHalfW || !V._spreadDepth || !V.bookTopY) return null;
+    if (V.paperDeck) return V.paperDeck;
+    const halfW = V._spreadHalfW, depth = V._spreadDepth;
+    const root = new THREE.Group(); root.name = 'independent-paper-deck'; root.position.set(0, V.bookTopY + .045, 0);
+    const edgeMat = new THREE.MeshStandardMaterial({ color: 0xcbb98c, roughness: .92, metalness: 0 });
+    const leftEdge = new THREE.Mesh(new THREE.BoxGeometry(halfW, .06, depth), edgeMat.clone());
+    const rightEdge = new THREE.Mesh(new THREE.BoxGeometry(halfW, .06, depth), edgeMat.clone());
+    leftEdge.position.set(-halfW / 2, -.036, 0); rightEdge.position.set(halfW / 2, -.036, 0);
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(.055, .075, depth * .985), new THREE.MeshStandardMaterial({ color: 0x5e4931, roughness: 1 })); seam.position.y = -.02;
+    const left = makeRestLeaf(halfW, depth, 'left'); const right = makeRestLeaf(halfW, depth, 'right');
+    root.add(leftEdge, rightEdge, seam, left, right); V.scene.add(root);
+    if (V.spreadPlane) V.spreadPlane.visible = false;
+    V.paperDeck = { root, left, right, halfW, depth, baseY: root.position.y, tex: null };
+    return V.paperDeck;
+  }
+  function setRestSpread(tex) {
+    const deck = ensurePaperDeck(); if (!deck) return;
+    [deck.left, deck.right].forEach((leaf, i) => {
+      const old = leaf.material.map; if (old && old !== tex) old.dispose();
+      leaf.material.map = textureHalf(tex, i === 0 ? 'left' : 'right');
+      leaf.material.needsUpdate = true; leaf.visible = !!tex;
+    });
+    deck.root.visible = !!tex; deck.tex = tex;
+    const V = getV();
+    if (V && V.spreadPlane) V.spreadPlane.visible = false;
+  }
+  async function syncRestSpread(index) {
+    const page = PAGES[index]; if (!page || !page.diorama) return;
+    const token = ++spreadToken; const tex = await loadSpreadTex(spreadSlugFromPage(page));
+    if (token === spreadToken && index === EHON.state.currentPageIdx) setRestSpread(tex);
+  }
+  function hidePreviousWorld() {
+    const V = getV();
+    if (V && V._dioramaGrp) { V._dioramaGrp.visible = false; V._dioramaGrp.scale.setScalar(.001); }
+    runtime.hideAnimal();
+  }
+  async function waitForPaperDeck() {
+    for (let n = 0; n < 90; n++) {
+      const deck = ensurePaperDeck(); if (deck) return deck;
+      await wait(30);
+    }
+    return null;
+  }
+
+  const baseBootWorldB = window.bootWorldB;
+  window.bootWorldB = async function(...args) {
+    /* On the first visit, the original loader is needed to create the renderer
+       and imported book. Once its book bounds exist, the independent deck is
+       created before the loader positions the page's diorama. */
+    if (!getV()) {
+      const firstRun = baseBootWorldB.apply(this, args);
+      await waitForPaperDeck();
+      syncRestSpread(EHON.state.currentPageIdx);
+      return firstRun;
+    }
+    await waitForPaperDeck();
+    const run = baseBootWorldB.apply(this, args);
+    await waitForPaperDeck();
+    syncRestSpread(EHON.state.currentPageIdx);
+    return run;
+  };
+  window.openBookThenPop = function() {
+    const deck = ensurePaperDeck();
+    if (!deck) return;
+    const start = performance.now(), baseY = deck.baseY;
+    (function settle() {
+      const t = Math.min(1, (performance.now() - start) / 560);
+      const rise = Math.sin(t * Math.PI) * .12;
+      deck.root.position.y = baseY + rise;
+      if (t < 1) requestAnimationFrame(settle);
+      else {
+        deck.root.position.y = baseY;
+        if (window.popWorldB) window.popWorldB();
+        else window.__ehonQueuedPop = true;
+      }
+    })();
+  };
+
+  function makeTurnSurface(halfW, depth, tex, side, mirror, face) {
+    const geo = new THREE.PlaneGeometry(halfW, depth, 40, 10);
+    geo.translate(halfW / 2, 0, 0); geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position; const base = [];
+    for (let i = 0; i < pos.count; i++) base.push([pos.getX(i), pos.getY(i), pos.getZ(i)]);
+    const mat = new THREE.MeshBasicMaterial({ map: textureHalf(tex, side, mirror), toneMapped: false, side: face, transparent: true, opacity: 1, color: 0xfff8e5 });
+    const mesh = new THREE.Mesh(geo, mat); mesh.renderOrder = 8;
+    return { mesh, geo, mat, pos, base };
+  }
+  function curlTurnSurface(surface, halfW, depth, progress) {
+    if (window.__ehonQuietMotion) return;
+    const pulse = Math.sin(Math.PI * progress);
+    for (let i = 0; i < surface.pos.count; i++) {
+      const base = surface.base[i]; const f = Math.max(0, Math.min(1, base[0] / halfW));
+      const lift = (.035 + .21 * pulse) * Math.sin(Math.PI * f) + .095 * pulse * Math.pow(f, 2);
+      const curlX = halfW * .072 * pulse * Math.sin(Math.PI * f);
+      const curlZ = depth * .045 * pulse * Math.sin(Math.PI * f) * Math.sin((base[2] / depth) * Math.PI);
+      surface.pos.setXYZ(i, base[0] + curlX, base[1] + lift, base[2] + curlZ);
+    }
+    surface.pos.needsUpdate = true; surface.geo.computeVertexNormals();
+  }
+  function disposeTurn(parts, root) {
+    const V = getV(); if (V) V.scene.remove(root);
+    parts.forEach(p => { p.geo.dispose(); p.mat.map && p.mat.map.dispose(); p.mat.dispose(); });
+  }
+  function flipIndependentPage(prevIdx, nextIdx, dir, doPageSwap) {
+    const deck = ensurePaperDeck();
+    const prevPage = PAGES[prevIdx], nextPage = PAGES[nextIdx];
+    if (!deck || !prevPage || !nextPage || !prevPage.diorama || !nextPage.diorama) { doPageSwap(nextIdx); syncRestSpread(nextIdx); finishTurn(); return; }
+    window.__ehonTurnInFlight = true; window.__ehonQueuedPop = false; hidePreviousWorld(); deck.root.visible = false;
+    Promise.all([loadSpreadTex(spreadSlugFromPage(prevPage)), loadSpreadTex(spreadSlugFromPage(nextPage))]).then(([oldTex, newTex]) => {
+      const currentV = getV();
+      if (!currentV) { doPageSwap(nextIdx); syncRestSpread(nextIdx); deck.root.visible = true; finishTurn(); return; }
+      const pivot = new THREE.Group(); pivot.name = 'turning-independent-page'; pivot.position.set(0, deck.baseY + .018, 0); currentV.scene.add(pivot);
+      let front, back;
+      if (dir === 'next') { front = makeTurnSurface(deck.halfW, deck.depth, oldTex, 'right', false, THREE.FrontSide); back = makeTurnSurface(deck.halfW, deck.depth, newTex, 'left', true, THREE.BackSide); }
+      else { front = makeTurnSurface(deck.halfW, deck.depth, newTex, 'left', false, THREE.FrontSide); back = makeTurnSurface(deck.halfW, deck.depth, oldTex, 'right', true, THREE.BackSide); }
+      pivot.add(front.mesh, back.mesh);
+      const startRot = dir === 'next' ? 0 : Math.PI, endRot = dir === 'next' ? Math.PI : 0;
+      const duration = window.__ehonQuietMotion ? 220 : 920, started = performance.now(); let swapped = false;
+      (function animate() {
+        const raw = Math.min(1, (performance.now() - started) / duration); const eased = easeInOut(raw);
+        pivot.rotation.z = startRot + (endRot - startRot) * eased; curlTurnSurface(front, deck.halfW, deck.depth, raw); curlTurnSurface(back, deck.halfW, deck.depth, raw);
+        if (raw >= .5 && !swapped) { swapped = true; doPageSwap(nextIdx); }
+        if (raw < 1) requestAnimationFrame(animate);
+        else { disposeTurn([front, back], pivot); setRestSpread(newTex); deck.root.visible = true; finishTurn(); }
+      })();
+    }).catch(() => { doPageSwap(nextIdx); syncRestSpread(nextIdx); deck.root.visible = true; finishTurn(); });
+  }
+  function finishTurn() {
+    window.__ehonTurnInFlight = false;
+    if (window.__ehonQueuedPop) { window.__ehonQueuedPop = false; setTimeout(() => { if (window.popWorldB) window.popWorldB(); }, 130); }
+    window.dispatchEvent(new Event('ehon:physical-page-settled'));
+  }
+  window.flipPageTransition = function(prevIdx, nextIdx, dir, doPageSwap) { flipIndependentPage(prevIdx, nextIdx, dir, doPageSwap); };
+
+  const originalSwitchPage = EHON.switchPage.bind(EHON);
+  EHON.switchPage = function(nextIdx) {
+    if (turnLocked || nextIdx < 0 || nextIdx >= PAGES.length || nextIdx === EHON.state.currentPageIdx) return;
+    turnLocked = true; document.body.classList.add('ehon-turning');
+    inform(nextIdx > EHON.state.currentPageIdx ? '紙の頁をめくっています…' : '紙の頁をもどしています…', 1800);
+    originalSwitchPage(nextIdx);
+    setTimeout(() => releaseTurn(), window.__ehonQuietMotion ? 480 : 3200);
+  };
+  const releaseTurn = () => { if (!turnLocked) return; turnLocked = false; document.body.classList.remove('ehon-turning'); updateCompass(); };
+  window.addEventListener('ehon:physical-page-settled', releaseTurn);
+  const originalOpen = EHON.open.bind(EHON);
+  EHON.open = function() { originalOpen(); waitForPaperDeck().then(() => syncRestSpread(EHON.state.currentPageIdx)); setTimeout(updateCompass, 80); };
+  updateCompass();
+  if (new URLSearchParams(location.search).get('from') === 'cabin') setTimeout(() => inform('小屋の灯りから、一冊の本が届きました。', 3400), 900);
+  };
+  if (window.__ehon3DRuntime) init();
+  else window.addEventListener('ehon3d-ready', init, { once: true });
 })();
 </script>
 </body>
