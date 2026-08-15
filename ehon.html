@@ -2094,7 +2094,8 @@ window.bootWorldB = async function () {
     v.controls.target.set(0, targetY + 1.5, 0);
     if (msg && msg.parentNode) msg.remove();
 
-    /* The independent paper deck receives this spread texture in the page controller. */
+    /* Keep the stable book-page surface updated independently of diorama loading. */
+    loadSpreadTex(spreadSlugFromPage(page)).then(tex => applySpreadTex(tex));
   } catch (e) { /* fail() already called */ }
 
   _popB = () => {
@@ -2239,7 +2240,7 @@ window.dispatchEvent(new Event('ehon3d-ready'));
 })();
 </script>
 <!-- Ehon physical-page controller: independent paper deck + synchronized pop-up world -->
-<script id="ehon-physical-pages">
+<script type="application/x-disabled" id="ehon-physical-pages-disabled">
 (() => {
   const init = () => {
   const runtime = window.__ehon3DRuntime;
@@ -2448,6 +2449,51 @@ window.dispatchEvent(new Event('ehon3d-ready'));
   };
   if (window.__ehon3DRuntime) init();
   else window.addEventListener('ehon3d-ready', init, { once: true });
+})();
+</script>
+<!-- Stable navigation: visuals must never block the reader's next page action. -->
+<script id="ehon-stable-navigation">
+(() => {
+  window.addEventListener('DOMContentLoaded', () => {
+    const status = document.getElementById('book-turn-status');
+    const title = document.getElementById('book-chapter-title');
+    const count = document.getElementById('book-chapter-count');
+    const motionBtn = document.getElementById('quiet-motion-toggle');
+    let locked = false, timer = 0;
+    const nameOf = (i) => PAGES[i] ? tt(PAGES[i].title) : '';
+    const refresh = () => {
+      const i = EHON.state.currentPageIdx;
+      title.textContent = nameOf(i) || '本をひらく';
+      count.textContent = `${String(i + 1).padStart(2, '0')} / ${String(PAGES.length).padStart(2, '0')}`;
+      const prev = document.getElementById('nav-prev'), next = document.getElementById('nav-next');
+      if (prev) prev.setAttribute('aria-label', i > 0 ? `前の世界：${nameOf(i - 1)}` : '前の世界はありません');
+      if (next) next.setAttribute('aria-label', i < PAGES.length - 1 ? `次の世界：${nameOf(i + 1)}` : '次の世界はありません');
+    };
+    const notice = (text) => { status.textContent = text; status.classList.add('show'); clearTimeout(timer); timer = setTimeout(() => status.classList.remove('show'), 1250); };
+    const originalSwitchPage = EHON.switchPage.bind(EHON);
+    EHON.switchPage = function(nextIndex) {
+      if (locked || nextIndex < 0 || nextIndex >= PAGES.length || nextIndex === EHON.state.currentPageIdx) return;
+      const previousIndex = EHON.state.currentPageIdx;
+      locked = true; document.body.classList.add('ehon-turning');
+      notice(nextIndex > previousIndex ? '次の頁へ進みます…' : '前の頁へもどります…');
+      /* The outgoing world is hidden as the page starts to turn. Its replacement
+         is allowed to load independently; it can never hold this navigation lock. */
+      const runtime = window.__ehon3DRuntime;
+      const v = runtime && runtime.getV && runtime.getV();
+      if (v && v._dioramaGrp) setTimeout(() => { if (v._dioramaGrp) v._dioramaGrp.visible = false; }, 90);
+      originalSwitchPage(nextIndex);
+      refresh();
+      const quiet = document.documentElement.classList.contains('quiet-turns');
+      setTimeout(() => { locked = false; document.body.classList.remove('ehon-turning'); refresh(); }, quiet ? 320 : 1250);
+    };
+    motionBtn.addEventListener('click', () => {
+      const on = !document.documentElement.classList.contains('quiet-turns');
+      document.documentElement.classList.toggle('quiet-turns', on);
+      motionBtn.setAttribute('aria-pressed', String(on));
+      motionBtn.textContent = on ? '通常の動き' : '静かな動き';
+    });
+    refresh();
+  });
 })();
 </script>
 </body>
