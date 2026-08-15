@@ -110,6 +110,7 @@ body{
 .forecast .gz.star{width:17px;height:17px;border-radius:4px;background:radial-gradient(circle at 34% 28%, #f0c878, #8a5a14 72%);border-color:#5a3a0e}
 .forecast .gz.comet{width:19px;height:19px;border-radius:4px;background:radial-gradient(circle at 34% 28%, #ff9a6c, #a4351c 72%);border-color:#6a1f10;box-shadow:0 0 8px rgba(219,85,50,.6)}
 .forecast .gz.num{width:auto;height:auto;border:none;box-shadow:none;font-family:"JetBrains Mono",monospace;font-size:11px;color:#e8b87a;font-weight:700;padding-left:2px}
+.forecast .gz.grace{width:auto;height:auto;min-width:44px;padding:2px 5px;border-radius:4px;border-color:rgba(92,183,220,.72);background:rgba(39,112,145,.30);box-shadow:0 0 8px rgba(89,189,224,.22);font-family:"JetBrains Mono",monospace;font-size:9px;color:#bcecff;font-weight:800}.forecast.grace1 .gz.grace{border-color:rgba(242,201,76,.86);background:rgba(132,92,22,.32);color:#fff0b2}.forecast.danger .gz.grace{border-color:rgba(219,85,50,.9);background:rgba(164,53,28,.38);color:#ffd5c2;animation:gracepulse .72s ease-in-out infinite}@keyframes gracepulse{50%{filter:brightness(1.4);transform:scale(1.04)}}
 
 /* overlay */
 .overlay{
@@ -415,6 +416,7 @@ body{
       ・消した駒の価値で <span class="k">将棋魂</span> をためる。72で <b>王手</b>、次に相手へ送るお邪魔が <b>+4</b>。<br>
       ・<span class="k">三駒連携</span>：一連鎖で3種類の駒を消すと、お邪魔 <b>+2</b>・将棋魂 <b>+12</b>。<br>
       ・<span class="k">同時攻め</span>：同時に2組を消すと、お邪魔 <b>+1</b>・将棋魂 <b>+6</b>。<br>
+      ・<span class="k">お邪魔保留</span>：届いたお邪魔は盤面上に<b>2手ためて</b>から落下。その間に連鎖すれば<b>相殺</b>できる。<br>
       ・<span class="k">奥義・金剛詰め</span>：駒消しで奥義をため、満タン時に受信お邪魔を最大<b>8個相殺</b>し、<b>4個反撃</b>。右上の<b>奥</b>でON／OFF。
     </div>
     <div class="diff" id="diff">
@@ -470,6 +472,7 @@ const SIMULTANEOUS_GARBAGE = 1;
 const SIMULTANEOUS_SPIRIT = 6;
 const NUISANCE_DIV = 6;       // points -> お邪魔 conversion
 const MAX_GARBAGE_DROP = 30;
+const GARBAGE_GRACE_TURNS = 2; // received garbage waits this many of my resolved pairs before falling
 const SPECIAL_MAX = 100, SPECIAL_CANCEL = 8, SPECIAL_COUNTER = 4;  // per turn
 
 const POP_MS = 230, LOCK_MS = 480;
@@ -613,7 +616,8 @@ class Engine {
     this.score = 0;
     this.chainCount = 0;
     this.nuisAccum = 0;
-    this.garbagePending = 0;   // incoming to me
+    this.garbagePending = 0;   // incoming to me (held above the board)
+    this.garbageGrace = 0;     // completed pairs remaining before held garbage falls
     this.moveCount = 0;
     this.kingDrought = 0;      // eligible pairs since the last king appeared
     this.spirit = 0;
@@ -1170,8 +1174,8 @@ function renderNext(eng){
 
 /* ----------------------------- forecast (予告ぷよ) ---------------------- */
 // Show incoming garbage above each board so players can plan counters (相殺).
-function renderForecast(el, n){
-  el.innerHTML='';
+function renderForecast(el, n, grace=0){
+  el.innerHTML=''; el.classList.toggle('grace1',n>0&&grace===1); el.classList.toggle('danger',n>0&&grace<=0);
   if(n<=0) return;
   let rem=n, icons=[];
   // tiers: ✦ comet = 30, ★ star = 6, ● rock = 1
@@ -1180,6 +1184,8 @@ function renderForecast(el, n){
   while(rem>=1  && icons.length<14){ icons.push('rock');  rem-=1; }
   for(const t of icons){ const d=document.createElement('div'); d.className='gz '+t; el.appendChild(d); }
   const total=document.createElement('div'); total.className='gz num'; total.textContent=n; el.appendChild(total);
+  const wait=document.createElement('div'); wait.className='gz grace';
+  wait.textContent=grace>0?'あと'+grace+'手':'次で落下'; el.appendChild(wait);
 }
 
 /* ----------------------------- audio ------------------------------------ */
@@ -1448,8 +1454,10 @@ function finishResolve(eng, isPlayer){
   }
   if(sent>0){
     opp.garbagePending += sent;
+    opp.garbageGrace = GARBAGE_GRACE_TURNS;
     eng.stats.maxAttack=Math.max(eng.stats.maxAttack,sent);
   }
+  if(eng.garbagePending===0) eng.garbageGrace=0;
   // chain feedback toast for the player only
   if(isPlayer){
     if(ouseteUsed) showToast('王手！ お邪魔 +'+OUSETE_BONUS);
@@ -1458,8 +1466,15 @@ function finishResolve(eng, isPlayer){
     if(cancelled>0){ showToast('相殺 '+cancelled+'！'); characterCue('ginka',3,'cancel'); cancelSound(); battleFlash('相殺 +'+cancelled,'cancel'); player.shake=Math.min(1,player.shake+.10+cancelled*.025); }
   }
   if(!isPlayer&&sent>=6) characterCue('ouka',4,'threat');
-  // drop my incoming garbage (one turn after it appears in the forecast = chance to counter)
-  if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.shake=Math.min(1, eng.shake+drop*0.05); if(isPlayer) garbageSound(); eng.chainCount=0; eng.nuisAccum=0; eng.turnTypes.clear(); eng.formationAwarded=false; eng.simultaneousAwarded=false; eng.startDrop(); return; }
+  // Held garbage stays above the board for two completed pairs so the player can counter.
+  let dropNow=false;
+  if(eng.garbagePending>0){
+    if(eng.garbageGrace>0){
+      eng.garbageGrace--;
+      if(isPlayer) showToast(eng.garbageGrace>0?'お邪魔保留　あと'+eng.garbageGrace+'手':'お邪魔警告　次で落下');
+    }else dropNow=true;
+  }
+  if(dropNow){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; if(eng.garbagePending===0) eng.garbageGrace=0; eng.shake=Math.min(1, eng.shake+drop*0.05); if(isPlayer){ garbageSound(); battleFlash('お邪魔落下 '+drop,'danger'); } eng.chainCount=0; eng.nuisAccum=0; eng.turnTypes.clear(); eng.formationAwarded=false; eng.simultaneousAwarded=false; eng.startDrop(); return; }
   eng.chainCount=0; eng.nuisAccum=0; eng.turnTypes.clear(); eng.formationAwarded=false; eng.simultaneousAwarded=false;
   // spawn next
   if(!eng.spawnPair()){
@@ -1506,8 +1521,8 @@ function loop(t){
   renderEngine(player,pctx,CELL);
   renderEngine(cpu,cctx,CELL_C);
   renderNext(player);
-  renderForecast(pForecastEl, player.garbagePending);
-  renderForecast(cForecastEl, cpu.garbagePending);
+  renderForecast(pForecastEl, player.garbagePending, player.garbageGrace);
+  renderForecast(cForecastEl, cpu.garbagePending, cpu.garbageGrace);
   document.getElementById('pScore').textContent=player.score.toLocaleString();
   document.getElementById('cScore').textContent=cpu.score.toLocaleString();
   setChainLabel('pChain', player.phase==='pop'||player.phase==='drop'? player.chainCount:0);
