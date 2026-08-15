@@ -1697,16 +1697,103 @@ function loadSpreadTex(slug) {
     );
   });
 }
-function applySpreadTex(tex) {
-  if (!V || !V.spreadPlane) return;
-  if (tex) {
-    V.spreadPlane.material.map = tex;
-    V.spreadPlane.material.needsUpdate = true;
-    V.spreadPlane.visible = true;
+/* Shared page construction. Both the resting spread and the turning leaf use
+   this same geometry, so the top page continues the actual book rather than
+   becoming a separate floating rectangle. */
+function cropPageTexture(tex, side, mirrored) {
+  if (!tex) return null;
+  const t = tex.clone();
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = THREE.RepeatWrapping;
+  if (mirrored) {
+    t.repeat.set(-0.5, 1);
+    t.offset.set(side === 'left' ? 0.5 : 1, 0);
   } else {
-    V.spreadPlane.visible = false;
+    t.repeat.set(0.5, 1);
+    t.offset.set(side === 'left' ? 0 : 0.5, 0);
   }
+  t.anisotropy = Math.min(4, V.renderer.capabilities.getMaxAnisotropy());
+  t.needsUpdate = true;
+  return t;
+}
+function makePaperMaterial(map, side) {
+  return new THREE.MeshStandardMaterial({
+    map: map || null, side: side || THREE.FrontSide, transparent: true, opacity: 1,
+    color: new THREE.Color(0xfff3dc), roughness: 0.96, metalness: 0,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+  });
+}
+function makeBookLeafGeometry(side, halfW, depth, baseY) {
+  const sign = side === 'left' ? -1 : 1;
+  const geo = new THREE.PlaneGeometry(halfW, depth, 32, 8);
+  geo.rotateX(-Math.PI / 2);
+  geo.translate(sign * halfW / 2, 0, 0);
+  const pos = geo.attributes.position;
+  /* Sample the imported book itself from above. The resulting page vertices
+     inherit the actual spine valley, left/right slope and subtle page bulge. */
+  const canSample = V && V.book && V.book.isObject3D;
+  const ray = canSample ? new THREE.Raycaster() : null;
+  const down = new THREE.Vector3(0, -1, 0);
+  if (canSample) V.bookGrp.updateMatrixWorld(true);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    let y = -0.02 + 0.05 * Math.pow(Math.abs(x) / halfW, 1.65);
+    if (ray) {
+      ray.set(new THREE.Vector3(x, V.bookTopY + 2.5, z), down);
+      const hit = ray.intersectObject(V.book, true)[0];
+      if (hit) y = hit.point.y - baseY + 0.003;
+    }
+    pos.setY(i, y);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+function makeSpineRibbon(referenceLeaf, depth) {
+  const geo = new THREE.PlaneGeometry(0.085, depth * 0.99, 1, 8);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const ref = referenceLeaf.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const z = pos.getZ(i);
+    let best = 0, bestD = Infinity;
+    for (let j = 0; j < ref.count; j++) {
+      const d = Math.abs(ref.getX(j)) * 4 + Math.abs(ref.getZ(j) - z);
+      if (d < bestD) { bestD = d; best = j; }
+    }
+    pos.setY(i, ref.getY(best) + 0.004);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+    color: 0x806043, roughness: 1, metalness: 0, transparent: true, opacity: 0.34,
+    polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3
+  }));
+}
+function createBookPageRig(width, depth) {
+  const halfW = width / 2;
+  const root = new THREE.Group();
+  root.name = 'book-page-rig';
+  const left = new THREE.Mesh(makeBookLeafGeometry('left', halfW, depth, V.bookTopY), makePaperMaterial(null));
+  const right = new THREE.Mesh(makeBookLeafGeometry('right', halfW, depth, V.bookTopY), makePaperMaterial(null));
+  const crease = makeSpineRibbon(left, depth);
+  left.visible = false; right.visible = false;
+  root.add(left, right, crease);
+  return { root, left, right, crease, halfW, depth };
+}
+function applySpreadTex(tex) {
+  if (!V) return;
   V.spreadTex = tex;
+  if (V.spreadPlane) V.spreadPlane.visible = false;
+  const rig = V.pageRig;
+  if (!rig) return;
+  [rig.left, rig.right].forEach((leaf, i) => {
+    const old = leaf.material.map;
+    if (old) old.dispose();
+    leaf.material.map = cropPageTexture(tex, i === 0 ? 'left' : 'right', false);
+    leaf.material.needsUpdate = true;
+    leaf.visible = !!tex;
+  });
 }
 
 /* ------ ensureBook3D: create renderer/scene/cam/controls/book ONCE -- */
@@ -1797,22 +1884,23 @@ async function ensureBook3D(camPos) {
     book.position.x -= bc.x; book.position.z -= bc.z;
     book.position.y -= bb.min.y;
     book.userData._isBook = true;
+    V.book = book;
     bookGrp.add(book);
     const bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
     V.bookTopY = bookTopY;
 
-    /* Stable page surface: its dimensions are the source of truth for every
-       turning leaf. A warm, high-roughness material matches the imported book's
-       parchment instead of reading as a separate bright panel. */
-    const bboxW = bs.x * bScale * 0.80;
-    const bboxD = bs.z * bScale * 0.78;
-    const spreadGeo = new THREE.PlaneGeometry(bboxW, bboxD);
-    const spreadMat = new THREE.MeshStandardMaterial({ map: null, side: THREE.FrontSide, transparent: true, opacity: 1,
-      color: new THREE.Color(0xfff3dc), roughness: 0.96, metalness: 0,
-      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-    const spreadPlane = new THREE.Mesh(spreadGeo, spreadMat);
+    /* The visible top spread is a two-leaf rig with a real spine valley.
+       Its footprint follows the actual page area inside the imported cover. */
+    const bboxW = bs.x * bScale * 0.92;
+    const bboxD = bs.z * bScale * 0.90;
+    const pageRig = createBookPageRig(bboxW, bboxD);
+    pageRig.root.position.y = bookTopY;
+    bookGrp.add(pageRig.root);
+    V.pageRig = pageRig;
+    /* Retain a hidden compatibility plane for legacy callers. */
+    const spreadPlane = new THREE.Mesh(new THREE.PlaneGeometry(bboxW, bboxD), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
     spreadPlane.rotation.x = -Math.PI / 2;
-    spreadPlane.position.y = bookTopY + 0.006;
+    spreadPlane.position.y = bookTopY;
     spreadPlane.visible = false;
     bookGrp.add(spreadPlane);
     V.spreadPlane = spreadPlane;
@@ -1861,7 +1949,7 @@ function disposeDiorama() {
   /* Remove all children of bookGrp EXCEPT book.glb mesh, spread plane, and mascot */
   const toRemove = [];
   V.bookGrp.children.forEach(child => {
-    if (child !== V.spreadPlane && child !== V.mascot && child !== V.boy && !child.isLight && child.userData._isBook !== true) {
+    if (child !== V.spreadPlane && child !== (V.pageRig && V.pageRig.root) && child !== V.mascot && child !== V.boy && !child.isLight && child.userData._isBook !== true) {
       toRemove.push(child);
     }
   });
@@ -1901,66 +1989,57 @@ window.exitImmerseB = () => {
 
 /* ------ flipPage3D: real page flip animation -- */
 function flipPage3D(prevSlug, nextSlug, dir, onHalfway) {
-  if (!V || !V.spreadPlane) { onHalfway(); return; }
-  const halfW = V._spreadHalfW;
-  const depth = V._spreadDepth;
-  const bookTopY = V.bookTopY;
+  if (!V || !V.pageRig) { onHalfway(); return; }
+  const rig = V.pageRig;
+  const halfW = rig.halfW;
+  const depth = rig.depth;
 
   /* load both textures; animate after both ready */
   Promise.all([loadSpreadTex(prevSlug), loadSpreadTex(nextSlug)]).then(([prevTex, nextTex]) => {
+    const turningLeaf = dir === 'next' ? rig.right : rig.left;
+    turningLeaf.visible = false;
     const pivot = new THREE.Group();
-    /* The leaf begins just 0.002 above the resting page, so it emerges from
-       the book's paper stack rather than floating above the cover. */
-    pivot.position.set(0, bookTopY + 0.008, 0);
+    pivot.position.set(0, rig.root.position.y + 0.002, 0);
     V.bookGrp.add(pivot);
 
-    /* 本の紙面に寝かせた(水平 XZ)ページを、背表紙(Z軸, x=0)を軸にめくる。紙のしなり付き */
-    const mkPlane = (tex, offsetU, mirror, underside) => {
-      const geo = new THREE.PlaneGeometry(halfW, depth, 32, 6);
-      geo.translate(halfW / 2, 0, 0);   /* 背表紙 x=0 から外側へ span */
-      geo.rotateX(-Math.PI / 2);        /* 水平に寝かせる(幅=X, 奥行=Z) */
-      const posA = geo.attributes.position;
-      for (let i = 0; i < posA.count; i++) {
-        const f = posA.getX(i) / halfW;                                  /* 0(背)→1(外) */
-        /* Resting paper stays almost flush with the base spread; only a fine
-           natural ripple remains before the rotation starts. */
-        posA.setY(i, posA.getY(i) + Math.sin(f * Math.PI) * depth * 0.012);
-      }
-      posA.needsUpdate = true; geo.computeVertexNormals();
-      /* 共有テクスチャの repeat/offset 変更がスプレッドに波及しないよう必ず clone */
-      const t = tex ? tex.clone() : null;
-      if (t) {
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.wrapS = THREE.RepeatWrapping;
-        t.repeat.set(mirror ? -0.5 : 0.5, 1);              /* 裏面は左右反転 */
-        t.offset.set(mirror ? offsetU + 0.5 : offsetU, 0);
-        t.anisotropy = Math.min(4, V.renderer.capabilities.getMaxAnisotropy());
-        t.needsUpdate = true;
-      }
-      const mat = new THREE.MeshStandardMaterial({
-        map: t, side: underside ? THREE.BackSide : THREE.FrontSide,
-        transparent: true, opacity: 1, color: new THREE.Color(0xfff3dc),
-        roughness: 0.96, metalness: 0, polygonOffset: true,
-        polygonOffsetFactor: -2, polygonOffsetUnits: -2
-      });
+    /* The turning leaf begins with the exact same page profile as the resting
+       leaf: the same spine valley, outer rise, dimensions and parchment. */
+    const mkLeaf = (tex, textureSide, mirrored, underside) => {
+      const geo = makeBookLeafGeometry('right', halfW, depth, rig.root.position.y);
+      const pos = geo.attributes.position;
+      const base = [];
+      for (let i = 0; i < pos.count; i++) base.push([pos.getX(i), pos.getY(i), pos.getZ(i)]);
+      const mat = makePaperMaterial(cropPageTexture(tex, textureSide, mirrored), underside ? THREE.BackSide : THREE.FrontSide);
       const mesh = new THREE.Mesh(geo, mat);
       pivot.add(mesh);
-      return { geo, mat };
+      return { geo, mat, pos, base };
+    };
+    const frontParts = dir === 'next'
+      ? mkLeaf(prevTex, 'right', false, false)
+      : mkLeaf(nextTex, 'left', false, false);
+    const backParts = dir === 'next'
+      ? mkLeaf(nextTex, 'left', true, true)
+      : mkLeaf(prevTex, 'right', true, true);
+
+    const deformLeaf = (part, rawT) => {
+      const pulse = Math.sin(Math.PI * rawT);
+      for (let i = 0; i < part.pos.count; i++) {
+        const base = part.base[i];
+        const f = Math.max(0, Math.min(1, base[0] / halfW));
+        /* The page flexes only while it turns; its resting silhouette remains
+           identical to the book leaf beneath it. */
+        const lift = pulse * (0.095 * Math.sin(Math.PI * f) + 0.05 * f * f);
+        const curlX = pulse * halfW * 0.028 * Math.sin(Math.PI * f);
+        const curlZ = pulse * depth * 0.018 * Math.sin((base[2] / depth) * Math.PI) * Math.sin(Math.PI * f);
+        part.pos.setXYZ(i, base[0] + curlX, base[1] + lift, base[2] + curlZ);
+      }
+      part.pos.needsUpdate = true;
+      part.geo.computeVertexNormals();
     };
 
-    let frontParts, backParts;
-    if (dir === 'next') {
-      frontParts = mkPlane(prevTex, 0.5, false, false); /* 今の右頁(上面) */
-      backParts  = mkPlane(nextTex, 0.0, true,  true);  /* 次の左頁(裏面・反転) */
-    } else {
-      frontParts = mkPlane(nextTex, 0.0, false, false);
-      backParts  = mkPlane(prevTex, 0.5, true,  true);
-    }
-
     const startRot = dir === 'next' ? 0 : Math.PI;
-    const endRot   = dir === 'next' ? Math.PI : 0;   /* 背表紙(Z)を軸に +x(右) → 上 → -x(左) */
+    const endRot   = dir === 'next' ? Math.PI : 0;
     pivot.rotation.z = startRot;
-
     const duration = 850;
     const t0 = performance.now();
     let halfwayCalled = false;
@@ -1970,23 +2049,23 @@ function flipPage3D(prevSlug, nextSlug, dir, onHalfway) {
       const rawT = Math.min(1, elapsed / duration);
       const t = easeInOut(rawT);
       pivot.rotation.z = startRot + (endRot - startRot) * t;
+      deformLeaf(frontParts, rawT);
+      deformLeaf(backParts, rawT);
 
       if (rawT >= 0.5 && !halfwayCalled) {
         halfwayCalled = true;
         onHalfway();
-        /* Update spread plane to next page */
-        loadSpreadTex(nextSlug).then(tex => applySpreadTex(tex));
       }
 
       if (rawT < 1) {
         requestAnimationFrame(animate);
       } else {
-        /* cleanup */
         V.bookGrp.remove(pivot);
-        [frontParts, backParts].forEach(p => { p.geo.dispose(); p.mat.dispose(); });
+        [frontParts, backParts].forEach(p => { p.geo.dispose(); p.mat.map && p.mat.map.dispose(); p.mat.dispose(); });
+        applySpreadTex(nextTex);
       }
     })();
-  });
+  }).catch(() => { onHalfway(); });
 }
 
 /* ------ flipPageTransition: called from switchPage -- */
