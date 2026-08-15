@@ -3528,6 +3528,60 @@ else {
 </script>
 <!-- 灯火の文箱（匿名・共有メモ帳。Supabase設定は assets/cabin-notes.js 冒頭） -->
 <script src="assets/cabin-notes.js" defer></script>
+<!-- Cabin companion: intentional entry, guide voice, and story route -->
+<style id="cabin-companion-style">
+  #cabin-companion{position:fixed;left:18px;bottom:18px;z-index:180;width:min(370px,calc(100vw - 36px));font-family:"Shippori Mincho","Yu Mincho",serif;opacity:0;visibility:hidden;transform:translateY(18px);pointer-events:none;transition:opacity .35s cubic-bezier(.23,1,.32,1),transform .35s cubic-bezier(.23,1,.32,1),visibility .35s}
+  #cabin-companion.is-ready{opacity:1;visibility:visible;transform:translateY(0);pointer-events:auto}
+  #cabin-companion.is-collapsed .cc-card{opacity:0;transform:translateY(10px) scale(.98);pointer-events:none}
+  .cc-card{position:relative;overflow:hidden;border:1px solid rgba(239,195,107,.5);border-radius:18px;background:linear-gradient(145deg,rgba(30,20,15,.93),rgba(54,30,20,.86));box-shadow:0 14px 42px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,244,212,.12);backdrop-filter:blur(16px);padding:18px;transition:opacity .22s ease,transform .22s ease}
+  .cc-card:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 88% 0%,rgba(239,172,73,.22),transparent 38%);pointer-events:none}
+  .cc-close{position:absolute;right:10px;top:9px;width:30px;height:30px;border:0;border-radius:999px;color:#dcc89d;background:transparent;font:20px/1 sans-serif;cursor:pointer;transition:background .16s ease,color .16s ease}
+  .cc-close:hover,.cc-close:focus-visible{background:rgba(255,245,215,.13);color:#fff}
+  .cc-kicker{position:relative;margin:0 0 6px;color:#e9be72;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+  .cc-title{position:relative;margin:0;color:#fff6e5;font-size:20px;font-weight:600;letter-spacing:.04em;line-height:1.35}
+  .cc-lede{position:relative;margin:7px 26px 14px 0;color:#ddceb5;font-size:12px;line-height:1.65}
+  .cc-choices{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .cc-choice{min-height:68px;border:1px solid rgba(238,205,142,.28);border-radius:12px;padding:10px 11px;text-align:left;background:rgba(255,246,223,.055);color:#fff5df;cursor:pointer;transition:transform .16s cubic-bezier(.23,1,.32,1),background .16s ease,border-color .16s ease,box-shadow .16s ease}
+  .cc-choice:hover,.cc-choice:focus-visible{outline:none;transform:translateY(-2px);background:rgba(246,187,84,.16);border-color:rgba(252,211,131,.72);box-shadow:0 7px 18px rgba(0,0,0,.2)}.cc-choice:active{transform:scale(.97)}
+  .cc-choice.is-story{grid-column:1/-1;min-height:54px;background:linear-gradient(100deg,rgba(111,72,63,.5),rgba(86,61,41,.42))}
+  .cc-choice strong,.cc-choice small{display:block}.cc-choice strong{font-size:13px;font-weight:600;letter-spacing:.03em}.cc-choice small{margin-top:3px;color:#ccbfa9;font-size:10px;line-height:1.35}
+  .cc-voice{position:relative;display:flex;align-items:center;gap:10px;margin-top:13px;padding-top:12px;border-top:1px solid rgba(238,205,142,.18)}
+  .cc-voice-btn{flex:0 0 auto;border:1px solid rgba(240,203,131,.5);border-radius:999px;padding:7px 11px;background:rgba(239,177,82,.12);color:#fff1d0;font:600 12px/1.1 inherit;cursor:pointer;transition:background .16s ease,transform .16s ease}.cc-voice-btn:hover,.cc-voice-btn:focus-visible{outline:none;background:rgba(239,177,82,.25)}.cc-voice-btn:active{transform:scale(.97)}.cc-voice-btn[aria-pressed="true"]{background:rgba(239,177,82,.38)}
+  .cc-voice-copy{min-width:0}.cc-voice-copy strong{display:block;color:#f6e3bc;font-size:11px;font-weight:600}.cc-voice-copy span{display:block;margin-top:2px;color:#bbad96;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-handle{position:absolute;left:0;bottom:0;display:none;border:1px solid rgba(239,195,107,.58);border-radius:999px;padding:9px 14px;background:rgba(30,20,15,.9);color:#f7dfa6;font:600 12px/1 inherit;box-shadow:0 8px 26px rgba(0,0,0,.33);cursor:pointer}.is-collapsed .cc-handle{display:block}.cc-handle:focus-visible{outline:2px solid #ffe0a0;outline-offset:3px}
+  #cc-toast{position:fixed;left:50%;bottom:28px;z-index:200;max-width:calc(100vw - 40px);transform:translate(-50%,14px);padding:9px 14px;border:1px solid rgba(247,206,124,.4);border-radius:999px;background:rgba(28,19,14,.92);box-shadow:0 8px 30px rgba(0,0,0,.35);color:#f6e6c4;font:12px/1.35 "Shippori Mincho","Yu Mincho",serif;opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s cubic-bezier(.23,1,.32,1)}#cc-toast.show{opacity:1;transform:translate(-50%,0)}
+  @media (max-width:640px){#cabin-companion{left:12px;bottom:12px;width:calc(100vw - 24px)}.cc-card{border-radius:16px;padding:15px}.cc-title{font-size:18px}.cc-choice{min-height:61px;padding:9px}.cc-choice.is-story{min-height:50px}#cc-toast{bottom:16px}}
+  @media (prefers-reduced-motion:reduce){#cabin-companion,#cc-toast,.cc-card,.cc-choice{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+<aside id="cabin-companion" aria-label="小屋で過ごす時間の案内">
+  <div class="cc-card">
+    <button type="button" class="cc-close" aria-label="案内を閉じる">×</button>
+    <p class="cc-kicker">A quiet choice for tonight</p>
+    <h2 class="cc-title">今夜は、どんな時間にしますか。</h2>
+    <p class="cc-lede">急がなくて大丈夫です。暖炉の前で過ごすことも、呼吸を整えることも、次の物語へ進むこともできます。</p>
+    <div class="cc-choices" role="group" aria-label="過ごし方を選ぶ">
+      <button type="button" class="cc-choice" data-journey="warm"><strong>あたたまる</strong><small>焚き火の音をともす</small></button>
+      <button type="button" class="cc-choice" data-journey="breathe"><strong>呼吸を整える</strong><small>静かなガイドを始める</small></button>
+      <button type="button" class="cc-choice is-story" data-journey="book"><strong>絵本をひらく</strong><small>小屋の灯りが、次の世界の扉になる</small></button>
+    </div>
+    <div class="cc-voice">
+      <button type="button" class="cc-voice-btn" id="cc-voice-btn" aria-pressed="false">案内を聞く</button>
+      <div class="cc-voice-copy"><strong>蒼と灯里からの歓迎</strong><span id="cc-voice-status" aria-live="polite">再生はあなたの操作で始まります。</span></div>
+    </div>
+  </div>
+  <button type="button" class="cc-handle" aria-label="今夜の過ごし方を再び開く">今夜のしおり</button>
+</aside>
+<div id="cc-toast" role="status" aria-live="polite"></div>
+<script id="cabin-companion-script">
+(() => {
+  const companion = document.getElementById('cabin-companion'); const gate = document.getElementById('enterGate'); const toast = document.getElementById('cc-toast'); const voiceButton = document.getElementById('cc-voice-btn'); const voiceStatus = document.getElementById('cc-voice-status');
+  if (!companion || !gate || !voiceButton) return;
+  let shown = false, toastTimer = 0; const say = (text) => { toast.textContent = text; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 3200); }; const showCompanion = () => { if (shown) return; shown = true; companion.classList.add('is-ready'); };
+  const revealAfterEntry = () => setTimeout(showCompanion, 900); gate.addEventListener('click', revealAfterEntry); gate.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') revealAfterEntry(); });
+  companion.querySelector('.cc-close').addEventListener('click', () => companion.classList.add('is-collapsed')); companion.querySelector('.cc-handle').addEventListener('click', () => companion.classList.remove('is-collapsed'));
+  companion.querySelectorAll('[data-journey]').forEach((button) => button.addEventListener('click', () => { const action = button.dataset.journey; if (action === 'warm') { const fire = document.querySelector('.amb-btn[data-snd="fire"]'); if (fire && !fire.classList.contains('on')) fire.click(); const sound = document.getElementById('soundToggle'); if (sound && sound.getAttribute('aria-expanded') !== 'true') sound.click(); say('焚き火の音を用意しました。暖炉の前で、ゆっくり。'); } if (action === 'breathe') { const play = document.getElementById('medPlay'); if (play) play.click(); say('呼吸の時間を始めます。火のゆらぎに合わせてください。'); } if (action === 'book') { window.location.href = 'ehon.html?from=cabin&chapter=1'; } }));
+  const guideVoice = new Audio('assets/voice/cabin-welcome-guides.wav'); guideVoice.preload = 'metadata'; guideVoice.volume = .86; guideVoice.addEventListener('play', () => { voiceButton.setAttribute('aria-pressed','true'); voiceButton.textContent = '案内を止める'; voiceStatus.textContent = '蒼と灯里が話しています。'; }); const resetVoice = () => { voiceButton.setAttribute('aria-pressed','false'); voiceButton.textContent = '案内を聞く'; voiceStatus.textContent = 'もう一度、案内を聞けます。'; }; guideVoice.addEventListener('pause', () => { if (!guideVoice.ended) resetVoice(); }); guideVoice.addEventListener('ended', () => { resetVoice(); voiceStatus.textContent = '小屋での時間を、あなたが選べます。'; }); guideVoice.addEventListener('error', () => { voiceStatus.textContent = '音声を読み込めませんでした。'; voiceButton.disabled = true; }); voiceButton.addEventListener('click', () => { if (guideVoice.paused) guideVoice.play().catch(() => { voiceStatus.textContent = '再生できませんでした。もう一度お試しください。'; }); else guideVoice.pause(); });
+})();
+</script>
 </body>
-
 </html>
