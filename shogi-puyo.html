@@ -199,9 +199,12 @@ body{
 .pad button span{font-family:"JetBrains Mono",monospace;font-size:8px;line-height:1.4;letter-spacing:.04em;color:var(--text-dim)}
 .pad button.hard{border-color:rgba(212,87,50,.78);background:linear-gradient(180deg,#9c4329,#6b2619)}
 .pad button:active{background:#4a341b;border-color:var(--gold);transform:translateY(1px)}
-.pad button.hard:active{background:#c75230}
+	.pad button.hard:active{background:#c75230}
+  .pad button.pressing{transform:translateY(2px) scale(.96);border-color:var(--gold);filter:brightness(1.12)}
+  #pBoard.input-ok{animation:inputflash .14s ease-out}
+  @keyframes inputflash{50%{filter:brightness(1.14) saturate(1.12)}}
 
-/* toast */
+	/* toast */
 .toast{
   position:fixed;top:54px;left:50%;transform:translateX(-50%);z-index:40;
   font-weight:800;font-size:clamp(22px,6vw,40px);letter-spacing:.08em;
@@ -755,11 +758,11 @@ class Engine {
       if(promote.length) promoteSound();
       if(formation) formationSound();
       if(charged) ouseteSound();
-      if(kings.length) characterCue('hiren',5);
-      else if(charged || this.chainCount>=3) characterCue('hiren',4);
-      else if(formation) characterCue('kakuya',3);
-      else if(simultaneous || promote.length) characterCue('kinshiro',2);
-      else if(this.chainCount>=2) characterCue('ginka',1);
+      if(kings.length) characterCue('hiren',5,'capture');
+      else if(charged || this.chainCount>=3) characterCue('hiren',4,'bigChain');
+      else if(formation) characterCue('kakuya',3,'formation');
+      else if(simultaneous || promote.length) characterCue('kinshiro',2,'technique');
+      else if(this.chainCount>=2) characterCue('ginka',1,'chain');
     }
     this.score += Math.round(stepVal*10*cf);
     this.nuisAccum += Math.round(stepVal*cf/NUISANCE_DIV);
@@ -1156,27 +1159,42 @@ let actx=null, soundOn=true, musicOn=true, voiceOn=true;
 const bgm=new Audio('assets/audio/shogi-puyo-battle.mp3');
 bgm.loop=true; bgm.preload='metadata'; bgm.volume=0.28;
 const CHARACTERS={
-  funo:{name:'歩乃',line:'一歩ずつ、いこう！',portrait:'assets/characters/funo.png',voice:'assets/voice/funo.wav'},
-  ginka:{name:'銀花',line:'道を、ひらく。',portrait:'assets/characters/ginka.png',voice:'assets/voice/ginka.wav'},
-  kinshiro:{name:'金士郎',line:'ここは、任せろ。',portrait:'assets/characters/kinshiro.png',voice:'assets/voice/kinshiro.wav'},
-  kakuya:{name:'角夜',line:'筋が、見えた。',portrait:'assets/characters/kakuya.png',voice:'assets/voice/kakuya.wav'},
-  hiren:{name:'飛蓮',line:'風穴を、開ける！',portrait:'assets/characters/hiren.png',voice:'assets/voice/hiren.wav'},
-  ouka:{name:'王華',line:'王手を、受けよ。',portrait:'assets/characters/ouka.png',voice:'assets/voice/ouka.wav'}
+  funo:{name:'歩乃',portrait:'assets/characters/funo.png',lines:{start:[['一歩ずつ、いこう！','assets/voice/funo.wav'],['先手は、こちら！','assets/voice/funo_alt.wav']],win:[['次の一局へ！','assets/voice/funo_alt.wav'],['いい手だったよ！','assets/voice/funo.wav']]}},
+  ginka:{name:'銀花',portrait:'assets/characters/ginka.png',lines:{chain:[['道を、ひらく。','assets/voice/ginka.wav'],['その調子、つないで。','assets/voice/ginka_alt.wav']],cancel:[['攻めを、受け流す。','assets/voice/ginka.wav'],['まだ、間に合う。','assets/voice/ginka_alt.wav']]}},
+  kinshiro:{name:'金士郎',portrait:'assets/characters/kinshiro.png',lines:{technique:[['ここは、任せろ。','assets/voice/kinshiro.wav'],['守りを、攻めへ変える。','assets/voice/kinshiro_alt.wav']]}},
+  kakuya:{name:'角夜',portrait:'assets/characters/kakuya.png',lines:{formation:[['筋が、見えた。','assets/voice/kakuya.wav'],['三つの手、つながった。','assets/voice/kakuya_alt.wav']]}},
+  hiren:{name:'飛蓮',portrait:'assets/characters/hiren.png',lines:{bigChain:[['風穴を、開ける！','assets/voice/hiren.wav'],['その連鎖、通すぞ！','assets/voice/hiren_alt.wav']],capture:[['王を、討ち取った！','assets/voice/hiren.wav'],['詰めるぞ、逃がすな！','assets/voice/hiren_alt.wav']]}},
+  ouka:{name:'王華',portrait:'assets/characters/ouka.png',lines:{threat:[['王手を、受けよ。','assets/voice/ouka.wav'],['こちらの手番だ。','assets/voice/ouka_alt.wav']],lose:[['よい勝負だった。','assets/voice/ouka.wav'],['次は、読み切る。','assets/voice/ouka_alt.wav']]}}
 };
-Object.values(CHARACTERS).forEach(c=>{ c.audio=new Audio(c.voice); c.audio.preload='metadata'; c.audio.volume=.62; });
-let cueTimer=0, lastCuePriority=0;
-function characterCue(id,priority=1){
-  const c=CHARACTERS[id]; if(!c||!running) return;
-  if(priority<lastCuePriority) return;
+Object.values(CHARACTERS).forEach(c=>Object.values(c.lines).flat().forEach(([,voice])=>{ const a=new Audio(voice); a.preload='metadata'; a.volume=.62; }));
+let cueTimer=0, lastCuePriority=0, lastVoiceAt=0;
+const dialogueMemory={};
+function pickDialogue(id,context){
+  const c=CHARACTERS[id], options=(c&&c.lines[context])||(c&&Object.values(c.lines)[0])||[];
+  const last=dialogueMemory[id+'-'+context];
+  const pool=options.length>1?options.filter(([,voice])=>voice!==last):options;
+  const choice=pool[Math.floor(Math.random()*pool.length)]||options[0];
+  dialogueMemory[id+'-'+context]=choice&&choice[1];
+  return choice;
+}
+function characterCue(id,priority=1,context='start',force=false){
+  const c=CHARACTERS[id]; if(!c||(!running&&!force)) return;
+  if(priority<lastCuePriority&&!force) return;
+  const choice=pickDialogue(id,context); if(!choice) return;
+  const [line,voice]=choice;
   lastCuePriority=priority;
   const box=document.getElementById('characterCue');
   document.getElementById('characterPortrait').src=c.portrait;
   document.getElementById('characterPortrait').alt=c.name;
   document.getElementById('characterName').textContent=c.name;
-  document.getElementById('characterLine').textContent=c.line;
+  document.getElementById('characterLine').textContent=line;
   box.classList.remove('show'); void box.offsetWidth; box.classList.add('show');
   clearTimeout(cueTimer); cueTimer=setTimeout(()=>{box.classList.remove('show');lastCuePriority=0;},2100);
-  if(voiceOn){ try{ c.audio.pause(); c.audio.currentTime=0; c.audio.play().catch(()=>{}); }catch(_e){} }
+  const now=performance.now();
+  if(voiceOn&&now-lastVoiceAt>1500){
+    lastVoiceAt=now;
+    try{ const audio=new Audio(voice); audio.volume=.62; audio.play().catch(()=>{}); }catch(_e){}
+  }
 }
 function unlockAudio(){
   try{
@@ -1240,7 +1258,7 @@ function recordCareer(won,stats){
 
 /* ----------------------------- game flow -------------------------------- */
 let player, cpu, running=false, lastT=0, rafId=0, paused=false;
-let inputBuffer={rotate:0,hard:false,until:0};
+let inputBuffer={rotate:0,hard:false,move:0,until:0};
 
 function setChainLabel(elId, c){
   const el=document.getElementById(elId);
@@ -1335,7 +1353,11 @@ function processPlayerInput(eng, dt){
   if(keyState.down){ softTimer+=dt; while(softTimer>=SOFT_RATE){ if(eng.tryMove(0,1)){ eng.gravT=0; resetLock(eng,false); } softTimer-=SOFT_RATE; } }
   else softTimer=0;
 }
-function moveHoriz(eng,dir){ if(eng.tryMove(dir==='left'?-1:1,0)){ resetLock(eng,true); if(eng.isPlayer) moveSound(); } }
+function moveHoriz(eng,dir,feedback=false){
+  if(!eng||!eng.pair||eng.phase!=='control') return false;
+  if(eng.tryMove(dir==='left'?-1:1,0)){ resetLock(eng,true); if(eng.isPlayer){ moveSound(); if(feedback) inputFeedback(); } return true; }
+  return false;
+}
 function resetLock(eng, isMove){ if(!canMoveDown(eng) && eng.lockResets<MAX_LOCK_RESETS){ eng.lockT=0; if(isMove) eng.lockResets++; } }
 function canMoveDown(eng){
   const p=eng.pair; if(!p) return false;
@@ -1367,8 +1389,9 @@ function finishResolve(eng, isPlayer){
     if(ouseteUsed) showToast('王手！ お邪魔 +'+OUSETE_BONUS);
     else if(eng.chainCount>=4) showToast(eng.chainCount+' 連鎖!! 必殺の一手');
     else if(eng.chainCount>=2) showToast(eng.chainCount+' 連鎖!');
-    else if(cancelled>=6) showToast('相殺 '+cancelled+'！');
+    else if(cancelled>=6){ showToast('相殺 '+cancelled+'！'); characterCue('ginka',3,'cancel'); }
   }
+  if(!isPlayer&&sent>=6) characterCue('ouka',4,'threat');
   // drop my incoming garbage (one turn after it appears in the forecast = chance to counter)
   if(eng.garbagePending>0){ const drop=Math.min(eng.garbagePending,MAX_GARBAGE_DROP); eng.dropGarbage(drop); eng.garbagePending-=drop; eng.shake=Math.min(1, eng.shake+drop*0.05); if(isPlayer) garbageSound(); eng.chainCount=0; eng.nuisAccum=0; eng.turnTypes.clear(); eng.formationAwarded=false; eng.simultaneousAwarded=false; eng.startDrop(); return; }
   eng.chainCount=0; eng.nuisAccum=0; eng.turnTypes.clear(); eng.formationAwarded=false; eng.simultaneousAwarded=false;
@@ -1400,8 +1423,8 @@ function endGame(playerWon){
   document.getElementById('overlay').hidden=false;
   sc.hidden=true; rc.hidden=false;
   const t=document.getElementById('resultTitle'), s=document.getElementById('resultSub');
-  if(playerWon){ t.textContent='勝ち'; t.className='result-title win'; s.textContent='YOU WIN — CPU を詰ませた'; }
-  else { t.textContent='詰み'; t.className='result-title lose'; s.textContent='YOU LOSE — 盤が詰んだ'; }
+  if(playerWon){ t.textContent='勝ち'; t.className='result-title win'; s.textContent='YOU WIN — CPU を詰ませた'; characterCue('funo',5,'win',true); }
+  else { t.textContent='詰み'; t.className='result-title lose'; s.textContent='YOU LOSE — 盤が詰んだ'; characterCue('ouka',5,'lose',true); }
   document.getElementById('resultDetail').textContent =
     `あなた ${player.score.toLocaleString()} 点 / CPU ${cpu.score.toLocaleString()} 点`;
   renderResultStats(player);
@@ -1432,13 +1455,13 @@ function loop(t){
 
 function startGame(){
   unlockAudio(); playMusic();
-  paused=false; inputBuffer={rotate:0,hard:false,until:0};
+  paused=false; inputBuffer={rotate:0,hard:false,move:0,until:0};
   document.getElementById('pauseLayer').hidden=true;
   player=new Engine(true); cpu=new Engine(false);
   player.spawnPair(); cpu.spawnPair();
   document.getElementById('overlay').hidden=true;
   running=true; lastT=performance.now();
-  characterCue(player.pair&&(player.pair.a.t==='K'||player.pair.b.t==='K')?'ouka':'funo',1);
+  characterCue(player.pair&&(player.pair.a.t==='K'||player.pair.b.t==='K')?'ouka':'funo',1,'start');
   cancelAnimationFrame(rafId); rafId=requestAnimationFrame(loop);
 }
 
@@ -1451,7 +1474,8 @@ const canPlay=()=> running&&player&&player.phase==='control';
 
 function pressDir(dir){              // first tap moves once, then DAS repeats
   keyState[dir]=true; lastHoriz=dir; dasCharge=0; dasRepeat=0;
-  if(canPlay()) moveHoriz(player,dir);
+  if(canPlay()) moveHoriz(player,dir,true);
+  else if(running&&!paused) bufferAction(dir);
 }
 function releaseDir(dir){
   keyState[dir]=false;
@@ -1460,26 +1484,35 @@ function releaseDir(dir){
 }
 function bufferAction(action){
   if(!running||paused) return;
-  inputBuffer.until=performance.now()+280;
+  inputBuffer.until=performance.now()+450;
   if(action==='hard') inputBuffer.hard=true;
+  else if(action==='left'||action==='right') inputBuffer.move=Math.max(-6,Math.min(6,inputBuffer.move+(action==='left'?-1:1)));
   else inputBuffer.rotate=action;
 }
-function rotate(d){
-  if(canPlay()&&player.tryRotate(d)){ resetLock(player,true); rotateSound(); }
+function inputFeedback(){
+  pBoard.classList.remove('input-ok'); void pBoard.offsetWidth; pBoard.classList.add('input-ok');
+}
+function rotate(d,feedback=false){
+  if(canPlay()&&player.tryRotate(d)){ resetLock(player,true); rotateSound(); if(feedback) inputFeedback(); }
   else if(running&&!paused) bufferAction(d);
 }
 function rotate180(){
   if(canPlay()){
     const first=player.tryRotate(1);
     const second=first&&player.tryRotate(1);
-    if(first||second){ resetLock(player,true); rotateSound(); }
+    if(first||second){ resetLock(player,true); rotateSound(); inputFeedback(); }
   }else if(running&&!paused) bufferAction(2);
 }
-function hardNow(){ if(canPlay()){ player.hardDrop(); dropSound(); } else if(running&&!paused) bufferAction('hard'); }
+function hardNow(feedback=false){ if(canPlay()){ player.hardDrop(); dropSound(); if(feedback) inputFeedback(); } else if(running&&!paused) bufferAction('hard'); }
 function applyBufferedInput(){
-  if(!inputBuffer.rotate&&!inputBuffer.hard) return;
-  if(performance.now()>inputBuffer.until){ inputBuffer={rotate:0,hard:false,until:0}; return; }
+  if(!inputBuffer.rotate&&!inputBuffer.hard&&!inputBuffer.move) return;
+  if(performance.now()>inputBuffer.until){ inputBuffer={rotate:0,hard:false,move:0,until:0}; return; }
   if(!canPlay()) return;
+  if(inputBuffer.move){
+    const dir=inputBuffer.move<0?'left':'right';
+    if(moveHoriz(player,dir,true)) inputBuffer.move+=dir==='left'?1:-1;
+    else inputBuffer.move=0;
+  }
   if(inputBuffer.rotate){
     const amount=inputBuffer.rotate;
     const direction=amount===-1?-1:1;
@@ -1491,7 +1524,7 @@ function applyBufferedInput(){
   }
   if(inputBuffer.hard&&canPlay()){ inputBuffer.hard=false; player.hardDrop(); dropSound(); }
 }
-function clearInputState(){ keyState.left=keyState.right=keyState.down=false; lastHoriz=null; dasCharge=dasRepeat=softTimer=0; }
+function clearInputState(){ keyState.left=keyState.right=keyState.down=false; lastHoriz=null; dasCharge=dasRepeat=softTimer=0; inputBuffer.move=0; }
 function pauseGame(){
   if(!running||paused) return;
   paused=true; clearInputState(); pauseMusic(); cancelAnimationFrame(rafId);
@@ -1530,15 +1563,15 @@ window.addEventListener('blur',()=>{ clearInputState(); if(running&&!paused) pau
 // Touch pad: press-and-hold for ←/→/↓, tap for rotate/hard.
 document.querySelectorAll('.pad button').forEach(b=>{
   const act=b.dataset.act;
-  const down=e=>{ e.preventDefault();
+  const down=e=>{ e.preventDefault(); b.classList.add('pressing');
     if(act==='left') pressDir('left');
     else if(act==='right') pressDir('right');
     else if(act==='soft'){ keyState.down=true; softTimer=SOFT_RATE; }
-    else if(act==='rotL') rotate(-1);
-    else if(act==='rotR') rotate(1);
-    else if(act==='hard') hardNow();
+    else if(act==='rotL') rotate(-1,true);
+    else if(act==='rotR') rotate(1,true);
+    else if(act==='hard') hardNow(true);
   };
-  const up=e=>{ if(act==='left') releaseDir('left'); else if(act==='right') releaseDir('right'); else if(act==='soft') keyState.down=false; };
+  const up=e=>{ b.classList.remove('pressing'); if(act==='left') releaseDir('left'); else if(act==='right') releaseDir('right'); else if(act==='soft') keyState.down=false; };
   b.addEventListener('pointerdown',down);
   b.addEventListener('pointerup',up);
   b.addEventListener('pointercancel',up);
@@ -1546,32 +1579,50 @@ document.querySelectorAll('.pad button').forEach(b=>{
 });
 
 // Direct board gestures: tap = rotate, horizontal swipe = move, quick downward flick = hard drop.
-const boardGesture={ active:false, id:null, x:0, y:0, step:0, moved:false, hard:false, started:0 };
-const GESTURE_STEP=0.42, TAP_SLOP=10;
+const boardGesture={ active:false, id:null, x:0, y:0, step:0, moved:false, hard:false, axis:null, started:0 };
+const GESTURE_STEP=0.32, TAP_SLOP=12, MAX_SWIPE_STEPS=6;
 function boardDown(e){
-  if(e.pointerType==='mouse'||!canPlay()) return;
+  if(e.pointerType==='mouse'||!running||paused||!player) return;
   e.preventDefault();
   boardGesture.active=true; boardGesture.id=e.pointerId; boardGesture.x=e.clientX; boardGesture.y=e.clientY;
-  boardGesture.step=0; boardGesture.moved=false; boardGesture.hard=false; boardGesture.started=performance.now();
+  boardGesture.step=0; boardGesture.moved=false; boardGesture.hard=false; boardGesture.axis=null; boardGesture.started=performance.now();
   try{ pBoard.setPointerCapture(e.pointerId); }catch(_e){}
 }
 function boardMove(e){
-  if(!boardGesture.active||e.pointerId!==boardGesture.id||!canPlay()) return;
+  if(!boardGesture.active||e.pointerId!==boardGesture.id||!running||paused) return;
   e.preventDefault();
   const dx=e.clientX-boardGesture.x, dy=e.clientY-boardGesture.y;
   if(Math.abs(dx)>TAP_SLOP||Math.abs(dy)>TAP_SLOP) boardGesture.moved=true;
-  const target=Math.trunc(dx/(CELL*GESTURE_STEP));
-  while(boardGesture.step<target){ moveHoriz(player,'right'); boardGesture.step++; }
-  while(boardGesture.step>target){ moveHoriz(player,'left'); boardGesture.step--; }
+  if(!boardGesture.axis&&boardGesture.moved){
+    if(Math.abs(dx)>Math.abs(dy)*1.2) boardGesture.axis='x';
+    else if(Math.abs(dy)>Math.abs(dx)*1.2) boardGesture.axis='y';
+    else boardGesture.axis='lock';
+  }
+  if(boardGesture.axis==='x'){
+    const target=Math.max(-MAX_SWIPE_STEPS,Math.min(MAX_SWIPE_STEPS,Math.trunc(dx/(CELL*GESTURE_STEP))));
+    while(boardGesture.step<target){
+      if(canPlay()){ if(!moveHoriz(player,'right',true)) break; }
+      else bufferAction('right');
+      boardGesture.step++;
+    }
+    while(boardGesture.step>target){
+      if(canPlay()){ if(!moveHoriz(player,'left',true)) break; }
+      else bufferAction('left');
+      boardGesture.step--;
+    }
+  }
   const elapsed=performance.now()-boardGesture.started;
-  if(!boardGesture.hard && dy>CELL*0.72 && dy>Math.abs(dx)*1.25 && elapsed<420){ boardGesture.hard=true; hardNow(); }
-  if(!boardGesture.hard && dy<-CELL*0.55 && -dy>Math.abs(dx)*1.25 && elapsed<420){ boardGesture.hard=true; rotate(-1); }
+  if(boardGesture.axis==='y'&&!boardGesture.hard&&dy>CELL*0.60&&elapsed<460){ boardGesture.hard=true; hardNow(true); }
+  if(boardGesture.axis==='y'&&!boardGesture.hard&&dy<-CELL*0.48&&elapsed<460){ boardGesture.hard=true; rotate(-1,true); }
 }
 function boardUp(e){
   if(!boardGesture.active||e.pointerId!==boardGesture.id) return;
   e.preventDefault();
   const elapsed=performance.now()-boardGesture.started;
-  if(!boardGesture.moved&&!boardGesture.hard&&elapsed<260) rotate(1);
+  if(!boardGesture.moved&&!boardGesture.hard&&elapsed<260){
+    const rect=pBoard.getBoundingClientRect();
+    rotate(e.clientX<rect.left+rect.width/2?-1:1,true);
+  }
   boardGesture.active=false;
 }
 pBoard.addEventListener('pointerdown',boardDown,{passive:false});
@@ -1615,7 +1666,7 @@ document.getElementById('musicBtn').addEventListener('click',function(){
 });
 document.getElementById('voiceBtn').addEventListener('click',function(){
   voiceOn=!voiceOn; this.style.color=voiceOn?'':'#6b6f78'; this.textContent=voiceOn?'声':'声̸'; this.setAttribute('aria-pressed',String(voiceOn));
-  if(voiceOn&&running) characterCue('funo',1);
+  if(voiceOn&&running) characterCue('funo',1,'start');
 });
 document.getElementById('pauseBtn').addEventListener('click',()=>{ if(running) togglePause(); });
 document.getElementById('resumeBtn').addEventListener('click',resumeGame);
