@@ -1988,6 +1988,15 @@ window.exitImmerseB = () => {
 };
 
 /* ------ flipPage3D: real page flip animation -- */
+function getLeafHingeHeight(leaf) {
+  const pos = leaf.geometry.attributes.position;
+  let sum = 0, count = 0, minAbsX = Infinity;
+  for (let i = 0; i < pos.count; i++) minAbsX = Math.min(minAbsX, Math.abs(pos.getX(i)));
+  for (let i = 0; i < pos.count; i++) {
+    if (Math.abs(Math.abs(pos.getX(i)) - minAbsX) < 0.0001) { sum += pos.getY(i); count++; }
+  }
+  return count ? sum / count : 0;
+}
 function flipPage3D(prevSlug, nextSlug, dir, onHalfway) {
   if (!V || !V.pageRig) { onHalfway(); return; }
   const rig = V.pageRig;
@@ -1997,16 +2006,24 @@ function flipPage3D(prevSlug, nextSlug, dir, onHalfway) {
   /* load both textures; animate after both ready */
   Promise.all([loadSpreadTex(prevSlug), loadSpreadTex(nextSlug)]).then(([prevTex, nextTex]) => {
     const turningLeaf = dir === 'next' ? rig.right : rig.left;
+    const hingeHeight = getLeafHingeHeight(turningLeaf);
     turningLeaf.visible = false;
     const pivot = new THREE.Group();
-    pivot.position.set(0, rig.root.position.y + 0.002, 0);
+    /* The rotation origin is the actual spine height sampled from the resting
+       page, not an arbitrary point above the book. */
+    pivot.position.set(0, rig.root.position.y + hingeHeight, 0);
     V.bookGrp.add(pivot);
 
     /* The turning leaf begins with the exact same page profile as the resting
        leaf: the same spine valley, outer rise, dimensions and parchment. */
+    const leafSide = dir === 'next' ? 'right' : 'left';
     const mkLeaf = (tex, textureSide, mirrored, underside) => {
-      const geo = makeBookLeafGeometry('right', halfW, depth, rig.root.position.y);
+      const geo = makeBookLeafGeometry(leafSide, halfW, depth, rig.root.position.y);
       const pos = geo.attributes.position;
+      /* Rebase every vertex around the same spine used by the pivot. At x=0,
+         the leaf has zero displacement throughout the whole turn. */
+      for (let i = 0; i < pos.count; i++) pos.setY(i, pos.getY(i) - hingeHeight);
+      pos.needsUpdate = true;
       const base = [];
       for (let i = 0; i < pos.count; i++) base.push([pos.getX(i), pos.getY(i), pos.getZ(i)]);
       const mat = makePaperMaterial(cropPageTexture(tex, textureSide, mirrored), underside ? THREE.BackSide : THREE.FrontSide);
@@ -2037,8 +2054,10 @@ function flipPage3D(prevSlug, nextSlug, dir, onHalfway) {
       part.geo.computeVertexNormals();
     };
 
-    const startRot = dir === 'next' ? 0 : Math.PI;
-    const endRot   = dir === 'next' ? Math.PI : 0;
+    /* Both directions begin on their own resting leaf at rotation zero. This
+       preserves the page's vertical profile; only the hinge rotation changes. */
+    const startRot = 0;
+    const endRot   = dir === 'next' ? Math.PI : -Math.PI;
     pivot.rotation.z = startRot;
     const duration = 850;
     const t0 = performance.now();
