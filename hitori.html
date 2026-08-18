@@ -128,26 +128,30 @@
     .solo-summary { margin-top:14px; padding:12px; border:1px solid #ead8cc; border-radius:12px; background:#fffaf4; }.solo-summary b { color:#8d4734; font-size:11px; }.solo-summary p { margin:6px 0 0; color:#675c55; font-size:10px; line-height:1.6; }.summary-origin { display:inline-block; margin-right:5px; padding:2px 5px; border-radius:999px; background:#f4e9df; color:#99452f; font-size:8px; font-weight:700; }.summary-origin.official { background:#e7f4ef; color:#276b60; }.summary-origin.review { background:#fff4dc; color:#835c1f; }
   </style>
   <script>
-    (() => {
-      const baseDetailWithCategoryGuard = detail;
-      const originalSummary = (facility, curated) => {
-        const facts = (curated?.facts || []).filter(fact => !fact.conflict);
-        const storedInsightFact = facts.find(fact => fact.k === "solo_insight");
-        let storedInsight = null;
-        try {
-          const rawInsight = storedInsightFact?.v;
-          const candidate = typeof rawInsight === "string" ? JSON.parse(rawInsight) : rawInsight;
-          if (
-            storedInsightFact?.official
-            && candidate
-            && candidate.quality === "grounded"
-            && candidate.policyVersion === "official-provenance-v2"
-            && typeof candidate.title === "string"
-            && typeof candidate.insight === "string"
-            && candidate.title.trim()
-            && candidate.insight.trim()
-          ) storedInsight = candidate;
-        } catch (_) {}
+	(() => {
+	  const baseDetailWithCategoryGuard = detail;
+	  const getStoredOfficialSoloInsight = curated => {
+	    const facts = (curated?.facts || []).filter(fact => !fact.conflict);
+	    const storedInsightFact = facts.find(fact => fact.k === "solo_insight");
+	    try {
+	      const rawInsight = storedInsightFact?.v;
+	      const candidate = typeof rawInsight === "string" ? JSON.parse(rawInsight) : rawInsight;
+	      if (
+	        storedInsightFact?.official
+	        && candidate
+	        && candidate.quality === "grounded"
+	        && candidate.policyVersion === "official-provenance-v2"
+	        && typeof candidate.title === "string"
+	        && typeof candidate.insight === "string"
+	        && candidate.title.trim()
+	        && candidate.insight.trim()
+	      ) return candidate;
+	    } catch (_) {}
+	    return null;
+	  };
+	  const originalSummary = (facility, curated) => {
+	    const facts = (curated?.facts || []).filter(fact => !fact.conflict);
+	    const storedInsight = getStoredOfficialSoloInsight(curated);
         const officialSolo = facts.some(fact => fact.k === "solo_ok" && fact.official);
         const officialReservation = facts.some(fact => fact.k === "reservation" && fact.official);
         const officialTowel = facts.some(fact => (fact.k === "towel" || fact.k === "bring_towel") && fact.official);
@@ -181,14 +185,16 @@
       detail = function detailWithCategoryGuard(facility) {
         baseDetailWithCategoryGuard(facility);
         const container = document.getElementById("detail");
-        if (facility.cat === "eat" || facility.cat === "play") {
-          container.querySelectorAll(".fact").forEach(node => { if (/^(タオル|洗い場)/.test(node.querySelector("b")?.textContent || "")) node.remove(); });
-          container.querySelectorAll(".lens-item").forEach(node => { if (node.querySelector("b")?.textContent === "手ぶら準備") { node.querySelector("b").textContent = "入店の準備"; node.querySelector("strong").textContent = "席・支払いは要確認"; node.querySelector("small").textContent = "温浴アメニティは表示せず、席・支払い・混雑の案内を優先します。"; } });
-        }
-        const lens = container.querySelector(".solo-lens");
-        const fragment = document.createRange().createContextualFragment(originalSummary(facility, state.curated[facility.id]));
-        if (lens) lens.before(fragment); else container.append(fragment);
-      };
+	    if (facility.cat === "eat" || facility.cat === "play") {
+	      container.querySelectorAll(".fact").forEach(node => { if (/^(タオル|洗い場)/.test(node.querySelector("b")?.textContent || "")) node.remove(); });
+	      container.querySelectorAll(".lens-item").forEach(node => { if (node.querySelector("b")?.textContent === "手ぶら準備") { node.querySelector("b").textContent = "入店の準備"; node.querySelector("strong").textContent = "席・支払いは要確認"; node.querySelector("small").textContent = "温浴アメニティは表示せず、席・支払い・混雑の案内を優先します。"; } });
+	    }
+	    const lens = container.querySelector(".solo-lens");
+	    const fragment = document.createRange().createContextualFragment(originalSummary(facility, state.curated[facility.id]));
+	    const storedInsight = getStoredOfficialSoloInsight(state.curated[facility.id]);
+	    if (storedInsight && lens) lens.replaceWith(fragment);
+	    else if (lens) lens.before(fragment); else container.append(fragment);
+	  };
     })();
   </script>
   <style>
