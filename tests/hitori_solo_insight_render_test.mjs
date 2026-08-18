@@ -24,5 +24,7 @@ assert.match(html, /公式根拠付き・施設別分析/, "固有分析を汎�
 assert.match(html, /facts=\(c\?\.facts\|\|\[\]\)\.filter\(f=>f\.k!=="solo_insight"\)\.slice\(0,8\)/, "構造化済みの固有ひとり情報を通常の事実一覧から除外する");
 assert.match(html, /const towel = usable\("towel", "bring_towel", "amenities"\);/, "公式アメニティを手ぶら準備の根拠として扱う");
 assert.match(html, /const hours = usable\("hours", "opening_hours"\);/, "公式営業時間を利用時間の根拠として扱う");
+assert.match(html, /opening_hours:"営業時間"/, "公式の営業時間キーを日本語ラベルで表示する");
+assert.match(html, /amenities:"アメニティ"/, "公式のアメニティキーを日本語ラベルで表示する");
 
 console.log("OK: static official solo insight rendering");
