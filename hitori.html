@@ -133,8 +133,18 @@
         const storedInsightFact = facts.find(fact => fact.k === "solo_insight");
         let storedInsight = null;
         try {
-          const candidate = storedInsightFact && typeof storedInsightFact.v === "string" ? JSON.parse(storedInsightFact.v) : null;
-          if (candidate && typeof candidate.title === "string" && typeof candidate.insight === "string" && candidate.title.trim() && candidate.insight.trim()) storedInsight = candidate;
+          const rawInsight = storedInsightFact?.v;
+          const candidate = typeof rawInsight === "string" ? JSON.parse(rawInsight) : rawInsight;
+          if (
+            storedInsightFact?.official
+            && candidate
+            && candidate.quality === "grounded"
+            && candidate.policyVersion === "official-provenance-v2"
+            && typeof candidate.title === "string"
+            && typeof candidate.insight === "string"
+            && candidate.title.trim()
+            && candidate.insight.trim()
+          ) storedInsight = candidate;
         } catch (_) {}
         const officialSolo = facts.some(fact => fact.k === "solo_ok" && fact.official);
         const officialReservation = facts.some(fact => fact.k === "reservation" && fact.official);
@@ -163,7 +173,8 @@
         } else if (!storedInsight) {
           analysis = `ひとり度${facility.solo}/5。体験・文化施設として、自分のペースで時間を忘れて没頭できるソロ活に適した環境です。`;
         }
-        return `<section class="solo-summary"><b>一人マップのひとこと</b><p><span class="summary-origin ${officialSoloFact ? "official" : "review"}">${officialSoloFact ? "公式案内" : "マップ分析"}</span>${escapeHTML(official)}</p><p><span class="summary-origin">${storedInsight ? "施設別分析" : "マップ分析"}</span>${storedInsight ? `<strong>${escapeHTML(storedInsight.title)}</strong><br>` : ""}${escapeHTML(analysis)}</p></section>`;
+        if (storedInsight) return `<section class="solo-summary"><b>一人マップのひとこと</b><p><span class="summary-origin official">公式根拠付き・施設別分析</span><strong>${escapeHTML(storedInsight.title)}</strong><br>${escapeHTML(storedInsight.insight)}</p></section>`;
+        return `<section class="solo-summary"><b>一人マップのひとこと</b><p><span class="summary-origin ${officialSoloFact ? "official" : "review"}">${officialSoloFact ? "公式案内" : "マップ分析"}</span>${escapeHTML(official)}</p><p><span class="summary-origin">マップ分析</span>${escapeHTML(analysis)}</p></section>`;
       };
       detail = function detailWithCategoryGuard(facility) {
         baseDetailWithCategoryGuard(facility);
