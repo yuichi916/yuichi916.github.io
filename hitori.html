@@ -96,11 +96,13 @@
       const compactSoloText = (value, max = 58) => { const text = String(value || ""); return text.length <= max ? text : `${text.slice(0, max - 1)}…`; };
       const originClass = origin => origin === "公式情報" ? "official" : origin === "要確認" ? "review" : "";
       const renderSoloLens = (facility, curated) => {
-        const usable = key => (curated?.facts || []).find(fact => fact.k === key && !fact.conflict);
+        const usable = (...keys) => (curated?.facts || []).find(fact => keys.includes(fact.k) && !fact.conflict);
         const solo = usable("solo_ok");
         const silence = usable("silence");
         const reservation = usable("reservation");
-        const towel = usable("towel") || usable("bring_towel");
+        const towel = usable("towel", "bring_towel", "amenities");
+        const hours = usable("hours", "opening_hours");
+        const access = usable("access");
         const privateRoom = facility.kind === "private_sauna";
         const item = (label, value, note, origin) => ({ label, value, note, origin });
         const insights = [
@@ -109,7 +111,7 @@
           silence?.official && /(会話.*(?:未確認|確認できない)|会話負荷.*要確認)/.test(String(silence.v)) ? item("会話負荷", "会話環境は要確認", compactSoloText(silence.v), "要確認") : silence?.official && /(会話|おしゃべり|沈黙禁止)/.test(String(silence.v)) ? item("会話負荷", "会話歓迎の公式案内あり", compactSoloText(silence.v), "公式情報") : silence?.official ? item("会話負荷", "会話配慮の案内あり", compactSoloText(silence.v), "公式情報") : item("会話負荷", "会話環境は要確認", "黙浴・会話量・周囲の雰囲気について、公式の個別案内は未確認です。", "要確認"),
           reservation?.official ? item("予約の段取り", "予約の案内あり", compactSoloText(reservation.v), "公式情報") : item("予約の段取り", "予約要否は確認前", "当日の受付方法・予約要否は利用前にご確認ください。", "要確認"),
           towel?.official ? item("手ぶら準備", "タオル情報あり", compactSoloText(towel.v), "公式情報") : item("手ぶら準備", "持ち物は要確認", "タオル・アメニティの個別情報は未確認です。", "要確認"),
-          item("マップの見立て", `ひとり度 ${facility.solo}/5`, `静けさ ${facility.quiet}/5・入りやすさ ${facility.easy}/5。業態と既存属性による比較用の推定です。`, "マップ分析"),
+          hours?.official ? item("利用時間の目安", "営業時間の公式案内あり", compactSoloText(hours.v), "公式情報") : access?.official ? item("アクセス", "公式のアクセス案内あり", compactSoloText(access.v), "公式情報") : item("マップの見立て", `ひとり度 ${facility.solo}/5`, `静けさ ${facility.quiet}/5・入りやすさ ${facility.easy}/5。業態と既存属性による比較用の推定です。`, "マップ分析"),
         ];
         return `<section class="solo-lens"><div class="lens-head"><div><b>SOLO MAP ORIGINAL　ひとり利用ナビ</b><p class="lens-copy">公式根拠とマップ分析を分けて、初回の一人利用で迷いやすい点を整理します。</p></div><small>推定は利用保証ではありません</small></div><div class="lens-grid">${insights.map(insight => `<div class="lens-item"><b>${escapeHTML(insight.label)}</b><strong>${escapeHTML(insight.value)}</strong><small>${escapeHTML(insight.note)}</small><span class="lens-origin ${originClass(insight.origin)}">${escapeHTML(insight.origin)}</span></div>`).join("")}</div></section>`;
       };

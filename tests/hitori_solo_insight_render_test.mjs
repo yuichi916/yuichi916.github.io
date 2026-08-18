@@ -22,5 +22,7 @@ assert.match(html, /candidate\.quality === "grounded"/, "品質ゲート済み�
 assert.match(html, /candidate\.policyVersion === "official-provenance-v2"/, "現行の公式根拠ポリシーだけを表示する");
 assert.match(html, /公式根拠付き・施設別分析/, "固有分析を汎用分析より優先して表示する");
 assert.match(html, /facts=\(c\?\.facts\|\|\[\]\)\.filter\(f=>f\.k!=="solo_insight"\)\.slice\(0,8\)/, "構造化済みの固有ひとり情報を通常の事実一覧から除外する");
+assert.match(html, /const towel = usable\("towel", "bring_towel", "amenities"\);/, "公式アメニティを手ぶら準備の根拠として扱う");
+assert.match(html, /const hours = usable\("hours", "opening_hours"\);/, "公式営業時間を利用時間の根拠として扱う");
 
 console.log("OK: static official solo insight rendering");
