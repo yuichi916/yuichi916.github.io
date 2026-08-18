@@ -26,5 +26,7 @@ assert.match(html, /const towel = usable\("towel", "bring_towel", "amenities"\);
 assert.match(html, /const hours = usable\("hours", "opening_hours"\);/, "公式営業時間を利用時間の根拠として扱う");
 assert.match(html, /opening_hours:"営業時間"/, "公式の営業時間キーを日本語ラベルで表示する");
 assert.match(html, /amenities:"アメニティ"/, "公式のアメニティキーを日本語ラベルで表示する");
+assert.match(html, /facilities:"設備"/, "公式の設備キーを日本語ラベルで表示する");
+assert.match(html, /access:"アクセス情報"/, "公式のアクセスキーを日本語ラベルで表示する");
 
 console.log("OK: static official solo insight rendering");
