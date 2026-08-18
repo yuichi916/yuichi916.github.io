@@ -21,5 +21,6 @@ assert.match(html, /typeof rawInsight === "string" \? JSON\.parse\(rawInsight\) 
 assert.match(html, /candidate\.quality === "grounded"/, "品質ゲート済みだけを表示する");
 assert.match(html, /candidate\.policyVersion === "official-provenance-v2"/, "現行の公式根拠ポリシーだけを表示する");
 assert.match(html, /公式根拠付き・施設別分析/, "固有分析を汎用分析より優先して表示する");
+assert.match(html, /facts=\(c\?\.facts\|\|\[\]\)\.filter\(f=>f\.k!=="solo_insight"\)\.slice\(0,8\)/, "構造化済みの固有ひとり情報を通常の事実一覧から除外する");
 
 console.log("OK: static official solo insight rendering");
