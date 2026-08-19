@@ -21,8 +21,9 @@ assert.match(html, /const MANUS_ORIGIN = "https:\/\/hitorimap-nc8t8eqr\.manus\.s
 assert.match(html, /const facilityId = params\.get\("facility"\) \|\| params\.get\("externalId"\);/, "既存の施設共有URLをManus詳細URLへ引き継ぐ");
 assert.match(html, /target\.pathname = `\/facilities\/\$\{encodeURIComponent\(facilityId\)\}`;/, "施設詳細はManus版の同じルートを表示する");
 assert.match(html, /const query = params\.get\("q"\) \|\| params\.get\("query"\);/, "検索語をManus版へ引き継ぐ");
-assert.match(html, /frame\.src = target\.toString\(\);/, "GitHub PagesはManus版を直接表示する");
-assert.match(html, /height: 100dvh/, "余白を作らずManus画面を全画面表示する");
+assert.match(html, /window\.location\.replace\(destination\);/, "GitHub PagesはManus正規URLへ直接引き継ぐ");
+assert.match(html, /id="manus-link"/, "自動遷移できない環境にもManus正規URLへの導線を表示する");
+assert.doesNotMatch(html, /<iframe/, "空白になり得るクロスオリジンiframeを使わない");
 assert.doesNotMatch(html, /leaflet@1\.9\.4/, "GitHub Pages側で別の地図・別の表示文言を実装しない");
 
 console.log("OK: GitHub Pages mirrors Manus official solo insight rendering");
