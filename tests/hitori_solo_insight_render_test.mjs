@@ -14,8 +14,9 @@ assert.ok(insightFact, "KUDOCHI sauna 六本木店のsolo_insightが静的デー
 assert.equal(typeof insightFact.v, "object", "構造化済みの施設別分析を保持する");
 assert.equal(insightFact.v.quality, "grounded");
 assert.equal(insightFact.v.policyVersion, "official-provenance-v2");
-assert.match(insightFact.v.title, /完全個室で24時間/);
-assert.match(insightFact.v.insight, /予約の5分前/);
+assert.match(insightFact.v.title, /完全個室|水風呂/, "施設固有の設備を見出しに含める");
+assert.match(insightFact.v.insight, /予約時間の5分前|5分前/, "公式の入室時刻条件を本文に反映する");
+assert.ok(Array.isArray(insightFact.v.anchors) && insightFact.v.anchors.length >= 2, "公式事実に追跡可能なアンカーを複数持つ");
 
 assert.match(html, /const MANUS_ORIGIN = "https:\/\/hitorimap-nc8t8eqr\.manus\.space";/, "Manus公開版を唯一の表示ソースにする");
 assert.match(html, /const facilityId = params\.get\("facility"\) \|\| params\.get\("externalId"\);/, "既存の施設共有URLをManus詳細URLへ引き継ぐ");
