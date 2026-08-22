@@ -61,6 +61,15 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
 #chapters button{font-family:inherit;font-size:15px;letter-spacing:.15em;padding:9px 40px;min-width:300px;
   background:rgba(16,16,26,.9);color:var(--ink);border:1px solid rgba(201,168,106,.4);border-radius:4px;cursor:pointer}
 #chapters button:hover{background:rgba(201,168,106,.2)}
+#backlog{position:absolute;inset:0;z-index:40;background:rgba(4,4,10,.94);display:none;
+  flex-direction:column;padding:40px 0 16px}
+#backlogInner{flex:1;overflow-y:auto;width:min(92%,860px);margin:0 auto;
+  font-size:15px;line-height:2.0;padding:0 10px}
+#backlogInner .bl-name{color:var(--acc);font-size:.85em}
+#backlogInner p{margin-bottom:14px;white-space:pre-wrap}
+#btnLogClose{font-family:inherit;margin:12px auto 0;padding:8px 40px;
+  background:rgba(16,16,26,.9);color:var(--ink);border:1px solid rgba(201,168,106,.4);
+  border-radius:4px;cursor:pointer}
 #ending{position:fixed;inset:0;z-index:55;background:#05050a;display:none;
   flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;line-height:2.2}
 #ending a{color:var(--acc)}
@@ -89,8 +98,13 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
   <div id="hud">
     <button id="btnAuto">AUTO</button>
     <button id="btnVoice" class="on">VOICE</button>
+    <button id="btnLog">履歴</button>
     <button id="btnSave">保存</button>
     <button id="btnMenu">目次</button>
+  </div>
+  <div id="backlog">
+    <div id="backlogInner"></div>
+    <button id="btnLogClose">とじる</button>
   </div>
 </div>
 
@@ -113,7 +127,8 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
     <p style="opacity:.8;font-size:14px">どうか、良い夜明けを。</p>
     <p style="margin-top:22px;font-size:13px;opacity:.75">
       原作テキスト版は <a href="https://ncode.syosetu.com/n4922mq/" target="_blank" rel="noopener">小説家になろう</a> で公開中<br>
-      文章・挿絵・音声・音楽: AI生成(Claude / Stable Diffusion / ElevenLabs) + 作者
+      文章・挿絵・音声: AI生成(Claude / Stable Diffusion / ElevenLabs) + 作者<br>
+      音楽: 君の音。 / なぐもりずの音楽室 (BGM素材集より)
     </p>
     <button id="btnBack">表紙へもどる</button>
   </div>
@@ -198,7 +213,13 @@ function run(){
   }
 }
 
+const blog=[];
+function pushLog(b){
+  blog.push({n:b.n||"",t:b.t});
+  if(blog.length>120) blog.shift();
+}
 function say(b){
+  pushLog(b);
   st.waiting=false; $("cue").style.opacity=0;
   const nameEl=$("name");
   if(b.n){ nameEl.textContent=b.n; nameEl.style.display="block"; }
@@ -256,6 +277,20 @@ document.addEventListener("keydown",e=>{
   if(e.key==="Enter"||e.key===" "){ e.preventDefault(); advance(); }
 });
 $("btnAuto").onclick=e=>{ e.stopPropagation(); st.auto=!st.auto; $("btnAuto").classList.toggle("on",st.auto); if(st.auto&&st.waiting) advance(); };
+$("btnLog").onclick=e=>{
+  e.stopPropagation();
+  const inner=$("backlogInner"); inner.innerHTML="";
+  blog.forEach(x=>{
+    const p=document.createElement("p");
+    if(x.n){ const s=document.createElement("span"); s.className="bl-name"; s.textContent=`【${x.n}】`; p.appendChild(s); p.appendChild(document.createElement("br")); }
+    p.appendChild(document.createTextNode(x.t));
+    inner.appendChild(p);
+  });
+  $("backlog").style.display="flex";
+  inner.scrollTop=inner.scrollHeight;
+};
+$("btnLogClose").onclick=e=>{ e.stopPropagation(); $("backlog").style.display="none"; };
+$("backlog").addEventListener("click",e=>e.stopPropagation());
 $("btnVoice").onclick=e=>{ e.stopPropagation(); st.voice=!st.voice; $("btnVoice").classList.toggle("on",st.voice); if(!st.voice) stopVoice(); };
 $("btnSave").onclick=e=>{ e.stopPropagation(); save(); };
 $("btnMenu").onclick=e=>{ e.stopPropagation(); openChapters(); };
