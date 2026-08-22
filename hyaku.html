@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>百の悪行 — サウンドノベル</title>
+<meta name="description" content="魔王を討った勇者が『悪行目録・全百条』を検証する、偽悪の短編サウンドノベル。フルボイス・挿絵つき・約30分。">
+<meta property="og:title" content="百の悪行 — サウンドノベル">
+<meta property="og:description" content="読み終えたとき、あなたはもう、あの魔王を正しく憎めない。">
+<meta property="og:image" content="https://yuichi916.github.io/assets/hyaku/img/bg_duel.jpg">
+<style>
+:root{--acc:#c9a86a;--ink:#e8e2d5}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden}
+body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
+  -webkit-user-select:none;user-select:none}
+#stage{position:fixed;inset:0;background:#000;cursor:pointer}
+.bglayer{position:absolute;inset:0;background-size:cover;background-position:center;
+  opacity:0;transition:opacity 1.1s ease}
+.bglayer.on{opacity:1}
+#dim{position:absolute;inset:0;background:rgba(0,0,10,.28);pointer-events:none}
+#sprites{position:absolute;inset:0;pointer-events:none}
+.sprite{position:absolute;bottom:0;height:88%;left:72%;transform:translateX(-50%);
+  opacity:0;transition:opacity .6s ease;filter:drop-shadow(0 0 18px rgba(0,0,0,.6))}
+.sprite.on{opacity:1}
+.sprite img{height:100%}
+#cg{position:absolute;inset:0;background-size:cover;background-position:center;
+  opacity:0;transition:opacity 1.2s ease,transform 12s linear;transform:scale(1.05);pointer-events:none}
+#cg.on{opacity:1;transform:scale(1)}
+#box{position:absolute;left:50%;bottom:2.5%;transform:translateX(-50%);
+  width:min(92%,900px);min-height:170px;padding:26px 34px 30px;
+  background:linear-gradient(180deg,rgba(8,8,14,.82),rgba(8,8,14,.92));
+  border:1px solid rgba(201,168,106,.35);border-radius:6px;line-height:2.0;
+  font-size:clamp(15px,2.3vmin,19px);letter-spacing:.04em}
+#name{position:absolute;top:-16px;left:22px;padding:2px 18px;background:#1a1826;
+  border:1px solid var(--acc);border-radius:4px;font-size:.85em;color:var(--acc);display:none}
+#tx{white-space:pre-wrap;text-shadow:0 1px 3px #000}
+#cue{position:absolute;right:18px;bottom:10px;color:var(--acc);opacity:0;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.9}}
+#hud{position:absolute;top:10px;right:12px;display:flex;gap:8px;z-index:30}
+#hud button{font-family:inherit;background:rgba(10,10,18,.7);color:var(--ink);
+  border:1px solid rgba(201,168,106,.4);border-radius:4px;padding:5px 12px;font-size:13px;cursor:pointer}
+#hud button.on{background:var(--acc);color:#161320}
+#title{position:fixed;inset:0;z-index:50;background:#000 url(assets/hyaku/img/bg_duel.jpg) center/cover;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+#title::before{content:"";position:absolute;inset:0;background:rgba(0,0,8,.45)}
+#title>*{position:relative}
+#title h1{font-size:clamp(38px,9vmin,72px);letter-spacing:.28em;text-shadow:0 2px 18px #000;font-weight:600}
+#title p.sub{margin:6px 0 30px;font-size:clamp(12px,2vmin,16px);opacity:.85;letter-spacing:.1em;text-shadow:0 1px 6px #000}
+#title .menu{display:flex;flex-direction:column;gap:12px;min-width:230px}
+#title .menu button{font-family:inherit;font-size:16px;letter-spacing:.25em;padding:11px 30px;
+  background:rgba(10,10,18,.72);color:var(--ink);border:1px solid rgba(201,168,106,.5);
+  border-radius:4px;cursor:pointer;transition:background .25s}
+#title .menu button:hover{background:rgba(201,168,106,.25)}
+#title .note{margin-top:26px;font-size:11px;opacity:.6;text-align:center;line-height:1.8}
+#chapters{position:fixed;inset:0;z-index:60;background:rgba(0,0,8,.9);display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:10px}
+#chapters button{font-family:inherit;font-size:15px;letter-spacing:.15em;padding:9px 40px;min-width:300px;
+  background:rgba(16,16,26,.9);color:var(--ink);border:1px solid rgba(201,168,106,.4);border-radius:4px;cursor:pointer}
+#chapters button:hover{background:rgba(201,168,106,.2)}
+#ending{position:fixed;inset:0;z-index:55;background:#05050a;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;line-height:2.2}
+#ending a{color:var(--acc)}
+#ending button{font-family:inherit;font-size:15px;letter-spacing:.2em;padding:10px 34px;margin-top:10px;
+  background:transparent;color:var(--ink);border:1px solid rgba(201,168,106,.5);border-radius:4px;cursor:pointer}
+.fadein{animation:fin 2s ease}
+@keyframes fin{from{opacity:0}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="bglayer" id="bgA"></div>
+  <div class="bglayer" id="bgB"></div>
+  <div id="dim"></div>
+  <div id="sprites"><div class="sprite" id="sp_mia"><img src="assets/hyaku/img/sp_mia.png" alt=""></div></div>
+  <div id="cg"></div>
+  <div id="box">
+    <div id="name"></div>
+    <div id="tx"></div>
+    <div id="cue">▼</div>
+  </div>
+  <div id="hud">
+    <button id="btnAuto">AUTO</button>
+    <button id="btnVoice" class="on">VOICE</button>
+    <button id="btnSave">保存</button>
+    <button id="btnMenu">目次</button>
+  </div>
+</div>
+
+<div id="title">
+  <h1>百の悪行</h1>
+  <p class="sub">―魔王は百の悪行を残して死んだ。ぜんぶ、嘘だった。―</p>
+  <div class="menu">
+    <button id="btnStart">はじめから</button>
+    <button id="btnCont" style="display:none">つづきから</button>
+    <button id="btnChap">章をえらぶ</button>
+  </div>
+  <p class="note">フルボイス(AI音声)・挿絵つき・約30分<br>音が出ます。ヘッドホン推奨</p>
+</div>
+
+<div id="chapters"></div>
+
+<div id="ending">
+  <div class="fadein">
+    <p style="font-size:22px;letter-spacing:.3em">（了）</p>
+    <p style="opacity:.8;font-size:14px">どうか、良い夜明けを。</p>
+    <p style="margin-top:22px;font-size:13px;opacity:.75">
+      原作テキスト版は <a href="https://ncode.syosetu.com/n4922mq/" target="_blank" rel="noopener">小説家になろう</a> で公開中<br>
+      文章・挿絵・音声・音楽: AI生成(Claude / Stable Diffusion / ElevenLabs) + 作者
+    </p>
+    <button id="btnBack">表紙へもどる</button>
+  </div>
+</div>
+
+<script src="assets/hyaku/script.js"></script>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const S=window.HYAKU_SCRIPT.scenes;
+const A="assets/hyaku/";
+const st={scene:0,i:0,auto:false,voice:true,waiting:false,typing:null,ended:false};
+let bgFront=null, curBg=null, curBgm=null;
+const bgmAudio=new Audio(); bgmAudio.loop=true; bgmAudio.volume=0;
+let voiceAudio=null, bgmFadeTimer=null, autoTimer=null;
+
+function setBG(key){
+  if(key===curBg) return; curBg=key;
+  const a=$("bgA"), b=$("bgB");
+  const back=(bgFront===a)?b:a, front=(bgFront===a)?a:b;
+  back.style.backgroundImage=`url(${A}img/bg_${key}.jpg)`;
+  back.classList.add("on"); front.classList.remove("on");
+  bgFront=back;
+}
+function setCG(key){
+  const cg=$("cg");
+  if(!key){ cg.classList.remove("on"); return; }
+  cg.style.backgroundImage=`url(${A}img/bg_${key}.jpg)`;
+  cg.classList.add("on");
+}
+function setBGM(key){
+  if(key===curBgm) return; curBgm=key;
+  clearInterval(bgmFadeTimer);
+  const fadeOut=setInterval(()=>{
+    bgmAudio.volume=Math.max(0,bgmAudio.volume-0.08);
+    if(bgmAudio.volume<=0){
+      clearInterval(fadeOut);
+      bgmAudio.src=`${A}bgm/${key}.mp3`;
+      bgmAudio.play().catch(()=>{});
+      bgmFadeTimer=setInterval(()=>{
+        bgmAudio.volume=Math.min(0.55,bgmAudio.volume+0.05);
+        if(bgmAudio.volume>=0.55) clearInterval(bgmFadeTimer);
+      },90);
+    }
+  },70);
+}
+function stopVoice(){ if(voiceAudio){voiceAudio.pause(); voiceAudio=null;} }
+function playVoice(key,onend){
+  stopVoice();
+  if(!st.voice||!key){ if(onend) onend(); return; }
+  const a=new Audio(`${A}voice/${key}.mp3`);
+  voiceAudio=a;
+  a.onended=()=>{ if(voiceAudio===a){voiceAudio=null; if(onend) onend();} };
+  a.onerror=()=>{ if(voiceAudio===a){voiceAudio=null; if(onend) onend();} };
+  a.play().catch(()=>{ if(onend) onend(); });
+}
+function showSprite(key,on){
+  const el=$("sp_"+key); if(el) el.classList.toggle("on",on);
+}
+
+function run(){
+  if(st.ended) return;
+  while(true){
+    const sc=S[st.scene];
+    if(!sc){ ending(); return; }
+    if(st.i===0){ setBG(sc.bg); setBGM(sc.bgm); setCG(null); }
+    if(st.i>=sc.beats.length){
+      st.scene++; st.i=0;
+      if(st.scene>=S.length){ ending(); return; }
+      continue;
+    }
+    const b=sc.beats[st.i++];
+    if(b.bg!==undefined){ setBG(b.bg); setCG(null); continue; }
+    if(b.bgm!==undefined){ setBGM(b.bgm); continue; }
+    if(b.cg!==undefined){ setCG(b.cg); continue; }
+    if(b.show!==undefined){ showSprite(b.show,true); continue; }
+    if(b.hide!==undefined){ showSprite(b.hide,false); continue; }
+    if(b.t!==undefined){ say(b); return; }
+  }
+}
+
+function say(b){
+  st.waiting=false; $("cue").style.opacity=0;
+  const nameEl=$("name");
+  if(b.n){ nameEl.textContent=b.n; nameEl.style.display="block"; }
+  else nameEl.style.display="none";
+  const tx=$("tx"); tx.textContent="";
+  let pos=0; const full=b.t;
+  let voiceDone=!b.v, textDone=false;
+  const maybeAuto=()=>{
+    if(st.auto&&voiceDone&&textDone&&!st.ended){
+      clearTimeout(autoTimer);
+      autoTimer=setTimeout(()=>{ if(st.auto&&st.waiting) advance(); },900);
+    }
+  };
+  playVoice(b.v,()=>{ voiceDone=true; maybeAuto(); });
+  clearInterval(st.typing);
+  st.typing=setInterval(()=>{
+    pos++; tx.textContent=full.slice(0,pos);
+    if(pos>=full.length){
+      clearInterval(st.typing); st.typing=null;
+      st.waiting=true; textDone=true; $("cue").style.opacity=1; maybeAuto();
+    }
+  },28);
+  st._cur=b;
+}
+function advance(){
+  if(st.typing){ // 全文表示へ
+    clearInterval(st.typing); st.typing=null;
+    $("tx").textContent=st._cur.t;
+    st.waiting=true; $("cue").style.opacity=1;
+    return;
+  }
+  if(st.waiting){ st.waiting=false; stopVoice(); run(); }
+}
+
+function ending(){
+  st.ended=true; stopVoice();
+  $("ending").style.display="flex";
+  localStorage.removeItem("hyaku_save");
+}
+
+function save(){
+  localStorage.setItem("hyaku_save",JSON.stringify({scene:st.scene,i:Math.max(0,st.i-1)}));
+  const btn=$("btnSave"); btn.textContent="保存済"; setTimeout(()=>btn.textContent="保存",1200);
+}
+function startAt(scene,i){
+  st.scene=scene; st.i=i; st.ended=false;
+  $("title").style.display="none"; $("chapters").style.display="none"; $("ending").style.display="none";
+  curBg=null; curBgm=null; setCG(null); showSprite("mia",false);
+  run();
+}
+
+// --- UI ---
+$("stage").addEventListener("click",()=>advance());
+document.addEventListener("keydown",e=>{
+  if(e.key==="Enter"||e.key===" "){ e.preventDefault(); advance(); }
+});
+$("btnAuto").onclick=e=>{ e.stopPropagation(); st.auto=!st.auto; $("btnAuto").classList.toggle("on",st.auto); if(st.auto&&st.waiting) advance(); };
+$("btnVoice").onclick=e=>{ e.stopPropagation(); st.voice=!st.voice; $("btnVoice").classList.toggle("on",st.voice); if(!st.voice) stopVoice(); };
+$("btnSave").onclick=e=>{ e.stopPropagation(); save(); };
+$("btnMenu").onclick=e=>{ e.stopPropagation(); openChapters(); };
+$("btnStart").onclick=()=>startAt(0,0);
+$("btnCont").onclick=()=>{
+  const s=JSON.parse(localStorage.getItem("hyaku_save")||"null");
+  if(s) startAt(s.scene,s.i); else startAt(0,0);
+};
+$("btnChap").onclick=()=>openChapters();
+$("btnBack").onclick=()=>{ $("ending").style.display="none"; $("title").style.display="flex"; bgmAudio.pause(); curBgm=null; };
+function openChapters(){
+  const c=$("chapters"); c.innerHTML="";
+  S.forEach((sc,idx)=>{
+    const b=document.createElement("button");
+    b.textContent=sc.title;
+    b.onclick=()=>startAt(idx,0);
+    c.appendChild(b);
+  });
+  const close=document.createElement("button");
+  close.textContent="とじる"; close.style.marginTop="14px";
+  close.onclick=()=>{ c.style.display="none"; };
+  c.appendChild(close);
+  c.style.display="flex";
+}
+if(localStorage.getItem("hyaku_save")) $("btnCont").style.display="block";
+</script>
+</body>
+</html>
