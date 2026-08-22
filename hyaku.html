@@ -97,6 +97,7 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
   </div>
   <div id="hud">
     <button id="btnAuto">AUTO</button>
+    <button id="btnSkip">SKIP</button>
     <button id="btnVoice" class="on">VOICE</button>
     <button id="btnLog">履歴</button>
     <button id="btnSave">保存</button>
@@ -140,7 +141,7 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
 const $=id=>document.getElementById(id);
 const S=window.HYAKU_SCRIPT.scenes;
 const A="assets/hyaku/";
-const st={scene:0,i:0,auto:false,voice:true,waiting:false,typing:null,ended:false};
+const st={scene:0,i:0,auto:false,skip:false,voice:true,waiting:false,typing:null,ended:false};
 let bgFront=null, curBg=null, curBgm=null;
 const bgmAudio=new Audio(); bgmAudio.loop=true; bgmAudio.volume=0;
 let voiceAudio=null, bgmFadeTimer=null, autoTimer=null;
@@ -224,7 +225,17 @@ function say(b){
   const nameEl=$("name");
   if(b.n){ nameEl.textContent=b.n; nameEl.style.display="block"; }
   else nameEl.style.display="none";
-  const tx=$("tx"); tx.textContent="";
+  const tx=$("tx");
+  st._cur=b;
+  if(st.skip){ // 高速スキップ: 全文即表示・ボイスなし・即送り
+    stopVoice();
+    tx.textContent=b.t;
+    st.waiting=true;
+    clearTimeout(autoTimer);
+    autoTimer=setTimeout(()=>{ if(st.skip&&st.waiting&&!st.ended) advance(); },70);
+    return;
+  }
+  tx.textContent="";
   let pos=0; const full=b.t;
   let voiceDone=!b.v, textDone=false;
   const maybeAuto=()=>{
@@ -242,7 +253,6 @@ function say(b){
       st.waiting=true; textDone=true; $("cue").style.opacity=1; maybeAuto();
     }
   },28);
-  st._cur=b;
 }
 function advance(){
   if(st.typing){ // 全文表示へ
@@ -255,9 +265,18 @@ function advance(){
 }
 
 function ending(){
-  st.ended=true; stopVoice();
+  st.ended=true; st.skip=false; $("btnSkip").classList.remove("on");
+  stopVoice();
   $("ending").style.display="flex";
   localStorage.removeItem("hyaku_save");
+  localStorage.setItem("hyaku_clear","1");
+}
+function applyTitleState(){
+  // クリア後: 表紙が素顔のイベント絵に変わり、副題も変わる
+  if(localStorage.getItem("hyaku_clear")){
+    $("title").style.background="#000 url(assets/hyaku/img/bg_keyvisual.jpg) center/cover";
+    document.querySelector("#title p.sub").textContent="――どうか、良い夜明けを。";
+  }
 }
 
 function save(){
@@ -277,6 +296,16 @@ document.addEventListener("keydown",e=>{
   if(e.key==="Enter"||e.key===" "){ e.preventDefault(); advance(); }
 });
 $("btnAuto").onclick=e=>{ e.stopPropagation(); st.auto=!st.auto; $("btnAuto").classList.toggle("on",st.auto); if(st.auto&&st.waiting) advance(); };
+$("btnSkip").onclick=e=>{
+  e.stopPropagation(); st.skip=!st.skip; $("btnSkip").classList.toggle("on",st.skip);
+  if(st.skip){ stopVoice(); if(st.typing){ clearInterval(st.typing); st.typing=null; $("tx").textContent=st._cur.t; st.waiting=true; } if(st.waiting) advance(); }
+};
+// マウスホイール: 上回転でバックログを開く / パネル内は通常スクロール
+$("stage").addEventListener("wheel",e=>{
+  if($("backlog").style.display==="flex") return;
+  if($("title").style.display!=="none"&&getComputedStyle($("title")).display!=="none") return;
+  if(e.deltaY<0){ e.preventDefault(); $("btnLog").click(); }
+},{passive:false});
 $("btnLog").onclick=e=>{
   e.stopPropagation();
   const inner=$("backlogInner"); inner.innerHTML="";
@@ -300,7 +329,7 @@ $("btnCont").onclick=()=>{
   if(s) startAt(s.scene,s.i); else startAt(0,0);
 };
 $("btnChap").onclick=()=>openChapters();
-$("btnBack").onclick=()=>{ $("ending").style.display="none"; $("title").style.display="flex"; bgmAudio.pause(); curBgm=null; };
+$("btnBack").onclick=()=>{ applyTitleState(); $("ending").style.display="none"; $("title").style.display="flex"; bgmAudio.pause(); curBgm=null; };
 function openChapters(){
   const c=$("chapters"); c.innerHTML="";
   S.forEach((sc,idx)=>{
@@ -316,6 +345,7 @@ function openChapters(){
   c.style.display="flex";
 }
 if(localStorage.getItem("hyaku_save")) $("btnCont").style.display="block";
+applyTitleState();
 </script>
 </body>
 </html>
