@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自動テストの実際 — 何を機械に見張らせるか｜新しい形の研究</title>
+<meta name="description" content="AIが作ったものは静かに壊れる。だから見張る対象が変わった。棚卸し・座標の断言・実物の検証・スタブでの隔離・多数決・タグ収支。16作品の制作で実際に事故を止めた自動テストを、コードごと全部書き出す。">
+<meta name="keywords" content="自動テスト,Playwright,E2E,AI 開発 品質,回帰テスト,静的サイト テスト,個人開発,検証">
+<link rel="canonical" href="https://yuichi916.github.io/method/jidou-test.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="自動テストの実際 — 何を機械に見張らせるか">
+<meta property="og:description" content="AIが作ったものは静かに壊れる。見張る対象そのものが変わった。実際に事故を止めたテストを全部。">
+<meta property="og:url" content="https://yuichi916.github.io/method/jidou-test.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/hyaku/img/bg_study.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="note.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "自動テストの実際 — 何を機械に見張らせるか",
+  "url": "https://yuichi916.github.io/method/jidou-test.html",
+  "datePublished": "2026-08-24",
+  "inLanguage": "ja-JP",
+  "image": "https://yuichi916.github.io/assets/hyaku/img/bg_study.jpg",
+  "author": { "@id": "https://yuichi916.github.io/#person" },
+  "publisher": { "@id": "https://yuichi916.github.io/#person" },
+  "isPartOf": { "@id": "https://yuichi916.github.io/#website" },
+  "about": ["自動テスト", "E2Eテスト", "品質保証", "生成AI"]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <a href="./">← 新しい形の研究</a>
+  <span>A-7 / 自動テストの実際</span>
+</div>
+
+<header class="hd">
+  <p class="eyebrow">自動テストの実際 — 何を機械に見張らせるか</p>
+  <h1>テストする対象が、<br>変わってしまった</h1>
+  <p class="lede">
+    関数の戻り値は、もう主戦場ではありません。壊れるのは
+    <strong>音・レイアウト・読めない言語・公開物</strong>で、しかもエラーを出しません。
+    実際に事故を止めた検査を、コードごと全部書き出します。
+  </p>
+  <p class="meta">2026-08-24 ／ 16作品の制作から ／ 読了 約10分</p>
+</header>
+
+<div class="step">
+  <div class="step-no">01 — 制約</div>
+  <h2>テストは「計算の正しさ」を見るものだった</h2>
+
+  <p>
+    従来の自動テストは、入力に対する出力を確かめるものでした。関数を呼び、期待値と比べる。
+    これは<strong>正解が1つに決まる領域</strong>ではよく機能します。
+  </p>
+  <p>
+    ところが個人がAIと作るものは、ほとんどが<strong>正解が1つに決まらない領域</strong>です。
+    「この音声は正しく読まれているか」「このレイアウトは重なっていないか」
+    「7言語のうち韓国語だけ壊れていないか」。従来の型では書けません。
+  </p>
+
+  <blockquote>
+    <p>そして最悪なのは、これらが<strong>失敗しても赤くならない</strong>ことです。<br>
+    テストが無いのではなく、<strong>テストできる形に落ちていなかった</strong>。</p>
+  </blockquote>
+</div>
+
+<div class="step">
+  <div class="step-no">02 — 解除</div>
+  <h2>判定を機械が持てるようになった</h2>
+
+  <p>
+    変わったのは2つです。<strong>ヘッドレスブラウザが安価に回せる</strong>ようになったこと、
+    そして<strong>音声や画像を機械が判定できる</strong>ようになったこと。
+    つまり「人が見ないと分からない」とされていた対象が、次々と<strong>数値に落ちる</strong>ようになりました。
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>見たいもの</th><th>以前</th><th>いま</th></tr>
+    <tr><td>音声が正しく読まれたか</td><td>耳で聴く</td><td>書き起こして音で照合</td></tr>
+    <tr><td>要素が重なっていないか</td><td>目で見る</td><td>座標を取って断言する</td></tr>
+    <tr><td>公開物が正しいか</td><td>ブラウザで開く</td><td>ライブURLを叩いてハッシュ照合</td></tr>
+    <tr><td>翻訳が抜けていないか</td><td>読める人に頼む</td><td>件数と文字種で判定</td></tr>
+  </table>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-no">03 — 新形式</div>
+  <h2>実際に事故を止めた、七つの検査</h2>
+
+  <h3>① 棚卸し — 両方向で数える</h3>
+  <p>生成した資産は、参照と実体を<strong>両方向</strong>で突き合わせます。片方向だと半分見逃します。</p>
+<pre><code>参照=237  実ファイル=237  欠落=0  孤児=0  破損疑い(&lt;800B)=0</code></pre>
+  <ul>
+    <li><strong>欠落</strong> = そこは無音・画像切れになっている</li>
+    <li><strong>孤児</strong> = 何かを変えたのに気づいていない ← <em>こちらの方が価値がある</em></li>
+  </ul>
+  <p>実績: 前作で<strong>161本の音声が無言のまま数週間</strong>動いていたのを、この検査で発見しました。</p>
+
+  <h3>② 座標で断言する — 見た目も自動で見る</h3>
+  <p>
+    二言語同時字幕を入れたとき、「重なっていないこと」を目視で確認するのは毎回できません。
+    <strong>要素の矩形を取って、断言に変えます</strong>。
+  </p>
+<pre><code>const ok = pg.evaluate(() =&gt; {
+  const a = document.querySelector('#tx').getBoundingClientRect();
+  const b = document.querySelector('#tx2').getBoundingClientRect();
+  return b.top &gt;= a.bottom - 1;      // 2つ目が1つ目を侵していない
+});</code></pre>
+  <p>
+    同じ考え方で<strong>横スクロールの発生</strong>も一行で見られます。これはモバイル崩れの最頻出パターンです。
+  </p>
+<pre><code>document.documentElement.scrollWidth &gt; window.innerWidth + 2   // true なら崩れている</code></pre>
+
+  <h3>③ 実物を検証する — 作業コピーを信用しない</h3>
+  <p>
+    いちばん痛かった失敗です。多言語化で台本のデプロイを忘れたとき、
+    フォールバックが働いて<strong>全言語が完璧な日本語で表示</strong>されました。
+    ローカルのテストは全部通ります。手元には正しいファイルがあるからです。
+  </p>
+<pre><code># 公開されている実物と、手元が一致しているか
+LOCAL=$(md5sum assets/voice/k2102619210.mp3 | cut -d' ' -f1)
+curl -s https://example.com/assets/voice/k2102619210.mp3 | md5sum</code></pre>
+  <p>
+    <strong>反映待ちのポーリングは、対象に固有の文字列で行う</strong>こと。
+    ここでも一度失敗しました。「AIでしか作れない」で待っていたら、それは旧版にも含まれる語で、
+    <strong>反映前に反映済みと誤判定</strong>しました。待ち条件は<code>id="newforms"</code>のように新版だけが持つものにします。
+  </p>
+
+  <h3>④ スタブで隔離する — テストが本番を汚さないように</h3>
+  <p>
+    クリア率の計測を入れたとき、テストのたびに本番の集計へ数字が入る状態になっていました。
+    <strong>外部への送信は遮断し、呼び出しだけ観測</strong>します。
+  </p>
+<pre><code>pg.route("**gc.zgo.at/**", r =&gt; r.abort());          // 本物へ送らせない
+pg.add_init_script(`window.__ev=[];
+  window.goatcounter={count:o=&gt;window.__ev.push(o.path)};`);
+// …操作したあと
+assert "game/hyaku/clear" in pg.evaluate("window.__ev")</code></pre>
+  <p>
+    遮断を忘れると、本物のスクリプトが読み込まれて<strong>スタブを上書きし、観測が空になります</strong>。
+    実際にそれで一度、原因を見誤りました。
+  </p>
+
+  <h3>⑤ 音は音で照合する</h3>
+  <p>
+    書き起こしは音を漢字に戻すので、<strong>読みの間違いは文字比較では原理的に検出できません</strong>。
+    漢字トークンを禁止して、仮名で出させます。
+  </p>
+<pre><code>kanji = re.compile(r'[一-鿿]')
+suppress = [-1] + [i for i in range(tok.get_vocab_size()) if kanji.search(tok.decode([i]))]
+model.transcribe(path, language="ja", suppress_tokens=suppress,
+                 initial_prompt="ひらがなだけでかきます。")</code></pre>
+
+  <h3>⑥ 多数決で偽陽性を潰す</h3>
+  <p>
+    自動判定は<strong>間違えます</strong>。長文で仮名を強制すると、デコードが破綻して
+    一致率0.09のような異常値を出すことがある。音声そのものは正常なのにです。
+  </p>
+  <p>切り分けは、<strong>条件を変えて3回聞き、多数決を取る</strong>。それと物理量の確認です。</p>
+<pre><code>尺 24.0s / 想定 21.7s → 比 1.11   # 音声は存在する
+音量プロファイル: # # # # # # . # # #  # 途中で無音になっていない
+→ 一致率の異常は、書き起こし側の破綻と判断</code></pre>
+  <p><strong>テストが失敗を報告したとき、テスト自身を疑う手順を持っておく</strong>のが実務では重要です。</p>
+
+  <h3>⑦ タグ収支 — 構造を壊さずに書き換える</h3>
+  <p>
+    大きなHTMLのブロック移動は、閉じタグを1つ落とすだけでページが崩壊します。
+    書き込む<strong>前</strong>に収支を数えて、合わなければ書き込まない。
+  </p>
+<pre><code>before = counts(src)          # div/section/a/p の開き・閉じ
+src = 変換(src)
+after  = counts(src)
+assert all(after[t][0] == after[t][1] for t in after), "タグ収支が合わない"
+open(path, "w").write(src)    # 通ったときだけ書く</code></pre>
+  <p>
+    実績: 過去に閉じタグ2つを落として<strong>ページ幅が7,972pxに爆発</strong>した事故があり、以来この順序を守っています。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">04 — 運用</div>
+  <h2>回し方のほうが、テストの中身より効く</h2>
+
+  <h3>完了を「観測」で定義しておく</h3>
+  <p>着手前に、何をもって終わりとするかをコマンドの出力で決めます。主観の「できました」を許さない。</p>
+  <div class="tblwrap">
+  <table>
+    <tr><th>工程</th><th>完了の観測</th></tr>
+    <tr><td>台本</td><td>実プレイで最終話に到達できる</td></tr>
+    <tr><td>音声</td><td>欠落0 / 孤児0 ＋ 読み検証PASS</td></tr>
+    <tr><td>多言語</td><td>各言語の要素数が一致（238件）</td></tr>
+    <tr><td>公開</td><td><strong>ライブURLを叩いて期待の中身が返る</strong></td></tr>
+  </table>
+  </div>
+
+  <h3>重い検査は、走らせる場所を選ぶ</h3>
+  <ul>
+    <li><strong>毎回</strong>: タグ収支、重複宣言、JSエラー0、横スクロール、内部リンク切れ</li>
+    <li><strong>変更したときだけ</strong>: 音声の棚卸しと読み検証（焼き直した鍵だけ）</li>
+    <li><strong>公開のたび</strong>: ライブ実物の検証</li>
+  </ul>
+  <p>全部を毎回回すと、走らせなくなります。<strong>安いものを常に、高いものを条件付きで。</strong></p>
+
+  <h3>環境の落とし穴（実際に踏んだもの）</h3>
+  <div class="tblwrap">
+  <table>
+    <tr><th>症状</th><th>原因</th><th>抜け方</th></tr>
+    <tr>
+      <td>スクリプトがJS構文エラーで動かない</td>
+      <td>シェル→Python→JSと<strong>エスケープを三重に通した</strong></td>
+      <td>正規表現をJS側に書かない。<code>innerText</code>だけ取ってPythonで解析する</td>
+    </tr>
+    <tr>
+      <td>ヒアドキュメントでファイルが壊れる</td>
+      <td><code>\b</code>や<code>\t</code>がエスケープとして解釈された</td>
+      <td>大きな差し込みは<strong>別ファイルに書いてから読み込む</strong></td>
+    </tr>
+    <tr>
+      <td>ブラウザ自動化が接続できない</td>
+      <td>既定プロファイルではデバッグポートが開かない／既に起動中だとフラグが無視される</td>
+      <td><strong>自動化専用プロファイルを分ける</strong>。普段のブラウザを閉じずに済む</td>
+    </tr>
+    <tr>
+      <td>選択肢のクリックが効かない</td>
+      <td>アニメーション中で操作可能判定に入らない</td>
+      <td>JSの<code>.click()</code>で直接呼ぶ</td>
+    </tr>
+  </table>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-no">05 — 再現</div>
+  <h2>最初に入れるなら、この3つ</h2>
+
+  <ol>
+    <li><strong>タグ収支の断言</strong> — 5分で書けて、ページ崩壊を確実に防ぐ</li>
+    <li><strong>JSエラー0 と 横スクロール無し</strong> — ヘッドレスで全ページを巡回するだけ。<em>最も費用対効果が高い</em></li>
+    <li><strong>ライブ実物の検証</strong> — 「出したつもり」を捕まえる唯一の方法</li>
+  </ol>
+
+  <p>この3つを回すだけの巡回テストは、実際こう出ます。</p>
+<pre><code>/index.html                        err=0 PC溢=False SP溢=False
+/method/                           err=0 PC溢=False SP溢=False
+/method/hinshitsu-kenmon.html      err=0 PC溢=False SP溢=False
+内部リンク切れ: なし
+判定: ALL OK</code></pre>
+
+  <blockquote>
+    <p>自動テストの目的は、正しさの証明ではありません。<strong>「気づかないまま出す」ことを防ぐ</strong>ことです。<br>
+    だから見張る対象は、コードではなく<strong>読者が実際に触れるもの</strong>に置きます。</p>
+  </blockquote>
+
+  <p style="margin-top:26px">
+    静かに壊れる不具合の分類は <a href="hinshitsu-kenmon.html">品質検問</a>、
+    作る前の工程は <a href="shitsumon-no-kaizoudo.html">質問の解像度</a> に書いています。
+  </p>
+</div>
+
+<footer>
+  <a href="./">新しい形の研究</a>
+  <a href="../">ひとりぶんの棚</a>
+  <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>
+  <a href="https://medium.com/@ViewsEngineer" target="_blank" rel="noopener">Medium</a>
+</footer>
+
+</div>
+</body>
+</html>
