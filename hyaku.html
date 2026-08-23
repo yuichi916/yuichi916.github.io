@@ -28,6 +28,7 @@
 <link rel="alternate" hreflang="fr" href="https://yuichi916.github.io/hyaku.html?lang=fr">
 <link rel="alternate" hreflang="de" href="https://yuichi916.github.io/hyaku.html?lang=de">
 <link rel="alternate" hreflang="x-default" href="https://yuichi916.github.io/hyaku.html">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -468,12 +469,19 @@ function advance(){
   if(st.waiting){ st.waiting=false; stopVoice(); run(); }
 }
 
+// 完走率の計測。start と clear の比で「最後まで読まれたか」を見る。
+// GoatCounter のイベント(個人を追跡しない集計)。読み込めていなければ何もしない。
+function track(path,title){
+  try{ window.goatcounter&&window.goatcounter.count&&
+       window.goatcounter.count({path:path,title:title,event:true}); }catch(e){}
+}
 function ending(){
   st.ended=true; st.skip=false; $("btnSkip").classList.remove("on");
   stopVoice();
   $("ending").style.display="flex";
   localStorage.removeItem("hyaku_save");
   localStorage.setItem("hyaku_clear","1");
+  track("game/hyaku/clear","百の悪行 完走 "+lang);
 }
 function applyTitleState(){
   // クリア後: 表紙が素顔のイベント絵に変わり、副題も変わる
@@ -548,7 +556,7 @@ $("backlog").addEventListener("click",e=>e.stopPropagation());
 $("btnVoice").onclick=e=>{ e.stopPropagation(); st.voice=!st.voice; $("btnVoice").classList.toggle("on",st.voice); if(!st.voice) stopVoice(); };
 $("btnSave").onclick=e=>{ e.stopPropagation(); save(); };
 $("btnMenu").onclick=e=>{ e.stopPropagation(); openChapters(); };
-$("btnStart").onclick=()=>startAt(0,0);
+$("btnStart").onclick=()=>{ track("game/hyaku/start","百の悪行 開始 "+lang); startAt(0,0); };
 $("btnCont").onclick=()=>{
   const s=JSON.parse(localStorage.getItem("hyaku_save")||"null");
   if(s) startAt(s.scene,s.i); else startAt(0,0);
