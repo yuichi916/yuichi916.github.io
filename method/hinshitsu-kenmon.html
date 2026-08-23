@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>品質検問 — AIが作ったものは、クラッシュせずに壊れる｜新しい形の研究</title>
+<meta name="description" content="AI生成物の不具合はエラーを出さない。無音・誤読・空のフォールバック・未デプロイ。実際に161本の音声が無言のまま数週間動いていた。静かな失敗を捕まえるための三つの検問所と、そのコード。">
+<meta name="keywords" content="AI 品質管理,生成AI 検証,音声合成 誤読,whisper 書き起こし,サイレント障害,個人開発,テスト">
+<link rel="canonical" href="https://yuichi916.github.io/method/hinshitsu-kenmon.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="品質検問 — AIが作ったものは、クラッシュせずに壊れる">
+<meta property="og:description" content="無音・誤読・空のフォールバック・未デプロイ。エラーを出さない不具合の捕まえ方。">
+<meta property="og:url" content="https://yuichi916.github.io/method/hinshitsu-kenmon.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/hyaku/img/bg_study.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="note.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "品質検問 — AIが作ったものは、クラッシュせずに壊れる",
+  "url": "https://yuichi916.github.io/method/hinshitsu-kenmon.html",
+  "datePublished": "2026-08-23",
+  "inLanguage": "ja-JP",
+  "image": "https://yuichi916.github.io/assets/hyaku/img/bg_study.jpg",
+  "author": { "@id": "https://yuichi916.github.io/#person" },
+  "publisher": { "@id": "https://yuichi916.github.io/#person" },
+  "isPartOf": { "@id": "https://yuichi916.github.io/#website" },
+  "about": ["品質保証", "生成AI", "サイレント障害"]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <a href="./">← 新しい形の研究</a>
+  <span>A-5 / 品質検問</span>
+</div>
+
+<header class="hd">
+  <p class="eyebrow">品質検問 — 三つの検問所</p>
+  <h1>AIが作ったものは、<br>クラッシュせずに壊れる</h1>
+  <p class="lede">
+    生成AIを使った制作でいちばん時間を取られるのは、<strong>エラーを出さない不具合</strong>です。
+    無音、誤読、空のフォールバック、未デプロイ。どれも赤くなりません。
+    ここには、まだ型が存在していません。
+  </p>
+  <p class="meta">2026-08-23 ／ 実例: 無音161本・誤読4種 ／ 読了 約8分</p>
+</header>
+
+<div class="step">
+  <div class="step-no">01 — 新しい問題</div>
+  <h2>コンパイラが守ってくれない領域に出た</h2>
+
+  <p>
+    プログラムの不具合は、たいてい大声で失敗します。例外が飛び、テストが赤くなり、ビルドが止まる。
+    私たちはその大声に慣れていて、<strong>静かなら正常だと思う癖</strong>がついています。
+  </p>
+  <p>
+    ところが制作物が音声やレイアウトや<strong>自分に読めない言語</strong>に広がった瞬間、
+    その前提が崩れます。次の4つは、どれもエラーを出しません。
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>種類</th><th>起きること</th><th>画面上の見え方</th></tr>
+    <tr><td><strong>無音</strong></td><td>音声ファイルが404</td><td>普通に進む。声だけ無い</td></tr>
+    <tr><td><strong>誤読</strong></td><td>漢字を別の読みで発音</td><td>字幕は正しい。音だけ違う</td></tr>
+    <tr><td><strong>空のフォールバック</strong></td><td>翻訳が無く原文へ退避</td><td>完璧に表示される。ただし全部原語</td></tr>
+    <tr><td><strong>未デプロイ</strong></td><td>手元は正しく、公開物が古い</td><td>ローカルのテストは全部通る</td></tr>
+  </table>
+  </div>
+
+  <blockquote>
+    <p>これらに共通するのは、<strong>「動いている」と「正しい」がズレている</strong>ことです。<br>
+    そしてズレていることを、システムは教えてくれません。</p>
+  </blockquote>
+</div>
+
+<div class="step">
+  <div class="step-no">02 — 第一の検問所</div>
+  <h2>棚卸し — 両方向で数える</h2>
+
+  <p>
+    音声ファイル名を「話者＋台詞」のハッシュにすると、管理表が要らなくなります。台詞を足せば、その音声が自動的に決まる。
+  </p>
+<pre><code>function keyOf(t){ let h=0; for (let i=0;i&lt;t.length;i++) h=(h*31+t.charCodeAt(i))|0; return 'k'+h; }</code></pre>
+
+  <p>
+    美しい仕組みですが、鋭い刃が1つあります。<strong>本文を1文字直すと、その台詞は永久に無音になる</strong>。
+    参照先が変わり、404になり、再生は静かに失敗し、ゲームは平然と進みます。
+  </p>
+  <p>
+    前の作品で、<strong>161本が無音のまま数週間動いていました</strong>。改稿で足した心内描写が、まるごと沈黙していた。
+    誰も気づかなかったのは、エラーが出なかったからです。
+  </p>
+
+  <h3>対策は賢さではなく、帳簿</h3>
+  <p>改稿のたびに、台本から期待されるファイル名を再計算して、実ファイルと<strong>両方向で</strong>突き合わせます。</p>
+<pre><code>参照=237  実ファイル=237  欠落=0  孤児=0  破損疑い(&lt;800B)=0</code></pre>
+
+  <ul>
+    <li><strong>欠落</strong>があれば、そこは無音になっている</li>
+    <li><strong>孤児</strong>があれば、何かを変えたのに気づいていない ← <em>こちらの方が有用な信号です</em></li>
+  </ul>
+</div>
+
+<div class="step">
+  <div class="step-no">03 — 第二の検問所</div>
+  <h2>読み検証 — 文字で比べても、絶対に見つからない</h2>
+
+  <p>
+    合成音声のQAとして自然に思いつくのは、書き起こして原文と比較することです。
+    切れや幻覚は捕まります。しかし<strong>誤読に対しては、原理的に無力</strong>です。
+  </p>
+  <p>
+    「病」は <em>やまい</em> とも <em>びょう</em> とも読めます。書き起こしは音を漢字に戻すので、
+    どちらで発音しても同じ「病」が返る。<strong>差分はゼロ。テストは緑。音は間違っている。</strong>
+  </p>
+
+  <blockquote>
+    <p>最初の1件は、読者からの報告で知りました。<br>
+    「病だった、が、やまいだった、です」——機械は何も言いませんでした。</p>
+  </blockquote>
+
+  <h3>漢字を取り上げて、音で比べる</h3>
+  <p>解決策は、書き起こし側から漢字を奪うことでした。語彙から漢字を含むトークンを全部禁止し、仮名で出させます。</p>
+<pre><code>kanji = re.compile(r'[一-鿿]')
+suppress = [-1] + [i for i in range(tok.get_vocab_size()) if kanji.search(tok.decode([i]))]
+segs, _ = model.transcribe(path, language="ja", beam_size=8,
+                           initial_prompt="ひらがなだけでかきます。",
+                           suppress_tokens=suppress)</code></pre>
+  <p>
+    プロンプトだけで仮名になる確率は約29%ですが、トークン抑制を入れるとほぼ確実になります。
+    これで比較が<strong>音の比較</strong>になり、誤読に居場所がなくなります。
+  </p>
+
+  <h3>実際に捕まえた誤読</h3>
+  <div class="tblwrap">
+  <table>
+    <tr><th>表記</th><th>誤った読み</th><th>正しい読み</th></tr>
+    <tr><td>病</td><td>びょう</td><td><strong>やまい</strong></td></tr>
+    <tr><td>音を上げる</td><td>おと</td><td><strong>ね</strong></td></tr>
+    <tr><td>正史</td><td>しょうし</td><td><strong>せいし</strong></td></tr>
+    <tr><td>罹って</td><td>りって</td><td><strong>かかって</strong></td></tr>
+  </table>
+  </div>
+
+  <p>
+    修正は<strong>合成に送る文字列だけ</strong>を仮名に置き換えます。ファイル名は原文のハッシュのままなので、参照は壊れません。
+  </p>
+<pre><code>READINGS = [("罹って","かかって"), ("音を上げ","ねをあげ"), ("正史","せいし"), ("病","やまい"), ...]</code></pre>
+  <p><strong>順序が重要</strong>です。「病」を先に置換すると「病死」が「やまいし」になります。長い語から当てます。</p>
+
+  <h3>表記は、音の中立な記号ではない</h3>
+  <p>
+    作中の造語「灰霞」をカタカナで「ハイガスミ」と指定したところ、読みは正しいのに音が明らかに変でした。
+    カタカナは日本語で外来語を示すので、<strong>合成器が外来語の抑揚で読んだ</strong>のです。
+    ひらがなに変えただけで直りました。<strong>文字はレジスターまで一緒に渡しています。</strong>
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">04 — 第三の検問所</div>
+  <h2>ライブ実物検証 — 手元ではなく、公開物を見る</h2>
+
+  <p>いちばん恥ずかしく、いちばんありふれた失敗です。</p>
+  <p>
+    多言語化のとき、「翻訳が無ければ原文を出す」フォールバックを書きました。正しい実装です。
+    ところが台本ファイルのデプロイを忘れたとき、参照先が全部undefinedになり、全言語が
+    <strong>完璧な日本語で表示されました</strong>。エラーはゼロ。ローカルのテストは全部緑（手元には正しいファイルがあるので）。
+  </p>
+
+  <blockquote>
+    <p><strong>安全なフォールバックは、大きな失敗を静かな失敗に変換する決定でもある。</strong><br>
+    利用者にとって正しいことは多いが、無料ではありません。</p>
+  </blockquote>
+
+  <p>以来、検証は公開URLを叩いて行います。ハッシュを突き合わせれば、配信されている実物と手元の差が出ます。</p>
+<pre><code># ローカルと公開物が一致しているかを直接見る
+LOCAL=$(md5sum assets/voice/k2102619210.mp3 | cut -d' ' -f1)
+curl -s https://example.com/assets/voice/k2102619210.mp3 | md5sum</code></pre>
+
+  <p>
+    レイアウトも同じ考え方で検証できます。二言語同時字幕では、
+    <strong>2つ目のテキストの上端が1つ目の下端を越えないこと</strong>を、
+    ヘッドレスブラウザで座標として確認しています。見た目の不具合も、静かな不具合です。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">05 — 再現</div>
+  <h2>持ち帰れる3つ</h2>
+
+  <ol>
+    <li><strong>生成物は両方向で棚卸しする</strong>。欠落は「壊れている」、孤児は「変えたのに気づいていない」</li>
+    <li><strong>音は音で検証する</strong>。文字に戻した時点で消える情報がある</li>
+    <li><strong>公開物を検証する</strong>。手元の作業コピーは、いちばん信用できない場所です</li>
+  </ol>
+
+  <h3>報告のしかたも設計する</h3>
+  <p>
+    計測スクリプトを書くときは、<strong>取得に失敗した項目をゼロで埋めない</strong>こと。
+    <code>null</code> にして「取得できなかった」と明記します。0で埋めると、
+    数字は揃って見えるのに判断材料が静かに壊れます。同じ病気です。
+  </p>
+
+  <div class="proof">
+    <h3>これらを通した作品</h3>
+    <p>
+      『百の悪行』は、日本語237本・英語237本の音声すべてを上の3つの検問所に通しています
+      （欠落0・孤児0、読み検証済み、公開物のハッシュ照合済み）。7言語・約30分・無料。
+    </p>
+    <a class="cta" href="../hyaku.html">遊んでみる</a>
+  </div>
+
+  <blockquote>
+    <p>もっと安上がりな方法も1つあります。<strong>実際に読んでくれる人に渡して、
+    「その言葉、音が変」と言われたら聞くこと。</strong>
+    いちばん効いた誤読の指摘は、2件ともそこから来ました。</p>
+  </blockquote>
+
+  <p style="margin-top:26px">
+    他の型は <a href="./">新しい形の研究</a> に置いています。
+  </p>
+</div>
+
+<footer>
+  <a href="./">新しい形の研究</a>
+  <a href="../">ひとりぶんの棚</a>
+  <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>
+  <a href="https://medium.com/@ViewsEngineer" target="_blank" rel="noopener">Medium</a>
+</footer>
+
+</div>
+</body>
+</html>

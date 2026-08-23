@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1日ノベル化パイプライン — 活字を1日でフルボイスのゲームにする｜新しい形の研究</title>
+<meta name="description" content="小説をノベルゲームにするのは数か月の仕事だった。台本変換・音声・立ち絵・BGM・公開が1日に収まると、媒体の変換そのものが創作の一部になる。短編を翌日にフルボイス化し、その翌日に7言語へ広げた工程の全部。">
+<meta name="keywords" content="サウンドノベル 制作,ノベルゲーム 作り方,AI 音声合成,ElevenLabs,Stable Diffusion,Claude Code,個人開発,ブラウザゲーム">
+<link rel="canonical" href="https://yuichi916.github.io/method/ichinichi-novel-pipeline.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="1日ノベル化パイプライン — 活字を1日でフルボイスのゲームにする">
+<meta property="og:description" content="媒体変換が数か月かかった時代、小説は小説のままだった。1日に収まると何が変わるか。">
+<meta property="og:url" content="https://yuichi916.github.io/method/ichinichi-novel-pipeline.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/hyaku/img/bg_duel.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="note.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  "name": "1日ノベル化パイプライン",
+  "url": "https://yuichi916.github.io/method/ichinichi-novel-pipeline.html",
+  "datePublished": "2026-08-23",
+  "inLanguage": "ja-JP",
+  "image": "https://yuichi916.github.io/assets/hyaku/img/bg_duel.jpg",
+  "totalTime": "P1D",
+  "author": { "@id": "https://yuichi916.github.io/#person" },
+  "step": [
+    {"@type": "HowToStep", "name": "小説を完結させる"},
+    {"@type": "HowToStep", "name": "台本データへ変換する"},
+    {"@type": "HowToStep", "name": "エンジンに載せる"},
+    {"@type": "HowToStep", "name": "主役2人だけ音声をつける"},
+    {"@type": "HowToStep", "name": "立ち絵・背景・BGMを足す"},
+    {"@type": "HowToStep", "name": "ビルドなしで公開する"}
+  ]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <a href="./">← 新しい形の研究</a>
+  <span>A-3 / 1日ノベル化パイプライン</span>
+</div>
+
+<header class="hd">
+  <p class="eyebrow">1日ノベル化パイプライン</p>
+  <h1>活字を1日で、<br>フルボイスのゲームにする</h1>
+  <p class="lede">
+    小説をノベルゲームにするのは、長いあいだ<strong>数か月の仕事</strong>でした。だから小説は小説のまま終わった。
+    それが1日に収まると、<strong>媒体の変換そのものが創作の一部</strong>になります。
+  </p>
+  <p class="meta">2026-08-23 ／ 実測: 短編 → 翌日フルボイス公開 → その翌日7言語 ／ 読了 約7分</p>
+</header>
+
+<div class="step">
+  <div class="step-no">01 — 制約</div>
+  <h2>媒体を変えるのは、作り直すのと同じだった</h2>
+
+  <p>
+    1万字の短編をノベルゲームにする、と決めたとします。以前なら次が必要でした。
+    台詞の抜き出しと話者の割り当て、声優の手配と収録、立ち絵と背景の発注、BGMの選定、
+    エンジンの実装、そして公開の準備。<strong>どれも他人の時間が要る</strong>ので、数か月と数十万円になります。
+  </p>
+  <p>
+    結果として個人は、<strong>媒体を1つ選んだら、そこで終わり</strong>でした。
+    小説を書いた人は小説の読者にしか届かない。ゲームにすれば届いたはずの人には、届かないままだった。
+  </p>
+
+  <blockquote>
+    <p>これは表現の限界ではなく、<strong>手配の限界</strong>でした。<br>
+    作品の質とは無関係な理由で、届く範囲が決まっていた。</p>
+  </blockquote>
+</div>
+
+<div class="step">
+  <div class="step-no">02 — 解除</div>
+  <h2>他人の時間が要る工程が、全部なくなった</h2>
+
+  <p>
+    AIが外したのは<strong>「他人の時間を待つ」制約</strong>です。音声も、立ち絵も、翻訳も、
+    自分の手元で回せるようになった。個々の品質が人間の最高到達点を超えたわけではありません。
+    しかし<strong>待ち時間がゼロになった</strong>ことの効果が、質の差を上回ります。
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>工程</th><th>以前</th><th>いま</th></tr>
+    <tr><td>台本化</td><td>手作業で数日</td><td>変換スクリプトで1時間</td></tr>
+    <tr><td>音声</td><td>収録の手配・数週間</td><td>2時間（ほぼ放置）</td></tr>
+    <tr><td>立ち絵・背景</td><td>発注・数週間</td><td>4時間</td></tr>
+    <tr><td>多言語</td><td>ほぼ不可能</td><td>1日</td></tr>
+    <tr><td>公開</td><td>ビルドと審査</td><td>push して1分</td></tr>
+  </table>
+  </div>
+
+  <p>
+    重要なのは最下段です。<strong>公開が1分になると、直すことが怖くなくなる</strong>。
+    完成の定義が「もう直せない」から「いつでも直せる」に変わります。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">03 — 新形式</div>
+  <h2>媒体変換が、創作の一部になる</h2>
+
+  <p>これを私は「1日ノベル化」と呼んでいます。効いてくるのは速さそのものではなく、次の3つです。</p>
+
+  <ol>
+    <li><strong>同じ物語を複数の媒体で出せる</strong>（テキスト版とゲーム版が互いの入口になる）</li>
+    <li><strong>書いている最中に「これは声で聴きたい」と思える</strong>（媒体を前提にして書ける）</li>
+    <li><strong>失敗しても捨てられる</strong>（1日なら、合わなければやめられる）</li>
+  </ol>
+
+  <h3>順番だけは絶対に守る</h3>
+  <blockquote>
+    <p><strong>小説を完結させてから、実装に入る。</strong></p>
+  </blockquote>
+  <p>
+    逆にすると、「話が面白いか」と「コードが正しいか」という<strong>2種類の不確実性を同時に抱える</strong>ことになり、
+    どちらも収束しません。これは何度か失敗して学びました。物語が終わっていれば、残りはすべて機械的な作業になります。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">04 — 証拠</div>
+  <h2>実測: 土曜に書き終えて、日曜に遊べた</h2>
+
+  <div class="proof">
+    <h3>百の悪行 — 短編 → フルボイス → 7言語</h3>
+    <p>
+      約1万字の短編を書き終えた翌日に、フルボイス・挿絵つきのサウンドノベルとして公開しました。
+      さらにその翌日、7言語（日英中韓西仏独）と日英の音声、二言語同時字幕まで広げています。
+      約30分・ブラウザ・無料。
+    </p>
+    <a class="cta" href="../hyaku.html">遊んでみる</a>
+  </div>
+
+  <div class="proof">
+    <h3>正解の外側 — 同じ工程を長編で</h3>
+    <p>
+      全15話・13.9万字・ボイス1,593本。1日では終わりませんが、工程は同じです。
+      規模が10倍になっても、変わるのは繰り返す回数だけでした。
+    </p>
+    <a class="cta" href="../seikai.html">読んでみる</a>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-no">05 — 再現</div>
+  <h2>実際の手順</h2>
+
+  <h3>1. 台本はデータ、エンジンはコード</h3>
+  <p>台本を素のデータにして、エンジンから完全に切り離します。こうすると<strong>エンジンを触らずに物語を増やせます</strong>。</p>
+<pre><code>{ bg: 'study' }
+{ bgm: 'night' }
+{ n: 'ミア', t: '「アッシュ様。お茶が入りました」', v: 'k-799491426' }</code></pre>
+
+  <h3>2. エンジンの規則は1つだけ</h3>
+  <p>画面を変える命令は止まらない、人間を待つ命令は止まる。この一貫性が崩れると進行不能バグになります。</p>
+<pre><code>if (b.bg !== undefined) { setBG(b.bg); continue; }   // 止まらない
+if (b.t  !== undefined) { say(b);      return;   }   // 読者を待つ</code></pre>
+
+  <h3>3. 音声は主役2人だけ</h3>
+  <p>
+    費用対効果が最も高い判断です。全キャラに声をつけると容量が数百MBになり、置ける場所が消えます。
+    そして<strong>2人だけの方が「この2人の物語だ」と伝わる</strong>ので、体験としても良い。
+    脇役は無音でも未完成には見えません。
+  </p>
+
+  <h3>4. 長い台詞は build 時に割る</h3>
+  <p>110字を目安に句点で分割します。<strong>メッセージ窓からあふれるのが、完成品を未完成に見せる最大の要因</strong>でした。</p>
+
+  <h3>5. ビルド工程を持たない</h3>
+  <p>
+    静的HTMLをGitHub Pagesに置くだけ。バンドラを入れた瞬間に「公開＝ビルド＋確認」になり、
+    細かい改善をしなくなります。<code>.nojekyll</code> を1つ置けば設定は終わりです。
+  </p>
+
+  <h3>詰まりやすい所</h3>
+  <div class="tblwrap">
+  <table>
+    <tr><th>症状</th><th>原因</th><th>抜け方</th></tr>
+    <tr>
+      <td>話者が入れ替わって聞こえる</td>
+      <td>台本変換の話者自動推定を信用した</td>
+      <td>推定できない行は「未確定」で残し、人が埋める。<strong>間違いは一瞬でバレる</strong></td>
+    </tr>
+    <tr>
+      <td>ある台詞だけ無音</td>
+      <td>音声ファイル名を本文のハッシュにしていて、本文を1文字直した</td>
+      <td>改稿のたびに「参照数＝実ファイル数、欠落0、孤児0」を数える</td>
+    </tr>
+    <tr>
+      <td>キャラの画風がバラバラ</td>
+      <td>プロンプトに "anime style, flat color" を入れた</td>
+      <td>共通の画風プレフィクスとseed固定。表情だけ差し替える</td>
+    </tr>
+    <tr>
+      <td>BGMが鳴らない</td>
+      <td>未定義キーが無音スキップされている</td>
+      <td>BGMキーの実在をassertする</td>
+    </tr>
+  </table>
+  </div>
+
+  <p style="margin-top:26px">
+    英語版の記事は <a href="https://medium.com/@ViewsEngineer/from-short-story-to-fully-voiced-game-in-a-day-fc64cead892d" target="_blank" rel="noopener">Medium</a> に置いています。
+    品質の担保については <a href="./">新しい形の研究</a> の「品質検問」を参照してください。
+  </p>
+</div>
+
+<footer>
+  <a href="./">新しい形の研究</a>
+  <a href="../">ひとりぶんの棚</a>
+  <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>
+  <a href="https://medium.com/@ViewsEngineer" target="_blank" rel="noopener">Medium</a>
+</footer>
+
+</div>
+</body>
+</html>

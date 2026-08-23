@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>音楽の星座 — 推薦をやめて、地図にした｜新しい形の研究</title>
+<meta name="description" content="音楽の整理は長いあいだ人力のジャンル分類だった。AIによる大量タグ付けが「似ている」を安く測れるようにした結果、音楽は検索するものから歩くものになった。19,810組のアーティストをWebGLの地図にした話と、その作り方。">
+<meta name="keywords" content="音楽 レコメンド,AI タグ付け,埋め込み 可視化,WebGL,音楽地図,Last.fm,MusicBrainz,個人開発">
+<link rel="canonical" href="https://yuichi916.github.io/method/ongaku-no-seiza.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="音楽の星座 — 推薦をやめて、地図にした">
+<meta property="og:description" content="19,810組を人力で分類するのは不可能だった。AIの大量タグ付けが、音楽を「歩くもの」に変えた。">
+<meta property="og:url" content="https://yuichi916.github.io/method/ongaku-no-seiza.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og/salon-1200x630.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="note.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "音楽の星座 — 推薦をやめて、地図にした",
+  "url": "https://yuichi916.github.io/method/ongaku-no-seiza.html",
+  "datePublished": "2026-08-23",
+  "inLanguage": "ja-JP",
+  "image": "https://yuichi916.github.io/assets/og/salon-1200x630.jpg",
+  "author": { "@id": "https://yuichi916.github.io/#person" },
+  "publisher": { "@id": "https://yuichi916.github.io/#person" },
+  "isPartOf": { "@id": "https://yuichi916.github.io/#website" },
+  "about": ["音楽推薦", "データ可視化", "生成AIによる制作"]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <a href="./">← 新しい形の研究</a>
+  <span>A-2 / 音楽の星座</span>
+</div>
+
+<header class="hd">
+  <p class="eyebrow">音楽の星座 — 大量タグ付けによる地図化</p>
+  <h1>推薦をやめて、<br>地図にした</h1>
+  <p class="lede">
+    音楽の整理は、長いあいだ<strong>人の手によるジャンル分類</strong>でした。
+    AIが「似ている」を安く測れるようにした結果、音楽は検索するものではなく<strong>歩くもの</strong>になります。
+    19,810組を一枚の地図にした話です。
+  </p>
+  <p class="meta">2026-08-23 ／ 19,810アーティスト ／ 読了 約6分</p>
+</header>
+
+<div class="step">
+  <div class="step-no">01 — 制約</div>
+  <h2>ジャンルは、木にしかならなかった</h2>
+
+  <p>
+    音楽を整理する方法は、ずっと分類でした。ロックがあって、その下にオルタナがあって、さらに下に……という木構造です。
+    これは検索には便利ですが、実際の音楽の似かたを表せません。
+    <strong>あるバンドは民謡とノイズの両方に近い</strong>のに、木は一箇所にしか置けない。
+  </p>
+  <p>
+    では距離を測ればいい、と誰でも思います。問題はコストでした。
+    「AとBは似ているか」を人が判断するなら、2万組では約2億通り。ライターを何人雇っても終わりません。
+    だから実際に世に出たのは、<strong>プレイリストという名の小さな手作業</strong>と、
+    <strong>推薦という名のブラックボックス</strong>の2つだけでした。
+  </p>
+
+  <blockquote>
+    <p>推薦は「正解を1つ出す」装置です。<br>
+    地図は「迷わせる」装置です。この2つは、体験としてまったく別物です。</p>
+  </blockquote>
+</div>
+
+<div class="step">
+  <div class="step-no">02 — 解除</div>
+  <h2>AIが下げたのは「似ているを測る単価」</h2>
+
+  <p>
+    ここでもAIがしてくれたことは一点だけです。<strong>大量のタグ付けと、その埋め込み（数値化）が自動になった</strong>。
+    音楽そのものを理解したわけではありません。しかし、
+    「このアーティストを説明する言葉の集合」を2万組ぶん作れるようになった。
+  </p>
+  <p>
+    言葉の集合が全員ぶんあれば、距離は計算で出ます。2億通りでも機械なら数分です。
+    <strong>人手では不可能だった密度の関係グラフが、個人の手に落ちてきた</strong>——これが解除された制約です。
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th></th><th>AI以前</th><th>いま</th></tr>
+    <tr><td>関係の作り方</td><td>編集者の分類</td><td>タグの共起と埋め込み</td></tr>
+    <tr><td>扱える規模</td><td>数百組</td><td>数万組</td></tr>
+    <tr><td>出せるもの</td><td>リスト</td><td>座標（＝地図が描ける）</td></tr>
+    <tr><td>体験</td><td>正解を受け取る</td><td>自分で歩いて見つける</td></tr>
+  </table>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-no">03 — 新形式</div>
+  <h2>音楽の星座 — 歩ける音楽</h2>
+
+  <p>座標が出るなら、リストに戻す必要はありません。そのまま星図にできます。定義は3つです。</p>
+
+  <ol>
+    <li><strong>全アーティストが同時に見えている</strong>（検索窓の向こうに隠れていない）</li>
+    <li><strong>近さが目に見える</strong>（説明されなくても、隣が似ていると分かる）</li>
+    <li><strong>目的地を決めずに動ける</strong>（推薦は目的地を決めてしまう）</li>
+  </ol>
+
+  <p>
+    3番目が体験の核です。推薦に慣れた耳は、<strong>「次の1曲」を待つ</strong>姿勢になります。
+    地図は逆に、<strong>「この辺に何かありそうだ」</strong>という探索の姿勢を作る。
+    同じデータでも、渡し方で聴く態度が変わります。
+  </p>
+
+  <h3>設計で効いたこと</h3>
+  <ul>
+    <li><strong>14ジャンルの二重リング配置</strong> — 完全な機械配置は綺麗すぎて手がかりが消える。大枠だけ人が決めて、中は機械に任せる</li>
+    <li><strong>背景で鳴らす</strong> — 地図を歩きながら音が続く。止まると探索が切れる</li>
+    <li><strong>お気に入りから寄せる</strong> — 推薦を消すのではなく、<em>地図の見え方</em>に混ぜる</li>
+    <li><strong>ゲーム要素</strong> — スコアと実績。迷うことに報酬をつけないと、人は検索窓に戻る</li>
+  </ul>
+</div>
+
+<div class="step">
+  <div class="step-no">04 — 証拠</div>
+  <h2>実際に歩けます</h2>
+
+  <div class="proof">
+    <h3>音楽の宇宙 — 19,810組の星図</h3>
+    <p>
+      WebGLで描いた実際の地図です。アーティストを選ぶと背景で試聴が始まり、そのまま隣へ歩けます。
+      データはLast.fm・MusicBrainz・Wikipediaの複数源を突き合わせて作りました。
+    </p>
+    <a class="cta" href="../salon.html">星座を歩く</a>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-no">05 — 再現</div>
+  <h2>同じことをやるなら</h2>
+
+  <h3>順番</h3>
+  <ol>
+    <li><strong>単一の情報源に頼らない</strong>。1つのAPIだけだと、そのサービスの偏りがそのまま地図の形になります</li>
+    <li>タグを集めてから距離を出す。<strong>いきなり座標を作らない</strong>（あとで理由を説明できなくなります）</li>
+    <li>大枠の配置だけ人が決める（完全自動配置は、均質すぎて手がかりが消えます）</li>
+    <li><strong>歩く操作を先に作る</strong>。データが揃ってからUIを考えると、結局リスト表示に戻ります</li>
+  </ol>
+
+  <h3>詰まりやすい所</h3>
+  <div class="tblwrap">
+  <table>
+    <tr><th>症状</th><th>原因</th><th>抜け方</th></tr>
+    <tr>
+      <td>地図が重い・スマホで落ちる</td>
+      <td>2万点をDOMやCanvasで描いている</td>
+      <td>WebGLで一括描画する。座標データも事前計算して静的ファイルに固める</td>
+    </tr>
+    <tr>
+      <td>どこも同じに見える</td>
+      <td>完全自動配置で密度が均一になった</td>
+      <td>大枠のクラスタだけ人が決める。<strong>意図的な粗さが道しるべになる</strong></td>
+    </tr>
+    <tr>
+      <td>結局みんな有名アーティストしか触らない</td>
+      <td>入口が知名度順になっている</td>
+      <td>ランダム移動（サイコロ）を用意する。偶然を設計に入れる</td>
+    </tr>
+  </table>
+  </div>
+
+  <blockquote>
+    <p>大量のデータを持てるようになった時、<strong>最初に決めるべきはアルゴリズムではなく「渡し方」</strong>です。
+    同じ距離データが、推薦にも地図にもなります。そして体験は正反対になります。</p>
+  </blockquote>
+
+  <p style="margin-top:26px">
+    他の型は <a href="./">新しい形の研究</a> に置いています。
+  </p>
+</div>
+
+<footer>
+  <a href="./">新しい形の研究</a>
+  <a href="../">ひとりぶんの棚</a>
+  <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>
+  <a href="https://medium.com/@ViewsEngineer" target="_blank" rel="noopener">Medium</a>
+</footer>
+
+</div>
+</body>
+</html>
