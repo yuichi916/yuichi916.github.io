@@ -129,6 +129,25 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
 #ending{position:fixed;inset:0;z-index:55;background:#05050a;display:none;
   flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;line-height:2.2}
 #ending a{color:var(--acc)}
+#afterword{margin-top:26px;width:min(92%,640px);display:flex;flex-direction:column;gap:10px;align-items:center}
+.aw-lead{font-size:14px;opacity:.85;margin-bottom:2px}
+.aw-next-lead{margin-top:14px;font-size:12px;letter-spacing:.18em;opacity:.6}
+.aw-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%}
+.aw-btn{display:inline-flex;align-items:center;gap:9px;font-family:inherit;font-size:13.5px;
+  padding:11px 18px;border:1px solid rgba(201,168,106,.45);border-radius:5px;
+  background:rgba(255,255,255,.03);color:var(--ink);text-decoration:none;cursor:pointer;
+  transition:background .2s ease,transform .15s ease;line-height:1.5}
+.aw-btn:hover{background:rgba(201,168,106,.16);transform:translateY(-1px)}
+.aw-btn.primary{background:var(--acc);color:#161320;border-color:var(--acc);font-weight:600}
+.aw-btn.primary:hover{background:#dcb87a}
+.aw-btn.next{flex:1 1 auto;justify-content:center;min-width:210px}
+.aw-ic{font-size:15px;line-height:1}
+.aw-follow{margin-top:14px;font-size:12.5px;opacity:.7}
+@media(max-width:640px){
+  #afterword{gap:8px}
+  .aw-btn{font-size:12.5px;padding:10px 14px;width:100%;justify-content:center}
+  .aw-row{gap:8px}
+}
 #ending button{font-family:inherit;font-size:15px;letter-spacing:.2em;padding:10px 34px;margin-top:10px;
   background:transparent;color:var(--ink);border:1px solid rgba(201,168,106,.5);border-radius:4px;cursor:pointer}
 .fadein{animation:fin 2s ease}
@@ -234,9 +253,47 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
 
 <div id="ending">
   <div class="fadein">
-    <p style="font-size:22px;letter-spacing:.3em">（了）</p>
-    <p style="opacity:.8;font-size:14px">どうか、良い夜明けを。</p>
-    <p style="margin-top:22px;font-size:13px;opacity:.75">
+    <p style="font-size:22px;letter-spacing:.3em" id="endFin">（了）</p>
+    <p style="opacity:.8;font-size:14px" id="endLine">どうか、良い夜明けを。</p>
+
+    <div id="afterword">
+      <p class="aw-lead" id="awLead">読み終えたあなたに、行き先を三つ。</p>
+
+      <div class="aw-row">
+        <button class="aw-btn primary" id="btnShareX">
+          <span class="aw-ic">𝕏</span><span id="lblShareX">読んだと伝える</span>
+        </button>
+        <button class="aw-btn" id="btnCopy">
+          <span class="aw-ic">🔗</span><span id="lblCopy">リンクをコピー</span>
+        </button>
+      </div>
+
+      <div class="aw-row">
+        <a class="aw-btn" id="btnReview" href="https://ncode.syosetu.com/n4922mq/" target="_blank" rel="noopener">
+          <span class="aw-ic">✍</span><span id="lblReview">感想を書く（なろう）</span>
+        </a>
+        <a class="aw-btn" id="btnReview2" href="https://kakuyomu.jp/works/2912051606838237292" target="_blank" rel="noopener">
+          <span class="aw-ic">★</span><span id="lblReview2">応援する（カクヨム）</span>
+        </a>
+      </div>
+
+      <p class="aw-next-lead" id="awNextLead">次に読むなら</p>
+      <div class="aw-row">
+        <a class="aw-btn next" href="seikai.html">
+          <span class="aw-ic">📖</span><span id="lblNext1">正解の外側 — 全15話・フルボイス</span>
+        </a>
+        <a class="aw-btn next" href="koe.html">
+          <span class="aw-ic">🎙</span><span id="lblNext2">声を、あげる — 1話完結</span>
+        </a>
+      </div>
+
+      <p class="aw-follow" id="awFollow">
+        新作の告知は <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a> と
+        <a href="https://yuichi916.github.io/" target="_blank" rel="noopener">ひとりぶんの棚</a> で。
+      </p>
+    </div>
+
+    <p style="margin-top:20px;font-size:13px;opacity:.75" id="endCredits">
       原作テキスト版は <a href="https://ncode.syosetu.com/n4922mq/" target="_blank" rel="noopener">小説家になろう</a> で公開中<br>
       文章・挿絵・音声: AI生成(Claude / Stable Diffusion / ElevenLabs) + 作者<br>
       音楽: 君の音。 / なぐもりずの音楽室 (BGM素材集より)
@@ -256,7 +313,7 @@ const st={scene:0,i:0,auto:false,skip:false,voice:true,bgm:true,waiting:false,ty
 const LANGS=["ja","en","zh","ko","es","fr","de"];
 const JA_UI={title:"百の悪行",sub:"―魔王は百の悪行を残して死んだ。ぜんぶ、嘘だった。―",sub_clear:"――どうか、良い夜明けを。",
   start:"はじめから",cont:"つづきから",chap:"章をえらぶ",close:"とじる",log:"履歴",save:"保存",saved:"保存済",menu:"目次",
-  note:"フルボイス(AI音声・日/英)・挿絵つき・約30分<br>7言語対応・二言語同時表示可・音が出ます。ヘッドホン推奨",
+  note:"10分で沼落ち、30分で号泣。<br>フルボイス(AI音声・日/英)・挿絵つき・約30分／7言語・二言語同時表示可<br>音が出ます。ヘッドホン推奨",
   end_fin:"（了）",end_line:"どうか、良い夜明けを。",
   end_credit1:"原作テキスト版は 小説家になろう で公開中",
   end_credit2:"文章・挿絵・音声: AI生成(Claude / Stable Diffusion / ElevenLabs) + 作者",
@@ -338,7 +395,7 @@ async function setLang(lg){
   vlang=(lg==="ja")?"ja":"en"; localStorage.setItem("hyaku_vlang",vlang);
   if(lang2===lang){ lang2="off"; localStorage.setItem("hyaku_lang2",lang2); }
   L=await loadLang(lg);
-  updateDual(); applyUiLang();
+  updateDual(); applyUiLang(); applyAfterword();
   rerenderCur(); // 表示中の行を再描画
 }
 let bgFront=null, curBg=null, curBgm=null;
@@ -489,6 +546,7 @@ function applyTitleState(){
     $("title").style.background="#000 url(assets/hyaku/img/bg_keyvisual.jpg) center/cover";
   }
   applyUiLang();
+  applyAfterword();
 }
 
 function save(){
@@ -562,6 +620,92 @@ $("btnCont").onclick=()=>{
   if(s) startAt(s.scene,s.i); else startAt(0,0);
 };
 $("btnChap").onclick=()=>openChapters();
+// ── 読了後の導線（共有・感想・次の作品）
+// 感想の受け皿は新しく作らない。なろうの感想欄とカクヨムのレビューが既にあるので、そこへ送る。
+// 共有文はネタバレを含まない一行に固定する（読了直後の人が押すため）。
+const AW = {
+  ja: {lead:"読み終えたあなたに、行き先を三つ。", x:"読んだと伝える", copy:"リンクをコピー",
+       copied:"コピーしました", review:"感想を書く（なろう）", review2:"応援する（カクヨム）",
+       nextLead:"次に読むなら", next1:"正解の外側 — 全15話・フルボイス", next2:"声を、あげる — 1話完結",
+       follow:'新作の告知は <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a> と <a href="https://yuichi916.github.io/" target="_blank" rel="noopener">ひとりぶんの棚</a> で。',
+       share:"魔王は百の悪行を残して死んだ。ぜんぶ、嘘だった。\n読み終えたとき、もうあの魔王を正しく憎めない。\n無料・約30分・フルボイスのサウンドノベル。"},
+  en: {lead:"Three places to go from here.", x:"Say you read it", copy:"Copy link",
+       copied:"Copied", review:"Leave a comment (JP)", review2:"Support it (Kakuyomu)",
+       nextLead:"Read next", next1:"Outside the Answer — 15 episodes, fully voiced", next2:"Raise Your Voice — one episode",
+       follow:'New releases on <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a> and <a href="https://yuichi916.github.io/" target="_blank" rel="noopener">the shelf</a>.',
+       share:"The Demon Lord died leaving a hundred misdeeds. Every one of them was a lie.\nBy the last page you can no longer hate her properly.\nFree, ~30 min, fully voiced."},
+  zh: {lead:"读完之后，三个去处。", x:"分享到 X", copy:"复制链接", copied:"已复制",
+       review:"留下感想（日文站）", review2:"支持作品（Kakuyomu）", nextLead:"接下来读",
+       next1:"正解之外 — 全15话・全程配音", next2:"发出声音 — 单话完结",
+       follow:'新作发布见 <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>。',
+       share:"魔王死了，留下一百条恶行。全部都是谎言。\n读到最后，你将再也无法正确地憎恨她。\n免费・约30分钟・全程配音。"},
+  ko: {lead:"다 읽은 당신에게, 갈 곳 셋.", x:"X에 공유", copy:"링크 복사", copied:"복사했습니다",
+       review:"감상 남기기(일본 사이트)", review2:"응원하기(Kakuyomu)", nextLead:"다음에 읽는다면",
+       next1:"정답의 바깥 — 전15화・풀보이스", next2:"목소리를 내다 — 1화 완결",
+       follow:'새 작품 소식은 <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>에서.',
+       share:"마왕은 백 가지 악행을 남기고 죽었다. 전부, 거짓이었다.\n다 읽고 나면 더 이상 그 마왕을 올바르게 미워할 수 없다.\n무료・약 30분・풀보이스."},
+  es: {lead:"Tres lugares a los que ir desde aquí.", x:"Compartir en X", copy:"Copiar enlace", copied:"Copiado",
+       review:"Dejar un comentario (JP)", review2:"Apoyar (Kakuyomu)", nextLead:"Leer a continuación",
+       next1:"Fuera de la respuesta — 15 episodios", next2:"Alza la voz — un episodio",
+       follow:'Novedades en <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>.',
+       share:"El Rey Demonio murió dejando cien fechorías. Todas eran mentira.\nAl terminar, ya no podrás odiarla como es debido.\nGratis, ~30 min, con voces."},
+  fr: {lead:"Trois endroits où aller.", x:"Partager sur X", copy:"Copier le lien", copied:"Copié",
+       review:"Laisser un commentaire (JP)", review2:"Soutenir (Kakuyomu)", nextLead:"À lire ensuite",
+       next1:"En dehors de la réponse — 15 épisodes", next2:"Élever la voix — un épisode",
+       follow:'Nouveautés sur <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>.',
+       share:"Le Roi-Démon est mort en laissant cent méfaits. Tous étaient des mensonges.\nÀ la dernière page, vous ne pourrez plus le haïr comme il convient.\nGratuit, ~30 min, doublé."},
+  de: {lead:"Drei Orte, wohin von hier.", x:"Auf X teilen", copy:"Link kopieren", copied:"Kopiert",
+       review:"Kommentar hinterlassen (JP)", review2:"Unterstützen (Kakuyomu)", nextLead:"Als Nächstes",
+       next1:"Außerhalb der Antwort — 15 Folgen", next2:"Erhebe deine Stimme — eine Folge",
+       follow:'Neues auf <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>.',
+       share:"Der Dämonenkönig starb und hinterließ hundert Untaten. Alle waren gelogen.\nAuf der letzten Seite kannst du ihn nicht mehr richtig hassen.\nKostenlos, ~30 Min., vertont."}
+};
+function aw(){ return AW[lang] || AW.ja; }
+function applyAfterword(){
+  const a = aw();
+  $("awLead").textContent = a.lead;
+  $("lblShareX").textContent = a.x;
+  $("lblCopy").textContent = a.copy;
+  $("lblReview").textContent = a.review;
+  $("lblReview2").textContent = a.review2;
+  $("awNextLead").textContent = a.nextLead;
+  $("lblNext1").textContent = a.next1;
+  $("lblNext2").textContent = a.next2;
+  $("awFollow").innerHTML = a.follow;
+}
+function shareUrl(){
+  const u = new URL("https://yuichi916.github.io/hyaku.html");
+  if(lang !== "ja") u.searchParams.set("lang", lang);
+  return u.toString();
+}
+$("btnShareX").onclick = () => {
+  track("game/hyaku/share-x", "百の悪行 X共有 " + lang);
+  const t = encodeURIComponent(aw().share + "\n");
+  window.open("https://twitter.com/intent/tweet?text=" + t + "&url=" + encodeURIComponent(shareUrl()),
+              "_blank", "noopener");
+};
+$("btnCopy").onclick = async () => {
+  track("game/hyaku/share-copy", "百の悪行 リンクコピー " + lang);
+  const txt = aw().share + "\n" + shareUrl();
+  try{
+    await navigator.clipboard.writeText(txt);
+  }catch(e){
+    // クリップボードAPIが使えない環境向けの退避
+    const ta = document.createElement("textarea");
+    ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); }catch(e2){}
+    document.body.removeChild(ta);
+  }
+  const el = $("lblCopy"), before = el.textContent;
+  el.textContent = aw().copied;
+  setTimeout(() => { el.textContent = before; }, 1800);
+};
+$("btnReview").onclick = () => track("game/hyaku/review-narou", "百の悪行 感想へ " + lang);
+$("btnReview2").onclick = () => track("game/hyaku/review-kakuyomu", "百の悪行 応援へ " + lang);
+document.querySelectorAll(".aw-btn.next").forEach(b => {
+  b.addEventListener("click", () => track("game/hyaku/next-work", "百の悪行 次の作品へ " + lang));
+});
 $("btnBack").onclick=()=>{ applyTitleState(); $("ending").style.display="none"; $("title").style.display="flex"; bgmAudio.pause(); curBgm=null; };
 function openChapters(){
   const c=$("chapters"); c.innerHTML="";
