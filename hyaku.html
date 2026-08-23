@@ -81,6 +81,13 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
   border:1px solid var(--acc);border-radius:4px;font-size:.85em;color:var(--acc);display:none}
 #txwrap{max-height:34vh;overflow-y:auto}
 #tx{white-space:pre-wrap;text-shadow:0 1px 3px #000}
+#tx2{display:none;white-space:pre-wrap;text-shadow:0 1px 3px #000;margin-top:9px;padding-top:8px;
+  border-top:1px solid rgba(201,168,106,.3);font-size:.85em;line-height:1.7;color:rgba(232,226,213,.82)}
+#box.dual #tx{line-height:1.8}
+#box.dual #tx2{display:block}
+#box.dual #txwrap{max-height:44vh}
+.lm-sep{margin-top:6px;padding:5px 10px 3px;border-top:1px solid rgba(201,168,106,.3);
+  font-size:11px;opacity:.72;letter-spacing:.12em;color:var(--acc)}
 #cue{position:absolute;right:18px;bottom:10px;color:var(--acc);opacity:0;animation:blink 1.2s infinite}
 @keyframes blink{50%{opacity:.9}}
 #hud{position:absolute;top:10px;right:12px;display:flex;gap:8px;z-index:30}
@@ -132,6 +139,9 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
   #sp_mia{left:80%}
   #box{width:96%;bottom:1.5%;min-height:120px;padding:18px 16px 22px;line-height:1.85;font-size:14px}
   #txwrap{max-height:30vh}
+  #box.dual #tx{line-height:1.7}
+  #box.dual #txwrap{max-height:46vh}
+  #langMenu{max-height:78vh;overflow-y:auto}
   #name{left:12px;top:-14px;padding:1px 12px;font-size:.8em}
   #hud{top:6px;right:6px;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:70%}
   #hud button{padding:4px 8px;font-size:11px}
@@ -147,6 +157,10 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
   .sprite{height:82%}
   #box{min-height:96px;padding:12px 18px 16px;font-size:13px;line-height:1.7}
   #txwrap{max-height:38vh}
+  #box.dual #tx{line-height:1.55}
+  #box.dual #tx2{margin-top:5px;padding-top:4px;line-height:1.5}
+  #box.dual #txwrap{max-height:52vh}
+  #langMenu{max-height:88vh;overflow-y:auto}
   #hud button{padding:3px 8px;font-size:11px}
   #title h1{font-size:clamp(28px,7vmin,44px)}
   #title p.sub{margin:2px 0 12px}
@@ -166,7 +180,7 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
   <div id="cg"></div>
   <div id="box">
     <div id="name"></div>
-    <div id="txwrap"><div id="tx"></div></div>
+    <div id="txwrap"><div id="tx"></div><div id="tx2"></div></div>
     <div id="cue">▼</div>
   </div>
   <div id="hud">
@@ -188,6 +202,15 @@ body{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:var(--ink);
     <button data-lang="es">Español</button>
     <button data-lang="fr">Français</button>
     <button data-lang="de">Deutsch</button>
+    <div class="lm-sep">2nd — 二言語表示 / Dual</div>
+    <button data-lang2="off">OFF</button>
+    <button data-lang2="ja">日本語</button>
+    <button data-lang2="en">English</button>
+    <button data-lang2="zh">简体中文</button>
+    <button data-lang2="ko">한국어</button>
+    <button data-lang2="es">Español</button>
+    <button data-lang2="fr">Français</button>
+    <button data-lang2="de">Deutsch</button>
   </div>
   <div id="backlog">
     <div id="backlogInner"></div>
@@ -247,6 +270,8 @@ if(!LANGS.includes(lang)){
   if(!LANGS.includes(lang)) lang="ja";
 }
 let vlang=localStorage.getItem("hyaku_vlang")||((lang==="ja")?"ja":"en");
+let lang2=localStorage.getItem("hyaku_lang2");
+if(!LANGS.includes(lang2)||lang2===lang) lang2="off";
 let L=null; // 現在言語の辞書(ja=null)
 const I18N={};
 async function loadLang(lg){
@@ -261,6 +286,28 @@ function tr(b){
   return {t:(L.t&&L.t[b.ix]!=null)?L.t[b.ix]:b.t, n:b.n?(L.names[b.n]||b.n):""};
 }
 function ui(key){ return L?(L.ui[key]??JA_UI[key]):JA_UI[key]; }
+function tr2(b){
+  if(lang2==="off"||lang2===lang) return null;
+  if(lang2==="ja") return b.t;
+  const D=I18N[lang2];
+  if(!D||b.ix==null) return null;
+  return (D.t[b.ix]!=null)?D.t[b.ix]:null;
+}
+function updateDual(){ $("box").classList.toggle("dual",lang2!=="off"&&lang2!==lang); }
+function rerenderCur(){
+  if(!st._cur) return;
+  if(st.typing){ clearInterval(st.typing); st.typing=null; st.waiting=true; $("cue").style.opacity=1; }
+  const x=tr(st._cur); $("tx").textContent=x.t;
+  const x2=tr2(st._cur); $("tx2").textContent=(x2!=null)?x2:"";
+  const nameEl=$("name");
+  if(x.n){nameEl.textContent=x.n;nameEl.style.display="block";}else nameEl.style.display="none";
+}
+async function setLang2(lg){
+  lang2=(lg===lang)?"off":lg;
+  localStorage.setItem("hyaku_lang2",lang2);
+  if(lang2!=="off"&&lang2!=="ja") await loadLang(lang2);
+  updateDual(); applyUiLang(); rerenderCur();
+}
 function applyUiLang(){
   document.documentElement.lang=lang;
   document.title=ui("title")+(lang==="ja"?" — サウンドノベル":" — Sound Novel");
@@ -282,17 +329,16 @@ function applyUiLang(){
   const end=$("ending");
   end.querySelector("p:nth-child(1)").textContent=ui("end_fin");
   end.querySelector("p:nth-child(2)").textContent=ui("end_line");
-  document.querySelectorAll("#langMenu button").forEach(b=>b.classList.toggle("on",b.dataset.lang===lang));
+  document.querySelectorAll("#langMenu button[data-lang]").forEach(b=>b.classList.toggle("on",b.dataset.lang===lang));
+  document.querySelectorAll("#langMenu button[data-lang2]").forEach(b=>b.classList.toggle("on",b.dataset.lang2===lang2));
 }
 async function setLang(lg){
   lang=lg; localStorage.setItem("hyaku_lang",lg);
   vlang=(lg==="ja")?"ja":"en"; localStorage.setItem("hyaku_vlang",vlang);
+  if(lang2===lang){ lang2="off"; localStorage.setItem("hyaku_lang2",lang2); }
   L=await loadLang(lg);
-  applyUiLang();
-  // 表示中の行を再描画
-  if(st._cur){ const x=tr(st._cur); $("tx").textContent=x.t;
-    const nameEl=$("name");
-    if(x.n){nameEl.textContent=x.n;nameEl.style.display="block";}else nameEl.style.display="none"; }
+  updateDual(); applyUiLang();
+  rerenderCur(); // 表示中の行を再描画
 }
 let bgFront=null, curBg=null, curBgm=null;
 const bgmAudio=new Audio(); bgmAudio.loop=true; bgmAudio.volume=0;
@@ -375,12 +421,14 @@ function pushLog(b){
 }
 function say(b){
   const x=tr(b);
-  pushLog({n:x.n,t:x.t});
+  const x2=tr2(b); // 第2言語は字幕としてビート頭から全文表示
+  pushLog({n:x.n,t:x.t+((x2!=null)?"\n"+x2:"")});
   st.waiting=false; $("cue").style.opacity=0;
   const nameEl=$("name");
   if(x.n){ nameEl.textContent=x.n; nameEl.style.display="block"; }
   else nameEl.style.display="none";
   const tx=$("tx");
+  $("tx2").textContent=(x2!=null)?x2:"";
   st._cur=b;
   if(st.skip){ // 高速スキップ: 全文即表示・ボイスなし・即送り
     stopVoice();
@@ -471,8 +519,11 @@ $("btnLang").onclick=e=>{
   e.stopPropagation();
   const m=$("langMenu"); m.style.display=(m.style.display==="flex")?"none":"flex";
 };
-document.querySelectorAll("#langMenu button").forEach(b=>{
+document.querySelectorAll("#langMenu button[data-lang]").forEach(b=>{
   b.onclick=async e=>{ e.stopPropagation(); $("langMenu").style.display="none"; await setLang(b.dataset.lang); };
+});
+document.querySelectorAll("#langMenu button[data-lang2]").forEach(b=>{
+  b.onclick=async e=>{ e.stopPropagation(); $("langMenu").style.display="none"; await setLang2(b.dataset.lang2); };
 });
 // マウスホイール: 上回転でバックログを開く / パネル内は通常スクロール
 $("stage").addEventListener("wheel",e=>{
@@ -520,7 +571,7 @@ function openChapters(){
   c.style.display="flex";
 }
 if(localStorage.getItem("hyaku_save")) $("btnCont").style.display="block";
-(async()=>{ L=await loadLang(lang); applyTitleState(); })();
+(async()=>{ L=await loadLang(lang); if(lang2!=="off"&&lang2!=="ja") await loadLang(lang2); updateDual(); applyTitleState(); })();
 </script>
 </body>
 </html>
