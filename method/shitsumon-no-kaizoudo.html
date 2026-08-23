@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>質問の解像度 — 作らせる前に、決めさせる｜新しい形の研究</title>
+<meta name="description" content="AIは指示どおり作る。だから曖昧な指示は、整合しているのに誰の作品でもないものになる。実装前に質問で解像度を上げ、承認の門を置き、完了を観測で定義する。Claude Codeとsuperpowersで16作品を完成させた実践から。">
+<meta name="keywords" content="Claude Code,superpowers,AI 開発,ブレインストーミング,要件定義,プロンプト設計,AIエージェント,品質担保">
+<link rel="canonical" href="https://yuichi916.github.io/method/shitsumon-no-kaizoudo.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="質問の解像度 — 作らせる前に、決めさせる">
+<meta property="og:description" content="AIは指示どおり作る。曖昧な指示は、整合しているのに誰の作品でもないものになる。">
+<meta property="og:url" content="https://yuichi916.github.io/method/shitsumon-no-kaizoudo.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/hyaku/img/bg_study.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="note.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "質問の解像度 — 作らせる前に、決めさせる",
+  "url": "https://yuichi916.github.io/method/shitsumon-no-kaizoudo.html",
+  "datePublished": "2026-08-24",
+  "inLanguage": "ja-JP",
+  "image": "https://yuichi916.github.io/assets/hyaku/img/bg_study.jpg",
+  "author": { "@id": "https://yuichi916.github.io/#person" },
+  "publisher": { "@id": "https://yuichi916.github.io/#person" },
+  "isPartOf": { "@id": "https://yuichi916.github.io/#website" },
+  "about": ["AIエージェント開発", "要件定義", "品質保証"]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <a href="./">← 新しい形の研究</a>
+  <span>A-6 / 質問の解像度</span>
+</div>
+
+<header class="hd">
+  <p class="eyebrow">質問の解像度 — 作らせる前に、決めさせる</p>
+  <h1>指示が曖昧なぶんだけ、<br>誰の作品でもなくなる</h1>
+  <p class="lede">
+    AIは、言われたとおりに作ります。だから曖昧な指示からは、
+    <strong>整合しているのに誰の記憶にも残らないもの</strong>が出てくる。
+    実装より前に、質問で解像度を上げる工程の話です。
+  </p>
+  <p class="meta">2026-08-24 ／ Claude Code + superpowers ／ 16作品の実践 ／ 読了 約8分</p>
+</header>
+
+<div class="step">
+  <div class="step-no">01 — 制約</div>
+  <h2>以前は、曖昧なまま始めても大丈夫だった</h2>
+
+  <p>
+    人が実装していた頃、曖昧な仕様はそれほど怖くありませんでした。
+    書き始めれば手が止まるからです。<strong>「ここ、どうするんだっけ」で作業が物理的に止まり、
+    そこで考え直す機会が来る。</strong>実装の遅さが、暗黙の検問所になっていました。
+  </p>
+  <p>
+    見積もりも同じです。3日かかると分かっていれば、始める前に few 回は考え直します。
+    <strong>コストが高いこと自体が、企画を選別していた。</strong>
+  </p>
+
+  <blockquote>
+    <p>実装が遅いあいだは、<strong>遅さが品質保証の一部</strong>でした。</p>
+  </blockquote>
+</div>
+
+<div class="step">
+  <div class="step-no">02 — 解除、そして新しい問題</div>
+  <h2>止まらなくなった</h2>
+
+  <p>
+    AIエージェントは、曖昧な指示でも止まりません。行間を埋め、それらしいものを完成まで持っていきます。
+    速さは本物です。しかし同時に、<strong>考え直す機会だった「詰まり」が消えました</strong>。
+  </p>
+  <p>
+    結果として現れる失敗は、バグではありません。<strong>整合はしているが、作りたかったものではない</strong>という失敗です。
+    しかも動くので、間違いだと気づくのが遅れます。
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th></th><th>人が実装していた頃</th><th>エージェントに任せる今</th></tr>
+    <tr><td>曖昧な指示</td><td>手が止まる</td><td><strong>止まらない</strong></td></tr>
+    <tr><td>失敗の形</td><td>未完成</td><td><strong>完成しているが違う</strong></td></tr>
+    <tr><td>気づく時期</td><td>作業中</td><td>できあがってから</td></tr>
+    <tr><td>捨てるコスト</td><td>時間</td><td>時間＋「もったいない」</td></tr>
+  </table>
+  </div>
+
+  <p>
+    最後の行が厄介です。1時間で完成品が出てくると、<strong>方向が違っていても捨てにくくなる</strong>。
+    速さは、判断を歪める方向にも働きます。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">03 — 新形式</div>
+  <h2>質問を、工程として前に置く</h2>
+
+  <p>
+    答えは単純で、<strong>実装の前に、質問で解像度を上げる工程を明示的に置く</strong>ことでした。
+    私は Claude Code の <code>superpowers</code> にある brainstorming の型を使っています。
+    要点は3つです。
+  </p>
+
+  <h3>1. 規模を先に宣言する</h3>
+  <p>
+    すべての依頼に重い手続きを課すと、誰も守らなくなります。だから最初に、
+    <strong>この依頼はどの重さかを宣言してから始める</strong>。
+  </p>
+  <div class="tblwrap">
+  <table>
+    <tr><th>区分</th><th>中身</th><th>成果物</th></tr>
+    <tr><td>調べる</td><td>「できるか？」を確かめたいだけ</td><td>答え。作ったものは捨てる前提</td></tr>
+    <tr><td>限定</td><td>既にあるコードへの小さな変更</td><td>短い設計を口頭で。仕様書は作らない</td></tr>
+    <tr><td>構造</td><td>新規・複数箇所に影響する</td><td>質問 → 案の比較 → 仕様書 → 計画</td></tr>
+  </table>
+  </div>
+  <p><strong>迷ったら重い方を選ぶ</strong>。そして途中で複雑さが見つかったら、その場で格上げして宣言し直します（逆はしない）。</p>
+
+  <h3>2. 質問は一度に一つだけ</h3>
+  <p>
+    まとめて5つ聞かれると、人は雑に答えます。1問ずつ出すと、答えるうちに<strong>自分でも決まっていなかったことに気づく</strong>。
+    質問の本当の目的は情報収集ではなく、<em>依頼者に決めさせること</em>です。
+  </p>
+
+  <h3>3. 承認の門は、規模で軽くならない</h3>
+  <p>
+    ここが最も効きました。<strong>設計の分量は依頼の大きさに比例して変わるが、承認そのものは省略しない。</strong>
+    2文の設計でも「これでいい」と言われるまで着手しない。
+  </p>
+  <blockquote>
+    <p>「単純すぎて確認は要らない」と思った時が、いちばん危ない。<br>
+    単純な依頼ほど、前提が検証されないまま進みます。</p>
+  </blockquote>
+</div>
+
+<div class="step">
+  <div class="step-no">04 — 品質の担保</div>
+  <h2>速さの代わりに失った検問を、置き直す</h2>
+
+  <p>実装が止まらなくなったぶん、止まる場所を人工的に作ります。私が常用しているのは4つです。</p>
+
+  <h3>検問1: 完了を「観測」で定義する</h3>
+  <p>
+    「終わった」を主観で言わせない。<strong>コマンドの出力で示す</strong>と決めておきます。
+  </p>
+  <div class="tblwrap">
+  <table>
+    <tr><th>工程</th><th>完了の観測</th></tr>
+    <tr><td>台本</td><td>実プレイで最終話に到達できる</td></tr>
+    <tr><td>音声</td><td>欠落0 / 孤児0</td></tr>
+    <tr><td>背景・立ち絵</td><td>全キーが実在ファイルを指す</td></tr>
+    <tr><td>公開</td><td><strong>ライブURLを叩いて期待の中身が返る</strong></td></tr>
+  </table>
+  </div>
+
+  <h3>検問2: 変更行を、依頼にたどれるようにする</h3>
+  <p>
+    エージェントは親切なので、頼んでいない改善を混ぜてきます。悪意はありませんが、
+    <strong>レビュー範囲が膨らみ、事故の温床</strong>になります。
+    「変更した行はすべて依頼にトレースできること」を規約にしておくと、これが止まります。
+  </p>
+
+  <h3>検問3: 壊れ方を先に想像させる</h3>
+  <p>
+    設計の段階で「この設計で破綻する場面を挙げて」と一度聞きます。<strong>費用対効果が最も高い質問</strong>です。
+    実際、多言語化のフォールバックが未デプロイを隠す問題は、この問いを飛ばしたときに起きました。
+  </p>
+
+  <h3>検問4: 妥協した版をそのまま残さない</h3>
+  <p>
+    ツールが動かないとき、エージェントは<strong>「動く範囲で作った版」を完成品のように提示</strong>することがあります。
+    悪意ではなく、指示を満たそうとした結果です。
+    「品質を落とした版を成果として出さない」「方針転換したなら、したと言う」を明示しておく必要があります。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">05 — 再現</div>
+  <h2>実際に使っている順番</h2>
+
+  <ol>
+    <li><strong>規模を宣言する</strong>（調べる / 限定 / 構造）。迷ったら重い方</li>
+    <li><strong>1問ずつ質問する</strong>。目的は情報でなく、依頼者に決めさせること</li>
+    <li><strong>案を2〜3個出して比較する</strong>。1案だけだと「他になかったのか」が残る</li>
+    <li><strong>設計を提示して、承認を待つ</strong>。分量は変えていいが、門は省かない</li>
+    <li><strong>完了の観測方法を、着手前に決める</strong></li>
+    <li>作る</li>
+    <li><strong>ライブの成果物で検証する</strong>。手元の作業コピーはいちばん信用できない</li>
+  </ol>
+
+  <h3>人間が決めることは、実は少ない</h3>
+  <p>
+    創作なら5つだけです。<strong>読後感 / 主人公の芯 / 世界の圧力 / 中心の関係 / 着地と規模</strong>。
+    この5つが埋まっていれば、残りは整合性の問題なので任せられます。
+    逆に、ここが曖昧なまま任せると、<strong>整合はしているが誰の記憶にも残らないもの</strong>が返ってきます。
+  </p>
+
+  <div class="proof">
+    <h3>この工程で作ったもの</h3>
+    <p>
+      サウンドノベル3本、3D絵本、パズル、音楽地図など16作品。
+      いちばん短いものは、短編を書き終えた翌日にフルボイスで公開しています。
+      速さは工程を飛ばして得たものではなく、<strong>飛ばさなかったから出た</strong>ものでした。
+    </p>
+    <a class="cta" href="../">作品を見る</a>
+  </div>
+
+  <blockquote>
+    <p>AIに任せられないのは、実装ではありません。<strong>何を作るかを決めることと、
+    できたものが違うと認めること</strong>の2つだけです。</p>
+  </blockquote>
+
+  <p style="margin-top:26px">
+    静かに壊れる不具合の捕まえ方は <a href="hinshitsu-kenmon.html">品質検問</a> に、
+    他の型は <a href="./">新しい形の研究</a> に置いています。
+  </p>
+</div>
+
+<footer>
+  <a href="./">新しい形の研究</a>
+  <a href="../">ひとりぶんの棚</a>
+  <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>
+  <a href="https://medium.com/@ViewsEngineer" target="_blank" rel="noopener">Medium</a>
+</footer>
+
+</div>
+</body>
+</html>
