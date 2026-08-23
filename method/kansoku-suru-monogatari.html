@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>観測する物語 — 物語に「あなたを覚えている」を実装できるようになった｜新しい形の研究</title>
+<meta name="description" content="ノベルゲームの分岐は、書く量のコストで死んでいた。AIが言葉のコストを下げてフラグ数の上限を外した結果、物語が読者を観測して覚えている形が実装可能になった。実際に作った3作品と、言葉でできたフラグの実装手順。">
+<meta name="keywords" content="メタフィクション,ノベルゲーム 分岐,AI 物語生成,Claude Code,サウンドノベル 制作,フラグ管理,インタラクティブフィクション">
+<link rel="canonical" href="https://yuichi916.github.io/method/kansoku-suru-monogatari.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="観測する物語 — 物語に「あなたを覚えている」を実装できるようになった">
+<meta property="og:description" content="分岐は昔、書く量のコストで死んでいた。AIがフラグ数の上限を外した結果、何が可能になったか。">
+<meta property="og:url" content="https://yuichi916.github.io/method/kansoku-suru-monogatari.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/hyaku/img/bg_duel.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "観測する物語 — 物語に「あなたを覚えている」を実装できるようになった",
+  "url": "https://yuichi916.github.io/method/kansoku-suru-monogatari.html",
+  "datePublished": "2026-08-23",
+  "inLanguage": "ja-JP",
+  "image": "https://yuichi916.github.io/assets/hyaku/img/bg_duel.jpg",
+  "author": { "@id": "https://yuichi916.github.io/#person" },
+  "publisher": { "@id": "https://yuichi916.github.io/#person" },
+  "isPartOf": { "@id": "https://yuichi916.github.io/#website" },
+  "about": ["メタフィクション", "インタラクティブフィクション", "生成AIによる制作"]
+}
+</script>
+<style>
+:root{--paper:#f4f0e6;--paper-2:#ebe6d8;--ink:#161510;--ink-2:#3a3830;--ink-3:#6b6759;--rule:#1a1812;--accent:#c43d2a;--accent-2:#1a4f3a}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:Inter,"Hiragino Sans","Yu Gothic",sans-serif;line-height:1.95;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-2)}
+.wrap{max-width:760px;margin:0 auto;padding:0 24px}
+.top{border-bottom:2px solid var(--rule);padding:14px 0;font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.top a{text-decoration:none;color:inherit}
+.top a:hover{color:var(--accent)}
+header.hd{padding:52px 0 34px}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.22em;color:var(--accent);text-transform:uppercase;margin-bottom:14px}
+h1{font-family:"Shippori Mincho",serif;font-size:clamp(26px,4.6vw,40px);line-height:1.35;font-weight:700;margin-bottom:16px}
+.lede{font-size:16px;color:var(--ink-2)}
+.meta{margin-top:18px;font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--ink-3);letter-spacing:.12em}
+.step{margin:44px 0 0;padding-top:30px;border-top:1px solid rgba(26,24,18,.18)}
+.step-no{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;color:var(--accent);margin-bottom:8px}
+h2{font-family:"Shippori Mincho",serif;font-size:24px;line-height:1.4;margin-bottom:16px}
+h3{font-family:"Shippori Mincho",serif;font-size:18px;margin:26px 0 10px}
+p{margin-bottom:16px;color:var(--ink-2)}
+p strong,li strong,td strong{color:var(--ink);font-weight:600}
+blockquote{margin:22px 0;padding:16px 20px;background:var(--paper-2);border-left:3px solid var(--accent);font-family:"Shippori Mincho",serif;font-size:16px;color:var(--ink)}
+blockquote p:last-child{margin-bottom:0}
+pre{background:#1c1a16;color:#e8e2d5;padding:16px 18px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.75;margin:18px 0}
+code{font-family:"JetBrains Mono",monospace;font-size:.92em;background:var(--paper-2);padding:1px 5px}
+pre code{background:none;padding:0;font-size:inherit}
+ul,ol{margin:0 0 16px 22px;color:var(--ink-2)}
+li{margin-bottom:7px}
+table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+th,td{border:1px solid rgba(26,24,18,.2);padding:9px 11px;text-align:left;vertical-align:top}
+th{background:var(--paper-2);font-weight:600;color:var(--ink)}
+.tblwrap{overflow-x:auto}
+.proof{margin:26px 0;padding:20px 22px;border:1px solid rgba(26,24,18,.25);background:#fff}
+.proof h3{margin-top:0}
+.cta{display:inline-block;margin-top:8px;padding:10px 18px;background:var(--ink);color:var(--paper);text-decoration:none;font-size:14px}
+.cta:hover{background:var(--accent)}
+footer{border-top:2px solid var(--rule);margin-top:52px;padding:26px 0 50px;font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.16em;color:var(--ink-3);text-transform:uppercase}
+footer a{text-decoration:none;color:inherit;margin-right:16px}
+footer a:hover{color:var(--accent)}
+@media(max-width:640px){.wrap{padding:0 18px}pre{font-size:11.5px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <a href="./">← 新しい形の研究</a>
+  <span>A-1 / 観測する物語</span>
+</div>
+
+<header class="hd">
+  <p class="eyebrow">観測する物語 — 言葉でできたフラグ</p>
+  <h1>物語に「あなたを覚えている」を<br>実装できるようになった</h1>
+  <p class="lede">
+    ノベルゲームの分岐は、長いあいだ<strong>書く量のコスト</strong>で死んでいました。
+    AIがそのコストを下げた結果、フラグの数に上限がなくなった。そこで初めて成立する物語の形の話です。
+  </p>
+  <p class="meta">2026-08-23 ／ 実装済み3作品 ／ 読了 約7分</p>
+</header>
+
+<div class="step">
+  <div class="step-no">01 — 制約</div>
+  <h2>AI以前、分岐は「書く量」で死んでいた</h2>
+
+  <p>
+    選択肢のある物語には、誰でも思いつく夢があります。読者の選択を全部覚えていて、
+    終盤でそれを突きつけてくる物語。理屈のうえでは簡単で、フラグを持って分岐すればいい。
+  </p>
+  <p>
+    実際には、ほぼ誰もやっていませんでした。理由は技術ではなく<strong>分量</strong>です。
+    選択肢を1つ増やすと、その先の本文が2通り必要になる。3つ重ねれば8通り。
+    人間が書ける文字数は有限なので、商業作品でさえ現実的な着地は決まっていました。
+  </p>
+
+  <blockquote>
+    <p>分岐しても、すぐ合流する。<br>選択は「演出の差分」に留め、物語の本筋は1本にする。</p>
+  </blockquote>
+
+  <p>
+    私が『正解の外側』を全15話・13.9万字で書いたときも、この原則を守りました。守らなければ完成しないからです。
+    つまり<strong>「読者を覚えている物語」は、アイデアの不足ではなく、原稿量の壁で実現していなかった</strong>。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">02 — 解除</div>
+  <h2>AIが外したのは「言葉のコスト」だけ</h2>
+
+  <p>
+    ここは正確に切り分けたいところです。AIは物語を面白くしてはくれません。
+    構成も、どこで泣かせるかも、人間が決めないと凡庸なものが出てきます。
+    AIが下げたのは一点だけ、<strong>「文章を用意する単価」</strong>です。
+  </p>
+  <p>
+    ところが、この一点が分岐の設計を根本から変えます。分量の壁が下がるということは、
+    <strong>持てるフラグの数に上限がなくなる</strong>ということだからです。
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th></th><th>AI以前</th><th>いま</th></tr>
+    <tr><td>フラグの数</td><td>数個（コードで管理できる範囲）</td><td>実質無制限</td></tr>
+    <tr><td>フラグの粒度</td><td>「Aルートに入った」</td><td>「この一行で少し黙った」</td></tr>
+    <tr><td>反映のされ方</td><td>エンディングの分岐</td><td>地の文の言い回し、語り手の態度</td></tr>
+    <tr><td>書く人の負担</td><td>組み合わせ爆発</td><td>方針を決めれば埋まる</td></tr>
+  </table>
+  </div>
+
+  <p>
+    重要なのは3行目です。フラグが安くなると、分岐は<strong>「別ルートに飛ぶ」ものから
+    「同じ道の語り口が変わる」ものへ</strong>移せる。読者から見ると、選択の結果が
+    別世界に飛ぶのではなく、<em>語り手が自分を見ている</em>感触になります。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">03 — 新形式</div>
+  <h2>観測する物語 — 読者を見ている語り手</h2>
+
+  <p>これを私は「観測する物語」と呼んでいます。定義は3つだけです。</p>
+
+  <ol>
+    <li><strong>物語が読者の挙動を記録している</strong>（選択だけでなく、読む速さ・戻った回数・飛ばした場所も）</li>
+    <li><strong>記録が分岐ではなく語り口に反映される</strong>（別ルートではなく、同じ場面の温度が変わる）</li>
+    <li><strong>終盤で、記録していたことを明かす</strong>（ここでメタフィクションになる）</li>
+  </ol>
+
+  <p>
+    3番目が肝です。メタフィクションはこれまで<strong>「作家の技巧」</strong>でしたが、
+    大量のフラグが安く持てるなら<strong>「実装可能な標準機能」</strong>になります。
+    第四の壁は、才能ではなく設計で越えられる。
+  </p>
+
+  <h3>技法: 言葉でできたフラグ</h3>
+  <p>
+    実装で効いたのは、フラグを <code>boolean</code> で持たず、<strong>言葉そのもので持つ</strong>ことでした。
+    ビートに識別子を振り、読者の通過を記録し、後で参照する。値ではなく文章が状態になります。
+  </p>
+
+<pre><code>// ビートに識別子を振る（分岐のためではなく、記録のため）
+{ ix: 137, n: 'ミア', t: '「たぶん、違います」' }
+
+// 通過を記録する（何を読んだかが、そのまま状態になる）
+seen.add(b.ix);
+
+// 後で参照する — 「読んだかどうか」で語り口を変える
+const line = seen.has(137) ? L.t[212] : L.t[213];</code></pre>
+
+  <p>
+    見た目は素朴ですが、<strong>これが数百個あっても破綻しない</strong>のが以前との違いです。
+    各分岐の文章を人間が全部書く必要がないので、<em>フラグを増やすことに躊躇がなくなる</em>。
+    設計の自由度が変わるのは、コードではなく、この心理的なコストの方です。
+  </p>
+
+  <h3>落とし穴: 覚えていることを見せすぎない</h3>
+  <p>
+    実際に作ってわかったのは、<strong>「覚えている」を頻繁に見せると台無しになる</strong>ことです。
+    毎回反応されると、読者は物語ではなく仕掛けを見はじめる。
+    効くのは、長く黙っていて<strong>一度だけ名指す</strong>ときでした。
+    フラグは大量に持ち、<strong>使うのは数回に絞る</strong>。これが今のところの結論です。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">04 — 証拠</div>
+  <h2>実際に作った3つ</h2>
+
+  <div class="proof">
+    <h3>百の悪行 — 読者を「共犯者」にする</h3>
+    <p>
+      魔王を討った勇者が、魔王の遺した「悪行目録・全百条」を一条ずつ検証していく短編。
+      本文そのものが勇者の書いた禁書という構造で、最後の一行は読んでいるあなたに向けられます。
+      約30分・7言語・日英フルボイス・無料。
+    </p>
+    <a class="cta" href="../hyaku.html">ブラウザで読む</a>
+  </div>
+
+  <div class="proof">
+    <h3>正解の外側 — 欄外の声</h3>
+    <p>
+      全15話・ボイス1,593本。各話末の手紙に、いつからか「読んでいる誰か」の書き込みが混ざりはじめます。
+      二周目で全部の手紙が対話に変わる設計です。
+    </p>
+    <a class="cta" href="../seikai.html">ブラウザで読む</a>
+  </div>
+
+  <div class="proof">
+    <h3>ことつぎの星 — 言葉を継ぐ</h3>
+    <p>
+      星が堕ちて言葉のかけらが浜に打ち上がる島で、拾った言葉を文章の欠けに継ぎ、物語を編み直します。
+      「言葉が状態になる」を、そのままゲームの操作にした作品です。
+    </p>
+    <a class="cta" href="../kototsugi/game/">ブラウザで遊ぶ</a>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-no">05 — 再現</div>
+  <h2>同じことをやるなら</h2>
+
+  <h3>順番</h3>
+  <ol>
+    <li><strong>物語を先に完結させる</strong>。分岐から作ると、話の面白さと実装の正しさを同時に抱えて、どちらも収束しません</li>
+    <li>ビートに識別子を振る（後から振ると、翻訳や音声の参照が全部ずれます）</li>
+    <li>記録だけ先に入れる。<strong>反映は後から足せます</strong></li>
+    <li>「覚えていた」と明かす場所を、<strong>2〜3か所だけ</strong>決める</li>
+  </ol>
+
+  <h3>詰まりやすい所</h3>
+  <div class="tblwrap">
+  <table>
+    <tr><th>症状</th><th>原因</th><th>抜け方</th></tr>
+    <tr>
+      <td>ある台詞だけ音声が鳴らない</td>
+      <td>音声ファイル名を本文のハッシュにしていて、本文を1文字直した</td>
+      <td>改稿のたびに「参照数 = 実ファイル数、欠落0、孤児0」を機械で数える</td>
+    </tr>
+    <tr>
+      <td>多言語版が全部“完璧な日本語”で出る</td>
+      <td>翻訳が無いとき原文を出すフォールバックが、台本の未デプロイを隠した</td>
+      <td>ローカルではなく<strong>公開URLを叩いて</strong>検証する</td>
+    </tr>
+    <tr>
+      <td>仕掛けが寒く感じる</td>
+      <td>「覚えている」の発火が多すぎる</td>
+      <td>発火は数回に絞る。持つ量と使う量は別</td>
+    </tr>
+  </table>
+  </div>
+
+  <blockquote>
+    <p>ここに挙げた不具合は、<strong>ひとつもエラーを出しません</strong>。
+    AIを使った制作で本当に時間を取られるのは、クラッシュしない壊れ方の方です。</p>
+  </blockquote>
+
+  <p style="margin-top:26px">
+    この続き（音声の誤読をどう機械で捕まえるか、静かに壊れる不具合の分類）は
+    <a href="./">新しい形の研究</a> に順次追加していきます。
+  </p>
+</div>
+
+<footer>
+  <a href="./">新しい形の研究</a>
+  <a href="../">ひとりぶんの棚</a>
+  <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>
+  <a href="https://medium.com/@ViewsEngineer" target="_blank" rel="noopener">Medium</a>
+</footer>
+
+</div>
+</body>
+</html>
