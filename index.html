@@ -466,6 +466,23 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
 .sh-note{font-size:12.5px;opacity:.92;text-shadow:0 1px 6px #000}
 @media (max-width:700px){.site-hero{padding:40px 16px 22px}.sh-tile{min-height:130px}}
 
+/* ── はじめての人へ：かかる時間で選ばせる入口 ── */
+.firsttime{max-width:1120px;margin:34px auto 0;padding:0 22px}
+.ft-eyebrow{font-family:"JetBrains Mono",monospace;font-size:11.5px;letter-spacing:.24em;
+  color:#8a7a52;text-transform:uppercase;margin:0 0 8px}
+.firsttime h2{font-size:26px;line-height:1.4;margin:0 0 8px;font-weight:700}
+.ft-lead{font-size:14px;color:var(--ink-2);margin:0 0 20px;line-height:1.8}
+.ft-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.ft-card{display:flex;flex-direction:column;gap:7px;padding:20px 20px 18px;
+  border:1px solid rgba(0,0,0,.16);border-radius:14px;background:var(--paper);
+  text-decoration:none;color:var(--ink);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.ft-card:hover{transform:translateY(-3px);border-color:rgba(138,122,82,.6);box-shadow:0 10px 26px rgba(0,0,0,.1)}
+.ft-time{font-family:"JetBrains Mono",monospace;font-size:30px;font-weight:700;color:#8a7a52;line-height:1}
+.ft-h{font-size:17px;font-weight:700}
+.ft-d{font-size:13px;line-height:1.75;color:var(--ink-2)}
+.ft-go{margin-top:4px;font-size:13px;font-weight:700;color:#8a7a52}
+@media (max-width:700px){.firsttime{margin-top:26px}.firsttime h2{font-size:22px}}
+
 .catnav{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;max-width:1120px;margin:30px auto 6px;padding:0 22px}
 .catnav a{display:block;padding:15px 18px;border:1px solid rgba(0,0,0,.16);border-radius:12px;background:var(--paper);text-decoration:none;color:var(--ink);font-weight:700;font-size:15px;transition:border-color .2s, transform .2s}
 .catnav a small{display:block;font-size:11.5px;color:var(--ink-2);font-weight:400;margin-top:5px;line-height:1.5}
@@ -969,6 +986,33 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
     </a>
   </div>
 </header>
+
+<!-- ── はじめての人へ：どれを開けばいいか分からない人のための入口 ── -->
+<section class="firsttime reveal" id="start">
+  <p class="ft-eyebrow">First time here</p>
+  <h2>いま、どれくらい時間がありますか。</h2>
+  <p class="ft-lead">かかる時間で選べます。登録もインストールもいりません。ブラウザで開くだけです。</p>
+  <div class="ft-grid">
+    <a class="ft-card" href="salon.html#universe" data-start="3min-universe">
+      <span class="ft-time">3分</span>
+      <span class="ft-h">サイコロを一回だけ押す</span>
+      <span class="ft-d">19,810組を並べた音楽の地図。名前を知らなくても、押せば知らない曲が鳴ります。</span>
+      <span class="ft-go">音楽の宇宙をひらく →</span>
+    </a>
+    <a class="ft-card" href="hyaku.html" data-start="10min-hyaku">
+      <span class="ft-time">10分</span>
+      <span class="ft-h">短編を一本、読み切る</span>
+      <span class="ft-d">フルボイスのサウンドノベル『百の悪行』。最後の一行まで10分。7言語で読めます。</span>
+      <span class="ft-go">百の悪行を読む →</span>
+    </a>
+    <a class="ft-card" href="ehon.html" data-start="30min-ehon">
+      <span class="ft-time">30分</span>
+      <span class="ft-h">絵本を一冊、めくる</span>
+      <span class="ft-d">ページの上に世界がせり上がる17ページの3D絵本。ここにある作品が全部つながっています。</span>
+      <span class="ft-go">飛び出す絵本をひらく →</span>
+    </a>
+  </div>
+</section>
 
 <!-- ── 絵本紹介 ── -->
 <section class="wm-ehon-intro reveal">
@@ -1492,6 +1536,18 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
     const copy = document.getElementById('kototsugi-daily-copy');
     if(word) word.textContent = chosen[0];
     if(copy) copy.textContent = chosen[1];
+
+    // どの時間の入口が選ばれたかを測る。3分/10分/30分のどれが効くかを次の設計に使う
+    document.querySelectorAll('[data-start]').forEach(function(a){
+      a.addEventListener('click', function(){
+        try{
+          if(window.goatcounter && window.goatcounter.count){
+            window.goatcounter.count({ path:'start/' + a.dataset.start,
+                                       title:'はじめての人へ: ' + a.dataset.start, event:true });
+          }
+        }catch(e){}
+      });
+    });
 
     const visitsKey = 'kototsugi-home-visits';
     const visits = Number(localStorage.getItem(visitsKey) || '0') + 1;
