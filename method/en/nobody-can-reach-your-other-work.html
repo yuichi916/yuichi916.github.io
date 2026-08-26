@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nobody Can Reach Your Other Work — Counting the Links Between Things You Made | New Forms Research</title>
+<meta name="description" content="I shipped 16 projects and 90 videos and still nobody circulated between them. I crawled my own live URLs and counted: 3 of 12 pages were dead ends, 90 videos had 2 playlists, and 7 of 14 short/long pairs were never linked. Link counts are integers — so make them a test.">
+<meta name="keywords" content="internal linking,site audit,YouTube playlists,Shorts related video,indie dev,traffic,circulation,web analytics">
+<link rel="canonical" href="https://yuichi916.github.io/method/en/nobody-can-reach-your-other-work.html">
+<link rel="alternate" hreflang="ja" href="https://yuichi916.github.io/method/dousen-tenken.html">
+<link rel="alternate" hreflang="en" href="https://yuichi916.github.io/method/en/nobody-can-reach-your-other-work.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Views Engineer">
+<meta property="og:title" content="Nobody Can Reach Your Other Work">
+<meta property="og:description" content="16 projects, 90 videos, and almost no lines drawn between them. Link counts are integers — so count them.">
+<meta property="og:url" content="https://yuichi916.github.io/method/en/nobody-can-reach-your-other-work.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og/index-1200x630.jpg">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../note.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Nobody Can Reach Your Other Work",
+  "url": "https://yuichi916.github.io/method/en/nobody-can-reach-your-other-work.html",
+  "datePublished": "2026-08-26",
+  "inLanguage": "en",
+  "image": "https://yuichi916.github.io/assets/og/index-1200x630.jpg",
+  "author": { "@id": "https://yuichi916.github.io/#person" },
+  "publisher": { "@id": "https://yuichi916.github.io/#person" },
+  "isPartOf": { "@id": "https://yuichi916.github.io/#website" },
+  "about": ["internal linking", "site audit", "traffic circulation"]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <a href="./">← New Forms Research</a>
+  <span>A-8 / EN · <a href="../dousen-tenken.html">日本語</a></span>
+</div>
+
+<header class="hd">
+  <p class="eyebrow">Quality Gates — Auditing the Links</p>
+  <h1>Nobody can reach<br>your other work</h1>
+  <p class="lede">
+    I shipped 16 projects and 90 videos and still nobody moved between them.
+    So I crawled my own live URLs and counted.
+    <strong>3 of 12 pages were dead ends. 90 videos had 2 playlists.
+    7 of 14 short/long pairs had no link at all.</strong>
+  </p>
+  <p class="meta">2026-08-26 ／ measured on live URLs ／ ~8 min read</p>
+</header>
+
+<div class="step">
+  <div class="step-no">01 — The constraint</div>
+  <h2>"If I make more, more people will see it" is a maker's illusion</h2>
+
+  <p>
+    I assumed that more projects would mean more views. It does not. What grows is the
+    number of <strong>entrances</strong>. What does not grow, unless you build it, is
+    anywhere for the visitor to go next.
+  </p>
+  <p>
+    In my head everything is connected. This story and that map share a world. This short
+    video has a long version. Because it is obvious to me,
+    <strong>the missing line is invisible to me.</strong>
+  </p>
+
+  <blockquote>
+    <p>When your catalogue grows but circulation does not, the thing you are short of is
+    not work. It is <strong>the space between the work</strong>.</p>
+  </blockquote>
+
+  <p>
+    And this is a <a href="stories-that-watch-you.html">silent failure</a>. A missing link
+    throws no error. The page renders perfectly. The person who left says nothing,
+    so <strong>it never comes back to you as a complaint either.</strong>
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">02 — What makes it fixable</div>
+  <h2>Link counts are integers, so they can be a test</h2>
+
+  <p>
+    Circulation sounds like a matter of taste. It is not.
+    <strong>"How many links go from A to B" is an integer.</strong> Anything countable
+    can be turned into a check that runs.
+  </p>
+  <p>
+    One rule matters more than the rest: <strong>fetch the live URL</strong>, not the file
+    on your disk. A local check happily passes over a file you forgot to commit.
+  </p>
+
+<pre><code>def get(url):
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    return urllib.request.urlopen(req, timeout=45).read().decode("utf-8", "ignore")
+
+top = get(BASE)
+for w in WORKS:                      # home → each work
+    print(w, top.count('href="' + w))
+
+for w in WORKS:                      # each work → anywhere else
+    html = get(BASE + w)
+    print(w, count_outbound_links(html))</code></pre>
+
+  <p>Twenty lines. Here is what it printed the first time I ran it.</p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>Check</th><th>Result</th></tr>
+    <tr><td>Home → each work</td><td>12 of 12 fine</td></tr>
+    <tr><td>Each work → anywhere else</td><td><strong>3 of 12 were dead ends</strong></td></tr>
+  </table>
+  </div>
+
+  <p>
+    The three dead ends were <strong>the three pages search sends the most people to</strong>.
+    A map, a pop-up book, a travel journal. Each one feels self-contained while you are
+    building it, so it never occurs to you that someone standing there might want to leave.
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">03 — The method</div>
+  <h2>Four things to count</h2>
+
+  <h3>① Count exits, not entrances</h3>
+  <p>
+    Everyone checks "does the home page link to everything." The direction that gets
+    missed is the other one: <strong>does each page have somewhere to go</strong>.
+    Count it for every page. Zero means dead end.
+  </p>
+  <p>
+    The fix is small — one shared link on every page — but after adding it you must
+    <strong>check that it can actually be clicked</strong>. On pages with a full-screen UI,
+    a new element can land underneath something else.
+  </p>
+
+<pre><code>hit = pg.evaluate("""() =&gt; {
+  const a = document.querySelector('.homeback');
+  const r = a.getBoundingClientRect();
+  const top = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2);
+  return top === a || a.contains(top) ? 'clickable' : 'covered';
+}""")</code></pre>
+
+  <p>
+    <code>elementFromPoint</code> returns whatever is actually on top at that coordinate.
+    <strong>"Visible" and "clickable" are different properties</strong>, and
+    <code>isVisible()</code> only answers the first one. Three of my pages were covered by
+    a start dialog; I only found out because I checked.
+  </p>
+
+  <h3>② Find the pairs that exist but were never joined</h3>
+  <p>
+    I had 90 videos. More than half are short-form, and most have a long-form counterpart.
+    <strong>Of 14 such pairs, 7 had no link between them</strong> — and one short was
+    linked to <em>another short</em>, which does nothing for the long video.
+  </p>
+  <p>
+    Playlists: <strong>2, for 90 videos</strong>. I built three, ordered as
+    "short → its long version → next short → its long version." The ordering is the point:
+    sequence them by <strong>what the viewer wants next</strong>, not by release date.
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>Rank</th><th>Mechanism</th><th>Notes</th></tr>
+    <tr><td>1</td><td><strong>The official "related video" field</strong></td><td>Puts a link on the player itself. Not exposed in the API — set by hand in Studio</td></tr>
+    <tr><td>2</td><td><strong>Playlists</strong></td><td>Shows what comes next. Free, and scriptable</td></tr>
+    <tr><td>3</td><td>An end card</td><td>Shorts loop, so do not lean on it</td></tr>
+    <tr><td>4</td><td>First line of the description</td><td>Assume it is never opened</td></tr>
+  </table>
+  </div>
+
+  <h3>③ Identical on screen does not mean identical underneath</h3>
+  <p>
+    While wiring those pairs, a search returned <strong>two candidates with exactly the
+    same title</strong>. I had uploaded the same video twice, years apart in attention,
+    and left one unlisted.
+  </p>
+  <p>
+    On screen the two were <strong>indistinguishable</strong>. No badge, no date, nothing.
+    Pick the unlisted one and no error appears — only the person who clicks finds out.
+  </p>
+  <p>
+    What separated them was the thumbnail URL. It is shaped
+    <code>i.ytimg.com/vi/(video-id)/</code>, so
+    <strong>the identifier is in the image source even when the label is identical</strong>.
+  </p>
+
+<pre><code>const bg = card.querySelector('.thumbnail').getAttribute('style');
+const id = bg.split('/vi/')[1].split('/')[0];   // the real identifier
+if (id === WANT) card.click();</code></pre>
+
+  <blockquote>
+    <p>When two options look the same, <strong>select by identifier, not by label</strong>.<br>
+    A correct-looking screen is not evidence that you picked the correct thing.</p>
+  </blockquote>
+
+  <h3>④ Never trust "saved"</h3>
+  <p>
+    Admin panels display the right value after saving. But they display
+    <strong>only the title</strong> — so with two identical titles, the screen cannot tell
+    you which one went in.
+  </p>
+  <p>So the last step is to fetch the public page and count identifiers.</p>
+
+<pre><code>html = get("https://www.youtube.com/shorts/" + short_id)
+print(want, html.count(want))    # correct id   → 5
+print(dupe, html.count(dupe))    # wrong id     → 0</code></pre>
+
+  <p>
+    Five and zero. That is the first moment you are allowed to say it worked.
+    <strong>Verify where the visitor stands, not where you stand.</strong>
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">04 — Results</div>
+  <h2>What changed</h2>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th></th><th>Before</th><th>After</th></tr>
+    <tr><td>Dead-end pages</td><td>3</td><td><strong>0</strong></td></tr>
+    <tr><td>Short ↔ long pairs joined</td><td>7 of 14 (one wrong)</td><td><strong>14 of 14</strong></td></tr>
+    <tr><td>Playlists</td><td>2 (for 90 videos)</td><td><strong>5</strong></td></tr>
+    <tr><td>Most-visited page's outbound links</td><td><strong>0</strong></td><td>3</td></tr>
+    <tr><td>Home page entry points</td><td>By category</td><td><strong>By time: 3 / 10 / 30 minutes</strong></td></tr>
+  </table>
+  </div>
+
+  <p>
+    The last row was not something I counted — it was something I noticed while counting.
+    The home page told visitors <strong>what existed</strong> and never answered
+    <strong>whether they had time for it right now</strong>. A first-time visitor can judge
+    minutes. They cannot judge categories.
+  </p>
+
+  <div class="proof">
+    <h3>See it</h3>
+    <p>Everything below is free and runs in a browser. Pick by how long you have.</p>
+    <a class="cta" href="../../#start">Open the shelf</a>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-no">05 — Run this on your own things</div>
+  <h2>Five steps</h2>
+
+  <ol>
+    <li><strong>Put your catalogue in one array.</strong> The list in your head has holes; writing it down reveals them</li>
+    <li><strong>Fetch live URLs and count exits.</strong> Not local files. Zero means dead end</li>
+    <li><strong>Enumerate the pairs</strong> — short and long, article and project, source and adaptation — and count the links between them</li>
+    <li><strong>After adding a link, prove it is clickable.</strong> Visible ≠ clickable</li>
+    <li><strong>Confirm by identifier</strong>, on the public page. Labels lie when duplicates exist</li>
+  </ol>
+
+  <h3>Failure modes</h3>
+  <div class="tblwrap">
+  <table>
+    <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+    <tr>
+      <td>Catalogue grows, circulation does not</td>
+      <td>Adding entrances, never exits</td>
+      <td><strong>Run a zero-exit check on every page</strong></td>
+    </tr>
+    <tr>
+      <td>The link is there but nobody clicks</td>
+      <td>It is underneath a full-screen UI</td>
+      <td><code>elementFromPoint</code> to confirm it is on top</td>
+    </tr>
+    <tr>
+      <td>You set it, it did not take</td>
+      <td>You verified on the admin screen</td>
+      <td>Count identifiers in the <strong>public page HTML</strong></td>
+    </tr>
+    <tr>
+      <td>You picked the wrong one of two</td>
+      <td>The picker only shows labels</td>
+      <td>Select by the id embedded in the thumbnail URL</td>
+    </tr>
+    <tr>
+      <td>The audit reports zero but links exist</td>
+      <td>The page builds hrefs at runtime</td>
+      <td><strong>Open it and interact before believing the number</strong></td>
+    </tr>
+  </table>
+  </div>
+
+  <p>
+    That last row cost me a wrong conclusion. Two of my pages attach their links only when
+    you walk up to a place or open a book, so a static crawl reported them as isolated.
+    They were not. <strong>An audit you act on has to be correct first.</strong>
+  </p>
+
+  <blockquote>
+    <p>In the time it takes to make one more thing, you can repair the paths between the
+    ninety you already made.<br>
+    This week, the second one was clearly the better trade.</p>
+  </blockquote>
+
+  <p style="margin-top:26px">
+    More notes in <a href="./">New Forms Research</a>. Everything is free and browser-only:
+    <a href="../../">the shelf</a>.
+  </p>
+</div>
+
+<footer>
+  <a href="./">New Forms Research</a>
+  <a href="../../">Views Engineer</a>
+  <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>
+  <a href="https://medium.com/@ViewsEngineer" target="_blank" rel="noopener">Medium</a>
+</footer>
+
+</div>
+</body>
+</html>
