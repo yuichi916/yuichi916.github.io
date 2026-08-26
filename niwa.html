@@ -493,6 +493,7 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
   ]
 }
   </script>
+<style>#splat-panel[hidden]{display:none !important}</style>
 </head>
 <body>
 
@@ -613,7 +614,7 @@ h1.title .en{display:block;font-family:"Cormorant Garamond",serif;font-style:ita
 </div>
 
 <!-- Photoreal Gaussian-Splat backdrop URL input — paste your .ksplat URL for this scene -->
-<div id="splat-panel" style="position:fixed;right:18px;bottom:74px;z-index:11;background:rgba(14,26,38,.78);backdrop-filter:blur(6px);border:1px solid rgba(232,220,184,.3);padding:9px 10px;display:flex;gap:6px;flex-direction:column;max-width:300px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--paper-2)">
+<div id="splat-panel" hidden style="position:fixed;right:18px;bottom:74px;z-index:11;background:rgba(14,26,38,.78);backdrop-filter:blur(6px);border:1px solid rgba(232,220,184,.3);padding:9px 10px;display:flex;gap:6px;flex-direction:column;max-width:300px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--paper-2)">
   <div style="font-family:'Shippori Mincho',serif;font-size:11px;letter-spacing:.16em;color:var(--candle)">🛰 SPLAT BACKDROP</div>
   <div style="font-size:9px;line-height:1.5;opacity:.85">Polycam/Luma で撮影した <code>.ksplat</code> URL を貼り付けると、このシーンの背景が実空間 3D 再構成に置き換わります（フォトリアル）</div>
   <input id="splat-url" type="text" placeholder="https://…/your-scene.ksplat" style="background:rgba(14,26,38,.5);border:1px solid rgba(232,220,184,.3);color:var(--paper);padding:5px 6px;font-family:inherit;font-size:10px;width:100%;box-sizing:border-box">
@@ -14435,6 +14436,20 @@ async function runSceneTestPlay(){
   const passes = results.filter(x => x.reachPct >= 0.70 && x.passDirs >= 3 && !x.err).length;
   panel.textContent += `\n\n${passes}/${SCENES_LIST.length} scenes passed (reach + 4-dir)`;
 }
+</script>
+
+<script>
+/* splat-panel-dev-gate: 開発用のURL入力欄。訪問者には出さない。
+   自分で使うときは ?dev=1 を付けて開く。 */
+(function(){
+  try{
+    var q = new URLSearchParams(location.search);
+    if (q.get('dev') === '1' || location.hash === '#dev') {
+      var el = document.getElementById('splat-panel');
+      if (el) el.removeAttribute('hidden');
+    }
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
