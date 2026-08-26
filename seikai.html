@@ -1601,5 +1601,32 @@ if(renderer){
   </div>
   <p class="ns-home"><a href="./">← ひとりぶんの棚（ぜんぶ見る）</a></p>
 </section>
+
+
+<script>
+/* nextstrip-gate: この帯は「読み終えた人」に見せるもの。
+   全画面のアプリが position:fixed で乗るページでは、ページ全体の高さが
+   画面と同じになり「常に末尾」と判定されてしまう（実測 docH=844, innerH=844）。
+   だからスクロール位置では判定できない。
+   スクロールできるページでだけ末尾判定を使い、
+   できないページ（＝全画面アプリ）では、そもそも出さない。 */
+(function(){
+  var el = document.querySelector('.nextstrip');
+  if (!el) return;
+  function check(){
+    var doc = document.documentElement;
+    var scrollable = doc.scrollHeight - window.innerHeight > 120;
+    if (!scrollable) { el.style.display = 'none'; return; }
+    var atEnd = (window.scrollY + window.innerHeight) >= (doc.scrollHeight - 80);
+    el.style.display = atEnd ? '' : 'none';
+  }
+  window.addEventListener('scroll', check, {passive:true});
+  window.addEventListener('resize', check);
+  check();
+  // アプリ側が後から高さを変えることがあるので、少し後にもう一度見る
+  setTimeout(check, 2500);
+  setTimeout(check, 6000);
+})();
+</script>
 </body>
 </html>
