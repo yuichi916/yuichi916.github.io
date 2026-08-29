@@ -26,6 +26,7 @@ TESTS = [
     "hitori_ingest_test.py",
     "hitori_queue_test.py",
     "hitori_render_test.py",   # Playwright を使うので最後
+    "hitori_map_test.py",
 ]
 NODE_TESTS = ["hitori_core_test.mjs", "hitori_mapcore_test.mjs"]
 
