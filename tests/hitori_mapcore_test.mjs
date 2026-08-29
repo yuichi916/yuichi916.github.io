@@ -98,6 +98,24 @@ check('groupFacts: ひとり基準と警告と insight', () => {
   deq(g.insight, { title: 'T', insight: 'I' });
   eq(g.rows.some(r => r.k === 'solo_insight'), false);
 });
+check('groupFacts: 食い違っていても閉業・利用条件は警告に出す（食い違いと断って）', () => {
+  const e = { checked: '', facts: [
+    { k: 'status', v: 'closed_permanently', official: false, conflict: true, src: ['a.jp'], urls: ['https://a.jp/'] },
+    { k: 'access', v: 'members_only', official: true, conflict: true, src: ['b.jp'], urls: ['https://b.jp/'] },
+    { k: 'renamed_to', v: 'ほげ湯', official: false, conflict: true, src: ['c.jp'], urls: ['https://c.jp/'] },
+  ]};
+  const w = mc.groupFacts(e, 'bath').warnings;
+  const closed = w.find(x => x.text.includes('閉業'));
+  eq(!!closed, true, '閉業の警告が消えている'); eq(closed.level, 'danger');
+  eq(closed.text.includes('（出典で食い違い）'), true);
+  const acc = w.find(x => x.text.includes('会員制'));
+  eq(!!acc, true, '利用条件の警告が消えている'); eq(acc.level, 'warn');
+  eq(acc.text.includes('（出典で食い違い）'), true);
+  eq(w.some(x => x.text.includes('改称')), false, '改称は食い違っていれば出さない');
+});
+check('formatFactValue: ロッカー', () => {
+  eq(mc.formatFactValue('facilities', 'locker'), 'ロッカーあり');
+});
 check('groupFacts: 個人訪問記ラベル', () => {
   const g = mc.groupFacts(ENTRY, 'bath');
   eq(g.rows.find(r => r.k === 'status').values[0].personal, true);

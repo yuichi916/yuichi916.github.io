@@ -4,7 +4,7 @@ file:// では ES Modules と fetch が落ちるので必ず HTTP。
 pytest-playwright は入っていないので、hitori_render_test.py と同じく main() が順に呼ぶ。
 実行: PYTHONUTF8=1 python tests/hitori_map_test.py
 """
-import sys, threading, functools, http.server, socketserver
+import re, sys, threading, functools, http.server, socketserver
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,9 +63,15 @@ def test_area_mode_lists_verified_first_without_score_dots(page):
     assert cards.count() >= 10
     first = cards.nth(0).inner_text()
     assert "確認済み" in first, f"先頭が確認済みでない: {first}"
-    assert page.locator("#list .dots").count() == 0, "未確認に推定スコアの点線が出ている"
-    assert page.locator("#list .card.unverified").count() > 0
-    assert "候補" in page.locator("#list .card.unverified").first.inner_text()
+    unverified = page.locator("#list .card.unverified")
+    assert unverified.count() > 0
+    assert "候補" in unverified.first.inner_text()
+    # 未確認は「見立て」だけ。推定した数値・軸の名前を1つも出していないこと
+    score = re.compile(r"ひとり度|静けさ|入りやすさ|\d+\s*/\s*5")
+    for i in range(unverified.count()):
+        t = unverified.nth(i).inner_text()
+        assert not score.search(t), f"未確認カードに推定スコア: {t}"
+    assert page.locator("#list .card .scores, #list .card .dots").count() == 0, "スコア表示の器が残っている"
     page.wait_for_timeout(1500)   # タイルが載る前だと地図が灰色一色で、確認の役に立たない
     page.screenshot(path=str(SHOTS / "hitori-mobile-list.png"))
 
@@ -260,6 +266,32 @@ def test_menu_returns_to_the_sheet_it_was_opened_from(page):
     assert snap != "full", f"シートが全画面のまま（地図が隠れる）: {snap}"
 
 
+def test_menu_returns_to_the_detail_opened_after_a_saved_detour(page):
+    """♡→保存カード→詳細→一覧→別の施設 と辿ったあとの ≡「戻る」。
+    戻り先を最初の1枚だけ覚えていると、ここで古い詳細（保存から開いた施設）に戻ってしまう。"""
+    page.set_viewport_size(MOBILE)
+    page.goto(BASE + "#pref=14")
+    _ready(page)
+    page.wait_for_selector("#list .card", timeout=30000)
+    page.locator("#list .card [data-want]").first.click()
+    page.click("#btn-saved")
+    page.wait_for_selector("#saved .card", timeout=10000)
+    page.locator("#saved .card .open-detail").first.click()
+    page.wait_for_selector("#detail", timeout=10000)
+    first_name = page.inner_text("#detail h2")
+    page.click("#detail #btn-back")   # 「‹ 一覧へ」は closeOverlay を通らない
+    page.wait_for_selector("#list .card", timeout=30000)
+    page.locator("#list .card .open-detail").nth(1).click()
+    page.wait_for_selector("#detail", timeout=10000)
+    second_name = page.inner_text("#detail h2")
+    assert second_name != first_name, "2軒目が1軒目と同じで、検証にならない"
+    page.click("#btn-menu")
+    page.wait_for_selector("#about")
+    page.click("#about #btn-back")
+    page.wait_for_selector("#detail", timeout=10000)
+    assert page.inner_text("#detail h2") == second_name, "古い戻り先（保存から開いた詳細）に戻っている"
+
+
 # テストごとに新しい context を作る（localStorage と位置情報の許可を持ち越さない）。
 # 後続タスクでテスト関数を足したら、このリストにも足す。
 TESTS = [
@@ -273,6 +305,7 @@ TESTS = [
     test_locate_sorts_by_distance_and_tracks,
     test_about_sheet_keeps_provenance_and_site_links,
     test_menu_returns_to_the_sheet_it_was_opened_from,
+    test_menu_returns_to_the_detail_opened_after_a_saved_detour,
 ]
 
 

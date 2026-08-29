@@ -95,6 +95,7 @@ const VALUE_JA = {
   open: '営業中', closed_temporarily: '休業中', closed_permanently: '閉業',
   posted: '黙浴の掲示あり', observed: '静か（訪問記）', local: '地元客中心', tourist: '観光客中心', solo_common: '一人客が多い',
   easy: '初めてでも迷わない', custom_exists: '独自の作法あり', yes: 'あり', no: 'なし', rental: '貸出あり', included: '料金に含む',
+  locker: 'ロッカーあり',
 };
 export const PERSONAL_DOMAINS = /zatsu-ke\.blog\.jp|sanukiudon-ranking\.com/;
 const ROW_ORDER = ['hours', 'opening_hours', 'closed_days', 'price', 'payment_method', 'counter_seats', 'seats_total', 'seats',
@@ -154,13 +155,15 @@ export function groupFacts(entry, displayCatKey) {
         text: formatFactValue(k, f.v), domain, url: (f.urls && f.urls[0]) || '',
         official: !!f.official, personal: PERSONAL_DOMAINS.test(domain) }; }) });
   }
+  // 営業状態と利用条件は、出典が食い違っていても必ず見せる（spec §6.3）。
+  // 「閉業かもしれない」「男性専用かもしれない」は、行く前に知りたい種類の食い違いなので黙って消さない。
   for (const f of facts) {
-    if (f.conflict) continue;
+    const conflicted = f.conflict ? '（出典で食い違い）' : '';
     if (f.k === 'status' && (f.v === 'closed_temporarily' || f.v === 'closed_permanently'))
-      warnings.push({ level: 'danger', text: `${VALUE_JA[f.v]}の情報があります（${_domain(f)}）` });
-    if (f.k === 'access' && ['male_only', 'female_only', 'members_only', 'residents_only'].includes(f.v))
-      warnings.push({ level: 'warn', text: `${VALUE_JA[f.v]} の情報があります（${_domain(f)}）` });
-    if (f.k === 'renamed_to') warnings.push({ level: 'warn', text: `改称: ${f.v}` });
+      warnings.push({ level: 'danger', text: `${VALUE_JA[f.v]}の情報があります（${_domain(f)}）${conflicted}` });
+    else if (f.k === 'access' && ['male_only', 'female_only', 'members_only', 'residents_only'].includes(f.v))
+      warnings.push({ level: 'warn', text: `${VALUE_JA[f.v]} の情報があります（${_domain(f)}）${conflicted}` });
+    else if (f.k === 'renamed_to' && !f.conflict) warnings.push({ level: 'warn', text: `改称: ${f.v}` });
   }
   const seenSolo = new Set();
   for (const [k, label] of SOLO_KEYS) {
@@ -199,11 +202,13 @@ export function applyFilters(items, f, ctx) {
   });
 }
 
+// localeCompare は呼ぶたびに照合器を作る。4万件の並べ替えでは1つを使い回す。
+const JA = new Intl.Collator('ja');
 export function rankItems(items, ctx) {
   const c = ctx || {};
   const ck = it => (c.checked && c.checked(it.id)) ? 0 : 1;
   const byArea = (a, b) => (Number(isGem(b)) - Number(isGem(a))) || (Number(b.solo) - Number(a.solo))
-    || String(a.name).localeCompare(String(b.name), 'ja');
+    || JA.compare(String(a.name), String(b.name));
   const byDist = (a, b) => (a.distM - b.distM) || byArea(a, b);
   return items.slice().sort((a, b) => (ck(a) - ck(b)) || (c.origin ? byDist(a, b) : byArea(a, b)));
 }

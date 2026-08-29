@@ -12,8 +12,11 @@ const PAGE = 100;
 export const state = {
   index: null, rows: [], prefLoaded: new Set(), curatedByPref: new Map(), byId: new Map(),
   origin: null, filters: { q: '', cat: '', kinds: null, verifiedOnly: false, openNow: false, hideChain: false, gemOnly: false, radiusKm: 3 },
-  current: null, saved: null, sheet: 'home', snap: 'half', shown: PAGE, pref: 14, notice: '', loading: false,
+  current: null, saved: null, sheet: 'home', snap: 'half', shown: PAGE, pref: 14, notice: '', noticeLevel: '', loading: false,
 };
+// お知らせは2種類ある。失敗（err = 赤）と、途中経過（既定の枠だけ）。
+// 「現在地を取得しています…」を赤で出すと、待たせている間ずっと失敗しているように読める。
+export function setNotice(msg, level) { state.notice = msg; state.noticeLevel = msg ? (level || 'err') : ''; }
 const storage = (() => { try { return window.localStorage; } catch (e) { return null; } })();
 state.saved = storage ? mc.loadSaved(storage) : null;
 
@@ -35,26 +38,42 @@ function initMap() {
   layerPin = L.layerGroup().addTo(map);
   map.on('movestart', () => { if (!selfMove && state.sheet === 'list') { moved = true; $('btn-research').classList.add('show'); } });
 }
-export function renderMarkers(view) {
+// 番号つきのピンは「いま一覧に出ている頁」だけ（番号が一覧と一致しないと読めない）。
+// 候補の点は絞り込み後の全件を描く。100件で切ると、地図には県の一部しか無いように見えてしまう。
+const MAX_DOTS = 3000;
+// view: いま一覧に出ている頁（ピンと地図の寄せに使う）。all: 絞り込み後の全件（点に使う）。
+export function renderMarkers(view, all) {
   if (!map) return;
   layerCand.clearLayers(); layerPin.clearLayers();
   const bounds = [];
+  const pinned = new Set();
   view.forEach((r, i) => {
     const ll = [Number(r.lat), Number(r.lon)];
     if (!Number.isFinite(ll[0]) || !Number.isFinite(ll[1])) return;
     bounds.push(ll);
     const checked = isChecked(r.id), selected = state.current && state.current.id === r.id;
     const saved = state.saved && (state.saved.want[r.id] || state.saved.went[r.id]);
-    if (!checked && !selected && !saved) {
-      L.circleMarker(ll, { renderer: canvas, radius: 5, color: '#fff', weight: 1.5, fillColor: '#b9ada3', fillOpacity: .85 })
-        .on('click', () => select(r)).addTo(layerCand);
-      return;
-    }
+    if (!checked && !selected && !saved) return;   // 頁の中の候補は下の点として描く
+    pinned.add(r.id);
     const icon = L.divIcon({ className: '', html: `<div class="pin ${selected ? 'selected' : ''} ${saved && !selected ? 'saved' : ''}">${i + 1}</div>`,
       iconSize: selected ? [38, 38] : [26, 26], iconAnchor: selected ? [19, 19] : [13, 13] });
     L.marker(ll, { icon, zIndexOffset: selected ? 1000 : checked ? 500 : 0 }).bindTooltip(esc(r.name), { direction: 'top', offset: [0, -14] })
       .on('click', () => select(r)).addTo(layerPin);
   });
+  // 点が多すぎると描画が詰まるので上限を置く。現在地があれば近い順、無ければ順位のまま先頭から。
+  let cand = (all && all.length ? all : view);
+  if (cand.length > MAX_DOTS && state.origin) cand = cand.slice().sort((a, b) => (Number.isFinite(a.distM) ? a.distM : Infinity) - (Number.isFinite(b.distM) ? b.distM : Infinity));
+  let n = 0;
+  for (const r of cand) {
+    if (n >= MAX_DOTS) break;
+    if (pinned.has(r.id)) continue;
+    const lat = Number(r.lat), lon = Number(r.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    n++;
+    // 頁の外の点も押せば詳細が開く（一覧に出ていないから触れない、では地図の意味が無い）。
+    L.circleMarker([lat, lon], { renderer: canvas, radius: 5, color: '#fff', weight: 1.5, fillColor: '#b9ada3', fillOpacity: .85 })
+      .on('click', () => select(r)).addTo(layerCand);
+  }
   if (originMarker) originMarker.remove();
   if (state.origin) originMarker = L.marker([state.origin.lat, state.origin.lon], { icon: L.divIcon({ className: '', html: '<div class="origin-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), interactive: false }).addTo(map);
   // setView は選択地点を画面中央に置くが、モバイルではそこがシートの裏。見えている帯の中まで持ち上げる。
@@ -84,8 +103,13 @@ function fitOpts() {
 }
 
 // --- データ ---
-const rev = `${Date.now().toString(36)}`;
-const loadJson = path => fetch(`${path}?v=${rev}`).then(r => { if (!r.ok) throw new Error(`${path}: ${r.status}`); return r.json(); });
+// index.json は素で引く（?v=Date.now() を付けると ETag が毎回無効になり、再訪のたびに全量を落とす）。
+// 以降のデータは index.json の updated を版として付ける。データが更新された時だけ URL が変わる。
+const loadJson = path => {
+  const v = state.index && state.index.updated;
+  return fetch(v ? `${path}?v=${encodeURIComponent(v)}` : path)
+    .then(r => { if (!r.ok) throw new Error(`${path}: ${r.status}`); return r.json(); });
+};
 export function isChecked(id) { return !!(state.index && state.index.checked[id]); }
 // 読み込み中に別の検索が始まったら、後から届いた結果は捨てる（rows と描画の取り違えを防ぐ）。
 let loadGen = 0;
@@ -109,10 +133,17 @@ export async function loadPref(code) {
   for (const r of core.rowsToObjects(doc)) { if (!state.byId.has(r.id)) { r.pref = code; state.byId.set(r.id, r); state.rows.push(r); } }
   state.prefLoaded.add(code);
 }
+// 読み込み中の約束を覚える。共有URLの復元などで同じ県を同時に2回頼まれても1回しか取りに行かない。
+const curatedP = new Map();
 export async function loadCurated(code) {
   code = Number(code);
-  if (!state.curatedByPref.has(code)) state.curatedByPref.set(code, await loadJson(`data/hitori/curated/${String(code).padStart(2, '0')}.json`));
-  return state.curatedByPref.get(code);
+  if (state.curatedByPref.has(code)) return state.curatedByPref.get(code);
+  if (!curatedP.has(code)) {
+    curatedP.set(code, loadJson(`data/hitori/curated/${String(code).padStart(2, '0')}.json`)
+      .then(doc => { state.curatedByPref.set(code, doc); return doc; })
+      .catch(e => { curatedP.delete(code); throw e; }));   // 失敗は覚えない（次に呼ばれたら引き直す）
+  }
+  return curatedP.get(code);
 }
 function resetRows() { state.rows = []; state.byId = new Map(); state.prefLoaded = new Set(); state.current = null; state.shown = PAGE; moved = false; }
 
@@ -120,11 +151,13 @@ function resetRows() { state.rows = []; state.byId = new Map(); state.prefLoaded
 export function setSnap(snap) { state.snap = snap; $('sheet').dataset.snap = snap; }
 export function setSheet(mode) { state.sheet = mode; render(); }
 // ヘッダーの ≡ と ♡ が開く about / saved は、いま見ている画面に重ねる引き出し。
-// 閉じたら元の画面・スナップ・選択中の施設に戻す。覚えるのは最初の1枚だけなので、
-// about→saved と重ねても戻り先は「1枚目を開く前の画面」になる。
+// 閉じたら元の画面・スナップ・選択中の施設に戻す。
+// 戻り先は「開くたびに」取り直す。詳細の「‹ 一覧へ」は closeOverlay を通らず state.sheet を
+// 直接書き換えるので、覚えっぱなしにすると古い戻り先（別の施設の詳細）が生き残る。
+// about→saved と重ねたときだけは、いま見えている引き出しではなく1枚目を開く前の画面を保つ。
 let prevView = null;
 function openOverlay(sheet) {
-  if (!prevView) prevView = { sheet: state.sheet, snap: state.snap, current: state.current };
+  if (state.sheet !== 'about' && state.sheet !== 'saved') prevView = { sheet: state.sheet, snap: state.snap, current: state.current };
   state.sheet = sheet;
 }
 function closeOverlay() {
@@ -186,7 +219,7 @@ function cardHtml(r, i) {
   return `<article class="card ${checked ? '' : 'unverified'} ${state.current && state.current.id === r.id ? 'selected' : ''}" data-id="${esc(r.id)}">
     <div class="top">${checked ? `<span class="vmark">✓ 確認済み ${esc(meta[5])} · 公式${meta[2]}</span>` : '<span class="cand">候補 · OSM由来</span>'}
       <button class="heart" type="button" data-want="${esc(r.id)}" aria-pressed="${saved ? 'true' : 'false'}" aria-label="行きたい">♡</button></div>
-    <h3><span class="num">${i + 1}</span><button type="button" class="open-detail" data-id="${esc(r.id)}" style="all:unset;cursor:pointer">${esc(r.name)}</button></h3>
+    <h3><span class="num">${i + 1}</span><button type="button" class="open-detail" data-id="${esc(r.id)}">${esc(r.name)}</button></h3>
     <div class="meta"><span class="kind">${esc(mc.kindJa(r.kind))}</span>${r.city ? `<span>${esc(r.city)}</span>` : ''}${dist ? `<span>${dist}</span>` : ''}<span class="${open.state}">${esc(open.text)}</span></div>
     ${chips.length ? `<div class="facts">${chips.join('')}</div>` : ''}
     ${!checked && mc.fitNote(r.kind) ? `<div class="fit">業態の見立て: ${esc(mc.fitNote(r.kind))}</div>` : ''}
@@ -200,7 +233,7 @@ function homeHtml() {
     <div class="ways"><button class="way primary" id="btn-locate" type="button">◎ 現在地から探す</button><button class="way" id="btn-area" type="button">エリアを選んで探す</button></div>
     <p class="sec-label">いまの気分から</p>
     <div class="scenes" id="scenes">${mc.SCENES.map(s => `<button type="button" data-scene="${s.key}">${esc(s.label)}</button>`).join('')}</div>
-    <p class="notice" id="home-notice" style="display:${state.notice ? 'block' : 'none'}">${esc(state.notice)}</p>`;
+    <p class="notice ${state.noticeLevel === 'err' ? 'err' : ''}" id="home-notice" role="status" aria-live="polite" style="display:${state.notice ? 'block' : 'none'}">${esc(state.notice)}</p>`;
 }
 function listHtml(vr) {
   const { list, radiusNote } = vr;
@@ -208,11 +241,6 @@ function listHtml(vr) {
   const prefOpts = idx.prefectures.map(p => `<option value="${p.code}" ${p.code === state.pref ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
   const nVerified = list.filter(r => isChecked(r.id)).length;
   const view = list.slice(0, state.shown);
-  let empty = '';
-  if (!state.loading && !list.length) {
-    const near = state.origin ? mc.nearestChecked(state.rows, state.origin.lat, state.origin.lon, isChecked) : null;
-    empty = `<p class="notice">条件に合う施設がありません。${near ? `このエリアはまだ調査前です。最寄りの確認済み: <button type="button" class="open-detail" data-id="${esc(near.item.id)}" style="all:unset;cursor:pointer;color:#8d4734;font-weight:700">${esc(near.item.name)}</button>（約${(near.distM / 1000).toFixed(1)}km）` : '条件を緩めてお試しください。'}</p>`;
-  }
   return `<div class="search"><span class="icon">⌕</span><input id="q" type="search" placeholder="施設名・駅名・地名" value="${esc(f.q)}" autocomplete="off"><ul class="suggest" id="suggest"></ul></div>
     <div class="row"><button class="tog" id="btn-locate" type="button" aria-pressed="${state.origin && state.origin.kind === 'geo' ? 'true' : 'false'}">◎ 現在地</button>
       <select class="tog" id="pref" aria-label="都道府県">${prefOpts}</select>
@@ -223,11 +251,20 @@ function listHtml(vr) {
       <button class="tog" id="btn-reset" type="button">リセット</button></div>
     <div class="chips" id="chips"><button class="chip" data-cat="" aria-pressed="${!f.cat && !f.kinds}">すべて</button>${mc.DISPLAY_CATS.map(c => `<button class="chip" data-cat="${c.key}" aria-pressed="${f.cat === c.key}">${c.label}</button>`).join('')}</div>
     ${state.origin ? `<p class="origin-line"><b>${esc(state.origin.label)}</b> から近い順</p>` : ''}
-    ${radiusNote ? `<p class="notice">${esc(radiusNote)}</p>` : ''}
-    ${state.notice ? `<p class="notice err">${esc(state.notice)}</p>` : ''}
+    ${radiusNote ? `<p class="notice" role="status" aria-live="polite">${esc(radiusNote)}</p>` : ''}
+    ${state.notice ? `<p class="notice ${state.noticeLevel === 'err' ? 'err' : ''}" role="status" aria-live="polite">${esc(state.notice)}</p>` : ''}
     <p class="count" id="count">確認済み <b>${nVerified}</b>件 · 候補 <b>${list.length - nVerified}</b>件</p>
-    <div id="list">${state.loading ? '<div class="skel"></div><div class="skel"></div><div class="skel"></div>' : (view.map(cardHtml).join('') + empty)}</div>
-    ${list.length > state.shown ? '<button class="more" id="btn-more" type="button">もっと見る</button>' : ''}`;
+    <div id="list">${state.loading ? '<div class="skel"></div><div class="skel"></div><div class="skel"></div>' : (view.map(cardHtml).join('') + listTailHtml(list))}</div>`;
+}
+// 一覧の末尾（0件の言い分と「もっと見る」）。listHtml と refreshList で同じものを出す。
+// 片方にしか無いと、検索を打った瞬間に空の理由が消えたり、ボタンが残り続けたりする。
+function listTailHtml(list) {
+  if (state.loading) return '';
+  if (!list.length) {
+    const near = state.origin ? mc.nearestChecked(state.rows, state.origin.lat, state.origin.lon, isChecked) : null;
+    return `<p class="notice" role="status" aria-live="polite">条件に合う施設がありません。${near ? `このエリアはまだ調査前です。最寄りの確認済み: <button type="button" class="open-detail link" data-id="${esc(near.item.id)}">${esc(near.item.name)}</button>（約${(near.distM / 1000).toFixed(1)}km）` : '条件を緩めてお試しください。'}</p>`;
+  }
+  return list.length > state.shown ? '<button class="more" id="btn-more" type="button">もっと見る</button>' : '';
 }
 export function render() {
   const body = $('sheet-body');
@@ -244,8 +281,8 @@ export function render() {
   if (state.sheet === 'detail') bindDetail();
   if (state.sheet === 'saved') bindSaved();
   if (state.sheet === 'about') bindAbout();
-  if (state.sheet === 'list') renderMarkers(vr.list.slice(0, state.shown));
-  else if (state.sheet === 'detail') renderMarkers((lastView.length ? lastView : viewRows().list).slice(0, state.shown));
+  if (state.sheet === 'list') renderMarkers(vr.list.slice(0, state.shown), vr.list);
+  else if (state.sheet === 'detail') { const all = lastView.length ? lastView : viewRows().list; renderMarkers(all.slice(0, state.shown), all); }
   else if (state.sheet === 'saved') renderMarkers(savedRows());
   else renderMarkers([]);
 }
@@ -256,17 +293,17 @@ export function setRenderers(r) { if (r.detailHtml) detailHtml = r.detailHtml; i
 // --- 操作 ---
 export async function useArea(code) {
   const gen = beginLoad();
-  state.pref = Number(code); state.origin = null; state.notice = ''; resetRows();
+  state.pref = Number(code); state.origin = null; setNotice(''); resetRows();
   state.sheet = 'list'; state.loading = true; render(); setSnap('half');
   try { await loadPref(state.pref); if (isStale(gen)) return; await loadCurated(state.pref); }
-  catch (e) { if (isStale(gen)) return; state.notice = `データを読み込めませんでした（${e.message}）`; }
+  catch (e) { if (isStale(gen)) return; setNotice(`データを読み込めませんでした（${e.message}）`); }
   if (isStale(gen)) return;
   state.loading = false; moved = false; render();
   location.hash = `pref=${state.pref}`;
 }
 export async function useOrigin(lat, lon, label, kind) {
   const gen = beginLoad();
-  state.origin = { lat, lon, label, kind }; state.notice = ''; resetRows();
+  state.origin = { lat, lon, label, kind }; setNotice(''); resetRows();
   state.sheet = 'list'; state.loading = true; render(); setSnap('half');
   try {
     const geo = await loadJson('data/hitori/prefectures_svg.json');
@@ -279,28 +316,33 @@ export async function useOrigin(lat, lon, label, kind) {
     const nb = await loadJson('data/hitori/neighbors.json');
     if (isStale(gen)) return;
     await Promise.all((nb[String(code)] || []).map(async c => { await loadPref(c); if (isStale(gen)) return; await loadCurated(c); }));
-  } catch (e) { if (isStale(gen)) return; state.notice = `データを読み込めませんでした（${e.message}）`; }
+  } catch (e) { if (isStale(gen)) return; setNotice(`データを読み込めませんでした（${e.message}）`); }
   if (isStale(gen)) return;
   state.loading = false; render();
 }
 function locate() {
-  if (!navigator.geolocation) { state.notice = 'このブラウザーでは現在地を取得できません。エリアを選んでお探しください。'; render(); return; }
-  state.notice = '現在地を取得しています…'; render();
+  if (!navigator.geolocation) { setNotice('このブラウザーでは現在地を取得できません。エリアを選んでお探しください。'); render(); return; }
+  setNotice('現在地を取得しています…', ''); render();   // 途中経過。失敗ではないので赤くしない
   navigator.geolocation.getCurrentPosition(p => { track('hitori.locate'); useOrigin(p.coords.latitude, p.coords.longitude, '現在地', 'geo'); },
-    err => { const m = { 1: '現在地の利用が許可されませんでした。エリアか駅名でお探しください。', 2: '現在地を取得できませんでした。', 3: '現在地の取得が時間切れになりました。' }; state.notice = m[err.code] || '現在地を取得できませんでした。'; render(); },
+    err => { const m = { 1: '現在地の利用が許可されませんでした。エリアか駅名でお探しください。', 2: '現在地を取得できませんでした。', 3: '現在地の取得が時間切れになりました。' }; setNotice(m[err.code] || '現在地を取得できませんでした。'); render(); },
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
 }
 export function select(r) { if (!r) return; state.current = r; state.sheet = 'detail'; track('hitori.detail'); render(); setSnap('half'); }
-let places = null;
+// 結果ではなく「取りに行っている約束」を覚える。結果だけだと、届く前の打鍵ごとに fetch が走る。
+let placesP = null;
 async function suggest(q) {
   const ul = $('suggest'); if (!ul) return;
   if (!q || q.length < 1) { ul.classList.remove('show'); return; }
-  if (!places) { try { places = core.rowsToObjects(await loadJson('data/hitori/places.json')); } catch (e) { return; } }
+  if (!placesP) placesP = loadJson('data/hitori/places.json').then(core.rowsToObjects)
+    .catch(e => { placesP = null; throw e; });   // 失敗は覚えない（次の打鍵で引き直す）
+  let places;
+  try { places = await placesP; } catch (e) { return; }
   const hits = core.searchPlaces(places, q, 6);
   ul.innerHTML = hits.map((p, i) => `<li><button type="button" data-place="${i}">${esc(p.name)}<small>${p.type === 's' ? '駅' : '市区町村'}</small></button></li>`).join('');
   ul.classList.toggle('show', hits.length > 0);
   ul.querySelectorAll('[data-place]').forEach(b => b.addEventListener('click', () => { const p = hits[Number(b.dataset.place)]; state.filters.q = ''; useOrigin(p.lat, p.lon, `${p.name}${p.type === 's' ? '駅' : ''}`, 'place'); }));
 }
+let searchTimer = null;
 // root を渡すとその中だけを結び直す。作り直していない要素に二重で結ばないため（refreshList から使う）。
 function bindBody(root) {
   const body = root || $('sheet-body');
@@ -309,7 +351,13 @@ function bindBody(root) {
   on('#btn-area', 'click', () => useArea(state.pref));
   on('#pref', 'change', e => useArea(e.target.value));
   on('[data-scene]', 'click', e => { const s = mc.SCENES.find(x => x.key === e.currentTarget.dataset.scene); state.filters.cat = s.cat || ''; state.filters.kinds = s.kinds; state.filters.openNow = s.openNow; if (navigator.geolocation) locate(); else useArea(state.pref); });
-  on('#q', 'input', e => { state.filters.q = e.target.value; suggest(e.target.value.trim()); refreshList(); });
+  // 打鍵のたびに全件を絞り込むと、長い一覧では入力が引っかかる。打ち終わりを 200ms 待つ。
+  on('#q', 'input', e => {
+    state.filters.q = e.target.value;
+    const q = e.target.value.trim();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { suggest(q); refreshList(); }, 200);
+  });
   on('#tog-open', 'click', () => { state.filters.openNow = !state.filters.openNow; render(); });
   on('#tog-verified', 'click', () => { state.filters.verifiedOnly = !state.filters.verifiedOnly; render(); });
   on('#tog-chain', 'click', () => { state.filters.hideChain = !state.filters.hideChain; render(); });
@@ -328,8 +376,8 @@ function refreshList() {
   // 入力のたびにシート全体を作り直すと input のフォーカスが飛ぶ。一覧と件数だけ差し替える。
   const { list } = viewRows(); const nV = list.filter(r => isChecked(r.id)).length;
   $('count').innerHTML = `確認済み <b>${nV}</b>件 · 候補 <b>${list.length - nV}</b>件`;
-  $('list').innerHTML = list.slice(0, state.shown).map(cardHtml).join('');
-  bindBody($('list')); renderMarkers(list.slice(0, state.shown));
+  $('list').innerHTML = list.slice(0, state.shown).map(cardHtml).join('') + listTailHtml(list);
+  bindBody($('list')); renderMarkers(list.slice(0, state.shown), list);
 }
 // 距離つきの複製（lastView）を優先して渡す。byId の元オブジェクトには distM が無い。
 // 保存シートには県ファイルを読んでいない施設も並ぶ（別の県に切り替えると byId は入れ替わる）。
@@ -342,14 +390,14 @@ async function openDetail(id) {
   const gen = beginLoad();
   state.loading = true; render();
   try { await loadPref(snap.pref); if (isStale(gen)) return; await loadCurated(snap.pref); }
-  catch (e) { if (isStale(gen)) return; state.loading = false; state.notice = `データを読み込めませんでした（${e.message}）`; render(); return; }
+  catch (e) { if (isStale(gen)) return; state.loading = false; setNotice(`データを読み込めませんでした（${e.message}）`); render(); return; }
   if (isStale(gen)) return;
   state.loading = false;
   const r = state.byId.get(id);
-  if (r) select(r); else { state.notice = 'この施設は現在掲載していません。'; render(); }
+  if (r) select(r); else { setNotice('この施設は現在掲載していません。', ''); render(); }
 }
 export function toggleWant(r) {
-  if (!r || !state.saved || !storage) { state.notice = 'この端末では保存できません。'; render(); return; }
+  if (!r || !state.saved || !storage) { setNotice('この端末では保存できません。'); render(); return; }
   state.saved = mc.toggleWant(state.saved, r, r.pref); mc.saveSaved(storage, state.saved); track('hitori.save'); render();
 }
 
@@ -361,9 +409,10 @@ async function boot() {
   $('btn-menu').addEventListener('click', () => { openOverlay('about'); render(); setSnap('full'); });
   $('btn-research').addEventListener('click', () => { moved = false; $('btn-research').classList.remove('show'); const b = map.getBounds(); const c = b.getCenter(); useOrigin(c.lat, c.lng, '地図の中心', 'map'); });
   try { state.index = await loadJson('data/hitori/index.json'); } catch (e) { $('sheet-body').innerHTML = `<p class="notice err">データを読み込めませんでした（${esc(e.message)}）<br><button class="tog" type="button" onclick="location.reload()">再読み込み</button></p>`; return; }
+  renderAboutStatic(); loadJournal();
   const params = new URLSearchParams(location.search);
   const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
-  if (params.get('facility') && params.get('pref')) { await useArea(params.get('pref')); const r = state.byId.get(params.get('facility')); if (r) select(r); else { state.notice = 'この施設は現在掲載していません。'; render(); } }
+  if (params.get('facility') && params.get('pref')) { await useArea(params.get('pref')); const r = state.byId.get(params.get('facility')); if (r) select(r); else { setNotice('この施設は現在掲載していません。', ''); render(); } }
   else if (params.get('saved')) { await restoreShared(params.get('saved')); }
   else if (hash.get('pref')) await useArea(hash.get('pref'));
   else render();
@@ -373,7 +422,16 @@ let restoreShared = async () => {};   // Task 10 で差し替える
 export function setRestoreShared(fn) { restoreShared = fn; }
 // --- 詳細 ---
 let journal = null;
-loadJson('data/hitori/journal_links.json').then(j => { journal = j; }).catch(() => { journal = {}; });
+// index.json が載ってから引く（版の ?v= を付けるため）。boot() から呼ぶ。
+function loadJournal() { return loadJson('data/hitori/journal_links.json').then(j => { journal = j; }).catch(() => { journal = {}; }); }
+// データの web は scheme の無いもの（men-eiji.com）が19件ある。そのまま href に入れると
+// 相対リンクになり、hitori.html の隣を指してしまう。javascript: などの別 scheme は捨てる。
+const safeUrl = u => {
+  const s = String(u || '').trim();
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return '';
+  return s ? `https://${s}` : '';
+};
 // 行った日の初期値。toISOString() は UTC なので、JST の 0:00〜8:59 に開くと前日が入ってしまう。
 const localDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -391,21 +449,24 @@ function detailHtmlImpl() {
   const dist = state.origin && Number.isFinite(r.distM) ? `${(r.distM / 1000).toFixed(1)}km` : '';
   const jl = journal && journal[String(r.pref)];
   const reportText = `@ViewsEngineer ひとり歓迎マップの「${r.name}」の情報が違います：\n（何がどう違うか）\n${url}`;
+  const rLat = Number(r.lat), rLon = Number(r.lon);
+  const hasLatLon = Number.isFinite(rLat) && Number.isFinite(rLon);   // 座標が無い施設に経路は出さない
+  const web = safeUrl(r.web);
   return `<div id="detail">
     <button class="tog" id="btn-back" type="button">‹ 一覧へ</button>
-    ${g && g.warnings.length ? g.warnings.map(w => `<p class="notice ${w.level === 'danger' ? 'err' : ''}">${w.level === 'danger' ? '⚠ ' : ''}${esc(w.text)}</p>`).join('') : ''}
+    ${g && g.warnings.length ? g.warnings.map(w => `<p class="notice ${w.level === 'danger' ? 'err' : ''}" role="status" aria-live="polite">${w.level === 'danger' ? '⚠ ' : ''}${esc(w.text)}</p>`).join('') : ''}
     <h2 style="margin:10px 0 2px;font-family:'Noto Serif JP',serif;font-size:22px;line-height:1.3">${esc(r.name)}</h2>
     <div class="meta" style="color:var(--muted);font-size:12.5px">${esc(mc.kindJa(r.kind))}${r.city ? ` · ${esc(r.city)}` : ''}${dist ? ` · ${dist}` : ''} · <span class="${open.state}" style="font-weight:700;color:${open.state === 'open' ? 'var(--sage)' : open.state === 'closed' ? '#9a6b1d' : 'inherit'}">${esc(open.text)}</span>${open.source ? `<small>（${esc(open.source)}）</small>` : ''}</div>
     ${s ? `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:var(--sage-pale);color:var(--sage);font-size:12.5px"><b>✓ 確認済み ${esc(s.checked)}</b> · 事実 ${s.nFacts}件 · 公式ソース ${s.nOfficial} · 出典ドメイン ${s.nDomains} · 食い違い ${s.nConflict}</section>`
         : `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:#f5f0ea;color:#6f655f;font-size:12.5px"><b>未確認</b> — OpenStreetMap の登録情報のみです。利用前に公式情報をご確認ください。${mc.fitNote(r.kind) ? `<br>業態の見立て: ${esc(mc.fitNote(r.kind))}` : ''}</section>`}
     ${g && g.solo.length ? `<section class="solo-box" style="margin:12px 0;padding:12px;border:1px solid #ead8cc;border-radius:12px;background:#fffaf4"><p class="sec-label" style="margin:0 0 6px">ひとり基準</p>${g.solo.map(x => `<div style="display:flex;gap:8px;font-size:13px;margin:3px 0"><b style="flex:none;width:64px;color:#8d4734">${esc(x.label)}</b><span>${esc(x.text)}${x.official ? ' <small style="color:var(--sage)">公式</small>' : ''}</span></div>`).join('')}</section>` : ''}
     ${g && g.insight ? `<section style="margin:12px 0;padding:12px;border-radius:12px;background:#fffaf4;border:1px solid #ead8cc"><p class="sec-label" style="margin:0 0 4px">一人マップのひとこと</p><b style="font-size:13px">${esc(g.insight.title)}</b><p style="margin:4px 0 0;font-size:12.5px;color:#675c55">${esc(g.insight.insight)}</p></section>` : ''}
-    ${g && g.rows.length ? `<section style="margin:12px 0"><p class="sec-label">確認した事実</p>${g.rows.map(row => `<div class="fact-row ${row.conflict ? 'conflict' : ''}" style="padding:8px 10px;margin-bottom:6px;border-radius:10px;background:#f8f5ef;font-size:12.5px"><b style="display:block;color:#635a54;font-size:11px">${esc(row.label)}${row.conflict ? ' <span style="color:#9a6b1d">⚠ 出典で食い違い</span>' : ''}</b>${row.values.map(v => `<div class="val">${esc(v.text)} <small style="color:var(--muted)">← ${v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noreferrer" style="color:#8d4734">${esc(v.domain)}</a>` : esc(v.domain)}${v.official ? '（公式）' : ''}${v.personal ? '（個人訪問記）' : ''}</small></div>`).join('')}</div>`).join('')}</section>` : ''}
+    ${g && g.rows.length ? `<section style="margin:12px 0"><p class="sec-label">確認した事実</p>${g.rows.map(row => `<div class="fact-row ${row.conflict ? 'conflict' : ''}" style="padding:8px 10px;margin-bottom:6px;border-radius:10px;background:#f8f5ef;font-size:12.5px"><b style="display:block;color:#635a54;font-size:11px">${esc(row.label)}${row.conflict ? ' <span style="color:#9a6b1d">⚠ 出典で食い違い</span>' : ''}</b>${row.values.map(v => { const vu = safeUrl(v.url); return `<div class="val">${esc(v.text)} <small style="color:var(--muted)">← ${vu ? `<a href="${esc(vu)}" target="_blank" rel="noreferrer" style="color:#8d4734">${esc(v.domain)}</a>` : esc(v.domain)}${v.official ? '（公式）' : ''}${v.personal ? '（個人訪問記）' : ''}</small></div>`; }).join('')}</div>`).join('')}</section>` : ''}
     <div class="row" style="margin-top:14px">
       <button class="tog" type="button" data-want="${esc(r.id)}" aria-pressed="${saved.want[r.id] ? 'true' : 'false'}">♡ 行きたい</button>
       <button class="tog" id="btn-went" type="button" aria-pressed="${went ? 'true' : 'false'}">✓ 行った${went && went.date ? ` ${esc(went.date)}` : ''}</button>
-      <a class="tog" id="btn-route" href="https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;text-decoration:none">経路</a>
-      ${r.web ? `<a class="tog" href="${esc(r.web)}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;text-decoration:none">公式サイト</a>` : ''}
+      ${hasLatLon ? `<a class="tog" id="btn-route" href="https://www.google.com/maps/dir/?api=1&destination=${rLat},${rLon}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;text-decoration:none">経路</a>` : ''}
+      ${web ? `<a class="tog" href="${esc(web)}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;text-decoration:none">公式サイト</a>` : ''}
       <button class="tog" id="btn-share" type="button">共有</button>
       <a class="tog" id="btn-report" href="https://x.com/intent/post?text=${encodeURIComponent(reportText)}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;text-decoration:none">情報が違う</a>
     </div>
@@ -420,10 +481,10 @@ function detailHtmlImpl() {
 function bindDetail() {
   const r = state.current; if (!r || !$('detail')) return;
   $('btn-back').addEventListener('click', () => { state.current = null; state.sheet = 'list'; render(); });
-  $('btn-route').addEventListener('click', () => track('hitori.route'));
+  const route = $('btn-route'); if (route) route.addEventListener('click', () => track('hitori.route'));
   $('btn-went').addEventListener('click', () => { const f = $('went-form'); f.style.display = f.style.display === 'none' ? 'block' : 'none'; });
   $('went-form').addEventListener('submit', e => {
-    e.preventDefault(); if (!state.saved || !storage) { state.notice = 'この端末では保存できません。'; render(); return; }
+    e.preventDefault(); if (!state.saved || !storage) { setNotice('この端末では保存できません。'); render(); return; }
     const fd = new FormData(e.target);
     state.saved = mc.setWent(state.saved, r, r.pref, { date: fd.get('date'), memo: fd.get('memo') }); mc.saveSaved(storage, state.saved); track('hitori.save'); render();
   });
@@ -460,7 +521,7 @@ function savedHtmlImpl() {
     <div class="row"><button class="tog" id="btn-back" type="button">‹ 戻る</button>
       ${sharedList ? '<b style="font-size:13px">共有されたリスト</b>' : tabs}</div>
     ${!state.saved ? '<p class="notice err">この端末では保存できません（ブラウザーの設定で保存領域が使えません）。</p>' : ''}
-    ${state.notice ? `<p class="notice">${esc(state.notice)}</p>` : ''}
+    ${state.notice ? `<p class="notice ${state.noticeLevel === 'err' ? 'err' : ''}" role="status" aria-live="polite">${esc(state.notice)}</p>` : ''}
     ${state.loading ? '<div class="skel"></div><div class="skel"></div>' : (rows.length ? rows.map((r, i) => cardHtml(r, i)).join('') : `<p class="notice">${emptyText}</p>`)}
     ${!sharedList && mc.savedCount(s) ? `<button class="tog" id="btn-share-saved" type="button" data-url="${esc(shareUrl)}">このリストの共有URLをコピー</button>` : ''}
     ${sharedList && rows.length ? '<button class="tog" id="btn-adopt" type="button">自分の「行きたい」に取り込む</button>' : ''}
@@ -468,7 +529,7 @@ function savedHtmlImpl() {
 }
 function bindSaved() {
   if (!$('saved')) return;
-  $('btn-back').addEventListener('click', () => { sharedList = null; state.notice = ''; closeOverlay(); });
+  $('btn-back').addEventListener('click', () => { sharedList = null; setNotice(''); closeOverlay(); });
   document.querySelectorAll('#saved-tabs [data-tab]').forEach(b => b.addEventListener('click', () => { savedTab = b.dataset.tab; render(); }));
   const sh = $('btn-share-saved');
   if (sh) sh.addEventListener('click', async () => {
@@ -477,17 +538,17 @@ function bindSaved() {
   });
   const ad = $('btn-adopt');
   if (ad) ad.addEventListener('click', () => {
-    if (!state.saved || !storage) { state.notice = 'この端末では保存できません。'; render(); return; }
+    if (!state.saved || !storage) { setNotice('この端末では保存できません。'); render(); return; }
     for (const r of savedRowsImpl()) if (!state.saved.want[r.id]) state.saved = mc.toggleWant(state.saved, r, r.pref);
     mc.saveSaved(storage, state.saved); track('hitori.save');
-    sharedList = null; savedTab = 'want'; state.notice = ''; render();
+    sharedList = null; savedTab = 'want'; setNotice(''); render();
   });
 }
 // 共有URL（?saved=14:n1,13:n2）で開いたとき。県ファイルは載っている分だけ引く。
 async function restoreSharedImpl(param) {
   const gen = beginLoad();
   const list = mc.parseSavedParam(param);
-  sharedList = list; state.notice = ''; state.sheet = 'saved'; state.loading = true; render(); setSnap('half');
+  sharedList = list; setNotice(''); state.sheet = 'saved'; state.loading = true; render(); setSnap('half');
   // curated も引く。無いと確認済みの施設がカードでも詳細でも「未確認」に見えてしまう。
   // allSettled: 1県が落ちても残りは出す。読めた県の分だけカードに出す。
   const res = await Promise.allSettled([...new Set(list.map(x => x.pref))]
@@ -498,8 +559,8 @@ async function restoreSharedImpl(param) {
   if (list.length) state.pref = list[0].pref;   // 「戻る」で開く一覧を共有元の県に合わせる
   // 読み込みに失敗した県があるときは、その事実を先に伝える。
   // 「掲載していません」を出すと、落ちた県の施設が消えたように読めてしまう。
-  if (bad) state.notice = `データを読み込めませんでした（${(bad.reason && bad.reason.message) || bad.reason}）`;
-  else if (sharedList.length < list.length) state.notice = `${list.length - sharedList.length}件は現在掲載していません。`;
+  if (bad) setNotice(`データを読み込めませんでした（${(bad.reason && bad.reason.message) || bad.reason}）`);
+  else if (sharedList.length < list.length) setNotice(`${list.length - sharedList.length}件は現在掲載していません。`, '');
   state.loading = false; render();
 }
 setRenderers({ savedHtml: savedHtmlImpl, savedRows: savedRowsImpl });
@@ -531,6 +592,14 @@ function aboutHtmlImpl() {
   </div>`;
 }
 function bindAbout() { if ($('about')) $('btn-back').addEventListener('click', closeOverlay); }
+// 説明・出典・都道府県別の件数は、シートを開かなくても DOM に在る（spec §2.3）。
+// クローラーと、スクリプトの引き出しを開けない読み手のための静的な写し。
+// 中のボタンには何も結ばない（読み物としてだけ置く）。id はライブのシートと衝突するので落とす。
+function renderAboutStatic() {
+  const host = $('about-static');
+  if (!host || !state.index) return;
+  host.innerHTML = aboutHtmlImpl().replace(/\sid="[^"]*"/g, '');
+}
 setRenderers({ aboutHtml: aboutHtmlImpl });
 
 // boot() は必ずファイルの最後の行に置く。Task 9〜11 の追記はこの行より前に挿入する
