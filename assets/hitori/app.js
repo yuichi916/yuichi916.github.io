@@ -328,6 +328,8 @@ export function setRestoreShared(fn) { restoreShared = fn; }
 // --- 詳細 ---
 let journal = null;
 loadJson('data/hitori/journal_links.json').then(j => { journal = j; }).catch(() => { journal = {}; });
+// 行った日の初期値。toISOString() は UTC なので、JST の 0:00〜8:59 に開くと前日が入ってしまう。
+const localDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function detailHtmlImpl() {
   const r = state.current; if (!r) return '';
@@ -362,7 +364,7 @@ function detailHtmlImpl() {
       <a class="tog" id="btn-report" href="https://x.com/intent/post?text=${encodeURIComponent(reportText)}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;text-decoration:none">情報が違う</a>
     </div>
     <form id="went-form" style="display:none;margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fff">
-      <label style="font-size:12px">日付 <input type="date" name="date" value="${esc(went ? went.date : new Date().toISOString().slice(0, 10))}" style="min-height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px"></label>
+      <label style="font-size:12px">日付 <input type="date" name="date" value="${esc(went ? went.date : localDay(new Date()))}" style="min-height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px"></label>
       <label style="display:block;font-size:12px;margin-top:6px">ひとこと <input type="text" name="memo" maxlength="80" value="${esc(went ? went.memo : '')}" placeholder="任意" style="width:100%;min-height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px"></label>
       <div class="row" style="margin-top:8px"><button class="tog" type="submit">保存</button>${went ? '<button class="tog" type="button" id="btn-unwent">記録を消す</button>' : ''}</div>
     </form>
