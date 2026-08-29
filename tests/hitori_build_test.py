@@ -205,7 +205,7 @@ def test_build_computes_iso_and_threshold():
 
 
 def test_build_publishes_iso_max():
-    # hitori.html の formatIso はこの値をブラウザ側の 50km 判定に使う。
+    # hitori-legacy.html の formatIso はこの値をブラウザ側の 50km 判定に使う。
     # iso.py と二重管理にならないよう、summary.json 経由の一本化を検証する。
     summary, _ = build_data.build(RAW, PREFS, {}, "2026-08-02")
     assert summary["iso_max"] == iso.MAX_ISO_M

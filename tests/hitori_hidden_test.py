@@ -97,28 +97,28 @@ def test_scales_to_many_records():
 
 
 def test_html_thresholds_match_hidden_py():
-    """hitori.html の GEM_MIN_HIDDEN/GEM_MIN_N が hidden.py の値からずれていないか。
+    """hitori-legacy.html の GEM_MIN_HIDDEN/GEM_MIN_N が hidden.py の値からずれていないか。
 
     0.6のまま出荷され、chains.py導入後の実測で穴場が1.2%しか出ない
     「その設定は却下したはず」の版が本番に乗った事故が実際にあった。
     ハードコードした期待値ではなく hidden.py の定数そのものと比較する
     ことで、どちらか一方だけを直し忘れる再発を検出する。
     """
-    html = (ROOT / "hitori.html").read_text(encoding="utf-8")
+    html = (ROOT / "hitori-legacy.html").read_text(encoding="utf-8")
 
     m_hidden = re.search(r"GEM_MIN_HIDDEN\s*=\s*([0-9.]+)\s*;", html)
     m_n = re.search(r"GEM_MIN_N\s*=\s*([0-9.]+)\s*;", html)
-    assert m_hidden, "hitori.html に GEM_MIN_HIDDEN が見つからない"
-    assert m_n, "hitori.html に GEM_MIN_N が見つからない"
+    assert m_hidden, "hitori-legacy.html に GEM_MIN_HIDDEN が見つからない"
+    assert m_n, "hitori-legacy.html に GEM_MIN_N が見つからない"
 
     gem_min_hidden = float(m_hidden.group(1))
     gem_min_n = float(m_n.group(1))
 
     assert gem_min_hidden == hidden.HIDDEN_THRESHOLD, (
-        f"hitori.html の GEM_MIN_HIDDEN({gem_min_hidden}) が "
+        f"hitori-legacy.html の GEM_MIN_HIDDEN({gem_min_hidden}) が "
         f"hidden.HIDDEN_THRESHOLD({hidden.HIDDEN_THRESHOLD}) とずれている")
     assert gem_min_n == hidden.MIN_NEIGHBORS, (
-        f"hitori.html の GEM_MIN_N({gem_min_n}) が "
+        f"hitori-legacy.html の GEM_MIN_N({gem_min_n}) が "
         f"hidden.MIN_NEIGHBORS({hidden.MIN_NEIGHBORS}) とずれている")
 
 

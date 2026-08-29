@@ -122,9 +122,9 @@ def test_kind_gaze_covers_every_kind():
     他人の視線だということ。業態を足したときにここだけ抜けると、
     いちばん効く説明が黙って消える。
     """
-    src = (ROOT / "hitori.html").read_text(encoding="utf-8")
+    src = (ROOT / "hitori-legacy.html").read_text(encoding="utf-8")
     m = re.search(r"const KIND_GAZE = \{(.*?)\n\};", src, re.S)
-    assert m, "hitori.html に KIND_GAZE が見つからない"
+    assert m, "hitori-legacy.html に KIND_GAZE が見つからない"
     keys = set(re.findall(r"^\s{2}(\w+):", m.group(1), re.M))
     assert set(scoring.AXES) <= keys, set(scoring.AXES) - keys
 
@@ -135,7 +135,7 @@ def test_kind_gaze_is_not_the_same_text_as_the_guide():
     「自分は何をするのか」と「周りからどう見えるのか」は別の問い。
     同じ文を二度出すなら節を分ける意味がない。
     """
-    src = (ROOT / "hitori.html").read_text(encoding="utf-8")
+    src = (ROOT / "hitori-legacy.html").read_text(encoding="utf-8")
     g = _entries(re.search(r"const KIND_GAZE = \{(.*?)\n\};", src, re.S).group(1))
     d = _entries(re.search(r"const KIND_GUIDE = \{(.*?)\n\};", src, re.S).group(1))
     both = set(g) & set(d)
@@ -146,15 +146,15 @@ def test_kind_gaze_is_not_the_same_text_as_the_guide():
 
 
 def test_kind_guide_covers_every_kind():
-    """hitori.html の KIND_GUIDE が全業態を網羅していること。
+    """hitori-legacy.html の KIND_GUIDE が全業態を網羅していること。
 
     AXES には test_axes_table_covers_all_kinds があるが KIND_GUIDE には
     無かった。新しい業態を足すと、その業態だけ作法ガイドが黙って消える。
     ソースを読むのは、ここが Playwright を使わない層だから。
     """
-    src = (ROOT / "hitori.html").read_text(encoding="utf-8")
+    src = (ROOT / "hitori-legacy.html").read_text(encoding="utf-8")
     m = re.search(r"const KIND_GUIDE = \{(.*?)\n\};", src, re.S)
-    assert m, "hitori.html に KIND_GUIDE が見つからない"
+    assert m, "hitori-legacy.html に KIND_GUIDE が見つからない"
     keys = set(re.findall(r"^\s{2}(\w+):", m.group(1), re.M))
     assert keys, "KIND_GUIDE の項目を読み取れない"
     assert set(scoring.AXES) <= keys, set(scoring.AXES) - keys
@@ -162,7 +162,7 @@ def test_kind_guide_covers_every_kind():
 
 def test_kind_guide_test_would_catch_a_missing_kind():
     """上のテストが空振りでないこと。1業態を消せば落ちる、を確かめる。"""
-    src = (ROOT / "hitori.html").read_text(encoding="utf-8")
+    src = (ROOT / "hitori-legacy.html").read_text(encoding="utf-8")
     m = re.search(r"const KIND_GUIDE = \{(.*?)\n\};", src, re.S)
     keys = set(re.findall(r"^\s{2}(\w+):", m.group(1), re.M))
     keys.discard("sento")
