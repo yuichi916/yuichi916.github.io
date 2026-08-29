@@ -83,6 +83,19 @@ def test_category_chip_quiet_shows_museums_not_hostels(page):
     page.wait_for_timeout(300)
     kinds = page.eval_on_selector_all("#list .card .kind", "els => els.map(e => e.textContent)")
     assert kinds and all(k == "ホステル" for k in kinds), kinds
+    # 選択中のチップが横スクローラーの端で切れていないこと（デスクトップは折り返す）
+    clip = page.evaluate("() => { const c = document.getElementById('chips'), b = c.querySelector('[aria-pressed=\"true\"]');"
+                         " const cr = c.getBoundingClientRect(), br = b.getBoundingClientRect();"
+                         " return { over: Math.round(br.right - cr.right), scroll: c.scrollWidth - c.clientWidth }; }")
+    assert clip["over"] <= 0 and clip["scroll"] <= 1, f"チップが切れている: {clip}"
+    # 横スクローラーはモバイルの作り。デスクトップは折り返して端で切らせない
+    assert page.eval_on_selector("#chips", "e => getComputedStyle(e).flexWrap") == "wrap"
+    assert page.eval_on_selector("#chips", "e => getComputedStyle(e).overflowX") == "visible"
+    page.set_viewport_size(MOBILE)
+    page.wait_for_timeout(200)
+    assert page.eval_on_selector("#chips", "e => getComputedStyle(e).overflowX") == "auto", "モバイルは横スクロールのまま"
+    page.set_viewport_size(DESKTOP)
+    page.wait_for_timeout(200)
     page.screenshot(path=str(SHOTS / "hitori-desktop-list.png"))
 
 
@@ -120,6 +133,9 @@ def test_detail_of_unverified_says_so_and_has_no_scores(page):
     page.goto(BASE + "#pref=14")
     _ready(page)
     page.wait_for_selector("#list .card.unverified", timeout=30000)
+    # 一覧の fitBounds アニメ中にクリックすると、Leaflet は詳細の setView を黙って捨てる
+    # （_tryAnimatedZoom が _animatingZoom 中は true を返す）。落ち着いてから開く。
+    page.wait_for_timeout(900)
     page.locator("#list .card.unverified .open-detail").first.click()
     page.wait_for_selector("#detail", timeout=10000)
     txt = page.inner_text("#detail")
@@ -127,6 +143,12 @@ def test_detail_of_unverified_says_so_and_has_no_scores(page):
     assert "ひとり度" not in txt
     assert page.locator("#detail .journal").count() == 1, "神奈川には旅記事があるはず"
     page.wait_for_timeout(1500)   # タイルが載る前だと地図が灰色一色で、確認の役に立たない
+    # 選ばれたピンが地図の中央＝シートの裏に隠れていないこと
+    pin = page.evaluate("() => { const p = document.querySelector('.pin.selected'); if (!p) return null;"
+                        " const r = p.getBoundingClientRect(), s = document.getElementById('sheet').getBoundingClientRect();"
+                        " return { bottom: Math.round(r.bottom), sheetTop: Math.round(s.top) }; }")
+    assert pin, "選択中のピンが無い"
+    assert pin["bottom"] <= pin["sheetTop"], f"ピンがシートの裏: {pin}"
     page.screenshot(path=str(SHOTS / "hitori-mobile-detail.png"))
 
 
@@ -145,6 +167,16 @@ def test_save_want_then_share_and_restore_on_fresh_context(browser):
     assert "?saved=14:" in share_url
     page.wait_for_timeout(1500)   # タイルが載る前だと地図が灰色一色で、確認の役に立たない
     page.screenshot(path=str(SHOTS / "hitori-mobile-saved.png"))
+    # 別の県に切り替えて byId が入れ替わっても、保存カードから詳細を開ける
+    page.click("#saved #btn-back")
+    page.wait_for_selector("#list .card", timeout=30000)
+    page.select_option("#pref", "13")
+    page.wait_for_function("document.querySelectorAll('#list .card').length > 0", timeout=30000)
+    page.click("#btn-saved")
+    page.wait_for_selector("#saved .card", timeout=10000)
+    page.locator("#saved .card h3").first.click()
+    page.wait_for_selector("#detail", timeout=30000)
+    assert "8HOTEL" in page.inner_text("#detail"), page.inner_text("#detail")[:80]
     ctx.close()
     # 別端末を模す: 新しいコンテキスト（localStorage 空）で共有URLを開く
     ctx2 = browser.new_context(viewport=MOBILE)
@@ -154,7 +186,22 @@ def test_save_want_then_share_and_restore_on_fresh_context(browser):
     p2.wait_for_selector("#saved .card", timeout=30000)
     assert p2.locator("#saved .card").count() == 1
     assert "共有されたリスト" in p2.inner_text("#saved")
+    # 自分の♡を押したら、他人の共有リストではなく自分のリストが開く
+    p2.click("#btn-saved")
+    p2.wait_for_selector("#saved-tabs", timeout=5000)
+    assert "共有されたリスト" not in p2.inner_text("#saved")
     ctx2.close()
+    # 県ファイルが1つ落ちたら、その事実を「掲載していません」で上書きしない
+    ctx3 = browser.new_context(viewport=MOBILE)
+    p3 = ctx3.new_page()
+    p3.route("**/data/hitori/pref/13.json*", lambda route: route.abort())
+    p3.goto(share_url + ",13:n1234567890")
+    _ready(p3)
+    p3.wait_for_selector("#saved .notice", timeout=30000)
+    notice = p3.inner_text("#saved .notice")
+    assert "データを読み込めませんでした" in notice, notice
+    assert "掲載していません" not in notice, notice
+    ctx3.close()
 
 
 TOKYO = {"latitude": 35.6812, "longitude": 139.7671}

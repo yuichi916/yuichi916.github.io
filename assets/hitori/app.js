@@ -57,15 +57,25 @@ export function renderMarkers(view) {
   });
   if (originMarker) originMarker.remove();
   if (state.origin) originMarker = L.marker([state.origin.lat, state.origin.lon], { icon: L.divIcon({ className: '', html: '<div class="origin-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), interactive: false }).addTo(map);
-  if (state.current) selfView(() => map.setView([Number(state.current.lat), Number(state.current.lon)], Math.max(map.getZoom(), 15), { animate: true }));
+  // setView は選択地点を画面中央に置くが、モバイルではそこがシートの裏。見えている帯の中まで持ち上げる。
+  if (state.current) selfView(() => {
+    map.setView([Number(state.current.lat), Number(state.current.lon)], Math.max(map.getZoom(), 15), { animate: true });
+    const cover = sheetCover();
+    if (cover) map.panBy([0, Math.round(cover / 2)], { animate: false });
+  });
   else if (!moved && bounds.length > 1) selfView(() => map.fitBounds(bounds, fitOpts()));
   else if (!moved && bounds.length === 1) selfView(() => map.fitBounds([bounds[0], bounds[0]], fitOpts()));
 }
 // モバイルはボトムシートが地図の下半分に重なる。その分だけ下に余白を取り、ピンがシートの裏に回らないようにする。
-function fitOpts() {
+// 隠れる高さ(px)。デスクトップ（横並び）とシートが無い間は 0。
+function sheetCover() {
   const sheet = $('sheet');
-  if (window.innerWidth >= 900 || !sheet) return { padding: [30, 30], maxZoom: 14 };
-  const cover = Math.max(0, Math.min(window.innerHeight - sheet.getBoundingClientRect().top, map.getSize().y * .55));
+  if (window.innerWidth >= 900 || !sheet || !map) return 0;
+  return Math.max(0, Math.min(window.innerHeight - sheet.getBoundingClientRect().top, map.getSize().y * .55));
+}
+function fitOpts() {
+  const cover = sheetCover();
+  if (!cover) return { padding: [30, 30], maxZoom: 14 };
   return { paddingTopLeft: [30, 30], paddingBottomRight: [30, Math.round(cover) + 10], maxZoom: 14 };
 }
 
@@ -305,7 +315,22 @@ function refreshList() {
   bindBody($('list')); renderMarkers(list.slice(0, state.shown));
 }
 // 距離つきの複製（lastView）を優先して渡す。byId の元オブジェクトには distM が無い。
-function openDetail(id) { select(lastView.find(x => x.id === id) || state.byId.get(id)); }
+// 保存シートには県ファイルを読んでいない施設も並ぶ（別の県に切り替えると byId は入れ替わる）。
+// その場合はスナップショットの県だけ読み直してから開く。読んでも無ければ掲載終了として伝える。
+async function openDetail(id) {
+  const row = lastView.find(x => x.id === id) || state.byId.get(id);
+  if (row) { select(row); return; }
+  const snap = savedSnap(id);
+  if (!snap) return;
+  const gen = beginLoad();
+  state.loading = true; render();
+  try { await loadPref(snap.pref); if (isStale(gen)) return; await loadCurated(snap.pref); }
+  catch (e) { if (isStale(gen)) return; state.loading = false; state.notice = `データを読み込めませんでした（${e.message}）`; render(); return; }
+  if (isStale(gen)) return;
+  state.loading = false;
+  const r = state.byId.get(id);
+  if (r) select(r); else { state.notice = 'この施設は現在掲載していません。'; render(); }
+}
 export function toggleWant(r) {
   if (!r || !state.saved || !storage) { state.notice = 'この端末では保存できません。'; render(); return; }
   state.saved = mc.toggleWant(state.saved, r, r.pref); mc.saveSaved(storage, state.saved); track('hitori.save'); render();
@@ -314,7 +339,8 @@ export function toggleWant(r) {
 // --- 起動 ---
 async function boot() {
   initMap(); bindSheetDrag();
-  $('btn-saved').addEventListener('click', () => { state.sheet = 'saved'; render(); setSnap('half'); });
+  // 共有URLで開いた他人のリストを、自分の♡が開いたときに引きずらない。
+  $('btn-saved').addEventListener('click', () => { sharedList = null; state.sheet = 'saved'; render(); setSnap('half'); });
   $('btn-menu').addEventListener('click', () => { state.sheet = 'about'; render(); setSnap('full'); });
   $('btn-research').addEventListener('click', () => { moved = false; $('btn-research').classList.remove('show'); const b = map.getBounds(); const c = b.getCenter(); useOrigin(c.lat, c.lng, '地図の中心', 'map'); });
   try { state.index = await loadJson('data/hitori/index.json'); } catch (e) { $('sheet-body').innerHTML = `<p class="notice err">データを読み込めませんでした（${esc(e.message)}）<br><button class="tog" type="button" onclick="location.reload()">再読み込み</button></p>`; return; }
@@ -445,15 +471,18 @@ async function restoreSharedImpl(param) {
   const gen = beginLoad();
   const list = mc.parseSavedParam(param);
   sharedList = list; state.notice = ''; state.sheet = 'saved'; state.loading = true; render(); setSnap('half');
-  try {
-    // curated も引く。無いと確認済みの施設がカードでも詳細でも「未確認」に見えてしまう。
-    await Promise.all([...new Set(list.map(x => x.pref))].map(async c => { await loadPref(c); if (isStale(gen)) return; await loadCurated(c); }));
-  }
-  catch (e) { if (isStale(gen)) return; state.notice = `データを読み込めませんでした（${e.message}）`; }
+  // curated も引く。無いと確認済みの施設がカードでも詳細でも「未確認」に見えてしまう。
+  // allSettled: 1県が落ちても残りは出す。読めた県の分だけカードに出す。
+  const res = await Promise.allSettled([...new Set(list.map(x => x.pref))]
+    .map(async c => { await loadPref(c); if (isStale(gen)) return; await loadCurated(c); }));
   if (isStale(gen)) return;
+  const bad = res.find(x => x.status === 'rejected');
   sharedList = list.filter(x => state.byId.has(x.id));
   if (list.length) state.pref = list[0].pref;   // 「戻る」で開く一覧を共有元の県に合わせる
-  if (sharedList.length < list.length) state.notice = `${list.length - sharedList.length}件は現在掲載していません。`;
+  // 読み込みに失敗した県があるときは、その事実を先に伝える。
+  // 「掲載していません」を出すと、落ちた県の施設が消えたように読めてしまう。
+  if (bad) state.notice = `データを読み込めませんでした（${(bad.reason && bad.reason.message) || bad.reason}）`;
+  else if (sharedList.length < list.length) state.notice = `${list.length - sharedList.length}件は現在掲載していません。`;
   state.loading = false; render();
 }
 setRenderers({ savedHtml: savedHtmlImpl, savedRows: savedRowsImpl });
