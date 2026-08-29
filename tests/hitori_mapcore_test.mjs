@@ -164,5 +164,42 @@ check('SCENES', () => {
   eq(mc.SCENES.find(s => s.key === 'bath_tonight').openNow, true);
 });
 
+function memStorage(init) { const m = new Map(Object.entries(init || {})); return {
+  getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; }
+const IT = { id: 'n1', name: '浜虎', lat: 35.4, lon: 139.6, kind: 'ramen' };
+
+check('loadSaved: 空・壊れ・throw', () => {
+  deq(mc.loadSaved(memStorage()), { want: {}, went: {} });
+  deq(mc.loadSaved(memStorage({ 'hitori.saved.v1': '{oops' })), { want: {}, went: {} });
+  eq(mc.loadSaved({ getItem() { throw new Error('private'); } }), null);
+});
+check('toggleWant / setWent / removeWent / savedCount', () => {
+  let d = { want: {}, went: {} };
+  d = mc.toggleWant(d, IT, 14);
+  eq(d.want.n1.pref, 14); eq(d.want.n1.name, '浜虎'); eq(d.want.n1.lat, 35.4);
+  eq(mc.savedCount(d), 1);
+  d = mc.setWent(d, IT, 14, { date: '2026-08-30', memo: '朝ラー' });
+  eq(d.went.n1.memo, '朝ラー'); eq(mc.savedCount(d), 1, '同じ施設は1件と数える');
+  d = mc.toggleWant(d, IT, 14);
+  eq(d.want.n1, undefined); eq(mc.savedCount(d), 1);
+  d = mc.removeWent(d, 'n1');
+  eq(mc.savedCount(d), 0);
+});
+check('saveSaved は失敗を false で返す', () => {
+  const s = memStorage();
+  eq(mc.saveSaved(s, { want: {}, went: {} }), true);
+  eq(mc.saveSaved({ setItem() { throw new Error('full'); } }, {}), false);
+  deq(JSON.parse(s.getItem('hitori.saved.v1')), { want: {}, went: {} });
+});
+check('encode/parse saved param', () => {
+  const d = { want: { n1: { pref: 14 }, n2: { pref: 13 } }, went: { n1: { pref: 14 }, n3: { pref: 1 } } };
+  eq(mc.encodeSavedParam(d), '14:n1,13:n2,1:n3');
+  deq(mc.parseSavedParam('14:n1,13:n2,bad,:x,7:'), [{ pref: 14, id: 'n1' }, { pref: 13, id: 'n2' }]);
+  deq(mc.parseSavedParam(''), []);
+});
+check('facilityShareUrl', () => {
+  eq(mc.facilityShareUrl('https://x.test/hitori.html', 14, 'n1'), 'https://x.test/hitori.html?pref=14&facility=n1');
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
 console.log('OK: map-core');

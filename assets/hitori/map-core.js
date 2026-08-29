@@ -226,3 +226,60 @@ export function nearestChecked(items, lat, lon, checked) {
   }
   return best;
 }
+
+// --- 保存（行きたい／行った）。サーバーもアカウントも持たない ---
+export const SAVED_KEY = 'hitori.saved.v1';
+const EMPTY = () => ({ want: {}, went: {} });
+
+export function loadSaved(storage) {
+  let raw;
+  try { raw = storage.getItem(SAVED_KEY); } catch (e) { return null; }
+  if (!raw) return EMPTY();
+  try {
+    const v = JSON.parse(raw);
+    return { want: (v && v.want) || {}, went: (v && v.went) || {} };
+  } catch (e) { return EMPTY(); }
+}
+export function saveSaved(storage, data) {
+  try { storage.setItem(SAVED_KEY, JSON.stringify(data)); return true; } catch (e) { return false; }
+}
+function _snap(item, pref) {
+  return { t: Date.now(), pref: Number(pref), name: item.name, lat: Number(item.lat), lon: Number(item.lon), kind: item.kind };
+}
+export function toggleWant(data, item, pref) {
+  const want = { ...data.want };
+  if (want[item.id]) delete want[item.id]; else want[item.id] = _snap(item, pref);
+  return { want, went: { ...data.went } };
+}
+export function setWent(data, item, pref, extra) {
+  const went = { ...data.went, [item.id]: { ..._snap(item, pref), date: (extra && extra.date) || '', memo: (extra && extra.memo) || '' } };
+  return { want: { ...data.want }, went };
+}
+export function removeWent(data, id) {
+  const went = { ...data.went }; delete went[id];
+  return { want: { ...data.want }, went };
+}
+export function savedCount(data) {
+  return new Set([...Object.keys(data.want || {}), ...Object.keys(data.went || {})]).size;
+}
+export function encodeSavedParam(data) {
+  const seen = new Set(), parts = [];
+  for (const bucket of [data.want || {}, data.went || {}]) {
+    for (const [id, v] of Object.entries(bucket)) {
+      if (seen.has(id)) continue;
+      seen.add(id); parts.push(`${v.pref}:${id}`);
+    }
+  }
+  return parts.join(',');
+}
+export function parseSavedParam(str) {
+  const out = [];
+  for (const part of String(str || '').split(',')) {
+    const m = part.match(/^(\d{1,2}):([A-Za-z]\d+)$/);
+    if (m) out.push({ pref: Number(m[1]), id: m[2] });
+  }
+  return out;
+}
+export function facilityShareUrl(base, pref, id) {
+  return `${base}?pref=${encodeURIComponent(pref)}&facility=${encodeURIComponent(id)}`;
+}
