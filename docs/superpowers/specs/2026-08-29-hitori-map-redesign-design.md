@@ -77,7 +77,7 @@ kind の日本語名も持つ（ramen=ラーメン, soba_udon=そば・うどん
 
 - 現在地モード: `coords` があるとき距離順。半径は 1 / 3 / 10 / 制限なし（既定 3km、該当0件なら自動で広げて「10kmに広げました」と表示）。
 - 並び: **確認済みを常に上位固定** → 距離（現在地モード）／穴場候補→ひとり度→名前（エリアモード）。
-- 「いま営業中」: `oh`（OSM opening_hours）と確認済み `hours` から判定。判定できない施設は除外せず「営業時間不明」のまま残す（除外すると候補が消えすぎる）。
+- 「いま営業中」: `oh`（OSM opening_hours）と確認済み `hours`（確認済みを優先）から判定。トグルOFFの既定表示では判定できない施設も「営業時間は要確認」のまま残す（除外すると候補が消えすぎる）。トグルONは「開いている店だけ」の明示なので open 判定のみ残す。
 - 場面ボタン（home）:
   - 「今夜、ひとりで銭湯」= cat:bath + openNow
   - 「さっと一人飯」= cat:eat + openNow
@@ -115,8 +115,8 @@ kind の日本語名も持つ（ramen=ラーメン, soba_udon=そば・うどん
 1. 見出し: 名前／kind／市区町村／距離／営業中判定（時刻と根拠: 「OSM opening_hours」か「公式サイト 2026-08-08確認」）
 2. **確認のしるし**: 確認済みなら「確認日・公式ソース n・出典ドメイン n・食い違い n」、未確認なら「未確認: OpenStreetMap の登録情報のみ。公式情報をご確認ください」
 3. **ひとり基準**（このサービスの独自ブロック）: 一人利用の明記(solo_ok 引用)／席(counter_seats, seats_total)／支払い(payment_method)／予約(reservation)／静けさ(silence)／初回(first_timer)／利用制限(access: male_only 等は常に警告色で必ず出す)／営業状態(status: 休業・閉業は最上部に赤で)
-4. 事実一覧: 営業時間・定休日・料金・アクセス・駐車場…。**食い違いは両方並べる**（「600円 ← city.kuwana.lg.jp(公式)」「150円 ← yuru-to.net」「⚠ 出典で食い違い」）。個人訪問記由来は「個人訪問記」ラベル。
-5. 「一人マップのひとこと」= 既存の solo_insight（`quality=grounded` かつ `policyVersion=official-provenance-v2` のみ）。無いときはこの節を出さない（現行の定型文生成は廃止: 根拠のない文を出さない方針に合わせる）。
+4. 「一人マップのひとこと」= 既存の solo_insight（`quality=grounded` かつ `policyVersion=official-provenance-v2` のみ）。無いときはこの節を出さない（現行の定型文生成は廃止: 根拠のない文を出さない方針に合わせる）。
+5. 事実一覧: 営業時間・定休日・料金・アクセス・駐車場…。**食い違いは両方並べる**（「600円 ← city.kuwana.lg.jp(公式)」「150円 ← yuru-to.net」「⚠ 出典で食い違い」）。個人訪問記由来は「個人訪問記」ラベル。
 6. アクション行: **行きたい** / **行った**（日付＋一言メモ、任意）/ **経路**（`https://www.google.com/maps/dir/?api=1&destination=lat,lon`）/ 公式サイト（`web` があれば）/ 共有 / 「情報が違う」（X intent、施設名入り定型文）
 7. この土地の一人旅: `data/hitori/journal_links.json`（都道府県コード→ hitoritabi の journey ページ）に該当があればカード1枚。実装時に各 journey ページを読んで都道府県を確定する（推測で貼らない）。
 
@@ -136,7 +136,7 @@ kind の日本語名も持つ（ramen=ラーメン, soba_udon=そば・うどん
 現行の問題: `curated.json` 2.3MB を初回に丸ごと読む／「現在地から」で県ファイル47本(5.8MB)を全部読む。
 
 変更（`scripts/hitori/build_index.py` を追加。Python、リポジトリ内で完結）:
-- `data/hitori/index.json`（新規, 〜60KB）: 都道府県ごとの中心座標・境界箱・件数・確認済み件数、＋ `checked: {id: [pref, n_facts, n_official, n_conflict, has_insight, checked]}` の軽い索引。
+- `data/hitori/index.json`（新規, 〜60KB）: 都道府県ごとの中心座標・件数・確認済み件数、＋ `checked: {id: [pref, n_facts, n_official, n_conflict, has_insight, checked]}` の軽い索引。
 - `data/hitori/curated/NN.json`（新規, 県別）: facts 本体。詳細を開くか「確認済みのみ」で必要になった県だけ読む。
 - `curated.json` は残す（旧版 `hitori-legacy.html` と既存スクリプトが参照するため）。build_index は curated.json から派生させる一方向。
 - 現在地モード: 既存の `data/hitori/prefectures_svg.json` ＋ `core.prefectureAt()` で県を決め、その県を先に読んで描画し、`data/hitori/neighbors.json` の隣接県を後から追加読込する（旧版と同じ方式。境界箱は作らない）。
