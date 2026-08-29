@@ -692,7 +692,12 @@ function setCG(name){
 /* ---------- 立ち絵 ---------- */
 const shown={}; // who -> {el,lane,seq,expr}
 let _seq=0;
+/* 台本が指定していても立ち絵が無い表情は、黙って素の顔に落ちていた。
+   リーンの pained 26箇所・surprised 4箇所、カイの sharp 4箇所（計34箇所）が該当し、
+   一番痛い場面で表情が変わらなかった。近い表情へ寄せる。 */
+const EXPR_ALIAS = { rin:{ pained:'tears', surprised:'unease' }, kai:{ sharp:'angry' } };
 function spriteURL(who,expr){ const c=CHARS[who]; if(!c||!c.file) return null;
+  if(expr && c.expr.indexOf(expr)<0){ const a=EXPR_ALIAS[who]; if(a&&a[expr]) expr=a[expr]; }
   if(expr && c.expr.indexOf(expr)>=0) return A+c.file+'-'+expr+'.png'; return A+c.file+'.png'; }
 function laneFor(who,pos){ if(pos==='left') return 0; if(pos==='right') return 100; if(pos==='center') return 50;
   return who==='kai'?0 : who==='rin'?100 : 50; }
