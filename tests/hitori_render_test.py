@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""hitori.html の描画検証。ローカルHTTPサーバを立てて Playwright で確認する。
+"""hitori-legacy.html の描画検証。ローカルHTTPサーバを立てて Playwright で確認する。
 
 file:// では fetch が CORS で落ちるため、必ず HTTP で配信すること。
 """
@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PORT = 8899
-BASE = f"http://127.0.0.1:{PORT}/hitori.html"
+BASE = f"http://127.0.0.1:{PORT}/hitori-legacy.html"
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
