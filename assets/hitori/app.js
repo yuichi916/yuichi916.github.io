@@ -58,18 +58,40 @@ export function renderMarkers(view) {
   if (originMarker) originMarker.remove();
   if (state.origin) originMarker = L.marker([state.origin.lat, state.origin.lon], { icon: L.divIcon({ className: '', html: '<div class="origin-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), interactive: false }).addTo(map);
   if (state.current) selfView(() => map.setView([Number(state.current.lat), Number(state.current.lon)], Math.max(map.getZoom(), 15), { animate: true }));
-  else if (!moved && bounds.length > 1) selfView(() => map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 }));
-  else if (!moved && bounds.length === 1) selfView(() => map.setView(bounds[0], 14));
+  else if (!moved && bounds.length > 1) selfView(() => map.fitBounds(bounds, fitOpts()));
+  else if (!moved && bounds.length === 1) selfView(() => map.fitBounds([bounds[0], bounds[0]], fitOpts()));
+}
+// モバイルはボトムシートが地図の下半分に重なる。その分だけ下に余白を取り、ピンがシートの裏に回らないようにする。
+function fitOpts() {
+  const sheet = $('sheet');
+  if (window.innerWidth >= 900 || !sheet) return { padding: [30, 30], maxZoom: 14 };
+  const cover = Math.max(0, Math.min(window.innerHeight - sheet.getBoundingClientRect().top, map.getSize().y * .55));
+  return { paddingTopLeft: [30, 30], paddingBottomRight: [30, Math.round(cover) + 10], maxZoom: 14 };
 }
 
 // --- データ ---
 const rev = `${Date.now().toString(36)}`;
 const loadJson = path => fetch(`${path}?v=${rev}`).then(r => { if (!r.ok) throw new Error(`${path}: ${r.status}`); return r.json(); });
 export function isChecked(id) { return !!(state.index && state.index.checked[id]); }
+// 読み込み中に別の検索が始まったら、後から届いた結果は捨てる（rows と描画の取り違えを防ぐ）。
+let loadGen = 0;
+export function beginLoad() { return ++loadGen; }
+export function isStale(gen) { return gen !== loadGen; }
+// 確認済みの根拠。カード・詳細・営業中フィルタで同じものを引く。
+export function curatedOf(id) {
+  const meta = state.index && state.index.checked[id];
+  return meta ? (state.curatedByPref.get(meta[0]) || {})[id] || null : null;
+}
+export function hoursFactOf(id) {
+  const cur = curatedOf(id);
+  return cur ? (cur.facts || []).find(f => (f.k === 'hours' || f.k === 'opening_hours') && !f.conflict) || null : null;
+}
 export async function loadPref(code) {
   code = Number(code);
   if (state.prefLoaded.has(code)) return;
+  const gen = loadGen;
   const doc = await loadJson(`data/hitori/pref/${String(code).padStart(2, '0')}.json`);
+  if (isStale(gen)) return;   // 待っている間に別の検索が始まっていたら rows に混ぜない
   for (const r of core.rowsToObjects(doc)) { if (!state.byId.has(r.id)) { r.pref = code; state.byId.set(r.id, r); state.rows.push(r); } }
   state.prefLoaded.add(code);
 }
@@ -99,8 +121,9 @@ function bindSheetDrag() {
 }
 
 // --- 描画 ---
+let lastView = [];   // 最後に描いた一覧（距離つき）。詳細のピンとカードのクリックが使う。
 function viewRows() {
-  const ctx = { checked: isChecked, now: new Date(), origin: state.origin };
+  const ctx = { checked: isChecked, now: new Date(), origin: state.origin, hoursOf: hoursFactOf };
   let rows = state.rows;
   if (state.origin) rows = core.withDistance(rows, state.origin.lat, state.origin.lon);
   let list = mc.applyFilters(rows, { ...state.filters, radiusKm: 0 }, ctx);
@@ -110,18 +133,26 @@ function viewRows() {
     list = ex.items;
     if (ex.expanded) radiusNote = Number.isFinite(ex.radiusKm) ? `${state.filters.radiusKm}km 以内に該当がないため ${ex.radiusKm}km に広げました` : `半径を制限せずに表示しています`;
   }
-  return { list: mc.rankItems(list, ctx), radiusNote };
+  lastView = mc.rankItems(list, ctx);
+  return { list: lastView, radiusNote };
+}
+// カードのチップは一目で読める長さに。事実の全文と出典は詳細シートで見せる。
+const CHIP_MAX = 14;
+function cutText(t) { const v = String(t); return v.length > CHIP_MAX ? `${v.slice(0, CHIP_MAX)}…` : v; }
+function soloChip(f) {
+  if (f.label === '一人利用') return '一人利用の明記';
+  if (f.label === '席') return /^\d+$/.test(String(f.text).trim()) ? `${f.text}席` : cutText(f.text);
+  return cutText(f.text);
 }
 function cardHtml(r, i) {
   const checked = isChecked(r.id), meta = checked ? state.index.checked[r.id] : null;
-  const cur = checked ? (state.curatedByPref.get(meta[0]) || {})[r.id] : null;
+  const cur = curatedOf(r.id);
   const g = cur ? mc.groupFacts(cur, mc.displayCat(r.kind, r.cat)) : null;
-  const hoursFact = cur ? (cur.facts || []).find(f => (f.k === 'hours' || f.k === 'opening_hours') && !f.conflict) : null;
-  const open = mc.openLabel(r, hoursFact, new Date());
+  const open = mc.openLabel(r, hoursFactOf(r.id), new Date());
   const dist = state.origin && Number.isFinite(r.distM) ? (r.distM < 1000 ? `${Math.max(10, Math.round(r.distM / 10) * 10)}m` : `${(r.distM / 1000).toFixed(r.distM < 10000 ? 1 : 0)}km`) : '';
   const chips = [];
-  if (g) for (const s of g.solo.slice(0, 3)) chips.push(`<span>${esc(s.text)}</span>`);
-  if (g) { const cd = g.rows.find(x => x.k === 'closed_days'); if (cd && chips.length < 4) chips.push(`<span>${esc(cd.values[0].text)}</span>`); }
+  if (g) for (const s of g.solo.slice(0, 3)) chips.push(`<span>${esc(soloChip(s))}</span>`);
+  if (g) { const cd = g.rows.find(x => x.k === 'closed_days'); if (cd && chips.length < 4) chips.push(`<span>${esc(cutText(cd.values[0].text))}</span>`); }
   if (mc.isGem(r)) chips.push('<span class="gem">穴場候補</span>');
   if (r.chain) chips.push('<span class="chain">チェーン</span>');
   const saved = state.saved && (state.saved.want[r.id] || state.saved.went[r.id]);
@@ -144,8 +175,8 @@ function homeHtml() {
     <div class="scenes" id="scenes">${mc.SCENES.map(s => `<button type="button" data-scene="${s.key}">${esc(s.label)}</button>`).join('')}</div>
     <p class="notice" id="home-notice" style="display:${state.notice ? 'block' : 'none'}">${esc(state.notice)}</p>`;
 }
-function listHtml() {
-  const { list, radiusNote } = viewRows();
+function listHtml(vr) {
+  const { list, radiusNote } = vr;
   const f = state.filters, idx = state.index;
   const prefOpts = idx.prefectures.map(p => `<option value="${p.code}" ${p.code === state.pref ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
   const nVerified = list.filter(r => isChecked(r.id)).length;
@@ -174,15 +205,18 @@ function listHtml() {
 export function render() {
   const body = $('sheet-body');
   if (!state.index) { body.innerHTML = '<div class="skel"></div>'; return; }
+  // viewRows() は全件を回すので、1回の描画で1度だけ。一覧とピンで同じ結果を使う。
+  const vr = state.sheet === 'list' ? viewRows() : null;
   if (state.sheet === 'home') body.innerHTML = homeHtml();
-  else if (state.sheet === 'list') body.innerHTML = listHtml();
+  else if (state.sheet === 'list') body.innerHTML = listHtml(vr);
   else if (state.sheet === 'detail') body.innerHTML = detailHtml();
   else if (state.sheet === 'saved') body.innerHTML = savedHtml();
   else if (state.sheet === 'about') body.innerHTML = aboutHtml();
   $('saved-count').textContent = state.saved ? mc.savedCount(state.saved) : 0;
   bindBody();
   if (state.sheet === 'detail') bindDetail();
-  if (state.sheet === 'list' || state.sheet === 'detail') renderMarkers(viewRows().list.slice(0, state.shown));
+  if (state.sheet === 'list') renderMarkers(vr.list.slice(0, state.shown));
+  else if (state.sheet === 'detail') renderMarkers((lastView.length ? lastView : viewRows().list).slice(0, state.shown));
   else if (state.sheet === 'saved') renderMarkers(savedRows());
   else renderMarkers([]);
 }
@@ -192,24 +226,32 @@ export function setRenderers(r) { if (r.detailHtml) detailHtml = r.detailHtml; i
 
 // --- 操作 ---
 export async function useArea(code) {
+  const gen = beginLoad();
   state.pref = Number(code); state.origin = null; state.notice = ''; resetRows();
   state.sheet = 'list'; state.loading = true; render(); setSnap('half');
-  try { await loadPref(state.pref); await loadCurated(state.pref); } catch (e) { state.notice = `データを読み込めませんでした（${e.message}）`; }
+  try { await loadPref(state.pref); if (isStale(gen)) return; await loadCurated(state.pref); }
+  catch (e) { if (isStale(gen)) return; state.notice = `データを読み込めませんでした（${e.message}）`; }
+  if (isStale(gen)) return;
   state.loading = false; moved = false; render();
   location.hash = `pref=${state.pref}`;
 }
 export async function useOrigin(lat, lon, label, kind) {
+  const gen = beginLoad();
   state.origin = { lat, lon, label, kind }; state.notice = ''; resetRows();
   state.sheet = 'list'; state.loading = true; render(); setSnap('half');
   try {
     const geo = await loadJson('data/hitori/prefectures_svg.json');
+    if (isStale(gen)) return;
     const code = core.prefectureAt(lat, lon, geo);
     state.pref = code;
-    await loadPref(code); await loadCurated(code);
+    await loadPref(code); if (isStale(gen)) return;
+    await loadCurated(code); if (isStale(gen)) return;
     state.loading = false; render();
     const nb = await loadJson('data/hitori/neighbors.json');
-    await Promise.all((nb[String(code)] || []).map(async c => { await loadPref(c); await loadCurated(c); }));
-  } catch (e) { state.notice = `データを読み込めませんでした（${e.message}）`; }
+    if (isStale(gen)) return;
+    await Promise.all((nb[String(code)] || []).map(async c => { await loadPref(c); if (isStale(gen)) return; await loadCurated(c); }));
+  } catch (e) { if (isStale(gen)) return; state.notice = `データを読み込めませんでした（${e.message}）`; }
+  if (isStale(gen)) return;
   state.loading = false; render();
 }
 function locate() {
@@ -246,8 +288,10 @@ function bindBody(root) {
   on('#btn-reset', 'click', () => { state.filters = { q: '', cat: '', kinds: null, verifiedOnly: false, openNow: false, hideChain: false, gemOnly: false, radiusKm: 3 }; state.current = null; render(); });
   on('#chips [data-cat]', 'click', e => { state.filters.cat = e.currentTarget.dataset.cat; state.filters.kinds = null; state.shown = PAGE; render(); });
   on('#btn-more', 'click', () => { state.shown += PAGE; render(); });
-  // 距離つきの複製（viewRows）を優先して渡す。byId の元オブジェクトには distM が無い。
-  on('.open-detail', 'click', e => { const id = e.currentTarget.dataset.id; select(viewRows().list.find(x => x.id === id) || state.byId.get(id)); });
+  // カード全体を押せる面にする（施設名だけだと当たりが 21px しかなかった）。
+  on('.card', 'click', e => { if (e.target.closest('[data-want]')) return; openDetail(e.currentTarget.dataset.id); });
+  // カード内の施設名ボタンはキーボード用。クリックはカード側が受けるので二重に開かない。
+  on('.open-detail', 'click', e => { if (e.currentTarget.closest('.card')) return; openDetail(e.currentTarget.dataset.id); });
   on('[data-want]', 'click', e => { e.stopPropagation(); toggleWant(state.byId.get(e.currentTarget.dataset.want)); });
 }
 function refreshList() {
@@ -257,6 +301,8 @@ function refreshList() {
   $('list').innerHTML = list.slice(0, state.shown).map(cardHtml).join('');
   bindBody($('list')); renderMarkers(list.slice(0, state.shown));
 }
+// 距離つきの複製（lastView）を優先して渡す。byId の元オブジェクトには distM が無い。
+function openDetail(id) { select(lastView.find(x => x.id === id) || state.byId.get(id)); }
 export function toggleWant(r) {
   if (!r || !state.saved || !storage) { state.notice = 'この端末では保存できません。'; render(); return; }
   state.saved = mc.toggleWant(state.saved, r, r.pref); mc.saveSaved(storage, state.saved); track('hitori.save'); render();
@@ -285,13 +331,11 @@ loadJson('data/hitori/journal_links.json').then(j => { journal = j; }).catch(() 
 
 function detailHtmlImpl() {
   const r = state.current; if (!r) return '';
-  const meta = isChecked(r.id) ? state.index.checked[r.id] : null;
-  const cur = meta ? (state.curatedByPref.get(meta[0]) || {})[r.id] : null;
+  const cur = curatedOf(r.id);
   const cat = mc.displayCat(r.kind, r.cat);
   const g = cur ? mc.groupFacts(cur, cat) : null;
   const s = cur ? mc.summarizeCurated(cur) : null;
-  const hoursFact = cur ? (cur.facts || []).find(f => (f.k === 'hours' || f.k === 'opening_hours') && !f.conflict) : null;
-  const open = mc.openLabel(r, hoursFact, new Date());
+  const open = mc.openLabel(r, hoursFactOf(r.id), new Date());
   const base = `${location.origin}${location.pathname}`;
   const url = mc.facilityShareUrl(base, r.pref, r.id);
   const saved = state.saved || { want: {}, went: {} };

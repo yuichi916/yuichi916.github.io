@@ -138,6 +138,17 @@ check('applyFilters: verifiedOnly / hideChain / gemOnly / openNow / radius', () 
   deq(mc.applyFilters(ITEMS, { radiusKm: 1 }, { checked, now: NOW, origin: { lat: 0, lon: 0 } }).map(i => i.id), ['a', 'b', 'd']);
   deq(mc.applyFilters(ITEMS, { kinds: ['museum', 'cinema'] }, { checked, now: NOW }).map(i => i.id), ['d']);
 });
+check('applyFilters: openNow は確認済みの営業時間を OSM より優先する', () => {
+  // OSM の oh では 16:00 は営業時間外。確認済みの hours があれば営業中として残す。
+  const it = { id: 'v', name: 'V', city: '横浜市', kind: 'sento', cat: 'bath', chain: 0, hidden: 0, hidden_n: 0, solo: 5, oh: 'Mo-Su 11:00-15:00' };
+  const at16 = new Date(2026, 7, 29, 16, 0);
+  deq(mc.applyFilters([it], { openNow: true }, { checked, now: at16 }).map(i => i.id), []);
+  const hoursOf = id => (id === 'v' ? { k: 'hours', v: '11:00-21:00', official: true } : null);
+  deq(mc.applyFilters([it], { openNow: true }, { checked, now: at16, hoursOf }).map(i => i.id), ['v']);
+  // 時間が分からないものは、絞り込みが入っている間は出さない（従来どおり）。
+  const unknown = { ...it, id: 'u', oh: '' };
+  deq(mc.applyFilters([unknown], { openNow: true }, { checked, now: at16, hoursOf: () => null }).map(i => i.id), []);
+});
 check('rankItems: 確認済みが最上位、あとは距離', () => {
   deq(mc.rankItems(ITEMS, { checked, origin: { lat: 0, lon: 0 } }).map(i => i.id), ['c', 'b', 'd', 'a']);
 });

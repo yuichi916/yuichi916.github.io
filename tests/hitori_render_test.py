@@ -257,7 +257,7 @@ def test_detail_fetch_failure_is_contained(page):
 
 def test_file_protocol_explains_itself(page):
     """file:// で開かれたら、ページの不具合ではなく開き方の問題だと分かる案内を出す。"""
-    uri = (ROOT / "hitori.html").resolve().as_uri()
+    uri = (ROOT / "hitori-legacy.html").resolve().as_uri()
     page.goto(uri)
     page.wait_for_function("window.__ready === true", timeout=15000)
     body = page.inner_text("body")
@@ -1522,8 +1522,8 @@ def test_same_kind_radius_is_single_source(context, page):
     p.goto(BASE)
     p.wait_for_function("window.__searchReady === true", timeout=30000)
     assert p.evaluate("core.SAME_KIND_RADIUS_M") == 500
-    src = (ROOT / "hitori.html").read_text(encoding="utf-8")
-    assert "core.SAME_KIND_RADIUS_M" in src, "hitori.html が core.SAME_KIND_RADIUS_M を使っていない"
+    src = (ROOT / "hitori-legacy.html").read_text(encoding="utf-8")
+    assert "core.SAME_KIND_RADIUS_M" in src, "hitori-legacy.html が core.SAME_KIND_RADIUS_M を使っていない"
     p.close()
 
 

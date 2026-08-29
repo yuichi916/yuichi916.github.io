@@ -192,7 +192,8 @@ export function applyFilters(items, f, ctx) {
     if (o.verifiedOnly && !(c.checked && c.checked(it.id))) return false;
     if (o.hideChain && it.chain) return false;
     if (o.gemOnly && !isGem(it)) return false;
-    if (o.openNow && openLabel(it, null, c.now || new Date()).state !== 'open') return false;
+    // 確認済みの営業時間があれば、カードの表示と同じ判断材料で絞り込む（ctx.hoursOf は id→hours の事実）。
+    if (o.openNow && openLabel(it, c.hoursOf ? c.hoursOf(it.id) : null, c.now || new Date()).state !== 'open') return false;
     if (o.radiusKm && c.origin && Number.isFinite(o.radiusKm) && it.distM > o.radiusKm * 1000) return false;
     return true;
   });
