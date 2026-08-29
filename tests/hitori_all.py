@@ -19,6 +19,7 @@ TESTS = [
     "hitori_normalize_test.py",
     "hitori_validate_test.py",
     "hitori_build_test.py",
+    "hitori_index_test.py",
     "hitori_mapsvg_test.py",
     "hitori_places_test.py",
     "hitori_facilities_test.py",
