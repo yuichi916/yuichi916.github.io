@@ -133,9 +133,6 @@ def test_detail_of_unverified_says_so_and_has_no_scores(page):
     page.goto(BASE + "#pref=14")
     _ready(page)
     page.wait_for_selector("#list .card.unverified", timeout=30000)
-    # 一覧の fitBounds アニメ中にクリックすると、Leaflet は詳細の setView を黙って捨てる
-    # （_tryAnimatedZoom が _animatingZoom 中は true を返す）。落ち着いてから開く。
-    page.wait_for_timeout(900)
     page.locator("#list .card.unverified .open-detail").first.click()
     page.wait_for_selector("#detail", timeout=10000)
     txt = page.inner_text("#detail")
@@ -218,7 +215,10 @@ def test_locate_sorts_by_distance_and_tracks(context, page):
     page.wait_for_selector("#list .card", timeout=40000)
     assert "現在地" in page.inner_text(".origin-line")
     dists = page.eval_on_selector_all("#list .card:not(.unverified) .meta", "els => els.map(e => e.textContent)")
-    assert dists, "確認済みが先頭に無い"
+    assert dists, "確認済みが1件も無い"
+    first = page.locator("#list .card").first
+    assert "unverified" not in (first.get_attribute("class") or ""), "先頭が未確認カード"
+    assert "確認済み" in first.inner_text(), f"先頭が確認済みでない: {first.inner_text()[:120]}"
     assert "hitori.locate" in page.evaluate("window.__events")
     page.locator("#list .card .open-detail").first.click()
     page.wait_for_selector("#detail")
@@ -241,6 +241,25 @@ def test_about_sheet_keeps_provenance_and_site_links(page):
     page.screenshot(path=str(SHOTS / "hitori-mobile-about.png"), full_page=False)
 
 
+def test_menu_returns_to_the_sheet_it_was_opened_from(page):
+    page.set_viewport_size(MOBILE)
+    page.goto(BASE + "#pref=14")
+    _ready(page)
+    page.wait_for_selector("#list .card", timeout=30000)
+    page.locator("#list .card .open-detail").first.click()
+    page.wait_for_selector("#detail", timeout=10000)
+    name = page.inner_text("#detail h2")
+    page.click("#btn-menu")
+    page.wait_for_selector("#about")
+    assert page.get_attribute("#sheet", "data-snap") == "full"
+    page.click("#about #btn-back")
+    page.wait_for_selector("#detail", timeout=10000)
+    assert page.is_visible("#detail")
+    assert page.inner_text("#detail h2") == name, "戻ったら別の施設になっている"
+    snap = page.get_attribute("#sheet", "data-snap")
+    assert snap != "full", f"シートが全画面のまま（地図が隠れる）: {snap}"
+
+
 # テストごとに新しい context を作る（localStorage と位置情報の許可を持ち越さない）。
 # 後続タスクでテスト関数を足したら、このリストにも足す。
 TESTS = [
@@ -253,6 +272,7 @@ TESTS = [
     test_save_want_then_share_and_restore_on_fresh_context,
     test_locate_sorts_by_distance_and_tracks,
     test_about_sheet_keeps_provenance_and_site_links,
+    test_menu_returns_to_the_sheet_it_was_opened_from,
 ]
 
 

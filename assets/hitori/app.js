@@ -59,6 +59,10 @@ export function renderMarkers(view) {
   if (state.origin) originMarker = L.marker([state.origin.lat, state.origin.lon], { icon: L.divIcon({ className: '', html: '<div class="origin-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), interactive: false }).addTo(map);
   // setView は選択地点を画面中央に置くが、モバイルではそこがシートの裏。見えている帯の中まで持ち上げる。
   if (state.current) selfView(() => {
+    // 走っているアニメを先に止める。Leaflet はズームアニメ中の setView を黙って捨てる
+    // （_tryAnimatedZoom が _animatingZoom 中は true を返す）ので、一覧の fitBounds 直後に
+    // カードを押すと中心が動かないことがある。
+    map.stop();
     map.setView([Number(state.current.lat), Number(state.current.lon)], Math.max(map.getZoom(), 15), { animate: true });
     const cover = sheetCover();
     if (cover) map.panBy([0, Math.round(cover / 2)], { animate: false });
@@ -115,6 +119,19 @@ function resetRows() { state.rows = []; state.byId = new Map(); state.prefLoaded
 // --- シート ---
 export function setSnap(snap) { state.snap = snap; $('sheet').dataset.snap = snap; }
 export function setSheet(mode) { state.sheet = mode; render(); }
+// ヘッダーの ≡ と ♡ が開く about / saved は、いま見ている画面に重ねる引き出し。
+// 閉じたら元の画面・スナップ・選択中の施設に戻す。覚えるのは最初の1枚だけなので、
+// about→saved と重ねても戻り先は「1枚目を開く前の画面」になる。
+let prevView = null;
+function openOverlay(sheet) {
+  if (!prevView) prevView = { sheet: state.sheet, snap: state.snap, current: state.current };
+  state.sheet = sheet;
+}
+function closeOverlay() {
+  const p = prevView; prevView = null;
+  if (p) { state.current = p.current; state.sheet = p.sheet; render(); setSnap(p.snap); return; }
+  state.sheet = state.rows.length ? 'list' : 'home'; render(); setSnap('half');
+}
 function bindSheetDrag() {
   const sheet = $('sheet'), handle = $('sheet-handle');
   let startY = null, startSnap = null;
@@ -340,8 +357,8 @@ export function toggleWant(r) {
 async function boot() {
   initMap(); bindSheetDrag();
   // 共有URLで開いた他人のリストを、自分の♡が開いたときに引きずらない。
-  $('btn-saved').addEventListener('click', () => { sharedList = null; state.sheet = 'saved'; render(); setSnap('half'); });
-  $('btn-menu').addEventListener('click', () => { state.sheet = 'about'; render(); setSnap('full'); });
+  $('btn-saved').addEventListener('click', () => { sharedList = null; openOverlay('saved'); render(); setSnap('half'); });
+  $('btn-menu').addEventListener('click', () => { openOverlay('about'); render(); setSnap('full'); });
   $('btn-research').addEventListener('click', () => { moved = false; $('btn-research').classList.remove('show'); const b = map.getBounds(); const c = b.getCenter(); useOrigin(c.lat, c.lng, '地図の中心', 'map'); });
   try { state.index = await loadJson('data/hitori/index.json'); } catch (e) { $('sheet-body').innerHTML = `<p class="notice err">データを読み込めませんでした（${esc(e.message)}）<br><button class="tog" type="button" onclick="location.reload()">再読み込み</button></p>`; return; }
   const params = new URLSearchParams(location.search);
@@ -451,7 +468,7 @@ function savedHtmlImpl() {
 }
 function bindSaved() {
   if (!$('saved')) return;
-  $('btn-back').addEventListener('click', () => { sharedList = null; state.notice = ''; state.sheet = state.rows.length ? 'list' : 'home'; render(); });
+  $('btn-back').addEventListener('click', () => { sharedList = null; state.notice = ''; closeOverlay(); });
   document.querySelectorAll('#saved-tabs [data-tab]').forEach(b => b.addEventListener('click', () => { savedTab = b.dataset.tab; render(); }));
   const sh = $('btn-share-saved');
   if (sh) sh.addEventListener('click', async () => {
@@ -513,7 +530,7 @@ function aboutHtmlImpl() {
     <a href="./" style="display:flex;align-items:center;min-height:44px;color:#8d4734;font-weight:700;text-decoration:none;margin:12px 0">← ひとりぶんの棚（ほかの作品を見る）</a>
   </div>`;
 }
-function bindAbout() { if ($('about')) $('btn-back').addEventListener('click', () => { state.sheet = state.rows.length ? 'list' : 'home'; render(); }); }
+function bindAbout() { if ($('about')) $('btn-back').addEventListener('click', closeOverlay); }
 setRenderers({ aboutHtml: aboutHtmlImpl });
 
 // boot() は必ずファイルの最後の行に置く。Task 9〜11 の追記はこの行より前に挿入する
