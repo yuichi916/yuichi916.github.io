@@ -216,6 +216,7 @@ export function render() {
   bindBody();
   if (state.sheet === 'detail') bindDetail();
   if (state.sheet === 'saved') bindSaved();
+  if (state.sheet === 'about') bindAbout();
   if (state.sheet === 'list') renderMarkers(vr.list.slice(0, state.shown));
   else if (state.sheet === 'detail') renderMarkers((lastView.length ? lastView : viewRows().list).slice(0, state.shown));
   else if (state.sheet === 'saved') renderMarkers(savedRows());
@@ -457,6 +458,34 @@ async function restoreSharedImpl(param) {
 }
 setRenderers({ savedHtml: savedHtmlImpl, savedRows: savedRowsImpl });
 setRestoreShared(restoreSharedImpl);
+
+// --- このマップについて ---
+const REQ_TEXT = '@ViewsEngineer ひとり歓迎マップに載せてほしい店があります：\n店名・エリア：\nひとりで入りやすいと思う理由：';
+function aboutHtmlImpl() {
+  const idx = state.index;
+  const prefs = idx.prefectures.slice().sort((a, b) => b.checked - a.checked);
+  return `<div id="about">
+    <button class="tog" id="btn-back" type="button">‹ 戻る</button>
+    <h2 style="margin:12px 0 4px;font-family:'Noto Serif JP',serif;font-size:20px">情報を、曖昧なままおすすめしない。</h2>
+    <p style="font-size:13px;color:#655b55">「ひとりで入れるか」を一本の軸にして、全国 ${idx.total.toLocaleString()} 施設を並べ直した地図です。${idx.checked_count.toLocaleString()} 件は公式情報などで裏を取り、出典URLを添えています。</p>
+    <p class="sec-label">三つの決めごと</p>
+    <ol style="padding-left:18px;font-size:13px;color:#655b55"><li>店の自己申告に頼らず、観測できる属性（業態・席・営業形態・チェーンか）から組み立てる</li><li>混雑は測れないので、周辺に同業が少ない独立店を「穴場候補」として代理指標にする</li><li>事実には出典・URL・公式かどうかを必ず添え、出典同士の<b>食い違いは消さずに両方見せる</b></li></ol>
+    <p><a href="method/hitori-kijun.html" style="color:#8d4734;font-weight:700">この地図の作り方（ひとり基準）→</a></p>
+    <p class="sec-label">載っていない店を見つけたら</p>
+    <a class="tog" id="btn-request" href="https://x.com/intent/post?text=${encodeURIComponent(REQ_TEXT)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none;background:var(--accent);color:#fff;border-color:var(--accent)">この店を載せてほしい（Xで送る）</a>
+    <p style="font-size:12px;color:var(--muted)">確認できたものから、根拠つきで追加していきます。</p>
+    <p class="sec-label">都道府県別の確認済み件数</p>
+    <ul class="roadmap" style="columns:2;padding-left:18px;font-size:12px;color:#655b55">${prefs.map(p => `<li>${esc(p.name)} <b>${p.checked}</b> / ${p.count.toLocaleString()}</li>`).join('')}</ul>
+    <p class="sec-label">出典</p>
+    <p style="font-size:12px;color:var(--muted)">施設データ: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors / ODbL</a> ／ 地図タイル: <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noreferrer">国土地理院</a> ／ 人口: Wikidata (CC0)・令和2年国勢調査 ／ 確認済み情報は各施設に個別出典を表示 ／ <a href="./hitori-legacy.html">旧版</a></p>
+    <p class="sec-label">次はこちら</p>
+    <a href="hitoritabi/" style="display:flex;align-items:center;min-height:44px;color:#8d4734;font-weight:700;text-decoration:none;margin:4px 0">一人旅ジャーナル — 実際に行った32本 →</a>
+    <a href="cabin.html" style="display:flex;align-items:center;min-height:44px;color:#8d4734;font-weight:700;text-decoration:none;margin:4px 0">森の小屋 — 出かけられない日のための、行かなくていい場所 →</a>
+    <a href="./" style="display:flex;align-items:center;min-height:44px;color:#8d4734;font-weight:700;text-decoration:none;margin:12px 0">← ひとりぶんの棚（ほかの作品を見る）</a>
+  </div>`;
+}
+function bindAbout() { if ($('about')) $('btn-back').addEventListener('click', () => { state.sheet = state.rows.length ? 'list' : 'home'; render(); }); }
+setRenderers({ aboutHtml: aboutHtmlImpl });
 
 // boot() は必ずファイルの最後の行に置く。Task 9〜11 の追記はこの行より前に挿入する
 // （setRenderers が初回 render より先に走ることを、評価順で保証するため）。

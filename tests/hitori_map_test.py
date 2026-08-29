@@ -66,6 +66,7 @@ def test_area_mode_lists_verified_first_without_score_dots(page):
     assert page.locator("#list .dots").count() == 0, "未確認に推定スコアの点線が出ている"
     assert page.locator("#list .card.unverified").count() > 0
     assert "候補" in page.locator("#list .card.unverified").first.inner_text()
+    page.wait_for_timeout(1500)   # タイルが載る前だと地図が灰色一色で、確認の役に立たない
     page.screenshot(path=str(SHOTS / "hitori-mobile-list.png"))
 
 
@@ -125,6 +126,7 @@ def test_detail_of_unverified_says_so_and_has_no_scores(page):
     assert "未確認" in txt and "OpenStreetMap" in txt
     assert "ひとり度" not in txt
     assert page.locator("#detail .journal").count() == 1, "神奈川には旅記事があるはず"
+    page.wait_for_timeout(1500)   # タイルが載る前だと地図が灰色一色で、確認の役に立たない
     page.screenshot(path=str(SHOTS / "hitori-mobile-detail.png"))
 
 
@@ -141,6 +143,7 @@ def test_save_want_then_share_and_restore_on_fresh_context(browser):
     assert page.locator("#saved .card").count() == 1
     share_url = page.evaluate("document.getElementById('btn-share-saved').dataset.url")
     assert "?saved=14:" in share_url
+    page.wait_for_timeout(1500)   # タイルが載る前だと地図が灰色一色で、確認の役に立たない
     page.screenshot(path=str(SHOTS / "hitori-mobile-saved.png"))
     ctx.close()
     # 別端末を模す: 新しいコンテキスト（localStorage 空）で共有URLを開く
@@ -154,6 +157,43 @@ def test_save_want_then_share_and_restore_on_fresh_context(browser):
     ctx2.close()
 
 
+TOKYO = {"latitude": 35.6812, "longitude": 139.7671}
+
+
+def test_locate_sorts_by_distance_and_tracks(context, page):
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation(TOKYO)
+    page.set_viewport_size(MOBILE)
+    page.goto(BASE)
+    _ready(page)
+    page.evaluate("window.__events=[]; window.goatcounter={count:e=>window.__events.push(e.path)}")
+    page.click("#btn-locate")
+    page.wait_for_selector("#list .card", timeout=40000)
+    assert "現在地" in page.inner_text(".origin-line")
+    dists = page.eval_on_selector_all("#list .card:not(.unverified) .meta", "els => els.map(e => e.textContent)")
+    assert dists, "確認済みが先頭に無い"
+    assert "hitori.locate" in page.evaluate("window.__events")
+    page.locator("#list .card .open-detail").first.click()
+    page.wait_for_selector("#detail")
+    assert "hitori.detail" in page.evaluate("window.__events")
+    page.screenshot(path=str(SHOTS / "hitori-mobile-locate.png"))
+
+
+def test_about_sheet_keeps_provenance_and_site_links(page):
+    page.set_viewport_size(MOBILE)
+    page.goto(BASE)
+    _ready(page)
+    page.click("#btn-menu")
+    page.wait_for_selector("#about")
+    txt = page.inner_text("#about")
+    for needle in ["OpenStreetMap", "国土地理院", "食い違い", "ひとりぶんの棚", "この地図の作り方", "一人旅ジャーナル", "載せてほしい"]:
+        assert needle in txt, needle
+    assert page.locator("#about .roadmap li").count() == 47
+    assert page.locator(".homeback").count() == 0 and page.locator(".nextstrip").count() == 0
+    page.wait_for_timeout(1500)   # シートの上げ切りとタイルを待つ
+    page.screenshot(path=str(SHOTS / "hitori-mobile-about.png"), full_page=False)
+
+
 # テストごとに新しい context を作る（localStorage と位置情報の許可を持ち越さない）。
 # 後続タスクでテスト関数を足したら、このリストにも足す。
 TESTS = [
@@ -164,6 +204,8 @@ TESTS = [
     test_detail_shows_provenance_and_conflicts,
     test_detail_of_unverified_says_so_and_has_no_scores,
     test_save_want_then_share_and_restore_on_fresh_context,
+    test_locate_sorts_by_distance_and_tracks,
+    test_about_sheet_keeps_provenance_and_site_links,
 ]
 
 
