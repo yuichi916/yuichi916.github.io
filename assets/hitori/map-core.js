@@ -43,3 +43,37 @@ const FIT_NOTE = {
 export function displayCat(kind, cat) { return KIND_CAT[kind] || cat; }
 export function kindJa(kind) { return KIND_JA[kind] || kind; }
 export function fitNote(kind) { return FIT_NOTE[kind] || ''; }
+
+// --- 営業中ラベル ---
+function _closingText(rules, now) {
+  const day = now.getDay(), prev = (day + 6) % 7;
+  const min = now.getHours() * 60 + now.getMinutes();
+  let end = null;
+  for (const r of rules) {
+    if (r.days.includes(day)) for (const [a, b] of r.spans) if (min >= a && min < b) end = b;
+    if (end === null && r.days.includes(prev)) {
+      for (const [a, b] of r.spans) if (b > 1440 && min + 1440 >= a && min + 1440 < b) end = b - 1440;
+    }
+  }
+  if (end === null) return '';
+  const next = end > 1440;
+  const m = next ? end - 1440 : end;
+  const hh = Math.floor(m / 60), mm = m % 60;
+  return `〜${next ? '翌' : ''}${hh}:${String(mm).padStart(2, '0')}`;
+}
+
+export function openLabel(item, hoursFact, now) {
+  const candidates = [];
+  if (hoursFact && typeof hoursFact.v === 'string') {
+    candidates.push([hoursFact.v, hoursFact.official ? '公式サイト' : '確認済み情報']);
+  }
+  if (item && item.oh) candidates.push([item.oh, 'OpenStreetMap']);
+  for (const [str, source] of candidates) {
+    const rules = parseOpeningHours(str);
+    if (!rules) continue;
+    const st = openState(str, now);
+    if (st === 'open') return { state: 'open', text: `営業中 ${_closingText(rules, now)}`.trim(), source };
+    return { state: 'closed', text: '営業時間外', source };
+  }
+  return { state: 'unknown', text: '営業時間は要確認', source: '' };
+}
