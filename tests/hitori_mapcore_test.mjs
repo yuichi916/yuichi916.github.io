@@ -112,5 +112,57 @@ check('formatFactValue', () => {
   eq(mc.formatFactValue('hours', '10:00-21:00'), '10:00-21:00');
 });
 
+const ITEMS = [
+  { id: 'a', name: 'A', city: '横浜市', kind: 'ramen', cat: 'eat', chain: 0, hidden: .9, hidden_n: 4, solo: 5, distM: 900, oh: '24/7' },
+  { id: 'b', name: 'B', city: '川崎市', kind: 'sento', cat: 'bath', chain: 0, hidden: 0, hidden_n: 2, solo: 4, distM: 100, oh: 'Mo-Su 11:00-21:00' },
+  { id: 'c', name: 'C', city: '横浜市', kind: 'gyudon', cat: 'eat', chain: 1, hidden: 0, hidden_n: 9, solo: 5, distM: 5000, oh: '' },
+  { id: 'd', name: 'D', city: '鎌倉市', kind: 'museum', cat: 'stay', chain: 0, hidden: 0, hidden_n: 0, solo: 5, distM: 300, oh: 'Tu-Su 09:00-17:00' },
+];
+const checked = id => id === 'c';
+const NOW = new Date(2026, 7, 29, 12, 0); // 土
+
+check('applyFilters: cat は表示カテゴリで判定', () => {
+  deq(mc.applyFilters(ITEMS, { cat: 'quiet' }, { checked, now: NOW }).map(i => i.id), ['d']);
+  deq(mc.applyFilters(ITEMS, { cat: 'stay' }, { checked, now: NOW }).map(i => i.id), []);
+});
+check('applyFilters: q は kind 日本語にも当たる', () => {
+  deq(mc.applyFilters(ITEMS, { q: 'そば' }, { checked, now: NOW }).map(i => i.id), []);
+  deq(mc.applyFilters(ITEMS, { q: 'ラーメン' }, { checked, now: NOW }).map(i => i.id), ['a']);
+  deq(mc.applyFilters(ITEMS, { q: '川崎' }, { checked, now: NOW }).map(i => i.id), ['b']);
+});
+check('applyFilters: verifiedOnly / hideChain / gemOnly / openNow / radius', () => {
+  deq(mc.applyFilters(ITEMS, { verifiedOnly: true }, { checked, now: NOW }).map(i => i.id), ['c']);
+  deq(mc.applyFilters(ITEMS, { hideChain: true }, { checked, now: NOW }).map(i => i.id), ['a', 'b', 'd']);
+  deq(mc.applyFilters(ITEMS, { gemOnly: true }, { checked, now: NOW }).map(i => i.id), ['a']);
+  deq(mc.applyFilters(ITEMS, { openNow: true }, { checked, now: NOW }).map(i => i.id), ['a', 'b', 'd']);
+  deq(mc.applyFilters(ITEMS, { radiusKm: 1 }, { checked, now: NOW, origin: { lat: 0, lon: 0 } }).map(i => i.id), ['a', 'b', 'd']);
+  deq(mc.applyFilters(ITEMS, { kinds: ['museum', 'cinema'] }, { checked, now: NOW }).map(i => i.id), ['d']);
+});
+check('rankItems: 確認済みが最上位、あとは距離', () => {
+  deq(mc.rankItems(ITEMS, { checked, origin: { lat: 0, lon: 0 } }).map(i => i.id), ['c', 'b', 'd', 'a']);
+});
+check('rankItems: 起点なしは 穴場→solo→名前', () => {
+  deq(mc.rankItems(ITEMS, { checked, origin: null }).map(i => i.id), ['c', 'a', 'd', 'b']);
+});
+check('expandRadius: 0件なら次の段へ', () => {
+  const far = [{ id: 'x', distM: 8000 }];
+  const r = mc.expandRadius(far, 1);
+  eq(r.radiusKm, 10); eq(r.expanded, true); eq(r.items.length, 1);
+  const r2 = mc.expandRadius([{ id: 'y', distM: 500 }], 1);
+  eq(r2.radiusKm, 1); eq(r2.expanded, false);
+  eq(mc.expandRadius([], 1).radiusKm, Infinity);
+});
+check('nearestChecked', () => {
+  const rows = [{ id: 'p', lat: 35.0, lon: 139.0 }, { id: 'q', lat: 35.1, lon: 139.0 }, { id: 'r', lat: 36.0, lon: 139.0 }];
+  const r = mc.nearestChecked(rows, 35.09, 139.0, id => id === 'p' || id === 'r');
+  eq(r.item.id, 'p');
+  eq(mc.nearestChecked(rows, 35, 139, () => false), null);
+});
+check('SCENES', () => {
+  eq(mc.SCENES.length, 4);
+  eq(mc.SCENES.find(s => s.key === 'rain').kinds.includes('library'), true);
+  eq(mc.SCENES.find(s => s.key === 'bath_tonight').openNow, true);
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
 console.log('OK: map-core');

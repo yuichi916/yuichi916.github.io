@@ -171,3 +171,58 @@ export function groupFacts(entry, displayCatKey) {
   }
   return { rows, solo, warnings, insight };
 }
+
+// --- 絞り込み・順位 ---
+export const SCENES = [
+  { key: 'bath_tonight', label: '今夜、ひとりで銭湯', cat: 'bath', kinds: null, openNow: true },
+  { key: 'eat_quick', label: 'さっと一人飯', cat: 'eat', kinds: null, openNow: true },
+  { key: 'rain', label: '雨の日に没頭', cat: null, kinds: ['library', 'museum', 'cinema', 'netcafe'], openNow: false },
+  { key: 'stay_tonight', label: '今夜の宿', cat: 'stay', kinds: null, openNow: false },
+];
+export function isGem(it) { return !it.chain && Number(it.hidden) >= .75 && Number(it.hidden_n) >= 3; }
+
+export function applyFilters(items, f, ctx) {
+  const o = f || {}, c = ctx || {};
+  const q = String(o.q || '').trim().toLowerCase();
+  const kinds = o.kinds && o.kinds.length ? new Set(o.kinds) : null;
+  return items.filter(it => {
+    if (q && !`${it.name} ${it.city || ''} ${kindJa(it.kind)}`.toLowerCase().includes(q)) return false;
+    if (o.cat && displayCat(it.kind, it.cat) !== o.cat) return false;
+    if (kinds && !kinds.has(it.kind)) return false;
+    if (o.verifiedOnly && !(c.checked && c.checked(it.id))) return false;
+    if (o.hideChain && it.chain) return false;
+    if (o.gemOnly && !isGem(it)) return false;
+    if (o.openNow && openLabel(it, null, c.now || new Date()).state !== 'open') return false;
+    if (o.radiusKm && c.origin && Number.isFinite(o.radiusKm) && it.distM > o.radiusKm * 1000) return false;
+    return true;
+  });
+}
+
+export function rankItems(items, ctx) {
+  const c = ctx || {};
+  const ck = it => (c.checked && c.checked(it.id)) ? 0 : 1;
+  const byArea = (a, b) => (Number(isGem(b)) - Number(isGem(a))) || (Number(b.solo) - Number(a.solo))
+    || String(a.name).localeCompare(String(b.name), 'ja');
+  const byDist = (a, b) => (a.distM - b.distM) || byArea(a, b);
+  return items.slice().sort((a, b) => (ck(a) - ck(b)) || (c.origin ? byDist(a, b) : byArea(a, b)));
+}
+
+export function expandRadius(items, radiusKm, steps = [1, 3, 10, Infinity]) {
+  let i = Math.max(0, steps.indexOf(radiusKm));
+  for (; i < steps.length; i++) {
+    const r = steps[i];
+    const hit = items.filter(it => !Number.isFinite(r) || it.distM <= r * 1000);
+    if (hit.length || i === steps.length - 1) return { items: hit, radiusKm: r, expanded: r !== radiusKm };
+  }
+  return { items: [], radiusKm: Infinity, expanded: true };
+}
+
+export function nearestChecked(items, lat, lon, checked) {
+  let best = null;
+  for (const it of items) {
+    if (!checked(it.id)) continue;
+    const d = haversineM(lat, lon, Number(it.lat), Number(it.lon));
+    if (!best || d < best.distM) best = { item: it, distM: d };
+  }
+  return best;
+}
