@@ -181,6 +181,7 @@ export function render() {
   else if (state.sheet === 'about') body.innerHTML = aboutHtml();
   $('saved-count').textContent = state.saved ? mc.savedCount(state.saved) : 0;
   bindBody();
+  if (state.sheet === 'detail') bindDetail();
   if (state.sheet === 'list' || state.sheet === 'detail') renderMarkers(viewRows().list.slice(0, state.shown));
   else if (state.sheet === 'saved') renderMarkers(savedRows());
   else renderMarkers([]);
@@ -278,6 +279,72 @@ async function boot() {
 }
 let restoreShared = async () => {};   // Task 10 で差し替える
 export function setRestoreShared(fn) { restoreShared = fn; }
+// --- 詳細 ---
+let journal = null;
+loadJson('data/hitori/journal_links.json').then(j => { journal = j; }).catch(() => { journal = {}; });
+
+function detailHtmlImpl() {
+  const r = state.current; if (!r) return '';
+  const meta = isChecked(r.id) ? state.index.checked[r.id] : null;
+  const cur = meta ? (state.curatedByPref.get(meta[0]) || {})[r.id] : null;
+  const cat = mc.displayCat(r.kind, r.cat);
+  const g = cur ? mc.groupFacts(cur, cat) : null;
+  const s = cur ? mc.summarizeCurated(cur) : null;
+  const hoursFact = cur ? (cur.facts || []).find(f => (f.k === 'hours' || f.k === 'opening_hours') && !f.conflict) : null;
+  const open = mc.openLabel(r, hoursFact, new Date());
+  const base = `${location.origin}${location.pathname}`;
+  const url = mc.facilityShareUrl(base, r.pref, r.id);
+  const saved = state.saved || { want: {}, went: {} };
+  const went = saved.went[r.id];
+  const dist = state.origin && Number.isFinite(r.distM) ? `${(r.distM / 1000).toFixed(1)}km` : '';
+  const jl = journal && journal[String(r.pref)];
+  const reportText = `@ViewsEngineer ひとり歓迎マップの「${r.name}」の情報が違います：\n（何がどう違うか）\n${url}`;
+  return `<div id="detail">
+    <button class="tog" id="btn-back" type="button">‹ 一覧へ</button>
+    ${g && g.warnings.length ? g.warnings.map(w => `<p class="notice ${w.level === 'danger' ? 'err' : ''}">${w.level === 'danger' ? '⚠ ' : ''}${esc(w.text)}</p>`).join('') : ''}
+    <h2 style="margin:10px 0 2px;font-family:'Noto Serif JP',serif;font-size:22px;line-height:1.3">${esc(r.name)}</h2>
+    <div class="meta" style="color:var(--muted);font-size:12.5px">${esc(mc.kindJa(r.kind))}${r.city ? ` · ${esc(r.city)}` : ''}${dist ? ` · ${dist}` : ''} · <span class="${open.state}" style="font-weight:700;color:${open.state === 'open' ? 'var(--sage)' : open.state === 'closed' ? '#9a6b1d' : 'inherit'}">${esc(open.text)}</span>${open.source ? `<small>（${esc(open.source)}）</small>` : ''}</div>
+    ${s ? `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:var(--sage-pale);color:var(--sage);font-size:12.5px"><b>✓ 確認済み ${esc(s.checked)}</b> · 事実 ${s.nFacts}件 · 公式ソース ${s.nOfficial} · 出典ドメイン ${s.nDomains} · 食い違い ${s.nConflict}</section>`
+        : `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:#f5f0ea;color:#6f655f;font-size:12.5px"><b>未確認</b> — OpenStreetMap の登録情報のみです。利用前に公式情報をご確認ください。${mc.fitNote(r.kind) ? `<br>業態の見立て: ${esc(mc.fitNote(r.kind))}` : ''}</section>`}
+    ${g && g.solo.length ? `<section class="solo-box" style="margin:12px 0;padding:12px;border:1px solid #ead8cc;border-radius:12px;background:#fffaf4"><p class="sec-label" style="margin:0 0 6px">ひとり基準</p>${g.solo.map(x => `<div style="display:flex;gap:8px;font-size:13px;margin:3px 0"><b style="flex:none;width:64px;color:#8d4734">${esc(x.label)}</b><span>${esc(x.text)}${x.official ? ' <small style="color:var(--sage)">公式</small>' : ''}</span></div>`).join('')}</section>` : ''}
+    ${g && g.insight ? `<section style="margin:12px 0;padding:12px;border-radius:12px;background:#fffaf4;border:1px solid #ead8cc"><p class="sec-label" style="margin:0 0 4px">一人マップのひとこと</p><b style="font-size:13px">${esc(g.insight.title)}</b><p style="margin:4px 0 0;font-size:12.5px;color:#675c55">${esc(g.insight.insight)}</p></section>` : ''}
+    ${g && g.rows.length ? `<section style="margin:12px 0"><p class="sec-label">確認した事実</p>${g.rows.map(row => `<div class="fact-row ${row.conflict ? 'conflict' : ''}" style="padding:8px 10px;margin-bottom:6px;border-radius:10px;background:#f8f5ef;font-size:12.5px"><b style="display:block;color:#635a54;font-size:11px">${esc(row.label)}${row.conflict ? ' <span style="color:#9a6b1d">⚠ 出典で食い違い</span>' : ''}</b>${row.values.map(v => `<div class="val">${esc(v.text)} <small style="color:var(--muted)">← ${v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noreferrer" style="color:#8d4734">${esc(v.domain)}</a>` : esc(v.domain)}${v.official ? '（公式）' : ''}${v.personal ? '（個人訪問記）' : ''}</small></div>`).join('')}</div>`).join('')}</section>` : ''}
+    <div class="row" style="margin-top:14px">
+      <button class="tog" type="button" data-want="${esc(r.id)}" aria-pressed="${saved.want[r.id] ? 'true' : 'false'}">♡ 行きたい</button>
+      <button class="tog" id="btn-went" type="button" aria-pressed="${went ? 'true' : 'false'}">✓ 行った${went && went.date ? ` ${esc(went.date)}` : ''}</button>
+      <a class="tog" id="btn-route" href="https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;text-decoration:none">経路</a>
+      ${r.web ? `<a class="tog" href="${esc(r.web)}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;text-decoration:none">公式サイト</a>` : ''}
+      <button class="tog" id="btn-share" type="button">共有</button>
+      <a class="tog" id="btn-report" href="https://x.com/intent/post?text=${encodeURIComponent(reportText)}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;text-decoration:none">情報が違う</a>
+    </div>
+    <form id="went-form" style="display:none;margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fff">
+      <label style="font-size:12px">日付 <input type="date" name="date" value="${esc(went ? went.date : new Date().toISOString().slice(0, 10))}" style="min-height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px"></label>
+      <label style="display:block;font-size:12px;margin-top:6px">ひとこと <input type="text" name="memo" maxlength="80" value="${esc(went ? went.memo : '')}" placeholder="任意" style="width:100%;min-height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px"></label>
+      <div class="row" style="margin-top:8px"><button class="tog" type="submit">保存</button>${went ? '<button class="tog" type="button" id="btn-unwent">記録を消す</button>' : ''}</div>
+    </form>
+    ${jl && jl.length ? `<section class="journal" style="margin:16px 0;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff"><p class="sec-label" style="margin:0 0 4px">この土地の一人旅</p>${jl.map(j => `<a href="${esc(j.url)}" style="display:block;color:#8d4734;font-weight:700;font-size:13px;text-decoration:none;margin:4px 0">${esc(j.title)} →</a>`).join('')}</section>` : ''}
+  </div>`;
+}
+function bindDetail() {
+  const r = state.current; if (!r || !$('detail')) return;
+  $('btn-back').addEventListener('click', () => { state.current = null; state.sheet = 'list'; render(); });
+  $('btn-route').addEventListener('click', () => track('hitori.route'));
+  $('btn-went').addEventListener('click', () => { const f = $('went-form'); f.style.display = f.style.display === 'none' ? 'block' : 'none'; });
+  $('went-form').addEventListener('submit', e => {
+    e.preventDefault(); if (!state.saved || !storage) { state.notice = 'この端末では保存できません。'; render(); return; }
+    const fd = new FormData(e.target);
+    state.saved = mc.setWent(state.saved, r, r.pref, { date: fd.get('date'), memo: fd.get('memo') }); mc.saveSaved(storage, state.saved); track('hitori.save'); render();
+  });
+  const un = $('btn-unwent'); if (un) un.addEventListener('click', () => { state.saved = mc.removeWent(state.saved, r.id); mc.saveSaved(storage, state.saved); render(); });
+  $('btn-share').addEventListener('click', async e => {
+    const url = mc.facilityShareUrl(`${location.origin}${location.pathname}`, r.pref, r.id);
+    const text = `ひとりで行きやすい行き先: 「${r.name}」${r.city ? `（${r.city}）` : ''} — 根拠つきの利用情報はこちら`;
+    if (navigator.share) { try { await navigator.share({ title: `${r.name} | ひとり歓迎マップ`, text, url }); return; } catch (err) {} }
+    try { await navigator.clipboard.writeText(`${text}\n${url}`); e.currentTarget.textContent = 'コピーしました'; } catch (err) { window.prompt('リンクをコピーしてください', url); }
+  });
+}
+setRenderers({ detailHtml: detailHtmlImpl });
+
 // boot() は必ずファイルの最後の行に置く。Task 9〜11 の追記はこの行より前に挿入する
 // （setRenderers が初回 render より先に走ることを、評価順で保証するため）。
 boot();

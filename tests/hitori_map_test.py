@@ -97,6 +97,37 @@ def test_sheet_snaps(page):
     assert h_full < h_half, "ハンドルを押してもシートが上がらない"
 
 
+def test_detail_shows_provenance_and_conflicts(page):
+    page.set_viewport_size(DESKTOP)
+    # 桑名の銭湯: 料金が公式200円と非公式150円で食い違う既知の例
+    page.goto(BASE + "?pref=24&facility=n10011494817")
+    _ready(page)
+    page.wait_for_selector("#detail", timeout=30000)
+    txt = page.inner_text("#detail")
+    assert "確認済み" in txt and "公式" in txt and "食い違い" in txt
+    assert page.locator("#detail .fact-row.conflict").count() >= 1
+    assert page.locator("#detail .fact-row.conflict .val").count() >= 2, "食い違いの値が両方出ていない"
+    assert "city.kuwana.lg.jp" in txt
+    href = page.get_attribute("#btn-route", "href")
+    assert href.startswith("https://www.google.com/maps/dir/?api=1&destination=")
+    assert page.is_visible("#btn-back")
+    page.screenshot(path=str(SHOTS / "hitori-desktop-detail.png"), full_page=False)
+
+
+def test_detail_of_unverified_says_so_and_has_no_scores(page):
+    page.set_viewport_size(MOBILE)
+    page.goto(BASE + "#pref=14")
+    _ready(page)
+    page.wait_for_selector("#list .card.unverified", timeout=30000)
+    page.locator("#list .card.unverified .open-detail").first.click()
+    page.wait_for_selector("#detail", timeout=10000)
+    txt = page.inner_text("#detail")
+    assert "未確認" in txt and "OpenStreetMap" in txt
+    assert "ひとり度" not in txt
+    assert page.locator("#detail .journal").count() == 1, "神奈川には旅記事があるはず"
+    page.screenshot(path=str(SHOTS / "hitori-mobile-detail.png"))
+
+
 # テストごとに新しい context を作る（localStorage と位置情報の許可を持ち越さない）。
 # 後続タスクでテスト関数を足したら、このリストにも足す。
 TESTS = [
@@ -104,6 +135,8 @@ TESTS = [
     test_area_mode_lists_verified_first_without_score_dots,
     test_category_chip_quiet_shows_museums_not_hostels,
     test_sheet_snaps,
+    test_detail_shows_provenance_and_conflicts,
+    test_detail_of_unverified_says_so_and_has_no_scores,
 ]
 
 
