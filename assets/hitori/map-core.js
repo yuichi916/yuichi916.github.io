@@ -77,3 +77,97 @@ export function openLabel(item, hoursFact, now) {
   }
   return { state: 'unknown', text: '営業時間は要確認', source: '' };
 }
+
+// --- 確認済み事実の整形 ---
+export const FACT_LABEL = {
+  hours: '営業時間', opening_hours: '営業時間', closed_days: '定休日', price: '料金', payment_method: '支払い方法',
+  counter_seats: 'カウンター席', counter_seating: 'カウンター席', seats_total: '座席数', seats: '席',
+  bring_towel: 'タオル', towel: 'タオル', amenities: 'アメニティ', wash_area: '洗い場', facilities: '設備',
+  unstaffed: '無人', access: '利用条件', conditions: '利用条件', solo_ok: '一人利用', silence: '静けさ',
+  reservation: '予約', private_room: '個室・利用人数', first_timer: '初回利用', busy_time: '混雑の目安',
+  parking: '駐車場', cuisine: '料理', luggage: '荷物', clientele: '客層', open_period: '営業期間',
+  status: '営業状態', renamed_to: '改称', facility_identity: '施設名の確認', city: '所在地',
+};
+const VALUE_JA = {
+  ticket_machine: '券売機あり', cash_only: '現金のみ', cashless_ok: 'キャッシュレス可', counter_person: 'レジで支払い',
+  none: '予約不要', possible: '予約可', required: '要予約',
+  public: '制限なし', residents_only: '住民限定', members_only: '会員制', male_only: '男性専用', female_only: '女性専用',
+  open: '営業中', closed_temporarily: '休業中', closed_permanently: '閉業',
+  posted: '黙浴の掲示あり', observed: '静か（訪問記）', local: '地元客中心', tourist: '観光客中心', solo_common: '一人客が多い',
+  easy: '初めてでも迷わない', custom_exists: '独自の作法あり', yes: 'あり', no: 'なし', rental: '貸出あり', included: '料金に含む',
+};
+export const PERSONAL_DOMAINS = /zatsu-ke\.blog\.jp|sanukiudon-ranking\.com/;
+const ROW_ORDER = ['hours', 'opening_hours', 'closed_days', 'price', 'payment_method', 'counter_seats', 'seats_total', 'seats',
+  'reservation', 'access', 'parking', 'conditions', 'open_period'];
+const HIDDEN_ROWS = new Set(['solo_insight', 'facility_identity', 'city']);
+const BATH_ONLY = new Set(['bring_towel', 'towel', 'wash_area', 'amenities']);
+const SOLO_KEYS = [['solo_ok', '一人利用'], ['counter_seats', '席'], ['seats_total', '席'], ['seats', '席'],
+  ['payment_method', '支払い'], ['reservation', '予約'], ['silence', '静けさ'], ['first_timer', '初回'], ['clientele', '客層']];
+
+export function formatFactValue(k, v) {
+  if (k === 'price' && typeof v === 'number') return `${v.toLocaleString('ja-JP')}円`;
+  if (typeof v === 'object' && v !== null) return JSON.stringify(v);
+  return VALUE_JA[v] !== undefined ? VALUE_JA[v] : String(v);
+}
+function _domain(f) {
+  const u = (f.urls && f.urls[0]) || '';
+  try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return (f.src && f.src[0]) || ''; }
+}
+function _insightOf(f) {
+  let v = f.v;
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { return null; } }
+  if (f.official && v && v.quality === 'grounded' && v.policyVersion === 'official-provenance-v2'
+      && String(v.title || '').trim() && String(v.insight || '').trim()) return { title: v.title, insight: v.insight };
+  return null;
+}
+
+export function summarizeCurated(entry) {
+  const facts = (entry && entry.facts) || [];
+  const domains = new Set();
+  for (const f of facts) for (const d of (f.src || [])) domains.add(d);
+  return { checked: (entry && entry.checked) || '', nFacts: facts.length,
+    nOfficial: facts.filter(f => f.official).length, nDomains: domains.size,
+    nConflict: facts.filter(f => f.conflict).length };
+}
+
+export function groupFacts(entry, displayCatKey) {
+  const facts = (entry && entry.facts) || [];
+  const byKey = new Map();
+  let insight = null;
+  const warnings = [], solo = [];
+  for (const f of facts) {
+    if (f.k === 'solo_insight') { insight = insight || _insightOf(f); continue; }
+    if (HIDDEN_ROWS.has(f.k)) continue;
+    if (displayCatKey !== 'bath' && BATH_ONLY.has(f.k)) continue;
+    if (!byKey.has(f.k)) byKey.set(f.k, []);
+    byKey.get(f.k).push(f);
+  }
+  const rows = [];
+  const keys = [...byKey.keys()].sort((a, b) => {
+    const ia = ROW_ORDER.indexOf(a), ib = ROW_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  for (const k of keys) {
+    const list = byKey.get(k);
+    rows.push({ k, label: FACT_LABEL[k] || k, conflict: list.some(f => f.conflict),
+      values: list.map(f => { const domain = _domain(f); return {
+        text: formatFactValue(k, f.v), domain, url: (f.urls && f.urls[0]) || '',
+        official: !!f.official, personal: PERSONAL_DOMAINS.test(domain) }; }) });
+  }
+  for (const f of facts) {
+    if (f.conflict) continue;
+    if (f.k === 'status' && (f.v === 'closed_temporarily' || f.v === 'closed_permanently'))
+      warnings.push({ level: 'danger', text: `${VALUE_JA[f.v]}の情報があります（${_domain(f)}）` });
+    if (f.k === 'access' && ['male_only', 'female_only', 'members_only', 'residents_only'].includes(f.v))
+      warnings.push({ level: 'warn', text: `${VALUE_JA[f.v]} の情報があります（${_domain(f)}）` });
+    if (f.k === 'renamed_to') warnings.push({ level: 'warn', text: `改称: ${f.v}` });
+  }
+  const seenSolo = new Set();
+  for (const [k, label] of SOLO_KEYS) {
+    const f = facts.find(x => x.k === k && !x.conflict);
+    if (!f || seenSolo.has(label)) continue;
+    seenSolo.add(label);
+    solo.push({ label, text: formatFactValue(k, f.v), official: !!f.official });
+  }
+  return { rows, solo, warnings, insight };
+}

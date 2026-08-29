@@ -64,5 +64,53 @@ check('openLabel: 時間外', () => {
   eq(r.state, 'closed'); eq(r.text, '営業時間外');
 });
 
+const ENTRY = { checked: '2026-08-08', facts: [
+  { k: 'price', v: 600, official: true, conflict: true, src: ['city.kuwana.lg.jp'], urls: ['https://www.city.kuwana.lg.jp/a.pdf'] },
+  { k: 'price', v: 150, official: false, conflict: true, src: ['yuru-to.net'], urls: ['https://yuru-to.net/d'] },
+  { k: 'hours', v: '10:00-21:00', official: true, conflict: false, src: ['city.kuwana.lg.jp'], urls: ['https://www.city.kuwana.lg.jp/'] },
+  { k: 'bring_towel', v: 'rental', official: true, conflict: false, src: ['city.kuwana.lg.jp'], urls: ['https://www.city.kuwana.lg.jp/'] },
+  { k: 'solo_ok', v: 'お一人様歓迎と明記', official: true, conflict: false, src: ['x.jp'], urls: ['https://x.jp/'] },
+  { k: 'access', v: 'male_only', official: true, conflict: false, src: ['x.jp'], urls: ['https://x.jp/'] },
+  { k: 'status', v: 'closed_temporarily', official: false, conflict: false, src: ['zatsu-ke.blog.jp'], urls: ['https://zatsu-ke.blog.jp/p'] },
+  { k: 'solo_insight', v: { title: 'T', insight: 'I', quality: 'grounded', policyVersion: 'official-provenance-v2' }, official: true, conflict: false, src: ['x.jp'], urls: [] },
+]};
+
+check('summarizeCurated', () => {
+  deq(mc.summarizeCurated(ENTRY), { checked: '2026-08-08', nFacts: 8, nOfficial: 6, nDomains: 4, nConflict: 2 });
+});
+check('groupFacts: 食い違いは両方並ぶ', () => {
+  const g = mc.groupFacts(ENTRY, 'bath');
+  const price = g.rows.find(r => r.k === 'price');
+  eq(price.conflict, true); eq(price.values.length, 2);
+  eq(price.values[0].text, '600円'); eq(price.values[0].domain, 'city.kuwana.lg.jp'); eq(price.values[0].official, true);
+  eq(price.values[1].text, '150円'); eq(price.values[1].official, false);
+  eq(g.rows[0].k, 'hours', 'hours が price より先');
+});
+check('groupFacts: 飲食ではタオル系を出さない', () => {
+  eq(mc.groupFacts(ENTRY, 'bath').rows.some(r => r.k === 'bring_towel'), true);
+  eq(mc.groupFacts(ENTRY, 'eat').rows.some(r => r.k === 'bring_towel'), false);
+});
+check('groupFacts: ひとり基準と警告と insight', () => {
+  const g = mc.groupFacts(ENTRY, 'bath');
+  eq(g.solo[0].label, '一人利用'); eq(g.solo[0].text, 'お一人様歓迎と明記');
+  eq(g.warnings.some(w => w.level === 'danger' && w.text.includes('休業中')), true);
+  eq(g.warnings.some(w => w.level === 'warn' && w.text.includes('男性専用')), true);
+  deq(g.insight, { title: 'T', insight: 'I' });
+  eq(g.rows.some(r => r.k === 'solo_insight'), false);
+});
+check('groupFacts: 個人訪問記ラベル', () => {
+  const g = mc.groupFacts(ENTRY, 'bath');
+  eq(g.rows.find(r => r.k === 'status').values[0].personal, true);
+});
+check('groupFacts: insight は grounded でなければ null', () => {
+  const e = { checked: '', facts: [{ k: 'solo_insight', v: { title: 'T', insight: 'I', quality: 'draft', policyVersion: 'official-provenance-v2' }, official: true }] };
+  eq(mc.groupFacts(e, 'eat').insight, null);
+});
+check('formatFactValue', () => {
+  eq(mc.formatFactValue('payment_method', 'ticket_machine'), '券売機あり');
+  eq(mc.formatFactValue('price', 600), '600円');
+  eq(mc.formatFactValue('hours', '10:00-21:00'), '10:00-21:00');
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
 console.log('OK: map-core');
