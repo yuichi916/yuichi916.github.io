@@ -208,11 +208,15 @@ export function rankItems(items, ctx) {
 }
 
 export function expandRadius(items, radiusKm, steps = [1, 3, 10, Infinity]) {
-  let i = Math.max(0, steps.indexOf(radiusKm));
-  for (; i < steps.length; i++) {
-    const r = steps[i];
+  const idx = steps.indexOf(radiusKm);
+  // radiusKm が steps に無い値なら、それ自体を先頭段として扱い、以降は
+  // steps のうちそれより大きい段だけを続ける（steps.indexOf の -1 を
+  // Math.max(0, -1) で握りつぶすと、無関係な先頭段からやり直してしまう）。
+  const ladder = idx >= 0 ? steps.slice(idx) : [radiusKm, ...steps.filter(s => s > radiusKm)];
+  for (let i = 0; i < ladder.length; i++) {
+    const r = ladder[i];
     const hit = items.filter(it => !Number.isFinite(r) || it.distM <= r * 1000);
-    if (hit.length || i === steps.length - 1) return { items: hit, radiusKm: r, expanded: r !== radiusKm };
+    if (hit.length || i === ladder.length - 1) return { items: hit, radiusKm: r, expanded: r !== radiusKm };
   }
   return { items: [], radiusKm: Infinity, expanded: true };
 }

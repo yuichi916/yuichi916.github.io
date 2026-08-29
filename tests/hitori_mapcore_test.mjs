@@ -152,6 +152,12 @@ check('expandRadius: 0件なら次の段へ', () => {
   eq(r2.radiusKm, 1); eq(r2.expanded, false);
   eq(mc.expandRadius([], 1).radiusKm, Infinity);
 });
+check('expandRadius: steps に無い半径は先頭段として扱う', () => {
+  const r = mc.expandRadius([{ id: 'x', distM: 4000 }], 5);
+  eq(r.radiusKm, 5); eq(r.expanded, false); eq(r.items.length, 1);
+  const r2 = mc.expandRadius([{ id: 'y', distM: 12000 }], 5);
+  eq(r2.radiusKm, Infinity); eq(r2.expanded, true);
+});
 check('nearestChecked', () => {
   const rows = [{ id: 'p', lat: 35.0, lon: 139.0 }, { id: 'q', lat: 35.1, lon: 139.0 }, { id: 'r', lat: 36.0, lon: 139.0 }];
   const r = mc.nearestChecked(rows, 35.09, 139.0, id => id === 'p' || id === 'r');
