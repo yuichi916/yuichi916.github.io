@@ -215,6 +215,7 @@ export function render() {
   $('saved-count').textContent = state.saved ? mc.savedCount(state.saved) : 0;
   bindBody();
   if (state.sheet === 'detail') bindDetail();
+  if (state.sheet === 'saved') bindSaved();
   if (state.sheet === 'list') renderMarkers(vr.list.slice(0, state.shown));
   else if (state.sheet === 'detail') renderMarkers((lastView.length ? lastView : viewRows().list).slice(0, state.shown));
   else if (state.sheet === 'saved') renderMarkers(savedRows());
@@ -292,7 +293,8 @@ function bindBody(root) {
   on('.card', 'click', e => { if (e.target.closest('[data-want]')) return; openDetail(e.currentTarget.dataset.id); });
   // カード内の施設名ボタンはキーボード用。クリックはカード側が受けるので二重に開かない。
   on('.open-detail', 'click', e => { if (e.currentTarget.closest('.card')) return; openDetail(e.currentTarget.dataset.id); });
-  on('[data-want]', 'click', e => { e.stopPropagation(); toggleWant(state.byId.get(e.currentTarget.dataset.want)); });
+  // 保存シートには未読込の県の施設も並ぶ。byId に無ければ保存時のスナップショットを渡す。
+  on('[data-want]', 'click', e => { e.stopPropagation(); const id = e.currentTarget.dataset.want; toggleWant(state.byId.get(id) || savedSnap(id)); });
 }
 function refreshList() {
   // 入力のたびにシート全体を作り直すと input のフォーカスが飛ぶ。一覧と件数だけ差し替える。
@@ -390,6 +392,71 @@ function bindDetail() {
   });
 }
 setRenderers({ detailHtml: detailHtmlImpl });
+
+// --- 保存シート ---
+let savedTab = 'want', sharedList = null;   // sharedList: 共有URLで開いたときの [{pref,id}]
+// 県ファイルを読んでいない施設でも、保存時のスナップショット（名前・座標・種別）だけでカードを描く。
+function savedSnap(id) {
+  const s = state.saved; if (!s) return null;
+  const v = s.want[id] || s.went[id];
+  return v ? { id, ...v } : null;
+}
+function savedRowsImpl() {
+  const s = state.saved || { want: {}, went: {} };
+  const ids = sharedList ? sharedList.map(x => x.id) : Object.keys(savedTab === 'want' ? s.want : s.went);
+  return ids.map(id => state.byId.get(id) || savedSnap(id)).filter(Boolean);
+}
+function savedHtmlImpl() {
+  const s = state.saved || { want: {}, went: {} };
+  const rows = savedRowsImpl();
+  const shareUrl = `${location.origin}${location.pathname}?saved=${mc.encodeSavedParam(s)}`;
+  const tabs = `<div id="saved-tabs" class="row" style="margin:0"><button class="tog" type="button" data-tab="want" aria-pressed="${savedTab === 'want'}">行きたい ${Object.keys(s.want).length}</button><button class="tog" type="button" data-tab="went" aria-pressed="${savedTab === 'went'}">行った ${Object.keys(s.went).length}</button></div>`;
+  const emptyText = sharedList ? '共有されたリストに表示できる施設がありません。' : 'まだありません。施設の ♡ で「行きたい」に追加できます。';
+  return `<div id="saved">
+    <div class="row"><button class="tog" id="btn-back" type="button">‹ 戻る</button>
+      ${sharedList ? '<b style="font-size:13px">共有されたリスト</b>' : tabs}</div>
+    ${!state.saved ? '<p class="notice err">この端末では保存できません（ブラウザーの設定で保存領域が使えません）。</p>' : ''}
+    ${state.notice ? `<p class="notice">${esc(state.notice)}</p>` : ''}
+    ${state.loading ? '<div class="skel"></div><div class="skel"></div>' : (rows.length ? rows.map((r, i) => cardHtml(r, i)).join('') : `<p class="notice">${emptyText}</p>`)}
+    ${!sharedList && mc.savedCount(s) ? `<button class="tog" id="btn-share-saved" type="button" data-url="${esc(shareUrl)}">このリストの共有URLをコピー</button>` : ''}
+    ${sharedList && rows.length ? '<button class="tog" id="btn-adopt" type="button">自分の「行きたい」に取り込む</button>' : ''}
+  </div>`;
+}
+function bindSaved() {
+  if (!$('saved')) return;
+  $('btn-back').addEventListener('click', () => { sharedList = null; state.notice = ''; state.sheet = state.rows.length ? 'list' : 'home'; render(); });
+  document.querySelectorAll('#saved-tabs [data-tab]').forEach(b => b.addEventListener('click', () => { savedTab = b.dataset.tab; render(); }));
+  const sh = $('btn-share-saved');
+  if (sh) sh.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(sh.dataset.url); sh.textContent = 'コピーしました'; }
+    catch (err) { window.prompt('URLをコピーしてください', sh.dataset.url); }
+  });
+  const ad = $('btn-adopt');
+  if (ad) ad.addEventListener('click', () => {
+    if (!state.saved || !storage) { state.notice = 'この端末では保存できません。'; render(); return; }
+    for (const r of savedRowsImpl()) if (!state.saved.want[r.id]) state.saved = mc.toggleWant(state.saved, r, r.pref);
+    mc.saveSaved(storage, state.saved); track('hitori.save');
+    sharedList = null; savedTab = 'want'; state.notice = ''; render();
+  });
+}
+// 共有URL（?saved=14:n1,13:n2）で開いたとき。県ファイルは載っている分だけ引く。
+async function restoreSharedImpl(param) {
+  const gen = beginLoad();
+  const list = mc.parseSavedParam(param);
+  sharedList = list; state.notice = ''; state.sheet = 'saved'; state.loading = true; render(); setSnap('half');
+  try {
+    // curated も引く。無いと確認済みの施設がカードでも詳細でも「未確認」に見えてしまう。
+    await Promise.all([...new Set(list.map(x => x.pref))].map(async c => { await loadPref(c); if (isStale(gen)) return; await loadCurated(c); }));
+  }
+  catch (e) { if (isStale(gen)) return; state.notice = `データを読み込めませんでした（${e.message}）`; }
+  if (isStale(gen)) return;
+  sharedList = list.filter(x => state.byId.has(x.id));
+  if (list.length) state.pref = list[0].pref;   // 「戻る」で開く一覧を共有元の県に合わせる
+  if (sharedList.length < list.length) state.notice = `${list.length - sharedList.length}件は現在掲載していません。`;
+  state.loading = false; render();
+}
+setRenderers({ savedHtml: savedHtmlImpl, savedRows: savedRowsImpl });
+setRestoreShared(restoreSharedImpl);
 
 // boot() は必ずファイルの最後の行に置く。Task 9〜11 の追記はこの行より前に挿入する
 // （setRenderers が初回 render より先に走ることを、評価順で保証するため）。

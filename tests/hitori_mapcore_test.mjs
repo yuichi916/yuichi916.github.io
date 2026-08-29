@@ -213,6 +213,8 @@ check('encode/parse saved param', () => {
   eq(mc.encodeSavedParam(d), '14:n1,13:n2,1:n3');
   deq(mc.parseSavedParam('14:n1,13:n2,bad,:x,7:'), [{ pref: 14, id: 'n1' }, { pref: 13, id: 'n2' }]);
   deq(mc.parseSavedParam(''), []);
+  // 手動収録の id（英字・数字・ハイフン）も共有URLから戻せること
+  deq(mc.parseSavedParam('14:manual-kanagawa-8hotel-fujisawa-water-cave-20260820,14:-x,14:'), [{ pref: 14, id: 'manual-kanagawa-8hotel-fujisawa-water-cave-20260820' }]);
 });
 check('facilityShareUrl', () => {
   eq(mc.facilityShareUrl('https://x.test/hitori.html', 14, 'n1'), 'https://x.test/hitori.html?pref=14&facility=n1');

@@ -128,6 +128,32 @@ def test_detail_of_unverified_says_so_and_has_no_scores(page):
     page.screenshot(path=str(SHOTS / "hitori-mobile-detail.png"))
 
 
+def test_save_want_then_share_and_restore_on_fresh_context(browser):
+    ctx = browser.new_context(viewport=MOBILE)
+    page = ctx.new_page()
+    page.goto(BASE + "#pref=14")
+    _ready(page)
+    page.wait_for_selector("#list .card", timeout=30000)
+    page.locator("#list .card [data-want]").first.click()
+    assert page.inner_text("#saved-count") == "1"
+    page.click("#btn-saved")
+    page.wait_for_selector("#saved", timeout=5000)
+    assert page.locator("#saved .card").count() == 1
+    share_url = page.evaluate("document.getElementById('btn-share-saved').dataset.url")
+    assert "?saved=14:" in share_url
+    page.screenshot(path=str(SHOTS / "hitori-mobile-saved.png"))
+    ctx.close()
+    # 別端末を模す: 新しいコンテキスト（localStorage 空）で共有URLを開く
+    ctx2 = browser.new_context(viewport=MOBILE)
+    p2 = ctx2.new_page()
+    p2.goto(share_url)
+    _ready(p2)
+    p2.wait_for_selector("#saved .card", timeout=30000)
+    assert p2.locator("#saved .card").count() == 1
+    assert "共有されたリスト" in p2.inner_text("#saved")
+    ctx2.close()
+
+
 # テストごとに新しい context を作る（localStorage と位置情報の許可を持ち越さない）。
 # 後続タスクでテスト関数を足したら、このリストにも足す。
 TESTS = [
@@ -137,6 +163,7 @@ TESTS = [
     test_sheet_snaps,
     test_detail_shows_provenance_and_conflicts,
     test_detail_of_unverified_says_so_and_has_no_scores,
+    test_save_want_then_share_and_restore_on_fresh_context,
 ]
 
 

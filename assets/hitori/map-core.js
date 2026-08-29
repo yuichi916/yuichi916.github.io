@@ -280,7 +280,8 @@ export function encodeSavedParam(data) {
 export function parseSavedParam(str) {
   const out = [];
   for (const part of String(str || '').split(',')) {
-    const m = part.match(/^(\d{1,2}):([A-Za-z]\d+)$/);
+    // id は OSM 由来の n123… と手動収録の manual-kanagawa-… の両方がある（実データ最長65字）。
+    const m = part.match(/^(\d{1,2}):([A-Za-z][A-Za-z0-9_-]{0,79})$/);
     if (m) out.push({ pref: Number(m[1]), id: m[2] });
   }
   return out;
