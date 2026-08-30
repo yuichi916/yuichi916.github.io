@@ -294,8 +294,42 @@ def test_menu_returns_to_the_detail_opened_after_a_saved_detour(page):
 
 # テストごとに新しい context を作る（localStorage と位置情報の許可を持ち越さない）。
 # 後続タスクでテスト関数を足したら、このリストにも足す。
+def test_mobile_list_folds_the_filters_and_shows_several_cards(page):
+    """390px で一覧が読めること。
+
+    絞り込みを開いたままだと、検索欄・切り替え6個・カテゴリで画面が埋まり、
+    カードが1枚しか見えなかった（実測 firstCardTop=751 / 844）。
+    """
+    page.set_viewport_size(MOBILE)
+    page.goto(BASE + "#pref=13")
+    _ready(page)
+    page.wait_for_selector("#list .card", timeout=30000)
+    page.wait_for_timeout(1200)
+
+    assert page.locator("#more-filters").get_attribute("hidden") is not None, \
+        "狭い画面では絞り込みの中身を畳んでおく"
+    visible = page.eval_on_selector_all(
+        "#list .card",
+        "els => els.filter(e => { const r = e.getBoundingClientRect();"
+        " return r.top < window.innerHeight && r.bottom > 0; }).length")
+    assert visible >= 2, f"画面に見えているカードが {visible} 枚しかない"
+
+    # チップは一句で読み切れること（「カード不可、電子マネー不可、QR…」を出さない）
+    chips = page.eval_on_selector_all("#list .card .facts span", "els => els.map(e => e.textContent)")
+    assert chips, "確認済みカードに事実チップが無い"
+    for c in chips:
+        assert "、" not in c, f"チップが列挙のまま: {c}"
+        assert len(c) <= 16, f"チップが長すぎる: {c}"
+
+    page.click("#btn-filters")
+    page.wait_for_timeout(300)
+    assert page.locator("#more-filters").get_attribute("hidden") is None, "絞り込みが開かない"
+    assert page.is_visible("#tog-open") and page.is_visible("#btn-reset")
+
+
 TESTS = [
     test_home_states_the_claim_and_two_ways_in,
+    test_mobile_list_folds_the_filters_and_shows_several_cards,
     test_area_mode_lists_verified_first_without_score_dots,
     test_category_chip_quiet_shows_museums_not_hostels,
     test_sheet_snaps,

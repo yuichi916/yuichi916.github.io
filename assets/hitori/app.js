@@ -13,6 +13,8 @@ export const state = {
   index: null, rows: [], prefLoaded: new Set(), curatedByPref: new Map(), byId: new Map(),
   origin: null, filters: { q: '', cat: '', kinds: null, verifiedOnly: false, openNow: false, hideChain: false, gemOnly: false, radiusKm: 3 },
   current: null, saved: null, sheet: 'home', snap: 'half', shown: PAGE, pref: 14, notice: '', noticeLevel: '', loading: false,
+  // 絞り込みの中身は狭い画面では畳んでおく（開いたままだと 390px でカードが1枚しか見えない）
+  filtersOpen: typeof window !== 'undefined' && window.innerWidth >= 900,
 };
 // お知らせは2種類ある。失敗（err = 赤）と、途中経過（既定の枠だけ）。
 // 「現在地を取得しています…」を赤で出すと、待たせている間ずっと失敗しているように読める。
@@ -37,10 +39,32 @@ function initMap() {
   layerCand = L.layerGroup().addTo(map);
   layerPin = L.layerGroup().addTo(map);
   map.on('movestart', () => { if (!selfMove && state.sheet === 'list') { moved = true; $('btn-research').classList.add('show'); } });
+  // 点の大きさは縮尺で変える。描いたあとに寄せ（fitBounds）で縮尺が動くので、帯をまたいだ時だけ描き直す。
+  map.on('zoomend', () => { if (lastMarkers && dotBand() !== lastMarkers.band) renderMarkers(lastMarkers.view, lastMarkers.all); });
 }
 // 番号つきのピンは「いま一覧に出ている頁」だけ（番号が一覧と一致しないと読めない）。
 // 候補の点は絞り込み後の全件を描く。100件で切ると、地図には県の一部しか無いように見えてしまう。
 const MAX_DOTS = 3000;
+// 点の見え方は縮尺で決まる。引いた縮尺で白フチの大きな丸を数千個描くと面になり、
+// 主役の確認済みピンが埋もれる。帯（band）が変わった時だけ描き直す。
+let lastMarkers = null;
+function dotBand() { const z = map ? map.getZoom() : 12; return z >= 14 ? 2 : z >= 12 ? 1 : 0; }
+const DOT_R = [2.6, 3.4, 4.5], DOT_O = [.45, .58, .7];
+// 一覧の頁に離島などが混ざると fitBounds が日本全体まで引いてしまい、
+// 主要な地点が点にしか見えなくなる（東京都の八丈島がこれだった）。
+// 中央値から遠い外れ値を寄せの対象から外す。点とピンは消さない。
+function trimOutliers(pts) {
+  if (pts.length < 5) return pts;
+  const mid = a => { const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  const cLat = mid(pts.map(p => p[0])), cLon = mid(pts.map(p => p[1]));
+  const k = Math.cos(cLat * Math.PI / 180);
+  const d2 = p => (p[0] - cLat) ** 2 + ((p[1] - cLon) * k) ** 2;
+  const sorted = pts.slice().sort((a, b) => d2(a) - d2(b));
+  const inner = d2(sorted[Math.max(2, Math.ceil(pts.length * .9) - 1)]);
+  const limit = Math.max(inner * 4, 0.0004);   // 9割が入る円の2倍。近接ばかりのときは潰さない
+  const kept = pts.filter(p => d2(p) <= limit);
+  return kept.length >= 2 ? kept : pts;
+}
 // view: いま一覧に出ている頁（ピンと地図の寄せに使う）。all: 絞り込み後の全件（点に使う）。
 export function renderMarkers(view, all) {
   if (!map) return;
@@ -63,6 +87,9 @@ export function renderMarkers(view, all) {
   // 点が多すぎると描画が詰まるので上限を置く。現在地があれば近い順、無ければ順位のまま先頭から。
   let cand = (all && all.length ? all : view);
   if (cand.length > MAX_DOTS && state.origin) cand = cand.slice().sort((a, b) => (Number.isFinite(a.distM) ? a.distM : Infinity) - (Number.isFinite(b.distM) ? b.distM : Infinity));
+  const band = dotBand();
+  const dotR = DOT_R[band], dotO = DOT_O[band];
+  lastMarkers = { view, all, band };
   let n = 0;
   for (const r of cand) {
     if (n >= MAX_DOTS) break;
@@ -71,7 +98,9 @@ export function renderMarkers(view, all) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
     n++;
     // 頁の外の点も押せば詳細が開く（一覧に出ていないから触れない、では地図の意味が無い）。
-    L.circleMarker([lat, lon], { renderer: canvas, radius: 5, color: '#fff', weight: 1.5, fillColor: '#b9ada3', fillOpacity: .85 })
+    // 白フチの大きな丸を数千個描くと面になり、主役の確認済みピンが埋もれる。
+    // 引いた縮尺ほど小さく薄く、寄るほど掴みやすくする。
+    L.circleMarker([lat, lon], { renderer: canvas, radius: dotR, weight: 0, fillColor: '#a2958b', fillOpacity: dotO })
       .on('click', () => select(r)).addTo(layerCand);
   }
   if (originMarker) originMarker.remove();
@@ -86,7 +115,7 @@ export function renderMarkers(view, all) {
     const cover = sheetCover();
     if (cover) map.panBy([0, Math.round(cover / 2)], { animate: false });
   });
-  else if (!moved && bounds.length > 1) selfView(() => map.fitBounds(bounds, fitOpts()));
+  else if (!moved && bounds.length > 1) selfView(() => map.fitBounds(trimOutliers(bounds), fitOpts()));
   else if (!moved && bounds.length === 1) selfView(() => map.fitBounds([bounds[0], bounds[0]], fitOpts()));
 }
 // モバイルはボトムシートが地図の下半分に重なる。その分だけ下に余白を取り、ピンがシートの裏に回らないようにする。
@@ -198,11 +227,20 @@ function viewRows() {
 }
 // カードのチップは一目で読める長さに。事実の全文と出典は詳細シートで見せる。
 const CHIP_MAX = 14;
-function cutText(t) { const v = String(t); return v.length > CHIP_MAX ? `${v.slice(0, CHIP_MAX)}…` : v; }
+// 「カード不可、電子マネー不可、QRコード決済不可。」のような列挙は、先頭の一句だけで用が足りる。
+// 途中で切った文はチップとして読めない（全文と出典は詳細シートで見せる）。
+function cutText(t) {
+  const v = String(t).trim();
+  const head = (v.split(/[、。・]/)[0] || v).trim() || v;
+  return head.length > CHIP_MAX ? `${head.slice(0, CHIP_MAX)}…` : head;
+}
 function soloChip(f) {
   if (f.label === '一人利用') return '一人利用の明記';
   if (f.label === '席') return /^\d+$/.test(String(f.text).trim()) ? `${f.text}席` : cutText(f.text);
-  return cutText(f.text);
+  const s = cutText(f.text);
+  // 切っても一句にならない文（「公式FAQはHUBHUBのサ…」）はチップとして読めない。
+  // 何が分かっているかだけを示し、中身は詳細シートに任せる。
+  return s.endsWith('…') ? `${f.label}の記載あり` : s;
 }
 function cardHtml(r, i) {
   const checked = isChecked(r.id), meta = checked ? state.index.checked[r.id] : null;
@@ -241,9 +279,13 @@ function listHtml(vr) {
   const prefOpts = idx.prefectures.map(p => `<option value="${p.code}" ${p.code === state.pref ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
   const nVerified = list.filter(r => isChecked(r.id)).length;
   const view = list.slice(0, state.shown);
+  // 絞り込みの中身は既定で畳む。開いたままだと 390px 幅ではカードが1枚しか見えない。
+  const nActive = [f.openNow, f.verifiedOnly, f.hideChain, f.gemOnly, state.origin && f.radiusKm !== 3].filter(Boolean).length;
   return `<div class="search"><span class="icon">⌕</span><input id="q" type="search" placeholder="施設名・駅名・地名" value="${esc(f.q)}" autocomplete="off"><ul class="suggest" id="suggest"></ul></div>
     <div class="row"><button class="tog" id="btn-locate" type="button" aria-pressed="${state.origin && state.origin.kind === 'geo' ? 'true' : 'false'}">◎ 現在地</button>
       <select class="tog" id="pref" aria-label="都道府県">${prefOpts}</select>
+      <button class="tog" id="btn-filters" type="button" aria-expanded="${state.filtersOpen}" aria-controls="more-filters">絞り込み${nActive ? ` <b class="badge">${nActive}</b>` : ''}</button></div>
+    <div class="row" id="more-filters" ${state.filtersOpen ? '' : 'hidden'}>
       <button class="tog" id="tog-open" type="button" aria-pressed="${f.openNow}">いま営業中</button>
       <button class="tog" id="tog-verified" type="button" aria-pressed="${f.verifiedOnly}">確認済みのみ</button>
       <button class="tog" id="tog-chain" type="button" aria-pressed="${f.hideChain}">チェーンを隠す</button>
@@ -253,7 +295,7 @@ function listHtml(vr) {
     ${state.origin ? `<p class="origin-line"><b>${esc(state.origin.label)}</b> から近い順</p>` : ''}
     ${radiusNote ? `<p class="notice" role="status" aria-live="polite">${esc(radiusNote)}</p>` : ''}
     ${state.notice ? `<p class="notice ${state.noticeLevel === 'err' ? 'err' : ''}" role="status" aria-live="polite">${esc(state.notice)}</p>` : ''}
-    <p class="count" id="count">確認済み <b>${nVerified}</b>件 · 候補 <b>${list.length - nVerified}</b>件</p>
+    <p class="count" id="count"><b class="v">確認済み ${nVerified.toLocaleString()}件</b><span>候補 ${(list.length - nVerified).toLocaleString()}件</span></p>
     <div id="list">${state.loading ? '<div class="skel"></div><div class="skel"></div><div class="skel"></div>' : (view.map(cardHtml).join('') + listTailHtml(list))}</div>`;
 }
 // 一覧の末尾（0件の言い分と「もっと見る」）。listHtml と refreshList で同じものを出す。
@@ -358,6 +400,7 @@ function bindBody(root) {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => { suggest(q); refreshList(); }, 200);
   });
+  on('#btn-filters', 'click', () => { state.filtersOpen = !state.filtersOpen; render(); });
   on('#tog-open', 'click', () => { state.filters.openNow = !state.filters.openNow; render(); });
   on('#tog-verified', 'click', () => { state.filters.verifiedOnly = !state.filters.verifiedOnly; render(); });
   on('#tog-chain', 'click', () => { state.filters.hideChain = !state.filters.hideChain; render(); });
@@ -375,7 +418,7 @@ function bindBody(root) {
 function refreshList() {
   // 入力のたびにシート全体を作り直すと input のフォーカスが飛ぶ。一覧と件数だけ差し替える。
   const { list } = viewRows(); const nV = list.filter(r => isChecked(r.id)).length;
-  $('count').innerHTML = `確認済み <b>${nV}</b>件 · 候補 <b>${list.length - nV}</b>件`;
+  $('count').innerHTML = `<b class="v">確認済み ${nV.toLocaleString()}件</b><span>候補 ${(list.length - nV).toLocaleString()}件</span>`;
   $('list').innerHTML = list.slice(0, state.shown).map(cardHtml).join('') + listTailHtml(list);
   bindBody($('list')); renderMarkers(list.slice(0, state.shown), list);
 }
@@ -457,7 +500,7 @@ function detailHtmlImpl() {
     ${g && g.warnings.length ? g.warnings.map(w => `<p class="notice ${w.level === 'danger' ? 'err' : ''}" role="status" aria-live="polite">${w.level === 'danger' ? '⚠ ' : ''}${esc(w.text)}</p>`).join('') : ''}
     <h2 style="margin:10px 0 2px;font-family:'Noto Serif JP',serif;font-size:22px;line-height:1.3">${esc(r.name)}</h2>
     <div class="meta" style="color:var(--muted);font-size:12.5px">${esc(mc.kindJa(r.kind))}${r.city ? ` · ${esc(r.city)}` : ''}${dist ? ` · ${dist}` : ''} · <span class="${open.state}" style="font-weight:700;color:${open.state === 'open' ? 'var(--sage)' : open.state === 'closed' ? '#9a6b1d' : 'inherit'}">${esc(open.text)}</span>${open.source ? `<small>（${esc(open.source)}）</small>` : ''}</div>
-    ${s ? `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:var(--sage-pale);color:var(--sage);font-size:12.5px"><b>✓ 確認済み ${esc(s.checked)}</b> · 事実 ${s.nFacts}件 · 公式ソース ${s.nOfficial} · 出典ドメイン ${s.nDomains} · 食い違い ${s.nConflict}</section>`
+    ${s ? `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:var(--sage-pale);color:var(--sage);font-size:12.5px"><b>✓ 確認済み ${esc(s.checked)}</b><br><span class="vsub">事実 ${s.nFacts}件 · 公式 ${s.nOfficial}件 · 出典 ${s.nDomains}件 · 食い違い ${s.nConflict}件</span></section>`
         : `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:#f5f0ea;color:#6f655f;font-size:12.5px"><b>未確認</b> — OpenStreetMap の登録情報のみです。利用前に公式情報をご確認ください。${mc.fitNote(r.kind) ? `<br>業態の見立て: ${esc(mc.fitNote(r.kind))}` : ''}</section>`}
     ${g && g.solo.length ? `<section class="solo-box" style="margin:12px 0;padding:12px;border:1px solid #ead8cc;border-radius:12px;background:#fffaf4"><p class="sec-label" style="margin:0 0 6px">ひとり基準</p>${g.solo.map(x => `<div style="display:flex;gap:8px;font-size:13px;margin:3px 0"><b style="flex:none;width:64px;color:#8d4734">${esc(x.label)}</b><span>${esc(x.text)}${x.official ? ' <small style="color:var(--sage)">公式</small>' : ''}</span></div>`).join('')}</section>` : ''}
     ${g && g.insight ? `<section style="margin:12px 0;padding:12px;border-radius:12px;background:#fffaf4;border:1px solid #ead8cc"><p class="sec-label" style="margin:0 0 4px">一人マップのひとこと</p><b style="font-size:13px">${esc(g.insight.title)}</b><p style="margin:4px 0 0;font-size:12.5px;color:#675c55">${esc(g.insight.insight)}</p></section>` : ''}
