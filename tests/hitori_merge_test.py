@@ -104,6 +104,23 @@ def test_merge_rejects_bad_facts_but_keeps_the_good_ones():
     assert sum(reasons.values()) == 2
 
 
+def test_official_flag_is_not_forced_true():
+    """OSM タグ由来の根拠を「公式情報」に化けさせない。
+
+    化けると index の checked_count（＝トップの「公式情報で裏を取った N件」）が
+    水増しされる。抽出側が official=False と申告したものは False のまま入れる。
+    """
+    res = [{"id": "n1", "status": "ok", "identity": "match", "facts": [
+        dict(OK_FACT, official=False, url="https://www.openstreetmap.org/node/1")]}]
+    cur = {}
+    me.merge(res, cur, "2026-09-02")
+    assert cur["n1"]["facts"][0]["official"] is False
+    # 申告が無ければ従来どおり公式扱い（公式サイトからの抽出が既定の使い方）
+    cur2 = {}
+    me.merge([{"id": "n2", "status": "ok", "identity": "match", "facts": [OK_FACT]}], cur2, "2026-09-02")
+    assert cur2["n2"]["facts"][0]["official"] is True
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

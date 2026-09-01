@@ -57,10 +57,15 @@ def build_index(prefdocs, curated, summary):
         lat = sum(r[ilat] for r in doc["items"]) / n if n else 0
         lon = sum(r[ilon] for r in doc["items"]) / n if n else 0
         prefectures.append({"code": code, "name": doc["name"], "count": n,
-                            "checked": len(by_pref[code]),
+                            "checked": sum(1 for fid in by_pref[code] if checked[fid][2] > 0),
                             "center": [round(lat, 4), round(lon, 4)]})
+    # 「確認済み」は公式情報で裏を取った施設だけを数える。
+    # OSM のタグ由来など公式でない根拠しか持たない施設は、信号は出すが確認済みには数えない
+    # （トップの「確認済み N件は公式情報で裏を取り」が嘘になる）。
+    official_count = sum(1 for v in checked.values() if v[2] > 0)
     index = {"updated": summary["updated"], "total": summary["total"],
-             "checked_count": len(checked), "prefectures": prefectures, "checked": checked}
+             "checked_count": official_count, "sourced_count": len(checked),
+             "prefectures": prefectures, "checked": checked}
     if orphans:
         print(f"県ファイルに無い curated: {len(orphans)} 件を索引から外した", file=sys.stderr)
     return index, by_pref

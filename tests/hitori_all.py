@@ -21,6 +21,7 @@ TESTS = [
     "hitori_build_test.py",
     "hitori_index_test.py",
     "hitori_merge_test.py",
+    "hitori_osm_signals_test.py",
     "hitori_mapsvg_test.py",
     "hitori_places_test.py",
     "hitori_facilities_test.py",

@@ -43,7 +43,11 @@ def test_home_states_the_claim_and_two_ways_in(page):
     _ready(page)
     body = page.inner_text("#sheet")
     assert "ひとりで入れるか、根拠つきで。" in body
-    assert "確認済み" in body and "817" in body.replace(",", "")
+    # 出典つきの根拠がある件数と、公式で裏が取れた件数は別に出す
+    # （全部を「公式情報で裏を取った」と言うと、個人訪問記が根拠の施設まで公式に化ける）
+    assert "出典つきの根拠" in body and "公式情報で裏が取れて" in body
+    nums = [int(n) for n in re.findall(r"([\d,]{3,})件", body.replace(",", ""))]
+    assert len(nums) >= 2 and nums[0] > nums[1], f"根拠あり > 公式 の順で出ていない: {nums}"
     assert page.is_visible("#btn-locate") and page.is_visible("#btn-area")
     assert page.locator("#scenes button").count() == 4
     overflow = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")

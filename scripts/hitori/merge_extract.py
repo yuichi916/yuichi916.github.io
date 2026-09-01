@@ -79,10 +79,15 @@ def check_fact(f, page_text=None):
 
 
 def to_curated_fact(f, checked):
-    """抽出結果 1件 → curated.json の事実の形。"""
+    """抽出結果 1件 → curated.json の事実の形。
+
+    official は抽出側の申告をそのまま通す。ここで一律 True にすると、
+    OSM のタグ由来の根拠まで「公式情報」に化け、トップの
+    「確認済み N件は公式情報で裏を取り」が嘘になる。
+    """
     d = _domain(f["url"])
-    return {"k": f["k"], "v": f["v"], "n": 1, "official": True, "conflict": False,
-            "src": [d], "urls": [f["url"]], "quote": f["quote"], "checked": checked}
+    return {"k": f["k"], "v": f["v"], "n": 1, "official": bool(f.get("official", True)),
+            "conflict": False, "src": [d], "urls": [f["url"]], "quote": f["quote"], "checked": checked}
 
 
 def merge(results, curated, checked, pages=None):

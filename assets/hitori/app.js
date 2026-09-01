@@ -139,7 +139,10 @@ const loadJson = path => {
   return fetch(v ? `${path}?v=${encodeURIComponent(v)}` : path)
     .then(r => { if (!r.ok) throw new Error(`${path}: ${r.status}`); return r.json(); });
 };
-export function isChecked(id) { return !!(state.index && state.index.checked[id]); }
+// 「確認済み」は公式の裏付けがある施設だけ。OSM のタグ由来の根拠しか無い施設は
+// 候補のまま、ひとりチェックに ◐ として出す（確認済みの数を水増ししない）。
+export function isChecked(id) { const m = state.index && state.index.checked[id]; return !!(m && m[2] > 0); }
+export function hasSignals(id) { return !!(state.index && state.index.checked[id]); }
 // 読み込み中に別の検索が始まったら、後から届いた結果は捨てる（rows と描画の取り違えを防ぐ）。
 let loadGen = 0;
 export function beginLoad() { return ++loadGen; }
@@ -255,7 +258,8 @@ function cardHtml(r, i) {
   if (r.chain) chips.push('<span class="chain">チェーン</span>');
   const saved = state.saved && (state.saved.want[r.id] || state.saved.went[r.id]);
   return `<article class="card ${checked ? '' : 'unverified'} ${state.current && state.current.id === r.id ? 'selected' : ''}" data-id="${esc(r.id)}">
-    <div class="top">${checked ? `<span class="vmark">✓ 確認済み ${esc(meta[5])} · 公式${meta[2]}</span>` : '<span class="cand">候補 · OSM由来</span>'}
+    <div class="top">${checked ? `<span class="vmark">✓ 確認済み ${esc(meta[5])} · 公式${meta[2]}</span>`
+      : hasSignals(r.id) ? '<span class="cand ref">◐ 参考情報あり · OSM由来</span>' : '<span class="cand">候補 · OSM由来</span>'}
       <button class="heart" type="button" data-want="${esc(r.id)}" aria-pressed="${saved ? 'true' : 'false'}" aria-label="行きたい">♡</button></div>
     <h3><span class="num">${i + 1}</span><button type="button" class="open-detail" data-id="${esc(r.id)}">${esc(r.name)}</button></h3>
     <div class="meta"><span class="kind">${esc(mc.kindJa(r.kind))}</span>${r.city ? `<span>${esc(r.city)}</span>` : ''}${dist ? `<span>${dist}</span>` : ''}<span class="${open.state}">${esc(open.text)}</span></div>
@@ -267,7 +271,7 @@ function homeHtml() {
   const idx = state.index;
   // 主張は1文としてつなげて置く（<br> を挟むと読み上げ・inner_text で分断される）。折り返しは幅に任せる。
   return `<h1 class="claim">ひとりで入れるか、<em>根拠つきで。</em></h1>
-    <p class="lede"><b>確認済み ${idx.checked_count.toLocaleString()}件</b>は公式情報で裏を取り、出典URLを添えています。全国 ${idx.total.toLocaleString()}施設。</p>
+    <p class="lede"><b>${(idx.sourced_count || idx.checked_count).toLocaleString()}件</b>に出典つきの根拠があり、うち<b class="official">${idx.checked_count.toLocaleString()}件</b>は公式情報で裏が取れています。全国 ${idx.total.toLocaleString()}施設。</p>
     <div class="ways"><button class="way primary" id="btn-locate" type="button">◎ 現在地から探す</button><button class="way" id="btn-area" type="button">エリアを選んで探す</button></div>
     <p class="sec-label">いまの気分から</p>
     <div class="scenes" id="scenes">${mc.SCENES.map(s => `<button type="button" data-scene="${s.key}">${esc(s.label)}</button>`).join('')}</div>
@@ -538,7 +542,7 @@ function detailHtmlImpl() {
     <h2 style="margin:10px 0 2px;font-family:'Noto Serif JP',serif;font-size:22px;line-height:1.3">${esc(r.name)}</h2>
     <div class="meta" style="color:var(--muted);font-size:12.5px">${esc(mc.kindJa(r.kind))}${r.city ? ` · ${esc(r.city)}` : ''}${dist ? ` · ${dist}` : ''} · <span class="${open.state}" style="font-weight:700;color:${open.state === 'open' ? 'var(--sage)' : open.state === 'closed' ? '#9a6b1d' : 'inherit'}">${esc(open.text)}</span>${open.source ? `<small>（${esc(open.source)}）</small>` : ''}</div>
     ${s ? `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:var(--sage-pale);color:var(--sage);font-size:12.5px"><b>✓ 確認済み ${esc(s.checked)}</b><br><span class="vsub">事実 ${s.nFacts}件 · 公式 ${s.nOfficial}件 · 出典 ${s.nDomains}件 · 食い違い ${s.nConflict}件</span></section>`
-        : `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:#f5f0ea;color:#6f655f;font-size:12.5px"><b>未確認</b> — OpenStreetMap の登録情報のみです。利用前に公式情報をご確認ください。${mc.fitNote(r.kind) ? `<br>業態の見立て: ${esc(mc.fitNote(r.kind))}` : ''}</section>`}
+        : `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:#f5f0ea;color:#6f655f;font-size:12.5px"><b>未確認</b> — ${hasSignals(r.id) ? 'OpenStreetMap の登録情報から分かることだけを下に出しています。公式サイトの裏取りはこれからです。' : 'OpenStreetMap の登録情報のみです。'}利用前に公式情報をご確認ください。${mc.fitNote(r.kind) ? `<br>業態の見立て: ${esc(mc.fitNote(r.kind))}` : ''}</section>`}
     ${soloCheckHtml(cur, r)}
     ${g && g.insight ? `<details class="fold"><summary><span class="sec-label">一人マップのひとこと</span><b>${esc(g.insight.title)}</b></summary><p class="fold-body">${esc(g.insight.insight)}</p></details>` : ''}
     ${factsHtml(g)}
@@ -662,7 +666,7 @@ function aboutHtmlImpl() {
   return `<div id="about">
     <button class="tog" id="btn-back" type="button">‹ 戻る</button>
     <h2 style="margin:12px 0 4px;font-family:'Noto Serif JP',serif;font-size:20px">情報を、曖昧なままおすすめしない。</h2>
-    <p style="font-size:13px;color:#655b55">「ひとりで入れるか」を一本の軸にして、全国 ${idx.total.toLocaleString()} 施設を並べ直した地図です。${idx.checked_count.toLocaleString()} 件は公式情報などで裏を取り、出典URLを添えています。</p>
+    <p style="font-size:13px;color:#655b55">「ひとりで入れるか」を一本の軸にして、全国 ${idx.total.toLocaleString()} 施設を並べ直した地図です。${(idx.sourced_count || idx.checked_count).toLocaleString()} 件に出典つきの根拠があり、そのうち <b>${idx.checked_count.toLocaleString()} 件</b>は施設の公式情報で裏が取れています。残りは個人の訪問記や地図データが根拠で、詳細では ● 公式 / ◐ 公式以外 と分けて表示します。</p>
     <p class="sec-label">三つの決めごと</p>
     <ol style="padding-left:18px;font-size:13px;color:#655b55"><li>店の自己申告に頼らず、観測できる属性（業態・席・営業形態・チェーンか）から組み立てる</li><li>混雑は測れないので、周辺に同業が少ない独立店を「穴場候補」として代理指標にする</li><li>事実には出典・URL・公式かどうかを必ず添え、出典同士の<b>食い違いは消さずに両方見せる</b></li></ol>
     <p><a href="method/hitori-kijun.html" style="color:#8d4734;font-weight:700">この地図の作り方（ひとり基準）→</a></p>

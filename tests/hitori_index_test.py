@@ -44,6 +44,25 @@ def test_checked_entry_counts():
     assert index["checked"]["n3"] == [14, 1, 1, 0, 0, "2026-08-02"]
 
 
+def test_checked_count_only_counts_official_evidence():
+    """OSM タグしか根拠が無い施設を「確認済み」に数えない。
+
+    数えると、トップの「確認済み N件は公式情報で裏を取り」が嘘になる。
+    信号は出すが、確認済みの数には入れない。
+    """
+    curated = dict(CURATED)
+    curated["n2"] = {"checked": "2026-09-02", "facts": [
+        {"k": "reservation", "v": "possible", "official": False, "conflict": False,
+         "src": ["openstreetmap.org"], "urls": ["https://www.openstreetmap.org/node/2"]}]}
+    index, by_pref = build_index.build_index(PREFDOCS, curated, SUMMARY)
+    assert "n2" in index["checked"], "根拠として索引には載せる"
+    assert index["checked"]["n2"][2] == 0, "公式ソースは0件"
+    assert index["checked_count"] == 2, "公式の裏付けがある2件だけを確認済みと数える"
+    assert index["sourced_count"] == 3, "根拠を持つ施設の総数は別に持つ"
+    prefs = {p["code"]: p for p in index["prefectures"]}
+    assert prefs[13]["checked"] == 1, "県別の確認済みも公式ぶんだけ"
+
+
 def test_orphans_are_dropped_and_counted():
     index, by_pref = build_index.build_index(PREFDOCS, CURATED, SUMMARY)
     assert "orphan" not in index["checked"]
