@@ -238,5 +238,65 @@ check('facilityShareUrl', () => {
   eq(mc.facilityShareUrl('https://x.test/hitori.html', 14, 'n1'), 'https://x.test/hitori.html?pref=14&facility=n1');
 });
 
+check('soloCheck: 公式にあるものだけ ● にする', () => {
+  const e = { checked: '2026-08-08', facts: [
+    { k: 'solo_ok', v: 'おひとり様も大歓迎と案内', official: true, conflict: false, src: ['x.jp'], urls: [] },
+    { k: 'payment_method', v: 'ticket_machine', official: true, conflict: false, src: ['x.jp'], urls: [] },
+    { k: 'reservation', v: 'none', official: false, conflict: false, src: ['b.jp'], urls: [] },
+  ]};
+  const r = mc.soloCheck(e, { kind: 'ramen' });
+  eq(r.cells.length, 6);
+  deq(r.cells.map(c => c.key), ['solo', 'seat', 'pay', 'book', 'quiet', 'cond']);
+  eq(r.cells[0].state, 'ok'); eq(r.cells[0].short, '公式に一人利用あり');
+  eq(r.cells[2].short, '券売機あり');
+  eq(r.cells[3].state, 'weak', '公式でない根拠は ● にしない'); eq(r.cells[3].short, '予約不要');
+  eq(r.cells[1].state, 'unknown'); eq(r.cells[1].short, '記載なし');
+  eq(r.known, 2);
+});
+
+check('soloCheck: 一人で行けない条件は ✕', () => {
+  const e = { facts: [{ k: 'access', v: 'male_only', official: true, conflict: false }] };
+  const r = mc.soloCheck(e, { kind: 'sento' });
+  eq(r.cells[5].state, 'blocked'); eq(r.cells[5].short, '男性専用');
+  const e2 = { facts: [{ k: 'access', v: 'public', official: true, conflict: false }] };
+  eq(mc.soloCheck(e2, {}).cells[5].state, 'ok');
+});
+
+check('soloCheck: 休業・閉業は利用条件を ✕ に上書きする', () => {
+  const e = { facts: [{ k: 'status', v: 'closed_permanently', official: true, conflict: false }] };
+  const r = mc.soloCheck(e, {});
+  eq(r.cells[5].state, 'blocked'); eq(r.cells[5].short, '閉業の情報');
+});
+
+check('soloCheck: 席は数字なら N席、カウンターならその旨、個室型は業態で埋める', () => {
+  eq(mc.soloCheck({ facts: [{ k: 'seats_total', v: 39, official: true }] }, {}).cells[1].short, '39席');
+  eq(mc.soloCheck({ facts: [{ k: 'counter_seats', v: '大テーブルのカウンター席', official: true }] }, {}).cells[1].short, 'カウンター席あり');
+  const pr = mc.soloCheck({ facts: [] }, { kind: 'private_sauna' });
+  eq(pr.cells[1].state, 'weak'); eq(pr.cells[1].short, '個室型');
+});
+
+check('soloCheck: 食い違う事実は使わない／長文は12字で切る', () => {
+  const e = { facts: [
+    { k: 'solo_ok', v: 'あり', official: true, conflict: true },
+    { k: 'silence', v: '黙浴にご協力ください。会話はお控えください。', official: true, conflict: false },
+  ]};
+  const r = mc.soloCheck(e, {});
+  eq(r.cells[0].state, 'unknown', '食い違う事実は信号にしない');
+  eq(r.cells[4].short, '黙浴にご協力ください');
+  eq(r.cells[4].quote.length > r.cells[4].short.length, true, '全文は quote に残す');
+});
+
+check('soloCheck: 事実ゼロでも6項目そろう', () => {
+  const r = mc.soloCheck(null, { kind: 'ramen' });
+  eq(r.cells.length, 6); eq(r.known, 0);
+  eq(r.cells.every(c => c.state === 'unknown'), true);
+});
+
+check('soloCheck: access の自由文は利用条件の信号にしない', () => {
+  const e = { facts: [{ k: 'access', v: '東京都台東区蔵前4丁目2-3', official: true, conflict: false }] };
+  const r = mc.soloCheck(e, {});
+  eq(r.cells[5].state, 'unknown'); eq(r.cells[5].short, '記載なし');
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
 console.log('OK: map-core');

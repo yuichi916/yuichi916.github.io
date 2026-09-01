@@ -478,6 +478,43 @@ const safeUrl = u => {
 // 行った日の初期値。toISOString() は UTC なので、JST の 0:00〜8:59 に開くと前日が入ってしまう。
 const localDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+// 確認した事実。食い違いは本サービスの看板なので畳まない（隠すと「1つの正解」に丸めたのと同じになる）。
+// 争いの無い事実だけを畳み、開いた瞬間に長い一覧を浴びせないようにする。
+function factRowHtml(row) {
+  return `<div class="fact-row ${row.conflict ? 'conflict' : ''}"><b>${esc(row.label)}${row.conflict ? ' <span class="warn">⚠ 出典で食い違い</span>' : ''}</b>${row.values.map(v => {
+    const vu = safeUrl(v.url);
+    return `<div class="val">${esc(v.text)} <small>← ${vu ? `<a href="${esc(vu)}" target="_blank" rel="noreferrer">${esc(v.domain)}</a>` : esc(v.domain)}${v.official ? '（公式）' : ''}${v.personal ? '（個人訪問記）' : ''}</small></div>`;
+  }).join('')}</div>`;
+}
+function factsHtml(g) {
+  if (!g || !g.rows.length) return '';
+  const bad = g.rows.filter(r => r.conflict), ok = g.rows.filter(r => !r.conflict);
+  const conflicts = bad.length
+    ? `<section class="facts-conflict"><p class="sec-label">出典が食い違っている ${bad.length}件</p>${bad.map(factRowHtml).join('')}<p class="ck-legend">どちらかを選んで捨てず、両方を出しています。利用前に公式でご確認ください。</p></section>`
+    : '';
+  const rest = ok.length
+    ? `<details class="fold"><summary><span class="sec-label">確認した事実</span><b>${ok.length}件の根拠と出典を見る</b></summary><div class="fold-body">${ok.map(factRowHtml).join('')}</div></details>`
+    : '';
+  return conflicts + rest;
+}
+// ひとりチェック。6つの問いを ●確認済み / ◐根拠は公式以外 / △記載なし / ✕条件あり で一列に出す。
+// 長い引用は畳んだ中に置く。開いた瞬間に文章を浴びせないことがこの画面の要件。
+const CHECK_MARK = { ok: '●', weak: '◐', unknown: '△', blocked: '✕' };
+const CHECK_TITLE = { ok: '公式に記載あり', weak: '記載はあるが公式ではない', unknown: '記載を確認できていない', blocked: 'ひとりで行くのに条件がある' };
+function soloCheckHtml(entry, item) {
+  const c = mc.soloCheck(entry, item);
+  const cells = c.cells.map(x => `<li class="ck ${x.state}">
+    <span class="mk" role="img" aria-label="${esc(CHECK_TITLE[x.state])}">${CHECK_MARK[x.state]}</span>
+    <span class="lb">${esc(x.label)}</span>
+    <span class="sh">${esc(x.short)}</span>
+    ${x.quote ? `<button class="why" type="button" data-why="${esc(x.key)}" aria-expanded="false" aria-label="${esc(x.label)}の根拠を見る">根拠</button><p class="qt" id="qt-${esc(x.key)}" hidden>${esc(x.quote)}${x.official ? ' <em>公式</em>' : ''}</p>` : ''}
+  </li>`).join('');
+  return `<section class="solo-box">
+    <p class="sec-label">ひとりチェック <b class="score">${c.known}/${c.total} 確認済み</b></p>
+    <ul class="checks">${cells}</ul>
+    <p class="ck-legend">● 公式に記載　◐ 公式以外の根拠　△ 記載なし（悪いという意味ではありません）　✕ 条件あり</p>
+  </section>`;
+}
 function detailHtmlImpl() {
   const r = state.current; if (!r) return '';
   const cur = curatedOf(r.id);
@@ -502,9 +539,9 @@ function detailHtmlImpl() {
     <div class="meta" style="color:var(--muted);font-size:12.5px">${esc(mc.kindJa(r.kind))}${r.city ? ` · ${esc(r.city)}` : ''}${dist ? ` · ${dist}` : ''} · <span class="${open.state}" style="font-weight:700;color:${open.state === 'open' ? 'var(--sage)' : open.state === 'closed' ? '#9a6b1d' : 'inherit'}">${esc(open.text)}</span>${open.source ? `<small>（${esc(open.source)}）</small>` : ''}</div>
     ${s ? `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:var(--sage-pale);color:var(--sage);font-size:12.5px"><b>✓ 確認済み ${esc(s.checked)}</b><br><span class="vsub">事実 ${s.nFacts}件 · 公式 ${s.nOfficial}件 · 出典 ${s.nDomains}件 · 食い違い ${s.nConflict}件</span></section>`
         : `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:#f5f0ea;color:#6f655f;font-size:12.5px"><b>未確認</b> — OpenStreetMap の登録情報のみです。利用前に公式情報をご確認ください。${mc.fitNote(r.kind) ? `<br>業態の見立て: ${esc(mc.fitNote(r.kind))}` : ''}</section>`}
-    ${g && g.solo.length ? `<section class="solo-box" style="margin:12px 0;padding:12px;border:1px solid #ead8cc;border-radius:12px;background:#fffaf4"><p class="sec-label" style="margin:0 0 6px">ひとり基準</p>${g.solo.map(x => `<div style="display:flex;gap:8px;font-size:13px;margin:3px 0"><b style="flex:none;width:64px;color:#8d4734">${esc(x.label)}</b><span>${esc(x.text)}${x.official ? ' <small style="color:var(--sage)">公式</small>' : ''}</span></div>`).join('')}</section>` : ''}
-    ${g && g.insight ? `<section style="margin:12px 0;padding:12px;border-radius:12px;background:#fffaf4;border:1px solid #ead8cc"><p class="sec-label" style="margin:0 0 4px">一人マップのひとこと</p><b style="font-size:13px">${esc(g.insight.title)}</b><p style="margin:4px 0 0;font-size:12.5px;color:#675c55">${esc(g.insight.insight)}</p></section>` : ''}
-    ${g && g.rows.length ? `<section style="margin:12px 0"><p class="sec-label">確認した事実</p>${g.rows.map(row => `<div class="fact-row ${row.conflict ? 'conflict' : ''}" style="padding:8px 10px;margin-bottom:6px;border-radius:10px;background:#f8f5ef;font-size:12.5px"><b style="display:block;color:#635a54;font-size:11px">${esc(row.label)}${row.conflict ? ' <span style="color:#9a6b1d">⚠ 出典で食い違い</span>' : ''}</b>${row.values.map(v => { const vu = safeUrl(v.url); return `<div class="val">${esc(v.text)} <small style="color:var(--muted)">← ${vu ? `<a href="${esc(vu)}" target="_blank" rel="noreferrer" style="color:#8d4734">${esc(v.domain)}</a>` : esc(v.domain)}${v.official ? '（公式）' : ''}${v.personal ? '（個人訪問記）' : ''}</small></div>`; }).join('')}</div>`).join('')}</section>` : ''}
+    ${soloCheckHtml(cur, r)}
+    ${g && g.insight ? `<details class="fold"><summary><span class="sec-label">一人マップのひとこと</span><b>${esc(g.insight.title)}</b></summary><p class="fold-body">${esc(g.insight.insight)}</p></details>` : ''}
+    ${factsHtml(g)}
     <div class="row" style="margin-top:14px">
       <button class="tog" type="button" data-want="${esc(r.id)}" aria-pressed="${saved.want[r.id] ? 'true' : 'false'}">♡ 行きたい</button>
       <button class="tog" id="btn-went" type="button" aria-pressed="${went ? 'true' : 'false'}">✓ 行った${went && went.date ? ` ${esc(went.date)}` : ''}</button>
@@ -525,6 +562,14 @@ function bindDetail() {
   const r = state.current; if (!r || !$('detail')) return;
   $('btn-back').addEventListener('click', () => { state.current = null; state.sheet = 'list'; render(); });
   const route = $('btn-route'); if (route) route.addEventListener('click', () => track('hitori.route'));
+  // 根拠ボタン。引用は既定で畳んでおき、押した項目だけ開く。
+  document.querySelectorAll('#detail .why').forEach(btn => btn.addEventListener('click', () => {
+    const q = $(`qt-${btn.dataset.why}`); if (!q) return;
+    const open = q.hasAttribute('hidden');
+    if (open) q.removeAttribute('hidden'); else q.setAttribute('hidden', '');
+    btn.setAttribute('aria-expanded', String(open));
+    btn.textContent = open ? '閉じる' : '根拠';
+  }));
   $('btn-went').addEventListener('click', () => { const f = $('went-form'); f.style.display = f.style.display === 'none' ? 'block' : 'none'; });
   $('went-form').addEventListener('submit', e => {
     e.preventDefault(); if (!state.saved || !storage) { setNotice('この端末では保存できません。'); render(); return; }

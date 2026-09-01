@@ -125,9 +125,14 @@ def test_detail_shows_provenance_and_conflicts(page):
     page.wait_for_selector("#detail", timeout=30000)
     txt = page.inner_text("#detail")
     assert "確認済み" in txt and "公式" in txt and "食い違い" in txt
-    assert page.locator("#detail .fact-row.conflict").count() >= 1
+    # 食い違いは畳んだ中に隠さない。開いた時点で両方の値と出典が見えていること
+    assert page.locator("#detail .facts-conflict .fact-row.conflict").count() >= 1
+    assert page.locator("#detail .facts-conflict .fact-row.conflict .val").first.is_visible(),         "食い違いが折りたたみの中に隠れている"
     assert page.locator("#detail .fact-row.conflict .val").count() >= 2, "食い違いの値が両方出ていない"
     assert "city.kuwana.lg.jp" in txt
+    # ひとりチェックは6項目そろい、推定値は出さない
+    assert page.locator("#detail .ck").count() == 6
+    assert "ひとり度" not in txt
     href = page.get_attribute("#btn-route", "href")
     assert href.startswith("https://www.google.com/maps/dir/?api=1&destination=")
     assert page.is_visible("#btn-back")

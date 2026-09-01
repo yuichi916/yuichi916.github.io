@@ -294,3 +294,80 @@ export function parseSavedParam(str) {
 export function facilityShareUrl(base, pref, id) {
   return `${base}?pref=${encodeURIComponent(pref)}&facility=${encodeURIComponent(id)}`;
 }
+
+// --- ひとりチェック（詳細シートの信号機） ---
+// このマップの独自の見方。「ひとりで行けるか」を6つの問いに割り、
+// 公式に書いてあるものだけを ● にする。書いていないものは推定で埋めず △ のまま残す。
+// 一人で行けない条件（男性専用・会員制・休業）が書いてあるときだけ ✕。
+// 長い引用は quote に置き、一覧では short（12字前後）だけを見せる。
+export const SOLO_CHECKS = [
+  { key: 'solo', label: '一人利用', ask: 'ひとりで入れると書いてあるか' },
+  { key: 'seat', label: '席', ask: 'カウンターなど一人の席があるか' },
+  { key: 'pay', label: '支払い', ask: '注文と会計で人と話すか' },
+  { key: 'book', label: '予約', ask: '予約が要るか' },
+  { key: 'quiet', label: '静けさ', ask: '会話しないで居られるか' },
+  { key: 'cond', label: '利用条件', ask: '誰でも入れるか' },
+];
+const PAY_SHORT = { ticket_machine: '券売機あり', cash_only: '現金のみ', cashless_ok: 'キャッシュレス可', counter_person: 'レジで支払い' };
+const BOOK_SHORT = { none: '予約不要', possible: '予約できる', required: '要予約' };
+const COND_SHORT = { public: '制限なし', residents_only: '住民限定', members_only: '会員制', male_only: '男性専用', female_only: '女性専用' };
+const BLOCKING = new Set(['residents_only', 'members_only', 'male_only', 'female_only']);
+
+function _short(text, max = 12) {
+  const v = String(text ?? '').trim();
+  const head = (v.split(/[、。・]/)[0] || v).trim() || v;
+  return head.length > max ? `${head.slice(0, max)}…` : head;
+}
+// 事実から1項目ぶんの信号を組む。usable に無ければ △（未確認）。
+function _cell(check, fact, short, state) {
+  if (!fact) return { ...check, state: 'unknown', short: '記載なし', quote: '', official: false };
+  return {
+    ...check,
+    state: state || (fact.official ? 'ok' : 'weak'),
+    short: short || _short(fact.v),
+    quote: typeof fact.v === 'object' ? JSON.stringify(fact.v) : String(fact.v),
+    official: !!fact.official,
+  };
+}
+
+export function soloCheck(entry, item) {
+  const facts = ((entry && entry.facts) || []).filter(f => !f.conflict);
+  const pick = (...keys) => facts.find(f => keys.includes(f.k)) || null;
+  const kind = item && item.kind;
+
+  const solo = pick('solo_ok');
+  const seat = pick('counter_seats', 'seats', 'seats_total');
+  const pay = pick('payment_method');
+  const book = pick('reservation');
+  const quiet = pick('silence');
+  // access は語彙（public/male_only…）にも、アクセス説明の自由文にも使われている。
+  // 「東京都台東区蔵前…」を利用条件の信号にすると読めないので、語彙の値だけを採る。
+  const condFact = pick('access');
+  const cond = condFact && COND_SHORT[condFact.v] ? condFact : null;
+  const status = facts.find(f => f.k === 'status' && f.v !== 'open');
+
+  const seatShort = seat
+    ? (/^\d+$/.test(String(seat.v).trim()) ? `${seat.v}席`
+      : /カウンター/.test(String(seat.v)) ? 'カウンター席あり' : _short(seat.v))
+    : null;
+  const condShort = cond ? (COND_SHORT[cond.v] || _short(cond.v)) : null;
+  const condState = cond && BLOCKING.has(cond.v) ? 'blocked' : null;
+
+  const cells = [
+    _cell(SOLO_CHECKS[0], solo, solo ? '公式に一人利用あり' : null),
+    _cell(SOLO_CHECKS[1], seat, seatShort),
+    _cell(SOLO_CHECKS[2], pay, pay ? (PAY_SHORT[pay.v] || _short(pay.v)) : null),
+    _cell(SOLO_CHECKS[3], book, book ? (BOOK_SHORT[book.v] || _short(book.v)) : null),
+    _cell(SOLO_CHECKS[4], quiet, null),
+    _cell(SOLO_CHECKS[5], cond, condShort, condState),
+  ];
+  // 個室型は業態そのものが答えなので、席の欄を推定ではなく分類として埋める。
+  if (cells[1].state === 'unknown' && (kind === 'private_sauna' || kind === 'private_sauna_hotel')) {
+    cells[1] = { ...cells[1], state: 'weak', short: '個室型', quote: '業態が個室サウナとして登録されています。', official: false };
+  }
+  if (status) {
+    cells[5] = { ...cells[5], state: 'blocked', short: status.v === 'closed_permanently' ? '閉業の情報' : '休業の情報', quote: String(status.v), official: !!status.official };
+  }
+  const known = cells.filter(c => c.state === 'ok').length;
+  return { cells, known, total: cells.length };
+}
