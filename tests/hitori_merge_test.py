@@ -121,6 +121,19 @@ def test_official_flag_is_not_forced_true():
     assert cur2["n2"]["facts"][0]["official"] is True
 
 
+def test_counter_seats_takes_a_number_or_a_description():
+    """カウンター席は「8席」とも「カウンター席あり」とも書かれる。
+
+    数を強いると「あり」を捨てることになる。一人客には数より有無が効く。
+    """
+    q = {"quote": "カウンター席あり", "url": "https://a.jp"}
+    assert me.check_fact({"k": "counter_seats", "v": 8} | q) is None
+    assert me.check_fact({"k": "counter_seats", "v": "カウンター席あり"} | q) is None
+    assert "数でも文でも" in me.check_fact({"k": "counter_seats", "v": ""} | q)
+    # 総席数は数のまま（「たくさん」を席数として持たない）
+    assert "整数" in me.check_fact({"k": "seats_total", "v": "たくさん"} | q)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

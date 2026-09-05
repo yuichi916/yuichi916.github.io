@@ -36,8 +36,11 @@
     .pin.saved { background:var(--sage); }
     .origin-dot { width:16px; height:16px; border:3px solid #fff; border-radius:50%; background:#1f6feb; box-shadow:0 0 0 6px rgba(31,111,235,.2); }
     /* ボトムシート */
-    #sheet { position:fixed; left:0; right:0; bottom:0; z-index:20; height:calc(100% - var(--header)); background:var(--white); border-radius:18px 18px 0 0; box-shadow:0 -8px 30px rgba(76,47,28,.16); transform:translateY(72%); transition:transform .28s var(--ease); display:flex; flex-direction:column; touch-action:none; }
-    #sheet[data-snap="peek"] { transform:translateY(72%); } #sheet[data-snap="half"] { transform:translateY(40%); } #sheet[data-snap="full"] { transform:translateY(0); }
+    /* シートは transform で下げず、top を動かす。translate で下げると
+       シートの下端が画面の外に出たまま高さを保ち、#sheet-body の
+       最後の数百pxがスクロールしても永久に画面外に残る（「もっと見る」に届かない）。 */
+    #sheet { position:fixed; left:0; right:0; bottom:0; z-index:20; top:74vh; background:var(--white); border-radius:18px 18px 0 0; box-shadow:0 -8px 30px rgba(76,47,28,.16); transition:top .28s var(--ease); display:flex; flex-direction:column; touch-action:none; }
+    #sheet[data-snap="peek"] { top:74vh; } #sheet[data-snap="half"] { top:44vh; } #sheet[data-snap="full"] { top:var(--header); }
     #sheet-handle { flex:none; height:44px; display:grid; place-items:center; border:0; background:none; width:100%; }
     #sheet-handle i { width:40px; height:5px; border-radius:5px; background:#d9cfc4; }
     #sheet-body { flex:1; overflow:auto; padding:0 14px 90px; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
@@ -136,7 +139,7 @@
     /* desktop */
     @media (min-width:900px) {
       #map { inset:var(--header) 0 0 420px; }
-      #sheet { top:var(--header); bottom:0; left:0; right:auto; width:420px; height:auto; border-radius:0; box-shadow:4px 0 24px rgba(76,47,28,.08); transform:none !important; border-right:1px solid var(--line); }
+      #sheet, #sheet[data-snap] { top:var(--header); bottom:0; left:0; right:auto; width:420px; height:auto; border-radius:0; box-shadow:4px 0 24px rgba(76,47,28,.08); transform:none !important; border-right:1px solid var(--line); }
       #sheet-handle { display:none; } #sheet-body { padding:12px 16px 40px; }
       .rebtn { top:auto; bottom:18px; left:calc(420px + (100% - 420px) / 2); }
       #more-filters[hidden] { display:flex; }

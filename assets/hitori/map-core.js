@@ -93,7 +93,7 @@ const VALUE_JA = {
   none: '予約不要', possible: '予約可', required: '要予約',
   public: '制限なし', residents_only: '住民限定', members_only: '会員制', male_only: '男性専用', female_only: '女性専用',
   open: '営業中', closed_temporarily: '休業中', closed_permanently: '閉業',
-  posted: '黙浴の掲示あり', observed: '静か（訪問記）', local: '地元客中心', tourist: '観光客中心', solo_common: '一人客が多い',
+  posted: '静かにの案内あり', observed: '静かさに触れた記述', local: '地元客中心', tourist: '観光客中心', solo_common: '一人客が多い',
   easy: '初めてでも迷わない', custom_exists: '独自の作法あり', yes: 'あり', no: 'なし', rental: '貸出あり', included: '料金に含む',
   locker: 'ロッカーあり',
 };
@@ -358,7 +358,7 @@ export function soloCheck(entry, item) {
     _cell(SOLO_CHECKS[1], seat, seatShort),
     _cell(SOLO_CHECKS[2], pay, pay ? (PAY_SHORT[pay.v] || _short(pay.v)) : null),
     _cell(SOLO_CHECKS[3], book, book ? (BOOK_SHORT[book.v] || _short(book.v)) : null),
-    _cell(SOLO_CHECKS[4], quiet, null),
+    _cell(SOLO_CHECKS[4], quiet, quiet ? _short(formatFactValue('silence', quiet.v)) : null),
     _cell(SOLO_CHECKS[5], cond, condShort, condState),
   ];
   // 個室型は業態そのものが答えなので、席の欄を推定ではなく分類として埋める。

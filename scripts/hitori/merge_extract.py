@@ -35,9 +35,13 @@ VOCAB = {
     "access": {"public", "residents_only", "members_only", "male_only", "female_only"},
     "status": {"open", "closed_temporarily", "closed_permanently"},
 }
-INT_KEYS = {"counter_seats", "seats_total", "price"}
+INT_KEYS = {"seats_total", "price"}
+# カウンター席は「8席」とも「カウンター席あり」とも書かれる。数を強いると
+# 「あり」を捨てることになるが、一人客にとっては数より有無のほうが効く。
+# 数でも文でも受ける（ひとりチェックは数なら「N席」、文ならそのまま出す）。
+INT_OR_TEXT_KEYS = {"counter_seats"}
 STR_KEYS = {"hours", "closed_days", "solo_ok", "parking", "price_note", "address", "closes_on", "renamed_to"}
-ALLOWED = set(VOCAB) | INT_KEYS | STR_KEYS
+ALLOWED = set(VOCAB) | INT_KEYS | INT_OR_TEXT_KEYS | STR_KEYS
 # 自動アクセスを禁止しているサイト。事実の出所として数えない（enrich.BLOCKED_DOMAINS と同じ趣旨）
 BLOCKED = {"tabelog.com", "sauna-ikitai.com", "retty.me"}
 MIN_QUOTE = 4
@@ -71,6 +75,8 @@ def check_fact(f, page_text=None):
         return f"{k} の語彙外の値 {v!r}"
     if k in INT_KEYS and not isinstance(v, int):
         return f"{k} が整数でない {v!r}"
+    if k in INT_OR_TEXT_KEYS and not (isinstance(v, int) or (isinstance(v, str) and v.strip())):
+        return f"{k} が数でも文でもない {v!r}"
     if k in STR_KEYS and not (isinstance(v, str) and v.strip()):
         return f"{k} が空"
     if page_text and _norm(q) not in _norm(page_text):

@@ -298,5 +298,11 @@ check('soloCheck: access の自由文は利用条件の信号にしない', () =
   eq(r.cells[5].state, 'unknown'); eq(r.cells[5].short, '記載なし');
 });
 
+check('soloCheck: 語彙の値は日本語にして出す（生の posted を見せない）', () => {
+  const r = mc.soloCheck({ facts: [{ k: 'silence', v: 'posted', official: true, conflict: false }] }, {});
+  eq(r.cells[4].short, '静かにの案内あり');
+  eq(mc.soloCheck({ facts: [{ k: 'silence', v: 'observed', official: false }] }, {}).cells[4].short, '静かさに触れた記述');
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
 console.log('OK: map-core');

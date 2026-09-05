@@ -35,6 +35,23 @@ def _ready(page):
     page.wait_for_function("window.__ready === true", timeout=30000)
 
 
+def _reveal_unverified(page):
+    """未確認カードが画面に出るまで「もっと見る」を押す。
+
+    確認済みは常に先頭に固まるので、拡充が進むと1頁目が確認済みで埋まる。
+    「1頁目に未確認がある」ことを前提にしたテストは、データが良くなるほど落ちる。
+    """
+    for _ in range(6):
+        if page.locator("#list .card.unverified").count():
+            return True
+        more = page.locator("#btn-more")
+        if not more.count():
+            return False
+        more.click()
+        page.wait_for_timeout(400)
+    return page.locator("#list .card.unverified").count() > 0
+
+
 def test_home_states_the_claim_and_two_ways_in(page):
     page.set_viewport_size(MOBILE)
     errors = []
@@ -67,8 +84,8 @@ def test_area_mode_lists_verified_first_without_score_dots(page):
     assert cards.count() >= 10
     first = cards.nth(0).inner_text()
     assert "確認済み" in first, f"先頭が確認済みでない: {first}"
+    assert _reveal_unverified(page), "未確認カードが1枚も出てこない"
     unverified = page.locator("#list .card.unverified")
-    assert unverified.count() > 0
     assert "候補" in unverified.first.inner_text()
     # 未確認は「見立て」だけ。推定した数値・軸の名前を1つも出していないこと
     score = re.compile(r"ひとり度|静けさ|入りやすさ|\d+\s*/\s*5")
@@ -147,7 +164,8 @@ def test_detail_of_unverified_says_so_and_has_no_scores(page):
     page.set_viewport_size(MOBILE)
     page.goto(BASE + "#pref=14")
     _ready(page)
-    page.wait_for_selector("#list .card.unverified", timeout=30000)
+    page.wait_for_selector("#list .card", timeout=30000)
+    assert _reveal_unverified(page), "未確認カードが1枚も出てこない"
     page.locator("#list .card.unverified .open-detail").first.click()
     page.wait_for_selector("#detail", timeout=10000)
     txt = page.inner_text("#detail")

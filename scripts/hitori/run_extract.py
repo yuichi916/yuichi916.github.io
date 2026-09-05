@@ -14,7 +14,7 @@
   # 3) 進み具合
   python scripts/hitori/run_extract.py stat --dir <作業dir>
 """
-import argparse, json, os, shutil, subprocess, sys, time
+import argparse, json, os, re, shutil, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -75,6 +75,29 @@ def cmd_plan(args):
     print(f"作業場所: {work}")
 
 
+# codex は API の従量課金ではなく ChatGPT のプラン枠を使う。枠を使い切ると
+# 全バッチが数秒で同じ失敗を返し続け、残り全部を空振りで消費してしまう。
+# 1本でも枠切れを見たら、その時点で止めて再開時刻を伝える。
+QUOTA_MARK = "usage limit"
+
+
+def _hit_quota(log):
+    try:
+        return QUOTA_MARK in log.read_text(encoding="utf-8", errors="replace")[-4000:]
+    except OSError:
+        return False
+
+
+def quota_retry_at(log):
+    """ログから「いつ再開できるか」を拾う。取れなければ空文字。"""
+    try:
+        txt = log.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    m = re.search(r"try again at ([^\".\\\\]+)", txt)
+    return m.group(1).strip() if m else ""
+
+
 def run_one(work, prompt, name, model, timeout):
     res = work / "result" / f"{name}.json"
     if res.exists() and res.stat().st_size > 2:
@@ -92,6 +115,8 @@ def run_one(work, prompt, name, model, timeout):
     except subprocess.TimeoutExpired:
         return name, "timeout", time.time() - started
     ok = res.exists() and res.stat().st_size > 2
+    if not ok and _hit_quota(log):
+        return name, "quota", time.time() - started
     return name, "ok" if ok else "nofile", time.time() - started
 
 
@@ -103,13 +128,26 @@ def cmd_run(args):
             if not ((work / "result" / f"{n}.json").exists()
                     and (work / "result" / f"{n}.json").stat().st_size > 2)]
     print(f"バッチ {len(names)} 本 / 未了 {len(todo)} 本 / 同時 {args.jobs}", flush=True)
-    done = {"ok": 0, "nofile": 0, "timeout": 0, "skip": 0}
+    done = {"ok": 0, "nofile": 0, "timeout": 0, "skip": 0, "quota": 0}
     t0 = time.time()
+    stop = False
     with ThreadPoolExecutor(max_workers=args.jobs) as ex:
         futs = [ex.submit(run_one, work, prompt, n, args.model, args.timeout) for n in todo]
         for i, f in enumerate(futs, 1):
+            if stop:
+                f.cancel()
+                continue
             name, status, sec = f.result()
-            done[status] += 1
+            done[status] = done.get(status, 0) + 1
+            if status == "quota":
+                at = quota_retry_at(work / "log" / f"{name}.jsonl")
+                print("\n枠を使い切った。ここで止める（結果は残るので、あとで同じコマンドを"
+                      "再実行すれば未了ぶんだけ走る）。"
+                      + (f"再開できる時刻: {at}" if at else ""), flush=True)
+                stop = True
+                for g in futs[i:]:
+                    g.cancel()
+                continue
             rate = (time.time() - t0) / max(i, 1)
             left = rate * (len(todo) - i) / 60
             print(f"[{i}/{len(todo)}] {name} {status} {sec:.0f}s "
