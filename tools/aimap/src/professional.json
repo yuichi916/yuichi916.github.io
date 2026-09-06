@@ -1,0 +1,881 @@
+{
+  "domain": "professional",
+  "areas": [
+    {
+      "id": "professional.medical",
+      "name": "医療(診断支援・画像読影・問診・治療計画)",
+      "name_en": "Medical (diagnosis support, imaging, history-taking, treatment planning)",
+      "tasks": [
+        {
+          "id": "professional.medical.imaging_diagnosis_support",
+          "name": "画像読影支援(放射線・病理)",
+          "name_en": "Medical imaging diagnostic support (radiology/pathology)",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "ChestLink v2.6 vs 放射線科医(多施設1,529例, 2026-02): AI感度99.1% vs 医師72.3%(異常胸部X線検出)。ただし特異度は医師91.8% vs AI 28%と逆転(単体では過検出)。Ibex Prostate Detect: 病理医はAI不使用時に前立腺癌の13%を見逃し、AI heatmap PPVは99.6%。特定タスクの検出感度は専門家超えだが特異度・総合判断は依然人間優位。",
+          "can": "特定臓器・所見(乳がん、肺結節、前立腺癌、糖尿病網膜症等)の一次スクリーニング/セカンドリーダー、異常の優先順位付け(triage)、定型所見レポート下書き",
+          "cannot": "複合的臨床文脈を統合した最終診断、非定型症例、画質不良時の判断、正式読影レポートへの単独サイン",
+          "why": "FDA/PMDA承認は狭いユースケース(CADe/CADx、トリアージ補助)に限定され「読影医の最終責任」が制度要件。false positive率がまだ高く稀少疾患の訓練データ不足。医療過誤責任はサインした医師に帰属し自律運用は制度上不可。",
+          "autonomy": "copilot",
+          "tools": ["Google AMIE/Med-Gemini", "ChestLink", "Ibex Prostate Detect", "ArteraAI Breast/Prostate", "Paige Prostate/PanCancer Detect"],
+          "evidence": [
+            {"title": "Autonomous AI Shows Nearly 27 Percent Higher Sensitivity than Radiology Reports for Abnormal Chest X-Rays", "url": "https://www.diagnosticimaging.com/view/autonomous-ai-nearly-27-percent-higher-sensitivity-than-radiology-reports-for-abnormal-chest-x-rays", "date": "2026-02", "note": "多施設1,529例。AI感度99.1% vs 医師72.3%、特異度は医師91.8% vs AI 28%"},
+            {"title": "FDA Grants 510(k) Clearance to Ibex Prostate Detect AI for Prostate Cancer", "url": "https://www.targetedonc.com/view/fda-grants-510-k-clearance-to-ibex-prostate-detect-ai-for-prostate-cancer", "date": "2025-08", "note": "病理医のAI未使用時前立腺癌見逃し率13%、AI heatmap PPV99.6%"},
+            {"title": "FDA AI Approvals Surge Past 1k for Radiology", "url": "https://theimagingwire.com/2025/12/10/ai-enabled-medical-devices-granted-fda-marketing-authorization/", "date": "2025-12", "note": "2026年3月時点でFDA承認AI医療機器1,524件中1,163件が放射線領域"}
+          ],
+          "forecast_basis": "PMDAのIDATEN枠組み(継続学習モデルの事前承認変更許容)拡大とMammo-FM等基盤モデルの臨床導入進展により2027-28年に精度向上が見込まれるが、「最終診断は医師の非委任責任」という法制度自体は変わらないためレベル4止まり。"
+        },
+        {
+          "id": "professional.medical.history_taking_triage",
+          "name": "問診・トリアージ",
+          "name_en": "History-taking and triage",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "AMIE緊急外来試験(2026, N=100): 盲検評価で医師との鑑別診断の質に有意差なし、safety stop 0件。NEJM AI ED試験(3施設17.4万件): AIトリアージ導入で重症患者特定率78.8%→83.1%、初期対応までの時間33%短縮。ただしLLM単体のESIスコア一致度(39,375例)は最高でもkappa約0.467、精度61.7%で人間看護師の水準には未到達。",
+          "can": "受診前病歴聴取の自動化・要約、緊急度分類の意思決定支援、対話による症状収集で医師の問診時間短縮",
+          "cannot": "身体診察(視触診・聴診)の代替、非言語的徴候の察知、意思疎通困難な患者への対応、トリアージ最終権限の単独行使",
+          "why": "身体診察という物理的行為ができない技術的限界。緊急度誤判定が直接生命に関わるため規制・訴訟リスクが高く自律権限は付与されない。LLMのESI一致率が人間看護師水準に未到達。",
+          "autonomy": "copilot",
+          "tools": ["Google AMIE(Video含む)", "Ada Health", "Epic/Providence AIトリアージ"],
+          "evidence": [
+            {"title": "Exploring the feasibility of conversational diagnostic AI in a real-world clinical study", "url": "https://research.google/blog/exploring-the-feasibility-of-conversational-diagnostic-ai-in-a-real-world-clinical-study/", "date": "2026-03", "note": "AMIE urgent care 100例、医師と鑑別診断の質に有意差なし、safety stop 0件"},
+            {"title": "Impact of Artificial Intelligence-Based Triage Decision Support on Emergency Department Care", "url": "https://ai.nejm.org/doi/abs/10.1056/AIoa2400296", "date": "2026", "note": "17.4万件のED受診、重症患者特定率78.8%→83.1%、初期対応時間33%短縮"},
+            {"title": "Is Artificial Intelligence Ready for Emergency Department Triage?", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12941425/", "date": "2026", "note": "39,375例でLLM ESI評価、最高一致でもkappa約0.467・精度61.7%"}
+          ],
+          "forecast_basis": "2026年8月発表のAMIE Video(音声・映像同時解析)により2027-28年には非接触所見の一部代替が進むと予測。ただし物理接触を伴う診察は技術的に代替不能のためレベル4で頭打ち。"
+        },
+        {
+          "id": "professional.medical.differential_diagnosis_support",
+          "name": "鑑別診断支援",
+          "name_en": "Differential diagnosis support",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "HealthBench Professional(70名超の医師作成・採点、2026-09時点): トップモデルGPT-6 Astra 63.4%、Claude Opus 5 59.8%(専門医レベル到達には及ばず)。HealthBench Hard(複雑臨床推論)ではGPT-5.4が40.1点と絶対値も低く複雑症例は依然困難。DeepRareは標準化症例で正診断1位提示57%。",
+          "can": "典型症例の鑑別リスト網羅的生成、稀な鑑別の想起支援(見落とし防止)、エビデンスに基づく追加質問生成",
+          "cannot": "複雑合併症例・非定型症例の確実な一次診断、責任を伴う最終診断確定、検査所見を動的に統合した判断",
+          "why": "難易度の高いベンチマーク(HealthBench Hard)で正答率4割程度。稀少・非定型症例で性能不安定。誤診が生命に関わるため免許制度上、医師の最終確認が必須。",
+          "autonomy": "copilot",
+          "tools": ["AMIE", "Med-Gemini", "GPT-5.x/6", "Claude Opus 5", "DeepRare"],
+          "evidence": [
+            {"title": "Harvey's Legal Agent Benchmark(参考: 同種の専門家ベンチマーク設計)", "url": "https://benchlm.ai/benchmarks/healthbenchprofessional", "date": "2026-09", "note": "HealthBench Professionalトップモデル63.4%、Claude Opus5 59.8%。専門医評価基準で満点に遠い"},
+            {"title": "New AI Algorithm Could Speed Rare Disease Diagnoses", "url": "https://www.afhu.org/2026/04/01/new-ai-algorithm-could-speed-rare-disease-diagnoses/", "date": "2026-04", "note": "DeepRare、標準化データで正診断上位1位57%的中、既存手法比+24pt"},
+            {"title": "ChatGPT Medical Advice Lawsuit—What The Research Says About AI Diagnosis", "url": "https://www.forbes.com/sites/jessepines/2026/07/26/a-lawsuit-says-chatgpt-nearly-someone-heres-the-data-on-ai-diagnosis/", "date": "2026-07", "note": "汎用チャットボットが肺塞栓症症状を誤って安心情報提供し続けた訴訟事例"}
+          ],
+          "forecast_basis": "マルチエージェント診断パイプラインや専門特化エージェントの精度向上ペースから2027-28年に典型内科系症例ではジュニア専門医超えが定着すると予測。HealthBench Hardが4割程度に留まることから専門家超え(レベル5)は2030年時点でも時期尚早と判断。"
+        },
+        {
+          "id": "professional.medical.treatment_planning_support",
+          "name": "治療計画立案支援(腫瘍ボード等)",
+          "name_en": "Treatment planning support (tumor boards)",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "神経腫瘍放射線治療研究(101症例, 2026): ChatGPT-4が実際の腫瘍ボード決定と76%一致したが、単純症例で必要治療を省略、境界症例で不要治療を提案する誤りがあり「人間の判断の代替にはならない」と結論。",
+          "can": "ガイドラインに基づく標準治療オプション提示、腫瘍ボード資料の準備・要約、文献・類似症例の高速検索",
+          "cannot": "個別化された複雑意思決定(合併症・患者価値観含む)の最終決定、境界症例での適切な治療強度判断、詳細最適化なしでの放射線治療計画実行",
+          "why": "精度76%程度でも過小/過剰治療の誤りが一定割合発生。腫瘍治療は患者QOL等の定量化困難な要素を含み、責任構造上最終決定は必ず人間の腫瘍専門医チームに帰属。",
+          "autonomy": "copilot",
+          "tools": ["ChatGPT-4/5", "AI-powered smart patient retrieval", "LLaMA 3.3ベース腫瘍ボードツール"],
+          "evidence": [
+            {"title": "Assessing ChatGPT-4 as a clinical decision support tool in neuro-oncology radiotherapy", "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12528231/", "date": "2026", "note": "101症例、腫瘍ボード決定一致率76%、単純例で治療省略・境界例で過剰治療の傾向"},
+            {"title": "AI-assisted tumor board decision-making in pancreatic oncology", "url": "https://link.springer.com/article/10.1186/s12911-026-03444-x", "date": "2026", "note": "LLaMA3.3による膵癌42例の治療方針予測、予備的研究段階"}
+          ],
+          "forecast_basis": "ASCOがAI-Enabled Oncology Careをロードマップ化し、smart patient retrieval等の周辺機能実装が先行することから2027-28年にガイドライン準拠症例ではジュニア腫瘍医相当に到達すると予測。個別化判断の複雑性から専門家超えは想定しない。"
+        },
+        {
+          "id": "professional.medical.patient_education_consent",
+          "name": "患者説明・インフォームドコンセント文書作成",
+          "name_en": "Patient education and informed consent documentation",
+          "levels": {"2022":1,"2023":3,"2024":3,"2025":4,"2026":4,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "内分泌外科同意書研究: LLMによりFlesch-Kincaid学年レベルが14.1→8.8に改善(可読性大幅向上)するが内容忠実性(fidelity)が犠牲になるケースあり。口腔外科同意書はAI生成の方が従来ウェブ同意書より質・可読性で優位だが両者とも推奨可読性水準未達。",
+          "can": "平易な言葉での病状説明文下書き、多言語翻訳、可読性改善、標準同意書テンプレートの個別化",
+          "cannot": "医学的内容正確性の独力保証(fidelity低下リスク)、患者理解度確認の対話的プロセスの完全代替、法的責任を伴う同意取得",
+          "why": "可読性と内容正確性のトレードオフが実証されており、医師の説明義務(法的責任)は資格制度上代替不可能。誤訳・簡略化による重要情報欠落リスク。",
+          "autonomy": "copilot",
+          "tools": ["ChatGPT", "Copilot", "Gemini", "RAGベース同意書生成ツール"],
+          "evidence": [
+            {"title": "Speaking Patient's Language: Assessment of Readability and Fidelity of AI-Optimized Consent Forms", "url": "https://yesilscience.com/speaking-patients-language-assessment-of-readability-and-fidelity-of-artificial-intelligence-optimized-consent-forms/", "date": "2026", "note": "内分泌外科同意書、可読性14.1→8.8改善も内容忠実性が低下"},
+            {"title": "Quality of Conventional versus Artificial Intelligence Oral Surgery Consent Forms", "url": "https://www.jmir.org/2026/1/e59851", "date": "2026", "note": "AI生成同意書が従来より優位だが推奨水準未達"}
+          ],
+          "forecast_basis": "可読性改善は既に実用域に達しており伸びしろは限定的だが、fidelity検証技術高度化により2028年までに内容正確性問題が実務上解消されレベル4で安定と予測。法的同意取得責任は医師に残るため専門家超え概念は不適用。"
+        },
+        {
+          "id": "professional.medical.rare_disease_diagnosis",
+          "name": "稀少症例・診断困難例対応",
+          "name_en": "Rare and complex case diagnosis",
+          "levels": {"2022":0,"2023":1,"2024":1,"2025":2,"2026":2,"2027e":3,"2028e":3,"2030e":4},
+          "vs_expert": "DeepRare(2026): 標準化症状データで正診断を候補1位に57%的中させ、専門の希少疾患医を上回るケースも報告。既存AI手法比+24pt。ただし希少疾患患者は平均約6年の「診断オデッセイ」を経験しており、AIが解決したのは表現型マッチングという限定的ワークフローのみ。",
+          "can": "症状・遺伝子データからの候補疾患ランキング、文献・症例データベースの高速横断検索、稀少疾患を疑うきっかけの提示",
+          "cannot": "確定診断(遺伝子検査等の追加検査及び専門医診察が必要)、症例報告のない未知疾患パターンの発見、患者生活歴等社会的文脈を統合した総合判断",
+          "why": "稀少疾患は訓練データが本質的に乏しく、ベンチマーク正解率も57%程度(上位候補に正解がないケースが43%)。最終確定は遺伝学的検査・専門医の総合判断に依存し自律不可。",
+          "autonomy": "copilot",
+          "tools": ["DeepRare", "Google Med-Gemini", "GPT-5/6", "HPO(Human Phenotype Ontology)ベースツール"],
+          "evidence": [
+            {"title": "New AI Algorithm Could Speed Rare Disease Diagnoses", "url": "https://www.afhu.org/2026/04/01/new-ai-algorithm-could-speed-rare-disease-diagnoses/", "date": "2026-04", "note": "標準化データで正診断上位1位57%的中、既存手法比+24pt、専門医を上回るケースも報告"},
+            {"title": "Unifying the odyssey: artificial intelligence for rare disease diagnosis and therapy", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13045663/", "date": "2026", "note": "平均6年の診断オデッセイの現状分析とAI活用の展望"}
+          ],
+          "forecast_basis": "表現型マッチングAIの精度向上ペース(既存手法比+24pt)から2027-28年に正診断上位提示率が7割程度に達すると予測。確定診断プロセスは制度的に人間中心のまま残るため2030年時点でもレベル4止まり。"
+        }
+      ]
+    },
+    {
+      "id": "professional.psychology",
+      "name": "心理・カウンセリング・メンタルヘルス",
+      "name_en": "Psychology, counseling, and mental health",
+      "tasks": [
+        {
+          "id": "professional.psychology.listening_casual_support",
+          "name": "傾聴・雑談的サポート",
+          "name_en": "Listening / casual emotional support",
+          "levels": {"2022":1,"2023":3,"2024":3,"2025":3,"2026":3,"2027e":3,"2028e":3,"2030e":3},
+          "vs_expert": "共感メタ分析(13研究, 2026): AIチャットボットの共感評価が人間医療従事者よりSMD 0.87高い。一方でCharacter.AI/OpenAI関連の重大インシデント(未成年自殺、AI精神病)が多発し、商用チャットボット週間対話の約0.15%に自殺計画の兆候が含まれると推計。",
+          "can": "24時間365日の雑談・共感的傾聴、孤独感の一時的緩和、感情の言語化支援、共感スコア上の高評価(スコア上は人間超え)",
+          "cannot": "危機的状況の確実な検知・エスカレーション、長期的治療関係(治療同盟)の構築、複雑な逆転移・境界設定、深刻な精神疾患への安全対応",
+          "why": "共感\"スコア\"は高くても安全性(迎合=sycophancyによる妄想増悪等)に構造的欠陥があり、未成年自殺・AI精神病等の重大インシデントが多発。免許保持専門家のような責任構造・スーパービジョンが存在しない。",
+          "autonomy": "copilot",
+          "tools": ["ChatGPT", "Character.AI", "Replika", "Woebot(B2B化)", "Wysa"],
+          "evidence": [
+            {"title": "AI chatbots versus human healthcare professionals: a systematic review and meta-analysis of empathy in patient care", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12536877/", "date": "2026", "note": "13研究メタ分析、AI共感評価が人間よりSMD0.87高い"},
+            {"title": "Google and Character.AI agree to settle lawsuit linked to teen suicide", "url": "https://www.jurist.org/news/2026/01/google-and-character-ai-agree-to-settle-lawsuit-linked-to-teen-suicide/", "date": "2026-01", "note": "未成年自殺関連訴訟の和解、FL/CO/NY/TXの複数訴訟が対象、条件非公開"},
+            {"title": "Misuse of AI chatbots tops annual list of health technology hazards (ECRI 2026)", "url": "https://home.ecri.org/blogs/ecri-news/misuse-of-ai-chatbots-tops-annual-list-of-health-technology-hazards", "date": "2026-01", "note": "ECRIが2026年医療技術ハザード第1位にAIチャットボット誤用を選定"}
+          ],
+          "forecast_basis": "共感スコアという表層指標は既に高水準で伸びしろは乏しく、安全ガードレール(危機検知)の構造的困難と規制強化(イリノイ州等の拡大)により2027-30年も実務品質としてはレベル3で頭打ちと予測。"
+        },
+        {
+          "id": "professional.psychology.structured_therapy_cbt",
+          "name": "CBT等構造化セラピー補助",
+          "name_en": "Structured therapy support (CBT-based)",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":3,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "Dartmouth Therabot RCT(NEJM AI, 2025-03): うつ症状51%減少、全般性不安症状31%減少、摂食障害懸念19%減少(いずれも対照群を有意に上回る)。ユーザーは治療同盟について人間専門家と同程度の信頼・コミュニケーションを報告。ただし対象は軽度〜中等度、期間8週間のみ。",
+          "can": "エビデンスに基づくCBTプロトコルの構造化提供、症状モニタリングとフィードバック、宿題(ホームワーク)実施支援、軽度〜中等度症例への統計的に有意な症状改善",
+          "cannot": "重度精神疾患(重症うつ、双極性障害、パーソナリティ障害等)への対応、長期予後の実証、人間の臨床的CBTとの直接比較エビデンス、複雑併存疾患のケースformulation",
+          "why": "臨床試験期間が短く重症例が除外されているため限定的エビデンスのみ。免許保持者による直接の治療同盟構築は法規制(イリノイ州WOPR法等)で保護される領域。",
+          "autonomy": "agent",
+          "tools": ["Therabot(Dartmouth)", "Woebot(B2B)", "Wysa", "Youper"],
+          "evidence": [
+            {"title": "Randomized Trial of a Generative AI Chatbot for Mental Health Treatment", "url": "https://ai.nejm.org/doi/full/10.1056/AIoa2400802", "date": "2025-03", "note": "Therabot RCT、うつ症状51%減、GAD症状31%減、摂食障害懸念19%減、対照群比で有意"},
+            {"title": "First Therapy Chatbot Trial Yields Mental Health Benefits", "url": "https://home.dartmouth.edu/news/2025/03/first-therapy-chatbot-trial-yields-mental-health-benefits", "date": "2025-03", "note": "治療同盟の主観評価が人間専門家と同程度と報告"}
+          ],
+          "forecast_basis": "Therabotの成功を受け同種臨床試験パイプラインが拡大しており2027-28年に軽度〜中等度症例ではジュニア臨床家相当(レベル4)に到達すると予測。ただし州規制拡大により汎用チャットボットでの同水準到達とは別軸。"
+        },
+        {
+          "id": "professional.psychology.crisis_suicide_risk_assessment",
+          "name": "危機介入・自殺リスク評価",
+          "name_en": "Crisis intervention and suicide risk assessment",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":1,"2026":1,"2027e":1,"2028e":2,"2030e":2},
+          "vs_expert": "商用チャットボット29種のテストで「自殺危機への適切な対応ができたものはゼロ」。中間リスクレベルの識別に体系的失敗。Adam Raine事件ではChatGPTが1,275回自殺に言及、377件の自傷関連メッセージにフラグを立てたが一度もセッション終了・当局通報せず。",
+          "can": "明確で極端な自殺念慮表明の検出とホットライン等リソース提示、自傷関連キーワードの機械的フラグ立て",
+          "cannot": "中間リスクレベル(暗示的・婉曲的危機サイン)の識別、致死性のある手段情報の適切な抑制、危機時のエスカレーション(通報・介入)の確実な実行",
+          "why": "中間リスク帯でのキャリブレーション不全が複数モデルファミリーで一貫して確認される技術的限界に加え、責任構造上チャットボット単独での介入権限がなく、法規制(WOPR法等)が専門家によるリスク評価を必須化。ECRIが2026年医療技術ハザード第1位に選定。",
+          "autonomy": "copilot",
+          "tools": ["一般チャットボット(ChatGPT, Character.AI等、危機対応専用ではない)"],
+          "evidence": [
+            {"title": "Zero of 29 AI Chatbots Provided Adequate Suicide-Crisis Responses", "url": "https://apn.com/research/zero-of-29-ai-chatbots-provided-adequate-suicide-crisis-responses/", "date": "2026", "note": "29種の商用チャットボットで適切な自殺危機対応をしたものはゼロ"},
+            {"title": "OpenAI ChatGPT Wrongful Death Claim (Adam Raine)", "url": "https://www.hbsslaw.com/cases/openai-chatgpt-wrongful-death-claim", "date": "2025-08提訴/2026係属中", "note": "1,275回自殺言及、377件自傷フラグも介入せず10代少年が自殺"},
+            {"title": "Are artificial intelligence chatbots safe for suicide risk assessment?", "url": "https://www.cambridge.org/core/journals/global-mental-health/article/are-artificial-intelligence-chatbots-safe-for-suicide-risk-assessment-a-narratively-synthesized-review-of-current-evidence/C54EC19E3218DDCB8F54D0293C1E7CCE", "date": "2026", "note": "中間リスク帯の識別に系統的失敗"}
+          ],
+          "forecast_basis": "複数訴訟・規制強化(FTC調査、ECRI最重要ハザード指定、州法拡大)が業界にセーフティ機構実装を強制する圧力になっており2028年にかけ基本安全機能は改善見込み。ただし中間リスクのニュアンス判断は臨床心理学的にも困難な中核課題であり専門家並みには2030年時点でも未到達と予測。"
+        },
+        {
+          "id": "professional.psychology.psych_testing_interpretation",
+          "name": "心理検査の解釈補助",
+          "name_en": "Psychological test interpretation support",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":2,"2026":2,"2027e":3,"2028e":3,"2030e":3},
+          "vs_expert": "MMPI-3等の客観的尺度についてはAI解釈補助ツールが実用化されつつあり評価時間を4-6時間から大幅短縮可能。一方ロールシャッハ等投影法では、2026年の研究がAI反応パターンに臨床的解釈をそのまま適用できないと結論。",
+          "can": "客観的心理検査(MMPI等)スコアに基づく標準解釈文の下書き生成、レポート構成・文章化の効率化、経時比較の整理",
+          "cannot": "投影法検査(ロールシャッハ等)の臨床的解釈、行動観察・面接情報を統合した総合判断、報告書最終責任を伴うサイン",
+          "why": "投影法テストは元来訓練データが存在せず、LLM応答パターンに人間の臨床解釈枠組みをそのまま適用する妥当性が実証されていない。心理検査解釈は資格を持つ心理士の専管業務として法的に位置づけ。",
+          "autonomy": "copilot",
+          "tools": ["Modalia AI", "汎用LLM(報告書下書き)"],
+          "evidence": [
+            {"title": "Human Shadows in Machine Minds: Quantitative Study Interpreting AI Responses to the Rorschach Test", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13168847/", "date": "2026", "note": "AIのロールシャッハ反応に臨床診断的解釈を直接適用することは妥当でないと結論"},
+            {"title": "Integrative Psychological Assessment Report Writing", "url": "https://modalia.ai/en/blog/integrative-psychological-assessment-report-writing", "date": "2026", "note": "AIレポート作成ツールで評価時間4-6時間を短縮する実務利用の実態"}
+          ],
+          "forecast_basis": "客観検査は構造化データのためAI適用が進みやすく2027-28年に標準解釈文生成が定型業務として定着(レベル3)すると予測。投影法・行動観察の統合という核心的臨床判断は方法論的に検証困難なままであり2030年時点でも専門家水準には未到達と判断。"
+        },
+        {
+          "id": "professional.psychology.therapist_notes_supervision",
+          "name": "セラピスト向けノート作成・supervision補助",
+          "name_en": "Clinical note-taking and supervision support for therapists",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":4,"2026":4,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "Mentalyc, Freed, Upheal等のHIPAA準拠AIスクライブが2026年時点で商用普及。SOAP/DAP/GIRP形式ノート自動生成、多言語対応、スーパービジョン向けセッション傾向分析が実装済み。文書化タスクは専門家の作業を高精度に代替できる領域として確立。",
+          "can": "セッション音声からのSOAP/DAP/GIRPノート自動生成、治療計画・進捗の経時追跡、スーパービジョン準備用セッション傾向要約、保険請求用書類の下書き",
+          "cannot": "臨床的判断そのもの(診断・治療方針決定)、スーパーバイザーによる直接観察に代わる質的評価、記録内容の臨床的妥当性の最終保証",
+          "why": "記録作成は本質的に文書化タスクでありLLMの得意領域だが、臨床的判断・責任は専門家に残る制度設計。音声記録の同意・保持期間などプライバシー規制(HIPAA)遵守が事業者依存でばらつきがある。",
+          "autonomy": "agent",
+          "tools": ["Mentalyc", "Freed", "Upheal", "PMHscribe"],
+          "evidence": [
+            {"title": "Best AI Notetaker for Therapists in 2026", "url": "https://www.mentalyc.com/blog/best-ai-notetaker-for-therapists", "date": "2026", "note": "SOAP/DAP/GIRP自動生成、保険請求対応ノートの構造化生成が商用実装済み"},
+            {"title": "Best AI Tools for Supervision Notes in Healthcare in 2026", "url": "https://www.trytwofold.com/blog/best-ai-for-supervision-notes", "date": "2026", "note": "スーパービジョン向けセッション傾向分析"}
+          ],
+          "forecast_basis": "記録作成という定型文書タスクは既に高水準(レベル4)に達しており、2027-30年もHIPAA準拠等運用面の改善はあるが臨床判断そのものへの越境は制度的に想定されないためレベル4で安定と予測。"
+        }
+      ]
+    },
+    {
+      "id": "professional.legal",
+      "name": "法務",
+      "name_en": "Legal",
+      "tasks": [
+        {
+          "id": "professional.legal.contract_review",
+          "name": "契約書レビュー・リスク抽出",
+          "name_en": "Contract review & risk extraction",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "Vals AI契約レビューベンチマーク(2025-10, 20問69チェック)で弁護士79.7% vs Harvey Assistant 59.4% vs Vincent AI 53.6%(AIがジュニア弁護士水準未満)。一方、契約ドラフト専用ベンチマーク(legalbenchmarks.ai, 2025-09)では人間弁護士の信頼できる初稿率56.7%(最良70%)に対し最良AI(Gemini 2.5 Pro)73.3%でAIが上回った。タスクにより優劣が逆転する。",
+          "can": "数千契約の一次スクリーニング、標準条項との差分・逸脱検出、NDA等定型文書ドラフト、タブラー一括レビュー",
+          "cannot": "複雑M&A契約の最終判断、稀少法域の解釈、契約当事者の意図推測、責任を伴う最終サインオフ",
+          "why": "ベンチマークにより分野差はあるがジュニア弁護士以下の精度が出るケースがあり(53-59%)、幻覚・見落としリスク残存。最終責任(懲戒・malpractice保険)は弁護士本人に帰属するため人間確認が必須。",
+          "autonomy": "copilot",
+          "tools": ["Harvey", "CoCounsel(Thomson Reuters)", "Legora", "Spellbook", "Kira", "Luminance"],
+          "evidence": [
+            {"title": "Vals AI's Latest Benchmark Finds Legal and General AI Now Outperform Lawyers in Legal Research Accuracy", "url": "https://www.lawnext.com/2025/10/vals-ais-latest-benchmark-finds-legal-and-general-ai-now-outperform-lawyers-in-legal-research-accuracy.html", "date": "2025-10", "note": "契約レビュー20問ベンチマークで弁護士79.7%>Harvey59.4%>Vincent53.6%"},
+            {"title": "AI Tools Match Or Exceed Human Lawyers in Contract Drafting Benchmark Study", "url": "https://www.lawnext.com/2025/09/ai-tools-match-or-exceed-human-lawyers-in-contract-drafting-benchmark-study.html", "date": "2025-09", "note": "Gemini 2.5 Pro 73.3% vs 最良人間弁護士70%"},
+            {"title": "LegalOn 2026 Contract Review Benchmark", "url": "https://www.legalontech.com/post/the-contract-review-benchmark-2026", "date": "2026-01", "note": "11モデル×3,282ペア比較"}
+          ],
+          "forecast_basis": "独立ベンチマークが年次更新され精度向上傾向。Legora$5.6B・Harvey$11B評価による投資加速。複雑契約は規制・保険上、人間確認要求が残ると予測。"
+        },
+        {
+          "id": "professional.legal.legal_research",
+          "name": "判例・法令調査",
+          "name_en": "Case law & statute research",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "Stanford RegLab研究(JELS 2025、202件の法律クエリを専門家採点)で幻覚率 Lexis+AI 17%、Westlaw AI-Assisted 33%、GPT-4 43%。ベンダーの「hallucination-free」主張は過大と実証。一方Vals AI(2025-10)ではフロンティアモデルが研究タスクで弁護士(71%)を上回るスコア(~80%)を記録するなどベンチマーク上は互角〜優位だが実務誤用は多発。",
+          "can": "大量法令・判例の意味検索・要約、初期リサーチメモ作成",
+          "cannot": "引用の完全性保証(捏造判例リスクは0にならない)、稀少法域・新しい法解釈、判例の射程の機微な判断",
+          "why": "RAGでも「hallucination-free」を保証できないとStanford研究が実証。ベンダー主張と実態のギャップが公式に確認された。",
+          "autonomy": "copilot",
+          "tools": ["Lexis+ AI", "Westlaw AI-Assisted Research", "CoCounsel", "Harvey"],
+          "evidence": [
+            {"title": "Hallucination-Free? Assessing the Reliability of Leading AI Legal Research Tools", "url": "https://reglab.stanford.edu/publications/hallucination-free-assessing-the-reliability-of-leading-ai-legal-research-tools/", "date": "2025-01", "note": "Stanford RegLab, JELS掲載、Lexis+AI17%/Westlaw33%/GPT-4 43%幻覚率"},
+            {"title": "Vals AI's Latest Benchmark Finds Legal and General AI Now Outperform Lawyers in Legal Research Accuracy", "url": "https://www.lawnext.com/2025/10/vals-ais-latest-benchmark-finds-legal-and-general-ai-now-outperform-lawyers-in-legal-research-accuracy.html", "date": "2025-10", "note": "フロンティアモデルが研究タスクで弁護士71%を上回るスコア"}
+          ],
+          "forecast_basis": "モデル精度は年々向上する一方、実務での誤用による懲戒事例は同時に急増しており、技術力と実務リスクの乖離が続く。2027-2030はベンダー側の引用検証機能標準化で信頼性向上見込みも人間確認義務は残存。"
+        },
+        {
+          "id": "professional.legal.litigation_drafting",
+          "name": "訴訟準備書面ドラフト",
+          "name_en": "Litigation brief drafting",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "2026年6月時点で世界のAI幻覚裁判事例が1,598件(2025年半ば~200件→2026年1月719件→2026年6月1,598件と急増)。制裁額は18か月で11倍(2023年$5,000→2025年$55,597、最大はOregon事件の約$109,700)。Sixth Circuitは2026年3月、24件の架空引用を含む書面で2名の弁護士に計$30,000制裁。Nebraska州の弁護士は63引用中57件が不備(20件は架空判例)で資格停止(2026年4月)。",
+          "can": "定型訴状・動議のドラフト、事実要約、先例のドラフト整理(検証済みの場合)",
+          "cannot": "引用正確性の自動保証、責任を伴う最終提出判断、弁論",
+          "why": "幻覚判例による懲戒・制裁が2026年時点で1,300~1,600件超発生し急増中。責任は提出した弁護士本人に帰属(Rule 11・署名者責任)。",
+          "autonomy": "copilot",
+          "tools": ["Harvey", "CoCounsel", "Westlaw AI", "Lexis+AI", "ChatGPT/Claude(無秩序利用が主要事故原因)"],
+          "evidence": [
+            {"title": "Sixth Circuit Sanctions Attorneys for Fake Citations", "url": "https://www.sixthcircuitappellateblog.com/recent-cases/sixth-circuit-sanctions-attorneys-for-fake-citations-what-does-this-mean-for-use-of-ai/", "date": "2026-03", "note": "2名の弁護士に各$15,000制裁、24件の架空引用"},
+            {"title": "AI Hallucination Legal Cases: A Sanctions Tracker (2026)", "url": "https://gc.ai/blog/ai-hallucination-legal-cases", "date": "2026-06", "note": "世界で1,598件、Nebraska弁護士資格停止など"},
+            {"title": "AI in litigation: Update on Gen AI sanctions in 2026", "url": "https://www.nortonrosefulbright.com/en-us/knowledge/publications/792d8bf3/ai-in-litigation-update-on-gen-ai-sanctions-in-2026", "date": "2026", "note": "制裁額11倍増$5,000→$55,597、Oregon$109,700最大"}
+          ],
+          "forecast_basis": "制裁額が18か月で11倍という指数的増加。2027年以降は裁判所側のAI利用開示義務化とベンダー引用検証機能の標準搭載により単純ミスは減少すると予測されるが、悪質・不注意な事故は残る。"
+        },
+        {
+          "id": "professional.legal.due_diligence",
+          "name": "デューデリジェンス(M&A)",
+          "name_en": "M&A due diligence",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":4,"2027e":4,"2028e":4,"2030e":5},
+          "vs_expert": "業界報告(2026)によると年10-15件のM&A案件を扱う中堅事務所でDD時間40-60%削減、案件あたり8万~30万ドルの人件費節約。Luminanceは複数法域・大量契約の逸脱検出で優位性を報告。",
+          "can": "数千契約の同時スクリーニング、標準逸脱条項(チェンジオブコントロール等)の抽出、要約メモ作成",
+          "cannot": "発見事項の商業的重要性(materiality)判断、稀少地域規制の解釈、最終的な取引可否判断",
+          "why": "判断業務(materiality)はAIスコアが低い。DDメモの署名・責任は弁護士に帰属。",
+          "autonomy": "agent",
+          "tools": ["Harvey", "Kira", "Luminance", "Spellbook", "CoCounsel"],
+          "evidence": [
+            {"title": "AI Due Diligence in M&A: Uses, Risks & Limits (2026)", "url": "https://dealroom.net/blog/ai-due-diligence", "date": "2026", "note": "DD時間40-60%削減、$80,000-$300,000/案件節約"},
+            {"title": "10 Best AI Tools for Contract Due Diligence in 2026", "url": "https://www.spellbook.legal/learn/best-ai-tools-for-contract-due-diligence", "date": "2026"}
+          ],
+          "forecast_basis": "大規模文書処理はAIの明確な優位領域。コンテキストウィンドウ拡大により2028-2030年にはさらに大規模データセットの同時処理が可能となる見込み。取引可否等の商業判断は人間業務として残存。"
+        },
+        {
+          "id": "professional.legal.compliance_monitoring",
+          "name": "コンプライアンスチェック",
+          "name_en": "Compliance monitoring",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "Compliance Week 2026調査: 83%超の組織がAIツール利用も強固なガバナンス体制保有は約25%のみ。37%のみAIガバナンスポリシー保有。78%が学習データ投入前の検証不能、77%がデータ来歴を追跡不能、33%が監査ログを一切持たない — 導入は先行するが信頼性基盤が未整備。",
+          "can": "規制文書の変更監視、複数フレームワーク横断のエビデンス自動収集、リスクスコアリング",
+          "cannot": "新規制の実質的解釈、規制当局対応の最終判断、監査証跡の完全性保証(大半の組織で未整備)",
+          "why": "ガバナンス体制(データ来歴管理・監査ログ)整備が追いつかず、技術力とは別に組織的信頼性が欠如。誤検知・見落としの責任はコンプライアンス部門/法務に帰属。",
+          "autonomy": "agent",
+          "tools": ["各種GRCプラットフォーム", "CoCounsel", "独自LLMベースのモニタリングツール"],
+          "evidence": [
+            {"title": "AI & Compliance Survey 2026: Adoption is high. Governance and controls lag.", "url": "https://www.complianceweek.com/resource/ai-compliance-survey-2026-adoption-is-high-governance-and-controls-lag/", "date": "2026", "note": "83%導入、ガバナンス体制25%のみ、監査ログ欠如33%"}
+          ],
+          "forecast_basis": "EU AI Act等の規制がガバナンス整備を義務化する方向。2027-2028年にかけ監査可能性がベンダー選定の差別化要因になると予測。"
+        },
+        {
+          "id": "professional.legal.consumer_legal_advice",
+          "name": "一般向け法律相談・アクセスジャスティス",
+          "name_en": "Consumer legal advice / access-to-justice",
+          "levels": {"2022":0,"2023":1,"2024":1,"2025":1,"2026":2,"2027e":2,"2028e":3,"2030e":3},
+          "vs_expert": "FTC対DoNotPay最終命令(2025-01/02): 「AI弁護士」を標榜しながら人間弁護士による品質検証を一切行わず、包括的な法令DBで学習もしていなかったと認定、$193,000の返金命令+将来の誇大広告禁止命令。米国低所得世帯は年間民事法的問題の92%で法的支援を受けられていない(access to justiceギャップ)という巨大ニーズとの対比。",
+          "can": "一般的な法制度の説明、フォーム記入補助、選択肢整理(非営利事例)",
+          "cannot": "個別事案への具体的助言(UPL=非弁護士行為に抵触するリスク)、責任を伴う法的判断、依頼者との継続的信頼関係構築",
+          "why": "非弁護士行為(UPL)規制。2026年に複数州でチャットボット提供者への損害賠償責任を課す新法(NY SB7263等)。DoNotPay制裁が業界の誇大広告への抑止力に。",
+          "autonomy": "copilot",
+          "tools": ["ChatGPT", "LegalZoom", "DoNotPay(制裁後に主張弱化)"],
+          "evidence": [
+            {"title": "FTC Finalizes Order with DoNotPay That Prohibits Deceptive 'AI Lawyer' Claims", "url": "https://www.ftc.gov/news-events/news/press-releases/2025/02/ftc-finalizes-order-donotpay-prohibits-deceptive-ai-lawyer-claims-imposes-monetary-relief-requires", "date": "2025-02", "note": "$193,000返金命令、品質未検証と認定"},
+            {"title": "New York Bill Would Create Liability for Chatbot Proprietors Offering Professional Advice", "url": "https://www.hklaw.com/en/insights/publications/2026/03/new-york-bill-would-create-liability-for-chatbot-proprietors", "date": "2026-03"}
+          ],
+          "forecast_basis": "州レベルのチャットボット規制法制化が2026年に加速、UPL抵触リスクの明確化が進む一方、access to justiceギャップの大きさから非営利・裁判所主導のガードレール付きツールは拡大見込み。"
+        },
+        {
+          "id": "professional.legal.courtroom_advocacy",
+          "name": "法廷弁論・訴訟代理(できない側の代表例)",
+          "name_en": "Courtroom advocacy & representation",
+          "levels": {"2022":0,"2023":0,"2024":0,"2025":0,"2026":0,"2027e":0,"2028e":0,"2030e":1},
+          "vs_expert": "該当ベンチマークなし(制度的独占領域)。AIはリハーサル・想定問答生成の補助に留まる。",
+          "can": "弁論リハーサル相手、想定質問への回答案生成、模擬尋問シミュレーション",
+          "cannot": "実際の法廷での代理人としての出廷・弁論、依頼者との契約締結、宣誓供述書への署名、専門家証人としての証言",
+          "why": "弁護士資格(bar admission)は法域ごとの制度的要件でAIは法人格・資格を持てない。責任の所在(懲戒・malpractice保険)は自然人の資格保有者に限定される制度設計。",
+          "autonomy": "copilot",
+          "tools": ["Harvey(模擬弁論支援機能)", "CoCounsel"],
+          "evidence": [
+            {"title": "FTC Finalizes Order with DoNotPay", "url": "https://www.ftc.gov/news-events/news/press-releases/2025/02/ftc-finalizes-order-donotpay-prohibits-deceptive-ai-lawyer-claims-imposes-monetary-relief-requires", "date": "2025-02", "note": "規制当局がAIは人間弁護士の代替たり得ないと明示的に認定"},
+            {"title": "New York Bill Would Create Liability for Chatbot Proprietors Offering Professional Advice", "url": "https://www.hklaw.com/en/insights/publications/2026/03/new-york-bill-would-create-liability-for-chatbot-proprietors", "date": "2026-03"}
+          ],
+          "forecast_basis": "弁護士資格制度は司法制度に深く組み込まれ、2030年までの制度変更の可能性は極めて低い。AIの役割は資格者の生産性向上ツールに留まると予測。"
+        }
+      ]
+    },
+    {
+      "id": "professional.journalism",
+      "name": "ジャーナリズム・調査報道",
+      "name_en": "Journalism and investigative reporting",
+      "tasks": [
+        {
+          "id": "professional.journalism.news_drafting",
+          "name": "ニュース記事下書き生成",
+          "name_en": "News article drafting",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":2,"2026":3,"2027e":3,"2028e":3,"2030e":4},
+          "vs_expert": "グローバルでAI生成ニュースへの信頼度20%(Reuters Institute Digital News Report 2026) vs 別調査では人間生成ニュース信頼58% vs AI生成ニュース信頼14%。読者88%がAI生成コンテンツ増加でSNSニュースへの信頼が低下したと回答。一方2026年ピューリツァー賞は過去最多8組の受賞者が調査報道でのAI活用を公表。",
+          "can": "定型ニュース(決算・スポーツ結果・気象等)の自動生成、下書き作成、要約記事の量産",
+          "cannot": "一次情報源の裏取りなしの正確性保証、読者の信頼獲得(信頼度14-20%と低迷)、複雑な文脈判断を伴う調査報道記事の完成",
+          "why": "捏造引用・架空人物生成が繰り返し発生(Sports Illustrated偽著者2023-11、Ars Technica捏造引用撤回2026-02、Bild架空記者)。責任は発行元メディアに帰属し読者信頼が構造的に低い。",
+          "autonomy": "copilot",
+          "tools": ["ChatGPT", "Claude", "Gemini", "社内カスタムLLM(KI-Welt, LedeAI)"],
+          "evidence": [
+            {"title": "Ars Technica Pulls Article With AI Fabricated Quotes About AI Generated Article", "url": "https://www.404media.co/ars-technica-pulls-article-with-ai-fabricated-quotes-about-ai-generated-article/", "date": "2026-02", "note": "Ars Technicaがフィクション引用を含む記事を撤回、記者を解雇"},
+            {"title": "Overview and key findings of the 2026 Digital News Report", "url": "https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2026/dnr-executive-summary", "date": "2026-06", "note": "AIチャットボットニュース信頼度20%、SNSニュース信頼22%"}
+          ],
+          "forecast_basis": "Reuters InstituteはAIチャットボット経由ニュース利用が世界平均10%(2026)に留まると報告する一方、社内自動化拡大を予測。読者不信の構造は技術改善のみでは解消せず、2027-2030年も人間編集の関与表示・監修が業界標準として残ると予測。"
+        },
+        {
+          "id": "professional.journalism.fact_checking",
+          "name": "ファクトチェック",
+          "name_en": "Fact-checking",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "CHI 2026論文(\"Beyond Accuracy\")で専門家はAIファクトチェックを「正確だが有用性は低い」と評価。Full Factは数百万文からの要チェック主張の自動分類・優先順位付けリストを毎日生成し、human-in-the-loopのハイブリッド運用で小規模チームのカバー範囲を拡大。",
+          "can": "大量発言・SNS投稿からの要チェック主張の自動抽出・優先順位付け、既存DBとの照合、選挙関連速報監視",
+          "cannot": "主張の重大性・公益性の最終判断、新規複雑主張の一次検証(専門家取材要)、皮肉・文脈依存発言の正確な解釈",
+          "why": "「正確だが有用性は低い」という専門家評価が技術的正確性と実務説明力の差を示す。Full Fact等もhuman-in-the-loopを明言。",
+          "autonomy": "agent",
+          "tools": ["Full Fact AI", "各社内カスタムLLM"],
+          "evidence": [
+            {"title": "Full Fact is battling AI-generated elections content with AI tools of its own", "url": "https://www.niemanlab.org/2026/06/full-fact-is-battling-ai-generated-elections-content-with-ai-tools-of-its-own/", "date": "2026-06"},
+            {"title": "Beyond Accuracy: Experts See AI Fact-Checks as Accurate but Less Useful", "url": "https://dl.acm.org/doi/10.1145/3772318.3791625", "date": "2026", "note": "CHI 2026 Proceedings"}
+          ],
+          "forecast_basis": "選挙イヤーごとにAI生成偽情報が急増、Full Fact等は年次でツール強化。2027-2028年にマルチモーダル(画像・動画)ファクトチェック拡張見込み。ただし「有用性」課題は当面残る。"
+        },
+        {
+          "id": "professional.journalism.data_journalism",
+          "name": "データジャーナリズム・大量文書解析/OSINT",
+          "name_en": "Data journalism & large-scale document analysis / OSINT",
+          "levels": {"2022":2,"2023":3,"2024":3,"2025":4,"2026":4,"2027e":4,"2028e":5,"2030e":5},
+          "vs_expert": "AP(2026年)は中国監視企業からの流出メール・DB数万件についてLLMで契約特定・政府記録要約・人物技術のフラグ付けを実施。ICIJはPanama Papers(1150万文書、300名以上の記者、76カ国)でNeo4jグラフDB+機械学習によるパスポート識別・送金パターン検出を実施し人力では不可能な規模を実現。2026年ピューリツァー賞で過去最多8組がAI活用を公表。",
+          "can": "数百万文書からのエンティティ抽出・パターン検出・重複除去・グラフ関係分析、OSINT(衛星画像・SNS・IP等)の大量横断分析",
+          "cannot": "情報源の信憑性の最終判断、公益性・報道価値の編集判断、名誉毀損等法的リスクの最終評価、匿名化情報源の再特定リスクの完全排除",
+          "why": "パターン検出・大量処理はAIの得意領域で人間には不可能な規模を実現しているが、報道判断・法的責任は記者・編集者に帰属。文体的特徴での情報源再特定リスクをアルゴリズムは検出しきれない。",
+          "autonomy": "agent",
+          "tools": ["Pinpoint(Google)", "Neo4j", "カスタムLLMパイプライン", "Bellingcat OSINTツール群"],
+          "evidence": [
+            {"title": "AI Applications in Investigative Journalism", "url": "https://cnti.org/briefing/ai-applications-in-investigative-journalism/", "date": "2026", "note": "AP中国監視企業調査、WSJ Epstein文書解析"},
+            {"title": "How we use machine learning to find passports and unlock one key to offshore secrecy", "url": "https://www.icij.org/inside-icij/2025/05/how-we-use-machine-learning-to-find-passports-and-unlock-one-key-to-offshore-secrecy/", "date": "2025-05"},
+            {"title": "A record-breaking eight Pulitzer awardees disclosed AI use this year", "url": "https://www.niemanlab.org/2026/08/a-record-breaking-eight-pulitzer-awardees-disclosed-ai-use-this-year/", "date": "2026-08"}
+          ],
+          "forecast_basis": "大規模文書解析はAIの最も明確な優位領域。コンテキストウィンドウ拡大とマルチモーダル解析の進展で2028-2030年には人間チームでは不可能な規模・速度の調査が標準化すると予測。"
+        },
+        {
+          "id": "professional.journalism.original_investigation_sourcing",
+          "name": "独自取材・情報源開拓(できない側の代表例)",
+          "name_en": "Original investigation & source cultivation",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":1,"2026":1,"2027e":1,"2028e":2,"2030e":2},
+          "vs_expert": "定量ベンチマークなし(測定困難領域)。TechCrunch(2026-04)報告: Thiel系スタートアップの「AIがジャーナリズムを判定」構想に対しメディア弁護士が内部告発者への萎縮効果を懸念。専門家は「内部告発者は機密情報をAIに一切入力すべきでなく、信頼できる弁護士に直接相談すべき」と助言。",
+          "can": "取材対象の背景調査支援、公開情報からの関係者マッピング、取材メモの整理",
+          "cannot": "内部告発者との信頼関係構築、対面での関係構築を要する情報源開拓、匿名性を要する機密情報のやり取りの安全な仲介、現場での直感的な追加質問判断",
+          "why": "情報源保護(reporter's privilege)は人間同士の信頼と法的特権に基づく制度で、AI経由の情報伝達はログ・学習データ化リスクを伴い専門家は使用を明確に忌避。現場取材の直感的判断はAIの構造的限界。",
+          "autonomy": "copilot",
+          "tools": ["一般用途LLM(直接の情報源接触には非推奨)"],
+          "evidence": [
+            {"title": "Can AI judge journalism? A Thiel-backed startup says yes, even if it risks chilling whistleblowers", "url": "https://techcrunch.com/2026/04/15/can-ai-judge-journalism-a-thiel-backed-startup-says-yes-even-if-it-risks-chilling-whistleblowers/", "date": "2026-04"},
+            {"title": "The Inherent Risks of AI: What Whistleblowers Need to Know", "url": "https://www.outtengolden.com/newsroom/ai-risks-what-whistleblowers-need-to-know", "date": "2025"}
+          ],
+          "forecast_basis": "情報源保護は法制度・信頼関係に根差し技術進歩による代替可能性は構造的に低い。2030年までも「対面・人間仲介が原則」の業界規範が維持されると予測。"
+        },
+        {
+          "id": "professional.journalism.summarization_translation",
+          "name": "要約・翻訳",
+          "name_en": "Summarization & translation",
+          "levels": {"2022":2,"2023":3,"2024":4,"2025":4,"2026":4,"2027e":4,"2028e":5,"2030e":5},
+          "vs_expert": "独Welt TVが2026年「KI-Welt」で完全AI生成ニュース番組(台本執筆・要約・提示まで自動化)を実現。公共放送(独・英)が記事要約に生成AIを導入。多言語同時翻訳・要約は技術的に確立領域。",
+          "can": "多言語ニュースの即時翻訳、長文文書・会見録の要約、国際ニュースのローカライズ",
+          "cannot": "文化的ニュアンス・皮肉の完全な翻訳、要約時の重要情報取捨選択における編集判断の完全代替",
+          "why": "言語処理自体はLLMの中核的得意分野で人間を凌駕する速度を持つが、何を要約に残すかの編集判断は文脈依存で誤りが生じうる(要約による誤情報化リスク)。",
+          "autonomy": "agent",
+          "tools": ["DeepL", "GPT-5", "Claude", "Gemini"],
+          "evidence": [
+            {"title": "AI in Journalism 2026-2027: 'more agentic automation'", "url": "https://etcjournal.com/2026/04/03/ai-in-journalism-2026-2027-more-agentic-automation/", "date": "2026-04"},
+            {"title": "TV channel launches Germany's first completely AI-generated news programme", "url": "https://www.notebookcheck.net/TV-channel-launches-Germany-s-first-completely-AI-generated-news-programme.1074791.0.html", "date": "2026"}
+          ],
+          "forecast_basis": "翻訳・要約はLLMの最も成熟した応用領域で、2028-2030年には人間の速度を大幅に超える多言語同時報道が標準化すると予測。"
+        },
+        {
+          "id": "professional.journalism.editing_ethics_judgment",
+          "name": "編集・校閲/倫理判断",
+          "name_en": "Editing, copyediting & ethical judgment",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":2,"2026":2,"2027e":2,"2028e":3,"2030e":3},
+          "vs_expert": "Bildスキャンダル(2026、独): 出版社が実在しないAI記者ペルソナを作成し人間であるかのように提示していたことが発覚。ACM FAccT 2026論文で、AI利用の詳細開示がかえって読者の信頼を下げる「透明性のジレンマ」を報告。",
+          "can": "文法・スタイルガイド適合チェック、事実整合性の一次スクリーニング、コピーエディティングの下書き",
+          "cannot": "何を報道すべきかの公益性判断、利益相反の察知、AI利用の開示方針という倫理的意思決定そのもの、名誉毀損リスクの法的最終判断",
+          "why": "編集判断は報道機関のブランド・信頼という無形資産への責任を伴い、法的責任(名誉毀損訴訟等)は発行者に帰属。透明性研究が示す通りAI関与の開示自体が信頼問題を生む複雑な倫理的意思決定が残る。",
+          "autonomy": "copilot",
+          "tools": ["Grammarly系", "社内カスタム編集アシスタント", "Full Fact系"],
+          "evidence": [
+            {"title": "AI Scandal Shakes German Media: Trust and Ethics in Journalism", "url": "https://www.ico-optics.org/ai-scandal-shakes-german-media-trust-and-ethics-in-journalism/", "date": "2026", "note": "Bildの架空AI記者ペルソナ事件"},
+            {"title": "Full Disclosure, Less Trust? How the Level of Detail about AI Use in News Writing Affects Readers' Trust", "url": "https://arxiv.org/html/2601.09620v1", "date": "2026", "note": "ACM FAccT 2026"}
+          ],
+          "forecast_basis": "倫理・編集判断は制度的・文化的な人間の意思決定領域であり、技術進歩よりも業界の開示規範・倫理ガイドライン整備によって緩やかに変化すると予測。"
+        },
+        {
+          "id": "professional.journalism.automated_news_presentation",
+          "name": "AI記者/AIキャスターによる完全自動ニュース番組",
+          "name_en": "Fully automated AI news presentation",
+          "levels": {"2022":0,"2023":1,"2024":1,"2025":2,"2026":2,"2027e":3,"2028e":3,"2030e":3},
+          "vs_expert": "Welt TV「KI-Welt」(2026、独)が調査・台本・提示まで完全自動のAI生成ニュース番組を開始。一方Gannett「LedeAI」は2023年に品質問題(誤り・不自然な言い回し)で一時停止。読者のAI生成ニュース信頼度は世界平均20%。",
+          "can": "定型ニュースの読み上げ自動生成、デジタルアバターによる24時間ニュース配信、小規模ニュース運営のコスト削減",
+          "cannot": "速報時の臨機応変な追加取材・確認、視聴者との信頼関係構築(信頼度14-20%の低迷)、危機時の倫理的トーン判断",
+          "why": "信頼度データが構造的に低く、視聴者はAIキャスターを人間と同等に信頼しない。配信自体は自動化できても「報道機関としての信頼」というブランド資産は人間関与を前提に構築されてきたため代替が困難。",
+          "autonomy": "autonomous",
+          "tools": ["KI-Welt(Welt TV)", "Synthesia等AIアバター技術", "LedeAI(Gannett、品質問題で停止)"],
+          "evidence": [
+            {"title": "TV channel launches Germany's first completely AI-generated news programme", "url": "https://www.notebookcheck.net/TV-channel-launches-Germany-s-first-completely-AI-generated-news-programme.1074791.0.html", "date": "2026"},
+            {"title": "How Americans Evaluate Fully AI-Generated News Presented by AI News Anchors", "url": "https://www.sciencedirect.com/science/article/pii/S2949882126001416", "date": "2026"}
+          ],
+          "forecast_basis": "技術的自動化は実証済みだが信頼データの低迷が採用拡大を制約。2027-2030年も主流メディアでは「人間キャスター+AI制作支援」ハイブリッドが優勢に留まり、完全AI番組はニッチ・低予算セグメントで先行すると見込む。"
+        }
+      ]
+    },
+    {
+      "id": "professional.finance",
+      "name": "金融",
+      "name_en": "Finance",
+      "tasks": [
+        {
+          "id": "professional.finance.investment_analysis",
+          "name": "投資分析・銘柄調査",
+          "name_en": "Investment analysis & equity research",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "GDPvalの「Financial and Investment Analysts」職種でwins+ties 62%(専門家と同等以上の割合)。ヘッジファンドはAI活用ファンドが非活用ファンドより年率3-5%高いリターン、55%が調査・DD・リスク監視にAIを統合。ただし数か月にわたる継続的カバレッジ維持と新規開示との整合は「信頼できる形では存在しない」と評価。",
+          "can": "決算資料要約、財務比率分析の下書き、ニュース/SNSセンチメント集計、初期スクリーニング、コンプス抽出、レポートドラフト生成",
+          "cannot": "数か月にわたる継続的カバレッジ維持と新規開示との整合、複数ソースの矛盾するシグナルの解決、稀な市場イベント時の独自判断、最終投資判断の法的責任",
+          "why": "技術的限界(長期文脈維持・マルチステップ整合性が未成熟)に加え、責任構造(最終判断はPM/アナリストが負い、投資助言業免許はAIに下りない)。",
+          "autonomy": "agent",
+          "tools": ["Bloomberg GPT", "AlphaSense", "Hebbia", "Marvin Labs", "Claude/GPT-5系"],
+          "evidence": [
+            {"title": "GDPval | Epoch AI", "url": "https://epoch.ai/benchmarks/gdpval", "date": "2026-09", "note": "Financial and Investment Analysts職種でwins+ties 62%"},
+            {"title": "AI in Hedge Funds: Use Cases, Risks, and Best Practices", "url": "https://www.alpha-sense.com/blog/trends/generative-ai-in-hedge-funds/", "date": "2026-08", "note": "AI活用ファンドが年率3-5%高いリターン、55%が投資プロセスに統合"},
+            {"title": "Equity Research in 2026: Evolution in the AI Era", "url": "https://www.marvin-labs.com/blog/equity-research-in-2025-evolution-in-the-ai-era/", "date": "2026", "note": "継続的カバレッジ維持エージェントは未成熟と明記"}
+          ],
+          "forecast_basis": "GDPvalスコアはフロンティアモデルでほぼ線形に改善中。Gartner予測では2028年までに意思決定の自律化は全体の15%程度に留まる見込みで、投資判断領域も同様のペース。"
+        },
+        {
+          "id": "professional.finance.credit_underwriting",
+          "name": "与信審査",
+          "name_en": "Credit underwriting",
+          "levels": {"2022":1,"2023":1,"2024":2,"2025":2,"2026":3,"2027e":3,"2028e":3,"2030e":3},
+          "vs_expert": "定量比較データは乏しいが、CFPB検査で「1000以上の変数を使うMLモデル」を用いる一部金融機関がadverse action notice要件を十分満たせていないと指摘された。規制(ECOA/Regulation B、CFPB Circular 2026-03)がボトルネックとなり技術進歩とは独立に自律化レベルが停滞。",
+          "can": "大量データからの信用リスクスコアリング、異常検知、不採用理由候補の生成",
+          "cannot": "ECOA/Regulation Bが要求する「個人レベルで意味のある具体的理由」の説明をブラックボックスモデル単体で担保すること、差別的影響の自己監査、最終与信拒否の法的責任負担",
+          "why": "規制(ECOA/Regulation B、CFPB Circular 2026-03)と説明可能性の技術的限界が組み合わさり、レベルが頭打ちになっている。",
+          "autonomy": "copilot",
+          "tools": ["FICO系MLスコアリング", "Zest AI"],
+          "evidence": [
+            {"title": "Innovation spotlight: Providing adverse action notices when using AI/ML models", "url": "https://www.consumerfinance.gov/archive/blog/innovation-spotlight-providing-adverse-action-notices-when-using-ai-ml-models/", "date": "2026", "note": "CFPBのAI/ML与信モデル説明要件"},
+            {"title": "Fair Lending AI Compliance: Credit Model Bias Testing (July 2026)", "url": "https://www.openlayer.com/blog/credit-model-bias-testing-fair-lending-compliance", "date": "2026-07", "note": "1000超変数モデルの説明不足指摘事例"}
+          ],
+          "forecast_basis": "CFPB Circular 2026-03(2026年5月)等、説明可能性要件は強化方向。技術が進んでも規制キャップにより自律化が制限され、XAI技術の成熟のみが突破口。"
+        },
+        {
+          "id": "professional.finance.tax_preparation",
+          "name": "税務申告書作成",
+          "name_en": "Tax preparation",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "IRS報告でAI支援申告は計算ミス30%減、92%が計算ミスゼロ。PwC調査(1万件)でaudit notice率18%減。ただし税務特化AI(TurboTax等)と汎用LLMの精度差は大きいと明記。",
+          "can": "標準的な個人・中小企業申告書の下書き、控除項目の網羅チェック、過去データとの整合性確認、計算ミス検出",
+          "cannot": "複雑な国際税務・グレーゾーンの税務戦略判断、税務調査対応時の交渉、Circular 230下での専門家の最終責任の代替",
+          "why": "責任構造(IRS Circular 230は最終判断が有資格専門家に残ることを要求)と、汎用LLMは複雑事例に不安定という技術的限界が併存。",
+          "autonomy": "agent",
+          "tools": ["TurboTax AI", "Intuit Assist", "H&R Block AI", "Blue J"],
+          "evidence": [
+            {"title": "2026 IRS rules on using AI for tax preparation and filing", "url": "https://tax.thomsonreuters.com/blog/irs-circular-230-ai-guidance-explained/", "date": "2026-06", "note": "IRS OPR Alert 2026-19、AIは補助であり最終判断は専門家に残る"},
+            {"title": "Ai In The Tax Preparation Industry: 2026 Verified Stats", "url": "https://worldmetrics.org/ai-in-the-tax-preparation-industry-statistics/", "date": "2026", "note": "IRS計算ミス30%減・92%ゼロミス、PwC audit notice率18%減"}
+          ],
+          "forecast_basis": "税法がルールベースであるためLLM+ルールエンジンのハイブリッド化で2028年までに定型申告のほぼ全自動化(レベル4)が視野。複雑事案の専門家責任構造は不変。"
+        },
+        {
+          "id": "professional.finance.wealth_management_advice",
+          "name": "資産運用アドバイス・ロボアドバイザー",
+          "name_en": "Wealth management advice / robo-advisors",
+          "levels": {"2022":2,"2023":2,"2024":3,"2025":3,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "SECはロボアドも伝統的アドバイザーと同じ受託者責任・反詐欺義務を負うと明言。2026年3月、ロボアド運用でのfiduciary duty違反(重要事実不開示等)によりSECが投資顧問業者を提訴。AIウォッシングで既に合計40万ドルの罰金事例。ロボアド世界AUMは2.7兆ドル、ユーザー1.1億人。",
+          "can": "自動リバランス、税損失収穫、リスク許容度に応じた資産配分提案、大量顧客への低コスト標準アドバイス",
+          "cannot": "受託者責任(fiduciary duty)そのものをAIが負うこと(責任は登録投資顧問業者に帰属)、複雑な個人事情(離婚・相続・事業承継)を踏まえた対面的信頼関係構築",
+          "why": "責任構造(Investment Advisers Act of 1940下、免許・受託者責任はAIではなく登録法人に帰属)と、AI単体への免許付与制度が存在しないという規制構造。",
+          "autonomy": "agent",
+          "tools": ["Wealthfront", "Betterment", "Vanguard Digital Advisor", "Morgan Stanley AIエージェント"],
+          "evidence": [
+            {"title": "AI Fiduciary Duty: SEC Robo-Adviser Compliance", "url": "https://terms.law/Trading-Legal/guides/ai-fiduciary-duty.html", "date": "2026", "note": "SEC方針と2026年3月提訴事例"},
+            {"title": "Robo-Advisor Statistics (2026)", "url": "https://walnutinvest.com/stats/robo-advisor-statistics", "date": "2026", "note": "世界AUM2.7兆ドル、ユーザー1.1億人"},
+            {"title": "Morgan Stanley will soon open its trillion-dollar wealth management funnel to AI agents", "url": "https://www.cnbc.com/2026/06/03/ai-agents-morgan-stanley-wealth-management-funnel.html", "date": "2026-06", "note": "大手証券のAIエージェント展開"}
+          ],
+          "forecast_basis": "SEC/金融庁とも既存法の解釈適用に留まり、AIへの免許・責任移転の法改正は2030年までも可能性低い。技術面は向上しレベル4へ。"
+        },
+        {
+          "id": "professional.finance.algorithmic_trading",
+          "name": "自動売買・トレーディングエージェント",
+          "name_en": "Algorithmic trading agents",
+          "levels": {"2022":2,"2023":2,"2024":3,"2025":3,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "2026年3月11日、6ヘッジファンドにまたがる23の自律AIトレーディングエージェントが47秒で5億ドル規模のフラッシュクラッシュを誘発、確定損失4700万ドル。Wolters Kluwer調査(米銀行230名)で72%が「不具合を起こしたAIモデルを停止する能力を確認できない」と回答。",
+          "can": "高頻度・定型執行戦略の自動化、リアルタイムポジション調整、パターン認識ベースのシグナル生成",
+          "cannot": "システミックリスクを認識した自己抑制(kill switch)、複数エージェント間相互作用が生む創発的暴走の予測、規制当局への即時報告義務の自律履行",
+          "why": "技術的限界(マルチエージェント環境の創発的挙動は予測困難)と責任構造(取引主体の法的責任は運用会社に帰属、エージェント登録制度は未整備)。",
+          "autonomy": "agent",
+          "tools": ["各社内製クオンツAIエージェント"],
+          "evidence": [
+            {"title": "AI Flash Crash 2026: 47 Seconds, $500M Lost, SEC Responds", "url": "https://informedclearly.com/en/ai/55174/ai-flash-crash-sec-regulations-2026", "date": "2026", "note": "2026年3月11日フラッシュクラッシュ、確定損失4700万ドル"},
+            {"title": "An AI-Powered Flash Crash Is Coming. The Market Isn't Ready.", "url": "https://247wallst.com/investing/2026/07/10/an-ai-powered-flash-crash-is-coming-the-market-isnt-ready/", "date": "2026-07", "note": "72%の銀行がAIモデル停止能力を確認できないとの調査"}
+          ],
+          "forecast_basis": "BOE/Bundesbank/BISが共同でサーキットブレーカー・キルスイッチを研究中。2027-2028年に規制導入が進み自律度の制度的上限が明確化される見込み。技術は2030年にレベル4到達も規制がボトルネック。"
+        },
+        {
+          "id": "professional.finance.audit_assurance",
+          "name": "財務諸表分析・監査補助",
+          "name_en": "Audit & assurance",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "KPMGは2026年夏よりオーケストレーションエージェントで資産評価・収益テストなど定型監査手続きを自律実行するパイロットを開始。一方EY Canadaは2026年、架空データ・存在しない参照文献を含むAI生成調査結果を撤回。FINRA 2026年次監督報告書はハルシネーションを金融コンプライアンスリスクとして名指し。",
+          "can": "仕訳データの異常検知、請求書処理・トレンド分析、定型的な資産評価・収益テスト実行、コンプライアンス文書の一次レビュー",
+          "cannot": "監査意見の最終責任、複雑な不正兆候への職業的懐疑心を伴う判断、虚偽データの完全な自己検証(架空引用生成の実例あり)",
+          "why": "責任構造(監査意見は資格を持つ監査人の署名責任)に加え、ハルシネーションが実際に品質事故化している技術的限界。",
+          "autonomy": "agent",
+          "tools": ["KPMGオーケストレーションエージェント", "Deloitte Zora AI", "PwC GL.ai"],
+          "evidence": [
+            {"title": "The Big 4 AI Takeover: EY's 150 Agents, KPMG's $2B Bet, and Deloitte's Zora", "url": "https://chatfin.ai/blog/big-4-ai-agents-ey-kpmg-deloitte-pwc-finance-teams-2026/", "date": "2026", "note": "KPMGが監査ルーチンを自律実行するエージェントをパイロット"},
+            {"title": "AI Hallucinations Hit Deloitte, EY, and a Top Law Firm. Here's the Real Lesson.", "url": "https://koreadeep.com/en/blog/ai-hallucinations-consulting-reports-lesson", "date": "2026", "note": "EY Canadaの調査結果撤回事例"}
+          ],
+          "forecast_basis": "Big4各社の巨額AI投資(KPMG20億ドル/5年)により定型監査手続きの自動化は2028年までに主流化する見込み。監査意見の法的責任構造(会計士署名)は会計士法改正がない限り不変。"
+        },
+        {
+          "id": "professional.finance.ma_due_diligence",
+          "name": "M&Aデューデリジェンス",
+          "name_en": "M&A due diligence",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "86%のディールメーカーがAIをM&A DDに活用。中堅M&A実務(年10-15件)でDD時間40-60%削減(1件あたり8万〜30万ドルのアソシエイト工数削減)、LOI/最終契約書初稿が50-70%高速化、開示スケジュール準備時間30-40%削減。",
+          "can": "大量契約書の一括レビューと高リスク条項の自動抽出、データルーム文書の一次分類、取引条件のベンチマーク比較、契約書・LOI初稿生成",
+          "cannot": "「ディールを潰す」判断そのもの、シャドーAI(相手企業の無断AI導入が生む新種リスク)の発見、交渉の場での駆け引き",
+          "why": "責任構造(最終的取引可否・交渉の代理人責任は弁護士・バンカーに帰属)と、初見の複雑契約構造・口頭合意慣行の把握不十分という技術的限界。",
+          "autonomy": "agent",
+          "tools": ["Harvey AI", "Spellbook", "DealRoom", "Hebbia"],
+          "evidence": [
+            {"title": "The Guide to AI-Powered Due Diligence for M&A Professionals", "url": "https://www.harvey.ai/blog/ai-due-diligence-for-m-and-a", "date": "2026", "note": "86%のディールメーカーがAI活用"},
+            {"title": "AI Due Diligence in M&A: Uses, Risks & Limits (2026)", "url": "https://dealroom.net/blog/ai-due-diligence", "date": "2026", "note": "DD時間40-60%削減、判断部分は人間領域と明記"}
+          ],
+          "forecast_basis": "法務AI(Harvey等)の急成長により2027-2028年にかけ一次スクリーニングはほぼ全自動化(レベル4)。最終取引責任構造は不変。"
+        }
+      ]
+    },
+    {
+      "id": "professional.consulting",
+      "name": "コンサルティング・戦略立案",
+      "name_en": "Consulting and strategy",
+      "tasks": [
+        {
+          "id": "professional.consulting.market_research",
+          "name": "市場調査・競合分析",
+          "name_en": "Market research & competitive analysis",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "GDPvalは職種別に大きなばらつきがあり、意思決定色の強いFinancial Managersはwins+ties 24%、定型情報収集系のAdministrative Servicesは87%。市場調査はこの中間〜やや高水準と推定。マーケター調査では47.1%が週数回AIの不正確さに遭遇と回答。",
+          "can": "公開情報の大量収集・要約、競合の財務・製品比較表の自動生成、市場規模推定の一次ドラフト、SNS/ニュースのセンチメント分析",
+          "cannot": "独自の一次インタビュー調査(現場キーマンとの関係構築)、業界の暗黙知・非公開情報の入手、矛盾するデータソースの信頼度判断を伴う統合、稀な市場変化の予兆察知",
+          "why": "技術的限界(ハルシネーション、情報源信頼性評価の不完全性)と構造的限界(一次情報=人的ネットワークへのアクセス依存)。",
+          "autonomy": "agent",
+          "tools": ["Perplexity", "Hebbia", "AlphaSense", "Claude/GPT-5系Deep Research"],
+          "evidence": [
+            {"title": "GDPval | Epoch AI", "url": "https://epoch.ai/benchmarks/gdpval", "date": "2026-09", "note": "職種別wins+tiesのばらつき(Financial Managers 24%、Administrative Services 87%)"},
+            {"title": "New Report Finds AI Hallucinations Are Reaching the Public as Marketers Struggle With Accuracy", "url": "https://martechedge.com/news/new-report-finds-ai-hallucinations-are-reaching-the-public-as-marketers-struggle-with-accuracy", "date": "2026", "note": "47.1%のマーケターが週数回不正確さに遭遇"}
+          ],
+          "forecast_basis": "引用付きRAGツールの精度向上とハルシネーション率低下を背景に2028年までに二次情報収集はほぼ全自動化。一次インタビュー調査は残存。"
+        },
+        {
+          "id": "professional.consulting.strategy_deck",
+          "name": "戦略資料(デッキ)作成",
+          "name_en": "Strategy deck creation",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":4,"2027e":4,"2028e":5,"2030e":5},
+          "vs_expert": "BCG×ハーバードのRCT(758名のコンサルタント、Organization Science誌2026年3月掲載)でAI活用によりタスク完了数12.2%増、完了速度25.1%向上、品質40%超向上。ジュニアコンサルタントは43%の成績向上(下位層の底上げが顕著)。McKinsey Lilliは全従業員の72%が利用、月50万プロンプト、年間150万時間の作業を代替。",
+          "can": "問題文からのドラフトスライド生成、既存ナレッジベース(40超ソース・10万文書)からの引用付き統合、トーン標準化、初稿の高速反復",
+          "cannot": "クライアント固有の政治力学を踏まえた「刺さる」メッセージ設計、経営層プレゼン本番でのアドリブ対応、責任を伴う推奨事項の最終承認(パートナーサインオフ)",
+          "why": "責任構造(クライアントへの提言はパートナーの専門家責任として承認が必要)と、経営層との信頼形成はデッキ品質だけで代替不可という関係構築の壁。",
+          "autonomy": "agent",
+          "tools": ["McKinsey Lilli", "Bain Sage", "Gamma", "Beautiful.ai"],
+          "evidence": [
+            {"title": "Rewiring the way McKinsey works with Lilli, our generative AI platform", "url": "https://www.mckinsey.com/capabilities/tech-and-ai/how-we-help-clients/rewiring-the-way-mckinsey-works-with-lilli", "date": "2026", "note": "月50万プロンプト、72%利用、年間150万時間削減"},
+            {"title": "BCG ChatGPT AI Productivity Study and Report", "url": "https://www.innovationtraining.org/bcg-chatgpt-ai-productivity-study-and-report/", "date": "2026-03", "note": "758名RCT、タスク完了12.2%増・速度25.1%向上・品質40%超向上・ジュニア43%改善"}
+          ],
+          "forecast_basis": "大手3社が全社的AI基盤に多額投資済みで採用率も飽和に近く、2028年までにドラフト生成はほぼ完全自動化(レベル4-5)。最終承認構造の変化は遅い。"
+        },
+        {
+          "id": "professional.consulting.process_improvement",
+          "name": "業務プロセス分析・改善提案",
+          "name_en": "Business process analysis & improvement",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "定量的専門家比較データは限定的。エージェント型PMOツール導入企業でコーディネーションオーバーヘッド20-40%削減が報告。Forrester 2025年専門職サービスAIレポートではコンサル各社のAI活用で生産性40%向上。",
+          "can": "現行プロセスのマッピング・ボトルネック検出、ベンチマークデータとの比較、改善案の複数シナリオ生成",
+          "cannot": "現場の抵抗感・組織文化を踏まえた変革マネジメント、非公式な業務慣行(暗黙知)の把握、変更管理における政治的調整",
+          "why": "技術的限界(現場の非構造化・非文書化された実務慣行の把握困難)と組織政治(現場との信頼関係・利害調整はAI代替不可の領域として明確)。",
+          "autonomy": "copilot",
+          "tools": ["Celonis(プロセスマイニング+AI)", "McKinsey Lilli"],
+          "evidence": [
+            {"title": "How AI Agents Are Rewriting Project Management in 2026 (Autonomous PMOs Explained)", "url": "https://techplustrends.com/ai-agents-project-management-2026/", "date": "2026", "note": "エージェント型PMOでコーディネーション工数20-40%削減"},
+            {"title": "Consulting Job Market: Layoffs and a 12% Hiring Surge", "url": "https://strategycase.com/consulting-job-market/", "date": "2026", "note": "Forrester 2025年専門職サービスAIレポート、コンサル各社40%生産性向上"}
+          ],
+          "forecast_basis": "プロセスマイニング(Celonis等)とLLMエージェント融合が進行中で、分析フェーズの自動化は2028年までにレベル4到達見込み。変革マネジメントは構造的に対象外であり続ける。"
+        },
+        {
+          "id": "professional.consulting.financial_modeling",
+          "name": "財務モデリング・ビジネスケース作成",
+          "name_en": "Financial modeling & business case development",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":5},
+          "vs_expert": "投資銀行標準テストでShortcut・Claudeがcopilot Agent Mode・ChatGPTを上回るが「最良ツールでもジュニアアナリスト水準に届かない」(Wall Street Prep, 2026)。APEX-Agents: Investment Banking Analystベンチマーク(2026年7月)でOpus 4.8エージェントが54.4%のMean Scoreで首位、Fable5系が53.9%、GPT5.5系が48.6%。",
+          "can": "モデル雛形構築(ゼロから60%程度まで)、感度分析・シナリオ分析の自動生成、既存モデルのフォーマット統一・エラーチェック",
+          "cannot": "モデル完成の最終仕上げをAIに全面委任すること、業界特有の非公開前提条件の妥当性判断、クライアントとの前提条件すり合わせ交渉",
+          "why": "投資銀行標準モデルは複雑な相互参照・監査証跡が必要で、現状ベンチマークで専門家水準未到達という技術的限界。",
+          "autonomy": "copilot",
+          "tools": ["Shortcut", "Claude", "Microsoft Copilot Agent Mode", "ChatGPT"],
+          "evidence": [
+            {"title": "Ranking the Best AI Tools for Financial Modeling (2026)", "url": "https://www.wallstreetprep.com/knowledge/ranking-the-best-ai-tools-for-financial-modeling-2026/", "date": "2026", "note": "最良ツールでもジュニアアナリスト水準未達"},
+            {"title": "Best AI Models for Investment Banking Agents (July 2026)", "url": "https://www.mercor.com/resources/apex/best-ai-models-for-investment-banking-analysts/", "date": "2026-07", "note": "APEX-Agentsスコア: Opus4.8=54.4%、Fable5=53.9%、GPT5.5=48.6%"}
+          ],
+          "forecast_basis": "APEXベンチマークで年々線形改善しており2028年までにジュニアアナリスト水準(レベル4)到達見込み。ただし監査証跡を要する投資銀行標準モデルの完全自律化は2030年でも人のレビューが残る可能性が高い。"
+        },
+        {
+          "id": "professional.consulting.project_management_support",
+          "name": "プロジェクトマネジメント補助",
+          "name_en": "Project management support",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "Gartnerは2030年までにプロジェクトマネージャー業務の80%がAIに代替されると予測。2026年時点で自律型PMOはタスク配分・リスク予測の段階に到達しているが実運用はコーディネーション補助が中心。",
+          "can": "タスク配分の最適化提案、進捗トラッキングとリスク早期警告、複数ツール間のデータ統合・レポート自動生成",
+          "cannot": "ステークホルダー間の利害対立調整、予算超過時の経営判断、チームメンバーのモチベーション管理等の対人業務",
+          "why": "技術的には多くの定型業務が自動化可能だが、責任構造(プロジェクトの説明責任はPM個人に帰属)と人間関係業務(信頼構築・動機付け)がAI守備範囲外。",
+          "autonomy": "copilot",
+          "tools": ["Epicflow", "Cora Systems AI PPM", "Asana/Monday.comのAIエージェント機能"],
+          "evidence": [
+            {"title": "AI Agents for Project Management: Tools, Trends & Examples (2026)", "url": "https://www.epicflow.com/blog/ai-agents-for-project-management/", "date": "2026", "note": "市場規模2030年526.2億ドル・CAGR46.3%予測、Gartner予測でPM業務80%が2030年までにAI代替"},
+            {"title": "AI Project Portfolio Management in 2026: What PMO Leaders Must Do Now", "url": "https://corasystems.com/blog/ai-pmo-leaders-guide-2026", "date": "2026", "note": "2026年PMO優先事項、データ・AIガバナンス能力構築が急務"}
+          ],
+          "forecast_basis": "Gartner予測(2030年までにPM業務80%代替)が明確な数値目標。ただし対人折衝・説明責任部分はGartner自身も2028年時点の意思決定自律化を15%程度と予測しており乖離が残る。"
+        },
+        {
+          "id": "professional.consulting.workshop_facilitation",
+          "name": "エグゼクティブワークショップ・ファシリテーション(できない側)",
+          "name_en": "Executive workshop facilitation & stakeholder negotiation",
+          "levels": {"2022":0,"2023":1,"2024":1,"2025":2,"2026":2,"2027e":2,"2028e":3,"2030e":3},
+          "vs_expert": "定量的な専門家比較データはほぼ存在しない。Gartnerは2027年までに40%超のエージェントAIプロジェクトが「不明瞭なROIとガバナンス不足」で中止されると予測しており、対人折衝を伴う領域でのAI活用は特に停滞。",
+          "can": "ワークショップ事前設計(アジェンダ・問いの設計)支援、議事録のリアルタイム要約、意見集約とテーマ分類",
+          "cannot": "経営層の非言語的シグナル(表情・空気)を読んだ場の調整、対立する役員間の即興的合意形成誘導、信頼関係構築を要する心理的安全性の醸成",
+          "why": "責任構造・関係構築(経営層との信頼関係はAI代替不可能な領域として明確)と、リアルタイムの多者間非言語コミュニケーション理解が未成熟という技術的限界。",
+          "autonomy": "copilot",
+          "tools": ["Otter.ai/Fireflies(議事録)", "Miro AI", "Claude/GPT-5(アジェンダ設計支援)"],
+          "evidence": [
+            {"title": "How to Facilitate an AI Workshop for Executive Teams: A Strategic Guide", "url": "https://sotechnology.ai/insight/how-to-facilitate-an-ai-workshop-for-executive-teams-a-strategic-guide-2/", "date": "2026", "note": "経営層は「なぜ」と「次に何をすべきか」を理解して部屋を出る必要があり、AIはこの部分を代替できないと指摘"},
+            {"title": "Gartner Predicts Over 40% of Agentic AI Projects Will Be Canceled by End of 2027", "url": "https://www.gartner.com/en/newsroom/press-releases/2025-06-25-gartner-predicts-over-40-percent-of-agentic-ai-projects-will-be-canceled-by-end-of-2027", "date": "2025-06", "note": "対人折衝・ガバナンス絡み領域でのエージェント導入頓挫予測"}
+          ],
+          "forecast_basis": "マルチモーダルAI(表情・音声認識含む)の進化次第だが、経営層向け信頼構築という性質上、2030年時点でも「補助」水準に留まると予想(停滞領域)。"
+        }
+      ]
+    },
+    {
+      "id": "professional.education",
+      "name": "教育",
+      "name_en": "Education",
+      "tasks": [
+        {
+          "id": "professional.education.personal_tutoring",
+          "name": "個別指導(1対1チュータリング)",
+          "name_en": "Personal one-on-one tutoring",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "Khanmigo 2年間RCT(NBER 2026-08、テネシー州18校): 数学成績が学期ごとに全国パーセンタイル1.26ポイント上昇。ただし著者は「この伸びはAI支援なしのKhan Academy練習と同程度」であり、モデル能力でなく生徒エンゲージメントが律速要因と指摘。対象生徒の実利用率はわずか15%。ハイブリッド(人間+AI)tutoring研究では人間単独を上回る成果も報告。",
+          "can": "24時間対応の個別問題演習・フィードバック、生徒のペースに合わせた反復学習、ハイブリッド運用での人間チューター単独超えの成果",
+          "cannot": "生徒のモチベーション・エンゲージメント創出(利用率15%という現実)、対面指導と同等の動機づけ、意欲の低い生徒への効果実証",
+          "why": "2026年の大規模RCTが示す通り、AI自体の性能ではなく「生徒が実際に使うか」が効果のボトルネック。動機づけという非認知的要素はAIの技術的限界というより人間の行動変容の問題。",
+          "autonomy": "agent",
+          "tools": ["Khanmigo", "Squirrel AI", "MagicSchool"],
+          "evidence": [
+            {"title": "Khanmigo AI tutoring study finds small maths gains", "url": "https://www.winssolutions.org/khanmigo-ai-tutoring-two-year-trial/", "date": "2026-08", "note": "NBER 2年間RCT、学期ごと全国パーセンタイル1.26pt上昇、利用率15%が律速"},
+            {"title": "AI tutoring can safely and effectively support students: An exploratory RCT in UK classrooms", "url": "https://arxiv.org/pdf/2512.23633", "date": "2025-12"}
+          ],
+          "forecast_basis": "エンゲージメント設計(ゲーミフィケーション等)の改善により2027-28年に利用率向上とともに実効果が高まると予測。ただし動機づけの根本課題は技術のみでは解決しないためレベル4止まりと判断。"
+        },
+        {
+          "id": "professional.education.essay_grading",
+          "name": "記述式採点",
+          "name_en": "Essay grading (constructed-response)",
+          "levels": {"2022":0,"2023":2,"2024":3,"2025":4,"2026":4,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "EssayGrader調査(2026-07、22,000本のエッセイ): 人間採点者との一致率94%(完全一致または1点以内)。8つの独立プログラム、3-12年生・AP全学年帯で一貫。ある認定プログラムでは20万件超の課題採点に利用。",
+          "can": "ルーブリックに基づく一貫した採点、大量答案の高速処理、フィードバックコメントの生成",
+          "cannot": "ルーブリック外の独創性・創造性の評価、文化的文脈依存の解釈、採点結果への異議申し立てへの説明責任(最終的に教員が負う)",
+          "why": "定型化されたルーブリック採点はAIの得意領域で既に高精度だが、教育評価の公平性・説明責任は制度上教員に帰属し続ける。",
+          "autonomy": "agent",
+          "tools": ["EssayGrader.ai", "Turnitin", "Gradescope AI"],
+          "evidence": [
+            {"title": "EssayGrader.ai Rated #1 in Teacher-Rated Review of Best AI Essay Grading Tools for 2026", "url": "https://www.barchart.com/story/news/3117460/essaygraderai-rated-1-in-teacherrated-review-of-best-ai-essay-grading-tools-for-2026", "date": "2026-07", "note": "22,000本のエッセイで人間採点者との一致率94%"}
+          ],
+          "forecast_basis": "客観的採点は既にレベル4に到達し安定。創造性評価の主観的領域は技術的にもブレイクスルーが見込めずレベル4で頭打ちと予測。"
+        },
+        {
+          "id": "professional.education.curriculum_lesson_planning",
+          "name": "教材・カリキュラム作成",
+          "name_en": "Curriculum & lesson plan creation",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":4,"2026":4,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "MagicSchoolが2026年時点で米K-12で最も普及したAI教員ツール(500万人以上の教員ユーザー、数千の学区契約)。80以上のツール(授業計画・ルーブリック・IEP下書き・保護者連絡文等)を提供。週次利用教員は年間約5.9時間×6週間分の作業時間を削減。",
+          "can": "標準(NGSS/CCSS等)準拠の授業計画下書き、難易度別教材の70言語超への差別化、ルーブリック自動生成",
+          "cannot": "「70%完成の下書き」を超える最終判断(教員による確定が前提)、標準未整合の見落としリスクの完全排除、生徒個々の実態を踏まえた即興的調整",
+          "why": "教員コミュニティの実務期待自体が「完成品ではなく編集可能な下書き」であり、教育行政上のカリキュラム承認責任は教員・学校に帰属。",
+          "autonomy": "copilot",
+          "tools": ["MagicSchool", "Diffit", "Brisk Teaching", "Curipod"],
+          "evidence": [
+            {"title": "Stop Planning on Sundays: The AI Lesson Planning Tools That Actually Work in 2026", "url": "https://blog.aieducator.tools/posts/stop-planning-on-sundays-ai-lesson-planning-tools-2026", "date": "2026", "note": "MagicSchool 500万人以上の教員ユーザー、週次利用で年5.9時間×6週間分削減"}
+          ],
+          "forecast_basis": "下書き生成という位置づけは既に確立し安定運用中、2027-30年も「教員による最終承認必須」という運用モデルが標準であり続けると予測。"
+        },
+        {
+          "id": "professional.education.special_education_support",
+          "name": "特別支援教育・IEP作成支援",
+          "name_en": "Special education & IEP support",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":2,"2026":2,"2027e":3,"2028e":3,"2030e":3},
+          "vs_expert": "教員の57%がすでにAIをIEP下書きに利用と報告される一方、専門家は「機密性の高い障害関連データをクラウドAPIに送信することがFERPA/IDEA違反リスクを伴う」と警告。AI生成の配慮事項リストは「出発点のメニュー」に過ぎず、個々の生徒理解に基づく教員の選定・優先順位付けが必須とされる。AIは高度な語彙・複雑な文構造を生成しがちで、読みに困難のある生徒をかえって疎外するリスクも指摘。",
+          "can": "障害カテゴリー・学年・教科別のエビデンスに基づく配慮事項の候補提示、IEP文書のドラフト作成の効率化",
+          "cannot": "機密性の高い生徒データの安全な取り扱い保証(FERPA/IDEA準拠)、個別生徒の実態を踏まえた配慮の最終選定、生成テキストの読みやすさの自動保証",
+          "why": "プライバシー規制(FERPA/IDEA)がクラウドAI利用に構造的リスクを課し、個別化教育という制度目的自体が「一人ひとりの実態理解」を前提とするため画一的AI出力では代替不可能。",
+          "autonomy": "copilot",
+          "tools": ["汎用LLM(FERPA対応が課題)", "専用IEPドラフトツール"],
+          "evidence": [
+            {"title": "AI Gains Ground in Special Ed, Raising Legal and Ethical Concerns", "url": "https://www.govtech.com/education/k-12/ai-gains-ground-in-special-ed-raises-legal-and-ethical-concerns", "date": "2026", "note": "教員の57%がAIをIEP下書きに利用、FERPA/IDEA違反リスクを専門家が警告"}
+          ],
+          "forecast_basis": "FERPA準拠のプライベートLLM運用(オンプレミス・専用契約)が2027-28年に普及すればプライバシーリスクが低減しレベル3に到達すると予測、個別化判断という核心機能は人間に残る。"
+        },
+        {
+          "id": "professional.education.autonomous_self_paced_learning",
+          "name": "自律型AI学習モデル(教師代替型、2時間学習モデル等)",
+          "name_en": "Autonomous AI-driven self-paced learning models",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":2,"2026":2,"2027e":2,"2028e":3,"2030e":3},
+          "vs_expert": "Alpha School(2 Hour Learning)は「MAPテストで同学年比2.6倍の成長」「20-30時間で1学年分修了」を主張するが独立検証データは未公開(2026年8月時点で3か月以上遅延)。AI依存研究(666名対象、2026): 重度AI利用は批判的思考力の低下と関連(認知的オフローディングが媒介)。臨床医対象の研究では、AI支援導入3か月後にAI無しでの腫瘍検出能力が6%低下したとの報告もあり、能力の空洞化リスクを示唆。",
+          "can": "自己ペースでの反復学習・即時フィードバック、標準化テストスコアの短期的向上(内部データ上)",
+          "cannot": "独立監査可能な効果実証(Alpha Schoolのデータ未公開)、批判的思考力の維持(AI依存による低下リスク)、動機の低い生徒への効果、対面指導が提供する社会性・生活指導",
+          "why": "内部主張と独立検証の間にギャップがあり、かつAI依存による認知的オフローディング(批判的思考力低下)という副作用が複数の学術研究で報告されている。制度化には第三者監査の欠如という透明性の問題も残る。",
+          "autonomy": "autonomous",
+          "tools": ["Alpha School独自プラットフォーム", "2 Hour Learning", "IXL"],
+          "evidence": [
+            {"title": "Does Alpha School's AI Model Actually Work? New Evidence", "url": "https://theeconomyofmeaning.com/2026/09/01/do-we-know-the-alpha-and-omega-of-alpha-school/", "date": "2026-09", "note": "2.6倍成長を主張するも独立検証データが3か月以上未公開"},
+            {"title": "Learners' AI dependence and critical thinking: The psychological mechanism of fatigue", "url": "https://pubmed.ncbi.nlm.nih.gov/41076923/", "date": "2026", "note": "666名対象、重度AI利用と批判的思考力低下の関連(認知的オフローディングが媒介)"},
+            {"title": "Study shows 'heavy cognitive cost' of relying on AI for even 10 minutes", "url": "https://mobilesyrup.com/2026/05/08/ai-use-negative-brain-impact-study/", "date": "2026-05", "note": "臨床医のAI支援導入3か月後、AI無し腫瘍検出能力が6%低下"}
+          ],
+          "forecast_basis": "独立監査データが公開され効果が実証されれば2028年にレベル3へ移行すると予測されるが、批判的思考力低下という構造的副作用への対策が確立するかは不透明なため保守的に据え置き。"
+        }
+      ]
+    },
+    {
+      "id": "professional.architecture",
+      "name": "建築・土木・設計",
+      "name_en": "Architecture, civil engineering, and design",
+      "tasks": [
+        {
+          "id": "professional.architecture.design_rendering",
+          "name": "意匠デザイン・パース生成",
+          "name_en": "Conceptual design & rendering visualization",
+          "levels": {"2022":1,"2023":3,"2024":3,"2025":4,"2026":4,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "建築専門家調査(1,227名、2026): 46%が既にAIツールを利用、24%が導入予定。11%がGenAIを設計ワークフローに統合(前年比+20%)。業界の目標は「AIが作業の90%を自動化し、建築家が最後の10%を検証する」体制。",
+          "can": "コンセプト段階のmassing study・サイト実現可能性チェック、フォトリアリスティックなクライアント向けレンダー生成、複数デザイン案の高速並列生成",
+          "cannot": "施主の要求・敷地文脈を統合した独創的な意匠コンセプトの創出、構造・設備との整合を保証した実施設計、施工可能性の技術的検証",
+          "why": "生成物の「幾何学的正確性」は高いが、文書化・実施設計レベルの詳細検討には依然人間レビューが必要(90%自動化でも10%の検証が必須という業界目標自体がそれを示す)。",
+          "autonomy": "agent",
+          "tools": ["Archicad AI Visualizer", "TestFit", "ARCHITECTURES"],
+          "evidence": [
+            {"title": "What Architects Expect From AI Tools in 2026", "url": "https://www.archdaily.com/1040024/what-architects-expect-from-ai-tools-in-2026", "date": "2026", "note": "建築専門家1,227名調査、46%が既にAI利用、目標は90%自動化+10%人間検証"}
+          ],
+          "forecast_basis": "レンダリング・概念設計の自動化は既に高水準で2027-30年も安定、実施設計レベルの精度向上は限定的なためレベル4で頭打ちと予測。"
+        },
+        {
+          "id": "professional.architecture.structural_design_calculation",
+          "name": "構造計算・構造設計",
+          "name_en": "Structural calculation & engineering design",
+          "levels": {"2022":0,"2023":1,"2024":1,"2025":2,"2026":2,"2027e":2,"2028e":3,"2030e":3},
+          "vs_expert": "特定計算(座屈荷重予測式)は誤差0.4%以内という高精度事例がある一方、GPT-4は地盤工学計算のゼロショット学習で正答率わずか28.9%。LLMはべき乗計算等で反復的な算術エラーを起こすとの報告があり、安全上重要な判断の一次情報源としては「本質的に信頼できない」と評価される。保険会社の一部は2026年にAI関連除外条項を専門職賠償責任保険に追加し始めている。",
+          "can": "特定の限定タスク(座屈荷重等の狭い計算式)における高精度予測、RAGベースの参照付き計算の一次チェック",
+          "cannot": "汎用構造計算の安全な自律実行(算術エラー・地盤工学正答率29%)、専門職責任の負担、保険適用範囲内での自律運用",
+          "why": "安全上重要(safety-critical)な判断において算術エラー等の技術的信頼性が不足しており、加えて建築士法・技術士法等の資格制度が最終責任を人間に固定。保険業界もAI関連除外を追加し始め制度的にも自律化を抑制する方向。",
+          "autonomy": "copilot",
+          "tools": ["汎用LLM(専用構造解析ソフトの補助的利用に限定)", "Graitec系AI機能"],
+          "evidence": [
+            {"title": "Claude AI for Engineering Calculations: How Accurate Is It Really?", "url": "https://www.getleo.ai/blog/claude-ai-engineering-calculations-accuracy", "date": "2026", "note": "GPT-4は地盤工学ゼロショット計算で正答率28.9%、べき乗計算等で算術エラー"},
+            {"title": "AI Liability Insurance For Architects", "url": "https://riskspecialtygroup.com/ai-liability-insurance-architects-2026/", "date": "2026", "note": "保険会社がAI関連除外条項を専門職賠償責任保険に追加開始"}
+          ],
+          "forecast_basis": "専用ドメインモデル(座屈荷重式のような特化型)の精度は上がる一方、汎用LLMの算術信頼性課題と資格制度・保険制度の不変性から2028年時点でも限定的タスクの補助止まりと予測。"
+        },
+        {
+          "id": "professional.architecture.bim_modeling_coordination",
+          "name": "BIMモデリング・調整",
+          "name_en": "BIM modeling & coordination",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "AEC専門家調査(1,000名超、2026): 27%の企業がAIを業務に活用、うち94%が投資拡大予定。BIM連携AIコスト見積りツールに関する系統的レビューでは機械学習統合が進展中も本格運用は発展途上と位置づけ。",
+          "can": "モデル間の干渉チェック(クラッシュディテクション)の自動化、モデルからの図面・数量自動生成、既存フローへのAI機能組み込み",
+          "cannot": "複数職種(意匠・構造・設備)にまたがる最終調整判断、モデル品質の総合的保証、非定型プロジェクトへの汎用適用",
+          "why": "BIM協調は本質的にマルチステークホルダーの意思決定プロセスであり、技術的な干渉検出はAIが得意でも「誰が何を優先するか」という調整判断は人間のプロジェクトマネジメントに依存。",
+          "autonomy": "copilot",
+          "tools": ["Autodesk Construction Cloud AI", "ArchiCAD", "Revit系AIプラグイン"],
+          "evidence": [
+            {"title": "BIM to AI: Why the Next Disruption in Autodesk Workflows Will Be Faster Than CAD to BIM", "url": "https://forums.autodesk.com/t5/community-blog-aec-english/bim-to-ai-why-the-next-disruption-in-autodesk-workflows-will-be/ba-p/14101483", "date": "2026", "note": "AEC専門家調査、27%企業がAI活用、94%が投資拡大予定"}
+          ],
+          "forecast_basis": "Autodeskの「BIMからAIへの次の破壊」という業界予測(2026)から2027-28年にコーディネーション自動化が本格実装されると見込むが、最終責任は人間に残るためレベル4止まりと予測。"
+        },
+        {
+          "id": "professional.architecture.code_compliance_permit_review",
+          "name": "建築確認申請書類作成・法規チェック",
+          "name_en": "Building code compliance & permit review",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":4,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "ホノルル市の実証事例: AI事前審査ツール導入により許可待機期間が6か月→数日に短縮。Nomicは380以上の建築基準・規格(IBC・ADA・NFPA101・ASHRAE90.1等)をカバー。ただし「AIツールは建築士の法規遵守に関する専門職責任を代替しない」と業界コンセンサスが明記。",
+          "can": "図面と法規条文の自動照合による違反箇所の網羅的検出、許可申請の事前スクリーニング高速化",
+          "cannot": "法規の目的論的解釈(なぜその規制があるか)を踏まえた例外判断、責任を伴う最終確認申請のサイン、地域特有の運用慣行の反映",
+          "why": "法規照合という体系的チェック作業はAIが高速・網羅的に処理できる一方、法規遵守の最終責任は「記録建築士(architect of record)」の専門職責任として制度化されており移転不可。",
+          "autonomy": "agent",
+          "tools": ["Nomic", "UpCodes Plan Review", "CodeComply", "PlanCheckPro"],
+          "evidence": [
+            {"title": "AI Zoning Compliance Cuts CRE Permitting to Days", "url": "https://www.theaiconsultingnetwork.com/blog/ai-automated-zoning-compliance-permitting-cre-2026", "date": "2026", "note": "ホノルル市、許可待機期間6か月→数日"},
+            {"title": "Best AI for Building Code Compliance in 2026", "url": "https://www.nomic.ai/compare/best-ai-for-code-compliance", "date": "2026", "note": "Nomic、380以上の建築基準をカバー"}
+          ],
+          "forecast_basis": "自治体レベルでのAI事前審査導入が2027-28年に主要都市に拡大すると予測、体系的チェックは高度に自動化される一方、最終責任構造は不変のためレベル4で安定。"
+        },
+        {
+          "id": "professional.architecture.cost_estimation_quantity_surveying",
+          "name": "積算・コスト見積もり",
+          "name_en": "Cost estimation & quantity surveying",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":4,"2027e":4,"2028e":4,"2030e":5},
+          "vs_expert": "独立検証(2026年初): 主要AI積算プラットフォームの誤差率1.8-4%(従来の手作業スプレッドシートは5-10%)。査読済み研究(2025、Wiley)ではAI支援積算が精度20.4%向上、作業時間51.3%短縮。AI積算採用率は2024年19%→2026年38%の企業に拡大、早期導入企業の68%が年間5万ドル超のコスト削減を報告。",
+          "can": "図面からの数量拾い出し自動化、標準的な商業建築案件での高精度見積もり(誤差2-4%)、複数案の高速比較",
+          "cannot": "複雑なカスタム構法・特殊仕様の正確な積算(要人間レビュー)、市場価格変動の突発的要因の織り込み、契約交渉を伴う最終見積もり確定",
+          "why": "定型図面での精度は既に人間の手作業を上回るが、非定型・複雑構法では誤差が拡大し、最終的な契約金額の確定は施主折衝を含む人間の意思決定領域。",
+          "autonomy": "agent",
+          "tools": ["Togal.AI", "Nomic", "Quotr", "OSTE.ai"],
+          "evidence": [
+            {"title": "Best AI Construction Estimating Software in 2026", "url": "https://quotr.ai/blog/best-ai-construction-estimating-software-2026/", "date": "2026", "note": "独立検証で誤差率1.8-4%(手作業は5-10%)、採用率19%→38%(2024→2026)"}
+          ],
+          "forecast_basis": "定型案件での精度は既に人間超えの水準に達しており、2030年までに複雑案件も含めたカバレッジ拡大により専門家超え(レベル5)が定着すると予測。"
+        }
+      ]
+    }
+  ]
+}

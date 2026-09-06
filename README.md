@@ -8,6 +8,7 @@
 |---|---|
 | `/` (`index.html`) | ランディング (Views Engineer) |
 | `/cabin.html` | 森の小屋 — 瞑想用ページ (タイマー / 環境音 / 音楽) |
+| `/ai-map.html` | AIエージェント能力アトラス — 8領域326タスクを専門家比較6段階×時間軸(2022→2030e)で地図化。データは `data/ai-map.json`、生成は `tools/aimap/build.py`（調査JSON→統合・校正）|
 
 両ページとも **10言語対応** (JS 辞書方式 / `localStorage` で記憶):
 JP · EN · ZH-CN · KO · ES · FR · DE · PT · RU · IT

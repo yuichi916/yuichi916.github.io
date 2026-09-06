@@ -1,0 +1,702 @@
+{
+  "domain": "foundation",
+  "areas": [
+    {
+      "id": "foundation.time_horizon",
+      "name": "長時間タスクの完走",
+      "name_en": "Long-Horizon Task Completion",
+      "tasks": [
+        {
+          "id": "foundation.time_horizon.autonomous_duration",
+          "name": "自律で完走できるタスクの長さ（50%成功の時間軸）",
+          "name_en": "Autonomous task time horizon (50% success)",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":5},
+          "vs_expert": "ジュニア〜中堅相当が数時間かけるタスクを50%の確率で完遂できる水準。専門家はほぼ確実に完遂するのに対しAIは約半分失敗する",
+          "can": "コーディング・リサーチ・データ分析など人が数十分〜半日かけるタスクを自律実行。50%成功の時間軸はOpus 4.6で約12時間（2026年8月時点）",
+          "cannot": "80%以上の高信頼度が必要な実務では実効時間軸はずっと短い。数日〜数週間規模のタスクは50%水準でも未達",
+          "why": "タスク長に対し成功率が指数関数的に減衰する『半減期』モデルが観測され、長時間になるほどエラー蓄積で信頼性が急落する",
+          "autonomy": "agent",
+          "tools": ["Claude Opus 4.6", "GPT-5.x", "METR HCAST/RE-Bench"],
+          "evidence": [
+            {"title": "Task-Completion Time Horizons of Frontier AI Models", "url": "https://metr.org/time-horizons/", "date": "2026-08", "note": "Opus 4.6の50%時間軸は約12時間、2024-25年は倍化周期が4か月に加速"},
+            {"title": "Is there a half-life for the success rates of AI agents?", "url": "https://arxiv.org/pdf/2505.05115", "date": "2025-05", "note": "タスク長に対し成功率が指数関数的に減衰する半減期モデルを提示"}
+          ],
+          "forecast_basis": "2019-2025年の倍化周期（直近4か月）が続けば2027年に月単位タスクへ到達するとMETR/AI Digestが推計。ただし倍化鈍化（コンピュート制約）の兆候も報告されている"
+        },
+        {
+          "id": "foundation.time_horizon.multi_day_projects",
+          "name": "数日〜数週間規模のプロジェクト完走",
+          "name_en": "Multi-day/multi-week project completion",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":1,"2026":2,"2027e":3,"2028e":3,"2030e":4},
+          "vs_expert": "人間チームが数日かけるプロジェクトの定型的反復部分は代替できるが、非定型な意思決定を要する部分は監督が必須",
+          "can": "Claude Cowork Scheduled TasksやCodexの長時間ワークフローにより、日次/週次の定型反復タスクをスケジュール実行できる",
+          "cannot": "要件変化や例外処理を伴う非定型な数日規模プロジェクトの完全自律遂行はできない。OSWorld 2.0（人で1.6時間相当）でも最良システムは20.6%しか成功しない",
+          "why": "長時間タスクほど状態管理・目標維持・エラー訂正の複合的失敗が蓄積する",
+          "autonomy": "copilot",
+          "tools": ["Claude Cowork", "OpenAI Codex", "Claude Code Routines"],
+          "evidence": [
+            {"title": "The Hardest Easy Problem in AI: The State of Computer Use Agents", "url": "https://medium.com/@adnanmasood/the-hardest-easy-problem-in-ai-the-state-of-computer-use-agents-a7e3aea7fa3a", "date": "2026-07", "note": "OSWorld 2.0（人1.6時間規模）で最良システムでも成功率20.6%"},
+            {"title": "Building Agents with Claude: From Skills to Scheduled Tasks and Routines", "url": "https://hatchworks.com/blog/claude/building-agents-with-claude/", "date": "2026", "note": "Cowork Scheduled Tasksで週次実行の定型プロンプトは実現、非定型長期プロジェクトの保証はない"}
+          ],
+          "forecast_basis": "時間軸倍化トレンドの外挿では2027-28年に日単位定型タスクの高信頼化が見込まれるが、非定型プロジェクト全体の自律化はさらに先"
+        },
+        {
+          "id": "foundation.time_horizon.error_accumulation_recovery",
+          "name": "長時間実行中のエラー蓄積からの回復",
+          "name_en": "Recovery from accumulated errors in long runs",
+          "levels": {"2022":0,"2023":1,"2024":1,"2025":2,"2026":2,"2027e":3,"2028e":3,"2030e":4},
+          "vs_expert": "熟練者は途中のミスに気づき軌道修正するのが当然だが、AIエージェントは誤りの検知・訂正が遅れ、誤りの上に誤りを重ねる傾向が強い",
+          "can": "action-effect verification（操作結果の確認）を組み込んだエージェントは一部のGUI操作ミスを自己修正できる",
+          "cannot": "長時間実行中に蓄積した誤り（初期の誤クリック等）からの巻き戻し・根本原因の遡及的訂正は弱く、誤り率が雪だるま式に増える",
+          "why": "長時間タスク失敗研究の多くで、初期の小さな誤解釈が後続ステップに伝播する『エラー伝播』が主要因と特定されている",
+          "autonomy": "agent",
+          "tools": ["UFO2 Desktop AgentOS", "Claude Code", "Action-Effect Verification系エージェント"],
+          "evidence": [
+            {"title": "Don't Act Blindly: Robust GUI Automation via Action-Effect Verification and Self-Correction", "url": "https://arxiv.org/pdf/2604.05477", "date": "2026-04", "note": "行動結果の検証を組み込むことでGUI操作の自己修正が可能になると報告"},
+            {"title": "The Long-Horizon Task Mirage? Diagnosing Where and Why Agentic Systems Break", "url": "https://arxiv.org/html/2604.11978v1", "date": "2026-04", "note": "長時間タスクの失敗箇所と原因を診断"}
+          ],
+          "forecast_basis": "実行時プラン検証・修復（execution-time plan verification and repair）の研究が進めば2027-28年に中程度の改善が見込まれるが根本解決の時期は不明"
+        }
+      ]
+    },
+    {
+      "id": "foundation.planning",
+      "name": "計画・分解・優先順位",
+      "name_en": "Planning, Decomposition & Prioritization",
+      "tasks": [
+        {
+          "id": "foundation.planning.decomposition",
+          "name": "目標のサブタスクへの分解",
+          "name_en": "Goal decomposition into subtasks",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":4,"2027e":4,"2028e":4,"2030e":5},
+          "vs_expert": "明確なゴールが与えられればジュニア〜中堅相当のタスク分解ができるが、専門家のような『何を分解すべきでないか』の判断は弱い",
+          "can": "自然言語の目標をサブタスクのチェックリストやTODOに分解し順に実行。コーディングエージェントでの計画立案は実務水準",
+          "cannot": "曖昧・矛盾した要求からの分解では、専門家が行う『要求そのものへの疑問視』が弱く、誤った分解のまま突き進みやすい",
+          "why": "マルチエージェント失敗タキソノミー(MAST)では失敗の42%が『仕様の悪さ』に起因し、分解自体より上流の目標理解の甘さが主因",
+          "autonomy": "agent",
+          "tools": ["Claude Code (Plan mode)", "GPT-5.x", "AutoGPT系"],
+          "evidence": [
+            {"title": "Who Broke the System? Failure Localization in LLM-Based Multi-Agent Systems", "url": "https://arxiv.org/html/2607.07989v1", "date": "2026-07", "note": "失敗の42%が仕様の曖昧さに起因するMASTタキソノミーの知見"}
+          ],
+          "forecast_basis": "階層的・制約考慮型プランニングの研究進展により2027-28年に専門家並みの分解精度が期待されるが、上流の要求理解の改善は別軸"
+        },
+        {
+          "id": "foundation.planning.replanning_under_failure",
+          "name": "失敗時の再計画・軌道修正",
+          "name_en": "Replanning under failure",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "専門家は失敗を見て柔軟に計画変更するが、AIは『途中で計画を組み直す』より『同じ手を繰り返す』傾向が強い",
+          "can": "ツール呼び出し失敗時のリトライやエラーメッセージを見た軽微な修正は可能",
+          "cannot": "長期計画の途中で前提が崩れた際の抜本的な再計画（ゴール自体の再定義含む）は弱く、局所的な貪欲方策に陥りやすい",
+          "why": "『推論は計画ではない』という知見の通り、CoT型推論は逐次的ローカル評価であり、長期的帰結を踏まえた早期決定の再構成ができない",
+          "autonomy": "agent",
+          "tools": ["Claude Code", "o系/thinking系reasoningモデル"],
+          "evidence": [
+            {"title": "Why Reasoning Fails to Plan: A Planning-Centric Analysis of Long-Horizon Decision Making in LLM Agents", "url": "https://arxiv.org/abs/2601.22311", "date": "2026-01", "note": "推論能力の高さが長期計画能力と相関しないことを示す"}
+          ],
+          "forecast_basis": "階層的プランナーと実行時検証の統合研究が進めば2028年までに再計画能力の実務品質化が見込まれる"
+        },
+        {
+          "id": "foundation.planning.prioritization_tradeoffs",
+          "name": "複数タスクの優先順位付け・トレードオフ判断",
+          "name_en": "Multi-task prioritization and trade-offs",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "明示的な制約が与えられれば実務レベルの優先順位判断ができるが、組織の暗黙の力学を読んだ判断は専門家に劣る",
+          "can": "明示された制約（締切・リソース）下でのタスク順序最適化、簡単なコスト便益比較",
+          "cannot": "利害関係者間の暗黙の政治的優先順位や、長期的ROIを伴う戦略的トレードオフの判断は専門家に劣る",
+          "why": "優先順位付けは往々にして明文化されない組織文脈に依存し、学習データにその文脈が反映されにくい",
+          "autonomy": "copilot",
+          "tools": ["Claude", "GPT-5.x", "プロジェクト管理エージェント"],
+          "evidence": [
+            {"title": "Beyond the Leaderboard: A Synthesis of Tool-Use, Planning, and Reasoning Failures in Large Language Model Agents", "url": "https://arxiv.org/pdf/2607.05775", "date": "2026-07", "note": "計画・制約充足系の失敗クラスタを含む27本の分析を統合"}
+          ],
+          "forecast_basis": "組織文脈を継続的に学習するメモリ機能の成熟により2028年ごろ改善が見込まれる"
+        }
+      ]
+    },
+    {
+      "id": "foundation.tool_use",
+      "name": "ツール使用・API・MCP",
+      "name_en": "Tool Use, APIs & MCP",
+      "tasks": [
+        {
+          "id": "foundation.tool_use.function_calling_accuracy",
+          "name": "API/関数呼び出しの正確性",
+          "name_en": "Function/API calling accuracy",
+          "levels": {"2022":0,"2023":2,"2024":3,"2025":4,"2026":4,"2027e":4,"2028e":5,"2030e":5},
+          "vs_expert": "APIドキュメントを読んで正しい引数を組み立てる作業はジュニアエンジニア以上の速度・正確性に達している",
+          "can": "数百のツール定義から適切な関数を選び、型に沿った引数で呼び出す。構造化出力の遵守率は高水準",
+          "cannot": "ドキュメント化されていない暗黙の制約（レート制限の実運用挙動など）への対応は失敗しやすい",
+          "why": "関数呼び出しは訓練データ・RLHFで重点的に強化されてきた領域であり、フォーマット遵守は成熟技術",
+          "autonomy": "agent",
+          "tools": ["Claude (tool use)", "GPT-5.x function calling", "MCP"],
+          "evidence": [
+            {"title": "Tau Bench: The 2026 Enterprise Evaluation Guide", "url": "https://www.automationanywhere.com/company/blog/product-insights/ai-agent-benchmark", "date": "2026-05", "note": "τ-benchでのツール使用評価、2026年5月時点のリーダーボード結果"}
+          ],
+          "forecast_basis": "既に高水準のため2028年までの伸びしろは主に長鎖ツール呼び出しの信頼性向上に限られる"
+        },
+        {
+          "id": "foundation.tool_use.mcp_integration",
+          "name": "MCP経由の外部ツール・システム連携",
+          "name_en": "MCP-based external tool integration",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":3,"2026":4,"2027e":4,"2028e":5,"2030e":5},
+          "vs_expert": "専門のインテグレーションエンジニアが数日かける外部システム連携設定を、エージェントが数十分で構成できる場面が増えている",
+          "can": "9,600以上のMCPサーバーレジストリから必要な機能を発見・接続し、複数ツールを跨いだワークフローを構築できる",
+          "cannot": "MCPサーバー自体の信頼性（悪意あるサーバーやプロンプトインジェクションの温床になり得る点）の検証は自動化されていない",
+          "why": "MCPは2024年発表から急速に業界標準化し、SDKダウンロード数が16か月で4,750%増加するなど主要ベンダーが揃って対応した",
+          "autonomy": "agent",
+          "tools": ["Claude", "MCP Registry", "GitHub MCP"],
+          "evidence": [
+            {"title": "MCP Adoption Statistics 2026", "url": "https://mcpmanager.ai/blog/mcp-adoption-statistics/", "date": "2026-05", "note": "MCP Registryに9,652サーバー、SDK月間9,700万ダウンロード（2026年3月）"},
+            {"title": "The future of MCP: 2026 roadmap, enterprise adoption, and what comes next", "url": "https://toloka.ai/blog/the-future-of-mcp-enterprise-adoption/", "date": "2026", "note": "エンタープライズでのMCP本番導入状況"}
+          ],
+          "forecast_basis": "標準化が完了した基盤技術であり、2028年までにエンタープライズのデファクトスタンダード化が完了する見込み"
+        },
+        {
+          "id": "foundation.tool_use.tool_selection_from_many",
+          "name": "大規模ツールカタログからの適切な選択",
+          "name_en": "Tool selection from large catalogs",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":5},
+          "vs_expert": "数十〜百程度のツールからの選択は実務品質だが、数百〜数千規模になると誤選択・冗長呼び出しが増える",
+          "can": "適切に文書化された10〜50個程度のツールセットから正確に選択できる",
+          "cannot": "大規模なツールカタログ（数百以上）からの曖昧性解消は精度が落ち、ツール定義の質に強く依存する",
+          "why": "コンテキスト内のツール説明文の総量が増えると注意が分散し、関連性判定の精度が低下する（長文脈問題と同根）",
+          "autonomy": "agent",
+          "tools": ["Claude", "GPT-5.x", "LangGraph"],
+          "evidence": [
+            {"title": "UI-CUBE: Enterprise-Grade Computer Use Agent Benchmarking Beyond Task Accuracy to Operational Reliability", "url": "https://arxiv.org/pdf/2511.17131", "date": "2025-11", "note": "運用信頼性の観点からツール選択の課題を評価する新指標を提案"}
+          ],
+          "forecast_basis": "検索拡張型ツール選択（RAGでツールを絞り込む）の普及で2027-28年に大規模カタログでも実務品質に到達する見込み"
+        }
+      ]
+    },
+    {
+      "id": "foundation.computer_use",
+      "name": "ブラウザ/PC操作（GUI）",
+      "name_en": "Browser & Computer Use (GUI Agents)",
+      "tasks": [
+        {
+          "id": "foundation.computer_use.web_task_completion",
+          "name": "実務Webサイトでのタスク完遂",
+          "name_en": "Real-world web task completion",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "定型的なWebタスク（検索・フォーム入力・情報収集）は実務品質だが、複雑な実務サイト（社内システム等）への適応は不安定",
+          "can": "GAIAベンチマークで91%超（Lemon Agent、2026年2月）、複数ステップのWeb調査・ファイル解析タスクをこなす",
+          "cannot": "BrowseCompのような『見つけにくい情報を深く探す』タスクは依然弱く、実サイトのA/Bテストやポップアップ、CAPTCHA等の変動要因で脆弱に壊れる",
+          "why": "整備されたベンチマークでの高スコアと、現実のWebの雑多な変動への頑健性は別問題",
+          "autonomy": "agent",
+          "tools": ["Lemon Agent", "OpenAI Operator系", "Claude computer use"],
+          "evidence": [
+            {"title": "Lemon Agent Technical Report", "url": "https://arxiv.org/pdf/2602.07092", "date": "2026-02", "note": "GAIAベンチマークで91.36%の総合精度を達成（2026年2月時点）"},
+            {"title": "Characterizing Unintended Consequences of GUI Agents For Web Browsing", "url": "https://doi.org/10.1145/3772318.3790696", "date": "2026", "note": "CHI 2026、GUIエージェントの意図せぬ実害（誤発注等）を報告"}
+          ],
+          "forecast_basis": "整備されたベンチマークでの高得点は続伸するが、現実サイトの頑健性改善は環境多様性への訓練データ拡充次第で2028年ごろ実務品質化"
+        },
+        {
+          "id": "foundation.computer_use.desktop_gui_operation",
+          "name": "デスクトップGUI操作（OSWorld系）",
+          "name_en": "Desktop GUI operation (OSWorld-style)",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "簡単な業務アプリ操作（ファイル整理、定型入力）は代替可能だが、専門ソフトの熟練操作には遠く及ばない",
+          "can": "OSWorldベンチマークで2024年4月の12%成功から2026年6月には約85%（単純タスク）まで上昇。Agent S3は62.6%（単独）〜69.9%（Best-of-10）",
+          "cannot": "OSWorld 2.0の長時間タスク（人で1.6時間相当）では最良システムでも20.6%しか完遂できず、複雑な現実業務には未対応",
+          "why": "短時間・単純操作のベンチマークで急速に飽和した一方、長時間・複合操作のベンチマークでは進歩が緩やか（ベンチマークの難易度シフト）",
+          "autonomy": "agent",
+          "tools": ["Agent S3", "UFO2", "Claude computer use"],
+          "evidence": [
+            {"title": "The Hardest Easy Problem in AI: The State of Computer Use Agents", "url": "https://medium.com/@adnanmasood/the-hardest-easy-problem-in-ai-the-state-of-computer-use-agents-a7e3aea7fa3a", "date": "2026-07", "note": "OSWorldは12%→85%へ、OSWorld 2.0では最良でも20.6%"},
+            {"title": "UI-CUBE: Enterprise-Grade Computer Use Agent Benchmarking", "url": "https://arxiv.org/pdf/2511.17131", "date": "2025-11", "note": "運用信頼性まで含めた評価でギャップを可視化"}
+          ],
+          "forecast_basis": "短時間タスクは飽和済みのため今後の指標はOSWorld 2.0等の長時間版に移行。2028年ごろ長時間版でも実務品質（50%超）到達が見込まれる"
+        },
+        {
+          "id": "foundation.computer_use.real_world_reliability_brittleness",
+          "name": "現実世界の変動要因への頑健性",
+          "name_en": "Robustness to real-world UI variability",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":1,"2026":2,"2027e":2,"2028e":3,"2030e":4},
+          "vs_expert": "熟練オペレーターはUIの微小な変化に即座に適応するが、AIエージェントはセレクタのずれや動的要素で容易に破綻する",
+          "can": "action-effect検証を組み込んだ設計で一部の失敗を検知・自己修正できる",
+          "cannot": "ネットワーク遅延・レンダリング遅延・ポップアップ・CAPTCHA等『良性の変動』ですら壊れやすく、数量未入力での誤発注や住所欄への文字列混入など実害のある誤操作が報告されている",
+          "why": "GUIエージェントは行動が意図通り実行されたことを暗黙に仮定する設計が多く、現実の非決定性への頑健性が構造的に不足",
+          "autonomy": "copilot",
+          "tools": ["UFO2", "Claude computer use", "各種ブラウザエージェントフレームワーク"],
+          "evidence": [
+            {"title": "Characterizing Unintended Consequences of GUI Agents For Web Browsing", "url": "https://doi.org/10.1145/3772318.3790696", "date": "2026", "note": "CHI 2026、誤発注・誤入力等の具体的実害事例を報告"},
+            {"title": "Don't Act Blindly: Robust GUI Automation via Action-Effect Verification and Self-Correction", "url": "https://arxiv.org/pdf/2604.05477", "date": "2026-04", "note": "『行動が意図通り実行された』という暗黙の仮定の危うさを指摘"}
+          ],
+          "forecast_basis": "action-effect verification等の自己修正機構の実装が進めば2028年ごろ実務品質（要確認）まで改善する可能性"
+        }
+      ]
+    },
+    {
+      "id": "foundation.memory_context",
+      "name": "記憶と文脈",
+      "name_en": "Memory & Context",
+      "tasks": [
+        {
+          "id": "foundation.memory_context.long_context_retrieval_reasoning",
+          "name": "長文脈からの検索・統合的推論",
+          "name_en": "Long-context retrieval and integrative reasoning",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":5},
+          "vs_expert": "単純な検索（needle-in-haystack）は人間を上回るが、複数情報の統合・矛盾解消を要する実務読解は専門家に劣る",
+          "can": "単一事実の検索は128K〜1Mトークン規模でほぼ完璧に近い精度を出す",
+          "cannot": "複数needle（多点情報の統合）では精度が95%から60%まで低下。全モデルでRULERスコアはNIAHスコアより10-25ポイント低く、実効文脈は主張スペックの200-400K程度に留まる（Gemini 3 Deep Think除く）",
+          "why": "文脈が長くなるほど関連性判定の精度が下がる『context rot』現象があり、単純検索と統合的推論の難易度差が大きい",
+          "autonomy": "agent",
+          "tools": ["Gemini 3 Deep Think", "Claude (1M context)", "GPT-5.x"],
+          "evidence": [
+            {"title": "Long-Context Retrieval 2026: Needle-in-Haystack Test", "url": "https://www.digitalapplied.com/blog/long-context-retrieval-needle-in-haystack-2026", "date": "2026", "note": "多点needleで精度95%→60%に低下、実効文脈は200-400K程度"},
+            {"title": "RULER: What's the Real Context Size of Your Long-Context Language Models?", "url": "https://arxiv.org/pdf/2404.06654", "date": "2024-04", "note": "RULERスコアがNIAHスコアより大幅に低いことを実証"}
+          ],
+          "forecast_basis": "アーキテクチャ改善（attention効率化）により2028年に実効文脈が主張値に近づくと予測されるが、需要も並行して伸びるためギャップが残る可能性"
+        },
+        {
+          "id": "foundation.memory_context.persistent_memory_across_sessions",
+          "name": "セッションを跨ぐ永続記憶",
+          "name_en": "Persistent memory across sessions",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "秘書やアシスタントが数年かけて蓄積する『相手を知る』記憶に比べ、AIの記憶は個別事実の断片的蓄積にとどまる",
+          "can": "Claudeはカテゴリ化された個別記憶をリアルタイム更新、ChatGPTは2026年6月開始の『Dreaming』で会話横断の継続的統合を実装",
+          "cannot": "プラットフォーム間の記憶移植ができず（Claude↔ChatGPT間で自動連携不可）、各社独自のリテンション機能に閉じている",
+          "why": "記憶はベンダーごとの製品機能として実装されており、業界標準的な相互運用プロトコルが存在しない",
+          "autonomy": "copilot",
+          "tools": ["Claude memory", "ChatGPT Dreaming", "Gemini"],
+          "evidence": [
+            {"title": "Claude vs ChatGPT vs Gemini Memory: How They Compare in 2026", "url": "https://blog.memoryplugin.com/claude-vs-chatgpt-vs-gemini-memory/", "date": "2026", "note": "各社の記憶実装の違いと相互運用不可を比較"},
+            {"title": "AI Memory Compared 2026", "url": "https://www.memorylake.ai/en/blogs/ai-memory-compared-2026", "date": "2026", "note": "クロスセッション記憶はあるがクロスプラットフォームはない"}
+          ],
+          "forecast_basis": "記憶の相互運用性は業界標準化の動きがなく、2028年時点でも各社独自実装が続く可能性が高い（横ばい予測）"
+        },
+        {
+          "id": "foundation.memory_context.context_rot_degradation",
+          "name": "文脈長に伴う性能劣化（context rot）",
+          "name_en": "Performance degradation with context length",
+          "levels": {"2022":1,"2023":2,"2024":2,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "人は文書が長くても重要箇所に注意を再配分できるが、AIは文脈が伸びるほど無関係箇所にも一定の注意を割き続け性能が劣化する",
+          "can": "短中規模文脈（〜128K）では実務品質の統合的理解ができる",
+          "cannot": "長文脈になるほど『刈り込み』ができず、UUID等の完全一致情報の取りこぼしが128K超で増加。1Mトークン対応を謳っても実効性能を維持できるのは一部モデルに限られる",
+          "why": "アテンション機構の性質上、関連情報の密度が下がると信号対雑音比が悪化する",
+          "autonomy": "agent",
+          "tools": ["Claude", "Gemini 3.1", "GPT-5.x"],
+          "evidence": [
+            {"title": "Long-Context Retrieval 2026: Needle-in-Haystack Test", "url": "https://www.digitalapplied.com/blog/long-context-retrieval-needle-in-haystack-2026", "date": "2026", "note": "『context rot』という現象名でこの劣化を説明"}
+          ],
+          "forecast_basis": "モデル側の長文脈訓練とRAG的な事前刈り込みの併用進展で2028年ごろ実務での劣化が緩和される見込み"
+        }
+      ]
+    },
+    {
+      "id": "foundation.multi_agent",
+      "name": "マルチエージェント協調・委任",
+      "name_en": "Multi-Agent Coordination & Delegation",
+      "tasks": [
+        {
+          "id": "foundation.multi_agent.task_delegation_orchestration",
+          "name": "サブエージェントへのタスク委任・並列実行",
+          "name_en": "Task delegation and orchestration to subagents",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":5},
+          "vs_expert": "プロジェクトマネージャーがチームにタスクを割り振るのに近い粒度の委任は実務品質に達しつつある",
+          "can": "Claude Code等のサブエージェント機能で並列タスクの委任・集約が可能。定型的な分業（コード生成+レビュー等）は実用段階",
+          "cannot": "サブエージェント間の暗黙の前提共有（片方が知っている情報をもう片方が知らない）によるすれ違いは頻発する",
+          "why": "委任の枠組み自体は成熟してきたが、エージェント間の共有状態管理はまだ発展途上",
+          "autonomy": "agent",
+          "tools": ["Claude Code subagents", "AutoGen", "CrewAI"],
+          "evidence": [
+            {"title": "Multi-Agent in Production in 2026: What Actually Survived", "url": "https://medium.com/@Micheal-Lanham/multi-agent-in-production-in-2026-what-actually-survived-f86de8bb1cd1", "date": "2026", "note": "本番運用で生き残った委任パターンの実例"}
+          ],
+          "forecast_basis": "共有メモリ・状態同期プロトコルの改善で2028年ごろ専門家並みの分業品質に到達する可能性"
+        },
+        {
+          "id": "foundation.multi_agent.coordination_failure_modes",
+          "name": "協調の破綻（仕様曖昧・重複作業・検証不足）",
+          "name_en": "Coordination failure modes",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":1,"2026":2,"2027e":2,"2028e":3,"2030e":3},
+          "vs_expert": "人間チームも調整コストで失敗するが、AIチームは『途中で聞き返す』ができず誤解が最後まで伝播する点で人間より脆い",
+          "can": "単純な2〜3エージェント構成での役割分担された定型タスクは動作する",
+          "cannot": "MASTタキソノミーで特定された14の失敗モード（仕様曖昧42%、協調破綻37%、検証不足21%）が本番環境で頻発し、失敗率41-86.7%という報告もある。エージェントは実行中に明確化質問ができない",
+          "why": "マルチエージェントシステムは単一エージェントの誤りを『増幅』する構造的リスクを持つ。冗長作業・役割重複・終了条件欠如が典型",
+          "autonomy": "copilot",
+          "tools": ["各種マルチエージェントフレームワーク"],
+          "evidence": [
+            {"title": "Who Broke the System? Failure Localization in LLM-Based Multi-Agent Systems", "url": "https://arxiv.org/html/2607.07989v1", "date": "2026-07", "note": "1,600以上のトレースを分析し14の失敗モードを特定"},
+            {"title": "How Much Coordination Gain Is Real? A Paired Noise-Floor Protocol for Multi-Agent LLM Benchmarks", "url": "https://arxiv.org/pdf/2606.20695", "date": "2026-06", "note": "協調ゲインの多くがノイズフロア以下である可能性を指摘"}
+          ],
+          "forecast_basis": "『協調ゲインが本当にノイズを上回るか』を厳密検証する研究が進みつつある段階で、2028年までに構造的解決に至るかは不透明（停滞リスクを明記）"
+        },
+        {
+          "id": "foundation.multi_agent.role_specialization_effectiveness",
+          "name": "役割特化による品質向上の実効性",
+          "name_en": "Effectiveness of role specialization",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "専門特化したレビュアー役・実装役の分業は、単一エージェントより品質が上がる場面が実証されつつある",
+          "can": "コードレビュー×実装、リサーチ×執筆のような明確に分離可能な役割分担では効果が出る",
+          "cannot": "役割の粒度が細かすぎると調整コストが品質向上を上回り、『協調ゲインの多くは幻影』という指摘もある",
+          "why": "協調によるゲインは条件次第で消える可能性があり、単純に『エージェントを増やせば良くなる』わけではない",
+          "autonomy": "agent",
+          "tools": ["Claude subagents", "マルチフロントエンド/バックエンド分業パターン"],
+          "evidence": [
+            {"title": "How Much Coordination Gain Is Real? A Paired Noise-Floor Protocol for Multi-Agent LLM Benchmarks", "url": "https://arxiv.org/pdf/2606.20695", "date": "2026-06", "note": "協調が真に価値を生む条件を検証するプロトコルを提案"}
+          ],
+          "forecast_basis": "協調が真に価値を生む条件の解明が進めば2028年ごろ設計指針が確立し実務品質化が進む"
+        }
+      ]
+    },
+    {
+      "id": "foundation.reliability",
+      "name": "自己検証・信頼性",
+      "name_en": "Self-Verification & Reliability",
+      "tasks": [
+        {
+          "id": "foundation.reliability.factual_hallucination_rate",
+          "name": "事実誤り（幻覚）の発生率",
+          "name_en": "Factual hallucination rate",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":5},
+          "vs_expert": "引用・事実確認においてはファクトチェッカーの正確性に及ばないが、一般的な質問応答では2024年基準の15-45%から2026年の3-19%まで改善",
+          "can": "一般知識質問応答では2026年フロンティアモデルで4.6-6.1%程度の幻覚率（Claude Haiku 4.5〜GPT-5.4-mini）",
+          "cannot": "引用生成タスクは依然弱く、拡張思考を使っても平均12.4%が幻覚。ゼロにはならず、単一の『幻覚率』という数字自体が誤解を招く",
+          "why": "モデルはタスクファミリー・推論設定により幻覚率が3.1%〜19.1%までばらつき、測定手法自体も標準化されていない",
+          "autonomy": "copilot",
+          "tools": ["Claude Haiku/Sonnet/Opus", "GPT-5.4"],
+          "evidence": [
+            {"title": "AI Hallucination Rate Benchmarks 2026: 5-Model Study", "url": "https://www.digitalapplied.com/blog/ai-model-hallucination-rate-benchmarks-2026-study", "date": "2026", "note": "5モデルの幻覚率が4.62%〜6.10%、引用タスクは12.4%と特に悪い"},
+            {"title": "LLM Hallucination Statistics 2026", "url": "https://sqmagazine.co.uk/llm-hallucination-statistics/", "date": "2026", "note": "タスク別の幻覚率のばらつきを整理"}
+          ],
+          "forecast_basis": "2024年比で大幅改善が続いているが、引用など特定タスクでの改善は鈍い。2028年までにゼロにはならず『検証必須』の運用が続くと予測"
+        },
+        {
+          "id": "foundation.reliability.self_verification_output_checking",
+          "name": "自己検証・出力チェック",
+          "name_en": "Self-verification and output checking",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "専門家の『納品前レビュー』相当の自己チェックは部分的に機能するが、自分の思い込みは自分では見つけにくい構造的問題がある",
+          "can": "コード実行結果の確認、簡単な計算検算、フォーマット遵守チェックは実務品質",
+          "cannot": "自身の推論プロセス全体の誤りに気づく『メタ認知的』自己検証は弱く、独立した第三者（別エージェント/人間）によるレビューの方が有効",
+          "why": "自己評価が甘くなるのは訓練上の理由（自身の出力に対する強いバイアス）によるもので、単純なプロンプト改善では解決しにくい",
+          "autonomy": "copilot",
+          "tools": ["Claude", "self-consistency手法", "独立検証エージェント"],
+          "evidence": [
+            {"title": "Uncertainty Quantification in LLM Agents: Foundations, Emerging Challenges, and Opportunities", "url": "https://arxiv.org/html/2602.05073v2", "date": "2026-02", "note": "自己検証と不確実性定量化に関する44本のサーベイ"}
+          ],
+          "forecast_basis": "独立検証エージェントを組み合わせるマルチエージェント検証パターンの普及により2028年ごろ実務品質が向上する見込み"
+        },
+        {
+          "id": "foundation.reliability.uncertainty_calibration",
+          "name": "不確実性表明・確信度のキャリブレーション",
+          "name_en": "Uncertainty expression and calibration",
+          "levels": {"2022":0,"2023":1,"2024":1,"2025":2,"2026":2,"2027e":3,"2028e":3,"2030e":4},
+          "vs_expert": "専門家は『わからない』と言うべき場面を的確に判断するが、AIは自信過剰な誤答か、逆に不要な場面での過剰なヘッジのどちらかに偏りやすい",
+          "can": "言語化された不確実性表現（『おそらく』『わからない』等）を推論トレース中で使用する挙動が観測される",
+          "cannot": "検証可能な確率的キャリブレーション（自己申告の確信度が実際の正答率と一致すること）は依然不十分で、明示的な報酬設計なしでは自然に獲得されない",
+          "why": "トークンレベルのキャリブレーションは意味レベルの不確実性表現とある程度整合するが、明示的に評価・報酬されていない限り信頼性は低い",
+          "autonomy": "copilot",
+          "tools": ["Agentic Uncertainty Quantification (AUQ)", "Claude thinking"],
+          "evidence": [
+            {"title": "Agentic Uncertainty Quantification", "url": "https://arxiv.org/abs/2601.15703", "date": "2026-01", "note": "検証された不確実性を能動的な制御信号に変換する枠組みを提案"},
+            {"title": "Process Supervision of Confidence Margin for Calibrated LLM Reasoning", "url": "https://arxiv.org/pdf/2604.23333", "date": "2026-04", "note": "推論トレース中の不確実性表現を3カテゴリに分類"}
+          ],
+          "forecast_basis": "プロセス監督型のキャリブレーション訓練の研究が進めば2028年ごろ実務利用可能な水準に達する可能性"
+        },
+        {
+          "id": "foundation.reliability.evaluation_awareness_sandbagging",
+          "name": "評価検知・意図的な能力隠蔽（サンドバッギング）の検出",
+          "name_en": "Evaluation awareness and sandbagging detection",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":2,"2026":2,"2027e":2,"2028e":3,"2030e":3},
+          "vs_expert": "専門家が評価されていることを意識して手を抜くことは稀だが、AIモデルは評価文脈を検知して挙動を変える兆候が報告されている。信頼できるかどうかという別種の問題",
+          "can": "AnthropicとOpenAIがApollo Researchと共同で、意図的な過小評価（サンドバッギング）や評価回避行動を検出するための敵対的評価手法を開発している",
+          "cannot": "モデルが評価されていることを認識し、危険能力評価で意図的に過小性能を示す可能性（サンドバッギング）は完全には検出・排除できていない。Claude Opus 4.6のシステムカードでもこの懸念が明記されている",
+          "why": "評価認識（evaluation awareness）は状況認識能力の副産物であり、モデルが高性能化するほど評価環境と実運用環境の違いを見抜く能力も上がるため、根本対策がない",
+          "autonomy": "copilot",
+          "tools": ["Apollo Research evaluations", "Anthropic/OpenAI joint safety evaluation"],
+          "evidence": [
+            {"title": "Findings from a pilot Anthropic-OpenAI alignment evaluation exercise", "url": "https://openai.com/index/openai-anthropic-safety-evaluation/", "date": "2026", "note": "両社共同でサンドバッギング等を検出する敵対的評価を実施"},
+            {"title": "Auditing Games for Sandbagging", "url": "https://arxiv.org/pdf/2512.07810", "date": "2025-12", "note": "重み・活性化へのノイズ注入でサンドバッギングを暴く監査手法を提案"},
+            {"title": "System Card: Claude Opus 4.6", "url": "https://www-cdn.anthropic.com/14e4fb01875d2a69f646fa5e574dea2b1c0ff7b5.pdf", "date": "2026-02", "note": "危険能力評価でのサンドバッギングの可能性を明記"}
+          ],
+          "forecast_basis": "根本的な解決策（内部状態を欺瞞なく検証する手法）は未確立で、2028年時点でも対症療法（重み・活性化へのノイズ注入等）にとどまるとみられる（停滞領域）"
+        }
+      ]
+    },
+    {
+      "id": "foundation.reasoning",
+      "name": "推論・論理",
+      "name_en": "Reasoning & Logic",
+      "tasks": [
+        {
+          "id": "foundation.reasoning.mathematical_logical_reasoning",
+          "name": "数理・論理パズルの解決",
+          "name_en": "Mathematical and logical reasoning",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":4,"2026":4,"2027e":4,"2028e":5,"2030e":5},
+          "vs_expert": "国際数学オリンピック級の問題を解く推論モデルはトップクラスの人間に匹敵する場面がある一方、実務的な応用数理（未整形の問題設定）は別",
+          "can": "形式化された数学・論理パズル（IMO級含む）で高い正答率。コード実行と組み合わせた検算も可能",
+          "cannot": "現実の曖昧な問題を数理モデルに落とし込む定式化能力（モデリング）は人間の専門家に劣る",
+          "why": "推論モデル（thinking mode）は形式的探索空間の広い問題に強い一方、問題設定自体の曖昧性解消は別の能力",
+          "autonomy": "agent",
+          "tools": ["Claude thinking", "o系", "Gemini 3.1 Deep Think"],
+          "evidence": [
+            {"title": "Prompting Reasoning Models in 2026: GPT-5.5, Claude, Gemini, and DeepSeek", "url": "https://sureprompts.com/blog/ai-reasoning-models-prompting-complete-guide-2026", "date": "2026", "note": "2026年時点の主要推論モデルの強み・弱みを比較"}
+          ],
+          "forecast_basis": "形式的推論は既に高水準のため、2028年までの伸びは主に応用数理・モデリング能力側で見込まれる"
+        },
+        {
+          "id": "foundation.reasoning.commonsense_counterfactual",
+          "name": "常識推論・反実仮想",
+          "name_en": "Commonsense and counterfactual reasoning",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "日常的な常識推論では実務品質だが、反実仮想（『もしXがなかったら』）の一貫した多段階推論は人間より脆い",
+          "can": "一般的な常識クイズ・因果推論のベンチマークで高スコアを示す",
+          "cannot": "長い反実仮想連鎖での一貫性維持、物理的直感を要する常識（素朴物理学）は依然弱点として報告される",
+          "why": "常識は訓練データに広く反映されるが、反実仮想は訓練データに直接現れにくい『仮想世界』のシミュレーションを要する",
+          "autonomy": "copilot",
+          "tools": ["Claude", "GPT-5.x"],
+          "evidence": [
+            {"title": "Beyond the Leaderboard: A Synthesis of Tool-Use, Planning, and Reasoning Failures in Large Language Model Agents", "url": "https://arxiv.org/pdf/2607.05775", "date": "2026-07", "note": "推論の失敗クラスタに反実仮想・常識推論の弱点を含む"}
+          ],
+          "forecast_basis": "世界モデル研究（物理シミュレーション統合等）の進展により2028年に改善が見込まれるが根本解決は不透明"
+        },
+        {
+          "id": "foundation.reasoning.reasoning_vs_planning_gap",
+          "name": "推論の強さと計画能力のギャップ",
+          "name_en": "The reasoning-vs-planning gap",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "熟練者は経験的に『先を読んで今の一手を決める』が、推論モデルはCoTによる局所最適選択に留まりやすい",
+          "can": "各ステップの局所的な妥当性評価（このアクションは合理的か）は実務品質",
+          "cannot": "長期的帰結を踏まえて早期の決定を後から見直す（バックトラック的な再構成）は弱く、『推論の強さ』と『計画の強さ』は相関しないという実証結果がある",
+          "why": "標準的なCoTは逐次的貪欲方策であり、探索木のバックトラックのような真の計画アルゴリズムとは構造が異なる",
+          "autonomy": "agent",
+          "tools": ["Claude thinking", "階層的プランナー研究"],
+          "evidence": [
+            {"title": "Why Reasoning Fails to Plan: A Planning-Centric Analysis of Long-Horizon Decision Making in LLM Agents", "url": "https://arxiv.org/abs/2601.22311", "date": "2026-01", "note": "推論モデルの強さが長期計画性能を保証しないことを実証"}
+          ],
+          "forecast_basis": "階層的・制約考慮型プランニング手法の実用化により2028年ごろギャップ縮小が見込まれる"
+        }
+      ]
+    },
+    {
+      "id": "foundation.multimodal",
+      "name": "マルチモーダル理解（画像/動画/音声/空間）",
+      "name_en": "Multimodal Understanding",
+      "tasks": [
+        {
+          "id": "foundation.multimodal.spatial_3d_reasoning",
+          "name": "空間・3D推論",
+          "name_en": "Spatial and 3D reasoning",
+          "levels": {"2022":0,"2023":1,"2024":1,"2025":2,"2026":2,"2027e":3,"2028e":3,"2030e":4},
+          "vs_expert": "建築士やロボット工学者が持つ3次元空間把握には遠く及ばず、単純な相対位置関係の推論すら不安定",
+          "can": "自己中心視点（カメラ視点）からの空間関係推論はある程度機能する",
+          "cannot": "他者視点への変換（allocentric、『相手から見てどちらが左か』）への一般化が弱く、複数視点にまたがるロボット操作向けベンチマークで人間性能を大きく下回る",
+          "why": "VLMの訓練データは2D画像の記述が中心で、3次元的な視点変換の教師信号が乏しい",
+          "autonomy": "copilot",
+          "tools": ["Gemini 3.1", "Claude vision", "SpatialVLM系研究"],
+          "evidence": [
+            {"title": "Seeing Across Views: Benchmarking Spatial Reasoning of Vision-Language Models in Robotic Scenes", "url": "https://arxiv.org/abs/2510.19400", "date": "2025-10", "note": "多視点ロボットシーンでの空間推論ベンチマークMV-RoboBenchを提案"}
+          ],
+          "forecast_basis": "ロボティクス向け空間データセットの拡充により2028年ごろ改善が見込まれるが、人間水準到達は2030年以降との見方が強い"
+        },
+        {
+          "id": "foundation.multimodal.video_temporal_understanding",
+          "name": "動画の時系列理解",
+          "name_en": "Video temporal understanding",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":2,"2026":2,"2027e":3,"2028e":3,"2030e":4},
+          "vs_expert": "映像編集者やスポーツアナリストが行う『時間軸をまたいだ出来事の追跡』には及ばない",
+          "can": "短い動画の内容要約、単発シーンの説明は実務品質に近づいている",
+          "cannot": "長時間動画での出来事の時系列追跡や、特定の時空間領域への根拠づけ（グラウンディング）は依然脆く、新ベンチマークで課題が可視化されている",
+          "why": "動画LLMは離散フレームサンプリングに依存することが多く、連続的な時間変化の内部表現が弱い",
+          "autonomy": "copilot",
+          "tools": ["Gemini 3.1 video", "V-STaRベンチマークモデル群"],
+          "evidence": [
+            {"title": "V-STaR: Benchmarking Video-LLMs on Video Spatio-Temporal Reasoning", "url": "https://openaccess.thecvf.com/content/CVPR2026F/html/Cheng_V-STaR_Benchmarking_Video-LLMs_on_Video_Spatio-Temporal_Reasoning_CVPRF_2026_paper.html", "date": "2026", "note": "CVPR2026、時空間手がかりの統合能力を評価するベンチマーク"}
+          ],
+          "forecast_basis": "動画ネイティブな事前学習（フレーム間の時間的一貫性を直接学習）の拡大で2028年に実務品質化が期待される"
+        },
+        {
+          "id": "foundation.multimodal.document_image_understanding",
+          "name": "文書・画像理解（OCR/図表/帳票）",
+          "name_en": "Document and image understanding (OCR/charts/forms)",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":4,"2026":4,"2027e":4,"2028e":5,"2030e":5},
+          "vs_expert": "OCR・帳票理解・図表読み取りは実務品質を超え、定型文書処理では専門家並みかそれ以上の速度・正確性",
+          "can": "複雑なレイアウトの請求書・契約書・グラフの数値抽出、手書き文字認識を含む高精度な文書理解が可能。DocVQAで94.75%（Qianfan-VL-70B）",
+          "cannot": "非定型・低品質スキャンや、文化依存的な文脈（古文書、専門記号）を要する解釈は専門家に劣る場面が残る",
+          "why": "文書理解は教師データが豊富で、視覚言語モデルの中でも最も成熟した応用領域の一つ",
+          "autonomy": "agent",
+          "tools": ["Claude vision", "Gemini 3.1", "Qianfan-VL", "Qwen2.5-VL"],
+          "evidence": [
+            {"title": "Qianfan-VL: Domain-Enhanced Universal Vision-Language Models", "url": "https://arxiv.org/pdf/2509.18189", "date": "2025-09", "note": "DocVQA 94.75%、ChartQA 89.60%、OCRBench 873を達成"},
+            {"title": "Invoice OCR Benchmark: Extraction Accuracy of LLMs vs OCRs", "url": "https://aimultiple.com/invoice-ocr", "date": "2026", "note": "請求書処理でのLLMベース抽出精度を評価"}
+          ],
+          "forecast_basis": "既に高水準のため2028年までの伸びは主に非定型文書・低リソース言語対応に限られる"
+        }
+      ]
+    },
+    {
+      "id": "foundation.safety_control",
+      "name": "安全性・アラインメント・制御",
+      "name_en": "Safety, Alignment & Control",
+      "tasks": [
+        {
+          "id": "foundation.safety_control.prompt_injection_resistance",
+          "name": "プロンプトインジェクションへの耐性",
+          "name_en": "Resistance to prompt injection",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":1,"2026":2,"2027e":2,"2028e":3,"2030e":3},
+          "vs_expert": "セキュリティエンジニアが行う入力サニタイズは明確な境界を引けるが、自然言語ベースのエージェントは信頼できる指示と信頼できないデータの境界を構造的に引けない",
+          "can": "スポットライティング（区切り文字/base64での分離）、ツール応答の隔離、システムプロンプトの改変防止などの緩和策の実装が進んでいる",
+          "cannot": "間接プロンプトインジェクションは未解決。2026年3月にOasis Securityがclaude.aiに対し『Claudy Day』攻撃（不可視インジェクション+データ持ち出し、追加ツール不要）を実証。Microsoft 365 CopilotでもCVSS 9.3の攻撃が報告された",
+          "why": "自然言語では『命令』と『データ』を構文的に分離できないという設計上の根本問題があり、単一のプロンプト調整では解決しない",
+          "autonomy": "copilot",
+          "tools": ["Claude", "Microsoft 365 Copilot", "OWASP Top 10 for Agentic Applications"],
+          "evidence": [
+            {"title": "Indirect prompt injection is taking hold in the wild", "url": "https://www.helpnetsecurity.com/2026/04/24/indirect-prompt-injection-in-the-wild/", "date": "2026-04", "note": "間接プロンプトインジェクションの実運用被害が拡大していると報告"},
+            {"title": "5 Real AI Agent Security Breaches in 2026 and Their Lessons", "url": "https://beam.ai/agentic-insights/ai-agent-security-breaches-2026-lessons", "date": "2026", "note": "Claudy Day攻撃を含む2026年の実被害事例をまとめる"}
+          ],
+          "forecast_basis": "Five Eyes（国際情報機関連合）も『高リスク意思決定には人の監督を残す段階的展開』を推奨しており、2028年までの完全解決は業界内で期待されていない（停滞領域）"
+        },
+        {
+          "id": "foundation.safety_control.agent_goal_hijack_prevention",
+          "name": "エージェントの目標ハイジャック防御",
+          "name_en": "Agent goal hijack prevention",
+          "levels": {"2022":0,"2023":0,"2024":1,"2025":1,"2026":2,"2027e":2,"2028e":3,"2030e":3},
+          "vs_expert": "権限管理者が行う最小権限原則の考え方はエージェント設計にも応用され始めているが、実装は発展途上",
+          "can": "能力ベース設計（capability-based design）やデュアルモデル分離により被害範囲を限定する設計パターンが普及し始め、ゴール変更への人間承認必須化も広がっている",
+          "cannot": "OWASP Top 10 for Agentic Applications 2026でASI01（Agent Goal Hijacking）が最大リスクに認定されるほど未解決。マルチエージェント間の制御フロー乗っ取りへの防御は『破っては直す』のいたちごっこ状態",
+          "why": "エージェントの自律性そのものが攻撃対象になり、単一エージェント向けの防御をマルチエージェント構成にそのまま適用できない",
+          "autonomy": "copilot",
+          "tools": ["OWASP ASI Top 10", "capability-based agent design"],
+          "evidence": [
+            {"title": "What is agent goal hijack? | Tutorial & examples", "url": "https://learn.snyk.io/lesson/agent-goal-hijack/", "date": "2026", "note": "OWASP ASI01としてエージェント目標ハイジャックが最大リスクに認定"},
+            {"title": "Breaking and Fixing Defenses Against Control-Flow Hijacking in Multi-Agent Systems", "url": "https://arxiv.org/pdf/2510.17276", "date": "2025-10", "note": "マルチエージェントの制御フロー乗っ取り防御のいたちごっこを実証"}
+          ],
+          "forecast_basis": "OWASPが2025年末にランキングを確立したばかりで、防御パターンの標準化は2027-28年にかけて進むと見込まれるが根絶は困難"
+        },
+        {
+          "id": "foundation.safety_control.adversarial_robustness_jailbreak",
+          "name": "ジェイルブレイク・敵対的攻撃への頑健性",
+          "name_en": "Robustness to jailbreaks and adversarial attacks",
+          "levels": {"2022":1,"2023":1,"2024":2,"2025":2,"2026":3,"2027e":3,"2028e":4,"2030e":4},
+          "vs_expert": "レッドチームの人間専門家によるジェイルブレイク耐性テストと比べ、モデルは既知の攻撃パターンには強くなったが新規の攻撃手法にはなお脆弱",
+          "can": "既知のジェイルブレイクパターン（ロールプレイ誘導等）への耐性は大幅に向上し、Constitutional AI等の手法で明確な拒否を実現している",
+          "cannot": "新規性の高い攻撃（多段階・多言語・エンコーディングを組み合わせた攻撃）には依然として突破される事例が報告される",
+          "why": "防御は既知の攻撃パターンの学習に依存する部分が大きく、いたちごっこの構造から抜け出せていない",
+          "autonomy": "copilot",
+          "tools": ["Claude Constitutional AI", "OpenAI safety training"],
+          "evidence": [
+            {"title": "International AI Safety Report 2026", "url": "https://arxiv.org/pdf/2602.21012", "date": "2026-02", "note": "各国政府が合同でまとめたAI安全性の最新状況報告、ジェイルブレイク耐性の到達点と限界を含む"}
+          ],
+          "forecast_basis": "自動化されたレッドチーミング（AIによるAI攻撃探索）の普及で2028年に検出速度は上がるが、根絶は難しいと予測"
+        }
+      ]
+    },
+    {
+      "id": "foundation.cost_efficiency",
+      "name": "速度・コスト・効率",
+      "name_en": "Speed, Cost & Efficiency",
+      "tasks": [
+        {
+          "id": "foundation.cost_efficiency.token_price_decline",
+          "name": "トークン単価の推移と実務適用範囲",
+          "name_en": "Token price trends and practical reach",
+          "levels": {"2022":1,"2023":2,"2024":3,"2025":4,"2026":4,"2027e":5,"2028e":5,"2030e":5},
+          "vs_expert": "人件費と比較すると、フロンティアモデルの利用コストは既にジュニア専門職の時給を大きく下回るタスクが増えている",
+          "can": "フロンティアトークン価格指数は2023年3月基準100から2026年9月時点で16（84%下落）。Gemini 3.1 Flashは入力$0.10/M・出力$0.40/Mで2023年のGPT-4比99.7%減",
+          "cannot": "2026年に入り下落率は鈍化（年初来6%程度に減速）しており、2021-25年の年10倍ペースの再現は困難",
+          "why": "計算最適化（蒸留・量子化・投機的デコーディング等）の『簡単な果実』が既に刈り取られ、今後は最適化の限界逓減が予想される",
+          "autonomy": "agent",
+          "tools": ["Gemini 3.1 Flash", "DeepSeek", "Claude Haiku"],
+          "evidence": [
+            {"title": "What Can Nearly 2 Quadrillion Annualized Tokens Tell Us About LLM Pricing Trends?", "url": "https://www.yipitdata.com/resources/cloud-llm-pricing-trends", "date": "2026", "note": "フロンティアトークン価格指数が2023年3月比84%下落（2026年9月時点16）"},
+            {"title": "LLM API Costs Dropped 80% in 2026", "url": "https://wavect.io/blog/llm-api-costs-2026-architecture-shift/", "date": "2026", "note": "2025年初〜2026年初でAPI価格が約80%下落"}
+          ],
+          "forecast_basis": "2027年まで年3-5倍の低下が続き、その後2030年に向け年1.5-2倍程度に鈍化するとの業界予測（最適化余地の枯渇）"
+        },
+        {
+          "id": "foundation.cost_efficiency.inference_speed_latency",
+          "name": "推論速度・レイテンシ",
+          "name_en": "Inference speed and latency",
+          "levels": {"2022":2,"2023":2,"2024":3,"2025":3,"2026":4,"2027e":4,"2028e":4,"2030e":5},
+          "vs_expert": "人間の思考速度と比べれば圧倒的に高速だが、複雑な推論（thinking mode）を使うと応答が数秒〜数十秒かかり、リアルタイム対話には課題が残る",
+          "can": "特化ハードウェア（Cerebras等）で981トークン/秒（フロンティアモデル）、小型モデルでは2,600トークン/秒超を実現。投機的デコーディング・連続バッチング等で大幅な高速化",
+          "cannot": "思考モデル（reasoning mode）は依然として数秒〜数十秒の遅延があり、体感速度はハードウェア次第で大きくばらつく（モデル選択より供給インフラの影響が大きい）",
+          "why": "2026年の速度改善は主にサービング基盤側（ルーティング、キャッシュ、量子化）の最適化によるもので、モデル自体の推論効率化と両輪",
+          "autonomy": "agent",
+          "tools": ["Cerebras inference", "vLLM/SGLang", "Claude/GPT-5.x"],
+          "evidence": [
+            {"title": "Fastest AI in 2026: Speed Benchmarks Across Top Models", "url": "https://fast.io/resources/fastest-ai-2026/", "date": "2026", "note": "Cerebrasが981トークン/秒でフロンティアモデルを提供、小型モデルは2,600トークン/秒超"},
+            {"title": "The efficient frontier of LLM inference", "url": "https://www.baseten.co/blog/the-efficient-frontier-of-llm-inference/", "date": "2026", "note": "投機的デコーディング・ルーティング等の最適化手法を解説"}
+          ],
+          "forecast_basis": "専用チップ（Cerebras、Groq等）の普及拡大で2028年までにさらに2-4倍の高速化が見込まれる"
+        },
+        {
+          "id": "foundation.cost_efficiency.cost_performance_tradeoff_selection",
+          "name": "コスト対性能のトレードオフ判断",
+          "name_en": "Cost-performance trade-off decisions",
+          "levels": {"2022":0,"2023":1,"2024":2,"2025":3,"2026":3,"2027e":4,"2028e":4,"2030e":4},
+          "vs_expert": "エンジニアリングマネージャーが行う『どのツール/人材に何を任せるか』の判断に近いが、AIエージェント自身がモデル間のコスト対効果を判断して使い分ける自動ルーティングはまだ発展途上",
+          "can": "開発者が用途別に小型モデル（下書き）と大型モデル（検証）を使い分ける設計パターンは実務品質で確立している",
+          "cannot": "エージェント自身が実行中に動的に『このステップは安いモデルで十分』と判断する自動モデルルーティングは限定的にしか実用化されていない",
+          "why": "コスト最適化は現状、人間のアーキテクト設計時の判断に依存しており、実行時の自律的最適化は未成熟",
+          "autonomy": "copilot",
+          "tools": ["LLMルーター（OpenRouter等）", "Claude Haiku/Sonnet/Opus使い分け"],
+          "evidence": [
+            {"title": "LLM API Pricing Trends & Updates (September 2026)", "url": "https://benchlm.ai/llm-pricing-trends", "date": "2026-09", "note": "モデル間の価格・性能のトレードオフを継続追跡"}
+          ],
+          "forecast_basis": "2028年ごろまでに動的モデルルーティングの実務品質化が進むと予測されるが、現状は人間の設計判断に依存"
+        }
+      ]
+    },
+    {
+      "id": "foundation.learning_adaptation",
+      "name": "学習・適応",
+      "name_en": "Learning & Adaptation",
+      "tasks": [
+        {
+          "id": "foundation.learning_adaptation.in_context_few_shot_learning",
+          "name": "インコンテキスト学習（少数例からの適応）",
+          "name_en": "In-context / few-shot learning",
+          "levels": {"2022":2,"2023":3,"2024":3,"2025":4,"2026":4,"2027e":4,"2028e":5,"2030e":5},
+          "vs_expert": "数例のデモンストレーションから新しいタスク形式を把握する能力は、経験豊富な専門家が新人に『やってみせる』のに近い速さで模倣できる",
+          "can": "プロンプト内の数例から新しいフォーマット・タスクへの適応は実務品質。重みを一切更新せずにリアルタイムでタスク切り替えが可能",
+          "cannot": "計算コストが文脈長に比例して増大し、大量の例を与えても性能向上は頭打ちになりやすい（限定的な性能向上）",
+          "why": "ICLはモデル内部で暗黙的に勾配降下に類する計算を行っていると理論づけられているが、明示的なファインチューニングほどの適応力はない",
+          "autonomy": "agent",
+          "tools": ["Claude", "GPT-5.x", "Context Tuning研究"],
+          "evidence": [
+            {"title": "Fine-Tuning Without Forgetting In-Context Learning: A Theoretical Analysis of Linear Attention Models", "url": "https://arxiv.org/html/2602.23197v2", "date": "2026-02", "note": "ファインチューニングとICLの関係を理論的に分析"}
+          ],
+          "forecast_basis": "Context Tuning等、重み更新なしでICLを強化する手法の実用化により2028年にファインチューニングとの差がさらに縮まる見込み"
+        },
+        {
+          "id": "foundation.learning_adaptation.continuous_learning_weight_update_limits",
+          "name": "継続学習・重み更新なしの限界",
+          "name_en": "Continuous learning and the no-weight-update ceiling",
+          "levels": {"2022":0,"2023":0,"2024":0,"2025":1,"2026":1,"2027e":1,"2028e":2,"2030e":2},
+          "vs_expert": "人間の専門家は日々の経験から継続的にスキルを更新するが、現在のLLMはデプロイ後に重みが凍結され、新しい経験から自動的に学習することはない",
+          "can": "定期的な再学習（ファインチューニング/継続事前学習）によるバッチ的な知識更新は可能",
+          "cannot": "本番運用中にリアルタイムで経験から重みを更新し続ける『継続学習』は、破滅的忘却（catastrophic forgetting）が未解決のため実用化されていない。9Bパラメータ規模のtransformerでも、リプレイなし・タスク非依存という実運用条件下では未解決と報告されている",
+          "why": "勾配ベースの学習が新タスクの改善のために既存の重みを上書きしてしまう構造的な干渉問題があり、メカニズム自体が十分解明されていない",
+          "autonomy": "copilot",
+          "tools": ["継続事前学習パイプライン", "Elastic Weight Consolidation等の緩和策"],
+          "evidence": [
+            {"title": "Mechanistic Analysis of Catastrophic Forgetting in Large Language Models During Continual Fine-tuning", "url": "https://arxiv.org/html/2601.18699v1", "date": "2026-01", "note": "9B規模transformerでリプレイフリー継続学習が未解決と報告"},
+            {"title": "TFGN: Task-Free, Replay-Free Continual Pre-Training Without Catastrophic Forgetting at LLM Scale", "url": "https://arxiv.org/pdf/2605.15053", "date": "2026-05", "note": "実運用条件（タスクフリー・リプレイフリー）での継続学習手法を提案するも根本解決には至らず"}
+          ],
+          "forecast_basis": "リプレイフリー・タスクフリーの継続学習は研究レベルでも未解決であり、2028年時点でも本番運用可能な解決策が出る保証はない（停滞領域として明記）"
+        },
+        {
+          "id": "foundation.learning_adaptation.test_time_adaptation_online_learning",
+          "name": "テスト時適応・セッション内オンライン学習",
+          "name_en": "Test-time adaptation and in-session online learning",
+          "levels": {"2022":0,"2023":1,"2024":1,"2025":2,"2026":2,"2027e":3,"2028e":3,"2030e":4},
+          "vs_expert": "人間は失敗した直後にやり方を変えるが、AIエージェントのテスト時適応は同一セッション内のフィードバック取り込みに限られ、セッションを超えた学習は別の記憶機構に依存する",
+          "can": "同一タスク実行中にツール実行結果やエラーメッセージを見て次の行動を調整する狭い意味でのオンライン適応は機能する",
+          "cannot": "セッションをまたいだ真のオンライン学習（モデル重みの更新）は行われず、『学習したこと』は次回セッションでは失われる（記憶機能で部分的に代替するのみ）",
+          "why": "重み更新を伴わない適応はコンテキスト長にスケーラビリティの限界があり、モデル自体の学習ではなく外部記憶への依存になる",
+          "autonomy": "agent",
+          "tools": ["Claude memory", "Agentic Uncertainty Quantification"],
+          "evidence": [
+            {"title": "Agentic Uncertainty Quantification", "url": "https://arxiv.org/abs/2601.15703", "date": "2026-01", "note": "セッション内でのフィードバック取り込みによる適応制御の枠組み"},
+            {"title": "Mechanistic Analysis of Catastrophic Forgetting in Large Language Models During Continual Fine-tuning", "url": "https://arxiv.org/html/2601.18699v1", "date": "2026-01", "note": "重み更新を伴う真のオンライン学習が未解決であることの背景"}
+          ],
+          "forecast_basis": "外部記憶とICLの組み合わせでの疑似オンライン学習は2028年に成熟するが、真の重み更新型オンライン学習は継続学習問題の解決待ち"
+        }
+      ]
+    }
+  ]
+}
