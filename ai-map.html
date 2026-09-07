@@ -131,6 +131,27 @@ section.view.on{display:block}
 h3.ovh{font-family:var(--serif);font-size:21px;margin:38px 0 3px;font-weight:700;scroll-margin-top:64px}
 h3.ovh span{font-family:var(--mono);font-size:11px;color:var(--ink3);letter-spacing:.1em;margin-left:10px;font-weight:400}
 p.ovs{font-size:13.5px;color:var(--ink3);margin:0 0 16px}
+.domcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:14px}
+.domcard{background:#fff;border:1px solid rgba(26,24,18,.22);border-radius:10px;padding:16px 17px 14px;cursor:pointer;display:flex;flex-direction:column;gap:10px;transition:transform .18s ease,box-shadow .18s ease,border-color .18s}
+.domcard:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(40,20,10,.13)}
+.domcard .hd{display:flex;align-items:flex-start;gap:12px}
+.domcard .ic{width:52px;height:52px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none}
+.domcard .ttl{min-width:0;flex:1}
+.domcard .ttl b{display:block;font-family:var(--serif);font-size:17px;line-height:1.3}
+.domcard .ttl .meta{font-family:var(--mono);font-size:11px;color:var(--ink3);margin-top:3px}
+.domcard .sum{font-size:12.5px;color:var(--ink2);line-height:1.65;min-height:2.6em}
+.domcard .exs{display:flex;flex-direction:column;gap:4px;font-size:12px;border-top:1px dashed rgba(26,24,18,.2);padding-top:9px}
+.domcard .exs div{display:flex;gap:7px;align-items:baseline}
+.domcard .exs em{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.06em;flex:none;padding:1px 5px;border-radius:3px;color:#fff}
+.domcard .exs span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)}
+.domcard .valrow{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px;color:var(--ink3);margin-top:-4px}
+.domcard .valrow b{color:var(--ink);font-size:13px}
+.scalekey{margin:0 0 16px;border:1px solid rgba(26,24,18,.2);border-radius:8px;background:#fff;padding:9px 12px 7px}
+.scalekey .bar{display:flex;height:12px;border-radius:3px;overflow:hidden}
+.scalekey .bar i{flex:1}
+.scalekey .lb{display:flex;margin-top:5px;font-family:var(--mono);font-size:10.5px;color:var(--ink3)}
+.scalekey .lb span{flex:1;text-align:center}
+@media(max-width:640px){.scalekey .lb span{font-size:9px}}
 .dombars{display:flex;flex-direction:column;gap:7px}
 .dombar{display:grid;grid-template-columns:minmax(120px,172px) 1fr auto;gap:14px;align-items:center;cursor:pointer;padding:7px 8px;border-radius:7px;border:1px solid transparent}
 .dombar:hover{background:#fff;border-color:rgba(26,24,18,.2)}
@@ -325,9 +346,13 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center}
   </div>
 
   <h3 class="ovh" id="ov-dom">02 — 8つの領域は、いまどこにいるか<span>クリックでその領域の地図へ</span></h3>
-  <p class="ovs">棒＝その領域のタスクの平均レベル（0〜5）。濃い部分が2026年の現在地、斜線が2030年予測までの伸びしろ。</p>
+  <p class="ovs">棒＝その領域のタスクの平均レベル（0〜5）。濃い部分が2026年の現在地、斜線が2030年予測までの伸びしろ。下段は、その領域でいちばん進んでいる仕事と、いちばん手前で止まっている仕事です。</p>
+  <div class="scalekey">
+    <div class="bar"><i style="background:#d9e2e7"></i><i style="background:#f5e5d0"></i><i style="background:#e9c397"></i><i style="background:#d8955c"></i><i style="background:#bf5a2d"></i><i style="background:#6b2412"></i></div>
+    <div class="lb"><span>0 できない</span><span>1 デモ止まり</span><span>2 補助</span><span>3 実務品質</span><span>4 専門家並み</span><span>5 専門家超え</span></div>
+  </div>
   <div class="dombars" id="ovdomains"></div>
-  <div class="axis5"><span></span><span class="lbls"><span>0 できない</span><span>1 デモ</span><span>2 補助</span><span>3 実務品質</span><span>4 専門家並み</span><span>5 超え</span></span><span></span></div>
+
 
   <h3 class="ovh" id="ov-area">03 — 71の中分類でみる<span>同じ領域の中でも、得意と不得意は分かれる</span></h3>
   <p class="ovs">2026年の平均レベル順。上位と下位を並べると、領域よりも「仕事の性質」で差がついているのが見えます。クリックでその領域の地図へ。</p>
@@ -666,6 +691,20 @@ function buildEvolution(){if(evoBuilt)return;evoBuilt=true;const M=DATA.models||
   $("#fclist").innerHTML=(M.forecasts||[]).length?`<li style="background:none;border:0;padding:0;font-family:var(--mono);font-size:11px;color:var(--ink3)">主な予測（発言者の表現のまま）</li>`+M.forecasts.map(f=>`<li><span class="w">${esc(f.who)}</span><span class="by">${esc(f.by||"")}</span><div>${esc(f.claim)}</div><div class="c">${esc(f.confidence||"")}${f.url?` · <a href="${esc(f.url)}" target="_blank" rel="noopener">出典</a>`:""}</div></li>`).join(""):"";
 }
 
+/* 8領域の線画アイコン */
+const ICON={
+ content:["M12 3 L16 10 v9 H8 v-9 Z","M12 10 v6","M9.5 21 h5"],
+ dev:["M9 8 L5 12 L9 16","M15 8 L19 12 L15 16","M13.4 5.5 L10.6 18.5"],
+ research:["M10 3 v6.2 L4.6 19.2 a1.2 1.2 0 0 0 1 1.8 h12.8 a1.2 1.2 0 0 0 1-1.8 L14 9.2 V3","M9 3 h6","M7.4 15 h9.2"],
+ business:["M6.5 3 h7.5 L18 7 v14 H6.5 Z","M13.6 3 v4 H18","M9.6 17.5 v-3","M12 17.5 v-6","M14.4 17.5 v-4"],
+ professional:["M12 4.5 v15","M7 20.5 h10","M4.5 8 h15","M12 8 V5.6","M2 12.5 a2.6 2.6 0 0 0 5.2 0 L4.6 8 Z","M16.8 12.5 a2.6 2.6 0 0 0 5.2 0 L19.4 8 Z"],
+ physical:["M7.5 8.5 h9 v8 h-9 Z","M12 8.5 V5.6","M12 4.6 m-1.1 0 a1.1 1.1 0 1 0 2.2 0 a1.1 1.1 0 1 0 -2.2 0","M7.5 11 H4.6 v4.4","M16.5 11 h2.9 v4.4","M10.2 12.2 v1.4","M13.8 12.2 v1.4","M9.6 19.6 v1.6","M14.4 19.6 v1.6"],
+ personal:["M3.6 11.4 L12 4.2 l8.4 7.2","M6.2 11.6 v8.6 h11.6 v-8.6","M12 17.4 m-1.7 0 a1.7 1.7 0 1 0 3.4 0 a1.7 1.7 0 1 0 -3.4 0"],
+ foundation:["M12 3.2 L20.6 7.6 L12 12 L3.4 7.6 Z","M3.4 11.6 L12 16 l8.6-4.4","M3.4 15.6 L12 20 l8.6-4.4"],
+};
+function iconSvg(id,size){const ps=ICON[id]||ICON.foundation;
+ return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ps.map(d=>`<path d="${d}"/>`).join("")}</svg>`;}
+
 /* overview: 抽象から具体への梯子 */
 function buildOverview(){
   if(buildOverview._done)return; buildOverview._done=true;
@@ -689,6 +728,28 @@ function buildOverview(){
   ].map(([t,b])=>`<div class="p"><b>${t}</b><span>${b}</span></div>`).join("");
 
   $("#ovdomains").innerHTML=domAgg.slice().sort((a,b)=>b.now-a.now).map(x=>{
+    const ts2=x.ts.slice().sort((a,b)=>lvAt(b,NOW)-lvAt(a,NOW)||a.id.localeCompare(b.id));
+    const best=ts2[0],worst=ts2[ts2.length-1];
+    const np=x.now/5*100,fp=x.fut/5*100,inside=np>72;
+    return `<div class="domcard" data-d="${x.d.id}">
+      <div class="hd">
+        <div class="ic" style="background:${x.d.color}14;color:${x.d.color}">${iconSvg(x.d.id,30)}</div>
+        <div class="ttl"><b>${esc(x.d.name)}</b><div class="meta">${x.n} タスク ／ 専門家並み以上 ${x.hi}件</div></div>
+      </div>
+      <div class="sum">${esc(x.d.summary||"")}</div>
+      <div class="track">
+        <div class="fut" style="width:${fp}%"></div>
+        <div class="now" style="width:${np}%;background:${lvColor(x.now)}"></div>
+        ${[1,2,3,4].map(g=>`<div class="gd" style="left:${g*20}%"></div>`).join("")}
+      </div>
+      <div class="valrow"><span>いま <b>${x.now.toFixed(1)}</b></span><span>2030予測 ${x.fut.toFixed(1)}</span></div>
+      <div class="exs">
+        <div><em style="background:${LVHEX[lvAt(best,NOW)]};color:${LIGHT[lvAt(best,NOW)]?"#fff":"#161510"}">${lvAt(best,NOW)}</em><span title="${esc(best.name)}">${esc(short(best.name))}</span></div>
+        <div><em style="background:${LVHEX[lvAt(worst,NOW)]};color:${LIGHT[lvAt(worst,NOW)]?"#fff":"#161510"}">${lvAt(worst,NOW)}</em><span title="${esc(worst.name)}">${esc(short(worst.name))}</span></div>
+      </div>
+    </div>`;}).join("");
+  $("#ovdomains").className="domcards";
+  if(0)domAgg.map(x=>{
     const np=x.now/5*100,fp=x.fut/5*100,inside=np>72;
     return `<div class="dombar" data-d="${x.d.id}" title="${esc(x.d.summary||"")}">
       <div class="nm"><i style="background:${x.d.color}"></i><span>${esc(x.d.name)}</span></div>
@@ -706,7 +767,7 @@ function buildOverview(){
     `<div><h4>もっとも進んでいる 8</h4>${areaAgg.slice(0,8).map(row).join("")}</div>`+
     `<div><h4>もっとも手前で止まっている 8</h4>${areaAgg.slice(-8).reverse().map(row).join("")}</div>`;
 
-  document.querySelectorAll("#ovdomains .dombar,#ovareas .arearow").forEach(el=>el.onclick=()=>{
+  document.querySelectorAll("#ovdomains .domcard,#ovareas .arearow").forEach(el=>el.onclick=()=>{
     zoomDom=el.dataset.d;res=2;syncRes();setView("atlas");gc("aimap.overview.domain."+el.dataset.d);});
   $("#ovnext").onclick=()=>{zoomDom=null;res=2;syncRes();setView("atlas");};
   document.querySelectorAll("#ladder .st").forEach(b=>b.onclick=()=>{
