@@ -145,10 +145,20 @@ def main():
     ap.add_argument("--checked", default=date.today().isoformat())
     args = ap.parse_args()
 
-    results = []
+    results, broken = [], []
     for p in args.inputs:
-        doc = json.loads(Path(p).read_text(encoding="utf-8"))
+        # 抽出係が書くファイルは BOM 付きのことがある（Windows の PowerShell 経由）。
+        # utf-8-sig で読めば BOM の有無どちらでも通る。
+        try:
+            doc = json.loads(Path(p).read_text(encoding="utf-8-sig"))
+        except (ValueError, OSError) as e:
+            broken.append((p, str(e)[:60]))
+            continue
         results += doc["results"] if isinstance(doc, dict) else doc
+    if broken:
+        print(f"読めなかった結果ファイル {len(broken)} 本（取り込みから外す）:")
+        for p, why in broken[:8]:
+            print(f"    {Path(p).name}: {why}")
     pages = json.loads(Path(args.pages).read_text(encoding="utf-8")) if args.pages else {}
 
     curated = json.loads(CURATED.read_text(encoding="utf-8"))

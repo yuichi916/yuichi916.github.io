@@ -41,14 +41,17 @@ def _reveal_unverified(page):
     確認済みは常に先頭に固まるので、拡充が進むと1頁目が確認済みで埋まる。
     「1頁目に未確認がある」ことを前提にしたテストは、データが良くなるほど落ちる。
     """
-    for _ in range(6):
+    for _ in range(8):
         if page.locator("#list .card.unverified").count():
             return True
         more = page.locator("#btn-more")
         if not more.count():
             return False
+        before = page.locator("#list .card").count()
         more.click()
-        page.wait_for_timeout(400)
+        # 固定待ちだと 2,700 件の描き直しに間に合わないことがある。件数が増えるまで待つ
+        page.wait_for_function(
+            "n => document.querySelectorAll('#list .card').length > n", arg=before, timeout=15000)
     return page.locator("#list .card.unverified").count() > 0
 
 
@@ -188,6 +191,8 @@ def test_save_want_then_share_and_restore_on_fresh_context(browser):
     page.goto(BASE + "#pref=14")
     _ready(page)
     page.wait_for_selector("#list .card", timeout=30000)
+    # 施設名は実行時に捕まえる。名前を直書きすると、拡充で並び順が変わった日に落ちる
+    saved_name = page.locator("#list .card h3").first.inner_text().splitlines()[-1].strip()
     page.locator("#list .card [data-want]").first.click()
     assert page.inner_text("#saved-count") == "1"
     page.click("#btn-saved")
@@ -206,7 +211,7 @@ def test_save_want_then_share_and_restore_on_fresh_context(browser):
     page.wait_for_selector("#saved .card", timeout=10000)
     page.locator("#saved .card h3").first.click()
     page.wait_for_selector("#detail", timeout=30000)
-    assert "8HOTEL" in page.inner_text("#detail"), page.inner_text("#detail")[:80]
+    assert saved_name in page.inner_text("#detail"),         f"保存した「{saved_name}」の詳細が開かない: {page.inner_text('#detail')[:80]}"
     ctx.close()
     # 別端末を模す: 新しいコンテキスト（localStorage 空）で共有URLを開く
     ctx2 = browser.new_context(viewport=MOBILE)
