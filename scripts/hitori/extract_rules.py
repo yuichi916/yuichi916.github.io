@@ -44,14 +44,22 @@ RULES = {
         ("members_only", r"(会員制|会員のみ|会員限定|ご入会が必要)", ("会員でなくても", "非会員")),
         ("residents_only", r"(市民[のみ限定]|町民[のみ限定]|住民[のみ限定]|在住(の方|者)のみ)", ()),
     ],
+    # 休業・閉業は「いまの状態」でなければ意味が無い。ところがお知らせ欄には
+    # 過去の告知が何年も残る（「8月12日(水)臨時休業」「COVID-19に伴う臨時休業」）。
+    # 日付や曜日が添えられた告知はその日限りの話なので採らない（DATED で行ごと外す）。
+    # 期間の決まっていない休業と、閉業だけを現在の状態として扱う。
     "status": [
-        ("closed_permanently", r"(閉[店館業]いたしました|閉[店館業]しました|営業を終了(いたし|し)ました|閉[店館]のお知らせ)", ("一時", "リニューアル")),
-        ("closed_temporarily", r"(一時休[業館]|当面の間[^。\n]{0,10}休|休[業館]中|臨時休[業館]|改修工事のため休)", ()),
+        ("closed_permanently", r"(閉[店館業]いたしました|閉[店館業]しました|営業を終了(いたし|し)ました)",
+         ("一時", "リニューアル", "予定")),
+        ("closed_temporarily", r"(当面の間[^。\n]{0,10}休|休[業館]中(です|となって|とさせて)|現在[^。\n]{0,6}休[業館]中|改修工事のため休[業館]中)",
+         ()),
     ],
 }
 # カウンター席は数が書いてあれば数、無ければ有無を文で残す
 COUNTER_N = re.compile(r"カウンター(?:席)?\s*[:：]?\s*(\d{1,3})\s*席")
 COUNTER_Y = re.compile(r"カウンター席")
+# 「8月12日(水)臨時休業」のように日付・曜日が添えられた告知は、その日限りの話。
+DATED = re.compile(r"(\d{1,2}\s*[月/]\s*\d{1,2}\s*[日）)]?|[（(][月火水木金土日][）)]|\d{4}\s*年|令和\d)")
 SEATS_N = re.compile(r"(?:総?席数|全席|座席数)\s*[:：]?\s*(\d{1,3})\s*席")
 # 一人利用は言い回しが広い。規則では「その語がある行」を証拠として拾うだけにする。
 # 「お一人様あたり3,000円」は料金の単位であって、一人歓迎の話ではない。
@@ -87,8 +95,12 @@ def extract(text, url):
     for line in _lines(text):
         if any(w in line for w in NG_VARY):
             continue
+        dated = DATED.search(line)
         for k, rules in RULES.items():
             if k in found:
+                continue
+            # 日付つきの休業告知は「その日の話」。いまの状態として採らない
+            if k == "status" and dated:
                 continue
             for value, pat, ng in rules:
                 if any(w in line for w in ng):
@@ -124,7 +136,7 @@ def main():
     for rec in fetched:
         if rec.get("status") != "ok":
             continue
-        p = base / "pages" / f"{rec['id']}.txt"
+        p = base / "pages" / (rec.get("file") or f"{rec['id']}.txt")
         if not p.exists():
             continue
         text = p.read_text(encoding="utf-8")

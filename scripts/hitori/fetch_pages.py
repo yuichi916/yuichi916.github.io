@@ -15,7 +15,7 @@ LLM に取得までやらせると、取得できたかどうかが LLM の道�
 import argparse, gzip, io, json, re, socket, ssl, sys, threading, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 UA = "Mozilla/5.0 (compatible; hitori-map/1.0; +https://yuichi916.github.io/hitori.html)"
@@ -59,6 +59,36 @@ def _mojibake(text):
     if ja < 20:
         return False
     return len(_MOJI_MARK.findall(head)) / ja > 0.35
+
+
+# 下層ページの当たり所。トップに書いていない運用は、この手のページに書いてある。
+FOLLOW_WORDS = ("ご利用案内", "利用案内", "ご利用方法", "利用方法", "はじめての", "初めての",
+                "よくある質問", "FAQ", "Q&A", "料金", "価格", "メニュー", "店舗情報", "施設案内",
+                "館内", "ご案内", "アクセス", "設備", "サービス", "お知らせ")
+A_TAG = re.compile(r"""(?is)<a\s[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>(.{0,60}?)</a>""")
+SKIP_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".zip", ".mp4", ".doc", ".xls")
+
+
+def follow_links(html, base_url, limit=3):
+    """本文に無い運用が書かれていそうな下層ページの URL を選ぶ。同じホストだけ。"""
+    host = urlparse(base_url).netloc
+    seen, out = set(), []
+    for href, label in A_TAG.findall(html):
+        text = ANY.sub("", label).strip()
+        if not any(w in text for w in FOLLOW_WORDS):
+            continue
+        u = urljoin(base_url, href)
+        pu = urlparse(u)
+        if pu.netloc != host or pu.path.lower().endswith(SKIP_EXT):
+            continue
+        u = urlunparse((pu.scheme, pu.netloc, pu.path, "", pu.query, ""))
+        if u == base_url or u in seen:
+            continue
+        seen.add(u)
+        out.append((u, text))
+        if len(out) >= limit:
+            break
+    return out
 
 
 def _decode(raw, headers):
@@ -110,10 +140,20 @@ def fetch(url, ctx):
                         raw = gzip.decompress(raw)
                     except OSError:
                         pass
-                return to_text(_decode(raw, r.headers)), r.geturl(), ""
+                html = _decode(raw, r.headers)
+                return to_text(html), r.geturl(), "", html
         except Exception as e:                      # noqa: BLE001 - 種類ごとに分けても打つ手は同じ
             last = f"{type(e).__name__}: {str(e)[:60]}"
-    return "", "", last
+    return "", "", last, ""
+
+
+def _save(out, fid, suffix, url, final, text):
+    """1ページ = 1ファイル。引用の出どころを URL 単位で保てるようにする
+    （下層ページの文をトップの本文に混ぜると、引用の出典が嘘になる）。"""
+    name = f"{fid}{suffix}.txt"
+    (out / "pages" / name).write_text(text[:40_000], encoding="utf-8")
+    return {"id": fid, "file": name, "web": url, "final_url": final or url,
+            "status": "ok", "chars": len(text), "hints": sum(1 for h in HINTS if h in text)}
 
 
 def main():
@@ -122,6 +162,8 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--jobs", type=int, default=12)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--follow", type=int, default=0,
+                    help="下層ページを何枚まで追うか（ご利用案内・料金・FAQ など）")
     args = ap.parse_args()
 
     out = Path(args.out)
@@ -150,26 +192,34 @@ def main():
             last_hit[host] = time.time() + max(wait, 0)
         if wait > 0:
             time.sleep(min(wait, 5))
-        text, final, err = fetch(url, ctx)
-        rec = {"id": r.get("id"), "name": r.get("name"), "web": url}
+        text, final, err, html = fetch(url, ctx)
+        base = {"id": r.get("id"), "name": r.get("name")}
         if not text:
-            return rec | {"status": "fetch_failed", "note": err}
-        (out / "pages" / f"{r['id']}.txt").write_text(text[:40_000], encoding="utf-8")
-        hits = [h for h in HINTS if h in text]
-        return rec | {"status": "ok", "final_url": final, "chars": len(text), "hints": len(hits)}
+            return [base | {"web": url, "status": "fetch_failed", "note": err}]
+        recs = [_save(out, r["id"], "", url, final, text)]
+        for n, (sub_url, label) in enumerate(follow_links(html, final or url, args.follow), 1):
+            if n > args.follow:
+                break
+            time.sleep(0.6)                      # 同じホストに続けて当てない
+            stext, sfinal, _serr, _shtml = fetch(sub_url, ctx)
+            if stext:
+                recs.append(_save(out, r["id"], f"__{n}", sub_url, sfinal, stext) | {"sub": label})
+        return recs
 
     done = []
     with ThreadPoolExecutor(max_workers=args.jobs) as ex:
-        for i, rec in enumerate(ex.map(one, items), 1):
-            done.append(rec)
+        for i, recs in enumerate(ex.map(one, items), 1):
+            done += recs
             if i % 100 == 0:
-                ok = sum(1 for d in done if d["status"] == "ok")
-                print(f"[{i}/{len(items)}] 取得成功 {ok}", flush=True)
+                ok = len({d["id"] for d in done if d["status"] == "ok"})
+                print(f"[{i}/{len(items)}] 取得成功 {ok} / ページ {len(done)}", flush=True)
 
     (out / "fetch.json").write_text(json.dumps(done, ensure_ascii=False), encoding="utf-8")
     ok = [d for d in done if d["status"] == "ok"]
     worth = [d for d in ok if d.get("hints", 0) >= 2]
-    print(f"取得 {len(ok):,}/{len(items):,} 成功 / 手がかりが2つ以上あるページ {len(worth):,}")
+    print(f"施設 {len({d['id'] for d in ok}):,}/{len(items):,} 取得成功 / "
+          f"ページ {len(ok):,}（うち下層 {sum(1 for d in ok if d.get('sub')):,}）/ "
+          f"手がかりが2つ以上 {len(worth):,}")
     print(f"{out / 'fetch.json'} と {out / 'pages'} に保存した。")
 
 

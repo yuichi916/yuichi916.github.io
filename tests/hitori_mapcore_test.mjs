@@ -428,5 +428,22 @@ check('recommend: 同じ名前の店を並べない', () => {
   deq(mc.recommend([a, b, c], ctx).map(r => r.item.id), ['a1', 'b1']);
 });
 
+check('applyFilters: 閉業は既定で出さず、一時休業は残す', () => {
+  const items = [
+    { id: 'shut', name: 'S', kind: 'ramen', cat: 'eat', chain: 0, hidden: 0, hidden_n: 0, solo: 5 },
+    { id: 'rest', name: 'R', kind: 'ramen', cat: 'eat', chain: 0, hidden: 0, hidden_n: 0, solo: 5 },
+    { id: 'open', name: 'O', kind: 'ramen', cat: 'eat', chain: 0, hidden: 0, hidden_n: 0, solo: 5 },
+  ];
+  const ctx = { checked: () => true, now: RC_NOW,
+                closedState: id => (id === 'shut' ? 'closed' : id === 'rest' ? 'temporarily' : '') };
+  deq(mc.applyFilters(items, {}, ctx).map(i => i.id), ['rest', 'open'],
+      '閉業は隠す。一時休業は明けるので残す');
+  deq(mc.applyFilters(items, { showClosed: true }, ctx).map(i => i.id), ['shut', 'rest', 'open'],
+      '閉業も表示に切り替えれば出る');
+  // closedState を渡さない呼び出し側の挙動は変えない
+  deq(mc.applyFilters(items, {}, { checked: () => true, now: RC_NOW }).map(i => i.id),
+      ['shut', 'rest', 'open']);
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
 console.log('OK: map-core');

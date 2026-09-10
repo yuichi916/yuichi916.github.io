@@ -197,6 +197,9 @@ export function applyFilters(items, f, ctx) {
     if (o.gemOnly && !isGem(it)) return false;
     // 確認済みの営業時間があれば、カードの表示と同じ判断材料で絞り込む（ctx.hoursOf は id→hours の事実）。
     if (o.openNow && openLabel(it, c.hoursOf ? c.hoursOf(it.id) : null, c.now || new Date()).state !== 'open') return false;
+    // 閉業した施設は既定で出さない。行っても入れないので「ひとりで行ける場所」ではない。
+    // 一時休業は明けるので、印を付けたまま残す。
+    if (!o.showClosed && c.closedState && c.closedState(it.id) === 'closed') return false;
     if (o.radiusKm && c.origin && Number.isFinite(o.radiusKm) && it.distM > o.radiusKm * 1000) return false;
     return true;
   });

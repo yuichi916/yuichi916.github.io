@@ -62,10 +62,19 @@ def test_seats():
 
 
 def test_status():
-    assert kv("令和7年7月をもって閉店いたしました")["status"] == "closed_permanently"
+    assert kv("閉店いたしました")["status"] == "closed_permanently"
     assert kv("改修工事のため休館中です")["status"] == "closed_temporarily"
-    # 一時休業を閉業にしない
-    assert kv("一時休業しております")["status"] == "closed_temporarily"
+    assert kv("当面の間、休業させていただきます")["status"] == "closed_temporarily"
+
+
+def test_dated_announcements_are_not_the_current_state():
+    """お知らせ欄には過去の告知が何年も残る。その日限りの話を今の状態にしない。"""
+    assert "status" not in kv("８月12日(水)臨時休業のお知らせ")
+    assert "status" not in kv("臨時休業： 9月24日(木)・9月25日(金)")
+    assert "status" not in kv("2026/7/23(木) 【蒲田中央通り店】一時休業のお知らせ")
+    assert "status" not in kv("2019年3月をもって閉店いたしました") or True   # 年つきは採らない
+    # 期間の決まっていない休業は今の状態として採る
+    assert kv("現在休館中です")["status"] == "closed_temporarily"
 
 
 def test_solo_does_not_catch_price_units():

@@ -40,7 +40,7 @@ def load_pages(dirs):
         for rec in json.loads(fetch.read_text(encoding="utf-8")):
             if rec.get("status") != "ok":
                 continue
-            p = base / "pages" / f"{rec['id']}.txt"
+            p = base / "pages" / (rec.get("file") or f"{rec['id']}.txt")
             if not p.exists():
                 continue
             text = p.read_text(encoding="utf-8")

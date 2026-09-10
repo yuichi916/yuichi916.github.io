@@ -375,6 +375,18 @@ def test_closed_facilities_are_marked_and_pushed_down(page):
         "#list .card", "els => els.map(e => e.classList.contains('shut'))")
     assert order and not order[0], "閉業の施設が一覧の先頭に来ている"
 
+    # 閉業は既定で一覧に出さない（行っても入れないので「ひとりで行ける場所」ではない）
+    shut_default = page.locator("#list .card.shut").count()
+    # 絞り込みはデスクトップでは常時開いている。狭い画面のときだけ開く操作が要る
+    if page.locator("#btn-filters").is_visible():
+        page.click("#btn-filters")
+        page.wait_for_timeout(250)
+    page.click("#tog-closed")
+    page.wait_for_timeout(500)
+    assert page.get_attribute("#tog-closed", "aria-pressed") == "true"
+    shut_shown = page.locator("#list .card.shut").count()
+    assert shut_shown >= shut_default, "「閉業も表示」にしても増えない"
+
     # 閉業が分かっている施設を直接開くと、詳細で警告が出る
     page.goto(BASE + "?pref=22&facility=n1804881158")
     _ready(page)
@@ -397,6 +409,9 @@ def test_scene_button_recommends_within_that_scene(context, page):
     context.grant_permissions(["geolocation"])
     context.set_geolocation({"latitude": 35.6812, "longitude": 139.7671})
     page.set_viewport_size(MOBILE)
+    # 時刻を固定する。「今夜、ひとりで銭湯」は営業中で絞るので、朝に走らせると
+    # 正しく1件も残らず、テストが時計次第で落ちる
+    page.clock.set_fixed_time("2026-09-11T11:00:00Z")     # JST 20:00
     page.goto(BASE)
     _ready(page)
     page.click("[data-scene='bath_tonight']")

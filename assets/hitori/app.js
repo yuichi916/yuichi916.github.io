@@ -11,7 +11,7 @@ const PAGE = 100;
 
 export const state = {
   index: null, rows: [], prefLoaded: new Set(), curatedByPref: new Map(), byId: new Map(),
-  origin: null, filters: { q: '', cat: '', kinds: null, verifiedOnly: false, openNow: false, hideChain: false, gemOnly: false, radiusKm: 3 },
+  origin: null, filters: { q: '', cat: '', kinds: null, verifiedOnly: false, openNow: false, hideChain: false, gemOnly: false, radiusKm: 3, showClosed: false },
   current: null, saved: null, sheet: 'home', snap: 'half', shown: PAGE, pref: 14, notice: '', noticeLevel: '', loading: false,
   // 絞り込みの中身は狭い画面では畳んでおく（開いたままだと 390px でカードが1枚しか見えない）
   filtersOpen: typeof window !== 'undefined' && window.innerWidth >= 900,
@@ -156,6 +156,8 @@ export function curatedOf(id) {
 }
 // 閉業・休業。カードの印と並びの両方で使う
 export function isClosed(id) { return !!mc.closureOf(curatedOf(id)); }
+// 閉業('closed') と一時休業('temporarily') を分ける。扱いが違う
+export function closedState(id) { const s = mc.closureOf(curatedOf(id)); return s ? s.state : ''; }
 export function hoursFactOf(id) {
   const cur = curatedOf(id);
   return cur ? (cur.facts || []).find(f => (f.k === 'hours' || f.k === 'opening_hours') && !f.conflict) || null : null;
@@ -219,7 +221,7 @@ function bindSheetDrag() {
 // --- 描画 ---
 let lastView = [];   // 最後に描いた一覧（距離つき）。詳細のピンとカードのクリックが使う。
 function viewRows() {
-  const ctx = { checked: isChecked, now: new Date(), origin: state.origin, hoursOf: hoursFactOf , closed: isClosed};
+  const ctx = { checked: isChecked, now: new Date(), origin: state.origin, hoursOf: hoursFactOf, closed: isClosed, closedState };
   let rows = state.rows;
   if (state.origin) rows = core.withDistance(rows, state.origin.lat, state.origin.lon);
   let list = mc.applyFilters(rows, { ...state.filters, radiusKm: 0 }, ctx);
@@ -316,7 +318,7 @@ function listHtml(vr) {
   const nVerified = list.filter(r => isChecked(r.id)).length;
   const view = list.slice(0, state.shown);
   // 絞り込みの中身は既定で畳む。開いたままだと 390px 幅ではカードが1枚しか見えない。
-  const nActive = [f.openNow, f.verifiedOnly, f.hideChain, f.gemOnly, state.origin && f.radiusKm !== 3].filter(Boolean).length;
+  const nActive = [f.openNow, f.verifiedOnly, f.hideChain, f.gemOnly, f.showClosed, state.origin && f.radiusKm !== 3].filter(Boolean).length;
   return `<div class="search"><span class="icon">⌕</span><input id="q" type="search" placeholder="施設名・駅名・地名" value="${esc(f.q)}" autocomplete="off"><ul class="suggest" id="suggest"></ul></div>
     <div class="row"><button class="tog" id="btn-locate" type="button" aria-pressed="${state.origin && state.origin.kind === 'geo' ? 'true' : 'false'}">◎ 現在地</button>
       <select class="tog" id="pref" aria-label="都道府県">${prefOpts}</select>
@@ -325,6 +327,7 @@ function listHtml(vr) {
       <button class="tog" id="tog-open" type="button" aria-pressed="${f.openNow}">いま営業中</button>
       <button class="tog" id="tog-verified" type="button" aria-pressed="${f.verifiedOnly}">確認済みのみ</button>
       <button class="tog" id="tog-chain" type="button" aria-pressed="${f.hideChain}">チェーンを隠す</button>
+      <button class="tog" id="tog-closed" type="button" aria-pressed="${f.showClosed}">閉業も表示</button>
       ${state.origin ? `<select class="tog" id="radius" aria-label="半径"><option value="1" ${f.radiusKm === 1 ? 'selected' : ''}>1km</option><option value="3" ${f.radiusKm === 3 ? 'selected' : ''}>3km</option><option value="10" ${f.radiusKm === 10 ? 'selected' : ''}>10km</option><option value="Infinity" ${!Number.isFinite(f.radiusKm) ? 'selected' : ''}>制限なし</option></select>` : ''}
       <button class="tog" id="btn-reset" type="button">リセット</button></div>
     <div class="chips" id="chips"><button class="chip" data-cat="" aria-pressed="${!f.cat && !f.kinds}">すべて</button>${mc.DISPLAY_CATS.map(c => `<button class="chip" data-cat="${c.key}" aria-pressed="${f.cat === c.key}">${c.label}</button>`).join('')}</div>
@@ -446,6 +449,7 @@ function bindBody(root) {
   on('#tog-open', 'click', () => { state.filters.openNow = !state.filters.openNow; render(); });
   on('#tog-verified', 'click', () => { state.filters.verifiedOnly = !state.filters.verifiedOnly; render(); });
   on('#tog-chain', 'click', () => { state.filters.hideChain = !state.filters.hideChain; render(); });
+  on('#tog-closed', 'click', () => { state.filters.showClosed = !state.filters.showClosed; render(); });
   on('#radius', 'change', e => { state.filters.radiusKm = Number(e.target.value); render(); });
   on('#btn-reset', 'click', () => { state.scene = ''; state.filters = { q: '', cat: '', kinds: null, verifiedOnly: false, openNow: false, hideChain: false, gemOnly: false, radiusKm: 3 }; state.current = null; render(); });
   on('#chips [data-cat]', 'click', e => { state.scene = ''; state.filters.cat = e.currentTarget.dataset.cat; state.filters.kinds = null; state.shown = PAGE; render(); });
