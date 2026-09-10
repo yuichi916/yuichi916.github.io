@@ -95,8 +95,12 @@ def to_curated_fact(f, checked):
     「確認済み N件は公式情報で裏を取り」が嘘になる。
     """
     d = _domain(f["url"])
-    return {"k": f["k"], "v": f["v"], "n": 1, "official": bool(f.get("official", True)),
-            "conflict": False, "src": [d], "urls": [f["url"]], "quote": f["quote"], "checked": checked}
+    out = {"k": f["k"], "v": f["v"], "n": 1, "official": bool(f.get("official", True)),
+           "conflict": False, "src": [d], "urls": [f["url"]], "quote": f["quote"], "checked": checked}
+    # チェーン全体の案内は、その店舗を確かめたことにはならない。どこ由来かを残す
+    if f.get("scope"):
+        out["scope"] = f["scope"]
+    return out
 
 
 def merge(results, curated, checked, pages=None):

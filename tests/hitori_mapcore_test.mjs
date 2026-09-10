@@ -384,5 +384,14 @@ check('recommend: 件数を絞れる', () => {
   eq(mc.recommend(many, ctx, 3).length, 3);
 });
 
+check('soloCheck: チェーン全体の案内は ● にしない', () => {
+  const own = { facts: [{ k: 'payment_method', v: 'ticket_machine', official: true, conflict: false }] };
+  eq(mc.soloCheck(own, {}).cells[2].state, 'ok', '店舗の公式ページなら ●');
+  const chain = { facts: [{ k: 'payment_method', v: 'ticket_machine', official: true, conflict: false, scope: 'chain' }] };
+  const c = mc.soloCheck(chain, {}).cells[2];
+  eq(c.state, 'weak', 'チェーン全体の案内は ◐');
+  eq(c.scope, 'chain', 'どこ由来かを残す');
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
 console.log('OK: map-core');

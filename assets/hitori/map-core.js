@@ -337,7 +337,9 @@ function _cell(check, fact, short, state) {
   if (!fact) return { ...check, state: 'unknown', short: '記載なし', quote: '', official: false };
   return {
     ...check,
-    state: state || (fact.official ? 'ok' : 'weak'),
+    // チェーン全体の案内は、その店舗を確かめたわけではないので ● にしない
+    state: state || (fact.official && fact.scope !== 'chain' ? 'ok' : 'weak'),
+    scope: fact.scope || '',
     short: short || _short(fact.v),
     quote: typeof fact.v === 'object' ? JSON.stringify(fact.v) : String(fact.v),
     official: !!fact.official,
