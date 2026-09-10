@@ -394,7 +394,9 @@ export function soloCheck(entry, item) {
 //
 // 理由は文章を作らず、**集めた事実だけを並べる**。
 // 「落ち着いた雰囲気でおすすめ」のような、根拠の無い言葉を足さないため。
-const REASON_ORDER = ['open', 'talk', 'seat', 'quiet', 'solo', 'dist'];
+const REASON_ORDER = ['open', 'talk', 'seat', 'quiet', 'solo', 'prep', 'price', 'dist'];
+// 温浴で一人が気にするのは席ではなく「手ぶらで行けるか」。業態ごとに理由の材料を替える。
+const PREP_KEYS = ['bring_towel', 'towel', 'amenities', 'luggage'];
 // 誰とも話さずに済む、と言い切れる支払い方法
 const NO_TALK_PAY = { ticket_machine: '券売機で注文', cashless_ok: 'キャッシュレス可' };
 
@@ -410,8 +412,18 @@ export function recommendReasons(item, cur, openLabelResult, distM) {
   }
   const pay = pick('payment_method');
   if (pay && NO_TALK_PAY[pay.v]) out.push({ kind: 'talk', text: NO_TALK_PAY[pay.v] });
+  const cat = displayCat(item.kind, item.cat);
+  // 飲食・体験は席が要点。温浴と宿は席の話をしても仕方がない
   const seat = by('seat');
-  if (seat && seat.state !== 'unknown') out.push({ kind: 'seat', text: seat.short });
+  if (seat && seat.state !== 'unknown' && cat !== 'bath' && cat !== 'stay') {
+    out.push({ kind: 'seat', text: seat.short });
+  }
+  if (cat === 'bath') {
+    const prep = facts.find(f => PREP_KEYS.includes(f.k) && !f.conflict);
+    if (prep) out.push({ kind: 'prep', text: _short(formatFactValue(prep.k, prep.v), 14) });
+    const price = facts.find(f => f.k === 'price' && !f.conflict && typeof f.v === 'number');
+    if (price) out.push({ kind: 'price', text: formatFactValue('price', price.v) });
+  }
   const quiet = by('quiet');
   if (quiet && quiet.state === 'ok') out.push({ kind: 'quiet', text: quiet.short });
   const solo = by('solo');
@@ -437,6 +449,9 @@ export function recommend(items, ctx, limit = 5) {
     const chk = cur ? soloCheck(cur, it) : null;
     if (chk && chk.cells.some(x => x.state === 'blocked')) continue;
     const open = openLabel(it, c.hoursOf ? c.hoursOf(it.id) : null, now);
+    // 閉まっていると分かっている施設は名指ししない。
+    // 分からない(unknown)ものは残す（消すと候補が無くなる。カードに「営業時間は要確認」と出る）
+    if (open.state === 'closed') continue;
     const known = chk ? chk.known : 0;
     // 何も分かっていない施設を「おすすめ」として名指ししない
     if (!known && open.state !== 'open') continue;
@@ -451,5 +466,14 @@ export function recommend(items, ctx, limit = 5) {
     || ((b.open.state === 'open') - (a.open.state === 'open'))
     || (b.known - a.known)
     || ((a.item.distM ?? Infinity) - (b.item.distM ?? Infinity)));
-  return scored.slice(0, limit);
+  // 同じ名前の店を並べない。「もうやんカレー」が2軒出ても、選んだことにならない
+  const seen = new Set(), out = [];
+  for (const s of scored) {
+    const key = String(s.item.name || '').trim();
+    if (key && seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+    if (out.length >= limit) break;
+  }
+  return out;
 }

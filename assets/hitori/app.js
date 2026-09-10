@@ -15,6 +15,8 @@ export const state = {
   current: null, saved: null, sheet: 'home', snap: 'half', shown: PAGE, pref: 14, notice: '', noticeLevel: '', loading: false,
   // 絞り込みの中身は狭い画面では畳んでおく（開いたままだと 390px でカードが1枚しか見えない）
   filtersOpen: typeof window !== 'undefined' && window.innerWidth >= 900,
+  // 押した場面ボタン。推薦の見出しに使い、カテゴリを手で選び直したら解除する
+  scene: '',
 };
 // お知らせは2種類ある。失敗（err = 赤）と、途中経過（既定の枠だけ）。
 // 「現在地を取得しています…」を赤で出すと、待たせている間ずっと失敗しているように読める。
@@ -274,16 +276,21 @@ function cardHtml(r, i) {
 // 「いま、ここから」の推薦。一覧は条件で絞った結果であって推薦ではないので、
 // 現在地が分かっているときだけ、名指しで数軒と理由を出す。
 // 理由は事実の連結（mc.recommendReasons）。文章は作らない。
-function recommendHtml() {
-  if (!state.origin || !state.rows.length) return '';
-  const rows = core.withDistance(state.rows, state.origin.lat, state.origin.lon);
-  const near = rows.filter(r => Number.isFinite(r.distM) && r.distM <= 3000);
-  const recs = mc.recommend(near.length ? near : rows, {
+function recommendHtml(vr) {
+  // 推薦は「いま画面に出ている絞り込み」の中から選ぶ。
+  // 場面ボタン（今夜ひとりで銭湯）を押したのに全業態から選んだら、押した意味が無い。
+  const pool = (vr && vr.list) || [];
+  if (!pool.length || (!state.origin && !state.scene)) return '';
+  const recs = mc.recommend(pool, {
     now: new Date(), curatedOf, checked: isChecked, hoursOf: hoursFactOf,
   }, 4);
-  if (!recs.length) return '';
+  if (recs.length < 2) return '';       // 1軒だけ出しても「選んだ」ことにならない
+  const scene = state.scene ? mc.SCENES.find(s => s.key === state.scene) : null;
+  const head = scene ? scene.label : 'いま、ここから';
+  // 「この時間に行ける」は、全軒の営業が確かめられている時だけ言える
+  const allOpen = recs.every(r => r.open.state === 'open');
   return `<section class="recos">
-    <p class="sec-label">いま、ここから <small>この時間に行ける4軒</small></p>
+    <p class="sec-label">${esc(head)} <small>${allOpen ? `この時間に行ける${recs.length}軒` : `${recs.length}軒（営業時間は要確認のものを含みます）`}</small></p>
     ${recs.map(r => `<button class="reco open-detail" type="button" data-id="${esc(r.item.id)}">
       <span class="rname">${esc(r.item.name)}</span>
       <span class="rkind">${esc(mc.kindJa(r.item.kind))}</span>
@@ -322,7 +329,7 @@ function listHtml(vr) {
       <button class="tog" id="btn-reset" type="button">リセット</button></div>
     <div class="chips" id="chips"><button class="chip" data-cat="" aria-pressed="${!f.cat && !f.kinds}">すべて</button>${mc.DISPLAY_CATS.map(c => `<button class="chip" data-cat="${c.key}" aria-pressed="${f.cat === c.key}">${c.label}</button>`).join('')}</div>
     ${state.origin ? `<p class="origin-line"><b>${esc(state.origin.label)}</b> から近い順</p>` : ''}
-    ${recommendHtml()}
+    ${recommendHtml(vr)}
     ${radiusNote ? `<p class="notice" role="status" aria-live="polite">${esc(radiusNote)}</p>` : ''}
     ${state.notice ? `<p class="notice ${state.noticeLevel === 'err' ? 'err' : ''}" role="status" aria-live="polite">${esc(state.notice)}</p>` : ''}
     <p class="count" id="count"><b class="v">確認済み ${nVerified.toLocaleString()}件</b><span>候補 ${(list.length - nVerified).toLocaleString()}件</span></p>
@@ -422,7 +429,12 @@ function bindBody(root) {
   on('#btn-locate', 'click', locate);
   on('#btn-area', 'click', () => useArea(state.pref));
   on('#pref', 'change', e => useArea(e.target.value));
-  on('[data-scene]', 'click', e => { const s = mc.SCENES.find(x => x.key === e.currentTarget.dataset.scene); state.filters.cat = s.cat || ''; state.filters.kinds = s.kinds; state.filters.openNow = s.openNow; if (navigator.geolocation) locate(); else useArea(state.pref); });
+  on('[data-scene]', 'click', e => {
+    const s = mc.SCENES.find(x => x.key === e.currentTarget.dataset.scene);
+    state.scene = s.key;
+    state.filters.cat = s.cat || ''; state.filters.kinds = s.kinds; state.filters.openNow = s.openNow;
+    if (navigator.geolocation) locate(); else useArea(state.pref);
+  });
   // 打鍵のたびに全件を絞り込むと、長い一覧では入力が引っかかる。打ち終わりを 200ms 待つ。
   on('#q', 'input', e => {
     state.filters.q = e.target.value;
@@ -435,8 +447,8 @@ function bindBody(root) {
   on('#tog-verified', 'click', () => { state.filters.verifiedOnly = !state.filters.verifiedOnly; render(); });
   on('#tog-chain', 'click', () => { state.filters.hideChain = !state.filters.hideChain; render(); });
   on('#radius', 'change', e => { state.filters.radiusKm = Number(e.target.value); render(); });
-  on('#btn-reset', 'click', () => { state.filters = { q: '', cat: '', kinds: null, verifiedOnly: false, openNow: false, hideChain: false, gemOnly: false, radiusKm: 3 }; state.current = null; render(); });
-  on('#chips [data-cat]', 'click', e => { state.filters.cat = e.currentTarget.dataset.cat; state.filters.kinds = null; state.shown = PAGE; render(); });
+  on('#btn-reset', 'click', () => { state.scene = ''; state.filters = { q: '', cat: '', kinds: null, verifiedOnly: false, openNow: false, hideChain: false, gemOnly: false, radiusKm: 3 }; state.current = null; render(); });
+  on('#chips [data-cat]', 'click', e => { state.scene = ''; state.filters.cat = e.currentTarget.dataset.cat; state.filters.kinds = null; state.shown = PAGE; render(); });
   on('#btn-more', 'click', () => { state.shown += PAGE; render(); });
   // カード全体を押せる面にする（施設名だけだと当たりが 21px しかなかった）。
   on('.card', 'click', e => { if (e.target.closest('[data-want]')) return; openDetail(e.currentTarget.dataset.id); });

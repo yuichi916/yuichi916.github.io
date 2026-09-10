@@ -388,8 +388,50 @@ def test_closed_facilities_are_marked_and_pushed_down(page):
     assert "blocked" in (cond.get_attribute("class") or ""), "利用条件が ✕ になっていない"
 
 
+def test_scene_button_recommends_within_that_scene(context, page):
+    """場面ボタンを押したら、その場面の中から名指しする。
+
+    「今夜、ひとりで銭湯」を押したのに全業態から選んだら、押した意味が無い。
+    理由は事実の連結だけで、おすすめの言葉を足さない。
+    """
+    context.grant_permissions(["geolocation"])
+    context.set_geolocation({"latitude": 35.6812, "longitude": 139.7671})
+    page.set_viewport_size(MOBILE)
+    page.goto(BASE)
+    _ready(page)
+    page.click("[data-scene='bath_tonight']")
+    page.wait_for_selector("#list .card", timeout=40000)
+    page.wait_for_selector(".reco", timeout=20000)
+
+    head = page.inner_text(".recos .sec-label")
+    assert "今夜、ひとりで銭湯" in head, f"押した場面が見出しに出ていない: {head}"
+    # 一覧も推薦も温浴だけ
+    kinds = page.eval_on_selector_all("#list .card .kind", "els => [...new Set(els.map(e => e.textContent))]")
+    assert kinds and all(k in ("銭湯", "サウナ", "温泉", "足湯", "個室サウナ", "スパ") for k in kinds), kinds
+    rkinds = page.eval_on_selector_all(".reco .rkind", "els => els.map(e => e.textContent.trim())")
+    assert rkinds and all(k in ("銭湯", "サウナ", "温泉", "足湯", "個室サウナ", "スパ") for k in rkinds), rkinds
+
+    # 同じ店を2軒並べない
+    names = page.eval_on_selector_all(".reco .rname", "els => els.map(e => e.textContent.trim())")
+    assert len(names) == len(set(names)), f"同じ名前の店が並んでいる: {names}"
+
+    # 「この時間に行ける」と言うなら、全軒に営業中の理由が付いている
+    if "この時間に行ける" in head:
+        for i in range(page.locator(".reco").count()):
+            assert page.locator(".reco").nth(i).locator(".rwhy i.open").count() == 1,                 "営業中と言えない軒がある"
+
+    # 推薦を押すとその施設の詳細が開く
+    first = names[0]
+    page.locator(".reco").first.click()
+    page.wait_for_selector("#detail", timeout=10000)
+    assert first in page.inner_text("#detail")
+    page.wait_for_timeout(1200)
+    page.screenshot(path=str(SHOTS / "hitori-mobile-scene.png"))
+
+
 TESTS = [
     test_home_states_the_claim_and_two_ways_in,
+    test_scene_button_recommends_within_that_scene,
     test_closed_facilities_are_marked_and_pushed_down,
     test_mobile_list_folds_the_filters_and_shows_several_cards,
     test_area_mode_lists_verified_first_without_score_dots,

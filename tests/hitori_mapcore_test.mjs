@@ -364,8 +364,8 @@ check('recommend: 閉業・行けない条件・何も分からない施設は�
 });
 
 check('recommend: 公式の裏付け → 営業中 → 分かっている数 → 近さ の順', () => {
-  const A = { ...RC_ITEM, id: 'A', distM: 900 };
-  const B = { ...RC_ITEM, id: 'B', distM: 100 };
+  const A = { ...RC_ITEM, id: 'A', name: 'A店', distM: 900 };
+  const B = { ...RC_ITEM, id: 'B', name: 'B店', distM: 100 };
   const ctx = {
     now: RC_NOW, hoursOf: () => null,
     curatedOf: id => (id === 'A' ? RC_CUR : null),
@@ -378,7 +378,7 @@ check('recommend: 公式の裏付け → 営業中 → 分かっている数 →
 });
 
 check('recommend: 件数を絞れる', () => {
-  const many = [1, 2, 3, 4, 5, 6, 7].map(i => ({ ...RC_ITEM, id: 's' + i, distM: i * 100 }));
+  const many = [1, 2, 3, 4, 5, 6, 7].map(i => ({ ...RC_ITEM, id: 's' + i, name: '店' + i, distM: i * 100 }));
   const ctx = { now: RC_NOW, hoursOf: () => null, curatedOf: () => RC_CUR, checked: () => true };
   eq(mc.recommend(many, ctx).length, 5);
   eq(mc.recommend(many, ctx, 3).length, 3);
@@ -391,6 +391,41 @@ check('soloCheck: チェーン全体の案内は ● にしない', () => {
   const c = mc.soloCheck(chain, {}).cells[2];
   eq(c.state, 'weak', 'チェーン全体の案内は ◐');
   eq(c.scope, 'chain', 'どこ由来かを残す');
+});
+
+check('recommendReasons: 業態で理由の材料を替える', () => {
+  const bath = { id: 'b', name: 'B', kind: 'sento', cat: 'bath', distM: 400, oh: '' };
+  const cur = { facts: [
+    { k: 'seats_total', v: 40, official: true, conflict: false },
+    { k: 'bring_towel', v: 'rental', official: true, conflict: false },
+    { k: 'price', v: 550, official: true, conflict: false } ] };
+  const kinds = mc.recommendReasons(bath, cur, { state: 'unknown', text: '' }, 400).map(r => r.kind);
+  eq(kinds.includes('seat'), false, '銭湯で席数を言っても仕方がない');
+  eq(kinds.includes('prep'), true, '手ぶらで行けるかが要点');
+  eq(kinds.includes('price'), true);
+  const texts = mc.recommendReasons(bath, cur, { state: 'unknown', text: '' }, 400).map(r => r.text);
+  deq(texts, ['貸出あり', '550円', '徒歩5分']);
+  // 飲食では席を言い、手ぶらの話はしない
+  const eat = { id: 'e', name: 'E', kind: 'ramen', cat: 'eat', distM: 400, oh: '' };
+  const ek = mc.recommendReasons(eat, cur, { state: 'unknown', text: '' }, 400).map(r => r.kind);
+  eq(ek.includes('seat'), true); eq(ek.includes('prep'), false); eq(ek.includes('price'), false);
+});
+
+check('recommend: 閉まっていると分かっている施設は名指ししない', () => {
+  const ctx = { now: RC_NOW, curatedOf: () => RC_CUR, checked: () => true, hoursOf: () => null };
+  const closed = { ...RC_ITEM, id: 'c', oh: 'Mo-Su 03:00-04:00' };   // 19時には閉まっている
+  eq(mc.recommend([closed], ctx).length, 0);
+  // 営業時間が分からないものは残す（消すと候補が無くなる）
+  const unknown = { ...RC_ITEM, id: 'u', oh: '' };
+  eq(mc.recommend([unknown], ctx).length, 1);
+});
+
+check('recommend: 同じ名前の店を並べない', () => {
+  const ctx = { now: RC_NOW, curatedOf: () => RC_CUR, checked: () => true, hoursOf: () => null };
+  const a = { ...RC_ITEM, id: 'a1', name: 'もうやんカレー', distM: 100 };
+  const b = { ...RC_ITEM, id: 'a2', name: 'もうやんカレー', distM: 900 };
+  const c = { ...RC_ITEM, id: 'b1', name: '別の店', distM: 500 };
+  deq(mc.recommend([a, b, c], ctx).map(r => r.item.id), ['a1', 'b1']);
 });
 
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
