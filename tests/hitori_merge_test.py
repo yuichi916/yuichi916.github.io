@@ -49,6 +49,9 @@ def test_quote_must_exist_on_the_page_when_page_is_known():
     page = "当店はカウンター8席。ご予約は不要です。"
     assert me.check_fact(OK_FACT, page) is None
     assert "見つからない" in me.check_fact(dict(OK_FACT, quote="おひとり様大歓迎"), page)
+    # 末尾を「…」で切った引用も、切った印を外せば本文に見つかる
+    long_q = {"k": "hours", "v": "10:00-18:00", "quote": "当館の開館時間は10:00から…", "url": "https://a.jp"}
+    assert me.check_fact(long_q, "当館の開館時間は10:00から18:00までです") is None
     # 空白と全角チルダの揺れは同じ引用として通す
     f = {"k": "hours", "v": "9:30〜17:00", "quote": "9:30 ～ 17:00", "url": "https://a.jp"}
     assert me.check_fact(f, "開館 9:30～17:00") is None

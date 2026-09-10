@@ -271,6 +271,27 @@ function cardHtml(r, i) {
     ${!checked && mc.fitNote(r.kind) ? `<div class="fit">業態の見立て: ${esc(mc.fitNote(r.kind))}</div>` : ''}
   </article>`;
 }
+// 「いま、ここから」の推薦。一覧は条件で絞った結果であって推薦ではないので、
+// 現在地が分かっているときだけ、名指しで数軒と理由を出す。
+// 理由は事実の連結（mc.recommendReasons）。文章は作らない。
+function recommendHtml() {
+  if (!state.origin || !state.rows.length) return '';
+  const rows = core.withDistance(state.rows, state.origin.lat, state.origin.lon);
+  const near = rows.filter(r => Number.isFinite(r.distM) && r.distM <= 3000);
+  const recs = mc.recommend(near.length ? near : rows, {
+    now: new Date(), curatedOf, checked: isChecked, hoursOf: hoursFactOf,
+  }, 4);
+  if (!recs.length) return '';
+  return `<section class="recos">
+    <p class="sec-label">いま、ここから <small>この時間に行ける4軒</small></p>
+    ${recs.map(r => `<button class="reco open-detail" type="button" data-id="${esc(r.item.id)}">
+      <span class="rname">${esc(r.item.name)}</span>
+      <span class="rkind">${esc(mc.kindJa(r.item.kind))}</span>
+      <span class="rwhy">${r.reasons.map(x => `<i class="${esc(x.kind)}">${esc(x.text)}</i>`).join('')}</span>
+    </button>`).join('')}
+    <p class="ck-legend">開いている時間・支払い・席・静けさは、集めた事実をそのまま並べています。おすすめの言葉は足していません。</p>
+  </section>`;
+}
 function homeHtml() {
   const idx = state.index;
   // 主張は1文としてつなげて置く（<br> を挟むと読み上げ・inner_text で分断される）。折り返しは幅に任せる。
@@ -301,6 +322,7 @@ function listHtml(vr) {
       <button class="tog" id="btn-reset" type="button">リセット</button></div>
     <div class="chips" id="chips"><button class="chip" data-cat="" aria-pressed="${!f.cat && !f.kinds}">すべて</button>${mc.DISPLAY_CATS.map(c => `<button class="chip" data-cat="${c.key}" aria-pressed="${f.cat === c.key}">${c.label}</button>`).join('')}</div>
     ${state.origin ? `<p class="origin-line"><b>${esc(state.origin.label)}</b> から近い順</p>` : ''}
+    ${recommendHtml()}
     ${radiusNote ? `<p class="notice" role="status" aria-live="polite">${esc(radiusNote)}</p>` : ''}
     ${state.notice ? `<p class="notice ${state.noticeLevel === 'err' ? 'err' : ''}" role="status" aria-live="polite">${esc(state.notice)}</p>` : ''}
     <p class="count" id="count"><b class="v">確認済み ${nVerified.toLocaleString()}件</b><span>候補 ${(list.length - nVerified).toLocaleString()}件</span></p>

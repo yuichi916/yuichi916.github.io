@@ -385,3 +385,69 @@ export function soloCheck(entry, item) {
   const known = cells.filter(c => c.state === 'ok').length;
   return { cells, known, total: cells.length };
 }
+
+// --- いま、ここからの推薦 ---
+// 一覧は「条件で絞った結果」であって推薦ではない。
+// ここは「今この時間に、ここから、ひとりで行くならどこか」に名指しで答える。
+//
+// 理由は文章を作らず、**集めた事実だけを並べる**。
+// 「落ち着いた雰囲気でおすすめ」のような、根拠の無い言葉を足さないため。
+const REASON_ORDER = ['open', 'talk', 'seat', 'quiet', 'solo', 'dist'];
+// 誰とも話さずに済む、と言い切れる支払い方法
+const NO_TALK_PAY = { ticket_machine: '券売機で注文', cashless_ok: 'キャッシュレス可' };
+
+export function recommendReasons(item, cur, openLabelResult, distM) {
+  const g = cur ? soloCheck(cur, item) : null;
+  const by = k => (g ? g.cells.find(c => c.key === k) : null);
+  const facts = (cur && cur.facts) || [];
+  const pick = k => facts.find(f => f.k === k && !f.conflict) || null;
+  const out = [];
+
+  if (openLabelResult && openLabelResult.state === 'open' && openLabelResult.text) {
+    out.push({ kind: 'open', text: openLabelResult.text.replace('営業中 ', '') + 'まで' });
+  }
+  const pay = pick('payment_method');
+  if (pay && NO_TALK_PAY[pay.v]) out.push({ kind: 'talk', text: NO_TALK_PAY[pay.v] });
+  const seat = by('seat');
+  if (seat && seat.state !== 'unknown') out.push({ kind: 'seat', text: seat.short });
+  const quiet = by('quiet');
+  if (quiet && quiet.state === 'ok') out.push({ kind: 'quiet', text: quiet.short });
+  const solo = by('solo');
+  if (solo && solo.state === 'ok') out.push({ kind: 'solo', text: '一人利用の明記' });
+  if (Number.isFinite(distM)) {
+    const min = Math.max(1, Math.round(distM / 80));      // 分速80mで丸める
+    out.push({ kind: 'dist', text: distM < 1200 ? `徒歩${min}分` : `${(distM / 1000).toFixed(1)}km` });
+  }
+  return out.sort((a, b) => REASON_ORDER.indexOf(a.kind) - REASON_ORDER.indexOf(b.kind));
+}
+
+// 推薦の並び。数を作らず、確かなものから順に見る。
+//   1. 公式の裏付けがある            2. いま開いている
+//   3. ひとりチェックの ● が多い     4. 近い
+// 閉まっている施設と、行けない条件がある施設は推薦しない（一覧には残る）。
+export function recommend(items, ctx, limit = 5) {
+  const c = ctx || {};
+  const now = c.now || new Date();
+  const scored = [];
+  for (const it of items) {
+    const cur = c.curatedOf ? c.curatedOf(it.id) : null;
+    if (closureOf(cur)) continue;
+    const chk = cur ? soloCheck(cur, it) : null;
+    if (chk && chk.cells.some(x => x.state === 'blocked')) continue;
+    const open = openLabel(it, c.hoursOf ? c.hoursOf(it.id) : null, now);
+    const known = chk ? chk.known : 0;
+    // 何も分かっていない施設を「おすすめ」として名指ししない
+    if (!known && open.state !== 'open') continue;
+    scored.push({
+      item: it, open, known,
+      official: c.checked && c.checked(it.id) ? 1 : 0,
+      reasons: recommendReasons(it, cur, open, it.distM),
+    });
+  }
+  scored.sort((a, b) =>
+    (b.official - a.official)
+    || ((b.open.state === 'open') - (a.open.state === 'open'))
+    || (b.known - a.known)
+    || ((a.item.distM ?? Infinity) - (b.item.distM ?? Infinity)));
+  return scored.slice(0, limit);
+}

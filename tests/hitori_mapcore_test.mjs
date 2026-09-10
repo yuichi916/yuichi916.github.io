@@ -323,5 +323,66 @@ check('rankItems: 閉まっている施設は確認済みでも最後に回す',
   deq(mc.rankItems(items, { checked: () => true, origin: { lat: 0, lon: 0 } }).map(i => i.id), ['shut', 'open']);
 });
 
+const RC_ITEM = { id: 'a', name: 'X', kind: 'ramen', cat: 'eat', distM: 320, oh: 'Mo-Su 11:00-22:00', chain: 0, hidden: 0, hidden_n: 0, solo: 5 };
+const RC_CUR = { checked: '2026-09-10', facts: [
+  { k: 'payment_method', v: 'ticket_machine', official: true, conflict: false },
+  { k: 'counter_seats', v: 8, official: true, conflict: false },
+  { k: 'solo_ok', v: 'おひとり様歓迎', official: true, conflict: false } ] };
+const RC_NOW = new Date(2026, 8, 10, 19, 0);   // 木曜 19:00
+
+check('recommendReasons: 事実だけを並べ、文章を作らない', () => {
+  const open = mc.openLabel(RC_ITEM, null, RC_NOW);
+  const texts = mc.recommendReasons(RC_ITEM, RC_CUR, open, 320).map(r => r.text);
+  deq(texts, ['〜22:00まで', '券売機で注文', '8席', '一人利用の明記', '徒歩4分']);
+  // 根拠が無ければ何も言わない（「落ち着いた雰囲気」のような言葉を足さない）
+  deq(mc.recommendReasons(RC_ITEM, null, { state: 'unknown', text: '' }, undefined), []);
+});
+
+check('recommendReasons: 話さずに済む支払いだけを理由にする', () => {
+  const mk = v => ({ facts: [{ k: 'payment_method', v, official: true, conflict: false }] });
+  const kinds = c => mc.recommendReasons(RC_ITEM, c, { state: 'unknown', text: '' }, undefined).map(r => r.kind);
+  eq(kinds(mk('ticket_machine')).includes('talk'), true);
+  eq(kinds(mk('cashless_ok')).includes('talk'), true);
+  eq(kinds(mk('counter_person')).includes('talk'), false, 'レジで人と話す方式は理由にしない');
+  eq(kinds(mk('cash_only')).includes('talk'), false);
+});
+
+check('recommend: 閉業・行けない条件・何も分からない施設は名指ししない', () => {
+  const ctx = (cur, open = true) => ({
+    now: RC_NOW, curatedOf: () => cur, checked: () => true,
+    hoursOf: () => null,
+  });
+  const shut = { facts: [{ k: 'status', v: 'closed_permanently', official: true, conflict: false }] };
+  eq(mc.recommend([RC_ITEM], ctx(shut)).length, 0, '閉業を推薦しない');
+  const male = { facts: [{ k: 'access', v: 'male_only', official: true, conflict: false }] };
+  eq(mc.recommend([RC_ITEM], ctx(male)).length, 0, '行けない条件がある施設を推薦しない');
+  // 何も分かっておらず、営業中かも分からない施設は名指ししない
+  const closedNow = { ...RC_ITEM, oh: 'Mo-Su 03:00-04:00' };
+  eq(mc.recommend([closedNow], ctx(null)).length, 0);
+  // 開いていれば、根拠が薄くても候補にはなる
+  eq(mc.recommend([RC_ITEM], ctx(null)).length, 1);
+});
+
+check('recommend: 公式の裏付け → 営業中 → 分かっている数 → 近さ の順', () => {
+  const A = { ...RC_ITEM, id: 'A', distM: 900 };
+  const B = { ...RC_ITEM, id: 'B', distM: 100 };
+  const ctx = {
+    now: RC_NOW, hoursOf: () => null,
+    curatedOf: id => (id === 'A' ? RC_CUR : null),
+    checked: id => id === 'A',
+  };
+  deq(mc.recommend([B, A], ctx).map(r => r.item.id), ['A', 'B'], '遠くても公式の裏付けが先');
+  // 同格なら近い方
+  const ctx2 = { now: RC_NOW, hoursOf: () => null, curatedOf: () => RC_CUR, checked: () => true };
+  deq(mc.recommend([A, B], ctx2).map(r => r.item.id), ['B', 'A']);
+});
+
+check('recommend: 件数を絞れる', () => {
+  const many = [1, 2, 3, 4, 5, 6, 7].map(i => ({ ...RC_ITEM, id: 's' + i, distM: i * 100 }));
+  const ctx = { now: RC_NOW, hoursOf: () => null, curatedOf: () => RC_CUR, checked: () => true };
+  eq(mc.recommend(many, ctx).length, 5);
+  eq(mc.recommend(many, ctx, 3).length, 3);
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
 console.log('OK: map-core');

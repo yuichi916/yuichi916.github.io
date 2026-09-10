@@ -79,8 +79,11 @@ def check_fact(f, page_text=None):
         return f"{k} が数でも文でもない {v!r}"
     if k in STR_KEYS and not (isinstance(v, str) and v.strip()):
         return f"{k} が空"
-    if page_text and _norm(q) not in _norm(page_text):
-        return "quote が取得元ページに見つからない"
+    if page_text:
+        # 長い引用は末尾を「…」で切ってあることがある。切った印は本文に無いので外して照合する
+        qn = _norm(q).rstrip("…").rstrip(".")
+        if qn and qn not in _norm(page_text):
+            return "quote が取得元ページに見つからない"
     return None
 
 
