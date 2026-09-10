@@ -304,5 +304,24 @@ check('soloCheck: 語彙の値は日本語にして出す（生の posted を見
   eq(mc.soloCheck({ facts: [{ k: 'silence', v: 'observed', official: false }] }, {}).cells[4].short, '静かさに触れた記述');
 });
 
+check('closureOf: 閉業と休業を見分け、食い違う告知は使わない', () => {
+  eq(mc.closureOf({ facts: [{ k: 'status', v: 'closed_permanently' }] }).state, 'closed');
+  eq(mc.closureOf({ facts: [{ k: 'status', v: 'closed_temporarily' }] }).state, 'temporarily');
+  eq(mc.closureOf({ facts: [{ k: 'status', v: 'open' }] }), null);
+  eq(mc.closureOf({ facts: [{ k: 'status', v: 'closed_permanently', conflict: true }] }), null);
+  eq(mc.closureOf(null), null);
+});
+
+check('rankItems: 閉まっている施設は確認済みでも最後に回す', () => {
+  const items = [
+    { id: 'shut', name: 'S', chain: 0, hidden: 0, hidden_n: 0, solo: 5, distM: 10 },
+    { id: 'open', name: 'O', chain: 0, hidden: 0, hidden_n: 0, solo: 3, distM: 900 },
+  ];
+  const ctx = { checked: () => true, origin: { lat: 0, lon: 0 }, closed: id => id === 'shut' };
+  deq(mc.rankItems(items, ctx).map(i => i.id), ['open', 'shut'], '近くても閉まっていれば後ろ');
+  // closed を渡さない呼び出し側の挙動は変えない
+  deq(mc.rankItems(items, { checked: () => true, origin: { lat: 0, lon: 0 } }).map(i => i.id), ['shut', 'open']);
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
 console.log('OK: map-core');

@@ -152,6 +152,8 @@ export function curatedOf(id) {
   const meta = state.index && state.index.checked[id];
   return meta ? (state.curatedByPref.get(meta[0]) || {})[id] || null : null;
 }
+// 閉業・休業。カードの印と並びの両方で使う
+export function isClosed(id) { return !!mc.closureOf(curatedOf(id)); }
 export function hoursFactOf(id) {
   const cur = curatedOf(id);
   return cur ? (cur.facts || []).find(f => (f.k === 'hours' || f.k === 'opening_hours') && !f.conflict) || null : null;
@@ -215,7 +217,7 @@ function bindSheetDrag() {
 // --- 描画 ---
 let lastView = [];   // 最後に描いた一覧（距離つき）。詳細のピンとカードのクリックが使う。
 function viewRows() {
-  const ctx = { checked: isChecked, now: new Date(), origin: state.origin, hoursOf: hoursFactOf };
+  const ctx = { checked: isChecked, now: new Date(), origin: state.origin, hoursOf: hoursFactOf , closed: isClosed};
   let rows = state.rows;
   if (state.origin) rows = core.withDistance(rows, state.origin.lat, state.origin.lon);
   let list = mc.applyFilters(rows, { ...state.filters, radiusKm: 0 }, ctx);
@@ -251,13 +253,15 @@ function cardHtml(r, i) {
   const g = cur ? mc.groupFacts(cur, mc.displayCat(r.kind, r.cat)) : null;
   const open = mc.openLabel(r, hoursFactOf(r.id), new Date());
   const dist = state.origin && Number.isFinite(r.distM) ? (r.distM < 1000 ? `${Math.max(10, Math.round(r.distM / 10) * 10)}m` : `${(r.distM / 1000).toFixed(r.distM < 10000 ? 1 : 0)}km`) : '';
+  const shut = mc.closureOf(cur);
   const chips = [];
+  if (shut) chips.push(`<span class="shut">${esc(shut.label)}</span>`);
   if (g) for (const s of g.solo.slice(0, 3)) chips.push(`<span>${esc(soloChip(s))}</span>`);
   if (g) { const cd = g.rows.find(x => x.k === 'closed_days'); if (cd && chips.length < 4) chips.push(`<span>${esc(cutText(cd.values[0].text))}</span>`); }
   if (mc.isGem(r)) chips.push('<span class="gem">穴場候補</span>');
   if (r.chain) chips.push('<span class="chain">チェーン</span>');
   const saved = state.saved && (state.saved.want[r.id] || state.saved.went[r.id]);
-  return `<article class="card ${checked ? '' : 'unverified'} ${state.current && state.current.id === r.id ? 'selected' : ''}" data-id="${esc(r.id)}">
+  return `<article class="card ${checked ? '' : 'unverified'} ${shut ? 'shut' : ''} ${state.current && state.current.id === r.id ? 'selected' : ''}" data-id="${esc(r.id)}">
     <div class="top">${checked ? `<span class="vmark">✓ 確認済み ${esc(meta[5])} · 公式${meta[2]}</span>`
       : hasSignals(r.id) ? '<span class="cand ref">◐ 参考情報あり · OSM由来</span>' : '<span class="cand">候補 · OSM由来</span>'}
       <button class="heart" type="button" data-want="${esc(r.id)}" aria-pressed="${saved ? 'true' : 'false'}" aria-label="行きたい">♡</button></div>
@@ -541,7 +545,7 @@ function detailHtmlImpl() {
     ${g && g.warnings.length ? g.warnings.map(w => `<p class="notice ${w.level === 'danger' ? 'err' : ''}" role="status" aria-live="polite">${w.level === 'danger' ? '⚠ ' : ''}${esc(w.text)}</p>`).join('') : ''}
     <h2 style="margin:10px 0 2px;font-family:'Noto Serif JP',serif;font-size:22px;line-height:1.3">${esc(r.name)}</h2>
     <div class="meta" style="color:var(--muted);font-size:12.5px">${esc(mc.kindJa(r.kind))}${r.city ? ` · ${esc(r.city)}` : ''}${dist ? ` · ${dist}` : ''} · <span class="${open.state}" style="font-weight:700;color:${open.state === 'open' ? 'var(--sage)' : open.state === 'closed' ? '#9a6b1d' : 'inherit'}">${esc(open.text)}</span>${open.source ? `<small>（${esc(open.source)}）</small>` : ''}</div>
-    ${s ? `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:var(--sage-pale);color:var(--sage);font-size:12.5px"><b>✓ 確認済み ${esc(s.checked)}</b><br><span class="vsub">事実 ${s.nFacts}件 · 公式 ${s.nOfficial}件 · 出典 ${s.nDomains}件 · 食い違い ${s.nConflict}件</span></section>`
+    ${s ? `<section class="verified-box ${s.nOfficial ? '' : 'unofficial'}" style="margin:12px 0;padding:10px 12px;border-radius:12px;font-size:12.5px"><b>${s.nOfficial ? '✓ 確認済み' : '◐ 出典つきの根拠あり'} ${esc(s.checked)}</b><br><span class="vsub">事実 ${s.nFacts}件 · 公式 ${s.nOfficial}件 · 出典 ${s.nDomains}件 · 食い違い ${s.nConflict}件${s.nOfficial ? '' : '（公式サイトの裏取りはこれからです）'}</span></section>`
         : `<section class="verified-box" style="margin:12px 0;padding:10px 12px;border-radius:12px;background:#f5f0ea;color:#6f655f;font-size:12.5px"><b>未確認</b> — ${hasSignals(r.id) ? 'OpenStreetMap の登録情報から分かることだけを下に出しています。公式サイトの裏取りはこれからです。' : 'OpenStreetMap の登録情報のみです。'}利用前に公式情報をご確認ください。${mc.fitNote(r.kind) ? `<br>業態の見立て: ${esc(mc.fitNote(r.kind))}` : ''}</section>`}
     ${soloCheckHtml(cur, r)}
     ${g && g.insight ? `<details class="fold"><summary><span class="sec-label">一人マップのひとこと</span><b>${esc(g.insight.title)}</b></summary><p class="fold-body">${esc(g.insight.insight)}</p></details>` : ''}

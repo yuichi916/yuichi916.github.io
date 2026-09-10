@@ -359,8 +359,38 @@ def test_mobile_list_folds_the_filters_and_shows_several_cards(page):
     assert page.is_visible("#tog-open") and page.is_visible("#btn-reset")
 
 
+def test_closed_facilities_are_marked_and_pushed_down(page):
+    """閉業・休業が告知された施設を、一覧で普通の店に見せない。
+
+    行った人が閉まった建物を見ることになるので、「そこへ一人で行けるか」以前の問題。
+    消しはしない（「無い」のか「閉じた」のか分かるように）が、印を付けて最後に回す。
+    """
+    page.set_viewport_size(DESKTOP)
+    # n1804881158 は静岡県(22)の、公式ページに閉業が告知されていた施設
+    page.goto(BASE + "#pref=22")
+    _ready(page)
+    page.wait_for_selector("#list .card", timeout=30000)
+    # 閉業の印が付いた施設が先頭に来ていないこと（印の付いた施設が居ることも確かめる）
+    order = page.eval_on_selector_all(
+        "#list .card", "els => els.map(e => e.classList.contains('shut'))")
+    assert order and not order[0], "閉業の施設が一覧の先頭に来ている"
+
+    # 閉業が分かっている施設を直接開くと、詳細で警告が出る
+    page.goto(BASE + "?pref=22&facility=n1804881158")
+    _ready(page)
+    page.wait_for_selector("#detail", timeout=30000)
+    txt = page.inner_text("#detail")
+    assert "閉業" in txt or "休業" in txt, f"閉業の告知が詳細に出ていない: {txt[:120]}"
+    # 公式の裏付けが0件の施設に「確認済み」と名乗らせない
+    assert "公式 0件" in txt and "確認済み" not in txt.split("ひとりチェック")[0],         f"公式0件なのに確認済みと出ている: {txt[:160]}"
+    # 利用条件は ✕（ひとりで行くのに条件がある）
+    cond = page.locator("#detail .ck").last
+    assert "blocked" in (cond.get_attribute("class") or ""), "利用条件が ✕ になっていない"
+
+
 TESTS = [
     test_home_states_the_claim_and_two_ways_in,
+    test_closed_facilities_are_marked_and_pushed_down,
     test_mobile_list_folds_the_filters_and_shows_several_cards,
     test_area_mode_lists_verified_first_without_score_dots,
     test_category_chip_quiet_shows_museums_not_hostels,

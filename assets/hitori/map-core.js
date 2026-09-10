@@ -207,10 +207,13 @@ const JA = new Intl.Collator('ja');
 export function rankItems(items, ctx) {
   const c = ctx || {};
   const ck = it => (c.checked && c.checked(it.id)) ? 0 : 1;
+  // 閉まっている施設は最後に回す。消しはしない（「無い」のか「閉じた」のか分かるように）
+  const shut = it => (c.closed && c.closed(it.id)) ? 1 : 0;
   const byArea = (a, b) => (Number(isGem(b)) - Number(isGem(a))) || (Number(b.solo) - Number(a.solo))
     || JA.compare(String(a.name), String(b.name));
   const byDist = (a, b) => (a.distM - b.distM) || byArea(a, b);
-  return items.slice().sort((a, b) => (ck(a) - ck(b)) || (c.origin ? byDist(a, b) : byArea(a, b)));
+  return items.slice().sort((a, b) =>
+    (shut(a) - shut(b)) || (ck(a) - ck(b)) || (c.origin ? byDist(a, b) : byArea(a, b)));
 }
 
 export function expandRadius(items, radiusKm, steps = [1, 3, 10, Infinity]) {
@@ -293,6 +296,17 @@ export function parseSavedParam(str) {
 }
 export function facilityShareUrl(base, pref, id) {
   return `${base}?pref=${encodeURIComponent(pref)}&facility=${encodeURIComponent(id)}`;
+}
+
+// 閉業・休業。一覧では普通のカードに見えるので、行った人が閉まった建物を見ることになる。
+// 「そこへ一人で行けるか」以前の問題なので、カードの時点で伝えて順位も下げる。
+export function closureOf(entry) {
+  for (const f of ((entry && entry.facts) || [])) {
+    if (f.k !== 'status' || f.conflict) continue;
+    if (f.v === 'closed_permanently') return { state: 'closed', label: '閉業の情報' };
+    if (f.v === 'closed_temporarily') return { state: 'temporarily', label: '休業中の情報' };
+  }
+  return null;
 }
 
 // --- ひとりチェック（詳細シートの信号機） ---
