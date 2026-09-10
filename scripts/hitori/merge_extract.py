@@ -54,9 +54,15 @@ def _domain(url):
         return ""
 
 
+# 引用の照合で吸収する揺れ。HTML→本文の変換方式が違えば、表の区切りが
+# 「|」で入るか空白で入るかが変わる。中身が同じものを別物と数えないための正規化。
+_SEP = str.maketrans("", "", "|｜･・〖〗【】［］[]（）()　")
+
+
 def _norm(s):
-    """引用の一致を見るための正規化。空白と全角半角の揺れだけを吸収する。"""
-    return re.sub(r"\s+", "", str(s)).replace("～", "〜").replace("－", "-")
+    """引用の一致を見るための正規化。空白・全角半角・区切り記号の揺れを吸収する。"""
+    return (re.sub(r"\s+", "", str(s)).translate(_SEP)
+            .replace("～", "〜").replace("－", "-").replace("：", ":"))
 
 
 def check_fact(f, page_text=None):

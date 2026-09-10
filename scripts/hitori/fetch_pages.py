@@ -47,6 +47,20 @@ def variants(url):
     return out[:6]
 
 
+# UTF-8 を cp932/euc-jp で読むと、この帯の文字ばかりが並ぶ（縺・繧・繝・蜈…）。
+# 化けているかどうかは、この帯の密度で分かる。
+_MOJI = re.compile(r"[぀-ヿ一-鿿]")
+_MOJI_MARK = re.compile(r"[縺繧繝蜈蜃蟶謇讌螟蠕蟒蜀郢遖鬮髞鄙螻]")
+
+
+def _mojibake(text):
+    head = text[:3000]
+    ja = len(_MOJI.findall(head))
+    if ja < 20:
+        return False
+    return len(_MOJI_MARK.findall(head)) / ja > 0.35
+
+
 def _decode(raw, headers):
     """文字コードは宣言を信じすぎない。日本のサイトは Shift_JIS と EUC-JP がまだ多い。"""
     enc = None
@@ -62,9 +76,14 @@ def _decode(raw, headers):
         if not e:
             continue
         try:
-            return raw.decode(e)
+            text = raw.decode(e)
         except (UnicodeDecodeError, LookupError):
             continue
+        # cp932 と euc-jp は UTF-8 のバイト列もエラー無く「復号」してしまう。
+        # 宣言を信じて化けた文字列を返すと、あとで引用が照合できなくなる。
+        if _mojibake(text):
+            continue
+        return text
     return raw.decode("utf-8", "replace")
 
 

@@ -19,8 +19,14 @@ CURATED = ROOT / "data" / "hitori" / "curated.json"
 WS = re.compile(r"\s+")
 
 
+# HTML→本文の変換方式が違うと、表の区切りが「|」で入るか空白で入るかが変わる。
+# 中身が同じ引用を「見つからない」と数えないための正規化（merge_extract と同じ規則）。
+_SEP = str.maketrans("", "", "|｜･・〖〗【】［］[]（）()　")
+
+
 def norm(s):
-    return WS.sub("", str(s)).replace("～", "〜").replace("－", "-")
+    return (WS.sub("", str(s)).translate(_SEP)
+            .replace("～", "〜").replace("－", "-").replace("：", ":"))
 
 
 def load_pages(dirs):
