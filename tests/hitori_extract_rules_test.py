@@ -100,6 +100,26 @@ def test_one_fact_per_key():
     assert ks.count("payment_method") == 1, "同じ項目を何度も出さない"
 
 
+def test_payment_heading_style_is_read_but_ads_are_not():
+    """「お支払い方法：クレジットカード、交通系電子マネー」のような見出し型も読む。
+
+    ただしポイント還元の宣伝（「PayPayポイント最大5%戻ってくる」）は
+    支払える手段の話ではないので採らない。
+    """
+    assert kv("お支払い方法：クレジットカード、交通系電子マネー")["payment_method"] == "cashless_ok"
+    assert kv("ご利用可能なカード：VISA・JCB")["payment_method"] == "cashless_ok"
+    assert "payment_method" not in kv("LYPプレミアム会員ならPayPayポイント最大5%戻ってくる")
+    assert "payment_method" not in kv("JCBカードを利用するとポイント最大600ポイントプレゼント")
+    assert "payment_method" not in kv("お支払い方法：クレジットカードは利用できません")
+
+
+def test_silence_notice_but_not_conversation_invitations():
+    assert kv("館内では静かにしましょう")["silence"] == "posted"
+    assert kv("お静かに願います")["silence"] == "posted"
+    # 「会話を楽しめる」は逆の意味
+    assert "silence" not in kv("周りを気にせずお酒や会話を楽しめるからいつも以上に盛り上がる")
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
