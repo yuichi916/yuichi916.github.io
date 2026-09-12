@@ -253,6 +253,19 @@ function soloChip(f) {
   // 何が分かっているかだけを示し、中身は詳細シートに任せる。
   return s.endsWith('…') ? `${f.label}の記載あり` : s;
 }
+// 見立ての出どころを一言で。数字がどこから来たかを言えないものは出さない。
+const AXIS_NOTE = it => `${mc.kindJa(it.kind)}という業態と、まわりの同業の少なさから引いた5段階です`;
+// ひとり指標の4本。ここは事実ではなく見立てなので、必ずそう断る。
+// 断らずに出すと、確認済みの事実（ひとりチェック）と見分けが付かなくなる。
+function axesHtml(r, full) {
+  const ax = mc.soloAxes(r);
+  if (!ax) return '';
+  const note = ax.adjusted ? '見立て（調べた事実で補正）' : '見立て（業態から）';
+  return `<div class="axes${full ? ' full' : ''}">
+    ${ax.cells.map(c => `<span class="ax" title="${esc(c.ask)}"><i>${esc(c.label)}</i><b aria-label="5段階で${c.n}">${mc.axisDots(c.n)}</b></span>`).join('')}
+    <span class="axnote">${esc(note)}</span>
+  </div>`;
+}
 function cardHtml(r, i) {
   const checked = isChecked(r.id), meta = checked ? state.index.checked[r.id] : null;
   const cur = curatedOf(r.id);
@@ -273,6 +286,7 @@ function cardHtml(r, i) {
       <button class="heart" type="button" data-want="${esc(r.id)}" aria-pressed="${saved ? 'true' : 'false'}" aria-label="行きたい">♡</button></div>
     <h3><span class="num">${i + 1}</span><button type="button" class="open-detail" data-id="${esc(r.id)}">${esc(r.name)}</button></h3>
     <div class="meta"><span class="kind">${esc(mc.kindJa(r.kind))}</span>${r.city ? `<span>${esc(r.city)}</span>` : ''}${dist ? `<span>${dist}</span>` : ''}<span class="${open.state}">${esc(open.text)}</span></div>
+    ${axesHtml(r)}
     ${chips.length ? `<div class="facts">${chips.join('')}</div>` : ''}
     ${!checked && mc.fitNote(r.kind) ? `<div class="fit">業態の見立て: ${esc(mc.fitNote(r.kind))}</div>` : ''}
   </article>`;
@@ -557,8 +571,13 @@ function soloCheckHtml(entry, item) {
     <span class="sh">${esc(x.short)}</span>
     ${x.quote ? `<button class="why" type="button" data-why="${esc(x.key)}" aria-expanded="false" aria-label="${esc(x.label)}の根拠を見る">根拠</button><p class="qt" id="qt-${esc(x.key)}" hidden>${esc(x.quote)}${x.official ? ' <em>公式</em>' : ''}</p>` : ''}
   </li>`).join('');
+  // 見立て（業態から引いた4本）を先に、事実（6項目）を後に置く。
+  // 事実が少ない施設でも「どういう場所か」は分かり、しかも
+  // どこまでが見立てでどこからが調べた事実かは、区切りで見て取れる。
   return `<section class="solo-box">
-    <p class="sec-label">ひとりチェック <b class="score">${c.known}/${c.total} 確認済み</b></p>
+    <p class="sec-label">この業態の見立て <small>${esc(AXIS_NOTE(item))}</small></p>
+    ${axesHtml(item, true)}
+    <p class="sec-label" style="margin-top:14px">ひとりチェック <b class="score">${c.known}/${c.total} 確認済み</b></p>
     <ul class="checks">${cells}</ul>
     <p class="ck-legend">● 公式に記載　◐ 公式以外の根拠　△ 記載なし（悪いという意味ではありません）　✕ 条件あり</p>
   </section>`;

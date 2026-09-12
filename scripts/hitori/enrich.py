@@ -84,10 +84,17 @@ EXCLUDING = {
 # 公式サイト1件で採用してよい事実。客観的で、自治体や施設自身が
 # 一次情報を持つものに限る。主観を含む事実（客層など）は含めない。
 OFFICIAL_ONLY_FACTS = frozenset({"hours", "closed_days", "price"})
+# 見立てを公式1件で動かしてよい事実。施設が自分のページに書いた**客観的な**
+# 事柄に限る。客層や初回の易しさは書き手の主観が入るので、従来どおり
+# 独立2ドメインを要る側に残す。
+OBJECTIVE_AXIS_FACTS = frozenset({
+    "payment_method", "reservation", "counter_seats", "seats_total", "solo_ok", "silence",
+})
 
 # (事実, 値) → (軸, 増減)
 ADJUST = {
     ("payment_method", "ticket_machine"): ("easy", +1),
+    ("payment_method", "cashless_ok"): ("easy", +1),
     ("payment_method", "counter_person"): ("easy", -1),
     ("reservation", "none"): ("easy", +1),
     ("reservation", "required"): ("easy", -2),
@@ -167,6 +174,25 @@ def curated_city(facts):
     return None
 
 
+def _moves_axis(fact):
+    """この事実は見立てを動かしてよいか。
+
+    もとは独立2ドメインを要求していた。根拠が個人ブログしか無かった頃の
+    決めごとで、公式サイトの記述まで一律に締め出していた。結果、公式の
+    裏付けを 3,239件まで増やしても**見立てが動いたのは 27件**だった。
+
+    施設自身が自分のページに書いていることは、一人で行けるかについて
+    最も直接の根拠なので、1件でも動かす。ただし**客観的な事柄に限る**
+    （OBJECTIVE_AXIS_FACTS）。客層や初回の易しさは書き手の主観が入るし、
+    チェーン全体の案内（scope=chain）はその店舗を見たことにならないので、
+    どちらも従来どおり独立2ドメインを要る。
+    """
+    if (fact.get("official") and fact.get("scope") != "chain"
+            and fact.get("k") in OBJECTIVE_AXIS_FACTS):
+        return True
+    return fact.get("n", 0) >= MIN_SUPPORT
+
+
 def apply_adjust(est, facts):
     """推定値 est に事実 facts を反映した実効値を返す。est は変更しない。
 
@@ -181,11 +207,15 @@ def apply_adjust(est, facts):
         k, v = f["k"], f["v"]
         if k in conflicts:
             continue
-        if f.get("n", 0) < MIN_SUPPORT:
-            continue          # 公式1件は事実の採用には効くが、軸は動かさない
-        hit = ADJUST.get((k, v))
+        if not _moves_axis(f):
+            continue
+        hit = ADJUST.get((k, v)) if isinstance(v, (str, int, float, bool)) else None
         if hit is None:
             if k == "counter_seats" and isinstance(v, int) and v >= 1:
+                hit = ("solo", +1)
+            elif k == "solo_ok" and isinstance(v, str) and v.strip():
+                # 施設が自分で「おひとり様歓迎」と書いている。一人で入れるかに
+                # ついて、これより直接の根拠は無い（669件ある最大の材料だった）
                 hit = ("solo", +1)
             else:
                 continue

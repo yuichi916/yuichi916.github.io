@@ -48,6 +48,24 @@ def test_support_below_two_does_not_move():
     assert enrich.apply_adjust(est, one) == est
 
 
+def test_objective_official_facts_move_the_axis_alone():
+    """施設が自分で書いた客観的な事実は、公式1件でも見立てを動かす。
+
+    もとは独立2ドメインを一律に要求していたため、公式の裏付けを 3,239件まで
+    増やしても**見立てが動いたのは 27件**だった。
+    """
+    est = {"solo": 4, "quiet": 4, "easy": 3}
+    one = [{"k": "solo_ok", "v": "おひとり様歓迎", "n": 1, "official": True}]
+    assert enrich.apply_adjust(est, one)["solo"] == 5
+    tm = [{"k": "payment_method", "v": "ticket_machine", "n": 1, "official": True}]
+    assert enrich.apply_adjust(est, tm)["easy"] == 4
+    # チェーン全体の案内は、その店舗を見たことにならない
+    chain = [dict(tm[0], scope="chain")]
+    assert enrich.apply_adjust(est, chain) == est
+    # 公式でなければ従来どおり2件要る
+    assert enrich.apply_adjust(est, [dict(tm[0], official=False)]) == est
+
+
 def test_official_counts_for_factual_fields_only():
     est = {"solo": 4, "quiet": 4, "easy": 3}
     # price は軸に効かないが、公式1件で採用されること自体は curate 側の話。

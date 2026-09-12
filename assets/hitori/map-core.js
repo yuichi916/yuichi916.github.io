@@ -192,6 +192,49 @@ export const SCENES = [
 ];
 export function isGem(it) { return !it.chain && Number(it.hidden) >= .75 && Number(it.hidden_n) >= 3; }
 
+// --- ひとり指標（一覧で施設どうしを見比べるための3本＋1本）---
+// ここは確認済みの事実ではない。**業態から引いた見立て**である。
+// 事実（ひとりチェック6項目）と混ぜないよう、画面では必ず「見立て」と断る。
+//
+// 3本だけだと業態が同じ施設は全部同じ顔になるので、施設ごとに本当に違う
+// 「まわりに同業がどれだけ無いか」を4本目に入れる。これは実測値（iso=最寄り
+// 同業までの距離）から引くので、同じラーメン店でも隣どうしで変わる。
+export const SOLO_AXES = [
+  { key: 'solo', label: 'ひとり', ask: 'ひとりで入りやすいか' },
+  { key: 'quiet', label: '静か', ask: '静かに過ごせるか' },
+  { key: 'easy', label: 'はじめて', ask: '初めてでも迷わないか' },
+  { key: 'alone', label: '空いてそう', ask: 'まわりに同業が少ないか' },
+];
+// 最寄りの同業までの距離（m）→ 5段階。分位は全国40,615件の実測
+// （中央値280m / 上位25%が988m / 上位10%が3,115m）に合わせた。
+const ISO_STEPS = [100, 300, 1000, 3000];
+export function isoLevel(iso) {
+  const m = Number(iso);
+  if (!Number.isFinite(m)) return null;
+  let n = 1;
+  for (const s of ISO_STEPS) if (m >= s) n++;
+  return n;
+}
+
+export function soloAxes(it) {
+  if (!it) return null;
+  const lv = isoLevel(it.iso);
+  const est = ['solo', 'quiet', 'easy'].every(k => it[`${k}_est`] === undefined)
+    ? null : ['solo', 'quiet', 'easy'].some(k => it[k] !== it[`${k}_est`]);
+  const vals = { solo: Number(it.solo), quiet: Number(it.quiet), easy: Number(it.easy), alone: lv };
+  const cells = SOLO_AXES
+    .filter(a => Number.isFinite(vals[a.key]) && vals[a.key] > 0)
+    .map(a => ({ ...a, n: vals[a.key] }));
+  // adjusted: 調べた事実で見立てが動いた施設。動いたことを画面で言えるようにする
+  return cells.length ? { cells, adjusted: !!est } : null;
+}
+
+// 5段階を文字で。棒グラフを描くより、読み上げにも検索にも素で乗る。
+export function axisDots(n) {
+  const v = Math.max(0, Math.min(5, Math.round(Number(n) || 0)));
+  return '●'.repeat(v) + '○'.repeat(5 - v);
+}
+
 export function applyFilters(items, f, ctx) {
   const o = f || {}, c = ctx || {};
   const q = String(o.q || '').trim().toLowerCase();
