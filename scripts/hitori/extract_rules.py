@@ -46,12 +46,6 @@ RULES = {
          r"(黙浴|私語[はを]?(お控え|ご遠慮|厳禁)|お静かに|静かに(ご鑑賞|お過ごし|ご利用|しましょう|願い)|会話[はを]?(お控え|ご遠慮))",
          ("会話を楽しめ", "会話が弾")),
     ],
-    "access": [
-        ("male_only", r"(男性専用|男性のみ(ご利用|利用)|女性[のはご]{0,2}(利用|入館)[はを]?(できません|ご遠慮))", ("男女", "女性専用")),
-        ("female_only", r"(女性専用|女性のみ(ご利用|利用)|男性[のはご]{0,2}(利用|入館)[はを]?(できません|ご遠慮))", ("男女", "男性専用")),
-        ("members_only", r"(会員制|会員のみ|会員限定|ご入会が必要)", ("会員でなくても", "非会員")),
-        ("residents_only", r"(市民[のみ限定]|町民[のみ限定]|住民[のみ限定]|在住(の方|者)のみ)", ()),
-    ],
     # 休業・閉業は「いまの状態」でなければ意味が無い。ところがお知らせ欄には
     # 過去の告知が何年も残る（「8月12日(水)臨時休業」「COVID-19に伴う臨時休業」）。
     # 日付や曜日が添えられた告知はその日限りの話なので採らない（DATED で行ごと外す）。
@@ -63,6 +57,67 @@ RULES = {
          ()),
     ],
 }
+# --- 誰が使えるか（access）---
+# ここは他の項目と違い、語だけでは決まらない。実測では素朴な規則の誤検出が
+# 圧倒的だった（「市民の方へ」を市民限定、「女性専用エリア」を女性専用施設と読む）。
+# 制限は**施設まるごとに掛かっている**と読める書き方だけを採る。
+#
+# 一部エリアの話だと分かる語。「女性専用フロア」「ベビールームは女性専用」は施設の制限ではない。
+PART = ("エリア", "フロア", "ルーム", "室", "処", "コーナー", "ドミトリー", "浴", "湯",
+        "更衣", "休憩", "タイム", "デー", "曜", "車両", "席", "トイレ", "洗面", "パウダー",
+        "ロッカー", "ベビー", "レーン", "プラン", "メニュー", "入口", "階", "棟", "区画",
+        "スペース", "サロン", "ゾーン", "部屋", "客室", "テント", "ベッド", "宿泊者", "岩盤")
+# 「男性専用サウナ」「女性専用の宿泊施設」— 業態そのものが制限を言っている書き方。
+WHOLE_NOUN = ("施設", "サウナ", "カプセルホテル", "ホテル", "スパ", "銭湯", "温浴",
+              "宿", "店", "浴場", "旅館", "ホステル")
+SELF = re.compile(r"(当[施店館社]|本[施店館]|こちらの?(施設|店)|全[館店])")
+# 「○○店」「○○館」で終わっていれば、その施設そのものを指した見出し。
+WHOLE_SUFFIX = ("店", "館", "ホテル", "センター", "サウナ施設")
+GENDER = re.compile(r"(男性|女性|殿方|婦人)専用")
+# 制限は「入れるかどうか」の話。「会員限定キャンペーン」「市民限定料金」は入場の話ではない。
+USE = re.compile(r"(ご利用いただけ|ご利用になれ|利用できる|利用可能|ご利用の方|入館|入場|入店|来館|お入り)")
+MEMBER_SURE = re.compile(r"(完全会員制|全店会員制|入会が必要|要入会|ご入会いただく必要"
+                         r"|会員(カード|証|アプリ)[^。]{0,12}必要)")
+MEMBER = re.compile(r"(会員制(?!度)|会員(の方)?のみ|会員限定)")
+MEM_NG = ("会員でなくても", "非会員", "会員制度", "会員以外の方も", "キャンペーン", "特典",
+          "クーポン", "会員証なし", "無料", "ございます", "完備", "内の")
+RESIDENT = re.compile(r"(在住(の(方|かた)|者)?|市民|町民|村民|区民|住民)[^。\n]{0,4}(のみ|限定|に限[りるら])")
+RES_NG = ("みなさん", "みなさま", "皆さん", "皆様", "料金", "割引", "無料", "先住民")
+
+
+def gender_only(q):
+    """性別制限。施設まるごとの話と読める書き方だけを返す。"""
+    for m in GENDER.finditer(q):
+        who = "male_only" if m.group(1) in ("男性", "殿方") else "female_only"
+        before, tail = q[max(0, m.start() - 10):m.start()], q[m.end():m.end() + 12]
+        if any(w in before for w in PART) or any(w in tail for w in PART):
+            continue
+        # 「新宿駅南口店【男性専用】」— 直前が店名なら、その店まるごとの話。
+        named = before.rstrip("【［[（(〈《 　:：")
+        if SELF.search(q) or any(w in tail for w in WHOLE_NOUN) or named.endswith(WHOLE_SUFFIX):
+            return who
+    return None
+
+
+def access_of(quote):
+    """引用1行 → access の語彙値。支えていなければ None。
+
+    merge_extract からも呼ぶ。LLM が access に値を付けてきても、**引用が
+    その値を支えていなければ入れない**ための共通の物差しにする。
+    """
+    q = str(quote or "")
+    g = gender_only(q)
+    if g:
+        return g
+    if MEMBER_SURE.search(q):
+        return "members_only"
+    if MEMBER.search(q) and USE.search(q) and not any(w in q for w in MEM_NG):
+        return "members_only"
+    if RESIDENT.search(q) and USE.search(q) and not any(w in q for w in RES_NG):
+        return "residents_only"
+    return None
+
+
 # カウンター席は数が書いてあれば数、無ければ有無を文で残す
 COUNTER_N = re.compile(r"カウンター(?:席)?\s*[:：]?\s*(\d{1,3})\s*席")
 COUNTER_Y = re.compile(r"カウンター席")
@@ -128,6 +183,10 @@ def extract(text, url):
                 add("seats_total", int(m.group(1)), line)
         if "solo_ok" not in found and SOLO.search(line):
             add("solo_ok", _quote(line), line)
+        if "access" not in found:
+            a = access_of(line)
+            if a:
+                add("access", a, line)
     return out
 
 

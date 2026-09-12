@@ -205,6 +205,24 @@ def test_other_language_versions_are_skipped():
     assert reasons.get("日本語でない引用（多言語版ページ）") == 2
 
 
+def test_access_restriction_requires_supporting_quote():
+    """語彙の中にある値でも、引用が支えていなければ入れない。
+
+    引用そのものは本物なので verify_quotes では見つからない。
+    「その引用がその値を言っているか」は別の検査がいる。
+    """
+    u = "https://example.jp/a"
+    assert me.check_fact({"k": "access", "v": "female_only",
+                          "quote": "女性専用フロアあり", "url": u})
+    assert me.check_fact({"k": "access", "v": "residents_only",
+                          "quote": "長門市民の方へ", "url": u})
+    assert me.check_fact({"k": "access", "v": "female_only",
+                          "quote": "女性専用カプセルホテル", "url": u}) is None
+    # public は誰も閉め出さないので、この検査は掛けない
+    assert me.check_fact({"k": "access", "v": "public",
+                          "quote": "どなたでもご利用いただけます", "url": u}) is None
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

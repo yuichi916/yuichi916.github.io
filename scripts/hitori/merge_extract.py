@@ -22,6 +22,9 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from extract_rules import access_of                          # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[2]
 CURATED = ROOT / "data" / "hitori" / "curated.json"
 
@@ -35,6 +38,8 @@ VOCAB = {
     "access": {"public", "residents_only", "members_only", "male_only", "female_only"},
     "status": {"open", "closed_temporarily", "closed_permanently"},
 }
+# access のうち「使えない人がいる」値。ここだけは引用の裏取りを一段きつくする。
+RESTRICTED_ACCESS = {"residents_only", "members_only", "male_only", "female_only"}
 INT_KEYS = {"seats_total", "price"}
 # カウンター席は「8席」とも「カウンター席あり」とも書かれる。数を強いると
 # 「あり」を捨てることになるが、一人客にとっては数より有無のほうが効く。
@@ -79,6 +84,12 @@ def check_fact(f, page_text=None):
         return "quote が無い/短い"
     if k in VOCAB and v not in VOCAB[k]:
         return f"{k} の語彙外の値 {v!r}"
+    # access の「入れない」判定は、語彙の中にあるだけでは足りない。
+    # 実データでは「女性専用エリア」を女性専用施設、「市民の方へ」を市民限定と
+    # 読んだ事実が 683件中 448件を占めた。引用が施設まるごとの制限を
+    # 言っていることを、規則で確かめてからでないと入れない。
+    if k == "access" and v in RESTRICTED_ACCESS and access_of(q) != v:
+        return f"引用が {v} を支えていない"
     if k in INT_KEYS and not isinstance(v, int):
         return f"{k} が整数でない {v!r}"
     if k in INT_OR_TEXT_KEYS and not (isinstance(v, int) or (isinstance(v, str) and v.strip())):

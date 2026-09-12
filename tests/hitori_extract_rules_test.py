@@ -49,8 +49,10 @@ def test_silence_and_access():
     assert kv("館内ではお静かにご鑑賞ください")["silence"] == "posted"
     assert kv("当浴場は黙浴にご協力ください")["silence"] == "posted"
     assert kv("当店は男性専用です")["access"] == "male_only"
-    assert kv("女性専用のフロアです")["access"] == "female_only"
+    assert kv("当館は女性専用の宿泊施設です")["access"] == "female_only"
     assert kv("会員制のためご入会が必要です")["access"] == "members_only"
+    # 一部エリアの話は施設の制限ではない（詳しくは test_access_restriction_...）
+    assert "access" not in kv("女性専用のフロアです")
     # 男女両方の記述があるときは片側に決めない
     assert "access" not in kv("男女それぞれの浴場がございます")
 
@@ -118,6 +120,46 @@ def test_silence_notice_but_not_conversation_invitations():
     assert kv("お静かに願います")["silence"] == "posted"
     # 「会話を楽しめる」は逆の意味
     assert "silence" not in kv("周りを気にせずお酒や会話を楽しめるからいつも以上に盛り上がる")
+
+
+def test_access_restriction_needs_whole_facility():
+    """「誰が使えるか」は施設まるごとの制限だけ。
+
+    実データでこの区別が無かったため、女性専用45件のうち42件が
+    「女性専用フロア」「ベビールームは女性専用」だった。一部エリアの
+    話を施設の制限にすると、入れる施設を入れないことにしてしまう。
+    """
+    from extract_rules import access_of
+    assert access_of("※当施設は男性専用となります。") == "male_only"
+    assert access_of("男性専用サウナ&カプセルホテル「ルーマプラザ」。") == "male_only"
+    assert access_of("新宿駅南口店【男性専用】") == "male_only"
+    assert access_of("染物と宿の中島屋は女性専用の宿泊施設です") == "female_only"
+    # 一部エリアの話は採らない
+    assert access_of("女性専用フロアあり") is None
+    assert access_of("※ベビールームは女性専用です。") is None
+    assert access_of("ミストサウナ（女性専用）") is None
+    assert access_of("3F 女性専用ドミトリー") is None
+
+
+def test_members_only_is_not_a_member_perk():
+    """「会員限定キャンペーン」は特典の話で、入れるかどうかの話ではない。"""
+    from extract_rules import access_of
+    assert access_of("安心してご利用いただくために『全店会員制』となっております") == "members_only"
+    assert access_of("※カラオケのご利用には、会員カード登録が必要です。") == "members_only"
+    assert access_of("・おやこ割は会員限定の割引サービスとなります。") is None
+    assert access_of("会員限定のコンテンツやキャンペーン情報が満載！") is None
+    assert access_of("寄附・会員制度") is None
+    assert access_of("※会員制は維持していますが、会員証なしで入店できます") is None
+
+
+def test_residents_only_is_not_a_greeting():
+    """「市民のみなさんへ」は呼びかけ。旧規則はこれを住民限定と読んでいた。"""
+    from extract_rules import access_of
+    assert access_of("館内をご利用できる方は、埼玉県内在住者のみとなります。") == "residents_only"
+    assert access_of("市民のみなさんへ") is None
+    assert access_of("長門市民の方へ") is None
+    assert access_of("外国人住民の方へ（For foreign residents）") is None
+    assert access_of("八幡平市民限定特別料金") is None
 
 
 if __name__ == "__main__":

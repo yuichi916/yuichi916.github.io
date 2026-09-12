@@ -454,5 +454,26 @@ check('applyFilters: 閉業は既定で出さず、一時休業は残す', () =>
       ['shut', 'rest', 'open']);
 });
 
+check('groupFacts: access の自由文は「行き方」に分ける', () => {
+  // access には「誰が使えるか」と行き方の説明文が混ざっている。
+  // 住所を「利用条件」の見出しで出すと読み手が混乱する。
+  const e = { facts: [
+    { k: 'access', v: '東京都台東区蔵前4-21-2。都営浅草線蔵前駅A4出口から徒歩3分', official: true, urls: ['https://a.jp/'] },
+    { k: 'access', v: 'members_only', official: true, urls: ['https://a.jp/'] },
+  ] };
+  const rows = mc.groupFacts(e, 'eat').rows;
+  deq(rows.map(r => [r.k, r.label]), [['access', '利用条件'], ['access_way', '行き方']]);
+  eq(rows[0].values[0].text, '会員制');
+});
+
+check('soloCheck: 自由文が先にあっても利用条件を取りこぼさない', () => {
+  const e = { facts: [
+    { k: 'access', v: '川崎駅から徒歩7分', official: true, urls: ['https://a.jp/'] },
+    { k: 'access', v: 'members_only', official: true, urls: ['https://a.jp/'] },
+  ] };
+  eq(mc.soloCheck(e, { kind: 'karaoke' }).cells[5].state, 'blocked');
+  eq(mc.soloCheck({ facts: [e.facts[0]] }, { kind: 'karaoke' }).cells[5].state, 'unknown');
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }
 console.log('OK: map-core');

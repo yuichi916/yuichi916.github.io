@@ -83,7 +83,7 @@ export const FACT_LABEL = {
   hours: '営業時間', opening_hours: '営業時間', closed_days: '定休日', price: '料金', payment_method: '支払い方法',
   counter_seats: 'カウンター席', counter_seating: 'カウンター席', seats_total: '座席数', seats: '席',
   bring_towel: 'タオル', towel: 'タオル', amenities: 'アメニティ', wash_area: '洗い場', facilities: '設備',
-  unstaffed: '無人', access: '利用条件', conditions: '利用条件', solo_ok: '一人利用', silence: '静けさ',
+  unstaffed: '無人', access: '利用条件', access_way: '行き方', conditions: '利用条件', solo_ok: '一人利用', silence: '静けさ',
   reservation: '予約', private_room: '個室・利用人数', first_timer: '初回利用', busy_time: '混雑の目安',
   parking: '駐車場', cuisine: '料理', luggage: '荷物', clientele: '客層', open_period: '営業期間',
   status: '営業状態', renamed_to: '改称', facility_identity: '施設名の確認', city: '所在地',
@@ -99,7 +99,14 @@ const VALUE_JA = {
 };
 export const PERSONAL_DOMAINS = /zatsu-ke\.blog\.jp|sanukiudon-ranking\.com/;
 const ROW_ORDER = ['hours', 'opening_hours', 'closed_days', 'price', 'payment_method', 'counter_seats', 'seats_total', 'seats',
-  'reservation', 'access', 'parking', 'conditions', 'open_period'];
+  'reservation', 'access', 'conditions', 'access_way', 'parking', 'open_period'];
+// access には2種類が混ざっている。誰が使えるか（会員制・男性専用…）と、
+// 行き方の説明文（「JR川崎駅から徒歩5分」）。同じ「利用条件」の見出しで
+// 住所を出すと読み手が混乱するので、自由文は別の行に分ける。
+export const ACCESS_VOCAB = new Set(['public', 'residents_only', 'members_only', 'male_only', 'female_only']);
+export function accessKey(f) {
+  return f.k === 'access' && !ACCESS_VOCAB.has(f.v) ? 'access_way' : f.k;
+}
 const HIDDEN_ROWS = new Set(['solo_insight', 'facility_identity', 'city']);
 const BATH_ONLY = new Set(['bring_towel', 'towel', 'wash_area', 'amenities']);
 const SOLO_KEYS = [['solo_ok', '一人利用'], ['counter_seats', '席'], ['seats_total', '席'], ['seats', '席'],
@@ -140,8 +147,9 @@ export function groupFacts(entry, displayCatKey) {
     if (f.k === 'solo_insight') { insight = insight || _insightOf(f); continue; }
     if (HIDDEN_ROWS.has(f.k)) continue;
     if (displayCatKey !== 'bath' && BATH_ONLY.has(f.k)) continue;
-    if (!byKey.has(f.k)) byKey.set(f.k, []);
-    byKey.get(f.k).push(f);
+    const key = accessKey(f);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(f);
   }
   const rows = [];
   const keys = [...byKey.keys()].sort((a, b) => {
@@ -369,8 +377,8 @@ export function soloCheck(entry, item) {
   const quiet = pick('silence');
   // access は語彙（public/male_only…）にも、アクセス説明の自由文にも使われている。
   // 「東京都台東区蔵前…」を利用条件の信号にすると読めないので、語彙の値だけを採る。
-  const condFact = pick('access');
-  const cond = condFact && COND_SHORT[condFact.v] ? condFact : null;
+  // 自由文が先に並んでいても取りこぼさないよう、語彙の値を探しに行く。
+  const cond = facts.find(f => f.k === 'access' && COND_SHORT[f.v]) || null;
   // 閉業・休業は closureOf に判断を任せる（食い違う告知の扱いを1か所に集める）
   const shut = closureOf(entry);
 
