@@ -397,7 +397,7 @@ def test_closed_facilities_are_marked_and_pushed_down(page):
     assert "公式 0件" in txt and "確認済み" not in txt.split("ひとりチェック")[0],         f"公式0件なのに確認済みと出ている: {txt[:160]}"
     # 利用条件は ✕（ひとりで行くのに条件がある）
     cond = page.locator("#detail .ck").last
-    assert "blocked" in (cond.get_attribute("class") or ""), "利用条件が ✕ になっていない"
+    assert "blocked" in (cond.get_attribute("class") or ""),         f"利用条件が ✕ になっていない: {cond.inner_text()}"
 
 
 def test_scene_button_recommends_within_that_scene(context, page):

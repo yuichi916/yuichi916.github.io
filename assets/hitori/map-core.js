@@ -304,11 +304,19 @@ export function facilityShareUrl(base, pref, id) {
 // 閉業・休業。一覧では普通のカードに見えるので、行った人が閉まった建物を見ることになる。
 // 「そこへ一人で行けるか」以前の問題なので、カードの時点で伝えて順位も下げる。
 export function closureOf(entry) {
+  // 出典が食い違っていても「開いていない」ことは変わらないので、食い違う告知も見る。
+  // ただし閉業と休業が食い違うときは**穏当な側（休業）**を採る。
+  // 閉業と決めつけると、開いている店を一覧から消すことになる（食い違い自体は事実一覧に出る）。
+  let perm = null, temp = null, clash = false;
   for (const f of ((entry && entry.facts) || [])) {
-    if (f.k !== 'status' || f.conflict) continue;
-    if (f.v === 'closed_permanently') return { state: 'closed', label: '閉業の情報' };
-    if (f.v === 'closed_temporarily') return { state: 'temporarily', label: '休業中の情報' };
+    if (f.k !== 'status') continue;
+    if (f.v === 'closed_permanently') { perm = f; clash = clash || !!f.conflict; }
+    else if (f.v === 'closed_temporarily') { temp = f; clash = clash || !!f.conflict; }
   }
+  if (perm && temp) return { state: 'temporarily', label: '休業か閉業か、出典で食い違い' };
+  if (perm) return { state: perm.conflict ? 'temporarily' : 'closed',
+                     label: perm.conflict ? '閉業の情報（出典で食い違い）' : '閉業の情報' };
+  if (temp) return { state: 'temporarily', label: temp.conflict ? '休業の情報（出典で食い違い）' : '休業中の情報' };
   return null;
 }
 
@@ -363,7 +371,8 @@ export function soloCheck(entry, item) {
   // 「東京都台東区蔵前…」を利用条件の信号にすると読めないので、語彙の値だけを採る。
   const condFact = pick('access');
   const cond = condFact && COND_SHORT[condFact.v] ? condFact : null;
-  const status = facts.find(f => f.k === 'status' && f.v !== 'open');
+  // 閉業・休業は closureOf に判断を任せる（食い違う告知の扱いを1か所に集める）
+  const shut = closureOf(entry);
 
   const seatShort = seat
     ? (/^\d+$/.test(String(seat.v).trim()) ? `${seat.v}席`
@@ -384,8 +393,11 @@ export function soloCheck(entry, item) {
   if (cells[1].state === 'unknown' && (kind === 'private_sauna' || kind === 'private_sauna_hotel')) {
     cells[1] = { ...cells[1], state: 'weak', short: '個室型', quote: '業態が個室サウナとして登録されています。', official: false };
   }
-  if (status) {
-    cells[5] = { ...cells[5], state: 'blocked', short: status.v === 'closed_permanently' ? '閉業の情報' : '休業の情報', quote: String(status.v), official: !!status.official };
+  if (shut) {
+    const src = ((entry && entry.facts) || []).find(f => f.k === 'status' && f.v !== 'open');
+    cells[5] = { ...cells[5], state: 'blocked', short: shut.label,
+                 quote: String((src && src.quote) || (src && src.v) || shut.label),
+                 official: !!(src && src.official) };
   }
   const known = cells.filter(c => c.state === 'ok').length;
   return { cells, known, total: cells.length };

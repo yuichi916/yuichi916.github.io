@@ -109,6 +109,43 @@ def to_curated_fact(f, checked):
     return out
 
 
+
+# 「食い違い」は出典どうしが**同じことについて違うことを言っている**時にだけ立てる。
+# ここを雑にすると、看板である食い違い表示が雑音で埋まる。実データで見つかった誤検出:
+#   料金 1,958件 = 同じページの大人850円/子供420円（段が違うだけ）
+#   営業時間 436件 = 「～」と「〜」のチルダ違い、行の分かれ方
+#   定休日 134件 = 韓国語版・英語版ページの同じ内容
+#   駐車場  80件 = 「駐車場：24台」と「駐車場： 24台」の空白
+#
+# 1つしか取り得ない項目（予約の要否・利用条件・営業状態）は、値が違えば食い違い。
+# 複数あり得る項目（料金の段、支払い手段、時間帯）は、**出典が違う時だけ**食い違い。
+SINGLE_VALUED = {"reservation", "access", "status", "silence", "clientele", "first_timer"}
+# 日本語が1文字も無い引用は、多言語版ページの同じ内容。日本語版が別にあるので採らない
+_JA = re.compile(r"[ぁ-んァ-ヴ一-龥]")
+
+
+def is_japanese(text):
+    return bool(_JA.search(str(text or "")))
+
+
+def same_value(a, b):
+    """表記の揺れを吸収して同じ値か見る。"""
+    if a == b:
+        return True
+    if isinstance(a, str) and isinstance(b, str):
+        return _norm(a) == _norm(b)
+    return False
+
+
+def conflicts_with(k, existing, new):
+    """既存の事実と新しい事実が、食い違いと言えるか。"""
+    if same_value(existing.get("v"), new.get("v")):
+        return False
+    if k in SINGLE_VALUED:
+        return True                      # 1つしか取り得ないので、違えば食い違い
+    old_src = set(existing.get("src") or [])
+    return bool(old_src) and _domain(new["urls"][0]) not in old_src
+
 def merge(results, curated, checked, pages=None):
     """抽出結果を curated に足す。curated は破壊的に更新する。統計を返す。"""
     pages = pages or {}
@@ -121,6 +158,11 @@ def merge(results, curated, checked, pages=None):
             continue
         good = []
         for f in r.get("facts", []):
+            # 多言語版ページの同じ内容（韓国語版・英語版）は、日本語版が別にあるので採らない
+            if not is_japanese(f.get("quote")):
+                stat["rejected"] += 1
+                reasons["日本語でない引用（多言語版ページ）"] = reasons.get("日本語でない引用（多言語版ページ）", 0) + 1
+                continue
             why = check_fact(f, pages.get(f.get("url")))
             if why:
                 stat["rejected"] += 1
@@ -135,14 +177,15 @@ def merge(results, curated, checked, pages=None):
         for f in good:
             new = to_curated_fact(f, checked)
             same = [x for x in entry["facts"] if x.get("k") == new["k"]]
-            # 同じ項目に違う値があるなら、どちらかを選んで捨てず両方に印をつける
-            if any(x.get("v") != new["v"] for x in same):
+            if any(same_value(x.get("v"), new["v"]) for x in same):
+                continue          # 同じ値の重複は増やさない（表記の揺れも同じ値と見る）
+            clash = [x for x in same if conflicts_with(new["k"], x, new)]
+            # 食い違いは、どちらかを選んで捨てず両方に印をつける
+            if clash:
                 new["conflict"] = True
-                for x in same:
+                for x in clash:
                     x["conflict"] = True
                 stat["conflicts"] += 1
-            elif same:
-                continue          # 同じ値の重複は増やさない
             entry["facts"].append(new)
             stat["added"] += 1
         stat["facilities"] += 1

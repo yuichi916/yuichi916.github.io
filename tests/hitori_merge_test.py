@@ -137,6 +137,74 @@ def test_counter_seats_takes_a_number_or_a_description():
     assert "整数" in me.check_fact({"k": "seats_total", "v": "たくさん"} | q)
 
 
+def _fact(k, v, dom="a.jp", quote="根拠となる日本語の行"):
+    return {"k": k, "v": v, "quote": quote, "url": f"https://{dom}/x"}
+
+
+def _cur(k, v, dom="a.jp"):
+    return {"n1": {"checked": "2026-08-01", "facts": [
+        {"k": k, "v": v, "n": 1, "official": True, "conflict": False,
+         "src": [dom], "urls": [f"https://{dom}/x"], "quote": "既存の根拠"}]}}
+
+
+def test_formatting_differences_are_not_conflicts():
+    """「～」と「〜」、空白の有無で食い違いを立てない。看板が雑音で埋まる。"""
+    cur = _cur("hours", "11：00～19：00")
+    stat, _, _ = me.merge([{"id": "n1", "status": "ok", "identity": "match",
+                            "facts": [_fact("hours", "11：00〜19：00")]}], cur, "2026-09-12")
+    assert stat["conflicts"] == 0 and stat["added"] == 0, "同じ値を足さない"
+    assert len(cur["n1"]["facts"]) == 1
+
+
+def test_same_page_multiple_prices_are_not_conflicts():
+    """同じページの大人850円/子供420円は段が違うだけで、食い違いではない。"""
+    cur = _cur("price", 850, "a.jp")
+    stat, _, _ = me.merge([{"id": "n1", "status": "ok", "identity": "match",
+                            "facts": [_fact("price", 420, "a.jp")]}], cur, "2026-09-12")
+    assert stat["conflicts"] == 0, "同じ出典なので食い違いにしない"
+    assert stat["added"] == 1, "値としては両方残す"
+    assert not any(f["conflict"] for f in cur["n1"]["facts"])
+
+
+def test_different_sources_disagreeing_on_price_is_a_conflict():
+    """桑名の銭湯: 市の公式が200円、まとめサイトが150円。これは本物の食い違い。"""
+    cur = _cur("price", 200, "city.kuwana.lg.jp")
+    stat, _, _ = me.merge([{"id": "n1", "status": "ok", "identity": "match",
+                            "facts": [_fact("price", 150, "yuru-to.net")]}], cur, "2026-09-12")
+    assert stat["conflicts"] == 1
+    assert all(f["conflict"] for f in cur["n1"]["facts"])
+
+
+def test_single_valued_keys_conflict_even_from_the_same_source():
+    """予約の要否は1つしか取り得ない。同じ出典でも違えば食い違い。"""
+    cur = _cur("reservation", "none")
+    stat, _, _ = me.merge([{"id": "n1", "status": "ok", "identity": "match",
+                            "facts": [_fact("reservation", "required")]}], cur, "2026-09-12")
+    assert stat["conflicts"] == 1
+
+
+def test_payment_can_hold_more_than_one_method():
+    """券売機とキャッシュレスは両立する。食い違いではない。"""
+    cur = _cur("payment_method", "ticket_machine")
+    stat, _, _ = me.merge([{"id": "n1", "status": "ok", "identity": "match",
+                            "facts": [_fact("payment_method", "cashless_ok")]}], cur, "2026-09-12")
+    assert stat["conflicts"] == 0 and stat["added"] == 1
+
+
+def test_other_language_versions_are_skipped():
+    """韓国語版・英語版の同じ内容は採らない（日本語版が別にある）。"""
+    res = [{"id": "n1", "status": "ok", "identity": "match", "facts": [
+        _fact("closed_days", "월요일 정기 휴무", quote="월요일 정기 휴무"),
+        _fact("closed_days", "Mondays", quote="Closed on Mondays"),
+        _fact("closed_days", "月曜定休", quote="月曜定休（祝日の場合は翌日）"),
+    ]}]
+    cur = {}
+    stat, reasons, _ = me.merge(res, cur, "2026-09-12")
+    assert stat["added"] == 1
+    assert cur["n1"]["facts"][0]["v"] == "月曜定休"
+    assert reasons.get("日本語でない引用（多言語版ページ）") == 2
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

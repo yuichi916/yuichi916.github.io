@@ -304,12 +304,21 @@ check('soloCheck: 語彙の値は日本語にして出す（生の posted を見
   eq(mc.soloCheck({ facts: [{ k: 'silence', v: 'observed', official: false }] }, {}).cells[4].short, '静かさに触れた記述');
 });
 
-check('closureOf: 閉業と休業を見分け、食い違う告知は使わない', () => {
+check('closureOf: 閉業と休業を見分け、食い違うときは穏当な側を採る', () => {
   eq(mc.closureOf({ facts: [{ k: 'status', v: 'closed_permanently' }] }).state, 'closed');
   eq(mc.closureOf({ facts: [{ k: 'status', v: 'closed_temporarily' }] }).state, 'temporarily');
   eq(mc.closureOf({ facts: [{ k: 'status', v: 'open' }] }), null);
-  eq(mc.closureOf({ facts: [{ k: 'status', v: 'closed_permanently', conflict: true }] }), null);
   eq(mc.closureOf(null), null);
+  // 食い違っていても「開いていない」ことは変わらないので、警告は出す
+  const c = mc.closureOf({ facts: [{ k: 'status', v: 'closed_permanently', conflict: true }] });
+  eq(c.state, 'temporarily', '閉業と決めつけると、開いている店を一覧から消すことになる');
+  eq(c.label.includes('食い違い'), true);
+  // 閉業と休業が両方あるときも穏当な側
+  const both = mc.closureOf({ facts: [
+    { k: 'status', v: 'closed_permanently', conflict: true },
+    { k: 'status', v: 'closed_temporarily', conflict: true }] });
+  eq(both.state, 'temporarily');
+  eq(both.label.includes('食い違い'), true);
 });
 
 check('rankItems: 閉まっている施設は確認済みでも最後に回す', () => {
