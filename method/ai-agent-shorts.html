@@ -66,6 +66,26 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
 .fig-mid{max-width:560px;margin-left:auto;margin-right:auto}
 .fig2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
 .fig2 figure{margin:0}
+/* 人間の入力(プロンプト)と、エージェントの出力 */
+.pr{margin:16px 0;border-left:3px solid var(--accent);background:var(--paper-2);padding:12px 16px}
+.pr-l{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.16em;
+  color:var(--accent);text-transform:uppercase;margin-bottom:7px}
+.pr-t{font-size:14.5px;color:var(--ink);line-height:1.85}
+.out{margin:16px 0 22px;border-left:3px solid var(--ink-3);background:#fff;padding:12px 16px}
+.out-l{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.16em;
+  color:var(--ink-3);text-transform:uppercase;margin-bottom:7px}
+.out-t{font-size:14px;color:var(--ink-2);line-height:1.8}
+.out-t code{font-size:.9em}
+/* やり取りの回数 */
+.rounds{margin:22px 0;border:1px solid rgba(26,24,18,.25);background:#fff}
+.rd{display:grid;grid-template-columns:44px 1fr;border-bottom:1px solid rgba(26,24,18,.12)}
+.rd:last-child{border-bottom:none}
+.rd-n{font-family:"JetBrains Mono",monospace;font-size:12px;color:#fff;background:var(--ink-3);
+  display:flex;align-items:center;justify-content:center}
+.rd.fix .rd-n{background:var(--accent)}
+.rd-b{padding:11px 14px}
+.rd-q{font-size:14px;color:var(--ink);line-height:1.75;margin-bottom:5px}
+.rd-a{font-size:12.5px;color:var(--ink-3);line-height:1.7}
 /* 縦動画の埋め込み */
 .vid{max-width:340px;margin:26px auto;border:1px solid rgba(26,24,18,.25);background:#000}
 .vid .fr{position:relative;width:100%;padding-top:177.78%}
@@ -221,6 +241,111 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
     どのニュースを選ぶか、その数字は信用できるか。ここは任せていません。
     残りの5工程は、指示を1つ出せばエージェントが最後まで走ります。
   </p>
+
+  <h3>2本目を作るときに、実際に打った指示</h3>
+  <p>これだけです。ここから工程1〜6が最後まで走りました。</p>
+
+  <div class="pr">
+    <div class="pr-l">入力 — 人間が打ったプロンプト</div>
+    <div class="pr-t">02の制作に進んで。また説明文にhttps://yuichi916.github.io/やhttps://x.com/ViewsEngineerの紹介ものせて。Xにも動画付きで投稿して</div>
+  </div>
+
+  <div class="out">
+    <div class="out-l">出力 — エージェントがやったこと</div>
+    <div class="out-t">
+      当日のAIニュースを検索して一次ソースを確認 → 5本を選定 →
+      台本(<code>script.json</code>)を生成 → 音声7本を合成 → 口パク生成 → BGMミックス →
+      1,763枚をレンダリングして<code>mp4</code>化 → 品質ゲート8項目を測定 →
+      別エージェントで事実確認(1件の誤りを発見して修正・再レンダリング) →
+      横/縦サムネを生成 → YouTubeへ公開投稿 → 縦サムネをStudioで設定 →
+      再生リストに追加 → Xへ動画付きで投稿
+    </div>
+  </div>
+
+  <p>
+    途中で人間が止めたのは1回だけ、<strong>Xの投稿先アカウントの確認</strong>です
+    (個人用とチャンネル用の2つがあるため)。それ以外は自走しています。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">01b — 立ち上げ</div>
+  <h2>1本目は8回、2本目は1回</h2>
+
+  <p>
+    上のように1回で走るようになったのは、2本目からです。
+    <strong>1本目はパイプライン自体が無かった</strong>ので、作りながら直していきました。
+    実際に打った指示と、その結果を順に並べます。
+  </p>
+
+  <div class="rounds">
+    <div class="rd">
+      <div class="rd-n">1</div>
+      <div class="rd-b">
+        <div class="rd-q">新シリーズも開始したい。1分AIニュースで英語学習ではなく、純粋に1分で最新のAIニュースがわかる工夫したショートを作りたい。エンジニア向け</div>
+        <div class="rd-a">→ 方向性の質問(誰が喋るか/何本か/デザイン)に答えて設計を確定。ダーク・ターミナル風、ずんだもん単独、5本ダイジェストに決定。パイプライン一式を新規作成し、1本目を書き出し</div>
+      </div>
+    </div>
+    <div class="rd fix">
+      <div class="rd-n">2</div>
+      <div class="rd-b">
+        <div class="rd-q">サムネがしょぼい。key visualとしてもっと工夫して。字幕とずんだもんがかぶっている。もっと読者の興味を引くような工夫をいれて</div>
+        <div class="rd-a">→ サムネに警告リボンと赤バッジを追加。字幕とキャラの座標を調整</div>
+      </div>
+    </div>
+    <div class="rd fix">
+      <div class="rd-n">3</div>
+      <div class="rd-b">
+        <div class="rd-q">字幕とずんだもんがかぶっている。もっと読者の興味を引くような工夫をいれて</div>
+        <div class="rd-a">→ 同じ指摘。マージンをさらに広げたが、まだ解決していなかった</div>
+      </div>
+    </div>
+    <div class="rd fix">
+      <div class="rd-n">4</div>
+      <div class="rd-b">
+        <div class="rd-q">playrightで実際のスマフォの画面と比べてテストして。まだかぶっている。htmlで作った全体像がわかる2次元の図など全体とそのつながりがあるhtml由来の図は必ずつけて</div>
+        <div class="rd-a">→ <strong>ここが転機</strong>。座標を機械判定するスクリプトを新規作成。動画内部は「重なりなし」だが、<strong>YouTube実機UIとほぼ全編重なっている</strong>ことを検出。レイアウトを再設計し、構造図の自動生成も追加</div>
+      </div>
+    </div>
+    <div class="rd fix">
+      <div class="rd-n">5</div>
+      <div class="rd-b">
+        <div class="rd-q">ニュースの全体像や背景がわかる図を生成して、ニュースの説明の余白につけてオリジナリティを出せと言っているのです</div>
+        <div class="rd-a">→ ニュースの内容を1枚で示す図解を5種類実装(内訳・フロー・スコア・対比・買収関係)</div>
+      </div>
+    </div>
+    <div class="rd fix">
+      <div class="rd-n">6</div>
+      <div class="rd-b">
+        <div class="rd-q">プロンプトの演出はわかりづらいし、面白くない。視聴者が最初の5秒で見るのをやめないためのサムネとそのあとの構成を考えて、途中でみるのをやめないようにしたい</div>
+        <div class="rd-a">→ 構成を全面的に作り直し。タイトルカードを廃止して0秒から当事者名指し、各ニュースに「あなたはどうする」と出典種別を追加、コマンドログ演出を削除</div>
+      </div>
+    </div>
+    <div class="rd fix">
+      <div class="rd-n">7</div>
+      <div class="rd-b">
+        <div class="rd-q">何こあてまったの部分が途中で切れている。無理に48秒におさめなくていいからきらさないで。あとチャンネル登録をお願いします位は入れてもいい</div>
+        <div class="rd-a">→ 末尾が0.02秒切れる原因(尺を音声の終端ちょうどに合わせていた)を特定して修正。以後は余韻0.7秒を必ず確保</div>
+      </div>
+    </div>
+    <div class="rd">
+      <div class="rd-n">8</div>
+      <div class="rd-b">
+        <div class="rd-q">新再生リスト作って公開していい</div>
+        <div class="rd-a">→ 投稿、再生リスト作成、縦サムネ設定まで実行</div>
+      </div>
+    </div>
+  </div>
+
+  <p>
+    赤い番号が<strong>修正の指示</strong>です。6回ありました。
+    このうち<strong>3回は同じ指摘</strong>(2・3・4)で、原因が分かったのは
+    「実機と比べてテストして」と言われて<strong>測る仕組みを作った</strong>ときでした。
+  </p>
+  <p>
+    重要なのは、この6回の修正が<strong>そのまま検証スクリプトになった</strong>ことです。
+    2本目以降は同じ指摘が出ません。機械が投稿前に見つけるからです。
+  </p>
 </div>
 
 <div class="step">
@@ -228,10 +353,20 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
   <h2>1つずつ、何をしているか</h2>
 
   <h3>工程1: ニュースを集めて、5本に絞る</h3>
+
+  <div class="pr">
+    <div class="pr-l">入力</div>
+    <div class="pr-t">02の制作に進んで。</div>
+  </div>
+  <div class="out">
+    <div class="out-l">出力</div>
+    <div class="out-t">当日のAIニュースを複数の検索で収集 → 一次ソース(公式発表・調査レポート)を開いて数字を確認 → エンジニアに関係する5本を選定</div>
+  </div>
+
   <p>
-    その日のAIニュースを検索して集めます。ここで必ずやるのが
-    <strong>一次ソースまで辿る</strong>ことです。まとめ記事の数字をそのまま使うと、
-    後の工程で必ず事故ります(実際に1件ありました。工程5で書きます)。
+    ここで必ずやるのが<strong>一次ソースまで辿る</strong>ことです。
+    まとめ記事の数字をそのまま使うと、後の工程で必ず事故ります
+    (実際に1件ありました。工程5で書きます)。
   </p>
   <p>
     選ぶ基準は「エンジニアの手が止まるか」です。#02では
@@ -384,6 +519,24 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
     <li>エンディングの音声が<strong>0.02秒切れて</strong>いた。動画の長さを最後の音声とちょうど同じにしていたため</li>
     <li>キャラクター画像が<strong>404で消えて</strong>いたのに、レンダリングは成功扱いで終わっていた</li>
   </ul>
+
+  <p>
+    実際に測ると、こう出ます。エージェントが読むのは、この最後の1行だけです。
+  </p>
+
+<pre><code>$ python qc_video.py ep02
+
+=== 品質ゲート（必須項目）===
+  尺                     58.00s        OK (Shorts上限60s)
+  解像度                 1080x1920     OK
+  音声                   48000Hz 2ch   OK
+  音圧 LUFS              -15.13        OK (-14±1.5)
+  ピーク dBTP            -1.88         OK
+  冒頭0.5秒の輝度        61.0/255      OK (暗転していないか)
+  最長の静止             1.0s          OK (3秒未満)
+  静止フレーム比率       6%            OK (1/3未満)
+
+判定: 全項目通過 — 投稿可</code></pre>
 
   <p>
     数値になると、エージェントは自分で回して自分で直せます。
