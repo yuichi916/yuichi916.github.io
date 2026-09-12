@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>エージェントに任せるには、目視をやめるしかなかった — 1分AIニュースの作り方｜AIエージェントで1から作る</title>
+<meta name="description" content="AIエージェントは自分が作った動画を見られない。だから「なんとなく良い」を全部数値にした。データ・合成・表現・検証・配信の5層に分け、静止フレーム比率91%、実機UIとの全編重なり、0.02秒の音切れを機械に見つけさせた記録。コードごと全部。">
+<meta name="keywords" content="AIエージェント,Claude Code,動画自動生成,YouTube Shorts,Playwright,VOICEVOX,品質ゲート,個人開発,自動化">
+<link rel="canonical" href="https://yuichi916.github.io/method/ai-agent-shorts.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="エージェントに任せるには、目視をやめるしかなかった">
+<meta property="og:description" content="AIエージェントは自分の作った動画を見られない。「なんとなく良い」を全部数値に置き換えた、動画1本ぶんの設計。">
+<meta property="og:url" content="https://yuichi916.github.io/method/ai-agent-shorts.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/hyaku/img/bg_study.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="note.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "エージェントに任せるには、目視をやめるしかなかった — 1分AIニュースの作り方",
+  "url": "https://yuichi916.github.io/method/ai-agent-shorts.html",
+  "datePublished": "2026-09-12",
+  "inLanguage": "ja-JP",
+  "image": "https://yuichi916.github.io/assets/hyaku/img/bg_study.jpg",
+  "author": { "@id": "https://yuichi916.github.io/#person" },
+  "publisher": { "@id": "https://yuichi916.github.io/#person" },
+  "isPartOf": { "@id": "https://yuichi916.github.io/#website" },
+  "about": ["AIエージェント", "動画自動生成", "品質保証", "YouTube Shorts"]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <a href="./">← 新しい形の研究</a>
+  <span>C-1 / AIエージェントで1から作る</span>
+</div>
+
+<header class="hd">
+  <p class="eyebrow">AIエージェントで1から作る — 1分AIニュース(YouTube Shorts)</p>
+  <h1>エージェントに任せるには、<br>目視をやめるしかなかった</h1>
+  <p class="lede">
+    AIエージェントは、自分が作った動画を<strong>見られません</strong>。
+    mp4を渡しても再生できず、1本1,700枚のフレームを全部は確認できない。
+    だから「なんとなく良い」で回っていた判断を、全部<strong>数値と座標</strong>に置き換えました。
+    実際に事故を5件止めた、動画1本ぶんの設計を全部書き出します。
+  </p>
+  <p class="meta">2026-09-12 ／ 1分AIニュース #01・#02 の制作から ／ 読了 約12分</p>
+</header>
+
+<div class="step">
+  <div class="step-no">01 — 制約</div>
+  <h2>「良い感じにして」が、いちばん通じない指示だった</h2>
+
+  <p>
+    ずんだもんが最新のAIニュース5本を1分弱で読み上げるYouTube Shortsを、
+    AIエージェント(Claude Code)と一緒に作りました。台本作成から音声合成、
+    画面のレンダリング、投稿までを1本のパイプラインにしています。
+  </p>
+  <p>
+    最初に壁になったのは、技術的な難しさではありませんでした。
+    <strong>エージェントが、自分の作ったものを確認できない</strong>ことです。
+  </p>
+
+  <ul>
+    <li>出来上がったmp4を渡しても、エージェントは再生できない</li>
+    <li>フレームを画像で見せることはできるが、1本で1,700枚以上ある</li>
+    <li>音は、そもそも聞けない</li>
+  </ul>
+
+  <p>
+    つまりエージェントは、自分の成果物に対して
+    「間延びしている」「字幕が読みにくい」「音が小さい」といった判断ができません。
+    人間が毎回見て、毎回指摘するしかない。それでは自動化した意味がありません。
+  </p>
+
+  <blockquote>
+    <p>しかも人間の目視は、思っていたより<strong>当てになりませんでした</strong>。<br>
+    私が「重なっていない」と確認して投稿しようとしたものが、実機では<strong>全編にわたって重なっていた</strong>。</p>
+  </blockquote>
+
+  <p>
+    字幕とキャラクターが重なって見える、という指摘を受けて修正し、
+    フレームを何枚も並べて「解消した」と判断しました。ところが解消していませんでした。
+    重なっていたのは動画の内部ではなく、<strong>YouTube Shorts再生画面のUI</strong>
+    (右側のいいね・コメント列、下部のタイトル欄)との間だったからです。
+    静止画をいくら眺めても、そこには写っていません。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">02 — 原理</div>
+  <h2>人間の目を、機械の数値に置き換える</h2>
+
+  <p>
+    そこで方針を変えました。エージェントに「見せる」ことを諦めて、
+    <strong>見なくても判定できる形</strong>に問題を書き直す。
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>人間が目で見ていたこと</th><th>機械が測れる形</th><th>不合格の線</th></tr>
+    <tr><td>間延びして見える</td><td>静止フレーム比率(隣接フレームの画素差分が閾値未満の割合)</td><td>1/3以上</td></tr>
+    <tr><td>画面が止まっている</td><td>最長の静止区間</td><td>3秒以上</td></tr>
+    <tr><td>字幕が読みにくい</td><td>要素同士の矩形の交差判定</td><td>1pxでも交差</td></tr>
+    <tr><td>暗すぎる</td><td>冒頭0.5秒の平均輝度</td><td>20/255未満</td></tr>
+    <tr><td>音が小さい / 割れている</td><td>LUFS / dBTP</td><td>-14±1.5を外れる / -1.0超</td></tr>
+    <tr><td>長すぎる</td><td>尺</td><td>60秒超</td></tr>
+  </table>
+  </div>
+
+  <p>
+    数値になった瞬間、エージェントは<strong>自分で回して、自分で直せる</strong>ようになります。
+    「静止フレーム比率91%」と出れば、原因を探して修正し、もう一度測って14%になったことを確認できる。
+    人間の確認を待つ必要がありません。
+  </p>
+
+  <h3>閾値は、感覚を翻訳したもの</h3>
+  <p>
+    ここで大事なのは、閾値そのものに絶対的な根拠はない、ということです。
+    「静止フレーム比率1/3未満」は、私が過去に作った動画を見比べて
+    「これ以上止まっていると飽きる」と感じた線を、そのまま数字にしただけです。
+  </p>
+  <p>
+    根拠がなくても構いません。重要なのは
+    <strong>線が引かれていて、機械が同じ基準で何度でも測れる</strong>ことです。
+    線が間違っていたら、あとで動かせばいい。線が無いと、議論が毎回ゼロから始まります。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">03 — 構造</div>
+  <h2>5層に切って、エージェントが1層だけ触れるようにする</h2>
+
+  <p>
+    パイプライン全体を、依存の向きが一方向になるように5層へ分けました。
+    上の層を直しても下の層は影響を受けません。
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>層</th><th>役割</th><th>実体</th><th>出力</th></tr>
+    <tr><td>1. データ</td><td>内容を構造化データで持つ</td><td><code>build_news_shorts.py</code></td><td><code>script.json</code></td></tr>
+    <tr><td>2. 合成</td><td>音声を作る・口パクを作る</td><td><code>synth_long.py</code> / <code>lipsync_long.py</code></td><td>wav / <code>timing.json</code></td></tr>
+    <tr><td>3. 表現</td><td>画面を描く</td><td><code>scene_news.html</code></td><td>(時刻→描画)</td></tr>
+    <tr><td>4. 検証</td><td>合否を数値で出す</td><td><code>qc_video.py</code> ほか</td><td>合格 / 不合格</td></tr>
+    <tr><td>5. 配信</td><td>投稿・再生リスト・SNS</td><td><code>upload_to_youtube.py</code> ほか</td><td>URL</td></tr>
+  </table>
+  </div>
+
+  <h3>データ層 — 内容は全部dictに置く</h3>
+  <p>
+    台本をHTMLに直接書くと、内容を1文字変えるのに表現も一緒に触ることになります。
+    そこで、1本のニュースが持つ情報を全部Pythonのdictで宣言する形にしました。
+  </p>
+
+<pre><code>dict(
+  tag="sec", tagLabel="SECURITY", pose="review",
+  audience="社内にサーバーがある人へ",          # 誰に関係あるか
+  summary="AIエージェントが395組織を突破",      # 3秒で読める結論
+  figs=[{"n":"395組織","l":"侵害された組織(48カ国)"},
+        {"n":"7分","l":"侵入から管理者権限まで"}],
+  diagram={"type":"score", ...},                # 図の種類とデータ
+  impact="PaperCutは今すぐパッチ適用を",        # 読者がすべきこと
+  text="ペーパーカットの脆弱性を突く攻撃で…",   # 読み上げ用(カタカナ込み)
+  caption="PaperCutの脆弱性を突くAI主導の攻撃で…", # 字幕用(表記正しく)
+  source="GreyNoise / BleepingComputer",
+  source_url="https://www.bleepingcomputer.com/…",
+  sourceType="調査",                            # 公式発表 / メディア報道 / 調査
+)</code></pre>
+
+  <p>
+    読み上げ用の <code>text</code> と字幕用の <code>caption</code> を分けているのがポイントです。
+    音声合成には「ペーパーカット」とカタカナで渡さないと読みを間違えますが、
+    画面には「PaperCut」と正しく出したい。1つのフィールドで両立させようとすると必ず破綻します。
+  </p>
+
+  <h3>合成層 — ハッシュでキャッシュして、差分だけ作り直す</h3>
+  <p>
+    音声合成は1本あたり数十秒かかります。台本を1行直すたびに7本全部を作り直していては、
+    試行の回数が稼げません。そこで<strong>本文のハッシュをファイル名に入れました</strong>。
+  </p>
+
+<pre><code>th = hashlib.sha1((ln["text"] + str(sid)).encode()).hexdigest()[:10]
+f = AUD / f"l_{ln['idx']:03d}_{sp}_{th}.wav"
+if f.exists():
+    sec = dur(f)          # 本文が同じなら再利用
+else:
+    vv(ln["text"], sid, f)  # 変わった行だけ合成</code></pre>
+
+  <p>
+    実際、事実確認で1行だけ修正が入ったとき、再合成されたのは
+    <strong>7本中1本だけ</strong>でした。「新規合成 1 本」とログに出ます。
+  </p>
+
+  <h3>表現層 — 時刻を引数で受ける</h3>
+  <p>
+    ここが、この構成でいちばん効いた判断です。画面はHTML/CSSで作りますが、
+    CSSアニメーションや <code>requestAnimationFrame</code> は<strong>使いません</strong>。
+    代わりに、外から時刻を渡すと、その瞬間の画面を描く関数を1つ用意します。
+  </p>
+
+<pre><code>window.__setTime = function(t){
+  $("pbar").style.width = (Math.min(t/TOTAL,1)*100) + "%";
+  $("bgfx").style.transform =
+    "translate("+(Math.sin(t*0.42)*230)+"px,"+(Math.cos(t*0.31)*300)+"px)";
+  // …この時刻に表示すべきものを全部決める
+};</code></pre>
+
+  <p>レンダリング側は、時刻を進めながら1枚ずつ撮るだけです。</p>
+
+<pre><code>for i in range(N):
+    pg.evaluate(f"window.__setTime({i/FPS:.4f})")
+    pg.screenshot(path=str(FR/f"f_{i:05d}.jpg"), type="jpeg", quality=88)</code></pre>
+
+  <p>
+    この形にすると、レンダリングが<strong>実時間から切り離されます</strong>。
+    マシンが遅くてもコマ落ちしない。何度実行しても1フレームも違わない。
+    そして何より、<strong>検証スクリプトが任意の時刻の画面を再現できる</strong>ようになります。
+    「t=26.0秒の状態を調べたい」が、そのまま <code>__setTime(26.0)</code> で書けます。
+  </p>
+
+  <h3>検証層 — 目視の代わりに座標を突き合わせる</h3>
+  <p>
+    要素同士が重なっていないかは、ブラウザに座標を聞けば分かります。
+    人間が画面を見て判断する必要はありません。
+  </p>
+
+<pre><code>def rects_overlap(a, b):
+    ox = min(a["right"], b["right"]) - max(a["left"], b["left"])
+    oy = min(a["bottom"], b["bottom"]) - max(a["top"], b["top"])
+    if ox &gt; 0 and oy &gt; 0:
+        return {"w": round(ox, 1), "h": round(oy, 1)}
+    return None</code></pre>
+
+  <p>
+    これを0.1秒刻みで全編に回します。1本ぶんで500〜600回の判定になりますが、
+    数十秒で終わります。出力は<strong>1行</strong>です。
+  </p>
+
+<pre><code>ep02: 重なりなし(0.1秒刻み, 全587フレーム走査)</code></pre>
+
+  <p>
+    重要なのは、この検証が<strong>動画そのものではなくHTMLに対して</strong>走ることです。
+    mp4を作る前に判定できるので、レンダリングの2分を待つ必要がありません。
+  </p>
+
+  <h3>1本あたりの実測</h3>
+  <p>2本目以降、1本を出すまでにかかっている時間です。</p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>工程</th><th>時間</th><th>備考</th></tr>
+    <tr><td>ニュース収集・選定</td><td>15〜20分</td><td>一次ソースの確認を含む。ここだけ人間の判断が要る</td></tr>
+    <tr><td>台本作成</td><td>10分</td><td>データを書き換えるだけ。HTMLは触らない</td></tr>
+    <tr><td>音声合成〜ミックス</td><td>3分</td><td>変更した行だけ再合成</td></tr>
+    <tr><td>レンダリング</td><td>2分</td><td>1,700枚を撮ってmp4化</td></tr>
+    <tr><td>検証3種</td><td>4分</td><td>品質ゲート・要素の重なり・実機セーフゾーン</td></tr>
+    <tr><td>事実確認</td><td>3分</td><td>別エージェントに並列で投げる</td></tr>
+    <tr><td>投稿・再生リスト・SNS</td><td>5分</td><td></td></tr>
+  </table>
+  </div>
+
+  <p>
+    金銭的なコストは、音声合成(VOICEVOX)が無料、レンダリングもローカルなので実質ゼロです。
+    X投稿のAPI利用料が1回$0.200かかる程度でした。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">04 — 実際</div>
+  <h2>この仕組みが実際に止めた、5つの事故</h2>
+
+  <p>すべて、私の目視では見つけられなかった(あるいは見落とした)ものです。</p>
+
+  <h3>① キャラクターが消えていた(画像404)</h3>
+  <p>
+    ローカルHTTPサーバのルート設定の都合で、キャラクター画像のパスが親ディレクトリを
+    参照しており、404になっていました。ところがレンダリングは<strong>成功扱い</strong>で終わります。
+    Playwrightの <code>requestfailed</code> はネットワークエラーでしか発火せず、
+    <strong>404はHTTPとして正常に返ってきている</strong>からです。
+  </p>
+
+<pre><code># これだけでは404を取りこぼす
+pg.on("requestfailed", lambda r: fails.append(r.url))
+# ステータスコードも見る
+pg.on("response", lambda r: fails.append(r.url) if r.status &gt;= 400 else None)</code></pre>
+
+  <p>「読込失敗0」というログを信じていたら、キャラのいない動画を投稿していました。</p>
+
+  <h3>② 静止フレーム比率91%(背景が隠れていた)</h3>
+  <p>
+    背景に動く光を仕込んであったのに、その手前に<strong>不透明なパネル</strong>を置いていたため、
+    画面のほとんどが止まっていました。目で見ると「動いている」ように錯覚します。
+    文字が切り替わるからです。測ると91%が静止でした。
+  </p>
+  <p>
+    パネルの内側にも動く要素を足して<strong>14%</strong>まで下がりました。
+    測定はffmpegとnumpyだけでできます。
+  </p>
+
+<pre><code>diffs = [float(np.abs(arrs[i]-arrs[i-1]).mean()/255*100)
+         for i in range(1, len(arrs))]
+still_ratio = sum(1 for d in diffs if d &lt; 0.5) / len(diffs)</code></pre>
+
+  <h3>③ 実機UIとの全編重なり(動画の中では重なっていない)</h3>
+  <p>
+    これが、目視がいちばん通用しなかった例です。動画の内部では、字幕もキャラクターも
+    一度も重なっていませんでした。座標判定でも「重なりなし」と出ます。
+    それでも実機では重なっていました。
+  </p>
+  <p>
+    YouTube Shortsの再生画面には、右側にいいね・コメント・シェアのボタン列が、
+    下部にタイトルとチャンネル名が<strong>動画の上に重ねて</strong>表示されます。
+    キャラクターは画面の右下にいたので、その両方に完全に埋もれていました。
+  </p>
+  <p>
+    解決は単純で、<strong>実機UIの占有領域も矩形として定義して、同じ交差判定にかける</strong>ことです。
+  </p>
+
+<pre><code># YouTube Shorts 実機UIの目安(1080x1920基準)
+SAFE_RIGHT_W, SAFE_RIGHT_Y0, SAFE_RIGHT_Y1 = 220, 760, 1780  # 右のボタン列
+SAFE_BOTTOM_H = 310                                          # 下のキャプション欄</code></pre>
+
+  <p>
+    測った結果は「キャラクターが2.2秒〜53.3秒のあいだ、右ボタン列と下キャプション欄の
+    両方と重なっている」。つまり<strong>ほぼ全編</strong>でした。
+    字幕とキャラクターを安全領域に収め直して解消しています。
+  </p>
+
+  <h3>④ エンディングが0.02秒切れていた</h3>
+  <p>
+    最後の「チャンネル登録してくれたら…」が、わずかに切れて終わっていました。
+    原因は、動画全体の尺を<strong>最後の音声の終わりちょうど</strong>に合わせていたことです。
+  </p>
+  <p>
+    フレーム数は整数に丸められるので、48.117秒は1,443フレーム=48.10秒になります。
+    音声の終端48.12秒に対して0.02秒足りない。ffmpegの <code>-shortest</code> が
+    律儀に短い方に合わせていました。末尾に余韻を足すだけの修正です。
+  </p>
+
+<pre><code>TAIL = 0.7   # 最後の声にぴったり合わせると末尾が切れる
+total += TAIL</code></pre>
+
+  <h3>⑤ 数字の誤帰属(事実確認エージェント)</h3>
+  <p>
+    「中国7ラボがClaudeを蒸留、1.5億回」と書いていました。出典を突き合わせたところ、
+    <strong>1.51億回はAlibaba系1社の数値</strong>で、7ラボ合計は約2億回。
+    間違いではないのに、<strong>合算と誤読される</strong>書き方でした。
+  </p>
+  <p>
+    これは数値測定では捕まりません。別のエージェントに
+    「台本の各数字を出典URLと突き合わせ、一致/要修正/確認不能で判定せよ」と投げています。
+    書いた本人とは別の文脈で読ませることに意味があります。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">05 — 再現</div>
+  <h2>あなたの題材でやるときの順番</h2>
+
+  <p>動画である必要はありません。スライドでも、記事でも、アプリの画面でも同じです。</p>
+
+  <h3>1. 先に「不合格の条件」を数値で書く</h3>
+  <p>
+    作り始める前に書きます。「良いもの」の定義は難しくても、
+    「これは出せない」の線なら引けます。最初は3つで十分です。
+    私の場合は、尺・音圧・静止比率から始めました。
+  </p>
+
+  <h3>2. データと表現を分ける</h3>
+  <p>
+    内容をJSONやdictに追い出します。判断基準は
+    <strong>「明日、内容だけ差し替えて2本目が作れるか」</strong>。
+    作れないなら、まだ表現に内容が埋まっています。
+  </p>
+
+  <h3>3. 表現層から時間を追い出す</h3>
+  <p>
+    アニメーションを実時間で動かすと、検証のたびに結果が変わります。
+    <code>setTime(t)</code> のように<strong>時刻を引数で受ける</strong>形にすると、
+    再現性と検証容易性が同時に手に入ります。これは動画以外でも効きます
+    (状態を引数で受けるUIコンポーネント、と言い換えれば同じ話です)。
+  </p>
+
+  <h3>4. 検証をコマンド1つにする</h3>
+  <p>
+    <code>python qc_video.py ep02</code> で全項目が測れて、
+    最後に<strong>「全項目通過」か「★不合格」の1行</strong>が出るようにします。
+    エージェントに渡すのはこのコマンドだけです。判断を挟ませません。
+  </p>
+
+  <h3>5. 事実は、書いた本人以外に検証させる</h3>
+  <p>
+    数値で測れるのは形式だけです。内容の正しさは別のエージェントに、
+    出典URLを渡して突き合わせさせます。「誇張されていないか」ではなく
+    <strong>「出典のどこに書いてあるか」</strong>を答えさせるのがコツです。
+  </p>
+
+  <blockquote>
+    <p>この5つを通すと、人間の仕事は<strong>「何を作るか」と「線をどこに引くか」</strong>だけになります。<br>
+    「ちゃんとできているか」は、機械が毎回、同じ厳しさで見てくれます。</p>
+  </blockquote>
+
+  <div class="proof">
+    <h3>実際にできたもの</h3>
+    <p>
+      この構成で作ったShortsシリーズです。#01から#02までの制作で、
+      上に書いた5つの事故はすべて投稿前に止まりました。
+    </p>
+    <a class="cta" href="https://www.youtube.com/playlist?list=PLT9RqB3kcKYQ" target="_blank" rel="noopener">1分AIニュース(再生リスト) →</a>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-no">付録</div>
+  <h2>動くパイプライン一式について</h2>
+
+  <p>
+    この記事に書いた設計と、主要なコードはすべて公開しています。
+    ここまでの内容で、同じ構造を自分の題材で組み直すことはできます。
+  </p>
+  <p>
+    一方で、実際に動かすところまでには、記事に書ききれない細かい部分が残ります。
+    VOICEVOXの読み間違いの潰し方、口パクの閾値、BGMのダッキング設定、
+    YouTube APIの認証まわり、サムネの輝度調整といった、
+    <strong>「動くまでにハマる場所」</strong>です。
+  </p>
+  <p>
+    そこを含めた<strong>実行可能な一式</strong>を、別途配布する予定です。
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>含まれるもの</th><th>中身</th></tr>
+    <tr><td>パイプライン本体</td><td>台本生成・音声合成・口パク・ミックス・レンダリング(13スクリプト)</td></tr>
+    <tr><td>画面テンプレート</td><td><code>scene_news.html</code> と図解5種、横/縦サムネのテンプレート</td></tr>
+    <tr><td>検証スクリプト</td><td>品質ゲート・要素の重なり判定・実機UIセーフゾーン判定・レイアウト診断図</td></tr>
+    <tr><td>配信スクリプト</td><td>YouTube投稿・再生リスト・縦サムネ設定・X投稿</td></tr>
+    <tr><td>Claude Code スキル</td><td>この手順をエージェントに実行させるための <code>SKILL.md</code> 一式</td></tr>
+    <tr><td>セットアップ手順</td><td>VOICEVOX / Playwright / ffmpeg / API認証の導入手順</td></tr>
+  </table>
+  </div>
+
+  <p class="meta">配布方法と価格は準備中です。決まりしだい、このページに追記します。</p>
+</div>
+
+<footer>
+  <a href="../">ひとりぶんの棚</a>
+  <a href="./">新しい形の研究</a>
+  <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>
+</footer>
+
+</div>
+</body>
+</html>
