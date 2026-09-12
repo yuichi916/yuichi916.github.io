@@ -72,6 +72,21 @@ def test_orphans_are_dropped_and_counted():
     assert by_pref[13]["n1"] == CURATED["n1"]
 
 
+def test_version_follows_the_facts_not_only_the_date():
+    """県別ファイルのキャッシュは、事実が変われば必ず剥がれること。
+
+    版を施設データの日付だけにしていたため、事実だけ更新した回は
+    URL が変わらず、再訪した人に古い事実が出たままになっていた。
+    """
+    import copy
+    v1 = build_index.data_version(CURATED, SUMMARY)
+    assert v1 == build_index.build_index(PREFDOCS, CURATED, SUMMARY)[0]["version"]
+    other = copy.deepcopy(CURATED)
+    other["n1"]["facts"][0]["v"] = "変えた値"
+    assert build_index.data_version(other, SUMMARY) != v1, "事実が変われば版も変わる"
+    assert build_index.data_version(CURATED, SUMMARY) == v1, "同じ入力なら同じ版"
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

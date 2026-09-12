@@ -135,9 +135,11 @@ function fitOpts() {
 
 // --- データ ---
 // index.json は素で引く（?v=Date.now() を付けると ETag が毎回無効になり、再訪のたびに全量を落とす）。
-// 以降のデータは index.json の updated を版として付ける。データが更新された時だけ URL が変わる。
+// 以降のデータは index.json の version を付ける。version は事実の中身から作るので、
+// 事実が変われば必ず URL が変わる（updated は施設データの日付なので、事実だけ
+// 更新された回を取りこぼす。実際に取りこぼしていた）。
 const loadJson = path => {
-  const v = state.index && state.index.updated;
+  const v = state.index && (state.index.version || state.index.updated);
   return fetch(v ? `${path}?v=${encodeURIComponent(v)}` : path)
     .then(r => { if (!r.ok) throw new Error(`${path}: ${r.status}`); return r.json(); });
 };

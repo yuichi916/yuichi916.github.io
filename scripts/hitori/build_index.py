@@ -4,7 +4,7 @@
 hitori.html は初回に 2.3MB の curated.json を丸ごと読んでいた。索引だけを先に読み、
 事実の本体は必要になった県だけ読むための一方向の派生。curated.json 自体は触らない。
 """
-import json, sys
+import hashlib, json, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,6 +31,18 @@ def _is_grounded_insight(fact):
             and v.get("quality") == "grounded"
             and v.get("policyVersion") == "official-provenance-v2"
             and bool(str(v.get("title", "")).strip()) and bool(str(v.get("insight", "")).strip()))
+
+
+def data_version(curated, summary):
+    """県別ファイルのキャッシュを剥がすための版。
+
+    施設データの日付（summary.updated）だけでは足りない。事実は施設データと
+    別に更新されるので、curated が変わっても日付は動かず、再訪した人に
+    古い事実が出たままになる。中身から作れば、変わった時だけ URL が変わる。
+    """
+    h = hashlib.sha1(json.dumps(curated, ensure_ascii=False, sort_keys=True,
+                                separators=(",", ":")).encode("utf-8"))
+    return f"{summary['updated']}.{h.hexdigest()[:8]}"
 
 
 def build_index(prefdocs, curated, summary):
@@ -63,7 +75,8 @@ def build_index(prefdocs, curated, summary):
     # OSM のタグ由来など公式でない根拠しか持たない施設は、信号は出すが確認済みには数えない
     # （トップの「確認済み N件は公式情報で裏を取り」が嘘になる）。
     official_count = sum(1 for v in checked.values() if v[2] > 0)
-    index = {"updated": summary["updated"], "total": summary["total"],
+    index = {"updated": summary["updated"], "version": data_version(curated, summary),
+             "total": summary["total"],
              "checked_count": official_count, "sourced_count": len(checked),
              "prefectures": prefectures, "checked": checked}
     if orphans:
