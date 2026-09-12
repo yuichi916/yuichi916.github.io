@@ -298,7 +298,7 @@ function recommendHtml(vr) {
     ${recs.map(r => `<button class="reco open-detail" type="button" data-id="${esc(r.item.id)}">
       <span class="rname">${esc(r.item.name)}</span>
       <span class="rkind">${esc(mc.kindJa(r.item.kind))}</span>
-      <span class="rwhy">${r.reasons.map(x => `<i class="${esc(x.kind)}">${esc(x.text)}</i>`).join('')}</span>
+      <span class="rwhy">${r.open.state === 'open' ? '' : '<i class="unk">営業時間は要確認</i>'}${r.reasons.map(x => `<i class="${esc(x.kind)}">${esc(x.text)}</i>`).join('')}</span>
     </button>`).join('')}
     <p class="ck-legend">開いている時間・支払い・席・静けさは、集めた事実をそのまま並べています。おすすめの言葉は足していません。</p>
   </section>`;

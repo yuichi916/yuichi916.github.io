@@ -372,7 +372,7 @@ check('recommend: 閉業・行けない条件・何も分からない施設は�
   eq(mc.recommend([RC_ITEM], ctx(null)).length, 1);
 });
 
-check('recommend: 公式の裏付け → 営業中 → 分かっている数 → 近さ の順', () => {
+check('recommend: 営業中 → 公式の裏付け → 分かっている数 → 近さ の順', () => {
   const A = { ...RC_ITEM, id: 'A', name: 'A店', distM: 900 };
   const B = { ...RC_ITEM, id: 'B', name: 'B店', distM: 100 };
   const ctx = {
@@ -384,6 +384,21 @@ check('recommend: 公式の裏付け → 営業中 → 分かっている数 →
   // 同格なら近い方
   const ctx2 = { now: RC_NOW, hoursOf: () => null, curatedOf: () => RC_CUR, checked: () => true };
   deq(mc.recommend([A, B], ctx2).map(r => r.item.id), ['B', 'A']);
+});
+
+check('recommend: いま入れない店は、裏が取れていても後ろ', () => {
+  // 19:30 の松江で、公式の裏付けがある博物館が営業中のラーメン屋より
+  // 上に出ていた。裏が取れていても、いま入れない店は「いまここから」の答えにならない。
+  const museum = { ...RC_ITEM, id: 'M', name: '記念館', kind: 'museum', cat: 'quiet', oh: '', distM: 2100 };
+  const ramen = { ...RC_ITEM, id: 'R', name: 'ラーメン店', distM: 1800 };
+  const ctx = {
+    now: RC_NOW, hoursOf: () => null,
+    curatedOf: id => (id === 'M' ? RC_CUR : { facts: [{ k: 'payment_method', v: 'cashless_ok', official: false, conflict: false }] }),
+    checked: id => id === 'M',
+  };
+  const got = mc.recommend([museum, ramen], ctx);
+  deq(got.map(r => r.item.id), ['R', 'M'], '営業中が先');
+  eq(got[1].open.state, 'unknown', '時間が分からないことは open で分かる（表示側が断る）');
 });
 
 check('recommend: 件数を絞れる', () => {

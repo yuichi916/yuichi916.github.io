@@ -459,8 +459,10 @@ export function recommendReasons(item, cur, openLabelResult, distM) {
 }
 
 // 推薦の並び。数を作らず、確かなものから順に見る。
-//   1. 公式の裏付けがある            2. いま開いている
+//   1. いま開いている                2. 公式の裏付けがある
 //   3. ひとりチェックの ● が多い     4. 近い
+// 「いま開いている」が先。どれだけ裏が取れていても、**いま入れない店は
+// 「いまここから」の答えにならない**（19:30 の松江で博物館が上位に来ていた）。
 // 閉まっている施設と、行けない条件がある施設は推薦しない（一覧には残る）。
 export function recommend(items, ctx, limit = 5) {
   const c = ctx || {};
@@ -485,8 +487,8 @@ export function recommend(items, ctx, limit = 5) {
     });
   }
   scored.sort((a, b) =>
-    (b.official - a.official)
-    || ((b.open.state === 'open') - (a.open.state === 'open'))
+    ((b.open.state === 'open') - (a.open.state === 'open'))
+    || (b.official - a.official)
     || (b.known - a.known)
     || ((a.item.distM ?? Infinity) - (b.item.distM ?? Infinity)));
   // 同じ名前の店を並べない。「もうやんカレー」が2軒出ても、選んだことにならない
