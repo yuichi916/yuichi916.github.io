@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>最初は「背景が真っ黒」としか言えなかった — 専門外でAIの出力をどう判定するか｜新しい形の研究</title>
-<meta name="description" content="専門外の分野でAIに作らせると、出てきたものが良いのか悪いのか判定できない。同じ背景を6回作り直した画像と、Claude Codeのログ80件の集計で、門外漢の語彙が12日で入れ替わる過程を追いました。3D・画像生成・音声合成・作曲・ゲームUI・物語の6分野。">
-<meta name="keywords" content="AIエージェント,Claude Code,Blender,KitBash3D,AI 評価,専門外,門外漢,個人開発">
+<title>専門外の出力は、評価できないまま完成する — 門外漢の目利き｜新しい形の研究</title>
+<meta name="description" content="専門外の分野でAIに作らせると、出てきたものが良いのか悪いのか判定できない。しかも完成する。質問を出させて選ぶ・候補を並べて比べる・真偽は機械に検算させる。3Dの背景6版を実例に、6分野・指示80件で効き目を測った記録です。">
+<meta name="keywords" content="AIエージェント,Claude Code,AI 評価,専門外,門外漢,品質判定,個人開発,Blender">
 <link rel="canonical" href="https://yuichi916.github.io/method/mongaikan-no-mekiki.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
-<meta property="og:title" content="最初は「背景が真っ黒」としか言えなかった">
-<meta property="og:description" content="専門外でAIの出力を判定できるようになるまでを、背景6版と指示80件で追う。">
+<meta property="og:title" content="専門外の出力は、評価できないまま完成する">
+<meta property="og:description" content="判定できない分野でAIに発注するための、3つの型と、その効き目の測定。">
 <meta property="og:url" content="https://yuichi916.github.io/method/mongaikan-no-mekiki.html">
 <meta property="og:image" content="https://yuichi916.github.io/assets/hyoka/bg-versions.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -31,6 +31,9 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
 .ba{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:22px 0}
 .ba figure{margin:0}
 .ba figcaption{margin-top:7px}
+.case{margin:20px 0;padding:15px 18px;border:1px solid rgba(26,24,18,.22);background:#fff}
+.case .lb{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.16em;color:var(--accent);text-transform:uppercase;margin-bottom:8px}
+.case p{margin-bottom:0}
 .refs{margin-top:30px;padding-top:18px;border-top:1px solid rgba(26,24,18,.18);font-size:12.5px;color:var(--ink-3);line-height:1.9}
 .refs h3{font-family:"Shippori Mincho",serif;font-size:15px;color:var(--ink);margin-bottom:10px}
 .refs li{margin-bottom:9px}
@@ -40,7 +43,7 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
 {
   "@context": "https://schema.org",
   "@type": "TechArticle",
-  "headline": "最初は「背景が真っ黒」としか言えなかった",
+  "headline": "専門外の出力は、評価できないまま完成する",
   "url": "https://yuichi916.github.io/method/mongaikan-no-mekiki.html",
   "datePublished": "2026-09-14",
   "inLanguage": "ja-JP",
@@ -48,7 +51,7 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
   "author": { "@id": "https://yuichi916.github.io/#person" },
   "publisher": { "@id": "https://yuichi916.github.io/#person" },
   "isPartOf": { "@id": "https://yuichi916.github.io/#website" },
-  "about": ["AIエージェント", "Blender", "評価", "個人開発"]
+  "about": ["AIエージェント", "品質評価", "学習", "個人開発"]
 }
 </script>
 </head>
@@ -61,119 +64,77 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
 </div>
 
 <header class="hd">
-  <p class="eyebrow">門外漢の目利き — 専門外6分野・指示80件の記録</p>
-  <h1>最初は「背景が真っ黒」と<br>しか言えなかった</h1>
+  <p class="eyebrow">門外漢の目利き — 専門外のものを評価する方法</p>
+  <h1>専門外の出力は、<br>評価できないまま完成する</h1>
   <p class="lede">
-    専門外の分野でAIに何かを作らせると、出てきたものが良いのか悪いのか判定できません。
-    私は3Dで止まりました。12日後、同じ私が「低ポリは全部排除」と書いています。
-    <strong>同じことが、画像生成でも作曲でもゲームUIでも起きました。</strong>
+    バグなら落ちます。「これで良いのか」は落ちません。
+    専門外の分野でAIに作らせると、良し悪しを判定できないまま完成品が手元に残ります。
+    <strong>判定できる人を用意しないと、平均が出荷される。</strong>
+    そのための3つの型と、6分野で測った効き目です。
   </p>
-  <p class="meta">2026-09-14 ／ 背景6版とClaude Codeのログ80件 ／ 読了 約8分</p>
+  <p class="meta">2026-09-14 ／ 6分野・指示80件の記録 ／ 読了 約8分</p>
 </header>
 
 <div class="step">
-  <div class="step-no">00</div>
-  <h2>まず、6枚を見てほしい</h2>
+  <div class="step-no">00 — 問題</div>
+  <h2>評価できない人が発注すると、平均が返ってくる</h2>
 
   <p>
-    サウンドノベル『正解の外側』の廃棄層。同じ場所の360°背景です。
-    素材は KitBash3D、レンダリングは Blender。左上が最初で、右下が完成版です。
-  </p>
-
-  <figure>
-    <img src="../assets/hyoka/bg-versions.png" alt="廃棄層の背景6版。第1版は真っ黒で何も無く、第3版は明るいが床が空っぽ、第6版は暗くガラクタで埋まっている">
-    <figcaption>12日で6回。素材も場所も同じで、変えたのは配置と光だけです。</figcaption>
-  </figure>
-
-  <p>
-    並べれば違いは分かります。問題は、<strong>1枚ずつ出てきたときに良し悪しを言えるか</strong>でした。
-    第2版から第5版までの4枚は、私が7月12日の14時11分と15時18分に打った2つの指示から連続して出ています。
-    次に背景について何か言えたのは、2日後です。
-  </p>
-  <p>
-    13日間で打った指示は80件、1日6件です。多くありません。
-    効いたのは回数ではなく、<strong>1周の待ち時間が数時間から数分になった</strong>ことでした。
-  </p>
-</div>
-
-<div class="step">
-  <div class="step-no">01</div>
-  <h2>最初に言えたのは、明るさだけだった</h2>
-
-  <p>6枚の明るさと、画面の密度を測りました。</p>
-
-  <figure>
-    <img src="../assets/hyoka/bg-track.png" alt="明るさを横軸、密度を縦軸にした6版の軌跡。第1版と第6版は明るさがほぼ同じで密度が2.6倍違う">
-    <figcaption>密度は、明るさを正規化したあとの隣接画素差の平均。画面に物がどれだけ詰まっているかの目安です。</figcaption>
-  </figure>
-
-  <p>
-    第1版と第6版は、明るさがほぼ同じです。23.5 と 19.2。
-    人が見れば別物ですが、<strong>輝度だけ見ると同じ「暗い背景」</strong>になります。
-    違いは密度で、1.73 と 4.47。2.6倍あります。
-  </p>
-  <p>
-    ただし密度も万能ではありません。第3版は 4.11、第6版は 4.47 で、数字はほとんど同じなのに見た目は別物です。
-    <strong>2軸でも足りない。</strong>足りていなかったのは視点の高さと素材の粗さで、それを知るのに12日かかりました。
-  </p>
-  <p>
-    第1版が暗いのは、何も置かれていないからです。第6版が暗いのは、物で埋まったうえで光を落としてあるからです。
-    私が最初に打った「背景が真っ黒」は、<strong>前者と後者を区別しない語</strong>でした。
-  </p>
-
-  <blockquote>
-    <p>門外漢の語彙は1本の軸しか持っていません。明るい、暗い。<br>
-    3Dの背景には、少なくとも<strong>光・密度・視点の高さ・素材の粗さ</strong>という別々の軸があります。</p>
-  </blockquote>
-
-  <p>
-    軸を持っていないと、直してほしい方向を指せません。
-    「暗くして」と言えば、第6版ではなく第1版が返ってくる可能性があります。
+    自分で作れないものを人に頼むことは、昔からできました。ただし
+    <strong>受け取ったものを検分できる範囲でしか、頼めなかった</strong>。
   </p>
   <p>
     クルーガーとダニングが1999年に書いています。
     <strong>正しい判断を産み出す知識と、それを見分ける知識は同じところから来る。</strong>
-    片方を欠けば、もう片方も欠ける。
+    片方を欠けば、もう片方も欠ける。専門外で出力を評価できないのは、この構造からです。
+  </p>
+  <p>
+    以前は、壁の越え方が学習しかありませんでした。数か月から数年かかる。
+    その時間が参入を止めていたので、判定できないまま大量に作ってしまう事故も起きませんでした。
+    エージェントが外したのは制作の側だけで、<strong>判定の側は外していません。</strong>
+  </p>
+
+  <h3>実例 — 私は3Dで止まった</h3>
+  <p>
+    サウンドノベル『正解の外側』の廃棄層。同じ場所の360°背景を、12日で6回作り直しています。
+    素材は KitBash3D、レンダリングは Blender。どちらも専門外でした。
+  </p>
+
+  <figure>
+    <img src="../assets/hyoka/bg-versions.png" alt="廃棄層の背景6版。第1版は真っ黒で何も無く、第3版は明るいが床が空っぽ、第6版は暗くガラクタで埋まっている">
+    <figcaption>左上が最初、右下が完成版。素材も場所も同じで、変えたのは配置と光だけです。</figcaption>
+  </figure>
+
+  <p>
+    並べれば違いは分かります。<strong>1枚ずつ出てきたときに言えるか</strong>が問題でした。
+    第2版から第5版までの4枚は、7月12日の14時11分と15時18分に打った2つの指示から連続して出ています。
+    次に背景について何か言えたのは、2日後です。
   </p>
 </div>
 
 <div class="step">
-  <div class="step-no">02</div>
+  <div class="step-no">01 — 評価者の不在</div>
   <h2>「評価もAIにやらせる」は循環する</h2>
 
   <p>
     採点もエージェントにやらせればいい。私はそう考えて、やってみました。回りませんでした。
     <strong>採点は返ってきますが、その採点が甘いのか辛いのか、こちらに判定できない。</strong>
   </p>
-  <p>
-    第4版のコミットメッセージには「全方位を密なスラム建物で囲む閉塞感」と書いてあります。
-    エージェントが書いた文で、やったことと合っています。
-    <strong>床が一面のっぺりしていることは、書いてありません。</strong>
-    自己申告は、指示に答えた部分しか報告しません。
-  </p>
 
-  <h3>判定を2つに割る</h3>
-
-  <div class="tblwrap">
-  <table>
-    <tr><th></th><th>真偽 — 正しいか</th><th>良否 — 良いか</th></tr>
-    <tr><td>例</td><td>指定した .blend を使ったか。参照先のテクスチャは実在するか</td><td>この背景は廃棄層に見えるか</td></tr>
-    <tr><td>決めるもの</td><td>外部の事実</td><td><strong>人間</strong></td></tr>
-    <tr><td>機械化</td><td><strong>できる</strong></td><td>できない</td></tr>
-    <tr><td>門外漢の対処</td><td>スクリプトに落として毎回走らせる</td><td><strong>自分を育てるしかない</strong></td></tr>
-  </table>
+  <div class="case">
+    <div class="lb">実例 — 自己申告に書かれなかったこと</div>
+    <p>
+      第4版のコミットメッセージには「全方位を密なスラム建物で囲む閉塞感」と書いてあります。
+      エージェントが書いた文で、やったことと合っています。
+      <strong>床が一面のっぺりしていることは、書いてありません。</strong>
+      自己申告は、指示に答えた部分しか報告しません。
+    </p>
   </div>
 
+  <h3>自分の感覚も当てにならない</h3>
   <p>
-    真偽は知識がなくても機械で守れます。やり方は
-    <a href="jidou-test.html">自動テストの実際</a> と <a href="hinshitsu-kenmon.html">品質検問</a> に書きました。
-    残るのは右の列です。
-  </p>
-
-  <h3>「自分は判定できている」という感覚は当てにならない</h3>
-  <p>
-    自分の判定を信じたくなりますが、METRの実測を見ると気が変わります。
-    平均5年の経験を持つ開発者16人に、自分が熟知したリポジトリで246件の作業をさせました。
+    METRの実測が分かりやすい例です。平均5年の経験を持つ開発者16人に、
+    自分が熟知したリポジトリで246件の作業をさせました。
     事前の予測は「24%速くなる」、終了後の自己評価は「20%速くなった」、実測は<strong>19%遅く</strong>。
     熟知した領域で、この幅です。
   </p>
@@ -183,43 +144,35 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
     自己申告のアンケートなので因果は言えませんが、検証の量を決めているのが出力の中身ではなく
     使う側の自信の所在だった、という向きは読めます。
   </p>
-</div>
 
-<div class="step">
-  <div class="step-no">03</div>
-  <h2>12日で、語彙が入れ替わった</h2>
+  <h3>判定を2つに割る</h3>
+  <p>対処が違うので、最初に分けます。</p>
 
-  <p>背景について実際に打った文を、時系列で並べます。</p>
-
-  <figure>
-    <img src="../assets/hyoka/bg-words.png" alt="背景について打った指示7件。0日目は背景が真っ黒、12日目は低ポリは全部排除、カメラワークで黒のちらつき">
-    <figcaption>0日目は明るさ。1日目に部位。3日目に理由。12日目にレンダリングの用語。</figcaption>
-  </figure>
+  <div class="tblwrap">
+  <table>
+    <tr><th></th><th>真偽 — 正しいか</th><th>良否 — 良いか</th></tr>
+    <tr><td>問い</td><td>指定したものを使ったか。参照先は実在するか。数字は出典と一致するか</td><td>これは狙ったものになっているか</td></tr>
+    <tr><td>決めるもの</td><td>外部の事実</td><td><strong>人間</strong></td></tr>
+    <tr><td>機械化</td><td><strong>できる</strong></td><td>できない</td></tr>
+    <tr><td>門外漢の対処</td><td>スクリプトに落として毎回走らせる</td><td><strong>自分を育てるしかない</strong></td></tr>
+  </table>
+  </div>
 
   <p>
-    入ってきた順は、状態だけ、部位、理由、原因の用語です。
-  </p>
-  <p>
-    最後の「低ポリ」は、ポリゴン数の少ない簡易モデルのことです。遠景に混ざると輪郭が角張って安っぽく見えます。
-    12日前の私は、この語を知りませんでした。覚えたきっかけは、
-    エージェントが作業のたびに使った素材と設定を書いてきたことです。
-    何度も目に入るうちに、角張った輪郭とその語が結びつきました。
-  </p>
-  <p>
-    途中は足踏みしています。第3版から第5版にかけて、明るさは 79.4 → 78.1 → 57.0 と動く一方、
-    密度は 4.11 → 3.66 → 3.78 でほぼ横ばいです。<strong>3枚かけて、前に進んでいません。</strong>
-    それでも6回まわしたことが、軸を増やしました。
+    真偽は知識がなくても機械で守れます。やり方は
+    <a href="jidou-test.html">自動テストの実際</a> と <a href="hinshitsu-kenmon.html">品質検問</a> に書きました。
+    残るのは右の列で、この記事はそこだけを扱います。
   </p>
 </div>
 
 <div class="step">
-  <div class="step-no">04</div>
-  <h2>軸を増やすための3つの型</h2>
+  <div class="step-no">02 — 方法</div>
+  <h2>判定はできないが、選ぶことはできる</h2>
 
   <p>
-    作るのは難しくても、選ぶことはできます。
+    足場は1つだけです。
     「AとBなら、Bのほうが自分の頭の中にあるものに近い」は、外の基準を必要としません。
-    門外漢に残っているのはこれだけで、以下はそれだけを足場にします。
+    出来の良し悪しが分からなくても、これは言える。ここから組み立てます。
   </p>
 
   <figure>
@@ -227,8 +180,8 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
     <figcaption>人間に残すのは「選ぶ」だけ。列挙と検算はエージェントとスクリプトに出します。</figcaption>
   </figure>
 
-  <h3>1. 質問を出させて、選ぶ</h3>
-  <p>何を決めるべきかを知らないので、良い質問は書けません。質問ごと列挙させます。</p>
+  <h3>型1. 決めるべきことを、列挙させる</h3>
+  <p>何を決めるべきかを知らないので、良い質問は書けません。質問ごと出させます。</p>
 
   <div class="pr">
     <div class="pr-l">入力 — 最初に打つ1文</div>
@@ -236,14 +189,24 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
   </div>
 
   <p>
-    背景でこれをやると、「視点の高さ」「霧の量」「光源の色温度」「素材の密度」が並びます。
-    この一覧が、そのまま軸のリストになります。
-    第1版のときにこれを見ていたら、「暗い」以外の語が4つ、目の前にありました。
-    選べたかは分かりませんが、選択肢があることは分かったはずです。
+    返ってくる一覧が、その分野の<strong>評価軸のリスト</strong>になります。
+    自分で質問を考えるより速く、「何を知らなかったか」が先に見えます。
   </p>
 
-  <h3>2. 候補を並べて、比べる</h3>
-  <p>1枚では判定できませんが、2枚の差なら判定できます。案ごとに狙いと変更点を書かせます。</p>
+  <div class="case">
+    <div class="lb">実例 — 背景でやると何が並ぶか</div>
+    <p>
+      「視点の高さ」「霧の量」「光源の色温度」「素材の密度」。
+      第1版のときにこれを見ていたら、「暗い」以外の語が4つ、目の前にありました。
+      選べたかは分かりませんが、選択肢があることは分かったはずです。
+    </p>
+  </div>
+
+  <h3>型2. 候補を並べて、差を見る</h3>
+  <p>
+    1つでは判定できませんが、2つの差なら判定できます。
+    案ごとに「何を狙って、どこを変えたか」を書かせます。
+  </p>
 
   <div class="ba">
     <figure>
@@ -262,23 +225,60 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
     3案までにします。5案出すと選べなくなり、「おまかせで」に倒れます。
   </p>
 
-  <h3>3. 真偽は、機械に検算させる</h3>
+  <h3>型3. 真偽は、機械に検算させる</h3>
   <p>
-    指定した .blend を開いたか、テクスチャのリンク切れはないか、出力の解像度は合っているか。
+    指定したものを使ったか、参照先は実在するか、出力の仕様は合っているか。
     ここを目で見ている限り、良否を見る余力は残りません。
   </p>
 
-  <h3>3つに共通する条件</h3>
+  <h3>3つに共通する条件 — 選んだ理由を1行言わせる</h3>
   <p>
-    選んだあとに「なぜそれを選んだと理解したか」を1行書かせます。
-    <strong>その文が、次の依頼文になります。</strong>借り物の言葉で構いません。私の場合、同じ語を3回ほど使ったあたりで、調べ直さずに書けるようになりました。
+    選択のあとに「なぜそれを選んだと理解したか」を1行書かせます。
+    <strong>その文が、次の依頼文になります。</strong>借り物の言葉で構いません。
+    私の場合、同じ語を3回ほど使ったあたりで、調べ直さずに書けるようになりました。
+  </p>
+  <p>
+    13日間で打った指示は80件、1日6件です。多くありません。
+    効いたのは回数ではなく、<strong>1周の待ち時間が数時間から数分になった</strong>ことでした。
   </p>
 </div>
 
 <div class="step">
-  <div class="step-no">05</div>
-  <h2>背景だけの話ではなかった</h2>
+  <div class="step-no">03 — 効き目</div>
+  <h2>12日で、指摘の語彙が入れ替わった</h2>
 
+  <p>効いたかどうかは、自分の指示が変わったかで見ます。まず背景の例から。</p>
+
+  <figure>
+    <img src="../assets/hyoka/bg-words.png" alt="背景について打った指示7件。0日目は背景が真っ黒、12日目は低ポリは全部排除、カメラワークで黒のちらつき">
+    <figcaption>入ってきた順は、状態だけ、部位、理由、原因の用語。</figcaption>
+  </figure>
+
+  <p>
+    「低ポリ」はポリゴン数の少ない簡易モデルのことで、遠景に混ざると輪郭が角張って安っぽく見えます。
+    12日前の私は、この語を知りませんでした。覚えたきっかけは、
+    エージェントが作業のたびに使った素材と設定を書いてきたことです。
+  </p>
+
+  <h3>最初の語彙は、1本の軸しか持っていなかった</h3>
+  <p>6枚の明るさと、画面の密度を測りました。</p>
+
+  <figure>
+    <img src="../assets/hyoka/bg-track.png" alt="明るさを横軸、密度を縦軸にした6版の軌跡。第1版と第6版は明るさがほぼ同じで密度が2.6倍違う">
+    <figcaption>密度は、明るさを正規化したあとの隣接画素差の平均。画面に物がどれだけ詰まっているかの目安です。</figcaption>
+  </figure>
+
+  <p>
+    第1版と第6版は、明るさがほぼ同じです。23.5 と 19.2。密度は 1.73 と 4.47 で2.6倍違う。
+    第1版が暗いのは何も置かれていないから、第6版が暗いのは物で埋まったうえで光を落としてあるからです。
+    最初に打った「背景が真っ黒」は、<strong>この2つを区別しない語</strong>でした。
+  </p>
+  <p>
+    密度も万能ではありません。第3版は 4.11、第6版は 4.47 で、数字はほとんど同じなのに見た目は別物です。
+    <strong>2軸でも足りない。</strong>足りていなかったのは視点の高さと素材の粗さでした。
+  </p>
+
+  <h3>3Dだけの話ではなかった</h3>
   <p>
     同じ期間のログ80件を、1件ずつ読み直して分類しました。
     専門外だったのは3Dのほかに、画像生成、音声合成、作曲、ゲームUI、物語の設計です。
@@ -316,7 +316,7 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
 </div>
 
 <div class="step">
-  <div class="step-no">06</div>
+  <div class="step-no">04 — 再現</div>
   <h2>専門外を始めるときのチェックリスト</h2>
 
   <ol>
@@ -338,7 +338,7 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
   <div class="tblwrap">
   <table>
     <tr><th>やってしまうこと</th><th>何が起きるか</th></tr>
-    <tr><td>「おまかせで」と答える</td><td>選択肢を出させた意味が消える。<strong>軸の一覧をもらって、見ずに捨てている</strong></td></tr>
+    <tr><td>「おまかせで」と答える</td><td>軸の一覧をもらって、見ずに捨てている</td></tr>
     <tr><td>候補を5案以上出させる</td><td>選べなくなり、結局おまかせに倒れる。3案まで</td></tr>
     <tr><td>AIに採点させて終わりにする</td><td>循環する。採点は下読み、決定は自分</td></tr>
     <tr><td>状態だけを言い続ける</td><td>方向が伝わらないので直らない。毎回「どこが」を1つ足す</td></tr>
@@ -355,10 +355,10 @@ figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
   </p>
 
   <div class="proof">
-    <h3>この6枚が入っているもの</h3>
+    <h3>この方法で作ったもの</h3>
     <p>
       全15話・フルボイス・3つの結末のブラウザサウンドノベル『正解の外側』。
-      第6版の背景は、第2話の廃棄層で360°見回せます。
+      6枚目の背景は、第2話の廃棄層で360°見回せます。
       作り方の詳細は <a href="../seikai-tech-guide.html">開発技術ガイド</a> に置いてあります。
     </p>
     <a class="cta" href="../seikai.html">遊んでみる</a>
