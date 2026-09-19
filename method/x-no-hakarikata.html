@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自分の投稿を分析しても、伸びる型は出てこなかった — Xの測り方｜新しい形の研究</title>
+<meta name="description" content="自分の過去投稿からX拡散の型を作ったら、それらしいものが出来てしまった。公開ランキングコードと、実際に伸びたAI関連投稿44件に当ててみたら、ほとんど外れていた。いいねの重みは0.5、ブックマークの重みは存在しない。層によって画像の要否が真逆になる。検算できる形で置いた記録です。">
+<meta name="keywords" content="X,Twitter,アルゴリズム,param.rs,拡散,バズ,AI,個人開発,エンゲージメント">
+<link rel="canonical" href="https://yuichi916.github.io/method/x-no-hakarikata.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="自分の投稿を分析しても、伸びる型は出てこなかった">
+<meta property="og:description" content="X拡散の通説を、公開ランキングコードと実例44件で検算した記録。">
+<meta property="og:url" content="https://yuichi916.github.io/method/x-no-hakarikata.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/xmethod/weights.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="note.css">
+<style>
+figure{margin:26px 0}
+figure img{width:100%;height:auto;display:block;border:1px solid rgba(26,24,18,.25)}
+figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
+.case{margin:20px 0;padding:15px 18px;border:1px solid rgba(26,24,18,.22);background:#fff}
+.case .lb{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.16em;color:var(--accent);text-transform:uppercase;margin-bottom:8px}
+.case p{margin-bottom:0}
+.refs{margin-top:30px;padding-top:18px;border-top:1px solid rgba(26,24,18,.18);font-size:12.5px;color:var(--ink-3);line-height:1.9}
+.refs h3{font-family:"Shippori Mincho",serif;font-size:15px;color:var(--ink);margin-bottom:10px}
+.refs li{margin-bottom:9px}
+.myth{margin:22px 0;border:1px solid rgba(26,24,18,.22);background:#fff}
+.myth div{padding:13px 17px;border-bottom:1px solid rgba(26,24,18,.14);font-size:14.5px;line-height:1.8}
+.myth div:last-child{border-bottom:0}
+.myth b{color:var(--accent)}
+.myth code{font-family:"JetBrains Mono",monospace;font-size:13px}
+.kata{margin:18px 0;padding:14px 18px;border-left:3px solid var(--accent);background:var(--paper-2)}
+.kata h4{font-family:"Shippori Mincho",serif;font-size:17px;color:var(--ink);margin-bottom:6px}
+.kata p{margin-bottom:0;font-size:14.5px}
+.kata .ev{margin-top:8px;font-size:13px;color:var(--ink-3);line-height:1.75}
+.limit{margin-top:26px;padding:15px 18px;background:var(--paper-2);border:1px dashed rgba(26,24,18,.3);font-size:13.5px;line-height:1.85;color:var(--ink-2)}
+.limit h3{font-family:"Shippori Mincho",serif;font-size:16px;color:var(--ink);margin-bottom:9px}
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "自分の投稿を分析しても、伸びる型は出てこなかった — Xの測り方",
+  "description": "X拡散の通説を、公開ランキングコードと実際に伸びたAI関連投稿44件で検算した記録。",
+  "datePublished": "2026-09-20",
+  "author": {"@type": "Person", "name": "Views Engineer"},
+  "publisher": {"@type": "Person", "name": "Views Engineer"},
+  "mainEntityOfPage": "https://yuichi916.github.io/method/x-no-hakarikata.html",
+  "image": "https://yuichi916.github.io/assets/xmethod/weights.png"
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <a href="./">← 新しい形の研究</a>
+  <span>A-10 / Xの測り方</span>
+</div>
+
+<header class="hd">
+  <p class="eyebrow">Xの測り方 — 拡散の通説を、公開コードで検算する</p>
+  <h1>自分の投稿を分析しても、<br>伸びる型は出てこなかった</h1>
+  <p class="lede">
+    自分の過去投稿を並べて型を作ったら、それらしいものが出来てしまいました。
+    公開されているランキングコードと、実際に伸びた投稿44件に当ててみたら、ほとんど外れていた。
+    <strong>自分の履歴の中には、自分が届いていない場所のデータが無い。</strong>
+    どこが外れていたかを、検算できる形で置いておきます。
+  </p>
+  <p class="meta">2026-09-20 ／ 実例44件・コード17項目を照合 ／ 読了 約9分</p>
+</header>
+
+<div class="step">
+  <div class="step-no">00 — 問題</div>
+  <h2>自分の履歴からは、それらしい型が必ず作れてしまう</h2>
+
+  <p>
+    最初にやったのは、自分の過去投稿を並べて共通点を探すことでした。
+    文の長さ、語尾、1行目の置き方。出てきた数字はどれも本物です。
+    そこから「通説を書く → 否定する → 理由を書く → 言い換えて締める」という4行の型を作りました。
+  </p>
+  <p>
+    ここに穴があります。<strong>自分の履歴には、自分が届かなかった場所のデータが入っていません。</strong>
+    伸びなかった投稿の共通点は分かりますが、伸びた投稿がどういう形をしているかは、自分が伸ばしたことがなければ分からない。
+    平均から上へ抜ける方法を、平均の内側だけを見て探していたことになります。
+  </p>
+  <p>
+    そこで根拠を外に移しました。使ったのは2つです。
+    ひとつは<strong>Xが公開しているランキングコード</strong>。もうひとつは、
+    <strong>媒体が記事として本文と反応数を印字していたAI関連投稿44件</strong>です。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">01 — コード</div>
+  <h2>よく言われている3つが、コードに書いていなかった</h2>
+
+  <p>
+    Xは2026年1月にランキングをGrokベースへ刷新し、実装の公開と月次開示を表明しています。
+    重みは <code>home-mixer/params/param.rs</code> にそのまま置いてあります。取得して17項目を照合しました。
+  </p>
+
+  <figure>
+    <img src="../assets/xmethod/weights.png" alt="param.rs の重み一覧。リンクをコピーして共有が20.0で最大、返信と引用が5.0、いいねは0.5。">
+    <figcaption>図1 — <code>param.rs</code> の f64 デフォルト値（同期 2026-09-18、2026-09-20 取得）。いいねは下から5番目。</figcaption>
+  </figure>
+
+  <p>
+    棄却されたのは次の3つです。どれも解説記事で何度も読んだものでした。
+  </p>
+
+  <div class="myth">
+    <div><b>「ブックマークが重い」</b> — <code>param.rs</code> に Bookmark の重みは<strong>1つも無い</strong>。
+      bookmark を含む行が0件。「いいねの◯倍」という言い方の根拠が、少なくともこのファイルには無い。</div>
+    <div><b>「外部リンクにはペナルティがある」</b> — <strong>罰則パラメータは存在しない</strong>。
+      むしろ <code>OpenLinkWeight = +0.2</code> とプラス。負の重みは5つだけで、リンク関連は含まれない。</div>
+    <div><b>「報告1件がいいね468件を打ち消す」</b> — <strong>コード内のコメントが、名指しでこれを誤りと書いている。</strong></div>
+  </div>
+
+  <div class="case">
+    <div class="lb">param.rs のコメント（原文）</div>
+    <p style="font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.8">
+      One common misinterpretation is that you can read these weight ratios as count equivalences,
+      e.g. the incorrect statement that "one report cancels 468 likes" -- this is incorrect because the
+      weights apply to the predicted probabilities rather than raw counts.
+    </p>
+  </div>
+
+  <p>
+    つまり重みは、<strong>そのアクションが起きる「予測確率」に掛かる係数</strong>であって、
+    実際の件数に掛かるのではない。倍率をそのまま件数の交換比率として読むと間違えます。
+  </p>
+  <p>
+    そのうえで、値そのものは意味を持ちます。<strong>返信5.0・引用5.0に対して、いいねは0.5。</strong>
+    相互フォロー間の返信にはさらに +15.0 が乗る。
+    いいねを集めにいく設計と、返信や引用を呼ぶ設計は、同じものではありません。
+  </p>
+
+  <p>
+    ただし、ここで話を終わらせると嘘になります。<strong>外部リンクは、実測では明らかに効いています。</strong>
+    同一記事で本文にリンクを置いた場合と返信に置いた場合を比べた記録では、3日間で
+    <strong>4,034インプ対 30,184インプ</strong>と7.5倍の差が出ています。
+    投稿あたりの平均インプが 6,900 から 500 へ落ちたという報告もある。
+  </p>
+  <p>
+    <strong>公開コードで説明できないのに、実測では差が出る。</strong>
+    この食い違いを埋める材料を私は持っていません。
+    だから「本文にリンクを置かないほうが良さそうだが、理由は分かっていない」以上のことは書きません。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">02 — 実例</div>
+  <h2>層によって、正解が真逆になる</h2>
+
+  <p>
+    次に、実際に伸びた投稿を集めました。一般層に届いたもの（ねとらぼ / ITmedia AI+ が記事にした14件）と、
+    AI・開発者界隈のもの（本文が逐語で載っていた20件）に分かれます。
+    この2つで、画像の要否が逆転していました。
+  </p>
+
+  <figure>
+    <img src="../assets/xmethod/layers.png" alt="一般層に届いた14件は100%画像あり。AI・開発者界隈の20件は55%がテキストのみ。">
+    <figcaption>図2 — 同じ「AIの話」でも、届く層で構成が逆になる。</figcaption>
+  </figure>
+
+  <p>
+    一般層に届いた14件は、<strong>14件すべてに画像か動画があります</strong>。枚数は1〜3枚が最頻で、4枚以上は1件もない。
+    規模も桁が違っていて、最大は2,646万表示・7万5,000いいね。題材は「AIで遊んだ」「AIが変な答えを返した」に集中しています。
+  </p>
+  <p>
+    一方、AI・開発者界隈で伸びていた投稿は<strong>55%がテキストのみ</strong>でした。
+    いいね上位はほぼ全部メディアなしです。8,700いいね・63万インプの投稿も、3,000いいね超の投稿も、画像がない。
+  </p>
+  <p>
+    ここから言えるのは、<strong>「画像を付けるべきか」という問いに一般解が無い</strong>ということです。
+    どちらの層に出すのかを先に決めないと、この問いには答えられません。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">03 — 1行目</div>
+  <h2>自分で作った型は、44件のどれにも現れなかった</h2>
+
+  <p>
+    本文が逐語で取れた20件について、1行目に何を置いているかを分類しました。
+  </p>
+
+  <figure>
+    <img src="../assets/xmethod/firstline.png" alt="1行目の分類。短い口語のぼやき・断言をそのまま置くが9件で最多。">
+    <figcaption>図3 — 半数近くが、短い口語をそのまま置いただけだった。</figcaption>
+  </figure>
+
+  <p>
+    最多は<strong>「短い口語のぼやき・断言を、そのまま置く」が9件</strong>。
+    解説も教訓も付いていません。言い切って、そこで終わっています。
+  </p>
+  <p>
+    私が自分の履歴から作った「通説 → 否定 → 理由 → 言い換え」の4行型は、
+    <strong>44件のどれにも現れませんでした。</strong>
+    4行目で結論を言い換えて締める形は、読み物としては整いますが、実際に伸びている投稿はそこを整えていない。
+  </p>
+  <p>
+    「【速報】【驚愕】【超朗報】」の型も同じでした。推奨している解説記事は多いのに、
+    <strong>44件中2件しかありません</strong>。そしてその解説記事に実測データは載っていませんでした。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">04 — 線引き</div>
+  <h2>禁じるべきは体験ではなく、自分の作品の話だった</h2>
+
+  <p>
+    もうひとつ、自分で作った型が間違えていた点があります。私は「1行目に自分の体験を書くな」と決めていました。
+    同じ作業をしている人にしか届かないからです。
+  </p>
+  <p>
+    ところが実例では、伸びている投稿の多くが体験から始まっています。
+    一般層に届いた5件は<strong>5件とも一人称の体験・行動で始まっており</strong>、AIの解説や評価で始まるものは1件もない。
+    界隈側で最も伸びていたのも、現場で起きた理不尽をそのまま書いた一文でした。
+  </p>
+  <p>
+    分類し直すと、線はここにありました。
+  </p>
+
+  <div class="myth">
+    <div><b>読者も同じ目に遭っている体験</b>（現場のぼやき）— 10件。8,700いいね / 1.7万いいね / 63万〜230万インプ</div>
+    <div><b>自分の作品・制作物の紹介</b> — 4件。<strong>最大でも100万表示・1,500いいね</strong></div>
+  </div>
+
+  <p>
+    体験そのものは問題ではない。<strong>自分の作品の話だけが伸びていない。</strong>
+    条件は「読んだ人が、自分にも起きたことだと思えるか」の一点です。
+    前者は読者の既知の痛みに乗るので、フォロワー数に依存しません。後者は依存します。
+  </p>
+  <p>
+    これは私にとって都合の悪い結論でした。書きたいのは作ったものの話だからです。
+    出すとしたら、<strong>紹介としてではなく、手順か実物として出す</strong>しかない。
+  </p>
+</div>
+
+<div class="step">
+  <div class="step-no">05 — 型</div>
+  <h2>実例から取り直した5つ</h2>
+
+  <div class="kata">
+    <h4>① 現場で起きた理不尽を、一文でそのまま書く</h4>
+    <p>テキストのみ・単発。飾らない口語で、起きたことだけ。解説も教訓も付けない。</p>
+    <p class="ev">根拠: 界隈系20件中9件がこの型で、いいね単価が最も高い。
+      「技術的に不可能と回答した要件に、でもGeminiは出来ると言われた」という一文が
+      8,700いいね・1,600リポスト・63万インプ。メディアなし、数字ゼロ。</p>
+  </div>
+
+  <div class="kata">
+    <h4>② 動くものを15秒で見せて、作り方を本文に全部書く</h4>
+    <p>動画か画像。本文にコピーできるプロンプトやコマンドを丸ごと置く。</p>
+    <p class="ev">根拠: 16歳が作ったCLIのデモが100万表示・1,500いいね。
+      プロンプト全文を本文に置いた投稿は <strong>919いいね に対して保存1,087</strong>。
+      いいねより保存が多いのは、後で再現する意図の表れ。</p>
+  </div>
+
+  <div class="kata">
+    <h4>③ 自分の設定ファイル・実物をそのまま晒す</h4>
+    <p>画像1枚と一行だけ。解説しない。</p>
+    <p class="ev">根拠: 同じ記事内での比較 —
+      公式発表を紹介した投稿が1,100いいね、<strong>個人が自分の CLAUDE.md を晒した投稿が2,291いいね</strong>。
+      本文は一行だけだった。実物は世界に1つしかないので、フォロワー数と無関係に価値がある。</p>
+  </div>
+
+  <div class="kata">
+    <h4>④ 速報を、日本語2行に圧縮して最速で出す</h4>
+    <p>何が起きたか＋数字を含む帰結。感想を足さない。ソースは返信に置く。</p>
+    <p class="ev">根拠: 同じ事件で、英語の原投稿が500いいね超だったのに対し、
+      日本語2行に圧縮した投稿が<strong>2,000いいね超</strong>で日本語圏拡散の起点になっていた。
+      英語圏と日本語圏の数時間〜1日の時差は、小さなアカウントでも埋められる。</p>
+  </div>
+
+  <div class="kata">
+    <h4>⑤ はっきり立場を取って、反論を歓迎する</h4>
+    <p>断言する。「人による」を書かない。反論が書きやすい余白を残す。</p>
+    <p class="ev">根拠: <strong>247いいね に対して引用124件</strong>で33万インプに達した例がある。
+      いいね率が低くてもインプは伸びる。返信5.0・引用5.0・いいね0.5 という重みと噛み合う。
+      ただしミュート -58.8、報告 -234.0 と負の値は桁が大きいので、<strong>対象は人でなく事象に向ける</strong>。</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-no">06 — 落とし穴</div>
+  <h2>やらないと決めたこと</h2>
+
+  <div class="myth">
+    <div><b>本文に外部リンクを置く</b> — 実測A/Bで7.5倍差。リンクは自分への返信に置く</div>
+    <div><b>「リンクに一言添えただけ」の投稿</b> — ある100投稿の記録で、42投稿が完全に反応ゼロ。
+      <strong>その全てがこの型で、自分の言葉が一行も無かった</strong></div>
+    <div><b>「【保存版】〜完全版」でいいねを期待する</b> — 実例は <strong>129いいね に対して348ブックマーク</strong>。
+      保存はされるが、いいねは来ない。狙うなら最初から保存目的で書く</div>
+    <div><b>15〜20本の長大スレッド</b> — 現役は3〜6本。連投が機能していたのは「過程を見せる企画」だけだった</div>
+    <div><b>自分の作品の紹介を主題にする</b> — 型②か型③の形に変換して出す</div>
+    <div><b>投稿時刻の最適化に時間を使う</b> — 効果はほぼ無いという監査がある</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-no">07 — 限界</div>
+  <h2>この記事で言えないこと</h2>
+
+  <div class="limit">
+    <h3>数値の出どころ</h3>
+    <p>
+      x.com への直接アクセスは全てHTTP 402で失敗しました。よって
+      <strong>反応数の一次データは1件も取れていません</strong>。
+      44件の数値はすべて、媒体の記事に印字されていた値です。計測時点も不明。
+      一次ソースを自分で踏めたのは <code>param.rs</code> の17項目だけです。
+    </p>
+    <h3 style="margin-top:14px">標本の偏り</h3>
+    <p>
+      集めたのは「媒体が記事にした投稿」であって、X全体の代表標本ではありません。
+      記事になりやすい投稿に偏っています。1行目の分類は n=20、一般層の分類は n=5 で、
+      <strong>統計的な主張ができる規模ではありません</strong>。
+    </p>
+    <h3 style="margin-top:14px">今後変わる</h3>
+    <p>
+      Xは2026年1月にランキングをGrokベースへ刷新しています。<code>param.rs</code> の値も変わりえます。
+      この記事の数値は2026-09-20時点のものです。
+    </p>
+  </div>
+
+  <blockquote>
+    <p>自分の履歴から作った型は、<strong>自分が届いた範囲の形しか持っていません</strong>。<br>
+    そこから外へ出る方法は、そこには入っていない。<br>
+    <strong>測る対象を、自分の外に置くしかない。</strong></p>
+  </blockquote>
+
+  <div class="refs">
+    <h3>参照した一次ソース</h3>
+    <ul>
+      <li>xAI, <em>x-algorithm</em> — <code>home-mixer/params/param.rs</code>（同期 2026-09-18、17項目を照合）
+        <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noopener">リポジトリ</a></li>
+      <li>投稿本文と反応数の出どころ: ねとらぼ / ITmedia AI+（一般層14件）、hashout.jp（界隈20件）。
+        いずれも記事に印字されていた値で、一次計測ではありません。</li>
+      <li>Zenn / Qiita 記事5,552本の回帰分析 — 記事の中身が説明する分散は1〜10%で、
+        効いていたのは著者フォロワー（5.69倍）と過去平均いいね（3.40倍）。
+        <a href="https://zenn.dev/tabayashi/articles/buzz-anatomy-what-drives-likes" target="_blank" rel="noopener">記事</a></li>
+    </ul>
+  </div>
+
+  <p style="margin-top:26px">
+    判定できないものを評価する方法は <a href="mongaikan-no-mekiki.html">門外漢の目利き</a> に、
+    静かに壊れる不具合の捕まえ方は <a href="hinshitsu-kenmon.html">品質検問</a> に、
+    他の型は <a href="./">新しい形の研究</a> に置いています。
+  </p>
+</div>
+
+<footer>
+  <a href="./">新しい形の研究</a>
+  <a href="../">ひとりぶんの棚</a>
+  <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>
+  <a href="https://medium.com/@ViewsEngineer" target="_blank" rel="noopener">Medium</a>
+</footer>
+
+</div>
+</body>
+</html>
