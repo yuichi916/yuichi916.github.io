@@ -17,6 +17,7 @@ import json
 import re
 import secrets
 import sys
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -72,8 +73,43 @@ def submit(urls: list[str], key: str) -> None:
         resp = urllib.request.urlopen(req, timeout=15)
         print(f"[indexnow] HTTP {resp.status} — submitted {len(urls)} URL(s)")
     except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:300]
         print(f"[indexnow] HTTP {e.code} — {e.reason}")
-        print(f"  body: {e.read().decode('utf-8', errors='replace')[:300]}")
+        print(f"  body: {body}")
+        if e.code == 403 and "UserForbiddedToAccessSite" in body:
+            # *.github.io のような共有ホストでは一括 POST が 403 で弾かれるが、
+            # 1 URL ずつの GET 形式は 202 で受理される。そちらに落とす。
+            print("[indexnow] falling back to the single-URL GET form")
+            submit_one_by_one(urls, key)
+
+
+def submit_one_by_one(urls: list[str], key: str) -> None:
+    ok = 0
+    failed: list[tuple[int, str]] = []
+    for u in urls:
+        q = urllib.parse.urlencode({"url": u, "key": key})
+        try:
+            with urllib.request.urlopen(
+                urllib.request.Request(
+                    f"https://api.indexnow.org/indexnow?{q}",
+                    headers={"User-Agent": "yuichi916-indexnow/1.0"},
+                ),
+                timeout=15,
+            ) as resp:
+                if resp.status in (200, 202):
+                    ok += 1
+                else:
+                    print(f"  [{resp.status}] {u}")
+        except urllib.error.HTTPError as e:
+            failed.append((e.code, u))
+    for code, u in failed[:3]:
+        print(f"  [{code}] {u}")
+    if len(failed) > 3:
+        print(f"  ... and {len(failed) - 3} more with the same result")
+    print(f"[indexnow] accepted {ok}/{len(urls)} URL(s) via GET")
+    if failed and failed[0][0] == 403:
+        print("[indexnow] 403 が続く場合は Bing Webmaster Tools で "
+              "yuichi916.github.io の所有権確認が必要（*.github.io は共有ホスト扱い）")
 
 
 def main() -> int:
