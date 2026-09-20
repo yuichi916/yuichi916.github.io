@@ -223,6 +223,25 @@ def test_access_restriction_requires_supporting_quote():
                           "quote": "どなたでもご利用いただけます", "url": u}) is None
 
 
+def test_forbidden_sites_are_never_requested():
+    """自動アクセスを禁じているサイトは、取り込みで弾く前に**取りに行かない**。
+
+    禁止一覧が取得側と取り込み側で別々に書かれていたため、取得側にだけ
+    抜けがあり、実際に食べログを417ページ取得してしまった。一覧は1つにする。
+    """
+    import fetch_pages
+    assert fetch_pages.is_blocked("https://tabelog.com/tokyo/")
+    assert fetch_pages.is_blocked("https://www.tabelog.com/x")
+    assert not fetch_pages.is_blocked("https://nottabelog.com/")
+    assert fetch_pages.fetch("https://tabelog.com/a", None)[0] == ""
+    # 取り込み側も同じ一覧を使っている（2か所に書かない）
+    assert me.BLOCKED is fetch_pages.BLOCKED_HOSTS
+    # 下層ページを追うときも禁止先へは行かない
+    html = '<a href="https://tabelog.com/x">店舗情報</a><a href="/menu">料金</a>'
+    got = fetch_pages.follow_links(html, "https://tabelog.com/base", 3)
+    assert all(not fetch_pages.is_blocked(u) for u, _ in got)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

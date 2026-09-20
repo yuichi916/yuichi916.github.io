@@ -57,6 +57,25 @@ def test_silence_and_access():
     assert "access" not in kv("男女それぞれの浴場がございます")
 
 
+def test_seat_counts_cover_how_pages_actually_write_them():
+    """席は一人客がいちばん知りたいのに、40,615件中433件しか分かっていなかった。
+
+    取りこぼしていた書き方（括弧・単位が名・単位落ち・「のみ」の挟まり）を拾う。
+    ただし単位を外す代わりに、席の話だと分かる行に限る。
+    """
+    assert kv("カウンター(8席)")["counter_seats"] == 8
+    assert kv("カウンター：6名")["counter_seats"] == 6
+    assert kv("カウンター席のみ6席")["counter_seats"] == 6
+    assert kv("お席：カウンター8、テーブル12")["counter_seats"] == 8
+    assert kv("全席カウンターの店です")["counter_seats"] == "カウンター席あり"
+    assert kv("客席45名")["seats_total"] == 45
+    # 席の数でないものを席にしない
+    assert kv("カウンター席は1階です")["counter_seats"] == "カウンター席あり"
+    assert "counter_seats" not in kv("カウンターまで徒歩3分")
+    assert "seats_total" not in kv("全席 500円")
+    assert "seats_total" not in kv("全席禁煙です")
+
+
 def test_seats():
     assert kv("カウンター 8席")["counter_seats"] == 8
     assert kv("カウンター席とテーブル席をご用意")["counter_seats"] == "カウンター席あり"

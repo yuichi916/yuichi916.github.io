@@ -47,8 +47,10 @@ INT_KEYS = {"seats_total", "price"}
 INT_OR_TEXT_KEYS = {"counter_seats"}
 STR_KEYS = {"hours", "closed_days", "solo_ok", "parking", "price_note", "address", "closes_on", "renamed_to"}
 ALLOWED = set(VOCAB) | INT_KEYS | INT_OR_TEXT_KEYS | STR_KEYS
-# 自動アクセスを禁止しているサイト。事実の出所として数えない（enrich.BLOCKED_DOMAINS と同じ趣旨）
-BLOCKED = {"tabelog.com", "sauna-ikitai.com", "retty.me"}
+# 自動アクセスを禁止しているサイト。事実の出所として数えない。
+# 一覧は fetch_pages が持つ（取りに行かない側が正本。2か所に書いていたせいで、
+# 取得側にだけ抜けがあり、実際に食べログを取得してしまった）。
+from fetch_pages import BLOCKED_HOSTS as BLOCKED     # noqa: E402
 MIN_QUOTE = 4
 
 

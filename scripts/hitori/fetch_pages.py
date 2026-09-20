@@ -19,6 +19,18 @@ from urllib.parse import urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 UA = "Mozilla/5.0 (compatible; hitori-map/1.0; +https://yuichi916.github.io/hitori.html)"
+# 自動アクセスを禁じているサイト。**取りに行かない**。
+# merge_extract はここ由来の事実を弾いていたが、弾くのは取ってきた後の話で、
+# 取得そのものは止まっていなかった（実際に食べログを417ページ取得してしまった）。
+# 禁止は取得の時点で効かせる。merge_extract もこの一覧を読む。
+BLOCKED_HOSTS = frozenset({"tabelog.com", "sauna-ikitai.com", "retty.me"})
+
+
+def is_blocked(url):
+    host = (urlparse(str(url)).hostname or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host in BLOCKED_HOSTS or any(host.endswith("." + b) for b in BLOCKED_HOSTS)
 TIMEOUT = 15
 # 6項目の手がかり。1つも無いページは LLM に渡しても何も出ない。
 HINTS = ("券売機", "予約", "カウンター", "席", "おひとり", "お一人", "一人", "ひとり", "黙浴",
@@ -64,7 +76,11 @@ def _mojibake(text):
 # 下層ページの当たり所。トップに書いていない運用は、この手のページに書いてある。
 FOLLOW_WORDS = ("ご利用案内", "利用案内", "ご利用方法", "利用方法", "はじめての", "初めての",
                 "よくある質問", "FAQ", "Q&A", "料金", "価格", "メニュー", "店舗情報", "施設案内",
-                "館内", "ご案内", "アクセス", "設備", "サービス", "お知らせ")
+                "館内", "ご案内", "アクセス", "設備", "サービス", "お知らせ",
+                # 席数はトップに書かれない。「店舗概要」「フロアのご案内」の側にある。
+                # 一人客がいちばん知りたいのが席なのに、全40,615件中433件しか
+                # 分かっていなかったので、席が載る側のページを名指しで追う。
+                "店舗概要", "店舗詳細", "概要", "フロア", "座席", "席数", "店内", "客席")
 A_TAG = re.compile(r"""(?is)<a\s[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>(.{0,60}?)</a>""")
 SKIP_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".zip", ".mp4", ".doc", ".xls")
 
@@ -79,7 +95,7 @@ def follow_links(html, base_url, limit=3):
             continue
         u = urljoin(base_url, href)
         pu = urlparse(u)
-        if pu.netloc != host or pu.path.lower().endswith(SKIP_EXT):
+        if pu.netloc != host or pu.path.lower().endswith(SKIP_EXT) or is_blocked(u):
             continue
         u = urlunparse((pu.scheme, pu.netloc, pu.path, "", pu.query, ""))
         if u == base_url or u in seen:
@@ -128,6 +144,8 @@ def to_text(html):
 
 
 def fetch(url, ctx):
+    if is_blocked(url):
+        return "", "", "自動アクセスを禁じているサイト", ""
     last = ""
     for u in variants(url):
         try:
@@ -185,7 +203,9 @@ def main():
     def one(r):
         url = (r.get("web") or "").strip()
         if not url.startswith("http"):
-            return {"id": r.get("id"), "status": "no_url"}
+            return [{"id": r.get("id"), "status": "no_url"}]
+        if is_blocked(url):
+            return [{"id": r.get("id"), "web": url, "status": "blocked"}]
         host = urlparse(url).netloc
         with host_lock:
             wait = last_hit.get(host, 0) + 1.0 - time.time()
