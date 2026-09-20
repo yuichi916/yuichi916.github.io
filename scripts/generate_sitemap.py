@@ -32,6 +32,23 @@ OUT = ROOT / "sitemap.xml"
 # Pages we never want in the sitemap
 EXCLUDE = {
     "googlea794ff425484fcb3.html",  # verification stub
+    "quest_test_tmp.html",          # 作業中の検証用ページ
+    "test-mobile.html",             # 表示確認用
+    "cg-render.html",               # 画像書き出し用（robots.txt でも Disallow）
+    "cg2-render.html",
+    "kv-render.html",
+    "op-render.html",
+    "seikai-plot.html",             # noindex 指定済み（結末を含む設定資料）
+}
+
+# Directories that must never reach the sitemap. 以前は **/*.html を丸ごと拾って
+# いたため、node_modules のテストファイルや作業用の .superpowers/ まで送信され、
+# robots.txt で Disallow しているパスを sitemap で提出する矛盾が起きていた。
+EXCLUDE_DIRS = {
+    ".git", ".github", ".superpowers", ".claude",
+    "node_modules", "_dev", "_local", "_test_assets", "_workers",
+    "_blender", "_gas", "_userscript", "_ehon_assets",
+    "tests", "docs",
 }
 
 # Priority & changefreq policy keyed by path prefix; first match wins.
@@ -97,7 +114,8 @@ def main() -> int:
     files = sorted({
         p.relative_to(ROOT).as_posix()
         for p in ROOT.glob("**/*.html")
-        if ".git" not in p.parts and p.name not in EXCLUDE
+        if not (EXCLUDE_DIRS & set(p.relative_to(ROOT).parts))
+        and p.name not in EXCLUDE
     })
     urls: list[tuple[str, str, str, str]] = []
     seen = set()
