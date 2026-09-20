@@ -160,7 +160,7 @@
       "@id": "https://yuichi916.github.io/#making",
       "name": "作り方の記録 — AIで作った作品の制作パイプラインと失敗",
       "description": "サウンドノベル・3D絵本・音楽地図・AI解説動画を、ひとりでどう作ったか。うまくいった手順より、詰まった所と抜け方を書いた記事の一覧。",
-      "numberOfItems": 9,
+      "numberOfItems": 11,
       "itemListElement": [
         {
           "@type": "ListItem",
@@ -177,44 +177,56 @@
         {
           "@type": "ListItem",
           "position": 3,
+          "name": "92秒のOPを、動画編集ソフトを使わずHTMLとBlenderで作る",
+          "url": "https://www.youtube.com/watch?v=AYpOA6ArBCg"
+        },
+        {
+          "@type": "ListItem",
+          "position": 4,
           "name": "1万9千人の音楽宇宙を一人で作った話",
           "url": "https://note.com/views_of_life/n/n12fe7a1ff494"
         },
         {
           "@type": "ListItem",
-          "position": 4,
+          "position": 5,
           "name": "宙に浮く「立体の数独」を作った",
           "url": "https://note.com/views_of_life/n/n06af3dddf6df"
         },
         {
           "@type": "ListItem",
-          "position": 5,
+          "position": 6,
           "name": "ポートフォリオサイトを10カ国語化した話",
           "url": "https://note.com/views_of_life/n/n5aadada472af"
         },
         {
           "@type": "ListItem",
-          "position": 6,
+          "position": 7,
           "name": "起動1秒で落ちるアプリを、デバッガなしでPythonだけで原因特定する",
           "url": "https://qiita.com/kernel_yu/items/5b10e915b343d01bc058"
         },
         {
           "@type": "ListItem",
-          "position": 7,
+          "position": 8,
           "name": "AIの「できる・できない」を、ベンチマークではなく326の仕事で数えた",
           "url": "https://qiita.com/kernel_yu/items/1c7447e935a2ca2d718d"
         },
         {
           "@type": "ListItem",
-          "position": 8,
+          "position": 9,
           "name": "1本のShortsができるまでの全部 — AIエージェントと毎日更新のニュース動画を作る",
           "url": "https://qiita.com/kernel_yu/items/70d65dc8bcc00412fd2c"
         },
         {
           "@type": "ListItem",
-          "position": 9,
+          "position": 10,
           "name": "専門外の出力は、評価できないまま完成する — 判定できない分野でAIに発注する3つの型",
           "url": "https://qiita.com/kernel_yu/items/531d65791c256cb611a5"
+        },
+        {
+          "@type": "ListItem",
+          "position": 11,
+          "name": "Claude Code を1ヶ月本気で使ったら、100年前の哲学者デューイと同じ結論にたどり着いた話",
+          "url": "https://note.com/views_of_life/n/nbc2baea9ca8a"
         }
       ]
     },
@@ -361,6 +373,7 @@ body{
 
 /* ── Top bar (newspaper masthead) ── */
 .masthead{
+  position:relative;z-index:70;
   border-bottom:2px solid var(--ink);
   padding:14px 32px;
   display:flex;justify-content:space-between;align-items:center;
@@ -381,7 +394,7 @@ body{
   position:absolute;right:0;top:calc(100% + 4px);
   list-style:none;padding:6px 0;margin:0;
   background:var(--paper);border:1px solid var(--ink);
-  min-width:170px;z-index:50;
+  min-width:170px;z-index:80;   /* 追従タイトルバー(z-index:60)より上。下に潜ると押せなくなる */
   box-shadow:0 12px 32px rgba(0,0,0,.18);
 }
 .lang-menu li{
@@ -399,7 +412,13 @@ body{
   border-bottom:1px solid var(--ink);
   padding:24px 32px 28px;
   display:flex;justify-content:space-between;align-items:flex-end;
+  /* 全高が 17.5 画面(モバイル 29 画面)あるのに、ナビが 1 画面目で流れて
+     消えていた。貼り付けて現在地を出す。 */
+  position:sticky;top:0;z-index:60;background:var(--paper);
+  transition:padding .18s ease, box-shadow .18s ease;
 }
+.titlebar.stuck{padding:9px 32px 10px;box-shadow:0 8px 20px rgba(22,21,16,.08)}
+.titlebar.stuck .name{font-size:18px}
 .titlebar .name{
   font-family:"Shippori Mincho",serif;font-weight:900;
   font-size:48px;letter-spacing:.04em;line-height:1;
@@ -408,6 +427,9 @@ body{
 .titlebar .nav{display:flex;gap:32px;font-size:13px;letter-spacing:.04em}
 .titlebar .nav a{color:var(--ink);text-decoration:none;border-bottom:1px solid transparent;padding-bottom:2px}
 .titlebar .nav a:hover{border-bottom-color:var(--accent);color:var(--accent)}
+.titlebar .nav a.on{border-bottom-color:var(--accent);color:var(--accent);font-weight:700}
+/* 追従ナビの下にアンカー先が潜り込まないようにする */
+section[id],header[id]{scroll-margin-top:84px}
 
 /* ── Hero (front page) ── */
 .front{
@@ -689,6 +711,86 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
 @media(max-width:900px){.cols{column-count:1}}
 
 /* ── Works directory ── */
+/* ── 作り方：モバイルで 4.2 画面あったので初期表示を 6 本に畳む
+      （カードは DOM に残るので検索には全部載る） ── */
+.mk-card[hidden]{display:none}
+.mk-toggle{
+  display:block;width:100%;margin-top:-1px;padding:15px 20px;cursor:pointer;
+  background:var(--paper);color:var(--ink-2);border:1px solid var(--ink);
+  font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.14em;
+  transition:background .15s,color .15s}
+.mk-toggle:hover{background:var(--paper-2);color:var(--accent)}
+
+/* ── 立場とプロフィール：旧 Manifesto と旧 About が同じ話を二度していたので 1 つに ── */
+.about-sub{margin:56px 0 18px;font-weight:900;font-size:clamp(22px,2.6vw,30px);
+  letter-spacing:.02em;line-height:1.3}
+.about-sub em{font-style:normal;color:var(--accent)}
+.about-quote{margin:44px 0 6px;padding:26px 30px;border-left:3px solid var(--accent);
+  background:var(--paper);font-weight:700;font-size:clamp(17px,2vw,22px);line-height:1.85}
+.about-quote em{font-style:normal;color:var(--accent)}
+.about-cite{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.14em;
+  color:var(--ink-3);padding-left:30px}
+@media(max-width:600px){
+  .about-sub{margin:40px 0 14px}
+  .about-quote{padding:20px 18px;margin:32px 0 6px}
+  .about-cite{padding-left:18px}
+}
+
+/* ── № 03 のタブ。暗いカードグリッドが 2 セクション続いて境目が分からなかったので、
+      3 つに畳んで 1 つずつ見せる（カードは DOM に残るので検索には全部載る） ── */
+.pg-tabs{display:flex;border:1px solid var(--ink);border-bottom:none;
+  max-width:1400px;margin:0 auto;overflow-x:auto;scrollbar-width:none}
+.pg-tabs::-webkit-scrollbar{display:none}
+.pg-tabs button{
+  flex:1 0 auto;padding:15px 22px;background:var(--paper);color:var(--ink-2);
+  border:none;border-right:1px solid var(--ink);cursor:pointer;white-space:nowrap;
+  font-family:"Shippori Mincho",serif;font-weight:900;font-size:17px;letter-spacing:.04em;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  transition:background .15s,color .15s}
+.pg-tabs button:last-child{border-right:none}
+.pg-tabs button b{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;
+  letter-spacing:.08em;color:var(--ink-3)}
+.pg-tabs button:hover:not([aria-selected="true"]){background:var(--paper-2);color:var(--accent)}
+.pg-tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+.pg-tabs button[aria-selected="true"] b{color:var(--paper);opacity:.65}
+.pg-panel{max-width:1400px;margin:0 auto}
+/* .worldmap の display:grid は UA の [hidden]{display:none} に勝ってしまうので、
+   非選択パネルを明示的に消す。 */
+.pg-panel[hidden]{display:none}
+.pg-note{max-width:1400px;margin:18px auto 0;font-size:13.5px;line-height:1.9;color:var(--ink-2)}
+@media(max-width:600px){
+  .pg-tabs button{padding:12px 16px;font-size:15px;gap:7px}
+}
+
+/* ── 早見表：何があるかを 1 画面で見せる索引。追従ナビと同じ 7 分類で揃える ── */
+.quickindex{padding:0 32px 8px;max-width:1400px;margin:0 auto}
+.qi-eyebrow{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;
+  color:var(--accent);text-transform:uppercase;margin:0 0 12px}
+.qi-grid{display:grid;grid-template-columns:repeat(6,1fr);border:1px solid var(--ink)}
+.qi-cell{display:flex;flex-direction:column;gap:5px;padding:18px 16px 16px;
+  border-right:1px solid var(--ink);text-decoration:none;color:var(--ink);
+  transition:background .15s}
+.qi-cell:last-child{border-right:none}
+.qi-cell:hover{background:var(--paper-2)}
+.qi-cell .qi-n{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.12em;color:var(--accent)}
+.qi-cell .qi-h{font-family:"Shippori Mincho",serif;font-weight:900;font-size:19px;line-height:1.2}
+.qi-cell .qi-d{font-size:12px;line-height:1.6;color:var(--ink-2)}
+@media(max-width:1100px){
+  .qi-grid{grid-template-columns:repeat(3,1fr)}
+  .qi-cell:nth-child(3n){border-right:none}
+  .qi-cell:nth-child(-n+3){border-bottom:1px solid var(--ink)}
+}
+@media(max-width:600px){
+  .quickindex{padding:0 16px 6px}
+  .qi-grid{grid-template-columns:repeat(2,1fr)}
+  .qi-cell{padding:14px 12px}
+  .qi-cell:nth-child(3n){border-right:1px solid var(--ink)}
+  .qi-cell:nth-child(2n){border-right:none}
+  .qi-cell:nth-child(-n+4){border-bottom:1px solid var(--ink)}
+  .qi-cell .qi-h{font-size:17px}
+  .qi-cell .qi-d{font-size:11.5px}
+}
+
 .directory{
   border:1px solid var(--ink);
 }
@@ -805,9 +907,16 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
 .footer a:hover{color:var(--accent)}
 
 @media (max-width:900px){
-  .titlebar{flex-direction:column;align-items:flex-start;gap:14px}
+  .titlebar{flex-direction:column;align-items:flex-start;gap:10px;padding:14px 16px 10px}
   .titlebar .name{font-size:32px}
-  .titlebar .nav{flex-wrap:wrap;gap:18px}
+  /* 折り返すと 3 段になって画面を食うので、横スクロールの 1 行にする */
+  .titlebar .nav{flex-wrap:nowrap;gap:16px;width:100%;overflow-x:auto;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .titlebar .nav::-webkit-scrollbar{display:none}
+  .titlebar .nav a{white-space:nowrap}
+  .titlebar.stuck{padding:8px 16px 8px}
+  .titlebar.stuck .name{display:none}
+  section[id],header[id]{scroll-margin-top:58px}
   .front{grid-template-columns:1fr}
   .front .lead{border-right:none;border-bottom:1px solid var(--ink);padding:48px 24px}
   .sidebar{padding:32px 24px}
@@ -1057,12 +1166,14 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
 
 <div class="titlebar">
   <div class="name">ひとりぶんの棚<em>.</em></div>
-  <nav class="nav">
-    <a href="#novels">サウンドノベル</a>
-    <a href="#solotime">ひとりの技術</a>
-    <a href="#games">遊ぶと学ぶ</a>
+  <nav class="nav" id="siteNav">
+    <a href="#novels">読む</a>
+    <a href="#solotime">道具</a>
+    <a href="#playground" data-tab="play">遊ぶ・学ぶ</a>
+    <a href="#playground" data-tab="research">研究</a>
     <a href="#knowhow">作り方</a>
-    <a href="#about">About</a>
+    <a href="#windows">外の窓</a>
+    <a href="#about">立場</a>
   </nav>
 </div>
 
@@ -1091,11 +1202,11 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
       <span class="sh-cat">🧳 ひとりの技術</span>
       <span class="sh-note">空いた時間ではなく、選んだ時間を</span>
     </a>
-    <a class="sh-tile" href="#games" style="--bg:url('assets/og/sudoku-1200x630.jpg')">
+    <a class="sh-tile" href="#playground" data-tab="play" style="--bg:url('assets/og/sudoku-1200x630.jpg')">
       <span class="sh-cat">🎮 遊ぶと学ぶ</span>
       <span class="sh-note">ノベルゲーム・パズル・音楽・英語</span>
     </a>
-    <a class="sh-tile" href="#newforms" style="--bg:url('assets/hyaku/img/bg_study.jpg')">
+    <a class="sh-tile" href="#playground" data-tab="research" style="--bg:url('assets/hyaku/img/bg_study.jpg')">
       <span class="sh-cat">🔬 新しい形の研究</span>
       <span class="sh-note">AIでしか作れない表現と、その作り方（全10本）</span>
     </a>
@@ -1147,11 +1258,24 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
 
 
 
+<!-- ── 早見表：どこに何があるか ── -->
+<section class="quickindex reveal" id="index">
+  <p class="qi-eyebrow">Index — この庭にあるもの</p>
+  <div class="qi-grid">
+    <a class="qi-cell" href="#novels"><span class="qi-n">3 作</span><span class="qi-h">読む</span><span class="qi-d">フルボイスのサウンドノベル。10分でも、30分でも。</span></a>
+    <a class="qi-cell" href="#playground" data-tab="play"><span class="qi-n">5 つ</span><span class="qi-h">遊ぶ</span><span class="qi-d">3D絵本・立体数独・将棋ぷよ・音楽の宇宙・島の地図。</span></a>
+    <a class="qi-cell" href="#playground" data-tab="learn"><span class="qi-n">5 つ</span><span class="qi-h">学ぶ</span><span class="qi-d">AI英語ラボ・TOEIC・lingo。ぜんぶ無料で登録なし。</span></a>
+    <a class="qi-cell" href="#solotime"><span class="qi-n">5 つ</span><span class="qi-h">道具</span><span class="qi-d">ひとり歓迎マップ・旅ジャーナル・ストップウォッチ。</span></a>
+    <a class="qi-cell" href="#playground" data-tab="research"><span class="qi-n">11 本</span><span class="qi-h">研究</span><span class="qi-d">AIでしか作れない形を探した記録。AI能力アトラスほか。</span></a>
+    <a class="qi-cell" href="#knowhow"><span class="qi-n">11 本</span><span class="qi-h">作り方</span><span class="qi-d">どう作ったか。詰まった所と、そこの抜け方。</span></a>
+  </div>
+</section>
+
 <!-- ── № 01 · サウンドノベル ── -->
 
 <section class="section" id="novels">
   <div class="section-head">
-    <div class="section-eyebrow">№ 01 — Sound Novels</div>
+    <div class="section-eyebrow">№ 01 — Sound Novels · 読む</div>
     <h2 class="section-title"><em>3つ</em>の物語。</h2>
   </div>
   <p style="max-width:760px;margin:-24px 0 32px;font-size:15px;line-height:1.9;color:var(--ink-2)">
@@ -1228,7 +1352,7 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
 <!-- ── № 02 · ひとりの技術（Solo Craft） ── -->
 <section class="section" id="solotime" style="background:var(--paper-2)">
   <div class="section-head">
-    <div class="section-eyebrow">№ 02 — Solo Craft · ひとりの技術</div>
+    <div class="section-eyebrow">№ 02 — Solo Craft · 道具</div>
     <h2 class="section-title">ひとりの時間に、<em>技術</em>がある。</h2>
     <p class="section-deck">
       AI時代のひとり時間とは、<strong>空いた時間ではなく、選んだ時間</strong>のこと。<br>
@@ -1291,15 +1415,24 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
 
 
 <!-- ── № 03 · 遊ぶと学ぶ ── -->
-<section class="section" id="games" style="padding-bottom:8px">
+<!-- ── № 03 · 遊ぶ・学ぶ・研究（旧 № 03 Play & Learn ＋ № 04 New Forms を統合） ── -->
+<section class="section" id="playground">
   <div class="section-head">
-    <div class="section-eyebrow">№ 03 — Play &amp; Learn</div>
-    <h2 class="section-title">遊ぶと<em>学ぶ</em>。</h2>
+    <div class="section-eyebrow">№ 03 — Play · Learn · Research</div>
+    <h2 class="section-title">ひらいて、<em>さわる</em>。</h2>
+    <p class="section-deck">
+      遊ぶもの、学ぶもの、研究の記録。<strong>登録もインストールもなく、全部ブラウザで無料</strong>です。
+      3 つのタブで切り替えてください。
+    </p>
   </div>
-</section>
 
-<section class="section" style="padding-top:28px">
-  <div class="worldmap">
+  <div class="pg-tabs" role="tablist" aria-label="遊ぶ・学ぶ・研究">
+    <button type="button" role="tab" id="tab-play"     aria-controls="panel-play"     aria-selected="true"  data-tab="play">遊ぶ <b>5</b></button>
+    <button type="button" role="tab" id="tab-learn"    aria-controls="panel-learn"    aria-selected="false" data-tab="learn">学ぶ <b>5</b></button>
+    <button type="button" role="tab" id="tab-research" aria-controls="panel-research" aria-selected="false" data-tab="research">研究 <b>11</b></button>
+  </div>
+
+  <div class="worldmap pg-panel" id="panel-play" role="tabpanel" aria-labelledby="tab-play">
     <div class="wm-cat">🎮 遊ぶ — Play</div>
     <div class="wm-grid">
       
@@ -1340,6 +1473,9 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
         <div class="go">地図を開く →</div>
       </a>
     </div>
+  </div>
+
+  <div class="worldmap pg-panel" id="panel-learn" role="tabpanel" aria-labelledby="tab-learn" hidden>
     <div class="wm-cat">📚 学ぶ — Learn</div>
     <div class="wm-grid">
       <a class="wm-card" style="--card:linear-gradient(160deg,#140c08,#3a1d10 68%,#c1682a)" href="ai-english.html">
@@ -1374,20 +1510,8 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
       </a>
     </div>
   </div>
-</section>
 
-
-<!-- ── 柱A: 新しい形の研究 ── -->
-<section class="section" id="newforms" style="background:var(--paper-2)">
-  <div class="section-head">
-    <div class="section-eyebrow">№ 04 — New Forms · 新しい形の研究</div>
-    <h2 class="section-title">AIでしか作れない <em>形</em> を探す。</h2>
-    <p class="section-deck">
-      「AIで作ってみた」の記録ではありません。<strong>AI以前には成立しなかった表現形式</strong>を見つけて、
-      実際に動く作品として完成させ、その手順を配る。制約 → 解除 → 新形式の順に書いています。
-    </p>
-  </div>
-  <div class="worldmap">
+  <div class="worldmap pg-panel" id="panel-research" role="tabpanel" aria-labelledby="tab-research" hidden>
     <div class="wm-cat">🔬 いま進めている研究テーマ</div>
     <div class="wm-grid">
       <a class="wm-card" style="--card:linear-gradient(160deg,#120c08,#3a1d12 68%,#c43d2a)" href="ai-map.html">
@@ -1451,7 +1575,6 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
         <div class="go">一覧を見る →</div>
       </a>
     </div>
-
     <div class="wm-cat">🤖 AIエージェントで1から作る — 作って、公開するまで</div>
     <div class="wm-grid">
       <a class="wm-card" style="--card:linear-gradient(160deg,#07120c,#0f2a1c 68%,#39d353)" href="method/ai-agent-shorts.html">
@@ -1462,11 +1585,16 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
       </a>
     </div>
   </div>
+
+  <p class="pg-note" id="pg-note-research" hidden>
+    「AIで作ってみた」の記録ではありません。<strong>AI以前には成立しなかった表現形式</strong>を見つけて、
+    実際に動く作品として完成させ、その手順を配る。制約 → 解除 → 新形式の順に書いています。
+  </p>
 </section>
 
 <section class="section" id="knowhow">
   <div class="section-head">
-    <div class="section-eyebrow">№ 05 — Making</div>
+    <div class="section-eyebrow">№ 04 — Making · 作り方</div>
     <h2 class="section-title">その <em>作り方</em>。</h2>
   </div>
   <p style="max-width:760px;margin:-24px 0 40px;font-size:15px;line-height:1.9;color:var(--ink-2)">
@@ -1510,86 +1638,48 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
       <div class="stuck">Claude Code に丸投げで1コマンド。いまこのサイトが10言語で読めるのはこの回の成果。</div>
       <div class="go">note で読む ↗</div>
     </a>
-    <a class="mk-card" href="https://qiita.com/kernel_yu/items/5b10e915b343d01bc058" target="_blank" rel="noopener">
+    <a class="mk-card mk-more" hidden href="https://qiita.com/kernel_yu/items/5b10e915b343d01bc058" target="_blank" rel="noopener">
       <div class="no">№ 07 · 解析</div>
       <div class="ttl">起動1秒で落ちるアプリを、デバッガなしで直した話</div>
       <div class="stuck">アプリが12回死んだ日の記録。<b>「再インストールしても直らない」が、犯人を絞り込む証拠になった</b>。クラッシュダンプを Python だけで読む手順つき。</div>
       <div class="go">Qiita で読む ↗</div>
     </a>
-    <a class="mk-card" href="https://qiita.com/kernel_yu/items/1c7447e935a2ca2d718d" target="_blank" rel="noopener">
+    <a class="mk-card mk-more" hidden href="https://qiita.com/kernel_yu/items/1c7447e935a2ca2d718d" target="_blank" rel="noopener">
       <div class="no">№ 08 · 計測</div>
       <div class="ttl">AIの「できる・できない」を、ベンチマークではなく326の仕事で数えた</div>
       <div class="stuck">「結局いま AI に何が頼めるのか」を、点数ではなく<b>実際の仕事 326 個</b>で数え直した。上の <b>AI能力アトラス</b>（№ 04 — 新しい形の研究）の作り方そのもの。原典 626 本つき。</div>
       <div class="go">Qiita で読む ↗</div>
     </a>
-    <a class="mk-card" href="https://qiita.com/kernel_yu/items/70d65dc8bcc00412fd2c" target="_blank" rel="noopener">
+    <a class="mk-card mk-more" hidden href="https://qiita.com/kernel_yu/items/70d65dc8bcc00412fd2c" target="_blank" rel="noopener">
       <div class="no">№ 09 · 量産</div>
       <div class="ttl">1本のShortsができるまでの全部</div>
       <div class="stuck">ニュース取得・台本・音声合成・字幕・レンダリング・投稿まで、<b>1 本 45 分</b>に畳むまでの工程表。毎日更新を止めないための設計。</div>
       <div class="go">Qiita で読む ↗</div>
     </a>
-    <a class="mk-card" href="https://qiita.com/kernel_yu/items/531d65791c256cb611a5" target="_blank" rel="noopener">
+    <a class="mk-card mk-more" hidden href="https://qiita.com/kernel_yu/items/531d65791c256cb611a5" target="_blank" rel="noopener">
       <div class="no">№ 10 · 発注</div>
       <div class="ttl">専門外の出力は、評価できないまま完成する</div>
       <div class="stuck">自分が判定できない分野を AI に任せると、<b>間違っていても完成して見える</b>。そこを塞ぐための発注の 3 つの型。</div>
       <div class="go">Qiita で読む ↗</div>
     </a>
+    <a class="mk-card mk-more" hidden href="https://note.com/views_of_life/n/nbc2baea9ca8a" target="_blank" rel="noopener">
+      <div class="no">№ 11 · 考え方</div>
+      <div class="ttl" data-i18n-html="featured.h3">Claude Code を 1ヶ月使ったら、デューイと同じ場所に着いた。</div>
+      <div class="stuck" data-i18n-html="featured.p">AI エージェント時代に <b>99% が見落としている問題解決の神髄</b>を、1910 年のジョン・デューイから 2026 年の Claude Code まで一直線に貫く本質として考察。</div>
+      <div class="go">note で読む ↗</div>
+    </a>
   </div>
+  <button type="button" class="mk-toggle" id="mkToggle" aria-expanded="false">＋ 残り 5 本を見る</button>
   <p style="margin-top:22px;font-size:13px;color:var(--ink-3)">
-    ほかの記事は <a href="https://note.com/views_of_life" target="_blank" rel="noopener" style="color:var(--accent)">note（全29本）</a>・<a href="https://qiita.com/kernel_yu" target="_blank" rel="noopener" style="color:var(--accent)">Qiita（全4本）</a>・<a href="https://zenn.dev/viewsengineer" target="_blank" rel="noopener" style="color:var(--accent)">Zenn</a> に置いています。すべての窓は <a href="#windows" style="color:var(--accent)">№ 08 — 世界の外の窓</a> に一覧があります。
+    ほかの記事は <a href="https://note.com/views_of_life" target="_blank" rel="noopener" style="color:var(--accent)">note（全29本）</a>・<a href="https://qiita.com/kernel_yu" target="_blank" rel="noopener" style="color:var(--accent)">Qiita（全4本）</a>・<a href="https://zenn.dev/viewsengineer" target="_blank" rel="noopener" style="color:var(--accent)">Zenn</a> に置いています。すべての窓は <a href="#windows" style="color:var(--accent)">№ 05 — 世界の外の窓</a> に一覧があります。
   </p>
 </section>
-<!-- ── FEATURED ── -->
-<section class="section" id="library">
-  <div class="section-head">
-    <div class="section-eyebrow">№ 06 — Notes</div>
-    <h2 class="section-title" data-i18n-html="featured.title">100年前 の哲学者 と<br><em>同じ結論</em> に たどり着いた話。</h2>
-  </div>
 
-  <article class="article">
-    <div class="body">
-      <span class="tag">EDITOR'S PICK</span>
-      <h3 class="serif" data-i18n-html="featured.h3">Claude Code を 1ヶ月使ったら、<br>デューイと同じ場所に着いた。</h3>
-      <p data-i18n-html="featured.p">AI エージェント時代に <strong>99% が見落としている問題解決の神髄</strong>を、1910 年のジョン・デューイから 2026 年の Claude Code まで一直線に貫く本質として考察。</p>
-      <ul class="points">
-        <li><span class="n">i.</span> <span data-i18n="featured.pt1">4世代を貫く問題解決の3つの真理</span></li>
-        <li><span class="n">ii.</span> <span data-i18n="featured.pt2">AI に任せる範囲を「明文化」する習慣</span></li>
-        <li><span class="n">iii.</span> <span data-i18n="featured.pt3">明日から実践できる思考フレーム</span></li>
-      </ul>
-      <a class="btn btn-primary" href="https://note.com/views_of_life" target="_blank" rel="noopener" data-i18n="featured.btn">Note で全文を読む ↗</a>
-    </div>
-    <div class="pull-side">
-      <blockquote class="serif" data-i18n-html="featured.quote">
-        技術は 10 年で変わる。<br>
-        フレームワークは 5 年で陳腐化する。<br>
-        だが、<em>問題解決の本質は<br>100 年経っても変わらない</em>。
-      </blockquote>
-      <div class="cite">— Views Engineer · 2026</div>
-    </div>
-  </article>
-</section>
-
-<!-- ── MANIFESTO ── -->
-<section class="section" id="manifesto" style="background:var(--paper-2)">
-  <div class="section-head">
-    <div class="section-eyebrow">№ 07 — Manifesto</div>
-    <h2 class="section-title" data-i18n-html="manifesto.title">立場 を、<em>明文化</em> する。</h2>
-  </div>
-  <div class="cols serif" data-i18n-html="manifesto.body">
-    <p><span class="drop">A</span>I を <strong>使われる側</strong> ではなく、<strong>使い倒す側</strong> に立つ — というのが、ここでの基本姿勢である。Claude Code を主軸にしつつ、Stable Diffusion・VOICEVOX・FFmpeg をひとつの工房に束ねて、個人が短時間で作れる成果物の上限を、毎週ひとつずつ更新していく。</p>
-    <p>扱うのは新しいツールだが、問うているのは <strong>100年単位で変わらない</strong> ものの方だ。1910 年にジョン・デューイが書いたことと、2026 年に Claude Code が私たちに提示する問いは、不思議なほどよく似ている。「考える」とはどういうことか、「問題」とは何の輪郭をもつのか。</p>
-    <p>だから、ここに並ぶ note も、YouTube も、GitHub も、X の投稿も、表面的なツール紹介ではない。<strong>道具を使い倒すための、長い思考の記録</strong> である。役に立つかどうかは読者が決める。ただ、書く側の責任として、毎回ひとつだけ「自分が見つけた問い」を置いていきたい。</p>
-  </div>
-  <p style="margin-top:32px;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.08em;color:var(--ink-3)">
-    かつてこの庭は一枚の新聞だった。
-    <a href="journal.html" style="color:var(--accent);text-decoration:underline">▸ 新聞版（旧トップ）を読む</a>
-  </p>
-</section>
 
 <!-- ── WINDOWS (channels) ── -->
 <section class="section" id="windows">
   <div class="section-head">
-    <div class="section-eyebrow">№ 08 — 世界の外の窓</div>
+    <div class="section-eyebrow">№ 05 — 世界の外の窓</div>
     <h2 class="section-title">外の <em>窓</em> から。</h2>
   </div>
   <p style="max-width:760px;margin:-24px 0 36px;font-size:15px;line-height:1.9;color:var(--ink-2)">
@@ -1670,9 +1760,9 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
 </section>
 
 <!-- ── ABOUT ── -->
-<section class="section" id="about">
+<section class="section" id="about" style="background:var(--paper-2)">
   <div class="section-head">
-    <div class="section-eyebrow">№ 09 — 庭師について</div>
+    <div class="section-eyebrow">№ 06 — 立場とプロフィール</div>
     <h2 class="section-title" data-i18n-html="about.title">Views Engineer<br><em>とは何者か。</em></h2>
   </div>
   <div class="spread">
@@ -1682,13 +1772,12 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
       <div class="role">Views Engineer · Independent</div>
       <div class="row"><span class="k">Base</span><span class="v">Tokyo, JP</span></div>
       <div class="row"><span class="k">Voice</span><span class="v" data-i18n="about.voice">ずんだもんの AI ラボ</span></div>
-      <div class="row"><span class="k">Stack</span><span class="v">Claude Code · SD · VOICEVOX · FFmpeg</span></div>
+      <div class="row"><span class="k">Stack</span><span class="v">Claude Code · SD · VOICEVOX · Blender · FFmpeg</span></div>
       <div class="row"><span class="k">Since</span><span class="v">2024 —</span></div>
       <div class="row"><span class="k">Cadence</span><span class="v" data-i18n="about.cadence">Weekly</span></div>
     </aside>
     <div class="text">
       <p data-i18n-html="about.p1">AI を「使う側」になるための実験を、コードと記事と動画で発信している。Claude Code を主軸に、Stable Diffusion (reForge)・VOICEVOX・FFmpeg を組み合わせて、個人が短時間で作れる成果物の限界を探索する独立アカウント。</p>
-      <p data-i18n-html="about.p2">100 年前の哲学者デューイから現代の AI エージェントまで、<strong>問題解決の本質は変わらない</strong> という視点で書く。テクノロジーは語り手を変えるだけで、語られていることは存外、古い。</p>
       <div class="tools">
         <span>Claude Code</span><span>Stable Diffusion</span><span>reForge</span>
         <span>VOICEVOX</span><span>ElevenLabs</span><span>FFmpeg</span><span>Blender</span>
@@ -1697,6 +1786,25 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
       </div>
     </div>
   </div>
+
+  <h3 class="about-sub serif" data-i18n-html="manifesto.title">立場 を、<em>明文化</em> する。</h3>
+<div class="cols serif" data-i18n-html="manifesto.body">
+    <p><span class="drop">A</span>I を <strong>使われる側</strong> ではなく、<strong>使い倒す側</strong> に立つ — というのが、ここでの基本姿勢である。Claude Code を主軸にしつつ、Stable Diffusion・VOICEVOX・FFmpeg をひとつの工房に束ねて、個人が短時間で作れる成果物の上限を、毎週ひとつずつ更新していく。</p>
+    <p>扱うのは新しいツールだが、問うているのは <strong>100年単位で変わらない</strong> ものの方だ。1910 年にジョン・デューイが書いたことと、2026 年に Claude Code が私たちに提示する問いは、不思議なほどよく似ている。「考える」とはどういうことか、「問題」とは何の輪郭をもつのか。</p>
+    <p>だから、ここに並ぶ note も、YouTube も、GitHub も、X の投稿も、表面的なツール紹介ではない。<strong>道具を使い倒すための、長い思考の記録</strong> である。役に立つかどうかは読者が決める。ただ、書く側の責任として、毎回ひとつだけ「自分が見つけた問い」を置いていきたい。</p>
+  </div>
+
+  <blockquote class="about-quote serif" data-i18n-html="featured.quote">
+        技術は 10 年で変わる。<br>
+        フレームワークは 5 年で陳腐化する。<br>
+        だが、<em>問題解決の本質は<br>100 年経っても変わらない</em>。
+      </blockquote>
+  <div class="about-cite">— Views Engineer · 2026</div>
+
+  <p style="margin-top:32px;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.08em;color:var(--ink-3)">
+    かつてこの庭は一枚の新聞だった。
+    <a href="journal.html" style="color:var(--accent);text-decoration:underline">▸ 新聞版（旧トップ）を読む</a>
+  </p>
 </section>
 
 <!-- ── CLOSER ── -->
@@ -2328,6 +2436,105 @@ body.nofx .reveal{animation:none!important;transform:none!important;opacity:1!im
     addEventListener("resize", init);
     loop();
   })();
+
+/* ── 追従ナビの現在地表示と、№ 03 のタブ切り替え ── */
+(function () {
+  var bar = document.querySelector(".titlebar");
+  var nav = document.getElementById("siteNav");
+  if (!bar || !nav) return;
+
+  /* スクロールしてタイトルバーが天井に貼り付いたら細くする */
+  var sentinel = document.createElement("div");
+  sentinel.style.cssText = "position:absolute;top:0;height:1px;width:1px";
+  bar.parentNode.insertBefore(sentinel, bar);
+  new IntersectionObserver(function (es) {
+    bar.classList.toggle("stuck", !es[0].isIntersecting);
+  }).observe(sentinel);
+
+  /* ── タブ ── */
+  var TABS = ["play", "learn", "research"];
+  function selectTab(name, focus) {
+    if (TABS.indexOf(name) < 0) return;
+    TABS.forEach(function (t) {
+      var btn = document.getElementById("tab-" + t);
+      var panel = document.getElementById("panel-" + t);
+      if (!btn || !panel) return;
+      var on = t === name;
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+      btn.tabIndex = on ? 0 : -1;
+      panel.hidden = !on;
+    });
+    var note = document.getElementById("pg-note-research");
+    if (note) note.hidden = name !== "research";
+    if (focus) { var b = document.getElementById("tab-" + name); if (b) b.focus(); }
+    try { history.replaceState(null, "", "#playground"); } catch (e) {}
+  }
+  document.querySelectorAll(".pg-tabs button").forEach(function (btn) {
+    btn.addEventListener("click", function () { selectTab(btn.dataset.tab, false); });
+    btn.addEventListener("keydown", function (e) {
+      var i = TABS.indexOf(btn.dataset.tab);
+      if (e.key === "ArrowRight") { e.preventDefault(); selectTab(TABS[(i + 1) % 3], true); }
+      if (e.key === "ArrowLeft")  { e.preventDefault(); selectTab(TABS[(i + 2) % 3], true); }
+    });
+  });
+
+  /* ナビ・早見表・ヒーローのタイルから、タブを指定して飛べるようにする */
+  document.querySelectorAll('a[data-tab]').forEach(function (a) {
+    a.addEventListener("click", function () { selectTab(a.dataset.tab, false); });
+  });
+
+  /* 旧 #games / #newforms のリンクを受けとめる */
+  function fromHash() {
+    var h = location.hash;
+    if (h === "#games") selectTab("play", false);
+    else if (h === "#newforms") selectTab("research", false);
+    else return;
+    var el = document.getElementById("playground");
+    if (el) el.scrollIntoView();
+  }
+  fromHash();
+  addEventListener("hashchange", fromHash);
+
+  /* ── 作り方の「もっと見る」 ── */
+  var mk = document.getElementById("mkToggle");
+  if (mk) {
+    mk.addEventListener("click", function () {
+      var open = mk.getAttribute("aria-expanded") === "true";
+      document.querySelectorAll(".mk-more").forEach(function (c) { c.hidden = open; });
+      mk.setAttribute("aria-expanded", open ? "false" : "true");
+      mk.textContent = open ? "＋ 残り 5 本を見る" : "− 折りたたむ";
+    });
+  }
+
+  /* ── 現在地のハイライト ── */
+  var links = [].slice.call(nav.querySelectorAll("a[href^='#']"));
+  var ids = links.map(function (a) { return a.getAttribute("href").slice(1); });
+  var seen = {};
+  var spy = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { seen[e.target.id] = e.isIntersecting; });
+    var active = null;
+    ids.forEach(function (id) { if (!active && seen[id]) active = id; });
+    /* 「遊ぶ・学ぶ」と「研究」は同じ #playground を指すので、
+       選択中のタブ側だけを現在地にする。 */
+    var tab = null;
+    TABS.forEach(function (t) {
+      var btn = document.getElementById("tab-" + t);
+      if (btn && btn.getAttribute("aria-selected") === "true") tab = t;
+    });
+    links.forEach(function (a) {
+      var hit = !!active && a.getAttribute("href") === "#" + active;
+      if (hit && active === "playground" && a.dataset.tab) {
+        hit = (a.dataset.tab === tab) ||
+              (tab === "learn" && a.dataset.tab === "play");
+      }
+      a.classList.toggle("on", hit);
+    });
+  }, { rootMargin: "-20% 0px -65% 0px" });
+  ids.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) spy.observe(el);
+  });
+})();
 </script>
 </body>
 </html>
