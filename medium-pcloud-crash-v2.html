@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reinstalling Didn't Fix It. That's What Told Me Where to Look.</title>
+<meta name="description" content="Finding the cause of a one-second crash with nothing but Python and a minidump">
+<style>
+ body { max-width:760px; margin:0 auto; padding:40px 20px;
+        font-family:Georgia,"Times New Roman",serif; line-height:1.75; color:#1a1a1a; }
+ h1 { font-size:2.1em; line-height:1.25; }
+ h2 { font-size:1.35em; margin-top:2em; }
+ li { margin:.4em 0; }
+ code { background:#f2f4f6; padding:2px 6px; border-radius:4px;
+        font-family:Consolas,monospace; font-size:.9em; }
+ figure { margin:1.8em 0; } figure img { width:100%; }
+</style>
+</head>
+<body>
+<h1>Reinstalling Didn't Fix It. That's What Told Me Where to Look.</h1>
+<h2>Finding the cause of a one-second crash with nothing but Python and a minidump</h2>
+<figure><img src="https://yuichi916.github.io/assets/pcloud-crash/evidence_en.png" alt="Two different builds produced an identical crash fingerprint" /></figure>
+<p>A desktop app on my Windows machine started dying one second after launch. No error dialog. No crash message. The window appeared, then vanished.</p>
+<p>That day it died twelve times.</p>
+<p>I reinstalled it with the latest version. It died in one second, with the exact same exception.</p>
+<p>That reinstall is the part worth writing about. It felt like a dead end, and it was actually the single most useful piece of evidence I got. Here is the whole path, in the order I walked it.</p>
+<p>(The app was pCloud Drive, but nothing below depends on that. The method works for any Windows app that dies without leaving a log.)</p>
+<h2>Start by pinning down when it broke</h2>
+<p>Guessing from memory is worthless. Memory is not a record. Windows keeps one, so I read it first.</p>
+<p><code>Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='Application Error'; Id=1000; StartTime=(Get-Date).AddDays(-14)} | Where-Object { $_.Message -match 'AppName' }</code></p>
+<p>Twelve crashes came back. All of them on the same day. Going back fourteen days, there were none before that.</p>
+<p>One note that will save you confusion: filter on <code>Application Error</code> (ID 1000). A single crash also produces one record from <code>Windows Error Reporting</code> (1001) and one from <code>.NET Runtime</code> (1026). Query all three providers and your count triples.</p>
+<p>Then I checked the app's own log. It had been writing a heartbeat message every hour, and the last healthy one was at 05:54:59. The next one, due at 06:54, never came. The first crash sits between them at 06:15:33.</p>
+<p>So the app was completely healthy twenty minutes before it started dying, and after that it died every single time. Not a slow degradation — a switch that flipped. That distinction matters, because it changes what you are hunting: not a <em>state</em> that drifted, but an <em>event</em> that happened.</p>
+<h2>Four values in the exception, and what they mean</h2>
+<ul>
+<li><strong>Exception code</strong> — <code>0xc0000005</code></li>
+<li><strong>Exception address</strong> — <code>0x0000000000000000</code></li>
+<li><strong>Faulting module</strong> — <code>unknown</code></li>
+<li><strong>Parameters</strong> — <code>[0x8, 0x0]</code></li>
+</ul>
+<p>Most people skim past this block. Read it and the search space collapses.</p>
+<p><strong>The exception address is zero.</strong> Something tried to execute code at address 0. There is nothing there.</p>
+<p><strong>The first parameter is <code>0x8</code>.</strong> That field describes the kind of access: <code>0</code> is a read, <code>1</code> is a write, and <code>8</code> means an instruction fetch — a branch to an address that cannot be executed. On x64 with DEP enabled, branching to an unmapped address like 0 also lands in this bucket. The second parameter, <code>0x0</code>, is the address that could not be accessed.</p>
+<p>Put together, the most natural reading is a null function pointer being called. A variable that should hold the address of a function was empty, and the code jumped to that empty address.</p>
+<p>It is worth being precise here: a corrupted stack that puts a zero into the saved return address produces the identical signature. Those two causes cannot be told apart from this evidence alone. What settles it comes later.</p>
+<p>And <code>unknown</code> as the faulting module is expected. Address 0 is not inside any DLL's range.</p>
+<p>One more thing about <code>Fault offset</code>: it normally holds an offset from the faulting module's base, not an absolute address. Here the module could not be resolved, so it happens to hold the absolute value. If you want the address itself, the <code>.NET Runtime</code> record states it explicitly as <code>exception address 0000000000000000</code>.</p>
+<h2>The log said nothing, and that was information</h2>
+<p>The app is a .NET (WPF) application and writes its own log. Here is the moment it died.</p>
+<p><code>10:47:48 INFO start / 10:47:48 INFO Set tray baloon / 10:47:48 ERROR Show main window / 10:47:49 INFO CRYPTO_STATUS_NEW / (ends)</code></p>
+<p>There is one ERROR line, but its content is "Show main window" — it appears on every launch and has nothing to do with the crash. What is missing is any record of an exception.</p>
+<p>This app had logged a <code>FATAL</code> with a full exception type and stack trace when it hit a different bug months earlier. So the machinery works. It just produced nothing this time.</p>
+<p>Windows did record something, from <code>.NET Runtime</code>:</p>
+<p><code>Description: The process was terminated due to an unhandled exception. Exception Info: exception code c0000005, exception address 0000000000000000</code></p>
+<p><strong>No exception type name.</strong> If a .NET exception had gone unhandled, the type and stack trace would be sitting right there. Instead there is a raw SEH code and nothing else.</p>
+<p>That points at a hardware exception in native code rather than anything the managed layer would recognize. It does not prove it — the stack analysis later does that — but it decides which layer to suspect first.</p>
+<h2>Ruling out the usual suspects, with records instead of hunches</h2>
+<ul>
+<li><strong>Graphics driver</strong> — Zero display-related error events in fourteen days</li>
+<li><strong>An OS update</strong> — The last cumulative update was five days earlier, and the app ran fine for four days after it. The timing doesn't line up</li>
+<li><strong>Corrupt local database</strong> — SQLite <code>PRAGMA integrity_check</code> returned <code>ok</code>. The file is not damaged</li>
+<li><strong>Something environmental</strong> — Other apps do crash occasionally, but on different days with different signatures. Nothing of the same kind</li>
+</ul>
+<p>That "the file is not damaged" line comes back later. Hold onto it.</p>
+<p>Then I did what everyone does first. The app was on 5.0.20, so I installed the current 5.2.2 over it. The release notes mentioned "recovery of interrupted file transfers" and "a new management system for failed upload items" — exactly the sort of thing that should have helped.</p>
+<p>Install succeeded. Launch.</p>
+<p>Dead in one second. Same exception.</p>
+<h2>The disappointment was the breakthrough</h2>
+<p>This is the turn, and it is not a story about frustration. It is about counting what actually changed.</p>
+<ul>
+<li><strong>App version</strong> — 5.0.20.0 → 5.2.2.0</li>
+<li><strong>Executable build date</strong> — 2025-12-06 → 2026-06-15</li>
+<li><strong>.NET runtime</strong> — 9.0.12 → 9.0.18</li>
+<li><strong>Local DB schema</strong> — <code>dbversion</code> 24 → <code>dbversion</code> 28</li>
+</ul>
+<p>The application binary and the runtime underneath it were both replaced with different versions, built six months apart.</p>
+<p>And yet it died after one second, with the same exception, in the same way.</p>
+<p>Then I compared the crash fingerprints, and this is the piece that closed the case.</p>
+<ul>
+<li><strong>Stack hash</strong> — <code>ac462b2fd07cc853b652b5104a1cf381</code> → <code>ac462b2fd07cc853b652b5104a1cf381</code></li>
+<li><strong>Exception data</strong> — <code>0000000000000008</code> → <code>0000000000000008</code></li>
+</ul>
+<p><strong>Not one character different.</strong></p>
+<p>When a process dies, Windows Error Reporting computes a hash from the stack at the crash site. Replace the executable with a different build and the code moves, so this value normally changes.</p>
+<p>It didn't.</p>
+<p>Two binaries with six months of changes between them, producing an identical fingerprint. Same stack shape, same spot being hit.</p>
+<p>If you swap out the code entirely and the symptom does not move by a millimetre, then <strong>the variable is not the code</strong>. The only suspect left is the data the app reads.</p>
+<p>And the new version had migrated that data to a new schema on the way in, and still died. So what I was looking for was something the app carried across the migration.</p>
+<h2>Reading the crash dump with nothing but Python</h2>
+<p>Knowing it was "the data" still left the question of <em>which</em> data. I needed the crash site.</p>
+<p>The newer version writes a minidump into a <code>crashes</code> folder. There was a 1.4 MB dump sitting in it.</p>
+<p><strong>There is a trap here.</strong> By the next launch, that folder was empty — the app sends the report and then deletes the dump itself. If you find one, copy it before you do anything else.</p>
+<p>I had no debugger installed. A Python library is enough.</p>
+<p><code>pip install minidump</code></p>
+<p>Four steps:</p>
+<ol>
+<li>Pull the ID of the thread that died out of the dump's exception record</li>
+<li>Take that thread's stack memory</li>
+<li>Walk it eight bytes at a time</li>
+<li>For each value, work out which DLL's address range it falls in, and count</li>
+</ol>
+<p>You do not need symbols for this. Counting alone tells you which module dominates. Here is what I actually ran:</p>
+<p><code>mods = sorted(((os.path.basename(m.name), m.baseaddress, m.baseaddress + m.size) for m in mf.modules.modules), key=lambda x: x[1])</code></p>
+<p><code>th = [t for t in mf.threads.threads if t.ThreadId == mf.exception.exception_records[0].ThreadId][0]</code></p>
+<p><code>data = raw[th.Stack.Rva : th.Stack.Rva + th.Stack.DataSize]</code></p>
+<p><code>hits = [owner(struct.unpack('&lt;Q', data[i:i+8])[0]) for i in range(0, len(data)-7, 8)]</code></p>
+<p>One implementation note: reading memory through <code>mf.get_reader()</code> throws the moment you touch an address the dump didn't capture. Slicing the file directly using <code>th.Stack.Rva</code> is reliable.</p>
+<p>The result:</p>
+<ul>
+<li><strong><em>*pSyncLib.dll</em></strong><em> — </em><em>26</em>*</li>
+<li><strong>ntdll.dll</strong> — 7</li>
+<li><strong>msvcr100.dll</strong> — 5</li>
+<li><strong>KERNELBASE.dll</strong> — 3</li>
+<li><strong>pthreadVC2.dll</strong> — 1</li>
+<li><strong>kernel32.dll</strong> — 1</li>
+</ul>
+<p>Reading bottom to top: <code>ntdll → kernel32 → msvcr100 (thread startup) → pthreadVC2 → pSyncLib.dll</code>.</p>
+<p><code>pSyncLib.dll</code> is the app's native sync engine — the component whose entire job is moving files to and from the cloud.</p>
+<p>This counting method needs caveats, and none of them change the conclusion. It does not mean twenty-six nested calls. Stacks get reused, so stale values left by calls that already returned are mixed in, and pointers to data are counted too. What it tells you is what the thread was busy with. Twenty-six against seven is not a close call.</p>
+<p>The part that mattered most: neither the rendering DLLs nor the resident software I had suspected of interfering appear on that stack even once. Not a UI problem, not third-party interference. A worker thread inside the sync engine, dying on its own.</p>
+<h2>The culprit: a queue that never got processed</h2>
+<p>The sync engine keeps a work queue in a local SQLite database. That is where it was dying.</p>
+<ul>
+<li><strong><code>fstask</code></strong> — 5</li>
+<li><strong><code>fstaskupload</code></strong> — 73</li>
+<li><strong><code>fstaskdepend</code></strong> — 1</li>
+<li><strong><code>fstaskfileid</code></strong> — 0</li>
+</ul>
+<p>All of them at <code>status=0</code> — untouched. Every one pointed at a partially-written temporary file in the same folder.</p>
+<p>The timeline fits:</p>
+<p><code>06:09 an 843 MB temp file last modified / 06:11-06:14 the app's local cache last modified / 06:15:33 first crash</code></p>
+<p>I had pointed a downloader straight at the sync folder, which this app mounts as a virtual drive. The app dutifully tried to upload a file that was still being written, and somewhere in the middle of that the file was renamed or the transfer was interrupted, leaving the queue in a state it could not process. <strong>That last part is my inference — I never observed the race itself.</strong></p>
+<p>What I did observe is narrower: with these tasks in the queue it dies every time, and with the queue emptied it doesn't. Whether the rows themselves are malformed, or the rows are fine and the code path that handles them has a hole, I cannot tell. The fix is the same either way.</p>
+<p>And here is where "the file is not damaged" pays off. The integrity check returned <code>ok</code> because <strong>all it inspects is page structure and schema</strong>. "This data makes the application die" is a category of problem it cannot catch by design. A file being intact and a file being safe are different claims.</p>
+<h2>The fix: move the queue aside, don't delete it</h2>
+<ol>
+<li>Quit the app</li>
+<li>Back up the database files</li>
+<li><strong>Write the contents of those four tables out to JSON, then empty them</strong></li>
+<li>Launch</li>
+</ol>
+<p>Step 3 is the one that matters. Writing them out first means you can undo the decision. (I didn't need to, but I didn't know that when I made it.)</p>
+<p>It launched. It stayed up. The virtual drive mounted normally, twelve minutes of monitoring produced zero crashes, and it was still running — with Explorer's context-menu integration responding, which requires the app to be alive — long after.</p>
+<p>What was lost were interrupted uploads. Nothing that already existed in the cloud was affected.</p>
+<h2>What I'd tell you to do next time</h2>
+<p><strong>If a reinstall doesn't fix it, the next thing to open is the app's data folder, not the uninstaller.</strong> On Windows that means under <code>%APPDATA%</code> and <code>%LOCALAPPDATA%</code>. Swapping out the executable and getting the same symptom is not a failed attempt — it is a result that eliminates half the suspects.</p>
+<p><strong>If it dies silently, go looking for a dump.</strong> Check whether the app writes one itself. If not, Windows can be configured to save one via the LocalDumps registry key. And be quick — some apps delete their own dumps after reporting.</p>
+<p><strong>A stack tells you where to look even without symbols.</strong> Counting which module dominates is enough to pick your next move.</p>
+<p><strong>Don't point a downloader at a cloud-sync mount.</strong> Let it finish on a local disk, then copy. Files that are still being written have no business inside a folder something else is watching.</p>
+<h2>The part I should be honest about</h2>
+<p>This app has a real defect. Whatever is in that queue, branching to address zero and dying instantly — null function pointer or corrupted stack, either way — is inadequate defence. That is the vendor's to fix.</p>
+<p>But waiting for that fix doesn't get your machine working.</p>
+<p>I have been thinking about it this way: the number of people who can build things is going to keep going up. What isn't going up is the number of people who, when something stops working, can draw the line between what is innocent and what is a suspect. The forty minutes this took were made entirely of drawing that line.</p>
+<h2>What I actually typed</h2>
+<p>The investigation above was carried out by an AI agent (Claude Code). Here is everything I entered, in full.</p>
+<p><strong>First:</strong> <code>the pcloud app keeps force-quitting</code></p>
+<p>That's it. No version, no error text, no mention of when it started. From there the agent queried the event log, decoded the exception, identified the onset time, and reproduced the crash on its own.</p>
+<p><strong>Second:</strong> presented with four options — update to the latest version, park the sync queue and test, file with the vendor, or examine the unsynced data first — I picked the first.</p>
+<p><strong>Third:</strong> <code>installed it</code></p>
+<p>When the latest version died the same way, the agent found the dump in the <code>crashes</code> folder, ran <code>pip install minidump</code>, analysed the stack, and identified <code>pSyncLib.dll</code>.</p>
+<p><strong>Fourth:</strong> asked for permission to park the queue, I approved it.</p>
+<p>That recovered the machine.</p>
+<p>I gave no technical instructions. Which log to read, how to parse a dump, which table to suspect — none of that came from me. I chose which hypothesis to kill first, and that was the whole of my contribution.</p>
+<p>Which makes the remaining human job fairly clear:</p>
+<ul>
+<li><strong>Deciding when to stop.</strong> When the reinstall failed, was that the end or the beginning?</li>
+<li><strong>Deciding what may be lost.</strong> Seventy-three unsynced uploads — that is not a call an agent should make on its own.</li>
+<li><strong>Deciding what to rule out first.</strong> Which of the four options to spend time on.</li>
+</ul>
+<p>The agent can investigate something to the end. It cannot decide what you can afford to lose. That division is the thing I actually took away from this.</p>
+</body>
+</html>
