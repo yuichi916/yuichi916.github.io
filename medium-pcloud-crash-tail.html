@@ -1,0 +1,58 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<title>tail</title><style>body{max-width:760px;margin:0 auto;padding:40px 20px;
+font-family:Georgia,serif;line-height:1.75}h2{font-size:1.35em;margin-top:2em}
+code{background:#f2f4f6;padding:2px 6px;border-radius:4px;font-family:Consolas,monospace}
+</style></head><body>
+<p>This counting method needs caveats, and none of them change the conclusion. It does not mean twenty-six nested calls. Stacks get reused, so stale values left by calls that already returned are mixed in, and pointers to data are counted too. What it tells you is what the thread was busy with. Twenty-six against seven is not a close call.</p>
+<p>The part that mattered most: neither the rendering DLLs nor the resident software I had suspected of interfering appear on that stack even once. Not a UI problem, not third-party interference. A worker thread inside the sync engine, dying on its own.</p>
+<h2>The culprit: a queue that never got processed</h2>
+<p>The sync engine keeps a work queue in a local SQLite database. That is where it was dying.</p>
+<ul>
+<li><strong><code>fstask</code></strong> — 5</li>
+<li><strong><code>fstaskupload</code></strong> — 73</li>
+<li><strong><code>fstaskdepend</code></strong> — 1</li>
+<li><strong><code>fstaskfileid</code></strong> — 0</li>
+</ul>
+<p>All of them at <code>status=0</code> — untouched. Every one pointed at a partially-written temporary file in the same folder.</p>
+<p>The timeline fits:</p>
+<p><code>06:09 an 843 MB temp file last modified / 06:11-06:14 the app's local cache last modified / 06:15:33 first crash</code></p>
+<p>I had pointed a downloader straight at the sync folder, which this app mounts as a virtual drive. The app dutifully tried to upload a file that was still being written, and somewhere in the middle of that the file was renamed or the transfer was interrupted, leaving the queue in a state it could not process. <strong>That last part is my inference — I never observed the race itself.</strong></p>
+<p>What I did observe is narrower: with these tasks in the queue it dies every time, and with the queue emptied it doesn't. Whether the rows themselves are malformed, or the rows are fine and the code path that handles them has a hole, I cannot tell. The fix is the same either way.</p>
+<p>And here is where "the file is not damaged" pays off. The integrity check returned <code>ok</code> because <strong>all it inspects is page structure and schema</strong>. "This data makes the application die" is a category of problem it cannot catch by design. A file being intact and a file being safe are different claims.</p>
+<h2>The fix: move the queue aside, don't delete it</h2>
+<ol>
+<li>Quit the app</li>
+<li>Back up the database files</li>
+<li><strong>Write the contents of those four tables out to JSON, then empty them</strong></li>
+<li>Launch</li>
+</ol>
+<p>Step 3 is the one that matters. Writing them out first means you can undo the decision. (I didn't need to, but I didn't know that when I made it.)</p>
+<p>It launched. It stayed up. The virtual drive mounted normally, twelve minutes of monitoring produced zero crashes, and it was still running — with Explorer's context-menu integration responding, which requires the app to be alive — long after.</p>
+<p>What was lost were interrupted uploads. Nothing that already existed in the cloud was affected.</p>
+<h2>What I'd tell you to do next time</h2>
+<p><strong>If a reinstall doesn't fix it, the next thing to open is the app's data folder, not the uninstaller.</strong> On Windows that means under <code>%APPDATA%</code> and <code>%LOCALAPPDATA%</code>. Swapping out the executable and getting the same symptom is not a failed attempt — it is a result that eliminates half the suspects.</p>
+<p><strong>If it dies silently, go looking for a dump.</strong> Check whether the app writes one itself. If not, Windows can be configured to save one via the LocalDumps registry key. And be quick — some apps delete their own dumps after reporting.</p>
+<p><strong>A stack tells you where to look even without symbols.</strong> Counting which module dominates is enough to pick your next move.</p>
+<p><strong>Don't point a downloader at a cloud-sync mount.</strong> Let it finish on a local disk, then copy. Files that are still being written have no business inside a folder something else is watching.</p>
+<h2>The part I should be honest about</h2>
+<p>This app has a real defect. Whatever is in that queue, branching to address zero and dying instantly — null function pointer or corrupted stack, either way — is inadequate defence. That is the vendor's to fix.</p>
+<p>But waiting for that fix doesn't get your machine working.</p>
+<p>I have been thinking about it this way: the number of people who can build things is going to keep going up. What isn't going up is the number of people who, when something stops working, can draw the line between what is innocent and what is a suspect. The forty minutes this took were made entirely of drawing that line.</p>
+<h2>What I actually typed</h2>
+<p>The investigation above was carried out by an AI agent (Claude Code). Here is everything I entered, in full.</p>
+<p><strong>First:</strong> <code>the pcloud app keeps force-quitting</code></p>
+<p>That's it. No version, no error text, no mention of when it started. From there the agent queried the event log, decoded the exception, identified the onset time, and reproduced the crash on its own.</p>
+<p><strong>Second:</strong> presented with four options — update to the latest version, park the sync queue and test, file with the vendor, or examine the unsynced data first — I picked the first.</p>
+<p><strong>Third:</strong> <code>installed it</code></p>
+<p>When the latest version died the same way, the agent found the dump in the <code>crashes</code> folder, ran <code>pip install minidump</code>, analysed the stack, and identified <code>pSyncLib.dll</code>.</p>
+<p><strong>Fourth:</strong> asked for permission to park the queue, I approved it.</p>
+<p>That recovered the machine.</p>
+<p>I gave no technical instructions. Which log to read, how to parse a dump, which table to suspect — none of that came from me. I chose which hypothesis to kill first, and that was the whole of my contribution.</p>
+<p>Which makes the remaining human job fairly clear:</p>
+<ul>
+<li><strong>Deciding when to stop.</strong> When the reinstall failed, was that the end or the beginning?</li>
+<li><strong>Deciding what may be lost.</strong> Seventy-three unsynced uploads — that is not a call an agent should make on its own.</li>
+<li><strong>Deciding what to rule out first.</strong> Which of the four options to spend time on.</li>
+</ul>
+<p>The agent can investigate something to the end. It cannot decide what you can afford to lose. That division is the thing I actually took away from this.</p>
+</body></html>
