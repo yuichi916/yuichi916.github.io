@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>小説の面白さ測定器 — 冒頭12,000字だけで、読者評価を当てる</title>
+<meta name="description" content="Web小説1,126作品と商業出版385冊で検証した、文章だけから面白さを測る道具。未知のジャンルで AUC 0.792。ブックマーク数も評価人数も使わない。手元のテキストファイルでそのまま試せます。">
+<meta property="og:title" content="小説の面白さ測定器 — 冒頭12,000字だけで、読者評価を当てる">
+<meta property="og:description" content="未知のジャンルで AUC 0.792。効かないと分かった要素も全部載せた検証レポートつき。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://yuichi916.github.io/novel-bench.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="keywords" content="小説,面白さ,評価,ベンチマーク,LLM,なろう,Web小説,執筆,推敲,AUC">
+<link rel="canonical" href="https://yuichi916.github.io/novel-bench.html">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<style>
+:root{
+  --bg:#0e1116; --panel:#161b22; --panel2:#1c2230; --line:#2a3240;
+  --ink:#e6e9ef; --sub:#98a3b3; --acc:#6aa9ff; --ok:#4ec99a; --warn:#e0a458; --bad:#e0685f;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);line-height:1.8;font-size:15px;
+  font-family:"Yu Gothic UI","Hiragino Kaku Gothic ProN",system-ui,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:42px 22px 90px}
+a{color:var(--acc)}
+h1{font-size:26px;line-height:1.45;margin-bottom:10px;letter-spacing:.01em}
+h2{font-size:19px;margin:46px 0 14px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+h3{font-size:15px;margin:26px 0 8px;color:var(--sub)}
+.lead{color:var(--sub);font-size:14px;margin-bottom:8px}
+.hero{display:flex;gap:14px;flex-wrap:wrap;margin:24px 0 8px}
+.card{flex:1 1 180px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:16px 18px}
+.card .k{font-size:11.5px;color:var(--sub);letter-spacing:.05em}
+.card .v{font-size:32px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums}
+.card .u{font-size:13px;font-weight:400;color:var(--sub)}
+.card .n{font-size:11.5px;color:var(--sub);margin-top:4px;line-height:1.6}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:12px 0;
+  display:block;overflow-x:auto;white-space:nowrap}
+th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left}
+th{color:var(--sub);font-weight:600;font-size:12px;background:var(--panel)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.note{background:var(--panel);border-left:3px solid var(--sub);padding:12px 16px;
+  margin:16px 0;font-size:13.5px;color:#c3cbd8;border-radius:0 8px 8px 0}
+.warn{border-left-color:var(--warn)}
+.good{border-left-color:var(--ok)}
+code,pre{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+pre{background:#0a0d12;border:1px solid var(--line);border-radius:10px;
+  padding:14px 16px;overflow-x:auto;margin:12px 0;line-height:1.65}
+code{background:#0a0d12;padding:2px 6px;border-radius:4px}
+pre code{background:none;padding:0}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:18px 20px;margin:14px 0}
+.step .num{display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;
+  background:var(--acc);color:#0e1116;border-radius:50%;font-weight:700;font-size:13px;
+  margin-right:8px}
+button{background:var(--acc);color:#0b0f15;border:0;border-radius:8px;
+  padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+button:hover{filter:brightness(1.1)}
+button.sec{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+textarea,input[type=file]{width:100%;background:#0a0d12;color:var(--ink);
+  border:1px solid var(--line);border-radius:8px;padding:11px 13px;font-family:inherit;
+  font-size:13.5px}
+textarea{min-height:110px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.bar{position:relative;height:9px;background:#222a36;border-radius:5px;
+  overflow:hidden;min-width:90px}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);border-radius:5px}
+.bar.weak i{background:#4a5668}
+.up{color:var(--ok)} .down{color:var(--bad)} .mute{color:var(--sub)}
+.small{font-size:12px;color:var(--sub)}
+ul{padding-left:1.2em;margin:10px 0} li{margin:6px 0}
+.foot{margin-top:56px;padding-top:16px;border-top:1px solid var(--line);
+  font-size:12px;color:var(--sub)}
+.hide{display:none}
+.tag{display:inline-block;background:var(--panel2);border:1px solid var(--line);
+  border-radius:999px;padding:2px 10px;font-size:11.5px;color:var(--sub);margin-right:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="lead"><a href="./">← yuichi916.github.io</a></p>
+<h1>小説の面白さ測定器</h1>
+<p class="lead">冒頭12,000字だけを読んで、読者がその作品を高く評価するかを当てる。<br>
+ブックマーク数も、評価人数も、話数も使わない。<strong>文章だけ。</strong></p>
+
+<div class="hero">
+  <div class="card">
+    <div class="k">未知のジャンルに当てる</div>
+    <div class="v">0.792<span class="u"> AUC</span></div>
+    <div class="n">ジャンルを丸ごと外して学習し、そのジャンルに当てた実測（5通り）の加重平均</div>
+  </div>
+  <div class="card">
+    <div class="k">上位10%を選ぶと</div>
+    <div class="v">88<span class="u">%</span></div>
+    <div class="n">が高評価。選ばずに読むと 50%</div>
+  </div>
+  <div class="card">
+    <div class="k">検証に使った作品</div>
+    <div class="v">1,126<span class="u"> 作品</span></div>
+    <div class="n">Web小説5ジャンル・著者879人。ほかに商業出版385冊</div>
+  </div>
+</div>
+
+<div class="note">
+<strong>AUC の読み方。</strong>「高評価の作品と低評価の作品を1つずつ並べたとき、正しいほうを高く採点する確率」。
+0.500 が偶然、1.000 が完璧。<strong>1作品ごとの当否を保証する数字ではありません。</strong>
+</div>
+
+<h2>試す</h2>
+<p>手元のテキストファイルでそのまま試せます。採点の計算はこのページの中で完結します
+（本文はどこにも送信されません。LLMに渡すのはあなた自身です）。</p>
+
+<div class="step">
+  <div><span class="num">1</span><strong>テキストファイルを選ぶ</strong></div>
+  <p class="small">.txt（UTF-8）。冒頭12,000字だけを使います。長い原稿でも構いません。</p>
+  <div class="row">
+    <input type="file" id="file" accept=".txt,text/plain">
+    <button class="sec" id="useSample">見本を入れる</button>
+  </div>
+  <div id="fileInfo" class="small"></div>
+</div>
+
+<div class="step">
+  <div><span class="num">2</span><strong>プロンプトをコピーして、お使いのLLMに貼る</strong></div>
+  <p class="small">ChatGPT / Claude / Gemini どれでも。JSONだけが返ってきます。</p>
+  <div class="row">
+    <button id="copyPrompt" disabled>プロンプトをコピー</button>
+    <span class="small" id="copyState"></span>
+  </div>
+  <details style="margin-top:8px">
+    <summary class="small" style="cursor:pointer">中身を見る（13軸のルーブリック）</summary>
+    <pre id="promptPreview" style="max-height:260px;overflow:auto"></pre>
+  </details>
+</div>
+
+<div class="step">
+  <div><span class="num">3</span><strong>返ってきた JSON を貼る</strong></div>
+  <textarea id="jsonIn" placeholder='{"continue":6,"character":5,"clarity":8,...}'></textarea>
+  <div class="row">
+    <button id="score">採点する</button>
+    <button class="sec" id="demo">実例を見る（採点済み）</button>
+    <span class="small" id="scoreState"></span>
+  </div>
+</div>
+
+<div id="result" class="hide"></div>
+
+<h2>何を「面白さ」としているか</h2>
+<p>正解は <strong>評価の重さ＝総合評価点 ÷ 評価した人数</strong>（1人最大10点）。
+ブックマーク数ではありません。</p>
+<p>予備調査（n=134）で、LLMの「面白い」判定は</p>
+<ul>
+  <li>ブックマーク数と<strong>無相関</strong>（r = −0.061, p = 0.48）</li>
+  <li>評価の重さと<strong>相関</strong>（r = +0.309, p = 0.0003、多重比較補正後も有意）</li>
+</ul>
+<p><strong>人を集める力と、読んだ人が高く評価することは別の軸です。</strong>
+この測定器は後者だけを測ります。「伸びるか」は当てられません。</p>
+
+<h2>ジャンルを跨げるか</h2>
+<p>「ジャンル不問」を名乗るには、<strong>学習していないジャンルで通用する</strong>ことを示す必要があります。
+ジャンルを1つずつ完全に外して学習し、そのジャンルに当てました。</p>
+<table>
+<tr><th>ジャンル</th><th class="n">作品数</th><th class="n">そのジャンル自前で学習</th><th class="n">そのジャンルを外して学習</th></tr>
+<tr><td>異世界恋愛</td><td class="n">481</td><td class="n">0.797</td><td class="n"><strong>0.807</strong></td></tr>
+<tr><td>ハイファンタジー</td><td class="n">272</td><td class="n">0.740</td><td class="n"><strong>0.750</strong></td></tr>
+<tr><td>現実世界恋愛</td><td class="n">216</td><td class="n">0.787</td><td class="n"><strong>0.795</strong></td></tr>
+<tr><td>ローファンタジー</td><td class="n">72</td><td class="n">0.663</td><td class="n"><strong>0.742</strong></td></tr>
+<tr><td>ヒューマンドラマ</td><td class="n">85</td><td class="n">0.764</td><td class="n"><strong>0.775</strong></td></tr>
+<tr><td><strong>加重平均</strong></td><td class="n"><strong>1,126</strong></td><td class="n"><strong>0.782</strong></td><td class="n"><strong>0.792</strong></td></tr>
+</table>
+<div class="note good">
+<strong>外して学習したほうが、そのジャンル自前で学習するより良い。</strong>
+ジャンル固有の要素はほぼ無く、データ量のほうが効いています。
+13軸すべてが5ジャンルで同じ向きで、符号の反転はゼロでした。
+</div>
+
+<h2>商業出版にも通じるか</h2>
+<p>Web小説だけで決めた重みを、商業出版された小説385冊にそのまま当てました（学習には使っていません）。</p>
+<table>
+<tr><th>集団</th><th class="n">冊数</th><th class="n">読みの評点（中央値）</th></tr>
+<tr><td>なろう高評価</td><td class="n">241</td><td class="n">4.66</td></tr>
+<tr><td><strong>商業出版の小説</strong></td><td class="n"><strong>385</strong></td><td class="n"><strong>4.62</strong></td></tr>
+<tr><td>なろう低評価</td><td class="n">240</td><td class="n">4.07</td></tr>
+<tr><td>実用書・随筆（除外分）</td><td class="n">48</td><td class="n">3.95</td></tr>
+</table>
+<p>商業の小説 対 なろう低評価 <strong>AUC 0.736</strong>／商業の小説 対 なろう高評価 0.456（互角）。
+<strong>商業出版とWeb小説の高評価作品を区別しません。</strong> 体裁や組版を見ているのではない、ということです。</p>
+
+<h2>13の軸と、その強さ</h2>
+<p>うち5軸は人が決めたのではなく、<strong>コーパスから取り出しました</strong>。
+商業30冊・なろう高25作・なろう低25作を<strong>選択肢を与えずに自由記述</strong>で読ませ、
+468件の指摘を束ねて14の型を得て、採点軸として効くものを採っています。</p>
+<table id="axisTable"><tr><th>軸</th><th class="n">AUC</th><th>出どころ</th></tr></table>
+<p class="small">0.5 を下回る軸は「低いほど良い」向き。0.5 からの隔たりが大きいほど効きます。</p>
+
+<div class="note">
+<strong>「テンプレ既視感」は当初の9軸に無かった軸です。</strong>
+「先の読めなさ」で代替できているつもりでしたが、別物でした。
+テンプレ展開でも次の一手は読めない作品があります。
+</div>
+
+<h2>効かないと分かった要素</h2>
+<p>創作論で必ず語られるのに、高評価と低評価を分けなかったものです。</p>
+<table>
+<tr><th>要素</th><th class="n">AUC</th></tr>
+<tr><td>何が懸かっているか</td><td class="n">0.504（商業比較では<strong>逆向き</strong> 0.442）</td></tr>
+<tr><td>説明過多</td><td class="n">0.516</td></tr>
+<tr><td>謎の掴み</td><td class="n">0.526</td></tr>
+<tr><td>視点混乱</td><td class="n">0.497</td></tr>
+<tr><td>落差・転調</td><td class="n">0.533</td></tr>
+</table>
+<div class="note warn">
+「冒頭で謎を置け」「説明を減らせ」「何が懸かっているかを明示しろ」。<br>
+<strong>少なくともWeb小説の読者評価に対しては、これらは高評価と低評価を分けていません。</strong>
+「何が懸かっているか」にいたっては、商業出版のほうが<strong>低い</strong>（商業5.0 &lt; なろう低評価5.3）。
+懸かっているものを明示的に書き下すのは、むしろ弱い書き手の癖でした。
+</div>
+
+<h2>採点の根拠は出せるか</h2>
+<p>3層で出せます。</p>
+<ul>
+<li><strong>軸ごとの寄与</strong> — モデルは線形なので厳密に分解できます。
+寄与の合計＋切片が判定そのものになることを検算済み（差 1e-12未満）。<strong>後付けの説明ではありません。</strong></li>
+<li><strong>参照分布の中での位置</strong> — 各軸が高評価群／低評価群のどちら寄りか</li>
+<li><strong>本文のどこが効いているか</strong> — 原稿をブロックに割り、引きの強さ・面白さの型・
+本文からの引用・落ちた理由を返します</li>
+</ul>
+<p>3つめは<strong>3度目の検定でようやく合格</strong>しました。経緯も残しています。</p>
+<table>
+<tr><th>検定</th><th>結果</th></tr>
+<tr><td>① 該当箇所を消して評点の落ち幅を見る</td><td>本文の1/5を消しても0.02点しか動かず、検出力なし</td></tr>
+<tr><td>② 全文の二択（消した版どうしを比べる）</td><td>判定者が83%の確率で<strong>後に見せたほう</strong>を選ぶ。両順序で一致した対は12/48（25%）＝純粋な位置選択が予測する28%と同水準で信号なし</td></tr>
+<tr><td>③ ブロック同士の二択</td><td>両順序で一致した19対のうち<strong>19対すべて</strong>が抽出側を支持。p&lt;0.0001</td></tr>
+</table>
+<p class="small">位置だけで選ぶなら、一致した対での勝率は50%になるはず。19/19は 2×0.5<sup>19</sup> = 3.8×10⁻⁶。
+<strong>LLMに長文2本を比較させると位置でしか選びません。</strong> 比較対象を短くすれば信号が出ます。</p>
+
+<h2>できないこと</h2>
+<ul>
+<li><strong>売れるかは分かりません。</strong>何人に届くか（ブックマーク数）とは実測で無相関</li>
+<li><strong>1作品単位では外れます。</strong>0.792 は2作品を並べたときの順位づけの確率です</li>
+<li><strong>冒頭12,000字しか見ていません。</strong>中盤の失速・終盤の破綻・伏線の回収は範囲外</li>
+<li><strong>直せば上がるとは限りません。</strong>相関を測った道具であって、因果は確かめていません</li>
+<li><strong>評価が30人未満の作品では、当たっているか確かめる手段がありません。</strong>
+ブクマ0〜2で評価5人以上の作品は1,310中1件しかなく、読者がいない作品に正解データは存在しません</li>
+<li><strong>純文学・ホラー・推理は実測していません</strong>（0.792 はあくまで見込み）</li>
+<li><strong>文学的な価値の評価ではありません。</strong>Web小説投稿サイトの読者が付けた点数を正解に置いています</li>
+</ul>
+
+<h2>検証の規律</h2>
+<table>
+<tr><th>守ったこと</th><th>理由</th></tr>
+<tr><td>本文だけを使う</td><td>ブクマ数・評価人数・話数は未発表原稿には存在しない。使えば検証は通っても製品では使えない</td></tr>
+<tr><td>著者単位で分割する</td><td>同じ作者が学習側と評価側に跨ると、作風を覚えただけの精度が出る</td></tr>
+<tr><td>重みは学習側だけで決める</td><td>全データで重みを決めて同じデータで測るのは自己採点</td></tr>
+<tr><td>並べ替え検定は「案を選ぶ手続きごと」行う</td><td>3案から最良を選べば偶然でも数字は上がる。実測で偶然のAUCの中央値が 0.496 → 0.530 に上がった</td></tr>
+<tr><td>実地検証では著者ごと外す</td><td>最初の実地検証80作品は32人の著者が較正側にも入っていた</td></tr>
+<tr><td>epubの前付けを落とす</td><td>そのまま冒頭12,000字を読むと<strong>目次を評価する</strong>ことになる</td></tr>
+<tr><td>実用書・随筆を除く</td><td>文庫・単行本に9〜11%混入。レーベルでは切れないのでLLMで判定</td></tr>
+</table>
+
+<h2>手元で全部動かす</h2>
+<p>このページはブラウザで完結する簡易版です。本体はコマンドラインで動きます。</p>
+<pre><code># ジャンル不問（推奨）— txt / docx / epub / 青空文庫HTML / なろうURL
+python -m shinsa_bench.cli novel interest 原稿.txt
+
+# ジャンルが分かっている場合（異世界恋愛なら 0.797 と上）
+python -m shinsa_bench.cli novel interest 原稿.docx --genre 101 \
+    --html out/report.html --pdf out/report.pdf --title "作品名"</code></pre>
+<p class="small">3回読んで平均します（1回読みだと同じ原稿で確率が中央6.3点・上位5%で24.3点ぶれるため）。</p>
+
+<div class="foot">
+測定器 <span id="ver"></span>／ 検証データ: Web小説5ジャンル1,126作品（著者879人）＋商業出版385冊<br>
+原稿本文は保存していません。このページが持っているのは係数と分布だけです。
+</div>
+
+</div>
+
+<script>
+const SAMPLE = `　母が死んだ日のことを、俺はよく覚えていない。
+
+　覚えているのは、病室の窓から見えた空が、やけに普通だったことだけだ。曇ってもいなければ、晴れてもいない。ただ白い。あの日から、俺の目には「正解」が視えるようになった。
+
+　道筋、と俺は呼んでいる。
+　右に行けば助かる。左に行けば死ぬ。そういうものが、線になって視える。だから俺は十七年間、一度も間違えたことがない。間違えようがない。
+
+　その日も、俺は最短の道筋を辿って配給所に向かっていた。三番区の配給は昼を過ぎると尽きる。角を二つ曲がって、崩れかけた歩道橋を渡れば、待ち時間はゼロで済む。
+
+　視えている。いつもどおりだ。
+
+　――視えていないものが、そこに座っていた。
+
+　歩道橋の下、鉄骨の影に、少女がひとり。膝を抱えて、こちらを見ていた。
+　俺の道筋に、その少女は映らなかった。
+
+「あなた、いま、迷った」
+
+　少女が言った。俺は足を止めた。迷ってなどいない。俺は迷わない。迷えない。
+
+「迷ったでしょう。はじめて」
+
+　少女は立ち上がった。埃だらけの白い服。裸足。栄養状態は悪くない。三番区の人間ではない。
+
+「名前は」
+「リーン」
+「どこから来た」
+「わからない」
+
+　嘘をついている様子はなかった。というより、嘘という概念を持っていないような喋り方だった。
+
+「カイ」
+
+　少女が言った。俺の名前を。
+
+　俺は一歩下がった。名乗っていない。この区で俺の名を知っている人間は三人しかいない。そのうち二人は死んだ。
+
+「どうして知っている」
+「あなたのお母さんが、そう呼んでいたから」
+
+　俺の視界から、道筋が消えた。`;
+
+let M = null, promptText = '', fileName = '';
+
+const $ = id => document.getElementById(id);
+
+// モデル（係数・分布・較正）は埋め込む。外部読み込みに頼ると file:// で動かない
+const MODEL = {"version":"2026.09.20-merged13-1","keys":["continue","character","clarity","surprise","friction","voice","interesting","popular","cliche","charm","abrupt","concrete","banter"],"labels":{"continue":"続きを読みたいか","character":"主人公への興味","clarity":"状況の分かりやすさ","surprise":"先の読めなさ","friction":"読みにくさ（低いほど良い）","voice":"語り口の個性","interesting":"面白いと思うか","popular":"読者を集めると思うか","cliche":"テンプレ既視感（低いほど良い）","charm":"キャラの魅力","abrupt":"唐突な急変（低いほど良い）","concrete":"具体描写の力","banter":"掛け合いテンポ"},"system":"あなたは小説を読む人です。批評家ではなく、書店で試し読みをしている一般の読者として答えます。出力は必ずJSONのみ。説明文や前置きは書かないでください。作品を褒める必要はありません。つまらないと感じたら、そう答えてください。","rubric":"次の小説の冒頭を読み、読者として正直に答えてください。\n\n評価する軸（それぞれ0〜10の整数）:\n- continue: この続きを読みたいか。0=すぐ閉じる、10=今すぐ次を読む\n- character: 主人公に興味が持てるか。0=誰でもいい、10=この人のことを知りたい\n- clarity: 状況が分かるか。0=何が起きているか分からない、10=すっと入る\n- surprise: 先が読めないか。0=完全に予想どおり、10=どうなるか分からない\n- friction: 文章の読みにくさ。0=引っかからない、10=読むのが苦痛\n- voice: 語り口に個性があるか。0=没個性、10=この書き手でしか書けない\n- interesting: 総合して「面白い」と思うか（0〜10）\n- popular: この作品がWeb小説投稿サイトで多くの読者を集めると思うか（0〜10）\n  ※「面白い」と「多くの読者を集める」は別のことです。別々に判断してください。\n- cliche: よくある展開・設定で新鮮味に欠け、先が読めてしまう度合い。0=既視感なし、10=完全にテンプレ\n- charm: 弱さ・健気さ・芯の強さなどで人物に肩入れしたくなる度合い。0=何も感じない、10=強く惹かれる\n- abrupt: 心情やキャラの豹変・急展開が唐突で置いていかれる度合い。0=自然、10=ついていけない\n- concrete: 具体的で生々しい描写が世界や状況に説得力を与えている度合い。0=抽象的、10=手触りがある\n- banter: 会話のリズムの良さで関係性やキャラが素早く伝わる度合い。0=会話が死んでいる、10=掛け合いが効いている\n\nさらに2つ:\n- drop_at: 読むのをやめたくなった最初の箇所を、本文から15字以内で抜き出す。最後まで読めたなら空文字。\n- reason: 続きを読みたい／読みたくない理由を30字以内で1つだけ。\n\nJSON形式:\n{\"continue\":0,\"character\":0,\"clarity\":0,\"surprise\":0,\"friction\":0,\"voice\":0,\"interesting\":0,\"popular\":0,\"cliche\":0,\"charm\":0,\"abrupt\":0,\"concrete\":0,\"banter\":0,\"drop_at\":\"\",\"reason\":\"\"}\n","head_chars":12000,"model":{"mean":[3.886619301361754,4.332741267021909,7.362640615748974,2.616637063351098,3.933096506808769,4.277975133214921,3.9322084073416224,5.077560686796925,7.89490822972173,4.065127294256955,4.497039668442859,3.611604499703965,4.356423919478984],"scale":[1.2462188945694164,1.0699806261423286,1.1860770373861973,1.21895572848266,1.4072411143577555,1.4324450980487116,1.1466577845981953,1.0913042958458468,1.0059560766986086,1.2421855991510888,1.834729840852294,1.2685285664046981,1.5673989194490772],"coef":[-0.017070533993462655,0.05587020938099066,0.003872214827329438,-0.30419073141490793,-0.1957009046155453,0.12861601435167677,0.035558157370647145,0.1805450510287139,-0.7633049403549208,0.3127971659728625,-0.1662464758036727,0.04301647079108428,0.18753043176055137],"intercept":0.022395130456252042},"calibration":{"x":[0.021086,0.045162,0.069239,0.093316,0.117392,0.141469,0.165545,0.189622,0.213699,0.237775,0.261852,0.285928,0.310005,0.334082,0.358158,0.382235,0.406311,0.430388,0.454465,0.478541,0.502618,0.526694,0.550771,0.574848,0.598924,0.623001,0.647077,0.671154,0.695231,0.719307,0.743384,0.76746,0.791537,0.815614,0.83969,0.863767,0.887843,0.91192,0.935997,0.960073,0.98415],"y":[0.02,0.02,0.02,0.0476,0.177,0.177,0.177,0.177,0.177,0.2316,0.2316,0.29,0.29,0.29,0.4348,0.4348,0.4348,0.4348,0.4932,0.4932,0.4932,0.5484,0.5766,0.5766,0.5766,0.5766,0.68,0.68,0.7143,0.7143,0.7143,0.7143,0.7234,0.8644,0.8644,0.871,0.9149,0.9149,0.9167,0.98,0.98]},"overall_q":[0.021,0.049,0.076,0.092,0.104,0.114,0.128,0.14,0.15,0.158,0.165,0.18,0.188,0.202,0.21,0.219,0.224,0.229,0.235,0.243,0.251,0.259,0.269,0.277,0.287,0.296,0.302,0.313,0.322,0.329,0.338,0.342,0.347,0.352,0.363,0.369,0.376,0.382,0.387,0.393,0.401,0.411,0.417,0.422,0.433,0.442,0.452,0.461,0.467,0.476,0.483,0.491,0.503,0.512,0.519,0.529,0.539,0.55,0.559,0.565,0.577,0.585,0.599,0.609,0.616,0.624,0.633,0.642,0.652,0.66,0.666,0.674,0.68,0.687,0.703,0.712,0.722,0.737,0.742,0.747,0.755,0.764,0.773,0.784,0.798,0.804,0.813,0.823,0.836,0.845,0.851,0.858,0.865,0.878,0.887,0.901,0.912,0.924,0.932,0.953,0.984],"overall_high_median":0.648,"overall_low_median":0.3427,"axes":{"continue":{"q":[1.0,1.667,2.0,2.0,2.0,2.0,2.0,2.0,2.333,2.333,2.333,2.667,2.667,2.667,2.667,2.667,2.667,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.667,4.667,4.667,5.0,5.0,5.0,5.0,5.333,5.333,5.333,5.333,5.667,5.667,5.667,5.667,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.333,7.0],"high_median":4.33,"low_median":3.0,"auc":0.7316,"per_genre":{"異世界恋愛":0.769,"ハイファンタジー":0.721,"現実世界恋愛":0.723,"ローファンタジー":0.671,"ヒューマンドラマ":0.7}},"character":{"q":[0.333,2.0,2.0,2.333,2.667,2.667,2.667,2.667,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.25,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.667,4.667,4.667,4.667,4.667,4.667,4.667,4.667,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.333,5.333,5.333,5.333,5.333,5.333,5.667,5.667,5.667,5.667,5.667,5.667,5.667,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.25,7.333],"high_median":5.0,"low_median":4.0,"auc":0.7417,"per_genre":{"異世界恋愛":0.774,"ハイファンタジー":0.716,"現実世界恋愛":0.764,"ローファンタジー":0.684,"ヒューマンドラマ":0.711}},"clarity":{"q":[2.667,4.0,4.667,5.0,5.0,5.333,5.667,5.667,5.667,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.333,6.333,6.333,6.333,6.333,6.667,6.667,6.667,6.667,6.667,7.0,7.0,7.0,7.0,7.0,7.333,7.333,7.333,7.333,7.333,7.333,7.667,7.667,7.667,7.667,7.667,7.667,7.667,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.333,8.333,8.333,8.333,8.333,8.333,8.333,8.333,8.333,8.333,8.667,8.667,8.667,8.667,8.667,8.667,8.667,8.667,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0],"high_median":8.0,"low_median":7.33,"auc":0.6324,"per_genre":{"異世界恋愛":0.623,"ハイファンタジー":0.654,"現実世界恋愛":0.657,"ローファンタジー":0.551,"ヒューマンドラマ":0.603}},"surprise":{"q":[0.0,0.667,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.333,1.333,1.333,1.333,1.333,1.333,1.333,1.667,1.667,1.667,1.667,1.667,1.667,1.667,1.667,1.667,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.333,2.333,2.333,2.333,2.333,2.333,2.333,2.333,2.333,2.333,2.667,2.667,2.667,2.667,2.667,2.667,2.667,2.667,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.667,3.667,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.333,4.667,4.667,5.0,5.0,5.333,5.333,5.667,6.0,6.667],"high_median":2.67,"low_median":2.0,"auc":0.6526,"per_genre":{"異世界恋愛":0.696,"ハイファンタジー":0.629,"現実世界恋愛":0.606,"ローファンタジー":0.741,"ヒューマンドラマ":0.638}},"friction":{"q":[1.333,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.333,2.333,2.333,2.333,2.333,2.333,2.333,2.667,2.667,2.667,2.667,2.667,2.667,2.667,2.667,2.667,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.667,4.667,4.667,4.667,5.0,5.0,5.0,5.333,5.333,5.333,5.333,5.333,5.667,5.667,5.667,5.667,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.333,6.333,6.667,7.0,7.333,8.667],"high_median":3.33,"low_median":4.0,"auc":0.3466,"per_genre":{"異世界恋愛":0.366,"ハイファンタジー":0.315,"現実世界恋愛":0.319,"ローファンタジー":0.415,"ヒューマンドラマ":0.358}},"voice":{"q":[1.0,2.0,2.0,2.0,2.0,2.0,2.333,2.333,2.333,2.333,2.667,2.667,2.667,2.667,2.667,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.667,3.667,3.667,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.333,4.333,4.333,4.333,4.5,4.667,4.667,4.667,4.667,4.667,4.667,5.0,5.0,5.0,5.0,5.0,5.167,5.333,5.333,5.333,5.333,5.333,5.667,5.667,5.667,5.667,5.667,5.667,5.667,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.333,6.333,6.333,6.667,6.667,6.667,7.0,7.333,7.667,9.0],"high_median":4.67,"low_median":3.67,"auc":0.6849,"per_genre":{"異世界恋愛":0.72,"ハイファンタジー":0.581,"現実世界恋愛":0.736,"ローファンタジー":0.718,"ヒューマンドラマ":0.683}},"interesting":{"q":[1.0,1.75,2.0,2.0,2.0,2.0,2.0,2.333,2.333,2.417,2.667,2.667,2.667,2.75,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.667,4.667,4.667,4.667,4.667,4.75,5.0,5.0,5.0,5.0,5.333,5.333,5.333,5.333,5.333,5.667,5.667,5.667,5.667,5.667,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.25,7.0],"high_median":4.33,"low_median":3.33,"auc":0.7475,"per_genre":{"異世界恋愛":0.789,"ハイファンタジー":0.727,"現実世界恋愛":0.741,"ローファンタジー":0.72,"ヒューマンドラマ":0.707}},"popular":{"q":[1.667,2.0,2.333,2.667,3.0,3.0,3.333,3.333,3.333,3.333,3.667,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.667,4.667,4.667,4.667,4.667,4.667,4.667,4.667,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.333,5.333,5.333,5.333,5.333,5.333,5.333,5.333,5.333,5.333,5.333,5.667,5.667,5.667,5.667,5.667,5.667,5.667,5.667,5.667,5.667,5.667,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.333,6.333,6.333,6.333,6.333,6.333,6.583,6.667,6.667,6.833,7.0,7.333],"high_median":5.67,"low_median":4.67,"auc":0.697,"per_genre":{"異世界恋愛":0.742,"ハイファンタジー":0.699,"現実世界恋愛":0.735,"ローファンタジー":0.684,"ヒューマンドラマ":0.528}},"cliche":{"q":[3.0,5.0,5.667,6.0,6.0,6.0,6.0,6.333,6.333,6.333,6.333,6.583,6.667,6.667,6.667,6.667,7.0,7.0,7.0,7.0,7.0,7.0,7.333,7.333,7.333,7.333,7.333,7.333,7.667,7.667,7.667,7.667,7.667,7.667,7.667,7.667,7.667,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.333,8.333,8.333,8.333,8.333,8.333,8.333,8.333,8.333,8.333,8.667,8.667,8.667,8.667,8.667,8.667,8.667,8.667,8.667,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.083,9.333,9.333,10.0],"high_median":7.67,"low_median":8.33,"auc":0.2791,"per_genre":{"異世界恋愛":0.238,"ハイファンタジー":0.308,"現実世界恋愛":0.319,"ローファンタジー":0.24,"ヒューマンドラマ":0.251}},"charm":{"q":[0.0,1.0,1.333,1.667,2.0,2.0,2.0,2.0,2.0,2.333,2.333,2.333,2.667,2.667,2.667,2.667,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.333,4.667,4.667,4.667,4.667,4.667,4.667,4.667,4.667,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.333,5.333,5.333,5.333,5.333,5.333,5.667,5.667,5.667,5.667,5.667,5.667,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.667],"high_median":4.67,"low_median":3.67,"auc":0.7279,"per_genre":{"異世界恋愛":0.741,"ハイファンタジー":0.717,"現実世界恋愛":0.774,"ローファンタジー":0.663,"ヒューマンドラマ":0.739}},"abrupt":{"q":[0.0,1.417,1.667,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.333,2.333,2.333,2.333,2.333,2.333,2.333,2.667,2.667,2.667,2.667,2.667,2.667,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.333,3.333,3.333,3.417,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.667,4.667,4.667,4.667,5.0,5.0,5.0,5.0,5.333,5.333,5.333,5.333,5.667,5.667,5.667,5.667,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.333,6.333,6.667,6.667,6.667,7.0,7.0,7.333,7.333,7.667,7.667,8.0,8.333,9.0],"high_median":3.67,"low_median":6.0,"auc":0.3259,"per_genre":{"異世界恋愛":0.331,"ハイファンタジー":0.369,"現実世界恋愛":0.245,"ローファンタジー":0.451,"ヒューマンドラマ":0.291}},"concrete":{"q":[1.0,1.333,1.667,1.667,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.333,2.333,2.333,2.333,2.333,2.333,2.333,2.333,2.333,2.667,2.667,2.667,2.667,2.667,2.667,2.667,2.667,2.75,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.333,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.333,4.333,4.333,4.333,4.667,4.667,4.667,4.667,4.667,4.667,5.0,5.0,5.0,5.0,5.0,5.0,5.333,5.333,5.333,5.333,5.583,5.667,5.667,6.0,6.0,6.0,6.0,6.333,6.667,8.0],"high_median":4.0,"low_median":3.0,"auc":0.7202,"per_genre":{"異世界恋愛":0.746,"ハイファンタジー":0.704,"現実世界恋愛":0.71,"ローファンタジー":0.692,"ヒューマンドラマ":0.761}},"banter":{"q":[0.0,1.083,1.333,1.667,1.667,2.0,2.0,2.0,2.0,2.0,2.333,2.333,2.333,2.333,2.333,2.667,2.667,2.667,2.667,2.667,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.333,3.333,3.333,3.333,3.333,3.333,3.667,3.667,3.667,3.667,3.667,3.667,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.333,4.333,4.333,4.333,4.333,4.667,4.667,4.667,4.667,4.667,4.667,5.0,5.0,5.0,5.0,5.0,5.0,5.0,5.333,5.333,5.333,5.333,5.333,5.333,5.667,5.667,5.667,5.667,5.667,5.667,5.667,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.333,6.333,6.333,6.333,6.667,6.667,6.667,7.0,7.0,7.0,7.333,8.333],"high_median":5.33,"low_median":3.67,"auc":0.7146,"per_genre":{"異世界恋愛":0.741,"ハイファンタジー":0.637,"現実世界恋愛":0.8,"ローファンタジー":0.637,"ヒューマンドラマ":0.674}}},"reading":{"weights":[0.030841,0.037794,0.014509,0.39649,0.205698,0.1276,0.022726,0.228587,0.903605,0.335841,0.157906,0.024891,0.184233],"signs":[-1,1,-1,-1,-1,1,1,1,-1,1,-1,1,1],"high_median":4.594,"low_median":4.009},"commercial":{"n":385,"q":[2.927,3.161,3.225,3.243,3.32,3.364,3.396,3.479,3.52,3.601,3.64,3.692,3.752,3.774,3.802,3.819,3.869,3.897,3.96,4.0,4.049,4.111,4.146,4.158,4.176,4.191,4.223,4.242,4.255,4.269,4.282,4.295,4.303,4.31,4.324,4.332,4.361,4.377,4.393,4.404,4.432,4.46,4.482,4.498,4.521,4.524,4.555,4.565,4.58,4.59,4.615,4.625,4.633,4.647,4.664,4.687,4.694,4.714,4.721,4.746,4.773,4.804,4.817,4.834,4.843,4.858,4.873,4.88,4.893,4.925,4.935,4.947,4.964,4.991,5.041,5.063,5.077,5.09,5.125,5.138,5.165,5.186,5.189,5.198,5.231,5.243,5.262,5.302,5.327,5.334,5.362,5.4,5.419,5.466,5.492,5.516,5.57,5.77,5.979,6.129,6.641],"median":4.615,"p25":4.191,"p75":5.063,"weights":[0.039985,0.12954,0.114544,0.219017,0.110636,0.091781,0.201274,0.456612,0.929369,0.097112,0.166235,0.146901,0.126853],"signs":[-1,1,1,-1,-1,1,1,1,-1,1,-1,-1,1],"groups":{"adult":{"n":60,"median":3.532,"label":"成人向け"},"bunko":{"n":56,"median":4.824,"label":"文庫"},"hardcover":{"n":31,"median":4.439,"label":"単行本"},"jidai":{"n":20,"median":4.819,"label":"時代小説"},"light_bungei":{"n":60,"median":5.026,"label":"ライト文芸"},"light_novel":{"n":59,"median":4.627,"label":"ライトノベル"},"romance":{"n":60,"median":4.482,"label":"ロマンス"},"unknown":{"n":39,"median":4.953,"label":"分類なし"}}},"validation":{"n":1126,"n_high":564,"n_low":562,"n_writers":879,"n_genres":5,"trained_on":{"異世界恋愛":481,"ハイファンタジー":272,"現実世界恋愛":216,"ローファンタジー":72,"ヒューマンドラマ":85},"auc_cv":0.781,"auc_cv_ci":[0.7553,0.8074],"auc_unseen_genre":0.7924,"leave_one_genre_out":[{"genre":101,"name":"異世界恋愛","auc":0.8072,"w":57840,"n":481},{"genre":201,"name":"ハイファンタジー","auc":0.7497,"w":18492,"n":272},{"genre":102,"name":"現実世界恋愛","auc":0.7949,"w":11660,"n":216},{"genre":202,"name":"ローファンタジー","auc":0.7422,"w":1280,"n":72},{"genre":302,"name":"ヒューマンドラマ","auc":0.7752,"w":1806,"n":85}],"perm":{"n":200,"median":0.4918,"max":0.5653,"p":0.00498},"precision":{"top10":0.875,"top20":0.84,"top30":0.7893,"top50":0.7069},"base_rate":0.5009,"genres":[{"genre":101,"name":"異世界恋愛","n":481,"n_high":241,"n_low":240,"auc_universal":0.7453,"ci_universal":[0.6996,0.7859],"auc_self":0.7975,"auc_cross_genre":0.8072},{"genre":201,"name":"ハイファンタジー","n":272,"n_high":138,"n_low":134,"auc_universal":0.6893,"ci_universal":[0.6241,0.7542],"auc_self":0.7404,"auc_cross_genre":0.7497},{"genre":102,"name":"現実世界恋愛","n":216,"n_high":110,"n_low":106,"auc_universal":0.6842,"ci_universal":[0.6099,0.7535],"auc_self":0.7872,"auc_cross_genre":0.7949},{"genre":202,"name":"ローファンタジー","n":72,"n_high":32,"n_low":40,"auc_universal":0.6687,"ci_universal":[0.5359,0.7937],"auc_self":0.6633,"auc_cross_genre":0.7422},{"genre":302,"name":"ヒューマンドラマ","n":85,"n_high":43,"n_low":42,"auc_universal":0.7348,"ci_universal":[0.6251,0.8306],"auc_self":0.7636,"auc_cross_genre":0.7752}],"weighted":{"universal":0.7248,"cross_genre":0.7924,"self":0.782}},"limits":["学習したのはWeb小説（なろう）5ジャンル。商業出版の水準ではない","未知のジャンルでは 0.792 の見込み（leave-one-genre-out の実測）","冒頭12,000字しか見ていない","評価が30人未満の作品では、当たっているか確かめる手段がない"]};
+M = MODEL;
+$('ver').textContent = M.version;
+buildAxisTable();
+
+function buildAxisTable() {
+  const found = ['cliche', 'charm', 'abrupt', 'concrete', 'banter'];
+  const rows = M.keys.slice().sort((a, b) =>
+    Math.abs(M.axes[b].auc - .5) - Math.abs(M.axes[a].auc - .5));
+  const t = $('axisTable');
+  for (const k of rows) {
+    const a = M.axes[k].auc;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${M.labels[k]}</td><td class="n">${a.toFixed(3)}</td>` +
+      `<td>${found.includes(k) ? '<strong>コーパスから発見</strong>' : '当初の9軸'}</td>`;
+    t.appendChild(tr);
+  }
+}
+
+function buildPrompt(text) {
+  const head = text.slice(0, M.head_chars);
+  return M.system + '\n\n' + M.rubric + '\n\n=== 本文（冒頭） ===\n' + head;
+}
+
+function setText(text, name) {
+  fileName = name;
+  promptText = buildPrompt(text);
+  $('promptPreview').textContent = promptText.slice(0, 1800) + '\n…（本文が続く）';
+  $('copyPrompt').disabled = false;
+  const n = text.length;
+  $('fileInfo').innerHTML = `<span class="tag">${name}</span>${n.toLocaleString()}字` +
+    (n > M.head_chars ? `（冒頭 ${M.head_chars.toLocaleString()}字を使います）` : '');
+}
+
+$('file').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => setText(String(r.result), f.name);
+  r.readAsText(f, 'utf-8');
+});
+
+$('useSample').addEventListener('click', () => setText(SAMPLE, '見本（自作の書き出し）'));
+
+$('copyPrompt').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(promptText);
+    $('copyState').textContent = 'コピーしました。LLMに貼ってください';
+  } catch (_) {
+    $('copyState').textContent = 'コピーできませんでした。下の「中身を見る」から手動で';
+  }
+});
+
+function pct(v, q) {
+  let i = 0;
+  while (i < q.length && q[i] < v) i++;
+  return Math.round(100 * i / (q.length - 1));
+}
+
+function interp(v, x, y) {
+  if (v <= x[0]) return y[0];
+  if (v >= x[x.length - 1]) return y[y.length - 1];
+  let i = 1;
+  while (i < x.length && x[i] < v) i++;
+  const t = (v - x[i - 1]) / (x[i] - x[i - 1] || 1);
+  return y[i - 1] + t * (y[i] - y[i - 1]);
+}
+
+function scoreIt(vals) {
+  const m = M.model;
+  let z = m.intercept;
+  const contrib = {};
+  M.keys.forEach((k, i) => {
+    const zi = (vals[k] - m.mean[i]) / m.scale[i];
+    contrib[k] = m.coef[i] * zi;
+    z += contrib[k];
+  });
+  const raw = 1 / (1 + Math.exp(-Math.max(-40, Math.min(40, z))));
+  let num = 0, den = 0;
+  M.keys.forEach((k, i) => {
+    const w = M.reading.weights[i], s = M.reading.signs[i];
+    num += w * (s > 0 ? vals[k] : 10 - vals[k]); den += w;
+  });
+  const reading = num / den;
+  let cn = 0, cd = 0;
+  M.keys.forEach((k, i) => {
+    const w = M.commercial.weights[i], s = M.commercial.signs[i];
+    cn += w * (s > 0 ? vals[k] : 10 - vals[k]); cd += w;
+  });
+  return {
+    raw, contrib, reading,
+    prob: interp(raw, M.calibration.x, M.calibration.y),
+    pctile: pct(raw, M.overall_q),
+    commercialPct: pct(cn / cd, M.commercial.q),
+    commercialReading: cn / cd
+  };
+}
+
+function verdict(p) {
+  if (p >= .75) return ['高評価帯に届く可能性が高い', 'var(--ok)'];
+  if (p >= .58) return ['やや高評価寄り', 'var(--acc)'];
+  if (p >= .42) return ['どちらとも言えない', 'var(--sub)'];
+  if (p >= .25) return ['やや低評価寄り', 'var(--warn)'];
+  return ['低評価帯に近い', 'var(--bad)'];
+}
+
+function render(vals, r, note) {
+  const [lab, col] = verdict(r.prob);
+  const V = M.validation;
+  let h = '<h2>採点結果' + (fileName ? ` <span class="small">${fileName}</span>` : '') + '</h2>';
+  if (note) h += `<div class="note warn">${note}</div>`;
+  h += '<div class="hero">' +
+    `<div class="card"><div class="k">判定</div>
+      <div class="v" style="font-size:18px;color:${col}">${lab}</div>
+      <div class="n">同じ点数の作品のうち高評価帯だった割合</div>
+      <div class="v">${Math.round(r.prob * 100)}<span class="u">%</span></div></div>` +
+    `<div class="card"><div class="k">Web小説 ${V.n.toLocaleString()}作品の中で</div>
+      <div class="v">P${r.pctile}</div>
+      <div class="n">上位 ${100 - r.pctile}% に相当</div></div>` +
+    `<div class="card"><div class="k">商業出版 ${M.commercial.n}冊の中で</div>
+      <div class="v">P${r.commercialPct}</div>
+      <div class="n">読みの評点 ${r.commercialReading.toFixed(2)}／商業の中央 ${M.commercial.median.toFixed(2)}</div></div>` +
+    '</div>';
+
+  h += '<h3>どの軸が判定を動かしたか</h3>' +
+    '<p class="small">モデルは線形なので厳密に分解できます。これらの寄与の合計＋切片が判定そのものです。' +
+    '<strong>点が高い＝判定を押し上げる、ではありません。</strong>' +
+    'その軸が高評価の目印として使われているかどうかで向きが決まります。</p>';
+  h += '<table><tr><th>軸</th><th class="n">この原稿</th><th class="n">高評価</th><th class="n">低評価</th>' +
+    '<th class="n">効き</th><th>判定への寄与</th></tr>';
+  const order = M.keys.slice().sort((a, b) => Math.abs(r.contrib[b]) - Math.abs(r.contrib[a]));
+  for (const k of order) {
+    const a = M.axes[k], c = r.contrib[k];
+    const arrow = c > 0 ? '<span class="up">↑</span>' : (c < 0 ? '<span class="down">↓</span>' : '<span class="mute">−</span>');
+    const w = Math.min(100, Math.abs(c) / 1.2 * 100);
+    h += `<tr><td>${M.labels[k]}</td><td class="n">${vals[k].toFixed(1)}</td>` +
+      `<td class="n">${a.high_median.toFixed(1)}</td><td class="n">${a.low_median.toFixed(1)}</td>` +
+      `<td class="n">${a.auc.toFixed(2)}</td>` +
+      `<td>${arrow} ${Math.abs(c).toFixed(2)} <div class="bar" style="display:inline-block;width:80px;vertical-align:middle"><i style="width:${w}%"></i></div></td></tr>`;
+  }
+  h += '</table>';
+
+  h += '<div class="note"><strong>この数字の出どころ。</strong>' +
+    `Web小説5ジャンル ${V.n.toLocaleString()}作品（著者${V.n_writers}人）で学習・検証。` +
+    `著者単位5分割で AUC ${V.auc_cv.toFixed(3)}、` +
+    `<strong>ジャンルを丸ごと外して当てると ${V.auc_unseen_genre.toFixed(3)}</strong>。` +
+    `並べ替え検定 p=${V.perm.p}。上位10%を選ぶと高評価 ${Math.round(V.precision.top10 * 100)}%（基準 ${Math.round(V.base_rate * 100)}%）。</div>`;
+  h += '<div class="note warn"><strong>限界。</strong>' + M.limits.join('／') + '</div>';
+  $('result').innerHTML = h;
+  $('result').classList.remove('hide');
+  $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+$('score').addEventListener('click', () => {
+  if (!M) return;
+  let raw = $('jsonIn').value.trim();
+  const mm = raw.match(/\{[\s\S]*\}/);
+  if (!mm) { $('scoreState').textContent = 'JSON が見つかりません'; return; }
+  let d;
+  try { d = JSON.parse(mm[0]); } catch (e) { $('scoreState').textContent = 'JSON として読めません'; return; }
+  const vals = {}, missing = [];
+  for (const k of M.keys) {
+    const v = d[k];
+    if (typeof v === 'number' && isFinite(v)) vals[k] = Math.max(0, Math.min(10, v));
+    else missing.push(M.labels[k]);
+  }
+  if (missing.length) {
+    $('scoreState').textContent = '足りない軸: ' + missing.join('、');
+    return;
+  }
+  $('scoreState').textContent = '';
+  const note = (d.reason || d.drop_at)
+    ? `読み手の一言: ${d.reason || ''}${d.drop_at ? `／読むのをやめたくなった箇所「${d.drop_at}」` : ''}`
+    : '';
+  render(vals, scoreIt(vals), note);
+});
+
+$('demo').addEventListener('click', () => {
+  // 実例: なろう『正解の外側』の冒頭を3回読ませた平均（out/n4247mq_v2.json より）
+  const vals = {
+    continue: 6.0, character: 6.0, clarity: 7.7, surprise: 4.0, friction: 3.7,
+    voice: 5.0, interesting: 6.0, popular: 6.0, cliche: 7.3, charm: 5.3,
+    abrupt: 3.0, concrete: 5.3, banter: 6.7
+  };
+  fileName = '実例: なろう『正解の外側』冒頭（3回読みの平均）';
+  render(vals, scoreIt(vals),
+    '読み手の一言: 設定は既視感あるがリーンとの掛け合いで先を見たくなる／読むのをやめたくなった箇所「道筋は、この少女を映さない」');
+});
+</script>
+</body>
+</html>
