@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>STOP — 1行ゲーム</title>
+<meta name="description" content="タップで止めるだけ。当てるたびに的が縮む精度ゲーム。中身はたった1行のコードです。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="STOP — 1行ゲーム">
+<meta property="og:description" content="タップで止めるだけ。当てるたびに的が縮む。中身はたった1行のコード。">
+<meta property="og:url" content="https://yuichi916.github.io/stop.html">
+<meta property="og:image" content="https://yuichi916.github.io/stop-og.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{
+  --bg:#000; --fg:#25ff5a; --dim:#0d3a19; --hot:#eaffef; --bad:#ff3355;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  display:flex; flex-direction:column;
+  /* 説明文を下に置いたので、縦スクロールだけ許す。overflow:hidden のままだと
+     本文が誰にも読めない場所に置かれることになる。 */
+  min-height:100%; overscroll-behavior-y:contain; touch-action:manipulation;
+  -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent;
+  transition:background .08s linear;
+}
+body.hit{background:#04170a}
+body.miss{background:#1a0208}
+#score{
+  font-size:clamp(56px,20vw,150px); line-height:.9; font-weight:700;
+  letter-spacing:.02em; text-shadow:0 0 24px rgba(37,255,90,.45);
+}
+body.miss #score{color:var(--bad); text-shadow:0 0 24px rgba(255,51,85,.5)}
+#best{font-size:clamp(13px,3.6vw,20px); letter-spacing:.22em; opacity:.62}
+#bar{
+  display:flex; gap:clamp(5px,1.6vw,12px); align-items:center;
+  width:min(92vw,760px); height:clamp(90px,26vh,190px);
+}
+.c{flex:1; height:22%; border-radius:99px; background:#10361d; transition:height .09s ease,background .09s ease}
+.c.z{height:52%; background:var(--fg); box-shadow:0 0 18px rgba(37,255,90,.35)}
+.c.n{height:100%; background:var(--hot); box-shadow:0 0 26px rgba(234,255,239,.85),0 0 60px rgba(37,255,90,.5)}
+#tip{font-size:clamp(12px,3.4vw,17px); letter-spacing:.18em; opacity:.5; text-align:center}
+main{
+  flex:1 1 auto; min-height:100svh;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:clamp(10px,3.4vh,30px);
+}
+#src{
+  flex:0 0 auto; padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+  background:#050b07; border-top:1px solid #123b1f; font-size:11px; line-height:1.5; opacity:.9;
+}
+#src p{margin:0 0 6px; letter-spacing:.06em; opacity:.72}
+#src textarea{
+  width:100%; height:52px; resize:none; background:#000; color:var(--fg);
+  border:1px solid #175c2c; border-radius:6px; padding:6px;
+  font:11px/1.45 ui-monospace,Menlo,Consolas,monospace; -webkit-user-select:text; user-select:text;
+}
+#src button{
+  margin-top:6px; background:var(--fg); color:#00200b; border:0; border-radius:6px;
+  padding:7px 14px; font:700 12px/1 ui-monospace,Menlo,Consolas,monospace; letter-spacing:.1em; cursor:pointer;
+}
+@media (min-width:700px){ #src{font-size:12px} #src textarea{height:44px} }
+@media (max-height:340px){ #src{display:none} }
+
+/* ゲームの下に置いた説明。検索と AI にも、スクロールした人にも同じものが届く */
+#about{padding:26px 18px calc(34px + env(safe-area-inset-bottom));
+  background:#020604;border-top:1px solid #123b1f;color:#7fe3a0;
+  font-size:13.5px;line-height:1.95;-webkit-user-select:text;user-select:text}
+#about h1{font-size:17px;letter-spacing:.14em;color:var(--fg);margin:0 0 10px}
+#about p{margin:0 0 12px;max-width:640px}
+#about b{color:var(--hot)}
+#about a{color:var(--fg)}
+</style>
+<link rel="canonical" href="https://yuichi916.github.io/stop.html">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "VideoGame", "name": "STOP — 1行ゲーム", "genre": "アクション / 反射神経", "gamePlatform": "Web browser", "playMode": "SinglePlayer", "@id": "https://yuichi916.github.io/stop.html#item", "url": "https://yuichi916.github.io/stop.html", "description": "タップで止めるだけ。当てるたびに的が縮む精度ゲーム。中身はたった1行のコードです。", "inLanguage": "ja-JP", "isAccessibleForFree": true, "author": {"@id": "https://yuichi916.github.io/#person"}, "isPartOf": {"@id": "https://yuichi916.github.io/#website"}}</script>
+</head>
+<body>
+<main>
+<div id="score">0</div>
+<div id="bar"></div>
+<div id="best">BEST 0</div>
+<div id="tip">TAP / SPACE で止める</div>
+</main>
+
+<div id="src">
+  <p>▼ 中身はこの1行だけ。アドレスバーに貼っても遊べます</p>
+  <textarea id="one" readonly spellcheck="false"></textarea>
+  <button id="cp">この1行をコピー</button>
+</div>
+
+<footer id="about">
+  <h1>STOP — 1行のゲーム</h1>
+  <p>動いているバーを、真ん中で止めるだけのゲームです。当てるたびに的が縮み、外すと終わります。
+  タップ、またはスペースキーで止めます。記録はブラウザに残ります。</p>
+  <p>このゲームの中身は、上に貼ってある <b>たった 1 行のコード</b>です。
+  アドレスバーにそのまま貼っても動きます。「どこまで小さく書けるか」を試した実験で、
+  読み込むファイルも、外部のライブラリもありません。</p>
+  <p><a href="./">← ひとりぶんの棚（ほかの作品）</a> ／
+  <a href="sudoku.html">異世界立体数独</a> ／
+  <a href="shogi-puyo.html">将棋ぷよ「成」</a></p>
+</footer>
+
+<script>
+const N = 9, CENTER = 4, W0 = 13, TICK = 70;
+const bar = document.getElementById('bar');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const cells = [];
+for (let i = 0; i < N; i++) { const d = document.createElement('div'); d.className = 'c'; bar.appendChild(d); cells.push(d); }
+
+let p = 0, w = W0, score = 0;
+let best = 0;
+try { best = +localStorage.getItem('stopBest') || 0; } catch (e) {}
+bestEl.textContent = 'BEST ' + best;
+
+const inZone = i => (i - CENTER) ** 2 < w;
+
+function draw() {
+  for (let i = 0; i < N; i++) {
+    const c = cells[i];
+    c.classList.toggle('z', inZone(i));
+    c.classList.toggle('n', i === p);
+  }
+}
+
+function flash(cls) {
+  document.body.classList.add(cls);
+  setTimeout(() => document.body.classList.remove(cls), 130);
+}
+
+function press() {
+  if (inZone(p)) {
+    score++;
+    w -= w > 1;
+    flash('hit');
+  } else {
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem('stopBest', best); } catch (e) {}
+      bestEl.textContent = 'BEST ' + best;
+    }
+    score = 0;
+    w = W0;
+    flash('miss');
+  }
+  scoreEl.textContent = score;
+  draw();
+}
+
+setInterval(() => { p = (p + 1) % N; draw(); }, TICK);
+draw();
+
+addEventListener('pointerdown', e => { if (!e.target.closest('#src')) { e.preventDefault(); press(); } }, { passive: false });
+addEventListener('keydown', e => { if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); press(); } });
+
+/* ---- 1行版（data: URL）の配布 ---- */
+const ONE = 'data:text/html,<body/id="b"style="font:16vw%20monospace;background:black;color:lime"><script>h=s=p=0,w=13,onclick=_=>(p-4)**2<w?(s++,w-=w>1):(h=s>h?s:h,s=0,w=13),setInterval("p=++p%9,b.innerHTML=\'.........\'.replace(/./g,(c,i)=>\'.=|\'[i-p?(i-4)**2<w|0:2])+\'<p>\'+[s,h]",70)<\/script>';
+const one = document.getElementById('one');
+one.value = ONE;
+document.getElementById('cp').addEventListener('click', async () => {
+  const b = document.getElementById('cp');
+  try { await navigator.clipboard.writeText(ONE); } catch (e) { one.select(); document.execCommand('copy'); }
+  b.textContent = 'コピーしました';
+  setTimeout(() => { b.textContent = 'この1行をコピー'; }, 1600);
+});
+</script>
+</body>
+</html>
