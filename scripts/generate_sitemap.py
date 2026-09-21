@@ -17,6 +17,7 @@ Design choices:
 """
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -101,6 +102,17 @@ def git_lastmod(path: Path) -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 
+ROBOTS_RE = re.compile(
+    r'<meta\s+name="robots"\s+content="([^"]*)"', re.I)
+
+
+def is_noindex(path: Path) -> bool:
+    """robots メタに noindex があるページか。本文中の 'noindex' という文字列に
+    引っかからないよう、メタタグの content だけを見る。"""
+    m = ROBOTS_RE.search(path.read_text(encoding="utf-8", errors="replace"))
+    return bool(m) and "noindex" in m.group(1).lower()
+
+
 def site_url_for(rel: str) -> str:
     if rel == "index.html":
         return SITE + "/"
@@ -122,6 +134,10 @@ def main() -> int:
     for rel in files:
         url = site_url_for(rel)
         if url in seen:
+            continue
+        # noindex のページを sitemap で提出すると GSC が
+        # 「送信された URL が noindex です」でエラーにする。ページ側の指定に従う。
+        if is_noindex(ROOT / rel):
             continue
         seen.add(url)
         changefreq, priority = policy_for(rel)
