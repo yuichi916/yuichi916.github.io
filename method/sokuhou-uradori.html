@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>照合を全部通った文面に、読み違いが6件残っていた — 新モデル発表の朝に、動画2本を出すまでの全部｜AIエージェントで1から作る</title>
+<meta name="description" content="Claude Opus 5.5 の発表を受けて、X用の紹介動画（32.5秒）と1分AIニュースのShorts（44.8秒）を約1時間で公開した全工程と品質チェック。根拠台帳26件・媒体の機械検査・別エージェント9回の審査で、何が見つかり、何が素通りしたかを図とフローチャートで説明します。">
+<meta name="keywords" content="AIエージェント,Claude Code,動画自動生成,ファクトチェック,品質チェック,YouTube Shorts,X 投稿,Playwright,VOICEVOX,個人開発">
+<link rel="canonical" href="https://yuichi916.github.io/method/sokuhou-uradori.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="照合を全部通った文面に、読み違いが6件残っていた">
+<meta property="og:description" content="新モデル発表の朝に、X用動画とShortsを裏取りしながら出すまでの全工程と品質チェックを、図で。">
+<meta property="og:url" content="https://yuichi916.github.io/method/sokuhou-uradori.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/sokuhou-uradori/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="note.css">
+<style>
+/* ===== 全体のフローチャート（分岐と合流をHTMLで組む。スマホでは縦に積む） ===== */
+.flow{margin:26px 0 30px;border:1px solid rgba(26,24,18,.25);background:#fff;padding:22px 20px}
+.fl-t{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.18em;color:var(--ink-3);
+  text-transform:uppercase;margin-bottom:18px;text-align:center}
+.node{border:1px solid rgba(26,24,18,.22);background:var(--paper);padding:11px 14px;position:relative}
+.node .h{font-family:"Shippori Mincho",serif;font-size:16px;font-weight:700;color:var(--ink);line-height:1.5}
+.node .d{font-size:13px;color:var(--ink-2);line-height:1.7;margin-top:3px}
+.node .o{display:block;margin-top:6px;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--ink-3)}
+.node.human{background:#fbeee9;border-color:rgba(196,61,42,.45)}
+.node.gatek{background:#1c1a16;border-color:#1c1a16}
+.node.gatek .h{color:#f4f0e6}.node.gatek .d{color:#cfc8b8}.node.gatek .o{color:#a39b89}
+.node.pub{background:#e8f0ec;border-color:rgba(26,79,58,.45)}
+.who{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+  padding:2px 7px;margin-left:8px;vertical-align:2px;color:#fff}
+.who.h{background:var(--accent)}.who.a{background:var(--accent-2)}.who.g{background:#6b6759}
+.arr{text-align:center;color:var(--ink-3);font-size:14px;line-height:1;padding:6px 0}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.lane{border:1px dashed rgba(26,24,18,.3);padding:12px 10px 10px}
+.lane-t{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.14em;color:var(--ink-3);
+  text-transform:uppercase;margin-bottom:10px;text-align:center}
+.lane .node{padding:9px 11px}.lane .node .h{font-size:14.5px}.lane .node .d{font-size:12.5px}
+.loop{margin:8px 0 0;padding:9px 12px;border:1px solid var(--accent);color:var(--accent);
+  font-size:12.5px;line-height:1.7;background:#fff}
+.loop b{font-weight:600}
+.fl-legend{margin-top:16px;padding-top:14px;border-top:1px solid rgba(26,24,18,.15);font-size:12px;
+  color:var(--ink-3);text-align:center}
+.fl-legend span{margin:0 8px;white-space:nowrap}
+.sw{display:inline-block;width:10px;height:10px;vertical-align:-1px;margin-right:5px;border:1px solid rgba(26,24,18,.3)}
+@media(max-width:640px){.split{grid-template-columns:1fr}.flow{padding:18px 14px}}
+
+/* ===== 品質ゲート表（C-1 と同じ見せ方） ===== */
+.gate{margin:22px 0;border:1px solid rgba(26,24,18,.25);background:#fff}
+.gate-h{background:var(--ink);color:var(--paper);font-family:"JetBrains Mono",monospace;font-size:11px;
+  letter-spacing:.14em;padding:9px 14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.gate-b{padding:4px 14px 10px}
+.gate-r{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:baseline;padding:7px 0;
+  border-bottom:1px solid rgba(26,24,18,.1);font-size:13.5px;color:var(--ink-2)}
+.gate-r:last-child{border-bottom:none}
+.gate-th{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+.gate-v{font-family:"JetBrains Mono",monospace;font-size:12.5px;color:var(--accent-2);white-space:nowrap;font-weight:500}
+@media(max-width:640px){.gate-r{grid-template-columns:1fr auto}.gate-th{grid-column:1;grid-row:2;white-space:normal}}
+
+/* ===== 4層の検査 ===== */
+.layers{margin:26px 0;display:grid;gap:10px}
+.ly{display:grid;grid-template-columns:52px 1fr;border:1px solid rgba(26,24,18,.25);background:#fff}
+.ly-n{display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;
+  font-size:13px;font-weight:600;color:#fff}
+.ly-b{padding:12px 14px}
+.ly-h{font-family:"Shippori Mincho",serif;font-size:16.5px;font-weight:700;color:var(--ink);line-height:1.5}
+.ly-h small{font-family:"JetBrains Mono",monospace;font-size:10.5px;font-weight:400;color:var(--ink-3);margin-left:8px;letter-spacing:.06em}
+.ly-g{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.ly-g div{font-size:12.8px;line-height:1.7;color:var(--ink-2);padding:8px 10px;background:var(--paper)}
+.ly-g b{display:block;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.14em;margin-bottom:3px;font-weight:500}
+.ly-g .ok b{color:var(--accent-2)}.ly-g .ng b{color:var(--accent)}
+@media(max-width:640px){.ly{grid-template-columns:38px 1fr}.ly-g{grid-template-columns:1fr}}
+
+/* ===== やり取り・審査の回 ===== */
+.rounds{margin:22px 0;border:1px solid rgba(26,24,18,.25);background:#fff}
+.rd-head{display:grid;grid-template-columns:44px 1fr;background:var(--ink);color:var(--paper)}
+.rd-hn{font-family:"JetBrains Mono",monospace;font-size:11px;display:flex;align-items:center;justify-content:center}
+.rd-hb{padding:9px 14px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.12em}
+.rd{display:grid;grid-template-columns:44px 1fr;border-bottom:1px solid rgba(26,24,18,.12)}
+.rd:last-child{border-bottom:none}
+.rd-n{font-family:"JetBrains Mono",monospace;font-size:12px;color:#fff;background:var(--ink-3);
+  display:flex;align-items:center;justify-content:center}
+.rd.q .rd-n{background:var(--accent-2)}
+.rd.fix .rd-n{background:var(--accent)}
+.rd-b{padding:11px 14px}
+.rd-q{font-size:14px;color:var(--ink);line-height:1.75;margin-bottom:5px}
+.rd-a{font-size:12.8px;color:var(--ink-3);line-height:1.7}
+
+/* ===== 直す前 → 直した後 ===== */
+.ba{margin:18px 0;border:1px solid rgba(26,24,18,.25);background:#fff}
+.ba-h{padding:9px 14px;background:var(--paper-2);font-size:13px;color:var(--ink);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ba-h b{font-weight:600}
+.ba-h .sev{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:#fff;background:var(--accent);padding:2px 8px;letter-spacing:.1em;align-self:center}
+.ba-h .sev.low{background:var(--ink-3)}
+.ba-r{display:grid;grid-template-columns:64px 1fr;border-top:1px solid rgba(26,24,18,.1)}
+.ba-l{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;display:flex;align-items:center;justify-content:center;color:var(--ink-3)}
+.ba-r.before .ba-l{color:var(--accent)}.ba-r.after .ba-l{color:var(--accent-2)}
+.ba-t{padding:9px 14px 9px 0;font-size:13.5px;line-height:1.75;color:var(--ink-2)}
+.ba-r.before .ba-t{text-decoration:line-through;text-decoration-color:rgba(196,61,42,.55)}
+.ba-src{padding:8px 14px;border-top:1px dashed rgba(26,24,18,.15);font-size:12px;color:var(--ink-3);line-height:1.7}
+.ba-src code{font-size:11.5px}
+
+/* ===== 3つの型 ===== */
+.types{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:22px 0}
+.ty{border:1px solid rgba(26,24,18,.25);background:#fff;padding:14px}
+.ty .k{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--accent);letter-spacing:.14em;margin-bottom:6px}
+.ty .h{font-family:"Shippori Mincho",serif;font-size:16px;font-weight:700;color:var(--ink);line-height:1.5;margin-bottom:6px}
+.ty p{font-size:12.8px;line-height:1.75;margin:0}
+@media(max-width:640px){.types{grid-template-columns:1fr}}
+
+/* ===== 図版・動画 ===== */
+figure{margin:26px 0}
+figure img{width:100%;height:auto;display:block;border:1px solid rgba(26,24,18,.25)}
+figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);line-height:1.65}
+.fig2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:26px 0}
+.fig2 figure,.fig5 figure{margin:0}
+.fig5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:26px 0}
+.fig5 figcaption{font-size:11.5px}
+.vid{max-width:340px;margin:26px auto;border:1px solid rgba(26,24,18,.25);background:#000}
+.vid .fr{position:relative;width:100%;padding-top:177.78%}
+.vid .fr iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.svgbox{margin:24px 0;border:1px solid rgba(26,24,18,.25);background:#fff;padding:16px 14px 12px;overflow-x:auto}
+.svgbox svg{display:block;width:100%;height:auto;min-width:640px}
+.svgbox .cap{font-size:12.5px;color:var(--ink-3);line-height:1.65;margin-top:8px}
+@media(max-width:640px){.fig2{grid-template-columns:1fr}.fig5{grid-template-columns:repeat(3,1fr)}}
+
+/* ===== 小物 ===== */
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:22px 0}
+.kv div{border:1px solid rgba(26,24,18,.25);background:#fff;padding:12px 12px 10px;text-align:center}
+.kv b{display:block;font-family:"JetBrains Mono",monospace;font-size:24px;color:var(--ink);font-weight:500;line-height:1.3}
+.kv span{font-size:12px;color:var(--ink-3);line-height:1.5;display:block}
+@media(max-width:640px){.kv{grid-template-columns:1fr 1fr}}
+.post{margin:18px 0;padding:14px 18px;background:#fff;border:1px solid rgba(26,24,18,.25);font-size:14.5px;line-height:1.85;color:var(--ink)}
+.post .by{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--ink-3);letter-spacing:.1em;margin-bottom:6px}
+.chk{list-style:none;margin:18px 0;padding:0}
+.chk li{position:relative;padding:10px 12px 10px 40px;border:1px solid rgba(26,24,18,.18);background:#fff;margin-bottom:8px;font-size:14px;line-height:1.75}
+.chk li::before{content:counter(c);counter-increment:c;position:absolute;left:10px;top:10px;width:20px;height:20px;
+  background:var(--ink);color:var(--paper);font-family:"JetBrains Mono",monospace;font-size:11px;display:flex;align-items:center;justify-content:center}
+.chk{counter-reset:c}
+.toc{margin:26px 0 0;padding:16px 20px;border:1px dashed rgba(26,24,18,.3);font-size:14px}
+.toc b{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.18em;color:var(--ink-3);font-weight:500;display:block;margin-bottom:6px}
+.toc ol{margin:0 0 0 20px}.toc li{margin-bottom:3px}.toc a{text-decoration:none}.toc a:hover{text-decoration:underline}
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "照合を全部通った文面に、読み違いが6件残っていた — 新モデル発表の朝に、動画2本を出すまでの全部",
+  "url": "https://yuichi916.github.io/method/sokuhou-uradori.html",
+  "datePublished": "2026-09-23",
+  "inLanguage": "ja-JP",
+  "image": "https://yuichi916.github.io/assets/sokuhou-uradori/og.jpg",
+  "author": { "@id": "https://yuichi916.github.io/#person" },
+  "publisher": { "@id": "https://yuichi916.github.io/#person" },
+  "isPartOf": { "@id": "https://yuichi916.github.io/#website" },
+  "about": ["AIエージェント", "動画自動生成", "ファクトチェック", "品質チェック", "YouTube Shorts"]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <a href="./">← 新しい形の研究</a>
+  <span>C-2 / AIエージェントで1から作る</span>
+</div>
+
+<header class="hd">
+  <p class="eyebrow">AIエージェントで1から作る — 速報動画の裏取り</p>
+  <h1>照合を全部通った文面に、<br>読み違いが6件残っていた</h1>
+  <p class="lede">
+    Claude Opus 5.5 の発表を受けて、X用の紹介動画とYouTube Shortsを1本ずつ作り、約1時間で公開しました。
+    数字は全部、公式発表の原文と機械で照合しています。それでも、書いた文を別のエージェントに読ませたら、
+    <strong>「中」程度の誤りが6件</strong>出てきました。作り方と品質チェックを、図にして全部並べます。
+  </p>
+  <p class="meta">2026-09-23 ／ Claude Opus 5.5 の発表から ／ 読了 約12分</p>
+  <div class="toc">
+    <b>CONTENTS</b>
+    <ol>
+      <li><a href="#s00">できあがったもの</a></li>
+      <li><a href="#s01">全体の流れ（フローチャート）</a></li>
+      <li><a href="#s02">人間が出した指示は3つ</a></li>
+      <li><a href="#s03">根拠台帳：数字は原文の文字列で裏付ける</a></li>
+      <li><a href="#s04">X用の動画の作り方</a></li>
+      <li><a href="#s05">Shortsの作り方</a></li>
+      <li><a href="#s06">品質チェックの全体像（4層）</a></li>
+      <li><a href="#s07">別エージェントの審査で見つかったもの</a></li>
+      <li><a href="#s08">画面の崩れも、別の目で見つかった</a></li>
+      <li><a href="#s09">所要時間</a></li>
+      <li><a href="#s10">自分の題材でやるなら</a></li>
+    </ol>
+  </div>
+</header>
+
+<!-- ============================================================ 00 -->
+<div class="step" id="s00">
+  <div class="step-no">00</div>
+  <h2>できあがったもの</h2>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th></th><th>X用の紹介動画</th><th>YouTube Shorts</th></tr>
+    <tr><td>形</td><td>横1920×1080・32.5秒<br>ナレーションなし（BGMのみ）</td><td>縦1080×1920・44.8秒<br>ずんだもんの読み上げ＋字幕</td></tr>
+    <tr><td>中身</td><td>良くなった点を6項目で</td><td>主役の数字1つ（約4割安い）で1本</td></tr>
+    <tr><td>公開先</td><td><a href="https://x.com/ViewsEngineer/status/2102453235344933055" target="_blank" rel="noopener">@ViewsEngineer</a>（02:41）</td><td><a href="https://youtube.com/shorts/C50RTm2TIUE" target="_blank" rel="noopener">ずんだもんのAIラボ</a>「1分AIニュース #14」（02:45）</td></tr>
+  </table>
+  </div>
+
+  <div class="fig2">
+    <figure>
+      <img src="../assets/sokuhou-uradori/x-00-title.jpg" alt="X用動画の1枚目。Claude Opus 5.5 の大きな見出しの下に、大半の作業でFable 5.1並み、Opus 5より約4割安く動く、と書かれている" loading="lazy">
+      <figcaption><strong>X用・0秒</strong>。1枚目はXの一覧でサムネを兼ねるので、動きなしで完成した絵にしている。</figcaption>
+    </figure>
+    <figure>
+      <img src="../assets/sokuhou-uradori/x-02-price.jpg" alt="料金の場面。入力・出力・キャッシュ読み取りの旧価格と新価格の表と、単価の値下げと使うトークンの減少で約4割安い、という式" loading="lazy">
+      <figcaption><strong>X用・料金の場面</strong>。この場面は4回直した（<a href="#s07">07</a>）。</figcaption>
+    </figure>
+  </div>
+
+  <div class="post">
+    <div class="by">@ViewsEngineer の本文（加重272/280字）</div>
+    捏造がひとつでもあれば不合格の基準で、Opus 5.5 は effort を変えて書いた業績レポート18本中16本が通り、Fable 5.1 と Opus 5 はどれも通らなかった。<br>
+    Anthropic のある社内テストで、落ちた理由は書かれていない。<br>
+    試算では Opus 5 より約4割安く動き、Pro・Max・Team は5時間枠も増える。
+  </div>
+
+  <div class="vid">
+    <div class="fr">
+      <iframe src="https://www.youtube.com/embed/C50RTm2TIUE" title="1分AIニュース #14 Claude Opus 5.5"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen loading="lazy"></iframe>
+    </div>
+  </div>
+  <p class="meta" style="text-align:center;margin-top:-10px">1分AIニュース #14（ずんだもんのAIラボ）</p>
+</div>
+
+<!-- ============================================================ 01 -->
+<div class="step" id="s01">
+  <div class="step-no">01</div>
+  <h2>全体の流れ</h2>
+  <p>
+    一次情報を1回だけ取り、そこから<strong>根拠台帳</strong>を作ります。X用とShortsは台帳を共有して、別々の工程で作り、
+    最後に同じ審査を通します。事実の審査に落ちたら、書き出しからやり直しです（X用は7回、Shortsは5回書き出しました）。
+  </p>
+
+  <div class="flow" role="img" aria-label="全体のフローチャート。一次情報の取得、根拠台帳、人間による投稿先と形の決定、X用動画とShortsの2系統の制作、別エージェントの審査、事実の合否、投稿、公開確認の順に流れる">
+    <div class="fl-t">発表から公開まで</div>
+
+    <div class="node"><div class="h">① 一次情報を取る<span class="who a">エージェント</span></div>
+      <div class="d">公式発表・製品ページ・開発者ドキュメントをHTMLのまま保存し、本文だけのテキストに直す。記憶にある情報は使わない。</div>
+      <span class="o">→ sources/ 4ファイル（01:43）</span></div>
+    <div class="arr">▼</div>
+    <div class="node"><div class="h">② 根拠台帳を作る<span class="who a">エージェント</span></div>
+      <div class="d">使う事実を1件ずつ「日本語の主張・値・原文の一文・読み方の注意」で登録。原文に文字列が無ければ登録できない。</div>
+      <span class="o">→ ledger.json（18件で開始 → 最終26件）</span></div>
+    <div class="arr">▼</div>
+    <div class="node human"><div class="h">③ 投稿先と動画の形を決める<span class="who h">人間</span></div>
+      <div class="d">エージェントが2択を2つ出し、人間が選ぶ。「@ViewsEngineer」「モーショングラフィックス（音なしでも伝わる形）」。</div></div>
+    <div class="arr">▼</div>
+
+    <div class="split">
+      <div class="lane">
+        <div class="lane-t">X用の動画（新規に作る）</div>
+        <div class="node"><div class="h">④ 画面を時刻の関数で書く</div><div class="d">1枚のHTMLに8場面。<code>__setTime(t)</code> で任意の時刻を再現できる。</div><span class="o">film.html</span></div>
+        <div class="arr">▼</div>
+        <div class="node"><div class="h">⑤ BGMをこの動画のために合成</div><div class="d">120BPM・ニ長調。和音の変わり目を場面の切れ目に合わせる。</div><span class="o">bgm.py → -14 LUFS</span></div>
+        <div class="arr">▼</div>
+        <div class="node"><div class="h">⑥ 975枚を書き出して結合</div><div class="d">Playwrightで30fps撮影 → ffmpegでH.264/AAC。</div><span class="o">capture.py → mux.py</span></div>
+        <div class="arr">▼</div>
+        <div class="node"><div class="h">⑦ 媒体の機械検査</div><div class="d">静止・黒フレーム・音圧・出典の帯への食い込み・台帳外の数字。</div><span class="o">qc.py / check_layout.py / check_ledger.py</span></div>
+      </div>
+      <div class="lane">
+        <div class="lane-t">Shorts（既存シリーズに乗せる）</div>
+        <div class="node"><div class="h">④ 台本を1話分足す</div><div class="d">画面の文字と、読み上げ（かな）と字幕を分けて書く。</div><span class="o">add_ep14.py → build_one.py</span></div>
+        <div class="arr">▼</div>
+        <div class="node"><div class="h">⑤ 読みを検査して声を作る</div><div class="d">VOICEVOXの読みを先に取り出して誤読を止め、ずんだもんで合成。</div><span class="o">check_yomi.py → synth_long.py</span></div>
+        <div class="arr">▼</div>
+        <div class="node"><div class="h">⑥ 幕の時刻・ミックス・書き出し</div><div class="d">声の長さから場面の切り替え時刻を決め、BGMを沈めて -15 LUFS。</div><span class="o">acts_one → mix_long → render_one</span></div>
+        <div class="arr">▼</div>
+        <div class="node"><div class="h">⑦ 媒体の機械検査</div><div class="d">安全域・重なり・尺・音圧・冒頭の輝度・静止。サムネの重なり。</div><span class="o">check_one.py / qc_video.py</span></div>
+      </div>
+    </div>
+
+    <div class="arr">▼</div>
+    <div class="node gatek"><div class="h">⑧ 別エージェントの審査<span class="who g">エージェント×観点別</span></div>
+      <div class="d">X：フック・形式／意外性・戦略／事実の3体。YouTube：サムネ／本編の2体。「良い点は書かず、直す点だけ」を返させる。</div>
+      <span class="o">合計9回</span></div>
+    <div class="loop"><b>事実（C3）が不合格なら</b> → 文面・台本を直して ④ から書き出し直す。点数の高さでは止めない。事実の中程度以上が0件になるまで。</div>
+    <div class="arr">▼</div>
+    <div class="node human"><div class="h">⑨ 「投稿して」<span class="who h">人間</span></div>
+      <div class="d">公開は人間の一言で行う。投稿先アカウントは認証情報から毎回読み直して確かめる。</div></div>
+    <div class="arr">▼</div>
+    <div class="node pub"><div class="h">⑩ 公開を、公開ページ側で確かめる<span class="who a">エージェント</span></div>
+      <div class="d">X：oEmbedで本文と著者、t.coの転送先。YouTube：oEmbedでチャンネル名、APIでジャンル・公開状態・処理完了、/shorts/ のURLが開くか。</div></div>
+
+    <div class="fl-legend">
+      <span><i class="sw" style="background:var(--paper)"></i>エージェント</span>
+      <span><i class="sw" style="background:#fbeee9"></i>人間が決める</span>
+      <span><i class="sw" style="background:#1c1a16"></i>審査（別のエージェント）</span>
+      <span><i class="sw" style="background:#e8f0ec"></i>公開後の確認</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ 02 -->
+<div class="step" id="s02">
+  <div class="step-no">02</div>
+  <h2>人間が出した指示は3つ</h2>
+  <p>
+    AIエージェント（Claude Code）に送った文章は、下の3つと、エージェントから来た質問への回答だけです。
+    緑の番号がエージェントからの質問、赤い番号が公開の指示にあたります。
+  </p>
+
+  <div class="rounds">
+    <div class="rd-head">
+      <div class="rd-hn">#</div>
+      <div class="rd-hb"><span>人間 → エージェント</span><span>→ エージェントがやったこと</span></div>
+    </div>
+    <div class="rd">
+      <div class="rd-n">1</div>
+      <div class="rd-b">
+        <div class="rd-q">Opus5.5がリリースされたので、よくなったことを簡潔にまとめてXに投稿したい。紹介ビデオもあるといい</div>
+        <div class="rd-a">→ 公式発表を取得し、発表日・価格・ベンチマークを原文で確認。記憶ではなく一次情報から書くことにした</div>
+      </div>
+    </div>
+    <div class="rd q">
+      <div class="rd-n">Q</div>
+      <div class="rd-b">
+        <div class="rd-q">（エージェント）どちらのXアカウントに投稿しますか？ ／ 紹介動画はどのスタイルにしますか？</div>
+        <div class="rd-a">→ 回答「@ViewsEngineer」「モーショングラフィックス」。以後、根拠台帳・動画・BGM・投稿文3案・品質ゲートまで進めた</div>
+      </div>
+    </div>
+    <div class="rd fix">
+      <div class="rd-n">2</div>
+      <div class="rd-b">
+        <div class="rd-q">投稿して。youtube shortにも投稿して。１分AIにユースとして</div>
+        <div class="rd-a">→ 既存シリーズ「1分AIニュース」の手順を読み、#14 を作成。審査で見つかった誤りを直し、X投稿・Shorts公開・再生リスト追加・公開確認まで</div>
+      </div>
+    </div>
+    <div class="rd">
+      <div class="rd-n">3</div>
+      <div class="rd-b">
+        <div class="rd-q">今回の動画の作成手順と品質チェックの全容を詳細にhtmlで図やフローチャートにして、https://yuichi916.github.io/の子ページを作成して</div>
+        <div class="rd-a">→ このページ</div>
+      </div>
+    </div>
+  </div>
+  <p>
+    「投稿して」の時点で、人間は最終の文面をまだ見ていません。だから公開の判断を、人間の目ではなく
+    <strong>審査の合否（事実の中程度以上が0件）</strong>に置きました。次の章からが、その中身です。
+  </p>
+</div>
+
+<!-- ============================================================ 03 -->
+<div class="step" id="s03">
+  <div class="step-no">03</div>
+  <h2>根拠台帳：数字は原文の文字列で裏付ける</h2>
+  <p>
+    新しいモデルの話なので、エージェント自身の知識はあてになりません（学習の時点より後の発表です）。
+    そこで、使う事実を全部<strong>台帳</strong>に登録し、台帳に無い数字は画面にも本文にも書かない、という決まりにしました。
+  </p>
+
+<pre><code>{
+  "id": "L01",
+  "ja": "大半の作業で Fable 5.1 並みの性能。Opus 5 より約4割安く動く",
+  "values": ["40%", "4割"],
+  "quote": "It performs at the level of Claude Fable 5.1 on most work and costs 40% less to run than Opus 5.",
+  "source": "announce.txt",
+  "reading": "on most work = 大半の作業で。全作業ではない。"
+}</code></pre>
+
+  <p>台帳を検査するスクリプトは、2つのことだけをします。</p>
+  <ol>
+    <li><strong>引用の照合</strong>：各 <code>quote</code> が、保存した原文にそのまま存在するか（空白と引用符の揺れだけ吸収）。</li>
+    <li><strong>数値の照合</strong>：動画のHTML・投稿文・説明文に出てくる数字を全部抜き出し、台帳の <code>values</code> にあるか。モデル名の版数（5.5 など）は先に落とす。</li>
+  </ol>
+
+  <div class="kv">
+    <div><b>26/26</b><span>引用が原文に存在</span></div>
+    <div><b>41 · 4 · 25</b><span>X動画・投稿文・YouTube説明文の数字<br>すべて台帳内</span></div>
+    <div><b>5/6</b><span>わざと混ぜた誤りを<br>検出できた数</span></div>
+  </div>
+
+  <h3>照合器が何を見逃すかを、先に測る</h3>
+  <p>
+    検査が通っても、検査そのものが甘ければ意味がありません。そこで、誤った文を6つ作って照合器に通しました。
+  </p>
+  <div class="tblwrap">
+  <table>
+    <tr><th>混ぜた誤り</th><th>正しくは</th><th>結果</th></tr>
+    <tr><td>Opus 5.5 は 66.5%</td><td>66.4%</td><td>検出</td></tr>
+    <tr><td>Opus 5 より5割安い</td><td>4割</td><td>検出</td></tr>
+    <tr><td>18本中17本 合格</td><td>16本</td><td>検出</td></tr>
+    <tr><td>$0.25</td><td>$0.20</td><td>検出</td></tr>
+    <tr><td>6時間枠</td><td>5時間枠</td><td>検出</td></tr>
+    <tr><td><strong>出力が40%速い</strong></td><td>30%以上</td><td><strong style="color:var(--accent)">見逃し</strong></td></tr>
+  </table>
+  </div>
+  <p>
+    最後の1つは、「40%」が台帳に（費用の値として）存在するので素通りします。
+    <strong>数値の照合は「その値がどこかにあるか」しか見ていない</strong>ので、正しい値を別の文脈で使うと捕まりません。
+    これは照合器を直せば済む話ではなく、文を読む担当が別に要る、ということです（<a href="#s07">07</a>）。
+  </p>
+</div>
+
+<!-- ============================================================ 04 -->
+<div class="step" id="s04">
+  <div class="step-no">04</div>
+  <h2>X用の動画の作り方</h2>
+  <p>
+    Xの動画は最初ミュートで自動再生されるので、<strong>音がなくても全部伝わる</strong>形にしました。
+    画面は1枚のHTMLで、全部のアニメーションを時刻 <code>t</code> の関数として書きます。
+    こうすると、Playwrightで1/30秒ずつ時刻を進めて撮るだけで、何度書き出しても同じ絵になります。
+  </p>
+
+<pre><code>function setTime(t) {
+  // 背景の模様・ぼかしの光は、どの時刻でも少しずつ動く（静止判定の対策）
+  $('grid').style.transform = `translate(${(t * 16) % 80}px, ${(t * 9) % 80}px)`;
+  for (const sc of SCENES) {                 // 8場面。data-s〜data-e の間だけ表示
+    const on = t &gt;= sc.s &amp;&amp; t &lt; sc.e;
+    sc.el.style.visibility = on ? 'visible' : 'hidden';
+    if (on) for (const it of sc.items) animItem(it, t - sc.s);  // 出現・棒・数え上げ
+  }
+}
+window.__setTime = setTime;   // 撮影側は evaluate("t =&gt; __setTime(t)") → screenshot</code></pre>
+
+  <div class="svgbox">
+    <svg viewBox="0 0 760 250" role="img" aria-label="X用動画の時間割。0秒から32.5秒までの8場面、和音の進行、ドラムの区間、効果音の位置">
+      <style>
+        .t{font-family:Inter,"Hiragino Sans","Yu Gothic",sans-serif;font-size:12px;fill:#161510}
+        .m{font-family:"JetBrains Mono",monospace;font-size:10px;fill:#6b6759}
+        .s{font-family:Inter,"Hiragino Sans","Yu Gothic",sans-serif;font-size:11px;fill:#3a3830}
+      </style>
+      <text class="m" x="40" y="14">場面（秒）</text>
+      <!-- 1秒 = 21.54px, x0 = 40 -->
+      <g>
+        <rect x="40"  y="22" width="64.6"  height="44" fill="#1c1a16"/><text class="t" x="72"  y="49" text-anchor="middle" fill="#f4f0e6" style="fill:#f4f0e6">表紙</text>
+        <rect x="104.6" y="22" width="96.9" height="44" fill="#e8f0ec" stroke="#1a4f3a" stroke-width=".6"/><text class="t" x="153" y="49" text-anchor="middle">01 性能</text>
+        <rect x="201.5" y="22" width="107.7" height="44" fill="#f4f0e6" stroke="#1a4f3a" stroke-width=".6"/><text class="t" x="255" y="49" text-anchor="middle">02 料金</text>
+        <rect x="309.2" y="22" width="86.2" height="44" fill="#e8f0ec" stroke="#1a4f3a" stroke-width=".6"/><text class="t" x="352" y="42" text-anchor="middle">03 速さ</text><text class="s" x="352" y="58" text-anchor="middle">利用枠</text>
+        <rect x="395.4" y="22" width="86.2" height="44" fill="#f4f0e6" stroke="#1a4f3a" stroke-width=".6"/><text class="t" x="438" y="49" text-anchor="middle">04 文章</text>
+        <rect x="481.6" y="22" width="96.9" height="44" fill="#e8f0ec" stroke="#1a4f3a" stroke-width=".6"/><text class="t" x="530" y="49" text-anchor="middle">05 調べもの</text>
+        <rect x="578.5" y="22" width="96.9" height="44" fill="#f4f0e6" stroke="#1a4f3a" stroke-width=".6"/><text class="t" x="627" y="49" text-anchor="middle">06 安全</text>
+        <rect x="675.4" y="22" width="64.6" height="44" fill="#1c1a16"/><text class="t" x="708" y="49" text-anchor="middle" style="fill:#f4f0e6">締め</text>
+      </g>
+      <g class="m">
+        <text x="40" y="80">0</text><text x="104.6" y="80" text-anchor="middle">3.0</text><text x="201.5" y="80" text-anchor="middle">7.5</text>
+        <text x="309.2" y="80" text-anchor="middle">12.5</text><text x="395.4" y="80" text-anchor="middle">16.5</text><text x="481.6" y="80" text-anchor="middle">20.5</text>
+        <text x="578.5" y="80" text-anchor="middle">25.0</text><text x="675.4" y="80" text-anchor="middle">29.5</text><text x="740" y="80" text-anchor="end">32.5</text>
+      </g>
+
+      <text class="m" x="40" y="104">和音（120BPM・ニ長調。変わり目は全部、拍の上）</text>
+      <g>
+        <rect x="40" y="110" width="64.6" height="26" fill="#ebe6d8"/><text class="s" x="72" y="127" text-anchor="middle">Gmaj7</text>
+        <rect x="104.6" y="110" width="96.9" height="26" fill="#f4f0e6"/><text class="s" x="153" y="127" text-anchor="middle">D</text>
+        <rect x="201.5" y="110" width="53.9" height="26" fill="#ebe6d8"/><text class="s" x="228" y="127" text-anchor="middle">Bm7</text>
+        <rect x="255.4" y="110" width="53.8" height="26" fill="#f4f0e6"/><text class="s" x="282" y="127" text-anchor="middle">Gmaj7</text>
+        <rect x="309.2" y="110" width="86.2" height="26" fill="#ebe6d8"/><text class="s" x="352" y="127" text-anchor="middle">A</text>
+        <rect x="395.4" y="110" width="43.1" height="26" fill="#f4f0e6"/><text class="s" x="417" y="127" text-anchor="middle">D</text>
+        <rect x="438.5" y="110" width="43.1" height="26" fill="#ebe6d8"/><text class="s" x="460" y="127" text-anchor="middle">F#m7</text>
+        <rect x="481.6" y="110" width="53.9" height="26" fill="#f4f0e6"/><text class="s" x="508" y="127" text-anchor="middle">Bm7</text>
+        <rect x="535.5" y="110" width="43.0" height="26" fill="#ebe6d8"/><text class="s" x="557" y="127" text-anchor="middle">Gmaj7</text>
+        <rect x="578.5" y="110" width="43.1" height="26" fill="#f4f0e6"/><text class="s" x="600" y="127" text-anchor="middle">Em7</text>
+        <rect x="621.6" y="110" width="53.8" height="26" fill="#ebe6d8"/><text class="s" x="648" y="127" text-anchor="middle">A7</text>
+        <rect x="675.4" y="110" width="64.6" height="26" fill="#f4f0e6"/><text class="s" x="708" y="127" text-anchor="middle">Dadd9</text>
+      </g>
+
+      <text class="m" x="40" y="160">ドラム（キック4つ打ち・裏拍のベースとハイハット）</text>
+      <rect x="104.6" y="166" width="570.8" height="12" fill="#1a4f3a" opacity=".8"/>
+      <text class="m" x="72" y="176" text-anchor="middle">なし</text><text class="m" x="708" y="176" text-anchor="middle">余韻</text>
+
+      <text class="m" x="40" y="200">効果音（▼＝切れ目へのノイズの立ち上がり ／ ｜＝数字・項目が出る瞬間）</text>
+      <g fill="#c43d2a">
+        <path d="M104.6 206 l-5 -8 h10 z"/><path d="M201.5 206 l-5 -8 h10 z"/><path d="M309.2 206 l-5 -8 h10 z"/><path d="M395.4 206 l-5 -8 h10 z"/>
+        <path d="M481.6 206 l-5 -8 h10 z"/><path d="M578.5 206 l-5 -8 h10 z"/><path d="M675.4 206 l-5 -8 h10 z"/>
+      </g>
+      <g stroke="#1c1a16" stroke-width="1.4">
+        <!-- 料金 3つの新価格 -->
+        <line x1="212.1" y1="210" x2="212.1" y2="226"/><line x1="214.2" y1="210" x2="214.2" y2="226"/><line x1="216.2" y1="210" x2="216.2" y2="226"/>
+        <!-- カード2枚 -->
+        <line x1="314.6" y1="210" x2="314.6" y2="226"/><line x1="317.0" y1="210" x2="317.0" y2="226"/>
+        <!-- チェック3つ -->
+        <line x1="400.8" y1="210" x2="400.8" y2="226"/><line x1="404.7" y1="210" x2="404.7" y2="226"/><line x1="408.6" y1="210" x2="408.6" y2="226"/>
+        <!-- 丸18個（20.83〜21.29秒） -->
+        <rect x="488.6" y="210" width="9.9" height="16" fill="#1c1a16" stroke="none"/>
+        <!-- チェック2つ -->
+        <line x1="583.9" y1="210" x2="583.9" y2="226"/><line x1="587.8" y1="210" x2="587.8" y2="226"/>
+      </g>
+      <text class="m" x="507" y="240">丸18個：合格16個は上がる音、残り2個は低い音</text>
+    </svg>
+    <p class="cap">X用動画の時間割。場面の切れ目・和音の変わり目・ドラムの入りを全部、120BPMの拍（0.5秒刻み）にそろえた。効果音は画面の要素が出る時刻と同じ式から計算している。</p>
+  </div>
+
+  <h3>BGMは、耳ではなくスペクトルで確かめる</h3>
+  <p>
+    エージェントは音を聴けません。そこで帯域ごとのエネルギーを測りました。
+    1回目の合成は16kHz帯が強く、スマホのスピーカーでシャリシャリ聞こえる形でした。
+    ハイハットを7.5〜12kHzに絞って音量を下げ、<strong>16kHz帯を −22.1dB → −28.3dB</strong> にしています（最大の帯を0dBとした相対値）。
+  </p>
+  <div class="svgbox">
+    <svg viewBox="0 0 760 230" role="img" aria-label="BGMのオクターブ帯ごとのエネルギー。直す前と直した後。8kHzと16kHzの帯だけが下がっている">
+      <style>
+        .ax{font-family:"JetBrains Mono",monospace;font-size:10.5px;fill:#6b6759}
+        .lb{font-family:Inter,"Hiragino Sans","Yu Gothic",sans-serif;font-size:11.5px;fill:#3a3830}
+      </style>
+      <!-- y: 0dB at y=30, -35dB at y=200 → 4.857px/dB -->
+      <g stroke="rgba(26,24,18,.12)">
+        <line x1="60" y1="30" x2="740" y2="30"/><line x1="60" y1="78.6" x2="740" y2="78.6"/><line x1="60" y1="127.1" x2="740" y2="127.1"/><line x1="60" y1="175.7" x2="740" y2="175.7"/>
+      </g>
+      <g class="ax"><text x="52" y="34" text-anchor="end">0</text><text x="52" y="82" text-anchor="end">-10</text><text x="52" y="131" text-anchor="end">-20</text><text x="52" y="180" text-anchor="end">-30 dB</text></g>
+      <g>
+        <!-- 帯: 63,125,250,500,1k,2k,4k,8k,16k ; before / after -->
+        <rect x="76"  y="30"    width="26" height="170"   fill="#b9b3a3"/><rect x="104" y="30"    width="26" height="170"   fill="#1a4f3a"/>
+        <rect x="151" y="45.1"  width="26" height="154.9" fill="#b9b3a3"/><rect x="179" y="45.1"  width="26" height="154.9" fill="#1a4f3a"/>
+        <rect x="226" y="81.0"  width="26" height="119.0" fill="#b9b3a3"/><rect x="254" y="81.0"  width="26" height="119.0" fill="#1a4f3a"/>
+        <rect x="301" y="91.7"  width="26" height="108.3" fill="#b9b3a3"/><rect x="329" y="91.7"  width="26" height="108.3" fill="#1a4f3a"/>
+        <rect x="376" y="111.1" width="26" height="88.9"  fill="#b9b3a3"/><rect x="404" y="111.1" width="26" height="88.9"  fill="#1a4f3a"/>
+        <rect x="451" y="136.4" width="26" height="63.6"  fill="#b9b3a3"/><rect x="479" y="135.9" width="26" height="64.1"  fill="#1a4f3a"/>
+        <rect x="526" y="181.5" width="26" height="18.5"  fill="#b9b3a3"/><rect x="554" y="181.1" width="26" height="18.9"  fill="#1a4f3a"/>
+        <rect x="601" y="155.3" width="26" height="44.7"  fill="#b9b3a3"/><rect x="629" y="166.5" width="26" height="33.5"  fill="#c43d2a"/>
+        <rect x="676" y="137.3" width="26" height="62.7"  fill="#b9b3a3"/><rect x="704" y="167.5" width="26" height="32.5"  fill="#c43d2a"/>
+      </g>
+      <line x1="60" y1="200" x2="740" y2="200" stroke="#1a1812"/>
+      <g class="ax" text-anchor="middle">
+        <text x="103" y="216">63</text><text x="178" y="216">125</text><text x="253" y="216">250</text><text x="328" y="216">500</text><text x="403" y="216">1k</text>
+        <text x="478" y="216">2k</text><text x="553" y="216">4k</text><text x="628" y="216">8k</text><text x="703" y="216">16k Hz</text>
+      </g>
+      <g class="lb"><rect x="470" y="8" width="11" height="11" fill="#b9b3a3"/><text x="486" y="18">直す前</text>
+        <rect x="540" y="8" width="11" height="11" fill="#1a4f3a"/><text x="556" y="18">直した後</text>
+        <rect x="620" y="8" width="11" height="11" fill="#c43d2a"/><text x="636" y="18">下げた帯</text></g>
+      <g class="ax"><text x="642" y="160" text-anchor="middle">-25.8→-28.1</text><text x="716" y="130" text-anchor="middle">-22.1→-28.3</text></g>
+    </svg>
+    <p class="cap">5〜28秒のオクターブ帯エネルギー（最大の帯を0dB）。低音の山（63Hz）はそのまま、上の2帯だけを下げた。最終のミックスは -14.1 LUFS／ピーク -2.8 dBFS。</p>
+  </div>
+
+  <div class="fig2">
+    <figure><img src="../assets/sokuhou-uradori/x-01-perf.jpg" alt="性能の場面。コーディングと分野横断の推論の2つのベンチマークで、Opus 5.5・Fable 5.1・Opus 5 を棒グラフで比べている" loading="lazy"><figcaption>01 性能。1本だけだった棒グラフを2本立てにした（<a href="#s07">07</a>）。</figcaption></figure>
+    <figure><img src="../assets/sokuhou-uradori/x-03-speed.jpg" alt="速さと利用枠の場面。30%以上と、上限アップの2枚のカード" loading="lazy"><figcaption>03 速さ・利用枠。「5時間枠」の大文字は「5時間使える」と読まれたので「上限アップ」に。</figcaption></figure>
+    <figure><img src="../assets/sokuhou-uradori/x-05-research.jpg" alt="調べものの場面。18個の丸のうち16個が点灯し、Opus 5.5は18本中16本合格、Fable 5.1とOpus 5は合格なし、と書かれている" loading="lazy"><figcaption>05 調べもの。注記に「落ちた理由は書かれていない」を足した。</figcaption></figure>
+    <figure><img src="../assets/sokuhou-uradori/x-06-safety.jpg" alt="安全の場面。元に戻しにくい操作を避けるようになった、プロンプトインジェクションに強くなった、の2項目" loading="lazy"><figcaption>06 安全。比較の相手（最近のモデル／Opus 5）を注記で分けた。</figcaption></figure>
+  </div>
+</div>
+
+<!-- ============================================================ 05 -->
+<div class="step" id="s05">
+  <div class="step-no">05</div>
+  <h2>Shortsの作り方</h2>
+  <p>
+    Shortsは新しく作らず、第13回まで続いている「1分AIニュース」の手順にそのまま乗せました。
+    エージェントは最初に既存のスクリプトと過去回の台本を読み、同じ形で #14 を書いています。
+    表紙で結論を言い切り、主役の数字を1つに絞るのが、このシリーズの型です。
+  </p>
+
+  <div class="tblwrap">
+  <table>
+    <tr><th>#</th><th>スクリプト</th><th>やること</th><th>止める事故</th></tr>
+    <tr><td>1</td><td><code>add_ep14.py</code> → <code>build_one.py</code></td><td>画面の文字・読み上げ（かな）・字幕を1話分書き、文字数の上限を検査</td><td>器から文字があふれる</td></tr>
+    <tr><td>2</td><td><code>check_yomi.py</code></td><td>VOICEVOXの読み（カナ）を取り出して、誤読の型と照合</td><td>「十八本」を「じゅうはちほん」と読む</td></tr>
+    <tr><td>3</td><td><code>synth_long.py</code></td><td>ずんだもんで合成。文面のハッシュでキャッシュ</td><td>—</td></tr>
+    <tr><td>4</td><td><code>acts_one.py</code></td><td>声の長さから、場面の切り替え時刻を決める</td><td>録り直すたびに場面がずれる</td></tr>
+    <tr><td>5</td><td><code>mix_long.py</code></td><td>BGMを声の下に沈めて、音圧を -14±1.5 LUFS に</td><td>無音の穴・音割れ</td></tr>
+    <tr><td>6</td><td><code>check_one.py</code></td><td>全場面の要素の座標を取り、安全域・重なり・はみ出し・字の小ささを検査</td><td>字幕がShortsのUIに隠れる</td></tr>
+    <tr><td>7</td><td><code>render_one.py</code></td><td>1,343枚を撮ってmp4に</td><td>—</td></tr>
+    <tr><td>8</td><td><code>qc_video.py</code></td><td>尺・解像度・音声形式・音圧・冒頭の輝度・静止</td><td>暗転で始まる・止まって見える</td></tr>
+    <tr><td>9</td><td><code>build_thumb_one.py</code></td><td>16:9のサムネを同じデータから作り、重なりを検査</td><td>見出しと数字が重なる</td></tr>
+    <tr><td>10</td><td><code>build_meta14.py</code></td><td>題名・説明文・タグ。説明文の数字も台帳と照合</td><td>本編と説明の数字の食い違い</td></tr>
+    <tr><td>11</td><td><code>upload_to_youtube.py</code></td><td>公開で投稿してサムネを設定</td><td>—</td></tr>
+    <tr><td>12</td><td><code>ai_news_playlist.py</code></td><td>シリーズの再生リストに追加</td><td>—</td></tr>
+    <tr><td>13</td><td>oEmbed ＋ API</td><td>チャンネル名・ジャンル・公開状態・処理完了・/shorts/ のURL</td><td>別チャンネルへの誤投稿</td></tr>
+  </table>
+  </div>
+
+  <div class="fig5">
+    <figure><img src="../assets/sokuhou-uradori/s-00-cover.jpg" alt="Shortsの表紙。Opus 5.5は前のOpus 5より約4割安く動く" loading="lazy"><figcaption>表紙</figcaption></figure>
+    <figure><img src="../assets/sokuhou-uradori/s-01-fact.jpg" alt="FACTの幕。マイナス40%と、コーディングの最高スコアの棒グラフ" loading="lazy"><figcaption>FACT</figcaption></figure>
+    <figure><img src="../assets/sokuhou-uradori/s-03-why.jpg" alt="WHYの幕。入出力2割減・キャッシュは6割減と、使う量も減る、の2つの箱" loading="lazy"><figcaption>WHY</figcaption></figure>
+    <figure><img src="../assets/sokuhou-uradori/s-04-meaning.jpg" alt="MEANINGの幕。捏造1つで不合格の社内テストで18本中16本合格" loading="lazy"><figcaption>MEANING</figcaption></figure>
+    <figure><img src="../assets/sokuhou-uradori/s-05-you.jpg" alt="YOUの幕。Opus 5.5に乗り換える？ の問いと2択" loading="lazy"><figcaption>YOU</figcaption></figure>
+  </div>
+
+  <h3>既存の手順にあった落とし穴</h3>
+  <ul>
+    <li><strong>台本の生成スクリプトが、全話の台本を書き直す。</strong>過去回の場面時刻まで空に戻るので、実行の前後で過去回を退避・復元した。</li>
+    <li><strong>字幕を直しても、画面に反映されない。</strong>字幕は合成時にタイミングのファイルへ写されるので、合成の手順をやり直す必要がある（声はキャッシュされるので数秒で終わる）。</li>
+    <li><strong>投稿スクリプトがジャンルを名前で読む。</strong>説明文データのジャンルは番号で持っていたので、そのままだと「旅行」で公開されるところだった。投稿用のデータに名前で入れ、公開後にAPIで「科学と技術（28）」を確認した。</li>
+    <li><strong>座標の検査は1字だけの改行を拾わない。</strong>見出し「…(米国時間)発表」の「表」だけが3行目に落ちていた。書き出したフレームを見て見つけた。</li>
+  </ul>
+</div>
+
+<!-- ============================================================ 06 -->
+<div class="step" id="s06">
+  <div class="step-no">06</div>
+  <h2>品質チェックの全体像（4層）</h2>
+  <p>
+    検査は4層に分かれています。<strong>下の層ほど機械的で速く、上の層ほど意味を読みます。</strong>
+    どの層も、何かを確実に捕まえ、何かを確実に素通りさせます。素通りの側を知っておくことが、層を重ねる理由です。
+  </p>
+
+  <div class="layers">
+    <div class="ly">
+      <div class="ly-n" style="background:#1c1a16">L4</div>
+      <div class="ly-b">
+        <div class="ly-h">別エージェントの審査<small>9回・観点ごとに別の担当</small></div>
+        <div class="ly-g">
+          <div class="ok"><b>捕まえる</b>条件の違う数字の接続、内訳の脱落、書いていない含意、1行目の弱さ、スマホでの読めなさ</div>
+          <div class="ng"><b>素通り・弱点</b>採点が担当ごとにぶれる。点数は直しても上がり続けない。書き出し前の古いファイルを見ることがある</div>
+        </div>
+      </div>
+    </div>
+    <div class="ly">
+      <div class="ly-n" style="background:#3a3830">L3</div>
+      <div class="ly-b">
+        <div class="ly-h">媒体の機械検査<small>音・絵・座標・読み</small></div>
+        <div class="ly-g">
+          <div class="ok"><b>捕まえる</b>音圧・音割れ・無音、黒フレーム、静止、安全域、要素の重なり、出典の帯への食い込み、誤読</div>
+          <div class="ng"><b>素通り</b>文の意味。1字だけの改行や、単語の途中の改行（座標は正しいので）</div>
+        </div>
+      </div>
+    </div>
+    <div class="ly">
+      <div class="ly-n" style="background:#6b6759">L2</div>
+      <div class="ly-b">
+        <div class="ly-h">数値の照合<small>画面・本文の数字 ⊂ 台帳の値</small></div>
+        <div class="ly-g">
+          <div class="ok"><b>捕まえる</b>台帳にない数字（記憶で書いた数字、打ち間違い）</div>
+          <div class="ng"><b>素通り</b>正しい値を別の文脈で使うこと（「出力が40%速い」）</div>
+        </div>
+      </div>
+    </div>
+    <div class="ly">
+      <div class="ly-n" style="background:#b9b3a3">L1</div>
+      <div class="ly-b">
+        <div class="ly-h">引用の照合<small>台帳の一文 ⊂ 保存した原文</small></div>
+        <div class="ly-g">
+          <div class="ok"><b>捕まえる</b>存在しない引用（捏造した根拠）</div>
+          <div class="ng"><b>素通り</b>本物の一文を読み違えること</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>機械検査の基準と、最終版の実測値</h3>
+  <div class="gate">
+    <div class="gate-h"><span>X用の動画（32.5秒）</span><span>基準 ／ 実測</span></div>
+    <div class="gate-b">
+      <div class="gate-r"><span>画面が止まっていないか（0.5秒差のフレーム差分）</span><span class="gate-th">静止 ≤ 5%</span><span class="gate-v">0 / 960</span></div>
+      <div class="gate-r"><span>真っ黒なフレームがないか</span><span class="gate-th">平均輝度 &lt; 8 が 0枚</span><span class="gate-v">0枚</span></div>
+      <div class="gate-r"><span>音が小さすぎ / 割れていないか</span><span class="gate-th">-14±1 LUFS / TP ≤ -0.5</span><span class="gate-v">-14.1 / -2.8</span></div>
+      <div class="gate-r"><span>中身が出典の帯に食い込んでいないか</span><span class="gate-th">余白 ≥ 24px</span><span class="gate-v">最小 71px</span></div>
+      <div class="gate-r"><span>画面の数字が台帳にあるか</span><span class="gate-th">台帳外 0件</span><span class="gate-v">41件 / 0件</span></div>
+      <div class="gate-r"><span>書き出したファイルが壊れていないか</span><span class="gate-th">全フレームを復号</span><span class="gate-v">エラーなし</span></div>
+    </div>
+  </div>
+  <div class="gate">
+    <div class="gate-h"><span>Shorts（44.8秒）— 1つでも外れたら投稿しない</span><span>基準 ／ 実測</span></div>
+    <div class="gate-b">
+      <div class="gate-r"><span>長すぎないか</span><span class="gate-th">≤ 60秒</span><span class="gate-v">44.77秒</span></div>
+      <div class="gate-r"><span>音圧 / ピーク</span><span class="gate-th">-14±1.5 LUFS / ≤ -1.0 dBTP</span><span class="gate-v">-15.03 / -1.82</span></div>
+      <div class="gate-r"><span>冒頭が暗すぎないか（0.5秒時点）</span><span class="gate-th">輝度 ≥ 20/255</span><span class="gate-v">21.5</span></div>
+      <div class="gate-r"><span>画面が止まっていないか</span><span class="gate-th">最長の静止 &lt; 3秒 / 比率 &lt; 1/3</span><span class="gate-v">1.0秒 / 13%</span></div>
+      <div class="gate-r"><span>字幕がUIに隠れないか・重ならないか</span><span class="gate-th">y ≤ 1560・矩形が交差しない</span><span class="gate-v">223点 通過</span></div>
+      <div class="gate-r"><span>読み上げの誤読</span><span class="gate-th">誤読の型に当たらない</span><span class="gate-v">7行 0件</span></div>
+      <div class="gate-r"><span>説明文の数字が台帳にあるか</span><span class="gate-th">台帳外 0件</span><span class="gate-v">25件 / 0件</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ 07 -->
+<div class="step" id="s07">
+  <div class="step-no">07</div>
+  <h2>別エージェントの審査で見つかったもの</h2>
+  <p>
+    審査は観点ごとに別のエージェントに分けました。1体に全部を見させると、平均的な答えしか返ってこないからです。
+    指示は「良い点は書かず、直す点だけ」。そして<strong>事実の担当（C3）が落としたら、他が満点でも出さない</strong>。
+  </p>
+
+  <div class="rounds">
+    <div class="rd-head">
+      <div class="rd-hn">回</div>
+      <div class="rd-hb"><span>X投稿文の審査（フック・形式40 ＋ 意外性・戦略40 ＋ 事実20）</span><span>結果</span></div>
+    </div>
+    <div class="rd fix">
+      <div class="rd-n">1</div>
+      <div class="rd-b">
+        <div class="rd-q">3案を同時に採点：A 要点の羅列 <strong>53点</strong> ／ B 捏造テスト <strong>75点</strong> ／ C 要点＋まとめ <strong>48点</strong></div>
+        <div class="rd-a">→ 全案が不合格。Bは点数が一番高いのに、事実で不合格（「他の2モデルは捏造した」と読める）。動画にも中3件・低4件</div>
+      </div>
+    </div>
+    <div class="rd fix">
+      <div class="rd-n">2</div>
+      <div class="rd-b">
+        <div class="rd-q">Bの切り口で改稿した案D：フック・形式 <strong>31/40</strong> ／ 意外性・戦略 <strong>31/40</strong></div>
+        <div class="rd-a">→ 事実はまだ不合格（中3件・低3件）。直したことで入った誤りもあった</div>
+      </div>
+    </div>
+    <div class="rd">
+      <div class="rd-n">3</div>
+      <div class="rd-b">
+        <div class="rd-q">案F（加重290字を272字まで削った版）：事実のみ再審査</div>
+        <div class="rd-a">→ 投稿文・X動画・Shorts台本のすべてで、中程度以上が0件。ここで公開。案Fはフック・形式と意外性・戦略の再採点をしていない</div>
+      </div>
+    </div>
+  </div>
+
+  <p>見つかった「中」の6件を、直す前と後で並べます。</p>
+
+  <div class="ba">
+    <div class="ba-h"><b>① 表紙から条件が落ちた（X動画）</b><span class="sev">中</span></div>
+    <div class="ba-r before"><div class="ba-l">前</div><div class="ba-t">Fable 5.1 並みの性能で、Opus 5 より約4割安い</div></div>
+    <div class="ba-r after"><div class="ba-l">後</div><div class="ba-t">大半の作業で Fable 5.1 並み、Opus 5 より約4割安く動く</div></div>
+    <div class="ba-src">原文は <code>at the level of Claude Fable 5.1 on most work</code>。また「安い」だけだと単価の話に読めるが、単価の下げ幅は20%。</div>
+  </div>
+  <div class="ba">
+    <div class="ba-h"><b>② 差が一番大きいベンチマークだけを見せた（X動画）</b><span class="sev">中</span></div>
+    <div class="ba-r before"><div class="ba-l">前</div><div class="ba-t">見出し「Fable 5.1 並み」の下に、Terminal-Bench 4.0 だけ（66.4 / 55.8 / 52.3、目盛り0〜75%）</div></div>
+    <div class="ba-r after"><div class="ba-l">後</div><div class="ba-t">HLE（67.7 / 65.6 / 63.6）を並べた2本立て・目盛り0〜100%・「Fable 5.1 との差は、実際に使うとスコアの差より小さい」の但し書き</div></div>
+    <div class="ba-src">見出しは「並み」なのに、棒は約10ポイントの大差に見えていた。原文にも <code>the gap … is narrower than these scores suggest</code> とある。</div>
+  </div>
+  <div class="ba">
+    <div class="ba-h"><b>③ 社内テストの条件が落ちた（X動画・投稿文）</b><span class="sev">中</span></div>
+    <div class="ba-r before"><div class="ba-l">前</div><div class="ba-t">捏造が1つでもあれば不合格のレポート課題で、18本中16本合格</div></div>
+    <div class="ba-r after"><div class="ba-l">後</div><div class="ba-t">Anthropic の社内テスト：決算発表が見つけにくいWebの複製だけで業績レポートを作成。effort の設定を変えて計18本</div></div>
+    <div class="ba-src">原文は <code>In one internal test</code>、<code>Across different effort settings</code>、<code>where the earnings release was hard to locate</code>。</div>
+  </div>
+  <div class="ba">
+    <div class="ba-h"><b>④ 書いていない含意が付いた（投稿文・Shorts）</b><span class="sev">中</span></div>
+    <div class="ba-r before"><div class="ba-l">前</div><div class="ba-t">捏造が1つでもあれば不合格…Fable 5.1 も Opus 5 も1本も通らず</div></div>
+    <div class="ba-r after"><div class="ba-l">後</div><div class="ba-t">…どれも通らなかった。Anthropic のある社内テストで、落ちた理由は書かれていない</div></div>
+    <div class="ba-src">原文は基準を <code>where any invented figure or quote would have failed</code> と書くだけで、2モデルが落ちた理由は書いていない。並べると「捏造した」と読める。</div>
+  </div>
+  <div class="ba">
+    <div class="ba-h"><b>⑤ 内訳の一部が抜けた（X動画・Shorts）— 前の修正で入った誤り</b><span class="sev">中</span></div>
+    <div class="ba-r before"><div class="ba-l">前</div><div class="ba-t">単価 −20% ＋ 使うトークンも減る ＝ 約4割安い</div></div>
+    <div class="ba-r after"><div class="ba-l">後</div><div class="ba-t">単価の値下げ ＋ 使うトークンの減少 ＝ 約4割安い（表にキャッシュ読み取り −60% を戻す）</div></div>
+    <div class="ba-src">1回目の審査で「−20%と約4割の関係が分からない」と言われて式を足した。そのとき画面を空けるためにキャッシュの行を外したので、残りを全部トークン削減の効果に見せてしまった。原文は <code>Cache reads … 60% less</code>。</div>
+  </div>
+  <div class="ba">
+    <div class="ba-h"><b>⑥ 条件の違う数字を「なのに」でつないだ（Shorts）</b><span class="sev">中</span></div>
+    <div class="ba-r before"><div class="ba-l">前</div><div class="ba-t">（費用が約4割減る試算）それなのに、コーディングの評価は 52.3% から 66.4% に上がった</div></div>
+    <div class="ba-r after"><div class="ba-l">後</div><div class="ba-t">コーディングの評価でも、最高スコアは 52.3% から 66.4% に上がった</div></div>
+    <div class="ba-src">「約4割」は既定の設定（<code>at default settings</code>）での試算、66.4% は <code>xhigh effort</code> での最高スコア。安くした設定で高得点が出たように読める。</div>
+  </div>
+
+  <p>「低」の7件は、原文の中の食い違い（別の箇所で「数千のシナリオ」と「2,000近いシナリオ」）、棒グラフの目盛り、発表日が米国時間であること、「取り返しのつかない」→「元に戻しにくい」、「利用上限」→「5時間枠」、表紙に比較の相手がないこと、注記の主語でした。</p>
+
+  <h3>6件は3つの型に分かれる</h3>
+  <div class="types">
+    <div class="ty"><div class="k">TYPE 1</div><div class="h">条件の違う数字を<br>つなぐ</div><p>既定の設定の数字と、最高設定の数字を「なのに」で結ぶ。どちらの数字も台帳にあるので、照合は通る。（⑥）</p></div>
+    <div class="ty"><div class="k">TYPE 2</div><div class="h">内訳を<br>一部だけ書く</div><p>「−20%＋α＝4割」のように、抜けた項目の分を残りに押しつける。値は全部正しい。（⑤②）</p></div>
+    <div class="ty"><div class="k">TYPE 3</div><div class="h">書いていない含意を<br>付ける</div><p>本物の二文を並べただけで、原文にない因果が生まれる。削るのではなく「書かれていない」と書き足して止める。（④③①）</p></div>
+  </div>
+  <p>
+    どれも<strong>引用の照合（L1）と数値の照合（L2）を通った後</strong>に見つかりました。
+    照合は「その文字列がどこかにあるか」を見るもので、「その文が主張を支えているか」は見ていません。
+    後者は、条件を付けて読み直す別の担当にしか見つけられませんでした。
+  </p>
+</div>
+
+<!-- ============================================================ 08 -->
+<div class="step" id="s08">
+  <div class="step-no">08</div>
+  <h2>画面の崩れも、別の目で見つかった</h2>
+  <p>事実とは別に、見た目の欠陥も同じやり方で見つけています。担当が見つけたもの、自分でフレームを見て見つけたもの、検査が見つけたものの3系統です。</p>
+  <div class="tblwrap">
+  <table>
+    <tr><th>欠陥</th><th>見つけたのは</th><th>直し方</th></tr>
+    <tr><td>注記の字がスマホの360px表示で約5px</td><td>フック・形式の担当</td><td>25→28pxにし、要点は見出しの大きさへ移した</td></tr>
+    <tr><td>表紙で、主張より型番の字が大きい</td><td>フック・形式の担当</td><td>型番 178→132px、主張 74→92px</td></tr>
+    <tr><td>全部の文字が見えている時間が、どの場面も3秒未満</td><td>フック・形式の担当</td><td>文字が出る遅れを0.6倍、動きの長さを約0.7倍に。効果音の時刻も同じ式で直した</td></tr>
+    <tr><td>料金の注記が、下の出典の帯に重なった</td><td>自分でフレームを見て</td><td>行の高さを詰めて注記を式の行にまとめ、<strong>全場面の余白を測る検査を追加</strong>（最小71px）</td></tr>
+    <tr><td>Shortsの見出しで「表」の1字だけが3行目へ</td><td>自分でフレームを見て</td><td>「米国9月22日に発表」に短縮</td></tr>
+    <tr><td>「18本中／16本合格」が途中で割れる</td><td>自分でフレームを見て</td><td>改行位置を指定して3行に</td></tr>
+    <tr><td>小さな箱の中で「キャッシ／ュ−60%」</td><td>自分でフレームを見て</td><td>「入出力2割減／キャッシュは6割減」に言い換え</td></tr>
+    <tr><td>サムネの見出しと数字が重なる</td><td>サムネの重なり検査</td><td>字の大きさと数字の位置を調整（4回目で通過）</td></tr>
+    <tr><td>捏造テストの場面が19.4秒止まって見える</td><td>本編の担当</td><td>読み上げを短くして15.9秒に</td></tr>
+  </table>
+  </div>
+  <p>
+    YouTube側の審査は、点数で投稿を止めない運用です（点数は直しても上がり続けないことを、以前の回で実測しています）。
+    機械で測る必須項目が全部通れば出し、担当の指摘は「まだ直せる所のリスト」として使いました。
+    サムネは22/40、本編は25/40からの修正です。
+  </p>
+</div>
+
+<!-- ============================================================ 09 -->
+<div class="step" id="s09">
+  <div class="step-no">09</div>
+  <h2>所要時間</h2>
+  <div class="svgbox">
+    <svg viewBox="0 0 760 150" role="img" aria-label="当日の時系列。01時43分に一次情報を取得、01時53分に根拠台帳、01時59分に動画の初版、02時41分にX投稿、02時45分にYouTube公開">
+      <style>
+        .tm{font-family:"JetBrains Mono",monospace;font-size:11px;fill:#161510}
+        .tl{font-family:Inter,"Hiragino Sans","Yu Gothic",sans-serif;font-size:11.5px;fill:#3a3830}
+      </style>
+      <!-- 01:40 → x=40, 02:50 → x=740 ; 10px/分 -->
+      <line x1="40" y1="70" x2="740" y2="70" stroke="#1a1812" stroke-width="2"/>
+      <rect x="235" y="62" width="405" height="16" fill="#c43d2a" opacity=".14"/>
+      <text class="tl" x="405" y="98" text-anchor="middle">審査と修正（X用 7回・Shorts 5回の書き出し、審査 9回）</text>
+      <g>
+        <circle cx="70"  cy="70" r="6" fill="#1a4f3a"/><text class="tm" x="70"  y="46" text-anchor="middle">01:43</text><text class="tl" x="70"  y="124" text-anchor="middle">一次情報</text>
+        <circle cx="170" cy="70" r="6" fill="#1a4f3a"/><text class="tm" x="170" y="46" text-anchor="middle">01:53</text><text class="tl" x="170" y="124" text-anchor="middle">根拠台帳</text>
+        <circle cx="230" cy="70" r="6" fill="#1a4f3a"/><text class="tm" x="230" y="30" text-anchor="middle">01:59</text><text class="tl" x="236" y="142" text-anchor="middle">動画の初版</text>
+        <circle cx="650" cy="70" r="7" fill="#c43d2a"/><text class="tm" x="650" y="46" text-anchor="middle">02:41</text><text class="tl" x="650" y="124" text-anchor="middle">X 投稿</text>
+        <circle cx="690" cy="70" r="7" fill="#c43d2a"/><text class="tm" x="706" y="30" text-anchor="middle">02:45</text><text class="tl" x="706" y="142" text-anchor="middle">YouTube 公開</text>
+      </g>
+    </svg>
+    <p class="cap">時刻はファイルの作成時刻・投稿IDの時刻・YouTube APIの公開時刻から取った。Shortsの作業は「投稿して」の指示の後に始めている。</p>
+  </div>
+
+  <div class="kv">
+    <div><b>58分</b><span>一次情報の取得から<br>X投稿まで</span></div>
+    <div><b>7 + 5</b><span>全編の書き出し回数<br>（X用 ＋ Shorts）</span></div>
+    <div><b>$0.215</b><span>X APIの従量課金<br>（投稿スクリプトの見積り）</span></div>
+  </div>
+  <p>
+    書き出しは1回あたり、X用の975枚が約1分40秒〜2分40秒、Shortsの1,343枚が約1分〜1分半です（PCの負荷で変わります）。
+    時間の大半は書き出しではなく、<strong>審査を待って直す往復</strong>に使っています。
+    ただ、その往復で見つかった6件は、どれも投稿した後では取り消せない種類の誤りでした。
+  </p>
+</div>
+
+<!-- ============================================================ 10 -->
+<div class="step" id="s10">
+  <div class="step-no">10</div>
+  <h2>自分の題材でやるなら</h2>
+  <ol class="chk">
+    <li><strong>一次情報をファイルに保存してから書く。</strong>記憶や検索結果の要約から書かない。新しい発表ほど、エージェントの知識は古い。</li>
+    <li><strong>使う事実を台帳にする。</strong>「日本語の主張・値・原文の一文・読み方の注意」を1件ずつ。原文に文字列が無いものは登録できない形にする。</li>
+    <li><strong>画面と本文の数字を、台帳と機械で照合する。</strong>台帳外の数字が1つでもあれば止める。</li>
+    <li><strong>照合器に誤りを混ぜて、何を見逃すかを先に知る。</strong>今回は6つ中1つを見逃した。見逃す種類が、次の層の仕事になる。</li>
+    <li><strong>事実の担当を別に立て、3つの型を渡す。</strong>条件の違う数字の接続・内訳の脱落・書いていない含意。「引用が本物か」ではなく「引用が主張を支えているか」を読ませる。</li>
+    <li><strong>媒体の検査は機械で先に潰す。</strong>音圧・無音・黒・静止・安全域・重なり・余白・誤読。担当には、機械で測れないものだけを見せる。</li>
+    <li><strong>書き出したフレームは自分でも見る。</strong>1字だけの改行や単語の途中の改行は、座標の検査を通る。</li>
+    <li><strong>点数では止めず、事実の必須項目で止める。</strong>点数は担当ごとにぶれる。事実の中程度以上が0件になるまでは出さない。</li>
+    <li><strong>公開後は、公開ページの側で確かめる。</strong>投稿先の名前、リンクの転送先、ジャンルと公開状態。スクリプトの「完了」表示は証拠にならない。</li>
+  </ol>
+</div>
+
+<!-- ============================================================ 付録 -->
+<div class="step">
+  <div class="step-no">付録 A</div>
+  <h2>検査のコード（抜粋）</h2>
+
+  <h3>台帳の照合</h3>
+<pre><code>def norm(s):
+    s = s.replace("’", "'").replace("“", '"').replace("”", '"')
+    return re.sub(r"\s+", " ", s).strip()
+
+def quote_found(quote, source_text):          # L1: 引用が原文にあるか
+    return norm(quote) in norm(source_text)
+
+NUM = re.compile(r"\$?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:%|割|時間|本|万)?")
+def numbers_in(text):                          # L2: 画面・本文の数字を全部抜く
+    for p in NAME_PATTERNS:                    # 「Opus 5.5」などの版数は先に落とす
+        text = re.sub(p, " ", text)
+    return [m.group(0) for m in NUM.finditer(text)]
+
+# 自己テスト：捏造した引用を通さないこと
+assert quote_found("costs 40% less to run", text)
+assert not quote_found("costs 50% less to run", text)</code></pre>
+
+  <h3>出典の帯への食い込み（各場面を、文字が出そろった時刻で止めて測る）</h3>
+<pre><code>for (const sc of document.querySelectorAll('.sc')) {
+  window.__setTime(+sc.dataset.e - 0.4);
+  let maxBottom = 0;
+  for (const el of sc.querySelectorAll('*')) {
+    const r = el.getBoundingClientRect();
+    if (r.width &amp;&amp; r.height) maxBottom = Math.max(maxBottom, r.bottom);
+  }
+  // 出典の帯の上端との差が 24px 未満なら失敗
+}</code></pre>
+
+  <h3>BGMの和音を場面の切れ目に合わせる</h3>
+<pre><code>BPM, CUTS = 120.0, [3.0, 7.5, 12.5, 16.5, 20.5, 25.0, 29.5]   # 全部 0.5秒の倍数
+CHORDS = [(0.0, 3.0, "Gmaj7"), (3.0, 7.5, "D"), (7.5, 10.0, "Bm7"), (10.0, 12.5, "Gmaj7"), ...]
+# パッドは絶対秒の立ち上がり/減衰で、次の和音と必ず重ねる（切れ目で音量の谷を作らない）
+# 効果音は、画面の要素が出る時刻と同じ式：at = scene_start + data_d</code></pre>
+</div>
+
+<div class="step">
+  <div class="step-no">付録 B</div>
+  <h2>使ったもの</h2>
+  <div class="tblwrap">
+  <table>
+    <tr><th>用途</th><th>もの</th></tr>
+    <tr><td>エージェント</td><td>Claude Code（モデルは発表されたばかりの Claude Opus 5.5 自身）</td></tr>
+    <tr><td>一次情報</td><td>Anthropic「Introducing Claude Opus 5.5」、製品ページ、開発者ドキュメント（移行ガイド）</td></tr>
+    <tr><td>画面</td><td>HTML／CSS／SVG、Playwright（撮影）、ffmpeg（結合・検査）</td></tr>
+    <tr><td>音</td><td>X用：numpy／scipy で合成したBGM（外部素材なし）。Shorts：VOICEVOX（ずんだもん）と、ピアノ素材集「君の音。」vol.3 より「行こう」</td></tr>
+    <tr><td>検査</td><td>自作の照合・検査スクリプト、別エージェント（観点別に9回）</td></tr>
+    <tr><td>公開</td><td>X API、YouTube Data API、oEmbed</td></tr>
+  </table>
+  </div>
+  <p class="meta">この記事の数字は、当日の検査ログ・ファイルの時刻・投稿IDから取っています。動画内の Claude Opus 5.5 に関する数字は、すべて Anthropic の公式発表（2026年9月22日・米国時間）によるものです。</p>
+</div>
+
+<footer>
+  <a href="../">ひとりぶんの棚</a>
+  <a href="./">新しい形の研究</a>
+  <a href="ai-agent-shorts.html">C-1 1分AIニュース</a>
+  <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a>
+</footer>
+
+</div>
+</body>
+</html>
