@@ -106,7 +106,7 @@ textarea{display:block;width:100%;min-height:96px;margin:0;padding:10px;font:inh
 .send:disabled{opacity:.6;cursor:wait}
 .note-msg{min-height:1.4em;margin:6px 0 0;font-size:13px;color:#8a3b17}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.card.compact{margin:14px auto 4px;padding:12px 14px}
+.card.compact{width:100%;margin:14px auto 4px;padding:12px 14px}
 .card.compact .head{justify-content:center}
 .card.compact .title{font-size:14px;text-align:center}
 .card.compact .stamps{justify-content:center;margin:8px 0 4px}
