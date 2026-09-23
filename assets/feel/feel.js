@@ -77,10 +77,10 @@ const CARD_CSS = `
 .card{position:relative;box-sizing:border-box;width:calc(100% - 32px);max-width:560px;margin:40px auto;
   padding:18px 20px 16px;background:#f7f1e3;color:#2b2620;border:1px solid rgba(43,38,32,.28);border-radius:6px;
   box-shadow:0 10px 28px rgba(0,0,0,.18);font-family:"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP",serif;
-  font-size:15px;line-height:1.7;text-align:left;letter-spacing:normal}
+  font-size:15px;line-height:1.7;text-align:left;letter-spacing:normal;word-break:auto-phrase}
 .card *{box-sizing:border-box}
 .head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
-.title{margin:0;font-size:17px;font-weight:700;color:#2b2620;text-wrap:balance;word-break:auto-phrase}
+.title{margin:0;font-size:17px;font-weight:700;color:#2b2620;text-wrap:balance}
 .sub{margin:2px 0 0;font-size:12.5px;color:#6b6155}
 .postmark{flex:none;width:44px;height:52px;border:1.5px dashed rgba(43,38,32,.45);border-radius:3px;
   display:flex;align-items:center;justify-content:center;font-size:22px;color:#6b6155}
