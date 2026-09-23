@@ -58,7 +58,7 @@ GROUPS: list[tuple[str, list[tuple]]] = [
 
         ("itch.io", "https://viewsengineer.itch.io/", "viewsengineer.itch.io",
          "英語圏向け。zip を上げて、itch.io の中でそのまま遊べる形にしています。",
-         None, ("公開中 1 作品", "A Hundred Misdeeds / 百の悪行 — 7言語・約30分・フルボイス")),
+         None, ("公開中 2 作品", "A Hundred Misdeeds（7言語） ／ Cabin in the Hollow（10言語）")),
 
         # ふりーむ！はブラウザゲーム投稿が RPGツクールMV / ティラノ系に限られ、
         # 「完全オリジナルプログラムは未対応」と明記されているため出せない。
