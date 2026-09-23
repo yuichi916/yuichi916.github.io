@@ -108,11 +108,11 @@
 
 ## 5. 部品の構成
 
-- `assets/feel/feel-core.js` — DOM に触らない純関数。スタンプ定義、GoatCounter のパス組み立て、カウンタ値の読み取り、並べ替え、文言の選択。ブラウザでは `window.FeelCore`、Node では `module.exports`
-- `assets/feel/feel.js` — DOM と通信。スタイルは JS から 1 回だけ差し込む（クラスは `.feel-` で始める）。
+- `assets/feel/feel-core.js` — DOM に触らない純関数。スタンプ定義、GoatCounter のパス組み立て、カウンタ値の読み取り、並べ替え、文言の選択。ES module（`export`）で、`feel.js` と Node のテストが `import` する
+- `assets/feel/feel.js` — DOM と通信（ES module）。はがきとボードは Shadow DOM の中に描き、各ページの CSS から切り離す。
   `[data-feel]` を自動で組み立てる: `<div data-feel="hyaku" data-feel-set="story" data-feel-mode="full"></div>`。
-  JS が後から描く画面（ehon の奥付、sudoku・shogi-puyo の結果）向けに `window.Feel.mount(el, opts)` も出す
-- 各ページの変更は「読み込み 1 行＋置き場所 1 行」を基本にする。`<script src="/assets/feel/feel-core.js" defer>` と `feel.js`
+  JS が後から描く画面（ehon の奥付）向けに `window.Feel.mount(el, opts)` も出す。sudoku・shogi-puyo の結果画面は HTML に最初からあって隠れているだけなので、置き場所を書いておけば表に出たときに描かれる
+- 各ページの変更は「読み込み 1 行＋置き場所 1 行」を基本にする。読み込みは `<script type="module" src="/assets/feel/feel.js"></script>` だけ（`feel-core.js` は `feel.js` が読む）
 - GoatCounter の `count.js` が遅れて読み込まれる場合に備え、押下は最大 5 秒キューに溜めてから送る
 
 ## 6. 安全・壊れたとき
