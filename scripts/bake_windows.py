@@ -50,6 +50,21 @@ GROUPS: list[tuple[str, list[tuple]]] = [
         ("夢現", "https://freegame-mugen.jp/adventure/game_15309.html", "/adventure/game_15309",
          "フリーゲーム夢現。アドベンチャー・ノベル枠に 1 本置いています。",
          None, ("投稿作品", "百の悪行 — 魔王の犯行記録を、勇者が検証する約30分の短編")),
+
+        # ── 投稿したら URL を入れてコメントを外す。投稿文は docs/submit_0*.md ──
+        # 投稿順: ProtoPedia → itch.io → ふりーむ！
+        #
+        # ("ProtoPedia", "https://protopedia.net/prototyper/<ID>", "/prototyper/<ID>",
+        #  "個人開発の作品を記事として置く場所。道具と研究はここに出しています。",
+        #  None, ("公開中 4 作品", "AI能力アトラス ／ 音楽の宇宙 ／ ひとり歓迎マップ ／ lingo")),
+        #
+        # ("itch.io", "https://<USER>.itch.io/", "/<USER>",
+        #  "英語圏向け。ブラウザでそのまま遊べる形で置いています。",
+        #  None, ("公開中 3 作品", "The Outside of the Answer ／ A Hundred Misdeeds ／ Kototsugi")),
+        #
+        # ("ふりーむ！", "https://www.freem.ne.jp/brand/<ID>", "/brand/<ID>",
+        #  "国内最大級のフリーゲーム投稿サイト。ノベルゲーム枠に置いています。",
+        #  None, ("公開中 2 作品", "正解の外側 ／ 百の悪行")),
     ]),
     ("コード — 作ったもの", [
         ("GitHub", "https://github.com/yuichi916", "@yuichi916",
