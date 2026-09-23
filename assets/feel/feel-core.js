@@ -30,7 +30,7 @@ export const SETS = {
   ],
   note: [
     { key: 'yakudatta', emoji: '💡', ja: '役に立った', en: 'Useful' },
-    { key: 'tameshite', emoji: '🛠', ja: '試してみる', en: "I'll try it" },
+    { key: 'tameshite', emoji: '🛠️', ja: '試してみる', en: "I'll try it" }, // 🛠 は既定が白黒の文字表示
     { key: 'motto', emoji: '❓', ja: 'もっと知りたい', en: 'Want to know more' },
   ],
   tool: [

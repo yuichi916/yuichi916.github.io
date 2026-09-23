@@ -21,6 +21,15 @@ check('SETS: 各組は 3〜4 個・キー重複なし・文言がそろう', () 
   }
 });
 
+check('SETS: 絵文字はカラーで出る（既定が文字表示の字には U+FE0F を付ける）', () => {
+  for (const [name, stamps] of Object.entries(F.SETS)) {
+    for (const s of stamps) {
+      const color = /^\p{Emoji_Presentation}$/u.test(s.emoji) || /️$/.test(s.emoji);
+      if (!color) throw new Error(`${name}/${s.key}: ${s.emoji} は白黒の文字で出る`);
+    }
+  }
+});
+
 check('TEXT: 日本語と英語でキーがそろう', () => {
   deq(Object.keys(F.TEXT.ja).sort(), Object.keys(F.TEXT.en).sort());
 });
