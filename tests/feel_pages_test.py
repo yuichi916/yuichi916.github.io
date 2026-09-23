@@ -30,6 +30,10 @@ GC_STUB = "window.goatcounter = { count: () => {} };"
 # (名前, URL, はがきの場所, 描く前に実行する JS, 期待する見出し)。Task 4〜6 で行を足す
 PAGES = [
     ("index", "/index.html?nofx=1", '[data-feel="site"]', None, "このサイトに、ひとこと"),
+    ("hyaku", "/hyaku.html", '[data-feel="hyaku"]', None, "この物語に、気持ちを置いていく"),
+    ("hyaku-en", "/hyaku.html?lang=en", '[data-feel="hyaku"]', None, "Leave a feeling for this story"),
+    ("seikai", "/seikai.html", '[data-feel="seikai"]', None, "この物語に、気持ちを置いていく"),
+    ("kototsugi", "/kototsugi/index.html", '[data-feel="kototsugi"]', None, "この物語に、気持ちを置いていく"),
 ]
 
 # 隠れた親をすべて表に出してから、はがきを画面の中央に持ってくる
@@ -52,7 +56,14 @@ MEASURE = """(sel) => {
   if (!card) return null;
   const r = card.getBoundingClientRect();
   const s = getComputedStyle(root.querySelector('.stamp'));
-  return { left: r.left, right: r.right, width: r.width, vw: innerWidth,
+  // はがきの中の 5 点に、ページ側の別の要素（影・飾りの層など）がかぶさっていないか
+  const pts = [[r.left + 24, r.top + 16], [r.left + r.width / 2, r.top + 16], [r.right - 24, r.top + 16],
+               [r.left + r.width / 2, r.top + r.height / 2], [r.left + 24, r.bottom - 16]];
+  const covered = pts.filter(([x, y]) => x >= 0 && y >= 0 && x < innerWidth && y < innerHeight)
+    .map(([x, y]) => document.elementFromPoint(x, y))
+    .filter((e) => e && e !== host)
+    .map((e) => (e.id ? '#' + e.id : e.tagName.toLowerCase() + (e.className ? '.' + String(e.className).split(' ')[0] : '')));
+  return { left: r.left, right: r.right, width: r.width, vw: innerWidth, covered,
            ls: s.letterSpacing, fs: s.fontSize, title: root.querySelector('.title').textContent };
 }"""
 
@@ -62,10 +73,21 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+class QuietServer(socketserver.ThreadingTCPServer):
+    """ページを閉じると、ブラウザが読み込み途中の画像や音声の接続を切る。その切断は失敗ではないので黙る。"""
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], ConnectionError):
+            return
+        super().handle_error(request, client_address)
+
+
 def serve():
     handler = functools.partial(QuietHandler, directory=str(ROOT))
-    socketserver.TCPServer.allow_reuse_address = True
-    httpd = socketserver.TCPServer(("127.0.0.1", PORT), handler)
+    QuietServer.allow_reuse_address = True
+    httpd = QuietServer(("127.0.0.1", PORT), handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd
 
@@ -90,7 +112,15 @@ def extra_index(page, vw):
 
 
 # 名前ごとの追加の検査。Task 4 で hyaku を足す
-EXTRA = {"index": extra_index}
+def extra_hyaku(page, vw):
+    # 読了画面は画面より高くなる。末尾の「表紙へもどる」までスクロールで届くこと
+    bottom = page.evaluate("""() => { const e = document.getElementById('ending');
+        e.scrollTop = e.scrollHeight; return document.getElementById('btnBack').getBoundingClientRect().bottom; }""")
+    height = page.evaluate("innerHeight")
+    assert bottom <= height + 1, f"表紙へもどる に届かない: {bottom} > {height}"
+
+
+EXTRA = {"index": extra_index, "hyaku": extra_hyaku}
 
 
 def check_page(browser, name, url, sel, prep, heading, vw):
@@ -113,11 +143,13 @@ def check_page(browser, name, url, sel, prep, heading, vw):
         assert m, "はがきが描かれていない"
         assert m["left"] >= -1 and m["right"] <= m["vw"] + 1, f"横にはみ出している: {m}"
         assert m["width"] >= 200, f"つぶれている: {m}"
+        assert not m["covered"], f"はがきの上に別の要素が重なっている: {m['covered']}"
         assert m["ls"] in ("normal", "0px"), f"字間が漏れている: {m['ls']}"
         assert m["fs"] == "14px", f"文字サイズが漏れている: {m['fs']}"
         if heading:
             assert m["title"] == heading, f"見出し: {m['title']!r}"
-        page.locator(sel).screenshot(path=str(SHOTS / f"{name}_{vw}.png"))
+        # 読了画面のフェードなどの途中で撮らないよう、アニメーションは終わった状態で撮る
+        page.locator(sel).screenshot(path=str(SHOTS / f"{name}_{vw}.png"), animations="disabled")
         if name in EXTRA:
             EXTRA[name](page, vw)
     finally:

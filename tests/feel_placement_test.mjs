@@ -17,6 +17,9 @@ function ok(cond, msg) { if (!cond) throw new Error(msg); }
 // [ファイル, 作品ID, 組, 小型版か]。Task 4〜6 で行を足す
 const EXPECTED = [
   ['index.html', 'site', 'site', false],
+  ['hyaku.html', 'hyaku', 'story', false],
+  ['seikai.html', 'seikai', 'story', false],
+  ['kototsugi/index.html', 'kototsugi', 'story', false],
 ];
 
 // 置いてはいけないページ（設計書 4 章）
