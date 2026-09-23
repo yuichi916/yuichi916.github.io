@@ -23,7 +23,21 @@ const EXPECTED = [
   ['sudoku.html', 'sudoku', 'game', true],
   ['shogi-puyo.html', 'shogi-puyo', 'game', true],
   ['ehon.html', 'ehon', 'ehon', true],
+  ['ai-map.html', 'ai-map', 'tool', false],
+  ['salon.html', 'salon', 'tool', false],
+  ['ai-english.html', 'ai-english', 'tool', false],
+  ['toeic.html', 'toeic', 'tool', false],
+  ['novel-bench.html', 'novel-bench', 'tool', false],
+  ['hitoritabi/index.html', 'hitoritabi', 'tool', false],
 ];
+
+// 研究ノートは全部（index.html を除く）。新しいノートは scripts/feel_place.py を再実行すれば通る
+for (const dir of ['method/', 'method/en/']) {
+  for (const f of readdirSync(new URL(dir, ROOT))) {
+    if (!f.endsWith('.html') || f === 'index.html') continue;
+    EXPECTED.push([dir + f, dir + f.slice(0, -'.html'.length), 'note', false]);
+  }
+}
 
 // 置いてはいけないページ（設計書 4 章）
 const NEVER = ['cabin.html', 'niwa.html', 'hitori.html', 'stopwatch.html', 'koe.html', 'journal.html',

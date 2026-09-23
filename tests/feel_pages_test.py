@@ -39,6 +39,16 @@ PAGES = [
      "document.getElementById('startCard').hidden = true", "遊んでみて、どうでした？"),
     ("ehon", "/ehon.html", '[data-feel="ehon"]',
      "typeof renderColophon === 'function' && renderColophon()", "この絵本、どうでした？"),
+    ("ai-map", "/ai-map.html", '[data-feel="ai-map"]', None, "ここまで見て、どうでした？"),
+    ("salon", "/salon.html", '[data-feel="salon"]', None, "ここまで見て、どうでした？"),
+    ("ai-english", "/ai-english.html", '[data-feel="ai-english"]', None, "ここまで見て、どうでした？"),
+    ("toeic", "/toeic.html", '[data-feel="toeic"]', None, "ここまで見て、どうでした？"),
+    ("novel-bench", "/novel-bench.html", '[data-feel="novel-bench"]', None, "ここまで見て、どうでした？"),
+    ("hitoritabi", "/hitoritabi/index.html", '[data-feel="hitoritabi"]', None, "ここまで見て、どうでした？"),
+    ("method-ja", "/method/kansoku-suru-monogatari.html",
+     '[data-feel="method/kansoku-suru-monogatari"]', None, "このノート、どうでした？"),
+    ("method-en", "/method/en/stories-that-watch-you.html",
+     '[data-feel="method/en/stories-that-watch-you"]', None, "How was this note?"),
 ]
 
 # 隠れた親をすべて表に出してから、はがきを画面の中央に持ってくる
