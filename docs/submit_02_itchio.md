@@ -1,3 +1,6 @@
+> **訂正（2026-09-23）**: 当初この文書は『正解の外側』を「7言語対応」と書いていたが、実測の結果 seikai.html に i18n は無く**日本語のみ**だった。
+> 多言語なのは『百の悪行』(7言語)・『森の小屋』(10言語)・『ストップウォッチ』(10言語)・『とびだす絵本』(2言語)。
+
 # itch.io 投稿用テキスト（3作品・英語＋日本語）
 
 投稿先: https://itch.io/
@@ -16,7 +19,8 @@
 - **Links**: Homepage → https://yuichi916.github.io/
 
 itch.io は英語圏が主戦場なので、**英語を主、日本語を従**にする。
-このサイトは 7 言語に対応しているので、そこを前面に出すのが一番効く。
+多言語なのは『百の悪行』(7言語) と『森の小屋』(10言語) だけ。
+『正解の外側』『ことつぎの星』は**日本語のみ**なので、そこを売りにしない。
 
 ---
 
@@ -29,7 +33,7 @@ The Outside of the Answer / 正解の外側
 
 **Short description（ストア一覧に出る 1 行）**
 ```
-A boy who can see the correct path meets the one girl it never shows him. 15 episodes, fully voiced, free in your browser — in 7 languages.
+A boy who can see the correct path meets the one girl it never shows him. 15 episodes, fully voiced, free in your browser.
 ```
 
 **Description（本文）**
@@ -47,7 +51,7 @@ Then he met a silver-haired girl with no memory — the only person his golden l
 - Branching endings
 - 360° rendered backgrounds
 - Runs on phones and desktops
-- 7 languages: English / 日本語 / 中文(简/繁) / 한국어 / Español / Français / Deutsch
+- Japanese text with English summary（本編は日本語のみ）
 
 ■ How it was made
 Built by one person with AI as a partner: the script, the voices, the 360° backgrounds (Blender), and the engine itself — a single HTML file plus assets, no server. The full technical write-up is here:
@@ -59,7 +63,7 @@ https://yuichi916.github.io/seikai-tech-guide.html
 
 五一七——それが、十六歳の少年カイの名前です。目的を決めると、そこへ至る「正解」の道筋が金色の線になって視えてしまう。ある日カイは、記憶のない銀髪の少女と出会います。彼女だけが、カイの道筋に映らなかった。
 
-全15話・フルボイス・分岐エンド。ブラウザだけで、無料で最後まで読めます。7言語対応。
+全15話・フルボイス・分岐エンド。ブラウザだけで、無料で最後まで読めます。本編は日本語のみです。
 ```
 
 **Tags**
