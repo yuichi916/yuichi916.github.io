@@ -34,6 +34,11 @@ PAGES = [
     ("hyaku-en", "/hyaku.html?lang=en", '[data-feel="hyaku"]', None, "Leave a feeling for this story"),
     ("seikai", "/seikai.html", '[data-feel="seikai"]', None, "この物語に、気持ちを置いていく"),
     ("kototsugi", "/kototsugi/index.html", '[data-feel="kototsugi"]', None, "この物語に、気持ちを置いていく"),
+    ("sudoku", "/sudoku.html", '[data-feel="sudoku"]', None, "遊んでみて、どうでした？"),
+    ("shogi-puyo", "/shogi-puyo.html", '[data-feel="shogi-puyo"]',
+     "document.getElementById('startCard').hidden = true", "遊んでみて、どうでした？"),
+    ("ehon", "/ehon.html", '[data-feel="ehon"]',
+     "typeof renderColophon === 'function' && renderColophon()", "この絵本、どうでした？"),
 ]
 
 # 隠れた親をすべて表に出してから、はがきを画面の中央に持ってくる
@@ -138,11 +143,13 @@ def check_page(browser, name, url, sel, prep, heading, vw):
             "(sel) => { const h = document.querySelector(sel);"
             " return !!(h && h.shadowRoot && h.shadowRoot.querySelector('.card')); }",
             arg=sel, timeout=10000)
+        # 描かれる前の空の枠で中央に寄せたので、背が伸びたはがきを改めて中央に寄せてから測る
+        page.evaluate("(sel) => document.querySelector(sel).scrollIntoView({ block: 'center' })", sel)
         page.wait_for_timeout(400)
         m = page.evaluate(MEASURE, sel)
         assert m, "はがきが描かれていない"
         assert m["left"] >= -1 and m["right"] <= m["vw"] + 1, f"横にはみ出している: {m}"
-        assert m["width"] >= 200, f"つぶれている: {m}"
+        assert m["width"] >= 220, f"つぶれている: {m}"
         assert not m["covered"], f"はがきの上に別の要素が重なっている: {m['covered']}"
         assert m["ls"] in ("normal", "0px"), f"字間が漏れている: {m['ls']}"
         assert m["fs"] == "14px", f"文字サイズが漏れている: {m['fs']}"

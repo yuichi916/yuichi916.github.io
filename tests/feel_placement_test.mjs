@@ -20,6 +20,9 @@ const EXPECTED = [
   ['hyaku.html', 'hyaku', 'story', false],
   ['seikai.html', 'seikai', 'story', false],
   ['kototsugi/index.html', 'kototsugi', 'story', false],
+  ['sudoku.html', 'sudoku', 'game', true],
+  ['shogi-puyo.html', 'shogi-puyo', 'game', true],
+  ['ehon.html', 'ehon', 'ehon', true],
 ];
 
 // 置いてはいけないページ（設計書 4 章）
