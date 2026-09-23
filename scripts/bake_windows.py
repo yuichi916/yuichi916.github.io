@@ -56,14 +56,13 @@ GROUPS: list[tuple[str, list[tuple]]] = [
          "個人開発の作品を記事として置く場所。道具と研究はここに出しています。",
          None, ("公開中 4 作品", "AI能力アトラス ／ 音楽の宇宙 ／ ひとり歓迎マップ ／ lingo")),
 
-        # ── 投稿したら URL を入れてコメントを外す。投稿文は docs/submit_0*.md ──
-        # ("itch.io", "https://<USER>.itch.io/", "/<USER>",
-        #  "英語圏向け。ブラウザでそのまま遊べる形で置いています。",
-        #  None, ("公開中 3 作品", "The Outside of the Answer ／ A Hundred Misdeeds ／ Kototsugi")),
-        #
-        # ("ふりーむ！", "https://www.freem.ne.jp/brand/<ID>", "/brand/<ID>",
-        #  "国内最大級のフリーゲーム投稿サイト。ノベルゲーム枠に置いています。",
-        #  None, ("公開中 2 作品", "正解の外側 ／ 百の悪行")),
+        ("itch.io", "https://viewsengineer.itch.io/", "viewsengineer.itch.io",
+         "英語圏向け。zip を上げて、itch.io の中でそのまま遊べる形にしています。",
+         None, ("公開中 1 作品", "A Hundred Misdeeds / 百の悪行 — 7言語・約30分・フルボイス")),
+
+        # ふりーむ！はブラウザゲーム投稿が RPGツクールMV / ティラノ系に限られ、
+        # 「完全オリジナルプログラムは未対応」と明記されているため出せない。
+        # 経緯と投稿文は docs/submit_03_freem.md を参照。
     ]),
     ("コード — 作ったもの", [
         ("GitHub", "https://github.com/yuichi916", "@yuichi916",
