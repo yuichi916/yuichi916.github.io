@@ -17,10 +17,22 @@
 </script>
 <script type="importmap">
 { "imports": {
-  "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 }}
 </script>
+<!-- 3D の部品と最初に要る素材は、HTML を読みながら並行して取りにいく -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/DRACOLoader.js" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js" crossorigin>
+<link rel="preload" href="_ehon_assets/ehon/book.glb" as="fetch" crossorigin>
+<link rel="preload" href="_ehon_assets/ehon/pages/page_toc_v1.webp" as="fetch" crossorigin>
+<link rel="preload" href="_ehon_assets/ehon/pages/page_cabin_v1.webp" as="fetch" crossorigin>
+<link rel="preload" href="_ehon_assets/ehon/cabin_diorama.glb" as="fetch" crossorigin>
 <style>
   :root{--ink:#3a2f25}
   *{box-sizing:border-box;margin:0}
@@ -57,8 +69,9 @@
   /* せり上がり後: 本の面より高く(-16%)・少し大きく(1.14)立ち上がる */
   #world-a.popped .world-pop .layer{opacity:1;transform:translate(-50%,-6%) scale(1.12)}
 
-  /* 方式B: Three.js canvas */
-  #world-b canvas{width:100%;height:100%;display:block}
+  /* 方式B: Three.js canvas (本と最初の見開きがそろってから、ふわっと見せる) */
+  #world-b canvas{width:100%;height:100%;display:block;opacity:0;transition:opacity .6s ease}
+  #world-b canvas.ready{opacity:1}
 
   /* 方式A 3D本コンテナ */
   .book-base-3d {
@@ -84,8 +97,8 @@
   #mode-toggle button.sel{background:#7a6450;color:#fdf8ee}
   #mode-toggle button:disabled{opacity:.4;cursor:not-allowed}
   #hint{position:fixed;left:0;right:0;bottom:64px;text-align:center;color:#fdf8ee;
-    text-shadow:0 1px 3px rgba(0,0,0,.55);opacity:.92;font-size:15px;pointer-events:none}
-  #hint.gone{opacity:0;transition:opacity .5s}
+    text-shadow:0 1px 3px rgba(0,0,0,.55);opacity:.92;font-size:15px;pointer-events:none;transition:opacity .5s}
+  #hint.gone,#hint.waiting{opacity:0}
   .status-msg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;
     color:#fdf8ee;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,.7);padding:0 24px;line-height:1.6}
 
@@ -322,8 +335,8 @@
 
   /* ---- ページオーバーレイ (右頁: story + ボタン + JP バッジ) ---- */
   #page-overlay{position:absolute;right:4%;bottom:18%;width:min(34vw,320px);z-index:40;
-    opacity:0;pointer-events:none;transition:opacity .5s .4s;text-align:left}
-  #page-overlay.show{opacity:1;pointer-events:auto}
+    opacity:0;pointer-events:none;transition:opacity .14s ease;text-align:left}
+  #page-overlay.show{opacity:1;pointer-events:auto;transition:opacity .45s ease .12s}
   .po-story{font-size:.92rem;line-height:1.9;color:#3a2f22;background:rgba(255,250,238,.82);
     border-radius:10px;padding:12px 14px;box-shadow:0 2px 12px rgba(60,40,10,.18)}
   .po-jp-badge{display:inline-block;margin-top:8px;font-size:.7rem;padding:2px 8px;border-radius:99px;
@@ -336,6 +349,10 @@
   .toc-wrap{position:absolute;inset:6% 8% 10%;overflow:auto;z-index:30;
     background:rgba(252,246,232,.94);border-radius:14px;padding:22px 26px;
     box-shadow:0 8px 40px rgba(60,40,10,.3)}
+  /* 目次/奥付は、紙が着地するころに浮かび、次の頁へ行くときはすっと消える */
+  .toc-wrap,.colo-wrap{animation:ehonSheetIn .42s cubic-bezier(.2,.8,.2,1) .2s both}
+  .toc-wrap.leaving,.colo-wrap.leaving{opacity:0;transition:opacity .16s ease;animation:none}
+  @keyframes ehonSheetIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
   .toc-title{font-size:1.3rem;margin:0 0 12px;color:#4a3a24;letter-spacing:.12em}
   .toc-ch{margin-bottom:14px}
   .toc-ch-name{font-size:.8rem;color:#8c6d46;letter-spacing:.2em}
@@ -387,12 +404,11 @@
   .zk-close{margin-top:12px;border:none;border-radius:99px;padding:8px 22px;background:#8c6d46;color:#fff;cursor:pointer}
   body.zukan-complete #title-card h1::after{content:' 👑'}
   /* ---- 添える操作ガイド: ページ遷移を読める体験へ ---- */
-  #book-compass{position:fixed;top:14px;left:50%;z-index:59;display:flex;align-items:center;gap:10px;max-width:min(560px,calc(100vw - 154px));transform:translateX(-50%);padding:7px 9px 7px 13px;border:1px solid rgba(236,217,171,.55);border-radius:999px;background:rgba(46,37,26,.72);box-shadow:0 8px 28px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,250,228,.15);backdrop-filter:blur(12px);color:#fff5dc;font-family:"Hiragino Mincho ProN","Yu Mincho",serif}
+  #book-compass{position:fixed;top:14px;left:50%;z-index:59;display:flex;align-items:center;gap:10px;max-width:min(560px,calc(100vw - 154px));transform:translateX(-50%);padding:7px 9px 7px 13px;border:1px solid rgba(236,217,171,.55);border-radius:999px;background:rgba(46,37,26,.86);box-shadow:0 8px 28px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,250,228,.15);color:#fff5dc;font-family:"Hiragino Mincho ProN","Yu Mincho",serif}
   .bc-copy{min-width:0;line-height:1.15}.bc-kicker{display:block;color:#dfc486;font:9px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase}.bc-title{display:block;max-width:270px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:700}.bc-count{flex:0 0 auto;color:#dfc486;font:11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}.bc-motion{flex:0 0 auto;border:1px solid rgba(236,217,171,.38);border-radius:999px;padding:6px 9px;background:rgba(255,247,219,.07);color:#f5e2b7;font:10px/1 "Hiragino Mincho ProN","Yu Mincho",serif;cursor:pointer;transition:background .16s ease,transform .16s ease}.bc-motion:hover,.bc-motion:focus-visible{outline:none;background:rgba(245,208,135,.2)}.bc-motion:active{transform:scale(.96)}.bc-motion[aria-pressed="true"]{background:rgba(245,208,135,.25);border-color:#efd28d}
-  #book-turn-status{position:fixed;left:50%;bottom:74px;z-index:58;max-width:calc(100vw - 40px);transform:translate(-50%,12px);padding:7px 12px;border-radius:999px;background:rgba(45,35,24,.8);color:#f9ecd2;font:11px/1.3 "Hiragino Mincho ProN","Yu Mincho",serif;box-shadow:0 7px 22px rgba(0,0,0,.26);opacity:0;pointer-events:none;transition:opacity .22s ease,transform .22s cubic-bezier(.23,1,.32,1)}#book-turn-status.show{opacity:1;transform:translate(-50%,0)}
-  body.ehon-turning #nav-prev,body.ehon-turning #nav-next{pointer-events:none;filter:saturate(.65);opacity:.5}body.ehon-turning #world-b canvas{cursor:wait}.quiet-turns #world-b canvas{filter:saturate(.92)}
-  @media(max-width:640px){#book-compass{top:11px;max-width:calc(100vw - 112px);gap:7px;padding:6px 7px 6px 10px}.bc-title{max-width:116px;font-size:11px}.bc-kicker{font-size:8px}.bc-count{font-size:10px}.bc-motion{padding:6px 7px;font-size:9px}#book-turn-status{bottom:58px;font-size:10px}}
-  @media(prefers-reduced-motion:reduce){#book-turn-status{transition-duration:.01ms!important}}
+  /* 頁名の読み上げ用 (めくりそのものが合図なので、画面には出さない) */
+  #book-turn-status{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  @media(max-width:640px){#book-compass{top:11px;max-width:calc(100vw - 112px);gap:7px;padding:6px 7px 6px 10px}.bc-title{max-width:116px;font-size:11px}.bc-kicker{font-size:8px}.bc-count{font-size:10px}.bc-motion{padding:6px 7px;font-size:9px}}
 </style><script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -411,7 +427,7 @@
 <button id="lang-toggle" class="nav-round" aria-label="Language"></button>
 <button id="bgm-toggle" class="nav-round" aria-label="音楽">♪</button>
 <audio id="bgm" loop preload="none" src="assets/bgm/gensou-silfineth.mp3"></audio>
-<div id="hint">本をひらく</div>
+<div id="hint" class="waiting">本をひらく</div>
 <button id="nav-prev" aria-label="前の世界">◀</button>
 <button id="nav-next" aria-label="次の世界">▶</button>
 <div id="world-dots"></div>
@@ -1126,9 +1142,29 @@ function updateModeToggle(page) {
   tg.style.display = (page.modes.includes('a') && EHON.state.open) ? '' : 'none';
 }
 
+/* ---- 現在地 (上部のしおり) とスクリーンリーダー向けの頁名 ---- */
+function updateCompass() {
+  const i = EHON.state.currentPageIdx;
+  const nameOf = (k) => PAGES[k] ? tt(PAGES[k].title) : '';
+  document.getElementById('book-chapter-title').textContent = nameOf(i) || '本をひらく';
+  document.getElementById('book-chapter-count').textContent =
+    String(i + 1).padStart(2, '0') + ' / ' + String(PAGES.length).padStart(2, '0');
+  const prev = document.getElementById('nav-prev'), next = document.getElementById('nav-next');
+  prev.setAttribute('aria-label', i > 0 ? '前の世界：' + nameOf(i - 1) : '前の世界はありません');
+  next.setAttribute('aria-label', i < PAGES.length - 1 ? '次の世界：' + nameOf(i + 1) : '次の世界はありません');
+}
+function announcePage() {
+  document.getElementById('book-turn-status').textContent = tt(PAGES[EHON.state.currentPageIdx].title);
+}
+
 /* ---- 共通シェル ---- */
 const EHON = {
   state: { open: false, mode: 'b', booted: { a: false, b: false }, currentPageIdx: 1, immerse: false },
+  _turning: false,
+  _queued: null,
+  _fromQueue: false,
+  /* めくり中に押された先 (予約があればそれ) を基準に、次/前を決める */
+  targetIdx() { return this._queued !== null ? this._queued : this.state.currentPageIdx; },
   open() {
     if (this.state.open) return;
     this.state.open = true;
@@ -1145,18 +1181,38 @@ const EHON = {
     updateNavButtons();
     updateModeToggle(PAGES[this.state.currentPageIdx]);
     refreshAllText();  /* 開いた瞬間に現在頁のタイトル/オーバーレイへ更新 (HTML初期値のままにしない) */
+    updateCompass();
     if (this.state.mode === 'a') {
       document.getElementById('world-a').classList.remove('closed');
       document.getElementById('world-a').classList.add('popped');
     }
-    if (this.state.mode === 'b') { if (window.openBookThenPop) window.openBookThenPop(); else if (window.popWorldB) window.popWorldB(); }
+    /* 紙が1枚めくれて、その着地に合わせて世界が立ち上がる */
+    if (this.state.mode === 'b' && window.openBookThenPop) {
+      this._turning = true;
+      window.openBookThenPop(() => this._landed());
+    }
   },
-  setMode(m) {
+  /* 紙が着地した: 予約があれば、そのまますぐ次をめくる */
+  _landed() {
+    this._turning = false;
+    announcePage();
+    const q = this._queued;
+    this._queued = null;
+    if (q !== null && q !== this.state.currentPageIdx) {
+      this._fromQueue = true;
+      this.switchPage(q);
+      this._fromQueue = false;
+    }
+  },
+  _applyMode(m) {
     this.state.mode = m;
     document.getElementById('btn-a').classList.toggle('sel', m === 'a');
     document.getElementById('btn-b').classList.toggle('sel', m === 'b');
     document.getElementById('world-a').classList.toggle('active', m === 'a');
     document.getElementById('world-b').classList.toggle('active', m === 'b');
+  },
+  setMode(m) {
+    this._applyMode(m);
     if (m === 'a') {
       if (!this.state.booted.a) { this.state.booted.a = true; window.bootWorldA && window.bootWorldA(); }
       if (this.state.open) {
@@ -1171,10 +1227,11 @@ const EHON = {
   },
   switchPage(newIdx) {
     if (newIdx < 0 || newIdx >= PAGES.length) return;
+    if (!this.state.open) { this.open(); return; }   /* 閉じた本は、まず開く */
+    if (this._turning) { this._queued = newIdx; return; }
     if (newIdx === this.state.currentPageIdx) return;
     const prevIdx = this.state.currentPageIdx;
     this.state.currentPageIdx = newIdx;
-    const page = PAGES[newIdx];
 
     const self = this;
     function _doPageSwap(idx) {
@@ -1182,11 +1239,15 @@ const EHON = {
       document.querySelector('#title-card h1').textContent = tt(pg.title) + ' — ' + tt(pg.sub);
       renderPageOverlay(pg);
       updateModeToggle(pg);
-      if (pg.type === 'toc') { renderToc(); return; }
-      if (pg.type === 'colophon') { renderColophon(); return; }
-      const mode = (pg.modes.includes(self.state.mode)) ? self.state.mode : pg.modes[0];
-      self.state.mode = mode;
-      if (mode === 'a') {
+      /* 前の頁の目次/奥付を片づける (紙の裏に隠れている間に) */
+      document.getElementById('world-b').querySelectorAll('.toc-wrap,.colo-wrap,.status-msg').forEach(el => el.remove());
+      const sheet = pg.type === 'toc' || pg.type === 'colophon';
+      const mode = (self.state.mode === 'a' && pg.modes.includes('a')) ? 'a' : 'b';
+      const cameFromA = self.state.mode === 'a' && mode === 'b';
+      if (mode !== self.state.mode) self._applyMode(mode);
+      if (pg.type === 'toc') renderToc();
+      if (pg.type === 'colophon') renderColophon();
+      if (mode === 'a' && !sheet) {
         self.state.booted.a = false;
         window.bootWorldA && window.bootWorldA();
         const wa = document.getElementById('world-a');
@@ -1195,27 +1256,30 @@ const EHON = {
         wa.classList.add('page-fade');
         wa.addEventListener('animationend', () => wa.classList.remove('page-fade'), { once: true });
       }
-      if (mode === 'b') {
-        self.state.booted.b = false;
-        window.bootWorldB && window.bootWorldB();
-        if (self.state.open && window.popWorldB) setTimeout(() => window.popWorldB(), 200);
-      }
+      /* 水彩モードからは紙をめくらずに来るので、3Dの頁と世界をそろえる */
+      if (cameFromA && window.syncPageB) window.syncPageB(idx);
     }
 
-    /* 3D フリップ or 直接スワップ */
-    const dir = newIdx > prevIdx ? 'next' : 'prev';
-    if (window.flipPageTransition) {
-      window.flipPageTransition(prevIdx, newIdx, dir, _doPageSwap);
-    } else {
-      _doPageSwap(newIdx);
-    }
+    /* 紙が持ち上がる間に、前の頁の文字と目次をそっと消す */
+    const ov = document.getElementById('page-overlay');
+    if (ov) ov.classList.remove('show');
+    document.getElementById('world-b').querySelectorAll('.toc-wrap,.colo-wrap').forEach(el => el.classList.add('leaving'));
 
-    /* ドット更新 */
+    /* ドット・ナビボタン・しおりは押した瞬間に更新 */
     document.querySelectorAll('#world-dots .dot').forEach((d, i) =>
       d.classList.toggle('active', i === newIdx));
-
-    /* ナビボタン状態更新 */
     updateNavButtons();
+    updateCompass();
+
+    /* 3D でめくる (水彩モードでは直接差し替え) */
+    const dir = newIdx > prevIdx ? 'next' : 'prev';
+    this._turning = true;
+    if (this.state.mode === 'b' && window.flipPageTransition) {
+      window.flipPageTransition(prevIdx, newIdx, dir, _doPageSwap, () => self._landed());
+    } else {
+      _doPageSwap(newIdx);
+      this._landed();
+    }
   },
   enterWorld() {
     if (this.state.immerse) return;
@@ -1255,8 +1319,8 @@ window.EHON = EHON;
 
 document.getElementById('btn-a').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('a'); });
 document.getElementById('btn-b').addEventListener('click', e => { e.stopPropagation(); EHON.setMode('b'); });
-document.getElementById('nav-prev').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(EHON.state.currentPageIdx - 1); });
-document.getElementById('nav-next').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(EHON.state.currentPageIdx + 1); });
+document.getElementById('nav-prev').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(EHON.targetIdx() - 1); });
+document.getElementById('nav-next').addEventListener('click', e => { e.stopPropagation(); EHON.switchPage(EHON.targetIdx() + 1); });
 /* ---- BGM: 幻想世界シルフィネス (Ether) ---- */
 function startBGM() {
   const a = document.getElementById('bgm');
@@ -1282,9 +1346,28 @@ document.documentElement.lang = (ehonLang() === 'jp') ? 'ja' : 'en';
 
 /* キーボードナビ */
 window.addEventListener('keydown', e => {
-  if (e.key === 'ArrowLeft') EHON.switchPage(EHON.state.currentPageIdx - 1);
-  if (e.key === 'ArrowRight') EHON.switchPage(EHON.state.currentPageIdx + 1);
+  if (e.key === 'ArrowLeft') EHON.switchPage(EHON.targetIdx() - 1);
+  if (e.key === 'ArrowRight') EHON.switchPage(EHON.targetIdx() + 1);
 });
+
+/* 静かな動き: OS の「視差効果を減らす」を既定にし、切り替えは覚えておく */
+(function () {
+  const btn = document.getElementById('quiet-motion-toggle');
+  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let saved = null;
+  try { saved = localStorage.getItem('ehon-quiet-motion'); } catch (e) {}
+  const apply = (on) => {
+    document.documentElement.classList.toggle('quiet-turns', on);
+    btn.setAttribute('aria-pressed', String(on));
+    btn.textContent = on ? '通常の動き' : '静かな動き';
+  };
+  apply(saved === '1' || (saved === null && reduced));
+  btn.addEventListener('click', () => {
+    const on = !document.documentElement.classList.contains('quiet-turns');
+    apply(on);
+    try { localStorage.setItem('ehon-quiet-motion', on ? '1' : '0'); } catch (e) {}
+  });
+})();
 
 /* ================================================================
    ミニクエストシステム
@@ -1557,8 +1640,8 @@ window.QuestEngine = QuestEngine;
     const dx = e.changedTouches[0].clientX - _tx;
     _tx = null;
     if (Math.abs(dx) < 50) return;
-    if (dx < 0) EHON.switchPage(EHON.state.currentPageIdx + 1);
-    else EHON.switchPage(EHON.state.currentPageIdx - 1);
+    if (dx < 0) EHON.switchPage(EHON.targetIdx() + 1);
+    else EHON.switchPage(EHON.targetIdx() - 1);
   }, { passive: true });
 })();
 
@@ -1676,6 +1759,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   /* 初期ロード: setMode でクラス切替 + 起動（booted フラグはsetMode内で管理） */
   EHON.setMode(EHON.state.mode);
+  updateCompass();
 
   /* クリア済みドットをマーク */
   QuestEngine.markDotsOnLoad();
@@ -1699,114 +1783,174 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
   } catch (e) { document.getElementById('btn-b').disabled = true; }
 })();
 
-/* ------------------------------------------------------------------ */
-/* 永続3Dビュー: V = { renderer, scene, cam, controls, bookGrp,        */
-/*   bookTopY, host, spreadPlane, spreadTex, spreadCache }              */
-/* ------------------------------------------------------------------ */
-let V = null;
-let _currentAnimalMesh = null;
-let _popB = null;
+/* ================================================================
+   本のステージ
+   紙がめくれる → 世界が立ち上がる、をひとつの時計で動かす。
+   - 世界(ジオラマ)は紙の動きに合わせて畳まれ、紙が降りてくるのに合わせて立ち上がる
+   - 次の頁の世界は先読みし、GPU へ少しずつ転送しておく (めくりの最中に固まらない)
+   ================================================================ */
+/* コマ撮りのテストでだけ window.__ehonClock に時計を差し替える */
+const nowMs = () => (window.__ehonClock ? window.__ehonClock() : performance.now());
+const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+const quietMotion = () => document.documentElement.classList.contains('quiet-turns');
 
-/* ------ helpers ------ */
-function makeGLBLoader() {
-  const draco = new DRACOLoader();
-  draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
-  const ldr = new GLTFLoader();
-  ldr.setDRACOLoader(draco);
-  return ldr;
+/* 動きの設計値 */
+const TURN_MS = 720;          /* 1枚めくる時間 */
+const TURN_FAST_MS = 520;     /* 続けてめくるとき */
+const TURN_QUIET_MS = 300;    /* 静かな動き */
+const FOLD_MS = 260;          /* 前の世界は、紙が持ち上がりきる前に畳み終える */
+const RISE_AT = 0.55;         /* 紙がここまで進んだら、次の世界が立ち上がり始める */
+const SPRING_W = 10.4, SPRING_Z = 0.7;   /* 立ち上がりのばね: 紙の着地直後に約5%行き過ぎて戻る */
+const LEAN = 0.28;            /* 畳まれる/立ち上がるときの傾き (rad) */
+const CURL = 2.1, TWIST = 0.16;          /* めくる紙の反りと、手前の角が先に上がるねじれ */
+const PEEK_EVERY = 4200, PEEK_MS = 1100; /* 開く前: 紙の角がときどき持ち上がって誘う */
+const LEAF_NX = 32, LEAF_NZ = 8;
+
+function springRise(sec) {
+  if (sec <= 0) return 0;
+  const w = SPRING_W, z = SPRING_Z, wd = w * Math.sqrt(1 - z * z), e = Math.exp(-z * w * sec);
+  return 1 - e * (Math.cos(wd * sec) + (z * w / wd) * Math.sin(wd * sec));
+}
+
+/* ------ 読み込み: ローダーは1組だけ作って使い回す (Draco の Worker を増やさない) ------ */
+const draco = new DRACOLoader();
+draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+draco.setWorkerLimit(2);
+draco.preload();
+const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(draco);
+/* ダウンロードと解析を分ける: 先読みでは回線だけ先に使い、解析は動きが収まってから */
+const byteCache = new Map();   /* url -> Promise<ArrayBuffer> */
+function fetchBytes(url) {
+  let p = byteCache.get(url);
+  if (!p) {
+    p = fetch(url, { credentials: 'same-origin' }).then((r) => {
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + url);
+      return r.arrayBuffer();
+    });
+    byteCache.set(url, p);
+    p.catch(() => byteCache.delete(url));
+  }
+  return p;
 }
 function loadGLB(url) {
-  return new Promise((res, rej) => makeGLBLoader().load(url, g => res(g), undefined, e => rej(e)));
+  return fetchBytes(url).then((buf) => {
+    byteCache.delete(url);   /* 解析したら手放す (必要ならブラウザのキャッシュから取り直せる) */
+    return gltfLoader.parseAsync(buf, url.slice(0, url.lastIndexOf('/') + 1));
+  });
 }
-function easeInOut(t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
+/* 本(GLB)の 2048px テクスチャは 1024px で十分: 転送が 1/4、GPU メモリも約 50MB 減る */
+async function shrinkTextures(root, max) {
+  if (typeof createImageBitmap !== 'function') return;
+  await Promise.all(collectTextures(root).map(async (t) => {
+    const img = t.image;
+    if (!img || !(img.width > max || img.height > max)) return;
+    const s = max / Math.max(img.width, img.height);
+    try {
+      const bmp = await createImageBitmap(img, { resizeWidth: Math.round(img.width * s), resizeHeight: Math.round(img.height * s), resizeQuality: 'high', premultiplyAlpha: 'none' });
+      if (typeof img.close === 'function') img.close();
+      t.image = bmp;
+      t.needsUpdate = true;
+    } catch (e) { /* 縮められない環境ではそのまま */ }
+  }));
+}
 
-/* ジオラマの接地影 (ページの上に落ちる柔らかい影 → 「絵から生えている」馴染み) */
-let _shadowTex = null;
-function getShadowTexture() {
-  if (_shadowTex) return _shadowTex;
-  const c = document.createElement('canvas'); c.width = c.height = 256;
-  const g = c.getContext('2d');
-  const rad = g.createRadialGradient(128, 128, 8, 128, 128, 128);
-  rad.addColorStop(0, 'rgba(30,22,12,0.62)');
-  rad.addColorStop(0.55, 'rgba(30,22,12,0.28)');
-  rad.addColorStop(1, 'rgba(30,22,12,0)');
-  g.fillStyle = rad; g.fillRect(0, 0, 256, 256);
-  _shadowTex = new THREE.CanvasTexture(c);
-  _shadowTex.colorSpace = THREE.SRGBColorSpace;
-  return _shadowTex;
-}
+let V = null;          /* 常駐の3Dビュー */
+let curWorld = null;   /* いま頁の上にある世界 */
+let turn = null;       /* 進行中のめくり */
+let pendingOpen = null;
 
-/* ------ spread texture ------ */
-function spreadSlugFromPage(page) {
-  return page.id.replace(/-/g, '');
-}
+/* ------ 紙 ------ */
+const slugOf = (page) => page.id.replace(/-/g, '');
 function spreadUrl(slug) {
   if (slug === 'kototsugi') return './kototsugi/game/assets/bg/night_sea.png';
   if (slug === 'koe') return './assets/koe/bg-gekijo.jpg';
   if (slug === 'hyaku') return './assets/hyaku/img/bg_duel.jpg';
+  if (slug === 'seikai') return './_ehon_assets/ehon/pages/page_darkfantasy_v1.webp';   /* 同じ大聖堂の世界 */
   return './_ehon_assets/ehon/pages/page_' + slug + '_v1.webp';
 }
-function loadSpreadTex(slug) {
-  if (!V) return Promise.resolve(null);
-  if (V.spreadCache.has(slug)) return Promise.resolve(V.spreadCache.get(slug));
-  return new Promise((res) => {
-    new THREE.TextureLoader().load(
-      spreadUrl(slug),
-      (tex) => { tex.colorSpace = THREE.SRGBColorSpace; V.spreadCache.set(slug, tex); res(tex); },
-      undefined,
-      () => res(null)   /* missing texture is non-fatal */
-    );
-  });
+/* 画像が届かない頁でも白い紙にしない */
+let _paperTex = null;
+function paperTex() {
+  if (_paperTex) return _paperTex;
+  const c = document.createElement('canvas'); c.width = 512; c.height = 352;
+  const g = c.getContext('2d');
+  g.fillStyle = '#e9dbbb'; g.fillRect(0, 0, 512, 352);
+  const vig = g.createRadialGradient(256, 176, 70, 256, 176, 330);
+  vig.addColorStop(0, 'rgba(60,40,18,0)'); vig.addColorStop(1, 'rgba(60,40,18,.32)');
+  g.fillStyle = vig; g.fillRect(0, 0, 512, 352);
+  const sp = g.createLinearGradient(226, 0, 286, 0);
+  sp.addColorStop(0, 'rgba(98,74,44,0)'); sp.addColorStop(0.5, 'rgba(98,74,44,.42)'); sp.addColorStop(1, 'rgba(98,74,44,0)');
+  g.fillStyle = sp; g.fillRect(226, 0, 60, 352);
+  _paperTex = new THREE.CanvasTexture(c);
+  _paperTex.colorSpace = THREE.SRGBColorSpace;
+  return _paperTex;
 }
-/* Shared page construction. Both the resting spread and the turning leaf use
-   this same geometry, so the top page continues the actual book rather than
-   becoming a separate floating rectangle. */
-function cropPageTexture(tex, side, mirrored) {
-  if (!tex) return null;
-  const t = tex.clone();
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = THREE.RepeatWrapping;
-  if (mirrored) {
-    t.repeat.set(-0.5, 1);
-    t.offset.set(side === 'left' ? 0.5 : 1, 0);
-  } else {
-    t.repeat.set(0.5, 1);
-    t.offset.set(side === 'left' ? 0 : 0.5, 0);
+const texLoader = new THREE.TextureLoader();
+const spreadCache = new Map();   /* slug -> Promise<Texture> */
+const spreadReady = new Map();   /* slug -> Texture (届いたもの) */
+/* 見開き画像は、メインスレッドを止めないよう裏でデコードし、頁画像と同じ 1024 幅にそろえる
+   (ゲームの背景は 1920 幅あり、そのまま転送すると 80ms 以上固まる) */
+const canBitmap = typeof createImageBitmap === 'function' && !/^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+async function decodeSpread(url) {
+  if (canBitmap) {
+    try {
+      const res = await fetch(url, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const bmp = await createImageBitmap(await res.blob(), { imageOrientation: 'flipY', premultiplyAlpha: 'none', resizeWidth: 1024, resizeQuality: 'high' });
+      const tex = new THREE.Texture(bmp);
+      tex.flipY = false;   /* 上下はデコード時に反転済み */
+      tex.needsUpdate = true;
+      return tex;
+    } catch (err) { if (/HTTP 4/.test(String(err))) throw err; }
   }
-  t.anisotropy = Math.min(4, V.renderer.capabilities.getMaxAnisotropy());
-  t.needsUpdate = true;
-  return t;
+  return texLoader.loadAsync(url);
 }
-function makePaperMaterial(map, side) {
+function loadSpreadTex(slug) {
+  if (spreadCache.has(slug)) return spreadCache.get(slug);
+  const p = decodeSpread(spreadUrl(slug)).then((tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    if (V) {
+      tex.anisotropy = Math.min(4, V.renderer.capabilities.getMaxAnisotropy());
+      uploadQueue.push(tex);   /* めくり始めに転送が走らないよう、届いたら順番に GPU へ */
+    }
+    spreadReady.set(slug, tex);
+    return tex;
+  }, () => { console.warn('ehon: spread missing', slug); spreadReady.set(slug, paperTex()); return paperTex(); });
+  spreadCache.set(slug, p);
+  return p;
+}
+const spreadNow = (slug) => spreadReady.get(slug) || paperTex();
+
+function makePaperMaterial(side) {
   return new THREE.MeshStandardMaterial({
-    map: map || null, side: side || THREE.FrontSide, transparent: true, opacity: 1,
+    map: paperTex(), side: side || THREE.FrontSide,
     color: new THREE.Color(0xfff3dc), roughness: 0.96, metalness: 0,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
   });
 }
+/* 本の頁の形は、読み込んだ本そのものを上から測って写す (背の谷・左右の反り) */
 function makeBookLeafGeometry(side, halfW, depth, baseY) {
   const sign = side === 'left' ? -1 : 1;
-  const geo = new THREE.PlaneGeometry(halfW, depth, 32, 8);
+  const geo = new THREE.PlaneGeometry(halfW, depth, LEAF_NX, LEAF_NZ);
   geo.rotateX(-Math.PI / 2);
   geo.translate(sign * halfW / 2, 0, 0);
-  const pos = geo.attributes.position;
-  /* Sample the imported book itself from above. The resulting page vertices
-     inherit the actual spine valley, left/right slope and subtle page bulge. */
-  const canSample = V && V.book && V.book.isObject3D;
-  const ray = canSample ? new THREE.Raycaster() : null;
-  const down = new THREE.Vector3(0, -1, 0);
-  if (canSample) V.bookGrp.updateMatrixWorld(true);
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  const ray = new THREE.Raycaster(), down = new THREE.Vector3(0, -1, 0), from = new THREE.Vector3();
+  V.bookGrp.updateMatrixWorld(true);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
     let y = -0.02 + 0.05 * Math.pow(Math.abs(x) / halfW, 1.65);
-    if (ray) {
-      ray.set(new THREE.Vector3(x, V.bookTopY + 2.5, z), down);
-      const hit = ray.intersectObject(V.book, true)[0];
-      if (hit) y = hit.point.y - baseY + 0.003;
-    }
+    ray.set(from.set(x, V.bookTopY + 2.5, z), down);
+    const hit = ray.intersectObject(V.book, true)[0];
+    if (hit) y = hit.point.y - baseY + 0.003;
     pos.setY(i, y);
+    uv.setX(i, 0.5 + x / (2 * halfW));   /* 見開き画像の左半分/右半分をそのまま貼る (テクスチャを複製しない) */
   }
-  pos.needsUpdate = true;
+  pos.needsUpdate = true; uv.needsUpdate = true;
   geo.computeVertexNormals();
   return geo;
 }
@@ -1831,65 +1975,530 @@ function makeSpineRibbon(referenceLeaf, depth) {
     polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3
   }));
 }
-function createBookPageRig(width, depth) {
-  const halfW = width / 2;
-  const root = new THREE.Group();
-  root.name = 'book-page-rig';
-  const left = new THREE.Mesh(makeBookLeafGeometry('left', halfW, depth, V.bookTopY), makePaperMaterial(null));
-  const right = new THREE.Mesh(makeBookLeafGeometry('right', halfW, depth, V.bookTopY), makePaperMaterial(null));
-  const crease = makeSpineRibbon(left, depth);
-  left.visible = false; right.visible = false;
-  root.add(left, right, crease);
-  return { root, left, right, crease, halfW, depth };
+/* めくる紙: 表と裏で別の画像を貼るため、位置と法線は共有して UV だけ分ける */
+function makeTurningLeaf(leftGeo, rightGeo, halfW, depth) {
+  const base = new THREE.PlaneGeometry(halfW, depth, LEAF_NX, LEAF_NZ);
+  base.rotateX(-Math.PI / 2);
+  base.translate(halfW / 2, 0, 0);
+  const pos = base.attributes.position;
+  pos.setUsage(THREE.DynamicDrawUsage);
+  base.computeVertexNormals();
+  const normal = base.attributes.normal;
+  normal.setUsage(THREE.DynamicDrawUsage);
+  const idxNext = base.getIndex();
+  const flipped = idxNext.array.slice();
+  for (let i = 0; i < flipped.length; i += 3) { const t = flipped[i + 1]; flipped[i + 1] = flipped[i + 2]; flipped[i + 2] = t; }
+  const idxPrev = new THREE.BufferAttribute(flipped, 1);   /* 左から右へめくるときは鏡像なので面の向きを反転 */
+  const mkGeo = () => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', pos); g.setAttribute('normal', normal);
+    g.setAttribute('uv', base.attributes.uv.clone()); g.setIndex(idxNext);
+    return g;
+  };
+  const geoF = mkGeo(), geoB = mkGeo();
+  const W = LEAF_NX + 1, n = pos.count;
+  const hR = new Float32Array(n), hL = new Float32Array(n), zs = new Float32Array(LEAF_NZ + 1);
+  const rp = rightGeo.attributes.position, lp = leftGeo.attributes.position;
+  for (let j = 0; j <= LEAF_NZ; j++) {
+    zs[j] = pos.getZ(j * W);
+    for (let i = 0; i <= LEAF_NX; i++) {
+      hR[j * W + i] = rp.getY(j * W + i);                 /* 右頁: 背から i 番目 */
+      hL[j * W + i] = lp.getY(j * W + (LEAF_NX - i));     /* 左頁: 背から i 番目 */
+    }
+  }
+  const matF = makePaperMaterial(THREE.FrontSide), matB = makePaperMaterial(THREE.BackSide);
+  matF.polygonOffsetFactor = matF.polygonOffsetUnits = -4;
+  matB.polygonOffsetFactor = matB.polygonOffsetUnits = -4;
+  const front = new THREE.Mesh(geoF, matF), back = new THREE.Mesh(geoB, matB);
+  front.frustumCulled = back.frustumCulled = false;   /* 変形で大きさが変わるため */
+  front.visible = back.visible = false;
+  return { front, back, geoF, geoB, pos, idxNext, idxPrev, hR, hL, zs, halfW, depth,
+           ds: halfW / LEAF_NX, sigma: 1, phi: 0, peek: 0, peekLift: 0, peekTwist: 0 };
 }
-function applySpreadTex(tex) {
-  if (!V) return;
-  V.spreadTex = tex;
-  if (V.spreadPlane) V.spreadPlane.visible = false;
+/* めくる向き (sigma=+1: 右→左, -1: 左→右) と、表裏の画像を決める */
+function prepareLeaf(L, sigma, frontTex, backTex) {
+  L.sigma = sigma;
+  const W = LEAF_NX + 1, uvF = L.geoF.attributes.uv, uvB = L.geoB.attributes.uv;
+  for (let j = 0; j <= LEAF_NZ; j++) {
+    for (let i = 0; i <= LEAF_NX; i++) {
+      const s = i / LEAF_NX;
+      uvF.setX(j * W + i, 0.5 + sigma * s * 0.5);   /* 表: めくる前の頁 */
+      uvB.setX(j * W + i, 0.5 - sigma * s * 0.5);   /* 裏: 着地したら見える頁 */
+    }
+  }
+  uvF.needsUpdate = uvB.needsUpdate = true;
+  const idx = sigma > 0 ? L.idxNext : L.idxPrev;
+  L.geoF.setIndex(idx); L.geoB.setIndex(idx);
+  L.front.material.map = frontTex;
+  L.back.material.map = backTex;
+}
+/* 紙の形: 背を軸に角度 phi。弧長は保ったまま、外側ほど反らせる。
+   curl: めくり中の反り (弦の向きは phi のまま)、lift: 角をつまんで持ち上げる反り (背の側は寝たまま)
+   twist: 手前の角が先に動くねじれ (twistOne は手前だけ) */
+function poseLeaf(L, phi, E, curl, lift, twist, twistOne) {
+  const { pos, hR, hL, zs, ds, sigma } = L;
+  const W = LEAF_NX + 1, half = L.depth / 2;
+  const hA = sigma > 0 ? hR : hL, hB = sigma > 0 ? hL : hR;
+  const flat = Math.sin(Math.PI * clamp01(E));   /* 宙にある間は、頁の元の反りを弱めて素直な一枚にする */
+  for (let j = 0; j <= LEAF_NZ; j++) {
+    const zf = zs[j] / half;
+    const rowPhi = phi + twist * zf + twistOne * (zf + 1) / 2;
+    const r0 = j * W;
+    const spine = lerp(hA[r0], hB[r0], E);
+    let cx = 0, cy = 0;
+    for (let i = 0; i <= LEAF_NX; i++) {
+      if (i > 0) {
+        const g = Math.pow((i - 0.5) / LEAF_NX, 1.8);
+        const a = rowPhi + curl * (g - 0.357) + lift * g;
+        cx += ds * Math.cos(a); cy += ds * Math.sin(a);
+      }
+      const prof = lerp(hA[r0 + i], hB[r0 + i], E) - spine;
+      pos.setXYZ(r0 + i, sigma * cx, spine + cy + prof * (1 - flat) + 0.004, zs[j]);
+    }
+  }
+  pos.needsUpdate = true;
+  L.geoF.computeVertexNormals();
+  L.phi = phi;
+}
+function setSpread(tex) {
   const rig = V.pageRig;
-  if (!rig) return;
-  [rig.left, rig.right].forEach((leaf, i) => {
-    const old = leaf.material.map;
-    if (old) old.dispose();
-    leaf.material.map = cropPageTexture(tex, i === 0 ? 'left' : 'right', false);
-    leaf.material.needsUpdate = true;
-    leaf.visible = !!tex;
+  rig.left.material.map = tex; rig.right.material.map = tex;
+}
+
+/* ------ 世界 (ジオラマ) ------ */
+let _shadowTex = null;
+function getShadowTexture() {
+  if (_shadowTex) return _shadowTex;
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const rad = g.createRadialGradient(128, 128, 8, 128, 128, 128);
+  rad.addColorStop(0, 'rgba(30,22,12,0.62)');
+  rad.addColorStop(0.55, 'rgba(30,22,12,0.28)');
+  rad.addColorStop(1, 'rgba(30,22,12,0)');
+  g.fillStyle = rad; g.fillRect(0, 0, 256, 256);
+  _shadowTex = new THREE.CanvasTexture(c);
+  _shadowTex.colorSpace = THREE.SRGBColorSpace;
+  return _shadowTex;
+}
+/* KHR_materials_specular / ior 由来の MeshPhysicalMaterial は、見た目がほぼ同じ Standard に置き換えて描画を軽くする */
+const STD_KEYS = ['name', 'color', 'map', 'lightMap', 'lightMapIntensity', 'aoMap', 'aoMapIntensity',
+  'emissive', 'emissiveIntensity', 'emissiveMap', 'bumpMap', 'bumpScale', 'normalMap', 'normalMapType',
+  'normalScale', 'displacementMap', 'displacementScale', 'displacementBias', 'roughness', 'roughnessMap',
+  'metalness', 'metalnessMap', 'alphaMap', 'envMap', 'envMapIntensity', 'wireframe', 'flatShading',
+  'vertexColors', 'fog', 'side', 'transparent', 'opacity', 'alphaTest', 'depthTest', 'depthWrite',
+  'blending', 'toneMapped', 'visible'];
+function simplifyMaterials(root) {
+  const done = new Map();
+  const conv = (m) => {
+    if (!m || !m.isMeshPhysicalMaterial) return m;
+    if (done.has(m)) return done.get(m);
+    const s = new THREE.MeshStandardMaterial();
+    for (const k of STD_KEYS) {
+      const v = m[k];
+      if (v === undefined) continue;
+      if (v && v.isColor) s[k].copy(v);
+      else if (v && v.isVector2) s[k].copy(v);
+      else s[k] = v;
+    }
+    done.set(m, s); m.dispose();
+    return s;
+  };
+  root.traverse((o) => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(conv) : conv(o.material); });
+}
+const TEX_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap', 'alphaMap', 'bumpMap', 'lightMap', 'displacementMap'];
+function collectTextures(root) {
+  const set = new Set();
+  root.traverse((o) => {
+    if (!o.material) return;
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => TEX_SLOTS.forEach((k) => { if (m[k] && m[k].isTexture) set.add(m[k]); }));
+  });
+  return [...set];
+}
+function disposeTree(root) {
+  const mats = new Set();
+  root.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => mats.add(m));
+  });
+  const texs = new Set();
+  mats.forEach((m) => { TEX_SLOTS.forEach((k) => { if (m[k] && m[k].isTexture) texs.add(m[k]); }); m.dispose(); });
+  texs.forEach((t) => {
+    if (t === _shadowTex || t === _paperTex) return;
+    t.dispose();
+    const d = t.source && t.source.data;
+    if (d && typeof d.close === 'function') d.close();   /* ImageBitmap のメモリもすぐ返す */
   });
 }
 
-/* ------ ensureBook3D: create renderer/scene/cam/controls/book ONCE -- */
-async function ensureBook3D(camPos) {
+const worlds = new Map();   /* page.id -> entry */
+const calmQueue = [];       /* 先読みした世界: 動きが収まってから解析する */
+/* lazy=true は先読み (ダウンロードだけすぐ始め、解析は後回し) */
+function requestWorld(page, lazy) {
+  if (!V || !page || !page.diorama) return null;
+  let e = worlds.get(page.id);
+  if (!e) {
+    e = { id: page.id, page, root: null, lift: null, shadow: null, shadowMat: null, animal: null, animalWait: 0,
+          rise: 0, lean: 0, anim: null, building: false, ready: false, failed: false, disposed: false,
+          warm: 'none', urgent: false, pendingRise: false, riseSigma: 1 };
+    worlds.set(page.id, e);
+    fetchBytes(window.getAssetUrl(page.diorama)).catch(() => {});
+    const animal = ANIMALS.find((a) => a.page === page.id);
+    if (animal && page.animalSpots && page.animalSpots.length) fetchBytes(window.getAssetUrl(animal.glb)).catch(() => {});
+  }
+  if (!lazy) startBuild(e);
+  else if (!e.building && calmQueue.indexOf(e) < 0) calmQueue.push(e);
+  return e;
+}
+const buildingNow = () => { for (const w of worlds.values()) if (w.building && !w.ready && !w.failed) return true; return false; };
+function startBuild(e) {
+  if (e.building || e.disposed) return;
+  e.building = true;
+  const qi = calmQueue.indexOf(e); if (qi >= 0) calmQueue.splice(qi, 1);
+  buildWorld(e).then(() => {
+    if (e.disposed) return;
+    e.ready = true;
+    queueWarm(e, e === curWorld || e.pendingRise);
+  }).catch((err) => {
+    e.failed = true;
+    console.error('ehon 3D load error', e.page.diorama, err);
+    if (e === curWorld) showPreparing();
+  });
+}
+async function buildWorld(e) {
+  const page = e.page;
+  const dioGltf = await loadGLB(window.getAssetUrl(page.diorama));
+  if (e.disposed) { disposeTree(dioGltf.scene); return; }
+  const dio = dioGltf.scene;
+  simplifyMaterials(dio);
+  let db = new THREE.Box3().setFromObject(dio);
+  const ds = db.getSize(new THREE.Vector3());
+  const dScale = 7.5 / Math.max(ds.x, ds.y, ds.z);
+  dio.scale.setScalar(dScale);
+  db = new THREE.Box3().setFromObject(dio);
+  const dc = db.getCenter(new THREE.Vector3());
+  dio.position.x -= dc.x; dio.position.z -= dc.z;
+  dio.position.y -= db.min.y;
+
+  const root = new THREE.Group(); root.name = 'world:' + page.id;
+  const lift = new THREE.Group();   /* 畳む/立ち上げるのはこの中だけ (影は頁に残す) */
+  lift.add(dio);
+  root.add(lift);
+  /* 接地影: ページの上に落ちる柔らかい影 (絵から生えている馴染み)。
+     世界が立ち上がるのに合わせて濃くなる (乗算だと透明度が効かず、いきなり真っ暗になる) */
+  const footprint = Math.max(ds.x, ds.z) * dScale * 1.2;
+  const shadowMat = new THREE.MeshBasicMaterial({
+    map: getShadowTexture(), transparent: true, depthWrite: false,
+    opacity: 0, toneMapped: false
+  });
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(footprint, footprint), shadowMat);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.02;
+  shadow.renderOrder = 1;
+  root.add(shadow);
+  root.position.y = V.bookTopY + 0.055;
+  Object.assign(e, { root, lift, shadow, shadowMat });
+  poseWorld(e);
+  /* 動物 (日替わりの場所) は世界の準備を待たせない: 届いたら、シェーダを用意してから姿を見せる */
+  const animal = ANIMALS.find((a) => a.page === page.id);
+  if (animal && page.animalSpots && page.animalSpots.length) {
+    loadGLB(window.getAssetUrl(animal.glb)).then((g) => {
+      const am = g.scene;
+      if (e.disposed) { disposeTree(am); return; }
+      const ab = new THREE.Box3().setFromObject(am);
+      const asz = ab.getSize(new THREE.Vector3());
+      am.scale.setScalar(1.1 / Math.max(asz.x, asz.y, asz.z));
+      const d = new Date();
+      const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      const spot = page.animalSpots[window.EHON2.dailySpotIndex(day, animal.id, page.animalSpots.length)];
+      am.position.set(spot.x, spot.y, spot.z);
+      am.traverse((o) => { if (o.isMesh) o.userData.animalId = animal.id; });
+      am.visible = false;
+      lift.add(am);
+      V.renderer.compile(am, V.cam, V.scene);
+      e.animal = am;
+      e.animalWait = 12;
+    }).catch((err) => console.warn('animal load failed (non-fatal)', err));
+  }
+}
+function poseWorld(e) {
+  const r = e.rise;
+  const w = 0.9 + 0.1 * clamp01(r);   /* 立ち上がるにつれて、紙が広がるように少し幅も戻る */
+  e.lift.scale.set(w, Math.max(0.015, r), w);
+  e.lift.rotation.z = e.lean;
+  e.shadowMat.opacity = 0.75 * clamp01(r);
+  e.root.visible = r > 0.05;   /* ほぼ平らになったら消す (紙の上に平たい破片が残って見えないように) */
+}
+const attachWorld = (e) => { if (!e.root.parent) V.scene.add(e.root); };
+const detachWorld = (e) => { if (e.root && e.root.parent) e.root.parent.remove(e.root); };
+function disposeWorld(e) {
+  e.disposed = true;
+  worlds.delete(e.id);
+  byteCache.delete(window.getAssetUrl(e.page.diorama));   /* 解析前に遠ざかった先読みのバイト列も手放す */
+  const an = ANIMALS.find((a) => a.page === e.page.id);
+  if (an) byteCache.delete(window.getAssetUrl(an.glb));
+  const ci = calmQueue.indexOf(e); if (ci >= 0) calmQueue.splice(ci, 1);
+  const qi = warmQueue.indexOf(e); if (qi >= 0) warmQueue.splice(qi, 1);
+  if (warming && warming.e === e) warming = null;
+  if (e.root) { detachWorld(e); disposeTree(e.root); }
+}
+function startRise(e, sigma) {
+  e.pendingRise = false;
+  attachWorld(e);
+  e.anim = { kind: 'rise', t0: nowMs(), r0: e.rise, lean0: -sigma * LEAN, quiet: quietMotion() };
+}
+function requestRise(e, sigma) {
+  if (!e || e.disposed || e.failed) return;
+  e.riseSigma = sigma;
+  if (e.rise >= 1 && !e.anim && e.root && e.root.parent) return;   /* もう立っている */
+  if (e.warm !== 'done') { e.pendingRise = true; queueWarm(e, true); return; }
+  startRise(e, sigma);
+}
+function foldWorld(e, sigma) {
+  e.pendingRise = false;
+  if (e.warm === 'warming') { e.anim = null; e.rise = 0; return; }   /* GPU へ送り途中: 送り終えたら自分で外れる */
+  if (!e.root || !e.root.parent || e.rise <= 0.001) { e.anim = null; e.rise = 0; if (e.root) { detachWorld(e); poseWorld(e); } return; }
+  e.anim = { kind: 'fold', t0: nowMs(), from: e.rise, leanFrom: e.lean, leanTo: sigma * LEAN * 1.1, dur: quietMotion() ? 160 : FOLD_MS };
+}
+function updateWorld(e, t) {
+  const a = e.anim, el = t - a.t0;
+  if (a.kind === 'fold') {
+    const f = clamp01(el / a.dur), fe = easeInOutCubic(f);
+    e.rise = a.from * (1 - fe);
+    e.lean = lerp(a.leanFrom, a.leanTo, fe);
+    if (f >= 1) { e.anim = null; e.rise = 0; e.lean = 0; detachWorld(e); }
+  } else if (a.quiet) {
+    const f = clamp01(el / 300);
+    e.rise = lerp(a.r0, 1, easeOutCubic(f)); e.lean = 0;
+    if (f >= 1) { e.anim = null; e.rise = 1; }
+  } else {
+    const x = springRise(el / 1000);
+    e.rise = lerp(a.r0, 1, x);
+    e.lean = a.lean0 * (1 - x);   /* ばねが行き過ぎた分だけ、反対側へ小さく揺れて戻る */
+    if (el > 1100) { e.anim = null; e.rise = 1; e.lean = 0; }
+  }
+  poseWorld(e);
+}
+
+/* ------ 先読みした画像と世界を GPU へ少しずつ送る ------
+   1フレームに送る量はバイト数で区切る。CPU 側の時間で区切ると GPU プロセスに仕事が積み上がり、
+   あとの同期 (シェーダの状態確認や画面の更新) が数十 ms 待たされて、かえって固まる。 */
+const uploadQueue = [];   /* 見開き画像 */
+const warmQueue = [];     /* 世界: シェーダ → (待つ) → 画像 → 形 */
+let warming = null;
+const texBytes = (t) => {
+  const d = t.image;
+  return ((d && d.width) || 512) * ((d && d.height) || 512) * 5.4;   /* RGBA + ミップマップ */
+};
+const urgentWarm = (e) => !!(e && (e.urgent || e.pendingRise));
+function queueWarm(e, urgent) {
+  if (!e || e.disposed || !e.ready) return;
+  if (urgent) e.urgent = true;
+  if (e.warm === 'done' || (warming && warming.e === e)) return;
+  /* 急ぎの世界が来たら、急がない先読みはいったん後ろへ回す (続きから再開する) */
+  if (urgent && warming && !urgentWarm(warming.e)) {
+    const paused = warming.e;
+    paused.warm = 'queued';
+    warming = null;
+    warmQueue.unshift(paused);
+  }
+  const qi = warmQueue.indexOf(e);
+  if (qi >= 0) warmQueue.splice(qi, 1);
+  e.warm = 'queued';
+  if (urgent) warmQueue.unshift(e); else warmQueue.push(e);
+}
+/* 1フレームの量は端末の速さに合わせる: 前のステップが重ければ減らし、軽ければ戻す */
+let warmScale = 1;
+function warmStep(moving) {
+  const hurry = urgentWarm(warming && warming.e) || urgentWarm(warmQueue[0]);
+  if (moving && !hurry) return;
+  if (!uploadQueue.length && !warming && !warmQueue.length) return;
+  const t0 = performance.now();
+  warmChunk(hurry);
+  const ms = performance.now() - t0;
+  if (ms > 8) warmScale = Math.max(0.25, warmScale * 0.7);
+  else if (ms < 3) warmScale = Math.min(1, warmScale * 1.15);
+}
+function warmChunk(hurry) {
+  let bytes = hurry ? 12e6 : 2.5e6 * warmScale;
+  while (uploadQueue.length && bytes > 0) {
+    const t = uploadQueue.shift();
+    V.renderer.initTexture(t);
+    bytes -= texBytes(t);
+  }
+  if (bytes <= 0) return;
+  if (!warming) {
+    const e = warmQueue.shift();
+    if (!e || e.disposed) return;
+    e.warm = 'warming';
+    if (!e.W) {
+      /* シェーダは作るだけ (リンクはドライバが裏で進める)。状態を問い合わせると同期で待たされるので、数フレーム置く */
+      V.renderer.compile(e.root, V.cam, V.scene);
+      e.W = { phase: 'wait', frames: 10, texs: collectTextures(e.root), ti: 0, meshes: null, mi: 0 };
+    }
+    warming = { e };
+    return;
+  }
+  const e = warming.e, W = e.W;
+  if (W.phase === 'wait') {
+    if (--W.frames <= 0 || hurry) W.phase = 'tex';
+    return;
+  }
+  if (W.phase === 'tex') {
+    while (W.ti < W.texs.length && bytes > 0) {
+      const t = W.texs[W.ti++];
+      V.renderer.initTexture(t);
+      bytes -= texBytes(t);
+    }
+    if (W.ti >= W.texs.length) {
+      W.meshes = [];
+      e.lift.traverse((o) => { if (o.isMesh) { W.meshes.push(o); o.visible = false; } });
+      W.phase = 'geo';
+    }
+    return;
+  }
+  /* 形 (頂点バッファ) は、見えないほど小さくして数フレームに分けて一度だけ描く */
+  attachWorld(e);
+  e.lift.scale.setScalar(1e-4); e.lift.rotation.z = 0;
+  e.shadow.visible = false; e.root.visible = true;
+  if (W.mi >= W.meshes.length) {   /* 前のフレームで全部描き終えた */
+    e.shadow.visible = true;
+    if (!(e.anim || (e === curWorld && e.rise > 0))) detachWorld(e);
+    poseWorld(e);
+    e.warm = 'done'; e.urgent = false; e.W = null; warming = null;
+    if (e.pendingRise) { if (e === curWorld) startRise(e, e.riseSigma); else e.pendingRise = false; }
+    return;
+  }
+  const cap = hurry ? 300000 : 50000 * warmScale;
+  let verts = 0;
+  while (W.mi < W.meshes.length && (verts === 0 || verts < cap)) {
+    const m = W.meshes[W.mi++];
+    m.visible = true;
+    verts += m.geometry.attributes.position.count;
+  }
+}
+function trimWorlds() {
+  const cur = EHON.state.currentPageIdx;
+  worlds.forEach((e) => {
+    if (e === curWorld || (e.anim && e.anim.kind === 'fold')) return;
+    if (Math.abs(PAGES.indexOf(e.page) - cur) <= 1) return;
+    disposeWorld(e);
+  });
+}
+function prefetchAround(idx) {
+  [1, -1, 2, -2].forEach((d) => { const p = PAGES[idx + d]; if (p) loadSpreadTex(slugOf(p)); });
+  [1, -1].forEach((d) => { const p = PAGES[idx + d]; if (p && p.diorama) requestWorld(p, true); });
+}
+function afterLanding() {
+  trimWorlds();
+  prefetchAround(EHON.state.currentPageIdx);   /* 回線はすぐ使い、解析と転送は世界が立ち終わってから */
+}
+function showPreparing() {
+  const host = V ? V.host : document.getElementById('world-b');
+  let overlay = host.querySelector('.status-msg');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'status-msg';
+    overlay.style.pointerEvents = 'none';
+    host.appendChild(overlay);
+  }
+  overlay.textContent = tt(I18N.ui.preparing);
+}
+
+/* ------ めくり ------ */
+function startTurn(o) {
+  const rig = V.pageRig, L = rig.turn;
+  if (turn) finishTurn(true);   /* 念のため: 前のめくりが残っていたら即着地させる */
+  const sigma = o.dir === 'next' ? 1 : -1;
+  const quiet = quietMotion();
+  const fromTex = spreadNow(o.fromSlug), toTex = spreadNow(o.toSlug);
+  /* 開く前の「角のゆらぎ」の途中で押されても、その形から途切れずにつなぐ */
+  const cont = L.front.visible && L.sigma === sigma;
+  const phi0 = cont ? L.phi : 0, lift0 = cont ? L.peekLift : 0, twist0 = cont ? L.peekTwist : 0;
+  L.peek = L.peekLift = L.peekTwist = 0;
+  prepareLeaf(L, sigma, fromTex, toTex);
+  (sigma > 0 ? rig.right : rig.left).material.map = toTex;   /* めくれて見えてくる下の頁は、もう次の頁 */
+  (sigma > 0 ? rig.left : rig.right).material.map = fromTex;
+  L.front.visible = L.back.visible = true;
+  V.host.querySelectorAll('.status-msg').forEach((el) => el.remove());
+  /* 前の世界は紙が持ち上がるのに合わせて畳む。次の世界はいまから用意する */
+  if (curWorld) foldWorld(curWorld, sigma);
+  const inc = o.toPage && o.toPage.diorama ? requestWorld(o.toPage) : null;
+  curWorld = inc;
+  if (inc) { inc.pendingRise = false; queueWarm(inc, true); }
+  turn = { t0: nowMs(), dur: quiet ? TURN_QUIET_MS : (o.fast ? TURN_FAST_MS : TURN_MS), sigma, quiet, phi0, lift0, twist0,
+           toSlug: o.toSlug, toTex, inc, swapped: false, riseAsked: false,
+           onSwap: o.onSwap, onLand: o.onLand, shouldRise: o.shouldRise };
+  if (!spreadReady.has(o.toSlug)) {
+    loadSpreadTex(o.toSlug).then((tex) => {
+      if (turn && turn.toSlug === o.toSlug) { L.back.material.map = tex; (sigma > 0 ? rig.right : rig.left).material.map = tex; turn.toTex = tex; }
+      else if (PAGES[EHON.state.currentPageIdx] && slugOf(PAGES[EHON.state.currentPageIdx]) === o.toSlug) setSpread(tex);
+    });
+  }
+}
+function updateTurn(t) {
+  const T = turn, L = V.pageRig.turn;
+  const k = clamp01((t - T.t0) / T.dur);
+  const E = easeInOutCubic(k);
+  const phi = T.phi0 + (Math.PI - T.phi0) * E;
+  const s = Math.sin(Math.PI * E);
+  const curl = T.quiet ? 0 : CURL * 0.8 * s * (0.35 - E);   /* 持ち上げるときは外側が先、降りるときは外側が遅れる */
+  const twist = T.quiet ? 0 : TWIST * s * (1 - E);
+  const fade = 1 - clamp01(k / 0.35);
+  poseLeaf(L, phi, E, curl, T.lift0 * fade, twist, T.twist0 * fade);
+  /* 頁の文字の差し替え (レイアウトが走る) は、紙がまだゆっくり持ち上がっている間に済ませる。
+     前の文章はもう消えているので見た目は変わらず、紙がいちばん速く動く中盤にコマ落ちを持ち込まない */
+  if (!T.swapped && t - T.t0 >= Math.max(0.22 * T.dur, 150)) { T.swapped = true; if (T.onSwap) T.onSwap(); }
+  if (!T.riseAsked && k >= RISE_AT) {
+    T.riseAsked = true;
+    if (T.inc && T.inc === curWorld && (!T.shouldRise || T.shouldRise())) requestRise(T.inc, T.sigma);
+  }
+  if (k >= 1) finishTurn(false);
+}
+function finishTurn(forced) {
+  const T = turn, rig = V.pageRig, L = rig.turn;
+  turn = null;
+  if (!T.swapped && T.onSwap) T.onSwap();
+  if (!forced && !T.riseAsked && T.inc && T.inc === curWorld && (!T.shouldRise || T.shouldRise())) requestRise(T.inc, T.sigma);
+  setSpread(T.toTex);   /* 着地: 左右とも新しい見開きにそろえ、めくっていた紙をしまう */
+  L.front.visible = L.back.visible = false;
+  L.phi = 0;
+  afterLanding();
+  if (T.onLand) T.onLand();
+}
+
+/* ------ ステージ本体 ------ */
+/* 縦長の画面 (スマホ) では、本の幅が画面に収まるところまでカメラを引く。横長では元の構図のまま */
+function frameCamera() {
+  const { cam, controls } = V;
+  const need = 6.2 / (Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * cam.aspect);
+  const dist = Math.max(V.baseDist, need);
+  const off = cam.position.clone().sub(controls.target);
+  if (off.lengthSq() === 0) return;
+  off.setLength(dist);
+  cam.position.copy(controls.target).add(off);
+  controls.maxDistance = Math.max(30, dist * 1.25);
+}
+function pickPixelRatio(w, h) {
+  const cap = Math.min(window.devicePixelRatio || 1, 2);
+  const byBudget = Math.sqrt(3.2e6 / Math.max(1, w * h));   /* 全画面キャンバスで描く画素を約320万までに抑える */
+  return Math.max(0.6, Math.min(cap, byBudget));
+}
+function ensureStage() {
   if (V) return V;
-
   const host = document.getElementById('world-b');
-  if (!window.WebGLRenderingContext) return null;
-
   let renderer;
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer = new THREE.WebGLRenderer({ antialias: (window.devicePixelRatio || 1) < 1.5, alpha: true, powerPreference: 'high-performance' });
   } catch (e) { return null; }
-
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  const cp = camPos || [0, 7, 14];
-  const cam = new THREE.PerspectiveCamera(40, host.clientWidth / Math.max(host.clientHeight, 1), 0.1, 500);
-  cam.position.set(cp[0], cp[1], cp[2]);
+  const cam = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
+  cam.position.set(0, 7, 14);
   cam.lookAt(0, 1.0, 0);
-
-  const fit = () => {
-    const w = host.clientWidth, h = host.clientHeight;
-    if (w === 0 || h === 0) return;
-    renderer.setSize(w, h, false);
-    cam.aspect = w / h; cam.updateProjectionMatrix();
-  };
-  fit();
-  new ResizeObserver(fit).observe(host);
-
   scene.add(new THREE.HemisphereLight(0xfff2d8, 0x55607a, 1.2));
   const sun = new THREE.DirectionalLight(0xfff0d0, 1.5);
   sun.position.set(6, 12, 6); scene.add(sun);
@@ -1899,430 +2508,224 @@ async function ensureBook3D(camPos) {
   controls.maxPolarAngle = Math.PI * 0.49; controls.target.set(0, 1.5, 0);
   controls.autoRotate = true; controls.autoRotateSpeed = 0.55;
 
-  /* bookGrp wraps book.glb + spread plane; persists across page switches */
   const bookGrp = new THREE.Group();
   scene.add(bookGrp);
+  V = { renderer, scene, cam, controls, bookGrp, host, book: null, bookTopY: 0, pageRig: null,
+        mascot: null, boy: null, lastT: nowMs(), idleT0: Infinity, prefetchTimer: 0 };
 
-  /* Initialise V early so spreadCache is usable during async load */
-  V = { renderer, scene, cam, controls, bookGrp, bookTopY: 0, host,
-        spreadPlane: null, spreadTex: null, spreadCache: new Map() };
+  const fit = () => {
+    const w = host.clientWidth, h = host.clientHeight;
+    if (w === 0 || h === 0) return;
+    renderer.setPixelRatio(pickPixelRatio(w, h));
+    renderer.setSize(w, h, false);
+    cam.aspect = w / h; cam.updateProjectionMatrix();
+    frameCamera();
+  };
+  V.baseDist = new THREE.Vector3(0, 7, 14).distanceTo(controls.target);   /* 横長の画面での元の距離 */
+  fit();
+  new ResizeObserver(fit).observe(host);
 
-  /* 表紙クリックで本を開く (常駐化で失われていた開始トリガー) */
+  /* 本をクリックで開く */
   host.addEventListener('click', () => { if (window.EHON) window.EHON.open(); });
-
-  /* rAF loop — always running */
-  (function loop() {
-    controls.update();
-    if (V && V.mascot) V.mascot.position.y = Math.sin(performance.now() / 900) * 0.12; /* 案内人のふわり */
-    if (V && V.boy) V.boy.position.y = Math.sin(performance.now() / 900 + 2.0) * 0.11; /* 男の子のふわり */
-    renderer.render(scene, cam);
-    requestAnimationFrame(loop);
-  })();
-
-  /* raycaster — attached ONCE to the canvas */
-  const ray = new THREE.Raycaster(); const ptr = new THREE.Vector2();
+  /* いきもの図鑑: 立ち上がっている世界の動物だけ拾う */
+  const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
   renderer.domElement.addEventListener('pointerdown', (ev) => {
-    if (!_currentAnimalMesh) return;
+    const am = curWorld && curWorld.animal && curWorld.root && curWorld.root.parent && curWorld.rise > 0.6 ? curWorld.animal : null;
+    if (!am) return;
     const r = renderer.domElement.getBoundingClientRect();
     ptr.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
     ptr.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
     ray.setFromCamera(ptr, cam);
-    const hits = ray.intersectObject(_currentAnimalMesh, true);
+    const hits = ray.intersectObject(am, true);
     if (hits.length) { ev.stopPropagation(); window.ZukanEngine.onAnimalClick(hits[0].object.userData.animalId); }
   });
 
-  /* Load book.glb */
-  try {
-    const bookUrl = window.getAssetUrl('book.glb');
-    const gltf = await loadGLB(bookUrl);
+  requestAnimationFrame(loop);
+  V.ready = buildBook();
+  return V;
+}
+async function buildBook() {
+  const firstSlug = slugOf(PAGES[EHON.state.currentPageIdx]);
+  const soft = (p, label) => p.catch((err) => { console.warn(label + ' load failed (non-fatal)', err); return null; });
+  /* 本・最初の見開き・案内人を並べて読み込む (順番待ちしない) */
+  const [gltf, , , mGltf, bGltf] = await Promise.all([
+    soft(loadGLB(window.getAssetUrl('book.glb')), 'book'),
+    loadSpreadTex('toc'), loadSpreadTex(firstSlug),
+    soft(loadGLB(window.getAssetUrl('mascot_v1.glb')), 'mascot'),
+    soft(loadGLB(window.getAssetUrl('boy_v1.glb')), 'boy')
+  ]);
+  if (gltf) {
     const book = gltf.scene;
+    await shrinkTextures(book, 1024);
     let bb = new THREE.Box3().setFromObject(book);
-    let bs = bb.getSize(new THREE.Vector3());
+    const bs = bb.getSize(new THREE.Vector3());
     const bScale = 11 / Math.max(bs.x, bs.z);
     book.scale.setScalar(bScale);
     bb = new THREE.Box3().setFromObject(book);
     const bc = bb.getCenter(new THREE.Vector3());
     book.position.x -= bc.x; book.position.z -= bc.z;
     book.position.y -= bb.min.y;
-    book.userData._isBook = true;
     V.book = book;
-    bookGrp.add(book);
-    const bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
-    V.bookTopY = bookTopY;
-
-    /* The visible top spread is a two-leaf rig with a real spine valley.
-       Its footprint follows the actual page area inside the imported cover. */
-    const bboxW = bs.x * bScale * 0.92;
-    const bboxD = bs.z * bScale * 0.90;
-    const pageRig = createBookPageRig(bboxW, bboxD);
-    pageRig.root.position.y = bookTopY;
-    bookGrp.add(pageRig.root);
-    V.pageRig = pageRig;
-    /* Retain a hidden compatibility plane for legacy callers. */
-    const spreadPlane = new THREE.Mesh(new THREE.PlaneGeometry(bboxW, bboxD), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
-    spreadPlane.rotation.x = -Math.PI / 2;
-    spreadPlane.position.y = bookTopY;
-    spreadPlane.visible = false;
-    bookGrp.add(spreadPlane);
-    V.spreadPlane = spreadPlane;
-    V._spreadHalfW = bboxW / 2;
-    V._spreadDepth = bboxD;
-    controls.target.set(0, bookTopY + 1.5, 0);
-
-    /* マスコット (絵本の案内人・紙人形): 本の右脇に立ち、ふわりと上下する */
-    try {
-      const mGltf = await loadGLB(window.getAssetUrl('mascot_v1.glb'));
-      const mas = mGltf.scene;
-      const mb = new THREE.Box3().setFromObject(mas);
-      const msz = mb.getSize(new THREE.Vector3());
-      mas.scale.setScalar(3.5 / Math.max(0.001, msz.y));   /* 控えめのサイズ (目立たせない) */
-      mas.position.set(4.9, 0, -3.0);   /* 本の右奥のすみに、後ろへ控える (世界の脇からそっと) */
-      mas.rotation.y = 2.7;   /* 後ろから、本と読者の方をゆるく向く */
-      mas.traverse(n => { if (n.isMesh) n.userData._isMascot = true; });
-      V.mascot = mas;
-      bookGrp.add(mas);
-    } catch (e) { console.warn('mascot load failed (non-fatal)', e); }
-
-    /* 男の子(対の案内人): 本の左脇に立つ */
-    try {
-      const bGltf = await loadGLB(window.getAssetUrl('boy_v1.glb'));
-      const boy = bGltf.scene;
-      const bbx = new THREE.Box3().setFromObject(boy);
-      const bsz = bbx.getSize(new THREE.Vector3());
-      boy.scale.setScalar(3.5 / Math.max(0.001, bsz.y));
-      boy.position.set(-4.9, 0, -3.0);   /* 本の左奥のすみに、後ろへ控える (世界の脇からそっと) */
-      boy.rotation.y = -2.7;             /* 後ろから、本と読者の方をゆるく向く */
-      boy.traverse(n => { if (n.isMesh) n.userData._isMascot = true; });
-      V.boy = boy;
-      bookGrp.add(boy);
-    } catch (e) { console.warn('boy load failed (non-fatal)', e); }
-  } catch (e) {
-    console.error('ensureBook3D: book.glb 読み込み失敗', e);
-    /* Keep V alive but without book; diorama will still load */
+    V.bookGrp.add(book);
+    V.bookTopY = (new THREE.Box3().setFromObject(book)).max.y;
+    /* 見える見開きは、本物の背の谷を持つ左右2枚の紙 */
+    const halfW = bs.x * bScale * 0.92 / 2, depth = bs.z * bScale * 0.90;
+    const root = new THREE.Group(); root.name = 'book-page-rig';
+    const leftGeo = makeBookLeafGeometry('left', halfW, depth, V.bookTopY);
+    const rightGeo = makeBookLeafGeometry('right', halfW, depth, V.bookTopY);
+    const left = new THREE.Mesh(leftGeo, makePaperMaterial());
+    const right = new THREE.Mesh(rightGeo, makePaperMaterial());
+    const crease = makeSpineRibbon(left, depth);
+    const leaf = makeTurningLeaf(leftGeo, rightGeo, halfW, depth);
+    root.add(left, right, crease, leaf.front, leaf.back);
+    root.position.y = V.bookTopY;
+    V.bookGrp.add(root);
+    V.pageRig = { root, left, right, crease, halfW, depth, turn: leaf };
+    V.controls.target.set(0, V.bookTopY + 1.5, 0);
+    V.baseDist = new THREE.Vector3(0, 7, 14).distanceTo(V.controls.target);
+    frameCamera();
+    /* 開く前: 目次の見開きを表紙代わりに。1頁目は、その下で待っている */
+    left.material.map = spreadNow('toc');
+    right.material.map = spreadNow(firstSlug);
+    prepareLeaf(leaf, 1, spreadNow('toc'), spreadNow(firstSlug));
+    poseLeaf(leaf, 0, 0, 0, 0, 0, 0);
+    leaf.front.visible = leaf.back.visible = !EHON.state.open;
+  } else {
+    console.error('ensureStage: book.glb 読み込み失敗');
   }
-
-  return V;
+  /* 案内人 (紙人形) は本の背後の左右すみに、控えめに */
+  const placeGuide = (g, x, rotY) => {
+    const obj = g.scene;
+    const b = new THREE.Box3().setFromObject(obj);
+    const sz = b.getSize(new THREE.Vector3());
+    obj.scale.setScalar(3.5 / Math.max(0.001, sz.y));
+    obj.position.set(x, 0, -3.0);
+    obj.rotation.y = rotY;
+    V.bookGrp.add(obj);
+    return obj;
+  };
+  if (mGltf) V.mascot = placeGuide(mGltf, 4.9, 2.7);
+  if (bGltf) V.boy = placeGuide(bGltf, -4.9, -2.7);
+  /* 見せる前にシェーダと最初の見開きを用意しておく (最初のめくりで固まらない) */
+  uploadQueue.splice(0).forEach((t) => V.renderer.initTexture(t));
+  try { await V.renderer.compileAsync(V.scene, V.cam); } catch (e) {}
+  V.renderer.domElement.classList.add('ready');
+  V.bookDone = true;
+  const hint = document.getElementById('hint');
+  if (hint) hint.classList.remove('waiting');
+  V.idleT0 = nowMs() + 1600;
+  /* 最初の世界を先に用意し、前後の頁はそのあとで (先読みは最初の世界の転送が終わるまで待つ) */
+  const first = PAGES[EHON.state.currentPageIdx];
+  if (first.diorama) requestWorld(first);
+  prefetchAround(EHON.state.currentPageIdx);
+  if (pendingOpen) { const f = pendingOpen; pendingOpen = null; f(); }
 }
 
-/* ------ disposeDiorama: remove only diorama group (canvas stays) -- */
-function disposeDiorama() {
-  if (!V) return;
-  /* Remove all children of bookGrp EXCEPT book.glb mesh, spread plane, and mascot */
-  const toRemove = [];
-  V.bookGrp.children.forEach(child => {
-    if (child !== V.spreadPlane && child !== (V.pageRig && V.pageRig.root) && child !== V.mascot && child !== V.boy && !child.isLight && child.userData._isBook !== true) {
-      toRemove.push(child);
-    }
-  });
-  toRemove.forEach(child => {
-    V.bookGrp.remove(child);
-    child.traverse(o => { if (o.isMesh) { o.geometry && o.geometry.dispose(); if (o.material) { if (Array.isArray(o.material)) o.material.forEach(m => m.dispose()); else o.material.dispose(); } } });
-  });
-  /* Also remove scene-level diorama group if present */
-  if (V._dioramaGrp) {
-    V.scene.remove(V._dioramaGrp);
-    V._dioramaGrp.traverse(o => { if (o.isMesh) { o.geometry && o.geometry.dispose(); if (o.material) { if (Array.isArray(o.material)) o.material.forEach(m => m.dispose()); else o.material.dispose(); } } });
-    V._dioramaGrp = null;
+/* 開く前: 紙の角がときどき持ち上がる */
+function updateIdle(t) {
+  if (EHON.state.open) return;
+  const L = V.pageRig.turn;
+  if (!L.front.visible) return;
+  let b = 0;
+  const ph = t - V.idleT0;
+  if (ph > 0 && !quietMotion()) {
+    const p = ph % PEEK_EVERY;
+    if (p < PEEK_MS) b = Math.pow(Math.sin(Math.PI * p / PEEK_MS), 2);
   }
-  _currentAnimalMesh = null;
-  _popB = null;
+  if (b === 0 && L.peek === 0) return;
+  L.peek = b; L.peekLift = 0.62 * b; L.peekTwist = 0.16 * b;
+  poseLeaf(L, 0.02 * b, 0, 0, L.peekLift, 0, L.peekTwist);
 }
 
-/* ------ disposeWorldB (external API for renderToc / renderColophon) -- */
-window.disposeWorldB = () => {
-  disposeDiorama();
-  /* canvas stays; just remove any status-msg overlays */
-  if (V && V.host) {
-    V.host.querySelectorAll('.status-msg').forEach(el => el.remove());
-    /* Remove toc/colophon wraps */
-    V.host.querySelectorAll('.toc-wrap,.colo-wrap').forEach(el => el.remove());
+function loop() {
+  requestAnimationFrame(loop);
+  const t = nowMs();
+  const dt = Math.min(0.1, Math.max(0, (t - V.lastT) / 1000));
+  V.lastT = t;
+  if (!V.host.classList.contains('active')) {   /* 水彩モードの間は3Dを描かない (めくりの途中なら着地させる) */
+    if (turn) finishTurn(false);
+    return;
   }
+  V.controls.update(dt);   /* 自動回転は秒基準 (高リフレッシュの画面でも速くならない) */
+  if (V.mascot) V.mascot.position.y = Math.sin(t / 900) * 0.12;
+  if (V.boy) V.boy.position.y = Math.sin(t / 900 + 2.0) * 0.11;
+  if (V.pageRig) { if (turn) updateTurn(t); else updateIdle(t); }
+  let moving = !!turn;
+  worlds.forEach((e) => {
+    if (e.anim) { updateWorld(e, t); moving = true; }
+    if (e.animalWait > 0 && --e.animalWait === 0 && e.animal) e.animal.visible = true;
+  });
+  /* 紙や世界が動いている間は、裏方の仕事 (解析・GPU 転送) をしない。急ぎの世界だけは例外 */
+  warmStep(moving);
+  if (!moving && !warming && calmQueue.length && !buildingNow()) startBuild(calmQueue.shift());
+  V.renderer.render(V.scene, V.cam);
+}
+
+/* ------ 外から呼ばれる入口 (本体スクリプトの EHON から) ------ */
+window.bootWorldB = function () {
+  if (!window.WebGLRenderingContext || !ensureStage()) {
+    showStaticFallback(document.getElementById('world-b'), PAGES[EHON.state.currentPageIdx]);
+    const hint = document.getElementById('hint');
+    if (hint) hint.classList.remove('waiting');
+    return Promise.resolve();
+  }
+  return V.ready;
 };
-
-window.popWorldB = () => { if (_popB) _popB(); };
-
+/* 本を開く: 表紙代わりの見開きから、いまの頁へめくる。世界は紙が降りてくるのに合わせて立つ */
+window.openBookThenPop = function (onLand) {
+  const go = () => {
+    const page = PAGES[EHON.state.currentPageIdx];
+    if (!V.pageRig) { window.syncPageB(EHON.state.currentPageIdx); if (onLand) onLand(); return; }
+    startTurn({ fromSlug: 'toc', toSlug: slugOf(page), toPage: page, dir: 'next', onLand });
+  };
+  if (V && V.bookDone) go();
+  else pendingOpen = go;   /* 本の準備ができたらすぐ */
+};
+window.flipPageTransition = function (prevIdx, newIdx, dir, doPageSwap, onLand) {
+  const prevPage = PAGES[prevIdx], newPage = PAGES[newIdx];
+  if (!V || !V.pageRig || !prevPage || !newPage) { doPageSwap(newIdx); if (onLand) onLand(); return; }
+  startTurn({
+    fromSlug: slugOf(prevPage), toSlug: slugOf(newPage), toPage: newPage, dir,
+    fast: !!(window.EHON && (EHON._fromQueue || EHON._queued !== null)),   /* 続けてめくるときは少し速く */
+    shouldRise: () => !(window.EHON && EHON._queued !== null),   /* すぐ次へめくる予約があれば、途中の世界は立てない */
+    onSwap: () => doPageSwap(newIdx), onLand
+  });
+};
+/* 水彩モードから戻ったときなど、めくらずに頁をそろえる */
+window.syncPageB = function (idx) {
+  if (!V) return;
+  const page = PAGES[idx];
+  if (V.pageRig) {
+    const slug = slugOf(page);
+    setSpread(spreadNow(slug));
+    V.pageRig.turn.front.visible = V.pageRig.turn.back.visible = false;
+    loadSpreadTex(slug).then((tex) => { if (!turn && EHON.state.currentPageIdx === idx) setSpread(tex); });
+  }
+  const e = page.diorama ? requestWorld(page) : null;
+  if (curWorld && curWorld !== e) foldWorld(curWorld, 1);
+  curWorld = e;
+  if (e && EHON.state.open) requestRise(e, 1);
+  afterLanding();
+};
+window.popWorldB = function () { window.syncPageB(EHON.state.currentPageIdx); };
+/* 目次/奥付を描く前に、頁の上の案内表示だけ片づける (世界はステージが畳む) */
+window.disposeWorldB = function () {
+  document.getElementById('world-b').querySelectorAll('.status-msg,.toc-wrap,.colo-wrap').forEach((el) => el.remove());
+};
 window.immerseWorldB = () => {
   if (V && V.controls) { V.controls.minDistance = 2; V.controls.maxDistance = 8; }
 };
 window.exitImmerseB = () => {
   if (V && V.controls) { V.controls.minDistance = 9; V.controls.maxDistance = 30; }
 };
-
-/* ------ flipPage3D: real page flip animation -- */
-function getLeafHingeHeight(leaf) {
-  const pos = leaf.geometry.attributes.position;
-  let sum = 0, count = 0, minAbsX = Infinity;
-  for (let i = 0; i < pos.count; i++) minAbsX = Math.min(minAbsX, Math.abs(pos.getX(i)));
-  for (let i = 0; i < pos.count; i++) {
-    if (Math.abs(Math.abs(pos.getX(i)) - minAbsX) < 0.0001) { sum += pos.getY(i); count++; }
-  }
-  return count ? sum / count : 0;
-}
-function flipPage3D(prevSlug, nextSlug, dir, onHalfway) {
-  if (!V || !V.pageRig) { onHalfway(); return; }
-  const rig = V.pageRig;
-  const halfW = rig.halfW;
-  const depth = rig.depth;
-
-  /* load both textures; animate after both ready */
-  Promise.all([loadSpreadTex(prevSlug), loadSpreadTex(nextSlug)]).then(([prevTex, nextTex]) => {
-    const turningLeaf = dir === 'next' ? rig.right : rig.left;
-    const hingeHeight = getLeafHingeHeight(turningLeaf);
-    turningLeaf.visible = false;
-    const pivot = new THREE.Group();
-    /* The rotation origin is the actual spine height sampled from the resting
-       page, not an arbitrary point above the book. */
-    pivot.position.set(0, rig.root.position.y + hingeHeight, 0);
-    V.bookGrp.add(pivot);
-
-    /* The turning leaf begins with the exact same page profile as the resting
-       leaf: the same spine valley, outer rise, dimensions and parchment. */
-    const leafSide = dir === 'next' ? 'right' : 'left';
-    const mkLeaf = (tex, textureSide, mirrored, underside) => {
-      const geo = makeBookLeafGeometry(leafSide, halfW, depth, rig.root.position.y);
-      const pos = geo.attributes.position;
-      /* Rebase every vertex around the same spine used by the pivot. At x=0,
-         the leaf has zero displacement throughout the whole turn. */
-      for (let i = 0; i < pos.count; i++) pos.setY(i, pos.getY(i) - hingeHeight);
-      pos.needsUpdate = true;
-      const base = [];
-      for (let i = 0; i < pos.count; i++) base.push([pos.getX(i), pos.getY(i), pos.getZ(i)]);
-      const mat = makePaperMaterial(cropPageTexture(tex, textureSide, mirrored), underside ? THREE.BackSide : THREE.FrontSide);
-      const mesh = new THREE.Mesh(geo, mat);
-      pivot.add(mesh);
-      return { geo, mat, pos, base };
-    };
-    const frontParts = dir === 'next'
-      ? mkLeaf(prevTex, 'right', false, false)
-      : mkLeaf(nextTex, 'left', false, false);
-    const backParts = dir === 'next'
-      ? mkLeaf(nextTex, 'left', true, true)
-      : mkLeaf(prevTex, 'right', true, true);
-
-    const deformLeaf = (part, rawT) => {
-      const pulse = Math.sin(Math.PI * rawT);
-      for (let i = 0; i < part.pos.count; i++) {
-        const base = part.base[i];
-        const f = Math.max(0, Math.min(1, base[0] / halfW));
-        /* The page flexes only while it turns; its resting silhouette remains
-           identical to the book leaf beneath it. */
-        const lift = pulse * (0.095 * Math.sin(Math.PI * f) + 0.05 * f * f);
-        const curlX = pulse * halfW * 0.028 * Math.sin(Math.PI * f);
-        const curlZ = pulse * depth * 0.018 * Math.sin((base[2] / depth) * Math.PI) * Math.sin(Math.PI * f);
-        part.pos.setXYZ(i, base[0] + curlX, base[1] + lift, base[2] + curlZ);
-      }
-      part.pos.needsUpdate = true;
-      part.geo.computeVertexNormals();
-    };
-
-    /* Both directions begin on their own resting leaf at rotation zero. This
-       preserves the page's vertical profile; only the hinge rotation changes. */
-    const startRot = 0;
-    const endRot   = dir === 'next' ? Math.PI : -Math.PI;
-    pivot.rotation.z = startRot;
-    const duration = 850;
-    const t0 = performance.now();
-    let halfwayCalled = false;
-
-    (function animate() {
-      const elapsed = performance.now() - t0;
-      const rawT = Math.min(1, elapsed / duration);
-      const t = easeInOut(rawT);
-      pivot.rotation.z = startRot + (endRot - startRot) * t;
-      deformLeaf(frontParts, rawT);
-      deformLeaf(backParts, rawT);
-
-      if (rawT >= 0.5 && !halfwayCalled) {
-        halfwayCalled = true;
-        onHalfway();
-      }
-
-      if (rawT < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        V.bookGrp.remove(pivot);
-        [frontParts, backParts].forEach(p => { p.geo.dispose(); p.mat.map && p.mat.map.dispose(); p.mat.dispose(); });
-        applySpreadTex(nextTex);
-      }
-    })();
-  }).catch(() => { onHalfway(); });
-}
-
-/* ------ flipPageTransition: called from switchPage -- */
-window.flipPageTransition = function(prevIdx, newIdx, dir, doPageSwap) {
-  const prevPage = PAGES[prevIdx];
-  const newPage  = PAGES[newIdx];
-  const prevSlug = prevPage ? spreadSlugFromPage(prevPage) : '';
-  const nextSlug = newPage  ? spreadSlugFromPage(newPage)  : '';
-
-  if (!V) {
-    /* V not ready yet — direct swap */
-    doPageSwap(newIdx);
-    return;
-  }
-
-  /* For toc/colophon targets: direct swap (no 3D flip needed) */
-  if (!newPage.diorama || !prevPage || !prevPage.diorama) {
-    doPageSwap(newIdx);
-    return;
-  }
-
-  flipPage3D(prevSlug, nextSlug, dir, () => doPageSwap(newIdx));
-};
-
-/* ------ bootWorldB: per-page diorama load -- */
-window.bootWorldB = async function () {
-  const page = PAGES[EHON.state.currentPageIdx];
-  const host = document.getElementById('world-b');
-  /* Some game pages use the book and a dedicated paper spread rather than a
-     3D diorama. They must still clear the previous world's objects. */
-  if (!page.diorama) {
-    const v = await ensureBook3D([0, 7, 14]);
-    if (v) {
-      disposeDiorama();
-      loadSpreadTex(spreadSlugFromPage(page)).then(tex => applySpreadTex(tex));
-    }
-    return;
-  }
-
-  if (!window.WebGLRenderingContext) { showStaticFallback(host, page); return; }
-
-  const v = await ensureBook3D(page.camPos || [0, 7, 14]);
-  if (!v) { showStaticFallback(host, page); return; }
-
-  /* 前の diorama を保持したまま新しいのを読み込み、完成してから差し替える(途切れ防止)。
-     初回だけ軽い「ひらいています…」表示。 */
-  const hadDiorama = !!v._dioramaGrp;
-  let msg = null;
-  if (!hadDiorama) {
-    msg = document.createElement('div');
-    msg.className = 'status-msg';
-    msg.textContent = (ehonLang() === 'jp') ? '本をひらいています…' : 'Opening the book…';
-    host.appendChild(msg);
-  }
-
-  const fail = (label, url, err) => {
-    if (msg && msg.parentNode) msg.remove();
-    let overlay = host.querySelector('.status-msg');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.className = 'status-msg';
-      overlay.style.pointerEvents = 'none';
-      host.appendChild(overlay);
-    }
-    overlay.textContent = tt(I18N.ui.preparing);
-    console.error('ehon 3D load error', label, url, err);
-  };
-
-  const dioUrl = window.getAssetUrl(page.diorama);
-  let dioramaGrp = null, targetY = v.paperDeck ? (v.paperDeck.baseY + 0.018) : (v.bookTopY + 0.055);
-
-  try {
-    const dioGltf = await loadGLB(dioUrl).catch(e => { fail('ジオラマ', dioUrl, e); throw e; });
-    const dio = dioGltf.scene;
-    let db = new THREE.Box3().setFromObject(dio);
-    let ds = db.getSize(new THREE.Vector3());
-    const dScale = 7.5 / Math.max(ds.x, ds.y, ds.z);
-    dio.scale.setScalar(dScale);
-    db = new THREE.Box3().setFromObject(dio);
-    const dc = db.getCenter(new THREE.Vector3());
-    dio.position.x -= dc.x; dio.position.z -= dc.z;
-    dio.position.y -= db.min.y;
-    dioramaGrp = new THREE.Group();
-    dioramaGrp.add(dio);
-
-    /* ---- 接地影: ジオラマの足元にページへ落ちる柔らかい影 (絵から生えている馴染み) ---- */
-    const footprint = Math.max(ds.x, ds.z) * dScale * 1.35;
-    const shadowGeo = new THREE.PlaneGeometry(footprint, footprint);
-    const shadowMat = new THREE.MeshBasicMaterial({
-      map: getShadowTexture(), transparent: true, depthWrite: false,
-      blending: THREE.MultiplyBlending, opacity: 0.9, toneMapped: false
-    });
-    const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-    shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = 0.02;   /* ページ直上 */
-    shadow.renderOrder = 1;
-    dioramaGrp.add(shadow);
-
-    /* ---- 動物 ---- */
-    const animal = ANIMALS.find(a => a.page === page.id);
-    if (animal && page.animalSpots && page.animalSpots.length) {
-      try {
-        const ag = await loadGLB(window.getAssetUrl(animal.glb));
-        const am = ag.scene;
-        const ab = new THREE.Box3().setFromObject(am);
-        const asz = ab.getSize(new THREE.Vector3());
-        am.scale.setScalar(1.1 / Math.max(asz.x, asz.y, asz.z));
-        const today = new Date();
-        const ds8 = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-        const spot = page.animalSpots[window.EHON2.dailySpotIndex(ds8, animal.id, page.animalSpots.length)];
-        am.position.set(spot.x, spot.y, spot.z);
-        am.traverse(o => { if (o.isMesh) o.userData.animalId = animal.id; });
-        _currentAnimalMesh = am;
-        dioramaGrp.add(am);
-      } catch (e) { console.warn('animal load failed (non-fatal)', e); }
-    }
-
-    dioramaGrp.position.y = targetY;
-    /* Always wait in a collapsed state. The page controller reveals it only
-       after the independent paper leaf has fully settled. */
-    dioramaGrp.scale.setScalar(0.001);
-    disposeDiorama();   /* 新しいのが完成した今、初めて前のを外す(途切れ防止) */
-    v.scene.add(dioramaGrp);
-    v._dioramaGrp = dioramaGrp;
-    v.controls.target.set(0, targetY + 1.5, 0);
-    if (msg && msg.parentNode) msg.remove();
-
-    /* Keep the stable book-page surface updated independently of diorama loading. */
-    loadSpreadTex(spreadSlugFromPage(page)).then(tex => applySpreadTex(tex));
-  } catch (e) { /* fail() already called */ }
-
-  _popB = () => {
-    if (!dioramaGrp) return;
-    const t0 = performance.now();
-    (function pop() {
-      const k = Math.min(1, (performance.now() - t0) / 950);
-      const e = 1 - Math.pow(1 - k, 3);
-      dioramaGrp.scale.setScalar(0.001 + e * 0.999);
-      dioramaGrp.position.y = targetY - 3 * (1 - e);
-      if (k < 1) requestAnimationFrame(pop);
-    })();
-  };
-  /* Bind the new pop action before asking it to appear. During a page turn,
-     the controller releases it only after the paper has settled. */
-  if (EHON.state.open) {
-    if (window.__ehonTurnInFlight) window.__ehonQueuedPop = true;
-    else setTimeout(() => { if (_popB) _popB(); }, 70);
-  }
-};
-
-/* ------ 本が「ひらく」ひと呼吸を置いてから、世界を飛び出させる ------ */
-window.openBookThenPop = function () {
-  const v = V;
-  /* ページ面がふわっと開くように、わずかに持ち上がって落ち着く（本が開く合図）*/
-  if (v && v.spreadPlane) {
-    const sp = v.spreadPlane; const baseY = sp.position.y; const t0 = performance.now();
-    (function bloom() {
-      const k = Math.min(1, (performance.now() - t0) / 640);
-      const e = 1 - Math.pow(1 - k, 3);
-      sp.position.y = baseY + 0.22 * Math.sin(e * Math.PI);
-      if (k < 1) requestAnimationFrame(bloom); else sp.position.y = baseY;
-    })();
-  }
-  /* 本が開ききってから、世界が飛び出す */
-  setTimeout(() => { if (window.popWorldB) window.popWorldB(); }, 820);
-};
-
-/* ------ mountBook3D: kept as no-op shim for any external callers -- */
-window.mountBook3D = function mountBook3D(hostEl, opts) {
-  console.warn('mountBook3D: deprecated; use ensureBook3D instead');
+/* 旧API: 外部から呼ばれても壊れないように残す */
+window.mountBook3D = function mountBook3D() {
   const noop = () => {};
   return { dispose: noop, scene: null, renderer: null, cam: null, bookTopYPromise: Promise.resolve(0) };
 };
 
 /* WebGL 不可・GLB 失敗時の静的フォールバック */
 function showStaticFallback(host, page) {
-  /* Do NOT wipe canvas — only show overlay */
   let d = host.querySelector('.status-msg');
   if (!d) { d = document.createElement('div'); d.className = 'status-msg'; host.appendChild(d); }
   const img = document.createElement('img');
@@ -2336,352 +2739,26 @@ function showStaticFallback(host, page) {
   d.appendChild(document.createElement('br'));
   d.appendChild(document.createTextNode(tt(I18N.ui.preparing)));
 }
-/* Expose only the minimal 3D runtime needed by the independent paper controller. */
+/* 検証用: 状態をのぞく口 (描画には関与しない) */
 window.__ehon3DRuntime = {
   THREE,
   getV: () => V,
-  loadSpreadTex,
-  easeInOut,
-  hideAnimal: () => { _currentAnimalMesh = null; }
+  state: () => ({
+    turning: !!turn,
+    cur: curWorld ? { id: curWorld.id, rise: +curWorld.rise.toFixed(3), lean: +curWorld.lean.toFixed(3), warm: curWorld.warm, attached: !!(curWorld.root && curWorld.root.parent) } : null,
+    worlds: [...worlds.values()].map((e) => ({ id: e.id, ready: e.ready, warm: e.warm, rise: +e.rise.toFixed(3), anim: e.anim ? e.anim.kind : null, attached: !!(e.root && e.root.parent) })),
+    leafPhi: V && V.pageRig ? +V.pageRig.turn.phi.toFixed(3) : null,
+    warming: warming ? warming.e.id + ':' + warming.phase : null
+  })
 };
-window.dispatchEvent(new Event('ehon3d-ready'));
-</script>
-<!-- Ehon refinement: tactile page turns, chapter guidance and motion preferences -->
-<script type="application/x-disabled" id="ehon-refinement-legacy">
-(() => {
-  const status = document.getElementById('book-turn-status');
-  const title = document.getElementById('book-chapter-title');
-  const count = document.getElementById('book-chapter-count');
-  const motionBtn = document.getElementById('quiet-motion-toggle');
-  let statusTimer = 0, turnLocked = false;
-  const reducedByOS = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const setQuietMotion = (on) => {
-    window.__ehonQuietMotion = !!on; document.documentElement.classList.toggle('quiet-turns', !!on);
-    motionBtn.setAttribute('aria-pressed', String(!!on)); motionBtn.textContent = on ? '通常の動き' : '静かな動き';
-    try { localStorage.setItem('ehon-quiet-motion', on ? '1' : '0'); } catch (_) {}
-  };
-  let savedQuiet = false; try { savedQuiet = localStorage.getItem('ehon-quiet-motion') === '1'; } catch (_) {}
-  setQuietMotion(savedQuiet || reducedByOS()); motionBtn.addEventListener('click', () => setQuietMotion(!window.__ehonQuietMotion));
-  const inform = (text, hold = 2200) => { status.textContent = text; status.classList.add('show'); clearTimeout(statusTimer); statusTimer = setTimeout(() => status.classList.remove('show'), hold); };
-  const pageName = (idx) => { const page = PAGES[idx]; return page ? tt(page.title) : ''; };
-  const updateCompass = () => {
-    const idx = EHON.state.currentPageIdx; title.textContent = pageName(idx) || '本をひらく'; count.textContent = `${String(idx + 1).padStart(2,'0')} / ${String(PAGES.length).padStart(2,'0')}`;
-    const prev = document.getElementById('nav-prev'), next = document.getElementById('nav-next');
-    if (prev) prev.setAttribute('aria-label', idx > 0 ? `前の世界：${pageName(idx - 1)}` : '前の世界はありません');
-    if (next) next.setAttribute('aria-label', idx < PAGES.length - 1 ? `次の世界：${pageName(idx + 1)}` : '次の世界はありません');
-  };
-  const releaseTurn = () => { turnLocked = false; document.body.classList.remove('ehon-turning'); updateCompass(); };
-  window.addEventListener('ehon:turnend', releaseTurn);
-  const originalSwitchPage = EHON.switchPage.bind(EHON);
-  EHON.switchPage = function(newIdx) {
-    if (turnLocked || newIdx < 0 || newIdx >= PAGES.length || newIdx === EHON.state.currentPageIdx) return;
-    turnLocked = true; document.body.classList.add('ehon-turning'); inform(newIdx > EHON.state.currentPageIdx ? '次の頁をめくっています…' : '前の頁へもどっています…', 1800);
-    originalSwitchPage(newIdx); window.setTimeout(releaseTurn, window.__ehonQuietMotion ? 400 : 2200);
-  };
-  const originalOpen = EHON.open.bind(EHON); EHON.open = function(){ originalOpen(); window.setTimeout(updateCompass, 80); };
-  updateCompass();
-  if (new URLSearchParams(location.search).get('from') === 'cabin') window.setTimeout(() => inform('小屋の灯りから、一冊の本が届きました。', 3400), 900);
-
-  function enhancedFlipPage3D(prevSlug, nextSlug, dir, onHalfway) {
-    if (!V || !V.spreadPlane) { onHalfway(); window.dispatchEvent(new Event('ehon:turnend')); return; }
-    const quiet = !!window.__ehonQuietMotion; const halfW = V._spreadHalfW, depth = V._spreadDepth, bookTopY = V.bookTopY;
-    Promise.all([loadSpreadTex(prevSlug), loadSpreadTex(nextSlug)]).then(([prevTex, nextTex]) => {
-      const pivot = new THREE.Group(); pivot.position.set(0, bookTopY + .021, 0); V.bookGrp.add(pivot);
-      const makePage = (tex, offsetU, mirror, underside, tint) => {
-        const geo = new THREE.PlaneGeometry(halfW, depth, quiet ? 2 : 38, quiet ? 1 : 8); geo.translate(halfW / 2, 0, 0); geo.rotateX(-Math.PI / 2);
-        const pos = geo.attributes.position; const base = [];
-        for (let i=0;i<pos.count;i++) base.push([pos.getX(i),pos.getY(i),pos.getZ(i)]);
-        const t = tex ? tex.clone() : null;
-        if (t) { t.colorSpace = THREE.SRGBColorSpace; t.repeat.set(mirror ? -.5 : .5,1); t.offset.set(mirror ? offsetU + .5 : offsetU,0); t.needsUpdate = true; }
-        const mat = new THREE.MeshBasicMaterial({map:t,toneMapped:false,side:underside ? THREE.BackSide : THREE.FrontSide,transparent:true,opacity:1,color:new THREE.Color(tint)});
-        const mesh = new THREE.Mesh(geo,mat); pivot.add(mesh); return {geo,mat,pos,base};
-      };
-      let front, back;
-      if (dir === 'next') { front = makePage(prevTex,.5,false,false,0xfffbef); back = makePage(nextTex,0,true,true,0xf0e1c6); }
-      else { front = makePage(nextTex,0,false,false,0xfffbef); back = makePage(prevTex,.5,true,true,0xf0e1c6); }
-      const deform = (part, progress) => {
-        if (quiet) return; const pulse = Math.sin(Math.PI * progress), pos = part.pos;
-        for (let i=0;i<pos.count;i++) { const b=part.base[i], f=Math.max(0,Math.min(1,b[0]/halfW)); const arch=Math.sin(Math.PI*f); const edge=Math.pow(f,1.72); pos.setX(i,b[0] + arch * halfW * .075 * pulse); pos.setY(i,b[1] + (arch * .22 + edge * .15) * halfW * pulse); pos.setZ(i,b[2] + Math.sin(Math.PI*f) * Math.sin((b[2]/depth)*Math.PI) * depth * .025 * pulse); }
-        pos.needsUpdate=true; part.geo.computeVertexNormals();
-      };
-      const startRot = dir === 'next' ? 0 : Math.PI, endRot = dir === 'next' ? Math.PI : 0, duration = quiet ? 220 : 780, started = performance.now(); let swapped=false;
-      (function animate(){ const raw=Math.min(1,(performance.now()-started)/duration), eased=easeInOut(raw); pivot.rotation.z=startRot+(endRot-startRot)*eased; deform(front,raw); deform(back,raw); front.mat.opacity=.98; back.mat.opacity=.92+.08*raw;
-        if(raw>=.5 && !swapped){ swapped=true; onHalfway(); loadSpreadTex(nextSlug).then(tex=>applySpreadTex(tex)); }
-        if(raw<1) requestAnimationFrame(animate); else { V.bookGrp.remove(pivot); [front,back].forEach(p=>{p.geo.dispose();p.mat.dispose();}); window.dispatchEvent(new Event('ehon:turnend')); }
-      })();
-    }).catch(() => { onHalfway(); window.dispatchEvent(new Event('ehon:turnend')); });
-  }
-  window.flipPageTransition = function(prevIdx,newIdx,dir,doPageSwap){
-    const prevPage=PAGES[prevIdx], nextPage=PAGES[newIdx]; const prevSlug=prevPage?spreadSlugFromPage(prevPage):'', nextSlug=nextPage?spreadSlugFromPage(nextPage):'';
-    if(!prevSlug || !nextSlug || !V || !V.spreadPlane || prevPage.type === 'toc' || nextPage.type === 'toc' || prevPage.type === 'colophon' || nextPage.type === 'colophon') { doPageSwap(newIdx); window.dispatchEvent(new Event('ehon:turnend')); return; }
-    enhancedFlipPage3D(prevSlug,nextSlug,dir,()=>doPageSwap(newIdx));
-  };
-})();
-</script>
-<!-- Ehon physical-page controller: independent paper deck + synchronized pop-up world -->
-<script type="application/x-disabled" id="ehon-physical-pages-disabled">
-(() => {
-  const init = () => {
-  const runtime = window.__ehon3DRuntime;
-  if (!runtime) return;
-  const { THREE, loadSpreadTex, easeInOut } = runtime;
-  const getV = runtime.getV;
-  const status = document.getElementById('book-turn-status');
-  const title = document.getElementById('book-chapter-title');
-  const count = document.getElementById('book-chapter-count');
-  const motionBtn = document.getElementById('quiet-motion-toggle');
-  let statusTimer = 0, turnLocked = false, spreadToken = 0;
-  const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  const reducedByOS = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const setQuietMotion = (on) => {
-    window.__ehonQuietMotion = !!on;
-    document.documentElement.classList.toggle('quiet-turns', !!on);
-    motionBtn.setAttribute('aria-pressed', String(!!on));
-    motionBtn.textContent = on ? '通常の動き' : '静かな動き';
-    try { localStorage.setItem('ehon-quiet-motion', on ? '1' : '0'); } catch (_) {}
-  };
-  let savedQuiet = false; try { savedQuiet = localStorage.getItem('ehon-quiet-motion') === '1'; } catch (_) {}
-  setQuietMotion(savedQuiet || reducedByOS());
-  motionBtn.addEventListener('click', () => setQuietMotion(!window.__ehonQuietMotion));
-  const inform = (text, hold = 2200) => { status.textContent = text; status.classList.add('show'); clearTimeout(statusTimer); statusTimer = setTimeout(() => status.classList.remove('show'), hold); };
-  const pageName = (idx) => { const page = PAGES[idx]; return page ? tt(page.title) : ''; };
-  const updateCompass = () => {
-    const idx = EHON.state.currentPageIdx;
-    title.textContent = pageName(idx) || '本をひらく';
-    count.textContent = `${String(idx + 1).padStart(2, '0')} / ${String(PAGES.length).padStart(2, '0')}`;
-    const prev = document.getElementById('nav-prev'), next = document.getElementById('nav-next');
-    if (prev) prev.setAttribute('aria-label', idx > 0 ? `前の世界：${pageName(idx - 1)}` : '前の世界はありません');
-    if (next) next.setAttribute('aria-label', idx < PAGES.length - 1 ? `次の世界：${pageName(idx + 1)}` : '次の世界はありません');
-  };
-
-  function textureHalf(full, side, mirror = false) {
-    if (!full) return null;
-    const tex = full.clone(); tex.colorSpace = THREE.SRGBColorSpace;
-    if (mirror) { tex.repeat.set(-.5, 1); tex.offset.set(side === 'left' ? .5 : 1, 0); }
-    else { tex.repeat.set(.5, 1); tex.offset.set(side === 'left' ? 0 : .5, 0); }
-    tex.needsUpdate = true; return tex;
-  }
-  function makeRestLeaf(halfW, depth, side) {
-    const sign = side === 'left' ? -1 : 1;
-    const geo = new THREE.PlaneGeometry(halfW, depth, 32, 8);
-    geo.rotateX(-Math.PI / 2); geo.translate(sign * halfW / 2, 0, 0);
-    const pos = geo.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const f = Math.min(1, Math.abs(pos.getX(i)) / halfW);
-      pos.setY(i, Math.sin(f * Math.PI) * .018 + .004);
-    }
-    pos.needsUpdate = true; geo.computeVertexNormals();
-    const mat = new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, opacity: 1, color: 0xfff9e7 });
-    const mesh = new THREE.Mesh(geo, mat); mesh.renderOrder = 4;
-    return mesh;
-  }
-  function ensurePaperDeck() {
-    const V = getV();
-    if (!V || !V._spreadHalfW || !V._spreadDepth || !V.bookTopY) return null;
-    if (V.paperDeck) return V.paperDeck;
-    const halfW = V._spreadHalfW, depth = V._spreadDepth;
-    const root = new THREE.Group(); root.name = 'independent-paper-deck'; root.position.set(0, V.bookTopY + .045, 0);
-    const edgeMat = new THREE.MeshStandardMaterial({ color: 0xcbb98c, roughness: .92, metalness: 0 });
-    const leftEdge = new THREE.Mesh(new THREE.BoxGeometry(halfW, .06, depth), edgeMat.clone());
-    const rightEdge = new THREE.Mesh(new THREE.BoxGeometry(halfW, .06, depth), edgeMat.clone());
-    leftEdge.position.set(-halfW / 2, -.036, 0); rightEdge.position.set(halfW / 2, -.036, 0);
-    const seam = new THREE.Mesh(new THREE.BoxGeometry(.055, .075, depth * .985), new THREE.MeshStandardMaterial({ color: 0x5e4931, roughness: 1 })); seam.position.y = -.02;
-    const left = makeRestLeaf(halfW, depth, 'left'); const right = makeRestLeaf(halfW, depth, 'right');
-    root.add(leftEdge, rightEdge, seam, left, right); V.scene.add(root);
-    if (V.spreadPlane) V.spreadPlane.visible = false;
-    V.paperDeck = { root, left, right, halfW, depth, baseY: root.position.y, tex: null };
-    return V.paperDeck;
-  }
-  function setRestSpread(tex) {
-    const deck = ensurePaperDeck(); if (!deck) return;
-    [deck.left, deck.right].forEach((leaf, i) => {
-      const old = leaf.material.map; if (old && old !== tex) old.dispose();
-      leaf.material.map = textureHalf(tex, i === 0 ? 'left' : 'right');
-      leaf.material.needsUpdate = true; leaf.visible = !!tex;
-    });
-    deck.root.visible = !!tex; deck.tex = tex;
-    const V = getV();
-    if (V && V.spreadPlane) V.spreadPlane.visible = false;
-  }
-  async function syncRestSpread(index) {
-    const page = PAGES[index]; if (!page || !page.diorama) return;
-    const token = ++spreadToken; const tex = await loadSpreadTex(spreadSlugFromPage(page));
-    if (token === spreadToken && index === EHON.state.currentPageIdx) setRestSpread(tex);
-  }
-  function hidePreviousWorld() {
-    const V = getV();
-    if (V && V._dioramaGrp) { V._dioramaGrp.visible = false; V._dioramaGrp.scale.setScalar(.001); }
-    runtime.hideAnimal();
-  }
-  async function waitForPaperDeck() {
-    for (let n = 0; n < 90; n++) {
-      const deck = ensurePaperDeck(); if (deck) return deck;
-      await wait(30);
-    }
-    return null;
-  }
-
-  const baseBootWorldB = window.bootWorldB;
-  window.bootWorldB = async function(...args) {
-    /* On the first visit, the original loader is needed to create the renderer
-       and imported book. Once its book bounds exist, the independent deck is
-       created before the loader positions the page's diorama. */
-    if (!getV()) {
-      const firstRun = baseBootWorldB.apply(this, args);
-      await waitForPaperDeck();
-      syncRestSpread(EHON.state.currentPageIdx);
-      return firstRun;
-    }
-    await waitForPaperDeck();
-    const run = baseBootWorldB.apply(this, args);
-    await waitForPaperDeck();
-    syncRestSpread(EHON.state.currentPageIdx);
-    return run;
-  };
-  window.openBookThenPop = function() {
-    const deck = ensurePaperDeck();
-    if (!deck) return;
-    const start = performance.now(), baseY = deck.baseY;
-    (function settle() {
-      const t = Math.min(1, (performance.now() - start) / 560);
-      const rise = Math.sin(t * Math.PI) * .12;
-      deck.root.position.y = baseY + rise;
-      if (t < 1) requestAnimationFrame(settle);
-      else {
-        deck.root.position.y = baseY;
-        if (window.popWorldB) window.popWorldB();
-        else window.__ehonQueuedPop = true;
-      }
-    })();
-  };
-
-  function makeTurnSurface(halfW, depth, tex, side, mirror, face) {
-    const geo = new THREE.PlaneGeometry(halfW, depth, 40, 10);
-    geo.translate(halfW / 2, 0, 0); geo.rotateX(-Math.PI / 2);
-    const pos = geo.attributes.position; const base = [];
-    for (let i = 0; i < pos.count; i++) base.push([pos.getX(i), pos.getY(i), pos.getZ(i)]);
-    const mat = new THREE.MeshBasicMaterial({ map: textureHalf(tex, side, mirror), toneMapped: false, side: face, transparent: true, opacity: 1, color: 0xfff8e5 });
-    const mesh = new THREE.Mesh(geo, mat); mesh.renderOrder = 8;
-    return { mesh, geo, mat, pos, base };
-  }
-  function curlTurnSurface(surface, halfW, depth, progress) {
-    if (window.__ehonQuietMotion) return;
-    const pulse = Math.sin(Math.PI * progress);
-    for (let i = 0; i < surface.pos.count; i++) {
-      const base = surface.base[i]; const f = Math.max(0, Math.min(1, base[0] / halfW));
-      const lift = (.035 + .21 * pulse) * Math.sin(Math.PI * f) + .095 * pulse * Math.pow(f, 2);
-      const curlX = halfW * .072 * pulse * Math.sin(Math.PI * f);
-      const curlZ = depth * .045 * pulse * Math.sin(Math.PI * f) * Math.sin((base[2] / depth) * Math.PI);
-      surface.pos.setXYZ(i, base[0] + curlX, base[1] + lift, base[2] + curlZ);
-    }
-    surface.pos.needsUpdate = true; surface.geo.computeVertexNormals();
-  }
-  function disposeTurn(parts, root) {
-    const V = getV(); if (V) V.scene.remove(root);
-    parts.forEach(p => { p.geo.dispose(); p.mat.map && p.mat.map.dispose(); p.mat.dispose(); });
-  }
-  function flipIndependentPage(prevIdx, nextIdx, dir, doPageSwap) {
-    const deck = ensurePaperDeck();
-    const prevPage = PAGES[prevIdx], nextPage = PAGES[nextIdx];
-    if (!deck || !prevPage || !nextPage || !prevPage.diorama || !nextPage.diorama) { doPageSwap(nextIdx); syncRestSpread(nextIdx); finishTurn(); return; }
-    window.__ehonTurnInFlight = true; window.__ehonQueuedPop = false; hidePreviousWorld(); deck.root.visible = false;
-    Promise.all([loadSpreadTex(spreadSlugFromPage(prevPage)), loadSpreadTex(spreadSlugFromPage(nextPage))]).then(([oldTex, newTex]) => {
-      const currentV = getV();
-      if (!currentV) { doPageSwap(nextIdx); syncRestSpread(nextIdx); deck.root.visible = true; finishTurn(); return; }
-      const pivot = new THREE.Group(); pivot.name = 'turning-independent-page'; pivot.position.set(0, deck.baseY + .018, 0); currentV.scene.add(pivot);
-      let front, back;
-      if (dir === 'next') { front = makeTurnSurface(deck.halfW, deck.depth, oldTex, 'right', false, THREE.FrontSide); back = makeTurnSurface(deck.halfW, deck.depth, newTex, 'left', true, THREE.BackSide); }
-      else { front = makeTurnSurface(deck.halfW, deck.depth, newTex, 'left', false, THREE.FrontSide); back = makeTurnSurface(deck.halfW, deck.depth, oldTex, 'right', true, THREE.BackSide); }
-      pivot.add(front.mesh, back.mesh);
-      const startRot = dir === 'next' ? 0 : Math.PI, endRot = dir === 'next' ? Math.PI : 0;
-      const duration = window.__ehonQuietMotion ? 220 : 920, started = performance.now(); let swapped = false;
-      (function animate() {
-        const raw = Math.min(1, (performance.now() - started) / duration); const eased = easeInOut(raw);
-        pivot.rotation.z = startRot + (endRot - startRot) * eased; curlTurnSurface(front, deck.halfW, deck.depth, raw); curlTurnSurface(back, deck.halfW, deck.depth, raw);
-        if (raw >= .5 && !swapped) { swapped = true; doPageSwap(nextIdx); }
-        if (raw < 1) requestAnimationFrame(animate);
-        else { disposeTurn([front, back], pivot); setRestSpread(newTex); deck.root.visible = true; finishTurn(); }
-      })();
-    }).catch(() => { doPageSwap(nextIdx); syncRestSpread(nextIdx); deck.root.visible = true; finishTurn(); });
-  }
-  function finishTurn() {
-    window.__ehonTurnInFlight = false;
-    if (window.__ehonQueuedPop) { window.__ehonQueuedPop = false; setTimeout(() => { if (window.popWorldB) window.popWorldB(); }, 130); }
-    window.dispatchEvent(new Event('ehon:physical-page-settled'));
-  }
-  window.flipPageTransition = function(prevIdx, nextIdx, dir, doPageSwap) { flipIndependentPage(prevIdx, nextIdx, dir, doPageSwap); };
-
-  const originalSwitchPage = EHON.switchPage.bind(EHON);
-  EHON.switchPage = function(nextIdx) {
-    if (turnLocked || nextIdx < 0 || nextIdx >= PAGES.length || nextIdx === EHON.state.currentPageIdx) return;
-    turnLocked = true; document.body.classList.add('ehon-turning');
-    inform(nextIdx > EHON.state.currentPageIdx ? '紙の頁をめくっています…' : '紙の頁をもどしています…', 1800);
-    originalSwitchPage(nextIdx);
-    setTimeout(() => releaseTurn(), window.__ehonQuietMotion ? 480 : 3200);
-  };
-  const releaseTurn = () => { if (!turnLocked) return; turnLocked = false; document.body.classList.remove('ehon-turning'); updateCompass(); };
-  window.addEventListener('ehon:physical-page-settled', releaseTurn);
-  const originalOpen = EHON.open.bind(EHON);
-  EHON.open = function() { originalOpen(); waitForPaperDeck().then(() => syncRestSpread(EHON.state.currentPageIdx)); setTimeout(updateCompass, 80); };
-  updateCompass();
-  if (new URLSearchParams(location.search).get('from') === 'cabin') setTimeout(() => inform('小屋の灯りから、一冊の本が届きました。', 3400), 900);
-  };
-  if (window.__ehon3DRuntime) init();
-  else window.addEventListener('ehon3d-ready', init, { once: true });
-})();
-</script>
-<!-- Stable navigation: visuals must never block the reader's next page action. -->
-<script id="ehon-stable-navigation">
-(() => {
-  window.addEventListener('DOMContentLoaded', () => {
-    const status = document.getElementById('book-turn-status');
-    const title = document.getElementById('book-chapter-title');
-    const count = document.getElementById('book-chapter-count');
-    const motionBtn = document.getElementById('quiet-motion-toggle');
-    let locked = false, timer = 0;
-    const nameOf = (i) => PAGES[i] ? tt(PAGES[i].title) : '';
-    const refresh = () => {
-      const i = EHON.state.currentPageIdx;
-      title.textContent = nameOf(i) || '本をひらく';
-      count.textContent = `${String(i + 1).padStart(2, '0')} / ${String(PAGES.length).padStart(2, '0')}`;
-      const prev = document.getElementById('nav-prev'), next = document.getElementById('nav-next');
-      if (prev) prev.setAttribute('aria-label', i > 0 ? `前の世界：${nameOf(i - 1)}` : '前の世界はありません');
-      if (next) next.setAttribute('aria-label', i < PAGES.length - 1 ? `次の世界：${nameOf(i + 1)}` : '次の世界はありません');
-    };
-    const notice = (text) => { status.textContent = text; status.classList.add('show'); clearTimeout(timer); timer = setTimeout(() => status.classList.remove('show'), 1250); };
-    const originalSwitchPage = EHON.switchPage.bind(EHON);
-    EHON.switchPage = function(nextIndex) {
-      if (locked || nextIndex < 0 || nextIndex >= PAGES.length || nextIndex === EHON.state.currentPageIdx) return;
-      const previousIndex = EHON.state.currentPageIdx;
-      locked = true; document.body.classList.add('ehon-turning');
-      notice(nextIndex > previousIndex ? '次の頁へ進みます…' : '前の頁へもどります…');
-      /* The outgoing world is hidden as the page starts to turn. Its replacement
-         is allowed to load independently; it can never hold this navigation lock. */
-      const runtime = window.__ehon3DRuntime;
-      const v = runtime && runtime.getV && runtime.getV();
-      if (v && v._dioramaGrp) setTimeout(() => { if (v._dioramaGrp) v._dioramaGrp.visible = false; }, 90);
-      originalSwitchPage(nextIndex);
-      refresh();
-      const quiet = document.documentElement.classList.contains('quiet-turns');
-      setTimeout(() => { locked = false; document.body.classList.remove('ehon-turning'); refresh(); }, quiet ? 320 : 1250);
-    };
-    motionBtn.addEventListener('click', () => {
-      const on = !document.documentElement.classList.contains('quiet-turns');
-      document.documentElement.classList.toggle('quiet-turns', on);
-      motionBtn.setAttribute('aria-pressed', String(on));
-      motionBtn.textContent = on ? '通常の動き' : '静かな動き';
-    });
-    refresh();
-  });
-})();
 </script>
 <!-- ── 行き止まり防止: どのページからでも家に戻れるようにする ── -->
 <style>
 .homeback{position:fixed;left:14px;bottom:14px;z-index:9999;display:flex;gap:8px;
   align-items:center;padding:9px 15px;border-radius:999px;text-decoration:none;
   font-family:"Hiragino Sans","Yu Gothic",sans-serif;font-size:13px;font-weight:700;
-  color:#f2ecdf;background:rgba(16,14,24,.82);border:1px solid rgba(201,168,106,.45);
-  backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,.3);
+  color:#f2ecdf;background:rgba(16,14,24,.9);border:1px solid rgba(201,168,106,.45);
+  box-shadow:0 6px 20px rgba(0,0,0,.3);
   transition:background .2s ease, transform .2s ease}
 .homeback:hover{background:rgba(28,24,40,.94);transform:translateY(-2px)}
 .homeback span{opacity:.72;font-weight:400}
