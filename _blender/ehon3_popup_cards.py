@@ -12,8 +12,9 @@
 usage: python _blender/ehon3_popup_cards.py
 """
 import os
+import sys
 import numpy as np
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 from scipy.ndimage import gaussian_filter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -102,12 +103,46 @@ def plain(path, name, size=256):
     save(im, f'{name}_v1.webp', 90)
 
 
-def toc(path, slug, centering=(0.5, 0.5)):
-    im = Image.open(src(path)).convert('RGB')
+def toc(path, slug, centering=(0.5, 0.5), ver=1):
+    im = ImageOps.exif_transpose(Image.open(src(path))).convert('RGB')
     im = ImageOps.fit(im, (480, 300), Image.LANCZOS, centering=centering)
-    p = os.path.join(ROOT, '_ehon_assets', 'ehon', f'toc_{slug}_v1.webp')
+    p = os.path.join(ROOT, '_ehon_assets', 'ehon', f'toc_{slug}_v{ver}.webp')
     im.save(p, 'WEBP', quality=84, method=6)
-    print(f'toc_{slug}_v1.webp {os.path.getsize(p) // 1024}KB')
+    print(f'toc_{slug}_v{ver}.webp {os.path.getsize(p) // 1024}KB')
+
+
+# 一人旅の写真 (P:\Public Folder\hitoritabi = サイトの旅ページが pCloud の公開リンクで出している元の写真)
+TABI = 'P:\\Public Folder\\hitoritabi\\'
+TABI_PHOTOS = [   # (名前, ファイル, 札の文字, 縦長か)
+    ('petra', '_ヨルダン-イスラエル写真___IMG_1540_JPG.jpg', 'ペトラ　ヨルダン', False),
+    ('moraine', '_カナダ___P_20180908_113122_vHDR_On_jpg.jpg', 'モレーン湖　カナダ', False),
+    ('pyramid', '_エジプト___20231228_091741_JPG.jpg', 'ギザ　エジプト', False),
+    ('msm', '_フランス-スイス____フランス___DSC03814_JPG.jpg', 'モン・サン＝ミシェル', False),
+    ('sagrada', '_スペイン___IMG_20190905_084713_jpg.jpg', 'バルセロナ　スペイン', True),
+    ('yakushima', '_屋久島____to___P5086032_JPG.jpg', '屋久島　ウィルソン株', False),
+    ('dubrovnik', '_クロアチア___IMG_20200105_094816_jpg.jpg', 'ドゥブロヴニク', False),
+    ('angkor', '_カンボジア___IMG_0435_JPG.jpg', 'アンコール・ワット', False),
+]
+
+
+def polaroid(path, name, caption, portrait=False, width=440):
+    """旅の写真を、白い縁のインスタント写真に。下の余白に場所の名前"""
+    im = ImageOps.exif_transpose(Image.open(path)).convert('RGB')
+    pw, ph = (width, int(width * 4 / 3)) if portrait else (width, int(width * 3 / 4))
+    im = ImageOps.fit(im, (pw, ph), Image.LANCZOS, centering=(0.5, 0.45))
+    pad, bottom = 24, 92
+    w, h = pw + pad * 2, ph + pad + bottom
+    card = Image.new('RGB', (w, h), (250, 248, 242))
+    card.paste(im, (pad, pad))
+    d = ImageDraw.Draw(card)
+    d.rectangle([pad - 1, pad - 1, pad + pw, pad + ph], outline=(214, 208, 196), width=1)
+    font = ImageFont.truetype('C:/Windows/Fonts/yumin.ttf', 30)
+    d.text((w // 2, pad + ph + bottom // 2), caption, fill=(64, 52, 40), font=font, anchor='mm')
+    d.rectangle([0, 0, w - 1, h - 1], outline=(222, 216, 204), width=2)
+    out = card.convert('RGBA')
+    save(out, f'{name}_v1.webp', 86)
+    back = Image.new('RGBA', (w // 2, h // 2), (244, 241, 234, 255))
+    save(back, f'{name}_back_v1.webp', 80)
 
 
 PAGE_TEMPLATE = os.path.join(ROOT, '_ehon_assets', 'ehon', 'pages', 'page_tomoshibi_v1.webp')
@@ -202,29 +237,66 @@ def galaxy_disk(size=768, span=7.6):
     print(f'galaxy_disk_v1.webp {size}x{size} {os.path.getsize(path) // 1024}KB')
 
 
+def card_uv(u, v, border=16, art=(1024, 576)):
+    """背景カード (backdrop) の元絵の中の位置 (0..1) を、カード画像の中の位置 (0..1) にする (ehon.html の glows 用)"""
+    w, h = art[0] + border * 2, art[1] + border * 2
+    return round((border + u * art[0]) / w, 4), round((border + v * art[1]) / h, 4)
+
+
 if __name__ == '__main__':
-    # 正解の外側: 地下の少年と記憶のない少女が、空を目指す
-    backdrop('assets/seikai/cg-townsky.jpg', 'seikai_back')
-    standee('assets/seikai/cg-kai.png', 'seikai_kai')
-    standee('assets/seikai/cg-rin.png', 'seikai_rin')
-    # 百の悪行: 夜の城の前に魔王、手前に勇者と少女
-    backdrop('assets/hyaku/img/bg_castle.jpg', 'hyaku_back')
-    standee('assets/hyaku/img/sp_theodora.png', 'hyaku_theodora')
-    standee('assets/hyaku/img/sp_ash.png', 'hyaku_ash')
-    standee('assets/hyaku/img/sp_mia.png', 'hyaku_mia')
-    # ことつぎの星: 夕暮れの浜 (キービジュアル) を背に、流れ着いた少女とおばあさん。ひろわれるのを待つ言葉のかけら
-    backdrop('kototsugi/game/assets/cg/key_visual.png', 'kototsugi_back')
-    standee('kototsugi/game/assets/sprite/fine/smile.png', 'kototsugi_fine')
-    standee('kototsugi/game/assets/sprite/baa/normal.png', 'kototsugi_baa')
-    for k in ('bright', 'warm', 'cool', 'solemn'):
-        plain(f'kototsugi/game/assets/item/shard_{k}.png', f'kototsugi_shard_{k}')
-    # 目次のサムネ (先頭の3作)
-    toc('assets/seikai/keyvisual-bg.jpg', 'seikai', (0.5, 0.5))
-    toc('kototsugi/game/assets/cg/key_visual.png', 'kototsugi', (0.45, 0.4))
-    toc('assets/hyaku/img/bg_keyvisual.jpg', 'hyaku', (0.5, 0.45))
-    # 見開きの左頁の挿絵
-    plate('assets/seikai/keyvisual-bg.jpg', 'seikai', (0.45, 0.5))
-    plate('kototsugi/game/assets/cg/shore_find.png', 'kototsugi', (0.5, 0.5))
-    plate('assets/hyaku/img/bg_hyakujo.jpg', 'hyaku', (0.5, 0.5))
-    # 歌う銀河
-    galaxy_disk()
+    parts = set(sys.argv[1:]) or {'stories', 'cabin', 'shogi', 'tabi', 'plates', 'toc', 'galaxy'}
+    if 'stories' in parts:
+        # 正解の外側: 地下の少年と記憶のない少女が、空を目指す
+        backdrop('assets/seikai/cg-townsky.jpg', 'seikai_back')
+        standee('assets/seikai/cg-kai.png', 'seikai_kai')
+        standee('assets/seikai/cg-rin.png', 'seikai_rin')
+        # 百の悪行: 夜の城の前に魔王、手前に勇者と少女
+        backdrop('assets/hyaku/img/bg_castle.jpg', 'hyaku_back')
+        standee('assets/hyaku/img/sp_theodora.png', 'hyaku_theodora')
+        standee('assets/hyaku/img/sp_ash.png', 'hyaku_ash')
+        standee('assets/hyaku/img/sp_mia.png', 'hyaku_mia')
+        # ことつぎの星: 夕暮れの浜 (キービジュアル) を背に、流れ着いた少女とおばあさん。ひろわれるのを待つ言葉のかけら
+        backdrop('kototsugi/game/assets/cg/key_visual.png', 'kototsugi_back')
+        standee('kototsugi/game/assets/sprite/fine/smile.png', 'kototsugi_fine')
+        standee('kototsugi/game/assets/sprite/baa/normal.png', 'kototsugi_baa')
+        for k in ('bright', 'warm', 'cool', 'solemn'):
+            plain(f'kototsugi/game/assets/item/shard_{k}.png', f'kototsugi_shard_{k}')
+    if 'cabin' in parts:
+        # 森の小屋: 雨の森にともる小屋 (cabin.html の扉の絵)。窓と扉の灯りの位置 (元絵で実測) を出しておく
+        backdrop('assets/cabin-hero.png', 'cabin_back')
+        for nm, (u, v) in (('窓・左', (0.442, 0.601)), ('窓・右', (0.514, 0.61)), ('屋根裏', (0.574, 0.484)), ('扉', (0.564, 0.694))):
+            print('glow', nm, card_uv(u, v))
+    if 'shogi' in parts:
+        # 将棋ぷよ: 盤の両脇に、金 (金四郎) と飛 (緋蓮)
+        standee('assets/characters/kinshiro.png', 'shogi_kin', height=640)
+        standee('assets/characters/hiren.png', 'shogi_hi', height=640)
+    if 'tabi' in parts:
+        for name, f, cap, portrait in TABI_PHOTOS:
+            polaroid(TABI + f, 'tabi_' + name, cap, portrait)
+    if 'toc' in parts:
+        # 目次のサムネ (各作品の本物の画面・絵から)
+        toc('assets/seikai/keyvisual-bg.jpg', 'seikai', (0.5, 0.5))
+        toc('kototsugi/game/assets/cg/key_visual.png', 'kototsugi', (0.45, 0.4))
+        toc('assets/hyaku/img/bg_keyvisual.jpg', 'hyaku', (0.5, 0.45))
+        toc('assets/og/sudoku-1200x630.jpg', 'sudoku', (0.45, 0.5), ver=2)
+        toc('assets/og/shogi-puyo-1200x630.jpg', 'shogipuyo', (0.5, 0.6), ver=2)
+        toc('assets/og/ai-map-1200x630.png', 'aimap', (0.35, 0.3))
+        toc('assets/og/hitori-1200x630.jpg', 'hitori', (0.72, 0.5))
+        toc(TABI + TABI_PHOTOS[0][1], 'hitoritabi', (0.5, 0.45), ver=2)
+        toc('assets/og/world-1200x630.jpg', 'niwa', (0.5, 0.5), ver=2)
+        toc('assets/cabin-hero.png', 'cabin', (0.55, 0.55), ver=2)
+    if 'plates' in parts:
+        # 見開きの左頁の挿絵
+        plate('assets/seikai/keyvisual-bg.jpg', 'seikai', (0.45, 0.5))
+        plate('kototsugi/game/assets/cg/shore_find.png', 'kototsugi', (0.5, 0.5))
+        plate('assets/hyaku/img/bg_hyakujo.jpg', 'hyaku', (0.5, 0.5))
+        plate('assets/og/universe-1200x630.jpg', 'salon', (0.5, 0.5))
+        plate('assets/og/sudoku-1200x630.jpg', 'sudoku', (0.46, 0.5))
+        plate('assets/og/shogi-puyo-1200x630.jpg', 'shogipuyo', (0.34, 0.5))
+        plate('assets/og/ai-map-1200x630.png', 'aimap', (0.3, 0.5))
+        plate('assets/og/hitori-1200x630.jpg', 'hitori', (0.7, 0.5))
+        plate(TABI + TABI_PHOTOS[3][1], 'hitoritabi', (0.5, 0.5))
+        plate('assets/og/world-1200x630.jpg', 'niwa', (0.5, 0.5))
+        plate('assets/cabin-still.jpg', 'cabin', (0.45, 0.5))
+    if 'galaxy' in parts:
+        galaxy_disk()

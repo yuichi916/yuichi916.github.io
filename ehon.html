@@ -1,10 +1,10 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>とびだす絵本の世界 — 15の世界へつづく本 | yuichi916.github.io</title>
+<title>とびだす絵本の世界 — 11の世界へつづく本 | yuichi916.github.io</title>
 <link rel="canonical" href="https://yuichi916.github.io/ehon.html">
-<meta name="description" content="ページをめくると3Dの世界がとびだす絵本。正解の外側・ことつぎの星・百の悪行・森の小屋・歌う銀河…15の世界と10匹のいきもの図鑑。A pop-up picture book leading to 15 little worlds.">
+<meta name="description" content="ページをめくると、作品がそのまま3Dでとびだす絵本。正解の外側・ことつぎの星・百の悪行・音楽の宇宙・AI能力アトラス…11の世界と10匹のいきもの図鑑。A pop-up picture book leading to 11 worlds.">
 <meta property="og:title" content="とびだす絵本の世界 | A Pop-up Book of Worlds">
-<meta property="og:description" content="ページをめくると3Dの世界がとびだす。15の世界と、日替わりでかくれる10匹のいきもの。">
+<meta property="og:description" content="ページをめくると、物語・ゲーム・地図がそのまま3Dでとびだす。11の世界と、日替わりでかくれる10匹のいきもの。">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://yuichi916.github.io/ehon.html">
 <meta property="og:image" content="https://yuichi916.github.io/assets/og/ehon-cover-1200x630.jpg">
@@ -13,7 +13,7 @@
 {"@context":"https://schema.org","@type":"CreativeWork","name":"とびだす絵本の世界 / A Pop-up Book of Worlds",
  "url":"https://yuichi916.github.io/ehon.html","inLanguage":["ja","en"],
  "author":{"@type":"Person","name":"yuichi916"},
- "description":"ページをめくると3Dの世界がとびだすWeb絵本。15の世界と10匹のいきもの図鑑。"}
+ "description":"ページをめくると、作品がそのまま3DでとびだすWeb絵本。11の世界と10匹のいきもの図鑑。"}
 </script>
 <script type="importmap">
 { "imports": {
@@ -93,6 +93,7 @@
     box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;transition:opacity .6s}
   @media(max-width:919px){#title-card{left:14px;top:64px;max-width:min(440px,calc(62vw - 26px))}}
   #title-card.show{opacity:1}
+  #title-card.show.on-sheet{opacity:0}   /* 目次と奥付はシートが自分の見出しを持つ (札がシートに重ならないように) */
   #title-card h1{font-size:clamp(16px,3.2vw,26px);letter-spacing:.04em}
   #title-card p{font-size:13px;color:#6b5b45;margin-top:4px}
   #mode-toggle{position:fixed;right:18px;bottom:18px;display:none;z-index:10;
@@ -157,6 +158,7 @@
     display:none; gap:8px; z-index:20;
   }
   #world-dots.show { display:flex; }
+  #world-dots.on-sheet { display:none; }   /* 目次と奥付の紙の上に点の列が重ならないように */
   #world-dots .dot {
     width:8px; height:8px; border-radius:50%;
     background:#b9a784; transition:background .3s;
@@ -177,16 +179,6 @@
     font-family:inherit; font-size:14px; display:none;
   }
   #immerse-back.show { display:block; }
-
-  /* cabin link */
-  #cabin-link {
-    position:fixed; left:16px; bottom:16px; z-index:10;
-    font-size:13px; color:#8a7860; text-decoration:none;
-    background:rgba(250,245,235,.75); border:1px solid #b9a784;
-    border-radius:4px; padding:5px 10px;
-    transition:opacity .3s; opacity:.7;
-  }
-  #cabin-link:hover { opacity:1; }
 
   /* ---- ミニクエスト UI ---- */
   @keyframes questPulse {
@@ -349,6 +341,13 @@
   .po-enter{display:inline-block;margin-top:10px;font-weight:700;color:#fff;background:#a3552f;
     padding:10px 18px;border-radius:99px;text-decoration:none;box-shadow:0 3px 10px rgba(120,50,10,.35)}
   .po-enter:hover{background:#c26a3d}
+  /* 入口のボタンは、ゆっくり灯って誘う */
+  #page-overlay.show .po-enter{animation:poEnter 2.8s ease-in-out 1.4s infinite}
+  @keyframes poEnter{0%,100%{box-shadow:0 3px 10px rgba(120,50,10,.35)}50%{box-shadow:0 3px 24px rgba(255,176,96,.8)}}
+  /* 飛び出しに乗せたときの札 */
+  #pop-hint{position:fixed;left:0;top:0;z-index:70;pointer-events:none;white-space:nowrap;opacity:0;transition:opacity .15s;
+    padding:6px 12px;border:1px solid #c9a86a;border-radius:999px;background:rgba(36,24,14,.9);color:#ffe9c4;font-size:13px}
+  #pop-hint.show{opacity:1}
 
   /* ---- 目次: 世界の地図 ---- */
   .toc-wrap{position:absolute;inset:6% 8% 10%;overflow:auto;z-index:30;
@@ -357,6 +356,13 @@
   /* 目次/奥付は、紙が着地するころに浮かび、次の頁へ行くときはすっと消える */
   .toc-wrap,.colo-wrap{animation:ehonSheetIn .42s cubic-bezier(.2,.8,.2,1) .2s both}
   .toc-wrap.leaving,.colo-wrap.leaving{opacity:0;transition:opacity .16s ease;animation:none}
+  /* 先に組んで隠しておく奥付 (組み直しが起きない)。組んだ直後だけ見えないほど薄く描いて、初めて使う文字の
+     描き込みを済ませておく (0.001 だと 8bit で 0 に丸まり、Chrome が描き込み自体を省いてしまう) */
+  .colo-wrap.prewarm{visibility:hidden;pointer-events:none;animation:none}
+  /* overflow:hidden = スクロールする箱にしない。スクロールする箱は高解像度の画面で別の層になり、
+     重なった頁の文章まで描き方が変わって、文字が一瞬薄く見える */
+  .colo-wrap.prewarm.warm{visibility:visible;opacity:.02;background:transparent;overflow:hidden}
+  .colo-wrap.prewarm.warm *{background:transparent!important;border-color:transparent!important}   /* 描くのは文字だけ (ボタンの形が透けないように) */
   @keyframes ehonSheetIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
   .toc-title{font-size:1.3rem;margin:0 0 12px;color:#4a3a24;letter-spacing:.12em}
   .toc-ch{margin-bottom:14px}
@@ -379,6 +385,16 @@
   /* 奥付見開き「外の窓」 */
   .colo-wrap{position:absolute;inset:10% 12%;z-index:30;background:rgba(30,26,20,.92);border-radius:14px;
     padding:26px;color:#f5ecd8;overflow:auto}
+  /* 最後の頁は本の「おしまい」。戻る道をいちばん上に置く (閉じるボタンを探させない) */
+  .colo-end{margin:0;font-size:1.25rem;letter-spacing:.18em;color:#ffe9c4}
+  .colo-thanks{margin:4px 0 14px;font-size:.85rem;opacity:.8}
+  .colo-nav{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 22px}
+  .colo-btn{display:inline-flex;align-items:center;border:1px solid #c9a86a;border-radius:999px;padding:10px 18px;
+    background:rgba(255,240,210,.08);color:#ffe9c4;font:inherit;font-size:.92rem;cursor:pointer;text-decoration:none}
+  .colo-btn:hover,.colo-btn:focus-visible{outline:none;background:rgba(255,240,210,.2)}
+  .colo-btn.primary{background:#e8c98a;border-color:#e8c98a;color:#3a2a14;font-weight:700}
+  .colo-btn.primary:hover,.colo-btn.primary:focus-visible{background:#f3dba6}
+  .colo-wrap .toc-title{color:#f5ecd8;font-size:1rem}
   .colo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-top:10px}
   .colo-win{display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px 10px;border-radius:12px;
     background:linear-gradient(180deg,#5a4a32,#3c3122);text-decoration:none;color:#ffe9c4;
@@ -399,6 +415,11 @@
   #zukan-modal.show{display:flex}
   .zk-box{background:#fbf4e4;border-radius:16px;max-width:640px;width:92%;max-height:84vh;overflow:auto;
     padding:20px 24px;color:#463823}
+  .zk-head{position:sticky;top:-20px;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin:-20px -24px 10px;padding:14px 14px 10px 24px;background:#fbf4e4}
+  .zk-head h3{margin:0}
+  .zk-x{flex:none;width:38px;height:38px;border:none;border-radius:50%;background:#8c6d46;color:#fff;
+    font-size:1.25rem;line-height:1;cursor:pointer}
   .zk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
   .zk-cell{background:#e8dcc2;border-radius:10px;padding:8px;text-align:center;filter:grayscale(1);opacity:.66}
   .zk-cell.zk-found{filter:none;opacity:1;background:#fff8e6;box-shadow:0 2px 8px rgba(150,110,40,.25)}
@@ -424,7 +445,7 @@
 
   </div>
 </div>
-<div id="title-card"><h1>Enchanted — 妖精の森の絵本</h1><p>本をひらくと、ページの上に魔法の世界がたちあがる</p></div>
+<div id="title-card"><h1>とびだす絵本の世界</h1><p>ページをめくると、作品がそのまま3Dでとびだす</p></div>
 <div id="mode-toggle">
   <button id="btn-a" class="sel">水彩</button>
   <button id="btn-b">3D</button>
@@ -438,10 +459,9 @@
 <div id="world-dots"></div>
 <button id="immerse-back">✕ もどる</button>
 <button id="goto-toc" aria-label="目次">🗺</button>
-<a id="cabin-link" href="cabin.html">← 小屋へ</a>
 <div id="book-compass" aria-label="絵本の現在地と表示設定">
   <div class="bc-copy"><span class="bc-kicker">chapter bookmark</span><strong class="bc-title" id="book-chapter-title">本をひらく</strong></div>
-  <span class="bc-count" id="book-chapter-count">01 / 12</span>
+  <span class="bc-count" id="book-chapter-count">02 / 13</span>
   <button type="button" class="bc-motion" id="quiet-motion-toggle" aria-pressed="false">静かな動き</button>
 </div>
 <div id="book-turn-status" role="status" aria-live="polite"></div>
@@ -450,42 +470,37 @@
      PerplexityBot など）には HTML がほぼ空に見えていた。同じ内容をここに置く。 -->
 <noscript>
 <div id="ehon-static">
-  <h1>とびだす絵本の世界 — 15の世界へつづく本</h1>
-  <p>ページをめくると、紙の上に 3D の世界がせり上がるブラウザ絵本です。全 20 ページ。
-  水彩とポリゴンの 2 つの見え方を切り替えられます。登録もインストールもいらず、無料で読めます。
-  日替わりで 10 匹のいきものがどこかのページに隠れていて、見つけると図鑑に記録されます。</p>
+  <h1>とびだす絵本の世界 — 11の世界へつづく本</h1>
+  <p>ページをめくると、紙の上に作品そのものが 3D でせり上がるブラウザ絵本です。全 13 ページ。
+  ゲームの背景とキャラクター、音楽の星図、AI の能力地図、日本地図、旅の写真が、紙の仕掛けのように立ち上がります。
+  登録もインストールもいらず、無料で読めます。日替わりで 10 匹のいきものがどこかのページに隠れていて、見つけると図鑑に記録されます。</p>
 
   <h2>この本に入っている世界</h2>
   <ul>
-    <li>正解の外側 — シンギュラリティの、その先の物語</li>
-    <li>ことつぎの星 — 言葉をつなぐ、海辺の物語</li>
-    <li>百の悪行 — 魔王の犯行記録を、勇者が検証する</li>
-    <li>森の小屋 — 焚き火と 360°の静けさ</li>
-    <li>北の対局場 — 将棋ぷよ「成」</li>
-    <li>ルーンの大聖堂 — 異世界立体数独</li>
-    <li>心の庭 — 浮遊島をめぐる瞑想</li>
-    <li>小さな灯 — 朝がつらい君への手帖</li>
-    <li>時の計り手 — 高精度ストップウォッチ</li>
-    <li>ことばの書斎 — YouTube で英語リスニング</li>
-    <li>試練の武具庫 — TOEIC Part5 三十番勝負</li>
-    <li>歌う銀河 — 一万九千人の音楽の宇宙</li>
-    <li>出航の港 — 32 の一人旅の記録</li>
-    <li>地図師の机 — 浮遊島群の地図</li>
-    <li>消えない焚き火 — 森の小屋の、ある夜の物語</li>
-    <li>Enchanted ／ Valhalla ／ Dark Fantasy — 3 つの異世界ジオラマ</li>
+    <li>正解の外側 — シンギュラリティの、その先の物語 (全15話のサウンドノベル)</li>
+    <li>ことつぎの星 — 言葉をつなぐ、海辺の物語 (ノベルゲーム)</li>
+    <li>百の悪行 — 魔王の犯行記録を、勇者が検証する (フルボイスの短編)</li>
+    <li>音楽の宇宙 — 19,810組のアーティストの星図</li>
+    <li>ルーン・キューブ — 宙に浮かぶ、異世界立体数独</li>
+    <li>将棋ぷよ「成」 — 駒でつなぐ、連鎖の対局</li>
+    <li>AI能力アトラス — 326の仕事の、2022→2030年</li>
+    <li>ひとり歓迎マップ — 「ひとりで入れるか」を、根拠つきで (全国40,615施設)</li>
+    <li>一人旅 — 32の旅と、1,607枚の写真</li>
+    <li>浮遊島 — 九つの小さな庭を、ただ歩く</li>
+    <li>森の小屋 — 雨音と焚き火の、360°の静けさ</li>
   </ul>
 
   <h2>読み方</h2>
   <p>本の端を押すとページがめくれます。左右の矢印、キーボードの ← → でも進みます。
-  「水彩」と「3D」のボタンで見え方が変わり、🗺 を押すと世界の地図（目次）が開きます。
+  飛び出したものを押すと、その作品が開きます。🗺 を押すと世界の地図（目次）が開きます。
   音符のボタンで BGM を切り替えられます。</p>
 
   <h2>作り方</h2>
-  <p>3D は Three.js、ジオラマは Blender で作った glTF を読み込んでいます。
+  <p>3D は Three.js です。飛び出すカードは各作品の絵から、地図と星図は作品のデータから作っています。
   制作の工程は <a href="index.html#knowhow">作り方の記録</a> に書いています。</p>
 
   <h2>もっと詳しく</h2>
-  <p>読み方・15 の世界の一覧・よくある質問は
+  <p>読み方・11 の世界の一覧・よくある質問は
   <a href="ehon-about.html">この絵本について</a> にまとめています。
   ほかの作品は <a href="./">ひとりぶんの棚</a> から。</p>
 </div>
@@ -599,30 +614,35 @@ window.resolveEhonFileids = () => Promise.resolve({});
 window.getAssetUrl = getAssetUrl;
 window.getMediaUrl = getMediaUrl;
 
-/* ---- 頁一覧 (絵本の見開き) ---- */
-const CH = { TOTONOU:{jp:'整える',en:'Calm'}, ASOBU:{jp:'遊ぶ',en:'Play'},
-             MANABU:{jp:'学ぶ',en:'Learn'}, KIKU:{jp:'聴く',en:'Listen'},
-             TABI:{jp:'旅する',en:'Travel'}, MONOGATARI:{jp:'物語',en:'Story'},
-             BOUKEN:{jp:'冒険',en:'Adventure'} };
+/* ---- 頁一覧 (絵本の見開き) ----
+   時間をかけて作った 11 の作品だけを載せる。飛び出すものは、どれも作品そのものの絵・データ・ルールから作る。
+   popup.type: cards (背景と立ち絵の紙のカード。glows = 絵の中の灯り、fx = 雨・漂う光・金の道筋・舞う紙・将棋の盤・紙飛行機)、
+   galaxy (音楽の宇宙)、cube (ルーン・キューブ)、atlas (AI能力アトラス)、japan (ひとり歓迎マップ)。
+   diorama + island は GLB の模型を浮遊島にする。thumb は目次の絵 (なければ toc_<slug>_v1.webp) */
+const CH = { MONOGATARI:{jp:'物語',en:'Stories'}, ASOBU:{jp:'遊ぶ',en:'Play'},
+             KENKYU:{jp:'研究',en:'Research'}, HITORI:{jp:'ひとりの時間',en:'Time alone'} };
+const FRONT_SPOTS = [{x:-2.7,y:0.05,z:1.9},{x:2.7,y:0.05,z:1.8},{x:0.1,y:0.05,z:2.7}];   /* 動物が立つところ (飛び出しの手前) */
 const PAGES = [
   {id:'toc', type:'toc', chapter:null,
    title:{jp:'世界の地図', en:'Map of Worlds'}, sub:{jp:'この本のすべての頁', en:'All pages of this book'},
    story:null, link:null, linkJpOnly:false, modes:[], diorama:null, camPos:null, animal:null, quest:null},
-  /* 3つの物語は先頭に。飛び出すのは、ゲームの中の背景とキャラクターで作った紙の立体カード
-     (tex は _ehon_assets/ehon/popup/<tex>_v1.webp。w か h で大きさ、x/z で置き場所、delay で起き上がる順) */
-  {id:'seikai', type:'content', chapter:CH.ASOBU,
+  {id:'seikai', type:'content', chapter:CH.MONOGATARI,
    title:{jp:'正解の外側', en:'Outside the Answer'}, sub:{jp:'シンギュラリティの、その先の物語', en:'A saga after the singularity'},
-   story:{jp:'地下のいちばん底に、番号で呼ばれる少年がいたの。……すべての正解が視える彼と、なんにも覚えてない女の子。二人が空を目指す、長い長いお話だよ。ページを、めくってみる？',
-          en:'At the very bottom of the underground lived a boy called by a number. …He can see every right answer; she remembers nothing at all. A long, long tale of the two, reaching for the sky. Shall we turn the page?'},
-   link:'seikai-saga.html', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:null, quest:null,
+   story:{jp:'地下のいちばん底に、番号で呼ばれる少年がいたの。……彼には、正解へつづく金色の道筋が視えるんだって。その道筋に、ひとりだけ映らない女の子があらわれて——。全15話、ページをめくってみる？',
+          en:'At the very bottom of the underground lived a boy called by a number. …He can see the golden paths to every right answer. Then a girl appeared who never shows up on them. Fifteen episodes — shall we turn the page?'},
+   link:'seikai.html', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:'warthog', quest:null,
    popup:{type:'cards', cards:[
      {tex:'seikai_back', w:6.8, z:-1.9, delay:0},
      {tex:'seikai_kai', h:3.0, x:-1.8, z:0.2, delay:0.14},
-     {tex:'seikai_rin', h:2.9, x:1.8, z:0.35, delay:0.22}]}},
-  {id:'kototsugi', type:'content', chapter:CH.ASOBU,
+     {tex:'seikai_rin', h:2.9, x:1.8, z:0.35, delay:0.22}],
+    fx:[{kind:'path', points:[[-2.95,0.04,1.7],[-2.3,0.95,1.25],[-0.95,2.15,0.55],[0.45,2.95,-0.45],[1.5,3.45,-1.72]], nodes:[0.38,0.72]},
+        {kind:'motes', box:[6.4,3.6,2.4], center:[0,0.3,-0.4], n:24, color:0xffd98a, size:5, gain:0.7}]},
+   animalSpots:FRONT_SPOTS},
+  {id:'kototsugi', type:'content', chapter:CH.MONOGATARI,
    title:{jp:'ことつぎの星', en:'The Star of Kototsugi'}, sub:{jp:'言葉をつなぐ、海辺の物語', en:'A seaside tale of woven words'},
-   story:{jp:'夜の海にはね、ひろわれるのを待ってる言葉があるの。……星をたよりに、ことばのかけらをつないでいこ？', en:'At the night sea, words wait to be found. …Follow the stars, and weave their little fragments together.'},
-   link:'kototsugi/game/', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:null, quest:null,
+   story:{jp:'星が堕ちる島の浜にはね、言葉のかけらが打ち上がるの。……ひろった言葉を、文章の欠けにそっと継ぐと、物語が書きかわるんだよ。どんな言葉を、つないでみる？',
+          en:'On the island where stars fall, fragments of words wash up on the beach. …Fit a word you found into a gap in the text, and the story rewrites itself. Which word will you weave in?'},
+   link:'kototsugi/game/', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:'polecat', quest:null,
    popup:{type:'cards', cards:[
      {tex:'kototsugi_back', w:6.8, z:-1.9, delay:0},
      {tex:'kototsugi_fine', h:2.95, x:-1.95, z:0.35, delay:0.14},
@@ -630,90 +650,93 @@ const PAGES = [
      {tex:'kototsugi_shard_bright', size:0.95, x:-1.1, y:3.1, z:0.3, float:true, delay:0.3},
      {tex:'kototsugi_shard_warm', size:0.8, x:1.15, y:2.6, z:0.5, float:true, delay:0.36},
      {tex:'kototsugi_shard_cool', size:0.75, x:0.75, y:3.9, z:-0.6, float:true, delay:0.4},
-     {tex:'kototsugi_shard_solemn', size:0.7, x:-0.55, y:1.5, z:1.1, float:true, delay:0.44}]}},
-  {id:'hyaku', type:'content', chapter:CH.ASOBU,
+     {tex:'kototsugi_shard_solemn', size:0.7, x:-0.55, y:1.5, z:1.1, float:true, delay:0.44}],
+    fx:[{kind:'motes', box:[6.2,3.4,1.2], center:[0,0.5,-1.3], n:22, color:0xffe2a8, size:7}]},
+   animalSpots:FRONT_SPOTS},
+  {id:'hyaku', type:'content', chapter:CH.MONOGATARI,
    title:{jp:'百の悪行', en:'The Hundred Misdeeds'}, sub:{jp:'魔王の犯行記録を、勇者が検証する', en:'A hero audits the demon lord\'s crimes'},
-   story:{jp:'魔王さまはね、百個もわるいことをしたんだって。……でもね、ぜんぶ嘘だったの。最後の頁だけが、ほんとう。……めくって、たしかめてみる？', en:'They say the demon lord did a hundred terrible things. …But they were all lies. Only the last page is true. …Shall we turn it and see?'},
-   link:'hyaku.html', modes:['b'], diorama:null, camPos:null, animal:null, quest:null,
+   story:{jp:'魔王さまはね、百個もわるいことをしたんだって。……でもね、ぜんぶ嘘だったの。最後の頁だけが、ほんとう。フルボイスで、30分。……めくって、たしかめてみる？',
+          en:'They say the demon lord did a hundred terrible things. …But they were all lies. Only the last page is true. Fully voiced, thirty minutes. …Shall we turn it and see?'},
+   link:'hyaku.html', modes:['b'], diorama:null, camPos:null, animal:'lioncub', quest:null,
    popup:{type:'cards', cards:[
      {tex:'hyaku_back', w:6.8, z:-1.9, delay:0},
      {tex:'hyaku_theodora', h:3.2, x:0, z:-0.6, delay:0.12},
      {tex:'hyaku_ash', h:2.8, x:-2.0, z:0.5, delay:0.2},
-     {tex:'hyaku_mia', h:2.65, x:2.0, z:0.65, delay:0.26}]}},
-  {id:'cabin', type:'content', chapter:CH.TOTONOU,
-   title:{jp:'森の小屋', en:'The Forest Cabin'}, sub:{jp:'焚き火と360°の静けさ', en:'A fire and 360° of quiet'},
-   story:{jp:'…森のおくに、ちいさな小屋があるの。焚き火はね、ずっと君を待ってるんだよ。……いっしょに、あたたまろ？', en:'There\'s a little cabin deep in the woods… the fire has waited for you all this time. Shall we warm up together?'},
-   link:'cabin.html', linkJpOnly:false, modes:['b'], diorama:'cabin_diorama.glb', camPos:[0,7,14], animal:null, quest:null,
-   animalSpots:[{x:-2.0,y:0.05,z:1.5},{x:2.3,y:0.05,z:1.0},{x:0.5,y:0.05,z:2.5}]},
-  {id:'shogi-puyo', type:'content', chapter:CH.ASOBU,
-   title:{jp:'北の対局場', en:'The Northern Game Hall'}, sub:{jp:'将棋ぷよ「成」', en:'Shogi-puyo "Nari"'},
-   story:{jp:'北の広間では、駒たちが腕くらべしてるんだって。歩も、銀も、金も…四つそろうと、大わざが出るの。すごいでしょ？', en:'In the northern hall, the pieces are testing their strength. Pawn, silver, gold… line up four and a big move appears. Amazing, right?'},
-   link:'shogi-puyo.html', linkJpOnly:false, modes:['b'], diorama:'shogipuyo_diorama.glb', camPos:[0,7,14], animal:'snowleopard', quest:null,
-   animalSpots:[{x:-2.3,y:0.05,z:1.4},{x:2.1,y:0.05,z:1.5},{x:0.3,y:0.05,z:2.6}]},
-  {id:'sudoku', type:'content', chapter:CH.ASOBU,
-   title:{jp:'ルーンの大聖堂', en:'The Rune Cathedral'}, sub:{jp:'異世界立体数独', en:'3D sudoku from another world'},
-   story:{jp:'こわれかけた大聖堂に、ふるいルーンが浮かんでるの。……数字のかわりの、ふしぎな印。いっしょに、そろえてみない…？', en:'Old runes float in the crumbling cathedral. …Signs where numbers should be. Want to line them up together…?'},
-   link:'sudoku.html', linkJpOnly:false, modes:['b'], diorama:'sudoku_diorama.glb', camPos:[0,7,14], animal:'binturong', quest:null,
-   animalSpots:[{x:-2.2,y:0.05,z:1.4},{x:2.3,y:0.05,z:1.1},{x:0.3,y:0.05,z:2.5}]},
-  {id:'niwa', type:'content', chapter:CH.TOTONOU,
-   title:{jp:'心の庭', en:'The Mind Garden'}, sub:{jp:'浮遊島をめぐる瞑想', en:'Meditation over floating isles'},
-   story:{jp:'うかぶ島の、お庭だよ。……なにもしなくて、いいの。ただ歩いて、風の音をきくだけ。わたしも、すきな場所。', en:'A garden on a floating island. …You don\'t have to do anything. Just walk, and listen to the wind. It\'s my favorite place too.'},
-   link:'niwa.html', linkJpOnly:false, modes:['b'], diorama:'niwa_diorama.glb', camPos:[0,7,14], animal:null, quest:null,
-   animalSpots:[{x:-2.2,y:0.05,z:1.4},{x:2.3,y:0.05,z:1.1},{x:0.3,y:0.05,z:2.5}]},
-  {id:'tomoshibi', type:'content', chapter:CH.TOTONOU,
-   title:{jp:'小さな灯', en:'A Little Lamp'}, sub:{jp:'朝がつらい君への手帖', en:'A notebook for heavy mornings'},
-   story:{jp:'夜のお店に、ちいさな灯がともってる。……朝がつらい日はね、ここであたたかいスープを一杯。心が軽くなる手帖、そっとひらいてみて？',
-          en:'A little lamp glows in the night tavern. …On hard mornings, have a warm bowl of soup here. Open the notebook that lightens your heart, okay?'},
-   link:'tomoshibi.html', linkJpOnly:true, modes:['b'], diorama:'tomoshibi_diorama.glb', camPos:[0,7,14], animal:'warthog', quest:null,
-   animalSpots:[{x:-2.2,y:0.05,z:1.4},{x:2.5,y:0.05,z:0.9},{x:0.4,y:0.05,z:2.6},{x:-1.5,y:0.05,z:-1.2}]},
-  {id:'stopwatch', type:'content', chapter:CH.TOTONOU,
-   title:{jp:'時の計り手', en:'The Timekeeper'}, sub:{jp:'高精度ストップウォッチ', en:'A precise stopwatch'},
-   story:{jp:'この時計塔はね、今日もきちんと時をきざんでるの。……1秒の、千分の一まで。君の時間を、ずっと見守ってるんだよ。', en:'This clock tower keeps careful time today too… down to a thousandth of a second. It\'s always watching over your time.'},
-   link:'stopwatch.html', linkJpOnly:false, modes:['b'], diorama:'stopwatch_diorama.glb', camPos:[0,7,14], animal:'penguin', quest:null,
-   animalSpots:[{x:-2.0,y:0.05,z:1.6},{x:2.2,y:0.05,z:1.3},{x:0.4,y:0.05,z:2.6}]},
-  {id:'lingo', type:'content', chapter:CH.MANABU,
-   title:{jp:'ことばの書斎', en:"The Word Wizard's Study"}, sub:{jp:'YouTubeで英語リスニング', en:'English listening via YouTube'},
-   story:{jp:'ことばの魔法使いさんの、書斎だよ。……ひらいた本の上を、英語のことばが小鳥みたいに飛ぶの。今日はどの動画を、聞いてみよっか？',
-       en:"The word-wizard\'s study. …English words flit over the open book like little birds. Which video shall we listen to today?"},
-   link:'lingo.html', linkJpOnly:true, modes:['b'], diorama:'lingo_diorama.glb', camPos:[0,7,14], animal:'polecat', quest:null,
-   animalSpots:[{x:-2.4,y:0.05,z:1.6},{x:2.2,y:0.9,z:0.4},{x:0.6,y:0.05,z:2.4},{x:-1.2,y:1.4,z:-0.8}]},
-  {id:'toeic', type:'content', chapter:CH.MANABU,
-   title:{jp:'試練の武具庫', en:'The Armory of Trials'}, sub:{jp:'TOEIC Part5 三十番勝負', en:'30 TOEIC Part-5 trials'},
-   story:{jp:'聖騎士さまの武具庫で、今日の試練が待ってるの。……三十の問い。こわくないよ、わたしもそばにいるから。いっしょに挑も？', en:'Today\'s trials wait in the paladin\'s armory. …Thirty questions. Don\'t be scared — I\'m right here. Let\'s face them together?'},
-   link:'toeic.html', linkJpOnly:true, modes:['b'], diorama:'toeic_diorama.glb', camPos:[0,7,14], animal:null, quest:null,
-   animalSpots:[{x:-2.2,y:0.05,z:1.3},{x:2.0,y:0.05,z:1.6},{x:0.2,y:0.05,z:2.6}]},
-  {id:'salon', type:'content', chapter:CH.KIKU,
-   title:{jp:'歌う銀河', en:'The Singing Galaxy'}, sub:{jp:'一万九千人の音楽の宇宙', en:'A universe of 19,000 artists'},
-   story:{jp:'ほら、ページの上に…ちいさな銀河が、うかんでるの。一万九千の、歌い手さんたちの星。すきな星をひとつえらぶと、音楽の旅がはじまるんだよ。',
-          en:'Look, a tiny galaxy floats over the page… stars of nineteen thousand singers. Pick one you like, and a music journey begins.'},
-   link:'salon.html', linkJpOnly:false, modes:['b'], diorama:null, camPos:[0,7,14], animal:'toad', quest:null,
+     {tex:'hyaku_mia', h:2.65, x:2.0, z:0.65, delay:0.26}],
+    fx:[{kind:'pages', n:9, center:[0,0,-0.7], radius:2.2, height:4.0, label:'悪行目録'}]},
+   animalSpots:FRONT_SPOTS},
+  {id:'salon', type:'content', chapter:CH.ASOBU,
+   title:{jp:'音楽の宇宙', en:'The Music Universe'}, sub:{jp:'19,810組のアーティストの星図', en:'A star map of 19,810 artists'},
+   story:{jp:'ほら、ページの上に…銀河が、うかんでるの。ひとつひとつの星が、歌い手さん。19,810組。すきな星のとなりに、まだ知らない音楽が光ってるんだよ。',
+          en:'Look, a galaxy floats over the page… every star is a musician — 19,810 of them. Right next to the star you love, music you have never heard is shining.'},
+   link:'salon.html#universe', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'toad', quest:null,
    popup:{type:'galaxy'},   /* 約1万9千の星で描く渦巻き銀河 (ページの上に浮かぶ) */
    animalSpots:[{x:-2.4,y:0.05,z:1.8},{x:2.2,y:0.05,z:1.4},{x:0.3,y:0.05,z:2.7}]},
-  {id:'hitoritabi', type:'content', chapter:CH.TABI,
-   title:{jp:'出航の港', en:'The Departure Harbor'}, sub:{jp:'32の一人旅の記録', en:'Records of 32 solo journeys'},
-   story:{jp:'港のすみで、帆船が息をととのえてるの。……32回の、ひとり旅の記録。船倉にぎっしり詰まってるんだよ。今日はどの海の話を、聞いてみる？',
-          en:'A tall ship catches its breath by the harbor. …Records of 32 solo journeys, packed in its hold. Which sea\'s tale shall we hear today?'},
-   link:'hitoritabi/index.html', linkJpOnly:false, modes:['b'], diorama:'hitoritabi_diorama.glb', camPos:[0,7,14], animal:null, quest:null,
-   animalSpots:[{x:-2.6,y:0.1,z:1.8},{x:1.9,y:1.2,z:-0.6},{x:3.1,y:0.05,z:1.2},{x:-0.8,y:0.1,z:2.8}]},
-  {id:'world', type:'content', chapter:CH.TABI,
-   title:{jp:'地図師の机', en:"The Cartographer's Desk"}, sub:{jp:'浮遊島群の地図', en:'A map of floating isles'},
-   story:{jp:'地図師さんの大広間に、うかぶ島々の地図がひろげてあるの。……次は、どの島をたずねよっか？', en:'The cartographer\'s hall has a map of the floating isles. …Which island shall we visit next?'},
-   link:'world.html', linkJpOnly:false, modes:['b'], diorama:'world_diorama.glb', camPos:[0,7,14], animal:null, quest:null,
-   animalSpots:[{x:-2.4,y:0.05,z:1.4},{x:2.2,y:0.05,z:1.2},{x:-0.4,y:0.05,z:2.6}]},
-  {id:'hollow-tale', type:'content', chapter:CH.MONOGATARI,
-   title:{jp:'消えない焚き火', en:'The Fire That Never Dies'}, sub:{jp:'森の小屋の、ある夜の物語', en:'One night at the forest cabin'},
-   story:{jp:'雪の夜にね…小屋の焚き火だけが、起きていたの。少年と、少女と、灯守りの秘密。……この火は、消えないんだよ。', en:'On a snowy night… only the cabin fire stayed awake. A boy, a girl, and the lamplighter\'s secret. …This fire never goes out.'},
-   link:'hollow-tale.html', linkJpOnly:true, modes:['b'], diorama:'hollowtale_diorama.glb', camPos:[0,7,14], animal:null, quest:null,
-   animalSpots:[{x:-2.2,y:0,z:1.5},{x:2.4,y:0,z:0.8},{x:0.2,y:0,z:2.6}]},
-  {id:'enchanted', type:'adventure', chapter:CH.BOUKEN,
-   title:{jp:'Enchanted', en:'Enchanted'}, sub:{jp:'妖精の森の絵本', en:'A fairy-forest picture book'},
-   story:null, link:null, linkJpOnly:false, modes:['a','b'], diorama:'enchanted_diorama.glb', camPos:[0,7,14], animal:null, quest:'enchanted'},
-  {id:'valhalla', type:'adventure', chapter:CH.BOUKEN,
-   title:{jp:'Valhalla', en:'Valhalla'}, sub:{jp:'北欧の神々の広間', en:'The hall of Norse gods'},
-   story:null, link:null, linkJpOnly:false, modes:['a','b'], diorama:'valhalla_diorama.glb', camPos:[0,7,14], animal:null, quest:'valhalla'},
-  {id:'darkfantasy', type:'adventure', chapter:CH.BOUKEN,
-   title:{jp:'Dark Fantasy', en:'Dark Fantasy'}, sub:{jp:'崩れゆく大聖堂', en:'A crumbling cathedral'},
-   story:null, link:null, linkJpOnly:false, modes:['a','b'], diorama:'darkfantasy_diorama.glb', camPos:[0,7,14], animal:null, quest:'darkfantasy'},
+  {id:'sudoku', type:'content', chapter:CH.ASOBU,
+   title:{jp:'ルーン・キューブ', en:'Rune Cube'}, sub:{jp:'宙に浮かぶ、異世界立体数独', en:'A floating 3D sudoku'},
+   story:{jp:'宙に浮かぶ、魔法のキューブだよ。……たて・よこ・おく、どこから見ても同じ数がならばないように。ぜんぶそろうと、ぱあっと光るの。いっしょに、やってみない？',
+          en:'A magic cube floating in the air. …Fill it so no number repeats across, down, or deep. When every cell is right, it bursts into light. Want to try it with me?'},
+   link:'sudoku.html', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'binturong', quest:null, thumb:'toc_sudoku_v2.webp',
+   popup:{type:'cube'},
+   animalSpots:[{x:-2.7,y:0.05,z:1.7},{x:2.7,y:0.05,z:1.6},{x:0.2,y:0.05,z:2.7}]},
+  {id:'shogi-puyo', type:'content', chapter:CH.ASOBU,
+   title:{jp:'将棋ぷよ「成」', en:'Shogi Puyo "Nari"'}, sub:{jp:'駒でつなぐ、連鎖の対局', en:'A chain-battle puzzle with shogi pieces'},
+   story:{jp:'将棋の駒が、上から落ちてくるの。おなじ駒が4つつながると、ぽんっと消えて…となりの駒が「成る」んだよ。金四郎さんと緋蓮さんも見てる。連鎖、組んでみる？',
+          en:'Shogi pieces fall from above. Link four of a kind and — pop! — they vanish, and their neighbours promote. Kinshiro and Hiren are watching. Want to build a chain?'},
+   link:'shogi-puyo.html', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'snowleopard', quest:null, thumb:'toc_shogipuyo_v2.webp',
+   popup:{type:'cards', cards:[
+     {tex:'shogi_kin', h:2.25, x:-2.45, z:0.25, ry:0.28, delay:0.2},
+     {tex:'shogi_hi', h:2.25, x:2.45, z:0.3, ry:-0.28, delay:0.28}],
+    fx:[{kind:'shogi', x:0, z:-0.3}]},
+   animalSpots:FRONT_SPOTS},
+  {id:'ai-map', type:'content', chapter:CH.KENKYU,
+   title:{jp:'AI能力アトラス', en:'AI Capability Atlas'}, sub:{jp:'326の仕事の、2022→2030年', en:'326 jobs, from 2022 to 2030'},
+   story:{jp:'AIはね、いま何ができて、何ができないのかな。……326の仕事の地図が、年をめくるたびに、海から陸になっていくの。2030年の地図、いっしょに見てみる？',
+          en:'What can AI do today, and what can it not? …A map of 326 jobs turns from sea into land with every year you turn. Shall we look at the 2030 map together?'},
+   link:'ai-map.html', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:null, quest:null,
+   popup:{type:'atlas'},
+   animalSpots:[]},
+  {id:'hitori', type:'content', chapter:CH.HITORI,
+   title:{jp:'ひとり歓迎マップ', en:'Solo-Welcome Map'}, sub:{jp:'「ひとりで入れるか」を、根拠つきで', en:'Where you can go alone — with sources'},
+   story:{jp:'ひとりで入れるお店って、どこにあるのかな。……全国40,615の、食堂・銭湯・図書館の地図だよ。「ひとりで大丈夫」の根拠つき。今夜は、どこへ行こっか？',
+          en:'Where can you go on your own? …A map of 40,615 diners, bathhouses and libraries across Japan, each with the evidence that one person is welcome. Where shall we go tonight?'},
+   link:'hitori.html', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:'dingo', quest:null,
+   popup:{type:'japan'},
+   animalSpots:[{x:-2.8,y:0.05,z:2.2},{x:2.8,y:0.05,z:2.1},{x:-1.6,y:0.05,z:2.8}]},
+  {id:'hitoritabi', type:'content', chapter:CH.HITORI,
+   title:{jp:'一人旅', en:'Solo Journeys'}, sub:{jp:'32の旅と、1,607枚の写真', en:'32 journeys, 1,607 photographs'},
+   story:{jp:'ひとりで歩いた、32の旅の記録だよ。……ペトラの岩の神殿、カナダの青い湖、屋久島の森。写真の中に、その日の風が残ってるの。どの旅から、めくってみる？',
+          en:'A record of thirty-two journeys walked alone. …Petra\'s temple in the rock, a turquoise lake in Canada, the forest of Yakushima. The wind of each day still lingers in the photos. Which trip shall we open first?'},
+   link:'hitoritabi/index.html', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'turtle', quest:null, thumb:'toc_hitoritabi_v2.webp',
+   popup:{type:'cards', cards:[
+     {tex:'tabi_petra', h:1.95, x:-2.55, z:-1.4, ry:0.18, rz:0.04, delay:0.04},
+     {tex:'tabi_msm', h:1.95, x:-0.85, z:-1.45, ry:0.05, rz:-0.03, delay:0.1},
+     {tex:'tabi_moraine', h:1.95, x:0.85, z:-1.45, ry:-0.05, rz:0.03, delay:0.16},
+     {tex:'tabi_sagrada', h:2.35, x:2.5, z:-1.4, ry:-0.18, rz:-0.04, delay:0.22},
+     {tex:'tabi_pyramid', h:1.35, x:-2.75, z:0.35, ry:0.35, rz:-0.05, delay:0.28},
+     {tex:'tabi_yakushima', h:1.35, x:-0.95, z:0.4, ry:0.1, rz:0.04, delay:0.33},
+     {tex:'tabi_dubrovnik', h:1.35, x:0.95, z:0.4, ry:-0.1, rz:-0.04, delay:0.38},
+     {tex:'tabi_angkor', h:1.35, x:2.75, z:0.35, ry:-0.35, rz:0.05, delay:0.43}],
+    fx:[{kind:'plane', center:[0,3.1,0.2], ax:2.8, az:1.0}]},
+   animalSpots:[{x:-1.9,y:0.05,z:2.0},{x:1.9,y:0.05,z:2.0},{x:0,y:0.05,z:2.8}]},
+  {id:'niwa', type:'content', chapter:CH.HITORI,
+   title:{jp:'浮遊島', en:'The Floating Island'}, sub:{jp:'九つの小さな庭を、ただ歩く', en:'Nine little gardens to wander'},
+   story:{jp:'雲の上に、ぽっかり浮かぶ島があるの。……九つの小さな庭を、ただ歩くだけ。目的なんて、なくていいんだよ。風の音、きこえる？',
+          en:'An island floats high above the clouds. …You just wander through nine little gardens. You don\'t need a reason. Can you hear the wind?'},
+   link:'niwa.html', linkJpOnly:false, modes:['b'], diorama:'niwa_diorama.glb', island:{size:4.8, hover:0.35, rockH:1.7, clouds:9},
+   camPos:[0,7,14], animal:'penguin', quest:null, thumb:'toc_niwa_v2.webp',
+   animalSpots:[{x:-2.8,y:0.05,z:2.0},{x:2.8,y:0.05,z:1.9},{x:0.3,y:0.05,z:2.8}]},
+  {id:'cabin', type:'content', chapter:CH.HITORI,
+   title:{jp:'森の小屋', en:'The Forest Cabin'}, sub:{jp:'雨音と焚き火の、360°の静けさ', en:'Rain, a fire, and 360° of quiet'},
+   story:{jp:'雨の森のおくに、ちいさな小屋があるの。……窓の灯りも、暖炉の火も、ずっと君を待ってたんだよ。ぬれた靴をぬいで、いっしょにあたたまろ？',
+          en:'Deep in the rainy woods stands a little cabin. …The lit windows and the fire have been waiting for you all along. Take off your wet shoes, and let\'s warm up together.'},
+   link:'cabin.html', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'wolfpup', quest:null, thumb:'toc_cabin_v2.webp',
+   popup:{type:'cards', cards:[
+     {tex:'cabin_back', w:6.8, z:-1.6, delay:0, glows:[
+       {u:0.4438, v:0.5957, r:0.42}, {u:0.5136, v:0.6042, r:0.42}, {u:0.5718, v:0.4848, r:0.34}, {u:0.5621, v:0.6838, r:0.6, o:0.8}]}],
+    fx:[{kind:'rain', box:[6.6,4.2,2.8], center:[0,0.05,0.1], n:420, gain:0.5},
+        {kind:'motes', box:[6.0,2.0,2.6], center:[0,0.15,0.5], n:28, color:0xffc46b, size:5}]},
+   animalSpots:FRONT_SPOTS},
   {id:'colophon', type:'colophon', chapter:null,
    title:{jp:'外の窓', en:'Windows to Outside'}, sub:{jp:'この本のつくり手より', en:'From the maker of this book'},
    story:null, link:null, linkJpOnly:false, modes:[], diorama:null, camPos:null, animal:null, quest:null},
@@ -739,7 +762,15 @@ const I18N = { ui: {
   share:        {jp:'じまんする',       en:'Share'},
   toc:          {jp:'世界の地図',       en:'Map of Worlds'},
   windows:      {jp:'外の窓',           en:'Windows to Outside'},
+  theEnd:       {jp:'おしまい',         en:'The End'},
+  thanks:       {jp:'さいごまで めくってくれて、ありがとう。', en:'Thank you for turning every page.'},
+  backPage:     {jp:'← 前のページへ',   en:'← Previous page'},
+  toToc:        {jp:'目次へもどる',     en:'Back to contents'},
+  otherWorks:   {jp:'ほかの作品を見る →', en:'See other works →'},
   close:        {jp:'とじる',           en:'Close'},
+  open:         {jp:'ひらく',           en:'Open'},
+  motionQuiet:  {jp:'静かな動き',       en:'Calm motion'},
+  motionNormal: {jp:'通常の動き',       en:'Full motion'},
   preparing:    {jp:'この世界は準備中なのだ', en:'This world is still being drawn…'},
 }};
 function ehonLang() {
@@ -757,14 +788,20 @@ function setEhonLang(l) {
 function tt(v) { if (!v) return ''; return v[ehonLang()] || v.jp || v; }
 /* 題の札: 大きく題、その下に小さく副題 */
 function setTitleCard(page) {
-  document.querySelector('#title-card h1').textContent = tt(page.title);
-  document.querySelector('#title-card p').textContent = tt(page.sub);
+  const card = document.getElementById('title-card');
+  card.querySelector('h1').textContent = tt(page.title);
+  card.querySelector('p').textContent = tt(page.sub);
+  const sheet = page.type === 'toc' || page.type === 'colophon';
+  card.classList.toggle('on-sheet', sheet);
+  document.getElementById('world-dots').classList.toggle('on-sheet', sheet);
 }
 function refreshAllText() {
   const page = PAGES[EHON.state.currentPageIdx];
   setTitleCard(page);
   renderPageOverlay(page);
   document.getElementById('lang-toggle').textContent = (ehonLang() === 'jp') ? 'A' : 'あ';
+  const mb = document.getElementById('quiet-motion-toggle');
+  mb.textContent = tt(mb.getAttribute('aria-pressed') === 'true' ? I18N.ui.motionNormal : I18N.ui.motionQuiet);
   if (page.type === 'toc') renderToc();
   if (page.type === 'colophon') renderColophon();
 }
@@ -774,31 +811,31 @@ const ANIMALS = [
   {id:'wolfpup',    page:'cabin',      glb:'animal_wolfpup_v1.glb',    name:{jp:'オオカミのこども', en:'Wolf Pup'},
    quote:{jp:'小屋の焚き火、ぼくもすき。', en:'I love the cabin fire too.'},
    cry:{type:'sawtooth', f0:520, f1:380, dur:0.5, repeat:1, vib:6}},
-  {id:'warthog',    page:'tomoshibi',  glb:'animal_warthog_v1.glb',    name:{jp:'イボイノシシ', en:'Warthog'},
-   quote:{jp:'酒場のパン、ひとつちょうだい。', en:'One bread from the tavern, please.'},
+  {id:'warthog',    page:'seikai',  glb:'animal_warthog_v1.glb',    name:{jp:'イボイノシシ', en:'Warthog'},
+   quote:{jp:'地下の配給パン、ひとつちょうだい。', en:'One ration bun from the underground, please.'},
    cry:{type:'sawtooth', f0:140, f1:90, dur:0.3, repeat:2, vib:0}},
-  {id:'penguin',    page:'stopwatch',  glb:'animal_penguin_v1.glb',    name:{jp:'ジェンツーペンギン', en:'Gentoo Penguin'},
-   quote:{jp:'時間ぴったりに、あるくのだ。', en:'I march right on time.'},
+  {id:'penguin',    page:'niwa',  glb:'animal_penguin_v1.glb',    name:{jp:'ジェンツーペンギン', en:'Gentoo Penguin'},
+   quote:{jp:'雲の上って、すずしいのだ。', en:'It is nice and cool above the clouds.'},
    cry:{type:'square', f0:700, f1:500, dur:0.2, repeat:3, vib:0}},
   {id:'binturong',  page:'sudoku',     glb:'animal_binturong_v1.glb',  name:{jp:'ビントロング', en:'Binturong'},
-   quote:{jp:'大聖堂のはり、ねごこち最高。', en:'Cathedral beams make the best beds.'},
+   quote:{jp:'キューブのてっぺん、ねごこち最高。', en:'The top of the cube makes the best bed.'},
    cry:{type:'sine', f0:300, f1:200, dur:0.6, repeat:1, vib:3}},
   {id:'snowleopard',page:'shogi-puyo', glb:'animal_snowleopard_v1.glb',name:{jp:'ユキヒョウ', en:'Snow Leopard'},
    quote:{jp:'次の一手、みえた。', en:'I see the next move.'},
    cry:{type:'sawtooth', f0:220, f1:160, dur:0.7, repeat:1, vib:2}},
-  {id:'polecat',    page:'lingo',      glb:'animal_polecat_v1.glb',    name:{jp:'ケナガイタチ', en:'European Polecat'},
+  {id:'polecat',    page:'kototsugi',      glb:'animal_polecat_v1.glb',    name:{jp:'ケナガイタチ', en:'European Polecat'},
    quote:{jp:'ことばって、すばしっこいね。', en:'Words are quick little things.'},
    cry:{type:'square', f0:1100, f1:800, dur:0.1, repeat:3, vib:0}},
-  {id:'lioncub',    page:'toeic',      glb:'animal_lioncub_v1.glb',    name:{jp:'ライオンのこども', en:'Lion Cub'},
-   quote:{jp:'30問、ぜんぶ挑むぞ！', en:'I will face all thirty trials!'},
+  {id:'lioncub',    page:'hyaku',      glb:'animal_lioncub_v1.glb',    name:{jp:'ライオンのこども', en:'Lion Cub'},
+   quote:{jp:'魔王の城だって、こわくないぞ！', en:"I'm not scared of the demon lord's castle!"},
    cry:{type:'sawtooth', f0:330, f1:240, dur:0.4, repeat:1, vib:4}},
   {id:'toad',       page:'salon',      glb:'animal_toad_v1.glb',       name:{jp:'ジムグリガエル', en:'Burrowing Toad'},
-   quote:{jp:'ぼくの歌も、銀河にとどく？', en:'Will my song reach the galaxy?'},
+   quote:{jp:'ぼくの歌も、音楽の宇宙にとどく？', en:'Will my song reach the music universe?'},
    cry:{type:'square', f0:180, f1:220, dur:0.25, repeat:2, vib:0}},
   {id:'turtle',     page:'hitoritabi', glb:'animal_turtle_v1.glb',     name:{jp:'オサガメ', en:'Leatherback Turtle'},
    quote:{jp:'海はぜんぶ、つながってる。', en:'Every sea is connected.'},
    cry:{type:'sine', f0:400, f1:300, dur:0.5, repeat:1, vib:2}},
-  {id:'dingo',      page:'world',      glb:'animal_dingo_v1.glb',      name:{jp:'ディンゴ', en:'Dingo'},
+  {id:'dingo',      page:'hitori',      glb:'animal_dingo_v1.glb',      name:{jp:'ディンゴ', en:'Dingo'},
    quote:{jp:'地図のはしっこまで、いこう。', en:'To the very edge of the map.'},
    cry:{type:'sawtooth', f0:600, f1:450, dur:0.45, repeat:1, vib:5}},
 ];
@@ -908,7 +945,15 @@ const ZukanEngine = (function () {
     box.className = 'zk-box';
     const h3 = document.createElement('h3');
     h3.textContent = '🐾 ' + tt(I18N.ui.zukan);
-    box.appendChild(h3);
+    /* 閉じる道は 4 つ: 右上の ×・下の「とじる」・外側を押す・Esc (スマホでは下まで送らないと「とじる」が見えない) */
+    const x = document.createElement('button');
+    x.className = 'zk-x';
+    x.textContent = '×';
+    x.setAttribute('aria-label', tt(I18N.ui.close));
+    const head = document.createElement('div');
+    head.className = 'zk-head';
+    head.append(h3, x);
+    box.appendChild(head);
     const grid = document.createElement('div');
     grid.className = 'zk-grid';
     for (const a of ANIMALS) {
@@ -949,7 +994,10 @@ const ZukanEngine = (function () {
     box.appendChild(closeBtn);
     mod.appendChild(box);
     mod.classList.add('show');
-    closeBtn.addEventListener('click', () => mod.classList.remove('show'));
+    const close = () => mod.classList.remove('show');
+    closeBtn.addEventListener('click', close);
+    x.addEventListener('click', close);
+    mod.onclick = e => { if (e.target === mod) close(); };
     if (window.renderShareButton && complete) window.renderShareButton(mod.querySelector('#zk-share'));
   }
   function renderSummary(el) {
@@ -1001,11 +1049,13 @@ function renderPageOverlay(page) {
   link.textContent = tt(I18N.ui.enter) + ' →';
   ov.appendChild(link);
 }
+/* 目次の絵: 頁が thumb を持っていればそれ (作品の絵で描き直したもの)、なければ toc_<slug>_v1.webp */
+function tocThumb(p) { return p.thumb || ('toc_' + p.id.replace(/-/g, '') + '_v1.webp'); }
 function renderToc() {
   const host = document.getElementById('world-b');
   window.disposeWorldB && window.disposeWorldB();
-  /* Remove any existing wrap overlays; preserve canvas */
-  host.querySelectorAll('.toc-wrap,.colo-wrap,.status-msg').forEach(el => el.remove());
+  /* Remove any existing wrap overlays; preserve canvas (隠しておいた奥付は残す) */
+  host.querySelectorAll('.toc-wrap,.colo-wrap:not(.prewarm),.status-msg').forEach(el => el.remove());
   const wrap = document.createElement('div');
   wrap.className = 'toc-wrap';
 
@@ -1048,7 +1098,7 @@ function renderToc() {
       const img = document.createElement('img');
       img.loading = 'lazy';
       img.alt = '';
-      img.src = getMediaUrl('toc_' + p.id.replace(/-/g, '') + '_v1.webp');
+      img.src = getMediaUrl(tocThumb(p));
       img.onerror = function() { this.style.display = 'none'; };
       card.appendChild(img);
 
@@ -1094,13 +1144,62 @@ function renderToc() {
     if (window.ZukanEngine) window.ZukanEngine.openModal();
   });
 }
+/* 奥付の紙は初めて使う文字が多く、組むとレイアウトだけで 60ms かかる (めくりの最中だとコマが落ちる)。
+   1 つ前の頁で本が止まっているあいだに見えないまま組んでおき (prewarm)、めくったら見せるだけにする。
+   離れるときも捨てずに隠しておく */
 function renderColophon() {
   const host = document.getElementById('world-b');
-  window.disposeWorldB && window.disposeWorldB();
-  /* Remove any existing wrap overlays; preserve canvas */
-  host.querySelectorAll('.toc-wrap,.colo-wrap,.status-msg').forEach(el => el.remove());
+  host.querySelectorAll('.toc-wrap,.status-msg').forEach(el => el.remove());
+  let wrap = host.querySelector('.colo-wrap');
+  if (wrap && wrap.dataset.lang === ehonLang()) {
+    if (window.ZukanEngine) window.ZukanEngine.renderSummary(wrap.querySelector('#colo-zukan'));   /* 見つけた数は変わっているかも */
+  } else {
+    if (wrap) wrap.remove();
+    wrap = buildColophonSheet(host);
+  }
+  wrap.classList.remove('prewarm', 'warm', 'leaving');
+}
+function prewarmColophon() {
+  const host = document.getElementById('world-b');
+  const cur = host.querySelector('.colo-wrap');
+  if (cur && cur.dataset.lang === ehonLang()) return;
+  if (cur) cur.remove();
+  const wrap = buildColophonSheet(host);
+  wrap.classList.add('prewarm', 'warm');
+  setTimeout(() => wrap.classList.remove('warm'), 250);
+}
+window.prewarmColophon = prewarmColophon;
+function buildColophonSheet(host) {
   const wrap = document.createElement('div');
   wrap.className = 'colo-wrap';
+  wrap.dataset.lang = ehonLang();
+
+  /* おしまい + 戻る道 (前のページ・目次・ほかの作品) */
+  const end = document.createElement('p');
+  end.className = 'colo-end';
+  end.textContent = tt(I18N.ui.theEnd);
+  const thanks = document.createElement('p');
+  thanks.className = 'colo-thanks';
+  thanks.textContent = tt(I18N.ui.thanks);
+  const nav = document.createElement('div');
+  nav.className = 'colo-nav';
+  const navBtn = (label, onClick, primary) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'colo-btn' + (primary ? ' primary' : '');
+    b.textContent = label;
+    b.addEventListener('click', onClick);
+    return b;
+  };
+  const home = document.createElement('a');
+  home.className = 'colo-btn';
+  home.href = 'index.html';
+  home.textContent = tt(I18N.ui.otherWorks);
+  nav.append(
+    navBtn(tt(I18N.ui.backPage), () => EHON.switchPage(PAGES.length - 2), true),
+    navBtn(tt(I18N.ui.toToc), () => EHON.switchPage(0)),
+    home);
+  wrap.append(end, thanks, nav);
 
   const h2 = document.createElement('h2');
   h2.className = 'toc-title';
@@ -1157,6 +1256,7 @@ function renderColophon() {
   host.appendChild(wrap);
   if (window.ZukanEngine) window.ZukanEngine.renderSummary(zukanDiv);
   if (window.Feel) window.Feel.mount(feelSlot);
+  return wrap;
 }
 
 /* ---- ナビボタン状態更新 ---- */
@@ -1271,8 +1371,10 @@ const EHON = {
       setTitleCard(pg);
       renderPageOverlay(pg);
       updateModeToggle(pg);
-      /* 前の頁の目次/奥付を片づける (紙の裏に隠れている間に) */
-      document.getElementById('world-b').querySelectorAll('.toc-wrap,.colo-wrap,.status-msg').forEach(el => el.remove());
+      /* 前の頁の目次を片づける (紙の裏に隠れている間に)。奥付は捨てずに隠す (組み直しが重いので) */
+      const hostB = document.getElementById('world-b');
+      hostB.querySelectorAll('.toc-wrap,.status-msg').forEach(el => el.remove());
+      hostB.querySelectorAll('.colo-wrap').forEach(el => { el.classList.add('prewarm'); el.classList.remove('leaving'); });
       const sheet = pg.type === 'toc' || pg.type === 'colophon';
       const mode = (self.state.mode === 'a' && pg.modes.includes('a')) ? 'a' : 'b';
       const cameFromA = self.state.mode === 'a' && mode === 'b';
@@ -1378,6 +1480,8 @@ document.documentElement.lang = (ehonLang() === 'jp') ? 'ja' : 'en';
 
 /* キーボードナビ */
 window.addEventListener('keydown', e => {
+  const zk = document.getElementById('zukan-modal');
+  if (zk && zk.classList.contains('show')) { if (e.key === 'Escape') zk.classList.remove('show'); return; }
   if (e.key === 'ArrowLeft') EHON.switchPage(EHON.targetIdx() - 1);
   if (e.key === 'ArrowRight') EHON.switchPage(EHON.targetIdx() + 1);
 });
@@ -1391,7 +1495,7 @@ window.addEventListener('keydown', e => {
   const apply = (on) => {
     document.documentElement.classList.toggle('quiet-turns', on);
     btn.setAttribute('aria-pressed', String(on));
-    btn.textContent = on ? '通常の動き' : '静かな動き';
+    btn.textContent = tt(on ? I18N.ui.motionNormal : I18N.ui.motionQuiet);
   };
   apply(saved === '1' || (saved === null && reduced));
   btn.addEventListener('click', () => {
@@ -2203,7 +2307,7 @@ function disposeTree(root) {
   const texs = new Set();
   mats.forEach((m) => { TEX_SLOTS.forEach((k) => { if (m[k] && m[k].isTexture) texs.add(m[k]); }); m.dispose(); });
   texs.forEach((t) => {
-    if (t === _shadowTex || t === _paperTex || t === _glowTex) return;
+    if (t === _shadowTex || t === _paperTex || t === _glowTex || t === _sheetTex) return;
     t.dispose();
     const d = t.source && t.source.data;
     if (d && typeof d.close === 'function') d.close();   /* ImageBitmap のメモリもすぐ返す */
@@ -2255,6 +2359,9 @@ async function buildWorld(e) {
   const kind = page.popup ? page.popup.type : 'diorama';
   const footprint = kind === 'cards' ? await buildCards(e, lift)
     : kind === 'galaxy' ? await buildGalaxy(e, lift)
+    : kind === 'atlas' ? await buildAtlas(e, lift)
+    : kind === 'japan' ? await buildJapan(e, lift)
+    : kind === 'cube' ? buildCube(e, lift)
     : await buildDiorama(e, lift);
   if (e.disposed) { disposeTree(root); return; }
   /* 接地影: ページの上に落ちる柔らかい影 (絵から生えている馴染み)。
@@ -2306,16 +2413,69 @@ async function buildDiorama(e, lift) {
     await mergeStatic(dio, () => !(e === curWorld || e.urgent || e.pendingRise));
     if (e.disposed) { disposeTree(dio); return 0; }
   }
+  const isl = e.page.island;
   let db = new THREE.Box3().setFromObject(dio);
   const ds = db.getSize(new THREE.Vector3());
-  const dScale = 7.5 / Math.max(ds.x, ds.y, ds.z);
+  const dScale = (isl ? isl.size : 7.5) / Math.max(ds.x, ds.y, ds.z);
   dio.scale.setScalar(dScale);
   db = new THREE.Box3().setFromObject(dio);
   const dc = db.getCenter(new THREE.Vector3());
   dio.position.x -= dc.x; dio.position.z -= dc.z;
   dio.position.y -= db.min.y;
+  if (isl) { floatIsland(e, lift, dio, Math.max(ds.x, ds.z) * dScale); return 6.4; }
   lift.add(dio);
   return Math.max(ds.x, ds.z) * dScale * 1.2;
+}
+/* 浮遊島: 広場の下に岩の円錐をつけ、雲の上にゆっくり上下させる (niwa.html の島と同じ作り: 岩肌 #5a4838 に苔) */
+function floatIsland(e, lift, dio, span) {
+  const isl = e.page.island, R = span * 0.5, H = isl.rockH || 1.9;
+  const island = new THREE.Group();
+  island.add(dio);
+  /* 岩: 下向きの円錐をでこぼこにして、上のほうに苔を散らす */
+  const geo = new THREE.ConeGeometry(R * 0.98, H, 18, 6, true);
+  geo.rotateX(Math.PI);   /* 先が下 */
+  geo.translate(0, -H / 2, 0);
+  const pos = geo.attributes.position, col = [];
+  let seed = 11;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const rock = new THREE.Color(0x5a4838), moss = new THREE.Color(0x5f7a3a), dark = new THREE.Color(0x3a2e24), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i), t = -y / H;   /* 0 = 上端, 1 = 先 */
+    const k = t > 0.02 && t < 0.98 ? 1 + (rnd() - 0.5) * 0.28 : 1;
+    pos.setX(i, pos.getX(i) * k); pos.setZ(i, pos.getZ(i) * k);
+    c.copy(rock).lerp(dark, t * 0.6 + rnd() * 0.15);
+    if (t < 0.25 && rnd() < 0.55) c.lerp(moss, 0.7);
+    col.push(c.r, c.g, c.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.computeVertexNormals();
+  const rockMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, flatShading: true, side: THREE.DoubleSide }));
+  island.add(rockMesh);
+  const hover = (isl.hover || 0.3) + H;
+  island.position.y = hover;
+  lift.add(island);
+  /* 島のまわりの雲 (やわらかい白)。ゆっくり流れる */
+  const clouds = [];
+  for (let i = 0; i < (isl.clouds || 9); i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: 0xfafaf2, transparent: true, depthWrite: false, opacity: 0.85 }));
+    const a = (i / 9) * Math.PI * 2 + rnd() * 0.5, rr = R * (0.75 + rnd() * 0.45);
+    sp.position.set(Math.cos(a) * rr, hover - H * (0.35 + rnd() * 0.4), Math.sin(a) * rr * 0.7);
+    sp.scale.set(2.2 + rnd() * 1.4, 1.1 + rnd() * 0.6, 1);
+    sp.renderOrder = 2;
+    lift.add(sp);
+    clouds.push({ sp, a, rr, y: sp.position.y, sp0: 0.05 + rnd() * 0.05 });
+  }
+  e.island = { island, hover, clouds };
+  e.tick = tickIsland;
+}
+function tickIsland(e, t) {
+  const I = e.island, s = t / 1000;
+  I.island.position.y = I.hover + Math.sin(s * 0.6) * 0.09;   /* ふわりと上下 */
+  I.island.rotation.y = Math.sin(s * 0.13) * 0.06;
+  for (const c of I.clouds) {
+    const a = c.a + s * c.sp0;
+    c.sp.position.x = Math.cos(a) * c.rr; c.sp.position.z = Math.sin(a) * c.rr * 0.7;
+  }
 }
 
 /* ------ 紙の立体カード (物語の頁): ゲームの背景とキャラクターの立ち絵が、根元を軸に起き上がる ------ */
@@ -2344,6 +2504,8 @@ async function buildCards(e, lift) {
     const [front, back] = texs[i];
     const hinge = new THREE.Group();
     hinge.position.set(c.x || 0, 0.01, c.z || 0);
+    hinge.rotation.order = 'YXZ';
+    hinge.rotation.y = c.ry || 0;   /* 扇のように並べるときの向き */
     if (c.float) {
       /* ひろわれるのを待つ言葉のかけら: ページから浮かび上がり、こちらを向いたまま漂う (明るい空の前でも白く飛ばない重ね方) */
       const glow = new THREE.Mesh(new THREE.PlaneGeometry(c.size, c.size), new THREE.MeshBasicMaterial({
@@ -2358,15 +2520,28 @@ async function buildCards(e, lift) {
       const face = new THREE.MeshStandardMaterial({ map: front, alphaTest: 0.5, roughness: 0.9, metalness: 0,
         emissive: 0xffffff, emissiveMap: front, emissiveIntensity: 0.3 });   /* 刷った絵の色を、照明で沈ませすぎない */
       const paper = new THREE.MeshStandardMaterial({ map: back, alphaTest: 0.5, roughness: 1, metalness: 0, side: THREE.BackSide });
+      if (c.rz) geo.rotateZ(c.rz);   /* 写真を少し傾けて立てる */
       hinge.add(new THREE.Mesh(geo, face), new THREE.Mesh(geo, paper));
-      cards.push({ hinge, delay: c.delay || 0 });
+      /* 絵の中の灯り (窓・扉): カードといっしょに起き上がり、立ち終わるころに ぽっとともって ゆらぐ。
+         u, v はカード画像の中の位置 (左上 0,0 〜 右下 1,1) */
+      const glows = (c.glows || []).map((g, k) => {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: g.color || 0xffb055,
+          transparent: true, depthWrite: false, opacity: 0, toneMapped: false, ...ADD_LIGHT }));
+        sp.position.set((g.u - 0.5) * w, (1 - g.v) * h, 0.04);
+        sp.scale.setScalar(g.r);
+        sp.renderOrder = 3;
+        hinge.add(sp);
+        return { sp, base: g.o || 0.9, phase: k * 2.1 };
+      });
+      cards.push({ hinge, delay: c.delay || 0, glows });
     }
     lift.add(hinge);
   });
   e.cards = cards;
+  e.fx = (e.page.popup.fx || []).map((f) => buildFx(f, lift)).filter(Boolean);
   e.pose = poseCards;
   e.warmRise = 1;   /* GPU へ送るときは全部のカードを立てて (見えないほど小さく) 描く */
-  if (cards.some((c) => c.float)) e.tick = tickCards;
+  if (cards.some((c) => c.float || c.glows.length) || e.fx.length) e.tick = tickCards;
   return 8.4;
 }
 /* 奥のカードから順に起き上がる。ばねの行き過ぎは、全部のカードに同じだけ */
@@ -2382,19 +2557,874 @@ function poseCards(e, r) {
     } else {
       c.hinge.rotation.x = -(Math.PI / 2) * (1 - p);   /* 奥へ寝ていた紙が起き上がる。行き過ぎた分は少し手前へ */
       c.hinge.visible = p > 0.03;
+      c.lit = sstep(0.75, 1, p);   /* 立ち終わるころに灯りがともる */
+      for (const g of c.glows) g.sp.material.opacity = g.base * c.lit;
     }
   }
+  const f = sstep(0.55, 1, r);
+  for (const x of e.fx) { if (x.pose) x.pose(r); x.fade(f); }
 }
 function tickCards(e, t) {
   const s = t / 1000;
   for (const c of e.cards) {
-    if (!c.float) continue;
-    const f = c.float, q = Math.min(1, cardProgress(e.rise, c.delay));
-    c.bob = Math.sin(s * f.speed + f.phase) * 0.14;
-    c.hinge.position.y = (f.y + c.bob) * q;
-    c.glow.quaternion.copy(V.cam.quaternion);   /* いつもこちらを向く光 */
-    c.glow.rotateZ(Math.sin(s * 0.45 + f.phase) * 0.3);
+    if (c.float) {
+      const f = c.float, q = Math.min(1, cardProgress(e.rise, c.delay));
+      c.bob = Math.sin(s * f.speed + f.phase) * 0.14;
+      c.hinge.position.y = (f.y + c.bob) * q;
+      c.glow.quaternion.copy(V.cam.quaternion);   /* いつもこちらを向く光 */
+      c.glow.rotateZ(Math.sin(s * 0.45 + f.phase) * 0.3);
+    } else if (c.glows.length) {
+      for (const g of c.glows) {   /* 火の灯りのゆらぎ */
+        const fl = 0.84 + 0.1 * Math.sin(s * 7.3 + g.phase) * Math.sin(s * 3.1 + g.phase * 1.7) + 0.06 * Math.sin(s * 13.7 + g.phase);
+        g.sp.material.opacity = g.base * (c.lit || 0) * fl;
+      }
+    }
   }
+  for (const x of e.fx) x.tick(s);
+}
+
+/* ------ 飛び出しの仕掛け (fx): 雨・漂う光・金の道筋・舞う紙 ------
+   カードが立ち終わるころに現れ、止まっている間も小さく動き続ける。
+   位置はすべて本の上の座標 (ページの中心が原点、手前が +z、上が +y) */
+const FX_RAIN_VERT = `
+uniform float uTime, uFade, uH;
+attribute float aSeed, aEnd;
+varying float vA;
+void main() {
+  float sp = 3.2 + fract(aSeed * 7.31) * 1.6;
+  float y = mod(position.y - uTime * sp, uH);
+  vec3 p = vec3(position.x + aEnd * 0.03, y + aEnd * 0.24, position.z);
+  vA = uFade * mix(0.9, 0.25, aEnd) * smoothstep(0.0, 0.5, y) * (1.0 - smoothstep(uH - 0.7, uH, y));
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+}`;
+const FX_RAIN_FRAG = `
+uniform vec3 uColor; varying float vA;
+void main() { gl_FragColor = vec4(uColor * vA, 1.0); }`;
+const FX_MOTE_VERT = `
+uniform float uTime, uFade, uPx, uSize;
+attribute float aSeed;
+varying float vA;
+void main() {
+  float s = aSeed * 6.2831;
+  vec3 p = position + vec3(sin(uTime * 0.35 + s) * 0.3, sin(uTime * 0.27 + s * 1.7) * 0.22, cos(uTime * 0.31 + s * 0.6) * 0.26);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  vA = uFade * (0.5 + 0.5 * sin(uTime * (1.2 + fract(aSeed * 3.7) * 1.8) + s * 3.0));
+  gl_PointSize = uPx * uSize * (0.6 + fract(aSeed * 5.3) * 0.8) * (14.0 / -mv.z);
+}`;
+const FX_MOTE_FRAG = `
+uniform vec3 uColor; varying float vA;
+void main() {
+  vec2 d = gl_PointCoord - 0.5; float r2 = dot(d, d) * 4.0;
+  if (r2 > 1.0) discard;
+  gl_FragColor = vec4(uColor * (exp(-r2 * 6.0) + exp(-r2 * 1.6) * 0.25) * vA, 1.0);
+}`;
+const FX_PATH_VERT = `
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const FX_PATH_FRAG = `
+uniform float uProg, uTime, uGain; uniform vec3 uColor; varying vec2 vUv;
+void main() {
+  if (vUv.x > uProg) discard;
+  float head = smoothstep(uProg - 0.06, uProg, vUv.x);   /* 描いている先端はまぶしい */
+  float flow = 0.8 + 0.2 * sin(vUv.x * 60.0 - uTime * 4.0);   /* 道筋を光が流れる */
+  gl_FragColor = vec4(uColor * uGain * (flow + head * 1.6), 1.0);
+}`;
+function fxUniforms(extra) {
+  return Object.assign({ uTime: { value: 0 }, uFade: { value: 0 }, uPx: { value: V.renderer.getPixelRatio() } }, extra);
+}
+function buildFx(f, lift) {
+  let seed = f.seed || 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const [cx, cy, cz] = f.center || [0, 0, 0];
+  if (f.kind === 'rain') {   /* 細い雨すじ。上から降り、上下の端で消える */
+    const [bw, bh, bd] = f.box, n = f.n || 360;
+    const P = [], S = [], E = [];
+    for (let i = 0; i < n; i++) {
+      const x = (rnd() - 0.5) * bw, y = rnd() * bh, z = (rnd() - 0.5) * bd, k = rnd();
+      P.push(x, y, z, x, y, z); S.push(k, k); E.push(0, 1);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.setAttribute('aSeed', new THREE.Float32BufferAttribute(S, 1));
+    g.setAttribute('aEnd', new THREE.Float32BufferAttribute(E, 1));
+    const U = fxUniforms({ uH: { value: bh }, uColor: { value: new THREE.Color(f.color || 0xbcd6ff) } });
+    const obj = new THREE.LineSegments(g, new THREE.ShaderMaterial({ uniforms: U, vertexShader: FX_RAIN_VERT, fragmentShader: FX_RAIN_FRAG,
+      transparent: true, depthWrite: false, ...ADD_LIGHT }));
+    obj.position.set(cx, cy, cz); obj.frustumCulled = false; obj.renderOrder = 3;
+    lift.add(obj);
+    return { fade: (v) => { U.uFade.value = v * (f.gain || 0.55); obj.visible = v > 0.01; }, tick: (s) => { U.uTime.value = s; } };
+  }
+  if (f.kind === 'motes') {   /* 漂う光の粒 (蛍・火の粉・星のかけら) */
+    const [bw, bh, bd] = f.box, n = f.n || 40;
+    const P = [], S = [];
+    for (let i = 0; i < n; i++) { P.push((rnd() - 0.5) * bw, rnd() * bh, (rnd() - 0.5) * bd); S.push(rnd()); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.setAttribute('aSeed', new THREE.Float32BufferAttribute(S, 1));
+    const U = fxUniforms({ uSize: { value: f.size || 6 }, uColor: { value: new THREE.Color(f.color || 0xffd889) } });
+    const obj = new THREE.Points(g, new THREE.ShaderMaterial({ uniforms: U, vertexShader: FX_MOTE_VERT, fragmentShader: FX_MOTE_FRAG,
+      transparent: true, depthWrite: false, ...ADD_LIGHT }));
+    obj.position.set(cx, cy, cz); obj.frustumCulled = false; obj.renderOrder = 4;
+    lift.add(obj);
+    return { fade: (v) => { U.uFade.value = v * (f.gain || 1); obj.visible = v > 0.01; }, tick: (s) => { U.uTime.value = s; U.uPx.value = V.renderer.getPixelRatio(); } };
+  }
+  if (f.kind === 'path') {   /* 金の道筋: 地下から空へ、描かれていく線と、そこを流れる光 */
+    const curve = new THREE.CatmullRomCurve3(f.points.map((q) => new THREE.Vector3(q[0], q[1], q[2])));
+    const col = new THREE.Color(f.color || 0xffc861);
+    const mk = (radius, gain) => {
+      const U = fxUniforms({ uProg: { value: 0 }, uGain: { value: gain }, uColor: { value: col } });
+      const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 160, radius, 6, false),
+        new THREE.ShaderMaterial({ uniforms: U, vertexShader: FX_PATH_VERT, fragmentShader: FX_PATH_FRAG, transparent: true, depthWrite: false, ...ADD_LIGHT }));
+      m.renderOrder = 4; lift.add(m);
+      return U;
+    };
+    const core = mk(f.radius || 0.022, 1.0), halo = mk((f.radius || 0.022) * 4.5, 0.16);
+    /* 分かれ道の節 (光る輪) */
+    const nodes = (f.nodes || []).map((k) => {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.014, 6, 32), new THREE.MeshBasicMaterial({ color: col, transparent: true,
+        depthWrite: false, opacity: 0, toneMapped: false, ...ADD_LIGHT }));
+      ring.position.copy(curve.getPointAt(k)); ring.renderOrder = 4; lift.add(ring);
+      return { ring, k };
+    });
+    /* 道筋を流れる光の粒 */
+    const NS = 26, sp = new Float32Array(NS * 3);
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+    sg.setAttribute('aSeed', new THREE.Float32BufferAttribute(Array.from({ length: NS }, () => rnd()), 1));
+    const SU = fxUniforms({ uSize: { value: 7 }, uColor: { value: new THREE.Color(0xfff0c0) } });
+    const sparks = new THREE.Points(sg, new THREE.ShaderMaterial({ uniforms: SU, vertexShader: FX_MOTE_VERT, fragmentShader: FX_MOTE_FRAG,
+      transparent: true, depthWrite: false, ...ADD_LIGHT }));
+    sparks.frustumCulled = false; sparks.renderOrder = 5; lift.add(sparks);
+    /* 立ち終わってから DRAW 秒かけて描く。畳むときは、畳む速さで消える */
+    const DRAW = f.draw || 1.8, tmp = new THREE.Vector3();
+    let prog = 0, fadeV = 0, s0 = null;
+    const apply = () => {
+      core.uProg.value = halo.uProg.value = prog;
+      for (const nd of nodes) { const on = clamp01((prog - nd.k) / 0.08); nd.ring.material.opacity = on * 0.9; nd.ring.scale.setScalar(Math.max(0.001, on)); }
+      SU.uFade.value = sstep(0.85, 1, prog) * 0.9; sparks.visible = prog > 0.85;
+    };
+    return {
+      fade: (v) => { fadeV = v; if (v <= 0.01) s0 = null; prog = Math.min(prog, v); apply(); },
+      tick: (s) => {
+        if (fadeV > 0.01 && s0 === null) s0 = s;
+        prog = Math.min(s0 === null ? 0 : clamp01((s - s0) / DRAW), fadeV);
+        apply();
+        core.uTime.value = halo.uTime.value = SU.uTime.value = s; SU.uPx.value = V.renderer.getPixelRatio();
+        for (let i = 0; i < NS; i++) {   /* 粒は道筋に沿って、地下から空へのぼる */
+          curve.getPointAt(((i / NS + s * 0.07) % 1) * prog, tmp);
+          sp[i * 3] = tmp.x; sp[i * 3 + 1] = tmp.y; sp[i * 3 + 2] = tmp.z;
+        }
+        sg.attributes.position.needsUpdate = true;
+        for (const nd of nodes) nd.ring.rotation.set(0.4, s * 0.8 + nd.k * 5, 0);
+      }
+    };
+  }
+  if (f.kind === 'shogi') return buildShogiBoard(f, lift);
+  if (f.kind === 'plane') return buildPaperPlane(f, lift);
+  if (f.kind === 'pages') {   /* 舞い上がる紙 (悪行目録の頁): 本の上をらせんにのぼり、上で消えて、また下から */
+    const tex = pageSheetTexture(f.label || '');
+    const n = f.n || 7, sheets = [];
+    for (let i = 0; i < n; i++) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.74), new THREE.MeshBasicMaterial({ map: tex, transparent: true,
+        opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
+      m.renderOrder = 4; lift.add(m);
+      sheets.push({ m, a0: rnd() * Math.PI * 2, y0: rnd(), r: (f.radius || 2.2) * (0.75 + rnd() * 0.35), sp: 0.11 + rnd() * 0.05, spin: 0.6 + rnd() * 0.8 });
+    }
+    let fadeV = 0;
+    const H = f.height || 4.2;
+    return {
+      fade: (v) => { fadeV = v; },
+      tick: (s) => {
+        for (const q of sheets) {
+          const u = (q.y0 + s * q.sp) % 1, a = q.a0 + s * 0.35 + u * 2.2;
+          q.m.position.set(cx + Math.cos(a) * q.r, cy + 0.3 + u * H, cz + Math.sin(a) * q.r * 0.55);
+          q.m.rotation.set(Math.sin(s * q.spin + q.a0) * 0.9, a + Math.PI / 2, Math.cos(s * q.spin * 0.7 + q.a0) * 0.5);
+          q.m.material.opacity = fadeV * sstep(0, 0.12, u) * (1 - sstep(0.8, 1, u)) * 0.95;
+          q.m.visible = q.m.material.opacity > 0.01;
+        }
+      }
+    };
+  }
+  return null;
+}
+/* ------ 台紙が起き上がり、その上に中身がせり上がる飛び出し (AI能力アトラス・ひとり歓迎マップ) ------ */
+async function popupData(file) {
+  const res = await fetch('./_ehon_assets/ehon/popup/' + file, { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + file);
+  return res.json();
+}
+/* 文字の札: canvas に描き、あとから書き換えられる */
+function makeLabel(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * 220); c.height = Math.round(h * 220);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
+  const redraw = (...args) => { const g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); draw(g, c.width, c.height, ...args); tex.needsUpdate = true; };
+  return { mesh, redraw };
+}
+const MINCHO = '"Yu Mincho","YuMincho","Hiragino Mincho ProN","Noto Serif JP",serif';
+function paperLabel(g, cw, ch) {   /* 札の地: 生成りの紙に細い金の縁 */
+  g.fillStyle = 'rgba(250,245,232,.94)'; g.beginPath(); g.roundRect(4, 4, cw - 8, ch - 8, 14); g.fill();
+  g.strokeStyle = 'rgba(176,138,62,.9)'; g.lineWidth = 3; g.stroke();
+}
+/* 台紙の起き上がり: 寝た状態 (奥へ倒れている) から、lean だけ奥へ傾いた位置まで */
+const plateAngle = (p, lean) => -(Math.PI / 2) * (1 - p) - lean * Math.min(1, p);
+
+/* AIエージェント能力アトラス: ai-map.html と同じ 326 マスのツリーマップ (並び・段の色も同じ)。
+   台紙が起き上がり、マスが段の高さまでせり上がる。2022 → 2030 (予測) を 1.1 秒ずつ進め (本物の再生と同じ速さ)、
+   段が上がったマスは一瞬光る。0 段 (まだ海) は平らなまま */
+const LV_HEX = [0xd9e2e7, 0xf5e5d0, 0xe9c397, 0xd8955c, 0xbf5a2d, 0x6b2412];
+const LV_H = [0.006, 0.08, 0.16, 0.27, 0.42, 0.62];
+async function buildAtlas(e, lift) {
+  const L = await popupData('aimap_layout_v1.json');
+  if (e.disposed) return 0;
+  const [MW, MH] = L.size, W = 4.5, H = W * MH / MW, LEAN = 0.42;
+  const hinge = new THREE.Group();
+  hinge.position.set(0, 0.01, -0.7);
+  lift.add(hinge);
+  const board = new THREE.Mesh(new THREE.BoxGeometry(W + 0.26, H + 0.26, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0xece6d8, roughness: 0.95, metalness: 0 }));
+  board.position.set(0, H / 2 + 0.13, -0.03);
+  hinge.add(board);
+  const loc = (mx, my) => [(mx / MW - 0.5) * W, (1 - my / MH) * H + 0.13];
+  /* マス (1 回の描画でまとめて) */
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  box.translate(0, 0, 0.5);
+  const cells = new THREE.InstancedMesh(box, new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0 }), L.tasks.length);
+  cells.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const info = L.tasks.map((t) => {
+    const [ax, ay] = loc(t[0], t[3]), [bx, by] = loc(t[2], t[1]);
+    return { x: (ax + bx) / 2, y: (ay + by) / 2, w: Math.max(0.01, bx - ax - 0.008), h: Math.max(0.01, by - ay - 0.008), lv: t[5], cur: 0, flash: 0 };
+  });
+  const col = new THREE.Color(), m0 = new THREE.Matrix4(), qz = new THREE.Quaternion(), vz = new THREE.Vector3(), sz = new THREE.Vector3();
+  info.forEach((c, i) => {   /* 最初の描画から正しい位置に (平らな海として) 置いておく */
+    cells.setColorAt(i, col.setHex(LV_HEX[0]));
+    cells.setMatrixAt(i, m0.compose(vz.set(c.x, c.y, 0.004), qz, sz.set(c.w, c.h, 0.002)));
+  });
+  cells.frustumCulled = false;   /* 形を毎フレーム動かすので、画面外の判定に頼らない */
+  hinge.add(cells);
+  /* 領域の枠: 領域の色の細い縁 (本物の地図と同じ色) */
+  const edge = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.7, metalness: 0 }), L.doms.length * 4);
+  const m4 = new THREE.Matrix4(), q0 = new THREE.Quaternion(), v3 = new THREE.Vector3(), s3 = new THREE.Vector3();
+  L.doms.forEach((d, k) => {
+    const [ax, ay] = loc(d.x0, d.y1), [bx, by] = loc(d.x1, d.y0), T = 0.022, Z = 0.02;
+    [[(ax + bx) / 2, by, bx - ax, T], [(ax + bx) / 2, ay, bx - ax, T], [ax, (ay + by) / 2, T, by - ay], [bx, (ay + by) / 2, T, by - ay]].forEach(([x, y, w, h], j) => {
+      edge.setMatrixAt(k * 4 + j, m4.compose(v3.set(x, y, Z / 2), q0, s3.set(w, h, Z)));
+      edge.setColorAt(k * 4 + j, col.set(d.color));
+    });
+  });
+  hinge.add(edge);
+  /* 年の札 */
+  const label = makeLabel(1.9, 0.52, (g, cw, ch, year) => {
+    paperLabel(g, cw, ch);
+    const est = /e$/.test(year);
+    g.fillStyle = '#161510'; g.textBaseline = 'middle';
+    g.font = `700 ${Math.round(ch * 0.5)}px ${MINCHO}`; g.fillText(year.replace('e', '') + '年', cw * 0.06, ch * 0.44);
+    g.font = `${Math.round(ch * 0.2)}px ${MINCHO}`; g.fillStyle = est ? '#c43d2a' : '#6b5b45';
+    g.fillText(est ? '予測' : 'AIにできること', cw * 0.6, ch * 0.3);
+    g.fillStyle = '#6b5b45'; g.fillText('326の仕事', cw * 0.6, ch * 0.62);
+  });
+  label.mesh.position.set(-W / 2 + 0.95, H + 0.13 + 0.42, 0.03);
+  hinge.add(label.mesh);
+  e.atlas = { hinge, cells, info, years: L.years, label, lean: LEAN, yi: -1, s0: null, last: null, grow: 0 };
+  e.pose = poseAtlas;
+  e.tick = tickAtlas;
+  e.warmRise = 1;
+  setAtlasYear(e.atlas, 0);
+  return 6.0;
+}
+function setAtlasYear(A, yi) {
+  if (yi === A.yi) return;
+  for (const c of A.info) if (A.yi >= 0 && c.lv[yi] > c.lv[A.yi]) c.flash = 1;   /* 段が上がったマスは光る */
+  A.yi = yi;
+  A.label.redraw(A.years[yi]);
+}
+function poseAtlas(e, r) {
+  const A = e.atlas, p = Math.min(1.1, r);
+  A.hinge.rotation.x = plateAngle(p, A.lean);
+  A.hinge.visible = r > 0.03;
+  A.grow = sstep(0.55, 1, r);
+  if (r < 0.99) { A.s0 = null; setAtlasYear(A, 0); }
+}
+function tickAtlas(e, t) {
+  const A = e.atlas, s = t / 1000, dt = A.last === null ? 0 : Math.min(0.1, s - A.last);
+  A.last = s;
+  if (e.rise >= 0.99) {   /* 2022 → 2030 を 1.1 秒ずつ。2030 で 3 秒止まり、2022 に戻って 1 秒 */
+    if (A.s0 === null) A.s0 = s;
+    const T = (s - A.s0) % 12.8;
+    setAtlasYear(A, T < 8.8 ? Math.min(7, Math.floor(T / 1.1)) : T < 11.8 ? 7 : 0);
+  }
+  const k = 1 - Math.exp(-dt * 9), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color(), white = new THREE.Color(0xfff6dd);
+  A.info.forEach((c, i) => {
+    const lv = c.lv[A.yi];
+    c.cur += (LV_H[lv] * A.grow - c.cur) * k;
+    c.flash *= Math.exp(-dt * 2.6);
+    A.cells.setMatrixAt(i, m4.compose(v.set(c.x, c.y, 0.004), q, sc.set(c.w, c.h, Math.max(0.002, c.cur))));
+    A.cells.setColorAt(i, col.setHex(LV_HEX[lv]).lerp(white, c.flash * 0.75));
+  });
+  A.cells.instanceMatrix.needsUpdate = true;
+  A.cells.instanceColor.needsUpdate = true;
+}
+
+/* ひとり歓迎マップ: 47 都道府県の地図が、店の数に合わせた高さでせり上がり、北から順にピンが立つ。
+   ピンの頭は「公式で裏取り済み」の緑 (#276b60)。ときどき県名と件数が浮かぶ */
+const JP_OKINAWA_SHIFT = [212, -849];   /* 沖縄は左上の枠へ (日本地図でよくある入れ方)。台紙は本土の範囲に詰める */
+const JP_BOX = [205, -6, 1010, 878];    /* 地図の座標で、台紙に載せる範囲 */
+async function buildJapan(e, lift) {
+  const J = await popupData('japan_v1.json');
+  if (e.disposed) return 0;
+  for (const p of J.prefs) {
+    if (p.name !== '沖縄県') continue;
+    const [dx, dy] = JP_OKINAWA_SHIFT;
+    p.rings = p.rings.map((r) => r.map((v, i) => v + (i % 2 ? dy : dx)));
+    p.c = [p.c[0] + dx, p.c[1] + dy];
+  }
+  const [bx0, by0, bx1, by1] = JP_BOX, W = 4.4, MW = bx1 - bx0, MH = by1 - by0, H = W * MH / MW, LEAN = 0.62;
+  const hinge = new THREE.Group();
+  hinge.position.set(0, 0.01, 0.5);
+  lift.add(hinge);
+  const sea = new THREE.Mesh(new THREE.BoxGeometry(W + 0.3, H + 0.3, 0.05),
+    new THREE.MeshStandardMaterial({ color: 0xcddde7, roughness: 0.95, metalness: 0 }));
+  sea.position.set(0, H / 2 + 0.15, -0.025);
+  hinge.add(sea);
+  const loc = (mx, my) => [((mx - bx0) / MW - 0.5) * W, (1 - (my - by0) / MH) * H + 0.15];
+  /* 沖縄の枠 */
+  const [fx0, fy0] = loc(225, 186), [fx1, fy1] = loc(438, 24), T = 0.018;
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x8a7d6b, roughness: 0.8 });
+  [[(fx0 + fx1) / 2, fy0, fx1 - fx0, T], [(fx0 + fx1) / 2, fy1, fx1 - fx0, T], [fx0, (fy0 + fy1) / 2, T, fy1 - fy0], [fx1, (fy0 + fy1) / 2, T, fy1 - fy0]].forEach(([x, y, w, h]) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.02), frameMat);
+    b.position.set(x, y, 0.01);
+    hinge.add(b);
+  });
+  const maxN = Math.max(...J.prefs.map((p) => p.count)), maxC = Math.max(...J.prefs.map((p) => p.checked));
+  const paper = new THREE.Color(0xf4ecdc), green = new THREE.Color(0x276b60), c = new THREE.Color();
+  const geos = [];
+  const prefs = J.prefs.map((p) => {
+    const hgt = 0.05 + 0.55 * Math.sqrt(p.count / maxN);
+    c.copy(paper).lerp(green, 0.15 + 0.6 * Math.sqrt(p.checked / maxC));
+    for (const ring of p.rings) {
+      const pts = [];
+      for (let i = 0; i < ring.length; i += 2) { const [x, y] = loc(ring[i], ring[i + 1]); pts.push(new THREE.Vector2(x, y)); }
+      if (THREE.ShapeUtils.isClockWise(pts)) pts.reverse();
+      const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: hgt, bevelEnabled: false, curveSegments: 1 });
+      g.deleteAttribute('uv');
+      const n = g.attributes.position.count, cols = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b; }
+      g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+      geos.push(g);
+    }
+    const [x, y] = loc(p.c[0], p.c[1]);
+    return { name: p.name, count: p.count, x, y, hgt, len: 0.28 + 0.6 * Math.sqrt(p.count / maxN), t0: null, bounce: 0 };
+  });
+  const land = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 }));
+  geos.forEach((g) => g.dispose());
+  const landWrap = new THREE.Group();
+  landWrap.add(land);
+  hinge.add(landWrap);
+  /* ピン: 細い軸と丸い頭 (それぞれ 1 回の描画) */
+  const stickGeo = new THREE.CylinderGeometry(0.012, 0.012, 1, 6); stickGeo.rotateX(Math.PI / 2); stickGeo.translate(0, 0, 0.5);
+  const sticks = new THREE.InstancedMesh(stickGeo, new THREE.MeshStandardMaterial({ color: 0x8a7d6b, roughness: 0.6 }), prefs.length);
+  const heads = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshStandardMaterial({ color: 0x276b60, roughness: 0.35, metalness: 0.1,
+    emissive: 0x276b60, emissiveIntensity: 0.25 }), prefs.length);
+  sticks.instanceMatrix.setUsage(THREE.DynamicDrawUsage); heads.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const zero = new THREE.Matrix4().makeScale(0, 0, 0);   /* 立つまでは見えない */
+  prefs.forEach((p, i) => { sticks.setMatrixAt(i, zero); heads.setMatrixAt(i, zero); });
+  sticks.frustumCulled = heads.frustumCulled = false;
+  hinge.add(sticks, heads);
+  /* 北から南へ順に立てる */
+  const order = prefs.map((p, i) => i).sort((a, b) => prefs[b].y - prefs[a].y);
+  order.forEach((i, k) => { prefs[i].delay = k * 0.045; });
+  /* 札: 全体の数 */
+  const label = makeLabel(2.1, 0.62, (g, cw, ch) => {
+    paperLabel(g, cw, ch);
+    g.fillStyle = '#161510'; g.textBaseline = 'middle';
+    g.font = `700 ${Math.round(ch * 0.36)}px ${MINCHO}`; g.fillText(J.total.toLocaleString('ja-JP') + ' 施設', cw * 0.06, ch * 0.36);
+    g.font = `${Math.round(ch * 0.19)}px ${MINCHO}`; g.fillStyle = '#276b60';
+    g.fillText('● 公式で裏取り ' + J.checked.toLocaleString('ja-JP') + ' 件', cw * 0.06, ch * 0.74);
+  });
+  label.redraw();
+  label.mesh.position.set(-W / 2 + 0.95, H + 0.15 + 0.08, 0.3);
+  hinge.add(label.mesh);
+  /* 浮かぶ県名 */
+  const tip = makeLabel(1.3, 0.38, (g, cw, ch, name, n) => {
+    paperLabel(g, cw, ch);
+    g.fillStyle = '#161510'; g.textBaseline = 'middle'; g.font = `700 ${Math.round(ch * 0.4)}px ${MINCHO}`;
+    g.fillText(name, cw * 0.08, ch * 0.52);
+    g.fillStyle = '#276b60'; g.font = `700 ${Math.round(ch * 0.36)}px ${MINCHO}`; g.textAlign = 'right';
+    g.fillText(n.toLocaleString('ja-JP'), cw * 0.92, ch * 0.52);
+  });
+  tip.mesh.material.opacity = 0;
+  hinge.add(tip.mesh);
+  e.japan = { hinge, landWrap, sticks, heads, prefs, tip, lean: LEAN, s0: null, grow: 0, nextTip: 0, tipOn: null, seed: 3 };
+  e.pose = poseJapan;
+  e.tick = tickJapan;
+  e.warmRise = 1;
+  return 6.0;
+}
+function poseJapan(e, r) {
+  const J = e.japan;
+  J.hinge.rotation.x = plateAngle(Math.min(1.1, r), J.lean);
+  J.hinge.visible = r > 0.03;
+  J.grow = sstep(0.5, 1, r);
+  J.landWrap.scale.set(1, 1, Math.max(0.02, J.grow));
+  if (r < 0.99) { J.s0 = null; for (const p of J.prefs) p.t0 = null; }
+}
+function tickJapan(e, t) {
+  const J = e.japan, s = t / 1000;
+  if (e.rise >= 0.99 && J.s0 === null) { J.s0 = s; J.nextTip = s + 2.6; }
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  J.prefs.forEach((p, i) => {
+    let k = 0;
+    if (J.s0 !== null) k = springRise(Math.max(0, s - J.s0 - p.delay), 13);   /* ぽん、と立つ */
+    if (p.bounce > 0) { k *= 1 + 0.35 * Math.sin((1 - p.bounce) * Math.PI); p.bounce = Math.max(0, p.bounce - 0.03); }
+    const len = p.len * k, z0 = p.hgt * J.grow;
+    J.sticks.setMatrixAt(i, m4.compose(v.set(p.x, p.y, z0), q, sc.set(1, 1, Math.max(0.001, len))));
+    const r = (0.06 + 0.05 * Math.sqrt(p.count / 6712)) * Math.min(1, k * 1.2);
+    J.heads.setMatrixAt(i, m4.compose(v.set(p.x, p.y, z0 + len), q, sc.set(r, r, r)));
+  });
+  J.sticks.instanceMatrix.needsUpdate = true; J.heads.instanceMatrix.needsUpdate = true;
+  /* ときどき、店の多い県ほど選ばれやすく、名前と件数が浮かぶ */
+  if (J.s0 !== null && s >= J.nextTip) {
+    const total = J.prefs.reduce((a, p) => a + p.count, 0);
+    J.seed = (J.seed * 16807) % 2147483647;
+    let x = (J.seed / 2147483647) * total, pick = J.prefs[0];
+    for (const p of J.prefs) { x -= p.count; if (x <= 0) { pick = p; break; } }
+    pick.bounce = 1;
+    J.tip.redraw(pick.name, pick.count);
+    J.tipOn = { p: pick, s };
+    J.nextTip = s + 2.2;
+  }
+  if (J.tipOn) {
+    const a = s - J.tipOn.s, p = J.tipOn.p;
+    J.tip.mesh.position.set(p.x + 0.55, p.y + 0.25, p.hgt * J.grow + p.len + 0.25);
+    J.tip.mesh.material.opacity = sstep(0, 0.25, a) * (1 - sstep(1.6, 2.0, a));
+  }
+}
+
+/* ルーン・キューブ: sudoku.html の既定と同じ 4×4×4 の立体数独。色ガラスのマス (1 赤・2 青・3 緑・4 茶)、
+   最初から入っている数は金の縁。ページに散らばったマスが飛んできて立方体に組み上がり、宙に浮いてゆっくり回る。
+   空いたマスが 1 つずつ埋まり、全部そろうと光って、また空に戻る */
+const CUBE_COL = [0xe63329, 0x2f7bef, 0x27b34a, 0xa16a2c];
+const CUBE_N = 4, CUBE_S = 0.46, CUBE_GAP = 0.58, CUBE_Y = 2.35, CUBE_WHITE = new THREE.Color(0xffffff);
+function cubeFaceTexture(border) {   /* マスの面: 縁だけ明るい (border) か、中までうっすら (glass) */
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  if (!border) { g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(0, 0, 64, 64); }
+  g.strokeStyle = '#fff'; g.lineWidth = border ? 5 : 3; g.strokeRect(2.5, 2.5, 59, 59);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function cubeGlyphTexture() {   /* 数字 1〜4 (白い太字 + 暗い縁 + その色の光) を 2×2 に並べた札 */
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '800 92px Georgia,"Times New Roman",serif';
+  CUBE_COL.forEach((hex, i) => {
+    const x = (i % 2) * 128 + 64, y = Math.floor(i / 2) * 128 + 68, col = '#' + hex.toString(16).padStart(6, '0');
+    g.shadowColor = col; g.shadowBlur = 22; g.fillStyle = col; g.fillText(String(i + 1), x, y);
+    g.shadowBlur = 0; g.lineWidth = 7; g.strokeStyle = 'rgba(6,5,16,.92)'; g.strokeText(String(i + 1), x, y);
+    g.fillStyle = '#fff'; g.fillText(String(i + 1), x, y);
+  });
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const CUBE_GLYPH_VERT = `
+uniform float uPx; attribute float aCell; attribute float aScale;
+varying vec2 vCell; varying float vS; varying float vDepth;
+void main() {
+  vCell = vec2(mod(aCell, 2.0), 1.0 - floor(aCell / 2.0));
+  vS = aScale;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vDepth = -mv.z;
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = uPx * aScale * 30.0 * (14.0 / -mv.z);
+}`;
+const CUBE_GLYPH_FRAG = `
+uniform sampler2D uMap; uniform float uFade, uCenter; varying vec2 vCell; varying float vS; varying float vDepth;
+void main() {
+  if (vS < 0.01) discard;
+  vec2 uv = (vCell + vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y)) * 0.5;
+  vec4 c = texture2D(uMap, uv);
+  if (c.a < 0.04) discard;
+  float back = smoothstep(uCenter - 0.6, uCenter + 1.1, vDepth);   /* 奥の数字ほど淡く (立体に見える) */
+  gl_FragColor = vec4(c.rgb * mix(1.0, 0.7, back), c.a * uFade * mix(1.0, 0.28, back));
+}`;
+function buildCube(e, lift) {
+  let seed = 41;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const N = CUBE_N, n = N * N * N, half = (N - 1) / 2;
+  const cube = new THREE.Group();
+  cube.position.y = CUBE_Y;
+  lift.add(cube);
+  const cells = [];
+  for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) for (let z = 0; z < N; z++) {
+    const v = (x + y + z) % N;   /* どの縦・横・奥の並びにも 1〜4 が一度ずつ (正しい立体数独) */
+    const home = new THREE.Vector3((x - half) * CUBE_GAP, (y - half) * CUBE_GAP, (z - half) * CUBE_GAP);
+    const a = rnd() * Math.PI * 2, rr = 1.2 + rnd() * 1.9;   /* 散らばり: ページの上 (立方体の中心からの相対) */
+    cells.push({ v, home, from: new THREE.Vector3(Math.cos(a) * rr, -CUBE_Y + 0.12, Math.sin(a) * rr * 0.8),
+      spin: (rnd() - 0.5) * 6, delay: 0.1 + rnd() * 0.35, given: rnd() < 0.42, fillAt: 0, filled: false, pop: 1 });
+  }
+  const box = new THREE.BoxGeometry(CUBE_S, CUBE_S, CUBE_S);
+  const glass = new THREE.InstancedMesh(box, new THREE.MeshStandardMaterial({ map: cubeFaceTexture(false), transparent: true, opacity: 0.46,
+    depthWrite: false, roughness: 0.25, metalness: 0.1, emissive: 0x222222 }), n);
+  const empty = new THREE.InstancedMesh(box, new THREE.MeshBasicMaterial({ map: cubeFaceTexture(true), color: 0x8d7ec0, transparent: true,
+    opacity: 0.45, depthWrite: false, toneMapped: false }), n);
+  const frame = new THREE.InstancedMesh(new THREE.BoxGeometry(CUBE_S * 1.02, CUBE_S * 1.02, CUBE_S * 1.02), new THREE.MeshBasicMaterial({
+    map: cubeFaceTexture(true), transparent: true, depthWrite: false, toneMapped: false }), n);
+  const col = new THREE.Color();
+  cells.forEach((c, i) => { glass.setColorAt(i, col.setHex(CUBE_COL[c.v])); frame.setColorAt(i, col.setHex(0xffd27d)); });
+  for (const m of [glass, empty, frame]) { m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.renderOrder = 3; cube.add(m); }
+  /* 数字は点で描く (いつもこちらを向く) */
+  const gp = new Float32Array(n * 3), gc = new Float32Array(n), gs = new Float32Array(n);
+  cells.forEach((c, i) => { gc[i] = c.v; });
+  const gg = new THREE.BufferGeometry();
+  gg.setAttribute('position', new THREE.BufferAttribute(gp, 3));
+  gg.setAttribute('aCell', new THREE.BufferAttribute(gc, 1));
+  gg.setAttribute('aScale', new THREE.BufferAttribute(gs, 1));
+  const GU = { uMap: { value: cubeGlyphTexture() }, uPx: { value: V.renderer.getPixelRatio() }, uFade: { value: 1 }, uCenter: { value: 13 } };
+  const glyphs = new THREE.Points(gg, new THREE.ShaderMaterial({ uniforms: GU, vertexShader: CUBE_GLYPH_VERT, fragmentShader: CUBE_GLYPH_FRAG,
+    transparent: true, depthWrite: false }));
+  glyphs.frustumCulled = false; glyphs.renderOrder = 4;
+  cube.add(glyphs);
+  /* 押す・乗せるの当たり箱 (マスの隙間を抜けても、キューブに乗せたら反応するように)。色も深さも描かない */
+  const span = (N - 1) * CUBE_GAP + CUBE_S;
+  const proxy = new THREE.Mesh(new THREE.BoxGeometry(span, span, span), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, transparent: true, opacity: 0 }));
+  cube.add(proxy);
+  /* 足もとの魔法陣と、紫の光 (sudoku.html の縁の光 #7a5bff) */
+  const ringC = document.createElement('canvas'); ringC.width = ringC.height = 256;
+  const rg = ringC.getContext('2d');
+  rg.translate(128, 128); rg.strokeStyle = '#c9b8ff'; rg.fillStyle = '#c9b8ff';
+  rg.lineWidth = 3; rg.beginPath(); rg.arc(0, 0, 118, 0, Math.PI * 2); rg.stroke();
+  rg.lineWidth = 1.5; rg.beginPath(); rg.arc(0, 0, 96, 0, Math.PI * 2); rg.stroke();
+  rg.font = '20px serif'; rg.textAlign = 'center'; rg.textBaseline = 'middle';
+  'ᚠᚢᚦᚨᚱᛋᛟᛁᛞᚠᚢᚦᚨᚱᛋᛟ'.split('').forEach((ch, i, arr) => { rg.save(); rg.rotate(i / arr.length * Math.PI * 2); rg.fillText(ch, 0, -107); rg.restore(); });
+  const ringTex = new THREE.CanvasTexture(ringC); ringTex.colorSpace = THREE.SRGBColorSpace;
+  const ring = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.4), new THREE.MeshBasicMaterial({ map: ringTex, color: 0x9d86ff, transparent: true,
+    opacity: 0, depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; ring.renderOrder = 2;
+  lift.add(ring);
+  const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: 0x7a5bff, transparent: true, opacity: 0,
+    depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+  aura.scale.setScalar(4.6); aura.position.y = CUBE_Y; aura.renderOrder = 1;
+  lift.add(aura);
+  e.cube = { cube, cells, glass, empty, frame, glyphs, GU, ring, aura, s0: null, order: null, spin: 0, last: null };
+  e.pose = poseCube;
+  e.tick = tickCube;
+  e.warmRise = 1;
+  e.glow = 0x7a5bff;
+  e.shadowMax = 0.3;
+  poseCube(e, 0);
+  return 5.5;
+}
+function poseCube(e, r) {
+  const C = e.cube;
+  C.r = r;
+  C.ring.material.opacity = 0.55 * sstep(0.2, 0.8, r);
+  C.aura.material.opacity = 0.32 * sstep(0.6, 1, r);
+  if (r < 0.99) { C.s0 = null; C.order = null; }
+  layCube(e, C.last === null ? 0 : C.last);
+}
+function layCube(e, s) {   /* マスの位置・大きさ・色を今の状態から置き直す */
+  const C = e.cube, r = C.r, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), eu = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
+  const gp = C.glyphs.geometry.attributes.position, gs = C.glyphs.geometry.attributes.aScale;
+  C.cells.forEach((c, i) => {
+    const k = sstep(0, 1, clamp01((r - c.delay) / 0.55));   /* 飛んでくる進み具合 */
+    v.copy(c.from).lerp(c.home, k);
+    v.y += Math.sin(k * Math.PI) * 0.6;   /* 弧を描いて飛ぶ */
+    q.setFromEuler(eu.set(c.spin * (1 - k), c.spin * 0.7 * (1 - k), 0));
+    const shown = c.given || c.filled;
+    const pop = shown ? c.pop : 1;
+    const size = Math.max(0.001, (0.35 + 0.65 * k) * pop);
+    C.empty.setMatrixAt(i, m4.compose(v, q, sc.setScalar(shown ? 0.0001 : size)));
+    C.glass.setMatrixAt(i, m4.compose(v, q, sc.setScalar(shown ? size : 0.0001)));
+    C.frame.setMatrixAt(i, m4.compose(v, q, sc.setScalar(shown ? size : 0.0001)));
+    C.frame.setColorAt(i, col.setHex(c.given ? 0xffd27d : CUBE_COL[c.v]).lerp(CUBE_WHITE, c.flash || 0));
+    gp.setXYZ(i, v.x, v.y, v.z);
+    gs.setX(i, shown ? k * pop : 0);
+  });
+  for (const m of [C.glass, C.empty, C.frame]) m.instanceMatrix.needsUpdate = true;
+  C.frame.instanceColor.needsUpdate = true;
+  gp.needsUpdate = gs.needsUpdate = true;
+}
+function tickCube(e, t) {
+  const C = e.cube, s = t / 1000, dt = C.last === null ? 0 : Math.min(0.1, s - C.last);
+  C.last = s;
+  C.GU.uPx.value = V.renderer.getPixelRatio();
+  C.GU.uCenter.value = V.cam.position.distanceTo(C.cube.getWorldPosition(C.wp || (C.wp = new THREE.Vector3())));
+  C.cube.rotation.x = 0.38 * Math.min(1, C.r);
+  C.spin += dt * (0.22 + (C.party || 0) * 2.2);
+  C.cube.rotation.y = C.spin;
+  C.cube.position.y = CUBE_Y + Math.sin(s * 0.7) * 0.08;
+  C.ring.rotation.z = -s * 0.12;
+  if (C.r >= 0.99) {   /* 空いたマスを 1 つずつ埋める。全部そろったら光って、2.5 秒後にまた空へ */
+    if (C.s0 === null) {
+      C.s0 = s;
+      C.order = C.cells.filter((c) => !c.given);
+      for (let i = C.order.length - 1; i > 0; i--) { const j = Math.floor(((i * 7919) % 97) / 97 * (i + 1)); [C.order[i], C.order[j]] = [C.order[j], C.order[i]]; }
+      C.cells.forEach((c) => { c.filled = false; c.pop = 1; c.flash = 0; });
+    }
+    const T = s - C.s0, STEP = 0.32, full = C.order.length * STEP;
+    C.order.forEach((c, k) => {
+      const a = T - 0.8 - k * STEP;
+      c.filled = a >= 0 && T < full + 3.6;
+      c.pop = a >= 0 ? 1 + 0.25 * Math.sin(Math.min(1, a / 0.28) * Math.PI) : 1;   /* ぽん、と入る */
+    });
+    const done = T - 0.8 - full;
+    C.party = done > 0 && done < 1.6 ? Math.sin(done / 1.6 * Math.PI) : 0;   /* そろった: 光って少し速く回る */
+    C.cells.forEach((c) => { c.flash = C.party * 0.8; });
+    if (T > full + 4.2) C.s0 = null;   /* また空に戻して、はじめから */
+  } else {
+    C.party = 0;
+  }
+  layCube(e, s);
+}
+
+/* 将棋ぷよ「成」: shogi-puyo.html と同じ 6×12 の盤と駒 (角丸の駒・同じ色・成ると赤い字と金の輪)。
+   飛と金の組が落ちてきて、飛が 4 つそろって消え、上の金が落ちて金 4 つの「2 連鎖」。
+   消えた金の隣にいた 角・歩・銀 が裏返って 馬・と・全 に成る (ゲームと同じ決まり)。7.2 秒でくり返す */
+const SHOGI = {
+  F: { k: '歩', p: 'と', c: ['#8d97ad', '#5a6178'] }, G: { k: '銀', p: '全', c: ['#36ac93', '#1d6b58'] },
+  K: { k: '金', p: null, c: ['#e2ad3c', '#a8761a'] }, A: { k: '角', p: '馬', c: ['#9d6ed2', '#633c9c'] },
+  H: { k: '飛', p: '龍', c: ['#db5532', '#a4351c'] },
+};
+/* はじめの盤 (列ごとに下から)。同じ駒が 4 つつながる組は、落ちてくる組が入るまで無い (手で確かめた) */
+const SHOGI_START = [['H', 'H', 'H'], ['K', 'K', 'K'], ['A', 'F', 'G', 'A', 'H', 'K'], ['G', 'A', 'F', 'K', 'F', 'A'],
+                     ['F', 'G', 'H', 'K', 'A', 'G'], ['A', 'K', 'F', 'G', 'H', 'F']];
+const SHOGI_CS = 0.31, SHOGI_FR = 0.1, SHOGI_CYCLE = 7.2;
+function shogiFace(type, promoted) {
+  const d = SHOGI[type], c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, 128); grd.addColorStop(0, d.c[0]); grd.addColorStop(1, d.c[1]);
+  g.fillStyle = grd; g.beginPath(); g.roundRect(4, 4, 120, 120, 30); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.32)'; g.beginPath(); g.ellipse(64, 30, 42, 16, 0, 0, Math.PI * 2); g.fill();   /* つや */
+  g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2; g.beginPath();   /* うすい駒の形 */
+  g.moveTo(64, 18); g.lineTo(100, 36); g.lineTo(106, 110); g.lineTo(22, 110); g.lineTo(28, 36); g.closePath(); g.stroke();
+  if (promoted) { g.strokeStyle = '#f2c94c'; g.lineWidth = 7; g.beginPath(); g.roundRect(7, 7, 114, 114, 28); g.stroke(); }
+  g.fillStyle = promoted ? '#b3201a' : '#15110a'; g.font = `800 64px ${MINCHO}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(promoted ? d.p : d.k, 64, 70);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function shogiBoardTexture() {
+  const c = document.createElement('canvas'); c.width = 400; c.height = 860;
+  const g = c.getContext('2d');
+  g.fillStyle = '#e0a93a'; g.beginPath(); g.roundRect(0, 0, 400, 860, 18); g.fill();   /* 金の枠 */
+  const x0 = 20, y0 = 110, cw = 60, rows = 12;
+  const grd = g.createLinearGradient(0, y0, 0, y0 + rows * cw); grd.addColorStop(0, '#efe2c2'); grd.addColorStop(1, '#e3d2a8');
+  g.fillStyle = grd; g.fillRect(x0, y0, 6 * cw, rows * cw);
+  g.strokeStyle = 'rgba(40,26,14,.28)'; g.lineWidth = 1.5;
+  for (let i = 0; i <= 6; i++) { g.beginPath(); g.moveTo(x0 + i * cw, y0); g.lineTo(x0 + i * cw, y0 + rows * cw); g.stroke(); }
+  for (let j = 0; j <= rows; j++) { g.beginPath(); g.moveTo(x0, y0 + j * cw); g.lineTo(x0 + 6 * cw, y0 + j * cw); g.stroke(); }
+  g.fillStyle = '#241810'; g.fillRect(x0, 20, 6 * cw, 76);   /* 題の札 */
+  g.font = `800 44px ${MINCHO}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#f5e2b7'; g.fillText('将棋ぷよ「　」', 200, 60);
+  g.fillStyle = '#e75836'; g.fillText('成', 264, 60);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+const SPARK_VERT = `
+uniform float uPx; attribute vec3 aColor; attribute float aAlpha;
+varying vec3 vC; varying float vA;
+void main() { vC = aColor; vA = aAlpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv;
+  gl_PointSize = uPx * 7.0 * (14.0 / -mv.z); }`;
+const SPARK_FRAG = `
+varying vec3 vC; varying float vA;
+void main() { vec2 d = gl_PointCoord - 0.5; float r2 = dot(d, d) * 4.0; if (r2 > 1.0 || vA < 0.01) discard;
+  gl_FragColor = vec4(vC * exp(-r2 * 4.0) * vA, 1.0); }`;
+function buildShogiBoard(f, lift) {
+  const CS = SHOGI_CS, FR = SHOGI_FR, BW = 6 * CS + FR * 2, BH = BW * 860 / 400;
+  const hinge = new THREE.Group();
+  hinge.position.set(f.x || 0, 0.01, f.z || 0);
+  lift.add(hinge);
+  const geo = new THREE.PlaneGeometry(BW, BH); geo.translate(0, BH / 2, 0);
+  hinge.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: shogiBoardTexture(), roughness: 0.8, metalness: 0 })),
+    new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x3a2716, roughness: 1, side: THREE.BackSide })));
+  const cellY = (r) => BH * (1 - (110 + (11 - r + 0.5) * 60) / 860);   /* 盤の絵の升目に合わせる */
+  const cellX = (c) => (c - 2.5) * CS;
+  /* 駒: 角の丸い厚みのある体 + 表の字 + 裏 (成ったときの字) */
+  const shape = new THREE.Shape(), s = CS * 0.46, rr = 0.06;
+  shape.moveTo(-s + rr, -s); shape.lineTo(s - rr, -s); shape.quadraticCurveTo(s, -s, s, -s + rr); shape.lineTo(s, s - rr);
+  shape.quadraticCurveTo(s, s, s - rr, s); shape.lineTo(-s + rr, s); shape.quadraticCurveTo(-s, s, -s, s - rr);
+  shape.lineTo(-s, -s + rr); shape.quadraticCurveTo(-s, -s, -s + rr, -s);
+  const body = new THREE.ExtrudeGeometry(shape, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2, curveSegments: 4 });
+  body.translate(0, 0, -0.025);
+  const faceGeo = new THREE.PlaneGeometry(s * 2.1, s * 2.1);
+  const faces = {}, bodies = {};
+  const faceMat = (type, promoted) => {
+    const key = type + (promoted ? '+' : '');
+    return (faces[key] = faces[key] || shogiFace(type, promoted));
+  };
+  const mkPiece = (type, c, r) => {
+    const grp = new THREE.Group();
+    bodies[type] = bodies[type] || new THREE.MeshStandardMaterial({ color: SHOGI[type].c[1], roughness: 0.45, metalness: 0.05 });
+    const front = new THREE.Mesh(faceGeo, new THREE.MeshBasicMaterial({ map: faceMat(type, false), transparent: true, alphaTest: 0.4, toneMapped: false }));
+    front.position.z = 0.04;
+    grp.add(new THREE.Mesh(body, bodies[type]), front);
+    let back = null;
+    if (SHOGI[type].p) {
+      back = new THREE.Mesh(faceGeo, new THREE.MeshBasicMaterial({ map: faceMat(type, true), transparent: true, alphaTest: 0.4, toneMapped: false }));
+      back.position.z = -0.04; back.rotation.y = Math.PI;
+      grp.add(back);
+    }
+    hinge.add(grp);
+    return { grp, front, type, c, r, x: cellX(c), y: cellY(r) };
+  };
+  const pieces = [];
+  SHOGI_START.forEach((col, c) => col.forEach((type, r) => {
+    const p = mkPiece(type, c, r);
+    if (c === 0) p.popAt = 1.4;                   /* 飛 4 つ: 1 連鎖 */
+    if (c === 1) p.popAt = 2.4;                   /* 金 4 つ: 2 連鎖 */
+    if (c === 2 && r < 3) p.promoteAt = 2.8 + r * 0.12;   /* 消えた金の隣: 成る */
+    pieces.push(p);
+  }));
+  const dropH = mkPiece('H', 0, 3), dropK = mkPiece('K', 0, 4);
+  dropH.drop = { t0: 0.3, t1: 0.9, r0: 13.5, r1: 3 }; dropH.popAt = 1.4;
+  dropK.drop = { t0: 0.3, t1: 0.9, r0: 14.5, r1: 4 }; dropK.fall = { t0: 1.7, t1: 2.0, r1: 0 }; dropK.popAt = 2.4;
+  dropH.dropped = dropK.dropped = true;
+  pieces.push(dropH, dropK);
+  /* 「2 連鎖」の札 (金の字・暗い縁) */
+  const chain = makeLabel(1.25, 0.46, (g, cw, ch) => {
+    g.font = `800 ${Math.round(ch * 0.62)}px ${MINCHO}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = ch * 0.08; g.strokeStyle = 'rgba(30,18,6,.9)'; g.strokeText('2 連鎖', cw / 2, ch / 2);
+    g.fillStyle = '#f2c94c'; g.fillText('2 連鎖', cw / 2, ch / 2);
+  });
+  chain.redraw();
+  chain.mesh.position.set(0.25, cellY(6), 0.22);
+  hinge.add(chain.mesh);
+  /* 火花: 消えた駒と、成った駒から (決まった時刻にはじける) */
+  const bursts = [];
+  const addBurst = (x, y, t0, hex) => bursts.push({ x, y, t0, col: new THREE.Color(hex) });
+  for (let r = 0; r < 4; r++) addBurst(cellX(0), cellY(r), 1.5, '#db5532');
+  addBurst(cellX(0), cellY(0), 2.5, '#e2ad3c');
+  for (let r = 0; r < 3; r++) addBurst(cellX(1), cellY(r), 2.5, '#e2ad3c');
+  for (let r = 0; r < 3; r++) addBurst(cellX(2), cellY(r), 2.95 + r * 0.12, '#f2c94c');
+  const K = 10, NP = bursts.length * K, sp = new Float32Array(NP * 3), sc = new Float32Array(NP * 3), sa = new Float32Array(NP);
+  const dirs = [];
+  let seed = 5;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  bursts.forEach((b, i) => { for (let k = 0; k < K; k++) {
+    const a = rnd() * Math.PI * 2, v = 0.5 + rnd() * 0.6;
+    dirs.push([Math.cos(a) * v, Math.sin(a) * v + 0.3, 0.2 + rnd() * 0.3]);
+    const white = k % 3 === 0; sc.set(white ? [1, 0.98, 0.84] : [b.col.r, b.col.g, b.col.b], (i * K + k) * 3);
+  } });
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.BufferAttribute(sp, 3)); sg.setAttribute('aColor', new THREE.BufferAttribute(sc, 3)); sg.setAttribute('aAlpha', new THREE.BufferAttribute(sa, 1));
+  const SU = { uPx: { value: V.renderer.getPixelRatio() } };
+  const sparks = new THREE.Points(sg, new THREE.ShaderMaterial({ uniforms: SU, vertexShader: SPARK_VERT, fragmentShader: SPARK_FRAG,
+    transparent: true, depthWrite: false, ...ADD_LIGHT }));
+  sparks.frustumCulled = false; sparks.renderOrder = 5;
+  hinge.add(sparks);
+  let s0 = null, standing = false;
+  const place = (T) => {
+    const reset = T >= 6.0;   /* 6.0〜6.6 秒: 沈んで消える / 6.6〜: はじめの盤がまた現れる */
+    const sink = 1 - sstep(6.0, 6.5, T), appear = sstep(6.6, 7.1, T);
+    for (const p of pieces) {
+      let y = p.y, scale = 1, flash = 0, flip = 0;
+      if (p.drop) {
+        const u = clamp01((T - p.drop.t0) / (p.drop.t1 - p.drop.t0));
+        y = cellY(p.drop.r0 + (p.drop.r1 - p.drop.r0) * u * u);
+        if (T > p.drop.t1 && T < p.drop.t1 + 0.14) y += Math.sin((T - p.drop.t1) / 0.14 * Math.PI) * CS * 0.18;   /* 着地で小さくはねる */
+        if (p.fall && T > p.fall.t0) { const w = clamp01((T - p.fall.t0) / (p.fall.t1 - p.fall.t0)); y = cellY(p.drop.r1 + (p.fall.r1 - p.drop.r1) * w * w); }
+        if (T < p.drop.t0 || T >= 6.0) scale = 0;
+      }
+      if (p.popAt !== undefined) {
+        const a = T - p.popAt;
+        if (a > -0.3 && a < 0) flash = 0.5 - 0.5 * Math.cos((a + 0.3) / 0.15 * Math.PI * 2);   /* 2 回またたく */
+        if (a >= 0) scale *= a < 0.08 ? 1 + 0.16 * a / 0.08 : Math.max(0, 1.16 * (1 - (a - 0.08) / 0.15));   /* ふくらんで、消える */
+      }
+      if (p.promoteAt !== undefined) flip = sstep(p.promoteAt, p.promoteAt + 0.35, T);
+      if (reset && !p.dropped) scale *= T < 6.6 ? sink : appear;
+      if (reset && !p.dropped && T >= 6.6) flip = 0;
+      if (!standing) { scale = p.dropped ? 0 : 1; flip = 0; flash = 0; y = p.y; }
+      p.grp.position.set(p.x, y, 0.06);
+      p.grp.scale.setScalar(Math.max(0.0001, scale));
+      p.grp.rotation.y = flip * Math.PI;
+      p.grp.visible = scale > 0.001;
+      p.front.material.color.setScalar(1 + flash * 0.9);
+    }
+    chain.mesh.visible = standing && T > 2.1 && T < 4.3;
+    if (chain.mesh.visible) chain.mesh.scale.setScalar(Math.max(0.001, springRise(T - 2.1, 14) * (1 - sstep(3.7, 4.3, T))));
+    bursts.forEach((b, i) => {
+      const a = T - b.t0;
+      for (let k = 0; k < K; k++) {
+        const j = i * K + k, d = dirs[j], on = standing && a > 0 && a < 0.5;
+        sp[j * 3] = b.x + d[0] * a; sp[j * 3 + 1] = b.y + d[1] * a - 1.2 * a * a; sp[j * 3 + 2] = 0.1 + d[2] * a;
+        sa[j] = on ? 1 - a / 0.5 : 0;
+      }
+    });
+    sg.attributes.position.needsUpdate = true; sg.attributes.aAlpha.needsUpdate = true;
+  };
+  place(0);
+  return {
+    pose: (r) => {
+      hinge.rotation.x = -(Math.PI / 2) * (1 - Math.min(1.1, r));   /* 盤は奥から起き上がる */
+      hinge.visible = r > 0.03;
+      if (r < 0.99) { standing = false; s0 = null; place(0); }
+    },
+    fade: () => {},
+    tick: (s) => {
+      SU.uPx.value = V.renderer.getPixelRatio();
+      if (!standing && hinge.rotation.x > -0.02) { standing = true; s0 = s; }
+      place(standing ? (s - s0) % SHOGI_CYCLE : 0);
+    }
+  };
+}
+/* 紙飛行機: 写真の上を、大きな8の字を描いて飛ぶ。通ったあとに点の軌跡 */
+function buildPaperPlane(f, lift) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute([
+    0, 0, 0.32, -0.2, 0, -0.16, 0, 0.02, -0.12,    0, 0, 0.32, 0, 0.02, -0.12, 0.2, 0, -0.16,   /* 翼 */
+    0, 0, 0.32, 0, 0.02, -0.12, 0, -0.08, -0.12 ], 3));   /* 胴の折り目 */
+  g.computeVertexNormals();
+  const plane = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xfbfaf4, roughness: 0.9, side: THREE.DoubleSide }));
+  lift.add(plane);
+  const [cx, cy, cz] = f.center || [0, 3.4, 0.2], ax = f.ax || 2.6, az = f.az || 0.9;
+  const TR = 18, trail = new Float32Array(TR * 3), tc = new Float32Array(TR * 3).fill(1), ta = new Float32Array(TR);
+  const tg = new THREE.BufferGeometry();
+  tg.setAttribute('position', new THREE.BufferAttribute(trail, 3));
+  tg.setAttribute('aColor', new THREE.BufferAttribute(tc, 3)); tg.setAttribute('aAlpha', new THREE.BufferAttribute(ta, 1));
+  const TU = { uPx: { value: V.renderer.getPixelRatio() } };
+  const dots = new THREE.Points(tg, new THREE.ShaderMaterial({ uniforms: TU, vertexShader: SPARK_VERT, fragmentShader: SPARK_FRAG,
+    transparent: true, depthWrite: false, ...ADD_LIGHT }));
+  dots.frustumCulled = false; dots.renderOrder = 4;
+  lift.add(dots);
+  const at = (u, out) => out.set(cx + Math.sin(u) * ax, cy + Math.sin(u * 2) * 0.25, cz + Math.sin(u * 2) * az);
+  const p = new THREE.Vector3(), q = new THREE.Vector3();
+  let fadeV = 0;
+  return {
+    fade: (v) => { fadeV = v; plane.visible = dots.visible = v > 0.05; plane.scale.setScalar(Math.max(0.001, v)); },
+    tick: (s) => {
+      const u = s * 0.45;
+      at(u, p); at(u + 0.02, q);
+      plane.position.copy(p);
+      plane.lookAt(q);   /* 進む向きへ機首を向ける */
+      plane.rotateZ(Math.cos(u) * 0.5);   /* 曲がるときに傾く */
+      for (let i = 0; i < TR; i++) {   /* 通ったあとに、だんだん薄くなる点 */
+        at(u - (i + 1) * 0.07, q); trail[i * 3] = q.x; trail[i * 3 + 1] = q.y; trail[i * 3 + 2] = q.z;
+        ta[i] = fadeV * 0.55 * (1 - i / TR);
+      }
+      tg.attributes.position.needsUpdate = true; tg.attributes.aAlpha.needsUpdate = true;
+      TU.uPx.value = V.renderer.getPixelRatio();
+    }
+  };
+}
+
+/* 悪行目録の頁: 古い紙に罫線と条の題。実行時に描く (画像を増やさない) */
+let _sheetTex = null;
+function pageSheetTexture(label) {
+  if (_sheetTex) return _sheetTex;
+  const c = document.createElement('canvas'); c.width = 192; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#efe2c4'; g.fillRect(6, 6, 180, 244);
+  g.strokeStyle = 'rgba(120,90,50,.55)'; g.lineWidth = 2; g.strokeRect(12, 12, 168, 232);
+  g.fillStyle = '#7a1c14'; g.font = 'bold 22px "Yu Mincho","Hiragino Mincho ProN",serif'; g.textAlign = 'center';
+  g.fillText(label || '悪行目録', 96, 48);
+  g.strokeStyle = 'rgba(60,40,20,.45)'; g.lineWidth = 1.2;
+  for (let y = 72; y < 236; y += 16) { g.beginPath(); g.moveTo(26, y); g.lineTo(166 - (y % 48 === 8 ? 40 : 0), y); g.stroke(); }
+  g.fillStyle = 'rgba(160,30,20,.8)'; g.beginPath(); g.arc(150, 214, 13, 0, Math.PI * 2); g.fill();   /* 朱の印 */
+  _sheetTex = new THREE.CanvasTexture(c);
+  _sheetTex.colorSpace = THREE.SRGBColorSpace;
+  return _sheetTex;
 }
 
 /* ------ 歌う銀河: 約1万9千の星 (歌い手の数) で描く渦巻き銀河 ------
@@ -2764,6 +3794,8 @@ function prefetchAround(idx) {
 function afterLanding() {
   trimWorlds();
   prefetchAround(EHON.state.currentPageIdx);   /* 回線はすぐ使い、解析と転送は世界が立ち終わってから */
+  const nx = PAGES[EHON.state.currentPageIdx + 1];
+  if (nx && nx.type === 'colophon') V.coloPrewarmAt = nowMs() + 1200;   /* 次が奥付なら、止まっているあいだに紙を組んでおく */
 }
 function showPreparing() {
   const host = V ? V.host : document.getElementById('world-b');
@@ -2781,6 +3813,7 @@ function showPreparing() {
 function startTurn(o) {
   const rig = V.pageRig, L = rig.turn;
   if (turn) finishTurn(true);   /* 念のため: 前のめくりが残っていたら即着地させる */
+  V.sway.goal = 0;   /* 次の頁は正面から見せる */
   const sigma = o.dir === 'next' ? 1 : -1;
   const quiet = quietMotion();
   const fromTex = spreadNow(o.fromSlug), toTex = spreadNow(o.toSlug);
@@ -2885,7 +3918,14 @@ function ensureStage() {
   const bookGrp = new THREE.Group();
   scene.add(bookGrp);
   V = { renderer, scene, cam, controls, bookGrp, host, book: null, bookTopY: 0, pageRig: null,
-        mascot: null, boy: null, lastT: nowMs(), idleT0: Infinity, prefetchTimer: 0 };
+        mascot: null, boy: null, lastT: nowMs(), idleT0: Infinity, prefetchTimer: 0,
+        sway: { t0: nowMs(), center: 0, goal: null } };
+  /* 手で回したら、その向きを揺れの新しい中心にする (手を離したとたんに引き戻さない) */
+  controls.addEventListener('end', () => {
+    const S = V.sway, P = swayParams();
+    S.center = wrapAngle(controls.getAzimuthalAngle() - P.A * Math.sin(P.w * (nowMs() - S.t0) / 1000));
+    S.goal = null;
+  });
 
   const fit = () => {
     const w = host.clientWidth, h = host.clientHeight;
@@ -2911,7 +3951,53 @@ function ensureStage() {
     ptr.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
     ray.setFromCamera(ptr, cam);
     const hits = ray.intersectObject(am, true);
-    if (hits.length) { ev.stopPropagation(); window.ZukanEngine.onAnimalClick(hits[0].object.userData.animalId); }
+    if (hits.length) { ev.stopPropagation(); animalPicked = true; window.ZukanEngine.onAnimalClick(hits[0].object.userData.animalId); }
+  });
+  let animalPicked = false;   /* 動物を押したときは、離しても作品はひらかない */
+  /* 飛び出しを押すと、その作品がひらく。マウスを乗せると少し浮いて「▶ ひらく」の札が出る。
+     本を回すドラッグはひらかない。動物に当たったときは図鑑のほう */
+  const hint = document.createElement('div');
+  hint.id = 'pop-hint';
+  document.body.appendChild(hint);
+  const canHover = !!(window.matchMedia && window.matchMedia('(hover: hover)').matches);
+  const worldHit = (ev) => {
+    const w = curWorld, page = PAGES[EHON.state.currentPageIdx];
+    if (!w || w !== worlds.get(page.id) || !w.lift || !w.root || !w.root.parent || w.rise < 0.99 || turn || !page.link) return false;
+    const r = renderer.domElement.getBoundingClientRect();
+    ptr.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
+    ptr.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
+    ray.setFromCamera(ptr, cam);
+    const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };   /* 当たり判定は非表示の部品にも当たるので */
+    const hit = ray.intersectObject(w.lift, true).find((h) => h.object.isMesh && shown(h.object));
+    return !!hit && !hit.object.userData.animalId;
+  };
+  let hovering = false, hoverRaf = 0, lastMove = null, downAt = null;
+  const setHover = (on, ev) => {
+    if (on !== hovering) {
+      hovering = on;
+      renderer.domElement.style.cursor = on ? 'pointer' : '';
+      hint.classList.toggle('show', on);
+    }
+    if (curWorld) curWorld.hoverTarget = on ? 1 : 0;
+    if (on && ev) {
+      hint.textContent = '▶ ' + tt(I18N.ui.open) + ' — ' + tt(PAGES[EHON.state.currentPageIdx].title);
+      hint.style.transform = `translate(${ev.clientX + 16}px, ${ev.clientY + 14}px)`;
+    }
+  };
+  renderer.domElement.addEventListener('pointermove', (ev) => {
+    if (!canHover || ev.pointerType === 'touch') return;
+    lastMove = ev;
+    if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; setHover(worldHit(lastMove), lastMove); });   /* 判定は 1 フレームに 1 回 */
+  });
+  renderer.domElement.addEventListener('pointerleave', () => setHover(false));
+  renderer.domElement.addEventListener('pointerdown', (ev) => {
+    downAt = animalPicked ? null : { x: ev.clientX, y: ev.clientY, t: performance.now() };
+    animalPicked = false;
+  });
+  renderer.domElement.addEventListener('pointerup', (ev) => {
+    const d = downAt; downAt = null;
+    if (!d || Math.hypot(ev.clientX - d.x, ev.clientY - d.y) > 6 || performance.now() - d.t > 600) return;
+    if (worldHit(ev)) { setHover(false); location.href = PAGES[EHON.state.currentPageIdx].link; }
   });
 
   requestAnimationFrame(loop);
@@ -3011,6 +4097,25 @@ function updateIdle(t) {
   poseLeaf(L, 0.02 * b, 0, 0, L.peekLift, 0, L.peekTwist);
 }
 
+/* カメラは本の正面を中心に、ゆっくり左右へ揺れる。ぐるりと一周させると、紙のカードの裏や地図の縁ばかり
+   見える時間ができる。頁をめくると、手で回した向きから正面へゆっくり戻る。
+   OrbitControls の自動回転の速さを毎フレーム決めて動かす (手で回している間は OrbitControls が自動回転を止める) */
+const wrapAngle = (x) => x - Math.PI * 2 * Math.round(x / (Math.PI * 2));
+function swayParams() {
+  return quietMotion() ? { A: 0.1, w: Math.PI * 2 / 46, back: 0.35 } : { A: 0.36, w: Math.PI * 2 / 28, back: 0.6 };
+}
+function swayCamera(t, dt) {
+  const S = V.sway, P = swayParams(), s = (t - S.t0) / 1000;
+  if (S.goal !== null) {
+    const d = wrapAngle(S.goal - S.center);
+    S.center += Math.max(-P.back * dt, Math.min(P.back * dt, d * dt * 1.5));
+    if (Math.abs(d) < 0.002) S.goal = null;
+  }
+  const err = wrapAngle(S.center + P.A * Math.sin(P.w * s) - V.controls.getAzimuthalAngle());
+  const v = Math.max(-P.back, Math.min(P.back, P.A * P.w * Math.cos(P.w * s) + err * 3));   /* 方位の速さ (rad/s) */
+  V.controls.autoRotateSpeed = -v * 60 / (Math.PI * 2);   /* 自動回転は θ を減らす向き・1 = 60 秒で一周 */
+}
+
 function loop() {
   requestAnimationFrame(loop);
   const t = nowMs();
@@ -3020,6 +4125,7 @@ function loop() {
     if (turn) finishTurn(false);
     return;
   }
+  swayCamera(t, dt);
   V.controls.update(dt);   /* 自動回転は秒基準 (高リフレッシュの画面でも速くならない) */
   if (V.mascot) V.mascot.position.y = Math.sin(t / 900) * 0.12;
   if (V.boy) V.boy.position.y = Math.sin(t / 900 + 2.0) * 0.11;
@@ -3029,10 +4135,16 @@ function loop() {
     if (e.anim) { updateWorld(e, t); moving = true; }
     if (e.animalWait > 0 && --e.animalWait === 0 && e.animal) e.animal.visible = true;
     if (e.tick && e.root && e.root.parent && e.root.visible) e.tick(e, t);   /* 漂う言葉のかけら・回る銀河 */
+    if (e.lift && (e.hoverK || e.hoverTarget)) {   /* 乗せると、少し浮く (押せる合図) */
+      e.hoverK = (e.hoverK || 0) + ((e !== curWorld ? 0 : e.hoverTarget || 0) - (e.hoverK || 0)) * Math.min(1, dt * 10);
+      if (e.hoverK < 0.001) e.hoverK = 0;
+      e.lift.position.y = e.hoverK * 0.09;
+    }
   });
   /* 紙や世界が動いている間は、裏方の仕事 (解析・GPU 転送) をしない。急ぎの世界だけは例外 */
   const warmed = warmStep(moving);
   if (!moving && !warming && calmQueue.length && !buildingNow()) startBuild(calmQueue.shift());
+  if (V.coloPrewarmAt && !moving && !warming && t > V.coloPrewarmAt) { V.coloPrewarmAt = 0; window.prewarmColophon && window.prewarmColophon(); }
   V.renderer.render(V.scene, V.cam);
   if (warmed) markGpuWork();   /* この描画 (小さく描いた形の転送を含む) の後ろに目印を置く */
 }
@@ -3086,7 +4198,7 @@ window.syncPageB = function (idx) {
 window.popWorldB = function () { window.syncPageB(EHON.state.currentPageIdx); };
 /* 目次/奥付を描く前に、頁の上の案内表示だけ片づける (世界はステージが畳む) */
 window.disposeWorldB = function () {
-  document.getElementById('world-b').querySelectorAll('.status-msg,.toc-wrap,.colo-wrap').forEach((el) => el.remove());
+  document.getElementById('world-b').querySelectorAll('.status-msg,.toc-wrap,.colo-wrap:not(.prewarm)').forEach((el) => el.remove());
 };
 window.immerseWorldB = () => {
   if (V && V.controls) { V.controls.minDistance = 2; V.controls.maxDistance = 8; }
@@ -3108,7 +4220,7 @@ function showStaticFallback(host, page) {
   img.alt = '';
   img.style.maxWidth = '60%';
   img.style.borderRadius = '12px';
-  img.src = getMediaUrl('toc_' + page.id.replace(/-/g, '') + '_v1.webp');
+  img.src = getMediaUrl(tocThumb(page));
   img.onerror = function () { this.remove(); };
   d.innerHTML = '';
   d.appendChild(img);
