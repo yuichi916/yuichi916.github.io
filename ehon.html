@@ -1779,6 +1779,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /* WebGL非対応フォールバック */
 (function () {
@@ -2113,6 +2114,39 @@ function simplifyMaterials(root) {
   };
   root.traverse((o) => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(conv) : conv(o.material); });
 }
+/* 同じマテリアルの静止メッシュを 1 つにまとめ、描画命令を減らす (心の庭は 376 → 数十。遅い端末で毎フレーム効く)。
+   透明なもの・鏡像 (負のスケール) のもの・形式の違うものは、そのまま残す */
+async function mergeStatic(root, shouldYield) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const groups = new Map();
+  root.traverse((o) => {
+    if (!o.isMesh || o.isSkinnedMesh || o.isInstancedMesh || Array.isArray(o.material) || o.material.transparent) return;
+    const g = o.geometry;
+    if (!g || g.morphAttributes.position) return;
+    const local = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+    if (local.determinant() < 0) return;
+    const sig = Object.keys(g.attributes).sort().map((k) => k + g.attributes[k].itemSize + g.attributes[k].array.constructor.name + g.attributes[k].normalized).join(',') + (g.index ? '|i' : '|n');
+    const key = o.material.uuid + '|' + sig;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ o, local });
+  });
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    const geos = list.map(({ o, local }) => o.geometry.clone().applyMatrix4(local));
+    const merged = mergeGeometries(geos, false);
+    geos.forEach((g) => g.dispose());
+    if (!merged) continue;
+    merged.computeBoundingSphere();
+    root.add(new THREE.Mesh(merged, list[0].o.material));
+    list.forEach(({ o }) => {
+      while (o.children.length) o.parent.attach(o.children[0]);   /* 子を持つメッシュでも、子は見た目の位置のまま残す */
+      o.parent.remove(o);
+      o.geometry.dispose();
+    });
+    if (shouldYield()) await new Promise((r) => requestAnimationFrame(r));   /* 先読みなら数フレームに分けて、回っている本を止めない */
+  }
+}
 const TEX_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap', 'alphaMap', 'bumpMap', 'lightMap', 'displacementMap'];
 function collectTextures(root) {
   const set = new Set();
@@ -2178,6 +2212,10 @@ async function buildWorld(e) {
   if (e.disposed) { disposeTree(dioGltf.scene); return; }
   const dio = dioGltf.scene;
   simplifyMaterials(dio);
+  if (!window.__ehonNoMerge && !(dioGltf.animations && dioGltf.animations.length)) {
+    await mergeStatic(dio, () => !(e === curWorld || e.urgent || e.pendingRise));
+    if (e.disposed) { disposeTree(dio); return; }
+  }
   let db = new THREE.Box3().setFromObject(dio);
   const ds = db.getSize(new THREE.Vector3());
   const dScale = 7.5 / Math.max(ds.x, ds.y, ds.z);
