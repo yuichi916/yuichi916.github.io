@@ -2308,15 +2308,34 @@ function queueWarm(e, urgent) {
 }
 /* 1フレームの量は端末の速さに合わせる: 前のステップが重ければ減らし、軽ければ戻す */
 let warmScale = 1;
+/* GPU が前に送った分を処理し終えるまで、次を積まない (WebGL2 のフェンスで止まらずに確かめる)。
+   積み上げると、次のめくりの最初のフレームがその片づけ待ちで 1 秒止まることがあった */
+let gpuFence = null;
+function gpuCaughtUp() {
+  if (!gpuFence) return true;
+  const gl = V.renderer.getContext();
+  if (gl.getSyncParameter(gpuFence, gl.SYNC_STATUS) !== gl.SIGNALED) return false;
+  gl.deleteSync(gpuFence);
+  gpuFence = null;
+  return true;
+}
+function markGpuWork() {
+  if (gpuFence || !V.renderer.capabilities.isWebGL2) return;
+  const gl = V.renderer.getContext();
+  gpuFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+  gl.flush();
+}
 function warmStep(moving) {
   const hurry = urgentWarm(warming && warming.e) || urgentWarm(warmQueue[0]);
-  if (moving && !hurry) return;
-  if (!uploadQueue.length && !warming && !warmQueue.length) return;
+  if (moving && !hurry) return false;
+  if (!uploadQueue.length && !warming && !warmQueue.length) return false;
+  if (!gpuCaughtUp()) return false;
   const t0 = performance.now();
   warmChunk(hurry);
   const ms = performance.now() - t0;
   if (ms > 8) warmScale = Math.max(0.25, warmScale * 0.7);
   else if (ms < 3) warmScale = Math.min(1, warmScale * 1.15);
+  return true;
 }
 function warmChunk(hurry) {
   let bytes = hurry ? 12e6 : 2.5e6 * warmScale;
@@ -2656,9 +2675,10 @@ function loop() {
     if (e.animalWait > 0 && --e.animalWait === 0 && e.animal) e.animal.visible = true;
   });
   /* 紙や世界が動いている間は、裏方の仕事 (解析・GPU 転送) をしない。急ぎの世界だけは例外 */
-  warmStep(moving);
+  const warmed = warmStep(moving);
   if (!moving && !warming && calmQueue.length && !buildingNow()) startBuild(calmQueue.shift());
   V.renderer.render(V.scene, V.cam);
+  if (warmed) markGpuWork();   /* この描画 (小さく描いた形の転送を含む) の後ろに目印を置く */
 }
 
 /* ------ 外から呼ばれる入口 (本体スクリプトの EHON から) ------ */
