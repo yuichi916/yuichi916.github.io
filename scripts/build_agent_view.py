@@ -34,6 +34,7 @@ EXCLUDE_DIRS = {
     "node_modules", "_dev", "_local", "_test_assets", "_workers",
     "_blender", "_gas", "_userscript", "_ehon_assets",
     "tests", "docs", "scripts", "assets",
+    "_dist",   # 配布用のビルド出力 (gitignore。公開されない)
 }
 EXCLUDE_FILES = {
     "googlea794ff425484fcb3.html", "quest_test_tmp.html", "test-mobile.html",
