@@ -1831,9 +1831,12 @@ const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 const quietMotion = () => document.documentElement.classList.contains('quiet-turns');
 
 /* 動きの設計値 */
-const TURN_MS = 1150;         /* 1枚めくる時間 (紙をゆっくり味わえる速さ) */
-const TURN_FAST_MS = 800;     /* 続けてめくるとき */
-const TURN_QUIET_MS = 300;    /* 静かな動き */
+const TURN_MS = 1400;         /* 1枚めくる時間 (紙をゆっくり味わえる速さ) */
+const TURN_FAST_MS = 950;     /* 続けてめくるとき */
+/* 静かな動き (OS で「アニメーションを減らす」を選んだ人も既定でこちら): 速さは同じまま、
+   紙の反りを弱め、ねじれ・傾き・ばねの弾みをなくす。短く速く回すと、かえって目に強い */
+const TURN_QUIET_MS = 1400;
+const QUIET_RISE_MS = 650;    /* 静かな動きで、世界が弾まずに立ち上がる時間 */
 const FOLD_MS = 360;          /* 前の世界は、紙が持ち上がりきる前に畳み終える */
 const RISE_AT = 0.55;         /* 紙がここまで進んだら、次の世界が立ち上がり始める */
 const SPRING_W = 10.4, SPRING_Z = 0.7;   /* 立ち上がりのばね (720ms のめくりでの値): 紙の着地直後に約5%行き過ぎて戻る */
@@ -1844,6 +1847,19 @@ const CURL = 2.1, TWIST = 0.16;          /* めくる紙の反りと、手前の
 const PEEK_EVERY = 4200, PEEK_MS = 1100; /* 開く前: 紙の角がときどき持ち上がって誘う */
 const LEAF_NX = 32, LEAF_NZ = 8;
 
+/* めくる紙の進み方: 角がゆっくり持ち上がり、同じ速さで運ばれ、ふわりと降りる。
+   速さの山は台形 (両肩はなめらか)。3次の ease-in-out は真ん中で平均の3倍の速さになり、
+   紙がはじかれたように見えた。これは最大でも平均の約1.5倍 */
+const TURN_IN = 0.32, TURN_OUT = 0.34;
+function turnEase(k) {
+  if (k <= 0) return 0;
+  if (k >= 1) return 1;
+  const vmax = 1 / (1 - (TURN_IN + TURN_OUT) / 2);
+  const g = (t) => t * t * t - t * t * t * t / 2;   /* なめらかな加速 (smoothstep) を積分したもの */
+  if (k < TURN_IN) return vmax * TURN_IN * g(k / TURN_IN);
+  if (k > 1 - TURN_OUT) return 1 - vmax * TURN_OUT * g((1 - k) / TURN_OUT);
+  return vmax * (k - TURN_IN / 2);
+}
 function springRise(sec, w) {
   if (sec <= 0) return 0;
   const z = SPRING_Z, wd = w * Math.sqrt(1 - z * z), e = Math.exp(-z * w * sec);
@@ -2594,7 +2610,7 @@ function foldWorld(e, sigma) {
   e.pendingRise = false;
   if (e.warm === 'warming') { e.anim = null; e.rise = 0; return; }   /* GPU へ送り途中: 送り終えたら自分で外れる */
   if (!e.root || !e.root.parent || e.rise <= 0.001) { e.anim = null; e.rise = 0; if (e.root) { detachWorld(e); poseWorld(e); } return; }
-  e.anim = { kind: 'fold', t0: nowMs(), from: e.rise, leanFrom: e.lean, leanTo: sigma * LEAN * 1.1, dur: quietMotion() ? 160 : FOLD_MS };
+  e.anim = { kind: 'fold', t0: nowMs(), from: e.rise, leanFrom: e.lean, leanTo: quietMotion() ? 0 : sigma * LEAN * 1.1, dur: FOLD_MS };
 }
 function updateWorld(e, t) {
   const a = e.anim, el = t - a.t0;
@@ -2604,7 +2620,7 @@ function updateWorld(e, t) {
     e.lean = lerp(a.leanFrom, a.leanTo, fe);
     if (f >= 1) { e.anim = null; e.rise = 0; e.lean = 0; detachWorld(e); }
   } else if (a.quiet) {
-    const f = clamp01(el / 300);
+    const f = clamp01(el / QUIET_RISE_MS);
     e.rise = lerp(a.r0, 1, easeOutCubic(f)); e.lean = 0;
     if (f >= 1) { e.anim = null; e.rise = 1; }
   } else {
@@ -2795,10 +2811,11 @@ function startTurn(o) {
 function updateTurn(t) {
   const T = turn, L = V.pageRig.turn;
   const k = clamp01((t - T.t0) / T.dur);
-  const E = easeInOutCubic(k);
+  const E = turnEase(k);
   const phi = T.phi0 + (Math.PI - T.phi0) * E;
   const s = Math.sin(Math.PI * E);
-  const curl = T.quiet ? 0 : CURL * 0.8 * s * (0.35 - E);   /* 持ち上げるときは外側が先、降りるときは外側が遅れる */
+  /* 持ち上げるときは外側が先、降りるときは外側が遅れる (静かな動きでは反りを半分に) */
+  const curl = CURL * (T.quiet ? 0.4 : 0.8) * s * (0.35 - E);
   const twist = T.quiet ? 0 : TWIST * s * (1 - E);
   const fade = 1 - clamp01(k / 0.35);
   poseLeaf(L, phi, E, curl, T.lift0 * fade, twist, T.twist0 * fade);
