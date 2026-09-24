@@ -53,6 +53,8 @@ async function fetchCount(path) {
   if (hit != null) return hit;
   try {
     const r = await fetch(C.counterUrl(path), { mode: 'cors' });
+    // 公開カウンタは、まだ誰も押していないパスに 404 と "0" を返す。読めなかったのではなく 0 人
+    if (r.status === 404) { rememberCount(path, 0); return 0; }
     if (!r.ok) return null;
     const n = C.parseCount(await r.json());
     if (n != null) rememberCount(path, n);
@@ -72,7 +74,7 @@ function whenVisible(host, fn) {
 }
 
 const CARD_CSS = `
-:host{all:initial;display:block;width:100%}
+:host{all:initial;display:block;width:100%;visibility:inherit;pointer-events:inherit}
 [hidden]{display:none!important}
 .card{position:relative;box-sizing:border-box;width:calc(100% - 32px);max-width:560px;margin:40px auto;
   padding:18px 20px 16px;background:#f7f1e3;color:#2b2620;border:1px solid rgba(43,38,32,.28);border-radius:6px;
@@ -263,9 +265,6 @@ function noteBlock(cfg, T, title) {
     box.hidden = true;
     toggle.setAttribute('aria-expanded', 'false');
   });
-  ta.addEventListener('input', () => {
-    save('localStorage', LS_KEY, C.setDraft(load('localStorage', LS_KEY), cfg.work, ta.value));
-  });
   send.addEventListener('click', async () => {
     const v = C.validateNote(ta.value, Date.now() - openedAt, hp.value);
     if (!v.ok) {
@@ -285,6 +284,8 @@ function noteBlock(cfg, T, title) {
       out.textContent = T.sent;
       gcCount(`feel/${cfg.work}/note`, `${title} — ひとこと`);
     } catch (e) {
+      // 下書きを残すのは送れなかったときだけ（共用の端末で、書きかけが次の人に見えないように）
+      save('localStorage', LS_KEY, C.setDraft(load('localStorage', LS_KEY), cfg.work, v.text));
       out.textContent = T.failed;
     } finally {
       send.disabled = false;

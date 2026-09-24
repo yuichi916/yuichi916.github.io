@@ -32,7 +32,8 @@ PAGES = [
     ("index", "/index.html?nofx=1", '[data-feel="site"]', None, "このサイトに、ひとこと"),
     ("hyaku", "/hyaku.html", '[data-feel="hyaku"]', None, "この物語に、気持ちを置いていく"),
     ("hyaku-en", "/hyaku.html?lang=en", '[data-feel="hyaku"]', None, "Leave a feeling for this story"),
-    ("seikai", "/seikai.html", '[data-feel="seikai"]', None, "この物語に、気持ちを置いていく"),
+    ("seikai", "/seikai.html", '[data-feel="seikai"]',
+     "st.cleared = true; st.maxEp = 14; paintTitle()", "この物語に、気持ちを置いていく"),
     ("kototsugi", "/kototsugi/index.html", '[data-feel="kototsugi"]', None, "この物語に、気持ちを置いていく"),
     ("sudoku", "/sudoku.html", '[data-feel="sudoku"]', None, "遊んでみて、どうでした？"),
     ("shogi-puyo", "/shogi-puyo.html", '[data-feel="shogi-puyo"]',
@@ -120,7 +121,7 @@ def extra_index(page, vw):
     page.evaluate(REVEAL, "[data-feel-board]")
     page.wait_for_function(
         "(() => { const h = document.querySelector('[data-feel-board]');"
-        " return !!(h && h.shadowRoot && h.shadowRoot.querySelectorAll('.row').length >= 3); })()",
+        " return !!(h && h.shadowRoot && h.shadowRoot.querySelectorAll('.row').length >= 2); })()",
         timeout=10000)
     nav = page.evaluate("[...document.querySelectorAll('#siteNav a')].map(a => a.getAttribute('href'))")
     assert "#feelings" in nav, nav
@@ -133,9 +134,32 @@ def extra_hyaku(page, vw):
         e.scrollTop = e.scrollHeight; return document.getElementById('btnBack').getBoundingClientRect().bottom; }""")
     height = page.evaluate("innerHeight")
     assert bottom <= height + 1, f"表紙へもどる に届かない: {bottom} > {height}"
+    # 冒頭の「（了）」にも届くこと。Safari 17.6 未満は justify-content の safe を知らず、
+    # 手前の center に戻る。その状態をまねてから測る
+    top = page.evaluate("""() => { const e = document.getElementById('ending');
+        if (getComputedStyle(e).justifyContent.includes('safe')) e.style.justifyContent = 'center';
+        e.scrollTop = 0; return document.getElementById('endFin').getBoundingClientRect().top; }""")
+    assert top >= 0, f"（了）がスクロールで戻れない上にはみ出している: top={top}"
 
 
-EXTRA = {"index": extra_index, "hyaku": extra_hyaku}
+def extra_seikai(page, vw):
+    # 読み終えていない人（最初にタイトル画面を見る人）には出さない
+    hidden = page.evaluate("""() => { st.cleared = false; st.maxEp = 0; paintTitle();
+        return document.querySelector('[data-feel="seikai"]').hidden; }""")
+    assert hidden, "読み終えていないのに、はがきが出ている"
+    page.evaluate("() => { st.cleared = true; st.maxEp = 14; paintTitle(); }")
+    # 本編を始めるとタイトル画面は見えなくなる。その上のはがきが見えないまま押せてはいけない
+    page.click("#tStart")
+    page.wait_for_function("document.getElementById('title').classList.contains('gone')", timeout=10000)
+    vis, hit = page.evaluate("""() => { const h = document.querySelector('[data-feel="seikai"]');
+        const c = h.shadowRoot.querySelector('.card'); const r = c.getBoundingClientRect();
+        const e = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 40));
+        return [getComputedStyle(c).visibility, e === h]; }""")
+    assert vis == "hidden", f"本編の上ではがきが見えている: {vis}"
+    assert hit is False, "本編の上で見えないはがきがクリックを受け取っている"
+
+
+EXTRA = {"index": extra_index, "hyaku": extra_hyaku, "seikai": extra_seikai}
 
 
 def check_page(browser, name, url, sel, prep, heading, vw):

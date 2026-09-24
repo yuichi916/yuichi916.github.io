@@ -107,7 +107,8 @@ export const WORKS = {
 
 // トップの「みんなの気持ち」。研究ノートは 16 本に分かれて問い合わせが増えるので載せない
 export const BOARD = [
-  { id: 'cry', label: '泣きたい', key: 'naita', emoji: '😭', stamp: '泣いた', works: ['hyaku', 'seikai', 'kototsugi'] },
+  // ことつぎの星のはがきは読む前の紹介ページにしかないので、読み終えた人の「泣いた」と混ぜない
+  { id: 'cry', label: '泣きたい', key: 'naita', emoji: '😭', stamp: '泣いた', works: ['hyaku', 'seikai'] },
   { id: 'fun', label: '遊びたい', key: 'tanoshii', emoji: '🎉', stamp: '楽しかった', works: ['shogi-puyo', 'sudoku', 'ehon'] },
   { id: 'learn', label: '学びたい', key: 'yakudatta', emoji: '💡', stamp: '役に立った',
     works: ['ai-map', 'ai-english', 'toeic', 'novel-bench'] },

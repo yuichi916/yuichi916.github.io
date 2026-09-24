@@ -43,6 +43,11 @@ check('BOARD: 作品は WORKS にあり、キーはどこかの組にある', ()
   for (const w of Object.keys(F.CLEAR_PATHS)) if (!F.WORKS[w]) throw new Error(`CLEAR_PATHS: ${w}`);
 });
 
+check('BOARD: 泣きたいは読み終えた所で押された数だけ（紹介ページの kototsugi は入れない）', () => {
+  const cry = F.BOARD.find((g) => g.id === 'cry');
+  eq(cry.works.includes('kototsugi'), false, 'kototsugi は読む前の紹介ページにしか置いていない');
+});
+
 check('isWorkId', () => {
   for (const ok of ['hyaku', 'shogi-puyo', 'site', 'method/kansoku-suru-monogatari',
     'method/en/stories-that-watch-you', 'harness-story']) eq(F.isWorkId(ok), true, ok);

@@ -68,8 +68,9 @@ class Net:
             return route.fulfill(status=500, body="oops")
         tail = route.request.url.split("/counter/", 1)[1]
         name = urllib.parse.unquote(tail[: -len(".json")])
-        n = COUNTS.get(name, "0")
-        route.fulfill(status=200, content_type="application/json",
+        # 本物の公開カウンタは、まだ誰も押していないパスに 404 と "0" を返す（2026-09-24 に curl で確認）
+        status, n = (200, COUNTS[name]) if name in COUNTS else (404, "0")
+        route.fulfill(status=status, content_type="application/json",
                       headers={"Access-Control-Allow-Origin": "*"},
                       body=json.dumps({"count": n, "count_unique": n}))
 
@@ -251,11 +252,13 @@ def main():
             ctx, page, _ = open_page(browser, Net())
             page.locator("#board").scroll_into_view_if_needed()
             rows = page.locator("#board .row")
-            expect(rows).to_have_count(3)
+            expect(rows).to_have_count(2)
             expect(rows.nth(0).locator(".n")).to_have_text("😭 泣いた 5人")
             expect(rows.nth(0).locator(".name")).to_contain_text("正解の外側")
             expect(rows.nth(1).locator(".name")).to_contain_text("最後まで読んだ 14人")
-            expect(rows.nth(2).locator(".n")).to_have_text("まだ誰も押していません")
+            page.click('#board .chip[data-id="fun"]')
+            expect(rows).to_have_count(3)
+            expect(rows.nth(0).locator(".n")).to_have_text("まだ誰も押していません")
             page.click('#board .chip[data-id="learn"]')
             expect(rows).to_have_count(4)
             expect(page.locator('#board .chip[data-id="learn"]')).to_have_attribute("aria-pressed", "true")
@@ -275,6 +278,31 @@ def main():
             page.screenshot(path=str(SHOTS / "harness_375.png"), full_page=True)
             ctx.close()
 
+        def hidden_container_is_inert():
+            # 正解の外側は本編に入るとタイトル画面を visibility:hidden・pointer-events:none で消す。
+            # その中のはがきが見えないまま本文の上でクリックを受けてはいけない
+            ctx, page, _ = open_page(browser, Net())
+            page.evaluate("document.getElementById('full').parentElement.style.cssText"
+                          " += ';visibility:hidden;pointer-events:none'")
+            vis, hit = page.eval_on_selector("#full", """h => {
+                const c = h.shadowRoot.querySelector('.card'); const r = c.getBoundingClientRect();
+                const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+                return [getComputedStyle(c).visibility, e === h]; }""")
+            assert vis == "hidden", f"消した枠の中のはがきが見えている: {vis}"
+            assert hit is False, "見えないはがきがクリックを受け取っている"
+            ctx.close()
+
+        def draft_not_kept_without_failure():
+            # 共用の端末で、書きかけの非公開のひとことが次の人に見えてはいけない。残すのは送信に失敗したときだけ
+            ctx, page, _ = open_page(browser, Net())
+            page.click("#full .note-toggle")
+            page.fill("#full textarea", "送らずにやめた下書き")
+            page.reload()
+            expect(page.locator("#full .card")).to_be_visible()
+            expect(page.locator("#full .note-toggle")).to_have_attribute("aria-expanded", "false")
+            assert page.input_value("#full textarea") == "", "送っていない下書きが残っている"
+            ctx.close()
+
         check("数が描かれる", counts_render)
         check("押すと +1 し、読み直しても押した状態のまま", press_and_reload)
         check("0 人のスタンプを押すと最初のひとり", first_person)
@@ -289,6 +317,8 @@ def main():
         check("隠れていた場所も、表に出たら描かれる", hidden_then_shown)
         check("トップのボード", board)
         check("スマホ幅で横にはみ出さない", phone_layout)
+        check("消された枠の中のはがきは押せない", hidden_container_is_inert)
+        check("送っていない下書きは残さない", draft_not_kept_without_failure)
         browser.close()
     httpd.shutdown()
     if failures:
