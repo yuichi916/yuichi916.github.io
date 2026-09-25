@@ -67,6 +67,7 @@ POLICY: list[tuple[str, tuple[str, str]]] = [
     ("stopwatch.html",   ("monthly", "0.8")),
     ("sudoku.html",      ("monthly", "0.8")),
     ("shogi-puyo.html",  ("monthly", "0.8")),
+    ("bakekurabe.html",  ("daily",   "0.9")),   # 日替わりのお題
     ("lingo.html",       ("monthly", "0.8")),
     ("toeic.html",       ("monthly", "0.8")),
     ("toeic-practice.html", ("monthly", "0.8")),
