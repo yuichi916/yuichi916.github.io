@@ -22,6 +22,7 @@ const EXPECTED = [
   ['kototsugi/index.html', 'kototsugi', 'story', false],
   ['sudoku.html', 'sudoku', 'game', true],
   ['shogi-puyo.html', 'shogi-puyo', 'game', true],
+  ['bakekurabe.html', 'bakekurabe', 'game', true],
   ['ehon.html', 'ehon', 'ehon', true],
   ['ai-map.html', 'ai-map', 'tool', false],
   ['salon.html', 'salon', 'tool', false],

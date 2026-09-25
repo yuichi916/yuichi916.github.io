@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<!-- 化けくらべの OGP 画像（1200×630）を描く書き出し用ページ。_dev/ は公開対象外。
+     書き出し: ヘッドレスのブラウザで開き、#og を 1200×630 で撮って assets/og/bakekurabe-1200x630.jpg に保存する -->
+<html lang="ja"><head><meta charset="utf-8"><title>og</title>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&display=block" rel="stylesheet">
+<style>
+html,body{margin:0;background:#000}
+#og{position:relative;width:1200px;height:630px;overflow:hidden;background:linear-gradient(180deg,#1a2448,#0a0c18);font-family:"Shippori Mincho",serif;color:#ece5d4}
+#cv{position:absolute;left:0;top:0;width:420px;height:630px;image-rendering:pixelated}
+.fade{position:absolute;left:330px;top:0;width:120px;height:630px;background:linear-gradient(90deg,rgba(14,18,40,0),#111733)}
+.txt{position:absolute;left:500px;top:92px;right:40px}
+h1{margin:0;font-size:124px;font-weight:800;letter-spacing:.06em;color:#f3e3a6;line-height:1.05}
+.sub{margin-top:14px;font-size:34px;font-weight:600;letter-spacing:.32em;color:#a7a3b8}
+.tag{margin-top:46px;font-size:46px;font-weight:800;line-height:1.35}
+.tag b{color:#d6f76e}
+.pts{margin-top:30px;font-size:28px;font-weight:600;color:#cfc9b8;line-height:1.6}
+.url{position:absolute;right:40px;bottom:30px;font:600 22px ui-monospace,monospace;color:#f3e3a6;opacity:.85}
+</style></head><body>
+<div id="og">
+  <canvas id="cv" width="144" height="216"></canvas><div class="fade"></div>
+  <div class="txt">
+    <h1>化けくらべ</h1>
+    <div class="sub">月夜のたぬき探し</div>
+    <div class="tag">絵のどこかに、化けている。<br><b>目だけは、化けられない。</b></div>
+    <div class="pts">毎晩みんな同じ5匹 ／ 挑戦状はリンクで</div>
+  </div>
+  <div class="url">yuichi916.github.io/bakekurabe.html</div>
+</div>
+<script type="module">
+import * as K from '../assets/bakekurabe/core.js';
+const sc = K.makeScene('susuki', 20260926, 0.496);
+const px = sc.px.slice();
+// 1 匹は正体を見せ、1 匹は化けたまま目だけ光らせる
+const shown = { x: 58, y: 150, flip: false }, hidden = { x: 104, y: 176, flip: true };
+K.BODY.forEach((p) => { const q = K.spriteToScene(shown, p.x, p.y); px[q.y * K.W + q.x] = p.natural; });
+const paint = K.autoPaint(sc.px, hidden, 5, K.rng32(1));
+K.BODY.forEach((p, i) => { const q = K.spriteToScene(hidden, p.x, p.y); px[q.y * K.W + q.x] = paint[i]; });
+const ctx = document.getElementById('cv').getContext('2d');
+const img = ctx.createImageData(K.W, K.H);
+for (let i = 0; i < px.length; i++) img.data.set([...K.PALETTE[px[i]], 255], i * 4);
+for (const t of [shown, hidden]) for (const e of K.EYES) { const q = K.spriteToScene(t, e.x, e.y); img.data.set([...K.EYE_RGB, 255], (q.y * K.W + q.x) * 4); }
+// 葉っぱ
+for (const [dx, dy, c] of [[6, -2, 35], [7, -2, 35], [8, -3, 35], [5, -1, 14], [6, -1, 35], [7, -1, 14]]) img.data.set([...K.PALETTE[c], 255], ((shown.y + dy) * K.W + shown.x + dx) * 4);
+ctx.putImageData(img, 0, 0);
+document.fonts.ready.then(() => { document.body.dataset.ready = '1'; });
+</script>
+</body></html>

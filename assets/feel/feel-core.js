@@ -96,6 +96,7 @@ export const WORKS = {
   ehon: { title: '飛び出す絵本', url: 'ehon.html' },
   sudoku: { title: '異世界立体数独', url: 'sudoku.html' },
   'shogi-puyo': { title: '将棋ぷよ「成」', url: 'shogi-puyo.html' },
+  bakekurabe: { title: '化けくらべ', url: 'bakekurabe.html' },
   'ai-map': { title: 'AIエージェント能力アトラス', url: 'ai-map.html' },
   salon: { title: '音楽の宇宙', url: 'salon.html' },
   'ai-english': { title: 'AI英語ラボ', url: 'ai-english.html' },
@@ -109,7 +110,7 @@ export const WORKS = {
 export const BOARD = [
   // ことつぎの星のはがきは読む前の紹介ページにしかないので、読み終えた人の「泣いた」と混ぜない
   { id: 'cry', label: '泣きたい', key: 'naita', emoji: '😭', stamp: '泣いた', works: ['hyaku', 'seikai'] },
-  { id: 'fun', label: '遊びたい', key: 'tanoshii', emoji: '🎉', stamp: '楽しかった', works: ['shogi-puyo', 'sudoku', 'ehon'] },
+  { id: 'fun', label: '遊びたい', key: 'tanoshii', emoji: '🎉', stamp: '楽しかった', works: ['bakekurabe', 'shogi-puyo', 'sudoku', 'ehon'] },
   { id: 'learn', label: '学びたい', key: 'yakudatta', emoji: '💡', stamp: '役に立った',
     works: ['ai-map', 'ai-english', 'toeic', 'novel-bench'] },
 ];
