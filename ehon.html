@@ -344,6 +344,35 @@
   /* 入口のボタンは、ゆっくり灯って誘う */
   #page-overlay.show .po-enter{animation:poEnter 2.8s ease-in-out 1.4s infinite}
   @keyframes poEnter{0%,100%{box-shadow:0 3px 10px rgba(120,50,10,.35)}50%{box-shadow:0 3px 24px rgba(255,176,96,.8)}}
+  /* スマホ (縦): 本文は画面の下に帯でまとめ、3 行で畳む (押すと全文)。飛び出しの上に文字をかぶせない。
+     頁の点の列は隠し (上のしおりに何頁目かが出る)、♪ と言語のボタンは右上へ */
+  @media (max-width:700px){
+    #page-overlay{left:10px;right:10px;bottom:52px;width:auto;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+    /* 下の余白は枠線で取る (padding だと、畳んだ 4 行目の頭が余白にのぞく) */
+    .po-story{flex:1 1 100%;font-size:12.5px;line-height:1.7;padding:8px 26px 0 12px;border-bottom:8px solid transparent;
+      cursor:pointer;position:relative;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+    #title-card{padding:6px 10px;max-width:min(300px,calc(100vw - 80px))}
+    #title-card h1{font-size:15px}
+    #title-card p{font-size:11px;margin-top:2px}
+    .po-story.open{display:block;-webkit-line-clamp:unset}
+    .po-story::after{content:'▾';position:absolute;right:9px;bottom:6px;font-size:11px;color:#8c6d46}
+    .po-story.open::after{content:'▴'}
+    .po-jp-badge{margin-top:0}
+    .po-enter{margin:0 0 0 auto;padding:8px 16px;font-size:13px}
+    #world-dots{display:none!important}
+    #bgm-toggle{top:10px;right:10px;bottom:auto;width:38px;height:38px;font-size:16px}
+    #lang-toggle{top:54px;right:10px;bottom:auto;width:38px;height:38px;font-size:16px}
+  }
+  /* スマホ (横): 右の本文を小さく、4 行で畳む */
+  @media (min-width:701px) and (max-height:520px){
+    #page-overlay{bottom:10%;width:min(30vw,300px)}
+    .po-story{font-size:12px;line-height:1.65;padding:8px 26px 0 12px;border-bottom:8px solid transparent;cursor:pointer;position:relative;
+      display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+    .po-story.open{display:block;-webkit-line-clamp:unset}
+    .po-story::after{content:'▾';position:absolute;right:9px;bottom:6px;font-size:11px;color:#8c6d46}
+    .po-story.open::after{content:'▴'}
+    .po-enter{margin-top:6px;padding:7px 14px;font-size:12px}
+  }
   /* 仕掛けを見終わったら、入口のボタンがはっきり誘う */
   #page-overlay.show .po-enter.nudge{animation:poNudge .8s ease-in-out 3}
   @keyframes poNudge{0%,100%{transform:none;box-shadow:0 3px 10px rgba(120,50,10,.35)}
@@ -664,7 +693,7 @@ const PAGES = [
      {tex:'seikai_back', w:6.8, z:-1.9, delay:0},
      {tex:'seikai_kai', h:3.0, x:-1.8, z:0.2, delay:0.14},
      {tex:'seikai_rin', h:2.9, x:1.8, z:0.35, delay:0.22}],
-    fx:[{kind:'path', points:[[-2.95,0.04,1.7],[-2.3,0.95,1.25],[-0.95,2.15,0.55],[0.45,2.95,-0.45],[1.5,3.45,-1.72]], nodes:[0.38,0.72]},
+    fx:[{kind:'path', points:[[-2.95,0.04,1.7],[-2.3,0.95,1.25],[-0.95,2.15,0.55],[0.45,2.95,-0.45],[1.5,3.45,-1.72]], nodes:[0.38,0.72], goal:true},
         {kind:'motes', box:[6.4,3.6,2.4], center:[0,0.3,-0.4], n:24, color:0xffd98a, size:5, gain:0.7}]},
    animalSpots:FRONT_SPOTS},
   {id:'kototsugi', type:'content', chapter:CH.MONOGATARI,
@@ -672,7 +701,7 @@ const PAGES = [
    story:{jp:'星が堕ちる島の浜にはね、言葉のかけらが打ち上がるの。……ひろった言葉を、文章の欠けにそっと継ぐと、物語が書きかわるんだよ。どんな言葉を、つないでみる？',
           en:'On the island where stars fall, fragments of words wash up on the beach. …Fit a word you found into a gap in the text, and the story rewrites itself. Which word will you weave in?'},
    link:'kototsugi/game/', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:'polecat', quest:null,
-   popup:{type:'cards', show:'weave', cards:[
+   popup:{type:'cards', show:'weave', demo:'gap', cards:[
      {tex:'kototsugi_back', w:6.8, z:-1.9, delay:0},
      {tex:'kototsugi_fine', h:2.95, x:-1.95, z:0.35, delay:0.14},
      {tex:'kototsugi_baa', h:3.05, x:1.95, z:0.15, delay:0.22},
@@ -760,7 +789,7 @@ const PAGES = [
    story:{jp:'雨の森のおくに、ちいさな小屋があるの。……窓の灯りも、暖炉の火も、ずっと君を待ってたんだよ。ぬれた靴をぬいで、いっしょにあたたまろ？',
           en:'Deep in the rainy woods stands a little cabin. …The lit windows and the fire have been waiting for you all along. Take off your wet shoes, and let\'s warm up together.'},
    link:'cabin.html', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'wolfpup', quest:null, thumb:'toc_cabin_v2.webp',
-   popup:{type:'cards', show:'storm', cards:[
+   popup:{type:'cards', show:'storm', demo:'pano', cards:[
      {tex:'cabin_back', w:6.8, z:-1.6, delay:0, glows:[
        {u:0.4438, v:0.5957, r:0.42}, {u:0.5136, v:0.6042, r:0.42}, {u:0.5718, v:0.4848, r:0.34}, {u:0.5621, v:0.6838, r:0.6, o:0.8}]}],
     fx:[{kind:'rain', box:[6.6,4.2,2.8], center:[0,0.05,0.1], n:420, gain:0.5},
@@ -1198,6 +1227,7 @@ function renderPageOverlay(page) {
   const storyDiv = document.createElement('div');
   storyDiv.className = 'po-story';
   storyDiv.textContent = page.story ? tt(page.story) : '';
+  storyDiv.addEventListener('click', () => storyDiv.classList.toggle('open'));   /* スマホでは 3 行で畳んであり、押すと全文 */
   ov.appendChild(storyDiv);
 
   if (page.linkJpOnly && ehonLang() === 'en') {
@@ -2492,7 +2522,11 @@ function disposeTree(root) {
     if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => mats.add(m));
   });
   const texs = new Set();
-  mats.forEach((m) => { TEX_SLOTS.forEach((k) => { if (m[k] && m[k].isTexture) texs.add(m[k]); }); m.dispose(); });
+  mats.forEach((m) => {
+    TEX_SLOTS.forEach((k) => { if (m[k] && m[k].isTexture) texs.add(m[k]); });
+    if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k].value; if (v && v.isTexture) texs.add(v); }   /* シェーダーの絵 (キューブの数字・小屋の中の 360°) も */
+    m.dispose();
+  });
   texs.forEach((t) => {
     if (t === _shadowTex || t === _paperTex || t === _glowTex || t === _sheetTex || t.userData.keep) return;
     t.dispose();
@@ -2616,6 +2650,18 @@ async function buildDiorama(e, lift) {
   return Math.max(ds.x, ds.z) * dScale * 1.2;
 }
 /* 浮遊島: 広場の下に岩の円錐をつけ、雲の上にゆっくり上下させる (niwa.html の島と同じ作り: 岩肌 #5a4838 に苔) */
+/* 浮遊島の九つの庭 (niwa.html の SCENE_WORLD_POS の方角と名前。英語は各庭の英題)。中央から北へ、時計まわりにめぐる */
+const NIWA_WALK = [
+  { dx: 0, dz: 0, name: { jp: '森の村', en: 'Cloudfall Village' } },
+  { dx: 0, dz: -1, name: { jp: '音の祠', en: 'Stream Garden' } },
+  { dx: 1, dz: -1, name: { jp: '旅立ちの道', en: "Traveler's Inn" } },
+  { dx: 1, dz: 0, name: { jp: '時の砂時計', en: 'Hourglass Hill' } },
+  { dx: 1, dz: 1, name: { jp: '水辺の岸', en: 'By the Weaver' } },
+  { dx: 0, dz: 1, name: { jp: '星見台', en: "Stargazer's Hill" } },
+  { dx: -1, dz: 1, name: { jp: '焚き火の森', en: 'By the Candle' } },
+  { dx: -1, dz: 0, name: { jp: '月光の書架', en: 'The Moonlit Stacks' } },
+  { dx: -1, dz: -1, name: { jp: '雨音の小屋', en: 'Rain Chapel' } },
+];
 function floatIsland(e, lift, dio, span, top) {
   const isl = e.page.island, R = span * 0.5, H = isl.rockH || 1.9;
   const island = new THREE.Group();
@@ -2671,7 +2717,27 @@ function floatIsland(e, lift, dio, span, top) {
     const a = rnd() * Math.PI * 2, rr = R * (0.15 + rnd() * 0.55);
     lanterns.push({ g, body, glow, x: Math.cos(a) * rr, z: Math.sin(a) * rr * 0.8, t0: 0.15 + i * 0.18 + rnd() * 0.1, sw: rnd() * 6, sp: 0.75 + rnd() * 0.35 });
   }
-  e.island = { island, hover, clouds, lanterns, top };
+  /* 中身を見せる常時の動き: 小さな灯りが九つの庭をひとつずつ歩いてめぐり、着いた庭の名前が出る
+     (庭の方角と名前は niwa.html の SCENE_WORLD_POS と各庭の英題のまま) */
+  const stops = NIWA_WALK.map((g) => new THREE.Vector3(g.dx * R * 0.6, top * 0.35 + 0.2, g.dz * R * 0.5));   /* 庭の中を歩く高さ (建物や木の陰にも入る) */
+  const glowMat = (col) => new THREE.SpriteMaterial({ map: getGlowTexture(), color: col, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, ...ADD_LIGHT });
+  const wisp = new THREE.Sprite(glowMat(0xfff0c8));
+  wisp.scale.setScalar(0.72); wisp.renderOrder = 5; wisp.visible = false;
+  island.add(wisp);
+  /* 歩いた跡: 灯りのうしろに、すこしずつ消える光の粒 */
+  const trail = [];
+  for (let i = 0; i < 14; i++) { const sp = new THREE.Sprite(glowMat(0xffe0a0)); sp.renderOrder = 5; sp.visible = false; island.add(sp); trail.push(sp); }
+  const nameLab = makeLabel(3.0, 0.56, (g, cw, ch, text) => {
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    fitFont(g, text, cw * 0.94, Math.round(ch * 0.5), 800);
+    g.lineWidth = ch * 0.1; g.strokeStyle = 'rgba(24,18,40,.85)'; g.strokeText(text, cw / 2, ch / 2);
+    g.fillStyle = '#fff4d8'; g.fillText(text, cw / 2, ch / 2);
+  });
+  nameLab.mesh.geometry.dispose();
+  const nameSp = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameLab.mesh.material.map, transparent: true, opacity: 0, depthTest: false, depthWrite: false, toneMapped: false }));
+  nameSp.scale.set(3.0, 0.56, 1); nameSp.renderOrder = 7; nameSp.visible = false;
+  island.add(nameSp);
+  e.island = { island, hover, clouds, lanterns, top, walk: { stops, wisp, trail, hist: [], nameLab, nameSp, key: '', t0: null } };
   e.tick = tickIsland;
   e.showDur = 4.8;
   e.focus.set(0, hover + top * 0.5, 0);
@@ -2684,6 +2750,41 @@ function tickIsland(e, t) {
   for (const c of I.clouds) {
     const a = c.a + s * c.sp0, rr = c.rr * (1 + 0.25 * up);
     c.sp.position.x = Math.cos(a) * rr; c.sp.position.z = Math.sin(a) * rr * 0.7;
+  }
+  const W = I.walk;   /* 九つの庭をめぐる灯り (仕掛けの間は休む) */
+  if (sa >= 0 || e.rise < 1 || e.anim) {
+    W.t0 = null; W.wisp.visible = W.nameSp.visible = false; W.hist.length = 0;
+    for (const sp of W.trail) sp.visible = false;
+  } else {
+    if (W.t0 === null) W.t0 = s;
+    const n = NIWA_WALK.length, STEP = 3.4, T = (s - W.t0) % (n * STEP), k = Math.floor(T / STEP), u = T - k * STEP;
+    const m = sstep(0, 1.1, u), wo = 0.9 * sstep(0, 0.6, s - W.t0);
+    W.wisp.position.lerpVectors(W.stops[(k + n - 1) % n], W.stops[k], m);
+    W.wisp.position.y += Math.sin(m * Math.PI) * 0.25 + Math.sin(s * 3) * 0.04;
+    W.wisp.visible = true; W.wisp.material.opacity = wo;
+    W.wisp.scale.setScalar(0.72 * (1 + 0.12 * Math.sin(s * 4)));
+    /* 歩いた跡: 動いたときだけ粒を落とし、0.8 秒で消える */
+    const H = W.hist, last = H[H.length - 1], wp = W.wisp.position;
+    if (!last || Math.hypot(wp.x - last.x, wp.y - last.y, wp.z - last.z) > 0.06) H.push({ x: wp.x, y: wp.y, z: wp.z, t: s });
+    while (H.length && (s - H[0].t > 0.8 || H.length > W.trail.length)) H.shift();
+    W.trail.forEach((sp, j) => {
+      const h = H[H.length - 1 - j], age = h ? (s - h.t) / 0.8 : 1;
+      sp.visible = !!h && age < 1;
+      if (!sp.visible) return;
+      sp.position.set(h.x, h.y, h.z);
+      sp.scale.setScalar(0.3 * (1 - 0.6 * age));
+      sp.material.opacity = 0.6 * (1 - age) * wo;
+    });
+    const lo = sstep(0.9, 1.3, u) * (1 - sstep(3.0, 3.35, u));
+    W.nameSp.visible = lo > 0.01;
+    if (W.nameSp.visible) {
+      const G = NIWA_WALK[k], key = k + ehonLang();
+      if (W.key !== key) { W.key = key; W.nameLab.redraw((k + 1) + '/' + n + '  ' + tt(G.name)); }
+      const K = labelK();
+      W.nameSp.scale.set(3.0 * K, 0.56 * K, 1);
+      W.nameSp.position.copy(W.wisp.position).y += 0.6 * K;
+      W.nameSp.material.opacity = lo;
+    }
   }
   for (const L of I.lanterns) {
     const k = sa >= 0 ? sa - L.t0 : -1;
@@ -2715,8 +2816,10 @@ async function loadCardTex(name) {
 }
 async function buildCards(e, lift) {
   const specs = e.page.popup.cards;
+  const panoP = e.page.popup.demo === 'pano' ? loadCardTex('cabin_pano') : null;   /* 森の小屋の中 (360°) の帯 */
   const texs = await Promise.all(specs.map((c) => Promise.all([loadCardTex(c.tex), c.float ? null : loadCardTex(c.tex + '_back')])));
-  if (e.disposed) { texs.forEach((p) => p.forEach((t) => t && t.dispose())); return 0; }
+  const pano = panoP ? await panoP : null;
+  if (e.disposed) { texs.forEach((p) => p.forEach((t) => t && t.dispose())); if (pano) pano.dispose(); return 0; }
   const cards = [];
   specs.forEach((c, i) => {
     const [front, back] = texs[i];
@@ -2758,13 +2861,22 @@ async function buildCards(e, lift) {
         hinge.add(sp);
         return { sp, base: g.o || 0.9, phase: k * 2.1 };
       });
-      cards.push({ hinge, face, spec: c, ry0: c.ry || 0, delay: c.delay || 0, glows });
+      cards.push({ hinge, face, geo, front, w, h, spec: c, ry0: c.ry || 0, delay: c.delay || 0, glows });
     }
     lift.add(hinge);
   });
   e.cards = cards;
   e.fx = (e.page.popup.fx || []).map((f) => buildFx(f, lift)).filter(Boolean);
   if (e.show === 'weave') buildWeave(e, lift);
+  if (e.page.popup.demo === 'gap') buildGapDemo(e, lift);
+  if (pano) buildPanoDemo(e, cards[0], pano);
+  const plane = e.fx.find((x) => x.setRoute);
+  if (plane) {   /* 一人旅: 紙飛行機が、奥の列を左から右へ、手前の列を右から左へ、写真をひとつずつめぐる */
+    const order = [0, 1, 2, 3, 7, 6, 5, 4].filter((i) => cards[i] && !cards[i].float);
+    plane.setRoute(order.map((i) => { const c = cards[i]; return [c.hinge.position.x, (c.spec.h || 1.5) + 0.45, c.hinge.position.z]; }));
+    order.forEach((i, k) => { cards[i].stop = k; });
+    e.plane = plane;
+  }
   e.showDur = { comet: 3.0, weave: 4.4, verdict: 5.2, chain: 4.4, flip: 3.6, storm: 3.8 }[e.show] || 0;
   e.focus.set(0, e.show === 'flip' ? 1.0 : e.show === 'weave' ? 2.3 : 1.7, e.show === 'storm' ? -1.2 : e.show === 'flip' ? -0.5 : -0.2);
   e.pose = poseCards;
@@ -2795,7 +2907,157 @@ function buildWeave(e, lift) {
   lift.add(label.mesh);
   e.weave = { xs, Y, Z, U, thread, label, lang: null };
 }
+/* 森の小屋の中身を見せる常時の動き: 外観のカードが、ときどき小屋の中 (cabin.html の 360° の部屋) に切り替わり、
+   左右にゆっくり流れて「見まわせる」ことを見せる。カードの縁 (生成りと金の線) は残し、内側だけを差し替える */
+const PANO_VERT = `
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const PANO_FRAG = `
+uniform sampler2D uCard, uPano; uniform float uOff, uMix, uScale; uniform vec2 uEdge;
+varying vec2 vUv;
+float cardA(vec2 uv) {   /* 絵の外は透明として数える (端で折り返すと、絵の端に触れた縁まで塗りつぶしてしまう) */
+  return (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) ? 0.0 : texture2D(uCard, uv).a;
+}
+void main() {
+  float a = texture2D(uCard, vUv).a;
+  float e = min(min(cardA(vUv + vec2(uEdge.x, 0.0)), cardA(vUv - vec2(uEdge.x, 0.0))),
+                min(cardA(vUv + vec2(0.0, uEdge.y)), cardA(vUv - vec2(0.0, uEdge.y))));
+  if (a < 0.5 || e < 0.5 || uMix < 0.003) discard;   /* カードの形の内側だけ (縁は残す) */
+  vec3 p = texture2D(uPano, vec2(vUv.x * uScale + uOff, vUv.y)).rgb * 1.2;
+  gl_FragColor = vec4(p, uMix);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+function buildPanoDemo(e, c, pano) {
+  pano.wrapS = THREE.RepeatWrapping;   /* 360° なので、左右の端はつながっている */
+  pano.needsUpdate = true;
+  const U = { uCard: { value: c.front }, uPano: { value: pano }, uOff: { value: 0.28 }, uMix: { value: 0 },
+              uScale: { value: (c.w / c.h) / (pano.image.width / pano.image.height) }, uEdge: { value: new THREE.Vector2(0.009, 0.016) } };   /* 縁の線の太さぶんだけ内側 (外観の絵がはみ出して見えない) */
+  const m = new THREE.Mesh(c.geo, new THREE.ShaderMaterial({ uniforms: U, vertexShader: PANO_VERT, fragmentShader: PANO_FRAG,
+    transparent: true, depthWrite: false }));
+  m.position.z = 0.006; m.renderOrder = 2; m.visible = false;
+  c.hinge.add(m);
+  const cap = makeLabel(3.2, 0.5, (g, cw, ch) => {
+    const t = tt({ jp: '小屋の中 ・ 360° 見まわせる', en: 'Inside the cabin · look around 360°' });
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    fitFont(g, t, cw * 0.94, Math.round(ch * 0.5), 800);
+    g.lineWidth = ch * 0.1; g.strokeStyle = 'rgba(30,18,6,.85)'; g.strokeText(t, cw / 2, ch / 2);
+    g.fillStyle = '#ffe3a0'; g.fillText(t, cw / 2, ch / 2);
+  });
+  cap.mesh.position.set(0, c.h + 0.32, 0.05);
+  cap.mesh.material.opacity = 0; cap.mesh.visible = false; cap.mesh.renderOrder = 6;
+  c.hinge.add(cap.mesh);
+  e.pano = { U, m, cap, t0: null, lang: null };
+}
+/* 18 秒でひと巡り: 5 秒は外観、1 秒で中へ、6 秒かけて見まわし、1 秒で外へ */
+function tickPano(e, s, a) {
+  const P = e.pano;
+  if (a >= 0 || e.rise < 0.99 || e.anim) { P.t0 = null; P.U.uMix.value = 0; P.m.visible = false; P.cap.mesh.visible = false; return 0; }
+  if (P.t0 === null) P.t0 = s;
+  const T = (s - P.t0) % 18, inside = sstep(5, 6, T) * (1 - sstep(12, 13, T));
+  P.U.uMix.value = inside; P.m.visible = inside > 0.003;
+  P.U.uOff.value = 0.18 + Math.max(0, T - 4.5) * 0.045;   /* 棚と暖炉から、窓と長持へ (右の端の、外の光る戸口までは行かない) */
+  const co = sstep(5.6, 6.2, T) * (1 - sstep(11.6, 12.2, T));
+  if (co > 0.01 && P.lang !== ehonLang()) { P.lang = ehonLang(); P.cap.redraw(); }
+  P.cap.mesh.visible = co > 0.01; P.cap.mesh.material.opacity = co;
+  return inside;
+}
 const hopAt = (x, d, hgt) => (x > 0 && x < d ? Math.sin(Math.PI * x / d) * hgt : 0);   /* ぴょん (x 秒目、d 秒で着地) */
+/* ことつぎの星の中身を見せる常時の動き: 文章の欠けに言葉を継ぐと、物語が書きかわる。
+   「おかみさん、［　］！」の欠けに、言葉のかけらが飛びこんで「おはよう」→ おかみ「はいはい、おはようさん」。
+   次は「しおかぜ」→「なんだいそりゃ、挨拶かい！」。台詞は作品の台本 (kototsugi の story.json) のまま。英語は訳 */
+const GAP_DEMO = {
+  jp: { who: '言葉拾い', head: '「おかみさん、', tail: '！」', words: ['おはよう', 'しおかぜ'], reWho: 'おかみ',
+        replies: ['「はいはい、おはようさん」', '「なんだいそりゃ、挨拶かい！」'] },
+  en: { who: 'Word-picker', head: '“Okami-san, ', tail: '!”', words: ['good morning', 'sea breeze'], reWho: 'Okami',
+        replies: ['“Yes, yes, good morning.”', '“What on earth, is that a greeting?!”'] },
+};
+function buildGapDemo(e, lift) {
+  const SW = 5.6, SH = 0.72, SY = 3.4, SZ = 0.8;
+  const G = { t0: null, key: '', gapPx: 0, cw: 1, shards: e.cards.filter((c) => c.float).slice(0, 2), from: new THREE.Vector3(), to: new THREE.Vector3() };
+  /* 文の帯: 名前の札 + 台詞。欠けは点線の枠、継いだ言葉は金茶で */
+  G.strip = makeLabel(SW, SH, (g, cw, ch, k, mode) => {
+    const L = GAP_DEMO[ehonLang()] || GAP_DEMO.jp;
+    g.fillStyle = 'rgba(252,246,232,.96)'; g.beginPath(); g.roundRect(4, 4, cw - 8, ch - 8, 18); g.fill();
+    g.strokeStyle = 'rgba(176,138,62,.9)'; g.lineWidth = 4; g.stroke();
+    const who = mode === 'r' ? L.reWho : L.who;
+    g.textBaseline = 'middle'; g.textAlign = 'left';
+    fitFont(g, who, cw * 0.22, Math.round(ch * 0.3), 700);
+    const tw = g.measureText(who).width;
+    g.fillStyle = 'rgba(122,86,34,.95)'; g.beginPath(); g.roundRect(18, ch * 0.26, tw + 28, ch * 0.48, 10); g.fill();
+    g.fillStyle = '#fff3d6'; g.fillText(who, 32, ch * 0.5);
+    const x0 = tw + 72, room = cw - x0 - 24;
+    if (mode === 'r') { g.fillStyle = '#2a1d10'; fitFont(g, L.replies[k], room, Math.round(ch * 0.42), 700); g.fillText(L.replies[k], x0, ch * 0.5); return; }
+    const word = L.words[k];
+    fitFont(g, L.head + word + L.tail + '　', room, Math.round(ch * 0.42), 700);   /* 一行に収まる大きさ (欠けの余白も込み) */
+    let x = x0;
+    g.fillStyle = '#2a1d10'; g.fillText(L.head, x, ch * 0.5); x += g.measureText(L.head).width;
+    const ww = g.measureText(word).width;
+    if (mode === 'f') {   /* 継がれた言葉 */
+      g.fillStyle = 'rgba(255,214,120,.45)'; g.fillRect(x - 4, ch * 0.66, ww + 8, 6);
+      g.fillStyle = '#a3620f'; g.fillText(word, x, ch * 0.5);
+    } else {   /* 欠け */
+      g.setLineDash([10, 8]); g.strokeStyle = 'rgba(122,86,34,.8)'; g.lineWidth = 3;
+      g.beginPath(); g.roundRect(x - 6, ch * 0.24, ww + 12, ch * 0.52, 10); g.stroke(); g.setLineDash([]);
+    }
+    G.gapPx = x + ww / 2; G.cw = cw;
+    x += ww;
+    g.fillStyle = '#2a1d10'; g.fillText(L.tail, x, ch * 0.5);
+  });
+  G.strip.mesh.position.set(0, SY, SZ);
+  G.strip.mesh.renderOrder = 6; G.strip.mesh.material.opacity = 0; G.strip.mesh.visible = false;
+  lift.add(G.strip.mesh);
+  /* かけらにつく言葉の札 (いつもこちらを向く) */
+  G.tag = makeLabel(2.2, 0.5, (g, cw, ch, word) => {
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    fitFont(g, word, cw * 0.92, Math.round(ch * 0.56), 800);
+    g.shadowColor = '#ffd27a'; g.shadowBlur = 18; g.fillStyle = '#fff4d8'; g.fillText(word, cw / 2, ch / 2);
+  });
+  G.tag.mesh.geometry.dispose();
+  G.tagSp = new THREE.Sprite(new THREE.SpriteMaterial({ map: G.tag.mesh.material.map, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+  G.tagSp.scale.set(2.2, 0.5, 1); G.tagSp.renderOrder = 7; G.tagSp.visible = false;
+  lift.add(G.tagSp);
+  G.SY = SY; G.SZ = SZ; G.SW = SW; G.tagKey = '';
+  e.gap = G;
+}
+/* 16 秒でひと巡り: 帯が出る → かけらが欠けへ (0.9 秒) → 継がれる → おかみの返事 → もう一つの言葉で同じように → 帯が消え、かけらが戻る */
+function tickGap(e, s, a) {
+  const G = e.gap;
+  const on = a < 0 && e.rise >= 0.99 && !e.anim;
+  if (!on) {
+    G.t0 = null;
+    G.strip.mesh.visible = false; G.tagSp.visible = false;
+    for (const c of G.shards) { c.dpos = null; c.dscale = 1; }
+    return;
+  }
+  if (G.t0 === null) G.t0 = s;
+  const T = (s - G.t0) % 16, k = T < 5.6 ? 0 : 1, tt = T - (k ? 5.6 : 0);
+  const mode = tt >= 3.3 ? 'r' : tt >= 1.9 ? 'f' : 'g';
+  const lang = ehonLang(), key = k + mode + lang;
+  if (key !== G.key) { G.key = key; G.strip.redraw(k, mode); }
+  const op = sstep(0, 0.4, T) * (1 - sstep(11.2, 11.6, T));
+  G.strip.mesh.visible = op > 0.01; G.strip.mesh.material.opacity = op;
+  G.shards.forEach((c, j) => {
+    const f = c.float, home = G.from.set(c.x0, f.y + Math.sin(s * f.speed + f.phase) * 0.14, c.z0);
+    if (T >= 11.6) { c.dpos = null; c.dscale = sstep(11.6, 12.4, T); return; }   /* 帯が消えたら、もとの場所に戻ってくる */
+    const t2 = T - (j ? 5.6 : 0);
+    if (t2 < 1.0 || j > k) { c.dpos = null; c.dscale = 1; return; }
+    const fl = sstep(1.0, 1.9, t2);
+    G.to.set((G.gapPx / G.cw - 0.5) * G.SW, G.SY, G.SZ + 0.06);
+    c.dpos = (c.dpos || new THREE.Vector3()).lerpVectors(home, G.to, fl);
+    c.dpos.y += Math.sin(fl * Math.PI) * 0.5;   /* 弧を描いて飛ぶ */
+    c.dscale = t2 >= 1.9 ? 0 : 1 - 0.6 * fl;   /* 欠けに吸いこまれる */
+  });
+  /* 言葉の札: 飛ぶかけらの上に */
+  const L = GAP_DEMO[lang] || GAP_DEMO.jp, c = G.shards[k];
+  const tagOn = c && tt >= 0.5 && tt < 1.95 ? sstep(0.5, 0.8, tt) * (1 - sstep(1.75, 1.95, tt)) : 0;
+  G.tagSp.visible = tagOn > 0.01;
+  if (G.tagSp.visible) {
+    if (G.tagKey !== k + lang) { G.tagKey = k + lang; G.tag.redraw(L.words[k]); }
+    G.tagSp.material.opacity = tagOn;
+    G.tagSp.position.copy(c.dpos || G.from.set(c.x0, c.float.y, c.z0)).y += 0.5;
+  }
+}
 /* 奥のカードから順に起き上がる。ばねの行き過ぎは、全部のカードに同じだけ */
 const cardProgress = (r, delay) => (r >= 1 ? r : clamp01((r - delay) / (1 - delay)));
 function poseCards(e, r) {
@@ -2818,8 +3080,12 @@ function poseCards(e, r) {
 }
 function tickCards(e, t) {
   const s = t / 1000, a = e.showAge, W = e.weave;
+  if (e.gap) tickGap(e, s, a);
   /* 仕掛けの間の、カードの動き。a = 押してからの秒 (動いていなければ -1) */
   let lamp = 1, flash = 0;   /* storm: 窓の灯りの明るさの倍率 / 雷の光 */
+  const inside = e.pano ? tickPano(e, s, a) : 0;   /* 小屋の中を見まわしている間は、外の窓の灯りを消して雨を弱く */
+  for (const x of e.fx) if (x.setDim) x.setDim(1 - 0.55 * inside);
+  if (inside > 0) lamp = 1 - inside;
   if (e.show === 'storm' && a >= 0) {
     lamp = a < 0.2 ? 1 : a < 0.9 ? 0.06 : a < 1.15 ? (Math.sin(a * 90) > 0 ? 1.2 : 0.3) : a < 2.8 ? 1.5 : 1 + 0.5 * (1 - sstep(2.8, 3.6, a));
     const b = (x, c, w) => Math.exp(-((x - c) / w) * ((x - c) / w));
@@ -2839,8 +3105,8 @@ function tickCards(e, t) {
         w = sstep(0.1 + c.wi * 0.12, 0.7 + c.wi * 0.12, a) * (1 - sstep(3.4, 4.2, a));
         x = lerp(x, W.xs[c.wi], w); z = lerp(z, W.Z, w); y = lerp(y, W.Y, w);
       }
-      c.hinge.position.set(x, y, z);
-      c.glow.scale.setScalar(Math.max(0.001, q) * (1 + 0.3 * w));
+      if (c.dpos) c.hinge.position.copy(c.dpos); else c.hinge.position.set(x, y, z);   /* dpos: 欠けへ飛んでいく途中 */
+      c.glow.scale.setScalar(Math.max(0.001, q) * (1 + 0.3 * w) * (c.dscale === undefined ? 1 : c.dscale));
       c.glow.quaternion.copy(V.cam.quaternion);   /* いつもこちらを向く光 */
       c.glow.rotateZ(Math.sin(s * 0.45 + f.phase) * 0.3 * (1 - w));
       return;
@@ -2859,8 +3125,11 @@ function tickCards(e, t) {
     if (e.show === 'chain') c.hinge.position.y = 0.01 + (a >= 0 ? hopAt(a - 1.45 - i * 0.06, 0.34, 0.32) + hopAt(a - 2.45 - i * 0.06, 0.34, 0.32) : 0);   /* 駒が消えるたびに跳ねる */
     if (e.show === 'flip') {   /* 写真が左から順に裏返り、裏の消印を見せて、また表へ */
       const k = a >= 0 ? sstep(0.1 + i * 0.11, 0.52 + i * 0.11, a) * (1 - sstep(2.45 + i * 0.07, 2.87 + i * 0.07, a)) : 0;
+      const nw = e.plane && c.stop !== undefined ? e.plane.near(c.stop) : 0;   /* 紙飛行機が上を通ると、その旅の写真が少し浮いて明るむ */
       c.hinge.rotation.y = c.ry0 + Math.PI * k;
-      c.hinge.position.y = 0.01 + 0.14 * Math.sin(Math.PI * k);
+      c.hinge.position.y = 0.01 + 0.14 * Math.sin(Math.PI * k) + 0.34 * nw;
+      c.hinge.scale.setScalar(1 + 0.14 * nw);
+      c.face.emissiveIntensity = 0.3 + 0.4 * nw;
     }
   });
   if (W) {   /* 金の糸で結ばれ、「ことばを、つぐ」 */
@@ -2947,8 +3216,9 @@ function buildFx(f, lift) {
       transparent: true, depthWrite: false, ...ADD_LIGHT }));
     obj.position.set(cx, cy, cz); obj.frustumCulled = false; obj.renderOrder = 3;
     lift.add(obj);
-    let fadeV = 0, rt = 0, lastS = null;
+    let fadeV = 0, rt = 0, lastS = null, dimV = 1;
     return {
+      setDim: (v) => { dimV = v; },
       fade: (v) => { fadeV = v; U.uFade.value = v * (f.gain || 0.55); obj.visible = v > 0.01; },
       tick: (s, a) => {   /* 仕掛け (storm) の間は、雨が強く・速くなる */
         const dt = lastS === null ? 0 : Math.min(0.1, Math.max(0, s - lastS));
@@ -2956,7 +3226,7 @@ function buildFx(f, lift) {
         const boost = a >= 0 ? sstep(0.15, 0.6, a) * (1 - sstep(2.6, 3.7, a)) : 0;
         rt += dt * (1 + 0.8 * boost);
         U.uTime.value = rt;
-        U.uFade.value = fadeV * (f.gain || 0.55) * (1 + 1.4 * boost);
+        U.uFade.value = fadeV * (f.gain || 0.55) * (1 + 1.4 * boost) * dimV;
       }
     };
   }
@@ -3000,6 +3270,35 @@ function buildFx(f, lift) {
     const sparks = new THREE.Points(sg, new THREE.ShaderMaterial({ uniforms: SU, vertexShader: FX_MOTE_VERT, fragmentShader: FX_MOTE_FRAG,
       transparent: true, depthWrite: false, ...ADD_LIGHT }));
     sparks.frustumCulled = false; sparks.renderOrder = 5; lift.add(sparks);
+    /* 中身を見せる常時の動き (goal): 空の端に「正解」の札。8 秒ごとに、小さな光が地下から分かれ道を抜けて「正解」までのぼり、
+       通った分かれ道からは、正解ではない道が短く伸びて消える (カイには正解へつづく道筋だけが視える) */
+    let goal = null, goalLab = null, runner = null, goalLang = null;
+    const branches = [];
+    if (f.goal) {
+      goalLab = makeLabel(1.4, 0.52, (g, cw, ch) => {
+        const w = tt({ jp: '正解', en: 'Answer' });
+        fitFont(g, w, cw * 0.9, Math.round(ch * 0.66)); g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.shadowColor = '#ffc861'; g.shadowBlur = 22; g.fillStyle = '#fff3cc'; g.fillText(w, cw / 2, ch / 2);
+      });
+      goalLab.mesh.geometry.dispose();
+      goal = new THREE.Sprite(new THREE.SpriteMaterial({ map: goalLab.mesh.material.map, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+      goal.scale.set(1.4, 0.52, 1); goal.position.copy(curve.getPointAt(1)).add(new THREE.Vector3(0.05, 0.48, 0)); goal.renderOrder = 6; goal.visible = false;
+      lift.add(goal);
+      runner = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: 0xfff0c0, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+      runner.scale.setScalar(0.5); runner.renderOrder = 6; runner.visible = false;
+      lift.add(runner);
+      (f.nodes || []).forEach((k, j) => {   /* 分かれ道: 節から横へ、少し上って途切れる道 */
+        const p0 = curve.getPointAt(k), t = curve.getTangentAt(k), sd = j % 2 ? 1 : -1;
+        const side = new THREE.Vector3(-t.z * sd, 0, t.x * sd).normalize();
+        const bc = new THREE.CatmullRomCurve3([p0.clone(), p0.clone().addScaledVector(side, 0.45).add(new THREE.Vector3(0, 0.18, 0)).addScaledVector(t, 0.12),
+          p0.clone().addScaledVector(side, 0.95).add(new THREE.Vector3(0, 0.12, 0)).addScaledVector(t, 0.05)]);
+        const U = fxUniforms({ uProg: { value: 0 }, uGain: { value: 0 }, uColor: { value: new THREE.Color(0xc9a46a) }, uHead: { value: -1 }, uBand: { value: 0 } });
+        const m = new THREE.Mesh(new THREE.TubeGeometry(bc, 24, 0.016, 5, false),
+          new THREE.ShaderMaterial({ uniforms: U, vertexShader: FX_PATH_VERT, fragmentShader: FX_PATH_FRAG, transparent: true, depthWrite: false, ...ADD_LIGHT }));
+        m.renderOrder = 4; m.visible = false; lift.add(m);
+        branches.push({ m, U, k });
+      });
+    }
     /* 仕掛け (comet): 光の玉が地下から空へ道筋を駆けのぼり、通った節の輪がはね、空の端でぱっと咲く */
     const comet = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: 0xfff1c4, transparent: true, opacity: 0,
       depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
@@ -3039,6 +3338,21 @@ function buildFx(f, lift) {
         }
         core.uHead.value = halo.uHead.value = u;
         core.uBand.value = halo.uBand.value = run ? 1 - sstep(RUN + 0.2, RUN + 0.9, a) : 0;
+        if (goal) {
+          const D = prog >= 1 && a < 0 && s0 !== null ? (s - s0 - DRAW) % 8 : -1;   /* 常時の動きの時刻 (仕掛けの間は止める) */
+          if (goalLang !== ehonLang()) { goalLang = ehonLang(); goalLab.redraw(); }
+          const ru = D >= 0 ? sstep(0.4, 2.8, D) : -1;
+          goal.visible = prog > 0.9;
+          goal.material.opacity = 0.9 * sstep(0.9, 1, prog) * fadeV;
+          goal.scale.set(1.4, 0.52, 1).multiplyScalar(1 + (D >= 0 ? 0.28 * Math.exp(-(((D - 2.85) / 0.22) ** 2)) : 0));   /* 着いたら、札がはねる */
+          runner.visible = D >= 0.4 && D < 2.9;
+          if (runner.visible) { curve.getPointAt(ru, tmp); runner.position.copy(tmp); runner.material.opacity = 0.95; }
+          for (const B of branches) {   /* 光が節を通ると、外れ道が伸びて、消える */
+            const tk = 0.4 + 2.4 * B.k, bd = D >= 0 ? sstep(tk, tk + 0.4, D) : 0, bg = D >= 0 ? 0.75 * (1 - sstep(tk + 0.7, tk + 1.6, D)) : 0;
+            B.m.visible = bd > 0.01 && bg > 0.01;
+            B.U.uProg.value = bd; B.U.uGain.value = bg; B.U.uTime.value = s;
+          }
+        }
       }
     };
   }
@@ -3067,16 +3381,21 @@ function buildFx(f, lift) {
       depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
     halo.renderOrder = 3; halo.visible = false; lift.add(halo);
     const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), eu = new THREE.Euler(), eb = new THREE.Euler(), tgt = new THREE.Vector3();
-    let fadeV = 0, lang = null;
+    let fadeV = 0, lang = null, demoT0 = null;
     const H = f.height || 4.2;
+    /* 中身を見せる常時の動き: 9.5 秒ごとに、舞う紙の 1 枚が手前へ来て悪行の記録が読める。そこへ勇者の検証の「嘘」の判
+       (記録の文は作品の台本のまま。第七十三号は「――記録」の台詞、第四十一号は地の文) */
     return {
       fade: (v) => { fadeV = v; },
       tick: (s, sa) => {
         const show = sa >= 0;
-        if (show && lang !== ehonLang()) {   /* 判の字は、いまの言葉で */
+        if (lang !== ehonLang()) {   /* 判の字は、いまの言葉で */
           lang = ehonLang();
           for (const x of stamps) { x.st.material.map = verdictStampTexture(x.last, lang); x.st.material.needsUpdate = true; }
         }
+        if (show || fadeV < 0.99) demoT0 = null;
+        else if (demoT0 === null) demoT0 = s;
+        const D = demoT0 !== null ? (s - demoT0) % 9.5 : -1, rec = demoT0 !== null ? Math.floor((s - demoT0) / 9.5) % PAGE_RECORDS.length : 0;
         sheets.forEach((q, i) => {
           const u = (q.y0 + s * q.sp) % 1, a = q.a0 + s * 0.35 + u * 2.2;
           q.m.position.set(cx + Math.cos(a) * q.r, cy + 0.3 + u * H, cz + Math.sin(a) * q.r * 0.55);
@@ -3096,11 +3415,25 @@ function buildFx(f, lift) {
           } else {
             q.m.quaternion.setFromEuler(eu);
           }
-          q.m.scale.setScalar(1 + 0.4 * up);
+          let big = 0, k = show ? sa - x.at : -1;   /* k: どん、と押されてからの秒 */
+          if (!show && i === rec && D >= 0) {   /* 常時の動き: この 1 枚が手前へ来て、記録が読める */
+            const wd = sstep(2.0, 2.9, D) * (1 - sstep(6.6, 7.4, D));
+            if (wd > 0) {
+              q.m.position.lerp(tgt.set(0, 2.3, 1.5), wd);
+              qa.setFromEuler(eu); qb.identity();
+              q.m.quaternion.copy(qa.slerp(qb, wd));
+              op += (0.97 * fadeV - op) * wd;
+              big = 1.05 * wd;
+              k = D - 4.3;
+            }
+            q.m.material.map = wd > 0.5 ? recordSheetTexture(rec, lang) : tex;
+          } else {
+            q.m.material.map = tex;
+          }
+          q.m.scale.setScalar(1 + 0.4 * up + big);
           q.m.material.opacity = op;
           q.m.visible = op > 0.01;
-          const k = show ? sa - x.at : -1;   /* どん、と押される */
-          x.st.visible = w > 0.5 && k >= 0;
+          x.st.visible = (w > 0.5 || big > 0.35) && k >= 0;
           if (x.st.visible) x.st.scale.setScalar(k < 0.12 ? 1.7 - 0.7 * (k / 0.12) : 1);
           if (x.last) {
             halo.visible = x.st.visible;
@@ -3133,6 +3466,14 @@ function makeLabel(w, h, draw) {
   return { mesh, redraw };
 }
 const MINCHO = '"Yu Mincho","YuMincho","Hiragino Mincho ProN","Noto Serif JP",serif';
+/* 中身を見せる動きの札の倍率: 縦長の画面 (スマホ) では 1 単位の px が小さいので、札を大きくして読めるように */
+const labelK = () => (V && V.portrait ? 1.35 : 1);
+/* 文字を、札の幅に収まる大きさで (大きくても size px)。英語と日本語で長さが違うので、はみ出して切れないように */
+function fitFont(g, text, maxW, size, weight) {
+  g.font = `${weight || 800} ${size}px ${MINCHO}`;
+  const w = g.measureText(text).width;
+  if (w > maxW) g.font = `${weight || 800} ${Math.floor(size * maxW / w)}px ${MINCHO}`;
+}
 function paperLabel(g, cw, ch) {   /* 札の地: 生成りの紙に細い金の縁 */
   g.fillStyle = 'rgba(250,245,232,.94)'; g.beginPath(); g.roundRect(4, 4, cw - 8, ch - 8, 14); g.fill();
   g.strokeStyle = 'rgba(176,138,62,.9)'; g.lineWidth = 3; g.stroke();
@@ -3144,6 +3485,15 @@ const plateAngle = (p, lean) => -(Math.PI / 2) * (1 - p) - lean * Math.min(1, p)
    台紙が起き上がり、マスが段の高さまでせり上がる。2022 → 2030 (予測) を 1.1 秒ずつ進め (本物の再生と同じ速さ)、
    段が上がったマスは一瞬光る。0 段 (まだ海) は平らなまま */
 const LV_HEX = [0xd9e2e7, 0xf5e5d0, 0xe9c397, 0xd8955c, 0xbf5a2d, 0x6b2412];
+/* 段階の名前 (ai-map.html の凡例のまま。英語は訳) と、札を出す身近な仕事 (i = レイアウトの何番目か。data/ai-map.json の id 順) */
+const ATLAS_LV = [{ jp: 'できない', en: "Can't yet" }, { jp: 'デモ止まり', en: 'Demo only' }, { jp: '補助', en: 'Assists' },
+                  { jp: '実務品質', en: 'Work quality' }, { jp: '専門家並み', en: 'Expert level' }, { jp: '専門家超え', en: 'Beyond experts' }];
+const ATLAS_CALLOUTS = [
+  { i: 9, name: { jp: '議事録の作成', en: 'Meeting minutes' } },
+  { i: 206, name: { jp: '洗濯物たたみ', en: 'Laundry folding' } },
+  { i: 38, name: { jp: '会議同時通訳・逐次通訳', en: 'Live interpretation' } },
+  { i: 165, name: { jp: '確定申告・税務書類の作成支援', en: 'Tax return preparation' } },
+];
 const LV_H = [0.006, 0.08, 0.16, 0.27, 0.42, 0.62];
 async function buildAtlas(e, lift) {
   const L = await popupData('aimap_layout_v1.json');
@@ -3196,7 +3546,27 @@ async function buildAtlas(e, lift) {
   });
   label.mesh.position.set(-W / 2 + 0.95, H + 0.13 + 0.42, 0.03);
   hinge.add(label.mesh);
-  e.atlas = { hinge, cells, info, years: L.years, label, lean: LEAN, yi: -1, s0: null, last: null, grow: 0, fast: false, bloomed: false };
+  /* 中身を見せる常時の動き: 1 年ずつ進む地図の上で、身近な仕事を 1 つ選んで札を出す。「議事録の作成 — 2025年 専門家並み」のように、
+     その年に AI がどこまでできるかが年とともに変わる (仕事の名前と段階は data/ai-map.json のまま。どの年も一巡りで 1 つの仕事) */
+  const callout = makeLabel(2.5, 0.72, (g, cw, ch, name, yearTxt, lvTxt, lv) => {
+    paperLabel(g, cw, ch);
+    g.textBaseline = 'middle'; g.textAlign = 'left';
+    g.fillStyle = '#161510'; fitFont(g, name, cw * 0.88, Math.round(ch * 0.3), 700); g.fillText(name, cw * 0.06, ch * 0.32);
+    g.fillStyle = '#' + LV_HEX[lv].toString(16).padStart(6, '0'); g.beginPath(); g.roundRect(cw * 0.06, ch * 0.56, ch * 0.24, ch * 0.24, 4); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1.5; g.stroke();
+    g.fillStyle = '#4a3a24'; fitFont(g, yearTxt + '  ' + lvTxt, cw * 0.74, Math.round(ch * 0.24), 700); g.fillText(yearTxt + '  ' + lvTxt, cw * 0.06 + ch * 0.34, ch * 0.69);
+  });
+  callout.mesh.geometry.dispose();
+  const calloutSp = new THREE.Sprite(new THREE.SpriteMaterial({ map: callout.mesh.material.map, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+  calloutSp.scale.set(2.5, 0.72, 1); calloutSp.renderOrder = 7; calloutSp.visible = false;
+  hinge.add(calloutSp);
+  const mark = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: 0xfff1c8, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+  mark.scale.setScalar(0.5); mark.renderOrder = 6; mark.visible = false; hinge.add(mark);
+  const lead = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+    new THREE.LineBasicMaterial({ color: 0x5a4630, transparent: true, opacity: 0, depthWrite: false }));
+  lead.renderOrder = 6; lead.visible = false; hinge.add(lead);
+  e.atlas = { hinge, cells, info, years: L.years, label, lean: LEAN, yi: -1, s0: null, last: null, grow: 0, fast: false, bloomed: false,
+              W, H, callout, calloutSp, mark, lead, cKey: '' };
   e.pose = poseAtlas;
   e.tick = tickAtlas;
   e.warmRise = 1;
@@ -3235,6 +3605,30 @@ function tickAtlas(e, t) {
     const T = (s - A.s0) % 12.8;
     setAtlasYear(A, T < 8.8 ? Math.min(7, Math.floor(T / 1.1)) : T < 11.8 ? 7 : 0);
   }
+  /* 札: 選んだ仕事のマスに光る印、そこから線、盤の外に「仕事の名前 / 年 段階」 */
+  const co = e.rise >= 0.99 && a < 0 && A.s0 !== null ? sstep(0.2, 0.7, (s - A.s0) % 12.8) * (1 - sstep(11.6, 12.3, (s - A.s0) % 12.8)) : 0;
+  A.calloutSp.visible = A.mark.visible = A.lead.visible = co > 0.01;
+  if (co > 0.01) {
+    const pick = ATLAS_CALLOUTS[Math.floor((s - A.s0) / 12.8) % ATLAS_CALLOUTS.length], c = A.info[pick.i];
+    const lang = ehonLang(), lv = c.lv[A.yi], y = A.years[A.yi], est = /e$/.test(y);
+    const yearTxt = lang === 'en' ? y.replace('e', '') + (est ? ' (est.)' : '') : y.replace('e', '') + (est ? '年 予測' : '年');
+    const key = pick.i + '|' + A.yi + '|' + lang;
+    if (A.cKey !== key) { A.cKey = key; A.callout.redraw(tt(pick.name), yearTxt, tt(ATLAS_LV[lv]), lv); }
+    const K = labelK(), pos = A.lead.geometry.attributes.position;
+    A.calloutSp.scale.set(2.5 * K, 0.72 * K, 1);
+    if (K > 1) {   /* 縦長の画面: 盤の横には場所がないので、盤の上 (年の札のさらに上) の右寄せ。線は札の下の辺から */
+      const lx = A.W / 2 + 0.13 - 1.25 * K, ly = A.H + 0.13 + 0.42 + 0.26 + 0.12 + 0.36 * K;
+      A.calloutSp.position.set(lx, ly, 0.3);
+      pos.setXYZ(0, c.x, c.y, c.cur + 0.03); pos.setXYZ(1, lx, ly - 0.34 * K, 0.3);
+    } else {
+      const side = c.x < 0 ? -1 : 1, lx = side * (A.W / 2 + 1.45);
+      A.calloutSp.position.set(lx, c.y, 0.3);
+      pos.setXYZ(0, c.x, c.y, c.cur + 0.03); pos.setXYZ(1, lx - side * 1.2, c.y, 0.3);
+    }
+    pos.needsUpdate = true;
+    A.mark.position.set(c.x, c.y, c.cur + 0.05); A.mark.material.opacity = 0.9 * co * (0.75 + 0.25 * Math.sin(s * 5));
+    A.calloutSp.material.opacity = co; A.lead.material.opacity = 0.8 * co;
+  }
   const k = 1 - Math.exp(-dt * 9), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color(), white = new THREE.Color(0xfff6dd);
   A.info.forEach((c, i) => {
     const lv = c.lv[A.yi];
@@ -3249,6 +3643,12 @@ function tickAtlas(e, t) {
 
 /* ひとり歓迎マップ: 47 都道府県の地図が、店の数に合わせた高さでせり上がり、北から順にピンが立つ。
    ピンの頭は「公式で裏取り済み」の緑 (#276b60)。ときどき県名と件数が浮かぶ */
+/* ひとり歓迎マップの施設の例 (data/hitori の pref と curated のまま。一文は公式サイトの「ひとりで大丈夫」の根拠 solo_ok) */
+const HITORI_FACILITIES = [
+  { name: '美々卯', pref: '東京都', where: { jp: '東京都 港区 ・ そば・うどん', en: 'Minato, Tokyo · soba & udon' }, quote: '「一人良し、二人ならなお良し。」' },
+  { name: 'まちライブラリー＠もりのみやキューズモール', pref: '大阪府', where: { jp: '大阪府 ・ 図書館', en: 'Osaka · library' }, quote: '「一人でも、誰かと一緒でも大丈夫。」' },
+  { name: '湘南天然温泉 湯乃蔵ガーデン', pref: '神奈川県', where: { jp: '神奈川県 平塚市 ・ 銭湯', en: 'Hiratsuka, Kanagawa · bathhouse' }, quote: '「……お一人でも、グループでもお楽しみ頂けます。」' },
+];
 const JP_OKINAWA_SHIFT = [212, -849];   /* 沖縄は左上の枠へ (日本地図でよくある入れ方)。台紙は本土の範囲に詰める */
 const JP_BOX = [205, -6, 1010, 878];    /* 地図の座標で、台紙に載せる範囲 */
 async function buildJapan(e, lift) {
@@ -3336,8 +3736,30 @@ async function buildJapan(e, lift) {
   });
   tip.mesh.material.opacity = 0;
   hinge.add(tip.mesh);
+  /* 中身を見せる常時の動き: ピンの 1 本から、実在のお店・施設の札が出る。名前・場所・種類と、公式サイトの「ひとりで大丈夫」の一文
+     (data/hitori の curated にある solo_ok の根拠のまま)。12 秒のうち前半が施設の札、後半は県名と件数の札 */
+  const card = makeLabel(3.1, 1.02, (g, cw, ch, F) => {
+    paperLabel(g, cw, ch);
+    g.textBaseline = 'middle'; g.textAlign = 'left';
+    g.fillStyle = '#161510'; fitFont(g, F.name, cw * 0.9, Math.round(ch * 0.2), 800); g.fillText(F.name, cw * 0.05, ch * 0.2);
+    g.fillStyle = '#6b5b45'; fitFont(g, tt(F.where), cw * 0.9, Math.round(ch * 0.14), 600); g.fillText(tt(F.where), cw * 0.05, ch * 0.4);
+    g.fillStyle = '#2a1d10'; fitFont(g, F.quote, cw * 0.9, Math.round(ch * 0.16), 700); g.fillText(F.quote, cw * 0.05, ch * 0.6);
+    const badge = tt({ jp: '● 公式サイトの一文 — ひとりで大丈夫', en: '● From the official site: solo welcome' });
+    g.fillStyle = '#276b60'; fitFont(g, badge, cw * 0.9, Math.round(ch * 0.13), 700); g.fillText(badge, cw * 0.05, ch * 0.81);
+  });
+  card.mesh.geometry.dispose();
+  /* 札はいつも手前に (ピンに刺さらない)。置き場は地図の左上の、日本海側の空いたところ。札からピンへ引き出し線 */
+  const cardSp = new THREE.Sprite(new THREE.SpriteMaterial({ map: card.mesh.material.map, transparent: true, opacity: 0, depthTest: false, depthWrite: false, toneMapped: false }));
+  cardSp.scale.set(3.1, 1.02, 1); cardSp.renderOrder = 8; cardSp.visible = false;
+  hinge.add(cardSp);
+  const leadG = new THREE.BufferGeometry(); leadG.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+  const lead = new THREE.Line(leadG, new THREE.LineBasicMaterial({ color: 0x3a2a14, transparent: true, opacity: 0, depthTest: false, depthWrite: false, toneMapped: false }));
+  lead.renderOrder = 7; lead.frustumCulled = false; lead.visible = false;   /* 札より先に描く (札の下に隠れる分は見えない) */
+  const mark = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: 0x276b60, transparent: true, opacity: 0, depthTest: false, depthWrite: false, toneMapped: false }));
+  mark.scale.setScalar(0.42); mark.renderOrder = 7; mark.visible = false;
+  hinge.add(lead, mark);
   e.japan = { hinge, landWrap, sticks, heads, prefs, tip, label, total: J.total, shownN: J.total, tipped: false,
-              lean: LEAN, s0: null, grow: 0, nextTip: 0, tipOn: null, seed: 3 };
+              lean: LEAN, s0: null, grow: 0, nextTip: 0, tipOn: null, seed: 3, card, cardSp, cardKey: '', lead, mark, W, H };
   e.pose = poseJapan;
   e.tick = tickJapan;
   e.warmRise = 1;
@@ -3367,6 +3789,7 @@ function tickJapan(e, t) {
     J.sticks.setMatrixAt(i, m4.compose(v.set(p.x, p.y, z0), q, sc.set(1, 1, Math.max(0.001, len))));
     const r = (0.06 + 0.05 * Math.sqrt(p.count / 6712)) * Math.min(1, k * 1.2);
     J.heads.setMatrixAt(i, m4.compose(v.set(p.x, p.y, z0 + len), q, sc.set(r, r, r)));
+    p.hz = z0 + len;   /* 頭の高さ (施設の札の引き出し線の先) */
   });
   J.sticks.instanceMatrix.needsUpdate = true; J.heads.instanceMatrix.needsUpdate = true;
   /* 仕掛けの間は、札の数が 0 から数え上がり、最後にいちばん多い県の名前が浮かぶ */
@@ -3381,8 +3804,30 @@ function tickJapan(e, t) {
     J.nextTip = s + 2.6;
   }
   if (sa < 0) J.tipped = false;
-  /* ときどき、店の多い県ほど選ばれやすく、名前と件数が浮かぶ */
-  if (J.s0 !== null && s >= J.nextTip && !(sa >= 0 && sa < 1.6)) {
+  /* 施設の札 (12 秒のうち 0.4〜6.5 秒)。札の出ている県のピンがはねる */
+  const C12 = J.s0 !== null && sa < 0 ? (s - J.s0) % 12 : -1;
+  const co = C12 >= 0 ? sstep(0.4, 0.8, C12) * (1 - sstep(6.1, 6.5, C12)) : 0;
+  J.cardSp.visible = J.lead.visible = J.mark.visible = co > 0.01;
+  if (co > 0.01) {
+    const F = HITORI_FACILITIES[Math.floor((s - J.s0) / 12) % HITORI_FACILITIES.length], lang = ehonLang();
+    const P = J.prefs.find((q) => q.name === F.pref);
+    if (J.cardKey !== F.name + lang) { J.cardKey = F.name + lang; J.card.redraw(F); if (P) P.bounce = 1; }
+    J.cardSp.material.opacity = co;
+    const K = labelK();   /* 縦長の画面では、札を大きくして地図の上 (件数の札のさらに上) に出す */
+    J.cardSp.scale.set(3.1 * K, 1.02 * K, 1);
+    if (K > 1) J.cardSp.position.set(0.35, J.H + 0.15 + 0.08 + 0.31 + 0.12 + 0.51 * K, 0.5);
+    else J.cardSp.position.set(-J.W / 2 + 1.65, J.H - 1.12, 0.5);
+    if (P) {   /* 引き出し線は札の真ん中から、はねているピンの頭へ (線が伸びてから、頭に印) */
+      const c = J.cardSp.position, g = sstep(0.6, 1.2, C12), hz = P.hz || 0;
+      J.lead.geometry.attributes.position.array.set([c.x, c.y, c.z, lerp(c.x, P.x, g), lerp(c.y, P.y, g), lerp(c.z, hz, g)]);
+      J.lead.geometry.attributes.position.needsUpdate = true;
+      J.lead.material.opacity = 0.85 * co;
+      J.mark.position.set(P.x, P.y, hz);
+      J.mark.material.opacity = 0.9 * co * sstep(1.0, 1.3, C12);
+    }
+  }
+  /* 後半は、店の多い県ほど選ばれやすく、県の名前と件数が浮かぶ (施設の札が出る前に消え終わるように、9.8 秒まで) */
+  if (J.s0 !== null && s >= J.nextTip && !(sa >= 0 && sa < 1.6) && (sa >= 0 || (C12 >= 6.8 && C12 < 9.8))) {
     const total = J.prefs.reduce((a, p) => a + p.count, 0);
     J.seed = (J.seed * 16807) % 2147483647;
     let x = (J.seed / 2147483647) * total, pick = J.prefs[0];
@@ -3505,7 +3950,31 @@ function buildCube(e, lift) {
     depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
   aura.scale.setScalar(4.6); aura.position.y = CUBE_Y; aura.renderOrder = 1;
   lift.add(aura);
-  e.cube = { cube, cells, glass, empty, frame, glyphs, GU, ring, aura, s0: null, order: null, spin: 0, last: null, boom: 0, showing: false };
+  /* ルールを見せる: たて・よこ・おくの 48 本の並びは、どれも 1〜4 が一つずつ。
+     並びが埋まって揃うたびに、その 4 マスを光の棒が貫き、数字が 1・2・3・4 の順に光る */
+  const lines = [];
+  const at = (x, y, z) => x * N * N + y * N + z;
+  for (let a = 0; a < N; a++) for (let b = 0; b < N; b++) {
+    lines.push({ axis: 0, cells: [0, 1, 2, 3].map((k) => at(k, a, b)) });
+    lines.push({ axis: 1, cells: [0, 1, 2, 3].map((k) => at(a, k, b)) });
+    lines.push({ axis: 2, cells: [0, 1, 2, 3].map((k) => at(a, b, k)) });
+  }
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, (N - 1) * CUBE_GAP + CUBE_S * 1.2, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffe7a0, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+  rod.renderOrder = 5; rod.visible = false;
+  cube.add(rod);
+  const rule = makeLabel(2.1, 0.46, (g, cw, ch) => {
+    const word = tt({ jp: 'どの並びも 1〜4 が一つずつ', en: 'Every line: 1–4, once each' });
+    fitFont(g, word, cw * 0.94, Math.round(ch * 0.42)); g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = ch * 0.1; g.strokeStyle = 'rgba(20,12,40,.9)'; g.strokeText(word, cw / 2, ch / 2);
+    g.fillStyle = '#ffe7a0'; g.fillText(word, cw / 2, ch / 2);
+  });
+  const ruleSp = new THREE.Sprite(new THREE.SpriteMaterial({ map: rule.mesh.material.map, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+  ruleSp.scale.set(2.1, 0.46, 1); ruleSp.position.y = CUBE_Y + 1.9; ruleSp.renderOrder = 6; ruleSp.visible = false;
+  lift.add(ruleSp);
+  rule.mesh.geometry.dispose();
+  e.cube = { cube, cells, glass, empty, frame, glyphs, GU, ring, aura, s0: null, order: null, spin: 0, last: null, boom: 0, showing: false,
+             lines, lineDone: new Set(), rod, rule, ruleSp, hl: null, hlCount: 0, ruleLang: null };
   e.pose = poseCube;
   e.tick = tickCube;
   e.warmRise = 1;
@@ -3534,14 +4003,15 @@ function layCube(e, s) {   /* マスの位置・大きさ・色を今の状態�
     if (C.boom) { v.addScaledVector(c.dir, C.boom * (C.calm ? 0.55 : 1.3)); v.y += C.boom * 0.35; }   /* 仕掛け: ぱっとばらける (本の紙に沈まないよう、少し上へ。静かな動きでは小さく) */
     q.setFromEuler(eu.set(c.spin * (1 - k) + c.tw * C.boom, c.spin * 0.7 * (1 - k) + c.tw * 0.6 * C.boom, 0));
     const shown = c.given || c.filled;
-    const pop = shown ? c.pop : 1;
+    const hi = c.hi || 0;   /* 揃った並びの数字が、順に光る */
+    const pop = shown ? c.pop * (1 + 0.16 * hi) : 1;
     const size = Math.max(0.001, (0.35 + 0.65 * k) * pop);
     C.empty.setMatrixAt(i, m4.compose(v, q, sc.setScalar(shown ? 0.0001 : size)));
     C.glass.setMatrixAt(i, m4.compose(v, q, sc.setScalar(shown ? size : 0.0001)));
     C.frame.setMatrixAt(i, m4.compose(v, q, sc.setScalar(shown ? size : 0.0001)));
-    C.frame.setColorAt(i, col.setHex(c.given ? 0xffd27d : CUBE_COL[c.v]).lerp(CUBE_WHITE, c.flash || 0));
+    C.frame.setColorAt(i, col.setHex(c.given ? 0xffd27d : CUBE_COL[c.v]).lerp(CUBE_WHITE, Math.max(c.flash || 0, 0.9 * hi)));
     gp.setXYZ(i, v.x, v.y, v.z);
-    gs.setX(i, shown ? k * pop : 0);
+    gs.setX(i, shown ? k * pop * (1 + 0.25 * hi) : 0);
   });
   for (const m of [C.glass, C.empty, C.frame]) m.instanceMatrix.needsUpdate = true;
   C.frame.instanceColor.needsUpdate = true;
@@ -3575,6 +4045,7 @@ function tickCube(e, t) {
       C.order = C.cells.filter((c) => !c.given);
       for (let i = C.order.length - 1; i > 0; i--) { const j = Math.floor(((i * 7919) % 97) / 97 * (i + 1)); [C.order[i], C.order[j]] = [C.order[j], C.order[i]]; }
       C.cells.forEach((c) => { c.filled = false; c.pop = 1; c.flash = 0; });
+      C.lineDone.clear(); C.hl = null; C.hlCount = 0;
     }
     const T = s - C.s0, STEP = 0.32, full = C.order.length * STEP;
     C.order.forEach((c, k) => {
@@ -3586,9 +4057,34 @@ function tickCube(e, t) {
     C.party = done > 0 && done < 1.6 ? Math.sin(done / 1.6 * Math.PI) : 0;   /* そろった: 光って少し速く回る */
     C.cells.forEach((c) => { c.flash = C.party * 0.8; });
     if (T > full + 4.2) C.s0 = null;   /* また空に戻して、はじめから */
+    /* 並びが揃ったら (同時に揃ったときは 1.6 秒ずつ順番に) 光らせる */
+    if (!C.hl || s - C.hl.t0 > 1.6) {
+      C.hl = null;
+      const L = C.lines.find((l) => !C.lineDone.has(l) && l.cells.every((i) => C.cells[i].given || C.cells[i].filled));
+      if (L) {
+        C.lineDone.add(L);
+        C.hl = { L, t0: s, order: L.cells.slice().sort((p, q) => C.cells[p].v - C.cells[q].v), n: C.hlCount++ };
+        const h = C.cells[L.cells[0]].home, h3 = C.cells[L.cells[3]].home;
+        C.rod.position.copy(h).add(h3).multiplyScalar(0.5);
+        C.rod.rotation.set(L.axis === 2 ? Math.PI / 2 : 0, 0, L.axis === 0 ? Math.PI / 2 : 0);
+      }
+    }
   } else {
     C.party = 0;
   }
+  /* 光の棒と、1・2・3・4 の順に光る数字。はじめの 2 回だけ「どの並びも 1〜4 が一つずつ」の札 */
+  C.cells.forEach((c) => { c.hi = 0; });
+  let rodOp = 0, ruleOp = 0;
+  if (C.hl && C.r >= 0.99 && sa < 0) {
+    const u = s - C.hl.t0;
+    rodOp = sstep(0, 0.15, u) * (1 - sstep(1.2, 1.6, u));
+    C.hl.order.forEach((ci, k) => { const d = (u - 0.2 - k * 0.22) / 0.12; C.cells[ci].hi = Math.exp(-d * d); });
+    if (C.hl.n < 2) ruleOp = sstep(0.1, 0.35, u) * (1 - sstep(1.3, 1.6, u));
+  }
+  C.rod.visible = rodOp > 0.01; C.rod.material.opacity = 0.85 * rodOp;
+  if (ruleOp > 0.01 && C.ruleLang !== ehonLang()) { C.ruleLang = ehonLang(); C.rule.redraw(); }
+  C.ruleSp.visible = ruleOp > 0.01; C.ruleSp.material.opacity = ruleOp;
+  if (ruleOp > 0.01) { const K = labelK(); C.ruleSp.scale.set(2.1 * K, 0.46 * K, 1); C.ruleSp.position.y = CUBE_Y + 1.9 + 0.2 * (K - 1); }
   if (C.r >= 0.99) {   /* そろって光るときは、足もとの魔法陣と紫の光も強まる */
     const fl = C.party || 0;
     C.ring.material.opacity = 0.55 + 0.4 * fl;
@@ -3791,7 +4287,8 @@ function buildShogiBoard(f, lift) {
     }
   };
 }
-/* 紙飛行機: 写真の上を、大きな8の字を描いて飛ぶ。通ったあとに点の軌跡 */
+/* 紙飛行機: 写真から写真へ、旅をめぐるように飛ぶ (setRoute で写真の上を通る道を渡す。渡さなければ大きな 8 の字)。
+   通ったあとに点の軌跡。いま近くを飛んでいる写真は near(i) で分かる (写真が少し浮き上がる) */
 function buildPaperPlane(f, lift) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute([
@@ -3810,19 +4307,35 @@ function buildPaperPlane(f, lift) {
     transparent: true, depthWrite: false, ...ADD_LIGHT }));
   dots.frustumCulled = false; dots.renderOrder = 4;
   lift.add(dots);
-  const at = (u, out) => out.set(cx + Math.sin(u) * ax, cy + Math.sin(u * 2) * 0.25, cz + Math.sin(u * 2) * az);
-  const p = new THREE.Vector3(), q = new THREE.Vector3();
+  let route = null, stops = [], nearW = [];
+  const LOOP = 17;   /* 写真 8 枚を一巡りする秒 */
+  const at = (u, out) => (route ? route.getPointAt(((u % 1) + 1) % 1, out)
+    : out.set(cx + Math.sin(u) * ax, cy + Math.sin(u * 2) * 0.25, cz + Math.sin(u * 2) * az));
+  const p = new THREE.Vector3(), q = new THREE.Vector3(), r2 = new THREE.Vector3();
   let fadeV = 0;
   return {
+    setRoute: (pts) => {
+      stops = pts.map((v) => new THREE.Vector3(v[0], v[1], v[2]));
+      route = new THREE.CatmullRomCurve3(stops, true, 'catmullrom', 0.5);
+      nearW = stops.map(() => 0);
+    },
+    near: (i) => nearW[i] || 0,
     fade: (v) => { fadeV = v; plane.visible = dots.visible = v > 0.05; plane.scale.setScalar(Math.max(0.001, v)); },
     tick: (s, a) => {
-      const u = s * 0.45;
-      at(u, p); at(u + 0.02, q);
+      const u = route ? s / LOOP : s * 0.45, du = route ? 0.004 : 0.02;
+      at(u, p); at(u + du, q);
       plane.position.copy(p);
       plane.lookAt(q);   /* 進む向きへ機首を向ける */
-      plane.rotateZ(Math.cos(u) * 0.5 + (a >= 0 ? Math.PI * 2 * sstep(0.4, 1.3, a) : 0));   /* 曲がるときに傾く。仕掛けの間は、くるりと一回転 */
+      let bank = Math.cos(u) * 0.5;
+      if (route) {   /* 曲がる向きに傾く */
+        at(u + du * 2, r2);
+        const t1x = q.x - p.x, t1z = q.z - p.z, t2x = r2.x - q.x, t2z = r2.z - q.z;
+        bank = Math.max(-0.7, Math.min(0.7, -8 * (t1x * t2z - t1z * t2x) / (Math.hypot(t1x, t1z) * Math.hypot(t2x, t2z) + 1e-6)));
+        stops.forEach((v, i) => { const d = Math.hypot(p.x - v.x, p.z - v.z) / 0.75; nearW[i] = Math.exp(-d * d); });
+      }
+      plane.rotateZ(bank + (a >= 0 ? Math.PI * 2 * sstep(0.4, 1.3, a) : 0));   /* 仕掛けの間は、くるりと一回転 */
       for (let i = 0; i < TR; i++) {   /* 通ったあとに、だんだん薄くなる点 */
-        at(u - (i + 1) * 0.07, q); trail[i * 3] = q.x; trail[i * 3 + 1] = q.y; trail[i * 3 + 2] = q.z;
+        at(u - (i + 1) * (route ? 0.006 : 0.07), q); trail[i * 3] = q.x; trail[i * 3 + 1] = q.y; trail[i * 3 + 2] = q.z;
         ta[i] = fadeV * 0.55 * (1 - i / TR);
       }
       tg.attributes.position.needsUpdate = true; tg.attributes.aAlpha.needsUpdate = true;
@@ -3847,6 +4360,30 @@ function pageSheetTexture(label) {
   _sheetTex = new THREE.CanvasTexture(c);
   _sheetTex.colorSpace = THREE.SRGBColorSpace;
   return _sheetTex;
+}
+/* 悪行目録の記録 (百の悪行の台本 assets/hyaku/script.js のまま。英語は訳) */
+const PAGE_RECORDS = [
+  { jp: ['悪行第七十三号', 'リーゼ村を焼く。', '住民二百十四名、死亡'], en: ['Misdeed No. 73', 'Burned the village', 'of Liese. 214 dead.'] },
+  { jp: ['第四十一号', '大河ソールに', '毒を流す。'], en: ['No. 41', 'Poisoned the', 'great river Sol.'] },
+];
+/* 記録の紙: 悪行目録の頁と同じ古い紙に、朱の題と墨の本文。世界をまたいで使い回す (keep) */
+const _recordTex = {};
+function recordSheetTexture(k, lang) {
+  if (_recordTex[k + lang]) return _recordTex[k + lang];
+  const lines = PAGE_RECORDS[k][lang];
+  const c = document.createElement('canvas'); c.width = 256; c.height = 338;
+  const g = c.getContext('2d');
+  g.fillStyle = '#efe2c4'; g.fillRect(6, 6, 244, 326);
+  g.strokeStyle = 'rgba(120,90,50,.55)'; g.lineWidth = 2; g.strokeRect(13, 13, 230, 312);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#7a1c14'; fitFont(g, lines[0], 210, 28); g.fillText(lines[0], 128, 62);
+  g.strokeStyle = 'rgba(122,28,20,.5)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(40, 88); g.lineTo(216, 88); g.stroke();
+  g.fillStyle = '#2a1d10';
+  lines.slice(1).forEach((t, j) => { fitFont(g, t, 214, 25, 700); g.fillText(t, 128, 128 + j * 40); });
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.userData.keep = true;
+  return (_recordTex[k + lang] = t);
 }
 /* 判 (百の悪行の仕掛け): 朱の「嘘」と、金の「真」。二重の丸に字、ところどころかすれる。世界をまたいで使い回す (keep) */
 const _verdictTex = {};
@@ -4030,7 +4567,10 @@ async function buildGalaxy(e, lift) {
     lift.add(tilt);
     disk = { tilt, spin, mat: mesh.material };
   }
-  e.galaxy = { uniforms, core, disk, ang: 0, last: null };
+  /* 中身を見せる常時の動き: 星のひとつが歌い手の名前で光り、似ている歌い手の星へ線が伸びる (7.5 秒ごとに別の歌い手)。
+     名前と「似ている」は音楽の宇宙のデータ (scripts/universe.json の似ている度 weight の高い順) のまま */
+  const demo = buildStarNames(lift, P);
+  e.galaxy = { uniforms, core, disk, ang: 0, last: null, demo };
   e.glow = 0x8fa6ff;   /* 足もとのページを青白く照らす */
   e.shadowMax = 0.35;
   e.pose = poseGalaxy;
@@ -4056,6 +4596,205 @@ function poseGalaxy(e, r) {
     d.mat.color.setScalar(f);       /* 足す光 */
   }
 }
+const STAR_NAMES = [
+  { seed: 'Ryuichi Sakamoto', neb: { jp: 'ヒーリング星雲', en: 'Healing Nebula' }, near: ['Yellow Magic Orchestra', 'Haruomi Hosono', 'Alva Noto', 'Joe Hisaishi'] },
+  { seed: 'Enya', neb: { jp: 'ブルース・フォーク', en: 'Blues & Folk' }, near: ['Loreena McKennitt', 'Clannad', 'Secret garden'] },
+  { seed: 'Metallica', neb: { jp: 'メタル星雲', en: 'Metal Nebula' }, near: ['Megadeth', 'Slayer', 'Pantera'] },
+];
+/* 名前をつける星を、実際の星の中から選ぶ (腕の外側の星と、そのまわりの星)。位置は星のシェーダーと同じ式で毎フレーム動かす */
+function buildStarNames(lift, P) {
+  const n = P.length / 3;
+  const nearestStar = (x, z, skip) => {
+    let best = -1, bd = Infinity;
+    for (let i = 0; i < n; i++) {
+      if (skip && skip.has(i)) continue;
+      const dx = P[i * 3] - x, dz = P[i * 3 + 2] - z, d = dx * dx + dz * dz;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  };
+  /* 名前をつける星の候補: 腕の外側の輪の上の 24 個。どれを使うかは、毎回その時の銀河の向きで決める (starSet) */
+  const ring = [];
+  for (let j = 0; j < 24; j++) { const th = j / 24 * Math.PI * 2; ring.push(nearestStar(Math.cos(th) * 2.1, Math.sin(th) * 2.1)); }
+  /* 札の文字: align は 'left' (左端を星の右にそろえる)・'right' (右端を星の左にそろえる)・'center' */
+  const nameFont = (g, cw, ch, name, sub) => fitFont(g, name, cw * 0.94, Math.round(ch * (sub ? 0.46 : 0.62)), 700);
+  const subFont = (g, cw, ch, sub) => fitFont(g, sub, cw * 0.9, Math.round(ch * 0.3), 600);
+  const mkName = (w, h) => {
+    const lab = makeLabel(w, h, (g, cw, ch, name, sub, align) => {
+      const al = align || 'center', x = al === 'left' ? cw * 0.03 : al === 'right' ? cw * 0.97 : cw / 2;
+      g.textAlign = al; g.textBaseline = 'middle';
+      g.shadowColor = 'rgba(8,10,30,.95)'; g.shadowBlur = 10;
+      nameFont(g, cw, ch, name, sub);
+      g.fillStyle = sub ? '#ffffff' : '#dbe6ff'; g.fillText(name, x, sub ? ch * 0.36 : ch / 2);
+      if (sub) { subFont(g, cw, ch, sub); g.fillStyle = '#a9c1ff'; g.fillText(sub, x, ch * 0.76); }
+    });
+    lab.mesh.geometry.dispose();
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: lab.mesh.material.map, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+    sp.scale.set(w, h, 1); sp.renderOrder = 7; sp.visible = false;
+    lift.add(sp);
+    return { sp, lab, w, h };
+  };
+  /* 文字の幅 (札と同じ単位)。置き場を選ぶときに、はみ出しと重なりを確かめるため */
+  const mctx = document.createElement('canvas').getContext('2d');
+  const textW = (w, h, name, sub) => {
+    const cw = Math.round(w * 220), ch = Math.round(h * 220);
+    nameFont(mctx, cw, ch, name, sub);
+    let tw = mctx.measureText(name).width;
+    if (sub) { subFont(mctx, cw, ch, sub); tw = Math.max(tw, mctx.measureText(sub).width); }
+    return tw / cw * w;
+  };
+  const seedName = mkName(2.6, 0.7), nearNames = [0, 1, 2, 3].map(() => mkName(2.6, 0.34));
+  const glow = (sz, col) => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: col, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+    sp.scale.setScalar(sz); sp.renderOrder = 6; sp.visible = false; lift.add(sp);
+    return sp;
+  };
+  const seedGlow = glow(0.9, 0xfff2d0), nearGlows = [0, 1, 2, 3].map(() => glow(0.42, 0xcfe0ff));
+  const lp = new Float32Array(8 * 3);
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(lp, 3));
+  const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0xa9c4ff, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+  lines.frustumCulled = false; lines.renderOrder = 6; lines.visible = false;
+  lift.add(lines);
+  return { P, n, ring, textW, cur: null, seedName, nearNames, seedGlow, nearGlows, lines, lp, t0: null, key: '',
+           v: new THREE.Vector3(), w: new THREE.Vector3(), right: new THREE.Vector3(1, 0, 0), up: new THREE.Vector3(0, 1, 0) };
+}
+/* 画面の右と上の向き (銀河の台の中の向きで)。札を画面に沿って並べるため */
+const _sq = new THREE.Quaternion(), _sn = new THREE.Vector3(), _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sc = new THREE.Vector3();
+/* 札の文字の箱 (真ん中 c・半幅 hw) が画面の左右からはみ出していたら、札ごと画面の内側へ寄せる (銀河の回転とカメラの揺れで端へ寄っても切れない) */
+function keepOnScreen(e, D, sp, c, hw) {
+  const W = innerWidth, m = 8;
+  e.lift.localToWorld(_sa.copy(c).addScaledVector(D.right, -hw)).project(V.cam);
+  e.lift.localToWorld(_sb.copy(c).addScaledVector(D.right, hw)).project(V.cam);
+  const l = (_sa.x + 1) / 2 * W, r = (_sb.x + 1) / 2 * W;
+  const shift = Math.max(0, m - l) - Math.max(0, r - (W - m));
+  if (shift && r > l) sp.position.addScaledVector(D.right, shift * (2 * hw) / (r - l));
+}
+function starAxes(D, e) {
+  e.lift.getWorldQuaternion(_sq).invert();
+  D.right.set(1, 0, 0).applyQuaternion(V.cam.quaternion).applyQuaternion(_sq);
+  D.up.set(0, 1, 0).applyQuaternion(V.cam.quaternion).applyQuaternion(_sq);
+}
+const STAR_GAP = 0.12;   /* 星と名前のすきま */
+/* 名前の置き場を、巡りのはじめに画面の上で決める。歌い手の星は画面の上のほう・真ん中寄りの候補から選び、名前は星の真上。
+   似ている歌い手は星の下の半分に扇のように広げ、左の星の名前は左へ、右の星の名前は右へ出す (線と名前、名前どうしが重ならない)。
+   名前が画面の外や、題の札・本文・ボタンにかかる候補は使わない (どれもかかるときは、かかりのいちばん少ないもの) */
+function starSet(D, e, ang, S) {
+  e.lift.updateMatrixWorld(true);
+  starAxes(D, e);
+  const R = D.right, U = D.up, W = innerWidth, H = innerHeight, count = S.near.length, K = labelK();
+  const px = (v) => { e.lift.localToWorld(_sn.copy(v)).project(V.cam); return [(_sn.x + 1) / 2 * W, (1 - _sn.y) / 2 * H]; };
+  const box = (c, hw, hh) => {   /* 札の文字の箱 (画面の px) */
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const [x, y] = px(_sa.copy(c).addScaledVector(R, a * hw).addScaledVector(U, b * hh));
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    return [x0, y0, x1, y1];
+  };
+  const hit = (a, b, m) => a[0] < b[2] + m && b[0] < a[2] + m && a[1] < b[3] + m && b[1] < a[3] + m;
+  const blocks = ['title-card', 'page-overlay', 'bgm-toggle', 'lang-toggle'].map((id) => document.getElementById(id))
+    .filter((el) => el && el.getClientRects().length).map((el) => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; });
+  const wSeed = K * D.textW(D.seedName.w, D.seedName.h, S.seed, tt(S.neb));
+  const wNear = S.near.map((nm) => K * D.textW(D.nearNames[0].w, D.nearNames[0].h, nm));
+  const TH = (count === 4 ? [190, 235, 305, 350] : [195, 270, 345]).map((d) => d * Math.PI / 180);
+  const cands = D.ring.map((i) => {
+    const q = starAt(D.P, i, ang, new THREE.Vector3()), [x, y] = px(q);
+    return { i, q, pref: -y / H - 0.6 * Math.abs(x / W - 0.5) };   /* 画面の上のほう・真ん中寄りほど先に試す */
+  }).sort((a, b) => b.pref - a.pref);
+  let best = null;
+  for (const c of cands) {
+    const sp = c.q, sx = D.P[c.i * 3], sz = D.P[c.i * 3 + 2];
+    const pool = [];   /* まわりの星 (4 つに 1 つを見れば足りる) */
+    for (let i = 0; i < D.n; i += 4) {
+      const dx = D.P[i * 3] - sx, dz = D.P[i * 3 + 2] - sz, d2 = dx * dx + dz * dz;
+      if (i === c.i || d2 < 0.09 || d2 > 3.2) continue;
+      const d = starAt(D.P, i, ang, _sb).sub(sp);
+      pool.push([i, Math.atan2(d.dot(U), d.dot(R)), Math.hypot(d.dot(R), d.dot(U))]);
+    }
+    const near = [], al = [], used = new Set();
+    for (const th of TH) {
+      const r0 = (0.5 + 0.3 * Math.abs(Math.cos(th))) * K;   /* 札が大きいときは、星も広めに */
+      let bi = -1, bs = Infinity;
+      for (const [i, a, r] of pool) {
+        if (used.has(i)) continue;
+        let da = a - th; da -= Math.round(da / (Math.PI * 2)) * Math.PI * 2;
+        const sc = Math.abs(da) * 1.2 + Math.abs(r - r0);
+        if (sc < bs) { bs = sc; bi = i; }
+      }
+      used.add(bi); near.push(bi);
+      al.push(Math.cos(th) < -0.3 ? 'right' : Math.cos(th) > 0.3 ? 'left' : 'center');
+    }
+    /* 札の箱: 歌い手は星の真上、似ている歌い手は星の外側 */
+    const boxes = [box(_sb.copy(sp).addScaledVector(U, 0.5 * K), wSeed / 2, 0.3 * K)];
+    near.forEach((i, j) => {
+      const np = starAt(D.P, i, ang, new THREE.Vector3());
+      const c2 = al[j] === 'center' ? np.addScaledVector(U, -0.24 * K) : np.addScaledVector(R, (al[j] === 'left' ? 1 : -1) * (STAR_GAP * K + wNear[j] / 2));
+      boxes.push(box(c2, wNear[j] / 2, 0.12 * K));
+    });
+    let bad = 0;
+    boxes.forEach((b, j) => {
+      const mx = 8 + (K > 1 ? 0.05 * W : 0);   /* 縦長の画面は、カメラの揺れで端へ寄る分のゆとりも */
+      if (b[0] < mx || b[1] < 6 || b[2] > W - mx || b[3] > H - 6) bad++;
+      for (const k of blocks) if (hit(b, k, 6)) bad++;
+      for (let m = 0; m < j; m++) if (hit(b, boxes[m], 2)) bad++;
+    });
+    if (!best || bad < best.bad) best = { seed: c.i, near, al, bad, k: K, tw: wNear, ts: wSeed };
+    if (!bad) break;
+  }
+  return best;
+}
+/* 星の位置 (星のシェーダーと同じ回転と傾き) */
+function starAt(P, i, ang, out) {
+  const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2], c = Math.cos(-ang), sn = Math.sin(-ang);
+  const dx = x * c - z * sn, dz = x * sn + z * c, ct = Math.cos(GALAXY.TILT), st = Math.sin(GALAXY.TILT);
+  return out.set(dx, y * ct - dz * st + GALAXY.HEIGHT, y * st + dz * ct);
+}
+function tickStarNames(e, s, a) {
+  const D = e.galaxy.demo, ang = e.galaxy.ang;
+  const on = a < 0 && e.rise >= 1 && !e.anim;
+  if (!on) D.t0 = null; else if (D.t0 === null) D.t0 = s;
+  const T = D.t0 === null ? -1 : (s - D.t0) % 7.5, cyc = D.t0 === null ? 0 : Math.floor((s - D.t0) / 7.5), k = cyc % STAR_NAMES.length;
+  const S = STAR_NAMES[k], lang = ehonLang();
+  if (T >= 0 && D.key !== cyc + lang) {
+    D.key = cyc + lang;
+    D.cur = starSet(D, e, ang, S);   /* 巡りのはじめに、名前をつける星と置き場を選び直す */
+    D.seedName.lab.redraw(S.seed, tt(S.neb));
+    S.near.forEach((nm, j) => D.nearNames[j].lab.redraw(nm, null, D.cur.al[j]));
+    for (const N of [D.seedName, ...D.nearNames]) N.sp.scale.set(N.w * D.cur.k, N.h * D.cur.k, 1);
+  }
+  const set = D.cur || { seed: D.ring[0], near: [], al: [], k: 1 };
+  if (T >= 0) starAxes(D, e);
+  const out = T < 0 ? 0 : 1 - sstep(6.3, 7.0, T);
+  const so = T < 0 ? 0 : sstep(0, 0.6, T) * out;
+  const sp = starAt(D.P, set.seed, ang, D.v);
+  D.seedGlow.visible = so > 0.01; D.seedGlow.position.copy(sp); D.seedGlow.material.opacity = so;
+  D.seedName.sp.visible = so > 0.01; D.seedName.sp.material.opacity = so;
+  D.seedName.sp.position.copy(sp).addScaledVector(D.up, 0.5 * set.k);
+  if (so > 0.01 && set.ts) keepOnScreen(e, D, D.seedName.sp, D.seedName.sp.position, set.ts / 2);
+  let segs = 0;
+  D.nearNames.forEach((N, j) => {
+    const has = j < set.near.length;
+    const grow = has && T >= 0 ? sstep(0.8 + j * 0.3, 1.2 + j * 0.3, T) : 0, no = grow * out;
+    N.sp.visible = no > 0.01; D.nearGlows[j].visible = no > 0.01;
+    if (!has || no <= 0.01) return;
+    const np = starAt(D.P, set.near[j], ang, D.w);
+    D.nearGlows[j].position.copy(np); D.nearGlows[j].material.opacity = 0.9 * no;
+    N.sp.material.opacity = no;
+    const al = set.al[j];   /* 名前は星の外側へ: 左の星は左へ、右の星は右へ、真下の星は下へ */
+    if (al === 'center') N.sp.position.copy(np).addScaledVector(D.up, -0.24 * set.k);
+    else N.sp.position.copy(np).addScaledVector(D.right, (al === 'left' ? 1 : -1) * (STAR_GAP + 0.47 * N.w) * set.k);
+    if (set.tw) {   /* 文字の箱: 横に出す札は星の側に寄せてあるので、箱の真ん中は星から (すきま + 半幅) */
+      const tw = set.tw[j], c = al === 'center' ? _sc.copy(N.sp.position) : _sc.copy(np).addScaledVector(D.right, (al === 'left' ? 1 : -1) * (STAR_GAP * set.k + tw / 2));
+      keepOnScreen(e, D, N.sp, c, tw / 2);
+    }
+    D.lp.set([sp.x, sp.y, sp.z, lerp(sp.x, np.x, grow), lerp(sp.y, np.y, grow), lerp(sp.z, np.z, grow)], segs * 6);
+    segs++;
+  });
+  D.lines.visible = segs > 0;
+  D.lines.geometry.setDrawRange(0, segs * 2);
+  D.lines.geometry.attributes.position.needsUpdate = true;
+  D.lines.material.opacity = 0.75 * out;
+}
 /* 回転は角度を積み上げて進める (仕掛けで速く回しても、腕の形が跳ばない) */
 function tickGalaxy(e, t) {
   const G = e.galaxy, U = G.uniforms, s = t / 1000, a = e.showAge;
@@ -4071,6 +4810,7 @@ function tickGalaxy(e, t) {
   U.uRipA.value.set(a >= 0 ? 1 - sstep(1.2, 1.8, a) : 0, a >= 0.7 ? 1 - sstep(1.9, 2.5, a) : 0);
   if (e.rise >= 1 && !e.anim) G.core.scale.setScalar(2.2 * (1 + (a >= 0 ? 0.9 * Math.exp(-(((a - 0.15) / 0.3) ** 2)) : 0)));
   if (G.disk) G.disk.spin.rotation.y = G.ang;   /* 星と同じ速さ・向きで回る */
+  tickStarNames(e, s, a);
 }
 let _glowTex = null;
 function getGlowTexture() {
@@ -4478,8 +5218,8 @@ function showCoach(e) {
     document.body.appendChild(el);
   }
   el.querySelector('.say').textContent = tt(I18N.ui.coach);
-  const ov = document.querySelector('#page-overlay.show .po-story');   /* 狭い画面では右の本文が飛び出しにかかるので、その左に出す */
-  coach = { el, e, until: nowMs() + 7000, maxX: ov ? ov.getBoundingClientRect().left - 70 : Infinity };
+  const ov = document.querySelector('#page-overlay.show .po-story');   /* 本文が飛び出しにかかる画面では、その左に出す */
+  coach = { el, e, until: nowMs() + 7000, avoid: ov ? ov.getBoundingClientRect() : null };
   updateCoach(nowMs());
   el.classList.add('show');
   kidSay('girl', KID_LINES.any.girl[0], 3400);
@@ -4498,8 +5238,11 @@ function updateCoach(t) {
   if (t > coach.until || curWorld !== coach.e || turn) { hideCoach(false); return; }
   const r = V.renderer.domElement.getBoundingClientRect();
   const p = coach.e.lift.localToWorld(_kp.copy(coach.e.focus)).project(V.cam);
-  const x = Math.max(70, Math.min(coach.maxX, r.left + (p.x * 0.5 + 0.5) * r.width));
-  coach.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(r.top + (-p.y * 0.5 + 0.5) * r.height)}px)`;
+  const y = r.top + (-p.y * 0.5 + 0.5) * r.height, A = coach.avoid;
+  let x = r.left + (p.x * 0.5 + 0.5) * r.width;
+  if (A && y > A.top - 50 && y < A.bottom + 50 && x > A.left - 70) x = A.left - 70;
+  x = Math.max(70, x);
+  coach.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
 }
 
 /* ------ 起動したら、1 枚目は自動でめくる。最初の世界の準備 (GPU への転送) を少し待ってから (長くても 3 秒)。
@@ -4518,10 +5261,14 @@ function scheduleAutoOpen() {
 }
 
 /* ------ ステージ本体 ------ */
-/* 縦長の画面 (スマホ) では、本の幅が画面に収まるところまでカメラを引く。横長では元の構図のまま */
+/* 縦長の画面 (スマホ) では、飛び出しの幅 (±4.4) が画面に収まるところまでカメラを引く。本の外側の端は切れてよい
+   (本の全幅 ±6.2 で合わせると、飛び出しと札の文字が小さすぎて読めない)。横長では元の構図のまま */
+const PORTRAIT_HALF_W = 4.4, GUIDE_X = 4.9, GUIDE_X_PORTRAIT = 3.9;
 function frameCamera() {
   const { cam, controls } = V;
-  const need = 6.2 / (Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * cam.aspect);
+  V.portrait = cam.aspect < 0.8;
+  for (const o of [V.mascot, V.boy]) if (o) o.position.x = Math.sign(o.position.x) * (V.portrait ? GUIDE_X_PORTRAIT : GUIDE_X);   /* 案内人の二人も画面に収まるように */
+  const need = PORTRAIT_HALF_W / (Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * cam.aspect);
   const dist = Math.max(V.baseDist, need);
   const off = cam.position.clone().sub(controls.target);
   if (off.lengthSq() === 0) return;
@@ -4717,8 +5464,9 @@ async function buildBook() {
     V.bookGrp.add(obj);
     return obj;
   };
-  if (mGltf) V.mascot = placeGuide(mGltf, 4.9, 2.7);
-  if (bGltf) V.boy = placeGuide(bGltf, -4.9, -2.7);
+  const gx = V.portrait ? GUIDE_X_PORTRAIT : GUIDE_X;
+  if (mGltf) V.mascot = placeGuide(mGltf, gx, 2.7);
+  if (bGltf) V.boy = placeGuide(bGltf, -gx, -2.7);
   kids.girl.obj = V.mascot; kids.boy.obj = V.boy;   /* 押すと、ひとこと */
   /* 見せる前にシェーダと最初の見開きを用意しておく (最初のめくりで固まらない) */
   uploadQueue.splice(0).forEach((t) => V.renderer.initTexture(t));

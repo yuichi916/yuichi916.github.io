@@ -14,7 +14,7 @@ usage: python _blender/ehon3_popup_cards.py
 import os
 import sys
 import numpy as np
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
+from PIL import ImageEnhance, Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 from scipy.ndimage import gaussian_filter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -243,6 +243,18 @@ def card_uv(u, v, border=16, art=(1024, 576)):
     return round((border + u * art[0]) / w, 4), round((border + v * art[1]) / h, 4)
 
 
+def pano_strip():
+    """森の小屋の中 (cabin.html の 360° の部屋 assets/cabin360.jpg) の、地平線のまわりの帯。
+    絵本では外観のカードがこの帯に切り替わり、左右にゆっくり流れて「見まわせる」ことを見せる。左右の端はつながっている (360°)"""
+    im = Image.open(os.path.join(ROOT, 'assets', 'cabin360.jpg')).convert('RGB')
+    w, h = im.size
+    band = im.crop((0, int(h * 0.33), w, int(h * 0.75)))
+    band = band.resize((2048, round(2048 * band.size[1] / w)), Image.LANCZOS)
+    band = ImageEnhance.Brightness(band).enhance(1.55)   # 暖炉の灯りだけの暗い部屋。頁の上で見えるように明るく
+    band = ImageEnhance.Contrast(band).enhance(1.06)
+    save(band, 'cabin_pano_v1.webp', 82)
+
+
 if __name__ == '__main__':
     parts = set(sys.argv[1:]) or {'stories', 'cabin', 'shogi', 'tabi', 'plates', 'toc', 'galaxy'}
     if 'stories' in parts:
@@ -300,3 +312,5 @@ if __name__ == '__main__':
         plate('assets/cabin-still.jpg', 'cabin', (0.45, 0.5))
     if 'galaxy' in parts:
         galaxy_disk()
+    if 'pano' in parts:
+        pano_strip()
