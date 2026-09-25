@@ -1,10 +1,10 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>とびだす絵本の世界 — 11の世界へつづく本 | yuichi916.github.io</title>
+<title>とびだす絵本の世界 — 12の世界へつづく本 | yuichi916.github.io</title>
 <link rel="canonical" href="https://yuichi916.github.io/ehon.html">
-<meta name="description" content="ページをめくると、作品がそのまま3Dでとびだす絵本。正解の外側・ことつぎの星・百の悪行・音楽の宇宙・AI能力アトラス…11の世界と10匹のいきもの図鑑。A pop-up picture book leading to 11 worlds.">
+<meta name="description" content="ページをめくると、作品がそのまま3Dでとびだす絵本。正解の外側・ことつぎの星・百の悪行・音楽の宇宙・AI能力アトラス…12の世界と10匹のいきもの図鑑。A pop-up picture book leading to 12 worlds.">
 <meta property="og:title" content="とびだす絵本の世界 | A Pop-up Book of Worlds">
-<meta property="og:description" content="ページをめくると、物語・ゲーム・地図がそのまま3Dでとびだす。11の世界と、日替わりでかくれる10匹のいきもの。">
+<meta property="og:description" content="ページをめくると、物語・ゲーム・地図がそのまま3Dでとびだす。12の世界と、日替わりでかくれる10匹のいきもの。">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://yuichi916.github.io/ehon.html">
 <meta property="og:image" content="https://yuichi916.github.io/assets/og/ehon-cover-1200x630.jpg">
@@ -13,7 +13,7 @@
 {"@context":"https://schema.org","@type":"CreativeWork","name":"とびだす絵本の世界 / A Pop-up Book of Worlds",
  "url":"https://yuichi916.github.io/ehon.html","inLanguage":["ja","en"],
  "author":{"@type":"Person","name":"yuichi916"},
- "description":"ページをめくると、作品がそのまま3DでとびだすWeb絵本。11の世界と10匹のいきもの図鑑。"}
+ "description":"ページをめくると、作品がそのまま3DでとびだすWeb絵本。12の世界と10匹のいきもの図鑑。"}
 </script>
 <script type="importmap">
 { "imports": {
@@ -36,18 +36,31 @@
 <link rel="preload" href="_ehon_assets/ehon/popup/seikai_kai_v1.webp" as="fetch" crossorigin>
 <link rel="preload" href="_ehon_assets/ehon/popup/seikai_rin_v1.webp" as="fetch" crossorigin>
 <style>
-  :root{--ink:#3a2f25}
+  /* 作品の色 (頁をめくると、その作品の色に移る。既定は夜の書斎の金) */
+  :root{--ink:#3a2f25;--acc:#d8b36a;--acc-ink:#2a1d0e;--acc-glow:rgba(255,190,110,.32);--panel:rgba(18,14,11,.8);
+    --panel-ink:#f6ecd9;--panel-line:rgba(216,179,106,.42)}
   *{box-sizing:border-box;margin:0}
   html,body{height:100%}
-  body{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;color:var(--ink);
-    /* ノベルゲーム風の室内: 藍色の壁 → 木の床、中央に世界が浮くスポット光、四隅ヴィネット */
-    background:
-      radial-gradient(120% 78% at 50% 46%, rgba(255,236,198,.30) 0%, rgba(255,236,198,0) 48%),
-      linear-gradient(180deg, transparent 0 57%, #4a3728 57%, #2c1e13 100%),
-      linear-gradient(180deg, #201a2b 0%, #29223a 38%, #35304c 57%),
-      radial-gradient(150% 125% at 50% 46%, transparent 38%, rgba(0,0,0,.6) 100%);
-    overflow:hidden;height:100%}
+  body{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;color:var(--ink);background:#120d10;overflow:hidden;height:100%}
   #stage{position:fixed;inset:0;display:grid;place-items:center;perspective:1700px}
+  /* ---- 世界の空気: 画面全体の背景は、めくった頁の作品の景色 (ぼかした絵・床の沈み・光だまり)。
+     2 枚を重ね、めくりのあいだに次の世界へ入れ替える。粒 (#amb-fx) と光の色は 3D の側が動かす ---- */
+  #ambience{position:fixed;inset:0;overflow:hidden;pointer-events:none;background:#120d10}
+  #amb-par{position:absolute;inset:-3% -5%;will-change:transform}
+  /* will-change: 景色の層は最初から別の層として持っておく (入れ替えのたびに大きな層を描き直さない) */
+  .amb-img{position:absolute;inset:0;background-size:cover,cover,cover;background-position:center,center,50% 40%;
+    opacity:0;transform:scale(1.07);transition:opacity 1.4s ease,transform 3s cubic-bezier(.2,.7,.2,1);will-change:opacity,transform}
+  .amb-img.on{opacity:1;transform:scale(1.02)}
+  #ambience.instant .amb-img{transition:none}
+  #amb-fx{position:absolute;inset:0;width:100%;height:100%}
+  /* 世界が立ち上がるとき、本の上に作品の色の光がふくらんで消える */
+  /* 光は小さな円を大きく拡げて描く (大きな円を描き込むと重い) */
+  #amb-bloom{position:absolute;left:50%;top:46%;width:24vmax;height:24vmax;margin:-12vmax 0 0 -12vmax;border-radius:50%;
+    background:radial-gradient(circle,var(--acc-glow) 0%,transparent 70%);opacity:0;transform:scale(2.4);will-change:opacity,transform}
+  #amb-bloom.go{animation:ambBloom 1.7s ease-out}
+  #amb-bloom.go.calm{animation:ambBloomCalm 1.7s ease-out}
+  @keyframes ambBloom{0%{opacity:0;transform:scale(1.3)}30%{opacity:.8}100%{opacity:0;transform:scale(4.4)}}
+  @keyframes ambBloomCalm{0%{opacity:0;transform:scale(3.2)}35%{opacity:.45}100%{opacity:0;transform:scale(3.2)}}
 
   /* ステージ枠(本+世界を載せる領域) — 全画面。透明レンダラーで背景と一体 */
   .ehon-stage{position:relative;width:100vw;height:100vh}
@@ -88,14 +101,22 @@
   /* UI */
   /* 題の札は、左上の目次ボタンの右から、上中央のしおりの手前まで (しおりは最大で幅約300px)。
      狭い画面では、しおりの下の段に置き、右側の本文パネル (幅 34vw + 余白 4vw) の手前で折り返す */
-  #title-card{position:fixed;left:70px;top:14px;max-width:calc(50vw - 240px);padding:10px 14px;
-    background:rgba(250,245,235,.85);border:1px solid #b9a784;border-radius:5px;
-    box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;transition:opacity .6s}
+  /* 枠は角の丸みをそろえた細い線 (丸みや線の太さが不ぞろいだと、影のぼかしが重い描き方になり、開いた瞬間に 1 コマ止まった)。
+     作品の色の縦線は、別の小さな部品で描く */
+  #title-card{position:fixed;left:70px;top:14px;max-width:calc(50vw - 240px);padding:9px 16px 10px 18px;
+    background:rgba(20,15,12,.82);border:1px solid var(--panel-line);border-radius:10px;
+    box-shadow:0 4px 14px rgba(0,0,0,.3);color:var(--panel-ink);
+    opacity:0;transition:opacity .6s,border-color .9s}
+  #title-card::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 2px 2px 0;
+    background:var(--acc);transition:background-color .9s}
   @media(max-width:919px){#title-card{left:14px;top:64px;max-width:min(440px,calc(62vw - 26px))}}
   #title-card.show{opacity:1}
   #title-card.show.on-sheet{opacity:0}   /* 目次と奥付はシートが自分の見出しを持つ (札がシートに重ならないように) */
-  #title-card h1{font-size:clamp(16px,3.2vw,26px);letter-spacing:.04em}
-  #title-card p{font-size:13px;color:#6b5b45;margin-top:4px}
+  #title-card .tc-ch{display:block;font:600 10px/1.2 "Hiragino Mincho ProN","Yu Mincho",serif;letter-spacing:.34em;color:var(--acc);
+    margin-bottom:3px;transition:color .9s}
+  #title-card .tc-ch:empty{display:none}
+  #title-card h1{font-size:clamp(16px,3.2vw,26px);letter-spacing:.08em;font-weight:600;color:#fff5e2}
+  #title-card p{font-size:13px;color:rgba(246,236,217,.7);margin-top:4px;letter-spacing:.04em}
   #mode-toggle{position:fixed;right:18px;bottom:18px;display:none;z-index:10;
     border-radius:999px;overflow:hidden;border:1px solid #b9a784;background:#faf5eb}
   #mode-toggle.show{display:flex}
@@ -112,12 +133,13 @@
   #nav-prev, #nav-next {
     position:fixed; top:50%; transform:translateY(-50%);
     width:52px; height:52px; border-radius:50%;
-    background:rgba(250,245,235,.88); border:1px solid #b9a784;
+    background:rgba(18,14,11,.66); border:1px solid var(--panel-line);
     box-shadow:0 3px 12px rgba(0,0,0,.3); cursor:pointer;
-    font-size:22px; display:none; align-items:center; justify-content:center;
-    z-index:20; color:#5e4c37; transition:opacity .3s;
+    font-size:20px; display:none; align-items:center; justify-content:center;
+    z-index:20; color:var(--acc); transition:opacity .3s,color .9s,border-color .9s,box-shadow .3s;
     user-select:none;
   }
+  #nav-prev:hover, #nav-next:hover { box-shadow:0 0 0 1px var(--acc),0 4px 24px var(--acc-glow); }
   #nav-prev { left:14px; }
   #nav-next { right:14px; }
   #nav-prev.show, #nav-next.show { display:flex; }
@@ -127,26 +149,26 @@
   #lang-toggle {
     position:fixed; right:18px; bottom:76px;
     width:44px; height:44px; border-radius:50%;
-    background:rgba(250,245,235,.88); border:1px solid #b9a784;
+    background:rgba(18,14,11,.66); border:1px solid var(--panel-line);
     box-shadow:0 3px 12px rgba(0,0,0,.3); cursor:pointer;
-    font-size:18px; display:none; align-items:center; justify-content:center;
-    z-index:20; color:#5e4c37; transition:opacity .3s;
+    font-size:17px; display:none; align-items:center; justify-content:center;
+    z-index:20; color:var(--panel-ink); transition:opacity .3s,color .9s,border-color .9s,box-shadow .3s;
     user-select:none; font-weight:bold;
   }
   #lang-toggle.show { display:flex; }
-  #lang-toggle:hover { background:rgba(250,245,235,1); }
+  #lang-toggle:hover { box-shadow:0 0 0 1px var(--acc),0 4px 20px var(--acc-glow); }
   #bgm-toggle {
     position:fixed; right:18px; bottom:128px;
     width:44px; height:44px; border-radius:50%;
-    background:rgba(250,245,235,.88); border:1px solid #b9a784;
+    background:rgba(18,14,11,.66); border:1px solid var(--panel-line);
     box-shadow:0 3px 12px rgba(0,0,0,.3); cursor:pointer;
-    font-size:18px; display:none; align-items:center; justify-content:center;
-    z-index:20; color:#8c7a54; transition:opacity .3s,color .3s;
+    font-size:17px; display:none; align-items:center; justify-content:center;
+    z-index:20; color:rgba(246,236,217,.55); transition:opacity .3s,color .9s,border-color .9s,box-shadow .3s;
     user-select:none;
   }
   #bgm-toggle.show { display:flex; }
-  #bgm-toggle.playing { color:#a3552f; }
-  #bgm-toggle:hover { background:rgba(250,245,235,1); }
+  #bgm-toggle.playing { color:var(--acc); }
+  #bgm-toggle:hover { box-shadow:0 0 0 1px var(--acc),0 4px 20px var(--acc-glow); }
 
   /* mode-a page fade-in */
   #world-a.page-fade { animation: pageFadeIn .3s ease; }
@@ -159,11 +181,12 @@
   }
   #world-dots.show { display:flex; }
   #world-dots.on-sheet { display:none; }   /* 目次と奥付の紙の上に点の列が重ならないように */
+  /* 今いる頁の点は、作品の色で示す (点を拡大したり光らせたりすると、開いた瞬間の描き込みが重くなった) */
   #world-dots .dot {
     width:8px; height:8px; border-radius:50%;
-    background:#b9a784; transition:background .3s;
+    background:rgba(246,236,217,.32); transition:background-color .5s;
   }
-  #world-dots .dot.active { background:#5e4c37; }
+  #world-dots .dot.active { background:var(--acc); }
 
   /* 没入ズーム */
   #world-a.immersed .world-pop {
@@ -334,16 +357,18 @@
   #page-overlay{position:absolute;right:4%;bottom:18%;width:min(34vw,320px);z-index:40;
     opacity:0;pointer-events:none;transition:opacity .14s ease;text-align:left}
   #page-overlay.show{opacity:1;pointer-events:auto;transition:opacity .45s ease .12s}
-  .po-story{font-size:.92rem;line-height:1.9;color:#3a2f22;background:rgba(255,250,238,.82);
-    border-radius:10px;padding:12px 14px;box-shadow:0 2px 12px rgba(60,40,10,.18)}
-  .po-jp-badge{display:inline-block;margin-top:8px;font-size:.7rem;padding:2px 8px;border-radius:99px;
-    background:#8c6d46;color:#fff;letter-spacing:.06em}
-  .po-enter{display:inline-block;margin-top:10px;font-weight:700;color:#fff;background:#a3552f;
-    padding:10px 18px;border-radius:99px;text-decoration:none;box-shadow:0 3px 10px rgba(120,50,10,.35)}
-  .po-enter:hover{background:#c26a3d}
+  .po-story{font-size:.92rem;line-height:1.95;color:var(--panel-ink);background:var(--panel);border:1px solid var(--panel-line);
+    border-radius:12px;padding:13px 16px;box-shadow:0 12px 32px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,244,220,.06);
+    letter-spacing:.02em;transition:border-color .9s}
+  .po-jp-badge{display:inline-block;margin-top:8px;font-size:.7rem;padding:2px 9px;border-radius:99px;
+    background:rgba(18,14,11,.7);border:1px solid var(--panel-line);color:var(--panel-ink);letter-spacing:.06em}
+  .po-enter{display:inline-block;margin-top:10px;font-weight:700;color:var(--acc-ink);background:var(--acc);
+    padding:10px 20px;border-radius:99px;text-decoration:none;letter-spacing:.06em;box-shadow:0 4px 16px var(--acc-glow);
+    transition:background-color .9s,color .9s,filter .2s}
+  .po-enter:hover{filter:brightness(1.1)}
   /* 入口のボタンは、ゆっくり灯って誘う */
   #page-overlay.show .po-enter{animation:poEnter 2.8s ease-in-out 1.4s infinite}
-  @keyframes poEnter{0%,100%{box-shadow:0 3px 10px rgba(120,50,10,.35)}50%{box-shadow:0 3px 24px rgba(255,176,96,.8)}}
+  @keyframes poEnter{0%,100%{box-shadow:0 4px 14px var(--acc-glow)}50%{box-shadow:0 4px 30px var(--acc-glow),0 0 0 1px var(--acc)}}
   /* スマホ (縦): 本文は画面の下に帯でまとめ、3 行で畳む (押すと全文)。飛び出しの上に文字をかぶせない。
      頁の点の列は隠し (上のしおりに何頁目かが出る)、♪ と言語のボタンは右上へ */
   @media (max-width:700px){
@@ -355,7 +380,7 @@
     #title-card h1{font-size:15px}
     #title-card p{font-size:11px;margin-top:2px}
     .po-story.open{display:block;-webkit-line-clamp:unset}
-    .po-story::after{content:'▾';position:absolute;right:9px;bottom:6px;font-size:11px;color:#8c6d46}
+    .po-story::after{content:'▾';position:absolute;right:9px;bottom:6px;font-size:11px;color:var(--acc)}
     .po-story.open::after{content:'▴'}
     .po-jp-badge{margin-top:0}
     .po-enter{margin:0 0 0 auto;padding:8px 16px;font-size:13px}
@@ -369,14 +394,14 @@
     .po-story{font-size:12px;line-height:1.65;padding:8px 26px 0 12px;border-bottom:8px solid transparent;cursor:pointer;position:relative;
       display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
     .po-story.open{display:block;-webkit-line-clamp:unset}
-    .po-story::after{content:'▾';position:absolute;right:9px;bottom:6px;font-size:11px;color:#8c6d46}
+    .po-story::after{content:'▾';position:absolute;right:9px;bottom:6px;font-size:11px;color:var(--acc)}
     .po-story.open::after{content:'▴'}
     .po-enter{margin-top:6px;padding:7px 14px;font-size:12px}
   }
   /* 仕掛けを見終わったら、入口のボタンがはっきり誘う */
   #page-overlay.show .po-enter.nudge{animation:poNudge .8s ease-in-out 3}
-  @keyframes poNudge{0%,100%{transform:none;box-shadow:0 3px 10px rgba(120,50,10,.35)}
-    50%{transform:scale(1.07);box-shadow:0 3px 30px rgba(255,190,110,.95)}}
+  @keyframes poNudge{0%,100%{transform:none;box-shadow:0 4px 14px var(--acc-glow)}
+    50%{transform:scale(1.07);box-shadow:0 4px 34px var(--acc-glow),0 0 0 2px var(--acc)}}
   /* 飛び出しに乗せたときの札 */
   #pop-hint{position:fixed;left:0;top:0;z-index:70;pointer-events:none;white-space:nowrap;opacity:0;transition:opacity .15s;
     padding:6px 12px;border:1px solid #c9a86a;border-radius:999px;background:rgba(36,24,14,.9);color:#ffe9c4;font-size:13px}
@@ -432,7 +457,8 @@
 
   /* goto-toc ボタン */
   #goto-toc{position:fixed;top:14px;left:14px;z-index:60;font-size:1.3rem;border:none;border-radius:50%;
-    width:44px;height:44px;background:rgba(74,58,36,.8);color:#fff;cursor:pointer;opacity:0;pointer-events:none;transition:.4s}
+    width:44px;height:44px;background:rgba(18,14,11,.66);border:1px solid var(--panel-line);color:#fff;cursor:pointer;opacity:0;pointer-events:none;
+    box-shadow:0 4px 16px rgba(0,0,0,.34);transition:opacity .4s,border-color .9s}
   #goto-toc.show{opacity:1;pointer-events:auto}
 
   /* 奥付見開き「外の窓」 */
@@ -484,13 +510,14 @@
   body.zukan-complete #title-card h1::after{content:' 👑'}
   /* ---- 添える操作ガイド: ページ遷移を読める体験へ ---- */
   #book-compass{position:fixed;top:14px;left:50%;z-index:59;display:flex;align-items:center;gap:10px;max-width:min(560px,calc(100vw - 154px));transform:translateX(-50%);padding:7px 9px 7px 13px;border:1px solid rgba(236,217,171,.55);border-radius:999px;background:rgba(46,37,26,.86);box-shadow:0 8px 28px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,250,228,.15);color:#fff5dc;font-family:"Hiragino Mincho ProN","Yu Mincho",serif}
-  .bc-copy{min-width:0;line-height:1.15}.bc-kicker{display:block;color:#dfc486;font:9px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase}.bc-title{display:block;max-width:270px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:700}.bc-count{flex:0 0 auto;color:#dfc486;font:11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}.bc-motion{flex:0 0 auto;border:1px solid rgba(236,217,171,.38);border-radius:999px;padding:6px 9px;background:rgba(255,247,219,.07);color:#f5e2b7;font:10px/1 "Hiragino Mincho ProN","Yu Mincho",serif;cursor:pointer;transition:background .16s ease,transform .16s ease}.bc-motion:hover,.bc-motion:focus-visible{outline:none;background:rgba(245,208,135,.2)}.bc-motion:active{transform:scale(.96)}.bc-motion[aria-pressed="true"]{background:rgba(245,208,135,.25);border-color:#efd28d}
+  .bc-copy{min-width:0;line-height:1.15}.bc-kicker{display:block;color:var(--acc);transition:color .9s;font:9px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase}.bc-title{display:block;max-width:270px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:700}.bc-count{flex:0 0 auto;color:var(--acc);transition:color .9s;font:11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}.bc-motion{flex:0 0 auto;border:1px solid rgba(236,217,171,.38);border-radius:999px;padding:6px 9px;background:rgba(255,247,219,.07);color:#f5e2b7;font:10px/1 "Hiragino Mincho ProN","Yu Mincho",serif;cursor:pointer;transition:background .16s ease,transform .16s ease}.bc-motion:hover,.bc-motion:focus-visible{outline:none;background:rgba(245,208,135,.2)}.bc-motion:active{transform:scale(.96)}.bc-motion[aria-pressed="true"]{background:rgba(245,208,135,.25);border-color:#efd28d}
   /* 頁名の読み上げ用 (めくりそのものが合図なので、画面には出さない) */
   #book-turn-status{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   @media(max-width:640px){#book-compass{top:11px;max-width:calc(100vw - 112px);gap:7px;padding:6px 7px 6px 10px}.bc-title{max-width:116px;font-size:11px}.bc-kicker{font-size:8px}.bc-count{font-size:10px}.bc-motion{padding:6px 7px;font-size:9px}}
 </style><script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
 </head>
 <body>
+<div id="ambience" aria-hidden="true"><div id="amb-par"><div class="amb-img on" id="amb-a" style="background-image:radial-gradient(ellipse 58% 26% at 50% 82%,rgba(255,190,110,.16) 0%,transparent 72%),linear-gradient(180deg,rgba(18,12,9,0) 46%,rgba(18,12,9,.55) 72%,rgba(18,12,9,.92) 100%),url(_ehon_assets/ehon/ambience/bg_library_v1.webp)"></div><div class="amb-img" id="amb-b"></div></div><canvas id="amb-fx"></canvas><div id="amb-bloom"></div></div>
 <div id="stage">
   <div class="ehon-stage">
     <div id="world-a" class="closed active"></div>
@@ -498,7 +525,7 @@
 
   </div>
 </div>
-<div id="title-card"><h1>とびだす絵本の世界</h1><p>ページをめくると、作品がそのまま3Dでとびだす</p></div>
+<div id="title-card"><span class="tc-ch"></span><h1>とびだす絵本の世界</h1><p>ページをめくると、作品がそのまま3Dでとびだす</p></div>
 <div id="mode-toggle">
   <button id="btn-a" class="sel">水彩</button>
   <button id="btn-b">3D</button>
@@ -524,9 +551,10 @@
      PerplexityBot など）には HTML がほぼ空に見えていた。同じ内容をここに置く。 -->
 <noscript>
 <div id="ehon-static">
-  <h1>とびだす絵本の世界 — 11の世界へつづく本</h1>
-  <p>ページをめくると、紙の上に作品そのものが 3D でせり上がるブラウザ絵本です。全 13 ページ。
-  ゲームの背景とキャラクター、音楽の星図、AI の能力地図、日本地図、旅の写真が、紙の仕掛けのように立ち上がります。
+  <h1>とびだす絵本の世界 — 12の世界へつづく本</h1>
+  <p>ページをめくると、紙の上に作品そのものが 3D でせり上がるブラウザ絵本です。全 14 ページ。
+  ゲームの背景とキャラクター、音楽の星図、AI の能力地図、動画づくりの検査、日本地図、旅の写真が、紙の仕掛けのように立ち上がります。
+  めくるたびに、画面全体の景色も、その作品の世界に変わります。
   登録もインストールもいらず、無料で読めます。日替わりで 10 匹のいきものがどこかのページに隠れていて、見つけると図鑑に記録されます。</p>
 
   <h2>この本に入っている世界</h2>
@@ -538,6 +566,7 @@
     <li>ルーン・キューブ — 宙に浮かぶ、異世界立体数独</li>
     <li>将棋ぷよ「成」 — 駒でつなぐ、連鎖の対局</li>
     <li>AI能力アトラス — 326の仕事の、2022→2030年</li>
+    <li>編集ソフトはいらない — AIエージェントで作る動画と、公開前の検査</li>
     <li>ひとり歓迎マップ — 「ひとりで入れるか」を、根拠つきで (全国40,615施設)</li>
     <li>一人旅 — 32の旅と、1,607枚の写真</li>
     <li>浮遊島 — 九つの小さな庭を、ただ歩く</li>
@@ -555,7 +584,7 @@
   制作の工程は <a href="index.html#knowhow">作り方の記録</a> に書いています。</p>
 
   <h2>もっと詳しく</h2>
-  <p>読み方・11 の世界の一覧・よくある質問は
+  <p>読み方・12 の世界の一覧・よくある質問は
   <a href="ehon-about.html">この絵本について</a> にまとめています。
   ほかの作品は <a href="./">ひとりぶんの棚</a> から。</p>
 </div>
@@ -754,6 +783,13 @@ const PAGES = [
    link:'ai-map.html', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:null, quest:null,
    popup:{type:'atlas', show:'forward'},
    animalSpots:[]},
+  {id:'henshu', type:'content', chapter:CH.KENKYU,
+   title:{jp:'編集ソフトはいらない', en:'No Editing Software'}, sub:{jp:'AIエージェントで作る動画と、公開前の検査', en:'Videos made by an AI agent, checked before release'},
+   story:{jp:'半年で138本の動画を、編集ソフトを使わずに作ったんだって。……頼んだ1段落から、AIが台本も声も字幕も作るの。字幕のはみ出しも、小さすぎる音も、公開の前に機械が止める。いっしょに、検査を通してみる？',
+          en:'138 videos in half a year, without any editing software. …From a one-paragraph request, the AI makes the script, the voice and the captions, and machine checks stop overflowing captions and too-quiet sound before release. Shall we run the checks together?'},
+   link:'method/henshu-soft-irazu.html', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:null, quest:null, thumb:'toc_henshu_v2.webp',
+   popup:{type:'studio', show:'qc'},
+   animalSpots:[]},
   {id:'hitori', type:'content', chapter:CH.HITORI,
    title:{jp:'ひとり歓迎マップ', en:'Solo-Welcome Map'}, sub:{jp:'「ひとりで入れるか」を、根拠つきで', en:'Where you can go alone — with sources'},
    story:{jp:'ひとりで入れるお店って、どこにあるのかな。……全国40,615の、食堂・銭湯・図書館の地図だよ。「ひとりで大丈夫」の根拠つき。今夜は、どこへ行こっか？',
@@ -850,6 +886,7 @@ function tt(v) { if (!v) return ''; return v[ehonLang()] || v.jp || v; }
 /* 題の札: 大きく題、その下に小さく副題 */
 function setTitleCard(page) {
   const card = document.getElementById('title-card');
+  card.querySelector('.tc-ch').textContent = page.chapter ? tt(page.chapter) : '';   /* 章の名 (物語・遊ぶ・研究・ひとりの時間) */
   card.querySelector('h1').textContent = tt(page.title);
   card.querySelector('p').textContent = tt(page.sub);
   const sheet = page.type === 'toc' || page.type === 'colophon';
@@ -937,6 +974,10 @@ const KID_LINES = {
     girl: [{jp:'赤いほど、AIにできる仕事', en:'The redder, the more AI can do'}],
     boy:  [{jp:'2030年、ぼくの仕事は？', en:'What will my job be in 2030?'}],
     react: {who:'girl', jp:'2030年は、こんな地図', en:'This is the 2030 map'}},
+  henshu: {
+    girl: [{jp:'編集ソフト、使わないんだって', en:'No editing software at all'}],
+    boy:  [{jp:'見落としは、公開の前に止まるの？', en:'Mistakes get stopped before release?'}],
+    react: {who:'girl', jp:'8月26日からは、50本ぜんぶ目標に', en:'From Aug 26, all 50 hit the target'}},
   hitori: {
     girl: [{jp:'ひとりでも、入っていいお店', en:'Places that welcome you alone'}],
     boy:  [{jp:'銭湯も、図書館もあるの？', en:'Bathhouses and libraries too?'}],
@@ -1040,6 +1081,11 @@ const Sfx = (function () {
     wave(t) { for (let i = 0; i < 12; i++) tone(t + 0.32 + i * 0.075, 700 + i * 70, 0.1, 0.03, 'triangle'); bell(t + 1.6, P[6], 0.055, 1.4); },
     flip(t) { for (let i = 0; i < 8; i++) hiss(t + 0.12 + i * 0.11, 0.2, 0.035, 'bandpass', 2600, 0.9, 1200); bell(t + 1.25, P[4], 0.05, 1.2); },
     lanterns(t) { for (let i = 0; i < 7; i++) bell(t + 0.2 + i * 0.28 + Math.random() * 0.08, P[4 + Math.floor(Math.random() * 6)], 0.035, 1.6); },
+    qc(t) {
+      hiss(t, 0.35, 0.04, 'bandpass', 2400, 0.9, 1100);                     /* 帳面が裏返る */
+      for (let i = 0; i < 14; i++) tone(t + 0.6 + i * 0.18, 880 + (i % 5) * 110, 0.05, 0.02, 'triangle');   /* 点が落ちる */
+      [P[0], P[2], P[4], P[7]].forEach((f) => bell(t + 3.2, f, 0.05, 1.8));   /* 8/26 からは全部が帯の中 */
+    },
     storm(t) {
       hiss(t, 0.18, 0.12, 'highpass', 1800, 0.5);                          /* ぱしっ */
       hiss(t + 0.3, 2.4, 0.3, 'lowpass', 220, 0.9, 55);                     /* ごろごろ */
@@ -1510,6 +1556,7 @@ const EHON = {
     updateNavButtons();
     updateModeToggle(PAGES[this.state.currentPageIdx]);
     refreshAllText();  /* 開いた瞬間に現在頁のタイトル/オーバーレイへ更新 (HTML初期値のままにしない) */
+    if (window.ehonAmbience) window.ehonAmbience(PAGES[this.state.currentPageIdx]);
     updateCompass();
     if (this.state.mode === 'a') {
       document.getElementById('world-a').classList.remove('closed');
@@ -1525,6 +1572,7 @@ const EHON = {
   _landed() {
     this._turning = false;
     announcePage();
+    if (window.ehonAmbienceBloom) window.ehonAmbienceBloom();
     const q = this._queued;
     this._queued = null;
     if (q !== null && q !== this.state.currentPageIdx) {
@@ -1601,6 +1649,7 @@ const EHON = {
       d.classList.toggle('active', i === newIdx));
     updateNavButtons();
     updateCompass();
+    if (window.ehonAmbience) window.ehonAmbience(PAGES[newIdx]);   /* 画面全体の景色・光・粒・色を、次の世界へ */
 
     /* 3D でめくる (水彩モードでは直接差し替え) */
     const dir = newIdx > prevIdx ? 'next' : 'prev';
@@ -2583,6 +2632,7 @@ async function buildWorld(e) {
   const footprint = kind === 'cards' ? await buildCards(e, lift)
     : kind === 'galaxy' ? await buildGalaxy(e, lift)
     : kind === 'atlas' ? await buildAtlas(e, lift)
+    : kind === 'studio' ? buildStudio(e, lift)
     : kind === 'japan' ? await buildJapan(e, lift)
     : kind === 'cube' ? buildCube(e, lift)
     : await buildDiorama(e, lift);
@@ -3639,6 +3689,379 @@ function tickAtlas(e, t) {
   });
   A.cells.instanceMatrix.needsUpdate = true;
   A.cells.instanceColor.needsUpdate = true;
+}
+
+/* ------ 動画の作り方 (編集ソフトはいらない) ------
+   頼んだ 1 段落から、AI エージェントが縦の動画を作り、公開前の検査が見落としを止める。止まるたびに直して、動画がよくなっていく。
+   立つもの: 縦の動画の画面 (スマホ) / 音の大きさの目盛り / 検査の帳面 / 頼む文の紙片。
+   文言と数字は記事 (method/henshu-soft-irazu.html) のまま: 頼み方の例文・サンプルの台本 (script.json)・長すぎる字幕の例・
+   読み違いの例 (五人 → ゴジン)・サンプルを流したときの出力 (音量 -25.2 → -13.9 LUFS、ピーク -2.0 dBTP、冒頭の明るさ 56/255、→ 公開してよい)。
+   仕掛け (qc) では帳面が裏返り、公開中の動画 137 本の音量が日付の順に落ちてくる (記事の図と同じ値: 8/25 までは 87 本中 6 本、8/26 からは 50 本中 50 本が目標の帯) */
+const SANS = '"Hiragino Sans","Yu Gothic UI","Yu Gothic","Meiryo","Noto Sans JP",sans-serif';
+const MONO = 'ui-monospace,SFMono-Regular,Consolas,Menlo,monospace';
+const STUDIO = {
+  title: { jp: 'HTMLで作る縦動画', en: 'A vertical video in HTML' },
+  lines: [   /* サンプルの台本の 6 行 (画面の大きな文字 / 字幕) */
+    { big: { jp: '編集ソフトなし', en: 'No editor' }, cap: { jp: '編集ソフトを開かずに、\n縦の動画を作る', en: 'Making a vertical video\nwithout an editor' } },
+    { big: { jp: 'HTML 1枚', en: '1 HTML page' }, cap: { jp: '画面は、1枚のウェブページ', en: 'The screen is one web page' } },
+    { big: { jp: '__setTime(t)', en: '__setTime(t)' }, cap: { jp: '時刻を渡すと、\nその瞬間の画面になる', en: 'Pass a time,\nget that exact frame' } },
+    { big: { jp: '30コマ／秒', en: '30 fps' }, cap: { jp: '1コマずつ撮って、ffmpeg でつなぐ', en: 'Shoot frame by frame, join with ffmpeg' } },
+    { big: { jp: '0.2秒ごと', en: 'Every 0.2 s' }, cap: { jp: '書き出す前に、\n文字の位置を測る', en: 'Measure text positions\nbefore export' } },
+    { big: { jp: '-14 LUFS', en: '-14 LUFS' }, cap: { jp: '最後に、音量を -14 LUFS にそろえる', en: 'Finally, set loudness to -14 LUFS' } },
+  ],
+  long: { jp: '画面は、1枚のウェブページ。ここに文字も図も写真も置いて、時刻を渡すたびに描き直す。編集ソフトのテンプレートに近いが、全部が文字で書いてあるので、Claude Code に直してもらえる。',
+          en: 'The screen is a single web page. Text, figures and photos all go on it, redrawn every time a time is passed in. It is close to an editing template, but since it is all text, Claude Code can fix it.' },
+  askHead: { jp: '頼む文（記事の例から）', en: 'The request (from the article, translated)' },
+  ask: { jp: ['縦1080×1920のショートを作って。', '……', '書き出す前に0.2秒ごとに文字の位置を測って、', '画面の下から360pxに文字が入っていたら止めて。'],
+         en: ['Make a vertical 1080×1920 Short.', '…', 'Before export, measure text positions every 0.2 s,', 'and stop if any text is in the bottom 360 px.'] },
+  head: { jp: '公開前に止める検査', en: 'Checks that stop it before release' },
+  checks: [
+    { name: { jp: '読み違い', en: 'Misreading' }, ng: { jp: '「五人」を ゴジン… と読む', en: 'reads 五人 as "gojin…"' }, ok: { jp: 'かなで書き直した（ごにん）', en: 'rewritten in kana (go-nin)' } },
+    { name: { jp: '字幕の位置', en: 'Caption position' }, ng: { jp: '下から360px に入っている', en: 'inside the bottom 360 px' }, ok: { jp: '0.2秒ごとに測って OK', en: 'measured every 0.2 s: OK' } },
+    { name: { jp: '音の大きさ', en: 'Loudness' }, ng: { jp: '-25.2 LUFS（目標 -14）', en: '-25.2 LUFS (target -14)' }, ok: { jp: '-25.2 → -13.9 LUFS', en: '-25.2 → -13.9 LUFS' } },
+    { name: { jp: '書き出したあと', en: 'After export' }, ng: { jp: '', en: '' }, ok: { jp: 'ピーク -2.0 dBTP・冒頭の明るさ 56/255', en: 'peak -2.0 dBTP · opening brightness 56/255' } },
+  ],
+  lamps: [{ jp: '音割れ', en: 'Clip' }, { jp: '無音', en: 'Silence' }, { jp: '固まる', en: 'Frozen' }, { jp: '黒いコマ', en: 'Black' }, { jp: '冒頭', en: 'Opening' }],
+  stamp: { jp: '→ 公開してよい', en: '→ OK to publish' },
+  voiceNg: { jp: '五人ぶん → ゴジンブン…', en: '五人ぶん → "GOJIN-bun…"' },
+  voiceOk: { jp: 'ごにんぶん → ゴニンブン', en: 'ごにんぶん → "GONIN-bun"' },
+  chartHead: { jp: '公開中の動画137本の音量', en: 'Loudness of 137 published videos' },
+  chartSub: { jp: '点1つが動画1本。緑の帯が目標（-14±1.5 LUFS）', en: 'One dot per video. Green band = target (-14±1.5 LUFS)' },
+  chartBefore: { jp: '8月25日まで　87本中 6本', en: 'Through Aug 25: 6 of 87' },
+  chartAfter: { jp: '8月26日から　50本中 50本', en: 'From Aug 26: 50 of 50' },
+  chartMark: { jp: '8/26 から書き出すたびに測る', en: 'Measured on every export from Aug 26' },
+  months: { jp: ['3月', '5月', '7月', '9月'], en: ['Mar', 'May', 'Jul', 'Sep'] },
+};
+/* 公開中の動画 137 本の音量: [2026-03-01 からの日数, perceptualLoudnessDb] (記事の図と同じ取得値。8/26 = 178 日目) */
+const LOUD137 = [17,-25.3,18,-25.4,19,-30.2,20,-30.4,20,-13.9,34,-20.9,37,-20.8,39,-30.2,40,-30.5,40,-30.3,41,-30.2,42,-30.8,48,-27.9,55,-29.3,56,-29.2,62,-26.6,63,-28.9,63,-25.6,64,-19.9,65,-21.5,65,-20.1,65,-19.9,66,-22.7,66,-22.3,67,-30.9,67,-29.1,69,-29.8,69,-29.7,73,-20.3,74,-24.6,74,-24.4,74,-24.4,74,-23.7,75,-23.8,76,-24.4,76,-24.2,76,-24.1,76,-23.7,79,-21.1,80,-24.3,81,-24.0,83,-21.4,83,-21.1,83,-21.0,83,-20.0,84,-31.1,84,-21.0,85,-20.1,90,-29.9,90,-20.0,91,-29.1,93,-29.6,93,-29.6,93,-29.6,93,-29.5,93,-29.5,97,-28.9,98,-29.7,98,-20.9,98,-20.9,98,-19.9,98,-19.0,99,-19.0,101,-18.8,102,-18.8,104,-30.9,105,-20.6,105,-20.2,110,-29.5,112,-29.5,115,-30.1,122,-20.1,122,-19.7,128,-20.4,153,-13.7,161,-17.5,162,-13.4,163,-13.8,163,-13.6,174,-24.2,174,-24.1,175,-17.6,175,-14.5,176,-24.7,176,-22.9,176,-22.4,176,-6.6,178,-13.9,189,-14.9,189,-14.8,189,-14.7,189,-14.4,189,-14.1,189,-14.1,190,-14.6,190,-14.5,190,-14.4,190,-14.4,190,-14.4,190,-14.2,190,-14.1,191,-14.4,192,-14.7,193,-15.1,193,-14.7,193,-14.6,193,-14.6,194,-14.7,195,-15.1,195,-14.9,195,-14.9,195,-14.7,196,-15.1,196,-14.8,196,-14.7,196,-14.5,197,-14.5,197,-14.4,198,-14.7,198,-14.5,200,-14.7,201,-14.6,202,-15.2,202,-14.8,202,-14.2,203,-14.4,203,-14.4,203,-14.4,204,-15.2,204,-14.8,204,-14.7,204,-14.2,204,-14.1,204,-13.9,205,-14.4,206,-15.0,206,-14.9];
+const STUDIO_CUT = 178;
+function studioWrap(g, text, maxW, en) {   /* 字幕の折り返し (日本語は字ごと、英語は語ごと) */
+  const out = [];
+  for (const para of text.split('\n')) {
+    const units = en ? para.split(/(?<= )/) : [...para];
+    let cur = '';
+    for (const u of units) {
+      if (cur && g.measureText(cur + u).width > maxW) { out.push(cur.trimEnd()); cur = u.trimStart(); } else cur += u;
+    }
+    out.push(cur);
+  }
+  return out;
+}
+function studioFit(g, text, maxW, size, weight, face) {
+  g.font = `${weight} ${size}px ${face}`;
+  const w = g.measureText(text).width;
+  if (w > maxW) g.font = `${weight} ${Math.floor(size * maxW / w)}px ${face}`;
+}
+/* 縦の動画の画面 (サンプルの scene.html と同じ組み: 紺の地・左上の黄色い題・カードの大きな文字・行の点・字幕の帯)。
+   絵本の上で読めるよう、文字は本物より大きめ。字幕の帯は下から 360px の線 (0.8125) を越えると検査に止められる */
+function drawStudioScreen(g, cw, ch, S) {
+  const lang = ehonLang(), en = lang === 'en';
+  const gr = g.createLinearGradient(0, 0, cw * 0.36, ch);
+  gr.addColorStop(0, '#0f172a'); gr.addColorStop(1, '#1e3a8a');
+  g.fillStyle = gr; g.fillRect(0, 0, cw, ch);
+  if (S.mode === 'build') {   /* まだ作っているところ: 台本から組み立て中 */
+    g.fillStyle = 'rgba(248,250,252,.55)'; g.font = `600 ${Math.round(ch * 0.03)}px ${MONO}`; g.textBaseline = 'top';
+    const rows = ['script.json', 'voice.py', 'scene.html', 'render.py'];
+    rows.forEach((r, k) => { g.globalAlpha = k <= S.build ? 1 : 0.2; g.fillText((k <= S.build ? '▸ ' : '  ') + r, cw * 0.1, ch * (0.36 + k * 0.06)); });
+    g.globalAlpha = 1;
+    g.fillStyle = '#facc15'; g.font = `700 ${Math.round(ch * 0.034)}px ${SANS}`;
+    g.fillText(en ? 'Building…' : '作っています…', cw * 0.1, ch * 0.28);
+    return;
+  }
+  const L = STUDIO.lines[S.line];
+  g.textBaseline = 'top'; g.textAlign = 'left';
+  g.fillStyle = '#facc15'; g.font = `700 ${Math.round(ch * 0.032)}px ${SANS}`; g.fillText(tt(STUDIO.title), cw * 0.06, ch * 0.06);
+  g.fillStyle = 'rgba(255,255,255,.09)'; g.beginPath(); g.roundRect(cw * 0.06, ch * 0.14, cw * 0.88, ch * 0.24, 22); g.fill();
+  g.fillStyle = '#f8fafc'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  studioFit(g, tt(L.big), cw * 0.78, Math.round(ch * 0.078), 800, SANS); g.fillText(tt(L.big), cw / 2, ch * 0.262);
+  for (let k = 0; k < 6; k++) {   /* 台本の何行目か */
+    g.fillStyle = k <= S.line ? '#facc15' : 'rgba(255,255,255,.22)';
+    g.beginPath(); g.arc(cw * 0.08 + k * cw * 0.06, ch * 0.43, ch * 0.011, 0, Math.PI * 2); g.fill();
+  }
+  const cap = S.long ? tt(STUDIO.long) : tt(L.cap);
+  const fs = Math.round(ch * 0.042), pad = ch * 0.018, lh = fs * 1.45, bw = cw * 0.72;
+  g.font = `700 ${fs}px ${SANS}`;
+  const rows = studioWrap(g, cap, bw - pad * 2, en);
+  const y0 = ch * 0.573, bh = rows.length * lh + pad * 2;
+  g.fillStyle = 'rgba(2,6,23,.62)'; g.beginPath(); g.roundRect(cw * 0.06, y0, bw, bh, 14); g.fill();
+  if (S.long) { g.strokeStyle = 'rgba(248,113,113,.95)'; g.lineWidth = 3; g.stroke(); }   /* 検査の目: はみ出した字幕の帯 */
+  g.fillStyle = '#f8fafc'; g.textAlign = 'left'; g.textBaseline = 'top';
+  rows.forEach((r, k) => g.fillText(r, cw * 0.06 + pad, y0 + pad + k * lh + fs * 0.12));
+}
+/* 文字を置かない場所 (下から 360px・右のボタンの列)。記事のデモの「検査の目で見る」と同じ赤い斜線 */
+function drawStudioZone(g, cw, ch) {
+  const hatch = (x, y, w, h) => {
+    g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+    g.fillStyle = 'rgba(239,68,68,.28)'; g.fillRect(x, y, w, h);
+    g.strokeStyle = 'rgba(239,68,68,.75)'; g.lineWidth = 3;
+    for (let k = -h; k < w + h; k += 18) { g.beginPath(); g.moveTo(x + k, y + h); g.lineTo(x + k + h, y); g.stroke(); }
+    g.restore();
+    g.strokeStyle = 'rgba(239,68,68,.95)'; g.lineWidth = 3; g.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+  };
+  hatch(0, ch * 0.8125, cw, ch * 0.1875);
+  hatch(cw * 0.796, ch * 0.396, cw * 0.204, ch * 0.417);
+}
+/* 仕上がる前のざらつき (検査が通るごとに薄くなる) */
+function drawStudioGrain(g, cw, ch) {
+  let seed = 5;
+  const R = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let y = 0; y < ch; y += 4) { g.fillStyle = `rgba(0,0,0,${0.18 + R() * 0.12})`; g.fillRect(0, y, cw, 2); }
+  for (let k = 0; k < 900; k++) { g.fillStyle = `rgba(255,255,255,${R() * 0.2})`; g.fillRect(R() * cw, R() * ch, 2, 2); }
+}
+/* 音の大きさの目盛り (-34 〜 -4 LUFS、緑の帯が -14±1.5)。v の位置まで満ちる */
+function drawStudioMeter(g, cw, ch, v) {
+  const Y = (x) => ch * (0.08 + (-4 - x) / 30 * 0.8);
+  g.clearRect(0, 0, cw, ch);
+  g.fillStyle = 'rgba(12,16,32,.88)'; g.beginPath(); g.roundRect(4, 4, cw - 8, ch - 8, 12); g.fill();
+  g.fillStyle = 'rgba(46,158,91,.35)'; g.fillRect(cw * 0.2, Y(-12.5), cw * 0.6, Y(-15.5) - Y(-12.5));
+  const ok = Math.abs(v + 14) <= 1.5;
+  g.fillStyle = ok ? '#34d399' : '#f87171';
+  g.fillRect(cw * 0.34, Y(v), cw * 0.32, ch * 0.88 - Y(v));
+  g.fillStyle = 'rgba(248,250,252,.7)'; g.font = `600 ${Math.round(cw * 0.2)}px ${MONO}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const t of [-10, -20, -30]) { g.fillRect(cw * 0.12, Y(t), cw * 0.1, 2); }
+  g.fillStyle = ok ? '#a7f3d0' : '#fecaca'; g.font = `700 ${Math.round(cw * 0.24)}px ${MONO}`;
+  g.fillText(v.toFixed(1), cw / 2, ch * 0.935);
+  g.fillStyle = 'rgba(248,250,252,.8)'; g.font = `600 ${Math.round(cw * 0.17)}px ${MONO}`; g.fillText('LUFS', cw / 2, ch * 0.035 + 8);
+}
+/* 検査の帳面。state: 各行 'wait' | 'run' | 'ng' | 'ok'、lamps: 書き出したあとの検査がいくつ通ったか */
+function drawStudioLedger(g, cw, ch, st) {
+  const en = ehonLang() === 'en';
+  g.clearRect(0, 0, cw, ch);
+  g.fillStyle = 'rgba(250,246,236,.97)'; g.beginPath(); g.roundRect(6, 6, cw - 12, ch - 12, 18); g.fill();
+  g.strokeStyle = 'rgba(176,138,62,.85)'; g.lineWidth = 3; g.beginPath(); g.roundRect(14, 14, cw - 28, ch - 28, 12); g.stroke();
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  g.fillStyle = '#1b1a17'; studioFit(g, tt(STUDIO.head), cw * 0.78, Math.round(ch * 0.05), 800, SANS); g.fillText(tt(STUDIO.head), cw * 0.08, ch * 0.085);
+  g.fillStyle = '#8a7a5e'; g.font = `600 ${Math.round(ch * 0.026)}px ${MONO}`; g.fillText('video_qc.py', cw * 0.08, ch * 0.135);
+  STUDIO.checks.forEach((C, k) => {
+    const y = ch * (0.2 + k * 0.15), sv = st.rows[k];
+    if (sv === 'run' || sv === 'ng') { g.fillStyle = sv === 'ng' ? 'rgba(239,68,68,.1)' : 'rgba(250,204,21,.16)'; g.fillRect(22, y - ch * 0.015, cw - 44, ch * 0.14); }
+    g.fillStyle = '#1b1a17'; studioFit(g, tt(C.name), cw * 0.62, Math.round(ch * 0.042), 800, SANS); g.fillText(tt(C.name), cw * 0.08, y + ch * 0.028);
+    const det = sv === 'ok' ? tt(C.ok) : sv === 'ng' ? tt(C.ng) : '';
+    if (det) { g.fillStyle = sv === 'ok' ? '#15803d' : '#b91c1c'; studioFit(g, det, cw * 0.72, Math.round(ch * 0.03), 700, SANS); g.fillText(det, cw * 0.08, y + ch * 0.085); }
+    if (k === 3) {   /* 書き出したあとの 5 つ */
+      STUDIO.lamps.forEach((L, j) => {
+        const x = cw * (0.1 + j * 0.17), yy = y + (sv === 'ok' ? ch * 0.125 : ch * 0.09), on = j < st.lamps;
+        g.fillStyle = on ? '#16a34a' : 'rgba(27,26,23,.18)'; g.beginPath(); g.arc(x, yy, ch * 0.012, 0, Math.PI * 2); g.fill();
+        g.fillStyle = on ? '#14532d' : 'rgba(27,26,23,.4)'; studioFit(g, tt(L), cw * 0.15, Math.round(ch * 0.022), 700, SANS);
+        g.textAlign = 'center'; g.fillText(tt(L), x, yy + ch * 0.03); g.textAlign = 'left';
+      });
+    }
+    const ix = cw * 0.86, iy = y + ch * 0.03, r = ch * 0.03;   /* ○ まだ / ✕ 止めた / ✓ 通った */
+    g.lineWidth = 4;
+    if (sv === 'ok') { g.fillStyle = '#16a34a'; g.beginPath(); g.arc(ix, iy, r, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(ix - r * 0.45, iy); g.lineTo(ix - r * 0.1, iy + r * 0.38); g.lineTo(ix + r * 0.5, iy - r * 0.4); g.stroke(); }
+    else if (sv === 'ng') { g.fillStyle = '#dc2626'; g.beginPath(); g.arc(ix, iy, r, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(ix - r * 0.38, iy - r * 0.38); g.lineTo(ix + r * 0.38, iy + r * 0.38); g.moveTo(ix + r * 0.38, iy - r * 0.38); g.lineTo(ix - r * 0.38, iy + r * 0.38); g.stroke(); }
+    else { g.strokeStyle = sv === 'run' ? '#ca8a04' : 'rgba(27,26,23,.3)'; g.beginPath(); g.arc(ix, iy, r * 0.8, 0, Math.PI * 2); g.stroke(); }
+  });
+}
+/* 帳面の裏: 公開中の動画 137 本の音量 (軸・目標の帯・8/26 の線・本数)。点は 3D の点で落とす */
+const STUDIO_PLOT = { x0: 0.12, x1: 0.94, y0: 0.2, y1: 0.76, d0: 0, d1: 213, v0: -4, v1: -34 };
+function drawStudioChart(g, cw, ch) {
+  const P = STUDIO_PLOT, X = (d) => cw * (P.x0 + (d - P.d0) / (P.d1 - P.d0) * (P.x1 - P.x0)), Y = (v) => ch * (P.y0 + (v - P.v0) / (P.v1 - P.v0) * (P.y1 - P.y0));
+  g.clearRect(0, 0, cw, ch);
+  g.fillStyle = 'rgba(252,251,248,.98)'; g.beginPath(); g.roundRect(6, 6, cw - 12, ch - 12, 18); g.fill();
+  g.strokeStyle = 'rgba(176,138,62,.85)'; g.lineWidth = 3; g.beginPath(); g.roundRect(14, 14, cw - 28, ch - 28, 12); g.stroke();
+  g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillStyle = '#1b1a17';
+  studioFit(g, tt(STUDIO.chartHead), cw * 0.84, Math.round(ch * 0.048), 800, SANS); g.fillText(tt(STUDIO.chartHead), cw * 0.08, ch * 0.08);
+  g.fillStyle = '#6b6862'; studioFit(g, tt(STUDIO.chartSub), cw * 0.84, Math.round(ch * 0.026), 600, SANS); g.fillText(tt(STUDIO.chartSub), cw * 0.08, ch * 0.13);
+  g.fillStyle = 'rgba(46,158,91,.22)'; g.fillRect(X(P.d0), Y(-12.5), X(P.d1) - X(P.d0), Y(-15.5) - Y(-12.5));
+  g.font = `600 ${Math.round(ch * 0.025)}px ${SANS}`; g.fillStyle = '#6b6862'; g.textAlign = 'right';
+  for (const v of [-10, -20, -30]) { g.fillText(String(v), X(P.d0) - 8, Y(v)); g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(X(P.d0), Y(v), X(P.d1) - X(P.d0), 1); g.fillStyle = '#6b6862'; }
+  g.textAlign = 'left';
+  const mo = STUDIO.months[ehonLang() === 'en' ? 'en' : 'jp'];
+  [0, 61, 122, 184].forEach((d, k) => g.fillText(mo[k], X(d) + 2, Y(P.v1) + ch * 0.03));   /* 3/1・5/1・7/1・9/1 */
+  g.fillStyle = '#17693a'; g.font = `800 ${Math.round(ch * 0.027)}px ${SANS}`; g.fillText(ehonLang() === 'en' ? 'Target -14' : '目標 -14', X(P.d0) + 6, Y(-12.5) - ch * 0.018);
+  g.fillStyle = '#0b0b0b'; g.fillRect(X(STUDIO_CUT) - 1.5, Y(P.v0), 3, Y(P.v1) - Y(P.v0));
+  g.fillStyle = '#1b1a17'; studioFit(g, tt(STUDIO.chartMark), cw * 0.6, Math.round(ch * 0.022), 700, SANS); g.textAlign = 'right';
+  g.fillText(tt(STUDIO.chartMark), X(STUDIO_CUT) - 6, Y(P.v1) - ch * 0.02); g.textAlign = 'left';
+  const card = (x, w, bg, fg, text) => {
+    g.fillStyle = bg; g.beginPath(); g.roundRect(x, ch * 0.83, w, ch * 0.1, 12); g.fill();
+    g.fillStyle = fg; studioFit(g, text, w - 20, Math.round(ch * 0.034), 800, SANS); g.fillText(text, x + 10, ch * 0.88);
+  };
+  card(cw * 0.06, cw * 0.43, 'rgba(224,69,43,.12)', '#a3291a', tt(STUDIO.chartBefore));
+  card(cw * 0.51, cw * 0.43, 'rgba(31,138,76,.14)', '#146c3a', tt(STUDIO.chartAfter));
+}
+const STUDIO_DOT_VERT = `
+attribute float aT; attribute vec3 aCol; uniform float uT, uScale, uDot; varying vec3 vCol; varying float vA;
+void main() {
+  float k = clamp((uT - aT) / 0.35, 0.0, 1.0), e = k * k * (3.0 - 2.0 * k);
+  vec3 p = position; p.y += (1.0 - e) * 0.55;   /* 上から落ちてくる */
+  vA = k; vCol = aCol;
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = uDot * uScale / -mv.z * (0.5 + 0.5 * e);   /* 点の大きさは帳面の上の長さ (uDot) で決める */
+}`;
+const STUDIO_DOT_FRAG = `
+varying vec3 vCol; varying float vA;
+void main() {
+  vec2 d = gl_PointCoord - 0.5; float r = length(d);
+  if (r > 0.5 || vA <= 0.0) discard;
+  gl_FragColor = vec4(vCol, vA * (1.0 - smoothstep(0.38, 0.5, r)) * 0.9);
+  #include <colorspace_fragment>
+}`;
+function studioPlane(w, h, cw, ch, opts) {   /* キャンバスを貼った板 (描き直すたびに needsUpdate)。overlay = 上に重ねる板 (奥行きを書かない) */
+  const { overlay, ...mat } = opts || {};
+  const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: !overlay, ...mat }));
+  return { mesh: m, g: c.getContext('2d'), tex, cw, ch };
+}
+function buildStudio(e, lift) {
+  const G = new THREE.Group(); G.scale.setScalar(1.18); lift.add(G);   /* ほかの頁の飛び出しと同じくらいの大きさに */
+  const hinge = (x, z, ry, lean) => {   /* 根元で起き上がる板の軸 (向き ry、奥へ傾く lean) */
+    const outer = new THREE.Group(); outer.position.set(x, 0.01, z); outer.rotation.y = ry; G.add(outer);
+    const h = new THREE.Group(); outer.add(h); h.userData.lean = lean;
+    return h;
+  };
+  /* 縦の動画の画面: 黒い縁 (台紙の上) に、画面・文字を置かない場所・ざらつき・再生の線 */
+  const PW = 1.8, PH = 3.2, phone = hinge(-1.0, -0.35, 0.08, 0.1);
+  const bez = studioPlane(PW + 0.18, PH + 0.18, 140, 244);
+  bez.g.fillStyle = '#05070d'; bez.g.beginPath(); bez.g.roundRect(0, 0, 140, 244, 16); bez.g.fill();
+  bez.g.strokeStyle = 'rgba(255,255,255,.18)'; bez.g.lineWidth = 2; bez.g.beginPath(); bez.g.roundRect(1, 1, 138, 242, 15); bez.g.stroke();
+  bez.tex.needsUpdate = true;
+  bez.mesh.position.y = PH / 2 + 0.12; phone.add(bez.mesh);
+  const rim = new THREE.Mesh(new THREE.PlaneGeometry(PW + 0.9, PH + 0.9), new THREE.MeshBasicMaterial({ map: getGlowTexture(), color: 0x9ff5c8, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+  rim.position.set(0, PH / 2 + 0.12, -0.02); rim.renderOrder = 1; phone.add(rim);   /* 検査が通るほど、画面のまわりが明るむ */
+  const scr = studioPlane(PW, PH, 432, 768);
+  scr.mesh.position.set(0, PH / 2 + 0.12, 0.004); phone.add(scr.mesh);
+  const zone = studioPlane(PW, PH, 216, 384, { overlay: true, opacity: 0 });
+  drawStudioZone(zone.g, 216, 384); zone.tex.needsUpdate = true;
+  zone.mesh.position.set(0, PH / 2 + 0.12, 0.008); zone.mesh.renderOrder = 3; phone.add(zone.mesh);
+  const grain = studioPlane(PW, PH, 216, 384, { overlay: true, opacity: 0.45 });
+  drawStudioGrain(grain.g, 216, 384); grain.tex.needsUpdate = true;
+  grain.mesh.position.set(0, PH / 2 + 0.12, 0.006); grain.mesh.renderOrder = 2; phone.add(grain.mesh);
+  const bar = new THREE.Mesh(new THREE.PlaneGeometry(PW, 0.035), new THREE.MeshBasicMaterial({ color: 0xfacc15, toneMapped: false }));
+  bar.geometry.translate(PW / 2, 0, 0); bar.position.set(-PW / 2, PH + 0.12 - 0.02, 0.009); bar.scale.x = 0.001; phone.add(bar);
+  /* 音の大きさの目盛り (画面の右) */
+  const meterH = hinge(0.12, -0.3, -0.05, 0.1), meter = studioPlane(0.36, 2.3, 96, 612);
+  meter.mesh.position.y = 1.15 + 0.3; meterH.add(meter.mesh);
+  /* 検査の帳面 (表は検査、裏は 137 本の音量) */
+  const LW = 2.4, LH = 3.0, ledgerH = hinge(1.58, -0.12, -0.26, 0.16);
+  const flip = new THREE.Group(); flip.position.y = LH / 2 + 0.1; ledgerH.add(flip);
+  const led = studioPlane(LW, LH, 512, 640); flip.add(led.mesh);
+  const back = studioPlane(LW, LH, 512, 640); back.mesh.rotation.y = Math.PI; flip.add(back.mesh);
+  const stamp = studioPlane(1.7, 0.45, 380, 100, { overlay: true, opacity: 0 });
+  stamp.mesh.position.set(0.05, -LH / 2 + 0.26, 0.02); stamp.mesh.rotation.z = 0.08; stamp.mesh.renderOrder = 4; flip.add(stamp.mesh);
+  /* 137 本の点 (帳面の裏の、図の枠の中) */
+  const P = STUDIO_PLOT, pos = [], cols = [], ts = [], red = new THREE.Color(0xd9534f), green = new THREE.Color(0x1f8a4c);
+  for (let k = 0; k < LOUD137.length; k += 2) {
+    const d = LOUD137[k], v = LOUD137[k + 1];
+    const u = P.x0 + (d - P.d0) / (P.d1 - P.d0) * (P.x1 - P.x0), w = P.y0 + (v - P.v0) / (P.v1 - P.v0) * (P.y1 - P.y0);
+    pos.push(-(u - 0.5) * LW, (0.5 - w) * LH, -0.012);   /* 裏の板は後ろ向き: x は左右が逆 */
+    const c = d >= STUDIO_CUT ? green : red; cols.push(c.r, c.g, c.b);
+    ts.push(0.55 + (d - 17) / (206 - 17) * 2.5);   /* 日付の順に落ちる */
+  }
+  const dg = new THREE.BufferGeometry();
+  dg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  dg.setAttribute('aCol', new THREE.Float32BufferAttribute(cols, 3));
+  dg.setAttribute('aT', new THREE.Float32BufferAttribute(ts, 1));
+  const dots = new THREE.Points(dg, new THREE.ShaderMaterial({ uniforms: { uT: { value: -1 }, uScale: { value: 1000 }, uDot: { value: 0.07 * 1.18 } },
+    vertexShader: STUDIO_DOT_VERT, fragmentShader: STUDIO_DOT_FRAG, transparent: true, depthWrite: false }));
+  dots.frustumCulled = false; dots.renderOrder = 5; dots.visible = false; flip.add(dots);
+  /* 頼む文の紙片 (手前の頁に、寝かせぎみに立てかけて。スマホでは頁送りのボタンにかからない位置) */
+  const slipH = hinge(-1.95, 1.5, 0.32, 0.95), slip = studioPlane(1.8, 1.1, 420, 258);
+  slip.mesh.position.y = 0.55 + 0.06; slipH.add(slip.mesh);
+  /* 声の読み (画面の左上に浮かぶ吹き出し) */
+  const voice = makeLabel(1.9, 0.5, (g, cw, ch, ok) => {
+    g.fillStyle = ok ? 'rgba(236,253,245,.97)' : 'rgba(254,242,242,.97)'; g.beginPath(); g.roundRect(4, 4, cw - 8, ch - 8, ch * 0.4); g.fill();
+    g.strokeStyle = ok ? '#16a34a' : '#dc2626'; g.lineWidth = 4; g.stroke();
+    g.fillStyle = ok ? '#14532d' : '#991b1b'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const t = tt(ok ? STUDIO.voiceOk : STUDIO.voiceNg); studioFit(g, t, cw * 0.86, Math.round(ch * 0.42), 800, SANS); g.fillText(t, cw / 2, ch / 2);
+  });
+  voice.mesh.geometry.dispose();
+  const voiceSp = new THREE.Sprite(new THREE.SpriteMaterial({ map: voice.mesh.material.map, transparent: true, opacity: 0, depthTest: false, depthWrite: false, toneMapped: false }));
+  voiceSp.scale.set(1.9, 0.5, 1); voiceSp.renderOrder = 8; voiceSp.visible = false; G.add(voiceSp);
+  e.studio = { phone, meterH, ledgerH, slipH, flip, bez, rim, scr, zone, grain, bar, meter, led, back, stamp, dots, slip, voice, voiceSp,
+               PW, PH, t0: null, key: '', ledKey: '', slipKey: '', meterV: null, lang: null, backLang: null, stampLang: null };
+  e.pose = poseStudio;
+  e.tick = tickStudio;
+  e.warmRise = 1;
+  e.showDur = 5.0;
+  e.focus.set(0, 2.0, -0.35);
+  return 6.6;
+}
+function poseStudio(e, r) {
+  const S = e.studio, p = Math.min(1.1, r);
+  for (const h of [S.phone, S.meterH, S.ledgerH, S.slipH]) { h.rotation.x = plateAngle(p, h.userData.lean); h.visible = r > 0.03; }
+  if (r < 0.99) S.t0 = null;
+}
+/* 20 秒でひと巡り: 頼む → 作る → 読み違いで止めて直す → 字幕の位置で止めて直す → 音量をそろえる → 書き出したあとの 5 つ → 公開してよい → 通しで流れる */
+const STUDIO_LOOP = 20;
+function studioState(T) {
+  const st = { rows: ['wait', 'wait', 'wait', 'wait'], lamps: 0, q: 0, mode: 'frame', line: 1, long: true, build: -1, typed: 1, zone: 0, meter: -25.2, voice: 0, stamp: 0, play: -1 };
+  st.typed = Math.min(1, T / 2.0);
+  if (T < 2.3) { st.mode = 'build'; st.build = Math.floor(Math.max(0, T - 0.6) / 0.4); }
+  const phase = (a, b) => T >= a && T < b;
+  if (T >= 2.8) st.rows[0] = T < 3.3 ? 'run' : T < 4.5 ? 'ng' : 'ok';
+  if (phase(3.3, 4.5)) st.voice = -1; else if (phase(4.5, 5.6)) st.voice = 1;
+  if (T >= 5.2) st.rows[1] = T < 5.8 ? 'run' : T < 7.1 ? 'ng' : 'ok';
+  if (phase(5.8, 7.1)) st.zone = 1;
+  if (T >= 7.0) st.long = false;
+  if (T >= 8.0) st.rows[2] = T < 8.4 ? 'run' : T < 9.8 ? 'ng' : 'ok';
+  st.meter = T < 9.0 ? -25.2 : T < 9.8 ? -25.2 + (11.3) * sstep(9.0, 9.8, T) : -13.9;
+  if (T >= 10.4) st.rows[3] = T < 12.1 ? 'run' : 'ok';
+  st.lamps = T < 10.6 ? 0 : Math.min(5, 1 + Math.floor((T - 10.6) / 0.3));
+  st.q = (st.rows.filter((x) => x === 'ok').length) / 4;
+  if (T >= 12.3) st.stamp = sstep(12.3, 12.55, T) * (1 - sstep(19.3, 19.9, T));
+  if (T >= 12.8) { st.play = Math.min(1, (T - 12.8) / 5.4); st.line = Math.min(5, Math.floor((T - 12.8) / 0.9)); }
+  return st;
+}
+function tickStudio(e, t) {
+  const S = e.studio, s = t / 1000, a = e.showAge, lang = ehonLang();
+  if (!S) return;
+  if (e.rise < 0.99 || e.anim) { S.t0 = null; }
+  else if (S.t0 === null || a >= 0) S.t0 = a >= 0 ? s - 12.8 - 5.4 : s;   /* 仕掛けのあとは、通しで流れ終わったところから */
+  const T = S.t0 === null ? 0 : (s - S.t0) % STUDIO_LOOP;
+  const st = studioState(T);
+  /* 画面 (変わったときだけ描き直す) */
+  const key = [st.mode, st.build, st.line, st.long, lang].join('|');
+  if (key !== S.key) { S.key = key; drawStudioScreen(S.scr.g, S.scr.cw, S.scr.ch, st); S.scr.tex.needsUpdate = true; }
+  S.zone.mesh.material.opacity = st.zone * (0.65 + 0.3 * Math.sin(s * 9));
+  S.grain.mesh.material.opacity = 0.45 * (1 - st.q) * (st.mode === 'build' ? 0.6 : 1);
+  S.rim.material.opacity = 0.95 * st.q * (0.85 + 0.15 * Math.sin(s * 2.4));   /* 検査が通るほど、画面のまわりが明るむ */
+  S.bar.scale.x = Math.max(0.001, st.play >= 0 ? st.play : st.mode === 'build' ? 0.001 : 0.12);
+  if (S.meterV === null || Math.abs(S.meterV - st.meter) > 0.05) { S.meterV = st.meter; drawStudioMeter(S.meter.g, S.meter.cw, S.meter.ch, st.meter); S.meter.tex.needsUpdate = true; }
+  /* 帳面 */
+  const lk = st.rows.join(',') + '|' + st.lamps + '|' + lang;
+  if (lk !== S.ledKey) { S.ledKey = lk; drawStudioLedger(S.led.g, S.led.cw, S.led.ch, st); S.led.tex.needsUpdate = true; }
+  if (S.stampLang !== lang) {
+    S.stampLang = lang; const g = S.stamp.g; g.clearRect(0, 0, 380, 100);
+    g.strokeStyle = '#15803d'; g.lineWidth = 6; g.beginPath(); g.roundRect(6, 6, 368, 88, 16); g.stroke();
+    g.fillStyle = '#15803d'; g.textAlign = 'center'; g.textBaseline = 'middle'; studioFit(g, tt(STUDIO.stamp), 330, 52, 800, SANS); g.fillText(tt(STUDIO.stamp), 190, 52);
+    S.stamp.tex.needsUpdate = true;
+  }
+  S.stamp.mesh.material.opacity = st.stamp * 0.92;
+  S.stamp.mesh.scale.setScalar(1 + 0.6 * (1 - sstep(12.3, 12.55, T)) * (T < 12.6 ? 1 : 0));
+  /* 頼む文 (打っていくように) */
+  const n = Math.round(st.typed * 60), sk = n + '|' + lang;
+  if (sk !== S.slipKey) {
+    S.slipKey = sk; const g = S.slip.g, cw = S.slip.cw, ch = S.slip.ch;
+    g.clearRect(0, 0, cw, ch);
+    g.fillStyle = 'rgba(250,246,236,.97)'; g.beginPath(); g.roundRect(4, 4, cw - 8, ch - 8, 12); g.fill();
+    g.strokeStyle = 'rgba(176,138,62,.8)'; g.lineWidth = 2.5; g.stroke();
+    g.fillStyle = '#8a7a5e'; g.textBaseline = 'top'; g.textAlign = 'left'; studioFit(g, tt(STUDIO.askHead), cw * 0.88, 20, 700, SANS); g.fillText(tt(STUDIO.askHead), 18, 16);
+    let left = n;
+    STUDIO.ask[lang === 'en' ? 'en' : 'jp'].forEach((line, k) => {
+      const part = line.slice(0, Math.max(0, Math.min(line.length, Math.ceil(left * line.length / 15))));
+      left -= 15;
+      g.fillStyle = '#1b1a17'; studioFit(g, line, cw - 36, 25, 700, SANS); g.fillText(part, 18, 52 + k * 46);
+    });
+    S.slip.tex.needsUpdate = true;
+  }
+  /* 声の読み (画面の左上) */
+  if (st.voice !== 0) {
+    const ok = st.voice > 0, vk = ok + lang;
+    if (S.voiceKey !== vk) { S.voiceKey = vk; S.voice.redraw(ok); }
+    const wp = S.phone.parent.position;
+    S.voiceSp.position.set(wp.x - 0.35, 3.72, wp.z + 0.3);
+    S.voiceSp.visible = true; S.voiceSp.material.opacity = 1;
+  } else S.voiceSp.visible = false;
+  /* 仕掛け: 帳面が裏返って、137 本の音量が日付の順に落ちてくる */
+  const f = a >= 0 ? sstep(0, 0.5, a) * (1 - sstep(4.4, 5.0, a)) : 0;
+  S.flip.rotation.y = Math.PI * f;
+  if (a >= 0 && S.backLang !== lang) { S.backLang = lang; drawStudioChart(S.back.g, S.back.cw, S.back.ch); S.back.tex.needsUpdate = true; }
+  S.dots.visible = a >= 0 && f > 0.5;
+  S.dots.material.uniforms.uT.value = a;
+  S.dots.material.uniforms.uScale.value = V.renderer.domElement.height / (2 * Math.tan(V.cam.fov * Math.PI / 360));   /* 画面の px (実の画素) */
 }
 
 /* ひとり歓迎マップ: 47 都道府県の地図が、店の数に合わせた高さでせり上がり、北から順にピンが立つ。
@@ -5110,7 +5533,7 @@ function finishTurn(forced) {
 /* ------ 仕掛け: 飛び出しを押すと、その作品らしい見せ場が数秒動く ------
    世界ごとの見せ場は、それぞれの tick が e.showAge (押してからの秒、動いていなければ -1) を見て動かす */
 const SHOW_REACT_AT = { comet: 1400, weave: 1700, verdict: 3300, sing: 900, solve: 1500, chain: 2500,
-                        forward: 2300, wave: 1600, flip: 1100, lanterns: 1500, storm: 700 };   /* 案内人がひとこと言う時刻 (ms) */
+                        forward: 2300, wave: 1600, flip: 1100, lanterns: 1500, storm: 700, qc: 3300 };   /* 案内人がひとこと言う時刻 (ms) */
 function playShow(e) {
   if (!e || !e.showDur || e !== curWorld || turn || e.anim || e.rise < 0.99 || !e.root || !e.root.parent) return false;
   if (e.showT0 !== null) return false;   /* 動いている途中に押しても、はじめからにはしない */
@@ -5297,7 +5720,8 @@ function ensureStage() {
   const cam = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
   cam.position.set(0, 7, 14);
   cam.lookAt(0, 1.0, 0);
-  scene.add(new THREE.HemisphereLight(0xfff2d8, 0x55607a, 1.2));
+  const hemi = new THREE.HemisphereLight(0xfff2d8, 0x55607a, 1.2);   /* 光の色は、めくった世界の色へ少しずつ移る (ambLightTick) */
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff0d0, 1.5);
   sun.position.set(6, 12, 6); scene.add(sun);
 
@@ -5308,7 +5732,7 @@ function ensureStage() {
 
   const bookGrp = new THREE.Group();
   scene.add(bookGrp);
-  V = { renderer, scene, cam, controls, bookGrp, host, book: null, bookTopY: 0, pageRig: null,
+  V = { renderer, scene, cam, controls, bookGrp, host, hemi, sun, book: null, bookTopY: 0, pageRig: null,
         mascot: null, boy: null, lastT: nowMs(), idleT0: Infinity, prefetchTimer: 0,
         sway: { t0: nowMs(), center: 0, goal: null } };
   /* 手で回したら、その向きを揺れの新しい中心にする (手を離したとたんに引き戻さない) */
@@ -5500,6 +5924,259 @@ function updateIdle(t) {
   poseLeaf(L, 0.02 * b, 0, 0, L.peekLift, 0, L.peekTwist);
 }
 
+/* ------ 世界の空気: 画面全体の景色・床の光だまり・漂う粒・3D の光の色・UI の色を、めくった頁の作品にそろえる ------
+   景色は作品の絵をぼかして沈めたものか、作品の画面の色で描いたもの (_blender/ehon4_ambience.py)。
+   めくりを押した瞬間に移りはじめ (景色 1.4 秒・光と粒 約 1.2 秒で入れ替わる)、紙の着地で作品の色の光がふくらむ。
+   静かな動きでは、粒を少なく遅く、光のふくらみは大きさを変えずに灯るだけ。
+   light = [空の色, 地面の色, 日の色, 明るさの倍率] (本は同じ本のまま、光の色だけが世界に寄る) */
+const AMB = {
+  library:    { bg: 'library', acc: '#d8b36a', ink: '#2a1d0e', glow: 'rgba(255,190,110,.34)', floor: [18, 12, 9], pool: 'rgba(255,190,110,.16)', fx: 'dust',
+                light: [0xfff2d8, 0x55607a, 0xfff0d0, 1] },
+  seikai:     { bg: 'seikai', acc: '#e9c46e', ink: '#1d1606', glow: 'rgba(240,196,106,.34)', floor: [6, 10, 20], pool: 'rgba(120,170,255,.14)', fx: 'sparks',
+                light: [0xe6ecff, 0x3a4868, 0xffe8bf, 1] },
+  kototsugi:  { bg: 'kototsugi', acc: '#ffae70', ink: '#2a1206', glow: 'rgba(255,160,100,.34)', floor: [10, 16, 30], pool: 'rgba(255,150,90,.14)', fx: 'fallstars',
+                light: [0xffe6d0, 0x46587e, 0xffd6a8, 1] },
+  hyaku:      { bg: 'hyaku', acc: '#e0575c', ink: '#fff2f0', glow: 'rgba(224,87,92,.32)', floor: [8, 8, 14], pool: 'rgba(200,210,255,.10)', fx: 'papers',
+                light: [0xdce4f6, 0x3a3448, 0xe8eeff, 0.92] },
+  salon:      { bg: 'salon', acc: '#b9c8ff', ink: '#0d1030', glow: 'rgba(170,150,255,.34)', floor: [5, 6, 16], pool: 'rgba(160,140,255,.14)', fx: 'twinkle',
+                light: [0xdfe2ff, 0x3a3c66, 0xf2f0ff, 0.95] },
+  sudoku:     { bg: 'sudoku', acc: '#b893ff', ink: '#1a0b33', glow: 'rgba(170,120,255,.36)', floor: [12, 6, 22], pool: 'rgba(160,110,255,.16)', fx: 'runes',
+                light: [0xece0ff, 0x4a3a6a, 0xf4e8ff, 1] },
+  shogipuyo:  { bg: 'shogipuyo', acc: '#f0b44c', ink: '#231300', glow: 'rgba(240,180,76,.34)', floor: [10, 6, 4], pool: 'rgba(240,180,76,.14)', fx: 'petals',
+                light: [0xffe9c8, 0x5a4030, 0xffe0aa, 1] },
+  aimap:      { bg: 'aimap', acc: '#c8602e', ink: '#fff4ea', glow: 'rgba(200,96,46,.28)', floor: [96, 72, 44], floorA: 0.12, floorB: 0.42, pool: 'rgba(255,255,255,.3)', fx: 'tiles',
+                light: [0xfff6ea, 0x9a8a70, 0xfff2de, 1.05] },
+  henshu:     { bg: 'henshu', acc: '#facc15', ink: '#1a1400', glow: 'rgba(250,204,21,.3)', floor: [6, 10, 24], pool: 'rgba(96,165,250,.14)', fx: 'frames',
+                light: [0xe2ecff, 0x34406a, 0xfff4cc, 1] },
+  hitori:     { bg: 'hitori', acc: '#ff8f5a', ink: '#2a1004', glow: 'rgba(255,150,90,.32)', floor: [16, 11, 12], pool: 'rgba(255,170,90,.16)', fx: 'bokeh',
+                light: [0xffe8d0, 0x4a4058, 0xffdcae, 1] },
+  hitoritabi: { bg: 'hitoritabi', acc: '#7fe0d8', ink: '#062624', glow: 'rgba(120,220,210,.3)', floor: [14, 22, 26], pool: 'rgba(255,248,230,.16)', fx: 'sunmotes',
+                light: [0xeef8ff, 0x5a7080, 0xfff8ec, 1.05] },
+  niwa:       { bg: 'niwa', acc: '#f3dfa6', ink: '#1c1a10', glow: 'rgba(243,223,166,.3)', floor: [8, 10, 26], pool: 'rgba(200,210,255,.14)', fx: 'fireflies',
+                light: [0xe2e6ff, 0x404878, 0xf6ecd2, 0.97] },
+  cabin:      { bg: 'cabin', acc: '#ffb466', ink: '#2a1404', glow: 'rgba(255,180,102,.32)', floor: [8, 10, 10], pool: 'rgba(255,170,90,.15)', fx: 'rain',
+                light: [0xffe2c4, 0x3a4048, 0xffcc96, 0.95] },
+};
+const ambOf = (page) => AMB[(page && page.id ? page.id : '').replace(/-/g, '')] || AMB.library;   /* 目次とおしまいは夜の書斎 */
+const ambUrl = (A) => `_ehon_assets/ehon/ambience/bg_${A.bg}_v1.webp`;
+const hexA = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
+function ambLayerCss(A) {   /* 景色の上に、床へ沈む暗さと、本の下の光だまり (固い床の線は引かない) */
+  const [r, g, b] = A.floor, fa = A.floorA != null ? A.floorA : 0.55, fb = A.floorB != null ? A.floorB : 0.92;
+  return `radial-gradient(ellipse 58% 26% at 50% 82%,${A.pool} 0%,transparent 72%),` +
+    `linear-gradient(180deg,rgba(${r},${g},${b},0) 46%,rgba(${r},${g},${b},${fa}) 72%,rgba(${r},${g},${b},${fb}) 100%),url(${ambUrl(A)})`;
+}
+const amb = { cur: AMB.library, front: 'amb-a', loaded: new Set(['library']), light: AMB.library.light, par: null, parX: 0 };
+function ambLoad(A, then) {
+  if (amb.loaded.has(A.bg)) { if (then) then(); return; }
+  const im = new Image();
+  im.onload = im.onerror = () => { amb.loaded.add(A.bg); if (then) then(); };
+  im.src = ambUrl(A);
+}
+function ehonAmbience(page) {
+  const A = ambOf(page);
+  if (A === amb.cur) return;
+  amb.cur = A;
+  const R = document.documentElement.style;   /* UI の色 (札の線・ボタン・入口) */
+  R.setProperty('--acc', A.acc); R.setProperty('--acc-ink', A.ink); R.setProperty('--acc-glow', A.glow); R.setProperty('--panel-line', hexA(A.acc, 0.42));
+  ambLoad(A, () => {
+    if (amb.cur !== A) return;   /* 読み込みを待つあいだに、もう次の頁へ行った */
+    const back = amb.front === 'amb-a' ? 'amb-b' : 'amb-a';
+    const nx = document.getElementById(back), pv = document.getElementById(amb.front);
+    nx.style.backgroundImage = ambLayerCss(A);
+    void nx.offsetWidth;
+    nx.classList.add('on'); pv.classList.remove('on');
+    amb.front = back;
+  });
+  fxSet(A.fx);
+  amb.light = A.light;
+  const i = PAGES.indexOf(page);   /* 前後の頁の景色は先に取っておく */
+  for (const j of [i + 1, i - 1]) if (PAGES[j]) ambLoad(ambOf(PAGES[j]));
+}
+function ehonAmbienceBloom() {
+  const el = document.getElementById('amb-bloom');
+  if (!el) return;
+  el.classList.remove('go');
+  void el.offsetWidth;
+  el.classList.toggle('calm', quietMotion());
+  el.classList.add('go');
+}
+window.ehonAmbience = ehonAmbience;
+window.ehonAmbienceBloom = ehonAmbienceBloom;
+const _ac = new THREE.Color();
+function ambTick(t, dt) {
+  if (amb.light && V.hemi) {   /* 光の色を、世界の色へ少しずつ */
+    const k = 1 - Math.exp(-dt * 2.4), [sky, ground, sunc, g] = amb.light;
+    V.hemi.color.lerp(_ac.setHex(sky), k); V.hemi.groundColor.lerp(_ac.setHex(ground), k); V.sun.color.lerp(_ac.setHex(sunc), k);
+    V.hemi.intensity += (1.2 * g - V.hemi.intensity) * k; V.sun.intensity += (1.5 * g - V.sun.intensity) * k;
+  }
+  if (!amb.par) amb.par = document.getElementById('amb-par');
+  if (amb.par) {   /* 景色の視差: カメラが揺れた向きと逆へ、わずかにずらす (奥行き) */
+    const x = -V.controls.getAzimuthalAngle() * 30;
+    if (Math.abs(x - amb.parX) > 0.3) { amb.parX = x; amb.par.style.transform = `translate3d(${x.toFixed(1)}px,0,0)`; }
+  }
+  fxTick(t / 1000, dt);
+}
+
+/* 漂う粒 (画面全体の 2D の層、本の後ろ)。世界ごとの粒の形と動き。粒の絵は先に小さなキャンバスに描いておいて貼るだけ */
+const FX = { canvas: null, ctx: null, w: 0, h: 0, sets: [], spr: new Map() };
+function fxCanvas(key, w, h, draw) {
+  let c = FX.spr.get(key);
+  if (!c) { c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); FX.spr.set(key, c); }
+  return c;
+}
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const sprGlow = (c, r) => fxCanvas('g' + c + r, Math.ceil(r * 4), Math.ceil(r * 4), (g, w) => {
+  const gr = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+  gr.addColorStop(0, rgba(c, 1)); gr.addColorStop(0.22, rgba(c, 0.75)); gr.addColorStop(0.5, rgba(c, 0.16)); gr.addColorStop(1, rgba(c, 0));
+  g.fillStyle = gr; g.fillRect(0, 0, w, w);
+});
+const sprStreak = (c, len) => fxCanvas('s' + c + len, len, 6, (g, w, h) => {   /* 流れ星: 右端が頭 */
+  const gr = g.createLinearGradient(0, 0, w, 0);
+  gr.addColorStop(0, rgba(c, 0)); gr.addColorStop(0.85, rgba(c, 0.55)); gr.addColorStop(1, rgba(c, 1));
+  g.fillStyle = gr; g.fillRect(0, 2, w, 2);
+  g.fillStyle = rgba(c, 0.35); g.fillRect(w * 0.6, 1, w * 0.4, 4);
+});
+const sprPaper = () => fxCanvas('paper', 16, 12, (g) => {
+  g.fillStyle = 'rgba(236,226,204,.95)'; g.fillRect(1, 1, 14, 10);
+  g.strokeStyle = 'rgba(120,96,66,.6)'; g.lineWidth = 1; g.strokeRect(1.5, 1.5, 13, 9);
+  g.fillStyle = 'rgba(90,60,40,.5)'; g.fillRect(4, 4, 8, 1); g.fillRect(4, 7, 6, 1);
+});
+const sprDigit = (n, hex) => fxCanvas('d' + n + hex, 28, 28, (g) => {
+  g.font = '800 18px Georgia,serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = hex; g.shadowBlur = 8; g.fillStyle = hex; g.fillText(String(n), 14, 15); g.shadowBlur = 0; g.fillStyle = '#fff'; g.fillText(String(n), 14, 15);
+});
+const sprPetal = (c) => fxCanvas('p' + c, 14, 9, (g) => {
+  const gr = g.createLinearGradient(0, 0, 14, 0); gr.addColorStop(0, rgba(c, 0.95)); gr.addColorStop(1, rgba([255, 236, 240], 0.9));
+  g.fillStyle = gr; g.beginPath(); g.ellipse(7, 4.5, 6.5, 3.8, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.ellipse(9, 3.5, 2.5, 1.2, 0, 0, Math.PI * 2); g.fill();
+});
+const sprTile = (hex) => fxCanvas('t' + hex, 12, 12, (g) => {
+  g.fillStyle = hex; g.beginPath(); g.roundRect(1, 1, 10, 10, 2); g.fill(); g.strokeStyle = 'rgba(60,40,20,.25)'; g.stroke();
+});
+const sprFrame = () => fxCanvas('frame', 30, 22, (g) => {   /* フィルムの 1 コマ */
+  g.strokeStyle = 'rgba(203,213,225,.9)'; g.lineWidth = 1.5; g.strokeRect(1, 1, 28, 20);
+  g.fillStyle = 'rgba(203,213,225,.9)';
+  for (let k = 0; k < 5; k++) { g.fillRect(3 + k * 5.5, 2.5, 3, 2); g.fillRect(3 + k * 5.5, 17.5, 3, 2); }
+  g.fillStyle = 'rgba(250,204,21,.35)'; g.fillRect(4, 6, 22, 10);
+});
+const sprBokeh = (c, r) => fxCanvas('b' + c + r, Math.ceil(r * 2 + 4), Math.ceil(r * 2 + 4), (g, w) => {
+  const m = w / 2, gr = g.createRadialGradient(m, m, r * 0.2, m, m, r);
+  gr.addColorStop(0, rgba(c, 0.5)); gr.addColorStop(0.85, rgba(c, 0.7)); gr.addColorStop(1, rgba(c, 0));
+  g.fillStyle = gr; g.beginPath(); g.arc(m, m, r, 0, Math.PI * 2); g.fill();
+});
+const sprCloud = () => fxCanvas('cloud', 180, 70, (g, w, h) => {
+  const gr = g.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2);
+  gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.setTransform(1, 0, 0, h / w, 0, h / 2 - h * h / w / 2); g.fillStyle = gr; g.fillRect(0, -w, w, w * 3);   /* 円のぼかしを縦につぶして、横長の雲に */
+});
+const LV_CSS = ['#d9e2e7', '#f5e5d0', '#e9c397', '#d8955c', '#bf5a2d', '#6b2412'];
+const CUBE_CSS = ['#e63329', '#2f7bef', '#27b34a', '#a16a2c'];
+/* 粒の作り方: x,y は画面の割合、vx,vy は 1 秒に画面の何割動くか、a は濃さ、tw はまたたき、blink は蛍、wob は横のゆれ、vr は回転 */
+const FX_PRESETS = {
+  dust: [36, (R) => ({ spr: sprGlow([255, 214, 160], 1.4 + R() * 1.6), x: R(), y: R(), vx: (R() - 0.5) * 0.008, vy: -(0.004 + R() * 0.01), a: 0.16 + R() * 0.4, tw: 0.6 + R(), wob: 0.01, add: true })],
+  sparks: [28, (R) => ({ spr: sprGlow([255, 206, 120], 1.2 + R() * 1.6), x: 0.1 + R() * 0.8, y: R(), vx: (R() - 0.5) * 0.006, vy: -(0.02 + R() * 0.04), a: 0.3 + R() * 0.5, tw: 2 + R() * 3, wob: 0.015, add: true })],
+  fallstars: [34, (R, i) => i < 10
+    ? { spr: sprStreak([255, 240, 214], 26 + Math.floor(R() * 34)), x: R(), y: R(), vx: 0.018 + R() * 0.014, vy: 0.05 + R() * 0.05, a: 0.35 + R() * 0.45, add: true, dirRot: true }
+    : { spr: sprGlow([220, 230, 255], 0.9 + R()), x: R(), y: R() * 0.55, vx: 0, vy: 0, a: 0.25 + R() * 0.5, tw: 1 + R() * 2, add: true }],
+  papers: [30, (R, i) => i < 13
+    ? { spr: sprPaper(), x: R(), y: R(), vx: (R() - 0.5) * 0.02, vy: 0.012 + R() * 0.02, a: 0.32 + R() * 0.3, wob: 0.03, rot: R() * 6.3, vr: (R() - 0.5) * 2.2, s: 0.8 + R() * 0.6 }
+    : { spr: sprGlow([255, 110, 70], 1 + R() * 0.9), x: R(), y: R(), vx: (R() - 0.5) * 0.006, vy: -(0.01 + R() * 0.022), a: 0.3 + R() * 0.4, tw: 3 + R() * 2, add: true }],
+  twinkle: [72, (R, i) => i === 0
+    ? { meteor: true, spr: sprStreak([236, 240, 255], 90), a: 0.8, add: true }
+    : { spr: sprGlow([230, 236, 255], 0.8 + R() * 1.2), x: R(), y: R(), vx: 0, vy: 0, a: 0.3 + R() * 0.6, tw: 0.6 + R() * 1.6, add: true }],
+  runes: [38, (R, i) => i < 18
+    ? { spr: sprDigit(1 + (i % 4), CUBE_CSS[i % 4]), x: R(), y: R(), vx: (R() - 0.5) * 0.006, vy: -(0.004 + R() * 0.01), a: 0.14 + R() * 0.22, rot: (R() - 0.5), vr: (R() - 0.5) * 0.4, s: 0.8 + R() * 0.6, add: true }
+    : { spr: sprGlow([200, 170, 255], 1 + R()), x: R(), y: R(), vx: 0, vy: -(0.003 + R() * 0.006), a: 0.2 + R() * 0.35, tw: 1 + R() * 2, add: true }],
+  petals: [38, (R, i) => i < 16
+    ? { spr: sprPetal([246, 176, 196]), x: R(), y: R(), vx: 0.01 + R() * 0.014, vy: 0.02 + R() * 0.03, a: 0.45 + R() * 0.35, wob: 0.02, rot: R() * 6.3, vr: (R() - 0.5) * 3, s: 0.8 + R() * 0.6 }
+    : { spr: sprGlow([255, 206, 110], 1 + R() * 1.2), x: R(), y: R(), vx: (R() - 0.5) * 0.004, vy: -(0.006 + R() * 0.012), a: 0.25 + R() * 0.45, tw: 1.5 + R() * 2, add: true }],
+  tiles: [24, (R) => ({ spr: sprTile(LV_CSS[Math.floor(R() * 6)]), x: R(), y: R(), vx: (R() - 0.5) * 0.004, vy: -(0.006 + R() * 0.012), a: 0.25 + R() * 0.3, rot: R() * 0.6, vr: (R() - 0.5) * 0.3, s: 0.6 + R() * 0.7 })],
+  frames: [34, (R, i) => i === 0
+    ? { scan: true, a: 0.12 }
+    : i < 15 ? { spr: sprFrame(), x: R(), y: R(), vx: -(0.006 + R() * 0.01), vy: (R() - 0.5) * 0.004, a: 0.12 + R() * 0.2, s: 0.8 + R() * 0.6 }
+      : { spr: sprGlow([250, 214, 90], 0.9 + R()), x: R(), y: R(), vx: 0, vy: -(0.004 + R() * 0.008), a: 0.25 + R() * 0.4, tw: 1.5 + R() * 2, add: true }],
+  bokeh: [16, (R) => ({ spr: sprBokeh([[255, 178, 87], [255, 122, 69], [95, 211, 196], [255, 216, 137]][Math.floor(R() * 4)], 10 + Math.floor(R() * 18)),
+    x: R(), y: 0.2 + R() * 0.7, vx: (R() - 0.5) * 0.006, vy: -0.002 - R() * 0.004, a: 0.12 + R() * 0.2, tw: 0.4 + R() * 0.6, add: true })],
+  sunmotes: [24, (R, i) => i < 2
+    ? { spr: sprCloud(), x: R(), y: 0.1 + R() * 0.25, vx: 0.004 + R() * 0.004, vy: 0, a: 0.08 + R() * 0.06, s: 1.6 + R() }
+    : { spr: sprGlow([255, 246, 220], 1.4 + R() * 1.6), x: R(), y: R(), vx: 0.003 + R() * 0.005, vy: -0.002 - R() * 0.004, a: 0.2 + R() * 0.3, tw: 1 + R(), add: true }],
+  fireflies: [20, (R) => ({ spr: sprGlow([230, 255, 150], 1.6 + R() * 1.2), x: R(), y: 0.25 + R() * 0.6, vx: (R() - 0.5) * 0.012, vy: (R() - 0.5) * 0.008, a: 0.6 + R() * 0.4, tw: 0.8 + R() * 1.2, blink: true, wob: 0.02, add: true })],
+  rain: [70, (R) => ({ rain: true, x: R(), y: R(), vy: 0.55 + R() * 0.3, vx: 0.1, len: 18 + R() * 16, a: 0.1 + R() * 0.14 })],
+};
+function fxSet(name) {
+  const def = FX_PRESETS[name];
+  if (!def || (FX.sets[0] && FX.sets[0].name === name)) return;
+  let seed = 7 + name.length * 131;
+  const R = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const n = Math.round(def[0] * (quietMotion() ? 0.6 : 1));
+  const parts = [];
+  for (let i = 0; i < n; i++) { const q = def[1](R, i); q.ph = R() * 6.3; q.rot = q.rot || 0; q.s = q.s || 1; parts.push(q); }
+  FX.sets.forEach((st) => { st.target = 0; });
+  FX.sets.unshift({ name, parts, alpha: FX.sets.length ? 0 : 1, target: 1 });
+}
+function fxTick(s, dt) {
+  if (!FX.canvas) { FX.canvas = document.getElementById('amb-fx'); if (!FX.canvas) return; FX.ctx = FX.canvas.getContext('2d'); }
+  const c = FX.canvas, g = FX.ctx, W = innerWidth, H = innerHeight;
+  if (FX.w !== W || FX.h !== H) { FX.w = c.width = W; FX.h = c.height = H; }   /* 画面の px のまま (粒は少しぼけても構わない) */
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const spd = quietMotion() ? 0.45 : 1;
+  for (let k = FX.sets.length - 1; k >= 0; k--) {
+    const st = FX.sets[k];
+    st.alpha += Math.sign(st.target - st.alpha) * Math.min(Math.abs(st.target - st.alpha), dt / 1.2);
+    if (st.target === 0 && st.alpha <= 0) { FX.sets.splice(k, 1); continue; }
+    for (const q of st.parts) {
+      if (q.rain) {   /* 雨: 細い線 (まとめて 1 本の道として描く) */
+        q.y += q.vy * dt * spd; q.x += q.vx * dt * spd;
+        if (q.y > 1.05) { q.y = -0.05; q.x = (q.x + 0.37) % 1; }
+        if (q.x > 1.02) q.x -= 1.04;
+        g.globalCompositeOperation = 'source-over';
+        g.strokeStyle = `rgba(196,214,255,${(q.a * st.alpha).toFixed(3)})`; g.lineWidth = 1;
+        g.beginPath(); g.moveTo(q.x * W, q.y * H); g.lineTo(q.x * W - q.len * 0.18, q.y * H - q.len); g.stroke();
+        continue;
+      }
+      if (q.scan) {   /* 動画の作り方: ときどき、画面を上から下へ光の走査線 */
+        const u = (s % 7) / 1.6;
+        if (u < 1) {
+          const y = u * H, gr = g.createLinearGradient(0, y - 30, 0, y + 2);
+          gr.addColorStop(0, 'rgba(250,204,21,0)'); gr.addColorStop(1, `rgba(250,204,21,${(q.a * st.alpha).toFixed(3)})`);
+          g.globalCompositeOperation = 'lighter'; g.fillStyle = gr; g.fillRect(0, y - 30, W, 32);
+        }
+        continue;
+      }
+      if (q.meteor) {   /* 音楽の宇宙: 9 秒に一度、上のほうを流れ星 */
+        const u = (s % 9) / 1.1;
+        if (u < 1) {
+          const x0 = 0.15 + ((Math.floor(s / 9) * 0.37) % 0.5), x = (x0 + u * 0.35) * W, y = (0.08 + u * 0.16) * H;
+          g.globalCompositeOperation = 'lighter'; g.globalAlpha = q.a * st.alpha * Math.sin(Math.PI * u);
+          g.setTransform(Math.cos(0.42), Math.sin(0.42), -Math.sin(0.42), Math.cos(0.42), x, y);
+          g.drawImage(q.spr, -q.spr.width, -3);
+          g.setTransform(1, 0, 0, 1, 0, 0);
+        }
+        continue;
+      }
+      q.x += (q.vx + (q.wob ? Math.sin(s * 0.7 + q.ph) * q.wob : 0)) * dt * spd;
+      q.y += q.vy * dt * spd;
+      if (q.vr) q.rot += q.vr * dt * spd;
+      if (q.y < -0.06) { q.y = 1.06; } else if (q.y > 1.06) { q.y = -0.06; }
+      if (q.x < -0.06) { q.x = 1.06; } else if (q.x > 1.06) { q.x = -0.06; }
+      let a = q.a * st.alpha;
+      if (q.blink) a *= Math.max(0, Math.sin(s * q.tw + q.ph)) ** 3;
+      else if (q.tw) a *= 0.6 + 0.4 * Math.sin(s * q.tw + q.ph);
+      if (a < 0.01) continue;
+      g.globalCompositeOperation = q.add ? 'lighter' : 'source-over';
+      g.globalAlpha = a;
+      const w = q.spr.width * q.s, h = q.spr.height * q.s, x = q.x * W, y = q.y * H;
+      const r = q.dirRot ? Math.atan2(q.vy * H, q.vx * W) : q.rot;
+      if (r) { g.setTransform(Math.cos(r), Math.sin(r), -Math.sin(r), Math.cos(r), x, y); g.drawImage(q.spr, -w / 2, -h / 2, w, h); g.setTransform(1, 0, 0, 1, 0, 0); }
+      else g.drawImage(q.spr, x - w / 2, y - h / 2, w, h);
+    }
+  }
+  g.globalAlpha = 1;
+  g.globalCompositeOperation = 'source-over';
+}
+fxSet('dust');   /* 本を開く前は、夜の書斎の埃 */
+
 /* カメラは本の正面を中心に、ゆっくり左右へ揺れる。ぐるりと一周させると、紙のカードの裏や地図の縁ばかり
    見える時間ができる。頁をめくると、手で回した向きから正面へゆっくり戻る。
    OrbitControls の自動回転の速さを毎フレーム決めて動かす (手で回している間は OrbitControls が自動回転を止める) */
@@ -5529,6 +6206,7 @@ function loop() {
     return;
   }
   swayCamera(t, dt);
+  ambTick(t, dt);
   V.controls.update(dt);   /* 自動回転は秒基準 (高リフレッシュの画面でも速くならない) */
   updateKids(t);
   if (V.pageRig) { if (turn) updateTurn(t); else updateIdle(t); }
