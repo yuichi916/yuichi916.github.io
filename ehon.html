@@ -344,10 +344,34 @@
   /* 入口のボタンは、ゆっくり灯って誘う */
   #page-overlay.show .po-enter{animation:poEnter 2.8s ease-in-out 1.4s infinite}
   @keyframes poEnter{0%,100%{box-shadow:0 3px 10px rgba(120,50,10,.35)}50%{box-shadow:0 3px 24px rgba(255,176,96,.8)}}
+  /* 仕掛けを見終わったら、入口のボタンがはっきり誘う */
+  #page-overlay.show .po-enter.nudge{animation:poNudge .8s ease-in-out 3}
+  @keyframes poNudge{0%,100%{transform:none;box-shadow:0 3px 10px rgba(120,50,10,.35)}
+    50%{transform:scale(1.07);box-shadow:0 3px 30px rgba(255,190,110,.95)}}
   /* 飛び出しに乗せたときの札 */
   #pop-hint{position:fixed;left:0;top:0;z-index:70;pointer-events:none;white-space:nowrap;opacity:0;transition:opacity .15s;
     padding:6px 12px;border:1px solid #c9a86a;border-radius:999px;background:rgba(36,24,14,.9);color:#ffe9c4;font-size:13px}
   #pop-hint.show{opacity:1}
+  /* 案内人の二人のひとこと (本のうしろの魔法使いの子の頭の上に出る吹き出し) */
+  .kid-say{position:fixed;left:0;top:0;z-index:45;max-width:min(250px,56vw);padding:9px 14px;border-radius:14px;
+    background:rgba(252,247,236,.97);color:#3b2d1c;border:1px solid rgba(176,138,62,.6);box-shadow:0 6px 22px rgba(20,12,4,.28);
+    font:600 14px/1.55 "Yu Mincho","YuMincho","Hiragino Mincho ProN","Noto Serif JP",serif;letter-spacing:.02em;
+    pointer-events:none;opacity:0;transition:opacity .18s ease}
+  .kid-say.show{opacity:1}
+  .kid-say::after{content:'';position:absolute;left:var(--tail,50%);bottom:-7px;width:12px;height:12px;margin-left:-6px;
+    background:rgba(252,247,236,.97);border-right:1px solid rgba(176,138,62,.6);border-bottom:1px solid rgba(176,138,62,.6);transform:rotate(45deg)}
+  /* はじめての人に: 飛び出しの上で波紋と指が「さわってみて」と誘う */
+  #pop-coach{position:fixed;left:0;top:0;z-index:44;pointer-events:none;opacity:0;transition:opacity .3s ease}
+  #pop-coach.show{opacity:1}
+  #pop-coach .ring{position:absolute;left:-34px;top:-34px;width:68px;height:68px;border-radius:50%;border:3px solid rgba(255,226,160,.95);
+    box-shadow:0 0 18px rgba(255,200,110,.8);animation:coachRing 1.4s ease-out infinite}
+  #pop-coach .hand{position:absolute;left:4px;top:6px;font-size:30px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45));animation:coachTap 1.4s ease-in-out infinite}
+  #pop-coach .say{position:absolute;left:-60px;top:48px;width:120px;text-align:center;color:#fff3da;font-weight:700;font-size:13px;
+    text-shadow:0 1px 4px rgba(0,0,0,.8)}
+  @keyframes coachRing{0%{transform:scale(.55);opacity:1}100%{transform:scale(1.45);opacity:0}}
+  @keyframes coachTap{0%,100%{transform:translate(0,0)}45%{transform:translate(-5px,-7px)}60%{transform:translate(0,0) scale(.92)}}
+  /* 雷の光 (森の小屋の仕掛け)。静かな動きでは光らせない */
+  #sky-flash{position:fixed;inset:0;z-index:35;pointer-events:none;background:#eef3ff;opacity:0}
 
   /* ---- 目次: 世界の地図 ---- */
   .toc-wrap{position:absolute;inset:6% 8% 10%;overflow:auto;z-index:30;
@@ -465,6 +489,7 @@
   <button type="button" class="bc-motion" id="quiet-motion-toggle" aria-pressed="false">静かな動き</button>
 </div>
 <div id="book-turn-status" role="status" aria-live="polite"></div>
+<div id="sky-flash" aria-hidden="true"></div>
 
 <!-- 中身を WebGL で描いているため、JavaScript を実行しない読み手（GPTBot / ClaudeBot /
      PerplexityBot など）には HTML がほぼ空に見えていた。同じ内容をここに置く。 -->
@@ -491,8 +516,9 @@
   </ul>
 
   <h2>読み方</h2>
-  <p>本の端を押すとページがめくれます。左右の矢印、キーボードの ← → でも進みます。
-  飛び出したものを押すと、その作品が開きます。🗺 を押すと世界の地図（目次）が開きます。
+  <p>読み込むと、1 枚目は自動でめくれます。本の端を押すとページがめくれます。左右の矢印、キーボードの ← → でも進みます。
+  飛び出したものを押すと、その作品らしいしかけが動きます。「この世界に入る」でその作品が開きます。
+  本のうしろの二人を押すと、ひとこと話します。🗺 を押すと世界の地図（目次）が開きます。
   音符のボタンで BGM を切り替えられます。</p>
 
   <h2>作り方</h2>
@@ -618,7 +644,10 @@ window.getMediaUrl = getMediaUrl;
    時間をかけて作った 11 の作品だけを載せる。飛び出すものは、どれも作品そのものの絵・データ・ルールから作る。
    popup.type: cards (背景と立ち絵の紙のカード。glows = 絵の中の灯り、fx = 雨・漂う光・金の道筋・舞う紙・将棋の盤・紙飛行機)、
    galaxy (音楽の宇宙)、cube (ルーン・キューブ)、atlas (AI能力アトラス)、japan (ひとり歓迎マップ)。
-   diorama + island は GLB の模型を浮遊島にする。thumb は目次の絵 (なければ toc_<slug>_v1.webp) */
+   diorama + island は GLB の模型を浮遊島にする。thumb は目次の絵 (なければ toc_<slug>_v1.webp)。
+   show は仕掛け: 飛び出しを押すと数秒の見せ場が動く (comet 道筋を走る光 / weave ことばをつなぐ / verdict 嘘と真の判 /
+   sing 歌う銀河 / solve キューブがばらけて解ける / chain 連鎖 / forward 2030年へ / wave ピンの波 / flip 写真の裏の消印 /
+   lanterns 島の灯り / storm 雷と停電) */
 const CH = { MONOGATARI:{jp:'物語',en:'Stories'}, ASOBU:{jp:'遊ぶ',en:'Play'},
              KENKYU:{jp:'研究',en:'Research'}, HITORI:{jp:'ひとりの時間',en:'Time alone'} };
 const FRONT_SPOTS = [{x:-2.7,y:0.05,z:1.9},{x:2.7,y:0.05,z:1.8},{x:0.1,y:0.05,z:2.7}];   /* 動物が立つところ (飛び出しの手前) */
@@ -631,7 +660,7 @@ const PAGES = [
    story:{jp:'地下のいちばん底に、番号で呼ばれる少年がいたの。……彼には、正解へつづく金色の道筋が視えるんだって。その道筋に、ひとりだけ映らない女の子があらわれて——。全15話、ページをめくってみる？',
           en:'At the very bottom of the underground lived a boy called by a number. …He can see the golden paths to every right answer. Then a girl appeared who never shows up on them. Fifteen episodes — shall we turn the page?'},
    link:'seikai.html', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:'warthog', quest:null,
-   popup:{type:'cards', cards:[
+   popup:{type:'cards', show:'comet', cards:[
      {tex:'seikai_back', w:6.8, z:-1.9, delay:0},
      {tex:'seikai_kai', h:3.0, x:-1.8, z:0.2, delay:0.14},
      {tex:'seikai_rin', h:2.9, x:1.8, z:0.35, delay:0.22}],
@@ -643,7 +672,7 @@ const PAGES = [
    story:{jp:'星が堕ちる島の浜にはね、言葉のかけらが打ち上がるの。……ひろった言葉を、文章の欠けにそっと継ぐと、物語が書きかわるんだよ。どんな言葉を、つないでみる？',
           en:'On the island where stars fall, fragments of words wash up on the beach. …Fit a word you found into a gap in the text, and the story rewrites itself. Which word will you weave in?'},
    link:'kototsugi/game/', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:'polecat', quest:null,
-   popup:{type:'cards', cards:[
+   popup:{type:'cards', show:'weave', cards:[
      {tex:'kototsugi_back', w:6.8, z:-1.9, delay:0},
      {tex:'kototsugi_fine', h:2.95, x:-1.95, z:0.35, delay:0.14},
      {tex:'kototsugi_baa', h:3.05, x:1.95, z:0.15, delay:0.22},
@@ -658,7 +687,7 @@ const PAGES = [
    story:{jp:'魔王さまはね、百個もわるいことをしたんだって。……でもね、ぜんぶ嘘だったの。最後の頁だけが、ほんとう。フルボイスで、30分。……めくって、たしかめてみる？',
           en:'They say the demon lord did a hundred terrible things. …But they were all lies. Only the last page is true. Fully voiced, thirty minutes. …Shall we turn it and see?'},
    link:'hyaku.html', modes:['b'], diorama:null, camPos:null, animal:'lioncub', quest:null,
-   popup:{type:'cards', cards:[
+   popup:{type:'cards', show:'verdict', cards:[
      {tex:'hyaku_back', w:6.8, z:-1.9, delay:0},
      {tex:'hyaku_theodora', h:3.2, x:0, z:-0.6, delay:0.12},
      {tex:'hyaku_ash', h:2.8, x:-2.0, z:0.5, delay:0.2},
@@ -670,21 +699,21 @@ const PAGES = [
    story:{jp:'ほら、ページの上に…銀河が、うかんでるの。ひとつひとつの星が、歌い手さん。19,810組。すきな星のとなりに、まだ知らない音楽が光ってるんだよ。',
           en:'Look, a galaxy floats over the page… every star is a musician — 19,810 of them. Right next to the star you love, music you have never heard is shining.'},
    link:'salon.html#universe', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'toad', quest:null,
-   popup:{type:'galaxy'},   /* 約1万9千の星で描く渦巻き銀河 (ページの上に浮かぶ) */
+   popup:{type:'galaxy', show:'sing'},   /* 約1万9千の星で描く渦巻き銀河 (ページの上に浮かぶ) */
    animalSpots:[{x:-2.4,y:0.05,z:1.8},{x:2.2,y:0.05,z:1.4},{x:0.3,y:0.05,z:2.7}]},
   {id:'sudoku', type:'content', chapter:CH.ASOBU,
    title:{jp:'ルーン・キューブ', en:'Rune Cube'}, sub:{jp:'宙に浮かぶ、異世界立体数独', en:'A floating 3D sudoku'},
    story:{jp:'宙に浮かぶ、魔法のキューブだよ。……たて・よこ・おく、どこから見ても同じ数がならばないように。ぜんぶそろうと、ぱあっと光るの。いっしょに、やってみない？',
           en:'A magic cube floating in the air. …Fill it so no number repeats across, down, or deep. When every cell is right, it bursts into light. Want to try it with me?'},
    link:'sudoku.html', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'binturong', quest:null, thumb:'toc_sudoku_v2.webp',
-   popup:{type:'cube'},
+   popup:{type:'cube', show:'solve'},
    animalSpots:[{x:-2.7,y:0.05,z:1.7},{x:2.7,y:0.05,z:1.6},{x:0.2,y:0.05,z:2.7}]},
   {id:'shogi-puyo', type:'content', chapter:CH.ASOBU,
    title:{jp:'将棋ぷよ「成」', en:'Shogi Puyo "Nari"'}, sub:{jp:'駒でつなぐ、連鎖の対局', en:'A chain-battle puzzle with shogi pieces'},
    story:{jp:'将棋の駒が、上から落ちてくるの。おなじ駒が4つつながると、ぽんっと消えて…となりの駒が「成る」んだよ。金四郎さんと緋蓮さんも見てる。連鎖、組んでみる？',
           en:'Shogi pieces fall from above. Link four of a kind and — pop! — they vanish, and their neighbours promote. Kinshiro and Hiren are watching. Want to build a chain?'},
    link:'shogi-puyo.html', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'snowleopard', quest:null, thumb:'toc_shogipuyo_v2.webp',
-   popup:{type:'cards', cards:[
+   popup:{type:'cards', show:'chain', cards:[
      {tex:'shogi_kin', h:2.25, x:-2.45, z:0.25, ry:0.28, delay:0.2},
      {tex:'shogi_hi', h:2.25, x:2.45, z:0.3, ry:-0.28, delay:0.28}],
     fx:[{kind:'shogi', x:0, z:-0.3}]},
@@ -694,36 +723,36 @@ const PAGES = [
    story:{jp:'AIはね、いま何ができて、何ができないのかな。……326の仕事の地図が、年をめくるたびに、海から陸になっていくの。2030年の地図、いっしょに見てみる？',
           en:'What can AI do today, and what can it not? …A map of 326 jobs turns from sea into land with every year you turn. Shall we look at the 2030 map together?'},
    link:'ai-map.html', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:null, quest:null,
-   popup:{type:'atlas'},
+   popup:{type:'atlas', show:'forward'},
    animalSpots:[]},
   {id:'hitori', type:'content', chapter:CH.HITORI,
    title:{jp:'ひとり歓迎マップ', en:'Solo-Welcome Map'}, sub:{jp:'「ひとりで入れるか」を、根拠つきで', en:'Where you can go alone — with sources'},
    story:{jp:'ひとりで入れるお店って、どこにあるのかな。……全国40,615の、食堂・銭湯・図書館の地図だよ。「ひとりで大丈夫」の根拠つき。今夜は、どこへ行こっか？',
           en:'Where can you go on your own? …A map of 40,615 diners, bathhouses and libraries across Japan, each with the evidence that one person is welcome. Where shall we go tonight?'},
    link:'hitori.html', linkJpOnly:true, modes:['b'], diorama:null, camPos:null, animal:'dingo', quest:null,
-   popup:{type:'japan'},
+   popup:{type:'japan', show:'wave'},
    animalSpots:[{x:-2.8,y:0.05,z:2.2},{x:2.8,y:0.05,z:2.1},{x:-1.6,y:0.05,z:2.8}]},
   {id:'hitoritabi', type:'content', chapter:CH.HITORI,
    title:{jp:'一人旅', en:'Solo Journeys'}, sub:{jp:'32の旅と、1,607枚の写真', en:'32 journeys, 1,607 photographs'},
    story:{jp:'ひとりで歩いた、32の旅の記録だよ。……ペトラの岩の神殿、カナダの青い湖、屋久島の森。写真の中に、その日の風が残ってるの。どの旅から、めくってみる？',
           en:'A record of thirty-two journeys walked alone. …Petra\'s temple in the rock, a turquoise lake in Canada, the forest of Yakushima. The wind of each day still lingers in the photos. Which trip shall we open first?'},
    link:'hitoritabi/index.html', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'turtle', quest:null, thumb:'toc_hitoritabi_v2.webp',
-   popup:{type:'cards', cards:[
-     {tex:'tabi_petra', h:1.95, x:-2.55, z:-1.4, ry:0.18, rz:0.04, delay:0.04},
-     {tex:'tabi_msm', h:1.95, x:-0.85, z:-1.45, ry:0.05, rz:-0.03, delay:0.1},
-     {tex:'tabi_moraine', h:1.95, x:0.85, z:-1.45, ry:-0.05, rz:0.03, delay:0.16},
-     {tex:'tabi_sagrada', h:2.35, x:2.5, z:-1.4, ry:-0.18, rz:-0.04, delay:0.22},
-     {tex:'tabi_pyramid', h:1.35, x:-2.75, z:0.35, ry:0.35, rz:-0.05, delay:0.28},
-     {tex:'tabi_yakushima', h:1.35, x:-0.95, z:0.4, ry:0.1, rz:0.04, delay:0.33},
-     {tex:'tabi_dubrovnik', h:1.35, x:0.95, z:0.4, ry:-0.1, rz:-0.04, delay:0.38},
-     {tex:'tabi_angkor', h:1.35, x:2.75, z:0.35, ry:-0.35, rz:0.05, delay:0.43}],
+   popup:{type:'cards', show:'flip', cards:[
+     {tex:'tabi_petra', h:1.95, x:-2.55, z:-1.4, ry:0.18, rz:0.04, delay:0.04, mark:'JORDAN'},
+     {tex:'tabi_msm', h:1.95, x:-0.85, z:-1.45, ry:0.05, rz:-0.03, delay:0.1, mark:'FRANCE'},
+     {tex:'tabi_moraine', h:1.95, x:0.85, z:-1.45, ry:-0.05, rz:0.03, delay:0.16, mark:'CANADA'},
+     {tex:'tabi_sagrada', h:2.35, x:2.5, z:-1.4, ry:-0.18, rz:-0.04, delay:0.22, mark:'SPAIN'},
+     {tex:'tabi_pyramid', h:1.35, x:-2.75, z:0.35, ry:0.35, rz:-0.05, delay:0.28, mark:'EGYPT'},
+     {tex:'tabi_yakushima', h:1.35, x:-0.95, z:0.4, ry:0.1, rz:0.04, delay:0.33, mark:'JAPAN'},
+     {tex:'tabi_dubrovnik', h:1.35, x:0.95, z:0.4, ry:-0.1, rz:-0.04, delay:0.38, mark:'CROATIA'},
+     {tex:'tabi_angkor', h:1.35, x:2.75, z:0.35, ry:-0.35, rz:0.05, delay:0.43, mark:'CAMBODIA'}],
     fx:[{kind:'plane', center:[0,3.1,0.2], ax:2.8, az:1.0}]},
    animalSpots:[{x:-1.9,y:0.05,z:2.0},{x:1.9,y:0.05,z:2.0},{x:0,y:0.05,z:2.8}]},
   {id:'niwa', type:'content', chapter:CH.HITORI,
    title:{jp:'浮遊島', en:'The Floating Island'}, sub:{jp:'九つの小さな庭を、ただ歩く', en:'Nine little gardens to wander'},
    story:{jp:'雲の上に、ぽっかり浮かぶ島があるの。……九つの小さな庭を、ただ歩くだけ。目的なんて、なくていいんだよ。風の音、きこえる？',
           en:'An island floats high above the clouds. …You just wander through nine little gardens. You don\'t need a reason. Can you hear the wind?'},
-   link:'niwa.html', linkJpOnly:false, modes:['b'], diorama:'niwa_diorama.glb', island:{size:4.8, hover:0.35, rockH:1.7, clouds:9},
+   link:'niwa.html', linkJpOnly:false, modes:['b'], diorama:'niwa_diorama.glb', island:{size:4.8, hover:0.35, rockH:1.7, clouds:9}, show:'lanterns',
    camPos:[0,7,14], animal:'penguin', quest:null, thumb:'toc_niwa_v2.webp',
    animalSpots:[{x:-2.8,y:0.05,z:2.0},{x:2.8,y:0.05,z:1.9},{x:0.3,y:0.05,z:2.8}]},
   {id:'cabin', type:'content', chapter:CH.HITORI,
@@ -731,7 +760,7 @@ const PAGES = [
    story:{jp:'雨の森のおくに、ちいさな小屋があるの。……窓の灯りも、暖炉の火も、ずっと君を待ってたんだよ。ぬれた靴をぬいで、いっしょにあたたまろ？',
           en:'Deep in the rainy woods stands a little cabin. …The lit windows and the fire have been waiting for you all along. Take off your wet shoes, and let\'s warm up together.'},
    link:'cabin.html', linkJpOnly:false, modes:['b'], diorama:null, camPos:null, animal:'wolfpup', quest:null, thumb:'toc_cabin_v2.webp',
-   popup:{type:'cards', cards:[
+   popup:{type:'cards', show:'storm', cards:[
      {tex:'cabin_back', w:6.8, z:-1.6, delay:0, glows:[
        {u:0.4438, v:0.5957, r:0.42}, {u:0.5136, v:0.6042, r:0.42}, {u:0.5718, v:0.4848, r:0.34}, {u:0.5621, v:0.6838, r:0.6, o:0.8}]}],
     fx:[{kind:'rain', box:[6.6,4.2,2.8], center:[0,0.05,0.1], n:420, gain:0.5},
@@ -771,6 +800,9 @@ const I18N = { ui: {
   open:         {jp:'ひらく',           en:'Open'},
   motionQuiet:  {jp:'静かな動き',       en:'Calm motion'},
   motionNormal: {jp:'通常の動き',       en:'Full motion'},
+  touch:        {jp:'✦ さわってみて',   en:'✦ Touch it'},
+  talk:         {jp:'✦ はなしかける',   en:'✦ Say hi'},
+  coach:        {jp:'さわってみて',     en:'Touch it'},
   preparing:    {jp:'この世界は準備中なのだ', en:'This world is still being drawn…'},
 }};
 function ehonLang() {
@@ -839,6 +871,60 @@ const ANIMALS = [
    quote:{jp:'地図のはしっこまで、いこう。', en:'To the very edge of the map.'},
    cry:{type:'sawtooth', f0:600, f1:450, dur:0.45, repeat:1, vib:5}},
 ];
+/* ---- 案内人の二人のせりふ (本のうしろの魔法使いの子。女の子 = 語り手、男の子 = 聞き手) ----
+   押すたびに、その頁のせりふ → いつものせりふ の順にめぐる。react は仕掛けが動いたときのひとこと */
+const KID_LINES = {
+  any: {
+    girl: [{jp:'飛び出したもの、さわってみて', en:'Try touching the pop-up'},
+           {jp:'どこかに、動物がかくれてるよ', en:'An animal is hiding somewhere'},
+           {jp:'ドラッグすると、本を回せるの', en:'Drag to turn the book around'}],
+    boy:  [{jp:'つぎのページも、見たいな', en:'I want to see the next page'},
+           {jp:'「この世界に入る」で、作品へ', en:'"Enter this world" opens the work'}]},
+  seikai: {
+    girl: [{jp:'あの子だけ、道筋に映らないの', en:'The paths never show her'}],
+    boy:  [{jp:'金色の道、どこまで続くの？', en:'Where does the golden path go?'}],
+    react: {who:'girl', jp:'……ほら。あの子だけ、映らない', en:'...See? Only she never shows'}},
+  kototsugi: {
+    girl: [{jp:'ことばのかけら、きらきらしてる', en:'The word shards are glittering'}],
+    boy:  [{jp:'ひろったら、つないでみたい', en:'I want to pick them up and link them'}],
+    react: {who:'boy', jp:'ことばが、つながった！', en:'The words linked up!'}},
+  hyaku: {
+    girl: [{jp:'魔王さま、ほんとうに悪い人？', en:'Is the demon lord really that bad?'}],
+    boy:  [{jp:'百個も、わるいことしたの？', en:'A hundred bad deeds?!'}],
+    react: {who:'girl', jp:'最後の一枚だけ、ほんとう', en:'Only the last page is true'}},
+  salon: {
+    girl: [{jp:'星のひとつひとつが、歌い手さん', en:'Every star is a musician'}],
+    boy:  [{jp:'ぼくの好きな歌も、あるかな', en:'Is my favorite song up there?'}],
+    react: {who:'girl', jp:'銀河が、歌ってる', en:'The galaxy is singing'}},
+  sudoku: {
+    girl: [{jp:'たて・よこ・おく、ぜんぶちがう数', en:'No number repeats—across, down or deep'}],
+    boy:  [{jp:'4×4×4 なら、解けるかも', en:'Maybe I can solve a 4×4×4'}],
+    react: {who:'boy', jp:'ぜんぶ、そろった！', en:'All solved!'}},
+  'shogi-puyo': {
+    girl: [{jp:'4つそろうと、ぽんって消えるの', en:'Four alike go pop!'}],
+    boy:  [{jp:'金四郎さん、強そう', en:'Kinshiro looks strong'}],
+    react: {who:'boy', jp:'れんさだ！', en:'A chain!'}},
+  'ai-map': {
+    girl: [{jp:'赤いほど、AIにできる仕事', en:'The redder, the more AI can do'}],
+    boy:  [{jp:'2030年、ぼくの仕事は？', en:'What will my job be in 2030?'}],
+    react: {who:'girl', jp:'2030年は、こんな地図', en:'This is the 2030 map'}},
+  hitori: {
+    girl: [{jp:'ひとりでも、入っていいお店', en:'Places that welcome you alone'}],
+    boy:  [{jp:'銭湯も、図書館もあるの？', en:'Bathhouses and libraries too?'}],
+    react: {who:'girl', jp:'40,615か所も、あるんだよ', en:'40,615 places in all'}},
+  hitoritabi: {
+    girl: [{jp:'写真の中に、その日の風', en:'The wind of that day is in the photos'}],
+    boy:  [{jp:'紙飛行機、どこまで飛ぶの？', en:'How far will the plane fly?'}],
+    react: {who:'boy', jp:'うらに、消印がある！', en:'Postmarks on the back!'}},
+  niwa: {
+    girl: [{jp:'目的なんて、なくていいの', en:"You don't need a reason"}],
+    boy:  [{jp:'雲の上って、すずしそう', en:'It looks cool above the clouds'}],
+    react: {who:'girl', jp:'灯りが、ともったね', en:'The lanterns are lit'}},
+  cabin: {
+    girl: [{jp:'ぬれた靴、ぬいでいいよ', en:'You can take off your wet shoes'}],
+    boy:  [{jp:'雨の音、おちつくね', en:'The rain is so calming'}],
+    react: {who:'boy', jp:'かみなり！', en:'Thunder!'}},
+};
 function playCry(animalId) {
   const a = ANIMALS.find(x => x.id === animalId); if (!a) return;
   try {
@@ -862,6 +948,84 @@ function playCry(animalId) {
     }
   } catch (e) { /* 音は飾り: 失敗しても図鑑登録は進める */ }
 }
+/* ---- 効果音: 紙・ぽん・きらきら・雷…… すべてその場で合成する (音の素材を増やさない)。
+   ♪ が鳴っているときだけ鳴らす (音を消している人には、仕掛けも黙って動く) ---- */
+const Sfx = (function () {
+  let ctx = null, bus = null, noise = null;
+  const on = () => { const b = document.getElementById('bgm-toggle'); return !!(b && b.classList.contains('playing')); };
+  function ac() {
+    if (!ctx) {
+      ctx = playCry._ctx || (playCry._ctx = new (window.AudioContext || window.webkitAudioContext)());
+      bus = ctx.createGain(); bus.gain.value = 0.9; bus.connect(ctx.destination);
+      const n = ctx.sampleRate * 2, buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      noise = buf;
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  /* ひとつの音: 高さ f (to へすべる)、山の大きさ g、長さ dur */
+  function tone(t, f, dur, g, type, to) {
+    const o = ctx.createOscillator(), v = ctx.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(f, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    v.gain.setValueAtTime(0.0001, t);
+    v.gain.exponentialRampToValueAtTime(g, t + 0.012);
+    v.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(v); v.connect(bus); o.start(t); o.stop(t + dur + 0.05);
+  }
+  /* ざっ: 帯域をしぼったノイズ (f から f2 へ動かせる) */
+  function hiss(t, dur, g, type, f, q, f2) {
+    const s = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), v = ctx.createGain();
+    s.buffer = noise;
+    fl.type = type; fl.frequency.setValueAtTime(f, t); fl.Q.value = q;
+    if (f2) fl.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    v.gain.setValueAtTime(0.0001, t);
+    v.gain.exponentialRampToValueAtTime(g, t + Math.min(0.06, dur * 0.3));
+    v.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(fl); fl.connect(v); v.connect(bus); s.start(t, Math.random() * 1.2); s.stop(t + dur + 0.05);
+  }
+  const bell = (t, f, g, dur) => { tone(t, f, dur, g, 'sine'); tone(t, f * 2.76, dur * 0.35, g * 0.22, 'sine'); };
+  const P = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51, 1567.98, 1760];   /* ド レ ミ ソ ラ の五音 */
+  const S = {
+    turn(t) { hiss(t, 0.5, 0.045, 'bandpass', 2200, 0.7, 650); },   /* 紙がめくれる */
+    rise(t) { tone(t, 330, 0.22, 0.035, 'sine', 620); },             /* 世界が起き上がる */
+    hop(t) { tone(t, 380, 0.2, 0.05, 'sine', 900); },
+    blip(t) { tone(t, 1250, 0.07, 0.03, 'triangle'); tone(t + 0.07, 1480, 0.08, 0.025, 'triangle'); },
+    comet(t) { for (let i = 0; i < 7; i++) bell(t + i * 0.2, P[i + 2], 0.05, 0.8); bell(t + 1.55, P[8], 0.07, 1.6); bell(t + 1.55, P[5], 0.05, 1.6); },
+    weave(t) { for (let i = 0; i < 4; i++) bell(t + 0.62 + i * 0.12, P[3 + i], 0.06, 0.9); [P[0], P[2], P[4]].forEach((f) => bell(t + 1.55, f, 0.045, 2.2)); },
+    verdict(t) {
+      hiss(t, 0.9, 0.05, 'bandpass', 1500, 0.6, 900);   /* 紙が舞う */
+      for (let i = 0; i < 8; i++) { tone(t + 1.3 + i * 0.15, 150, 0.12, 0.09, 'sine', 70); hiss(t + 1.3 + i * 0.15, 0.06, 0.05, 'highpass', 2500, 0.7); }
+      bell(t + 3.15, P[5], 0.07, 1.8); bell(t + 3.15, P[7], 0.05, 1.8);
+    },
+    sing(t) { [0, 2, 4, 3, 5, 7, 6, 9].forEach((k, i) => bell(t + 0.15 + i * 0.22, P[k], 0.055, 1.4)); },
+    solve(t) {
+      hiss(t, 0.45, 0.05, 'bandpass', 900, 0.8, 3000);   /* ばらける */
+      for (let i = 0; i < 9; i++) tone(t + 0.9 + i * 0.05 + Math.random() * 0.03, 2000 + Math.random() * 1600, 0.09, 0.02, 'sine');
+      [P[0], P[2], P[4], P[5]].forEach((f) => bell(t + 1.45, f, 0.045, 1.8));
+    },
+    chain(t) { tone(t + 0.9, 240, 0.08, 0.07, 'triangle', 170); tone(t + 1.45, 520, 0.16, 0.07, 'sine', 900); tone(t + 2.45, 700, 0.16, 0.07, 'sine', 1200); bell(t + 2.95, P[7], 0.05, 1.2); },
+    forward(t) { for (let i = 1; i < 8; i++) tone(t + i * 0.3, 1800, 0.04, 0.035, 'square'); bell(t + 2.15, P[5], 0.07, 1.6); },
+    wave(t) { for (let i = 0; i < 12; i++) tone(t + 0.32 + i * 0.075, 700 + i * 70, 0.1, 0.03, 'triangle'); bell(t + 1.6, P[6], 0.055, 1.4); },
+    flip(t) { for (let i = 0; i < 8; i++) hiss(t + 0.12 + i * 0.11, 0.2, 0.035, 'bandpass', 2600, 0.9, 1200); bell(t + 1.25, P[4], 0.05, 1.2); },
+    lanterns(t) { for (let i = 0; i < 7; i++) bell(t + 0.2 + i * 0.28 + Math.random() * 0.08, P[4 + Math.floor(Math.random() * 6)], 0.035, 1.6); },
+    storm(t) {
+      hiss(t, 0.18, 0.12, 'highpass', 1800, 0.5);                          /* ぱしっ */
+      hiss(t + 0.3, 2.4, 0.3, 'lowpass', 220, 0.9, 55);                     /* ごろごろ */
+      tone(t + 0.3, 55, 1.8, 0.12, 'sine', 38);
+      hiss(t + 0.2, 3.0, 0.05, 'bandpass', 2600, 0.4);                      /* 雨が強まる */
+    },
+  };
+  return {
+    play(name, delay) {
+      if (!on() || !S[name]) return;
+      try { const c = ac(); S[name](c.currentTime + (delay || 0)); } catch (e) { /* 音は飾り */ }
+    }
+  };
+})();
+window.Sfx = Sfx;
 window.renderShareButton = function (el) {
   if (!el) return;
   const btn = document.createElement('button');
@@ -1297,15 +1461,18 @@ const EHON = {
   _fromQueue: false,
   /* めくり中に押された先 (予約があればそれ) を基準に、次/前を決める */
   targetIdx() { return this._queued !== null ? this._queued : this.state.currentPageIdx; },
-  open() {
+  /* auto = 起動してひとりでに開いた (押されていない)。そのときは音を出さず、最初に触れたときに音楽を始める */
+  open(auto) {
     if (this.state.open) return;
     this.state.open = true;
+    this.state.autoOpened = !!auto;
     document.getElementById('hint').classList.add('gone');
     document.getElementById('title-card').classList.add('show');
     document.getElementById('mode-toggle').classList.add('show');
     document.getElementById('lang-toggle').classList.add('show');
     document.getElementById('bgm-toggle').classList.add('show');
-    startBGM();  /* 本を開く=ユーザー操作なので自動再生できる */
+    if (auto) startBGMOnFirstTouch();
+    else startBGM();  /* 本を開く=ユーザー操作なので自動再生できる */
     document.getElementById('nav-prev').classList.add('show');
     document.getElementById('nav-next').classList.add('show');
     document.getElementById('world-dots').classList.add('show');
@@ -1463,11 +1630,25 @@ function startBGM() {
   a.play().then(() => document.getElementById('bgm-toggle').classList.add('playing'))
           .catch(() => {});
 }
+/* ひとりでに開いたときは、最初に触れた (押した・キーを押した) ときに音楽を始める。
+   ♪ そのものを押したなら、その押し方にまかせる。音楽を自分で止めた人には、もう鳴らさない */
+function startBGMOnFirstTouch() {
+  const go = (ev) => {
+    window.removeEventListener('pointerdown', go, true);
+    window.removeEventListener('keydown', go, true);
+    const t = ev.target;
+    if (t && t.closest && t.closest('#bgm-toggle, a[href]')) return;
+    const a = document.getElementById('bgm');
+    if (a && a.paused && !startBGM.userPaused) startBGM();
+  };
+  window.addEventListener('pointerdown', go, true);
+  window.addEventListener('keydown', go, true);
+}
 document.getElementById('bgm-toggle').addEventListener('click', e => {
   e.stopPropagation();
   const a = document.getElementById('bgm'), btn = document.getElementById('bgm-toggle');
-  if (a.paused) { a.volume = 0.42; a.play().then(() => btn.classList.add('playing')).catch(() => {}); }
-  else { a.pause(); btn.classList.remove('playing'); }
+  if (a.paused) { a.volume = 0.42; a.play().then(() => btn.classList.add('playing')).catch(() => {}); startBGM.userPaused = false; }
+  else { a.pause(); btn.classList.remove('playing'); startBGM.userPaused = true; }
 });
 document.getElementById('lang-toggle').addEventListener('click', e => {
   e.stopPropagation();
@@ -1482,6 +1663,12 @@ document.documentElement.lang = (ehonLang() === 'jp') ? 'ja' : 'en';
 window.addEventListener('keydown', e => {
   const zk = document.getElementById('zukan-modal');
   if (zk && zk.classList.contains('show')) { if (e.key === 'Escape') zk.classList.remove('show'); return; }
+  /* スペース: いまの頁の仕掛けを動かす (ボタンや入力欄にいるときは、そちらの操作) */
+  if (e.key === ' ' && !(e.target && e.target.closest && e.target.closest('button, a, input, textarea, select'))) {
+    e.preventDefault();
+    if (window.ehonPlayShow) window.ehonPlayShow();
+    return;
+  }
   if (e.key === 'ArrowLeft') EHON.switchPage(EHON.targetIdx() - 1);
   if (e.key === 'ArrowRight') EHON.switchPage(EHON.targetIdx() + 1);
 });
@@ -2307,7 +2494,7 @@ function disposeTree(root) {
   const texs = new Set();
   mats.forEach((m) => { TEX_SLOTS.forEach((k) => { if (m[k] && m[k].isTexture) texs.add(m[k]); }); m.dispose(); });
   texs.forEach((t) => {
-    if (t === _shadowTex || t === _paperTex || t === _glowTex || t === _sheetTex) return;
+    if (t === _shadowTex || t === _paperTex || t === _glowTex || t === _sheetTex || t.userData.keep) return;
     t.dispose();
     const d = t.source && t.source.data;
     if (d && typeof d.close === 'function') d.close();   /* ImageBitmap のメモリもすぐ返す */
@@ -2326,7 +2513,9 @@ function requestWorld(page, lazy) {
     e = { id: page.id, page, root: null, lift: null, shadow: null, shadowMat: null, shadowMax: 0.75,
           animal: null, animalScale: 1, animalWait: 0, pose: null, tick: null,
           rise: 0, lean: 0, anim: null, building: false, ready: false, failed: false, disposed: false,
-          warm: 'none', urgent: false, pendingRise: false, riseSigma: 1 };
+          warm: 'none', urgent: false, pendingRise: false, riseSigma: 1,
+          show: page.show || (page.popup && page.popup.show) || null, showDur: 0, showT0: null, showAge: -1,
+          focus: new THREE.Vector3(0, 1.5, 0) };   /* focus: 「さわってみて」の合図を出す場所 (世界の中の座標) */
     worlds.set(page.id, e);
     if (page.diorama) fetchBytes(window.getAssetUrl(page.diorama)).catch(() => {});
     const animal = ANIMALS.find((a) => a.page === page.id);
@@ -2422,12 +2611,12 @@ async function buildDiorama(e, lift) {
   const dc = db.getCenter(new THREE.Vector3());
   dio.position.x -= dc.x; dio.position.z -= dc.z;
   dio.position.y -= db.min.y;
-  if (isl) { floatIsland(e, lift, dio, Math.max(ds.x, ds.z) * dScale); return 6.4; }
+  if (isl) { floatIsland(e, lift, dio, Math.max(ds.x, ds.z) * dScale, ds.y * dScale); return 6.4; }
   lift.add(dio);
   return Math.max(ds.x, ds.z) * dScale * 1.2;
 }
 /* 浮遊島: 広場の下に岩の円錐をつけ、雲の上にゆっくり上下させる (niwa.html の島と同じ作り: 岩肌 #5a4838 に苔) */
-function floatIsland(e, lift, dio, span) {
+function floatIsland(e, lift, dio, span, top) {
   const isl = e.page.island, R = span * 0.5, H = isl.rockH || 1.9;
   const island = new THREE.Group();
   island.add(dio);
@@ -2465,16 +2654,45 @@ function floatIsland(e, lift, dio, span) {
     lift.add(sp);
     clouds.push({ sp, a, rr, y: sp.position.y, sp0: 0.05 + rnd() * 0.05 });
   }
-  e.island = { island, hover, clouds };
+  /* 仕掛け (lanterns): 島のあちこちから、灯りのともった紙の灯籠が、ひとつずつ空へのぼっていく */
+  const lanterns = [];
+  const lampGeo = new THREE.CylinderGeometry(0.075, 0.095, 0.17, 10, 1, true);
+  for (let i = 0; i < 12; i++) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(lampGeo, new THREE.MeshBasicMaterial({ color: 0xffc35c, transparent: true, opacity: 0,
+      side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: 0xff9a3c, transparent: true, opacity: 0,
+      depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+    glow.scale.setScalar(0.62);
+    body.renderOrder = glow.renderOrder = 3;
+    g.add(body, glow);
+    g.visible = false;
+    island.add(g);
+    const a = rnd() * Math.PI * 2, rr = R * (0.15 + rnd() * 0.55);
+    lanterns.push({ g, body, glow, x: Math.cos(a) * rr, z: Math.sin(a) * rr * 0.8, t0: 0.15 + i * 0.18 + rnd() * 0.1, sw: rnd() * 6, sp: 0.75 + rnd() * 0.35 });
+  }
+  e.island = { island, hover, clouds, lanterns, top };
   e.tick = tickIsland;
+  e.showDur = 4.8;
+  e.focus.set(0, hover + top * 0.5, 0);
 }
 function tickIsland(e, t) {
-  const I = e.island, s = t / 1000;
-  I.island.position.y = I.hover + Math.sin(s * 0.6) * 0.09;   /* ふわりと上下 */
+  const I = e.island, s = t / 1000, sa = e.showAge;
+  const up = sa >= 0 ? sstep(0, 0.8, sa) * (1 - sstep(3.6, 4.6, sa)) : 0;   /* 仕掛けの間は、島が少し高く浮かび、雲がひらく */
+  I.island.position.y = I.hover + Math.sin(s * 0.6) * 0.09 + 0.3 * up;   /* ふわりと上下 */
   I.island.rotation.y = Math.sin(s * 0.13) * 0.06;
   for (const c of I.clouds) {
-    const a = c.a + s * c.sp0;
-    c.sp.position.x = Math.cos(a) * c.rr; c.sp.position.z = Math.sin(a) * c.rr * 0.7;
+    const a = c.a + s * c.sp0, rr = c.rr * (1 + 0.25 * up);
+    c.sp.position.x = Math.cos(a) * rr; c.sp.position.z = Math.sin(a) * rr * 0.7;
+  }
+  for (const L of I.lanterns) {
+    const k = sa >= 0 ? sa - L.t0 : -1;
+    L.g.visible = k > 0;
+    if (!L.g.visible) continue;
+    L.g.position.set(L.x + Math.sin(s * 1.3 + L.sw) * 0.08 * k, I.top * 0.55 + k * L.sp, L.z);
+    const op = sstep(0, 0.3, k) * (1 - sstep(3.7, 4.6, sa));
+    L.body.material.opacity = 0.95 * op;
+    L.glow.material.opacity = op * (0.8 + 0.2 * Math.sin(s * 9 + L.sw));   /* 火のゆらぎ */
   }
 }
 
@@ -2511,7 +2729,8 @@ async function buildCards(e, lift) {
       const glow = new THREE.Mesh(new THREE.PlaneGeometry(c.size, c.size), new THREE.MeshBasicMaterial({
         map: front, transparent: true, depthWrite: false, toneMapped: false }));
       hinge.add(glow);
-      cards.push({ hinge, glow, delay: c.delay || 0, float: { y: c.y || 1.5, phase: i * 1.7, speed: 0.55 + (i % 3) * 0.18 } });
+      cards.push({ hinge, glow, spec: c, x0: c.x || 0, z0: c.z || 0, delay: c.delay || 0,
+        float: { y: c.y || 1.5, phase: i * 1.7, speed: 0.55 + (i % 3) * 0.18 } });
     } else {
       const aspect = front.image.width / front.image.height;
       const w = c.w || c.h * aspect, h = c.h || c.w / aspect;
@@ -2519,7 +2738,13 @@ async function buildCards(e, lift) {
       geo.translate(0, h / 2, 0);   /* 根元 (下辺) が起き上がる軸 */
       const face = new THREE.MeshStandardMaterial({ map: front, alphaTest: 0.5, roughness: 0.9, metalness: 0,
         emissive: 0xffffff, emissiveMap: front, emissiveIntensity: 0.3 });   /* 刷った絵の色を、照明で沈ませすぎない */
-      const paper = new THREE.MeshStandardMaterial({ map: back, alphaTest: 0.5, roughness: 1, metalness: 0, side: THREE.BackSide });
+      /* 写真の裏 (一人旅): 旅先の国の消印を描いた紙に差し替える (裏返す仕掛けで見える) */
+      let backMap = back;
+      if (c.mark) {
+        backMap = postmarkTexture(c.mark, (i * 47 + 200) % 360, 320, Math.round(320 * front.image.height / front.image.width));
+        if (back) { back.dispose(); const d = back.source && back.source.data; if (d && typeof d.close === 'function') d.close(); }
+      }
+      const paper = new THREE.MeshStandardMaterial({ map: backMap, alphaTest: 0.5, roughness: 1, metalness: 0, side: THREE.BackSide });
       if (c.rz) geo.rotateZ(c.rz);   /* 写真を少し傾けて立てる */
       hinge.add(new THREE.Mesh(geo, face), new THREE.Mesh(geo, paper));
       /* 絵の中の灯り (窓・扉): カードといっしょに起き上がり、立ち終わるころに ぽっとともって ゆらぐ。
@@ -2533,17 +2758,44 @@ async function buildCards(e, lift) {
         hinge.add(sp);
         return { sp, base: g.o || 0.9, phase: k * 2.1 };
       });
-      cards.push({ hinge, delay: c.delay || 0, glows });
+      cards.push({ hinge, face, spec: c, ry0: c.ry || 0, delay: c.delay || 0, glows });
     }
     lift.add(hinge);
   });
   e.cards = cards;
   e.fx = (e.page.popup.fx || []).map((f) => buildFx(f, lift)).filter(Boolean);
+  if (e.show === 'weave') buildWeave(e, lift);
+  e.showDur = { comet: 3.0, weave: 4.4, verdict: 5.2, chain: 4.4, flip: 3.6, storm: 3.8 }[e.show] || 0;
+  e.focus.set(0, e.show === 'flip' ? 1.0 : e.show === 'weave' ? 2.3 : 1.7, e.show === 'storm' ? -1.2 : e.show === 'flip' ? -0.5 : -0.2);
   e.pose = poseCards;
   e.warmRise = 1;   /* GPU へ送るときは全部のカードを立てて (見えないほど小さく) 描く */
-  if (cards.some((c) => c.float || c.glows.length) || e.fx.length) e.tick = tickCards;
+  e.tick = tickCards;
   return 8.4;
 }
+/* ことつぎの仕掛け (weave): 漂っていた言葉のかけらが上に一列に並び、金の糸でつながって「ことばを、つぐ」 */
+function buildWeave(e, lift) {
+  const shards = e.cards.filter((c) => c.float).sort((a, b) => a.x0 - b.x0);
+  const Y = 3.3, Z = 0.7, GAP = 1.1;
+  const xs = shards.map((c, i) => (i - (shards.length - 1) / 2) * GAP);
+  shards.forEach((c, i) => { c.wi = i; });
+  const curve = new THREE.CatmullRomCurve3(xs.map((x, i) => new THREE.Vector3(x, Y - 0.06 * Math.sin((i / (xs.length - 1)) * Math.PI), Z)));
+  const U = fxUniforms({ uProg: { value: 0 }, uGain: { value: 1 }, uColor: { value: new THREE.Color(0xffd98a) }, uHead: { value: -1 }, uBand: { value: 0 } });
+  const thread = new THREE.Mesh(new THREE.TubeGeometry(curve, 64, 0.02, 6, false),
+    new THREE.ShaderMaterial({ uniforms: U, vertexShader: FX_PATH_VERT, fragmentShader: FX_PATH_FRAG, transparent: true, depthWrite: false, ...ADD_LIGHT }));
+  thread.renderOrder = 4; thread.visible = false;
+  lift.add(thread);
+  const label = makeLabel(2.3, 0.5, (g, cw, ch) => {
+    g.font = `800 ${Math.round(ch * 0.5)}px ${MINCHO}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const word = tt({ jp: 'ことばを、つぐ', en: 'Words, woven' });
+    g.lineWidth = ch * 0.08; g.strokeStyle = 'rgba(40,24,8,.85)'; g.strokeText(word, cw / 2, ch / 2);
+    g.fillStyle = '#ffe3a0'; g.fillText(word, cw / 2, ch / 2);
+  });
+  label.mesh.position.set(0, Y + 0.62, Z);
+  label.mesh.material.opacity = 0; label.mesh.visible = false; label.mesh.renderOrder = 5;
+  lift.add(label.mesh);
+  e.weave = { xs, Y, Z, U, thread, label, lang: null };
+}
+const hopAt = (x, d, hgt) => (x > 0 && x < d ? Math.sin(Math.PI * x / d) * hgt : 0);   /* ぴょん (x 秒目、d 秒で着地) */
 /* 奥のカードから順に起き上がる。ばねの行き過ぎは、全部のカードに同じだけ */
 const cardProgress = (r, delay) => (r >= 1 ? r : clamp01((r - delay) / (1 - delay)));
 function poseCards(e, r) {
@@ -2565,22 +2817,62 @@ function poseCards(e, r) {
   for (const x of e.fx) { if (x.pose) x.pose(r); x.fade(f); }
 }
 function tickCards(e, t) {
-  const s = t / 1000;
-  for (const c of e.cards) {
+  const s = t / 1000, a = e.showAge, W = e.weave;
+  /* 仕掛けの間の、カードの動き。a = 押してからの秒 (動いていなければ -1) */
+  let lamp = 1, flash = 0;   /* storm: 窓の灯りの明るさの倍率 / 雷の光 */
+  if (e.show === 'storm' && a >= 0) {
+    lamp = a < 0.2 ? 1 : a < 0.9 ? 0.06 : a < 1.15 ? (Math.sin(a * 90) > 0 ? 1.2 : 0.3) : a < 2.8 ? 1.5 : 1 + 0.5 * (1 - sstep(2.8, 3.6, a));
+    const b = (x, c, w) => Math.exp(-((x - c) / w) * ((x - c) / w));
+    flash = quietMotion() ? 0 : b(a, 0.05, 0.05) + 0.6 * b(a, 0.24, 0.04);
+  }
+  if (e === curWorld && (flash > 0.001 || V.skyLit)) {   /* 画面ごと、ぱっと明るく (消えたら書き込まない) */
+    const sky = document.getElementById('sky-flash');
+    if (sky) sky.style.opacity = (0.22 * flash).toFixed(3);
+    V.skyLit = flash > 0.001;
+  }
+  e.cards.forEach((c, i) => {
     if (c.float) {
       const f = c.float, q = Math.min(1, cardProgress(e.rise, c.delay));
       c.bob = Math.sin(s * f.speed + f.phase) * 0.14;
-      c.hinge.position.y = (f.y + c.bob) * q;
+      let y = (f.y + c.bob) * q, x = c.x0, z = c.z0, w = 0;
+      if (W && a >= 0) {   /* weave: 上に一列に並ぶ (左のかけらから順に) */
+        w = sstep(0.1 + c.wi * 0.12, 0.7 + c.wi * 0.12, a) * (1 - sstep(3.4, 4.2, a));
+        x = lerp(x, W.xs[c.wi], w); z = lerp(z, W.Z, w); y = lerp(y, W.Y, w);
+      }
+      c.hinge.position.set(x, y, z);
+      c.glow.scale.setScalar(Math.max(0.001, q) * (1 + 0.3 * w));
       c.glow.quaternion.copy(V.cam.quaternion);   /* いつもこちらを向く光 */
-      c.glow.rotateZ(Math.sin(s * 0.45 + f.phase) * 0.3);
-    } else if (c.glows.length) {
+      c.glow.rotateZ(Math.sin(s * 0.45 + f.phase) * 0.3 * (1 - w));
+      return;
+    }
+    if (c.glows.length) {
       for (const g of c.glows) {   /* 火の灯りのゆらぎ */
         const fl = 0.84 + 0.1 * Math.sin(s * 7.3 + g.phase) * Math.sin(s * 3.1 + g.phase * 1.7) + 0.06 * Math.sin(s * 13.7 + g.phase);
-        g.sp.material.opacity = g.base * (c.lit || 0) * fl;
+        g.sp.material.opacity = g.base * (c.lit || 0) * fl * lamp;
       }
     }
+    if (e.show === 'storm' && i === 0) c.face.emissiveIntensity = 0.3 + 1.4 * flash;   /* 雷に照らされる */
+    if (e.show === 'comet') {   /* 少年には道筋が視える (光る)。少女だけは、光が通ると映らない (二度消える) */
+      if (c.spec.tex === 'seikai_kai') c.face.emissiveIntensity = 0.3 + (a >= 0 ? 0.5 * Math.exp(-(((a - 0.35) / 0.25) ** 2)) : 0);
+      if (c.spec.tex === 'seikai_rin') c.face.opacity = a >= 1.05 && (a < 1.17 || (a >= 1.27 && a < 1.39)) ? 0.3 : 1;
+    }
+    if (e.show === 'chain') c.hinge.position.y = 0.01 + (a >= 0 ? hopAt(a - 1.45 - i * 0.06, 0.34, 0.32) + hopAt(a - 2.45 - i * 0.06, 0.34, 0.32) : 0);   /* 駒が消えるたびに跳ねる */
+    if (e.show === 'flip') {   /* 写真が左から順に裏返り、裏の消印を見せて、また表へ */
+      const k = a >= 0 ? sstep(0.1 + i * 0.11, 0.52 + i * 0.11, a) * (1 - sstep(2.45 + i * 0.07, 2.87 + i * 0.07, a)) : 0;
+      c.hinge.rotation.y = c.ry0 + Math.PI * k;
+      c.hinge.position.y = 0.01 + 0.14 * Math.sin(Math.PI * k);
+    }
+  });
+  if (W) {   /* 金の糸で結ばれ、「ことばを、つぐ」 */
+    const on = a >= 0;
+    const draw = on ? sstep(1.05, 1.6, a) : 0, gone = on ? sstep(3.2, 3.7, a) : 1;
+    W.thread.visible = on && draw > 0.001 && gone < 0.999;
+    W.U.uProg.value = draw; W.U.uGain.value = 1 - gone; W.U.uTime.value = s;
+    if (on && W.lang !== ehonLang()) { W.lang = ehonLang(); W.label.redraw(); }
+    const lo = on ? sstep(1.5, 1.85, a) * (1 - sstep(3.2, 3.6, a)) : 0;
+    W.label.mesh.material.opacity = lo; W.label.mesh.visible = lo > 0.01;
   }
-  for (const x of e.fx) x.tick(s);
+  for (const x of e.fx) x.tick(s, a);
 }
 
 /* ------ 飛び出しの仕掛け (fx): 雨・漂う光・金の道筋・舞う紙 ------
@@ -2623,12 +2915,14 @@ const FX_PATH_VERT = `
 varying vec2 vUv;
 void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const FX_PATH_FRAG = `
-uniform float uProg, uTime, uGain; uniform vec3 uColor; varying vec2 vUv;
+uniform float uProg, uTime, uGain, uHead, uBand; uniform vec3 uColor; varying vec2 vUv;
 void main() {
   if (vUv.x > uProg) discard;
   float head = smoothstep(uProg - 0.06, uProg, vUv.x);   /* 描いている先端はまぶしい */
   float flow = 0.8 + 0.2 * sin(vUv.x * 60.0 - uTime * 4.0);   /* 道筋を光が流れる */
-  gl_FragColor = vec4(uColor * uGain * (flow + head * 1.6), 1.0);
+  float d = (vUv.x - uHead) * 14.0;
+  float band = uBand * exp(-d * d);   /* 仕掛け: 道筋を走る光の玉のまわりが明るむ */
+  gl_FragColor = vec4(uColor * uGain * (flow + head * 1.6 + band * 3.0), 1.0);
 }`;
 function fxUniforms(extra) {
   return Object.assign({ uTime: { value: 0 }, uFade: { value: 0 }, uPx: { value: V.renderer.getPixelRatio() } }, extra);
@@ -2653,7 +2947,18 @@ function buildFx(f, lift) {
       transparent: true, depthWrite: false, ...ADD_LIGHT }));
     obj.position.set(cx, cy, cz); obj.frustumCulled = false; obj.renderOrder = 3;
     lift.add(obj);
-    return { fade: (v) => { U.uFade.value = v * (f.gain || 0.55); obj.visible = v > 0.01; }, tick: (s) => { U.uTime.value = s; } };
+    let fadeV = 0, rt = 0, lastS = null;
+    return {
+      fade: (v) => { fadeV = v; U.uFade.value = v * (f.gain || 0.55); obj.visible = v > 0.01; },
+      tick: (s, a) => {   /* 仕掛け (storm) の間は、雨が強く・速くなる */
+        const dt = lastS === null ? 0 : Math.min(0.1, Math.max(0, s - lastS));
+        lastS = s;
+        const boost = a >= 0 ? sstep(0.15, 0.6, a) * (1 - sstep(2.6, 3.7, a)) : 0;
+        rt += dt * (1 + 0.8 * boost);
+        U.uTime.value = rt;
+        U.uFade.value = fadeV * (f.gain || 0.55) * (1 + 1.4 * boost);
+      }
+    };
   }
   if (f.kind === 'motes') {   /* 漂う光の粒 (蛍・火の粉・星のかけら) */
     const [bw, bh, bd] = f.box, n = f.n || 40;
@@ -2673,7 +2978,7 @@ function buildFx(f, lift) {
     const curve = new THREE.CatmullRomCurve3(f.points.map((q) => new THREE.Vector3(q[0], q[1], q[2])));
     const col = new THREE.Color(f.color || 0xffc861);
     const mk = (radius, gain) => {
-      const U = fxUniforms({ uProg: { value: 0 }, uGain: { value: gain }, uColor: { value: col } });
+      const U = fxUniforms({ uProg: { value: 0 }, uGain: { value: gain }, uColor: { value: col }, uHead: { value: -1 }, uBand: { value: 0 } });
       const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 160, radius, 6, false),
         new THREE.ShaderMaterial({ uniforms: U, vertexShader: FX_PATH_VERT, fragmentShader: FX_PATH_FRAG, transparent: true, depthWrite: false, ...ADD_LIGHT }));
       m.renderOrder = 4; lift.add(m);
@@ -2695,6 +3000,11 @@ function buildFx(f, lift) {
     const sparks = new THREE.Points(sg, new THREE.ShaderMaterial({ uniforms: SU, vertexShader: FX_MOTE_VERT, fragmentShader: FX_MOTE_FRAG,
       transparent: true, depthWrite: false, ...ADD_LIGHT }));
     sparks.frustumCulled = false; sparks.renderOrder = 5; lift.add(sparks);
+    /* 仕掛け (comet): 光の玉が地下から空へ道筋を駆けのぼり、通った節の輪がはね、空の端でぱっと咲く */
+    const comet = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: 0xfff1c4, transparent: true, opacity: 0,
+      depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+    comet.renderOrder = 6; comet.visible = false; lift.add(comet);
+    const RUN = 1.5;
     /* 立ち終わってから DRAW 秒かけて描く。畳むときは、畳む速さで消える */
     const DRAW = f.draw || 1.8, tmp = new THREE.Vector3();
     let prog = 0, fadeV = 0, s0 = null;
@@ -2705,17 +3015,30 @@ function buildFx(f, lift) {
     };
     return {
       fade: (v) => { fadeV = v; if (v <= 0.01) s0 = null; prog = Math.min(prog, v); apply(); },
-      tick: (s) => {
+      tick: (s, a) => {
         if (fadeV > 0.01 && s0 === null) s0 = s;
         prog = Math.min(s0 === null ? 0 : clamp01((s - s0) / DRAW), fadeV);
         apply();
         core.uTime.value = halo.uTime.value = SU.uTime.value = s; SU.uPx.value = V.renderer.getPixelRatio();
-        for (let i = 0; i < NS; i++) {   /* 粒は道筋に沿って、地下から空へのぼる */
-          curve.getPointAt(((i / NS + s * 0.07) % 1) * prog, tmp);
+        const run = a >= 0 && prog >= 1, u = run ? sstep(0, RUN, a) : -1;
+        for (let i = 0; i < NS; i++) {   /* 粒は道筋に沿って、地下から空へのぼる (光の玉が走る間は、玉のうしろに尾を引く) */
+          curve.getPointAt(run && a < RUN + 0.3 ? clamp01(u - i * 0.012) : ((i / NS + s * 0.07) % 1) * prog, tmp);
           sp[i * 3] = tmp.x; sp[i * 3 + 1] = tmp.y; sp[i * 3 + 2] = tmp.z;
         }
         sg.attributes.position.needsUpdate = true;
-        for (const nd of nodes) nd.ring.rotation.set(0.4, s * 0.8 + nd.k * 5, 0);
+        for (const nd of nodes) {
+          nd.ring.rotation.set(0.4, s * 0.8 + nd.k * 5, 0);
+          if (run) { const d = (u - nd.k) / 0.07; nd.ring.scale.multiplyScalar(1 + 1.3 * Math.exp(-d * d)); }
+        }
+        comet.visible = run && a < RUN + 1.3;
+        if (comet.visible) {
+          curve.getPointAt(Math.min(1, u), tmp);
+          comet.position.copy(tmp);
+          comet.scale.setScalar(0.75 + 2.8 * sstep(RUN - 0.1, RUN + 0.35, a));   /* 空の端で咲く */
+          comet.material.opacity = 1 - sstep(RUN + 0.35, RUN + 1.3, a);
+        }
+        core.uHead.value = halo.uHead.value = u;
+        core.uBand.value = halo.uBand.value = run ? 1 - sstep(RUN + 0.2, RUN + 0.9, a) : 0;
       }
     };
   }
@@ -2730,18 +3053,64 @@ function buildFx(f, lift) {
       m.renderOrder = 4; lift.add(m);
       sheets.push({ m, a0: rnd() * Math.PI * 2, y0: rnd(), r: (f.radius || 2.2) * (0.75 + rnd() * 0.35), sp: 0.11 + rnd() * 0.05, spin: 0.6 + rnd() * 0.8 });
     }
-    let fadeV = 0;
+    /* 仕掛け (verdict): 舞っていた頁が登場人物のうしろ上に弧を描いて並び、1 枚ずつ「嘘」の判が押される。
+       残った 1 枚だけが手前へ飛んできて、金の「真」 */
+    const stamps = sheets.map((q, i) => {
+      const st = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.36), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false }));
+      st.position.set(0.04, -0.1, 0.004); st.rotation.z = -0.22 + (i % 3) * 0.12;
+      st.renderOrder = 5; st.visible = false;
+      q.m.add(st);
+      const last = i === n - 1;
+      return { st, last, at: last ? 3.15 : 1.3 + i * 0.15 };
+    });
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: 0xffd98a, transparent: true, opacity: 0,
+      depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
+    halo.renderOrder = 3; halo.visible = false; lift.add(halo);
+    const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), eu = new THREE.Euler(), eb = new THREE.Euler(), tgt = new THREE.Vector3();
+    let fadeV = 0, lang = null;
     const H = f.height || 4.2;
     return {
       fade: (v) => { fadeV = v; },
-      tick: (s) => {
-        for (const q of sheets) {
+      tick: (s, sa) => {
+        const show = sa >= 0;
+        if (show && lang !== ehonLang()) {   /* 判の字は、いまの言葉で */
+          lang = ehonLang();
+          for (const x of stamps) { x.st.material.map = verdictStampTexture(x.last, lang); x.st.material.needsUpdate = true; }
+        }
+        sheets.forEach((q, i) => {
           const u = (q.y0 + s * q.sp) % 1, a = q.a0 + s * 0.35 + u * 2.2;
           q.m.position.set(cx + Math.cos(a) * q.r, cy + 0.3 + u * H, cz + Math.sin(a) * q.r * 0.55);
-          q.m.rotation.set(Math.sin(s * q.spin + q.a0) * 0.9, a + Math.PI / 2, Math.cos(s * q.spin * 0.7 + q.a0) * 0.5);
-          q.m.material.opacity = fadeV * sstep(0, 0.12, u) * (1 - sstep(0.8, 1, u)) * 0.95;
-          q.m.visible = q.m.material.opacity > 0.01;
-        }
+          eu.set(Math.sin(s * q.spin + q.a0) * 0.9, a + Math.PI / 2, Math.cos(s * q.spin * 0.7 + q.a0) * 0.5);
+          let op = fadeV * sstep(0, 0.12, u) * (1 - sstep(0.8, 1, u)) * 0.95;
+          const x = stamps[i];
+          const w = show ? sstep(0.05 + i * 0.07, 0.8 + i * 0.07, sa) * (1 - sstep(4.3, 5.0, sa)) : 0;
+          const up = x.last ? sstep(2.65, 3.1, sa) * w : 0;   /* 真の 1 枚は、手前へ飛んできて大きく */
+          if (w > 0) {
+            const u = x.last ? 0 : (i - (n - 2) / 2) / ((n - 2) / 2);   /* 弧の上の位置 -1〜1 */
+            if (x.last) tgt.set(0, lerp(3.5, 2.55, up), lerp(-1.3, 1.45, up));
+            else tgt.set(u * 2.6, 3.0 + 0.22 * Math.cos(u * Math.PI / 2), -1.3);
+            q.m.position.lerp(tgt, w);
+            qa.setFromEuler(eu); qb.setFromEuler(eb.set(0, -u * 0.25, -u * 0.12));
+            q.m.quaternion.copy(qa.slerp(qb, w));
+            op += (0.97 * fadeV - op) * w;
+          } else {
+            q.m.quaternion.setFromEuler(eu);
+          }
+          q.m.scale.setScalar(1 + 0.4 * up);
+          q.m.material.opacity = op;
+          q.m.visible = op > 0.01;
+          const k = show ? sa - x.at : -1;   /* どん、と押される */
+          x.st.visible = w > 0.5 && k >= 0;
+          if (x.st.visible) x.st.scale.setScalar(k < 0.12 ? 1.7 - 0.7 * (k / 0.12) : 1);
+          if (x.last) {
+            halo.visible = x.st.visible;
+            if (halo.visible) {
+              halo.position.copy(q.m.position).z -= 0.05;
+              halo.scale.setScalar(1.9);
+              halo.material.opacity = 0.85 * sstep(0, 0.25, k) * (1 - sstep(4.2, 4.9, sa)) * fadeV;
+            }
+          }
+        });
       }
     };
   }
@@ -2827,10 +3196,12 @@ async function buildAtlas(e, lift) {
   });
   label.mesh.position.set(-W / 2 + 0.95, H + 0.13 + 0.42, 0.03);
   hinge.add(label.mesh);
-  e.atlas = { hinge, cells, info, years: L.years, label, lean: LEAN, yi: -1, s0: null, last: null, grow: 0 };
+  e.atlas = { hinge, cells, info, years: L.years, label, lean: LEAN, yi: -1, s0: null, last: null, grow: 0, fast: false, bloomed: false };
   e.pose = poseAtlas;
   e.tick = tickAtlas;
   e.warmRise = 1;
+  e.showDur = 3.4;
+  e.focus.set(0, 1.4, -1.0);
   setAtlasYear(e.atlas, 0);
   return 6.0;
 }
@@ -2850,7 +3221,16 @@ function poseAtlas(e, r) {
 function tickAtlas(e, t) {
   const A = e.atlas, s = t / 1000, dt = A.last === null ? 0 : Math.min(0.1, s - A.last);
   A.last = s;
-  if (e.rise >= 0.99) {   /* 2022 → 2030 を 1.1 秒ずつ。2030 で 3 秒止まり、2022 に戻って 1 秒 */
+  const a = e.showAge;
+  if (e.rise >= 0.99 && a >= 0) {   /* 仕掛け (forward): 2022 → 2030 を 0.3 秒ずつ早送り。2030 で札がはね、AI にできる仕事がいっせいに光る */
+    A.fast = true;
+    const yi = Math.min(7, Math.floor(a / 0.3));
+    setAtlasYear(A, yi);
+    if (yi === 7 && !A.bloomed) { A.bloomed = true; for (const c of A.info) if (c.lv[7] >= 4) c.flash = Math.max(c.flash, 0.55); }
+    const k = a - yi * 0.3;
+    A.label.mesh.scale.setScalar(1 + 0.12 * Math.exp(-((k / 0.07) ** 2)) + 0.3 * Math.exp(-(((a - 2.2) / 0.16) ** 2)));
+  } else if (e.rise >= 0.99) {   /* 2022 → 2030 を 1.1 秒ずつ。2030 で 3 秒止まり、2022 に戻って 1 秒 */
+    if (A.fast) { A.fast = false; A.bloomed = false; A.s0 = s - 8.8; A.label.mesh.scale.setScalar(1); }   /* 見せ場のあとは、2030 のまま少し止まる */
     if (A.s0 === null) A.s0 = s;
     const T = (s - A.s0) % 12.8;
     setAtlasYear(A, T < 8.8 ? Math.min(7, Math.floor(T / 1.1)) : T < 11.8 ? 7 : 0);
@@ -2934,16 +3314,16 @@ async function buildJapan(e, lift) {
   hinge.add(sticks, heads);
   /* 北から南へ順に立てる */
   const order = prefs.map((p, i) => i).sort((a, b) => prefs[b].y - prefs[a].y);
-  order.forEach((i, k) => { prefs[i].delay = k * 0.045; });
-  /* 札: 全体の数 */
-  const label = makeLabel(2.1, 0.62, (g, cw, ch) => {
+  order.forEach((i, k) => { prefs[i].delay = k * 0.045; prefs[i].fdelay = k * 0.018; });   /* fdelay: 仕掛けで立ち直すときの速い波 */
+  /* 札: 全体の数 (仕掛けの間は 0 から数え上がる) */
+  const label = makeLabel(2.1, 0.62, (g, cw, ch, n) => {
     paperLabel(g, cw, ch);
     g.fillStyle = '#161510'; g.textBaseline = 'middle';
-    g.font = `700 ${Math.round(ch * 0.36)}px ${MINCHO}`; g.fillText(J.total.toLocaleString('ja-JP') + ' 施設', cw * 0.06, ch * 0.36);
+    g.font = `700 ${Math.round(ch * 0.36)}px ${MINCHO}`; g.fillText(n.toLocaleString('ja-JP') + ' 施設', cw * 0.06, ch * 0.36);
     g.font = `${Math.round(ch * 0.19)}px ${MINCHO}`; g.fillStyle = '#276b60';
     g.fillText('● 公式で裏取り ' + J.checked.toLocaleString('ja-JP') + ' 件', cw * 0.06, ch * 0.74);
   });
-  label.redraw();
+  label.redraw(J.total);
   label.mesh.position.set(-W / 2 + 0.95, H + 0.15 + 0.08, 0.3);
   hinge.add(label.mesh);
   /* 浮かぶ県名 */
@@ -2956,10 +3336,13 @@ async function buildJapan(e, lift) {
   });
   tip.mesh.material.opacity = 0;
   hinge.add(tip.mesh);
-  e.japan = { hinge, landWrap, sticks, heads, prefs, tip, lean: LEAN, s0: null, grow: 0, nextTip: 0, tipOn: null, seed: 3 };
+  e.japan = { hinge, landWrap, sticks, heads, prefs, tip, label, total: J.total, shownN: J.total, tipped: false,
+              lean: LEAN, s0: null, grow: 0, nextTip: 0, tipOn: null, seed: 3 };
   e.pose = poseJapan;
   e.tick = tickJapan;
   e.warmRise = 1;
+  e.showDur = 3.2;
+  e.focus.set(0, 1.9, -0.8);
   return 6.0;
 }
 function poseJapan(e, r) {
@@ -2973,10 +3356,12 @@ function poseJapan(e, r) {
 function tickJapan(e, t) {
   const J = e.japan, s = t / 1000;
   if (e.rise >= 0.99 && J.s0 === null) { J.s0 = s; J.nextTip = s + 2.6; }
+  const sa = J.s0 !== null ? e.showAge : -1;   /* 仕掛けの秒 (動いていなければ -1) */
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3();
   J.prefs.forEach((p, i) => {
     let k = 0;
     if (J.s0 !== null) k = springRise(Math.max(0, s - J.s0 - p.delay), 13);   /* ぽん、と立つ */
+    if (sa >= 0) k = sa < 0.3 ? k * (1 - sstep(0, 0.3, sa)) : springRise(Math.max(0, sa - 0.3 - p.fdelay), 13);   /* 仕掛け (wave): 沈んで、北から南へ波のように立ち直す */
     if (p.bounce > 0) { k *= 1 + 0.35 * Math.sin((1 - p.bounce) * Math.PI); p.bounce = Math.max(0, p.bounce - 0.03); }
     const len = p.len * k, z0 = p.hgt * J.grow;
     J.sticks.setMatrixAt(i, m4.compose(v.set(p.x, p.y, z0), q, sc.set(1, 1, Math.max(0.001, len))));
@@ -2984,8 +3369,20 @@ function tickJapan(e, t) {
     J.heads.setMatrixAt(i, m4.compose(v.set(p.x, p.y, z0 + len), q, sc.set(r, r, r)));
   });
   J.sticks.instanceMatrix.needsUpdate = true; J.heads.instanceMatrix.needsUpdate = true;
+  /* 仕掛けの間は、札の数が 0 から数え上がり、最後にいちばん多い県の名前が浮かぶ */
+  const n = sa >= 0 ? Math.round(J.total * sstep(0.3, 1.5, sa)) : J.total;
+  if (n !== J.shownN) { J.shownN = n; J.label.redraw(n); }
+  if (sa >= 1.6 && !J.tipped) {
+    J.tipped = true;
+    const top = J.prefs.reduce((m, p) => (p.count > m.count ? p : m));
+    top.bounce = 1;
+    J.tip.redraw(top.name, top.count);
+    J.tipOn = { p: top, s };
+    J.nextTip = s + 2.6;
+  }
+  if (sa < 0) J.tipped = false;
   /* ときどき、店の多い県ほど選ばれやすく、名前と件数が浮かぶ */
-  if (J.s0 !== null && s >= J.nextTip) {
+  if (J.s0 !== null && s >= J.nextTip && !(sa >= 0 && sa < 1.6)) {
     const total = J.prefs.reduce((a, p) => a + p.count, 0);
     J.seed = (J.seed * 16807) % 2147483647;
     let x = (J.seed / 2147483647) * total, pick = J.prefs[0];
@@ -3062,7 +3459,8 @@ function buildCube(e, lift) {
     const home = new THREE.Vector3((x - half) * CUBE_GAP, (y - half) * CUBE_GAP, (z - half) * CUBE_GAP);
     const a = rnd() * Math.PI * 2, rr = 1.2 + rnd() * 1.9;   /* 散らばり: ページの上 (立方体の中心からの相対) */
     cells.push({ v, home, from: new THREE.Vector3(Math.cos(a) * rr, -CUBE_Y + 0.12, Math.sin(a) * rr * 0.8),
-      spin: (rnd() - 0.5) * 6, delay: 0.1 + rnd() * 0.35, given: rnd() < 0.42, fillAt: 0, filled: false, pop: 1 });
+      spin: (rnd() - 0.5) * 6, delay: 0.1 + rnd() * 0.35, given: rnd() < 0.42, fillAt: 0, filled: false, pop: 1,
+      dir: home.clone().normalize().multiplyScalar(1.1 + rnd() * 0.7), tw: (rnd() - 0.5) * 8 });   /* dir・tw: 仕掛けでばらけるときの向きと回り方 */
   }
   const box = new THREE.BoxGeometry(CUBE_S, CUBE_S, CUBE_S);
   const glass = new THREE.InstancedMesh(box, new THREE.MeshStandardMaterial({ map: cubeFaceTexture(false), transparent: true, opacity: 0.46,
@@ -3107,12 +3505,14 @@ function buildCube(e, lift) {
     depthWrite: false, toneMapped: false, ...ADD_LIGHT }));
   aura.scale.setScalar(4.6); aura.position.y = CUBE_Y; aura.renderOrder = 1;
   lift.add(aura);
-  e.cube = { cube, cells, glass, empty, frame, glyphs, GU, ring, aura, s0: null, order: null, spin: 0, last: null };
+  e.cube = { cube, cells, glass, empty, frame, glyphs, GU, ring, aura, s0: null, order: null, spin: 0, last: null, boom: 0, showing: false };
   e.pose = poseCube;
   e.tick = tickCube;
   e.warmRise = 1;
   e.glow = 0x7a5bff;
   e.shadowMax = 0.3;
+  e.showDur = 3.6;
+  e.focus.set(0, CUBE_Y, 0);
   poseCube(e, 0);
   return 5.5;
 }
@@ -3131,7 +3531,8 @@ function layCube(e, s) {   /* マスの位置・大きさ・色を今の状態�
     const k = sstep(0, 1, clamp01((r - c.delay) / 0.55));   /* 飛んでくる進み具合 */
     v.copy(c.from).lerp(c.home, k);
     v.y += Math.sin(k * Math.PI) * 0.6;   /* 弧を描いて飛ぶ */
-    q.setFromEuler(eu.set(c.spin * (1 - k), c.spin * 0.7 * (1 - k), 0));
+    if (C.boom) { v.addScaledVector(c.dir, C.boom * (C.calm ? 0.55 : 1.3)); v.y += C.boom * 0.35; }   /* 仕掛け: ぱっとばらける (本の紙に沈まないよう、少し上へ。静かな動きでは小さく) */
+    q.setFromEuler(eu.set(c.spin * (1 - k) + c.tw * C.boom, c.spin * 0.7 * (1 - k) + c.tw * 0.6 * C.boom, 0));
     const shown = c.given || c.filled;
     const pop = shown ? c.pop : 1;
     const size = Math.max(0.001, (0.35 + 0.65 * k) * pop);
@@ -3152,11 +3553,23 @@ function tickCube(e, t) {
   C.GU.uPx.value = V.renderer.getPixelRatio();
   C.GU.uCenter.value = V.cam.position.distanceTo(C.cube.getWorldPosition(C.wp || (C.wp = new THREE.Vector3())));
   C.cube.rotation.x = 0.38 * Math.min(1, C.r);
-  C.spin += dt * (0.22 + (C.party || 0) * 2.2);
+  C.spin += dt * (0.22 + (C.party || 0) * 2.2 + C.boom * 3);
   C.cube.rotation.y = C.spin;
   C.cube.position.y = CUBE_Y + Math.sin(s * 0.7) * 0.08;
   C.ring.rotation.z = -s * 0.12;
-  if (C.r >= 0.99) {   /* 空いたマスを 1 つずつ埋める。全部そろったら光って、2.5 秒後にまた空へ */
+  const sa = e.showAge;
+  if (C.r >= 0.99 && sa >= 0) {   /* 仕掛け (solve): ぱっとばらけ、回りながら戻って、全部のマスがいっせいに埋まって光る */
+    C.showing = true;
+    C.calm = quietMotion();
+    C.boom = sstep(0, 0.35, sa) * (1 - sstep(0.75, 1.35, sa));
+    C.cells.forEach((c, i) => {
+      c.filled = sa >= 1.1;
+      c.pop = sa >= 1.1 ? 1 + 0.25 * Math.sin(clamp01((sa - 1.1 - (i % 7) * 0.03) / 0.28) * Math.PI) : 1;
+    });
+    C.party = sa > 1.35 && sa < 3.2 ? Math.sin((sa - 1.35) / 1.85 * Math.PI) : 0;
+    C.cells.forEach((c) => { c.flash = C.party * 0.9; });
+  } else if (C.r >= 0.99) {   /* 空いたマスを 1 つずつ埋める。全部そろったら光って、2.5 秒後にまた空へ */
+    if (C.showing) { C.showing = false; C.boom = 0; C.s0 = null; }   /* 見せ場のあとは、また空から */
     if (C.s0 === null) {
       C.s0 = s;
       C.order = C.cells.filter((c) => !c.given);
@@ -3175,6 +3588,12 @@ function tickCube(e, t) {
     if (T > full + 4.2) C.s0 = null;   /* また空に戻して、はじめから */
   } else {
     C.party = 0;
+  }
+  if (C.r >= 0.99) {   /* そろって光るときは、足もとの魔法陣と紫の光も強まる */
+    const fl = C.party || 0;
+    C.ring.material.opacity = 0.55 + 0.4 * fl;
+    C.ring.scale.setScalar(1 + 0.25 * fl);
+    C.aura.material.opacity = 0.32 + 0.3 * fl;
   }
   layCube(e, s);
 }
@@ -3314,7 +3733,7 @@ function buildShogiBoard(f, lift) {
     transparent: true, depthWrite: false, ...ADD_LIGHT }));
   sparks.frustumCulled = false; sparks.renderOrder = 5;
   hinge.add(sparks);
-  let s0 = null, standing = false;
+  let s0 = null, standing = false, synced = false, hype = 0;
   const place = (T) => {
     const reset = T >= 6.0;   /* 6.0〜6.6 秒: 沈んで消える / 6.6〜: はじめの盤がまた現れる */
     const sink = 1 - sstep(6.0, 6.5, T), appear = sstep(6.6, 7.1, T);
@@ -3343,7 +3762,7 @@ function buildShogiBoard(f, lift) {
       p.front.material.color.setScalar(1 + flash * 0.9);
     }
     chain.mesh.visible = standing && T > 2.1 && T < 4.3;
-    if (chain.mesh.visible) chain.mesh.scale.setScalar(Math.max(0.001, springRise(T - 2.1, 14) * (1 - sstep(3.7, 4.3, T))));
+    if (chain.mesh.visible) chain.mesh.scale.setScalar(Math.max(0.001, springRise(T - 2.1, 14) * (1 - sstep(3.7, 4.3, T)) * (1 + 0.4 * hype)));
     bursts.forEach((b, i) => {
       const a = T - b.t0;
       for (let k = 0; k < K; k++) {
@@ -3362,9 +3781,12 @@ function buildShogiBoard(f, lift) {
       if (r < 0.99) { standing = false; s0 = null; place(0); }
     },
     fade: () => {},
-    tick: (s) => {
+    tick: (s, a) => {
       SU.uPx.value = V.renderer.getPixelRatio();
       if (!standing && hinge.rotation.x > -0.02) { standing = true; s0 = s; }
+      if (a >= 0 && standing && !synced) { s0 = s - a; synced = true; }   /* 仕掛け (chain): 押したときから、駒が落ちてきて連鎖 */
+      if (a < 0) synced = false;
+      hype = a >= 0 ? 1 : 0;   /* そのあいだは「2 連鎖」を大きく */
       place(standing ? (s - s0) % SHOGI_CYCLE : 0);
     }
   };
@@ -3393,12 +3815,12 @@ function buildPaperPlane(f, lift) {
   let fadeV = 0;
   return {
     fade: (v) => { fadeV = v; plane.visible = dots.visible = v > 0.05; plane.scale.setScalar(Math.max(0.001, v)); },
-    tick: (s) => {
+    tick: (s, a) => {
       const u = s * 0.45;
       at(u, p); at(u + 0.02, q);
       plane.position.copy(p);
       plane.lookAt(q);   /* 進む向きへ機首を向ける */
-      plane.rotateZ(Math.cos(u) * 0.5);   /* 曲がるときに傾く */
+      plane.rotateZ(Math.cos(u) * 0.5 + (a >= 0 ? Math.PI * 2 * sstep(0.4, 1.3, a) : 0));   /* 曲がるときに傾く。仕掛けの間は、くるりと一回転 */
       for (let i = 0; i < TR; i++) {   /* 通ったあとに、だんだん薄くなる点 */
         at(u - (i + 1) * 0.07, q); trail[i * 3] = q.x; trail[i * 3 + 1] = q.y; trail[i * 3 + 2] = q.z;
         ta[i] = fadeV * 0.55 * (1 - i / TR);
@@ -3426,6 +3848,59 @@ function pageSheetTexture(label) {
   _sheetTex.colorSpace = THREE.SRGBColorSpace;
   return _sheetTex;
 }
+/* 判 (百の悪行の仕掛け): 朱の「嘘」と、金の「真」。二重の丸に字、ところどころかすれる。世界をまたいで使い回す (keep) */
+const _verdictTex = {};
+function verdictStampTexture(truth, lang) {
+  const key = (truth ? 'T' : 'F') + lang;
+  if (_verdictTex[key]) return _verdictTex[key];
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const ink = truth ? '#d9a21b' : '#c3281a';
+  g.strokeStyle = ink; g.fillStyle = ink;
+  g.lineWidth = 9; g.beginPath(); g.arc(64, 64, 54, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 3; g.beginPath(); g.arc(64, 64, 43, 0, Math.PI * 2); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const word = lang === 'en' ? (truth ? 'TRUE' : 'LIE') : (truth ? '真' : '嘘');
+  g.font = lang === 'en' ? `900 ${truth ? 30 : 38}px Georgia,"Times New Roman",serif` : `900 62px ${MINCHO}`;
+  g.fillText(word, 64, 68);
+  let seed = truth ? 7 : 3;   /* かすれ (毎回同じ形) */
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  g.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < 70; i++) { g.globalAlpha = 0.25 + rnd() * 0.5; g.fillRect(rnd() * 128, rnd() * 128, 2 + rnd() * 6, 1 + rnd() * 2); }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.userData.keep = true;
+  return (_verdictTex[key] = t);
+}
+/* 消印 (一人旅の仕掛け): 写真の裏に押された、旅先の国の丸い消印と波線。裏から見るので左右を反転して描く */
+function postmarkTexture(place, hue, w, h) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f4f1ea'; g.fillRect(0, 0, w, h);
+  g.translate(w, 0); g.scale(-1, 1);
+  const ink = `hsl(${hue},55%,34%)`, R = Math.min(w, h) * 0.26, cx = w * 0.4, cy = h * 0.46;
+  g.strokeStyle = ink; g.fillStyle = ink; g.globalAlpha = 0.86;
+  g.lineWidth = R * 0.07; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = R * 0.03; g.beginPath(); g.arc(cx, cy, R * 0.72, 0, Math.PI * 2); g.stroke();
+  /* 国の名前を、丸の上半分に沿って */
+  g.font = `700 ${Math.round(R * 0.26)}px Georgia,"Times New Roman",serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const chars = place.split(''), span = Math.min(Math.PI * 0.95, chars.length * 0.26);
+  chars.forEach((ch, i) => {
+    const ang = -Math.PI / 2 - span / 2 + (chars.length === 1 ? span / 2 : span * i / (chars.length - 1));
+    g.save(); g.translate(cx + Math.cos(ang) * R * 0.86, cy + Math.sin(ang) * R * 0.86); g.rotate(ang + Math.PI / 2); g.fillText(ch, 0, 0); g.restore();
+  });
+  g.font = `${Math.round(R * 0.5)}px serif`; g.fillText('✈', cx, cy + R * 0.12);   /* まん中に飛行機 */
+  g.lineWidth = R * 0.05; g.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {   /* 右へ伸びる波線 */
+    const y = cy - R * 0.45 + k * R * 0.3;
+    g.beginPath();
+    for (let x = cx + R * 1.15; x < w * 0.95; x += 2) g.lineTo(x, y + Math.sin(x * 0.09) * R * 0.08);
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
 /* ------ 歌う銀河: 約1万9千の星 (歌い手の数) で描く渦巻き銀河 ------
    ふくらみ (古い黄色い星)・2本の腕 (若い青白い星)・腕の内側の暗い塵の帯。星の点の下に、円盤の淡い光 (画像) を敷く。
@@ -3442,7 +3917,8 @@ const ADD_LIGHT = { blending: THREE.CustomBlending, blendEquation: THREE.AddEqua
 const LIGHT_OVER = { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
   blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor };
 const GALAXY_VERT = `
-uniform float uRise, uTime, uPx, uTilt, uHeight, uSpin;
+uniform float uRise, uTime, uPx, uTilt, uHeight, uAng;
+uniform vec2 uRip, uRipA;
 attribute vec3 aColor; attribute float aSize; attribute float aSeed;
 varying vec3 vColor; varying float vAlpha;
 void main() {
@@ -3450,7 +3926,9 @@ void main() {
   float delay = clamp(r / 3.6, 0.0, 1.0) * 0.45;
   float p = uRise >= 1.0 ? uRise : clamp((uRise - delay) / 0.55, 0.0, 1.0);
   float q = p >= 1.0 ? p : p * p * (3.0 - 2.0 * p);
-  float ang = -uTime * uSpin + (1.0 - min(q, 1.0)) * 2.4 / (0.45 + r);
+  float ang = -uAng + (1.0 - min(q, 1.0)) * 2.4 / (0.45 + r);
+  vec2 dr = (vec2(r) - uRip) / 0.3;
+  float rip = dot(uRipA, exp(-dr * dr));   /* 仕掛け (sing): 中心から広がる光の波にかかった星が明るむ */
   float c = cos(ang), s = sin(ang);
   vec3 d = vec3(position.x * c - position.z * s, position.y, position.x * s + position.z * c);
   float ct = cos(uTilt), st = sin(uTilt);
@@ -3458,9 +3936,9 @@ void main() {
   vec3 start = vec3(d.x * 0.1, 0.05, d.z * 0.1);
   vec4 mv = modelViewMatrix * vec4(mix(start, fin, q), 1.0);
   gl_Position = projectionMatrix * mv;
-  gl_PointSize = aSize * uPx * (18.0 / -mv.z) * mix(0.35, 1.0, min(q, 1.0));
+  gl_PointSize = aSize * uPx * (18.0 / -mv.z) * mix(0.35, 1.0, min(q, 1.0)) * (1.0 + rip * 1.3);
   float tw = 0.82 + 0.18 * sin(uTime * (1.1 + aSeed * 2.3) + aSeed * 37.0);
-  vColor = aColor * mix(1.0, tw, step(3.5, aSize));
+  vColor = aColor * mix(1.0, tw, step(3.5, aSize)) * (1.0 + rip * 2.2) + vec3(0.18, 0.22, 0.34) * rip;
   vAlpha = smoothstep(0.0, 0.35, p);
 }`;
 const GALAXY_FRAG = `
@@ -3519,7 +3997,8 @@ async function buildGalaxy(e, lift) {
     }
   }
   const uniforms = { uRise: { value: 0 }, uTime: { value: 0 }, uPx: { value: V.renderer.getPixelRatio() },
-                     uTilt: { value: GALAXY.TILT }, uHeight: { value: GALAXY.HEIGHT }, uSpin: { value: GALAXY.SPIN } };
+                     uTilt: { value: GALAXY.TILT }, uHeight: { value: GALAXY.HEIGHT }, uAng: { value: 0 },
+                     uRip: { value: new THREE.Vector2(-9, -9) }, uRipA: { value: new THREE.Vector2(0, 0) } };
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
   g.setAttribute('aColor', new THREE.Float32BufferAttribute(C, 3));
@@ -3551,12 +4030,14 @@ async function buildGalaxy(e, lift) {
     lift.add(tilt);
     disk = { tilt, spin, mat: mesh.material };
   }
-  e.galaxy = { uniforms, core, disk };
+  e.galaxy = { uniforms, core, disk, ang: 0, last: null };
   e.glow = 0x8fa6ff;   /* 足もとのページを青白く照らす */
   e.shadowMax = 0.35;
   e.pose = poseGalaxy;
   e.tick = tickGalaxy;
   e.warmRise = 0;   /* GPU へ送るときは透明のまま描く */
+  e.showDur = 4.0;
+  e.focus.set(0, GALAXY.HEIGHT, 0);
   return 7.2;
 }
 function poseGalaxy(e, r) {
@@ -3575,11 +4056,21 @@ function poseGalaxy(e, r) {
     d.mat.color.setScalar(f);       /* 足す光 */
   }
 }
+/* 回転は角度を積み上げて進める (仕掛けで速く回しても、腕の形が跳ばない) */
 function tickGalaxy(e, t) {
-  const G = e.galaxy, U = G.uniforms;
-  U.uTime.value = t / 1000;
+  const G = e.galaxy, U = G.uniforms, s = t / 1000, a = e.showAge;
+  const dt = G.last === null ? 0 : Math.min(0.1, Math.max(0, s - G.last));
+  G.last = s;
+  /* 仕掛け (sing): 中心から光の波が二つ広がり、銀河がしばらく速く回って、中心がまたたく */
+  const boost = a >= 0 ? sstep(0, 0.6, a) * (1 - sstep(2.2, 3.8, a)) : 0;
+  G.ang += dt * GALAXY.SPIN * (1 + (quietMotion() ? 2.5 : 9) * boost);   /* 静かな動きでは、速回しを控えめに */
+  U.uAng.value = G.ang;
+  U.uTime.value = s;
   U.uPx.value = V.renderer.getPixelRatio();
-  if (G.disk) G.disk.spin.rotation.y = U.uSpin.value * U.uTime.value;   /* 星と同じ速さ・向きで回る */
+  U.uRip.value.set(a >= 0 ? a * 2.4 : -9, a >= 0.7 ? (a - 0.7) * 2.4 : -9);
+  U.uRipA.value.set(a >= 0 ? 1 - sstep(1.2, 1.8, a) : 0, a >= 0.7 ? 1 - sstep(1.9, 2.5, a) : 0);
+  if (e.rise >= 1 && !e.anim) G.core.scale.setScalar(2.2 * (1 + (a >= 0 ? 0.9 * Math.exp(-(((a - 0.15) / 0.3) ** 2)) : 0)));
+  if (G.disk) G.disk.spin.rotation.y = G.ang;   /* 星と同じ速さ・向きで回る */
 }
 let _glowTex = null;
 function getGlowTexture() {
@@ -3626,6 +4117,7 @@ function disposeWorld(e) {
 function startRise(e, sigma) {
   e.pendingRise = false;
   attachWorld(e);
+  Sfx.play('rise');
   e.anim = { kind: 'rise', t0: nowMs(), r0: e.rise, lean0: -sigma * LEAN, quiet: quietMotion(),
              w: springFor(turn ? turn.dur : TURN_MS) };
 }
@@ -3638,6 +4130,7 @@ function requestRise(e, sigma) {
 }
 function foldWorld(e, sigma) {
   e.pendingRise = false;
+  e.showT0 = null; e.showAge = -1;   /* 仕掛けの途中でめくったら、そこで終わり */
   if (e.warm === 'warming') { e.anim = null; e.rise = 0; return; }   /* GPU へ送り途中: 送り終えたら自分で外れる */
   if (!e.root || !e.root.parent || e.rise <= 0.001) { e.anim = null; e.rise = 0; if (e.root) { detachWorld(e); poseWorld(e); } return; }
   e.anim = { kind: 'fold', t0: nowMs(), from: e.rise, leanFrom: e.lean, leanTo: quietMotion() ? 0 : sigma * LEAN * 1.1, dur: FOLD_MS };
@@ -3814,6 +4307,7 @@ function startTurn(o) {
   const rig = V.pageRig, L = rig.turn;
   if (turn) finishTurn(true);   /* 念のため: 前のめくりが残っていたら即着地させる */
   V.sway.goal = 0;   /* 次の頁は正面から見せる */
+  Sfx.play('turn');
   const sigma = o.dir === 'next' ? 1 : -1;
   const quiet = quietMotion();
   const fromTex = spreadNow(o.fromSlug), toTex = spreadNow(o.toSlug);
@@ -3871,6 +4365,156 @@ function finishTurn(forced) {
   L.phi = 0;
   afterLanding();
   if (T.onLand) T.onLand();
+}
+
+/* ------ 仕掛け: 飛び出しを押すと、その作品らしい見せ場が数秒動く ------
+   世界ごとの見せ場は、それぞれの tick が e.showAge (押してからの秒、動いていなければ -1) を見て動かす */
+const SHOW_REACT_AT = { comet: 1400, weave: 1700, verdict: 3300, sing: 900, solve: 1500, chain: 2500,
+                        forward: 2300, wave: 1600, flip: 1100, lanterns: 1500, storm: 700 };   /* 案内人がひとこと言う時刻 (ms) */
+function playShow(e) {
+  if (!e || !e.showDur || e !== curWorld || turn || e.anim || e.rise < 0.99 || !e.root || !e.root.parent) return false;
+  if (e.showT0 !== null) return false;   /* 動いている途中に押しても、はじめからにはしない */
+  e.showT0 = nowMs();
+  e.showAge = 0;
+  Sfx.play(e.show);
+  const L = KID_LINES[e.id] && KID_LINES[e.id].react;
+  if (L) setTimeout(() => { if (curWorld === e && e.showT0 !== null) kidSay(L.who, L, 2600); }, SHOW_REACT_AT[e.show] || 1000);
+  hideCoach(true);
+  nudgeEnter(e.showDur);
+  return true;
+}
+window.ehonPlayShow = () => playShow(curWorld);
+/* 見せ場が終わるころ、「この世界に入る」がはっきり誘う */
+function nudgeEnter(durS) {
+  clearTimeout(nudgeEnter.t);
+  nudgeEnter.t = setTimeout(() => {
+    const b = document.querySelector('#page-overlay.show .po-enter');
+    if (!b) return;
+    b.classList.remove('nudge');
+    void b.offsetWidth;   /* 続けて押されたときも、はじめから光らせる */
+    b.classList.add('nudge');
+    b.addEventListener('animationend', () => b.classList.remove('nudge'), { once: true });
+  }, Math.max(800, durS * 1000 - 600));
+}
+
+/* ------ 案内人の二人 (本のうしろの魔法使いの子): 押すと、跳ねてくるりと回って、ひとこと ------ */
+const kids = { girl: { obj: null, rot0: 2.7, bob: 0.12, ph: 0, hop: -1e9, line: 0, el: null, until: 0, w: 0, h: 0, avoid: null },
+               boy:  { obj: null, rot0: -2.7, bob: 0.11, ph: 2.0, hop: -1e9, line: 0, el: null, until: 0, w: 0, h: 0, avoid: null } };
+const _kp = new THREE.Vector3();
+function kidLines(who) {
+  const own = KID_LINES[PAGES[EHON.state.currentPageIdx].id];
+  return ((own && own[who]) || []).concat(KID_LINES.any[who]);
+}
+function kidPoke(who) {
+  const k = kids[who];
+  if (!k.obj) return;
+  k.hop = nowMs();
+  Sfx.play('hop');
+  const lines = kidLines(who);
+  kidSay(who, lines[k.line++ % lines.length], 2800);
+}
+function kidSay(who, line, ms) {
+  const k = kids[who];
+  if (!k.obj || !line) return;
+  if (!k.el) {
+    k.el = document.createElement('div');
+    k.el.className = 'kid-say';
+    k.el.setAttribute('role', 'status');
+    document.body.appendChild(k.el);
+  }
+  k.el.textContent = tt(line);
+  k.w = k.el.offsetWidth; k.h = k.el.offsetHeight;   /* 大きさは言うときに一度だけ測る */
+  const ov = document.querySelector('#page-overlay.show .po-story');   /* 右の本文に重ならないように */
+  k.avoid = ov ? ov.getBoundingClientRect() : null;
+  k.el.classList.add('show');
+  k.until = nowMs() + ms;
+  Sfx.play('blip');
+  const other = kids[who === 'girl' ? 'boy' : 'girl'];   /* 二人いっぺんには話さない */
+  if (other.el) { other.el.classList.remove('show'); other.until = 0; }
+  placeKidSay(k);
+}
+function placeKidSay(k) {
+  const r = V.renderer.domElement.getBoundingClientRect();
+  _kp.set(k.obj.position.x, k.obj.position.y + 3.75, k.obj.position.z).project(V.cam);   /* 頭の上 */
+  const x = r.left + (_kp.x * 0.5 + 0.5) * r.width, y = r.top + (-_kp.y * 0.5 + 0.5) * r.height, M = 8;
+  const cx = Math.min(innerWidth - M - k.w / 2, Math.max(M + k.w / 2, x));
+  let top = Math.max(M, y - 10 - k.h);
+  const A = k.avoid;
+  if (A && cx + k.w / 2 > A.left && cx - k.w / 2 < A.right && top + k.h > A.top && top < A.bottom) top = Math.max(M, A.top - 10 - k.h);
+  k.el.style.transform = `translate(${Math.round(cx - k.w / 2)}px, ${Math.round(top)}px)`;
+  k.el.style.setProperty('--tail', Math.min(88, Math.max(12, 50 + ((x - cx) / k.w) * 100)) + '%');   /* しっぽは話している子のほうへ */
+}
+function updateKids(t) {
+  for (const who in kids) {
+    const k = kids[who];
+    if (!k.obj) continue;
+    const h = (t - k.hop) / 1000;
+    k.obj.position.y = Math.sin(t / 900 + k.ph) * k.bob + (h >= 0 && h < 0.55 ? Math.sin(Math.PI * h / 0.55) * 0.55 : 0);   /* ぴょん */
+    k.obj.rotation.y = k.rot0 + (h >= 0 && h < 0.7 && !quietMotion() ? Math.PI * 2 * easeInOutCubic(h / 0.7) : 0);   /* くるり (静かな動きでは回らない) */
+    if (k.el && k.until) {
+      if (t > k.until || turn) { k.el.classList.remove('show'); k.until = 0; }
+      else placeKidSay(k);
+    }
+  }
+}
+
+/* ------ はじめての人に: 最初の頁が立ち上がったら、飛び出しの上で波紋と指が「さわってみて」。女の子もひとこと。
+   一度でも仕掛けを動かした人には、もう出さない ------ */
+const COACH_KEY = 'ehon_show_tried';
+let coach = null;
+function coachWanted() {
+  try { return !localStorage.getItem(COACH_KEY); } catch (err) { return true; }
+}
+function showCoach(e) {
+  let el = document.getElementById('pop-coach');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'pop-coach';
+    el.setAttribute('aria-hidden', 'true');
+    const ring = document.createElement('div'); ring.className = 'ring';
+    const hand = document.createElement('div'); hand.className = 'hand'; hand.textContent = '👆';
+    const say = document.createElement('div'); say.className = 'say';
+    el.append(ring, hand, say);
+    document.body.appendChild(el);
+  }
+  el.querySelector('.say').textContent = tt(I18N.ui.coach);
+  const ov = document.querySelector('#page-overlay.show .po-story');   /* 狭い画面では右の本文が飛び出しにかかるので、その左に出す */
+  coach = { el, e, until: nowMs() + 7000, maxX: ov ? ov.getBoundingClientRect().left - 70 : Infinity };
+  updateCoach(nowMs());
+  el.classList.add('show');
+  kidSay('girl', KID_LINES.any.girl[0], 3400);
+}
+function hideCoach(tried) {
+  if (tried) { try { localStorage.setItem(COACH_KEY, '1'); } catch (err) {} }
+  V.coachAt = 0;
+  if (coach) { coach.el.classList.remove('show'); coach = null; }
+}
+function updateCoach(t) {
+  if (V.coachAt && t > V.coachAt && curWorld && curWorld.rise >= 1 && !curWorld.anim && !turn) {
+    V.coachAt = 0;
+    if (coachWanted() && curWorld.showDur) showCoach(curWorld);
+  }
+  if (!coach) return;
+  if (t > coach.until || curWorld !== coach.e || turn) { hideCoach(false); return; }
+  const r = V.renderer.domElement.getBoundingClientRect();
+  const p = coach.e.lift.localToWorld(_kp.copy(coach.e.focus)).project(V.cam);
+  const x = Math.max(70, Math.min(coach.maxX, r.left + (p.x * 0.5 + 0.5) * r.width));
+  coach.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(r.top + (-p.y * 0.5 + 0.5) * r.height)}px)`;
+}
+
+/* ------ 起動したら、1 枚目は自動でめくる。最初の世界の準備 (GPU への転送) を少し待ってから (長くても 3 秒)。
+   裏のタブで読み込まれたときは、見えるようになってから ------ */
+function scheduleAutoOpen() {
+  if (EHON.state.open) return;
+  const t0 = performance.now();
+  const tryOpen = () => {
+    if (EHON.state.open) return;
+    if (document.hidden) { document.addEventListener('visibilitychange', tryOpen, { once: true }); return; }
+    const w = worlds.get(PAGES[EHON.state.currentPageIdx].id);
+    if (w && !w.failed && w.warm !== 'done' && performance.now() - t0 < 3000) { setTimeout(tryOpen, 100); return; }
+    EHON.open(true);
+  };
+  setTimeout(tryOpen, 900);
 }
 
 /* ------ ステージ本体 ------ */
@@ -3953,43 +4597,50 @@ function ensureStage() {
     const hits = ray.intersectObject(am, true);
     if (hits.length) { ev.stopPropagation(); animalPicked = true; window.ZukanEngine.onAnimalClick(hits[0].object.userData.animalId); }
   });
-  let animalPicked = false;   /* 動物を押したときは、離しても作品はひらかない */
-  /* 飛び出しを押すと、その作品がひらく。マウスを乗せると少し浮いて「▶ ひらく」の札が出る。
-     本を回すドラッグはひらかない。動物に当たったときは図鑑のほう */
+  let animalPicked = false;   /* 動物を押したときは、離しても仕掛けは動かさない */
+  /* 飛び出しを押すと、その作品の仕掛けが動く (作品へは「この世界に入る」から)。マウスを乗せると少し浮いて「✦ さわってみて」。
+     本のうしろの二人を押すと、ひとこと。本を回すドラッグは押したことにしない。動物に当たったときは図鑑のほう */
   const hint = document.createElement('div');
   hint.id = 'pop-hint';
   document.body.appendChild(hint);
   const canHover = !!(window.matchMedia && window.matchMedia('(hover: hover)').matches);
-  const worldHit = (ev) => {
-    const w = curWorld, page = PAGES[EHON.state.currentPageIdx];
-    if (!w || w !== worlds.get(page.id) || !w.lift || !w.root || !w.root.parent || w.rise < 0.99 || turn || !page.link) return false;
+  const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };   /* 当たり判定は非表示の部品にも当たるので */
+  /* いちばん手前に当たったもの: 'girl' | 'boy' (案内人) / 'world' (飛び出し) / null */
+  const pick = (ev) => {
     const r = renderer.domElement.getBoundingClientRect();
     ptr.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
     ptr.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
     ray.setFromCamera(ptr, cam);
-    const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };   /* 当たり判定は非表示の部品にも当たるので */
-    const hit = ray.intersectObject(w.lift, true).find((h) => h.object.isMesh && shown(h.object));
-    return !!hit && !hit.object.userData.animalId;
+    let best = null, dist = Infinity;
+    for (const who in kids) {
+      const o = kids[who].obj;
+      const h = o && ray.intersectObject(o, true).find((x) => x.object.isMesh && shown(x.object));
+      if (h && h.distance < dist) { dist = h.distance; best = who; }
+    }
+    const w = curWorld, page = PAGES[EHON.state.currentPageIdx];
+    if (w && w === worlds.get(page.id) && w.showDur && w.lift && w.root && w.root.parent && w.rise >= 0.99 && !turn) {
+      const h = ray.intersectObject(w.lift, true).find((x) => x.object.isMesh && shown(x.object));
+      if (h && !h.object.userData.animalId && h.distance < dist) best = 'world';
+    }
+    return best;
   };
-  let hovering = false, hoverRaf = 0, lastMove = null, downAt = null;
-  const setHover = (on, ev) => {
-    if (on !== hovering) {
-      hovering = on;
-      renderer.domElement.style.cursor = on ? 'pointer' : '';
-      hint.classList.toggle('show', on);
+  let hovering = null, hoverRaf = 0, lastMove = null, downAt = null;
+  const setHover = (kind, ev) => {
+    if (kind !== hovering) {
+      hovering = kind;
+      renderer.domElement.style.cursor = kind ? 'pointer' : '';
+      hint.classList.toggle('show', !!kind);
+      if (kind) hint.textContent = tt(kind === 'world' ? I18N.ui.touch : I18N.ui.talk);
     }
-    if (curWorld) curWorld.hoverTarget = on ? 1 : 0;
-    if (on && ev) {
-      hint.textContent = '▶ ' + tt(I18N.ui.open) + ' — ' + tt(PAGES[EHON.state.currentPageIdx].title);
-      hint.style.transform = `translate(${ev.clientX + 16}px, ${ev.clientY + 14}px)`;
-    }
+    if (curWorld) curWorld.hoverTarget = kind === 'world' ? 1 : 0;
+    if (kind && ev) hint.style.transform = `translate(${ev.clientX + 16}px, ${ev.clientY + 14}px)`;
   };
   renderer.domElement.addEventListener('pointermove', (ev) => {
     if (!canHover || ev.pointerType === 'touch') return;
     lastMove = ev;
-    if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; setHover(worldHit(lastMove), lastMove); });   /* 判定は 1 フレームに 1 回 */
+    if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; setHover(pick(lastMove), lastMove); });   /* 判定は 1 フレームに 1 回 */
   });
-  renderer.domElement.addEventListener('pointerleave', () => setHover(false));
+  renderer.domElement.addEventListener('pointerleave', () => setHover(null));
   renderer.domElement.addEventListener('pointerdown', (ev) => {
     downAt = animalPicked ? null : { x: ev.clientX, y: ev.clientY, t: performance.now() };
     animalPicked = false;
@@ -3997,7 +4648,9 @@ function ensureStage() {
   renderer.domElement.addEventListener('pointerup', (ev) => {
     const d = downAt; downAt = null;
     if (!d || Math.hypot(ev.clientX - d.x, ev.clientY - d.y) > 6 || performance.now() - d.t > 600) return;
-    if (worldHit(ev)) { setHover(false); location.href = PAGES[EHON.state.currentPageIdx].link; }
+    const k = pick(ev);
+    if (k === 'world') playShow(curWorld);
+    else if (k) kidPoke(k);
   });
 
   requestAnimationFrame(loop);
@@ -4066,6 +4719,7 @@ async function buildBook() {
   };
   if (mGltf) V.mascot = placeGuide(mGltf, 4.9, 2.7);
   if (bGltf) V.boy = placeGuide(bGltf, -4.9, -2.7);
+  kids.girl.obj = V.mascot; kids.boy.obj = V.boy;   /* 押すと、ひとこと */
   /* 見せる前にシェーダと最初の見開きを用意しておく (最初のめくりで固まらない) */
   uploadQueue.splice(0).forEach((t) => V.renderer.initTexture(t));
   try { await V.renderer.compileAsync(V.scene, V.cam); } catch (e) {}
@@ -4079,6 +4733,7 @@ async function buildBook() {
   if (hasWorld(first)) requestWorld(first);
   prefetchAround(EHON.state.currentPageIdx);
   if (pendingOpen) { const f = pendingOpen; pendingOpen = null; f(); }
+  scheduleAutoOpen();
 }
 
 /* 開く前: 紙の角がときどき持ち上がる */
@@ -4127,13 +4782,16 @@ function loop() {
   }
   swayCamera(t, dt);
   V.controls.update(dt);   /* 自動回転は秒基準 (高リフレッシュの画面でも速くならない) */
-  if (V.mascot) V.mascot.position.y = Math.sin(t / 900) * 0.12;
-  if (V.boy) V.boy.position.y = Math.sin(t / 900 + 2.0) * 0.11;
+  updateKids(t);
   if (V.pageRig) { if (turn) updateTurn(t); else updateIdle(t); }
   let moving = !!turn;
   worlds.forEach((e) => {
     if (e.anim) { updateWorld(e, t); moving = true; }
     if (e.animalWait > 0 && --e.animalWait === 0 && e.animal) e.animal.visible = true;
+    if (e.showT0 !== null) {   /* 仕掛けの時計: 押してからの秒。終わったら -1 */
+      e.showAge = (t - e.showT0) / 1000;
+      if (e.showAge > e.showDur) { e.showT0 = null; e.showAge = -1; }
+    }
     if (e.tick && e.root && e.root.parent && e.root.visible) e.tick(e, t);   /* 漂う言葉のかけら・回る銀河 */
     if (e.lift && (e.hoverK || e.hoverTarget)) {   /* 乗せると、少し浮く (押せる合図) */
       e.hoverK = (e.hoverK || 0) + ((e !== curWorld ? 0 : e.hoverTarget || 0) - (e.hoverK || 0)) * Math.min(1, dt * 10);
@@ -4145,6 +4803,7 @@ function loop() {
   const warmed = warmStep(moving);
   if (!moving && !warming && calmQueue.length && !buildingNow()) startBuild(calmQueue.shift());
   if (V.coloPrewarmAt && !moving && !warming && t > V.coloPrewarmAt) { V.coloPrewarmAt = 0; window.prewarmColophon && window.prewarmColophon(); }
+  updateCoach(t);
   V.renderer.render(V.scene, V.cam);
   if (warmed) markGpuWork();   /* この描画 (小さく描いた形の転送を含む) の後ろに目印を置く */
 }
@@ -4163,6 +4822,7 @@ window.bootWorldB = function () {
 window.openBookThenPop = function (onLand) {
   const go = () => {
     const page = PAGES[EHON.state.currentPageIdx];
+    if (coachWanted()) V.coachAt = nowMs() + 1800;   /* 最初の世界が立ったら「さわってみて」 */
     if (!V.pageRig) { window.syncPageB(EHON.state.currentPageIdx); if (onLand) onLand(); return; }
     startTurn({ fromSlug: 'toc', toSlug: slugOf(page), toPage: page, dir: 'next', onLand });
   };
@@ -4231,6 +4891,9 @@ function showStaticFallback(host, page) {
 window.__ehon3DRuntime = {
   THREE,
   getV: () => V,
+  playShow: () => playShow(curWorld),
+  kidPoke: (who) => kidPoke(who),
+  show: () => (curWorld ? { id: curWorld.id, kind: curWorld.show, dur: curWorld.showDur, age: +curWorld.showAge.toFixed(2) } : null),
   state: () => ({
     turning: !!turn,
     cur: curWorld ? { id: curWorld.id, rise: +curWorld.rise.toFixed(3), lean: +curWorld.lean.toFixed(3), warm: curWorld.warm, attached: !!(curWorld.root && curWorld.root.parent) } : null,
