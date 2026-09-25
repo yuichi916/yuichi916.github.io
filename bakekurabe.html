@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>化けくらべ — 月夜のたぬき探し | Views Engineer</title>
+<meta name="description" content="絵のどこかに、たぬきが化けている。目だけは化けられない。毎晩みんな同じ5匹を探す日替わりと、自分が化けてURLで友だちに送る挑戦状。登録なし・ブラウザで無料。">
+<meta name="theme-color" content="#121833">
+<link rel="canonical" href="https://yuichi916.github.io/bakekurabe.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="化けくらべ — 月夜のたぬき探し">
+<meta property="og:description" content="絵のどこかに、たぬきが化けている。目だけは化けられない。今夜の5匹を探すか、自分が化けて挑戦状を送るか。">
+<meta property="og:url" content="https://yuichi916.github.io/bakekurabe.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og/bakekurabe-1200x630.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<meta name="twitter:image" content="https://yuichi916.github.io/assets/og/bakekurabe-1200x630.jpg">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "化けくらべ — 月夜のたぬき探し",
+  "alternateName": "Bakekurabe",
+  "description": "絵のどこかに化けたたぬきを探す、日替わりのかくれんぼ。自分が化けて、URLの挑戦状で友だちに探してもらうこともできる。",
+  "url": "https://yuichi916.github.io/bakekurabe.html",
+  "image": "https://yuichi916.github.io/assets/og/bakekurabe-1200x630.jpg",
+  "datePublished": "2026-09-25",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "genre": ["Puzzle", "Hide and seek"],
+  "inLanguage": ["ja", "en"],
+  "author": { "@type": "Person", "name": "yuichi916", "url": "https://yuichi916.github.io/" },
+  "isPartOf": { "@type": "WebSite", "name": "Views Engineer", "url": "https://yuichi916.github.io/" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" }
+}
+</script>
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<style>
+:root{
+  --night:#121833; --night-2:#1a2448; --ink:#0a0c18; --panel:rgba(14,18,40,.9); --panel-b:rgba(243,227,166,.22);
+  --moon:#f3e3a6; --gold:#eebd4a; --text:#ece5d4; --dim:#a7a3b8; --leaf:#7a9e55; --red:#d9573a;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{
+  background:radial-gradient(900px 520px at 70% -10%,#26356a 0%,transparent 60%),linear-gradient(180deg,#121833,#0a0c18);
+  color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,sans-serif;
+  overflow:hidden;-webkit-user-select:none;user-select:none;
+}
+.serif{font-family:"Shippori Mincho",serif}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+a{color:var(--moon)}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+
+/* ---- HUD ---- */
+#hud{display:flex;align-items:center;gap:8px;padding:8px 10px;min-height:52px;z-index:5}
+.pill{background:var(--panel);border:1px solid var(--panel-b);border-radius:999px;padding:6px 12px;font-size:14px;
+  display:flex;align-items:center;gap:6px;white-space:nowrap}
+.pill b{color:var(--moon)}
+.ibtn{width:40px;height:40px;border-radius:12px;background:var(--panel);border:1px solid var(--panel-b);font-size:18px;
+  display:flex;align-items:center;justify-content:center;flex:none}
+.ibtn:hover{border-color:var(--moon)}
+.spacer{flex:1}
+#hudLabel{font-size:13px;color:var(--dim);overflow:hidden;text-overflow:ellipsis}
+#timer.warn b{color:#ff8a6a}
+
+/* ---- 画面 ---- */
+#stage{position:relative;flex:1;min-height:0}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#cv.seek{cursor:crosshair}
+#cv.cool{cursor:wait}
+#caption{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--panel-b);
+  border-radius:12px;padding:8px 14px;font-size:14px;line-height:1.5;text-align:center;pointer-events:none;
+  max-width:calc(100% - 24px);transition:opacity .3s}
+#caption:empty{opacity:0}
+#toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:#f3e3a6;color:#1a1410;
+  border-radius:999px;padding:8px 16px;font-size:14px;font-weight:700;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+#toast.on{opacity:1}
+
+/* ---- 下の道具 ---- */
+#tools{padding:8px 10px calc(10px + var(--safe-b));display:flex;flex-direction:column;gap:8px;z-index:5}
+#tools:empty{display:none}
+.row{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+.btn{background:var(--panel);border:1px solid var(--panel-b);border-radius:12px;padding:10px 14px;font-size:14px;min-height:44px}
+.btn:hover{border-color:var(--moon)}
+.btn.on{border-color:var(--moon);box-shadow:0 0 0 1px var(--moon) inset;color:var(--moon)}
+.btn.primary{background:var(--moon);color:#1a1410;border-color:var(--moon);font-weight:800}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.small{padding:6px 10px;min-height:36px;font-size:13px}
+.sw{width:34px;height:34px;border-radius:8px;border:2px solid rgba(255,255,255,.18);flex:none}
+.sw.on{border-color:#fff;box-shadow:0 0 0 2px #121833,0 0 0 4px var(--moon)}
+#swatches{display:flex;gap:6px;overflow-x:auto;padding:4px 2px;scrollbar-width:thin;max-width:100%}
+#allSw{display:grid;grid-template-columns:repeat(auto-fill,minmax(30px,1fr));gap:5px;max-height:120px;overflow:auto;padding:2px}
+#allSw .sw{width:30px;height:30px}
+.cur{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+.cur .sw{width:26px;height:26px}
+
+/* ---- 重ねる画面 ---- */
+.ov{position:fixed;inset:0;z-index:20;display:flex;justify-content:center;overflow-y:auto;padding:18px 14px calc(18px + var(--safe-b));
+  background:radial-gradient(700px 480px at 50% 18%,rgba(38,53,106,.72),rgba(8,10,22,.95));backdrop-filter:blur(3px)}
+.ov[hidden]{display:none}
+.card{margin:auto;width:100%;max-width:460px;background:rgba(14,18,40,.94);border:1px solid var(--panel-b);border-radius:20px;
+  padding:24px 20px 20px;text-align:center;box-shadow:0 24px 60px -20px rgba(0,0,0,.8)}
+.logo{font-size:44px;letter-spacing:.08em;line-height:1.1;color:var(--moon);text-shadow:0 0 28px rgba(243,227,166,.35)}
+.sub{margin-top:6px;font-size:14px;letter-spacing:.3em;color:var(--dim)}
+.tonight{margin:16px auto 0;font-size:13px;line-height:1.8;color:var(--dim)}
+.tonight b{color:var(--moon)}
+.stack{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.stack .btn{width:100%;font-size:16px;padding:14px}
+.rules{margin-top:18px;text-align:left;display:grid;gap:8px}
+.rule{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.6}
+.rule i{font-style:normal;flex:none;width:26px;height:26px;border-radius:50%;background:rgba(243,227,166,.14);color:var(--moon);
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.stats{margin-top:14px;font-size:12.5px;color:var(--dim)}
+.lang{margin-top:12px;font-size:12px;color:var(--dim)}
+.lang button{padding:4px 8px;border-radius:8px;color:var(--dim)}
+.lang button.on{color:var(--moon);text-decoration:underline}
+.about{margin-top:20px;padding-top:16px;border-top:1px solid var(--panel-b);text-align:left;font-size:12.5px;line-height:1.95;color:#cfc9b8}
+.about h2{font-size:11px;letter-spacing:.22em;margin:0 0 6px;color:var(--dim);font-weight:600}
+.about p{margin:0 0 12px}
+.about h2 + div p b,.about p b{color:var(--moon);font-weight:700}
+.big{font-size:40px;line-height:1.2;margin-top:8px}
+.marks{font-size:30px;letter-spacing:4px;margin-top:10px}
+.marklabels{display:flex;justify-content:center;gap:14px;font-size:11px;color:var(--dim);margin-top:2px}
+.kv{display:flex;justify-content:center;gap:18px;margin-top:10px;font-size:14px;color:var(--dim)}
+.kv b{color:var(--text);font-size:18px}
+.world{margin-top:12px;font-size:13px;color:var(--moon);min-height:1.4em}
+.next{margin-top:10px;font-size:12px;color:var(--dim)}
+.score{font-size:64px;line-height:1;margin-top:10px;color:var(--moon)}
+.rank{font-size:20px;margin-top:6px}
+.endnext{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.14);font-size:12.5px;line-height:1.9;text-align:center;opacity:.85}
+.endnext b{display:block;font-size:11px;letter-spacing:.18em;opacity:.6;margin-bottom:6px}
+.endnext a{color:#e0c48a;text-decoration:none;margin:0 6px;white-space:nowrap}
+.endnext a:hover{text-decoration:underline}
+.sharebox{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sharebox .btn{width:100%}
+.sharebox .wide{grid-column:1/-1}
+pre.share{margin-top:12px;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12.5px;background:rgba(0,0,0,.28);border-radius:10px;padding:10px 12px;color:#ddd;
+  -webkit-user-select:text;user-select:text}
+@media (min-width:900px){
+  #tools{align-items:center}
+  #tools > *{max-width:640px;width:100%}
+}
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <button class="ibtn" id="homeBtn" aria-label="タイトルへ" data-t-aria="home">☰</button>
+    <div class="pill" id="countPill" hidden>🦝 <b id="count">0/5</b></div>
+    <div class="pill mono" id="timer" hidden>⏱ <b id="timerVal">0.0</b></div>
+    <div id="hudLabel"></div>
+    <div class="spacer"></div>
+    <button class="ibtn" id="hintBtn" aria-label="ヒント" data-t-aria="hint" hidden>💡</button>
+    <button class="ibtn" id="giveBtn" aria-label="降参" data-t-aria="giveup" hidden>🏳️</button>
+    <button class="ibtn" id="soundBtn" aria-label="音" data-t-aria="sound">🔊</button>
+  </header>
+  <main id="stage">
+    <canvas id="cv"></canvas>
+    <div id="caption"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </main>
+  <footer id="tools"></footer>
+</div>
+
+<!-- タイトル -->
+<section class="ov" id="titleOv">
+  <div class="card">
+    <h1 class="logo serif" data-t="title">化けくらべ</h1>
+    <p class="sub serif" data-t="subtitle">月夜のたぬき探し</p>
+    <p class="tonight" id="tonight"></p>
+    <div class="stack">
+      <button class="btn primary" id="dailyBtn"></button>
+      <button class="btn" id="hideBtn" data-t="hideBtn">🍃 自分が化けて、挑戦状をつくる</button>
+      <button class="btn small" id="practiceBtn" data-t="practiceBtn">ほかの夜で練習する</button>
+    </div>
+    <div class="rules">
+      <div class="rule"><i>1</i><span data-t="rule1">絵のどこかに、たぬきが化けている。見つけたらタップ。</span></div>
+      <div class="rule"><i>2</i><span data-t="rule2">たぬきは寝たふりが得意。でも、ときどき薄目をあける。夜のたぬきの目は光る。</span></div>
+      <div class="rule"><i>3</i><span data-t="rule3">まちがえると +3 秒。今夜のお題は、日本時間の 0 時に変わる。</span></div>
+    </div>
+    <p class="stats" id="stats"></p>
+    <p class="lang"><button data-lang="ja">日本語</button> · <button data-lang="en">English</button></p>
+    <div class="about">
+      <h2 data-t="aboutH">この作品について</h2>
+      <p data-t-html="about1">2026年9月に流行っているゲームを市場から調べて、いまバズる「型」を出し、その型どおりに作りました。1つのルールで「隠れる／見つける」。見ている人も一緒に探せて、うまくいっても失敗しても見どころになる。そこに、毎晩みんなが同じお題を解く日替わりと、遊んだ人が次の出題者になる挑戦状を足しています。調べた中身と出典は <a href="method/bazuru-kata.html">研究ノート</a> にまとめました。</p>
+      <p data-t-html="about2">配信や動画で使うのは自由です（連絡は要りません）。視聴者から挑戦状のリンクを集めて、配信で探すと盛り上がります。場面の絵はすべてプログラムで描いていて、月の形はその夜の月齢に合わせています。</p>
+      <h2 data-t="howH">遊び方</h2>
+      <div data-t-html="about3">
+        <p><b>今夜の5匹</b> — 毎晩、日本時間の0時に新しい絵が出ます。全員が同じ絵・同じ5匹です。曜日で難しさが上がり、月曜がいちばんやさしく、日曜がいちばん手ごわい。見つけるまでの秒数とハズレの数は、答えを漏らさない升目（🟩🟨🟧🟥⬛）で共有できます。</p>
+        <p><b>化けて、挑戦状をつくる</b> — たぬきを場面のどこかに置き、90秒で体を塗って背景に化けます。塗り終えると化け度（0〜100）が出て、その絵がまるごと入ったリンクができます。リンクを開いた人は、同じ絵からあなたを90秒で探します。塗った絵はリンクの中にだけあり、どこにも送りません。</p>
+        <p><b>コツ</b> — 化けるときは、体のふち（輪郭）の色を背景に合わせるのがいちばん効きます。探すときは、絵全体をぼんやり眺めて、光る目が2つ並ぶ一瞬を待つのが近道です。</p>
+      </div>
+    </div>
+    <div class="endnext"><b>NEXT</b><a href="sudoku.html">異世界立体数独</a><a href="shogi-puyo.html">将棋ぷよ「成」</a><a href="ehon.html">飛び出す絵本</a><br><a href="index.html" style="opacity:.7" data-t="allWorks">ほかの作品をぜんぶ見る →</a></div>
+  </div>
+</section>
+
+<!-- 挑戦状がとどいた -->
+<section class="ov" id="chIntroOv" hidden>
+  <div class="card">
+    <p class="sub serif" data-t="chArrived">挑戦状がとどきました</p>
+    <h2 class="logo serif" style="font-size:34px;margin-top:10px" data-t="chHead">この絵のどこかに、1匹</h2>
+    <p class="tonight" data-t="chBody">たぬきが1匹、背景の色に化けています。寝たふりをしていますが、ときどき目が光ります。制限時間は 90 秒。</p>
+    <div class="stack">
+      <button class="btn primary" id="chStartBtn" data-t="chStart">🔍 さがす（90秒）</button>
+      <button class="btn small" id="chSkipBtn" data-t="chSkip">タイトルへ</button>
+    </div>
+  </div>
+</section>
+
+<!-- 結果 -->
+<section class="ov" id="resultOv" hidden>
+  <div class="card">
+    <div id="resultCard"></div>
+    <div data-feel="bakekurabe" data-feel-set="game" data-feel-mode="compact"></div>
+    <div class="endnext"><b>NEXT</b><a href="sudoku.html" data-t="nextSudoku">異世界立体数独</a><a href="shogi-puyo.html" data-t="nextPuyo">将棋ぷよ「成」</a><a href="method/bazuru-kata.html" data-t="nextNote">この型の研究ノート</a><br><a href="index.html" style="opacity:.7" data-t="allWorks">ほかの作品をぜんぶ見る →</a></div>
+  </div>
+</section>
+
+<script type="module">
+import * as K from './assets/bakekurabe/core.js';
+import { counterUrl, parseCount } from './assets/feel/feel-core.js';
+
+// ================================================================ 言葉
+const T = {
+  ja: {
+    title: '化けくらべ', subtitle: '月夜のたぬき探し', home: 'タイトルへ', hint: 'ヒント', giveup: '降参', sound: '音',
+    hideBtn: '🍃 自分が化けて、挑戦状をつくる', practiceBtn: 'ほかの夜で練習する',
+    rule1: '絵のどこかに、たぬきが化けている。見つけたらタップ。',
+    rule2: 'たぬきは寝たふりが得意。でも、ときどき薄目をあける。夜のたぬきの目は光る。',
+    rule3: 'まちがえると +3 秒。今夜のお題は、日本時間の 0 時に変わる。',
+    aboutH: 'この作品について', howH: '遊び方', allWorks: 'ほかの作品をぜんぶ見る →',
+    nextSudoku: '異世界立体数独', nextPuyo: '将棋ぷよ「成」', nextNote: 'この型の研究ノート',
+    chArrived: '挑戦状がとどきました', chHead: 'この絵のどこかに、1匹', chStart: '🔍 さがす（90秒）', chSkip: 'タイトルへ',
+    chBody: 'たぬきが1匹、背景の色に化けています。寝たふりをしていますが、ときどき目が光ります。制限時間は 90 秒。',
+    dailyGo: (n) => `🌕 今夜の${n}匹をさがす`, dailySeen: '🌕 今夜の結果を見る',
+    tonight: (d, sp, age, stars) => `${d}${sp ? `　今夜は<b>${sp}</b>` : ''}<br>月齢 ${age}　今夜の手ごわさ ${stars}`,
+    stats: (s, n) => (n ? `連続 ${s} 夜 ・ 通算 ${n} 夜` : 'はじめての夜'),
+    wd: ['日', '月', '火', '水', '木', '金', '土'],
+    dateFmt: (m, d, w) => `${m}月${d}日（${w}）`,
+    labelDaily: (no) => `今夜のお題 #${no}`, labelPractice: '練習の夜', labelHide: '化ける', labelCh: '挑戦状',
+    capDaily: 'たぬきは寝たふり中。光る目を見のがさないで。', capFound: 'みっけ！', capMiss: 'ハズレ +3秒',
+    capPlace: 'たぬきを動かして、隠れる場所をえらぶ', capPaint: 'まわりの色で体を塗る。目だけは塗れない。',
+    capWhere: 'どこにいるか、分かる？', capTimeUp: '時間切れ！', capCh: '1匹だけ。目が光るのを待つのも手。',
+    capHintUsed: 'このあたり… +10秒',
+    place: 'ここに化ける →', flip: '↔ 向き', prevScene: '◀ 場所', nextScene: '場所 ▶', reroll: '🎲 別の夜',
+    outline: '👁 輪郭', brush: '🖌 筆', dropper: '💧 スポイト', fill: '🪣 全身', undo: '↶ 戻す', done: '化けた！', allColors: '全色', nearColors: 'まわりの色',
+    size: (n) => `太さ ${n}`, current: '今の色', paintTime: '化け時間',
+    resDaily: (no, md, sp) => `今夜の化けくらべ #${no}　${md}${sp ? '　' + sp : ''}`,
+    resPractice: '練習の夜',
+    foundOf: (f, n) => `${f}/${n}匹`, sec: '秒', misses: 'ハズレ', hints: 'ヒント',
+    starLabel: (lv) => '★' + lv,
+    streak: (s) => `連続 ${s} 夜`,
+    nextIn: (h, m) => `次のお題まで あと ${h}時間${m}分`,
+    world: (n, p) => (p != null ? `今夜 ${n} 人が挑戦 ・ あなたは上位 ${p}%` : (n ? `今夜 ${n} 人が挑戦` : '')),
+    share: '結果をシェア', copy: 'コピー', postX: 'X に投稿', saveImg: '画像で保存', copied: 'コピーしました',
+    toHide: '🍃 こんどは自分が化ける', again: 'もう一度', back: 'タイトルへ', morePractice: '別の夜で練習',
+    bake: '化け度', shareCh: '挑戦状を送る', copyLink: 'リンクをコピー', hideAgain: 'もう一度化ける',
+    heat: '🔍 浮いているところ', heatOff: '🔍 ふつうに見る',
+    chFound: (s) => `${s}秒で見破った！`, chLost: '化けきられた…', chTheirScore: '相手の化け度', chYourTurn: '🍃 あなたも化けて送り返す',
+    badLink: '挑戦状のリンクが読めませんでした。', giveupAsk: '降参して、全部の場所を見る？',
+    hideHead: '化けました', hideSub: 'このリンクを送ると、相手はこの絵からあなたを探します。',
+    noShare: '下の文をコピーして貼ってください',
+    imgTitle: '化けくらべ', imgSub: '月夜のたぬき探し',
+  },
+  en: {
+    title: 'Bakekurabe', subtitle: 'Tanuki hide-and-seek under the moon', home: 'Title', hint: 'Hint', giveup: 'Give up', sound: 'Sound',
+    hideBtn: '🍃 Disguise yourself & send a challenge', practiceBtn: 'Practice on another night',
+    rule1: 'Tanuki are disguised somewhere in the picture. Tap one when you spot it.',
+    rule2: 'They pretend to sleep, but now and then they peek — and tanuki eyes glow at night.',
+    rule3: 'A wrong tap costs +3 s. Tonight\'s puzzle changes at midnight, Japan time.',
+    aboutH: 'About', howH: 'How to play', allWorks: 'See all works →',
+    about3: 'Tonight\'s 5: a new picture appears every night at midnight, Japan time. Everyone gets the same picture and the same five tanuki, and it gets harder through the week. Share your time and misses as a spoiler-free grid. Disguise: place your tanuki anywhere, then paint its body to match the background in 90 seconds. You get a disguise score (0–100) and a link that contains the whole picture — your friend searches the same picture for you. Tip: matching the edges matters most; when searching, relax your eyes and wait for two glowing dots.',
+    nextSudoku: 'Rune Cube', nextPuyo: 'Shogi Puyo', nextNote: 'Research note (JA)',
+    chArrived: 'You got a challenge', chHead: 'One tanuki is in this picture', chStart: '🔍 Search (90 s)', chSkip: 'Title',
+    chBody: 'A tanuki painted itself to match the background. It is pretending to sleep, but its eyes glow now and then. You have 90 seconds.',
+    dailyGo: (n) => `🌕 Find tonight's ${n} tanuki`, dailySeen: '🌕 See tonight\'s result',
+    tonight: (d, sp, age, stars) => `${d}${sp ? ` — <b>${sp}</b>` : ''}<br>Moon age ${age} · Tonight's difficulty ${stars}`,
+    stats: (s, n) => (n ? `Streak ${s} · ${n} nights played` : 'Your first night'),
+    wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    dateFmt: (m, d, w) => `${w} ${m}/${d}`,
+    labelDaily: (no) => `Tonight #${no}`, labelPractice: 'Practice', labelHide: 'Disguise', labelCh: 'Challenge',
+    capDaily: 'They are pretending to sleep. Watch for glowing eyes.', capFound: 'Found!', capMiss: 'Miss +3 s',
+    capPlace: 'Drag the tanuki to a hiding spot', capPaint: 'Paint your body with nearby colors. Eyes can\'t be painted.',
+    capWhere: 'Can you see where it is?', capTimeUp: 'Time\'s up!', capCh: 'Just one. Waiting for the eyes to glow works too.',
+    capHintUsed: 'Somewhere around here… +10 s',
+    place: 'Hide here →', flip: '↔ Flip', prevScene: '◀ Place', nextScene: 'Place ▶', reroll: '🎲 New night',
+    outline: '👁 Outline', brush: '🖌 Brush', dropper: '💧 Pick', fill: '🪣 Fill', undo: '↶ Undo', done: 'Done!', allColors: 'All', nearColors: 'Nearby',
+    size: (n) => `Size ${n}`, current: 'Color', paintTime: 'Time',
+    resDaily: (no, md, sp) => `Tonight #${no} · ${md}${sp ? ' · ' + sp : ''}`,
+    resPractice: 'Practice night',
+    foundOf: (f, n) => `${f}/${n}`, sec: 's', misses: 'Misses', hints: 'Hints',
+    starLabel: (lv) => '★' + lv,
+    streak: (s) => `Streak ${s}`,
+    nextIn: (h, m) => `Next puzzle in ${h}h ${m}m`,
+    world: (n, p) => (p != null ? `${n} players tonight · You're in the top ${p}%` : (n ? `${n} players tonight` : '')),
+    share: 'Share', copy: 'Copy', postX: 'Post on X', saveImg: 'Save image', copied: 'Copied',
+    toHide: '🍃 Now you hide', again: 'Again', back: 'Title', morePractice: 'Another night',
+    bake: 'Disguise', shareCh: 'Send challenge', copyLink: 'Copy link', hideAgain: 'Hide again',
+    heat: '🔍 Show weak spots', heatOff: '🔍 Normal view',
+    chFound: (s) => `Found in ${s}s!`, chLost: 'It got away…', chTheirScore: 'Their disguise', chYourTurn: '🍃 Hide and send one back',
+    badLink: 'This challenge link could not be read.', giveupAsk: 'Give up and reveal all?',
+    hideHead: 'Your disguise is ready', hideSub: 'Send this link. Your friend will search this picture for you.',
+    noShare: 'Copy the text below and paste it',
+    imgTitle: 'Bakekurabe', imgSub: 'Tanuki hide-and-seek',
+  },
+};
+const LS = 'bakekurabe.v1';
+function store() { try { return JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch (e) { return {}; } }
+function saveStore(s) { try { localStorage.setItem(LS, JSON.stringify(s)); } catch (e) { /* 保存できなくても遊べる */ } }
+let DB = store();
+function pickLang() {
+  const q = new URLSearchParams(location.search).get('lang');
+  if (q === 'en' || q === 'ja') return q;
+  let v = null; try { v = localStorage.getItem('ve_lang'); } catch (e) { /* なし */ }
+  if (v) return v === 'ja' ? 'ja' : 'en';
+  return (navigator.language || 'ja').toLowerCase().startsWith('ja') ? 'ja' : 'en';
+}
+let lang = pickLang();
+const t = (k, ...a) => { const v = (T[lang] && T[lang][k] != null) ? T[lang][k] : T.ja[k]; return typeof v === 'function' ? v(...a) : v; };
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
+  document.querySelectorAll('[data-t-aria]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.tAria)));
+  // 日本語の説明文だけ HTML（リンク入り）。英語は短い説明に差し替える
+  const a1 = document.querySelector('[data-t-html="about1"]'), a2 = document.querySelector('[data-t-html="about2"]');
+  const a3 = document.querySelector('[data-t-html="about3"]');
+  if (!a1.dataset.ja) { a1.dataset.ja = a1.innerHTML; a2.dataset.ja = a2.innerHTML; a3.dataset.ja = a3.innerHTML; }
+  if (lang === 'en') {
+    a1.textContent = 'I researched which games are going viral in September 2026, distilled the pattern, and built this to that pattern: one rule (hide / find), spectators can play along, and both success and failure make good clips. On top of that: one shared puzzle every night, and challenge links that turn every player into the next puzzle maker. ';
+    const link = document.createElement('a'); link.href = 'method/bazuru-kata.html'; link.textContent = 'Research note (Japanese)';
+    a1.appendChild(link);
+    a2.textContent = 'Feel free to use it in streams and videos — no need to ask. The scenes are drawn by code, and the moon matches tonight\'s phase.';
+    a3.textContent = T.en.about3;
+  } else { a1.innerHTML = a1.dataset.ja; a2.innerHTML = a2.dataset.ja; a3.innerHTML = a3.dataset.ja; }
+  document.querySelectorAll('[data-lang]').forEach((b) => b.classList.toggle('on', b.dataset.lang === lang));
+}
+
+// ================================================================ 計測（GoatCounter）
+function gc(path) {
+  let tries = 0;
+  (function attempt() {
+    const g = window.goatcounter;
+    if (g && typeof g.count === 'function') { try { g.count({ path, title: path, event: true }); } catch (e) { /* 計測で画面を壊さない */ } return; }
+    if (++tries < 20) setTimeout(attempt, 250);
+  })();
+}
+async function countOf(path) {
+  try {
+    const r = await fetch(counterUrl(path), { mode: 'cors' });
+    if (r.status === 404) return 0;
+    if (!r.ok) return null;
+    return parseCount(await r.json());
+  } catch (e) { return null; }
+}
+
+// ================================================================ 音（その場で合成する）
+let actx = null;
+let muted = !!DB.muted;
+function tone(freq, dur, type = 'sine', vol = 0.18, slide = 0, delay = 0) {
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = actx.currentTime + delay;
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
+    g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  } catch (e) { /* 音が出なくても遊べる */ }
+}
+const SFX = {
+  found() { tone(520, 0.12, 'triangle', 0.2, 260); tone(880, 0.22, 'sine', 0.12, 0, 0.08); tone(1320, 0.2, 'sine', 0.06, 0, 0.14); },
+  miss() { tone(160, 0.16, 'square', 0.07, -60); },
+  tick() { tone(1100, 0.04, 'square', 0.03); },
+  tally() { tone(700 + Math.random() * 300, 0.05, 'triangle', 0.05); },
+  fanfare() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.28, 'triangle', 0.12, 0, i * 0.09)); },
+  poof() { tone(300, 0.25, 'sawtooth', 0.04, -200); },
+};
+function renderSoundBtn() { $('#soundBtn').textContent = muted ? '🔇' : '🔊'; }
+
+// ================================================================ 画面まわり
+const $ = (s) => document.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d');
+const off = document.createElement('canvas'); off.width = K.W; off.height = K.H;
+const offCtx = off.getContext('2d');
+const img = offCtx.createImageData(K.W, K.H);
+const u32 = new Uint32Array(img.data.buffer);
+const pack = (c) => (255 << 24 | c[2] << 16 | c[1] << 8 | c[0]) >>> 0;
+const LUT = new Uint32Array(K.PALETTE.map(pack));
+const EYE = pack(K.EYE_RGB);
+const hex = (i) => '#' + K.PALETTE[i].map((v) => v.toString(16).padStart(2, '0')).join('');
+// 体の画素の番号を、スプライト内の座標から引く
+const BODY_AT = new Int16Array(K.SW * K.SH).fill(-1);
+K.BODY.forEach((p, i) => { BODY_AT[p.y * K.SW + p.x] = i; });
+
+// 塗るときに見せる体の輪郭（画素の角の座標で持つ）
+const SIL = new Set([...K.BODY, ...K.EYES].map((p) => p.y * K.SW + p.x));
+const inSil = (x, y) => x >= 0 && y >= 0 && x < K.SW && y < K.SH && SIL.has(y * K.SW + x);
+const OUTLINE = [];
+for (const k of SIL) {
+  const x = k % K.SW, y = Math.floor(k / K.SW);
+  if (!inSil(x - 1, y)) OUTLINE.push([x, y, x, y + 1]);
+  if (!inSil(x + 1, y)) OUTLINE.push([x + 1, y, x + 1, y + 1]);
+  if (!inSil(x, y - 1)) OUTLINE.push([x, y, x + 1, y]);
+  if (!inSil(x, y + 1)) OUTLINE.push([x, y + 1, x + 1, y + 1]);
+}
+
+let view = { w: 0, h: 0, dpr: 1, s0: 1 };
+const cam = { x: K.W / 2, y: K.H / 2, z: 1, tx: K.W / 2, ty: K.H / 2, tz: 1 };
+function resize() {
+  const r = $('#stage').getBoundingClientRect();
+  view.dpr = Math.min(3, window.devicePixelRatio || 1);
+  view.w = r.width; view.h = r.height;
+  cv.width = Math.round(r.width * view.dpr); cv.height = Math.round(r.height * view.dpr);
+  view.s0 = Math.min(r.width / K.W, r.height / K.H);
+}
+function camXf() {
+  const s = view.s0 * cam.z;
+  let ox = view.w / 2 - cam.x * s, oy = view.h / 2 - cam.y * s;
+  if (K.W * s >= view.w) ox = Math.min(0, Math.max(view.w - K.W * s, ox)); else ox = (view.w - K.W * s) / 2;
+  if (K.H * s >= view.h) oy = Math.min(0, Math.max(view.h - K.H * s, oy)); else oy = (view.h - K.H * s) / 2;
+  return { s, ox, oy };
+}
+function toScene(ev) {
+  const r = cv.getBoundingClientRect();
+  const { s, ox, oy } = camXf();
+  return { x: (ev.clientX - r.left - ox) / s, y: (ev.clientY - r.top - oy) / s };
+}
+let toastTimer = 0;
+function toast(msg) {
+  const el = $('#toast'); el.textContent = msg; el.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), 1600);
+}
+function caption(msg) { $('#caption').textContent = msg || ''; }
+function show(id, on) { $(id).hidden = !on; }
+
+// ================================================================ 状態
+const S = {
+  mode: 'title', scene: null, tanuki: [], started: 0, endAt: 0, penalty: 0, misses: 0, hints: 0,
+  running: false, coolUntil: 0, fx: [], hintRing: null, puzzle: null, limitMs: 0,
+  hide: null, challenge: null, heat: false, result: null,
+};
+const now = () => performance.now();
+function elapsed() { return S.running ? now() - S.started + S.penalty : S.endAt - S.started + S.penalty; }
+
+// ================================================================ 描く
+function compose(time) {
+  const sc = S.scene; if (!sc) return;
+  const px = sc.px;
+  for (let i = 0; i < px.length; i++) u32[i] = LUT[px[i]];
+  const sec = time / 1000;
+  for (const tw of sc.fx.twinkles) {
+    const u = ((sec / tw.period + tw.phase) % 1);
+    const i = tw.y * K.W + tw.x;
+    if (tw.glint) { if (u < 0.1) u32[i] = LUT[tw.a]; } else if (u < 0.14) u32[i] = LUT[tw.b];
+  }
+  for (const f of sc.fx.flames) {
+    const v = Math.sin(sec * 9 + f.x * 1.7 + f.y) + Math.sin(sec * 13.3 + f.y);
+    u32[f.y * K.W + f.x] = LUT[v > 0.4 ? K.COLOR.yellow : (v > -0.9 ? K.COLOR.orange : K.COLOR.red2)];
+  }
+  const list = S.mode.startsWith('hide') && S.hide ? [S.hide] : S.tanuki;
+  for (const tn of list) {
+    const natural = tn.found || tn.reveal;
+    const paint = natural ? K.NATURAL_PAINT : tn.paint;
+    for (let i = 0; i < K.BODY.length; i++) {
+      const p = K.BODY[i], q = K.spriteToScene(tn, p.x, p.y);
+      u32[q.y * K.W + q.x] = LUT[paint[i]];
+    }
+    let open;
+    if (tn.alwaysOpen) open = (sec % 4.2) > 0.12;
+    else if (natural) open = (sec + tn.x * 0.1) % 3.1 > 0.14;
+    else open = (tn.forceOpenUntil > time) || K.peekOpen(tn.peek, sec);
+    for (const e of K.EYES) {
+      const q = K.spriteToScene(tn, e.x, e.y);
+      u32[q.y * K.W + q.x] = open ? EYE : LUT[paint[e.lid]];
+    }
+  }
+  if (S.heat && S.hide) {
+    // 背景から浮いている画素を赤く染める（化けの答え合わせ）
+    const under = K.underColors(sc.px, S.hide);
+    K.BODY.forEach((p, i) => {
+      const d = K.colorDist(S.hide.paint[i], under[i]);
+      if (d > 0.05) { const q = K.spriteToScene(S.hide, p.x, p.y); u32[q.y * K.W + q.x] = pack([255, Math.round(200 - Math.min(1, d * 3) * 200), 60]); }
+    });
+  }
+  offCtx.putImageData(img, 0, 0);
+}
+function frame(time) {
+  requestAnimationFrame(frame);
+  if (!S.scene) return;
+  cam.x += (cam.tx - cam.x) * 0.16; cam.y += (cam.ty - cam.y) * 0.16; cam.z += (cam.tz - cam.z) * 0.16;
+  compose(time);
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  ctx.clearRect(0, 0, view.w, view.h);
+  const { s, ox, oy } = camXf();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(off, ox, oy, K.W * s, K.H * s);
+  // 重ね描き（場面の座標 → 画面）
+  const P = (x, y) => [ox + x * s, oy + y * s];
+  if (S.hintRing && S.hintRing.until > time) {
+    const [hx, hy] = P(S.hintRing.x, S.hintRing.y);
+    const pulse = 1 + Math.sin(time / 180) * 0.06;
+    ctx.strokeStyle = 'rgba(243,227,166,.85)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.arc(hx, hy, S.hintRing.r * s * pulse, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  }
+  for (const f of S.fx) {
+    const age = (time - f.t0) / f.dur;
+    if (age >= 1) continue;
+    if (f.type === 'miss') {
+      const [x, y] = P(f.x, f.y); const r = 9;
+      ctx.globalAlpha = 1 - age; ctx.strokeStyle = '#ff8a6a'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r); ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r); ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (f.type === 'poof') {
+      for (const p of f.parts) {
+        const [x, y] = P(f.x + p.dx * age * 14, f.y + p.dy * age * 14 - age * 4);
+        ctx.globalAlpha = (1 - age) * 0.9; ctx.fillStyle = p.c;
+        const r = (1.6 + (1 - age) * 2.2) * s * 0.5; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+      ctx.globalAlpha = 1;
+    } else if (f.type === 'label') {
+      const [x, y] = P(f.x, f.y - age * 8);
+      ctx.globalAlpha = age < 0.8 ? 1 : (1 - age) * 5;
+      ctx.font = `800 ${Math.max(14, s * 5)}px "Shippori Mincho",serif`; ctx.textAlign = 'center';
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,12,24,.85)'; ctx.strokeText(f.text, x, y); ctx.fillStyle = f.color || '#f3e3a6'; ctx.fillText(f.text, x, y);
+      ctx.globalAlpha = 1;
+    }
+  }
+  S.fx = S.fx.filter((f) => time - f.t0 < f.dur);
+  // 見つけた子の頭に葉っぱ
+  for (const tn of S.tanuki) if (tn.found || tn.reveal) drawLeaf(P, s, tn, time);
+  if (S.mode === 'hide-paint' && S.hide && S.hide.outline) {
+    const h = S.hide, X = (x) => h.x + (h.flip ? K.SW - x : x);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(243,227,166,.75)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.lineDashOffset = -time / 70;
+    ctx.beginPath();
+    for (const [x1, y1, x2, y2] of OUTLINE) { const [a, b] = P(X(x1), h.y + y1), [c, d] = P(X(x2), h.y + y2); ctx.moveTo(a, b); ctx.lineTo(c, d); }
+    ctx.stroke(); ctx.restore();
+  }
+  if (S.mode === 'hide-place' && S.hide) {
+    const [x, y] = P(S.hide.x - 1, S.hide.y - 1);
+    ctx.strokeStyle = 'rgba(243,227,166,.9)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+    ctx.strokeRect(x, y, (K.SW + 2) * s, (K.SH + 2) * s); ctx.setLineDash([]);
+  }
+  tickHud(time);
+}
+function drawLeaf(P, s, tn, time) {
+  const bob = Math.sin(time / 300 + tn.x) * 0.6;
+  const [x, y] = P(tn.x + K.SW / 2 - (tn.flip ? -2 : 2), tn.y - 2.5 + bob);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-0.5);
+  ctx.fillStyle = tn.reveal && !tn.found ? '#8a8a8a' : '#7a9e55';
+  ctx.beginPath(); ctx.ellipse(0, 0, s * 2.6, s * 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#3e5a2a'; ctx.lineWidth = Math.max(1, s * 0.3);
+  ctx.beginPath(); ctx.moveTo(-s * 2.4, 0); ctx.lineTo(s * 2.6, 0); ctx.stroke();
+  ctx.restore();
+}
+
+// ================================================================ HUD
+let lastTickSec = -1;
+function tickHud(time) {
+  if (S.mode === 'daily' || S.mode === 'practice' || S.mode === 'challenge') {
+    const ms = elapsed();
+    if (S.limitMs) {
+      const left = Math.max(0, S.limitMs - ms);
+      $('#timerVal').textContent = K.fmtSec(left);
+      $('#timer').classList.toggle('warn', left < 15000);
+      if (S.running && left <= 0) finishChallenge(false);
+    } else $('#timerVal').textContent = K.fmtSec(ms);
+    const f = S.tanuki.filter((x) => x.found).length;
+    $('#count').textContent = `${f}/${S.tanuki.length}`;
+    $('#giveBtn').hidden = !(S.running && ms > 60000 && !S.limitMs);
+  } else if (S.mode === 'hide-paint') {
+    const left = Math.max(0, S.hide.deadline - time);
+    $('#timerVal').textContent = K.fmtSec(left);
+    $('#timer').classList.toggle('warn', left < 15000);
+    const sec = Math.ceil(left / 1000);
+    if (left < 10000 && sec !== lastTickSec) { lastTickSec = sec; SFX.tick(); }
+    if (left <= 0) finishHide(true);
+  }
+}
+
+// ================================================================ さがす（日替わり・練習・挑戦状）
+function startSeek(mode, puzzle) {
+  S.mode = mode; S.puzzle = puzzle; S.scene = puzzle.scene;
+  S.tanuki = puzzle.tanuki.map((x) => ({ ...x, found: false, reveal: false, hinted: false, split: 0, forceOpenUntil: 0 }));
+  S.started = now(); S.penalty = 0; S.misses = 0; S.hints = 0; S.running = true; S.coolUntil = 0; S.fx = []; S.hintRing = null;
+  S.lastFoundAt = 0; S.limitMs = mode === 'challenge' ? 90000 : 0; S.heat = false;
+  cam.tx = K.W / 2; cam.ty = K.H / 2; cam.tz = 1;
+  show('#titleOv', false); show('#resultOv', false); show('#chIntroOv', false);
+  $('#countPill').hidden = false; $('#timer').hidden = false; $('#hintBtn').hidden = mode === 'challenge'; $('#giveBtn').hidden = true;
+  $('#hudLabel').textContent = mode === 'daily' ? t('labelDaily', puzzle.no) : (mode === 'practice' ? t('labelPractice') : t('labelCh'));
+  caption(mode === 'challenge' ? t('capCh') : t('capDaily'));
+  setTimeout(() => { if (S.mode === mode) caption(''); }, 4200);
+  $('#tools').innerHTML = '';
+  cv.className = 'seek';
+  resize();
+}
+function tapSeek(p) {
+  if (!S.running) return;
+  const time = now();
+  if (time < S.coolUntil) return;
+  const hit = S.tanuki.find((tn) => !tn.found && p.x >= tn.x - 1.5 && p.x <= tn.x + K.SW + 0.5 && p.y >= tn.y - 1.5 && p.y <= tn.y + K.SH + 0.5);
+  if (hit) {
+    const ms = elapsed();
+    hit.found = true; hit.split = (ms - S.lastFoundAt) / 1000; S.lastFoundAt = ms;
+    const cx = hit.x + K.SW / 2, cy = hit.y + K.SH / 2;
+    S.fx.push({ type: 'poof', x: cx, y: cy, t0: time, dur: 650, parts: Array.from({ length: 14 }, (_, i) => ({ dx: Math.cos(i / 14 * 6.28), dy: Math.sin(i / 14 * 6.28), c: i % 3 ? '#ece5d4' : '#d2bb93' })) });
+    S.fx.push({ type: 'label', x: cx, y: hit.y - 3, t0: time, dur: 1100, text: t('capFound') });
+    SFX.found(); SFX.poof();
+    if (navigator.vibrate) try { navigator.vibrate(18); } catch (e) { /* 無視 */ }
+    if (S.hintRing && S.hintRing.target === hit) S.hintRing = null;
+    if (S.tanuki.every((x) => x.found)) {
+      if (S.mode === 'challenge') finishChallenge(true);
+      else finishSeek(false);
+    }
+  } else {
+    S.misses++;
+    if (!S.limitMs) S.penalty += 3000;
+    S.coolUntil = time + 600;
+    cv.className = 'seek cool'; setTimeout(() => { cv.className = 'seek'; }, 600);
+    S.fx.push({ type: 'miss', x: p.x, y: p.y, t0: time, dur: 700 });
+    if (!S.limitMs) S.fx.push({ type: 'label', x: p.x, y: p.y - 6, t0: time, dur: 800, text: '+3', color: '#ff8a6a' });
+    SFX.miss();
+  }
+}
+function useHint() {
+  if (!S.running) return;
+  const rest = S.tanuki.filter((x) => !x.found).sort((a, b) => a.level - b.level);
+  if (!rest.length) return;
+  const tn = rest[0];
+  tn.hinted = true; tn.forceOpenUntil = now() + 2600;
+  S.hints++; S.penalty += 10000;
+  const ang = Math.random() * 6.28, off = 4 + Math.random() * 8;
+  S.hintRing = { x: tn.x + K.SW / 2 + Math.cos(ang) * off, y: tn.y + K.SH / 2 + Math.sin(ang) * off, r: 24, until: now() + 6000, target: tn };
+  toast(t('capHintUsed'));
+}
+function giveUp() {
+  if (!S.running) return;
+  if (!confirm(t('giveupAsk'))) return;
+  finishSeek(true);
+}
+function finishSeek(gaveUp) {
+  S.running = false; S.endAt = now();
+  for (const tn of S.tanuki) if (!tn.found) tn.reveal = true;
+  $('#hintBtn').hidden = true; $('#giveBtn').hidden = true;
+  const r = {
+    key: S.puzzle.key, no: S.puzzle.no, special: S.puzzle.special, ms: elapsed(), misses: S.misses, hints: S.hints, gaveUp,
+    results: S.tanuki.map((x) => ({ found: x.found, hinted: x.hinted, split: x.split, level: x.level })),
+  };
+  S.result = r;
+  if (!gaveUp) SFX.fanfare();
+  if (S.mode === 'daily') {
+    const rec = { ms: Math.round(r.ms), misses: r.misses, hints: r.hints, gaveUp, results: r.results };
+    DB.days = DB.days || {};
+    if (!DB.days[r.key]) {
+      DB.days[r.key] = rec;
+      const keys = Object.keys(DB.days).sort();
+      while (keys.length > 60) delete DB.days[keys.shift()];
+      DB.streak = K.nextStreak(DB.streak, r.key);
+      DB.nights = (DB.nights || 0) + 1;
+      if (!gaveUp && (!DB.bestMs || r.ms < DB.bestMs)) DB.bestMs = Math.round(r.ms);
+      saveStore(DB);
+      if (!gaveUp) { gc(`bakekurabe/daily/${r.key}/clear`); gc(`bakekurabe/daily/${r.key}/t${K.timeBucket(r.ms)}`); }
+    }
+  }
+  const mode = S.mode;
+  // 待っている間にタイトルへ戻ったら、結果は出さない
+  setTimeout(() => { if (S.mode === mode) showSeekResult(r, mode); }, gaveUp ? 1400 : 1100);
+}
+
+// ================================================================ 結果（日替わり・練習）
+function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+function btn(label, cls, fn) { const b = el('button', 'btn ' + (cls || ''), label); b.type = 'button'; b.addEventListener('click', fn); return b; }
+function mdOf(key) { return `${+key.slice(5, 7)}/${+key.slice(8, 10)}`; }
+function showSeekResult(r, mode) {
+  const card = $('#resultCard'); card.innerHTML = '';
+  const sp = r.special ? (lang === 'en' ? r.special.en : r.special.ja) : '';
+  card.appendChild(el('p', 'sub serif', mode === 'daily' ? t('resDaily', r.no, mdOf(r.key), sp) : t('resPractice')));
+  const found = r.results.filter((x) => x.found).length;
+  card.appendChild(el('div', 'big serif', t('foundOf', found, r.results.length)));
+  card.appendChild(el('div', 'marks', r.results.map(K.markFor).join('')));
+  const labels = el('div', 'marklabels');
+  r.results.forEach((x) => labels.appendChild(el('span', '', t('starLabel', x.level))));
+  card.appendChild(labels);
+  const kv = el('div', 'kv');
+  const a = el('span'); a.append('⏱ '); a.appendChild(el('b', 'mono', K.fmtSec(r.ms))); a.append(t('sec'));
+  const b = el('span'); b.append(t('misses') + ' '); b.appendChild(el('b', 'mono', String(r.misses)));
+  kv.append(a, b);
+  if (r.hints) { const c = el('span'); c.append(t('hints') + ' '); c.appendChild(el('b', 'mono', String(r.hints))); kv.append(c); }
+  card.appendChild(kv);
+  if (mode === 'daily') {
+    const world = el('p', 'world'); card.appendChild(world);
+    loadWorld(r, world);
+    const streak = K.currentStreak(DB.streak, K.jstDateKey(new Date()));
+    if (streak) card.appendChild(el('p', 'next', t('streak', streak)));
+    card.appendChild(el('p', 'next', nextInText()));
+  }
+  const text = K.dailyShareText(mode === 'daily' ? r : { ...r, practice: true }, lang);
+  const pre = el('pre', 'share', text);
+  const box = el('div', 'sharebox');
+  box.append(
+    btn(t('share'), 'primary', () => shareText(text, 'daily')),
+    btn(t('postX'), '', () => { gc('bakekurabe/share/x'); window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text), '_blank', 'noopener'); }),
+    btn(t('saveImg'), '', () => saveCard(r, mode)),
+    btn(t('copy'), '', () => copyText(text)),
+  );
+  card.append(box, pre);
+  const stack = el('div', 'stack');
+  stack.append(btn(t('toHide'), 'primary', startHide));
+  if (mode === 'practice') stack.append(btn(t('morePractice'), '', startPractice));
+  stack.append(btn(t('back'), 'small', goTitle));
+  card.appendChild(stack);
+  show('#resultOv', true);
+  $('#resultOv').scrollTop = 0;
+}
+async function loadWorld(r, node) {
+  const base = `bakekurabe/daily/${r.key}`;
+  const [n, ...buckets] = await Promise.all([countOf(base + '/start'), ...[0, 1, 2, 3].map((i) => countOf(`${base}/t${i}`))]);
+  if (n == null) return;
+  const p = (!r.gaveUp && buckets.every((x) => x != null)) ? K.topPercent(buckets, K.timeBucket(r.ms)) : null;
+  node.textContent = t('world', n, p);
+}
+function nextInText() {
+  const nowD = new Date();
+  const jst = new Date(nowD.getTime() + 9 * 3600000);
+  const mins = 24 * 60 - (jst.getUTCHours() * 60 + jst.getUTCMinutes());
+  return t('nextIn', Math.floor(mins / 60), mins % 60);
+}
+
+// ================================================================ 共有
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast(t('copied')); gc('bakekurabe/share/copy'); return true; } catch (e) { toast(t('noShare')); return false; }
+}
+async function shareText(text, kind) {
+  gc('bakekurabe/share/' + kind);
+  if (navigator.share) {
+    try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  copyText(text);
+}
+// ネタバレしない画像（場所は写さない。月と記録だけ）
+function drawCard(r, mode) {
+  const c = document.createElement('canvas'); c.width = 1080; c.height = 1350;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, 1350); grd.addColorStop(0, '#1a2448'); grd.addColorStop(1, '#0a0c18');
+  g.fillStyle = grd; g.fillRect(0, 0, 1080, 1350);
+  // 月（その夜の形）
+  const ph = mode === 'daily' ? K.moonPhase(r.key) : 0.5;
+  const mc = document.createElement('canvas'); mc.width = 60; mc.height = 60; const mg = mc.getContext('2d');
+  const mi = mg.createImageData(60, 60);
+  const k = Math.cos(2 * Math.PI * ph);
+  for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) {
+    const nx = (x - 29.5) / 26, ny = (y - 29.5) / 26;
+    if (nx * nx + ny * ny > 1) continue;
+    const half = Math.sqrt(1 - ny * ny);
+    const lit = ph <= 0.5 ? nx > k * half : nx < -k * half;
+    const col = lit ? K.PALETTE[7] : K.PALETTE[3];
+    mi.data.set([...col, 255], (y * 60 + x) * 4);
+  }
+  mg.putImageData(mi, 0, 0);
+  g.imageSmoothingEnabled = false;
+  g.shadowColor = 'rgba(243,227,166,.5)'; g.shadowBlur = 60; g.drawImage(mc, 690, 110, 300, 300); g.shadowBlur = 0;
+  // たぬき（葉っぱつき）
+  const tc = document.createElement('canvas'); tc.width = K.SW; tc.height = K.SH; const tg = tc.getContext('2d');
+  const ti = tg.createImageData(K.SW, K.SH);
+  K.BODY.forEach((p) => ti.data.set([...K.PALETTE[p.natural], 255], (p.y * K.SW + p.x) * 4));
+  K.EYES.forEach((e) => ti.data.set([...K.EYE_RGB, 255], (e.y * K.SW + e.x) * 4));
+  tg.putImageData(ti, 0, 0);
+  g.drawImage(tc, 90, 150, K.SW * 18, K.SH * 18);
+  g.fillStyle = '#ece5d4'; g.textAlign = 'left';
+  g.font = '800 120px "Shippori Mincho", serif'; g.fillText(t('imgTitle'), 80, 560);
+  g.font = '600 44px "Shippori Mincho", serif'; g.fillStyle = '#a7a3b8'; g.fillText(t('imgSub'), 86, 630);
+  const sp = r.special ? (lang === 'en' ? r.special.en : r.special.ja) : '';
+  g.fillStyle = '#f3e3a6'; g.font = '600 52px "Shippori Mincho", serif';
+  g.fillText(mode === 'daily' ? `#${r.no}  ${mdOf(r.key)}  ${sp}` : t('resPractice'), 86, 740);
+  // 升目は 1 つずつ置く（絵文字の幅は端末で違うので、まとめて描くとはみ出す）
+  r.results.forEach((x, i) => {
+    const cx = 86 + i * 170;
+    g.font = '100px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.fillStyle = '#f3e3a6';
+    g.fillText(K.markFor(x), cx, 900, 130);
+    g.font = '600 30px "Shippori Mincho", serif'; g.fillStyle = '#a7a3b8';
+    g.fillText('★' + x.level, cx + 22, 950);
+  });
+  g.fillStyle = '#ece5d4'; g.font = '700 80px "JetBrains Mono", monospace';
+  const found = r.results.filter((x) => x.found).length;
+  g.fillText(`${found}/${r.results.length}  ${K.fmtSec(r.ms)}${lang === 'en' ? 's' : '秒'}`, 86, 1060);
+  g.font = '600 40px "Shippori Mincho", serif'; g.fillStyle = '#a7a3b8';
+  g.fillText(`${t('misses')} ${r.misses}${r.hints ? `  ${t('hints')} ${r.hints}` : ''}`, 88, 1125);
+  g.fillStyle = '#f3e3a6'; g.font = '600 36px "JetBrains Mono", monospace';
+  g.fillText('yuichi916.github.io/bakekurabe.html', 86, 1260);
+  g.fillText(lang === 'en' ? '#bakekurabe' : K.HASHTAG, 86, 1310);
+  return c;
+}
+function saveCard(r, mode) {
+  gc('bakekurabe/share/image');
+  const c = drawCard(r, mode);
+  c.toBlob(async (blob) => {
+    if (!blob) return;
+    const name = `bakekurabe-${mode === 'daily' ? r.key : 'practice'}.png`;
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text: K.dailyShareText(mode === 'daily' ? r : { ...r, practice: true }, lang) }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }, 'image/png');
+}
+
+// ================================================================ 化ける
+function sceneFor(kindIdx, seed) {
+  const key = K.jstDateKey(new Date());
+  return K.makeScene(K.KINDS[(kindIdx + K.KINDS.length) % K.KINDS.length], seed >>> 0, K.moonPhase(key));
+}
+function startHide() {
+  const key = K.jstDateKey(new Date());
+  const today = K.dailyPuzzle(key);
+  S.mode = 'hide-place'; S.running = false; S.tanuki = []; S.fx = []; S.hintRing = null; S.heat = false;
+  S.hideKind = K.KINDS.indexOf(today.kind); S.hideSeed = today.seed;
+  S.scene = today.scene;
+  S.hide = { x: Math.round(K.W / 2 - K.SW / 2), y: Math.round(K.H * 0.62), flip: false, paint: K.NATURAL_PAINT.slice(), alwaysOpen: true };
+  show('#titleOv', false); show('#resultOv', false); show('#chIntroOv', false);
+  $('#countPill').hidden = true; $('#timer').hidden = true; $('#hintBtn').hidden = true; $('#giveBtn').hidden = true;
+  $('#hudLabel').textContent = t('labelHide');
+  cam.tx = K.W / 2; cam.ty = K.H / 2; cam.tz = 1;
+  caption(t('capPlace'));
+  cv.className = '';
+  renderPlaceTools();
+  resize();
+}
+function renderPlaceTools() {
+  const tools = $('#tools'); tools.innerHTML = '';
+  const r1 = el('div', 'row');
+  r1.append(
+    btn(t('prevScene'), 'small', () => changeScene(-1)),
+    btn(t('reroll'), 'small', () => { S.hideSeed = (Math.random() * 4294967296) >>> 0; S.scene = sceneFor(S.hideKind, S.hideSeed); }),
+    btn(t('nextScene'), 'small', () => changeScene(1)),
+    btn(t('flip'), 'small', () => { S.hide.flip = !S.hide.flip; }),
+  );
+  const r2 = el('div', 'row');
+  r2.append(btn(t('place'), 'primary', startPaint));
+  tools.append(r1, r2);
+  resize();
+}
+function changeScene(d) {
+  S.hideKind = (S.hideKind + d + K.KINDS.length) % K.KINDS.length;
+  S.hideSeed = (Math.random() * 4294967296) >>> 0;
+  S.scene = sceneFor(S.hideKind, S.hideSeed);
+  toast(K.KIND_NAMES[K.KINDS[S.hideKind]][lang]);
+}
+function placeAt(p) {
+  S.hide.x = Math.max(0, Math.min(K.W - K.SW, Math.round(p.x - K.SW / 2)));
+  S.hide.y = Math.max(0, Math.min(K.H - K.SH, Math.round(p.y - K.SH / 2)));
+}
+// 塗るときに出す「まわりの色」（体のすぐ外側で多い順）
+function nearColors(pos) {
+  const counts = new Map();
+  for (let y = pos.y - 8; y < pos.y + K.SH + 8; y++) for (let x = pos.x - 8; x < pos.x + K.SW + 8; x++) {
+    if (x < 0 || y < 0 || x >= K.W || y >= K.H) continue;
+    const lx = pos.flip ? K.SW - 1 - (x - pos.x) : x - pos.x, ly = y - pos.y;
+    if (lx >= 0 && ly >= 0 && lx < K.SW && ly < K.SH && K.BODY.some((b) => b.x === lx && b.y === ly)) continue;
+    const c = S.scene.px[y * K.W + x];
+    counts.set(c, (counts.get(c) || 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map((e) => e[0]);
+}
+function startPaint() {
+  S.mode = 'hide-paint';
+  const h = S.hide;
+  h.undo = []; h.tool = 'brush'; h.size = 1; h.near = nearColors(h); h.color = h.near[0]; h.showAll = false; h.outline = true;
+  h.deadline = now() + 90000;
+  lastTickSec = -1;
+  $('#timer').hidden = false;
+  caption(t('capPaint')); setTimeout(() => { if (S.mode === 'hide-paint') caption(''); }, 4000);
+  renderPaintTools();
+  resize();
+  zoomToHide();
+}
+function zoomToHide() {
+  const h = S.hide;
+  const z = Math.min(view.w / (K.SW + 26), view.h / (K.SH + 26)) / view.s0;
+  cam.tx = h.x + K.SW / 2; cam.ty = h.y + K.SH / 2; cam.tz = Math.max(1, z);
+}
+function renderPaintTools() {
+  const h = S.hide;
+  const tools = $('#tools'); tools.innerHTML = '';
+  const sw = el('div'); sw.id = h.showAll ? 'allSw' : 'swatches';
+  const list = h.showAll ? K.PALETTE.map((_, i) => i) : h.near;
+  for (const c of list) {
+    const b = el('button', 'sw' + (c === h.color ? ' on' : '')); b.type = 'button'; b.style.background = hex(c);
+    b.setAttribute('aria-label', 'color ' + c);
+    b.addEventListener('click', () => { h.color = c; if (h.tool === 'dropper') h.tool = 'brush'; renderPaintTools(); });
+    sw.appendChild(b);
+  }
+  const r0 = el('div', 'row');
+  const cur = el('span', 'cur'); cur.append(t('current')); const cs = el('span', 'sw'); cs.style.background = hex(h.color); cur.appendChild(cs);
+  r0.append(cur, btn(h.showAll ? t('nearColors') : t('allColors'), 'small', () => { h.showAll = !h.showAll; renderPaintTools(); }));
+  const r1 = el('div', 'row');
+  r1.append(
+    btn(t('brush'), 'small' + (h.tool === 'brush' ? ' on' : ''), () => { h.tool = 'brush'; renderPaintTools(); }),
+    btn(t('dropper'), 'small' + (h.tool === 'dropper' ? ' on' : ''), () => { h.tool = 'dropper'; renderPaintTools(); }),
+    btn(t('size', h.size), 'small', () => { h.size = h.size === 1 ? 2 : 1; renderPaintTools(); }),
+    btn(t('fill'), 'small', () => { pushUndo(); h.paint = h.paint.map(() => h.color); }),
+    btn(t('undo'), 'small', () => { if (h.undo.length) h.paint = h.undo.pop(); }),
+    btn(t('outline'), 'small' + (h.outline ? ' on' : ''), () => { h.outline = !h.outline; renderPaintTools(); }),
+    btn(t('done'), 'primary small', () => finishHide(false)),
+  );
+  tools.append(r0, sw, r1);
+}
+function pushUndo() { const h = S.hide; h.undo.push(h.paint.slice()); if (h.undo.length > 40) h.undo.shift(); }
+function bodyIndexAt(sx, sy) {
+  const h = S.hide;
+  const x = Math.floor(sx), y = Math.floor(sy);
+  const lx = h.flip ? K.SW - 1 - (x - h.x) : x - h.x, ly = y - h.y;
+  if (lx < 0 || ly < 0 || lx >= K.SW || ly >= K.SH) return -1;
+  return BODY_AT[ly * K.SW + lx];
+}
+function paintAt(p) {
+  const h = S.hide;
+  for (let dy = 0; dy < h.size; dy++) for (let dx = 0; dx < h.size; dx++) {
+    const i = bodyIndexAt(p.x + dx - (h.size - 1) / 2, p.y + dy - (h.size - 1) / 2);
+    if (i >= 0) h.paint[i] = h.color;
+  }
+}
+function pickAt(p) {
+  const h = S.hide;
+  const i = bodyIndexAt(p.x, p.y);
+  const x = Math.max(0, Math.min(K.W - 1, Math.floor(p.x))), y = Math.max(0, Math.min(K.H - 1, Math.floor(p.y)));
+  h.color = i >= 0 ? h.paint[i] : S.scene.px[y * K.W + x];
+  if (!h.near.includes(h.color)) h.near = [h.color, ...h.near].slice(0, 12);
+  h.tool = 'brush';
+  renderPaintTools();
+}
+function finishHide(timeUp) {
+  if (S.mode !== 'hide-paint') return;
+  S.mode = 'hide-done';
+  const h = S.hide;
+  h.alwaysOpen = false; h.peek = { period: 4.2, open: 0.8, offset: 0 };
+  $('#timer').hidden = true; $('#tools').innerHTML = '';
+  cam.tx = K.W / 2; cam.ty = K.H / 2; cam.tz = 1;
+  caption(timeUp ? t('capTimeUp') : '');
+  setTimeout(() => caption(t('capWhere')), timeUp ? 900 : 300);
+  const score = K.bakeScore(S.scene.px, h, h.paint);
+  const code = K.encodeChallenge({ kind: S.scene.kind, seed: S.scene.seed, x: h.x, y: h.y, flip: h.flip, phase: S.scene.phase, paint: h.paint });
+  DB.hides = (DB.hides || 0) + 1; if (!DB.bestScore || score > DB.bestScore) DB.bestScore = score; saveStore(DB);
+  gc('bakekurabe/hide');
+  setTimeout(() => showHideResult(score, code), 2400);
+}
+function linkFor(code) {
+  const base = /^https?:$/.test(location.protocol) ? location.origin + location.pathname : K.SITE_URL;
+  return `${base}#c=${code}`;
+}
+function showHideResult(score, code) {
+  if (S.mode !== 'hide-done') return;
+  caption('');
+  const card = $('#resultCard'); card.innerHTML = '';
+  card.appendChild(el('p', 'sub serif', t('hideHead')));
+  card.appendChild(el('p', 'next', t('bake')));
+  const sc = el('div', 'score serif', '0'); card.appendChild(sc);
+  const rank = el('div', 'rank serif', ''); card.appendChild(rank);
+  // 化け度は最後にまとめて出す（途中では見せない）
+  const t0 = now();
+  (function tally() {
+    const u = Math.min(1, (now() - t0) / 1200);
+    const v = Math.round(score * (1 - (1 - u) ** 3));
+    sc.textContent = String(v);
+    if (u < 1) { if (Math.random() < 0.5) SFX.tally(); requestAnimationFrame(tally); } else { rank.textContent = K.rankFor(score)[lang]; if (score >= 75) SFX.fanfare(); }
+  })();
+  const url = linkFor(code);
+  const text = K.hideShareText(url, lang);
+  card.appendChild(el('p', 'tonight', t('hideSub')));
+  const box = el('div', 'sharebox');
+  box.append(
+    btn(t('shareCh'), 'primary wide', () => shareText(text, 'challenge')),
+    btn(t('postX'), '', () => { gc('bakekurabe/share/x'); window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text), '_blank', 'noopener'); }),
+    btn(t('copyLink'), '', () => copyText(url)),
+  );
+  card.append(box, el('pre', 'share', text));
+  const stack = el('div', 'stack');
+  const heatBtn = btn(t('heat'), '', () => { S.heat = !S.heat; heatBtn.textContent = S.heat ? t('heatOff') : t('heat'); show('#resultOv', false); caption(S.heat ? t('heat') : ''); setTimeout(() => show('#resultOv', true), 2600); });
+  stack.append(heatBtn, btn(t('hideAgain'), '', startHide), btn(t('back'), 'small', goTitle));
+  card.appendChild(stack);
+  show('#resultOv', true);
+  $('#resultOv').scrollTop = 0;
+}
+
+// ================================================================ 挑戦状
+function readChallenge() {
+  const m = location.hash.match(/^#c=([A-Za-z0-9_-]{10,400})$/);
+  if (!m) return null;
+  return K.decodeChallenge(m[1]) || 'bad';
+}
+function openChallenge(ch) {
+  S.challenge = ch;
+  show('#titleOv', false); show('#resultOv', false); show('#chIntroOv', true);
+  gc('bakekurabe/challenge/open');
+  S.scene = K.makeScene(ch.kind, ch.seed, ch.phase);
+  S.mode = 'challenge-intro'; S.tanuki = []; cam.tx = K.W / 2; cam.ty = K.H / 2; cam.tz = 1;
+}
+function startChallenge() {
+  const ch = S.challenge;
+  const puzzle = { key: 'challenge', no: 0, special: null, scene: S.scene, tanuki: [{ x: ch.x, y: ch.y, flip: ch.flip, paint: ch.paint, level: 0, peek: { period: 4.6, open: 0.75, offset: 1.5 } }] };
+  startSeek('challenge', puzzle);
+}
+function finishChallenge(found) {
+  if (!S.running) return;
+  S.running = false; S.endAt = now();
+  const tn = S.tanuki[0];
+  if (!found) { tn.reveal = true; caption(t('capTimeUp')); SFX.poof(); }
+  else { gc('bakekurabe/challenge/found'); }
+  const ch = S.challenge;
+  const score = K.bakeScore(S.scene.px, ch, ch.paint);
+  const ms = Math.min(elapsed(), 90000);
+  setTimeout(() => {
+    if (S.mode !== 'challenge') return;
+    caption('');
+    const card = $('#resultCard'); card.innerHTML = '';
+    card.appendChild(el('p', 'sub serif', t('labelCh')));
+    card.appendChild(el('div', 'big serif', found ? t('chFound', K.fmtSec(ms)) : t('chLost')));
+    card.appendChild(el('p', 'next', t('chTheirScore')));
+    card.appendChild(el('div', 'score serif', String(score)));
+    card.appendChild(el('div', 'rank serif', K.rankFor(score)[lang]));
+    const url = linkFor(K.encodeChallenge(ch));
+    const text = K.seekShareText({ found, ms, score }, url, lang);
+    const box = el('div', 'sharebox');
+    box.append(
+      btn(t('share'), 'primary', () => shareText(text, 'seek')),
+      btn(t('postX'), '', () => { gc('bakekurabe/share/x'); window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text), '_blank', 'noopener'); }),
+    );
+    card.append(box, el('pre', 'share', text));
+    const stack = el('div', 'stack');
+    stack.append(btn(t('chYourTurn'), 'primary', () => { history.replaceState(null, '', location.pathname + location.search); startHide(); }),
+      btn(t('back'), 'small', () => { history.replaceState(null, '', location.pathname + location.search); goTitle(); }));
+    card.appendChild(stack);
+    show('#resultOv', true);
+    $('#resultOv').scrollTop = 0;
+  }, found ? 1100 : 1800);
+}
+
+// ================================================================ タイトル
+function starsFor(key) {
+  const lv = K.WEEK_LEVELS[K.weekday(key)];
+  const avg = lv.reduce((a, b) => a + b, 0) / lv.length;
+  const n = Math.max(1, Math.min(5, Math.round(avg + 0.2)));
+  return '★'.repeat(n) + '☆'.repeat(5 - n);
+}
+function goTitle() {
+  S.mode = 'title'; S.running = false; S.heat = false;
+  const key = K.jstDateKey(new Date());
+  const today = K.dailyPuzzle(key);
+  S.scene = today.scene; S.tanuki = [];
+  cam.tx = K.W / 2; cam.ty = K.H / 2; cam.tz = 1;
+  const d = new Date(Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10)));
+  const date = t('dateFmt', d.getUTCMonth() + 1, d.getUTCDate(), t('wd')[d.getUTCDay()]);
+  const sp = today.special ? (lang === 'en' ? today.special.en : today.special.ja) : '';
+  $('#tonight').innerHTML = '';
+  $('#tonight').insertAdjacentHTML('beforeend', t('tonight', date, sp, (today.phase * 29.53).toFixed(1), starsFor(key)));
+  const done = DB.days && DB.days[key];
+  $('#dailyBtn').textContent = done ? t('dailySeen') : t('dailyGo', K.DAILY_COUNT);
+  $('#stats').textContent = t('stats', K.currentStreak(DB.streak, key), DB.nights || 0);
+  $('#countPill').hidden = true; $('#timer').hidden = true; $('#hintBtn').hidden = true; $('#giveBtn').hidden = true;
+  $('#hudLabel').textContent = ''; $('#tools').innerHTML = ''; caption('');
+  show('#resultOv', false); show('#chIntroOv', false); show('#titleOv', true);
+  resize();
+}
+function startDaily() {
+  const key = K.jstDateKey(new Date());
+  const done = DB.days && DB.days[key];
+  const puzzle = K.dailyPuzzle(key);
+  if (done) {
+    S.scene = puzzle.scene; S.puzzle = puzzle; S.mode = 'daily-done';
+    S.tanuki = puzzle.tanuki.map((x, i) => ({ ...x, found: !!(done.results[i] && done.results[i].found), reveal: true }));
+    show('#titleOv', false);
+    showSeekResult({ key, no: puzzle.no, special: puzzle.special, ms: done.ms, misses: done.misses, hints: done.hints, gaveUp: done.gaveUp, results: done.results }, 'daily');
+    return;
+  }
+  if (!(DB.started && DB.started[key])) { DB.started = { [key]: 1 }; saveStore(DB); gc(`bakekurabe/daily/${key}/start`); }
+  startSeek('daily', puzzle);
+}
+function startPractice() {
+  const key = K.addDays(K.jstDateKey(new Date()), -1 - Math.floor(Math.random() * 3650));
+  const p = K.dailyPuzzle(key);
+  // 練習は過去の夜からランダムに選ぶ（難しさはその夜の曜日どおり。これからのお題は出さない）
+  startSeek('practice', { ...p, key: 'practice', no: 0, special: null });
+}
+
+// ================================================================ 入力
+let dragging = false, lastPaint = null;
+cv.addEventListener('pointerdown', (ev) => {
+  const p = toScene(ev);
+  if (S.mode === 'daily' || S.mode === 'practice' || S.mode === 'challenge') { tapSeek(p); return; }
+  if (S.mode === 'hide-place') { dragging = true; cv.setPointerCapture(ev.pointerId); placeAt(p); caption(''); return; }
+  if (S.mode === 'hide-paint') {
+    const h = S.hide;
+    if (h.tool === 'dropper' || ev.button === 2 || ev.altKey) { pickAt(p); return; }
+    dragging = true; cv.setPointerCapture(ev.pointerId); pushUndo(); paintAt(p); lastPaint = p;
+  }
+});
+cv.addEventListener('pointermove', (ev) => {
+  if (!dragging) return;
+  const p = toScene(ev);
+  if (S.mode === 'hide-place') placeAt(p);
+  else if (S.mode === 'hide-paint' && lastPaint) {
+    // 速く動かしても線がとぎれないよう、間を埋める
+    const n = Math.ceil(Math.hypot(p.x - lastPaint.x, p.y - lastPaint.y) * 2);
+    for (let i = 1; i <= n; i++) paintAt({ x: lastPaint.x + (p.x - lastPaint.x) * i / n, y: lastPaint.y + (p.y - lastPaint.y) * i / n });
+    lastPaint = p;
+  }
+});
+const endDrag = () => { dragging = false; lastPaint = null; };
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+cv.addEventListener('contextmenu', (ev) => ev.preventDefault());
+
+$('#homeBtn').addEventListener('click', () => { history.replaceState(null, '', location.pathname + location.search); goTitle(); });
+$('#hintBtn').addEventListener('click', useHint);
+$('#giveBtn').addEventListener('click', giveUp);
+$('#soundBtn').addEventListener('click', () => { muted = !muted; DB.muted = muted; saveStore(DB); renderSoundBtn(); if (!muted) SFX.tick(); });
+$('#dailyBtn').addEventListener('click', startDaily);
+$('#hideBtn').addEventListener('click', startHide);
+$('#practiceBtn').addEventListener('click', startPractice);
+$('#chStartBtn').addEventListener('click', startChallenge);
+$('#chSkipBtn').addEventListener('click', () => { history.replaceState(null, '', location.pathname + location.search); goTitle(); });
+document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => {
+  lang = b.dataset.lang; try { localStorage.setItem('ve_lang', lang); } catch (e) { /* なし */ }
+  applyLang(); goTitle();
+}));
+window.addEventListener('resize', () => { resize(); if (S.mode === 'hide-paint') zoomToHide(); });
+window.addEventListener('hashchange', () => { const ch = readChallenge(); if (ch && ch !== 'bad') openChallenge(ch); });
+window.addEventListener('keydown', (ev) => {
+  if (S.mode === 'hide-paint' && (ev.ctrlKey || ev.metaKey) && ev.key === 'z') { ev.preventDefault(); if (S.hide.undo.length) S.hide.paint = S.hide.undo.pop(); }
+});
+
+// ================================================================ 起動
+applyLang();
+renderSoundBtn();
+goTitle();
+const ch = readChallenge();
+if (ch === 'bad') toast(t('badLink'));
+else if (ch) openChallenge(ch);
+requestAnimationFrame(frame);
+window.BAKE = { S, K, startDaily, startHide, startPractice, finishHide };
+</script>
+<script type="module" src="/assets/feel/feel.js"></script>
+</body>
+</html>

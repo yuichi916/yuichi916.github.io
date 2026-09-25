@@ -55,6 +55,7 @@ SECTIONS: list[tuple[str, str]] = [
     ("ehon",                 "遊ぶ"),   # ehon.html と ehon-about.html
     ("sudoku.html",          "遊ぶ"),
     ("shogi-puyo.html",      "遊ぶ"),
+    ("bakekurabe.html",      "遊ぶ"),
     ("salon",                "遊ぶ — 音楽の宇宙"),
     ("universe.html",        "遊ぶ — 音楽の宇宙"),
     ("world.html",           "遊ぶ"),
