@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIのまちがい探し（新人編）全10問｜AIで人を育てる</title>
+<meta name="description" content="元の資料と照らして、AIが作った文に1つだけ混ざった誤りを見つける練習。会議メモの要約から売上の分析コメントまで、仕事の場面の10問。答え合わせで、資料のどこと食い違うかと、誤りの型ごとの正解数が出る。">
+<link rel="canonical" href="https://yuichi916.github.io/method/machigai-shinjin.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="AIのまちがい探し（新人編）全10問">
+<meta property="og:description" content="AIが作った文に1つだけ混ざった誤りを、元の資料と照らして見つける。仕事の場面の10問、答え合わせつき。">
+<meta property="og:url" content="https://yuichi916.github.io/method/machigai-shinjin.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/ai-ikusei/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f0e6; --ink:#161510; --accent:#c43d2a;
+  --paper:#fbf9f3; --line:#d6ccb6; --muted:#5c574b; --soft:#ebe4d3;
+  --tint:#f8e6e0; --mark:rgba(196,61,42,.15);
+  --radius:10px; --gutter:16px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic","Meiryo",system-ui,sans-serif;
+  font-size:16px; line-height:1.8;
+  word-break:auto-phrase; overflow-wrap:break-word; text-wrap:pretty;
+}
+.wrap{max-width:1120px; margin:0 auto; padding:0 var(--gutter)}
+button{font:inherit; color:inherit}
+:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
+h2:focus{outline:none}
+.muted{color:var(--muted)}
+.visually-hidden{position:absolute!important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+
+/* 見出し帯 */
+.top{border-bottom:1px solid var(--line); padding:14px 0 12px}
+.top .wrap{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+.brand{margin:0; font-size:17px; font-weight:700; letter-spacing:.02em}
+.brand small{font-weight:500; color:var(--muted); margin-left:.4em; font-size:13px}
+.dots{list-style:none; display:flex; gap:6px; margin:0; padding:0}
+.dots li{width:14px; height:14px; border-radius:50%; border:1.5px solid var(--muted); display:grid; place-items:center; font-size:9px; line-height:1; color:#fff}
+.dots li.now{border-color:var(--ink); box-shadow:0 0 0 2px var(--bg), 0 0 0 3.5px var(--ink)}
+.dots li.ok{background:var(--ink); border-color:var(--ink)}
+.dots li.ng{background:var(--accent); border-color:var(--accent)}
+
+/* はじめの画面 */
+.intro{padding:28px 0 40px}
+.intro h2{font-family:"Hiragino Mincho ProN","Yu Mincho","YuMincho",serif; font-size:clamp(28px,7vw,44px); line-height:1.3; margin:0 0 6px; letter-spacing:.02em}
+.intro .kicker{color:var(--accent); font-weight:700; margin:0 0 4px; font-size:14px; letter-spacing:.08em}
+.intro .lead{font-size:17px; max-width:36em}
+.steps{counter-reset:s; list-style:none; padding:0; margin:18px 0; display:grid; gap:8px; max-width:40em}
+.steps li{counter-increment:s; display:flex; gap:.7em; align-items:baseline}
+.steps li::before{content:counter(s); flex:none; width:1.7em; height:1.7em; border-radius:50%; background:var(--ink); color:var(--bg); display:inline-grid; place-items:center; font-size:.85em; font-weight:700}
+.types{display:grid; gap:10px; margin:18px 0 22px; padding:0; list-style:none}
+@media (min-width:720px){.types{grid-template-columns:1fr 1fr}}
+.types li{background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:10px 14px}
+.types b{display:block}
+.types .n{color:var(--accent); margin-right:.3em}
+.note{font-size:14px; color:var(--muted)}
+
+/* 問題の画面 */
+.q{padding:18px 0 0}
+.q-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin:0 0 6px}
+.q-no{font-weight:700; color:var(--accent); font-size:15px; letter-spacing:.04em}
+.q-scene{margin:0; font-size:22px; line-height:1.4}
+.ask{margin:4px 0 14px; padding:8px 12px; border-left:3px solid var(--ink); background:var(--soft); border-radius:0 8px 8px 0; font-size:15px}
+.ask .lbl{font-weight:700; margin-right:.3em}
+.pair{display:grid; gap:14px}
+@media (min-width:880px){.pair{grid-template-columns:1fr 1fr; align-items:start}}
+.panel{background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px 12px}
+.panel h3{margin:0 0 2px; font-size:13px; letter-spacing:.08em; color:var(--muted); font-weight:700}
+.panel .ttl{margin:0 0 10px; font-weight:700; font-size:16px; line-height:1.5}
+.src p{margin:0 0 .45em; font-size:15px; line-height:1.85}
+.src .h{font-weight:700; margin-top:.7em}
+.src .h:first-child{margin-top:0}
+mark{background:var(--mark); color:inherit; border-bottom:2px solid var(--accent); padding:0 1px}
+.tbl-wrap{overflow-x:auto; margin:.2em 0 .7em}
+.tbl{border-collapse:collapse; width:100%; font-size:14px; font-variant-numeric:tabular-nums; line-height:1.5}
+.tbl th,.tbl td{border:1px solid var(--line); padding:5px 7px; text-align:right}
+.tbl td{white-space:nowrap}
+.tbl th{background:var(--soft); font-weight:700; font-size:13px}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl tr:last-child td{font-weight:700}
+.tbl td.hit{background:var(--mark); box-shadow:inset 0 0 0 2px var(--accent)}
+.hint{font-size:14px; color:var(--muted); margin:0 0 8px}
+.sents{list-style:none; margin:0; padding:0}
+.sents li{margin:0 0 8px}
+.sent{display:flex; gap:.65em; width:100%; text-align:start; background:#fff; border:1.5px solid var(--line); border-radius:var(--radius); padding:10px 12px; cursor:pointer; line-height:1.75; font-size:15.5px; position:relative}
+.sent:hover{border-color:var(--ink)}
+.sent .no{flex:none; display:inline-grid; place-items:center; width:1.85em; height:1.85em; margin-top:.05em; border-radius:50%; border:1.5px solid var(--ink); font-weight:700; font-size:.85em; line-height:1}
+.sent .tx{flex:1; min-width:0}
+.sent[aria-pressed="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1.5px var(--accent)}
+.sent[aria-pressed="true"] .no{background:var(--accent); border-color:var(--accent); color:#fff}
+.sent:disabled{cursor:default}
+.sent:disabled:hover{border-color:var(--line)}
+.sent.is-answer,.sent.is-answer:disabled:hover{border-color:var(--accent); background:var(--tint); box-shadow:inset 0 0 0 1.5px var(--accent)}
+.sent.is-answer .no{background:var(--accent); border-color:var(--accent); color:#fff}
+.sent.is-miss{border-style:dashed; border-color:var(--muted); box-shadow:none}
+.sent.is-miss .no{background:transparent; color:var(--ink); border-color:var(--muted)}
+.tag{display:table; font-size:12px; font-weight:700; line-height:1; padding:4px 8px; border-radius:999px; margin:1px 0 5px}
+.tag.err{background:var(--accent); color:#fff}
+.tag.mine{background:var(--soft); color:var(--ink); border:1px solid var(--muted)}
+.wp{background:var(--mark); text-decoration:underline wavy var(--accent) 1.5px; text-underline-offset:4px}
+.nb{white-space:nowrap}
+
+.explain{margin:16px 0 0; background:#fff; border:1.5px solid var(--ink); border-radius:var(--radius); padding:16px 18px 8px}
+.verdict{margin:0 0 6px; font-size:20px; font-weight:700; line-height:1.4}
+.verdict .mk{display:inline-grid; place-items:center; width:1.5em; height:1.5em; border-radius:50%; margin-right:.35em; font-size:.9em; vertical-align:.05em}
+.verdict.ok .mk{background:var(--ink); color:var(--bg)}
+.verdict.ng .mk{background:var(--accent); color:#fff}
+.typeline{margin:0 0 10px}
+.chip{display:inline-block; background:var(--ink); color:var(--bg); border-radius:6px; padding:1px 8px; font-weight:700; font-size:14px; margin-right:.4em}
+.explain dl{margin:0}
+.explain dt{font-weight:700; font-size:14px; color:var(--accent); margin-top:10px}
+.explain dd{margin:2px 0 0}
+.explain dl,.explain .typeline{max-width:46em}
+
+.actions{position:sticky; bottom:0; z-index:5; margin-top:14px; padding:12px 0 calc(12px + env(safe-area-inset-bottom)); background:linear-gradient(to top, var(--bg) 72%, rgba(244,240,230,0)); display:flex; justify-content:center}
+.btn{appearance:none; border:0; border-radius:999px; background:var(--ink); color:var(--bg); font-weight:700; padding:12px 26px; min-height:48px; cursor:pointer; font-size:16px; line-height:1.3}
+.btn:disabled{background:#bdb5a4; color:var(--bg); cursor:not-allowed}
+.btn.accent{background:var(--accent); color:#fff}
+.btn.ghost{background:transparent; color:var(--ink); border:1.5px solid var(--ink)}
+.btns{display:flex; flex-wrap:wrap; gap:10px; margin:18px 0}
+
+/* 結果の画面 */
+.final{padding:26px 0 44px}
+.score{font-family:"Hiragino Mincho ProN","Yu Mincho","YuMincho",serif; font-size:clamp(26px,6.5vw,40px); margin:0 0 4px; line-height:1.35}
+.score em{font-style:normal; color:var(--accent); font-size:1.35em}
+.bytype{border-collapse:collapse; width:100%; max-width:560px; margin:14px 0 6px}
+.bytype th,.bytype td{padding:8px 6px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle}
+.bytype td.num{text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-weight:700}
+.bar{height:8px; background:var(--soft); border-radius:99px; overflow:hidden; min-width:60px}
+.bar i{display:block; height:100%; background:var(--ink)}
+.review{list-style:none; padding:0; margin:16px 0; display:grid; gap:6px; max-width:640px}
+.review li{display:flex; gap:.6em; align-items:baseline; background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:15px}
+.review .r{flex:none; font-weight:700; width:1.3em; text-align:center}
+.review .r.ng{color:var(--accent)}
+.advice{background:#fff; border-left:4px solid var(--accent); padding:10px 14px; border-radius:0 8px 8px 0; max-width:640px}
+footer{border-top:1px solid var(--line); margin-top:30px; padding:14px 0 28px; font-size:13px; color:var(--muted)}
+@media (max-width:420px){
+  .q-scene{font-size:20px}
+  .panel{padding:12px 13px 10px}
+  .tbl{font-size:13px}
+  .tbl th,.tbl td{padding:4px 5px}
+}
+@media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto!important} }
+/* ===== サイトに合わせる（記事と同じ上の帯・下のリンク列・字） ===== */
+body{font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",system-ui,sans-serif}
+.crumb{border-bottom:2px solid #1a1812;font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.18em;color:#6b6759;text-transform:uppercase}
+.crumb .wrap{display:flex;justify-content:space-between;gap:6px 12px;flex-wrap:wrap;padding-top:14px;padding-bottom:14px}
+.crumb a{text-decoration:none;color:inherit}.crumb a:hover{color:var(--accent)}
+.feelwrap{margin-top:34px}
+footer{border-top:2px solid #1a1812;padding:22px 0 40px}
+.flinks{display:flex;flex-wrap:wrap;gap:6px 18px;font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.16em;color:#6b6759;text-transform:uppercase}
+.flinks a{text-decoration:none;color:inherit}.flinks a:hover{color:var(--accent)}
+#foot{margin-top:12px;font-size:12px}
+/* 押せない間のボタンは灰色（.btn.accent の赤が上書きしていた）。字は濃く（薄い字だと 1.8:1 で読みにくい） */
+.btn:disabled,.btn.accent:disabled{background:#bdb5a4;color:#161510;cursor:not-allowed}
+/* 答え合わせのあとに移る先の上に、少し余白 */
+.pair,.panel{scroll-margin-top:12px}
+/* 結果の一覧で、第10問だけ題が右にずれないように */
+.review .qn{display:inline-block;min-width:4.6em}
+</style>
+</head>
+<body>
+<nav class="crumb"><div class="wrap"><a href="kangaeru-koutei.html">← 記事に戻る</a><span>D-1 / AIで人を育てる</span></div></nav>
+<header class="top">
+  <div class="wrap">
+    <h1 class="brand">AIのまちがい探し<small>新人編</small></h1>
+    <ol class="dots" id="dots" aria-label="進み具合"></ol>
+  </div>
+</header>
+<main class="wrap" id="app" tabindex="-1"></main>
+<div class="wrap feelwrap"><div data-feel="method/machigai-shinjin" data-feel-set="tool"></div></div>
+<script type="module" src="/assets/feel/feel.js"></script>
+<footer><div class="wrap flinks"><a href="kangaeru-koutei.html">記事に戻る</a><a href="../">ひとりぶんの棚</a><a href="./">新しい形の研究</a><a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a></div><div class="wrap" id="foot"></div></footer>
+
+<script type="application/json" id="items-data">{"title":"AIのまちがい探し（新人編）","version":"2026-09-25","lead":"AIが作った文には、元の資料と食い違う誤りがちょうど1つあります。元の資料と照らして、その1文を見つけてください。","note":"会社名・人名・数字はすべて架空です。答えは元の資料だけで確かめられます。世の中の知識は要りません。","types":{"1":{"name":"数字の取り違え","short":"数字","desc":"桁・単位・どの数字か"},"2":{"name":"条件の混同","short":"条件","desc":"「〜の場合」「〜だけ」を落とす・入れ替える"},"3":{"name":"但し書きの落とし","short":"但し書き","desc":"大事な例外や但し書きを落とす"},"4":{"name":"書いていない意味を足す","short":"言い過ぎ","desc":"言い過ぎ・推測を事実のように書く"}},"items":[{"id":1,"scene":"会議メモの要約","request":"このメモを、会議に出ていない部長向けに要約して。","source_title":"営業企画課 週次会議メモ（9月16日）","source":[{"k":"p","t":"出席：森川課長、井上、高野、小池（記録）"},{"k":"p","t":"1. 秋の販促キャンペーン：開始日を10月1日から10月8日に遅らせる案が出た。チラシの印刷が間に合わないため。森川課長が明日、印刷会社に最短の納期を確認してから決める。"},{"k":"p","t":"2. 新規顧客リスト：高野さんが9月末までに50社分を作る。"},{"k":"p","t":"3. 11月の展示会：出展費用が去年より約2割上がった。出展するかどうかは、来週の会議で見積もりを見てから決める。"},{"k":"p","t":"4. その他：10月から、この会議を水曜から木曜に移す。全員了承。"}],"ai_title":"AIが作った要約","ai":["9月16日の週次会議では、次の4点を話し合いました。","秋の販促キャンペーンは、チラシの印刷が間に合わないため、開始日を10月1日から10月8日に延期することになりました。","新規顧客リストは、高野さんが9月末までに50社分を作ります。","11月の展示会は出展費用が去年より約2割上がっており、出展するかどうかは来週の会議で見積もりを見てから決めます。","10月から、この会議は水曜から木曜に移ります。"],"answer":2,"type":4,"wrong_part":"延期することになりました","source_marks":["10月8日に遅らせる案が出た","森川課長が明日、印刷会社に最短の納期を確認してから決める"],"where":"元の資料では「10月8日に遅らせる案が出た」だけで、森川課長が印刷会社に最短の納期を確かめてから決める。まだ決まっていない。","correct":"開始日を10月8日に遅らせる案が出ており、森川課長が印刷会社に最短の納期を確認してから決めます。","why_missed":"「10月8日」「印刷が間に合わない」など中身の言葉は元の資料と同じなので、照らしても合っているように見える。「案」と「決定」の違いは文の終わりにしか出ない。","tip":"「〜することになりました」「決まりました」と書いた文は、元の資料で本当に決まったのかを語尾まで確かめる。","difficulty":"易","checks":[{"n":1,"basis":"見出しの「週次会議メモ（9月16日）」と、1〜4の4項目","result":"一致"},{"n":2,"basis":"1. の「10月8日に遅らせる案が出た」「確認してから決める」","result":"誤り（正解）"},{"n":3,"basis":"2. の「高野さんが9月末までに50社分を作る」","result":"一致"},{"n":4,"basis":"3. の「約2割上がった」「来週の会議で見積もりを見てから決める」","result":"一致"},{"n":5,"basis":"4. の「10月から、この会議を水曜から木曜に移す。全員了承」","result":"一致"}],"derived":[]},{"id":2,"scene":"顧客メールへの返信案","request":"お客さまのメールに、社内の対応ルールに沿った返信案を書いて。","source_title":"お客さまのメール（9月20日受信）と社内の対応ルール","source":[{"k":"h","t":"お客さまのメール"},{"k":"p","t":"9月3日に御社の通販サイトで買った電気ケトル（KT-20）ですが、昨日から電源が入りません。修理か交換をお願いできますか。箱はもう捨ててしまいました。"},{"k":"h","t":"社内の対応ルール（抜粋）"},{"k":"p","t":"・購入から30日以内に故障した場合は、新品と交換する。箱が無くても交換できる。"},{"k":"p","t":"・交換品の送料は当社が負担する。故障品は、交換品を届けた配送員が引き取る。"},{"k":"p","t":"・購入から30日を過ぎて故障した場合は、修理で対応する。修理品の送料はお客さまの負担とする。"}],"ai_title":"AIが作った返信案","ai":["このたびはご不便をおかけし、申し訳ございません。","9月3日にお買い上げの電気ケトル（KT-20）は、購入から30日以内の故障にあたるため、新品と交換いたします。","箱がなくても交換できますので、ご安心ください。","故障品は、交換品をお届けする配送員が引き取ります。","なお、交換品の送料はお客さまのご負担となります。"],"answer":5,"type":2,"wrong_part":"交換品の送料はお客さまのご負担となります","source_marks":["交換品の送料は当社が負担する","購入から30日を過ぎて故障した場合は、修理で対応する。修理品の送料はお客さまの負担とする。"],"where":"ルールでは、交換品の送料は当社が負担する。送料がお客さまの負担になるのは、購入から30日を過ぎて修理する場合。","correct":"なお、交換品の送料は当社が負担いたします。","why_missed":"「送料はお客さまの負担」という文はルールの中に本当にあるので、見覚えがあって正しく見える。入れ替わったのは、どの場合のルールかという条件。","tip":"ルールを引いた文は、そのルールが「どの場合」のものかまで戻って確かめる。","difficulty":"易","checks":[{"n":1,"basis":"お詫びのあいさつ（事実の主張なし）","result":"主張なし"},{"n":2,"basis":"メールの「9月3日に…買った」「昨日から電源が入りません」（9月20日受信なので故障は9月19日、購入から16日）と、ルール1つ目","result":"一致"},{"n":3,"basis":"ルール1つ目の「箱が無くても交換できる」（「ご安心ください」は気づかいの言葉）","result":"一致"},{"n":4,"basis":"ルール2つ目の「故障品は、交換品を届けた配送員が引き取る」","result":"一致"},{"n":5,"basis":"ルール2つ目の「交換品の送料は当社が負担する」","result":"誤り（正解）"}],"derived":[{"claim":"購入から30日以内の故障","expr":"(19 - 3) <= 30","value":true,"note":"9月20日受信・昨日から故障＝9月19日。9月3日から16日"}]},{"id":3,"scene":"議事録からの宿題一覧","request":"議事録から、誰が・何を・いつまでにやるかの一覧を作って。","source_title":"新商品発表会 準備会議 議事録（10月1日）","source":[{"k":"p","t":"出席：大西部長、中尾、石田、小池"},{"k":"p","t":"・発表会は11月12日に、本社3階ホールで行う。"},{"k":"p","t":"・招待状：中尾さんが作る。10月9日までに部長の確認を受け、10月16日に発送する。"},{"k":"p","t":"・会場のレイアウト案：石田さんが作る。次回の準備会議（10月15日）の前日までに、全員に共有する。"},{"k":"p","t":"・試食の手配：小池さんが業者2社から見積もりを取る。期限は次回の準備会議まで。"},{"k":"p","t":"・次回の準備会議では、レイアウト案と見積もりを見て、試食の業者を決める。"}],"ai_title":"AIが作った宿題一覧","ai":["中尾さん：招待状を作り、10月9日までに部長の確認を受けて、10月16日に発送する。","石田さん：会場のレイアウト案を作り、10月15日までに全員に共有する。","小池さん：業者2社から試食の見積もりを取る（期限は次回の準備会議の10月15日）。","（参考）次回の準備会議（10月15日）では、レイアウト案と見積もりを見て、試食の業者を決める。","（参考）発表会は11月12日に、本社3階ホールで行う。"],"answer":2,"type":1,"wrong_part":"10月15日までに","source_marks":["次回の準備会議（10月15日）の前日までに"],"where":"元の資料では「次回の準備会議（10月15日）の前日まで」、つまり10月14日まで。AIは会議の日そのものを期限にしている。","correct":"石田さん：会場のレイアウト案を作り、10月14日（次回の準備会議の前日）までに全員に共有する。","why_missed":"10月15日は元の資料に本当に出てくる日付で、すぐ下の小池さんの期限は本当に10月15日。同じ日付が並ぶので、1日のずれに気づきにくい。","tip":"期限の文は、「前日」「〜の週」「営業日」などの言葉が落ちていないか、日付を1日単位で確かめる。","difficulty":"中","checks":[{"n":1,"basis":"「招待状：中尾さんが作る。10月9日までに部長の確認を受け、10月16日に発送する」","result":"一致"},{"n":2,"basis":"「次回の準備会議（10月15日）の前日までに」＝10月14日まで","result":"誤り（正解）"},{"n":3,"basis":"「小池さんが業者2社から見積もりを取る。期限は次回の準備会議まで」と「次回の準備会議（10月15日）」","result":"一致"},{"n":4,"basis":"最後の行「次回の準備会議では、レイアウト案と見積もりを見て、試食の業者を決める」","result":"一致"},{"n":5,"basis":"「発表会は11月12日に、本社3階ホールで行う」","result":"一致"}],"derived":[{"claim":"10月15日までに全員に共有","expr":"15 - 1","value":15,"planted":true,"note":"期限は会議（15日）の前日＝14日"}]},{"id":4,"scene":"仕様書からの手順書","request":"この仕様から、新しく入った人向けの手順書を作って。","source_title":"経費精算システム「ハコブネ」の仕様（抜粋）","source":[{"k":"p","t":"・ハコブネには、社内ポータルの「経費」から入る。"},{"k":"p","t":"・申請は、経費を使った日から2週間以内に行う。"},{"k":"p","t":"・領収書は、スマートフォンで撮影した画像を添付する。紙の原本は提出しなくてよい。ただし、1件3万円以上の領収書は、原本を経理部に郵送する。"},{"k":"p","t":"・申請後、上長が承認すると経理部に回る。上長が5営業日たっても承認しない場合は、自動で上長の上司に回る。"},{"k":"p","t":"・申請の取り消しは、上長が承認する前なら、申請した本人がいつでもできる。"},{"k":"p","t":"・精算は毎月25日で締め、翌月10日に給与口座へ振り込む。"}],"ai_title":"AIが作った手順書","ai":["ハコブネには、社内ポータルの「経費」から入ります。","経費を使った日から2週間以内に、ハコブネで申請します。","領収書はスマートフォンで撮影し、その画像を申請に添付します。","紙の領収書の原本は、提出する必要はありません。","申請後、上長が承認すると経理部に回り、5営業日たっても承認されない場合は、自動で上長の上司に回ります。","上長が承認する前なら、申請は自分で取り消せます。","精算は毎月25日で締められ、翌月10日に給与口座へ振り込まれます。"],"answer":4,"type":3,"wrong_part":"提出する必要はありません","source_marks":["ただし、1件3万円以上の領収書は、原本を経理部に郵送する。"],"where":"元の資料には「ただし、1件3万円以上の領収書は、原本を経理部に郵送する」とある。AIの文はこの但し書きを落とし、どんな金額でも原本が要らないように書いている。","correct":"紙の領収書の原本は提出しなくてよいが、1件3万円以上の領収書は原本を経理部に郵送します。","why_missed":"文そのものは元の資料の「紙の原本は提出しなくてよい」と同じ意味なので、照らしても一致して見える。落ちたのは、そのすぐ後ろの「ただし」の一文。","tip":"元の資料に「ただし」「〜を除く」があったら、それがAIの文のどこに入っているかを探す。","difficulty":"中","checks":[{"n":1,"basis":"「ハコブネには、社内ポータルの『経費』から入る」","result":"一致"},{"n":2,"basis":"「申請は、経費を使った日から2週間以内に行う」","result":"一致"},{"n":3,"basis":"「領収書は、スマートフォンで撮影した画像を添付する」","result":"一致"},{"n":4,"basis":"「紙の原本は提出しなくてよい。ただし、1件3万円以上の領収書は、原本を経理部に郵送する」","result":"誤り（正解）"},{"n":5,"basis":"「上長が承認すると経理部に回る。上長が5営業日たっても承認しない場合は、自動で上長の上司に回る」","result":"一致"},{"n":6,"basis":"「申請の取り消しは、上長が承認する前なら、申請した本人がいつでもできる」","result":"一致"},{"n":7,"basis":"「精算は毎月25日で締め、翌月10日に給与口座へ振り込む」","result":"一致"}],"derived":[]},{"id":5,"scene":"上司の指示のタスク化","request":"課長からのチャットを、やることリストにして。","source_title":"藤田課長からのチャット（石田さんあて）","source":[{"k":"p","t":"石田さん、来週の見積もりの件です。"},{"k":"p","t":"・ハルニレ商事さんには、見積書と製品カタログを、火曜中にメールで送ってください。"},{"k":"p","t":"・ミズナラ工業さんには、見積書だけ送ってください。カタログは先月お渡ししているので不要です。こちらは水曜まででOKです。"},{"k":"p","t":"・どちらも、見積書の金額は私が確認してから出してください。送る日の前日までに回してくれれば見ます。"},{"k":"p","t":"・木曜の定例会議で、両社の反応を報告してください。質問が来ていたら、その内容も。"}],"ai_title":"AIが作ったやることリスト","ai":["課長の指示を、4つのやることにまとめました。","火曜中に、ハルニレ商事へ見積書と製品カタログをメールで送る。","水曜までに、ミズナラ工業へ見積書と製品カタログを送る。","どちらの見積書も、送る日の前日までに課長に回し、金額を確認してもらってから送る。","木曜の定例会議で両社の反応を報告し、質問が来ていればその内容も伝える。"],"answer":3,"type":2,"wrong_part":"見積書と製品カタログを送る","source_marks":["見積書だけ送ってください","カタログは先月お渡ししているので不要です"],"where":"元の資料では、ミズナラ工業には「見積書だけ」。カタログは先月渡しているので不要。見積書とカタログの両方を送るのはハルニレ商事。","correct":"水曜までに、ミズナラ工業へ見積書だけを送る（カタログは不要）。","why_missed":"すぐ上の文（ハルニレ商事）と形がそっくりなので、同じ中身だと思って読み流しやすい。「だけ」は1語なので、落ちても文の形は崩れない。","tip":"相手ごとに条件が違う指示は、相手ごとに「何を・いつまでに・どうやって」を並べて照らす。","difficulty":"中","checks":[{"n":1,"basis":"チャットの箇条書き4つ（前置きの文）","result":"一致"},{"n":2,"basis":"「ハルニレ商事さんには、見積書と製品カタログを、火曜中にメールで送って」","result":"一致"},{"n":3,"basis":"「ミズナラ工業さんには、見積書だけ送って」「カタログは…不要」「水曜まで」","result":"誤り（正解）"},{"n":4,"basis":"「見積書の金額は私が確認してから出して」「送る日の前日までに回して」","result":"一致"},{"n":5,"basis":"「木曜の定例会議で、両社の反応を報告して」「質問が来ていたら、その内容も」","result":"一致"}],"derived":[{"claim":"4つのやることにまとめました","expr":"len(['ハルニレ商事に送る','ミズナラ工業に送る','金額の確認','木曜の報告'])","value":4,"note":"チャットの箇条書きは4つ"}]},{"id":6,"scene":"アンケート結果のまとめ","request":"研修アンケートの結果を、報告用にまとめて。","source_title":"新人研修（ビジネス文書編）アンケート結果","source":[{"k":"p","t":"実施：9月12日　対象：今年4月に入社した社員"},{"k":"p","t":"受講者：60人　回答者：48人"},{"k":"p","t":"Q1 研修の満足度：とても満足 15人／満足 21人／ふつう 9人／不満 3人"},{"k":"p","t":"Q2 役に立った内容（複数回答）：メールの書き方 33人／議事録の取り方 26人／報告書の組み立て 12人"},{"k":"p","t":"Q3 後輩にもこの研修を勧めたいか：勧めたい 30人／どちらでもない 14人／勧めない 4人"},{"k":"p","t":"Q4 自由記述で多かった意見：「演習の時間をもっと長くしてほしい」11人、「講師の説明が速い」6人"}],"ai_title":"AIが作ったまとめ","ai":["新人研修（ビジネス文書編）のアンケートには、受講者60人のうち48人が回答しました。","満足度は「とても満足」と「満足」を合わせて36人で、受講者の4分の3にあたります。","役に立った内容は「メールの書き方」が33人で最も多く、「議事録の取り方」が26人で続きました。","後輩にもこの研修を勧めたいという人は、30人でした。","自由記述で多かった意見は、「演習の時間をもっと長くしてほしい」が11人、「講師の説明が速い」が6人でした。"],"answer":2,"type":1,"wrong_part":"受講者の4分の3","source_marks":["受講者：60人","回答者：48人"],"where":"36人は回答者48人の4分の3（75%）。受講者60人に対しては6割（60%）にしかならない。","correct":"満足度は「とても満足」と「満足」を合わせて36人で、回答者の4分の3にあたります。","why_missed":"足し算（15＋21＝36）も割り算（36÷48＝4分の3）も合っているので、計算を確かめた人ほど安心してしまう。違っているのは「受講者」という1語だけ。","tip":"割合を書いた文は、分母が「回答者」「受講者」「全体」のどれかまで確かめる。","difficulty":"難","checks":[{"n":1,"basis":"「受講者：60人　回答者：48人」","result":"一致"},{"n":2,"basis":"Q1（15＋21＝36人）と「受講者：60人」。36÷60＝0.6","result":"誤り（正解）"},{"n":3,"basis":"Q2（33人・26人・12人の3つから）","result":"一致"},{"n":4,"basis":"Q3「勧めたい 30人」","result":"一致"},{"n":5,"basis":"Q4「演習の時間をもっと長くしてほしい」11人、「講師の説明が速い」6人","result":"一致"}],"derived":[{"claim":"36人","expr":"15 + 21","value":36},{"claim":"33人で最も多く","expr":"max(33, 26, 12)","value":33},{"claim":"26人で続きました","expr":"sorted([33, 26, 12])[1]","value":26},{"claim":"受講者の4分の3","expr":"(15 + 21) / 60","value":0.75,"planted":true,"note":"4分の3になるのは回答者48人で割ったとき"}]},{"id":7,"scene":"競合の比較表","request":"3社の資料をもとに、比較表の下に付けるまとめを書いて。","source_title":"勤怠管理サービス3社の比較メモ（各社の公開資料より・9月24日に確認）","source":[{"k":"p","t":"・ソラ勤怠：月額1人300円。初期費用なし。スマホで打刻できる。導入サポートは電話とメール。"},{"k":"p","t":"・ミツバ勤怠：月額1人250円。初期費用5万円。スマホで打刻できる。導入サポートはメールのみ。2027年4月に料金を改定する予定と発表している（新しい料金は未発表）。"},{"k":"p","t":"・ヨツバ勤怠：月額1人400円。初期費用なし。スマホでの打刻は2027年秋に対応する予定。導入サポートは電話・メール・訪問。"},{"k":"p","t":"・3社とも、30日間の無料お試しがある。"}],"ai_title":"AIが作ったまとめ","ai":["1人あたりの月額は、ミツバ勤怠が250円で最も安く、ヨツバ勤怠が400円で最も高くなっています。","ただし、ミツバ勤怠は初期費用が5万円かかり、ほかの2社は初期費用がかかりません。","スマホでの打刻は、今はソラ勤怠とミツバ勤怠が対応しています。","導入サポートの手段が最も多いのはヨツバ勤怠で、電話・メール・訪問に対応しています。","3社とも、30日間の無料お試しがあります。","なお、ミツバ勤怠は2027年4月に料金の値上げを予定しています。"],"answer":6,"type":4,"wrong_part":"料金の値上げを予定しています","source_marks":["2027年4月に料金を改定する予定と発表している（新しい料金は未発表）"],"where":"元の資料は「2027年4月に料金を改定する予定」とだけ書いていて、新しい料金は未発表。上がるのか下がるのかは分からない。「値上げ」は資料に無い推測。","correct":"なお、ミツバ勤怠は2027年4月に料金を改定する予定だと発表しています（上がるか下がるかは資料に書かれていません）。","why_missed":"「改定」と聞くと値上げを思い浮かべやすい。読む側の思い込みとAIの言い換えが同じ向きなので、引っかかりにくい。","tip":"資料の言葉が別の言葉に言い換えられていたら（改定→値上げ）、意味が強まったり狭まったりしていないかを確かめる。","difficulty":"中","checks":[{"n":1,"basis":"月額 300円・250円・400円","result":"一致"},{"n":2,"basis":"初期費用 ミツバ5万円、ソラとヨツバは「なし」","result":"一致"},{"n":3,"basis":"ソラとミツバは「スマホで打刻できる」、ヨツバは「2027年秋に対応する予定」","result":"一致"},{"n":4,"basis":"サポート ソラ2つ・ミツバ1つ・ヨツバ3つ（電話・メール・訪問）","result":"一致"},{"n":5,"basis":"「3社とも、30日間の無料お試しがある」","result":"一致"},{"n":6,"basis":"ミツバ「2027年4月に料金を改定する予定と発表している（新しい料金は未発表）」","result":"誤り（正解）"}],"derived":[{"claim":"250円で最も安く","expr":"min(300, 250, 400)","value":250},{"claim":"400円で最も高く","expr":"max(300, 250, 400)","value":400},{"claim":"ほかの2社","expr":"3 - 1","value":2}]},{"id":8,"scene":"規程の要点","request":"在宅勤務の規程を、新人向けに要点だけまとめて。","source_title":"在宅勤務規程（抜粋）","source":[{"k":"p","t":"第5条　在宅勤務は、入社後3か月を過ぎた社員が、週2日まで行うことができる。"},{"k":"p","t":"第6条　在宅勤務をする日は、前日の17時までに勤怠システムで申請し、上長の承認を受ける。"},{"k":"p","t":"第7条　在宅勤務の日の始業と終業の時刻は、出社する日と同じとする。"},{"k":"p","t":"第8条　在宅勤務をした月には、在宅勤務手当として一律3,000円を支給する。"},{"k":"p","t":"第9条　業務には、会社が貸与したパソコンだけを使う。個人のパソコンやスマートフォンで業務をしてはならない。"},{"k":"p","t":"第10条　在宅勤務の日も、昼休みは12時から13時とする。"}],"ai_title":"AIが作った要点","ai":["在宅勤務は、週2日までできます。","在宅勤務をする日は、前日の17時までに勤怠システムで申請し、上長の承認を受けます。","在宅勤務の日も、始業と終業の時刻は出社する日と同じで、昼休みは12時から13時です。","在宅勤務をした月には、手当として一律3,000円が支給されます。","業務には会社が貸与したパソコンだけを使い、個人のパソコンやスマートフォンで業務をしてはいけません。"],"answer":1,"type":2,"wrong_part":"在宅勤務は、週2日までできます","source_marks":["入社後3か月を過ぎた社員が"],"where":"規程では、在宅勤務ができるのは「入社後3か月を過ぎた社員」だけ。AIの文はこの条件を落としているので、入ったばかりの新人も在宅勤務できるように読める。","correct":"在宅勤務は、入社後3か月を過ぎた社員が、週2日までできます。","why_missed":"「週2日まで」という数字は合っているので、数字を確かめた時点で安心してしまう。落ちた条件は「誰が」の部分で、文の形は崩れない。","tip":"規程の要点では、「誰が」「いつから」「どんな場合に」の条件が残っているかを見る。読む人（新人）に当てはまる条件は特に。","difficulty":"中","checks":[{"n":1,"basis":"第5条「入社後3か月を過ぎた社員が、週2日まで」","result":"誤り（正解）"},{"n":2,"basis":"第6条「前日の17時までに勤怠システムで申請し、上長の承認を受ける」","result":"一致"},{"n":3,"basis":"第7条「始業と終業の時刻は、出社する日と同じ」と第10条「昼休みは12時から13時」","result":"一致"},{"n":4,"basis":"第8条「在宅勤務をした月には…一律3,000円を支給する」","result":"一致"},{"n":5,"basis":"第9条「会社が貸与したパソコンだけを使う。個人のパソコンやスマートフォンで業務をしてはならない」","result":"一致"}],"derived":[]},{"id":9,"scene":"売上表からの分析コメント","request":"この表から、7〜9月の売上の分析コメントを書いて。","source_title":"店舗別の売上（単位：千円）","source":[{"k":"p","t":"営業会議（10月2日）の資料。各店舗の7〜9月の売上を、4〜6月と、前年の7〜9月と並べた。"},{"k":"table","head":["店舗","4〜6月","7〜9月","前年の7〜9月"],"rows":[["駅前店","18,400","21,600","19,800"],["川沿い店","12,300","11,100","13,500"],["モール店","9,700","12,900","8,600"],["港町店","7,200","7,500","7,900"],["合計","47,600","53,100","49,800"]]},{"k":"p","t":"※川沿い店は、8月に2週間、改装のため休業した。"}],"ai_title":"AIが作った分析コメント","ai":["7〜9月の売上は4店舗の合計で5,310万円となり、前年の7〜9月より330万円増えました。","店舗別では、駅前店が2,160万円で最も多くなりました。","モール店は1,290万円で、前年の7〜9月より430万円増えました。","一方、川沿い店は1,110万円で、前年の7〜9月より24万円減りました。","なお、川沿い店は8月に2週間、改装のため休業しました。","港町店は750万円で、前年の7〜9月より40万円減りました。"],"answer":4,"type":1,"wrong_part":"24万円減りました","source_marks":[],"source_cells":[[1,2],[1,3]],"where":"川沿い店の7〜9月は11,100千円、前年の7〜9月は13,500千円。差は2,400千円＝240万円。AIの「24万円」は桁が1つ少ない。","correct":"一方、川沿い店は1,110万円で、前年の7〜9月より240万円減りました。","why_missed":"表の単位は「千円」、AIの文は「万円」。ほかの文の換算がすべて正しいので、この文も正しいと思い込みやすい。","tip":"単位が変わる文は、元の単位（千円）に戻して計算し直す。1文だけでも自分で計算する。","difficulty":"難","checks":[{"n":1,"basis":"合計行 53,100千円＝5,310万円、49,800千円との差 3,300千円＝330万円","result":"一致"},{"n":2,"basis":"駅前店 21,600千円＝2,160万円（4店舗で最大）","result":"一致"},{"n":3,"basis":"モール店 12,900千円＝1,290万円、8,600千円との差 4,300千円＝430万円","result":"一致"},{"n":4,"basis":"川沿い店 11,100千円＝1,110万円、13,500千円との差 2,400千円＝240万円","result":"誤り（正解）"},{"n":5,"basis":"注記「川沿い店は、8月に2週間、改装のため休業した」","result":"一致"},{"n":6,"basis":"港町店 7,500千円＝750万円、前年の7,900千円との差 400千円＝40万円","result":"一致"}],"derived":[{"claim":"5,310万円","expr":"(21600 + 11100 + 12900 + 7500) / 10","value":5310},{"claim":"330万円増えました","expr":"(53100 - 49800) / 10","value":330},{"claim":"2,160万円で最も多く","expr":"max(21600, 11100, 12900, 7500) / 10","value":2160},{"claim":"1,290万円","expr":"12900 / 10","value":1290},{"claim":"430万円増えました","expr":"(12900 - 8600) / 10","value":430},{"claim":"1,110万円","expr":"11100 / 10","value":1110},{"claim":"750万円","expr":"7500 / 10","value":750},{"claim":"40万円減りました","expr":"(7900 - 7500) / 10","value":40},{"claim":"24万円減りました","expr":"(13500 - 11100) / 10","value":24,"planted":true,"note":"正しくは240万円"}]},{"id":10,"scene":"日報のまとめ","request":"今週の日報から、課長への週報をまとめて。","source_title":"石田さんの日報（今週分）","source":[{"k":"p","t":"月　カエデ物産を訪問。新製品を説明した。反応は良く、見積もりを依頼された。"},{"k":"p","t":"火　カエデ物産向けの見積書を作った。クスノキ運輸から、納品が遅れているとの問い合わせ。倉庫に確認し、木曜に届くと回答した。"},{"k":"p","t":"水　カエデ物産に見積書を提出。先方は、今回の金額で発注したいとのこと。ただし、11月末までに納品できることが条件。工場に確認中。"},{"k":"p","t":"木　ヒノキ設計を訪問。担当者が異動しており、後任の方にあいさつした。"},{"k":"p","t":"金　クスノキ運輸から、木曜に届いたと連絡があった。工場からの納期の回答は、来週月曜の予定。"}],"ai_title":"AIが作った週報","ai":["今週は、カエデ物産とヒノキ設計の2社を訪問しました。","カエデ物産には新製品を説明し、依頼を受けて、水曜に見積書を提出しました。","カエデ物産からは、今回の金額で発注したいとの返事をいただきました。","ヒノキ設計は担当者が異動しており、後任の方にあいさつしました。","クスノキ運輸から納品の遅れについて問い合わせがありましたが、木曜に届きました。"],"answer":3,"type":3,"wrong_part":"今回の金額で発注したいとの返事をいただきました","source_marks":["ただし、11月末までに納品できることが条件。工場に確認中。","工場からの納期の回答は、来週月曜の予定。"],"where":"日報では「ただし、11月末までに納品できることが条件」で、工場に確認中（回答は来週月曜の予定）。AIの文はこの条件を落としているので、受注が決まったように読める。","correct":"カエデ物産からは、今回の金額で発注したいとの返事をいただきました。ただし、11月末までに納品できることが条件で、工場の回答は来週月曜の予定です。","why_missed":"文そのものは日報の「今回の金額で発注したいとのこと」と同じなので、照らしても合っている。落ちたのは直後の「ただし」から。良い知らせほど、続きを読まずに安心しやすい。","tip":"良い知らせを書いた文ほど、元の資料でその直後に「ただし」「条件」「確認中」が続いていないかを見る。","difficulty":"難","checks":[{"n":1,"basis":"月「カエデ物産を訪問」、木「ヒノキ設計を訪問」","result":"一致"},{"n":2,"basis":"月「新製品を説明…見積もりを依頼された」、水「見積書を提出」","result":"一致"},{"n":3,"basis":"水「今回の金額で発注したいとのこと。ただし、11月末までに納品できることが条件。工場に確認中」","result":"誤り（正解）"},{"n":4,"basis":"木「担当者が異動しており、後任の方にあいさつした」","result":"一致"},{"n":5,"basis":"火「納品が遅れているとの問い合わせ」、金「木曜に届いたと連絡があった」","result":"一致"}],"derived":[{"claim":"2社を訪問","expr":"len(['カエデ物産（月）','ヒノキ設計（木）'])","value":2,"note":"訪問は月と木"}]}],"types_note":"型の分け方は目安です。1つの誤りが、2つの型にまたがって見えることもあります。"}</script>
+<script>
+(function(){
+  "use strict";
+  var DATA = JSON.parse(document.getElementById("items-data").textContent);
+  var ITEMS = DATA.items;
+  var TYPES = DATA.types;
+  var NUM = ["", "①", "②", "③", "④"];
+  var ADVICE = {
+    "1": "数字は1つずつ元の資料に戻って確かめる。割合なら分母、金額なら単位、日付なら「前日」などの言葉まで。",
+    "2": "資料の「〜の場合」「〜だけ」「誰が」に先に印を付け、AIの文に残っているかを見る。",
+    "3": "資料の「ただし」「〜を除く」に先に印を付け、AIの文のどこに入ったかを探す。",
+    "4": "「決まった」「〜のため」「値上げ」のような断定や言い換えが、資料に本当に書いてあるかを見る。"
+  };
+  var app = document.getElementById("app");
+  var dotsEl = document.getElementById("dots");
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var state = { queue: [], pos: 0, results: {}, selected: null, answered: false };
+
+  function esc(s){
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+  // 数字と単位のまとまり（7〜9月・10月15日・2,400千円・2027年4月 など）を行の途中で切らない
+  var NB_RE = /((?:約)?\d[\d,.]*(?:〜\d[\d,.]*)?(?:年\d+月|月\d+日|か月|週間|営業日|千円|万円|円|人|社|割|月|日|時|年|%))/g;
+  var NW_RE = /(落としている|そのもの|言い換え|問い合わせ|但し書き|言い過ぎ|食い違)/g;
+  function fmt(s){ return esc(s).replace(NB_RE, '<span class="nb">$1</span>').replace(NW_RE, '<span class="nb">$1</span>'); }
+  // text の中の marks（部分文字列）を <tag class=cls> で囲む。重なりはまとめる。
+  function highlight(text, marks, tag, cls){
+    var spans = [];
+    (marks || []).forEach(function(m){
+      if (!m) return;
+      var from = 0, i;
+      while ((i = text.indexOf(m, from)) !== -1){ spans.push([i, i + m.length]); from = i + m.length; }
+    });
+    if (!spans.length) return fmt(text);
+    spans.sort(function(a,b){ return a[0]-b[0]; });
+    var merged = [spans[0].slice()];
+    for (var k=1; k<spans.length; k++){
+      var last = merged[merged.length-1];
+      if (spans[k][0] <= last[1]) last[1] = Math.max(last[1], spans[k][1]); else merged.push(spans[k].slice());
+    }
+    var out = "", pos = 0, open = "<" + tag + (cls ? ' class="' + cls + '"' : "") + ">";
+    merged.forEach(function(s){ out += fmt(text.slice(pos, s[0])) + open + fmt(text.slice(s[0], s[1])) + "</" + tag + ">"; pos = s[1]; });
+    return out + fmt(text.slice(pos));
+  }
+  function scrollToEl(el){
+    if (!el) return;
+    el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  }
+  function itemById(id){ for (var i=0;i<ITEMS.length;i++){ if (ITEMS[i].id === id) return ITEMS[i]; } return null; }
+
+  function renderDots(){
+    var html = "";
+    state.queue.forEach(function(id, i){
+      var r = state.results[id];
+      var cls = r === true ? "ok" : r === false ? "ng" : (i === state.pos && !state.done ? "now" : "");
+      var label = "第" + id + "問" + (r === true ? "：見抜けた" : r === false ? "：見落とし" : "");
+      html += '<li class="' + cls + '" aria-label="' + label + '"></li>';
+    });
+    dotsEl.innerHTML = html;
+  }
+
+  function renderIntro(){
+    state.queue = []; state.done = false; renderDots();
+    var types = Object.keys(TYPES).sort().map(function(k){
+      return '<li><b><span class="n">' + NUM[+k] + '</span>' + esc(TYPES[k].name) + '</b><span class="muted">' + fmt(TYPES[k].desc) + '</span></li>';
+    }).join("");
+    app.innerHTML =
+      '<section class="intro">' +
+        '<p class="kicker">新人編・全' + ITEMS.length + '問</p>' +
+        '<h2>AIのまちがい探し</h2>' +
+        '<p class="lead">' + fmt(DATA.lead) + '</p>' +
+        '<ol class="steps">' +
+          '<li>元の資料を読む（AIに渡した資料です）</li>' +
+          '<li>AIが作った文から、資料と食い違う1文を選ぶ</li>' +
+          '<li>答え合わせで、資料のどこと食い違うかを確かめる</li>' +
+        '</ol>' +
+        '<p><b>誤りの型は4つ</b>（どの問も、このどれか1つです）</p>' +
+        '<ul class="types">' + types + '</ul>' +
+        (DATA.types_note ? '<p class="note">' + fmt(DATA.types_note) + '</p>' : '') +
+        '<p class="note">' + fmt(DATA.note) + '</p>' +
+        '<div class="btns"><button class="btn accent" id="go" type="button">はじめる</button></div>' +
+      '</section>';
+    document.getElementById("go").addEventListener("click", function(){ startRound(ITEMS.map(function(it){ return it.id; })); });
+  }
+
+  function startRound(ids){
+    state.queue = ids.slice(); state.pos = 0; state.results = {}; state.done = false;
+    renderQuestion();
+  }
+
+  function sourceHTML(it, reveal){
+    var marks = reveal ? it.source_marks : [];
+    var cells = reveal ? (it.source_cells || []) : [];
+    return it.source.map(function(b){
+      if (b.k === "p") return "<p>" + highlight(b.t, marks, "mark") + "</p>";
+      if (b.k === "h") return '<p class="h">' + highlight(b.t, marks, "mark") + "</p>";
+      if (b.k === "table"){
+        var h = '<div class="tbl-wrap"><table class="tbl"><thead><tr>' + b.head.map(function(c){ return '<th scope="col">' + esc(c) + "</th>"; }).join("") + "</tr></thead><tbody>";
+        b.rows.forEach(function(r, ri){
+          h += "<tr>" + r.map(function(c, ci){
+            var hit = cells.some(function(rc){ return rc[0] === ri && rc[1] === ci; });
+            return "<td" + (hit ? ' class="hit"' : "") + ">" + esc(c) + "</td>";
+          }).join("") + "</tr>";
+        });
+        return h + "</tbody></table></div>";
+      }
+      return "";
+    }).join("");
+  }
+
+  function sentsHTML(it){
+    return it.ai.map(function(s, i){
+      var n = i + 1, cls = "sent", pressed = state.selected === n, tag = "", text = fmt(s);
+      if (state.answered){
+        if (n === it.answer){ cls += " is-answer"; tag = '<span class="tag err">誤りの文</span> '; text = highlight(s, [it.wrong_part], "span", "wp"); }
+        else if (pressed){ cls += " is-miss"; tag = '<span class="tag mine">あなたの選択</span> '; }
+        if (n === it.answer && pressed){ tag = '<span class="tag err">誤りの文（あなたの選択）</span> '; }
+      }
+      return '<li><button type="button" class="' + cls + '" data-n="' + n + '" aria-pressed="' + (pressed ? "true" : "false") + '"' + (state.answered ? " disabled" : "") + '>' +
+        '<span class="no" aria-hidden="true">' + n + '</span><span class="tx">' + tag + text + '</span></button></li>';
+    }).join("");
+  }
+
+  function renderQuestion(){
+    var id = state.queue[state.pos], it = itemById(id);
+    state.selected = null; state.answered = false;
+    renderDots();
+    app.innerHTML =
+      '<section class="q" aria-labelledby="qscene">' +
+        '<div class="q-head"><span class="q-no">第' + it.id + '問（' + (state.pos + 1) + ' / ' + state.queue.length + '）</span>' +
+        '<h2 class="q-scene" id="qscene" tabindex="-1">' + esc(it.scene) + '</h2></div>' +
+        '<p class="ask"><span class="lbl">AIに頼んだこと</span>「' + fmt(it.request) + '」</p>' +
+        '<div class="pair">' +
+          '<section class="panel" aria-labelledby="srcTitle"><h3>元の資料</h3><p class="ttl" id="srcTitle">' + fmt(it.source_title) + '</p><div class="src" id="src">' + sourceHTML(it, false) + '</div></section>' +
+          '<section class="panel" aria-labelledby="aiTitle"><h3 id="aiTitle">' + esc(it.ai_title) + '</h3><p class="hint" id="hint">資料と食い違う文を1つ選んでください。</p><ol class="sents" id="sents">' + sentsHTML(it) + '</ol></section>' +
+        '</div>' +
+        '<div id="explainSlot" aria-live="polite"></div>' +
+        '<div class="actions"><button class="btn accent" id="act" type="button" disabled>文を1つ選んでください</button></div>' +
+      '</section>';
+    bindSents(it);
+    document.getElementById("act").addEventListener("click", function(){ onAction(it); });
+    window.scrollTo(0, 0);
+    document.getElementById("qscene").focus({ preventScroll: true });
+  }
+
+  function bindSents(it){
+    Array.prototype.forEach.call(document.querySelectorAll("#sents .sent"), function(btn){
+      btn.addEventListener("click", function(){
+        if (state.answered) return;
+        state.selected = +btn.getAttribute("data-n");
+        Array.prototype.forEach.call(document.querySelectorAll("#sents .sent"), function(b){
+          b.setAttribute("aria-pressed", (+b.getAttribute("data-n") === state.selected) ? "true" : "false");
+        });
+        var act = document.getElementById("act");
+        act.disabled = false;
+        act.textContent = "(" + state.selected + ") を選んで答え合わせ";
+      });
+    });
+  }
+
+  function onAction(it){
+    if (!state.answered){
+      if (state.selected == null) return;
+      state.answered = true;
+      var ok = state.selected === it.answer;
+      state.results[it.id] = ok;
+      renderDots();
+      document.getElementById("src").innerHTML = sourceHTML(it, true);
+      document.getElementById("sents").innerHTML = sentsHTML(it);
+      document.getElementById("hint").textContent = ok ? "見抜けました。印の部分が誤りです。" : "印の付いた文が誤りでした。";
+      var t = TYPES[String(it.type)];
+      var slot = document.getElementById("explainSlot");
+      slot.innerHTML =
+        '<section class="explain" id="explain">' +
+          '<p class="verdict ' + (ok ? "ok" : "ng") + '"><span class="mk" aria-hidden="true">' + (ok ? "○" : "×") + '</span>' +
+            (ok ? "見抜けました" : "おしい。誤りは (" + it.answer + ") でした") + '</p>' +
+          '<p class="typeline"><span class="chip">' + NUM[it.type] + ' ' + esc(t.name) + '</span><span class="muted">' + fmt(t.desc) + '</span></p>' +
+          '<dl>' +
+            '<dt>元の資料のどこと食い違うか</dt><dd>' + fmt(it.where) + '</dd>' +
+            '<dt>正しくは</dt><dd>' + fmt(it.correct) + '</dd>' +
+            '<dt>見落としやすい理由</dt><dd>' + fmt(it.why_missed) + '</dd>' +
+            '<dt>次に見抜くコツ</dt><dd>' + fmt(it.tip) + '</dd>' +
+          '</dl>' +
+        '</section>';
+      var act = document.getElementById("act");
+      var last = state.pos === state.queue.length - 1;
+      act.textContent = last ? "結果を見る" : "次の問題へ";
+      act.classList.remove("accent");
+      scrollToEl(window.innerWidth >= 880 ? document.querySelector(".pair") : document.getElementById("aiTitle").parentNode);
+    } else {
+      if (state.pos < state.queue.length - 1){ state.pos++; renderQuestion(); }
+      else { renderFinal(); }
+    }
+  }
+
+  function renderFinal(){
+    state.done = true;
+    renderDots();
+    var total = state.queue.length, right = 0, byType = {};
+    Object.keys(TYPES).forEach(function(k){ byType[k] = { n: 0, ok: 0 }; });
+    state.queue.forEach(function(id){
+      var it = itemById(id), k = String(it.type);
+      byType[k].n++;
+      if (state.results[id]){ right++; byType[k].ok++; }
+    });
+    var rows = Object.keys(TYPES).sort().filter(function(k){ return byType[k].n > 0; }).map(function(k){
+      var b = byType[k], pct = b.n ? Math.round(100 * b.ok / b.n) : 0;
+      return '<tr><th scope="row">' + NUM[+k] + ' ' + esc(TYPES[k].name) + '</th><td style="width:34%"><div class="bar" aria-hidden="true"><i style="width:' + pct + '%"></i></div></td><td class="num">' + b.ok + ' / ' + b.n + '</td></tr>';
+    }).join("");
+    var review = state.queue.map(function(id){
+      var it = itemById(id), ok = state.results[id];
+      return '<li><span class="r ' + (ok ? "ok" : "ng") + '" aria-label="' + (ok ? "見抜けた" : "見落とし") + '">' + (ok ? "○" : "×") + '</span><span><span class="qn">第' + it.id + '問</span>' + esc(it.scene) + '<span class="muted">（' + NUM[it.type] + ' ' + esc(TYPES[String(it.type)].short) + '）</span></span></li>';
+    }).join("");
+    // いちばん取りこぼした型（割合が低い順、同じなら問題数が多い順）
+    var weak = Object.keys(byType).filter(function(k){ return byType[k].n > 0 && byType[k].ok < byType[k].n; })
+      .sort(function(a,b){ var ra = byType[a].ok / byType[a].n, rb = byType[b].ok / byType[b].n; return ra - rb || byType[b].n - byType[a].n; })[0];
+    var advice = weak
+      ? '<p class="advice"><b>いちばん見落としたのは「' + NUM[+weak] + ' ' + esc(TYPES[weak].name) + '」。</b><br>' + fmt(ADVICE[weak]) + '</p>'
+      : '<p class="advice"><b>全部見抜けました。</b><br>本物の仕事では、誤りが1つとは限りません。0個のことも、3個のこともあります。1文ずつ資料に戻る手順は、そのまま使えます。</p>';
+    var missed = state.queue.filter(function(id){ return !state.results[id]; });
+    app.innerHTML =
+      '<section class="final" aria-labelledby="scoreTitle">' +
+        '<p class="kicker muted">結果</p>' +
+        '<h2 class="score" id="scoreTitle" tabindex="-1">' + total + '問中 <em>' + right + '問</em> 見抜けました</h2>' +
+        '<table class="bytype"><caption class="visually-hidden">誤りの型ごとの正解数</caption><tbody>' + rows + '</tbody></table>' +
+        advice +
+        '<ol class="review">' + review + '</ol>' +
+        '<div class="btns">' +
+          (missed.length ? '<button class="btn accent" id="retry" type="button">見落とした' + missed.length + '問だけ解き直す</button>' : "") +
+          '<button class="btn ghost" id="again" type="button">最初から</button>' +
+        '</div>' +
+      '</section>';
+    if (missed.length) document.getElementById("retry").addEventListener("click", function(){ startRound(missed); });
+    document.getElementById("again").addEventListener("click", function(){ renderIntro(); window.scrollTo(0,0); });
+    window.scrollTo(0, 0);
+    document.getElementById("scoreTitle").focus({ preventScroll: true });
+  }
+
+  document.getElementById("foot").textContent = "練習用の試作です（" + DATA.version + "）。";
+  renderIntro();
+})();
+</script>
+</body>
+</html>
