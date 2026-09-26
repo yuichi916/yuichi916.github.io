@@ -28,8 +28,8 @@ function straightStroke(shells, ink, rng) {
   const b = (far.length ? far : alive)[Math.floor(rng() * (far.length ? far.length : alive.length))];
   return [{ x: a.x, y: a.y }, { x: b.x, y: b.y }];
 }
-const strokeFor = (st, rng) => (st.twist === 'massugu' ? straightStroke(st.shells, st.ink, rng) : greedyStroke(st.shells, st.ink, rng, st.clouds));
-const PRIORITY = ['kodou', 'mankai', 'chouchinshi', 'kinun', 'nagafude', 'tairin', 'futofude', 'mashidama', 'amayoke', 'kazekiri', 'owaridama', 'nokoribi', 'senrin', 'orebi', 'nihitsu'];
+export const strokeFor = (st, rng) => (st.twist === 'massugu' ? straightStroke(st.shells, st.ink, rng) : greedyStroke(st.shells, st.ink, rng, st.clouds));
+export const PRIORITY = ['kodou', 'mankai', 'chouchinshi', 'kinun', 'nagafude', 'tairin', 'futofude', 'mashidama', 'amayoke', 'kazekiri', 'owaridama', 'nokoribi', 'senrin', 'orebi', 'nihitsu'];
 export function playRun(seed, moon, T, rng, pickPolicy = 'priority') {
   const charms = []; let total = 0; let cleared = 0; const scores = [], twists = [];
   for (let night = 0; night < K.NIGHTS; night++) {
@@ -46,7 +46,7 @@ export function playRun(seed, moon, T, rng, pickPolicy = 'priority') {
     }
     scores.push(best.score); twists.push(K.twistFor(seed, night) ? K.twistFor(seed, night).id : '');
     total += best.score;
-    if (best.score < K.targetFor(seed, night)) break;
+    if (best.score < K.targetFor(seed, night, moon)) break;
     cleared++;
     // 大一番を越えたら、お守りを 2 つ
     for (let round = 0; round < (K.isBoss(night) ? 2 : 1); round++) {

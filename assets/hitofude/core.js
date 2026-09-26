@@ -102,8 +102,12 @@ export function charmById(id) { return CHARMS.find((c) => c.id === id) || null; 
 
 export const BASE_INK = 460;
 export const BASE_REACH = 7;
-// 夜ごとの目標点。8 夜目がいちばん高い
-// ボットで測った値（tests と _dev/hitofude-balance.mjs）。序盤はほぼ越えられ、終盤はお守りの組み合わせが要る
+// 夜ごとの目標点は、その夜の「基準点」× 夜ごとの倍率で決める。
+// 基準点（parScore）は、お守りなしで、決まった手順の線を何本か試したうちのいちばん良い点。
+// 並び方の運で「どう引いても届かない夜」が出ないように、夜ごとに測る（倍率は _dev/hitofude-ratio.mjs で決め、_dev/hitofude-balance.mjs で確かめた）。
+// 後半の倍率が 1 を超えるのは、それまでに集めたお守りの分（お守りは基準点に入れない）
+export const TARGET_RATIO = [0.18, 0.33, 0.45, 0.95, 1.3, 1.8, 2.6, 3.2];
+// 目安（基準点を測らない所で使う。テストと古いメモ用）
 export const TARGETS = [60, 150, 550, 2800, 5000, 16000, 40000, 200000];
 export const BASE_COUNTS = [16, 20, 24, 28, 32, 36, 40, 44];
 
@@ -112,10 +116,10 @@ export const BASE_COUNTS = [16, 20, 24, 28, 32, 36, 40, 44];
 // まっすぐ・鏡は線そのものを変える（ここで扱う）。闇夜・一瞬は見え方と時間だけを変える（ページで扱う）
 export const BOSS_NIGHTS = [2, 5];
 export const TWISTS = [
-  { id: 'massugu', ja: 'まっすぐ', en: 'Straight', say: '今夜の線は、まっすぐ！', sayEn: 'Straight lines only!', rule: '指を離した所まで、直線になる', ruleEn: 'Your line snaps straight', desc: '線は、引きはじめと指を離した所を結ぶ直線になる', descEn: 'Your line becomes a straight segment from start to release', target: 0.7 },
-  { id: 'kagami', ja: '鏡', en: 'Mirror', say: '線が左右に映るよ！', sayEn: 'Your line is mirrored!', rule: '線が、まん中の線で左右に映る', ruleEn: 'Your line is copied to the other side', desc: '線が左右に映って 2 本になる（墨は 3/4）', descEn: 'Your line is mirrored left and right (3/4 ink)', target: 0.8 },
-  { id: 'yamiyo', ja: '闇夜', en: 'Dark night', say: 'よく見て、覚えて！', sayEn: 'Look now, remember later!', rule: '玉は 5 秒でうすくなる', ruleEn: 'Shells fade after 5 seconds', desc: '玉がはっきり見えるのは、はじめの 5 秒だけ（あとはうっすら）', descEn: 'Shells are clear for 5 seconds, then only faint', target: 0.65 },
-  { id: 'isshun', ja: '一瞬', en: 'Snap', say: '4秒で引き切って！', sayEn: 'Draw it in 4 seconds!', rule: '指を置いてから 4 秒で線が終わる', ruleEn: 'Your line ends 4 s after touching', desc: '指を置いてから 4 秒で、線は勝手に終わる', descEn: 'Your line ends 4 s after you touch down', target: 0.75 },
+  { id: 'massugu', ja: 'まっすぐ', en: 'Straight', say: '今夜の線は、まっすぐ！', sayEn: 'Straight lines only!', rule: '指を離した所まで、直線になる', ruleEn: 'Your line snaps straight', desc: '線は、引きはじめと指を離した所を結ぶ直線になる', descEn: 'Your line becomes a straight segment from start to release', target: 0.9 },
+  { id: 'kagami', ja: '鏡', en: 'Mirror', say: '線が左右に映るよ！', sayEn: 'Your line is mirrored!', rule: '線が、まん中の線で左右に映る', ruleEn: 'Your line is copied to the other side', desc: '線が左右に映って 2 本になる（墨は 3/4）', descEn: 'Your line is mirrored left and right (3/4 ink)', target: 0.9 },
+  { id: 'yamiyo', ja: '闇夜', en: 'Dark night', say: 'よく見て、覚えて！', sayEn: 'Look now, remember later!', rule: '玉は 5 秒でうすくなる', ruleEn: 'Shells fade after 5 seconds', desc: '玉がはっきり見えるのは、はじめの 5 秒だけ（あとはうっすら）', descEn: 'Shells are clear for 5 seconds, then only faint', target: 0.75 },
+  { id: 'isshun', ja: '一瞬', en: 'Snap', say: '4秒で引き切って！', sayEn: 'Draw it in 4 seconds!', rule: '指を置いてから 4 秒で線が終わる', ruleEn: 'Your line ends 4 s after touching', desc: '指を置いてから 4 秒で、線は勝手に終わる', descEn: 'Your line ends 4 s after you touch down', target: 0.8 },
 ];
 export const SNAP_SECONDS = 4;
 export const DARK_SECONDS = 5;
@@ -127,11 +131,13 @@ export function twistFor(seed, night) {
   return shuffled(TWISTS, rng32(hashStr(`hitofude-boss:${seed >>> 0}`)))[k];
 }
 export function isBoss(night) { return BOSS_NIGHTS.includes(night); }
-// その夜の目標点（大一番は、仕掛けの難しさに合わせて変える）
-export function targetFor(seed, night) {
+// その夜の目標点。基準点 × 倍率（大一番は、闇夜・一瞬のように人にだけ効く難しさの分を下げる）。見やすいよう上 2 桁に丸める
+export function targetFor(seed, night, moon = 4) {
   const tw = twistFor(seed, night);
-  return tw ? Math.round(TARGETS[night] * tw.target / 10) * 10 : TARGETS[night];
+  const t = parScore(seed, night, moon) * TARGET_RATIO[night] * (tw ? tw.target : 1);
+  return Math.max(30, round2(t));
 }
+function round2(v) { const d = 10 ** Math.max(1, Math.floor(Math.log10(Math.max(1, v))) - 1); return Math.round(v / d) * d; }
 
 // ---------------------------------------------------------------- 夜の景色（三夜目から）
 // 玉の群れの並び方。夜ごとに変わり、同じ景色は続かない。八夜目は、尺玉を囲む輪
@@ -368,14 +374,14 @@ export const BURST_HOLD = 0.25;      // ひらいたまま火が移る時間
 export const SPARK_SPEED = 260;
 export const SPARK_LIFE = 0.55;
 
-export function newRound({ seed, night, charms = [], moon = 4 }) {
+export function newRound({ seed, night, charms = [], moon = 4, par = false }) {
   const rules = rulesFor(charms, moon);
   const tw = twistFor(seed, night);
   const clouds = makeClouds(seed, night, rules);
   const shells = makeLayout(seed, night, rules, clouds).map((s) => ({ ...s, burst: false, burstAt: -1, hp: s.type === 'shime' ? rules.dampHits : 1, lastSrc: null }));
   const st = {
     seed: seed >>> 0, night, charms: charms.slice(), moon, rules, shells, clouds, ropes: [],
-    twist: tw ? tw.id : null, scene: sceneFor(seed, night).id, target: targetFor(seed, night),
+    twist: tw ? tw.id : null, scene: sceneFor(seed, night).id, target: par ? 0 : targetFor(seed, night, moon),
     t: 0, tick: 0, phase: 'draw', strokes: [], ink: Math.round(rules.ink * (tw && tw.id === 'kagami' ? MIRROR_INK : 1)),
     fuse: { pts: [], burnt: [], seg: [], wet: [], rope: [], links: [], corners: new Set(), ends: new Set() },
     heads: [], explosions: [], sparks: [], embers: [], nextId: 1,
@@ -650,6 +656,47 @@ export function runToEnd(st, strokes, { normalized = false, maxTicks = 60 * 60 }
   }
   if (!st.done) finish(st);
   return st.result;
+}
+
+// ---------------------------------------------------------------- 基準点
+// お守りなしで、決まった手順の線（提灯から・尺玉から・ばらばらの所から、近い玉を順につなぐ。まっすぐの夜は玉から玉への直線）を
+// PAR_LINES 本試し、いちばん良い点。シードと夜と月だけで決まるので、今夜の一筆では全員同じになる
+export const PAR_LINES = 12;
+const parCache = new Map();
+export function parScore(seed, night, moon = 4) {
+  const key = `${seed >>> 0}|${night}|${moon}`;
+  if (parCache.has(key)) return parCache.get(key);
+  const r = rng32(nightSeed(seed, night) ^ 0x9a55e7);
+  let best = 0;
+  for (let c = 0; c < PAR_LINES; c++) {
+    const st = newRound({ seed, night, charms: [], moon, par: true });
+    const res = runToEnd(st, [refLine(st, r, c)]);
+    if (res && res.score > best) best = res.score;
+  }
+  if (parCache.size > 400) parCache.clear();
+  parCache.set(key, best);
+  return best;
+}
+function refLine(st, r, c) {
+  const alive = st.shells;
+  if (st.twist === 'massugu') {
+    const a = alive[Math.floor(r() * alive.length)], far = alive.filter((s) => Math.hypot(s.x - a.x, s.y - a.y) > 120);
+    const b = (far.length ? far : alive)[Math.floor(r() * (far.length || alive.length))];
+    return [{ x: a.x, y: a.y }, { x: b.x, y: b.y }];
+  }
+  const lantern = alive.find((s) => s.type === 'chouchin'), shaku = alive.find((s) => s.type === 'shaku');
+  let cur = (c % 3 === 0 && lantern) || (c % 3 === 1 && shaku) || alive[Math.floor(r() * alive.length)];
+  const pts = [{ x: cur.x, y: cur.y }], seen = new Set([cur.id]);
+  let used = 0;
+  for (;;) {
+    const cand = alive.filter((s) => !seen.has(s.id) && !crossesCloud(st.clouds, cur.x, cur.y, s.x, s.y))
+      .map((s) => ({ s, d: Math.hypot(s.x - cur.x, s.y - cur.y) })).sort((a, b) => a.d - b.d).slice(0, 3);
+    if (!cand.length) break;
+    const pick = cand[Math.floor(r() * cand.length)];
+    if (used + pick.d > st.ink) break;
+    used += pick.d; seen.add(pick.s.id); cur = pick.s; pts.push({ x: cur.x, y: cur.y });
+  }
+  return pts;
 }
 
 // ---------------------------------------------------------------- 夜ごとのお守り
