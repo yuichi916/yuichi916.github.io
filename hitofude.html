@@ -519,7 +519,7 @@ const SFX = {
   burst(type, chain) {
     const n = performance.now();
     // 爆発の音が鳴るあいだは BGM を下げる（大玉はもっと深く、長く）
-    if (sfxOn && music) music.sfxDuck(type === 'ootama' ? 0.32 : 0.45, type === 'ootama' ? 0.4 : 0.25);
+    if (sfxOn) mus((m) => m.sfxDuck(type === 'ootama' ? 0.32 : 0.45, type === 'ootama' ? 0.4 : 0.25));
     if (n - lastThump > 38) {
       lastThump = n;
       const big = type === 'ootama';
@@ -547,36 +547,64 @@ function renderSound() {
   $('#bgmBtn').classList.toggle('off', !bgmOn);
   $('#soundBtn').setAttribute('aria-pressed', String(sfxOn)); $('#bgmBtn').setAttribute('aria-pressed', String(bgmOn));
 }
+// 音の命令は毎フレームの処理からも呼ぶので、失敗してもゲームを止めない（止めると画面だけ動いてゲームが進まなくなる）
+function mus(fn) { if (!music) return undefined; try { return fn(music); } catch (e) { debugErr(e); return undefined; } }
+// ?debug を付けて開くと、起きたエラーとゲームの様子を画面の下に出す（実機で原因を探すため）
+const DEBUG = /[?&]debug(=|&|$)/.test(location.search);
+let dbgBox = null, dbgLog = '', dbgFrames = 0;
+function debugErr(e) {
+  console.error(e);
+  if (!DEBUG) return;
+  dbgLog += ((e && (e.stack || e.message)) || String(e)).slice(0, 600) + '\n';
+}
+if (DEBUG) {
+  window.addEventListener('error', (ev) => debugErr(ev.error || ev.message));
+  window.addEventListener('unhandledrejection', (ev) => debugErr(ev.reason));
+  (function count() { dbgFrames++; requestAnimationFrame(count); })();
+  let lastF = 0;
+  setInterval(() => {
+    if (!dbgBox) { dbgBox = document.createElement('pre'); dbgBox.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:45vh;overflow:auto;margin:0;padding:6px 8px;font:11px/1.4 monospace;background:rgba(0,0,0,.8);color:#ff9;z-index:99999;white-space:pre-wrap;pointer-events:none'; document.body.appendChild(dbgBox); }
+    const fps = (dbgFrames - lastF) * 2; lastF = dbgFrames;
+    dbgBox.textContent = `fps ${fps} · phase ${S.phase} · t ${S.st ? (S.st.t || 0).toFixed(1) : '-'} · audio ${actx ? actx.state : '-'} · bgm ${music ? (music.playing ? 'on' : 'off') : '-'}\n` + dbgLog;
+  }, 500);
+}
 // BGM は、最初にボタンを押したあとで鳴らしはじめる（ブラウザの自動再生の決まり）
 function startMusic() {
   if (!bgmOn) return;
   const a = audio(); if (!a) return;
   if (!music) { music = createMusic(a, bgmBus, noiseBuf); loadTracks(); }
-  music.start();
+  mus((m) => m.start());
 }
 function setBgm(on) {
   bgmOn = on; DB.bgmOff = !on; save(); renderSound();
   if (!actx) { if (on) startMusic(); return; }
   bgmBus.gain.setTargetAtTime(on ? BGM_VOL : 0, actx.currentTime, 0.15);
-  if (on) startMusic(); else if (music) setTimeout(() => { if (!bgmOn && music) music.stop(); }, 600);
+  if (on) startMusic(); else setTimeout(() => { if (!bgmOn) mus((m) => m.stop()); }, 600);
 }
 let tracksAsked = false;
 async function loadTracks() {
   if (tracksAsked) return; tracksAsked = true;
+  // 読み込みが終わるまで合成した曲は鳴らさない（先に鳴らすと、切り替えたあとも余韻が重なって2曲に聞こえる）。
+  // 8 秒たっても終わらなければ、合成した曲で先に鳴らす
+  mus((m) => m.waitForFiles());
+  let done = false;
+  const give = (files) => { if (!done) { done = true; mus((m) => m.useFiles(files)); } };
+  setTimeout(() => give(null), 8000);
+  // 展開した曲はメモリを食うので、1曲ずつ読む。calm が読めたらすぐ鳴らし、burn と finale はあとから同じ入れ物に足す
+  const files = {};
   try {
     const r = await fetch('assets/hitofude/bgm/tracks.json', { cache: 'no-cache' });
-    if (!r.ok) return;
-    const list = parseTracks(await r.json()), files = {};
-    for (const [key, tr] of Object.entries(list)) {
+    const list = r.ok ? parseTracks(await r.json()) : {};
+    for (const key of ['calm', 'burn', 'finale']) {
+      const tr = list[key]; if (!tr) continue;
       try {
         const res = await fetch('assets/hitofude/bgm/' + tr.src);
-        if (!res.ok) continue;
-        const buf = await actx.decodeAudioData(await res.arrayBuffer());
-        files[key] = { ...tr, buf };
+        if (res.ok) files[key] = { ...tr, buf: await actx.decodeAudioData(await res.arrayBuffer()) };
       } catch (e) { /* この曲は読めなかった。合成した曲のまま */ }
+      if (key === 'calm') { if (!done) give(files); else if (files.calm) mus((m) => m.useFiles(files)); }
     }
-    if (music) music.useFiles(files);
   } catch (e) { /* 曲の一覧が無ければ、合成した曲のまま */ }
+  give(files);
 }
 document.addEventListener('visibilitychange', () => {
   if (!actx) return;
@@ -792,7 +820,7 @@ function frame(now) {
   S.shake *= Math.exp(-8 * dt);
   const heatTarget = st && st.shells.length && S.phase !== 'draw' && S.phase !== 'intro' ? st.pops / st.shells.length : 0;
   S.heat += (heatTarget - S.heat) * (heatTarget > S.heat ? 0.08 : 0.02);
-  if (music) music.setMode(S.phase === 'burn' ? 'burn' : 'calm');
+  mus((m) => m.setMode(S.phase === 'burn' ? 'burn' : 'calm'));
   const burning = S.phase === 'burn';
   if (burning !== S.hudBurning) { S.hudBurning = burning; $('#hud').classList.toggle('burning', burning); }
   // 一瞬の夜: 指を置いてから 2.5 秒で、線は勝手に終わる
@@ -812,7 +840,7 @@ function handleEvents(st) {
     if (e.type === 'burst') {
       spawnBurst(e.shell.x, e.shell.y, e.shell.type, e.shell.hue);
       SFX.burst(e.shell.type, e.chain);
-      if (e.shell.type === 'shaku') { if (music) music.duck(0.3, 1.2); S.hold = Math.max(S.hold, 0.14); hinoFace('star', 1500); scenery.excite(1.2); cheerN(2); }
+      if (e.shell.type === 'shaku') { mus((m) => m.duck(0.3, 1.2)); S.hold = Math.max(S.hold, 0.14); hinoFace('star', 1500); scenery.excite(1.2); cheerN(2); }
       setChain(e.chain);
       if (navigator.vibrate && e.chain % 3 === 1) try { navigator.vibrate(6); } catch (x) { /* 無視 */ }
     } else if (e.type === 'ember') {
@@ -1224,8 +1252,8 @@ function onRoundDone() {
   $('#chain').classList.remove('on'); // 連鎖の数は、集計が出る前に消しておく（重ならないように）
   const st = S.st, res = st.result;
   if (res.allClear) {
-    const sung = music && bgmOn && music.stinger();
-    if (!sung) { SFX.mankai(); if (music) music.duck(0.3, 1.6); }
+    const sung = bgmOn && mus((m) => m.stinger());
+    if (!sung) { SFX.mankai(); mus((m) => m.duck(0.3, 1.6)); }
     finale(); callout(t('mankai'));
   }
   setTimeout(() => { if (S.st === st) runTally(res); }, res.allClear ? 900 : 350);

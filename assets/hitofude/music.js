@@ -43,6 +43,8 @@ export function createMusic(ac, out, noiseBuf) {
   let timer = null, next = 0, step = 0, mode = 'calm', files = null, calmSrc = null, burnSrc = null;
   // burn の曲は火が走る数秒ずつしか鳴らないので、毎回頭からにせず前回の続きから鳴らす
   let burnPos = 0, burnAt = 0;
+  // 曲のファイルを読み込んでいるあいだは合成した曲を鳴らさずに待つ（鳴らすと、切り替えたあとも余韻が重なる）
+  let waiting = false, wanted = false;
 
   // ---------------------------------------------------------------- 楽器
   function env(g, t, peak, attack, decay) {
@@ -156,6 +158,7 @@ export function createMusic(ac, out, noiseBuf) {
     get playing() { return !!timer || !!calmSrc; },
     start() {
       if (api.playing) return;
+      if (waiting) { wanted = true; return; }
       if (files && files.calm) { calmSrc = loopSource(files.calm, calm); return; }
       next = ac.currentTime + 0.08; step = 0;
       timer = setInterval(tick, 50); tick();
@@ -163,15 +166,17 @@ export function createMusic(ac, out, noiseBuf) {
     stop() {
       if (timer) { clearInterval(timer); timer = null; }
       for (const s of [calmSrc, burnSrc]) if (s) try { s.stop(); } catch (e) { /* 止まっている */ }
-      calmSrc = burnSrc = null;
+      calmSrc = burnSrc = null; wanted = false;
       fade(burn, 0, 0.1); mode = 'calm';
     },
+    // これから曲のファイルを読み込む。useFiles が呼ばれるまで start() は待つ
+    waitForFiles() { waiting = true; },
     // 登録された曲を使う。calm が無いときは合成した曲のまま（テンポの違う曲を重ねない）
     useFiles(f) {
-      if (!f || !f.calm) return;
-      const was = api.playing;
-      api.stop(); files = f;
-      if (was) api.start();
+      const was = api.playing || wanted, m = mode;
+      waiting = false; wanted = false;
+      if (f && f.calm) { api.stop(); files = f; }
+      if (was) { api.start(); if (m === 'burn') { mode = 'calm'; api.setMode('burn'); } }
     },
     setMode(m) {
       if (m === mode) return;
