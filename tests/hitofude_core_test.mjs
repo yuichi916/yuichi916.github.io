@@ -336,5 +336,105 @@ check('目標点: 夜ごとに上がる', () => {
   for (let i = 1; i < K.TARGETS.length; i++) ok(K.TARGETS[i] > K.TARGETS[i - 1]);
 });
 
+check('夜の景色: 二夜目までは群れ・八夜目は輪・同じ景色は続かない・どの景色でも玉がほぼ全部置ける', () => {
+  const seen = new Set();
+  for (let seed = 1; seed <= 60; seed++) {
+    eq(K.sceneFor(seed, 0).id, 'mure'); eq(K.sceneFor(seed, 1).id, 'mure');
+    eq(K.sceneFor(seed, K.NIGHTS - 1).id, 'wa');
+    for (let n = 2; n < K.NIGHTS; n++) {
+      seen.add(K.sceneFor(seed, n).id);
+      if (n > 2) ok(K.sceneFor(seed, n).id !== K.sceneFor(seed, n - 1).id, `seed ${seed} night ${n}: 同じ景色が続く`);
+      const rules = K.rulesFor(['mashidama'], 4), a = K.makeLayout(seed, n, rules);
+      ok(a.length >= K.BASE_COUNTS[n] + 6 - 3, `seed ${seed} night ${n} (${K.sceneFor(seed, n).id}): ${a.length} 個しか置けない`);
+      for (let i = 0; i < a.length; i++) for (let j = i + 1; j < a.length; j++) ok(Math.hypot(a[i].x - a[j].x, a[i].y - a[j].y) >= 27, `seed ${seed} night ${n}: 近すぎる`);
+    }
+  }
+  eq(seen.size, K.SCENES.length, '4 つの景色がどれも出る');
+});
+
+check('大一番: 三夜目と六夜目だけ・2 つは別の仕掛け・シードで決まる・目標点は仕掛けに合わせる', () => {
+  const kinds = new Set();
+  for (let seed = 1; seed <= 40; seed++) {
+    for (let n = 0; n < K.NIGHTS; n++) eq(!!K.twistFor(seed, n), K.BOSS_NIGHTS.includes(n), `night ${n}`);
+    const a = K.twistFor(seed, 2), b = K.twistFor(seed, 5);
+    ok(a.id !== b.id, '同じ仕掛けが 2 回');
+    eq(K.twistFor(seed, 2).id, a.id, '決定的');
+    kinds.add(a.id); kinds.add(b.id);
+    eq(K.targetFor(seed, 5), Math.round(K.TARGETS[5] * b.target / 10) * 10);
+    eq(K.targetFor(seed, 4), K.TARGETS[4]);
+    eq(K.newRound({ seed, night: 5 }).twist, b.id);
+  }
+  eq(kinds.size, K.TWISTS.length);
+  for (const tw of K.TWISTS) ok(tw.say.length <= 15 && tw.ja && tw.en && tw.desc && tw.descEn, `${tw.id} の文言`);
+});
+
+// 仕掛けを指定した夜（シードを探して作る）
+function roundWithTwist(id, night = 5) {
+  for (let seed = 1; seed < 500; seed++) if (K.twistFor(seed, night) && K.twistFor(seed, night).id === id) return K.newRound({ seed, night });
+  throw new Error('見つからない: ' + id);
+}
+check('大一番「まっすぐ」: ぐねぐね引いても、始まりと指を離した所を結ぶ直線になる（墨の長さまで）', () => {
+  const st = roundWithTwist('massugu');
+  const zig = [{ x: 40, y: 200 }, { x: 120, y: 320 }, { x: 180, y: 180 }, { x: 260, y: 300 }];
+  const pts = K.lightStroke(st, zig);
+  ok(pts && pts.length >= 3);
+  const a = pts[0], b = pts[pts.length - 1];
+  for (const p of pts) { const cross = Math.abs((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)) / Math.hypot(b.x - a.x, b.y - a.y); ok(cross <= 1.5, `直線から ${cross.toFixed(1)} 外れる`); }
+  ok(Math.hypot(b.x - 260, b.y - 300) < 12, '指を離した所まで届く');
+  const long = K.straighten([{ x: 0, y: 0 }, { x: 5000, y: 0 }], 400);
+  eq(Math.round(long[1].x), 400, '墨の長さで切る');
+});
+
+check('大一番「鏡」: 墨は 6 割・左右に映した線にも火がつく・再生しても同じ点', () => {
+  const st = roundWithTwist('kagami');
+  eq(st.ink, Math.round(K.rulesFor([], 4).ink * K.MIRROR_INK));
+  K.lightStroke(st, line(40, 150, 120, 150, 20));
+  const segs = new Set(st.fuse.seg);
+  ok(segs.has(0) && segs.has(20), '映した区間がない');
+  const mirrored = st.fuse.pts.filter((_, i) => st.fuse.seg[i] === 20);
+  ok(mirrored.every((p) => p.x >= 240), '右側に映っていない');
+  ok(st.heads.length >= 2 || st.pops > 0, '両方の端から火がつく');
+  const again = roundWithTwist('kagami');
+  const r1 = K.runToEnd(again, [st.strokes[0]], { normalized: true });
+  const again2 = roundWithTwist('kagami');
+  eq(K.runToEnd(again2, [st.strokes[0]], { normalized: true }).score, r1.score, '決定的でない');
+});
+
+check('お守り: 大一番のあとの 2 つ目は、別の 3 つ（持っているものは出ない）', () => {
+  const a = K.offerCharms(77, 5, ['kodou']), b = K.offerCharms(77, 5, ['kodou', a[0]], 1);
+  eq(b.length, 3); ok(!b.includes('kodou') && !b.includes(a[0]));
+  ok(JSON.stringify(a) !== JSON.stringify(K.offerCharms(77, 5, ['kodou'], 1)), '同じ並び');
+});
+
+check('筆跡占い: 形で 7 つに分かれる', () => {
+  const circle = Array.from({ length: 60 }, (_, i) => ({ x: 180 + Math.cos(i / 59 * Math.PI * 2) * 80, y: 300 + Math.sin(i / 59 * Math.PI * 2) * 80 }));
+  const spiral = Array.from({ length: 90 }, (_, i) => { const a = i / 89 * Math.PI * 4.5, r = 20 + i * 1.2; return { x: 180 + Math.cos(a) * r, y: 300 + Math.sin(a) * r }; });
+  const zig = Array.from({ length: 50 }, (_, i) => ({ x: 40 + i * 6, y: 300 + ((Math.floor(i / 10) % 2) ? (i % 10) * 12 : 120 - (i % 10) * 12) }));
+  const wave = Array.from({ length: 50 }, (_, i) => ({ x: 30 + i * 6, y: 300 + Math.sin(i / 49 * Math.PI * 4) * 30 }));
+  const T = (pts, o) => K.strokeType(K.normalizeStroke(pts, 460), o).id;
+  eq(T(line(40, 300, 320, 320)), 'massugu');
+  eq(T(circle), 'wa');
+  eq(T(spiral), 'uzumaki');
+  eq(T(zig), 'inazuma');
+  eq(T(wave), 'nami');
+  eq(T(line(100, 300, 180, 300), { ink: 460, pops: 20, total: 24 }), 'nyuukon');
+  eq(K.STROKE_TYPES.length, 7);
+});
+
+check('シェア: 筆跡と大一番の結果が 1 行で入る', () => {
+  const run = { daily: true, key: '2026-09-27', no: 2, moon: 4, total: 12345, bestChain: 30, type: 'inazuma',
+    nights: [{ score: 100, target: 60 }, { score: 300, target: 200 }, { score: 900, target: 600, twist: 'kagami' }, { score: 100, target: 2500 }] };
+  const ja = K.runShareText(run, 'ja'), en = K.runShareText(run, 'en');
+  ok(ja.includes('筆跡 ⚡稲妻') && ja.includes('大一番 鏡⭕'), ja);
+  ok(en.includes('Stroke ⚡Lightning') && en.includes('Boss Mirror⭕'), en);
+  ok(!K.runShareText({ ...run, type: null, nights: [{ score: 100, target: 60 }] }, 'ja').includes('大一番'));
+});
+
+check('再生リンク: 前の版のリンクは「前の版」とわかる', () => {
+  const v1 = 'E' + K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], strokes: [[{ x: 1, y: 1 }, { x: 9, y: 1 }, { x: 17, y: 1 }]] }).slice(1);
+  const d = K.decodeReplay(v1);
+  ok(d && d.old, JSON.stringify(d));
+});
+
 if (failures) { console.error(`hitofude_core_test: ${failures} FAILED`); process.exit(1); }
 console.log('hitofude_core_test: ALL PASS');

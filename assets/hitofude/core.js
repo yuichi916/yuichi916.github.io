@@ -104,8 +104,50 @@ export const BASE_INK = 460;
 export const BASE_REACH = 7;
 // 夜ごとの目標点。8 夜目がいちばん高い
 // ボットで測った値（tests と _dev/hitofude-balance.mjs）。序盤はほぼ越えられ、終盤はお守りの組み合わせが要る
-export const TARGETS = [60, 200, 600, 2500, 5500, 14000, 35000, 150000];
+export const TARGETS = [60, 150, 700, 3800, 6800, 22000, 80000, 260000];
 export const BASE_COUNTS = [16, 20, 24, 28, 32, 36, 40, 44];
+
+// ---------------------------------------------------------------- 大一番（三夜目と六夜目）
+// その夜だけ、線の引き方が変わる。シードで決まるので、「今夜の一筆」ではみんな同じ大一番になる。
+// まっすぐ・鏡は線そのものを変える（ここで扱う）。闇夜・一瞬は見え方と時間だけを変える（ページで扱う）
+export const BOSS_NIGHTS = [2, 5];
+export const TWISTS = [
+  { id: 'massugu', ja: 'まっすぐ', en: 'Straight', say: '今夜の線は、まっすぐ！', sayEn: 'Straight lines only!', desc: '線は、引きはじめと指を離した所を結ぶ直線になる', descEn: 'Your line becomes a straight segment from start to release', target: 0.8 },
+  { id: 'kagami', ja: '鏡', en: 'Mirror', say: '線が左右に映るよ！', sayEn: 'Your line is mirrored!', desc: '線が左右に映って 2 本になる（墨は 6 割）', descEn: 'Your line is mirrored left and right (60% ink)', target: 0.9 },
+  { id: 'yamiyo', ja: '闇夜', en: 'Dark night', say: 'よく見て、覚えて！', sayEn: 'Look now, remember later!', desc: '玉が見えるのは、はじめの 3 秒だけ', descEn: 'Shells are visible for the first 3 seconds only', target: 0.75 },
+  { id: 'isshun', ja: '一瞬', en: 'Snap', say: '2.5秒で引き切って！', sayEn: 'Draw it in 2.5 seconds!', desc: '指を置いてから 2.5 秒で、線は勝手に終わる', descEn: 'Your line ends 2.5 s after you touch down', target: 0.85 },
+];
+export const SNAP_SECONDS = 2.5;
+export const DARK_SECONDS = 3;
+export const MIRROR_INK = 0.6;
+function shuffled(arr, rng) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+export function twistFor(seed, night) {
+  const k = BOSS_NIGHTS.indexOf(night);
+  if (k < 0) return null;
+  return shuffled(TWISTS, rng32(hashStr(`hitofude-boss:${seed >>> 0}`)))[k];
+}
+export function isBoss(night) { return BOSS_NIGHTS.includes(night); }
+// その夜の目標点（大一番は、仕掛けの難しさに合わせて変える）
+export function targetFor(seed, night) {
+  const tw = twistFor(seed, night);
+  return tw ? Math.round(TARGETS[night] * tw.target / 10) * 10 : TARGETS[night];
+}
+
+// ---------------------------------------------------------------- 夜の景色（三夜目から）
+// 玉の群れの並び方。夜ごとに変わり、同じ景色は続かない。八夜目は、尺玉を囲む輪
+export const SCENES = [
+  { id: 'mure', ja: '群れ', en: 'Clusters' },
+  { id: 'kawa', ja: '天の川', en: 'River' },
+  { id: 'wa', ja: '輪', en: 'Ring' },
+  { id: 'yatai', ja: '屋台の列', en: 'Stalls' },
+];
+export function sceneFor(seed, night) {
+  if (night < 2) return SCENES[0];
+  if (night === NIGHTS - 1) return SCENES[2];
+  const prev = night > 2 ? sceneFor(seed, night - 1).id : 'mure';
+  const pool = SCENES.filter((sc) => sc.id !== prev && !(night === NIGHTS - 2 && sc.id === 'wa'));
+  return pool[Math.floor(rng32(nightSeed(seed, night) ^ 0x5ce9e)() * pool.length)];
+}
 
 // お守りと今夜の月を合わせた、この夜のルール
 export function rulesFor(charms, moonIdx) {
@@ -217,18 +259,36 @@ export function makeLayout(seed, night, rules, clouds = makeClouds(seed, night, 
   for (const t of ['kin', 'ootama', 'senrin', 'chouchin', 'shime']) for (let i = 0; i < mix[t]; i++) types.push(t);
   while (types.length < n - mix.shaku) types.push('kiku');
   for (let i = types.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [types[i], types[j]] = [types[j], types[i]]; }
-  // 序盤の夜ほど群れが少なく密（最初の一筆で気持ちよく連鎖させる）
-  const k = night < 2 ? 2 : 3 + Math.floor(rng() * 3);
-  const spread = night < 2 ? 34 : 40 + night;
+  // 序盤の夜ほど群れが少なく密（最初の一筆で気持ちよく連鎖させる）。三夜目からは、景色ごとに群れの置き方が変わる
+  const scene = sceneFor(seed, night).id;
+  let k = night < 2 ? 2 : 3 + Math.floor(rng() * 3);
+  let spread = night < 2 ? 34 : 40 + night, sx = 1, sy = 1;
   const centers = [];
-  for (let c = 0; c < k; c++) {
-    let best = null;
-    for (let t = 0; t < 12; t++) {
-      const p = { x: FIELD.x0 + 30 + rng() * (FIELD.x1 - FIELD.x0 - 60), y: FIELD.y0 + 30 + rng() * (FIELD.y1 - FIELD.y0 - 60) };
-      const d = centers.reduce((m, q) => Math.min(m, Math.hypot(p.x - q.x, p.y - q.y)), 1e9);
-      if (!best || d > best.d) best = { p, d };
+  if (scene === 'kawa') {
+    // 画面を横切る、うねった川。小さな群れが流れに沿って並ぶ
+    k = 6; spread = 30 + night;
+    const ph = rng() * Math.PI * 2, amp = 90 + rng() * 40, mid = (FIELD.y0 + FIELD.y1) / 2;
+    for (let c = 0; c < k; c++) { const u = c / (k - 1); centers.push({ x: FIELD.x0 + 34 + u * (FIELD.x1 - FIELD.x0 - 68), y: mid + Math.sin(ph + u * Math.PI * 1.8) * amp }); }
+  } else if (scene === 'wa') {
+    // まん中を空けた輪（八夜目は、まん中に尺玉）
+    k = 7; spread = 28 + night;
+    const off = rng() * Math.PI * 2, r = 118 + rng() * 14;
+    for (let c = 0; c < k; c++) { const a = off + c / k * Math.PI * 2; centers.push({ x: W / 2 + Math.cos(a) * r, y: 298 + Math.sin(a) * r * 1.2 }); }
+  } else if (scene === 'yatai') {
+    // 横に長い屋台が、3 段に並ぶ
+    k = 6; spread = 30 + night; sx = 1.7; sy = 0.55;
+    const rows = [FIELD.y0 + 60, (FIELD.y0 + FIELD.y1) / 2, FIELD.y1 - 60], shift = rng() < 0.5 ? 0 : 1;
+    for (let c = 0; c < k; c++) { const row = Math.floor(c / 2); centers.push({ x: (c % 2 === (row + shift) % 2 ? 100 : 260) + (rng() - 0.5) * 30, y: rows[row] + (rng() - 0.5) * 20 }); }
+  } else {
+    for (let c = 0; c < k; c++) {
+      let best = null;
+      for (let t = 0; t < 12; t++) {
+        const p = { x: FIELD.x0 + 30 + rng() * (FIELD.x1 - FIELD.x0 - 60), y: FIELD.y0 + 30 + rng() * (FIELD.y1 - FIELD.y0 - 60) };
+        const d = centers.reduce((m, q) => Math.min(m, Math.hypot(p.x - q.x, p.y - q.y)), 1e9);
+        if (!best || d > best.d) best = { p, d };
+      }
+      centers.push(best.p);
     }
-    centers.push(best.p);
   }
   const shells = [];
   // 尺玉は、まん中あたりに先に置く
@@ -237,11 +297,12 @@ export function makeLayout(seed, night, rules, clouds = makeClouds(seed, night, 
   for (let i = 0; i < types.length; i++) {
     let pos = null;
     for (let t = 0; t < 60 && !pos; t++) {
-      const loose = rng() < (night < 2 ? 0.08 : 0.22);
+      const loose = rng() < (night < 2 ? 0.08 : scene === 'mure' ? 0.22 : 0.12);
       const c = centers[Math.floor(rng() * centers.length)];
-      // 間隔は丸めたあとの座標で確かめる（丸めで近づくことがある）
-      const x = Math.round(loose ? FIELD.x0 + rng() * (FIELD.x1 - FIELD.x0) : c.x + gauss(rng) * spread);
-      const y = Math.round(loose ? FIELD.y0 + rng() * (FIELD.y1 - FIELD.y0) : c.y + gauss(rng) * spread);
+      // 間隔は丸めたあとの座標で確かめる（丸めで近づくことがある）。群れが混んで置けないときは、少しずつ広げる
+      const grow = 1 + Math.floor(t / 20) * 0.35;
+      const x = Math.round(loose ? FIELD.x0 + rng() * (FIELD.x1 - FIELD.x0) : c.x + gauss(rng) * spread * sx * grow);
+      const y = Math.round(loose ? FIELD.y0 + rng() * (FIELD.y1 - FIELD.y0) : c.y + gauss(rng) * spread * sy * grow);
       if (x < FIELD.x0 || x > FIELD.x1 || y < FIELD.y0 || y > FIELD.y1) continue;
       if (!clear(x, y, MIN_GAP)) continue;
       pos = { x, y };
@@ -309,11 +370,13 @@ export const SPARK_LIFE = 0.55;
 
 export function newRound({ seed, night, charms = [], moon = 4 }) {
   const rules = rulesFor(charms, moon);
+  const tw = twistFor(seed, night);
   const clouds = makeClouds(seed, night, rules);
   const shells = makeLayout(seed, night, rules, clouds).map((s) => ({ ...s, burst: false, burstAt: -1, hp: s.type === 'shime' ? rules.dampHits : 1, lastSrc: null }));
   const st = {
     seed: seed >>> 0, night, charms: charms.slice(), moon, rules, shells, clouds, ropes: [],
-    t: 0, tick: 0, phase: 'draw', strokes: [], ink: rules.ink,
+    twist: tw ? tw.id : null, scene: sceneFor(seed, night).id, target: targetFor(seed, night),
+    t: 0, tick: 0, phase: 'draw', strokes: [], ink: Math.round(rules.ink * (tw && tw.id === 'kagami' ? MIRROR_INK : 1)),
     fuse: { pts: [], burnt: [], seg: [], wet: [], rope: [], links: [], corners: new Set(), ends: new Set() },
     heads: [], explosions: [], sparks: [], embers: [], nextId: 1,
     pops: 0, chips: 0, goldMult: 0, lanterns: 0, maxChainAt: 0, events: [],
@@ -351,8 +414,19 @@ function addSegment(st, samples, segId, isRope) {
 
 // 指の軌跡から線を置いて火をつける（1 本目も 2 本目も同じ）。返り値は、実際に使われた線
 export function lightStroke(st, raw) {
-  return lightPoints(st, normalizeStroke(raw, st.ink));
+  return lightPoints(st, normalizeStroke(st.twist === 'massugu' ? straighten(raw, st.ink) : raw, st.ink));
 }
+// まっすぐの夜: 引きはじめから、指を離した所へ向かう直線（墨の長さまで）
+export function straighten(raw, ink) {
+  const pts = (raw || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (pts.length < 2) return pts;
+  const a = pts[0], b = pts[pts.length - 1], d = Math.hypot(b.x - a.x, b.y - a.y);
+  if (d < 1) return [a];
+  const k = Math.min(1, ink / d);
+  return [{ x: a.x, y: a.y }, { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k }];
+}
+// 鏡の夜: 左右に映した線
+export function mirrorPoint(p) { return { x: W - p.x, y: p.y }; }
 // ならし済みの線（挑戦状・再生リンクから来たもの）をそのまま置く。ならし直すと線がずれて結果が変わる
 export function lightPoints(st, input) {
   const pts = [];
@@ -382,14 +456,34 @@ export function lightPoints(st, input) {
   const corners = st.rules.corners ? cornerIndices(pts).map((ci) => base + Math.round(ci * STROKE_STEP / FUSE_SAMPLE)) : [];
   for (const c of corners) st.fuse.corners.add(Math.min(c, st.fuse.pts.length - 1));
   st.fuse.ends.add(st.fuse.pts.length - 1);
+  // 鏡の夜は、左右に映した線も置いて、両方の端から火をつける
+  let mirror = null;
+  if (st.twist === 'kagami') {
+    const ms = samples.map(mirrorPoint), mseg = 20 + segId;
+    const mb = addSegment(st, ms, mseg, false);
+    for (const c of corners) st.fuse.corners.add(Math.min(mb + (c - base), st.fuse.pts.length - 1));
+    st.fuse.ends.add(st.fuse.pts.length - 1);
+    mirror = { base: mb, seg: mseg, p: ms[0] };
+  }
   st.phase = 'burn';
   st.fuse.burnt[base] = true;
   st.events.push({ type: 'light', x: samples[0].x, y: samples[0].y });
   // 雲の中から引きはじめた線は、火がつかない
-  if (st.fuse.wet[base]) { st.events.push({ type: 'fizzle', x: samples[0].x, y: samples[0].y }); return pts; }
-  st.heads.push({ i: base, dir: 1, f: base });
-  fuseNeighborsBurst(st, samples[0], st.rules.reach, 'f' + segId);
-  catchLinks(st, base);
+  const mainWet = st.fuse.wet[base];
+  if (!mainWet) {
+    st.heads.push({ i: base, dir: 1, f: base });
+    fuseNeighborsBurst(st, samples[0], st.rules.reach, 'f' + segId);
+    catchLinks(st, base);
+  }
+  if (mirror && !st.fuse.burnt[mirror.base]) {
+    st.fuse.burnt[mirror.base] = true;
+    if (!st.fuse.wet[mirror.base]) {
+      st.heads.push({ i: mirror.base, dir: 1, f: mirror.base });
+      fuseNeighborsBurst(st, mirror.p, st.rules.reach, 'f' + mirror.seg);
+      catchLinks(st, mirror.base);
+    }
+  }
+  if (mainWet && !st.heads.length) st.events.push({ type: 'fizzle', x: samples[0].x, y: samples[0].y });
   return pts;
 }
 
@@ -520,7 +614,7 @@ export function step(st) {
   const busy = st.heads.length || st.sparks.length || st.embers.length || st.explosions.some((e) => e.t <= BURST_GROW + BURST_HOLD);
   if (!busy) {
     if (st.rules.secondStroke && !st.secondUsed && st.pops >= 25 && st.shells.some((s) => !s.burst)) {
-      st.secondUsed = true; st.phase = 'draw2'; st.ink = Math.round(st.rules.ink / 2);
+      st.secondUsed = true; st.phase = 'draw2'; st.ink = Math.round(st.rules.ink * (st.twist === 'kagami' ? MIRROR_INK : 1) / 2);
       st.events.push({ type: 'second' });
       return st;
     }
@@ -559,11 +653,47 @@ export function runToEnd(st, strokes, { normalized = false, maxTicks = 60 * 60 }
 }
 
 // ---------------------------------------------------------------- 夜ごとのお守り
-export function offerCharms(seed, night, held) {
-  const rng = rng32(nightSeed(seed, night) ^ 0x51ed270b);
+// round は、大一番を越えたときの 2 つ目の選択（別の 3 つを出す）
+export function offerCharms(seed, night, held, round = 0) {
+  const rng = rng32(nightSeed(seed, night) ^ 0x51ed270b ^ (round ? 0x2b0d5 * round : 0));
   const pool = CHARM_IDS.filter((id) => !held.includes(id) && (CHARM_NEEDS[id] || 0) <= night + 1);
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   return pool.slice(0, 3);
+}
+
+// ---------------------------------------------------------------- 筆跡占い
+// 線の形から、その人の「筆跡」を 7 つのどれかに見立てる（結果とシェアに出す）
+export const STROKE_TYPES = [
+  { id: 'nyuukon', emoji: '🎯', ja: 'ひと筆入魂', en: 'One Touch', line: '短く、深く。無駄のない一筆', lineEn: 'Short and deep. Nothing wasted' },
+  { id: 'massugu', emoji: '🏹', ja: '一直線', en: 'Arrow', line: '狙いをしぼった、まっすぐな一筆', lineEn: 'Aimed and straight' },
+  { id: 'wa', emoji: '⭕', ja: 'ひと回り', en: 'Full Circle', line: '始まりに帰ってくる、律儀な一筆', lineEn: 'Comes back to where it began' },
+  { id: 'uzumaki', emoji: '🌀', ja: '渦巻き', en: 'Whirlpool', line: 'ぐるりと巻き込む、欲ばりな一筆', lineEn: 'Spirals in to take it all' },
+  { id: 'inazuma', emoji: '⚡', ja: '稲妻', en: 'Lightning', line: '迷いなく折れる、勝負師の一筆', lineEn: 'Sharp turns, no hesitation' },
+  { id: 'nami', emoji: '🌊', ja: '波乗り', en: 'Wave Rider', line: 'ゆらゆら拾っていく、しなやかな一筆', lineEn: 'Sways and gathers, supple' },
+  { id: 'sanpo', emoji: '🐾', ja: 'ぶらり散歩', en: 'Wanderer', line: '寄り道が、いちばんの近道', lineEn: 'Detours are the best shortcuts' },
+];
+export function strokeType(pts, { ink = BASE_INK, pops = 0, total = 1 } = {}) {
+  const list = (pts || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
+  const T = (id) => STROKE_TYPES.find((t) => t.id === id);
+  if (list.length < 3) return T('nyuukon');
+  const len = pathLength(list), a = list[0], b = list[list.length - 1], chord = Math.hypot(b.x - a.x, b.y - a.y);
+  // 3 点おき（約 24 単位）に向きの変わり方を見る（指のぶれを拾わない）
+  const q = list.filter((_, i) => i % 3 === 0 || i === list.length - 1);
+  let turn = 0, flips = 0, lastSign = 0;
+  for (let i = 1; i < q.length - 1; i++) {
+    const ang = Math.atan2(q[i + 1].y - q[i].y, q[i + 1].x - q[i].x) - Math.atan2(q[i].y - q[i - 1].y, q[i].x - q[i - 1].x);
+    const d = Math.atan2(Math.sin(ang), Math.cos(ang));
+    turn += d;
+    if (Math.abs(d) > 0.25) { const sg = Math.sign(d); if (lastSign && sg !== lastSign) flips++; lastSign = sg; }
+  }
+  const sharp = cornerIndices(list).length;
+  if (len < ink * 0.45 && pops >= total * 0.6) return T('nyuukon');
+  if (chord / len > 0.9) return T('massugu');
+  if (len > 180 && chord < len * 0.15) return T('wa');
+  if (Math.abs(turn) > Math.PI * 1.6) return T('uzumaki');
+  if (sharp >= 3) return T('inazuma');
+  if (flips >= 3) return T('nami');
+  return T('sanpo');
 }
 
 // ---------------------------------------------------------------- 共有・挑戦状・再生
@@ -591,7 +721,13 @@ export function runShareText(run, lang, url = SITE_URL) {
   } else head = en ? 'Hitofude Hanabi' : '一筆花火';
   const line2 = cleared === NIGHTS ? (en ? 'All 8 nights!' : '八夜 完走！') : (en ? `${cleared}/8 nights` : `${cleared}/8 夜`);
   const line3 = en ? `${fmt(run.total)} pts · best chain ${run.bestChain}` : `${fmt(run.total)}点 ・ 最大 ${run.bestChain}連鎖`;
-  return `${head}\n${marks}\n${line2} ${line3}\n${url}\n${en ? '#hitofudehanabi' : HASHTAG}`;
+  // 筆跡と、大一番の結果（今夜の一筆は、みんな同じ大一番）
+  const extra = [];
+  if (run.type) { const ty = STROKE_TYPES.find((x) => x.id === run.type); if (ty) extra.push(en ? `Stroke ${ty.emoji}${ty.en}` : `筆跡 ${ty.emoji}${ty.ja}`); }
+  const bosses = run.nights.filter((r) => r && r.twist).map((r) => { const tw = TWISTS.find((x) => x.id === r.twist); return tw ? `${en ? tw.en : tw.ja}${r.score >= r.target ? '⭕' : '❌'}` : null; }).filter(Boolean);
+  if (bosses.length) extra.push((en ? 'Boss ' : '大一番 ') + bosses.join(' '));
+  const line4 = extra.length ? '\n' + extra.join(en ? ' · ' : ' ・ ') : '';
+  return `${head}\n${marks}\n${line2} ${line3}${line4}\n${url}\n${en ? '#hitofudehanabi' : HASHTAG}`;
 }
 
 // 同じ夜で勝負: #s=<seed36>.<moon>[.<score>]
@@ -608,7 +744,8 @@ export function decodeDuel(s) {
 
 // 一筆の再生: [版4][シード32][月3][夜3][お守り16][本数1+1][各線: 点数7, (x9, y10)×点数]
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-export const REPLAY_VERSION = 1;
+// 版 2: 大一番と夜の景色を足した（版 1 のリンクは、同じ夜を作れないので読まない）
+export const REPLAY_VERSION = 2;
 function writer() {
   const out = []; let acc = 0, n = 0;
   return {
@@ -650,7 +787,8 @@ export function decodeReplay(s) {
   const r = reader(s);
   if (!r) return null;
   try {
-    if (r.get(4) !== REPLAY_VERSION) return null;
+    const ver = r.get(4);
+    if (ver !== REPLAY_VERSION) return ver >= 1 && ver < REPLAY_VERSION ? { old: true } : null;
     const seed = r.get(32) >>> 0, moon = r.get(3), night = r.get(3), mask = r.get(16);
     if (night >= NIGHTS) return null;
     const charms = CHARM_IDS.filter((_, i) => mask & (1 << i));
