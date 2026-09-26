@@ -48,7 +48,7 @@ if (process.argv[1].endsWith('hitofude-balance.mjs')) {
   const moon = +(process.argv[2] || 4), T = +(process.argv[3] || 3), policy = process.argv[4] || 'priority';
   const rng = K.rng32(1234);
   const hist = Array(9).fill(0); const perNight = Array(8).fill(null).map(() => []);
-  const N = 80;
+  const N = +(process.env.N || 80);
   for (let i = 1; i <= N; i++) {
     const r = playRun(K.hashStr('seed' + i), moon, T, rng, policy);
     hist[r.cleared]++;

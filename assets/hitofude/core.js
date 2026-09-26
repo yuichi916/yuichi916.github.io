@@ -65,14 +65,15 @@ export const SHELLS = {
 export const TYPES = ['kiku', 'ootama', 'kin', 'senrin', 'chouchin', 'shime', 'shaku'];
 
 // 夜ごとに 1 つずつ増える仕掛け（一度に覚えることは 1 つだけ）
+// say / sayEn は、その夜にマスコットのヒノコがひとことで知らせる言葉（15 字まで）
 export const GIMMICKS = [
-  { id: 'ootama', night: 1, ja: '大玉', en: 'Big shell', desc: '大きくひらく。群れのまん中にあると一気に広がる', descEn: 'A huge burst. In the middle of a cluster, it takes everything' },
-  { id: 'senrin', night: 2, ja: '千輪', en: 'Star shell', desc: '火花がまっすぐ飛んで、離れた玉にも届く', descEn: 'Fires sparks in straight lines that reach far shells' },
-  { id: 'chouchin', night: 3, ja: '提灯', en: 'Lantern', desc: '灯ったあとにひらく玉は、点が2倍。線は提灯から引きはじめよう', descEn: 'Every burst after it lights scores ×2. Start your line at the lantern' },
-  { id: 'kumo', night: 4, ja: '雲', en: 'Cloud', desc: '火は雲を通らない。線は雲をよけて引く', descEn: 'Fire can\'t pass through clouds. Draw around them' },
-  { id: 'shime', night: 5, ja: '湿った玉', en: 'Damp shell', desc: '別々の火が2回当たると、ひらく。点は高い', descEn: 'Needs two separate hits to burst. Worth more' },
-  { id: 'nawa', night: 6, ja: '仕掛け縄', en: 'Fuse rope', desc: '火が届くと、縄を走って遠くの玉まで燃え広がる', descEn: 'Once lit, fire races along the rope to far shells' },
-  { id: 'shaku', night: 7, ja: '尺玉', en: 'Grand shell', desc: '最後の特大玉。ひらけば倍率 +3、夜空いっぱいに咲く', descEn: 'The grand finale. Burst it for +3 mult' },
+  { id: 'ootama', night: 1, ja: '大玉', en: 'Big shell', desc: '大きくひらく。群れのまん中にあると一気に広がる', descEn: 'A huge burst. In the middle of a cluster, it takes everything', say: '大玉は、ドカンと広いよ！', sayEn: 'Big shells blast wide!' },
+  { id: 'senrin', night: 2, ja: '千輪', en: 'Star shell', desc: '火花がまっすぐ飛んで、離れた玉にも届く', descEn: 'Fires sparks in straight lines that reach far shells', say: '千輪の火花は遠くまで！', sayEn: 'Star sparks fly far!' },
+  { id: 'chouchin', night: 3, ja: '提灯', en: 'Lantern', desc: '灯ったあとにひらく玉は、点が2倍。線は提灯から引きはじめよう', descEn: 'Every burst after it lights scores ×2. Start your line at the lantern', say: '提灯から引くと点が2倍！', sayEn: 'Start at the lantern: 2×!' },
+  { id: 'kumo', night: 4, ja: '雲', en: 'Cloud', desc: '火は雲を通らない。線は雲をよけて引く', descEn: 'Fire can\'t pass through clouds. Draw around them', say: '雲の中は通れないよ…', sayEn: 'Fire can\'t cross clouds' },
+  { id: 'shime', night: 5, ja: '湿った玉', en: 'Damp shell', desc: '別々の火が2回当たると、ひらく。点は高い', descEn: 'Needs two separate hits to burst. Worth more', say: '湿った玉は2回あてて！', sayEn: 'Damp ones need two hits' },
+  { id: 'nawa', night: 6, ja: '仕掛け縄', en: 'Fuse rope', desc: '火が届くと、縄を走って遠くの玉まで燃え広がる', descEn: 'Once lit, fire races along the rope to far shells', say: '縄に火がつくと遠くまで！', sayEn: 'Light the rope, go far!' },
+  { id: 'shaku', night: 7, ja: '尺玉', en: 'Grand shell', desc: '最後の特大玉。ひらけば倍率 +3、夜空いっぱいに咲く', descEn: 'The grand finale. Burst it for +3 mult', say: '尺玉で倍率+3！ねらって！', sayEn: 'Grand shell: mult +3!' },
 ];
 export function gimmickFor(night) { return GIMMICKS.find((g) => g.night === night) || null; }
 
@@ -103,7 +104,7 @@ export const BASE_INK = 460;
 export const BASE_REACH = 7;
 // 夜ごとの目標点。8 夜目がいちばん高い
 // ボットで測った値（tests と _dev/hitofude-balance.mjs）。序盤はほぼ越えられ、終盤はお守りの組み合わせが要る
-export const TARGETS = [80, 200, 600, 2500, 5500, 14000, 35000, 150000];
+export const TARGETS = [60, 200, 600, 2500, 5500, 14000, 35000, 150000];
 export const BASE_COUNTS = [16, 20, 24, 28, 32, 36, 40, 44];
 
 // お守りと今夜の月を合わせた、この夜のルール
