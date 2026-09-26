@@ -4,6 +4,7 @@
 |---|---|---|
 | [01_differentiation.md](01_differentiation.md) | 差別化のまとめ（noteの型で）：読者の興味 → 読まなかったときの損失 → 読んだときの利益 → なぜこの連載でないといけないか（直したコミット287件の数字つき）→ 各回への反映 | 完成 |
 | [research/fix_analysis.md](research/fix_analysis.md) | 直したコミット287件の分類の要約（全件は fix_classified.tsv） | 調査 |
+| [02_voice_and_angles.md](02_voice_and_angles.md) | 一般の読者に刺さる切り口と言い回し：芯の一言（受け取る力／AIのミスは音を立てない）、切り口5つ、言い換え辞書、各回のタイトル、#00の書き出し見本、やめる言い回し | 完成 |
 | [00_series_plan.md](00_series_plan.md) | 企画書：コンセプト、形式・価格・更新の決め方と根拠、全11回の構成、各回の型、Xでの運用 | 完成 |
 | [ep00_free_textbook.md](ep00_free_textbook.md) | #00（無料・毎月改訂）AIエージェントのプロになる教科書【2026年9月版】 | 初稿 |
 | [ep01_omotteta_to_chigau.md](ep01_omotteta_to_chigau.md) | #01（有料）Claude Codeに頼んだのに「思ってたのと違う」をなくす | 初稿 |
