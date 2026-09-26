@@ -145,8 +145,10 @@ export function createMusic(ac, out, noiseBuf) {
     src.buffer = tr.buf; src.loop = true;
     src.loopStart = tr.loopStart || 0;
     src.loopEnd = tr.loopEnd || tr.buf.duration;
-    const g = ac.createGain(); g.gain.value = tr.gain ?? 1;
-    src.connect(g).connect(dest); src.start(ac.currentTime + 0.02, offset);
+    // 曲の途中から鳴らすと波形の途中で音が始まってプチッと鳴るので、30ms だけフェードして入る
+    const g = ac.createGain(), t0 = ac.currentTime + 0.02;
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(tr.gain ?? 1, t0 + 0.03);
+    src.connect(g).connect(dest); src.start(t0, offset);
     return src;
   }
   function fade(g, v, sec) {
