@@ -274,8 +274,17 @@ def cabin():
     return vignette(img, 0.64)
 
 
+def hitofude():
+    """一筆花火: ゲームの夜空と川辺の町 (玉なし) を大きくぼかし、空に花火の色の淡い光、川面に提灯の灯り"""
+    img = photo(os.path.join(ROOT, '_blender', 'src', 'hitofude_night.webp'), (0.5, 0.55), blur=16, expo=1.05, sat=1.0)
+    img = glow(img, '#ff6bd6', 0.3, 0.28, 0.22, 0.18, 0.07)
+    img = glow(img, '#5ee7ff', 0.72, 0.22, 0.2, 0.16, 0.06)
+    img = glow(img, '#ffa23a', 0.5, 0.86, 0.46, 0.12, 0.08)
+    return vignette(img, 0.6)
+
+
 BG = {'library': library, 'seikai': seikai, 'kototsugi': kototsugi, 'hyaku': hyaku, 'salon': salon, 'sudoku': sudoku,
-      'shogipuyo': shogi, 'aimap': aimap, 'henshu': henshu, 'hitori': hitori, 'hitoritabi': tabi, 'niwa': niwa, 'cabin': cabin}
+      'shogipuyo': shogi, 'aimap': aimap, 'henshu': henshu, 'hitori': hitori, 'hitoritabi': tabi, 'niwa': niwa, 'cabin': cabin, 'hitofude': hitofude}
 
 
 def padded(path, size, bg):

@@ -282,6 +282,13 @@ if __name__ == '__main__':
         # 将棋ぷよ: 盤の両脇に、金 (金四郎) と飛 (緋蓮)
         standee('assets/characters/kinshiro.png', 'shogi_kin', height=640)
         standee('assets/characters/hiren.png', 'shogi_hi', height=640)
+    if 'hitofude' in parts:
+        # 一筆花火: 玉を消したゲームの夜空と川辺の町 (横長の画面で描き出した _blender/src/hitofude_night.webp) を背に、ヒノコ。
+        # 線と花火の連鎖は ehon.html の buildHanabi が立体で描く。目次と挿絵はゲームのリンク用の絵から
+        backdrop('_blender/src/hitofude_night.webp', 'hitofude_back')
+        standee('_blender/src/hitofude_hino.webp', 'hitofude_hino', height=520)
+        toc('assets/og/hitofude-1200x630.jpg', 'hitofude', (0.0, 0.5))
+        plate('assets/og/hitofude-1200x630.jpg', 'hitofude', (0.0, 0.5))
     if 'tabi' in parts:
         for name, f, cap, portrait in TABI_PHOTOS:
             polaroid(TABI + f, 'tabi_' + name, cap, portrait)
