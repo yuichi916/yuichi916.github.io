@@ -38,7 +38,7 @@ PAGES = [
     ("sudoku", "/sudoku.html", '[data-feel="sudoku"]', None, "遊んでみて、どうでした？"),
     ("shogi-puyo", "/shogi-puyo.html", '[data-feel="shogi-puyo"]',
      "document.getElementById('startCard').hidden = true", "遊んでみて、どうでした？"),
-    ("bakekurabe", "/bakekurabe.html", '[data-feel="bakekurabe"]',
+    ("hitofude", "/hitofude.html", '[data-feel="hitofude"]',
      "document.getElementById('titleOv').hidden = true", "遊んでみて、どうでした？"),
     ("ehon", "/ehon.html", '[data-feel="ehon"]',
      "typeof renderColophon === 'function' && renderColophon()", "この絵本、どうでした？"),

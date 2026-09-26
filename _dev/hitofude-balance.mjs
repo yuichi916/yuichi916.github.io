@@ -1,0 +1,58 @@
+// 一筆花火のバランス測定。8 夜を通しで遊ぶ貪欲なボットで、何夜まで越えられるかの分布を出す。
+// 使い方: node _dev/hitofude-balance.mjs <月の番号 0-7> <T: 1 夜あたりに試す線の数（多いほど上手な人）> [priority|random]
+import * as K from '../assets/hitofude/core.js';
+function greedyStroke(shells, ink, rng) {
+  const alive = shells.filter((s) => !s.burst);
+  if (!alive.length) return [];
+  let cur = alive[Math.floor(rng() * alive.length)];
+  const pts = [{ x: cur.x, y: cur.y }];
+  let used = 0; const seen = new Set([cur.id]);
+  while (true) {
+    const cand = alive.filter((s) => !seen.has(s.id)).map((s) => ({ s, d: Math.hypot(s.x - cur.x, s.y - cur.y) })).sort((a, b) => a.d - b.d).slice(0, 3);
+    if (!cand.length) break;
+    const pick = cand[Math.floor(rng() * cand.length)];
+    if (used + pick.d > ink) break;
+    used += pick.d; seen.add(pick.s.id); cur = pick.s; pts.push({ x: cur.x, y: cur.y });
+  }
+  return pts;
+}
+const PRIORITY = ['kodou', 'mankai', 'kinun', 'nagafude', 'tairin', 'futofude', 'mashidama', 'owaridama', 'nokoribi', 'senrin', 'orebi', 'nihitsu'];
+export function playRun(seed, moon, T, rng, pickPolicy = 'priority') {
+  const charms = []; let total = 0; let cleared = 0; const scores = [];
+  for (let night = 0; night < K.NIGHTS; night++) {
+    let best = null;
+    for (let t = 0; t < T; t++) {
+      const st = K.newRound({ seed, night, charms, moon });
+      const s1 = greedyStroke(st.shells, st.ink, rng);
+      K.lightStroke(st, s1);
+      for (let n = 0; n < 3600 && !st.done; n++) {
+        if (st.phase === 'draw2') { const s2 = greedyStroke(st.shells, st.ink, rng); if (s2.length >= 3) K.lightStroke(st, s2); else K.finish(st); }
+        K.step(st); st.events.length = 0;
+      }
+      if (!best || st.result.score > best.score) best = st.result;
+    }
+    scores.push(best.score);
+    total += best.score;
+    if (best.score < K.TARGETS[night]) break;
+    cleared++;
+    const offer = K.offerCharms(seed, night, charms);
+    const pick = pickPolicy === 'random' ? offer[Math.floor(rng() * offer.length)] : offer.slice().sort((a, b) => PRIORITY.indexOf(a) - PRIORITY.indexOf(b))[0];
+    charms.push(pick);
+  }
+  return { cleared, total, scores, charms };
+}
+if (process.argv[1].endsWith('hitofude-balance.mjs')) {
+  const moon = +(process.argv[2] || 4), T = +(process.argv[3] || 3), policy = process.argv[4] || 'priority';
+  const rng = K.rng32(1234);
+  const hist = Array(9).fill(0); const perNight = Array(8).fill(null).map(() => []);
+  const N = 80;
+  for (let i = 1; i <= N; i++) {
+    const r = playRun(K.hashStr('seed' + i), moon, T, rng, policy);
+    hist[r.cleared]++;
+    r.scores.forEach((s, n) => perNight[n].push(s));
+  }
+  console.log(`moon ${K.MOONS[moon].ja} T=${T} ${policy}: nights cleared hist`, hist.map((c, i) => `${i}:${c}`).join(' '));
+  const reach = hist.map((_, i) => hist.slice(i).reduce((a, b) => a + b, 0) / N);
+  console.log('P(clear >= n):', reach.slice(1).map((p, i) => `${i + 1}:${(p * 100).toFixed(0)}%`).join(' '));
+  perNight.forEach((a, n) => { if (!a.length) return; a.sort((x, y) => x - y); console.log(`  night ${n + 1} (n=${a.length}) target ${K.TARGETS[n]} p50 ${a[Math.floor(a.length / 2)]} p90 ${a[Math.floor(a.length * 0.9)]}`); });
+}
