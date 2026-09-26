@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>一筆花火 — 線を1本。夜空が全部ひらく | Views Engineer</title>
+<meta name="description" content="指で線を1本ひくと、それが導火線になる。火が走り、花火玉がひらき、爆発が線の別の場所にも燃え移って連鎖する。点×倍率が跳ね上がる8夜のラン。今夜の本物の月の形でルールが変わる。登録なし・ブラウザで無料。">
+<meta name="theme-color" content="#0b0e22">
+<link rel="canonical" href="https://yuichi916.github.io/hitofude.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="一筆花火 — 線を1本。夜空が全部ひらく">
+<meta property="og:description" content="線を1本ひくと、それが導火線になる。連鎖で点×倍率が跳ね上がる。今夜の月でルールが変わる、8夜のラン。">
+<meta property="og:url" content="https://yuichi916.github.io/hitofude.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og/hitofude-1200x630.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<meta name="twitter:image" content="https://yuichi916.github.io/assets/og/hitofude-1200x630.jpg">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "一筆花火",
+  "alternateName": "Hitofude Hanabi",
+  "description": "指で線を1本ひくと、それが導火線になる。花火玉が連鎖してひらき、点×倍率が跳ね上がる8夜のラン。今夜の月の形でルールが変わる。",
+  "url": "https://yuichi916.github.io/hitofude.html",
+  "image": "https://yuichi916.github.io/assets/og/hitofude-1200x630.jpg",
+  "datePublished": "2026-09-26",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "genre": ["Puzzle", "Roguelite", "Chain reaction"],
+  "inLanguage": ["ja", "en"],
+  "author": { "@type": "Person", "name": "yuichi916", "url": "https://yuichi916.github.io/" },
+  "isPartOf": { "@type": "WebSite", "name": "Views Engineer", "url": "https://yuichi916.github.io/" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" }
+}
+</script>
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<style>
+:root{
+  --night:#0b0e22; --panel:rgba(12,14,34,.92); --line:rgba(255,226,150,.22);
+  --gold:#ffd75a; --gold-2:#f3c24c; --text:#f1ead8; --dim:#a9a4bd; --red:#ff6b5a; --green:#7dff8a;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:#05060f;color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,sans-serif;
+  overflow:hidden;-webkit-user-select:none;user-select:none}
+.serif{font-family:"Shippori Mincho",serif}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+a{color:var(--gold)}
+
+/* 画面（9:16 の舞台を、画面に合わせて置く） */
+#stage{position:fixed;inset:0;overflow:hidden;background:var(--night)}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#hud{position:absolute;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 8px * var(--u)) calc(10px * var(--u)) 0 calc(52px * var(--u));display:flex;align-items:flex-start;gap:calc(8px * var(--u));pointer-events:none;
+  max-width:calc(560px * var(--u));margin:0 auto}
+#hud .nights{font-size:calc(13px * var(--u));color:var(--dim);line-height:1.3}
+#hud .nights b{display:block;color:var(--text);font-size:calc(16px * var(--u))}
+#dots{letter-spacing:calc(2px * var(--u));font-size:calc(10px * var(--u))}
+#hud .mid{flex:1;text-align:center;font-size:calc(12px * var(--u));color:var(--dim);line-height:1.25}
+#hud .mid b{display:block;font-size:calc(18px * var(--u));color:var(--gold)}
+#hud .score{text-align:right;line-height:1.1}
+#scoreVal{font-size:calc(22px * var(--u));font-weight:800}
+#multVal{font-size:calc(14px * var(--u));color:var(--red);font-weight:800}
+#chips{position:absolute;left:calc(10px * var(--u));top:calc(env(safe-area-inset-top,0px) + 58px * var(--u));display:flex;gap:calc(4px * var(--u));flex-wrap:wrap;max-width:70%}
+#chips span{font-size:calc(15px * var(--u));background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:calc(8px * var(--u));
+  padding:calc(2px * var(--u)) calc(4px * var(--u));pointer-events:auto}
+#homeBtn{position:absolute;left:calc(8px * var(--u));top:calc(env(safe-area-inset-top,0px) + 8px * var(--u))}
+#topBtns{position:absolute;right:calc(8px * var(--u));bottom:calc(64px * var(--u) + var(--safe-b));display:flex;flex-direction:column;gap:calc(6px * var(--u))}
+.ibtn{width:calc(34px * var(--u));height:calc(34px * var(--u));border-radius:calc(10px * var(--u));background:rgba(12,14,34,.7);border:1px solid var(--line);
+  font-size:calc(16px * var(--u));display:flex;align-items:center;justify-content:center}
+.ibtn.on{border-color:var(--gold);color:var(--gold)}
+#chain{position:absolute;left:0;right:0;top:32%;text-align:center;pointer-events:none;opacity:0;transition:opacity .25s}
+#chain.on{opacity:1}
+#chainNum{font-size:calc(58px * var(--u));font-weight:800;line-height:1;color:#fff;text-shadow:0 0 calc(24px * var(--u)) rgba(255,210,120,.8),0 calc(3px * var(--u)) 0 rgba(0,0,0,.4)}
+#chainNum.pop{animation:pop .18s ease-out}
+#chainLbl{font-size:calc(16px * var(--u));color:var(--gold);letter-spacing:.2em}
+#callout{position:absolute;left:0;right:0;top:22%;text-align:center;pointer-events:none;font-size:calc(30px * var(--u));font-weight:800;color:var(--gold);
+  text-shadow:0 0 calc(18px * var(--u)) rgba(255,180,80,.9);opacity:0}
+#callout.on{animation:callout 1s ease-out forwards}
+@keyframes pop{0%{transform:scale(1.45)}100%{transform:scale(1)}}
+@keyframes callout{0%{opacity:0;transform:scale(.6)}15%{opacity:1;transform:scale(1.15)}30%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:translateY(calc(-20px * var(--u)))}}
+#banner{position:absolute;left:0;right:0;top:40%;text-align:center;pointer-events:none;opacity:0}
+#banner.on{animation:banner 1.3s ease-out forwards}
+#banner b{display:block;font-size:calc(40px * var(--u));color:#fff}
+#banner span{font-size:calc(16px * var(--u));color:var(--gold)}
+@keyframes banner{0%{opacity:0;transform:translateY(calc(12px * var(--u)))}20%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
+#hint{position:absolute;left:0;right:0;bottom:calc(14px * var(--u) + var(--safe-b));text-align:center;font-size:calc(14px * var(--u));color:var(--text);pointer-events:none;
+  text-shadow:0 1px 4px #000;transition:opacity .3s}
+#ink{position:absolute;left:calc(40px * var(--u));right:calc(40px * var(--u));bottom:calc(40px * var(--u) + var(--safe-b));height:calc(8px * var(--u));border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;pointer-events:none}
+#inkBar{height:100%;width:100%;background:linear-gradient(90deg,#ffb347,#ffd75a);border-radius:99px;transform-origin:left;transition:transform .05s linear}
+#skip2{position:absolute;right:calc(10px * var(--u));bottom:calc(58px * var(--u) + var(--safe-b));font-size:calc(13px * var(--u));background:var(--panel);border:1px solid var(--line);border-radius:calc(10px * var(--u));padding:calc(6px * var(--u)) calc(10px * var(--u))}
+/* 集計 */
+#tally{position:absolute;left:0;right:0;top:36%;text-align:center;pointer-events:none}
+#tally .row1{font-size:calc(20px * var(--u));color:var(--text);opacity:0}
+#tally .row1 b{color:var(--gold)} #tally .row1 i{font-style:normal;color:var(--red)}
+#tally .row2{font-size:calc(48px * var(--u));font-weight:800;color:#fff;opacity:0;text-shadow:0 0 calc(20px * var(--u)) rgba(255,200,120,.7)}
+#tally .row3{font-size:calc(18px * var(--u));color:var(--gold);opacity:0}
+#tally .stamp{margin-top:calc(10px * var(--u));display:inline-block;font-size:calc(26px * var(--u));font-weight:800;padding:calc(4px * var(--u)) calc(16px * var(--u));
+  border:calc(3px * var(--u)) solid currentColor;border-radius:calc(10px * var(--u));opacity:0;transform:rotate(-6deg) scale(2)}
+#tally .show{opacity:1;transition:opacity .15s}
+#tally .stamp.show{animation:stamp .28s ease-out forwards}
+@keyframes stamp{0%{opacity:0;transform:rotate(-6deg) scale(2)}100%{opacity:1;transform:rotate(-6deg) scale(1)}}
+
+/* 重ねる画面 */
+.ov{position:absolute;inset:0;z-index:20;display:flex;justify-content:center;overflow-y:auto;padding:calc(14px * var(--u)) calc(12px * var(--u)) calc(14px * var(--u) + var(--safe-b));
+  background:radial-gradient(120% 70% at 50% 15%,rgba(40,48,110,.55),rgba(5,6,16,.9));}
+.card{margin:auto;width:100%;max-width:calc(460px * var(--u));background:rgba(12,14,34,.94);border:1px solid var(--line);border-radius:calc(18px * var(--u));
+  padding:calc(20px * var(--u)) calc(16px * var(--u)) calc(16px * var(--u));text-align:center;font-size:calc(14px * var(--u))}
+.logo{font-size:calc(46px * var(--u));letter-spacing:.08em;line-height:1.1;color:#fff;text-shadow:0 0 calc(30px * var(--u)) rgba(255,190,100,.55)}
+.sub{margin-top:calc(6px * var(--u));font-size:calc(14px * var(--u));color:var(--gold);letter-spacing:.12em}
+.moonbox{margin:calc(14px * var(--u)) auto 0;display:flex;align-items:center;gap:calc(10px * var(--u));text-align:left;background:rgba(255,255,255,.04);
+  border:1px solid var(--line);border-radius:calc(12px * var(--u));padding:calc(10px * var(--u)) calc(12px * var(--u))}
+.moonbox canvas{width:calc(44px * var(--u));height:calc(44px * var(--u));flex:none}
+.moonbox .t{font-size:calc(12px * var(--u));color:var(--dim)}
+.moonbox .n{font-size:calc(16px * var(--u));color:var(--text)}
+.moonbox .r{font-size:calc(13px * var(--u));color:var(--gold)}
+.stack{display:flex;flex-direction:column;gap:calc(9px * var(--u));margin-top:calc(14px * var(--u))}
+.btn{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:calc(12px * var(--u));padding:calc(12px * var(--u));font-size:calc(15px * var(--u));min-height:calc(44px * var(--u))}
+.btn:hover{border-color:var(--gold)}
+.btn.primary{background:linear-gradient(180deg,#ffe07a,#f3b93a);color:#231606;border-color:#ffe07a;font-weight:800;box-shadow:0 calc(6px * var(--u)) calc(24px * var(--u)) calc(-8px * var(--u)) rgba(255,190,80,.6)}
+.btn.small{padding:calc(7px * var(--u)) calc(10px * var(--u));min-height:calc(36px * var(--u));font-size:calc(13px * var(--u))}
+.steps{margin-top:calc(14px * var(--u));display:grid;grid-template-columns:repeat(3,1fr);gap:calc(6px * var(--u))}
+.steps div{background:rgba(255,255,255,.04);border-radius:calc(10px * var(--u));padding:calc(8px * var(--u)) calc(4px * var(--u));font-size:calc(12px * var(--u));line-height:1.5}
+.steps i{display:block;font-style:normal;font-size:calc(22px * var(--u))}
+.legend{margin-top:calc(10px * var(--u));display:grid;grid-template-columns:1fr 1fr;gap:calc(4px * var(--u)) calc(8px * var(--u));text-align:left;font-size:calc(12px * var(--u));color:var(--dim)}
+.legend canvas{width:calc(20px * var(--u));height:calc(20px * var(--u));vertical-align:middle;margin-right:calc(4px * var(--u))}
+.stats{margin-top:calc(10px * var(--u));font-size:calc(12px * var(--u));color:var(--dim)}
+.lang{margin-top:calc(8px * var(--u));font-size:calc(12px * var(--u));color:var(--dim)}
+.lang button{padding:calc(4px * var(--u)) calc(8px * var(--u))}
+.lang button.on{color:var(--gold);text-decoration:underline}
+.about{margin-top:calc(16px * var(--u));padding-top:calc(12px * var(--u));border-top:1px solid var(--line);text-align:left;font-size:calc(12px * var(--u));line-height:1.9;color:#d3ccbb}
+.about h2{font-size:calc(11px * var(--u));letter-spacing:.2em;color:var(--dim);margin-bottom:calc(4px * var(--u));font-weight:600}
+.about p{margin-bottom:calc(10px * var(--u))}
+.about b{color:var(--gold)}
+.picks{display:flex;flex-direction:column;gap:calc(10px * var(--u));margin-top:calc(12px * var(--u))}
+.pick{display:flex;align-items:center;gap:calc(12px * var(--u));text-align:left;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:calc(14px * var(--u));
+  padding:calc(12px * var(--u));animation:rise .35s ease-out both}
+.pick:nth-child(2){animation-delay:.08s}.pick:nth-child(3){animation-delay:.16s}
+.pick:hover{border-color:var(--gold);background:rgba(255,215,90,.08)}
+.pick .e{font-size:calc(32px * var(--u))}
+.pick b{display:block;font-size:calc(16px * var(--u))}
+.pick span{font-size:calc(13px * var(--u));color:var(--dim)}
+@keyframes rise{0%{opacity:0;transform:translateY(calc(16px * var(--u)))}100%{opacity:1;transform:none}}
+.big{font-size:calc(40px * var(--u));font-weight:800;margin-top:calc(6px * var(--u))}
+.marks{font-size:calc(24px * var(--u));letter-spacing:calc(2px * var(--u));margin-top:calc(6px * var(--u))}
+.kv{display:flex;justify-content:center;gap:calc(16px * var(--u));margin-top:calc(8px * var(--u));color:var(--dim)}
+.kv b{color:var(--text);font-size:calc(17px * var(--u))}
+.world{margin-top:calc(8px * var(--u));color:var(--gold);min-height:1.4em;font-size:calc(13px * var(--u))}
+.small{font-size:calc(12px * var(--u));color:var(--dim)}
+.sharebox{margin-top:calc(12px * var(--u));display:grid;grid-template-columns:1fr 1fr;gap:calc(8px * var(--u))}
+.sharebox .wide{grid-column:1/-1}
+pre.share{margin-top:calc(10px * var(--u));text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;font-size:calc(12px * var(--u));background:rgba(0,0,0,.3);border-radius:calc(10px * var(--u));padding:calc(10px * var(--u));
+  -webkit-user-select:text;user-select:text}
+.endnext{margin-top:calc(14px * var(--u));padding-top:calc(12px * var(--u));border-top:1px solid rgba(255,255,255,.12);font-size:calc(12px * var(--u));line-height:1.9;opacity:.85}
+.endnext b{display:block;font-size:calc(11px * var(--u));letter-spacing:.18em;opacity:.6;margin-bottom:calc(4px * var(--u))}
+.endnext a{color:#e8c98a;text-decoration:none;margin:0 calc(6px * var(--u));white-space:nowrap}
+#toast{position:absolute;left:50%;bottom:calc(70px * var(--u));transform:translateX(-50%);background:var(--gold);color:#1a1206;border-radius:99px;padding:calc(7px * var(--u)) calc(14px * var(--u));
+  font-size:calc(13px * var(--u));font-weight:800;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;z-index:30}
+#toast.on{opacity:1}
+@media (prefers-reduced-motion:reduce){ #chainNum.pop,#callout.on,#banner.on{animation:none;opacity:1} }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="hud" hidden>
+    <div class="nights serif"><b id="nightLbl">一夜目</b><span id="dots"></span></div>
+    <div class="mid"><span data-t="target">目標</span><b class="mono" id="targetVal">0</b></div>
+    <div class="score"><div class="mono" id="scoreVal">0</div><div class="mono" id="multVal">×1</div></div>
+  </div>
+  <div id="chips"></div>
+  <button class="ibtn" id="homeBtn" aria-label="タイトルへ" hidden>☰</button>
+  <div id="topBtns" hidden>
+    <button class="ibtn" id="speedBtn" aria-label="はやおくり">⏩</button>
+    <button class="ibtn" id="soundBtn" aria-label="音">🔊</button>
+  </div>
+  <div id="chain"><div id="chainNum" class="mono">0</div><div id="chainLbl" class="serif">連鎖</div></div>
+  <div id="callout" class="serif"></div>
+  <div id="banner" class="serif"><b></b><span></span></div>
+  <div id="tally" class="serif" hidden><div class="row1"></div><div class="row2 mono"></div><div class="row3"></div><div class="stamp"></div></div>
+  <div id="ink" hidden><div id="inkBar"></div></div>
+  <div id="hint"></div>
+  <button id="skip2" hidden></button>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- タイトル -->
+  <section class="ov" id="titleOv">
+    <div class="card">
+      <h1 class="logo serif" data-t="title">一筆花火</h1>
+      <p class="sub serif" data-t="subtitle">線を1本。夜空が全部ひらく。</p>
+      <div class="moonbox"><canvas id="moonIcon" width="88" height="88"></canvas><div><div class="t" id="moonDate"></div><div class="n serif" id="moonName"></div><div class="r" id="moonRule"></div></div></div>
+      <div class="stack">
+        <button class="btn primary" id="dailyBtn"></button>
+        <button class="btn" id="freeBtn" data-t="freeBtn">🎇 自由に打ち上げる</button>
+      </div>
+      <div class="steps">
+        <div><i>☝️</i><span data-t="step1">指で、線を1本ひく</span></div>
+        <div><i>🔥</i><span data-t="step2">線が導火線になる</span></div>
+        <div><i>🎆</i><span data-t="step3">連鎖で、点×倍率</span></div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <p class="stats" id="stats"></p>
+      <p class="lang"><button data-lang="ja">日本語</button> · <button data-lang="en">English</button></p>
+      <div class="about">
+        <h2 data-t="aboutH">この作品について</h2>
+        <div data-t-html="about"><p>1回の入力で画面全体が気持ちよく動く連鎖と、数字が跳ね上がる倍率。いまバズるゲームを市場から調べて出した型のうち、<b>中毒性と爽快感</b>の部品を核にして作りました。線を引くと、それがそのまま導火線になります。火が走り、花火玉がひらき、爆発が線の別の場所にも燃え移ります。調べた中身と出典は <a href="method/bazuru-kata.html">研究ノート</a> にあります。</p>
+        <p><b>8夜のラン</b> — 夜ごとに目標点があり、越えるとお守りを1つ選べます。お守りの組み合わせで、点は何倍にも跳ねます。<b>今夜の月</b>の形（その日の本当の月齢）で、ルールが1つ変わります。毎晩、全員が同じ夜を遊べる「今夜の一筆」と、ランダムな夜の「自由に打ち上げる」があります。</p>
+        <p><b>勝負と再生</b> — 結果画面から、同じ夜で勝負するリンクと、いちばんの一筆を再生するリンクを送れます。配信や動画で使うのは自由です（連絡は要りません）。</p>
+        <p><b>お守り12種</b> — 🖌️<b>長い筆</b>（墨（線の長さ）+40%）、🪶<b>太い筆</b>（導火線の火が届く幅 ×2）、🌸<b>大輪</b>（玉のひらく大きさ +30%）、💰<b>金運</b>（金の玉は倍率 +2）、💫<b>千輪</b>（千輪の火花が 10 本に）、⚡<b>折れ火</b>（線の鋭い曲がり角が、ひとりでに爆ぜる）、💣<b>終わり玉</b>（線の終わりで、大玉ひとつ分爆ぜる）、🥁<b>鼓動</b>（5 連鎖ごとに倍率 +1（ふだんは 10））、🌕<b>満開の加護</b>（全部ひらいたら ×4（ふだんは ×2））、🎇<b>増し玉</b>（夜ごとに花火玉が 6 つ増える）、✌️<b>二筆目</b>（25 個ひらいたら、もう1本（墨は半分））、🔥<b>残り火</b>（ひらいた玉の 1/4 が、もう一度はじける）。</p>
+        <p><b>月ごとのルール</b> — <b>新月・闇夜</b>は金の玉が2倍出る、<b>三日月・細い月</b>は千輪が3つ増える、<b>上弦の月・半月</b>は導火線の火が届く幅 ×3、<b>十三夜・満ちてゆく月</b>は大玉が2倍出る、<b>満月・大輪の夜</b>は玉のひらく大きさ +12%、<b>寝待月・欠けてゆく月</b>は倍率が +1 から始まる、<b>下弦の月・残り火の夜</b>はひらいた玉の 2/5 が、もう一度はじける、<b>有明の月・明け方の月</b>は墨（線の長さ）+25%。月齢は日本時間の21時で数えます。</p></div>
+      </div>
+      <div class="endnext"><b>NEXT</b><a href="sudoku.html" data-t="nextSudoku">異世界立体数独</a><a href="shogi-puyo.html" data-t="nextPuyo">将棋ぷよ「成」</a><br><a href="index.html" style="opacity:.7" data-t="allWorks">ほかの作品をぜんぶ見る →</a></div>
+    </div>
+  </section>
+
+  <!-- お守りを選ぶ -->
+  <section class="ov" id="pickOv" hidden>
+    <div class="card">
+      <p class="sub serif" id="pickHead"></p>
+      <h2 class="serif" style="font-size:calc(24px * var(--u));margin-top:calc(4px * var(--u))" data-t="pickTitle">お守りを1つ選ぶ</h2>
+      <div class="picks" id="picks"></div>
+      <p class="small" style="margin-top:calc(10px * var(--u))" id="pickNext"></p>
+    </div>
+  </section>
+
+  <!-- 届いたリンク -->
+  <section class="ov" id="linkOv" hidden>
+    <div class="card" id="linkCard"></div>
+  </section>
+
+  <!-- 結果 -->
+  <section class="ov" id="resultOv" hidden>
+    <div class="card">
+      <div id="resultBody"></div>
+      <div data-feel="hitofude" data-feel-set="game" data-feel-mode="compact"></div>
+      <div class="endnext"><b>NEXT</b><a href="method/bazuru-kata.html" data-t="nextNote">この型の研究ノート</a><a href="sudoku.html" data-t="nextSudoku">異世界立体数独</a><a href="shogi-puyo.html" data-t="nextPuyo">将棋ぷよ「成」</a><br><a href="index.html" style="opacity:.7" data-t="allWorks">ほかの作品をぜんぶ見る →</a></div>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+import * as K from './assets/hitofude/core.js';
+import { counterUrl, parseCount } from './assets/feel/feel-core.js';
+
+// ================================================================ 言葉
+const KANJI = ['一', '二', '三', '四', '五', '六', '七', '八'];
+const T = {
+  ja: {
+    title: '一筆花火', subtitle: '線を1本。夜空が全部ひらく。', freeBtn: '🎇 自由に打ち上げる',
+    step1: '指で、線を1本ひく', step2: '線が導火線になる', step3: '連鎖で、点×倍率',
+    aboutH: 'この作品について', allWorks: 'ほかの作品をぜんぶ見る →', nextSudoku: '異世界立体数独', nextPuyo: '将棋ぷよ「成」', nextNote: 'この型の研究ノート',
+    target: '目標', pickTitle: 'お守りを1つ選ぶ',
+    dailyGo: (no) => `🌕 今夜の一筆 #${no}`, dailyDone: '🌕 今夜の結果を見る',
+    moonDate: (m, d, w) => `${m}月${d}日（${w}）の月`, wd: ['日', '月', '火', '水', '木', '金', '土'],
+    moonName: (m) => `${m.ja}・${m.name}`, moonRule: (m) => `今夜のルール: ${m.rule}`,
+    stats: (best, streak) => (best ? `最高 ${K.fmt(best)}点${streak ? ` ・ 連続 ${streak} 夜` : ''}` : 'はじめての夜'),
+    legend: { kiku: '菊 — ふつうの玉', ootama: '大玉 — 大きくひらく', kin: '金 — 倍率 +1', senrin: '千輪 — 火花が飛ぶ' },
+    night: (n) => `${KANJI[n]}夜目`, bannerTarget: (t) => `目標 ${K.fmt(t)} 点`,
+    hintDraw: '指で、線を1本ひく', hintDraw2: '二筆目！ もう1本（墨は半分）', hintShort: 'もう少し長く', hintInkOut: '墨が切れた',
+    skip2: 'ひかずに終える', chain: '連鎖',
+    call: { 10: '連鎖！', 20: '大連鎖！', 30: '夜空が騒ぐ！', 50: '百花繚乱！', 80: '天が割れる！' },
+    last: (n) => `あと ${n} つ…`, mankai: '満開！',
+    tallyRow1: (c, m) => `点 <b>${K.fmt(c)}</b> × 倍率 <i>${m}</i>`, bloom: (b) => `満開 ×${b}`,
+    pass: '越えた！', fail: '散った…', huge: '大当たり！',
+    pickHead: (n) => `${KANJI[n]}夜を越えた`, pickNext: (n, t) => `次は${KANJI[n]}夜目 ・ 目標 ${K.fmt(t)} 点`,
+    resDaily: (no, md, m) => `今夜の一筆 #${no}　${md}　${m}`, resFree: '自由な夜', resPractice: '今夜の一筆（練習・記録なし）', resDuel: '勝負の夜',
+    complete: '八夜 完走！', reached: (n) => `${n} / 8 夜`,
+    total: '合計', bestChain: '最大連鎖', charms: 'お守り',
+    share: '結果をシェア', postX: 'X に投稿', saveImg: '画像で保存', copy: 'コピー', copied: 'コピーしました', noShare: '下の文をコピーして貼ってください',
+    duelLink: '⚔️ この夜で勝負（リンク）', replayLink: '🎬 いちばんの一筆を見せる',
+    again: 'もう一回', againPractice: 'もう一回（練習）', back: 'タイトルへ',
+    world: (n, p) => (p != null ? `今夜 ${n} 人が挑戦 ・ あなたは上位 ${p}%` : (n ? `今夜 ${n} 人が挑戦` : '')),
+    streak: (s) => `連続 ${s} 夜`,
+    duelHead: '勝負を挑まれました', duelBody: (s, m) => `同じ夜で、${K.fmt(s)} 点を超えろ。<br><small>${m}</small>`, duelBodyNoScore: (m) => `同じ夜で勝負。<br><small>${m}</small>`,
+    duelGo: '⚔️ 受けて立つ', duelWin: (s) => `勝った！（相手 ${K.fmt(s)} 点）`, duelLose: (s) => `負けた…（相手 ${K.fmt(s)} 点）`,
+    replayHead: '一筆が届きました', replayBody: (n, s) => `${KANJI[n]}夜目、${K.fmt(s)} 点の一筆。再生して、同じ夜で超えにいこう。`, replayGo: '🎬 再生する',
+    replayCta: '✍️ 同じ夜で一筆勝負', singleHead: '一筆勝負', singleWin: (s) => `超えた！（相手 ${K.fmt(s)} 点）`, singleLose: (s) => `届かず…（相手 ${K.fmt(s)} 点）`,
+    retry: 'もう一筆', badLink: 'リンクが読めませんでした。',
+    duelShare: (s, url) => `一筆花火で ${K.fmt(s)} 点。同じ夜で勝負しよう。\n${url}\n${K.HASHTAG}`,
+    replayShare: (n, s, url) => `一筆花火、${KANJI[n]}夜目の一筆で ${K.fmt(s)} 点。この一筆、超えられる？\n${url}\n${K.HASHTAG}`,
+    imgPts: '点', imgChain: '最大', imgChainUnit: '連鎖',
+  },
+  en: {
+    title: 'Hitofude Hanabi', subtitle: 'One stroke. The whole sky blooms.', freeBtn: '🎇 Free play',
+    step1: 'Draw one line', step2: 'It becomes a fuse', step3: 'Chain for points × mult',
+    aboutH: 'About', allWorks: 'See all works →', nextSudoku: 'Rune Cube', nextPuyo: 'Shogi Puyo', nextNote: 'Research note (JA)',
+    target: 'Target', pickTitle: 'Pick one charm',
+    dailyGo: (no) => `🌕 Tonight's stroke #${no}`, dailyDone: '🌕 See tonight\'s result',
+    moonDate: (m, d, w) => `Moon of ${w} ${m}/${d}`, wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    moonName: (m) => m.en, moonRule: (m) => `Tonight's rule: ${m.ruleEn}`,
+    stats: (best, streak) => (best ? `Best ${K.fmt(best)}${streak ? ` · streak ${streak}` : ''}` : 'Your first night'),
+    legend: { kiku: 'Chrysanthemum — normal', ootama: 'Big shell — huge burst', kin: 'Gold — mult +1', senrin: 'Star — fires sparks' },
+    night: (n) => `Night ${n + 1}`, bannerTarget: (t) => `Target ${K.fmt(t)}`,
+    hintDraw: 'Draw one line with your finger', hintDraw2: 'Second stroke! (half ink)', hintShort: 'A bit longer', hintInkOut: 'Out of ink',
+    skip2: 'Skip', chain: 'chain',
+    call: { 10: 'Chain!', 20: 'Big chain!', 30: 'The sky roars!', 50: 'A thousand blooms!', 80: 'Heaven splits!' },
+    last: (n) => `${n} left…`, mankai: 'Full bloom!',
+    tallyRow1: (c, m) => `points <b>${K.fmt(c)}</b> × mult <i>${m}</i>`, bloom: (b) => `Full bloom ×${b}`,
+    pass: 'Cleared!', fail: 'Fizzled…', huge: 'Jackpot!',
+    pickHead: (n) => `Night ${n + 1} cleared`, pickNext: (n, t) => `Next: night ${n + 1} · target ${K.fmt(t)}`,
+    resDaily: (no, md, m) => `Tonight #${no} · ${md} · ${m}`, resFree: 'Free night', resPractice: 'Tonight (practice, not recorded)', resDuel: 'Duel',
+    complete: 'All 8 nights!', reached: (n) => `${n} / 8 nights`,
+    total: 'Total', bestChain: 'Best chain', charms: 'Charms',
+    share: 'Share', postX: 'Post on X', saveImg: 'Save image', copy: 'Copy', copied: 'Copied', noShare: 'Copy the text below',
+    duelLink: '⚔️ Duel on this night (link)', replayLink: '🎬 Share your best stroke',
+    again: 'Again', againPractice: 'Again (practice)', back: 'Title',
+    world: (n, p) => (p != null ? `${n} players tonight · top ${p}%` : (n ? `${n} players tonight` : '')),
+    streak: (s) => `Streak ${s}`,
+    duelHead: 'You\'ve been challenged', duelBody: (s, m) => `Same nights. Beat ${K.fmt(s)}.<br><small>${m}</small>`, duelBodyNoScore: (m) => `Same nights. Let\'s duel.<br><small>${m}</small>`,
+    duelGo: '⚔️ Accept', duelWin: (s) => `You won! (they had ${K.fmt(s)})`, duelLose: (s) => `You lost… (they had ${K.fmt(s)})`,
+    replayHead: 'A stroke arrived', replayBody: (n, s) => `Night ${n + 1}, a ${K.fmt(s)}-point stroke. Watch it, then beat it.`, replayGo: '🎬 Play',
+    replayCta: '✍️ Beat this stroke', singleHead: 'Stroke duel', singleWin: (s) => `Beaten! (theirs: ${K.fmt(s)})`, singleLose: (s) => `Not yet… (theirs: ${K.fmt(s)})`,
+    retry: 'Try again', badLink: 'This link could not be read.',
+    duelShare: (s, url) => `${K.fmt(s)} points in Hitofude Hanabi. Duel me on the same nights.\n${url}\n#hitofudehanabi`,
+    replayShare: (n, s, url) => `One stroke, ${K.fmt(s)} points on night ${n + 1}. Can you beat it?\n${url}\n#hitofudehanabi`,
+    imgPts: 'pts', imgChain: 'best', imgChainUnit: 'chain',
+  },
+};
+const LS = 'hitofude.v1';
+function load() { try { return JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch (e) { return {}; } }
+function save() { try { localStorage.setItem(LS, JSON.stringify(DB)); } catch (e) { /* 保存できなくても遊べる */ } }
+let DB = load();
+function pickLang() {
+  const q = new URLSearchParams(location.search).get('lang');
+  if (q === 'en' || q === 'ja') return q;
+  let v = null; try { v = localStorage.getItem('ve_lang'); } catch (e) { /* なし */ }
+  if (v) return v === 'ja' ? 'ja' : 'en';
+  return (navigator.language || 'ja').toLowerCase().startsWith('ja') ? 'ja' : 'en';
+}
+let lang = pickLang();
+const t = (k, ...a) => { const v = (T[lang] && T[lang][k] != null) ? T[lang][k] : T.ja[k]; return typeof v === 'function' ? v(...a) : v; };
+const $ = (s) => document.querySelector(s);
+function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+function btn(label, cls, fn) { const b = el('button', 'btn ' + (cls || ''), label); b.type = 'button'; b.addEventListener('click', fn); return b; }
+
+// ================================================================ 計測
+function gc(path) {
+  let tries = 0;
+  (function attempt() {
+    const g = window.goatcounter;
+    if (g && typeof g.count === 'function') { try { g.count({ path, title: path, event: true }); } catch (e) { /* 計測で画面を壊さない */ } return; }
+    if (++tries < 20) setTimeout(attempt, 250);
+  })();
+}
+async function countOf(path) {
+  try {
+    const r = await fetch(counterUrl(path), { mode: 'cors' });
+    if (r.status === 404) return 0;
+    if (!r.ok) return null;
+    return parseCount(await r.json());
+  } catch (e) { return null; }
+}
+
+// ================================================================ 音（その場で合成）
+let actx = null, master = null, noiseBuf = null;
+let muted = !!DB.muted;
+function audio() {
+  if (muted) return null;
+  try {
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = actx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6;
+      master = actx.createGain(); master.gain.value = 0.9; master.connect(comp).connect(actx.destination);
+      noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  } catch (e) { return null; }
+}
+function tone(freq, dur, type = 'sine', vol = 0.15, slide = 0, delay = 0) {
+  const a = audio(); if (!a) return;
+  const t0 = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(master); o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function noise(dur, vol, freq, q = 1, type = 'bandpass', delay = 0) {
+  const a = audio(); if (!a) return;
+  const t0 = a.currentTime + delay, src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  src.buffer = noiseBuf; src.loop = true; f.type = type; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(f).connect(g).connect(master); src.start(t0, Math.random()); src.stop(t0 + dur + 0.02);
+}
+const PENTA = [0, 2, 4, 7, 9];
+let lastThump = 0, lastChime = 0, lastCrackle = 0;
+const SFX = {
+  whoosh() { noise(0.35, 0.18, 900, 0.7, 'bandpass'); tone(220, 0.3, 'sine', 0.05, 400); },
+  light() { noise(0.12, 0.2, 3000, 0.8, 'highpass'); },
+  crackle() { const n = performance.now(); if (n - lastCrackle < 45) return; lastCrackle = n; noise(0.03, 0.06 + Math.random() * 0.05, 2500 + Math.random() * 3000, 3); },
+  burst(type, chain) {
+    const n = performance.now();
+    if (n - lastThump > 38) {
+      lastThump = n;
+      const big = type === 'ootama';
+      tone(big ? 90 : 120, big ? 0.45 : 0.28, 'sine', big ? 0.32 : 0.2, big ? -55 : -70);
+      noise(big ? 0.7 : 0.4, big ? 0.16 : 0.1, 1400, 0.6);
+    }
+    if (n - lastChime > 28) {
+      lastChime = n;
+      const i = Math.min(chain - 1, 19), f = 392 * 2 ** ((PENTA[i % 5] + 12 * Math.floor(i / 5)) / 12);
+      tone(f, 0.26, 'triangle', 0.09); tone(f * 2, 0.18, 'sine', 0.03);
+      if (type === 'kin') { tone(f * 1.5, 0.35, 'sine', 0.07, 0, 0.03); tone(f * 3, 0.25, 'sine', 0.04, 0, 0.06); }
+    }
+  },
+  milestone() { [0, 4, 7, 12].forEach((s, i) => tone(523 * 2 ** (s / 12), 0.5, 'triangle', 0.08, 0, i * 0.04)); },
+  tick() { tone(1200 + Math.random() * 400, 0.04, 'square', 0.025); },
+  slam() { tone(70, 0.5, 'sine', 0.35, -30); noise(0.3, 0.2, 400, 0.5, 'lowpass'); },
+  pass() { [0, 4, 7, 12, 16].forEach((s, i) => tone(523 * 2 ** (s / 12), 0.35, 'triangle', 0.1, 0, i * 0.07)); },
+  fail() { [7, 3, 0, -5].forEach((s, i) => tone(392 * 2 ** (s / 12), 0.4, 'triangle', 0.08, 0, i * 0.12)); },
+  pick() { tone(880, 0.12, 'triangle', 0.08); tone(1320, 0.2, 'sine', 0.06, 0, 0.06); },
+  mankai() { [0, 4, 7, 11, 14, 19].forEach((s, i) => tone(392 * 2 ** (s / 12), 1.2, 'triangle', 0.08, 0, i * 0.05)); },
+};
+function renderSound() { $('#soundBtn').textContent = muted ? '🔇' : '🔊'; }
+
+// ================================================================ 舞台と描画の下ごしらえ
+const stage = $('#stage'), cv = $('#cv'), ctx = cv.getContext('2d');
+// 画面の大きさ。遊ぶ範囲（K.W × K.H）を拡大率 s で中央に置き、はみ出した所は夜空と川で埋める
+const V = { vw: 360, vh: 640, s: 1, ox: 0, oy: 0, dpr: 1 };
+const HUES = ['#ff5a4f', '#ffa23a', '#ffd75a', '#7dff8a', '#5ee7ff', '#7b8cff', '#ff6bd6'];
+const HUE_RGB = HUES.map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+let bg = document.createElement('canvas');
+function layout() {
+  V.vw = window.innerWidth; V.vh = window.innerHeight;
+  V.s = Math.min(V.vw / K.W, V.vh / K.H);
+  V.ox = (V.vw - K.W * V.s) / 2; V.oy = (V.vh - K.H * V.s) / 2;
+  V.dpr = Math.min(2, window.devicePixelRatio || 1);
+  stage.style.setProperty('--u', Math.max(0.8, Math.min(1.35, V.s)).toFixed(4));
+  cv.width = Math.round(V.vw * V.dpr); cv.height = Math.round(V.vh * V.dpr);
+  sprites.clear();
+  drawBackground();
+}
+// 論理座標 → キャンバスの変換（ずらし sx, sy はデバイス画素）
+function toCanvas(g, sx = 0, sy = 0) { const k = V.s * V.dpr; g.setTransform(k, 0, 0, k, V.ox * V.dpr + sx, V.oy * V.dpr + sy); }
+const view = () => ({ L: -V.ox / V.s, R: (V.vw - V.ox) / V.s, T: -V.oy / V.s, B: (V.vh - V.oy) / V.s });
+// 夜空・月・町並み・川（夜ごとに一度だけ描く）
+function drawBackground() {
+  bg.width = cv.width; bg.height = cv.height;
+  const g = bg.getContext('2d');
+  toCanvas(g);
+  const { L, R, T, B } = view();
+  const sky = g.createLinearGradient(0, Math.min(0, T), 0, 560);
+  sky.addColorStop(0, '#05061a'); sky.addColorStop(0.55, '#0e1440'); sky.addColorStop(1, '#27305f');
+  g.fillStyle = sky; g.fillRect(L, T, R - L, 562 - T);
+  const rng = K.rng32(4242);
+  const nStars = Math.round(140 * (R - L) / K.W * (560 - T) / 560);
+  for (let i = 0; i < nStars; i++) {
+    const x = L + rng() * (R - L), y = T + rng() * (480 - T), r = rng() < 0.1 ? 1.2 : 0.6;
+    g.globalAlpha = 0.25 + rng() * 0.6; g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  g.globalAlpha = 1;
+  drawMoon(g, 300, 84, 24, S.moonPhase, true);
+  // 遠い山
+  g.fillStyle = '#141a3d';
+  g.beginPath(); g.moveTo(L, 560);
+  for (let x = Math.floor(L / 12) * 12; x <= R + 12; x += 12) g.lineTo(x, 520 - Math.sin(x / 40) * 10 - Math.sin(x / 17 + 1) * 5);
+  g.lineTo(R, 560); g.fill();
+  // 町並み（屋根と、あかりの窓）と五重塔
+  const town = K.rng32(99);
+  g.fillStyle = '#0a0c1f';
+  let x = L - 6;
+  while (x < R + 10) {
+    const w = 20 + town() * 26, h = 14 + town() * 14, base = 562;
+    g.beginPath(); g.moveTo(x - 3, base - h); g.lineTo(x + w / 2, base - h - 9 - town() * 5); g.lineTo(x + w + 3, base - h); g.lineTo(x + w, base - h); g.lineTo(x + w, base); g.lineTo(x, base); g.lineTo(x, base - h); g.fill();
+    for (let j = 0; j < 3; j++) if (town() < 0.5) { g.fillStyle = town() < 0.5 ? '#ffcf73' : '#ff9d4d'; g.globalAlpha = 0.55 + town() * 0.4; g.fillRect(x + 4 + j * 7, base - h + 5 + town() * 5, 3, 3); g.fillStyle = '#0a0c1f'; g.globalAlpha = 1; }
+    x += w + 2;
+  }
+  const px = 70, pb = 556;
+  for (let i = 0; i < 5; i++) {
+    const w = 30 - i * 4, y = pb - i * 13;
+    g.beginPath(); g.moveTo(px - w / 2 - 6, y - 8); g.quadraticCurveTo(px, y - 13, px + w / 2 + 6, y - 8); g.lineTo(px + w / 2, y - 6); g.lineTo(px + w / 2, y + 4); g.lineTo(px - w / 2, y + 4); g.lineTo(px - w / 2, y - 6); g.fill();
+  }
+  g.fillRect(px - 1, pb - 80, 2, 18);
+  // 川（映り込みは毎回上書きする。ここは水の色だけ）
+  const river = g.createLinearGradient(0, 562, 0, Math.max(K.H, B));
+  river.addColorStop(0, '#0d1236'); river.addColorStop(1, '#05061a');
+  g.fillStyle = river; g.fillRect(L, 562, R - L, Math.max(K.H, B) - 562);
+}
+function drawMoon(g, cx, cy, r, phase, halo) {
+  if (halo) {
+    const hg = g.createRadialGradient(cx, cy, r * 0.8, cx, cy, r * 3.2);
+    hg.addColorStop(0, 'rgba(255,240,200,.28)'); hg.addColorStop(1, 'rgba(255,240,200,0)');
+    g.fillStyle = hg; g.beginPath(); g.arc(cx, cy, r * 3.2, 0, 7); g.fill();
+  }
+  const kk = Math.cos(2 * Math.PI * phase);
+  g.save(); g.beginPath(); g.arc(cx, cy, r, 0, 7); g.clip();
+  g.fillStyle = '#2a2f55'; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+  // 光っている側: 縁の半円と、明暗の境（半楕円）で囲む。満ちるときは右、欠けるときは左が光る
+  g.fillStyle = '#fff1c1';
+  g.beginPath();
+  if (phase <= 0.5) { g.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false); g.ellipse(cx, cy, Math.abs(kk) * r, r, 0, Math.PI / 2, -Math.PI / 2, kk > 0); }
+  else { g.arc(cx, cy, r, Math.PI / 2, Math.PI * 1.5, false); g.ellipse(cx, cy, Math.abs(kk) * r, r, 0, -Math.PI / 2, Math.PI / 2, kk > 0); }
+  g.fill();
+  g.fillStyle = 'rgba(200,180,120,.35)';
+  for (const [dx, dy, rr] of [[-6, -5, 5], [7, 4, 4], [-3, 9, 3], [9, -8, 2.5]]) { g.beginPath(); g.arc(cx + dx, cy + dy, rr, 0, 7); g.fill(); }
+  g.restore();
+}
+// 花火玉の絵（種類 × 色ごとに一度だけ描いて使い回す）
+const sprites = new Map();
+function shellSprite(type, hue) {
+  const key = type + hue;
+  if (sprites.has(key)) return sprites.get(key);
+  const def = K.SHELLS[type], k = V.s * V.dpr, size = Math.ceil((def.r * 2 + 16) * k);
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'); g.setTransform(k, 0, 0, k, 0, 0);
+  const cx = size / k / 2, cy = size / k / 2, r = def.r;
+  const col = type === 'kin' ? '#ffd75a' : type === 'ootama' ? '#fff0c0' : HUES[hue];
+  const glow = g.createRadialGradient(cx, cy, r * 0.6, cx, cy, r + 8);
+  glow.addColorStop(0, col + 'aa'); glow.addColorStop(1, col + '00');
+  g.fillStyle = glow; g.beginPath(); g.arc(cx, cy, r + 8, 0, 7); g.fill();
+  const body = g.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.1, cx, cy, r);
+  if (type === 'kin') { body.addColorStop(0, '#fff6c8'); body.addColorStop(0.5, '#f0b93a'); body.addColorStop(1, '#8a5a12'); }
+  else { body.addColorStop(0, '#6b5a4a'); body.addColorStop(0.6, '#3a2c24'); body.addColorStop(1, '#1c1512'); }
+  g.fillStyle = body; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+  g.lineWidth = type === 'ootama' ? 2.2 : 1.6; g.strokeStyle = col; g.beginPath(); g.arc(cx, cy, r - 1, 0, 7); g.stroke();
+  if (type === 'ootama') { g.lineWidth = 1.2; g.beginPath(); g.arc(cx, cy, r - 5, 0, 7); g.stroke(); }
+  if (type === 'senrin') { g.fillStyle = col; for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; g.beginPath(); g.arc(cx + Math.cos(a) * (r + 3.5), cy + Math.sin(a) * (r + 3.5), 1.5, 0, 7); g.fill(); } }
+  if (type === 'kin') { g.fillStyle = '#fff'; g.font = `700 ${r * 1.1}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('金', cx, cy + 0.5); }
+  // 口火（上にちょこんと出た導火線）
+  g.strokeStyle = '#c9a24a'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx, cy - r); g.quadraticCurveTo(cx + 3, cy - r - 4, cx + 1, cy - r - 6); g.stroke();
+  const out = { c, size: size / k };
+  sprites.set(key, out);
+  return out;
+}
+
+// ================================================================ 状態
+const S = {
+  mode: 'title', phase: 'idle', st: null, run: null, moonPhase: 0.5, moonIdx: 4,
+  particles: [], flashes: [], texts: [], shake: 0, speed: DB.speed || 1, timeScale: 1, acc: 0, last: 0,
+  drawing: null, burnT: [], lastCall: 0, ghost: null, replay: null, single: null, finaleUntil: 0,
+};
+function today() { return K.jstDateKey(new Date()); }
+function setMoonFor(key) { S.moonPhase = K.moonPhase(key); S.moonIdx = K.moonIndex(S.moonPhase); }
+
+// ================================================================ 粒（花火）
+const MAX_P = 2600;
+function spawnBurst(x, y, type, hue) {
+  const def = K.SHELLS[type];
+  const R = def.R * (S.st ? S.st.rules.radius : 1);
+  const n = Math.max(18, Math.round((type === 'ootama' ? 150 : type === 'senrin' ? 50 : 80) * (S.particles.length > MAX_P * 0.7 ? 0.4 : 1)));
+  const rgb = type === 'kin' ? [255, 215, 90] : type === 'ootama' ? [255, 240, 196] : HUE_RGB[hue];
+  const rgb2 = type === 'ootama' ? HUE_RGB[hue] : null;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = (0.55 + Math.random() * 0.5) * R * 2.4;
+    const life = 0.9 + Math.random() * 0.6;
+    S.particles.push({ x, y, px: x, py: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life, max: life, rgb: rgb2 && i % 2 ? rgb2 : rgb, glit: type === 'kin' });
+  }
+  S.flashes.push({ x, y, r: R * 1.1, t: 0, max: 0.18 });
+  S.shake = Math.min(7, S.shake + (type === 'ootama' ? 3.5 : 1.2));
+  if (S.particles.length > MAX_P) S.particles.splice(0, S.particles.length - MAX_P);
+}
+function spawnSparkle(x, y, n = 2, rgb = [255, 190, 90]) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 20 + Math.random() * 60;
+    S.particles.push({ x, y, px: x, py: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 20, life: 0.25 + Math.random() * 0.3, max: 0.5, rgb, small: true });
+  }
+}
+function finale() {
+  S.finaleUntil = performance.now() + 1600;
+  for (let i = 0; i < 6; i++) setTimeout(() => { spawnBurst(40 + Math.random() * 280, 120 + Math.random() * 280, i % 3 ? 'kiku' : 'ootama', i % 7); SFX.burst('ootama', 1 + i * 3); }, i * 170);
+}
+
+// ================================================================ 毎フレーム
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - (S.last || now)) / 1000); S.last = now;
+  // シミュレーションを進める（1/60 秒ずつ。見せ場ではゆっくり）
+  const st = S.st;
+  if (st && S.phase === 'burn') {
+    const left = st.shells.filter((s) => !s.burst).length;
+    const slow = left > 0 && left <= 3 && st.pops >= 8 && (st.heads.length || st.explosions.length);
+    S.timeScale += ((slow ? 0.4 : 1) * S.speed - S.timeScale) * 0.2;
+    S.acc += dt * S.timeScale;
+    let n = 0;
+    while (S.acc >= K.DT && n++ < 8) { S.acc -= K.DT; K.step(st); handleEvents(st); if (st.phase !== 'burn') break; }
+    if (slow && now - S.lastCall > 1500) { S.lastCall = now; callout(t('last', left)); }
+    if (st.phase === 'draw2') {
+      // 再生では、届いた二筆目をそのまま置く（無ければそこで終わり）
+      if (S.mode === 'replay') { const s2 = S.replay.strokes[1]; if (s2) { K.lightPoints(st, s2); handleEvents(st); } else K.finish(st); }
+      else enterDraw(true);
+    } else if (st.done) onRoundDone();
+  }
+  // 粒
+  const g = 90;
+  for (const p of S.particles) {
+    p.px = p.x; p.py = p.y;
+    const drag = Math.exp(-3.2 * dt);
+    p.vx *= drag; p.vy = p.vy * drag + g * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+  }
+  S.particles = S.particles.filter((p) => p.life > 0);
+  for (const f of S.flashes) f.t += dt;
+  S.flashes = S.flashes.filter((f) => f.t < f.max);
+  S.shake *= Math.exp(-8 * dt);
+  draw(now);
+}
+
+function handleEvents(st) {
+  for (const e of st.events) {
+    if (e.type === 'burst') {
+      spawnBurst(e.shell.x, e.shell.y, e.shell.type, e.shell.hue);
+      SFX.burst(e.shell.type, e.chain);
+      setChain(e.chain);
+      if (navigator.vibrate && e.chain % 3 === 1) try { navigator.vibrate(6); } catch (x) { /* 無視 */ }
+    } else if (e.type === 'ember') {
+      spawnBurst(e.x, e.y, 'kiku', 1);
+      SFX.burst('kiku', st.pops);
+    } else if (e.type === 'catch') {
+      spawnSparkle(e.x, e.y, 10); SFX.light();
+    }
+  }
+  st.events.length = 0;
+  updateScore();
+}
+
+function draw(now) {
+  const k = V.s * V.dpr;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const sx = (Math.random() - 0.5) * S.shake * k, sy = (Math.random() - 0.5) * S.shake * k;
+  ctx.drawImage(bg, sx, sy);
+  toCanvas(ctx, sx, sy);
+  const st = S.st;
+  // 爆発の明かりで夜空が明るくなる
+  ctx.globalCompositeOperation = 'lighter';
+  if (st) for (const e of st.explosions) {
+    const life = Math.max(0, 1 - e.t / (K.BURST_GROW + K.BURST_HOLD + 0.6));
+    if (life <= 0) continue;
+    const r = e.R * 2.2;
+    const glow = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, r);
+    const c = e.hue >= 0 ? HUE_RGB[e.hue] : [255, 220, 150];
+    glow.addColorStop(0, `rgba(${c[0]},${c[1]},${c[2]},${0.22 * life})`); glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, 7); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  const tt = now / 1000;
+  // 花火玉
+  if (st) {
+    const hot = S.drawing ? S.drawing.hot : null;
+    for (const s of st.shells) {
+      if (s.burst) continue;
+      const sp = shellSprite(s.type, s.hue);
+      const bob = Math.sin(tt * 1.6 + s.id) * 1.2;
+      if (hot && hot.has(s.id)) {
+        ctx.strokeStyle = 'rgba(255,230,140,.9)'; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.arc(s.x, s.y + bob, K.SHELLS[s.type].r + 5 + Math.sin(tt * 10) * 1, 0, 7); ctx.stroke();
+      }
+      ctx.drawImage(sp.c, s.x - sp.size / 2, s.y + bob - sp.size / 2, sp.size, sp.size);
+    }
+  }
+  // 導火線
+  if (st && st.fuse) drawFuse(st, now);
+  if (S.drawing) drawStrokePreview(S.drawing.pts);
+  if (S.ghost) drawGhost(tt);
+  // 火花（千輪）
+  if (st) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(255,240,180,.95)'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (const p of st.sparks) { ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.035, p.y - p.vy * 0.035); }
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  drawParticles();
+  // 閃光
+  ctx.globalCompositeOperation = 'lighter';
+  for (const f of S.flashes) {
+    const a = 1 - f.t / f.max;
+    const gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
+    gr.addColorStop(0, `rgba(255,250,230,${0.85 * a})`); gr.addColorStop(1, 'rgba(255,250,230,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  drawReflection(tt, k);
+}
+function drawParticles() {
+  ctx.globalCompositeOperation = 'lighter';
+  // 色 × 明るさ 4 段で束ねて描く（1 粒ずつ stroke すると重い）
+  const buckets = new Map();
+  for (const p of S.particles) {
+    let a = Math.max(0, p.life / p.max);
+    if (p.glit) a *= Math.random() < 0.35 ? 1 : 0.25;
+    const key = p.rgb.join() + '|' + Math.min(3, Math.floor(a * 4)) + (p.small ? 's' : '');
+    let b = buckets.get(key); if (!b) { b = []; buckets.set(key, b); } b.push(p);
+  }
+  for (const [key, list] of buckets) {
+    const [rgb, rest] = key.split('|'); const lv = +rest[0];
+    ctx.strokeStyle = `rgba(${rgb},${0.25 + lv * 0.25})`;
+    ctx.lineWidth = rest.includes('s') ? 1.2 : 1.8;
+    ctx.beginPath();
+    for (const p of list) { ctx.moveTo(p.px, p.py); ctx.lineTo(p.x + (p.x - p.px) * 0.6, p.y + (p.y - p.py) * 0.6); }
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+function drawFuse(st, now) {
+  const f = st.fuse;
+  for (let i = 0; i < f.pts.length; i++) if (f.burnt[i] && S.burnT[i] == null) S.burnT[i] = now;
+  // 燃えていない所: 金色の縄 / 燃えた所: 消えていく残り火
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(214,170,80,.95)'; ctx.lineWidth = 2.4;
+  ctx.shadowColor = 'rgba(255,200,90,.6)'; ctx.shadowBlur = 6 * V.dpr;
+  ctx.beginPath();
+  let pen = false;
+  for (let i = 0; i < f.pts.length; i++) {
+    const p = f.pts[i];
+    const brk = i > 0 && f.seg[i] !== f.seg[i - 1];
+    if (f.burnt[i] || brk) { if (!f.burnt[i]) { ctx.moveTo(p.x, p.y); pen = true; } else pen = false; continue; }
+    if (!pen) { ctx.moveTo(p.x, p.y); pen = true; } else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < f.pts.length; i++) {
+    if (!f.burnt[i]) continue;
+    const age = (now - S.burnT[i]) / 1000;
+    if (age > 1.2) continue;
+    const a = 1 - age / 1.2;
+    ctx.fillStyle = `rgba(255,${Math.round(120 + 100 * a)},60,${0.7 * a})`;
+    ctx.fillRect(f.pts[i].x - 1.2, f.pts[i].y - 1.2, 2.4, 2.4);
+  }
+  // 火の頭
+  for (const h of st.heads) {
+    const p = f.pts[h.i]; if (!p) continue;
+    const gr = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 14);
+    gr.addColorStop(0, 'rgba(255,255,240,1)'); gr.addColorStop(0.3, 'rgba(255,200,90,.8)'); gr.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, 7); ctx.fill();
+    spawnSparkle(p.x, p.y, 2);
+  }
+  if (st.heads.length) SFX.crackle();
+  ctx.globalCompositeOperation = 'source-over';
+}
+function drawStrokePreview(pts) {
+  if (pts.length < 2) return;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(255,215,120,.95)'; ctx.lineWidth = 2.8;
+  ctx.shadowColor = 'rgba(255,190,80,.9)'; ctx.shadowBlur = 10 * V.dpr;
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke(); ctx.shadowBlur = 0;
+}
+// はじめての人に、線の引き方を見せる指
+function drawGhost(tt) {
+  const path = S.ghost; if (!path || path.length < 2) return;
+  const u = (tt % 3.2) / 2.4; if (u > 1) return;
+  const n = Math.max(2, Math.floor(path.length * u));
+  ctx.globalAlpha = 0.55;
+  ctx.setLineDash([6, 6]); ctx.strokeStyle = '#ffe7a0'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y); for (let i = 1; i < n; i++) ctx.lineTo(path[i].x, path[i].y); ctx.stroke(); ctx.setLineDash([]);
+  const p = path[n - 1];
+  ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('☝️', p.x + 4, p.y + 22);
+  ctx.globalAlpha = 1;
+}
+// 川面の映り込み（上の夜空を、ゆらしながら逆さに写す）
+function drawReflection(tt, k) {
+  const topDev = (V.oy + 562 * V.s) * V.dpr, h = Math.min(160, view().B - 562);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 0.32;
+  const strip = 3;
+  for (let y = 0; y < h; y += strip) {
+    const srcY = topDev - (y + strip) * k, dstY = topDev + y * k;
+    if (srcY < 0) break;
+    const off = Math.sin(tt * 2 + y * 0.35) * 2 * k * (0.4 + y / h);
+    ctx.drawImage(cv, 0, srcY, cv.width, strip * k, off, dstY, cv.width, strip * k);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// ================================================================ HUD
+let shownScore = 0;
+function updateScore() {
+  const st = S.st; if (!st) return;
+  const mult = K.multOf(st);
+  $('#scoreVal').textContent = K.fmt(st.chips);
+  $('#multVal').textContent = '×' + mult;
+}
+function setChain(n) {
+  const c = $('#chain'); c.classList.add('on');
+  const num = $('#chainNum'); num.textContent = String(n); num.classList.remove('pop'); void num.offsetWidth; num.classList.add('pop');
+  $('#chainLbl').textContent = t('chain');
+  const calls = t('call');
+  if (calls[n]) { callout(calls[n]); SFX.milestone(); }
+}
+function callout(text) { const c = $('#callout'); c.textContent = text; c.classList.remove('on'); void c.offsetWidth; c.classList.add('on'); }
+function banner(big, small) { const b = $('#banner'); b.querySelector('b').textContent = big; b.querySelector('span').textContent = small; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); }
+let toastTimer = 0;
+function toast(msg) { const e = $('#toast'); e.textContent = msg; e.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => e.classList.remove('on'), 1700); }
+function hint(msg) { $('#hint').textContent = msg || ''; }
+function renderHud() {
+  const run = S.run, st = S.st;
+  $('#hud').hidden = false; $('#topBtns').hidden = false; $('#homeBtn').hidden = false;
+  const night = st ? st.night : 0;
+  $('#nightLbl').textContent = t('night', night);
+  $('#dots').textContent = run ? Array.from({ length: K.NIGHTS }, (_, i) => (i < night ? '●' : i === night ? '◉' : '○')).join('') : '';
+  $('#targetVal').textContent = K.fmt(S.single ? S.single.score : K.TARGETS[night]);
+  const chips = $('#chips'); chips.innerHTML = '';
+  for (const id of (st ? st.charms : [])) { const c = K.charmById(id); const sp = el('span', '', c.emoji); sp.title = `${lang === 'en' ? c.en : c.ja}: ${lang === 'en' ? c.descEn : c.desc}`; chips.appendChild(sp); }
+  $('#speedBtn').classList.toggle('on', S.speed > 1);
+  updateScore();
+}
+function hideHud() { $('#hud').hidden = true; $('#topBtns').hidden = true; $('#homeBtn').hidden = true; $('#chips').innerHTML = ''; $('#ink').hidden = true; hint(''); $('#chain').classList.remove('on'); $('#skip2').hidden = true; }
+
+// ================================================================ 夜の進み方
+function newRun(opts) {
+  S.run = { seed: opts.seed >>> 0, moon: opts.moon, daily: !!opts.daily, official: !!opts.official, key: opts.key || null, no: opts.no || 0,
+    duel: opts.duel || null, charms: [], nights: [], total: 0, bestChain: 0, best: null };
+  S.mode = 'run';
+  if (!DB.runs) DB.runs = 0; DB.runs++; save();
+  startNight(0);
+}
+function startNight(n, preset) {
+  const run = S.run;
+  S.st = K.newRound(preset || { seed: run.seed, night: n, charms: run.charms, moon: run.moon });
+  S.burnT = []; S.particles = []; S.flashes = []; S.acc = 0; S.timeScale = S.speed;
+  showOnly(null);
+  renderHud();
+  $('#chain').classList.remove('on');
+  $('#tally').hidden = true;
+  banner(t('night', S.st.night), S.single ? t('bannerTarget', S.single.score) : t('bannerTarget', K.TARGETS[S.st.night]));
+  S.phase = 'intro';
+  setTimeout(() => { if (S.st && S.phase === 'intro') enterDraw(false); }, 900);
+}
+function enterDraw(second) {
+  S.phase = 'draw';
+  $('#ink').hidden = false; $('#inkBar').style.transform = 'scaleX(1)';
+  hint(second ? t('hintDraw2') : t('hintDraw'));
+  $('#skip2').hidden = !second; $('#skip2').textContent = t('skip2');
+  if (!second && !DB.tutored) S.ghost = ghostPath(S.st.shells);
+}
+function ghostPath(shells) {
+  // いちばん玉が多く並ぶ横一列あたりを、ゆるい弧でなぞる見本
+  const ys = shells.map((s) => s.y).sort((a, b) => a - b);
+  const y = ys[Math.floor(ys.length / 2)] || 300;
+  return Array.from({ length: 40 }, (_, i) => ({ x: 40 + i * 7, y: y + Math.sin(i / 39 * Math.PI) * -40 }));
+}
+function commitStroke(raw) {
+  const st = S.st;
+  const pts = K.lightStroke(st, raw);
+  S.drawing = null;
+  if (!pts) { hint(t('hintShort')); return false; }
+  DB.tutored = true; save(); S.ghost = null;
+  $('#ink').hidden = true; $('#skip2').hidden = true; hint('');
+  SFX.whoosh(); SFX.light();
+  S.phase = 'burn'; S.acc = 0;
+  handleEvents(st);
+  return true;
+}
+function onRoundDone() {
+  if (S.phase !== 'burn') return;
+  S.phase = 'tally';
+  const st = S.st, res = st.result;
+  if (res.allClear) { SFX.mankai(); finale(); callout(t('mankai')); }
+  setTimeout(() => runTally(res), res.allClear ? 900 : 350);
+}
+function runTally(res) {
+  const st = S.st;
+  const target = S.single ? S.single.score : K.TARGETS[st.night];
+  const pass = res.score >= target || (S.mode === 'replay');
+  const box = $('#tally'); box.hidden = false;
+  const [r1, r2, r3, stamp] = box.children;
+  [r1, r2, r3, stamp].forEach((e) => e.classList.remove('show'));
+  r1.innerHTML = t('tallyRow1', res.chips, res.mult); r2.textContent = '0'; r3.textContent = res.allClear ? t('bloom', res.bloom) : '';
+  $('#chain').classList.remove('on');
+  setTimeout(() => r1.classList.add('show'), 50);
+  const base = res.chips * res.mult;
+  const t0 = performance.now(), dur = 900;
+  setTimeout(() => {
+    r2.classList.add('show');
+    (function roll() {
+      const u = Math.min(1, (performance.now() - t0 - 250) / dur);
+      const v = Math.round(base * (1 - (1 - Math.max(0, u)) ** 3));
+      r2.textContent = K.fmt(v);
+      if (u < 1) { if (Math.random() < 0.6) SFX.tick(); requestAnimationFrame(roll); }
+      else {
+        SFX.slam();
+        if (res.allClear) setTimeout(() => { r3.classList.add('show'); r2.textContent = K.fmt(res.score); SFX.slam(); S.shake = 6; }, 300);
+        setTimeout(() => {
+          if (S.mode !== 'replay') {
+            stamp.textContent = pass ? (res.score >= target * 3 ? t('huge') : t('pass')) : t('fail');
+            stamp.style.color = pass ? 'var(--green)' : 'var(--red)';
+            stamp.classList.add('show');
+            pass ? SFX.pass() : SFX.fail();
+          }
+          setTimeout(() => afterTally(res, pass), 1100);
+        }, res.allClear ? 700 : 350);
+      }
+    })();
+  }, 250);
+}
+function afterTally(res, pass) {
+  $('#tally').hidden = true;
+  const st = S.st;
+  if (S.mode === 'replay') { showReplayEnd(res); return; }
+  if (S.mode === 'single') { showSingleEnd(res); return; }
+  const run = S.run;
+  run.nights.push({ score: res.score, target: K.TARGETS[st.night], pops: res.pops, total: res.total, allClear: res.allClear });
+  run.total += res.score;
+  run.bestChain = Math.max(run.bestChain, res.pops);
+  if (!run.best || res.score > run.best.score) run.best = { night: st.night, charms: st.charms.slice(), strokes: st.strokes.map((s) => s.slice()), score: res.score, chain: res.pops };
+  if (pass && st.night < K.NIGHTS - 1) showPick();
+  else endRun();
+}
+function showPick() {
+  const run = S.run, n = S.st.night;
+  const offer = K.offerCharms(run.seed, n, run.charms);
+  $('#pickHead').textContent = t('pickHead', n);
+  const box = $('#picks'); box.innerHTML = '';
+  for (const id of offer) {
+    const c = K.charmById(id);
+    const b = el('button', 'pick');
+    b.type = 'button';
+    b.appendChild(el('div', 'e', c.emoji));
+    const d = el('div'); d.appendChild(el('b', '', lang === 'en' ? c.en : c.ja)); d.appendChild(el('span', '', lang === 'en' ? c.descEn : c.desc));
+    b.appendChild(d);
+    b.addEventListener('click', () => { run.charms.push(id); SFX.pick(); DB.seen = DB.seen || {}; DB.seen[id] = 1; save(); startNight(n + 1); });
+    box.appendChild(b);
+  }
+  $('#pickNext').textContent = t('pickNext', n + 1, K.TARGETS[n + 1]);
+  showOnly('#pickOv');
+}
+
+// ================================================================ 結果
+function showOnly(id) {
+  for (const x of ['#titleOv', '#pickOv', '#resultOv', '#linkOv']) $(x).hidden = x !== id;
+}
+function mdOf(key) { return `${+key.slice(5, 7)}/${+key.slice(8, 10)}`; }
+function shareUrl() { return /^https?:$/.test(location.protocol) ? location.origin + location.pathname : K.SITE_URL; }
+function endRun() {
+  const run = S.run;
+  S.phase = 'over';
+  const cleared = run.nights.filter((r) => r.score >= r.target).length;
+  if (!DB.best || run.total > DB.best) DB.best = run.total;
+  if (!DB.bestChain || run.bestChain > DB.bestChain) DB.bestChain = run.bestChain;
+  if (run.official) {
+    DB.days = DB.days || {};
+    DB.days[run.key] = { total: run.total, bestChain: run.bestChain, nights: run.nights, charms: run.charms, best: run.best, seed: run.seed, moon: run.moon, no: run.no };
+    const keys = Object.keys(DB.days).sort(); while (keys.length > 40) delete DB.days[keys.shift()];
+    DB.streak = K.nextStreak(DB.streak, run.key);
+    gc(`hitofude/daily/${run.key}/n${cleared}`);
+  }
+  save();
+  setTimeout(() => showRunResult(run), cleared === K.NIGHTS ? 1200 : 400);
+  if (cleared === K.NIGHTS) { finale(); setTimeout(finale, 700); }
+}
+function showRunResult(run) {
+  hideHud();
+  const body = $('#resultBody'); body.innerHTML = '';
+  const moon = K.MOONS[run.moon];
+  const cleared = run.nights.filter((r) => r.score >= r.target).length;
+  const head = run.official ? t('resDaily', run.no, mdOf(run.key), lang === 'en' ? moon.en : moon.ja)
+    : run.daily ? t('resPractice') : run.duel ? t('resDuel') : t('resFree');
+  body.appendChild(el('p', 'sub serif', head));
+  body.appendChild(el('div', 'big serif', cleared === K.NIGHTS ? t('complete') : t('reached', cleared)));
+  body.appendChild(el('div', 'marks', Array.from({ length: K.NIGHTS }, (_, i) => K.nightMark(run.nights[i])).join('')));
+  const kv = el('div', 'kv');
+  const a = el('span'); a.append(t('total') + ' '); a.appendChild(el('b', 'mono', K.fmt(run.total)));
+  const b = el('span'); b.append(t('bestChain') + ' '); b.appendChild(el('b', 'mono', String(run.bestChain)));
+  kv.append(a, b); body.appendChild(kv);
+  if (run.charms.length) body.appendChild(el('p', 'small', `${t('charms')}: ${run.charms.map((id) => K.charmById(id).emoji).join(' ')}`));
+  if (run.duel && run.duel.score) {
+    const win = run.total > run.duel.score;
+    const d = el('p', 'world', win ? t('duelWin', run.duel.score) : t('duelLose', run.duel.score));
+    d.style.color = win ? 'var(--green)' : 'var(--red)'; body.appendChild(d);
+  }
+  if (run.official) {
+    const w = el('p', 'world'); body.appendChild(w); loadWorld(run, cleared, w);
+    const s = K.currentStreak(DB.streak, today()); if (s) body.appendChild(el('p', 'small', t('streak', s)));
+  }
+  const text = K.runShareText(run, lang);
+  const box = el('div', 'sharebox');
+  const duelUrl = `${shareUrl()}#s=${K.encodeDuel(run.seed, run.moon, run.total)}`;
+  const replayUrl = run.best ? `${shareUrl()}#r=${K.encodeReplay({ seed: run.seed, moon: run.moon, night: run.best.night, charms: run.best.charms, strokes: run.best.strokes })}` : null;
+  box.append(
+    btn(t('share'), 'primary', () => shareText(text, 'run')),
+    btn(t('postX'), '', () => { gc('hitofude/share/x'); window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text), '_blank', 'noopener'); }),
+    btn(t('saveImg'), '', () => saveCard(run)),
+    btn(t('copy'), '', () => copyText(text)),
+    btn(t('duelLink'), 'wide', () => shareText(t('duelShare', run.total, duelUrl), 'duel')),
+  );
+  if (replayUrl) box.append(btn(t('replayLink'), 'wide', () => shareText(t('replayShare', run.best.night, run.best.score, replayUrl), 'replay')));
+  body.append(box, el('pre', 'share', text));
+  const stack = el('div', 'stack');
+  if (run.daily) stack.append(btn(t('againPractice'), 'primary', () => startDaily(true)));
+  else stack.append(btn(t('again'), 'primary', () => (run.duel ? newRun({ seed: run.seed, moon: run.moon, duel: run.duel }) : startFree())));
+  stack.append(btn(t('back'), 'small', goTitle));
+  body.appendChild(stack);
+  showOnly('#resultOv');
+  $('#resultOv').scrollTop = 0;
+}
+async function loadWorld(run, cleared, node) {
+  const base = `hitofude/daily/${run.key}`;
+  const [n, ...buckets] = await Promise.all([countOf(base + '/start'), ...Array.from({ length: K.NIGHTS + 1 }, (_, i) => countOf(`${base}/n${i}`))]);
+  if (n == null) return;
+  const p = buckets.every((x) => x != null) ? K.topPercent(buckets, cleared) : null;
+  node.textContent = t('world', n, p);
+}
+
+// ================================================================ 共有
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast(t('copied')); gc('hitofude/share/copy'); } catch (e) { toast(t('noShare')); }
+}
+async function shareText(text, kind) {
+  gc('hitofude/share/' + kind);
+  if (navigator.share) { try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  copyText(text);
+}
+function drawCard(run) {
+  const c = document.createElement('canvas'); c.width = 1080; c.height = 1350;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, 1350); grd.addColorStop(0, '#0e1440'); grd.addColorStop(1, '#05061a');
+  g.fillStyle = grd; g.fillRect(0, 0, 1080, 1350);
+  g.save(); g.scale(3, 3); drawMoon(g, 300, 60, 26, K.moonPhase(run.key || today()), true); g.restore();
+  // いちばんの一筆を、金の線と花火で描く
+  if (run.best) {
+    const sc = 2.2, ox = 540 - 180 * sc, oy = 160;
+    g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = '#ffd779'; g.lineWidth = 7; g.shadowColor = 'rgba(255,190,80,.8)'; g.shadowBlur = 24;
+    for (const pts of run.best.strokes) { g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(ox + p.x * sc * 0.9, oy + p.y * 0.62) : g.moveTo(ox + p.x * sc * 0.9, oy + p.y * 0.62))); g.stroke(); }
+    g.shadowBlur = 0;
+    const rng = K.rng32(run.seed);
+    g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 9; i++) {
+      const x = 120 + rng() * 840, y = 180 + rng() * 380, R = 40 + rng() * 60, col = HUES[i % HUES.length];
+      g.strokeStyle = col; g.lineWidth = 3; g.globalAlpha = 0.8;
+      for (let j = 0; j < 28; j++) { const a = j / 28 * Math.PI * 2; g.beginPath(); g.moveTo(x + Math.cos(a) * R * 0.3, y + Math.sin(a) * R * 0.3); g.lineTo(x + Math.cos(a) * R, y + Math.sin(a) * R); g.stroke(); }
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+  g.fillStyle = '#fff'; g.textAlign = 'left';
+  g.font = '800 120px "Shippori Mincho", serif'; g.fillText(t('title'), 80, 740);
+  const moon = K.MOONS[run.moon];
+  g.fillStyle = '#ffd75a'; g.font = '600 46px "Shippori Mincho", serif';
+  g.fillText(run.official ? `#${run.no}  ${mdOf(run.key)}  ${lang === 'en' ? moon.en : moon.ja}` : (lang === 'en' ? moon.en : moon.ja), 86, 820);
+  for (let i = 0; i < K.NIGHTS; i++) { g.font = '84px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.fillText(K.nightMark(run.nights[i]), 80 + i * 115, 960, 105); }
+  g.fillStyle = '#fff'; g.font = '800 104px "JetBrains Mono", monospace'; g.fillText(`${K.fmt(run.total)}`, 80, 1110);
+  g.font = '600 44px "Shippori Mincho", serif'; g.fillStyle = '#a9a4bd';
+  g.fillText(`${t('imgPts')} ・ ${t('imgChain')} ${run.bestChain} ${t('imgChainUnit')}`, 86, 1175);
+  g.fillStyle = '#ffd75a'; g.font = '600 34px "JetBrains Mono", monospace';
+  g.fillText('yuichi916.github.io/hitofude.html', 86, 1270); g.fillText(lang === 'en' ? '#hitofudehanabi' : K.HASHTAG, 86, 1315);
+  return c;
+}
+function saveCard(run) {
+  gc('hitofude/share/image');
+  drawCard(run).toBlob(async (blob) => {
+    if (!blob) return;
+    const name = `hitofude-${run.key || 'free'}.png`;
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text: K.runShareText(run, lang) }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }, 'image/png');
+}
+
+// ================================================================ 届いたリンク（勝負・再生）
+function readLink() {
+  const h = location.hash;
+  let m = h.match(/^#s=([0-9a-z.]{3,30})$/);
+  if (m) { const d = K.decodeDuel(m[1]); return d ? { kind: 'duel', ...d } : { kind: 'bad' }; }
+  m = h.match(/^#r=([A-Za-z0-9_-]{12,700})$/);
+  if (m) { const r = K.decodeReplay(m[1]); return r ? { kind: 'replay', ...r } : { kind: 'bad' }; }
+  return null;
+}
+function clearHash() { history.replaceState(null, '', location.pathname + location.search); }
+function openLink(link) {
+  const card = $('#linkCard'); card.innerHTML = '';
+  const moon = K.MOONS[link.moon];
+  const moonTxt = `${lang === 'en' ? moon.en : moon.ja} — ${lang === 'en' ? moon.ruleEn : moon.rule}`;
+  if (link.kind === 'duel') {
+    gc('hitofude/duel/open');
+    card.appendChild(el('p', 'sub serif', t('duelHead')));
+    const p = el('p', 'serif'); p.style.cssText = 'font-size:calc(22px * var(--u));margin-top:calc(10px * var(--u));line-height:1.6';
+    p.innerHTML = link.score ? t('duelBody', link.score, moonTxt) : t('duelBodyNoScore', moonTxt);
+    card.appendChild(p);
+    const stack = el('div', 'stack');
+    stack.append(btn(t('duelGo'), 'primary', () => { clearHash(); newRun({ seed: link.seed, moon: link.moon, duel: { score: link.score } }); }),
+      btn(t('back'), 'small', () => { clearHash(); goTitle(); }));
+    card.appendChild(stack);
+  } else {
+    gc('hitofude/replay/open');
+    // 再生前に一度回して点を出しておく（届いた一筆の点を見せるため）
+    const pre = K.newRound({ seed: link.seed, night: link.night, charms: link.charms, moon: link.moon });
+    const res = K.runToEnd(pre, link.strokes, { normalized: true });
+    S.replay = { ...link, score: res.score };
+    card.appendChild(el('p', 'sub serif', t('replayHead')));
+    const p = el('p', 'serif', t('replayBody', link.night, res.score)); p.style.cssText = 'font-size:calc(18px * var(--u));margin-top:calc(10px * var(--u));line-height:1.7';
+    card.appendChild(p);
+    card.appendChild(el('p', 'small', moonTxt));
+    if (link.charms.length) card.appendChild(el('p', 'small', `${t('charms')}: ${link.charms.map((id) => K.charmById(id).emoji).join(' ')}`));
+    const stack = el('div', 'stack');
+    stack.append(btn(t('replayGo'), 'primary', () => { clearHash(); playReplay(); }), btn(t('back'), 'small', () => { clearHash(); goTitle(); }));
+    card.appendChild(stack);
+  }
+  S.moonPhase = [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875][link.moon]; S.moonIdx = link.moon; drawBackground();
+  showOnly('#linkOv');
+}
+function playReplay() {
+  const r = S.replay;
+  S.mode = 'replay'; S.run = null; S.single = null;
+  startNight(r.night, { seed: r.seed, night: r.night, charms: r.charms, moon: r.moon });
+  S.phase = 'replaying';
+  // 線を、ひいた速さっぽく少しずつ見せてから火をつける
+  const pts = r.strokes[0];
+  let i = 0;
+  setTimeout(function drawStep() {
+    if (S.mode !== 'replay') return;
+    i = Math.min(pts.length, i + 3);
+    S.drawing = { pts: pts.slice(0, i), hot: new Set() };
+    if (i < pts.length) setTimeout(drawStep, 30);
+    else {
+      S.drawing = null;
+      K.lightPoints(S.st, pts); SFX.whoosh(); S.phase = 'burn'; S.acc = 0; handleEvents(S.st);
+    }
+  }, 1000);
+}
+function showReplayEnd(res) {
+  const r = S.replay;
+  hideHud();
+  const body = $('#resultBody'); body.innerHTML = '';
+  body.appendChild(el('p', 'sub serif', t('replayHead')));
+  body.appendChild(el('div', 'big mono', K.fmt(res.score)));
+  const stack = el('div', 'stack');
+  stack.append(btn(t('replayCta'), 'primary', () => startSingle({ seed: r.seed, night: r.night, charms: r.charms, moon: r.moon, score: res.score })),
+    btn(t('back'), 'small', goTitle));
+  body.appendChild(stack);
+  showOnly('#resultOv');
+}
+function startSingle(opts) {
+  S.mode = 'single'; S.run = null;
+  S.single = { ...opts };
+  startNight(opts.night, { seed: opts.seed, night: opts.night, charms: opts.charms, moon: opts.moon });
+}
+function showSingleEnd(res) {
+  const sgl = S.single;
+  hideHud();
+  const body = $('#resultBody'); body.innerHTML = '';
+  body.appendChild(el('p', 'sub serif', t('singleHead')));
+  body.appendChild(el('div', 'big mono', K.fmt(res.score)));
+  const win = res.score > sgl.score;
+  const p = el('p', 'world', win ? t('singleWin', sgl.score) : t('singleLose', sgl.score)); p.style.color = win ? 'var(--green)' : 'var(--red)';
+  body.appendChild(p);
+  const st = S.st;
+  const url = `${shareUrl()}#r=${K.encodeReplay({ seed: sgl.seed, moon: sgl.moon, night: sgl.night, charms: sgl.charms, strokes: st.strokes })}`;
+  const box = el('div', 'sharebox');
+  box.append(btn(t('replayLink'), 'primary wide', () => shareText(t('replayShare', sgl.night, res.score, url), 'replay')));
+  body.appendChild(box);
+  const stack = el('div', 'stack');
+  stack.append(btn(t('retry'), 'primary', () => startSingle(sgl)), btn(t('back'), 'small', goTitle));
+  body.appendChild(stack);
+  showOnly('#resultOv');
+}
+
+// ================================================================ タイトル
+function starsIcon() {
+  const c = $('#moonIcon'), g = c.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 88, 88); g.scale(2, 2);
+  drawMoon(g, 22, 22, 15, S.moonPhase, false);
+}
+function renderLegend() {
+  const box = $('#legend'); box.innerHTML = '';
+  const names = t('legend');
+  for (const type of K.TYPES) {
+    const d = el('div');
+    const c = document.createElement('canvas'); c.width = 40; c.height = 40;
+    const sp = shellSprite(type, type === 'kiku' ? 0 : 4);
+    c.getContext('2d').drawImage(sp.c, 0, 0, 40, 40);
+    d.appendChild(c); d.append(names[type]);
+    box.appendChild(d);
+  }
+}
+function goTitle() {
+  S.mode = 'title'; S.phase = 'idle'; S.st = null; S.run = null; S.single = null; S.drawing = null; S.ghost = null;
+  const key = today();
+  setMoonFor(key); drawBackground();
+  hideHud(); $('#tally').hidden = true;
+  const d = new Date(Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10)));
+  const moon = K.MOONS[S.moonIdx];
+  $('#moonDate').textContent = t('moonDate', d.getUTCMonth() + 1, d.getUTCDate(), t('wd')[d.getUTCDay()]);
+  $('#moonName').textContent = t('moonName', moon);
+  $('#moonRule').textContent = t('moonRule', moon);
+  starsIcon();
+  const done = DB.days && DB.days[key];
+  $('#dailyBtn').textContent = done ? t('dailyDone') : t('dailyGo', K.dayNumber(key));
+  $('#stats').textContent = t('stats', DB.best || 0, K.currentStreak(DB.streak, key));
+  renderLegend();
+  showOnly('#titleOv');
+  // 背景に、今夜の一夜目の玉をうっすら並べておく
+  S.st = K.newRound({ seed: K.hashStr('hitofude-daily:' + key), night: 0, moon: S.moonIdx });
+}
+function dailySeed(key) { return K.hashStr('hitofude-daily:' + key); }
+function startDaily(practice) {
+  const key = today();
+  const done = DB.days && DB.days[key];
+  setMoonFor(key); drawBackground();
+  if (done && !practice) {
+    const run = { ...done, daily: true, official: true, key, no: done.no || K.dayNumber(key), duel: null };
+    showRunResult(run);
+    return;
+  }
+  if (!done) { DB.started = { [key]: 1 }; save(); gc(`hitofude/daily/${key}/start`); }
+  newRun({ seed: dailySeed(key), moon: S.moonIdx, daily: true, official: !done, key, no: K.dayNumber(key) });
+}
+function startFree() {
+  const key = today(); setMoonFor(key); drawBackground();
+  gc('hitofude/free');
+  newRun({ seed: (Math.random() * 4294967296) >>> 0, moon: S.moonIdx });
+}
+
+// ================================================================ 入力（線をひく）
+function toLogical(ev) {
+  const r = cv.getBoundingClientRect();
+  return { x: (ev.clientX - r.left - V.ox) / V.s, y: (ev.clientY - r.top - V.oy) / V.s };
+}
+function hotShells(pts) {
+  // 線の近く（導火線から直接火がつく範囲）にある玉を光らせる
+  const st = S.st, hot = new Set(), reach = st.rules.reach;
+  for (const s of st.shells) {
+    if (s.burst) continue;
+    const rr = K.SHELLS[s.type].r + reach;
+    for (let i = 0; i < pts.length; i += 1) { if (Math.hypot(pts[i].x - s.x, pts[i].y - s.y) <= rr) { hot.add(s.id); break; } }
+  }
+  return hot;
+}
+cv.addEventListener('pointerdown', (ev) => {
+  audio();
+  if (S.phase !== 'draw' || !S.st) return;
+  cv.setPointerCapture(ev.pointerId);
+  const p = toLogical(ev);
+  S.drawing = { pts: [p], len: 0, hot: new Set(), out: false };
+  S.ghost = null; hint('');
+});
+cv.addEventListener('pointermove', (ev) => {
+  const d = S.drawing; if (!d || S.phase !== 'draw') return;
+  const evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
+  for (const e of evs) {
+    if (d.out) break;
+    const p = toLogical(e), last = d.pts[d.pts.length - 1];
+    const seg = Math.hypot(p.x - last.x, p.y - last.y);
+    if (seg < 1.5) continue;
+    if (d.len + seg > S.st.ink) {
+      const k = (S.st.ink - d.len) / seg;
+      d.pts.push({ x: last.x + (p.x - last.x) * k, y: last.y + (p.y - last.y) * k });
+      d.len = S.st.ink; d.out = true; hint(t('hintInkOut'));
+      break;
+    }
+    d.pts.push(p); d.len += seg;
+  }
+  d.hot = hotShells(d.pts);
+  $('#inkBar').style.transform = `scaleX(${Math.max(0, 1 - d.len / S.st.ink)})`;
+  if (d.out) finishDraw();
+});
+function finishDraw() {
+  const d = S.drawing; if (!d || S.phase !== 'draw') return;
+  if (d.len < 24) { S.drawing = null; hint(t('hintShort')); $('#inkBar').style.transform = 'scaleX(1)'; return; }
+  commitStroke(d.pts);
+}
+cv.addEventListener('pointerup', finishDraw);
+cv.addEventListener('pointercancel', () => { S.drawing = null; });
+
+$('#skip2').addEventListener('click', () => { if (S.st && S.st.phase === 'draw2') { K.finish(S.st); $('#skip2').hidden = true; $('#ink').hidden = true; hint(''); S.phase = 'burn'; S.drawing = null; } });
+$('#homeBtn').addEventListener('click', () => { clearHash(); goTitle(); });
+$('#soundBtn').addEventListener('click', () => { muted = !muted; DB.muted = muted; save(); renderSound(); });
+$('#speedBtn').addEventListener('click', () => { S.speed = S.speed > 1 ? 1 : 2; DB.speed = S.speed; save(); $('#speedBtn').classList.toggle('on', S.speed > 1); });
+$('#dailyBtn').addEventListener('click', () => startDaily(false));
+$('#freeBtn').addEventListener('click', startFree);
+document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => {
+  lang = b.dataset.lang; try { localStorage.setItem('ve_lang', lang); } catch (e) { /* なし */ }
+  applyLang(); goTitle();
+}));
+window.addEventListener('resize', layout);
+window.addEventListener('hashchange', () => { const l = readLink(); if (l && l.kind !== 'bad') openLink(l); });
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-t]').forEach((e) => { e.textContent = t(e.dataset.t); });
+  const about = document.querySelector('[data-t-html="about"]');
+  if (!about.dataset.ja) about.dataset.ja = about.innerHTML;
+  if (lang === 'en') {
+    about.innerHTML = '';
+    for (const s of [
+      'One input sets the whole screen in motion, and the numbers jump. I researched what goes viral in September 2026 and built this around the parts that make games addictive and satisfying. Your line becomes a fuse: fire runs along it, shells burst, and explosions set other parts of the fuse alight.',
+      'An 8-night run: beat each night\'s target to pick a charm. Charm combos multiply your score. Tonight\'s real moon phase changes one rule. Everyone gets the same nights in "Tonight\'s stroke"; "Free play" rolls random nights.',
+      'From the results screen you can send a duel link for the same nights, or a replay of your best stroke. Streaming and videos are welcome — no need to ask.',
+    ]) about.appendChild(el('p', '', s));
+  } else about.innerHTML = about.dataset.ja;
+  document.querySelectorAll('[data-lang]').forEach((b) => b.classList.toggle('on', b.dataset.lang === lang));
+}
+
+// ================================================================ 起動
+layout();
+applyLang();
+renderSound();
+goTitle();
+const link = readLink();
+if (link && link.kind === 'bad') toast(t('badLink'));
+else if (link) openLink(link);
+requestAnimationFrame(frame);
+window.HITO = { S, K, V, startDaily, startFree, commitStroke, goTitle };
+</script>
+<script type="module" src="/assets/feel/feel.js"></script>
+</body>
+</html>
