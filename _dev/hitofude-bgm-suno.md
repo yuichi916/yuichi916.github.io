@@ -130,7 +130,41 @@ Instrumental を ON にすると Lyrics 欄が消える版があるかもしれ�
    - `gain` は音量です。1 のとき等倍です。
    - src には、このフォルダのファイル名しか書けません。外部の URL やパスは、ページが読み込みません。
 
-**手順 4〜7 は任せてもらっても大丈夫です。** Suno から落としたファイルをそのままリポジトリに置く（またはこのセッションに渡す）だけで、Claude がループ点・音量・登録を仕上げます。
+**手順 4〜7 は、道具で自動にできます。** 落とした曲をそのまま渡すと、次の処理を 1 回でまとめてやります。
+
+- 継ぎ目の前後がいちばんよく似る小節の頭を探して、ループを切り出す
+- -16 LUFS にそろえる
+- MP3 にする
+- `tracks.json` に登録する
+
+```
+node _dev/hitofude-bgm-prep.mjs calm   _local/suno/calm.mp3   --bpm 90
+node _dev/hitofude-bgm-prep.mjs burn   _local/suno/burn.mp3   --bpm 135
+node _dev/hitofude-bgm-prep.mjs finale _local/suno/finale.mp3 --len 6
+```
+
+- 使うには playwright と `@breezystack/lamejs` が要ります。ffmpeg は要りません。
+- `--dry` を付けると、書き出さずに、選んだ区間と音量だけを表示します。
+- 継ぎ目が気になるときは、`--start 秒` で別の所から切ってください。
+- 合成した曲で試した結果、96 BPM・8 小節のループを 20.009 秒で見つけました。MP3 にしたあとも、継ぎ目の段差は、ふだんの隣り合う音の差の範囲に収まっています。
+
+---
+
+## 1.5 Suno を Playwright で操作する（手元の PC で）
+
+クラウドのセッションからは Suno に届きません。環境のネットワーク設定で suno.com 系が止められています。
+それに、クラウドのブラウザには、人がログインする画面がありません。
+そのため、Suno の操作は**手元の PC で動く Claude Code**（Claude Desktop、またはリポジトリのフォルダで `claude remote-control`）から行います。
+
+1. 作業用の Chrome をリモートデバッグ付きで開き、Suno にログインします。コマンドは `_dev/suno-session.mjs` の先頭にあります。
+   - Playwright が起動したブラウザだと、Google などのログインが弾かれることがあります。そのため、人が開いた Chrome にあとからつなぎます。
+2. `node _dev/suno-session.mjs inspect` を実行します。Create 画面を撮り、ボタンと入力欄の名前を `_local/suno/` に書き出します。この時点では、まだ何も押しません。
+3. その地図を見て、プロンプトを入れる → Create → 待つ → ダウンロード、の手順を足します。
+   - 画面の作りは変わるので、推測でボタンを押してクレジットを使うことはしません。
+4. 落とした曲を `_local/suno/` に置き、上の `hitofude-bgm-prep.mjs` で仕上げます。`_local/suno/` は git に入りません。
+
+注意: 自動での操作は、Suno の利用規約で禁じられている可能性があります（本文は未確認です）。アカウントへの影響は、使う人の判断でお願いします。
+手で作って落とすだけなら、3 曲 × 2〜3 テイクで 10 分ほどです。
 
 ---
 
