@@ -8,6 +8,7 @@
 |---|---|---|
 | [01_differentiation.md](01_differentiation.md) | 差別化のまとめ（noteの型で）：読者の興味 → 読まなかったときの損失 → 読んだときの利益 → なぜこの連載でないといけないか（直したコミット287件の数字つき）→ 各回への反映 | 完成 |
 | [research/fix_analysis.md](research/fix_analysis.md) | 直したコミット287件の分類の要約（全件は fix_classified.tsv） | 調査 |
+| [ep00_pro_is_not_prompt.md](ep00_pro_is_not_prompt.md) | **#00（無料）プロは、プロンプトがうまい人ではなかった**（最新の軸での本文。【作者が足す】の箇所に仕事の場面を一つ入れる） | 初稿 |
 | [04_concept_world.md](04_concept_world.md) | **最新の軸**：プロはテクニックではなく、自分だけの世界を持つ人。築く・壊す・乗りこなすの三本柱、noteの型、全11回と道具箱、#00の書き出し | 完成 |
 | [05_story_and_material.md](05_story_and_material.md) | **最新の軸の掘り下げ**：主張の筋道、写真と絵画のたとえ、読者の変化の道のり、各回の題材（研究ノートの原文つき）、反論と答え、#00の運び | 完成 |
 | [03_concept_success.md](03_concept_success.md) | 古い案：失敗ではなく「ひとりでできるようになったこと」を主役にする。芯の一言、noteの型（興味・損失・利益・独自性）、成果が主役の全11回、#00の書き出し見本 | 完成 |
