@@ -5,8 +5,13 @@ import { parseTracks } from '../assets/hitofude/music.js';
 let fails = 0;
 const eq = (a, b, m) => { const ok = JSON.stringify(a) === JSON.stringify(b); if (!ok) { fails++; console.log('FAIL', m, JSON.stringify(a), '!=', JSON.stringify(b)); } };
 
-// 置いてある登録表はまだ空（合成した曲が流れる）
-eq(parseTracks(JSON.parse(readFileSync(new URL('../assets/hitofude/bgm/tracks.json', import.meta.url), 'utf8'))), {}, '出荷時の登録表は空');
+// 置いてある登録表（Suno で作った3曲。ループのつなぎ目は曲の中に焼き込んであるので、ファイル全体をループする）
+const shipped = parseTracks(JSON.parse(readFileSync(new URL('../assets/hitofude/bgm/tracks.json', import.meta.url), 'utf8')));
+eq(Object.keys(shipped), ['calm', 'burn', 'finale'], '出荷時の登録表は3枠とも埋まっている');
+for (const tr of Object.values(shipped)) {
+  let ok = true; try { readFileSync(new URL('../assets/hitofude/bgm/' + tr.src, import.meta.url)); } catch (e) { ok = false; }
+  eq(ok, true, '登録した曲のファイルがある: ' + tr.src);
+}
 // ふつうの登録
 eq(parseTracks({ calm: { src: 'hitofude_calm_d90.mp3', loopStart: 0.5, loopEnd: 64.5, gain: 0.8 } }),
   { calm: { src: 'hitofude_calm_d90.mp3', loopStart: 0.5, loopEnd: 64.5, gain: 0.8 } }, 'ループ点と音量を読む');

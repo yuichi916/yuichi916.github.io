@@ -39,6 +39,8 @@ export function createMusic(ac, out, noiseBuf) {
   const burn = ac.createGain(); burn.gain.value = 0; burn.connect(bus);
   const warm = ac.createBiquadFilter(); warm.type = 'lowpass'; warm.frequency.value = 3400; warm.connect(calm);
   let timer = null, next = 0, step = 0, mode = 'calm', files = null, calmSrc = null, burnSrc = null;
+  // burn の曲は火が走る数秒ずつしか鳴らないので、毎回頭からにせず前回の続きから鳴らす
+  let burnPos = 0, burnAt = 0;
 
   // ---------------------------------------------------------------- 楽器
   function env(g, t, peak, attack, decay) {
@@ -175,9 +177,14 @@ export function createMusic(ac, out, noiseBuf) {
       if (m === 'burn') {
         // 曲のファイルどうしはテンポがちがうので重ねない（burn の曲が無ければ calm のまま）
         fade(calm, files ? (files.burn ? 0 : 1) : 0.6, 0.3); fade(burn, 1, 0.25);
-        if (files && files.burn && !burnSrc) burnSrc = loopSource(files.burn, burn);
+        if (files && files.burn && !burnSrc) { burnSrc = loopSource(files.burn, burn, burnPos); burnAt = ac.currentTime; }
       } else {
         fade(calm, 1, 1.2); fade(burn, 0, 1.2);
+        if (burnSrc) {
+          const s0 = burnSrc.loopStart, len = (burnSrc.loopEnd || burnSrc.buffer.duration) - s0;
+          const p = burnPos + ac.currentTime - burnAt;
+          burnPos = p < s0 + len ? p : s0 + ((p - s0) % len);
+        }
         if (burnSrc) { const s = burnSrc; burnSrc = null; setTimeout(() => { try { s.stop(); } catch (e) { /* 止まっている */ } }, 1600); }
       }
     },
