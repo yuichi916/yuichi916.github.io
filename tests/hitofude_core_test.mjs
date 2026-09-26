@@ -208,17 +208,18 @@ check('再生リンク: 一筆を戻すと同じ点になる・細工したも�
   eq(K.decodeReplay(far), null, '画面の外の点');
 });
 
-check('共有文: 夜ごとの印と点・答え（線）は入れない', () => {
+check('共有文: 点と連鎖を言葉で書き、絵文字は見出しの 🎆 だけ・答え（線）は入れない', () => {
   const run = {
     daily: true, key: '2026-09-27', no: 2, moon: 4, total: 123456, bestChain: 58,
     nights: [{ score: 900, target: 80 }, { score: 300, target: 250 }, { score: 100, target: 600 }],
   };
   const ja = K.runShareText(run, 'ja');
-  ok(ja.startsWith('一筆花火 #2 9/27 満月'), ja);
-  ok(ja.includes('🎆✨💥🌑🌑🌑🌑🌑'), ja);
-  ok(ja.includes('2/8 夜') && ja.includes('123,456点') && ja.includes('最大 58連鎖') && ja.includes(K.HASHTAG), ja);
+  ok(ja.startsWith('🎆一筆花火 #2 9/27 満月\n2/8夜 123,456点・最大58連鎖\n'), ja);
+  ok(ja.includes(K.HASHTAG), ja);
+  const emoji = /\p{Extended_Pictographic}/gu;
+  eq((ja.match(emoji) || []).join(''), '🎆', '絵文字は見出しの 1 つだけ');
   const en = K.runShareText({ ...run, daily: false }, 'en');
-  ok(en.startsWith('Hitofude Hanabi\n') && en.includes('best chain 58'), en);
+  ok(en.startsWith('🎆Hitofude Hanabi\n') && en.includes('best chain 58'), en);
   const all = K.runShareText({ ...run, nights: Array(8).fill({ score: 10, target: 1 }) }, 'ja');
   ok(all.includes('八夜 完走'), all);
 });
@@ -445,8 +446,9 @@ check('シェア: 筆跡と大一番の結果が 1 行で入る', () => {
   const run = { daily: true, key: '2026-09-27', no: 2, moon: 4, total: 12345, bestChain: 30, type: 'inazuma',
     nights: [{ score: 100, target: 60 }, { score: 300, target: 200 }, { score: 900, target: 600, twist: 'kagami' }, { score: 100, target: 2500 }] };
   const ja = K.runShareText(run, 'ja'), en = K.runShareText(run, 'en');
-  ok(ja.includes('筆跡 ⚡稲妻') && ja.includes('大一番 鏡⭕'), ja);
-  ok(en.includes('Stroke ⚡Lightning') && en.includes('Boss Mirror⭕'), en);
+  ok(ja.includes('\n筆跡「稲妻」・大一番「鏡」成功\n'), ja);
+  ok(en.includes('Stroke: Lightning · Boss Mirror cleared'), en);
+  eq((ja.match(/\p{Extended_Pictographic}/gu) || []).join(''), '🎆', '筆跡と大一番に絵文字を付けない');
   ok(!K.runShareText({ ...run, type: null, nights: [{ score: 100, target: 60 }] }, 'ja').includes('大一番'));
 });
 

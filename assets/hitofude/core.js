@@ -791,24 +791,28 @@ export function nightMark(r) {
 }
 
 export function runShareText(run, lang, url = SITE_URL) {
+  // 絵文字は見出しの 🎆 だけ。結果は言葉で書く（夜ごとの印の列は画面とシェア画像にだけ出す）
   const en = lang === 'en';
-  const marks = Array.from({ length: NIGHTS }, (_, i) => nightMark(run.nights[i])).join('');
-  const cleared = run.nights.filter((r) => r.score >= r.target).length;
+  const cleared = run.nights.filter((r) => r && r.score >= r.target).length;
   const moon = MOONS[run.moon];
   let head;
   if (run.daily) {
     const md = `${+run.key.slice(5, 7)}/${+run.key.slice(8, 10)}`;
-    head = `${en ? 'Hitofude Hanabi' : '一筆花火'} #${run.no} ${md} ${en ? moon.en : moon.ja}`;
-  } else head = en ? 'Hitofude Hanabi' : '一筆花火';
-  const line2 = cleared === NIGHTS ? (en ? 'All 8 nights!' : '八夜 完走！') : (en ? `${cleared}/8 nights` : `${cleared}/8 夜`);
-  const line3 = en ? `${fmt(run.total)} pts · best chain ${run.bestChain}` : `${fmt(run.total)}点 ・ 最大 ${run.bestChain}連鎖`;
+    head = `🎆${en ? 'Hitofude Hanabi' : '一筆花火'} #${run.no} ${md} ${en ? moon.en : moon.ja}`;
+  } else head = en ? '🎆Hitofude Hanabi' : '🎆一筆花火';
+  const line2 = cleared === NIGHTS ? (en ? 'All 8 nights!' : '八夜 完走') : (en ? `${cleared}/8 nights` : `${cleared}/8夜`);
+  const line3 = en ? `${fmt(run.total)} pts · best chain ${run.bestChain}` : `${fmt(run.total)}点・最大${run.bestChain}連鎖`;
   // 筆跡と、大一番の結果（今夜の一筆は、みんな同じ大一番）
   const extra = [];
-  if (run.type) { const ty = STROKE_TYPES.find((x) => x.id === run.type); if (ty) extra.push(en ? `Stroke ${ty.emoji}${ty.en}` : `筆跡 ${ty.emoji}${ty.ja}`); }
-  const bosses = run.nights.filter((r) => r && r.twist).map((r) => { const tw = TWISTS.find((x) => x.id === r.twist); return tw ? `${en ? tw.en : tw.ja}${r.score >= r.target ? '⭕' : '❌'}` : null; }).filter(Boolean);
-  if (bosses.length) extra.push((en ? 'Boss ' : '大一番 ') + bosses.join(' '));
-  const line4 = extra.length ? '\n' + extra.join(en ? ' · ' : ' ・ ') : '';
-  return `${head}\n${marks}\n${line2} ${line3}${line4}\n${url}\n${en ? '#hitofudehanabi' : HASHTAG}`;
+  if (run.type) { const ty = STROKE_TYPES.find((x) => x.id === run.type); if (ty) extra.push(en ? `Stroke: ${ty.en}` : `筆跡「${ty.ja}」`); }
+  const bosses = run.nights.filter((r) => r && r.twist).map((r) => {
+    const tw = TWISTS.find((x) => x.id === r.twist); if (!tw) return null;
+    const won = r.score >= r.target;
+    return en ? `${tw.en} ${won ? 'cleared' : 'missed'}` : `「${tw.ja}」${won ? '成功' : '届かず'}`;
+  }).filter(Boolean);
+  if (bosses.length) extra.push((en ? 'Boss ' : '大一番') + bosses.join(en ? ', ' : '、'));
+  const line4 = extra.length ? '\n' + extra.join(en ? ' · ' : '・') : '';
+  return `${head}\n${line2} ${line3}${line4}\n${url}\n${en ? '#hitofudehanabi' : HASHTAG}`;
 }
 
 // 同じ夜で勝負: #s=<seed36>.<moon>[.<score>]
