@@ -159,6 +159,10 @@ a{color:var(--gold)}
 .steps{margin-top:calc(14px * var(--u));display:grid;grid-template-columns:repeat(3,1fr);gap:calc(6px * var(--u))}
 .steps div{background:rgba(255,255,255,.04);border-radius:calc(10px * var(--u));padding:calc(8px * var(--u)) calc(4px * var(--u));font-size:calc(12px * var(--u));line-height:1.5}
 .steps i{display:block;font-style:normal;font-size:calc(22px * var(--u))}
+.stageline{margin-top:calc(4px * var(--u));font-size:calc(12px * var(--u));letter-spacing:.08em;color:var(--gold);opacity:.85}
+.nextstage{margin:calc(10px * var(--u)) auto 0;max-width:calc(300px * var(--u));padding:calc(8px * var(--u)) calc(12px * var(--u));border:1px dashed rgba(255,215,120,.45);border-radius:calc(10px * var(--u));display:flex;flex-direction:column;gap:calc(2px * var(--u))}
+.nextstage b{color:var(--gold);font-size:calc(14px * var(--u))}
+.nextstage span{font-size:calc(12px * var(--u));color:#d8d1bf}
 .howto{margin-top:calc(12px * var(--u));text-align:left;font-size:calc(13px * var(--u));line-height:1.75;color:#d8d1bf}
 .howto summary{cursor:pointer;text-align:center;color:var(--gold);font-size:calc(13px * var(--u));padding:calc(6px * var(--u));list-style:none}
 .howto summary::-webkit-details-marker{display:none}
@@ -254,6 +258,7 @@ pre.share{margin-top:calc(10px * var(--u));text-align:left;white-space:pre-wrap;
       <canvas class="hinoT" id="hinoTitle" width="160" height="160" role="img" aria-label="ヒノコ"></canvas>
       <h1 class="logo serif" data-t="title">一筆花火</h1>
       <p class="sub serif" data-t="subtitle">線を1本。夜空が全部ひらく。</p>
+      <p class="stageline" id="stageLine"></p>
       <div class="moonbox"><canvas id="moonIcon" width="88" height="88"></canvas><div><div class="t" id="moonDate"></div><div class="n serif" id="moonName"></div><div class="r" id="moonRule"></div><div class="r2" id="bossLine"></div></div></div>
       <div class="stack">
         <button class="btn primary" id="dailyBtn"></button>
@@ -270,6 +275,7 @@ pre.share{margin-top:calc(10px * var(--u));text-align:left;white-space:pre-wrap;
         <div data-t-html="howto">
           <ul>
             <li><b>8つの夜</b>を越えよう。目標点を越えると、<b>お守り</b>を1つもらえる。</li>
+            <li>八夜で<b>1ステージ</b>。いまは<b>ステージ1『川辺の夏祭り』</b>。次のステージは、景色と仕掛けを変えて準備中。</li>
             <li>点は<b>点×倍率</b>。金の玉と、10連鎖ごとに倍率が上がる。全部ひらくと ×2。</li>
             <li>夜が進むと、<b>新しい仕掛け</b>が1つずつ増える。二夜目 大玉 ・ 三夜目 千輪 ・ 四夜目 提灯 ・ 五夜目 雲 ・ 六夜目 湿った玉 ・ 七夜目 仕掛け縄 ・ 八夜目 尺玉。</li>
             <li><b>三夜目と六夜目は大一番</b>。線の引き方が変わる（まっすぐ・鏡・闇夜・一瞬）。越えると、お守りを2つもらえる。</li>
@@ -347,7 +353,9 @@ const T = {
     pass: '越えた！', fail: '散った…', huge: '大当たり！',
     pickHead: (n) => `${KANJI[n]}夜を越えた`, pickNext: (n, t) => `次は${KANJI[n]}夜目 ・ 目標 ${K.fmt(t)} 点`,
     resDaily: (no, md, m) => `今夜の一筆 #${no}　${md}　${m}`, resFree: '自由な夜', resPractice: '今夜の一筆（練習・記録なし）', resDuel: '勝負の夜',
-    complete: '八夜 完走！', reached: (n) => `${n} / 8 夜`,
+    complete: '八夜 完走！', reached: (n) => `${n} / 8 夜`, stageShort: `ステージ${K.STAGE.id}`,
+    stageLine: (st) => `ステージ${st.id}『${st.ja}』・全八夜`,
+    nextStageHead: (st) => `ステージ${st.id} 準備中`, nextStageBody: '新しい景色と仕掛けで、続きます。',
     total: '合計', bestChain: '最大連鎖', charms: 'お守り',
     share: '結果をシェア', postX: 'X に投稿', saveImg: '画像で保存', copy: 'コピー', copied: 'コピーしました', noShare: '下の文をコピーして貼ってください',
     duelLink: '⚔️ この夜で勝負（リンク）', replayLink: '🎬 いちばんの一筆を見せる',
@@ -403,7 +411,9 @@ const T = {
     pass: 'Cleared!', fail: 'Fizzled…', huge: 'Jackpot!',
     pickHead: (n) => `Night ${n + 1} cleared`, pickNext: (n, t) => `Next: night ${n + 1} · target ${K.fmt(t)}`,
     resDaily: (no, md, m) => `Tonight #${no} · ${md} · ${m}`, resFree: 'Free night', resPractice: 'Tonight (practice, not recorded)', resDuel: 'Duel',
-    complete: 'All 8 nights!', reached: (n) => `${n} / 8 nights`,
+    complete: 'All 8 nights!', reached: (n) => `${n} / 8 nights`, stageShort: `Stage ${K.STAGE.id}`,
+    stageLine: (st) => `Stage ${st.id}: ${st.en} · 8 nights`,
+    nextStageHead: (st) => `Stage ${st.id} coming soon`, nextStageBody: 'New scenes and gimmicks are on the way.',
     total: 'Total', bestChain: 'Best chain', charms: 'Charms',
     share: 'Share', postX: 'Post on X', saveImg: 'Save image', copy: 'Copy', copied: 'Copied', noShare: 'Copy the text below',
     duelLink: '⚔️ Duel on this night (link)', replayLink: '🎬 Share your best stroke',
@@ -1180,7 +1190,7 @@ function startNight(n, preset) {
   $('#tally').hidden = true;
   // 大一番の夜は赤い幕。三夜目からは、その夜の景色の名前も出す
   const tw = S.st.twist ? K.TWISTS.find((x) => x.id === S.st.twist) : null, sc = K.SCENES.find((x) => x.id === S.st.scene);
-  const sub = [tw ? t('bossName', tw) : (S.st.night >= 2 && sc ? t('scene', sc) : ''), t('bannerTarget', targetOf(S.st))].filter(Boolean).join(' ・ ');
+  const sub = [t('stageShort'), tw ? t('bossName', tw) : (S.st.night >= 2 && sc ? t('scene', sc) : ''), t('bannerTarget', targetOf(S.st))].filter(Boolean).join(' ・ ');
   $('#banner').classList.toggle('boss', !!tw);
   banner(t('night', S.st.night), sub);
   S.darkUntil = 0; S.darkReveal = 0; S.darkMsg = null;
@@ -1378,6 +1388,7 @@ function endRun() {
   if (run.sig) run.type = K.strokeType(run.sig.pts, run.sig).id;
   if (!DB.best || run.total > DB.best) DB.best = run.total;
   if (!DB.bestChain || run.bestChain > DB.bestChain) DB.bestChain = run.bestChain;
+  if (cleared === K.NIGHTS) DB.stages = K.recordStageClear(DB.stages, K.STAGE.id, run.total, today()); // 次のステージを開けるときの条件に使う
   if (run.official) {
     DB.days = DB.days || {};
     DB.days[run.key] = { total: run.total, bestChain: run.bestChain, nights: run.nights, charms: run.charms, best: run.best, seed: run.seed, moon: run.moon, no: run.no, type: run.type || null };
@@ -1402,8 +1413,12 @@ function showRunResult(run) {
   drawHinoko(hc.getContext('2d'), 56, 74, 21, { face: v.face, still: true, glow: false });
   hl.append(hc, el('span', '', v.line)); body.appendChild(hl);
   if (run.hint) body.appendChild(el('p', 'hintpill', `💡 ${t('hintHead')}: ${hintText(run.hint)}`));
+  body.appendChild(el('p', 'stageline', t('stageLine', K.STAGE)));
   body.appendChild(el('div', 'big serif', cleared === K.NIGHTS ? t('complete') : t('reached', cleared)));
   body.appendChild(el('div', 'marks', Array.from({ length: K.NIGHTS }, (_, i) => K.nightMark(run.nights[i])).join('')));
+  // 八夜を完走したら、次のステージが続くことを知らせる（まだ無いときは「準備中」）
+  const nx = cleared === K.NIGHTS ? K.nextStage(K.STAGE.id) : null;
+  if (nx) { const c = el('div', 'nextstage'); c.append(el('b', '', t('nextStageHead', nx))); if (!nx.ready) c.append(el('span', '', t('nextStageBody'))); body.appendChild(c); }
   const kv = el('div', 'kv');
   const a = el('span'); a.append(t('total') + ' '); a.appendChild(el('b', 'mono', K.fmt(run.total)));
   const b = el('span'); b.append(t('bestChain') + ' '); b.appendChild(el('b', 'mono', String(run.bestChain)));
@@ -1649,6 +1664,7 @@ function goTitle() {
   const moon = K.MOONS[S.moonIdx];
   $('#moonDate').textContent = t('moonDate', d.getUTCMonth() + 1, d.getUTCDate(), t('wd')[d.getUTCDay()]);
   $('#moonName').textContent = t('moonName', moon);
+  $('#stageLine').textContent = t('stageLine', K.STAGE);
   $('#moonRule').textContent = t('moonRule', moon);
   // 今夜の一筆の大一番は、みんな同じ。タイトルで先に知らせる
   const bn = (n) => { const tw = K.twistFor(dailySeed(key), n); return lang === 'en' ? tw.en : tw.ja; };
@@ -1781,6 +1797,7 @@ function applyLang() {
     const ul = el('ul');
     for (const x of [
       'Clear 8 nights. Beat a night\'s target to earn a charm.',
+      'Eight nights make one stage. This is Stage 1, Riverside Festival. The next stage, with new scenes and gimmicks, is coming.',
       'Score is points × multiplier. Gold shells and every 10-chain raise the multiplier. Clear every shell for ×2.',
       'Each night adds one new thing: big shell, star shell, lantern, cloud, damp shell, fuse rope, and the grand shell.',
       'Nights 3 and 6 are boss nights that change how your line works (Straight, Mirror, Dark night, Snap). Beat one to pick two charms.',

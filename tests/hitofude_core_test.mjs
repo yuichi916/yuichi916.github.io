@@ -214,14 +214,15 @@ check('共有文: 点と連鎖を言葉で書き、絵文字は見出しの 🎆
     nights: [{ score: 900, target: 80 }, { score: 300, target: 250 }, { score: 100, target: 600 }],
   };
   const ja = K.runShareText(run, 'ja');
-  ok(ja.startsWith('🎆一筆花火 #2 9/27 満月\n2/8夜 123,456点・最大58連鎖\n'), ja);
+  ok(ja.startsWith('🎆一筆花火 #2 9/27 満月\nステージ1 2/8夜 123,456点・最大58連鎖\n'), ja);
   ok(ja.includes(K.HASHTAG), ja);
   const emoji = /\p{Extended_Pictographic}/gu;
   eq((ja.match(emoji) || []).join(''), '🎆', '絵文字は見出しの 1 つだけ');
   const en = K.runShareText({ ...run, daily: false }, 'en');
-  ok(en.startsWith('🎆Hitofude Hanabi\n') && en.includes('best chain 58'), en);
+  ok(en.startsWith('🎆Hitofude Hanabi\nStage 1 · 2/8 nights 123,456 pts · best chain 58\n'), en);
   const all = K.runShareText({ ...run, nights: Array(8).fill({ score: 10, target: 1 }) }, 'ja');
-  ok(all.includes('八夜 完走'), all);
+  ok(all.includes('\nステージ1 完走 '), all);
+  ok(K.runShareText({ ...run, nights: Array(8).fill({ score: 10, target: 1 }) }, 'en').includes('\nStage 1 clear! '));
 });
 
 check('連続記録と上位 %', () => {
@@ -473,6 +474,29 @@ check('散ったときのヒント: 夜の様子から、効きそうなこと�
   const st = roundWithTwist('kagami'); K.runToEnd(st, [line(40, 150, 90, 150, 8)]);
   eq(K.failHint(st).id, 'twist_kagami');
   eq(K.failHint(roundWithTwist('massugu')).id, 'twist_massugu');
+});
+
+check('ステージ: 今は八夜の1ステージだけ遊べて、次のステージは準備中として一覧にある', () => {
+  eq(K.STAGES[0].id, 1);
+  eq(K.STAGES[0].ja, '川辺の夏祭り');
+  eq(K.STAGES[0].nights, 8);
+  eq(K.STAGES[0].ready, true);
+  eq(K.NIGHTS, K.STAGES[0].nights, '夜の数はステージ1から取る');
+  eq(K.STAGE.id, 1, '今遊ぶのはステージ1');
+  ok(K.STAGES.length >= 2 && K.STAGES[1].id === 2 && K.STAGES[1].ready === false, 'ステージ2は準備中');
+  eq(K.nextStage(1).id, 2);
+  eq(K.nextStage(K.STAGES[K.STAGES.length - 1].id), null, '最後のステージの次は無い');
+});
+
+check('ステージの完走記録: 初めて完走した日は残し、最高点だけ更新する', () => {
+  const a = K.recordStageClear({}, 1, 5000, '2026-09-26');
+  eq(JSON.stringify(a), JSON.stringify({ 1: { first: '2026-09-26', best: 5000 } }));
+  const b = K.recordStageClear(a, 1, 4000, '2026-09-27');
+  eq(JSON.stringify(b), JSON.stringify({ 1: { first: '2026-09-26', best: 5000 } }), '低い点では変えない');
+  const c = K.recordStageClear(b, 1, 9000, '2026-09-28');
+  eq(JSON.stringify(c), JSON.stringify({ 1: { first: '2026-09-26', best: 9000 } }));
+  eq(JSON.stringify(a), JSON.stringify({ 1: { first: '2026-09-26', best: 5000 } }), 'もとの記録は書き換えない');
+  eq(JSON.stringify(K.recordStageClear(null, 1, 10, '2026-09-26')), JSON.stringify({ 1: { first: '2026-09-26', best: 10 } }), '記録が無くても作る');
 });
 
 if (failures) { console.error(`hitofude_core_test: ${failures} FAILED`); process.exit(1); }

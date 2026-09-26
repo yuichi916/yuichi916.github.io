@@ -7,7 +7,23 @@
 export const W = 360;
 export const H = 640;
 export const DT = 1 / 60;
-export const NIGHTS = 8;
+// ---------------------------------------------------------------- ステージ
+// 八夜で1ステージ。今遊べるのはステージ1だけで、次のステージは反響を見てアップデートで足す
+// （景色と仕掛けを変えて続ける）。夜ごとの仕掛け・大一番・景色は、今はステージ1のものだけを持つ
+export const STAGES = [
+  { id: 1, ja: '川辺の夏祭り', en: 'Riverside Festival', nights: 8, ready: true },
+  { id: 2, ja: '準備中', en: 'Coming soon', nights: 8, ready: false },
+];
+export const STAGE = STAGES[0];
+export const NIGHTS = STAGE.nights;
+export function nextStage(id) { return STAGES.find((s) => s.id === id + 1) || null; }
+// ステージを完走した記録: { <id>: { first: 初めて完走した日, best: 完走したときの最高点 } }（もとの記録は書き換えない）
+export function recordStageClear(rec, id, total, dateKey) {
+  const out = { ...(rec || {}) };
+  const cur = out[id];
+  out[id] = cur ? { first: cur.first, best: Math.max(cur.best || 0, total) } : { first: dateKey, best: total };
+  return out;
+}
 
 // ---------------------------------------------------------------- 乱数・日付・月
 export function hashStr(s) {
@@ -800,7 +816,8 @@ export function runShareText(run, lang, url = SITE_URL) {
     const md = `${+run.key.slice(5, 7)}/${+run.key.slice(8, 10)}`;
     head = `🎆${en ? 'Hitofude Hanabi' : '一筆花火'} #${run.no} ${md} ${en ? moon.en : moon.ja}`;
   } else head = en ? '🎆Hitofude Hanabi' : '🎆一筆花火';
-  const line2 = cleared === NIGHTS ? (en ? 'All 8 nights!' : '八夜 完走') : (en ? `${cleared}/8 nights` : `${cleared}/8夜`);
+  const line2 = cleared === NIGHTS ? (en ? `Stage ${STAGE.id} clear!` : `ステージ${STAGE.id} 完走`)
+    : (en ? `Stage ${STAGE.id} · ${cleared}/${NIGHTS} nights` : `ステージ${STAGE.id} ${cleared}/${NIGHTS}夜`);
   const line3 = en ? `${fmt(run.total)} pts · best chain ${run.bestChain}` : `${fmt(run.total)}点・最大${run.bestChain}連鎖`;
   // 筆跡と、大一番の結果（今夜の一筆は、みんな同じ大一番）
   const extra = [];
