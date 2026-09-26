@@ -30,7 +30,21 @@ WORKS: dict[str, tuple[str, list[str], list[str]]] = {
     "stopwatch": ("stopwatch.html", [],                    ["favicon.svg"]),
     # hitofude は './assets/...' の import と BGM の fetch で読むのでディレクトリごと入れる
     "hitofude":  ("hitofude.html",  ["assets/hitofude", "assets/feel"], ["favicon.svg"]),
+    # ゲームポータル (CrazyGames・Y8・Game Jolt など) 用: 他作品・他サイトへの誘導と、外への通信を外す (PORTAL_STRIP)
+    "hitofude-portal": ("hitofude.html", ["assets/hitofude", "assets/feel"], ["favicon.svg"]),
 }
+
+# ポータル用の版だけに入れる変更。サイトの HTML は変えない
+PORTAL_CSS = ("<style id=\"portal-build\">.endnext,.sharebox,pre.share,[data-feel],.world{display:none!important}</style>"
+              "<script>/* ポータル用: 外への問い合わせ (アクセス解析の数え) をしない */"
+              "(()=>{const f=window.fetch;window.fetch=(u,...a)=>/goatcounter|docs\.google/.test(String(u&&u.url||u))"
+              "?Promise.reject(new Error('portal build')):f(u,...a);})();</script>")
+
+
+def portal_strip(html: str) -> str:
+    html = re.sub(r'<script[^>]*gc\.zgo\.at[^>]*></script>\s*', "", html)          # アクセス解析
+    html = re.sub(r'<script[^>]*assets/feel/feel\.js[^>]*></script>\s*', "", html)  # 気持ちスタンプ
+    return html.replace("</head>", PORTAL_CSS + "</head>", 1)
 
 
 def local_refs(html: str) -> set[str]:
@@ -59,6 +73,8 @@ def build(name: str) -> int:
     stage.mkdir(parents=True)
 
     html = src.read_text(encoding="utf-8")
+    if name.endswith("-portal"):
+        html = portal_strip(html)
     # サイトの一番上を起点にした /assets/... は、itch.io ではサイトの外を指すので相対にする
     html = re.sub(r'((?:src|href)=")/(assets/)', r"\1\2", html)
     # itch.io は zip 直下の index.html を開く
