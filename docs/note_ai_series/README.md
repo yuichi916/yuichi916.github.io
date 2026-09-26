@@ -2,7 +2,7 @@
 
 **書く前に必ず [WRITING_RULES.md](WRITING_RULES.md) を見る（最初に細かい数字を出さない）。**
 
-最新の軸は [03_concept_success.md](03_concept_success.md)。01・02 は、失敗を主役にしていた古い案（数字から入る書き出しを含む）なので、そのまま使わない。
+最新の軸は [04_concept_world.md](04_concept_world.md)（プロ＝自分だけの世界を築き・壊し・乗りこなす人）と、その掘り下げ [05_story_and_material.md](05_story_and_material.md)。01〜03 は古い案なので、そのまま使わない。
 
 | ファイル | 中身 | 状態 |
 |---|---|---|
