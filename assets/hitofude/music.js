@@ -34,7 +34,9 @@ const FLUTE = [
 const FLUTE_AT = FLUTE.map((bar) => { const m = new Map(); let s = 0; for (const [n, len] of bar) { if (n > 0) m.set(s, [n, len]); s += len; } return m; });
 
 export function createMusic(ac, out, noiseBuf) {
-  const bus = ac.createGain(); bus.connect(out);
+  // side … 爆発の効果音が鳴るあいだ曲を下げるつまみ（満開のジングルは通さない）
+  const side = ac.createGain(); side.connect(out);
+  const bus = ac.createGain(); bus.connect(side);
   const calm = ac.createGain(); calm.connect(bus);
   const burn = ac.createGain(); burn.gain.value = 0; burn.connect(bus);
   const warm = ac.createBiquadFilter(); warm.type = 'lowpass'; warm.frequency.value = 3400; warm.connect(calm);
@@ -193,6 +195,14 @@ export function createMusic(ac, out, noiseBuf) {
       const now = ac.currentTime;
       bus.gain.cancelScheduledValues(now); bus.gain.setValueAtTime(bus.gain.value, now);
       bus.gain.linearRampToValueAtTime(level, now + 0.05); bus.gain.setTargetAtTime(1, now + sec, 0.3);
+    },
+    // 爆発の効果音とぶつからないよう、すばやく下げて、鳴りやんだら hold 秒おいてゆっくり戻す。
+    // 連鎖で次々に呼ばれても、いちばん深く下げた所より上には戻さない
+    sfxDuck(level = 0.3, hold = 0.25) {
+      const now = ac.currentTime, g = side.gain, cur = g.value;
+      g.cancelScheduledValues(now); g.setValueAtTime(cur, now);
+      g.setTargetAtTime(Math.min(level, cur), now, 0.012);
+      g.setTargetAtTime(1, now + hold, 0.35);
     },
     // 満開のジングル。曲のファイルがあれば true を返す（無ければページが効果音で鳴らす）
     stinger() {

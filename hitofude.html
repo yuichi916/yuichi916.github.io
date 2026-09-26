@@ -518,17 +518,19 @@ const SFX = {
   crackle() { const n = performance.now(); if (n - lastCrackle < 45) return; lastCrackle = n; noise(0.03, 0.06 + Math.random() * 0.05, 2500 + Math.random() * 3000, 3); },
   burst(type, chain) {
     const n = performance.now();
+    // 爆発の音が鳴るあいだは BGM を下げる（大玉はもっと深く、長く）
+    if (sfxOn && music) music.sfxDuck(type === 'ootama' ? 0.32 : 0.45, type === 'ootama' ? 0.4 : 0.25);
     if (n - lastThump > 38) {
       lastThump = n;
       const big = type === 'ootama';
-      tone(big ? 90 : 120, big ? 0.45 : 0.28, 'sine', big ? 0.32 : 0.2, big ? -55 : -70);
-      noise(big ? 0.7 : 0.4, big ? 0.16 : 0.1, 1400, 0.6);
+      tone(big ? 90 : 120, big ? 0.45 : 0.28, 'sine', big ? 0.19 : 0.12, big ? -55 : -70);
+      noise(big ? 0.7 : 0.4, big ? 0.1 : 0.06, 1400, 0.6);
     }
     if (n - lastChime > 28) {
       lastChime = n;
       const i = Math.min(chain - 1, 19), f = 392 * 2 ** ((PENTA[i % 5] + 12 * Math.floor(i / 5)) / 12);
-      tone(f, 0.26, 'triangle', 0.09); tone(f * 2, 0.18, 'sine', 0.03);
-      if (type === 'kin') { tone(f * 1.5, 0.35, 'sine', 0.07, 0, 0.03); tone(f * 3, 0.25, 'sine', 0.04, 0, 0.06); }
+      tone(f, 0.26, 'triangle', 0.072); tone(f * 2, 0.18, 'sine', 0.024);
+      if (type === 'kin') { tone(f * 1.5, 0.35, 'sine', 0.056, 0, 0.03); tone(f * 3, 0.25, 'sine', 0.032, 0, 0.06); }
     }
   },
   milestone() { [0, 4, 7, 12].forEach((s, i) => tone(523 * 2 ** (s / 12), 0.5, 'triangle', 0.08, 0, i * 0.04)); },
