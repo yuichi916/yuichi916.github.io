@@ -40,6 +40,7 @@ EXCLUDE = {
     "kv-render.html",
     "op-render.html",
     "seikai-plot.html",             # noindex 指定済み（結末を含む設定資料）
+    "bakekurabe.html",              # 一筆花火へ案内するだけのページ（noindex）
 }
 
 # Directories that must never reach the sitemap. 以前は **/*.html を丸ごと拾って
@@ -67,7 +68,7 @@ POLICY: list[tuple[str, tuple[str, str]]] = [
     ("stopwatch.html",   ("monthly", "0.8")),
     ("sudoku.html",      ("monthly", "0.8")),
     ("shogi-puyo.html",  ("monthly", "0.8")),
-    ("bakekurabe.html",  ("daily",   "0.9")),   # 日替わりのお題
+    ("hitofude.html",    ("daily",   "0.9")),   # 日替わりのお題（今夜の一筆）
     ("lingo.html",       ("monthly", "0.8")),
     ("toeic.html",       ("monthly", "0.8")),
     ("toeic-practice.html", ("monthly", "0.8")),

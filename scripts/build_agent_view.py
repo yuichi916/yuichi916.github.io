@@ -40,6 +40,7 @@ EXCLUDE_FILES = {
     "googlea794ff425484fcb3.html", "quest_test_tmp.html", "test-mobile.html",
     "cg-render.html", "cg2-render.html", "kv-render.html", "op-render.html",
     "seikai-plot.html", "agent.html",
+    "bakekurabe.html",   # 一筆花火へ案内するだけのページ（noindex）
 }
 
 # llms.txt の並び。前方一致で最初に当たったものを採用する
@@ -55,7 +56,7 @@ SECTIONS: list[tuple[str, str]] = [
     ("ehon",                 "遊ぶ"),   # ehon.html と ehon-about.html
     ("sudoku.html",          "遊ぶ"),
     ("shogi-puyo.html",      "遊ぶ"),
-    ("bakekurabe.html",      "遊ぶ"),
+    ("hitofude.html",        "遊ぶ"),
     ("salon",                "遊ぶ — 音楽の宇宙"),
     ("universe.html",        "遊ぶ — 音楽の宇宙"),
     ("world.html",           "遊ぶ"),
