@@ -28,6 +28,8 @@ WORKS: dict[str, tuple[str, list[str], list[str]]] = {
     "cabin":     ("cabin.html",     ["assets/bgm", "assets/voice"], ["favicon.svg"]),
     "ehon":      ("ehon.html",      ["_ehon_assets"],      ["favicon.svg"]),
     "stopwatch": ("stopwatch.html", [],                    ["favicon.svg"]),
+    # hitofude は './assets/...' の import と BGM の fetch で読むのでディレクトリごと入れる
+    "hitofude":  ("hitofude.html",  ["assets/hitofude", "assets/feel"], ["favicon.svg"]),
 }
 
 
@@ -57,6 +59,8 @@ def build(name: str) -> int:
     stage.mkdir(parents=True)
 
     html = src.read_text(encoding="utf-8")
+    # サイトの一番上を起点にした /assets/... は、itch.io ではサイトの外を指すので相対にする
+    html = re.sub(r'((?:src|href)=")/(assets/)', r"\1\2", html)
     # itch.io は zip 直下の index.html を開く
     (stage / "index.html").write_text(html, encoding="utf-8")
 
