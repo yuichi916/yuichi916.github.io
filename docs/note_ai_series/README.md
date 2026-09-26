@@ -10,7 +10,7 @@
 | [research/note_style.md](research/note_style.md) | 人気noteの文体とAIっぽく見える書き方、図の作り方（出典つき） | 調査 |
 | [figures/](figures/) | 記事の図（PNG）と作り方（src/ の HTML。フォントは Google Fonts の Klee One・Zen Maru Gothic を src/fonts/ に置いて描画。git には入れない） | — |
 | [research/fix_analysis.md](research/fix_analysis.md) | 直したコミット287件の分類の要約（全件は fix_classified.tsv） | 調査 |
-| [ep00_pro_is_not_prompt.md](ep00_pro_is_not_prompt.md) | **#00（無料）プロは、プロンプトがうまい人ではなかった**。人気noteの書き方に合わせて改稿（約1,700字・見出し5・図5・太字1）。図は figures/、スマホでの見え方は preview/ep00_phone.png | 第2稿 |
+| [ep00_pro_is_not_prompt.md](ep00_pro_is_not_prompt.md) | **#00（無料）プロは、プロンプトがうまい人ではなかった**。人気noteの書き方に合わせて改稿（約1,700字・見出し5・図5・太字1）。図は figures/、スマホでの見え方は preview/ep00_phone_1〜3.jpg | 第2稿 |
 | [04_concept_world.md](04_concept_world.md) | **最新の軸**：プロはテクニックではなく、自分だけの世界を持つ人。築く・壊す・乗りこなすの三本柱、noteの型、全11回と道具箱、#00の書き出し | 完成 |
 | [05_story_and_material.md](05_story_and_material.md) | **最新の軸の掘り下げ**：主張の筋道、写真と絵画のたとえ、読者の変化の道のり、各回の題材（研究ノートの原文つき）、反論と答え、#00の運び | 完成 |
 | [03_concept_success.md](03_concept_success.md) | 古い案：失敗ではなく「ひとりでできるようになったこと」を主役にする。芯の一言、noteの型（興味・損失・利益・独自性）、成果が主役の全11回、#00の書き出し見本 | 完成 |
