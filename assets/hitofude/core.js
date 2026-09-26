@@ -42,9 +42,9 @@ export function moonPhase(key) {
 // 今夜の月で、ルールが 1 つ変わる。番号は挑戦状に入るので並びを変えない
 export const MOONS = [
   { id: 'shingetsu', ja: '新月', name: '闇夜', en: 'New moon', rule: '金の玉が2倍出る', ruleEn: 'Twice as many gold shells', fx: { goldDouble: true } },
-  { id: 'mikazuki', ja: '三日月', name: '細い月', en: 'Crescent', rule: '千輪が3つ増える', ruleEn: 'Three extra star shells', fx: { extraSenrin: 3 } },
-  { id: 'jougen', ja: '上弦の月', name: '半月', en: 'First quarter', rule: '導火線の火が届く幅 ×3', ruleEn: 'Fuse reach ×3', fx: { reach: 3 } },
-  { id: 'juusanya', ja: '十三夜', name: '満ちてゆく月', en: 'Waxing gibbous', rule: '大玉が2倍出る', ruleEn: 'Twice as many big shells', fx: { bigDouble: true } },
+  { id: 'mikazuki', ja: '三日月', name: '細い月', en: 'Crescent', rule: '千輪が3つ増える（千輪が出てくる夜から）', ruleEn: 'Three extra star shells (once they appear)', fx: { extraSenrin: 3 } },
+  { id: 'jougen', ja: '上弦の月', name: '筆ののびる夜', en: 'First quarter', rule: '墨 +20%・導火線の火が届く幅 ×2', ruleEn: 'Ink +20% and fuse reach ×2', fx: { ink: 1.2, reach: 2 } },
+  { id: 'juusanya', ja: '十三夜', name: '満ちてゆく月', en: 'Waxing gibbous', rule: '大玉が2倍出る（大玉が出てくる夜から）', ruleEn: 'Twice as many big shells (once they appear)', fx: { bigDouble: true } },
   { id: 'mangetsu', ja: '満月', name: '大輪の夜', en: 'Full moon', rule: '玉のひらく大きさ +12%', ruleEn: 'Bursts +12% bigger', fx: { radius: 1.12 } },
   { id: 'nemachi', ja: '寝待月', name: '欠けてゆく月', en: 'Waning gibbous', rule: '倍率が +1 から始まる', ruleEn: 'Multiplier starts at +1', fx: { startMult: 1 } },
   { id: 'kagen', ja: '下弦の月', name: '残り火の夜', en: 'Last quarter', rule: 'ひらいた玉の 2/5 が、もう一度はじける', ruleEn: '2 in 5 bursts pop again', fx: { afterglow: 0.4 } },
@@ -54,12 +54,27 @@ export function moonIndex(phase) { return Math.floor(((phase + 1 / 16) % 1) * 8)
 
 // ---------------------------------------------------------------- 花火玉とお守り
 export const SHELLS = {
-  kiku: { r: 9, R: 50, pts: 10 },    // 菊: ふつうの玉
-  ootama: { r: 14, R: 80, pts: 30 }, // 大玉: 大きくひらく
-  kin: { r: 8, R: 40, pts: 5 },      // 金: 倍率 +1
-  senrin: { r: 10, R: 30, pts: 15 }, // 千輪: 火花をまっすぐ飛ばす
+  kiku: { r: 9, R: 50, pts: 10 },      // 菊: ふつうの玉
+  ootama: { r: 14, R: 80, pts: 30 },   // 大玉: 大きくひらく
+  kin: { r: 8, R: 40, pts: 5 },        // 金: 倍率 +1
+  senrin: { r: 10, R: 30, pts: 15 },   // 千輪: 火花をまっすぐ飛ばす
+  chouchin: { r: 11, R: 40, pts: 10 }, // 提灯: 灯ったあとの玉は点が 2 倍
+  shime: { r: 10, R: 50, pts: 25 },    // 湿った玉: 別々の火が 2 回当たるとひらく
+  shaku: { r: 22, R: 170, pts: 200 },  // 尺玉: 最後の特大玉。倍率 +3
 };
-export const TYPES = ['kiku', 'ootama', 'kin', 'senrin'];
+export const TYPES = ['kiku', 'ootama', 'kin', 'senrin', 'chouchin', 'shime', 'shaku'];
+
+// 夜ごとに 1 つずつ増える仕掛け（一度に覚えることは 1 つだけ）
+export const GIMMICKS = [
+  { id: 'ootama', night: 1, ja: '大玉', en: 'Big shell', desc: '大きくひらく。群れのまん中にあると一気に広がる', descEn: 'A huge burst. In the middle of a cluster, it takes everything' },
+  { id: 'senrin', night: 2, ja: '千輪', en: 'Star shell', desc: '火花がまっすぐ飛んで、離れた玉にも届く', descEn: 'Fires sparks in straight lines that reach far shells' },
+  { id: 'chouchin', night: 3, ja: '提灯', en: 'Lantern', desc: '灯ったあとにひらく玉は、点が2倍。線は提灯から引きはじめよう', descEn: 'Every burst after it lights scores ×2. Start your line at the lantern' },
+  { id: 'kumo', night: 4, ja: '雲', en: 'Cloud', desc: '火は雲を通らない。線は雲をよけて引く', descEn: 'Fire can\'t pass through clouds. Draw around them' },
+  { id: 'shime', night: 5, ja: '湿った玉', en: 'Damp shell', desc: '別々の火が2回当たると、ひらく。点は高い', descEn: 'Needs two separate hits to burst. Worth more' },
+  { id: 'nawa', night: 6, ja: '仕掛け縄', en: 'Fuse rope', desc: '火が届くと、縄を走って遠くの玉まで燃え広がる', descEn: 'Once lit, fire races along the rope to far shells' },
+  { id: 'shaku', night: 7, ja: '尺玉', en: 'Grand shell', desc: '最後の特大玉。ひらけば倍率 +3、夜空いっぱいに咲く', descEn: 'The grand finale. Burst it for +3 mult' },
+];
+export function gimmickFor(night) { return GIMMICKS.find((g) => g.night === night) || null; }
 
 // 番号は再生リンクのビットに入るので、足すのは末尾だけ
 export const CHARMS = [
@@ -75,7 +90,12 @@ export const CHARMS = [
   { id: 'mashidama', emoji: '🎇', ja: '増し玉', en: 'More shells', desc: '夜ごとに花火玉が 6 つ増える', descEn: '+6 shells every night' },
   { id: 'nihitsu', emoji: '✌️', ja: '二筆目', en: 'Second stroke', desc: '25 個ひらいたら、もう1本（墨は半分）', descEn: 'Burst 25 to draw once more (half ink)' },
   { id: 'nokoribi', emoji: '🔥', ja: '残り火', en: 'Embers', desc: 'ひらいた玉の 1/4 が、もう一度はじける', descEn: '1 in 4 bursts pops again' },
+  { id: 'chouchinshi', emoji: '🏮', ja: '提灯職人', en: 'Lantern maker', desc: '提灯ひとつで点が 3 倍（ふだんは 2 倍）', descEn: 'Each lantern makes points ×3 (not ×2)' },
+  { id: 'amayoke', emoji: '☂️', ja: '雨よけ', en: 'Umbrella', desc: '湿った玉も、1回の火でひらく', descEn: 'Damp shells burst on the first hit' },
+  { id: 'kazekiri', emoji: '🌬️', ja: '風切り', en: 'Wind cutter', desc: '雲が半分の大きさになる', descEn: 'Clouds shrink to half size' },
 ];
+// 仕掛けが出てくる前には候補に出さない（見たことのないものは選べない）
+const CHARM_NEEDS = { senrin: 2, chouchinshi: 3, kazekiri: 4, amayoke: 5 };
 export const CHARM_IDS = CHARMS.map((c) => c.id);
 export function charmById(id) { return CHARMS.find((c) => c.id === id) || null; }
 
@@ -83,7 +103,7 @@ export const BASE_INK = 460;
 export const BASE_REACH = 7;
 // 夜ごとの目標点。8 夜目がいちばん高い
 // ボットで測った値（tests と _dev/hitofude-balance.mjs）。序盤はほぼ越えられ、終盤はお守りの組み合わせが要る
-export const TARGETS = [80, 200, 600, 1500, 3500, 6500, 14000, 26000];
+export const TARGETS = [80, 200, 600, 2500, 5500, 14000, 35000, 150000];
 export const BASE_COUNTS = [16, 20, 24, 28, 32, 36, 40, 44];
 
 // お守りと今夜の月を合わせた、この夜のルール
@@ -107,6 +127,9 @@ export function rulesFor(charms, moonIdx) {
     goldDouble: !!m.goldDouble,
     bigDouble: !!m.bigDouble,
     extraSenrin: m.extraSenrin || 0,
+    lanternGain: has('chouchinshi') ? 2 : 1,
+    dampHits: has('amayoke') ? 1 : 2,
+    cloudScale: has('kazekiri') ? 0.5 : 1,
   };
 }
 
@@ -118,20 +141,80 @@ function gauss(rng) { return (rng() + rng() + rng() - 1.5) / 1.5; }
 
 export function nightSeed(seed, night) { return hashStr(`hitofude:${seed >>> 0}:${night}`); }
 
-// 夜 night（0 始まり）の花火玉。いくつかの群れと、はぐれ玉。群れの間は線でつなぐ
-export function makeLayout(seed, night, rules) {
-  const rng = rng32(nightSeed(seed, night));
-  const n = BASE_COUNTS[Math.min(night, BASE_COUNTS.length - 1)] + rules.extraShells;
-  let gold = 1 + Math.floor(night / 3), big = 1 + Math.floor(night / 2), star = Math.floor((night + 1) / 2);
+// 夜ごとの玉の内訳。仕掛けは GIMMICKS の夜から出てくる
+export function shellMix(night, rules) {
+  let gold = 1 + Math.floor(night / 3);
+  let big = night >= 1 ? 1 + Math.floor((night - 1) / 2) : 0;
+  let star = night >= 2 ? 1 + Math.floor((night - 2) / 2) : 0;
+  const lantern = night >= 3 ? (night >= 6 ? 2 : 1) : 0;
+  const damp = night >= 5 ? 3 + (night - 5) * 2 : 0;
+  const shaku = night >= 7 ? 1 : 0;
+  // 月のルールも、その玉が出てくる夜から効く（一度に覚えることは 1 つだけ）
   if (rules.goldDouble) gold *= 2;
   if (rules.bigDouble) big *= 2;
-  star += rules.extraSenrin;
+  if (night >= 2) star += rules.extraSenrin;
+  return { kin: gold, ootama: big, senrin: star, chouchin: lantern, shime: damp, shaku };
+}
+
+// 雲（5 夜目から）。火も火花も通らない
+export function makeClouds(seed, night, rules) {
+  if (night < 4) return [];
+  const rng = rng32(nightSeed(seed, night) ^ 0x0c10d5);
+  const n = night >= 6 ? 2 : 1, out = [];
+  for (let k = 0; k < n; k++) {
+    for (let t = 0; t < 40; t++) {
+      const r = Math.round((38 + rng() * 12) * rules.cloudScale);
+      const c = { x: Math.round(FIELD.x0 + 50 + rng() * (FIELD.x1 - FIELD.x0 - 100)), y: Math.round(FIELD.y0 + 60 + rng() * (FIELD.y1 - FIELD.y0 - 120)), r };
+      if (out.some((o) => Math.hypot(o.x - c.x, o.y - c.y) < o.r + c.r + 60)) continue;
+      out.push(c); break;
+    }
+  }
+  return out;
+}
+// 線分 a→b が、どれかの雲を横切るか
+export function crossesCloud(clouds, ax, ay, bx, by) {
+  for (const c of clouds) {
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const u = l2 ? Math.max(0, Math.min(1, ((c.x - ax) * dx + (c.y - ay) * dy) / l2)) : 0;
+    if (Math.hypot(ax + dx * u - c.x, ay + dy * u - c.y) < c.r) return true;
+  }
+  return false;
+}
+export function inCloud(clouds, x, y) { return clouds.some((c) => Math.hypot(c.x - x, c.y - y) < c.r); }
+
+// 仕掛け縄（7 夜目から）。離れた玉どうしをゆるい弧でつなぐ。雲は通らない
+export function makeRopes(seed, night, shells, clouds) {
+  if (night < 6) return [];
+  const rng = rng32(nightSeed(seed, night) ^ 0x2a0e5);
+  const n = night >= 7 ? 3 : 2, out = [], used = new Set();
+  for (let t = 0; t < 200 && out.length < n; t++) {
+    const a = shells[Math.floor(rng() * shells.length)], b = shells[Math.floor(rng() * shells.length)];
+    if (!a || !b || a === b || used.has(a.id) || used.has(b.id)) continue;
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    if (d < 100 || d > 190) continue;
+    const bend = (rng() - 0.5) * 50, nx = -(b.y - a.y) / d, ny = (b.x - a.x) / d;
+    const cx = (a.x + b.x) / 2 + nx * bend, cy = (a.y + b.y) / 2 + ny * bend;
+    const pts = [];
+    const steps = Math.round(d / FUSE_SAMPLE);
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      pts.push({ x: (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * cx + u * u * b.x, y: (1 - u) * (1 - u) * a.y + 2 * (1 - u) * u * cy + u * u * b.y });
+    }
+    if (pts.some((p) => inCloud(clouds, p.x, p.y))) continue;
+    used.add(a.id); used.add(b.id);
+    out.push({ a: a.id, b: b.id, pts });
+  }
+  return out;
+}
+
+// 夜 night（0 始まり）の花火玉。いくつかの群れと、はぐれ玉。群れの間は線でつなぐ
+export function makeLayout(seed, night, rules, clouds = makeClouds(seed, night, rules)) {
+  const rng = rng32(nightSeed(seed, night));
+  const n = BASE_COUNTS[Math.min(night, BASE_COUNTS.length - 1)] + rules.extraShells;
+  const mix = shellMix(night, rules);
   const types = [];
-  for (let i = 0; i < gold; i++) types.push('kin');
-  for (let i = 0; i < big; i++) types.push('ootama');
-  for (let i = 0; i < star; i++) types.push('senrin');
-  while (types.length < n) types.push('kiku');
-  types.length = Math.max(n, types.length);
+  for (const t of ['kin', 'ootama', 'senrin', 'chouchin', 'shime']) for (let i = 0; i < mix[t]; i++) types.push(t);
+  while (types.length < n - mix.shaku) types.push('kiku');
   for (let i = types.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [types[i], types[j]] = [types[j], types[i]]; }
   // 序盤の夜ほど群れが少なく密（最初の一筆で気持ちよく連鎖させる）
   const k = night < 2 ? 2 : 3 + Math.floor(rng() * 3);
@@ -147,6 +230,9 @@ export function makeLayout(seed, night, rules) {
     centers.push(best.p);
   }
   const shells = [];
+  // 尺玉は、まん中あたりに先に置く
+  if (mix.shaku) shells.push({ id: 0, type: 'shaku', x: Math.round(W / 2 + (rng() - 0.5) * 60), y: Math.round(290 + (rng() - 0.5) * 80), hue: 2 });
+  const clear = (x, y, gap) => !shells.some((s) => Math.hypot(s.x - x, s.y - y) < gap + (s.type === 'shaku' ? 14 : 0)) && !clouds.some((c) => Math.hypot(c.x - x, c.y - y) < c.r + 14);
   for (let i = 0; i < types.length; i++) {
     let pos = null;
     for (let t = 0; t < 60 && !pos; t++) {
@@ -156,7 +242,7 @@ export function makeLayout(seed, night, rules) {
       const x = Math.round(loose ? FIELD.x0 + rng() * (FIELD.x1 - FIELD.x0) : c.x + gauss(rng) * spread);
       const y = Math.round(loose ? FIELD.y0 + rng() * (FIELD.y1 - FIELD.y0) : c.y + gauss(rng) * spread);
       if (x < FIELD.x0 || x > FIELD.x1 || y < FIELD.y0 || y > FIELD.y1) continue;
-      if (shells.some((s) => Math.hypot(s.x - x, s.y - y) < MIN_GAP)) continue;
+      if (!clear(x, y, MIN_GAP)) continue;
       pos = { x, y };
     }
     if (!pos) continue;
@@ -222,18 +308,44 @@ export const SPARK_LIFE = 0.55;
 
 export function newRound({ seed, night, charms = [], moon = 4 }) {
   const rules = rulesFor(charms, moon);
-  const shells = makeLayout(seed, night, rules).map((s) => ({ ...s, burst: false, burstAt: -1 }));
-  return {
-    seed: seed >>> 0, night, charms: charms.slice(), moon, rules, shells,
+  const clouds = makeClouds(seed, night, rules);
+  const shells = makeLayout(seed, night, rules, clouds).map((s) => ({ ...s, burst: false, burstAt: -1, hp: s.type === 'shime' ? rules.dampHits : 1, lastSrc: null }));
+  const st = {
+    seed: seed >>> 0, night, charms: charms.slice(), moon, rules, shells, clouds, ropes: [],
     t: 0, tick: 0, phase: 'draw', strokes: [], ink: rules.ink,
-    fuse: null, heads: [], explosions: [], sparks: [], embers: [],
-    pops: 0, chips: 0, goldMult: 0, maxChainAt: 0, events: [],
+    fuse: { pts: [], burnt: [], seg: [], wet: [], rope: [], links: [], corners: new Set(), ends: new Set() },
+    heads: [], explosions: [], sparks: [], embers: [], nextId: 1,
+    pops: 0, chips: 0, goldMult: 0, lanterns: 0, maxChainAt: 0, events: [],
     rng: rng32(nightSeed(seed, night) ^ 0x9e3779b9), secondUsed: false, done: false, result: null,
   };
+  const ropes = makeRopes(seed, night, shells, clouds);
+  ropes.forEach((r, k) => addSegment(st, r.pts, 10 + k, true));
+  st.ropes = ropes;
+  return st;
 }
 
 export function multOf(st) {
   return 1 + st.rules.startMult + st.goldMult + Math.floor(st.pops / st.rules.pulse);
+}
+// 提灯が灯ったあとの、点の倍率（1 + 灯った提灯 × 1。提灯職人なら × 2）
+export function pointFactor(st) { return 1 + st.lanterns; }
+
+// 導火線に区間を足す（プレイヤーの線も、仕掛け縄も）。近くにある別の区間の点どうしは「つながり」として覚え、
+// 片方が燃えたらもう片方にも火が移る
+const LINK_DIST = 6;
+function addSegment(st, samples, segId, isRope) {
+  const f = st.fuse, base = f.pts.length;
+  for (const p of samples) {
+    f.pts.push(p); f.burnt.push(false); f.seg.push(segId); f.rope.push(!!isRope);
+    f.wet.push(inCloud(st.clouds, p.x, p.y)); f.links.push([]);
+  }
+  for (let i = base; i < f.pts.length; i++) {
+    for (let j = 0; j < base; j++) {
+      if (f.seg[j] === segId) continue;
+      if (Math.hypot(f.pts[i].x - f.pts[j].x, f.pts[i].y - f.pts[j].y) <= LINK_DIST) { f.links[i].push(j); f.links[j].push(i); }
+    }
+  }
+  return base;
 }
 
 // 指の軌跡から線を置いて火をつける（1 本目も 2 本目も同じ）。返り値は、実際に使われた線
@@ -264,59 +376,74 @@ export function lightPoints(st, input) {
     const n = Math.max(1, Math.round(seg / FUSE_SAMPLE));
     for (let k = i === 1 ? 0 : 1; k <= n; k++) samples.push({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n });
   }
-  const base = st.fuse ? st.fuse.pts.length : 0;
-  const corners = st.rules.corners ? cornerIndices(pts).map((ci) => base + Math.round(ci * STROKE_STEP / FUSE_SAMPLE)) : [];
-  if (!st.fuse) st.fuse = { pts: [], burnt: [], seg: [], corners: new Set(), ends: new Set() };
   const segId = st.strokes.length - 1;
-  for (const p of samples) { st.fuse.pts.push(p); st.fuse.burnt.push(false); st.fuse.seg.push(segId); }
+  const base = addSegment(st, samples, segId, false);
+  const corners = st.rules.corners ? cornerIndices(pts).map((ci) => base + Math.round(ci * STROKE_STEP / FUSE_SAMPLE)) : [];
   for (const c of corners) st.fuse.corners.add(Math.min(c, st.fuse.pts.length - 1));
   st.fuse.ends.add(st.fuse.pts.length - 1);
-  st.heads.push({ i: base, dir: 1, f: base });
-  st.fuse.burnt[base] = true;
   st.phase = 'burn';
+  st.fuse.burnt[base] = true;
   st.events.push({ type: 'light', x: samples[0].x, y: samples[0].y });
-  fuseNeighborsBurst(st, samples[0], st.rules.reach);
+  // 雲の中から引きはじめた線は、火がつかない
+  if (st.fuse.wet[base]) { st.events.push({ type: 'fizzle', x: samples[0].x, y: samples[0].y }); return pts; }
+  st.heads.push({ i: base, dir: 1, f: base });
+  fuseNeighborsBurst(st, samples[0], st.rules.reach, 'f' + segId);
+  catchLinks(st, base);
   return pts;
 }
 
 function spawnExplosion(st, x, y, R, cause, hue) {
-  st.explosions.push({ x, y, R, t: 0, cause, hue: hue == null ? -1 : hue });
+  st.explosions.push({ id: st.nextId++, x, y, R, t: 0, cause, hue: hue == null ? -1 : hue });
 }
 
-function burst(st, s, cause) {
+// src は火の出どころ（爆発・火花・導火線の区間）。湿った玉は、別々の出どころから 2 回当たるとひらく
+function burst(st, s, cause, src) {
   if (s.burst) return;
+  if (s.type === 'shime' && s.lastSrc === src) return; // 同じ火は、何度当たっても 1 回と数える
+  if (s.hp > 1) {
+    s.hp--; s.lastSrc = src;
+    st.events.push({ type: 'dry', shell: s });
+    return;
+  }
   const def = SHELLS[s.type];
   s.burst = true; s.burstAt = st.t;
   st.pops++;
-  st.chips += def.pts;
+  st.chips += def.pts * pointFactor(st);
   if (s.type === 'kin') st.goldMult += st.rules.goldBonus;
+  if (s.type === 'shaku') st.goldMult += 3;
+  if (s.type === 'chouchin') { st.lanterns += st.rules.lanternGain; st.events.push({ type: 'lantern', shell: s, factor: pointFactor(st) }); }
   spawnExplosion(st, s.x, s.y, def.R * st.rules.radius, cause, s.hue);
   if (s.type === 'senrin') {
     const n = st.rules.senrinSparks;
     const off = (s.id * 0.61803) % 1;
     for (let k = 0; k < n; k++) {
       const a = (k / n + off) * Math.PI * 2;
-      st.sparks.push({ x: s.x, y: s.y, vx: Math.cos(a) * SPARK_SPEED, vy: Math.sin(a) * SPARK_SPEED, life: SPARK_LIFE });
+      st.sparks.push({ id: st.nextId++, x: s.x, y: s.y, vx: Math.cos(a) * SPARK_SPEED, vy: Math.sin(a) * SPARK_SPEED, life: SPARK_LIFE });
     }
   }
-  if (st.rules.afterglow && st.rng() < st.rules.afterglow) st.embers.push({ x: s.x, y: s.y, at: st.t + 0.8, R: def.R * 0.7 * st.rules.radius, pts: Math.round(def.pts / 2), hue: s.hue });
+  if (st.rules.afterglow && st.rng() < st.rules.afterglow) st.embers.push({ x: s.x, y: s.y, at: st.t + 0.8, R: def.R * 0.7 * st.rules.radius, pts: Math.round(def.pts / 2) * pointFactor(st), hue: s.hue });
   st.events.push({ type: 'burst', shell: s, chain: st.pops, cause });
 }
 
 function igniteFuseAt(st, i) {
   const f = st.fuse;
-  if (!f || f.burnt[i]) return;
+  if (f.burnt[i] || f.wet[i]) return;
   f.burnt[i] = true;
   st.heads.push({ i, dir: 1, f: i }, { i, dir: -1, f: i });
-  st.events.push({ type: 'catch', x: f.pts[i].x, y: f.pts[i].y });
-  fuseNeighborsBurst(st, f.pts[i], st.rules.reach);
+  st.events.push({ type: 'catch', x: f.pts[i].x, y: f.pts[i].y, rope: f.rope[i] });
+  fuseNeighborsBurst(st, f.pts[i], st.rules.reach, 'f' + f.seg[i]);
+  catchLinks(st, i);
+}
+// 燃えた点のすぐそばを通る別の区間（縄や、もう 1 本の線）にも火を移す
+function catchLinks(st, i) {
+  for (const j of st.fuse.links[i]) igniteFuseAt(st, j);
 }
 
-function fuseNeighborsBurst(st, p, reach) {
+function fuseNeighborsBurst(st, p, reach, src) {
   for (const s of st.shells) {
     if (s.burst) continue;
     const d = Math.hypot(s.x - p.x, s.y - p.y);
-    if (d <= SHELLS[s.type].r + reach) burst(st, s, 'fuse');
+    if (d <= SHELLS[s.type].r + reach) burst(st, s, 'fuse', src);
   }
 }
 
@@ -333,10 +460,11 @@ export function step(st) {
     while (!dead) {
       const next = h.i + h.dir;
       if ((h.dir > 0 && next > target) || (h.dir < 0 && next < target)) break;
-      if (next < 0 || next >= f.pts.length || f.burnt[next] || f.seg[next] !== f.seg[h.i]) { dead = true; break; }
+      if (next < 0 || next >= f.pts.length || f.burnt[next] || f.wet[next] || f.seg[next] !== f.seg[h.i]) { dead = true; break; }
       f.burnt[next] = true;
       h.i = next;
-      fuseNeighborsBurst(st, f.pts[next], st.rules.reach);
+      fuseNeighborsBurst(st, f.pts[next], st.rules.reach, 'f' + f.seg[next]);
+      catchLinks(st, next);
       if (f.corners.has(next)) spawnExplosion(st, f.pts[next].x, f.pts[next].y, 42 * st.rules.radius, 'corner', 3);
       if (st.rules.endBurst && f.ends.has(next)) spawnExplosion(st, f.pts[next].x, f.pts[next].y, 80 * st.rules.radius, 'end', 2);
     }
@@ -349,31 +477,32 @@ export function step(st) {
     e.t += DT;
     if (e.t > BURST_GROW + BURST_HOLD) continue;
     const rad = e.R * Math.min(1, e.t / BURST_GROW);
+    const clouds = st.clouds;
     for (const s of st.shells) {
       if (s.burst) continue;
-      if (Math.hypot(s.x - e.x, s.y - e.y) <= rad + SHELLS[s.type].r) burst(st, s, 'chain');
+      if (Math.hypot(s.x - e.x, s.y - e.y) > rad + SHELLS[s.type].r) continue;
+      // 雲の向こうには火が届かない
+      if (clouds.length && crossesCloud(clouds, e.x, e.y, s.x, s.y)) continue;
+      burst(st, s, 'chain', e.id);
     }
-    if (f) {
-      let best = -1, bd = 1e9;
-      for (let i = 0; i < f.pts.length; i++) {
-        if (f.burnt[i]) continue;
-        const d = Math.hypot(f.pts[i].x - e.x, f.pts[i].y - e.y);
-        if (d <= rad && d < bd) { bd = d; best = i; }
-      }
-      if (best >= 0) igniteFuseAt(st, best);
+    let best = -1, bd = 1e9;
+    for (let i = 0; i < f.pts.length; i++) {
+      if (f.burnt[i] || f.wet[i]) continue;
+      const d = Math.hypot(f.pts[i].x - e.x, f.pts[i].y - e.y);
+      if (d <= rad && d < bd) { bd = d; best = i; }
     }
+    if (best >= 0 && !(clouds.length && crossesCloud(clouds, e.x, e.y, f.pts[best].x, f.pts[best].y))) igniteFuseAt(st, best);
   }
   // 千輪の火花
   const sparks = [];
   for (const sp of st.sparks) {
     sp.x += sp.vx * DT; sp.y += sp.vy * DT; sp.life -= DT;
+    if (st.clouds.length && inCloud(st.clouds, sp.x, sp.y)) continue; // 雲に入った火花は消える
     for (const s of st.shells) {
-      if (!s.burst && Math.hypot(s.x - sp.x, s.y - sp.y) <= SHELLS[s.type].r + 5) burst(st, s, 'spark');
+      if (!s.burst && Math.hypot(s.x - sp.x, s.y - sp.y) <= SHELLS[s.type].r + 5) burst(st, s, 'spark', sp.id);
     }
-    if (f) {
-      for (let i = 0; i < f.pts.length; i++) {
-        if (!f.burnt[i] && Math.hypot(f.pts[i].x - sp.x, f.pts[i].y - sp.y) <= 5) { igniteFuseAt(st, i); break; }
-      }
+    for (let i = 0; i < f.pts.length; i++) {
+      if (!f.burnt[i] && !f.wet[i] && Math.hypot(f.pts[i].x - sp.x, f.pts[i].y - sp.y) <= 5) { igniteFuseAt(st, i); break; }
     }
     if (sp.life > 0 && sp.x > -10 && sp.x < W + 10 && sp.y > -10 && sp.y < H + 10) sparks.push(sp);
   }
@@ -431,7 +560,7 @@ export function runToEnd(st, strokes, { normalized = false, maxTicks = 60 * 60 }
 // ---------------------------------------------------------------- 夜ごとのお守り
 export function offerCharms(seed, night, held) {
   const rng = rng32(nightSeed(seed, night) ^ 0x51ed270b);
-  const pool = CHARM_IDS.filter((id) => !held.includes(id));
+  const pool = CHARM_IDS.filter((id) => !held.includes(id) && (CHARM_NEEDS[id] || 0) <= night + 1);
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   return pool.slice(0, 3);
 }

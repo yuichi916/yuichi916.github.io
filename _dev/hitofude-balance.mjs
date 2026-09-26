@@ -1,14 +1,17 @@
 // 一筆花火のバランス測定。8 夜を通しで遊ぶ貪欲なボットで、何夜まで越えられるかの分布を出す。
 // 使い方: node _dev/hitofude-balance.mjs <月の番号 0-7> <T: 1 夜あたりに試す線の数（多いほど上手な人）> [priority|random]
 import * as K from '../assets/hitofude/core.js';
-function greedyStroke(shells, ink, rng) {
+// 近い玉を順につなぐだけの線。提灯があれば提灯から引きはじめ、雲を横切る線は引かない
+function greedyStroke(shells, ink, rng, clouds = []) {
   const alive = shells.filter((s) => !s.burst);
   if (!alive.length) return [];
-  let cur = alive[Math.floor(rng() * alive.length)];
+  const lantern = alive.find((s) => s.type === 'chouchin');
+  let cur = lantern || alive[Math.floor(rng() * alive.length)];
   const pts = [{ x: cur.x, y: cur.y }];
   let used = 0; const seen = new Set([cur.id]);
   while (true) {
-    const cand = alive.filter((s) => !seen.has(s.id)).map((s) => ({ s, d: Math.hypot(s.x - cur.x, s.y - cur.y) })).sort((a, b) => a.d - b.d).slice(0, 3);
+    const cand = alive.filter((s) => !seen.has(s.id) && !K.crossesCloud(clouds, cur.x, cur.y, s.x, s.y))
+      .map((s) => ({ s, d: Math.hypot(s.x - cur.x, s.y - cur.y) })).sort((a, b) => a.d - b.d).slice(0, 3);
     if (!cand.length) break;
     const pick = cand[Math.floor(rng() * cand.length)];
     if (used + pick.d > ink) break;
@@ -16,17 +19,17 @@ function greedyStroke(shells, ink, rng) {
   }
   return pts;
 }
-const PRIORITY = ['kodou', 'mankai', 'kinun', 'nagafude', 'tairin', 'futofude', 'mashidama', 'owaridama', 'nokoribi', 'senrin', 'orebi', 'nihitsu'];
+const PRIORITY = ['kodou', 'mankai', 'chouchinshi', 'kinun', 'nagafude', 'tairin', 'futofude', 'mashidama', 'amayoke', 'kazekiri', 'owaridama', 'nokoribi', 'senrin', 'orebi', 'nihitsu'];
 export function playRun(seed, moon, T, rng, pickPolicy = 'priority') {
   const charms = []; let total = 0; let cleared = 0; const scores = [];
   for (let night = 0; night < K.NIGHTS; night++) {
     let best = null;
     for (let t = 0; t < T; t++) {
       const st = K.newRound({ seed, night, charms, moon });
-      const s1 = greedyStroke(st.shells, st.ink, rng);
+      const s1 = greedyStroke(st.shells, st.ink, rng, st.clouds);
       K.lightStroke(st, s1);
       for (let n = 0; n < 3600 && !st.done; n++) {
-        if (st.phase === 'draw2') { const s2 = greedyStroke(st.shells, st.ink, rng); if (s2.length >= 3) K.lightStroke(st, s2); else K.finish(st); }
+        if (st.phase === 'draw2') { const s2 = greedyStroke(st.shells, st.ink, rng, st.clouds); if (s2.length >= 3) K.lightStroke(st, s2); else K.finish(st); }
         K.step(st); st.events.length = 0;
       }
       if (!best || st.result.score > best.score) best = st.result;
