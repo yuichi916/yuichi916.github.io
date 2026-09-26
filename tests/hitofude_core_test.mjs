@@ -334,6 +334,25 @@ check('尺玉: ひらくと倍率 +3', () => {
 check('目標点: 夜ごとに上がる', () => {
   eq(K.TARGETS.length, K.NIGHTS);
   for (let i = 1; i < K.TARGETS.length; i++) ok(K.TARGETS[i] > K.TARGETS[i - 1]);
+  eq(K.TARGET_RATIO.length, K.NIGHTS);
+  for (let i = 1; i < K.TARGET_RATIO.length; i++) ok(K.TARGET_RATIO[i] > K.TARGET_RATIO[i - 1]);
+});
+
+check('目標点: その夜の並びから測る（決定的・上 2 桁に丸める・お守りなしでも届く夜は基準点より下）', () => {
+  for (let seed = 1; seed <= 12; seed++) for (let n = 0; n < K.NIGHTS; n++) {
+    const moon = seed % 8, par = K.parScore(seed, n, moon), tg = K.targetFor(seed, n, moon);
+    ok(par > 0, `seed ${seed} night ${n}: 基準点が 0`);
+    eq(K.parScore(seed, n, moon), par, '基準点が決定的でない');
+    eq(K.targetFor(seed, n, moon), tg, '目標点が決定的でない');
+    eq(K.newRound({ seed, night: n, moon }).target, tg, 'newRound の目標点がずれる');
+    ok(tg >= 30, '目標点が小さすぎる');
+    ok(String(tg).replace(/0+$/, '').length <= 2, `目標点 ${tg} が上 2 桁に丸まっていない`);
+    const tw = K.twistFor(seed, n), f = K.TARGET_RATIO[n] * (tw ? tw.target : 1);
+    // 倍率が 1 以下の夜は、お守りなしの手順の線で届く（基準点そのものが、実際に引ける線の点）
+    if (f <= 1) ok(tg <= Math.max(30, par * 1.05), `seed ${seed} night ${n}: 目標点 ${tg} が基準点 ${par} を越える`);
+  }
+  // 月（玉の数）が変われば基準点も変わる
+  ok([0, 2, 4, 6].map((m) => K.parScore(7, 7, m)).some((v, i, a) => v !== a[0]), '月で基準点が変わらない');
 });
 
 check('夜の景色: 二夜目までは群れ・八夜目は輪・同じ景色は続かない・どの景色でも玉がほぼ全部置ける', () => {
@@ -360,8 +379,9 @@ check('大一番: 三夜目と六夜目だけ・2 つは別の仕掛け・シー
     ok(a.id !== b.id, '同じ仕掛けが 2 回');
     eq(K.twistFor(seed, 2).id, a.id, '決定的');
     kinds.add(a.id); kinds.add(b.id);
-    eq(K.targetFor(seed, 5), Math.round(K.TARGETS[5] * b.target / 10) * 10);
-    eq(K.targetFor(seed, 4), K.TARGETS[4]);
+    // 大一番の目標点は、同じ夜の基準点 × 倍率 × 仕掛けの割り引き
+    const want = K.parScore(seed, 5) * K.TARGET_RATIO[5] * b.target, got = K.targetFor(seed, 5);
+    ok(Math.abs(got - want) <= want * 0.05 + 5, `seed ${seed}: 大一番の目標点 ${got} ≠ ${want}`);
     eq(K.newRound({ seed, night: 5 }).twist, b.id);
   }
   eq(kinds.size, K.TWISTS.length);
