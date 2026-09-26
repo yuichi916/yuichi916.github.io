@@ -21,8 +21,8 @@ check('日付と月: 日本時間の 0 時で切り替わり、公開した夜�
   for (let p = 0; p < 1; p += 0.01) ok(K.moonIndex(p) >= 0 && K.moonIndex(p) < 8);
 });
 
-check('お守り: 12 個・ID 重複なし・絵文字はカラーで出る・再生リンクの 16bit に収まる', () => {
-  eq(K.CHARMS.length, 12);
+check('お守り: 15 個・ID 重複なし・絵文字はカラーで出る・再生リンクの 16bit に収まる', () => {
+  eq(K.CHARMS.length, 15);
   eq(new Set(K.CHARM_IDS).size, K.CHARMS.length);
   ok(K.CHARMS.length <= 16);
   for (const c of K.CHARMS) {
@@ -241,6 +241,94 @@ check('ならし済みの線: 範囲外・整数でない点は読まない・�
   const long = Array.from({ length: 120 }, (_, i) => ({ x: (i * 8) % 352, y: 100 + Math.floor((i * 8) / 352) * 20 }));
   const used = K.lightPoints(K.newRound({ seed: 1, night: 0, moon: 1 }), long);
   ok(used && K.pathLength(used) <= K.BASE_INK + 1, `長さ ${used && K.pathLength(used)}`);
+});
+
+check('仕掛け: 夜ごとに 1 つずつ増える（一夜目は菊と金だけ）', () => {
+  const kinds = (night) => { const st = K.newRound({ seed: 99, night, moon: 1 }); return { types: new Set(st.shells.map((s) => s.type)), clouds: st.clouds.length, ropes: st.ropes.length }; };
+  const n0 = kinds(0);
+  eq([...n0.types].sort().join(), 'kiku,kin', '一夜目');
+  eq(n0.clouds + n0.ropes, 0);
+  for (const g of K.GIMMICKS) {
+    const before = kinds(g.night - 1), at = kinds(g.night);
+    if (g.id === 'kumo') { eq(before.clouds, 0, '雲の前夜'); ok(at.clouds >= 1, '雲が出ない'); continue; }
+    if (g.id === 'nawa') { eq(before.ropes, 0, '縄の前夜'); ok(at.ropes >= 1, '縄が出ない'); continue; }
+    ok(!before.types.has(g.id), `${g.id} が前の夜に出ている`);
+    ok(at.types.has(g.id), `${g.id} が ${g.night} 夜目に出ない`);
+  }
+  eq(K.gimmickFor(0), null);
+  eq(K.gimmickFor(7).id, 'shaku');
+  eq(K.newRound({ seed: 99, night: 7, moon: 1 }).shells.filter((s) => s.type === 'shaku').length, 1, '尺玉は 1 つ');
+});
+
+check('お守りの候補: 仕掛けが出てくる前の夜には、その仕掛けのお守りを出さない', () => {
+  for (let seed = 1; seed < 60; seed++) {
+    const o0 = K.offerCharms(seed, 0, []);
+    for (const id of ['senrin', 'chouchinshi', 'kazekiri', 'amayoke']) ok(!o0.includes(id), `一夜目の後に ${id}`);
+    ok(!K.offerCharms(seed, 3, []).includes('amayoke'), '雨よけは湿った玉の前夜から');
+  }
+  const later = new Set();
+  for (let seed = 1; seed < 200; seed++) K.offerCharms(seed, 6, []).forEach((id) => later.add(id));
+  for (const id of ['chouchinshi', 'kazekiri', 'amayoke']) ok(later.has(id), `${id} が一度も出ない`);
+});
+
+check('提灯: 灯ったあとにひらいた玉だけ点が 2 倍（線を引く向きで点が変わる）', () => {
+  const shells = [{ type: 'chouchin', x: 40, y: 300 }];
+  for (let i = 1; i <= 8; i++) shells.push({ type: 'kiku', x: 40 + i * 36, y: 300 });
+  const fromLantern = K.runToEnd(handRound(shells.map((x) => ({ ...x }))), [line(30, 300, 340, 300, 80)]);
+  const toLantern = K.runToEnd(handRound(shells.map((x) => ({ ...x }))), [line(340, 300, 30, 300, 80)]);
+  eq(fromLantern.pops, 9); eq(toLantern.pops, 9);
+  ok(fromLantern.chips > toLantern.chips, `提灯から ${fromLantern.chips} / 提灯へ ${toLantern.chips}`);
+  eq(fromLantern.chips, 10 + 8 * 10 * 2, '提灯のあとの 8 個が 2 倍');
+  const maker = K.runToEnd(handRound(shells.map((x) => ({ ...x })), ['chouchinshi']), [line(30, 300, 340, 300, 80)]);
+  eq(maker.chips, 10 + 8 * 10 * 3, '提灯職人は 3 倍');
+});
+
+check('湿った玉: 同じ火が何度当たってもひらかず、別の火が当たるとひらく', () => {
+  const mk = (charms = []) => { const st = handRound([{ type: 'shime', x: 200, y: 300 }], charms); st.shells[0].hp = st.rules.dampHits; return st; };
+  const one = K.runToEnd(mk(), [line(150, 300, 250, 300, 30)]);
+  eq(one.pops, 0, '1 本の線だけではひらかない');
+  const st = mk();
+  st.rules.secondStroke = true; st.secondUsed = true;
+  K.lightStroke(st, line(150, 300, 250, 300, 30));
+  for (let i = 0; i < 600 && !st.done; i++) { if (i === 5) st.explosions.push({ id: 999, x: 200, y: 330, R: 30, t: 0, cause: 'test', hue: 0 }); K.step(st); st.events.length = 0; }
+  eq(st.result.pops, 1, '線と爆発の 2 つでひらく');
+  eq(K.runToEnd(mk(['amayoke']), [line(150, 300, 250, 300, 30)]).pops, 1, '雨よけなら 1 回');
+});
+
+check('雲: 爆発は雲の向こうに届かず、雲の中の線は燃えない', () => {
+  const st = handRound([{ type: 'ootama', x: 100, y: 300 }, { type: 'kiku', x: 170, y: 300 }]);
+  st.clouds = [{ x: 135, y: 300, r: 20 }];
+  const r = K.runToEnd(st, [line(60, 300, 100, 300, 10)]);
+  eq(r.pops, 1, '雲の向こうの玉がひらいた');
+  const st2 = handRound([{ type: 'kiku', x: 300, y: 300 }]);
+  st2.clouds = [{ x: 200, y: 300, r: 30 }];
+  eq(K.runToEnd(st2, [line(100, 300, 310, 300, 60)]).pops, 0, '火が雲を抜けた');
+  const st3 = handRound([{ type: 'kiku', x: 300, y: 300 }]);
+  st3.clouds = [{ x: 100, y: 300, r: 30 }];
+  eq(K.runToEnd(st3, [line(100, 300, 310, 300, 60)]).pops, 0, '雲の中から引いた線に火がついた');
+});
+
+check('仕掛け縄: 片方の端に火が届くと、縄を走って反対側の玉をひらく', () => {
+  const st = K.newRound({ seed: 3, night: 0, moon: 1 });
+  st.shells = [{ id: 0, type: 'kiku', x: 60, y: 300, hue: 0, burst: false, burstAt: -1, hp: 1 }, { id: 1, type: 'kiku', x: 300, y: 300, hue: 0, burst: false, burstAt: -1, hp: 1 }];
+  const rope = []; for (let x = 60; x <= 300; x += 4) rope.push({ x, y: 300 });
+  st.clouds = [];
+  // 縄は内部の区間として足す（newRound と同じ道筋）
+  const K2 = K.newRound({ seed: 3, night: 6, moon: 1 });
+  ok(K2.ropes.length >= 1 && K2.fuse.rope.some((x) => x), '七夜目に縄が無い');
+  ok(K2.fuse.pts.every((p) => !K.inCloud(K2.clouds, p.x, p.y)), '縄が雲を通る');
+  // 七夜目の縄の端の玉に線で火をつけると、反対の端の玉までひらく
+  const r = K2.ropes[0];
+  const a = K2.shells.find((s) => s.id === r.a), b = K2.shells.find((s) => s.id === r.b);
+  K.lightStroke(K2, line(a.x - 30, a.y, a.x, a.y, 10));
+  for (let i = 0; i < 3600 && !K2.done; i++) { if (K2.phase === 'draw2') K.finish(K2); else K.step(K2); K2.events.length = 0; }
+  ok(b.burst, '縄の反対側の玉がひらかない');
+  void st; void rope;
+});
+
+check('尺玉: ひらくと倍率 +3', () => {
+  const r = K.runToEnd(handRound([{ type: 'shaku', x: 200, y: 300 }]), [line(150, 300, 250, 300, 30)]);
+  eq(r.pops, 1); eq(r.mult, 1 + 3); eq(r.chips, 200);
 });
 
 check('目標点: 夜ごとに上がる', () => {

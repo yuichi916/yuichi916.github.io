@@ -31,7 +31,13 @@ await p.evaluate(() => {
 await p.addStyleTag({ content: '#hud,#chips,#homeBtn,#topBtns,#chain,#callout,#banner,#hint,#ink{display:none!important}' });
 await p.waitForFunction(() => window.HITO.S.st.pops >= 13, null, { timeout: 20000 });
 await p.waitForTimeout(250);
-await p.evaluate(() => {
+await p.evaluate(async () => {
+  // マスコットのヒノコを、題字の右に大きく
+  const { drawHinoko } = await import('/assets/hitofude/hinoko.js');
+  const hc = document.createElement('canvas'); hc.width = hc.height = 150;
+  hc.style.cssText = 'position:fixed;left:398px;top:62px;width:150px;height:150px;z-index:99';
+  drawHinoko(hc.getContext('2d'), 75, 98, 30, { face: 'joy', t: 0.4 });
+  document.body.appendChild(hc);
   const d = document.createElement('div');
   d.style.cssText = 'position:fixed;left:48px;top:118px;white-space:nowrap;z-index:99;font-family:"Shippori Mincho",serif;color:#fff';
   d.innerHTML = '<div style="font-size:86px;font-weight:800;letter-spacing:.04em;line-height:1;text-shadow:0 0 30px rgba(255,190,100,.6)">一筆花火</div>'
