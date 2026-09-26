@@ -104,7 +104,7 @@ export const BASE_INK = 460;
 export const BASE_REACH = 7;
 // 夜ごとの目標点。8 夜目がいちばん高い
 // ボットで測った値（tests と _dev/hitofude-balance.mjs）。序盤はほぼ越えられ、終盤はお守りの組み合わせが要る
-export const TARGETS = [60, 150, 700, 3800, 6800, 22000, 80000, 260000];
+export const TARGETS = [60, 150, 550, 2800, 5000, 16000, 40000, 200000];
 export const BASE_COUNTS = [16, 20, 24, 28, 32, 36, 40, 44];
 
 // ---------------------------------------------------------------- 大一番（三夜目と六夜目）
@@ -112,14 +112,14 @@ export const BASE_COUNTS = [16, 20, 24, 28, 32, 36, 40, 44];
 // まっすぐ・鏡は線そのものを変える（ここで扱う）。闇夜・一瞬は見え方と時間だけを変える（ページで扱う）
 export const BOSS_NIGHTS = [2, 5];
 export const TWISTS = [
-  { id: 'massugu', ja: 'まっすぐ', en: 'Straight', say: '今夜の線は、まっすぐ！', sayEn: 'Straight lines only!', desc: '線は、引きはじめと指を離した所を結ぶ直線になる', descEn: 'Your line becomes a straight segment from start to release', target: 0.8 },
-  { id: 'kagami', ja: '鏡', en: 'Mirror', say: '線が左右に映るよ！', sayEn: 'Your line is mirrored!', desc: '線が左右に映って 2 本になる（墨は 6 割）', descEn: 'Your line is mirrored left and right (60% ink)', target: 0.9 },
-  { id: 'yamiyo', ja: '闇夜', en: 'Dark night', say: 'よく見て、覚えて！', sayEn: 'Look now, remember later!', desc: '玉が見えるのは、はじめの 3 秒だけ', descEn: 'Shells are visible for the first 3 seconds only', target: 0.75 },
-  { id: 'isshun', ja: '一瞬', en: 'Snap', say: '2.5秒で引き切って！', sayEn: 'Draw it in 2.5 seconds!', desc: '指を置いてから 2.5 秒で、線は勝手に終わる', descEn: 'Your line ends 2.5 s after you touch down', target: 0.85 },
+  { id: 'massugu', ja: 'まっすぐ', en: 'Straight', say: '今夜の線は、まっすぐ！', sayEn: 'Straight lines only!', rule: '指を離した所まで、直線になる', ruleEn: 'Your line snaps straight', desc: '線は、引きはじめと指を離した所を結ぶ直線になる', descEn: 'Your line becomes a straight segment from start to release', target: 0.7 },
+  { id: 'kagami', ja: '鏡', en: 'Mirror', say: '線が左右に映るよ！', sayEn: 'Your line is mirrored!', rule: '線が、まん中の線で左右に映る', ruleEn: 'Your line is copied to the other side', desc: '線が左右に映って 2 本になる（墨は 3/4）', descEn: 'Your line is mirrored left and right (3/4 ink)', target: 0.8 },
+  { id: 'yamiyo', ja: '闇夜', en: 'Dark night', say: 'よく見て、覚えて！', sayEn: 'Look now, remember later!', rule: '玉は 5 秒でうすくなる', ruleEn: 'Shells fade after 5 seconds', desc: '玉がはっきり見えるのは、はじめの 5 秒だけ（あとはうっすら）', descEn: 'Shells are clear for 5 seconds, then only faint', target: 0.65 },
+  { id: 'isshun', ja: '一瞬', en: 'Snap', say: '4秒で引き切って！', sayEn: 'Draw it in 4 seconds!', rule: '指を置いてから 4 秒で線が終わる', ruleEn: 'Your line ends 4 s after touching', desc: '指を置いてから 4 秒で、線は勝手に終わる', descEn: 'Your line ends 4 s after you touch down', target: 0.75 },
 ];
-export const SNAP_SECONDS = 2.5;
-export const DARK_SECONDS = 3;
-export const MIRROR_INK = 0.6;
+export const SNAP_SECONDS = 4;
+export const DARK_SECONDS = 5;
+export const MIRROR_INK = 0.75;
 function shuffled(arr, rng) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 export function twistFor(seed, night) {
   const k = BOSS_NIGHTS.indexOf(night);
@@ -659,6 +659,40 @@ export function offerCharms(seed, night, held, round = 0) {
   const pool = CHARM_IDS.filter((id) => !held.includes(id) && (CHARM_NEEDS[id] || 0) <= night + 1);
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   return pool.slice(0, 3);
+}
+
+// ---------------------------------------------------------------- 散ったときのヒント
+// 終わった夜の様子から、次に効きそうなことを 1 つだけ選ぶ（上ほど効き目が大きい）
+export function failHint(st) {
+  const f = st.fuse, left = st.shells.filter((s) => !s.burst);
+  const leftOf = (type) => left.filter((s) => s.type === type).length;
+  // 1) 雲の中から引きはじめて、火がつかなかった
+  if (st.strokes.length && f.wet[0] && st.pops === 0) return { id: 'cloudStart' };
+  // 2) 大一番のコツ
+  if (st.twist) return { id: 'twist_' + st.twist };
+  // 3) 尺玉が残った（倍率 +3）
+  if (leftOf('shaku')) return { id: 'shaku' };
+  // 4) 提灯が灯らなかった／灯るのが遅かった（あとにひらく玉ほど点が倍）
+  if (leftOf('chouchin') && leftOf('chouchin') === st.shells.filter((s) => s.type === 'chouchin').length) return { id: 'lantern' };
+  const lit = st.shells.filter((s) => s.type === 'chouchin' && s.burst).map((s) => s.burstAt);
+  if (lit.length && st.pops >= 8) {
+    const order = st.shells.filter((s) => s.burst).map((s) => s.burstAt).sort((a, b) => a - b);
+    if (Math.min(...lit) > order[Math.floor(order.length / 2)]) return { id: 'lanternLate' };
+  }
+  // 5) あと少しで満開（×2）だった
+  if (left.length > 0 && left.length <= 3) return { id: 'almost', n: left.length };
+  // 6) 墨が余った
+  const used = st.strokes.reduce((a, pts) => a + pathLength(pts), 0);
+  if (used < st.rules.ink * 0.6) return { id: 'ink' };
+  // 7) 仕掛け縄に火が届かなかった
+  if (st.ropes.length && st.ropes.every((r) => !f.burnt.some((b, i) => b && f.rope[i]))) return { id: 'rope' };
+  // 8) 湿った玉が残った
+  if (leftOf('shime') >= 2) return { id: 'damp' };
+  // 9) 金の玉が残った（倍率）
+  if (leftOf('kin')) return { id: 'gold' };
+  // 10) 線から遠い群れが残った
+  if (left.length >= 4) return { id: 'far' };
+  return { id: 'general' };
 }
 
 // ---------------------------------------------------------------- 筆跡占い

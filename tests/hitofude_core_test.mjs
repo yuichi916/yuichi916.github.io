@@ -436,5 +436,22 @@ check('再生リンク: 前の版のリンクは「前の版」とわかる', ()
   ok(d && d.old, JSON.stringify(d));
 });
 
+check('散ったときのヒント: 夜の様子から、効きそうなことを 1 つ選ぶ', () => {
+  const H = (shells, stroke, setup) => { const st = handRound(shells); if (setup) setup(st); K.runToEnd(st, [stroke]); return K.failHint(st).id; };
+  const far = [{ type: 'kiku', x: 320, y: 80 }, { type: 'kiku', x: 300, y: 90 }];
+  // 雲の中から引きはじめた
+  eq(H([{ type: 'kiku', x: 150, y: 300 }], line(100, 300, 300, 300), (st) => { st.clouds = [{ x: 100, y: 300, r: 30 }]; }), 'cloudStart');
+  // 提灯が灯らなかった
+  eq(H([{ type: 'kiku', x: 120, y: 300 }, { type: 'chouchin', x: 330, y: 560 }], line(60, 300, 200, 300)), 'lantern');
+  // あと 2 つで満開
+  eq(H([{ type: 'kiku', x: 60, y: 300 }, { type: 'kiku', x: 150, y: 300 }, { type: 'kiku', x: 240, y: 300 }, ...far], line(40, 300, 400, 300, 60)), 'almost');
+  // 墨が余った（短い線）
+  eq(H([{ type: 'kiku', x: 60, y: 300 }, ...far, { type: 'kiku', x: 200, y: 500 }, { type: 'kiku', x: 250, y: 500 }], line(40, 300, 90, 300, 8)), 'ink');
+  // 大一番は、その夜のコツ
+  const st = roundWithTwist('kagami'); K.runToEnd(st, [line(40, 150, 90, 150, 8)]);
+  eq(K.failHint(st).id, 'twist_kagami');
+  eq(K.failHint(roundWithTwist('massugu')).id, 'twist_massugu');
+});
+
 if (failures) { console.error(`hitofude_core_test: ${failures} FAILED`); process.exit(1); }
 console.log('hitofude_core_test: ALL PASS');
