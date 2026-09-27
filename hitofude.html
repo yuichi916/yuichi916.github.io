@@ -258,6 +258,12 @@ pre.share{margin-top:calc(10px * var(--u));text-align:left;white-space:pre-wrap;
 #vsTools button:disabled{opacity:.38;cursor:default}
 #vsTools button.ready{border-color:#ffd27a;box-shadow:0 0 calc(14px * var(--u)) rgba(255,170,80,.45)}
 #vsTools button.armed{background:#ffd27a;color:#1a1206;transform:scale(1.06)}
+/* チャンスの間: 時間がほぼ止まり、使える道具が脈打つ。残り時間の棒 */
+#vsTools.chance button.ready{animation:chanceP .45s ease-in-out infinite alternate}
+@keyframes chanceP{from{box-shadow:0 0 calc(6px * var(--u)) rgba(255,200,90,.5);border-color:var(--line)}to{box-shadow:0 0 calc(26px * var(--u)) rgba(255,200,90,1);border-color:#ffd27a}}
+#winBar{width:calc(200px * var(--u));height:calc(4px * var(--u));border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;visibility:hidden}
+#vsTools.chance #winBar{visibility:visible}
+#winBar i{display:block;height:100%;background:linear-gradient(90deg,#ffd27a,#ff7a3a);transform-origin:left}
 #vsTools button.armed small{color:#1a1206;border-color:#1a1206}
 #tacticBar{position:absolute;left:0;right:0;bottom:calc(10px * var(--u) + var(--safe-b));padding:0 calc(10px * var(--u));text-align:center;z-index:5}
 #tacticBar p{font-size:calc(14px * var(--u));color:var(--gold);margin-bottom:calc(6px * var(--u));text-shadow:0 1px 4px #000}
@@ -314,6 +320,7 @@ pre.share{margin-top:calc(10px * var(--u));text-align:left;white-space:pre-wrap;
   </div>
   <div id="vsSay"></div>
   <div id="vsTools" hidden>
+    <div id="winBar"><i></i></div>
     <div class="pw"><span data-t="powder">火薬</span><div id="pwBar"></div><b class="mono" id="pwNum">0</b></div>
     <div class="tb"><button type="button" id="toolOjama"><i>💣</i><span data-t="toolOjama">お邪魔玉</span><small class="mono">3</small></button><button type="button" id="toolTsugi"><i>✍️</i><span data-t="toolTsugi">継ぎ火</span><small class="mono">5</small></button></div>
   </div>
@@ -489,6 +496,7 @@ const T = {
     toolOjama: 'お邪魔玉', toolTsugi: '継ぎ火', powder: '火薬',
     aimOjama: '💣 相手の火の先に置いて、離すと落ちる', aimTsugi: '✍️ 自分の火のあとから、短い線をひく', badOjama: '玉と重ならない所に置いて', badTsugi: '自分の火が通ったあとから引きはじめて',
     firstTools: '連鎖で火薬がたまる。下の道具を押そう！',
+    chance: 'チャンス！', win: { start: '💣 相手の火の先にお邪魔玉を置こう', danger: '相手の火が大物に向かっている！ 💣で止めよう', reach: '✍️ 継ぎ火で届く群れがある！', stolen: '取られた！ ✍️継ぎ火で取り返すか、💣で相手の火を止めよう', crack: '✍️ ひびの黒玉に継ぎ火を届けると、あなたの大爆発！' },
     vsFire: '点火！', vsSteal: '横取り！', vsStolen: '取られた！', vsLead: '逆転！', vsLeadLost: '逆転された！',
     ojamaIn: 'お邪魔玉が来る！', ojamaHit: '黒玉で火が消えた！', ojamaMine: 'お邪魔玉、命中！', crackTip: 'ひびの黒玉に継ぎ火を届けると大爆発！',
     kuroBack: 'お邪魔返し！', kuroBoom: '黒玉ドカン！', kuroTheirs: '黒玉を使われた…', tsugiGo: '継ぎ火！',
@@ -573,6 +581,7 @@ const T = {
     toolOjama: 'Ojama', toolTsugi: 'Extra fuse', powder: 'Powder',
     aimOjama: '💣 Place it ahead of their fire, release to drop', aimTsugi: '✍️ Draw a short line from where your fire has been', badOjama: 'Don\'t overlap a shell', badTsugi: 'Start from where your fire has been',
     firstTools: 'Chains earn powder. Tap a tool below!',
+    chance: 'Chance!', win: { start: '💣 Drop an ojama ahead of their fire', danger: 'Their fire is heading for a big prize! 💣 Stop it', reach: '✍️ An extra fuse can reach a cluster!', stolen: 'They stole it! ✍️ Take it back, or 💣 stop their fire', crack: '✍️ Reach the cracked shell with a fuse: your huge blast!' },
     vsFire: 'Fire!', vsSteal: 'Stolen!', vsStolen: 'They took it!', vsLead: 'Lead!', vsLeadLost: 'They lead!',
     ojamaIn: 'Ojama incoming!', ojamaHit: 'The black shell snuffed it!', ojamaMine: 'Ojama hit!', crackTip: 'Reach the cracked shell with a fuse: huge blast!',
     kuroBack: 'Ojama returned!', kuroBoom: 'Black shell BOOM!', kuroTheirs: 'They used the black shell…', tsugiGo: 'Extra fuse!',
@@ -974,12 +983,15 @@ function frame(now) {
   if (st && S.phase === 'burn' && S.hold === 0) {
     const left = st.shells.filter((s) => !s.burst).length;
     const slow = left > 0 && left <= 3 && st.pops >= 8 && (st.heads.length || st.explosions.length);
-    // 花火合戦は少しゆっくり見せ、雨雲を狙っている間はさらにゆっくり
-    const base = S.mode === 'vs' ? (S.tool ? 0.25 : 0.8) : 1;
+    // 花火合戦はゆっくり見せる。道具を選んでいる間はさらにゆっくり、チャンスの間は火が止まる（空の花火は動いたまま）。
+    // 止めておけば、間の途中で火が燃え尽きて道具が使えなくなることがない
+    const base = S.mode === 'vs' ? (S.win ? 0 : S.tool ? 0.15 : 0.55) : 1;
     S.timeScale += ((slow ? 0.4 : 1) * base * S.speed - S.timeScale) * 0.2;
+    if (S.win) S.timeScale = 0;
     S.acc += dt * S.timeScale;
     let n = 0;
     while (S.acc >= K.DT && n++ < 8) { S.acc -= K.DT; if (S.mode === 'vs') vsAI(st); K.step(st); handleEvents(st); if (st.phase !== 'burn' || S.hold > 0) break; }
+    if (S.mode === 'vs') vsWinTick(st, now);
     if (slow && now - S.lastCall > 1500) { S.lastCall = now; callout(t('last', left)); }
     if (st.phase === 'draw2') {
       // 再生では、届いた二筆目をそのまま置く（無ければそこで終わり）
@@ -1042,7 +1054,7 @@ function handleEvents(st) {
       if (now - (S.vs.stealAt || 0) > 900) {
         S.vs.stealAt = now;
         if (e.o === 0) { callout(t('vsSteal')); SFX.milestone(); hinoFace('star', 900); rivalSay('stolen'); S.hold = Math.max(S.hold, 0.08); }
-        else { callout(t('vsStolen')); SFX.hiss(); hinoFace('sad', 900); rivalSay('steal'); }
+        else { callout(t('vsStolen')); SFX.hiss(); hinoFace('sad', 900); rivalSay('steal'); openWin('stolen'); }
       }
     } else if (e.type === 'ojamaFall') {
       if (e.o === 1) { callout(t('ojamaIn')); SFX.whoosh(); }
@@ -1052,7 +1064,7 @@ function handleEvents(st) {
       // 黒玉に最初に火が触れた: 触れた火は消える。落とした側は命中、落とされた側には取り返し方を出す
       noise(0.5, 0.14, 700, 0.6, 'lowpass'); SFX.hiss(); spawnSparkle(e.shell.x, e.shell.y, 16, [200, 160, 255]);
       if (e.from === 0 && e.o === 1) { callout(t('ojamaMine')); hinoFace('star', 800); rivalSay('stolen'); }
-      else if (e.from === 1 && e.o === 0) { callout(t('ojamaHit')); hinoFace('fizzle', 900); if (st.vs.powder[0] < K.vsCost(st, 0, 'tsugi')) toast(t('crackTip')); else hint(t('crackTip')); }
+      else if (e.from === 1 && e.o === 0) { callout(t('ojamaHit')); hinoFace('fizzle', 900); if (!openWin('crack', e.shell)) hint(t('crackTip')); }
     } else if (e.type === 'kuroBoom') {
       S.flashes.push({ x: e.shell.x, y: e.shell.y, r: 200, t: 0, max: 0.45 }); S.shake = 12; S.hold = Math.max(S.hold, 0.12);
       SFX.slam(); SFX.burst('ootama', 20); scenery.excite(1.2); cheerN(2);
@@ -1147,6 +1159,7 @@ function draw(now) {
   if (S.drawing) previewLines(S.drawing).forEach((pts, i) => drawStrokePreview(pts, i > 0));
   if (S.drawing && st && st.vs && S.phase === 'draw') drawCrossings(vsCrossings(S.drawing.pts), tt);
   if (st && st.vs) for (const c of st.vs.falling) drawFallingOjama(c, st);
+  if (S.mode === 'vs') drawWin(tt);
   if (S.aim) drawAim(tt);
   if (S.drawing && st && st.twist === 'isshun' && S.phase === 'draw') drawSnapRing(now);
   if (S.ghost) drawGhost(tt);
@@ -1178,6 +1191,7 @@ function draw(now) {
   toCanvas(ctx, sx, sy);
   scenery.drawTown(ctx, tt, v, { yatai: !!(st && st.scene === 'yatai' && S.mode !== 'title'), heat: S.heat });
   scenery.drawCrowd(ctx, tt, v, { heat: S.heat, flash });
+  if (S.mode === 'vs') drawWinEdge();
 }
 // ヒノコ: ふだんは町の屋根の上。線を引きはじめると線の頭へ、火がつくと火の頭に乗って走る
 function drawBoardHino(now, tt) {
@@ -1375,7 +1389,7 @@ function renderHud() {
   $('#speedBtn').classList.toggle('on', S.speed > 1);
   updateScore();
 }
-function hideHud() { $('#vsHud').hidden = true; $('#vsTools').hidden = true; $('#tacticBar').hidden = true; $('#vsSay').classList.remove('on'); $('#newCard').hidden = true; S.newGimmick = null; $('#hud').hidden = true; $('#topBtns').hidden = true; $('#homeBtn').hidden = true; $('#chips').innerHTML = ''; $('#ink').hidden = true; hint(''); $('#chain').classList.remove('on'); $('#skip2').hidden = true; }
+function hideHud() { S.win = null; $('#vsTools').classList.remove('chance'); $('#vsHud').hidden = true; $('#vsTools').hidden = true; $('#tacticBar').hidden = true; $('#vsSay').classList.remove('on'); $('#newCard').hidden = true; S.newGimmick = null; $('#hud').hidden = true; $('#topBtns').hidden = true; $('#homeBtn').hidden = true; $('#chips').innerHTML = ''; $('#ink').hidden = true; hint(''); $('#chain').classList.remove('on'); $('#skip2').hidden = true; }
 
 // ================================================================ 夜の進み方
 function newRun(opts) {
@@ -1963,7 +1977,7 @@ function boutOpts(b) {
 }
 function startBout(b) {
   const v = S.vs;
-  v.bout = b; v.lead = 0; v.sayAt = 0;
+  v.bout = b; v.lead = 0; v.sayAt = 0; v.winN = 0; v.winT = -9; v.startWin = false; S.win = null;
   S.st = K.newVsRound(boutOpts(b));
   drawBackground();
   S.burnT = []; fx.clear(); S.flashes = []; S.acc = 0; S.timeScale = 0.8; S.hold = 0; S.tallySkip = null; S.aim = null; S.tool = null; S.rivalAnim = null; S.drawing = null; S.ghost = null;
@@ -2056,7 +2070,7 @@ function vsAI(st) {
 function armTool(tool) {
   const st = S.st;
   if (S.mode !== 'vs' || S.phase !== 'burn' || !st || st.done) return;
-  if (S.tool === tool) { S.tool = null; S.aim = null; S.drawing = null; hint(''); renderTools(); return; }
+  if (S.tool === tool) { S.tool = null; S.aim = null; S.drawing = null; hint(''); if (S.win) S.win.until = performance.now() + 700; renderTools(); return; }
   if (st.vs.powder[0] < K.vsCost(st, 0, tool)) return;
   S.tool = tool; S.aim = null; S.drawing = null; SFX.tick();
   hint(t(tool === 'ojama' ? 'aimOjama' : 'aimTsugi'));
@@ -2117,10 +2131,87 @@ function updateVsHud() {
   if (lead) S.vs.lead = lead;
   renderTools();
 }
+// ---- チャンスの間
+// 火はほんの数秒で燃え尽きるので、道具を考えて使う間を作る。ここぞという瞬間に火が止まり、
+// 使える道具が脈打ち、何をすればいいかを一言で出す。道具を選んでいる間は、残り時間も止まる
+const WIN_MS = 2600;
+function openWin(kind, shell = null, found = null) {
+  const st = S.st, v = S.vs;
+  if (S.mode !== 'vs' || S.phase !== 'burn' || !st || st.done || S.win || !v) return false;
+  if (v.winN >= 4 || st.t - v.winT < 0.4) return false;
+  const pw = st.vs.powder[0], canO = pw >= K.vsCost(st, 0, 'ojama'), canT = pw >= K.vsCost(st, 0, 'tsugi');
+  if (kind === 'crack' || kind === 'reach' ? !canT : kind === 'danger' || kind === 'start' ? !canO : !canO && !canT) return false;
+  // 目安: お邪魔玉なら置くとよさそうな所、継ぎ火なら引くとよさそうな線をうっすら出す
+  const wantT = kind === 'crack' || kind === 'reach' || (kind === 'stolen' && canT);
+  let tip = found;
+  if (!tip && wantT && canT) { const e = K.vsExtendChoice(st, 0, { react: 0, tsugi: 0.001 }); if (e) tip = { tsugi: e.pts }; }
+  if (!tip && canO) { const c = K.vsOjamaChoice(st, 0, { react: 0, ojama: 0.001 }) || K.vsOjamaHint(st, 0); if (c) tip = { ojama: c }; }
+  // 使いどころが見つからない間は開かない（ひびの黒玉は、その玉が目安）
+  if (!tip && kind !== 'crack') return false;
+  v.winN++; v.winT = st.t;
+  S.win = { id: v.winN, kind, until: performance.now() + WIN_MS, tip, shell };
+  $('#vsTools').classList.add('chance');
+  callout(t('chance')); tone(988, 0.12, 'triangle', 0.08); tone(1318, 0.2, 'triangle', 0.07, 0, 0.08);
+  hint(t('win')[kind]);
+  renderTools();
+  return true;
+}
+function closeWin() {
+  if (!S.win) return;
+  S.win = null; $('#vsTools').classList.remove('chance');
+  if (!S.tool) hint('');
+}
+function vsWinTick(st, now) {
+  const v = S.vs; if (!v || S.phase !== 'burn') return;
+  // 火がついて少ししたら、最初のチャンス（相手の火の先に、お邪魔玉）
+  if (!v.startWin && st.t >= 0.25 && !S.win) { if (openWin('start') || st.t > 1) v.startWin = true; }
+  // 盤面を見て、使いどころを探す: 相手の火が大物へ向かう・継ぎ火で届く群れがある
+  if (!S.win && st.tick % 12 === 0 && st.t - v.winT >= 0.4) {
+    const pw = st.vs.powder[0];
+    const d = pw >= K.vsCost(st, 0, 'ojama') ? K.vsOjamaChoice(st, 0, { react: 0, ojama: 0.1 }) : null;
+    if (d) openWin('danger', null, { ojama: d });
+    else {
+      const e = pw >= K.vsCost(st, 0, 'tsugi') ? K.vsExtendChoice(st, 0, { react: 0, tsugi: 0.08 }) : null;
+      if (e) openWin('reach', null, { tsugi: e.pts });
+    }
+  }
+  if (!S.win) return;
+  const busy = S.tool || S.aim || S.drawing;
+  if (busy) S.win.until = Math.max(S.win.until, now + 400); // 狙っている間は待つ
+  const left = Math.max(0, S.win.until - now);
+  $('#winBar i').style.transform = `scaleX(${Math.min(1, left / WIN_MS)})`;
+  if (left <= 0 && !busy) closeWin();
+}
+// チャンスの間の目安（うっすら）と、画面のふちの光
+function drawWin(tt) {
+  const w = S.win; if (!w) return;
+  ctx.save();
+  const a = 0.35 + Math.sin(tt * 7) * 0.2;
+  if (w.tip && w.tip.ojama && S.tool !== 'tsugi') {
+    const c = w.tip.ojama;
+    ctx.strokeStyle = `rgba(255,215,140,${a})`; ctx.lineWidth = 1.6; ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.arc(c.x, c.y, 17, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = `rgba(255,225,160,${a + 0.2})`; ctx.fillText('💣', c.x, c.y + 4);
+  }
+  if (w.tip && w.tip.tsugi && S.tool !== 'ojama') {
+    const p = w.tip.tsugi;
+    ctx.strokeStyle = `rgba(255,215,140,${a})`; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+    ctx.beginPath(); ctx.moveTo(p[0].x, p[0].y); for (let i = 1; i < p.length; i++) ctx.lineTo(p[i].x, p[i].y); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (w.shell && !w.shell.burst) { ctx.strokeStyle = `rgba(255,120,60,${a + 0.2})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(w.shell.x, w.shell.y, 26 + Math.sin(tt * 7) * 3, 0, 7); ctx.stroke(); }
+  ctx.restore();
+}
+function drawWinEdge() {
+  if (!S.win) return;
+  const v = view(), cx = (v.L + v.R) / 2, cy = (v.T + v.B) / 2, r = Math.hypot(v.R - v.L, v.B - v.T) / 2;
+  const g = ctx.createRadialGradient(cx, cy, r * 0.55, cx, cy, r);
+  g.addColorStop(0, 'rgba(255,190,90,0)'); g.addColorStop(1, 'rgba(255,170,70,.28)');
+  ctx.fillStyle = g; ctx.fillRect(v.L, v.T, v.R - v.L, v.B - v.T);
+}
 function onVsBoutDone() {
   if (S.phase !== 'burn') return;
   S.phase = 'tally'; S.tallySkip = null; S.aim = null; S.tool = null; S.drawing = null;
-  $('#vsTools').hidden = true; hint('');
+  closeWin(); $('#vsTools').hidden = true; hint('');
   const st = S.st, res = st.result, v = S.vs;
   v.results.push(res);
   if (res.winner >= 0) v.wins[res.winner]++;
@@ -2454,13 +2545,13 @@ function finishDraw() {
 cv.addEventListener('pointerup', () => {
   if (S.aim) {
     const a = S.aim; S.aim = null;
-    if (S.mode === 'vs' && S.phase === 'burn' && K.vsDropOjama(S.st, 0, a.x, a.y)) { S.tool = null; hint(''); handleEvents(S.st); }
+    if (S.mode === 'vs' && S.phase === 'burn' && K.vsDropOjama(S.st, 0, a.x, a.y)) { S.tool = null; closeWin(); hint(''); handleEvents(S.st); }
     else if (S.mode === 'vs' && S.phase === 'burn') hint(t('badOjama'));
     return;
   }
   if (S.drawing && S.drawing.tsugi) {
     const d = S.drawing; S.drawing = null;
-    if (S.mode === 'vs' && S.phase === 'burn' && d.len >= 20 && K.vsExtend(S.st, 0, d.pts)) { S.tool = null; hint(''); handleEvents(S.st); }
+    if (S.mode === 'vs' && S.phase === 'burn' && d.len >= 20 && K.vsExtend(S.st, 0, d.pts)) { S.tool = null; closeWin(); hint(''); handleEvents(S.st); }
     else hint(t(d.len < 20 ? 'hintShort' : 'badTsugi'));
     return;
   }
