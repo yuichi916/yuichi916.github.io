@@ -8,6 +8,8 @@
   - タイトルの候補と判断は 06_title_options.md
 - 書き方の根拠：WRITING_RULES.md（冒頭に細かい数字を出さない）、research/note_style.md
   - 具体的な一場面から入る／見出し5／段落2〜3文／太字1／引用1／まとめの節なし／最後に冒頭の場面へ戻る
+- 見出し画像：figures/fig0_header.png（夜の色、灯りと作品の星座。考え方は 07_series_title.md）。マガジンの表紙は figures/series_cover.png
+- タイトルと大タイトルの関係：#00 は「何が残るのか」という問いへの答え（自分の世界）、連載はそれを「ひとりでつくる」
 - 図：figures/ の PNG。fig6 は実際の作品の画像（サイトの共有画像）
 - 引用「これは表現の限界ではなく、手配の限界でした」は method/ichinichi-novel-pipeline.html の原文
 - 「平日の夜と週末」は作業の記録の時刻で確認済み／「進捗管理」は作者の言葉
