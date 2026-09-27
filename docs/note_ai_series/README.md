@@ -1,4 +1,4 @@
-# 連載「AIエージェントで、ひとりがスタジオになる」
+# 連載「ひとりで、世界をつくる。」｜AIエージェントと、自分だけの世界を築く教科書
 
 **書く前に必ず [WRITING_RULES.md](WRITING_RULES.md) を見る（最初に細かい数字を出さない）。**
 
@@ -11,6 +11,7 @@
 | [figures/](figures/) | 記事の図（PNG）と作り方（src/ の HTML。フォントは Google Fonts の Klee One・Zen Maru Gothic を src/fonts/ に置いて描画。git には入れない） | — |
 | [research/fix_analysis.md](research/fix_analysis.md) | 直したコミット287件の分類の要約（全件は fix_classified.tsv） | 調査 |
 | [ep00_pro_is_not_prompt.md](ep00_pro_is_not_prompt.md) | **#00（無料）覚えたAIのコツは、来月には古くなる。残るのは「自分の世界」だった**。人気noteの書き方に合わせた第3稿（約1,800字・見出し5・図6・太字1）。タイトルの候補と判断は 06_title_options.md。スマホでの見え方は preview/ep00_phone_1〜3.jpg | 第3稿 |
+| [07_series_title.md](07_series_title.md) | 連載全体の大タイトル：求める条件、候補6つの比較、推す理由、表紙3案（figures/series_cover*.png） | 案 |
 | [04_concept_world.md](04_concept_world.md) | **最新の軸**：プロはテクニックではなく、自分だけの世界を持つ人。築く・壊す・乗りこなすの三本柱、noteの型、全11回と道具箱、#00の書き出し | 完成 |
 | [05_story_and_material.md](05_story_and_material.md) | **最新の軸の掘り下げ**：主張の筋道、写真と絵画のたとえ、読者の変化の道のり、各回の題材（研究ノートの原文つき）、反論と答え、#00の運び | 完成 |
 | [03_concept_success.md](03_concept_success.md) | 古い案：失敗ではなく「ひとりでできるようになったこと」を主役にする。芯の一言、noteの型（興味・損失・利益・独自性）、成果が主役の全11回、#00の書き出し見本 | 完成 |
