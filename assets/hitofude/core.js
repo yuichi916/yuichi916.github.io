@@ -764,7 +764,8 @@ function refLine(st, r, c) {
 // 同じ夜空に、2 人がそれぞれ 1 本ずつ線を引く。自分の火でひらいた玉が、自分の点になる。
 // 相手の線に自分の火が移ると、そこから先は自分の火として燃える（横取り）。先に火が届いた方が取る。
 // 番の流れ（火が走っている間は、見守るだけ）:
-//   相手が線を見せる → あなたが 1 本ひく → 相手がお邪魔玉を 1 つ置く → あなたも 1 つ置く → 点火
+//   相手が線とお邪魔玉を 1 つ見せる → あなたは全部見てから 1 本ひき、お邪魔玉を 1 つ置く → 点火
+//   （相手の黒玉は先に見えているので、よけることも、あとから届いて大爆発させることもできる）
 // お邪魔玉（黒玉）は、線の火にしか反応しない（爆発や火花は素通り）:
 //  ・最初に届いた線の火は、そこで消える（その線は、黒玉のまわりで切れる）
 //  ・そのあと別の線の火が届くと大爆発し、届けた人の点になる（点 60・倍率 +1・大きくひらく）
@@ -797,7 +798,7 @@ export const RIVALS = [
   { id: 'karakuri', ja: 'カラクリ', en: 'Karakuri', title: '横取りとお邪魔の名人', titleEn: 'Master of theft and tricks', lines: 4, pick: 2, probe: 1, lag: 0.05, ink: 1, ojama: 12, ojamaPick: 1,
     body: ['#fff8e8', '#ffd98a', '#e0a030', '#9a6010'], say: { start: '線は、読んでいるよ', steal: '計算どおり', stolen: 'ほう、読まれたか', ojama: 'からくり、発動', boom: 'それも計算のうち…？', win: 'からくり、完成', lose: '見事な手だ' },
     sayEn: { start: 'I\'ve read your line.', steal: 'As calculated.', stolen: 'Oh, you read me.', ojama: 'Trap activated.', boom: 'Was that… planned?', win: 'Mechanism complete.', lose: 'A fine move.' } },
-  { id: 'tsukikage', ja: 'ツキカゲ', en: 'Tsukikage', title: '月夜の花火師', titleEn: 'Moonlit master', lines: 6, pick: 1, probe: 2, lag: 0.1, ink: 1, ojama: 18, ojamaPick: 1,
+  { id: 'tsukikage', ja: 'ツキカゲ', en: 'Tsukikage', title: '月夜の花火師', titleEn: 'Moonlit master', lines: 6, pick: 1, probe: 2, lag: 0.067, ink: 1, ojama: 18, ojamaPick: 1,
     body: ['#ffffff', '#dfe6ff', '#8a9cff', '#3a3f9a'], say: { start: '月の下で、勝負', steal: '月は、すべてを照らす', stolen: '…やるね', ojama: '影を、落とそう', boom: '月も、驚いている', win: '今宵も、月の勝ち', lose: 'きみの花火、覚えておく' },
     sayEn: { start: 'Under the moon, we duel.', steal: 'The moon sees all.', stolen: '…impressive.', ojama: 'Let a shadow fall.', boom: 'Even the moon is surprised.', win: 'The moon wins tonight.', lose: 'I\'ll remember your fireworks.' } },
 ];
@@ -820,10 +821,10 @@ function newVsState(vs) {
     ignite: [], placed: [null, null], ojama: [null, null], nextShell: 1000,
   };
 }
-// 引きはじめてよい所か。後手は先手の線のすぐそばから、どちらも尺玉のすぐそばからは引きはじめられない
+// 引きはじめてよい所か。後手は先手の線のすぐそばから、どちらも尺玉・黒玉のすぐそばからは引きはじめられない
 export function vsCanStart(st, o, p) {
   if (!p) return true;
-  if (st.shells.some((s) => s.type === 'shaku' && Math.hypot(s.x - p.x, s.y - p.y) < SHELLS.shaku.r + VS_START_GAP)) return false;
+  if (st.shells.some((s) => (s.type === 'shaku' || s.type === 'kuro') && Math.hypot(s.x - p.x, s.y - p.y) < SHELLS[s.type].r + VS_START_GAP)) return false;
   const other = st.vs.placed[1 - o];
   if (!other) return true;
   const f = st.fuse;
@@ -1016,7 +1017,7 @@ export function vsPlan(make, o, rival, r) {
 export function vsOjamaSpots(st, o, n, r) {
   const v = st.vs, f = st.fuse, out = [];
   const other = v.placed[1 - o], mine = v.placed[o];
-  if (!other || n <= 0) return out;
+  if (n <= 0 || (!other && !mine)) return out;
   const put = (line, i) => {
     const p = f.pts[i], a = f.pts[Math.max(line.base, i - 1)], b = f.pts[Math.min(line.base + line.len - 1, i + 1)];
     const dx = b.x - a.x, dy = b.y - a.y, dl = Math.hypot(dx, dy) || 1;
@@ -1031,6 +1032,26 @@ export function vsOjamaSpots(st, o, n, r) {
     const i0 = Math.floor(u * (line.len - 1));
     for (let d = 0; d < line.len; d++) for (const i of d ? [i0 + d, i0 - d] : [i0]) if (i >= 0 && i < line.len && put(line, line.base + i)) return;
   };
+  if (!other) {
+    // 相手の線がまだ無い（先に見せる側）: 自分の線の上（横取りしに来た火を止める罠）と、
+    // 自分の線から離れた玉の群れの間（取りに来た線を止める罠）
+    const nOwn = Math.ceil(n / 3);
+    for (let k = 0; k < nOwn; k++) along(mine, (k + r()) / nOwn);
+    const far = (x, y) => { for (let i = mine.base; i < mine.base + mine.len; i += 2) if (Math.hypot(f.pts[i].x - x, f.pts[i].y - y) < 40) return false; return true; };
+    const gaps = [];
+    for (let i = 0; i < st.shells.length; i++) for (let j = i + 1; j < st.shells.length; j++) {
+      const a = st.shells[i], b = st.shells[j], d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (a.type === 'kuro' || b.type === 'kuro' || d < 40 || d > 72) continue;
+      const x = Math.round((a.x + b.x) / 2), y = Math.round((a.y + b.y) / 2);
+      if (far(x, y) && vsCanOjama(st, x, y)) gaps.push({ x, y, w: SHELLS[a.type].pts + SHELLS[b.type].pts });
+    }
+    gaps.sort((p, q) => q.w - p.w); // 点の高い群れほど先に
+    for (const c of shuffled(gaps.slice(0, Math.max(8, (n - out.length) * 3)), r)) {
+      if (out.length >= n) break;
+      if (!out.some((q) => Math.hypot(q.x - c.x, q.y - c.y) < 30)) out.push({ x: c.x, y: c.y });
+    }
+    return out;
+  }
   if (mine && n >= 3) {
     const cross = [];
     for (let i = other.base; i < other.base + other.len; i += 2) {
@@ -1045,21 +1066,43 @@ export function vsOjamaSpots(st, o, n, r) {
   for (let k = 0; k < nMine; k++) along(mine, (k + r()) / nMine);
   return out;
 }
-// お邪魔玉の置き所を、1 か所ずつ最後まで回して選ぶ（1 か所ごとに yield）。
-// make() は、この番の盤面（2 本の線と、先に置かれたお邪魔玉まで）を作り直す関数
+// お邪魔玉の置き所を、1 か所ずつ最後まで回して選ぶ（1 回回すごとに yield）。
+// make() は、この番の盤面（置いた順に、線とお邪魔玉まで）を作り直す関数。
+// 相手の線がまだ無い（先に見せる）ときは、相手の返し手をいくつか引いて、最悪と平均のあいだで測る
+// （相手は黒玉を見てから線を引くので、よけられる所はよけられたとして測る）
 export function* vsOjamaPlanGen(make, o, rival, r) {
-  const spots = vsOjamaSpots(make(), o, rival.ojama || 1, r);
+  const base = make();
+  const spots = vsOjamaSpots(base, o, rival.ojama || 1, r);
+  const blind = !base.vs.placed[1 - o];
+  const replies = blind ? vsCandidates(base, 1 - o, { lines: Math.max(2, (rival.probe || 0) * 2 + 1), cut: true }, r) : [null];
   const scored = [];
   for (const c of spots) {
-    const st = make();
-    if (!vsPlaceOjama(st, o, c.x, c.y)) continue;
-    vsIgnite(st); runVs(st);
-    scored.push({ x: c.x, y: c.y, val: vsScore(st, o) - vsScore(st, 1 - o) });
-    yield;
+    const margins = [];
+    for (const rep of replies) {
+      const st = make();
+      if (!vsPlaceOjama(st, o, c.x, c.y)) break;
+      if (rep && !vsPlace(st, 1 - o, rep)) continue;
+      vsIgnite(st); runVs(st);
+      margins.push(vsScore(st, o) - vsScore(st, 1 - o));
+      yield;
+    }
+    if (!margins.length) continue;
+    scored.push({ x: c.x, y: c.y, val: 0.5 * Math.min(...margins) + 0.5 * margins.reduce((a, b) => a + b, 0) / margins.length });
   }
   if (!scored.length) return null;
   scored.sort((a, b) => b.val - a.val);
   return scored[Math.floor(r() * Math.min(scored.length, rival.ojamaPick || 1))];
+}
+// 先に見せる側の 1 番ぶん: 線を選び、その線に合わせてお邪魔玉の置き所を選ぶ。返り値は { pts, ojama }
+export function* vsFirstPlanGen(make, o, rival, r) {
+  const pts = yield* vsPlanGen(make, o, rival, r);
+  if (!pts) return { pts: null, ojama: null };
+  const ojama = yield* vsOjamaPlanGen(() => { const st = make(); vsPlace(st, o, pts, { normalized: true }); return st; }, o, rival, r);
+  return { pts, ojama };
+}
+export function vsFirstPlan(make, o, rival, r) {
+  const g = vsFirstPlanGen(make, o, rival, r);
+  for (;;) { const x = g.next(); if (x.done) return x.value; }
 }
 export function vsOjamaPlan(make, o, rival, r) {
   const g = vsOjamaPlanGen(make, o, rival, r);
@@ -1120,6 +1163,8 @@ export function vsHint(st, o = 0) {
   const shaku = st.shells.find((s) => s.type === 'shaku');
   if (shaku && shaku.burst && shaku.by === opp) return { id: 'vsShaku' };
   if (r.kuro[opp] > r.kuro[o]) return { id: 'vsBoomed' };
+  const theirK = st.shells.find((s) => s.type === 'kuro' && s.from === opp);
+  if (theirK && theirK.crackBy === o && !(theirK.burst && theirK.by === o)) return { id: 'vsTrap' };
   if (r.took[opp] > r.took[o] + 12) return { id: 'vsTaken' };
   const lantern = st.shells.find((s) => s.type === 'chouchin' && s.burst && s.by === opp);
   if (lantern && !st.shells.some((s) => s.type === 'chouchin' && s.burst && s.by === o)) return { id: 'vsLantern' };
