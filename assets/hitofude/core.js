@@ -77,7 +77,7 @@ export const SHELLS = {
   chouchin: { r: 11, R: 40, pts: 10 }, // 提灯: 灯ったあとの玉は点が 2 倍
   shime: { r: 10, R: 50, pts: 25 },    // 湿った玉: 別々の火が 2 回当たるとひらく
   shaku: { r: 22, R: 170, pts: 200 },  // 尺玉: 最後の特大玉。倍率 +3
-  kuro: { r: 12, R: 120, pts: 60 },    // 黒玉（花火合戦のお邪魔玉）: 最初の火を消し、ひびが入ったあと導火線の火が届くと大爆発。倍率 +1
+  kuro: { r: 12, R: 120, pts: 60 },    // 黒玉（花火合戦のお邪魔玉）: 最初に届いた線の火を消し、別の線の火が届くと大爆発。倍率 +1
 };
 export const TYPES = ['kiku', 'ootama', 'kin', 'senrin', 'chouchin', 'shime', 'shaku'];
 
@@ -533,11 +533,11 @@ function spawnExplosion(st, x, y, R, cause, hue, o = 0) {
 // o は火の持ち主。花火合戦では、ひらいた玉の点は、その火の持ち主のものになる
 function burst(st, s, cause, src, o = 0) {
   if (s.burst) return;
+  if (s.type === 'kuro' && cause !== 'fuse') return; // 黒玉は、導火線の火にしか反応しない（爆発や火花は素通り）
   if ((s.type === 'shime' || s.type === 'kuro') && s.lastSrc === src) return; // 同じ火は、何度当たっても 1 回と数える
-  if (s.type === 'kuro' && s.hp === 1 && cause !== 'fuse') return; // ひびの入った黒玉は、導火線の火でしか爆発しない（爆発や火花は、はね返る）
   if (s.hp > 1) {
     s.hp--; s.lastSrc = src;
-    if (s.type === 'kuro') crackKuro(st, s, o); else st.events.push({ type: 'dry', shell: s, o });
+    if (s.type === 'kuro') crackKuro(st, s, src, o); else st.events.push({ type: 'dry', shell: s, o });
     return;
   }
   const def = SHELLS[s.type];
@@ -549,17 +549,13 @@ function burst(st, s, cause, src, o = 0) {
   if (side) { side.pops++; side.chips += def.pts * factor; }
   if (s.type === 'kin') { st.goldMult += st.rules.goldBonus; if (side) side.gold += st.rules.goldBonus; }
   if (s.type === 'shaku') { st.goldMult += 3; if (side) side.gold += 3; }
-  if (side) {
-    const v = st.vs;
-    v.powder[o] = Math.min(VS_POWDER.max, v.powder[o] + 1 + (s.type === 'kuro' ? VS_POWDER.kuro : 0));
-    if (s.type === 'kuro') { side.gold += 1; side.kuro++; if (s.from !== o) side.back++; st.events.push({ type: 'kuroBoom', shell: s, o, from: s.from }); }
-  }
+  if (side && s.type === 'kuro') { side.gold += 1; side.kuro++; if (s.from !== o) side.back++; st.events.push({ type: 'kuroBoom', shell: s, o, from: s.from }); }
   if (s.type === 'chouchin') {
     st.lanterns += st.rules.lanternGain;
     if (side) side.lanterns += st.rules.lanternGain;
     st.events.push({ type: 'lantern', shell: s, factor: side ? 1 + side.lanterns : pointFactor(st), o });
   }
-  spawnExplosion(st, s.x, s.y, def.R * st.rules.radius * (side ? st.vs.mod[o].radius : 1), cause, s.hue, o);
+  spawnExplosion(st, s.x, s.y, def.R * st.rules.radius, cause, s.hue, o);
   if (s.type === 'senrin') {
     const n = st.rules.senrinSparks;
     const off = (s.id * 0.61803) % 1;
@@ -584,7 +580,7 @@ function igniteFuseAt(st, i, o = 0) {
     if (!cont(i - 1) && !cont(i + 1)) { st.vs.side[o].steals++; st.events.push({ type: 'steal', x: f.pts[i].x, y: f.pts[i].y, o }); }
   }
   fuseNeighborsBurst(st, f.pts[i], st.rules.reach, 'f' + f.seg[i], o);
-  catchLinks(st, i, o);
+  if (!f.wet[i]) catchLinks(st, i, o); // 黒玉で消えた火は、交わる線にも移らない
 }
 // 燃えた点のすぐそばを通る別の区間（縄や、もう 1 本の線）にも火を移す
 function catchLinks(st, i, o = 0) {
@@ -592,7 +588,6 @@ function catchLinks(st, i, o = 0) {
 }
 
 function fuseNeighborsBurst(st, p, reach, src, o = 0) {
-  if (st.vs) reach *= st.vs.mod[o].reach;
   for (const s of st.shells) {
     if (s.burst) continue;
     const d = Math.hypot(s.x - p.x, s.y - p.y);
@@ -626,6 +621,7 @@ export function step(st) {
       f.burnt[next] = true; f.fire[next] = h.o;
       h.i = next;
       fuseNeighborsBurst(st, f.pts[next], st.rules.reach, 'f' + f.seg[next], h.o);
+      if (f.wet[next]) { dead = true; break; } // 黒玉に消された
       catchLinks(st, next, h.o);
       if (f.corners.has(next)) spawnExplosion(st, f.pts[next].x, f.pts[next].y, 42 * st.rules.radius, 'corner', 3, h.o);
       if (st.rules.endBurst && f.ends.has(next)) spawnExplosion(st, f.pts[next].x, f.pts[next].y, 80 * st.rules.radius, 'end', 2, h.o);
@@ -767,11 +763,12 @@ function refLine(st, r, c) {
 // ---------------------------------------------------------------- 花火合戦（CPU と対戦）
 // 同じ夜空に、2 人がそれぞれ 1 本ずつ線を引く。自分の火でひらいた玉が、自分の点になる。
 // 相手の線に自分の火が移ると、そこから先は自分の火として燃える（横取り）。先に火が届いた方が取る。
-// 先手（相手）が先に線を見せ、後手（あなた）はそれを見てから引く。火は 2 人いっしょにつく。
-// 番の前に「作戦札」を 1 枚選ぶ。火が走っているあいだは、自分の玉がひらくたびに「火薬」がたまり、2 つの道具に使える:
-//  ・お邪魔玉（黒玉）: 相手の火の先に落とす。最初に触れた火は消え、線もそこで切れる。ひびが入った黒玉は、
-//    導火線の火（継ぎ火など）が届くと大爆発し、届けた人の点になる（落とされた側も、火を届ければ逆に戦力にできる）
-//  ・継ぎ火: 自分の火が通ったあとから、短い線を 1 本足して、すぐ火をつける
+// 番の流れ（火が走っている間は、見守るだけ）:
+//   相手が線を見せる → あなたが 1 本ひく → 相手がお邪魔玉を 1 つ置く → あなたも 1 つ置く → 点火
+// お邪魔玉（黒玉）は、線の火にしか反応しない（爆発や火花は素通り）:
+//  ・最初に届いた線の火は、そこで消える（その線は、黒玉のまわりで切れる）
+//  ・そのあと別の線の火が届くと大爆発し、届けた人の点になる（点 60・倍率 +1・大きくひらく）
+//  → 2 本の線が交わる所に置くと、先に来た相手の火を止め、あとから来た自分の火で大爆発できる
 // 持ち主の番号は 0 = あなた、1 = 相手
 export const VS_BOUTS = [
   { night: 2, extra: 8, ja: '群れと千輪', en: 'Clusters & stars' },
@@ -781,94 +778,47 @@ export const VS_BOUTS = [
 export const VS_WIN = 2;            // 先に 2 番取った方の勝ち
 export const VS_FIRST = [1, 1, 1];  // 番ごとの先手（いつも相手が先に線を見せ、あなたはそれを見てから引く）
 export const VS_START_GAP = 26;     // 後手は先手の線のすぐそばから、どちらも尺玉のすぐそばからは引きはじめられない
-export const VS_FALL = 0.2;         // 相手のお邪魔玉は、落ちる影が見えてから効くまでこれだけかかる
-// 火薬: はじめ 3、自分の玉が 1 つひらくごとに +1（黒玉を爆発させると +3）、12 まで。
-// 道具の値段は、同じ番で同じ道具を使うたびに +2（連発より、使いどころを選ぶ）
-export const VS_POWDER = { start: 3, max: 12, ojama: 3, tsugi: 5, kuro: 3, again: 2 };
-export function vsCost(st, o, tool) { const sd = st.vs.side[o]; return VS_POWDER[tool] + VS_POWDER.again * sd[tool]; }
-export const VS_TSUGI_INK = 130;    // 継ぎ火の墨
-export const VS_TSUGI_GAP = 22;     // 継ぎ火は、自分の火が通った所からこの距離の中で引きはじめる
-export const VS_KURO_SOAK = 24;     // 黒玉に最初に触れた火は、まわりこの距離の導火線ごと消える
-// 作戦札（番ごとに 3 枚から 1 枚）
-export const TACTICS = [
-  { id: 'nagafude', emoji: '🖌️', ja: '長い筆', en: 'Long brush', desc: '墨 +35%', descEn: 'Ink +35%' },
-  { id: 'futofude', emoji: '🪶', ja: '太い筆', en: 'Thick brush', desc: '線から火が届く幅 ×2', descEn: 'Fuse reach ×2' },
-  { id: 'tairin', emoji: '🌸', ja: '大輪', en: 'Big bloom', desc: '自分の玉のひらく大きさ +25%', descEn: 'Your bursts +25%' },
-  { id: 'kayaku', emoji: '🧨', ja: '火薬箱', en: 'Powder keg', desc: '火薬 +4 で始まる', descEn: 'Start with +4 powder' },
-  { id: 'hayabi', emoji: '⚡', ja: '早火', en: 'Quick light', desc: '自分の火が 0.15 秒早くつく', descEn: 'Your fire lights 0.15 s sooner' },
-];
-export function tacticById(id) { return TACTICS.find((x) => x.id === id) || null; }
-// 番ごとの作戦札の候補（シードで決まる。挑戦状で遊ぶ人も同じ札が出る）
-export function vsOffers(seed, bout, o) {
-  return shuffled(TACTICS.map((x) => x.id), rng32(hashStr(`hitofude-vs-tactic:${seed >>> 0}:${bout}:${o}`))).slice(0, 3);
-}
+export const VS_OJAMA_GAP = 60;     // お邪魔玉は、線の引きはじめからこれだけ離して置く（始まってすぐ消えることはない）
+export const VS_KURO_SOAK = 24;     // 黒玉に消された火は、その線のまわりこの距離が濡れて切れる
 
 // 番付（弱い順）。強さは _dev/hitofude-vs-balance.mjs で CPU どうしを戦わせて決めた。
 // lines は線を考える本数、pick は上から何本の中から選ぶか（多いほど気まぐれ）、probe は「あなたの返し手」を何通り読むか（いちばん効く）、
-// lag は火をつけるのが遅れる秒、ink は墨の倍率。
-// 道具: react は火がついてから道具を考えはじめるまでの秒、ojama / tsugi は使うかどうかと「使う価値がある」と見なす割合（残りの玉のうち）。
-// powder は、はじめから多く持っている火薬。tactics は作戦札の好み（前ほど好き）
+// lag は火をつけるのが遅れる秒、ink は墨の倍率。ojama はお邪魔玉を置く所を何か所ためすか、ojamaPick は上から何か所の中から選ぶか
 export const RIVALS = [
-  { id: 'chibi', ja: 'チビ火', en: 'Chibi', title: '見習いの火の子', titleEn: 'Apprentice spark', lines: 1, pick: 1, probe: 0, lag: 0.25, ink: 0.8,
-    react: 99, ojama: 0, tsugi: 0, tactics: [],
+  { id: 'chibi', ja: 'チビ火', en: 'Chibi', title: '見習いの火の子', titleEn: 'Apprentice spark', lines: 1, pick: 1, probe: 0, lag: 0.25, ink: 0.8, ojama: 1, ojamaPick: 1,
     body: ['#e9fbff', '#8fe3ff', '#3fb4ff', '#1f6fe0'], say: { start: 'よーし、負けないぞ！', steal: 'やった、もらい！', stolen: 'あっ、ぼくの線…', ojama: 'えいっ、お邪魔！', boom: 'わー、ドカン！', win: 'かったー！', lose: 'つよいなあ…' },
     sayEn: { start: 'I won\'t lose!', steal: 'Mine now!', stolen: 'Hey, my line…', ojama: 'Take this!', boom: 'Whoa, boom!', win: 'I won!', lose: 'You\'re good…' } },
-  { id: 'shizuku', ja: 'シズク', en: 'Shizuku', title: '線香花火の子', titleEn: 'Sparkler girl', lines: 3, pick: 2, probe: 0, lag: 0.1, ink: 0.9,
-    react: 1.0, ojama: 0.3, tsugi: 0, tactics: ['nagafude', 'kayaku'],
+  { id: 'shizuku', ja: 'シズク', en: 'Shizuku', title: '線香花火の子', titleEn: 'Sparkler girl', lines: 3, pick: 2, probe: 0, lag: 0.15, ink: 0.85, ojama: 3, ojamaPick: 2,
     body: ['#fbf0ff', '#d9a8ff', '#a066f0', '#6a34c8'], say: { start: '提灯は、わたしのもの', steal: 'しずかに、いただきます', stolen: 'あら…', ojama: 'ちょっと、じゃましますね', boom: 'まあ、はでな…', win: 'ふふ、勝ち', lose: 'きれいな線だった' },
     sayEn: { start: 'The lantern is mine.', steal: 'Quietly taken.', stolen: 'Oh my…', ojama: 'Pardon the interruption.', boom: 'How flashy…', win: 'Hehe, I win.', lose: 'What a line.' } },
-  { id: 'don', ja: 'ドン', en: 'Don', title: '打ち上げ屋の親方', titleEn: 'Master launcher', lines: 3, pick: 3, probe: 1, lag: 0, ink: 1,
-    react: 1.0, ojama: 0.22, tsugi: 0, tactics: ['tairin', 'nagafude'],
+  { id: 'don', ja: 'ドン', en: 'Don', title: '打ち上げ屋の親方', titleEn: 'Master launcher', lines: 3, pick: 3, probe: 1, lag: 0, ink: 1, ojama: 6, ojamaPick: 2,
     body: ['#f2fff0', '#9dffb0', '#35d37a', '#16804a'], say: { start: '大玉は、ドンといただく', steal: 'ドーン！', stolen: 'ぬうっ', ojama: '黒玉、くらえ！', boom: 'でっけえ花火だ！', win: 'ガッハッハ！', lose: 'やるじゃねえか' },
     sayEn: { start: 'Big shells are mine!', steal: 'BOOM!', stolen: 'Grr!', ojama: 'Eat this!', boom: 'What a blast!', win: 'Ha ha ha!', lose: 'Not bad, kid.' } },
-  { id: 'karakuri', ja: 'カラクリ', en: 'Karakuri', title: '横取りとお邪魔の名人', titleEn: 'Master of theft and tricks', lines: 6, pick: 1, probe: 1, lag: 0, ink: 1,
-    react: 0.45, ojama: 0.14, tsugi: 0.14, tactics: ['hayabi', 'kayaku', 'futofude'],
+  { id: 'karakuri', ja: 'カラクリ', en: 'Karakuri', title: '横取りとお邪魔の名人', titleEn: 'Master of theft and tricks', lines: 4, pick: 2, probe: 1, lag: 0.05, ink: 1, ojama: 12, ojamaPick: 1,
     body: ['#fff8e8', '#ffd98a', '#e0a030', '#9a6010'], say: { start: '線は、読んでいるよ', steal: '計算どおり', stolen: 'ほう、読まれたか', ojama: 'からくり、発動', boom: 'それも計算のうち…？', win: 'からくり、完成', lose: '見事な手だ' },
     sayEn: { start: 'I\'ve read your line.', steal: 'As calculated.', stolen: 'Oh, you read me.', ojama: 'Trap activated.', boom: 'Was that… planned?', win: 'Mechanism complete.', lose: 'A fine move.' } },
-  { id: 'tsukikage', ja: 'ツキカゲ', en: 'Tsukikage', title: '月夜の花火師', titleEn: 'Moonlit master', lines: 6, pick: 1, probe: 2, lag: 0, ink: 1,
-    react: 0.3, ojama: 0.1, tsugi: 0.1, powder: 2, tactics: ['hayabi', 'tairin', 'kayaku'],
+  { id: 'tsukikage', ja: 'ツキカゲ', en: 'Tsukikage', title: '月夜の花火師', titleEn: 'Moonlit master', lines: 6, pick: 1, probe: 2, lag: 0.1, ink: 1, ojama: 18, ojamaPick: 1,
     body: ['#ffffff', '#dfe6ff', '#8a9cff', '#3a3f9a'], say: { start: '月の下で、勝負', steal: '月は、すべてを照らす', stolen: '…やるね', ojama: '影を、落とそう', boom: '月も、驚いている', win: '今宵も、月の勝ち', lose: 'きみの花火、覚えておく' },
     sayEn: { start: 'Under the moon, we duel.', steal: 'The moon sees all.', stolen: '…impressive.', ojama: 'Let a shadow fall.', boom: 'Even the moon is surprised.', win: 'The moon wins tonight.', lose: 'I\'ll remember your fireworks.' } },
 ];
 export function rivalById(id) { return RIVALS.find((r) => r.id === id) || RIVALS[0]; }
-// 相手の作戦札: 出た 3 枚のうち、好みの札（無ければ 1 枚目）
-export function rivalTactic(rival, offers) {
-  for (const id of rival.tactics || []) if (offers.includes(id)) return id;
-  return (rival.tactics || []).length ? offers[0] : null;
-}
 
-// 番の盤面。ink は [あなた, 相手] の墨の倍率、lag は [あなた, 相手] の火が遅れてつく秒、tactics は [あなた, 相手] の作戦札
-export function newVsRound({ seed, bout, moon = 4, ink = [1, 1], lag = [0, 0], tactics = [null, null], powder = [0, 0], first = VS_FIRST[bout] }) {
+// 番の盤面。ink は [あなた, 相手] の墨の倍率、lag は [あなた, 相手] の火が遅れてつく秒
+export function newVsRound({ seed, bout, moon = 4, ink = [1, 1], lag = [0, 0], first = VS_FIRST[bout] }) {
   const b = VS_BOUTS[bout];
   const st = newRound({ seed, night: b.night, moon, vs: { extra: b.extra, first } });
   const v = st.vs;
   v.bout = bout; v.lag = lag.slice(); v.inkK = ink.slice();
-  v.powder = v.powder.map((x, o) => Math.min(VS_POWDER.max, x + (powder[o] || 0)));
   v.ink = ink.map((k) => Math.round(st.rules.ink * k));
-  for (const o of [0, 1]) if (tactics[o]) vsSetTactic(st, o, tactics[o]);
   st.ink = v.ink[0];
   return st;
 }
 function newVsState(vs) {
   return {
     first: vs.first == null ? 1 : vs.first, bout: 0, ink: null, inkK: [1, 1], lag: [0, 0],
-    side: [0, 1].map(() => ({ pops: 0, chips: 0, gold: 0, lanterns: 0, steals: 0, ojama: 0, tsugi: 0, kuro: 0, back: 0 })),
-    mod: [0, 1].map(() => ({ reach: 1, radius: 1 })), tactic: [null, null],
-    powder: [VS_POWDER.start, VS_POWDER.start], ignite: [], falling: [], placed: [null, null], cool: [0, 0], nextShell: 1000,
+    side: [0, 1].map(() => ({ pops: 0, chips: 0, gold: 0, lanterns: 0, steals: 0, kuro: 0, back: 0, cut: 0 })),
+    ignite: [], placed: [null, null], ojama: [null, null], nextShell: 1000,
   };
-}
-// 作戦札を効かせる（線を置く前に）
-export function vsSetTactic(st, o, id) {
-  const v = st.vs, tc = tacticById(id);
-  if (!v || !tc || v.tactic[o] || v.placed[o]) return false;
-  v.tactic[o] = id;
-  if (id === 'nagafude') v.ink[o] = Math.round(st.rules.ink * v.inkK[o] * 1.35);
-  if (id === 'futofude') v.mod[o].reach = 2;
-  if (id === 'tairin') v.mod[o].radius = 1.25;
-  if (id === 'kayaku') v.powder[o] = Math.min(VS_POWDER.max, v.powder[o] + 4);
-  if (id === 'hayabi') v.lag[1 - o] = (v.lag[1 - o] || 0) + 0.15;
-  if (o === 0) st.ink = v.ink[0];
-  return true;
 }
 // 引きはじめてよい所か。後手は先手の線のすぐそばから、どちらも尺玉のすぐそばからは引きはじめられない
 export function vsCanStart(st, o, p) {
@@ -894,6 +844,35 @@ export function vsPlace(st, o, input, { normalized = false } = {}) {
   v.placed[o] = placed;
   return placed.pts;
 }
+// お邪魔玉を置けない理由（置けるなら null）: 'out' 場の外・雲の中 / 'shell' 玉と重なる / 'start' 線の引きはじめのそば
+export function vsOjamaWhy(st, x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < FIELD.x0 || x > FIELD.x1 || y < FIELD.y0 - 20 || y > FIELD.y1 + 20) return 'out';
+  if (st.clouds.length && inCloud(st.clouds, x, y)) return 'out';
+  if (st.shells.some((s) => !s.burst && Math.hypot(s.x - x, s.y - y) < SHELLS[s.type].r + SHELLS.kuro.r)) return 'shell';
+  for (const p of st.vs.placed) if (p && Math.hypot(p.pts[0].x - x, p.pts[0].y - y) < VS_OJAMA_GAP) return 'start';
+  return null;
+}
+export function vsCanOjama(st, x, y) { return !vsOjamaWhy(st, x, y); }
+// お邪魔玉を置く（線を引いたあと、火をつける前。1 人 1 つ）
+export function vsPlaceOjama(st, o, x, y) {
+  const v = st.vs;
+  x = Math.round(x); y = Math.round(y);
+  if (!v || st.phase !== 'draw' || v.ojama[o] || !vsCanOjama(st, x, y)) return false;
+  const s = { id: v.nextShell++, type: 'kuro', x, y, hue: 5, burst: false, burstAt: -1, hp: 2, lastSrc: null, from: o, crackBy: -1 };
+  st.shells.push(s);
+  v.ojama[o] = { x, y, id: s.id };
+  st.events.push({ type: 'ojama', shell: s, o });
+  return true;
+}
+// 黒玉に最初に線の火が届いた: その火は消え、その線は黒玉のまわりが濡れて切れる（ほかの線はそのまま）
+function crackKuro(st, s, src, o) {
+  const f = st.fuse, seg = +String(src).slice(1);
+  const soak = Math.max(VS_KURO_SOAK, SHELLS.kuro.r + st.rules.reach + 4); // 触れた火の頭が必ず入る広さ
+  for (let i = 0; i < f.pts.length; i++) if (f.seg[i] === seg && !f.wet[i] && Math.hypot(f.pts[i].x - s.x, f.pts[i].y - s.y) < soak) f.wet[i] = true;
+  s.crackBy = o;
+  st.vs.side[o].cut++;
+  st.events.push({ type: 'crack', shell: s, o, from: s.from });
+}
 // 点火。2 人いっしょに火がつく（lag のある方は、その秒数だけ遅れて）
 export function vsIgnite(st) {
   const v = st.vs;
@@ -905,75 +884,13 @@ export function vsIgnite(st) {
   }
   st.events.push({ type: 'vsStart', first: v.first });
 }
-// 道具が使える場面か
-function toolReady(st, o, tool) { const v = st.vs; return !!v && !st.done && st.phase === 'burn' && v.powder[o] >= vsCost(st, o, tool); }
-// お邪魔玉を置ける所か（ほかの玉と重ならない・場の中）
-export function vsOjamaSpot(st, x, y) {
-  if (x < FIELD.x0 || x > FIELD.x1 || y < FIELD.y0 - 20 || y > FIELD.y1 + 20) return false;
-  return !st.shells.some((s) => !s.burst && Math.hypot(s.x - x, s.y - y) < SHELLS[s.type].r + SHELLS.kuro.r);
-}
-// お邪魔玉を落とす。delay 秒後に現れる（落ちてくる影を見せる間）
-export function vsDropOjama(st, o, x, y, delay = 0) {
-  const v = st.vs;
-  x = Math.round(x); y = Math.round(y);
-  if (!toolReady(st, o, 'ojama') || !vsOjamaSpot(st, x, y)) return false;
-  v.powder[o] -= vsCost(st, o, 'ojama'); v.side[o].ojama++; v.cool[o] = st.tick + 18;
-  const c = { x, y, o, tick: st.tick + Math.round(delay / DT) };
-  if (delay > 0) { v.falling.push(c); st.events.push({ type: 'ojamaFall', x, y, o, at: st.t + delay }); } else landOjama(st, c);
-  return true;
-}
-function landOjama(st, c) {
-  const s = { id: st.vs.nextShell++, type: 'kuro', x: c.x, y: c.y, hue: 5, burst: false, burstAt: -1, hp: 2, lastSrc: null, from: c.o };
-  st.shells.push(s);
-  st.events.push({ type: 'ojama', shell: s, o: c.o });
-  // すでに火や爆発がそこにあれば、落ちた瞬間に触れる
-  const f = st.fuse;
-  for (const h of st.heads) if (Math.hypot(f.pts[h.i].x - s.x, f.pts[h.i].y - s.y) <= SHELLS.kuro.r + st.rules.reach * st.vs.mod[h.o].reach) { burst(st, s, 'fuse', 'f' + f.seg[h.i], h.o); break; }
-}
-// 黒玉に最初に火が触れた: その火は消え、まわりの導火線も濡れて切れる。黒玉にはひびが入る
-function crackKuro(st, s, o) {
-  const f = st.fuse;
-  // 触れた火の頭が必ず入る広さ（太い筆や月で火の届く幅が広いときも）
-  const soak = Math.max(VS_KURO_SOAK, SHELLS.kuro.r + st.rules.reach * st.vs.mod[o].reach + 4);
-  for (let i = 0; i < f.pts.length; i++) if (!f.wet[i] && Math.hypot(f.pts[i].x - s.x, f.pts[i].y - s.y) < soak) f.wet[i] = true;
-  st.sparks = st.sparks.filter((sp) => Math.hypot(sp.x - s.x, sp.y - s.y) >= soak);
-  st.events.push({ type: 'crack', shell: s, o, from: s.from });
-}
-// 継ぎ火を引きはじめてよい所か（自分の火が通ったあとのそば）
-export function vsCanExtend(st, o, p) {
-  if (!p) return false;
-  const f = st.fuse;
-  for (let i = 0; i < f.pts.length; i++) if (f.fire[i] === o && Math.hypot(f.pts[i].x - p.x, f.pts[i].y - p.y) < VS_TSUGI_GAP) return true;
-  return false;
-}
-// 継ぎ火: 短い線を足して、すぐに自分の火をつける
-export function vsExtend(st, o, input, { normalized = false } = {}) {
-  const v = st.vs;
-  if (!toolReady(st, o, 'tsugi')) return null;
-  const pts = normalized ? input : normalizeStroke(input, VS_TSUGI_INK);
-  if (!pts || pts.length < 3 || !vsCanExtend(st, o, pts[0])) return null;
-  const keep = st.ink; st.ink = VS_TSUGI_INK;
-  const placed = placePoints(st, pts, o, 100 + st.strokes.length);
-  st.ink = keep;
-  if (!placed) return null;
-  v.powder[o] -= vsCost(st, o, 'tsugi'); v.side[o].tsugi++; v.cool[o] = st.tick + 18;
-  st.events.push({ type: 'tsugi', o, pts: placed.pts });
-  igniteStroke(st, placed, o);
-  return placed.pts;
-}
-// 1 コマごと: 遅れてつく火と、落ちてきたお邪魔玉
+// 1 コマごと: 遅れてつく火
 function vsTick(st) {
   const v = st.vs;
-  if (v.ignite.length) {
-    const now = v.ignite.filter((g) => st.tick >= g.tick);
-    v.ignite = v.ignite.filter((g) => st.tick < g.tick);
-    for (const g of now) igniteStroke(st, v.placed[g.o], g.o);
-  }
-  if (v.falling.length) {
-    const now = v.falling.filter((c) => st.tick >= c.tick);
-    v.falling = v.falling.filter((c) => st.tick < c.tick);
-    for (const c of now) if (vsOjamaSpot(st, c.x, c.y)) landOjama(st, c); else { v.side[c.o].ojama--; v.powder[c.o] = Math.min(VS_POWDER.max, v.powder[c.o] + vsCost(st, c.o, 'ojama')); }
-  }
+  if (!v.ignite.length) return;
+  const now = v.ignite.filter((g) => st.tick >= g.tick);
+  v.ignite = v.ignite.filter((g) => st.tick < g.tick);
+  for (const g of now) igniteStroke(st, v.placed[g.o], g.o);
 }
 export function vsMult(st, o) { const sd = st.vs.side[o]; return 1 + st.rules.startMult + sd.gold + Math.floor(sd.pops / st.rules.pulse); }
 export function vsScore(st, o) { return st.vs.side[o].chips * vsMult(st, o); }
@@ -987,7 +904,7 @@ function finishVs(st) {
   st.result = {
     vs: true, score: sc, winner: sc[0] > sc[1] ? 0 : sc[1] > sc[0] ? 1 : -1, total: st.shells.filter((s) => s.type !== 'kuro').length,
     pops: pick('pops'), chips: pick('chips'), mult: [vsMult(st, 0), vsMult(st, 1)], steals: pick('steals'), took,
-    ojama: pick('ojama'), tsugi: pick('tsugi'), kuro: pick('kuro'), back: pick('back'), tactic: st.vs.tactic.slice(),
+    kuro: pick('kuro'), back: pick('back'), cut: pick('cut'), ojama: st.vs.ojama.map((x) => (x ? 1 : 0)),
   };
   st.events.push({ type: 'done', result: st.result });
   return st;
@@ -1093,150 +1010,106 @@ export function vsPlan(make, o, rival, r) {
   const g = vsPlanGen(make, o, rival, r);
   for (;;) { const x = g.next(); if (x.done) return x.value; }
 }
-// ---- CPU の道具の使い方
-const worthOf = (s) => (s.type === 'kuro' ? (s.hp > 1 ? 0 : 90) : SHELLS[s.type].pts * (s.type === 'kin' || s.type === 'chouchin' || s.type === 'shaku' ? 3 : 1));
-// もうすぐ誰かの爆発に飲まれる玉（取り合っても意味が薄い）
-function doomed(st, s) { return st.explosions.some((e) => e.t < BURST_GROW + BURST_HOLD && Math.hypot(e.x - s.x, e.y - s.y) < e.R + SHELLS[s.type].r + 6); }
-// お邪魔玉をどこに落とすか: 相手の火の頭が、落ちるまでに進む少し先の導火線の上。その先で取られそうな玉が多い所
-export function vsOjamaChoice(st, o, rival) {
-  const v = st.vs, f = st.fuse, opp = 1 - o;
-  if (!rival.ojama || !toolReady(st, o, 'ojama') || st.t < rival.react || st.tick < v.cool[o]) return null;
-  const left = st.shells.filter((s) => !s.burst && !doomed(st, s));
-  const total = left.reduce((a, s) => a + worthOf(s), 0);
-  if (!total) return null;
-  const mine = st.heads.filter((g) => g.o === o).map((g) => f.pts[g.i]);
-  const lead = Math.round(VS_FALL * FUSE_SPEED / FUSE_SAMPLE) + 3;
-  let best = null;
-  for (const h of st.heads) {
-    if (h.o !== opp) continue;
-    const seg = f.seg[h.i], ahead = [];
-    for (let j = h.i + h.dir; j >= 0 && j < f.pts.length && f.seg[j] === seg && !f.burnt[j] && !f.wet[j] && ahead.length < 500; j += h.dir) ahead.push(j);
-    if (ahead.length < lead + 5) continue;
-    // 置ける所を探す: 少し先へ、または線の横へ少しずらす（線から火が届く幅の中なら、火は黒玉に触れる）
-    let c = null, k = lead;
-    for (; k < Math.min(ahead.length - 4, lead + 14) && !c; k++) {
-      const p = f.pts[ahead[k]], q = f.pts[ahead[k + 1]], dx = q.x - p.x, dy = q.y - p.y, dl = Math.hypot(dx, dy) || 1;
-      for (const off of [0, 8, -8, 14, -14]) {
-        const x = Math.round(p.x - dy / dl * off), y = Math.round(p.y + dx / dl * off);
-        if (vsOjamaSpot(st, x, y)) { c = { x, y }; break; }
-      }
-    }
-    k--;
-    if (!c || mine.some((p) => Math.hypot(p.x - c.x, p.y - c.y) < 60)) continue;
-    let val = 0;
-    for (const s of left) {
-      const rr = SHELLS[s.type].r + st.rules.reach + 24;
-      for (let q = k; q < ahead.length; q += 3) { const p = f.pts[ahead[q]]; if (Math.hypot(p.x - s.x, p.y - s.y) <= rr) { val += worthOf(s); break; } }
-    }
-    if (!best || val > best.val) best = { x: Math.round(c.x), y: Math.round(c.y), val };
-  }
-  if (!best || best.val / total < rival.ojama) return null;
-  return best;
-}
-// お邪魔玉の目安（ページのチャンスの間で使う）: 相手の線のまだ燃えていない所のうち、そばに取られそうな玉が多く、
-// 自分の火からは離れていて、黒玉を置ける所。火の頭のすぐ先に限らない（連鎖で火は線の先へ飛ぶので）
-export function vsOjamaHint(st, o) {
-  const v = st.vs, f = st.fuse, opp = 1 - o;
-  if (!v || st.done) return null;
-  const left = st.shells.filter((s) => !s.burst && !doomed(st, s));
-  const mine = st.heads.filter((g) => g.o === o).map((g) => f.pts[g.i]);
-  let best = null;
-  for (let i = 0; i < f.pts.length; i += 2) {
-    if (f.owner[i] !== opp || f.burnt[i] || f.wet[i]) continue;
-    const p = f.pts[i];
-    if (mine.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 60)) continue;
-    let val = 0;
-    for (const s of left) if (Math.hypot(s.x - p.x, s.y - p.y) < 46) val += worthOf(s);
-    if (!val || (best && val <= best.val)) continue;
-    const q = f.pts[Math.min(f.pts.length - 1, i + 1)], dx = q.x - p.x, dy = q.y - p.y, dl = Math.hypot(dx, dy) || 1;
-    for (const off of [0, 8, -8, 14, -14]) {
+// ---- CPU のお邪魔玉
+// 置く所の候補: 2 本の線が交わる所（先に来た火を止め、あとから来た火で大爆発）と、相手の線の上に散らした所。
+// 候補が多いときは、自分の線の上（横取りされそうな所をふさぐ）も少し
+export function vsOjamaSpots(st, o, n, r) {
+  const v = st.vs, f = st.fuse, out = [];
+  const other = v.placed[1 - o], mine = v.placed[o];
+  if (!other || n <= 0) return out;
+  const put = (line, i) => {
+    const p = f.pts[i], a = f.pts[Math.max(line.base, i - 1)], b = f.pts[Math.min(line.base + line.len - 1, i + 1)];
+    const dx = b.x - a.x, dy = b.y - a.y, dl = Math.hypot(dx, dy) || 1;
+    for (const off of [0, 9, -9, 15, -15]) {
       const x = Math.round(p.x - dy / dl * off), y = Math.round(p.y + dx / dl * off);
-      if (vsOjamaSpot(st, x, y)) { best = { x, y, val }; break; }
+      if (vsCanOjama(st, x, y) && !out.some((c) => Math.hypot(c.x - x, c.y - y) < 14)) { out.push({ x, y }); return true; }
     }
-  }
-  return best;
-}
-// 継ぎ火をどこに引くか: 自分の火が通ったあとから、まだ誰も取りそうにない玉（ひびの入った黒玉は大きなごほうび）へ
-export function vsExtendChoice(st, o, rival) {
-  const v = st.vs, f = st.fuse;
-  if (!rival.tsugi || !toolReady(st, o, 'tsugi') || st.t < rival.react || st.tick < v.cool[o]) return null;
-  const starts = [];
-  for (let i = 0; i < f.pts.length; i += 3) if (f.fire[i] === o && !f.wet[i]) starts.push(f.pts[i]);
-  if (!starts.length) return null;
-  const left = st.shells.filter((s) => !s.burst && !doomed(st, s));
-  const total = left.reduce((a, s) => a + worthOf(s), 0);
-  if (!total) return null;
-  const reach = st.rules.reach * v.mod[o].reach;
-  const targets = left.filter((s) => worthOf(s) > 0).sort((a, b) => worthOf(b) - worthOf(a)).slice(0, 12);
-  let best = null;
-  for (const tg of targets) {
-    let sp = null, sd = 1e9;
-    for (const p of starts) { const d = Math.hypot(p.x - tg.x, p.y - tg.y); if (d < sd && !crossesCloud(st.clouds, p.x, p.y, tg.x, tg.y)) { sd = d; sp = p; } }
-    if (!sp || sd > VS_TSUGI_INK - 10 || sd < 20) continue;
-    const route = [{ x: sp.x, y: sp.y }, ...chainLine(st, tg, VS_TSUGI_INK - sd, () => 0, new Set(st.shells.filter((x) => x.burst).map((x) => x.id).concat([tg.id])))];
-    let val = 0;
-    for (const s of left) {
-      const rr = SHELLS[s.type].r + reach + 2;
-      for (let q = 1; q < route.length; q++) {
-        const a = route[q - 1], b = route[q], dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
-        const u = l2 ? Math.max(0, Math.min(1, ((s.x - a.x) * dx + (s.y - a.y) * dy) / l2)) : 0;
-        if (Math.hypot(a.x + dx * u - s.x, a.y + dy * u - s.y) <= rr) { val += worthOf(s); break; }
-      }
+    return false;
+  };
+  // 線の上の u（0〜1）の所に置く。玉と重なって置けなければ、そこからいちばん近い置ける所へ
+  const along = (line, u) => {
+    const i0 = Math.floor(u * (line.len - 1));
+    for (let d = 0; d < line.len; d++) for (const i of d ? [i0 + d, i0 - d] : [i0]) if (i >= 0 && i < line.len && put(line, line.base + i)) return;
+  };
+  if (mine && n >= 3) {
+    const cross = [];
+    for (let i = other.base; i < other.base + other.len; i += 2) {
+      const p = f.pts[i];
+      if (cross.some((j) => Math.hypot(f.pts[j].x - p.x, f.pts[j].y - p.y) < 30)) continue;
+      for (let j = mine.base; j < mine.base + mine.len; j += 2) if (Math.hypot(f.pts[j].x - p.x, f.pts[j].y - p.y) < 8) { cross.push(i); break; }
     }
-    if (!best || val > best.val) best = { pts: route, val };
+    for (const i of shuffled(cross, r).slice(0, Math.ceil(n / 3))) put(other, i);
   }
-  if (!best || best.val / total < rival.tsugi) return null;
-  return best;
+  const rest = n - out.length, nMine = mine && rest >= 4 ? Math.floor(rest / 4) : 0;
+  for (let k = 0; k < rest - nMine; k++) along(other, (k + r()) / (rest - nMine));
+  for (let k = 0; k < nMine; k++) along(mine, (k + r()) / nMine);
+  return out;
 }
-// CPU の 1 回ぶんの判断（6 コマごと）。継ぎ火が見合えば継ぎ火、だめならお邪魔玉。相手のお邪魔玉は落ちてくるまで少しかかる
-export function vsAct(st, o, rival, fall = VS_FALL) {
-  if (!st.vs || st.tick % 6 !== 0) return null;
-  const e = vsExtendChoice(st, o, rival);
-  if (e && vsExtend(st, o, e.pts)) return 'tsugi';
-  const c = vsOjamaChoice(st, o, rival);
-  if (c && vsDropOjama(st, o, c.x, c.y, fall)) return 'ojama';
-  return null;
-}
-// 盤面を最後まで回す（CPU どうしの対戦と、線の試し）。policies = [あなた役, 相手役] の道具の使い方
-export function runVs(st, policies = null, maxTicks = 60 * 60) {
-  for (let n = 0; n < maxTicks && !st.done; n++) {
-    if (policies) for (const o of [0, 1]) if (policies[o]) vsAct(st, o, policies[o]);
-    step(st); st.events.length = 0;
+// お邪魔玉の置き所を、1 か所ずつ最後まで回して選ぶ（1 か所ごとに yield）。
+// make() は、この番の盤面（2 本の線と、先に置かれたお邪魔玉まで）を作り直す関数
+export function* vsOjamaPlanGen(make, o, rival, r) {
+  const spots = vsOjamaSpots(make(), o, rival.ojama || 1, r);
+  const scored = [];
+  for (const c of spots) {
+    const st = make();
+    if (!vsPlaceOjama(st, o, c.x, c.y)) continue;
+    vsIgnite(st); runVs(st);
+    scored.push({ x: c.x, y: c.y, val: vsScore(st, o) - vsScore(st, 1 - o) });
+    yield;
   }
+  if (!scored.length) return null;
+  scored.sort((a, b) => b.val - a.val);
+  return scored[Math.floor(r() * Math.min(scored.length, rival.ojamaPick || 1))];
+}
+export function vsOjamaPlan(make, o, rival, r) {
+  const g = vsOjamaPlanGen(make, o, rival, r);
+  for (;;) { const x = g.next(); if (x.done) return x.value; }
+}
+// 置き終えた盤面（火をつける前）を最後まで回した行く末。ページの目安に使う（火がつく前に、どうなるかを言える）。
+// kuro は黒玉ごとに、最初に届いて消えた火の持ち主（crack）と、大爆発させた人（boom）。どちらも -1 は「起きない」
+export function vsForecast(st) {
+  vsIgnite(st); runVs(st);
+  return {
+    score: [vsScore(st, 0), vsScore(st, 1)],
+    kuro: st.shells.filter((s) => s.type === 'kuro').map((s) => ({ from: s.from, x: s.x, y: s.y, crack: s.crackBy, boom: s.burst ? s.by : -1 })),
+  };
+}
+// 盤面を最後まで回す（CPU の読みと、目安）
+export function runVs(st, maxTicks = 60 * 60) {
+  for (let n = 0; n < maxTicks && !st.done; n++) { step(st); st.events.length = 0; }
   if (!st.done) finish(st);
   return st.result;
 }
 
 // ---- お手本（はじめての人に、ルールを実演して見せる盤面）
-// 台本: 相手の線 → あなたの線（相手の線の後ろを横切る）→ 点火して横取り → あなたのお邪魔玉で相手の火が消える
-// → 相手のお邪魔玉であなたの火が消える → 継ぎ火をひびの黒玉に届けて、お邪魔返し
+// 台本: 相手の線 → あなたの線（相手の線を横切る）→ 相手のお邪魔玉（横取りされそうな所をふさぐ）
+// → あなたのお邪魔玉（交わる所: 相手の火を止め、あとから来たあなたの火で大爆発）→ 点火して見守る
 const demoLine = (pts, step = 6) => {
   const out = [];
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / step));
-    for (let k = i === 1 ? 0 : 1; k <= n; k++) out.push({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n });
+    for (let k = i === 1 ? 0 : 1; k <= n; k++) out.push({ x: Math.round(a.x + (b.x - a.x) * k / n), y: Math.round(a.y + (b.y - a.y) * k / n) });
   }
   return out;
 };
 export const VS_DEMO = {
   shells: [
-    ['kiku', 70, 172], ['kiku', 100, 188],
-    ['kiku', 285, 168], ['kin', 312, 190], ['kiku', 300, 214], ['kiku', 330, 170],
-    ['kiku', 262, 250], ['kiku', 238, 290], ['kiku', 210, 312],
-    ['kiku', 92, 342], ['kiku', 132, 352], ['ootama', 172, 360], ['kiku', 104, 262], ['kiku', 60, 300],
-    ['kiku', 200, 440], ['kiku', 250, 460], ['kiku', 70, 450],
+    ['kiku', 70, 168], ['kiku', 88, 194], ['kiku', 110, 150],
+    ['kiku', 236, 146], ['kiku', 222, 194], ['kiku', 262, 222],
+    ['kiku', 226, 254], ['ootama', 176, 226], ['kiku', 185, 146],
+    ['kin', 322, 166], ['kiku', 330, 196],
+    ['kiku', 92, 342], ['kiku', 132, 352], ['kiku', 200, 440], ['kiku', 250, 460], ['kiku', 70, 450],
   ],
   rival: demoLine([{ x: 40, y: 180 }, { x: 335, y: 180 }]),
-  mine: demoLine([{ x: 250, y: 136 }, { x: 250, y: 300 }, { x: 60, y: 300 }]),
-  ojamaMine: { x: 150, y: 180 },
-  ojamaRival: { x: 140, y: 300 },
-  tsugi: demoLine([{ x: 185, y: 300 }, { x: 162, y: 318 }, { x: 140, y: 314 }], 5),
+  mine: demoLine([{ x: 250, y: 132 }, { x: 250, y: 240 }, { x: 150, y: 240 }, { x: 150, y: 196 }]),
+  ojamaRival: { x: 300, y: 180 },
+  ojamaTry: { x: 240, y: 215 },   // お手本で、はじめに指を置いてみせる所（自分の線の上: あなたの火が止まる）
+  ojamaMine: { x: 150, y: 180 },  // 指をずらした先（交わる所: 相手の火を止め、あとから来たあなたの火で大爆発）
 };
 export function newVsDemo(moon = 4) {
   const st = newVsRound({ seed: 1, bout: 0, moon });
   st.shells = VS_DEMO.shells.map(([type, x, y], i) => ({ id: i, type, x, y, hue: i % 7, burst: false, burstAt: -1, hp: 1, lastSrc: null }));
   st.clouds = []; st.ropes = [];
-  st.vs.powder = [VS_POWDER.max, VS_POWDER.max];
   return st;
 }
 
@@ -1246,12 +1119,13 @@ export function vsHint(st, o = 0) {
   if (!r || !r.vs) return null;
   const shaku = st.shells.find((s) => s.type === 'shaku');
   if (shaku && shaku.burst && shaku.by === opp) return { id: 'vsShaku' };
+  if (r.kuro[opp] > r.kuro[o]) return { id: 'vsBoomed' };
   if (r.took[opp] > r.took[o] + 12) return { id: 'vsTaken' };
   const lantern = st.shells.find((s) => s.type === 'chouchin' && s.burst && s.by === opp);
   if (lantern && !st.shells.some((s) => s.type === 'chouchin' && s.burst && s.by === o)) return { id: 'vsLantern' };
-  if (r.kuro[opp] > r.kuro[o] && r.back[opp]) return { id: 'vsBack' };
+  const mineK = st.shells.find((s) => s.type === 'kuro' && s.from === o);
+  if (!mineK || mineK.crackBy !== opp) return { id: 'vsOjama' };
   if (!r.steals[o]) return { id: 'vsCross' };
-  if (!r.ojama[o] && !r.tsugi[o]) return { id: 'vsTools' };
   let mine = 0; for (let i = 0; i < f.pts.length; i++) if (f.owner[i] === o) mine++;
   if (mine && r.pops[o] < r.pops[opp] / 2) return { id: 'vsDense' };
   return { id: 'vsGeneral' };
@@ -1275,10 +1149,10 @@ export function vsShareText(match, lang, url = SITE_URL) {
   const w = match.results.filter((r) => r.winner === 0).length, l = match.results.filter((r) => r.winner === 1).length;
   const dots = match.results.map((r) => (r.winner === 0 ? '🔴' : r.winner === 1 ? '🔵' : '⚪')).join('');
   const sum = (k) => match.results.reduce((a, r) => a + r[k][0], 0);
-  const steals = sum('steals'), back = sum('back');
+  const steals = sum('steals'), boom = sum('kuro');
   const won = match.winner === 0;
   const head = en ? `Hanabi Battle vs ${rv.en}: ${won ? 'won' : 'lost'} ${w}-${l}` : `花火合戦 vs ${rv.ja}　${w}-${l} で${won ? '勝ち！' : '負け…'}`;
-  const tail = en ? `Steals ${steals} · Ojama returned ${back}` : `横取り ${steals} ・ お邪魔返し ${back}`;
+  const tail = en ? `Steals ${steals} · Big blasts ${boom}` : `横取り ${steals} ・ 大爆発 ${boom}`;
   return `${head}\n${dots} ${tail}\n${url}\n${en ? '#hitofudehanabi' : HASHTAG}`;
 }
 
