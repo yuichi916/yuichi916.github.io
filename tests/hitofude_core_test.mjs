@@ -660,6 +660,16 @@ check('花火合戦: CPU は、相手の火の先にお邪魔玉を落とし、�
   K.runVs(st2);
   ok(st2.shells.slice(1).some((s) => s.by === 1), '継ぎ火で、離れた玉を取った');
 });
+check('花火合戦: お邪魔玉の目安は、相手の線のまだ燃えていない所で、玉が多い所', () => {
+  const shells = [{ type: 'kiku', x: 250, y: 280 }, { type: 'kiku', x: 280, y: 280 }, { type: 'kin', x: 265, y: 322 }, { type: 'kiku', x: 60, y: 520 }];
+  const st = vsHand(shells);
+  K.vsPlace(st, 1, line(40, 300, 320, 300, 70));
+  K.vsPlace(st, 0, line(40, 500, 120, 500, 20));
+  K.vsIgnite(st); K.step(st);
+  const h = K.vsOjamaHint(st, 0);
+  ok(h && h.x > 200 && Math.abs(h.y - 300) <= 14, `玉の多い所 ${JSON.stringify(h)}`);
+  ok(K.vsOjamaSpot(st, h.x, h.y), '置ける所');
+});
 check('花火合戦: 挑戦状のリンクと、シェアの文', () => {
   const code = K.encodeVs(123456789, 3, 'wlw');
   eq(JSON.stringify(K.decodeVs(code)), JSON.stringify({ seed: 123456789, rival: 3, marks: 'wlw' }));

@@ -1133,6 +1133,29 @@ export function vsOjamaChoice(st, o, rival) {
   if (!best || best.val / total < rival.ojama) return null;
   return best;
 }
+// お邪魔玉の目安（ページのチャンスの間で使う）: 相手の線のまだ燃えていない所のうち、そばに取られそうな玉が多く、
+// 自分の火からは離れていて、黒玉を置ける所。火の頭のすぐ先に限らない（連鎖で火は線の先へ飛ぶので）
+export function vsOjamaHint(st, o) {
+  const v = st.vs, f = st.fuse, opp = 1 - o;
+  if (!v || st.done) return null;
+  const left = st.shells.filter((s) => !s.burst && !doomed(st, s));
+  const mine = st.heads.filter((g) => g.o === o).map((g) => f.pts[g.i]);
+  let best = null;
+  for (let i = 0; i < f.pts.length; i += 2) {
+    if (f.owner[i] !== opp || f.burnt[i] || f.wet[i]) continue;
+    const p = f.pts[i];
+    if (mine.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 60)) continue;
+    let val = 0;
+    for (const s of left) if (Math.hypot(s.x - p.x, s.y - p.y) < 46) val += worthOf(s);
+    if (!val || (best && val <= best.val)) continue;
+    const q = f.pts[Math.min(f.pts.length - 1, i + 1)], dx = q.x - p.x, dy = q.y - p.y, dl = Math.hypot(dx, dy) || 1;
+    for (const off of [0, 8, -8, 14, -14]) {
+      const x = Math.round(p.x - dy / dl * off), y = Math.round(p.y + dx / dl * off);
+      if (vsOjamaSpot(st, x, y)) { best = { x, y, val }; break; }
+    }
+  }
+  return best;
+}
 // 継ぎ火をどこに引くか: 自分の火が通ったあとから、まだ誰も取りそうにない玉（ひびの入った黒玉は大きなごほうび）へ
 export function vsExtendChoice(st, o, rival) {
   const v = st.vs, f = st.fuse;
