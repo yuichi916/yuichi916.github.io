@@ -1,13 +1,14 @@
-// 花火合戦のつり合いを測る。CPU どうしを戦わせ、勝率・番ごとの勝ち・横取り・お邪魔玉・継ぎ火の数を出す。
+// 花火合戦のつり合いを測る。CPU どうしを戦わせ、勝率・番ごとの勝ち・横取り・お邪魔玉の効き目を出す。
 // 使い方: node _dev/hitofude-vs-balance.mjs <あなた役> <相手役> [試合数=60]
 //   役は RIVALS の id（'don@{"probe":2}' のように設定を上書きできる）か、人の目安の 'bot1' 'bot3' 'bot6'
-//   （線を 1・3・6 本考えて選ぶ。bot1 は相手の線を読まず、道具はお邪魔玉だけ）
+//   （線を 1・3・6 本考えて選ぶ。bot1 は相手の線を読まない。お邪魔玉は 3・6・12 か所ためして選ぶ）
+// ページと同じ順に置く: 先手（相手）の線 → 後手（あなた）の線 → 先手のお邪魔玉 → 後手のお邪魔玉 → 点火
 import * as K from '../assets/hitofude/core.js';
 
 export const BOTS = {
-  bot1: { lines: 1, pick: 1, probe: 0, ink: 1, lag: 0, react: 0.6, ojama: 0.15, tsugi: 0, tactics: ['kayaku', 'nagafude'] },
-  bot3: { lines: 3, pick: 1, probe: 1, cut: true, ink: 1, lag: 0, react: 0.4, ojama: 0.12, tsugi: 0.12, tactics: ['hayabi', 'futofude', 'kayaku'] },
-  bot6: { lines: 6, pick: 1, probe: 2, cut: true, ink: 1, lag: 0, react: 0.3, ojama: 0.1, tsugi: 0.1, tactics: ['hayabi', 'tairin', 'kayaku'] },
+  bot1: { lines: 1, pick: 1, probe: 0, ink: 1, lag: 0, ojama: 3, ojamaPick: 1 },
+  bot3: { lines: 3, pick: 1, probe: 1, cut: true, ink: 1, lag: 0, ojama: 6, ojamaPick: 1 },
+  bot6: { lines: 6, pick: 1, probe: 2, cut: true, ink: 1, lag: 0, ojama: 12, ojamaPick: 1 },
 };
 const role = (id) => { if (BOTS[id]) return BOTS[id]; const m = /^(\w+)@(.+)$/.exec(id); if (m) return { ...(BOTS[m[1]] || K.rivalById(m[1])), ...JSON.parse(m[2]) }; return K.rivalById(id); };
 const FIRST = process.env.FIRST ? process.env.FIRST.split(',').map(Number) : K.VS_FIRST;
@@ -18,17 +19,21 @@ export function playMatch(seed, moon, a, b, rng) {
   const wins = [0, 0];
   for (let bout = 0; bout < K.VS_BOUTS.length && Math.max(...wins) < K.VS_WIN; bout++) {
     const roles = [a, b], first = FIRST[bout], second = 1 - first;
-    const tactics = [0, 1].map((o) => K.rivalTactic(roles[o], K.vsOffers(seed, bout, o)));
-    // 先手は、後手の作戦札を知らずに線を考える（ページと同じ）
-    const opts = (known) => ({ seed, bout, moon, ink: [a.ink || 1, b.ink || 1], lag: [a.lag || 0, b.lag || 0], powder: [a.powder || 0, b.powder || 0], first, tactics: tactics.map((x, o) => (known[o] ? x : null)) });
-    const lines = [null, null];
-    const make = (known) => () => { const st = K.newVsRound(opts(known)); for (const o of [first, second]) if (lines[o]) K.vsPlace(st, o, lines[o], { normalized: true }); return st; };
-    const kFirst = [false, false]; kFirst[first] = true;
-    lines[first] = K.vsPlan(make(kFirst), first, roles[first], rng);
-    lines[second] = K.vsPlan(make([true, true]), second, roles[second], rng);
-    const st = make([true, true])();
+    const opts = { seed, bout, moon, ink: [a.ink || 1, b.ink || 1], lag: [a.lag || 0, b.lag || 0], first };
+    const lines = [null, null], kuro = [null, null];
+    const make = () => {
+      const st = K.newVsRound(opts);
+      for (const o of [first, second]) if (lines[o]) K.vsPlace(st, o, lines[o], { normalized: true });
+      for (const o of [first, second]) if (kuro[o]) K.vsPlaceOjama(st, o, kuro[o].x, kuro[o].y);
+      return st;
+    };
+    lines[first] = K.vsPlan(make, first, roles[first], rng);
+    lines[second] = K.vsPlan(make, second, roles[second], rng);
+    kuro[first] = K.vsOjamaPlan(make, first, roles[first], rng);
+    kuro[second] = K.vsOjamaPlan(make, second, roles[second], rng);
+    const st = make();
     K.vsIgnite(st);
-    const res = K.runVs(st, [a, b]);
+    const res = K.runVs(st);
     results.push(res);
     if (res.winner >= 0) wins[res.winner]++;
   }
@@ -49,11 +54,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if (m.winner === 0) win++; else if (m.winner === 1) lose++;
     m.results.forEach((r, bout) => {
       nb++; byBout[bout][2]++; if (r.winner >= 0) byBout[bout][r.winner]++;
-      for (const k of ['steals', 'took', 'ojama', 'tsugi', 'kuro', 'back']) { sum[k] = sum[k] || [0, 0]; sum[k][0] += r[k][0]; sum[k][1] += r[k][1]; }
+      for (const k of ['steals', 'took', 'kuro', 'back', 'cut']) { sum[k] = sum[k] || [0, 0]; sum[k][0] += r[k][0]; sum[k][1] += r[k][1]; }
     });
   }
   const pct = (x, n) => `${Math.round(x / n * 100)}%`;
   const per = (k) => `${(sum[k][0] / nb).toFixed(2)}-${(sum[k][1] / nb).toFixed(2)}`;
   console.log(`${ia} vs ${ib}  N=${N}: あなた役の勝ち ${pct(win, N)}（負け ${pct(lose, N)}） ・ 番ごと ${byBout.map((b, i) => `${i + 1}番 ${pct(b[0], b[2] || 1)}`).join(' ')}`);
-  console.log(`  1 番あたり: 横取り ${per('steals')} ・ お邪魔玉 ${per('ojama')} ・ 継ぎ火 ${per('tsugi')} ・ 黒玉の爆発 ${per('kuro')}（うちお邪魔返し ${per('back')}） ・ ${((Date.now() - t0) / N).toFixed(0)} ms/試合`);
+  console.log(`  1 番あたり: 横取り ${per('steals')} ・ 火を止められた ${per('cut')} ・ 大爆発 ${per('kuro')}（うち相手の黒玉 ${per('back')}） ・ ${((Date.now() - t0) / N).toFixed(0)} ms/試合`);
 }

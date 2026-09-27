@@ -547,76 +547,107 @@ check('花火合戦: 相手の線に先に火が届くと、その先を横取�
   eq(st.shells[0].by, 0, '相手の線の先の玉は、あなたの点');
   eq(st.shells[1].by, 1, '相手の線の始まりの玉は、相手の点');
 });
-check('花火合戦: お邪魔玉は最初の火を消し、ひびが入ったあとの火で大爆発する（触れた人の点）', () => {
-  // 相手の線の先にお邪魔玉。相手の火はそこで消える
-  const st = vsHand([{ type: 'kiku', x: 60, y: 300 }, { type: 'kiku', x: 300, y: 300 }]);
+check('花火合戦: お邪魔玉は、線を引いたあと・火をつける前に 1 人 1 つ。玉の上・線の引きはじめのそば・場の外には置けない', () => {
+  const st = vsHand([{ type: 'kiku', x: 100, y: 200 }]);
   K.vsPlace(st, 1, line(40, 300, 320, 300, 70));
-  K.vsPlace(st, 0, line(60, 500, 300, 500, 60));
-  eq(K.vsDropOjama(st, 0, 200, 300), false, '火がつく前は落とせない');
+  K.vsPlace(st, 0, line(200, 500, 200, 380, 30));
+  eq(K.vsOjamaWhy(st, 105, 205), 'shell', '玉と重なる');
+  eq(K.vsOjamaWhy(st, 80, 300), 'start', '相手の線の引きはじめから 40');
+  eq(K.vsOjamaWhy(st, 200, 470), 'start', 'あなたの線の引きはじめから 30');
+  eq(K.vsOjamaWhy(st, 5, 300), 'out', '場の外');
+  eq(K.vsOjamaWhy(st, 200, 300), null);
+  ok(K.vsPlaceOjama(st, 0, 200, 300), '置ける');
+  eq(K.vsPlaceOjama(st, 0, 260, 300), false, '1 人 1 つ');
+  eq(K.vsOjamaWhy(st, 205, 300), 'shell', 'お邪魔玉どうしも重ならない');
+  ok(K.vsPlaceOjama(st, 1, 260, 300), '相手も 1 つ');
+  const k = st.shells.find((s) => s.type === 'kuro' && s.from === 0);
+  ok(k && k.hp === 2 && k.crackBy === -1);
+  eq(JSON.stringify(st.vs.ojama[0]), JSON.stringify({ x: 200, y: 300, id: k.id }));
+  const st2 = vsHand([]);
+  K.vsPlace(st2, 1, line(40, 300, 320, 300, 70)); K.vsIgnite(st2);
+  eq(K.vsPlaceOjama(st2, 0, 200, 300), false, '火がついたら置けない');
+});
+check('花火合戦: お邪魔玉に最初に届いた線の火は消え、その線だけが切れる。爆発や火花は素通り', () => {
+  const st = vsHand([{ type: 'kiku', x: 60, y: 290 }, { type: 'kiku', x: 300, y: 290 }]);
+  K.vsPlace(st, 1, line(40, 300, 320, 300, 70));
+  ok(K.vsPlaceOjama(st, 0, 200, 300));
   K.vsIgnite(st);
-  for (let i = 0; i < 6; i++) K.step(st);
-  const p0 = st.vs.powder[0];
-  ok(K.vsDropOjama(st, 0, 200, 300), '落とせる');
-  eq(st.vs.powder[0], p0 - K.VS_POWDER.ojama, '火薬を使う');
-  eq(K.vsDropOjama(st, 0, 200, 300), false, '同じ所（玉の上）には置けない');
-  const kuro = st.shells.find((s) => s.type === 'kuro');
-  ok(kuro && kuro.from === 0);
-  K.runVs(st);
-  ok(!kuro.burst && kuro.hp === 1, 'ひびが入っただけ');
-  eq(st.shells[1].burst, false, '相手の火は、黒玉の先へは行けない');
-  // ひびの入った黒玉に、別の火（継ぎ火）が届くと大爆発。触れた人の点と倍率になる
-  const st2 = vsHand([{ type: 'kiku', x: 60, y: 300 }, { type: 'kiku', x: 250, y: 330 }]);
-  K.vsPlace(st2, 1, line(40, 300, 320, 300, 70));
-  K.vsPlace(st2, 0, line(60, 420, 330, 420, 70));
-  K.vsIgnite(st2);
-  for (let i = 0; i < 6; i++) K.step(st2);
-  st2.vs.powder[0] = 12;
-  ok(K.vsDropOjama(st2, 0, 200, 300));
-  for (let i = 0; i < 34; i++) K.step(st2);
+  const r = K.runVs(st);
+  const k = st.shells.find((s) => s.type === 'kuro');
+  ok(!k.burst && k.hp === 1 && k.crackBy === 1, '相手の火で、ひびが入っただけ');
+  eq(st.shells[0].by, 1); eq(st.shells[1].burst, false, '相手の火は、黒玉の先へは行けない');
+  eq(r.cut[1], 1); eq(r.cut[0], 0); eq(r.kuro[1], 0);
+  // 大玉の爆発がお邪魔玉をのみこんでも、何も起きない
+  const st2 = vsHand([{ type: 'ootama', x: 200, y: 340 }]);
+  K.vsPlace(st2, 0, line(40, 360, 320, 360, 70));
+  ok(K.vsPlaceOjama(st2, 1, 200, 300));
+  K.vsIgnite(st2); K.runVs(st2);
+  ok(st2.shells[0].burst, '大玉はひらいた');
   const k2 = st2.shells.find((s) => s.type === 'kuro');
-  eq(k2.hp, 1, '相手の火で、ひびが入った');
-  ok(!st2.done, 'まだ火が走っている');
-  eq(K.vsExtend(st2, 0, line(100, 300, 180, 300)), null, '自分の火が通っていない所からは、継ぎ火できない');
-  const ext = K.vsExtend(st2, 0, line(195, 420, 200, 305, 30));
-  ok(ext, '自分の火のあとから、継ぎ火');
-  const r2 = K.runVs(st2);
-  ok(k2.burst && k2.by === 0, '黒玉はあなたの爆発');
-  eq(r2.kuro[0], 1); eq(r2.tsugi[0], 1);
-  eq(st2.shells[1].by, 0, '黒玉の大爆発で、まわりの玉も取れる');
+  ok(!k2.burst && k2.hp === 2, '爆発では、ひびも入らない');
 });
-check('花火合戦: 同じ番で同じ道具を使うたびに、値段が上がる', () => {
-  const st = vsHand([{ type: 'kiku', x: 60, y: 300 }]);
-  K.vsPlace(st, 1, line(40, 300, 320, 300, 70)); K.vsIgnite(st); K.step(st);
-  st.vs.powder[0] = 12;
-  eq(K.vsCost(st, 0, 'ojama'), K.VS_POWDER.ojama);
-  ok(K.vsDropOjama(st, 0, 100, 500)); eq(st.vs.powder[0], 12 - K.VS_POWDER.ojama);
-  eq(K.vsCost(st, 0, 'ojama'), K.VS_POWDER.ojama + K.VS_POWDER.again);
-  ok(K.vsDropOjama(st, 0, 200, 500)); eq(st.vs.powder[0], 12 - 2 * K.VS_POWDER.ojama - K.VS_POWDER.again);
-  eq(K.vsCost(st, 0, 'tsugi'), K.VS_POWDER.tsugi, '別の道具の値段は変わらない');
-  eq(K.vsCost(st, 1, 'ojama'), K.VS_POWDER.ojama, '相手の値段も変わらない');
-});
-check('花火合戦: お邪魔玉を落とされた側が爆発させると「お邪魔返し」', () => {
-  const st = vsHand([{ type: 'kiku', x: 60, y: 300 }]);
+check('花火合戦: 2 番目に届いた別の線の火で大爆発。届けた人の点・倍率 +1', () => {
+  // 相手の火が先に届いて消え、あとからあなたの線の火が届く
+  const st = vsHand([]);
   K.vsPlace(st, 1, line(40, 300, 320, 300, 70));
-  K.vsPlace(st, 0, line(200, 360, 200, 480, 30));
+  K.vsPlace(st, 0, line(200, 500, 200, 312, 47));
+  ok(K.vsPlaceOjama(st, 0, 200, 300));
   K.vsIgnite(st);
-  K.step(st);
-  st.vs.powder[1] = 12;
-  ok(K.vsDropOjama(st, 1, 120, 300, K.VS_FALL));
-  eq(st.shells.filter((s) => s.type === 'kuro').length, 0, 'まだ落ちていない');
-  for (let i = 0; i < Math.round(K.VS_FALL / K.DT) + 1; i++) K.step(st);
-  ok(st.shells.some((s) => s.type === 'kuro' && s.from === 1), '落ちた');
+  const r = K.runVs(st);
+  const k = st.shells.find((s) => s.type === 'kuro');
+  ok(k.burst && k.by === 0 && k.crackBy === 1, `あなたの大爆発 ${JSON.stringify(k)}`);
+  eq(r.kuro[0], 1); eq(r.back[0], 0, '自分のお邪魔玉'); eq(r.mult[0], 2, '倍率 +1');
+  eq(r.score[0], K.SHELLS.kuro.pts * 2);
+  // 相手のお邪魔玉を爆発させると「お邪魔返し」
+  const st2 = vsHand([]);
+  K.vsPlace(st2, 1, line(40, 300, 320, 300, 70));
+  K.vsPlace(st2, 0, line(200, 500, 200, 312, 47));
+  ok(K.vsPlaceOjama(st2, 1, 200, 300));
+  K.vsIgnite(st2);
+  const r2 = K.runVs(st2);
+  eq(r2.kuro[0], 1); eq(r2.back[0], 1);
 });
-check('花火合戦: 作戦札', () => {
-  const base = K.newVsRound({ seed: 5, bout: 0 });
-  const t = K.newVsRound({ seed: 5, bout: 0, tactics: ['nagafude', 'hayabi'] });
-  eq(t.vs.ink[0], Math.round(base.vs.ink[0] * 1.35)); eq(t.ink, t.vs.ink[0], '長い筆は、ページの墨の棒にも効く');
-  ok(Math.abs(t.vs.lag[0] - 0.15) < 1e-9, '相手の早火で、あなたの火が遅れる');
-  const k = K.newVsRound({ seed: 5, bout: 0, tactics: ['kayaku', null] });
-  eq(k.vs.powder[0], K.VS_POWDER.start + 4);
-  eq(K.vsSetTactic(k, 0, 'tairin'), false, '1 番に 1 枚だけ');
-  eq(K.vsOffers(9, 1, 0).length, 3); eq(JSON.stringify(K.vsOffers(9, 1, 0)), JSON.stringify(K.vsOffers(9, 1, 0)));
-  for (const rv of K.RIVALS) { const off = K.vsOffers(9, 0, 1), id = K.rivalTactic(rv, off); ok(id === null || off.includes(id), rv.id); }
+check('花火合戦: 黒玉に消された火は、そこで交わる線にも移らない（横取りにならない）', () => {
+  // 相手の火が黒玉に届く所（x=184）が、ちょうどあなたの線（x=190）と交わる所
+  const st = vsHand([]);
+  K.vsPlace(st, 1, line(40, 300, 320, 300, 70), { normalized: true });
+  K.vsPlace(st, 0, line(190, 500, 190, 250, 50), { normalized: true });
+  ok(K.vsPlaceOjama(st, 1, 200, 290));
+  K.vsIgnite(st);
+  const r = K.runVs(st);
+  const k = st.shells.find((s) => s.type === 'kuro');
+  eq(k.crackBy, 1, '相手の火が先');
+  eq(r.steals[1], 0, 'あなたの線は取られない');
+  ok(k.burst && k.by === 0, 'あとから来たあなたの火で大爆発');
+});
+check('花火合戦: 火をつける前に行く末がわかる（vsForecast は本番と同じ）', () => {
+  const opts = { seed: 31, bout: 1, moon: 3 };
+  const a = K.vsPlan(() => K.newVsRound(opts), 1, K.RIVALS[1], K.rng32(1));
+  const mk1 = () => { const t = K.newVsRound(opts); K.vsPlace(t, 1, a, { normalized: true }); return t; };
+  const b = K.vsPlan(mk1, 0, { lines: 3, pick: 1, cut: true }, K.rng32(2));
+  const make = () => { const t = mk1(); K.vsPlace(t, 0, b, { normalized: true }); return t; };
+  const c = K.vsOjamaPlan(make, 1, K.RIVALS[3], K.rng32(3));
+  ok(c && K.vsCanOjama(make(), c.x, c.y), `相手の置き所 ${JSON.stringify(c)}`);
+  const mk2 = () => { const t = make(); K.vsPlaceOjama(t, 1, c.x, c.y); return t; };
+  const fc = K.vsForecast(mk2());
+  const real = mk2(); K.vsIgnite(real); const r = K.runVs(real);
+  eq(JSON.stringify(fc.score), JSON.stringify(r.score), '点も同じ');
+  const rk = real.shells.find((s) => s.type === 'kuro');
+  eq(fc.kuro[0].crack, rk.crackBy); eq(fc.kuro[0].boom, rk.burst ? rk.by : -1);
+  // 相手は、置かないときより点差がよくなる所を選ぶ
+  const none = make(); K.vsIgnite(none); K.runVs(none);
+  ok(c.val >= K.vsScore(none, 1) - K.vsScore(none, 0), '置いた方が得');
+  eq(JSON.stringify(K.vsOjamaPlan(make, 1, K.RIVALS[3], K.rng32(3))), JSON.stringify(c), '決定的');
+});
+check('花火合戦: お邪魔玉の候補は置ける所だけ・交わる所も考える', () => {
+  const st = vsHand(Array.from({ length: 10 }, (_, i) => ({ type: 'kiku', x: 60 + i * 26, y: 318 })));
+  K.vsPlace(st, 1, line(40, 300, 320, 300, 70));
+  K.vsPlace(st, 0, line(200, 500, 200, 150, 90));
+  const spots = K.vsOjamaSpots(st, 0, 9, K.rng32(4));
+  ok(spots.length >= 6, `候補 ${spots.length}`);
+  ok(spots.every((c) => K.vsCanOjama(st, c.x, c.y)), '置ける所だけ');
+  ok(spots.some((c) => Math.abs(c.x - 200) < 20 && Math.abs(c.y - 300) < 20), '交わる所');
+  eq(K.vsOjamaSpots(st, 0, 1, K.rng32(4)).length, 1, '1 か所でも、玉の間の置ける所を探す');
 });
 check('花火合戦: 火をつけるのが遅い相手（lag）は、その分遅れて火がつく', () => {
   const st = vsHand([{ type: 'kiku', x: 60, y: 300 }], { lag: [0, 0.25] });
@@ -635,65 +666,34 @@ check('花火合戦: CPU は置ける線を選ぶ・決定的・番付の順に�
   const mk2 = () => { const t = make(); K.vsPlace(t, 1, a, { normalized: true }); return t; };
   const reply = K.vsPlan(mk2, 0, { lines: 4, pick: 1, cut: true }, K.rng32(6));
   const t = mk2(); ok(K.vsPlace(t, 0, reply, { normalized: true }), '返し手も置ける');
-  for (let i = 1; i < K.RIVALS.length; i++) ok((K.RIVALS[i].probe || 0) >= (K.RIVALS[i - 1].probe || 0) && K.RIVALS[i].lag <= K.RIVALS[i - 1].lag, `番付 ${i}`);
+  for (let i = 1; i < K.RIVALS.length; i++) for (const k of ['probe', 'lines', 'ojama']) ok((K.RIVALS[i][k] || 0) >= (K.RIVALS[i - 1][k] || 0), `番付 ${i} ${k}`);
   for (const rv of K.RIVALS) for (const k of ['start', 'steal', 'stolen', 'ojama', 'boom', 'win', 'lose']) ok(rv.say[k] && rv.sayEn[k], `${rv.id}.${k}`);
 });
-check('花火合戦: CPU は、相手の火の先にお邪魔玉を落とし、自分の火のあとから継ぎ火を引く', () => {
-  const shells = Array.from({ length: 8 }, (_, i) => ({ type: 'kiku', x: 90 + i * 30, y: 456 }));
-  const st = vsHand(shells);
-  K.vsPlace(st, 1, line(40, 150, 100, 150, 15));
-  K.vsPlace(st, 0, line(30, 470, 330, 470, 75));
+check('花火合戦: お手本の台本どおりに起きる（横取り → 相手の黒玉があなたの火を止める → あなたの黒玉で相手の火が消え、あなたの大爆発）', () => {
+  const D = K.VS_DEMO;
+  const make = () => { const t = K.newVsDemo(4); K.vsPlace(t, 1, D.rival, { normalized: true }); K.vsPlace(t, 0, D.mine, { normalized: true }); K.vsPlaceOjama(t, 1, D.ojamaRival.x, D.ojamaRival.y); return t; };
+  const st = make();
+  ok(st.vs.placed[0] && st.vs.placed[1] && st.vs.ojama[1], '線と相手のお邪魔玉を置ける');
+  eq(K.vsForecast(make()).kuro[0].crack, 0, '相手の黒玉は、あなたの火を止める');
+  const tryIt = make(); ok(K.vsPlaceOjama(tryIt, 0, D.ojamaTry.x, D.ojamaTry.y)); eq(K.vsForecast(tryIt).kuro[1].crack, 0, 'はじめに指を置く所は、あなたの火が止まる');
+  ok(K.vsPlaceOjama(st, 0, D.ojamaMine.x, D.ojamaMine.y), 'あなたのお邪魔玉');
+  const fc = K.vsForecast(make().vs && (() => { const t = make(); K.vsPlaceOjama(t, 0, D.ojamaMine.x, D.ojamaMine.y); return t; })());
+  eq(fc.kuro[1].crack, 1); eq(fc.kuro[1].boom, 0, '交わる所: 相手の火を止めて、あなたの大爆発');
   K.vsIgnite(st);
-  let c = null;
-  for (let i = 0; i < 60 && !c; i++) { K.step(st); c = K.vsOjamaChoice(st, 1, { react: 0, ojama: 0.05 }); }
-  ok(c, '落とす所が見つかる');
-  ok(Math.abs(c.y - 470) <= 14 && c.x > 60, `あなたの線の先（線から火が届く幅の中） ${JSON.stringify(c)}`);
-  // 継ぎ火: 相手の火のあとから、残っている玉のかたまりへ
-  const st2 = vsHand([{ type: 'kiku', x: 60, y: 150 }, { type: 'kiku', x: 150, y: 250 }, { type: 'kiku', x: 180, y: 260 }, { type: 'kiku', x: 160, y: 285 }]);
-  K.vsPlace(st2, 1, line(40, 150, 110, 150, 18));
-  K.vsIgnite(st2);
-  st2.vs.powder[1] = 12;
-  let e = null;
-  for (let i = 0; i < 40 && !e; i++) { K.step(st2); e = K.vsExtendChoice(st2, 1, { react: 0, tsugi: 0.05 }); }
-  ok(e && e.pts.length >= 2, '継ぎ火の線が見つかる');
-  ok(K.vsExtend(st2, 1, e.pts), '引ける');
-  K.runVs(st2);
-  ok(st2.shells.slice(1).some((s) => s.by === 1), '継ぎ火で、離れた玉を取った');
-});
-check('花火合戦: お邪魔玉の目安は、相手の線のまだ燃えていない所で、玉が多い所', () => {
-  const shells = [{ type: 'kiku', x: 250, y: 280 }, { type: 'kiku', x: 280, y: 280 }, { type: 'kin', x: 265, y: 322 }, { type: 'kiku', x: 60, y: 520 }];
-  const st = vsHand(shells);
-  K.vsPlace(st, 1, line(40, 300, 320, 300, 70));
-  K.vsPlace(st, 0, line(40, 500, 120, 500, 20));
-  K.vsIgnite(st); K.step(st);
-  const h = K.vsOjamaHint(st, 0);
-  ok(h && h.x > 200 && Math.abs(h.y - 300) <= 14, `玉の多い所 ${JSON.stringify(h)}`);
-  ok(K.vsOjamaSpot(st, h.x, h.y), '置ける所');
-});
-check('花火合戦: お手本の台本どおりに起きる（横取り → 相手の火が消える → あなたの火が消える → お邪魔返し）', () => {
-  for (const moon of [0, 2, 4, 6]) {
-    const st = K.newVsDemo(moon), D = K.VS_DEMO;
-    ok(K.vsPlace(st, 1, D.rival) && K.vsPlace(st, 0, D.mine), '線を置ける');
-    K.vsIgnite(st);
-    const until = (f) => { for (let i = 0; i < 600 && !st.done && !f(); i++) { K.step(st); st.events.length = 0; } ok(f(), `moon ${moon}: 途中で終わった`); };
-    until(() => st.vs.side[0].steals > 0);
-    ok(K.vsDropOjama(st, 0, D.ojamaMine.x, D.ojamaMine.y), 'あなたのお邪魔玉');
-    until(() => st.shells.some((s) => s.type === 'kuro' && s.from === 0 && s.hp === 1));
-    ok(K.vsDropOjama(st, 1, D.ojamaRival.x, D.ojamaRival.y, K.VS_FALL), '相手のお邪魔玉');
-    until(() => st.shells.some((s) => s.type === 'kuro' && s.from === 1 && s.hp === 1));
-    ok(K.vsExtend(st, 0, D.tsugi), '継ぎ火');
-    until(() => st.vs.side[0].back > 0);
-    K.runVs(st);
-    eq(st.result.winner, 0, 'お手本はあなたの勝ち');
-  }
+  const seen = [];
+  for (let i = 0; i < 1200 && !st.done; i++) { K.step(st); for (const e of st.events) if (['steal', 'crack', 'kuroBoom'].includes(e.type)) seen.push(`${e.type}${e.o}`); st.events.length = 0; }
+  const first = (x) => seen.indexOf(x);
+  ok(first('steal0') >= 0 && first('steal0') < first('crack0') && first('crack0') <= first('crack1') && first('crack1') < first('kuroBoom0'), seen.join(' '));
+  ok(!seen.includes('steal1') && !seen.includes('kuroBoom1'), '相手は横取りも大爆発もしない');
+  eq(st.result.winner, 0, 'お手本はあなたの勝ち');
 });
 check('花火合戦: 挑戦状のリンクと、シェアの文', () => {
   const code = K.encodeVs(123456789, 3, 'wlw');
   eq(JSON.stringify(K.decodeVs(code)), JSON.stringify({ seed: 123456789, rival: 3, marks: 'wlw' }));
   for (const bad of ['', 'zz', 'abc.9.w', 'abc.1.x', '<script>.1.w']) eq(K.decodeVs(bad), null, bad);
-  const res = (w, s0, s1) => ({ winner: w, score: [s0, s1], steals: [2, 0], back: [1, 0] });
+  const res = (w, s0, s1) => ({ winner: w, score: [s0, s1], steals: [2, 0], kuro: [1, 0], back: [0, 0] });
   const ja = K.vsShareText({ rival: 2, winner: 0, results: [res(0, 10, 5), res(1, 1, 5), res(0, 9, 5)] }, 'ja', 'U');
-  ok(ja.includes('ドン') && ja.includes('2-1') && ja.includes('🔴🔵🔴') && ja.includes('横取り 6') && ja.includes('お邪魔返し 3'), ja);
+  ok(ja.includes('ドン') && ja.includes('2-1') && ja.includes('🔴🔵🔴') && ja.includes('横取り 6') && ja.includes('大爆発 3'), ja);
   ok(K.vsShareText({ rival: 0, winner: 1, results: [res(1, 1, 5), res(1, 1, 5)] }, 'en', 'U').includes('lost 0-2'));
 });
 
