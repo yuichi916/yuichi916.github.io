@@ -265,6 +265,19 @@ pre.share{margin-top:calc(10px * var(--u));text-align:left;white-space:pre-wrap;
 #vsTools.chance #winBar{visibility:visible}
 #winBar i{display:block;height:100%;background:linear-gradient(90deg,#ffd27a,#ff7a3a);transform-origin:left}
 #vsTools button.armed small{color:#1a1206;border-color:#1a1206}
+/* お手本（ルールの実演） */
+#demoCap{position:absolute;left:0;right:0;margin:0 auto;bottom:calc(124px * var(--u) + var(--safe-b));width:min(94%,calc(440px * var(--u)));z-index:25;
+  background:rgba(8,10,28,.92);border:1px solid rgba(255,215,90,.55);border-radius:calc(14px * var(--u));padding:calc(10px * var(--u)) calc(12px * var(--u)) calc(10px * var(--u));
+  box-shadow:0 calc(8px * var(--u)) calc(30px * var(--u)) rgba(0,0,0,.5);animation:rise .3s ease-out both}
+#demoCap .top{display:flex;align-items:center;justify-content:space-between;font-size:calc(11px * var(--u));color:var(--gold);letter-spacing:.15em}
+#demoCap .top button{font-size:calc(12px * var(--u));color:var(--dim);letter-spacing:0;padding:calc(2px * var(--u)) calc(6px * var(--u))}
+#demoCap b{display:block;font-size:calc(17px * var(--u));margin-top:calc(4px * var(--u))}
+#demoCap p{font-size:calc(13.5px * var(--u));line-height:1.6;color:#e8e0cc;margin-top:calc(4px * var(--u))}
+#demoCap .acts{display:flex;gap:calc(8px * var(--u));justify-content:flex-end;margin-top:calc(8px * var(--u))}
+#demoCap .acts .btn{min-height:calc(38px * var(--u));padding:calc(7px * var(--u)) calc(14px * var(--u))}
+#demoCap .acts .btn.go{animation:chanceP .6s ease-in-out infinite alternate}
+#demoHand{position:absolute;left:0;top:0;z-index:30;font-size:calc(34px * var(--u));pointer-events:none;transform:translate(-30%,-8%);transition:opacity .2s;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))}
+#demoHand.press{transform:translate(-30%,-8%) scale(.82)}
 #tacticBar{position:absolute;left:0;right:0;bottom:calc(10px * var(--u) + var(--safe-b));padding:0 calc(10px * var(--u));text-align:center;z-index:5}
 #tacticBar p{font-size:calc(14px * var(--u));color:var(--gold);margin-bottom:calc(6px * var(--u));text-shadow:0 1px 4px #000}
 #tacticCards{display:flex;gap:calc(8px * var(--u));justify-content:center;max-width:calc(480px * var(--u));margin:0 auto}
@@ -324,6 +337,8 @@ pre.share{margin-top:calc(10px * var(--u));text-align:left;white-space:pre-wrap;
     <div class="pw"><span data-t="powder">火薬</span><div id="pwBar"></div><b class="mono" id="pwNum">0</b></div>
     <div class="tb"><button type="button" id="toolOjama"><i>💣</i><span data-t="toolOjama">お邪魔玉</span><small class="mono">3</small></button><button type="button" id="toolTsugi"><i>✍️</i><span data-t="toolTsugi">継ぎ火</span><small class="mono">5</small></button></div>
   </div>
+  <div id="demoCap" hidden><div class="top"><span id="demoStep"></span><button type="button" id="demoSkip" data-t="demoSkip">スキップ</button></div><b id="demoTitle"></b><p id="demoBody"></p><div class="acts" id="demoActs"></div></div>
+  <div id="demoHand" hidden>☝️</div>
   <div id="tacticBar" hidden><p class="serif" data-t="vsTactic">作戦札を 1 枚</p><div id="tacticCards"></div></div>
   <div id="tally" class="serif" hidden><div class="row1"></div><div class="row2 mono"></div><div class="row3"></div><div class="stamp"></div><div class="tip"></div></div>
   <div id="ink" hidden><div id="inkBar"></div></div>
@@ -399,6 +414,7 @@ pre.share{margin-top:calc(10px * var(--u));text-align:left;white-space:pre-wrap;
         <div><i>⚔️</i><span data-t="vsRule2">相手の線に先に火が届けば、横取り</span></div>
         <div><i>💣</i><span data-t="vsRule3">連鎖で火薬をためて、お邪魔玉と継ぎ火</span></div>
       </div>
+      <div class="stack" style="margin-top:calc(10px * var(--u))"><button class="btn" id="vsDemoBtn" data-t="vsDemoBtn">📖 お手本を見る（遊び方）</button></div>
       <div class="rvlist" id="rvList"></div>
       <p class="stats" id="vsRecord"></p>
       <div class="stack"><button class="btn small" id="vsBack" data-t="back">タイトルへ</button></div>
@@ -496,6 +512,16 @@ const T = {
     toolOjama: 'お邪魔玉', toolTsugi: '継ぎ火', powder: '火薬',
     aimOjama: '💣 相手の火の先に置いて、離すと落ちる', aimTsugi: '✍️ 自分の火のあとから、短い線をひく', badOjama: '玉と重ならない所に置いて', badTsugi: '自分の火が通ったあとから引きはじめて',
     firstTools: '連鎖で火薬がたまる。下の道具を押そう！',
+    vsDemoBtn: '📖 お手本を見る（遊び方）', demoSkip: 'スキップ', demoNext: '次へ ▶', demoAgain: 'もう一度見る', demoPlay: '⚔️ 対戦をはじめる', demoHead: 'お手本',
+    demo: [
+      ['相手が先に線を見せる', '青い線が相手の線。あなたはそれを見てから、1 本ひく。'],
+      ['交わる所がカギ', '相手の線と交わる所に ⚔ の印が出る。先に火が届く方が、その先を横取りできる。'],
+      ['点火！ 横取り', '2 人いっしょに火がつく。あなたの火が先に届いて、相手の線の先はあなたの火で燃えている。自分の火でひらいた玉が、自分の点。'],
+      ['💣 お邪魔玉', '玉がひらくと火薬がたまる。💣を押して、相手の火の先に置く。触れた火は消えて、相手の線はそこで切れる。'],
+      ['相手もお邪魔玉を落とす', 'あなたの火の先に黒玉が落ちてきた。火が消えて、黒玉にひびが入る。'],
+      ['✍️ 継ぎ火でお邪魔返し', '✍️を押して、自分の火が通ったあとから短い線をひく。ひびの黒玉に火を届けると、あなたの大爆発になる。'],
+      ['本番では「チャンスの間」', '使いどころで火が止まり、使える道具が光る。慌てずに、目安の所へ使おう。'],
+    ],
     chance: 'チャンス！', win: { start: '💣 相手の火の先にお邪魔玉を置こう', danger: '相手の火が大物に向かっている！ 💣で止めよう', reach: '✍️ 継ぎ火で届く群れがある！', stolen: '取られた！ ✍️継ぎ火で取り返すか、💣で相手の火を止めよう', crack: '✍️ ひびの黒玉に継ぎ火を届けると、あなたの大爆発！' },
     vsFire: '点火！', vsSteal: '横取り！', vsStolen: '取られた！', vsLead: '逆転！', vsLeadLost: '逆転された！',
     ojamaIn: 'お邪魔玉が来る！', ojamaHit: '黒玉で火が消えた！', ojamaMine: 'お邪魔玉、命中！', crackTip: 'ひびの黒玉に継ぎ火を届けると大爆発！',
@@ -581,6 +607,16 @@ const T = {
     toolOjama: 'Ojama', toolTsugi: 'Extra fuse', powder: 'Powder',
     aimOjama: '💣 Place it ahead of their fire, release to drop', aimTsugi: '✍️ Draw a short line from where your fire has been', badOjama: 'Don\'t overlap a shell', badTsugi: 'Start from where your fire has been',
     firstTools: 'Chains earn powder. Tap a tool below!',
+    vsDemoBtn: '📖 Watch the tutorial', demoSkip: 'Skip', demoNext: 'Next ▶', demoAgain: 'Watch again', demoPlay: '⚔️ Start battling', demoHead: 'Tutorial',
+    demo: [
+      ['The rival shows its line first', 'The blue line is theirs. You see it, then draw yours.'],
+      ['Crossings are the key', 'Where your line crosses theirs, a ⚔ appears. Whoever\'s fire gets there first steals the rest of the line.'],
+      ['Fire! A steal', 'Both fires light together. Yours reached their line first, so the rest of their line burns as yours. Shells your fire opens are your points.'],
+      ['💣 Ojama shell', 'Bursts earn powder. Tap 💣 and place it ahead of their fire: the fire that touches it dies and their line is cut.'],
+      ['They drop ojama too', 'A black shell landed ahead of your fire. Your fire dies and the shell cracks.'],
+      ['✍️ Extra fuse: return the ojama', 'Tap ✍️ and draw a short line from where your fire has been. Reach the cracked shell and it becomes your huge blast.'],
+      ['In real battles: chance moments', 'At key moments the fire stops and usable tools glow. Take your time and use them where the guide shows.'],
+    ],
     chance: 'Chance!', win: { start: '💣 Drop an ojama ahead of their fire', danger: 'Their fire is heading for a big prize! 💣 Stop it', reach: '✍️ An extra fuse can reach a cluster!', stolen: 'They stole it! ✍️ Take it back, or 💣 stop their fire', crack: '✍️ Reach the cracked shell with a fuse: your huge blast!' },
     vsFire: 'Fire!', vsSteal: 'Stolen!', vsStolen: 'They took it!', vsLead: 'Lead!', vsLeadLost: 'They lead!',
     ojamaIn: 'Ojama incoming!', ojamaHit: 'The black shell snuffed it!', ojamaMine: 'Ojama hit!', crackTip: 'Reach the cracked shell with a fuse: huge blast!',
@@ -985,13 +1021,18 @@ function frame(now) {
     const slow = left > 0 && left <= 3 && st.pops >= 8 && (st.heads.length || st.explosions.length);
     // 花火合戦はゆっくり見せる。道具を選んでいる間はさらにゆっくり、チャンスの間は火が止まる（空の花火は動いたまま）。
     // 止めておけば、間の途中で火が燃え尽きて道具が使えなくなることがない
-    const base = S.mode === 'vs' ? (S.win ? 0 : S.tool ? 0.15 : 0.55) : 1;
+    const base = S.demo ? (S.demo.run ? 0.4 : 0) : S.mode === 'vs' ? (S.win ? 0 : S.tool ? 0.15 : 0.55) : 1;
     S.timeScale += ((slow ? 0.4 : 1) * base * S.speed - S.timeScale) * 0.2;
-    if (S.win) S.timeScale = 0;
+    if (S.win || (S.demo && !S.demo.run)) S.timeScale = 0;
     S.acc += dt * S.timeScale;
     let n = 0;
-    while (S.acc >= K.DT && n++ < 8) { S.acc -= K.DT; if (S.mode === 'vs') vsAI(st); K.step(st); handleEvents(st); if (st.phase !== 'burn' || S.hold > 0) break; }
-    if (S.mode === 'vs') vsWinTick(st, now);
+    while (S.acc >= K.DT && n++ < 8) {
+      S.acc -= K.DT; if (S.mode === 'vs' && !S.demo) vsAI(st); K.step(st); handleEvents(st);
+      // お手本: 台本の場面になったコマで、ぴたりと止める
+      if (S.demo && S.demo.stopWhen && S.demo.stopWhen()) { S.demo.run = false; S.demo.stopWhen = null; S.timeScale = 0; S.acc = 0; break; }
+      if (st.phase !== 'burn' || S.hold > 0) break;
+    }
+    if (S.mode === 'vs' && !S.demo) vsWinTick(st, now);
     if (slow && now - S.lastCall > 1500) { S.lastCall = now; callout(t('last', left)); }
     if (st.phase === 'draw2') {
       // 再生では、届いた二筆目をそのまま置く（無ければそこで終わり）
@@ -1064,7 +1105,7 @@ function handleEvents(st) {
       // 黒玉に最初に火が触れた: 触れた火は消える。落とした側は命中、落とされた側には取り返し方を出す
       noise(0.5, 0.14, 700, 0.6, 'lowpass'); SFX.hiss(); spawnSparkle(e.shell.x, e.shell.y, 16, [200, 160, 255]);
       if (e.from === 0 && e.o === 1) { callout(t('ojamaMine')); hinoFace('star', 800); rivalSay('stolen'); }
-      else if (e.from === 1 && e.o === 0) { callout(t('ojamaHit')); hinoFace('fizzle', 900); if (!openWin('crack', e.shell)) hint(t('crackTip')); }
+      else if (e.from === 1 && e.o === 0) { callout(t('ojamaHit')); hinoFace('fizzle', 900); if (!openWin('crack', e.shell) && !S.demo) hint(t('crackTip')); }
     } else if (e.type === 'kuroBoom') {
       S.flashes.push({ x: e.shell.x, y: e.shell.y, r: 200, t: 0, max: 0.45 }); S.shake = 12; S.hold = Math.max(S.hold, 0.12);
       SFX.slam(); SFX.burst('ootama', 20); scenery.excite(1.2); cheerN(2);
@@ -1158,6 +1199,7 @@ function draw(now) {
   if (S.rivalAnim) drawRivalPreview(S.rivalAnim);
   if (S.drawing) previewLines(S.drawing).forEach((pts, i) => drawStrokePreview(pts, i > 0));
   if (S.drawing && st && st.vs && S.phase === 'draw') drawCrossings(vsCrossings(S.drawing.pts), tt);
+  if (S.demo && S.demo.marks) drawCrossings(S.demo.marks, tt);
   if (st && st.vs) for (const c of st.vs.falling) drawFallingOjama(c, st);
   if (S.mode === 'vs') drawWin(tt);
   if (S.aim) drawAim(tt);
@@ -1481,6 +1523,7 @@ function commitStroke(raw) {
   return true;
 }
 function onRoundDone() {
+  if (S.demo) return; // お手本は、台本の側で終わりを扱う
   if (S.mode === 'vs') { onVsBoutDone(); return; }
   if (S.phase !== 'burn') return;
   S.phase = 'tally'; S.tallySkip = null;
@@ -1801,7 +1844,8 @@ function openLink(link) {
     p.innerHTML = t('vsLinkBody', rivalName(rv), marksText(link.marks));
     card.appendChild(p);
     const stack = el('div', 'stack');
-    stack.append(btn(t('vsLinkGo'), 'primary', () => { clearHash(); startMatch(link.rival, link.seed, link.marks); }), btn(t('back'), 'small', () => { clearHash(); goTitle(); }));
+    const go = () => startMatch(link.rival, link.seed, link.marks);
+    stack.append(btn(t('vsLinkGo'), 'primary', () => { clearHash(); if (!DB.vsDemo) runDemo(go); else go(); }), btn(t('back'), 'small', () => { clearHash(); goTitle(); }));
     card.appendChild(stack);
     showOnly('#linkOv');
     return;
@@ -1908,6 +1952,9 @@ function marksText(marks) {
   return `${dots} ${w}-${l}`;
 }
 function openVsMenu() {
+  // はじめて開いたときは、先にお手本を見せる（終わったら、見習いのチビ火と対戦）
+  if (!DB.vsDemo) { runDemo(() => startMatch(0)); return; }
+  endDemo();
   S.mode = 'vsmenu'; S.phase = 'idle'; S.vs = null; S.aim = null; S.tool = null;
   hideHud(); $('#tally').hidden = true;
   const d = vsDB(), box = $('#rvList'); box.innerHTML = '';
@@ -2069,7 +2116,7 @@ function vsAI(st) {
 // 道具を選ぶ（もう一度押すとやめる）。選んでいる間は、火がゆっくりになる
 function armTool(tool) {
   const st = S.st;
-  if (S.mode !== 'vs' || S.phase !== 'burn' || !st || st.done) return;
+  if (S.demo || S.mode !== 'vs' || S.phase !== 'burn' || !st || st.done) return;
   if (S.tool === tool) { S.tool = null; S.aim = null; S.drawing = null; hint(''); if (S.win) S.win.until = performance.now() + 700; renderTools(); return; }
   if (st.vs.powder[0] < K.vsCost(st, 0, tool)) return;
   S.tool = tool; S.aim = null; S.drawing = null; SFX.tick();
@@ -2137,7 +2184,7 @@ function updateVsHud() {
 const WIN_MS = 2600;
 function openWin(kind, shell = null, found = null) {
   const st = S.st, v = S.vs;
-  if (S.mode !== 'vs' || S.phase !== 'burn' || !st || st.done || S.win || !v) return false;
+  if (S.demo || S.mode !== 'vs' || S.phase !== 'burn' || !st || st.done || S.win || !v) return false;
   if (v.winN >= 4 || st.t - v.winT < 0.4) return false;
   const pw = st.vs.powder[0], canO = pw >= K.vsCost(st, 0, 'ojama'), canT = pw >= K.vsCost(st, 0, 'tsugi');
   if (kind === 'crack' || kind === 'reach' ? !canT : kind === 'danger' || kind === 'start' ? !canO : !canO && !canT) return false;
@@ -2401,6 +2448,139 @@ function drawRivalHino(now, tt) {
   drawHinoko(ctx, h.x, h.y, 8.5, { face, t: tt + 1.7, dir, stretch: dir === null ? 0 : 0.9, still: REDUCED, body: rv.body });
 }
 
+// ================================================================ お手本（花火合戦のルールを実演する）
+// 実際の火の計算で、台本どおりに起きる盤面（K.VS_DEMO）を動かす。指（☝️）が線を引き、道具を押して見せる。
+// 「次へ」で進み、読み終わるころには自動で進む。はじめて花火合戦を開いたときと、相手選びの「お手本を見る」から
+let demoSeq = 0;
+const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+function demoAlive(id) { if (!S.demo || S.demo.id !== id) throw new Error('demo-abort'); }
+function toStage(x, y) { const r = cv.getBoundingClientRect(), sr = stage.getBoundingClientRect(); return { x: r.left - sr.left + V.ox + x * V.s, y: r.top - sr.top + V.oy + y * V.s }; }
+function domCenter(sel) { const r = $(sel).getBoundingClientRect(), sr = stage.getBoundingClientRect(); return { x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2 }; }
+function handAt(p) { const h = $('#demoHand'); h.hidden = false; h.style.left = p.x + 'px'; h.style.top = p.y + 'px'; }
+async function handMove(to, ms, id) {
+  const h = $('#demoHand');
+  const from = h.hidden ? { x: to.x + 40, y: to.y + 120 } : { x: parseFloat(h.style.left), y: parseFloat(h.style.top) };
+  const t0 = performance.now();
+  for (;;) {
+    demoAlive(id);
+    const u = Math.min(1, (performance.now() - t0) / ms), e = u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2;
+    handAt({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e });
+    if (u >= 1) return;
+    await nextFrame();
+  }
+}
+async function demoSleep(ms, id) { const t0 = performance.now(); while (performance.now() - t0 < ms) { demoAlive(id); await nextFrame(); } }
+// 火を進め、f() になったコマで止める
+async function demoRun(f, id, maxMs = 9000) {
+  S.demo.stopWhen = f; S.demo.run = true;
+  const t0 = performance.now();
+  while (S.demo && S.demo.run && performance.now() - t0 < maxMs) { demoAlive(id); await nextFrame(); }
+  demoAlive(id);
+  S.demo.run = false; S.demo.stopWhen = null;
+}
+async function handPress(sel, id) {
+  await handMove(domCenter(sel), 450, id);
+  $('#demoHand').classList.add('press'); SFX.tick(); await demoSleep(160, id); $('#demoHand').classList.remove('press');
+}
+// 指で線をなぞる（tsugi なら継ぎ火の線として見せる）
+async function handDraw(pts, id, tsugi = false) {
+  await handMove(toStage(pts[0].x, pts[0].y), 450, id);
+  $('#demoHand').classList.add('press');
+  for (let i = 1; i <= pts.length; i++) {
+    demoAlive(id);
+    const cur = pts.slice(0, i);
+    S.drawing = { pts: cur, len: 0, hot: tsugi ? hotShells([cur]) : hotShells([cur]), out: false, t0: performance.now(), tsugi };
+    handAt(toStage(pts[i - 1].x, pts[i - 1].y));
+    await nextFrame();
+  }
+  $('#demoHand').classList.remove('press');
+  S.drawing = null;
+}
+function demoCap(i) {
+  const [title, body] = t('demo')[i], box = $('#demoCap');
+  $('#demoStep').textContent = `${t('demoHead')} ${i + 1} / ${t('demo').length}`;
+  $('#demoTitle').textContent = title; $('#demoBody').textContent = body; $('#demoActs').innerHTML = '';
+  box.hidden = false; box.style.animation = 'none'; void box.offsetWidth; box.style.animation = '';
+}
+// 「次へ」を押すか、読み終わるころに進む
+function demoNext(id, auto = 6000) {
+  return new Promise((res, rej) => {
+    let over = false;
+    const b = btn(t('demoNext'), 'primary go', () => done());
+    $('#demoActs').appendChild(b);
+    const done = () => { if (over) return; over = true; b.remove(); if (S.demo && S.demo.id === id) res(); else rej(new Error('demo-abort')); };
+    setTimeout(done, auto);
+  });
+}
+function endDemo() {
+  S.demo = null; S.tool = null; S.aim = null; S.drawing = null; S.rivalAnim = null;
+  $('#demoCap').hidden = true; $('#demoHand').hidden = true;
+}
+async function runDemo(after = openVsMenu) {
+  endDemo();
+  const id = ++demoSeq, D = K.VS_DEMO;
+  S.demo = { id, run: false, after };
+  DB.vsDemo = 1; save(); gc('hitofude/vs/demo');
+  startMusic();
+  S.mode = 'vs';
+  S.vs = { rival: 0, seed: 1, moon: 4, bout: 0, wins: [0, 0], results: [], lead: 0, sayAt: 0, winN: 0, winT: -9, startWin: true, plans: [] };
+  const st = S.st = K.newVsDemo(4);
+  drawBackground();
+  S.burnT = []; fx.clear(); S.flashes = []; S.acc = 0; S.timeScale = 0; S.hold = 0; S.win = null; S.tallySkip = null; S.aim = null; S.tool = null; S.drawing = null; S.ghost = null;
+  Object.assign(S.hino, { x: 28, y: 522, until: 0, lastX: null, lastY: null });
+  S.rvHino = { x: K.W - 28, y: 522, until: 0, face: null };
+  showOnly(null); hideHud(); renderVsHud(); $('#vsBout').textContent = t('demoHead'); $('#tally').hidden = true;
+  try {
+    // 1) 相手の線
+    S.phase = 'rival'; demoCap(0);
+    await demoSleep(500, id);
+    for (let i = 2; i <= D.rival.length; i += 2) { demoAlive(id); S.rivalAnim = D.rival.slice(0, i); await nextFrame(); }
+    S.rivalAnim = null; K.vsPlace(st, 1, D.rival); SFX.pick();
+    await demoNext(id, 4500);
+    // 2) あなたの線（交わる所に ⚔ の目安）
+    S.phase = 'draw'; demoCap(1);
+    await handDraw(D.mine, id);
+    S.demo.marks = vsCrossings(D.mine); // 交わる所の ⚔ は、火がつくまで出したまま
+    K.vsPlace(st, 0, D.mine); $('#demoHand').hidden = true;
+    await demoNext(id, 5000);
+    // 3) 点火して横取り
+    demoCap(2);
+    K.vsIgnite(st); S.phase = 'burn'; S.demo.marks = null; SFX.whoosh(); SFX.light(); callout(t('vsFire')); handleEvents(st);
+    await demoRun(() => st.vs.side[0].steals > 0, id);
+    await demoNext(id, 6500);
+    // 4) あなたのお邪魔玉: 相手の火の先へ
+    demoCap(3);
+    await handPress('#toolOjama', id); S.tool = 'ojama'; renderTools();
+    await handMove(toStage(D.ojamaMine.x, D.ojamaMine.y + 36), 650, id);
+    S.aim = { x: D.ojamaMine.x, y: D.ojamaMine.y };
+    $('#demoHand').classList.add('press'); await demoSleep(600, id); $('#demoHand').classList.remove('press');
+    S.aim = null; K.vsDropOjama(st, 0, D.ojamaMine.x, D.ojamaMine.y); S.tool = null; handleEvents(st);
+    $('#demoHand').hidden = true;
+    await demoRun(() => st.shells.some((x) => x.type === 'kuro' && x.from === 0 && x.hp === 1), id);
+    await demoNext(id, 6000);
+    // 5) 相手のお邪魔玉: あなたの火の先に落ちてくる
+    demoCap(4);
+    K.vsDropOjama(st, 1, D.ojamaRival.x, D.ojamaRival.y, K.VS_FALL); handleEvents(st); rivalSay('ojama', true);
+    await demoRun(() => st.shells.some((x) => x.type === 'kuro' && x.from === 1 && x.hp === 1), id);
+    await demoNext(id, 6000);
+    // 6) 継ぎ火で、ひびの黒玉に火を届ける（お邪魔返し）
+    demoCap(5);
+    await handPress('#toolTsugi', id); S.tool = 'tsugi'; renderTools();
+    await demoSleep(400, id);
+    await handDraw(D.tsugi, id, true);
+    K.vsExtend(st, 0, D.tsugi); S.tool = null; handleEvents(st); $('#demoHand').hidden = true;
+    await demoRun(() => st.vs.side[0].back > 0, id);
+    await demoRun(() => st.done, id);
+    await demoNext(id, 6000);
+    // 7) まとめ: 本番ではチャンスの間
+    demoCap(6);
+    const acts = $('#demoActs');
+    acts.append(btn(t('demoAgain'), '', () => runDemo(after)), btn(t('demoPlay'), 'primary go', () => { const a = S.demo && S.demo.after; endDemo(); (a || openVsMenu)(); }));
+  } catch (e) {
+    if (!(e && e.message === 'demo-abort')) { endDemo(); throw e; }
+  }
+}
+
 // ================================================================ タイトル
 function starsIcon() {
   const c = $('#moonIcon'), g = c.getContext('2d');
@@ -2408,6 +2588,7 @@ function starsIcon() {
   drawMoon(g, 22, 22, 15, S.moonPhase, false);
 }
 function goTitle() {
+  endDemo();
   S.mode = 'title'; S.phase = 'idle'; S.st = null; S.run = null; S.single = null; S.drawing = null; S.ghost = null; S.vs = null; S.aim = null; S.tool = null; S.rivalAnim = null;
   const key = today();
   setMoonFor(key); drawBackground();
@@ -2477,6 +2658,7 @@ function hotShells(lines) {
 }
 cv.addEventListener('pointerdown', (ev) => {
   audio();
+  if (S.demo) return; // お手本の間は、指で触っても動かさない
   if (S.phase === 'tally' && S.tallySkip) { S.tallySkip(); return; }
   // 花火合戦: 火が走っている間は、選んだ道具を使う（お邪魔玉は指の少し上に置く・継ぎ火は自分の火のあとから引く）
   if (S.mode === 'vs' && S.phase === 'burn' && S.st && S.st.vs && !S.st.done) {
@@ -2569,6 +2751,8 @@ $('#hinoTitle').addEventListener('click', () => { S.hinoTap = performance.now();
 $('#freeBtn').addEventListener('click', startFree);
 $('#vsBtn').addEventListener('click', () => { audio(); openVsMenu(); });
 $('#vsBack').addEventListener('click', goTitle);
+$('#vsDemoBtn').addEventListener('click', () => { audio(); runDemo(openVsMenu); });
+$('#demoSkip').addEventListener('click', () => { const a = S.demo && S.demo.after; endDemo(); (a || openVsMenu)(); });
 $('#toolOjama').addEventListener('click', () => armTool('ojama'));
 $('#toolTsugi').addEventListener('click', () => armTool('tsugi'));
 document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => {
@@ -2624,7 +2808,7 @@ if (link && link.kind === 'bad') toast(t('badLink'));
 else if (link && link.kind === 'old') toast(t('oldLink'));
 else if (link) openLink(link);
 requestAnimationFrame(frame);
-window.HITO = { S, K, V, startDaily, startFree, startNight, commitStroke, goTitle, finale, fx, scenery, openVsMenu, startMatch, get music() { return music; } };
+window.HITO = { S, K, V, startDaily, startFree, startNight, commitStroke, goTitle, finale, fx, scenery, openVsMenu, startMatch, runDemo, get music() { return music; } };
 </script>
 <script type="module" src="/assets/feel/feel.js"></script>
 </body>

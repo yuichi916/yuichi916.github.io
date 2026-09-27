@@ -1207,6 +1207,39 @@ export function runVs(st, policies = null, maxTicks = 60 * 60) {
   return st.result;
 }
 
+// ---- お手本（はじめての人に、ルールを実演して見せる盤面）
+// 台本: 相手の線 → あなたの線（相手の線の後ろを横切る）→ 点火して横取り → あなたのお邪魔玉で相手の火が消える
+// → 相手のお邪魔玉であなたの火が消える → 継ぎ火をひびの黒玉に届けて、お邪魔返し
+const demoLine = (pts, step = 6) => {
+  const out = [];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / step));
+    for (let k = i === 1 ? 0 : 1; k <= n; k++) out.push({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n });
+  }
+  return out;
+};
+export const VS_DEMO = {
+  shells: [
+    ['kiku', 70, 172], ['kiku', 100, 188],
+    ['kiku', 285, 168], ['kin', 312, 190], ['kiku', 300, 214], ['kiku', 330, 170],
+    ['kiku', 262, 250], ['kiku', 238, 290], ['kiku', 210, 312],
+    ['kiku', 92, 342], ['kiku', 132, 352], ['ootama', 172, 360], ['kiku', 104, 262], ['kiku', 60, 300],
+    ['kiku', 200, 440], ['kiku', 250, 460], ['kiku', 70, 450],
+  ],
+  rival: demoLine([{ x: 40, y: 180 }, { x: 335, y: 180 }]),
+  mine: demoLine([{ x: 250, y: 136 }, { x: 250, y: 300 }, { x: 60, y: 300 }]),
+  ojamaMine: { x: 150, y: 180 },
+  ojamaRival: { x: 140, y: 300 },
+  tsugi: demoLine([{ x: 185, y: 300 }, { x: 162, y: 318 }, { x: 140, y: 314 }], 5),
+};
+export function newVsDemo(moon = 4) {
+  const st = newVsRound({ seed: 1, bout: 0, moon });
+  st.shells = VS_DEMO.shells.map(([type, x, y], i) => ({ id: i, type, x, y, hue: i % 7, burst: false, burstAt: -1, hp: 1, lastSrc: null }));
+  st.clouds = []; st.ropes = [];
+  st.vs.powder = [VS_POWDER.max, VS_POWDER.max];
+  return st;
+}
+
 // 番を落としたときのヒント（上ほど効き目が大きい）
 export function vsHint(st, o = 0) {
   const r = st.result, opp = 1 - o, f = st.fuse;

@@ -670,6 +670,23 @@ check('花火合戦: お邪魔玉の目安は、相手の線のまだ燃えて�
   ok(h && h.x > 200 && Math.abs(h.y - 300) <= 14, `玉の多い所 ${JSON.stringify(h)}`);
   ok(K.vsOjamaSpot(st, h.x, h.y), '置ける所');
 });
+check('花火合戦: お手本の台本どおりに起きる（横取り → 相手の火が消える → あなたの火が消える → お邪魔返し）', () => {
+  for (const moon of [0, 2, 4, 6]) {
+    const st = K.newVsDemo(moon), D = K.VS_DEMO;
+    ok(K.vsPlace(st, 1, D.rival) && K.vsPlace(st, 0, D.mine), '線を置ける');
+    K.vsIgnite(st);
+    const until = (f) => { for (let i = 0; i < 600 && !st.done && !f(); i++) { K.step(st); st.events.length = 0; } ok(f(), `moon ${moon}: 途中で終わった`); };
+    until(() => st.vs.side[0].steals > 0);
+    ok(K.vsDropOjama(st, 0, D.ojamaMine.x, D.ojamaMine.y), 'あなたのお邪魔玉');
+    until(() => st.shells.some((s) => s.type === 'kuro' && s.from === 0 && s.hp === 1));
+    ok(K.vsDropOjama(st, 1, D.ojamaRival.x, D.ojamaRival.y, K.VS_FALL), '相手のお邪魔玉');
+    until(() => st.shells.some((s) => s.type === 'kuro' && s.from === 1 && s.hp === 1));
+    ok(K.vsExtend(st, 0, D.tsugi), '継ぎ火');
+    until(() => st.vs.side[0].back > 0);
+    K.runVs(st);
+    eq(st.result.winner, 0, 'お手本はあなたの勝ち');
+  }
+});
 check('花火合戦: 挑戦状のリンクと、シェアの文', () => {
   const code = K.encodeVs(123456789, 3, 'wlw');
   eq(JSON.stringify(K.decodeVs(code)), JSON.stringify({ seed: 123456789, rival: 3, marks: 'wlw' }));
