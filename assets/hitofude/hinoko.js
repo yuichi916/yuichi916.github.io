@@ -6,9 +6,11 @@
 
 const INK = '#3a1606';
 
-// (x, y) はからだの丸の中心、r はその半径。t は秒（ゆらぎ用）
+// (x, y) はからだの丸の中心、r はその半径。t は秒（ゆらぎ用）。
+// body は炎の色（芯から外へ 4 色）。花火合戦の相手は、ちがう色の火の子として同じ形で描く
+const BODY = ['#fff6c4', '#ffc93c', '#ff8a1e', '#f2551a'];
 export function drawHinoko(g, x, y, r, opts = {}) {
-  const { face = 'idle', t = 0, dir = null, stretch = 0, glow = true, still = false } = opts;
+  const { face = 'idle', t = 0, dir = null, stretch = 0, glow = true, still = false, body: pal = BODY } = opts;
   g.save();
   g.translate(x, y);
   // 走っているときは、炎の先を進む向きと逆へなびかせる（顔は正面のまま）
@@ -20,7 +22,7 @@ export function drawHinoko(g, x, y, r, opts = {}) {
   }
   if (glow) {
     const gl = g.createRadialGradient(0, 0, r * 0.4, 0, 0, r * 2.6);
-    gl.addColorStop(0, 'rgba(255,190,80,.45)'); gl.addColorStop(1, 'rgba(255,140,40,0)');
+    gl.addColorStop(0, pal === BODY ? 'rgba(255,190,80,.45)' : pal[2] + '73'); gl.addColorStop(1, pal === BODY ? 'rgba(255,140,40,0)' : pal[3] + '00');
     g.fillStyle = gl; g.beginPath(); g.arc(0, 0, r * 2.6, 0, Math.PI * 2); g.fill();
   }
   // からだ（しずく形。先がゆらゆら揺れる）
@@ -34,7 +36,7 @@ export function drawHinoko(g, x, y, r, opts = {}) {
   g.bezierCurveTo(-r * 1.02, -r * 0.7, -r * 0.35 + sway * 0.5, -r * 1.35, tipX, tipY);
   g.closePath();
   const body = g.createRadialGradient(0, r * 0.1, r * 0.1, 0, -r * 0.2, r * 1.9);
-  body.addColorStop(0, '#fff6c4'); body.addColorStop(0.45, '#ffc93c'); body.addColorStop(0.8, '#ff8a1e'); body.addColorStop(1, '#f2551a');
+  body.addColorStop(0, pal[0]); body.addColorStop(0.45, pal[1]); body.addColorStop(0.8, pal[2]); body.addColorStop(1, pal[3]);
   g.fillStyle = body; g.fill();
   // 内側の明るい芯
   g.beginPath(); g.ellipse(-r * 0.25, -r * 0.55, r * 0.22, r * 0.34, -0.3, 0, Math.PI * 2);
