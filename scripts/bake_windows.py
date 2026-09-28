@@ -24,7 +24,7 @@ GROUPS: list[tuple[str, list[tuple]]] = [
         ("note", "https://note.com/views_of_life", "/views_of_life",
          "作ったものの裏側を、最初から最後まで書いた長文。読み物として一番厚いのはここ。",
          "note", None),
-        ("Qiita", "https://qiita.com/kernel_yu", "@kernel_yu",
+        ("Qiita", "https://qiita.com/ViewsEngineer", "@ViewsEngineer",
          "同じ話を、手を動かせる形に落とした技術記事。コードと再現手順つき。",
          "Qiita", None),
         ("Zenn", "https://zenn.dev/viewsengineer", "/viewsengineer",

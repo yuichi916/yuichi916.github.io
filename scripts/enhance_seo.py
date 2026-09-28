@@ -28,7 +28,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\yuich\yuichi916.github.io")
+ROOT = Path(__file__).resolve().parents[1]
 SITE = "https://yuichi916.github.io"
 DEFAULT_OG = SITE + "/assets/og-image.png"
 DEFAULT_OG_W = "1200"
