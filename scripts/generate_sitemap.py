@@ -50,7 +50,7 @@ EXCLUDE_DIRS = {
     ".git", ".github", ".superpowers", ".claude",
     "node_modules", "_dev", "_local", "_test_assets", "_workers",
     "_blender", "_gas", "_userscript", "_ehon_assets",
-    "tests", "docs",
+    "tests", "docs", "scripts", "_dist",
 }
 
 # Priority & changefreq policy keyed by path prefix; first match wins.
