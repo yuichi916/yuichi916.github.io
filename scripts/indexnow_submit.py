@@ -22,7 +22,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\yuich\yuichi916.github.io")
+ROOT = Path(__file__).resolve().parents[1]
 HOST = "yuichi916.github.io"
 SITE = f"https://{HOST}"
 SITEMAP = f"{SITE}/sitemap.xml"
