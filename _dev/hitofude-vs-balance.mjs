@@ -2,7 +2,7 @@
 // 使い方: node _dev/hitofude-vs-balance.mjs <あなた役> <相手役> [試合数=60]
 //   役は RIVALS の id（'don@{"probe":2}' のように設定を上書きできる）か、人の目安の 'bot1' 'bot3' 'bot6'
 //   （線を 1・3・6 本考えて選ぶ。bot1 は相手の線を読まない。お邪魔玉は 3・6・12 か所ためして選ぶ）
-// ページと同じ順に置く: 先手（相手）の線 → 後手（あなた）の線 → 先手のお邪魔玉 → 後手のお邪魔玉 → 点火
+// ページと同じ順に置く: 先手（相手）の線とお邪魔玉 → 後手（あなた）が全部見てから線とお邪魔玉 → 点火
 import * as K from '../assets/hitofude/core.js';
 
 export const BOTS = {
@@ -23,13 +23,15 @@ export function playMatch(seed, moon, a, b, rng) {
     const lines = [null, null], kuro = [null, null];
     const make = () => {
       const st = K.newVsRound(opts);
-      for (const o of [first, second]) if (lines[o]) K.vsPlace(st, o, lines[o], { normalized: true });
-      for (const o of [first, second]) if (kuro[o]) K.vsPlaceOjama(st, o, kuro[o].x, kuro[o].y);
+      for (const o of [first, second]) {
+        if (lines[o]) K.vsPlace(st, o, lines[o], { normalized: true });
+        if (kuro[o]) K.vsPlaceOjama(st, o, kuro[o].x, kuro[o].y);
+      }
       return st;
     };
-    lines[first] = K.vsPlan(make, first, roles[first], rng);
+    const fp = K.vsFirstPlan(make, first, roles[first], rng);
+    lines[first] = fp.pts; kuro[first] = fp.ojama;
     lines[second] = K.vsPlan(make, second, roles[second], rng);
-    kuro[first] = K.vsOjamaPlan(make, first, roles[first], rng);
     kuro[second] = K.vsOjamaPlan(make, second, roles[second], rng);
     const st = make();
     K.vsIgnite(st);

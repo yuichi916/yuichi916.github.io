@@ -649,6 +649,22 @@ check('花火合戦: お邪魔玉の候補は置ける所だけ・交わる所�
   ok(spots.some((c) => Math.abs(c.x - 200) < 20 && Math.abs(c.y - 300) < 20), '交わる所');
   eq(K.vsOjamaSpots(st, 0, 1, K.rng32(4)).length, 1, '1 か所でも、玉の間の置ける所を探す');
 });
+check('花火合戦: 相手は線とお邪魔玉を先に見せる（あなたの線を見ずに決める）・黒玉のすぐそばからは引きはじめられない', () => {
+  const opts = { seed: 58, bout: 1, moon: 4, ink: [1, 1], lag: [0, 0.05] };
+  const make = () => K.newVsRound(opts);
+  for (const rv of K.RIVALS) {
+    const a = K.vsFirstPlan(make, 1, rv, K.rng32(9)), b = K.vsFirstPlan(make, 1, rv, K.rng32(9));
+    eq(JSON.stringify(a), JSON.stringify(b), `${rv.id}: 決定的`);
+    ok(a.pts && a.ojama, `${rv.id}: 線とお邪魔玉 ${JSON.stringify(a.ojama)}`);
+    const st = make(); ok(K.vsPlace(st, 1, a.pts, { normalized: true }));
+    ok(K.vsPlaceOjama(st, 1, a.ojama.x, a.ojama.y), `${rv.id}: あなたの線が無くても置ける`);
+  }
+  const st = vsHand([]);
+  K.vsPlace(st, 1, line(40, 300, 320, 300, 70));
+  ok(K.vsPlaceOjama(st, 1, 200, 420));
+  eq(K.vsCanStart(st, 0, { x: 200, y: 450 }), false, '黒玉から 30');
+  ok(K.vsCanStart(st, 0, { x: 200, y: 470 }), '黒玉から 50 なら引ける');
+});
 check('花火合戦: 火をつけるのが遅い相手（lag）は、その分遅れて火がつく', () => {
   const st = vsHand([{ type: 'kiku', x: 60, y: 300 }], { lag: [0, 0.25] });
   K.vsPlace(st, 1, line(40, 300, 320, 300, 70)); K.vsIgnite(st);
@@ -671,7 +687,8 @@ check('花火合戦: CPU は置ける線を選ぶ・決定的・番付の順に�
 });
 check('花火合戦: お手本の台本どおりに起きる（横取り → 相手の黒玉があなたの火を止める → あなたの黒玉で相手の火が消え、あなたの大爆発）', () => {
   const D = K.VS_DEMO;
-  const make = () => { const t = K.newVsDemo(4); K.vsPlace(t, 1, D.rival, { normalized: true }); K.vsPlace(t, 0, D.mine, { normalized: true }); K.vsPlaceOjama(t, 1, D.ojamaRival.x, D.ojamaRival.y); return t; };
+  // ページと同じ順: 相手の線 → 相手のお邪魔玉 → あなたの線 → あなたのお邪魔玉
+  const make = () => { const t = K.newVsDemo(4); K.vsPlace(t, 1, D.rival, { normalized: true }); K.vsPlaceOjama(t, 1, D.ojamaRival.x, D.ojamaRival.y); K.vsPlace(t, 0, D.mine, { normalized: true }); return t; };
   const st = make();
   ok(st.vs.placed[0] && st.vs.placed[1] && st.vs.ojama[1], '線と相手のお邪魔玉を置ける');
   eq(K.vsForecast(make()).kuro[0].crack, 0, '相手の黒玉は、あなたの火を止める');
