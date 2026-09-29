@@ -1,11 +1,12 @@
 // 一筆花火の背景の「動くもの」。夜空・川・見物の人たち（見た目だけ）。
+// 縦（スマホ）と横（パソコン）で空の高さが違うので、町の屋根の線 hz（論理座標の y）を受け取って、そこを基準に描く。
 //   staticSky: 夜ごとに一度だけ描く（天の川の帯・地平の町あかり）
 //   drawSky:   またたく星と流れ星
 //   drawTown:  屋台の提灯の列（屋台の夜）と、川をゆく屋形船
 //   drawCrowd: 手前の見物客。大きな連鎖で手を上げ、スマホを掲げ、「たまや〜」と声が上がる
 
 export function createScenery() {
-  let excite = 0, nextShoot = 4, twinkleKey = '', twinkles = [];
+  let excite = 0, nextShoot = 4, twinkleKey = '', twinkles = [], lastV = { L: 0, R: 360, T: 0, B: 640 };
   const shooting = [], cheers = [];
   const rnd = mulberry(20260926);
   const people = Array.from({ length: 30 }, (_, i) => ({ u: (i + rnd() * 0.6) / 30, h: 0.85 + rnd() * 0.35, phone: rnd() < 0.2, kid: rnd() < 0.12, ph: rnd() * 10, arms: 0 }));
@@ -23,8 +24,8 @@ export function createScenery() {
       nextShoot -= dt;
       if (nextShoot <= 0) {
         nextShoot = 6 + Math.random() * 8;
-        const dir = Math.random() < 0.5 ? 1 : -1;
-        shooting.push({ x: dir > 0 ? -20 + Math.random() * 200 : 180 + Math.random() * 200, y: 20 + Math.random() * 120, vx: dir * (260 + Math.random() * 120), vy: 90 + Math.random() * 60, t: 0, max: 0.7 });
+        const dir = Math.random() < 0.5 ? 1 : -1, w = lastV.R - lastV.L;
+        shooting.push({ x: dir > 0 ? lastV.L - 20 + Math.random() * w * 0.55 : lastV.L + w * 0.45 + Math.random() * w * 0.55, y: Math.max(lastV.T, 0) + 20 + Math.random() * 120, vx: dir * (260 + Math.random() * 120), vy: 90 + Math.random() * 60, t: 0, max: 0.7 });
       }
       for (const s of shooting) s.t += dt;
       for (let i = shooting.length - 1; i >= 0; i--) if (shooting[i].t > shooting[i].max) shooting.splice(i, 1);
@@ -36,15 +37,15 @@ export function createScenery() {
       }
     },
     // 夜ごとの背景（キャッシュに一度だけ）
-    staticSky(g, v, { milky = 0 } = {}) {
+    staticSky(g, v, { milky = 0, hz = 562 } = {}) {
       // 地平の町あかり
-      const hz = g.createLinearGradient(0, 430, 0, 562);
-      hz.addColorStop(0, 'rgba(255,150,80,0)'); hz.addColorStop(1, 'rgba(255,150,90,.16)');
-      g.fillStyle = hz; g.fillRect(v.L, 430, v.R - v.L, 132);
+      const glow = g.createLinearGradient(0, hz - 132, 0, hz);
+      glow.addColorStop(0, 'rgba(255,150,80,0)'); glow.addColorStop(1, 'rgba(255,150,90,.16)');
+      g.fillStyle = glow; g.fillRect(v.L, hz - 132, v.R - v.L, 132);
       if (milky <= 0) return;
       // 天の川: 左下から右上へ流れる、ぼんやりした帯と、細かい星
       g.save();
-      g.translate((v.L + v.R) / 2, 250); g.rotate(-0.55);
+      g.translate((v.L + v.R) / 2, hz * 0.445); g.rotate(-0.55);
       const w = (v.R - v.L) * 1.8;
       const band = g.createLinearGradient(0, -70, 0, 70);
       band.addColorStop(0, 'rgba(160,170,255,0)'); band.addColorStop(0.5, `rgba(200,205,255,${0.13 * milky})`); band.addColorStop(1, 'rgba(160,170,255,0)');
@@ -57,12 +58,13 @@ export function createScenery() {
       }
       g.restore();
     },
-    drawSky(g, tt, v) {
-      const key = `${v.L | 0},${v.R | 0},${v.T | 0}`;
+    drawSky(g, tt, v, hz = 562) {
+      lastV = v;
+      const key = `${v.L | 0},${v.R | 0},${v.T | 0},${hz}`;
       if (key !== twinkleKey) {
         twinkleKey = key;
-        const r = mulberry(4243);
-        twinkles = Array.from({ length: 46 }, () => ({ x: v.L + r() * (v.R - v.L), y: v.T + r() * (470 - v.T), s: 0.7 + r() * 1.1, f: 0.6 + r() * 2.2, ph: r() * 6.28 }));
+        const r = mulberry(4243), n = Math.round(46 * Math.max(1, (v.R - v.L) / 360));
+        twinkles = Array.from({ length: n }, () => ({ x: v.L + r() * (v.R - v.L), y: v.T + r() * (hz - 92 - v.T), s: 0.7 + r() * 1.1, f: 0.6 + r() * 2.2, ph: r() * 6.28 }));
       }
       g.save();
       g.globalCompositeOperation = 'lighter';
@@ -80,10 +82,10 @@ export function createScenery() {
       }
       g.restore();
     },
-    drawTown(g, tt, v, { yatai = false, heat = 0 } = {}) {
+    drawTown(g, tt, v, { yatai = false, heat = 0, hz = 562 } = {}) {
       // 屋台の夜: 町の上に、提灯の列が揺れる
       if (yatai) {
-        const y0 = 506, n = Math.ceil((v.R - v.L) / 24) + 1;
+        const y0 = hz - 56, n = Math.ceil((v.R - v.L) / 24) + 1;
         g.save();
         g.strokeStyle = 'rgba(40,30,30,.9)'; g.lineWidth = 0.8;
         g.beginPath();
@@ -101,7 +103,7 @@ export function createScenery() {
         g.restore();
       }
       // 屋形船: ゆっくり川をゆく
-      const span = v.R - v.L + 160, x = v.L - 80 + ((tt * 7) % span), y = 586;
+      const span = v.R - v.L + 160, x = v.L - 80 + ((tt * 7) % span), y = hz + 24;
       g.save();
       g.fillStyle = '#07081a';
       g.beginPath(); g.moveTo(x - 30, y); g.lineTo(x + 34, y); g.lineTo(x + 28, y + 7); g.lineTo(x - 26, y + 7); g.closePath(); g.fill();
