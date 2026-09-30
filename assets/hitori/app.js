@@ -732,6 +732,7 @@ function aboutHtmlImpl() {
     <p style="font-size:13px;color:#655b55">「ひとりで入れるか」を一本の軸にして、全国 ${idx.total.toLocaleString()} 施設を並べ直した地図です。${(idx.sourced_count || idx.checked_count).toLocaleString()} 件に出典つきの根拠があり、そのうち <b>${idx.checked_count.toLocaleString()} 件</b>は施設の公式情報で裏が取れています。残りは個人の訪問記や地図データが根拠で、詳細では ● 公式 / ◐ 公式以外 と分けて表示します。</p>
     <p class="sec-label">三つの決めごと</p>
     <ol style="padding-left:18px;font-size:13px;color:#655b55"><li>店の自己申告に頼らず、観測できる属性（業態・席・営業形態・チェーンか）から組み立てる</li><li>混雑は測れないので、周辺に同業が少ない独立店を「穴場候補」として代理指標にする</li><li>事実には出典・URL・公式かどうかを必ず添え、出典同士の<b>食い違いは消さずに両方見せる</b></li></ol>
+    <p><a href="hitori/" style="color:#8d4734;font-weight:700">都道府県ごとの一覧（公式で確認済みの施設）→</a></p>
     <p><a href="method/hitori-kijun.html" style="color:#8d4734;font-weight:700">この地図の作り方（ひとり基準）→</a></p>
     <p class="sec-label">載っていない店を見つけたら</p>
     <a class="tog" id="btn-request" href="https://x.com/intent/post?text=${encodeURIComponent(REQ_TEXT)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none;background:var(--accent);color:#fff;border-color:var(--accent)">この店を載せてほしい（Xで送る）</a>
