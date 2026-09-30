@@ -336,6 +336,7 @@
       <div class="result-line">ミス <b id="resultMistakes">0</b> ／ ヒント <b id="resultHints">0</b></div>
       <div class="result-line" id="resultXp"></div>
       <button class="play-btn" id="nextBtn">▶ 次の冒険へ</button>
+      <button class="ghost-btn" id="xShareBtn">𝕏 結果をポスト</button>
       <button class="ghost-btn" id="shareBtn">🔗 結果をコピー</button>
       <button class="ghost-btn" id="resultMenuBtn">メニューへ</button>
       <div data-feel="sudoku" data-feel-set="game" data-feel-mode="compact"></div>
@@ -1240,11 +1241,23 @@ function setSlice(axis, layer) {
 
 document.getElementById('nextBtn').onclick = () => newGame(G.mode, G.N, G.difficulty, G.world, false);
 document.getElementById('resultMenuBtn').onclick = () => { document.getElementById('resultScreen').classList.add('hidden'); refreshStartScreen(); document.getElementById('startScreen').classList.remove('hidden'); };
-document.getElementById('shareBtn').onclick = () => {
+function shareText() {
   const stars = document.getElementById('resultStars').textContent;
   const shape = G.mode === 'plane' ? '平面9×9' : `${G.N}×${G.N}×${G.N}`;
-  const txt = `異世界立体数独 ルーン・キューブ ${shape}（${DIFF_NAME[G.difficulty]}）${stars} ${fmt(G.elapsed)} ミス${G.mistakes}\nyuichi916.github.io/sudoku.html`;
+  const url = 'https://yuichi916.github.io/sudoku.html?ref=sudoku-share';
+  if (G.isDaily) {
+    const t = todayStr();
+    const streak = prog.streak > 1 ? ` 🔥${prog.streak}日連続` : '';
+    return `異世界立体数独 デイリー ${t.slice(0, 4)}/${t.slice(4, 6)}/${t.slice(6)}${streak}\n${shape} ${stars} ${fmt(G.elapsed)} ミス${G.mistakes} ヒント${G.hintsUsed}\n${url}`;
+  }
+  return `異世界立体数独 ルーン・キューブ ${shape}（${DIFF_NAME[G.difficulty]}）${stars} ${fmt(G.elapsed)} ミス${G.mistakes}\n${url}`;
+}
+document.getElementById('shareBtn').onclick = () => {
+  const txt = shareText();
   navigator.clipboard?.writeText(txt).then(() => pulseToast('結果をコピーしたのだ'), () => pulseToast(txt));
+};
+document.getElementById('xShareBtn').onclick = () => {
+  window.open('https://x.com/intent/post?text=' + encodeURIComponent(shareText()), '_blank', 'noopener');
 };
 document.getElementById('tutOkBtn').onclick = () => { localStorage.setItem(TUT_KEY, '1'); document.getElementById('tutorialScreen').classList.add('hidden'); };
 
