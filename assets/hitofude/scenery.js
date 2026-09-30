@@ -4,12 +4,15 @@
 //   drawSky:   またたく星と流れ星
 //   drawTown:  屋台の提灯の列（屋台の夜）と、川をゆく屋形船
 //   drawCrowd: 手前の見物客。大きな連鎖で手を上げ、スマホを掲げ、「たまや〜」と声が上がる
+//   paintLand: 夜ごとに一度だけ描く陸の絵（夜の雲・山の重なり・木立・瓦屋根の町・五重塔・太鼓橋・柳・月の道・紙の質感）
 
 export function createScenery() {
   let excite = 0, nextShoot = 4, twinkleKey = '', twinkles = [], lastV = { L: 0, R: 360, T: 0, B: 640 };
   const shooting = [], cheers = [];
   const rnd = mulberry(20260926);
   const people = Array.from({ length: 30 }, (_, i) => ({ u: (i + rnd() * 0.6) / 30, h: 0.85 + rnd() * 0.35, phone: rnd() < 0.2, kid: rnd() < 0.12, ph: rnd() * 10, arms: 0 }));
+  // 灯籠流し: 川をゆっくり流れる灯籠
+  const toro = Array.from({ length: 14 }, (_, i) => ({ u: (i + rnd() * 0.7) / 14, lane: rnd(), sp: 3 + rnd() * 3, ph: rnd() * 6.28, warm: rnd() < 0.75 }));
 
   const api = {
     // 大きな連鎖や尺玉で、見物客が沸く（0〜1 を足す）
@@ -102,6 +105,22 @@ export function createScenery() {
         }
         g.restore();
       }
+      // 灯籠流し（川の幅に合わせて、2〜3 列に）
+      const riverH = Math.max(8, Math.min(46, v.B - hz - 30)), span2 = v.R - v.L + 40;
+      g.save();
+      for (const l of toro) {
+        const lx = v.L - 20 + ((l.u * span2 + tt * l.sp) % span2), ly = hz + 5 + l.lane * riverH, bob = Math.sin(tt * 1.4 + l.ph) * 0.6;
+        const k = 0.75 + l.lane * 0.5, col = l.warm ? [255, 196, 120] : [255, 150, 110];
+        g.globalCompositeOperation = 'lighter';
+        g.drawImage(halo(col), lx - 11 * k, ly - 11 * k + bob, 22 * k, 22 * k);
+        g.fillStyle = `rgba(${col},${0.16 + 0.06 * Math.sin(tt * 3 + l.ph)})`; g.fillRect(lx - 1.6 * k, ly + 3 * k, 3.2 * k, 5 * k); // 水に落ちる光
+        g.globalCompositeOperation = 'source-over';
+        g.fillStyle = '#1a0f0c'; g.fillRect(lx - 3 * k, ly + 1.6 * k + bob, 6 * k, 1.2 * k); // 台
+        g.fillStyle = `rgb(${col})`; g.fillRect(lx - 2.3 * k, ly - 2.6 * k + bob, 4.6 * k, 4.2 * k); // 灯
+        g.fillStyle = 'rgba(60,20,10,.55)'; g.fillRect(lx - 0.25 * k, ly - 2.6 * k + bob, 0.5 * k, 4.2 * k);
+        g.fillStyle = '#1a0f0c'; g.fillRect(lx - 2.8 * k, ly - 3.4 * k + bob, 5.6 * k, 0.9 * k); // 屋根
+      }
+      g.restore();
       // 屋形船: ゆっくり川をゆく
       const span = v.R - v.L + 160, x = v.L - 80 + ((tt * 7) % span), y = hz + 24;
       g.save();
@@ -116,6 +135,122 @@ export function createScenery() {
       for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(255,190,110,${0.12 + 0.08 * Math.sin(tt * 4 + i)})`; g.fillRect(x - 19 + i * 7 + Math.sin(tt * 3 + i) * 1.5, y + 9 + (i % 2) * 3, 4.5, 1.2); }
       g.restore();
       void heat;
+    },
+    // 陸の絵（夜ごとに一度だけ描いて、背景のキャッシュに入れる）。v は見えている範囲、hz は町の屋根の線
+    paintLand(g, v, { hz = 562, pagoda = 70, moonX = 300, bridge = 0.74 } = {}) {
+      const { L, R } = v, W = R - L, r = mulberry(9090);
+      // 夜の雲: 月明かりで上のふちが光る、やわらかい雲（盤のまん中は避けて、左右寄りに）
+      g.save();
+      for (let i = 0; i < 3; i++) {
+        const side = i % 2 ? 1 : -1, cxc = (L + R) / 2 + side * W * (0.22 + r() * 0.2), cyc = hz * (0.58 + i * 0.1) + r() * 12, cw = W * (0.16 + r() * 0.1);
+        for (let k = 0; k < 7; k++) {
+          const ex = cxc + (k / 6 - 0.5) * cw * 1.6 + (r() - 0.5) * 10, ey = cyc + (r() - 0.5) * 6 - Math.sin(k / 6 * Math.PI) * 6, er = cw * (0.22 + r() * 0.16);
+          const gr = g.createRadialGradient(ex, ey - er * 0.35, er * 0.1, ex, ey, er);
+          gr.addColorStop(0, 'rgba(170,170,225,.10)'); gr.addColorStop(0.6, 'rgba(110,112,175,.07)'); gr.addColorStop(1, 'rgba(90,90,160,0)');
+          g.fillStyle = gr; g.beginPath(); g.ellipse(ex, ey, er, er * 0.42, 0, 0, 7); g.fill();
+        }
+      }
+      g.restore();
+      // 遠い山（霧で下がうすくなる）と、近い山（木々のぎざぎざ）
+      const far = g.createLinearGradient(0, hz - 110, 0, hz);
+      far.addColorStop(0, '#1d2556'); far.addColorStop(1, '#2a3268');
+      g.fillStyle = far; g.beginPath(); g.moveTo(L, hz);
+      for (let x = Math.floor(L / 10) * 10; x <= R + 10; x += 10) g.lineTo(x, hz - 58 - Math.sin(x / 70 + 0.6) * 18 - Math.sin(x / 23) * 6);
+      g.lineTo(R, hz); g.fill();
+      const mist = g.createLinearGradient(0, hz - 40, 0, hz);
+      mist.addColorStop(0, 'rgba(90,100,170,0)'); mist.addColorStop(1, 'rgba(110,115,185,.35)');
+      g.fillStyle = mist; g.fillRect(L, hz - 40, W, 40);
+      g.fillStyle = '#131838'; g.beginPath(); g.moveTo(L, hz);
+      for (let x = Math.floor(L / 6) * 6; x <= R + 6; x += 6) g.lineTo(x, hz - 34 - Math.sin(x / 40) * 10 - Math.sin(x / 17 + 1) * 5 - (r() < 0.5 ? r() * 3 : 0));
+      g.lineTo(R, hz); g.fill();
+      // 木立（丸い梢の連なり）
+      g.fillStyle = '#0d1030';
+      for (let x = L - 10; x < R + 10; x += 7 + r() * 9) { const rr = 5 + r() * 7; g.beginPath(); g.arc(x, hz - 14 - r() * 6, rr, 0, 7); g.fill(); }
+      // 町並み: 瓦屋根（反りのある軒）・二階家・灯る障子
+      const town = mulberry(99);
+      let x = L - 8;
+      const glows = [];
+      while (x < R + 10) {
+        const w = 22 + town() * 26, two = town() < 0.3, h = (two ? 22 : 13) + town() * 8, base = hz, top = base - h;
+        g.fillStyle = '#0a0c1f';
+        g.fillRect(x, top, w, h);
+        // 屋根: 軒が反って張り出す
+        const rh = 7 + town() * 4;
+        g.beginPath(); g.moveTo(x - 5, top + 1.5); g.quadraticCurveTo(x + 2, top - 1, x + w * 0.18, top - rh); g.lineTo(x + w * 0.82, top - rh); g.quadraticCurveTo(x + w - 2, top - 1, x + w + 5, top + 1.5); g.closePath();
+        g.fillStyle = '#080a1a'; g.fill();
+        g.strokeStyle = 'rgba(140,150,210,.18)'; g.lineWidth = 0.7; g.beginPath(); g.moveTo(x + w * 0.18, top - rh); g.lineTo(x + w * 0.82, top - rh); g.stroke(); // 棟に月の光
+        if (two) { g.fillStyle = '#080a1a'; g.beginPath(); g.moveTo(x - 3, top + 11); g.lineTo(x + w + 3, top + 11); g.lineTo(x + w, top + 8); g.lineTo(x, top + 8); g.closePath(); g.fill(); }
+        // 窓（障子に灯り。格子つき）
+        const nwin = Math.max(1, Math.floor(w / 11));
+        for (let j = 0; j < nwin; j++) {
+          if (town() < 0.45) continue;
+          const wx = x + 3 + j * (w - 6) / nwin, wy = two && town() < 0.5 ? top + 2.5 : base - 8.5, ww = Math.min(7, (w - 6) / nwin - 2), wh = 5;
+          const warm = town() < 0.6 ? '#ffcf73' : '#ff9d4d';
+          g.fillStyle = warm; g.globalAlpha = 0.6 + town() * 0.35; g.fillRect(wx, wy, ww, wh); g.globalAlpha = 1;
+          g.fillStyle = 'rgba(40,20,10,.55)'; g.fillRect(wx + ww / 2 - 0.3, wy, 0.6, wh); g.fillRect(wx, wy + wh / 2 - 0.3, ww, 0.6);
+          glows.push([wx + ww / 2, wy + wh / 2, warm]);
+        }
+        // 暖簾
+        if (town() < 0.35) { g.fillStyle = town() < 0.5 ? '#3a1520' : '#15233d'; for (let k = 0; k < 3; k++) g.fillRect(x + w * 0.3 + k * 4, base - 9, 3.2, 5); }
+        x += w + 3;
+      }
+      // 窓の明かりのにじみ
+      g.save(); g.globalCompositeOperation = 'lighter';
+      for (const [gx, gy, c] of glows) { const gg = g.createRadialGradient(gx, gy, 0, gx, gy, 9); gg.addColorStop(0, c === '#ffcf73' ? 'rgba(255,200,110,.22)' : 'rgba(255,150,80,.22)'); gg.addColorStop(1, 'rgba(255,150,80,0)'); g.fillStyle = gg; g.fillRect(gx - 9, gy - 9, 18, 18); }
+      g.restore();
+      // 五重塔
+      g.fillStyle = '#070918';
+      const pb = hz - 6;
+      for (let i = 0; i < 5; i++) {
+        const w = 30 - i * 4, y = pb - i * 13;
+        g.beginPath(); g.moveTo(pagoda - w / 2 - 7, y - 7); g.quadraticCurveTo(pagoda, y - 14, pagoda + w / 2 + 7, y - 7); g.lineTo(pagoda + w / 2, y - 5); g.lineTo(pagoda + w / 2, y + 4); g.lineTo(pagoda - w / 2, y + 4); g.lineTo(pagoda - w / 2, y - 5); g.closePath(); g.fill();
+        g.fillStyle = 'rgba(255,190,110,.55)'; g.fillRect(pagoda - 1.5, y - 1, 3, 3); g.fillStyle = '#070918';
+      }
+      g.fillRect(pagoda - 1, pb - 80, 2, 18);
+      for (let i = 0; i < 5; i++) g.fillRect(pagoda - 3, pb - 78 + i * 3, 6, 0.8);
+      // 太鼓橋（朱の反り橋）と、欄干の灯り
+      const bx = L + W * bridge, bw = Math.min(96, W * 0.26), by = hz + 5;
+      g.save();
+      g.strokeStyle = '#5a1a1e'; g.lineWidth = 3.4; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(bx - bw / 2, by); g.quadraticCurveTo(bx, by - 22, bx + bw / 2, by); g.stroke();
+      g.strokeStyle = '#7a2a28'; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(bx - bw / 2, by - 6); g.quadraticCurveTo(bx, by - 28, bx + bw / 2, by - 6); g.stroke();
+      for (let i = 0; i <= 6; i++) {
+        const u = i / 6, px = bx - bw / 2 + u * bw, py = by - 22 * 2 * u * (1 - u) * 1, py2 = by - 6 - 22 * 2 * u * (1 - u);
+        g.strokeStyle = '#6a2224'; g.lineWidth = 1; g.beginPath(); g.moveTo(px, py); g.lineTo(px, py2); g.stroke();
+        if (i % 2 === 0) { const gg = g.createRadialGradient(px, py2 - 2, 0, px, py2 - 2, 8); gg.addColorStop(0, 'rgba(255,180,100,.55)'); gg.addColorStop(1, 'rgba(255,140,80,0)'); g.fillStyle = gg; g.fillRect(px - 8, py2 - 10, 16, 16); g.fillStyle = '#ffc070'; g.fillRect(px - 1.2, py2 - 3.5, 2.4, 3); }
+      }
+      g.restore();
+      // 柳（画面の端から垂れる枝）
+      const willow = (wx, dir) => {
+        g.save(); g.strokeStyle = 'rgba(20,32,40,.95)'; g.lineCap = 'round';
+        g.lineWidth = 3; g.beginPath(); g.moveTo(wx, hz + 4); g.quadraticCurveTo(wx + dir * 4, hz - 40, wx + dir * 14, hz - 62); g.stroke();
+        const wr = mulberry(dir > 0 ? 31 : 37);
+        for (let i = 0; i < 16; i++) {
+          const sx = wx + dir * (6 + wr() * 26), sy = hz - 60 + wr() * 18, len = 30 + wr() * 34, sw = dir * (4 + wr() * 8);
+          g.lineWidth = 0.9; g.strokeStyle = `rgba(${22 + wr() * 20},${44 + wr() * 30},${46 + wr() * 20},.9)`;
+          g.beginPath(); g.moveTo(sx, sy); g.quadraticCurveTo(sx + sw, sy + len * 0.5, sx + sw * 0.6, sy + len); g.stroke();
+        }
+        g.restore();
+      };
+      willow(L + 6, 1); willow(R - 6, -1);
+      // 川に落ちる月の道
+      const mg = g.createLinearGradient(0, hz, 0, v.B);
+      mg.addColorStop(0, 'rgba(255,240,200,.16)'); mg.addColorStop(1, 'rgba(255,240,200,0)');
+      g.fillStyle = mg;
+      for (let i = 0; i < 16; i++) { const yy = hz + 3 + i * 5, ww = 26 - i * 1.1 + (i % 3) * 5; g.fillRect(moonX - ww / 2 + ((i * 37) % 11) - 5, yy, ww, 1.3); }
+      // 紙の質感（ごく薄い繊維）と、四隅の暗がり
+      g.save();
+      const fr = mulberry(555), n = Math.round(W * (v.B - v.T) / 900);
+      g.strokeStyle = 'rgba(255,245,225,.035)'; g.lineWidth = 0.6;
+      g.beginPath();
+      for (let i = 0; i < n; i++) { const fx = L + fr() * W, fy = v.T + fr() * (v.B - v.T), a = fr() * 6.28, l = 2 + fr() * 6; g.moveTo(fx, fy); g.lineTo(fx + Math.cos(a) * l, fy + Math.sin(a) * l); }
+      g.stroke();
+      const cx = (L + R) / 2, cy = (v.T + v.B) / 2, rad = Math.hypot(W, v.B - v.T) * 0.62;
+      const vg = g.createRadialGradient(cx, cy * 0.9, rad * 0.45, cx, cy, rad);
+      vg.addColorStop(0, 'rgba(0,0,12,0)'); vg.addColorStop(1, 'rgba(0,0,12,.38)');
+      g.fillStyle = vg; g.fillRect(L, v.T, W, v.B - v.T);
+      g.restore();
     },
     // 手前の見物客（画面のいちばん下）
     drawCrowd(g, tt, v, { heat = 0, flash = 0 } = {}) {
