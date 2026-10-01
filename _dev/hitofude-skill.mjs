@@ -195,5 +195,7 @@ function charms(N, budget) {
   console.log(`持ち物によらず選ぶものが入っている候補: ${pct(auto / n)}`);
 }
 
-const [mode = 'tiers', nArg, bArg] = process.argv.slice(2);
-if (mode === 'charms') charms(+(nArg || 24), +(bArg || 100)); else tiers(+(nArg || 24), +(bArg || 150));
+if (process.argv[1].endsWith('hitofude-skill.mjs')) {
+  const [mode = 'tiers', nArg, bArg] = process.argv.slice(2);
+  if (mode === 'charms') charms(+(nArg || 24), +(bArg || 100)); else tiers(+(nArg || 24), +(bArg || 150));
+}

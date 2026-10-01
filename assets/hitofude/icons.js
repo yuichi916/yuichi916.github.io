@@ -141,6 +141,7 @@ export const CHARM_ART = {
   senrin: ['千', '#6a4fb3'], orebi: ['折', '#40689e'], owaridama: ['終', '#3a3c58'], kodou: ['鼓', '#b0432a'],
   mankai: ['満', '#b98d25'], mashidama: ['増', '#c44d36'], nihitsu: ['二', '#3d8250'], nokoribi: ['残', '#c05a26'],
   chouchinshi: ['灯', '#b8352c'], amayoke: ['雨', '#357aa0'], kazekiri: ['風', '#3f8f8c'],
+  nokorizumi: ['墨', '#2f3346'], osobi: ['遅', '#6d4a8f'], ichibanboshi: ['星', '#b07a1e'],
 };
 const MINCHO = '"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
 const shade = (hex, k) => {
