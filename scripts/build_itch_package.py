@@ -35,7 +35,8 @@ WORKS: dict[str, tuple[str, list[str], list[str]]] = {
 }
 
 # ポータル用の版だけに入れる変更。サイトの HTML は変えない
-PORTAL_CSS = ("<style id=\"portal-build\">.endnext,.sharebox,pre.share,[data-feel],.world{display:none!important}</style>"
+# .nextstage と [data-noportal] は「次のステージは準備中」の知らせ。ゲームサイトでは未完成に見えるので出さない
+PORTAL_CSS = ("<style id=\"portal-build\">.endnext,.sharebox,pre.share,[data-feel],.world,.nextstage,[data-noportal]{display:none!important}</style>"
               "<script>/* ポータル用: 外への問い合わせ (アクセス解析の数え) をしない */"
               "(()=>{const f=window.fetch;window.fetch=(u,...a)=>/goatcounter|docs\.google/.test(String(u&&u.url||u))"
               "?Promise.reject(new Error('portal build')):f(u,...a);})();</script>")

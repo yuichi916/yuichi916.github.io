@@ -39,7 +39,8 @@ export function createFx({ max = 3400, onPop = null } = {}) {
   function add(p) {
     if (P.length >= max) return;
     p.px = p.x; p.py = p.y; p.max = p.life;
-    if (p.kind === 'willow') p.hist = [];
+    // 尾を引く粒は、少し前までの道のりを持つ（途切れた点線でなく、ひと続きの光の筋に見えるように）
+    if (p.kind === 'willow') { p.hist = []; p.hmax = 16; } else if (p.kind === 'trail' && !p.small) { p.hist = []; p.hmax = 10; }
     P.push(p);
   }
   // 中心から、円く飛ばす。rim が大きいほど、外側（輪の縁）に粒が集まる（球が開いたように見える）
@@ -165,7 +166,7 @@ export function createFx({ max = 3400, onPop = null } = {}) {
         const drag = Math.exp(-p.drag * dt);
         p.vx *= drag; p.vy = p.vy * drag + G * p.grav * dt;
         p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
-        if (p.hist) { p.hist.push(p.x, p.y); if (p.hist.length > 16) p.hist.splice(0, 2); }
+        if (p.hist) { p.hist.push(p.x, p.y); if (p.hist.length > p.hmax) p.hist.splice(0, 2); }
       }
       let w = 0;
       for (let i = 0; i < P.length; i++) if (P[i].life > 0) P[w++] = P[i];
@@ -199,12 +200,24 @@ export function createFx({ max = 3400, onPop = null } = {}) {
         const key = col.join() + '|' + Math.min(3, Math.floor(a * 4)) + (p.small ? 's' : '');
         let b = buckets.get(key); if (!b) { b = []; buckets.set(key, b); } b.push(p);
       }
+      g.lineCap = 'round'; g.lineJoin = 'round';
       for (const [key, list] of buckets) {
         const [rgb, rest] = key.split('|'), lv = +rest[0];
-        g.strokeStyle = `rgba(${rgb},${0.25 + lv * 0.25})`; g.lineWidth = rest.includes('s') ? 1.2 : 1.9;
+        g.strokeStyle = `rgba(${rgb},${0.2 + lv * 0.22})`; g.lineWidth = rest.includes('s') ? 1.2 : 1.7;
         g.beginPath();
-        for (const p of list) { g.moveTo(p.px, p.py); g.lineTo(p.x + (p.x - p.px) * 0.7, p.y + (p.y - p.py) * 0.7); }
+        for (const p of list) {
+          const h = p.hist;
+          if (h && h.length >= 4) { g.moveTo(h[0], h[1]); for (let i = 2; i < h.length; i += 2) g.lineTo(h[i], h[i + 1]); g.lineTo(p.x + (p.x - p.px) * 0.7, p.y + (p.y - p.py) * 0.7); }
+          else { g.moveTo(p.px, p.py); g.lineTo(p.x + (p.x - p.px) * 0.7, p.y + (p.y - p.py) * 0.7); }
+        }
         g.stroke();
+        // 筋の先の、光る玉（はじめの半分だけ。重い端末では粒ごと減る）
+        if (lv >= 2 && !rest.includes('s')) {
+          const img = glow(rgb.split(',').map(Number));
+          g.globalAlpha = lv === 3 ? 0.9 : 0.6;
+          for (const p of list) { const sz = 2.2 + (p.life / p.max) * 1.4; g.drawImage(img, p.x - sz, p.y - sz, sz * 2, sz * 2); }
+          g.globalAlpha = 1;
+        }
       }
       // 柳・光る点・またたく火花は、色 × 明るさ 4 段で束ねて描く（1 粒ずつ状態を変えると重い）
       const wB = new Map(), dB = new Map(), gB = new Map();

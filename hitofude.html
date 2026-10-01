@@ -21,6 +21,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<!-- 題字「一筆花火」だけの筆文字（表紙とそろえる。4 字ぶんだけ読む） -->
+<link href="https://fonts.googleapis.com/css2?family=Yuji+Boku&text=%E4%B8%80%E7%AD%86%E8%8A%B1%E7%81%AB&display=swap" rel="stylesheet">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -316,6 +318,7 @@ body.yoko #titleOv .tcol.tr{margin-top:0}
 @keyframes shine{0%{left:-60%}26%,100%{left:135%}}
 .playbtn{box-shadow:0 0 0 0 rgba(255,210,110,.5),0 calc(8px * var(--u)) calc(28px * var(--u)) calc(-8px * var(--u)) rgba(255,190,80,.7)!important;animation:playGlow 2.4s ease-in-out infinite}
 @keyframes playGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,210,110,.45),0 calc(8px * var(--u)) calc(28px * var(--u)) calc(-8px * var(--u)) rgba(255,190,80,.7)}50%{box-shadow:0 0 0 calc(6px * var(--u)) rgba(255,210,110,0),0 calc(8px * var(--u)) calc(34px * var(--u)) calc(-6px * var(--u)) rgba(255,190,80,.9)}}
+html[lang="ja"] #titleOv .logo{font-family:"Yuji Boku","Shippori Mincho",serif;font-weight:400;letter-spacing:.02em}
 /* ロゴの下の一筆: 引かれて、先で花火がひらく */
 .logostroke{display:block;width:min(90%,calc(300px * var(--u)));height:auto;margin:calc(-2px * var(--u)) auto calc(2px * var(--u));overflow:visible}
 body.yoko .tcol.tl .logostroke{width:min(90%,calc(340px * var(--u)))}
@@ -339,6 +342,22 @@ body.yoko .tcol.tl .logostroke{width:min(90%,calc(340px * var(--u)))}
   .ov:not([hidden]),.ov:not([hidden]) > .card,.btn.primary::after,.playbtn,.steps i .ic{animation:none!important}
   .logostroke .ls{stroke-dashoffset:0;animation:none!important} .logostroke .lh,.logostroke .lp{display:none}
 }
+/* 夜ごとの星（★ 目標 / ★★ 3 倍 / ★★★ 満開） */
+.stars{display:flex;gap:calc(3px * var(--u));justify-content:center;margin-top:calc(4px * var(--u))}
+.stars i{display:block;line-height:0;color:rgba(255,255,255,.18)}
+.stars i .ic{width:calc(14px * var(--u));height:calc(14px * var(--u))}
+.stars i.on{color:var(--gold);filter:drop-shadow(0 0 calc(5px * var(--u)) rgba(255,200,90,.9))}
+.stars i.pop .ic{animation:starPop .5s cubic-bezier(.2,1.6,.4,1)}
+@keyframes starPop{0%{transform:scale(.3) rotate(-40deg)}100%{transform:scale(1) rotate(0)}}
+body.yoko #hud .stars{justify-content:flex-start}
+body.yoko #hud .stars i .ic{width:calc(18px * var(--u));height:calc(18px * var(--u))}
+#tally .tstars{margin-top:calc(8px * var(--u));opacity:0}
+#tally .tstars.show{opacity:1;transition:opacity .2s}
+#tally .tstars i .ic{width:calc(30px * var(--u));height:calc(30px * var(--u))}
+#hud.burning .stars{opacity:1}
+.kvstar .ic{color:var(--gold);width:calc(16px * var(--u));height:calc(16px * var(--u));margin-right:calc(3px * var(--u))}
+#ink.low #inkBar{background:linear-gradient(90deg,#ff5a3a,#ffb347);animation:inkLow .35s ease-in-out infinite alternate}
+@keyframes inkLow{from{filter:brightness(1)}to{filter:brightness(1.7)}}
 /* 描いた絵（絵文字の代わり） */
 .ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;flex:none;overflow:visible}
 .ic-moon{width:1.35em;height:1.35em;vertical-align:-.3em}
@@ -412,7 +431,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
   <canvas id="cv"></canvas>
   <div id="hud" hidden>
     <div class="nights serif"><b id="nightLbl">一夜目</b><span id="dots"></span></div>
-    <div class="mid"><span data-t="target">目標</span><b class="mono" id="targetVal">0</b><div id="goal"><i id="goalFill"></i></div></div>
+    <div class="mid"><span data-t="target">目標</span><b class="mono" id="targetVal">0</b><div id="goal"><i id="goalFill"></i></div><div class="stars" id="stars"><i data-ico="star"></i><i data-ico="star"></i><i data-ico="star"></i></div></div>
     <div class="score"><div class="mono" id="scoreVal">0</div><div class="mono" id="multVal">×1</div><div class="mono" id="factorVal" hidden></div></div>
   </div>
   <div id="chips"></div>
@@ -438,7 +457,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
   </div>
   <div id="demoCap" hidden><div class="top"><span id="demoStep"></span><button type="button" id="demoSkip" data-t="demoSkip">スキップ</button></div><b id="demoTitle"></b><p id="demoBody"></p><div class="acts" id="demoActs"></div></div>
   <div id="demoHand" data-ico="hand" hidden></div>
-  <div id="tally" class="serif" hidden><div class="row1"></div><div class="row2 mono"></div><div class="row3"></div><div class="stamp"></div><div class="tip"></div></div>
+  <div id="tally" class="serif" hidden><div class="row1"></div><div class="row2 mono"></div><div class="row3"></div><div class="stars tstars"><i data-ico="star"></i><i data-ico="star"></i><i data-ico="star"></i></div><div class="stamp"></div><div class="tip"></div></div>
   <div id="ink" hidden><div id="inkBar"></div></div>
   <div id="hint"></div>
   <div id="newCard" hidden><canvas class="hino" width="96" height="96"></canvas><div><div class="top"><canvas class="ico" width="80" height="80"></canvas><span class="lbl">NEW</span><span class="n"></span></div><span class="d"></span><span class="d2"></span></div></div>
@@ -472,7 +491,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
         <div data-t-html="howto">
           <ul>
             <li><b>8つの夜</b>を越えよう。目標点を越えると、<b>お守り</b>を1つもらえる。</li>
-            <li>八夜で<b>1ステージ</b>。いまは<b>ステージ1『川辺の夏祭り』</b>。次のステージは、景色と仕掛けを変えて準備中。</li>
+            <li>八夜で<b>1ステージ</b>。いまは<b>ステージ1『川辺の夏祭り』</b>。<span data-noportal>次のステージは、景色と仕掛けを変えて準備中。</span></li>
             <li>点は<b>点×倍率</b>。金の玉と、10連鎖ごとに倍率が上がる。全部ひらくと ×2。</li>
             <li>夜が進むと、<b>新しい仕掛け</b>が1つずつ増える。二夜目 大玉 ・ 三夜目 千輪 ・ 四夜目 提灯 ・ 五夜目 雲 ・ 六夜目 湿った玉 ・ 七夜目 仕掛け縄 ・ 八夜目 尺玉。</li>
             <li><b>三夜目と六夜目は大一番</b>。線の引き方が変わる（まっすぐ・鏡・闇夜・一瞬）。越えると、お守りを2つもらえる。</li>
@@ -596,7 +615,8 @@ const T = {
     duelShare: (s, url) => `一筆花火で ${K.fmt(s)} 点。同じ夜で勝負しよう。\n${url}\n${K.HASHTAG}`,
     replayShare: (n, s, url) => `一筆花火、${KANJI[n]}夜目の一筆で ${K.fmt(s)} 点。この一筆、超えられる？\n${url}\n${K.HASHTAG}`,
     imgPts: '点', imgChain: '最大', imgChainUnit: '連鎖',
-    goalClear: '目標突破！',
+    goalClear: '目標突破！', star2: '★★ 目標の 3 倍！',
+    starsHow: '★ 目標 ・ ★★ 目標の 3 倍 ・ ★★★ 全部ひらく', starsTotal: '星',
     hinoDone: 'たまや〜！ 八夜ぜんぶ咲いた！', hinoGood: 'たまや〜！', hinoOk: (n) => `いい夜だった！ つぎは${KANJI[n]}夜目へ`,
     hinoZero: 'しゅん… もう一回いこう！', hinoNear: (p) => `あと ${p}% だった…！`,
     hinoTap: ['たまや〜！', 'かぎや〜！', '線を1本、まかせて！', '火をつけるのが好き！'],
@@ -694,7 +714,8 @@ const T = {
     duelShare: (s, url) => `${K.fmt(s)} points in Hitofude Hanabi. Duel me on the same nights.\n${url}\n#hitofudehanabi`,
     replayShare: (n, s, url) => `One stroke, ${K.fmt(s)} points on night ${n + 1}. Can you beat it?\n${url}\n#hitofudehanabi`,
     imgPts: 'pts', imgChain: 'best', imgChainUnit: 'chain',
-    goalClear: 'Target cleared!',
+    goalClear: 'Target cleared!', star2: '★★ 3× the target!',
+    starsHow: '★ target ・ ★★ 3× target ・ ★★★ burst them all', starsTotal: 'Stars',
     hinoDone: 'Tamaya! All eight nights bloomed!', hinoGood: 'Tamaya!', hinoOk: (n) => `Nice night! Next: night ${n + 1}`,
     hinoZero: 'Aww… one more try!', hinoNear: (p) => `Only ${p}% short…!`,
     hinoTap: ['Tamaya!', 'Kagiya!', 'Draw me a line!', 'I love lighting fuses!'],
@@ -912,6 +933,11 @@ const SFX = {
   fail() { [7, 3, 0, -5].forEach((s, i) => tone(392 * 2 ** (s / 12), 0.4, 'triangle', 0.08, 0, i * 0.12)); },
   pick() { tone(880, 0.12, 'triangle', 0.08); tone(1320, 0.2, 'sine', 0.06, 0, 0.06); },
   ui() { tone(740, 0.06, 'triangle', 0.045); tone(1110, 0.09, 'sine', 0.03, 0, 0.025); },
+  // 線が玉を拾うたびに、音階が上がっていく
+  grab(n) { const sc = [0, 2, 4, 7, 9], f = 523 * 2 ** ((sc[n % 5] + 12 * Math.min(2, Math.floor(n / 5))) / 12); tone(f, 0.13, 'triangle', 0.05); tone(f * 2, 0.08, 'sine', 0.018, 0, 0.01); },
+  scratch() { noise(0.045, 0.016, 3800, 0.9, 'highpass'); },
+  low() { tone(330, 0.12, 'square', 0.03); },
+  star(i) { [0, 4, 7].slice(0, i + 1).forEach((s2, k) => tone(784 * 2 ** (s2 / 12), 0.35, 'triangle', 0.07, 0, k * 0.07)); tone(1568, 0.5, 'sine', 0.03, 0, 0.12); },
   far() { noise(0.45, 0.035, 200, 0.8, 'lowpass'); tone(90, 0.35, 'sine', 0.03, -30); },
   hiss() { noise(0.35, 0.08, 5000, 0.7, 'highpass'); },
   mankai() { [0, 4, 7, 11, 14, 19].forEach((s, i) => tone(392 * 2 ** (s / 12), 1.2, 'triangle', 0.08, 0, i * 0.05)); },
@@ -1069,31 +1095,12 @@ function drawBackground() {
   // 天の川の夜は、空にも天の川を（ほかの夜はうっすら）
   scenery.staticSky(g, { L, R, T, B }, { milky: S.st && S.st.scene === 'kawa' && S.mode !== 'title' ? 1 : 0.3, hz: HZ });
   drawMoon(g, F.moon[0], F.moon[1], 24, S.moonPhase, true);
-  // 遠い山
-  g.fillStyle = '#141a3d';
-  g.beginPath(); g.moveTo(L, HZ - 2);
-  for (let x = Math.floor(L / 12) * 12; x <= R + 12; x += 12) g.lineTo(x, HZ - 42 - Math.sin(x / 40) * 10 - Math.sin(x / 17 + 1) * 5);
-  g.lineTo(R, HZ - 2); g.fill();
-  // 町並み（屋根と、あかりの窓）と五重塔
-  const town = K.rng32(99);
-  g.fillStyle = '#0a0c1f';
-  let x = L - 6;
-  while (x < R + 10) {
-    const w = 20 + town() * 26, h = 14 + town() * 14, base = HZ;
-    g.beginPath(); g.moveTo(x - 3, base - h); g.lineTo(x + w / 2, base - h - 9 - town() * 5); g.lineTo(x + w + 3, base - h); g.lineTo(x + w, base - h); g.lineTo(x + w, base); g.lineTo(x, base); g.lineTo(x, base - h); g.fill();
-    for (let j = 0; j < 3; j++) if (town() < 0.5) { g.fillStyle = town() < 0.5 ? '#ffcf73' : '#ff9d4d'; g.globalAlpha = 0.55 + town() * 0.4; g.fillRect(x + 4 + j * 7, base - h + 5 + town() * 5, 3, 3); g.fillStyle = '#0a0c1f'; g.globalAlpha = 1; }
-    x += w + 2;
-  }
-  const px = F.pagoda, pb = HZ - 6;
-  for (let i = 0; i < 5; i++) {
-    const w = 30 - i * 4, y = pb - i * 13;
-    g.beginPath(); g.moveTo(px - w / 2 - 6, y - 8); g.quadraticCurveTo(px, y - 13, px + w / 2 + 6, y - 8); g.lineTo(px + w / 2, y - 6); g.lineTo(px + w / 2, y + 4); g.lineTo(px - w / 2, y + 4); g.lineTo(px - w / 2, y - 6); g.fill();
-  }
-  g.fillRect(px - 1, pb - 80, 2, 18);
   // 川（映り込みは毎回上書きする。ここは水の色だけ）
   const river = g.createLinearGradient(0, HZ, 0, Math.max(F.DH, B));
   river.addColorStop(0, '#0d1236'); river.addColorStop(1, '#05061a');
   g.fillStyle = river; g.fillRect(L, HZ, R - L, Math.max(F.DH, B) - HZ);
+  // 陸の絵: 夜の雲・山・木立・町・五重塔・太鼓橋・柳・月の道・紙の質感（scenery.js）
+  scenery.paintLand(g, { L, R, T, B }, { hz: HZ, pagoda: F.pagoda, moonX: F.moon[0], bridge: isYoko() ? 0.7 : 0.72 });
 }
 function drawMoon(g, cx, cy, r, phase, halo) {
   if (halo) {
@@ -1529,7 +1536,7 @@ function draw(now) {
   if (st && st.fuse) drawFuse(st, now);
   if (st && st.twist === 'kagami' && S.phase === 'draw') drawMirrorGuide(tt);
   if (S.rivalAnim) drawRivalPreview(S.rivalAnim);
-  if (S.drawing) previewLines(S.drawing).forEach((pts, i) => drawStrokePreview(pts, i > 0));
+  if (S.drawing) { previewLines(S.drawing).forEach((pts, i) => drawStrokePreview(pts, i > 0)); if (S.phase === 'draw' && S.mode !== 'vs') drawPenTip(S.drawing, tt); }
   if (S.drawing && st && st.vs && S.phase === 'draw') drawCrossings(vsCrossings(S.drawing.pts), tt);
   if (S.demo && S.demo.marks) drawCrossings(S.demo.marks, tt);
   if (st && st.vs && (S.phase === 'ojama' || S.phase === 'draw' || S.aim)) drawAim(tt);
@@ -1669,11 +1676,35 @@ function drawSnapRing(now) {
 function drawStrokePreview(pts, echo) {
   if (pts.length < 2) return;
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.strokeStyle = echo ? 'rgba(255,190,150,.7)' : 'rgba(255,215,120,.95)'; ctx.lineWidth = echo ? 2.2 : 2.8;
-  ctx.shadowColor = 'rgba(255,190,80,.9)'; ctx.shadowBlur = 10 * V.dpr;
-  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-  ctx.stroke(); ctx.shadowBlur = 0;
+  const path = new Path2D(); path.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) path.lineTo(pts[i].x, pts[i].y);
+  // 導火線らしく: 外のにじみ → 金の芯 → 白く熱い中心
+  ctx.strokeStyle = echo ? 'rgba(255,150,120,.18)' : 'rgba(255,170,60,.22)'; ctx.lineWidth = echo ? 6 : 8; ctx.stroke(path);
+  ctx.strokeStyle = echo ? 'rgba(255,190,150,.7)' : 'rgba(255,215,120,.95)'; ctx.lineWidth = echo ? 2.2 : 3;
+  ctx.shadowColor = 'rgba(255,190,80,.9)'; ctx.shadowBlur = 10 * V.dpr; ctx.stroke(path); ctx.shadowBlur = 0;
+  if (!echo) { ctx.strokeStyle = 'rgba(255,250,225,.75)'; ctx.lineWidth = 1; ctx.stroke(path); }
+}
+// 筆先: 火の粉を散らす小さな火と、拾った玉の数
+function drawPenTip(d, tt) {
+  const p = d.pts[d.pts.length - 1];
+  const q = bd(p.x, p.y);
+  if (Math.random() < 0.5) fx.sparkle(q.x, q.y, 1, [255, 200, 110]);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const r = 7 + Math.sin(tt * 30) * 1.5, g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2);
+  g.addColorStop(0, 'rgba(255,250,220,.95)'); g.addColorStop(0.35, 'rgba(255,190,90,.6)'); g.addColorStop(1, 'rgba(255,120,40,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, r * 2, 0, 7); ctx.fill();
+  ctx.restore();
+  const n = d.hot ? d.hot.size : 0;
+  if (n > 0) upright(ctx, p.x, p.y, () => {
+    const txt = String(n), pop = d.popAt && performance.now() - d.popAt < 160 ? 1.25 : 1;
+    ctx.font = `800 ${13 * pop}px "JetBrains Mono", ui-monospace, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(txt).width + 18;
+    ctx.fillStyle = 'rgba(8,10,28,.82)'; ctx.strokeStyle = 'rgba(255,215,120,.8)'; ctx.lineWidth = 1;
+    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(14, -30, w, 18, 9); else ctx.rect(14, -30, w, 18); ctx.fill(); ctx.stroke();
+    drawIcon(ctx, 'sparkle', 23, -21, 9, '#ffd75a');
+    ctx.fillStyle = '#fff3cf'; ctx.fillText(txt, 14 + w / 2 + 4, -20.5);
+  });
 }
 // マウスの引きはじめの印
 function drawHover(tt) {
@@ -1737,6 +1768,10 @@ function updateScore() {
   const f = K.pointFactor(st), fe = $('#factorVal');
   fe.hidden = f <= 1; if (f > 1) fe.textContent = t('factor', f);
   const ratio = setGoal(st.chips * mult / targetOf(st));
+  if (S.phase === 'burn' && S.stars) {
+    if (st.chips * mult >= targetOf(st)) starOn(0);
+    if (st.chips * mult >= targetOf(st) * 3 && !S.stars[1]) { starOn(1); setTimeout(() => { if (S.st === st) callout(t('star2')); }, 700); }
+  }
   if (ratio >= 1 && !S.goalHit && S.phase === 'burn') {
     // 目標を越えた瞬間: 一瞬止めて、はっきり知らせる
     S.goalHit = true;
@@ -1746,6 +1781,15 @@ function updateScore() {
 }
 function hintText(h) { const v = t('hints')[h.id]; return typeof v === 'function' ? v(h.n) : v || ''; }
 function targetOf(st) { return S.single ? S.single.score : st.target; }
+// 夜ごとの星: ★ 目標を越える / ★★ 目標の 3 倍 / ★★★ 満開（全部ひらく）
+function nightStars(score, target, allClear) { return [score >= target, score >= target * 3, !!allClear]; }
+function renderStars(box, on, pop = -1) {
+  [...box.children].forEach((e, i) => { e.classList.toggle('on', !!on[i]); if (i === pop) { e.classList.remove('pop'); void e.offsetWidth; e.classList.add('pop'); } });
+}
+function starOn(i) {
+  if (!S.stars || S.stars[i]) return;
+  S.stars[i] = true; renderStars($('#stars'), S.stars, i); SFX.star(i);
+}
 // 目標までのゲージ（8 割で脈打ち、越えると燃える）
 function setGoal(r) {
   const ratio = Math.max(0, Math.min(1, r)), goal = $('#goal');
@@ -1796,6 +1840,9 @@ function startNight(n, preset) {
   drawBackground();
   S.burnT = []; fx.clear(); S.flashes = []; S.acc = 0; S.timeScale = S.speed;
   S.hold = 0; S.goalHit = false; S.tallySkip = null;
+  S.stars = S.mode === 'vs' ? null : [false, false, false]; renderStars($('#stars'), [false, false, false]);
+  $('#stars').hidden = !S.stars;
+  if (S.stars && (DB.starsHow || 0) < 2 && S.mode === 'run') { DB.starsHow = (DB.starsHow || 0) + 1; save(); setTimeout(() => { if (S.phase === 'draw' || S.phase === 'intro') toast(t('starsHow')); }, 1500); }
   Object.assign(S.hino, { x: F.home[0], y: F.home[1], until: 0, lastX: null, lastY: null });
   showOnly(null);
   renderHud();
@@ -1902,6 +1949,7 @@ function onRoundDone() {
       const sung = bgmOn && mus((m) => m.stinger());
       if (!sung) { SFX.mankai(); mus((m) => m.duck(0.3, 1.6)); }
       finale(); callout(t('mankai'));
+      setTimeout(() => starOn(2), 600);
     }
     setTimeout(() => { if (S.st === st) runTally(res); }, res.allClear ? 900 : 350);
   });
@@ -1911,12 +1959,14 @@ function runTally(res) {
   const target = targetOf(st);
   const pass = res.score >= target || (S.mode === 'replay');
   const box = $('#tally'); box.hidden = false;
-  const [r1, r2, r3, stamp, tip] = box.children;
+  const [r1, r2, r3, stamp, tip] = ['.row1', '.row2', '.row3', '.stamp', '.tip'].map((q) => box.querySelector(q));
   [r1, r2, r3, stamp, tip].forEach((e) => e.classList.remove('show'));
   // 散ったときは、次に効くことを 1 つだけ（ヒノコのヒント）
   const hint = !pass && S.mode !== 'replay' ? K.failHint(st) : null;
   setT(tip, hint ? `💡 ${hintText(hint)}` : '');
   r1.innerHTML = t('tallyRow1', res.chips, res.mult); r2.textContent = '0'; r2.style.fontSize = ''; r3.textContent = res.allClear ? t('bloom', res.bloom) : '';
+  const ts = box.querySelector('.tstars'), earned = nightStars(res.score, target, res.allClear);
+  ts.hidden = S.mode === 'replay'; renderStars(ts, [false, false, false]); ts.classList.remove('show');
   $('#chain').classList.remove('on');
   // 集計の途中でタイトルへ戻ったり、タップで飛ばしたりしたら、残りの演出は捨てる
   let over = false, skipped = false, stamped = false;
@@ -1931,6 +1981,9 @@ function runTally(res) {
     stamp.textContent = boss ? t('bossClear') : pass ? (huge ? t('huge') : t('pass')) : t('fail');
     stamp.style.color = boss ? 'var(--gold)' : pass ? 'var(--green)' : 'var(--red)';
     stamp.classList.add('show');
+    // 星を 1 つずつ灯す
+    ts.classList.add('show');
+    earned.forEach((on, i) => { if (on) setTimeout(() => { if (S.st !== st) return; const e = ts.children[i]; e.classList.add('on', 'pop'); if (i) SFX.star(i); }, 220 + i * 260); });
     if (boss) { SFX.mankai(); S.shake = 8; hinoFace('star', 4000); } else if (pass) SFX.pass(); else SFX.fail();
     if (hint) tip.classList.add('show');
   };
@@ -2075,7 +2128,9 @@ function showRunResult(run) {
   const kv = el('div', 'kv');
   const a = el('span'); a.append(t('total') + ' '); a.appendChild(el('b', 'mono', K.fmt(run.total)));
   const b = el('span'); b.append(t('bestChain') + ' '); b.appendChild(el('b', 'mono', String(run.bestChain)));
-  kv.append(a, b); body.appendChild(kv);
+  const nStars = run.nights.reduce((n, r) => n + nightStars(r.score, r.target, r.allClear).filter(Boolean).length, 0);
+  const c = el('span', 'kvstar'); c.appendChild(svgIcon('star')); c.appendChild(el('b', 'mono', `${nStars}/${K.NIGHTS * 3}`)); c.title = t('starsHow');
+  kv.append(a, b, c); body.appendChild(kv);
   // 次にねらう所を 1 行で
   const goals = [];
   if (cleared < K.NIGHTS) goals.push(t('nextGoal', cleared, K.targetFor(run.seed, cleared, run.moon)));
@@ -2619,8 +2674,9 @@ function onVsBoutDone() {
 function vsTally(res) {
   const st = S.st, v = S.vs, rv = K.RIVALS[v.rival], b = v.bout;
   const box = $('#tally'); box.hidden = false;
-  const [r1, r2, r3, stamp, tip] = box.children;
+  const [r1, r2, r3, stamp, tip] = ['.row1', '.row2', '.row3', '.stamp', '.tip'].map((q) => box.querySelector(q));
   [r1, r2, r3, stamp, tip].forEach((e) => e.classList.remove('show'));
+  box.querySelector('.tstars').hidden = true; // 星は、ひとりの夜だけ
   r1.innerHTML = t('vsTallyRow', rivalName(rv));
   r2.style.fontSize = 'calc(34px * var(--u))';
   r2.textContent = `${K.fmt(res.score[0])} - ${K.fmt(res.score[1])}`;
@@ -3087,8 +3143,9 @@ cv.addEventListener('pointerdown', (ev) => {
   const p = toLogical(ev);
   if (S.mode === 'vs' && !K.vsCanStart(S.st, 0, p)) { hint(t('vsBadStart')); SFX.hiss(); hinoFace('effort', 500); return; }
   cv.setPointerCapture(ev.pointerId);
-  S.drawing = { pts: [p], len: 0, hot: new Set(), out: false, t0: performance.now() };
+  S.drawing = { pts: [p], len: 0, hot: new Set(), caught: new Set(), out: false, t0: performance.now(), scr: 0 };
   S.ghost = null; hint(''); $('#newCard').hidden = true;
+  fx.sparkle(bd(p.x, p.y).x, bd(p.x, p.y).y, 6, [255, 210, 120]); // 筆をおろした所に火の粉
   hinoFace('wow', 350);
 });
 cv.addEventListener('pointermove', (ev) => {
@@ -3115,6 +3172,16 @@ cv.addEventListener('pointermove', (ev) => {
   }
   // 闇夜で玉が消えたあとは、線の近くの玉も光らせない（場所がわかってしまう）
   d.hot = isDark() ? new Set() : hotShells(previewLines(d));
+  // 手ごたえ: 線が玉を拾うたびに音階が上がって火の粉が散る。引いている間は筆の擦れる音
+  for (const id of d.hot) {
+    if (d.caught.has(id)) continue;
+    d.caught.add(id);
+    const sh = S.st.shells.find((x) => x.id === id);
+    if (sh) { spawnSparkle(sh.x, sh.y, 5, [255, 225, 150]); S.flashes.push({ x: sh.x, y: sh.y, r: 18, t: 0, max: 0.22 }); }
+    SFX.grab(d.caught.size - 1); d.popAt = performance.now();
+    if (INPUT === 'touch' && navigator.vibrate) try { navigator.vibrate(6); } catch (e) { /* なし */ }
+  }
+  if (d.len - d.scr > 13) { d.scr = d.len; SFX.scratch(); }
   inkBar(d);
   if (d.out) finishDraw();
 });
@@ -3123,6 +3190,9 @@ function inkBar(d) {
   let r = 1 - d.len / S.st.ink;
   if (S.st.twist === 'isshun') r = Math.min(r, 1 - (performance.now() - d.t0) / (K.SNAP_SECONDS * 1000));
   $('#inkBar').style.transform = `scaleX(${Math.max(0, r)})`;
+  const low = r < 0.2 && r > 0;
+  if (low && !$('#ink').classList.contains('low')) SFX.low();
+  $('#ink').classList.toggle('low', low);
 }
 function finishDraw() {
   const d = S.drawing; if (!d || S.phase !== 'draw') return;
@@ -3193,7 +3263,7 @@ function applyLang() {
     const ul = el('ul');
     for (const x of [
       'Clear 8 nights. Beat a night\'s target to earn a charm.',
-      'Eight nights make one stage. This is Stage 1, Riverside Festival. The next stage, with new scenes and gimmicks, is coming.',
+      ['Eight nights make one stage. This is Stage 1, Riverside Festival.', ' The next stage, with new scenes and gimmicks, is coming.'],
       'Score is points × multiplier. Gold shells and every 10-chain raise the multiplier. Clear every shell for ×2.',
       'Each night adds one new thing: big shell, star shell, lantern, cloud, damp shell, fuse rope, and the grand shell.',
       'Nights 3 and 6 are boss nights that change how your line works (Straight, Mirror, Dark night, Snap). Beat one to pick two charms.',
@@ -3203,7 +3273,10 @@ function applyLang() {
       'Your result reads your stroke style (Lightning, Whirlpool, Wave Rider…).',
       'From the results you can send a duel link for the same nights, or a replay of your best stroke.',
       'Hanabi Battle: fight the CPU for points under the same sky, best of three. The rival shows its line and its ojama (black shell) first; you see everything, then draw one line and place one ojama. Reach their line first to steal it. The first line fire to reach a black shell dies, and the second fire from another line blows it up for whoever brought it. While you choose a spot, it shows what will happen. Win to unlock the next rival.',
-    ]) ul.appendChild(el('li', '', x));
+    ]) {
+      // [本文, 準備中の一言] の行は、ゲームサイト用の書き出しでは一言を隠す（data-noportal）
+      if (Array.isArray(x)) { const li = el('li', '', x[0]); const sp = el('span', '', x[1]); sp.dataset.noportal = ''; li.appendChild(sp); ul.appendChild(li); } else ul.appendChild(el('li', '', x));
+    }
     how.appendChild(ul);
     how.appendChild(el('p', 'minih', 'Charms'));
     how.appendChild(el('div', 'chipgrid'));
@@ -3241,7 +3314,7 @@ else if (link) openLink(link);
 else if (firstVisit) startFree();
 requestAnimationFrame(frame);
 window.HITO = { S, K, V, startDaily, startFree, startNight, commitStroke, goTitle, finale, fx, scenery, openVsMenu, startMatch, runDemo, get music() { return music; },
-  get form() { return F.id; }, bd, db,
+  get form() { return F.id; }, get F() { return F; }, bd, db, drawBackground, // F と drawBackground は表紙づくり（_dev/hitofude-covers.mjs）で月を動かすため
   // 盤面の点 → ブラウザの画面の位置（テスト用）
   boardToClient(x, y) { const r = cv.getBoundingClientRect(), p = bd(x, y); return { x: r.left + V.ox + p.x * V.s, y: r.top + V.oy + p.y * V.s }; } };
 </script>
