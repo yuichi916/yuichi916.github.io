@@ -606,9 +606,14 @@ check('お守りの候補: 同じ種類が 3 つそろわない（倍率・届�
     ok(new Set(kinds).size >= 2, `seed ${seed} night ${night}: 同じ種類が 3 つ ${o}`);
   }
   ok(n > 1000);
-  // 入れかえたお守りは、もう無い
-  for (const id of ['futofude', 'orebi', 'senrin']) eq(K.charmById(id), null, id);
-  for (const id of ['nokorizumi', 'ichibanboshi', 'osobi']) ok(K.charmById(id), id);
+  // 入れかえたお守りは、もう候補に出ずルールにも効かない（前の日の記録を表示するための名前だけ残る）
+  for (const id of ['futofude', 'orebi', 'senrin']) {
+    ok(!K.CHARM_IDS.includes(id), id);
+    const c = K.charmById(id); ok(c && c.legacy && c.ja && c.en, `${id} の名前`);
+  }
+  eq(JSON.stringify(K.rulesFor(['futofude', 'orebi', 'senrin'], 1)), JSON.stringify(K.rulesFor([], 1)), '前のお守りはルールに効かない');
+  eq(K.charmById('nope'), null);
+  for (const id of ['nokorizumi', 'ichibanboshi', 'osobi']) ok(K.charmById(id) && !K.charmById(id).legacy, id);
 });
 
 check('お守り: 大一番のあとの 2 つ目は、別の 3 つ（持っているものは出ない）', () => {

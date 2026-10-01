@@ -116,7 +116,13 @@ export const CHARMS = [
 // 仕掛けが出てくる前には候補に出さない（見たことのないものは選べない）。値は、その仕掛けが出てくる夜（0 始まり）
 export const CHARM_NEEDS = { chouchinshi: 3, kazekiri: 4, amayoke: 5 };
 export const CHARM_IDS = CHARMS.map((c) => c.id);
-export function charmById(id) { return CHARMS.find((c) => c.id === id) || null; }
+// 入れかえる前のお守り。もう候補に出ず、ルールにも効かない。前の日の記録（お守りの並び）を表示するためだけに名前を残す
+export const LEGACY_CHARMS = [
+  { id: 'futofude', emoji: '🪶', kind: 'reach', legacy: true, ja: '太い筆', en: 'Thick brush', desc: '導火線の火が届く幅 ×2（いまは無いお守り）', descEn: 'Fuse reach ×2 (retired)' },
+  { id: 'senrin', emoji: '💫', kind: 'reach', legacy: true, ja: '千輪', en: 'Thousand stars', desc: '千輪の火花が 10 本に（いまは無いお守り）', descEn: 'Star shells fire 10 sparks (retired)' },
+  { id: 'orebi', emoji: '⚡', kind: 'reach', legacy: true, ja: '折れ火', en: 'Sharp turns', desc: '線の鋭い曲がり角が爆ぜる（いまは無いお守り）', descEn: 'Sharp corners explode (retired)' },
+];
+export function charmById(id) { return CHARMS.find((c) => c.id === id) || LEGACY_CHARMS.find((c) => c.id === id) || null; }
 
 export const BASE_INK = 460;
 export const BASE_REACH = 7;
