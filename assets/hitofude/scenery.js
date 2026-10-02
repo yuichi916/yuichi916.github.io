@@ -18,9 +18,12 @@ export function createScenery() {
     // 大きな連鎖や尺玉で、見物客が沸く（0〜1 を足す）
     excite(v) { excite = Math.min(1.5, excite + v); },
     cheer(text) {
-      const p = people[Math.floor(Math.random() * people.length)];
-      cheers.push({ u: p.u, text, t: 0, max: 1.6 });
-      if (cheers.length > 5) cheers.shift();
+      // 声は同時に 2 つまで。前の声と離れた人から上げる（重なって読めなくならないように）
+      if (cheers.some((c) => c.text === text)) return;
+      const far = people.filter((p) => cheers.every((c) => Math.abs(c.u - p.u) > 0.22));
+      const pool = far.length ? far : people, p = pool[Math.floor(Math.random() * pool.length)];
+      cheers.push({ u: Math.min(0.9, Math.max(0.1, p.u)), text, t: 0, max: 1.6 });
+      while (cheers.length > 2) cheers.shift();
     },
     tick(dt) {
       excite = Math.max(0, excite - dt * 0.35);
@@ -286,11 +289,11 @@ export function createScenery() {
         }
       }
       // 「たまや〜」の声
-      g.textAlign = 'center'; g.font = '700 11px "Shippori Mincho", serif';
+      g.textAlign = 'center'; g.font = '700 13px "Shippori Mincho", serif'; g.lineJoin = 'round';
       for (const c of cheers) {
-        const u = c.t / c.max, x = v.L + c.u * w, y = base - 34 - u * 26;
+        const u = c.t / c.max, x = v.L + c.u * w, y = base - 36 - u * 26;
         g.globalAlpha = Math.sin(Math.min(1, u * 3) * Math.PI / 2) * (1 - u);
-        g.fillStyle = 'rgba(0,0,0,.5)'; g.fillText(c.text, x + 1, y + 1);
+        g.strokeStyle = 'rgba(5,6,20,.85)'; g.lineWidth = 3; g.strokeText(c.text, x, y);
         g.fillStyle = '#fff3cf'; g.fillText(c.text, x, y);
       }
       g.restore();

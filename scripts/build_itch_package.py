@@ -45,7 +45,10 @@ PORTAL_CSS = ("<style id=\"portal-build\">.endnext,.sharebox,pre.share,[data-fee
 def portal_strip(html: str) -> str:
     html = re.sub(r'<script[^>]*gc\.zgo\.at[^>]*></script>\s*', "", html)          # アクセス解析
     html = re.sub(r'<script[^>]*assets/feel/feel\.js[^>]*></script>\s*', "", html)  # 気持ちスタンプ
-    return html.replace("</head>", PORTAL_CSS + "</head>", 1)
+    html = re.sub(r'<div class="endnext">.*?</div>\s*', "", html, flags=re.S)        # 他の作品・研究ノートへの誘導（隠すだけでなく外す）
+    html = re.sub(r'<div data-feel="[^"]*"[^>]*></div>\s*', "", html)                  # 気持ちスタンプの置き場所
+    # 画面の側で「ゲームサイト用」と分かるように（結果を 1 列にする など）
+    return html.replace("</head>", PORTAL_CSS + "<script>window.HITO_PORTAL=1</script></head>", 1)
 
 
 def local_refs(html: str) -> set[str]:

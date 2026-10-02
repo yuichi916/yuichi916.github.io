@@ -52,6 +52,12 @@ export const ICONS = {
     { d: C(12, 12, 2.3), f: 'cur', w: 1 },
   ],
   sparkle: [{ d: STAR4(12, 12, 9), f: 'cur', w: 1 }],
+  lantern: [
+    { d: 'M8.5 4.5h7M8.5 19.5h7', s: '#3a2216', w: 2.2 },
+    { d: 'M12 5.5c4 0 6 2.9 6 6.5s-2 6.5-6 6.5-6-2.9-6-6.5 2-6.5 6-6.5z', f: '#e0553a', s: '#ffb38a', w: 1.1 },
+    { d: 'M6.6 10h10.8M6.6 14h10.8', s: 'rgba(90,20,10,.55)', w: 0.9 },
+    { d: 'M12 2.5v2', s: '#3a2216', w: 1.4 },
+  ],
   star: [{ d: 'M12 2.6l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z', f: 'cur', w: 1.2 }],
   boom: [
     { d: 'M12 2.5l1.9 5.2 5-2.4-2.2 5.1 5.3 1.7-5.3 1.9 2.5 5-5.1-2.2L12 21.5l-2-5.2-5.1 2.3 2.4-5.1-5.3-1.8 5.3-1.8-2.3-5 5 2.2z', f: '#ff7a45', s: '#ffd27a', w: 1.2 },
@@ -135,6 +141,7 @@ export const CHARM_ART = {
   senrin: ['千', '#6a4fb3'], orebi: ['折', '#40689e'], owaridama: ['終', '#3a3c58'], kodou: ['鼓', '#b0432a'],
   mankai: ['満', '#b98d25'], mashidama: ['増', '#c44d36'], nihitsu: ['二', '#3d8250'], nokoribi: ['残', '#c05a26'],
   chouchinshi: ['灯', '#b8352c'], amayoke: ['雨', '#357aa0'], kazekiri: ['風', '#3f8f8c'],
+  nokorizumi: ['墨', '#2f3346'], osobi: ['遅', '#6d4a8f'], ichibanboshi: ['星', '#b07a1e'],
 };
 const MINCHO = '"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
 const shade = (hex, k) => {
