@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qiita 技術マップ — 4年で、書かれる技術はどう変わったか</title>
+<meta name="description" content="Qiita に 2022年10月〜2026年9月 に投稿された記事を、毎月1週間ずつ（計105,160本）集めて、タグを地図にしました。生成AI・エージェントの地域のタグで書いた人は、4.1%から38.5%に。月ごとに地図が動きます。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Qiita 技術マップ — 4年で、書かれる技術はどう変わったか">
+<meta property="og:description" content="Qiita に 2022年10月〜2026年9月 に投稿された記事を、毎月1週間ずつ（計105,160本）集めて、タグを地図にしました。生成AI・エージェントの地域のタグで書いた人は、4.1%から38.5%に。月ごとに地図が動きます。">
+<meta property="og:url" content="https://yuichi916.github.io/qiita-map.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og/qiita-map-1200x630.png">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://yuichi916.github.io/qiita-map.html">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Shippori+Mincho:wght@500;700&family=JetBrains+Mono:wght@400;600&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root{--paper:#f4f0e6;--paper2:#ece6d8;--ink:#161510;--ink2:#4a463c;--ink3:#7d786a;--rule:#1a1812;--accent:#c43d2a;--sea:#dfe7eb;--sea2:#e8eef1;--coast:#8ea3b1;--card:#fbf8f1}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--ink);font-family:Inter,'Zen Maru Gothic',system-ui,sans-serif;line-height:1.7;-webkit-text-size-adjust:100%}
+a{color:var(--ink)}
+header.top{display:flex;align-items:center;gap:10px;padding:14px 30px;border-bottom:1px solid var(--rule);font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink2)}
+header.top a{text-decoration:none;color:var(--ink2)}
+.wrap{max-width:1240px;margin:0 auto;padding:0 30px}
+.hero{padding:44px 0 26px}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.18em;color:var(--accent);font-weight:600}
+h1{font-family:'Shippori Mincho',serif;font-weight:700;font-size:clamp(30px,4.6vw,54px);line-height:1.28;margin:12px 0 18px;letter-spacing:.01em}
+.lead{max-width:860px;color:var(--ink2);font-size:16px}
+h1{text-wrap:balance}.lead,.finding p,.notes li,.card .big{word-break:auto-phrase;text-wrap:pretty}
+.lead b{color:var(--ink)}
+.finding{margin:22px 0 0;max-width:900px;border-left:4px solid var(--accent);background:var(--card);padding:14px 20px;font-family:'Shippori Mincho',serif;font-size:17px;line-height:1.85}
+.finding p+p{margin-top:6px}
+section.viz{border-top:1px solid var(--rule);margin-top:34px;padding-top:18px}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin:4px 0 12px}
+.play{width:46px;height:46px;border-radius:50%;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);font-size:18px;cursor:pointer;display:grid;place-items:center}
+.play:focus-visible,.zbtn:focus-visible,.chip:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.month{font-family:'Shippori Mincho',serif;font-weight:700;font-size:28px;min-width:180px;white-space:nowrap}
+.month small{display:block;font-family:Inter,'Zen Maru Gothic',sans-serif;font-weight:500;font-size:12px;color:var(--ink3);margin-top:-4px}
+.slider{flex:1 1 320px;display:flex;flex-direction:column;gap:2px;min-width:240px}
+.slider input{width:100%;accent-color:var(--accent);height:28px}
+.ticks{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink3)}
+.search{display:flex;align-items:center;gap:6px}
+.search input{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--ink3);border-radius:8px;background:var(--card);width:170px}
+.grid{display:block}
+.mapbox{position:relative;border:1px solid var(--rule);border-radius:10px;overflow:hidden;background:var(--sea);aspect-ratio:1400/1000}
+.mapbox canvas,.mapbox svg{position:absolute;inset:0;width:100%;height:100%}
+.zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:3}
+.zbtn{width:36px;height:36px;border-radius:8px;border:1px solid var(--ink3);background:rgba(251,248,241,.94);font-size:18px;cursor:pointer;color:var(--ink)}
+.hint{position:absolute;left:12px;bottom:10px;max-width:calc(100% - 70px);font-size:12px;color:var(--ink2);background:rgba(251,248,241,.9);padding:4px 10px;border-radius:6px;z-index:3}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-size:13px;line-height:1.5;padding:7px 10px;border-radius:7px;white-space:nowrap;z-index:4;opacity:0;transition:opacity .12s}
+.legend{display:flex;flex-wrap:wrap;gap:6px 8px;margin:12px 0 0}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 10px 4px 8px;border:1px solid var(--paper2);border-radius:999px;background:var(--card);cursor:pointer;color:var(--ink)}
+.chip i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.chip[aria-pressed=true]{border-color:var(--ink);font-weight:600}
+aside.panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:16px;align-items:start}
+.card{background:var(--card);border:1px solid var(--paper2);border-radius:10px;padding:14px 16px}
+.card h3{font-size:13px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--ink3);font-weight:600;margin-bottom:6px}
+.tagname{font-size:22px;font-weight:700;line-height:1.3}
+.tagname small{font-size:12px;font-weight:500;color:var(--ink3);margin-left:6px}
+.big{font-size:15px;color:var(--ink2)}
+.big b{font-size:24px;color:var(--ink)}
+.rank{list-style:none;font-size:14px}
+.rank li{display:grid;grid-template-columns:22px 1fr auto 46px;gap:6px;align-items:center;padding:3px 0;border-bottom:1px dashed var(--paper2);cursor:pointer}
+.rank li:last-child{border-bottom:0}
+.rank .n{font-family:'JetBrains Mono',monospace;color:var(--ink3);font-size:12px}
+.rank .v{font-variant-numeric:tabular-nums;color:var(--ink2)}
+.rank .d{font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.up{color:#1f7a3a}.down{color:var(--accent)}.new{color:#1f5fae;font-weight:600}
+.notes{border-top:1px solid var(--rule);margin-top:40px;padding:22px 0 50px;color:var(--ink2);font-size:15px}
+.notes h2{font-family:'Shippori Mincho',serif;font-size:24px;color:var(--ink);margin:6px 0 10px}
+.notes ul{padding-left:1.3em}
+.notes li{margin:4px 0}
+details{margin-top:14px}
+summary{cursor:pointer;font-weight:600;color:var(--ink)}
+table{border-collapse:collapse;margin-top:8px;font-size:14px;width:100%;max-width:640px}
+th,td{border-bottom:1px solid var(--paper2);padding:4px 8px;text-align:left}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+footer{border-top:1px solid var(--rule);padding:18px 30px 40px;font-size:13px;color:var(--ink3)}
+.figonly{display:none}
+body.figmode header.top,body.figmode .hero,body.figmode .controls,body.figmode #legend,body.figmode aside.panel,body.figmode details,body.figmode .notes,body.figmode footer,body.figmode .zoom,body.figmode .hint,body.figmode .hint2{display:none!important}
+body.figmode .wrap{max-width:none;padding:0}
+body.figmode section.viz{border:0;margin:0;padding:0}
+body.figmode #figure{width:1200px;background:var(--paper);padding:24px 30px 20px}
+body.figmode .mapbox{width:1140px;border-radius:8px}
+body.figmode .figonly{display:block}
+.ftop{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:12px}
+.ftitle{font-family:'Shippori Mincho',serif;font-weight:700;font-size:34px;line-height:1.2}
+.fsub{font-size:17px;color:var(--ink2);margin-top:4px}
+.fmonth{font-family:'Shippori Mincho',serif;font-weight:700;font-size:46px;line-height:1;color:var(--accent);white-space:nowrap}
+.fbottom{display:flex;align-items:center;gap:18px;margin-top:12px}
+.fleg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:15px;color:var(--ink2);flex:1}
+.fleg span{display:inline-flex;align-items:center;gap:5px}.fleg i{width:13px;height:13px;border-radius:3px;display:inline-block}
+.fcredit{font-size:14px;color:var(--ink3);white-space:nowrap}
+.fline{position:relative;height:30px;margin-top:10px}
+.fline .bar{position:absolute;left:0;right:0;top:9px;height:6px;border-radius:3px;background:#e1dacb}
+.fline .fill{position:absolute;left:0;top:9px;height:6px;border-radius:3px;background:var(--accent)}
+.fline .yr{position:absolute;top:16px;font-size:13px;color:var(--ink3);transform:translateX(-50%)}
+.hint2{display:none;font-size:12px;color:var(--ink2);margin-top:6px}
+@media (max-width:640px){.hint{display:none}.hint2{display:block}}
+@media (max-width:960px){aside.panel{grid-template-columns:1fr}.wrap{padding:0 16px}header.top{padding:12px 16px}.month{font-size:23px;min-width:150px}}
+</style>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Dataset","name":"Qiita 技術マップ（2022年10月〜2026年9月）",
+ "description":"Qiita に 2022年10月〜2026年9月 に投稿された記事を、毎月1週間ずつ（計105,160本）集めて、タグを地図にしました。生成AI・エージェントの地域のタグで書いた人は、4.1%から38.5%に。月ごとに地図が動きます。","url":"https://yuichi916.github.io/qiita-map.html",
+ "creator":{"@type":"Person","name":"Views Engineer","url":"https://yuichi916.github.io/index.html"},
+ "temporalCoverage":"2022-10/2026-09","inLanguage":"ja","isBasedOn":"https://qiita.com/api/v2/docs",
+ "distribution":{"@type":"DataDownload","encodingFormat":"application/json","contentUrl":"https://yuichi916.github.io/data/qiita-map.json"}}
+</script>
+</head>
+<body>
+<header class="top"><a href="index.html">← ひとりぶんの棚</a><span>/</span><span>Views Engineer</span></header>
+<div class="wrap">
+<section class="hero">
+  <div class="eyebrow">QIITA TECH MAP</div>
+  <h1>Qiita で書かれる技術は、<br>4年でどう変わったか。</h1>
+  <p class="lead" id="lead">Qiita API v2 で、2022年10月（ChatGPT 公開の前の月）から2026年9月までの48か月について、<b>各月8日〜14日の1週間に投稿された記事を全部</b>（合計 105,160 本）集め、タグを地図にしました。点と陸の大きさは、<b>その週にそのタグで書いた人の割合</b>です。再生ボタンで4年が動き、タグにさわるとその推移が出ます。</p>
+  <div class="finding" id="finding"><p>2022年10月、生成AI・エージェントの地域のタグで書いた人は 4.1% でした。2026年9月には 38.5%。</p><p>いちばん伸びたタグは「AI」、いちばん縮んだタグは「JavaScript」でした（最初の半年と最後の半年の平均で比べています）。</p></div>
+</section>
+
+<section class="viz" aria-label="技術マップ">
+  <div class="controls">
+    <button class="play" id="play" aria-label="再生" aria-pressed="false">▶</button>
+    <div class="month" id="month" aria-live="polite">—<small id="monthsub"></small></div>
+    <div class="slider"><input type="range" id="slider" min="0" max="0" value="0" aria-label="月"><div class="ticks" id="ticks"></div></div>
+    <label class="search"><span class="sr" style="font-size:13px;color:var(--ink2)">タグを探す</span><input id="q" list="taglist" placeholder="例: Rust"><datalist id="taglist"></datalist></label>
+  </div>
+  <div class="grid">
+    <div id="figure">
+      <div class="figonly"><div class="ftop"><div><div class="ftitle">Qiita 技術マップ</div><div class="fsub" id="fsub"></div></div><div class="fmonth" id="fmonth"></div></div></div>
+      <div class="mapbox" id="mapbox">
+        <canvas id="land" aria-hidden="true"></canvas>
+        <svg id="ov" viewBox="0 0 1400 1000" role="img" aria-label="タグの地図。点の大きさは、その月にそのタグで書いた人の割合"></svg>
+        <div class="zoom"><button class="zbtn" id="zin" aria-label="拡大">＋</button><button class="zbtn" id="zout" aria-label="縮小">－</button><button class="zbtn" id="zreset" aria-label="元の大きさ">⟲</button></div>
+        <div class="hint" id="hint">タグにさわると推移が出ます。拡大は＋ボタン・Ctrl＋ホイール・2本指</div>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="figonly"><div class="fline" id="fline"><div class="bar"></div><div class="fill" id="ffill"></div></div>
+        <div class="fbottom"><div class="fleg" id="fleg"></div><div class="fcredit">データ: Qiita API v2 ／ 作図: @ViewsEngineer</div></div></div>
+      <div class="hint2">タグをタップすると推移が出ます。2本指で拡大</div>
+      <div class="legend" id="legend" aria-label="地域"></div>
+    </div>
+    <aside class="panel">
+      <div class="card" id="detail">
+        <h3>選んだタグ</h3>
+        <div class="tagname" id="dname">—</div>
+        <div class="big" id="dval"></div>
+        <svg id="spark" viewBox="0 0 300 150" width="100%" role="img" aria-label="選んだタグの推移"></svg>
+      </div>
+      <div class="card">
+        <h3 id="rankh">この月の上位15</h3>
+        <ol class="rank" id="rank"></ol>
+      </div>
+    </aside>
+  </div>
+  <details><summary>この月の数字を表で見る</summary><div id="tablewrap"></div></details>
+</section>
+
+<section class="notes">
+  <h2>この地図の作り方</h2>
+  <ul id="method"><li>データ: Qiita API v2 の <code>/api/v2/items</code>。各月8日〜14日に投稿された記事を全部取りました（月の頭は年末年始や大型連休に当たるため、8日から）。</li><li>物差し: その週にそのタグで書いた人の数 ÷ その週に書いた人の数。記事の数だと、ひとりの連投で大きく見えてしまうためです。</li><li>タグは大文字・小文字をまとめました。タグが「tech」1つだけの記事（ほかのタグと一度も一緒に付かない短い記事の群れ）は外しています。</li><li>地域: 4年分を合わせて、同じ記事に一緒に付いた回数からタグどうしの近さを出し、Louvain 法で分けました。地域の名前は筆者が付けています。</li><li>配置は4年分で一度だけ決めて固定しています。陸は円を合わせた形、国境はパワー図（円の大きさを考えたボロノイ図）の線です。</li><li>限界: 1か月を1週間で代表させています。12月はアドベントカレンダーの時期で、話題が偏ります。タグは書いた人が自分で付けたものです。</li></ul>
+</section>
+</div>
+<noscript><div class="wrap"><p>Qiita に 2022年10月〜2026年9月 に投稿された記事を、毎月1週間ずつ（計105,160本）集めて、タグを地図にしました。生成AI・エージェントの地域のタグで書いた人は、4.1%から38.5%に。月ごとに地図が動きます。 伸びたタグ: AI、ClaudeCode、生成AI、LLM、AIエージェント。縮んだタグ: JavaScript、Ruby、Rails、Python3、PHP。</p></div></noscript>
+<footer>データ: Qiita API v2（各月8日〜14日に投稿された記事）。作成: Views Engineer。<a href="index.html">ひとりぶんの棚へ戻る</a></footer>
+
+<script>
+(async function () {
+const HUES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"];
+const VW = 1400, VH = 1000, AREA = {x0: 30, x1: VW - 30, y0: 30, y1: VH - 30};
+const params = new URLSearchParams(location.search);
+const FIG = params.has("fig");
+if (FIG) document.body.classList.add("figmode");
+const MINPX = FIG ? +(params.get("minpx") || 15) : 9.5;     // 図: 1200px の図が記事で 720px になるので、ここで 15px ≒ 記事で 9px
+const DATA = window.__INJECT || await (await fetch("data/qiita-map.json")).json();
+const M = DATA.months.length, nodes = DATA.nodes, groups = DATA.groups;
+const byId = new Map(nodes.map(d => [d.id, d]));
+const mix = (a, b, t) => { const p = d3.color(a), q = d3.color(b); return d3.rgb(p.r + (q.r - p.r) * t, p.g + (q.g - p.g) * t, p.b + (q.b - p.b) * t).formatHex(); };
+const smax = d3.max(nodes, d => d3.max(d.share));
+for (const d of nodes) d.smax = d3.max(d.share);
+
+// 文字の大きさは、そのタグの4年間でいちばん大きい月で決める（月を動かしても配置が崩れないように）
+const meas = document.createElement("canvas").getContext("2d");
+await document.fonts.ready;
+await document.fonts.load("700 30px 'Zen Maru Gothic'", nodes.map(d => d.name).join(""));
+for (const d of nodes) {
+  d.fs = Math.round(17 + 27 * Math.sqrt(d.smax / smax));
+  meas.font = `700 ${d.fs}px 'Zen Maru Gothic'`;
+  d.tw = meas.measureText(d.name).width;
+  d.rmax = 3 + 13 * Math.sqrt(d.smax / smax);
+  d.cw = d.rmax * 2 + 3 + d.tw;            // 点＋すき間＋文字（この幅の真ん中が、点の位置）
+  d.bw = d.cw + 8; d.bh = d.fs * 1.2 + 4;
+}
+
+// ---- 配置（ビルドのときに一度だけ計算して保存する。保存済みならそれを使う）
+function computeLayout() {
+  const rnd = d3.randomLcg(42);
+  const G = groups.length, cx = VW / 2, cy = VH / 2;
+  groups.forEach((g, i) => { const a = (i / G) * Math.PI * 2 - Math.PI / 2, rr = i === 0 ? 0 : 320; g.ax = cx + Math.cos(a) * rr * 1.3; g.ay = cy + Math.sin(a) * rr * 0.85; });
+  for (const d of nodes) { const g = groups[d.c]; d.x = g.ax + (rnd() - .5) * 140; d.y = g.ay + (rnd() - .5) * 100; }
+  const links = DATA.links.map(l => ({source: l.s, target: l.t, w: l.w}));
+  const clamp = d => { d.x = Math.max(AREA.x0 + d.bw / 2, Math.min(AREA.x1 - d.bw / 2, d.x)); d.y = Math.max(AREA.y0 + d.bh / 2, Math.min(AREA.y1 - d.bh / 2, d.y)); };
+  function forceRect() { let ns; function f() { for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) { const a = ns[i], b = ns[j]; const dx = b.x - a.x, dy = b.y - a.y; const ox = (a.bw + b.bw) / 2 - Math.abs(dx), oy = (a.bh + b.bh) / 2 - Math.abs(dy); if (ox > 0 && oy > 0) { if (ox < oy * 1.6) { const s = (dx < 0 ? -1 : 1) * ox * 0.3; a.x -= s; b.x += s; } else { const s = (dy < 0 ? -1 : 1) * oy * 0.3; a.y -= s; b.y += s; } } } } f.initialize = n => ns = n; return f; }
+  function forceCluster(k) { let ns; function f(alpha) { const cen = d3.rollup(ns, v => ({x: d3.mean(v, d => d.x), y: d3.mean(v, d => d.y)}), d => d.c); for (const d of ns) { const c = cen.get(d.c); d.vx += (c.x - d.x) * k * alpha; d.vy += (c.y - d.y) * k * alpha; } } f.initialize = n => ns = n; return f; }
+  function forceBounds() { let ns; function f() { ns.forEach(clamp); } f.initialize = n => ns = n; return f; }
+  const sim = d3.forceSimulation(nodes).randomSource(d3.randomLcg(7))
+    .force("link", d3.forceLink(links).id(d => d.id).distance(l => 70 + 100 * (1 - Math.min(1, l.w / 0.4))).strength(l => Math.min(0.9, l.w * 2.2)))
+    .force("charge", d3.forceManyBody().strength(d => -70 - 260 * Math.sqrt(d.smax / smax)))
+    .force("x", d3.forceX(cx).strength(0.03)).force("y", d3.forceY(cy).strength(0.045))
+    .force("cluster", forceCluster(0.10)).force("rect", forceRect()).force("bounds", forceBounds()).stop();
+  for (let i = 0; i < 900; i++) sim.tick();
+  for (let pass = 0; pass < 5000; pass++) {
+    let moved = 0;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j]; const dx = b.x - a.x, dy = b.y - a.y;
+      const ox = (a.bw + b.bw) / 2 - Math.abs(dx) + 1, oy = (a.bh + b.bh) / 2 - Math.abs(dy) + 1;
+      if (ox > 0 && oy > 0) { moved++; if (ox < oy * 1.8) { const s = (dx < 0 ? -1 : 1) * ox / 2; a.x -= s; b.x += s; } else { const s = (dy < 0 ? -1 : 1) * oy / 2; a.y -= s; b.y += s; } clamp(a); clamp(b); }
+    }
+    if (!moved) break;
+  }
+  const bx0 = d3.min(nodes, d => d.x - d.bw / 2), bx1 = d3.max(nodes, d => d.x + d.bw / 2), by0 = d3.min(nodes, d => d.y - d.bh / 2), by1 = d3.max(nodes, d => d.y + d.bh / 2);
+  const PAD = 60, sx = Math.max(1, (AREA.x1 - AREA.x0 - 2 * PAD) / (bx1 - bx0)), sy = Math.max(1, (AREA.y1 - AREA.y0 - 2 * PAD) / (by1 - by0));
+  const mx = (bx0 + bx1) / 2, my = (by0 + by1) / 2;
+  for (const d of nodes) { d.x = VW / 2 + (d.x - mx) * sx; d.y = VH / 2 + (d.y - my) * sy; clamp(d); }
+  // 枠に収めたあと、もう一度だけ重なりを解く
+  for (let pass = 0; pass < 8000; pass++) {
+    let moved = 0;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j]; const dx = b.x - a.x, dy = b.y - a.y;
+      const ox = (a.bw + b.bw) / 2 - Math.abs(dx) + 1, oy = (a.bh + b.bh) / 2 - Math.abs(dy) + 1;
+      if (ox > 0 && oy > 0) { moved++; if (ox < oy * 1.8) { const s = (dx < 0 ? -1 : 1) * (ox / 2 + 0.5); a.x -= s; b.x += s; } else { const s = (dy < 0 ? -1 : 1) * (oy / 2 + 0.5); a.y -= s; b.y += s; } clamp(a); clamp(b); }
+    }
+    if (!moved) break;
+  }
+  let overlaps = 0;
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) { const a = nodes[i], b = nodes[j]; if (Math.abs(a.x - b.x) < (a.bw + b.bw) / 2 - 1 && Math.abs(a.y - b.y) < (a.bh + b.bh) / 2 - 1) overlaps++; }
+  return {pos: Object.fromEntries(nodes.map(d => [d.id, [Math.round(d.x * 10) / 10, Math.round(d.y * 10) / 10]])), overlaps};
+}
+if (DATA.layout) { for (const d of nodes) [d.x, d.y] = DATA.layout.pos[d.id]; }
+else { const L = computeLayout(); DATA.layout = L; }
+if (params.has("build")) { window.__LAYOUT = DATA.layout; return; }
+
+// ---- 色: 隣り合う地域が同じ色にならないように（大きい地域から、使われていない色を優先）
+const del = d3.Delaunay.from(nodes, d => d.x, d => d.y);
+const vor = del.voronoi([-200, -200, VW + 200, VH + 200]);
+const adj = new Map(groups.map(g => [g.i, new Set()]));
+nodes.forEach((d, i) => { for (const j of del.neighbors(i)) if (nodes[j].c !== d.c) adj.get(d.c).add(nodes[j].c); });
+const gsize = groups.map(g => d3.sum(nodes.filter(d => d.c === g.i), d => d.smax));
+const color = new Map();
+for (const g of [...groups].sort((a, b) => gsize[b.i] - gsize[a.i])) {
+  const used = new Set([...adj.get(g.i)].map(c => color.get(c)).filter(v => v !== undefined));
+  const cnt = HUES.map((_, h) => [...color.values()].filter(v => v === h).length);
+  const cand = HUES.map((_, h) => h).filter(h => !used.has(h)).sort((a, b) => cnt[a] - cnt[b] || a - b);
+  color.set(g.i, cand.length ? cand[0] : 0);
+}
+const hue = c => HUES[color.get(c)];
+const landFill = c => mix(hue(c), "#f4f0e6", 0.78), dotFill = c => mix(hue(c), "#161510", 0.18), nameFill = c => mix(hue(c), "#161510", 0.5);
+// ---- 月ごとの大きさ
+let cur = M - 1, zoomT = d3.zoomIdentity, sel = null, hoverId = null;
+const rOf = (d, m) => d.share[m] > 0 ? 3 + 13 * Math.sqrt(d.share[m] / smax) : 0;
+const landR = (d, m) => d.share[m] > 0 ? 26 + 2.6 * rOf(d, m) + d.bw * 0.18 * Math.min(1, d.share[m] / d.smax + 0.25) : 0;
+
+// ---- 陸（キャンバスに図形で描く）
+// 陸＝点ごとの円を合わせた形（海岸線はなめらか）。国の境目は「パワー図」（円の大きさを考えたボロノイ）の直線。
+// パワー図の区画 i の中では、陸かどうかは円 i だけで決まる（円の和の境界＝区画の中の円 i の弧）
+const box = document.getElementById("mapbox"), cv = document.getElementById("land"), ctx = cv.getContext("2d");
+function sizeCanvas() { const r = box.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); cv._s = (r.width / VW) * dpr; }
+function clipHalf(poly, nx, ny, c) {           // nx*x + ny*y <= c の側を残す
+  const out = [];
+  for (let k = 0; k < poly.length; k++) {
+    const P = poly[k], Q = poly[(k + 1) % poly.length], dp = nx * P[0] + ny * P[1] - c, dq = nx * Q[0] + ny * Q[1] - c;
+    if (dp <= 0) out.push(P);
+    if ((dp <= 0) !== (dq <= 0)) { const t = dp / (dp - dq); out.push([P[0] + (Q[0] - P[0]) * t, P[1] + (Q[1] - P[1]) * t]); }
+  }
+  return out;
+}
+function powerCells(R) {
+  return nodes.map((a, i) => {
+    if (!R[i]) return null;
+    const h = R[i] + 30; let poly = [[a.x - h, a.y - h], [a.x + h, a.y - h], [a.x + h, a.y + h], [a.x - h, a.y + h]];
+    for (let j = 0; j < nodes.length && poly.length; j++) {
+      if (j === i || !R[j]) continue;
+      const b = nodes[j], dx = b.x - a.x, dy = b.y - a.y, D = Math.hypot(dx, dy); if (D < 1e-6 || D > R[i] + R[j] + 60) continue;
+      const c = ((b.x * b.x + b.y * b.y) - (a.x * a.x + a.y * a.y) - R[j] * R[j] + R[i] * R[i]) / 2;
+      poly = clipHalf(poly, dx, dy, c);
+    }
+    return poly.length >= 3 ? poly : null;
+  });
+}
+const pathPoly = poly => { ctx.beginPath(); poly.forEach((p, k) => k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); };
+function drawLand(R) {
+  const s = cv._s; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(s * zoomT.k, 0, 0, s * zoomT.k, s * zoomT.x, s * zoomT.y);
+  const PC = powerCells(R);
+  ctx.beginPath(); nodes.forEach((d, i) => { if (R[i]) { ctx.moveTo(d.x + R[i] + 14, d.y); ctx.arc(d.x, d.y, R[i] + 14, 0, Math.PI * 2); } });
+  ctx.fillStyle = "#e9eff2"; ctx.fill();                                   // 浅瀬
+  nodes.forEach((d, i) => { if (!PC[i]) return; ctx.save(); pathPoly(PC[i]); ctx.clip();
+    ctx.beginPath(); ctx.arc(d.x, d.y, R[i], 0, Math.PI * 2); ctx.fillStyle = landFill(d.c); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = "#8ea3b1"; ctx.stroke(); ctx.restore(); });   // 陸と海岸線
+  ctx.lineWidth = 2.4; ctx.strokeStyle = "#fbf8f1";                          // 国境
+  nodes.forEach((a, i) => { if (!PC[i]) return; for (let j = i + 1; j < nodes.length; j++) {
+    const b = nodes[j]; if (!R[j] || b.c === a.c || !PC[j] || Math.hypot(b.x - a.x, b.y - a.y) > R[i] + R[j]) continue;
+    const dx = b.x - a.x, dy = b.y - a.y, c = ((b.x * b.x + b.y * b.y) - (a.x * a.x + a.y * a.y) - R[j] * R[j] + R[i] * R[i]) / 2, n = Math.hypot(dx, dy);
+    const P = PC[i]; let seg = null;
+    for (let k = 0; k < P.length; k++) { const p = P[k], q = P[(k + 1) % P.length];
+      if (Math.abs(dx * p[0] + dy * p[1] - c) / n < 0.05 && Math.abs(dx * q[0] + dy * q[1] - c) / n < 0.05) { seg = [p, q]; break; } }
+    if (!seg) continue;
+    ctx.save(); ctx.beginPath(); ctx.arc(a.x, a.y, R[i], 0, Math.PI * 2); ctx.moveTo(b.x + R[j], b.y); ctx.arc(b.x, b.y, R[j], 0, Math.PI * 2); ctx.clip();
+    ctx.beginPath(); ctx.moveTo(seg[0][0], seg[0][1]); ctx.lineTo(seg[1][0], seg[1][1]); ctx.stroke(); ctx.restore(); } });
+}
+
+// ---- 地図の上の文字（SVG）
+const svg = d3.select("#ov"), root = svg.append("g");
+const gLinks = root.append("g"), gReg = root.append("g"), gTown = root.append("g");
+const town = gTown.selectAll("g").data(nodes).join("g").attr("class", "town").attr("transform", d => `translate(${d.x},${d.y})`).style("cursor", "pointer");
+town.append("rect").attr("x", d => -d.bw / 2).attr("y", d => -d.bh / 2).attr("width", d => d.bw).attr("height", d => d.bh).attr("fill", "transparent");
+town.append("circle").attr("class", "dot").attr("cx", d => -d.cw / 2 + d.rmax).attr("fill", d => dotFill(d.c)).attr("stroke", "#fbf8f1").attr("stroke-width", 1.6);
+town.append("text").attr("class", "lab").attr("x", d => -d.cw / 2 + d.rmax * 2 + 3).attr("dominant-baseline", "central").attr("font-family", "'Zen Maru Gothic', sans-serif")
+  .attr("font-weight", 700).attr("font-size", d => d.fs).attr("fill", "#161510").attr("paint-order", "stroke").attr("stroke", "#fbf8f1").attr("stroke-width", 4).attr("stroke-linejoin", "round").text(d => d.name);
+const linkSel = gLinks.selectAll("line").data(DATA.links.map(l => ({s: byId.get(l.s), t: byId.get(l.t), w: l.w}))).join("line")
+  .attr("x1", l => l.s.x).attr("y1", l => l.s.y).attr("x2", l => l.t.x).attr("y2", l => l.t.y).attr("stroke", "#c43d2a").attr("stroke-width", 2).attr("opacity", 0);
+
+// 地域の名前: 4年間でいちばん広いときの陸の上で、町の名前とぶつからない場所（ビルド時に計算済みならそれを使う）
+const RMAX = nodes.map(d => 26 + 2.6 * d.rmax + d.bw * 0.18);
+function placeRegions() {
+  const obst = nodes.map(d => ({x0: d.x - d.bw / 2 - 4, x1: d.x + d.bw / 2 + 4, y0: d.y - d.bh / 2 - 3, y1: d.y + d.bh / 2 + 3}));
+  const ov = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+  const regionOf = (x, y) => { const i = del.find(x, y); return Math.hypot(x - nodes[i].x, y - nodes[i].y) < RMAX[i] ? nodes[i].c : -1; };
+  const out = [];
+  for (const g of [...groups].sort((a, b) => gsize[b.i] - gsize[a.i])) {
+    const ns = nodes.filter(d => d.c === g.i), cx0 = d3.mean(ns, d => d.x), cy0 = d3.mean(ns, d => d.y);
+    const fs = Math.round(Math.max(20, Math.min(34, 16 + Math.sqrt(gsize[g.i] / d3.max(gsize)) * 20)));
+    meas.font = `700 ${fs}px 'Shippori Mincho'`; const w = meas.measureText(g.name).width + fs * 0.1 * g.name.length + 8, h = fs * 1.25;
+    let best = null;
+    for (let y = AREA.y0 + h / 2; y <= AREA.y1 - h / 2; y += 6) for (let x = AREA.x0 + w / 2; x <= AREA.x1 - w / 2; x += 6) {
+      const dist = Math.hypot(x - cx0, y - cy0); if (dist > 360) continue;
+      const bx = {x0: x - w / 2, x1: x + w / 2, y0: y - h / 2, y1: y + h / 2};
+      let hit = 0; for (const o of obst) hit += ov(bx, o);
+      let inside = 0, other = 0; for (const fx of [0.04, 0.5, 0.96]) for (const fy of [0.2, 0.5, 0.8]) { const c = regionOf(bx.x0 + w * fx, bx.y0 + h * fy); if (c === g.i) inside++; else if (c >= 0) other++; }
+      if (inside < 2) continue;
+      const score = hit * 25 + (9 - inside) * 90 + other * 300 + dist * 0.9;
+      if (!best || score < best.score) best = {score, x, y, bx};
+    }
+    if (!best) continue;
+    obst.push(best.bx); out.push({i: g.i, name: g.name, x: best.x, y: best.y, fs});
+  }
+  return out;
+}
+const REG = DATA.regions || placeRegions();
+gReg.selectAll("text").data(REG).join("text").attr("x", d => d.x).attr("y", d => d.y).attr("text-anchor", "middle").attr("dominant-baseline", "central")
+  .attr("font-family", "'Shippori Mincho', serif").attr("font-weight", 700).attr("font-size", d => d.fs).attr("letter-spacing", ".1em")
+  .attr("fill", d => nameFill(d.i)).attr("paint-order", "stroke").attr("stroke", "#fbf8f1").attr("stroke-width", 5).attr("stroke-opacity", .85).text(d => d.name);
+
+// ---- 凡例（地域）
+let regFilter = null;
+d3.select("#legend").selectAll("button").data(groups).join("button").attr("class", "chip").attr("aria-pressed", "false")
+  .html(g => `<i style="background:${landFill(g.i)};border:1px solid ${dotFill(g.i)}"></i>${g.name}`)
+  .on("click", function (e, g) { regFilter = regFilter === g.i ? null : g.i; d3.selectAll(".chip").attr("aria-pressed", x => String(x.i === regFilter)); render(); });
+
+if (FIG) {
+  d3.select("#fleg").selectAll("span").data(groups).join("span").html(g => `<i style="background:${landFill(g.i)};border:1px solid ${dotFill(g.i)}"></i>${g.name}`);
+  const yrs = DATA.months.map((mm, i) => [mm.ym, i]).filter(([ym]) => ym.endsWith("-01"));
+  d3.select("#fline").selectAll(".yr").data(yrs).join("div").attr("class", "yr").style("left", ([, i]) => (i / (M - 1) * 100) + "%").text(([ym]) => ym.slice(0, 4));
+}
+// ---- 月を描く
+const fmtYM = ym => `${ym.slice(0, 4)}年${+ym.slice(5, 7)}月`;
+const pct = v => (v * 100).toFixed(v >= 0.1 ? 0 : 1) + "%";
+let lastR = null, anim = null;
+function render(animate) {
+  const m = cur, R = nodes.map(d => landR(d, m)), mo0 = DATA.months[m];
+  if (anim) anim.stop();
+  if (animate && lastR) { const R0 = lastR; anim = d3.timer(el => { const t = Math.min(1, el / 450), e = d3.easeCubicInOut(t); drawLand(R.map((r, i) => R0[i] + (r - R0[i]) * e)); if (t >= 1) anim.stop(); }); }
+  else drawLand(R);
+  lastR = R;
+  const t = animate ? d3.transition().duration(280) : null;
+  const dots = town.select(".dot"), labs = town.select(".lab");
+  (t ? dots.transition(t) : dots).attr("r", d => rOf(d, m));
+  const scr = (box.getBoundingClientRect().width / VW) * zoomT.k;
+  labs.attr("display", d => d.fs * scr >= MINPX || d === sel ? null : "none");
+  town.attr("opacity", d => { if (!d.share[m]) return 0; let o = 0.45 + 0.55 * Math.min(1, d.share[m] / (d.smax * 0.6)); if (regFilter !== null && d.c !== regFilter) o *= 0.18; if (sel && d !== sel && !isLinked(d)) o *= 0.55; return o; })
+    .style("pointer-events", d => d.share[m] ? "all" : "none");
+  gReg.selectAll("text").attr("opacity", d => (regFilter === null || d.i === regFilter ? 1 : 0.2) * (0.25 + 0.75 * Math.min(1, groups[d.i].share[m] / d3.max(groups[d.i].share)))).attr("display", r => r.fs * scr >= (FIG ? 12 : 9) ? null : "none");
+  if (FIG) {
+    d3.select("#fmonth").text(fmtYM(mo0.ym));
+    d3.select("#fsub").text(`その月の8日〜14日に投稿された ${mo0.articles.toLocaleString()} 本。点と陸の大きさ＝そのタグで書いた人の割合`);
+    d3.select("#ffill").style("width", (M > 1 ? m / (M - 1) * 100 : 100) + "%");
+  }
+  const mo = DATA.months[m];
+  d3.select("#month").html(`${fmtYM(mo.ym)}<small>${+mo.from.slice(8)}日〜${+mo.to.slice(8)}日の${mo.articles.toLocaleString()}本・${mo.users.toLocaleString()}人</small>`);
+  d3.select("#slider").property("value", m);
+  renderRank(m); renderDetail(); renderTable(m);
+}
+const linked = new Set();
+function isLinked(d) { return linked.has(d.id); }
+function renderRank(m) {
+  const prev = Math.max(0, m - 12);
+  const top = [...nodes].sort((a, b) => b.share[m] - a.share[m]).slice(0, 15);
+  const prevRank = new Map([...nodes].sort((a, b) => b.share[prev] - a.share[prev]).map((d, i) => [d.id, d.share[prev] > 0 ? i + 1 : null]));
+  d3.select("#rankh").text(m >= 12 ? `この月の上位15（1年前と比べて）` : `この月の上位15`);
+  d3.select("#rank").selectAll("li").data(top, d => d.id).join("li")
+    .html((d, i) => { const pr = prevRank.get(d.id); let ch = "";
+      if (m >= 12) ch = pr === null ? '<span class="new">新</span>' : pr > i + 1 ? `<span class="up">▲${pr - i - 1}</span>` : pr < i + 1 ? `<span class="down">▼${i + 1 - pr}</span>` : "—";
+      return `<span class="n">${i + 1}</span><span>${d.name}</span><span class="v">${pct(d.share[m])}</span><span class="d">${ch}</span>`; })
+    .on("click", (e, d) => select(d));
+}
+function renderDetail() {
+  const d = sel, m = cur, sp = d3.select("#spark"); sp.selectAll("*").remove();
+  if (!d) { d3.select("#dname").text("地図のタグにさわってください"); d3.select("#dval").html(""); return; }
+  d3.select("#dname").html(`${d.name}<small>${groups[d.c].name}</small>`);
+  d3.select("#dval").html(d.share[m] ? `${fmtYM(DATA.months[m].ym)}: 書いた人の <b>${pct(d.share[m])}</b>（${d.u[m]}人）` : `${fmtYM(DATA.months[m].ym)}: この週はなし`);
+  const x = d3.scaleLinear([0, M - 1], [34, 292]), y = d3.scaleLinear([0, Math.max(d.smax * 1.12, 0.005)], [128, 10]).nice();
+  sp.append("g").attr("transform", "translate(0,0)").call(g => {
+    for (const v of y.ticks(3)) { g.append("line").attr("x1", 34).attr("x2", 292).attr("y1", y(v)).attr("y2", y(v)).attr("stroke", "#e1dacb"); g.append("text").attr("x", 30).attr("y", y(v)).attr("text-anchor", "end").attr("dominant-baseline", "central").attr("font-size", 10).attr("fill", "#7d786a").text((v * 100).toFixed(v < 0.02 ? 1 : 0) + "%"); }
+    const years = DATA.months.map((mm, i) => [mm.ym, i]).filter(([ym]) => ym.endsWith("-01"));
+    for (const [ym, i] of years) g.append("text").attr("x", x(i)).attr("y", 145).attr("text-anchor", "middle").attr("font-size", 10).attr("fill", "#7d786a").text(ym.slice(0, 4));
+  });
+  sp.append("path").attr("d", d3.line().x((_, i) => x(i)).y(v => y(v)).curve(d3.curveMonotoneX)(d.share)).attr("fill", "none").attr("stroke", "#c43d2a").attr("stroke-width", 2);
+  sp.append("line").attr("x1", x(m)).attr("x2", x(m)).attr("y1", 8).attr("y2", 130).attr("stroke", "#161510").attr("stroke-width", 1);
+  sp.append("circle").attr("cx", x(m)).attr("cy", y(d.share[m])).attr("r", 4).attr("fill", "#c43d2a").attr("stroke", "#fbf8f1").attr("stroke-width", 2);
+}
+function renderTable(m) {
+  const top = [...nodes].filter(d => d.share[m] > 0).sort((a, b) => b.share[m] - a.share[m]).slice(0, 30);
+  document.getElementById("tablewrap").innerHTML = `<table><thead><tr><th>順位</th><th>タグ</th><th>地域</th><th class="num">書いた人</th><th class="num">割合</th><th class="num">記事</th></tr></thead><tbody>` +
+    top.map((d, i) => `<tr><td>${i + 1}</td><td>${d.name}</td><td>${groups[d.c].name}</td><td class="num">${d.u[m]}</td><td class="num">${pct(d.share[m])}</td><td class="num">${d.a[m]}</td></tr>`).join("") + "</tbody></table>";
+}
+function select(d) {
+  sel = sel === d ? null : d; linked.clear();
+  if (sel) DATA.links.forEach(l => { if (l.s === sel.id) linked.add(l.t); if (l.t === sel.id) linked.add(l.s); });
+  linkSel.attr("opacity", l => sel && (l.s === sel || l.t === sel) ? 0.45 : 0);
+  render(false);
+}
+
+// ---- 操作
+const tip = document.getElementById("tip");
+town.on("pointerenter", (e, d) => { const m = cur; tip.innerHTML = `<b>${d.name}</b>　${groups[d.c].name}<br>${fmtYM(DATA.months[m].ym)}: 書いた人の ${pct(d.share[m])}（${d.u[m]}人）`; tip.style.opacity = 1; })
+  .on("pointermove", e => { const r = box.getBoundingClientRect(); let x = e.clientX - r.left + 14, y = e.clientY - r.top + 14; if (x + 240 > r.width) x -= 260; tip.style.left = x + "px"; tip.style.top = y + "px"; })
+  .on("pointerleave", () => tip.style.opacity = 0)
+  .on("click", (e, d) => select(d));
+const slider = document.getElementById("slider"); slider.max = M - 1;
+slider.addEventListener("input", () => { cur = +slider.value; render(false); });
+const ticks = DATA.months.map((mm, i) => [mm.ym, i]).filter(([ym]) => ym.endsWith("-01") || ym === DATA.months[0].ym || ym === DATA.months[M - 1].ym);
+d3.select("#ticks").selectAll("span").data(ticks).join("span").text(([ym]) => ym.endsWith("-01") ? ym.slice(0, 4) : fmtYM(ym));
+let timer = null;
+const playBtn = document.getElementById("play");
+function stop() { clearInterval(timer); timer = null; playBtn.textContent = "▶"; playBtn.setAttribute("aria-pressed", "false"); playBtn.setAttribute("aria-label", "再生"); }
+playBtn.addEventListener("click", () => {
+  if (timer) return stop();
+  if (cur >= M - 1) cur = 0;
+  playBtn.textContent = "❚❚"; playBtn.setAttribute("aria-pressed", "true"); playBtn.setAttribute("aria-label", "止める");
+  render(true);
+  timer = setInterval(() => { if (cur >= M - 1) return stop(); cur++; render(true); }, 650);
+});
+const dl = document.getElementById("taglist"); nodes.forEach(d => { const o = document.createElement("option"); o.value = d.name; dl.appendChild(o); });
+document.getElementById("q").addEventListener("change", e => { const v = e.target.value.trim().toLowerCase(); const d = nodes.find(n => n.name.toLowerCase() === v || n.id === v); if (d) { if (sel !== d) select(d); zoomTo(d); } });
+// 拡大: ホイールは Ctrl（⌘）を押しているときだけ。指は2本のとき（拡大中は1本でも動かせる）。普段のスクロールは止めない
+const zoom = d3.zoom().scaleExtent([1, 6]).translateExtent([[0, 0], [VW, VH]])
+  .filter(e => e.type === "wheel" ? (e.ctrlKey || e.metaKey) : e.type === "touchstart" ? (e.touches.length >= 2 || zoomT.k > 1.01) : !e.button)
+  .wheelDelta(e => -e.deltaY * (e.deltaMode === 1 ? 0.05 : e.deltaMode ? 1 : 0.002))
+  .on("zoom", e => { zoomT = e.transform; root.attr("transform", zoomT); svg.style("touch-action", zoomT.k > 1.01 ? "none" : "pan-y"); drawLand(lastR || nodes.map(d => landR(d, cur)));
+    gReg.selectAll("text").attr("display", r => r.fs * (box.getBoundingClientRect().width / VW) * zoomT.k >= 9 ? null : "none");
+    const scr = (box.getBoundingClientRect().width / VW) * zoomT.k; town.select(".lab").attr("display", d => d.fs * scr >= 9.5 || d === sel ? null : "none"); });
+svg.style("touch-action", "pan-y");
+svg.call(zoom).on("dblclick.zoom", null);
+function zoomTo(d) { svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(VW / 2, VH / 2).scale(2.4).translate(-d.x, -d.y)); }
+document.getElementById("zin").onclick = () => svg.transition().duration(250).call(zoom.scaleBy, 1.5);
+document.getElementById("zout").onclick = () => svg.transition().duration(250).call(zoom.scaleBy, 1 / 1.5);
+document.getElementById("zreset").onclick = () => svg.transition().duration(300).call(zoom.transform, d3.zoomIdentity);
+window.addEventListener("resize", () => { sizeCanvas(); render(false); });
+sizeCanvas();
+cur = params.has("m") ? Math.max(0, Math.min(M - 1, +params.get("m"))) : M - 1;
+const first = params.get("tag") || (FIG ? null : DATA.defaultTag); if (first && byId.has(first)) select(byId.get(first)); else render(false);
+window.__QM = {setMonth: m => { cur = m; render(false); }, M, nodes, select: id => select(byId.get(id)), regions: REG, regionColor: Object.fromEntries([...color.entries()])};
+})();
+</script>
+</body>
+</html>
