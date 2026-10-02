@@ -21,14 +21,43 @@ check('日付と月: 日本時間の 0 時で切り替わり、公開した夜�
   for (let p = 0; p < 1; p += 0.01) ok(K.moonIndex(p) >= 0 && K.moonIndex(p) < 8);
 });
 
-check('お守り: 15 個・ID 重複なし・絵文字はカラーで出る・再生リンクの 16bit に収まる', () => {
-  eq(K.CHARMS.length, 15);
+check('お守り: 24 個・ID 重複なし・絵文字はカラーで出る・珍しさ・型・Lv ごとの文言・Lv の数字', () => {
+  eq(K.CHARMS.length, 24);
   eq(new Set(K.CHARM_IDS).size, K.CHARMS.length);
-  ok(K.CHARMS.length <= 16);
+  // 前からの 15 個は id も並びも同じ（前の日の記録の名前に使う）
+  eq(K.CHARM_IDS.slice(0, 15).join(), 'nagafude,nokorizumi,tairin,kinun,osobi,ichibanboshi,owaridama,kodou,mankai,mashidama,nihitsu,nokoribi,chouchinshi,amayoke,kazekiri');
+  for (const id of ['maneki', 'hanaikada', 'renjishi', 'suminagashi', 'senkou', 'tengu', 'tanuki', 'kitsune', 'kamaitachi']) ok(K.CHARM_IDS.includes(id), id);
   for (const c of K.CHARMS) {
     ok(c.ja && c.en && c.desc && c.descEn, `${c.id} の文言`);
     ok(/^\p{Emoji_Presentation}$/u.test(c.emoji) || /️$/.test(c.emoji), `${c.id}: ${c.emoji} は白黒の文字で出る`);
+    ok(K.RARITIES.includes(c.rarity), `${c.id} の珍しさ`);
+    ok(c.tags.length >= 1 && c.tags.every((t) => K.TAGS.includes(t)), `${c.id} の型 ${c.tags}`);
+    ok(['mult', 'reach', 'gimmick'].includes(c.kind), `${c.id} の種類`);
+    eq(c.lv.length, K.MAX_LV); eq(c.lvEn.length, K.MAX_LV);
+    ok(c.lv.every((t) => t) && c.lvEn.every((t) => t), `${c.id} の Lv の文言`);
+    eq(c.desc, c.lv[0]); eq(c.descEn, c.lvEn[0]);
+    ok(K.CHARM_LV[c.id], `${c.id} の Lv の数字`);
+    for (const k in K.CHARM_LV[c.id]) eq(K.CHARM_LV[c.id][k].length, K.MAX_LV, `${c.id}.${k}`);
   }
+  // 伝説は 4 つ。大一番の妖怪と 1 対 1
+  const legends = K.CHARMS.filter((c) => c.rarity === 'legend');
+  eq(legends.map((c) => c.id).sort().join(), 'kamaitachi,kitsune,tanuki,tengu');
+  for (const tw of K.TWISTS) eq(K.charmById(K.LEGEND_OF[tw.id]).boss, tw.id, tw.id);
+  // 型ごとに、組み合わせられるお守りが 2 つ以上ある
+  for (const t of ['gold', 'lantern', 'chain', 'ink', 'finale']) ok(K.CHARMS.filter((c) => c.tags.includes(t)).length >= 2, t);
+  // 掛け算（×）のお守りが、型ごとにある
+  for (const id of ['maneki', 'renjishi', 'senkou', 'mankai', 'tengu', 'kamaitachi']) ok(K.CHARM_LV[id].x, `${id} は掛け算`);
+  eq(K.SLOTS, 5); eq(K.MAX_LV, 3);
+});
+
+check('お守りの Lv: 重なった数が Lv（Lv3 まで）・知らない id は数えない・並べ直せる', () => {
+  eq(JSON.stringify(K.charmLevels(['kinun', 'kinun', 'kodou'])), JSON.stringify({ kinun: 2, kodou: 1 }));
+  eq(JSON.stringify(K.charmLevels(['kodou', 'kinun', 'kinun'])), JSON.stringify({ kodou: 1, kinun: 2 }), '並びは関係ない');
+  eq(K.charmLevels(['kinun', 'kinun', 'kinun', 'kinun']).kinun, 3, 'Lv3 まで');
+  eq(JSON.stringify(K.charmLevels(['futofude', 'nope', null])), '{}');
+  eq(K.charmList({ kodou: 1, kinun: 2 }).join(), 'kinun,kinun,kodou');
+  eq(K.charmList({ kinun: 9 }).length, 3);
+  eq(JSON.stringify(K.charmLevels([])), '{}');
 });
 
 check('ルール: お守りと月が合わさる', () => {
@@ -40,11 +69,11 @@ check('ルール: お守りと月が合わさる', () => {
   eq(r.decay, K.DECAY_SOFTER, '大輪と満月で、減衰がもっとゆるい');
   eq(K.rulesFor(['tairin'], 1).decay, K.DECAY_SOFT); eq(K.rulesFor([], 4).decay, K.DECAY_SOFT, '満月は大輪と同じだけゆるい');
   eq(K.rulesFor([], 4).radius, 1.12, '花火合戦の満月は +12% のまま');
-  eq(r.chainPulse, K.KODOU_STEP); eq(r.bloom, 3, '満開の加護は ×3');
+  eq(r.chainPulse, K.KODOU_STEP); eq(r.bloom * r.bloomX, 3, '満開の加護は、全部ひらけば ×3');
   eq(K.rulesFor([], 5).startMult, 1, '寝待月は倍率 +1 から');
   eq(K.rulesFor(['osobi'], 5).startMult, 1 + K.SLOW_MULT, '遅火と寝待月は足し算');
   eq(K.rulesFor(['osobi'], 1).fuseSpeed, K.SLOW_FUSE);
-  eq(K.rulesFor(['nokoribi'], 6).afterglow, 0.25 + 0.4, '残り火と下弦は足し算');
+  eq(K.rulesFor(['nokoribi'], 6).afterglow, K.CHARM_LV.nokoribi.p[0] + 0.4, '残り火と下弦は足し算');
   eq(K.rulesFor(['amayoke'], 1).dampHits, 1); eq(K.rulesFor([], 1).dampHits, K.DAMP_HITS);
 });
 
@@ -251,12 +280,51 @@ check('決定的: 同じ夜・同じ線なら、同じ点', () => {
   }
 });
 
-check('お守りの候補: 決定的・3 つ・持っているものは出ない', () => {
+check('お守りの候補: 決定的・3 つ・Lv3 のものは出ない・持っているものは Lv 上げとして出る', () => {
   const a = K.offerCharms(5, 2, ['tairin']), b = K.offerCharms(5, 2, ['tairin']);
   eq(a.join(), b.join());
   eq(a.length, 3);
-  ok(!a.includes('tairin'));
   eq(new Set(a).size, 3);
+  let up = 0, n = 0;
+  for (let seed = 1; seed < 400; seed++) {
+    const held = ['tairin', 'tairin', 'tairin', 'kinun', 'kodou', 'kodou'];
+    const o = K.offerCharms(seed, 4, held);
+    n++;
+    ok(!o.includes('tairin'), 'Lv3 は出ない');
+    if (o.includes('kinun') || o.includes('kodou')) up++;
+  }
+  ok(up > n * 0.1 && up < n * 0.6, `持っているもの（Lv 上げ）が出る割合 ${up}/${n}`);
+});
+
+check('お守りの候補: 伝説は opts.pool に入れたときだけ・pool の外は出ない・珍しいものほど出にくい・段位 6 から 2 つ', () => {
+  const seen = {};
+  for (let seed = 1; seed < 600; seed++) for (const night of [3, 5, 6]) {
+    const o = K.offerCharms(seed, night, []);
+    ok(o.every((id) => K.charmById(id).rarity !== 'legend'), '伝説は、勝つまで出ない');
+    for (const id of o) seen[id] = (seen[id] || 0) + 1;
+  }
+  const avg = (r) => { const ids = K.CHARMS.filter((c) => c.rarity === r && !K.CHARM_NEEDS[c.id]).map((c) => c.id); return ids.reduce((a, id) => a + (seen[id] || 0), 0) / ids.length; };
+  ok(avg('rare') < avg('common') * 0.8, `めずらしいものの出やすさ ${avg('rare')} / ふつう ${avg('common')}`);
+  const pool = ['kinun', 'kodou', 'tairin', 'tengu', 'kitsune'];
+  let leg = 0;
+  for (let seed = 1; seed < 300; seed++) {
+    const o = K.offerCharms(seed, 3, [], 0, { pool });
+    eq(o.length, 3);
+    ok(o.every((id) => pool.includes(id)), `pool の外 ${o}`);
+    leg += o.filter((id) => K.charmById(id).rarity === 'legend').length;
+  }
+  ok(leg > 30 && leg < 300 * 3 * 0.4, `伝説の出た数 ${leg}`);
+  eq(K.offerCharms(9, 3, [], 0, { level: 6 }).length, 2, '段位 6 は 2 つ');
+  eq(K.offerCharms(9, 3, [], 0, { level: 5 }).length, 3);
+  eq(K.offerCharms(9, 3, [], 0, { count: 4 }).length, 4);
+  eq(K.offerCharms(9, 3, [], 0, { level: 6 }).join(), K.offerCharms(9, 3, [], 0, { count: 2 }).join(), '段位は数だけを変える');
+  // 全部 Lv3 なら、候補は出ない
+  eq(K.offerCharms(9, 3, ['kinun', 'kinun', 'kinun'], 0, { pool: ['kinun'] }).length, 0);
+  // 風切りは、雲が出る夜の前からだけ（段位 4 からは二夜目から雲）
+  let early = 0;
+  for (let seed = 1; seed < 200; seed++) { ok(!K.offerCharms(seed, 1, []).includes('kazekiri')); if (K.offerCharms(seed, 1, [], 0, { level: 4 }).includes('kazekiri')) early++; }
+  ok(early > 0, '段位 4 は風切りが早く出る');
+  eq(K.charmNeed('kazekiri', 4), 1); eq(K.charmNeed('kazekiri'), 4); eq(K.charmNeed('kodou'), 0);
 });
 
 check('勝負リンク: 戻すと同じ・細工したものは読まない', () => {
@@ -266,37 +334,47 @@ check('勝負リンク: 戻すと同じ・細工したものは読まない', ()
   for (const bad of ['', 'x', 'zzzzzzzz.1', 'abc.8', 'abc.1.<b>', null, 'abc.1.1234567890123']) eq(K.decodeDuel(bad), null, String(bad));
 });
 
-check('再生リンク: 一筆を戻すと同じ点になる（墨壺も入る）・細工したものは読まない', () => {
+check('再生リンク: 一筆を戻すと同じ点になる（お守りの Lv・段位・墨壺も入る）・細工したものは読まない', () => {
   const rng = K.rng32(5);
-  let banked = 0;
+  let banked = 0, leveled = 0, multi = 0;
   for (let i = 0; i < 24; i++) {
-    const night = i % K.NIGHTS, moon = i % 8;
-    const charms = K.CHARM_IDS.filter(() => rng() < 0.3);
+    const night = i % K.NIGHTS, moon = i % 8, level = i % 3 === 1 ? Math.floor(rng() * 9) : 0;
+    const lv = {};
+    for (const id of K.CHARM_IDS) if (rng() < 0.25) lv[id] = 1 + Math.floor(rng() * 3);
+    const charms = K.charmList(lv);
     const bank = i % 3 === 0 ? 0 : Math.floor(rng() * (K.BASE_INK + 1));
-    const st = K.newRound({ seed: 1000 + i, night, charms, moon, bank });
+    const st = K.newRound({ seed: 1000 + i, night, charms, moon, bank, level });
     const used = K.lightStroke(st, line(rng() * 360, 100 + rng() * 400, rng() * 360, 100 + rng() * 400, 50));
     if (!used) continue;
     for (let n = 0; n < 3600 && !st.done; n++) { if (st.phase === 'draw2') K.finish(st); else K.step(st); st.events.length = 0; }
-    const code = K.encodeReplay({ seed: 1000 + i, moon, night, charms, strokes: st.strokes, bank });
-    ok(/^[A-Za-z0-9_-]+$/.test(code) && code.length < 700, `長さ ${code.length}`);
+    const code = K.encodeReplay({ seed: 1000 + i, moon, night, charms, strokes: st.strokes, bank, level });
+    ok(/^[A-Za-z0-9_-]+$/.test(code) && code.length < 900, `長さ ${code.length}`);
     const back = K.decodeReplay(code);
     ok(back && !back.old, '戻らない');
     eq(JSON.stringify(back.strokes), JSON.stringify(st.strokes));
     eq(back.charms.join(), charms.join());
     eq(back.bank, bank, '墨壺');
+    eq(back.level, level, '段位');
     if (bank) banked++;
-    const again = K.newRound({ seed: back.seed, night: back.night, charms: back.charms, moon: back.moon, bank: back.bank });
+    if (level) leveled++;
+    if (Object.values(lv).some((x) => x > 1)) multi++;
+    const again = K.newRound({ seed: back.seed, night: back.night, charms: back.charms, moon: back.moon, bank: back.bank, level: back.level });
     const r2 = K.runToEnd(again, back.strokes, { normalized: true });
     eq(r2.score, st.result.score, '再生で点が変わった');
   }
-  ok(banked > 5);
-  eq(K.decodeReplay(K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], strokes: [[{ x: 1, y: 1 }, { x: 9, y: 1 }, { x: 17, y: 1 }]] })).bank, 0, '墨壺を渡さなければ 0');
-  eq(K.decodeReplay(K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], bank: 5000, strokes: [[{ x: 1, y: 1 }, { x: 9, y: 1 }, { x: 17, y: 1 }]] })).bank, K.BASE_INK, '墨壺は 1 夜ぶんまで');
-  eq(K.REPLAY_VERSION, 3);
+  ok(banked > 5 && leveled > 3 && multi > 5, `墨壺 ${banked} 段位 ${leveled} Lv2 以上 ${multi}`);
+  const s3 = [[{ x: 1, y: 1 }, { x: 9, y: 1 }, { x: 17, y: 1 }]];
+  eq(K.decodeReplay(K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], strokes: s3 })).bank, 0, '墨壺を渡さなければ 0');
+  eq(K.decodeReplay(K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], strokes: s3 })).level, 0, '段位を渡さなければ 0');
+  eq(K.decodeReplay(K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], bank: 5000, strokes: s3 })).bank, K.BASE_INK, '墨壺は 1 夜ぶんまで');
+  eq(K.decodeReplay(K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: ['kinun', 'kinun', 'kinun', 'kinun'], strokes: s3 })).charms.join(), 'kinun,kinun,kinun', 'Lv3 まで');
+  eq(K.decodeReplay(K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: ['futofude', 'kodou'], strokes: s3 })).charms.join(), 'kodou', '前のお守りは入れない');
+  eq(K.decodeReplay(K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], level: 99, strokes: s3 })).level, K.MAX_LEVEL);
+  eq(K.REPLAY_VERSION, 4);
   eq(K.decodeReplay(''), null);
   eq(K.decodeReplay('<script>alert(1)</script>'), null);
-  eq(K.decodeReplay('A'.repeat(800)), null);
-  const good = K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], strokes: [[{ x: 1, y: 1 }, { x: 9, y: 1 }, { x: 17, y: 1 }]] });
+  eq(K.decodeReplay('A'.repeat(1000)), null);
+  const good = K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], strokes: s3 });
   eq(K.decodeReplay('A' + good.slice(1)), null, '版が違う');
   eq(K.decodeReplay(good.slice(0, 10)), null, '短い');
   const far = K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], strokes: [[{ x: 400, y: 1 }, { x: 9, y: 1 }, { x: 17, y: 1 }]] });
@@ -404,10 +482,10 @@ check('湿った玉: 線の火が触れるとひらく。爆発だけなら、�
   eq(d.result.pops, 1, '雨よけなら、ふつうの玉と同じ');
 });
 
-check('一番星: 線で直接ひらいた金は倍率 +3（爆発でひらいた金は +1）・遅火: 導火線が遅く、倍率 +2 から', () => {
+check('一番星: 線で直接ひらいた金は倍率が上がる（爆発でひらいた金は +1）・遅火: 導火線が遅く、倍率 +2 から', () => {
   const gold = () => [{ type: 'kin', x: 100, y: 300 }, { type: 'kin', x: 100, y: 340 }];
   const a = K.runToEnd(handRound(gold(), ['ichibanboshi']), [line(60, 300, 140, 300, 20)]);
-  eq(a.pops, 2); eq(a.mult, 1 + (1 + K.STAR_GOLD) + 1, '線の金 +3・爆発の金 +1');
+  eq(a.pops, 2); eq(a.mult, 1 + (1 + K.STAR_GOLD) + 1, '線の金 +1 + 一番星・爆発の金 +1');
   const b = K.runToEnd(handRound(gold(), ['ichibanboshi', 'kinun']), [line(60, 300, 140, 300, 20)]);
   eq(b.mult, 1 + (K.KINUN_GOLD + K.STAR_GOLD) + K.KINUN_GOLD, '金運と重なる');
   // 終わり玉の爆発でひらいた金は、線で直接ふれたことにならない（cause は 'end'）
@@ -616,9 +694,9 @@ check('お守りの候補: 同じ種類が 3 つそろわない（倍率・届�
   for (const id of ['nokorizumi', 'ichibanboshi', 'osobi']) ok(K.charmById(id) && !K.charmById(id).legacy, id);
 });
 
-check('お守り: 大一番のあとの 2 つ目は、別の 3 つ（持っているものは出ない）', () => {
+check('お守り: 大一番のあとの 2 つ目は、別の並び', () => {
   const a = K.offerCharms(77, 5, ['kodou']), b = K.offerCharms(77, 5, ['kodou', a[0]], 1);
-  eq(b.length, 3); ok(!b.includes('kodou') && !b.includes(a[0]));
+  eq(b.length, 3); eq(new Set(b).size, 3);
   ok(JSON.stringify(a) !== JSON.stringify(K.offerCharms(77, 5, ['kodou'], 1)), '同じ並び');
 });
 
@@ -647,12 +725,17 @@ check('シェア: 筆跡と大一番の結果が 1 行で入る', () => {
   ok(!K.runShareText({ ...run, type: null, nights: [{ score: 100, target: 60 }] }, 'ja').includes('大一番'));
 });
 
-check('再生リンク: 前の版（1・2）のリンクは「前の版」とわかる', () => {
+check('再生リンク: 前の版（1・2・3）のリンクは「前の版」とわかる', () => {
   const code = K.encodeReplay({ seed: 1, moon: 1, night: 1, charms: [], strokes: [[{ x: 1, y: 1 }, { x: 9, y: 1 }, { x: 17, y: 1 }]] });
-  // 先頭の 1 文字 = 版 4 ビット + シードの上 2 ビット。E は版 1、I は版 2
-  for (const head of ['E', 'I']) { const d = K.decodeReplay(head + code.slice(1)); ok(d && d.old, `${head}: ${JSON.stringify(d)}`); }
-  eq(code[0], 'M', '今の版（3）は M から始まる（シードの上 2 ビットが 0 のとき）');
-  eq(K.decodeReplay('Q' + code.slice(1)), null, 'まだ無い版（4）は読まない');
+  // 先頭の 1 文字 = 版 4 ビット + シードの上 2 ビット。E は版 1、I は版 2、M は版 3
+  for (const head of ['E', 'I', 'M']) { const d = K.decodeReplay(head + code.slice(1)); ok(d && d.old, `${head}: ${JSON.stringify(d)}`); }
+  eq(code[0], 'Q', '今の版（4）は Q から始まる（シードの上 2 ビットが 0 のとき）');
+  eq(K.decodeReplay('U' + code.slice(1)), null, 'まだ無い版（5）は読まない');
+  // 段位は 8 まで（9 以上は細工）。段位は版 4 の 43 ビット目から 4 ビット
+  const bits = [...code].map((ch) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'.indexOf(ch).toString(2).padStart(6, '0')).join('');
+  const bad = bits.slice(0, 42) + '1111' + bits.slice(46);
+  const enc = bad.match(/.{1,6}/g).map((b) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'[parseInt(b.padEnd(6, '0'), 2)]).join('');
+  eq(K.decodeReplay(enc), null, '段位 15');
 });
 
 check('散ったときのヒント: 夜の様子から、効きそうなことを 1 つ選ぶ', () => {
@@ -703,6 +786,376 @@ check('ステージの完走記録: 初めて完走した日は残し、最高�
   eq(JSON.stringify(c), JSON.stringify({ 1: { first: '2026-09-26', best: 9000 } }));
   eq(JSON.stringify(a), JSON.stringify({ 1: { first: '2026-09-26', best: 5000 } }), 'もとの記録は書き換えない');
   eq(JSON.stringify(K.recordStageClear(null, 1, 10, '2026-09-26')), JSON.stringify({ 1: { first: '2026-09-26', best: 10 } }), '記録が無くても作る');
+});
+
+// ---------------------------------------------------------------- 12版: お守りの Lv・新しいお守り・点の内訳・段位・願い札
+// 手で並べた夜を最後まで回し、知らせも集める
+function runHand(shells, charms, stroke, { moon = 1, clouds = null, strokes2 = null } = {}) {
+  const st = handRound(shells, charms, moon);
+  if (clouds) st.clouds = clouds;
+  st.stats = { ...st.stats }; // 手で並べた玉の数は finish で数え直す
+  const ev = [];
+  K.lightStroke(st, stroke);
+  for (let i = 0; i < 3600 && !st.done; i++) {
+    if (st.phase === 'draw2') { if (strokes2) K.lightStroke(st, strokes2); else K.finish(st); }
+    K.step(st); ev.push(...st.events); st.events.length = 0;
+  }
+  if (!st.done) K.finish(st);
+  return { st, res: st.result, ev };
+}
+const part = (res, id, kind) => res.parts.find((p) => p.id === id && (!kind || p.kind === kind));
+// 点の内訳から点を作り直す（ドキュメントの式そのまま）
+function rebuild(parts) {
+  let C = 0, M = 0, X = 1;
+  for (const p of parts) { if (p.kind === 'chips') C += p.v; else if (p.kind === 'mult') M += p.v; else if (p.kind === 'xmult') X *= p.v; else throw new Error('kind ' + p.kind); }
+  return { C, M, X, score: Math.round(C * M * X) };
+}
+
+check('点の内訳: chips の合計 × mult の合計 × xmult の積 を丸めると、いつも result.score（いろいろなお守り・Lv・月・段位で）', () => {
+  const rng = K.rng32(99);
+  let xs = 0, n = 0;
+  for (let i = 0; i < 40; i++) {
+    const night = i % K.NIGHTS, moon = (i * 3) % 8, level = i % 4 === 0 ? 8 : i % 4 === 1 ? 4 : 0;
+    const lv = {};
+    for (const id of K.CHARM_IDS) if (rng() < 0.3) lv[id] = 1 + Math.floor(rng() * 3);
+    const st = K.newRound({ seed: 500 + i, night, charms: K.charmList(lv), moon, level, bank: Math.floor(rng() * 200) });
+    const res = K.runToEnd(st, [line(20 + rng() * 320, 100 + rng() * 400, 20 + rng() * 320, 100 + rng() * 400, 40)]);
+    if (!res) continue;
+    n++;
+    const b = rebuild(res.parts);
+    eq(b.score, res.score, `seed ${500 + i}: 作り直した点`);
+    eq(b.C, res.chips, 'chips'); eq(b.M, res.mult, 'mult'); eq(b.X, res.xmult, 'xmult');
+    ok(Number.isInteger(b.C) && Number.isInteger(b.M), '足し算の部分は整数');
+    eq(b.M, K.multOf(st), 'multOf は mult の合計');
+    eq(JSON.stringify(K.scoreParts(st).parts), JSON.stringify(res.parts), '終わったあとの scoreParts は同じ');
+    for (const p of res.parts) {
+      ok(p.ja && p.en && p.v && ['chips', 'mult', 'xmult'].includes(p.kind), JSON.stringify(p));
+      if (p.kind === 'xmult') eq(Math.round(p.v * 100) / 100, p.v, '掛け算は小数 2 桁');
+    }
+    eq(res.parts.filter((p) => p.id === 'base').length, 1, '基本の倍率 1 は 1 回');
+    // 点の合計（墨流しをのぞく）は、燃えながら数えた chips と同じ
+    eq(res.parts.filter((p) => p.kind === 'chips' && p.id !== 'suminagashi').reduce((a, p) => a + p.v, 0), st.chips);
+    if (res.parts.some((p) => p.kind === 'xmult')) xs++;
+  }
+  ok(n > 30 && xs > 10, `夜 ${n}・掛け算 ${xs}`);
+  // お守りなしの夜も、内訳は 玉・倍率 1・10 個ごと・金 などに分かれる
+  const { res } = runHand(Array.from({ length: 10 }, (_, i) => ({ type: i === 0 ? 'kin' : 'kiku', x: 30 + i * 30, y: 300 })), [], line(20, 300, 340, 300, 80));
+  eq(res.parts.map((p) => `${p.id}:${p.kind}:${p.v}`).join(' '), 'shells:chips:95 base:mult:1 gold:mult:1 pulse:mult:1 bloom:xmult:2');
+  eq(res.score, 95 * 3 * 2);
+});
+
+check('新しいお守り: 招き猫は金の玉ごとに掛け算が重なる（Lv2 から金の玉が増える）', () => {
+  const gold = () => [{ type: 'kin', x: 100, y: 300 }, { type: 'kin', x: 160, y: 300 }, { type: 'kiku', x: 300, y: 500 }];
+  const { res, ev } = runHand(gold(), ['maneki'], line(80, 300, 180, 300, 30));
+  eq(part(res, 'maneki').v, 1.32, '1.15 × 1.15');
+  eq(part(res, 'maneki').kind, 'xmult');
+  ok(ev.some((e) => e.type === 'lucky' && e.n === 2 && e.x === 1.32), '招き猫の知らせ');
+  eq(res.score, Math.round(10 * 3 * 1.32));
+  const n = (charms) => K.newRound({ seed: 8, night: 4, charms, moon: 1 }).shells.filter((s) => s.type === 'kin').length;
+  for (let l = 1; l <= 3; l++) eq(n(Array(l).fill('maneki')), n([]) + K.CHARM_LV.maneki.gold[l - 1], `Lv${l} の金の玉`);
+  ok(K.CHARM_LV.maneki.gold[2] >= 1, 'Lv3 は金の玉が増える');
+  // 足した金の玉は、もとの並び・縄を変えない
+  const a = K.newRound({ seed: 8, night: 6, moon: 1 }), b = K.newRound({ seed: 8, night: 6, charms: ['maneki', 'maneki', 'maneki', 'mashidama'], moon: 1 });
+  eq(b.shells.slice(0, a.shells.length).map((s) => `${s.type}${s.x},${s.y}`).join(), a.shells.map((s) => `${s.type}${s.x},${s.y}`).join());
+  eq(JSON.stringify(b.ropes), JSON.stringify(a.ropes));
+  ok(b.shells.slice(a.shells.length).every((s) => s.extra), '足した玉には extra');
+});
+
+check('新しいお守り: 花筏は提灯ひとつで倍率が上がる・提灯職人の Lv で提灯の倍率が上がる', () => {
+  const shells = () => [{ type: 'chouchin', x: 40, y: 300 }, ...[1, 2, 3, 4].map((i) => ({ type: 'kiku', x: 40 + i * 60, y: 300 }))];
+  for (const [l, add] of [[1, K.CHARM_LV.hanaikada.mult[0]], [2, K.CHARM_LV.hanaikada.mult[1]], [3, K.CHARM_LV.hanaikada.mult[2]]]) {
+    const { res } = runHand(shells(), Array(l).fill('hanaikada'), line(30, 300, 290, 300, 60));
+    eq(part(res, 'hanaikada').v, add, `Lv${l}`);
+  }
+  for (const [l, f] of [[1, 2.5], [2, 3], [3, 3.5]]) {
+    const { res } = runHand(shells(), Array(l).fill('chouchinshi'), line(30, 300, 290, 300, 60));
+    eq(res.chips, 10 + 4 * 10 * f, `提灯職人 Lv${l}`);
+    eq(part(res, 'lantern').v, 40, 'ふだんの提灯の分');
+    eq(part(res, 'chouchinshi').v, 4 * 10 * (f - 2), '提灯職人で増えた分');
+  }
+  // 金の玉（5 点）× 2.5 は丸める
+  const { res } = runHand([{ type: 'chouchin', x: 40, y: 300 }, { type: 'kin', x: 100, y: 300 }], ['chouchinshi'], line(30, 300, 110, 300, 20));
+  eq(res.chips, 10 + Math.round(5 * 2.5));
+});
+
+check('新しいお守り: 連獅子は連鎖の深さ（代）ごとに掛け算・大輪の Lv で連鎖がもっと続く', () => {
+  const base = rowChain(['renjishi']);
+  const g = base.st.maxGen;
+  ok(g >= 3, `深さ ${g}`);
+  eq(part(base.st.result, 'renjishi').v, Math.round((1 + K.CHARM_LV.renjishi.x[0] * g) * 100) / 100);
+  eq(base.st.result.maxGen, g); eq(base.st.stats.maxGen, g);
+  eq(part(rowChain(['renjishi', 'renjishi', 'renjishi']).st.result, 'renjishi').v, Math.round((1 + K.CHARM_LV.renjishi.x[2] * g) * 100) / 100, 'Lv3');
+  eq(K.rulesFor(['tairin', 'tairin'], 1).decay, K.SOFT_DECAYS[2]);
+  eq(K.rulesFor(['tairin', 'tairin', 'tairin'], 4).decay, K.SOFT_DECAYS[4], '大輪 Lv3 と満月');
+  ok(K.rulesFor(['tairin', 'tairin', 'tairin'], 1).decay > K.rulesFor(['tairin'], 1).decay);
+  eq(K.rulesFor(['kodou', 'kodou', 'kodou'], 1).chainPulse, K.CHARM_LV.kodou.step[2], '鼓動 Lv3');
+  ok(K.CHARM_LV.kodou.step[2] < K.CHARM_LV.kodou.step[1] && K.CHARM_LV.kodou.step[1] < K.KODOU_STEP);
+});
+
+check('新しいお守り: 墨流しは残した墨で点が増え、線香花火は墨が減るかわりに掛け算', () => {
+  const shells = () => [{ type: 'kiku', x: 60, y: 300 }, { type: 'kiku', x: 90, y: 300 }];
+  const { st, res } = runHand(shells(), ['suminagashi'], line(50, 300, 100, 300, 10));
+  const steps = K.spareSteps(st);
+  ok(steps >= 8, `残した段 ${steps}`);
+  eq(part(res, 'suminagashi').v, Math.round(20 * steps * K.CHARM_LV.suminagashi.pct[0]));
+  eq(res.chips, 20 + part(res, 'suminagashi').v);
+  const r3 = runHand(shells(), ['suminagashi', 'suminagashi', 'suminagashi'], line(50, 300, 100, 300, 10)).res;
+  eq(part(r3, 'suminagashi').v, Math.round(20 * steps * K.CHARM_LV.suminagashi.pct[2]), 'Lv3');
+  // 残り墨と同じ段で数える
+  const both = runHand(shells(), ['suminagashi', 'nokorizumi', 'nokorizumi'], line(50, 300, 100, 300, 10)).res;
+  eq(part(both, 'nokorizumi').v, steps * 2, '残り墨 Lv2 は 1 段 +2');
+  eq(K.rulesFor(['senkou'], 1).ink, Math.round(K.BASE_INK * 0.7));
+  eq(K.rulesFor(['senkou', 'nagafude'], 1).ink, Math.round(K.BASE_INK * 1.4 * 0.7));
+  for (const [l, x] of [[1, 1.5], [2, 1.75], [3, 2]]) eq(part(runHand(shells(), Array(l).fill('senkou'), line(50, 300, 100, 300, 10)).res, 'senkou').v, x);
+  eq(K.rulesFor(['nagafude', 'nagafude', 'nagafude'], 1).ink, Math.round(K.BASE_INK * K.CHARM_LV.nagafude.ink[2]), '長い筆 Lv3');
+});
+
+check('伝説: 天狗の団扇はまっすぐな線ほど掛け算（ぐねぐねなら無し）', () => {
+  const sh = () => [{ type: 'kiku', x: 60, y: 300 }, { type: 'kiku', x: 300, y: 300 }];
+  const straight = runHand(sh(), ['tengu'], line(40, 300, 320, 300, 60)).res;
+  eq(part(straight, 'tengu').v, K.CHARM_LV.tengu.x[0]);
+  const zig = [{ x: 40, y: 300 }, { x: 80, y: 360 }, { x: 120, y: 300 }, { x: 160, y: 360 }, { x: 200, y: 300 }, { x: 240, y: 360 }];
+  ok(K.straightness(K.normalizeStroke(zig, 460)) < 0.7);
+  eq(part(runHand(sh(), ['tengu'], zig).res, 'tengu'), undefined, 'ぐねぐね');
+  eq(part(runHand(sh(), ['tengu', 'tengu', 'tengu'], line(40, 300, 320, 300, 60)).res, 'tengu').v, K.CHARM_LV.tengu.x[2], 'Lv3');
+  eq(K.straightness(line(0, 0, 100, 0, 10)), 1);
+});
+
+check('伝説: 狸の葉っぱは線の前の部分が左右の反対側に映って燃える（墨はいらない）・鏡の夜は墨が減らない', () => {
+  // 左に線、右（映った所）に玉
+  const sh = () => [{ type: 'kiku', x: 60, y: 300 }, { type: 'kiku', x: 300, y: 300 }];
+  const without = runHand(sh(), [], line(40, 300, 140, 300, 25));
+  eq(without.res.pops, 1);
+  const { st, res } = runHand(sh(), ['tanuki'], line(40, 300, 140, 300, 25));
+  eq(res.pops, 2, '映った線が右の玉をひらく');
+  ok(st.fuse.seg.includes(30), '写しの区間');
+  const n = st.fuse.seg.filter((x) => x === 30).length, main = st.fuse.seg.filter((x) => x === 0).length;
+  eq(n, Math.max(2, Math.round(main * 0.5)), "前の半分");
+  ok(Math.abs(K.inkUsed(st) - K.pathLength(st.strokes[0])) < 1e-9, '写しは墨を使わない');
+  eq(res.stats.lineTouched, 2, '写しの火も線の火');
+  // 鏡の夜: 狸の葉っぱがあると墨は 3/4 にならない
+  for (let seed = 1; seed < 500; seed++) if (K.twistFor(seed, 5).id === 'kagami') {
+    eq(K.newRound({ seed, night: 5, charms: ['tanuki'] }).ink, K.rulesFor(['tanuki'], 4).ink);
+    eq(K.newRound({ seed, night: 5 }).ink, Math.round(K.rulesFor([], 4).ink * K.MIRROR_INK));
+    break;
+  }
+});
+
+check('伝説: 狐火ははじめにひらいた玉から、遠くの群れへ飛んでひらく（Lv で本数が増える）', () => {
+  const sh = () => [{ type: 'kiku', x: 60, y: 300 }, { type: 'kiku', x: 300, y: 200 }, { type: 'kiku', x: 300, y: 230 }, { type: 'kiku', x: 320, y: 215 }, { type: 'kiku', x: 300, y: 560 }];
+  const without = runHand(sh(), [], line(40, 300, 70, 300, 8));
+  eq(without.res.pops, 1);
+  const { res, ev } = runHand(sh(), ['kitsune'], line(40, 300, 70, 300, 8));
+  const fox = ev.filter((e) => e.type === 'fox');
+  ok(fox.length >= 1, '狐火が飛ぶ');
+  ok([1, 2, 3].includes(fox[0].shell.id), `いちばん混んだ群れへ ${fox[0].shell.id}`);
+  ok(ev.some((e) => e.type === 'foxHit'), '届いた');
+  ok(res.pops >= 4, `狐火で群れがひらく ${res.pops}`);
+  ok(res.chainPops >= 3, '狐火でひらいた玉は連鎖');
+  eq(K.rulesFor(['kitsune', 'kitsune', 'kitsune'], 1).foxfire, K.CHARM_LV.kitsune.n[2]);
+  // 尺玉には飛ばない
+  const t = runHand([{ type: 'kiku', x: 60, y: 300 }, { type: 'shaku', x: 300, y: 300 }], ['kitsune'], line(40, 300, 70, 300, 8));
+  ok(!t.ev.some((e) => e.type === 'fox'), '尺玉へは飛ばない'); eq(t.res.pops, 1);
+});
+
+check('伝説: 鎌鼬の爪は導火線が速く、連鎖が少し小さく、掛け算', () => {
+  const r = K.rulesFor(['kamaitachi'], 1);
+  eq(r.fuseSpeed, 1.6); ok(Math.abs(r.decay - (K.DECAY - 0.04)) < 1e-12);
+  eq(K.rulesFor(['kamaitachi', 'osobi'], 1).fuseSpeed, K.SLOW_FUSE * 1.6, '遅火と打ち消しあう');
+  const t = (charms) => { const st = handRound([{ type: 'kiku', x: 300, y: 300 }], charms); K.runToEnd(st, [line(20, 300, 300, 300, 70)]); return st; };
+  ok(t(['kamaitachi']).t < t([]).t, '速い');
+  eq(part(t(['kamaitachi', 'kamaitachi']).result, 'kamaitachi').v, K.CHARM_LV.kamaitachi.x[1]);
+});
+
+check('お守りの Lv: 終わり玉・遅火・二筆目・残り火・雨よけ・風切り・満開の加護・一番星・金運', () => {
+  const OW = K.CHARM_LV.owaridama;
+  eq(K.rulesFor(['owaridama'], 1).endR, K.OWARI_R); eq(OW.R[0], K.OWARI_R);
+  eq(K.rulesFor(['owaridama', 'owaridama'], 1).endR, OW.R[1]); eq(K.rulesFor(['owaridama', 'owaridama', 'owaridama'], 1).toriPlus, OW.tori[2]);
+  // 終わり玉 Lv2 の大トリ +2（尺玉を最後に）
+  const row = () => [...[0, 1, 2, 3].map((i) => ({ type: 'kiku', x: 40 + i * 50, y: 300 })), { type: 'shaku', x: 320, y: 300 }];
+  const o2 = runHand(row(), ['owaridama', 'owaridama'], line(30, 300, 330, 300, 80));
+  eq(o2.st.tori.add, 1 + K.TORI_BONUS + OW.tori[1]); eq(part(o2.res, 'owaridama').v, OW.tori[1]); eq(part(o2.res, 'tori').v, 1 + K.TORI_BONUS);
+  eq(o2.res.stats.toriAdd, 1 + K.TORI_BONUS + OW.tori[1]);
+  ok(o2.ev.some((e) => e.type === 'endBurst' && e.R === OW.R[1]), '線の終わりが爆発で燃えても、終わり玉は爆ぜる');
+  eq(K.rulesFor(['osobi', 'osobi', 'osobi'], 1).startMult, 6);
+  eq(K.rulesFor(['osobi', 'osobi'], 5).startMult, 1 + 4, '寝待月と遅火 Lv2');
+  const n3 = K.rulesFor(['nihitsu', 'nihitsu', 'nihitsu'], 1); eq(n3.secondShare, 0.4); eq(n3.secondInk, 0.5);
+  eq(K.rulesFor(['nokoribi', 'nokoribi', 'nokoribi'], 1).afterglow, 0.5);
+  eq(K.rulesFor(['kinun', 'kinun', 'kinun'], 1).goldBonus, 4); eq(K.rulesFor(['ichibanboshi', 'ichibanboshi', 'ichibanboshi'], 1).fuseGold, K.CHARM_LV.ichibanboshi.gold[2]);
+  // 雨よけ: 湿った玉の点が Lv ごとに増え、Lv2 から倍率も
+  const damp = () => [{ type: 'shime', x: 100, y: 300 }, { type: 'shime', x: 160, y: 300 }];
+  const AM = K.CHARM_LV.amayoke;
+  for (let l = 1; l <= 3; l++) {
+    const r = runHand(damp(), Array(l).fill('amayoke'), line(80, 300, 180, 300, 30)).res;
+    eq(r.chips, 2 * Math.round(25 * AM.pts[l - 1]), `雨よけ Lv${l} の点`); eq(part(r, 'amayoke', 'chips').v, 2 * Math.round(25 * (AM.pts[l - 1] - 1)));
+    eq(part(r, 'amayoke', 'mult') ? part(r, 'amayoke', 'mult').v : 0, 2 * AM.mult[l - 1], `雨よけ Lv${l} の倍率`);
+  }
+  // 風切り: 雲の大きさと、雲ひとつの倍率
+  const full = K.newRound({ seed: 4, night: 6, moon: 1 }).clouds;
+  ok(full.length === 2);
+  const k2 = K.newRound({ seed: 4, night: 6, moon: 1, charms: ['kazekiri', 'kazekiri'] });
+  k2.clouds.forEach((c, i) => eq(c.r, Math.round(full[i].r * 0.25)));
+  eq(K.newRound({ seed: 4, night: 6, moon: 1, charms: ['kazekiri', 'kazekiri', 'kazekiri'] }).clouds.length, 0, 'Lv3 は雲が消える');
+  eq(K.multOf(k2), 1 + K.CHARM_LV.kazekiri.mult[1] * 2, '雲 2 つ × Lv2 の倍率');
+  // 満開の加護: 9 割で ×1.5（全部でなくても）
+  const ten = () => Array.from({ length: 10 }, (_, i) => ({ type: 'kiku', x: 30 + i * 30, y: i === 9 ? 560 : 300 }));
+  const m1 = runHand(ten(), ['mankai'], line(20, 300, 300, 300, 70)).res;
+  eq(m1.pops, 9); eq(part(m1, 'mankai').v, 1.5); eq(part(m1, 'bloom'), undefined); eq(m1.bloom, 1);
+  const two = Array.from({ length: 10 }, (_, i) => ({ type: 'kiku', x: 40 + (i % 5) * 30, y: i < 5 ? 300 : 520 }));
+  const m0 = runHand(two, ['mankai'], line(20, 300, 180, 300, 40)).res;
+  eq(m0.pops, 5); eq(part(m0, 'mankai'), undefined, '9 割に届かない');
+  const all = runHand(ten().slice(0, 9), ['mankai'], line(20, 300, 300, 300, 70)).res;
+  eq(all.bloom, 3, '全部なら ×2 × 1.5');
+});
+
+check('段位: 9 段・決まりは重なる・目標・雲・減衰・枠・候補の数', () => {
+  eq(K.LEVELS.length, 9); eq(K.MAX_LEVEL, 8);
+  K.LEVELS.forEach((L, n) => { eq(L.n, n); eq(L.id, `dan${n}`); ok(L.ja && L.en && L.rule && L.ruleEn && L.fx, `段位 ${n}`); });
+  eq(JSON.stringify(K.levelFx(0)), JSON.stringify({ target: 1, price: 0, spare: 1, clouds: false, decay: 0, offer: 3, slots: 5, star2: 3 }));
+  const f8 = K.levelFx(8);
+  ok(Math.abs(f8.target - 1.1 * 1.15) < 1e-12); eq(f8.price, 1); eq(f8.spare, 0); eq(f8.clouds, true); eq(f8.decay, 0.03); eq(f8.offer, 2); eq(f8.slots, 4); eq(f8.star2, 4);
+  eq(K.levelFx(2).price, 1); eq(K.levelFx(2).spare, 1); eq(K.levelFx(3).spare, 0); eq(K.levelFx(3).clouds, false); eq(K.levelFx(4).clouds, true);
+  eq(K.levelFx(5).offer, 3); eq(K.levelFx(6).offer, 2); eq(K.slotsFor(7), 5); eq(K.slotsFor(8), 4);
+  eq(K.levelFx(99), K.levelFx(8)); eq(K.levelFx(-3), K.levelFx(0));
+  // 目標点
+  for (let seed = 1; seed <= 6; seed++) for (const n of [0, 3, 7]) {
+    const t0 = K.targetFor(seed, n, 2), t1 = K.targetFor(seed, n, 2, 1), t4 = K.targetFor(seed, n, 2, 4), t7 = K.targetFor(seed, n, 2, 7);
+    // 小さい目標点は 10 点きざみに丸めるので、ゆるく比べる
+    const near = (a, b, k) => Math.abs(b - a * k) <= a * k * 0.06 + 10;
+    ok(near(t0, t1, 1.1), `段位 1 は +10% ${t0} → ${t1}`);
+    ok(near(t4, t7, 1.15), `段位 7 は段位 4 より +15% ${t4} → ${t7}`);
+    if (n === 0) ok(near(t0, t7, 1.265), `一夜目は並びが同じ: 段位 7 は +26.5% ${t0} → ${t7}`);
+    ok(t1 >= t0 && t7 >= t4, '段位で目標が下がる');
+    eq(K.newRound({ seed, night: n, moon: 2, level: 7 }).target, t7);
+  }
+  // 雲: 段位 4 から二夜目に出る（一夜目は出ない）。並びもその雲をよける
+  for (let seed = 1; seed <= 20; seed++) {
+    eq(K.newRound({ seed, night: 1, moon: 1, level: 3 }).clouds.length, 0);
+    const st = K.newRound({ seed, night: 1, moon: 1, level: 4 });
+    eq(st.clouds.length, 1, '段位 4 の二夜目');
+    for (const s of st.shells) ok(Math.hypot(s.x - st.clouds[0].x, s.y - st.clouds[0].y) >= st.clouds[0].r + 14, '玉が雲に重なる');
+    eq(K.newRound({ seed, night: 0, moon: 1, level: 8 }).clouds.length, 0, '一夜目は雲なし');
+    eq(JSON.stringify(K.newRound({ seed, night: 6, moon: 1, level: 8 }).clouds), JSON.stringify(K.newRound({ seed, night: 6, moon: 1 }).clouds), '雲の夜は同じ雲');
+    eq(K.newRound({ seed, night: 1, moon: 1, level: 4 }).stats.total, st.shells.length);
+  }
+  const want = K.parScore(3, 1, 1, 4) * K.TARGET_RATIO[1] * 1.1;
+  ok(Math.abs(K.targetFor(3, 1, 1, 4) - want) <= want * 0.05 + 5, '段位 4 の目標点は、雲のある並びで測る');
+  eq(K.parScore(3, 1, 1, 8), K.parScore(3, 1, 1, 4), '並びが同じなら基準点も同じ');
+  // 減衰
+  ok(Math.abs(K.rulesFor([], 1, 5).decay - (K.DECAY - 0.03)) < 1e-12); eq(K.rulesFor([], 1, 4).decay, K.DECAY);
+  ok(Math.abs(K.newRound({ seed: 1, night: 2, level: 6 }).rules.decay - (K.DECAY_SOFT - 0.03)) < 1e-12, '満月の夜も 0.03 強い');
+  eq(K.newRound({ seed: 1, night: 2, level: 99 }).level, 8);
+  // 花火合戦は段位に関係ない
+  eq(K.newVsRound({ seed: 42, bout: 0 }).level, 0);
+});
+
+check('夜の記録 st.stats: はじめにひらいた玉・引きはじめの玉・線でふれた数・金・深さ・墨の割合', () => {
+  const sh = () => [{ type: 'kin', x: 60, y: 300 }, { type: 'kiku', x: 100, y: 300 }, { type: 'ootama', x: 140, y: 300 }, { type: 'kiku', x: 140, y: 340 }, { type: 'kin', x: 320, y: 560 }];
+  const { st, res } = runHand(sh(), [], line(60, 300, 145, 300, 20));
+  const S = res.stats;
+  eq(S, st.stats);
+  eq(S.firstPop, 'kin'); eq(S.startType, 'kin');
+  eq(S.lineTouched, 3); eq(S.goldTouched, 1); eq(S.goldTotal, 2); eq(S.goldBurst, 1);
+  eq(S.bigTotal, 1); eq(S.bigBurst, 1); eq(S.pops, 4); eq(S.total, 5); eq(S.allClear, false);
+  eq(S.maxGen, 1); eq(S.chainPops, 1); eq(S.cloudTouched, false); eq(S.ropesTotal, 0);
+  ok(Math.abs(S.inkFrac - K.inkUsed(st) / st.inkTotal) < 1e-12 && S.inkFrac < 0.25, `墨 ${S.inkFrac}`);
+  // 雲を通る線
+  const c = runHand(sh(), [], line(60, 300, 145, 300, 20), { clouds: [{ x: 120, y: 300, r: 10 }] });
+  eq(c.res.stats.cloudTouched, true);
+  // 何もない所から引くと、引きはじめの玉は無い
+  eq(runHand(sh(), [], line(200, 450, 260, 450, 10)).res.stats.startType, null);
+  // 夜の記録は、newRound の時点でも読める（数はその夜の玉）
+  const st0 = K.newRound({ seed: 3, night: 6, moon: 1 });
+  eq(st0.stats.ropesTotal, st0.ropes.length); eq(st0.stats.dampTotal, st0.shells.filter((s) => s.type === 'shime').length);
+});
+
+check('願い札: 14 枚・夜ごとに 1 枚（決定的）・その夜に意味のある札だけ・前の夜と同じ札は出ない', () => {
+  eq(K.WISHES.map((w) => w.id).join(), 'w_lantern_first,w_all_gold,w_spare30,w_pops,w_touch_few,w_double,w_damp_all,w_tori8,w_rope_all,w_no_cloud,w_gold_first,w_bloom,w_short,w_big_all');
+  const seen = new Set();
+  for (let seed = 1; seed <= 300; seed++) for (const level of [0, 4]) {
+    let prev = null;
+    for (let n = 0; n < K.NIGHTS; n++) {
+      const w = K.wishFor(seed, n, level);
+      eq(JSON.stringify(w), JSON.stringify(K.wishFor(seed, n, level)), '決定的');
+      ok(w.ja && w.en && !w.ja.includes('{') && !w.en.includes('{'), JSON.stringify(w));
+      seen.add(w.id);
+      ok(w.id !== prev, `seed ${seed}: 同じ札が続く`); prev = w.id;
+      const tw = K.twistFor(seed, n);
+      if (w.id === 'w_tori8') eq(n, 7);
+      if (w.id === 'w_lantern_first') ok(n >= 3);
+      if (w.id === 'w_damp_all') ok(n >= 5);
+      if (w.id === 'w_rope_all') ok(n >= 6);
+      if (w.id === 'w_big_all') ok(n >= 1);
+      if (w.id === 'w_bloom') ok(n <= 3);
+      if (w.id === 'w_spare30' || w.id === 'w_short') ok(n < 7);
+      if (w.id === 'w_no_cloud') ok(n >= (level >= 4 ? 1 : 4), `雲の無い夜に ${n}`);
+      if (w.id === 'w_double') ok(!tw, '大一番に 2 倍');
+      if (w.id === 'w_touch_few') ok(n >= 1 && !(tw && tw.id === 'kagami'));
+      if (w.id === 'w_pops') { eq(w.n, Math.round(K.BASE_COUNTS[n] * K.WISH_POPS)); ok(w.ja.includes(String(w.n)) && w.en.includes(String(w.n))); }
+    }
+  }
+  eq(seen.size, K.WISHES.length, 'どの札も出る');
+  eq(K.wishFor(1, 8), null);
+  ok(K.wishById('w_bloom') && !K.wishById('nope'));
+});
+
+check('願い札: かなったか（どれも越えたうえで）', () => {
+  const W = (id, shells, stroke, target = 0, opts = {}) => { const { st } = runHand(shells, opts.charms || [], stroke, opts); return K.wishMet(st, opts.wish || { id }, target); };
+  const row = (types, y = 300) => types.map((type, i) => ({ type, x: 60 + i * 40, y }));
+  // 提灯から引きはじめる
+  eq(W('w_lantern_first', row(['chouchin', 'kiku', 'kiku']), line(60, 300, 140, 300, 20)), true);
+  eq(W('w_lantern_first', row(['kiku', 'kiku', 'chouchin']), line(60, 300, 140, 300, 20)), false);
+  // 金の玉を全部
+  eq(W('w_all_gold', row(['kin', 'kiku', 'kin']), line(60, 300, 140, 300, 20)), true);
+  eq(W('w_all_gold', [...row(['kin', 'kiku']), { type: 'kin', x: 320, y: 560 }], line(60, 300, 100, 300, 20)), false);
+  // 墨を 3 割残す・半分以下
+  eq(W('w_spare30', row(['kiku', 'kiku']), line(60, 300, 100, 300, 10)), true);
+  eq(W('w_spare30', row(['kiku', 'kiku']), line(20, 200, 340, 200, 80).concat(line(340, 210, 20, 210, 80))), false);
+  eq(W('w_short', row(['kiku', 'kiku']), line(60, 300, 100, 300, 10)), true);
+  eq(W('w_short', row(['kiku', 'kiku']), line(20, 300, 340, 300, 80)), false);
+  // ◯個以上
+  eq(W('w_pops', row(['kiku', 'kiku', 'kiku']), line(60, 300, 140, 300, 20), 0, { wish: { id: 'w_pops', n: 3 } }), true);
+  eq(W('w_pops', row(['kiku', 'kiku', 'kiku']), line(60, 300, 140, 300, 20), 0, { wish: { id: 'w_pops', n: 4 } }), false);
+  // 線でじかにふれる玉は 4 つまで
+  eq(W('w_touch_few', row(['kiku', 'kiku', 'kiku']), line(60, 300, 140, 300, 20)), true);
+  eq(W('w_touch_few', row(['kiku', 'kiku', 'kiku', 'kiku', 'kiku', 'kiku'].map((t) => t)).map((s, i) => ({ ...s, x: 40 + i * 50 })), line(30, 300, 300, 300, 60)), false);
+  // 目標の 2 倍
+  const { st: d } = runHand(row(['kiku', 'kiku']), [], line(60, 300, 100, 300, 10));
+  eq(K.wishMet(d, { id: 'w_double' }, d.result.score / 2), true);
+  eq(K.wishMet(d, { id: 'w_double' }, d.result.score * 0.6), false);
+  // 湿った玉を全部・大玉を全部
+  eq(W('w_damp_all', row(['shime', 'shime']), line(60, 300, 100, 300, 10)), true);
+  eq(W('w_damp_all', [...row(['shime']), { type: 'shime', x: 320, y: 560 }], line(50, 300, 70, 300, 6)), false);
+  eq(W('w_big_all', row(['ootama', 'kiku']), line(60, 300, 100, 300, 10)), true);
+  eq(W('w_big_all', [...row(['kiku']), { type: 'ootama', x: 320, y: 560 }], line(50, 300, 70, 300, 6)), false);
+  // 大トリ +8 以上
+  const tori = () => [...[0, 1, 2, 3].map((i) => ({ type: 'kiku', x: 40 + i * 50, y: 300 })), { type: 'shaku', x: 320, y: 300 }];
+  eq(W('w_tori8', tori(), line(30, 300, 330, 300, 80)), true);
+  eq(W('w_tori8', tori(), line(330, 300, 30, 300, 80)), false);
+  // 雲にふれない
+  eq(W('w_no_cloud', row(['kiku', 'kiku']), line(60, 300, 100, 300, 10), 0, { clouds: [{ x: 200, y: 450, r: 20 }] }), true);
+  eq(W('w_no_cloud', row(['kiku', 'kiku']), line(60, 300, 100, 300, 10), 0, { clouds: [{ x: 80, y: 300, r: 8 }] }), false);
+  // はじめにひらくのは金
+  eq(W('w_gold_first', row(['kin', 'kiku']), line(60, 300, 100, 300, 10)), true);
+  eq(W('w_gold_first', row(['kiku', 'kin']), line(60, 300, 100, 300, 10)), false);
+  // 満開
+  eq(W('w_bloom', row(['kiku', 'kiku']), line(60, 300, 100, 300, 10)), true);
+  eq(W('w_bloom', [...row(['kiku', 'kiku']), { type: 'kiku', x: 320, y: 560 }], line(60, 300, 100, 300, 10)), false);
+  // 仕掛け縄に全部（本物の七夜目）
+  const rope = K.newRound({ seed: 3, night: 6, moon: 1, bank: K.BASE_INK });
+  ok(rope.ropes.length >= 2);
+  const ends = rope.ropes.map((r) => rope.shells.find((s) => s.id === r.a));
+  K.runToEnd(rope, [ends.map((s) => ({ x: s.x, y: s.y }))]);
+  eq(K.wishMet(rope, { id: 'w_rope_all' }, 0), true);
+  eq(rope.result.stats.ropesLit, rope.ropes.length);
+  const none = K.newRound({ seed: 3, night: 6, moon: 1 });
+  K.runToEnd(none, [line(20, 620, 120, 620, 20)]);
+  eq(K.wishMet(none, { id: 'w_rope_all' }, 0), false); eq(none.result.stats.ropesLit, 0);
+  // 越えていなければ、かなわない・終わる前はかなわない・id だけでもよい
+  eq(W('w_bloom', row(['kiku', 'kiku']), line(60, 300, 100, 300, 10), 1e9), false);
+  eq(K.wishMet(K.newRound({ seed: 1, night: 0 }), { id: 'w_bloom' }, 0), false);
+  eq(W('w_gold_first', row(['kin', 'kiku']), line(60, 300, 100, 300, 10), 0, { wish: 'w_gold_first' }), true);
+  eq(W('nope', row(['kin']), line(60, 300, 100, 300, 10)), false);
 });
 
 // ---------------------------------------------------------------- 花火合戦

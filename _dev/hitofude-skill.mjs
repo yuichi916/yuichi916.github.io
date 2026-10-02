@@ -1,7 +1,9 @@
 // 一筆花火の腕前ごとの通過率と、お守りの値打ちを測る（目標点の倍率 TARGET_RATIO と、お守りの数字はこれで決めた）。
 // 使い方:
-//   node _dev/hitofude-skill.mjs tiers [N=24] [評価回数=150]   … 夜ごとの通過率（落書き / 近い順 / lg3 / 山登り）・山登り ÷ 素朴な線・Spearman(ひらいた数, 点)
-//   node _dev/hitofude-skill.mjs charms [N=24] [評価回数=100]  … お守り 1 つを足したときの点の伸び・「持ち物によらず選ぶもの」が候補に入る割合
+//   node _dev/hitofude-skill.mjs tiers [N=24] [評価回数=150] [段位=0] [starter|all]  … 夜ごとの通過率（落書き / 近い順 / lg3 / 山登り）・山登り ÷ 素朴な線・
+//                                                                                   Spearman(ひらいた数, 点)・lg3 が 82% 越える倍率（TARGET_RATIO の目安）
+//   node _dev/hitofude-skill.mjs charms [N=24] [評価回数=100] [starter|all|legend]   … お守りを 1 つ（か Lv を 1 つ）足したときの点の伸び・
+//                                                                                   「持ち物によらず選ぶもの」が候補に入る割合
 // 腕前（ボット）:
 //   scrib  落書き。玉を見ずに、ゆるく曲がる線を墨が切れるまで（二筆目も落書き）
 //   greedy ばらばらの玉から、近い 3 つのどれかへ順につなぐ（墨が切れるまで）
@@ -9,9 +11,11 @@
 //          まっすぐの夜は玉の並ぶ向きをねらい、尺玉の夜は尺玉へ行ける墨を残して尺玉で終える
 //   opt    山登り（近い順の線を種に、点の入れかえ・反転・切りつめなどで評価回数ぶん探す）
 //   naive  提灯から・ばらばらの所からを交互に 12 本ためした、いちばん良いもの（山登りと比べる相手）
-// お守りは、値打ちの大きい順（_dev/hitofude-balance.mjs の PRIORITY）で集める。散っても先の夜へ進む（夜ごとの通過率を見るため）
+// お守りは、値打ちの大きい順（_dev/hitofude-balance.mjs の choosePick）で、5 つの枠（段位 8 は 4）に集める。同じものは Lv 上げ。
+// 散っても先の夜へ進む（夜ごとの通過率を見るため）
+import { writeFileSync } from 'node:fs';
 import * as K from '../assets/hitofude/core.js';
-import { PRIORITY } from './hitofude-balance.mjs';
+import { POOLS, choosePick, applyPick } from './hitofude-balance.mjs';
 
 export function greedyFrom(st, start, rng, k = 3, ink = st.ink, shells = st.shells) {
   let cur = start; const pts = [{ x: cur.x, y: cur.y }]; const seen = new Set([cur.id]); let used = 0;
@@ -79,7 +83,7 @@ function tierLine(tier, st, rng) {
   if (st.shells.some((s) => s.type === 'shaku')) return toriLine(st, rng, lan || rnd());
   return greedyFrom(st, lan || rnd(), rng, 3, st.ink);
 }
-const mkRound = (ctx) => K.newRound({ seed: ctx.seed, night: ctx.night, charms: ctx.charms, moon: ctx.moon, par: true, bank: ctx.bank || 0 });
+const mkRound = (ctx) => K.newRound({ seed: ctx.seed, night: ctx.night, charms: ctx.charms, moon: ctx.moon, par: true, bank: ctx.bank || 0, level: ctx.level || 0 });
 // 1 本の線を最後まで回す（二筆目は、残った玉の近い順の線。落書きの人は二筆目も落書き）
 function evalLine(ctx, pts, tier = '') {
   const st = mkRound(ctx);
@@ -139,63 +143,84 @@ function spearman(a, b) {
   for (let j = 0; j < a.length; j++) { num += (ra[j] - m) * (rb[j] - m); da += (ra[j] - m) ** 2; db += (rb[j] - m) ** 2; }
   return da && db ? num / Math.sqrt(da * db) : 0;
 }
-const pick = (offer) => offer.slice().sort((a, b) => PRIORITY.indexOf(a) - PRIORITY.indexOf(b))[0];
 
-function tiers(N, budget) {
-  const rows = [];
-  for (let i = 0; i < N; i++) {
-    const seed = K.hashStr('rev' + i), moon = i % 8, rng = K.rng32(1000 + i), charms = [];
+// 目標点をのぞいた「その夜の基準」: 基準点 × 大一番の割り引き × 段位の倍率（TARGET_RATIO をかけると目標点）
+const unit = (seed, night, moon, level) => { const tw = K.twistFor(seed, night); return K.parScore(seed, night, moon, level) * (tw ? tw.target : 1) * K.levelFx(level).target; };
+function tiers(N, budget, level, poolName) {
+  const rows = [], pool = POOLS[poolName], fx = K.levelFx(level);
+  const off = +(process.env.OFF || 0); // 盤面の番号のずらし（いくつかに分けて同時に回すとき）
+  for (let i = off; i < off + N; i++) {
+    const seed = K.hashStr('rev' + i), moon = i % 8, rng = K.rng32(1000 + i);
+    let charms = [];
     for (let night = 0; night < K.NIGHTS; night++) {
-      const ctx = { seed, night, charms: charms.slice(), moon }, st = mkRound(ctx), target = K.targetFor(seed, night, moon);
+      const ctx = { seed, night, charms: charms.slice(), moon, level }, st = mkRound(ctx), target = K.targetFor(seed, night, moon, level);
       const many = (tier, k) => Array.from({ length: k }, () => evalLine(ctx, tierLine(tier, st, rng), tier).score);
-      const row = { night, twist: st.twist, target, scrib: many('scrib', 5), greedy: many('greedy', 5), lg3: [0, 1, 2].map(() => Math.max(...many('lg', 3))) };
+      const row = { night, twist: st.twist, target, u: unit(seed, night, moon, level), scrib: many('scrib', 5), greedy: many('greedy', 5), lg3: [0, 1, 2].map(() => Math.max(...many('lg', 3))) };
       const lan = st.shells.find((s) => s.type === 'chouchin');
       row.naive = Math.max(...Array.from({ length: 12 }, (_, k) => evalLine(ctx, st.twist === 'massugu' ? tierLine('lg', st, rng) : greedyFrom(st, k % 2 === 0 && lan ? lan : st.shells[Math.floor(rng() * st.shells.length)], rng, 3, st.ink)).score));
       const o = optimize(ctx, rng, budget);
       row.opt = o.best.score; row.sp = spearman(o.pool.map((p) => p.score), o.pool.map((p) => p.pops));
       rows.push(row);
-      for (let round = 0; round < (K.isBoss(night) ? 2 : 1); round++) { const offer = K.offerCharms(seed, night, charms, round); if (offer.length) charms.push(pick(offer)); }
+      for (let round = 0; round < (K.isBoss(night) ? 2 : 1); round++) {
+        const offer = K.offerCharms(seed, night, charms, round, { pool, level });
+        charms = applyPick(charms, choosePick('priority', offer, charms, { slots: fx.slots, rng, night }));
+      }
     }
   }
+  // DUMP=ファイル名: 夜ごとの点 ÷ 基準（倍率を変えたときの通過率を、回し直さずに出すため）
+  if (process.env.DUMP) writeFileSync(process.env.DUMP, JSON.stringify(rows.map((x) => ({ night: x.night, u: x.u, scrib: x.scrib, greedy: x.greedy, lg3: x.lg3, opt: x.opt, naive: x.naive, sp: x.sp }))));
   const pass = (r, k) => { let a = 0, t = 0; for (const x of r) for (const s of [].concat(x[k])) { t++; if (s >= x.target) a++; } return a / t; };
-  console.log(`N=${N} 評価=${budget}\n夜 | 落書き | 近い順 | lg3 | 山登り | 山登り ÷ 素朴な線（中央値） | Spearman(ひらいた数, 点)`);
+  console.log(`N=${N} 評価=${budget} 段位${level} pool=${poolName}\n夜 | 落書き | 近い順 | lg3 | 山登り | 山登り ÷ 素朴な線（中央値） | Spearman(ひらいた数, 点) | 倍率の目安: lg3 が 82% / 落書き 20% / 山登り 98% 越える倍率（今 ${K.TARGET_RATIO.join(', ')}）`);
   for (let n = 0; n < K.NIGHTS; n++) {
     const r = rows.filter((x) => x.night === n);
-    console.log(`${n + 1} | ${pct(pass(r, 'scrib'))} | ${pct(pass(r, 'greedy'))} | ${pct(pass(r, 'lg3'))} | ${pct(pass(r, 'opt'))} | ${q(r.map((x) => x.opt / Math.max(1, x.naive)), 0.5).toFixed(2)} | ${q(r.map((x) => x.sp), 0.5).toFixed(2)}`);
+    const rat = (k) => r.flatMap((x) => [].concat(x[k]).map((s) => s / x.u));
+    console.log(`${n + 1} | ${pct(pass(r, 'scrib'))} | ${pct(pass(r, 'greedy'))} | ${pct(pass(r, 'lg3'))} | ${pct(pass(r, 'opt'))} | ${q(r.map((x) => x.opt / Math.max(1, x.naive)), 0.5).toFixed(2)} | ${q(r.map((x) => x.sp), 0.5).toFixed(2)} | ${q(rat('lg3'), 0.18).toFixed(2)} / ${q(rat('scrib'), 0.8).toFixed(2)} / ${q(rat('opt'), 0.02).toFixed(2)}`);
   }
 }
 
-function charms(N, budget) {
-  const by = {}, rows = [];
+// お守りを 1 つ（持っていれば Lv を 1 つ）足したときの点の伸び。持ち物は、その夜に出ているお守りから 2〜5 個（Lv はでたらめ）
+function charms(N, budget, poolName) {
+  const pool = POOLS[poolName], by = {}, byUp = {}, rows = [];
   for (let i = 0; i < N; i++) {
     const seed = K.hashStr('cv' + i), night = 3 + (i % 5), moon = i % 8, r0 = K.rng32(i * 7 + 1);
-    const legal = K.CHARM_IDS.filter((c) => (K.CHARM_NEEDS[c] || 0) <= night); // その夜に仕掛けが出ているお守りだけ
-    for (let j = legal.length - 1; j > 0; j--) { const k = Math.floor(r0() * (j + 1)); [legal[j], legal[k]] = [legal[k], legal[j]]; }
-    const base = legal.slice(0, 2 + Math.floor(r0() * 4));
+    const legal = pool.filter((c) => K.charmNeed(c) <= night); // その夜に仕掛けが出ているお守りだけ
+    const sh = legal.slice();
+    for (let j = sh.length - 1; j > 0; j--) { const k = Math.floor(r0() * (j + 1)); [sh[j], sh[k]] = [sh[k], sh[j]]; }
+    const base = [];
+    for (const id of sh.slice(0, 2 + Math.floor(r0() * 4))) { const l = r0() < 0.6 ? 1 : r0() < 0.7 ? 2 : 3; for (let k = 0; k < l; k++) base.push(id); }
     const ev = (ch) => optimize({ seed, night, charms: ch, moon }, K.rng32(555 + i), budget).best.score;
-    const b = Math.max(1, ev(base)), gains = {};
-    for (const c of legal) if (!base.includes(c)) { gains[c] = ev([...base, c]) / b; (by[c] ||= []).push(gains[c]); }
+    const b = Math.max(1, ev(base)), gains = {}, lv = K.charmLevels(base);
+    for (const c of legal) {
+      if ((lv[c] || 0) >= K.MAX_LV) continue;
+      gains[c] = ev([...base, c]) / b;
+      ((lv[c] ? byUp : by)[c] ||= []).push(gains[c]);
+    }
     rows.push(gains);
   }
-  console.log(`N=${N} 評価=${budget}\nお守り | 中央値 p25 p75 p90（1 つ足したときの点の倍率）`);
-  for (const [c, a] of Object.entries(by).sort((x, y) => q(y[1], 0.5) - q(x[1], 0.5))) console.log(`${c.padEnd(13)} ${[0.5, 0.25, 0.75, 0.9].map((p) => q(a, p).toFixed(2)).join(' ')}`);
-  // 持ち物によらず選ぶもの: 候補の 3 つのうち 1 つが、ほかの 2 つのどちらにも、持ち物の 75% 以上で勝つ
+  console.log(`N=${N} 評価=${budget} pool=${poolName}\nお守り | 新しく取る: 中央値 p25 p75 p90（n） | Lv を上げる: 中央値 p25 p75（n）`);
+  const fmtq = (a, ps) => (a && a.length ? ps.map((p) => q(a, p).toFixed(2)).join(' ') + ` (${a.length})` : '-');
+  for (const c of pool.slice().sort((x, y) => (by[y] ? q(by[y], 0.5) : 0) - (by[x] ? q(by[x], 0.5) : 0))) console.log(`${c.padEnd(13)} ${fmtq(by[c], [0.5, 0.25, 0.75, 0.9])} | ${fmtq(byUp[c], [0.5, 0.25, 0.75])}`);
+  // 持ち物によらず選ぶもの: 候補のうち 1 つが、ほかのどれにも、持ち物の 75% 以上で勝つ
   const win = {};
   for (const g of rows) for (const a in g) for (const c in g) if (a !== c) { const w = ((win[a] ||= {})[c] ||= [0, 0]); w[1]++; if (g[a] > g[c] * 1.02) w[0]++; }
   const beats = (a, c) => win[a] && win[a][c] && win[a][c][1] >= 4 && win[a][c][0] / win[a][c][1] >= 0.75;
-  let n = 0, auto = 0;
+  let n = 0, auto = 0; const autoBy = {};
   for (let i = 0; i < 2000; i++) {
-    const seed = K.hashStr('of' + i), held = [];
+    const seed = K.hashStr('of' + i), rng = K.rng32(i + 9);
+    let held = [];
     for (let night = 0; night < K.NIGHTS - 1; night++) for (let round = 0; round < (K.isBoss(night) ? 2 : 1); round++) {
-      const o = K.offerCharms(seed, night, held, round); if (!o.length) continue;
-      n++; if (o.some((x) => o.every((y) => y === x || beats(x, y)))) auto++;
-      held.push(pick(o));
+      const o = K.offerCharms(seed, night, held, round, { pool }); if (!o.length) continue;
+      n++;
+      const a = o.find((x) => o.every((y) => y === x || beats(x, y)));
+      if (a) { auto++; autoBy[a] = (autoBy[a] || 0) + 1; }
+      held = applyPick(held, choosePick('priority', o, held, { rng, night }));
     }
   }
-  console.log(`持ち物によらず選ぶものが入っている候補: ${pct(auto / n)}`);
+  console.log(`持ち物によらず選ぶものが入っている候補: ${pct(auto / n)}（${Object.entries(autoBy).sort((a, b) => b[1] - a[1]).map(([id, c]) => `${id} ${pct(c / n)}`).join(', ')}）`);
 }
 
 if (process.argv[1].endsWith('hitofude-skill.mjs')) {
-  const [mode = 'tiers', nArg, bArg] = process.argv.slice(2);
-  if (mode === 'charms') charms(+(nArg || 24), +(bArg || 100)); else tiers(+(nArg || 24), +(bArg || 150));
+  const [mode = 'tiers', nArg, bArg, a3, a4] = process.argv.slice(2);
+  if (mode === 'charms') charms(+(nArg || 24), +(bArg || 100), a3 || 'all');
+  else tiers(+(nArg || 24), +(bArg || 150), +(a3 || 0), a4 || 'starter');
 }
