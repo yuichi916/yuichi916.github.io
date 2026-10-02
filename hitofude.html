@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <!-- 題字「一筆花火」だけの筆文字（表紙とそろえる。4 字ぶんだけ読む） -->
-<link href="https://fonts.googleapis.com/css2?family=Yuji+Boku&text=%E4%B8%80%E7%AD%86%E8%8A%B1%E7%81%AB&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link href="https://fonts.googleapis.com/css2?family=Yuji+Boku&text=%E4%B8%80%E7%AD%86%E8%8A%B1%E7%81%AB%E4%BA%8C%E4%B8%89%E5%9B%9B%E4%BA%94%E5%85%AD%E4%B8%83%E5%85%AB%E5%A4%9C%E7%9B%AE%E5%A4%A7%E7%95%AA%E7%A5%AD%E9%A1%98%E5%8F%B6%E6%88%90%E5%8A%9F%E3%82%8A&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -84,8 +84,14 @@ a{color:var(--gold)}
 #scoreVal{font-size:calc(22px * var(--u));font-weight:800}
 #multVal{font-size:calc(11px * var(--u));color:var(--dim);font-weight:600;letter-spacing:.02em}
 #chips{position:absolute;left:calc(10px * var(--u));top:calc(env(safe-area-inset-top,0px) + 58px * var(--u));display:flex;gap:calc(4px * var(--u));flex-wrap:wrap;max-width:70%}
-#chips span{display:block;pointer-events:auto;line-height:0}
+#chips span{display:block;pointer-events:auto;line-height:0;position:relative}
 #chips .omamori{height:calc(30px * var(--u));filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
+/* お守りの枠（空きは点線）と、強くしたお守りの段（Lv2・Lv3） */
+#chips span.empty{width:calc(24px * var(--u));height:calc(30px * var(--u));border:1px dashed rgba(255,255,255,.22);border-radius:calc(6px * var(--u));opacity:.7}
+#chips .lv{position:absolute;right:calc(-4px * var(--u));bottom:calc(-3px * var(--u));font:800 calc(9px * var(--u))/1 "JetBrains Mono",monospace;font-style:normal;color:#1a1206;background:var(--gold);border-radius:99px;padding:calc(2px * var(--u)) calc(3px * var(--u))}
+#chips .lv.l3{background:linear-gradient(90deg,#ffd75a,#ff8a5a);color:#fff}
+#chips span.new{animation:chipIn .5s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes chipIn{0%{transform:translateY(calc(-30px * var(--u))) scale(1.8);opacity:0}60%{opacity:1}100%{transform:none}}
 #homeBtn{position:absolute;left:calc(8px * var(--u));top:calc(env(safe-area-inset-top,0px) + 8px * var(--u))}
 #topBtns{position:absolute;right:calc(8px * var(--u));bottom:calc(64px * var(--u) + var(--safe-b));display:flex;flex-direction:column;gap:calc(6px * var(--u))}
 .ibtn{width:calc(42px * var(--u));height:calc(42px * var(--u));border-radius:calc(12px * var(--u));background:rgba(12,14,34,.7);border:1px solid var(--line);
@@ -107,11 +113,20 @@ a{color:var(--gold)}
 #callout.on{animation:callout 1s ease-out forwards}
 @keyframes pop{0%{transform:scale(1.45)}100%{transform:scale(1)}}
 @keyframes callout{0%{opacity:0;transform:scale(.6)}15%{opacity:1;transform:scale(1.15)}30%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:translateY(calc(-20px * var(--u)))}}
-#banner{position:absolute;left:0;right:0;top:40%;text-align:center;pointer-events:none;opacity:0}
-#banner.on{animation:banner 1.3s ease-out forwards}
-#banner b{display:block;font-size:calc(40px * var(--u));color:#fff}
-#banner span{font-size:calc(16px * var(--u));color:var(--gold)}
-@keyframes banner{0%{opacity:0;transform:translateY(calc(12px * var(--u)))}20%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
+#banner{position:absolute;left:0;right:0;top:36%;text-align:center;pointer-events:none;opacity:0}
+/* 夜の名前は筆で書くように左から現れる。後ろに墨のにじみ */
+#banner::before{content:'';position:absolute;left:8%;right:8%;top:-28%;bottom:-36%;background:radial-gradient(ellipse at center,rgba(6,8,24,.62),rgba(6,8,24,0) 70%);z-index:-1}
+#banner.on{animation:banner 1.5s ease-out forwards}
+#banner.fest.on{animation:banner 5s ease-out forwards}
+#banner.fest b{font-size:calc(72px * var(--u));color:#ffe9a8;text-shadow:0 0 calc(24px * var(--u)) rgba(255,170,60,.85)}
+#banner b{display:inline-block;font-size:calc(56px * var(--u));line-height:1.15;color:#fff;font-weight:400;font-family:"Yuji Boku","Shippori Mincho",serif;text-shadow:0 0 calc(18px * var(--u)) rgba(255,190,90,.55)}
+html[lang="en"] #banner b{font-family:"Shippori Mincho",serif;font-weight:800;font-size:calc(44px * var(--u))}
+#banner.on b{animation:brushIn .55s cubic-bezier(.3,.7,.2,1) both}
+@keyframes brushIn{from{clip-path:inset(0 100% 0 0);filter:blur(2px)}to{clip-path:inset(0 0 0 0);filter:none}}
+#banner span{display:block;margin-top:calc(4px * var(--u));font-size:calc(16px * var(--u));color:var(--gold)}
+#banner.on span{animation:fadeUp .4s .25s ease-out both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(calc(6px * var(--u)))}to{opacity:1;transform:none}}
+@keyframes banner{0%{opacity:0}8%{opacity:1}82%{opacity:1}100%{opacity:0}}
 #hint{position:absolute;left:0;right:0;bottom:calc(14px * var(--u) + var(--safe-b));text-align:center;font-size:calc(14px * var(--u));color:var(--text);pointer-events:none;
   text-shadow:0 1px 4px #000;transition:opacity .3s}
 #ink{position:absolute;left:calc(40px * var(--u));right:calc(40px * var(--u));bottom:calc(40px * var(--u) + var(--safe-b));height:calc(8px * var(--u));border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;pointer-events:none}
@@ -121,8 +136,27 @@ a{color:var(--gold)}
 #tally{position:absolute;left:50%;top:34%;transform:translateX(-50%);width:min(92%,calc(380px * var(--u)));text-align:center;pointer-events:none;
   background:rgba(8,10,28,.78);border:1px solid var(--line);border-radius:calc(18px * var(--u));padding:calc(12px * var(--u)) calc(10px * var(--u)) calc(14px * var(--u));
   -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 calc(10px * var(--u)) calc(40px * var(--u)) rgba(0,0,0,.45)}
-#tally .row1{font-size:calc(20px * var(--u));color:var(--text);opacity:0}
-#tally .row1 b{color:var(--gold)} #tally .row1 i{font-style:normal;color:var(--red)}
+/* 点と倍率を、出どころごとに 1 つずつ積み上げる（点 × 倍率 → 最後の点） */
+#tally .row1{display:flex;align-items:center;justify-content:center;gap:calc(8px * var(--u));opacity:0}
+#tally .row1 .pc,#tally .row1 .pm{display:inline-flex;flex-direction:column;align-items:center;min-width:calc(104px * var(--u));padding:calc(3px * var(--u)) calc(10px * var(--u)) calc(4px * var(--u));border-radius:calc(12px * var(--u))}
+#tally .row1 .pc{background:rgba(70,140,255,.16);border:1px solid rgba(130,185,255,.5)}
+#tally .row1 .pm{background:rgba(255,80,70,.16);border:1px solid rgba(255,140,120,.55)}
+#tally .row1 small{font-size:calc(11px * var(--u));color:var(--dim);letter-spacing:.08em}
+#tally .row1 b{font-size:calc(26px * var(--u));font-weight:800;line-height:1.1}
+#tally .row1 .pc b{color:#cfe6ff} #tally .row1 .pm b{color:#ffc0b4}
+#tally .row1>i{font-style:normal;font-size:calc(22px * var(--u));color:var(--dim)}
+#tally .row1 .bump{animation:tBump .18s ease-out}
+#tally .row1 .slam{animation:tSlam .3s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes tBump{40%{transform:scale(1.2)}}
+@keyframes tSlam{0%{transform:scale(1.7) rotate(-5deg);filter:brightness(1.8)}100%{transform:none}}
+#tally .part{min-height:calc(24px * var(--u));margin-top:calc(6px * var(--u));font-size:calc(14px * var(--u));color:var(--text);display:flex;align-items:center;justify-content:center}
+#tally .part span{display:inline-flex;align-items:center;gap:calc(6px * var(--u));animation:tPart .2s ease-out}
+#tally .part .omamori{height:calc(24px * var(--u));width:auto}
+#tally .part b{font-family:"JetBrains Mono",ui-monospace,monospace;font-weight:800}
+#tally .part.c b{color:#cfe6ff} #tally .part.m b{color:#ffc0b4} #tally .part.x b{color:#ffd75a;font-size:1.25em}
+@keyframes tPart{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+#tally .row2.fire{color:#fff3c4;text-shadow:0 0 calc(10px * var(--u)) #ffb347,0 calc(-5px * var(--u)) calc(16px * var(--u)) #ff6a2a,0 calc(-11px * var(--u)) calc(28px * var(--u)) rgba(255,60,20,.75);animation:tFire .45s ease-in-out infinite alternate}
+@keyframes tFire{from{filter:brightness(1)}to{filter:brightness(1.35)}}
 #tally .row2{font-size:calc(48px * var(--u));font-weight:800;color:#fff;opacity:0;text-shadow:0 0 calc(20px * var(--u)) rgba(255,200,120,.7)}
 #tally .row3{font-size:calc(18px * var(--u));color:var(--gold);opacity:0}
 #tally .stamp[data-kind=pass]{background:#b8322a;color:#fff4e4!important;border-color:#e9a08c!important}
@@ -201,6 +235,52 @@ a{color:var(--gold)}
 #newCard .d{display:block;font-size:calc(14px * var(--u));color:var(--text);margin-top:calc(3px * var(--u));font-weight:600}
 #factorVal{font-size:calc(12px * var(--u));color:#1a1206;background:var(--gold);border-radius:calc(6px * var(--u));padding:0 calc(5px * var(--u));margin-top:calc(2px * var(--u));display:inline-block;font-weight:800}
 .stats{margin-top:calc(10px * var(--u));font-size:calc(12px * var(--u));color:var(--dim)}
+/* 花火師の格 */
+.rankbox{display:flex;align-items:center;gap:calc(10px * var(--u));width:100%;margin:0 0 calc(10px * var(--u));padding:calc(8px * var(--u)) calc(12px * var(--u));text-align:left;
+  background:rgba(255,215,90,.07);border:1px solid rgba(255,215,90,.3);border-radius:calc(14px * var(--u));color:var(--text)}
+.rankbox .rkLv{flex:none;width:calc(40px * var(--u));height:calc(40px * var(--u));display:grid;place-items:center;border-radius:50%;font-weight:800;font-size:calc(18px * var(--u));
+  color:#2a1404;background:radial-gradient(circle at 35% 30%,#fff3c4,#ffc93c 55%,#f2551a);box-shadow:0 0 calc(14px * var(--u)) rgba(255,170,60,.5)}
+.rankbox .rkTxt{flex:1;min-width:0;display:flex;flex-direction:column;gap:calc(3px * var(--u))}
+.rankbox b{font-size:calc(15px * var(--u))}
+.rankbox small{font-size:calc(11.5px * var(--u));color:var(--dim)}
+.xpbar{display:block;height:calc(7px * var(--u));border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}
+.xpbar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#ffb347,#ffd75a);transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.metabtns{display:flex;flex-wrap:wrap;gap:calc(6px * var(--u));justify-content:center;margin-top:calc(10px * var(--u))}
+.metabtns .btn{display:inline-flex;align-items:center;gap:calc(5px * var(--u))}
+.metabtns .btn .ic{width:calc(15px * var(--u));height:calc(15px * var(--u));color:var(--gold)}
+.metabtns .btn .dot{width:calc(7px * var(--u));height:calc(7px * var(--u));border-radius:50%;background:#ff5a3a}
+.quests{margin-top:calc(10px * var(--u));text-align:left;font-size:calc(12.5px * var(--u));background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:calc(12px * var(--u));padding:calc(7px * var(--u)) calc(10px * var(--u))}
+.quests .qh{display:flex;justify-content:space-between;color:var(--gold);font-weight:800;margin-bottom:calc(3px * var(--u))}
+.quests .q{display:flex;align-items:center;gap:calc(6px * var(--u));color:var(--dim);line-height:1.6}
+.quests .q b{color:var(--text);font-weight:600}
+.quests .q.done b{text-decoration:line-through;color:var(--dim)}
+.quests .q .chk{flex:none;width:calc(14px * var(--u));height:calc(14px * var(--u));border-radius:4px;border:1px solid rgba(255,255,255,.35);display:grid;place-items:center;font-size:calc(10px * var(--u))}
+.quests .q.done .chk{background:var(--gold);border-color:var(--gold);color:#1a1206}
+.quests .q .pr{margin-left:auto;font-family:"JetBrains Mono",monospace;font-size:calc(11px * var(--u))}
+/* 図鑑・着せかえ */
+.bookcard{max-width:calc(560px * var(--u))}
+.tabs{display:flex;gap:calc(6px * var(--u));justify-content:center;margin:calc(8px * var(--u)) 0}
+.tabs button{font-size:calc(13px * var(--u));padding:calc(5px * var(--u)) calc(12px * var(--u));border-radius:99px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--dim)}
+.tabs button.on{background:var(--gold);color:#1a1206;border-color:var(--gold);font-weight:800}
+.bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(150px * var(--u)),1fr));gap:calc(8px * var(--u));text-align:left}
+.bitem{display:flex;gap:calc(8px * var(--u));align-items:center;padding:calc(7px * var(--u));border-radius:calc(12px * var(--u));background:rgba(255,255,255,.04);border:1px solid var(--line);font-size:calc(12px * var(--u));color:var(--dim)}
+.bitem b{display:block;color:var(--text);font-size:calc(13.5px * var(--u))}
+.bitem.locked{opacity:.45;filter:grayscale(1)}
+.bitem .omamori{height:calc(40px * var(--u));flex:none}
+.bitem canvas{flex:none;width:calc(48px * var(--u));height:calc(48px * var(--u))}
+.bitem.got{border-color:rgba(255,215,90,.45)}
+.bcount{font-size:calc(12px * var(--u));color:var(--gold);margin-bottom:calc(6px * var(--u))}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(96px * var(--u)),1fr));gap:calc(8px * var(--u))}
+.dgrid button{display:flex;flex-direction:column;align-items:center;gap:calc(2px * var(--u));padding:calc(6px * var(--u));border-radius:calc(12px * var(--u));background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--text);font-size:calc(12px * var(--u))}
+.dgrid button.on{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.dgrid button:disabled{opacity:.4}
+.dgrid canvas{width:calc(72px * var(--u));height:calc(72px * var(--u))}
+.lvlist{display:flex;flex-direction:column;gap:calc(6px * var(--u));text-align:left;margin-top:calc(8px * var(--u))}
+.lvlist button{display:flex;gap:calc(10px * var(--u));align-items:center;padding:calc(7px * var(--u)) calc(10px * var(--u));border-radius:calc(12px * var(--u));background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--text);font-size:calc(13px * var(--u));text-align:left}
+.lvlist button.on{border-color:var(--gold);background:rgba(255,215,90,.1)}
+.lvlist button:disabled{opacity:.4}
+.lvlist .n{flex:none;font-family:"JetBrains Mono",monospace;font-weight:800;color:var(--gold);width:calc(26px * var(--u))}
+.lvlist small{color:var(--dim)}
 .lang{margin-top:calc(8px * var(--u));font-size:calc(12px * var(--u));color:var(--dim)}
 .lang button{padding:calc(4px * var(--u)) calc(8px * var(--u))}
 .lang button.on{color:var(--gold);text-decoration:underline}
@@ -213,6 +293,18 @@ a{color:var(--gold)}
 .pick .e .omamori{height:calc(62px * var(--u));filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
 .pick b{display:block;font-size:calc(16px * var(--u))}
 .pick span{font-size:calc(13px * var(--u));color:var(--dim)}
+/* めずらしさ（ふつう・めずらしい・伝説）で枠の色を変える。強くできるお守りは「Lv2 に」 */
+.pick[data-rarity=rare]{border-color:rgba(120,180,255,.6);background:linear-gradient(135deg,rgba(90,150,255,.12),rgba(255,255,255,.04))}
+.pick[data-rarity=legend]{border-color:rgba(255,215,90,.8);background:linear-gradient(135deg,rgba(255,200,80,.18),rgba(255,120,60,.08));box-shadow:0 0 calc(18px * var(--u)) rgba(255,190,80,.25)}
+.pick b i{font-style:normal;font-size:calc(11px * var(--u));font-weight:800;margin-left:calc(6px * var(--u));padding:calc(1px * var(--u)) calc(6px * var(--u));border-radius:99px;vertical-align:middle}
+.pick b i.up{background:var(--gold);color:#1a1206}
+.pick b i.rar.rare{background:#3f6fd6;color:#fff}
+.pick b i.rar.legend{background:linear-gradient(90deg,#ffd75a,#ff8a5a);color:#2a1004}
+.pick .tags{display:block;margin-top:calc(3px * var(--u))}
+.pick .tags .tag{font-style:normal;font-size:calc(10.5px * var(--u));color:#cfd3f0;border:1px solid rgba(255,255,255,.18);border-radius:99px;padding:0 calc(6px * var(--u));margin-right:calc(4px * var(--u))}
+.pick.drop{border-style:dashed}
+.pick .sell{display:block;color:var(--gold);font-size:calc(12px * var(--u));margin-top:calc(2px * var(--u))}
+.picks .backbtn{align-self:center}
 @keyframes rise{0%{opacity:0;transform:translateY(calc(16px * var(--u)))}100%{opacity:1;transform:none}}
 .big{font-size:calc(40px * var(--u));font-weight:800;margin-top:calc(6px * var(--u))}
 .marks{font-size:calc(24px * var(--u));letter-spacing:calc(2px * var(--u));margin-top:calc(6px * var(--u))}
@@ -485,7 +577,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
   </div>
   <div id="demoCap" hidden><div class="top"><span id="demoStep"></span><button type="button" id="demoSkip" data-t="demoSkip">スキップ</button></div><b id="demoTitle"></b><p id="demoBody"></p><div class="acts" id="demoActs"></div></div>
   <div id="demoHand" data-ico="hand" hidden></div>
-  <div id="tally" class="serif" hidden><div class="row1"></div><div class="row2 mono"></div><div class="row3"></div><div class="stars tstars"><i data-ico="star"></i><i data-ico="star"></i><i data-ico="star"></i></div><div class="stamp"></div><div class="tip"></div></div>
+  <div id="tally" class="serif" hidden><div class="row1"><span class="pc"><small></small><b class="mono">0</b></span><i>×</i><span class="pm"><small></small><b class="mono">0</b></span></div><div class="part"></div><div class="row2 mono"></div><div class="row3"></div><div class="stars tstars"><i data-ico="star"></i><i data-ico="star"></i><i data-ico="star"></i></div><div class="stamp"></div><div class="tip"></div></div>
   <div id="ink" hidden><div id="inkBar"></div></div>
   <div id="hint"></div>
   <div id="newCard" hidden><canvas class="hino" width="96" height="96"></canvas><div><div class="top"><canvas class="ico" width="80" height="80"></canvas><span class="lbl">NEW</span><span class="n"></span></div><span class="d"></span><span class="d2"></span></div></div>
@@ -520,11 +612,19 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
       </div>
      </div>
      <div class="tcol tr">
+      <!-- 花火師の格（遊ぶたびに上がり、お守り・着せかえ・段位が開く） -->
+      <button type="button" class="rankbox" id="rankBox" hidden><span class="rkLv mono" id="rankLv">1</span><span class="rkTxt"><b id="rankName"></b><span class="xpbar"><i id="xpFill"></i></span><small id="rankNext"></small></span></button>
       <div class="stack">
         <button class="btn primary playbtn" id="freeBtn" data-t="playBtn">▶ 遊ぶ</button>
         <button class="btn daily" id="dailyBtn"><b id="dailyLbl"></b><small id="dailySub"></small></button>
         <button class="btn accent" id="vsBtn"><span data-t="vsBtn">⚔️ 花火合戦（CPU と対戦）</span><span class="newb">NEW</span></button>
       </div>
+      <div class="metabtns" id="metaBtns" hidden>
+        <button type="button" class="btn small" id="bookBtn"></button>
+        <button type="button" class="btn small" id="dressBtn"></button>
+        <button type="button" class="btn small" id="levelBtn"></button>
+      </div>
+      <div class="quests" id="questBox" hidden></div>
       <p class="stats" id="stats"></p>
       <details class="howto">
         <summary data-t="howH">くわしい遊び方</summary>
@@ -566,10 +666,28 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
   <section class="ov" id="pickOv" hidden>
     <div class="card">
       <p class="sub serif" id="pickHead"></p>
-      <h2 class="serif" style="font-size:calc(24px * var(--u));margin-top:calc(4px * var(--u))" data-t="pickTitle">お守りを1つ選ぶ</h2>
+      <h2 class="serif" id="pickTitle" style="font-size:calc(24px * var(--u));margin-top:calc(4px * var(--u))" data-t="pickTitle">お守りを1つ選ぶ</h2>
       <div class="picks" id="picks"></div>
       <div class="shop" id="shop"></div>
       <div class="nextnight"><canvas id="nextBoard" width="144" height="256" aria-hidden="true"></canvas><p class="small" id="pickNext"></p></div>
+    </div>
+  </section>
+
+  <!-- 図鑑（お守り・妖怪・実績） -->
+  <section class="ov" id="bookOv" hidden>
+    <div class="card bookcard">
+      <h2 class="serif" id="bookTitle"></h2>
+      <div class="tabs" id="bookTabs"></div>
+      <div id="bookBody"></div>
+      <div class="stack"><button type="button" class="btn small" id="bookBack" data-t="back">タイトルへ</button></div>
+    </div>
+  </section>
+  <!-- 着せかえと段位 -->
+  <section class="ov" id="dressOv" hidden>
+    <div class="card">
+      <h2 class="serif" id="dressTitle"></h2>
+      <div id="dressBody"></div>
+      <div class="stack"><button type="button" class="btn small" id="dressBack" data-t="back">タイトルへ</button></div>
     </div>
   </section>
 
@@ -643,6 +761,10 @@ const T = {
     pickNextNew: (n, t, g) => `次は${KANJI[n]}夜目 ・ 目標 ${K.fmt(t)} 点 ・ 新しい仕掛け「${g}」`,
     allWorks: 'ほかの作品をぜんぶ見る →', nextSudoku: '異世界立体数独', nextPuyo: '将棋ぷよ「成」', nextNote: 'この型の研究ノート',
     target: '目標', pickTitle: 'お守りを1つ選ぶ',
+    festDone: '祭り大成功', festDoneSub: '八夜すべて、花火が上がった', upgraded: (nm, lv) => `${nm} が Lv${lv} に！`, upTo: (lv) => `Lv${lv} に強化`, rarity_rare: 'めずらしい', rarity_legend: '伝説',
+    tag_gold: '金', tag_lantern: '提灯', tag_chain: '連鎖', tag_ink: '墨', tag_finale: '大トリ', tag_reach: '届く', tag_gimmick: '仕掛け', tag_risk: '賭け',
+    slotsLine: (a, b) => `お守り ${a}/${b}`, replaceTitle: (nm) => `「${nm}」と入れかえるお守りは？`, sellFor: (n) => `手放すと ★${n}`,
+    released: (nm, n) => `${nm} を手放した（★+${n}）`, replaceBack: 'やめて、選びなおす',
     dailyGo: (no) => `🌕 今夜の一筆 #${no}`, dailyDone: '🌕 今夜の結果を見る',
     moonDate: (m, d, w) => `${m}月${d}日（${w}）の月`, wd: ['日', '月', '火', '水', '木', '金', '土'],
     moonName: (m) => `${m.ja}・${m.name}`, moonRule: (m) => `今夜のルール: ${m.rule}`,
@@ -654,7 +776,7 @@ const T = {
     keys: '<kbd>Space</kbd> 次へ ・ <kbd>F</kbd> 早送り ・ <kbd>M</kbd> 音 ・ <kbd>Esc</kbd> メニュー',
     call: { 10: '連鎖！', 20: '大連鎖！', 30: '夜空が騒ぐ！', 50: '百花繚乱！', 80: '天が割れる！' },
     last: (n) => `あと ${n} つ…`, mankai: '満開！',
-    tallyRow1: (c, m) => `点 <b>${K.fmt(c)}</b> × 倍率 <i>${m}</i>`, bloom: (b) => `満開 ×${b}`,
+    tallyRow1: (c, m) => `点 <b>${K.fmt(c)}</b> × 倍率 <i>${m}</i>`, bloom: (b) => `満開 ×${b}`, tChips: '点', tMult: '倍率',
     pass: '越えた！', fail: '散った…', huge: '大当たり！',
     pickHead: (n) => `${KANJI[n]}夜を越えた`, pickNext: (n, t) => `次は${KANJI[n]}夜目 ・ 目標 ${K.fmt(t)} 点`,
     resDaily: (no, md, m) => `今夜の一筆 #${no}　${md}　${m}`, resFree: '自由な夜', resPractice: '今夜の一筆（練習・記録なし）', resDuel: '勝負の夜',
@@ -746,6 +868,10 @@ const T = {
     pickNextNew: (n, t, g) => `Next: night ${n + 1} · target ${K.fmt(t)} · new: ${g}`,
     allWorks: 'See all works →', nextSudoku: 'Rune Cube', nextPuyo: 'Shogi Puyo', nextNote: 'Research note (JA)',
     target: 'Target', pickTitle: 'Pick one charm',
+    festDone: 'Festival complete!', festDoneSub: 'Fireworks lit all eight nights', upgraded: (nm, lv) => `${nm} is now Lv${lv}!`, upTo: (lv) => `Upgrade to Lv${lv}`, rarity_rare: 'Rare', rarity_legend: 'Legendary',
+    tag_gold: 'Gold', tag_lantern: 'Lantern', tag_chain: 'Chain', tag_ink: 'Ink', tag_finale: 'Finale', tag_reach: 'Reach', tag_gimmick: 'Gimmick', tag_risk: 'Risk',
+    slotsLine: (a, b) => `Charms ${a}/${b}`, replaceTitle: (nm) => `Swap out which charm for ${nm}?`, sellFor: (n) => `Release for ★${n}`,
+    released: (nm, n) => `Released ${nm} (★+${n})`, replaceBack: 'Cancel, pick again',
     dailyGo: (no) => `🌕 Tonight's stroke #${no}`, dailyDone: '🌕 See tonight\'s result',
     moonDate: (m, d, w) => `Moon of ${w} ${m}/${d}`, wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     moonName: (m) => m.en, moonRule: (m) => `Tonight's rule: ${m.ruleEn}`,
@@ -757,7 +883,7 @@ const T = {
     keys: '<kbd>Space</kbd> next · <kbd>F</kbd> fast · <kbd>M</kbd> sound · <kbd>B</kbd> music · <kbd>Esc</kbd> menu',
     call: { 10: 'Chain!', 20: 'Big chain!', 30: 'The sky roars!', 50: 'A thousand blooms!', 80: 'Heaven splits!' },
     last: (n) => `${n} left…`, mankai: 'Full bloom!',
-    tallyRow1: (c, m) => `points <b>${K.fmt(c)}</b> × multiplier <i>${m}</i>`, bloom: (b) => `Full bloom ×${b}`,
+    tallyRow1: (c, m) => `points <b>${K.fmt(c)}</b> × multiplier <i>${m}</i>`, bloom: (b) => `Full bloom ×${b}`, tChips: 'POINTS', tMult: 'MULT',
     pass: 'Cleared!', fail: 'Fizzled…', huge: 'Jackpot!',
     pickHead: (n) => `Night ${n + 1} cleared`, pickNext: (n, t) => `Next: night ${n + 1} · target ${K.fmt(t)}`,
     resDaily: (no, md, m) => `Tonight #${no} · ${md} · ${m}`, resFree: 'Free night', resPractice: 'Tonight (practice, not recorded)', resDuel: 'Duel',
@@ -929,6 +1055,15 @@ function charmRow(ids) {
   for (const id of ids) { const im = charmIcon(id); const c = K.charmById(id); im.title = lang === 'en' ? c.en : c.ja; p.appendChild(im); }
   return p;
 }
+// お守りの段: 同じ id が重なった数（['kinun','kinun'] = 金運 Lv2）
+function charmLvs(ids) { const m = {}; for (const id of ids || []) m[id] = (m[id] || 0) + 1; return m; }
+// 段ごとの説明（core に lv の文があればそれを、無ければ Lv1 の文）
+function charmDesc(c, n = 1) {
+  const arr = lang === 'en' ? c.lvEn : c.lv;
+  return (Array.isArray(arr) && arr[Math.min(arr.length, n) - 1]) || (lang === 'en' ? c.descEn : c.desc);
+}
+// 持てるお守りの数（段位で減ることがある）
+function slotsOf(run) { const lv = K.LEVELS && K.LEVELS[run.level || 0]; return (lv && lv.fx && lv.fx.slots) || K.SLOTS || 0; }
 function btn(label, cls, fn) { const b = el('button', 'btn ' + (cls || ''), label); b.type = 'button'; b.addEventListener('click', fn); return b; }
 
 // ================================================================ 計測
@@ -1021,6 +1156,13 @@ const SFX = {
   milestone() { [0, 4, 7, 12].forEach((s, i) => tone(523 * 2 ** (s / 12), 0.5, 'triangle', 0.08, 0, i * 0.04)); },
   tick() { tone(1200 + Math.random() * 400, 0.04, 'square', 0.025); },
   slam() { tone(70, 0.5, 'sine', 0.35, -30); noise(0.3, 0.2, 400, 0.5, 'lowpass'); },
+  // 集計の積み上げ: 1 つ積むごとに音が上がる。点は軽く、倍率は太く、×倍率は和音で
+  build(i, kind) {
+    const f = 330 * 2 ** (Math.min(i, 14) * 2 / 12);
+    if (kind === 'chips') { tone(f, 0.09, 'triangle', 0.06); tone(f * 2, 0.06, 'sine', 0.02, 0, 0.01); }
+    else if (kind === 'mult') { tone(f, 0.16, 'triangle', 0.08); tone(f / 2, 0.18, 'sine', 0.08, -20); noise(0.05, 0.05, 1800, 0.8, 'bandpass'); }
+    else { [0, 4, 7].forEach((st2, k) => tone(f * 2 ** (st2 / 12), 0.4, 'triangle', 0.07, 0, k * 0.03)); tone(60, 0.4, 'sine', 0.25, -20); noise(0.2, 0.12, 600, 0.6, 'lowpass'); }
+  },
   pass() { [0, 4, 7, 12, 16].forEach((s, i) => tone(523 * 2 ** (s / 12), 0.35, 'triangle', 0.1, 0, i * 0.07)); },
   fail() { [7, 3, 0, -5].forEach((s, i) => tone(392 * 2 ** (s / 12), 0.4, 'triangle', 0.08, 0, i * 0.12)); },
   pick() { tone(880, 0.12, 'triangle', 0.08); tone(1320, 0.2, 'sine', 0.06, 0, 0.06); },
@@ -1991,7 +2133,7 @@ function callout(text, pri = 2) {
   showCallout(text, pri);
 }
 function showCallout(text, pri) { calloutAt = performance.now(); calloutPri = pri; const c = $('#callout'); setT(c, text); c.classList.remove('on'); void c.offsetWidth; c.classList.add('on'); }
-function banner(big, small) { const b = $('#banner'); b.querySelector('b').textContent = big; b.querySelector('span').textContent = small; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); }
+function banner(big, small) { const b = $('#banner'); b.classList.remove('fest'); b.querySelector('b').textContent = big; b.querySelector('span').textContent = small; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); }
 let toastTimer = 0, toastAt = 0, toastQ = [], toastMsg = '';
 // 出たばかりの知らせは消さずに、次の知らせを後ろに並べる（同じ文は並べない・2 つまで）
 function toast(msg) {
@@ -2009,12 +2151,18 @@ function renderHud() {
   $('#dots').textContent = run ? Array.from({ length: K.NIGHTS }, (_, i) => (i < night ? '●' : i === night ? '◉' : '○')).join('') : '';
   $('#targetVal').textContent = K.fmt(st ? targetOf(st) : 0);
   const chips = $('#chips'); chips.innerHTML = '';
-  for (const id of (st ? st.charms : [])) {
+  // 同じお守りが重なっていれば、それは段（Lv2・Lv3）。空いている枠は点線で見せる
+  const lvs = charmLvs(st ? st.charms : []);
+  for (const [id, n] of Object.entries(lvs)) {
     const c = K.charmById(id); if (!c) continue;
-    const sp = el('span'); sp.appendChild(charmIcon(id)); sp.title = `${lang === 'en' ? c.en : c.ja}: ${lang === 'en' ? c.descEn : c.desc}`;
+    const sp = el('span'); sp.appendChild(charmIcon(id)); sp.title = `${lang === 'en' ? c.en : c.ja}${n > 1 ? ` Lv${n}` : ''}: ${charmDesc(c, n)}`;
+    if (n > 1) sp.appendChild(el('i', 'lv' + (n >= 3 ? ' l3' : ''), `Lv${n}`));
+    if (S.chipNew === id) { sp.classList.add('new'); S.chipNew = null; }
     sp.addEventListener('click', () => toast(sp.title)); // 指でも、お守りの中身を読めるように
     chips.appendChild(sp);
   }
+  const slots = S.mode === 'run' && run ? slotsOf(run) : 0;
+  for (let k = Object.keys(lvs).length; k < slots; k++) chips.appendChild(el('span', 'empty'));
   $('#speedBtn').classList.toggle('on', S.speed > 1);
   updateScore();
 }
@@ -2177,7 +2325,12 @@ function runTally(res) {
   // 散ったときは、次に効くことを 1 つだけ（ヒノコのヒント）
   const hint = !pass && S.mode !== 'replay' ? K.failHint(st) : null;
   setT(tip, hint ? `💡 ${hintText(hint)}` : '');
-  r1.innerHTML = t('tallyRow1', res.chips, res.mult); r2.textContent = '0'; r2.style.fontSize = ''; r3.textContent = res.allClear ? t('bloom', res.bloom) : '';
+  // 点と倍率は、出どころごとに積み上げる（core の res.parts。無いときは「点 × 倍率（× 満開）」）
+  const parts = tallyParts(res), partEl = box.querySelector('.part');
+  const [pc, pm] = [r1.querySelector('.pc'), r1.querySelector('.pm')], pcB = pc.querySelector('b'), pmB = pm.querySelector('b');
+  pc.querySelector('small').textContent = t('tChips'); pm.querySelector('small').textContent = t('tMult');
+  pcB.textContent = '0'; pmB.textContent = '0'; partEl.className = 'part'; partEl.replaceChildren();
+  r2.textContent = '0'; r2.style.fontSize = ''; r2.classList.remove('fire'); r3.textContent = '';
   const ts = box.querySelector('.tstars'), earned = nightStars(res.score, target, res.allClear);
   ts.hidden = S.mode === 'replay'; renderStars(ts, [false, false, false]); ts.classList.remove('show');
   $('#chain').classList.remove('on');
@@ -2211,34 +2364,65 @@ function runTally(res) {
     if (!alive() || skipped) return;
     skipped = true; S.tallySkip = null;
     [r1, r2].forEach((e) => e.classList.add('show')); r2.textContent = K.fmt(res.score);
-    if (res.allClear) r3.classList.add('show');
+    const tot = sumParts(parts); pcB.textContent = K.fmt(tot.chips); pmB.textContent = fmtMult(tot.mult); partEl.replaceChildren();
+    if (pass && res.score >= target * 3) r2.classList.add('fire');
     showStamp();
     setTimeout(finish, 320);
   };
   const going = () => alive() && !skipped;
   setTimeout(() => { if (going()) r1.classList.add('show'); }, 50);
-  const base = res.chips * res.mult;
-  const t0 = performance.now(), dur = 900;
-  setTimeout(() => {
+  // 1 つずつ積む。積むものが多い夜ほど 1 つを速く（全部で 1.5 秒ほど）
+  const per = REDUCED ? 60 : Math.max(110, Math.min(240, 1500 / Math.max(1, parts.length)));
+  let chips = 0, mult = 0, i = 0;
+  const bump = (e, cls) => { e.classList.remove('bump', 'slam'); void e.offsetWidth; e.classList.add(cls); };
+  const next = () => {
     if (!going()) return;
+    if (i >= parts.length) { multiply(); return; }
+    const p = parts[i++];
+    if (p.kind === 'chips') { chips += p.v; pcB.textContent = K.fmt(chips); bump(pc, 'bump'); }
+    else if (p.kind === 'mult') { mult += p.v; pmB.textContent = fmtMult(mult); bump(pm, 'bump'); }
+    else { mult *= p.v; pmB.textContent = fmtMult(mult); bump(pm, 'slam'); S.shake = Math.max(S.shake, 4); }
+    showPart(partEl, p);
+    SFX.build(i, p.kind);
+    setTimeout(next, p.kind === 'xmult' ? per + 140 : per);
+  };
+  // 点 × 倍率 → 最後の点。目標の 3 倍を越えたら、数字が燃える
+  const multiply = () => {
     r2.classList.add('show');
+    const t0 = performance.now(), dur = REDUCED ? 200 : 650, huge = pass && res.score >= target * 3;
     (function roll() {
       if (!going()) return;
-      const u = Math.min(1, (performance.now() - t0 - 250) / dur);
-      const v = Math.round(base * (1 - (1 - Math.max(0, u)) ** 3));
-      r2.textContent = K.fmt(v);
-      if (u < 1) { if (Math.random() < 0.6) SFX.tick(); requestAnimationFrame(roll); }
-      else {
-        SFX.slam();
-        if (res.allClear) setTimeout(() => { if (!going()) return; r3.classList.add('show'); r2.textContent = K.fmt(res.score); SFX.slam(); S.shake = 6; }, 300);
-        setTimeout(() => {
-          if (!going()) return;
-          showStamp();
-          setTimeout(finish, 1100);
-        }, res.allClear ? 700 : 350);
-      }
+      const u = Math.min(1, (performance.now() - t0) / dur);
+      r2.textContent = K.fmt(Math.round(res.score * (1 - (1 - u) ** 3)));
+      if (u < 1) { if (Math.random() < 0.6) SFX.tick(); requestAnimationFrame(roll); return; }
+      r2.textContent = K.fmt(res.score); SFX.slam();
+      if (huge) { r2.classList.add('fire'); S.shake = Math.max(S.shake, 6); SFX.milestone(); }
+      setTimeout(() => { if (!going()) return; showStamp(); setTimeout(finish, 1100); }, 350);
     })();
-  }, 250);
+  };
+  setTimeout(next, 280);
+}
+// 集計で積み上げるもの。点（chips）→ 倍率（mult）→ ×倍率（xmult）の順
+function tallyParts(res) {
+  const order = { chips: 0, mult: 1, xmult: 2 };
+  if (Array.isArray(res.parts) && res.parts.length) return res.parts.filter((p) => p && order[p.kind] != null && Number.isFinite(p.v) && (p.kind === 'xmult' ? p.v !== 1 : p.v !== 0)).sort((a, b) => order[a.kind] - order[b.kind]);
+  const a = [{ id: 'chips', ja: '花火', en: 'Fireworks', kind: 'chips', v: res.chips }, { id: 'mult', ja: '倍率', en: 'Multiplier', kind: 'mult', v: res.mult }];
+  if (res.allClear && res.bloom > 1) a.push({ id: 'bloom', ja: '満開', en: 'Full bloom', kind: 'xmult', v: res.bloom });
+  return a;
+}
+function sumParts(parts) {
+  let chips = 0, mult = 0;
+  for (const p of parts) { if (p.kind === 'chips') chips += p.v; else if (p.kind === 'mult') mult += p.v; else mult *= p.v; }
+  return { chips, mult };
+}
+const fmtMult = (m) => (Math.abs(m - Math.round(m)) < 1e-9 ? String(Math.round(m)) : m.toFixed(1));
+function showPart(partEl, p) {
+  const sp = el('span'), cid = typeof p.id === 'string' && p.id.startsWith('charm:') ? p.id.slice(6) : null;
+  if (cid && K.charmById(cid)) sp.appendChild(charmIcon(cid));
+  sp.appendChild(document.createTextNode(lang === 'en' ? (p.en || p.ja || '') : (p.ja || p.en || '')));
+  sp.appendChild(el('b', '', p.kind === 'xmult' ? `×${fmtMult(p.v)}` : `+${p.kind === 'mult' ? fmtMult(p.v) : K.fmt(p.v)}`));
+  partEl.className = 'part ' + (p.kind === 'chips' ? 'c' : p.kind === 'mult' ? 'm' : 'x');
+  partEl.replaceChildren(sp);
 }
 function afterTally(res, pass) {
   $('#tally').hidden = true;
@@ -2292,27 +2476,46 @@ function drawNextBoard(n) {
 }
 function showPick(round = 0, reroll = 0) {
   const run = S.run, n = S.st.night;
-  const offer = K.offerCharms(run.seed, n, run.charms, reroll ? 2 + round + 2 * reroll : round);
+  const offer = K.offerCharms(run.seed, n, run.charms, reroll ? 2 + round + 2 * reroll : round, offerOpts(run));
   if (!offer.length) { startNight(n + 1); return; }
   // 大一番を越えたら、お守りをもう 1 つ選べる
   const more = round === 0 && K.isBoss(n);
   $('#pickHead').textContent = round ? t('pickTwo') : t('pickHead', n);
+  $('#pickTitle').textContent = t('pickTitle');
   const box = $('#picks'); box.innerHTML = '';
   const lockUntil = performance.now() + 600; let picked = false;
+  const lvs = charmLvs(run.charms), slots = slotsOf(run);
+  const done = () => { if (more) showPick(1); else startNight(n + 1); };
+  const take = (id) => {
+    const was = lvs[id] || 0;
+    run.charms.push(id); S.chipNew = id; SFX.pick(); DB.seen = DB.seen || {}; DB.seen[id] = 1; save();
+    if (was) { toast(t('upgraded', charmName(id), was + 1)); SFX.star(2); }
+    done();
+  };
   for (const id of offer) {
-    const c = K.charmById(id);
+    const c = K.charmById(id); if (!c) continue;
+    const held = lvs[id] || 0, maxLv = K.MAX_LV || 1;
     const b = el('button', 'pick');
-    b.type = 'button';
+    b.type = 'button'; b.dataset.rarity = c.rarity || 'common';
     const e = el('div', 'e'); e.appendChild(charmIcon(c.id)); b.appendChild(e);
-    const d = el('div'); d.appendChild(el('b', '', lang === 'en' ? c.en : c.ja)); d.appendChild(el('span', '', lang === 'en' ? c.descEn : c.desc));
+    const d = el('div');
+    const name = el('b', '', charmName(id));
+    if (held) name.appendChild(el('i', 'up', t('upTo', held + 1)));
+    else if (c.rarity && c.rarity !== 'common') name.appendChild(el('i', 'rar ' + c.rarity, t('rarity_' + c.rarity)));
+    d.appendChild(name);
+    d.appendChild(el('span', '', charmDesc(c, Math.min(maxLv, held + 1))));
+    if (Array.isArray(c.tags) && c.tags.length) { const tg = el('small', 'tags'); for (const x of c.tags) tg.appendChild(el('em', 'tag', t('tag_' + x))); d.appendChild(tg); }
     b.appendChild(d);
     b.addEventListener('click', () => {
       // 出てきてすぐ（まだ見えていない間）と、2 度押しは受けない
       if (picked || performance.now() < lockUntil) return;
-      picked = true;
-      run.charms.push(id); SFX.pick(); DB.seen = DB.seen || {}; DB.seen[id] = 1; save(); if (more) showPick(1); else startNight(n + 1); });
+      // 枠がいっぱいで新しいお守り: どれと入れかえるかを選ぶ
+      if (!held && slots && Object.keys(lvs).length >= slots) { picked = true; showReplace(id, () => take(id), () => showPick(round, reroll)); return; }
+      picked = true; take(id);
+    });
     box.appendChild(b);
   }
+  if (slots) $('#pickHead').textContent += ` ・ ${t('slotsLine', Object.keys(lvs).length, slots)}`;
   // 屋台: 取った星で、選び直し・予備の提灯を買う
   const shop = $('#shop'); shop.innerHTML = '';
   shop.appendChild(el('span', 'wallet', ''));
@@ -2330,9 +2533,42 @@ function showPick(round = 0, reroll = 0) {
   [0, 150, 340].forEach((ms) => setTimeout(() => SFX.tick(), ms + 60)); // 3 枚が順にめくれる音
 }
 
+// 枠がいっぱいのとき: 手放すお守りを選ぶ（手放したお守りは、段の分だけ星になる）
+function showReplace(newId, onDone, onCancel) {
+  const run = S.run, box = $('#picks'), lvs = charmLvs(run.charms);
+  $('#pickTitle').textContent = t('replaceTitle', charmName(newId));
+  box.innerHTML = '';
+  const lockUntil = performance.now() + 400; let done = false;
+  for (const [id, n] of Object.entries(lvs)) {
+    const c = K.charmById(id); if (!c) continue;
+    const b = el('button', 'pick drop'); b.type = 'button';
+    const e = el('div', 'e'); e.appendChild(charmIcon(id)); b.appendChild(e);
+    const d = el('div'); const nm = el('b', '', charmName(id)); if (n > 1) nm.appendChild(el('i', 'up', `Lv${n}`)); d.appendChild(nm);
+    d.appendChild(el('span', '', charmDesc(c, n))); d.appendChild(el('small', 'sell', t('sellFor', n)));
+    b.appendChild(d);
+    b.addEventListener('click', () => {
+      if (done || performance.now() < lockUntil) return; done = true;
+      run.charms = run.charms.filter((x) => x !== id); run.wallet += n; SFX.ui();
+      toast(t('released', charmName(id), n)); onDone();
+    });
+    box.appendChild(b);
+  }
+  const back = btn(t('replaceBack'), 'small', () => { if (!done) { done = true; onCancel(); } });
+  back.classList.add('backbtn'); box.appendChild(back);
+}
+function charmName(id) { const c = K.charmById(id); return c ? (lang === 'en' ? c.en : c.ja) : id; }
+// お守りの候補の出し方（今夜の一筆はみんな同じ候補。ふだんは、解放したお守りだけ）
+function offerOpts(run) {
+  const o = { level: run.level || 0 };
+  if (!run.daily && run.pool) o.pool = run.pool;
+  const lv = K.LEVELS && K.LEVELS[run.level || 0];
+  if (lv && lv.fx && lv.fx.offers) o.count = lv.fx.offers;
+  return o;
+}
+
 // ================================================================ 結果
 function showOnly(id) {
-  for (const x of ['#titleOv', '#pickOv', '#resultOv', '#linkOv', '#vsOv', '#retryOv']) $(x).hidden = x !== id;
+  for (const x of ['#titleOv', '#pickOv', '#resultOv', '#linkOv', '#vsOv', '#retryOv', '#bookOv', '#dressOv']) $(x).hidden = x !== id;
 }
 function mdOf(key) { return `${+key.slice(5, 7)}/${+key.slice(8, 10)}`; }
 // 挑戦状と再生のリンクは、サイトと手元で開いたときだけ今のページを指す。itch.io などに埋め込まれたときはサイトの URL にする
@@ -2354,8 +2590,29 @@ function endRun() {
     gc(`hitofude/daily/${run.key}/n${cleared}`);
   }
   save();
-  setTimeout(() => { if (S.run === run && S.phase === 'over') showRunResult(run); }, cleared === K.NIGHTS ? 1200 : 400);
-  if (cleared === K.NIGHTS) { finale(); setTimeout(finale, 700); }
+  if (cleared === K.NIGHTS) { grandFinale(run, () => { if (S.run === run && S.phase === 'over') showRunResult(run); }); return; }
+  setTimeout(() => { if (S.run === run && S.phase === 'over') showRunResult(run); }, 400);
+}
+// 八夜を越えたら、祭りの締め: 夜空いっぱいの打ち上げと、仲間たちの見物（タップで飛ばせる）
+function grandFinale(run, done) {
+  let over = false;
+  const end = () => { if (over) return; over = true; S.skipFn = null; S.cheer = null; done(); };
+  S.skipFn = end; hideHud();
+  banner(t('festDone'), t('festDoneSub'));
+  $('#banner').classList.add('fest');
+  S.cheer = { t0: performance.now() };
+  finale(); SFX.mankai(); mus((m) => m.duck(0.4, 4));
+  const kinds = ['kiku', 'ootama', 'senrin', 'kin', 'kiku', 'ootama', 'senrin'];
+  const n = REDUCED ? 6 : 34;
+  for (let i = 0; i < n; i++) setTimeout(() => {
+    if (over || S.run !== run) return;
+    const last = i === n - 1;
+    spawnBurst(last ? 180 : 30 + Math.random() * 300, last ? 230 : 90 + Math.random() * 300, last ? 'shaku' : kinds[i % kinds.length], i % 7);
+    SFX.burst(last ? 'shaku' : kinds[i % kinds.length], 1 + i);
+    if (i % 6 === 0) { scenery.excite(1); cheerN(2); }
+    if (last) { S.shake = 10; S.flashes.push({ x: 180, y: 230, r: 220, t: 0, max: 0.6, a: 0.8 }); }
+  }, 400 + i * (3400 / n) + (i === n - 1 ? 500 : 0));
+  setTimeout(() => { if (!over) setTimeout(() => { $('#banner').classList.remove('fest'); end(); }, 300); }, 400 + 3400 + 1500);
 }
 // 結果の並び: 横の画面では左に結果・右に次の一手とシェアの 2 列。縦の画面では 1 列で、次の一手は下に貼りつく
 function arrangeResult() {
@@ -3327,7 +3584,7 @@ async function runDemo(after = openVsMenu) {
 function goTitle() {
   endDemo();
   S.paused = false; $('#pauseOv').hidden = true;
-  S.mode = 'title'; S.phase = 'idle'; S.st = null; S.run = null; S.single = null; S.drawing = null; S.ghost = null; S.vs = null; S.aim = null; S.drop = null; S.rivalAnim = null; S.launch = null; S.show = null; S.hover = null;
+  S.mode = 'title'; S.phase = 'idle'; S.st = null; S.run = null; S.single = null; S.drawing = null; S.ghost = null; S.vs = null; S.aim = null; S.drop = null; S.rivalAnim = null; S.launch = null; S.show = null; S.hover = null; S.skipFn = null; S.cheer = null;
   const key = today();
   setMoonFor(key); drawBackground();
   hideHud(); $('#tally').hidden = true;
@@ -3404,6 +3661,7 @@ cv.addEventListener('pointerdown', (ev) => {
   if (S.drawing && S.drawing.pid != null && S.drawing.pid !== ev.pointerId) return;
   if (S.aim && S.aim.live && S.aimPid != null && S.aimPid !== ev.pointerId) return;
   if (S.demo) return; // お手本の間は、指で触っても動かさない
+  if (S.skipFn) { S.skipFn(); return; } // 大一番の幕・祭りの締めは、タップで飛ばせる
   if (S.phase === 'tally' && S.tallySkip) { S.tallySkip(); return; }
   if (S.phase === 'show') { endShow(); return; }
   // 花火合戦: お邪魔玉の置き所を選ぶ（指で触るときは、指に隠れないよう少し上に出す）
@@ -3547,6 +3805,7 @@ window.addEventListener('keydown', (ev) => {
   if (S.paused && (k === ' ' || k === 'Enter') && !focusBtn) { closePause(); ev.preventDefault(); return; }
   if (k === ' ' || k === 'Enter') {
     if (focusBtn) return; // 選んであるボタンは、ブラウザがそのまま押す
+    if (S.skipFn) { S.skipFn(); ev.preventDefault(); return; }
     if (S.phase === 'show') { endShow(); ev.preventDefault(); return; }
     if (S.phase === 'tally' && S.tallySkip) { S.tallySkip(); ev.preventDefault(); return; }
     const ov = [...document.querySelectorAll('.ov')].find((o) => !o.hidden);
@@ -3641,7 +3900,7 @@ else if (link) openLink(link);
 // はじめての人は、タイトルを読まずに一夜目から（線の引き方は、盤面の指が見せる）
 else if (firstVisit) startFree();
 requestAnimationFrame(frame);
-window.HITO = { S, K, V, startDaily, startFree, startNight, commitStroke, goTitle, finale, fx, scenery, openVsMenu, startMatch, runDemo, get music() { return music; },
+window.HITO = { S, K, V, startDaily, startFree, startNight, commitStroke, goTitle, finale, endRun, fx, scenery, openVsMenu, startMatch, runDemo, get music() { return music; },
   get form() { return F.id; }, get F() { return F; }, bd, db, drawBackground, // F と drawBackground は表紙づくり（_dev/hitofude-covers.mjs）で月を動かすため
   // 盤面の点 → ブラウザの画面の位置（テスト用）
   boardToClient(x, y) { const r = cv.getBoundingClientRect(), p = bd(x, y); return { x: r.left + V.ox + p.x * V.s, y: r.top + V.oy + p.y * V.s }; } };
