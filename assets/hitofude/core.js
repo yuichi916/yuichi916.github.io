@@ -76,7 +76,7 @@ export const SHELLS = {
   senrin: { r: 10, R: 30, pts: 15 },   // 千輪: 火花をまっすぐ飛ばす
   chouchin: { r: 11, R: 40, pts: 10 }, // 提灯: 灯ったあとの玉は点が 2 倍
   shime: { r: 10, R: 50, pts: 25 },    // 湿った玉: 線の火が触れるとひらく。爆発だけなら、別々の火が 2 回いる
-  shaku: { r: 22, R: 170, pts: 200 },  // 尺玉（大トリ）: 線の火でしかひらかない。先にひらいた玉が多いほど倍率が上がる（+1〜+11）
+  shaku: { r: 22, R: 170, pts: 200 },  // 尺玉（大トリ）: 線の火でしかひらかない。先にひらいた玉が多いほど倍率が上がる（+1〜+13）
   kuro: { r: 12, R: 120, pts: 60 },    // 黒玉（花火合戦のお邪魔玉）: 最初に届いた線の火を消し、別の線の火が届くと大爆発。倍率 +1
 };
 export const TYPES = ['kiku', 'ootama', 'kin', 'senrin', 'chouchin', 'shime', 'shaku'];
@@ -90,7 +90,7 @@ export const GIMMICKS = [
   { id: 'kumo', night: 4, ja: '雲', en: 'Cloud', desc: '火は雲を通らない。線は雲をよけて引く', descEn: 'Fire can\'t pass through clouds. Draw around them', say: '雲の中は通れないよ…', sayEn: 'Fire can\'t cross clouds' },
   { id: 'shime', night: 5, ja: '湿った玉', en: 'Damp shell', desc: '線でなぞるとひらく。爆発だけなら、別々の火が2回いる。点は高い', descEn: 'Your line opens it. Bursts alone need two separate hits. Worth more', say: '湿った玉は線でなぞって！', sayEn: 'Trace damp ones!' },
   { id: 'nawa', night: 6, ja: '仕掛け縄', en: 'Fuse rope', desc: '火が届くと、縄を走って遠くの玉まで燃え広がる', descEn: 'Once lit, fire races along the rope to far shells', say: '縄に火がつくと遠くまで！', sayEn: 'Light the rope, go far!' },
-  { id: 'shaku', night: 7, ja: '尺玉', en: 'Grand shell', desc: '線の火でしかひらかない。先にひらいた玉が多いほど、倍率が上がる（最大 +11）', descEn: 'Only your line lights it. The more already open, the bigger the mult (up to +11)', say: '尺玉は線の最後に！', sayEn: 'End your line on it!' },
+  { id: 'shaku', night: 7, ja: '尺玉', en: 'Grand shell', desc: '線の火でしかひらかない。先にひらいた玉が多いほど、倍率が上がる（最大 +13）', descEn: 'Only your line lights it. The more already open, the bigger the mult (up to +13)', say: '尺玉は線の最後に！', sayEn: 'End your line on it!' },
 ];
 export function gimmickFor(night) { return GIMMICKS.find((g) => g.night === night) || null; }
 
@@ -101,20 +101,20 @@ export function gimmickFor(night) { return GIMMICKS.find((g) => g.night === nigh
 // 型（tags）は、組み合わせると伸びるまとまり: 金 gold / 提灯 lantern / 連鎖 chain / 墨 ink / 大トリ finale / 届く reach / 仕掛け gimmick / 賭け risk
 //
 //  お守り      珍しさ     型            Lv1 / Lv2 / Lv3                                                    効く所
-//  長い筆      ふつう     届く・墨      墨 +40% / +65% / +90%                                               線
+//  長い筆      ふつう     届く・墨      墨 +50% / +80% / +110%                                              線
 //  残り墨      ふつう     墨            墨を1割残すごとに 倍率 +1 / +2 / +3                                 M
-//  大輪        ふつう     連鎖・届く    減衰 0.95 / 0.97 / 0.98（満月と重なると、もう 1 段ゆるい。0.985 まで） 連鎖
+//  大輪        ふつう     連鎖・届く    減衰 0.95 / 0.97 / 0.98（満月と重なると、もう 1 段ゆるい。0.985 まで）・大きさ +5% / +10% / +15%  連鎖
 //  金運        ふつう     金            金の玉 1 つで 倍率 +2 / +3 / +4（ふだんは +1）                       M
 //  遅火        ふつう     大トリ        導火線 0.6 倍の速さ・倍率 +2 / +4 / +6 から（大トリの割合も上がる）  M
-//  一番星      ふつう     金            線でじかにふれた金は さらに +1 / +3 / +5                             M
+//  一番星      ふつう     金            線でじかにふれた金は さらに +2 / +4 / +6                             M
 //  終わり玉    ふつう     大トリ・届く  線の終わりが爆ぜる 大きさ 120 / 145 / 170・大トリ +1 / +3 / +5        届く・M
-//  鼓動        ふつう     連鎖          連鎖でひらいた玉 4 / 3 / 2.5 個ごとに 倍率 +1（ふだんは、どの玉も 10 個ごと） M
-//  満開の加護  めずらしい 大トリ        9割 / 8割5分 / 8割ひらけば ×1.5 / ×1.75 / ×2（全部なら満開の ×2 も）    X
+//  鼓動        ふつう     連鎖          連鎖でひらいた玉 5 / 4 / 3 個ごとに 倍率 +1（ふだんは、どの玉も 10 個ごと） M
+//  満開の加護  めずらしい 大トリ        8割5分 / 8割 / 7割5分ひらけば ×1.5 / ×1.75 / ×2（全部なら満開の ×2 も）  X
 //  増し玉      ふつう     届く・連鎖    玉が 4 / 7 / 10 個増える                                             C
 //  二筆目      めずらしい 届く          6割 / 5割 / 4割ひらいたら、もう1本（墨 1/3 / 2/5 / 1/2）              届く
 //  残り火      ふつう     連鎖          ひらいた玉の 3割 / 4割 / 半分がもう一度はじける                       C
 //  提灯職人    ふつう     提灯          提灯ひとつで点 ×2.5 / ×3 / ×3.5（ふだんは ×2）                       C
-//  雨よけ      ふつう     仕掛け        湿った玉がふつうの玉に。点 ×2 / ×2・1 つで倍率 +1 / ×3・倍率 +1      C・M
+//  雨よけ      ふつう     仕掛け        湿った玉がふつうの玉に。点 ×1.5 / ×2・1 つで倍率 +1 / ×2.5・倍率 +1  C・M
 //  風切り      ふつう     仕掛け        雲が 1/2 / 1/4 / 消える・その夜の雲 1 つにつき 倍率 +1 / +2 / +3      M
 //  招き猫      めずらしい 金            金の玉がひらくたびに ×1.15 / ×1.2 / ×1.25（重なる）・Lv3 は金の玉 +1   X
 //  花筏        めずらしい 提灯          提灯がひとつ灯るたびに 倍率 +2 / +4 / +7                             M
@@ -123,7 +123,7 @@ export function gimmickFor(night) { return GIMMICKS.find((g) => g.night === nigh
 //  線香花火    めずらしい 賭け・墨      墨 −30%。そのかわり ×1.5 / ×1.75 / ×2                                X
 //  天狗の団扇  伝説       届く・賭け    線がまっすぐなほど ×1.6 / ×1.9 / ×2.3 まで                           X
 //  狸の葉っぱ  伝説       届く          線の前の 半分 / 3/4 / 全部 が、左右の反対側にも映って燃える（墨はいらない） 届く
-//  狐火        伝説       届く・連鎖    はじめにひらいた 3 / 4 / 6 つの玉から、狐火が遠くの群れへ飛ぶ         届く
+//  狐火        伝説       届く・連鎖    はじめにひらいた 4 / 6 / 8 つの玉から、狐火が遠くの群れへ飛ぶ         届く
 //  鎌鼬の爪    伝説       賭け          導火線 1.6 倍の速さ・連鎖が少し小さくなる（減衰 −0.04）。×1.4 / ×1.6 / ×1.8   X
 //
 // 組み合わせの例: 金（金運 + 一番星 + 招き猫）・提灯（提灯職人 + 花筏）・連鎖（大輪 + 鼓動 + 残り火 + 連獅子）・
@@ -135,23 +135,23 @@ export function gimmickFor(night) { return GIMMICKS.find((g) => g.night === nigh
 const charm = (id, emoji, kind, rarity, tags, ja, en, lv, lvEn, extra = {}) => ({ id, emoji, kind, rarity, tags, ja, en, desc: lv[0], descEn: lvEn[0], lv, lvEn, ...extra });
 export const CHARMS = [
   charm('nagafude', '🖌️', 'reach', 'common', ['reach', 'ink'], '長い筆', 'Long brush',
-    ['墨（線の長さ）+40%', '墨 +65%', '墨 +90%'], ['Ink +40%', 'Ink +65%', 'Ink +90%']),
+    ['墨（線の長さ）+50%', '墨 +80%', '墨 +110%'], ['Ink +50%', 'Ink +80%', 'Ink +110%']),
   charm('nokorizumi', '🖋️', 'mult', 'common', ['ink'], '残り墨', 'Spare ink',
     ['墨を1割残すごとに、倍率 +1', '墨を1割残すごとに、倍率 +2', '墨を1割残すごとに、倍率 +3'], ['+1 mult for every 10% of ink left unused', '+2 mult for every 10% of ink left', '+3 mult for every 10% of ink left']),
   charm('tairin', '🌸', 'reach', 'common', ['chain', 'reach'], '大輪', 'Big bloom',
-    ['連鎖しても、玉が小さくなりにくい', '連鎖しても、もっと小さくなりにくい', '連鎖しても、ほとんど小さくならない'], ['Chained bursts shrink less', 'Chained bursts shrink much less', 'Chained bursts barely shrink']),
+    ['連鎖しても、玉が小さくなりにくい。ひらく大きさ +5%', '連鎖しても、もっと小さくなりにくい。大きさ +10%', '連鎖しても、ほとんど小さくならない。大きさ +15%'], ['Chained bursts shrink less. Bursts +5% bigger', 'Chained bursts shrink much less. +10% bigger', 'Chained bursts barely shrink. +15% bigger']),
   charm('kinun', '💰', 'mult', 'common', ['gold'], '金運', 'Gold luck',
     ['金の玉は倍率 +2（ふだんは +1）', '金の玉は倍率 +3', '金の玉は倍率 +4'], ['Gold shells give +2 mult (not +1)', 'Gold shells give +3 mult', 'Gold shells give +4 mult']),
   charm('osobi', '🐌', 'mult', 'common', ['finale'], '遅火', 'Slow fuse',
     ['導火線がゆっくり燃える。倍率は +2 から', '導火線がゆっくり燃える。倍率は +4 から', '導火線がゆっくり燃える。倍率は +6 から'], ['The fuse burns slower. Mult starts at +2', 'Slower fuse. Mult starts at +4', 'Slower fuse. Mult starts at +6']),
   charm('ichibanboshi', '🌟', 'mult', 'common', ['gold'], '一番星', 'First star',
-    ['線で直接ふれた金の玉は、さらに倍率 +1', '線で直接ふれた金の玉は、さらに倍率 +3', '線で直接ふれた金の玉は、さらに倍率 +5'], ['Gold shells your line touches give +1 more mult', 'Line-touched gold gives +3 more mult', 'Line-touched gold gives +5 more mult']),
+    ['線で直接ふれた金の玉は、さらに倍率 +2', '線で直接ふれた金の玉は、さらに倍率 +4', '線で直接ふれた金の玉は、さらに倍率 +6'], ['Gold shells your line touches give +2 more mult', 'Line-touched gold gives +4 more mult', 'Line-touched gold gives +6 more mult']),
   charm('owaridama', '💣', 'reach', 'common', ['finale', 'reach'], '終わり玉', 'Finale',
     ['線の終わりが、ひと息おいて大きく爆ぜる。尺玉にも火がつき、大トリの倍率 +1', '線の終わりが、もっと大きく爆ぜる。大トリの倍率 +3', '線の終わりが、とても大きく爆ぜる。大トリの倍率 +5'], ['Your line\'s end blasts big a beat later. It can light the grand shell (finale +1 mult)', 'A bigger end blast. Grand finale +3 mult', 'A huge end blast. Grand finale +5 mult']),
   charm('kodou', '🥁', 'mult', 'common', ['chain'], '鼓動', 'Heartbeat',
-    ['連鎖でひらいた玉 4 つごとに倍率 +1（ふだんは、どの玉も 10 個ごと）', '連鎖でひらいた玉 3 つごとに倍率 +1', '連鎖でひらいた玉 2.5 個ごとに倍率 +1（5 個で +2）'], ['+1 mult per 4 chained bursts (not per 10 of any)', '+1 mult per 3 chained bursts', '+1 mult per 2.5 chained bursts (+2 per 5)']),
+    ['連鎖でひらいた玉 5 つごとに倍率 +1（ふだんは、どの玉も 10 個ごと）', '連鎖でひらいた玉 4 つごとに倍率 +1', '連鎖でひらいた玉 3 つごとに倍率 +1'], ['+1 mult per 5 chained bursts (not per 10 of any)', '+1 mult per 4 chained bursts', '+1 mult per 3 chained bursts']),
   charm('mankai', '🌕', 'mult', 'rare', ['finale'], '満開の加護', 'Full bloom',
-    ['9割ひらけば ×1.5（全部なら、満開の ×2 とあわせて ×3）', '8割5分ひらけば ×1.75', '8割ひらけば ×2'], ['Open 90% of the sky for ×1.5 (×3 with a full bloom)', 'Open 85% for ×1.75', 'Open 80% for ×2']),
+    ['8割5分ひらけば ×1.5（全部なら、満開の ×2 とあわせて ×3）', '8割ひらけば ×1.75', '7割5分ひらけば ×2'], ['Open 85% of the sky for ×1.5 (×3 with a full bloom)', 'Open 80% for ×1.75', 'Open 75% for ×2']),
   charm('mashidama', '🎇', 'reach', 'common', ['reach', 'chain'], '増し玉', 'More shells',
     ['夜ごとに花火玉が 4 つ増える', '夜ごとに花火玉が 7 つ増える', '夜ごとに花火玉が 10 個増える'], ['+4 shells every night', '+7 shells every night', '+10 shells every night']),
   charm('nihitsu', '✌️', 'reach', 'rare', ['reach'], '二筆目', 'Second stroke',
@@ -161,7 +161,7 @@ export const CHARMS = [
   charm('chouchinshi', '🏮', 'mult', 'common', ['lantern'], '提灯職人', 'Lantern maker',
     ['提灯ひとつで点が 2.5 倍（ふだんは 2 倍）', '提灯ひとつで点が 3 倍', '提灯ひとつで点が 3.5 倍'], ['Each lantern makes points ×2.5 (not ×2)', 'Each lantern makes points ×3', 'Each lantern makes points ×3.5']),
   charm('amayoke', '☂️', 'gimmick', 'common', ['gimmick'], '雨よけ', 'Umbrella',
-    ['湿った玉が、ふつうの玉になり、点が 2 倍', '湿った玉がふつうの玉になり、点が 2 倍。ひとつで倍率 +1', '湿った玉がふつうの玉になり、点が 3 倍。ひとつで倍率 +1'], ['Damp shells act like normal ones and score ×2', 'Damp shells act normal, score ×2 and give +1 mult each', 'Damp shells act normal, score ×3 and give +1 mult each']),
+    ['湿った玉が、ふつうの玉になり、点が 1.5 倍', '湿った玉がふつうの玉になり、点が 2 倍。ひとつで倍率 +1', '湿った玉がふつうの玉になり、点が 2.5 倍。ひとつで倍率 +1'], ['Damp shells act like normal ones and score ×1.5', 'Damp shells act normal, score ×2 and give +1 mult each', 'Damp shells act normal, score ×2.5 and give +1 mult each']),
   charm('kazekiri', '🌬️', 'gimmick', 'common', ['gimmick'], '風切り', 'Wind cutter',
     ['雲が半分の大きさになる。雲ひとつにつき倍率 +1', '雲が 1/4 の大きさになる。雲ひとつにつき倍率 +2', '雲が消える。雲ひとつにつき倍率 +3'], ['Clouds shrink to half. +1 mult per cloud', 'Clouds shrink to a quarter. +2 mult per cloud', 'Clouds vanish. +3 mult per cloud']),
   charm('maneki', '🐱', 'mult', 'rare', ['gold'], '招き猫', 'Lucky cat',
@@ -179,7 +179,7 @@ export const CHARMS = [
   charm('tanuki', '🍃', 'reach', 'legend', ['reach'], '狸の葉っぱ', 'Tanuki leaf',
     ['線の前の半分が、左右の反対側にも映って燃える（墨はいらない）', '線の前の 4 分の 3 が、反対側にも映って燃える', '線がまるごと、反対側にも映って燃える'], ['The first half of your line is mirrored to the other side for free', 'The first 3/4 of your line is mirrored', 'Your whole line is mirrored'], { boss: 'kagami' }),
   charm('kitsune', '🦊', 'reach', 'legend', ['reach', 'chain'], '狐火', 'Foxfire',
-    ['はじめにひらいた 3 つの玉から、狐火が遠くの群れへ飛ぶ', 'はじめの 4 つから、狐火が飛ぶ', 'はじめの 6 つから、狐火が飛ぶ'], ['Your first 3 bursts send foxfires to far clusters', 'Your first 4 bursts send foxfires', 'Your first 6 bursts send foxfires'], { boss: 'yamiyo' }),
+    ['はじめにひらいた 4 つの玉から、狐火が遠くの群れへ飛ぶ', 'はじめの 6 つから、狐火が飛ぶ', 'はじめの 8 つから、狐火が飛ぶ'], ['Your first 4 bursts send foxfires to far clusters', 'Your first 6 bursts send foxfires', 'Your first 8 bursts send foxfires'], { boss: 'yamiyo' }),
   charm('kamaitachi', '🌪️', 'mult', 'legend', ['risk'], '鎌鼬の爪', 'Kamaitachi claw',
     ['導火線が速く、連鎖が少し小さくなる。そのかわり ×1.4', '導火線が速く、連鎖が少し小さくなる。×1.6', '導火線が速く、連鎖が少し小さくなる。×1.8'], ['Faster fuse, slightly smaller chains, but ×1.4', 'Faster fuse, smaller chains. ×1.6', 'Faster fuse, smaller chains. ×1.8'], { boss: 'isshun' }),
 ];
@@ -210,6 +210,19 @@ export function charmList(levels) {
   for (const id of CHARM_IDS) for (let k = 0; k < Math.min(MAX_LV, levels[id] || 0); k++) out.push(id);
   return out;
 }
+// 候補の id を選んだらどうなるか: 'up'（Lv が上がる）/ 'new'（空いた枠に入る）/ 'swap'（枠がいっぱい。1 つ手放す）/ 'max'（もう Lv3）
+export function pickKind(held, id, slots = SLOTS) {
+  const lv = charmLevels(held);
+  if (lv[id]) return lv[id] >= MAX_LV ? 'max' : 'up';
+  return Object.keys(lv).length < slots ? 'new' : 'swap';
+}
+// 選んだあとの持ち物（drop は手放すお守り。Lv ごと手放す）。並びは CHARM_IDS の順にそろえる
+export function pickCharm(held, id, drop = null) {
+  const lv = charmLevels(held);
+  if (drop) delete lv[drop];
+  if (CHARM_IDS.includes(id)) lv[id] = Math.min(MAX_LV, (lv[id] || 0) + 1);
+  return charmList(lv);
+}
 export function charmById(id) { return CHARMS.find((c) => c.id === id) || LEGACY_CHARMS.find((c) => c.id === id) || null; }
 
 export const BASE_INK = 460;
@@ -217,10 +230,10 @@ export const BASE_REACH = 7;
 // 夜ごとの目標点は、その夜の「基準点」× 夜ごとの倍率で決める。
 // 基準点（parScore）は、お守りなし・墨壺なしで、決まった手順の線を何本か試したうちのいちばん良い点。
 // 並び方の運で「どう引いても届かない夜」が出ないように、夜ごとに測る。倍率は _dev/hitofude-skill.mjs で、
-// 腕前の違うボット（落書き / 提灯から近い順に 3 本 / 山登り）を回して決めた（はじめの 9 つのお守りを、5 つの枠で集める）。
-// 倍率が 1 を超えるのは、それまでに集めたお守りの分（お守りは基準点に入れない）。
-// 八夜目が七夜目より低いのは、基準点に大トリ（尺玉で終わる線）の倍率がもう入っているから
-export const TARGET_RATIO = [0.28, 0.55, 0.9, 1.3, 1.62, 2.2, 2.7, 2.5];
+// 腕前の違うボット（落書き / 提灯から近い順に 3 本 / 山登り）を回して決めた（はじめの 9 つのお守りを、5 つの枠で集める）:
+// 落書きは 2 割ほど、提灯から引く人は 8 割ほど、山登りはほぼ全部が越える。一夜目は、はじめての人の 1 本（近い順につなぐだけ）でも 8 割が越える。
+// 予備の提灯 1 つで八夜を通せるのは、考えて引く人の半分ほど。倍率が 1 を超えるのは、それまでに集めたお守りの分（お守りは基準点に入れない）
+export const TARGET_RATIO = [0.28, 0.52, 0.86, 1.2, 1.48, 2.38, 2.85, 3.1];
 // 目安（基準点を測らない所で使う。テストと古いメモ用。いろいろな夜の目標点の中央値）
 export const TARGETS = [160, 330, 660, 2600, 4400, 5800, 25000, 53000];
 export const BASE_COUNTS = [16, 20, 24, 28, 32, 36, 40, 44];
@@ -308,9 +321,10 @@ export const DECAY_SOFT = 0.95;
 export const DECAY_SOFTER = 0.97;
 export const SOFT_DECAYS = [DECAY, DECAY_SOFT, DECAY_SOFTER, 0.98, 0.985];
 export const DECAY_MIN = 0.3;
-// 尺玉（大トリ）: ひらいた瞬間に、ほかの玉がひらいていた割合 share で、倍率 +round(1 + TORI_BONUS × share)（+1〜+11）。
-// 5 では、素朴な線と練った線の差が小さかった（八夜目の 山登り ÷ 素朴な線 が 1.35 倍。10 で 1.5 倍）
-export const TORI_BONUS = 10;
+// 尺玉（大トリ）: ひらいた瞬間に、ほかの玉がひらいていた割合 share で、倍率 +round(1 + TORI_BONUS × share²)（+1〜+13）。
+// 2 乗にしたのは、たまたま途中で尺玉を通った線（落書き）より、ほとんどひらいてから最後に尺玉へ来る線を、ずっと得にするため
+// （share 0.5 で +4、0.9 で +11）。前の版は TORI_BONUS × share（10 で +1〜+11）
+export const TORI_BONUS = 12;
 export const TORI_R = 60;            // ひとりの夜の尺玉がひらく大きさ（花火合戦は SHELLS.shaku.R のまま）
 export const DAMP_HITS = 2;          // 湿った玉を爆発だけでひらくのに要る、別々の火の数
 // お守りの Lv1 の数字（前の版からの名前。Lv ごとの数字は CHARM_LV）
@@ -324,30 +338,30 @@ export const SPARE_STEP = 0.1;       // 残り墨・墨流し: 墨をこの割�
 export const MASHI_N = 4;            // 増し玉: 足す玉の数
 export const MAKER_GAIN = 1.5;       // 提灯職人: 提灯ひとつで増える点の倍率（ふだんは 1）
 export const KINUN_GOLD = 2;         // 金運: 金の玉ひとつの倍率（ふだんは 1）
-export const STAR_GOLD = 1;          // 一番星: 線で直接ひらいた金の玉に、さらに足す倍率（Lv1）
+export const STAR_GOLD = 2;          // 一番星: 線で直接ひらいた金の玉に、さらに足す倍率（Lv1）
 export const BLOOM = 2;              // 満開（全部ひらいた）の掛け算
 export const BLOOM_CHARM = 3;        // 満開の加護 Lv1 で全部ひらいたときの掛け算（満開 ×2 × 加護 ×1.5）
 export const KAZE_SCALE = 0.5;       // 風切り: 雲の半径の倍率
-export const KODOU_STEP = 4;         // 鼓動: 連鎖でひらいた玉この数ごとに倍率 +1（ふだんは、どの玉も 10 個ごと）
+export const KODOU_STEP = 5;         // 鼓動: 連鎖でひらいた玉この数ごとに倍率 +1（Lv1。ふだんは、どの玉も 10 個ごと）
 export const FOX_DELAY = 0.5;        // 狐火: 飛んでから届くまで（秒）
 export const FOX_MIN = 120;          // 狐火: これより遠い玉へ飛ぶ
 export const FOX_NEAR = 70;          // 狐火: 飛ぶ先は、この距離の中にまだひらいていない玉がいちばん多い所
 // Lv ごとの数字（[Lv1, Lv2, Lv3]）。意味は CHARMS の上の表
 export const CHARM_LV = {
-  nagafude: { ink: [1.4, 1.65, 1.9] },
+  nagafude: { ink: [1.5, 1.8, 2.1] },
   nokorizumi: { mult: [1, 2, 3] },
-  tairin: { soft: [1, 2, 3] },
+  tairin: { soft: [1, 2, 3], size: [1.05, 1.1, 1.15] },
   kinun: { gold: [2, 3, 4] },
   osobi: { mult: [2, 4, 6] },
-  ichibanboshi: { gold: [1, 3, 5] },
+  ichibanboshi: { gold: [2, 4, 6] },
   owaridama: { R: [120, 145, 170], tori: [1, 3, 5] },
-  kodou: { step: [4, 3, 2.5] },
-  mankai: { share: [0.9, 0.85, 0.8], x: [1.5, 1.75, 2] },
+  kodou: { step: [5, 4, 3] },
+  mankai: { share: [0.85, 0.8, 0.75], x: [1.5, 1.75, 2] },
   mashidama: { n: [4, 7, 10] },
   nihitsu: { share: [0.6, 0.5, 0.4], ink: [1 / 3, 0.4, 0.5] },
   nokoribi: { p: [0.3, 0.4, 0.5] },
   chouchinshi: { gain: [1.5, 2, 2.5] },
-  amayoke: { pts: [2, 2, 3], mult: [0, 1, 1] },
+  amayoke: { pts: [1.5, 2, 2.5], mult: [0, 1, 1] },
   kazekiri: { scale: [0.5, 0.25, 0], mult: [1, 2, 3] },
   maneki: { x: [1.15, 1.2, 1.25], gold: [0, 0, 1] },
   hanaikada: { mult: [2, 4, 7] },
@@ -356,7 +370,7 @@ export const CHARM_LV = {
   senkou: { ink: [0.7, 0.7, 0.7], x: [1.5, 1.75, 2] },
   tengu: { x: [1.6, 1.9, 2.3] },
   tanuki: { part: [0.5, 0.75, 1] },
-  kitsune: { n: [3, 4, 6] },
+  kitsune: { n: [4, 6, 8] },
   kamaitachi: { speed: [1.6, 1.6, 1.6], decay: [0.04, 0.04, 0.04], x: [1.4, 1.6, 1.8] },
 };
 
@@ -372,6 +386,7 @@ export function rulesFor(charms, moonIdx, level = 0) {
     reach: BASE_REACH * (m.reach || 1),
     radius: m.radius || 1,           // 花火合戦だけ（ひとりの夜の大きさは decay で決まる）
     decay: harsh ? Math.max(0.5, SOFT_DECAYS[soft] - harsh) : SOFT_DECAYS[soft],
+    size: L('tairin', 'size', 1),
     goldBonus: L('kinun', 'gold', 1),
     fuseGold: L('ichibanboshi', 'gold', 0), // 一番星: 線で直接ひらいた金は、さらに足す
     senrinSparks: 6,
@@ -902,11 +917,12 @@ function spawnExplosion(st, x, y, R, cause, hue, o = 0, gen = 0, fuse = false) {
   st.explosions.push({ id: st.nextId++, x, y, R, t: 0, cause, hue: hue == null ? -1 : hue, o, gen, fuse });
 }
 // gen 代目の爆発の大きさの倍率。掛け算をくり返して出す（どの端末でも同じ値になるように、** は使わない）
+// 大輪は、ひらく大きさそのものも Lv ごとに少し大きくする（rules.size）
 export function sizeAt(rules, gen, vs = false) {
   if (vs) return rules.radius;
   let k = 1;
   for (let i = 0; i < gen && k > DECAY_MIN; i++) k *= rules.decay;
-  return Math.max(DECAY_MIN, k);
+  return Math.max(DECAY_MIN, k) * (rules.size || 1);
 }
 
 // src は火の出どころ（爆発・火花・導火線の区間）。cause は 'fuse'（線の火）/ 'end'（終わり玉の爆発）/ 'chain'（爆発）/ 'spark'（火花）/ 'fox'（狐火）。
@@ -966,7 +982,7 @@ function pop(st, s, cause, o, gen) {
       // 大トリ: ほかの玉が、もうどれだけひらいているか（終わり玉の Lv2・Lv3 は、さらに足す）
       let n = 0, open = 0;
       for (const x of st.shells) if (x !== s) { n++; if (x.burst) open++; }
-      const share = n ? open / n : 1, base = Math.round(1 + TORI_BONUS * share), plus = st.rules.toriPlus, add = base + plus;
+      const share = n ? open / n : 1, base = Math.round(1 + TORI_BONUS * share * share), plus = st.rules.toriPlus, add = base + plus;
       st.goldMult += add; st.tori = { share, add, base, plus };
       st.acc.tori += base; st.acc.toriPlus += plus;
       st.events.push({ type: 'tori', shell: s, share, add, o });

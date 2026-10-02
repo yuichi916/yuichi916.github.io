@@ -4,6 +4,7 @@
 //                                                                                   Spearman(ひらいた数, 点)・lg3 が 82% 越える倍率（TARGET_RATIO の目安）
 //   node _dev/hitofude-skill.mjs charms [N=24] [評価回数=100] [starter|all|legend]   … お守りを 1 つ（か Lv を 1 つ）足したときの点の伸び・
 //                                                                                   「持ち物によらず選ぶもの」が候補に入る割合
+//   tiers は OFF=盤面の番号のずらし（いくつかに分けて同時に回す）、ONLY=8（その夜だけ測る）、DUMP=ファイル（夜ごとの点 ÷ 基準を書き出す。倍率を変えたときの通過率を回し直さずに出せる）
 // 腕前（ボット）:
 //   scrib  落書き。玉を見ずに、ゆるく曲がる線を墨が切れるまで（二筆目も落書き）
 //   greedy ばらばらの玉から、近い 3 つのどれかへ順につなぐ（墨が切れるまで）
@@ -149,10 +150,12 @@ const unit = (seed, night, moon, level) => { const tw = K.twistFor(seed, night);
 function tiers(N, budget, level, poolName) {
   const rows = [], pool = POOLS[poolName], fx = K.levelFx(level);
   const off = +(process.env.OFF || 0); // 盤面の番号のずらし（いくつかに分けて同時に回すとき）
+  const only = process.env.ONLY ? process.env.ONLY.split(',').map(Number) : null; // ONLY=8 なら八夜目だけ測る（お守りは同じように集める）
   for (let i = off; i < off + N; i++) {
     const seed = K.hashStr('rev' + i), moon = i % 8, rng = K.rng32(1000 + i);
     let charms = [];
     for (let night = 0; night < K.NIGHTS; night++) {
+      if (only && !only.includes(night + 1)) { for (let round = 0; round < (K.isBoss(night) ? 2 : 1); round++) charms = applyPick(charms, choosePick('priority', K.offerCharms(seed, night, charms, round, { pool, level }), charms, { slots: fx.slots, rng, night })); continue; }
       const ctx = { seed, night, charms: charms.slice(), moon, level }, st = mkRound(ctx), target = K.targetFor(seed, night, moon, level);
       const many = (tier, k) => Array.from({ length: k }, () => evalLine(ctx, tierLine(tier, st, rng), tier).score);
       const row = { night, twist: st.twist, target, u: unit(seed, night, moon, level), scrib: many('scrib', 5), greedy: many('greedy', 5), lg3: [0, 1, 2].map(() => Math.max(...many('lg', 3))) };
@@ -173,6 +176,7 @@ function tiers(N, budget, level, poolName) {
   console.log(`N=${N} 評価=${budget} 段位${level} pool=${poolName}\n夜 | 落書き | 近い順 | lg3 | 山登り | 山登り ÷ 素朴な線（中央値） | Spearman(ひらいた数, 点) | 倍率の目安: lg3 が 82% / 落書き 20% / 山登り 98% 越える倍率（今 ${K.TARGET_RATIO.join(', ')}）`);
   for (let n = 0; n < K.NIGHTS; n++) {
     const r = rows.filter((x) => x.night === n);
+    if (!r.length) continue;
     const rat = (k) => r.flatMap((x) => [].concat(x[k]).map((s) => s / x.u));
     console.log(`${n + 1} | ${pct(pass(r, 'scrib'))} | ${pct(pass(r, 'greedy'))} | ${pct(pass(r, 'lg3'))} | ${pct(pass(r, 'opt'))} | ${q(r.map((x) => x.opt / Math.max(1, x.naive)), 0.5).toFixed(2)} | ${q(r.map((x) => x.sp), 0.5).toFixed(2)} | ${q(rat('lg3'), 0.18).toFixed(2)} / ${q(rat('scrib'), 0.8).toFixed(2)} / ${q(rat('opt'), 0.02).toFixed(2)}`);
   }

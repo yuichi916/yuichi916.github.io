@@ -2,6 +2,7 @@
 // 夜を越えたら墨壺（inkCarry）を次の夜へ持ちこす。散ったら予備の提灯（段位 3 からは無い）で 1 度だけひき直す。
 // お守りは 5 つの枠（段位 8 は 4）で集め、同じものを取ると Lv が上がる。腕前ごとの通過率・お守りの値打ちは _dev/hitofude-skill.mjs で測る。
 // 使い方: N=240 node _dev/hitofude-balance.mjs <月の番号 0-7 か all> <T: 1 夜あたりに試す線の数> [priority|random|archetype] [段位 0-8] [starter|all|legend]
+//         node _dev/hitofude-balance.mjs value [N=40] [starter|all|legend]   … 近い順の線を引く人にとっての、お守りの値打ち
 //   priority  値打ちの大きい順（VALUE）に取る。枠がいっぱいなら、いちばん弱いものと入れかえる（得なときだけ）
 //   random    でたらめに取る。枠がいっぱいなら、でたらめに 1 つ捨てる
 //   archetype 型（金・提灯・連鎖・墨・大トリ）を 1 つ決めて、その型のお守りと Lv 上げを先に取る
@@ -14,11 +15,12 @@ export const POOLS = {
   all: K.CHARM_IDS.filter((id) => K.charmById(id).rarity !== 'legend'),
   legend: K.CHARM_IDS.slice(),
 };
-// お守りの値打ち（Lv1 を持ったときの、だいたいの点の伸び。_dev/hitofude-skill.mjs charms で測った中央値から）。Lv2・Lv3 は LV_GAIN ずつ足す
+// お守りの値打ち（Lv1 を持ったときの、だいたいの点の伸び。_dev/hitofude-skill.mjs charms（山登り）と、下の value（近い順の線）で測った中央値の間）。
+// Lv2・Lv3 は LV_GAIN ずつ足す
 export const VALUE = {
-  kodou: 1.25, kinun: 1.2, chouchinshi: 1.2, hanaikada: 1.3, maneki: 1.3, renjishi: 1.25, senkou: 1.3, kamaitachi: 1.35, tengu: 1.2,
-  osobi: 1.2, ichibanboshi: 1.12, nagafude: 1.15, tairin: 1.15, mashidama: 1.12, nokoribi: 1.12, owaridama: 1.1, nihitsu: 1.12,
-  nokorizumi: 1.1, suminagashi: 1.1, mankai: 1.08, amayoke: 1.08, kazekiri: 1.1, tanuki: 1.2, kitsune: 1.15,
+  suminagashi: 1.36, nihitsu: 1.34, nokorizumi: 1.33, senkou: 1.33, maneki: 1.32, kamaitachi: 1.31, hanaikada: 1.27, chouchinshi: 1.25,
+  renjishi: 1.24, kodou: 1.22, kinun: 1.22, tengu: 1.22, tanuki: 1.2, osobi: 1.2, ichibanboshi: 1.18, amayoke: 1.18, owaridama: 1.16,
+  mankai: 1.15, kazekiri: 1.14, kitsune: 1.14, nokoribi: 1.13, mashidama: 1.13, tairin: 1.12, nagafude: 1.1,
 };
 export const LV_GAIN = 0.6;
 export const PRIORITY = Object.keys(VALUE).sort((a, b) => VALUE[b] - VALUE[a]);
@@ -90,16 +92,30 @@ function greedyStroke(shells, ink, rng, clouds = []) {
   if (shaku && cur !== shaku) pts.push({ x: shaku.x, y: shaku.y });
   return pts;
 }
-// まっすぐの夜: 玉から玉へ向かう直線（lightStroke が墨の長さで切る）
-function straightStroke(shells, ink, rng) {
+// まっすぐの夜: 玉から玉へ向かう直線（lightStroke が墨の長さで切る）。aim なら、墨の長さの中で玉がいちばん多く並ぶ向きをねらう（人は並びを見て引く）
+function straightStroke(shells, ink, rng, aim = false) {
   const alive = shells.filter((s) => !s.burst);
   if (alive.length < 2) return [];
   const a = alive[Math.floor(rng() * alive.length)];
+  if (aim) {
+    let best = null;
+    for (const b of alive) {
+      if (b === a) continue;
+      const d = Math.hypot(b.x - a.x, b.y - a.y), f = Math.min(1, ink / d), dx = (b.x - a.x) * f, dy = (b.y - a.y) * f, l2 = dx * dx + dy * dy;
+      let n = 0;
+      for (const s of alive) {
+        const u = l2 ? Math.max(0, Math.min(1, ((s.x - a.x) * dx + (s.y - a.y) * dy) / l2)) : 0;
+        if (Math.hypot(a.x + dx * u - s.x, a.y + dy * u - s.y) <= K.SHELLS[s.type].r + K.BASE_REACH) n++;
+      }
+      if (!best || n > best.n) best = { n, b };
+    }
+    return [{ x: a.x, y: a.y }, { x: best.b.x, y: best.b.y }];
+  }
   const far = alive.filter((s) => Math.hypot(s.x - a.x, s.y - a.y) > 120);
   const b = (far.length ? far : alive)[Math.floor(rng() * (far.length ? far.length : alive.length))];
   return [{ x: a.x, y: a.y }, { x: b.x, y: b.y }];
 }
-export const strokeFor = (st, rng) => (st.twist === 'massugu' ? straightStroke(st.shells, st.ink, rng) : greedyStroke(st.shells, st.ink, rng, st.clouds));
+export const strokeFor = (st, rng) => (st.twist === 'massugu' ? straightStroke(st.shells, st.ink, rng, true) : greedyStroke(st.shells, st.ink, rng, st.clouds));
 // 線を前から frac の長さで切る（墨を残すお守りを持つ人は、短い線も試す）
 export function cut(pts, frac) {
   const total = K.pathLength(pts) * frac, out = [pts[0]];
@@ -119,7 +135,7 @@ export function candidates(st, rng, T) {
     const s = strokeFor(st, rng);
     out.push(s);
     if (ink && s.length >= 3 && st.twist !== 'massugu') out.push(cut(s, 0.7), cut(s, 0.5));
-    if (lv.tengu && st.twist !== 'massugu') out.push(straightStroke(st.shells, st.ink, rng));
+    if (lv.tengu && st.twist !== 'massugu') out.push(straightStroke(st.shells, st.ink, rng, true));
   }
   return out;
 }
@@ -167,7 +183,33 @@ export function playRun(seed, moon, T, rng, pickPolicy = 'priority', { level = 0
   }
   return { cleared, total, scores, charms, twists, retries, wishes };
 }
-if (process.argv[1].endsWith('hitofude-balance.mjs')) {
+// 近い順の線を引く人（playNight）にとっての、お守り 1 つ（か Lv 1 つ）の値打ち。VALUE はこれと _dev/hitofude-skill.mjs charms（山登り）の間をとって決めた。
+// 持ち物は、強いお守りを選んで進んだ通しの途中から取る
+export function greedyValues(N, pool, T = 3) {
+  const by = {}, rng = K.rng32(4321);
+  for (let i = 0; i < N; i++) {
+    const seed = K.hashStr('gv' + i), moon = i % 8, stop = 3 + (i % 5);
+    let charms = [];
+    for (let night = 0; night < stop; night++) for (let round = 0; round < (K.isBoss(night) ? 2 : 1); round++) {
+      charms = applyPick(charms, choosePick('random', K.offerCharms(seed, night, charms, round, { pool }), charms, { rng, night }));
+    }
+    const night = stop, lv = K.charmLevels(charms);
+    const ev = (ch) => { let s = 0; for (let k = 0; k < 2; k++) { const st = playNight({ seed, night, charms: ch, moon, bank: 0 }, T, K.rng32(i * 31 + k)); s += st ? st.result.score : 0; } return s; };
+    const b = Math.max(1, ev(charms));
+    for (const c of pool) {
+      if ((lv[c] || 0) >= K.MAX_LV || K.charmNeed(c) > night) continue;
+      (by[c] ||= []).push(ev([...charms, c]) / b);
+    }
+  }
+  return by;
+}
+if (process.argv[1].endsWith('hitofude-balance.mjs') && process.argv[2] === 'value') {
+  const N = +(process.argv[3] || 40), pool = POOLS[process.argv[4] || 'legend'];
+  const by = greedyValues(N, pool);
+  const q = (a, p) => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor(p * (b.length - 1))]; };
+  console.log(`N=${N}: 近い順の線を引く人にとっての値打ち（1 つ足したときの点の倍率） 中央値 p25 p75`);
+  for (const [c, a] of Object.entries(by).sort((x, y) => q(y[1], 0.5) - q(x[1], 0.5))) console.log(`${c.padEnd(13)} ${[0.5, 0.25, 0.75].map((p) => q(a, p).toFixed(2)).join(' ')} (${a.length})`);
+} else if (process.argv[1].endsWith('hitofude-balance.mjs')) {
   const moonArg = process.argv[2] || 'all', T = +(process.argv[3] || 3), policy = process.argv[4] || 'priority', level = +(process.argv[5] || 0), poolName = process.argv[6] || 'starter';
   const rng = K.rng32(1234);
   const hist = Array(9).fill(0); const perNight = Array(8).fill(null).map(() => []); const byTwist = {};

@@ -58,6 +58,13 @@ check('お守りの Lv: 重なった数が Lv（Lv3 まで）・知らない id 
   eq(K.charmList({ kodou: 1, kinun: 2 }).join(), 'kinun,kinun,kodou');
   eq(K.charmList({ kinun: 9 }).length, 3);
   eq(JSON.stringify(K.charmLevels([])), '{}');
+  // 選んだらどうなるか・選んだあとの持ち物
+  const five = ['kinun', 'kodou', 'tairin', 'nagafude', 'osobi'];
+  eq(K.pickKind(five, 'kinun'), 'up'); eq(K.pickKind(five, 'maneki'), 'swap'); eq(K.pickKind(five.slice(0, 4), 'maneki'), 'new');
+  eq(K.pickKind(['kinun', 'kinun', 'kinun'], 'kinun'), 'max'); eq(K.pickKind(five.slice(0, 4), 'maneki', 4), 'swap', '段位 8 は 4 つ');
+  eq(K.pickCharm(five, 'kinun').join(), 'nagafude,tairin,kinun,kinun,osobi,kodou');
+  eq(K.pickCharm(['kinun', 'kinun', 'kodou'], 'maneki', 'kinun').join(), 'kodou,maneki', '手放すと Lv ごと');
+  eq(K.pickCharm(['kinun', 'kinun', 'kinun'], 'kinun').join(), 'kinun,kinun,kinun');
 });
 
 check('ルール: お守りと月が合わさる', () => {
@@ -65,7 +72,7 @@ check('ルール: お守りと月が合わさる', () => {
   eq(base.ink, K.BASE_INK);
   eq(base.decay, K.DECAY); eq(base.bloom, 2); eq(base.chainPulse, 0);
   const r = K.rulesFor(['nagafude', 'tairin', 'kodou', 'mankai'], 4);
-  eq(r.ink, Math.round(K.BASE_INK * 1.4));
+  eq(r.ink, Math.round(K.BASE_INK * K.CHARM_LV.nagafude.ink[0]));
   eq(r.decay, K.DECAY_SOFTER, '大輪と満月で、減衰がもっとゆるい');
   eq(K.rulesFor(['tairin'], 1).decay, K.DECAY_SOFT); eq(K.rulesFor([], 4).decay, K.DECAY_SOFT, '満月は大輪と同じだけゆるい');
   eq(K.rulesFor([], 4).radius, 1.12, '花火合戦の満月は +12% のまま');
@@ -558,7 +565,7 @@ check('仕掛け縄: 片方の端に火が届くと、縄を走って反対側�
   void st; void rope;
 });
 
-check('大トリ（尺玉）: 線の火でしかひらかない。ひらいた瞬間に、ほかの玉がひらいていた割合で倍率 +1〜+11', () => {
+check('大トリ（尺玉）: 線の火でしかひらかない。ひらいた瞬間に、ほかの玉がひらいていた割合の 2 乗で倍率 +1〜+13', () => {
   // 大玉の爆発は尺玉をのみこんでも、ひらかない
   const a = handRound([{ type: 'ootama', x: 140, y: 300 }, { type: 'shaku', x: 200, y: 300 }]);
   const ra = K.runToEnd(a, [line(100, 300, 145, 300, 10)]);
@@ -577,6 +584,10 @@ check('大トリ（尺玉）: 線の火でしかひらかない。ひらいた�
   const rc = K.runToEnd(c, [line(330, 300, 30, 300, 80)]);
   eq(c.tori.share, 0); eq(c.tori.add, 1); eq(rc.mult, 2);
   ok(rc.score < b.result.score / 3, '尺玉を最後にした方が、ずっと高い');
+  // 半分ひらいたところで尺玉 → +round(1 + 12 × 0.25) = +4
+  const half = handRound([...[0, 1].map((i) => ({ type: 'kiku', x: 40 + i * 50, y: 300 })), { type: 'shaku', x: 200, y: 300 }, ...[0, 1].map((i) => ({ type: 'kiku', x: 300 + i * 0, y: 200 + i * 300 }))]);
+  K.runToEnd(half, [line(30, 300, 210, 300, 45)]);
+  eq(half.tori.share, 0.5); eq(half.tori.add, Math.round(1 + K.TORI_BONUS * 0.25));
   // 尺玉がひらいても、まわりを一掃しない（ひとりの夜は TORI_R）
   const d = handRound([{ type: 'shaku', x: 200, y: 300 }, { type: 'kiku', x: 200, y: 300 + K.TORI_R + 30 }]);
   eq(K.runToEnd(d, [line(150, 300, 250, 300, 30)]).pops, 1);
@@ -905,7 +916,7 @@ check('新しいお守り: 墨流しは残した墨で点が増え、線香花�
   const both = runHand(shells(), ['suminagashi', 'nokorizumi', 'nokorizumi'], line(50, 300, 100, 300, 10)).res;
   eq(part(both, 'nokorizumi').v, steps * 2, '残り墨 Lv2 は 1 段 +2');
   eq(K.rulesFor(['senkou'], 1).ink, Math.round(K.BASE_INK * 0.7));
-  eq(K.rulesFor(['senkou', 'nagafude'], 1).ink, Math.round(K.BASE_INK * 1.4 * 0.7));
+  eq(K.rulesFor(['senkou', 'nagafude'], 1).ink, Math.round(K.BASE_INK * K.CHARM_LV.nagafude.ink[0] * 0.7));
   for (const [l, x] of [[1, 1.5], [2, 1.75], [3, 2]]) eq(part(runHand(shells(), Array(l).fill('senkou'), line(50, 300, 100, 300, 10)).res, 'senkou').v, x);
   eq(K.rulesFor(['nagafude', 'nagafude', 'nagafude'], 1).ink, Math.round(K.BASE_INK * K.CHARM_LV.nagafude.ink[2]), '長い筆 Lv3');
 });
