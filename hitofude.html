@@ -547,6 +547,17 @@ body.yoko #hud .stars i .ic{width:calc(18px * var(--u));height:calc(18px * var(-
 body.yoko .nextnight canvas{width:calc(110px * var(--u))}
 .nextnight p{text-align:left;margin:0}
 #lives{display:flex;gap:calc(2px * var(--u));justify-content:center;margin-top:calc(2px * var(--u))}
+/* 今夜の願い札（叶えると星がもう 1 つ） */
+#wish{display:inline-flex;align-items:center;gap:calc(4px * var(--u));margin-top:calc(3px * var(--u));padding:calc(1px * var(--u)) calc(7px * var(--u)) calc(1px * var(--u)) calc(2px * var(--u));border-radius:99px;
+  font-size:calc(11px * var(--u));line-height:1.5;color:#ffe8b0;background:rgba(255,215,90,.08);border:1px dashed rgba(255,215,90,.45);max-width:100%}
+#wish i{font-style:normal;font-family:"Yuji Boku","Shippori Mincho",serif;width:calc(16px * var(--u));height:calc(16px * var(--u));display:grid;place-items:center;border-radius:50%;background:#c8322a;color:#fff;font-size:calc(10px * var(--u))}
+#wish span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#wish.met{background:rgba(255,215,90,.25);border-style:solid;color:#fff3c4}
+#wish.met i{background:var(--gold);color:#1a1206}
+#wish.miss{opacity:.5}
+body.yoko #hud #wish{margin-top:calc(6px * var(--u))}
+#tally .row3.wish{font-size:calc(14px * var(--u));margin-top:calc(4px * var(--u))}
+#tally .row3.wish.met{color:var(--gold)} #tally .row3.wish.miss{color:var(--dim)}
 #lives .ic{width:calc(15px * var(--u));height:calc(15px * var(--u))}
 body.yoko #hud #lives{justify-content:flex-start}
 body.tate.playing #bgmBtn,body.tate.playing #soundBtn,body.tate.playing #formBtn{display:none}
@@ -624,7 +635,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
   <canvas id="cv"></canvas>
   <div id="hud" hidden>
     <div class="nights serif"><b id="nightLbl">一夜目</b><span id="dots"></span></div>
-    <div class="mid"><span data-t="target">目標</span><b class="mono" id="targetVal">0</b><div id="goal"><i id="goalFill"></i></div><div class="stars" id="stars"><i data-ico="star"></i><i data-ico="star"></i><i data-ico="star"></i></div><div id="lives"></div></div>
+    <div class="mid"><span data-t="target">目標</span><b class="mono" id="targetVal">0</b><div id="goal"><i id="goalFill"></i></div><div class="stars" id="stars"><i data-ico="star"></i><i data-ico="star"></i><i data-ico="star"></i></div><div id="lives"></div><div id="wish" hidden><i>願</i><span></span></div></div>
     <div class="score"><div class="mono" id="scoreVal">0</div><div class="mono" id="multVal">×1</div><div class="mono" id="factorVal" hidden></div></div>
   </div>
   <div id="chips"></div>
@@ -716,6 +727,11 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
             <li>使わなかった墨は、半分が次の夜に持ち越せる（<b>墨壺</b>）。</li>
             <li>夜ごとに<b>星</b>を3つまで取れる（目標・目標の3倍・全部ひらく）。星は、お守り選びの屋台で、選び直し・墨・予備の提灯に使える。</li>
             <li>散っても<b>予備の提灯</b>があれば、その夜をもう一度ひける。</li>
+            <li>お守りは<b>5つまで</b>持てる。同じお守りをもう一度選ぶと <b>Lv2・Lv3</b> に強くなる。いっぱいなら、1つ手放して入れかえる（手放すと星になる）。</li>
+            <li>お守りには<b>型</b>がある（金・提灯・連鎖・墨・大トリ・賭け）。同じ型を集めると、×倍率のお守りがよく効く。</li>
+            <li>夜ごとに<b>願い札</b>が1枚。叶えて夜を越えると、星がもう1つ。</li>
+            <li><b>大一番</b>には妖怪が現れる。はじめて勝つと仲間になり、その妖怪の<b>伝説のお守り</b>が出るようになる。</li>
+            <li>遊ぶたびに<b>花火師の格</b>が上がり、新しいお守り・着せかえが開く。八夜を通すと<b>段位</b>（ルールが1つずつ厳しくなる）を選べる。</li>
             <li>夜が進むと、<b>新しい仕掛け</b>が1つずつ増える。二夜目 大玉 ・ 三夜目 千輪 ・ 四夜目 提灯 ・ 五夜目 雲 ・ 六夜目 湿った玉 ・ 七夜目 仕掛け縄 ・ 八夜目 尺玉。</li>
             <li><b>三夜目と六夜目は大一番</b>。線の引き方が変わる（まっすぐ・鏡・闇夜・一瞬）。越えると、お守りを2つもらえる。</li>
             <li>三夜目からは、夜ごとに<b>景色</b>が変わる（群れ・天の川・輪・屋台の列）。</li>
@@ -726,7 +742,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
             <li><b>花火合戦</b>は、CPU と同じ夜空で点を取り合う三番勝負。相手は線と<b>お邪魔玉</b>（黒玉）を先に見せる。あなたは全部見てから 1 本ひき、お邪魔玉を 1 つ置く。相手の線に先に火を届けると<b>横取り</b>。お邪魔玉に 1 番目に届いた線の火は消え、2 番目に届いた別の線の火で大爆発して、届けた人の点になる。置き所を探すと、どうなるかが先に出る。勝つと次の相手が出てくる。</li>
           </ul>
           <p class="minih">お守り</p>
-          <div class="chipgrid"><span><b>長い筆</b> 墨（線の長さ）+40%</span><span><b>残り墨</b> 墨を1割残すごとに、倍率 +1</span><span><b>大輪</b> 連鎖しても、玉が小さくなりにくい</span><span><b>金運</b> 金の玉は倍率 +2</span><span><b>遅火</b> 導火線がゆっくり燃える。倍率は +2 から</span><span><b>一番星</b> 線で直接ふれた金の玉は、倍率 +3</span><span><b>終わり玉</b> 線の終わりが、ひと息おいて大きく爆ぜる。尺玉にも火がつく</span><span><b>鼓動</b> 連鎖でひらいた玉 4 つごとに倍率 +1（ふだんは、どの玉も 10 個ごと）</span><span><b>満開の加護</b> 全部ひらいたら ×3（ふだんは ×2）</span><span><b>増し玉</b> 夜ごとに花火玉が 4 つ増える</span><span><b>二筆目</b> 6割ひらいたら、もう1本（墨は 1/3）</span><span><b>残り火</b> ひらいた玉の 1/4 が、もう一度はじける</span><span><b>提灯職人</b> 提灯ひとつで点が 2.5 倍（ふだんは 2 倍）</span><span><b>雨よけ</b> 湿った玉が、ふつうの玉になる</span><span><b>風切り</b> 雲が半分の大きさになる</span></div>
+          <div class="chipgrid"><span><b>長い筆</b> 墨（線の長さ）+50%</span><span><b>残り墨</b> 墨を1割残すごとに、倍率 +1</span><span><b>大輪</b> 連鎖しても、玉が小さくなりにくい。ひらく大きさ +5%</span><span><b>金運</b> 金の玉は倍率 +2（ふだんは +1）</span><span><b>遅火</b> 導火線がゆっくり燃える。倍率は +2 から</span><span><b>一番星</b> 線で直接ふれた金の玉は、さらに倍率 +2</span><span><b>終わり玉</b> 線の終わりが、ひと息おいて大きく爆ぜる。尺玉にも火がつき、大トリの倍率 +1</span><span><b>鼓動</b> 連鎖でひらいた玉 5 つごとに倍率 +1（ふだんは、どの玉も 10 個ごと）</span><span><b>満開の加護</b> 8割5分ひらけば ×1.5（全部なら、満開の ×2 とあわせて ×3）</span><span><b>増し玉</b> 夜ごとに花火玉が 4 つ増える</span><span><b>二筆目</b> 6割ひらいたら、もう1本（墨は 1/3）</span><span><b>残り火</b> ひらいた玉の 3 割が、もう一度はじける</span><span><b>提灯職人</b> 提灯ひとつで点が 2.5 倍（ふだんは 2 倍）</span><span><b>雨よけ</b> 湿った玉が、ふつうの玉になり、点が 1.5 倍</span><span><b>風切り</b> 雲が半分の大きさになる。雲ひとつにつき倍率 +1</span><span><b>招き猫</b> 金の玉がひらくたびに ×1.15（ひらくほど重なる）</span><span><b>花筏</b> 提灯がひとつ灯るたびに、倍率 +2</span><span><b>連獅子</b> 連鎖が深いほど強い。深さ（代）1 つごとに ×0.06 ずつ</span><span><b>墨流し</b> 墨を1割残すごとに、点 +12%</span><span><b>線香花火</b> 墨が 3 割へる。そのかわり ×1.5</span><span><b>天狗の団扇</b> 線がまっすぐなほど強い（まっすぐなら ×1.6）</span><span><b>狸の葉っぱ</b> 線の前の半分が、左右の反対側にも映って燃える（墨はいらない）</span><span><b>狐火</b> はじめにひらいた 4 つの玉から、狐火が遠くの群れへ飛ぶ</span><span><b>鎌鼬の爪</b> 導火線が速く、連鎖が少し小さくなる。そのかわり ×1.4</span></div>
           <p class="minih">月のルール</p>
           <div class="chipgrid"><span><b>新月</b> 金の玉が2倍出る</span><span><b>三日月</b> 千輪が3つ増える（千輪が出てくる夜から）</span><span><b>上弦の月</b> 墨 +20%・導火線の火が届く幅 ×2</span><span><b>十三夜</b> 大玉が2倍出る（大玉が出てくる夜から）</span><span><b>満月</b> 玉のひらく大きさ +12%</span><span><b>寝待月</b> 倍率が +1 から始まる</span><span><b>下弦の月</b> ひらいた玉の 2/5 が、もう一度はじける</span><span><b>有明の月</b> 墨（線の長さ）+25%</span></div>
           <p class="mini" data-noportal>配信や動画で使うのは自由です（連絡は要りません）。</p>
@@ -846,6 +862,8 @@ const T = {
     pickNextNew: (n, t, g) => `次は${KANJI[n]}夜目 ・ 目標 ${K.fmt(t)} 点 ・ 新しい仕掛け「${g}」`,
     allWorks: 'ほかの作品をぜんぶ見る →', nextSudoku: '異世界立体数独', nextPuyo: '将棋ぷよ「成」', nextNote: 'この型の研究ノート',
     target: '目標', pickTitle: 'お守りを1つ選ぶ',
+    luckyCall: (n) => `招き猫 ×${n}`, lanternRaft: (f, m) => `提灯！ 点×${f}・花筏 倍率+${m}`,
+    wishTip: '願い札: 叶えて夜を越えると、星がもう 1 つ', wishMet: (w) => `願い札「${w}」叶った！ ★+1`, wishMiss: (w) => `願い札「${w}」は叶わず`,
     tapGo: 'タップで勝負', bossFriend: (nm) => `${nm}が仲間になった！ 伝説のお守りが図鑑に`, newUnlock: 'NEW!', unlockOk: 'やったね', unlockHead_charm: '新しいお守り', unlockHead_outfit: '新しい着せかえ', unlockHead_feature: '新しい遊び方',
     unlockDesc_outfit: 'タイトルの「着せかえ」で、ヒノコに着せられる', unlockDesc_daily: '毎晩0時に変わる、みんな同じ夜。「今夜の一筆」', unlockDesc_levels: '段位を上げると、ルールが1つずつ厳しくなる。XP もふえる',
     xpGain: (n) => `+${n} XP`, nextUnlock: (n, nm) => `あと ${n} XP で「${nm}」`, toNext: (n) => `次の格まで ${n} XP`, rankMax: 'いちばん上の格！',
@@ -894,7 +912,7 @@ const T = {
     bankNow: (p) => `墨壺 +${p}%（使わなかった墨は、半分が次の夜へ）`, carryLine: (p) => `残った墨 → 次の夜に +${p}%`, toriCall: (a) => `大トリ！ 倍率 +${a}`, starCall: (a) => `一番星！ 倍率 +${a}`,
     retryLine: (p) => `あと ${p}% だった…！`, retryGo: (n) => `予備の提灯で、この夜をもう一度（のこり ${n}）`, retryEnd: 'ここで終える',
     shopWallet: (n) => `星 ${n}`, shopReroll: '入れかえる ★1', shopLife: '予備の提灯 ★3', shopInk: '墨を足す ★1', livesTip: (n) => `予備の提灯 ${n}: 散っても、その夜をもう一度ひける`, pauseTitle: 'ひと休み', pResume: '▶ 続ける', pRestart: '最初からやりなおす', pQuit: 'タイトルへ（この夜はおしまい）',
-    goalClear: '目標突破！', star2: '★★ 目標の 3 倍！',
+    goalClear: '目標突破！', star2: (k = 3) => `★★ 目標の ${k} 倍！`,
     starsHow: '★ 目標 ・ ★★ 目標の 3 倍 ・ ★★★ 全部ひらく', starsTotal: '星',
     hinoDone: 'たまや〜！ 八夜ぜんぶ咲いた！', hinoGood: 'たまや〜！', hinoOk: (n) => `${KANJI[n - 1]}夜まで来た！ 次はもっと先へ`,
     hinoZero: 'しゅん… もう一回いこう！', hinoNear: (p) => `あと ${p}% だった…！`,
@@ -961,6 +979,8 @@ const T = {
     pickNextNew: (n, t, g) => `Next: night ${n + 1} · target ${K.fmt(t)} · new: ${g}`,
     allWorks: 'See all works →', nextSudoku: 'Rune Cube', nextPuyo: 'Shogi Puyo', nextNote: 'Research note (JA)',
     target: 'Target', pickTitle: 'Pick one charm',
+    luckyCall: (n) => `Lucky cat ×${n}`, lanternRaft: (f, m) => `Lantern! points ×${f} · raft mult +${m}`,
+    wishTip: 'Wish: make it come true and clear the night for one more star', wishMet: (w) => `Wish "${w}" came true! ★+1`, wishMiss: (w) => `Wish "${w}" missed`,
     tapGo: 'Tap to start', bossFriend: (nm) => `${nm} joined your festival! A legendary charm is unlocked`, newUnlock: 'NEW!', unlockOk: 'Nice!', unlockHead_charm: 'New charm', unlockHead_outfit: 'New outfit', unlockHead_feature: 'New mode',
     unlockDesc_outfit: 'Dress Hinoko up from "Outfits" on the title screen', unlockDesc_daily: 'Tonight\'s Stroke: the same nights for everyone, new every midnight', unlockDesc_levels: 'Each stake adds one harder rule, and more XP',
     xpGain: (n) => `+${n} XP`, nextUnlock: (n, nm) => `${n} XP to "${nm}"`, toNext: (n) => `${n} XP to next rank`, rankMax: 'Top rank!',
@@ -1009,7 +1029,7 @@ const T = {
     bankNow: (p) => `Ink pot +${p}% (half of unused ink carries to the next night)`, carryLine: (p) => `Unused ink → +${p}% next night`, toriCall: (a) => `Grand finale! multiplier +${a}`, starCall: (a) => `First star! multiplier +${a}`,
     retryLine: (p) => `So close — only ${p}% short!`, retryGo: (n) => `Use a spare lantern and retry this night (${n} left)`, retryEnd: 'End the run here',
     shopWallet: (n) => `${n} star${n === 1 ? "" : "s"}`, shopReroll: 'Reroll ★1', shopLife: 'Spare lantern ★3', shopInk: 'More ink ★1', livesTip: (n) => `Spare lanterns: ${n}. Fail a night and you can retry it.`, pauseTitle: 'Paused', pResume: '▶ Resume', pRestart: 'Restart', pQuit: 'Quit to title (ends this run)',
-    goalClear: 'Target cleared!', star2: '★★ 3× the target!',
+    goalClear: 'Target cleared!', star2: (k = 3) => `★★ ${k}× the target!`,
     starsHow: '★ reach the target · ★★ triple it · ★★★ burst every shell', starsTotal: 'Stars',
     hinoDone: 'Tamaya! All eight nights bloomed!', hinoGood: 'Tamaya!', hinoOk: (n) => `${n} night${n > 1 ? 's' : ''} down! Go further next time.`,
     hinoZero: 'Aww… one more try!', hinoNear: (p) => `Only ${p}% short…!`,
@@ -1166,7 +1186,7 @@ function charmDesc(c, n = 1) {
   return (Array.isArray(arr) && arr[Math.min(arr.length, n) - 1]) || (lang === 'en' ? c.descEn : c.desc);
 }
 // 持てるお守りの数（段位で減ることがある）
-function slotsOf(run) { const lv = K.LEVELS && K.LEVELS[run.level || 0]; return (lv && lv.fx && lv.fx.slots) || K.SLOTS || 0; }
+function slotsOf(run) { return K.slotsFor(run.level || 0); }
 function btn(label, cls, fn) { const b = el('button', 'btn ' + (cls || ''), label); b.type = 'button'; b.addEventListener('click', fn); return b; }
 
 // ================================================================ 計測
@@ -1538,7 +1558,7 @@ const S = {
   mode: 'title', phase: 'idle', st: null, run: null, moonPhase: 0.5, moonIdx: 4,
   particles: [], flashes: [], texts: [], shake: 0, speed: DB.speed || 1, timeScale: 1, acc: 0, last: 0, heat: 0, newGimmick: null,
   drawing: null, burnT: [], lastCall: 0, ghost: null, replay: null, single: null, finaleUntil: 0,
-  hold: 0, freeze: 0, rings: [], burstLog: [], bloomFired: false, goalHit: false, tallySkip: null, hinoTap: 0, vs: null, aim: null, rivalAnim: null, rvHino: null,
+  hold: 0, freeze: 0, rings: [], foxes: [], burstLog: [], bloomFired: false, goalHit: false, tallySkip: null, hinoTap: 0, vs: null, aim: null, rivalAnim: null, rvHino: null,
   hino: { x: 28, y: 522, face: null, until: 0, lastX: null, lastY: null }, // マスコットのヒノコ（画面の座標）
 };
 const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -1793,8 +1813,15 @@ function handleEvents(st) {
       spawnSparkle(e.x, e.y, e.rope ? 16 : 10); SFX.light();
     } else if (e.type === 'dry') {
       spawnSparkle(e.shell.x, e.shell.y - 6, 12, [200, 230, 255]); SFX.hiss(); hinoFace('effort', 500);
+    } else if (e.type === 'fox') {
+      // 狐火: ひらいた玉から、遠くの玉へ青い火が飛ぶ
+      S.foxes.push({ x: e.x, y: e.y, tx: e.tx, ty: e.ty, t0: performance.now() }); SFX.whoosh();
+    } else if (e.type === 'foxHit') {
+      spawnSparkle(e.x, e.y, 16, [140, 170, 255]);
+    } else if (e.type === 'lucky') {
+      callout(t('luckyCall', e.n), 1); spawnSparkle(e.shell.x, e.shell.y, 12, [255, 215, 120]);
     } else if (e.type === 'lantern') {
-      callout(t('lanternCall', e.factor), 1); SFX.milestone(); hinoFace(S.mode === 'vs' && e.o === 1 ? 'sad' : 'wow', 700);
+      callout(e.mult ? t('lanternRaft', e.factor, e.mult) : t('lanternCall', e.factor), 1); SFX.milestone(); hinoFace(S.mode === 'vs' && e.o === 1 ? 'sad' : 'wow', 700);
       S.flashes.push({ x: e.shell.x, y: e.shell.y, r: 140, t: 0, max: 0.35 });
     } else if (e.type === 'fizzle') {
       if (!(S.mode === 'vs' && e.o === 1)) { hint(t('fizzle')); SFX.fail(); hinoFace('fizzle', 1800); }
@@ -1979,6 +2006,15 @@ function draw(now) {
     const u = Math.min(1, r.t / K.BURST_GROW), a = 0.42 * (1 - r.t / r.max);
     ctx.strokeStyle = `rgba(${r.rgb[0]},${r.rgb[1]},${r.rgb[2]},${a})`;
     ctx.beginPath(); ctx.arc(r.x, r.y, Math.max(1, r.R * u), 0, 7); ctx.stroke();
+  }
+  // 狐火（青い火の玉が、尾を引いて飛ぶ）
+  if (S.foxes.length) {
+    S.foxes = S.foxes.filter((f) => now - f.t0 < 420);
+    for (const f of S.foxes) {
+      const u = Math.min(1, (now - f.t0) / 380), e2 = 1 - (1 - u) ** 2, x = f.x + (f.tx - f.x) * e2, y = f.y + (f.ty - f.y) * e2 - Math.sin(u * Math.PI) * 30;
+      const gr = ctx.createRadialGradient(x, y, 0, x, y, 12); gr.addColorStop(0, 'rgba(220,235,255,.95)'); gr.addColorStop(0.4, 'rgba(120,150,255,.7)'); gr.addColorStop(1, 'rgba(80,100,255,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.fill();
+    }
   }
   ctx.globalCompositeOperation = 'source-over';
   drawReflection(tt, k);
@@ -2202,16 +2238,16 @@ function drawReflection(tt, k) {
 let shownScore = 0;
 function updateScore() {
   const st = S.st; if (!st) return;
-  const mult = K.multOf(st);
-  // 大きな数字は、目標と同じ「点 × 倍率」の答え。内わけは小さく
-  $('#scoreVal').textContent = K.fmt(st.chips * mult);
-  $('#multVal').textContent = `${K.fmt(st.chips)} × ${mult}`;
+  const mult = K.multOf(st), xm = K.xmultOf ? K.xmultOf(st) : 1, score = Math.round(st.chips * mult * xm);
+  // 大きな数字は、目標と同じ「点 × 倍率（× 倍率の掛け算）」の答え。内わけは小さく
+  $('#scoreVal').textContent = K.fmt(score);
+  $('#multVal').textContent = `${K.fmt(st.chips)} × ${mult}${xm !== 1 ? ` × ${fmtMult(xm)}` : ''}`;
   const f = K.pointFactor(st), fe = $('#factorVal');
   fe.hidden = f <= 1; if (f > 1) fe.textContent = t('factor', f);
-  const ratio = setGoal(st.chips * mult / targetOf(st));
+  const ratio = setGoal(score / targetOf(st));
   if (S.phase === 'burn' && S.stars) {
-    if (st.chips * mult >= targetOf(st)) starOn(0);
-    if (st.chips * mult >= targetOf(st) * 3 && !S.stars[1]) { starOn(1); callout(t('star2'), 2); }
+    if (score >= targetOf(st)) starOn(0);
+    if (score >= targetOf(st) * star2K() && !S.stars[1]) { starOn(1); callout(t('star2', star2K()), 2); }
   }
   if (ratio >= 1 && !S.goalHit && S.phase === 'burn') {
     // 目標を越えた瞬間: 一瞬止めて、はっきり知らせる
@@ -2223,7 +2259,9 @@ function updateScore() {
 function hintText(h) { const v = t('hints')[h.id]; return typeof v === 'function' ? v(h.n, h) : v || ''; }
 function targetOf(st) { return S.single ? Math.max(1, S.single.score) : st.target; }
 // 夜ごとの星: ★ 目標を越える / ★★ 目標の 3 倍 / ★★★ 満開（全部ひらく）
-function nightStars(score, target, allClear) { return [score >= target, score >= target * 3, !!allClear]; }
+function nightStars(score, target, allClear, k = star2K()) { return [score >= target, score >= target * k, !!allClear]; }
+// ★★ は目標の何倍か（段位 8 では 4 倍）
+function star2K() { return S.mode === 'run' && S.run ? levelFx(S.run.level).star2 : 3; }
 function renderStars(box, on, pop = -1) {
   [...box.children].forEach((e, i) => { e.classList.toggle('on', !!on[i]); if (i === pop) { e.classList.remove('pop'); void e.offsetWidth; e.classList.add('pop'); } });
 }
@@ -2301,7 +2339,7 @@ function newRun(opts) {
     level: 0, pool: null, retries: 0, lvMax: {} };
   // 段位と、候補に出るお守り（今夜の一筆と勝負リンクは、みんな同じ条件: 段位 0・お守りは全部）
   if (!opts.daily && !opts.duel) { S.run.level = curLevel(); S.run.pool = M.charmPool(DB.meta); }
-  if (levelFx(S.run.level).noLife) S.run.lives = 0;
+  S.run.lives = levelFx(S.run.level).spare;
   S.mode = 'run';
   if (!DB.runs) DB.runs = 0; DB.runs++; save();
   startNight(0);
@@ -2309,11 +2347,15 @@ function newRun(opts) {
 function startNight(n, preset) {
   const run = S.run;
   startMusic();
-  S.st = K.newRound(preset || { seed: run.seed, night: n, charms: run.charms, moon: run.moon, bank: run.bank || 0 });
+  S.st = K.newRound(preset || { seed: run.seed, night: n, charms: run.charms, moon: run.moon, bank: run.bank || 0, level: run.level || 0 });
+  // 今夜の願い札（ひとりの祭りだけ。叶えると星がもう 1 つ）
+  S.wish = !preset && S.mode === 'run' ? K.wishFor(run.seed, n, run.level || 0) : null; S.wishMet = false;
+  const wb = $('#wish'); wb.hidden = !S.wish; wb.className = '';
+  if (S.wish) { wb.querySelector('span').textContent = lang === 'en' ? S.wish.en : S.wish.ja; wb.title = t('wishTip'); }
   S.show = null; S.hover = null;
   drawBackground();
   S.burnT = []; fx.clear(); S.flashes = []; S.acc = 0; S.timeScale = S.speed;
-  S.hold = 0; S.freeze = 0; S.rings = []; S.burstLog = []; S.bloomFired = false; S.pendingEv = null; S.ignite = null; S.goalHit = false; S.tallySkip = null;
+  S.hold = 0; S.freeze = 0; S.rings = []; S.foxes = []; S.burstLog = []; S.bloomFired = false; S.pendingEv = null; S.ignite = null; S.goalHit = false; S.tallySkip = null;
   S.stars = S.mode === 'vs' ? null : [false, false, false]; renderStars($('#stars'), [false, false, false]);
   $('#lives').replaceChildren(...Array.from({ length: S.run && S.mode === 'run' ? S.run.lives : 0 }, () => svgIcon('lantern'))); $('#lives').title = S.run ? t('livesTip', S.run.lives) : '';
   $('#stars').hidden = !S.stars;
@@ -2501,7 +2543,7 @@ function onRoundDone() {
   const st = S.st, res = st.result;
   // 今夜の花火をもう一度（打ち上げなおし）→ 満開の型物 → 集計
   // 今夜の花火（打ち上げなおし）は、大当たりか満開の夜だけ、短く
-  const big = res.allClear || res.score >= targetOf(st) * 3;
+  const big = res.allClear || res.score >= targetOf(st) * star2K();
   const go = () => {
     S.phase = 'tally'; S.tallySkip = null;
     if (res.allClear && !S.bloomFired) { S.bloomFired = true; finale(); callout(t('mankai'), 3); starOn(2); }
@@ -2526,6 +2568,10 @@ function runTally(res) {
   pcB.textContent = '0'; pmB.textContent = '0'; partEl.className = 'part'; partEl.replaceChildren();
   r2.textContent = '0'; r2.style.fontSize = ''; r2.classList.remove('fire'); r3.textContent = '';
   const ts = box.querySelector('.tstars'), earned = nightStars(res.score, target, res.allClear);
+  // 願い札: 叶ったかどうか（集計の終わりに判子と一緒に出す）
+  S.wishMet = !!(S.wish && K.wishMet(st, S.wish, target));
+  r3.className = 'row3' + (S.wish ? ' wish ' + (S.wishMet ? 'met' : 'miss') : '');
+  if (S.wish) setT(r3, S.wishMet ? t('wishMet', lang === 'en' ? S.wish.en : S.wish.ja) : t('wishMiss', lang === 'en' ? S.wish.en : S.wish.ja));
   ts.hidden = S.mode === 'replay'; renderStars(ts, [false, false, false]); ts.classList.remove('show');
   $('#chain').classList.remove('on');
   // 集計の途中でタイトルへ戻ったり、タップで飛ばしたりしたら、残りの演出は捨てる
@@ -2533,7 +2579,7 @@ function runTally(res) {
   const alive = () => S.st === st && !over;
   const showStamp = () => {
     if (stamped) return; stamped = true;
-    const huge = pass && res.score >= target * 3;
+    const huge = pass && res.score >= target * star2K();
     hinoFace(pass ? (huge ? 'star' : 'joy') : 'sad', 4000);
     setGoal(res.score / target); // 満開の倍率も入った、最後の点でゲージを合わせる
     if (S.mode === 'replay') return;
@@ -2548,6 +2594,7 @@ function runTally(res) {
       if (S.st !== st) return;
       stamp.classList.add('show');
       if (boss) { SFX.mankai(); S.shake = 6; hinoFace('star', 4000); } else if (pass) SFX.pass(); else SFX.fail();
+      if (S.wish) { r3.classList.add('show'); $('#wish').classList.add(S.wishMet ? 'met' : 'miss'); if (S.wishMet) setTimeout(() => SFX.star(2), 150); }
       // 大一番の妖怪: 負けたら悔しがり、はじめて勝ったら仲間になる
       if (S.boss && S.mode === 'run') {
         bossSay(pass ? 'lose' : 'win');
@@ -2565,7 +2612,7 @@ function runTally(res) {
     skipped = true; S.tallySkip = null;
     [r1, r2].forEach((e) => e.classList.add('show')); r2.textContent = K.fmt(res.score);
     const tot = sumParts(parts); pcB.textContent = K.fmt(tot.chips); pmB.textContent = fmtMult(tot.mult); partEl.replaceChildren();
-    if (pass && res.score >= target * 3) r2.classList.add('fire');
+    if (pass && res.score >= target * star2K()) r2.classList.add('fire');
     showStamp();
     setTimeout(finish, 320);
   };
@@ -2589,7 +2636,7 @@ function runTally(res) {
   // 点 × 倍率 → 最後の点。目標の 3 倍を越えたら、数字が燃える
   const multiply = () => {
     r2.classList.add('show');
-    const t0 = performance.now(), dur = REDUCED ? 200 : 650, huge = pass && res.score >= target * 3;
+    const t0 = performance.now(), dur = REDUCED ? 200 : 650, huge = pass && res.score >= target * star2K();
     (function roll() {
       if (!going()) return;
       const u = Math.min(1, (performance.now() - t0) / dur);
@@ -2617,7 +2664,7 @@ function sumParts(parts) {
 }
 const fmtMult = (m) => (Math.abs(m - Math.round(m)) < 1e-9 ? String(Math.round(m)) : m.toFixed(1));
 function showPart(partEl, p) {
-  const sp = el('span'), cid = typeof p.id === 'string' && p.id.startsWith('charm:') ? p.id.slice(6) : null;
+  const sp = el('span'), id0 = typeof p.id === 'string' ? (p.id.startsWith('charm:') ? p.id.slice(6) : p.id) : '', cid = K.CHARM_IDS.includes(id0) ? id0 : null;
   if (cid && K.charmById(cid)) sp.appendChild(charmIcon(cid));
   sp.appendChild(document.createTextNode(lang === 'en' ? (p.en || p.ja || '') : (p.ja || p.en || '')));
   sp.appendChild(el('b', '', p.kind === 'xmult' ? `×${fmtMult(p.v)}` : `+${p.kind === 'mult' ? fmtMult(p.v) : K.fmt(p.v)}`));
@@ -2632,16 +2679,18 @@ function afterTally(res, pass) {
   const run = S.run;
   // 散った夜: 予備の提灯があれば、同じ夜をもう一度（散った記録は残さない）
   if (!pass && run.lives > 0) { showRetry(res); return; }
-  run.wallet += nightStars(res.score, st.target, res.allClear).filter(Boolean).length; // 取った星は、お守り選びの屋台で使える
+  run.wallet += nightStars(res.score, st.target, res.allClear).filter(Boolean).length + (S.wishMet ? 1 : 0); // 取った星（と叶った願い札）は、お守り選びの屋台で使える
   if (pass) run.bank = K.inkCarry(st); // 墨壺: 使わなかった墨の半分を、次の夜へ持ち越す
-  run.nights.push({ score: res.score, target: st.target, pops: res.pops, total: res.total, allClear: res.allClear, ...(st.twist ? { twist: st.twist } : {}) });
+  const sts = res.stats || {};
+  run.nights.push({ score: res.score, target: st.target, pops: res.pops, total: res.total, allClear: res.allClear, ...(st.twist ? { twist: st.twist } : {}),
+    ...(S.wish ? { wish: S.wish.id, wishMet: S.wishMet } : {}), toriAdd: res.tori ? res.tori.add : 0, maxGen: res.maxGen || 0, goldTouched: sts.goldTouched || 0, lineTouched: sts.lineTouched || 0 });
   if (st.twist) gc(`hitofude/boss/${st.twist}/${pass ? 'win' : 'lose'}`); // 大一番ごとの突破率（目標点の見直しに使う）
   if (!pass) run.hint = K.failHint(st);
   // 筆跡占いは、大一番でない夜のうち、いちばん点の高い夜の一筆で見る
   if (!st.twist && st.strokes[0] && (!run.sig || res.score > run.sig.score)) run.sig = { pts: st.strokes[0], pops: res.pops, total: res.total, ink: st.rules.ink, score: res.score };
   run.total += res.score;
   run.bestChain = Math.max(run.bestChain, res.pops);
-  if (!run.best || res.score > run.best.score) run.best = { night: st.night, charms: st.charms.slice(), strokes: st.strokes.map((s) => s.slice()), score: res.score, chain: res.pops, bank: st.bank || 0 };
+  if (!run.best || res.score > run.best.score) run.best = { night: st.night, charms: st.charms.slice(), strokes: st.strokes.map((s) => s.slice()), score: res.score, chain: res.pops, bank: st.bank || 0, level: st.level || 0 };
   if (pass && st.night < K.NIGHTS - 1) showPick();
   else endRun();
 }
@@ -2660,7 +2709,7 @@ function showRetry(res) {
 function drawNextBoard(n) {
   const run = S.run, c = $('#nextBoard'), g = c.getContext('2d');
   const yoko = isYoko(); c.width = yoko ? 256 : 144; c.height = yoko ? 144 : 256;
-  const st = K.newRound({ seed: run.seed, night: n, charms: run.charms, moon: run.moon });
+  const st = K.newRound({ seed: run.seed, night: n, charms: run.charms, moon: run.moon, level: run.level || 0 });
   const k = (yoko ? c.width : c.height) / K.H;
   const at = (x, y) => (yoko ? [y * k, (K.W - x) * k] : [x * k, y * k]);
   g.fillStyle = 'rgba(10,12,32,.9)'; g.fillRect(0, 0, c.width, c.height);
@@ -2698,7 +2747,7 @@ function showPick(round = 0, reroll = 0) {
     const c = K.charmById(id); if (!c) continue;
     const held = lvs[id] || 0, maxLv = K.MAX_LV || 1;
     const b = el('button', 'pick');
-    b.type = 'button'; b.dataset.rarity = c.rarity || 'common';
+    b.type = 'button'; b.dataset.rarity = c.rarity || 'common'; b.dataset.id = id;
     const e = el('div', 'e'); e.appendChild(charmIcon(c.id)); b.appendChild(e);
     const d = el('div');
     const name = el('b', '', charmName(id));
@@ -2723,7 +2772,7 @@ function showPick(round = 0, reroll = 0) {
   shop.appendChild(el('span', 'wallet', ''));
   shop.lastChild.append(svgIcon('star'), ` ${t('shopWallet', run.wallet)}`);
   const buy = (label, cost, ok, fn) => {
-    cost += levelFx(run.level).shopUp || 0; // 段位で屋台の値段が上がる
+    cost += levelFx(run.level).price || 0; // 段位で屋台の値段が上がる
     const b = btn(label.replace(/★\d+/, `★${cost}`), 'small', () => { if (!ok()) return; if (run.wallet < cost) { nekoSay('broke'); SFX.low(); return; } run.wallet -= cost; SFX.pick(); fn(); setTimeout(() => nekoSay('buy'), 0); });
     b.classList.toggle('poor', run.wallet < cost); b.disabled = !ok(); shop.appendChild(b);
   };
@@ -2732,7 +2781,7 @@ function showPick(round = 0, reroll = 0) {
   buy(t('shopLife'), 3, () => run.lives < 2, () => { run.lives++; showPick(round, reroll); toast(t('livesTip', run.lives)); });
   if (!reroll && !round) nekoSay('welcome');
   drawNextBoard(n + 1);
-  const ng = K.gimmickFor(n + 1), ntw = K.twistFor(run.seed, n + 1), ntg = K.targetFor(run.seed, n + 1, run.moon);
+  const ng = K.gimmickFor(n + 1), ntw = K.twistFor(run.seed, n + 1), ntg = K.targetFor(run.seed, n + 1, run.moon, run.level || 0);
   $('#pickNext').textContent = ntw ? t('pickNextBoss', n + 1, ntg, lang === 'en' ? ntw.en : ntw.ja)
     : ng ? t('pickNextNew', n + 1, ntg, lang === 'en' ? ng.en : ng.ja) : t('pickNext', n + 1, ntg);
   $('#newCard').hidden = true;
@@ -2779,8 +2828,6 @@ function charmName(id) { const c = K.charmById(id); return c ? (lang === 'en' ? 
 function offerOpts(run) {
   const o = { level: run.level || 0 };
   if (!run.daily && run.pool) o.pool = run.pool;
-  const lv = K.LEVELS && K.LEVELS[run.level || 0];
-  if (lv && lv.fx && lv.fx.offers) o.count = lv.fx.offers;
   return o;
 }
 
@@ -2877,7 +2924,7 @@ function showRunResult(run) {
   kv.append(a, b, c); body.appendChild(kv);
   // 次にねらう所を 1 行で
   const goals = [];
-  if (cleared < K.NIGHTS) goals.push(t('nextGoal', cleared, K.targetFor(run.seed, cleared, run.moon)));
+  if (cleared < K.NIGHTS) goals.push(t('nextGoal', cleared, K.targetFor(run.seed, cleared, run.moon, run.level || 0)));
   if (run.prevBest != null && run.prevBest > 0) {
     if (run.total > run.prevBest) goals.push(t('bestUp'));
     else if (run.total < run.prevBest) goals.push(t('bestGap', run.prevBest - run.total));
@@ -2903,7 +2950,7 @@ function showRunResult(run) {
   const text = K.runShareText(run, lang);
   const box = el('div', 'sharebox');
   const duelUrl = `${shareUrl()}#s=${K.encodeDuel(run.seed, run.moon, run.total)}`;
-  const replayUrl = run.best ? `${shareUrl()}#r=${K.encodeReplay({ seed: run.seed, moon: run.moon, night: run.best.night, charms: run.best.charms, strokes: run.best.strokes, bank: run.best.bank || 0 })}` : null;
+  const replayUrl = run.best ? `${shareUrl()}#r=${K.encodeReplay({ seed: run.seed, moon: run.moon, night: run.best.night, charms: run.best.charms, strokes: run.best.strokes, bank: run.best.bank || 0, level: run.best.level || 0 })}` : null;
   box.append(
     btn(t('share'), 'accent', () => shareText(text, 'run')),
     btn(t('postX'), '', () => { gc('hitofude/share/x'); window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text), '_blank', 'noopener'); }),
@@ -2927,7 +2974,7 @@ function rankName(rk) { return lang === 'en' ? rk.nameEn : rk.name; }
 function unlockName(u) { return lang === 'en' ? u.en : u.ja; }
 // 段位: えらんだ段位（開いていなければ 0）と、段位 1〜n のルールを重ねたもの
 function curLevel() { return M.features(DB.meta).includes('levels') ? Math.max(0, Math.min(DB.level || 0, M.maxLevel(DB.meta))) : 0; }
-function levelFx(n) { const o = {}; if (K.LEVELS) for (let i = 1; i <= (n || 0) && i < K.LEVELS.length; i++) Object.assign(o, K.LEVELS[i].fx || {}); return o; }
+function levelFx(n) { return K.levelFx(n || 0); } // 段位のルール（core が段位 1〜n を重ねたもの）
 // meta.js に渡す、この祭りのまとめ（やりなおした夜は、最後の 1 回だけが run.nights に入っている）
 function runSummary(run) {
   const cleared = run.nights.filter((r) => r.score >= r.target).length;
@@ -3273,7 +3320,7 @@ function openLink(link) {
   } else {
     gc('hitofude/replay/open');
     // 再生前に一度回して点を出しておく（届いた一筆の点を見せるため）
-    const pre = K.newRound({ seed: link.seed, night: link.night, charms: link.charms, moon: link.moon });
+    const pre = K.newRound({ seed: link.seed, night: link.night, charms: link.charms, moon: link.moon, bank: link.bank || 0, level: link.level || 0 });
     const res = K.runToEnd(pre, link.strokes, { normalized: true });
     S.replay = { ...link, score: res.score };
     card.appendChild(el('p', 'sub serif', t('replayHead')));
@@ -3291,7 +3338,7 @@ function openLink(link) {
 function playReplay() {
   const r = S.replay;
   S.mode = 'replay'; S.run = null; S.single = null;
-  startNight(r.night, { seed: r.seed, night: r.night, charms: r.charms, moon: r.moon, bank: r.bank || 0 });
+  startNight(r.night, { seed: r.seed, night: r.night, charms: r.charms, moon: r.moon, bank: r.bank || 0, level: r.level || 0 });
   S.phase = 'replaying';
   // 線を、ひいた速さっぽく少しずつ見せてから火をつける
   const pts = r.strokes[0];
@@ -3315,7 +3362,7 @@ function showReplayEnd(res) {
   body.appendChild(el('p', 'sub serif', t('replayHead')));
   body.appendChild(el('div', 'big mono', K.fmt(res.score)));
   const stack = el('div', 'stack');
-  stack.append(btn(t('replayCta'), 'primary', () => startSingle({ seed: r.seed, night: r.night, charms: r.charms, moon: r.moon, bank: r.bank || 0, score: res.score })),
+  stack.append(btn(t('replayCta'), 'primary', () => startSingle({ seed: r.seed, night: r.night, charms: r.charms, moon: r.moon, bank: r.bank || 0, level: r.level || 0, score: res.score })),
     btn(t('back'), 'small', goTitle));
   body.appendChild(stack);
   arrangeResult(); showOnly('#resultOv');
@@ -3323,7 +3370,7 @@ function showReplayEnd(res) {
 function startSingle(opts) {
   S.mode = 'single'; S.run = null;
   S.single = { ...opts };
-  startNight(opts.night, { seed: opts.seed, night: opts.night, charms: opts.charms, moon: opts.moon, bank: opts.bank || 0 });
+  startNight(opts.night, { seed: opts.seed, night: opts.night, charms: opts.charms, moon: opts.moon, bank: opts.bank || 0, level: opts.level || 0 });
 }
 function showSingleEnd(res) {
   const sgl = S.single;
@@ -3335,7 +3382,7 @@ function showSingleEnd(res) {
   const p = el('p', 'world', win ? t('singleWin', sgl.score) : t('singleLose', sgl.score)); p.style.color = win ? 'var(--green)' : 'var(--red)';
   body.appendChild(p);
   const st = S.st;
-  const url = `${shareUrl()}#r=${K.encodeReplay({ seed: sgl.seed, moon: sgl.moon, night: sgl.night, charms: sgl.charms, strokes: st.strokes, bank: sgl.bank || 0 })}`;
+  const url = `${shareUrl()}#r=${K.encodeReplay({ seed: sgl.seed, moon: sgl.moon, night: sgl.night, charms: sgl.charms, strokes: st.strokes, bank: sgl.bank || 0, level: sgl.level || 0 })}`;
   const box = el('div', 'sharebox');
   box.append(btn(t('replayLink'), 'primary wide', () => shareText(t('replayShare', sgl.night, res.score, url), 'replay')));
   body.appendChild(box);
@@ -4303,6 +4350,11 @@ function applyLang() {
       'Half of your unused ink carries over to the next night (ink pot).',
       'Earn up to 3 stars a night (target, triple the target, burst every shell). Spend them at the charm stall: reroll, more ink, or a spare lantern.',
       'Fail a night with a spare lantern and you can retry it.',
+      'Hold up to 5 charms. Pick the same charm again to upgrade it to Lv2 and Lv3. When full, release one to make room (you get stars back).',
+      'Charms have types (gold, lantern, chain, ink, finale, risk). Collect one type and the ×multiplier charms shine.',
+      'Each night has a wish. Make it come true and clear the night for one more star.',
+      'Boss nights bring a yokai. Beat one for the first time and it joins you, adding its legendary charm to the pool.',
+      'Every run raises your rank and unlocks new charms and outfits. Clear all 8 nights to choose Stakes (one harder rule at a time).',
       'Each night adds one new thing: big shell, star shell, lantern, cloud, damp shell, fuse rope, and the grand shell.',
       'Nights 3 and 6 are boss nights that change how your line works (Straight, Mirror, Dark night, Snap). Beat one to pick two charms.',
       'From night 3, each night has its own scene: clusters, a river, a ring, or rows of stalls.',
