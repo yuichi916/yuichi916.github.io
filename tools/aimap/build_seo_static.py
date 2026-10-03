@@ -34,7 +34,8 @@ def render_task(t):
     parts.append(
         f'<p><b>{esc(t["name"])}</b>'
         f'<span style="color:#7d786a"> / {esc(t.get("name_en",""))}</span>'
-        f' — 2026年レベル: {esc(lv)}/5</p>'
+        f' — 2026年レベル: {esc(lv)}/5'
+        f' <a href="ai-map/t/{esc(t["id"])}.html">この仕事のページ</a></p>'
     )
     if t.get("vs_expert"):
         parts.append(f"<p>専門家と比べて: {esc(t['vs_expert'])}</p>")
@@ -82,6 +83,7 @@ def build_block(data):
         f"全{n_tasks}タスクの詳細を1ページのテキストで見る（検索・引用・スクリーンリーダー向け・as of {esc(asof)}）</summary>\n"
         '<div style="margin:10px 0 30px;max-width:900px">\n'
         "<h2>AIエージェント能力アトラス — 全タスク一覧（テキスト版）</h2>\n"
+        '<p><a href="ai-map/t/">仕事ごとのページの一覧</a>（各仕事に固定のページと共有用の画像があります）</p>\n'
         f"{domains_html}\n"
         "</div>\n"
         "</details>\n"
