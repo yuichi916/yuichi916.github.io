@@ -1817,5 +1817,19 @@ check('花火合戦: 挑戦状のリンクと、シェアの文', () => {
   ok(K.vsShareText({ rival: 0, winner: 1, results: [res(1, 1, 5), res(1, 1, 5)] }, 'en', 'U').includes('lost 0-2'));
 });
 
+check('世界の花火の日は日付だけで決まり、デイリーの共有文に一行入る', () => {
+  eq(K.festivalOf('2026-11-05').id, 'bonfire');
+  eq(K.festivalOf('2026-12-31').id, 'nye');
+  eq(K.festivalOf('2027-01-01').id, 'newyear');
+  eq(K.festivalOf('2026-07-04').id, 'july4');
+  eq(K.festivalOf('2026-11-08').id, 'diwali');
+  eq(K.festivalOf('2027-11-08'), null, 'ディワリは確かめた年だけ');
+  eq(K.festivalOf('2026-09-27'), null);
+  const run = { daily: true, key: '2026-11-05', no: 41, moon: 0, total: 1000, bestChain: 9, nights: [{ score: 10, target: 5 }] };
+  ok(K.runShareText(run, 'ja').includes('イギリスのガイ・フォークス・ナイトの夜に'));
+  ok(K.runShareText(run, 'en').includes('On Bonfire Night'));
+  ok(!K.runShareText({ ...run, daily: false }, 'ja').includes('ガイ・フォークス'), 'デイリー以外には出さない');
+});
+
 if (failures) { console.error(`hitofude_core_test: ${failures} FAILED`); process.exit(1); }
 console.log('hitofude_core_test: ALL PASS');

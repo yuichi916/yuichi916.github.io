@@ -35,6 +35,7 @@ EXCLUDE_DIRS = {
     "_blender", "_gas", "_userscript", "_ehon_assets",
     "tests", "docs", "scripts", "assets",
     "_dist",   # 配布用のビルド出力 (gitignore。公開されない)
+    "ai-map",  # アトラスの仕事ごとのページ（ai-map/t/）。本文は ai-map.html にすべて入っているので重ねない
 }
 EXCLUDE_FILES = {
     "googlea794ff425484fcb3.html", "quest_test_tmp.html", "test-mobile.html",

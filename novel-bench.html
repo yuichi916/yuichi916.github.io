@@ -63,6 +63,10 @@ button.sec{background:transparent;color:var(--sub);border:1px solid var(--line);
 .meter i{position:absolute;inset:0 auto 0 0;border-radius:7px;transition:width .5s ease}
 .mscale{display:flex;justify-content:space-between;font-size:11.5px;color:var(--sub)}
 .habits{margin-top:20px}
+.sharebox{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;align-items:center}
+.sharebox button{font:inherit;font-size:14px;padding:9px 16px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer}
+.sharebox button:hover{border-color:var(--acc)}
+.sharenote{flex-basis:100%;font-size:12px;color:var(--sub)}
 .hrow{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
 .hname{flex:1;font-size:14.5px}
 .hwhy{font-size:12px;color:var(--sub);display:block;line-height:1.6}
@@ -446,7 +450,54 @@ function render(j) {
     + 'また、指摘された癖を潰せば必ず上がる、というものでもありません'
     + '（相関を測ったもので、因果は確かめていません）。<br>'
     + '改稿したらもう一度かけて、<strong>前後で比べる</strong>のがいちばん確かな使い方です。</div>';
+  h += '<div class="sharebox"><button type="button" id="shareX">𝕏 結果をポスト</button>'
+    + '<button type="button" id="shareImg">結果カードを共有・保存</button>'
+    + '<div class="sharenote">共有されるのは判定と癖の名前だけで、貼った原稿の文は含まれません。</div></div>';
   show(h);
+  $('shareX').addEventListener('click', () => {
+    window.open('https://x.com/intent/post?text=' + encodeURIComponent(shareText(j)), '_blank', 'noopener');
+  });
+  $('shareImg').addEventListener('click', () => shareCard(j));
+}
+
+// 共有。原稿の文は載せない（判定・上位○%・癖の名前だけ）。?ref= で共有から来た人を数える
+const SHARE_URL = 'https://yuichi916.github.io/novel-bench.html?ref=novelbench-share';
+function shareText(j) {
+  return `書き出し診断の結果は「${bandLabel(j.probability)}」。較正した1,222作品の中で上位 ${100 - j.percentile}% のあたりでした。\n#書き出し診断\n${SHARE_URL}`;
+}
+function drawCard(j) {
+  const cv = document.createElement('canvas'); cv.width = 1200; cv.height = 630;
+  const cx = cv.getContext('2d'), p = j.probability;
+  const css = getComputedStyle(document.documentElement);
+  const v = (n, d) => (css.getPropertyValue(n) || d).trim() || d;
+  const band = { '高評価帯に近い': v('--ok', '#49c98f'), 'やや高評価寄り': v('--acc', '#67a8ff'), '真ん中あたり': v('--sub', '#95a1b2'), 'やや低評価寄り': v('--warn', '#e3a95c'), '低評価帯に近い': v('--bad', '#e2695f') }[bandLabel(p)];
+  const font = '"Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif';
+  cx.fillStyle = '#0d1017'; cx.fillRect(0, 0, 1200, 630);
+  cx.fillStyle = '#67a8ff'; cx.font = `bold 26px ${font}`; cx.fillText('書き出し診断 — NOVEL OPENING CHECK', 72, 96);
+  cx.fillStyle = band; cx.font = `bold 84px ${font}`; cx.fillText(bandLabel(p), 72, 210);
+  cx.fillStyle = '#e8ecf2'; cx.font = `36px ${font}`; cx.fillText(`較正した1,222作品の中で、上位 ${100 - j.percentile}% のあたり`, 72, 280);
+  cx.fillStyle = '#28303d'; cx.fillRect(72, 318, 1056, 18);
+  cx.fillStyle = band; cx.fillRect(72, 318, Math.max(8, 1056 * j.percentile / 100), 18);
+  const hs = (j.habits || []).slice(0, 3);
+  if (hs.length) {
+    cx.fillStyle = '#95a1b2'; cx.font = `24px ${font}`; cx.fillText('判定を動かした癖', 72, 400);
+    hs.forEach((x, i) => { cx.fillStyle = '#e8ecf2'; cx.font = `30px ${font}`; cx.fillText(`${x.contrib > 0 ? '↑' : '↓'} ${x.name}`, 72, 448 + i * 44); });
+  }
+  cx.fillStyle = '#95a1b2'; cx.font = `24px ${font}`; cx.fillText('yuichi916.github.io/novel-bench.html', 72, 596);
+  return cv;
+}
+async function shareCard(j) {
+  const cv = drawCard(j);
+  const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+  if (!blob) return;
+  const file = new File([blob], 'novel-bench-result.png', { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], text: shareText(j) }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'novel-bench-result.png';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
 go.addEventListener('click', async () => {

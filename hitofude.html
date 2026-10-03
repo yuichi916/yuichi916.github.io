@@ -8,6 +8,8 @@
 <meta name="description" content="線を1本ひくと、それが導火線になる。火が走り、花火玉がひらき、爆発が線の別の場所にも燃え移って連鎖する。点×倍率が跳ね上がる8夜のラン。今夜の本物の月の形でルールが変わる。CPU と同じ夜空で点を取り合う「花火合戦」も。PC は横画面でマウス、スマホは縦画面で指。登録なし・ブラウザで無料。">
 <meta name="theme-color" content="#0b0e22">
 <link rel="canonical" href="https://yuichi916.github.io/hitofude.html">
+<link rel="alternate" hreflang="ja" href="https://yuichi916.github.io/hitofude.html">
+<link rel="alternate" hreflang="en" href="https://yuichi916.github.io/hitofude-en.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
 <meta property="og:title" content="一筆花火 — 線を1本。夜空が全部ひらく">
@@ -1167,6 +1169,7 @@ const T = {
     slotsLine: (a, b) => `お守り ${a}/${b}`, replaceTitle: (nm) => `${nm} ⇄ ？`, sellFor: (n) => `手放すと ★${n}`,
     released: (nm, n) => `${nm} を手放した（★+${n}）`, replaceBack: 'やめて、選びなおす',
     dailyGo: (no) => `🌕 今夜の一筆 #${no}`, dailyDone: '🌕 今夜の結果を見る',
+    festival: (f) => `今日は${f.ja}。世界のどこかで花火が上がる日です。`,
     moonDate: (m, d, w) => `${m}月${d}日（${w}）の月`, wd: ['日', '月', '火', '水', '木', '金', '土'],
     moonName: (m) => `${m.ja}・${m.name}`, moonRule: (m) => `今夜のルール: ${m.rule}`,
     stats: (best, streak) => (best ? `最高 ${K.fmt(best)}点${streak ? ` ・ 連続 ${streak} 夜` : ''}` : ''),
@@ -1304,6 +1307,7 @@ const T = {
     slotsLine: (a, b) => `Charms ${a}/${b}`, replaceTitle: (nm) => `${nm} ⇄ ?`, sellFor: (n) => `Release for ★${n}`,
     released: (nm, n) => `Released ${nm} (★+${n})`, replaceBack: 'Cancel, pick again',
     dailyGo: (no) => `🌕 Tonight's stroke #${no}`, dailyDone: '🌕 See tonight\'s result',
+    festival: (f) => `Today is ${f.en}, a night for fireworks somewhere in the world.`,
     moonDate: (m, d, w) => `Moon of ${w} ${m}/${d}`, wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     moonName: (m) => m.en, moonRule: (m) => `Tonight's rule: ${m.ruleEn}`,
     stats: (best, streak) => (best ? `Best ${K.fmt(best)}${streak ? ` · streak ${streak}` : ''}` : ''),
@@ -5042,6 +5046,8 @@ function goTitle() {
   const bn = (n) => { const tw = K.twistFor(dailySeed(key), n); return lang === 'en' ? tw.en : tw.ja; };
   const done = DB.days && DB.days[key];
   setT($('#dailyLbl'), done ? t('dailyDone') : t('dailyGo', K.dayNumber(key)));
+  // 世界の花火の日は、日付で自動に一行出す（core.js の festivalOf）
+  { const fest = K.festivalOf(key); $('#stageLine').textContent = fest ? t('festival', fest) : ''; }
   // 今夜の一筆: 月の絵と番号。下に大一番の妖怪の顔を 2 つ（ルールの言葉は指を重ねたとき）
   const ds = $('#dailySub'); ds.replaceChildren(); $('#dailyBtn').title = done ? '' : t('dailySub', moon, bn(K.BOSS_NIGHTS[0]), bn(K.BOSS_NIGHTS[1]));
   if (!done) for (const n of K.BOSS_NIGHTS) { const tw = K.twistFor(dailySeed(key), n), bid = tw && CAST && CAST.bossOf ? CAST.bossOf(tw.id) : null; if (bid && CAST.drawCast) { const cv = document.createElement('canvas'); cv.width = cv.height = 64; CAST.drawCast(cv.getContext('2d'), bid, 32, 36, 46, { face: 'taunt', still: true, glow: false }); cv.className = 'dface'; ds.appendChild(cv); } }
