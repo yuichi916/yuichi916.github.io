@@ -428,8 +428,12 @@ body.yoko #bossCut .bc{text-align:left}
 body.yoko #bossCut .bc-tag{justify-content:flex-start}
 /* 引いている間の、妖怪のひとこと（小さな顔つき） */
 #bossSay{position:absolute;right:calc(10px * var(--u));top:calc(env(safe-area-inset-top,0px) + 112px * var(--u));max-width:70%;display:flex;align-items:center;gap:calc(6px * var(--u));pointer-events:none;opacity:0;transform:translateY(calc(-6px * var(--u)));transition:opacity .25s,transform .25s;z-index:6}
-#bossSay.on{opacity:1;transform:none}
-#bossSay canvas{flex:none;width:calc(54px * var(--u));height:calc(54px * var(--u))}
+#bossSay.on,#bossSay.perch{opacity:1;transform:none}
+/* 大一番の夜は、妖怪が盤の端に居すわって、火の進みに合わせて顔を変える。吹き出しは、しゃべる時だけ */
+#bossSay.perch{flex-direction:row-reverse}
+#bossSay.perch span{border-radius:calc(12px * var(--u)) calc(12px * var(--u)) calc(4px * var(--u)) calc(12px * var(--u));transition:opacity .25s,transform .25s;transform-origin:right bottom}
+#bossSay.perch:not(.on) span{opacity:0;transform:scale(.85)}
+#bossSay canvas{flex:none;width:calc(58px * var(--u));height:calc(58px * var(--u))}
 #bossSay span{background:#fff8e8;color:#2a1a10;border-radius:calc(12px * var(--u)) calc(12px * var(--u)) calc(12px * var(--u)) calc(4px * var(--u));padding:calc(6px * var(--u)) calc(10px * var(--u));font-size:calc(13px * var(--u));font-weight:700;line-height:1.4}
 body.yoko #bossSay{top:auto;bottom:calc(120px * var(--u));right:calc(12px * var(--u));max-width:calc(var(--pr) - 24px)}
 /* お邪魔玉を置く段: 置いたらどうなるかの目安と、点火のボタン */
@@ -704,7 +708,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
   <div id="bossCut" hidden><div class="rays"></div><canvas id="bossCv" width="300" height="300"></canvas>
     <div class="bc"><p class="bc-tag"><span class="tag"></span><span class="tw"></span></p><b class="bc-name serif"></b><small class="bc-title"></small><p class="bc-say"></p><p class="bc-rule"></p></div>
     <span class="bc-skip"></span></div>
-  <div id="bossSay"><canvas width="64" height="64"></canvas><span></span></div>
+  <div id="bossSay"><canvas width="128" height="128"></canvas><span></span></div>
   <div id="ojamaBar" hidden>
     <p id="ojamaSay"></p>
     <div class="tb"><button type="button" class="btn primary" id="ojamaOk" data-t="ojamaOk">💣 ここに置いて点火</button><button type="button" class="btn" id="ojamaSkip" data-t="ojamaSkip">置かずに点火</button></div>
@@ -1339,6 +1343,14 @@ function noise(dur, vol, freq, q = 1, type = 'bandpass', delay = 0, pan = 0) {
 }
 const PENTA = [0, 2, 4, 7, 9];
 let lastThump = 0, lastChime = 0, lastCrackle = 0, lastDuck = 0;
+// 声の高さ・音色（天狗は低く太く、狸はぽんぽん、狐は高く細く、鎌鼬は速くかすれて、猫はころころ）
+const VOICE = {
+  tengu: { f: 150, w: 'square', vol: 0.022, d: 0.09, gap: 0.1, slide: -20, steps: [0, 3, 5, 0, -2] },
+  tanuki: { f: 230, w: 'triangle', vol: 0.06, d: 0.08, gap: 0.095, slide: 60, steps: [0, 4, 7, 4, 2] },
+  kitsune: { f: 560, w: 'sine', vol: 0.05, d: 0.07, gap: 0.085, slide: 40, steps: [0, 2, 7, 9, 12] },
+  kamaitachi: { f: 400, w: 'sawtooth', vol: 0.016, d: 0.05, gap: 0.06, slide: -80, steps: [0, 1, 5, 6, -1] },
+  neko: { f: 640, w: 'triangle', vol: 0.045, d: 0.07, gap: 0.08, slide: 120, steps: [0, 4, 7, 12, 7] },
+};
 const SFX = {
   whoosh() { noise(0.35, 0.18, 900, 0.7, 'bandpass'); tone(220, 0.3, 'sine', 0.05, 400); },
   light() { noise(0.12, 0.2, 3000, 0.8, 'highpass'); },
@@ -1361,13 +1373,22 @@ const SFX = {
     if (n - lastChime > 28) {
       lastChime = n;
       // 連鎖の音階は 2 オクターブの中でくり返す（高くなりすぎて耳に痛くならないように）。10 ごとに和音を足す
-      const i = (chain - 1) % 10, f = 392 * 2 ** ((PENTA[i % 5] + 12 * Math.floor(i / 5)) / 12) * (1 + (Math.random() - 0.5) * 0.02);
+      // 10 連鎖ごとに調を 1 音ずつ上げる（20・30・40 と、上がりつづけて聞こえる）
+      const i = (chain - 1) % 10, key = Math.min(8, 2 * Math.floor((chain - 1) / 10)), f = 392 * 2 ** ((PENTA[i % 5] + 12 * Math.floor(i / 5) + key) / 12) * (1 + (Math.random() - 0.5) * 0.02);
       tone(f, 0.26, 'triangle', 0.066, 0, 0, pan); tone(f * 2, 0.16, 'sine', 0.018, 0, 0, pan);
       if (chain >= 10) tone(f * 1.5, 0.3, 'sine', 0.03 + Math.min(0.03, chain / 1000), 0, 0.02, pan);
       if (type === 'kin') { tone(f * 1.5, 0.35, 'sine', 0.05, 0, 0.03, pan); tone(f * 3, 0.22, 'sine', 0.026, 0, 0.06, pan); }
     }
   },
   milestone() { [0, 4, 7, 12].forEach((s, i) => tone(523 * 2 ** (s / 12), 0.5, 'triangle', 0.08, 0, i * 0.04)); },
+  // 妖怪と招き猫の「声」: しゃべった長さだけ、短い音をぽつぽつ（妖怪ごとに高さと音色がちがう）
+  voice(id, line) {
+    const v = VOICE[id]; if (!v || !line) return;
+    const n = Math.max(2, Math.min(9, Math.round(String(line).length / (lang === 'en' ? 7 : 3))));
+    let h = 0; for (const ch of String(line)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    for (let k = 0; k < n; k++) { h = (h * 1103515245 + 12345) >>> 0; const st = v.steps[h % v.steps.length]; tone(v.f * 2 ** (st / 12), v.d, v.w, v.vol, v.slide, k * v.gap); }
+  },
+  meow() { tone(720, 0.16, 'triangle', 0.05, 380); tone(1080, 0.2, 'sine', 0.03, -520, 0.13); },
   tick() { tone(1200 + Math.random() * 400, 0.04, 'square', 0.025); },
   slam() { tone(70, 0.5, 'sine', 0.35, -30); noise(0.3, 0.2, 400, 0.5, 'lowpass'); },
   // 集計の積み上げ: 1 つ積むごとに音が上がる。点は軽く、倍率は太く、×倍率は和音で
@@ -1915,6 +1936,7 @@ function frame(now) {
   if (!titleOv.hidden) drawTitleHino(now);
   if (S.cut) drawBossCut(now);
   if (!$('#pickOv').hidden) drawNeko(now);
+  drawPerch(now);
 }
 
 // まだ火が届きうるか: 導火線が燃えている／ひらききる前の爆発が玉のすぐそば／火花が玉のすぐそば（ひらき終えた爆発の残り火は数えない）
@@ -1928,6 +1950,7 @@ function handleEvents(st) {
     if (e.type === 'burst') {
       spawnBurst(e.shell.x, e.shell.y, e.shell.type, e.shell.hue, e.o, e.R);
       S.burstLog.push(performance.now());
+      if (S.boss && (e.shell.type === 'shaku' || e.shell.type === 'ootama' || e.chain % 10 === 0)) S.perchKick = performance.now(); // 大きな玉と 10 連鎖ごとに、妖怪がびくっとする
       flyTo('c', e.shell.x, e.shell.y); if (e.shell.type === 'kin') flyTo('m', e.shell.x, e.shell.y);
       SFX.burst(e.shell.type, e.chain, panOf(e.shell.x, e.shell.y));
       if (e.shell.type === 'shaku') { mus((m) => m.duck(0.3, 1.2)); S.freeze = Math.max(S.freeze, 0.15); hinoFace(e.o === 1 ? 'sad' : 'star', 1500); scenery.excite(1.2); cheerN(2); if (S.mode === 'vs') rivalSay(e.o === 1 ? 'steal' : 'stolen', true); }
@@ -2566,7 +2589,7 @@ function startNight(n, preset) {
   const tw = S.st.twist ? K.TWISTS.find((x) => x.id === S.st.twist) : null;
   // 大一番: まず妖怪が名乗りを上げる（同じ夜のやりなおしでは出さない）
   const boss = tw && CAST.bossOf(tw.id), stI = S.st;
-  S.boss = boss ? { id: boss, said: 0 } : null;
+  S.boss = boss ? { id: boss, said: 0 } : null; S.perchMood = null; S.perchSay = null;
   if (boss && S.mode === 'run' && !S.demo && !(run.cutShown && run.cutShown[n])) {
     run.cutShown = run.cutShown || {}; run.cutShown[n] = true;
     S.phase = 'cut';
@@ -2596,7 +2619,7 @@ function playBossCut(id, tw, done) {
   el2.querySelector('.tw').textContent = lang === 'en' ? tw.en : tw.ja;
   el2.querySelector('.bc-name').textContent = lang === 'en' ? c.nameEn : c.name;
   el2.querySelector('.bc-title').textContent = lang === 'en' ? c.titleEn : c.title;
-  el2.querySelector('.bc-say').textContent = say.intro;
+  el2.querySelector('.bc-say').textContent = say.intro; setTimeout(() => { if (S.cut && !S.cut.defeat) SFX.voice(id, say.intro); }, 500);
   setT(el2.querySelector('.bc-rule'), dev(lang === 'en' ? tw.ruleEn : tw.rule)); hint('');
   el2.querySelector('.bc-skip').textContent = t('tapGo');
   el2.classList.remove('out'); el2.hidden = false;
@@ -2622,7 +2645,7 @@ function playBossDefeat(id, first, done) {
   el2.querySelector('.tw').textContent = '';
   el2.querySelector('.bc-name').textContent = nm;
   el2.querySelector('.bc-title').textContent = lang === 'en' ? c.titleEn : c.title;
-  el2.querySelector('.bc-say').textContent = say.lose;
+  el2.querySelector('.bc-say').textContent = say.lose; setTimeout(() => { if (S.cut && S.cut.defeat) SFX.voice(id, say.lose); }, 300);
   const rule = el2.querySelector('.bc-rule'); rule.replaceChildren();
   if (first) { rule.append(t('friendLine', nm)); const lg = K.charmById(id); if (lg) { const sp = el('span', 'bc-legend'); sp.append(charmIcon(id), ` ${lang === 'en' ? lg.en : lg.ja}`); rule.append(sp); } }
   el2.querySelector('.bc-skip').textContent = t('tapNext');
@@ -2632,7 +2655,7 @@ function playBossDefeat(id, first, done) {
   SFX.slam(); mus((m) => m.duck(0.5, 1.6)); if (first) { setTimeout(() => { if (S.cut) { SFX.mankai(); CG.happy(); } }, 900); }
   // 少しおいて、仲間になる言葉に切りかえる
   const sayEl = el2.querySelector('.bc-say');
-  const tFriend = first ? setTimeout(() => { if (S.cut && S.cut.defeat) { sayEl.textContent = say.friend; sayEl.style.animation = 'none'; void sayEl.offsetWidth; sayEl.style.animation = ''; } }, 1500) : 0;
+  const tFriend = first ? setTimeout(() => { if (S.cut && S.cut.defeat) { sayEl.textContent = say.friend; SFX.voice(id, say.friend); sayEl.style.animation = 'none'; void sayEl.offsetWidth; sayEl.style.animation = ''; } }, 1500) : 0;
   let over = false;
   const end = () => {
     if (over) return; over = true; S.skipFn = null; clearTimeout(tFriend);
@@ -2657,8 +2680,11 @@ function bossSay(kind, face) {
   const line = kind === 'taunt' ? say.taunt[(b.said++) % say.taunt.length] : say[kind];
   if (!line) return;
   const box = $('#bossSay'), cv = box.querySelector('canvas'), g = cv.getContext('2d');
-  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 64, 64);
-  CAST.drawCast(g, b.id, 32, 36, 46, { face: face || (kind === 'win' ? 'joy' : kind === 'lose' ? 'sad' : 'taunt'), still: true, glow: false });
+  const fc = face || (kind === 'win' ? 'joy' : kind === 'lose' ? 'sad' : 'taunt');
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 128, 128);
+  CAST.drawCast(g, b.id, 64, 72, 92, { face: fc, still: true, glow: false });
+  S.perchSay = { face: fc, until: performance.now() + (kind === 'taunt' ? 2400 : 3200) }; S.perchKick = performance.now();
+  SFX.voice(b.id, line);
   box.querySelector('span').textContent = line;
   box.classList.add('on');
   const seq = ++bossSeq; setTimeout(() => { if (seq === bossSeq) box.classList.remove('on'); }, kind === 'taunt' ? 2400 : 3200);
@@ -3066,7 +3092,26 @@ function showPick(round = 0, reroll = 0) {
 function nekoSay(kind) {
   const c = CAST.CAST.neko, line = (lang === 'en' ? c.sayEn : c.say)[kind]; if (!line) return;
   const p = $('#nekoSay'); p.textContent = line; p.classList.remove('pop'); void p.offsetWidth; p.classList.add('pop');
+  if (kind === 'welcome') SFX.meow(); else SFX.voice('neko', line);
   S.nekoFace = { face: kind === 'broke' ? 'sad' : kind === 'welcome' || kind === 'bye' ? 'idle' : 'joy', until: performance.now() + 1400 };
+}
+// 大一番の夜: 妖怪が盤の端から見ている。線を引く間はにやにや、火が目標に近づくと焦り、越えると泣く。大きな玉ではびくっと跳ねる
+function drawPerch(now) {
+  const box = $('#bossSay'), on = !!(S.boss && S.mode === 'run' && !S.cut && (S.phase === 'draw' || S.phase === 'burn' || S.phase === 'intro' || S.phase === 'tally') && $('#hud').hidden === false);
+  if (box.classList.contains('perch') !== on) box.classList.toggle('perch', on);
+  if (!on) return;
+  if (S.phase === 'burn' && now - (S.perchAt || 0) > 150) {
+    S.perchAt = now;
+    const p = K.scoreParts(S.st).score / Math.max(1, targetOf(S.st)), mood = p >= 1 ? 'sad' : p >= 0.55 ? 'wow' : 'taunt';
+    if (mood !== S.perchMood) { S.perchMood = mood; S.perchKick = now; }
+  }
+  const say = S.perchSay && now < S.perchSay.until ? S.perchSay.face : null;
+  const res = S.phase === 'tally' && S.st && S.st.result, won = res && res.score >= targetOf(S.st);
+  const face = say || (res ? (won ? 'sad' : 'joy') : S.phase === 'burn' ? S.perchMood || 'taunt' : 'taunt');
+  const k = Math.max(0, 1 - (now - (S.perchKick || 0)) / 320), hop = REDUCED ? 0 : Math.sin(k * Math.PI) * 9;
+  const cv = box.querySelector('canvas'), g = cv.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 128, 128);
+  CAST.drawCast(g, S.boss.id, 64, 74 - hop, 88, { face, t: now / 1000, still: REDUCED, blink: true, glow: false, flip: !isYoko() });
 }
 function drawNeko(now) {
   const cv = $('#nekoCv'), g = cv.getContext('2d'), nf = S.nekoFace;
