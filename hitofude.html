@@ -2741,6 +2741,9 @@ function introNight(tw) {
   banner(t('night', S.st.night), sub);
   S.darkUntil = 0; S.darkReveal = 0; S.darkMsg = null;
   showNewCard(K.gimmickFor(S.st.night), tw); S.cutJust = false; // 大一番のルールは HUD の札に出したままにする
+  // やりなおしの夜: さっきのヒントの玉（金・提灯・湿った玉・尺玉・縄）を、引きはじめるまで光らせる（言葉の代わり）
+  if (S.retryHint && S.retryHint.night === S.st.night && !S.newGimmick) { const gl = { gold: 'kin', lantern: 'chouchin', damp: 'shime', shaku: 'shaku', rope: 'nawa' }[S.retryHint.id]; if (gl) S.newGimmick = gl; }
+  S.retryHint = null;
   S.phase = 'intro';
   startLaunch(S.st);
   S.introAt = performance.now() + (S.launch ? 1300 : 900); // 時間がきたら frame() が線を引く番にする（ひと休みの間は進まない）
@@ -3179,6 +3182,7 @@ function showRetry(res) {
   bar.querySelector('.tg').replaceChildren(svgIcon(icoOr('target'))); bar.title = t('retryLine', short);
   // 次に試すこと: 絵の式（言葉は指を重ねたとき）
   const h = K.failHint(st), tipEl = $('#retryTip'); tipEl.hidden = !h; tipEl.title = h ? hintText(h) : '';
+  S.retryHint = h ? { id: h.id, night: st.night } : null; // やりなおした夜のはじめに、盤の上で光らせる
   if (h) { let gx = null; if (G && G.hintGlyph) { try { gx = G.glyphEl(G.hintGlyph(h.id), { shellImg, svgIcon }); } catch (e) { gx = null; } } if (gx) tipEl.replaceChildren(svgIcon('bulb'), gx); else setT(tipEl, `💡 ${hintText(h)}`); }
   // もう一度: 提灯の絵と ↻ と、のこりの数
   const go = $('#retryGo'); go.replaceChildren(svgIcon('lantern'), el('span', '', t('retryShort')), el('i', 'cnt', `×${run.lives}`)); go.title = t('retryGo', run.lives - 1); go.hidden = run.lives <= 0;
