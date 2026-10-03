@@ -797,6 +797,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
       <p class="hintpill" id="retryTip"></p>
       <div class="stack">
         <button type="button" class="btn primary" id="retryGo"></button>
+        <button type="button" class="btn" id="retryAd" hidden></button>
         <button type="button" class="btn small" id="retryEnd" data-t="retryEnd">ここで終える</button>
       </div>
     </div>
@@ -851,6 +852,42 @@ import { ICONS, svgIcon, drawIcon, moonIcon, drawOmamori } from './assets/hitofu
 
 // ゲームサイト用の書き出し（scripts/build_itch_package.py hitofude-portal）か
 const PORTAL = !!window.HITO_PORTAL;
+// ================================================================ CrazyGames の SDK（ゲームサイト用の書き出しだけ。サイトでは何もしない）
+// 遊んでいる/止めた の合図、うれしい場面の合図、祭りの合間の広告と、見ると 1 回やりなおせる広告、クラウド保存
+const CG = (() => {
+  let sdk = null, ready = false, playing = false, lastAd = performance.now(), happyAt = 0;
+  const safe = (fn) => { try { return fn(); } catch (e) { return undefined; } };
+  const quiet = (on) => { if (!actx) return; safe(() => (on ? actx.suspend() : actx.resume())); };
+  return {
+    get ready() { return ready; },
+    async init() {
+      if (!PORTAL || !window.CrazyGames || !window.CrazyGames.SDK) return false;
+      try { sdk = window.CrazyGames.SDK; await sdk.init(); ready = sdk.environment !== 'disabled'; } catch (e) { ready = false; }
+      return ready;
+    },
+    // 遊んでいる間だけ gameplayStart（同じ合図を続けて送らない）
+    play(on) { if (!ready || playing === on) return; playing = on; safe(() => (on ? sdk.game.gameplayStart() : sdk.game.gameplayStop())); },
+    happy() { const n = performance.now(); if (!ready || n - happyAt < 4000) return; happyAt = n; safe(() => sdk.game.happytime()); },
+    // 祭りと祭りの合間の広告（3 分に 1 回まで）。終わったら（出なくても）then を呼ぶ
+    midgame(then) {
+      if (!ready || performance.now() - lastAd < 180000) { then(); return; }
+      let done = false; const fin = () => { if (done) return; done = true; lastAd = performance.now(); quiet(false); then(); };
+      this.play(false);
+      safe(() => sdk.ad.requestAd('midgame', { adStarted: () => quiet(true), adFinished: fin, adError: fin }));
+      setTimeout(fin, 45000); // 広告が返ってこないときも、先へ進める
+    },
+    // 見るとごほうびがある広告。見終わったら reward、出なければ fail
+    rewarded(reward, fail) {
+      if (!ready) { fail(); return; }
+      let done = false; const end = (ok) => { if (done) return; done = true; lastAd = performance.now(); quiet(false); (ok ? reward : fail)(); };
+      this.play(false);
+      safe(() => sdk.ad.requestAd('rewarded', { adStarted: () => quiet(true), adFinished: () => end(true), adError: () => end(false) }));
+    },
+    // クラウド保存（ログインしている人は、別の端末でも続きから）
+    save(json) { if (ready && sdk.data) safe(() => sdk.data.setItem(LS, json)); },
+    load() { return ready && sdk.data ? safe(() => sdk.data.getItem(LS)) : null; },
+  };
+})();
 // ================================================================ 言葉
 const KANJI = ['一', '二', '三', '四', '五', '六', '七', '八'];
 const T = {
@@ -910,6 +947,7 @@ const T = {
     imgPts: '点', imgChain: '最大', imgChainUnit: '連鎖',
     hintMiss: '玉の上を通るように、線をひこう',
     bankNow: (p) => `墨壺 +${p}%（使わなかった墨は、半分が次の夜へ）`, carryLine: (p) => `残った墨 → 次の夜に +${p}%`, toriCall: (a) => `大トリ！ 倍率 +${a}`, starCall: (a) => `一番星！ 倍率 +${a}`,
+    retryAd: '広告を見て、この夜をもう一度', adFail: '広告を出せなかった。また後でためしてね',
     retryLine: (p) => `あと ${p}% だった…！`, retryGo: (n) => `予備の提灯で、この夜をもう一度（のこり ${n}）`, retryEnd: 'ここで終える',
     shopWallet: (n) => `星 ${n}`, shopReroll: '入れかえる ★1', shopLife: '予備の提灯 ★3', shopInk: '墨を足す ★1', livesTip: (n) => `予備の提灯 ${n}: 散っても、その夜をもう一度ひける`, pauseTitle: 'ひと休み', pResume: '▶ 続ける', pRestart: '最初からやりなおす', pQuit: 'タイトルへ（この夜はおしまい）',
     goalClear: '目標突破！', star2: (k = 3) => `★★ 目標の ${k} 倍！`,
@@ -1027,6 +1065,7 @@ const T = {
     imgPts: 'pts', imgChain: 'best', imgChainUnit: 'chain',
     hintMiss: 'Draw through the shells',
     bankNow: (p) => `Ink pot +${p}% (half of unused ink carries to the next night)`, carryLine: (p) => `Unused ink → +${p}% next night`, toriCall: (a) => `Grand finale! multiplier +${a}`, starCall: (a) => `First star! multiplier +${a}`,
+    retryAd: 'Watch an ad to retry this night', adFail: 'No ad available right now. Try again later.',
     retryLine: (p) => `So close — only ${p}% short!`, retryGo: (n) => `Use a spare lantern and retry this night (${n} left)`, retryEnd: 'End the run here',
     shopWallet: (n) => `${n} star${n === 1 ? "" : "s"}`, shopReroll: 'Reroll ★1', shopLife: 'Spare lantern ★3', shopInk: 'More ink ★1', livesTip: (n) => `Spare lanterns: ${n}. Fail a night and you can retry it.`, pauseTitle: 'Paused', pResume: '▶ Resume', pRestart: 'Restart', pQuit: 'Quit to title (ends this run)',
     goalClear: 'Target cleared!', star2: (k = 3) => `★★ ${k}× the target!`,
@@ -1104,7 +1143,8 @@ function load() {
   if ('streak' in v && !obj(v.streak)) delete v.streak;
   return v;
 }
-function save() { try { localStorage.setItem(LS, JSON.stringify(DB)); } catch (e) { /* 保存できなくても遊べる */ } }
+function save() { const j = JSON.stringify(DB); try { localStorage.setItem(LS, j); } catch (e) { /* 保存できなくても遊べる */ } CG.save(j); }
+const hadLocal = (() => { try { return !!localStorage.getItem(LS); } catch (e) { return false; } })();
 let DB = load();
 // 花火師の格・解放・実績・図鑑（meta.js）。前の版から遊んでいる人には、はじめの 1 回だけ、遊んだ回数ぶんの XP
 DB.meta = M.initMeta(DB.meta, { runs: DB.runs || 0, cleared: !!(DB.stages && Object.keys(DB.stages).length) });
@@ -1722,6 +1762,8 @@ function cheerN(n) { const lines = t('cheers'); for (let i = 0; i < n; i++) setT
 // ================================================================ 毎フレーム
 function frame(now) {
   requestAnimationFrame(frame);
+  // ゲームサイトへ「遊んでいる/止めた」を知らせる（夜の最中だけ。タイトル・選ぶ画面・結果・ひと休み・別のタブは止めた）
+  CG.play(!S.paused && !document.hidden && S.mode !== 'title' && !!S.st && ['intro', 'cut', 'draw', 'rival', 'ojama', 'burn', 'show', 'tally'].includes(S.phase));
   if (S.paused) { S.last = now; draw(now); return; } // ひと休み中は、絵だけ
   const dt = Math.min(0.1, (now - (S.last || now)) / 1000); S.last = now; // 遅い端末でも、ゆっくり再生にならないよう追いつく
   // ヒットストップ: 大きな瞬間は、火も花火の粒もいっしょに一瞬止める
@@ -2610,7 +2652,7 @@ function runTally(res) {
       if (S.boss && S.mode === 'run') {
         bossSay(pass ? 'lose' : 'win');
         const c = M.collection(DB.meta).cast[S.boss.id];
-        if (pass && c && !c.beaten) setTimeout(() => { if (S.st === st) toast(t('bossFriend', lang === 'en' ? CAST.CAST[S.boss.id].nameEn : CAST.CAST[S.boss.id].name)); }, 900);
+        if (pass && c && !c.beaten) setTimeout(() => { if (S.st === st) { CG.happy(); toast(t('bossFriend', lang === 'en' ? CAST.CAST[S.boss.id].nameEn : CAST.CAST[S.boss.id].name)); } }, 900);
       }
       if (hint) tip.classList.add('show');
       else if (pass && S.mode === 'run' && st.night < K.NIGHTS - 1) { const c = K.inkCarry(st); if (c > 0) { setT(tip, t('carryLine', Math.round(c / K.BASE_INK * 100))); tip.classList.add('show'); } }
@@ -2689,7 +2731,7 @@ function afterTally(res, pass) {
   if (S.mode === 'single') { showSingleEnd(res); return; }
   const run = S.run;
   // 散った夜: 予備の提灯があれば、同じ夜をもう一度（散った記録は残さない）
-  if (!pass && run.lives > 0) { showRetry(res); return; }
+  if (!pass && (run.lives > 0 || (CG.ready && !run.adRetried))) { showRetry(res); return; }
   run.wallet += nightStars(res.score, st.target, res.allClear).filter(Boolean).length + (S.wishMet ? 1 : 0); // 取った星（と叶った願い札）は、お守り選びの屋台で使える
   if (pass) run.bank = K.inkCarry(st); // 墨壺: 使わなかった墨の半分を、次の夜へ持ち越す
   const sts = res.stats || {};
@@ -2711,8 +2753,14 @@ function showRetry(res) {
   hino(hg, 56, 74, 21, { face: 'sad', still: true, glow: false });
   setT($('#retryLine'), t('retryLine', short));
   const h = K.failHint(st); setT($('#retryTip'), h ? `💡 ${t('hintHead')}: ${hintText(h)}` : ''); $('#retryTip').hidden = !h;
-  setT($('#retryGo'), t('retryGo', run.lives - 1));
+  setT($('#retryGo'), t('retryGo', run.lives - 1)); $('#retryGo').hidden = run.lives <= 0;
   $('#retryGo').onclick = () => { if (S.run !== run) return; run.lives--; run.retries = (run.retries || 0) + 1; SFX.pick(); startNight(st.night); };
+  // ゲームサイト: 予備の提灯が無くても、広告を見れば 1 回だけやりなおせる
+  const ad = $('#retryAd'); ad.hidden = !(CG.ready && !run.adRetried); setT(ad, t('retryAd'));
+  ad.classList.toggle('primary', run.lives <= 0);
+  ad.onclick = () => { if (S.run !== run || run.adRetried) return; ad.disabled = true;
+    CG.rewarded(() => { ad.disabled = false; if (S.run !== run) return; run.adRetried = true; run.retries = (run.retries || 0) + 1; startNight(st.night); },
+      () => { ad.disabled = false; toast(t('adFail')); }); };
   $('#retryEnd').onclick = () => { if (S.run !== run) return; run.lives = 0; afterTally(res, false); };
   hideHud(); showOnly('#retryOv');
 }
@@ -2875,7 +2923,7 @@ function endRun() {
 function grandFinale(run, done) {
   let over = false;
   const end = () => { if (over) return; over = true; S.skipFn = null; S.cheer = null; done(); };
-  S.skipFn = end; hideHud();
+  S.skipFn = end; hideHud(); CG.happy();
   if (S.st) for (const sh of S.st.shells) sh.burst = true; // 夜空を、締めの打ち上げだけにする（祭りはもう終わっている）
   banner(t('festDone'), t('festDoneSub'));
   $('#banner').classList.add('fest');
@@ -2972,8 +3020,8 @@ function showRunResult(run) {
   if (replayUrl) box.append(btn(t('replayLink'), 'wide', () => shareText(t('replayShare', run.best.night, run.best.score, replayUrl), 'replay')));
   body.append(box, el('pre', 'share', text));
   const stack = el('div', 'stack again');
-  if (run.daily) stack.append(btn(t('againPractice'), 'primary', () => startDaily(true)));
-  else stack.append(btn(t('again'), 'primary', () => (run.duel ? newRun({ seed: run.seed, moon: run.moon, duel: run.duel }) : startFree())));
+  if (run.daily) stack.append(btn(t('againPractice'), 'primary', () => CG.midgame(() => startDaily(true))));
+  else stack.append(btn(t('again'), 'primary', () => CG.midgame(() => (run.duel ? newRun({ seed: run.seed, moon: run.moon, duel: run.duel }) : startFree()))));
   stack.append(btn(t('back'), 'small', goTitle));
   body.appendChild(stack);
   arrangeResult(); showOnly('#resultOv');
@@ -3041,7 +3089,7 @@ function animateRank(r, lvEl, nmEl, fill, gain) {
       if (!document.body.contains(fill)) return;
       const lv = steps[k++], rk = M.RANKS[lv - 1];
       lvEl.textContent = String(lv); nmEl.textContent = lang === 'en' ? rk.en : rk.ja;
-      lvEl.classList.remove('up'); void lvEl.offsetWidth; lvEl.classList.add('up'); SFX.milestone();
+      lvEl.classList.remove('up'); void lvEl.offsetWidth; lvEl.classList.add('up'); SFX.milestone(); CG.happy();
       fill.style.transition = 'none'; fill.style.width = '0%'; void fill.offsetWidth; fill.style.transition = '';
       setTimeout(next, 120);
     }, 520);
@@ -4407,12 +4455,25 @@ renderSound();
 const firstVisit = !DB.runs && !DB.tutored && !(DB.vs && (DB.vs.w || DB.vs.l));
 goTitle();
 booted = true;
+// ゲームサイト: SDK を起こし、この端末に保存が無ければ、クラウドの保存から続ける
+const cgBoot = CG.init().then((ok) => {
+  if (!ok || hadLocal) return;
+  const c = CG.load(); if (!c) return;
+  try { localStorage.setItem(LS, c); } catch (e) { /* なし */ }
+  DB = load(); DB.meta = M.initMeta(DB.meta); if (S.mode === 'title') goTitle();
+});
 const link = readLink();
 if (link && link.kind === 'bad') toast(t('badLink'));
 else if (link && link.kind === 'old') toast(t('oldLink'));
 else if (link) openLink(link);
 // はじめての人は、タイトルを読まずに一夜目から（線の引き方は、盤面の指が見せる）
-else if (firstVisit) startFree();
+else if (firstVisit) {
+  // ゲームサイトで、この端末に保存が無いとき: クラウドの保存を待ってから決める（続きの人に、はじめての夜を始めない）
+  if (PORTAL && window.CrazyGames && !hadLocal) {
+    let go = false; const first = () => { if (go) return; go = true; if (S.mode === 'title' && !DB.runs && !DB.tutored) startFree(); };
+    cgBoot.then(first, first); setTimeout(first, 1500);
+  } else startFree();
+}
 requestAnimationFrame(frame);
 window.HITO = { S, K, V, startDaily, startFree, startNight, commitStroke, goTitle, finale, endRun, fx, scenery, openVsMenu, startMatch, runDemo, get music() { return music; },
   get form() { return F.id; }, get F() { return F; }, bd, db, drawBackground, // F と drawBackground は表紙づくり（_dev/hitofude-covers.mjs）で月を動かすため
