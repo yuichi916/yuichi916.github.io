@@ -655,7 +655,8 @@ body.yoko #cv.aiming{cursor:crosshair}
 body.tate .keys{display:none}
 /* タイトル: 縦は 1 列、横は左に名前・右にボタンの 2 列 */
 .playbtn{font-size:calc(19px * var(--u))!important;min-height:calc(56px * var(--u))!important;letter-spacing:.06em}
-.btn.daily{display:flex;flex-direction:column;align-items:center;gap:calc(2px * var(--u))}
+.btn.daily,.btn.cont{display:flex;flex-direction:column;align-items:center;gap:calc(2px * var(--u))}
+.btn.cont small{font-size:calc(11.5px * var(--u));font-weight:600;opacity:.8}
 .btn.daily b{font-weight:700}
 .btn.daily small{font-size:calc(11.5px * var(--u));color:var(--dim);line-height:1.45}
 .btn.daily small:empty{display:none}
@@ -749,6 +750,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
       <!-- 花火師の格（遊ぶたびに上がり、お守り・着せかえ・段位が開く） -->
       <button type="button" class="rankbox" id="rankBox" hidden><span class="rkLv mono" id="rankLv">1</span><span class="rkTxt"><b id="rankName"></b><span class="xpbar"><i id="xpFill"></i></span><small id="rankNext"></small></span></button>
       <div class="stack">
+        <button class="btn primary playbtn cont" id="contBtn" hidden><b id="contLbl"></b><small id="contSub"></small></button>
         <button class="btn primary playbtn" id="freeBtn" data-t="playBtn">▶ 遊ぶ</button>
         <button class="btn daily" id="dailyBtn"><b id="dailyLbl"></b><small id="dailySub"></small></button>
         <button class="btn accent" id="vsBtn"><span data-t="vsBtn">⚔️ 花火合戦（CPU と対戦）</span><span class="newb">NEW</span></button>
@@ -937,7 +939,7 @@ const CG = (() => {
 const KANJI = ['一', '二', '三', '四', '五', '六', '七', '八'];
 const T = {
   ja: {
-    title: '一筆花火', subtitle: '線を1本。夜空が全部ひらく。', freeBtn: '🎇 自由に打ち上げる', playBtn: '▶ 遊ぶ',
+    title: '一筆花火', subtitle: '線を1本。夜空が全部ひらく。', freeBtn: '🎇 自由に打ち上げる', playBtn: '▶ 遊ぶ', playNew: '新しく遊ぶ', contGo: '▶ 続きから', contLine: '前に引いた線で続ける…', contSub: (n, s) => `${KANJI[n]}夜目から ・ ここまで ${K.fmt(s)} 点`,
     dailySub: (m, a, b) => `${m.ja}（${m.rule}） ・ 大一番『${a}』『${b}』`,
     step1: '線を1本ひく', step2: '火が走る', step3: '連鎖でドカン', howH: 'くわしい遊び方', making: 'この作品ができるまで',
     factor: (f) => `点×${f}`, lanternCall: (f) => `提灯！ 点×${f}`, fizzle: '雲の中では、火がつかない', dry: '乾いた！',
@@ -1055,7 +1057,7 @@ const T = {
     oldLink: 'このリンクは前の版のもので、同じ夜を作れません。',
   },
   en: {
-    title: 'Hitofude Hanabi', subtitle: 'One stroke. The whole sky blooms.', freeBtn: '🎇 Free play', playBtn: '▶ Play',
+    title: 'Hitofude Hanabi', subtitle: 'One stroke. The whole sky blooms.', freeBtn: '🎇 Free play', playBtn: '▶ Play', playNew: 'New run', contGo: '▶ Continue', contLine: 'Resuming with the line you drew…', contSub: (n, s) => `From night ${n + 1} · ${K.fmt(s)} pts so far`,
     dailySub: (m, a, b) => `${m.en} (${m.ruleEn}) · bosses "${a}" "${b}"`,
     step1: 'Draw one line', step2: 'Fire runs', step3: 'Chain it all', howH: 'How to play', making: 'How this was made (JA)',
     factor: (f) => `points ×${f}`, lanternCall: (f) => `Lantern! points ×${f}`, fizzle: 'Fire can\'t start inside a cloud', dry: 'Dried!',
@@ -1187,6 +1189,7 @@ function load() {
   if ('vs' in v && (!obj(v.vs) || !obj(v.vs.stars) || !Number.isFinite(v.vs.open))) delete v.vs;
   if ('streak' in v && !obj(v.streak)) delete v.streak;
   if ('level' in v && !(Number.isInteger(v.level) && v.level >= 0 && v.level <= 8)) delete v.level;
+  if ('cont' in v && !(obj(v.cont) && obj(v.cont.run) && Number.isInteger(v.cont.night) && v.cont.night >= 0 && v.cont.night < K.NIGHTS && Array.isArray(v.cont.strokes) && Array.isArray(v.cont.run.charms) && Array.isArray(v.cont.run.nights))) delete v.cont;
   if ('outfit' in v && !(v.outfit === null || (typeof v.outfit === 'string' && /^[a-z]{1,16}$/.test(v.outfit)))) delete v.outfit;
   if (v.days) for (const d of Object.keys(v.days)) { const e = v.days[d]; if (!e.nights.every((n) => obj(n) && Number.isFinite(n.score) && Number.isFinite(n.target)) || !Number.isInteger(e.moon)) delete v.days[d]; }
   return v;
@@ -2506,6 +2509,7 @@ function hideHud() { document.body.classList.remove('playing'); $('#vsHud').hidd
 
 // ================================================================ 夜の進み方
 function newRun(opts) {
+  S.resume = null;
   S.run = { seed: opts.seed >>> 0, moon: opts.moon, daily: !!opts.daily, official: !!opts.official, key: opts.key || null, no: opts.no || 0,
     duel: opts.duel || null, charms: [], nights: [], total: 0, bestChain: 0, best: null, lives: 1, wallet: 0, rerolls: 0, bank: 0,
     level: 0, pool: null, retries: 0, lvMax: {} };
@@ -2517,8 +2521,27 @@ function newRun(opts) {
   if (!DB.runs) DB.runs = 0; DB.runs++; save();
   startNight(0);
 }
+// 途中保存: 夜のはじめに、祭りの中身を残す（線を引いたら、その線も）。読みなおしたら、その夜の頭から（引いた線は、同じ線がそのまま燃える）
+function keepRun(n, preset) {
+  if (preset || S.mode !== 'run' || !S.run) return;
+  try { DB.cont = { v: K.REPLAY_VERSION, night: n, strokes: [], at: Date.now(), run: JSON.parse(JSON.stringify(S.run, (k, x) => (k === 'meta' || k === 'revealed' ? undefined : x))) }; save(); } catch (e) { /* 残せなくても遊べる */ }
+}
+function keepStroke() {
+  if (S.mode !== 'run' || !DB.cont || !S.st || DB.cont.night !== S.st.night) return;
+  DB.cont.strokes = S.st.strokes.map((x) => x.map((p) => ({ x: p.x, y: p.y })));
+}
+function dropRun() { if (DB.cont) { delete DB.cont; save(); } }
+function contOk() { const c = DB.cont; return !!(c && c.v === K.REPLAY_VERSION && c.run && Number.isFinite(c.run.seed)); }
+function resumeRun() {
+  const c = DB.cont;
+  if (!contOk()) { dropRun(); goTitle(); return; }
+  const key = today(); setMoonFor(key); drawBackground();
+  S.run = c.run; S.mode = 'run'; S.resume = c.strokes.length ? c.strokes : null;
+  try { startNight(c.night); } catch (e) { S.resume = null; dropRun(); goTitle(); }
+}
 function startNight(n, preset) {
   const run = S.run;
+  keepRun(n, preset);
   startMusic();
   S.st = K.newRound(preset || { seed: run.seed, night: n, charms: run.charms, moon: run.moon, bank: run.bank || 0, level: run.level || 0 });
   // 今夜の願い札（ひとりの祭りだけ。叶えると星がもう 1 つ）
@@ -2686,6 +2709,9 @@ function enterDraw(second) {
   if (!second && S.boss) { const stB = S.st; setTimeout(() => { if (S.st === stB && S.phase === 'draw' && !S.drawing) bossSay('taunt'); }, 1400); }
   $('#skip2').hidden = !second; $('#skip2').textContent = t('skip2');
   if (!second && !DB.tutored) S.ghost = ghostPath(S.st);
+  // 途中保存から: 読みなおす前に引いてあった線は、そのまま燃やす
+  const again = S.resume && S.resume[second ? 1 : 0];
+  if (again) { const st = S.st; S.ghost = null; hint(t('contLine')); setTimeout(() => { if (S.st === st && S.phase === 'draw' && !S.drawing) commitStroke(again, true); }, 700); }
 }
 // 線を引く番のひとこと（大一番の夜は、ルールをひとことで出したままにする。カードは指を置くと消えるので）
 function drawHint(second) {
@@ -2734,13 +2760,13 @@ function ghostPath(st) {
   out.push({ x: route[route.length - 1].x, y: route[route.length - 1].y });
   return out;
 }
-function commitStroke(raw) {
+function commitStroke(raw, normalized = false) {
   if (S.mode === 'vs') return commitVsStroke(raw);
   const st = S.st;
-  const pts = K.lightStroke(st, raw);
+  const pts = normalized ? K.lightPoints(st, raw) : K.lightStroke(st, raw);
   S.drawing = null;
   if (!pts) { hint(t('hintShort')); return false; }
-  DB.tutored = true; save(); S.ghost = null;
+  DB.tutored = true; keepStroke(); save(); S.ghost = null;
   $('#ink').hidden = true; $('#skip2').hidden = true; hint('');
   SFX.light(); SFX.sizzle();
   S.phase = 'burn'; S.acc = 0;
@@ -2757,6 +2783,7 @@ function onRoundDone() {
   if (S.demo) return; // お手本は、台本の側で終わりを扱う
   if (S.mode === 'vs') { onVsBoutDone(); return; }
   if (S.phase !== 'burn') return;
+  S.resume = null;
   $('#chain').classList.remove('on'); // 連鎖の数は、集計が出る前に消しておく（重ならないように）
   const st = S.st, res = st.result;
   // 今夜の花火をもう一度（打ち上げなおし）→ 満開の型物 → 集計
@@ -3088,7 +3115,7 @@ function mdOf(key) { return `${+key.slice(5, 7)}/${+key.slice(8, 10)}`; }
 function shareUrl() { return /^https?:$/.test(location.protocol) && /^(yuichi916\.github\.io|localhost|127\.0\.0\.1)$/.test(location.hostname) ? location.origin + location.pathname : K.SITE_URL; }
 function endRun() {
   const run = S.run;
-  S.phase = 'over';
+  S.phase = 'over'; dropRun();
   const cleared = run.nights.filter((r) => r.score >= r.target).length;
   run.prevBest = DB.best || 0;
   if (run.sig) run.type = K.strokeType(run.sig.pts, run.sig).id;
@@ -4334,7 +4361,7 @@ async function runDemo(after = openVsMenu) {
 function goTitle() {
   endDemo();
   S.paused = false; $('#pauseOv').hidden = true;
-  S.mode = 'title'; S.phase = 'idle'; S.st = null; S.run = null; S.single = null; S.drawing = null; S.ghost = null; S.vs = null; S.aim = null; S.drop = null; S.rivalAnim = null; S.launch = null; S.show = null; S.hover = null; S.skipFn = null; S.cheer = null; S.cut = null; S.introAt = 0;
+  S.mode = 'title'; S.phase = 'idle'; S.st = null; S.run = null; S.resume = null; S.single = null; S.drawing = null; S.ghost = null; S.vs = null; S.aim = null; S.drop = null; S.rivalAnim = null; S.launch = null; S.show = null; S.hover = null; S.skipFn = null; S.cheer = null; S.cut = null; S.introAt = 0;
   $('#unlockOv').hidden = true; $('#bossCut').hidden = true; $('#bossCut').classList.remove('defeat');
   const key = today();
   setMoonFor(key); drawBackground();
@@ -4349,6 +4376,10 @@ function goTitle() {
   $('#stats').textContent = t('stats', DB.best || 0, K.currentStreak(DB.streak, key));
   renderMeta();
   $('#dailyBtn').hidden = !M.features(DB.meta).includes('daily') && !(DB.days && Object.keys(DB.days).length);
+  // 途中の祭りがあれば「続きから」をいちばん上に（新しく遊ぶ は、ふつうのボタンに）
+  const cont = contOk() && DB.cont;
+  $('#contBtn').hidden = !cont; $('#freeBtn').classList.toggle('primary', !cont); $('#freeBtn').classList.toggle('playbtn', !cont); $('#freeBtn').dataset.t = cont ? 'playNew' : 'playBtn'; setT($('#freeBtn'), t($('#freeBtn').dataset.t));
+  if (cont) { setT($('#contLbl'), t('contGo')); $('#contSub').textContent = t('contSub', cont.night, cont.run.total || 0); }
   showOnly('#titleOv');
   // 背景に、今夜の一夜目の玉をうっすら並べておく
   S.st = K.newRound({ seed: K.hashStr('hitofude-daily:' + key), night: 0, moon: S.moonIdx });
@@ -4537,6 +4568,7 @@ $('#pQuit').addEventListener('click', () => {
   // 途中でやめても、越えた夜のぶんの XP は入れる（何も残らないと、やめにくい）
   const run = S.run;
   if (S.mode === 'run' && run && !run.meta && run.nights.length) { const r = M.applyRun(DB.meta, runSummary(run), today()); DB.meta = r.meta; run.meta = r; save(); setTimeout(() => toast(t('quitXp', r.xp)), 300); }
+  if (S.mode === 'run') dropRun();
   closePause(); clearHash(); goTitle();
 });
 $('#soundBtn').addEventListener('click', () => { sfxOn = !sfxOn; DB.muted = !sfxOn; save(); renderSound(); if (sfxOn) SFX.pick(); });
@@ -4545,6 +4577,7 @@ $('#speedBtn').addEventListener('click', () => { S.speed = S.speed > 1 ? 1 : 2; 
 $('#dailyBtn').addEventListener('click', () => startDaily(false));
 $('#hinoTitle').addEventListener('click', () => { S.hinoTap = performance.now(); const lines = t('hinoTap'); toast(lines[Math.floor(Math.random() * lines.length)]); SFX.pick(); });
 $('#freeBtn').addEventListener('click', startFree);
+$('#contBtn').addEventListener('click', resumeRun);
 $('#vsBtn').addEventListener('click', () => { audio(); openVsMenu(); });
 $('#vsBack').addEventListener('click', goTitle);
 $('#bookBtn').addEventListener('click', () => { SFX.ui(); openBook('charms'); });

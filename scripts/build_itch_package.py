@@ -53,6 +53,75 @@ def portal_strip(html: str) -> str:
                         "<script src=\"https://sdk.crazygames.com/crazygames-sdk-v3.js\"></script></head>", 1)
 
 
+FONT_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+FONT_CACHE = OUT.parent / "fontcache"
+
+
+def _ranges(spec: str) -> list[tuple[int, int]]:
+    """unicode-range: U+0000-00FF, U+0131, U+4E?? を (はじめ, おわり) の並びにする。"""
+    out = []
+    for part in spec.split(","):
+        part = part.strip().upper().removeprefix("U+")
+        if not part:
+            continue
+        if "-" in part:
+            a, b = part.split("-", 1)
+            out.append((int(a, 16), int(b, 16)))
+        elif "?" in part:
+            out.append((int(part.replace("?", "0"), 16), int(part.replace("?", "F"), 16)))
+        else:
+            out.append((int(part, 16), int(part, 16)))
+    return out
+
+
+def _fetch(url: str, binary: bool = False):
+    import hashlib
+    import urllib.request
+    FONT_CACHE.mkdir(parents=True, exist_ok=True)
+    key = FONT_CACHE / hashlib.sha1(url.encode()).hexdigest()
+    if key.exists():
+        data = key.read_bytes()
+    else:
+        req = urllib.request.Request(url, headers={"User-Agent": FONT_UA})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = r.read()
+        key.write_bytes(data)
+    return data if binary else data.decode("utf-8")
+
+
+def self_host_fonts(html: str, stage: Path, text: str) -> str:
+    """Google Fonts の読みこみを、zip の中の字形ファイルに置きかえる（ゲームサイトでは外のサイトを読まない）。
+    使う字（ページと JS の文字）にかかる切れはしだけを入れる。取れなければ元のまま。"""
+    links = re.findall(r'<link href="(https://fonts\.googleapis\.com/css2\?[^"]+)"[^>]*>', html)
+    if not links:
+        return html
+    used = {ord(c) for c in text} | set(range(0x20, 0x7F))
+    faces, n = [], 0
+    try:
+        for href in links:
+            css = _fetch(href.replace("&amp;", "&"))
+            for block in re.findall(r"@font-face\s*{[^}]*}", css):
+                m = re.search(r"unicode-range:\s*([^;]+);", block)
+                if m and not any(a <= c <= b for a, b in _ranges(m.group(1)) for c in used):
+                    continue
+                url = re.search(r"url\((https://fonts\.gstatic\.com/[^)]+)\)", block)
+                if not url:
+                    continue
+                name = f"f{n:03d}.woff2"
+                n += 1
+                (stage / "assets" / "fonts").mkdir(parents=True, exist_ok=True)
+                (stage / "assets" / "fonts" / name).write_bytes(_fetch(url.group(1), binary=True))
+                faces.append(block.replace(url.group(1), f"assets/fonts/{name}"))
+    except Exception as e:  # ネットにつながらないときは、元のまま（字は端末の字で出る）
+        print(f"  ※ 字形を取れなかったので Google Fonts のまま: {e}")
+        return html
+    html = re.sub(r'<link rel="preconnect" href="https://fonts\.(?:googleapis|gstatic)\.com"[^>]*>\s*', "", html)
+    html = re.sub(r'<link href="https://fonts\.googleapis\.com/css2\?[^"]+"[^>]*>\s*', "", html)
+    size = sum(p.stat().st_size for p in (stage / "assets" / "fonts").glob("*.woff2"))
+    print(f"  字形 {n} 個 ({size/1e6:.1f}MB) を zip に入れた")
+    return html.replace("</head>", "<style id=\"portal-fonts\">" + "".join(faces) + "</style></head>", 1)
+
+
 def local_refs(html: str) -> set[str]:
     """HTML 内の、自サイト内を指す参照を拾う。"""
     refs: set[str] = set()
@@ -81,6 +150,8 @@ def build(name: str) -> int:
     html = src.read_text(encoding="utf-8")
     if name.endswith("-portal"):
         html = portal_strip(html)
+        text = src.read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8") for d in dirs for p in (ROOT / d).rglob("*.js"))
+        html = self_host_fonts(html, stage, text)
     # サイトの一番上を起点にした /assets/... は、itch.io ではサイトの外を指すので相対にする
     html = re.sub(r'((?:src|href)=")/(assets/)', r"\1\2", html)
     # itch.io は zip 直下の index.html を開く
