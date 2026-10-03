@@ -70,7 +70,7 @@ export const COLOR_IDS = HINOKO_COLORS.map((c) => c.id);
 // 遊び方の解放。daily・levels は 12版から。ほかは 13版で足した
 //  startPick   ふつうの祭りの始めに、お守りを 3 つから 1 つ選ぶ（core の startOffer）
 //  focus       屋台の「型しぼり」（★2）: 次の候補を、えらんだ型のお守りだけにする（core の offerCharms opts.focus）
-//  appraise    目利き: 候補のお守りに、いま持っているお守りと同じ型の印と数を出す
+//  appraise    目利き: 候補のお守りの型に、そろう前から「そろえば ×1.25」を出す（型の点はだれにでも出る）
 //  bossPeek    大一番の予告: ふつうの祭りの始めに、三夜目と六夜目の大一番（core の twistFor）を見せる
 //  wishPeek    願いの先読み: 屋台で、次の夜の願い札（core の wishFor）を見せる
 //  weekly      週のおつかい（weeklyQuest）。meta が数える
@@ -193,7 +193,7 @@ const DESC = {
   levels: ['八夜を通した段位の、ひとつ上をえらべる', 'Pick a harder Stakes after a full clear'],
   startPick: ['ふつうの祭りの始めに、お守りを 3 つから 1 つ選んで持っていける', 'Start each festival by picking 1 of 3 charms'],
   focus: ['屋台の「型しぼり」（★2）: 次の候補を、えらんだ型のお守りだけにする', 'Stall item (★2): the next offer is all one type of your choice'],
-  appraise: ['候補のお守りに、いま持っているお守りと同じ型の印がつく', 'Offered charms show which types match your build'],
+  appraise: ['候補のお守りの型に、そろうと何倍になるかが先に出る', 'Offered charms show the set bonus each type is heading for'],
   bossPeek: ['祭りの始めに、三夜目と六夜目の大一番が分かる', 'See both boss nights when a festival starts'],
   wishPeek: ['屋台で、次の夜の願い札が見える', 'See the next night\'s wish card at the stall'],
   weekly: ['週にひとつ、大きめのおつかい', 'A bigger quest every week'],

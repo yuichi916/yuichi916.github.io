@@ -1,32 +1,41 @@
 // 一筆花火のバランス測定。8 夜を通しで遊ぶボットで、何夜まで越えられるかの分布を出す。
-// 夜を越えたら墨壺（inkCarry）を次の夜へ持ちこす。散ったら予備の提灯（段位 3 からは無い）で 1 度だけひき直す。
+// 夜を越えたら墨壺（inkCarry。段位 2 からは無い）を次の夜へ持ちこす。散ったら予備の提灯（段位 3 からは無い）で 1 度だけひき直す。
 // お守りは 5 つの枠（段位 8 は 4）で集め、同じものを取ると Lv が上がる。腕前ごとの通過率・お守りの値打ちは _dev/hitofude-skill.mjs で測る。
-// 使い方: N=240 node _dev/hitofude-balance.mjs <月の番号 0-7 か all> <T: 1 夜あたりに試す線の数> [priority|random|archetype] [段位 0-8] [starter|all|legend]
-//         node _dev/hitofude-balance.mjs value [N=40] [starter|all|legend]   … 近い順の線を引く人にとっての、お守りの値打ち
-//   priority  値打ちの大きい順（VALUE）に取る。枠がいっぱいなら、いちばん弱いものと入れかえる（得なときだけ）
+// 使い方: N=240 node _dev/hitofude-balance.mjs <月の番号 0-7 か all> <T: 1 夜あたりに試す線の数> [priority|random|archetype|arch:<型>] [段位 0-8] [starter|all|legend]
+//         node _dev/hitofude-balance.mjs value [N=40] [starter|all|legend]   … 近い順の線を引く人にとっての、お守りの値打ち（Lv1 / Lv2 / Lv3 の 1 段ずつ）
+//   priority  値打ちの大きい順（VALUE と LV_GAINS）に取る。枠がいっぱいなら、いちばん弱いものと入れかえる（得なときだけ）
 //   random    でたらめに取る。枠がいっぱいなら、でたらめに 1 つ捨てる
-//   archetype 型（金・提灯・連鎖・墨・大トリ）を 1 つ決めて、その型のお守りと Lv 上げを先に取る
+//   archetype 型（金・提灯・連鎖・墨・大トリ）を、いま値打ちがいちばん集まっている型に決めて、その型のお守りと Lv 上げを先に取る
+//   arch:<型> はじめから型を 1 つに決める（gold / lantern / chain / ink / finale / risk / xmult = 掛け算のお守り）
 import * as K from '../assets/hitofude/core.js';
 
-// はじめから選べる 9 つ（assets/hitofude/meta.js の STARTER_CHARMS と同じ）
-export const STARTER = ['nagafude', 'kinun', 'kodou', 'tairin', 'nokoribi', 'chouchinshi', 'mashidama', 'owaridama', 'amayoke'];
+// はじめから選べる 9 つ（assets/hitofude/meta.js の STARTER_CHARMS と同じ。13版: 墨と掛け算の取り合いを、はじめから入れる）
+export const STARTER = ['kinun', 'kodou', 'tairin', 'chouchinshi', 'mashidama', 'amayoke', 'nokorizumi', 'maneki', 'senkou'];
 export const POOLS = {
   starter: STARTER,
   all: K.CHARM_IDS.filter((id) => K.charmById(id).rarity !== 'legend'),
   legend: K.CHARM_IDS.slice(),
 };
-// お守りの値打ち（Lv1 を持ったときの、だいたいの点の伸び。_dev/hitofude-skill.mjs charms（山登り）と、下の value（近い順の線）で測った中央値の間）。
-// Lv2・Lv3 は LV_GAIN ずつ足す
+// お守りの値打ち（Lv1 を持ったときの、だいたいの点の伸び。node _dev/hitofude-balance.mjs value（近い順の線、N=60）で測った幾何平均）。
+// LV_GAINS[id] = [Lv1→2, Lv2→3] の伸びを、Lv1 の伸び（log）に対する割合で（測った値。無ければ LV_GAIN）
 export const VALUE = {
-  suminagashi: 1.36, nihitsu: 1.34, nokorizumi: 1.33, senkou: 1.33, maneki: 1.32, kamaitachi: 1.31, hanaikada: 1.27, chouchinshi: 1.25,
-  renjishi: 1.24, kodou: 1.22, kinun: 1.22, tengu: 1.22, tanuki: 1.2, osobi: 1.2, ichibanboshi: 1.18, amayoke: 1.18, owaridama: 1.16,
-  mankai: 1.15, kazekiri: 1.14, kitsune: 1.14, nokoribi: 1.13, mashidama: 1.13, tairin: 1.12, nagafude: 1.1,
+  kodou: 1.38, nokorizumi: 1.37, renjishi: 1.36, suminagashi: 1.34, nihitsu: 1.33, tairin: 1.33, kazekiri: 1.32, owaridama: 1.32,
+  nokoribi: 1.32, kitsune: 1.31, nagafude: 1.29, tanuki: 1.28, osobi: 1.28, chouchinshi: 1.26, tengu: 1.26, mankai: 1.25,
+  hanaikada: 1.24, kamaitachi: 1.24, ichibanboshi: 1.23, maneki: 1.22, kinun: 1.21, amayoke: 1.20, mashidama: 1.20, senkou: 1.18,
 };
-export const LV_GAIN = 0.6;
+export const LV_GAIN = 0.7;
+export const LV_GAINS = {
+  amayoke: [1.86, 1.16], chouchinshi: [0.78, 1.1], hanaikada: [0.81, 1.15], ichibanboshi: [0.3, 0.94], kamaitachi: [0.63, 1.06], kazekiri: [0.34, 1.18],
+  kinun: [0.83, 1.16], kitsune: [0.15, 1.12], kodou: [0.47, 0.99], maneki: [0.47, 1.45], mankai: [0.73, 1.34], mashidama: [0.86, 1.69],
+  nagafude: [0.39, 1.2], nihitsu: [0.37, 0.75], nokoribi: [0.29, 1], nokorizumi: [0.77, 1.03], osobi: [0.6, 1.1], owaridama: [0.42, 0.92],
+  renjishi: [0.4, 1.05], senkou: [0.77, 1.21], suminagashi: [0.64, 1.36], tairin: [0.83, 0.79], tanuki: [0.11, 1.24], tengu: [0.66, 1.22],
+};
 export const PRIORITY = Object.keys(VALUE).sort((a, b) => VALUE[b] - VALUE[a]);
-const val = (id, lv = 1) => lv ? Math.log(VALUE[id] || 1.05) * (1 + LV_GAIN * (lv - 1)) : 0;
+const cum = (id, lv) => { const g = LV_GAINS[id] || [LV_GAIN, LV_GAIN]; return lv <= 0 ? 0 : lv === 1 ? 1 : lv === 2 ? 1 + g[0] : 1 + g[0] + g[1]; };
+export const val = (id, lv = 1) => Math.log(VALUE[id] || 1.05) * cum(id, lv);
 // 型: いちばん値打ちが集まっている型（はじめは null）
 const FOCUS = ['gold', 'lantern', 'chain', 'ink', 'finale'];
+export const XMULT = ['maneki', 'renjishi', 'senkou', 'tengu', 'kamaitachi', 'mankai'];
 export function focusOf(held) {
   const lv = K.charmLevels(held), sum = {};
   for (const id in lv) for (const t of K.charmById(id).tags) if (FOCUS.includes(t)) sum[t] = (sum[t] || 0) + val(id, lv[id]);
@@ -34,6 +43,7 @@ export function focusOf(held) {
   for (const t in sum) if (!best || sum[t] > sum[best]) best = t;
   return best;
 }
+export const inArch = (arch, id) => (arch === 'xmult' ? XMULT.includes(id) : K.charmById(id).tags.includes(arch));
 // 候補から 1 つ選ぶ。返り値 { pick, drop }（pick が null なら取らない。drop は入れかえて捨てるもの）
 export function choosePick(policy, offer, held, { slots = K.SLOTS, rng = Math.random, night = 0 } = {}) {
   const lv = K.charmLevels(held), ids = Object.keys(lv);
@@ -42,18 +52,20 @@ export function choosePick(policy, offer, held, { slots = K.SLOTS, rng = Math.ra
     const id = offer[Math.floor(rng() * offer.length)];
     return { pick: id, drop: !lv[id] && ids.length >= slots ? ids[Math.floor(rng() * ids.length)] : null };
   }
-  const focus = policy === 'archetype' ? focusOf(held) : null;
+  const focus = policy === 'archetype' ? focusOf(held) : null, arch = policy.startsWith('arch:') ? policy.slice(5) : null;
   // まだ役に立たない仕掛けのお守り（その仕掛けが出てくる夜までが遠い）は値打ちを下げる
   const soon = (id) => ((K.CHARM_NEEDS[id] || 0) > night + 2 ? 0.5 : 1);
   const w = (id, l) => {
     let v = val(id, l) * soon(id);
     if (policy === 'archetype') { const tags = K.charmById(id).tags; if (focus ? tags.includes(focus) : tags.some((t) => FOCUS.includes(t))) v *= 1.8; }
+    if (arch && inArch(arch, id)) v *= 3;
     return v;
   };
   let best = null;
   for (const id of offer) {
     let g, drop = null;
-    if (lv[id]) g = w(id, lv[id] + 1) - w(id, lv[id]);
+    // Lv 上げは、Lv3 まで上げたときの 1 段あたりの伸びも見る（Lv3 のふるまいをねらう）
+    if (lv[id]) g = Math.max(w(id, lv[id] + 1) - w(id, lv[id]), (w(id, K.MAX_LV) - w(id, lv[id])) / (K.MAX_LV - lv[id]));
     else if (ids.length < slots) g = w(id, 1);
     else {
       const weakest = ids.slice().sort((a, b) => w(a, lv[a]) - w(b, lv[b]))[0];
@@ -130,7 +142,7 @@ export function cut(pts, frac) {
 // 考える線: 近い順の線を T 本（墨を残すお守りを持てば、その 7 割・5 割で切った線も。天狗の団扇なら、玉から玉への直線も）
 export function candidates(st, rng, T) {
   const lv = K.charmLevels(st.charms), out = [];
-  const ink = lv.nokorizumi || lv.suminagashi;
+  const ink = lv.nokorizumi || lv.suminagashi || lv.nihitsu >= 3;
   for (let t = 0; t < T; t++) {
     const s = strokeFor(st, rng);
     out.push(s);
@@ -173,7 +185,7 @@ export function playRun(seed, moon, T, rng, pickPolicy = 'priority', { level = 0
     total += score;
     if (score < target) break;
     cleared++;
-    if (K.wishMet(best, K.wishFor(seed, night, level), target)) wishes++;
+    if (K.wishMet(best, K.wishFor(seed, night, level, moon), target)) wishes++;
     bank = best.result.carry || 0; // 墨壺: いちばん良かった線の残りの墨の半分を、次の夜へ
     // 大一番を越えたら、お守りを 2 つ
     for (let round = 0; round < (K.isBoss(night) ? 2 : 1); round++) {
@@ -183,32 +195,38 @@ export function playRun(seed, moon, T, rng, pickPolicy = 'priority', { level = 0
   }
   return { cleared, total, scores, charms, twists, retries, wishes };
 }
-// 近い順の線を引く人（playNight）にとっての、お守り 1 つ（か Lv 1 つ）の値打ち。VALUE はこれと _dev/hitofude-skill.mjs charms（山登り）の間をとって決めた。
-// 持ち物は、強いお守りを選んで進んだ通しの途中から取る
-export function greedyValues(N, pool, T = 3) {
-  const by = {}, rng = K.rng32(4321);
-  for (let i = 0; i < N; i++) {
+// 近い順の線を引く人（playNight）にとっての、お守りの値打ち。Lv0→1・Lv1→2・Lv2→3 の 1 段ずつの点の伸び（倍率）を返す: by[id] = [[g1...], [g2...], [g3...]]。
+// 持ち物は、でたらめに選んで進んだ通しの途中から取る（測るお守りは、いったん持ち物から外す。枠の数は見ない）
+export function greedyValues(N, pool, T = 3, off = 0) {
+  const by = {}, rng = K.rng32(4321 + off);
+  for (let i = off; i < off + N; i++) {
     const seed = K.hashStr('gv' + i), moon = i % 8, stop = 3 + (i % 5);
     let charms = [];
     for (let night = 0; night < stop; night++) for (let round = 0; round < (K.isBoss(night) ? 2 : 1); round++) {
       charms = applyPick(charms, choosePick('random', K.offerCharms(seed, night, charms, round, { pool }), charms, { rng, night }));
     }
-    const night = stop, lv = K.charmLevels(charms);
-    const ev = (ch) => { let s = 0; for (let k = 0; k < 2; k++) { const st = playNight({ seed, night, charms: ch, moon, bank: 0 }, T, K.rng32(i * 31 + k)); s += st ? st.result.score : 0; } return s; };
-    const b = Math.max(1, ev(charms));
+    const night = stop;
+    const ev = (ch) => { let s = 0; for (let k = 0; k < 2; k++) { const st = playNight({ seed, night, charms: ch, moon, bank: 0 }, T, K.rng32(i * 31 + k)); s += st ? st.result.score : 0; } return Math.max(1, s); };
     for (const c of pool) {
-      if ((lv[c] || 0) >= K.MAX_LV || K.charmNeed(c) > night) continue;
-      (by[c] ||= []).push(ev([...charms, c]) / b);
+      if (K.charmNeed(c) > night) continue;
+      const base = charms.filter((x) => x !== c), v = [ev(base)];
+      for (let l = 1; l <= K.MAX_LV; l++) v.push(ev([...base, ...Array(l).fill(c)]));
+      const e = (by[c] ||= [[], [], []]);
+      for (let l = 1; l <= K.MAX_LV; l++) e[l - 1].push(v[l] / v[l - 1]);
     }
   }
   return by;
 }
+const qq = (a, p) => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor(p * (b.length - 1))]; };
 if (process.argv[1].endsWith('hitofude-balance.mjs') && process.argv[2] === 'value') {
-  const N = +(process.argv[3] || 40), pool = POOLS[process.argv[4] || 'legend'];
-  const by = greedyValues(N, pool);
-  const q = (a, p) => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor(p * (b.length - 1))]; };
-  console.log(`N=${N}: 近い順の線を引く人にとっての値打ち（1 つ足したときの点の倍率） 中央値 p25 p75`);
-  for (const [c, a] of Object.entries(by).sort((x, y) => q(y[1], 0.5) - q(x[1], 0.5))) console.log(`${c.padEnd(13)} ${[0.5, 0.25, 0.75].map((p) => q(a, p).toFixed(2)).join(' ')} (${a.length})`);
+  const N = +(process.argv[3] || 40), pool = POOLS[process.argv[4] || 'legend'], off = +(process.env.OFF || 0);
+  const by = greedyValues(N, pool, 3, off);
+  if (process.env.DUMP) (await import('node:fs')).writeFileSync(process.env.DUMP, JSON.stringify(by));
+  console.log(`N=${N}: 近い順の線を引く人にとっての値打ち（1 段ずつの点の倍率の中央値） Lv0→1 | Lv1→2 | Lv2→3 | Lv3 の伸び ÷ Lv1 の伸び（log）`);
+  for (const [c, a] of Object.entries(by).sort((x, y) => qq(y[1][0], 0.5) - qq(x[1][0], 0.5))) {
+    const m = a.map((x) => qq(x, 0.5));
+    console.log(`${c.padEnd(13)} ${m.map((x) => x.toFixed(3)).join(' | ')} | ${(Math.log(m[2]) / Math.log(Math.max(1.001, m[0]))).toFixed(2)} (${a[0].length})`);
+  }
 } else if (process.argv[1].endsWith('hitofude-balance.mjs')) {
   const moonArg = process.argv[2] || 'all', T = +(process.argv[3] || 3), policy = process.argv[4] || 'priority', level = +(process.argv[5] || 0), poolName = process.argv[6] || 'starter';
   const rng = K.rng32(1234);

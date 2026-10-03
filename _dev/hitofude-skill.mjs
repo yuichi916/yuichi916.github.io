@@ -4,6 +4,8 @@
 //                                                                                   Spearman(ひらいた数, 点)・lg3 が 82% 越える倍率（TARGET_RATIO の目安）
 //   node _dev/hitofude-skill.mjs charms [N=24] [評価回数=100] [starter|all|legend]   … お守りを 1 つ（か Lv を 1 つ）足したときの点の伸び・
 //                                                                                   「持ち物によらず選ぶもの」が候補に入る割合
+//   node _dev/hitofude-skill.mjs casual [N=400] [k=1]                            … 気軽な人（夜ごとに近い順の線を 1 本だけ。k=1 はいちばん近い玉、k=3 は近い 3 つのどれか）の
+//                                                                                   一夜目〜三夜目の通過率（予備の提灯で 1 度ひき直したときも）。一夜目は 8 割 5 分以上にする
 //   tiers は OFF=盤面の番号のずらし（いくつかに分けて同時に回す）、ONLY=8（その夜だけ測る）、DUMP=ファイル（夜ごとの点 ÷ 基準を書き出す。倍率を変えたときの通過率を回し直さずに出せる）
 // 腕前（ボット）:
 //   scrib  落書き。玉を見ずに、ゆるく曲がる線を墨が切れるまで（二筆目も落書き）
@@ -223,8 +225,33 @@ function charms(N, budget, poolName) {
   console.log(`持ち物によらず選ぶものが入っている候補: ${pct(auto / n)}（${Object.entries(autoBy).sort((a, b) => b[1] - a[1]).map(([id, c]) => `${id} ${pct(c / n)}`).join(', ')}）`);
 }
 
+// 気軽な人: 夜ごとに 1 本（ばらばらの玉から近い順。まっすぐの夜は玉から玉へ）。お守りははじめの 9 つからでたらめに、段位 0、予備の提灯で 1 度ひき直す
+function casual(N, k) {
+  const reach = [0, 0, 0], first = [0, 0, 0], pass = [0, 0, 0];
+  for (let i = 0; i < N; i++) {
+    const seed = K.hashStr('casual' + i), moon = i % 8, rng = K.rng32(i * 31 + 7);
+    let charms = [], spare = K.levelFx(0).spare;
+    for (let night = 0; night < 3; night++) {
+      const ctx = { seed, night, charms: charms.slice(), moon, level: 0 }, target = K.targetFor(seed, night, moon, 0);
+      const one = () => {
+        const st = mkRound(ctx), a = st.shells[Math.floor(rng() * st.shells.length)], b = st.shells[Math.floor(rng() * st.shells.length)];
+        return evalLine(ctx, st.twist === 'massugu' ? [{ x: a.x, y: a.y }, { x: b.x, y: b.y }] : greedyFrom(st, a, rng, k, st.ink)).score;
+      };
+      reach[night]++;
+      let sc = one();
+      if (sc >= target) first[night]++;
+      if (sc < target && spare > 0) { spare--; sc = Math.max(sc, one()); }
+      if (sc < target) break;
+      pass[night]++;
+      for (let round = 0; round < (K.isBoss(night) ? 2 : 1); round++) charms = applyPick(charms, choosePick('random', K.offerCharms(seed, night, charms, round, { pool: POOLS.starter }), charms, { rng, night }));
+    }
+  }
+  console.log(`N=${N} k=${k}: 1 本目で越える 一夜目 ${pct(first[0] / reach[0])} 二夜目 ${pct(first[1] / reach[1])} 三夜目 ${pct(first[2] / reach[2])} | ひき直しも入れて ${pct(pass[0] / reach[0])} ${pct(pass[1] / reach[1])} ${pct(pass[2] / reach[2])}`);
+}
+
 if (process.argv[1].endsWith('hitofude-skill.mjs')) {
   const [mode = 'tiers', nArg, bArg, a3, a4] = process.argv.slice(2);
   if (mode === 'charms') charms(+(nArg || 24), +(bArg || 100), a3 || 'all');
+  else if (mode === 'casual') casual(+(nArg || 400), +(bArg || 1));
   else tiers(+(nArg || 24), +(bArg || 150), +(a3 || 0), a4 || 'starter');
 }
