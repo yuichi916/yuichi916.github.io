@@ -15,6 +15,7 @@
 //  lv3: true は Lv3 で増えるふるまい。Lv3 のときだけ、最後に区切り（これも lv3）のあとへ足す
 //
 // 読み方の決まり（どの式でも同じにする）:
+//  ・× は点（青）と倍率（金）にだけ使う。大きさ・速さ・届く幅・墨の増減は +30% / −40% の割合で書く
 //  ・ただの数（10%・4）は「…ごとに」、≥ ≤ は「…以上・以下」、① は「いちばんはじめ」、①-④ は「はじめの 4 つ」
 //  ・[線][玉] は「線でじかにふれた玉」、[玉][100%] は「その玉を全部ひらく」、[玉][+3] は「その玉が 3 つ増える」
 //  ・墨は残した墨（inkLeft）で数える。「墨を 8 割以上使う」は「残り ≤20%」
@@ -67,8 +68,8 @@ function join(groups, lv3 = null) {
 const CHARM = {
   // 墨 +70%・線の火が届く幅 ×1.3【線でふれた玉は ×1.5 の大きさ・線は雲の中でも燃える】
   nagafude: (v, i) => ({
-    g: [[I('ink'), N(up(v.ink[i]))], [I('reach'), N(times(v.reach[i]))]],
-    x: and(v.touchR[i] > 1 ? [I('stroke'), S('any'), O(), I('size'), N(times(v.touchR[i]))] : null, v.cloud[i] ? [I('cloudLine')] : null),
+    g: [[I('ink'), N(up(v.ink[i]))], [I('reach'), N(up(v.reach[i]))]],
+    x: and(v.touchR[i] > 1 ? [I('stroke'), S('any'), O(), I('size'), N(up(v.touchR[i]))] : null, v.cloud[i] ? [I('cloudLine')] : null),
   }),
   // 墨を 1 割残すごとに 倍率 +1【半分以上残せば ×1.5】
   nokorizumi: (v, i) => ({
@@ -83,11 +84,11 @@ const CHARM = {
   // 金の玉 → 倍率 +2（ふだんは +1）【金の玉が大きくひらく】
   kinun: (v, i) => ({
     g: [[S('kin'), O(), M(plus(v.gold[i]))]],
-    x: v.R[i] ? [S('kin'), O(), I('size'), N(times(v.R[i] / SHELLS.kin.R))] : null,
+    x: v.R[i] ? [S('kin'), O(), I('size'), N(up(v.R[i] / SHELLS.kin.R))] : null,
   }),
   // 導火線 ×0.6 の速さ → 倍率 +3 から【線でふれた玉 2 つごとに 倍率 +1】
   osobi: (v, i) => ({
-    g: [[I('slow'), N(times(SLOW_FUSE)), O(), M(plus(v.mult[i]))]],
+    g: [[I('slow'), N(down(SLOW_FUSE)), O(), M(plus(v.mult[i]))]],
     x: v.touch[i] ? [I('stroke'), S('any'), N(String(v.touch[i])), O(), M('+1')] : null,
   }),
   // 線でふれた金 → さらに倍率 +3【その金から火花 10 本】
@@ -97,7 +98,7 @@ const CHARM = {
   }),
   // 線の終わり → 爆ぜる（ふつうの玉の ×2.6）・尺玉 → 倍率 +2【線の始まりも爆ぜる】
   owaridama: (v, i) => ({
-    g: [[I('lineEnd'), O(), I('boom'), N(times(v.R[i] / SHELLS.kiku.R))], [S('shaku'), O(), M(plus(v.tori[i]))]],
+    g: [[I('lineEnd'), O(), I('boom'), N(up(v.R[i] / SHELLS.kiku.R))], [S('shaku'), O(), M(plus(v.tori[i]))]],
     x: v.start[i] ? [I('lineStart'), O(), I('boom')] : null,
   }),
   // 連鎖でひらいた玉 4 つごとに 倍率 +1【連鎖でひらいた玉は点 ×1.5】
@@ -133,11 +134,11 @@ const CHARM = {
   // 湿った玉 → ふつうの玉・点 ×1.5（Lv2 から倍率 +1）【大きくひらく】
   amayoke: (v, i) => ({
     g: [[S('shime'), O(), S('kiku'), CH(times(v.pts[i])), ...(v.mult[i] ? [M(plus(v.mult[i]))] : [])]],
-    x: v.R[i] ? [S('shime'), O(), I('size'), N(times(v.R[i] / SHELLS.shime.R))] : null,
+    x: v.R[i] ? [S('shime'), O(), I('size'), N(up(v.R[i] / SHELLS.shime.R))] : null,
   }),
   // 雲 ×½（Lv3 は ×0 = 消える）・雲 1 つ → 倍率 +2【雲のあとに大玉】
   kazekiri: (v, i) => ({
-    g: [[I('cloud'), N(times(v.scale[i]))], [I('cloud'), O(), M(plus(v.mult[i]))]],
+    g: [[I('cloud'), N(down(v.scale[i]))], [I('cloud'), O(), M(plus(v.mult[i]))]],
     x: v.big[i] ? [I('cloud'), O(), S('ootama')] : null,
   }),
   // 金の玉 → ×1.12（重なる。×3 まで）【金の玉 +1】
@@ -177,12 +178,12 @@ const CHARM = {
   }),
   // はじめの 4 つ → 狐火・狐火は ×1.5 の大きさ【狐火から、また狐火】
   kitsune: (v, i) => ({
-    g: [[I('firework'), N(`①-${circ(v.n[i])}`), O(), I('fox')], [I('fox'), O(), I('size'), N(times(FOX_R))]],
+    g: [[I('firework'), N(`①-${circ(v.n[i])}`), O(), I('fox')], [I('fox'), O(), I('size'), N(up(FOX_R))]],
     x: v.relay[i] ? [I('fox'), O(), I('fox')] : null,
   }),
   // 導火線 ×1.6 の速さ・代ごとの縮み −19% → ×1.35【線の終わりからも火がつく】
   kamaitachi: (v, i) => ({
-    g: [[I('fast'), N(times(v.speed[i])), I('gen'), N(shrink(DECAY - v.decay[i])), O(), X(times(v.x[i]))]],
+    g: [[I('fast'), N(up(v.speed[i])), I('gen'), N(shrink(DECAY - v.decay[i])), O(), X(times(v.x[i]))]],
     x: v.both[i] ? [I('lineEnd'), O(), I('flame')] : null,
   }),
 };
@@ -205,7 +206,7 @@ const WISH = {
   w_spare30: () => [[I('inkLeft'), N('≥30%')]],
   w_pops: (n) => [[S('any'), N(`≥${count(n)}`)]],
   w_touch_few: () => [[I('stroke'), S('any'), N('≤4')]],
-  w_double: () => [[I('target'), N('×2')]],
+  w_double: () => [[I('target'), N('≥200%')]],
   w_damp_all: () => [[S('shime'), N('100%')]],
   w_rope_all: () => [[I('rope'), N('100%')]],
   w_no_cloud: () => [[I('stroke'), I('cloud'), O('✕')]],
@@ -227,11 +228,11 @@ export function wishGlyph(id, n) {
 // ---------------------------------------------------------------- 夜ごとに増える仕掛け
 const GIMMICK = {
   // 大玉 → ふつうの玉の ×1.6 の大きさ
-  ootama: () => [[S('ootama'), O(), I('size'), N(times(SHELLS.ootama.R / SHELLS.kiku.R))]],
+  ootama: () => [[S('ootama'), O(), I('size'), N(up(SHELLS.ootama.R / SHELLS.kiku.R))]],
   // 千輪 → 火花 6 本（まっすぐ遠くまで）
   senrin: () => [[S('senrin'), O(), I('sparks'), N(String(BASE.senrinSparks))]],
-  // 提灯から引きはじめる → 点 ×2
-  chouchin: () => [[I('lineStart'), S('chouchin'), O(), CH(times(1 + BASE.lanternGain))]],
+  // 提灯から引きはじめる → そのあとにひらく玉の点 ×2（矢印の先の玉で「あと」を見せる）
+  chouchin: () => [[I('lineStart'), S('chouchin'), O(), S('any'), S('any'), CH(times(1 + BASE.lanternGain))]],
   // 火 → 雲は通れない
   kumo: () => [[I('flame'), O(), I('cloud'), O('✕')]],
   // 線でふれる → ひらく・爆発なら 2 回でひらく
@@ -246,7 +247,7 @@ export function gimmickGlyph(id) { return GIMMICK[id] ? join(GIMMICK[id]()) : []
 // ---------------------------------------------------------------- 大一番
 const TWIST = {
   massugu: () => [[I('stroke'), O(), I('straight')]],
-  kagami: () => [[I('stroke'), O(), I('mirror')], [I('ink'), N(times(MIRROR_INK))]],
+  kagami: () => [[I('stroke'), O(), I('mirror')], [I('ink'), N(down(MIRROR_INK))]],
   yamiyo: () => [[I('timer'), N(String(DARK_SECONDS)), O(), I('dark')]],
   isshun: () => [[I('hand'), I('timer'), N(String(SNAP_SECONDS)), O(), I('lineEnd')]],
 };
@@ -264,9 +265,9 @@ const HINT = {
   shaku: () => [[I('lineEnd'), S('shaku')]],
   toriEarly: () => [[S('any'), N(`≥${pct(TORI_AT)}`), O(), S('shaku'), M(plus(Math.round(1 + TORI_BONUS * TORI_AT * TORI_AT)))]],
   lantern: () => GIMMICK.chouchin(),
-  lanternLate: () => [[S('chouchin'), N('①'), O(), CH(times(1 + BASE.lanternGain))]],
+  lanternLate: () => [[S('chouchin'), N('①'), O(), S('any'), S('any'), CH(times(1 + BASE.lanternGain))]],
   almost: () => [[S('any'), N('100%'), O(), X(times(BLOOM))]],
-  ink: () => [[I('inkLeft'), N('0%')]],
+  ink: () => [[I('stroke'), I('ink'), N('100%')]],  // 墨を使い切るまで、線を長く
   rope: () => [[I('stroke'), O(), I('rope'), O(), S('any')]],
   damp: () => [[I('stroke'), S('shime'), O(), I('firework')]],
   gold: () => [[S('kin'), O(), M(plus(BASE.goldBonus))]],

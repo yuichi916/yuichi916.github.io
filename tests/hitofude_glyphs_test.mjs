@@ -128,8 +128,18 @@ check('仕掛け・大一番・ヒント・屋台: 全部の id の式が決ま�
   ok(has(gimmickGlyph('shaku'), 'mult', `+${1 + K.TORI_BONUS}`), '尺玉は +13 まで');
   ok(has(twistGlyph('yamiyo'), 'num', String(K.DARK_SECONDS)), '闇夜の秒');
   ok(has(twistGlyph('isshun'), 'num', String(K.SNAP_SECONDS)), '一瞬の秒');
-  ok(has(twistGlyph('kagami'), 'num', '×¾'), '鏡の墨');
+  ok(has(twistGlyph('kagami'), 'num', '−25%'), '鏡の墨（× は点と倍率だけ。墨の増減は割合）');
   for (const f of [gimmickGlyph, twistGlyph, hintGlyph, shopGlyph]) eq(J(f('nope')), '[]');
+});
+
+check('色の決まり: 白い数（num）に × を使わない（× は点＝青と倍率＝金だけ）', () => {
+  const all = [];
+  for (const c of K.CHARMS) for (const lv of [1, 2, 3]) all.push([`${c.id} Lv${lv}`, charmGlyph(c.id, lv)]);
+  for (const gm of K.GIMMICKS) all.push([gm.id, gimmickGlyph(gm.id)]);
+  for (const tw of K.TWISTS) all.push([tw.id, twistGlyph(tw.id)]);
+  for (const id of HINT_IDS) all.push([`hint ${id}`, hintGlyph(id)]);
+  for (const w of K.WISHES) all.push([w.id, wishGlyph(w.id, 30)]);
+  for (const [id, g] of all) for (const tk of g) ok(!(tk.k === 'num' && /^×/.test(tk.v)), `${id}: 白い ${tk.v}`);
 });
 
 check('絵: ICONS の部品の形（d はパスの文字だけ・色と太さ）・前からの絵は残っている', () => {
