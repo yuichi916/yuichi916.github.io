@@ -385,12 +385,16 @@ html[lang="en"] #banner b{font-family:"Shippori Mincho",serif;font-weight:800;fo
 .pick .tags{display:block;margin-top:calc(3px * var(--u))}
 /* 絵の式: 玉の絵・アイコン・点（青）・倍率（赤）・×倍率（金）・数 */
 .glyph{display:inline-flex;align-items:center;flex-wrap:wrap;gap:calc(3px * var(--u));font-weight:800;line-height:1.2}
-.glyph .g-shell{width:calc(22px * var(--u));height:calc(22px * var(--u))}
+.glyph .g-shell{display:inline-flex;line-height:0}
+.glyph .g-shell img{width:calc(22px * var(--u));height:calc(22px * var(--u))}
+.glyph .g-icon{display:inline-flex;line-height:0}
 .glyph .g-icon .ic,.glyph .ic{width:calc(18px * var(--u));height:calc(18px * var(--u));color:#e8e4ff}
 .glyph .g-mult{color:#ff8a7a}.glyph .g-x{color:#ffd75a}.glyph .g-chips{color:#8fc8ff}.glyph .g-num{color:#f2efff}
 .glyph .g-op{font-style:normal;color:var(--dim);font-weight:600}
 .glyph .g-sep{display:inline-block;width:1px;height:calc(16px * var(--u));background:rgba(255,255,255,.25);margin:0 calc(3px * var(--u))}
 .glyph .g-lv3{position:relative;filter:drop-shadow(0 0 4px rgba(255,200,90,.7))}
+.glyph .g-sep.g-lv3{width:auto;height:auto;background:none;margin:0 calc(4px * var(--u))}
+.glyph .g-sep.g-lv3::before{content:'Lv3';font-style:normal;font-size:calc(9.5px * var(--u));font-weight:800;color:#1a1206;background:linear-gradient(90deg,#ffd75a,#ff9a5a);border-radius:99px;padding:0 calc(4px * var(--u))}
 .pick .fxt{font-size:calc(12px * var(--u));color:var(--dim)}
 /* 次の夜の目安のゲージ */
 .pick .gain{display:flex;align-items:center;gap:calc(6px * var(--u));margin-top:calc(5px * var(--u));height:calc(14px * var(--u));opacity:.35;transition:opacity .3s}
@@ -694,7 +698,11 @@ body:not(.yoko) #hud #tags{position:absolute;left:0;right:0;top:100%;display:fle
 body.yoko #hud #tags{display:flex;flex-direction:column;align-items:flex-start;gap:calc(4px * var(--u))}
 #hud #tags > [hidden]{display:none}
 #twistTag{display:inline-flex;align-items:center;gap:calc(4px * var(--u));padding:calc(1px * var(--u)) calc(8px * var(--u)) calc(1px * var(--u)) calc(2px * var(--u));border-radius:99px;border:1px solid rgba(255,120,90,.6);background:rgba(40,10,10,.55);font-size:calc(12px * var(--u));color:#ffb39a;font-weight:800}
-#hud #twistTag b{display:inline;font-size:inherit;color:inherit}
+#hud #tags #twistTag b{display:inline;font-size:inherit;color:inherit}
+#hud #tags b,#hud #tags .glyph b{display:inline;font-size:inherit;font-weight:800}
+#hud #wish .glyph{font-size:calc(12.5px * var(--u))}
+#hud #wish .glyph .g-shell img,#hud #twistTag .glyph .g-shell img{width:calc(17px * var(--u));height:calc(17px * var(--u))}
+#hud #wish .glyph .ic{width:calc(15px * var(--u));height:calc(15px * var(--u))}
 #twistTag canvas{width:calc(22px * var(--u));height:calc(22px * var(--u))}
 #twistTag .glyph .ic{width:calc(15px * var(--u));height:calc(15px * var(--u))}
 #tally .row3.wish{font-size:calc(14px * var(--u));margin-top:calc(4px * var(--u))}
@@ -994,8 +1002,8 @@ import { drawHinoko, blinkAt } from './assets/hitofude/hinoko.js';
 import { createFx } from './assets/hitofude/fx.js';
 import { createScenery } from './assets/hitofude/scenery.js';
 import { ICONS, svgIcon, drawIcon, moonIcon, drawOmamori } from './assets/hitofude/icons.js';
-// 絵の式（お守り・願い・仕掛け・大一番の効き目を、言葉でなく絵と数で）。届くまでは短い言葉で出す
-let G = null; import('./assets/hitofude/glyphs.js').then((m) => { G = m; }).catch(() => { /* まだ無い */ });
+// 絵の式（お守り・願い・仕掛け・大一番の効き目を、言葉でなく絵と数で）
+import * as G from './assets/hitofude/glyphs.js';
 
 // ゲームサイト用の書き出し（scripts/build_itch_package.py hitofude-portal）か
 const PORTAL = !!window.HITO_PORTAL;
@@ -3663,7 +3671,8 @@ function revealUnlocks(list, then) {
     else art.appendChild(svgIcon(u.id === 'levels' ? 'flame' : 'star'));
     const c = u.kind === 'charm' ? K.charmById(u.id) : null;
     card.append(art, el('small', 'ukind', t('unlockHead_' + u.kind)), el('b', 'serif', unlockName(u)),
-      el('span', 'udesc', c && u.kind === 'charm' ? charmDesc(c, 1) : (lang === 'en' ? u.descEn : u.desc) || t('unlockDesc_' + (u.kind === 'feature' ? u.id : u.kind))));
+      c && (u.kind === 'charm' || u.kind === 'legend') ? charmFx(c.id, u.kind === 'legend' ? 3 : 1, charmDesc(c, 1)) : el('span', 'udesc', (lang === 'en' ? u.descEn : u.desc) || t('unlockDesc_' + (u.kind === 'feature' ? u.id : u.kind))));
+    if (c) card.title = charmDesc(c, u.kind === 'legend' ? 3 : 1);
     grid.appendChild(card);
     setTimeout(() => { if (!ov.hidden) SFX.star(Math.min(2, i)); }, 120 + i * 120);
   });
