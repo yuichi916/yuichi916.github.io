@@ -2004,7 +2004,7 @@ export function decodeVs(s) {
   return { seed: seed >>> 0, rival, marks: m[3] };
 }
 export function vsMarks(results) { return results.map((r) => (r.winner === 0 ? 'w' : r.winner === 1 ? 'l' : 'd')).join(''); }
-export function vsShareText(match, lang, url = SITE_URL) {
+export function vsShareText(match, lang, url = SHARE_URL) {
   const rv = RIVALS[match.rival], en = lang === 'en';
   const w = match.results.filter((r) => r.winner === 0).length, l = match.results.filter((r) => r.winner === 1).length;
   const dots = match.results.map((r) => (r.winner === 0 ? '🔴' : r.winner === 1 ? '🔵' : '⚪')).join('');
@@ -2279,6 +2279,8 @@ export function strokeType(pts, { ink = BASE_INK, pops = 0, total = 1 } = {}) {
 
 // ---------------------------------------------------------------- 共有・挑戦状・再生
 export const SITE_URL = 'https://yuichi916.github.io/hitofude.html';
+// 共有に載せる URL。?ref= で、共有から来た人を GoatCounter で数える（# の後ろの対戦・リプレイの情報とは干渉しない）
+export const SHARE_URL = SITE_URL + '?ref=hitofude-share';
 export const HASHTAG = '#一筆花火';
 
 export function fmt(n) { return Math.round(n).toLocaleString('en-US'); }
@@ -2290,7 +2292,7 @@ export function nightMark(r) {
   return r.score >= r.target * 3 ? '🎆' : '✨';
 }
 
-export function runShareText(run, lang, url = SITE_URL) {
+export function runShareText(run, lang, url = SHARE_URL) {
   // 絵文字は見出しの 🎆 だけ。結果は言葉で書く（夜ごとの印の列は画面とシェア画像にだけ出す）
   const en = lang === 'en';
   const cleared = run.nights.filter((r) => r && r.score >= r.target).length;

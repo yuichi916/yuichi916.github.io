@@ -645,7 +645,7 @@ function bindDetail() {
   });
   const un = $('btn-unwent'); if (un) un.addEventListener('click', () => { state.saved = mc.removeWent(state.saved, r.id); mc.saveSaved(storage, state.saved); render(); });
   $('btn-share').addEventListener('click', async e => {
-    const url = mc.facilityShareUrl(`${location.origin}${location.pathname}`, r.pref, r.id);
+    const url = mc.facilityShareUrl(`${location.origin}${location.pathname}`, r.pref, r.id) + '&ref=hitori-share';
     const text = `ひとりで行きやすい行き先: 「${r.name}」${r.city ? `（${r.city}）` : ''} — 根拠つきの利用情報はこちら`;
     if (navigator.share) { try { await navigator.share({ title: `${r.name} | ひとり歓迎マップ`, text, url }); return; } catch (err) {} }
     try { await navigator.clipboard.writeText(`${text}\n${url}`); e.currentTarget.textContent = 'コピーしました'; } catch (err) { window.prompt('リンクをコピーしてください', url); }
@@ -669,7 +669,7 @@ function savedRowsImpl() {
 function savedHtmlImpl() {
   const s = state.saved || { want: {}, went: {} };
   const rows = savedRowsImpl();
-  const shareUrl = `${location.origin}${location.pathname}?saved=${mc.encodeSavedParam(s)}`;
+  const shareUrl = `${location.origin}${location.pathname}?saved=${mc.encodeSavedParam(s)}&ref=hitori-share`;
   const tabs = `<div id="saved-tabs" class="row" style="margin:0"><button class="tog" type="button" data-tab="want" aria-pressed="${savedTab === 'want'}">行きたい ${Object.keys(s.want).length}</button><button class="tog" type="button" data-tab="went" aria-pressed="${savedTab === 'went'}">行った ${Object.keys(s.went).length}</button></div>`;
   const emptyText = sharedList ? '共有されたリストに表示できる施設がありません。' : 'まだありません。施設の ♡ で「行きたい」に追加できます。';
   return `<div id="saved">
