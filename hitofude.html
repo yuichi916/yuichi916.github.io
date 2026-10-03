@@ -351,6 +351,26 @@ html[lang="en"] #banner b{font-family:"Shippori Mincho",serif;font-weight:800;fo
 /* 解放の大きなカード */
 #adBlock{position:fixed;inset:0;z-index:90;background:rgba(4,6,18,.55);touch-action:none}
 #adBlock[hidden]{display:none}
+#rankOv{z-index:34;align-items:center;background:rgba(4,6,18,.6)}
+#rankNameOv{z-index:36;align-items:center;background:rgba(4,6,18,.6)}
+.rankcard{max-width:calc(440px * var(--u));width:min(92vw,calc(440px * var(--u)));text-align:center}
+.ranktabs{display:flex;gap:calc(8px * var(--u));justify-content:center;margin-top:calc(8px * var(--u))}
+.ranktabs .btn.on{border-color:var(--gold);color:var(--gold)}
+.rankinfo{margin-top:calc(6px * var(--u));color:var(--dim)}
+.ranklist{list-style:none;margin:calc(8px * var(--u)) 0 0;padding:0;max-height:min(46vh,calc(360px * var(--u)));overflow-y:auto;text-align:left}
+.ranklist li{display:grid;grid-template-columns:calc(34px * var(--u)) 1fr auto;align-items:center;gap:calc(8px * var(--u));padding:calc(6px * var(--u)) calc(8px * var(--u));border-radius:calc(10px * var(--u));font-size:calc(14px * var(--u))}
+.ranklist li:nth-child(odd){background:rgba(255,255,255,.04)}
+.ranklist li.me{background:rgba(255,215,90,.16);outline:1px solid rgba(255,215,90,.5)}
+.ranklist .rk{font-family:"JetBrains Mono",monospace;font-weight:800;color:var(--gold);text-align:right}
+.ranklist .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ranklist .nm small{display:block;color:var(--dim);font-size:calc(12px * var(--u))}
+.ranklist .sc{font-family:"JetBrains Mono",monospace;font-weight:800}
+.rankme{margin-top:calc(8px * var(--u));color:var(--gold);font-weight:700}
+#rankNameOv .card > p.small{margin-top:calc(6px * var(--u));line-height:1.6}
+#rankNameIn{width:100%;margin-top:calc(10px * var(--u));padding:calc(10px * var(--u)) calc(12px * var(--u));border-radius:calc(10px * var(--u));border:1px solid var(--line);background:rgba(0,0,0,.3);color:var(--text);font-size:calc(17px * var(--u));-webkit-user-select:text;user-select:text}
+.rankerr{color:#ff9a8a;margin-top:calc(6px * var(--u))}
+.rankres{margin-top:calc(8px * var(--u));display:flex;flex-direction:column;align-items:center;gap:calc(6px * var(--u))}
+.rankres b{color:var(--gold);font-size:calc(17px * var(--u))}
 #unlockOv{z-index:30;align-items:center;background:rgba(4,6,18,.55)}
 .unlockcard{text-align:center;max-width:calc(340px * var(--u));animation:tallyIn2 .35s cubic-bezier(.2,.9,.3,1.3) backwards}
 @keyframes tallyIn2{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:none}}
@@ -924,6 +944,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
         <button class="btn primary playbtn" id="freeBtn" data-t="playBtn">▶ 遊ぶ</button>
         <button class="btn small" id="tutBtn" data-t="tutBtn">チュートリアル</button>
         <button class="btn daily" id="dailyBtn"><b id="dailyLbl"></b><small id="dailySub"></small></button>
+        <button class="btn small" id="rankBtn" data-t="rankBtn" hidden>今夜の一筆ランキング</button>
         <button class="btn accent" id="vsBtn"><span data-t="vsBtn">⚔️ 花火合戦（CPU と対戦）</span><span class="newb">NEW</span></button>
       </div>
       <div class="metabtns" id="metaBtns" hidden>
@@ -1016,6 +1037,33 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
       </div>
     </div>
   </section>
+  <!-- 今夜の一筆のランキング（ほかの画面の上に重ねる） -->
+  <section class="ov" id="rankOv" hidden>
+    <div class="card rankcard">
+      <h2 class="serif" data-t="rankHead">今夜の一筆ランキング</h2>
+      <div class="ranktabs"><button type="button" class="btn small" id="rankToday" data-t="rankToday">今日</button><button type="button" class="btn small" id="rankYday" data-t="rankYday">昨日</button></div>
+      <p class="small rankinfo" id="rankInfo"></p>
+      <ol class="ranklist" id="rankList"></ol>
+      <p class="rankme" id="rankMe" hidden></p>
+      <div class="stack">
+        <button type="button" class="btn small" id="rankRename" data-t="rankRename">名前を変える</button>
+        <button type="button" class="btn primary" id="rankClose" data-t="rankClose">閉じる</button>
+      </div>
+    </div>
+  </section>
+  <!-- ランキングの名前 -->
+  <section class="ov" id="rankNameOv" hidden>
+    <div class="card rankcard">
+      <h2 class="serif" data-t="rankNameHead">ランキングの名前</h2>
+      <p class="small" data-t="rankNameBody">今夜の一筆の点が、この名前でランキングに載る（12 字まで）。</p>
+      <input type="text" id="rankNameIn" autocomplete="off" spellcheck="false" enterkeyhint="done">
+      <p class="small rankerr" id="rankNameErr" hidden></p>
+      <div class="stack">
+        <button type="button" class="btn primary" id="rankNameOk" data-t="rankNameOk">この名前で決める</button>
+        <button type="button" class="btn small" id="rankNameSkip" data-t="rankNameSkip">ランキングに載せない</button>
+      </div>
+    </div>
+  </section>
   <section class="ov" id="unlockOv" hidden>
     <div class="card unlockcard"><div id="unlockBody"></div><div class="stack"><button type="button" class="btn primary" id="unlockOk" data-t="unlockOk">やったね</button></div></div>
   </section>
@@ -1083,6 +1131,8 @@ import { createScenery } from './assets/hitofude/scenery.js';
 import { ICONS, svgIcon, drawIcon, moonIcon, drawOmamori } from './assets/hitofude/icons.js';
 // 絵の式（お守り・願い・仕掛け・大一番の効き目を、言葉でなく絵と数で）
 import * as G from './assets/hitofude/glyphs.js';
+// ランキングの名前の確かめ（サーバーと同じもの）
+import { cleanName, NAME_MAX } from './assets/hitofude/names.js';
 
 // ゲームサイト用の書き出し（scripts/build_itch_package.py hitofude-portal）か
 const PORTAL = !!window.HITO_PORTAL;
@@ -1104,6 +1154,7 @@ const CG = (() => {
     get adOn() { return adOn; }, // 広告を出している間（音を鳴らさない・入力を受けない）
     get silent() { return adOn || muted; },
     get canReward() { return ready && !noReward; },
+    get noUGC() { return ready && !!safe(() => sdk.game.settings && sdk.game.settings.disableChat); }, // ゲームサイトの「人が書いた字を出さない」設定
     // 全体の音量: 消す設定・広告の間は 0
     level() { if (master && actx) safe(() => master.gain.setTargetAtTime(this.silent ? 0 : 0.9, actx.currentTime, 0.02)); },
     // ゲームサイトが知らせる言葉（ja-JP など）。分からなければ null
@@ -1157,6 +1208,11 @@ const T = {
     factor: (f) => `点×${f}`, lanternCall: (f) => `提灯！ 点×${f}`, fizzle: '雲の中では、火がつかない', dry: '乾いた！',
     pickNextNew: (n, t, g) => `次は${KANJI[n]}夜目 ・ 目標 ${K.fmt(t)} 点 ・ 新しい仕掛け「${g}」`,
     allWorks: 'ほかの作品をぜんぶ見る →', nextSudoku: '異世界立体数独', nextPuyo: '将棋ぷよ「成」', nextNote: 'この型の研究ノート',
+    rankBtn: '今夜の一筆ランキング', rankHead: '今夜の一筆ランキング', rankToday: '今日', rankYday: '昨日', rankRename: '名前を変える', rankClose: '閉じる',
+    rankNameHead: 'ランキングの名前', rankNameBody: '今夜の一筆の点が、この名前でランキングに載る（12 字まで）。', rankNameOk: 'この名前で決める', rankNameSkip: 'ランキングに載せない', rankCancel: 'やめる',
+    rankNamePh: '例: 花火師たろう', rankNameBad: 'その名前は使えません（12 字まで・URL や不適切な言葉はだめ）', rankAnonName: (id) => `花火師#${id}`, rankAnonRow: (n) => `花火師 ${n}`,
+    rankSee: 'ランキングを見る', rankLine: (r, n) => `今日の順位 ${r} 位 / ${n} 人`, rankFail: 'いまランキングにつながりません', rankOld: 'ランキングは新しい版の準備中です', rankSending: '順位を送っています…',
+    rankLoading: '読みこみ中…', rankCount: (md, n) => `${md} ・ ${n} 人`, rankEmpty: 'まだだれもいません。いちばん乗りになろう！', rankDone: '八夜完走', rankReached: (n) => `${n} 夜越え`, rankPlaying: (n) => `${n} 夜まで（遊んでいる途中）`, rankMine: (r, sc) => `あなた: ${r} 位 ・ ${sc} 点`,
     gainLbl: '次の夜', coachNext: 'タップで次へ',
     next: '次へ ▶', goDraw: '▶ 線を引く', seeTally: '集計へ ▶', goPick: 'お守りを選ぶ ▶', seeResult: '結果へ ▶', unlockSee: (n) => `開いたものを見る（${n}）`,
     tutBtn: 'チュートリアル', tutStart: '▶ チュートリアルから始める', tutLabel: 'チュートリアル', tutBanner: '線を1本引いてみよう', tutStep: (n, m) => `チュートリアル ${n}/${m}`,
@@ -1289,6 +1345,11 @@ const T = {
     factor: (f) => `points ×${f}`, lanternCall: (f) => `Lantern! points ×${f}`, fizzle: 'Fire can\'t start inside a cloud', dry: 'Dried!',
     pickNextNew: (n, t, g) => `Next: night ${n + 1} · target ${K.fmt(t)} · new: ${g}`,
     allWorks: 'See all works →', nextSudoku: 'Rune Cube', nextPuyo: 'Shogi Puyo', nextNote: 'Research note (JA)',
+    rankBtn: 'Tonight\'s Stroke ranking', rankHead: 'Tonight\'s Stroke ranking', rankToday: 'Today', rankYday: 'Yesterday', rankRename: 'Change name', rankClose: 'Close',
+    rankNameHead: 'Your ranking name', rankNameBody: 'Your Tonight\'s Stroke score shows in the ranking under this name (up to 12 characters).', rankNameOk: 'Use this name', rankNameSkip: 'Don\'t show me in the ranking', rankCancel: 'Cancel',
+    rankNamePh: 'e.g. SkyPainter', rankNameBad: 'That name can\'t be used (12 characters max, no links or offensive words).', rankAnonName: (id) => `Hanabi#${id}`, rankAnonRow: (n) => `Player ${n}`,
+    rankSee: 'See the ranking', rankLine: (r, n) => `Today: #${r} of ${n}`, rankFail: 'Can\'t reach the ranking right now', rankOld: 'The ranking is being updated for the new version', rankSending: 'Sending your score…',
+    rankLoading: 'Loading…', rankCount: (md, n) => `${md} · ${n} players`, rankEmpty: 'No one yet. Be the first!', rankDone: 'All 8 nights', rankReached: (n) => `${n} nights cleared`, rankPlaying: (n) => `through night ${n} (playing)`, rankMine: (r, sc) => `You: #${r} · ${sc} pts`,
     gainLbl: 'next night', coachNext: 'Tap to continue',
     next: 'Next ▶', goDraw: '▶ Draw', seeTally: 'See score ▶', goPick: 'Pick a charm ▶', seeResult: 'Results ▶', unlockSee: (n) => `See what opened (${n})`,
     tutBtn: 'Tutorial', tutStart: '▶ Start with the tutorial', tutLabel: 'Tutorial', tutBanner: 'Draw one line', tutStep: (n, m) => `Tutorial ${n}/${m}`,
@@ -1431,6 +1492,7 @@ function load(raw) {
   if ('level' in v && !(Number.isInteger(v.level) && v.level >= 0 && v.level <= 8)) delete v.level;
   if ('color' in v && !(v.color === null || (typeof v.color === 'string' && v.color.length < 20))) delete v.color;
   if ('tips' in v && !obj(v.tips)) delete v.tips;
+  if ('rk' in v && !(obj(v.rk) && (v.rk.name == null || (typeof v.rk.name === 'string' && v.rk.name.length <= 40)))) delete v.rk;
   if ('cont' in v && !(obj(v.cont) && obj(v.cont.run) && Number.isInteger(v.cont.night) && v.cont.night >= 0 && v.cont.night < K.NIGHTS && Array.isArray(v.cont.strokes) && Array.isArray(v.cont.run.charms) && Array.isArray(v.cont.run.nights))) delete v.cont;
   if ('outfit' in v && !(v.outfit === null || (typeof v.outfit === 'string' && /^[a-z]{1,16}$/.test(v.outfit)))) delete v.outfit;
   if (v.days) for (const d of Object.keys(v.days)) { const e = v.days[d]; if (!e.nights.every((n) => obj(n) && Number.isFinite(n.score) && Number.isFinite(n.target)) || !Number.isInteger(e.moon)) delete v.days[d]; }
@@ -2894,7 +2956,7 @@ function newRun(opts) {
   S.resume = null; clearNext();
   S.run = { seed: opts.seed >>> 0, moon: opts.moon, daily: !!opts.daily, official: !!opts.official, key: opts.key || null, no: opts.no || 0,
     duel: opts.duel || null, charms: [], nights: [], total: 0, bestChain: 0, best: null, lives: 1, wallet: 0, rerolls: 0, bank: 0,
-    level: 0, pool: null, retries: 0, lvMax: {} };
+    level: 0, pool: null, retries: 0, lvMax: {}, rk: opts.rank ? { on: true, events: [], retries: 0, ad: false, broken: null, last: null } : null };
   // 段位と、候補に出るお守り（今夜の一筆と勝負リンクは、みんな同じ条件: 段位 0・お守りは全部）
   if (!opts.daily && !opts.duel) { S.run.level = curLevel(); S.run.pool = M.charmPool(DB.meta); S.run.caps = M.charmCaps ? M.charmCaps(DB.meta) : null; }
   else if (opts.duel && opts.level != null) { S.run.level = opts.level; S.run.pool = opts.pool || null; } // 勝負リンク: 送った人と同じ段位・同じお守り
@@ -3426,6 +3488,7 @@ function afterTally(res, pass) {
   // 筆跡占いは、大一番でない夜のうち、いちばん点の高い夜の一筆で見る
   if (!st.twist && st.strokes[0] && (!run.sig || res.score > run.sig.score)) run.sig = { pts: st.strokes[0], pops: res.pops, total: res.total, ink: st.rules.ink, score: res.score };
   run.total += res.score;
+  rankSend(run, st); // ランキング: この夜を送る（今夜の一筆で、名前を決めた人だけ）
   run.bestChain = Math.max(run.bestChain, res.pops);
   if (!run.best || res.score > run.best.score) run.best = { night: st.night, charms: st.charms.slice(), strokes: st.strokes.map((s) => s.slice()), score: res.score, chain: res.pops, bank: st.bank || 0, level: st.level || 0 };
   // 大一番に勝った: お守りを選ぶ前に、妖怪が負けを認める（はじめてなら仲間になる）場面をはさむ
@@ -3456,11 +3519,11 @@ function showRetry(res) {
   if (h) { let gx = null; if (G && G.hintGlyph) { try { gx = G.glyphEl(G.hintGlyph(h.id), { shellImg, svgIcon }); } catch (e) { gx = null; } } tipEl.replaceChildren(svgIcon('bulb'), el('span', 'ht', hintText(h))); if (gx) tipEl.append(gx); }
   // もう一度: 提灯の絵と ↻ と、のこりの数
   const go = $('#retryGo'); go.replaceChildren(svgIcon('lantern'), el('span', '', t('retryShort')), el('i', 'cnt', `×${run.lives}`)); go.title = t('retryGo', run.lives - 1); go.hidden = run.lives <= 0;
-  $('#retryGo').onclick = () => { if (S.run !== run || run.lives <= 0 || go.hidden) return; run.lives--; run.retries = (run.retries || 0) + 1; SFX.pick(); startNight(st.night); };
+  $('#retryGo').onclick = () => { if (S.run !== run || run.lives <= 0 || go.hidden) return; run.lives--; run.retries = (run.retries || 0) + 1; if (run.rk) run.rk.retries++; SFX.pick(); startNight(st.night); };
   // ゲームサイト: 予備の提灯が無くても、広告を見れば 1 回だけやりなおせる
   const ad = $('#retryAd'); ad.hidden = !(CG.canReward && !run.adRetried); ad.disabled = false; ad.replaceChildren(el('i', 'adb', 'AD'), svgIcon('play'), el('span', '', t('retryShort'))); ad.title = t('retryAd');
   ad.onclick = () => { if (S.run !== run || run.adRetried || ad.disabled || CG.adOn) return; ad.disabled = true;
-    CG.rewarded(() => { ad.disabled = false; if (S.run !== run) return; run.adRetried = true; run.retries = (run.retries || 0) + 1; startNight(st.night); },
+    CG.rewarded(() => { ad.disabled = false; if (S.run !== run) return; run.adRetried = true; run.retries = (run.retries || 0) + 1; if (run.rk) run.rk.ad = true; startNight(st.night); },
       () => { ad.disabled = false; ad.hidden = true; if (S.run !== run) return; toast(t('adFail')); if (run.lives <= 0) $('#retryEnd').focus(); }); };
   $('#retryEnd').classList.toggle('small', run.lives > 0); // 提灯が尽きたら、終えるのも広告と同じ大きさ（広告をすすめすぎない）
   $('#retryEnd').onclick = () => { if (S.run !== run || CG.adOn) return; run.lives = 0; run.adDeclined = true; afterTally(res, false); };
@@ -3629,8 +3692,9 @@ function showPick(round = 0, reroll = 0, focus = null) {
   const lockUntil = performance.now() + 600; let picked = false;
   const lvs = charmLvs(run.charms), slots = slotsOf(run);
   const done = () => { if (run.tutorial) { tutorialEnd(); return; } if (more) showPick(1); else startNight(n + 1); };
-  const take = (id) => {
+  const take = (id, drop) => {
     const was = lvs[id] || 0;
+    rkEv(run, { t: 'pick', id, ...(drop ? { drop } : {}) }); // ランキング: どのお守りを取ったか（手放したお守りも）
     run.charms.push(id); S.chipNew = id; SFX.pick(); DB.seen = DB.seen || {}; DB.seen[id] = 1;
     run.lvMax[id] = Math.max(run.lvMax[id] || 0, was + 1); save();
     if (was) { toast(t('upgraded', charmName(id), was + 1)); SFX.star(2); nekoSay('upgrade'); }
@@ -3644,7 +3708,7 @@ function showPick(round = 0, reroll = 0, focus = null) {
       // 出てきてすぐ（まだ見えていない間）と、2 度押しは受けない
       if (picked || performance.now() < lockUntil || mashing()) return;
       // 枠がいっぱいで新しいお守り: どれと入れかえるかを選ぶ
-      if (!held && slots && Object.keys(lvs).length >= slots) { picked = true; showReplace(id, () => take(id), () => showPick(round, reroll, focus)); return; }
+      if (!held && slots && Object.keys(lvs).length >= slots) { picked = true; showReplace(id, (drop) => take(id, drop), () => showPick(round, reroll, focus)); return; }
       picked = true; take(id);
     });
     box.appendChild(b);
@@ -3664,9 +3728,9 @@ function showPick(round = 0, reroll = 0, focus = null) {
     b.addEventListener('click', () => { if (!ok()) return; if (run.wallet < cost) { nekoSay('broke'); SFX.low(); b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope'); return; } run.wallet -= cost; SFX.pick(); fn(); setTimeout(() => nekoSay('buy'), 0); });
     b.classList.toggle('poor', run.wallet < cost); b.disabled = !ok(); shop.appendChild(b);
   };
-  buy('reroll', t('shopReroll'), 1, () => !picked, () => showPick(round, reroll + 1));
-  buy('ink', t('shopInk'), 1, () => run.bank < K.BASE_INK, () => { run.bank = Math.min(K.BASE_INK, run.bank + Math.round(K.BASE_INK / 4)); showPick(round, reroll); toast(t('bankTag', Math.round(run.bank / K.BASE_INK * 100))); }, '+25%');
-  buy('lantern', t('shopLife'), 3, () => run.lives < 2, () => { run.lives++; showPick(round, reroll); toast(t('livesShort', run.lives)); }, '+1');
+  buy('reroll', t('shopReroll'), 1, () => !picked, () => { rkEv(run, { t: 'reroll' }); showPick(round, reroll + 1); });
+  buy('ink', t('shopInk'), 1, () => run.bank < K.BASE_INK, () => { rkEv(run, { t: 'ink' }); run.bank = Math.min(K.BASE_INK, run.bank + Math.round(K.BASE_INK / 4)); showPick(round, reroll); toast(t('bankTag', Math.round(run.bank / K.BASE_INK * 100))); }, '+25%');
+  buy('lantern', t('shopLife'), 3, () => run.lives < 2, () => { rkEv(run, { t: 'life' }); run.lives++; showPick(round, reroll); toast(t('livesShort', run.lives)); }, '+1');
   if (M.features(DB.meta).includes('focus') && K.focusTags && !run.daily && !run.duel) buy('filter', t('shopFocus'), 2, () => !picked && !focus, () => showFocus(round, reroll));
   if (!reroll && !round) nekoSay('welcome');
   drawNextBoard(n + 1);
@@ -3730,7 +3794,7 @@ function showReplace(newId, onDone, onCancel) {
     b.addEventListener('click', () => {
       if (done || performance.now() < lockUntil || mashing()) return; done = true;
       run.charms = run.charms.filter((x) => x !== id); run.wallet += n; SFX.ui(); nekoSay('sell');
-      toast(t('released', charmName(id), n)); onDone();
+      toast(t('released', charmName(id), n)); onDone(id);
     });
     box.appendChild(b);
   }
@@ -3856,6 +3920,7 @@ function showRunResult(run) {
     d.style.color = win ? 'var(--green)' : 'var(--red)'; body.appendChild(d);
   }
   if (run.official) {
+    if (rankOn || run.rk) body.appendChild(rankResultBlock(run)); // 今日の順位と「ランキングを見る」
     if (!PORTAL) { const w = el('p', 'world'); body.appendChild(w); loadWorld(run, cleared, w); } // みんなの到達（サイトだけ。ゲームサイトでは外へ問い合わせない）
     const s = K.currentStreak(DB.streak, today()); if (s) body.appendChild(el('p', 'small', t('streak', s)));
   }
@@ -4179,6 +4244,100 @@ function hinoVerdict(run, cleared) {
   if (cleared >= 5) return { face: 'joy', line: t('hinoGood') };
   if (cleared >= 1) return { face: 'joy', line: t('hinoOk', cleared) };
   return { face: 'sad', line: t('hinoZero') };
+}
+// ================================================================ ランキング（今夜の一筆の日間。サーバーは _workers/hitofude-rank）
+// 夜を越えるたびに、その夜の線と、前の夜のあとに屋台でしたことを送る。サーバーは本物のルールで燃やしなおして点を確かめる。
+// サーバーが返事をしたときだけ、ランキングのボタンを出す（つながらないときは、ランキングなしで遊べる）
+const RANK_API = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).get('rankapi')) || 'https://hitofude-rank.yuichi916.workers.dev';
+let rankOn = false, rankQ = Promise.resolve();
+async function rankFetch(path, body = null) {
+  const c = new AbortController(); const tm = setTimeout(() => c.abort(), 8000);
+  try {
+    const r = await fetch(RANK_API + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: c.signal } : { signal: c.signal });
+    const j = await r.json().catch(() => null);
+    return j || { ok: false, error: 'http' };
+  } catch (e) { return { ok: false, error: 'net' }; } finally { clearTimeout(tm); }
+}
+async function rankHealth() { const j = await rankFetch('/health'); rankOn = !!(j && j.ok && j.v === K.REPLAY_VERSION); renderRankBtns(); }
+function renderRankBtns() { const b = $('#rankBtn'); if (b) b.hidden = !rankOn || $('#dailyBtn').hidden; }
+function rankId() {
+  DB.rk = DB.rk || {};
+  if (!/^[a-f0-9]{32}$/.test(DB.rk.id || '')) { DB.rk.id = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join(''); save(); }
+  return DB.rk.id;
+}
+// ゲームサイトで、名前を出さない設定（子ども向けなど）のときは、名前を聞かず「花火師#1A2B」の形にする
+function rankAnon() { return PORTAL && CG.noUGC; }
+function rkName() { if (rankAnon()) return t('rankAnonName', rankId().slice(0, 4).toUpperCase()); return DB.rk && DB.rk.name; }
+// 今夜の一筆を始める前に、名前を決める（はじめての 1 回だけ。載せないも選べる）
+function askRankName(then, rename = false) {
+  const ov = $('#rankNameOv'), inp = $('#rankNameIn'), err = $('#rankNameErr'), skip = $('#rankNameSkip');
+  inp.maxLength = NAME_MAX * 2; inp.value = (DB.rk && DB.rk.name) || ''; inp.placeholder = t('rankNamePh'); err.hidden = true;
+  skip.textContent = t(rename ? 'rankCancel' : 'rankNameSkip'); // 名前を変えるときは「やめる」（載せない、にはしない）
+  inp.oninput = () => { err.hidden = true; }; // 打ちなおしたら、さっきのエラーは消す
+  ov.hidden = false; setTimeout(() => inp.focus(), 50);
+  const done = (ok) => { ov.hidden = true; $('#rankNameOk').onclick = null; skip.onclick = null; inp.onkeydown = null; then(ok); };
+  const ok = () => {
+    const nm = cleanName(inp.value);
+    if (!nm) { err.textContent = t('rankNameBad'); err.hidden = false; SFX.low(); return; }
+    DB.rk = DB.rk || {}; DB.rk.name = nm; DB.rk.off = false; save(); SFX.pick(); done(true);
+  };
+  $('#rankNameOk').onclick = ok;
+  skip.onclick = () => { if (!rename) { DB.rk = DB.rk || {}; DB.rk.off = true; save(); } done(false); };
+  inp.onkeydown = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); ok(); } };
+}
+// 屋台とお守り選びでしたこと（次の夜を送るときに、まとめて送る）
+function rkEv(run, e) { if (run && run.rk && run.rk.on) run.rk.events.push(e); }
+// この夜を送る（順番どおりに。つながらなければ 2 回までやりなおし、だめならその祭りはここまで）
+function rankSend(run, st) {
+  const rk = run.rk; if (!rk || !rk.on || rk.broken) return;
+  const payload = { v: K.REPLAY_VERSION, day: run.key, player: rankId(), name: rkName(), n: st.night, events: rk.events, retries: rk.retries, ad: !!rk.ad,
+    strokes: st.strokes.map((s2) => s2.map((p) => [p.x, p.y])) };
+  rk.events = []; rk.retries = 0; rk.ad = false;
+  rankQ = rankQ.then(async () => {
+    if (rk.broken) return;
+    let j = null;
+    for (let i = 0; i < 3; i++) { j = await rankFetch('/night', payload); if (j.ok || (j.error !== 'net' && j.error !== 'http' && j.error !== 'server')) break; await new Promise((r) => setTimeout(r, 800 * (i + 1))); }
+    if (j && j.ok) rk.last = { rank: j.rank, count: j.count, total: j.total };
+    else if (j && j.error === 'order' && j.next > payload.n) { /* 読みなおす前に、もう送ってあった夜。そのまま続ける */ }
+    else rk.broken = (j && j.error) || 'net';
+  });
+}
+// 結果の画面: 今日の順位（送り終えるのを待ってから）と「ランキングを見る」
+function rankResultBlock(run) {
+  const box = el('div', 'rankres');
+  const line = el('p', 'small', ''); box.appendChild(line);
+  const open = btn(t('rankSee'), 'small', () => openRank(run.key)); box.appendChild(open);
+  const fill = () => {
+    const rk = run.rk;
+    if (rk && rk.last) { line.replaceChildren(el('b', '', t('rankLine', rk.last.rank, rk.last.count))); }
+    else if (rk && rk.broken) line.textContent = t(rk.broken === 'version' ? 'rankOld' : 'rankFail');
+    else if (rk && rk.on) line.textContent = t('rankSending');
+    else line.textContent = '';
+  };
+  fill(); rankQ.then(fill);
+  return box;
+}
+// ランキングの画面（今日・昨日）
+let rankDay = null;
+async function openRank(day = today()) {
+  rankDay = day;
+  const ov = $('#rankOv'), list = $('#rankList'), info = $('#rankInfo'), me = $('#rankMe');
+  const yday = K.jstDateKey(new Date(Date.now() - 86400000));
+  $('#rankToday').classList.toggle('on', day !== yday); $('#rankYday').classList.toggle('on', day === yday);
+  $('#rankRename').hidden = rankAnon();
+  list.replaceChildren(); me.hidden = true; info.textContent = t('rankLoading'); ov.hidden = false;
+  const j = await rankFetch(`/top?day=${encodeURIComponent(day)}&player=${rankId()}`);
+  if (rankDay !== day || ov.hidden) return;
+  if (!j.ok) { info.textContent = t('rankFail'); return; }
+  info.textContent = j.count ? t('rankCount', mdOf(day), j.count) : t('rankEmpty');
+  for (const e of j.entries) {
+    const li = el('li', e.me ? 'me' : '');
+    const nm = el('span', 'nm'); nm.append(rankAnon() && !e.me ? t('rankAnonRow', e.rank) : e.name);
+    nm.appendChild(el('small', '', e.over ? (e.cleared >= K.NIGHTS ? t('rankDone') : t('rankReached', e.cleared)) : t('rankPlaying', e.night)));
+    li.append(el('span', 'rk', String(e.rank)), nm, el('span', 'sc', K.fmt(e.total)));
+    list.appendChild(li);
+  }
+  if (j.me && !j.entries.some((e) => e.me)) { me.textContent = t('rankMine', j.me.rank, K.fmt(j.me.total)); me.hidden = false; }
 }
 async function loadWorld(run, cleared, node) {
   const base = `hitofude/daily/${run.key}`;
@@ -5082,6 +5241,7 @@ function goTitle() {
   $('#stats').textContent = t('stats', DB.best || 0, K.currentStreak(DB.streak, key));
   renderMeta();
   $('#dailyBtn').hidden = !M.features(DB.meta).includes('daily') && !(DB.days && Object.keys(DB.days).length);
+  renderRankBtns();
   // 途中の祭りがあれば「続きから」をいちばん上に（新しく遊ぶ は、ふつうのボタンに）
   const cont = contOk() && DB.cont;
   // はじめての人: 「チュートリアルから始める」をいちばん上に大きく（遊ぶは下に）。チュートリアルを終えたら、小さなボタンに
@@ -5104,8 +5264,10 @@ function startDaily(practice) {
     showRunResult(run);
     return;
   }
+  // ランキング: はじめての 1 回だけ、名前を決める（載せないも選べる）。名前があれば、夜ごとに送る
+  if (!done && rankOn && !rankAnon() && !(DB.rk && (DB.rk.name || DB.rk.off))) { askRankName(() => startDaily(practice)); return; }
   if (!done) { DB.started = { [key]: 1 }; save(); gc(`hitofude/daily/${key}/start`); }
-  newRun({ seed: dailySeed(key), moon: S.moonIdx, daily: true, official: !done, key, no: K.dayNumber(key) });
+  newRun({ seed: dailySeed(key), moon: S.moonIdx, daily: true, official: !done, key, no: K.dayNumber(key), rank: !done && rankOn && !!rkName() && !(DB.rk && DB.rk.off && !rankAnon()) });
 }
 // チュートリアル: 決まったやさしい夜（種 4・満月のルール）で、1 手ずつ。格・XP・記録には数えない
 const TUT_SEED = 4;
@@ -5304,6 +5466,11 @@ $('#soundBtn').addEventListener('click', () => { sfxOn = !sfxOn; DB.muted = !sfx
 $('#bgmBtn').addEventListener('click', () => setBgm(!bgmOn));
 $('#speedBtn').addEventListener('click', () => { S.speed = S.speed > 1 ? 1 : 2; DB.speed = S.speed; save(); $('#speedBtn').classList.toggle('on', S.speed > 1); });
 $('#dailyBtn').addEventListener('click', () => startDaily(false));
+$('#rankBtn').addEventListener('click', () => openRank(today()));
+$('#rankToday').addEventListener('click', () => openRank(today()));
+$('#rankYday').addEventListener('click', () => openRank(K.jstDateKey(new Date(Date.now() - 86400000))));
+$('#rankClose').addEventListener('click', () => { $('#rankOv').hidden = true; rankDay = null; });
+$('#rankRename').addEventListener('click', () => askRankName(async (ok) => { if (ok) { await rankFetch('/name', { day: today(), player: rankId(), name: DB.rk.name }); if (rankDay) openRank(rankDay); } }, true));
 $('#hinoTitle').addEventListener('click', () => { S.hinoTap = performance.now(); const lines = t('hinoTap'); toast(lines[Math.floor(Math.random() * lines.length)]); SFX.pick(); });
 $('#freeBtn').addEventListener('click', startFree);
 $('#tutBtn').addEventListener('click', startTutorial);
@@ -5339,6 +5506,7 @@ function mashing() { return tapGap < 320 && performance.now() - lastTap < 1000; 
 // パソコンのキー: Space/Enter 次へ（集計・今夜の花火を飛ばす・画面のいちばん大事なボタン）、F 早送り、M 効果音、B BGM、Esc/P ひと休み
 window.addEventListener('keydown', (ev) => {
   gestured = true;
+  if (ev.target && /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return; // 名前を打っている間は、ゲームのキーにしない
   if (CG.adOn) { ev.preventDefault(); return; } // 広告の間は、キーを受けない
   if (coachCur) { if ([' ', 'Enter', 'Escape'].includes(ev.key)) { ev.preventDefault(); coachDone(); } return; } // 手ほどきの間は、読んで次へだけ
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
@@ -5453,6 +5621,7 @@ applyLang();
 renderSound();
 goTitle();
 booted = true;
+rankHealth(); // ランキングのサーバーが返事をしたら、ランキングのボタンを出す
 // ゲームサイト: SDK を起こし、この端末に保存が無ければ、クラウドの保存から続ける
 const cgBoot = CG.init().then((ok) => {
   // 言葉: 自分で選んでいなければ、ゲームサイトが知らせる言葉に合わせる
