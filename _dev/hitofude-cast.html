@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>一筆花火 登場人物シート</title>
+<!-- 開発用: assets/hitofude/cast.js の絵を一覧で見る。python3 -m http.server で repo の根を出して /_dev/hitofude-cast.html を開く
+     ?t=1.2 で時間を止めて描く / ?still=1 で動きなし / ?lang=en で英語 -->
+<style>
+:root{--gold:#ffd75a;--text:#f1ead8;--dim:#a9a4bd;--line:rgba(255,215,90,.22);--n1:#0f1030;--n2:#1a1240}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:linear-gradient(180deg,var(--n1),var(--n2) 60%,var(--n1));color:var(--text);
+  font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,sans-serif;min-height:100vh}
+.serif{font-family:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif}
+header{padding:22px 24px 6px;display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 18px}
+h1{margin:0;font-size:24px;letter-spacing:.08em;color:var(--gold)}
+header p{margin:0;color:var(--dim);font-size:13px}
+.ctl{margin-left:auto;display:flex;gap:8px}
+.ctl button{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font:inherit;font-size:12px;cursor:pointer}
+.ctl button:hover{border-color:var(--gold)}
+section{padding:10px 24px 18px}
+h2{font-size:15px;letter-spacing:.14em;color:var(--gold);margin:14px 0 10px;font-weight:700}
+h2 small{color:var(--dim);letter-spacing:.04em;font-weight:400;margin-left:8px}
+.row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+.panel{border:1px solid var(--line);border-radius:16px;overflow:hidden;position:relative}
+.bgA{background:var(--n1)} .bgB{background:var(--n2)}
+canvas{display:block}
+/* 大一番の幕間 */
+.boss{width:520px;height:300px}
+.boss .txt{position:absolute;left:18px;top:18px;width:230px;pointer-events:none}
+.boss .lbl{display:inline-block;background:#d8322a;color:#fff;font-weight:800;font-size:12px;letter-spacing:.2em;padding:3px 9px;border-radius:5px}
+.boss .tw{display:inline-block;margin-left:8px;color:#fff;font-weight:800;font-size:18px;vertical-align:middle}
+.boss .nm{margin-top:12px;font-size:30px;font-weight:800;letter-spacing:.06em;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+.boss .tt{font-size:13px;color:var(--dim);letter-spacing:.1em}
+.bubble{position:absolute;background:#fffaf0;color:#2a1a10;border-radius:14px;padding:9px 13px;font-size:14px;line-height:1.5;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+.bubble::after{content:"";position:absolute;width:14px;height:14px;background:#fffaf0;transform:rotate(45deg)}
+.boss .bubble{left:16px;bottom:16px;width:226px}
+.boss .bubble::after{right:-5px;top:16px}
+/* 屋台 */
+.stall{width:640px;height:400px}
+.stall .bubble{left:22px;top:150px;width:188px}
+.stall .bubble::after{right:-5px;top:22px}
+/* 一覧 */
+.who{padding:12px 14px 4px;display:flex;align-items:baseline;gap:10px}
+.who b{font-size:18px;letter-spacing:.06em}
+.who i{font-style:normal;color:var(--dim);font-size:12px}
+.chip{width:12px;height:12px;border-radius:50%;display:inline-block;transform:translateY(1px)}
+.cap{font-size:11px;color:var(--dim);text-align:center;letter-spacing:.06em}
+table{border-collapse:collapse;font-size:13px;line-height:1.55;width:100%;max-width:1200px}
+td,th{border-bottom:1px solid rgba(255,255,255,.08);padding:6px 8px;vertical-align:top;text-align:left}
+th{color:var(--gold);font-weight:700;white-space:nowrap}
+td.k{color:var(--dim);white-space:nowrap}
+td.en{color:#cfd3ff}
+</style>
+</head>
+<body>
+<header>
+  <h1 class="serif">一筆花火　登場人物シート</h1>
+  <p>cast.js の絵（大一番の妖怪・屋台の招き猫・ヒノコの着せかえ・花火合戦の相手の小物）</p>
+  <div class="ctl"><button id="play">止める</button><button id="lang">English</button></div>
+</header>
+
+<section>
+  <h2>大一番の幕間 <small>boss intro cards (260px / 200px)</small></h2>
+  <div class="row" id="bosses"></div>
+</section>
+
+<section>
+  <h2>星の屋台 <small>stall scene</small></h2>
+  <div class="row" id="stall"></div>
+</section>
+
+<section>
+  <h2>顔 × 大きさ <small>every face at 28 / 64 / 120 px (body height)</small></h2>
+  <div id="faces"></div>
+</section>
+
+<section>
+  <h2>向き・止め絵・HUD <small>flip: true / still: true / 28px HUD row on #0f1030 and #1a1240, glow: false</small></h2>
+  <div class="row" id="misc"></div>
+</section>
+
+<section>
+  <h2>ヒノコの着せかえ <small>Hinoko outfits, r = 9 / 20 / 46</small></h2>
+  <div class="row" id="outfits"></div>
+</section>
+
+<section>
+  <h2>花火合戦の相手 <small>rivals: plain body vs. with gear, r = 8.5 / 20 / 44</small></h2>
+  <div class="row" id="rivals"></div>
+</section>
+
+<section>
+  <h2>せりふ <small>lines (ja / en)</small></h2>
+  <div id="lines"></div>
+</section>
+
+<script type="module">
+import { CAST, BOSSES, FACES, OUTFITS, RIVAL_GEAR, drawCast, drawOutfit, drawRivalGear } from '../assets/hitofude/cast.js';
+import { drawHinoko, blinkAt } from '../assets/hitofude/hinoko.js';
+import { RIVALS, TWISTS } from '../assets/hitofude/core.js';
+import { drawOmamori } from '../assets/hitofude/icons.js';
+
+const Q = new URLSearchParams(location.search);
+const FIXED = Q.has('t') ? Number(Q.get('t')) : null;
+const STILL = Q.get('still') === '1';
+let lang = Q.get('lang') === 'en' ? 'en' : 'ja';
+let playing = FIXED === null;
+const DPR = Math.min(2, window.devicePixelRatio || 1);
+const views = [];
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+function canvas(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * DPR); c.height = Math.round(h * DPR); c.style.width = w + 'px'; c.style.height = h + 'px';
+  const g = c.getContext('2d');
+  views.push({ g, w, h, draw });
+  return c;
+}
+const L = (o, k) => (lang === 'en' ? o[k + 'En'] ?? o[k] : o[k]);
+
+// ---- 大一番の幕間
+function bossCard(id, big, i) {
+  const C = CAST[id], tw = TWISTS.find((x) => x.id === C.twist);
+  const p = el('div', 'panel boss');
+  const W = 520, H = 300, CX = 390;
+  p.append(canvas(W, H, (g, t) => {
+    // 夜空と、妖怪の色のスポットライト
+    const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#0f1030'); bg.addColorStop(1, '#1a1240');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    const sp = g.createRadialGradient(CX, 150, 10, CX, 150, 230); sp.addColorStop(0, C.color + '55'); sp.addColorStop(1, C.color + '00');
+    g.fillStyle = sp; g.fillRect(0, 0, W, H);
+    for (let k = 0; k < 40; k++) { const x = (k * 97.3) % W, y = (k * 53.7) % (H * 0.7); g.fillStyle = `rgba(255,248,230,${0.25 + 0.5 * Math.abs(Math.sin(t * 1.3 + k))})`; g.fillRect(x, y, 1.3, 1.3); }
+    // 大きな集中線
+    g.save(); g.translate(CX, 150); g.globalAlpha = 0.09; g.fillStyle = '#fff';
+    for (let k = 0; k < 18; k++) { g.rotate(Math.PI * 2 / 18); g.beginPath(); g.moveTo(60, -3); g.lineTo(260, -14); g.lineTo(260, 14); g.closePath(); g.fill(); }
+    g.restore();
+    const face = (Math.floor(t / 2.2) + i) % 2 ? 'taunt' : 'idle';
+    drawCast(g, id, CX, big ? 158 : 166, big ? 220 : 190, { face: FIXED !== null ? 'taunt' : face, t, still: STILL, blink: true });
+  }));
+  const txt = el('div', 'txt');
+  const top = el('div'); top.append(el('span', 'lbl', lang === 'en' ? 'BOSS' : '大一番'), el('span', 'tw', lang === 'en' ? tw.en : tw.ja));
+  const nm = el('div', 'nm serif', L(C, 'name')); nm.style.color = C.color;
+  txt.append(top, nm, el('div', 'tt', L(C, 'title')));
+  const b = el('div', 'bubble', L(C, 'say').intro);
+  p.append(txt, b);
+  return p;
+}
+
+// ---- 星の屋台
+function stall() {
+  const p = el('div', 'panel stall bgB');
+  const W = 640, H = 400;
+  p.append(canvas(W, H, (g, t) => {
+    const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#0f1030'); bg.addColorStop(1, '#1a1240');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    for (let k = 0; k < 50; k++) { const x = (k * 131.7) % W, y = (k * 71.3) % 120; g.fillStyle = `rgba(255,248,230,${0.2 + 0.5 * Math.abs(Math.sin(t + k))})`; g.fillRect(x, y, 1.2, 1.2); }
+    // 遠くの屋台のあかり
+    for (let k = 0; k < 7; k++) { const x = 20 + k * 95, gl = g.createRadialGradient(x, 300, 2, x, 300, 46); gl.addColorStop(0, 'rgba(255,170,90,.22)'); gl.addColorStop(1, 'rgba(255,140,60,0)'); g.fillStyle = gl; g.fillRect(x - 46, 254, 92, 92); }
+    // 屋台の柱と屋根（紅白のひさし）
+    const X0 = 214, X1 = 624;
+    g.fillStyle = '#4a2e1e'; g.fillRect(X0 + 8, 70, 12, 262); g.fillRect(X1 - 20, 70, 12, 262);
+    g.fillStyle = 'rgba(255,190,120,.06)'; g.fillRect(X0 + 20, 100, X1 - X0 - 40, 170);
+    const n = 10, sw = (X1 - X0) / n;
+    for (let k = 0; k < n; k++) { g.fillStyle = k % 2 ? '#f6efe4' : '#d8322a'; g.fillRect(X0 + k * sw, 54, sw, 34); }
+    for (let k = 0; k < n * 2; k++) { g.fillStyle = Math.floor(k / 2) % 2 ? '#f6efe4' : '#d8322a'; g.beginPath(); g.arc(X0 + k * sw / 2 + sw / 4, 88, sw / 4, 0, Math.PI); g.fill(); }
+    g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(X0, 80, X1 - X0, 8);
+    // のれん（星・屋・台）
+    ['星', '屋', '台'].forEach((ch, k) => {
+      const x = 300 + k * 82;
+      g.fillStyle = '#2b3a8c'; g.beginPath(); g.roundRect(x, 98, 76, 50, [0, 0, 6, 6]); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x, 98, 76, 4);
+      g.font = '800 26px "Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = '#ffe6a0'; g.fillText(ch, x + 38, 124);
+    });
+    // 提灯
+    for (const [x, ph] of [[X0 + 14, 0], [X1 - 14, 1.7]]) {
+      const swg = STILL ? 0 : Math.sin(t * 1.3 + ph) * 0.06;
+      g.save(); g.translate(x, 92); g.rotate(swg);
+      const gl = g.createRadialGradient(0, 40, 4, 0, 40, 70); gl.addColorStop(0, 'rgba(255,150,80,.45)'); gl.addColorStop(1, 'rgba(255,120,60,0)');
+      g.fillStyle = gl; g.beginPath(); g.arc(0, 40, 70, 0, 7); g.fill();
+      g.fillStyle = '#2a1a14'; g.fillRect(-9, 16, 18, 5); g.fillRect(-9, 62, 18, 5);
+      const lg = g.createRadialGradient(-4, 34, 2, 0, 42, 24); lg.addColorStop(0, '#ffe0a0'); lg.addColorStop(0.5, '#ff7a3a'); lg.addColorStop(1, '#c8301e');
+      g.fillStyle = lg; g.beginPath(); g.ellipse(0, 42, 17, 22, 0, 0, 7); g.fill();
+      g.strokeStyle = 'rgba(120,20,10,.4)'; g.lineWidth = 1; for (const yy of [32, 42, 52]) { g.beginPath(); g.ellipse(0, yy, 16, 3, 0, 0, Math.PI); g.stroke(); }
+      g.restore();
+    }
+    // 招き猫（台の向こう）
+    const face = FIXED !== null ? 'idle' : ['idle', 'joy', 'idle', 'taunt'][Math.floor(t / 1.8) % 4];
+    drawCast(g, 'neko', 340, 226, 150, { face, t, still: STILL, blink: true });
+    // 台
+    const cg = g.createLinearGradient(0, 268, 0, 332); cg.addColorStop(0, '#9a6a42'); cg.addColorStop(1, '#5a3a24');
+    g.fillStyle = cg; g.fillRect(X0 + 4, 268, X1 - X0 - 8, 64);
+    g.fillStyle = '#b8845a'; g.fillRect(X0 - 4, 262, X1 - X0 + 8, 10);
+    g.fillStyle = 'rgba(0,0,0,.25)'; for (let k = 0; k < 6; k++) g.fillRect(X0 + 22 + k * 66, 280, 2, 48);
+    // お守りと値札
+    ['kinun', 'kodou', 'chouchinshi'].forEach((id, k) => {
+      const x = 462 + k * 52, y = 236 + Math.sin(t * 2 + k) * (STILL ? 0 : 1.2);
+      drawOmamori(g, x, y, 48, id);
+      g.fillStyle = '#fffaf0'; g.beginPath(); g.roundRect(x - 16, 270, 32, 17, 4); g.fill();
+      g.fillStyle = '#c8301e'; g.font = '800 11px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(`★${k + 1}`, x, 279);
+    });
+    // 地面
+    g.fillStyle = '#0a0b22'; g.fillRect(0, 332, W, 68);
+    g.fillStyle = 'rgba(255,200,120,.08)'; g.fillRect(X0, 332, X1 - X0, 6);
+    // 手前で見上げるヒノコ（うちわ）
+    drawHinoko(g, 112, 344, 30, { face: FIXED !== null ? 'wow' : blinkAt(t, 1) && !STILL ? 'blink' : 'wow', t, still: STILL });
+    drawOutfit(g, 'uchiwa', 112, 344, 30, { t, still: STILL });
+  }));
+  const b = el('div', 'bubble', L(CAST.neko, 'say').welcome);
+  p.append(b);
+  return p;
+}
+
+// ---- 顔の一覧
+function facesRow(id, k) {
+  const C = CAST[id];
+  const wrap = el('div', `panel ${k % 2 ? 'bgB' : 'bgA'}`); wrap.style.marginBottom = '12px';
+  const who = el('div', 'who'); const chip = el('span', 'chip'); chip.style.background = C.color;
+  who.append(chip, el('b', 'serif', `${L(C, 'name')}`), el('i', '', `${lang === 'en' ? C.en : C.ja} · ${L(C, 'title')} · ${C.color}${C.twist ? ' · ' + C.twist : ''}`));
+  wrap.append(who);
+  const faces = [...FACES, 'blink'];
+  const sizes = [28, 64, 120], colW = 150, rowH = [44, 92, 170];
+  const X0 = 214, W = X0 + faces.length * colW, H = rowH.reduce((a, b) => a + b, 0) + 22;
+  wrap.append(canvas(W, H, (g, t) => {
+    g.font = '11px system-ui,sans-serif'; g.textAlign = 'center'; g.fillStyle = '#a9a4bd';
+    faces.forEach((f, j) => g.fillText(f, X0 + j * colW + colW / 2, 14));
+    // 左: 大きく動く姿
+    drawCast(g, id, 100, 130, 140, { face: 'idle', t, still: STILL, blink: true });
+    let y = 22;
+    sizes.forEach((s, r) => {
+      faces.forEach((f, j) => drawCast(g, id, X0 + j * colW + colW / 2, y + rowH[r] / 2 + s * 0.04, s, { face: f, t: t + j * 0.37, still: STILL, glow: s > 40 }));
+      g.fillStyle = '#6f6a88'; g.textAlign = 'left'; g.fillText(`${s}px`, X0 - 30, y + rowH[r] / 2 + 4); g.textAlign = 'center';
+      y += rowH[r];
+    });
+  }));
+  return wrap;
+}
+
+// ---- 向き・止め絵・HUD の大きさ
+function misc() {
+  const ids = [...BOSSES, 'neko'];
+  const p = el('div', 'panel bgA');
+  const W = 1080, H = 200;
+  p.append(canvas(W, H, (g, t) => {
+    ids.forEach((id, k) => {
+      drawCast(g, id, 70 + k * 200, 100, 110, { face: 'idle', t, still: STILL, flip: true, blink: true });
+      drawCast(g, id, 160 + k * 200, 120, 64, { face: 'joy', t, still: true });
+    });
+  }));
+  p.append(el('div', 'cap', 'flip（左） / still（右・動かない）'));
+  p.lastChild.style.padding = '0 0 8px';
+  const q = el('div', 'panel');
+  const W2 = 520, H2 = 92;
+  q.append(canvas(W2, H2, (g, t) => {
+    g.fillStyle = '#0f1030'; g.fillRect(0, 0, W2, H2 / 2); g.fillStyle = '#1a1240'; g.fillRect(0, H2 / 2, W2, H2 / 2);
+    // HUD を想定: 28px・光なし（盤面の上）と、22px
+    ids.forEach((id, k) => {
+      drawCast(g, id, 30 + k * 46, 24, 28, { face: 'idle', t, still: STILL, glow: false });
+      drawCast(g, id, 270 + k * 46, 24, 22, { face: FACES[k % FACES.length], t, still: STILL, glow: false });
+      drawCast(g, id, 30 + k * 46, 70, 28, { face: 'taunt', t, still: STILL });
+      drawCast(g, id, 270 + k * 46, 70, 22, { face: 'sad', t, still: STILL });
+    });
+  }));
+  q.append(el('div', 'cap', 'HUD 28px / 22px'));
+  q.lastChild.style.padding = '0 0 8px';
+  return [p, q];
+}
+
+// ---- 着せかえ
+function outfitCell(o, k) {
+  const p = el('div', `panel ${k % 2 ? 'bgB' : 'bgA'}`);
+  const W = 290, H = 220;
+  p.append(canvas(W, H, (g, t) => {
+    const items = [[30, 168, 9], [84, 152, 20], [182, 122, 46]];
+    for (const [x, y, r] of items) {
+      const tt = t + r * 0.1;
+      drawHinoko(g, x, y, r, { face: blinkAt(tt, r) && !STILL && FIXED === null ? 'blink' : r > 30 ? 'joy' : 'idle', t: tt, still: STILL, glow: r > 12 });
+      if (o) drawOutfit(g, o.id, x, y, r, { t: tt, still: STILL });
+    }
+    // 走っているとき（炎がなびく）
+    const dir = 0;
+    drawHinoko(g, 40, 64, 14, { face: 'joy', t, dir, stretch: 0.9, still: STILL });
+    if (o) drawOutfit(g, o.id, 40, 64, 14, { t, dir, stretch: 0.9, still: STILL });
+  }));
+  p.append(el('div', 'cap', o ? `${o.id} · ${lang === 'en' ? o.en : o.ja}` : (lang === 'en' ? 'no outfit' : '着せかえなし')));
+  p.lastChild.style.padding = '0 0 8px';
+  return p;
+}
+
+// ---- 花火合戦の相手
+function rivalCell(rv, k) {
+  const gear = RIVAL_GEAR.find((x) => x.id === rv.id);
+  const p = el('div', `panel ${k % 2 ? 'bgB' : 'bgA'}`);
+  const W = 330, H = 200;
+  p.append(canvas(W, H, (g, t) => {
+    const items = [[30, 150, 8.5], [82, 136, 20], [220, 112, 44]];
+    for (const [x, y, r] of items) {
+      const tt = t + r * 0.13;
+      drawHinoko(g, x, y, r, { face: blinkAt(tt, r) && !STILL && FIXED === null ? 'blink' : 'idle', t: tt, still: STILL, body: rv.body, glow: r > 12 });
+      drawRivalGear(g, rv.id, x, y, r, { t: tt, still: STILL, body: rv.body });
+    }
+    // 比べる: 小物なし
+    drawHinoko(g, 30, 58, 8.5, { face: 'idle', t, still: true, body: rv.body, glow: false });
+    g.fillStyle = '#6f6a88'; g.font = '10px system-ui,sans-serif'; g.textAlign = 'center'; g.fillText(lang === 'en' ? 'plain' : 'なし', 30, 84);
+  }));
+  p.append(el('div', 'cap', `${lang === 'en' ? rv.en : rv.ja} · ${lang === 'en' ? rv.titleEn : rv.title} — ${gear ? (lang === 'en' ? gear.en : gear.ja) : ''}`));
+  p.lastChild.style.padding = '0 8px 8px';
+  return p;
+}
+
+// ---- せりふ
+function linesTable() {
+  const tb = el('table');
+  const head = el('tr'); for (const h of ['', 'id', 'name / title', 'key', '日本語', 'English']) head.append(el('th', '', h)); tb.append(head);
+  for (const id of [...BOSSES, 'neko']) {
+    const C = CAST[id];
+    const keys = Object.keys(C.say);
+    let first = true;
+    for (const key of keys) {
+      const ja = C.say[key], en = C.sayEn[key];
+      const n = Array.isArray(ja) ? ja.length : 1;
+      for (let i = 0; i < n; i++) {
+        const tr = el('tr');
+        if (first) {
+          const c0 = el('td'); c0.rowSpan = keys.reduce((a, kk) => a + (Array.isArray(C.say[kk]) ? C.say[kk].length : 1), 0);
+          c0.append(canvas(64, 64, (g, t) => drawCast(g, id, 32, 34, 44, { face: 'idle', t, still: STILL, blink: true })));
+          tr.append(c0);
+          const c1 = el('td', 'k', id); c1.rowSpan = c0.rowSpan; tr.append(c1);
+          const c2 = el('td'); c2.rowSpan = c0.rowSpan;
+          const b = el('b', 'serif', `${C.name} / ${C.nameEn}`); b.style.color = C.color;
+          c2.append(b, el('div', '', `${C.title}`), el('div', 'en', C.titleEn)); c2.lastChild.className = 'en';
+          tr.append(c2);
+          first = false;
+        }
+        tr.append(el('td', 'k', n > 1 ? `${key} ${i + 1}` : key), el('td', '', Array.isArray(ja) ? ja[i] : ja), el('td', 'en', Array.isArray(en) ? en[i] : en));
+        tb.append(tr);
+      }
+    }
+  }
+  return tb;
+}
+
+function build() {
+  views.length = 0;
+  for (const s of ['#bosses', '#stall', '#faces', '#misc', '#outfits', '#rivals', '#lines']) $(s).innerHTML = '';
+  $('#misc').append(...misc());
+  BOSSES.forEach((id, i) => $('#bosses').append(bossCard(id, i === 0, i)));
+  $('#stall').append(stall());
+  [...BOSSES, 'neko'].forEach((id, k) => $('#faces').append(facesRow(id, k)));
+  $('#outfits').append(outfitCell(null, 1));
+  OUTFITS.forEach((o, k) => $('#outfits').append(outfitCell(o, k)));
+  RIVALS.forEach((rv, k) => $('#rivals').append(rivalCell(rv, k)));
+  $('#lines').append(linesTable());
+  $('#lang').textContent = lang === 'en' ? '日本語' : 'English';
+  draw(FIXED ?? performance.now() / 1000);
+}
+function draw(t) {
+  for (const v of views) {
+    v.g.setTransform(DPR, 0, 0, DPR, 0, 0); v.g.clearRect(0, 0, v.w, v.h);
+    v.draw(v.g, t);
+  }
+}
+function loop(now) { if (playing) draw(now / 1000); requestAnimationFrame(loop); }
+$('#play').addEventListener('click', () => { playing = !playing; $('#play').textContent = playing ? '止める' : '動かす'; });
+$('#lang').addEventListener('click', () => { lang = lang === 'en' ? 'ja' : 'en'; build(); });
+if (!playing) $('#play').textContent = '動かす';
+build();
+requestAnimationFrame(loop);
+window.CAST_READY = true;
+</script>
+</body>
+</html>
