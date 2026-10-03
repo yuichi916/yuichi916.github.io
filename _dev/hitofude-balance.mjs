@@ -16,19 +16,19 @@ export const POOLS = {
   all: K.CHARM_IDS.filter((id) => K.charmById(id).rarity !== 'legend'),
   legend: K.CHARM_IDS.slice(),
 };
-// お守りの値打ち（Lv1 を持ったときの、だいたいの点の伸び。node _dev/hitofude-balance.mjs value（近い順の線）で測った中央値）。
+// お守りの値打ち（Lv1 を持ったときの、だいたいの点の伸び。node _dev/hitofude-balance.mjs value（近い順の線、N=60）で測った幾何平均）。
 // LV_GAINS[id] = [Lv1→2, Lv2→3] の伸びを、Lv1 の伸び（log）に対する割合で（測った値。無ければ LV_GAIN）
 export const VALUE = {
-  nihitsu: 1.39, nokorizumi: 1.38, mashidama: 1.38, suminagashi: 1.37, kodou: 1.36, tengu: 1.35, osobi: 1.29, nokoribi: 1.29,
-  kitsune: 1.28, renjishi: 1.28, chouchinshi: 1.26, senkou: 1.24, owaridama: 1.24, hanaikada: 1.24, tanuki: 1.23, kamaitachi: 1.23,
-  nagafude: 1.23, amayoke: 1.23, tairin: 1.23, maneki: 1.21, mankai: 1.21, kinun: 1.21, kazekiri: 1.16, ichibanboshi: 1.12,
+  kodou: 1.38, nokorizumi: 1.37, renjishi: 1.36, suminagashi: 1.34, nihitsu: 1.33, tairin: 1.33, kazekiri: 1.32, owaridama: 1.32,
+  nokoribi: 1.32, kitsune: 1.31, nagafude: 1.29, tanuki: 1.28, osobi: 1.28, chouchinshi: 1.26, tengu: 1.26, mankai: 1.25,
+  hanaikada: 1.24, kamaitachi: 1.24, ichibanboshi: 1.23, maneki: 1.22, kinun: 1.21, amayoke: 1.20, mashidama: 1.20, senkou: 1.18,
 };
 export const LV_GAIN = 0.7;
 export const LV_GAINS = {
-  amayoke: [1.7, 1.02], chouchinshi: [0.79, 1.16], hanaikada: [0.81, 1.24], ichibanboshi: [0.95, 1.13], kamaitachi: [0.69, 0.84], kazekiri: [0.73, 1.94],
-  kinun: [0.82, 1.24], kitsune: [0.15, 1.19], kodou: [0.52, 1.03], maneki: [0.46, 2.17], mankai: [0.71, 1.48], mashidama: [0.48, 0.98],
-  nagafude: [0.36, 0.7], nihitsu: [0.36, 0.54], nokoribi: [0.39, 1.04], nokorizumi: [0.76, 1.04], osobi: [0.58, 0.8], owaridama: [0.57, 1.78],
-  renjishi: [0.55, 1.52], senkou: [0.58, 0.74], suminagashi: [0.61, 1.13], tairin: [1.12, 1.23], tanuki: [0.1, 1.02], tengu: [0.5, 0.79],
+  amayoke: [1.86, 1.16], chouchinshi: [0.78, 1.1], hanaikada: [0.81, 1.15], ichibanboshi: [0.3, 0.94], kamaitachi: [0.63, 1.06], kazekiri: [0.34, 1.18],
+  kinun: [0.83, 1.16], kitsune: [0.15, 1.12], kodou: [0.47, 0.99], maneki: [0.47, 1.45], mankai: [0.73, 1.34], mashidama: [0.86, 1.69],
+  nagafude: [0.39, 1.2], nihitsu: [0.37, 0.75], nokoribi: [0.29, 1], nokorizumi: [0.77, 1.03], osobi: [0.6, 1.1], owaridama: [0.42, 0.92],
+  renjishi: [0.4, 1.05], senkou: [0.77, 1.21], suminagashi: [0.64, 1.36], tairin: [0.83, 0.79], tanuki: [0.11, 1.24], tengu: [0.66, 1.22],
 };
 export const PRIORITY = Object.keys(VALUE).sort((a, b) => VALUE[b] - VALUE[a]);
 const cum = (id, lv) => { const g = LV_GAINS[id] || [LV_GAIN, LV_GAIN]; return lv <= 0 ? 0 : lv === 1 ? 1 : lv === 2 ? 1 + g[0] : 1 + g[0] + g[1]; };

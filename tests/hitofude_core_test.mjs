@@ -368,6 +368,22 @@ check('お守りの候補（13版）: 型しぼり（opts.focus）は、候補�
   eq(K.offerCharms(9, 3, [], 0, { focus: 'nope' }).join(), K.offerCharms(9, 3, []).join());
 });
 
+check('お守りの候補（13版）: opts.caps で Lv の上限（伝説の Lv3 を条件つきにする）', () => {
+  const pool = K.CHARM_IDS.slice(), held = ['tengu', 'tengu', 'kinun', 'kodou'];
+  let up = 0;
+  for (let seed = 1; seed < 200; seed++) {
+    const o = K.offerCharms(seed, 4, held, 0, { pool, caps: { tengu: 2, kitsune: 0 } });
+    eq(o.length, 3);
+    ok(!o.includes('tengu'), '上限の Lv2 に届いた天狗は出ない');
+    ok(!o.includes('kitsune'), '上限 0 は出ない');
+    ok(o.some((id) => ['kinun', 'kodou'].includes(id)), 'Lv 上げの枠は上限の下のものから');
+    if (K.offerCharms(seed, 4, held, 0, { pool }).includes('tengu')) up++;
+  }
+  ok(up > 0, '上限が無ければ天狗の Lv 上げも出る');
+  ok(!K.focusTags(4, ['tengu', 'tengu'], { pool: ['tengu'], caps: { tengu: 2 } }).includes('risk'), '型しぼりも上限を守る');
+  eq(K.offerCharms(9, 3, [], 0, { caps: {} }).join(), K.offerCharms(9, 3, []).join(), '空の caps は何も変えない');
+});
+
 check('はじめのお守り（startOffer）: シードで決まる 3 つ・pool の中・伝説と仕掛けのお守りは出ない・型がなるべく別々', () => {
   const pool = ['kinun', 'kodou', 'tairin', 'chouchinshi', 'mashidama', 'amayoke', 'nokorizumi', 'maneki', 'senkou', 'tengu'];
   const seen = new Set();

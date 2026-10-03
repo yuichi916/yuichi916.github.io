@@ -332,7 +332,7 @@ export const DAMP_HITS = 2;          // 湿った玉を爆発だけでひらく�
 // お守りの Lv1 の数字（前の版からの名前。Lv ごとの数字は CHARM_LV）
 export const OWARI_DELAY = 0.6;      // 終わり玉: 線の終わりに火が届いてから爆ぜるまで（秒）
 export const OWARI_R = 130;          // 終わり玉の大きさ（Lv1）
-export const NIHITSU_SHARE = 0.6;    // 二筆目: この割合の玉がひらいていれば、もう1本（Lv1）
+export const NIHITSU_SHARE = 0.55;   // 二筆目: この割合の玉がひらいていれば、もう1本（Lv1）
 export const NIHITSU_INK = 0.3;      // 二筆目の墨（1 本目の基本の墨に対して。Lv1）
 export const SLOW_FUSE = 0.6;        // 遅火: 導火線の速さ
 export const SLOW_MULT = 3;          // 遅火: 倍率の足し分（Lv1）
@@ -358,26 +358,26 @@ export const DEEP_SPARKS = 4;        // 連獅子 Lv3: 深い玉が飛ばす火�
 export const CHARM_LV = {
   nagafude: { ink: [1.7, 2, 2.2], reach: [1.3, 1.6, 2], cloud: [0, 0, 1], touchR: [1, 1, 1.5] },
   nokorizumi: { mult: [1, 2, 2], half: [1, 1, 1.5] },
-  tairin: { soft: [1, 2, 2], size: [1.1, 1.15, 1.25], keep: [0, 0, 4] },
+  tairin: { soft: [1, 2, 2], size: [1.1, 1.15, 1.2], keep: [0, 0, 3] },
   kinun: { gold: [2, 3, 4], R: [0, 0, 90] },
-  osobi: { mult: [SLOW_MULT, 5, 6], touch: [0, 0, 2] },
+  osobi: { mult: [SLOW_MULT, 5, 7], touch: [0, 0, 2] },
   ichibanboshi: { gold: [STAR_GOLD, 4, 6], sparks: [0, 0, 10] },
-  owaridama: { R: [OWARI_R, 150, 170], tori: [2, 4, 6], start: [0, 0, 1] },
-  kodou: { step: [KODOU_STEP, 3, 3], chips: [1, 1, 1.6] },
-  mankai: { share: [0.85, 0.8, 0.75], x: [1.5, 1.75, 2], near: [0, 0, 2] },
+  owaridama: { R: [OWARI_R, 150, 170], tori: [2, 4, 7], start: [0, 0, 1] },
+  kodou: { step: [KODOU_STEP, 3, 3], chips: [1, 1, 1.5] },
+  mankai: { share: [0.85, 0.8, 0.75], x: [1.5, 1.8, 2.1], near: [0, 0, 2] },
   mashidama: { n: [MASHI_N, 8, 8], big: [0, 0, 3] },
   nihitsu: { share: [NIHITSU_SHARE, 0.5, 0.45], ink: [NIHITSU_INK, 0.4, 0.5], keep: [0, 0, 1] },
-  nokoribi: { p: [0.45, 0.6, 0.7], again: [0, 0, 1] },
+  nokoribi: { p: [0.5, 0.6, 0.7], again: [0, 0, 1] },
   chouchinshi: { gain: [1.5, 2, 2], lantern: [0, 0, 1] },
-  amayoke: { pts: [1.5, 2, 2.5], mult: [0, 1, 1], R: [0, 0, 90] },
+  amayoke: { pts: [1.5, 1.8, 2.2], mult: [0, 1, 1], R: [0, 0, 90] },
   kazekiri: { scale: [0.5, 0.25, 0], mult: [2, 3, 5], big: [0, 0, 1] },
-  maneki: { x: [1.1, 1.15, 1.15], gold: [0, 0, 1] },
+  maneki: { x: [1.12, 1.17, 1.17], gold: [0, 0, 1] },
   hanaikada: { mult: [2, 4, 6], sparks: [0, 0, LV3_SPARKS] },
-  renjishi: { x: [0.08, 0.12, 0.16], deep: [0, 0, 4] },
-  suminagashi: { pct: [0.1, 0.18, 0.25], blast: [0, 0, 25] },
+  renjishi: { x: [0.09, 0.13, 0.17], deep: [0, 0, 4] },
+  suminagashi: { pct: [0.1, 0.17, 0.23], blast: [0, 0, 25] },
   senkou: { ink: [0.7, 0.7, 0.7], x: [1.6, 1.85, 2.2], sparks: [0, 0, 1] },
   tengu: { x: [1.35, 1.65, 2.2], gust: [0, 0, 1] },
-  tanuki: { part: [0.75, 1, 1], flip: [0, 0, 1] },
+  tanuki: { part: [0.8, 1, 1], flip: [0, 0, 1] },
   kitsune: { n: [4, 6, 9], relay: [0, 0, 1] },
   kamaitachi: { speed: [1.6, 1.6, 1.6], decay: [0.04, 0.04, 0.04], x: [1.35, 1.55, 1.95], both: [0, 0, 1] },
 };
@@ -1971,6 +1971,7 @@ export function vsShareText(match, lang, url = SITE_URL) {
 // 数は opts.count（無ければ段位の offer。ふだん 3）。同じ種類にかたよらないように、倍率・届く玉は 数 − 1 まで、
 // 仕掛けへの備えは 1 つまで（足りなければ残りから足す）。
 // opts.focus = 型（屋台の「型しぼり」）: 候補はみんなその型のもの（Lv 上げも、その型のものだけ）。足りなければ数が減る（focusTags で、選べる型がわかる）。
+// opts.caps = { id: 上限の Lv }: そのお守りは、その Lv までしか出さない（伝説の Lv3 を条件つきにするとき。上限に届いたものは Lv 上げの枠にも出ない）。
 // 並びは引いた順。決定的
 export const RARITY_W = { common: 1, rare: 0.5, legend: 0.3 };
 export const SYNERGY_W = 0.75;
@@ -1980,10 +1981,12 @@ export function charmNeed(id, level = 0) { return id === 'kazekiri' && levelFx(l
 // その夜に候補に出せるお守り（重みつき）
 function offerItems(night, held, opts = {}) {
   const level = opts.level || 0, lv = charmLevels(held), focus = TAGS.includes(opts.focus) ? opts.focus : null;
+  // opts.caps = { id: その Lv まで }（meta の legendLv など。0 なら出さない）
+  const capOf = (id) => (opts.caps && Number.isFinite(opts.caps[id]) ? Math.max(0, Math.min(MAX_LV, Math.floor(opts.caps[id]))) : MAX_LV);
   const heldTags = new Set();
   for (const id in lv) for (const t of charmById(id).tags) heldTags.add(t);
   return CHARM_IDS.filter((id) => lv[id] || (opts.pool ? opts.pool.includes(id) : charmById(id).rarity !== 'legend'))
-    .filter((id) => (lv[id] || 0) < MAX_LV && charmNeed(id, level) <= night + 1 && (!focus || charmById(id).tags.includes(focus)))
+    .filter((id) => (lv[id] || 0) < capOf(id) && charmNeed(id, level) <= night + 1 && (!focus || charmById(id).tags.includes(focus)))
     .map((id) => { const c = charmById(id), shared = c.tags.filter((t) => heldTags.has(t)).length; return { id, w: (RARITY_W[c.rarity] || 1) * (1 + SYNERGY_W * shared) }; });
 }
 // 重みつきで、1 つずつ引いて並べる（足し算と掛け算だけ。どの端末でも同じ並びになる）
