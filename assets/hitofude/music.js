@@ -140,7 +140,34 @@ export function createMusic(ac, out, noiseBuf) {
   }
 
   // ---------------------------------------------------------------- 曲のファイル
+  // 長い曲（calm・burn）は展開せずに <audio> から流す（展開すると 1 曲で数十 MB になる）。
+  // 同じ <audio> から作れる音の口は 1 つだけなので、tr に覚えておき、音量のつまみを通して dest へつなぐ。
+  // 止めても <audio> は止めた所を覚えているので、burn は前回の続きから鳴る
+  function streamSource(tr, dest) {
+    const el = tr.el;
+    if (!tr.node) {
+      tr.node = ac.createMediaElementSource(el); tr.vol = ac.createGain(); tr.vol.gain.value = 0;
+      tr.node.connect(tr.vol);
+      // ループのつなぎ目: loopStart があれば、終わったらそこへ戻る。loopEnd があれば、そこで戻る
+      el.loop = !tr.loopStart && !tr.loopEnd;
+      el.addEventListener('ended', () => { if (tr.on) { el.currentTime = tr.loopStart || 0; el.play().catch(() => {}); } });
+      if (tr.loopEnd) el.addEventListener('timeupdate', () => { if (tr.on && el.currentTime >= tr.loopEnd) el.currentTime = tr.loopStart || 0; });
+    }
+    try { tr.vol.disconnect(); } catch (e) { /* つないでいない */ }
+    tr.vol.connect(dest);
+    const t0 = ac.currentTime + 0.02;
+    tr.vol.gain.cancelScheduledValues(t0); tr.vol.gain.setValueAtTime(0, t0); tr.vol.gain.linearRampToValueAtTime(tr.gain ?? 1, t0 + 0.05);
+    tr.on = true; el.play().catch(() => {});
+    return {
+      stop() {
+        tr.on = false; const t1 = ac.currentTime;
+        tr.vol.gain.cancelScheduledValues(t1); tr.vol.gain.setValueAtTime(tr.vol.gain.value, t1); tr.vol.gain.linearRampToValueAtTime(0, t1 + 0.04);
+        setTimeout(() => { if (!tr.on) el.pause(); }, 60);
+      },
+    };
+  }
   function loopSource(tr, dest, offset = 0) {
+    if (tr.el) return streamSource(tr, dest);
     const src = ac.createBufferSource();
     src.buffer = tr.buf; src.loop = true;
     src.loopStart = tr.loopStart || 0;
@@ -189,7 +216,7 @@ export function createMusic(ac, out, noiseBuf) {
         if (files && files.burn && !burnSrc) { burnSrc = loopSource(files.burn, burn, burnPos); burnAt = ac.currentTime; }
       } else {
         fade(calm, 1, 1.2); fade(burn, 0, 1.2);
-        if (burnSrc) {
+        if (burnSrc && burnSrc.buffer) {
           const s0 = burnSrc.loopStart, len = (burnSrc.loopEnd || burnSrc.buffer.duration) - s0;
           const p = burnPos + ac.currentTime - burnAt;
           burnPos = p < s0 + len ? p : s0 + ((p - s0) % len);

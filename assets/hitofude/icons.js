@@ -142,7 +142,12 @@ export const CHARM_ART = {
   mankai: ['満', '#b98d25'], mashidama: ['増', '#c44d36'], nihitsu: ['二', '#3d8250'], nokoribi: ['残', '#c05a26'],
   chouchinshi: ['灯', '#b8352c'], amayoke: ['雨', '#357aa0'], kazekiri: ['風', '#3f8f8c'],
   nokorizumi: ['墨', '#2f3346'], osobi: ['遅', '#6d4a8f'], ichibanboshi: ['星', '#b07a1e'],
+  maneki: ['招', '#c38a1c'], hanaikada: ['筏', '#c2557f'], renjishi: ['獅', '#a8302a'], suminagashi: ['流', '#35577a'], senkou: ['線', '#7d3c96'],
+  // 伝説（大一番の妖怪に勝つと出る）: 金の袋に、妖怪の字
+  tengu: ['天', '#c8901c'], tanuki: ['狸', '#c8901c'], kitsune: ['狐', '#c8901c'], kamaitachi: ['鎌', '#c8901c'],
 };
+// 伝説のお守りは、後ろに光の輪と、字の色を妖怪の色に
+const LEGEND = { tengu: '#e0452c', tanuki: '#7a4a1c', kitsune: '#4b4fb8', kamaitachi: '#1f8f72' };
 const MINCHO = '"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
 const shade = (hex, k) => {
   const n = parseInt(hex.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -163,6 +168,17 @@ export function drawOmamori(g, cx, cy, h, id) {
     g.closePath();
   };
   g.save();
+  const legend = LEGEND[id];
+  if (legend) {
+    // 後光（細い光の筋）
+    const halo = g.createRadialGradient(cx, cy, h * 0.1, cx, cy, h * 0.43);
+    halo.addColorStop(0, 'rgba(255,230,140,.55)'); halo.addColorStop(1, 'rgba(255,200,80,0)');
+    g.fillStyle = halo; g.beginPath(); g.arc(cx, cy, h * 0.43, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(255,225,140,.5)'; g.lineWidth = Math.max(0.6, h * 0.015);
+    g.beginPath();
+    for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; g.moveTo(cx + Math.cos(a) * h * 0.33, cy + Math.sin(a) * h * 0.33); g.lineTo(cx + Math.cos(a) * h * 0.42, cy + Math.sin(a) * h * 0.42); }
+    g.stroke();
+  }
   // 影と布
   g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = h * 0.08; g.shadowOffsetY = h * 0.03;
   const gr = g.createLinearGradient(0, top, 0, bot);
@@ -194,8 +210,8 @@ export function drawOmamori(g, cx, cy, h, id) {
   // 字（金、黒いふち）
   g.font = `800 ${h * 0.36}px ${MINCHO}`; g.textAlign = 'center'; g.textBaseline = 'middle';
   const ty = (top + sh * 0.5 + bot) / 2 + h * 0.02;
-  g.lineWidth = Math.max(1, h * 0.04); g.strokeStyle = 'rgba(30,14,6,.55)'; g.strokeText(kanji, cx, ty);
-  g.fillStyle = '#ffe6a0'; g.fillText(kanji, cx, ty);
+  g.lineWidth = Math.max(1, h * 0.04); g.strokeStyle = legend ? 'rgba(255,248,220,.85)' : 'rgba(30,14,6,.55)'; g.strokeText(kanji, cx, ty);
+  g.fillStyle = legend || '#ffe6a0'; g.fillText(kanji, cx, ty);
   // 結び目とひも
   const ky = top - h * 0.015, kr = h * 0.055;
   g.strokeStyle = '#f3e3b8'; g.lineWidth = Math.max(1, h * 0.03); g.lineCap = 'round';
