@@ -53,8 +53,14 @@ def portal_strip(html: str) -> str:
     html = re.sub(r'<script type="application/ld\+json">.*?</script>\s*', "", html, flags=re.S)
     # 画面の側で「ゲームサイト用」と分かるように（結果を 1 列にする など）
     # CrazyGames の SDK v3（遊んでいる/止めた の合図・広告・クラウド保存）。ほかのサイトでは SDK が動かず、画面の側で何もしない
+    # タブの名前は短く（言葉は画面の側で、ゲームサイトが知らせる言葉に合わせて付けなおす）
+    html = re.sub(r"<title>[^<]*</title>", "<title>Hitofude Hanabi</title>", html, count=1)
+    # SDK は読みこんだらすぐ起こし、読みこみの始めの合図を出す（画面の側は window.__cgInit を待って、終わりの合図を出す）
     return html.replace("</head>", PORTAL_CSS + "<script>window.HITO_PORTAL=1</script>"
-                        "<script src=\"https://sdk.crazygames.com/crazygames-sdk-v3.js\"></script></head>", 1)
+                        "<script src=\"https://sdk.crazygames.com/crazygames-sdk-v3.js\"></script>"
+                        "<script>(()=>{try{const s=window.CrazyGames&&window.CrazyGames.SDK;if(!s)return;"
+                        "window.__cgInit=s.init().then(()=>{try{if(s.environment!=='disabled')s.game.loadingStart();}catch(e){}});"
+                        "}catch(e){}})();</script></head>", 1)
 
 
 FONT_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
