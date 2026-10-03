@@ -1337,6 +1337,22 @@ check('Lv3: 二筆目は残した墨も使える・狸の葉っぱは上下に�
   ok(fx3.res.pops > fx2.res.pops, `Lv3 ${fx3.res.pops} / Lv2 ${fx2.res.pops}`);
 });
 
+check('型そろい（13版）: 同じ型のお守りを 3 種類（提灯は 2 種類）で掛け算・多いほど大きい・いちばん良い型 1 つだけ・花火合戦には無い', () => {
+  eq(K.setBonus(['kinun', 'maneki']), null, '2 種類では無い');
+  eq(JSON.stringify(K.setBonus(['kinun', 'kinun', 'maneki', 'ichibanboshi'])), JSON.stringify({ tag: 'gold', n: 3, need: 3, x: K.SET_X[0] }), 'Lv ではなく種類で数える');
+  eq(K.setBonus(['chouchinshi', 'hanaikada']).x, K.SET_X[0], '提灯は 2 種類');
+  eq(K.setBonus(['tairin', 'kodou', 'nokoribi', 'renjishi']).x, K.SET_X[1]);
+  eq(K.setBonus(['tairin', 'kodou', 'nokoribi', 'renjishi', 'mashidama']).x, K.SET_X[2]);
+  eq(K.setBonus(['nagafude', 'tairin', 'owaridama', 'mashidama', 'nihitsu']), null, '届く・仕掛けの型には無い');
+  eq(K.setBonus(['tairin', 'kodou', 'nokoribi', 'renjishi', 'chouchinshi', 'hanaikada']).tag, 'chain', 'いちばん良い型');
+  ok(K.SET_TAGS.every((t) => K.CHARMS.filter((c) => c.tags.includes(t)).length >= K.SET_NEED[t]), 'どの型もそろえられる');
+  // 点の内訳に kata（型そろい）として入る
+  const { res } = runHand([{ type: 'kin', x: 60, y: 300 }, { type: 'kiku', x: 90, y: 300 }], ['kinun', 'maneki', 'ichibanboshi'], line(50, 300, 100, 300, 10));
+  eq(part(res, 'kata').v, K.SET_X[0]); eq(part(res, 'kata').kind, 'xmult'); eq(part(res, 'kata').ja, '型そろい');
+  eq(part(runHand([{ type: 'kiku', x: 60, y: 300 }], ['kinun', 'maneki'], line(50, 300, 100, 300, 10)).res, 'kata'), undefined);
+  eq(K.newVsRound({ seed: 1, bout: 0 }).rules.set, null);
+});
+
 check('墨の数え方（13版）: 墨壺の墨は、残り墨・墨流し・線香花火・願い札の割合に入らない・段位 2 からは墨壺に持ちこせない', () => {
   const sh = () => [{ type: 'kiku', x: 60, y: 300 }, { type: 'kiku', x: 90, y: 300 }];
   const run = (bank, charms, stroke) => { const st = K.newRound({ seed: 3, night: 1, moon: 1, charms, bank }); st.shells = sh().map((s, i) => ({ id: i, hue: 0, burst: false, burstAt: -1, hp: 1, lastSrc: null, ...s })); K.runToEnd(st, [stroke]); return st; };
@@ -1364,10 +1380,10 @@ check('段位: 9 段・決まりは重なる・目標・雲・減衰・枠・候
   K.LEVELS.forEach((L, n) => { eq(L.n, n); eq(L.id, `dan${n}`); ok(L.ja && L.en && L.rule && L.ruleEn && L.fx, `段位 ${n}`); });
   eq(JSON.stringify(K.levelFx(0)), JSON.stringify({ target: 1, price: 0, spare: 1, noBank: false, ink: 1, clouds: false, decay: 0, offer: 3, slots: 5, star2: 3 }));
   const f8 = K.levelFx(8);
-  ok(Math.abs(f8.target - 1.1 * 1.05 * 1.1 * 1.05) < 1e-12); eq(f8.price, 0); eq(f8.noBank, true); eq(f8.ink, 0.85); eq(f8.spare, 0); eq(f8.clouds, true); eq(f8.decay, 0.04); eq(f8.offer, 2); eq(f8.slots, 4); eq(f8.star2, 4);
+  ok(Math.abs(f8.target - 1.1 * 1.05 * 1.05 * 1.05) < 1e-12); eq(f8.price, 0); eq(f8.noBank, true); eq(f8.ink, 0.85); eq(f8.spare, 0); eq(f8.clouds, true); eq(f8.decay, 0.04); eq(f8.offer, 2); eq(f8.slots, 4); eq(f8.star2, 4);
   // 段位 2 は墨が 1 割へって、墨壺なし（13版。前の版の「屋台の値段 +1」は、どの段位でも 0 にした）
   eq(K.levelFx(1).noBank, false); eq(K.levelFx(1).ink, 1); eq(K.levelFx(2).noBank, true); eq(K.levelFx(2).ink, 0.85); eq(K.levelFx(2).price, 0); eq(K.levelFx(2).spare, 1); eq(K.levelFx(3).spare, 1); eq(K.levelFx(4).spare, 0); eq(K.levelFx(2).clouds, false); eq(K.levelFx(3).clouds, true);
-  eq(K.CLOUD_LEVEL, 3); eq(K.levelFx(6).offer, 2); ok(Math.abs(K.levelFx(6).target / K.levelFx(5).target - 1.05) < 1e-12);
+  eq(K.CLOUD_LEVEL, 3); eq(K.levelFx(6).offer, 2); ok(Math.abs(K.levelFx(3).target / K.levelFx(2).target - 1.05) < 1e-12); eq(K.levelFx(6).target, K.levelFx(5).target);
   ok(K.LEVELS[2].rule.includes('墨壺'));
   eq(K.newRound({ seed: 3, night: 2, moon: 1, level: 2 }).ink, Math.round(K.BASE_INK * 0.85), '段位 2 から墨が 15% へる');
   eq(K.newRound({ seed: 3, night: 2, moon: 1, level: 2, charms: ['nagafude'] }).ownInk, Math.round(Math.round(K.BASE_INK * K.CHARM_LV.nagafude.ink[0]) * 0.85));
@@ -1380,8 +1396,8 @@ check('段位: 9 段・決まりは重なる・目標・雲・減衰・枠・候
     // 小さい目標点は 10 点きざみに丸めるので、ゆるく比べる
     const near = (a, b, k) => Math.abs(b - a * k) <= a * k * 0.06 + 10;
     ok(near(t0, t1, 1.1), `段位 1 は +10% ${t0} → ${t1}`);
-    ok(near(t4, t7, 1.05 * 1.1), `段位 7 は段位 4 より +5% +10% ${t4} → ${t7}`);
-    if (n === 0) ok(near(t0, t7, 1.1 * 1.05 * 1.1), `一夜目は並びが同じ: 段位 7 は +27% ${t0} → ${t7}`);
+    ok(near(t4, t7, 1.05), `段位 7 は段位 4 より +5% ${t4} → ${t7}`);
+    if (n === 0) ok(near(t0, t7, 1.1 * 1.05 * 1.05 * 1.05), `一夜目は並びが同じ: 段位 7 は +27% ${t0} → ${t7}`);
     ok(t1 >= t0 && t7 >= t4, '段位で目標が下がる');
     eq(K.newRound({ seed, night: n, moon: 2, level: 7 }).target, t7);
   }
@@ -1396,7 +1412,7 @@ check('段位: 9 段・決まりは重なる・目標・雲・減衰・枠・候
     eq(JSON.stringify(K.newRound({ seed, night: 6, moon: 1, level: 8 }).clouds), JSON.stringify(K.newRound({ seed, night: 6, moon: 1 }).clouds), '雲の夜は同じ雲');
     eq(K.newRound({ seed, night: 1, moon: 1, level: 4 }).stats.total, st.shells.length);
   }
-  const want = K.parScore(3, 1, 1, 4) * K.TARGET_RATIO[1] * 1.1;
+  const want = K.parScore(3, 1, 1, 4) * K.TARGET_RATIO[1] * K.levelFx(4).target;
   ok(Math.abs(K.targetFor(3, 1, 1, 4) - want) <= want * 0.05 + 5, '段位 4 の目標点は、基準点 × 倍率');
   eq(K.parScore(3, 1, 1, 8), K.parScore(3, 1, 1, 4), '並びが同じなら基準点も同じ');
   // 13版: 雲のある並びで基準点が下がっても、目標は下がらない（いつもの並びとの高い方）。雲の段位 3 は段位 2 よりやさしくならない
@@ -1458,12 +1474,12 @@ check('願い札: 14 枚・夜ごとに 1 枚（決定的）・その夜に意�
       if (w.id === 'w_bloom') eq(n, 0, '満開は一夜目だけ');
       if (w.id === 'w_spare30' || w.id === 'w_short') ok(n < 7);
       if (w.id === 'w_no_cloud') ok(n >= (level >= 4 ? 1 : 4), `雲の無い夜に ${n}`);
-      if (w.id === 'w_double' && !w.fallback) ok(!tw && K.TARGET_RATIO[n] >= 1, '大一番・目標が低い夜に 2 倍');
+      if (w.id === 'w_double' && !w.fallback) ok(!tw && n >= 4, '大一番・四夜目までに 2 倍');
       if (w.id === 'w_touch_few') ok(n >= 1 && !(tw && tw.id === 'kagami'));
       if (w.id === 'w_pops') { ok(w.n >= 1); ok(w.ja.includes(String(w.n)) && w.en.includes(String(w.n))); }
       // 手順の線で見きわめた札: ただでかなう札・かなわない札は出ない（どれもだめな夜の「◯個以上」だけは例外で ★2）
       const c = K.wishCheck(seed, n, w.id, level, moon);
-      if (w.fallback) eq(w.stars, 2, '例外の札は ★2');
+      if (w.fallback) { eq(w.stars, 2, '例外の札は ★2'); ok(c && (c.cat === 'impossible' || w.id === 'w_pops' || w.id === 'w_double'), `例外の札 ${w.id} ${c && c.cat}`); }
       else { ok(c.cat === 'trade' || c.cat === 'unchecked', `seed ${seed} night ${n}: ${w.id} は ${c.cat}`); eq(w.stars, c.stars); }
     }
   }
