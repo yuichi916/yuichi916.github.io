@@ -1341,6 +1341,16 @@ function setBgm(on) {
   if (on) startMusic(); else setTimeout(() => { if (!bgmOn) mus((m) => m.stop()); }, 600);
 }
 let tracksAsked = false;
+// 曲を流すための <audio>。最初の音が出せるまで待つ（6 秒で、あきらめて合成した曲へ）
+function streamEl(url) {
+  return new Promise((ok, ng) => {
+    const el = new Audio(); el.preload = 'auto';
+    const tm = setTimeout(() => ng(new Error('timeout')), 6000);
+    el.addEventListener('canplay', () => { clearTimeout(tm); ok(el); }, { once: true });
+    el.addEventListener('error', () => { clearTimeout(tm); ng(new Error('audio')); }, { once: true });
+    el.src = url; el.load();
+  });
+}
 async function loadTracks() {
   if (tracksAsked) return; tracksAsked = true;
   // 読み込みが終わるまで合成した曲は鳴らさない（先に鳴らすと、切り替えたあとも余韻が重なって2曲に聞こえる）。
@@ -1357,8 +1367,9 @@ async function loadTracks() {
     for (const key of ['calm', 'burn', 'finale']) {
       const tr = list[key]; if (!tr) continue;
       try {
-        const res = await fetch('assets/hitofude/bgm/' + tr.src);
-        if (res.ok) files[key] = { ...tr, buf: await actx.decodeAudioData(await res.arrayBuffer()) };
+        // 長い曲は <audio> で流す（展開しない）。短いジングルだけ展開する
+        if (key !== 'finale' && typeof Audio === 'function') files[key] = { ...tr, el: await streamEl('assets/hitofude/bgm/' + tr.src) };
+        else { const res = await fetch('assets/hitofude/bgm/' + tr.src); if (res.ok) files[key] = { ...tr, buf: await actx.decodeAudioData(await res.arrayBuffer()) }; }
       } catch (e) { /* この曲は読めなかった。合成した曲のまま */ }
       if (key === 'calm') { if (!done) give(files); else if (files.calm) mus((m) => m.useFiles(files)); }
     }
