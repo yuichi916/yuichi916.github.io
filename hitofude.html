@@ -985,6 +985,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
 
 <script type="module">
 import * as K from './assets/hitofude/core.js';
+import * as T13 from './assets/hitofude/trial.js';
 import { counterUrl, parseCount } from './assets/feel/feel-core.js';
 import { createMusic, parseTracks } from './assets/hitofude/music.js';
 import * as M from './assets/hitofude/meta.js';
@@ -2894,38 +2895,9 @@ function renderFormText() {
   if (S.phase === 'draw' && S.mode === 'vs') hint(t('vsDraw'));
   if (S.phase === 'ojama') renderOjamaBar();
 }
-// 試しの線: 混んでいる所・提灯・金の玉から始めて、近い玉へ順に（墨の budget 割まで。金と提灯は少し遠くても寄る）たどる線を何本か作る
-function trialRoutes(st, budgets = [0.9]) {
-  const live = st.shells.filter((s) => !s.burst && s.type !== 'kuro');
-  if (!live.length) return [];
-  const crowd = (a) => live.filter((b) => Math.hypot(a.x - b.x, a.y - b.y) < 70).length;
-  const lure = (s) => (s.type === 'kin' || s.type === 'chouchin' ? 0.65 : 1);
-  const starts = new Set([...live.slice().sort((a, b) => crowd(b) - crowd(a)).slice(0, 4), ...live.filter((s) => s.type === 'chouchin' || s.type === 'kin').slice(0, 4)]);
-  const out = [];
-  for (const k of budgets) for (const first of starts) {
-    const budget = st.ink * k;
-    let cur = first, used = 0;
-    const route = [cur], seen = new Set([cur.id]);
-    for (;;) {
-      const nx = live.filter((s) => !seen.has(s.id) && !K.crossesCloud(st.clouds, cur.x, cur.y, s.x, s.y))
-        .map((s) => ({ s, d: Math.hypot(s.x - cur.x, s.y - cur.y) })).sort((a, b) => a.d * lure(a.s) - b.d * lure(b.s))[0];
-      if (!nx || used + nx.d > budget || route.length >= 14) break;
-      used += nx.d; seen.add(nx.s.id); cur = nx.s; route.push(cur);
-    }
-    if (route.length >= 2) out.push(route.map((q) => ({ x: q.x, y: q.y })));
-  }
-  return out;
-}
-// その条件の夜で、試しの線のうちいちばん良い点（本物のルールで最後まで燃やす）
-function bestTrial(params, budgets) {
-  let best = { score: 0, route: null };
-  for (const route of trialRoutes(K.newRound(params), budgets)) {
-    let score = 0;
-    try { score = K.runToEnd(K.newRound(params), [route]).score; } catch (e) { /* 燃やせなかった線は 0 点 */ }
-    if (score > best.score) best = { score, route };
-  }
-  return best;
-}
+// 試しの線と試し燃やしは trial.js（画面の裏の worker と同じもの）
+const trialRoutes = (st, budgets) => T13.trialRoutes(K, st, budgets);
+const bestTrial = (params, budgets) => T13.bestTrial(K, params, budgets);
 function ghostPath(st) {
   // 本物の玉をつなぐ見本: 試しの線を本物のルールで燃やして、いちばん点の高い線を見せる（見本どおりに引けば、まず目標に届くように）
   const params = S.run ? { seed: S.run.seed, night: st.night, charms: S.run.charms, moon: S.run.moon, bank: S.run.bank || 0, level: S.run.level || 0 } : null;
@@ -2939,21 +2911,28 @@ function ghostPath(st) {
   return out;
 }
 // 次の夜の目安: このお守りを持つと、次の夜の点がどれだけ伸びるか。墨を使い切る線と、墨を残す線の両方を試して、いちばん良い点どうしで比べる。
-// 重いので、1 つずつ間をおいて計算し、出たものからゲージを伸ばす
+// 重いので画面の裏（worker）で計算し、出たものからゲージを伸ばす（worker が使えなければ、ここで間をおいて 1 つずつ）
 const GAIN_BUDGETS = [0.95, 0.5];
+let gainWorker = null, gainSeq = 0;
 function estimateGains(run, night, ids, onOne) {
   const base = { seed: run.seed, night, moon: run.moon, bank: run.bank || 0, level: run.level || 0 };
-  const key = (charms) => `${night}|${run.bank || 0}|${charms.slice().sort().join(',')}`;
-  S.gainCache = S.gainCache && S.gainCache.seed === run.seed ? S.gainCache : { seed: run.seed, m: new Map() };
-  const score = (charms) => { const k = key(charms); if (!S.gainCache.m.has(k)) S.gainCache.m.set(k, bestTrial({ ...base, charms }, GAIN_BUDGETS).score); return S.gainCache.m.get(k); };
-  const token = (S.gainToken = (S.gainToken || 0) + 1);
-  let i = -1, now = 0;
-  const step = () => {
-    if (S.gainToken !== token) return;
-    if (i < 0) now = score(run.charms);
-    else { const id = ids[i]; const with1 = score([...run.charms, id]); onOne(id, now > 0 ? with1 / now - 1 : 0); }
-    if (++i < ids.length) setTimeout(step, 16);
+  const sets = [run.charms.slice(), ...ids.map((id) => [...run.charms, id])];
+  const id = ++gainSeq; S.gainToken = id;
+  const got = []; let now = null;
+  const take = (i, score) => {
+    if (S.gainToken !== id) return;
+    got[i] = score;
+    if (i === 0) { now = score; got.forEach((sc, k) => { if (k > 0 && sc != null) onOne(ids[k - 1], now > 0 ? sc / now - 1 : 0); }); }
+    else if (now != null) onOne(ids[i - 1], now > 0 ? score / now - 1 : 0);
   };
+  try {
+    if (!gainWorker) gainWorker = new Worker('assets/hitofude/gain-worker.js', { type: 'module' });
+    gainWorker.onmessage = (ev) => { const d = ev.data || {}; if (d.id === S.gainToken) take(d.i, d.score); };
+    gainWorker.postMessage({ id, base, sets, budgets: GAIN_BUDGETS });
+    return;
+  } catch (e) { gainWorker = null; }
+  let i = 0;
+  const step = () => { if (S.gainToken !== id || i >= sets.length) return; take(i, bestTrial({ ...base, charms: sets[i] }, GAIN_BUDGETS).score); i++; setTimeout(step, 16); };
   setTimeout(step, 30);
 }
 function commitStroke(raw, normalized = false) {
