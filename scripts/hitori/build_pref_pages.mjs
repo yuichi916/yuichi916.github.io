@@ -108,9 +108,13 @@ mkdirSync(OUT, { recursive: true });
 for (const f of readdirSync(OUT)) if (f.endsWith('.html')) unlinkSync(join(OUT, f));
 
 const made = [];
-for (const p of index.prefectures) {
-  const items = prefItems(p.code);
-  if (items.length < MIN_OFFICIAL) continue;
+// 先に対象の県を決めておき、各ページの末尾に「ほかの都道府県」を並べる（県どうしの内部リンク）
+const eligible = index.prefectures.map(p => ({ p, items: prefItems(p.code) })).filter(x => x.items.length >= MIN_OFFICIAL);
+const prefNav = code => `<h2>ほかの都道府県</h2>
+<ul class="prefs">${eligible.filter(x => x.p.code !== code)
+  .map(x => `<li><a href="${SLUG[x.p.code]}.html"><b>${esc(x.p.name)}</b><span>${x.items.length}件</span></a></li>`).join('')}</ul>
+`;
+for (const { p, items } of eligible) {
   const slug = SLUG[p.code];
   const canon = `${SITE}/hitori/${slug}.html`;
   const byCat = new Map(DISPLAY_CATS.map(c => [c.key, []]));
@@ -150,7 +154,7 @@ for (const p of index.prefectures) {
     body += `</ol>\n`;
   }
   body = body.replace('</head>', `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>\n</head>`);
-  body += FOOT;
+  body += prefNav(p.code) + FOOT;
   writeFileSync(join(OUT, `${slug}.html`), body);
   made.push({ code: p.code, name: p.name, slug, n: items.length });
 }
