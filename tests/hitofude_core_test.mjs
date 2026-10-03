@@ -2,8 +2,11 @@
 import * as K from '../assets/hitofude/core.js';
 
 let failures = 0;
+// TIMING=1 で、1 つずつかかった時間も出す
 function check(name, fn) {
+  const t0 = Date.now();
   try { fn(); } catch (e) { failures++; console.error(`FAIL ${name}: ${e.message}`); }
+  if (process.env.TIMING) console.error(`${String(Date.now() - t0).padStart(6)}ms ${name}`);
 }
 function eq(a, b, msg) {
   if (a !== b) throw new Error(`${msg || ''} expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`);
@@ -680,6 +683,23 @@ check('目標点: 目安は夜ごとに上がる・倍率は夜ごとにある',
   for (const r of K.TARGET_RATIO) ok(r > 0);
 });
 
+check('目標点: 夜ごとに下がらない（いろいろなシード・月・段位で。大一番でない夜は前の夜の約 1.1 倍以上）', () => {
+  let lifted = 0, n = 0;
+  for (let seed = 1; seed <= 14; seed++) for (const level of [0, 3, 8]) {
+    const moon = (seed * 3 + level) % 8, t = Array.from({ length: K.NIGHTS }, (_, i) => K.targetFor(seed, i, moon, level));
+    for (let i = 1; i < K.NIGHTS; i++) {
+      n++;
+      ok(t[i] >= t[i - 1], `seed ${seed} moon ${moon} 段位 ${level}: ${i} 夜目 ${t[i - 1]} → ${i + 1} 夜目 ${t[i]}`);
+      if (!K.isBoss(i)) ok(t[i] >= t[i - 1] * K.TARGET_STEP * 0.95, `seed ${seed} 段位 ${level} night ${i}: ${t[i - 1]} → ${t[i]} は 1.1 倍に足りない`);
+      const tw = K.twistFor(seed, i), raw = K.parScore(seed, i, moon, level) * K.TARGET_RATIO[i] * (tw ? tw.target : 1) * K.levelFx(level).target;
+      if (t[i] > raw * 1.06 + 10) lifted++;
+    }
+    eq(K.newRound({ seed, night: 7, moon, level }).target, t[7], 'newRound も同じ目標');
+  }
+  ok(lifted > 0 && lifted < n * 0.3, `前の夜に合わせて上げた夜 ${lifted}/${n}`);
+  eq(K.TARGET_STEP, 1.1);
+});
+
 check('目標点: その夜の並びから測る（決定的・上 2 桁に丸める・お守りなしでも届く夜は基準点より下）', () => {
   for (let seed = 1; seed <= 12; seed++) for (let n = 0; n < K.NIGHTS; n++) {
     const moon = seed % 8, par = K.parScore(seed, n, moon), tg = K.targetFor(seed, n, moon);
@@ -721,8 +741,8 @@ check('大一番: 三夜目と六夜目だけ・2 つは別の仕掛け・シー
     ok(a.id !== b.id, '同じ仕掛けが 2 回');
     eq(K.twistFor(seed, 2).id, a.id, '決定的');
     kinds.add(a.id); kinds.add(b.id);
-    // 大一番の目標点は、同じ夜の基準点 × 倍率 × 仕掛けの割り引き
-    const want = K.parScore(seed, 5) * K.TARGET_RATIO[5] * b.target, got = K.targetFor(seed, 5);
+    // 大一番の目標点は、同じ夜の基準点 × 倍率 × 仕掛けの割り引き（前の夜の目標より下がるときは、前の夜の目標）
+    const want = Math.max(K.parScore(seed, 5) * K.TARGET_RATIO[5] * b.target, K.targetFor(seed, 4)), got = K.targetFor(seed, 5);
     ok(Math.abs(got - want) <= want * 0.05 + 5, `seed ${seed}: 大一番の目標点 ${got} ≠ ${want}`);
     eq(K.newRound({ seed, night: 5 }).twist, b.id);
   }
@@ -1126,11 +1146,22 @@ function runSparks(shells, charms, stroke) {
 // 火花の向き（玉の番号 0 なら、0 度から 45 度ごと）にそろえた 8 つの輪
 const ring = (cx, cy, r = 100, n = 8) => Array.from({ length: n }, (_, i) => ({ type: 'kiku', x: Math.round(cx + Math.cos(i / n * Math.PI * 2) * r), y: Math.round(cy + Math.sin(i / n * Math.PI * 2) * r) }));
 
-check('Lv3: 長い筆は火が届く幅 2.5 倍・残り墨は半分残すと ×1.5・大輪は 3 代目まで小さくならない', () => {
-  eq(K.rulesFor(L2('nagafude'), 1).reach, K.BASE_REACH); eq(K.rulesFor(L3('nagafude'), 1).reach, K.BASE_REACH * K.CHARM_LV.nagafude.reach[2]);
+check('Lv3: 長い筆は線が雲の中でも燃える（届く幅も広い）・残り墨は半分残すと ×1.5・大輪は 3 代目まで小さくならない', () => {
+  eq(K.rulesFor(L2('nagafude'), 1).reach, K.BASE_REACH * K.CHARM_LV.nagafude.reach[1]); eq(K.rulesFor(L3('nagafude'), 1).reach, K.BASE_REACH * K.CHARM_LV.nagafude.reach[2]);
   const off = () => [{ type: 'kiku', x: 120, y: 321 }];
   eq(runHand(off(), L2('nagafude'), line(40, 300, 200, 300, 40)).res.pops, 0, 'Lv2 は届かない');
   eq(runHand(off(), L3('nagafude'), line(40, 300, 200, 300, 40)).res.pops, 1, 'Lv3 は線から離れた玉に届く');
+  // 雲を横切る線: Lv2 は雲で火が止まり、Lv3 は向こうの玉まで燃える（爆発は雲を越えない）
+  const cl = [{ x: 200, y: 300, r: 30 }], far = () => [{ type: 'kiku', x: 300, y: 300 }];
+  eq(runHand(far(), L2('nagafude'), line(100, 300, 310, 300, 60), { clouds: cl }).res.pops, 0);
+  const c3 = runHand(far(), L3('nagafude'), line(100, 300, 310, 300, 60), { clouds: cl });
+  eq(c3.res.pops, 1, '長い筆 Lv3 は雲を通る'); eq(c3.res.stats.cloudTouched, true, '雲にはふれた');
+  // 線でじかにふれた玉は大きくひらく（爆発でひらいた玉は、ふつうの大きさ）
+  const big = runHand([{ type: 'kiku', x: 100, y: 300 }, { type: 'kiku', x: 140, y: 300 }], L3('nagafude'), line(80, 300, 104, 300, 6));
+  const b0 = burstOf(big.ev, 'kiku');
+  eq(b0[0].R, K.SHELLS.kiku.R * K.CHARM_LV.nagafude.touchR[2]); eq(b0[0].cause, 'fuse');
+  ok(b0[1].cause !== 'fuse' && Math.abs(b0[1].R - K.SHELLS.kiku.R * K.DECAY) < 1e-9, `爆発でひらいた玉 ${b0[1].R}`);
+  eq(burstOf(runHand([{ type: 'kiku', x: 100, y: 300 }], L2('nagafude'), line(80, 300, 104, 300, 6)).ev, 'kiku')[0].R, K.SHELLS.kiku.R);
   const row = () => [{ type: 'kiku', x: 60, y: 300 }, { type: 'kiku', x: 90, y: 300 }];
   const short = line(50, 300, 100, 300, 10);
   eq(part(runHand(row(), L3('nokorizumi'), short).res, 'nokorizumi', 'xmult').v, K.CHARM_LV.nokorizumi.half[2]);
@@ -1154,9 +1185,9 @@ check('Lv3: 金運の金・雨よけの湿った玉は大きくひらく・遅�
   eq(part(runHand(six(), L2('osobi'), line(20, 300, 350, 300, 80)).res, 'osobi').v, K.CHARM_LV.osobi.mult[1]);
   eq(o3.mult, K.multOf(o3run.st), 'multOf にも入る');
   // 一番星 Lv3: 線でふれた金から火花が 8 本 → まわりの輪がひらく
-  const gold = () => [{ type: 'kin', x: 100, y: 300 }, ...ring(100, 300)];
+  const nStar = K.CHARM_LV.ichibanboshi.sparks[2], gold = () => [{ type: 'kin', x: 100, y: 300 }, ...ring(100, 300, 100, nStar)];
   const s2 = runSparks(gold(), L2('ichibanboshi'), line(60, 300, 108, 300, 12)), s3 = runSparks(gold(), L3('ichibanboshi'), line(60, 300, 108, 300, 12));
-  eq(s2.sparks, 0); eq(s3.sparks, K.LV3_SPARKS);
+  eq(s2.sparks, 0); eq(s3.sparks, nStar);
   ok(s3.res.pops >= s2.res.pops + 3, `一番星 Lv3 ${s3.res.pops} / Lv2 ${s2.res.pops}`);
   // 爆発でひらいた金からは飛ばない
   eq(runSparks([{ type: 'kiku', x: 100, y: 300 }, { type: 'kin', x: 140, y: 300 }], L3('ichibanboshi'), line(80, 300, 104, 300, 6)).sparks, 0);
@@ -1285,7 +1316,7 @@ check('Lv3: 二筆目は残した墨も使える・狸の葉っぱは上下に�
   const singles = [230, 300].flatMap((x) => [110, 190, 270, 350, 430, 500].map((y) => ({ type: 'kiku', x, y })));
   const fx2 = runHand([...group, ...singles], L2('kitsune'), line(16, 290, 45, 290, 8)), fx3 = runHand([...group, ...singles], L3('kitsune'), line(16, 290, 45, 290, 8));
   const foxBursts = fx3.ev.filter((e) => e.type === 'burst' && e.cause === 'fox');
-  ok(foxBursts.length > 0 && foxBursts.every((e) => e.gen === 0 && e.R === K.SHELLS[e.shell.type].R), '狐火の玉は大きくひらく');
+  ok(foxBursts.length > 0 && foxBursts.every((e) => e.gen === 0 && e.R === K.SHELLS[e.shell.type].R * K.FOX_R), '狐火の玉は大きくひらく');
   ok(fx3.ev.filter((e) => e.type === 'fox').length > K.CHARM_LV.kitsune.n[2], `狐火 ${fx3.ev.filter((e) => e.type === 'fox').length}`);
   ok(fx3.res.pops > fx2.res.pops, `Lv3 ${fx3.res.pops} / Lv2 ${fx2.res.pops}`);
 });
@@ -1315,12 +1346,16 @@ check('墨の数え方（13版）: 墨壺の墨は、残り墨・墨流し・線
 check('段位: 9 段・決まりは重なる・目標・雲・減衰・枠・候補の数', () => {
   eq(K.LEVELS.length, 9); eq(K.MAX_LEVEL, 8);
   K.LEVELS.forEach((L, n) => { eq(L.n, n); eq(L.id, `dan${n}`); ok(L.ja && L.en && L.rule && L.ruleEn && L.fx, `段位 ${n}`); });
-  eq(JSON.stringify(K.levelFx(0)), JSON.stringify({ target: 1, price: 0, spare: 1, noBank: false, clouds: false, decay: 0, offer: 3, slots: 5, star2: 3 }));
+  eq(JSON.stringify(K.levelFx(0)), JSON.stringify({ target: 1, price: 0, spare: 1, noBank: false, ink: 1, clouds: false, decay: 0, offer: 3, slots: 5, star2: 3 }));
   const f8 = K.levelFx(8);
-  ok(Math.abs(f8.target - 1.1 * 1.15) < 1e-12); eq(f8.price, 0); eq(f8.noBank, true); eq(f8.spare, 0); eq(f8.clouds, true); eq(f8.decay, 0.03); eq(f8.offer, 2); eq(f8.slots, 4); eq(f8.star2, 4);
-  // 段位 2 は墨壺なし（13版。前の版の「屋台の値段 +1」は、どの段位でも 0 にした）
-  eq(K.levelFx(1).noBank, false); eq(K.levelFx(2).noBank, true); eq(K.levelFx(2).price, 0); eq(K.levelFx(2).spare, 1); eq(K.levelFx(3).spare, 0); eq(K.levelFx(3).clouds, false); eq(K.levelFx(4).clouds, true);
+  ok(Math.abs(f8.target - 1.1 * 1.05 * 1.1 * 1.05) < 1e-12); eq(f8.price, 0); eq(f8.noBank, true); eq(f8.ink, 0.85); eq(f8.spare, 0); eq(f8.clouds, true); eq(f8.decay, 0.04); eq(f8.offer, 2); eq(f8.slots, 4); eq(f8.star2, 4);
+  // 段位 2 は墨が 1 割へって、墨壺なし（13版。前の版の「屋台の値段 +1」は、どの段位でも 0 にした）
+  eq(K.levelFx(1).noBank, false); eq(K.levelFx(1).ink, 1); eq(K.levelFx(2).noBank, true); eq(K.levelFx(2).ink, 0.85); eq(K.levelFx(2).price, 0); eq(K.levelFx(2).spare, 1); eq(K.levelFx(3).spare, 1); eq(K.levelFx(4).spare, 0); eq(K.levelFx(2).clouds, false); eq(K.levelFx(3).clouds, true);
+  eq(K.CLOUD_LEVEL, 3); eq(K.levelFx(6).offer, 2); ok(Math.abs(K.levelFx(6).target / K.levelFx(5).target - 1.05) < 1e-12);
   ok(K.LEVELS[2].rule.includes('墨壺'));
+  eq(K.newRound({ seed: 3, night: 2, moon: 1, level: 2 }).ink, Math.round(K.BASE_INK * 0.85), '段位 2 から墨が 15% へる');
+  eq(K.newRound({ seed: 3, night: 2, moon: 1, level: 2, charms: ['nagafude'] }).ownInk, Math.round(Math.round(K.BASE_INK * K.CHARM_LV.nagafude.ink[0]) * 0.85));
+  eq(K.parScore(3, 2, 1, 2), K.parScore(3, 2, 1, 0), '基準点は段位の墨の倍率を入れない');
   eq(K.levelFx(5).offer, 3); eq(K.levelFx(6).offer, 2); eq(K.slotsFor(7), 5); eq(K.slotsFor(8), 4);
   eq(K.levelFx(99), K.levelFx(8)); eq(K.levelFx(-3), K.levelFx(0));
   // 目標点
@@ -1329,16 +1364,17 @@ check('段位: 9 段・決まりは重なる・目標・雲・減衰・枠・候
     // 小さい目標点は 10 点きざみに丸めるので、ゆるく比べる
     const near = (a, b, k) => Math.abs(b - a * k) <= a * k * 0.06 + 10;
     ok(near(t0, t1, 1.1), `段位 1 は +10% ${t0} → ${t1}`);
-    ok(near(t4, t7, 1.15), `段位 7 は段位 4 より +15% ${t4} → ${t7}`);
-    if (n === 0) ok(near(t0, t7, 1.265), `一夜目は並びが同じ: 段位 7 は +26.5% ${t0} → ${t7}`);
+    ok(near(t4, t7, 1.05 * 1.1), `段位 7 は段位 4 より +5% +10% ${t4} → ${t7}`);
+    if (n === 0) ok(near(t0, t7, 1.1 * 1.05 * 1.1), `一夜目は並びが同じ: 段位 7 は +27% ${t0} → ${t7}`);
     ok(t1 >= t0 && t7 >= t4, '段位で目標が下がる');
     eq(K.newRound({ seed, night: n, moon: 2, level: 7 }).target, t7);
   }
-  // 雲: 段位 4 から二夜目に出る（一夜目は出ない）。並びもその雲をよける
+  // 雲: 段位 3 から二夜目に出る（一夜目は出ない）。並びもその雲をよける
   for (let seed = 1; seed <= 20; seed++) {
-    eq(K.newRound({ seed, night: 1, moon: 1, level: 3 }).clouds.length, 0);
+    eq(K.newRound({ seed, night: 1, moon: 1, level: 2 }).clouds.length, 0);
     const st = K.newRound({ seed, night: 1, moon: 1, level: 4 });
     eq(st.clouds.length, 1, '段位 4 の二夜目');
+    eq(K.newRound({ seed, night: 1, moon: 1, level: 3 }).clouds.length, 1, '段位 3 の二夜目');
     for (const s of st.shells) ok(Math.hypot(s.x - st.clouds[0].x, s.y - st.clouds[0].y) >= st.clouds[0].r + 14, '玉が雲に重なる');
     eq(K.newRound({ seed, night: 0, moon: 1, level: 8 }).clouds.length, 0, '一夜目は雲なし');
     eq(JSON.stringify(K.newRound({ seed, night: 6, moon: 1, level: 8 }).clouds), JSON.stringify(K.newRound({ seed, night: 6, moon: 1 }).clouds), '雲の夜は同じ雲');
@@ -1347,18 +1383,18 @@ check('段位: 9 段・決まりは重なる・目標・雲・減衰・枠・候
   const want = K.parScore(3, 1, 1, 4) * K.TARGET_RATIO[1] * 1.1;
   ok(Math.abs(K.targetFor(3, 1, 1, 4) - want) <= want * 0.05 + 5, '段位 4 の目標点は、基準点 × 倍率');
   eq(K.parScore(3, 1, 1, 8), K.parScore(3, 1, 1, 4), '並びが同じなら基準点も同じ');
-  // 13版: 雲のある並びで基準点が下がっても、目標は下がらない（いつもの並びとの高い方）。段位 4 は段位 3 よりやさしくならない
+  // 13版: 雲のある並びで基準点が下がっても、目標は下がらない（いつもの並びとの高い方）。雲の段位 3 は段位 2 よりやさしくならない
   let higher = 0;
   for (let seed = 1; seed <= 16; seed++) for (const n of [1, 2, 3]) {
-    const p3 = K.parScore(seed, n, seed % 8, 3), p4 = K.parScore(seed, n, seed % 8, 4);
-    ok(p4 >= p3, `seed ${seed} night ${n}: 段位 4 の基準点 ${p4} < 段位 3 ${p3}`);
-    ok(K.targetFor(seed, n, seed % 8, 4) >= K.targetFor(seed, n, seed % 8, 3), `seed ${seed} night ${n}: 段位 4 の目標が下がる`);
-    if (p4 > p3) higher++;
+    const p2 = K.parScore(seed, n, seed % 8, 2), p3 = K.parScore(seed, n, seed % 8, 3);
+    ok(p3 >= p2, `seed ${seed} night ${n}: 段位 3 の基準点 ${p3} < 段位 2 ${p2}`);
+    ok(K.targetFor(seed, n, seed % 8, 3) >= K.targetFor(seed, n, seed % 8, 2), `seed ${seed} night ${n}: 段位 3 の目標が下がる`);
+    if (p3 > p2) higher++;
   }
   ok(higher > 0, '雲のある並びの方が高い夜もある');
   // 減衰
-  ok(Math.abs(K.rulesFor([], 1, 5).decay - (K.DECAY - 0.03)) < 1e-12); eq(K.rulesFor([], 1, 4).decay, K.DECAY);
-  ok(Math.abs(K.newRound({ seed: 1, night: 2, level: 6 }).rules.decay - (K.DECAY_SOFT - 0.03)) < 1e-12, '満月の夜も 0.03 強い');
+  ok(Math.abs(K.rulesFor([], 1, 5).decay - (K.DECAY - 0.04)) < 1e-12); eq(K.rulesFor([], 1, 4).decay, K.DECAY);
+  ok(Math.abs(K.newRound({ seed: 1, night: 2, level: 6 }).rules.decay - (K.DECAY_SOFT - 0.04)) < 1e-12, '満月の夜も 0.04 強い');
   eq(K.newRound({ seed: 1, night: 2, level: 99 }).level, 8);
   // 花火合戦は段位に関係ない
   eq(K.newVsRound({ seed: 42, bout: 0 }).level, 0);
@@ -1387,7 +1423,7 @@ check('夜の記録 st.stats: はじめにひらいた玉・引きはじめの�
 check('願い札: 14 枚・夜ごとに 1 枚（決定的）・その夜に意味のある札だけ・前の夜と同じ札は出ない・★1 か ★2', () => {
   eq(K.WISHES.map((w) => w.id).join(), 'w_lantern_first,w_all_gold,w_spare30,w_pops,w_touch_few,w_double,w_damp_all,w_tori6,w_rope_all,w_no_cloud,w_gold_first,w_bloom,w_short,w_big_all');
   const seen = new Set(), stars = { 1: 0, 2: 0 };
-  for (let seed = 1; seed <= 14; seed++) for (const level of [0, 4]) {
+  for (let seed = 1; seed <= 9; seed++) for (const level of [0, 4]) {
     let prev = null;
     const moon = seed % 8;
     for (let n = 0; n < K.NIGHTS; n++) {

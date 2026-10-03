@@ -19,12 +19,17 @@ export const POOLS = {
 // お守りの値打ち（Lv1 を持ったときの、だいたいの点の伸び。node _dev/hitofude-balance.mjs value（近い順の線）で測った中央値）。
 // LV_GAINS[id] = [Lv1→2, Lv2→3] の伸びを、Lv1 の伸び（log）に対する割合で（測った値。無ければ LV_GAIN）
 export const VALUE = {
-  nokorizumi: 1.25, suminagashi: 1.25, senkou: 1.25, maneki: 1.22, nihitsu: 1.25, kamaitachi: 1.28, hanaikada: 1.25, chouchinshi: 1.22,
-  renjishi: 1.2, kodou: 1.2, kinun: 1.2, tengu: 1.2, tanuki: 1.2, osobi: 1.18, ichibanboshi: 1.17, amayoke: 1.15, owaridama: 1.17,
-  mankai: 1.15, kazekiri: 1.12, kitsune: 1.18, nokoribi: 1.15, mashidama: 1.14, tairin: 1.14, nagafude: 1.14,
+  nihitsu: 1.39, nokorizumi: 1.38, mashidama: 1.38, suminagashi: 1.37, kodou: 1.36, tengu: 1.35, osobi: 1.29, nokoribi: 1.29,
+  kitsune: 1.28, renjishi: 1.28, chouchinshi: 1.26, senkou: 1.24, owaridama: 1.24, hanaikada: 1.24, tanuki: 1.23, kamaitachi: 1.23,
+  nagafude: 1.23, amayoke: 1.23, tairin: 1.23, maneki: 1.21, mankai: 1.21, kinun: 1.21, kazekiri: 1.16, ichibanboshi: 1.12,
 };
 export const LV_GAIN = 0.7;
-export const LV_GAINS = {};
+export const LV_GAINS = {
+  amayoke: [1.7, 1.02], chouchinshi: [0.79, 1.16], hanaikada: [0.81, 1.24], ichibanboshi: [0.95, 1.13], kamaitachi: [0.69, 0.84], kazekiri: [0.73, 1.94],
+  kinun: [0.82, 1.24], kitsune: [0.15, 1.19], kodou: [0.52, 1.03], maneki: [0.46, 2.17], mankai: [0.71, 1.48], mashidama: [0.48, 0.98],
+  nagafude: [0.36, 0.7], nihitsu: [0.36, 0.54], nokoribi: [0.39, 1.04], nokorizumi: [0.76, 1.04], osobi: [0.58, 0.8], owaridama: [0.57, 1.78],
+  renjishi: [0.55, 1.52], senkou: [0.58, 0.74], suminagashi: [0.61, 1.13], tairin: [1.12, 1.23], tanuki: [0.1, 1.02], tengu: [0.5, 0.79],
+};
 export const PRIORITY = Object.keys(VALUE).sort((a, b) => VALUE[b] - VALUE[a]);
 const cum = (id, lv) => { const g = LV_GAINS[id] || [LV_GAIN, LV_GAIN]; return lv <= 0 ? 0 : lv === 1 ? 1 : lv === 2 ? 1 + g[0] : 1 + g[0] + g[1]; };
 export const val = (id, lv = 1) => Math.log(VALUE[id] || 1.05) * cum(id, lv);
@@ -59,7 +64,8 @@ export function choosePick(policy, offer, held, { slots = K.SLOTS, rng = Math.ra
   let best = null;
   for (const id of offer) {
     let g, drop = null;
-    if (lv[id]) g = w(id, lv[id] + 1) - w(id, lv[id]);
+    // Lv 上げは、Lv3 まで上げたときの 1 段あたりの伸びも見る（Lv3 のふるまいをねらう）
+    if (lv[id]) g = Math.max(w(id, lv[id] + 1) - w(id, lv[id]), (w(id, K.MAX_LV) - w(id, lv[id])) / (K.MAX_LV - lv[id]));
     else if (ids.length < slots) g = w(id, 1);
     else {
       const weakest = ids.slice().sort((a, b) => w(a, lv[a]) - w(b, lv[b]))[0];
