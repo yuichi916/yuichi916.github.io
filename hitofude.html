@@ -83,6 +83,14 @@ a{color:var(--gold)}
 #hud .score{text-align:right;line-height:1.1}
 #scoreVal{font-size:calc(22px * var(--u));font-weight:800}
 #multVal{font-size:calc(11px * var(--u));color:var(--dim);font-weight:600;letter-spacing:.02em}
+/* 火が走る間: 点（青）と倍率（赤）を分けて積む。答えは集計で */
+#hud .score.live #scoreVal{color:#cfe6ff;text-shadow:0 0 calc(10px * var(--u)) rgba(90,160,255,.5)}
+#hud .score.live #scoreVal::before{content:attr(data-l);font-size:.45em;font-weight:600;color:var(--dim);margin-right:calc(4px * var(--u));vertical-align:middle}
+#hud .score.live #multVal{font-size:calc(15px * var(--u));color:#ffb3a6;font-weight:800}
+#scoreVal.hit,#multVal.hit{animation:hudHit .18s ease-out}
+@keyframes hudHit{40%{transform:scale(1.18);filter:brightness(1.5)}}
+#scoreVal,#multVal{display:block;transform-origin:right center;white-space:nowrap}
+body.yoko #scoreVal,body.yoko #multVal{transform-origin:left center}
 #chips{position:absolute;left:calc(10px * var(--u));top:calc(env(safe-area-inset-top,0px) + 58px * var(--u));display:flex;gap:calc(4px * var(--u));flex-wrap:wrap;max-width:70%}
 #chips span{display:block;pointer-events:auto;line-height:0;position:relative}
 #chips .omamori{height:calc(30px * var(--u));filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
@@ -155,6 +163,8 @@ html[lang="en"] #banner b{font-family:"Shippori Mincho",serif;font-weight:800;fo
 #tally .part b{font-family:"JetBrains Mono",ui-monospace,monospace;font-weight:800}
 #tally .part.c b{color:#cfe6ff} #tally .part.m b{color:#ffc0b4} #tally .part.x b{color:#ffd75a;font-size:1.25em}
 @keyframes tPart{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+#tally .row2.slam{animation:tSlam .3s cubic-bezier(.2,.9,.3,1.4)}
+#tally .part .mline{font-size:calc(12px * var(--u));color:#ffc0b4;animation:none}
 #tally .row2.fire{color:#fff3c4;text-shadow:0 0 calc(10px * var(--u)) #ffb347,0 calc(-5px * var(--u)) calc(16px * var(--u)) #ff6a2a,0 calc(-11px * var(--u)) calc(28px * var(--u)) rgba(255,60,20,.75);animation:tFire .45s ease-in-out infinite alternate}
 @keyframes tFire{from{filter:brightness(1)}to{filter:brightness(1.35)}}
 #tally .row2{font-size:calc(48px * var(--u));font-weight:800;color:#fff;opacity:0;text-shadow:0 0 calc(20px * var(--u)) rgba(255,200,120,.7)}
@@ -923,7 +933,7 @@ const T = {
     formLbl: '画面', formAuto: '自動', formYoko: '横（PC）', formTate: '縦（スマホ）', formNow: (f) => (f === 'yoko' ? '横の画面にしました' : '縦の画面にしました'),
     keys: '<kbd>Space</kbd> 次へ ・ <kbd>F</kbd> 早送り ・ <kbd>M</kbd> 音 ・ <kbd>Esc</kbd> メニュー',
     call: { 10: '連鎖！', 20: '大連鎖！', 30: '夜空が騒ぐ！', 50: '百花繚乱！', 80: '天が割れる！' },
-    last: (n) => `あと ${n} つ…`, mankai: '満開！',
+    last: (n) => `あと ${n} つ…`, oshii: '惜しい…！', mankai: '満開！',
     tallyRow1: (c, m) => `点 <b>${K.fmt(c)}</b> × 倍率 <i>${m}</i>`, bloom: (b) => `満開 ×${b}`, tChips: '点', tMult: '倍率',
     pass: '越えた！', fail: '散った…', huge: '大当たり！',
     pickHead: (n) => `${KANJI[n]}夜を越えた`, pickNext: (n, t) => `次は${KANJI[n]}夜目 ・ 目標 ${K.fmt(t)} 点`,
@@ -1041,7 +1051,7 @@ const T = {
     formLbl: 'Screen', formAuto: 'Auto', formYoko: 'Wide (PC)', formTate: 'Tall (phone)', formNow: (f) => (f === 'yoko' ? 'Switched to the wide screen' : 'Switched to the tall screen'),
     keys: '<kbd>Space</kbd> next · <kbd>F</kbd> fast · <kbd>M</kbd> sound · <kbd>B</kbd> music · <kbd>Esc</kbd> menu',
     call: { 10: 'Chain!', 20: 'Big chain!', 30: 'The sky roars!', 50: 'A thousand blooms!', 80: 'Heaven splits!' },
-    last: (n) => `${n} left…`, mankai: 'Full bloom!',
+    last: (n) => `${n} left…`, oshii: 'So close…!', mankai: 'Full bloom!',
     tallyRow1: (c, m) => `points <b>${K.fmt(c)}</b> × multiplier <i>${m}</i>`, bloom: (b) => `Full bloom ×${b}`, tChips: 'POINTS', tMult: 'MULT',
     pass: 'Cleared!', fail: 'Fizzled…', huge: 'Jackpot!',
     pickHead: (n) => `Night ${n + 1} cleared`, pickNext: (n, t) => `Next: night ${n + 1} · target ${K.fmt(t)}`,
@@ -1609,7 +1619,7 @@ const S = {
   mode: 'title', phase: 'idle', st: null, run: null, moonPhase: 0.5, moonIdx: 4,
   particles: [], flashes: [], texts: [], shake: 0, speed: DB.speed || 1, timeScale: 1, acc: 0, last: 0, heat: 0, newGimmick: null,
   drawing: null, burnT: [], lastCall: 0, ghost: null, replay: null, single: null, finaleUntil: 0,
-  hold: 0, freeze: 0, rings: [], foxes: [], burstLog: [], bloomFired: false, goalHit: false, tallySkip: null, hinoTap: 0, vs: null, aim: null, rivalAnim: null, rvHino: null,
+  hold: 0, freeze: 0, rings: [], foxes: [], flyers: [], burstLog: [], bloomFired: false, goalHit: false, tallySkip: null, hinoTap: 0, vs: null, aim: null, rivalAnim: null, rvHino: null,
   hino: { x: 28, y: 522, face: null, until: 0, lastX: null, lastY: null }, // マスコットのヒノコ（画面の座標）
 };
 const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -1775,7 +1785,9 @@ function frame(now) {
   if (st && S.phase === 'burn' && S.hold === 0) {
     const left = st.shells.filter((s) => !s.burst).length;
     // 残りわずかでも、まだ火が届きそうなときだけゆっくりに（届かないのに引きのばさない）
-    const slow = left > 0 && left <= 3 && st.pops >= 8 && canReach(st);
+    // （ゆっくりにするのは 1 夜に 1.2 秒まで。何も起きないのに待たせない）
+    const slow = left > 0 && left <= 3 && st.pops >= 8 && (S.slowT || 0) < 1.2 && canReach(st);
+    if (slow) S.slowT = (S.slowT || 0) + dt;
     // 連鎖が混んでいるほど時間をゆるめる（何が何に火をつけたか、目で追えるように）
     S.burstLog = S.burstLog.filter((x) => now - x < 250);
     const dil = Math.max(0.45, Math.min(1, 1 / (1 + S.burstLog.length / 8)));
@@ -1791,7 +1803,7 @@ function frame(now) {
       if (S.demo && S.demo.stopWhen && S.demo.stopWhen()) { S.demo.run = false; S.demo.stopWhen = null; S.timeScale = 0; S.acc = 0; break; }
       if (st.phase !== 'burn' || S.hold > 0) break;
     }
-    if (slow && now - S.lastCall > 1500) { S.lastCall = now; callout(t('last', left)); }
+    if (slow && S.lastLeft !== left) { S.lastLeft = left; S.lastCall = now; callout(t('last', left)); }
     if (st.phase === 'draw2') {
       // 再生では、届いた二筆目をそのまま置く（無ければそこで終わり）
       if (S.mode === 'replay') { const s2 = S.replay.strokes[1]; if (s2) { K.lightPoints(st, s2); handleEvents(st); } else K.finish(st); }
@@ -1834,16 +1846,18 @@ function frame(now) {
   if (!$('#pickOv').hidden) drawNeko(now);
 }
 
+// まだ火が届きうるか: 導火線が燃えている／ひらききる前の爆発が玉のすぐそば／火花が玉のすぐそば（ひらき終えた爆発の残り火は数えない）
 function canReach(st) {
   if (st.heads.length) return true;
   const alive = st.shells.filter((s) => !s.burst);
-  return st.explosions.some((e) => alive.some((s) => Math.hypot(s.x - e.x, s.y - e.y) < e.R + 24)) || st.sparks.some((p) => alive.some((s) => Math.hypot(s.x - p.x, s.y - p.y) < 50));
+  return st.explosions.some((e) => e.t < K.BURST_GROW && alive.some((s) => Math.hypot(s.x - e.x, s.y - e.y) < e.R + 6)) || st.sparks.some((p) => alive.some((s) => Math.hypot(s.x - p.x, s.y - p.y) < 30));
 }
 function handleEvents(st) {
   for (const e of st.events) {
     if (e.type === 'burst') {
       spawnBurst(e.shell.x, e.shell.y, e.shell.type, e.shell.hue, e.o, e.R);
       S.burstLog.push(performance.now());
+      flyTo('c', e.shell.x, e.shell.y); if (e.shell.type === 'kin') flyTo('m', e.shell.x, e.shell.y);
       SFX.burst(e.shell.type, e.chain, panOf(e.shell.x, e.shell.y));
       if (e.shell.type === 'shaku') { mus((m) => m.duck(0.3, 1.2)); S.freeze = Math.max(S.freeze, 0.15); hinoFace(e.o === 1 ? 'sad' : 'star', 1500); scenery.excite(1.2); cheerN(2); if (S.mode === 'vs') rivalSay(e.o === 1 ? 'steal' : 'stolen', true); }
       if (S.mode !== 'vs') setChain(e.chain);
@@ -1851,10 +1865,11 @@ function handleEvents(st) {
     } else if (e.type === 'tori') {
       // 大トリ: 線の火で尺玉をひらいた。先にひらいていた玉が多いほど倍率が上がる
       callout(t('toriCall', e.add), 3); S.freeze = Math.max(S.freeze, 0.22); S.shake = 10;
+      for (let k = 0; k < 4; k++) flyTo('m', e.shell.x + (k - 1.5) * 12, e.shell.y);
       SFX.slam(); SFX.milestone(); hinoFace('star', 1800); scenery.excite(1.5); cheerN(3);
       S.flashes.push({ x: e.shell.x, y: e.shell.y, r: 160, t: 0, max: 0.5, a: 0.9 });
     } else if (e.type === 'star') {
-      callout(t('starCall', e.add), 1); spawnSparkle(e.shell.x, e.shell.y, 14, [255, 230, 120]); SFX.pick();
+      callout(t('starCall', e.add), 1); spawnSparkle(e.shell.x, e.shell.y, 14, [255, 230, 120]); SFX.pick(); flyTo('m', e.shell.x, e.shell.y);
     } else if (e.type === 'fuseEnd') {
       spawnSparkle(e.x, e.y, 18, [255, 200, 110]); SFX.light();
     } else if (e.type === 'endBurst') {
@@ -1872,9 +1887,9 @@ function handleEvents(st) {
     } else if (e.type === 'foxHit') {
       spawnSparkle(e.x, e.y, 16, [140, 170, 255]);
     } else if (e.type === 'lucky') {
-      callout(t('luckyCall', e.n), 1); spawnSparkle(e.shell.x, e.shell.y, 12, [255, 215, 120]);
+      callout(t('luckyCall', e.n), 1); spawnSparkle(e.shell.x, e.shell.y, 12, [255, 215, 120]); flyTo('x', e.shell.x, e.shell.y);
     } else if (e.type === 'lantern') {
-      callout(e.mult ? t('lanternRaft', e.factor, e.mult) : t('lanternCall', e.factor), 1); SFX.milestone(); hinoFace(S.mode === 'vs' && e.o === 1 ? 'sad' : 'wow', 700);
+      callout(e.mult ? t('lanternRaft', e.factor, e.mult) : t('lanternCall', e.factor), 1); flyTo('m', e.shell.x, e.shell.y); SFX.milestone(); hinoFace(S.mode === 'vs' && e.o === 1 ? 'sad' : 'wow', 700);
       S.flashes.push({ x: e.shell.x, y: e.shell.y, r: 140, t: 0, max: 0.35 });
     } else if (e.type === 'fizzle') {
       if (!(S.mode === 'vs' && e.o === 1)) { hint(t('fizzle')); SFX.fail(); hinoFace('fizzle', 1800); }
@@ -2031,6 +2046,7 @@ function draw(now) {
   if (S.mode === 'vs') drawRivalHino(now, tt);
   drawBoardHino(now, tt);
   if (S.cheer) drawCheer(now, tt);
+  drawFlyers(now, sx, sy);
   // 閃光（盤面の座標）
   toBoard(ctx, sx, sy);
   ctx.globalCompositeOperation = 'lighter';
@@ -2292,22 +2308,54 @@ let shownScore = 0;
 function updateScore() {
   const st = S.st; if (!st) return;
   const mult = K.multOf(st), xm = K.xmultOf ? K.xmultOf(st) : 1, score = Math.round(st.chips * mult * xm);
-  // 大きな数字は、目標と同じ「点 × 倍率（× 倍率の掛け算）」の答え。内わけは小さく
-  $('#scoreVal').textContent = K.fmt(score);
-  $('#multVal').textContent = `${K.fmt(st.chips)} × ${mult}${xm !== 1 ? ` × ${fmtMult(xm)}` : ''}`;
+  // 火が走っている間は、点（青）と倍率（赤）だけを積み上げる。答え（点 × 倍率）は集計で叩きつけるまで見せない。
+  // 花火合戦は、相手との差を見ながら遊ぶので、答えをそのまま出す
+  const live = S.mode !== 'vs' && !S.scoreShown;
+  const sc = $('#hud .score'); sc.classList.toggle('live', live);
+  if (live) {
+    $('#scoreVal').textContent = K.fmt(st.chips); $('#scoreVal').dataset.l = t('tChips');
+    $('#multVal').textContent = `× ${mult}${xm !== 1 ? ` × ${fmtMult(xm)}` : ''}`;
+    if (S.phase === 'burn' && S.lastMult != null && (mult > S.lastMult || xm > (S.lastXm || 1))) hudHit('#multVal');
+    S.lastMult = mult; S.lastXm = xm;
+  } else {
+    $('#scoreVal').textContent = K.fmt(score);
+    $('#multVal').textContent = `${K.fmt(st.chips)} × ${mult}${xm !== 1 ? ` × ${fmtMult(xm)}` : ''}`;
+  }
   const f = K.pointFactor(st), fe = $('#factorVal');
   fe.hidden = f <= 1; if (f > 1) fe.textContent = t('factor', f);
-  const ratio = setGoal(score / targetOf(st));
-  if (S.phase === 'burn' && S.stars) {
-    if (score >= targetOf(st)) starOn(0);
-    if (score >= targetOf(st) * star2K() && !S.stars[1]) { starOn(1); callout(t('star2', star2K()), 2); }
-  }
-  if (ratio >= 1 && !S.goalHit && S.phase === 'burn') {
-    // 目標を越えた瞬間: 一瞬止めて、はっきり知らせる
-    S.goalHit = true;
-    callout(t('goalClear'), 3); SFX.pass(); S.freeze = Math.max(S.freeze, 0.15); hinoFace('star', 1400); scenery.excite(0.7); cheerN(1);
-    const hb = db(S.hino.x, S.hino.y); S.flashes.push({ x: hb.x, y: hb.y, r: 120, t: 0, max: 0.3 });
-  }
+  setGoal(live ? 0 : score / targetOf(st));
+}
+// 上の欄の数字を、ぽんと跳ねさせる（火の粒が届いたとき）
+function hudHit(sel) { const e = $(sel); e.classList.remove('hit'); void e.offsetWidth; e.classList.add('hit'); }
+// ひらいた玉から、点（青い粒）・倍率（金の粒）が上の欄へ飛んでいく
+function flyTo(kind, bx, by) {
+  if (S.mode === 'vs' || S.scoreShown || REDUCED) return;
+  const now = performance.now();
+  if (kind === 'c' && now - (S.flyAt || 0) < 35) return; // 連鎖が混んでも、粒は 1 秒に 30 まで
+  if (kind === 'c') S.flyAt = now;
+  if (S.flyers.length > 48) return;
+  const p = bd(bx, by); S.flyers.push({ x0: p.x, y0: p.y, t0: now + (kind === 'c' ? 0 : 60), kind });
+}
+// 上の欄の場所（キャンバスの論理座標）
+function hudPt(sel) {
+  const r = $(sel).getBoundingClientRect(), c = cv.getBoundingClientRect();
+  return { x: (r.left + r.width / 2 - c.left - V.ox) / V.s, y: (r.top + r.height / 2 - c.top - V.oy) / V.s };
+}
+function drawFlyers(now, sx, sy) {
+  if (!S.flyers.length) return;
+  const tc = hudPt('#scoreVal'), tm = hudPt('#multVal');
+  toCanvas(ctx, sx, sy); ctx.globalCompositeOperation = 'lighter';
+  S.flyers = S.flyers.filter((f) => {
+    const u = (now - f.t0) / 430; if (u < 0) return true;
+    if (u >= 1) { hudHit(f.kind === 'c' ? '#scoreVal' : '#multVal'); return false; }
+    const e = u * u * (3 - 2 * u), tg = f.kind === 'c' ? tc : tm;
+    const x = f.x0 + (tg.x - f.x0) * e, y = f.y0 + (tg.y - f.y0) * e - Math.sin(u * Math.PI) * 46;
+    const col = f.kind === 'c' ? '120,190,255' : f.kind === 'x' ? '255,215,90' : '255,140,110', r = f.kind === 'c' ? 4 : 6;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.4); g.addColorStop(0, `rgba(255,255,255,.95)`); g.addColorStop(0.35, `rgba(${col},.85)`); g.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 2.4, 0, 7); ctx.fill();
+    return true;
+  });
+  ctx.globalCompositeOperation = 'source-over';
 }
 function hintText(h) { const v = t('hints')[h.id]; return typeof v === 'function' ? v(h.n, h) : v || ''; }
 function targetOf(st) { return S.single ? Math.max(1, S.single.score) : st.target; }
@@ -2379,7 +2427,7 @@ function renderHud() {
     chips.appendChild(sp);
   }
   const slots = S.mode === 'run' && run ? slotsOf(run) : 0;
-  for (let k = Object.keys(lvs).length; k < slots; k++) chips.appendChild(el('span', 'empty'));
+  if (Object.keys(lvs).length) for (let k = Object.keys(lvs).length; k < slots; k++) chips.appendChild(el('span', 'empty')); // 空き枠は、お守りを持ってから
   $('#speedBtn').classList.toggle('on', S.speed > 1);
   updateScore();
 }
@@ -2408,7 +2456,7 @@ function startNight(n, preset) {
   S.show = null; S.hover = null;
   drawBackground();
   S.burnT = []; fx.clear(); S.flashes = []; S.acc = 0; S.timeScale = S.speed;
-  S.hold = 0; S.freeze = 0; S.rings = []; S.foxes = []; S.burstLog = []; S.bloomFired = false; S.pendingEv = null; S.ignite = null; S.goalHit = false; S.tallySkip = null;
+  S.hold = 0; S.freeze = 0; S.rings = []; S.foxes = []; S.slowT = 0; S.lastLeft = null; S.flyers = []; S.scoreShown = false; S.lastMult = null; S.burstLog = []; S.bloomFired = false; S.pendingEv = null; S.ignite = null; S.goalHit = false; S.tallySkip = null;
   S.stars = S.mode === 'vs' ? null : [false, false, false]; renderStars($('#stars'), [false, false, false]);
   $('#lives').replaceChildren(...Array.from({ length: S.run && S.mode === 'run' ? S.run.lives : 0 }, () => svgIcon('lantern'))); $('#lives').title = S.run ? t('livesTip', S.run.lives) : '';
   $('#stars').hidden = !S.stars;
@@ -2596,13 +2644,18 @@ function onRoundDone() {
   const st = S.st, res = st.result;
   // 今夜の花火をもう一度（打ち上げなおし）→ 満開の型物 → 集計
   // 今夜の花火（打ち上げなおし）は、大当たりか満開の夜だけ、短く
-  const big = res.allClear || res.score >= targetOf(st) * star2K();
   const go = () => {
     S.phase = 'tally'; S.tallySkip = null;
     if (res.allClear && !S.bloomFired) { S.bloomFired = true; finale(); callout(t('mankai'), 3); starOn(2); }
     setTimeout(() => { if (S.st === st) runTally(res); }, res.allClear ? 600 : 250);
   };
-  if (big) playShow(st, go); else go();
+  // 惜しかった夜（あと 1〜3 つで満開）: 残った玉がふっと消えて、ヒノコがしゅんとする「間」を置いてから集計へ
+  const left = st.shells.filter((s) => !s.burst && s.type !== 'kuro');
+  if (!res.allClear && left.length && left.length <= 3 && res.pops >= 8 && S.mode !== 'vs') {
+    callout(t('oshii'), 2); hinoFace('fizzle', 1400); SFX.hiss();
+    for (const s2 of left) spawnSparkle(s2.x, s2.y, 10, [180, 190, 230]);
+    setTimeout(() => { if (S.st === st) go(); }, 650);
+  } else go();
 }
 function runTally(res) {
   const st = S.st;
@@ -2663,44 +2716,52 @@ function runTally(res) {
   S.tallySkip = () => {
     if (!alive() || skipped) return;
     skipped = true; S.tallySkip = null;
-    [r1, r2].forEach((e) => e.classList.add('show')); r2.textContent = K.fmt(res.score);
+    [r1, r2].forEach((e) => e.classList.add('show')); r2.textContent = K.fmt(res.score); S.scoreShown = true; updateScore();
     const tot = sumParts(parts); pcB.textContent = K.fmt(tot.chips); pmB.textContent = fmtMult(tot.mult); partEl.replaceChildren();
     if (pass && res.score >= target * star2K()) r2.classList.add('fire');
     showStamp();
     setTimeout(finish, 320);
   };
   const going = () => alive() && !skipped;
-  setTimeout(() => { if (going()) r1.classList.add('show'); }, 50);
-  // 1 つずつ積む。積むものが多い夜ほど 1 つを速く（全部で 1.5 秒ほど）
-  const per = REDUCED ? 60 : Math.max(110, Math.min(240, 1500 / Math.max(1, parts.length)));
-  let chips = 0, mult = 0, i = 0;
+  // 点と倍率は、火が走る間に上の欄で積み上がっている。ここでは ×倍率を叩きつけ、点 × 倍率の答えを出す（全部で 1 秒ほど）
+  const tot = sumParts(parts.filter((p) => p.kind !== 'xmult')), xparts = parts.filter((p) => p.kind === 'xmult');
+  let mult = tot.mult, i = 0;
+  pcB.textContent = K.fmt(tot.chips); pmB.textContent = fmtMult(mult);
+  const mline = parts.filter((p) => p.kind === 'mult' && p.id !== 'base');
+  if (mline.length) {
+    const sp = el('span', 'mline', mline.slice(0, 5).map((p) => `${lang === 'en' ? (p.en || p.ja) : (p.ja || p.en)} +${fmtMult(p.v)}`).join(lang === 'en' ? ' · ' : '・') + (mline.length > 5 ? '…' : ''));
+    partEl.className = 'part m'; partEl.replaceChildren(sp);
+  }
+  setTimeout(() => { if (going()) { r1.classList.add('show'); SFX.build(1, 'chips'); } }, 40);
+  const per = REDUCED ? 80 : 300;
   const bump = (e, cls) => { e.classList.remove('bump', 'slam'); void e.offsetWidth; e.classList.add(cls); };
   const next = () => {
     if (!going()) return;
-    if (i >= parts.length) { multiply(); return; }
-    const p = parts[i++];
-    if (p.kind === 'chips') { chips += p.v; pcB.textContent = K.fmt(chips); bump(pc, 'bump'); }
-    else if (p.kind === 'mult') { mult += p.v; pmB.textContent = fmtMult(mult); bump(pm, 'bump'); }
-    else { mult *= p.v; pmB.textContent = fmtMult(mult); bump(pm, 'slam'); S.shake = Math.max(S.shake, 4); }
-    showPart(partEl, p);
-    SFX.build(i, p.kind);
-    setTimeout(next, p.kind === 'xmult' ? per + 140 : per);
+    if (i >= xparts.length) { multiply(); return; }
+    const p = xparts[i++];
+    mult *= p.v; pmB.textContent = fmtMult(mult); bump(pm, 'slam'); S.shake = Math.max(S.shake, 4);
+    showPart(partEl, p); SFX.build(4 + i * 2, 'xmult');
+    setTimeout(next, per);
   };
-  // 点 × 倍率 → 最後の点。目標の 3 倍を越えたら、数字が燃える
+  // 点 × 倍率 → 最後の点。上の欄の答えもここで初めて出す。目標の 3 倍を越えたら、数字が燃える
   const multiply = () => {
     r2.classList.add('show');
-    const t0 = performance.now(), dur = REDUCED ? 200 : 650, huge = pass && res.score >= target * star2K();
+    const t0 = performance.now(), dur = REDUCED ? 150 : 450, huge = pass && res.score >= target * star2K();
+    const step = 10 ** Math.max(0, String(Math.round(res.score)).length - 2); let lastKey = -1, lastTick = 0;
     (function roll() {
       if (!going()) return;
-      const u = Math.min(1, (performance.now() - t0) / dur);
-      r2.textContent = K.fmt(Math.round(res.score * (1 - (1 - u) ** 3)));
-      if (u < 1) { if (Math.random() < 0.6) SFX.tick(); requestAnimationFrame(roll); return; }
-      r2.textContent = K.fmt(res.score); SFX.slam();
+      const u = Math.min(1, (performance.now() - t0) / dur), v = Math.round(res.score * (1 - (1 - u) ** 3));
+      r2.textContent = K.fmt(v);
+      // 上 2 けたが変わったときだけ鳴らす（コマの速さで音の数が変わらないように）
+      const key = Math.floor(v / step), n = performance.now();
+      if (key !== lastKey && n - lastTick > 35) { lastKey = key; lastTick = n; SFX.tick(); }
+      if (u < 1) { requestAnimationFrame(roll); return; }
+      r2.textContent = K.fmt(res.score); SFX.slam(); S.scoreShown = true; updateScore(); bump(r2, 'slam');
       if (huge) { r2.classList.add('fire'); S.shake = Math.max(S.shake, 6); SFX.milestone(); }
-      setTimeout(() => { if (!going()) return; showStamp(); setTimeout(finish, 1100); }, 350);
+      setTimeout(() => { if (!going()) return; showStamp(); setTimeout(finish, 900); }, 280);
     })();
   };
-  setTimeout(next, 280);
+  setTimeout(next, xparts.length ? 360 : 260);
 }
 // 集計で積み上げるもの。点（chips）→ 倍率（mult）→ ×倍率（xmult）の順
 function tallyParts(res) {
