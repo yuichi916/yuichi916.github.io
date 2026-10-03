@@ -648,6 +648,13 @@ body.yoko #inkTag{right:var(--pr)}
 @keyframes inkLow{from{filter:brightness(1)}to{filter:brightness(1.7)}}
 .ov{overscroll-behavior:contain}
 #pauseOv{z-index:40;background:rgba(5,6,16,.72)}
+#nextBtn{position:absolute;left:50%;bottom:calc(64px * var(--u) + var(--safe-b));transform:translateX(-50%);z-index:20;min-width:calc(200px * var(--u));font-size:calc(17px * var(--u));box-shadow:0 6px 24px rgba(0,0,0,.5),0 0 18px rgba(255,215,90,.35)}
+#nextBtn[hidden]{display:none}
+#nextBtn.inbox{position:static;transform:none;display:block;margin:calc(12px * var(--u)) auto 0;animation:none;pointer-events:auto}
+#nextBtn.pop{animation:nextIn .35s ease-out backwards}
+@keyframes nextIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+#tutOv .tutcard{max-width:calc(460px * var(--u));text-align:center}
+#tutOv .tutbody{margin-top:calc(10px * var(--u));font-size:calc(15px * var(--u));line-height:1.7;color:#e8e6f8;text-align:left}
 #coach{position:fixed;inset:0;z-index:85;cursor:pointer;-webkit-tap-highlight-color:transparent}
 #coach[hidden]{display:none}
 #coach .spot{position:fixed;border-radius:calc(14px * var(--u));border:2px solid var(--gold);box-shadow:0 0 0 200vmax rgba(4,6,18,.68);pointer-events:none;animation:spotPulse .9s ease-in-out infinite alternate}
@@ -656,6 +663,8 @@ body.yoko #inkTag{right:var(--pr)}
 #coach.center{background:rgba(4,6,18,.45)}
 #coach .cb{position:fixed;display:flex;align-items:center;gap:calc(8px * var(--u));width:max-content;max-width:min(calc(440px * var(--u)),calc(100vw - 24px));padding:calc(10px * var(--u)) calc(14px * var(--u)) calc(10px * var(--u)) calc(8px * var(--u));border-radius:calc(16px * var(--u));background:#fff6df;color:#2a1a08;box-shadow:0 8px 28px rgba(0,0,0,.5);animation:rise .3s ease-out backwards}
 #coach .cb canvas{flex:none;width:calc(46px * var(--u));height:calc(46px * var(--u))}
+#coach .cs{display:block;font-size:calc(12px * var(--u));color:#b4471c;letter-spacing:.06em;margin-bottom:calc(2px * var(--u))}
+#coach .cs:empty{display:none}
 #coach .ct{margin:0;font-size:calc(15px * var(--u));line-height:1.5;font-weight:700}
 #coach .ct b{color:#b4471c}
 #coach .cn{display:block;margin-top:calc(2px * var(--u));font-size:calc(12px * var(--u));color:#8a6a3a}
@@ -873,8 +882,10 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
   <div id="newCard" hidden></div>
   <button id="skip2" hidden></button>
   <div id="toast" role="status" aria-live="polite"></div>
+  <!-- 「次へ」: 画面が先へ進むのは、プレイヤーが押したときだけ -->
+  <button type="button" class="btn primary" id="nextBtn" hidden></button>
   <!-- ヒノコの手ほどき: はじめて出会ったときに 1 度だけ、画面の所を照らしてひとこと。タップで次へ -->
-  <div id="coach" hidden role="dialog" aria-live="polite"><div class="spot"></div><div class="cb"><canvas width="96" height="96" aria-hidden="true"></canvas><div><p class="ct"></p><small class="cn"></small></div></div></div>
+  <div id="coach" hidden role="dialog" aria-live="polite"><div class="spot"></div><div class="cb"><canvas width="96" height="96" aria-hidden="true"></canvas><div><b class="cs"></b><p class="ct"></p><small class="cn"></small></div></div></div>
   <!-- 広告の間は、画面を覆って触れないようにする（ゲームサイト用） -->
   <div id="adBlock" hidden></div>
   <!-- ひと休み（☰・Esc・別のタブへ移ったとき）。ほかの画面の上に重ねる -->
@@ -885,7 +896,6 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
         <button type="button" class="btn primary" id="pResume" data-t="pResume">▶ 続ける</button>
         <button type="button" class="btn" id="pRestart" data-t="pRestart">最初からやりなおす</button>
         <button type="button" class="btn small" id="pQuit" data-t="pQuit">タイトルへ</button>
-        <button type="button" class="btn small" id="pTips" data-t="pTips">手ほどきをもう一度</button>
       </div>
       <div class="prow"><button type="button" class="ibtn" id="pSound" aria-label="効果音"></button><button type="button" class="ibtn" id="pBgm" aria-label="BGM" data-ico="music"></button><button type="button" class="ibtn" id="pForm" aria-label="画面の向き（縦・横）" data-ico="form"></button></div>
     </div>
@@ -912,6 +922,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
       <div class="stack">
         <button class="btn primary playbtn cont" id="contBtn" hidden><b id="contLbl"></b><small id="contSub"></small></button>
         <button class="btn primary playbtn" id="freeBtn" data-t="playBtn">▶ 遊ぶ</button>
+        <button class="btn small" id="tutBtn" data-t="tutBtn">チュートリアル</button>
         <button class="btn daily" id="dailyBtn"><b id="dailyLbl"></b><small id="dailySub"></small></button>
         <button class="btn accent" id="vsBtn"><span data-t="vsBtn">⚔️ 花火合戦（CPU と対戦）</span><span class="newb">NEW</span></button>
       </div>
@@ -993,6 +1004,18 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
   </section>
 
   <!-- 解放したもの（結果の上に 1 つずつ） -->
+  <!-- チュートリアルのしめくくり -->
+  <section class="ov" id="tutOv" hidden>
+    <div class="card tutcard">
+      <p class="sub serif" data-t="tutEndStep">チュートリアル 8/8</p>
+      <h2 class="serif" data-t="tutEndHead">準備ばっちり！</h2>
+      <p class="tutbody" data-t="tutEndBody"></p>
+      <div class="stack">
+        <button type="button" class="btn primary" id="tutGo" data-t="tutGo">▶ 本番を始める</button>
+        <button type="button" class="btn small" id="tutTitle" data-t="tutTitle">タイトルへ</button>
+      </div>
+    </div>
+  </section>
   <section class="ov" id="unlockOv" hidden>
     <div class="card unlockcard"><div id="unlockBody"></div><div class="stack"><button type="button" class="btn primary" id="unlockOk" data-t="unlockOk">やったね</button></div></div>
   </section>
@@ -1134,25 +1157,19 @@ const T = {
     factor: (f) => `点×${f}`, lanternCall: (f) => `提灯！ 点×${f}`, fizzle: '雲の中では、火がつかない', dry: '乾いた！',
     pickNextNew: (n, t, g) => `次は${KANJI[n]}夜目 ・ 目標 ${K.fmt(t)} 点 ・ 新しい仕掛け「${g}」`,
     allWorks: 'ほかの作品をぜんぶ見る →', nextSudoku: '異世界立体数独', nextPuyo: '将棋ぷよ「成」', nextNote: 'この型の研究ノート',
-    gainLbl: '次の夜', coachNext: 'タップで次へ', pTips: '手ほどきをもう一度', tipsReset: '手ほどきを、もう一度はじめから出します',
-    tip_draw: '花火玉から花火玉へ、指で線を1本引こう。線の長さは、この墨の分だけ。',
-    tip_tally: 'はじけた玉の「点」×「倍率」が今夜の点。金の玉や、10 連鎖ごとに倍率が上がる。',
-    tip_stars: '目標を越えると★1、目標の3倍で★2、全部ひらくと★3。★は屋台で使える。',
-    tip_pick: 'お守りを1つ選ぼう。選んだお守りは、祭りの最後までずっと効く。',
-    tip_gain: '☾ のゲージは、このお守りで次の夜の点がどれだけ伸びそうかの目安。',
-    tip_stall: '★で屋台の品が買える。入れかえ・墨を足す・予備の提灯（散ってももう一度）。',
-    tip_next: '次の夜の盤と目標。新しい仕掛けや大一番も、ここで先に分かる。',
-    tip_type: '同じ型のお守りを3つ（提灯は2つ）集めると、点 ×1.25。● が集めた数、◎ がこの札。',
-    tip_upgrade: '持っているお守りをもう一度選ぶと Lv が上がる。Lv3 で新しい力がつく。',
-    tip_wish: '願い札: この条件をかなえて夜を越えると、★がもらえる。',
-    tip_boss: '大一番！ 妖怪が線のルールを変えてくる。勝てば仲間になる。',
-    tip_ink: '使わなかった墨の半分は、次の夜に足される（墨壺）。',
-    tip_set: '型がそろった！ 点 ×1.25。同じ型を集めるほど ×1.4・×1.5 に上がる。',
-    tip_retry: '目標に届かなかった…。予備の提灯で、この夜をもう一度引ける。上のヒントを試そう。',
-    tip_startpick: '祭りのはじめに、お守りを1つ持っていける。',
-    tip_focus: '型をしぼると、次の候補がその型のお守りだけになる。',
-    tip_replace: 'お守りの枠がいっぱい。手放すお守りを1つ選ぶ（★が戻る）。',
-    tip_result: '祭りのおしまい。遊ぶほど花火師の格が上がり、新しいお守りや着せかえが開く。',
+    gainLbl: '次の夜', coachNext: 'タップで次へ',
+    next: '次へ ▶', goDraw: '▶ 線を引く', seeTally: '集計へ ▶', goPick: 'お守りを選ぶ ▶', seeResult: '結果へ ▶', unlockSee: (n) => `開いたものを見る（${n}）`,
+    tutBtn: 'チュートリアル', tutStart: '▶ チュートリアルから始める', tutLabel: 'チュートリアル', tutBanner: '線を1本引いてみよう', tutStep: (n, m) => `チュートリアル ${n}/${m}`,
+    tutEndStep: 'チュートリアル 8/8', tutEndHead: '準備ばっちり！', tutGo: '▶ 本番を始める', tutTitle: 'タイトルへ',
+    tutEndBody: '本番は八夜。三夜目と六夜目は大一番（妖怪が線のルールを変える夜）。新しい仕掛けや大一番は、出てきたときに画面に説明が出る。チュートリアルは、タイトルから何度でもやりなおせる。',
+    tip_tut1: '花火玉から花火玉へ、指（マウス）で線を1本引いてみよう。お手本の指をなぞってもいい。線の長さは、下の墨の分だけ。',
+    tip_tut2: '線に火がつき、ふれた玉がはじけた！ はじけた火は、近くの玉にも燃え移る（連鎖）。つながるほど点が伸びる。',
+    tip_tut3: '今夜の点は「点」×「倍率」。金の玉をひらいたり、10 連鎖するごとに、倍率が上がる。',
+    tip_tut4: '目標を越えると次の夜へ。八夜越えれば祭りの完走！ 星は「目標越え」「目標の3倍」「全部ひらく」でもらえて、屋台で使える。',
+    tip_tut5: '夜を越えたら、お守りを1つ選ぶ。選んだお守りは、祭りの最後までずっと効く。☾ のゲージは、次の夜にどれだけ点が伸びそうかの目安。',
+    tip_tut6: 'お守りには型がある。同じ型を3つ（提灯は2つ）集めると、点 ×1.25。● が集めた数、◎ がこの札。',
+    tip_tut7: '取った星で、屋台の品が買える（入れかえ・墨を足す・予備の提灯）。さあ、お守りを1つ選んでみよう。',
+    tip_tutRetry: 'おしい！ 目標まであと少し。お手本の指をなぞって、もう一度引いてみよう。',
     target: '目標', pickTitle: 'お守りを1つ選ぶ', gainTip: '☾ 次の夜の点がどれだけ伸びそうか（試しの線で計った目安）',
     luckyCall: (n) => `招き猫 ×${n}`, lanternRaft: (f, m) => `提灯！ 点×${f}・花筏 倍率+${m}`,
     wishTip: '願い札: 叶えて夜を越えると、星がもう 1 つ', wishMet: (w, n = 1) => `願い札「${w}」叶った！ ★+${n}`, wishMiss: (w) => `願い札「${w}」は叶わず`,
@@ -1272,25 +1289,19 @@ const T = {
     factor: (f) => `points ×${f}`, lanternCall: (f) => `Lantern! points ×${f}`, fizzle: 'Fire can\'t start inside a cloud', dry: 'Dried!',
     pickNextNew: (n, t, g) => `Next: night ${n + 1} · target ${K.fmt(t)} · new: ${g}`,
     allWorks: 'See all works →', nextSudoku: 'Rune Cube', nextPuyo: 'Shogi Puyo', nextNote: 'Research note (JA)',
-    gainLbl: 'next night', coachNext: 'Tap to continue', pTips: 'Show the tips again', tipsReset: 'The tips will show again from the start',
-    tip_draw: 'Draw one line from shell to shell. Your line can only be as long as this ink.',
-    tip_tally: 'Your score is POINTS × MULT. Gold shells and every 10-chain raise the multiplier.',
-    tip_stars: 'Beat the target for ★1, triple it for ★2, burst every shell for ★3. Spend ★ at the stall.',
-    tip_pick: 'Pick one charm. It keeps working until the end of the festival.',
-    tip_gain: 'The ☾ bar shows how much this charm should raise next night\'s score.',
-    tip_stall: 'Spend ★ at the stall: reroll, add ink, or a spare lantern (retry a failed night).',
-    tip_next: 'Next night\'s board and target. New gimmicks and bosses show up here first.',
-    tip_type: 'Collect 3 charms of one type (2 lanterns) for score ×1.25. ● = how many you have, ◎ = this one.',
-    tip_upgrade: 'Pick a charm you already hold to level it up. At Lv3 it gains a new power.',
-    tip_wish: 'Wish card: meet this condition and clear the night to earn a ★.',
-    tip_boss: 'Boss night! A yokai changes how your line works. Beat it and it joins you.',
-    tip_ink: 'Half of the ink you didn\'t use carries over to the next night (ink pot).',
-    tip_set: 'Set complete! Score ×1.25. Collect more of the type for ×1.4 and ×1.5.',
-    tip_retry: 'You fell short… Use a spare lantern to try this night again. Try the tip above.',
-    tip_startpick: 'Take one charm with you at the start of the festival.',
-    tip_focus: 'Focus makes the next offer all one type of charm.',
-    tip_replace: 'Your charm slots are full. Pick one to let go (you get ★ back).',
-    tip_result: 'The festival is over. Playing raises your rank and unlocks new charms and outfits.',
+    gainLbl: 'next night', coachNext: 'Tap to continue',
+    next: 'Next ▶', goDraw: '▶ Draw', seeTally: 'See score ▶', goPick: 'Pick a charm ▶', seeResult: 'Results ▶', unlockSee: (n) => `See what opened (${n})`,
+    tutBtn: 'Tutorial', tutStart: '▶ Start with the tutorial', tutLabel: 'Tutorial', tutBanner: 'Draw one line', tutStep: (n, m) => `Tutorial ${n}/${m}`,
+    tutEndStep: 'Tutorial 8/8', tutEndHead: 'You\'re ready!', tutGo: '▶ Start the festival', tutTitle: 'Back to title',
+    tutEndBody: 'A festival is 8 nights. Nights 3 and 6 are boss nights, where a yokai changes how your line works. New gimmicks and bosses are explained on screen when they appear. You can replay the tutorial from the title any time.',
+    tip_tut1: 'Draw one line from shell to shell with your finger (or mouse). You can trace the hand. Your line can only be as long as the ink below.',
+    tip_tut2: 'Your line caught fire and the shells it touched burst! Each burst spreads to nearby shells (a chain). Longer chains score more.',
+    tip_tut3: 'Your score is POINTS × MULT. Gold shells and every 10-chain raise the multiplier.',
+    tip_tut4: 'Beat the target to reach the next night. Clear 8 nights to finish the festival! Stars come from beating the target, tripling it, and bursting every shell. Spend them at the stall.',
+    tip_tut5: 'After each night, pick one charm. It keeps working until the festival ends. The ☾ bar estimates how much it raises next night\'s score.',
+    tip_tut6: 'Charms have types. Collect 3 of one type (2 lanterns) for score ×1.25. ● = how many you have, ◎ = this one.',
+    tip_tut7: 'Spend stars at the stall: reroll, add ink, or a spare lantern. Now pick a charm.',
+    tip_tutRetry: 'So close! Trace the hand and try again.',
     target: 'Target', pickTitle: 'Pick one charm', gainTip: '☾ How much this should raise next night\'s score (estimated with a trial line)',
     luckyCall: (n) => `Lucky cat ×${n}`, lanternRaft: (f, m) => `Lantern! points ×${f} · raft mult +${m}`,
     wishTip: 'Wish: make it come true and clear the night for one more star', wishMet: (w, n = 1) => `Wish "${w}" came true! ★+${n}`, wishMiss: (w) => `Wish "${w}" missed`,
@@ -2128,7 +2139,7 @@ function frame(now) {
   if (S.paused) { S.last = now; draw(now); return; } // ひと休み中は、絵だけ
   // 時間で進む場面（ひと休みの間は止まる）
   if (S.cut && S.cut.endAt && now >= S.cut.endAt) { const f = S.cut.end; S.cut.endAt = 0; f(); }
-  if (S.introAt && now >= S.introAt) { S.introAt = 0; if (S.st && S.phase === 'intro') enterDraw(false); }
+  if (S.introAt && now >= S.introAt) { S.introAt = 0; if (S.st && S.phase === 'intro') introReady(); }
   const dt = Math.min(0.1, (now - (S.last || now)) / 1000); S.last = now; // 遅い端末でも、ゆっくり再生にならないよう追いつく
   // ヒットストップ: 大きな瞬間は、火も花火の粒もいっしょに一瞬止める
   if (S.freeze > 0) { S.freeze = Math.max(0, S.freeze - dt); draw(now); if (!titleOv.hidden) drawTitleHino(now); return; }
@@ -2776,14 +2787,31 @@ function toast(msg) {
   toastTimer = setTimeout(() => { e.classList.remove('on'); const n = toastQ.shift(); if (n) toastTimer = setTimeout(() => toast(n), 260); }, 1700);
 }
 function hint(msg) { setT($('#hint'), msg || ''); }
+// ================================================================ 「次へ」
+// 画面が先へ進むのは、プレイヤーが「次へ」（ボタン・盤のタップ・Space・Enter）を押したときだけ。出てすぐ（0.35 秒）の誤ったタップは受けない
+let nextFn = null, nextAt = 0;
+function waitNext(fn, label, host = null) {
+  nextFn = fn; nextAt = performance.now() + 350;
+  const b = $('#nextBtn'); setT(b, label || t('next')); b.hidden = false;
+  // 集計のときは、集計の札の中に置く（札に重ならないように）。ほかは盤の下
+  const home = host || stage; if (b.parentElement !== home) home.appendChild(b); b.classList.toggle('inbox', !!host);
+  b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+}
+function doNext() {
+  if (!nextFn || performance.now() < nextAt || coachCur || S.paused) return false;
+  const f = nextFn; nextFn = null; $('#nextBtn').hidden = true; SFX.ui(); f();
+  return true;
+}
+function clearNext() { nextFn = null; $('#nextBtn').hidden = true; }
 // ================================================================ ヒノコの手ほどき
 // 遊びの中で、はじめて出会ったときに 1 度だけ、画面のその所を照らして、ヒノコがひとこと教える（DB.tips に覚える）。
 // タップ（Space・Enter）で次へ。then は、読み終えたとき（もう見た手ほどきなら、すぐ）に呼ぶ
 const coachQ = []; let coachCur = null;
-function tipsOn() { return !S.demo && S.mode !== 'replay' && S.mode !== 'single' && S.mode !== 'vs'; }
+function tipsOn() { return !S.demo && !!(S.run && S.run.tutorial) && S.mode === 'run'; } // 説明はチュートリアルの中だけ（本番の途中には割りこまない）
 function coach(id, target, opts = {}) {
   const then = opts.then || null;
-  if (!tipsOn() || (DB.tips && DB.tips[id]) || (coachCur && coachCur.id === id) || coachQ.some((q) => q.id === id)) { if (then) then(); return false; }
+  const seen = S.run && S.run.tutSeen ? S.run.tutSeen : {};
+  if (!tipsOn() || seen[id] || (coachCur && coachCur.id === id) || coachQ.some((q) => q.id === id)) { if (then) then(); return false; }
   coachQ.push({ id, target, opts, then }); if (!coachCur) coachNext();
   return true;
 }
@@ -2798,7 +2826,8 @@ function coachNext() {
   coachCur = coachQ.shift() || null;
   if (!coachCur) { box.hidden = true; return; }
   const c = coachCur;
-  DB.tips = DB.tips || {}; DB.tips[c.id] = 1; save();
+  if (S.run) { S.run.tutSeen = S.run.tutSeen || {}; S.run.tutSeen[c.id] = 1; }
+  box.querySelector('.cs').textContent = c.opts.step ? t('tutStep', c.opts.step, 8) : '';
   box.querySelector('.ct').textContent = t('tip_' + c.id);
   box.querySelector('.cn').textContent = t('coachNext');
   const cv = box.querySelector('canvas'), g = cv.getContext('2d'); g.clearRect(0, 0, 96, 96); hino(g, 48, 58, 20, { face: c.opts.face || 'joy', still: true, glow: false });
@@ -2832,14 +2861,12 @@ function coachDone() {
   if (c.then) c.then();
   if (!coachCur) coachNext();
 }
-// 何度も遊んでいる人は、はじめの手ほどき（線・集計・選ぶ・屋台・散った・願い・大一番・墨壺）は見たことにする
-if (!DB.tips && (DB.runs || 0) >= 2) { DB.tips = {}; for (const id of ['draw', 'tally', 'stars', 'pick', 'stall', 'retry', 'wish', 'boss', 'ink', 'result', 'next']) DB.tips[id] = 1; }
 function renderHud() {
   const run = S.run, st = S.st;
   $('#hud').hidden = false; $('#topBtns').hidden = false; $('#homeBtn').hidden = false; document.body.classList.add('playing');
   const night = st ? st.night : 0;
-  $('#nightLbl').textContent = t('night', night);
-  $('#dots').textContent = run ? Array.from({ length: K.NIGHTS }, (_, i) => (i < night ? '●' : i === night ? '◉' : '○')).join('') : '';
+  $('#nightLbl').textContent = run && run.tutorial ? t('tutLabel') : t('night', night);
+  $('#dots').textContent = run && !run.tutorial ? Array.from({ length: K.NIGHTS }, (_, i) => (i < night ? '●' : i === night ? '◉' : '○')).join('') : '';
   $('#targetVal').textContent = K.fmt(st ? targetOf(st) : 0);
   const chips = $('#chips'); chips.innerHTML = '';
   // 同じお守りが重なっていれば、それは段（Lv2・Lv3）。空いている枠は点線で見せる
@@ -2864,7 +2891,7 @@ function hideHud() { document.body.classList.remove('playing'); $('#vsHud').hidd
 
 // ================================================================ 夜の進み方
 function newRun(opts) {
-  S.resume = null;
+  S.resume = null; clearNext();
   S.run = { seed: opts.seed >>> 0, moon: opts.moon, daily: !!opts.daily, official: !!opts.official, key: opts.key || null, no: opts.no || 0,
     duel: opts.duel || null, charms: [], nights: [], total: 0, bestChain: 0, best: null, lives: 1, wallet: 0, rerolls: 0, bank: 0,
     level: 0, pool: null, retries: 0, lvMax: {} };
@@ -2881,11 +2908,11 @@ function newRun(opts) {
 }
 // 途中保存: 夜のはじめに、祭りの中身を残す（線を引いたら、その線も）。読みなおしたら、その夜の頭から（引いた線は、同じ線がそのまま燃える）
 function keepRun(n, preset) {
-  if (preset || S.mode !== 'run' || !S.run) return;
+  if (preset || S.mode !== 'run' || !S.run || S.run.tutorial) return; // チュートリアルは残さない
   try { DB.cont = { v: K.REPLAY_VERSION, night: n, strokes: [], at: Date.now(), run: JSON.parse(JSON.stringify(S.run, (k, x) => (k === 'meta' || k === 'revealed' ? undefined : x))) }; save(); } catch (e) { /* 残せなくても遊べる */ }
 }
 function keepStroke() {
-  if (S.mode !== 'run' || !DB.cont || !S.st || DB.cont.night !== S.st.night) return;
+  if (S.mode !== 'run' || !DB.cont || !S.st || DB.cont.night !== S.st.night || (S.run && S.run.tutorial)) return;
   DB.cont.strokes = S.st.strokes.map((x) => x.map((p) => ({ x: p.x, y: p.y })));
 }
 function dropRun() { if (DB.cont) { delete DB.cont; save(); } }
@@ -2898,14 +2925,14 @@ function resumeRun() {
   try { startNight(c.night); } catch (e) { S.resume = null; dropRun(); goTitle(); }
 }
 function startNight(n, preset) {
-  const run = S.run;
+  const run = S.run; clearNext();
   keepRun(n, preset);
   startMusic();
   S.st = K.newRound(preset || { seed: run.seed, night: n, charms: run.charms, moon: run.moon, bank: run.bank || 0, level: run.level || 0 });
   // 今夜の願い札（ひとりの祭りだけ。叶えると星がもう 1 つ）
   // はじめての夜は、線を引くことだけに目を向けてもらう（願い札・星・予備の提灯は、二夜目から見せる）
-  const first = !preset && S.mode === 'run' && !DB.tutored; $('#hud').classList.toggle('first', first);
-  S.wish = !preset && S.mode === 'run' && !first ? K.wishFor(run.seed, n, run.level || 0, run.moon) : null; S.wishMet = false;
+  const first = !preset && S.mode === 'run' && !DB.tutored && !run.tutorial; $('#hud').classList.toggle('first', first);
+  S.wish = !preset && S.mode === 'run' && !first && !run.tutorial ? K.wishFor(run.seed, n, run.level || 0, run.moon) : null; S.wishMet = false;
   const wb = $('#wish'); wb.hidden = !S.wish; wb.className = '';
   if (S.wish) { const c = wishChip(S.wish); wb.replaceChildren(...c.childNodes); wb.title = c.title; if (S.wish.stars === 2) wb.classList.add('two'); } // 願い札は「願」の印と絵の式（言葉は指を重ねたとき）
   S.show = null; S.hover = null;
@@ -2941,7 +2968,7 @@ function introNight(tw) {
   const peek = S.st.night === 0 && S.mode === 'run' && S.run && M.features(DB.meta).includes('bossPeek') ? t('peekBoss', ...K.BOSS_NIGHTS.map((b) => { const x = K.twistFor(S.run.seed, b); return x ? (lang === 'en' ? x.en : x.ja) : '？'; })) : '';
   const sub = [tw ? t('bossName', tw) : (S.st.night >= 2 && sc ? t('scene', sc) : ''), peek, t('bannerTarget', targetOf(S.st))].filter(Boolean).join(lang === 'en' ? ' · ' : ' ・ ');
   $('#banner').classList.toggle('boss', !!tw);
-  banner(t('night', S.st.night), sub);
+  if (S.run && S.run.tutorial) banner(t('tutLabel'), t('tutBanner')); else banner(t('night', S.st.night), sub);
   S.darkUntil = 0; S.darkReveal = 0; S.darkMsg = null;
   showNewCard(K.gimmickFor(S.st.night), tw); S.cutJust = false; // 大一番のルールは HUD の札に出したままにする
   // やりなおしの夜: さっきのヒントの玉（金・提灯・湿った玉・尺玉・縄）を、引きはじめるまで光らせる（言葉の代わり）
@@ -2951,7 +2978,13 @@ function introNight(tw) {
   startLaunch(S.st);
   S.introAt = performance.now() + (S.launch ? 1300 : 900); // 時間がきたら frame() が線を引く番にする（ひと休みの間は進まない）
 }
-// 大一番の幕: 妖怪が飛びこんで名乗り、ルールをひとこと。タップか 3.2 秒で次へ
+// 夜のはじめの打ち上げが終わったら、「線を引く」を押すまで待つ（お手本の再生だけは、そのまま）
+function introReady() {
+  if (S.demo) { enterDraw(false); return; }
+  const st = S.st;
+  waitNext(() => { if (S.st === st && S.phase === 'intro') enterDraw(false); }, S.mode === 'replay' ? t('next') : t('goDraw'));
+}
+// 大一番の幕: 妖怪が飛びこんで名乗り、ルールをひとこと。タップで次へ（ひとりでは閉じない）
 function playBossCut(id, tw, done) {
   const c = CAST.CAST[id], el2 = $('#bossCut'), say = lang === 'en' ? c.sayEn : c.say;
   el2.style.setProperty('--bc', c.color);
@@ -2964,7 +2997,7 @@ function playBossCut(id, tw, done) {
   const rule = el2.querySelector('.bc-rule'); rule.title = lang === 'en' ? tw.ruleEn : tw.rule;
   let gx = null; if (G && G.twistGlyph) { try { gx = G.glyphEl(G.twistGlyph(tw.id), { shellImg, svgIcon }); } catch (e) { gx = null; } }
   if (gx) rule.replaceChildren(gx, el('span', 'rt', dev(lang === 'en' ? tw.ruleEn : tw.rule))); else setT(rule, dev(lang === 'en' ? tw.ruleEn : tw.rule)); hint('');
-  el2.querySelector('.bc-skip').textContent = t('tapGo');
+  el2.querySelector('.bc-skip').textContent = ''; // 「次へ」のボタンを出すので、下の小さな字は出さない
   el2.classList.remove('out'); el2.hidden = false;
   // 名前・吹き出しが出るのに合わせ直す（同じ夜に 2 度目でも動くように）
   for (const e of el2.querySelectorAll('canvas,.bc-tag,.bc-name,.bc-title,.bc-say,.bc-rule,.bc-skip')) { e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; }
@@ -2973,12 +3006,13 @@ function playBossCut(id, tw, done) {
   DB.meta = M.noteSeen(DB.meta, { cast: [id] }); save();
   let over = false;
   const end = () => {
-    if (over) return; over = true; S.skipFn = null;
+    if (over) return; over = true; S.skipFn = null; clearNext();
     el2.classList.add('out');
     setTimeout(() => { el2.hidden = true; S.cut = null; done(); }, 260);
   };
   S.skipFn = () => { if (performance.now() - S.cut.t0 > 350) end(); }; // 出てすぐの、誤ったタップは受けない
-  S.cut.end = end; S.cut.endAt = performance.now() + (REDUCED ? 1800 : 3200);
+  setTimeout(() => { if (!over) waitNext(end, t('next')); }, 900); // 名乗りを見せてから「次へ」を出す（押すまで閉じない）
+  S.cut.end = end; // ひとりでは閉じない（タップ・Space で次へ）
 }
 // 大一番に勝ったあと: 妖怪が悔しがり、はじめてなら「仲間になる」と言って伝説のお守りを見せる（タップか数秒で次へ）
 function playBossDefeat(id, first, done) {
@@ -2991,7 +3025,7 @@ function playBossDefeat(id, first, done) {
   el2.querySelector('.bc-say').textContent = say.lose; setTimeout(() => { if (S.cut && S.cut.defeat) SFX.voice(id, say.lose); }, 300);
   const rule = el2.querySelector('.bc-rule'); rule.replaceChildren();
   if (first) { rule.append(t('friendLine', nm)); const lg = K.charmById(id); if (lg) { const sp = el('span', 'bc-legend'); sp.append(charmIcon(id), ` ${lang === 'en' ? lg.en : lg.ja}`); rule.append(sp); } }
-  el2.querySelector('.bc-skip').textContent = t('tapNext');
+  el2.querySelector('.bc-skip').textContent = '';
   el2.classList.remove('out'); el2.classList.add('defeat'); el2.hidden = false; $('#bossSay').classList.remove('on');
   for (const e of el2.querySelectorAll('canvas,.bc-tag,.bc-name,.bc-title,.bc-say,.bc-rule,.bc-skip')) { e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; }
   S.cut = { id, t0: performance.now(), defeat: true, first };
@@ -3001,12 +3035,13 @@ function playBossDefeat(id, first, done) {
   const tFriend = first ? setTimeout(() => { if (S.cut && S.cut.defeat) { sayEl.textContent = say.friend; SFX.voice(id, say.friend); sayEl.style.animation = 'none'; void sayEl.offsetWidth; sayEl.style.animation = ''; } }, 1500) : 0;
   let over = false;
   const end = () => {
-    if (over) return; over = true; S.skipFn = null; clearTimeout(tFriend);
+    if (over) return; over = true; S.skipFn = null; clearTimeout(tFriend); clearNext();
     el2.classList.add('out');
     setTimeout(() => { el2.hidden = true; el2.classList.remove('defeat'); S.cut = null; done(); }, 260);
   };
   S.skipFn = () => { if (S.cut && performance.now() - S.cut.t0 > 450) end(); };
-  S.cut.end = end; S.cut.endAt = performance.now() + (REDUCED ? 2200 : first ? 4200 : 2600);
+  setTimeout(() => { if (!over) waitNext(end, t('next')); }, first ? 1600 : 900);
+  S.cut.end = end; // ひとりでは閉じない（タップ・Space で次へ）
 }
 function drawBossCut(now) {
   const cu = S.cut; if (!cu) return;
@@ -3099,20 +3134,8 @@ function enterDraw(second) {
   // 途中保存から: 読みなおす前に引いてあった線は、そのまま燃やす
   const again = S.resume && S.resume[second ? 1 : 0];
   if (again) { const st = S.st; S.ghost = null; hint(t('contLine')); setTimeout(() => { if (S.st === st && S.phase === 'draw' && !S.drawing) commitStroke(again, true); }, 700); }
-  // 手ほどき（はじめて出会ったときだけ）: 線の引き方と墨・大一番・願い札・墨壺・型そろい
-  if (!second && !again && S.mode === 'run' && !S.demo) {
-    const stT = S.st;
-    setTimeout(() => {
-      if (S.st !== stT || S.phase !== 'draw' || S.drawing || S.paused) return;
-      coachSeq([
-        ['draw', '#ink', { nodim: true }],
-        ...(stT.twist ? [['boss', '#twistTag']] : []),
-        ...(S.wish ? [['wish', '#wish']] : []),
-        ...(stT.bank > 0 ? [['ink', '#inkTag']] : []),
-        ...(K.setBonus && K.setBonus(stT.charms) ? [['set', '#chips .set']] : []),
-      ]);
-    }, 450);
-  }
+  // チュートリアル 1/8: 線の引き方（お手本の指はいつも出す）
+  if (!second && S.run && S.run.tutorial) { S.ghost = ghostPath(S.st); coach('tut1', '#ink', { step: 1, nodim: true }); }
 }
 // 線を引く番のひとこと（大一番の夜は、ルールをひとことで出したままにする。カードは指を置くと消えるので）
 function drawHint(second) {
@@ -3120,7 +3143,7 @@ function drawHint(second) {
   const tw = S.st && S.st.twist && K.TWISTS.find((x) => x.id === S.st.twist);
   if (second) return t('hintDraw2');
   if (tw) return dev(lang === 'en' ? `${t('boss')} “${tw.en}”: ${tw.ruleEn}` : `${t('boss')}『${tw.ja}』 ${tw.rule}`);
-  return S.st && S.st.night === 0 && !(DB.runs > 0) && S.mode === 'run' ? t('hintDraw') : '';
+  return S.st && S.st.night === 0 && (!(DB.runs > 0) || (S.run && S.run.tutorial)) && S.mode === 'run' ? t('hintDraw') : '';
 }
 // 形や遊び方（マウス・指）が変わったとき、それに合わせた言葉に出しなおす
 function renderFormText() {
@@ -3208,11 +3231,14 @@ function onRoundDone() {
   const st = S.st, res = st.result;
   // 今夜の花火をもう一度（打ち上げなおし）→ 満開の型物 → 集計
   // 今夜の花火（打ち上げなおし）は、大当たりか満開の夜だけ、短く
-  const go = () => {
+  const tally = () => {
+    if (S.st !== st) return;
     S.phase = 'tally'; S.tallySkip = null;
     if (res.allClear && !S.bloomFired) { S.bloomFired = true; finale(); callout(t('mankai'), 3); starOn(2); }
     setTimeout(() => { if (S.st === st) runTally(res); }, res.allClear ? 600 : 250);
   };
+  // 火が燃えきったら、「集計へ」を押すまで待つ（チュートリアルは、火と連鎖の説明をはさむ）
+  const go = () => { if (S.st !== st) return; coachSeq(S.run && S.run.tutorial ? [['tut2', '#scoreVal', { step: 2 }]] : [], () => waitNext(tally, t('seeTally'))); };
   // 惜しかった夜（あと 1〜3 つで満開）: 残った玉がふっと消えて、ヒノコがしゅんとする「間」を置いてから集計へ
   const left = st.shells.filter((s) => !s.burst && s.type !== 'kuro');
   if (!res.allClear && left.length && left.length <= 3 && res.pops >= 8 && S.mode !== 'vs') {
@@ -3280,8 +3306,13 @@ function runTally(res) {
     }, nOn * 200 + 120);
   };
   const finish0 = () => { if (!alive()) return; over = true; S.tallySkip = null; afterTally(res, pass); };
-  // はじめての集計: 点 × 倍率 と、星の取り方を教えてから先へ
-  const finish = () => { if (!alive()) return; if (S.mode !== 'run') { finish0(); return; } coachSeq([['tally', '#tally .row1'], ['stars', '#tally .tstars']], finish0); };
+  // 数え終えたら、「次へ」を押すまで待つ（チュートリアルは、点 × 倍率と、目標と星の説明をはさむ）
+  let waiting = false;
+  const nextLabel = () => (!pass || S.mode !== 'run' ? t('next') : S.run && S.run.tutorial ? t('goPick') : st.night >= K.NIGHTS - 1 ? t('seeResult') : t('goPick'));
+  const finish = () => {
+    if (!alive() || waiting) return; waiting = true;
+    coachSeq(S.run && S.run.tutorial ? [['tut3', '#tally .row1', { step: 3 }], ['tut4', '#tally .tstars', { step: 4 }]] : [], () => { if (alive()) waitNext(finish0, nextLabel(), $('#tally')); });
+  };
   // 画面をタップすると、数え上げを飛ばして判定だけ見せる（「もう一回」までを速く）
   S.tallySkip = () => {
     if (!alive() || skipped) return;
@@ -3331,7 +3362,7 @@ function runTally(res) {
       if (u < 1) { requestAnimationFrame(roll); return; }
       r2.textContent = K.fmt(res.score); SFX.slam(); S.scoreShown = true; updateScore(); bump(r2, 'slam');
       if (huge) { r2.classList.add('fire'); S.shake = Math.max(S.shake, 6); SFX.milestone(); }
-      setTimeout(() => { if (!going()) return; showStamp(); setTimeout(finish, 900); }, 280);
+      setTimeout(() => { if (!going()) return; showStamp(); setTimeout(finish, 700); }, 280);
     })();
   };
   setTimeout(next, xparts.length ? 360 : 260);
@@ -3375,6 +3406,12 @@ function afterTally(res, pass) {
   if (S.mode === 'replay') { showReplayEnd(res); return; }
   if (S.mode === 'single') { showSingleEnd(res); return; }
   const run = S.run;
+  // チュートリアル: 越えたらお守り選びへ。届かなかったら、何も失わずにもう一度（ヒノコがひとこと）
+  if (run.tutorial) {
+    if (!pass) { run.retries = (run.retries || 0) + 1; run.tutSeen.tutRetry = 0; coach('tutRetry', null, { face: 'sad', then: () => { if (S.run === run) startNight(0); } }); return; }
+    run.wallet += nightStars(res.score, st.target, res.allClear).filter(Boolean).length; run.bank = K.inkCarry(st);
+    showPick(); return;
+  }
   // 散った夜: 予備の提灯があれば、同じ夜をもう一度（散った記録は残さない）
   // 広告でのやりなおしは、すすめるだけ（「おわる」を選んだら、もう出さない）
   if (!pass && (run.lives > 0 || (CG.canReward && !run.adRetried && !run.adDeclined))) { showRetry(res); return; }
@@ -3428,7 +3465,6 @@ function showRetry(res) {
   $('#retryEnd').classList.toggle('small', run.lives > 0); // 提灯が尽きたら、終えるのも広告と同じ大きさ（広告をすすめすぎない）
   $('#retryEnd').onclick = () => { if (S.run !== run || CG.adOn) return; run.lives = 0; run.adDeclined = true; afterTally(res, false); };
   hideHud(); showOnly('#retryOv');
-  setTimeout(() => { if (!$('#retryOv').hidden && S.run === run) coach('retry', run.lives > 0 ? '#retryGo' : '#retryEnd', { face: 'sad' }); }, 600);
 }
 // 次の夜の盤面を小さく（画面の向きに合わせて）。お守りを選ぶ前に、次の線を考えられるように
 function drawNextBoard(n) {
@@ -3561,7 +3597,6 @@ function showStartPick(ids, then) {
   drawNextBoard(0);
   $('#pickNext').textContent = t('startNext', K.targetFor(run.seed, 0, run.moon, run.level || 0));
   showOnly('#pickOv');
-  setTimeout(() => { if (!$('#pickOv').hidden && S.run === run) coach('startpick', '#picks'); }, 650);
 }
 // 型しぼり（屋台・★2）: 型を 1 つ選ぶと、次の候補がその型のお守りだけになる
 function showFocus(round, reroll) {
@@ -3580,7 +3615,6 @@ function showFocus(round, reroll) {
     b.addEventListener('click', () => { if (mashing()) return; SFX.pick(); showPick(round, reroll + 1, x); });
     box.appendChild(b);
   }
-  setTimeout(() => { if (!$('#pickOv').hidden) coach('focus', '#picks'); }, 400);
 }
 function showPick(round = 0, reroll = 0, focus = null) {
   const run = S.run, n = S.st.night;
@@ -3594,7 +3628,7 @@ function showPick(round = 0, reroll = 0, focus = null) {
   const box = $('#picks'); box.innerHTML = '';
   const lockUntil = performance.now() + 600; let picked = false;
   const lvs = charmLvs(run.charms), slots = slotsOf(run);
-  const done = () => { if (more) showPick(1); else startNight(n + 1); };
+  const done = () => { if (run.tutorial) { tutorialEnd(); return; } if (more) showPick(1); else startNight(n + 1); };
   const take = (id) => {
     const was = lvs[id] || 0;
     run.charms.push(id); S.chipNew = id; SFX.pick(); DB.seen = DB.seen || {}; DB.seen[id] = 1;
@@ -3645,19 +3679,8 @@ function showPick(round = 0, reroll = 0, focus = null) {
   $('#newCard').hidden = true;
   showOnly('#pickOv');
   [0, 150, 340].forEach((ms) => setTimeout(() => SFX.tick(), ms + 60)); // 3 枚が順にめくれる音
-  // 手ほどき: はじめての選ぶ画面で、選び方・目安のゲージ・屋台。2 回目からは、次の夜・型・Lv 上げ（出てきたとき）
-  const pickT = performance.now();
-  setTimeout(() => {
-    if ($('#pickOv').hidden || S.run !== run) return;
-    coachSeq([
-      ['pick', '#picks'],
-      ['gain', '#picks .pick .gain'],
-      ...(run.wallet > 0 ? [['stall', '#shop']] : []),
-      ...(n >= 1 ? [['next', '.nextnight']] : []),
-      ...(n >= 1 && document.querySelector('#picks .tag.match') ? [['type', '#picks .tag.match']] : []),
-      ...(document.querySelector('#picks .pick .up') ? [['upgrade', '#picks .pick .up']] : []),
-    ]);
-  }, Math.max(0, 650 - (performance.now() - pickT)));
+  // チュートリアル 5〜7/8: お守り・型・屋台
+  if (run.tutorial) setTimeout(() => { if (!$('#pickOv').hidden && S.run === run) coachSeq([['tut5', '#picks', { step: 5 }], ['tut6', '#picks .tag', { step: 6 }], ['tut7', '#shop', { step: 7 }]]); }, 650);
 }
 
 // 屋台の招き猫のひとこと
@@ -3713,7 +3736,6 @@ function showReplace(newId, onDone, onCancel) {
   }
   const back = btn(t('replaceBack'), 'small', () => { if (!done) { done = true; onCancel(); } });
   back.classList.add('backbtn'); box.appendChild(back);
-  setTimeout(() => { if (!$('#pickOv').hidden) coach('replace', '#picks'); }, 400);
 }
 function charmName(id) { const c = K.charmById(id); return c ? (lang === 'en' ? c.en : c.ja) : id; }
 // お守りの候補の出し方（今夜の一筆はみんな同じ候補。ふだんは、解放したお守りだけ）
@@ -3728,7 +3750,7 @@ function offerOpts(run) {
 function showOnly(id) {
   if (id && S.paused) closePause(); // 選ぶ画面・結果が出たら、ひと休みの板は閉じる
   if (id) $('#bossSay').classList.remove('on'); // 大一番の主のひとことは、盤の上だけ（選ぶ画面に重ねない）
-  for (const x of ['#titleOv', '#pickOv', '#resultOv', '#linkOv', '#vsOv', '#retryOv', '#bookOv', '#dressOv']) $(x).hidden = x !== id;
+  for (const x of ['#titleOv', '#pickOv', '#resultOv', '#linkOv', '#vsOv', '#retryOv', '#bookOv', '#dressOv', '#tutOv']) $(x).hidden = x !== id;
 }
 function mdOf(key) { return `${+key.slice(5, 7)}/${+key.slice(8, 10)}`; }
 // 挑戦状と再生のリンクは、サイトと手元で開いたときだけ今のページを指す。itch.io などに埋め込まれたときはサイトの URL にする
@@ -3758,7 +3780,7 @@ function endRun() {
 // 八夜を越えたら、祭りの締め: 夜空いっぱいの打ち上げと、仲間たちの見物（タップで飛ばせる）
 function grandFinale(run, done) {
   let over = false;
-  const end = () => { if (over) return; over = true; S.skipFn = null; S.cheer = null; done(); };
+  const end = () => { if (over) return; over = true; S.skipFn = null; S.cheer = null; clearNext(); $('#banner').classList.remove('fest'); done(); };
   S.skipFn = end; hideHud(); CG.happy();
   if (S.st) for (const sh of S.st.shells) sh.burst = true; // 夜空を、締めの打ち上げだけにする（祭りはもう終わっている）
   banner(t('festDone'), t('festDoneSub'));
@@ -3775,7 +3797,7 @@ function grandFinale(run, done) {
     if (i % 6 === 0) { scenery.excite(1); cheerN(2); }
     if (last) { S.shake = 10; S.flashes.push({ x: 180, y: 230, r: 220, t: 0, max: 0.6, a: 0.8 }); }
   }, 400 + i * (3400 / n) + (i === n - 1 ? 500 : 0));
-  setTimeout(() => { if (!over) setTimeout(() => { $('#banner').classList.remove('fest'); end(); }, 300); }, 400 + 3400 + 1500);
+  setTimeout(() => { if (!over) waitNext(() => { $('#banner').classList.remove('fest'); end(); }, t('seeResult')); }, 400 + 3400 + 1200); // 打ち上げが終わったら、押すまで待つ
 }
 // 結果の並び: 横の画面では左に結果・右に次の一手とシェアの 2 列。縦の画面では 1 列で、次の一手は下に貼りつく
 function arrangeResult() {
@@ -3863,8 +3885,11 @@ function showRunResult(run) {
   arrangeResult(); showOnly('#resultOv');
   $('#resultOv').scrollTop = 0;
   // 解放は、格のゲージが上がりきってから、1 枚にまとめて
-  if (run.meta && run.meta.unlocked.length && !run.revealed) { const ups = run.meta.rankAfter.lv - run.meta.rankBefore.lv; setTimeout(() => { if (S.run === run && !run.revealed && !$('#resultOv').hidden) { run.revealed = true; revealUnlocks(run.meta.unlocked); } }, 1300 + ups * 640); }
-  else setTimeout(() => { if (S.run === run && !$('#resultOv').hidden && $('#unlockOv').hidden) coach('result', '#resultBody .metabox'); }, 1500);
+  // 解放は、ひとりでは開かない。「開いたものを見る」を押すか、次へ進むときに見せる
+  if (run.meta && run.meta.unlocked.length && !run.revealed) {
+    const ub = btn(t('unlockSee', run.meta.unlocked.length), 'accent', () => { if (run.revealed) return; run.revealed = true; ub.remove(); revealUnlocks(run.meta.unlocked); });
+    stack.prepend(ub);
+  }
 }
 // ================================================================ 花火師の格（meta.js）
 function rankName(rk) { return (lang === 'en' ? rk.nameEn : rk.name) + (rk.over ? ` ★${rk.over}` : ''); } // 格30 から先は、名人の星の数
@@ -4448,6 +4473,7 @@ function boutOpts(b) {
   return { seed: v.seed, bout: b, moon: v.moon, ink: [1, rv.ink], lag: [0, rv.lag] };
 }
 function startBout(b) {
+  clearNext();
   const v = S.vs;
   v.bout = b; v.lead = 0; v.sayAt = 0;
   S.st = K.newVsRound(boutOpts(b));
@@ -4643,7 +4669,7 @@ function onVsBoutDone() {
   v.results.push(res);
   if (res.winner >= 0) v.wins[res.winner]++;
   renderVsHud();
-  setTimeout(() => { if (S.st === st) vsTally(res); }, 450);
+  waitNext(() => { if (S.st === st) vsTally(res); }, t('seeTally')); // 燃えきったら、押すまで待つ
 }
 function vsTally(res) {
   const st = S.st, v = S.vs, rv = K.RIVALS[v.rival], b = v.bout;
@@ -4671,8 +4697,10 @@ function vsTally(res) {
   setTimeout(() => { if (alive()) r1.classList.add('show'); }, 50);
   setTimeout(() => { if (alive() && !shown) { r2.classList.add('show'); SFX.slam(); } }, 400);
   setTimeout(() => { if (alive()) showAll(); }, 850);
-  S.tallySkip = () => { if (!alive()) return; showAll(); setTimeout(done, 250); };
-  setTimeout(done, 2500 + (h ? 900 : 0));
+  // 数え終えたら、「次へ」を押すまで待つ
+  let waiting = false; const wait = () => { if (!alive() || waiting) return; waiting = true; waitNext(done, t('next'), $('#tally')); };
+  S.tallySkip = () => { if (!alive()) return; S.tallySkip = null; showAll(); setTimeout(wait, 250); };
+  setTimeout(() => { if (alive() && !waiting) { showAll(); wait(); } }, 1300 + (h ? 400 : 0));
 }
 function afterVsTally() {
   $('#tally').hidden = true;
@@ -4698,7 +4726,7 @@ function endMatch() {
   gc(`hitofude/vs/${rv.id}/${v.winner === 0 ? 'win' : v.winner === 1 ? 'lose' : 'draw'}`);
   rivalSay(v.winner === 0 ? 'lose' : 'win', true);
   if (v.winner === 0) finale();
-  setTimeout(() => { if (S.vs === v && S.mode === 'vs') showVsResult(); }, v.winner === 0 ? 1300 : 700);
+  setTimeout(() => { if (S.vs === v && S.mode === 'vs') waitNext(() => { if (S.vs === v && S.mode === 'vs') showVsResult(); }, t('seeResult')); }, v.winner === 0 ? 900 : 500);
 }
 function showVsResult() {
   const v = S.vs; if (!v || S.mode !== 'vs') return;
@@ -5032,7 +5060,7 @@ async function runDemo(after = openVsMenu) {
 
 // ================================================================ タイトル
 function goTitle() {
-  endDemo();
+  endDemo(); clearNext();
   syncCloud(); // ゲームサイト: 届いていたクラウドの保存と合わせる
   S.paused = false; $('#pauseOv').hidden = true;
   S.mode = 'title'; S.phase = 'idle'; S.st = null; S.run = null; S.resume = null; S.single = null; S.drawing = null; S.ghost = null; S.vs = null; S.aim = null; S.drop = null; S.rivalAnim = null; S.launch = null; S.show = null; S.hover = null; S.skipFn = null; S.cheer = null; S.cut = null; S.introAt = 0;
@@ -5056,7 +5084,11 @@ function goTitle() {
   $('#dailyBtn').hidden = !M.features(DB.meta).includes('daily') && !(DB.days && Object.keys(DB.days).length);
   // 途中の祭りがあれば「続きから」をいちばん上に（新しく遊ぶ は、ふつうのボタンに）
   const cont = contOk() && DB.cont;
-  $('#contBtn').hidden = !cont; $('#freeBtn').classList.toggle('primary', !cont); $('#freeBtn').classList.toggle('playbtn', !cont); $('#freeBtn').dataset.t = cont ? 'playNew' : 'playBtn'; setT($('#freeBtn'), t($('#freeBtn').dataset.t));
+  // はじめての人: 「チュートリアルから始める」をいちばん上に大きく（遊ぶは下に）。チュートリアルを終えたら、小さなボタンに
+  const newbie = !cont && !DB.tutDone && !DB.runs, tb = $('#tutBtn');
+  tb.classList.toggle('primary', newbie); tb.classList.toggle('playbtn', newbie); tb.classList.toggle('small', !newbie); tb.style.order = newbie ? '-1' : '';
+  tb.dataset.t = newbie ? 'tutStart' : 'tutBtn'; setT(tb, t(tb.dataset.t));
+  $('#contBtn').hidden = !cont; $('#freeBtn').classList.toggle('primary', !cont && !newbie); $('#freeBtn').classList.toggle('playbtn', !cont); $('#freeBtn').dataset.t = cont ? 'playNew' : 'playBtn'; setT($('#freeBtn'), t($('#freeBtn').dataset.t));
   if (cont) { setT($('#contLbl'), t('contGo')); $('#contSub').textContent = t('contSub', cont.night, cont.run.total || 0); }
   showOnly('#titleOv');
   // 背景に、今夜の一夜目の玉をうっすら並べておく
@@ -5074,6 +5106,23 @@ function startDaily(practice) {
   }
   if (!done) { DB.started = { [key]: 1 }; save(); gc(`hitofude/daily/${key}/start`); }
   newRun({ seed: dailySeed(key), moon: S.moonIdx, daily: true, official: !done, key, no: K.dayNumber(key) });
+}
+// チュートリアル: 決まったやさしい夜（種 4・満月のルール）で、1 手ずつ。格・XP・記録には数えない
+const TUT_SEED = 4;
+function startTutorial() {
+  const key = today(); setMoonFor(key); drawBackground();
+  gc('hitofude/tutorial');
+  S.resume = null; clearNext();
+  S.run = { seed: TUT_SEED, moon: 4, tutorial: true, tutSeen: {}, daily: false, official: false, key: null, no: 0, duel: null, charms: [], nights: [], total: 0, bestChain: 0, best: null, lives: 0, wallet: 0, rerolls: 0, bank: 0, level: 0, pool: null, retries: 0, lvMax: {} };
+  S.mode = 'run';
+  startNight(0);
+}
+// チュートリアル 8/8: しめくくり（本番を始める・タイトルへ）
+function tutorialEnd() {
+  DB.tutDone = true; DB.tutored = true; save();
+  hideHud(); clearNext();
+  showOnly('#tutOv');
+  setTimeout(() => $('#tutGo').focus(), 50);
 }
 function startFree() {
   const key = today(); setMoonFor(key); drawBackground();
@@ -5123,7 +5172,9 @@ cv.addEventListener('pointerdown', (ev) => {
   if (S.drawing && S.drawing.pid != null && S.drawing.pid !== ev.pointerId) return;
   if (S.aim && S.aim.live && S.aimPid != null && S.aimPid !== ev.pointerId) return;
   if (S.demo) return; // お手本の間は、指で触っても動かさない
-  if (S.skipFn) { S.skipFn(); return; } // 大一番の幕・祭りの締めは、タップで飛ばせる
+  if (nextFn) { doNext(); return; } // 「次へ」を待っている間は、盤のタップも「次へ」
+  if (S.phase === 'intro' && S.introAt) { S.introAt = performance.now(); return; } // 打ち上げの途中: 打ち上げを飛ばして「線を引く」へ
+  if (S.skipFn) { S.skipFn(); return; } // 大一番の幕・祭りの締めは、タップで次へ
   if (S.phase === 'tally' && S.tallySkip) { S.tallySkip(); return; }
   if (S.phase === 'show') { endShow(); return; }
   // 花火合戦: お邪魔玉の置き所を選ぶ（指で触るときは、指に隠れないよう少し上に出す）
@@ -5241,7 +5292,7 @@ $('#pResume').addEventListener('click', closePause);
 $('#pSound').addEventListener('click', () => $('#soundBtn').click());
 $('#pBgm').addEventListener('click', () => $('#bgmBtn').click());
 $('#pForm').addEventListener('click', () => $('#formBtn').click());
-$('#pRestart').addEventListener('click', () => { const vs = S.mode === 'vs' && S.vs; closePause(); if (vs) startMatch(vs.rival); else startFree(); });
+$('#pRestart').addEventListener('click', () => { const vs = S.mode === 'vs' && S.vs, tut = S.run && S.run.tutorial; closePause(); if (vs) startMatch(vs.rival); else if (tut) startTutorial(); else startFree(); });
 $('#pQuit').addEventListener('click', () => {
   // 途中でやめても、越えた夜のぶんの XP は入れる（何も残らないと、やめにくい）
   const run = S.run;
@@ -5255,6 +5306,9 @@ $('#speedBtn').addEventListener('click', () => { S.speed = S.speed > 1 ? 1 : 2; 
 $('#dailyBtn').addEventListener('click', () => startDaily(false));
 $('#hinoTitle').addEventListener('click', () => { S.hinoTap = performance.now(); const lines = t('hinoTap'); toast(lines[Math.floor(Math.random() * lines.length)]); SFX.pick(); });
 $('#freeBtn').addEventListener('click', startFree);
+$('#tutBtn').addEventListener('click', startTutorial);
+$('#tutGo').addEventListener('click', () => { SFX.pick(); startFree(); });
+$('#tutTitle').addEventListener('click', goTitle);
 $('#contBtn').addEventListener('click', resumeRun);
 $('#vsBtn').addEventListener('click', () => { audio(); openVsMenu(); });
 $('#vsBack').addEventListener('click', goTitle);
@@ -5272,10 +5326,12 @@ document.querySelectorAll('[data-form]').forEach((b) => b.addEventListener('clic
 function setForm(f) { formOverride = null; DB.form = f; save(); layout(); applyLang(); }
 // 指でも札の中身を読めるように: 大一番・願い・次の夜の札は、タップで言葉を出す（パソコンは指を重ねると出る）
 for (const sel of ['#twistTag', '#wish', '#pickNext']) $(sel).addEventListener('click', (ev) => { const c = ev.target.closest('#twistTag,#wish,.nchip'); if (c && c.title) toast(c.title); });
+$('#nextBtn').addEventListener('click', (ev) => { ev.stopPropagation(); doNext(); });
+// 大一番の幕は盤の上に重なるので、幕のタップも「次へ」
+$('#bossCut').addEventListener('pointerdown', (ev) => { if (ev.target.closest('#nextBtn')) return; if (nextFn) doNext(); else if (S.skipFn) S.skipFn(); });
 // 手ほどき: タップで次へ。画面の大きさが変わったら置きなおす。ひと休みの「手ほどきをもう一度」
 $('#coach').addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); coachDone(); });
 window.addEventListener('resize', () => { if (coachCur) coachPlace(); });
-$('#pTips').addEventListener('click', () => { DB.tips = {}; save(); toast(t('tipsReset')); });
 // 連打の見分け: 集計を飛ばす連打が、そのまま出てきたお守りの札を押してしまわないように（前のタップから 0.32 秒以内は連打）
 let lastTap = 0, tapGap = 1e9;
 document.addEventListener('pointerdown', () => { const n = performance.now(); tapGap = n - lastTap; lastTap = n; }, true);
@@ -5295,6 +5351,8 @@ window.addEventListener('keydown', (ev) => {
     return;
   }
   if (S.paused && (k === ' ' || k === 'Enter') && !focusBtn) { closePause(); ev.preventDefault(); return; }
+  if ((k === ' ' || k === 'Enter') && nextFn) { doNext(); ev.preventDefault(); return; } // 「次へ」
+  if ((k === ' ' || k === 'Enter') && S.phase === 'intro' && S.introAt && !S.paused) { S.introAt = performance.now(); ev.preventDefault(); return; } // 打ち上げを飛ばす
   if (k === ' ' || k === 'Enter') {
     if (focusBtn) return; // 選んであるボタンは、ブラウザがそのまま押す
     if (S.skipFn) { S.skipFn(); ev.preventDefault(); return; }
@@ -5393,7 +5451,6 @@ document.querySelectorAll('[data-ico]').forEach((e) => e.replaceChildren(svgIcon
 layout();
 applyLang();
 renderSound();
-const firstVisit = !DB.runs && !DB.tutored && !(DB.vs && (DB.vs.w || DB.vs.l));
 goTitle();
 booted = true;
 // ゲームサイト: SDK を起こし、この端末に保存が無ければ、クラウドの保存から続ける
@@ -5411,13 +5468,7 @@ if (link && link.kind === 'bad') toast(t('badLink'));
 else if (link && link.kind === 'old') toast(t('oldLink'));
 else if (link) openLink(link);
 // はじめての人は、タイトルを読まずに一夜目から（線の引き方は、盤面の指が見せる）
-else if (firstVisit) {
-  // ゲームサイトで、この端末に保存が無いとき: クラウドの保存を待ってから決める（続きの人に、はじめての夜を始めない）
-  if (PORTAL && window.CrazyGames && !hadLocal) {
-    let go = false; const first = () => { if (go) return; go = true; if (S.mode === 'title' && !DB.runs && !DB.tutored) startFree(); };
-    cgBoot.then(first, first); setTimeout(first, 1500);
-  } else startFree();
-}
+// はじめての人にも、ひとりでは始めない: タイトルで「チュートリアルから始める」を押してもらう
 requestAnimationFrame(frame);
 window.HITO = { S, K, V, startDaily, startFree, startNight, commitStroke, goTitle, finale, endRun, fx, scenery, openVsMenu, startMatch, runDemo, get music() { return music; },
   get sound() { return actx ? { state: actx.state, gain: master.gain.value } : null; }, get saveData() { return DB; }, // 音の状態と保存（テスト用）
