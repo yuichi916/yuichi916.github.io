@@ -199,6 +199,8 @@ check('格: 30 段・XP は増えるだけ・上がるのに要る XP はだん�
   const o = M.rankOf(M.RANKS[29].xp + 2 * M.OVER_XP + 7);
   same([o.lv, o.over, o.overCur], [30, 2, 7]);
   same([M.rankOf(M.RANKS[28].xp).over, M.rankOf(M.RANKS[29].xp).over], [0, 0]);
+  const ov = M.applyRun({ v: 2, xp: M.RANKS[29].xp + M.OVER_XP - 10 }, run(8), '2026-10-02');
+  eq(ov.overUp, 1, '名人の星がふえた'); eq(M.applyRun(null, run(1), '2026-10-02').overUp, 0);
   for (const bad of [-5, NaN, Infinity, null, undefined, 'x', {}]) eq(M.rankOf(bad).lv, 1, String(bad));
   eq(M.rankOf({ xp: M.RANKS[9].xp }).lv, 10, 'meta を渡してもよい');
 });
@@ -504,7 +506,7 @@ check('今日のおつかい: 日付で決まる 3 つ・同じ日に似たも�
   for (const q of qs) ok(q.ja && q.en && q.goal > 0 && q.xp > 0 && M.QUESTS.some((x) => x.id === q.id), q.id);
   ok(M.QUESTS.length >= 14, `ひな形 ${M.QUESTS.length}`);
   for (const id of ['q_play2', 'q_daily', 'q_nights6', 'q_stars6', 'q_pops', 'q_lv2']) ok(!M.QUESTS.some((q) => q.id === id), `${id}（ただ遊ぶだけ）が残っている`);
-  for (const id of ['q_lv3', 'q_goldboss', 'q_wish3', 'q_tori6']) ok(M.QUESTS.some((q) => q.id === id), `${id} が無い`);
+  for (const id of ['q_lv3x2', 'q_goldboss', 'q_wish3', 'q_tori6']) ok(M.QUESTS.some((q) => q.id === id), `${id} が無い`);
   const sets = new Set(), used = new Set();
   for (let i = 0; i < 90; i++) {
     const d = addDays('2026-10-01', i), x = M.dailyQuests(d);
@@ -533,11 +535,15 @@ check('今日のおつかい: 日付で決まる 3 つ・同じ日に似たも�
   r = M.applyRun(r.meta, run(1), addDays(d, 1));
   eq(r.meta.quest.d, addDays(d, 1));
   ok(r.quests.every((q) => !q.justDone || q.p >= q.goal));
-  // 「一回の祭りで願いを 2 つ」（いちばん）: 1 → 1 → 2
-  [d, k] = dayOf('q_wish2');
-  r = M.applyRun(null, run(3, { wish: [0] }), d); eq(r.quests[k].p, 1);
-  r = M.applyRun(r.meta, run(3, { wish: [2] }), d); eq(r.quests[k].p, 1, '合計しない');
-  r = M.applyRun(r.meta, run(3, { wish: [0, 2] }), d); ok(r.quests[k].justDone);
+  // 「一回の祭りで願いを 3 つ」（いちばん）: 2 → 1 → 3
+  [d, k] = dayOf('q_wish3');
+  r = M.applyRun(null, run(3, { wish: [0, 1] }), d); eq(r.quests[k].p, 2);
+  r = M.applyRun(r.meta, run(3, { wish: [2] }), d); eq(r.quests[k].p, 2, '合計しない');
+  r = M.applyRun(r.meta, run(3, { wish: [0, 1, 2] }), d); ok(r.quests[k].justDone);
+  // 「Lv3 を 2 つ持って終える」: 祭りの終わりの持ち物で見る
+  [d, k] = dayOf('q_lv3x2');
+  r = M.applyRun(null, run(4, { charms: { kinun: 3, kodou: 2 } }), d); eq(r.quests[k].p, 0);
+  r = M.applyRun(r.meta, run(4, { charms: { kinun: 3, kodou: 3 } }), d); ok(r.quests[k].justDone);
   // 「金のお守り 2 つで大一番」: 夜の持ち物で見る
   [d, k] = dayOf('q_goldboss');
   r = M.applyRun(null, run(3, { held: { kinun: 1, kodou: 1 } }), d); eq(r.quests[k].p, 0);

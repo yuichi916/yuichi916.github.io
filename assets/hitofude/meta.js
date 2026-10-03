@@ -6,15 +6,18 @@
 //                  （前の版から遊んでいる人には initMeta(null, { runs, cleared }) で 1 度だけおまけ）
 //   お守りの候補:   core の offerCharms(..., { pool: charmPool(meta), level })。伝説の Lv の上限は charmCaps(meta)（下の「伝説の道」）
 //   はじめの一つ:   features(meta) に 'startPick' があれば、ふつうの祭りの始めに core の startOffer(seed, charmPool(meta)) から 1 つ選ばせる
-//   屋台:          features(meta) に 'focus' があれば、屋台に「型そろえ」（★2）を出す（core の offerCharms(..., { focus: 型 })）
+//   屋台:          features(meta) に 'focus' があれば、屋台に「型しぼり」（★2）を出す（core の offerCharms(..., { focus: 型 })。えらべる型は core の focusTags）
 //   段位えらび:     0〜maxLevel(meta)。features(meta) に 'levels' があるときだけ出す
 //   次のごほうび:   upcoming(meta) → [{ ...UNLOCKS の 1 つ, xpLeft }]（「あと 120 XP で花筏」）
 //   腕だめし:      challenges(meta) → 一覧と進み（「連鎖 5/7 代」）。図鑑に出す
 //   見たもの:       meta = noteSeen(meta, { charms: 出た候補, shells: 見た玉の種類, cast: 会った妖怪 })（候補が出るたびに 1 回）
 //   おつかい:      todayQuests(meta, 今日) → 3 つと進み。'questSwap' があれば swapQuest(meta, 今日, 番号) で 1 日 1 回取りかえ
 //                  週のおつかい: weeklyQuest(meta, 今日)（'weekly' があるときだけ）
+//   次の目当て:     nextGoals(meta, 今日, 3) → 近いものから 3 行（「あと 120 XP で花筏」「連鎖 6/7 代」「札 3/5」）
 //   祭りが終わったら: r = applyRun(meta, summary, 今日の日付) → meta = r.meta を保存し、
-//                  r.parts（XP の内訳）・r.rankBefore / r.rankAfter・r.unlocked・r.challenges・r.stickers・r.achievements・r.quests・r.weekly を順に見せる
+//                  r.parts（XP の内訳）・r.rankBefore / r.rankAfter（over = 格 30 から先の名人の星。r.overUp = ふえた数）・r.unlocked・
+//                  r.challenges（達成した腕だめし）・r.challengeProgress（自己ベストの更新）・r.stickers（ふえた・上がった札）・
+//                  r.levelUp（開いた段位）・r.achievements・r.quests・r.weekly・r.streak（guarded = 休みの札で続いた）を順に見せる
 // meta は小さな JSON（よく遊んでも 3KB まで）で、ページの保存の中にそのまま入れてよい。
 //
 // summary（ページが作る、一回の祭りのまとめ）。無い項目は 0 / なしとして読む（古いページでも落ちない）
@@ -66,7 +69,7 @@ export const HINOKO_COLORS = [
 export const COLOR_IDS = HINOKO_COLORS.map((c) => c.id);
 // 遊び方の解放。daily・levels は 12版から。ほかは 13版で足した
 //  startPick   ふつうの祭りの始めに、お守りを 3 つから 1 つ選ぶ（core の startOffer）
-//  focus       屋台の「型そろえ」（★2）: 次の候補を、えらんだ型のお守りだけにする（core の offerCharms opts.focus）
+//  focus       屋台の「型しぼり」（★2）: 次の候補を、えらんだ型のお守りだけにする（core の offerCharms opts.focus）
 //  appraise    目利き: 候補のお守りに、いま持っているお守りと同じ型の印と数を出す
 //  bossPeek    大一番の予告: ふつうの祭りの始めに、三夜目と六夜目の大一番（core の twistFor）を見せる
 //  wishPeek    願いの先読み: 屋台で、次の夜の願い札（core の wishFor）を見せる
@@ -103,7 +106,7 @@ const NAMES = {
   hachimaki: ['はちまき', 'Headband'], kanzashi: ['花かんざし', 'Flower hairpin'], omen: ['狐のお面', 'Fox mask'],
   uchiwa: ['うちわ', 'Paper fan'], kingyo: ['金魚', 'Goldfish'], kanmuri: ['王冠', 'Crown'],
   daily: ['今夜の一筆', 'Tonight\'s Stroke'], levels: ['段位えらび', 'Stakes'],
-  startPick: ['はじめの一つ', 'Starting charm'], focus: ['型そろえ', 'Focus'], appraise: ['目利き', 'Appraisal'],
+  startPick: ['はじめの一つ', 'Starting charm'], focus: ['型しぼり', 'Focus'], appraise: ['目利き', 'Appraisal'],
   bossPeek: ['大一番の予告', 'Boss preview'], wishPeek: ['願いの先読み', 'Wish preview'], weekly: ['週のおつかい', 'Weekly quest'],
   questSwap: ['おつかいの取りかえ', 'Quest swap'], streakGuard: ['休みの札', 'Day-off charm'], purse: ['がま口', 'Coin purse'],
   ...Object.fromEntries(HINOKO_COLORS.map((c) => [c.id, [`${c.ja}のヒノコ`, `${c.en} Hinoko`]])),
@@ -189,7 +192,7 @@ const DESC = {
   daily: ['毎日ひとつ、みんな同じ夜。続けて遊ぶとおまけ', 'One shared festival a day. Keep a streak for bonus XP'],
   levels: ['八夜を通した段位の、ひとつ上をえらべる', 'Pick a harder Stakes after a full clear'],
   startPick: ['ふつうの祭りの始めに、お守りを 3 つから 1 つ選んで持っていける', 'Start each festival by picking 1 of 3 charms'],
-  focus: ['屋台の「型そろえ」（★2）: 次の候補を、えらんだ型のお守りだけにする', 'Stall item (★2): the next offer is all one type of your choice'],
+  focus: ['屋台の「型しぼり」（★2）: 次の候補を、えらんだ型のお守りだけにする', 'Stall item (★2): the next offer is all one type of your choice'],
   appraise: ['候補のお守りに、いま持っているお守りと同じ型の印がつく', 'Offered charms show which types match your build'],
   bossPeek: ['祭りの始めに、三夜目と六夜目の大一番が分かる', 'See both boss nights when a festival starts'],
   wishPeek: ['屋台で、次の夜の願い札が見える', 'See the next night\'s wish card at the stall'],
@@ -402,16 +405,16 @@ const nightsWhere = (s, f) => s.nights.filter(f).length;
 const QUEST_DEFS = [
   Q(0, 'q_stars10', '一回の祭りで星を 10 個とる', 'Earn 10 stars in one run', 10, 'max', 'star', (s) => s.stars),
   Q(0, 'q_star2x3', '★★ を 3 回とる', 'Earn ★★ three times', 3, 'sum', 'star', (s) => nightsWhere(s, (n) => n.stars >= 2)),
-  Q(0, 'q_wish2', '一回の祭りで願いを 2 つ叶える', 'Fulfil 2 wishes in one run', 2, 'max', 'wish', (s) => s.wishes),
+  Q(0, 'q_wish3', '一回の祭りで願いを 3 つ叶える', 'Fulfil 3 wishes in one run', 3, 'max', 'wish', (s) => s.wishes),
   Q(0, 'q_ink50', '六夜目から後の夜を、墨を半分残して越える', 'Clear night 6 or later with half your ink left', 1, 'sum', 'ink', (s) => nightsWhere(s, (n) => n.pass && n.i >= 5 && n.inkFrac != null && n.inkFrac <= 0.5 + 1e-9)),
   Q(0, 'q_gold2', '線でじかに金の玉に 2 つふれて夜を越える', 'Clear a night touching 2 gold shells with your line', 1, 'sum', 'gold', (s) => nightsWhere(s, (n) => n.pass && n.goldTouched >= 2)),
   Q(0, 'q_daily8', '今夜の一筆で八夜を通す', 'Clear all 8 nights of Tonight\'s Stroke', 1, 'sum', 'daily', (s) => (s.daily && s.cleared >= NIGHTS ? 1 : 0)),
-  Q(1, 'q_lv3', 'Lv3 のお守りを持って祭りを終える', 'Finish a run with a Lv3 charm', 1, 'sum', 'charm', (s) => (Object.values(s.final).some((lv) => lv >= 3) ? 1 : 0)),
+  Q(1, 'q_lv3x2', 'Lv3 のお守りを 2 つ持って祭りを終える', 'Finish a run holding two Lv3 charms', 1, 'sum', 'charm', (s) => (Object.values(s.final).filter((lv) => lv >= 3).length >= 2 ? 1 : 0)),
   Q(1, 'q_boss2', '大一番の夜を ★★ で越える', 'Win a boss night with ★★', 1, 'sum', 'boss', (s) => nightsWhere(s, (n) => n.boss && n.pass && n.stars >= 2)),
   Q(1, 'q_gen6', '連鎖を 6 代つなげて夜を越える', 'Clear a night with a chain 6 generations deep', 1, 'sum', 'chain', (s) => nightsWhere(s, (n) => n.pass && n.maxGen >= 6)),
   Q(1, 'q_touch3', '線でふれる玉 3 つまでで、三夜目から後の夜を越える', 'Clear night 3 or later touching at most 3 shells with your line', 1, 'sum', 'touch', (s) => nightsWhere(s, (n) => n.pass && n.i >= 2 && n.lineTouched > 0 && n.lineTouched <= 3)),
   Q(1, 'q_sweep95', '四夜目から後の夜を、玉を 9 割 5 分ひらいて越える', 'Clear night 4 or later with 95% of the shells burst', 1, 'sum', 'sweep', (s) => nightsWhere(s, (n) => n.pass && n.i >= 3 && n.total > 0 && n.pops >= 0.95 * n.total)),
-  Q(1, 'q_wish3', '一回の祭りで願いを 3 つ叶える', 'Fulfil 3 wishes in one run', 3, 'max', 'wish', (s) => s.wishes),
+  Q(1, 'q_wish4', '一回の祭りで願いを 4 つ叶える', 'Fulfil 4 wishes in one run', 4, 'max', 'wish', (s) => s.wishes),
   Q(2, 'q_goldboss', '金のお守りを 2 つ持って、大一番の夜を越える', 'Win a boss night holding 2 gold charms', 1, 'sum', 'gold', (s) => nightsWhere(s, (n) => n.boss && n.pass && (n.tags.gold || 0) >= 2)),
   Q(2, 'q_tori6', '大トリで倍率 +6 以上', 'Get +6 mult from the grand shell', 1, 'sum', 'tori', (s) => nightsWhere(s, (n) => n.toriAdd >= 6)),
   Q(2, 'q_tag3', '同じ型のお守りを 3 つ持って夜を越える', 'Clear a night holding 3 charms of one type', 1, 'sum', 'build', (s) => nightsWhere(s, (n) => n.pass && maxTag(n.charms) >= 3)),
@@ -644,7 +647,7 @@ export function applyRun(meta, summary, dateKey) {
   // meta は読み直して、項目の並びを保存したときと同じにそろえる
   return {
     meta: initMeta(m), xp, parts, rankBefore, rankAfter, unlocked, achievements, quests, weekly, bossesBeaten, stickers,
-    challenges: challengesDone, challengeProgress, levelUp: maxLevel(m) > maxLevel(before) ? maxLevel(m) : null,
+    challenges: challengesDone, challengeProgress, levelUp: maxLevel(m) > maxLevel(before) ? maxLevel(m) : null, overUp: rankAfter.over - rankBefore.over,
     streak: { ...m.streak, xp: streakXp, guarded },
   };
 }
