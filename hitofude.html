@@ -1913,7 +1913,9 @@ function frame(now) {
     const dil = Math.max(0.45, Math.min(1, 1 / (1 + S.burstLog.length / 8)));
     // 花火合戦は、何が起きたかが見えるよう少しゆっくり（お手本は、台本の場面で止める）
     const base = S.demo ? (S.demo.run ? 0.4 : 0) : S.mode === 'vs' ? 0.7 : 1;
-    S.timeScale += ((slow ? 0.4 : 1) * base * S.speed * dil - S.timeScale) * 0.2;
+    // 間（ま）を詰める: 0.6 秒なにもはじけず、火が線を進むだけのときは、だんだん速く（2.5 倍まで）。次にはじけたら元に戻る
+    const quiet = now - (S.lastBurstAt || now), lull = !slow && !S.demo && S.mode !== 'vs' && quiet > 600 ? Math.min(2.5, 1 + (quiet - 600) / 500) : 1;
+    S.timeScale += ((slow ? 0.4 : 1) * base * S.speed * dil * lull - S.timeScale) * 0.2;
     if (S.demo && !S.demo.run) S.timeScale = 0;
     S.acc += dt * S.timeScale;
     let n = 0;
@@ -1977,7 +1979,7 @@ function handleEvents(st) {
   for (const e of st.events) {
     if (e.type === 'burst') {
       spawnBurst(e.shell.x, e.shell.y, e.shell.type, e.shell.hue, e.o, e.R);
-      S.burstLog.push(performance.now());
+      S.burstLog.push(performance.now()); S.lastBurstAt = performance.now();
       if (S.boss && (e.shell.type === 'shaku' || e.shell.type === 'ootama' || e.chain % 10 === 0)) S.perchKick = performance.now(); // 大きな玉と 10 連鎖ごとに、妖怪がびくっとする
       flyTo('c', e.shell.x, e.shell.y); if (e.shell.type === 'kin') flyTo('m', e.shell.x, e.shell.y);
       SFX.burst(e.shell.type, e.chain, panOf(e.shell.x, e.shell.y));
@@ -2837,7 +2839,7 @@ function commitStroke(raw, normalized = false) {
   if (S.darkUntil && !S.darkReveal) S.darkReveal = performance.now(); // 闇夜: 火がついたら、玉がだんだん見えてくる
   // 火をつける「ため」: 筆をおろした所がぱっと灯り、0.3 秒たってから最初の玉がひらく
   S.hold = 0.3; hinoFace('effort', 300);
-  S.ignite = { t0: performance.now(), x: pts[0].x, y: pts[0].y };
+  S.ignite = { t0: performance.now(), x: pts[0].x, y: pts[0].y }; S.lastBurstAt = performance.now() + 300;
   if (S.boss && S.boss.said < 2) bossSay('taunt');
   S.pendingEv = st.events.splice(0);
   updateScore();
