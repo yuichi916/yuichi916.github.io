@@ -2292,6 +2292,19 @@ export function nightMark(r) {
   return r.score >= r.target * 3 ? '🎆' : '✨';
 }
 
+// 世界の花火の日。その日のデイリーのボタンの上と、共有文に小さく出す（日付は日本時間のキー YYYY-MM-DD）
+// ディワリは年ごとに日が変わるので、確かめた年だけを入れる
+const DIWALI = { 2026: '11-08' };
+export function festivalOf(key) {
+  const md = String(key).slice(5, 10), y = +String(key).slice(0, 4);
+  if (md === '12-31') return { id: 'nye', ja: '大晦日', en: "New Year's Eve" };
+  if (md === '01-01') return { id: 'newyear', ja: '元日', en: "New Year's Day" };
+  if (md === '07-04') return { id: 'july4', ja: 'アメリカの独立記念日', en: 'the Fourth of July' };
+  if (md === '11-05') return { id: 'bonfire', ja: 'イギリスのガイ・フォークス・ナイト', en: 'Bonfire Night' };
+  if (DIWALI[y] === md) return { id: 'diwali', ja: 'インドの光の祭りディワリ', en: 'Diwali' };
+  return null;
+}
+
 export function runShareText(run, lang, url = SHARE_URL) {
   // 絵文字は見出しの 🎆 だけ。結果は言葉で書く（夜ごとの印の列は画面とシェア画像にだけ出す）
   const en = lang === 'en';
@@ -2307,6 +2320,8 @@ export function runShareText(run, lang, url = SHARE_URL) {
   const line3 = en ? `${fmt(run.total)} pts · best chain ${run.bestChain}` : `${fmt(run.total)}点・最大${run.bestChain}連鎖`;
   // 筆跡と、大一番の結果（今夜の一筆は、みんな同じ大一番）
   const extra = [];
+  const fest = run.daily ? festivalOf(run.key) : null;
+  if (fest) extra.push(en ? `On ${fest.en}` : `${fest.ja}の夜に`);
   if (run.type) { const ty = STROKE_TYPES.find((x) => x.id === run.type); if (ty) extra.push(en ? `Stroke: ${ty.en}` : `筆跡「${ty.ja}」`); }
   const bosses = run.nights.filter((r) => r && r.twist).map((r) => {
     const tw = TWISTS.find((x) => x.id === r.twist); if (!tw) return null;
