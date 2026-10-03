@@ -232,13 +232,14 @@ html[lang="en"] #banner b{font-family:"Shippori Mincho",serif;font-weight:800;fo
 .chipgrid{display:grid;grid-template-columns:1fr 1fr;gap:calc(4px * var(--u)) calc(8px * var(--u));margin-top:calc(4px * var(--u));font-size:calc(12px * var(--u));line-height:1.5;color:var(--dim)}
 .chipgrid b{color:var(--text);font-weight:600}
 /* 新しい仕掛け: 盤の上のその玉の横に、名前と絵の式の吹き出し（言葉で説明しない） */
-#newCard{position:absolute;z-index:6;display:flex;align-items:center;gap:calc(5px * var(--u));transform:translate(-50%,calc(-100% - 20px * var(--u)));padding:calc(4px * var(--u)) calc(10px * var(--u));border-radius:99px;background:rgba(14,16,40,.92);border:1px solid rgba(255,215,90,.55);box-shadow:0 4px 16px rgba(0,0,0,.45);pointer-events:none;white-space:nowrap;animation:rise .35s ease-out backwards}
+#newCard{position:absolute;z-index:6;display:flex;flex-direction:column;align-items:flex-start;gap:calc(3px * var(--u));transform:translate(-50%,calc(-100% - 20px * var(--u)));padding:calc(6px * var(--u)) calc(12px * var(--u));border-radius:calc(14px * var(--u));background:rgba(14,16,40,.92);border:1px solid rgba(255,215,90,.55);box-shadow:0 4px 16px rgba(0,0,0,.45);pointer-events:none;white-space:nowrap;animation:rise .35s ease-out backwards}
 #newCard::after{content:'';position:absolute;left:50%;bottom:calc(-7px * var(--u));transform:translateX(-50%);border:calc(7px * var(--u)) solid transparent;border-top-color:rgba(255,215,90,.55);border-bottom:0}
 #newCard.below{transform:translate(-50%,calc(20px * var(--u)))}
 #newCard .glyph,.nchip .glyph,#twistTag .glyph,#wish .glyph{flex-wrap:nowrap}
 #newCard .lbl{font-style:normal;font-size:calc(12px * var(--u));font-weight:800;color:#1a1206;background:var(--gold);border-radius:99px;padding:0 calc(5px * var(--u))}
 #newCard .n{font-size:calc(14px * var(--u))}
-#newCard .d{font-size:calc(12.5px * var(--u));color:var(--text);font-weight:700}
+#newCard .nr{display:flex;align-items:center;gap:calc(5px * var(--u))}
+#newCard .d{font-size:calc(13px * var(--u));color:#f2efff;font-weight:600;white-space:normal;max-width:calc(260px * var(--u));line-height:1.45}
 #banner.boss b{color:#ffb4a8;text-shadow:0 0 calc(20px * var(--u)) rgba(255,90,70,.7)}
 #banner.boss span{color:#ff9d8f}
 .typepill{display:inline-flex;align-items:center;gap:calc(8px * var(--u));margin-top:calc(10px * var(--u));padding:calc(6px * var(--u)) calc(14px * var(--u));border-radius:99px;
@@ -402,7 +403,19 @@ html[lang="en"] #banner b{font-family:"Shippori Mincho",serif;font-weight:800;fo
 .glyph .g-lv3{position:relative;filter:drop-shadow(0 0 4px rgba(255,200,90,.7))}
 .glyph .g-sep.g-lv3{width:auto;height:auto;background:none;margin:0 calc(4px * var(--u))}
 .glyph .g-sep.g-lv3::before{content:'Lv3';font-style:normal;font-size:calc(12px * var(--u));font-weight:800;color:#1a1206;background:linear-gradient(90deg,#ffd75a,#ff9a5a);border-radius:99px;padding:0 calc(4px * var(--u))}
-.pick .fxt{font-size:calc(12px * var(--u));color:var(--dim)}
+.pick .fxt{display:block;font-size:calc(13px * var(--u));line-height:1.45;color:#dfe2fb;margin:calc(2px * var(--u)) 0}
+.pick .fxt + .glyph{font-size:calc(12px * var(--u));opacity:.9}
+.bitem .fxt{display:block;color:var(--dim);font-size:calc(12px * var(--u));line-height:1.4}
+.tag .tw{font-size:calc(12px * var(--u))}
+#tally .tip .ht,.hintpill .ht{vertical-align:middle;margin:0 calc(4px * var(--u))}
+#bossCut .bc-rule .rt{display:block;margin-top:calc(4px * var(--u));font-size:calc(14px * var(--u))}
+/* 小さな画面（スマホの縦・横）: 効き目は文だけにし（絵の式は図鑑と HUD で）、見出しは夜の名前と ✓ だけにして、選ぶ画面を 1 画面に収める */
+@media (max-height:560px),(max-width:480px){
+  .pick .fxt + .glyph{display:none}
+  #pickTitle{display:none}
+  .pick .gain{margin-top:calc(3px * var(--u))}
+}
+@media (max-height:420px){ body.yoko #pickOv #picks .pick .e .omamori{height:calc(42px * var(--u))} body.yoko #pickOv #picks .pick{gap:calc(3px * var(--u));padding:calc(7px * var(--u))} }
 /* 次の夜の目安のゲージ */
 .pick .gain{display:flex;align-items:center;gap:calc(5px * var(--u));margin-top:calc(5px * var(--u));height:calc(14px * var(--u));opacity:0;transition:opacity .3s}
 .pick .gain .nx{flex:none;font-size:calc(13px * var(--u));color:#cfd8ff;line-height:1}
@@ -633,6 +646,18 @@ body.yoko #inkTag{right:var(--pr)}
 @keyframes inkLow{from{filter:brightness(1)}to{filter:brightness(1.7)}}
 .ov{overscroll-behavior:contain}
 #pauseOv{z-index:40;background:rgba(5,6,16,.72)}
+#coach{position:fixed;inset:0;z-index:85;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#coach[hidden]{display:none}
+#coach .spot{position:fixed;border-radius:calc(14px * var(--u));border:2px solid var(--gold);box-shadow:0 0 0 200vmax rgba(4,6,18,.68);pointer-events:none;animation:spotPulse .9s ease-in-out infinite alternate}
+#coach .spot[hidden]{display:none}
+#coach.nodim .spot{box-shadow:0 0 18px rgba(255,215,90,.55)}
+#coach.center{background:rgba(4,6,18,.45)}
+#coach .cb{position:fixed;display:flex;align-items:center;gap:calc(8px * var(--u));width:max-content;max-width:min(calc(440px * var(--u)),calc(100vw - 24px));padding:calc(10px * var(--u)) calc(14px * var(--u)) calc(10px * var(--u)) calc(8px * var(--u));border-radius:calc(16px * var(--u));background:#fff6df;color:#2a1a08;box-shadow:0 8px 28px rgba(0,0,0,.5);animation:rise .3s ease-out backwards}
+#coach .cb canvas{flex:none;width:calc(46px * var(--u));height:calc(46px * var(--u))}
+#coach .ct{margin:0;font-size:calc(15px * var(--u));line-height:1.5;font-weight:700}
+#coach .ct b{color:#b4471c}
+#coach .cn{display:block;margin-top:calc(2px * var(--u));font-size:calc(12px * var(--u));color:#8a6a3a}
+@keyframes spotPulse{from{border-color:rgba(255,215,90,.45)}to{border-color:rgba(255,215,90,1)}}
 .pausecard{max-width:calc(340px * var(--u))}
 .pausecard h2{font-size:calc(26px * var(--u))}
 .prow{display:flex;justify-content:center;gap:calc(10px * var(--u));margin-top:calc(14px * var(--u))}
@@ -650,6 +675,7 @@ body.yoko #inkTag{right:var(--pr)}
 .shop .btn.poor{opacity:.55}
 .shop .sbtn{display:inline-flex;align-items:center;gap:calc(4px * var(--u));padding:calc(6px * var(--u)) calc(10px * var(--u))}
 .shop .sbtn .ic{width:calc(20px * var(--u));height:calc(20px * var(--u));color:#ffe6a8}
+.shop .sbtn .sl{font-size:calc(12.5px * var(--u));color:#f2efff;font-weight:700}
 .shop .sbtn .sx{font-weight:800;font-size:calc(12px * var(--u));color:#e8e4ff}
 .shop .sbtn .pr{font-weight:800;color:var(--gold);font-size:calc(12.5px * var(--u))}
 .shop .sbtn.nope{animation:nope .3s}
@@ -712,7 +738,8 @@ body.yoko #pickOv .nextnight p{text-align:center;max-width:calc(200px * var(--u)
 #wish.miss{opacity:.5}
 body.yoko #hud #wish{margin-top:calc(6px * var(--u))}
 #hud #twistTag,#hud #wish,#pickNext .nchip{pointer-events:auto;cursor:help}
-#pickNext .nchip.boss > b{display:none} /* 選ぶ画面の大一番の札は、顔と絵の式だけ（名前はタップ・指を重ねたとき） */
+#pickNext .nchip.boss{flex-wrap:wrap;white-space:normal;justify-content:center} #pickNext .nchip.boss .rl{flex-basis:100%;text-align:center;color:#ffd9c8;font-size:calc(12px * var(--u))}
+#hud #twistTag .rl{display:none}
 /* 縦の画面: 願い札は真ん中の欄に入れず、HUD の下に 1 行で（長い願いで右の点が画面の外に押し出されないように） */
 #hud .mid{min-width:0}
 body:not(.yoko) #hud #tags{position:absolute;left:0;right:0;top:100%;display:flex;flex-wrap:wrap;justify-content:center;gap:calc(4px * var(--u));margin-top:calc(4px * var(--u));padding:0 calc(12px * var(--u))}
@@ -844,6 +871,8 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
   <div id="newCard" hidden></div>
   <button id="skip2" hidden></button>
   <div id="toast" role="status" aria-live="polite"></div>
+  <!-- ヒノコの手ほどき: はじめて出会ったときに 1 度だけ、画面の所を照らしてひとこと。タップで次へ -->
+  <div id="coach" hidden role="dialog" aria-live="polite"><div class="spot"></div><div class="cb"><canvas width="96" height="96" aria-hidden="true"></canvas><div><p class="ct"></p><small class="cn"></small></div></div></div>
   <!-- 広告の間は、画面を覆って触れないようにする（ゲームサイト用） -->
   <div id="adBlock" hidden></div>
   <!-- ひと休み（☰・Esc・別のタブへ移ったとき）。ほかの画面の上に重ねる -->
@@ -854,6 +883,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
         <button type="button" class="btn primary" id="pResume" data-t="pResume">▶ 続ける</button>
         <button type="button" class="btn" id="pRestart" data-t="pRestart">最初からやりなおす</button>
         <button type="button" class="btn small" id="pQuit" data-t="pQuit">タイトルへ</button>
+        <button type="button" class="btn small" id="pTips" data-t="pTips">手ほどきをもう一度</button>
       </div>
       <div class="prow"><button type="button" class="ibtn" id="pSound" aria-label="効果音"></button><button type="button" class="ibtn" id="pBgm" aria-label="BGM" data-ico="music"></button><button type="button" class="ibtn" id="pForm" aria-label="画面の向き（縦・横）" data-ico="form"></button></div>
     </div>
@@ -1102,6 +1132,25 @@ const T = {
     factor: (f) => `点×${f}`, lanternCall: (f) => `提灯！ 点×${f}`, fizzle: '雲の中では、火がつかない', dry: '乾いた！',
     pickNextNew: (n, t, g) => `次は${KANJI[n]}夜目 ・ 目標 ${K.fmt(t)} 点 ・ 新しい仕掛け「${g}」`,
     allWorks: 'ほかの作品をぜんぶ見る →', nextSudoku: '異世界立体数独', nextPuyo: '将棋ぷよ「成」', nextNote: 'この型の研究ノート',
+    gainLbl: '次の夜', coachNext: 'タップで次へ', pTips: '手ほどきをもう一度', tipsReset: '手ほどきを、もう一度はじめから出します',
+    tip_draw: '花火玉から花火玉へ、指で線を1本引こう。線の長さは、この墨の分だけ。',
+    tip_tally: 'はじけた玉の「点」×「倍率」が今夜の点。金の玉や、10 連鎖ごとに倍率が上がる。',
+    tip_stars: '目標を越えると★1、目標の3倍で★2、全部ひらくと★3。★は屋台で使える。',
+    tip_pick: 'お守りを1つ選ぼう。選んだお守りは、祭りの最後までずっと効く。',
+    tip_gain: '☾ のゲージは、このお守りで次の夜の点がどれだけ伸びそうかの目安。',
+    tip_stall: '★で屋台の品が買える。入れかえ・墨を足す・予備の提灯（散ってももう一度）。',
+    tip_next: '次の夜の盤と目標。新しい仕掛けや大一番も、ここで先に分かる。',
+    tip_type: '同じ型のお守りを3つ（提灯は2つ）集めると、点 ×1.25。● が集めた数、◎ がこの札。',
+    tip_upgrade: '持っているお守りをもう一度選ぶと Lv が上がる。Lv3 で新しい力がつく。',
+    tip_wish: '願い札: この条件をかなえて夜を越えると、★がもらえる。',
+    tip_boss: '大一番！ 妖怪が線のルールを変えてくる。勝てば仲間になる。',
+    tip_ink: '使わなかった墨の半分は、次の夜に足される（墨壺）。',
+    tip_set: '型がそろった！ 点 ×1.25。同じ型を集めるほど ×1.4・×1.5 に上がる。',
+    tip_retry: '目標に届かなかった…。予備の提灯で、この夜をもう一度引ける。上のヒントを試そう。',
+    tip_startpick: '祭りのはじめに、お守りを1つ持っていける。',
+    tip_focus: '型をしぼると、次の候補がその型のお守りだけになる。',
+    tip_replace: 'お守りの枠がいっぱい。手放すお守りを1つ選ぶ（★が戻る）。',
+    tip_result: '祭りのおしまい。遊ぶほど花火師の格が上がり、新しいお守りや着せかえが開く。',
     target: '目標', pickTitle: 'お守りを1つ選ぶ', gainTip: '☾ 次の夜の点がどれだけ伸びそうか（試しの線で計った目安）',
     luckyCall: (n) => `招き猫 ×${n}`, lanternRaft: (f, m) => `提灯！ 点×${f}・花筏 倍率+${m}`,
     wishTip: '願い札: 叶えて夜を越えると、星がもう 1 つ', wishMet: (w, n = 1) => `願い札「${w}」叶った！ ★+${n}`, wishMiss: (w) => `願い札「${w}」は叶わず`,
@@ -1220,6 +1269,25 @@ const T = {
     factor: (f) => `points ×${f}`, lanternCall: (f) => `Lantern! points ×${f}`, fizzle: 'Fire can\'t start inside a cloud', dry: 'Dried!',
     pickNextNew: (n, t, g) => `Next: night ${n + 1} · target ${K.fmt(t)} · new: ${g}`,
     allWorks: 'See all works →', nextSudoku: 'Rune Cube', nextPuyo: 'Shogi Puyo', nextNote: 'Research note (JA)',
+    gainLbl: 'next night', coachNext: 'Tap to continue', pTips: 'Show the tips again', tipsReset: 'The tips will show again from the start',
+    tip_draw: 'Draw one line from shell to shell. Your line can only be as long as this ink.',
+    tip_tally: 'Your score is POINTS × MULT. Gold shells and every 10-chain raise the multiplier.',
+    tip_stars: 'Beat the target for ★1, triple it for ★2, burst every shell for ★3. Spend ★ at the stall.',
+    tip_pick: 'Pick one charm. It keeps working until the end of the festival.',
+    tip_gain: 'The ☾ bar shows how much this charm should raise next night\'s score.',
+    tip_stall: 'Spend ★ at the stall: reroll, add ink, or a spare lantern (retry a failed night).',
+    tip_next: 'Next night\'s board and target. New gimmicks and bosses show up here first.',
+    tip_type: 'Collect 3 charms of one type (2 lanterns) for score ×1.25. ● = how many you have, ◎ = this one.',
+    tip_upgrade: 'Pick a charm you already hold to level it up. At Lv3 it gains a new power.',
+    tip_wish: 'Wish card: meet this condition and clear the night to earn a ★.',
+    tip_boss: 'Boss night! A yokai changes how your line works. Beat it and it joins you.',
+    tip_ink: 'Half of the ink you didn\'t use carries over to the next night (ink pot).',
+    tip_set: 'Set complete! Score ×1.25. Collect more of the type for ×1.4 and ×1.5.',
+    tip_retry: 'You fell short… Use a spare lantern to try this night again. Try the tip above.',
+    tip_startpick: 'Take one charm with you at the start of the festival.',
+    tip_focus: 'Focus makes the next offer all one type of charm.',
+    tip_replace: 'Your charm slots are full. Pick one to let go (you get ★ back).',
+    tip_result: 'The festival is over. Playing raises your rank and unlocks new charms and outfits.',
     target: 'Target', pickTitle: 'Pick one charm', gainTip: '☾ How much this should raise next night\'s score (estimated with a trial line)',
     luckyCall: (n) => `Lucky cat ×${n}`, lanternRaft: (f, m) => `Lantern! points ×${f} · raft mult +${m}`,
     wishTip: 'Wish: make it come true and clear the night for one more star', wishMet: (w, n = 1) => `Wish "${w}" came true! ★+${n}`, wishMiss: (w) => `Wish "${w}" missed`,
@@ -1347,6 +1415,7 @@ function load(raw) {
   if ('streak' in v && !obj(v.streak)) delete v.streak;
   if ('level' in v && !(Number.isInteger(v.level) && v.level >= 0 && v.level <= 8)) delete v.level;
   if ('color' in v && !(v.color === null || (typeof v.color === 'string' && v.color.length < 20))) delete v.color;
+  if ('tips' in v && !obj(v.tips)) delete v.tips;
   if ('cont' in v && !(obj(v.cont) && obj(v.cont.run) && Number.isInteger(v.cont.night) && v.cont.night >= 0 && v.cont.night < K.NIGHTS && Array.isArray(v.cont.strokes) && Array.isArray(v.cont.run.charms) && Array.isArray(v.cont.run.nights))) delete v.cont;
   if ('outfit' in v && !(v.outfit === null || (typeof v.outfit === 'string' && /^[a-z]{1,16}$/.test(v.outfit)))) delete v.outfit;
   if (v.days) for (const d of Object.keys(v.days)) { const e = v.days[d]; if (!e.nights.every((n) => obj(n) && Number.isFinite(n.score) && Number.isFinite(n.target)) || !Number.isInteger(e.moon)) delete v.days[d]; }
@@ -2614,7 +2683,7 @@ function updateScore() {
     $('#multVal').textContent = `${K.fmt(chips)} × ${fmtMult(mult)}${xm !== 1 ? ` × ${fmtMult(xm)}` : ''}`;
   }
   const f = K.pointFactor(st), fe = $('#factorVal');
-  fe.hidden = f <= 1; if (f > 1 && fe.dataset.f !== String(f)) { fe.dataset.f = String(f); fe.replaceChildren(shellImg('chouchin'), el('b', '', `×${fmtMult(f)}`)); fe.title = t('factor', f); } // 灯った提灯: 点（青）×
+  fe.hidden = f <= 1; if (f > 1 && fe.dataset.f !== String(f)) { fe.dataset.f = String(f); fe.replaceChildren(shellImg('chouchin'), el('b', '', t('factor', fmtMult(f)))); fe.title = t('factor', f); } // 灯った提灯: 点（青）×
   setGoal(live ? 0 : score / targetOf(st));
 }
 // 上の欄の数字を、ぽんと跳ねさせる（火の粒が届いたとき）
@@ -2703,6 +2772,64 @@ function toast(msg) {
   toastTimer = setTimeout(() => { e.classList.remove('on'); const n = toastQ.shift(); if (n) toastTimer = setTimeout(() => toast(n), 260); }, 1700);
 }
 function hint(msg) { setT($('#hint'), msg || ''); }
+// ================================================================ ヒノコの手ほどき
+// 遊びの中で、はじめて出会ったときに 1 度だけ、画面のその所を照らして、ヒノコがひとこと教える（DB.tips に覚える）。
+// タップ（Space・Enter）で次へ。then は、読み終えたとき（もう見た手ほどきなら、すぐ）に呼ぶ
+const coachQ = []; let coachCur = null;
+function tipsOn() { return !S.demo && S.mode !== 'replay' && S.mode !== 'single' && S.mode !== 'vs'; }
+function coach(id, target, opts = {}) {
+  const then = opts.then || null;
+  if (!tipsOn() || (DB.tips && DB.tips[id]) || (coachCur && coachCur.id === id) || coachQ.some((q) => q.id === id)) { if (then) then(); return false; }
+  coachQ.push({ id, target, opts, then }); if (!coachCur) coachNext();
+  return true;
+}
+// 続けて出す手ほどき: [[id, target, opts], ...]。出せないもの（照らす所が無い・もう見た）は飛ばす。最後に done
+function coachSeq(list, done) {
+  const go = (i) => { if (i >= list.length) { if (done) done(); return; } const [id, target, o = {}] = list[i]; coach(id, target, { ...o, then: () => go(i + 1) }); };
+  go(0);
+}
+function coachEl(target) { const e = typeof target === 'function' ? target() : typeof target === 'string' ? document.querySelector(target) : target; return e && e.getClientRects && e.getClientRects().length && !e.closest('[hidden]') ? e : null; }
+function coachNext() {
+  const box = $('#coach');
+  coachCur = coachQ.shift() || null;
+  if (!coachCur) { box.hidden = true; return; }
+  const c = coachCur;
+  DB.tips = DB.tips || {}; DB.tips[c.id] = 1; save();
+  box.querySelector('.ct').textContent = t('tip_' + c.id);
+  box.querySelector('.cn').textContent = t('coachNext');
+  const cv = box.querySelector('canvas'), g = cv.getContext('2d'); g.clearRect(0, 0, 96, 96); hino(g, 48, 58, 20, { face: c.opts.face || 'joy', still: true, glow: false });
+  box.hidden = false; S.drawing = null; c.at = performance.now();
+  coachPlace(); requestAnimationFrame(coachPlace);
+  SFX.ui();
+}
+function coachPlace() {
+  const c = coachCur; if (!c) return;
+  const box = $('#coach'), spot = box.querySelector('.spot'), cb = box.querySelector('.cb');
+  const e = coachEl(c.target), vw = innerWidth, vh = innerHeight, pad = 6;
+  const r = e ? e.getBoundingClientRect() : null;
+  box.classList.toggle('nodim', !!c.opts.nodim); box.classList.toggle('center', !r);
+  spot.hidden = !r;
+  if (r) Object.assign(spot.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px` });
+  const bw = cb.offsetWidth, bh = cb.offsetHeight;
+  let top, left;
+  if (!r) { top = (vh - bh) / 2; left = (vw - bw) / 2; }
+  else {
+    left = Math.max(8, Math.min(vw - bw - 8, r.left + r.width / 2 - bw / 2));
+    if (r.bottom + pad + 10 + bh <= vh - 8) top = r.bottom + pad + 10;          // 下に
+    else if (r.top - pad - 10 - bh >= 8) top = r.top - pad - 10 - bh;         // 上に
+    else top = Math.max(8, vh - bh - 12);                                     // 大きな所: 画面の下に重ねる
+  }
+  Object.assign(cb.style, { left: `${left}px`, top: `${top}px` });
+}
+function coachDone() {
+  if (!coachCur) return;
+  const c = coachCur; coachCur = null; $('#coach').hidden = true;
+  if (S.darkUntil && c.at) S.darkUntil += performance.now() - c.at; // 闇夜: 読んでいた間は、玉を消さない
+  if (c.then) c.then();
+  if (!coachCur) coachNext();
+}
+// 何度も遊んでいる人は、はじめの手ほどき（線・集計・選ぶ・屋台・散った・願い・大一番・墨壺）は見たことにする
+if (!DB.tips && (DB.runs || 0) >= 2) { DB.tips = {}; for (const id of ['draw', 'tally', 'stars', 'pick', 'stall', 'retry', 'wish', 'boss', 'ink', 'result', 'next']) DB.tips[id] = 1; }
 function renderHud() {
   const run = S.run, st = S.st;
   $('#hud').hidden = false; $('#topBtns').hidden = false; $('#homeBtn').hidden = false; document.body.classList.add('playing');
@@ -2725,7 +2852,7 @@ function renderHud() {
   if (Object.keys(lvs).length) for (let k = Object.keys(lvs).length; k < slots; k++) chips.appendChild(el('span', 'empty')); // 空き枠は、お守りを持ってから
   // 型そろい（同じ型を 3 種類・提灯は 2 種類）: 掛け算の札を並べる
   const set = st && !st.vs && K.setBonus ? K.setBonus(st.charms) : null;
-  if (set) { const sp = el('span', 'set'); sp.append(tagIcon(set.tag), el('b', '', `×${fmtMult(set.x)}`)); sp.title = t('setTip', t('tag_' + set.tag), set.n, set.x); sp.addEventListener('click', () => toast(sp.title)); chips.appendChild(sp); }
+  if (set) { const sp = el('span', 'set'); sp.append(tagIcon(set.tag), el('b', '', `${t('tag_' + set.tag)} ×${fmtMult(set.x)}`)); sp.title = t('setTip', t('tag_' + set.tag), set.n, set.x); sp.addEventListener('click', () => toast(sp.title)); chips.appendChild(sp); }
   $('#speedBtn').classList.toggle('on', S.speed > 1);
   updateScore();
 }
@@ -2832,7 +2959,7 @@ function playBossCut(id, tw, done) {
   // ルールは言葉でなく絵の式（届いていなければ短い言葉）。言葉は指を重ねたとき
   const rule = el2.querySelector('.bc-rule'); rule.title = lang === 'en' ? tw.ruleEn : tw.rule;
   let gx = null; if (G && G.twistGlyph) { try { gx = G.glyphEl(G.twistGlyph(tw.id), { shellImg, svgIcon }); } catch (e) { gx = null; } }
-  if (gx) rule.replaceChildren(gx); else setT(rule, dev(lang === 'en' ? tw.ruleEn : tw.rule)); hint('');
+  if (gx) rule.replaceChildren(gx, el('span', 'rt', dev(lang === 'en' ? tw.ruleEn : tw.rule))); else setT(rule, dev(lang === 'en' ? tw.ruleEn : tw.rule)); hint('');
   el2.querySelector('.bc-skip').textContent = t('tapGo');
   el2.classList.remove('out'); el2.hidden = false;
   // 名前・吹き出しが出るのに合わせ直す（同じ夜に 2 度目でも動くように）
@@ -2913,10 +3040,12 @@ function showNewCard(g, tw) {
   const seen = g ? DB.gseen[g.id] || 0 : 9;
   if (!g || seen >= 2) return; // 出会ったはじめの 2 回だけ（あとは盤面で光らせるだけ）
   DB.gseen[g.id] = seen + 1; save();
-  card.replaceChildren(el('i', 'lbl', 'NEW'), el('b', 'n', lang === 'en' ? g.en : g.ja));
+  const row = el('div', 'nr'); row.append(el('i', 'lbl', 'NEW'), el('b', 'n', lang === 'en' ? g.en : g.ja));
   let gx = null;
   if (G && G.gimmickGlyph) { try { gx = G.glyphEl(G.gimmickGlyph(g.id), { shellImg, svgIcon }); } catch (e) { gx = null; } }
-  card.append(gx || el('span', 'd', dev(lang === 'en' ? g.sayEn : g.say)));
+  if (gx) row.append(gx);
+  // 絵の式の下に、ひとことの説明（どう使うか）
+  card.replaceChildren(row, el('span', 'd', dev(lang === 'en' ? g.descEn || g.sayEn : g.desc || g.say)));
   card.title = lang === 'en' ? g.descEn : g.desc;
   if (!placeNewCard()) return;
   card.hidden = false; card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
@@ -2950,7 +3079,7 @@ function enterDraw(second) {
   S.phase = 'draw';
   $('#ink').classList.toggle('bank', !second && (S.st.bank || 0) > 0);
   // 墨壺から足した墨: 壺の絵と +% だけ（言葉は指を重ねたとき）。墨のゲージの、足した分の上に置く
-  $('#inkTag').hidden = second || !(S.st.bank > 0); if (!$('#inkTag').hidden) { const pc = Math.round(S.st.bank / K.BASE_INK * 100); $('#inkTag').replaceChildren(svgIcon('inkpot'), el('b', '', `+${pc}%`)); $('#inkTag').title = t('bankNow', pc); }
+  $('#inkTag').hidden = second || !(S.st.bank > 0); if (!$('#inkTag').hidden) { const pc = Math.round(S.st.bank / K.BASE_INK * 100); $('#inkTag').replaceChildren(svgIcon('inkpot'), el('b', '', t('bankTag', pc))); $('#inkTag').title = t('bankNow', pc); }
   $('#ink').hidden = false; $('#ink').classList.remove('low'); $('#inkBar').style.transform = 'scaleX(1)';
   const tw = S.st.twist && K.TWISTS.find((x) => x.id === S.st.twist);
   // 大一番の夜は、ルールをひとことで出したままにする（カードは指を置くと消えるので）
@@ -2966,11 +3095,28 @@ function enterDraw(second) {
   // 途中保存から: 読みなおす前に引いてあった線は、そのまま燃やす
   const again = S.resume && S.resume[second ? 1 : 0];
   if (again) { const st = S.st; S.ghost = null; hint(t('contLine')); setTimeout(() => { if (S.st === st && S.phase === 'draw' && !S.drawing) commitStroke(again, true); }, 700); }
+  // 手ほどき（はじめて出会ったときだけ）: 線の引き方と墨・大一番・願い札・墨壺・型そろい
+  if (!second && !again && S.mode === 'run' && !S.demo) {
+    const stT = S.st;
+    setTimeout(() => {
+      if (S.st !== stT || S.phase !== 'draw' || S.drawing || S.paused) return;
+      coachSeq([
+        ['draw', '#ink', { nodim: true }],
+        ...(stT.twist ? [['boss', '#twistTag']] : []),
+        ...(S.wish ? [['wish', '#wish']] : []),
+        ...(stT.bank > 0 ? [['ink', '#inkTag']] : []),
+        ...(K.setBonus && K.setBonus(stT.charms) ? [['set', '#chips .set']] : []),
+      ]);
+    }, 450);
+  }
 }
 // 線を引く番のひとこと（大一番の夜は、ルールをひとことで出したままにする。カードは指を置くと消えるので）
 function drawHint(second) {
-  // 線を引く番の下の言葉は出さない（引き方は、はじめの夜のお手本の指が見せる。大一番のルールは HUD の札）。二筆目だけ短く知らせる
-  return second ? t('hintDraw2') : '';
+  // 線を引く番の下のひとこと: 二筆目・大一番のルール・はじめの祭りの一夜目の引き方（ほかの夜は出さない）
+  const tw = S.st && S.st.twist && K.TWISTS.find((x) => x.id === S.st.twist);
+  if (second) return t('hintDraw2');
+  if (tw) return dev(lang === 'en' ? `${t('boss')} “${tw.en}”: ${tw.ruleEn}` : `${t('boss')}『${tw.ja}』 ${tw.rule}`);
+  return S.st && S.st.night === 0 && !(DB.runs > 0) && S.mode === 'run' ? t('hintDraw') : '';
 }
 // 形や遊び方（マウス・指）が変わったとき、それに合わせた言葉に出しなおす
 function renderFormText() {
@@ -3084,7 +3230,7 @@ function runTally(res) {
   // 散ったときは、次に効くことを 1 つだけ（ヒノコのヒント）
   const hint = !pass && S.mode !== 'replay' ? K.failHint(st) : null;
   tip.title = hint ? hintText(hint) : '';
-  if (hint && G && G.hintGlyph) { let gx = null; try { gx = G.glyphEl(G.hintGlyph(hint.id), { shellImg, svgIcon }); } catch (e) { gx = null; } if (gx) tip.replaceChildren(svgIcon('bulb'), gx); else setT(tip, `💡 ${hintText(hint)}`); }
+  if (hint) { let gx = null; if (G && G.hintGlyph) { try { gx = G.glyphEl(G.hintGlyph(hint.id), { shellImg, svgIcon }); } catch (e) { gx = null; } } tip.replaceChildren(svgIcon('bulb'), el('span', 'ht', hintText(hint))); if (gx) tip.append(gx); }
   else setT(tip, hint ? `💡 ${hintText(hint)}` : '');
   // 点と倍率は、出どころごとに積み上げる（core の res.parts。無いときは「点 × 倍率（× 満開）」）
   const parts = tallyParts(res), partEl = box.querySelector('.part');
@@ -3126,10 +3272,12 @@ function runTally(res) {
 
       }
       if (hint) tip.classList.add('show');
-      else if (pass && S.mode === 'run' && st.night < K.NIGHTS - 1) { const c = K.inkCarry(st); if (c > 0) { tip.replaceChildren(svgIcon(icoOr('inkpot')), el('b', '', `+${Math.round(c / K.BASE_INK * 100)}%`)); tip.title = t('carryLine', Math.round(c / K.BASE_INK * 100)); tip.classList.add('show'); } }
+      else if (pass && S.mode === 'run' && st.night < K.NIGHTS - 1) { const c = K.inkCarry(st); if (c > 0) { tip.replaceChildren(svgIcon(icoOr('inkpot')), el('span', 'ht', t('carryLine', Math.round(c / K.BASE_INK * 100)))); tip.title = t('bankNow', Math.round(c / K.BASE_INK * 100)); tip.classList.add('show'); } }
     }, nOn * 200 + 120);
   };
-  const finish = () => { if (!alive()) return; over = true; S.tallySkip = null; afterTally(res, pass); };
+  const finish0 = () => { if (!alive()) return; over = true; S.tallySkip = null; afterTally(res, pass); };
+  // はじめての集計: 点 × 倍率 と、星の取り方を教えてから先へ
+  const finish = () => { if (!alive()) return; if (S.mode !== 'run') { finish0(); return; } coachSeq([['tally', '#tally .row1'], ['stars', '#tally .tstars']], finish0); };
   // 画面をタップすると、数え上げを飛ばして判定だけ見せる（「もう一回」までを速く）
   S.tallySkip = () => {
     if (!alive() || skipped) return;
@@ -3256,7 +3404,7 @@ function showRetry(res) {
   if (S.boss && S.mode === 'run') {
     const c = CAST.CAST[S.boss.id]; CAST.drawCast(hg, S.boss.id, 56, 62, 80, { face: 'joy', still: true, glow: false });
     setT($('#retryLine'), `${lang === 'en' ? c.nameEn : c.name}${lang === 'en' ? ': ' : '「'}${(lang === 'en' ? c.sayEn : c.say).win}${lang === 'en' ? '' : '」'}`);
-  } else { hino(hg, 56, 74, 21, { face: 'sad', still: true, glow: false }); setT($('#retryLine'), ''); }
+  } else { hino(hg, 56, 74, 21, { face: 'sad', still: true, glow: false }); setT($('#retryLine'), t('retryLine', short)); }
   $('#retryLine').hidden = !$('#retryLine').textContent; // ヒノコはしょんぼりの顔だけ（空の吹き出しは出さない）
   // どれだけ足りなかったかは、目標までのゲージで見せる（言葉で言わない）
   const bar = $('#retryBar'); bar.querySelector('i').style.setProperty('--w', `${Math.max(2, 100 - short)}%`); bar.querySelector('b').textContent = `−${short}%`;
@@ -3264,7 +3412,7 @@ function showRetry(res) {
   // 次に試すこと: 絵の式（言葉は指を重ねたとき）
   const h = K.failHint(st), tipEl = $('#retryTip'); tipEl.hidden = !h; tipEl.title = h ? hintText(h) : '';
   S.retryHint = h ? { id: h.id, night: st.night } : null; // やりなおした夜のはじめに、盤の上で光らせる
-  if (h) { let gx = null; if (G && G.hintGlyph) { try { gx = G.glyphEl(G.hintGlyph(h.id), { shellImg, svgIcon }); } catch (e) { gx = null; } } if (gx) tipEl.replaceChildren(svgIcon('bulb'), gx); else setT(tipEl, `💡 ${hintText(h)}`); }
+  if (h) { let gx = null; if (G && G.hintGlyph) { try { gx = G.glyphEl(G.hintGlyph(h.id), { shellImg, svgIcon }); } catch (e) { gx = null; } } tipEl.replaceChildren(svgIcon('bulb'), el('span', 'ht', hintText(h))); if (gx) tipEl.append(gx); }
   // もう一度: 提灯の絵と ↻ と、のこりの数
   const go = $('#retryGo'); go.replaceChildren(svgIcon('lantern'), el('span', '', t('retryShort')), el('i', 'cnt', `×${run.lives}`)); go.title = t('retryGo', run.lives - 1); go.hidden = run.lives <= 0;
   $('#retryGo').onclick = () => { if (S.run !== run || run.lives <= 0 || go.hidden) return; run.lives--; run.retries = (run.retries || 0) + 1; SFX.pick(); startNight(st.night); };
@@ -3276,6 +3424,7 @@ function showRetry(res) {
   $('#retryEnd').classList.toggle('small', run.lives > 0); // 提灯が尽きたら、終えるのも広告と同じ大きさ（広告をすすめすぎない）
   $('#retryEnd').onclick = () => { if (S.run !== run || CG.adOn) return; run.lives = 0; run.adDeclined = true; afterTally(res, false); };
   hideHud(); showOnly('#retryOv');
+  setTimeout(() => { if (!$('#retryOv').hidden && S.run === run) coach('retry', run.lives > 0 ? '#retryGo' : '#retryEnd', { face: 'sad' }); }, 600);
 }
 // 次の夜の盤面を小さく（画面の向きに合わせて）。お守りを選ぶ前に、次の線を考えられるように
 function drawNextBoard(n) {
@@ -3300,7 +3449,7 @@ function drawNextBoard(n) {
 function tagIcon(x) { if (x === 'gold') return shellImg('kin'); return svgIcon(icoOr({ lantern: 'lantern', chain: 'chain', ink: 'ink', finale: 'firework', reach: 'reach', gimmick: 'rope', risk: 'bomb' }[x] || 'star')); }
 // 型の札: 絵 + そろいまでの点。have = いま持っている数、add = この札で増える数。そろう型だけ点と掛け算を出す
 function tagChip(x, have, add, { appraise = false, up = false } = {}) {
-  const em = el('em', `tag t-${x}` + (have ? ' match' : '') + (up ? ' up' : '')); em.title = t('tag_' + x); em.append(tagIcon(x));
+  const em = el('em', `tag t-${x}` + (have ? ' match' : '') + (up ? ' up' : '')); em.title = t('tag_' + x); em.append(tagIcon(x), el('span', 'tw', t('tag_' + x)));
   const need = K.SET_NEED ? K.SET_NEED[x] : 0;
   if (need) {
     const after = have + add, pp = el('span', 'tp');
@@ -3323,6 +3472,7 @@ function twistChip(tw) {
   if (bid && CAST.drawCast) { const cv = document.createElement('canvas'); cv.width = cv.height = 64; CAST.drawCast(cv.getContext('2d'), bid, 32, 36, 46, { face: 'taunt', still: true, glow: false }); c.appendChild(cv); }
   c.append(el('b', '', lang === 'en' ? tw.en : tw.ja));
   if (G && G.twistGlyph) { try { c.append(G.glyphEl(G.twistGlyph(tw.id), { shellImg, svgIcon })); } catch (e) { /* 名前だけ */ } }
+  c.append(el('small', 'rl', lang === 'en' ? tw.ruleEn : tw.rule)); // ルールの短い文（選ぶ画面の札だけで見せる）
   return c;
 }
 // 新しい仕掛け: 玉の絵（雲・縄は絵の式）と NEW
@@ -3330,6 +3480,7 @@ function gimmickChip(g) {
   const c = el('span', 'nchip gim'); c.title = `${lang === 'en' ? g.en : g.ja}: ${lang === 'en' ? g.descEn || '' : g.desc || ''}`;
   c.append(el('i', 'newb', 'NEW'));
   if (K.SHELLS[g.id]) c.append(shellImg(g.id)); else c.append(svgIcon(icoOr(g.id === 'kumo' ? 'cloud' : g.id === 'nawa' ? 'rope' : 'sparkle')));
+  c.append(el('b', 'gn', lang === 'en' ? g.en : g.ja)); // 仕掛けの名前
   if (G && G.gimmickGlyph) { try { c.append(G.glyphEl(G.gimmickGlyph(g.id), { shellImg, svgIcon })); } catch (e) { /* 絵だけ */ } }
   return c;
 }
@@ -3337,8 +3488,9 @@ function gimmickChip(g) {
 function wishChip(w) {
   const c = el('span', 'nchip wish' + (w.stars === 2 ? ' two' : '')); c.title = `${t('wishTip')}: ${lang === 'en' ? w.en : w.ja}`;
   c.append(el('i', 'seal', lang === 'en' ? '✦' : '願'));
-  if (G && G.wishGlyph) { try { c.append(G.glyphEl(G.wishGlyph(w.id, w.n), { shellImg, svgIcon })); } catch (e) { c.append(el('span', '', lang === 'en' ? w.en : w.ja)); } }
-  else c.append(el('span', '', lang === 'en' ? w.en : w.ja));
+  // 願い札は、条件を短い文で（絵の式は、言葉が届かないときだけ）
+  const wt = String(lang === 'en' ? w.en : w.ja).replace('{n}', w.n != null ? w.n : '');
+  c.append(el('span', 'wt', wt));
   if (w.stars === 2) c.append(el('b', 'w2', '★2'));
   return c;
 }
@@ -3353,7 +3505,8 @@ function charmCard(run, c, held) {
   else if (c.rarity && c.rarity !== 'common') name.appendChild(el('i', 'rar ' + c.rarity, t('rarity_' + c.rarity)));
   d.appendChild(name);
   const desc = charmDesc(c, Math.min(K.MAX_LV || 1, held + 1));
-  d.appendChild(charmFx(c.id, Math.min(K.MAX_LV || 1, held + 1), desc));
+  // 効き目: 短い文（主）と、同じことの絵の式（目で追う助け）
+  d.appendChild(el('span', 'fxt', desc)); d.appendChild(charmFx(c.id, Math.min(K.MAX_LV || 1, held + 1), ''));
   b.title = `${charmName(c.id)}: ${desc}`;
   // 型: 言葉ではなく、型の絵と「そろい」までの点（● 持っている・◎ これを取ると）。そろえば ×1.25 が光る
   if (Array.isArray(c.tags) && c.tags.length) {
@@ -3364,7 +3517,7 @@ function charmCard(run, c, held) {
     d.appendChild(tg);
   }
   // 次の夜の目安（このお守りで、次の夜の点がどれだけ伸びるか）。計算が終わったものから伸びる
-  const gn = el('span', 'gain'); gn.title = t('gainTip'); gn.append(el('span', 'nx', '☾'), el('i'), el('b', 'mono', '')); d.appendChild(gn); // ☾ = 次の夜
+  const gn = el('span', 'gain'); gn.title = t('gainTip'); gn.append(el('span', 'nx', `☾ ${t('gainLbl')}`), el('i'), el('b', 'mono', '')); d.appendChild(gn); // ☾ = 次の夜
   b.appendChild(d);
   return b;
 }
@@ -3380,12 +3533,12 @@ function setGain(box, id, g) {
 // お守りの効き目: 絵の式（glyphs.js が届いていれば）。無ければ短い言葉
 function charmFx(id, lv, desc) {
   if (G && G.charmGlyph) { try { const tk = G.charmGlyph(id, lv); if (tk && tk.length) return G.glyphEl(tk, { shellImg, svgIcon }); } catch (e) { /* 言葉にもどす */ } }
-  return el('span', 'fxt', desc);
+  return desc ? el('span', 'fxt', desc) : el('span');
 }
 // はじめのお守り（開いてから・ふつうの祭りだけ）: 3 つから 1 つ。選んだら一夜目へ
 function showStartPick(ids, then) {
   const run = S.run;
-  $('#pickHead').textContent = t('startHead'); $('#pickTitle').textContent = ''; $('#pickTitle').hidden = true;
+  $('#pickHead').textContent = t('startHead'); $('#pickTitle').textContent = t('startTitle'); $('#pickTitle').hidden = false;
   $('#pickOv .stall').hidden = true;
   const box = $('#picks'); box.innerHTML = '';
   const lockUntil = performance.now() + 500; let picked = false;
@@ -3404,6 +3557,7 @@ function showStartPick(ids, then) {
   drawNextBoard(0);
   $('#pickNext').textContent = t('startNext', K.targetFor(run.seed, 0, run.moon, run.level || 0));
   showOnly('#pickOv');
+  setTimeout(() => { if (!$('#pickOv').hidden && S.run === run) coach('startpick', '#picks'); }, 650);
 }
 // 型しぼり（屋台・★2）: 型を 1 つ選ぶと、次の候補がその型のお守りだけになる
 function showFocus(round, reroll) {
@@ -3422,6 +3576,7 @@ function showFocus(round, reroll) {
     b.addEventListener('click', () => { if (mashing()) return; SFX.pick(); showPick(round, reroll + 1, x); });
     box.appendChild(b);
   }
+  setTimeout(() => { if (!$('#pickOv').hidden) coach('focus', '#picks'); }, 400);
 }
 function showPick(round = 0, reroll = 0, focus = null) {
   const run = S.run, n = S.st.night;
@@ -3431,7 +3586,7 @@ function showPick(round = 0, reroll = 0, focus = null) {
   // 大一番を越えたら、お守りをもう 1 つ選べる
   const more = round === 0 && K.isBoss(n);
   // 見出しは言葉にしない: 夜の名前と ✓、持てる枠（埋まった数）。大一番のあとのおまけだけ「もう1つ」
-  $('#pickTitle').textContent = round ? t('pickMore') : ''; $('#pickTitle').hidden = !round; $('#pickOv .stall').hidden = false;
+  $('#pickTitle').textContent = round ? t('pickMore') : t('pickTitle'); $('#pickTitle').hidden = false; $('#pickOv .stall').hidden = false;
   const box = $('#picks'); box.innerHTML = '';
   const lockUntil = performance.now() + 600; let picked = false;
   const lvs = charmLvs(run.charms), slots = slotsOf(run);
@@ -3465,8 +3620,9 @@ function showPick(round = 0, reroll = 0, focus = null) {
   const buy = (icon, label, cost, ok, fn, extra = '') => {
     cost += levelFx(run.level).price || 0; // 段位で屋台の値段が上がる
     const b = el('button', 'btn small sbtn'); b.type = 'button';
-    b.append(svgIcon(icoOr(icon))); if (extra) b.append(el('span', 'sx', extra)); b.append(el('span', 'pr', `★${cost}`));
-    b.title = label.replace(/\s*★\d+/, ''); b.setAttribute('aria-label', b.title);
+    const name = label.replace(/\s*★\d+/, '');
+    b.append(svgIcon(icoOr(icon)), el('span', 'sl', name)); if (extra) b.append(el('span', 'sx', extra)); b.append(el('span', 'pr', `★${cost}`));
+    b.title = name; b.setAttribute('aria-label', name);
     b.addEventListener('click', () => { if (!ok()) return; if (run.wallet < cost) { nekoSay('broke'); SFX.low(); b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope'); return; } run.wallet -= cost; SFX.pick(); fn(); setTimeout(() => nekoSay('buy'), 0); });
     b.classList.toggle('poor', run.wallet < cost); b.disabled = !ok(); shop.appendChild(b);
   };
@@ -3485,6 +3641,19 @@ function showPick(round = 0, reroll = 0, focus = null) {
   $('#newCard').hidden = true;
   showOnly('#pickOv');
   [0, 150, 340].forEach((ms) => setTimeout(() => SFX.tick(), ms + 60)); // 3 枚が順にめくれる音
+  // 手ほどき: はじめての選ぶ画面で、選び方・目安のゲージ・屋台。2 回目からは、次の夜・型・Lv 上げ（出てきたとき）
+  const pickT = performance.now();
+  setTimeout(() => {
+    if ($('#pickOv').hidden || S.run !== run) return;
+    coachSeq([
+      ['pick', '#picks'],
+      ['gain', '#picks .pick .gain'],
+      ...(run.wallet > 0 ? [['stall', '#shop']] : []),
+      ...(n >= 1 ? [['next', '.nextnight']] : []),
+      ...(n >= 1 && document.querySelector('#picks .tag.match') ? [['type', '#picks .tag.match']] : []),
+      ...(document.querySelector('#picks .pick .up') ? [['upgrade', '#picks .pick .up']] : []),
+    ]);
+  }, Math.max(0, 650 - (performance.now() - pickT)));
 }
 
 // 屋台の招き猫のひとこと
@@ -3529,7 +3698,7 @@ function showReplace(newId, onDone, onCancel) {
     const e = el('div', 'e'); e.appendChild(charmIcon(id)); b.appendChild(e);
     const d = el('div'); const nm = el('b', '', charmName(id)); if (n > 1) nm.appendChild(el('i', 'up', `Lv${n}`)); d.appendChild(nm);
     // 効き目は選ぶ札と同じ絵の式（言葉は指を重ねたとき）。手ばなすと戻る星は ★ の数で
-    const fx = charmFx(id, n, charmDesc(c, n)); d.appendChild(fx); const sl = el('small', 'sell'); sl.append(svgIcon('star'), el('b', 'mono', `+${n}`)); d.appendChild(sl);
+    d.appendChild(el('span', 'fxt', charmDesc(c, n))); d.appendChild(charmFx(id, n, '')); const sl = el('small', 'sell'); sl.append(svgIcon('star'), el('b', 'mono', `+${n}`)); d.appendChild(sl);
     b.title = `${charmDesc(c, n)} — ${t('sellFor', n)}`; b.appendChild(d);
     b.addEventListener('click', () => {
       if (done || performance.now() < lockUntil || mashing()) return; done = true;
@@ -3540,6 +3709,7 @@ function showReplace(newId, onDone, onCancel) {
   }
   const back = btn(t('replaceBack'), 'small', () => { if (!done) { done = true; onCancel(); } });
   back.classList.add('backbtn'); box.appendChild(back);
+  setTimeout(() => { if (!$('#pickOv').hidden) coach('replace', '#picks'); }, 400);
 }
 function charmName(id) { const c = K.charmById(id); return c ? (lang === 'en' ? c.en : c.ja) : id; }
 // お守りの候補の出し方（今夜の一筆はみんな同じ候補。ふだんは、解放したお守りだけ）
@@ -3690,6 +3860,7 @@ function showRunResult(run) {
   $('#resultOv').scrollTop = 0;
   // 解放は、格のゲージが上がりきってから、1 枚にまとめて
   if (run.meta && run.meta.unlocked.length && !run.revealed) { const ups = run.meta.rankAfter.lv - run.meta.rankBefore.lv; setTimeout(() => { if (S.run === run && !run.revealed && !$('#resultOv').hidden) { run.revealed = true; revealUnlocks(run.meta.unlocked); } }, 1300 + ups * 640); }
+  else setTimeout(() => { if (S.run === run && !$('#resultOv').hidden && $('#unlockOv').hidden) coach('result', '#resultBody .metabox'); }, 1500);
 }
 // ================================================================ 花火師の格（meta.js）
 function rankName(rk) { return (lang === 'en' ? rk.nameEn : rk.name) + (rk.over ? ` ★${rk.over}` : ''); } // 格30 から先は、名人の星の数
@@ -3873,7 +4044,7 @@ function openBook(tab = 'charms') {
       const d = el('div'); d.appendChild(el('b', '', c ? charmName(id) : '？'));
       const u = M.UNLOCKS.find((x) => x.id === id);
       // 開いたお守りは、選ぶ札と同じ絵の式（いちばん上げた Lv。Lv3 まで上げたら Lv3 のふるまいも）と型の絵。言葉は指を重ねたとき
-      if (open && c) { const lv = Math.max(1, e.maxLv || 1); d.appendChild(charmFx(id, lv, charmDesc(c, lv))); it.title = charmDesc(c, lv); const tg = el('small', 'tags'); for (const x of c.tags || []) { const ic = el('em', 'tag'); ic.title = t('tag_' + x); ic.appendChild(tagIcon(x)); tg.appendChild(ic); } d.appendChild(tg); }
+      if (open && c) { const lv = Math.max(1, e.maxLv || 1); d.appendChild(el('span', 'fxt', charmDesc(c, lv))); d.appendChild(charmFx(id, lv, '')); it.title = charmDesc(c, lv); const tg = el('small', 'tags'); for (const x of c.tags || []) { const ic = el('em', 'tag'); ic.title = t('tag_' + x); ic.append(tagIcon(x), el('span', 'tw', t('tag_' + x))); tg.appendChild(ic); } d.appendChild(tg); }
       else d.append(u ? (lang === 'en' ? u.howEn : u.how) : '');
       if (e.maxLv > 1) d.appendChild(el('small', 'mono', ` Lv${e.maxLv}`));
       if (e.cap && e.cap < 3 && open) d.appendChild(el('small', '', ` ${t('capLv', e.cap)}`));
@@ -5095,6 +5266,10 @@ document.querySelectorAll('[data-form]').forEach((b) => b.addEventListener('clic
 function setForm(f) { formOverride = null; DB.form = f; save(); layout(); applyLang(); }
 // 指でも札の中身を読めるように: 大一番・願い・次の夜の札は、タップで言葉を出す（パソコンは指を重ねると出る）
 for (const sel of ['#twistTag', '#wish', '#pickNext']) $(sel).addEventListener('click', (ev) => { const c = ev.target.closest('#twistTag,#wish,.nchip'); if (c && c.title) toast(c.title); });
+// 手ほどき: タップで次へ。画面の大きさが変わったら置きなおす。ひと休みの「手ほどきをもう一度」
+$('#coach').addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); coachDone(); });
+window.addEventListener('resize', () => { if (coachCur) coachPlace(); });
+$('#pTips').addEventListener('click', () => { DB.tips = {}; save(); toast(t('tipsReset')); });
 // 連打の見分け: 集計を飛ばす連打が、そのまま出てきたお守りの札を押してしまわないように（前のタップから 0.32 秒以内は連打）
 let lastTap = 0, tapGap = 1e9;
 document.addEventListener('pointerdown', () => { const n = performance.now(); tapGap = n - lastTap; lastTap = n; }, true);
@@ -5103,6 +5278,7 @@ function mashing() { return tapGap < 320 && performance.now() - lastTap < 1000; 
 window.addEventListener('keydown', (ev) => {
   gestured = true;
   if (CG.adOn) { ev.preventDefault(); return; } // 広告の間は、キーを受けない
+  if (coachCur) { if ([' ', 'Enter', 'Escape'].includes(ev.key)) { ev.preventDefault(); coachDone(); } return; } // 手ほどきの間は、読んで次へだけ
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   const k = ev.key, focusBtn = document.activeElement && document.activeElement.tagName === 'BUTTON';
   // ゲームサイトの枠（iframe）の中で、矢印キーなどで外のページが動かないように。重ねた画面が長いときは、その画面だけを動かす
