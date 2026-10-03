@@ -47,6 +47,10 @@ def portal_strip(html: str) -> str:
     html = re.sub(r'<script[^>]*assets/feel/feel\.js[^>]*></script>\s*', "", html)  # 気持ちスタンプ
     html = re.sub(r'<div class="endnext">.*?</div>\s*', "", html, flags=re.S)        # 他の作品・研究ノートへの誘導（隠すだけでなく外す）
     html = re.sub(r'<div data-feel="[^"]*"[^>]*></div>\s*', "", html)                  # 気持ちスタンプの置き場所
+    # サイトを指す頭の情報（正規 URL・SNS のカード・検索用の構造化データ）。ゲームサイトでは、外のサイトへの導線になるので外す
+    html = re.sub(r'<link rel="canonical"[^>]*>\s*', "", html)
+    html = re.sub(r'<meta (?:property="og:|name="twitter:)[^>]*>\s*', "", html)
+    html = re.sub(r'<script type="application/ld\+json">.*?</script>\s*', "", html, flags=re.S)
     # 画面の側で「ゲームサイト用」と分かるように（結果を 1 列にする など）
     # CrazyGames の SDK v3（遊んでいる/止めた の合図・広告・クラウド保存）。ほかのサイトでは SDK が動かず、画面の側で何もしない
     return html.replace("</head>", PORTAL_CSS + "<script>window.HITO_PORTAL=1</script>"

@@ -938,9 +938,13 @@ const CG = (() => {
   const quiet = (on) => { if (!actx) return; safe(() => (on ? actx.suspend() : actx.resume())); };
   return {
     get ready() { return ready; },
+    // ゲームサイトが知らせる言葉（ja-JP など）。分からなければ null
+    locale() { return ready ? safe(() => (sdk.user && sdk.user.systemInfo && sdk.user.systemInfo.locale) || null) : null; },
     async init() {
       if (!PORTAL || !window.CrazyGames || !window.CrazyGames.SDK) return false;
       try { sdk = window.CrazyGames.SDK; await sdk.init(); ready = sdk.environment !== 'disabled'; } catch (e) { ready = false; }
+      // 読みこみの合図: このページは SDK が起きた時には遊べる所まで読みこんでいるので、始めと終わりを続けて送る
+      if (ready) { safe(() => sdk.game.loadingStart()); safe(() => sdk.game.loadingStop()); }
       return ready;
     },
     // 遊んでいる間だけ gameplayStart（同じ合図を続けて送らない）
@@ -1236,8 +1240,11 @@ function pickLang() {
   if (q === 'en' || q === 'ja') return q;
   let v = null; try { v = localStorage.getItem('ve_lang'); } catch (e) { /* なし */ }
   if (v) return v === 'ja' ? 'ja' : 'en';
+  // ゲームサイト用は、サイトが知らせる言葉で決める（届くまでは英語）
+  if (PORTAL) return 'en';
   return (navigator.language || 'ja').toLowerCase().startsWith('ja') ? 'ja' : 'en';
 }
+function langChosen() { if (/[?&]lang=(en|ja)\b/.test(location.search)) return true; try { return !!localStorage.getItem('ve_lang'); } catch (e) { return false; } }
 let lang = pickLang();
 let F = null; // 画面の形（下の FORMS。起動時に決める）
 const t = (k, ...a) => { const v = (T[lang] && T[lang][k] != null) ? T[lang][k] : T.ja[k]; return dev(typeof v === 'function' ? v(...a) : v); };
@@ -1518,7 +1525,7 @@ async function loadTracks() {
 }
 document.addEventListener('visibilitychange', () => {
   // 遊んでいる途中で別のタブへ移ったら、ひと休みにしておく
-  if (document.hidden && S.mode !== 'title' && ['draw', 'burn', 'ojama', 'rival', 'cut', 'intro', 'tally'].includes(S.phase)) openPause();
+  if (document.hidden && S.mode !== 'title' && ['draw', 'burn', 'ojama', 'rival', 'cut', 'intro', 'tally'].includes(S.phase)) openPause(true);
   if (!actx) return;
   if (document.hidden) actx.suspend(); else actx.resume();
 });
@@ -1890,7 +1897,8 @@ function cheerN(n) { const lines = t('cheers'); for (let i = 0; i < n; i++) setT
 function frame(now) {
   requestAnimationFrame(frame);
   // ゲームサイトへ「遊んでいる/止めた」を知らせる（夜の最中だけ。タイトル・選ぶ画面・結果・ひと休み・別のタブは止めた）
-  CG.play(!S.paused && !document.hidden && S.mode !== 'title' && !!S.st && ['intro', 'cut', 'draw', 'rival', 'ojama', 'burn', 'show', 'tally'].includes(S.phase));
+  // 別のタブへ移った・画面の外に出たときは、遊びの止めの合図を送らない（ゲームサイトの側で扱う）。自分でひと休みを開いたときだけ止める
+  CG.play((!S.paused || S.autoPaused) && S.mode !== 'title' && !!S.st && ['intro', 'cut', 'draw', 'rival', 'ojama', 'burn', 'show', 'tally'].includes(S.phase));
   if (S.paused) { S.last = now; draw(now); return; } // ひと休み中は、絵だけ
   // 時間で進む場面（ひと休みの間は止まる）
   if (S.cut && S.cut.endAt && now >= S.cut.endAt) { const f = S.cut.end; S.cut.endAt = 0; f(); }
@@ -3459,7 +3467,7 @@ function animateRank(r, lvEl, nmEl, fill, gain) {
       if (!document.body.contains(fill)) return;
       const lv = steps[k++], rk = M.RANKS[lv - 1];
       lvEl.textContent = String(lv); nmEl.textContent = lang === 'en' ? rk.en : rk.ja;
-      lvEl.classList.remove('up'); void lvEl.offsetWidth; lvEl.classList.add('up'); SFX.milestone(); CG.happy();
+      lvEl.classList.remove('up'); void lvEl.offsetWidth; lvEl.classList.add('up'); SFX.milestone();
       fill.style.transition = 'none'; fill.style.width = '0%'; void fill.offsetWidth; fill.style.transition = '';
       setTimeout(next, 120);
     }, 520);
@@ -4733,16 +4741,16 @@ cv.addEventListener('pointercancel', () => { S.drawing = null; if (S.aim && S.ai
 $('#skip2').addEventListener('click', () => { if (S.st && S.st.phase === 'draw2') { K.finish(S.st); $('#skip2').hidden = true; $('#ink').hidden = true; hint(''); S.phase = 'burn'; S.drawing = null; } });
 $('#homeBtn').addEventListener('click', () => openPause());
 // ひと休み: 火も花火も止める（集計の数え上げなど、時計で動くものは続く）
-function openPause() {
+function openPause(auto = false) {
   if (S.paused || S.mode === 'title' || S.demo) return;
-  S.paused = true; S.drawing = null; S.pausedAt = performance.now();
+  S.paused = true; S.autoPaused = auto; S.drawing = null; S.pausedAt = performance.now();
   $('#pRestart').hidden = !((S.run && !S.run.daily && !S.run.duel) || S.mode === 'vs');
   $('#pauseOv').hidden = false; mus((m) => m.duck(0.35, 0.3));
   setTimeout(() => $('#pResume').focus(), 30);
 }
 function closePause() {
   if (!S.paused) return;
-  S.paused = false; S.last = performance.now(); $('#pauseOv').hidden = true;
+  S.paused = false; S.autoPaused = false; S.last = performance.now(); $('#pauseOv').hidden = true;
   // 止めていた間のぶん、時間で決まるもの（闇夜の見える時間・大一番の幕・夜のはじめ）を後ろへずらす
   const d = S.last - (S.pausedAt || S.last);
   if (S.darkUntil) S.darkUntil += d;
@@ -4892,6 +4900,9 @@ goTitle();
 booted = true;
 // ゲームサイト: SDK を起こし、この端末に保存が無ければ、クラウドの保存から続ける
 const cgBoot = CG.init().then((ok) => {
+  // 言葉: 自分で選んでいなければ、ゲームサイトが知らせる言葉に合わせる
+  const loc = ok && !langChosen() ? CG.locale() : null;
+  if (loc) { const l = String(loc).toLowerCase().startsWith('ja') ? 'ja' : 'en'; if (l !== lang) { lang = l; applyLang(); if (S.mode === 'title') goTitle(); else renderFormText(); } }
   if (!ok || hadLocal) return;
   const c = CG.load(); if (!c) return;
   try { localStorage.setItem(LS, c); } catch (e) { /* なし */ }
