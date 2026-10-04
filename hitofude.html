@@ -714,6 +714,8 @@ body.yoko #inkTag{right:var(--pr)}
 .shop .wallet b{margin-left:calc(3px * var(--u))}
 #pickHead{display:flex;align-items:center;justify-content:center;gap:calc(10px * var(--u))}
 #pickHead .pips{display:inline-flex;gap:calc(3px * var(--u))}
+#pickHead .pscore{color:var(--gold);font-size:calc(17px * var(--u))}
+#pickHead .pstars{margin-top:0}
 #pickHead .pips i{width:calc(9px * var(--u));height:calc(12px * var(--u));border-radius:calc(3px * var(--u));border:1px solid rgba(255,215,90,.6)}
 #pickHead .pips i.on{background:var(--gold)}
 #pickNext{display:flex;flex-wrap:wrap;align-items:center;gap:calc(6px * var(--u));justify-content:center}
@@ -902,7 +904,7 @@ body.yoko #resultBody .rr pre.share{max-height:calc(150px * var(--u));overflow-y
   <div id="newCard" hidden></div>
   <button id="skip2" hidden></button>
   <div id="toast" role="status" aria-live="polite"></div>
-  <!-- 「次へ」: 画面が先へ進むのは、プレイヤーが押したときだけ -->
+  <!-- 「次へ」: 読む場面（大一番の幕など）は、プレイヤーが押すまで進まない。見るだけの場面は autoNext でひとりでに進む -->
   <button type="button" class="btn primary" id="nextBtn" hidden></button>
   <!-- ヒノコの手ほどき: はじめて出会ったときに 1 度だけ、画面の所を照らしてひとこと。タップで次へ -->
   <div id="coach" hidden role="dialog" aria-live="polite"><div class="spot"></div><div class="cb"><canvas width="96" height="96" aria-hidden="true"></canvas><div><b class="cs"></b><p class="ct"></p><small class="cn"></small></div></div></div>
@@ -1214,7 +1216,7 @@ const T = {
     rankSee: 'ランキングを見る', rankLine: (r, n) => `今日の順位 ${r} 位 / ${n} 人`, rankFail: 'いまランキングにつながりません', rankOld: 'ランキングは新しい版の準備中です', rankSending: '順位を送っています…',
     rankLoading: '読みこみ中…', rankCount: (md, n) => `${md} ・ ${n} 人`, rankEmpty: 'まだだれもいません。いちばん乗りになろう！', rankDone: '八夜完走', rankReached: (n) => `${n} 夜越え`, rankPlaying: (n) => `${n} 夜まで（遊んでいる途中）`, rankMine: (r, sc) => `あなた: ${r} 位 ・ ${sc} 点`,
     gainLbl: '次の夜', coachNext: 'タップで次へ',
-    next: '次へ ▶', goDraw: '▶ 線を引く', seeTally: '集計へ ▶', goPick: 'お守りを選ぶ ▶', seeResult: '結果へ ▶', unlockSee: (n) => `開いたものを見る（${n}）`,
+    next: '次へ ▶', unlockSee: (n) => `開いたものを見る（${n}）`,
     tutBtn: 'チュートリアル', tutStart: '▶ チュートリアルから始める', tutLabel: 'チュートリアル', tutBanner: '線を1本引いてみよう', tutStep: (n, m) => `チュートリアル ${n}/${m}`,
     tutEndStep: 'チュートリアル 8/8', tutEndHead: '準備ばっちり！', tutGo: '▶ 本番を始める', tutTitle: 'タイトルへ',
     tutEndBody: '本番は八夜。三夜目と六夜目は大一番（妖怪が線のルールを変える夜）。新しい仕掛けや大一番は、出てきたときに画面に説明が出る。チュートリアルは、タイトルから何度でもやりなおせる。',
@@ -1351,7 +1353,7 @@ const T = {
     rankSee: 'See the ranking', rankLine: (r, n) => `Today: #${r} of ${n}`, rankFail: 'Can\'t reach the ranking right now', rankOld: 'The ranking is being updated for the new version', rankSending: 'Sending your score…',
     rankLoading: 'Loading…', rankCount: (md, n) => `${md} · ${n} players`, rankEmpty: 'No one yet. Be the first!', rankDone: 'All 8 nights', rankReached: (n) => `${n} nights cleared`, rankPlaying: (n) => `through night ${n} (playing)`, rankMine: (r, sc) => `You: #${r} · ${sc} pts`,
     gainLbl: 'next night', coachNext: 'Tap to continue',
-    next: 'Next ▶', goDraw: '▶ Draw', seeTally: 'See score ▶', goPick: 'Pick a charm ▶', seeResult: 'Results ▶', unlockSee: (n) => `See what opened (${n})`,
+    next: 'Next ▶', unlockSee: (n) => `See what opened (${n})`,
     tutBtn: 'Tutorial', tutStart: '▶ Start with the tutorial', tutLabel: 'Tutorial', tutBanner: 'Draw one line', tutStep: (n, m) => `Tutorial ${n}/${m}`,
     tutEndStep: 'Tutorial 8/8', tutEndHead: 'You\'re ready!', tutGo: '▶ Start the festival', tutTitle: 'Back to title',
     tutEndBody: 'A festival is 8 nights. Nights 3 and 6 are boss nights, where a yokai changes how your line works. New gimmicks and bosses are explained on screen when they appear. You can replay the tutorial from the title any time.',
@@ -2850,7 +2852,7 @@ function toast(msg) {
 }
 function hint(msg) { setT($('#hint'), msg || ''); }
 // ================================================================ 「次へ」
-// 画面が先へ進むのは、プレイヤーが「次へ」（ボタン・盤のタップ・Space・Enter）を押したときだけ。出てすぐ（0.35 秒）の誤ったタップは受けない
+// 読む場面は、プレイヤーが「次へ」（ボタン・盤のタップ・Space・Enter）を押すまで進まない。出てすぐ（0.35 秒）の誤ったタップは受けない
 let nextFn = null, nextAt = 0;
 function waitNext(fn, label, host = null) {
   nextFn = fn; nextAt = performance.now() + 350;
@@ -2864,7 +2866,16 @@ function doNext() {
   const f = nextFn; nextFn = null; $('#nextBtn').hidden = true; SFX.ui(); f();
   return true;
 }
-function clearNext() { nextFn = null; $('#nextBtn').hidden = true; }
+function clearNext() { nextFn = null; clearTimeout(autoTimer); $('#nextBtn').hidden = true; }
+// 見ているだけで次が決まっている場面（燃えきったら集計、集計のあとはお守り選び、締めの打ち上げのあとは結果）は、ボタンを出さずに進む。
+// ms のあいだは見せておき、その間のタップ（Space・Enter）で早送り。ひと休み・ヒノコの手ほどきの間は待つ
+let autoTimer = 0;
+function autoNext(fn, ms) {
+  clearTimeout(autoTimer); $('#nextBtn').hidden = true;
+  nextFn = fn; nextAt = performance.now() + 350;
+  const tick = () => { if (nextFn !== fn) return; if (S.paused || coachCur) { autoTimer = setTimeout(tick, 300); return; } nextFn = null; fn(); };
+  autoTimer = setTimeout(tick, ms);
+}
 // ================================================================ ヒノコの手ほどき
 // 遊びの中で、はじめて出会ったときに 1 度だけ、画面のその所を照らして、ヒノコがひとこと教える（DB.tips に覚える）。
 // タップ（Space・Enter）で次へ。then は、読み終えたとき（もう見た手ほどきなら、すぐ）に呼ぶ
@@ -3040,12 +3051,12 @@ function introNight(tw) {
   startLaunch(S.st);
   S.introAt = performance.now() + (S.launch ? 1300 : 900); // 時間がきたら frame() が線を引く番にする（ひと休みの間は進まない）
 }
-// 夜のはじめの打ち上げが終わったら、「線を引く」を押すまで待つ（お手本の再生だけは、そのまま）
+// 夜のはじめの打ち上げが終わったら、そのまま線を引く番にする（盤は変わらないので、押させない。打ち上げの途中に盤を押せば、そのまま引きはじめる）
 function introReady() {
-  if (S.demo) { enterDraw(false); return; }
-  const st = S.st;
-  waitNext(() => { if (S.st === st && S.phase === 'intro') enterDraw(false); }, S.mode === 'replay' ? t('next') : t('goDraw'));
+  if (S.st && S.phase === 'intro') enterDraw(false);
 }
+// 打ち上げを飛ばす（盤を押した・Space）: 玉をぜんぶ上げきってから、線を引く番に
+function skipIntro() { S.introAt = 0; S.launch = null; introReady(); }
 // 大一番の幕: 妖怪が飛びこんで名乗り、ルールをひとこと。タップで次へ（ひとりでは閉じない）
 function playBossCut(id, tw, done) {
   const c = CAST.CAST[id], el2 = $('#bossCut'), say = lang === 'en' ? c.sayEn : c.say;
@@ -3299,8 +3310,8 @@ function onRoundDone() {
     if (res.allClear && !S.bloomFired) { S.bloomFired = true; finale(); callout(t('mankai'), 3); starOn(2); }
     setTimeout(() => { if (S.st === st) runTally(res); }, res.allClear ? 600 : 250);
   };
-  // 火が燃えきったら、「集計へ」を押すまで待つ（チュートリアルは、火と連鎖の説明をはさむ）
-  const go = () => { if (S.st !== st) return; coachSeq(S.run && S.run.tutorial ? [['tut2', '#scoreVal', { step: 2 }]] : [], () => waitNext(tally, t('seeTally'))); };
+  // 火が燃えきったら、火の粉が消えるまでの間をおいて、そのまま集計へ（チュートリアルは、火と連鎖の説明をはさむ）
+  const go = () => { if (S.st !== st) return; coachSeq(S.run && S.run.tutorial ? [['tut2', '#scoreVal', { step: 2 }]] : [], () => autoNext(tally, 550)); };
   // 惜しかった夜（あと 1〜3 つで満開）: 残った玉がふっと消えて、ヒノコがしゅんとする「間」を置いてから集計へ
   const left = st.shells.filter((s) => !s.burst && s.type !== 'kuro');
   if (!res.allClear && left.length && left.length <= 3 && res.pops >= 8 && S.mode !== 'vs') {
@@ -3368,12 +3379,12 @@ function runTally(res) {
     }, nOn * 200 + 120);
   };
   const finish0 = () => { if (!alive()) return; over = true; S.tallySkip = null; afterTally(res, pass); };
-  // 数え終えたら、「次へ」を押すまで待つ（チュートリアルは、点 × 倍率と、目標と星の説明をはさむ）
+  // 数え終えたら、判定を見せる間をおいて次へ（押さない。チュートリアルは、点 × 倍率と、目標と星の説明をはさむ）
   let waiting = false;
-  const nextLabel = () => (!pass || S.mode !== 'run' ? t('next') : S.run && S.run.tutorial ? t('goPick') : st.night >= K.NIGHTS - 1 ? t('seeResult') : t('goPick'));
   const finish = () => {
     if (!alive() || waiting) return; waiting = true;
-    coachSeq(S.run && S.run.tutorial ? [['tut3', '#tally .row1', { step: 3 }], ['tut4', '#tally .tstars', { step: 4 }]] : [], () => { if (alive()) waitNext(finish0, nextLabel(), $('#tally')); });
+    if (S.run && S.run.tutorial) { coachSeq([['tut3', '#tally .row1', { step: 3 }], ['tut4', '#tally .tstars', { step: 4 }]], () => { if (alive()) autoNext(finish0, 500); }); return; } // ヒノコの説明を読み終えたら（押したら）お守り選びへ
+    autoNext(finish0, skipped ? 900 : pass ? 1700 : 2300); // 散った夜は、ヒントを読む間を長めに
   };
   // 画面をタップすると、数え上げを飛ばして判定だけ見せる（「もう一回」までを速く）
   S.tallySkip = () => {
@@ -3715,6 +3726,9 @@ function showPick(round = 0, reroll = 0, focus = null) {
   }
   estimateGains(run, n + 1, offer, (id, g) => setGain(box, id, g));
   const head = $('#pickHead'); head.replaceChildren(el('span', 'ph', `${t('night', n)} ✓`));
+  // 集計の札は閉じたので、今夜の点と星を見出しに残す（ひとりでに選ぶ画面へ移っても、結果を見失わない）
+  const res0 = S.st.result;
+  if (res0 && !run.tutorial) { head.appendChild(el('b', 'mono pscore', K.fmt(res0.score))); const ps = el('span', 'stars pstars'); nightStars(res0.score, S.st.target, res0.allClear).forEach((on) => { const i = el('i', on ? 'on' : ''); i.appendChild(svgIcon('star')); ps.appendChild(i); }); head.appendChild(ps); }
   if (slots) { const pp = el('span', 'pips'); pp.title = t('slotsLine', Object.keys(lvs).length, slots); for (let i = 0; i < slots; i++) pp.appendChild(el('i', i < Object.keys(lvs).length ? 'on' : '')); head.appendChild(pp); }
   // 屋台: 取った星で、選び直し・墨・予備の提灯・型しぼりを買う（絵と値段だけ。言葉は指を重ねたときに）
   const shop = $('#shop'); shop.innerHTML = '';
@@ -3861,7 +3875,7 @@ function grandFinale(run, done) {
     if (i % 6 === 0) { scenery.excite(1); cheerN(2); }
     if (last) { S.shake = 10; S.flashes.push({ x: 180, y: 230, r: 220, t: 0, max: 0.6, a: 0.8 }); }
   }, 400 + i * (3400 / n) + (i === n - 1 ? 500 : 0));
-  setTimeout(() => { if (!over) waitNext(() => { $('#banner').classList.remove('fest'); end(); }, t('seeResult')); }, 400 + 3400 + 1200); // 打ち上げが終わったら、押すまで待つ
+  setTimeout(() => { if (!over) autoNext(() => { $('#banner').classList.remove('fest'); end(); }, 0); }, 400 + 3400 + 1200); // 打ち上げが終わったら、そのまま結果へ（タップで飛ばせる）
 }
 // 結果の並び: 横の画面では左に結果・右に次の一手とシェアの 2 列。縦の画面では 1 列で、次の一手は下に貼りつく
 function arrangeResult() {
@@ -4828,7 +4842,7 @@ function onVsBoutDone() {
   v.results.push(res);
   if (res.winner >= 0) v.wins[res.winner]++;
   renderVsHud();
-  waitNext(() => { if (S.st === st) vsTally(res); }, t('seeTally')); // 燃えきったら、押すまで待つ
+  autoNext(() => { if (S.st === st) vsTally(res); }, 550); // 燃えきったら、そのまま集計へ
 }
 function vsTally(res) {
   const st = S.st, v = S.vs, rv = K.RIVALS[v.rival], b = v.bout;
@@ -4856,8 +4870,8 @@ function vsTally(res) {
   setTimeout(() => { if (alive()) r1.classList.add('show'); }, 50);
   setTimeout(() => { if (alive() && !shown) { r2.classList.add('show'); SFX.slam(); } }, 400);
   setTimeout(() => { if (alive()) showAll(); }, 850);
-  // 数え終えたら、「次へ」を押すまで待つ
-  let waiting = false; const wait = () => { if (!alive() || waiting) return; waiting = true; waitNext(done, t('next'), $('#tally')); };
+  // 数え終えたら、勝ち負けを見せる間をおいて、次の番へ（押さない。タップで早送り）
+  let waiting = false; const wait = () => { if (!alive() || waiting) return; waiting = true; autoNext(done, 1900); };
   S.tallySkip = () => { if (!alive()) return; S.tallySkip = null; showAll(); setTimeout(wait, 250); };
   setTimeout(() => { if (alive() && !waiting) { showAll(); wait(); } }, 1300 + (h ? 400 : 0));
 }
@@ -4885,7 +4899,7 @@ function endMatch() {
   gc(`hitofude/vs/${rv.id}/${v.winner === 0 ? 'win' : v.winner === 1 ? 'lose' : 'draw'}`);
   rivalSay(v.winner === 0 ? 'lose' : 'win', true);
   if (v.winner === 0) finale();
-  setTimeout(() => { if (S.vs === v && S.mode === 'vs') waitNext(() => { if (S.vs === v && S.mode === 'vs') showVsResult(); }, t('seeResult')); }, v.winner === 0 ? 900 : 500);
+  setTimeout(() => { if (S.vs === v && S.mode === 'vs') autoNext(() => { if (S.vs === v && S.mode === 'vs') showVsResult(); }, v.winner === 0 ? 1800 : 1300); }, v.winner === 0 ? 900 : 500); // 勝負がついたら、ひとこと見せて結果へ
 }
 function showVsResult() {
   const v = S.vs; if (!v || S.mode !== 'vs') return;
@@ -5335,7 +5349,7 @@ cv.addEventListener('pointerdown', (ev) => {
   if (S.aim && S.aim.live && S.aimPid != null && S.aimPid !== ev.pointerId) return;
   if (S.demo) return; // お手本の間は、指で触っても動かさない
   if (nextFn) { doNext(); return; } // 「次へ」を待っている間は、盤のタップも「次へ」
-  if (S.phase === 'intro' && S.introAt) { S.introAt = performance.now(); return; } // 打ち上げの途中: 打ち上げを飛ばして「線を引く」へ
+  if (S.phase === 'intro' && S.introAt) { skipIntro(); if (S.phase !== 'draw' || coachCur) return; } // 打ち上げの途中に盤を押したら、打ち上げを飛ばして、そのまま線を引きはじめる
   if (S.skipFn) { S.skipFn(); return; } // 大一番の幕・祭りの締めは、タップで次へ
   if (S.phase === 'tally' && S.tallySkip) { S.tallySkip(); return; }
   if (S.phase === 'show') { endShow(); return; }
@@ -5520,7 +5534,7 @@ window.addEventListener('keydown', (ev) => {
   }
   if (S.paused && (k === ' ' || k === 'Enter') && !focusBtn) { closePause(); ev.preventDefault(); return; }
   if ((k === ' ' || k === 'Enter') && nextFn) { doNext(); ev.preventDefault(); return; } // 「次へ」
-  if ((k === ' ' || k === 'Enter') && S.phase === 'intro' && S.introAt && !S.paused) { S.introAt = performance.now(); ev.preventDefault(); return; } // 打ち上げを飛ばす
+  if ((k === ' ' || k === 'Enter') && S.phase === 'intro' && S.introAt && !S.paused) { skipIntro(); ev.preventDefault(); return; } // 打ち上げを飛ばして、線を引く番に
   if (k === ' ' || k === 'Enter') {
     if (focusBtn) return; // 選んであるボタンは、ブラウザがそのまま押す
     if (S.skipFn) { S.skipFn(); ev.preventDefault(); return; }
