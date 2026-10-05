@@ -371,6 +371,15 @@ html[lang="en"] #banner b{font-family:"Shippori Mincho",serif;font-weight:800;fo
 .rankerr{color:#ff9a8a;margin-top:calc(6px * var(--u))}
 .rankres{margin-top:calc(8px * var(--u));display:flex;flex-direction:column;align-items:center;gap:calc(6px * var(--u))}
 .rankres b{color:var(--gold);font-size:calc(17px * var(--u))}
+.rankin{color:var(--gold);font-weight:700;animation:rankRise .5s ease-out backwards}
+.rankmini{width:100%;max-width:calc(360px * var(--u));max-height:none;overflow:visible;margin:0}
+.rankmini li.gap{margin-top:calc(16px * var(--u));position:relative}
+.rankmini li.gap::before{content:'⋮';position:absolute;left:0;right:0;top:calc(-16px * var(--u));text-align:center;color:var(--dim);line-height:1}
+.rankmini li.me{animation:rankRise .7s cubic-bezier(.2,.9,.3,1.25) .25s backwards,rankGlow 1.4s ease-out .9s}
+.rankmini li.me .nm{color:var(--gold);font-weight:800}
+@keyframes rankRise{from{transform:translateY(calc(28px * var(--u)));opacity:0}}
+@keyframes rankGlow{from{box-shadow:0 0 0 0 rgba(255,215,90,.8)}to{box-shadow:0 0 0 calc(16px * var(--u)) rgba(255,215,90,0)}}
+@media (prefers-reduced-motion:reduce){.rankin,.rankmini li.me{animation:none}}
 #unlockOv{z-index:30;align-items:center;background:rgba(4,6,18,.55)}
 .unlockcard{text-align:center;max-width:calc(340px * var(--u));animation:tallyIn2 .35s cubic-bezier(.2,.9,.3,1.3) backwards}
 @keyframes tallyIn2{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:none}}
@@ -1213,6 +1222,7 @@ const T = {
     rankBtn: '今夜の一筆ランキング', rankHead: '今夜の一筆ランキング', rankToday: '今日', rankYday: '昨日', rankRename: '名前を変える', rankClose: '閉じる',
     rankNameHead: 'ランキングの名前', rankNameBody: '今夜の一筆の点が、この名前でランキングに載る（12 字まで）。', rankNameOk: 'この名前で決める', rankNameSkip: 'ランキングに載せない', rankCancel: 'やめる',
     rankNamePh: '例: 花火師たろう', rankNameBad: 'その名前は使えません（12 字まで・URL や不適切な言葉はだめ）', rankAnonName: (id) => `花火師#${id}`, rankAnonRow: (n) => `花火師 ${n}`,
+    rankIn: (nm) => `「${nm}」がランキングに載った！`, rankInTop: (nm) => `「${nm}」が今日のいちばん！`,
     rankSee: 'ランキングを見る', rankLine: (r, n) => `今日の順位 ${r} 位 / ${n} 人`, rankFail: 'いまランキングにつながりません', rankOld: 'ランキングは新しい版の準備中です', rankSending: '順位を送っています…',
     rankLoading: '読みこみ中…', rankCount: (md, n) => `${md} ・ ${n} 人`, rankEmpty: 'まだだれもいません。いちばん乗りになろう！', rankDone: '八夜完走', rankReached: (n) => `${n} 夜越え`, rankPlaying: (n) => `${n} 夜まで（遊んでいる途中）`, rankMine: (r, sc) => `あなた: ${r} 位 ・ ${sc} 点`,
     gainLbl: '次の夜', coachNext: 'タップで次へ',
@@ -1350,6 +1360,7 @@ const T = {
     rankBtn: 'Tonight\'s Stroke ranking', rankHead: 'Tonight\'s Stroke ranking', rankToday: 'Today', rankYday: 'Yesterday', rankRename: 'Change name', rankClose: 'Close',
     rankNameHead: 'Your ranking name', rankNameBody: 'Your Tonight\'s Stroke score shows in the ranking under this name (up to 12 characters).', rankNameOk: 'Use this name', rankNameSkip: 'Don\'t show me in the ranking', rankCancel: 'Cancel',
     rankNamePh: 'e.g. SkyPainter', rankNameBad: 'That name can\'t be used (12 characters max, no links or offensive words).', rankAnonName: (id) => `Hanabi#${id}`, rankAnonRow: (n) => `Player ${n}`,
+    rankIn: (nm) => `"${nm}" is on the ranking!`, rankInTop: (nm) => `"${nm}" is today's #1!`,
     rankSee: 'See the ranking', rankLine: (r, n) => `Today: #${r} of ${n}`, rankFail: 'Can\'t reach the ranking right now', rankOld: 'The ranking is being updated for the new version', rankSending: 'Sending your score…',
     rankLoading: 'Loading…', rankCount: (md, n) => `${md} · ${n} players`, rankEmpty: 'No one yet. Be the first!', rankDone: 'All 8 nights', rankReached: (n) => `${n} nights cleared`, rankPlaying: (n) => `through night ${n} (playing)`, rankMine: (r, sc) => `You: #${r} · ${sc} pts`,
     gainLbl: 'next night', coachNext: 'Tap to continue',
@@ -4321,15 +4332,42 @@ function rankResultBlock(run) {
   const box = el('div', 'rankres');
   const line = el('p', 'small', ''); box.appendChild(line);
   const open = btn(t('rankSee'), 'small', () => openRank(run.key)); box.appendChild(open);
+  let shown = false;
   const fill = () => {
     const rk = run.rk;
-    if (rk && rk.last) { line.replaceChildren(el('b', '', t('rankLine', rk.last.rank, rk.last.count))); }
+    if (rk && rk.last) { line.replaceChildren(el('b', '', t('rankLine', rk.last.rank, rk.last.count))); if (!shown) { shown = true; showMine(); } }
     else if (rk && rk.broken) line.textContent = t(rk.broken === 'version' ? 'rankOld' : 'rankFail');
     else if (rk && rk.on) line.textContent = t('rankSending');
     else line.textContent = '';
   };
+  // 送り終えたら、自分の前後の人と並んだ自分の名前を見せる
+  const showMine = async () => {
+    const j = await rankFetch(`/top?day=${encodeURIComponent(run.key)}&player=${rankId()}`);
+    const mini = j.ok && rankMini(j); if (!mini || !box.isConnected) return;
+    const me = mini.querySelector('li.me');
+    box.insertBefore(el('p', 'rankin', t(me.dataset.rank === '1' ? 'rankInTop' : 'rankIn', me.dataset.name)), open);
+    box.insertBefore(mini, open);
+    setTimeout(() => { if (box.isConnected) (me.dataset.rank === '1' ? SFX.mankai : SFX.milestone)(); }, REDUCED ? 0 : 600); // せり上がりきったところで鳴らす
+  };
   fill(); rankQ.then(fill);
   return box;
+}
+// 結果の画面の小さな一覧: 自分のすぐ上・すぐ下の人と並べ、自分の行が下からせり上がって光る（名前が載った、を目で見せる）
+function rankMini(j) {
+  const ents = j.entries || [], i = ents.findIndex((e) => e.me);
+  let rows;
+  if (i >= 0) { const s = Math.max(0, Math.min(i - 1, ents.length - 3)); rows = ents.slice(s, s + 3); }
+  else if (j.me && !j.me.hidden) rows = [...ents.slice(-1), { ...j.me, me: true, gap: true }]; // 上位の外: いちばん下の人と、間をあけて自分
+  else return null; // 隠された記録は出さない
+  const ol = el('ol', 'ranklist rankmini');
+  for (const e of rows) {
+    const li = el('li', (e.me ? 'me' : '') + (e.gap ? ' gap' : ''));
+    const nm = el('span', 'nm'); nm.append(rankAnon() && !e.me ? t('rankAnonRow', e.rank) : e.name);
+    li.append(el('span', 'rk', String(e.rank)), nm, el('span', 'sc', K.fmt(e.total)));
+    if (e.me) { li.dataset.rank = String(e.rank); li.dataset.name = e.name; }
+    ol.appendChild(li);
+  }
+  return ol;
 }
 // ランキングの画面（今日・昨日）
 let rankDay = null;
