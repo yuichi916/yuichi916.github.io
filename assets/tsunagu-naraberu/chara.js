@@ -189,7 +189,7 @@ export function createCharas({ onSay } = {}) {
     if (!match || !layout) return;
     match.players.forEach((pl, p) => {
       const L = layout.boards[p], s = L.s;
-      const danger = pl.kind === 'naraberu' ? pl.board.grace < match.cfg.topGraceSec * 60 : pl.board.grid[3][2] !== 0;
+      const danger = pl.kind === 'naraberu' ? pl.board.grace < pl.board.graceMax : pl.board.grid[3][2] !== 0;
       let cx, base, size;
       if (layout.mobile) {
         if (p === 1) return;

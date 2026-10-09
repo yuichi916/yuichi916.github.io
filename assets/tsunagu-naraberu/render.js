@@ -208,7 +208,8 @@ function drawNaraberu(ctx, b, X, Y, s, t, p, fx) {
       continue;
     }
     const v = fx && fx.naraberuCell(p, i);
-    const qx = px + (v && v.ox ? v.ox * s : 0), qy = py + (v && v.oy ? v.oy * s : 0), sq = v && v.sq ? v.sq : 0;
+    const hov = b.S[i] === 3 ? Math.sin(t * 22 + x * 1.3) * s * 0.035 - s * 0.03 : 0; // 浮遊中はふわふわ揺れる
+    const qx = px + (v && v.ox ? v.ox * s : 0), qy = py + hov + (v && v.oy ? v.oy * s : 0), sq = v && v.sq ? v.sq : 0;
     ctx.save();
     if (sq) { ctx.translate(qx + s / 2, qy + s); ctx.scale(1 - 0.6 * sq, 1 + sq); ctx.translate(-(qx + s / 2), -(qy + s)); }
     if (b.S[i] === 1) {
@@ -250,6 +251,33 @@ function drawPending(ctx, units, X, Y, s, w, kind) {
     if (v >= 6) { ctx.fillStyle = '#1b1e2b'; ctx.font = `700 ${Math.round(r * 0.9)}px "JetBrains Mono",monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(v), x + r, Y + 1); }
     x += r * 2 + s * 0.08;
     if (x > X + w) break;
+  }
+}
+
+// 天井の猶予と停止時間: 枠のすぐ上にゲージ、盤の上部に暗い札で残り秒数
+function drawCeiling(ctx, b, X, Y, s, small, now) {
+  const w = s * 6 + 12, h = Math.max(4, Math.round(s * (small ? 0.16 : 0.13)));
+  const gy = Y - 6 - h - 3;
+  const bar = (frac, color, label) => {
+    ctx.fillStyle = 'rgba(8,10,24,.85)';
+    roundRect(ctx, X - 6, gy, w, h, h / 2); ctx.fill();
+    ctx.fillStyle = color;
+    roundRect(ctx, X - 6, gy, Math.max(h, w * Math.max(0, Math.min(1, frac))), h, h / 2); ctx.fill();
+    if (small) return;
+    const fs = Math.round(Math.max(12, s * 0.36));
+    ctx.font = `900 ${fs}px "M PLUS Rounded 1c",sans-serif`;
+    const tw = ctx.measureText(label).width + fs * 1.2, th = fs * 1.55;
+    const tx = X + s * 3 - tw / 2, ty = Y + s * 0.2;
+    ctx.fillStyle = 'rgba(10,8,26,.88)';
+    roundRect(ctx, tx, ty, tw, th, th / 2); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, X + s * 3, ty + th / 2 + 1);
+  };
+  if (b.stop > 0) bar(Math.min(1, b.stop / 180), '#7fdcff', `せり上がり停止 ${(b.stop / 60).toFixed(1)}秒`);
+  else if (b.grace < b.graceMax) {
+    const a = 0.7 + 0.3 * Math.sin(now * 14);
+    bar(b.grace / b.graceMax, `rgba(255,90,90,${a})`, `天井まで あと${(b.grace / 60).toFixed(1)}秒`);
   }
 }
 
@@ -332,7 +360,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       ctx.fillStyle = 'rgba(8,10,24,.72)';
       roundRect(ctx, X - 6, Y - 6, s * 6 + 12, s * 12 + 12, 12); ctx.fill();
       let danger = false;
-      if (pl.kind === 'naraberu') danger = pl.board.grace < match.cfg.topGraceSec * 60;
+      if (pl.kind === 'naraberu') danger = pl.board.grace < pl.board.graceMax;
       else danger = pl.board.grid[3][2] !== 0;
       ctx.strokeStyle = danger ? `rgba(255,70,70,${0.6 + 0.4 * Math.sin(now * 12)})` : f.accent;
       ctx.lineWidth = small ? 2 : 3;
@@ -347,6 +375,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       if (pl.kind === 'tsunagu') drawTsunagu(ctx, pl.board, X, Y, s, now, p, phys, Math.round(match.cfg.tsunaguPopSec * 60));
       else drawNaraberu(ctx, pl.board, X, Y, s, now, p, phys);
       ctx.restore();
+      if (pl.kind === 'naraberu') drawCeiling(ctx, pl.board, X, Y, s, small, now);
       if (pl.board.isDead()) {
         ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(X, Y, s * 6, s * 12);
       }

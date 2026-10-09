@@ -32,7 +32,12 @@ export const CFG = {
   naraberuClearSec: 0.9,
   naraberuLandSec: 3,
   naraberuStartRows: 4,
-  topGraceSec: 2,
+  topGraceSec: 3, // 天井に着いてから負けるまで（消去・浮遊・落下・停止時間の間は減らない）
+  naraberuHoverFrames: 12, // 消えたあと上のパネルが浮いている刻み（アクティブ連鎖の受け止めどき）
+  naraberuSwapHoverFrames: 3, // 入れ替えで宙に出たパネルが浮く刻み
+  naraberuStopCombo: 60, // 4つ同時消しでもらえる停止時間（刻み）
+  naraberuStopComboPer: 10, // 5つ以上は1つごとに追加
+  naraberuStopChain: 60, // 連鎖1段ごとの停止時間（刻み）
 
   // 開幕のウォームアップ: 攻撃倍率が openingMul から openingSec 秒かけて1.0へ
   // （ならべる派は積まれた盤で始まり、つなぐ派は空の盤で始まる差を埋める）
@@ -65,8 +70,8 @@ export const AI_T = {
   bump: 1, // 凸凹
   col3: 300, // 出現列が9段以上
   garbage: 0.5,
-  noise: { やさしい: 2, ふつう: 2, つよい: 10 },
-  minChain: { やさしい: 1, ふつう: 2, つよい: 3 },
+  noise: { やさしい: 3, ふつう: 2, つよい: 10 },
+  minChain: { やさしい: 2, ふつう: 2, つよい: 3 },
 };
 export const AI_N = {
   D: 20,

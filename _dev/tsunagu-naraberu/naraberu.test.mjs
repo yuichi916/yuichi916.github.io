@@ -203,3 +203,82 @@ test('レビュー4: 背の高いおじゃまの着弾と同じ刻みにせり�
   const area = [...b.blocks.values()].reduce((s, k) => s + k.w * k.h, 0);
   assert.equal(cells, area);
 });
+
+// ---- アクティブ連鎖（浮遊） ----
+test('浮遊: 下が消えたパネルは、すぐには落ちずに少し浮いてから落ちる', () => {
+  const b = board(['G.....', 'RRR...'], { naraberuHoverFrames: 12 });
+  run(b, 55); // 消去が終わった刻み
+  const i = (BOTTOM - 1) * 6;
+  assert.equal(b.C[i], G);
+  assert.equal(b.S[i], 3);
+  run(b, 10);
+  assert.equal(b.C[i], G, '浮遊中はまだ落ちない');
+  run(b, 6);
+  assert.equal(b.C[BOTTOM * 6], G, '浮遊が終わると落ちる');
+});
+
+test('アクティブ連鎖: 浮いている連鎖中のパネルの下にパネルを差し込むと、連鎖が続く', () => {
+  // 列2: G G R(下段)。下段は R R R G。R がそろって消えると、列2の G G が浮く
+  const b = board(['..G...', '..G...', 'RRRG..'], { naraberuHoverFrames: 12 });
+  run(b, 57);
+  // 浮いている間に、右の G を列2の空いた下段へ差し込む
+  b.cursor = { x: 2, y: BOTTOM };
+  const ev = run(b, 1, { a: true }).concat(run(b, 5));
+  const atk = ev.filter(e => e.type === 'attack');
+  assert.equal(atk.length, 1, '差し込んだ G と浮いていた G G が縦にそろう');
+  assert.equal(atk[0].chain, 2, '連鎖中のパネルを含むので2連鎖');
+  assert.equal(atk[0].D, 6);
+});
+
+test('アクティブ連鎖: 差し込まなければ、そろわず連鎖は続かない', () => {
+  const b = board(['..G...', '..G...', 'RRRG..'], { naraberuHoverFrames: 12 });
+  const atk = run(b, 200).filter(e => e.type === 'attack');
+  assert.equal(atk.length, 0);
+});
+
+test('浮遊中のパネルは入れ替えできない', () => {
+  const b = board(['GB....', 'RRR...'], { naraberuHoverFrames: 12 });
+  run(b, 56);
+  const i = (BOTTOM - 1) * 6;
+  assert.equal(b.S[i], 3);
+  b.cursor = { x: 0, y: BOTTOM - 1 };
+  run(b, 1, { a: true });
+  assert.equal(b.C[i], G);
+});
+
+// ---- 天井の猶予と停止時間 ----
+test('停止時間: 4つ以上の同時消しのあとは、しばらくせり上がらない', () => {
+  const b = board(['R.....', 'R.....', 'RRR...', 'GBYGBY'], {
+    naraberuRiseStartSec: 0.5, naraberuRiseEndSec: 0.5, naraberuStopCombo: 60, naraberuStopComboPer: 10,
+  });
+  run(b, 56); // 消去が終わる
+  const rc = b.riseCount, rise = b.rise;
+  run(b, 60);
+  assert.equal(b.riseCount, rc, '停止時間中はせり上がらない');
+  assert.equal(b.rise, rise);
+  run(b, 60);
+  assert.ok(b.riseCount > rc || b.rise > rise, '停止時間が明けるとせり上がる');
+});
+
+test('天井の猶予: 消去・浮遊・停止時間の間は減らない', () => {
+  const rows = fullRows();
+  rows[rows.length - 1] = 'RRRR' + rows[rows.length - 1].slice(4);
+  const b = board(rows, { topGraceSec: 1, naraberuStopCombo: 60, naraberuStopComboPer: 10, naraberuHoverFrames: 12 });
+  const ev = run(b, 170);
+  assert.ok(ev.some(e => e.type === 'pop'), '下段の4つが消える');
+  assert.equal(b.isDead(), false, '消去54＋浮遊12＋停止60 の間は猶予が減らない');
+  run(b, 120);
+  assert.equal(b.isDead(), true, '猶予（1秒）が尽きると負け');
+});
+
+test('停止時間中でも、せり上げボタンを押せば停止を打ち切ってせり上がる', () => {
+  const b = board(['R.....', 'R.....', 'RRR...', 'GBYGBY'], {
+    naraberuRiseStartSec: 1000, naraberuRiseEndSec: 1000, naraberuStopCombo: 600, naraberuManualRiseFrames: 6,
+  });
+  run(b, 56);
+  assert.ok(b.stop > 0);
+  const rc = b.riseCount;
+  run(b, 12, { bHeld: true });
+  assert.equal(b.stop, 0, '押したら停止は消える');
+  assert.ok(b.riseCount > rc, 'せり上がる');
+});

@@ -1,6 +1,8 @@
 // ならべる派の盤: 横2マスのカーソルで入れ替え、縦横3つ以上で消える。盤は下からせり上がる。
 // 24行×6列。y=0..11 は隠し（おじゃま出現域）、y=12..23 が見える範囲。
-// C: 0=空 1〜5=色 9=おじゃま / S: 0=静止 1=消去中 2=落下中 / F: 連鎖フラグ / Gd: おじゃまブロックID
+// C: 0=空 1〜5=色 9=おじゃま / S: 0=静止 1=消去中 2=落下中 3=浮遊中 / F: 連鎖フラグ / Gd: おじゃまブロックID
+// 浮遊: 支えを失ったパネルは少し浮いてから落ちる。その間に下へパネルを差し込むと受け止められ、
+// 連鎖フラグを持ったままそろえば連鎖が続く（アクティブ連鎖）。
 import { createRng } from './rng.js';
 import { naraberuDamage } from './damage.js';
 
@@ -48,6 +50,7 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
   const rng = createRng(seed);
   const clearFrames = Math.round(cfg.naraberuClearSec * 60);
   const graceMax = Math.round(cfg.topGraceSec * 60);
+  const hoverChain = cfg.naraberuHoverFrames, hoverSwap = cfg.naraberuSwapHoverFrames;
 
   const B = {
     kind: 'naraberu',
@@ -65,6 +68,8 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     riseCount: 0,
     chain: 0,
     grace: graceMax,
+    graceMax,
+    stop: 0, // 停止時間（刻み）: 同時消し・連鎖のあと、せり上がりと天井の猶予が止まる
     frame: 0,
     dead: false,
     isDead: () => B.dead,
@@ -132,7 +137,7 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     let clearing = false, falling = false, flagged = false, chainClearing = false;
     for (let i = 0; i < N; i++) {
       if (B.S[i] === 1) { clearing = true; if (B.K[i]) chainClearing = true; }
-      else if (B.S[i] === 2) falling = true;
+      else if (B.S[i] === 2 || B.S[i] === 3) falling = true;
       if (B.F[i]) flagged = true;
     }
     let thawing = false;
@@ -180,19 +185,33 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     B.C[s] = 0; B.S[s] = 0; B.T[s] = 0; B.F[s] = 0; B.Gd[s] = 0; B.K[s] = 0;
   }
 
+  // 浮遊を始める: そのパネルと、上に積み重なった静止パネルをまとめて浮かせる
+  function startHover(i, frames) {
+    for (let j = i; j >= 0 && isColor(B.C[j]) && B.S[j] === 0 && !B.Gd[j]; j -= COLS) { B.S[j] = 3; B.T[j] = frames; }
+  }
+
   function gravity() {
     const moved = new Uint8Array(N);
+    const vacated = new Uint8Array(N); // この刻みで下へ動いて空いたマス（上のパネルはそのままついて落ちる）
     const blocksByBottom = new Map();
     for (const b of B.blocks.values()) {
       const bot = b.y + b.h - 1;
       if (!blocksByBottom.has(bot)) blocksByBottom.set(bot, []);
       blocksByBottom.get(bot).push(b);
     }
+    const fall = i => { move(i, i + COLS); B.S[i + COLS] = 2; B.T[i + COLS] = 0; moved[i + COLS] = 1; vacated[i] = 1; };
     for (let y = BOTTOM - 1; y >= 0; y--) {
       for (let x = 0; x < COLS; x++) {
-        const i = y * COLS + x;
+        const i = y * COLS + x, below = i + COLS;
         if (!isColor(B.C[i]) || B.S[i] === 1) continue;
-        if (B.C[i + COLS] === 0) { move(i, i + COLS); B.S[i + COLS] = 2; moved[i + COLS] = 1; }
+        if (B.C[below] !== 0) {
+          // 浮遊中に、止まっているものが下に入った＝受け止められた
+          if (B.S[i] === 3 && B.S[below] !== 2 && B.S[below] !== 3) { B.S[i] = 0; B.T[i] = 0; }
+          continue;
+        }
+        if (B.S[i] === 2 || vacated[below]) fall(i);
+        else if (B.S[i] === 0) startHover(i, B.F[i] ? hoverChain : hoverSwap);
+        else if (B.S[i] === 3 && --B.T[i] <= 0) fall(i);
       }
       for (const b of blocksByBottom.get(y) || []) {
         if (b.thaw > 0) continue;
@@ -202,6 +221,7 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
         for (let yy = y; yy >= b.y; yy--) {
           for (let x = b.x; x < b.x + b.w; x++) move(yy * COLS + x, (yy + 1) * COLS + x);
         }
+        for (let x = b.x; x < b.x + b.w; x++) vacated[b.y * COLS + x] = 1;
         b.y++;
       }
     }
@@ -241,7 +261,7 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
   function detect(ev) {
     const C = B.C;
     const cand = i => isColor(C[i]) && B.S[i] === 0 && B.Gd[i] === 0
-      && (i + COLS >= N || (C[i + COLS] !== 0 && B.S[i + COLS] !== 2));
+      && (i + COLS >= N || (C[i + COLS] !== 0 && B.S[i + COLS] !== 2 && B.S[i + COLS] !== 3));
     const hit = findRuns(C, i => i >= TOP * COLS && cand(i));
     if (hit.size === 0) return;
     let anyChain = false;
@@ -259,6 +279,11 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
         if (b && b.thaw === 0) b.thaw = clearFrames;
       }
     }
+    // 停止時間: 同時消し（4つ以上）と連鎖でもらえる。長い方を残す
+    let stop = 0;
+    if (n >= 4) stop += cfg.naraberuStopCombo + (n - 4) * cfg.naraberuStopComboPer;
+    if (stepChain >= 2) stop += cfg.naraberuStopChain * (stepChain - 1);
+    if (stop > B.stop) B.stop = stop;
     ev.push({ type: 'pop', chain: stepChain, n, cells: [...hit] });
     const D = naraberuDamage({ n, chain: stepChain }, cfg);
     if (D > 0) ev.push({ type: 'attack', D, chain: stepChain });
@@ -304,7 +329,7 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     detect(ev);
     // 着地して消えなかったパネルの連鎖フラグを消す
     for (let i = 0; i < N; i++) {
-      if (B.F[i] && B.S[i] === 0 && (i + COLS >= N || (B.C[i + COLS] !== 0 && B.S[i + COLS] !== 2))) {
+      if (B.F[i] && B.S[i] === 0 && (i + COLS >= N || (B.C[i + COLS] !== 0 && B.S[i + COLS] !== 2 && B.S[i + COLS] !== 3))) {
         // 下が消去中なら、これから落ちるのでフラグを残す
         if (i + COLS < N && B.S[i + COLS] === 1) continue;
         B.F[i] = 0;
@@ -318,8 +343,11 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
       if (list.length) placeGarbage(list, ev);
     }
 
-    // せり上がり
-    if (!act.clearing && !act.thawing && !topOccupied()) {
+    if (B.stop > 0 && !act.clearing) B.stop--;
+    if (inp.bHeld && !act.clearing && !act.thawing) B.stop = 0; // 手動せり上げは停止時間を打ち切る
+
+    // せり上がり（停止時間中は止まる）
+    if (!act.clearing && !act.thawing && B.stop === 0 && !topOccupied()) {
       B.rise += 1 / riseFramesNow();
       if (inp.bHeld) B.rise += 1 / cfg.naraberuManualRiseFrames;
       if (B.rise >= 1) {
@@ -328,9 +356,10 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
       }
     }
 
-    // 最上段の猶予
+    // 天井の猶予: 消去・解凍・浮遊・落下・停止時間の間は減らない
     if (topOccupied()) {
-      if (!act.clearing && !act.thawing && --B.grace <= 0) { B.dead = true; ev.push({ type: 'dead' }); }
+      const busy = act.clearing || act.thawing || act.falling || B.stop > 0;
+      if (!busy && --B.grace <= 0) { B.dead = true; ev.push({ type: 'dead' }); }
     } else B.grace = graceMax;
     return ev;
   }

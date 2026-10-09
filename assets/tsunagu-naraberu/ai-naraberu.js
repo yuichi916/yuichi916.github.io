@@ -97,11 +97,11 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
 
   function next(board, pendingD = 0) {
     let falling = false, clearing = false;
-    for (let i = 0; i < board.S.length; i++) { if (board.S[i] === 2) falling = true; else if (board.S[i] === 1) clearing = true; }
+    for (let i = 0; i < board.S.length; i++) { if (board.S[i] === 2 || board.S[i] === 3) falling = true; else if (board.S[i] === 1) clearing = true; }
     const raise = !clearing && pendingD <= 0 && stackHeight(board.C) < AI_N.raiseBelow[levelName];
     const idle = { ...NONE, bHeld: raise };
     if (wait > 0) { wait--; return idle; }
-    if (falling) return idle;
+    // 浮遊中・落下中のパネルがあっても、動かせるパネルは動かす（計画は静止セルだけ、入れ替え直前に色を確かめる）
     if (!plan) {
       plan = makePlan(board, pendingD);
       if (!plan) { wait = L.think; return idle; }
