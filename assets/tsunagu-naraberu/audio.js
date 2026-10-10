@@ -11,6 +11,8 @@ export function createAudio() {
   const buf = new Map();          // 名前 → AudioBuffer
   let want = null, cur = null;    // 鳴らしたい曲／鳴っている曲 {name, src, g}
   const lastSe = new Map(), voiceEnd = [0, 0], pendingLoad = new Set();
+  let vols = { bgm: 70, se: 80, voice: 90 }; // 設定画面の音量（0〜100）
+  const applyVols = () => { if (!ac) return; bgmBus.gain.value = VOL.bgm * vols.bgm / 70; seBus.gain.value = VOL.se * vols.se / 80; synthBus.gain.value = VOL.synth * vols.se / 80; voiceBus.gain.value = VOL.voice * vols.voice / 90; };
 
   function ensure() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
@@ -20,6 +22,7 @@ export function createAudio() {
     master = ac.createGain(); master.gain.value = muted ? 0 : VOL.master; master.connect(ac.destination);
     const bus = v => { const g = ac.createGain(); g.gain.value = v; g.connect(master); return g; };
     bgmBus = bus(VOL.bgm); seBus = bus(VOL.se); voiceBus = bus(VOL.voice); synthBus = bus(VOL.synth);
+    applyVols();
     // 曲を先に読み、効果音・かけ声はそのあと
     const jobs = [['bgm_title', BGM.title], ['bgm_battle', BGM.battle], ['bgm_pinch', BGM.pinch],
       ...SE.map(n => [`se_${n}`, `sound/se_${n}.mp3`])];
@@ -141,6 +144,7 @@ export function createAudio() {
     onEvents,
     voice,
     loadVoices,
+    setVolumes(v) { vols = { ...vols, ...v }; applyVols(); },
     bgm,
     get bgmName() { return want; },
     get loaded() { return [...buf.keys()]; },   // 検証用: 読み込めた音の名前

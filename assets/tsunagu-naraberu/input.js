@@ -101,6 +101,8 @@ export function createInput() {
     setKeys,
     setTiming,
     pollPads,
+    // メニュー操作用: パッドでこの刻みに押された操作か
+    padPressed: (p, n) => padHeld[p].has(n) && !padPrev[p].has(n),
     reset,
     poll,
     endFrame,

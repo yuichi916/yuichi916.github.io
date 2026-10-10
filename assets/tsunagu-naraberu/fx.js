@@ -12,7 +12,8 @@ const rnd = (() => { let s = 1234567; return () => { s = (s * 1103515245 + 12345
 
 export function createFx() {
   const P = [newState(), newState()];
-  const parts = [];        // 飛び散るしずく・破片・星 {p, x, y, vx, vy, g, r, col, life, age, kind, rot, vr}
+  const parts = [];
+  let level = 1; // 演出「低」なら 0.5（破片を減らす）        // 飛び散るしずく・破片・星 {p, x, y, vx, vy, g, r, col, life, age, kind, rot, vr}
 
   function newState() {
     return { cells: new Map(), piece: null, shakeT: 0 };
@@ -142,7 +143,7 @@ export function createFx() {
 
   // ---- しずく・破片・星 ----
   function burst(p, kind, x, y, c) {
-    const n = kind === 'tsunagu' ? 8 : 6;
+    const n = Math.round((kind === 'tsunagu' ? 8 : 6) * level);
     for (let k = 0; k < n; k++) {
       const a = rnd() * Math.PI * 2, sp = 0.05 + rnd() * 0.13;
       parts.push({ p, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.12, g: 0.011, r: kind === 'tsunagu' ? 0.1 + rnd() * 0.12 : 0.12 + rnd() * 0.1,
@@ -195,6 +196,7 @@ export function createFx() {
 
   return {
     reset, snapshot, afterStep, tick,
+    setLevel(v) { level = v; },
     tsunaguCell: (p, x, y) => P[p].cells.get(y * TC + x),
     naraberuCell: (p, i) => P[p].cells.get(i),
     piece: p => P[p].piece,

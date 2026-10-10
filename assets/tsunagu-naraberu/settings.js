@@ -9,6 +9,7 @@ export const ACTIONS = ['left', 'right', 'up', 'down', 'a', 'b'];
 export const DEFAULTS = Object.freeze({
   mode: 'cpu',
   chars: ['hinata', 'rin'],
+  oppRandom: false, // CPU戦の相手キャラを「おまかせ」にする
   level: 'ふつう',
   handicap: [0, 0],
   // CPU戦の1Pは p1 と p2 の両方のキーを受け付ける

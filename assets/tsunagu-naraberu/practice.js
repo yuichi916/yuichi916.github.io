@@ -4,12 +4,20 @@ import { createTsunagu } from './tsunagu.js';
 import { createNaraberu } from './naraberu.js';
 import { landTsunagu, landNaraberu } from './damage.js';
 
-export function createPractice({ cfg, kind, seed }) {
+// setup(board): チュートリアルの課題の盤面を用意する（やり直し・詰まったときにも毎回かける）
+export function createPractice({ cfg, kind, seed, setup = null }) {
   const pending = { D: 0, age: 0 };
   let resets = 0;
-  const make = () => (kind === 'tsunagu'
-    ? createTsunagu({ cfg, seed: seed + resets * 7919, takeGarbage: () => landTsunagu(pending, cfg) })
-    : createNaraberu({ cfg, seed: seed + resets * 7919, takeGarbage: () => landNaraberu(pending, cfg) }));
+  const make = () => {
+    const b = kind === 'tsunagu'
+      ? createTsunagu({ cfg, seed: seed + resets * 7919, takeGarbage: () => landTsunagu(pending, cfg) })
+      : createNaraberu({ cfg, seed: seed + resets * 7919, takeGarbage: () => landNaraberu(pending, cfg) });
+    if (setup) {
+      if (kind === 'tsunagu') b.step({ left: false, right: false, up: false, down: false, a: false, b: false, downHeld: false, bHeld: false }); // 最初の組を出してから
+      setup(b);
+    }
+    return b;
+  };
   const pl = { kind, pending, sent: 0, board: make() };
 
   const P = {

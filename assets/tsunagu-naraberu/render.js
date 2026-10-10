@@ -55,6 +55,9 @@ function drawMark(ctx, c, cx, cy, s, alpha = 0.85) {
   ctx.restore();
 }
 
+// 揺れや点滅を抑える設定（設定画面・OS の prefers-reduced-motion）。true なら点滅と画面の揺れを出さない
+let CALM = false;
+
 function drawBlob(ctx, c, x, y, s, flash = 0, face = 0, t = 0) {
   const cx = x + s / 2, cy = y + s / 2, r = s * 0.44;
   if (c === 6) {
@@ -114,7 +117,7 @@ function drawPanel(ctx, c, x, y, s, { flash = 0, dim = 0, scale = 1 } = {}) {
 function drawTsunagu(ctx, b, X, Y, s, t, p, fx, popFrames) {
   const g = b.grid;
   const popping = new Set((b.popping || []).map(([x, y]) => y * 6 + x));
-  const flash = b.phase === 'pop' && Math.floor(b.timer / 4) % 2 === 0;
+  const flash = !CALM && b.phase === 'pop' && Math.floor(b.timer / 4) % 2 === 0;
   const popU = b.phase === 'pop' ? 1 - b.timer / popFrames : 0;   // 消える動きの進み 0→1
   const vis = (x, y) => (fx && fx.tsunaguCell(p, x, y)) || null;
   // つながりの橋
@@ -228,7 +231,7 @@ function drawNaraberu(ctx, b, X, Y, s, t, p, fx, cfg) {
       if (!bl) continue;
       const bx = X + bl.x * s, by = Y + (bl.y - TOP) * s - lift;
       const el = bl.thaw > 0 ? bl.thawTotal - bl.thaw : -1;
-      const flashOn = el >= 0 && el < FL && Math.floor(el / 3) % 2 === 0;
+      const flashOn = !CALM && el >= 0 && el < FL && Math.floor(el / 3) % 2 === 0;
       const splitting = el >= FL && bl.reveal;      // 光り終わったら、下の段は1マスずつ描く
       const rh = splitting ? bl.h - 1 : bl.h;
       if (rh > 0) drawGarbageRect(ctx, bx, by, bl.w * s, rh * s, s, flashOn, bl.h);
@@ -238,7 +241,7 @@ function drawNaraberu(ctx, b, X, Y, s, t, p, fx, cfg) {
           const cx = bx + k * s, at = FL + FA + k * PO;
           if (el >= at) {
             const u = Math.min(1, (el - at) / 7);
-            drawPanel(ctx, bl.reveal[k], cx, ry, s, { scale: 0.35 + 0.65 * u, flash: el - at < 3 ? 1 : 0 });
+            drawPanel(ctx, bl.reveal[k], cx, ry, s, { scale: 0.35 + 0.65 * u, flash: !CALM && el - at < 3 ? 1 : 0 });
           } else {
             const shiver = el > at - 6 ? Math.sin(el * 2.3) * s * 0.03 : 0;
             drawGarbageRect(ctx, cx + shiver, ry, s, s, s, false, 1, true);
@@ -258,7 +261,7 @@ function drawNaraberu(ctx, b, X, Y, s, t, p, fx, cfg) {
         // 光る: 白く点滅しながら少しふくらむ
         const k = 1 + 0.06 * Math.sin(el * 0.5);
         ctx.translate(qx + s / 2, qy + s / 2); ctx.scale(k, k); ctx.translate(-(qx + s / 2), -(qy + s / 2));
-        drawPanel(ctx, c, qx, qy, s, { flash: Math.floor(el / 3) % 2 === 0 ? 1 : 0 });
+        drawPanel(ctx, c, qx, qy, s, { flash: !CALM && Math.floor(el / 3) % 2 === 0 ? 1 : 0 });
       } else if (el < popAt) {
         // 驚いた顔で、自分の番を待つ（番が近づくと震える）
         const jit = popAt - el < 6 ? Math.sin(el * 2.1) * s * 0.035 : 0;
@@ -342,14 +345,15 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
   let shake = [0, 0];
   let layout = null;
 
-  function computeLayout(W, H, mobile, n = 2) {
+  // reserve: 盤の上に空ける高さ（スマホのチュートリアルの説明など）
+  function computeLayout(W, H, mobile, n = 2, reserve = 0) {
     if (mobile) {
       const ctrlH = 100;
       const miniW = Math.floor(W * 0.24);
-      const s = Math.max(6, Math.floor(Math.min((W - 26 - miniW) / 6, (H - 56 - ctrlH - 20) / 14)));
+      const s = Math.max(6, Math.floor(Math.min((W - 26 - miniW) / 6, (H - 56 - reserve - ctrlH - 20) / 14)));
       const bw = s * 6;
       const X0 = 10;
-      const Y0 = 56 + Math.round(s * 1.95);
+      const Y0 = 56 + reserve + Math.round(s * 1.95);
       const ms = Math.max(6, Math.floor((W - X0 - bw - 22) / 6));
       return {
         mobile: true, boards: [
@@ -390,7 +394,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       }
       if (e.type === 'garbage') {
         const big = (e.n || (e.w * e.h)) >= 12;
-        if (big) shake = [now, 0.25];
+        if (big && !CALM) shake = [now, 0.25];
       }
     }
   }
@@ -403,7 +407,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    layout = computeLayout(W, H, opts.mobile, match ? match.players.length : 2);
+    layout = computeLayout(W, H, opts.mobile, match ? match.players.length : 2, opts.topReserve || 0);
     if (!match) return;
     let sx = 0, sy = 0;
     if (shake[1] > 0 && now - shake[0] < shake[1]) { const k = (1 - (now - shake[0]) / shake[1]) * 6; sx = (Math.random() - 0.5) * k; sy = (Math.random() - 0.5) * k; }
@@ -428,7 +432,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       ctx.fillStyle = 'rgba(255,255,255,.025)';
       for (let x = 0; x < 6; x += 2) ctx.fillRect(X + x * s, Y, s, s * 12);
       const bsh = phys ? phys.shake(p) : 0;
-      if (bsh) ctx.translate(Math.sin(now * 90) * bsh * 0.4, Math.cos(now * 70) * bsh * 0.3);
+      if (bsh && !CALM) ctx.translate(Math.sin(now * 90) * bsh * 0.4, Math.cos(now * 70) * bsh * 0.3);
       if (pl.kind === 'tsunagu') drawTsunagu(ctx, pl.board, X, Y, s, now, p, phys, Math.round(match.cfg.tsunaguPopSec * 60));
       else drawNaraberu(ctx, pl.board, X, Y, s, now, p, phys, match.cfg);
       ctx.restore();
@@ -523,5 +527,5 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
     if (charas && charas.drawOverlay) charas.drawOverlay(ctx, W, H, now);
   }
 
-  return { draw, onEvents, get layout() { return layout; } };
+  return { draw, onEvents, setCalm(v) { CALM = !!v; }, get layout() { return layout; } };
 }
