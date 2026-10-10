@@ -179,7 +179,39 @@ function drawTsunagu(ctx, b, X, Y, s, t, p, fx, popFrames) {
   }
 }
 
-function drawNaraberu(ctx, b, X, Y, s, t, p, fx) {
+function drawGarbageRect(ctx, bx, by, w, h, s, flashOn, rows, single = false) {
+  const gr = ctx.createLinearGradient(bx, by, bx, by + h);
+  gr.addColorStop(0, flashOn ? '#ffffff' : '#9aa0b8'); gr.addColorStop(1, flashOn ? '#c9d0f0' : '#5c6178');
+  ctx.fillStyle = gr;
+  roundRect(ctx, bx + 2, by + 2, w - 4, h - 4, s * 0.18); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.save(); ctx.globalAlpha = 0.18; ctx.strokeStyle = '#1b1e2b'; ctx.lineWidth = s * 0.12;
+  roundRect(ctx, bx + 2, by + 2, w - 4, h - 4, s * 0.18); ctx.clip();
+  const n = Math.round(w / s), r = Math.round(h / s);
+  for (let k = -r; k < n + r; k++) { ctx.beginPath(); ctx.moveTo(bx + k * s, by); ctx.lineTo(bx + (k + r) * s, by + h); ctx.stroke(); }
+  ctx.restore();
+  if (single) { // 変わる直前のマス: 「？」
+    ctx.fillStyle = 'rgba(30,32,48,.7)';
+    ctx.font = `900 ${Math.round(s * 0.5)}px "M PLUS Rounded 1c",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', bx + w / 2, by + h / 2 + 1);
+  }
+}
+
+// 消える直前のパネルの「驚いた顔」
+function drawPanelFace(ctx, x, y, s) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(10,8,30,.45)';
+  roundRect(ctx, x + s * 0.05, y + s * 0.05, s * 0.9, s * 0.9, s * 0.16); ctx.fill();
+  ctx.fillStyle = '#fff';
+  const ey = y + s * 0.42;
+  ctx.beginPath(); ctx.arc(x + s * 0.34, ey, s * 0.07, 0, Math.PI * 2); ctx.arc(x + s * 0.66, ey, s * 0.07, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + s * 0.5, y + s * 0.68, s * 0.08, s * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawNaraberu(ctx, b, X, Y, s, t, p, fx, cfg) {
+  const FL = cfg.naraberuClearFlash, FA = cfg.naraberuClearFace, PO = cfg.naraberuClearPop;
   const lift = b.rise * s;
   ctx.save();
   ctx.beginPath(); ctx.rect(X, Y, NC * s, 12 * s); ctx.clip();
@@ -195,16 +227,24 @@ function drawNaraberu(ctx, b, X, Y, s, t, p, fx) {
       const bl = b.blocks.get(id);
       if (!bl) continue;
       const bx = X + bl.x * s, by = Y + (bl.y - TOP) * s - lift;
-      const thaw = bl.thaw > 0 && Math.floor(bl.thaw / 4) % 2 === 0;
-      const gr = ctx.createLinearGradient(bx, by, bx, by + bl.h * s);
-      gr.addColorStop(0, thaw ? '#e8ecff' : '#9aa0b8'); gr.addColorStop(1, thaw ? '#a7b0d8' : '#5c6178');
-      ctx.fillStyle = gr;
-      roundRect(ctx, bx + 2, by + 2, bl.w * s - 4, bl.h * s - 4, s * 0.18); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.save(); ctx.globalAlpha = 0.18; ctx.strokeStyle = '#1b1e2b'; ctx.lineWidth = s * 0.12;
-      roundRect(ctx, bx + 2, by + 2, bl.w * s - 4, bl.h * s - 4, s * 0.18); ctx.clip();
-      for (let k = -bl.h; k < bl.w + bl.h; k++) { ctx.beginPath(); ctx.moveTo(bx + k * s, by); ctx.lineTo(bx + (k + bl.h) * s, by + bl.h * s); ctx.stroke(); }
-      ctx.restore();
+      const el = bl.thaw > 0 ? bl.thawTotal - bl.thaw : -1;
+      const flashOn = el >= 0 && el < FL && Math.floor(el / 3) % 2 === 0;
+      const splitting = el >= FL && bl.reveal;      // 光り終わったら、下の段は1マスずつ描く
+      const rh = splitting ? bl.h - 1 : bl.h;
+      if (rh > 0) drawGarbageRect(ctx, bx, by, bl.w * s, rh * s, s, flashOn, bl.h);
+      if (splitting) {
+        const ry = by + (bl.h - 1) * s;
+        for (let k = 0; k < bl.w; k++) {
+          const cx = bx + k * s, at = FL + FA + k * PO;
+          if (el >= at) {
+            const u = Math.min(1, (el - at) / 7);
+            drawPanel(ctx, bl.reveal[k], cx, ry, s, { scale: 0.35 + 0.65 * u, flash: el - at < 3 ? 1 : 0 });
+          } else {
+            const shiver = el > at - 6 ? Math.sin(el * 2.3) * s * 0.03 : 0;
+            drawGarbageRect(ctx, cx + shiver, ry, s, s, s, false, 1, true);
+          }
+        }
+      }
       continue;
     }
     const v = fx && fx.naraberuCell(p, i);
@@ -213,11 +253,26 @@ function drawNaraberu(ctx, b, X, Y, s, t, p, fx) {
     ctx.save();
     if (sq) { ctx.translate(qx + s / 2, qy + s); ctx.scale(1 - 0.6 * sq, 1 + sq); ctx.translate(-(qx + s / 2), -(qy + s)); }
     if (b.S[i] === 1) {
-      const T = b.T[i], total = 54;
-      const fl = T > total * 0.45 && Math.floor(T / 3) % 2 === 0;
-      const k = T > total * 0.45 ? 0 : 1 - T / (total * 0.45);
-      ctx.translate(qx + s / 2, qy + s / 2); ctx.rotate(k * 0.6); ctx.translate(-(qx + s / 2), -(qy + s / 2));
-      drawPanel(ctx, c, qx, qy, s, { flash: fl, scale: 1 - k * 0.85 });
+      const el = b.TT[i] - b.T[i], popAt = FL + FA + b.Q[i] * PO;
+      if (el < FL) {
+        // 光る: 白く点滅しながら少しふくらむ
+        const k = 1 + 0.06 * Math.sin(el * 0.5);
+        ctx.translate(qx + s / 2, qy + s / 2); ctx.scale(k, k); ctx.translate(-(qx + s / 2), -(qy + s / 2));
+        drawPanel(ctx, c, qx, qy, s, { flash: Math.floor(el / 3) % 2 === 0 ? 1 : 0 });
+      } else if (el < popAt) {
+        // 驚いた顔で、自分の番を待つ（番が近づくと震える）
+        const jit = popAt - el < 6 ? Math.sin(el * 2.1) * s * 0.035 : 0;
+        drawPanel(ctx, c, qx + jit, qy, s, { dim: 0 });
+        drawPanelFace(ctx, qx + jit, qy, s);
+      } else {
+        // はじけた跡: 広がって消える輪
+        const u = (el - popAt) / 12;
+        if (u < 1) {
+          ctx.globalAlpha = 1 - u;
+          ctx.strokeStyle = PAL[c].fill; ctx.lineWidth = Math.max(2, s * 0.1 * (1 - u));
+          ctx.beginPath(); ctx.arc(qx + s / 2, qy + s / 2, s * (0.25 + 0.45 * u), 0, Math.PI * 2); ctx.stroke();
+        }
+      }
     } else drawPanel(ctx, c, qx, qy, s);
     ctx.restore();
   }
@@ -373,7 +428,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       const bsh = phys ? phys.shake(p) : 0;
       if (bsh) ctx.translate(Math.sin(now * 90) * bsh * 0.4, Math.cos(now * 70) * bsh * 0.3);
       if (pl.kind === 'tsunagu') drawTsunagu(ctx, pl.board, X, Y, s, now, p, phys, Math.round(match.cfg.tsunaguPopSec * 60));
-      else drawNaraberu(ctx, pl.board, X, Y, s, now, p, phys);
+      else drawNaraberu(ctx, pl.board, X, Y, s, now, p, phys, match.cfg);
       ctx.restore();
       if (pl.kind === 'naraberu') drawCeiling(ctx, pl.board, X, Y, s, small, now);
       if (pl.board.isDead()) {

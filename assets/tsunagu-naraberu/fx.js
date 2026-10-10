@@ -109,12 +109,10 @@ export function createFx() {
       for (const [i, v] of S.cells) if (i - up * NC >= 0) next.set(i - up * NC, v);
       S.cells = next;
     }
-    // 消えたパネルの破片
-    for (let i = 0; i < pre.S.length; i++) {
-      if (pre.S[i] === 1 && pre.T[i] === 1 && pre.C[i] > 0 && pre.C[i] !== GARB) {
-        const y = Math.floor(i / NC) - up, x = i % NC;
-        burst(p, 'naraberu', x + 0.5, y + 0.5, pre.C[i]);
-      }
+    // パネルが1枚ずつはじけるたびに破片、おじゃまが1マスずつ変わるたびに星
+    for (const e of ev) {
+      if (e.type === 'popcell') burst(p, 'naraberu', (e.i % NC) + 0.5, Math.floor(e.i / NC) - up + 0.5, e.c);
+      else if (e.type === 'reveal') sparkle(p, e.x + 0.5, e.y - up + 0.5);
     }
     // 入れ替え: 2枚が横にすべる
     if (ev.some(e => e.type === 'swap')) {
@@ -153,6 +151,13 @@ export function createFx() {
     for (let k = 0; k < 3; k++) {
       const a = rnd() * Math.PI * 2, sp = 0.03 + rnd() * 0.05;
       parts.push({ p, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.05, g: 0.002, r: 0.16 + rnd() * 0.12, c: 0, life: 30 + rnd() * 12, age: 0, kind: 'star', rot: rnd() * 6, vr: 0.15 });
+    }
+  }
+
+  function sparkle(p, x, y) {
+    for (let k = 0; k < 4; k++) {
+      const a = rnd() * Math.PI * 2, sp = 0.03 + rnd() * 0.06;
+      parts.push({ p, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.06, g: 0.003, r: 0.14 + rnd() * 0.1, c: 0, life: 26 + rnd() * 10, age: 0, kind: 'star', rot: rnd() * 6, vr: 0.2 });
     }
   }
 

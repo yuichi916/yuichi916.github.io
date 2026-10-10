@@ -48,7 +48,9 @@ function findRuns(C, cand) {
 
 export function createNaraberu({ cfg, seed, takeGarbage }) {
   const rng = createRng(seed);
-  const clearFrames = Math.round(cfg.naraberuClearSec * 60);
+  // 消去: 光る(flash) → 驚いた顔(face) → 左上から1枚ずつはじける(pop)。全部はじけたら消える
+  const FL = cfg.naraberuClearFlash, FA = cfg.naraberuClearFace, PO = cfg.naraberuClearPop;
+  const clearTime = n => FL + FA + n * PO;
   const graceMax = Math.round(cfg.topGraceSec * 60);
   const hoverChain = cfg.naraberuHoverFrames, hoverSwap = cfg.naraberuSwapHoverFrames;
 
@@ -60,6 +62,8 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     F: new Uint8Array(N),
     Gd: new Int16Array(N),
     K: new Uint8Array(N), // 連鎖の2段目以降で消去中のセル（連鎖が続いている印）
+    Q: new Uint8Array(N), // 消去中のセルが何枚目にはじけるか（0から）
+    TT: new Int16Array(N), // その消去の全体の刻み数（演出が経過を知るため）
     blocks: new Map(),
     nextGid: 1,
     preview: new Int8Array(COLS),
@@ -121,7 +125,7 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
 
   function addBlock(x, y, w, h) {
     const id = B.nextGid++;
-    B.blocks.set(id, { id, x, y, w, h, thaw: 0 });
+    B.blocks.set(id, { id, x, y, w, h, thaw: 0, thawTotal: 0, reveal: null });
     for (let yy = y; yy < y + h; yy++) {
       for (let xx = x; xx < x + w; xx++) {
         const i = yy * COLS + xx;
@@ -168,11 +172,12 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
       for (let x = 0; x < COLS; x++) {
         const d = y * COLS + x, s = d + COLS;
         B.C[d] = B.C[s]; B.S[d] = B.S[s]; B.T[d] = B.T[s]; B.F[d] = B.F[s]; B.Gd[d] = B.Gd[s]; B.K[d] = B.K[s];
+        B.Q[d] = B.Q[s]; B.TT[d] = B.TT[s];
       }
     }
     for (let x = 0; x < COLS; x++) {
       const i = BOTTOM * COLS + x;
-      B.C[i] = B.preview[x]; B.S[i] = 0; B.T[i] = 0; B.F[i] = 0; B.Gd[i] = 0; B.K[i] = 0;
+      B.C[i] = B.preview[x]; B.S[i] = 0; B.T[i] = 0; B.F[i] = 0; B.Gd[i] = 0; B.K[i] = 0; B.Q[i] = 0; B.TT[i] = 0;
     }
     for (const b of B.blocks.values()) b.y--;
     makePreview();
@@ -182,7 +187,8 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
 
   function move(s, d) {
     B.C[d] = B.C[s]; B.S[d] = B.S[s]; B.T[d] = B.T[s]; B.F[d] = B.F[s]; B.Gd[d] = B.Gd[s]; B.K[d] = B.K[s];
-    B.C[s] = 0; B.S[s] = 0; B.T[s] = 0; B.F[s] = 0; B.Gd[s] = 0; B.K[s] = 0;
+    B.Q[d] = B.Q[s]; B.TT[d] = B.TT[s];
+    B.C[s] = 0; B.S[s] = 0; B.T[s] = 0; B.F[s] = 0; B.Gd[s] = 0; B.K[s] = 0; B.Q[s] = 0; B.TT[s] = 0;
   }
 
   // 浮遊を始める: そのパネルと、上に積み重なった静止パネルをまとめて浮かせる
@@ -232,9 +238,13 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
   function finishTimers(ev) {
     const removed = [];
     for (let i = 0; i < N; i++) {
-      if (B.S[i] === 1 && --B.T[i] <= 0) removed.push(i);
+      if (B.S[i] !== 1) continue;
+      B.T[i]--;
+      const el = B.TT[i] - B.T[i];
+      if (el === FL + FA + B.Q[i] * PO) ev.push({ type: 'popcell', i, c: B.C[i], k: B.Q[i] });
+      if (B.T[i] <= 0) removed.push(i);
     }
-    for (const i of removed) { B.C[i] = 0; B.S[i] = 0; B.F[i] = 0; B.T[i] = 0; B.K[i] = 0; }
+    for (const i of removed) { B.C[i] = 0; B.S[i] = 0; B.F[i] = 0; B.T[i] = 0; B.K[i] = 0; B.Q[i] = 0; B.TT[i] = 0; }
     for (const i of removed) {
       for (let j = i - COLS; j >= 0; j -= COLS) {
         if (!isColor(B.C[j]) || B.S[j] !== 0) break;
@@ -242,20 +252,34 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
       }
     }
     for (const b of [...B.blocks.values()]) {
-      if (b.thaw > 0 && --b.thaw === 0) {
-        const y = b.y + b.h - 1;
+      if (b.thaw <= 0) continue;
+      b.thaw--;
+      const el = b.thawTotal - b.thaw, y = b.y + b.h - 1;
+      const k = (el - FL - FA) / PO;
+      if (k >= 0 && k < b.w && Number.isInteger(k)) ev.push({ type: 'reveal', x: b.x + k, y, c: b.reveal[k], k });
+      if (b.thaw === 0) {
         for (let x = b.x; x < b.x + b.w; x++) {
           const i = y * COLS + x;
-          let c;
-          const l1 = x > b.x ? B.C[i - 1] : 0, l2 = x > b.x + 1 ? B.C[i - 2] : 0;
-          do { c = rng.int(cfg.colorsN) + 1; } while (l1 === c && l2 === c);
-          B.C[i] = c; B.Gd[i] = 0; B.S[i] = 0; B.F[i] = 1;
+          B.C[i] = b.reveal[x - b.x]; B.Gd[i] = 0; B.S[i] = 0; B.F[i] = 1;
         }
         b.h--;
+        b.reveal = null;
         if (b.h <= 0) B.blocks.delete(b.id);
-        ev.push({ type: 'thaw', w: b.w });
+        ev.push({ type: 'thaw', w: b.w, y });
       }
     }
+  }
+
+  // おじゃまの解凍を始める: 下の段がどの色になるかを先に決め、端から1マスずつ見せる
+  function startThaw(b) {
+    const r = [];
+    for (let k = 0; k < b.w; k++) {
+      let c;
+      do { c = rng.int(cfg.colorsN) + 1; } while (k >= 2 && r[k - 1] === c && r[k - 2] === c);
+      r.push(c);
+    }
+    b.reveal = r;
+    b.thawTotal = b.thaw = FL + FA + b.w * PO;
   }
 
   function detect(ev) {
@@ -269,14 +293,16 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     let stepChain = 1;
     if (anyChain) { B.chain = Math.max(B.chain, 1) + 1; stepChain = B.chain; } else if (B.chain === 0) B.chain = 1;
     const n = hit.size;
-    for (const i of hit) { B.S[i] = 1; B.T[i] = clearFrames; B.F[i] = 0; B.K[i] = stepChain >= 2 ? 1 : 0; }
+    const total = clearTime(n);
+    const order = [...hit].sort((a, b) => a - b); // 上の行から、同じ行は左から
+    order.forEach((i, k) => { B.S[i] = 1; B.T[i] = total; B.TT[i] = total; B.Q[i] = k; B.F[i] = 0; B.K[i] = stepChain >= 2 ? 1 : 0; });
     // 隣のおじゃまブロックを解凍
     for (const i of hit) {
       const x = i % COLS;
       for (const j of [i - COLS, i + COLS, x > 0 ? i - 1 : -1, x < COLS - 1 ? i + 1 : -1]) {
         if (j < 0 || j >= N || !B.Gd[j]) continue;
         const b = B.blocks.get(B.Gd[j]);
-        if (b && b.thaw === 0) b.thaw = clearFrames;
+        if (b && b.thaw === 0) startThaw(b);
       }
     }
     // 停止時間: 同時消し（4つ以上）と連鎖でもらえる。長い方を残す
@@ -384,7 +410,7 @@ function quietOpening(C, cfg) {
 
 // テスト用: 見える範囲に下詰めで文字列を並べる（R G B Y P と .）
 export function fillFromRows(b, rows) {
-  b.C.fill(0); b.S.fill(0); b.T.fill(0); b.F.fill(0); b.Gd.fill(0); b.K.fill(0); b.blocks.clear();
+  b.C.fill(0); b.S.fill(0); b.T.fill(0); b.F.fill(0); b.Gd.fill(0); b.K.fill(0); b.Q.fill(0); b.TT.fill(0); b.blocks.clear();
   const off = BOTTOM - rows.length + 1;
   rows.forEach((r, k) => [...r].forEach((ch, x) => { b.C[(off + k) * COLS + x] = LETTER[ch]; }));
 }

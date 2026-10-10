@@ -5,7 +5,9 @@ import {
   createNaraberu, fillFromRows, matchesOf, snapshot, simulateSwap, TOP, BOTTOM,
 } from '../../assets/tsunagu-naraberu/naraberu.js';
 
-const cfg = { ...CFG, atkMulN: 1, naraberuRiseStartSec: 1000, naraberuRiseEndSec: 1000 };
+// 消去の時間は「光る＋顔＋1枚ごと」。既存のテストは 3枚=54刻み（光る30＋1枚8）で書いてある
+const cfg = { ...CFG, atkMulN: 1, naraberuRiseStartSec: 1000, naraberuRiseEndSec: 1000,
+  naraberuClearFlash: 30, naraberuClearFace: 0, naraberuClearPop: 8 };
 const NONE = { left: false, right: false, up: false, down: false, a: false, b: false, downHeld: false, bHeld: false };
 const inp = o => ({ ...NONE, ...o });
 const R = 1, G = 2;
@@ -251,7 +253,7 @@ test('停止時間: 4つ以上の同時消しのあとは、しばらくせり�
   const b = board(['R.....', 'R.....', 'RRR...', 'GBYGBY'], {
     naraberuRiseStartSec: 0.5, naraberuRiseEndSec: 0.5, naraberuStopCombo: 60, naraberuStopComboPer: 10,
   });
-  run(b, 56); // 消去が終わる
+  run(b, 71); // 5枚の消去（30+5×8=70刻み）が終わる
   const rc = b.riseCount, rise = b.rise;
   run(b, 60);
   assert.equal(b.riseCount, rc, '停止時間中はせり上がらない');
@@ -275,10 +277,62 @@ test('停止時間中でも、せり上げボタンを押せば停止を打ち�
   const b = board(['R.....', 'R.....', 'RRR...', 'GBYGBY'], {
     naraberuRiseStartSec: 1000, naraberuRiseEndSec: 1000, naraberuStopCombo: 600, naraberuManualRiseFrames: 6,
   });
-  run(b, 56);
+  run(b, 71);
   assert.ok(b.stop > 0);
   const rc = b.riseCount;
   run(b, 12, { bHeld: true });
   assert.equal(b.stop, 0, '押したら停止は消える');
   assert.ok(b.riseCount > rc, 'せり上がる');
+});
+
+
+// ---- 消える演出（時間はゲームの中身。演出は render/fx が読む） ----
+const slowFx = { naraberuClearFlash: 40, naraberuClearFace: 14, naraberuClearPop: 9 };
+
+test('消去: 光る40＋顔14＋1枚9刻み。3枚なら81刻みで消え終わる', () => {
+  const b = board(['RRR...'], slowFx);
+  run(b, 81);
+  assert.equal(at(b, 0, BOTTOM), R, '81刻み目まではまだ残っている');
+  run(b, 1);
+  assert.equal(at(b, 0, BOTTOM), 0, '82刻み目に消える');
+});
+
+test('消去: 数が多いほど長い（6枚は 40+14+54=108刻み）', () => {
+  const b = board(['RRR...', 'GGGRRR'.replace(/R/g, 'B')], slowFx); // 下段 GGG が消える（3枚）
+  const b6 = board(['GGGGGG'], slowFx);
+  run(b6, 108);
+  assert.equal(at(b6, 0, BOTTOM), G);
+  run(b6, 1);
+  assert.equal(at(b6, 0, BOTTOM), 0);
+  assert.ok(b);
+});
+
+test('消去: 左上から1枚ずつ、9刻みおきにはじける（popcell）', () => {
+  const b = board(['B.....', 'B.....', 'BBB...'], slowFx); // L字5
+  const ev = [];
+  for (let f = 1; f <= 110; f++) for (const e of b.step(inp({}))) if (e.type === 'popcell') ev.push({ f, ...e });
+  assert.equal(ev.length, 5);
+  assert.deepEqual(ev.map(e => e.k), [0, 1, 2, 3, 4]);
+  for (let k = 1; k < 5; k++) assert.equal(ev[k].f - ev[k - 1].f, 9);
+  // 上の行から、同じ行は左から
+  const ys = ev.map(e => Math.floor(e.i / 6)), xs = ev.map(e => e.i % 6);
+  for (let k = 1; k < 5; k++) assert.ok(ys[k] > ys[k - 1] || (ys[k] === ys[k - 1] && xs[k] > xs[k - 1]));
+  assert.equal(ev[0].f, 1 + 40 + 14);
+});
+
+test('おじゃま: 端から1マスずつパネルに変わり、見せた色のとおりのパネルになる', () => {
+  const b = board(['BRRRGY'], slowFx);
+  b.addBlock(0, BOTTOM - 2, 6, 2);
+  const reveals = [];
+  let thawRow = null;
+  for (let f = 0; f < 400 && thawRow === null; f++) {
+    for (const e of b.step(inp({}))) {
+      if (e.type === 'reveal') reveals.push(e);
+      if (e.type === 'thaw') thawRow = e.y;
+    }
+  }
+  assert.equal(reveals.length, 6);
+  assert.deepEqual(reveals.map(e => e.k), [0, 1, 2, 3, 4, 5]);
+  assert.notEqual(thawRow, null);
+  for (const e of reveals) assert.equal(b.C[thawRow * 6 + e.x], e.c, `x=${e.x}`);
 });

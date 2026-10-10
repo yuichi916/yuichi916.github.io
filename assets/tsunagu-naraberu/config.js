@@ -8,7 +8,7 @@ export const CFG = {
   colorsN: 5, // ならべる派の色数
 
   // 変換率（共通ダメージD → 受ける側のおじゃま）
-  convT: 0.73, // ならべる派の攻撃 → つなぐ派のおじゃまつぶ
+  convT: 0.85, // ならべる派の攻撃 → つなぐ派のおじゃまつぶ
   convN: 0.15, // つなぐ派の攻撃 → ならべる派のおじゃまブロック（マス）
 
   // 攻撃力
@@ -29,7 +29,10 @@ export const CFG = {
   naraberuRiseEndSec: 3,
   naraberuRiseRampSec: 180,
   naraberuManualRiseFrames: 6,
-  naraberuClearSec: 0.9,
+  // ならべる派の消去: 光る → 驚いた顔 → 1枚ずつはじける（刻み）。消え終わるまで 光る＋顔＋枚数×1枚
+  naraberuClearFlash: 40,
+  naraberuClearFace: 14,
+  naraberuClearPop: 9,
   naraberuLandSec: 3,
   naraberuStartRows: 4,
   topGraceSec: 3, // 天井に着いてから負けるまで（消去・浮遊・落下・停止時間の間は減らない）
@@ -70,7 +73,7 @@ export const AI_T = {
   bump: 1, // 凸凹
   col3: 300, // 出現列が9段以上
   garbage: 0.5,
-  noise: { やさしい: 3, ふつう: 2, つよい: 10 },
+  noise: { やさしい: 1, ふつう: 2, つよい: 10 },
   minChain: { やさしい: 2, ふつう: 2, つよい: 3 },
 };
 export const AI_N = {

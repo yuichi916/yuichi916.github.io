@@ -90,17 +90,25 @@ export function createAudio() {
       const quiet = mine || humanPlayers.length === 0 ? 1 : 0.6;   // 相手の音は少し小さく
       switch (e.type) {
         case 'pop': {
-          // 連鎖が進むほど音が上がる
+          // そろった瞬間。つなぐ派はここで消える音、ならべる派は光り始める音（はじける音は popcell で1枚ずつ）
           const up = semis(Math.min(9, (e.chain - 1) * 1.5));
-          if (!play(kind === 'tsunagu' ? 'se_pop' : 'se_clear', seBus, { vol: quiet, rate: up })) {
-            const f = SCALE[Math.min(SCALE.length - 1, e.chain - 1)];
-            tone(f, 0.16, 'triangle', 0.45); tone(f * 1.5, 0.12, 'sine', 0.2, 0, 0.04);
-          }
+          if (kind === 'tsunagu') {
+            if (!play('se_pop', seBus, { vol: quiet, rate: up })) {
+              const f = SCALE[Math.min(SCALE.length - 1, e.chain - 1)];
+              tone(f, 0.16, 'triangle', 0.45); tone(f * 1.5, 0.12, 'sine', 0.2, 0, 0.04);
+            }
+          } else tone(1320 * up, 0.08, 'sine', 0.12 * quiet);
           if (e.chain >= 2) play('se_chain', seBus, { vol: 0.75 * quiet, rate: semis(Math.min(7, e.chain - 2)) });
           break;
         }
+        case 'popcell': {
+          // 1枚ずつ、だんだん高く
+          const up = semis(Math.min(14, e.k * 1.2));
+          if (!play('se_clear', seBus, { vol: 0.8 * quiet, rate: up, gap: 0.03 })) tone(660 * up, 0.08, 'triangle', 0.3 * quiet);
+          break;
+        }
+        case 'reveal': tone(520 * semis(e.k * 2), 0.07, 'sine', 0.16 * quiet); break;
         case 'garbage': if (!play('se_garbage', seBus, { vol: quiet })) tone(140, 0.25, 'sawtooth', 0.25, 0.5); break;
-        case 'thaw': tone(330, 0.1, 'square', 0.12); break;
         case 'lock': if (mine && !play('se_land', seBus, { vol: 0.55, gap: 0.06 })) tone(220, 0.05, 'sine', 0.2); break;
         case 'swap': if (mine && !play('se_swap', seBus, { vol: 0.5, gap: 0.03 })) tone(660, 0.04, 'square', 0.08); break;
         case 'attack': if (e.D >= 6 && !play('se_attack', seBus, { vol: quiet, gap: 0.2 })) tone(90, 0.35, 'sawtooth', 0.22, 2.2); break;
