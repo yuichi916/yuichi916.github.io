@@ -342,7 +342,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
   let shake = [0, 0];
   let layout = null;
 
-  function computeLayout(W, H, mobile) {
+  function computeLayout(W, H, mobile, n = 2) {
     if (mobile) {
       const ctrlH = 100;
       const miniW = Math.floor(W * 0.24);
@@ -355,14 +355,15 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
         mobile: true, boards: [
           { X: X0, Y: Y0, s },
           { X: X0 + bw + 14, Y: Y0 + 6, s: ms },
-        ], hud: { x: X0 + bw + 14, y: Y0 + ms * 12 + 16 },
+        ], hud: { x: X0 + bw + 14, y: n === 1 ? 370 : Y0 + ms * 12 + 16 }, // 練習（1人）は右の列の上にツールバーがあるので、その下から
       };
     }
     const s = Math.max(6, Math.floor(Math.min((H - 56 - 100) / 13.4, (W - 40) / 17.5)));
     const bw = s * 6, gap = s * 4.2;
-    const X0 = Math.round((W - (bw * 2 + gap)) / 2);
+    // 練習（1人）: 盤を中央より少し右に置き、左に立ち絵、右に時計
+    const X0 = n === 1 ? Math.round(W / 2 - bw / 2 + s * 1.5) : Math.round((W - (bw * 2 + gap)) / 2);
     const Y0 = Math.round(56 + (H - 56 - s * 12) / 2 + s * 0.7);
-    return { mobile: false, boards: [{ X: X0, Y: Y0, s }, { X: X0 + bw + gap, Y: Y0, s }], hud: { x: W / 2, y: Y0 } };
+    return { mobile: false, boards: [{ X: X0, Y: Y0, s }, { X: X0 + bw + gap, Y: Y0, s }], hud: { x: n === 1 ? X0 + bw + s * 2.2 : W / 2, y: Y0 } };
   }
 
   function boardCenter(p) {
@@ -383,6 +384,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
         fx.push({ kind: 'text', text: `${e.n}どうじ`, x: L.X + L.s * 3, y: L.Y + L.s * 5.2, t0: now, dur: 0.8, size: L.s * 0.6, color: '#bdf6ff' });
       }
       if (e.type === 'attack' && e.D > 0.2) {
+        if (match.players.length < 2) continue; // 練習: 相手がいないので攻撃の弾は飛ばさない
         const a = boardCenter(e.p), b = boardCenter(1 - e.p);
         fx.push({ kind: 'orb', x0: a.x, y0: L.Y + L.s * 2, x1: b.x, y1: layout.boards[1 - e.p].Y - layout.boards[1 - e.p].s * 0.6, t0: now, dur: 0.45, r: Math.min(L.s * 0.9, L.s * (0.25 + e.D / 40)), offset: e.sent < e.D - 1e-6 });
       }
@@ -401,7 +403,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    layout = computeLayout(W, H, opts.mobile);
+    layout = computeLayout(W, H, opts.mobile, match ? match.players.length : 2);
     if (!match) return;
     let sx = 0, sy = 0;
     if (shake[1] > 0 && now - shake[0] < shake[1]) { const k = (1 - (now - shake[0]) / shake[1]) * 6; sx = (Math.random() - 0.5) * k; sy = (Math.random() - 0.5) * k; }

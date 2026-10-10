@@ -336,3 +336,30 @@ test('おじゃま: 端から1マスずつパネルに変わり、見せた色�
   assert.notEqual(thawRow, null);
   for (const e of reveals) assert.equal(b.C[thawRow * 6 + e.x], e.c, `x=${e.x}`);
 });
+
+// ---- 入れ替えの先行入力 ----
+test('先行入力: 落下中のセルへの入れ替えは、着地した刻みに成立する', () => {
+  const b = board(['......', '......', 'Y.....', 'G.....', 'GB....']);
+  // (1,21) に R を置き、下が空なので浮遊→落下して (1,22) に着地する
+  b.C[(BOTTOM - 2) * 6 + 1] = R;
+  b.cursor = { x: 0, y: BOTTOM - 1 };
+  let swapped = false;
+  for (let f = 0; f < 30 && !swapped; f++) {
+    const i = (BOTTOM - 1) * 6 + 1;
+    const falling = b.C[i] === R && b.S[i] === 2;
+    const ev = b.step(inp({ a: falling }));
+    if (ev.some(e => e.type === 'swap')) swapped = true;
+  }
+  assert.ok(swapped, '落下中に押した入れ替えが、着地後に成立する');
+  assert.equal(at(b, 0, BOTTOM - 1), R);
+});
+
+test('先行入力: 6刻みを過ぎたら成立しない', () => {
+  const b = board(['GB....']);
+  b.addBlock(0, BOTTOM - 1, 2, 1); // 入れ替えできないおじゃま
+  b.cursor = { x: 0, y: BOTTOM - 1 };
+  b.step(inp({ a: true }));
+  b.blocks.clear(); b.C[(BOTTOM - 1) * 6] = 4; b.Gd[(BOTTOM - 1) * 6] = 0; b.C[(BOTTOM - 1) * 6 + 1] = 0; b.Gd[(BOTTOM - 1) * 6 + 1] = 0;
+  const ev = run(b, 10);
+  assert.equal(ev.filter(e => e.type === 'swap').length, 0, 'おじゃま（落下・浮遊ではない）で断られた入れ替えは覚えない');
+});

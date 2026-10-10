@@ -4,12 +4,15 @@ import { createMatch } from './match.js';
 import { createTsunaguAI } from './ai-tsunagu.js';
 import { createNaraberuAI } from './ai-naraberu.js';
 import { createRenderer } from './render.js';
-import { createInput, touchDragStep } from './input.js';
+import { createInput, touchDragStep, createTsunaguGesture } from './input.js';
 import { createAudio } from './audio.js';
 import { createFx } from './fx.js';
 import { createCharas } from './chara.js';
 import { CHAR, CHARACTERS, hasVoice } from './characters.js';
 import { TOP, BOTTOM } from './naraberu.js';
+import { loadSettings, saveSettings } from './settings.js';
+import { createPractice } from './practice.js';
+import { mountControls } from './controls.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('stage');
@@ -24,15 +27,12 @@ document.body.classList.toggle('mobile', mobile);
 const KIND_NAME = { tsunagu: 'つなぐ派', naraberu: 'ならべる派' };
 const REPEAT = { tsunagu: ['left', 'right'], naraberu: ['left', 'right', 'up', 'down'] };
 
-const saved = (() => { try { return JSON.parse(localStorage.getItem('tn-settings') || '{}'); } catch { return {}; } })();
-const settings = {
-  mode: mobile ? 'cpu' : (saved.mode || 'cpu'),
-  // キャラで派が決まる。古い保存（kinds）しかなければ、その派の1人目にする
-  chars: saved.chars || (saved.kinds || ['tsunagu', 'naraberu']).map((k, i) => CHARACTERS.filter(c => c.faction === k)[i === 1 && (saved.kinds || [])[0] === k ? 1 : 0].id),
-  level: saved.level || 'ふつう',
-  handicap: saved.handicap || [0, 0],
-};
-const save = () => { try { localStorage.setItem('tn-settings', JSON.stringify(settings)); } catch { /* 保存できない環境 */ } };
+const store = (() => { try { return window.localStorage; } catch { return null; } })();
+const settings = loadSettings(store);
+if (mobile && settings.mode === '2p') settings.mode = 'cpu';
+const save = () => saveSettings(store, settings);
+function applyInputSettings() { input.setKeys(settings.keys); input.setTiming(settings.das, settings.arr); }
+applyInputSettings();
 
 let screen = 'title';
 let match = null, ais = [null, null], humans = [0], labels = ['あなた', 'CPU'];
@@ -58,10 +58,14 @@ function renderSetup() {
     else if (key === 'hc') cur = String(settings.handicap[+idx]);
     btn.classList.toggle('sel', cur === val);
   }
+  const practice = settings.mode === 'practice';
   $('levelRow').hidden = settings.mode !== 'cpu';
+  $('p2row').hidden = practice;
+  $('hcRow').hidden = practice;
+  $('mode2p').hidden = mobile;
+  $('btnGo').textContent = practice ? 'れんしゅうスタート' : '対戦スタート';
   $('p2label').textContent = settings.mode === 'cpu' ? 'CPU' : '2P';
   $('p1label').textContent = settings.mode === 'cpu' ? 'あなた' : '1P';
-  $('modeRow').hidden = mobile;
   $('keys2p').hidden = settings.mode !== '2p';
   $('keys1').hidden = mobile;
   $('keysTouch').hidden = !mobile;
@@ -80,6 +84,10 @@ document.addEventListener('click', e => {
   save(); renderSetup();
 });
 
+const controls = mountControls({ root: $('ctrlBody'), settings, save, onChange: applyInputSettings, mobile });
+$('btnCtrl').onclick = () => { controls.render(); show('controls'); };
+$('btnCtrlClose').onclick = () => { show('setup'); renderSetup(); };
+$('btnCtrlReset').onclick = () => controls.resetDefaults();
 $('btnStart').onclick = () => { audio.ensure(); audio.loadVoices(CHARACTERS.filter(c => hasVoice(c.id)).map(c => c.id)); show('setup'); renderSetup(); };
 $('btnGo').onclick = () => { audio.ensure(); startMatch(); };
 $('btnAgain').onclick = () => startMatch();
@@ -90,27 +98,39 @@ $('btnMute').onclick = () => { audio.ensure(); $('btnMute').textContent = audio.
 $('btnMute').textContent = audio.muted ? '音 OFF' : '音 ON';
 $('btnPause').onclick = () => { if (screen === 'play') pause(); else if (screen === 'pause') resume(); };
 $('btnHelp').onclick = () => { $('help').classList.toggle('on'); };
+for (const b of document.querySelectorAll('[data-garbage]')) b.onclick = () => { if (match && match.practice) { match.dropGarbage(+b.dataset.garbage); audio.move(); } };
+$('btnPracReset').onclick = () => { if (match && match.practice) { match.resetBoard(); phys.reset(); } };
+$('btnPracQuit').onclick = () => { match = null; $('practiceBar').hidden = true; show('setup'); renderSetup(); };
 $('help').onclick = () => $('help').classList.remove('on');
 
 function startMatch(demo = false) {
   const seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0;
   const cfg = CFG;
+  const practice = settings.mode === 'practice' && !demo;
   const kinds = settings.chars.map(id => CHAR[id].faction);
-  match = createMatch({ cfg, kinds, seeds: [seed, seed + 7919], handicap: settings.handicap.slice() });
-  const cpu = settings.mode === 'cpu';
-  humans = cpu ? [0] : [0, 1];
-  labels = cpu ? ['あなた', 'CPU'] : ['1P', '2P'];
-  ais = [demo ? makeAI(kinds[0], settings.level, seed + 1) : null, cpu ? makeAI(kinds[1], settings.level, seed) : null];
-  if (demo) humans = [];
+  const cpu = settings.mode === 'cpu' || practice;
+  if (practice) {
+    match = createPractice({ cfg, kind: kinds[0], seed });
+    ais = [null];
+    labels = ['あなた'];
+  } else {
+    match = createMatch({ cfg, kinds, seeds: [seed, seed + 7919], handicap: settings.handicap.slice() });
+    labels = cpu ? ['あなた', 'CPU'] : ['1P', '2P'];
+    ais = [demo ? makeAI(kinds[0], settings.level, seed + 1) : null, cpu ? makeAI(kinds[1], settings.level, seed) : null];
+  }
+  humans = demo ? [] : cpu ? [0] : [0, 1];
+  applyInputSettings();
   input.setMode(!cpu);
   stats = [{ maxChain: 0 }, { maxChain: 0 }];
-  countdown = 1.6;
-  drag = null;
+  countdown = practice ? 0.8 : 1.6;
+  drag = null; gesture = null;
   input.reset();
   acc = 0; last = performance.now();
-  phys.reset(); charas.reset(); charas.setChars(settings.chars); audio.loadVoices(settings.chars.filter(hasVoice));
+  const ids = practice ? [settings.chars[0], null] : settings.chars;
+  phys.reset(); charas.reset(); charas.setChars(ids); audio.loadVoices(ids.filter(id => id && hasVoice(id)));
   charas.start(performance.now() / 1000 + 0.4);
   audio.bgm(null); audio.bgm('battle'); pinchUntil = 0;
+  $('practiceBar').hidden = !practice;
   show(null);
   setupTouch();
 }
@@ -172,7 +192,19 @@ for (const btn of document.querySelectorAll('[data-pad]')) {
   btn.addEventListener('pointercancel', up);
   btn.addEventListener('pointerleave', up);
 }
-let drag = null;
+let drag = null, gesture = null;
+// 振動（設定でオフ可）: 入れ替え・消去・おじゃま着地で短く
+function buzz(ev) {
+  if (!settings.vibrate || !navigator.vibrate || !mobile) return;
+  let ms = 0;
+  for (const e of ev) {
+    if (!humans.includes(e.p)) continue;
+    if (e.type === 'garbage') ms = Math.max(ms, 30);
+    else if (e.type === 'pop') ms = Math.max(ms, 15);
+    else if (e.type === 'swap') ms = Math.max(ms, 8);
+  }
+  if (ms) try { navigator.vibrate(ms); } catch { /* 振動できない端末 */ }
+}
 function cellAt(e) {
   const L = renderer.layout?.boards[0];
   if (!L || !match) return null;
@@ -183,6 +215,20 @@ function cellAt(e) {
   if (x < 0 || x > 5 || y < TOP || y > BOTTOM) return null;
   return { x, y };
 }
+// つなぐ派のジェスチャー（スマホ・設定が gesture のとき）
+canvas.addEventListener('pointerdown', e => {
+  if (!match || screen !== 'play' || !mobile || settings.touch !== 'gesture' || match.players[0].kind !== 'tsunagu') return;
+  const L = renderer.layout?.boards[0];
+  if (!L) return;
+  audio.ensure();
+  if (!gesture) gesture = createTsunaguGesture({ cell: L.s, width: canvas.clientWidth });
+  const r = canvas.getBoundingClientRect();
+  gesture.down(e.clientX - r.left, e.clientY - r.top, e.timeStamp / 1000);
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* 指を追えない環境でも操作は続ける */ }
+});
+canvas.addEventListener('pointermove', e => { if (gesture) { const r = canvas.getBoundingClientRect(); gesture.move(e.clientX - r.left, e.clientY - r.top, e.timeStamp / 1000); } });
+canvas.addEventListener('pointerup', e => { if (gesture) { const r = canvas.getBoundingClientRect(); gesture.up(e.clientX - r.left, e.clientY - r.top, e.timeStamp / 1000); } });
+canvas.addEventListener('pointercancel', () => gesture && gesture.cancel());
 canvas.addEventListener('pointerdown', e => {
   if (!match || screen !== 'play' || match.players[0].kind !== 'naraberu') return;
   const c = cellAt(e);
@@ -191,7 +237,7 @@ canvas.addEventListener('pointerdown', e => {
   const b = match.players[0].board;
   b.cursor = { x: Math.min(4, c.x), y: c.y };
   drag = { col: c.x, y: c.y, rc: b.riseCount, c: b.C[c.y * 6 + c.x], target: c.x, pending: null };
-  canvas.setPointerCapture(e.pointerId);
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* 指を追えない環境でも操作は続ける */ }
 });
 // 指の列だけ覚え、実際の入れ替えは simulate で1刻み1列ずつ進める
 canvas.addEventListener('pointermove', e => {
@@ -207,9 +253,15 @@ canvas.addEventListener('pointercancel', endDrag);
 function simulate(n, t) {
   for (let k = 0; k < n && match && !match.result; k++) {
     if (drag && match.players[0].kind === 'naraberu' && touchDragStep(match.players[0].board, drag)) input.tap(0, 'a');
-    const inputs = [0, 1].map(p => (ais[p]
+    if (input.pollPads(() => (navigator.getGamepads ? navigator.getGamepads() : [])).pause && !match.result) { pause(); return; }
+    const inputs = match.players.map((pl, p) => (ais[p]
       ? ais[p].next(match.players[p].board, match.players[p].pending.D)
       : input.poll(p, REPEAT[match.players[p].kind])));
+    if (gesture && humans.includes(0)) {
+      const g = gesture.next(), o = inputs[0];
+      for (const k of ['left', 'right', 'up', 'a', 'b']) o[k] = o[k] || g[k];
+      o.downHeld = o.downHeld || g.downHeld;
+    }
     input.endFrame();
     const pre = phys.snapshot(match);
     const ev = match.step(inputs);
@@ -219,6 +271,7 @@ function simulate(n, t) {
     for (const e of ev) if (e.type === 'pop' && e.chain > stats[e.p].maxChain) stats[e.p].maxChain = e.chain;
     renderer.onEvents(ev, match, t);
     audio.onEvents(ev, humans, match);
+    buzz(ev);
     if (match.result) finish();
   }
 }
@@ -248,7 +301,7 @@ function inDanger(pl) {
 }
 function updatePinch(t) {
   if (!match || match.result) return;
-  const watch = humans.length ? humans : [0, 1];
+  const watch = (humans.length ? humans : [0, 1]).filter(p => p < match.players.length);
   if (watch.some(p => inDanger(match.players[p]))) pinchUntil = t + 3;
   const name = t < pinchUntil ? 'pinch' : 'battle';
   if (audio.bgmName !== name) audio.bgm(name);

@@ -45,8 +45,10 @@ body{
 .bar button:hover{background:rgba(255,255,255,.12)}
 #stage{position:fixed;inset:0;width:100%;height:100%;display:block}
 
-.overlay{position:fixed;inset:56px 0 0 0;z-index:20;display:none;align-items:center;justify-content:center;padding:16px;
+.overlay{position:fixed;inset:56px 0 0 0;z-index:20;display:none;align-items:flex-start;justify-content:center;padding:16px;
   background:rgba(8,7,20,.55);backdrop-filter:blur(3px);overflow:auto}
+/* 中身が画面より長いとき、上が切れずにスクロールできるよう縦の中央寄せは margin で行う */
+.overlay>.card{margin:auto 0}
 .overlay.on{display:flex}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:clamp(18px,3vw,32px);max-width:760px;width:100%;
   box-shadow:0 20px 60px rgba(0,0,0,.45)}
@@ -95,6 +97,21 @@ body.mobile[data-screen="play"] .pad:not([hidden]){display:flex}
 .pad button{flex:1;max-width:84px;min-height:64px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.08);color:var(--ink);font-size:24px;font-weight:900;font-family:inherit}
 .pad button.down{background:rgba(255,243,168,.25)}
 .pad .wide{max-width:none;font-size:18px}
+.pracbar{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;white-space:nowrap;z-index:26;display:flex;gap:6px;align-items:center;
+  background:rgba(10,8,26,.85);border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-weight:800;font-size:13px;color:var(--dim)}
+.pracbar button{font-family:inherit;font-weight:800;font-size:14px;color:var(--ink);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:999px;min-height:40px;min-width:44px;padding:4px 12px;cursor:pointer}
+body:not([data-screen="play"]) .pracbar{display:none}
+.pracbar button{white-space:nowrap}
+/* スマホ: 練習中は右の列の上が空くので、そこに縦に並べる */
+body.mobile .pracbar{left:auto;right:6px;transform:none;bottom:auto;top:70px;flex-direction:column;border-radius:16px;padding:8px 6px;gap:6px}
+body.mobile .pracbar button{min-width:78px;min-height:40px;font-size:13px;padding:4px 8px}
+.ctable{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:14px}
+.ctable th,.ctable td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+.ctable td button{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--ink);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-width:96px;cursor:pointer}
+.ctable td button.wait{border-color:var(--gold);color:var(--gold)}
+.slider{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:14px;color:var(--dim)}
+.slider input{flex:1}
+.slider b{min-width:3.5em;color:var(--ink);font-family:"JetBrains Mono",monospace}
 .note{margin-top:14px;text-align:center;font-size:12px;color:var(--dim)}
 @media (max-width:620px){
   .bar .title{font-size:15px}
@@ -151,7 +168,8 @@ body.mobile[data-screen="play"] .pad:not([hidden]){display:flex}
     <h2>対戦の設定</h2>
     <div class="row" id="modeRow"><label>モード</label>
       <button class="chip" data-set="mode:0:cpu" type="button">CPUと対戦</button>
-      <button class="chip" data-set="mode:0:2p" type="button">ふたりで対戦</button>
+      <button class="chip" data-set="mode:0:2p" id="mode2p" type="button">ふたりで対戦</button>
+      <button class="chip" data-set="mode:0:practice" type="button">れんしゅう</button>
     </div>
     <div class="row"><label id="p1label">あなた</label>
 
@@ -160,7 +178,7 @@ body.mobile[data-screen="play"] .pad:not([hidden]){display:flex}
       <button class="chip cc n" data-set="char:0:rin" type="button"><img src="assets/tsunagu-naraberu/chara/rin/normal.webp" alt="" loading="lazy"><span>りん<small>ならべる派</small></span></button>
       <button class="chip cc n" data-set="char:0:suzu" type="button"><img src="assets/tsunagu-naraberu/chara/suzu/normal.webp" alt="" loading="lazy"><span>すず<small>ならべる派</small></span></button>
     </div>
-    <div class="row"><label id="p2label">CPU</label>
+    <div class="row" id="p2row"><label id="p2label">CPU</label>
 
       <button class="chip cc t" data-set="char:1:hinata" type="button"><img src="assets/tsunagu-naraberu/chara/hinata/normal.webp" alt="" loading="lazy"><span>ひなた<small>つなぐ派</small></span></button>
       <button class="chip cc t" data-set="char:1:momo" type="button"><img src="assets/tsunagu-naraberu/chara/momo/normal.webp" alt="" loading="lazy"><span>もも<small>つなぐ派</small></span></button>
@@ -172,16 +190,17 @@ body.mobile[data-screen="play"] .pad:not([hidden]){display:flex}
       <button class="chip" data-set="level:0:ふつう" type="button">ふつう</button>
       <button class="chip" data-set="level:0:つよい" type="button">つよい</button>
     </div>
-    <div class="row"><label>ハンデ</label>
+    <div class="row" id="hcRow"><label>ハンデ</label>
       <span class="hc"><span class="side" id="hcL">あなた</span><button class="chip s" data-set="hc:0:-2" type="button">−2</button><button class="chip s" data-set="hc:0:-1" type="button">−1</button><button class="chip s" data-set="hc:0:0" type="button">±0</button><button class="chip s" data-set="hc:0:1" type="button">+1</button><button class="chip s" data-set="hc:0:2" type="button">+2</button></span>
       <span class="hc"><span class="side" id="hcR">CPU</span><button class="chip s" data-set="hc:1:-2" type="button">−2</button><button class="chip s" data-set="hc:1:-1" type="button">−1</button><button class="chip s" data-set="hc:1:0" type="button">±0</button><button class="chip s" data-set="hc:1:1" type="button">+1</button><button class="chip s" data-set="hc:1:2" type="button">+2</button></span>
     </div>
-    <div class="keys" id="keysTouch"><b>つなぐ派</b>：画面下のボタンで 回転・移動・落下<br><b>ならべる派</b>：パネルを左右になぞって入れ替え・下のボタンを押してる間せり上げ</div>
+    <div class="keys" id="keysTouch"><b>つなぐ派</b>：盤の上で指を横にすべらせて移動・タップで回転（左半分は左回転）・下へはじいてすぐ落とす（画面下のボタンも使えます）<br><b>ならべる派</b>：パネルを左右になぞって入れ替え・下のボタンを押してる間せり上げ</div>
     <div class="keys" id="keys1">
       <b>つなぐ派</b>：<kbd>A</kbd><kbd>D</kbd>(<kbd>←</kbd><kbd>→</kbd>) 移動・<kbd>S</kbd> 速く落とす・<kbd>W</kbd> すぐ落とす・<kbd>F</kbd>/<kbd>G</kbd>(<kbd>Z</kbd>/<kbd>X</kbd>) 回転<br>
       <b>ならべる派</b>：<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>(矢印) カーソル・<kbd>F</kbd>(<kbd>Z</kbd>) 入れ替え・<kbd>G</kbd>(<kbd>X</kbd>) 押してる間せり上げ
       <span id="keys2p"><br><b>ふたりで対戦</b>：左は <kbd>WASD</kbd>＋<kbd>F</kbd><kbd>G</kbd>、右は 矢印＋<kbd>;</kbd><kbd>'</kbd></span>
     </div>
+    <div class="btns" style="margin:-4px 0 16px"><button class="btn2" id="btnCtrl" type="button">操作の設定</button></div>
     <button class="big" id="btnGo" type="button">対戦スタート</button>
   </div>
 </section>
@@ -208,10 +227,27 @@ body.mobile[data-screen="play"] .pad:not([hidden]){display:flex}
   <b>相殺</b>：盤の上の予告は、自分が消して打ち返すと減る。<br>
   <b>おじゃま</b>：つなぐ派は隣で消すと消える。ならべる派は隣で消すと下の1行がパネルに戻る。<br>
   <b>攻撃倍率</b>：開始40秒は弱め。90秒を過ぎると15秒ごとに強くなる。<br>
+  <b>操作</b>：キーの割り当て・連続移動の速さ・スマホの操作方式は「操作の設定」で変えられる。ゲームパッドも使える。<br>
+  <b>れんしゅう</b>：相手なしで自分の盤だけを触れる。おじゃまを降らせる練習もできる。<br>
   <b>アクティブ連鎖</b>（ならべる派）：消えたあと上のパネルは少し浮く。その下にパネルを差し込んだり横に並べたりしてそろえると、連鎖がつながる。<br>
   <b>天井</b>（ならべる派）：最上段に届いても3秒は持ちこたえる。消している間・パネルが浮いたり落ちたりしている間・同時消しや連鎖でもらえる「停止時間」の間は減らない。<br>
   <span style="font-size:12px;opacity:.8">音楽・効果音：Suno で作成／キャラの声：ElevenLabs で作成／キャラの絵：Stable Diffusion（WAI-Illustrious）で作成</span><br>
   <span style="font-size:12px">（タップで閉じる）</span>
+</div>
+
+<section class="overlay" id="controls">
+  <div class="card" style="max-width:720px">
+    <h2>操作の設定</h2>
+    <div id="ctrlBody"></div>
+    <div class="btns" style="margin-top:16px"><button class="btn2" id="btnCtrlReset" type="button">初期値に戻す</button><button class="big" id="btnCtrlClose" type="button">もどる</button></div>
+  </div>
+</section>
+
+<div class="pracbar" id="practiceBar" hidden>
+  <span>おじゃま</span>
+  <button type="button" data-garbage="6">6</button><button type="button" data-garbage="12">12</button><button type="button" data-garbage="30">30</button>
+  <button type="button" id="btnPracReset">やり直す</button>
+  <button type="button" id="btnPracQuit">やめる</button>
 </div>
 
 <div class="pad" id="padT" hidden>

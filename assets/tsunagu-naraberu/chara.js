@@ -45,7 +45,7 @@ export function createCharas({ onSay, effects = () => 'high' } = {}) {
     s.mood = mood; s.t0 = now; s.until = now + dur;
     if (key) say(p, key, now, dur);
   }
-  function start(now) { [0, 1].forEach(p => say(p, 'start', now + p * 0.25, 1.2)); }
+  function start(now) { [0, 1].forEach(p => ids[p] && say(p, 'start', now + p * 0.25, 1.2)); }
 
   function onEvents(events, match, now) {
     for (const e of events) {
@@ -211,7 +211,7 @@ export function createCharas({ onSay, effects = () => 'high' } = {}) {
   // 盤の外側にキャラを置く（PC: P1 の左・P2 の右。スマホ: 自分は右の列に小さく、相手は小さい盤の上に顔アイコン）
   function draw(ctx, layout, match, now, W) {
     if (!match || !layout) return;
-    const dup = ids[0] && ids[0] === ids[1];
+    const dup = match.players.length > 1 && ids[0] && ids[0] === ids[1];
     match.players.forEach((pl, p) => {
       const L = layout.boards[p], s = L.s;
       const danger = pl.kind === 'naraberu' ? pl.board.grace < pl.board.graceMax : pl.board.grid[3][2] !== 0;

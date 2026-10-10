@@ -340,14 +340,25 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     if (inp.right) cur.x = Math.min(COLS - 2, cur.x + 1);
     if (inp.up) cur.y = Math.max(TOP, cur.y - 1);
     if (inp.down) cur.y = Math.min(BOTTOM, cur.y + 1);
-    if (inp.a) {
-      const i = cur.y * COLS + cur.x, j = i + 1;
+    // 入れ替え。落下中・浮遊中のセルで断られたら、その位置で最大6刻み試し続ける（先行入力）
+    const trySwap = i => {
+      const j = i + 1;
       if (swappable(i) && swappable(j) && (B.C[i] !== 0 || B.C[j] !== 0)) {
         const ci = B.C[i];
         B.C[i] = B.C[j]; B.C[j] = ci;
         B.F[i] = 0; B.F[j] = 0;
         ev.push({ type: 'swap' });
+        return 'ok';
       }
+      const moving = k => B.S[k] === 2 || B.S[k] === 3;
+      return moving(i) || moving(j) ? 'busy' : 'no';
+    };
+    if (inp.a) {
+      const r = trySwap(cur.y * COLS + cur.x);
+      B.swapBuf = r === 'busy' ? { x: cur.x, y: cur.y, rc: B.riseCount, t: 6 } : null;
+    } else if (B.swapBuf) {
+      const q = B.swapBuf, y = q.y - (B.riseCount - q.rc);
+      if (--q.t <= 0 || y < TOP || trySwap(y * COLS + q.x) !== 'busy') B.swapBuf = null;
     }
 
     finishTimers(ev);

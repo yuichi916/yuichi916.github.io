@@ -35,3 +35,6 @@ Ruling: すずの髪のメッシュは生成で紫が出ず青緑に（スタイ
 Ruling: 同じキャラどうしは色相変更ではなく、2P に光の縁と「（2P）」の札 — 肌の色まで変わるため — 誤りなら filter を足すだけ
 2026-10-10: もも=hMK7c1GPJmptCzI4bQIu・すず=B8gJV1IhpuegLxdpXFOE（依頼主指定）で声を生成。短い掛け声2本は台詞を伸ばして作り直し（もも c1「え〜いっ」・すず ouch「にゃあっ！」）。4人×11本=44本、908KB
 2026-10-10: もも=hMK7c1GPJmptCzI4bQIu・すず=B8gJV1IhpuegLxdpXFOE（依頼主指定）で声を生成。短い掛け声2本は台詞を伸ばして作り直し（もも c1「え〜いっ」・すず ouch「にゃあっ！」）。4人×11本=44本、908KB。第1部の声の残り（Pending）は解消
+2026-10-10 第2部 操作性: settings.js（tn-settings-v2・旧形式の読み替え・rebind）、input.js（キー割り当て・DAS/ARR・ゲームパッド padButtons/pollPads・つなぐ派ジェスチャー）、先行入力（つなぐ派 IRS・ならべる派 入れ替え6刻み）、practice.js、controls.js（操作の設定画面）、振動。テスト 75→101。ふつう300試合 50.3%（CPU 経路は不変）
+Fix: オーバーレイの縦中央寄せ（align-items:center）で、スマホの設定画面の上端が届かなくなっていた → flex-start＋margin:auto
+Ruling: キー割り当ては p1/p2 の2組だけを持ち、CPU戦の1Pは両方の合計で受け付ける（以前の solo 表と同じ挙動） — 割り当ての重なり管理を単純にするため

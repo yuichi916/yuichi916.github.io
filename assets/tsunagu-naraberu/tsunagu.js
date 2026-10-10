@@ -139,6 +139,8 @@ export function createTsunagu({ cfg, seed, takeGarbage }) {
     B.pieceId++;
     B.phase = 'fall';
     B.fallTimer = 0;
+    // 先行入力（IRS）: 組が出る前に押した回転をここでかける
+    if (B.irs) { rotate(B.irs); B.irs = 0; }
   }
 
   function tryMove(dx, dy) {
@@ -219,6 +221,10 @@ export function createTsunagu({ cfg, seed, takeGarbage }) {
   function step(inp) {
     const ev = [];
     B.frame++;
+    if (B.phase !== 'fall' && B.phase !== 'dead') {
+      if (inp.a) B.irs = -1;
+      if (inp.b) B.irs = 1;
+    }
     switch (B.phase) {
       case 'spawn':
         spawn(ev);

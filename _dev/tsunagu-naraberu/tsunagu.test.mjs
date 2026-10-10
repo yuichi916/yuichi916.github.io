@@ -135,3 +135,25 @@ test('同じシードなら同じ組の列', () => {
   assert.equal(seq(7), seq(7));
   assert.notEqual(seq(7), seq(8));
 });
+
+test('先行入力（IRS）: 消去中に押した右回転は、次の組が出た瞬間にかかる', () => {
+  const b = freshBoard();
+  b.grid = gridOf(['RRR...']);
+  b.piece = { x: 3, y: 1, rot: 0, a: 1, b: 2 };
+  b.step(inp({ up: true }));       // 置く → R4つで消去が始まる
+  assert.equal(b.phase, 'pop');
+  b.step(inp({ b: true }));        // 消去中に右回転
+  let spawned = false;
+  for (let i = 0; i < 120 && !spawned; i++) { b.step(inp({})); spawned = b.phase === 'fall'; }
+  assert.ok(spawned);
+  assert.equal(b.piece.rot, 1);
+});
+
+test('先行入力（IRS）: 押さなければ回らない', () => {
+  const b = freshBoard();
+  b.grid = gridOf(['RRR...']);
+  b.piece = { x: 3, y: 1, rot: 0, a: 1, b: 2 };
+  b.step(inp({ up: true }));
+  for (let i = 0; i < 120 && b.phase !== 'fall'; i++) b.step(inp({}));
+  assert.equal(b.piece.rot, 0);
+});
