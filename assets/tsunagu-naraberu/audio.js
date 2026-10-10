@@ -1,9 +1,8 @@
-// 音。BGM（タイトル／対戦／ピンチ）と効果音は Suno で作った曲・音、かけ声は VOICEVOX（満別花丸・春日部つむぎ）。
+// 音。BGM（タイトル／対戦／ピンチ）と効果音は Suno で作った曲・音、キャラの声は ElevenLabs。
 // どれも WebAudio のバッファで鳴らす。読み込めない・まだ読み込み中の音は、合成音で代わりに鳴らす。最初の操作のあとで有効になる。
 const BASE = new URL('./', import.meta.url).href;
 const BGM = { title: 'sound/bgm_title.mp3', battle: 'sound/bgm_battle.mp3', pinch: 'sound/bgm_pinch.mp3' };
 const SE = ['pop', 'clear', 'chain', 'land', 'swap', 'garbage', 'attack', 'win', 'lose'];
-const VOICE = ['c1', 'c2', 'c3', 'c4', 'c5', 'ouch', 'danger', 'win', 'lose'];
 const VOL = { master: 1, bgm: 0.34, se: 0.7, voice: 0.95, synth: 0.32 };
 
 export function createAudio() {
@@ -11,7 +10,7 @@ export function createAudio() {
   try { muted = localStorage.getItem('tn-muted') === '1'; } catch { /* 保存できない環境 */ }
   const buf = new Map();          // 名前 → AudioBuffer
   let want = null, cur = null;    // 鳴らしたい曲／鳴っている曲 {name, src, g}
-  const lastSe = new Map(), voiceEnd = [0, 0];
+  const lastSe = new Map(), voiceEnd = [0, 0], pendingLoad = new Set();
 
   function ensure() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
@@ -23,8 +22,7 @@ export function createAudio() {
     bgmBus = bus(VOL.bgm); seBus = bus(VOL.se); voiceBus = bus(VOL.voice); synthBus = bus(VOL.synth);
     // 曲を先に読み、効果音・かけ声はそのあと
     const jobs = [['bgm_title', BGM.title], ['bgm_battle', BGM.battle], ['bgm_pinch', BGM.pinch],
-      ...SE.map(n => [`se_${n}`, `sound/se_${n}.mp3`]),
-      ...['t', 'n'].flatMap(c => VOICE.map(k => [`v_${c}_${k}`, `voice/${c}_${k}.mp3`]))];
+      ...SE.map(n => [`se_${n}`, `sound/se_${n}.mp3`])];
     (async () => { for (const [name, path] of jobs) await load(name, path); })();
   }
 
@@ -117,16 +115,24 @@ export function createAudio() {
     }
   }
 
-  // かけ声: 同じキャラは前の声が終わるまで重ねない
-  function voice(p, kind, key, human = true) {
-    if (!ac || muted) return;
-    const b = buf.get(`v_${kind === 'tsunagu' ? 't' : 'n'}_${key}`);
+  // かけ声: キャラごとの声（ElevenLabs）。対戦するキャラの分だけ読む。同じプレイヤーは前の声が終わるまで重ねない
+  const VOICE_KEYS = ['select', 'start', 'c1', 'c2', 'c3', 'c4', 'c5', 'ouch', 'danger', 'win', 'lose'];
+  function loadVoices(ids) {
+    if (!ac) return;
+    for (const id of new Set(ids)) for (const k of VOICE_KEYS) {
+      const name = `v_${id}_${k}`;
+      if (!buf.has(name) && !pendingLoad.has(name)) { pendingLoad.add(name); load(name, `voice/${id}_${k}.mp3`); }
+    }
+  }
+  function voice(p, id, key, human = true) {
+    if (!ac || muted || !id) return;
+    const b = buf.get(`v_${id}_${key}`);
     if (!b) return;
     const t = ac.currentTime;
     if (t < voiceEnd[p] && key !== 'win' && key !== 'lose') return;
     voiceEnd[p] = t + b.duration;
     const src = ac.createBufferSource(), g = ac.createGain();
-    src.buffer = b; g.gain.value = human ? 1 : 0.6;
+    src.buffer = b; g.gain.value = human ? 1 : 0.7;
     src.connect(g); g.connect(voiceBus); src.start(t);
   }
 
@@ -134,6 +140,7 @@ export function createAudio() {
     ensure,
     onEvents,
     voice,
+    loadVoices,
     bgm,
     get bgmName() { return want; },
     get loaded() { return [...buf.keys()]; },   // 検証用: 読み込めた音の名前

@@ -8,6 +8,7 @@ import { createInput, touchDragStep } from './input.js';
 import { createAudio } from './audio.js';
 import { createFx } from './fx.js';
 import { createCharas } from './chara.js';
+import { CHAR, CHARACTERS, hasVoice } from './characters.js';
 import { TOP, BOTTOM } from './naraberu.js';
 
 const $ = id => document.getElementById(id);
@@ -15,7 +16,7 @@ const canvas = $('stage');
 const input = createInput();
 const audio = createAudio();
 const phys = createFx();
-const charas = createCharas({ onSay: (p, key) => match && audio.voice(p, match.players[p].kind, key, humans.length === 0 || humans.includes(p)) });
+const charas = createCharas({ onSay: (p, key, id) => match && audio.voice(p, id, key, humans.length === 0 || humans.includes(p)) });
 const renderer = createRenderer(canvas, { phys, charas });
 const mobile = matchMedia('(pointer: coarse)').matches || innerWidth < 760;
 document.body.classList.toggle('mobile', mobile);
@@ -26,7 +27,8 @@ const REPEAT = { tsunagu: ['left', 'right'], naraberu: ['left', 'right', 'up', '
 const saved = (() => { try { return JSON.parse(localStorage.getItem('tn-settings') || '{}'); } catch { return {}; } })();
 const settings = {
   mode: mobile ? 'cpu' : (saved.mode || 'cpu'),
-  kinds: saved.kinds || ['tsunagu', 'naraberu'],
+  // キャラで派が決まる。古い保存（kinds）しかなければ、その派の1人目にする
+  chars: saved.chars || (saved.kinds || ['tsunagu', 'naraberu']).map((k, i) => CHARACTERS.filter(c => c.faction === k)[i === 1 && (saved.kinds || [])[0] === k ? 1 : 0].id),
   level: saved.level || 'ふつう',
   handicap: saved.handicap || [0, 0],
 };
@@ -51,7 +53,7 @@ function renderSetup() {
     const [key, idx, val] = btn.dataset.set.split(':');
     let cur;
     if (key === 'mode') cur = settings.mode;
-    else if (key === 'kind') cur = settings.kinds[+idx];
+    else if (key === 'char') cur = settings.chars[+idx];
     else if (key === 'level') cur = settings.level;
     else if (key === 'hc') cur = String(settings.handicap[+idx]);
     btn.classList.toggle('sel', cur === val);
@@ -72,13 +74,13 @@ document.addEventListener('click', e => {
   audio.ensure(); audio.move();
   const [key, idx, val] = b.dataset.set.split(':');
   if (key === 'mode') settings.mode = val;
-  else if (key === 'kind') settings.kinds[+idx] = val;
+  else if (key === 'char') { settings.chars[+idx] = val; charas.setChars(settings.chars); audio.voice(+idx, val, 'select'); }
   else if (key === 'level') settings.level = val;
   else if (key === 'hc') settings.handicap[+idx] = +val;
   save(); renderSetup();
 });
 
-$('btnStart').onclick = () => { audio.ensure(); show('setup'); renderSetup(); };
+$('btnStart').onclick = () => { audio.ensure(); audio.loadVoices(CHARACTERS.filter(c => hasVoice(c.id)).map(c => c.id)); show('setup'); renderSetup(); };
 $('btnGo').onclick = () => { audio.ensure(); startMatch(); };
 $('btnAgain').onclick = () => startMatch();
 $('btnSetup').onclick = () => { show('setup'); renderSetup(); };
@@ -93,11 +95,12 @@ $('help').onclick = () => $('help').classList.remove('on');
 function startMatch(demo = false) {
   const seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0;
   const cfg = CFG;
-  match = createMatch({ cfg, kinds: settings.kinds.slice(), seeds: [seed, seed + 7919], handicap: settings.handicap.slice() });
+  const kinds = settings.chars.map(id => CHAR[id].faction);
+  match = createMatch({ cfg, kinds, seeds: [seed, seed + 7919], handicap: settings.handicap.slice() });
   const cpu = settings.mode === 'cpu';
   humans = cpu ? [0] : [0, 1];
   labels = cpu ? ['あなた', 'CPU'] : ['1P', '2P'];
-  ais = [demo ? makeAI(settings.kinds[0], settings.level, seed + 1) : null, cpu ? makeAI(settings.kinds[1], settings.level, seed) : null];
+  ais = [demo ? makeAI(kinds[0], settings.level, seed + 1) : null, cpu ? makeAI(kinds[1], settings.level, seed) : null];
   if (demo) humans = [];
   input.setMode(!cpu);
   stats = [{ maxChain: 0 }, { maxChain: 0 }];
@@ -105,7 +108,8 @@ function startMatch(demo = false) {
   drag = null;
   input.reset();
   acc = 0; last = performance.now();
-  phys.reset(); charas.reset();
+  phys.reset(); charas.reset(); charas.setChars(settings.chars); audio.loadVoices(settings.chars.filter(hasVoice));
+  charas.start(performance.now() / 1000 + 0.4);
   audio.bgm(null); audio.bgm('battle'); pinchUntil = 0;
   show(null);
   setupTouch();
@@ -139,13 +143,13 @@ function finish() {
   let title;
   if (r.winner === -1) title = '引き分け';
   else if (cpu) title = r.winner === 0 ? 'あなたの勝ち！' : 'CPUの勝ち…';
-  else title = `${labels[r.winner]}（${KIND_NAME[match.players[r.winner].kind]}）の勝ち！`;
+  else title = `${labels[r.winner]}（${CHAR[settings.chars[r.winner]].name}）の勝ち！`;
   if (cpu && r.winner === 0) audio.win(); else if (cpu && r.winner === 1) audio.lose(); else audio.win();
   charas.finish(match, performance.now() / 1000);
   $('resultTitle').textContent = title;
   const sec = Math.round(r.frames / 60);
   $('resultStats').innerHTML = match.players.map((p, i) => `
-    <div class="stat"><b>${labels[i]}・${KIND_NAME[p.kind]}</b>
+    <div class="stat"><b>${labels[i]}・${CHAR[settings.chars[i]].name}（${KIND_NAME[p.kind]}）</b>
     <span>最大 ${stats[i].maxChain} れんさ</span><span>送った攻撃 ${Math.round(p.sent)}</span></div>`).join('')
     + `<div class="stat time">試合時間 ${Math.floor(sec / 60)}分${sec % 60}秒</div>`;
   setTimeout(() => show('result'), 900);

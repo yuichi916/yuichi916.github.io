@@ -488,7 +488,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
     if (Math.abs(fever - 1) > 1e-6) {
       ctx.fillStyle = fever > 1 ? `rgba(255,${180 - (fever - 1) * 120},80,1)` : '#9fe3ff';
       ctx.font = `800 ${layout.mobile ? 13 : 18}px "M PLUS Rounded 1c",sans-serif`;
-      ctx.fillText(`${fever > 1 ? '攻撃' : '準備中 攻撃'} ×${fever.toFixed(1)}`, hx, hy + (layout.mobile ? 20 : 48));
+      ctx.fillText(layout.mobile ? `攻撃×${fever.toFixed(1)}` : `${fever > 1 ? '攻撃' : '準備中 攻撃'} ×${fever.toFixed(1)}`, hx, hy + (layout.mobile ? 20 : 48));
     }
 
     // 演出
@@ -518,6 +518,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       }
     }
     ctx.restore();
+    if (charas && charas.drawOverlay) charas.drawOverlay(ctx, W, H, now);
   }
 
   return { draw, onEvents, get layout() { return layout; } };
