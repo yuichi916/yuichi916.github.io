@@ -265,7 +265,7 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
         b.h--;
         b.reveal = null;
         if (b.h <= 0) B.blocks.delete(b.id);
-        ev.push({ type: 'thaw', w: b.w, y });
+        ev.push({ type: 'thaw', w: b.w, y, left: b.h });
       }
     }
   }
@@ -302,7 +302,7 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
       for (const j of [i - COLS, i + COLS, x > 0 ? i - 1 : -1, x < COLS - 1 ? i + 1 : -1]) {
         if (j < 0 || j >= N || !B.Gd[j]) continue;
         const b = B.blocks.get(B.Gd[j]);
-        if (b && b.thaw === 0) startThaw(b);
+        if (b && b.thaw === 0) { startThaw(b); ev.push({ type: 'thawStart', id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }); }
       }
     }
     // 停止時間: 同時消し（4つ以上）と連鎖でもらえる。長い方を残す
@@ -340,25 +340,28 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     if (inp.right) cur.x = Math.min(COLS - 2, cur.x + 1);
     if (inp.up) cur.y = Math.max(TOP, cur.y - 1);
     if (inp.down) cur.y = Math.min(BOTTOM, cur.y + 1);
-    // 入れ替え。落下中・浮遊中のセルで断られたら、その位置で最大6刻み試し続ける（先行入力）
+    // 入れ替え。落下中・浮遊中のセルで断られたら、その位置で最大6刻み試し続ける（先行入力）。
+    // ただし、カーソルがそこから動いたり、押したときの2枚がその位置にいなくなったら捨てる（連打で意図しない所が入れ替わらないように）
     const trySwap = i => {
       const j = i + 1;
       if (swappable(i) && swappable(j) && (B.C[i] !== 0 || B.C[j] !== 0)) {
         const ci = B.C[i];
         B.C[i] = B.C[j]; B.C[j] = ci;
         B.F[i] = 0; B.F[j] = 0;
-        ev.push({ type: 'swap' });
+        ev.push({ type: 'swap', x: i % COLS, y: Math.floor(i / COLS) });
         return 'ok';
       }
       const moving = k => B.S[k] === 2 || B.S[k] === 3;
       return moving(i) || moving(j) ? 'busy' : 'no';
     };
     if (inp.a) {
-      const r = trySwap(cur.y * COLS + cur.x);
-      B.swapBuf = r === 'busy' ? { x: cur.x, y: cur.y, rc: B.riseCount, t: 6 } : null;
+      const i = cur.y * COLS + cur.x;
+      const r = trySwap(i);
+      B.swapBuf = r === 'busy' ? { x: cur.x, y: cur.y, rc: B.riseCount, t: 6, c0: B.C[i], c1: B.C[i + 1] } : null;
     } else if (B.swapBuf) {
-      const q = B.swapBuf, y = q.y - (B.riseCount - q.rc);
-      if (--q.t <= 0 || y < TOP || trySwap(y * COLS + q.x) !== 'busy') B.swapBuf = null;
+      const q = B.swapBuf, y = q.y - (B.riseCount - q.rc), i = y * COLS + q.x;
+      const same = y >= TOP && cur.x === q.x && cur.y === y && B.C[i] === q.c0 && B.C[i + 1] === q.c1;
+      if (--q.t <= 0 || !same || trySwap(i) !== 'busy') B.swapBuf = null;
     }
 
     finishTimers(ev);

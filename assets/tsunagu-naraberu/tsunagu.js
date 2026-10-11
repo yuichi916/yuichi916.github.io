@@ -1,7 +1,7 @@
 // つなぐ派の盤: 2個1組が落ち、同色4つ以上の連結で消える。
 // grid[y][x]: 13行×6列。y=0 は隠し行（消えない・見えない）。0=空 1〜5=色 6=おじゃま
 import { createRng } from './rng.js';
-import { tsunaguDamage } from './damage.js';
+import { tsunaguDamage, tsunaguBonus } from './damage.js';
 
 export const ROWS = 13;
 export const COLS = 6;
@@ -72,6 +72,19 @@ export function popGroups(g, groups, chain, cfg) {
   return { n, D };
 }
 
+// 消えるセルの上下左右にあるおじゃま（popGroups が一緒に消すもの。隠し行は除く）
+export function adjacentGarbage(g, cells) {
+  const seen = new Set(), out = [];
+  for (const [x, y] of cells) {
+    for (let d = 0; d < 4; d++) {
+      const nx = x + DX[d], ny = y + DY[d];
+      if (nx < 0 || nx >= COLS || ny < 1 || ny >= ROWS || g[ny][nx] !== GARBAGE || seen.has(ny * COLS + nx)) continue;
+      seen.add(ny * COLS + nx); out.push([nx, ny]);
+    }
+  }
+  return out;
+}
+
 // 時間を飛ばして連鎖を最後まで解決する（AI・テスト用）
 export function resolveAll(g, cfg) {
   let chains = 0, D = 0, cleared = 0;
@@ -125,6 +138,7 @@ export function createTsunagu({ cfg, seed, takeGarbage }) {
     fallTimer: 0,
     frame: 0,
     popping: null, // 消去演出中のセル [[x,y]...]
+    poppingGarbage: null, // 一緒に消えるおじゃまのセル [[x,y]...]（演出が光らせる）
     pieceId: 0,
     isDead: () => B.phase === 'dead',
     step,
@@ -180,13 +194,16 @@ export function createTsunagu({ cfg, seed, takeGarbage }) {
     if (groups.length) {
       B.chain++;
       B.popping = groups.flatMap(g => g.cells);
+      B.poppingGarbage = adjacentGarbage(B.grid, B.popping);
       B.pendingGroups = groups;
       B.phase = 'pop';
       B.timer = popFrames;
       const n = B.popping.length;
       const colors = new Set(groups.map(g => g.color)).size;
-      const D = tsunaguDamage({ n, chain: B.chain, groupSizes: groups.map(g => g.cells.length), colors }, cfg);
-      ev.push({ type: 'pop', chain: B.chain, n, cells: B.popping });
+      const groupSizes = groups.map(g => g.cells.length);
+      const D = tsunaguDamage({ n, chain: B.chain, groupSizes, colors }, cfg);
+      const bonus = tsunaguBonus({ chain: B.chain, groupSizes, colors }, cfg);
+      ev.push({ type: 'pop', chain: B.chain, n, cells: B.popping, garbage: B.poppingGarbage, bonus });
       ev.push({ type: 'attack', D, chain: B.chain });
       return;
     }
@@ -250,7 +267,9 @@ export function createTsunagu({ cfg, seed, takeGarbage }) {
       case 'pop':
         if (--B.timer <= 0) {
           popGroups(B.grid, B.pendingGroups, B.chain, cfg);
+          if (B.poppingGarbage.length) ev.push({ type: 'garbageClear', cells: B.poppingGarbage });
           B.popping = null;
+          B.poppingGarbage = null;
           applyGravity(B.grid);
           checkPop(ev);
         }

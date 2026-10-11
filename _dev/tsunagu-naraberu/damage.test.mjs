@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { CFG } from '../../assets/tsunagu-naraberu/config.js';
 import { createRng } from '../../assets/tsunagu-naraberu/rng.js';
 import {
-  tsunaguDamage, naraberuDamage, sendAttack, addPending, landTsunagu, landNaraberu,
+  tsunaguDamage, tsunaguBonus, naraberuDamage, sendAttack, addPending, landTsunagu, landNaraberu,
 } from '../../assets/tsunagu-naraberu/damage.js';
 
 const cfg = { ...CFG, atkMulT: 1, atkMulN: 1, convT: 1, convN: 1, chainStepN: 6, naraberuLandSec: 3 };
@@ -14,6 +14,13 @@ test('rng: 同じシードで同じ列', () => {
   for (let i = 0; i < 20; i++) assert.equal(a.next(), b.next());
   const r = createRng(1);
   for (let i = 0; i < 1000; i++) { const v = r.int(5); assert.ok(v >= 0 && v < 5); }
+});
+
+test('つなぐ派の点数の式: ボーナスは 連鎖+連結+色、最低1（点数 = 消した数×10×ボーナス）', () => {
+  assert.equal(tsunaguBonus({ chain: 1, groupSizes: [4], colors: 1 }, cfg), 1);
+  assert.equal(tsunaguBonus({ chain: 2, groupSizes: [4], colors: 1 }, cfg), 8);
+  assert.equal(tsunaguBonus({ chain: 3, groupSizes: [3, 2], colors: 2 }, cfg), 16 + 3);
+  near(tsunaguDamage({ n: 4, chain: 2, groupSizes: [4], colors: 1 }, cfg), 4 * 10 * 8 / 70);
 });
 
 test('つなぐ派: 4個1連鎖1色 = 40/70', () => {
@@ -80,11 +87,30 @@ test('予告の age: 3マス未満の予告に足したら0に戻る、3以上�
   assert.equal(p.age, 100);
 });
 
+test('つなぐ派: 予告が出てから tsunaguLandSec 秒は降らない（ならべる派と同じ待ち）', () => {
+  const c = { ...cfg, tsunaguLandSec: 3 };
+  const p = { D: 12, age: 3 * 60 - 1, kind: 'tsunagu' };
+  assert.equal(landTsunagu(p, c), 0);
+  near(p.D, 12);
+  p.age = 3 * 60;
+  assert.ok(landTsunagu(p, c) > 0);
+});
+
+test('つなぐ派の予告の age: 1個に満たない予告に足したら0に戻る、1個以上なら保つ', () => {
+  const c = { ...cfg, convT: 1 };
+  const p = { D: 0.5, age: 500, kind: 'tsunagu' };
+  addPending(p, 4, c);
+  assert.equal(p.age, 0);
+  const q = { D: 2, age: 100, kind: 'tsunagu' };
+  addPending(q, 1, c);
+  assert.equal(q.age, 100, '2個たまっている所に足しても数え直さない（ならべる派の決まり＝3マス未満なら数え直す、とは違う）');
+});
+
 test('つなぐ派: 1回最大30個、残りは予告に残る', () => {
-  const p = { D: 40.2, age: 0 };
+  const p = { D: 40.2, age: 999 };
   assert.equal(landTsunagu(p, cfg), 30);
   near(p.D, 10.2);
-  const q = { D: 0.7, age: 0 };
+  const q = { D: 0.7, age: 999 };
   assert.equal(landTsunagu(q, cfg), 0);
   near(q.D, 0.7);
 });

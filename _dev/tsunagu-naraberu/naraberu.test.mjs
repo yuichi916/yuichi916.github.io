@@ -10,7 +10,7 @@ const cfg = { ...CFG, atkMulN: 1, naraberuRiseStartSec: 1000, naraberuRiseEndSec
   naraberuClearFlash: 30, naraberuClearFace: 0, naraberuClearPop: 8 };
 const NONE = { left: false, right: false, up: false, down: false, a: false, b: false, downHeld: false, bHeld: false };
 const inp = o => ({ ...NONE, ...o });
-const R = 1, G = 2;
+const R = 1, G = 2, Y = 4;
 const at = (b, x, y) => b.C[y * 6 + x];
 
 function board(rows, extra = {}, takeGarbage = () => []) {
@@ -206,6 +206,18 @@ test('レビュー4: 背の高いおじゃまの着弾と同じ刻みにせり�
   assert.equal(cells, area);
 });
 
+test('おじゃまブロックの解凍が始まる刻みに thawStart の合図（位置と大きさ）が出る', () => {
+  // R R R がそろって消え、その上に乗った幅4のブロックが解凍を始める
+  const b = board(['......', 'RRR...']);
+  b.addBlock(0, BOTTOM - 1, 4, 1);
+  const ev = b.step(inp({}));
+  const st = ev.filter(e => e.type === 'thawStart');
+  assert.equal(st.length, 1);
+  assert.deepEqual([st[0].x, st[0].y, st[0].w, st[0].h], [0, BOTTOM - 1, 4, 1]);
+  const th = run(b, 200).find(e => e.type === 'thaw');
+  assert.equal(th.left, 0, '1段のブロックは1回の解凍で消し切る');
+});
+
 // ---- アクティブ連鎖（浮遊） ----
 test('浮遊: 下が消えたパネルは、すぐには落ちずに少し浮いてから落ちる', () => {
   const b = board(['G.....', 'RRR...'], { naraberuHoverFrames: 12 });
@@ -352,6 +364,47 @@ test('先行入力: 落下中のセルへの入れ替えは、着地した刻み
   }
   assert.ok(swapped, '落下中に押した入れ替えが、着地後に成立する');
   assert.equal(at(b, 0, BOTTOM - 1), R);
+});
+
+test('先行入力: カーソルを動かしたら、覚えていた入れ替えは捨てる', () => {
+  const b = board(['......', '......', 'Y.....', 'G.....', 'GB....']);
+  b.C[(BOTTOM - 2) * 6 + 1] = R;
+  b.cursor = { x: 0, y: BOTTOM - 1 };
+  let pressed = false, swaps = 0;
+  for (let f = 0; f < 30; f++) {
+    const i = (BOTTOM - 1) * 6 + 1;
+    const falling = !pressed && b.C[i] === R && b.S[i] === 2;
+    const ev = b.step(inp({ a: falling, up: pressed && b.cursor.y === BOTTOM - 1 }));
+    if (falling) pressed = true;
+    swaps += ev.filter(e => e.type === 'swap').length;
+  }
+  assert.ok(pressed);
+  assert.equal(swaps, 0, 'カーソルが離れた所の入れ替えは起こさない');
+});
+
+test('先行入力: 押したときと違うパネルが来たら、覚えていた入れ替えは捨てる', () => {
+  // (1,22) を落ちていく R に押したが、R はさらに下へ落ちて、上から Y が来る
+  const b = board(['......', '......', '......', 'G.....', 'G.....']);
+  b.C[(BOTTOM - 4) * 6 + 1] = Y; b.C[(BOTTOM - 3) * 6 + 1] = R;
+  b.cursor = { x: 0, y: BOTTOM - 1 };
+  let pressed = false, swaps = 0;
+  for (let f = 0; f < 30; f++) {
+    const i = (BOTTOM - 1) * 6 + 1;
+    const now = !pressed && b.C[i] === R && b.S[i] === 2;
+    const ev = b.step(inp({ a: now }));
+    if (now) pressed = true;
+    swaps += ev.filter(e => e.type === 'swap').length;
+  }
+  assert.ok(pressed);
+  assert.equal(swaps, 0, 'R は通り過ぎたので、そこに来た別のパネルとは入れ替えない');
+  assert.equal(at(b, 0, BOTTOM - 1), G);
+});
+
+test('入れ替えの合図は、入れ替えた位置を持つ（演出がカーソルではなくその位置に描くため）', () => {
+  const b = board(['GB....']);
+  b.cursor = { x: 0, y: BOTTOM };
+  const e = b.step(inp({ a: true })).find(e => e.type === 'swap');
+  assert.deepEqual([e.x, e.y], [0, BOTTOM]);
 });
 
 test('先行入力: 6刻みを過ぎたら成立しない', () => {

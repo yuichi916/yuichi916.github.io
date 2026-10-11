@@ -58,16 +58,41 @@ function drawMark(ctx, c, cx, cy, s, alpha = 0.85) {
 // 揺れや点滅を抑える設定（設定画面・OS の prefers-reduced-motion）。true なら点滅と画面の揺れを出さない
 let CALM = false;
 
-function drawBlob(ctx, c, x, y, s, flash = 0, face = 0, t = 0) {
+// ひび: 中心から外へ、crack（0→1）に合わせて伸びる。seed でマスごとに形を変える
+function drawCracks(ctx, cx, cy, r, crack, seed) {
+  if (crack <= 0) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(25,26,40,.8)'; ctx.lineWidth = Math.max(1.2, r * 0.09); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // 割れ始めの点は中心から少しずらし、長さと向きのそろわない枝を4本、途中で折れ曲がらせる
+  const h = k => { const v = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
+  const ox = cx + (h(1) - 0.5) * r * 0.5, oy = cy + (h(2) - 0.5) * r * 0.5;
+  for (let k = 0; k < 4; k++) {
+    const a0 = k * 1.57 + h(k + 3) * 1.1;
+    const len = r * (0.55 + 0.45 * h(k + 9)) * Math.min(1, crack * 1.5 - k * 0.15);
+    if (len <= 0) continue;
+    ctx.beginPath(); ctx.moveTo(ox, oy);
+    let x = ox, y = oy, a = a0;
+    for (let j = 0; j < 3; j++) {
+      a += (h(k * 5 + j + 20) - 0.5) * 1.3;
+      x += Math.cos(a) * len / 3; y += Math.sin(a) * len / 3;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBlob(ctx, c, x, y, s, flash = 0, face = 0, t = 0, crack = 0) {
   const cx = x + s / 2, cy = y + s / 2, r = s * 0.44;
   if (c === 6) {
     const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
-    g.addColorStop(0, '#d9dbe6'); g.addColorStop(1, '#7c8094');
+    g.addColorStop(0, flash ? '#ffffff' : '#d9dbe6'); g.addColorStop(1, flash ? '#c9cde0' : '#7c8094');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = 'rgba(40,42,60,.55)'; ctx.lineWidth = Math.max(1.5, s * 0.06);
     ctx.beginPath(); ctx.moveTo(cx - r * 0.35, cy - r * 0.1); ctx.lineTo(cx - r * 0.1, cy - r * 0.1);
     ctx.moveTo(cx + r * 0.1, cy - r * 0.1); ctx.lineTo(cx + r * 0.35, cy - r * 0.1); ctx.stroke();
+    drawCracks(ctx, cx, cy, r, crack, Math.round(x * 7 + y * 13));
     return;
   }
   const p = PAL[c];
@@ -113,10 +138,42 @@ function drawPanel(ctx, c, x, y, s, { flash = 0, dim = 0, scale = 1 } = {}) {
   ctx.restore();
 }
 
+// ---- つなぐ派の NEXT 枠と点数（盤の内側の横。side=1 なら盤の右、-1 なら左） ----
+function drawNextAndScore(ctx, b, sc, X, Y, s, side, now) {
+  const w = s * 1.55, h = s * 3.3;
+  const bx = side > 0 ? X + s * 6 + s * 0.35 : X - s * 0.35 - w, by = Y + s * 2.3;
+  ctx.save();
+  ctx.fillStyle = 'rgba(8,10,24,.78)'; roundRect(ctx, bx, by, w, h, s * 0.25); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,138,101,.85)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#ffb59a'; ctx.font = `900 ${Math.round(s * 0.3)}px "M PLUS Rounded 1c",sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText('NEXT', bx + w / 2, by + s * 0.1);
+  const [n1, n2] = b.next;
+  // 次の組（大）と、その次（小、右下にずらす）
+  const s1 = s * 0.78, x1 = bx + s * 0.18, y1 = by + s * 0.55;
+  drawBlob(ctx, n1.b, x1, y1, s1, 0, 1, now); drawBlob(ctx, n1.a, x1, y1 + s1, s1, 0, 1, now);
+  const s2 = s * 0.5, x2 = bx + w - s2 - s * 0.12, y2 = by + s * 1.55;
+  drawBlob(ctx, n2.b, x2, y2, s2); drawBlob(ctx, n2.a, x2, y2 + s2, s2);
+  // 点数と、連鎖中の式
+  const fy = by + h + s * 0.25;
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#9aa0c0'; ctx.font = `800 ${Math.round(s * 0.26)}px "M PLUS Rounded 1c",sans-serif`;
+  ctx.fillText('SCORE', bx + w / 2, fy);
+  ctx.fillStyle = '#ffffff'; ctx.font = `700 ${Math.round(s * 0.34)}px "JetBrains Mono",monospace`;
+  ctx.fillText(String(sc.total).padStart(7, '0'), bx + w / 2, fy + s * 0.32);
+  if (sc.formula && now - sc.formulaT < 1.6) {
+    ctx.globalAlpha = Math.min(1, (1.6 - (now - sc.formulaT)) / 0.4);
+    ctx.fillStyle = '#fff3a8'; ctx.font = `800 ${Math.round(s * 0.32)}px "JetBrains Mono",monospace`;
+    ctx.fillText(sc.formula, bx + w / 2, fy + s * 0.78);
+  }
+  ctx.restore();
+}
+
 // ---- 盤 ----
 function drawTsunagu(ctx, b, X, Y, s, t, p, fx, popFrames) {
   const g = b.grid;
   const popping = new Set((b.popping || []).map(([x, y]) => y * 6 + x));
+  const popGar = new Set((b.poppingGarbage || []).map(([x, y]) => y * 6 + x));
   const flash = !CALM && b.phase === 'pop' && Math.floor(b.timer / 4) % 2 === 0;
   const popU = b.phase === 'pop' ? 1 - b.timer / popFrames : 0;   // 消える動きの進み 0→1
   const vis = (x, y) => (fx && fx.tsunaguCell(p, x, y)) || null;
@@ -135,15 +192,16 @@ function drawTsunagu(ctx, b, X, Y, s, t, p, fx, popFrames) {
     const c = g[y][x];
     if (!c) continue;
     const v = vis(x, y), off = v ? v.off || 0 : 0, sq = v ? v.sq || 0 : 0;
-    const pop = popping.has(y * 6 + x);
-    let sc = 1, alpha = 1;
+    const pop = popping.has(y * 6 + x), gpop = popGar.has(y * 6 + x);
+    let sc = 1, alpha = 1, jx = 0;
     if (pop) { sc = popU < 0.65 ? 1 + 0.07 * Math.sin(popU * 46) : 1 + 0.35 * (popU - 0.65) / 0.35; alpha = popU < 0.75 ? 1 : 1 - (popU - 0.75) / 0.25; }
-    const bx = X + x * s, by = Y + (y - 1 + off) * s;
+    if (gpop) { jx = CALM ? 0 : Math.sin(t * 70 + x * 2) * s * 0.05 * Math.min(1, popU * 2); alpha = popU < 0.8 ? 1 : 1 - (popU - 0.8) / 0.2; }
+    const bx = X + x * s + jx, by = Y + (y - 1 + off) * s;
     ctx.save(); ctx.globalAlpha *= alpha;
     // 下の辺を軸に、つぶれ（sq<0 で横に広がり縦に縮む）と、消える前のふくらみ
     ctx.translate(bx + s / 2, by + s); ctx.scale(sc * (1 - 0.6 * sq), sc * (1 + sq)); ctx.translate(-(bx + s / 2), -(by + s));
     if (pop) ctx.translate(0, -s * (sc - 1) * 0.5);
-    drawBlob(ctx, c, bx, by, s, pop && flash, c >= 1 && c <= 5 ? (pop ? 2 : 1) : 0, t);
+    drawBlob(ctx, c, bx, by, s, (pop || gpop) && flash, c >= 1 && c <= 5 ? (pop ? 2 : 1) : 0, t, gpop ? Math.min(1, popU * 1.3) : 0);
     ctx.restore();
   }
   // 窒息点
@@ -201,6 +259,26 @@ function drawGarbageRect(ctx, bx, by, w, h, s, flashOn, rows, single = false) {
   }
 }
 
+// 解凍が始まったブロックの一番下の段に走るひび（各マスの中心から左右へ）
+function drawBlockCracks(ctx, bx, ry, w, s, u, seed) {
+  ctx.save();
+  ctx.strokeStyle = `rgba(20,22,36,${0.5 + 0.4 * u})`; ctx.lineWidth = Math.max(1.5, s * 0.06); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const cy = ry + s * 0.5;
+  for (let k = 0; k < w; k++) {
+    const x0 = bx + k * s + s * 0.5, len = s * 0.5 * Math.min(1, u * 1.6 - (k % 2) * 0.2);
+    if (len <= 0) continue;
+    for (const dir of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(x0, cy);
+      for (let j = 1; j <= 3; j++) {
+        const yy = cy + Math.sin(seed * 1.3 + k * 2.1 + j * 1.9 + dir) * s * 0.18;
+        ctx.lineTo(x0 + dir * len * j / 3, yy);
+      }
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 // 消える直前のパネルの「驚いた顔」
 function drawPanelFace(ctx, x, y, s) {
   ctx.save();
@@ -234,17 +312,26 @@ function drawNaraberu(ctx, b, X, Y, s, t, p, fx, cfg) {
       const flashOn = !CALM && el >= 0 && el < FL && Math.floor(el / 3) % 2 === 0;
       const splitting = el >= FL && bl.reveal;      // 光り終わったら、下の段は1マスずつ描く
       const rh = splitting ? bl.h - 1 : bl.h;
-      if (rh > 0) drawGarbageRect(ctx, bx, by, bl.w * s, rh * s, s, flashOn, bl.h);
+      const quake = !CALM && el >= 0 && el < FL ? Math.sin(el * 1.9) * s * 0.05 * (1 - el / FL) : 0;
+      if (rh > 0) {
+        drawGarbageRect(ctx, bx + quake, by, bl.w * s, rh * s, s, flashOn, bl.h);
+        if (el >= 0 && !splitting) drawBlockCracks(ctx, bx + quake, by + (rh - 1) * s, bl.w, s, Math.min(1, el / FL), id);
+      }
       if (splitting) {
         const ry = by + (bl.h - 1) * s;
         for (let k = 0; k < bl.w; k++) {
           const cx = bx + k * s, at = FL + FA + k * PO;
           if (el >= at) {
-            const u = Math.min(1, (el - at) / 7);
-            drawPanel(ctx, bl.reveal[k], cx, ry, s, { scale: 0.35 + 0.65 * u, flash: !CALM && el - at < 3 ? 1 : 0 });
+            // 裏返るように横幅 0→1（少し行き過ぎて戻る）
+            const u = Math.min(1, (el - at) / 8);
+            const sx = u < 0.7 ? u / 0.7 * 1.12 : 1.12 - 0.12 * (u - 0.7) / 0.3;
+            ctx.save(); ctx.translate(cx + s / 2, 0); ctx.scale(Math.max(0.05, sx), 1); ctx.translate(-(cx + s / 2), 0);
+            drawPanel(ctx, bl.reveal[k], cx, ry, s, { flash: !CALM && el - at < 4 ? 1 : 0 });
+            ctx.restore();
           } else {
             const shiver = el > at - 6 ? Math.sin(el * 2.3) * s * 0.03 : 0;
             drawGarbageRect(ctx, cx + shiver, ry, s, s, s, false, 1, true);
+            drawBlockCracks(ctx, cx + shiver, ry, 1, s, 1, id + k);
           }
         }
       }
@@ -293,19 +380,64 @@ function drawNaraberu(ctx, b, X, Y, s, t, p, fx, cfg) {
   roundRect(ctx, cx + s * 0.08, cy + s * 0.08, s * 2 - s * 0.16, s - s * 0.16, s * 0.16); ctx.stroke();
 }
 
-// 予告の目安アイコン（受ける側の単位で 30 / 6 / 1）
-function drawPending(ctx, units, X, Y, s, w, kind) {
+const TIERS_T = [720, 360, 180, 30, 6, 1];
+
+// つなぐ派の予告アイコン1つ（中心 cx, cy、大きさ r）
+function drawPendingIcon(ctx, v, cx, cy, r) {
+  ctx.save();
+  if (v === 1 || v === 6) {
+    const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
+    g.addColorStop(0, '#eceef6'); g.addColorStop(1, '#7c8094');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    if (v === 6) {
+      ctx.strokeStyle = 'rgba(40,42,60,.7)'; ctx.lineWidth = Math.max(1.2, r * 0.12);
+      ctx.beginPath(); ctx.moveTo(cx - r * 0.42, cy - r * 0.1); ctx.lineTo(cx - r * 0.12, cy - r * 0.1);
+      ctx.moveTo(cx + r * 0.12, cy - r * 0.1); ctx.lineTo(cx + r * 0.42, cy - r * 0.1); ctx.stroke();
+    }
+  } else if (v === 30) {
+    // 岩: でこぼこの多角形
+    ctx.fillStyle = '#8a7a6c'; ctx.strokeStyle = '#4a3f36'; ctx.lineWidth = Math.max(1.2, r * 0.1);
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, rr = r * (k % 2 ? 0.86 : 1); ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.92); }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.ellipse(cx - r * 0.3, cy - r * 0.35, r * 0.3, r * 0.16, -0.4, 0, Math.PI * 2); ctx.fill();
+  } else if (v === 180) {
+    star5(ctx, cx, cy, r * 1.05, '#ffd84a', -Math.PI / 2);
+  } else if (v === 360) {
+    ctx.fillStyle = '#fff1a8';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.arc(cx + r * 0.45, cy - r * 0.2, r * 0.85, 0, Math.PI * 2, true); ctx.fill('evenodd');
+  } else {
+    // 冠
+    ctx.fillStyle = '#ffc93c'; ctx.strokeStyle = '#a3740a'; ctx.lineWidth = Math.max(1.2, r * 0.1);
+    ctx.beginPath(); ctx.moveTo(cx - r, cy + r * 0.6); ctx.lineTo(cx - r, cy - r * 0.5); ctx.lineTo(cx - r * 0.5, cy); ctx.lineTo(cx, cy - r * 0.8);
+    ctx.lineTo(cx + r * 0.5, cy); ctx.lineTo(cx + r, cy - r * 0.5); ctx.lineTo(cx + r, cy + r * 0.6); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// 予告の目安アイコン（受ける側の単位）。つなぐ派は 720/360/180/30/6/1、ならべる派は 30/6/1 マス
+// ready: 待ちが明けて、次の機会に降る（つなぐ派はアイコンが跳ねて知らせる）
+function drawPending(ctx, units, X, Y, s, w, kind, ready = false, now = 0) {
   let n = Math.floor(units + 1e-9);
   const icons = [];
-  while (n >= 30 && icons.length < 6) { icons.push(30); n -= 30; }
-  while (n >= 6 && icons.length < 6) { icons.push(6); n -= 6; }
-  while (n >= 1 && icons.length < 6) { icons.push(1); n -= 1; }
+  const tiers = kind === 'tsunagu' ? TIERS_T : [30, 6, 1];
+  for (const v of tiers) while (n >= v && icons.length < 6) { icons.push(v); n -= v; }
+  if (kind === 'tsunagu') {
+    let x = X;
+    for (const v of icons) {
+      const r = v === 1 ? s * 0.2 : v === 6 ? s * 0.32 : s * 0.38;
+      const bob = ready && !CALM ? -Math.abs(Math.sin(now * 9 + x * 0.05)) * s * 0.12 : 0;
+      drawPendingIcon(ctx, v, x + r, Y + bob, r);
+      x += r * 2 + s * 0.1;
+      if (x > X + w) break;
+    }
+    return;
+  }
   let x = X;
   for (const v of icons) {
     const r = v === 30 ? s * 0.42 : v === 6 ? s * 0.34 : s * 0.2;
     ctx.fillStyle = v === 30 ? '#ff6b6b' : v === 6 ? '#c9cde0' : '#9298b0';
-    if (kind === 'tsunagu') { ctx.beginPath(); ctx.arc(x + r, Y, r, 0, Math.PI * 2); ctx.fill(); }
-    else { roundRect(ctx, x, Y - r, r * 2, r * 2, r * 0.35); ctx.fill(); }
+    roundRect(ctx, x, Y - r, r * 2, r * 2, r * 0.35); ctx.fill();
     if (v >= 6) { ctx.fillStyle = '#1b1e2b'; ctx.font = `700 ${Math.round(r * 0.9)}px "JetBrains Mono",monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(v), x + r, Y + 1); }
     x += r * 2 + s * 0.08;
     if (x > X + w) break;
@@ -344,6 +476,12 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
   const fx = []; // {kind, p, text, x, y, t0, dur, ...}
   let shake = [0, 0];
   let layout = null;
+  // 試合ごとの見た目だけの記録: つなぐ派の点数と式、負けた時刻（盤が崩れ落ちる）
+  let scoreMatch = null, scores = [], deadAt = [0, 0];
+  function scoreOf(p, match) {
+    if (scoreMatch !== match) { scoreMatch = match; scores = [{ total: 0, formula: '', formulaT: 0 }, { total: 0, formula: '', formulaT: 0 }]; deadAt = [0, 0]; }
+    return scores[p];
+  }
 
   // reserve: 盤の上に空ける高さ（スマホのチュートリアルの説明など）
   function computeLayout(W, H, mobile, n = 2, reserve = 0) {
@@ -379,18 +517,44 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
     for (const e of events) {
       const L = layout && layout.boards[e.p];
       if (!L) continue;
-      if (e.type === 'pop' && e.chain >= 2) {
-        // 前の連鎖の文字は消して、新しい数だけを見せる（重なって読めなくなるのを防ぐ）
-        for (let k = fx.length - 1; k >= 0; k--) if (fx[k].chainOf === e.p) fx.splice(k, 1);
-        fx.push({ chainOf: e.p, kind: 'text', text: `${e.chain}れんさ！`, x: L.X + L.s * 3, y: L.Y + L.s * 4, t0: now, dur: 0.9, size: L.s * (0.8 + Math.min(0.6, e.chain * 0.08)), color: '#fff3a8' });
+      if (e.type === 'pop' && match.players[e.p].kind === 'tsunagu' && e.bonus) {
+        // 点数の式（消した数×10 × ボーナス）と、点数の合計
+        const sc = scoreOf(e.p, match);
+        sc.total += e.n * 10 * e.bonus;
+        sc.formula = `${e.n * 10} × ${e.bonus}`; sc.formulaT = now;
       }
+      if (e.type === 'pop' && e.chain >= 2) {
+        // 前の連鎖の文字は消して、新しい数だけを見せる（重なって読めなくなるのを防ぐ）。消えた場所の真ん中に出す
+        for (let k = fx.length - 1; k >= 0; k--) if (fx[k].chainOf === e.p) fx.splice(k, 1);
+        const pl = match.players[e.p];
+        let cx = 3, cy = 4;
+        if (e.cells && e.cells.length) {
+          const pts = pl.kind === 'tsunagu' ? e.cells.map(([x, y]) => [x + 0.5, y - 0.5])
+            : e.cells.map(i => [(i % NC) + 0.5, Math.floor(i / NC) - TOP + 0.5 - pl.board.rise]);
+          cx = pts.reduce((a, q) => a + q[0], 0) / pts.length;
+          cy = Math.min(...pts.map(q => q[1])) - 0.6;
+        }
+        const text = `${e.chain}れんさ！`, size = L.s * (0.8 + Math.min(0.6, e.chain * 0.08));
+        const half = Math.min(3, text.length * size * 0.98 / L.s / 2); // 文字の幅の半分（マス）。盤からはみ出さない
+        cx = Math.max(half, Math.min(6 - half, cx)); cy = Math.max(0.8, Math.min(11, cy));
+        fx.push({ chainOf: e.p, kind: 'text', text, x: L.X + L.s * cx, y: L.Y + L.s * cy, t0: now, dur: 0.9, size: Math.min(size, L.s * 6 / text.length), color: '#fff3a8' });
+      }
+      if (e.type === 'dead') deadAt[e.p] = now;
       if (e.type === 'pop' && e.n >= 4 && match.players[e.p].kind === 'naraberu') {
         fx.push({ kind: 'text', text: `${e.n}どうじ`, x: L.X + L.s * 3, y: L.Y + L.s * 5.2, t0: now, dur: 0.8, size: L.s * 0.6, color: '#bdf6ff' });
+      }
+      if (e.type === 'attack' && e.D - (e.sent ?? e.D) > 0.5 && match.players.length > 1) {
+        // 自分への予告を打ち消した
+        fx.push({ kind: 'text', text: 'そうさい！', x: L.X + L.s * 3, y: L.Y + L.s * 1.2, t0: now, dur: 0.8, size: L.s * 0.6, color: '#9ff3ff' });
       }
       if (e.type === 'attack' && e.D > 0.2) {
         if (match.players.length < 2) continue; // 練習: 相手がいないので攻撃の弾は飛ばさない
         const a = boardCenter(e.p), b = boardCenter(1 - e.p);
         fx.push({ kind: 'orb', x0: a.x, y0: L.Y + L.s * 2, x1: b.x, y1: layout.boards[1 - e.p].Y - layout.boards[1 - e.p].s * 0.6, t0: now, dur: 0.45, r: Math.min(L.s * 0.9, L.s * (0.25 + e.D / 40)), offset: e.sent < e.D - 1e-6 });
+      }
+      if ((e.type === 'thaw' && e.left === 0 && e.w >= 4) || (e.type === 'garbageClear' && e.cells.length >= 6)) {
+        const y = e.type === 'thaw' ? L.Y + L.s * (e.y - TOP + 0.5) : L.Y + L.s * 7;
+        fx.push({ kind: 'text', text: 'ブレイク！', x: L.X + L.s * 3, y, t0: now, dur: 0.8, size: L.s * 0.7, color: '#d6f3ff' });
       }
       if (e.type === 'garbage') {
         const big = (e.n || (e.w * e.h)) >= 12;
@@ -433,7 +597,12 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       for (let x = 0; x < 6; x += 2) ctx.fillRect(X + x * s, Y, s, s * 12);
       const bsh = phys ? phys.shake(p) : 0;
       if (bsh && !CALM) ctx.translate(Math.sin(now * 90) * bsh * 0.4, Math.cos(now * 70) * bsh * 0.3);
-      if (pl.kind === 'tsunagu') drawTsunagu(ctx, pl.board, X, Y, s, now, p, phys, Math.round(match.cfg.tsunaguPopSec * 60));
+      scoreOf(p, match);
+      if (pl.kind === 'tsunagu') {
+        const dt = pl.board.isDead() && deadAt[p] ? now - deadAt[p] : 0;
+        if (dt > 0.35 && !CALM) ctx.translate(0, Math.min(s * 14, (dt - 0.35) ** 2 * s * 26));
+        drawTsunagu(ctx, pl.board, X, Y, s, now, p, phys, Math.round(match.cfg.tsunaguPopSec * 60));
+      }
       else drawNaraberu(ctx, pl.board, X, Y, s, now, p, phys, match.cfg);
       ctx.restore();
       if (pl.kind === 'naraberu') drawCeiling(ctx, pl.board, X, Y, s, small, now);
@@ -450,15 +619,18 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       // 予告
       const conv = pl.kind === 'tsunagu' ? match.cfg.convT : match.cfg.convN;
       const units = pl.pending.D * conv;
-      drawPending(ctx, units, X, Y - (small ? 12 : s * 0.62), small ? s * 1.6 : s, s * 6 - (pl.kind === 'tsunagu' && !small ? s * 2.2 : 0), pl.kind);
+      const ready = pl.kind === 'tsunagu' && pl.pending.age >= (match.cfg.tsunaguLandSec || 0) * 60;
+      drawPending(ctx, units, X, Y - (small ? 12 : s * 0.62), small ? s * 1.6 : s, s * 6 - (pl.kind === 'tsunagu' && !small && layout.mobile ? s * 2.2 : 0), pl.kind, ready, now);
       // つなぐ派の次の組
-      if (pl.kind === 'tsunagu' && !small) {
+      if (pl.kind === 'tsunagu' && !small && layout.mobile) {
         const ns = s * 0.5;
         pl.board.next.forEach((n, k) => {
           const nx = X + s * 6 - ns * (2.4 - k * 1.2) - 2, ny = Y - s * 1.0 - ns * 0.6;
           drawBlob(ctx, n.b, nx, ny - ns, ns);
           drawBlob(ctx, n.a, nx, ny, ns);
         });
+      } else if (pl.kind === 'tsunagu' && !layout.mobile) {
+        drawNextAndScore(ctx, pl.board, scores[p], X, Y, s, p === 0 || match.players.length === 1 ? 1 : -1, now);
       }
     });
 
@@ -470,6 +642,17 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       const a = 1 - q.age / q.life;
       ctx.save(); ctx.globalAlpha = Math.max(0, a);
       if (q.kind === 'star') { star5(ctx, x, y, q.r * s * (0.6 + 0.4 * Math.sin(q.age * 0.5)), '#fffbe0', q.rot); }
+      else if (q.kind === 'rubble') {
+        const r = q.r * s; ctx.translate(x, y); ctx.rotate(q.rot);
+        ctx.fillStyle = q.age < 4 ? '#ffffff' : '#a3a8bf';
+        ctx.beginPath(); ctx.moveTo(-r, -r * 0.4); ctx.lineTo(r * 0.2, -r); ctx.lineTo(r, -r * 0.1); ctx.lineTo(r * 0.4, r); ctx.lineTo(-r * 0.7, r * 0.6); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(30,32,48,.7)'; ctx.lineWidth = 1.2; ctx.stroke();
+      } else if (q.kind === 'ring') {
+        const u = q.age / q.life;
+        ctx.globalAlpha = Math.max(0, 0.55 * (1 - u));
+        ctx.strokeStyle = '#e8ebf8'; ctx.lineWidth = Math.max(1.5, s * 0.08 * (1 - u));
+        ctx.beginPath(); ctx.arc(x, y, s * q.r * (0.4 + 1.6 * u), 0, Math.PI * 2); ctx.stroke();
+      }
       else if (q.kind === 'drop') {
         const r = q.r * s; ctx.fillStyle = PAL[q.c] ? PAL[q.c].fill : '#ccc';
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();

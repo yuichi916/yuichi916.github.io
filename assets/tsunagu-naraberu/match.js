@@ -3,7 +3,8 @@ import { createTsunagu } from './tsunagu.js';
 import { createNaraberu } from './naraberu.js';
 import { sendAttack, landTsunagu, landNaraberu } from './damage.js';
 
-export function createMatch({ cfg, kinds, seeds, handicap = [0, 0] }) {
+// cpuAtk: CPUの攻撃補正（AI_T.atk / AI_N.atk の段の値）。人が操作する側は1
+export function createMatch({ cfg, kinds, seeds, handicap = [0, 0], cpuAtk = [1, 1] }) {
   const M = {
     cfg,
     frame: 0,
@@ -16,7 +17,7 @@ export function createMatch({ cfg, kinds, seeds, handicap = [0, 0] }) {
   };
 
   for (let p = 0; p < 2; p++) {
-    const pending = { D: 0, age: 0 };
+    const pending = { D: 0, age: 0, kind: kinds[p] };
     const make = kinds[p] === 'tsunagu' ? createTsunagu : createNaraberu;
     const take = kinds[p] === 'tsunagu' ? () => landTsunagu(pending, cfg) : () => landNaraberu(pending, cfg);
     M.players.push({ kind: kinds[p], pending, sent: 0, board: make({ cfg, seed: seeds[p], takeGarbage: take }) });
@@ -30,8 +31,10 @@ export function createMatch({ cfg, kinds, seeds, handicap = [0, 0] }) {
     return Math.min(cfg.feverMaxMul, 1 + steps * cfg.feverStepMul);
   }
 
+  // CPUの攻撃補正は開幕のウォームアップに合わせて0から満額へ（序盤の瞬殺を増やさない）
   function attackMul(p) {
-    return feverMul() * (1 + cfg.handicapStep * handicap[p]);
+    const warm = Math.min(1, M.frame / 60 / cfg.openingSec);
+    return feverMul() * (1 + cfg.handicapStep * handicap[p]) * (1 + (cpuAtk[p] - 1) * warm);
   }
 
   function applyAttack(p, D) {

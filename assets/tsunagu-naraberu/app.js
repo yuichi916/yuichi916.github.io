@@ -1,6 +1,6 @@
 // 画面遷移とゲームループ。ゲームの中身は match.js、見た目は render.js、画面の中身は ui.js。
 // 流れ: 読み込み → タイトル → モード選択 → キャラ選択 → VS → 対戦 → 結果（ほかに 練習・あそびかた・戦績・設定）
-import { CFG, LEVELS } from './config.js';
+import { CFG, LEVELS, cpuAtkOf } from './config.js';
 import { createMatch } from './match.js';
 import { createTsunaguAI } from './ai-tsunagu.js';
 import { createNaraberuAI } from './ai-naraberu.js';
@@ -110,6 +110,7 @@ function renderSetup() {
   $('selTitle').textContent = practice ? 'れんしゅうするキャラ' : 'キャラをえらぶ';
   ui.renderCards(document.querySelector('.cards[data-player="0"]'), { player: 0, selected: settings.chars[0] });
   ui.renderCards(document.querySelector('.cards[data-player="1"]'), { player: 1, selected: settings.chars[1], random: cpu && settings.oppRandom, showRandom: cpu });
+  $('levelChips').innerHTML = LEVEL_NAMES.map(n => `<button class="chip" data-set="level:0:${n}" type="button">${n}</button>`).join('');
   for (const btn of document.querySelectorAll('#setup [data-set]')) {
     const [key, idx, val] = btn.dataset.set.split(':');
     if (key === 'level') btn.classList.toggle('sel', settings.level === val);
@@ -243,7 +244,8 @@ function startMatch(demo = false) {
     ais = [null];
     labels = ['あなた'];
   } else {
-    match = createMatch({ cfg: CFG, kinds, seeds: [seed, seed + 7919], handicap: settings.handicap.slice() });
+    const cpuAtk = [demo ? cpuAtkOf(kinds[0], settings.level) : 1, cpu ? cpuAtkOf(kinds[1], settings.level) : 1];
+    match = createMatch({ cfg: CFG, kinds, seeds: [seed, seed + 7919], handicap: settings.handicap.slice(), cpuAtk });
     labels = cpu ? ['あなた', 'CPU'] : ['1P', '2P'];
     ais = [demo ? makeAI(kinds[0], settings.level, seed + 1) : null, cpu ? makeAI(kinds[1], settings.level, seed) : null];
   }

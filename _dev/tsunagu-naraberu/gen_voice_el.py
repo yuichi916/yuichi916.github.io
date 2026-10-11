@@ -1,20 +1,48 @@
 """キャラの声を ElevenLabs で作る。台詞の正本は assets/tsunagu-naraberu/characters.js。
-使い方: python gen_voice_el.py <id>=<voice_id> [<id>=<voice_id> ...] [--only key1,key2]
+使い方: python gen_voice_el.py <id>=<voice_id> [<id>=<voice_id> ...] [--only key1,key2] [--takes 4] [--minmatch 0.7]
 出力: assets/tsunagu-naraberu/voice/<id>_<key>.mp3
-- モデル eleven_turbo_v2_5 + language_code ja（短い掛け声が英語読みにならない組み合わせ）
+- モデル eleven_v3 + language_code ja（日本語固定）、安定度 0.0（いちばん表現が大きい）。
+  感情の指示（[excited] など）をキャラの性格と台詞ごとに付ける
+  （以前の turbo_v2_5 は安定させると棒読みになった。ひなた c5 の声の高さの幅 3.8半音 → v3 で 20半音超）
+- 語の終わりの小さい「っ」は送らない（v3 が「つ」と読むことがある）。掛け声は仮名で言い切る形にする
+- 1本につき数テイク作り、書き起こし（faster-whisper）が台詞と合い、
+  送っていない「つ」や英字（指示タグの読み上げ）が出ていないものの中から、抑揚の大きいものを選ぶ
 - 日本語は requests で送る（curl だと文字化けする）
-- 生成後に「尺 ≒ a + b×字数」を頑健に当てはめ、外れた行を表示する（読み飛ばし・英語読みの検出）
 """
-import json, os, pathlib, re, subprocess, sys
+import json, os, pathlib, re, subprocess, sys, difflib
 import requests
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ASSET = ROOT / "assets" / "tsunagu-naraberu"
 OUT = ASSET / "voice"
 KEY = os.environ["ELEVENLABS_API_KEY"]
-# 掛け声は感情を大きく、台詞（select/start/win/lose）は落ち着かせる
 SHOUT = {"c1", "c2", "c3", "c4", "c5", "ouch", "danger"}
-TAKES = 3  # 1本につき最大3テイク
+
+# 演技の指示。キャラの性格（スタイルブック）× 台詞の種類。連鎖は段が上がるほど大きく
+DIRECTION = {
+    # 元気・負けず嫌い: いつも全力、連鎖は叫ぶ
+    "hinata": {"select": "[excited] [energetic]", "start": "[determined] [excited]", "c1": "[energetic]", "c2": "[excited] [energetic]",
+               "c3": "[excited] [shouting]", "c4": "[shouting] [fired up]", "c5": "[shouting] [triumphant]",
+               "ouch": "[startled] [yelps]", "danger": "[panicked]", "win": "[laughs] [overjoyed]", "lose": "[frustrated] [pouting]"},
+    # おっとり・天然: ふんわり甘い、大技だけ精いっぱい
+    "momo": {"select": "[sweetly] [cheerful]", "start": "[relaxed] [sweetly]", "c1": "[playfully] [sweetly]", "c2": "[dreamy] [cheerful]",
+             "c3": "[cheerful] [excited]", "c4": "[excited] [cheerful]", "c5": "[excited] [shouting]",
+             "ouch": "[startled] [squeaks]", "danger": "[flustered]", "win": "[giggles] [delighted]", "lose": "[sad] [whimpering]"},
+    # クール・秀才: 低めに静か、決めの一言は力強く
+    "rin": {"select": "[calm] [confident]", "start": "[calm] [focused]", "c1": "[cool] [quietly]", "c2": "[confident]",
+            "c3": "[confident] [satisfied]", "c4": "[intense] [determined]", "c5": "[shouting] [triumphant]",
+            "ouch": "[pained] [grunts]", "danger": "[tense]", "win": "[smug] [calm]", "lose": "[bitter] [sighs]"},
+    # いたずら好き: にやにや、笑いまじり
+    "suzu": {"select": "[mischievously] [playful]", "start": "[mischievously] [excited]", "c1": "[mischievously] [chuckles]",
+             "c2": "[playful] [teasing]", "c3": "[excited] [playful]", "c4": "[shouting] [gleeful]", "c5": "[shouting] [maniacal laugh]",
+             "ouch": "[startled] [yelps]", "danger": "[nervous] [whiny]", "win": "[laughs] [smug]", "lose": "[whiny] [pouting]"},
+}
+
+# 読み間違えやすい語は、送る文だけ仮名にする（表示用の台詞は漢字のまま）
+READ = {"くっ…！": "くぅ…！", "きゃっ…！": "きゃあ…！", "にひっ": "にひひ", "うわわっ！": "うわわ！", "にゃあっ！": "にゃあ！",
+        "立て直す": "たてなおす", "すずの勝ち": "すずのかち", "解析完了": "かいせきかんりょう", "最適解": "さいてきかい",
+        "証明、終了": "しょうめい、しゅうりょう", "びっくり箱": "びっくりばこ", "大・爆・発": "だい、ばく、はつ",
+        "計算ミス": "けいさんミス", "計算どおり": "けいさんどおり", "当然の結果": "とうぜんのけっか", "負けない": "まけない"}
 
 
 def lines_from_js():
@@ -23,26 +51,35 @@ def lines_from_js():
     return {c["id"]: c["lines"] for c in json.loads(out.stdout)}
 
 
-# 読み間違えやすい語は、送る文だけ仮名にする（表示用の台詞は漢字のまま）
-READ = {"完全解答": "かんぜんかいとう", "立て直す": "たてなおす", "すずの勝ち": "すずのかち", "にゃっ！？": "にゃっ！", "えいっ": "えいっ！"}
-
-
 def speak(text):
-    # 表示用の記号（〜♪…）は読みに要らないので落とす。「〜」は伸ばし棒にする
-    t = text.replace("〜", "ー").replace("♪", "").replace("…", "、")
+    # 掛け声の言い換え → 語の終わりの小さい「っ」を落とす → 表示用の記号（〜♪…）を読み用に
+    t = text
     for k, v in READ.items():
         t = t.replace(k, v)
-    return t
+    t = re.sub(r"[っッ]+(?=[！!？?、。ー〜…♪\s]|$)", "", t)
+    t = t.replace("〜", "ー").replace("♪", "").replace("…", "、")
+    # 句読点が重なったところを整える（「、！」→「！」、「。、」→「。」、頭の「、」）
+    t = re.sub(r"、+(?=[！!？?。])", "", t).replace("。、", "。")
+    return re.sub(r"^、+", "", t)
 
 
-def tts(voice_id, text, shout):
+def bad_reading(sent, heard):
+    """送っていない「つ」が聞こえた（小さい「っ」を読んだ）／英字が出た（指示タグを読み上げた）"""
+    if re.search(r"[A-Za-z]", heard):
+        return "英字"
+    if not re.search(r"[つツ]", sent) and re.search(r"[つツ]", heard):
+        return "「つ」"
+    return ""
+
+
+def tts(voice_id, text, direction, shout):
     body = {
-        "text": speak(text), "model_id": "eleven_turbo_v2_5", "language_code": "ja",
-        "voice_settings": {"stability": 0.42 if shout else 0.5, "similarity_boost": 0.85,
-                           "style": 0.45 if shout else 0.3, "use_speaker_boost": True},
+        "text": f"{direction} {speak(text)}", "model_id": "eleven_v3", "language_code": "ja",
+        # v3 の安定度は 0.0（表現豊か）/ 0.5 / 1.0 のいずれか。感情を出すため全部 0.0
+        "voice_settings": {"stability": 0.0, "similarity_boost": 0.8},
     }
     r = requests.post(f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_96",
-                      headers={"xi-api-key": KEY, "Content-Type": "application/json"}, json=body, timeout=120)
+                      headers={"xi-api-key": KEY, "Content-Type": "application/json"}, json=body, timeout=180)
     r.raise_for_status()
     return r.content
 
@@ -53,60 +90,72 @@ def duration(p):
     return float(out.stdout.strip() or 0)
 
 
+def prosody(path):
+    """抑揚の目安: 声の高さの幅（半音、10〜90%）と、高さの動き（半音/秒）"""
+    import numpy as np, librosa
+    y, sr = librosa.load(str(path), sr=22050)
+    f0, vflag, _ = librosa.pyin(y, fmin=120, fmax=900, sr=sr, frame_length=1024)
+    f = f0[vflag & ~np.isnan(f0)]
+    if len(f) < 5:
+        return 0.0, 0.0
+    st = 12 * np.log2(f / np.median(f))
+    return float(np.percentile(st, 90) - np.percentile(st, 10)), float(np.mean(np.abs(np.diff(st))) / (256 / sr))
+
+
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    only = None
-    if "--only" in sys.argv:
-        only = set(sys.argv[sys.argv.index("--only") + 1].split(","))
-        args = [a for a in args if a != sys.argv[sys.argv.index("--only") + 1]]
-    pairs = dict(a.split("=", 1) for a in args)
+    argv = sys.argv[1:]
+    only, takes, minmatch = None, 4, 0.7
+    if "--only" in argv:
+        i = argv.index("--only"); only = set(argv[i + 1].split(",")); del argv[i:i + 2]
+    if "--takes" in argv:
+        i = argv.index("--takes"); takes = int(argv[i + 1]); del argv[i:i + 2]
+    if "--minmatch" in argv:
+        i = argv.index("--minmatch"); minmatch = float(argv[i + 1]); del argv[i:i + 2]
+    pairs = dict(a.split("=", 1) for a in argv)
     lines = lines_from_js()
     OUT.mkdir(parents=True, exist_ok=True)
-    rows = []
     from faster_whisper import WhisperModel
-    import difflib
     model = WhisperModel("small", device="cpu", compute_type="int8")
-    norm = lambda t: re.sub(r"[、。！？!?…〜♪・ー\s,.]", "", "".join(chr(ord(c) - 0x60) if "ァ" <= c <= "ヶ" else c for c in t))
+    norm = lambda t: re.sub(r"[、。！？!?…〜♪・ー\s,.\-]", "", "".join(chr(ord(c) - 0x60) if "ァ" <= c <= "ヶ" else c for c in t))
+    rp = ROOT / "_dev" / "tsunagu-naraberu" / "voice_report.txt"
+    report = {}
+    if rp.exists():
+        for ln in rp.read_text(encoding="utf-8").splitlines():
+            report[" ".join(ln.split(" ")[:2])] = ln
     for cid, vid in pairs.items():
         for key, text in lines[cid].items():
             if only and key not in only:
                 continue
             p = OUT / f"{cid}_{key}.mp3"
-            best = None
-            for take in range(TAKES):
+            cands = []
+            for take in range(takes):
                 tmp = OUT / f"_take_{take}.mp3"
-                tmp.write_bytes(tts(vid, text, key in SHOUT))
-                segs, info = model.transcribe(str(tmp), language="ja", beam_size=5)
+                tmp.write_bytes(tts(vid, text, DIRECTION[cid][key], key in SHOUT))
+                segs, _ = model.transcribe(str(tmp), language="ja", beam_size=5)
                 heard = "".join(sg.text for sg in segs).strip()
-                score = difflib.SequenceMatcher(None, norm(text), norm(heard)).ratio()
-                if not best or score > best[0]:
-                    best = (score, heard, tmp.read_bytes())
-                if score >= 0.9:
-                    break
-            p.write_bytes(best[2])
+                # 書き起こしは漢字でも仮名でも出るので、送った読み（仮名）と表示の台詞の両方と比べて高い方
+                match = max(difflib.SequenceMatcher(None, norm(t), norm(heard)).ratio() for t in (text, speak(text)))
+                rng, move = prosody(tmp)
+                dur = duration(tmp)
+                bad = bad_reading(speak(text), heard)
+                if bad:
+                    match = min(match, 0.5)  # 読み方の誤りは候補から外す（全部だめなら一番近いものを残して印を付ける）
+                cands.append({"match": match, "heard": heard, "range": rng, "move": move, "dur": dur, "bad": bad, "data": tmp.read_bytes()})
+            # 台詞として聞き取れる（一致0.7以上）うちで、抑揚（高さの幅は14半音で頭打ち）の大きいもの。長すぎる尺は減点
+            limit = 1.0 + 0.16 * len(text)
+            def score(c):
+                return min(c["range"], 14) + c["move"] / 10 - max(0, c["dur"] - limit) * 4
+            ok = [c for c in cands if c["match"] >= minmatch] or sorted(cands, key=lambda c: -c["match"])[:1]
+            best = max(ok, key=score)
+            p.write_bytes(best["data"])
             for t in OUT.glob("_take_*.mp3"):
                 t.unlink()
-            n = len(re.sub(r"[、。！？!?…〜♪・\s]", "", text))
-            rows.append((cid, key, text, n, duration(p)))
-            flag = "" if best[0] >= 0.6 else "  ⚠ 聞き取り不一致"
-            print(cid, key, f"{rows[-1][4]:.2f}s 一致{best[0]:.2f}", text, "=>", best[1], flag, flush=True)
-    # 尺の回帰（最小二乗→外れ値を除いて当て直す）
-    if len(rows) >= 6:
-        import statistics
-        xs = [r[3] for r in rows]; ys = [r[4] for r in rows]
-        keep = list(range(len(rows)))
-        for _ in range(3):
-            mx = statistics.mean(xs[i] for i in keep); my = statistics.mean(ys[i] for i in keep)
-            b = sum((xs[i] - mx) * (ys[i] - my) for i in keep) / max(1e-9, sum((xs[i] - mx) ** 2 for i in keep))
-            a = my - b * mx
-            res = sorted(abs(ys[i] - (a + b * xs[i])) for i in keep)
-            cut = res[int(len(res) * 0.9) - 1] if len(res) > 3 else 9
-            keep = [i for i in range(len(rows)) if abs(ys[i] - (a + b * xs[i])) <= cut]
-        print(f"\n尺 ≒ {a:.2f} + {b:.3f}×字数")
-        for r in rows:
-            d = r[4] - (a + b * r[3])
-            if abs(d) > 1.2:
-                print("⚠ 外れ:", r[0], r[1], r[2], f"{r[4]:.2f}s（予測より{d:+.2f}s）")
+            flag = (f"  ⚠ {best['bad']}を読んだ" if best["bad"] else "") + ("" if best["match"] >= 0.7 else "  ⚠ 聞き取り不一致")
+            line = f"{cid} {key} {best['dur']:.2f}s 一致{best['match']:.2f} 高さの幅{best['range']:.1f}半音 動き{best['move']:.0f} {text} => {best['heard']}{flag}"
+            print(line, flush=True)
+            report[f"{cid} {key}"] = line
+    # 作り直した行だけ差し替えて、全体の一覧を残す
+    rp.write_text("\n".join(report.values()), encoding="utf-8")
 
 
 if __name__ == "__main__":

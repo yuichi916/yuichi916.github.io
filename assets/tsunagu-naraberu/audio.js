@@ -3,7 +3,7 @@
 const BASE = new URL('./', import.meta.url).href;
 const BGM = { title: 'sound/bgm_title.mp3', battle: 'sound/bgm_battle.mp3', pinch: 'sound/bgm_pinch.mp3' };
 const SE = ['pop', 'clear', 'chain', 'land', 'swap', 'garbage', 'attack', 'win', 'lose'];
-const VOL = { master: 1, bgm: 0.34, se: 0.7, voice: 0.95, synth: 0.32 };
+const VOL = { master: 1, bgm: 0.34, se: 0.7, voice: 0.75, synth: 0.32 }; // 声は -15 LUFS にそろえてある（norm_voice.py）
 
 export function createAudio() {
   let ac = null, master = null, bgmBus = null, seBus = null, voiceBus = null, synthBus = null, muted = false;
@@ -81,6 +81,23 @@ export function createAudio() {
     o.start(t); o.stop(t + dur + 0.02);
   }
 
+  // 割れる音: 白色雑音を帯域で絞って、短く減衰させる
+  let noiseBuf = null;
+  function crack(vol = 0.5, freq = 2400, dur = 0.18, when = 0) {
+    if (!ac || muted) return;
+    if (!noiseBuf) {
+      noiseBuf = ac.createBuffer(1, Math.round(ac.sampleRate * 0.5), ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const t = ac.currentTime + when;
+    const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = noiseBuf; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 1.4;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(f); f.connect(g); g.connect(synthBus);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+
   const SCALE = [523, 587, 659, 784, 880, 1047, 1175, 1319, 1568, 1760];
   const semis = n => Math.pow(2, n / 12);
 
@@ -108,7 +125,15 @@ export function createAudio() {
           if (!play('se_clear', seBus, { vol: 0.8 * quiet, rate: up, gap: 0.03 })) tone(660 * up, 0.08, 'triangle', 0.3 * quiet);
           break;
         }
-        case 'reveal': tone(520 * semis(e.k * 2), 0.07, 'sine', 0.16 * quiet); break;
+        case 'reveal': tone(520 * semis(e.k * 2), 0.07, 'sine', 0.16 * quiet); crack(0.18 * quiet, 3200 + e.k * 300, 0.06); break;
+        case 'thawStart': crack(0.5 * quiet, 1500, 0.22); crack(0.35 * quiet, 3800, 0.12, 0.05); break;
+        case 'garbageClear': {
+          const n = e.cells.length;
+          crack(Math.min(0.8, 0.3 + n * 0.04) * quiet, 1800, 0.25); crack(0.3 * quiet, 4200, 0.1, 0.03);
+          if (n >= 6) tone(1568, 0.25, 'triangle', 0.18 * quiet, 1.5, 0.05);
+          break;
+        }
+        case 'thaw': if (e.left === 0 && e.w >= 4) tone(1319, 0.3, 'triangle', 0.16 * quiet, 1.5); break;
         case 'garbage': if (!play('se_garbage', seBus, { vol: quiet })) tone(140, 0.25, 'sawtooth', 0.25, 0.5); break;
         case 'lock': if (mine && !play('se_land', seBus, { vol: 0.55, gap: 0.06 })) tone(220, 0.05, 'sine', 0.2); break;
         case 'swap': if (mine && !play('se_swap', seBus, { vol: 0.5, gap: 0.03 })) tone(660, 0.04, 'square', 0.08); break;
@@ -127,16 +152,23 @@ export function createAudio() {
       if (!buf.has(name) && !pendingLoad.has(name)) { pendingLoad.add(name); load(name, `voice/${id}_${k}.mp3`); }
     }
   }
+  const INTERRUPT = new Set(['c1', 'c2', 'c3', 'c4', 'c5', 'win', 'lose']);
+  const voiceNow = [null, null];
   function voice(p, id, key, human = true) {
     if (!ac || muted || !id) return;
     const b = buf.get(`v_${id}_${key}`);
     if (!b) return;
     const t = ac.currentTime;
-    if (t < voiceEnd[p] && key !== 'win' && key !== 'lose') return;
+    if (t < voiceEnd[p]) {
+      if (!INTERRUPT.has(key)) return;
+      const v = voiceNow[p];
+      if (v) { v.g.gain.setTargetAtTime(0, t, 0.02); v.src.stop(t + 0.12); }
+    }
     voiceEnd[p] = t + b.duration;
     const src = ac.createBufferSource(), g = ac.createGain();
     src.buffer = b; g.gain.value = human ? 1 : 0.7;
     src.connect(g); g.connect(voiceBus); src.start(t);
+    voiceNow[p] = { src, g };
   }
 
   return {

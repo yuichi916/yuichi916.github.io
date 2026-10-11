@@ -8,7 +8,7 @@ export const CFG = {
   colorsN: 5, // ならべる派の色数
 
   // 変換率（共通ダメージD → 受ける側のおじゃま）
-  convT: 0.85, // ならべる派の攻撃 → つなぐ派のおじゃまつぶ
+  convT: 0.95, // ならべる派の攻撃 → つなぐ派のおじゃまつぶ
   convN: 0.15, // つなぐ派の攻撃 → ならべる派のおじゃまブロック（マス）
 
   // 攻撃力
@@ -23,6 +23,7 @@ export const CFG = {
   tsunaguPopSec: 0.5,
   tsunaguGarbageFrames: 20,
   tsunaguMaxGarbage: 30,
+  tsunaguLandSec: 3, // 予告が出てから降るまでの待ち（ならべる派の naraberuLandSec と同じ。少量が降り続けて形を崩されないように）
 
   // ならべる派の時間
   naraberuRiseStartSec: 8,
@@ -44,8 +45,8 @@ export const CFG = {
 
   // 開幕のウォームアップ: 攻撃倍率が openingMul から openingSec 秒かけて1.0へ
   // （ならべる派は積まれた盤で始まり、つなぐ派は空の盤で始まる差を埋める）
-  openingSec: 40,
-  openingMul: 0.25,
+  openingSec: 60,
+  openingMul: 0.05,
 
   // 終盤加速
   feverStartSec: 90,
@@ -73,8 +74,10 @@ export const AI_T = {
   bump: 1, // 凸凹
   col3: 300, // 出現列が9段以上
   garbage: 0.5,
-  noise: { やさしい: 1, ふつう: 2, つよい: 10 },
-  minChain: { やさしい: 2, ふつう: 2, つよい: 3 },
+  noise: { かんたん: 4, やさしい: 1, ふつう: 2, つよい: 2, おに: 2 },
+  minChain: { かんたん: 1, やさしい: 2, ふつう: 2, つよい: 2, おに: 2 },
+  // CPUの攻撃補正（人が操作する側にはかからない）。段ごとに両派のCPUの強さを揃える
+  atk: { かんたん: 1.9, やさしい: 1, ふつう: 1, つよい: 1, おに: 1 },
 };
 export const AI_N = {
   D: 20,
@@ -90,14 +93,23 @@ export const AI_N = {
   second: 0.7, // 2手目の重み
   dangerHeight: 9,
   dangerPending: 6,
-  raiseBelow: { やさしい: 5, ふつう: 6, つよい: 7 },
-  noise: { やさしい: 12, ふつう: 2, つよい: 0 },
-  minChain: { やさしい: 1, ふつう: 2, つよい: 2 },
+  raiseBelow: { かんたん: 4, やさしい: 5, ふつう: 6, つよい: 7, おに: 7 },
+  noise: { かんたん: 20, やさしい: 12, ふつう: 2, つよい: 0, おに: 0 },
+  minChain: { かんたん: 1, やさしい: 1, ふつう: 2, つよい: 2, おに: 2 },
+  // CPUの攻撃補正（人が操作する側にはかからない）。段ごとに両派のCPUの強さを揃える
+  atk: { かんたん: 1, やさしい: 1, ふつう: 1.1, つよい: 1.3, おに: 2.1 },
 };
+
+// CPUの攻撃補正（その派・その段）
+export function cpuAtkOf(kind, level) {
+  return (kind === 'tsunagu' ? AI_T : AI_N).atk[level] ?? 1;
+}
 
 // CPUの段。act=1操作ごとの待ち刻み、think=考え始めるまでの刻み
 export const LEVELS = {
+  かんたん: { depth: 1, act: 22, think: 50, lookahead: false },
   やさしい: { depth: 1, act: 14, think: 36, lookahead: false },
   ふつう: { depth: 1, act: 8, think: 20, lookahead: true },
   つよい: { depth: 2, act: 6, think: 16, lookahead: true },
+  おに: { depth: 2, act: 4, think: 10, lookahead: true },
 };

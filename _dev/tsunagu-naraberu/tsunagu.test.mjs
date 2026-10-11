@@ -104,6 +104,35 @@ test('すぐ落とす→消える→攻撃イベント', () => {
   assert.equal(atk[0].chain, 1);
 });
 
+test('消える群の隣のおじゃまは、消える演出のあいだ印が付き、pop の合図にも入る', () => {
+  const b = freshBoard();
+  b.grid = gridOf(['O.....', 'RRR...', 'OOOO..']);
+  b.piece = { x: 3, y: 1, rot: 0, a: 1, b: 2 };
+  const ev = b.step(inp({ up: true }));
+  const pop = ev.find(e => e.type === 'pop');
+  assert.ok(pop);
+  const key = c => c.join(',');
+  // 置いた R は (3,11) に落ちて R が4つ並ぶ。隣のおじゃま: (0,10) と 下の段 (0..3,12) の5つ
+  assert.deepEqual(b.poppingGarbage.map(key).sort(), pop.garbage.map(key).sort());
+  assert.equal(pop.garbage.length, 5);
+  assert.equal(pop.bonus, 1, '1連鎖・4個・1色のボーナスは1');
+  for (const [x, y] of pop.garbage) assert.equal(b.grid[y][x], 6);
+  for (let i = 0; i < 40 && b.phase === 'pop'; i++) b.step(inp({}));
+  assert.equal(b.poppingGarbage, null, '消えたら印は外れる');
+  for (const [x, y] of pop.garbage) assert.notEqual(b.grid[y][x], 6);
+});
+
+test('おじゃまが消える刻みに garbageClear の合図（セルつき）が出る', () => {
+  const b = freshBoard();
+  b.grid = gridOf(['O.....', 'RRR...', 'OOOO..']);
+  b.piece = { x: 3, y: 1, rot: 0, a: 1, b: 2 };
+  const ev = [];
+  for (let i = 0; i < 40; i++) ev.push(...b.step(inp({ up: i === 0 })));
+  const gc = ev.filter(e => e.type === 'garbageClear');
+  assert.equal(gc.length, 1);
+  assert.equal(gc[0].cells.length, 5);
+});
+
 test('連鎖のあと takeGarbage の個数が落ちる', () => {
   let asked = 0;
   const b = freshBoard(3, () => (asked++ === 0 ? 8 : 0));

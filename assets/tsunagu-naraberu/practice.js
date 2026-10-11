@@ -6,7 +6,7 @@ import { landTsunagu, landNaraberu } from './damage.js';
 
 // setup(board): チュートリアルの課題の盤面を用意する（やり直し・詰まったときにも毎回かける）
 export function createPractice({ cfg, kind, seed, setup = null }) {
-  const pending = { D: 0, age: 0 };
+  const pending = { D: 0, age: 0, kind };
   let resets = 0;
   const make = () => {
     const b = kind === 'tsunagu'

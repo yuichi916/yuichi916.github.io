@@ -49,8 +49,9 @@ export function createFx() {
     const locked = ev.some(e => e.type === 'lock');
     const garbageNow = ev.some(e => e.type === 'garbage');
     const changed = removedNow || locked || garbageNow;
-    // 消えたつぶのしずく
+    // 消えたつぶのしずく、一緒に消えたおじゃまのかけら
     if (removedNow) for (const [x, y] of pre.popping) burst(p, 'tsunagu', x + 0.5, y - 0.5, pre.grid[y][x]);
+    for (const e of ev) if (e.type === 'garbageClear') for (const [x, y] of e.cells) rubble(p, x + 0.5, y - 0.5, 5);
     if (changed) {
       const next = new Map();
       for (let x = 0; x < TC; x++) {
@@ -81,7 +82,7 @@ export function createFx() {
             const s0 = src[k];
             y0 = s0.y + (s0.vis ? s0.vis.off : 0); v = s0.vis ? s0.vis.v : 0;
           } else if (dst.c === GARBAGE && k >= src.length) {
-            y0 = -1.2 - gi * 1.05 - rnd() * 0.6; gi++;                 // 上から降ってくるおじゃま
+            y0 = -1.2 - gi * 1.05 - rnd() * 0.6; gi++; v = 0.45;       // 上から降ってくるおじゃま（初速つき。置く時間の20刻みで13マス届く）
           } else { y0 = dst.y; }
           const off = y0 - dst.y;
           const old = S.cells.get(dst.y * TC + x);
@@ -113,11 +114,18 @@ export function createFx() {
     // パネルが1枚ずつはじけるたびに破片、おじゃまが1マスずつ変わるたびに星
     for (const e of ev) {
       if (e.type === 'popcell') burst(p, 'naraberu', (e.i % NC) + 0.5, Math.floor(e.i / NC) - up + 0.5, e.c);
-      else if (e.type === 'reveal') sparkle(p, e.x + 0.5, e.y - up + 0.5);
+      else if (e.type === 'reveal') { sparkle(p, e.x + 0.5, e.y - up + 0.5); rubble(p, e.x + 0.5, e.y - up + 0.5, 3); }
+      else if (e.type === 'thawStart') {
+        // 割れ始め: 一番下の段からほこりが舞う
+        for (let k = 0; k < e.w; k++) dust(p, e.x + k + 0.5, e.y + e.h - up);
+        S.shakeT = Math.max(S.shakeT, 6);
+      }
     }
-    // 入れ替え: 2枚が横にすべる
-    if (ev.some(e => e.type === 'swap')) {
-      const i = b.cursor.y * NC + b.cursor.x;
+    // 入れ替え: 2枚が横にすべる（入れ替えた位置に。同じ刻みにせり上がったら1段上）
+    for (const e of ev) {
+      if (e.type !== 'swap') continue;
+      const i = (e.y - up) * NC + e.x;
+      if (i < 0) continue;
       S.cells.set(i, { ...(S.cells.get(i) || {}), ox: 1, sq: 0, sqv: 0 });
       S.cells.set(i + 1, { ...(S.cells.get(i + 1) || {}), ox: -1, sq: 0, sqv: 0 });
     }
@@ -152,6 +160,24 @@ export function createFx() {
     for (let k = 0; k < 3; k++) {
       const a = rnd() * Math.PI * 2, sp = 0.03 + rnd() * 0.05;
       parts.push({ p, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.05, g: 0.002, r: 0.16 + rnd() * 0.12, c: 0, life: 30 + rnd() * 12, age: 0, kind: 'star', rot: rnd() * 6, vr: 0.15 });
+    }
+  }
+
+  // おじゃまのかけら: 灰色の破片が重めに飛んで落ちる＋ほこりの輪
+  function rubble(p, x, y, n) {
+    const m = Math.max(1, Math.round(n * level));
+    for (let k = 0; k < m; k++) {
+      const a = rnd() * Math.PI * 2, sp = 0.06 + rnd() * 0.12;
+      parts.push({ p, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.16, g: 0.016, r: 0.1 + rnd() * 0.12, c: 0,
+        life: 30 + rnd() * 14, age: 0, kind: 'rubble', rot: rnd() * 6, vr: (rnd() - 0.5) * 0.5 });
+    }
+    parts.push({ p, x, y, vx: 0, vy: 0, g: 0, r: 0.5, c: 0, life: 18, age: 0, kind: 'ring', rot: 0, vr: 0 });
+  }
+
+  function dust(p, x, y) {
+    for (let k = 0; k < Math.max(1, Math.round(2 * level)); k++) {
+      parts.push({ p, x: x + (rnd() - 0.5) * 0.6, y, vx: (rnd() - 0.5) * 0.04, vy: -0.02 - rnd() * 0.03, g: -0.0005, r: 0.08 + rnd() * 0.06, c: 0,
+        life: 24 + rnd() * 10, age: 0, kind: 'rubble', rot: rnd() * 6, vr: (rnd() - 0.5) * 0.2 });
     }
   }
 

@@ -267,7 +267,7 @@ input[type=range]{accent-color:var(--gold)}
   #resultStats{grid-template-columns:1fr 1fr;gap:6px}
   #resultStats .stat{padding:8px 10px;font-size:13px}
   /* CPUの強さを1行に */
-  #levelRow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  #levelRow{display:block} #levelRow .lvchips{display:grid;grid-template-columns:repeat(5,1fr);gap:4px} #levelRow .chip{padding:8px 2px;font-size:13px}
   #levelRow>label{grid-column:1/-1}
   .randrow .chip{width:100%}
   /* チュートリアル: 盤の上（盤は app が下げる） */
@@ -276,6 +276,9 @@ input[type=range]{accent-color:var(--gold)}
   .tutstep{font-size:12px}
   .tutbtns button{min-height:32px;padding:4px 10px;font-size:12px}
 }
+
+.lvchips{display:inline-flex;gap:8px;flex-wrap:wrap}
+@media (max-width:620px){ #levelRow .lvchips{display:grid;grid-template-columns:repeat(5,1fr);gap:4px} }
 </style>
 <script type="application/ld+json">
 {
@@ -329,7 +332,7 @@ input[type=range]{accent-color:var(--gold)}
   <div class="card menu">
     <h2>モードをえらぶ</h2>
     <div class="menulist">
-      <button class="mbtn" data-menu="cpu" type="button"><b>CPUと対戦</b><small>3段階の強さのCPUと戦う</small></button>
+      <button class="mbtn" data-menu="cpu" type="button"><b>CPUと対戦</b><small>5段階の強さのCPUと戦う</small></button>
       <button class="mbtn" data-menu="2p" id="menu2p" type="button"><b>ふたりで対戦</b><small>1台のPCで、ふたりで</small></button>
       <button class="mbtn" data-menu="practice" type="button"><b>れんしゅう</b><small>相手なしで、自分の盤だけ</small></button>
       <button class="mbtn" data-menu="tutorial" type="button"><b>あそびかた</b><small>操作しながら覚える（約1分）</small></button>
@@ -344,11 +347,7 @@ input[type=range]{accent-color:var(--gold)}
     <h2 id="selTitle">キャラをえらぶ</h2>
     <div class="selrow"><div class="sellabel" id="p1label">あなた</div><div class="cards" data-player="0"></div></div>
     <div class="selrow" id="p2row"><div class="sellabel" id="p2label">あいて</div><div class="cards" data-player="1"></div></div>
-    <div class="row" id="levelRow"><label>CPUの強さ</label>
-      <button class="chip" data-set="level:0:やさしい" type="button">やさしい</button>
-      <button class="chip" data-set="level:0:ふつう" type="button">ふつう</button>
-      <button class="chip" data-set="level:0:つよい" type="button">つよい</button>
-    </div>
+    <div class="row" id="levelRow"><label>CPUの強さ</label><span class="lvchips" id="levelChips"></span></div>
     <details class="more" id="hcRow"><summary>くわしく（ハンデ）</summary>
       <p class="keys" style="margin:8px 0">攻撃力を1段ごとに20%ずつ上げ下げします。腕に差があるときに。</p>
       <div class="row"><span class="hc"><span class="side" id="hcL"></span><button class="chip s" data-set="hc:0:-2" type="button">−2</button><button class="chip s" data-set="hc:0:-1" type="button">−1</button><button class="chip s" data-set="hc:0:0" type="button">±0</button><button class="chip s" data-set="hc:0:1" type="button">+1</button><button class="chip s" data-set="hc:0:2" type="button">+2</button></span><span class="hc"><span class="side" id="hcR"></span><button class="chip s" data-set="hc:1:-2" type="button">−2</button><button class="chip s" data-set="hc:1:-1" type="button">−1</button><button class="chip s" data-set="hc:1:0" type="button">±0</button><button class="chip s" data-set="hc:1:1" type="button">+1</button><button class="chip s" data-set="hc:1:2" type="button">+2</button></span></div>
@@ -422,9 +421,10 @@ input[type=range]{accent-color:var(--gold)}
 
 <div id="help">
   <b>勝ち方</b>：消すと相手の盤におじゃまが降る。先に積み上がった方の負け。<br>
-  <b>相殺</b>：盤の上の予告は、自分が消して打ち返すと減る。<br>
+  <b>相殺</b>：盤の上の予告は、自分が消して打ち返すと減る。予告が出てから3秒は降らないので、その間に打ち返せる（つなぐ派は予告のつぶが跳ねたら、次に組を置くと降る）。<br>
   <b>おじゃま</b>：つなぐ派は隣で消すと消える。ならべる派は隣で消すと下の1行がパネルに戻る。<br>
-  <b>攻撃倍率</b>：開始40秒は弱め。90秒を過ぎると15秒ごとに強くなる。<br>
+  <b>攻撃倍率</b>：開始60秒は弱め。90秒を過ぎると15秒ごとに強くなる。<br>
+  <b>CPUの強さ</b>：段ごとにCPUの攻撃を補正して、どちらの派と戦っても同じ手ごたえにしている。人が操作する側には補正なし。<br>
   <b>操作</b>：キーの割り当て・連続移動の速さ・スマホの操作方式は「操作の設定」で変えられる。ゲームパッドも使える。<br>
   <b>れんしゅう</b>：相手なしで自分の盤だけを触れる。おじゃまを降らせる練習もできる。<br>
   <b>アクティブ連鎖</b>（ならべる派）：消えたあと上のパネルは少し浮く。その下にパネルを差し込んだり横に並べたりしてそろえると、連鎖がつながる。<br>
@@ -475,11 +475,12 @@ input[type=range]{accent-color:var(--gold)}
     <p><strong>つなぐ派</strong>：上から落ちてくる2個1組を積み、同じ色を4つつなげて消します。消えたあとに落ちたつぶがまたそろうと連鎖になり、大きな連鎖ほど相手に多くのおじゃまを送れます。</p>
     <p><strong>ならべる派</strong>：下からせり上がる盤で、横2マスのカーソルでパネルを入れ替え、縦か横に3つ以上並べて消します。同時に4つ以上消すと同時消し、落ちたパネルがそろうと連鎖になります。消えたあと上のパネルは少しのあいだ浮くので、その下にパネルを差し込んで連鎖をつなぐ「アクティブ連鎖」もできます。盤が天井に届いても3秒の猶予があり、同時消しや連鎖でせり上がりを止める「停止時間」がもらえます。</p>
     <h2>どうやって戦うか</h2>
-    <p>どちらの派も、消すと共通の「ダメージ値」が出ます。ダメージはまず自分に届く予定の攻撃を打ち消し（相殺）、余った分が相手の盤の流儀に変換されて降ります。つなぐ派にはおじゃまつぶ、ならべる派には横長のおじゃまブロックが落ちます。先に盤が積み上がった方の負けです。</p>
-    <p>開始40秒は攻撃が弱めで、90秒を過ぎると15秒ごとに攻撃が強くなります。</p>
+    <p>どちらの派も、消すと共通の「ダメージ値」が出ます。ダメージはまず自分に届く予定の攻撃を打ち消し（相殺）、余った分が相手の盤の流儀に変換されて降ります。予告が出てから3秒は降らないので、その間に打ち返せます。つなぐ派にはおじゃまつぶ、ならべる派には横長のおじゃまブロックが落ちます。先に盤が積み上がった方の負けです。</p>
+    <p>開始60秒は攻撃が弱めで、90秒を過ぎると15秒ごとに攻撃が強くなります。</p>
     <h2>バランスの取り方</h2>
     <p>変換の比率やCPUの強さは勘で決めていません。強さをそろえたCPU同士を各段2,000試合ずつ自動で対戦させ、つなぐ派の勝率が五分前後に入るまで調整しました。</p>
-    <p>CPU戦（やさしい・ふつう・つよい）と、1台のPCでのふたり対戦に対応。スマホではタッチ操作でCPUと対戦できます。</p>
+    <p>CPUは派によって得意な強さがちがうため、段ごとにCPUの攻撃の強さを補正し、どちらの派と戦っても同じ手ごたえになるようにしています（人が操作する側には補正はかかりません）。</p>
+    <p>CPU戦（かんたん〜おにの5段階）と、1台のPCでのふたり対戦に対応。スマホではタッチ操作でCPUと対戦できます。</p>
     <p>音楽と効果音は Suno、キャラクターの声は ElevenLabs、キャラクターの絵は Stable Diffusion（WAI-Illustrious）で作成。登場するのは、つなぐ派のひなた・もも（相棒ぷにまる）と、ならべる派のりん・すず（相棒カクたん）。</p>
   </main>
 </noscript>

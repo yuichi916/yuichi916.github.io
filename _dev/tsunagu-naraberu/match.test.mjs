@@ -38,9 +38,27 @@ test('攻撃は相殺してから相手の予告に入る', () => {
 
 test('ハンデ+1で攻撃1.2倍、-2で0.6倍', () => {
   const m = createMatch({ cfg: CFG, kinds: ['tsunagu', 'naraberu'], seeds: [1, 2], handicap: [1, -2] });
-  m.frame = 40 * 60; // ウォームアップと終盤加速の間
+  m.frame = 70 * 60; // ウォームアップと終盤加速の間
   assert.ok(Math.abs(m.attackMul(0) - 1.2) < 1e-9);
   assert.ok(Math.abs(m.attackMul(1) - 0.6) < 1e-9);
+});
+
+test('CPUの攻撃補正はハンデと掛け合わせる（省略時は1）', () => {
+  const m = createMatch({ cfg: CFG, kinds: ['tsunagu', 'naraberu'], seeds: [1, 2], handicap: [1, 0], cpuAtk: [1, 1.5] });
+  m.frame = 120 * 60;
+  assert.ok(Math.abs(m.attackMul(0) - m.feverMul() * 1.2) < 1e-9);
+  assert.ok(Math.abs(m.attackMul(1) - m.feverMul() * 1.5) < 1e-9);
+});
+
+test('CPUの攻撃補正は開幕0から openingSec かけて満額に', () => {
+  const cfg = { ...CFG, openingSec: 60, openingMul: 0.1 };
+  const m = createMatch({ cfg, kinds: ['tsunagu', 'naraberu'], seeds: [1, 2], handicap: [0, 0], cpuAtk: [1, 1.5] });
+  m.frame = 0;
+  assert.ok(Math.abs(m.attackMul(1) - m.feverMul()) < 1e-9);
+  m.frame = 30 * 60;
+  assert.ok(Math.abs(m.attackMul(1) - m.feverMul() * 1.25) < 1e-9);
+  m.frame = 60 * 60;
+  assert.ok(Math.abs(m.attackMul(1) - 1.5) < 1e-9);
 });
 
 test('feverMul: 開幕0秒0.4→15秒0.7→30秒1.0（ウォームアップ）', () => {
@@ -86,7 +104,12 @@ test('着弾: つなぐ派へは個数、ならべる派へはブロックで落
   m.players[1].pending.D = 12; m.players[1].pending.age = 0;
   m.players[0].pending.D = 7;
   const ev = [];
-  for (let i = 0; i < 260; i++) ev.push(...m.step([{ ...NONE, up: i === 20 }, NONE]));
+  // つなぐ派は予告が出てから3秒（180刻み）は降らない: 20刻みに置いた組では降らず、200刻みに置いた組のあとで降る
+  for (let i = 0; i < 260; i++) {
+    const e = m.step([{ ...NONE, up: i === 20 || i === 200 }, NONE]);
+    if (i < 180) assert.ok(!e.some(x => x.p === 0 && x.type === 'garbage'), `${i}刻みで降った`);
+    ev.push(...e);
+  }
   assert.ok(ev.some(e => e.p === 0 && e.type === 'garbage' && e.n === 7));
   assert.ok(ev.some(e => e.p === 1 && e.type === 'garbage' && e.w === 6 && e.h === 2));
 });
