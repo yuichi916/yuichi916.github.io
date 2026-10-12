@@ -47,6 +47,29 @@ test('ならべる派AI: せり上がり中でも正しい位置を入れ替え�
   assert.ok(b.riseCount >= 1);
 });
 
+test('ならべる派AI: 盤が低ければ、少量の予告（降ってこない3マス未満）があってもせり上げる', () => {
+  for (const lv of Object.keys(LEVELS)) {
+    for (const D of [10, 30]) { // 1.5マス（いつまでも降らない）と 4.5マス
+      const b = createNaraberu({ cfg: CFG, seed: 3, takeGarbage: () => [] });
+      fillFromRows(b, ['R.G.B.', 'GBYPRG']);
+      const ai = createNaraberuAI(lv, CFG, { seed: 1 });
+      let held = 0;
+      for (let f = 0; f < 600; f++) { const i = ai.next(b, D); if (i.bHeld) held++; b.step(i); }
+      assert.ok(held > 0, `${lv} 予告${D}: せり上げを一度も押さない`);
+    }
+  }
+});
+
+test('ならべる派AI: 予告が降ると上限を超える高さなら、せり上げない', () => {
+  const b = createNaraberu({ cfg: CFG, seed: 3, takeGarbage: () => [] });
+  fillFromRows(b, ['R.G.B.', 'GBYPRG', 'BYPRGB', 'YPRGBY', 'PRGBYP']); // 高さ5
+  const ai = createNaraberuAI('ふつう', CFG, { seed: 1 }); // せり上げの上限 6段
+  const D = 12 / CFG.convN; // 12マス＝2段ぶんの予告 → 5+2 で上限を超える
+  let held = 0;
+  for (let f = 0; f < 120; f++) { const i = ai.next(b, D); if (i.bHeld) held++; b.step(i); }
+  assert.equal(held, 0);
+});
+
 test('CPU対CPU: 全段・全組み合わせで完走する', () => {
   const kindsList = [['tsunagu', 'naraberu'], ['naraberu', 'tsunagu'], ['tsunagu', 'tsunagu'], ['naraberu', 'naraberu']];
   for (const lv of Object.keys(LEVELS)) {

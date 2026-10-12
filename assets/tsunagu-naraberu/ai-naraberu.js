@@ -98,7 +98,10 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
   function next(board, pendingD = 0) {
     let falling = false, clearing = false;
     for (let i = 0; i < board.S.length; i++) { if (board.S[i] === 2 || board.S[i] === 3) falling = true; else if (board.S[i] === 1) clearing = true; }
-    const raise = !clearing && pendingD <= 0 && stackHeight(board.C) < AI_N.raiseBelow[levelName];
+    // せり上げ: 予告が降ったときの段数を足しても上限に届かないなら押す（少量の予告は3マスたまるまで降らないので、
+    // 「予告があればせり上げない」だと盤が減っても棒立ちになる）
+    const incomingRows = Math.ceil(pendingD * cfg.convN / 6 - 1e-9);
+    const raise = !clearing && stackHeight(board.C) + incomingRows < AI_N.raiseBelow[levelName];
     const idle = { ...NONE, bHeld: raise };
     if (wait > 0) { wait--; return idle; }
     // 浮遊中・落下中のパネルがあっても、動かせるパネルは動かす（計画は静止セルだけ、入れ替え直前に色を確かめる）
