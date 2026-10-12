@@ -1,6 +1,7 @@
 // 設定の読み書き。localStorage が使えない環境でも既定値で動く。
 // 保存先 tn-settings-v2。古い tn-settings（kinds 形式）は読み替える。
 import { CHAR, CHARACTERS } from './characters.js';
+import { LEVELS } from './config.js';
 
 export const KEY_V2 = 'tn-settings-v2';
 export const KEY_V1 = 'tn-settings';
@@ -52,8 +53,22 @@ function charsFromKinds(kinds) {
   });
 }
 
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const num = v => typeof v === 'number' && Number.isFinite(v);
+
+// 型は合っていても使えない値（知らない段・遊び方、範囲外の数、文字でないキー）を既定値・範囲内に直す
 function fixChars(s) {
   s.chars = [0, 1].map(i => (CHAR[s.chars[i]] ? s.chars[i] : DEFAULTS.chars[i]));
+  if (!LEVELS[s.level]) s.level = DEFAULTS.level;
+  if (!['cpu', '2p', 'practice'].includes(s.mode)) s.mode = DEFAULTS.mode;
+  s.handicap = [0, 1].map(i => (num(s.handicap[i]) ? clamp(Math.round(s.handicap[i]), -2, 2) : 0));
+  for (const k of Object.keys(DEFAULTS.volume)) s.volume[k] = num(s.volume[k]) ? clamp(s.volume[k], 0, 100) : DEFAULTS.volume[k];
+  s.das = num(s.das) ? clamp(Math.round(s.das), 4, 20) : DEFAULTS.das;
+  s.arr = num(s.arr) ? clamp(Math.round(s.arr), 1, 6) : DEFAULTS.arr;
+  for (const p of ['p1', 'p2']) for (const a of ACTIONS) {
+    const v = Array.isArray(s.keys[p][a]) ? s.keys[p][a].filter(c => typeof c === 'string' && c) : [];
+    s.keys[p][a] = v.length || Array.isArray(s.keys[p][a]) ? v : DEFAULTS.keys[p][a].slice();
+  }
   return s;
 }
 

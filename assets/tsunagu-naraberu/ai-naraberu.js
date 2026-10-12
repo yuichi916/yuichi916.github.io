@@ -23,7 +23,7 @@ function stackHeight(s) {
 }
 
 export function createNaraberuAI(levelName, cfg, opts = {}) {
-  const L = LEVELS[levelName];
+  const L = { ...LEVELS[levelName], ...AI_N.speed[levelName] };
   const rng = createRng(opts.seed ?? 77);
   const noise = AI_N.noise[levelName];
   const minChain = AI_N.minChain[levelName];
@@ -65,15 +65,17 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
     for (let y = TOP; y <= BOTTOM; y++) for (let x = 0; x < COLS - 1; x++) {
       const i = y * COLS + x;
       if (board.S[i] || board.S[i + 1] || board.Gd[i] || board.Gd[i + 1]) continue;
+      if (board.C[i] === board.C[i + 1]) continue; // 同じ色どうしは入れ替えても何も変わらない
       const r = simulateSwap(snap, x, y, cfg, buf);
       if (!r) continue;
       // 直近に入れ替えた2枚をそのまま元に戻す手は選ばない（同じ2枚の入れ替えを繰り返さない）。例外は盤が止まっていて、戻すと消えるときだけ。
       // 盤が止まっていない間の「消える」見込みは、消え終わり・着地を先取りした計算なので外れることがあり、戻しては戻すを繰り返していた
       if ((!r.cleared || moving) && recent.some(h => x === h.x && y === h.y - (board.riseCount - h.rc)
         && board.C[i] === h.c0 && board.C[i + 1] === h.c1)) continue;
-      let s = fire(r, danger) + shape(r.grid) - (Math.abs(cx - x) + Math.abs(cy - y)) * AI_N.dist;
-      if (noise) s += (rng.next() - 0.5) * 2 * noise;
-      cands.push({ x, y, s, grid: r.grid.slice() });
+      // s0: ぶれを含まない点（「何もしないより良いか」の判定に使う）。s: ぶれを足した点（候補の並べ替えに使う）
+      const s0 = fire(r, danger) + shape(r.grid) - (Math.abs(cx - x) + Math.abs(cy - y)) * AI_N.dist;
+      const s = noise ? s0 + (rng.next() - 0.5) * 2 * noise : s0;
+      cands.push({ x, y, s, s0, grid: r.grid.slice() });
     }
     if (!cands.length) return null;
     let base = shape(snap);
@@ -82,23 +84,26 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
     if (L.lookahead) {
       const pot = g => { const p = potential(g); return p >= 2 ? p * p * AI_N.pot : 0; };
       base += pot(snap);
-      for (const c of top) c.s += pot(c.grid);
+      for (const c of top) { const v = pot(c.grid); c.s += v; c.s0 += v; }
     }
     if (L.depth >= 2) {
-      for (const c of top) {
+      // 2手目の伸び。基準（何もしない）にも同じだけ足して、そろえて比べる
+      const second = g => {
         let b2 = -Infinity;
         for (let y = TOP; y <= BOTTOM; y++) for (let x = 0; x < COLS - 1; x++) {
-          const r2 = simulateSwap(c.grid, x, y, cfg, buf2);
+          const r2 = simulateSwap(g, x, y, cfg, buf2);
           if (!r2) continue;
           const v = fire(r2, danger) + shape(r2.grid);
           if (v > b2) b2 = v;
         }
-        if (b2 > -Infinity) c.s += AI_N.second * (b2 - shape(c.grid));
-      }
+        return b2 > -Infinity ? AI_N.second * (b2 - shape(g)) : 0;
+      };
+      base += second(snap);
+      for (const c of top) { const v = second(c.grid); c.s += v; c.s0 += v; }
     }
     top.sort((a, b) => b.s - a.s);
     const best = top[0];
-    if (best.s <= base + 0.5 && !(prep && best.s >= base - AI_N.prepTol)) return null;
+    if (best.s0 <= base + 0.5 && !(prep && best.s0 >= base - AI_N.prepTol)) return null;
     const i = best.y * COLS + best.x;
     return { x: best.x, y: best.y, rc: board.riseCount, c0: board.C[i], c1: board.C[i + 1] };
   }
@@ -123,6 +128,9 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
     }
     const ty = plan.y - (board.riseCount - plan.rc);
     if (ty < TOP) { plan = null; return idle; }
+    // 向かっている途中で狙いの2枚が変わったら（消えた・落ちてきた）、着いてから捨てずに、すぐ計画し直す
+    const ti = ty * COLS + plan.x;
+    if (board.C[ti] !== plan.c0 || board.C[ti + 1] !== plan.c1) { plan = null; return idle; }
     wait = L.act;
     const cur = board.cursor;
     if (cur.y !== ty) return { ...idle, up: cur.y > ty, down: cur.y < ty };

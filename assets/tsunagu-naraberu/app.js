@@ -26,7 +26,7 @@ const phys = createFx();
 const store = (() => { try { return window.localStorage; } catch { return null; } })();
 const settings = loadSettings(store);
 const firstVisit = !(() => { try { return store && store.getItem(KEY_V2); } catch { return null; } })();
-const mobile = matchMedia('(pointer: coarse)').matches || innerWidth < 760;
+const mobile = matchMedia('(pointer: coarse)').matches || innerWidth < 600;
 if (firstVisit && matchMedia('(prefers-reduced-motion: reduce)').matches) settings.reduceMotion = true;
 if (mobile && settings.mode === '2p') settings.mode = 'cpu';
 const save = () => saveSettings(store, settings);
@@ -46,6 +46,7 @@ const LEVEL_NAMES = Object.keys(LEVELS);
 function applyInputSettings() { input.setKeys(settings.keys); input.setTiming(settings.das, settings.arr); }
 function applyLook() {
   renderer.setCalm(settings.reduceMotion);
+  charas.setCalm(settings.reduceMotion);
   phys.setLevel(calmOrLow() ? 0.5 : 1);
   document.body.classList.toggle('calm', settings.reduceMotion);
   audio.setVolumes(settings.volume);
@@ -60,10 +61,14 @@ let playChars = settings.chars.slice();   // 試合中のキャラ（おまか�
 let starting = false;                     // VS 演出中・開始処理中（二重に始めない）
 let tut = null;                           // チュートリアル中 {kind, idx, events, done}
 let ctrlBack = 'setup';                   // 操作の設定から戻る先
+let cancelRebind = null;                  // 操作の設定のキー割り当て待ちを取り消す（画面を出るとき）
+let tutTimer = 0;                         // あそびかたの「できた！」から次へ進むまでのタイマー
+let vsVoiceTimer = 0;                     // VS 画面の 2P の名乗り
 
 // ---- 画面の切り替え ----
 const BACK = { menu: 'title', setup: 'menu', records: 'menu', options: 'menu', tutpick: 'menu' };
 function show(id) {
+  if (id !== 'controls' && cancelRebind) cancelRebind();
   for (const el of document.querySelectorAll('.overlay')) el.classList.toggle('on', el.id === id);
   screen = id || 'play';
   document.body.dataset.screen = screen;
@@ -173,6 +178,7 @@ $('optBody').addEventListener('click', e => {
   save(); applyLook(); audio.move(); ui.renderOptions($('optBody'), settings);
 });
 const controls = mountControls({ root: $('ctrlBody'), settings, save, onChange: applyInputSettings, mobile });
+cancelRebind = () => controls.cancel();
 $('btnCtrl').onclick = () => { ctrlBack = 'setup'; controls.render(); show('controls'); };
 $('btnOptCtrl').onclick = () => { ctrlBack = 'options'; controls.render(); show('controls'); };
 $('btnCtrlClose').onclick = () => back();
@@ -187,7 +193,7 @@ function goMenu() {
   openScreen('menu');
 }
 $('btnGo').onclick = () => { audio.ensure(); startFlow(); };
-$('btnAgain').onclick = () => { if (tut) return; startMatch(); };
+$('btnAgain').onclick = () => { if (tut) return; rollOpponent(); startMatch(); };
 $('btnSetup').onclick = () => openScreen('setup');
 $('btnMenu').onclick = () => { match = null; openScreen('menu'); };
 $('btnResume').onclick = () => resume();
@@ -196,7 +202,7 @@ $('btnQuit').onclick = () => quitToMenu();
 $('btnMute').onclick = () => { audio.ensure(); $('btnMute').textContent = audio.toggle() ? '音 OFF' : '音 ON'; };
 $('btnMute').textContent = audio.muted ? '音 OFF' : '音 ON';
 $('btnPause').onclick = () => { if (screen === 'play') pause(); else if (screen === 'pause') resume(); };
-$('btnHelp').onclick = () => { $('help').classList.toggle('on'); };
+$('btnHelp').onclick = () => { if (screen === 'play') pause(); $('help').classList.toggle('on'); };
 $('help').onclick = () => $('help').classList.remove('on');
 for (const b of document.querySelectorAll('[data-garbage]')) b.onclick = () => { if (match && match.practice && !tut) { match.dropGarbage(+b.dataset.garbage); audio.move(); } };
 $('btnPracReset').onclick = () => { if (match && match.practice) { match.resetBoard(); phys.reset(); } };
@@ -206,9 +212,15 @@ $('btnTutSkip').onclick = () => tut && nextTutStep();
 $('btnTutQuit').onclick = () => quitToMenu();
 
 function quitToMenu() {
+  clearTimeout(tutTimer); clearTimeout(vsVoiceTimer); audio.stopVoices();
   match = null; tut = null; starting = false;
   $('practiceBar').hidden = true; $('tutBar').hidden = true;
   openScreen('menu');
+}
+
+// CPU戦の相手が「おまかせ」なら、試合ごとに選び直す
+function rollOpponent() {
+  if (settings.mode === 'cpu' && settings.oppRandom) playChars[1] = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)].id;
 }
 
 // VS 演出をはさんで始める（練習は演出なし）
@@ -218,12 +230,13 @@ function startFlow() {
   if (settings.mode === 'practice') { startMatch(); return; }
   starting = true;
   playChars = settings.chars.slice();
-  if (settings.mode === 'cpu' && settings.oppRandom) playChars[1] = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)].id;
+  rollOpponent();
   const cpu = settings.mode === 'cpu';
   ui.setupVS(playChars, cpu ? ['あなた', 'CPU'] : ['1P', '2P']);
   show('vs');
   audio.voice(0, playChars[0], 'select');
-  setTimeout(() => audio.voice(1, playChars[1], 'select'), 700);
+  clearTimeout(vsVoiceTimer);
+  vsVoiceTimer = setTimeout(() => { if (screen === 'vs') audio.voice(1, playChars[1], 'select'); }, 700);
   clearTimeout(vsTimer);
   vsTimer = setTimeout(() => startMatch(), settings.reduceMotion ? 900 : 2300);
 }
@@ -255,6 +268,7 @@ function startMatch(demo = false) {
 }
 
 function beginPlay(ids, cd, twoP) {
+  clearTimeout(vsVoiceTimer); audio.stopVoices();
   applyInputSettings();
   input.setMode(twoP);
   stats = [{ maxChain: 0 }, { maxChain: 0 }];
@@ -284,6 +298,7 @@ function startTutorial(kind) {
   startTutStep();
 }
 function startTutStep() {
+  clearTimeout(tutTimer);
   const step = TUTORIALS[tut.kind][tut.idx];
   tut.events = []; tut.done = false;
   match = createPractice({ cfg: tutorialCfg(CFG, tut.kind, step), kind: tut.kind, seed: 7 + tut.idx, setup: step.setup });
@@ -295,14 +310,15 @@ function startTutStep() {
   $('practiceBar').hidden = true;
   $('tutBar').hidden = false;
   $('tutStep').textContent = `あそびかた（${KIND_NAME[tut.kind]}）${tut.idx + 1} / ${TUTORIALS[tut.kind].length}：${step.title}`;
-  $('tutText').textContent = mobile ? step.text.replace(/F（スマホは[^）]*）/, 'パネルを横になぞる').replace(/G（スマホは下のボタン）/, '下のボタン') : step.text;
+  $('tutText').textContent = mobile && step.textMobile ? step.textMobile : step.text;
 }
 function nextTutStep() {
   tut.idx++;
   if (tut.idx >= TUTORIALS[tut.kind].length) {
     ui.toast('あそびかた クリア！', 1600);
     audio.win();
-    setTimeout(() => quitToMenu(), 1700);
+    clearTimeout(tutTimer);
+    tutTimer = setTimeout(() => quitToMenu(), 1700);
     tut.done = true;
     return;
   }
@@ -316,7 +332,8 @@ function checkTutorial(ev) {
     tut.done = true;
     ui.toast('できた！');
     audio.move();
-    setTimeout(() => { if (tut) nextTutStep(); }, 1400);
+    clearTimeout(tutTimer);
+    tutTimer = setTimeout(() => { if (tut) nextTutStep(); }, 1400);
   }
 }
 
@@ -324,10 +341,11 @@ addEventListener('keydown', e => {
   if (e.repeat && ['Escape', 'KeyP', 'Enter'].includes(e.code)) return;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Quote', 'Semicolon'].includes(e.code) && screen === 'play') e.preventDefault();
   audio.ensure();
-  if (screen === 'play') { if (e.code === 'Escape' || e.code === 'KeyP') pause(); return; }
-  if (screen === 'pause' && (e.code === 'Escape' || e.code === 'KeyP')) { resume(); return; }
+  const pauseKey = e.code === 'Escape' || (e.code === 'KeyP' && !keyBound('KeyP'));
+  if (screen === 'play') { if (pauseKey) pause(); return; }
+  if (screen === 'pause' && pauseKey) { resume(); return; }
   if (screen === 'loading') return;
-  if (screen === 'title') { goMenu(); return; }
+  if (screen === 'title') { if (!/^(Shift|Control|Alt|Meta|Tab|CapsLock|F\d+$)/.test(e.code)) goMenu(); return; }
   if (screen === 'vs') { if (['Enter', 'Space', 'Escape'].includes(e.code)) startMatch(); return; }
   if (screen === 'controls' && controls.waiting) return;
   // メニュー類: 矢印で選び、Enter/Space で決定（ボタンの標準動作）、Escape で戻る
@@ -338,6 +356,8 @@ addEventListener('keydown', e => {
   if (dir && !(document.activeElement && document.activeElement.type === 'range' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight'))) { e.preventDefault(); ui.moveFocus(root, dir); }
 });
 addEventListener('blur', () => { if (screen === 'play') pause(); });
+// そのキーが操作に割り当てられているか（割り当てたキーは一時停止に使わない）
+function keyBound(code) { return ['p1', 'p2'].some(p => Object.values(settings.keys[p]).some(list => list.includes(code))); }
 
 // ゲームパッドでメニューを操作する（十字キーで選ぶ・A で決定・B で戻る・Start で決定）
 function padMenu() {
@@ -349,8 +369,14 @@ function padMenu() {
   else if (screen === 'vs' && (pr('a') || pr('pause'))) startMatch();
   else if (screen === 'pause' && pr('pause')) resume();
   else if (root) {
-    if (pr('up') || pr('left')) ui.moveFocus(root, -1);
-    if (pr('down') || pr('right')) ui.moveFocus(root, 1);
+    const f0 = document.activeElement;
+    if (f0 && f0.type === 'range' && root.contains(f0) && (pr('left') || pr('right'))) {
+      f0.value = String(+f0.value + (pr('right') ? 1 : -1) * (+f0.step || 1));
+      f0.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      if (pr('up') || pr('left')) ui.moveFocus(root, -1);
+      if (pr('down') || pr('right')) ui.moveFocus(root, 1);
+    }
     if (pr('a') || pr('pause')) { const f = document.activeElement; if (f && root.contains(f)) f.click(); }
     if (pr('b')) back();
   }
@@ -448,16 +474,17 @@ canvas.addEventListener('pointerdown', e => {
   audio.ensure();
   const b = match.players[0].board;
   b.cursor = { x: Math.min(4, c.x), y: c.y };
-  drag = { col: c.x, y: c.y, rc: b.riseCount, c: b.C[c.y * 6 + c.x], target: c.x, pending: null };
+  drag = { col: c.x, y: c.y, rc: b.riseCount, c: b.C[c.y * 6 + c.x], target: c.x, pending: null, active: true };
   try { canvas.setPointerCapture(e.pointerId); } catch { /* 指を追えない環境でも操作は続ける */ }
 });
 // 指の列だけ覚え、実際の入れ替えは simulate で1刻み1列ずつ進める
 canvas.addEventListener('pointermove', e => {
-  if (!drag || !match) return;
+  if (!drag || !drag.active || !match) return;
   const c = cellAt(e);
   if (c) drag.target = c.x;
 });
-const endDrag = () => { /* 指を離しても、なぞった列までは進める */ };
+// 指（マウス）を離したら、それ以上は追わない。なぞった列までは進める
+const endDrag = () => { if (drag) drag.active = false; };
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
@@ -495,14 +522,14 @@ function frame(now) {
   if (screen === 'play' && match && !match.result) {
     let dt = Math.min(0.1, (now - last) / 1000);
     last = now;
-    if (countdown > 0) { countdown -= dt; dt = 0; }
+    if (countdown > 0) { countdown -= dt; dt = 0; input.endFrame(); } // よーい中に押したキーは始まりに持ち越さない
     acc += dt;
     let steps = 0;
     while (acc >= 1 / 60 && steps < 5) { acc -= 1 / 60; steps++; }
     simulate(steps, t);
     updatePinch(t);
   } else { last = now; padMenu(); }
-  renderer.draw(match, labels, t, { mobile, topReserve: tut && mobile && screen === 'play' ? $('tutBar').offsetHeight + 6 : 0 });
+  renderer.draw(match, labels, t, { mobile, paused: screen !== 'play', topReserve: tut && mobile && screen === 'play' ? $('tutBar').offsetHeight + 6 : 0 });
   if (screen === 'play' && countdown > 0) drawCountdown();
 }
 // ピンチの曲: 自分の盤が上まで迫ったら切り替え、3秒落ち着いたら戻す

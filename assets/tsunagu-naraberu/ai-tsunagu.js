@@ -59,6 +59,28 @@ function evalGrid(g, cfg, withPot) {
   return s;
 }
 
+// 組は考えている間も落ち続ける。目標 (x, rot) まで、考える時間＋1手ごとの待ちで回転・移動していく間に、
+// 組がいる列の空きより下まで落ちてしまわないか（落ちたらその場で着地して、狙いと違う所＝多くは出口の3列目に置かれる）。
+// movesFirst: 横移動を先にして回転は目標の列でする（3列目が高くて急ぐとき）
+const CHILD = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+function inTime(h, x, rot, think, act, fallFrames, timer0, movesFirst) {
+  const steps = [];
+  const rotSteps = rot === 0 ? [] : rot === 2 ? [1, 2] : [rot];
+  const dx = Math.sign(x - 2), moves = [];
+  for (let c = 2; c !== x; c += dx) moves.push(c + dx);
+  if (movesFirst) { for (const c of moves) steps.push({ x: c, rot: 0 }); for (const r of rotSteps) steps.push({ x, rot: r }); }
+  else { for (const r of rotSteps) steps.push({ x: 2, rot: r }); for (const c of moves) steps.push({ x: c, rot }); }
+  // 列 c で、上から数えて row 段目（1〜12）が空いているか
+  const free = (c, row) => row >= 1 && row <= 12 - h[c];
+  for (let i = 0; i < steps.length; i++) {
+    const t = think + act * (i + 1);
+    const y = 1 + Math.floor((timer0 + t) / fallFrames); // そのとき組の軸がいる段
+    const st = steps[i], [cx, cy] = CHILD[st.rot];
+    if (!free(st.x, y) || !(y + cy < 1 || free(st.x + cx, y + cy))) return false;
+  }
+  return true;
+}
+
 // 出現位置から目標列まで、通り道がふさがっていないか
 function reachable(g, x, rot) {
   const cx = x + [0, 1, 0, -1][rot];
@@ -72,7 +94,7 @@ export function createTsunaguAI(levelName, cfg, opts = {}) {
   const rng = createRng(opts.seed ?? 99);
   const minChain = AI_T.minChain[levelName];
   const noise = AI_T.noise[levelName];
-  let pid = -1, target = null, wait = 0, lastX = -1, stuck = 0, rotTries = 0;
+  let pid = -1, target = null, wait = 0, lastX = -1, stuck = 0, rotTries = 0, movesFirst = false;
 
   function fireScore(r, danger) {
     if (r.chains === 0) return 0;
@@ -88,9 +110,15 @@ export function createTsunaguAI(levelName, cfg, opts = {}) {
       || Math.max(...h) >= AI_T.dangerHeight || h[2] >= AI_T.dangerHeight;
     const { a, b } = board.piece;
     const nx = board.next[0];
+    const fallFrames = Math.round(cfg.tsunaguFallSec * 60);
+    const urgent = h[2] >= AI_T.urgentCol3;
+    const think = urgent ? 0 : L.think;
+    // 間に合う候補だけを考える（間に合う候補がなければ、全部から選ぶ）
+    let cands = CANDS.filter(c => reachable(g0, c.x, c.rot) && inTime(h, c.x, c.rot, think, L.act, fallFrames, board.fallTimer, urgent));
+    if (!cands.length) cands = CANDS.filter(c => reachable(g0, c.x, c.rot));
+    movesFirst = urgent;
     let best = null;
-    for (const c of CANDS) {
-      if (!reachable(g0, c.x, c.rot)) continue;
+    for (const c of cands) {
       const g = cloneGrid(g0);
       if (!dropPiece(g, c.x, c.rot, a, b)) continue;
       const r = resolveAll(g, cfg);
@@ -119,21 +147,19 @@ export function createTsunaguAI(levelName, cfg, opts = {}) {
     if (board.pieceId !== pid || !target) {
       target = plan(board, pendingD);
       pid = board.pieceId; // 計画が成功してから記録する（失敗したら次の刻みでやり直す）
-      wait = L.think;
+      wait = movesFirst ? 0 : L.think; // 3列目が高いときは考える間を置かずに動く
       lastX = -1; stuck = 0; rotTries = 0;
     }
     if (wait > 0) { wait--; return NONE; }
     wait = L.act;
     const p = board.piece;
-    if (p.rot !== target.rot && rotTries < 4) {
-      rotTries++;
-      return (target.rot - p.rot + 4) % 4 === 3 ? { ...NONE, a: true } : { ...NONE, b: true };
-    }
-    if (p.x !== target.x && stuck < 2) {
-      if (p.x === lastX) stuck++;
-      lastX = p.x;
-      return p.x < target.x ? { ...NONE, right: true } : { ...NONE, left: true };
-    }
+    const rotate = () => { rotTries++; return (target.rot - p.rot + 4) % 4 === 3 ? { ...NONE, a: true } : { ...NONE, b: true }; };
+    const move = () => { if (p.x === lastX) stuck++; lastX = p.x; return p.x < target.x ? { ...NONE, right: true } : { ...NONE, left: true }; };
+    const needRot = p.rot !== target.rot && rotTries < 4, needMove = p.x !== target.x && stuck < 2;
+    // ふだんは回してから動かす。急ぐときは先に動かして、目標の列で回す（回転2は下に伸びて着地が早まる）
+    if (movesFirst && needMove) return move();
+    if (needRot) return rotate();
+    if (needMove) return move();
     return { ...NONE, up: true };
   }
 

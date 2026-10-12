@@ -370,7 +370,7 @@ function drawNaraberu(ctx, b, X, Y, s, t, p, fx, cfg) {
   ctx.restore();
   // カーソル
   const cy = Y + (b.cursor.y - TOP) * s - lift, cx = X + b.cursor.x * s;
-  const pulse = 0.8 + 0.2 * Math.sin(t * 8);
+  const pulse = CALM ? 1 : 0.8 + 0.2 * Math.sin(t * 8);
   ctx.save();
   ctx.shadowColor = 'rgba(255,255,255,.9)'; ctx.shadowBlur = s * 0.35;
   ctx.strokeStyle = `rgba(255,255,255,${pulse})`; ctx.lineWidth = Math.max(3, s * 0.13);
@@ -466,7 +466,7 @@ function drawCeiling(ctx, b, X, Y, s, small, now) {
   };
   if (b.stop > 0) bar(Math.min(1, b.stop / 180), '#7fdcff', `せり上がり停止 ${(b.stop / 60).toFixed(1)}秒`);
   else if (b.grace < b.graceMax) {
-    const a = 0.7 + 0.3 * Math.sin(now * 14);
+    const a = CALM ? 1 : 0.7 + 0.3 * Math.sin(now * 14);
     bar(b.grace / b.graceMax, `rgba(255,90,90,${a})`, `天井まで あと${(b.grace / 60).toFixed(1)}秒`);
   }
 }
@@ -477,9 +477,9 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
   let shake = [0, 0];
   let layout = null;
   // 試合ごとの見た目だけの記録: つなぐ派の点数と式、負けた時刻（盤が崩れ落ちる）
-  let scoreMatch = null, scores = [], deadAt = [0, 0];
+  let scoreMatch = null, scoreResets = undefined, scores = [], deadAt = [0, 0];
   function scoreOf(p, match) {
-    if (scoreMatch !== match) { scoreMatch = match; scores = [{ total: 0, formula: '', formulaT: 0 }, { total: 0, formula: '', formulaT: 0 }]; deadAt = [0, 0]; }
+    if (scoreMatch !== match || scoreResets !== match.resets) { scoreMatch = match; scoreResets = match.resets; scores = [{ total: 0, formula: '', formulaT: 0 }, { total: 0, formula: '', formulaT: 0 }]; deadAt = [0, 0]; }
     return scores[p];
   }
 
@@ -492,7 +492,8 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       const bw = s * 6;
       const X0 = 10;
       const Y0 = 56 + reserve + Math.round(s * 1.95);
-      const ms = Math.max(6, Math.floor((W - X0 - bw - 22) / 6));
+      // 相手の小さい盤は、自分の盤より大きくしない（縦の短い画面で幅だけで決めると逆転する）
+      const ms = Math.max(6, Math.min(Math.floor((W - X0 - bw - 22) / 6), Math.floor(s * 0.7)));
       return {
         mobile: true, boards: [
           { X: X0, Y: Y0, s },
@@ -500,11 +501,12 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
         ], hud: { x: X0 + bw + 14, y: n === 1 ? 370 : Y0 + ms * 12 + 16 }, // 練習（1人）は右の列の上にツールバーがあるので、その下から
       };
     }
-    const s = Math.max(6, Math.floor(Math.min((H - 56 - 100) / 13.4, (W - 40) / 17.5)));
+    const bottomReserve = n === 1 ? 64 : 0; // 練習のボタン列の分
+    const s = Math.max(6, Math.floor(Math.min((H - 56 - 100 - bottomReserve) / 13.4, (W - 40) / 17.5)));
     const bw = s * 6, gap = s * 4.2;
     // 練習（1人）: 盤を中央より少し右に置き、左に立ち絵、右に時計
     const X0 = n === 1 ? Math.round(W / 2 - bw / 2 + s * 1.5) : Math.round((W - (bw * 2 + gap)) / 2);
-    const Y0 = Math.round(56 + (H - 56 - s * 12) / 2 + s * 0.7);
+    const Y0 = Math.round(56 + (H - 56 - bottomReserve - s * 12) / 2 + s * 0.7);
     return { mobile: false, boards: [{ X: X0, Y: Y0, s }, { X: X0 + bw + gap, Y: Y0, s }], hud: { x: n === 1 ? X0 + bw + s * 2.2 : W / 2, y: Y0 } };
   }
 
@@ -587,7 +589,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       let danger = false;
       if (pl.kind === 'naraberu') danger = pl.board.grace < pl.board.graceMax;
       else danger = pl.board.grid[3][2] !== 0;
-      ctx.strokeStyle = danger ? `rgba(255,70,70,${0.6 + 0.4 * Math.sin(now * 12)})` : f.accent;
+      ctx.strokeStyle = danger ? `rgba(255,70,70,${CALM ? 0.9 : 0.6 + 0.4 * Math.sin(now * 12)})` : f.accent;
       ctx.lineWidth = small ? 2 : 3;
       roundRect(ctx, X - 6, Y - 6, s * 6 + 12, s * 12 + 12, 12); ctx.stroke();
       ctx.save();
@@ -663,7 +665,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       }
       ctx.restore();
     }
-    if (charas) charas.draw(ctx, layout, match, now, W);
+    if (charas) charas.draw(ctx, layout, match, now, W, { paused: !!opts.paused, labels });
 
     // 中央表示
     const tsec = match.frame / 60;
@@ -676,8 +678,13 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
     ctx.fillText(`${mm}:${String(ss).padStart(2, '0')}`, hx, hy + (layout.mobile ? 0 : 10));
     if (Math.abs(fever - 1) > 1e-6) {
       ctx.fillStyle = fever > 1 ? `rgba(255,${180 - (fever - 1) * 120},80,1)` : '#9fe3ff';
-      ctx.font = `800 ${layout.mobile ? 13 : 18}px "M PLUS Rounded 1c",sans-serif`;
-      ctx.fillText(layout.mobile ? `攻撃×${fever.toFixed(1)}` : `${fever > 1 ? '攻撃' : '準備中 攻撃'} ×${fever.toFixed(1)}`, hx, hy + (layout.mobile ? 20 : 48));
+      const gapW = layout.mobile || match.players.length < 2 ? 999 : layout.boards[1].X - (layout.boards[0].X + layout.boards[0].s * 6) - 16;
+      const label = layout.mobile ? `攻撃×${fever.toFixed(1)}` : `${fever > 1 ? '攻撃' : '準備中 攻撃'} ×${fever.toFixed(1)}`;
+      let fs = layout.mobile ? 13 : 18;
+      ctx.font = `800 ${fs}px "M PLUS Rounded 1c",sans-serif`;
+      const tw = ctx.measureText(label).width;
+      if (tw > gapW) { fs = Math.max(9, Math.floor(fs * gapW / tw)); ctx.font = `800 ${fs}px "M PLUS Rounded 1c",sans-serif`; }
+      ctx.fillText(label, hx, hy + (layout.mobile ? 20 : 48));
     }
 
     // 演出

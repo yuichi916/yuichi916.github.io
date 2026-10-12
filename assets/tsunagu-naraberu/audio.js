@@ -171,10 +171,22 @@ export function createAudio() {
     voiceNow[p] = { src, g };
   }
 
+  // 前の試合・画面の声を止める（もう一回・メニューに戻ったとき）
+  function stopVoices() {
+    if (!ac) return;
+    const t = ac.currentTime;
+    for (let p = 0; p < 2; p++) {
+      const v = voiceNow[p];
+      if (v && t < voiceEnd[p]) { v.g.gain.setTargetAtTime(0, t, 0.02); try { v.src.stop(t + 0.1); } catch { /* 止まっている */ } }
+      voiceNow[p] = null; voiceEnd[p] = 0;
+    }
+  }
+
   return {
     ensure,
     onEvents,
     voice,
+    stopVoices,
     loadVoices,
     setVolumes(v) { vols = { ...vols, ...v }; applyVols(); },
     bgm,

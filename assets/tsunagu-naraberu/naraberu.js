@@ -74,6 +74,7 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     grace: graceMax,
     graceMax,
     stop: 0, // 停止時間（刻み）: 同時消し・連鎖のあと、せり上がりと天井の猶予が止まる
+    garbSide: 0, // 幅の狭いおじゃまを次に置く側（偶数=左、奇数=右）
     frame: 0,
     dead: false,
     isDead: () => B.dead,
@@ -315,10 +316,10 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     if (D > 0) ev.push({ type: 'attack', D, chain: stepChain });
   }
 
+  // 幅の狭いおじゃまは、来るたびに左右を入れ替える（B.garbSide は盤が覚えておく）
   function placeGarbage(list, ev) {
-    let side = 0;
     for (const { w, h: h0 } of list) {
-      const x = w >= COLS ? 0 : (side++ % 2 === 0 ? 0 : COLS - w);
+      const x = w >= COLS ? 0 : (B.garbSide++ % 2 === 0 ? 0 : COLS - w);
       let top = ROWS;
       for (let xx = x; xx < x + w; xx++) {
         for (let y = 0; y < ROWS; y++) if (B.C[y * COLS + xx] !== 0) { top = Math.min(top, y); break; }
@@ -378,13 +379,16 @@ export function createNaraberu({ cfg, seed, takeGarbage }) {
     const act = anyActive();
     if (!act.flagged && !act.chainClearing) B.chain = 0;
 
-    if (!act.clearing && !act.thawing && !act.falling) {
+    // 前のおじゃまが見えない段（TOP より上）にいる間は次を置かない（重ねて置く場所がなく、入りきらない分が消えていた）
+    const garbageAbove = [...B.blocks.values()].some(k => k.y < TOP);
+    if (!act.clearing && !act.thawing && !act.falling && !garbageAbove) {
       const list = takeGarbage();
       if (list.length) placeGarbage(list, ev);
     }
 
     if (B.stop > 0 && !act.clearing) B.stop--;
-    if (inp.bHeld && !act.clearing && !act.thawing) B.stop = 0; // 手動せり上げは停止時間を打ち切る
+    // 手動せり上げは停止時間を打ち切る（天井に届いてせり上がれないときは打ち切らない＝停止時間を無駄にしない）
+    if (inp.bHeld && !act.clearing && !act.thawing && !topOccupied()) B.stop = 0;
 
     // せり上がり（停止時間中は止まる）
     if (!act.clearing && !act.thawing && B.stop === 0 && !topOccupied()) {

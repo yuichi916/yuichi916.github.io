@@ -30,6 +30,7 @@ export function createPractice({ cfg, kind, seed, setup = null }) {
     attackMul: () => 1,
     step,
     resetBoard,
+    get resets() { return resets; }, // 盤を作り直した回数（演出が点数などを数え直すため）
     // n: 受ける側の単位（つなぐ派=おじゃまつぶの数、ならべる派=マス）
     dropGarbage(n) {
       pending.D += n / (kind === 'tsunagu' ? cfg.convT : cfg.convN);

@@ -29,6 +29,7 @@ export function createCharas({ onSay, effects = () => 'high' } = {}) {
   let ids = [null, null];
   const st = [mk(), mk()];
   const cutins = [];
+  let calm = false, dupTag = '2P';
   function mk() { return { mood: 'idle', until: 0, t0: 0, bubble: null, dangerSaid: 0, stars: [], expr: 'normal', prev: null, swT: -9 }; }
   function reset() { st[0] = mk(); st[1] = mk(); cutins.length = 0; }
   function setChars(list) { ids = list.slice(); ids.forEach(id => id && loadCharacter(id)); }
@@ -121,8 +122,8 @@ export function createCharas({ onSay, effects = () => 'high' } = {}) {
     let jump = 0, shakeX = 0, tilt = 0, sink = 0;
     if (mood === 'happy' || mood === 'super') { const k = Math.min(1, u / 0.45); jump = Math.sin(k * Math.PI) * size * (mood === 'super' ? 0.07 : 0.04); }
     if (mood === 'win') { jump = Math.abs(Math.sin(u * 5)) * size * 0.04; tilt = Math.sin(u * 2.6) * 0.03; }
-    if (mood === 'ouch') shakeX = Math.sin(u * 60) * size * 0.02 * Math.max(0, 1 - u / 0.6);
-    if (mood === 'panic') shakeX = Math.sin(now * 38) * size * 0.006;
+    if (mood === 'ouch' && !calm) shakeX = Math.sin(u * 60) * size * 0.02 * Math.max(0, 1 - u / 0.6);
+    if (mood === 'panic' && !calm) shakeX = Math.sin(now * 38) * size * 0.006;
     if (mood === 'lose') sink = Math.min(1, u / 0.6) * size * 0.04;
     const breathe = 1 + Math.sin(now * 2.4 + p) * 0.008;
     const id = ids[p];
@@ -159,7 +160,7 @@ export function createCharas({ onSay, effects = () => 'high' } = {}) {
     if (c) {
       const fs = Math.round(Math.max(12, size * 0.055));
       ctx.font = `900 ${fs}px "M PLUS Rounded 1c",sans-serif`;
-      const label = dup ? `${c.name}（2P）` : c.name;
+      const label = dup ? `${c.name}（${dupTag}）` : c.name;
       const tw = ctx.measureText(label).width + fs * 1.4, th = fs * 1.6;
       ctx.fillStyle = 'rgba(10,8,26,.82)'; rr(ctx, cx - tw / 2, baseY + 6, tw, th, th / 2); ctx.fill();
       ctx.strokeStyle = c.color.main; ctx.lineWidth = 2; ctx.stroke();
@@ -209,16 +210,20 @@ export function createCharas({ onSay, effects = () => 'high' } = {}) {
   }
 
   // 盤の外側にキャラを置く（PC: P1 の左・P2 の右。スマホ: 自分は右の列に小さく、相手は小さい盤の上に顔アイコン）
-  function draw(ctx, layout, match, now, W) {
+  // opts.paused: 一時停止中（ピンチの声・あわてる演出を出さない）、opts.labels: 名札の「（CPU）」「（2P）」
+  function draw(ctx, layout, match, now, W, opts = {}) {
     if (!match || !layout) return;
+    dupTag = opts.labels && opts.labels[1] === 'CPU' ? 'CPU' : '2P';
     const dup = match.players.length > 1 && ids[0] && ids[0] === ids[1];
     match.players.forEach((pl, p) => {
       const L = layout.boards[p], s = L.s;
-      const danger = pl.kind === 'naraberu' ? pl.board.grace < pl.board.graceMax : pl.board.grid[3][2] !== 0;
+      const danger = !opts.paused && (pl.kind === 'naraberu' ? pl.board.grace < pl.board.graceMax : pl.board.grid[3][2] !== 0);
       if (layout.mobile) {
         if (p === 1) { faceIcon(ctx, ids[1], L.X + L.s * 6 - 14, L.Y - 22, 16, st[1].mood); return; }
         const colW = layout.boards[1].s * 6;
-        const size = Math.min(colW * 1.45, 200);
+        // 立ち絵と名札が画面の下にはみ出さない大きさに（縦の短い画面）
+        const size = Math.min(colW * 1.45, 200, ctx.canvas.clientHeight - layout.hud.y - 74 - 36);
+        if (size < 50) return;
         portrait(ctx, 0, pl.kind, layout.boards[1].X + colW / 2, layout.hud.y + 74 + size, size, now, danger && !match.result, false);
         return;
       }
@@ -267,5 +272,5 @@ export function createCharas({ onSay, effects = () => 'high' } = {}) {
     }
   }
 
-  return { reset, setChars, start, say, onEvents, finish, draw, drawOverlay, get ids() { return ids.slice(); } };
+  return { reset, setChars, start, say, onEvents, finish, draw, drawOverlay, setCalm(v) { calm = !!v; }, get ids() { return ids.slice(); } };
 }

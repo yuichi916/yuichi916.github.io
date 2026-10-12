@@ -8,10 +8,20 @@ function valid(r) {
     && r.chars && typeof r.chars === 'object' && Number.isFinite(r.bestChain) && Number.isFinite(r.bestAttack);
 }
 
+// 段・キャラごとの記録は、数でない項目を0にし、形の違うものは捨てる（壊れた保存で試合の終わりに止まらないように）
+const nums = (o, keys) => (o && typeof o === 'object' && !Array.isArray(o)
+  ? Object.fromEntries(keys.map(k => [k, Number.isFinite(o[k]) ? o[k] : 0])) : null);
+function clean(map, keys) {
+  const out = {};
+  for (const [k, v] of Object.entries(map)) { const c = nums(v, keys); if (c) out[k] = c; }
+  return out;
+}
+
 export function loadRecords(storage) {
   try {
     const r = JSON.parse((storage && storage.getItem(KEY)) || 'null');
-    return valid(r) ? r : emptyRecords();
+    if (!valid(r)) return emptyRecords();
+    return { ...r, cpu: clean(r.cpu, ['win', 'lose', 'draw']), chars: clean(r.chars, ['win', 'lose', 'plays']) };
   } catch { return emptyRecords(); }
 }
 

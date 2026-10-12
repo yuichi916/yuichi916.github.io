@@ -6,6 +6,8 @@ import { tsunaguDamage, tsunaguBonus } from './damage.js';
 export const ROWS = 13;
 export const COLS = 6;
 export const GARBAGE = 6;
+const IRS_FRAMES = 36; // 回転の先行入力が効く、出現前の刻み数（0.6秒）
+const MAX_FLOOR_KICKS = 8; // 床で持ち上がる回転の上限（1組あたり）
 const DX = [0, 1, 0, -1];
 const DY = [-1, 0, 1, 0];
 
@@ -153,8 +155,11 @@ export function createTsunagu({ cfg, seed, takeGarbage }) {
     B.pieceId++;
     B.phase = 'fall';
     B.fallTimer = 0;
-    // 先行入力（IRS）: 組が出る前に押した回転をここでかける
-    if (B.irs) { rotate(B.irs); B.irs = 0; }
+    B.floorKicks = 0;
+    // 先行入力（IRS）: 組が出る直前（IRS_FRAMES 刻み以内）に押した回転をここでかける。
+    // 長い連鎖の最初に押したものまで覚えていると、忘れたころに回って驚く
+    if (B.irs && B.frame - B.irsT <= IRS_FRAMES) rotate(B.irs);
+    B.irs = 0;
   }
 
   function tryMove(dx, dy) {
@@ -164,19 +169,22 @@ export function createTsunagu({ cfg, seed, takeGarbage }) {
     return true;
   }
 
+  // 回転。床で持ち上がる（上へずれる）回転は1組 MAX_FLOOR_KICKS 回まで（回し続けて着地を引き延ばせないように）
   function rotate(dir) {
     const p = B.piece;
+    const ok = q => pieceFits(B.grid, q) && (q.y >= p.y || B.floorKicks < MAX_FLOOR_KICKS);
+    const take = q => { if (q.y < p.y) B.floorKicks++; B.piece = q; return true; };
     const nr = (p.rot + dir + 4) % 4;
     const cand = { ...p, rot: nr };
-    if (pieceFits(B.grid, cand)) { B.piece = cand; return true; }
+    if (ok(cand)) return take(cand);
     const kick = { ...cand, x: p.x - DX[nr], y: p.y - DY[nr] };
-    if (pieceFits(B.grid, kick)) { B.piece = kick; return true; }
+    if (ok(kick)) return take(kick);
     if (nr === 1 || nr === 3) {
       const fr = (p.rot + 2) % 4;
       const flip = { ...p, rot: fr };
-      if (pieceFits(B.grid, flip)) { B.piece = flip; return true; }
+      if (ok(flip)) return take(flip);
       const fk = { ...flip, x: p.x - DX[fr], y: p.y - DY[fr] };
-      if (pieceFits(B.grid, fk)) { B.piece = fk; return true; }
+      if (ok(fk)) return take(fk);
     }
     return false;
   }
@@ -210,8 +218,7 @@ export function createTsunagu({ cfg, seed, takeGarbage }) {
     // 連鎖終わり: おじゃまの着弾
     const n = takeGarbage();
     if (n > 0) {
-      dropGarbage(n);
-      ev.push({ type: 'garbage', n });
+      ev.push({ type: 'garbage', n: dropGarbage(n) }); // 実際に置けた数（列が埋まっていると少ない）
       B.phase = 'garbage';
       B.timer = cfg.tsunaguGarbageFrames;
       return;
@@ -228,19 +235,21 @@ export function createTsunagu({ cfg, seed, takeGarbage }) {
       [cols[i], cols[j]] = [cols[j], cols[i]];
       counts[cols[i]]++;
     }
+    let placed = 0;
     for (let x = 0; x < COLS; x++) {
       let y = ROWS - 1;
       while (y >= 0 && B.grid[y][x] !== 0) y--;
-      for (let k = 0; k < counts[x] && y >= 0; k++, y--) B.grid[y][x] = GARBAGE;
+      for (let k = 0; k < counts[x] && y >= 0; k++, y--) { B.grid[y][x] = GARBAGE; placed++; }
     }
+    return placed;
   }
 
   function step(inp) {
     const ev = [];
     B.frame++;
     if (B.phase !== 'fall' && B.phase !== 'dead') {
-      if (inp.a) B.irs = -1;
-      if (inp.b) B.irs = 1;
+      if (inp.a) { B.irs = -1; B.irsT = B.frame; }
+      if (inp.b) { B.irs = 1; B.irsT = B.frame; }
     }
     switch (B.phase) {
       case 'spawn':

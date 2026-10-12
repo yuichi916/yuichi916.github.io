@@ -18,6 +18,7 @@ export const TUTORIALS = {
     {
       title: '動かして置く',
       text: '←→で組を動かして、いちばん左の列に置いてみよう。↑ですぐ落とせるよ。',
+      textMobile: '左右になぞって組を動かし、いちばん左の列に置いてみよう。下へはらうとすぐ落とせるよ（ボタン操作なら ⤓）。',
       setup(b) { b.grid = emptyGrid(); b.piece = { x: 2, y: 1, rot: 0, a: R, b: G }; },
       goal: (b, ev) => has(ev, 'lock') && b.grid.some((r, y) => y >= 1 && r[0] !== 0),
     },
@@ -43,7 +44,8 @@ export const TUTORIALS = {
   naraberu: [
     {
       title: '入れ替える',
-      text: '白い枠（カーソル）の2マスを入れ替えよう。F（スマホはパネルを横になぞる）で入れ替え。',
+      text: '白い枠（カーソル）の2マスを入れ替えよう。F で入れ替え。',
+      textMobile: 'パネルを横になぞると、となりのパネルと入れ替わるよ。入れ替えてみよう。',
       setup(b) { fillFromRows(b, ['GB....', 'YPGBYP']); b.cursor = { x: 0, y: BOTTOM - 1 }; },
       goal: (b, ev) => has(ev, 'swap'),
     },
@@ -68,7 +70,8 @@ export const TUTORIALS = {
     },
     {
       title: 'せり上げる',
-      text: 'G（スマホは下のボタン）を押している間、盤を自分でせり上げられるよ。2段せり上げてみよう。',
+      text: 'G を押している間、盤を自分でせり上げられるよ。2段せり上げてみよう。',
+      textMobile: '下の「せり上げ」ボタンを押している間、盤を自分でせり上げられるよ。2段せり上げてみよう。',
       setup(b) { fillFromRows(b, ['GBYGBY']); b.cursor = { x: 2, y: BOTTOM - 1 }; b.__tutRc = b.riseCount; },
       goal: b => b.riseCount - (b.__tutRc ?? 0) >= 2,
     },

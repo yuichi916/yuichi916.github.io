@@ -7,6 +7,18 @@ const store = (init = {}) => {
   return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) };
 };
 
+test('中身の壊れた戦績（段やキャラの記録が数でない）でも、試合の結果を足せる', () => {
+  const st = new Map([[KEY, JSON.stringify({ plays: 3, cpu: { ふつう: null, つよい: { win: 'x', lose: 2 } }, chars: { hinata: 'x', rin: { plays: 2, win: 1 } }, bestChain: 2, bestAttack: 5 })]]);
+  const storage = { getItem: k => st.get(k) ?? null, setItem: (k, v) => st.set(k, v) };
+  const r = loadRecords(storage);
+  recordResult(r, { mode: 'cpu', level: 'ふつう', chars: ['hinata', 'rin'], result: 'win', maxChain: 3, attack: 10 });
+  assert.equal(r.plays, 4);
+  assert.deepEqual(r.cpu['ふつう'], { win: 1, lose: 0, draw: 0 });
+  assert.deepEqual(r.cpu['つよい'], { win: 0, lose: 2, draw: 0 });
+  assert.equal(r.chars.hinata.win, 1);
+  assert.deepEqual(r.chars.rin, { win: 1, lose: 0, plays: 2 });
+});
+
 test('何もなければ空の戦績', () => {
   const r = loadRecords(store());
   assert.deepEqual(r, emptyRecords());

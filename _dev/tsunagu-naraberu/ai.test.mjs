@@ -24,6 +24,25 @@ test('つなぐ派AI: すぐ消せる盤面で消す配置を選ぶ', () => {
   }
 });
 
+test('つなぐ派AI: 3列目が高くても、間に合う空いた列に置いて自滅しない（高さ 6,7,10,5,2,1 の盤）', () => {
+  const H = [6, 7, 10, 5, 2, 1];
+  for (const lv of Object.keys(LEVELS)) {
+    for (let seed = 1; seed <= 8; seed++) {
+      const b = createTsunagu({ cfg: CFG, seed, takeGarbage: () => 0 });
+      b.step(NONE); // 最初の組を出す
+      b.grid = emptyGrid();
+      for (let x = 0; x < 6; x++) for (let k = 0; k < H[x]; k++) b.grid[12 - k][x] = ((x * 2 + k) % 4) + 1; // そろわない並び
+      const ai = createTsunaguAI(lv, CFG, { seed });
+      let locked = false;
+      for (let i = 0; i < 900 && !locked; i++) locked = b.step(ai.next(b, 0)).some(e => e.type === 'lock');
+      assert.ok(locked, `${lv} seed${seed}: 置けなかった`);
+      assert.equal(b.grid[1][2], 0, `${lv} seed${seed}: 3列目の出口をふさいだ`);
+      const h2 = b.grid.slice(1).filter(r => r[2] !== 0).length;
+      assert.ok(h2 <= 10, `${lv} seed${seed}: 3列目に積んだ（高さ${h2}）`);
+    }
+  }
+});
+
 test('ならべる派AI: 1手でそろう盤面で300刻み以内にそろえる', () => {
   for (const lv of Object.keys(LEVELS)) {
     const b = createNaraberu({ cfg: { ...CFG, naraberuRiseStartSec: 1000, naraberuRiseEndSec: 1000 }, seed: 1, takeGarbage: () => [] });
@@ -128,11 +147,28 @@ test('CPU対CPU: ならべる派CPUは、直前・2つ前に入れ替えた2枚�
   }
 });
 
-test('ならべる派AI: 予告が降ると上限を超える高さなら、せり上げない', () => {
+test('CPU対CPU: ならべる派CPUは、同じ色の2枚（入れ替えても何も変わらない）を入れ替えない', () => {
+  for (const lv of Object.keys(LEVELS)) {
+    let swaps = 0, same = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      const kinds = ['tsunagu', 'naraberu'];
+      const m = createMatch({ cfg: CFG, kinds, seeds: [seed * 2 + 1, seed * 2 + 2], cpuAtk: kinds.map(k => cpuAtkOf(k, lv)) });
+      const ais = [createTsunaguAI(lv, CFG, { seed }), createNaraberuAI(lv, CFG, { seed: seed + 9 })];
+      while (!m.result) {
+        const C0 = Int8Array.from(m.players[1].board.C);
+        const ev = m.step(ais.map((ai, p) => ai.next(m.players[p].board, m.players[p].pending.D)));
+        for (const e of ev) if (e.p === 1 && e.type === 'swap') { swaps++; const i = e.y * 6 + e.x; if (C0[i] === C0[i + 1]) same++; }
+      }
+    }
+    assert.equal(same, 0, `${lv}: ${swaps}回中 ${same}回`);
+  }
+});
+
+test('ならべる派AI: 予告が降ると、材料出しの上限（raiseIdle）に届く高さなら、せり上げない', () => {
   const b = createNaraberu({ cfg: CFG, seed: 3, takeGarbage: () => [] });
   fillFromRows(b, ['R.G.B.', 'GBYPRG', 'BYPRGB', 'YPRGBY', 'PRGBYP']); // 高さ5
   const ai = createNaraberuAI('ふつう', CFG, { seed: 1 }); // せり上げの上限 6段
-  const D = 12 / CFG.convN; // 12マス＝2段ぶんの予告 → 5+2 で上限を超える
+  const D = 18 / CFG.convN; // 18マス＝3段ぶんの予告 → 5+3 で raiseIdle（8段）に届く
   let held = 0;
   for (let f = 0; f < 120; f++) { const i = ai.next(b, D); if (i.bHeld) held++; b.step(i); }
   assert.equal(held, 0);

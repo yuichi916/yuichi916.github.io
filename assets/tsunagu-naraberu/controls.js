@@ -3,10 +3,13 @@
 import { ACTIONS, DEFAULTS, rebind } from './settings.js';
 
 const LABEL = { left: '左', right: '右', up: '上（つなぐ派: すぐ落とす）', down: '下（つなぐ派: 速く落とす）', a: 'A（左回転／入れ替え）', b: 'B（右回転／せり上げ）' };
-const keyName = code => code
-  .replace(/^Key/, '').replace(/^Digit/, '').replace('Arrow', '')
-  .replace('Left', '←').replace('Right', '→').replace('Up', '↑').replace('Down', '↓')
-  .replace('Semicolon', ';').replace('Quote', "'").replace('Space', 'スペース');
+const ARROW = { ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓' };
+const keyName = code => {
+  if (ARROW[code]) return ARROW[code];
+  const m = /^(Shift|Control|Alt|Meta)(Left|Right)$/.exec(code);
+  if (m) return `${m[1] === 'Control' ? 'Ctrl' : m[1]}（${m[2] === 'Left' ? '左' : '右'}）`;
+  return code.replace(/^Key/, '').replace(/^Digit/, '').replace('Semicolon', ';').replace('Quote', "'").replace('Space', 'スペース');
+};
 
 export function mountControls({ root, settings, save, onChange, mobile }) {
   let waiting = null; // {player, action}
@@ -60,5 +63,6 @@ export function mountControls({ root, settings, save, onChange, mobile }) {
       save(); onChange(); render();
     },
     get waiting() { return waiting; },
+    cancel() { if (waiting) { waiting = null; render(); } },
   };
 }

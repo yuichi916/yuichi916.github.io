@@ -218,6 +218,37 @@ test('おじゃまブロックの解凍が始まる刻みに thawStart の合図
   assert.equal(th.left, 0, '1段のブロックは1回の解凍で消し切る');
 });
 
+// ---- おじゃまの着弾（監査で見つかった不具合） ----
+test('大きなおじゃまが続けて来ても、前のブロックが画面の上にいる間は次を置かず、1マスも失わない', () => {
+  const lists = [[{ w: 6, h: 12 }], [{ w: 6, h: 4 }, { w: 4, h: 1 }]];
+  let calls = 0;
+  const b = board([], {}, () => (calls < lists.length ? lists[calls++] : []));
+  run(b, 600);
+  const cells = [...b.blocks.values()].reduce((s, k) => s + k.w * k.h, 0);
+  assert.equal(calls, 2);
+  assert.equal(cells, 72 + 24 + 4);
+});
+
+test('幅の狭いおじゃまは、左右交互に落ちる', () => {
+  let calls = 0;
+  const b = board([], {}, () => (calls < 4 ? (calls++, [{ w: 4, h: 1 }]) : []));
+  const xs = [];
+  let known = new Set();
+  for (let f = 0; f < 600; f++) {
+    b.step(inp({}));
+    for (const [id, k] of b.blocks) if (!known.has(id)) { known.add(id); xs.push(k.x); }
+  }
+  assert.deepEqual(xs, [0, 2, 0, 2]);
+});
+
+test('天井に届いていてせり上がれないときは、せり上げを押しても停止時間を消さない', () => {
+  const rows = ['R.....', 'G.....', 'B.....', 'Y.....', 'P.....', 'R.....', 'G.....', 'B.....', 'Y.....', 'P.....', 'R.....', 'GBYPRG'];
+  const b = board(rows);
+  b.stop = 100;
+  b.step(inp({ bHeld: true }));
+  assert.ok(b.stop >= 99, `停止時間 ${b.stop}`);
+});
+
 // ---- アクティブ連鎖（浮遊） ----
 test('浮遊: 下が消えたパネルは、すぐには落ちずに少し浮いてから落ちる', () => {
   const b = board(['G.....', 'RRR...'], { naraberuHoverFrames: 12 });

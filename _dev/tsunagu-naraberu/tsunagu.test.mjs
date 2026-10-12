@@ -151,6 +151,44 @@ test('出現位置(2,1)がふさがると負け', () => {
   assert.equal(b.isDead(), true);
 });
 
+test('床で回し続けても、組はいつまでも着地を引き延ばせない（床で持ち上がるのは1組8回まで）', () => {
+  const b = freshBoard();
+  while (b.piece.y < 12) b.step(inp({ downHeld: true })); // 床まで落とす
+  let locked = false;
+  for (let i = 0; i < 1200 && !locked; i++) {
+    // 次に1段落ちる直前の4刻みに右回転を押す（床で持ち上がって着地が延びる）
+    const ev = b.step(inp({ b: b.fallTimer >= 25 && b.fallTimer <= 28 }));
+    locked = ev.some(e => e.type === 'lock');
+  }
+  assert.ok(locked, '20秒回し続けても着地しない');
+});
+
+test('先行入力（IRS）: 出現の0.8秒以上前（長い連鎖の最初）に押した回転はかからない', () => {
+  const b = freshBoard();
+  b.grid = gridOf(['G.....', 'RG....', 'RG....', 'RRG...']);
+  b.piece = { x: 5, y: 1, rot: 0, a: 3, b: 4 };
+  b.step(inp({ up: true }));        // 置く → 2連鎖が始まる
+  b.step(inp({ b: true }));         // 連鎖の最初に右回転
+  let spawned = false, frames = 0;
+  for (; frames < 300 && !spawned; frames++) { b.step(inp({})); spawned = b.phase === 'fall'; }
+  assert.ok(spawned && frames >= 48, `${frames}刻みで出現`);
+  assert.equal(b.piece.rot, 0);
+});
+
+test('おじゃまの合図の個数は、実際に置けた数（列が埋まっていたら少ない）', () => {
+  let asked = 0;
+  const b = freshBoard(3, () => (asked++ === 0 ? 30 : 0));
+  // 列0〜4 は上まで埋まり、列5だけ空いている
+  b.grid = gridOf(Array.from({ length: 12 }, (_, y) => (y % 2 ? 'BYRGB.' : 'RGBYR.')));
+  b.piece = { x: 5, y: 1, rot: 0, a: 1, b: 2 };
+  const ev = [];
+  for (let i = 0; i < 10; i++) ev.push(...b.step(inp({ up: i === 0 })));
+  const g = ev.find(e => e.type === 'garbage');
+  const placed = b.grid.flat().filter(v => v === 6).length;
+  assert.ok(g, 'おじゃまの合図がない');
+  assert.equal(g.n, placed);
+});
+
 test('同じシードなら同じ組の列', () => {
   const seq = seed => {
     const b = createTsunagu({ cfg, seed, takeGarbage: () => 0 });

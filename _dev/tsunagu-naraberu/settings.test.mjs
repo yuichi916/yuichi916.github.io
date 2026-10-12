@@ -51,6 +51,21 @@ test('知らないキャラは既定のキャラに置き換える', () => {
   assert.deepEqual(s.chars, ['hinata', 'rin']);
 });
 
+test('型は合っていても範囲外・知らない値は既定値に直す（段・遊び方・ハンデ・音量・キー）', () => {
+  const st = store({ [KEY_V2]: JSON.stringify({
+    level: 'むずかしい', mode: 'online', handicap: [9, 'x', 1], volume: { bgm: 500, se: -3, voice: 'a' },
+    keys: { p1: { left: [3, 'KeyQ'], right: 'KeyE' } }, das: 999, arr: 0,
+  }) });
+  const s = loadSettings(st);
+  assert.equal(s.level, DEFAULTS.level);
+  assert.equal(s.mode, DEFAULTS.mode);
+  assert.deepEqual(s.handicap, [2, 0]);
+  assert.deepEqual(s.volume, { bgm: 100, se: 0, voice: DEFAULTS.volume.voice });
+  assert.deepEqual(s.keys.p1.left, ['KeyQ']);
+  assert.deepEqual(s.keys.p1.right, DEFAULTS.keys.p1.right);
+  assert.equal(s.das, 20); assert.equal(s.arr, 1);
+});
+
 test('rebind: 同じキーの古い割り当てを、ほかの操作・プレイヤーから外す', () => {
   const keys = structuredClone(DEFAULTS.keys);
   rebind(keys, 'p1', 'a', 'ArrowUp'); // ArrowUp は p2.up に使われている
