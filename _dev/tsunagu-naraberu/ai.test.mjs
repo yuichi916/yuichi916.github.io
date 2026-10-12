@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CFG, LEVELS } from '../../assets/tsunagu-naraberu/config.js';
+import { CFG, LEVELS, AI_N, cpuAtkOf } from '../../assets/tsunagu-naraberu/config.js';
 import { createTsunagu, emptyGrid } from '../../assets/tsunagu-naraberu/tsunagu.js';
 import { createNaraberu, fillFromRows, BOTTOM } from '../../assets/tsunagu-naraberu/naraberu.js';
 import { createTsunaguAI } from '../../assets/tsunagu-naraberu/ai-tsunagu.js';
@@ -57,6 +57,44 @@ test('ならべる派AI: 盤が低ければ、少量の予告（降ってこな�
       for (let f = 0; f < 600; f++) { const i = ai.next(b, D); if (i.bHeld) held++; b.step(i); }
       assert.ok(held > 0, `${lv} 予告${D}: せり上げを一度も押さない`);
     }
+  }
+});
+
+test('ならべる派AI: 降ってこない少量の予告（3マス未満）は、せり上げを止める理由にしない', () => {
+  for (const lv of Object.keys(LEVELS)) {
+    const b = createNaraberu({ cfg: CFG, seed: 3, takeGarbage: () => [] });
+    // 高さ = せり上げの上限 − 1、そろう所なし
+    const rows = ['RGBYPR', 'YPRGBY', 'BYPRGB', 'PRGBYP', 'GBYPRG', 'RGBYPR', 'YPRGBY', 'BYPRGB', 'PRGBYP'];
+    fillFromRows(b, rows.slice(0, AI_N.raiseBelow[lv] - 1));
+    const ai = createNaraberuAI(lv, CFG, { seed: 1 });
+    const D = 2 / CFG.convN; // 2マス
+    let held = 0;
+    for (let f = 0; f < 120; f++) { const i = ai.next(b, D); if (i.bHeld) held++; b.step(i); }
+    assert.ok(held > 0, `${lv}: 2マスの予告でせり上げを止めた`);
+  }
+});
+
+test('CPU対CPU: ならべる派CPUの棒立ち（盤が止まっているのに1秒以上なにもしない）は試合時間の5%未満', () => {
+  for (const lv of Object.keys(LEVELS)) {
+    let total = 0, idle = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const kinds = ['tsunagu', 'naraberu'];
+      const m = createMatch({ cfg: CFG, kinds, seeds: [seed * 2 + 1, seed * 2 + 2], cpuAtk: kinds.map(k => cpuAtkOf(k, lv)) });
+      const ais = [createTsunaguAI(lv, CFG, { seed }), createNaraberuAI(lv, CFG, { seed: seed + 9 })];
+      let run = 0;
+      while (!m.result) {
+        const inp = ais.map((ai, p) => ai.next(m.players[p].board, m.players[p].pending.D));
+        const b = m.players[1].board;
+        const busy = b.S.some(v => v) || [...b.blocks.values()].some(k => k.thaw > 0);
+        const r0 = b.rise + b.riseCount, cx = b.cursor.x, cy = b.cursor.y;
+        m.step(inp);
+        const acted = (b.rise + b.riseCount) - r0 > 0.05 || b.cursor.x !== cx || b.cursor.y !== cy || inp[1].a;
+        total++;
+        if (!acted && !busy) run++;
+        else { if (run >= 60) idle += run; run = 0; }
+      }
+    }
+    assert.ok(idle / total < 0.05, `${lv}: 棒立ち ${(100 * idle / total).toFixed(1)}%`);
   }
 });
 

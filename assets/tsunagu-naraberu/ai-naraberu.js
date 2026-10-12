@@ -27,7 +27,7 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
   const rng = createRng(opts.seed ?? 77);
   const noise = AI_N.noise[levelName];
   const minChain = AI_N.minChain[levelName];
-  let plan = null, wait = L.think;
+  let plan = null, wait = L.think, noMove = false;
   const buf = new Int8Array(24 * COLS), buf2 = new Int8Array(24 * COLS), buf3 = new Int8Array(24 * COLS);
 
   // 1手で起こせる最大の連鎖数
@@ -53,7 +53,8 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
     return s;
   }
 
-  function makePlan(board, pendingD) {
+  // prep: 良くなる手がなくても、ほとんど悪くならない手（形を整える手）なら打つ（せり上げられない高さで棒立ちしないため）
+  function makePlan(board, pendingD, prep = false) {
     const snap = snapshot(board);
     const { x: cx, y: cy } = board.cursor;
     const danger = stackHeight(snap) >= AI_N.dangerHeight || pendingD * cfg.convN >= AI_N.dangerPending;
@@ -90,7 +91,7 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
     }
     top.sort((a, b) => b.s - a.s);
     const best = top[0];
-    if (best.s <= base + 0.5) return null;
+    if (best.s <= base + 0.5 && !(prep && best.s >= base - AI_N.prepTol)) return null;
     const i = best.y * COLS + best.x;
     return { x: best.x, y: best.y, rc: board.riseCount, c0: board.C[i], c1: board.C[i + 1] };
   }
@@ -98,16 +99,20 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
   function next(board, pendingD = 0) {
     let falling = false, clearing = false;
     for (let i = 0; i < board.S.length; i++) { if (board.S[i] === 2 || board.S[i] === 3) falling = true; else if (board.S[i] === 1) clearing = true; }
-    // せり上げ: 予告が降ったときの段数を足しても上限に届かないなら押す（少量の予告は3マスたまるまで降らないので、
-    // 「予告があればせり上げない」だと盤が減っても棒立ちになる）
-    const incomingRows = Math.ceil(pendingD * cfg.convN / 6 - 1e-9);
-    const raise = !clearing && stackHeight(board.C) + incomingRows < AI_N.raiseBelow[levelName];
+    // せり上げ: 予告が降ったときの段数を足しても上限に届かないなら押す。数えるのは降る量だけ
+    // （3マス未満の予告はたまるまで降らない。それを1段と数えると、盤が減っても棒立ちになる）
+    const cells = Math.floor(pendingD * cfg.convN + 1e-9);
+    const incomingRows = cells >= 3 ? Math.ceil(cells / 6) : 0;
+    const h = stackHeight(board.C) + incomingRows;
+    // 良い入れ替えが見つからない間は、安全な高さ（raiseIdle）までせり上げて材料を出す（人ならそうする）
+    const raise = !clearing && (h < AI_N.raiseBelow[levelName] || (!plan && noMove && h < AI_N.raiseIdle));
     const idle = { ...NONE, bHeld: raise };
     if (wait > 0) { wait--; return idle; }
     // 浮遊中・落下中のパネルがあっても、動かせるパネルは動かす（計画は静止セルだけ、入れ替え直前に色を確かめる）
     if (!plan) {
-      plan = makePlan(board, pendingD);
-      if (!plan) { wait = L.think; return idle; }
+      plan = makePlan(board, pendingD, !clearing && h >= AI_N.raiseIdle);
+      noMove = !plan;
+      if (!plan) { wait = L.think; return { ...NONE, bHeld: !clearing && h < AI_N.raiseIdle }; }
     }
     const ty = plan.y - (board.riseCount - plan.rc);
     if (ty < TOP) { plan = null; return idle; }
