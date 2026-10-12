@@ -98,6 +98,36 @@ test('CPU対CPU: ならべる派CPUの棒立ち（盤が止まっているのに
   }
 });
 
+test('CPU対CPU: ならべる派CPUは、直前・2つ前に入れ替えた2枚をそのまま元に戻さない（入れ替えの3%未満）', () => {
+  for (const lv of Object.keys(LEVELS)) {
+    let swaps = 0, undo = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const kinds = ['tsunagu', 'naraberu'];
+      const m = createMatch({ cfg: CFG, kinds, seeds: [seed * 2 + 1, seed * 2 + 2], cpuAtk: kinds.map(k => cpuAtkOf(k, lv)) });
+      const ais = [createTsunaguAI(lv, CFG, { seed }), createNaraberuAI(lv, CFG, { seed: seed + 9 })];
+      const hist = [];
+      while (!m.result) {
+        const b = m.players[1].board;
+        const C0 = Int8Array.from(b.C), rc0 = b.riseCount;
+        const ev = m.step(ais.map((ai, p) => ai.next(m.players[p].board, m.players[p].pending.D)));
+        for (const e of ev) {
+          if (e.p !== 1) continue;
+          if (e.type === 'pop') hist.length = 0;
+          if (e.type === 'swap') {
+            swaps++;
+            // 同じ場所で、直前か2つ前に入れ替えた2枚（入れ替え後の並び）をそのまま元に戻した
+            const i = e.y * 6 + e.x;
+            const undoOf = h => h && h.x === e.x && h.y - (rc0 - h.rc) === e.y && C0[i] === h.c0 && C0[i + 1] === h.c1;
+            if (undoOf(hist[hist.length - 1]) || undoOf(hist[hist.length - 2])) undo++;
+            hist.push({ x: e.x, y: e.y, rc: rc0, c0: C0[i + 1], c1: C0[i] });
+          }
+        }
+      }
+    }
+    assert.ok(undo / swaps < 0.03, `${lv}: そのまま戻す ${(100 * undo / swaps).toFixed(0)}%`);
+  }
+});
+
 test('ならべる派AI: 予告が降ると上限を超える高さなら、せり上げない', () => {
   const b = createNaraberu({ cfg: CFG, seed: 3, takeGarbage: () => [] });
   fillFromRows(b, ['R.G.B.', 'GBYPRG', 'BYPRGB', 'YPRGBY', 'PRGBYP']); // 高さ5

@@ -28,6 +28,7 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
   const noise = AI_N.noise[levelName];
   const minChain = AI_N.minChain[levelName];
   let plan = null, wait = L.think, noMove = false;
+  const recent = []; // 直近の入れ替え {x, y, rc, c0, c1}（c0・c1 は入れ替えたあとの並び）
   const buf = new Int8Array(24 * COLS), buf2 = new Int8Array(24 * COLS), buf3 = new Int8Array(24 * COLS);
 
   // 1手で起こせる最大の連鎖数
@@ -56,6 +57,8 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
   // prep: 良くなる手がなくても、ほとんど悪くならない手（形を整える手）なら打つ（せり上げられない高さで棒立ちしないため）
   function makePlan(board, pendingD, prep = false) {
     const snap = snapshot(board);
+    // 盤が止まっていない＝消去中・落下中・浮遊中・おじゃまの解凍中（先読みはどれも終わった先を計算する）
+    const moving = board.S.some(v => v !== 0) || [...board.blocks.values()].some(b => b.thaw > 0);
     const { x: cx, y: cy } = board.cursor;
     const danger = stackHeight(snap) >= AI_N.dangerHeight || pendingD * cfg.convN >= AI_N.dangerPending;
     const cands = [];
@@ -64,6 +67,10 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
       if (board.S[i] || board.S[i + 1] || board.Gd[i] || board.Gd[i + 1]) continue;
       const r = simulateSwap(snap, x, y, cfg, buf);
       if (!r) continue;
+      // 直近に入れ替えた2枚をそのまま元に戻す手は選ばない（同じ2枚の入れ替えを繰り返さない）。例外は盤が止まっていて、戻すと消えるときだけ。
+      // 盤が止まっていない間の「消える」見込みは、消え終わり・着地を先取りした計算なので外れることがあり、戻しては戻すを繰り返していた
+      if ((!r.cleared || moving) && recent.some(h => x === h.x && y === h.y - (board.riseCount - h.rc)
+        && board.C[i] === h.c0 && board.C[i + 1] === h.c1)) continue;
       let s = fire(r, danger) + shape(r.grid) - (Math.abs(cx - x) + Math.abs(cy - y)) * AI_N.dist;
       if (noise) s += (rng.next() - 0.5) * 2 * noise;
       cands.push({ x, y, s, grid: r.grid.slice() });
@@ -120,12 +127,14 @@ export function createNaraberuAI(levelName, cfg, opts = {}) {
     const cur = board.cursor;
     if (cur.y !== ty) return { ...idle, up: cur.y > ty, down: cur.y < ty };
     if (cur.x !== plan.x) return { ...idle, left: cur.x > plan.x, right: cur.x < plan.x };
-    const i = ty * COLS + plan.x;
+    const i = ty * COLS + plan.x, done = plan;
     const ok = board.C[i] === plan.c0 && board.C[i + 1] === plan.c1
       && !board.S[i] && !board.S[i + 1] && !board.Gd[i] && !board.Gd[i + 1];
     plan = null;
     if (!ok) { wait = 0; return idle; }
     wait = L.think;
+    recent.push({ x: done.x, y: ty, rc: board.riseCount, c0: done.c1, c1: done.c0 });
+    if (recent.length > 4) recent.shift();
     return { ...idle, a: true };
   }
 
