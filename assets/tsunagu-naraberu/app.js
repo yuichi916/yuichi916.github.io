@@ -38,6 +38,7 @@ const charas = createCharas({
 });
 const renderer = createRenderer(canvas, { phys, charas });
 document.body.classList.toggle('mobile', mobile);
+if (mobile) $('titleNote').textContent = 'タップで はじまります';
 
 const KIND_NAME = { tsunagu: 'つなぐ派', naraberu: 'ならべる派' };
 const REPEAT = { tsunagu: ['left', 'right'], naraberu: ['left', 'right', 'up', 'down'] };

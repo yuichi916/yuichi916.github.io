@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<!-- 投稿サイトの表紙。render.py が ?w=&h=&kind=full|logo&lang=ja|en で撮る。
+     kind=logo は題名（ロゴ）以外の文字を入れない（CrazyGames の決まり）。ロゴは out/ の PNG を使うので、先に render.py logo を撮る -->
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@800;900&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;overflow:hidden}
+body{position:relative;font-family:"M PLUS Rounded 1c",sans-serif;color:#fff;
+  background:radial-gradient(60% 75% at 16% 70%,rgba(255,138,101,.42),transparent 62%),radial-gradient(60% 75% at 84% 70%,rgba(77,208,225,.42),transparent 62%),linear-gradient(180deg,#0d0b1f,#1d1744)}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px)}
+#deco{position:absolute;inset:0}
+.cast{position:absolute;display:flex;align-items:flex-end;justify-content:center}
+.cast img{display:block;filter:drop-shadow(0 10px 18px rgba(0,0,0,.55))}
+#logo{position:absolute;filter:drop-shadow(0 8px 16px rgba(0,0,0,.45))}
+.band{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(10,8,30,0),rgba(10,8,30,.88) 45%)}
+.tag{position:absolute;text-align:center;font-weight:900;color:#fff3a8;text-shadow:0 3px 0 rgba(10,8,30,.9),0 0 18px rgba(10,8,30,.8);white-space:nowrap}
+</style></head><body>
+<div class="grid" id="grid"></div>
+<svg id="deco" xmlns="http://www.w3.org/2000/svg"></svg>
+<div class="cast" id="cast"></div>
+<img id="logo" alt="">
+<div class="band" id="band" hidden></div>
+<div class="tag" id="tag"></div>
+<script>
+const q = new URLSearchParams(location.search);
+const W = +q.get('w') || 1280, H = +q.get('h') || 720, kind = q.get('kind') || 'full', lang = q.get('lang') || 'ja';
+document.body.style.width = W + 'px'; document.body.style.height = H + 'px';
+const u = Math.min(W, H);
+document.getElementById('grid').style.backgroundSize = `${u / 14}px ${u / 14}px`;
+const CH = '../../../assets/tsunagu-naraberu/chara/';
+const ar = W / H;
+
+// 飾り: 左にはつなぐ派のつぶ、右にはならべる派のパネルを、端の方に散らす
+const deco = document.getElementById('deco');
+deco.setAttribute('viewBox', `0 0 ${W} ${H}`); deco.setAttribute('width', W); deco.setAttribute('height', H);
+const COL = [['#ff5d6c', '#b3263a'], ['#46d483', '#1d8a4c'], ['#4c9dff', '#1f5fc0'], ['#ffcf3f', '#b88a00'], ['#b57bff', '#6d3dc4']];
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+let svg = '';
+for (let k = 0; k < 16; k++) {
+  const left = k % 2 === 0, s = u * (0.05 + rnd() * 0.04);
+  const x = left ? rnd() * W * 0.22 : W - rnd() * W * 0.22, y = rnd() * H;
+  const [f, d] = COL[Math.floor(rnd() * 5)], o = 0.18 + rnd() * 0.2, rot = (rnd() - 0.5) * 40;
+  svg += left
+    ? `<g opacity="${o}"><circle cx="${x}" cy="${y}" r="${s}" fill="${d}"/><circle cx="${x - s * .1}" cy="${y - s * .12}" r="${s * .82}" fill="${f}"/></g>`
+    : `<g opacity="${o}" transform="rotate(${rot} ${x} ${y})"><rect x="${x - s}" y="${y - s}" width="${s * 2}" height="${s * 2}" rx="${s * .35}" fill="${d}"/><rect x="${x - s * .82}" y="${y - s * .86}" width="${s * 1.64}" height="${s * 1.5}" rx="${s * .3}" fill="${f}"/></g>`;
+}
+deco.innerHTML = svg;
+
+// ロゴ
+const logo = document.getElementById('logo');
+logo.src = kind === 'logo' ? 'out/logo_nosub.png' : lang === 'en' ? 'out/logo_en.png' : 'out/logo.png';
+
+// 立ち絵と配置（横長・正方形・縦長・横に細長い帯）
+const cast = document.getElementById('cast');
+const tag = document.getElementById('tag');
+const ids = ['hinata', 'momo', 'rin', 'suzu'];
+function place() {
+  let castH, castBottom, castW, overlap, logoW, logoTop, tagTop, tagSize;
+  if (ar >= 3) { // ヘッダー（2000x500）: ロゴを中央、キャラは左右に2人ずつ
+    castH = H * 0.98; castBottom = 0; logoW = W * 0.42; logoTop = H * 0.08; tagTop = H * 0.80; tagSize = H * 0.075;
+    cast.style.left = '0'; cast.style.right = '0'; cast.style.bottom = '0'; cast.style.justifyContent = 'space-between';
+    cast.style.padding = `0 ${W * 0.04}px`;
+    cast.innerHTML = `<div style="display:flex;align-items:flex-end">${img('hinata', castH)}${img('momo', castH * .92, -castH * .12)}</div><div style="display:flex;align-items:flex-end">${img('rin', castH * .92)}${img('suzu', castH, -castH * .12)}</div>`;
+  } else if (ar >= 1.15) { // 横長: ロゴを上、4人を下に並べる
+    castH = H * 0.62; logoW = W * (ar > 1.5 ? 0.62 : 0.8); logoTop = H * 0.04; tagTop = H * 0.93; tagSize = u * 0.042;
+    cast.style.left = '0'; cast.style.right = '0'; cast.style.bottom = `${-H * 0.02}px`;
+    cast.innerHTML = ids.map((id, i) => img(id, castH * (i === 1 || i === 2 ? 0.93 : 1), i ? -castH * 0.13 : 0)).join('');
+  } else if (ar >= 0.85) { // 正方形
+    castH = H * 0.6; logoW = W * 0.86; logoTop = H * 0.04; tagTop = H * 0.935; tagSize = u * 0.04;
+    cast.style.left = '0'; cast.style.right = '0'; cast.style.bottom = `${-H * 0.02}px`;
+    cast.innerHTML = ids.map((id, i) => img(id, castH * (i === 1 || i === 2 ? 0.92 : 1), i ? -castH * 0.2 : 0)).join('');
+  } else { // 縦長: ロゴを上、2人ずつ前後に重ねる
+    castH = H * 0.5; logoW = W * 0.92; logoTop = H * 0.05; tagTop = H * 0.95; tagSize = u * 0.045;
+    cast.style.left = '0'; cast.style.right = '0'; cast.style.bottom = `${-H * 0.01}px`; cast.style.flexDirection = 'column'; cast.style.alignItems = 'center';
+    cast.innerHTML = `<div style="display:flex;align-items:flex-end;margin-bottom:${-castH * 0.55}px;opacity:.97">${img('momo', castH * .9)}${img('rin', castH * .9, -castH * .18)}</div><div style="display:flex;align-items:flex-end;position:relative">${img('hinata', castH)}${img('suzu', castH, -castH * .12)}</div>`;
+  }
+  logo.style.width = logoW + 'px'; logo.style.left = (W - logoW) / 2 + 'px'; logo.style.top = logoTop + 'px';
+  if (kind === 'full') {
+    tag.textContent = lang === 'en' ? 'Two puzzle rules. One duel.' : 'ルールのちがう2つの盤で、直接戦う。';
+    tag.style.fontSize = tagSize + 'px'; tag.style.left = '0'; tag.style.right = '0'; tag.style.top = tagTop - tagSize * 0.6 + 'px';
+    // 紹介文が立ち絵の上に来るときは、下に暗い帯を敷いて読めるように
+    if (ar < 3) { const band = document.getElementById('band'); band.hidden = false; band.style.height = (H - tagTop + tagSize * 1.6) + 'px'; }
+  }
+}
+function img(id, h, ml = 0) { return `<img src="${CH}${id}/select.webp" style="height:${h}px;margin-left:${ml}px">`; }
+place();
+</script>
+</body></html>
