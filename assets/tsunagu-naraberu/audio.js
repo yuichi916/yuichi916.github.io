@@ -137,7 +137,11 @@ export function createAudio() {
         case 'garbage': if (!play('se_garbage', seBus, { vol: quiet })) tone(140, 0.25, 'sawtooth', 0.25, 0.5); break;
         case 'lock': if (mine && !play('se_land', seBus, { vol: 0.55, gap: 0.06 })) tone(220, 0.05, 'sine', 0.2); break;
         case 'swap': if (mine && !play('se_swap', seBus, { vol: 0.5, gap: 0.03 })) tone(660, 0.04, 'square', 0.08); break;
-        case 'attack': if (e.D >= 6 && !play('se_attack', seBus, { vol: quiet, gap: 0.2 })) tone(90, 0.35, 'sawtooth', 0.22, 2.2); break;
+        case 'attack':
+          // 相殺: 金属がぶつかる「キン」（高い2音＋短い割れる音）
+          if ((e.offset ?? 0) > 0.05) { tone(1760, 0.12, 'triangle', 0.22 * quiet, 1.0, 0.3); tone(2637, 0.1, 'sine', 0.14 * quiet, 1.0, 0.31); crack(0.25 * quiet, 4200, 0.08, 0.3); }
+          if ((e.sent ?? e.D) >= 6 && !play('se_attack', seBus, { vol: quiet, gap: 0.2 })) tone(90, 0.35, 'sawtooth', 0.22, 2.2);
+          break;
         default: break;
       }
     }

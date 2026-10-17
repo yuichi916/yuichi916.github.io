@@ -279,6 +279,7 @@ input[type=range]{accent-color:var(--gold)}
 }
 
 .lvchips{display:inline-flex;gap:8px;flex-wrap:wrap}
+.lvdesc{display:block;margin-top:6px;color:var(--dim);font-size:13px}
 @media (max-width:620px){ #levelRow .lvchips{display:grid;grid-template-columns:repeat(5,1fr);gap:4px} }
 </style>
 <script type="application/ld+json">
@@ -350,7 +351,7 @@ input[type=range]{accent-color:var(--gold)}
     <h2 id="selTitle">キャラをえらぶ</h2>
     <div class="selrow"><div class="sellabel" id="p1label">あなた</div><div class="cards" data-player="0"></div></div>
     <div class="selrow" id="p2row"><div class="sellabel" id="p2label">あいて</div><div class="cards" data-player="1"></div></div>
-    <div class="row" id="levelRow"><label>CPUの強さ</label><span class="lvchips" id="levelChips"></span></div>
+    <div class="row" id="levelRow"><label>CPUの強さ</label><span class="lvchips" id="levelChips"></span><small class="lvdesc" id="levelDesc"></small></div>
     <details class="more" id="hcRow"><summary>くわしく（ハンデ）</summary>
       <p class="keys" style="margin:8px 0">攻撃力を1段ごとに20%ずつ上げ下げします。腕に差があるときに。</p>
       <div class="row"><span class="hc"><span class="side" id="hcL"></span><button class="chip s" data-set="hc:0:-2" type="button">−2</button><button class="chip s" data-set="hc:0:-1" type="button">−1</button><button class="chip s" data-set="hc:0:0" type="button">±0</button><button class="chip s" data-set="hc:0:1" type="button">+1</button><button class="chip s" data-set="hc:0:2" type="button">+2</button></span><span class="hc"><span class="side" id="hcR"></span><button class="chip s" data-set="hc:1:-2" type="button">−2</button><button class="chip s" data-set="hc:1:-1" type="button">−1</button><button class="chip s" data-set="hc:1:0" type="button">±0</button><button class="chip s" data-set="hc:1:1" type="button">+1</button><button class="chip s" data-set="hc:1:2" type="button">+2</button></span></div>
@@ -424,7 +425,7 @@ input[type=range]{accent-color:var(--gold)}
 
 <div id="help">
   <b>勝ち方</b>：消すと相手の盤におじゃまが降る。先に積み上がった方の負け。<br>
-  <b>相殺</b>：盤の上の予告は、自分が消して打ち返すと減る。予告が出てから3秒は降らないので、その間に打ち返せる（つなぐ派は予告のつぶが跳ねたら、次に組を置くと降る）。<br>
+  <b>予告と相殺</b>：盤の上に並ぶ灰色の玉・四角が、もうすぐ降ってくるおじゃまの予告（右の数字が量）。下のゲージが満ちるまでの3秒は降らない。その間に消して攻撃すると、攻撃はまず自分の予告にぶつかって打ち消す（相殺。「そうさい −N」と出る）。余った分だけが相手に飛ぶ。ゲージが赤くなったら、つなぐ派は次に組を置いたとき、ならべる派は消している最中でなければ降る。<br>
   <b>おじゃま</b>：つなぐ派は隣で消すと消える。ならべる派は隣で消すと下の1行がパネルに戻る。<br>
   <b>攻撃倍率</b>：開始60秒は弱め。90秒を過ぎると15秒ごとに強くなる。<br>
   <b>CPUの強さ</b>：段によってはCPUの攻撃を補正して、どちらの派と戦っても同じ手ごたえにしている。人が操作する側には補正なし。<br>
@@ -481,8 +482,8 @@ input[type=range]{accent-color:var(--gold)}
     <p>どちらの派も、消すと共通の「ダメージ値」が出ます。ダメージはまず自分に届く予定の攻撃を打ち消し（相殺）、余った分が相手の盤の流儀に変換されて降ります。予告が出てから3秒は降らないので、その間に打ち返せます。つなぐ派にはおじゃまつぶ、ならべる派には横長のおじゃまブロックが落ちます。先に盤が積み上がった方の負けです。</p>
     <p>開始60秒は攻撃が弱めで、90秒を過ぎると15秒ごとに攻撃が強くなります。</p>
     <h2>バランスの取り方</h2>
-    <p>変換の比率やCPUの強さは勘で決めていません。強さをそろえたCPU同士を各段2,000試合ずつ自動で対戦させ、つなぐ派の勝率が五分前後に入るまで調整しました。</p>
-    <p>CPUは派によって得意な強さがちがうため、段によってはCPUの攻撃の強さを補正し、どちらの派と戦っても同じ手ごたえになるようにしています（人が操作する側には補正はかかりません）。</p>
+    <p>変換の比率やCPUの強さは勘で決めていません。人の腕前を「初心者・ふつうの人・上手な人」の3段階に模したプレイヤー（手の速さ・反応の遅れ・読みの深さを人並みに合わせたもの）を作り、各段のCPUと両方の派で数百試合ずつ自動で対戦させて調整しました。目安は、かんたんは初心者が6割ほど勝てる、やさしいはふつうの人が6割、ふつうは4〜5割、つよいは上手な人が4割、おには2割です。どちらの派を選んでも、同じ腕前なら同じくらい勝てるようにしています。</p>
+    <p>そのため、CPUの速さや攻撃の強さは、段と派によって少しずつ変えています（人が操作する側には補正はかかりません）。</p>
     <p>CPU戦（かんたん〜おにの5段階）と、1台のPCでのふたり対戦に対応。スマホではタッチ操作でCPUと対戦できます。</p>
     <p>音楽と効果音は Suno、キャラクターの声は ElevenLabs、キャラクターの絵は Stable Diffusion（WAI-Illustrious）で作成。登場するのは、つなぐ派のひなた・もも（相棒ぷにまる）と、ならべる派のりん・すず（相棒カクたん）。</p>
   </main>

@@ -23,7 +23,7 @@ function stackHeight(s) {
 }
 
 export function createNaraberuAI(levelName, cfg, opts = {}) {
-  const L = { ...LEVELS[levelName], ...AI_N.speed[levelName] };
+  const L = { ...LEVELS[levelName], ...(AI_N.speed[levelName] || {}) };
   const rng = createRng(opts.seed ?? 77);
   const noise = AI_N.noise[levelName];
   const minChain = AI_N.minChain[levelName];

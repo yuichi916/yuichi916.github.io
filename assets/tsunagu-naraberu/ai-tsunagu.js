@@ -90,7 +90,7 @@ function reachable(g, x, rot) {
 }
 
 export function createTsunaguAI(levelName, cfg, opts = {}) {
-  const L = LEVELS[levelName];
+  const L = { ...LEVELS[levelName], ...(AI_T.speed[levelName] || {}) };
   const rng = createRng(opts.seed ?? 99);
   const minChain = AI_T.minChain[levelName];
   const noise = AI_T.noise[levelName];

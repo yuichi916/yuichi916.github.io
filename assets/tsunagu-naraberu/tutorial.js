@@ -1,5 +1,6 @@
 // あそびかた（チュートリアル）: 派ごとに、用意した盤面で課題を出し、できたら次へ進む。
-// 各課題: {title, text, cfg?, setup(board), goal(board, events)}。events は課題を始めてからの出来事。
+// 各課題: {title, text, textMobile?, cfg?, pending?, setup(board), goal(board, events)}。events は課題を始めてからの出来事。
+// pending: 始めから出しておく自分への予告（受ける側の単位）。相殺の課題で使う
 import { emptyGrid } from './tsunagu.js';
 import { fillFromRows, BOTTOM, COLS } from './naraberu.js';
 
@@ -40,6 +41,14 @@ export const TUTORIALS = {
       setup(b) { b.grid = tsGrid(['RRR.O.']); b.piece = { x: 2, y: 1, rot: 0, a: R, b: R }; b.__tutG = garbageCount(b); },
       goal: (b, ev) => has(ev, 'pop') && garbageCount(b) < (b.__tutG ?? 1),
     },
+    {
+      title: '相殺（そうさい）',
+      text: '盤の上に並んだ灰色の玉は、もうすぐ降ってくるおじゃまの「予告」。消して攻撃すると、まず自分の予告を打ち消せる（相殺）。赤を4つつなげて消して、予告を減らそう。大きな連鎖ほどたくさん消せるよ。',
+      cfg: { tsunaguLandSec: 999 },
+      pending: 6,
+      setup(b) { b.grid = tsGrid(['RRR...']); b.piece = { x: 2, y: 1, rot: 0, a: R, b: R }; },
+      goal: (b, ev) => has(ev, 'attack', e => e.offset > 0),
+    },
   ],
   naraberu: [
     {
@@ -74,6 +83,14 @@ export const TUTORIALS = {
       textMobile: '下の「せり上げ」ボタンを押している間、盤を自分でせり上げられるよ。2段せり上げてみよう。',
       setup(b) { fillFromRows(b, ['GBYGBY']); b.cursor = { x: 2, y: BOTTOM - 1 }; b.__tutRc = b.riseCount; },
       goal: b => b.riseCount - (b.__tutRc ?? 0) >= 2,
+    },
+    {
+      title: '相殺（そうさい）',
+      text: '盤の上に並んだ灰色の四角は、もうすぐ降ってくるおじゃまの「予告」。連鎖や4つ以上の同時消しで攻撃すると、まず自分の予告を打ち消せる（相殺）。赤をそろえて2連鎖させ、予告を減らそう。',
+      cfg: { naraberuLandSec: 999 },
+      pending: 6,
+      setup(b) { fillFromRows(b, ['..G...', 'GGRR.R', 'BYPBYP']); b.cursor = { x: 4, y: BOTTOM - 1 }; },
+      goal: (b, ev) => has(ev, 'attack', e => e.offset > 0),
     },
   ],
 };

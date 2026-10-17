@@ -41,8 +41,31 @@ document.body.classList.toggle('mobile', mobile);
 if (mobile) $('titleNote').textContent = 'タップで はじまります';
 
 const KIND_NAME = { tsunagu: 'つなぐ派', naraberu: 'ならべる派' };
+// 負けたときのひとこと（派ごと）
+const TIPS = {
+  tsunagu: [
+    'コツ: 予告が出たら、消して攻撃すると打ち消せる（相殺）',
+    'コツ: 3列目（組が出てくる列）は低く。ここが埋まると負け',
+    'コツ: 同じ色を縦に3つ置いてから、横に1つ足すと2連鎖を作りやすい',
+    'コツ: 予告が出ても3秒は降らない。その間に連鎖で打ち返そう',
+  ],
+  naraberu: [
+    'コツ: 予告が出たら、連鎖や4つ以上の同時消しで打ち消せる（相殺）',
+    'コツ: 消えたあと浮いている間に下へ差し込むと、連鎖がつながる',
+    'コツ: 天井に着いても3秒は持ちこたえる。あわてず消そう',
+    'コツ: 材料が少ないときは、せり上げてパネルを増やそう',
+  ],
+};
 const REPEAT = { tsunagu: ['left', 'right'], naraberu: ['left', 'right', 'up', 'down'] };
 const LEVEL_NAMES = Object.keys(LEVELS);
+// 段の説明（人の代わりで測った難しさに合わせる。docs/tsunagu-naraberu-balance.md の「人対CPU」）
+const LEVEL_DESC = {
+  かんたん: 'はじめての人に。ゆっくり考えるCPU',
+  やさしい: 'ルールに慣れてきたら',
+  ふつう: '連鎖が組めるようになったら',
+  つよい: '上級者向け。連鎖でしっかり攻めてくる',
+  おに: '腕に自信のある人に',
+};
 
 function applyInputSettings() { input.setKeys(settings.keys); input.setTiming(settings.das, settings.arr); }
 function applyLook() {
@@ -123,6 +146,7 @@ function renderSetup() {
     if (key === 'hc') btn.classList.toggle('sel', String(settings.handicap[+idx]) === val);
   }
   $('levelRow').hidden = !cpu;
+  $('levelDesc').textContent = LEVEL_DESC[settings.level] || '';
   $('p2row').hidden = practice;
   $('hcRow').hidden = practice;
   $('btnGo').textContent = practice ? 'れんしゅうスタート' : '対戦スタート';
@@ -251,6 +275,8 @@ function startMatch(demo = false) {
   const practice = settings.mode === 'practice' && !demo;
   if (!demo && settings.mode !== 'cpu') playChars = settings.chars.slice();
   if (demo) playChars = settings.chars.slice();
+  // あそびかたのあとなどで試合のキャラが欠けていたら、選択中のキャラで補う
+  if (!playChars.every(id => CHAR[id])) { playChars = settings.chars.slice(); rollOpponent(); }
   const kinds = playChars.map(id => CHAR[id].faction);
   const cpu = settings.mode === 'cpu' || practice;
   if (practice) {
@@ -302,7 +328,7 @@ function startTutStep() {
   clearTimeout(tutTimer);
   const step = TUTORIALS[tut.kind][tut.idx];
   tut.events = []; tut.done = false;
-  match = createPractice({ cfg: tutorialCfg(CFG, tut.kind, step), kind: tut.kind, seed: 7 + tut.idx, setup: step.setup });
+  match = createPractice({ cfg: tutorialCfg(CFG, tut.kind, step), kind: tut.kind, seed: 7 + tut.idx, setup: step.setup, pending: step.pending || 0 });
   ais = [null]; labels = ['あなた']; humans = [0];
   playChars = [tut.id, null];
   const t = tut;
@@ -400,10 +426,17 @@ function finish() {
   const badges = [];
   if (best.newBestChain) badges.push(`最大連鎖 更新！ ${stats[0].maxChain}れんさ`);
   if (best.newBestAttack) badges.push(`最大攻撃 更新！ ${Math.round(match.players[0].sent)}`);
+  // CPU戦: 勝ったら次の段へ、負けたらひとことのコツ
+  if (cpu && r.winner === 0) {
+    const next = LEVEL_NAMES[LEVEL_NAMES.indexOf(settings.level) + 1];
+    if (next) badges.push(`次は「${next}」に挑戦してみよう`);
+  } else if (cpu && r.winner === 1) {
+    badges.push(TIPS[match.players[0].kind][Math.floor(Math.random() * TIPS[match.players[0].kind].length)]);
+  }
   const sec = Math.round(r.frames / 60);
   const statsHtml = match.players.map((p, i) => `
     <div class="stat"><b>${labels[i]}・${CHAR[playChars[i]].name}（${KIND_NAME[p.kind]}）</b>
-    <span>最大 ${stats[i].maxChain} れんさ</span><span>送った攻撃 ${Math.round(p.sent)}</span></div>`).join('')
+    <span>最大 ${stats[i].maxChain} れんさ</span><span>送った攻撃 ${Math.round(p.sent)}</span><span>そうさい ${stats[i].offsets || 0} 回</span></div>`).join('')
     + `<div class="stat time">試合時間 ${Math.floor(sec / 60)}分${sec % 60}秒</div>`;
   const w = r.winner === -1 ? null : r.winner;
   ui.renderResult({
@@ -489,6 +522,29 @@ const endDrag = () => { if (drag) drag.active = false; };
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
+// 初めて予告が出たときの一言（最初の3試合ぶんだけ。チュートリアル中は出さない）
+let hintShownThisMatch = null;
+function hintOffset() {
+  if (tut || !match || hintShownThisMatch === match || !humans.length) return;
+  const pl = match.players[humans[0]];
+  if (!pl || pl.pending.D <= 0) return;
+  hintShownThisMatch = match;
+  let n = 0;
+  try { n = +(localStorage.getItem('tn-hint-offset') || 0); } catch { /* 保存できない環境 */ }
+  if (n >= 3) return;
+  try { localStorage.setItem('tn-hint-offset', String(n + 1)); } catch { /* 保存できない環境 */ }
+  ui.toast('予告が出た！ 3秒のうちに消して攻撃すると、打ち消せる（相殺）', 2600);
+}
+
+// あそびかたの説明の札が盤の上を隠さないように空ける高さ（スマホ・幅1300px未満のPCでは札が上に出る）
+function tutReserve() {
+  if (!tut) return 0;
+  const bar = $('tutBar');
+  if (mobile) return bar.offsetHeight + 6;
+  if (innerWidth >= 1300) return 0; // 札は右に出る
+  return Math.max(0, bar.getBoundingClientRect().bottom - 56 + 8);
+}
+
 // ---- ループ ----
 function simulate(n, t) {
   for (let k = 0; k < n && match && !match.result; k++) {
@@ -508,8 +564,12 @@ function simulate(n, t) {
     phys.afterStep(match, ev, pre);
     phys.tick();
     charas.onEvents(ev, match, t);
-    for (const e of ev) if (e.type === 'pop' && e.chain > stats[e.p].maxChain) stats[e.p].maxChain = e.chain;
+    for (const e of ev) {
+      if (e.type === 'pop' && e.chain > stats[e.p].maxChain) stats[e.p].maxChain = e.chain;
+      if (e.type === 'attack' && e.offset > 0.05 && stats[e.p]) { stats[e.p].offsets = (stats[e.p].offsets || 0) + 1; }
+    }
     renderer.onEvents(ev, match, t);
+    hintOffset();
     audio.onEvents(ev, humans, match);
     buzz(ev);
     checkTutorial(ev);
@@ -530,7 +590,7 @@ function frame(now) {
     simulate(steps, t);
     updatePinch(t);
   } else { last = now; padMenu(); }
-  renderer.draw(match, labels, t, { mobile, paused: screen !== 'play', topReserve: tut && mobile && screen === 'play' ? $('tutBar').offsetHeight + 6 : 0 });
+  renderer.draw(match, labels, t, { mobile, paused: screen !== 'play', topReserve: screen === 'play' ? tutReserve() : 0 });
   if (screen === 'play' && countdown > 0) drawCountdown();
 }
 // ピンチの曲: 自分の盤が上まで迫ったら切り替え、3秒落ち着いたら戻す
@@ -569,5 +629,5 @@ window.__tn = {
   get match() { return match; }, get screen() { return screen; }, get tut() { return tut; },
   phys, charas, audio, settings, records, startMatch, startFlow, startTutorial, openScreen, demo: () => startMatch(true), LEVELS,
   // 検証用: 描画ループが止まる環境でも n 刻み進めて描く
-  advance(n) { countdown = 0; const t = performance.now() / 1000; simulate(n, t); renderer.draw(match, labels, t, { mobile, topReserve: tut && mobile ? $('tutBar').offsetHeight + 6 : 0 }); return match && match.frame; },
+  advance(n) { countdown = 0; const t = performance.now() / 1000; simulate(n, t); renderer.draw(match, labels, t, { mobile, topReserve: tutReserve() }); return match && match.frame; },
 };

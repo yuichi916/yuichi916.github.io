@@ -56,6 +56,7 @@ export function createMatch({ cfg, kinds, seeds, handicap = [0, 0], cpuAtk = [1,
         if (e.type === 'attack') {
           e.D *= attackMul(p);
           e.sent = applyAttack(p, e.D);
+          e.offset = e.D - e.sent; // 自分の予告を打ち消した量（相殺）
         }
         out.push(e);
       }

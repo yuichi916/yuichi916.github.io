@@ -43,14 +43,14 @@ test('つなぐ派AI: 3列目が高くても、間に合う空いた列に置い
   }
 });
 
-test('ならべる派AI: 1手でそろう盤面で300刻み以内にそろえる', () => {
+test('ならべる派AI: 1手でそろう盤面で、カーソルを8マス運んでもいちばん遅い段で600刻み以内にそろえる', () => {
   for (const lv of Object.keys(LEVELS)) {
     const b = createNaraberu({ cfg: { ...CFG, naraberuRiseStartSec: 1000, naraberuRiseEndSec: 1000 }, seed: 1, takeGarbage: () => [] });
     fillFromRows(b, ['RR.R..', 'GBYGBY']);
     b.cursor = { x: 0, y: 16 };
     const ai = createNaraberuAI(lv, CFG);
     let popped = false;
-    for (let i = 0; i < 300 && !popped; i++) popped = b.step(ai.next(b, 0)).some(e => e.type === 'pop');
+    for (let i = 0; i < 600 && !popped; i++) popped = b.step(ai.next(b, 0)).some(e => e.type === 'pop');
     assert.ok(popped, lv);
   }
 });

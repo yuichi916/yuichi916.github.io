@@ -417,8 +417,41 @@ function drawPendingIcon(ctx, v, cx, cy, r) {
 
 // 予告の目安アイコン（受ける側の単位）。つなぐ派は 720/360/180/30/6/1、ならべる派は 30/6/1 マス
 // ready: 待ちが明けて、次の機会に降る（つなぐ派はアイコンが跳ねて知らせる）
-function drawPending(ctx, units, X, Y, s, w, kind, ready = false, now = 0) {
+// bump: 増えた直後のはずみ（0→1）。wait: 降ってくるまでの進み（0→1、1で次の機会に降る）
+function drawPending(ctx, units, X, Y, s, w, kind, ready = false, now = 0, bump = 0, wait = -1, small = false) {
   let n = Math.floor(units + 1e-9);
+  if (n <= 0) return;
+  const total = n;
+  const k = bump > 0 && !CALM ? 1 + 0.35 * Math.sin(bump * Math.PI) : 1;
+  ctx.save();
+  if (k !== 1) { ctx.translate(X, Y); ctx.scale(k, k); ctx.translate(-X, -Y); }
+  const endX = drawPendingIcons(ctx, n, X, Y, s, w, kind, ready, now);
+  ctx.restore();
+  if (small) return;
+  // 個数（つなぐ派はつぶの数、ならべる派はマスの数）
+  ctx.save();
+  ctx.font = `900 ${Math.round(Math.max(11, s * 0.34))}px "M PLUS Rounded 1c",sans-serif`;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const label = kind === 'tsunagu' ? `×${total}` : `${total}マス`;
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,8,26,.9)'; ctx.strokeText(label, endX + s * 0.08, Y + 1);
+  ctx.fillStyle = ready ? '#ff8a8a' : '#e9ecff'; ctx.fillText(label, endX + s * 0.08, Y + 1);
+  const lw = ctx.measureText(label).width;
+  ctx.restore();
+  // 降ってくるまでのゲージ（個数の右隣、同じ行。下は天井のゲージと重なるので使わない）
+  if (wait >= 0) {
+    const gx = endX + s * 0.16 + lw, gw = s * 1.1, gh = Math.max(4, s * 0.14), gy = Y - gh / 2;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,10,24,.8)'; roundRect(ctx, gx, gy, gw, gh, gh / 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1; ctx.stroke();
+    const a = ready && !CALM ? 0.65 + 0.35 * Math.sin(now * 16) : 1;
+    ctx.fillStyle = ready ? `rgba(255,90,90,${a})` : '#fff3a8';
+    roundRect(ctx, gx, gy, Math.max(gh, gw * Math.min(1, wait)), gh, gh / 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// 予告のアイコンを並べる。返り値は並べ終わった右端
+function drawPendingIcons(ctx, n, X, Y, s, w, kind, ready, now) {
   const icons = [];
   const tiers = kind === 'tsunagu' ? TIERS_T : [30, 6, 1];
   for (const v of tiers) while (n >= v && icons.length < 6) { icons.push(v); n -= v; }
@@ -431,7 +464,7 @@ function drawPending(ctx, units, X, Y, s, w, kind, ready = false, now = 0) {
       x += r * 2 + s * 0.1;
       if (x > X + w) break;
     }
-    return;
+    return x;
   }
   let x = X;
   for (const v of icons) {
@@ -442,6 +475,7 @@ function drawPending(ctx, units, X, Y, s, w, kind, ready = false, now = 0) {
     x += r * 2 + s * 0.08;
     if (x > X + w) break;
   }
+  return x;
 }
 
 // 天井の猶予と停止時間: 枠のすぐ上にゲージ、盤の上部に暗い札で残り秒数
@@ -478,8 +512,21 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
   let layout = null;
   // 試合ごとの見た目だけの記録: つなぐ派の点数と式、負けた時刻（盤が崩れ落ちる）
   let scoreMatch = null, scoreResets = undefined, scores = [], deadAt = [0, 0];
+  let trays = [{ units: 0, bumpT: -9, x: 0, y: 0 }, { units: 0, bumpT: -9, x: 0, y: 0 }];
+  // 予告が減ったときに飛ぶかけら（画面の座標）
+  const chips = [];
+  function shatter(x, y, s, n, kind) {
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2, sp = (0.6 + Math.random()) * s * 0.06;
+      chips.push({ x: x + (Math.random() - 0.5) * s, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - s * 0.05, r: s * (0.06 + Math.random() * 0.06), age: 0, life: 26 + Math.random() * 12, round: kind === 'tsunagu' });
+    }
+  }
   function scoreOf(p, match) {
-    if (scoreMatch !== match || scoreResets !== match.resets) { scoreMatch = match; scoreResets = match.resets; scores = [{ total: 0, formula: '', formulaT: 0 }, { total: 0, formula: '', formulaT: 0 }]; deadAt = [0, 0]; }
+    if (scoreMatch !== match || scoreResets !== match.resets) {
+      scoreMatch = match; scoreResets = match.resets;
+      scores = [{ total: 0, formula: '', formulaT: 0 }, { total: 0, formula: '', formulaT: 0 }]; deadAt = [0, 0];
+      trays = [{ units: 0, bumpT: -9, x: 0, y: 0 }, { units: 0, bumpT: -9, x: 0, y: 0 }];
+    }
     return scores[p];
   }
 
@@ -502,11 +549,11 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       };
     }
     const bottomReserve = n === 1 ? 64 : 0; // 練習のボタン列の分
-    const s = Math.max(6, Math.floor(Math.min((H - 56 - 100 - bottomReserve) / 13.4, (W - 40) / 17.5)));
+    const s = Math.max(6, Math.floor(Math.min((H - 56 - 100 - bottomReserve - reserve) / 13.4, (W - 40) / 17.5)));
     const bw = s * 6, gap = s * 4.2;
     // 練習（1人）: 盤を中央より少し右に置き、左に立ち絵、右に時計
     const X0 = n === 1 ? Math.round(W / 2 - bw / 2 + s * 1.5) : Math.round((W - (bw * 2 + gap)) / 2);
-    const Y0 = Math.round(56 + (H - 56 - bottomReserve - s * 12) / 2 + s * 0.7);
+    const Y0 = Math.round(56 + reserve + (H - 56 - reserve - bottomReserve - s * 12) / 2 + s * 0.7);
     return { mobile: false, boards: [{ X: X0, Y: Y0, s }, { X: X0 + bw + gap, Y: Y0, s }], hud: { x: n === 1 ? X0 + bw + s * 2.2 : W / 2, y: Y0 } };
   }
 
@@ -545,14 +592,28 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       if (e.type === 'pop' && e.n >= 4 && match.players[e.p].kind === 'naraberu') {
         fx.push({ kind: 'text', text: `${e.n}どうじ`, x: L.X + L.s * 3, y: L.Y + L.s * 5.2, t0: now, dur: 0.8, size: L.s * 0.6, color: '#bdf6ff' });
       }
-      if (e.type === 'attack' && e.D - (e.sent ?? e.D) > 0.5 && match.players.length > 1) {
-        // 自分への予告を打ち消した
-        fx.push({ kind: 'text', text: 'そうさい！', x: L.X + L.s * 3, y: L.Y + L.s * 1.2, t0: now, dur: 0.8, size: L.s * 0.6, color: '#9ff3ff' });
+      const offset = e.type === 'attack' ? (e.offset ?? e.D - (e.sent ?? e.D)) : 0;
+      let delay = 0;
+      if (e.type === 'attack' && offset > 0.05) {
+        // 相殺: 自分の予告の列へ飛んでぶつかる → 光の輪と「そうさい −N」（N は自分が受ける単位）
+        const kind = match.players[e.p].kind, conv = kind === 'tsunagu' ? match.cfg.convT : match.cfg.convN;
+        const tr = trays[e.p] || { x: L.X + L.s, y: L.Y - L.s * 0.6 };
+        const tx = tr.x || L.X + L.s, ty = tr.y || L.Y - L.s * 0.6;
+        fx.push({ kind: 'orb', x0: L.X + L.s * 3, y0: L.Y + L.s * 4, x1: tx, y1: ty, t0: now, dur: 0.3, r: Math.min(L.s * 0.8, L.s * (0.25 + offset / 40)), offset: true, arc: 30 });
+        fx.push({ kind: 'clash', x: tx, y: ty, t0: now + 0.3, dur: 0.45, r: L.s * 1.2 });
+        const n = Math.max(1, Math.round(offset * conv));
+        // 文字は見出しの行の右側（予告の列の一段上）。予告の個数・ゲージや盤の上端の札と重ならないように
+        // 立て続けの相殺は1つの表示にまとめ、数を足し上げる
+        const prev = fx.find(f => f.offsetOf === e.p && now - f.t0 < 0.8);
+        const total = n + (prev ? prev.amount : 0);
+        if (prev) fx.splice(fx.indexOf(prev), 1);
+        fx.push({ kind: 'text', offsetOf: e.p, amount: total, text: `そうさい −${total}`, x: L.X + L.s * 4.6, y: ty - L.s * 0.62, t0: now + 0.3, dur: 1.0, size: L.s * 0.48, color: '#9ff3ff', rise: 6 });
+        delay = 0.25;
       }
-      if (e.type === 'attack' && e.D > 0.2) {
+      if (e.type === 'attack' && (e.sent ?? e.D) > 0.2) {
         if (match.players.length < 2) continue; // 練習: 相手がいないので攻撃の弾は飛ばさない
-        const a = boardCenter(e.p), b = boardCenter(1 - e.p);
-        fx.push({ kind: 'orb', x0: a.x, y0: L.Y + L.s * 2, x1: b.x, y1: layout.boards[1 - e.p].Y - layout.boards[1 - e.p].s * 0.6, t0: now, dur: 0.45, r: Math.min(L.s * 0.9, L.s * (0.25 + e.D / 40)), offset: e.sent < e.D - 1e-6 });
+        const a = boardCenter(e.p), b = boardCenter(1 - e.p), sent = e.sent ?? e.D;
+        fx.push({ kind: 'orb', x0: a.x, y0: L.Y + L.s * 2, x1: b.x, y1: layout.boards[1 - e.p].Y - layout.boards[1 - e.p].s * 0.6, t0: now + delay, dur: 0.45, r: Math.min(L.s * 0.9, L.s * (0.25 + sent / 40)), offset: false });
       }
       if ((e.type === 'thaw' && e.left === 0 && e.w >= 4) || (e.type === 'garbageClear' && e.cells.length >= 6)) {
         const y = e.type === 'thaw' ? L.Y + L.s * (e.y - TOP + 0.5) : L.Y + L.s * 7;
@@ -621,8 +682,16 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       // 予告
       const conv = pl.kind === 'tsunagu' ? match.cfg.convT : match.cfg.convN;
       const units = pl.pending.D * conv;
-      const ready = pl.kind === 'tsunagu' && pl.pending.age >= (match.cfg.tsunaguLandSec || 0) * 60;
-      drawPending(ctx, units, X, Y - (small ? 12 : s * 0.62), small ? s * 1.6 : s, s * 6 - (pl.kind === 'tsunagu' && !small && layout.mobile ? s * 2.2 : 0), pl.kind, ready, now);
+      const landSec = (pl.kind === 'tsunagu' ? match.cfg.tsunaguLandSec : match.cfg.naraberuLandSec) || 0;
+      const wait = landSec > 0 && landSec < 100 ? Math.min(1, pl.pending.age / (landSec * 60)) : -1;
+      const ready = wait >= 1 && (pl.kind === 'tsunagu' || units >= 3);
+      const trayY = Y - (small ? 12 : s * 0.62);
+      const tr = trays[p], whole = Math.floor(units + 1e-9);
+      if (whole > tr.units) tr.bumpT = now;
+      else if (whole < tr.units && !CALM) shatter(X + s * 0.6, trayY, s, Math.min(14, (tr.units - whole) * 2), pl.kind);
+      tr.units = whole; tr.x = X + s * 0.8; tr.y = trayY;
+      const bump = now - tr.bumpT < 0.25 ? (now - tr.bumpT) / 0.25 : 0;
+      drawPending(ctx, units, X, trayY, small ? s * 1.6 : s, s * 6 - (pl.kind === 'tsunagu' && !small && layout.mobile ? s * 2.2 : 0) - s * 1.2, pl.kind, ready, now, bump, wait, small);
       // つなぐ派の次の組
       if (pl.kind === 'tsunagu' && !small && layout.mobile) {
         const ns = s * 0.5;
@@ -692,12 +761,23 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       const e = fx[k];
       const u = (now - e.t0) / e.dur;
       if (u >= 1) { fx.splice(k, 1); continue; }
+      if (u < 0) continue; // まだ始まっていない（相殺のあとに相手へ飛ぶ玉など）
+      if (e.kind === 'clash') {
+        // 相殺: 予告の列で広がる光の輪と、十字の光
+        ctx.save();
+        ctx.globalAlpha = 1 - u;
+        ctx.strokeStyle = '#bff7ff'; ctx.lineWidth = Math.max(2, e.r * 0.12 * (1 - u));
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (0.2 + 0.9 * u), 0, Math.PI * 2); ctx.stroke();
+        if (!CALM) { star5(ctx, e.x, e.y, e.r * 0.5 * (1 - u * 0.6), '#ffffff', u * 2); }
+        ctx.restore();
+        continue;
+      }
       if (e.kind === 'text') {
         ctx.save();
         ctx.globalAlpha = u < 0.7 ? 1 : 1 - (u - 0.7) / 0.3;
         ctx.font = `900 ${Math.round(e.size)}px "M PLUS Rounded 1c",sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        const y = e.y - u * 24;
+        const y = e.y - u * (e.rise ?? 24);
         const pop = u < 0.18 ? 0.4 + 0.75 * (u / 0.18) : u < 0.28 ? 1.15 - 0.15 * ((u - 0.18) / 0.1) : 1;
         ctx.translate(e.x, y); ctx.scale(pop, pop); ctx.translate(-e.x, -y);
         ctx.lineWidth = Math.max(3, e.size * 0.16); ctx.strokeStyle = 'rgba(20,10,40,.85)';
@@ -705,13 +785,23 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
         ctx.fillStyle = e.color; ctx.fillText(e.text, e.x, y);
         ctx.restore();
       } else if (e.kind === 'orb') {
-        const x = e.x0 + (e.x1 - e.x0) * u, y = e.y0 + (e.y1 - e.y0) * u - Math.sin(u * Math.PI) * 60;
+        const x = e.x0 + (e.x1 - e.x0) * u, y = e.y0 + (e.y1 - e.y0) * u - Math.sin(u * Math.PI) * (e.arc ?? 60);
         const g = ctx.createRadialGradient(x, y, 0, x, y, e.r * 2);
         g.addColorStop(0, e.offset ? 'rgba(180,255,255,1)' : 'rgba(255,245,200,1)');
         g.addColorStop(0.4, e.offset ? 'rgba(80,200,255,.6)' : 'rgba(255,150,60,.6)');
         g.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, e.r * 2, 0, Math.PI * 2); ctx.fill();
       }
+    }
+    // 予告が減ったときのかけら
+    for (let k = chips.length - 1; k >= 0; k--) {
+      const q = chips[k];
+      q.age++; q.x += q.vx; q.y += q.vy; q.vy += 0.4;
+      if (q.age >= q.life) { chips.splice(k, 1); continue; }
+      ctx.save(); ctx.globalAlpha = 1 - q.age / q.life; ctx.fillStyle = '#c9cde0';
+      if (q.round) { ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2); ctx.fill(); }
+      else ctx.fillRect(q.x - q.r, q.y - q.r, q.r * 2, q.r * 2);
+      ctx.restore();
     }
     ctx.restore();
     if (charas && charas.drawOverlay) charas.drawOverlay(ctx, W, H, now);

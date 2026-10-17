@@ -28,6 +28,23 @@ test('同じシード＋同じ入力列なら同じ結果', () => {
   }
 });
 
+test('攻撃の合図は、自分の予告を打ち消した量（offset）と相手に送った量（sent）を持つ', () => {
+  const m = createMatch({ cfg: CFG, kinds: ['tsunagu', 'naraberu'], seeds: [1, 2], handicap: [0, 0] });
+  m.frame = 120 * 60; // 開幕の弱めが終わったあと
+  m.players[0].pending.D = 3;
+  const b = m.players[0].board;
+  b.grid = Array.from({ length: 13 }, () => Array(6).fill(0));
+  for (let x = 0; x < 3; x++) b.grid[12][x] = 1;
+  b.piece = { x: 3, y: 1, rot: 0, a: 1, b: 2 };
+  b.phase = 'fall';
+  const ev = [];
+  for (let i = 0; i < 3; i++) ev.push(...m.step([{ ...NONE, up: i === 0 }, NONE]));
+  const atk = ev.find(e => e.type === 'attack' && e.p === 0);
+  assert.ok(atk);
+  assert.ok(Math.abs(atk.offset - Math.min(atk.D, 3)) < 1e-9);
+  assert.ok(Math.abs(atk.offset + atk.sent - atk.D) < 1e-9);
+});
+
 test('攻撃は相殺してから相手の予告に入る', () => {
   const m = createMatch({ cfg: CFG, kinds: ['tsunagu', 'naraberu'], seeds: [1, 2], handicap: [0, 0] });
   m.players[0].pending.D = 2;
