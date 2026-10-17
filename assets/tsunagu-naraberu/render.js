@@ -512,7 +512,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
   let layout = null;
   // 試合ごとの見た目だけの記録: つなぐ派の点数と式、負けた時刻（盤が崩れ落ちる）
   let scoreMatch = null, scoreResets = undefined, scores = [], deadAt = [0, 0];
-  let trays = [{ units: 0, bumpT: -9, x: 0, y: 0 }, { units: 0, bumpT: -9, x: 0, y: 0 }];
+  let trays = [{ units: 0, bumpT: -9, x: 0, y: 0, shownU: 0, holdU: 0, holdUntil: 0, hitT: -9 }, { units: 0, bumpT: -9, x: 0, y: 0, shownU: 0, holdU: 0, holdUntil: 0, hitT: -9 }];
   // 予告が減ったときに飛ぶかけら（画面の座標）
   const chips = [];
   function shatter(x, y, s, n, kind) {
@@ -525,7 +525,7 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
     if (scoreMatch !== match || scoreResets !== match.resets) {
       scoreMatch = match; scoreResets = match.resets;
       scores = [{ total: 0, formula: '', formulaT: 0 }, { total: 0, formula: '', formulaT: 0 }]; deadAt = [0, 0];
-      trays = [{ units: 0, bumpT: -9, x: 0, y: 0 }, { units: 0, bumpT: -9, x: 0, y: 0 }];
+      trays = [{ units: 0, bumpT: -9, x: 0, y: 0, shownU: 0, holdU: 0, holdUntil: 0, hitT: -9 }, { units: 0, bumpT: -9, x: 0, y: 0, shownU: 0, holdU: 0, holdUntil: 0, hitT: -9 }];
     }
     return scores[p];
   }
@@ -595,19 +595,15 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       const offset = e.type === 'attack' ? (e.offset ?? e.D - (e.sent ?? e.D)) : 0;
       let delay = 0;
       if (e.type === 'attack' && offset > 0.05) {
-        // 相殺: 自分の予告の列へ飛んでぶつかる → 光の輪と「そうさい −N」（N は自分が受ける単位）
+        // 相殺: 自分の予告の列へ飛んでぶつかる → 当たった瞬間に予告が砕けて減る（文字は出さない）
         const kind = match.players[e.p].kind, conv = kind === 'tsunagu' ? match.cfg.convT : match.cfg.convN;
         const tr = trays[e.p] || { x: L.X + L.s, y: L.Y - L.s * 0.6 };
         const tx = tr.x || L.X + L.s, ty = tr.y || L.Y - L.s * 0.6;
         fx.push({ kind: 'orb', x0: L.X + L.s * 3, y0: L.Y + L.s * 4, x1: tx, y1: ty, t0: now, dur: 0.3, r: Math.min(L.s * 0.8, L.s * (0.25 + offset / 40)), offset: true, arc: 30 });
         fx.push({ kind: 'clash', x: tx, y: ty, t0: now + 0.3, dur: 0.45, r: L.s * 1.2 });
-        const n = Math.max(1, Math.round(offset * conv));
-        // 文字は見出しの行の右側（予告の列の一段上）。予告の個数・ゲージや盤の上端の札と重ならないように
-        // 立て続けの相殺は1つの表示にまとめ、数を足し上げる
-        const prev = fx.find(f => f.offsetOf === e.p && now - f.t0 < 0.8);
-        const total = n + (prev ? prev.amount : 0);
-        if (prev) fx.splice(fx.indexOf(prev), 1);
-        fx.push({ kind: 'text', offsetOf: e.p, amount: total, text: `そうさい −${total}`, x: L.X + L.s * 4.6, y: ty - L.s * 0.62, t0: now + 0.3, dur: 1.0, size: L.s * 0.48, color: '#9ff3ff', rise: 6 });
+        // 玉が届くまで予告の見た目を減らさない（届いた瞬間に砕ける）
+        if (trays[e.p] && now >= trays[e.p].holdUntil) trays[e.p].holdU = trays[e.p].shownU;
+        if (trays[e.p]) { trays[e.p].holdUntil = now + 0.3; trays[e.p].hitT = now + 0.3; }
         delay = 0.25;
       }
       if (e.type === 'attack' && (e.sent ?? e.D) > 0.2) {
@@ -681,14 +677,17 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
       }
       // 予告
       const conv = pl.kind === 'tsunagu' ? match.cfg.convT : match.cfg.convN;
-      const units = pl.pending.D * conv;
+      const tr = trays[p];
+      const units = now < tr.holdUntil ? Math.max(pl.pending.D * conv, tr.holdU) : pl.pending.D * conv;
+      tr.shownU = units;
       const landSec = (pl.kind === 'tsunagu' ? match.cfg.tsunaguLandSec : match.cfg.naraberuLandSec) || 0;
       const wait = landSec > 0 && landSec < 100 ? Math.min(1, pl.pending.age / (landSec * 60)) : -1;
       const ready = wait >= 1 && (pl.kind === 'tsunagu' || units >= 3);
       const trayY = Y - (small ? 12 : s * 0.62);
-      const tr = trays[p], whole = Math.floor(units + 1e-9);
+      const whole = Math.floor(units + 1e-9);
+      const hit = now - tr.hitT >= 0 && now - tr.hitT < 0.1; // 相殺の玉が当たった直後は、かけらを多めに
       if (whole > tr.units) tr.bumpT = now;
-      else if (whole < tr.units && !CALM) shatter(X + s * 0.6, trayY, s, Math.min(14, (tr.units - whole) * 2), pl.kind);
+      else if (whole < tr.units && !CALM) shatter(X + s * 0.6, trayY, s, Math.min(hit ? 24 : 14, (tr.units - whole) * (hit ? 4 : 2)), pl.kind);
       tr.units = whole; tr.x = X + s * 0.8; tr.y = trayY;
       const bump = now - tr.bumpT < 0.25 ? (now - tr.bumpT) / 0.25 : 0;
       drawPending(ctx, units, X, trayY, small ? s * 1.6 : s, s * 6 - (pl.kind === 'tsunagu' && !small && layout.mobile ? s * 2.2 : 0) - s * 1.2, pl.kind, ready, now, bump, wait, small);
