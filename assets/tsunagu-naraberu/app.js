@@ -286,7 +286,7 @@ function startMatch(demo = false, seedFix = null) {
   } else {
     const cpuAtk = [demo ? cpuAtkOf(kinds[0], settings.level) : 1, cpu ? cpuAtkOf(kinds[1], settings.level) : 1];
     match = createMatch({ cfg: CFG, kinds, seeds: [seed, seed + 7919], handicap: settings.handicap.slice(), cpuAtk });
-    labels = cpu ? ['あなた', 'CPU'] : ['1P', '2P'];
+    labels = demo ? ['CPU', 'CPU'] : cpu ? ['あなた', 'CPU'] : ['1P', '2P'];
     ais = [demo ? makeAI(kinds[0], settings.level, seed + 1) : null, cpu ? makeAI(kinds[1], settings.level, seed) : null];
   }
   humans = demo ? [] : cpu ? [0] : [0, 1];
@@ -629,5 +629,6 @@ window.__tn = {
   get match() { return match; }, get screen() { return screen; }, get tut() { return tut; },
   phys, charas, audio, settings, records, startMatch, startFlow, startTutorial, openScreen, demo: seed => startMatch(true, seed ?? null), LEVELS,
   // 検証用: 描画ループが止まる環境でも n 刻み進めて描く
-  advance(n) { countdown = 0; const t = performance.now() / 1000; simulate(n, t); renderer.draw(match, labels, t, { mobile, topReserve: tutReserve() }); return match && match.frame; },
+  // reserve: 盤の上に空ける高さ（紹介動画の字幕の置き場所）
+  advance(n, reserve = null) { countdown = 0; const t = performance.now() / 1000; simulate(n, t); renderer.draw(match, labels, t, { mobile, topReserve: reserve ?? tutReserve() }); return match && match.frame; },
 };

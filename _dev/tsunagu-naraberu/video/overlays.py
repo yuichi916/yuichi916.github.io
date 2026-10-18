@@ -19,30 +19,41 @@ html,body{margin:0;width:1920px;height:1080px;background:transparent;overflow:hi
 .pill{padding:14px 34px 16px;border-radius:999px;background:rgba(12,10,30,.86);border:4px solid var(--c);box-shadow:0 8px 30px rgba(0,0,0,.45);
   color:#fff;font-weight:900;font-size:58px;letter-spacing:.02em;white-space:nowrap;line-height:1.15}
 .pill em{font-style:normal;color:var(--c)}
+.pill.big{font-size:70px;padding:16px 44px 20px}
 .sub{padding:6px 22px 8px;border-radius:14px;background:rgba(12,10,30,.8);color:#f3f0ff;font-weight:800;font-size:29px;white-space:nowrap}
 """
 
 # 名前 → 本文（盤の位置は 1920x1080 の実画面に合わせて置く）
+# 字幕は盤の上の空き（capture.py --reserve 150 で空けた y 56〜230）にだけ置く。盤・ゲームの見出し・カットインに乗らない
 CAPS = {
-    "cap_tsunagu": ("--c:#ff9a5c;left:612px;top:92px;transform:translateX(-50%)",
+    "cap_open": ("--c:#ffe27a;left:960px;top:84px;transform:translateX(-50%)",
+                 '<div class="pill big"><span style="color:#ffab76">ぷよぷよ風</span> vs <span style="color:#7fe3f0">パネルでポン風</span></div>'),
+    "cap_tsunagu": ("--c:#ff9a5c;left:669px;top:72px;transform:translateX(-50%)",
                     '<div class="pill"><em>ぷよぷよ風</em></div><div class="sub">つなぐ派：同じ色を4つつなげて消す</div>'),
-    "cap_naraberu": ("--c:#6fe0ef;left:1306px;top:92px;transform:translateX(-50%)",
+    "cap_naraberu": ("--c:#6fe0ef;left:1251px;top:72px;transform:translateX(-50%)",
                      '<div class="pill"><em>パネルでポン風</em></div><div class="sub">ならべる派：入れ替えて3つ並べる</div>'),
-    "cap_chain": ("--c:#ffe27a;left:960px;top:92px;transform:translateX(-50%)",
+    "cap_chain": ("--c:#ffe27a;left:960px;top:96px;transform:translateX(-50%)",
                   '<div class="pill">連鎖で、相手の盤に<em>おじゃま</em>を送る</div>'),
-    "cap_offset": ("--c:#9ff3ff;left:960px;top:92px;transform:translateX(-50%)",
-                   '<div class="pill">予告の3秒で消し返せば <em>相殺</em></div>'),
-    "cap_active": ("--c:#6fe0ef;left:960px;top:92px;transform:translateX(-50%)",
-                   '<div class="pill">消えている間に次をつなぐ <em>アクティブ連鎖</em></div>'),
+    "cap_offset": ("--c:#9ff3ff;left:960px;top:96px;transform:translateX(-50%)",
+                   '<div class="pill">予告は3秒たつまで降らない。消し返せば <em>相殺</em></div>'),
+    "cap_garbage": ("--c:#c9c3e6;left:960px;top:96px;transform:translateX(-50%)",
+                    '<div class="pill">打ち消しきれないぶんは <em>おじゃま</em>で降ってくる</div>'),
+    "cap_active": ("--c:#6fe0ef;left:960px;top:96px;transform:translateX(-50%)",
+                   '<div class="pill">ならべる派は、消えている間に次をつなぐ <em>アクティブ連鎖</em></div>'),
+    "cap_win1": ("--c:#6fe0ef;left:960px;top:84px;transform:translateX(-50%)",
+                 '<div class="pill big"><em>パネルでポン風</em>（ならべる派）の勝ち！</div>'),
+    "cap_win0": ("--c:#ff9a5c;left:960px;top:84px;transform:translateX(-50%)",
+                 '<div class="pill big"><em>ぷよぷよ風</em>（つなぐ派）の勝ち！</div>'),
 }
 
 END = f"""
 <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,#2a1f4a 0%,#0d0b1f 70%)"></div>
-<div style="position:absolute;left:0;right:0;top:120px;display:flex;flex-direction:column;align-items:center;gap:26px">
+<div style="position:absolute;left:0;right:0;top:80px;display:flex;flex-direction:column;align-items:center;gap:22px">
   <img src="{LOGO}" style="width:1000px">
   <div style="color:#fff;font-weight:900;font-size:56px"><span style="color:#ffab76">ぷよぷよ風</span> vs <span style="color:#7fe3f0">パネルでポン風</span></div>
-  <div style="color:#e9e4ff;font-weight:800;font-size:40px">CPU戦 5段階 ／ ふたりで対戦 ／ ブラウザで無料（PC・スマホ）</div>
-  <div style="margin-top:18px;padding:16px 40px;border-radius:999px;background:linear-gradient(90deg,#ff9a5c,#6fe0ef);color:#14102a;font-weight:900;font-size:44px">yuichi916.github.io/tsunagu-naraberu.html</div>
+  <div style="color:#e9e4ff;font-weight:800;font-size:40px">CPU戦 5段階 ／ 1台のPCでふたり対戦 ／ ブラウザで無料（スマホはCPU戦）</div>
+  <div style="color:#fff;font-weight:900;font-size:46px;margin-top:6px">概要欄のリンクから、ブラウザですぐ遊べる</div>
+  <div style="margin-top:4px;padding:16px 40px;border-radius:999px;background:linear-gradient(90deg,#ff9a5c,#6fe0ef);color:#14102a;font-weight:900;font-size:44px">yuichi916.github.io/tsunagu-naraberu.html</div>
   <div style="color:#a9a3c9;font-weight:800;font-size:22px;margin-top:10px">「ぷよぷよ」は株式会社セガの、「パネルでポン」は任天堂株式会社の商標です。本作は各社とは関係のない非公式の作品です。</div>
 </div>"""
 

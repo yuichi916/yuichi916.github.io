@@ -26,6 +26,7 @@ ap.add_argument("--max", type=float, default=80.0)    # 試合の上限（秒）
 ap.add_argument("--w", type=int, default=1920)
 ap.add_argument("--h", type=int, default=1080)
 ap.add_argument("--url", default="http://127.0.0.1:18983/tsunagu-naraberu.html")
+ap.add_argument("--reserve", type=int, default=150)  # 盤の上に空ける高さ（字幕の置き場所。ゲームの見出しや盤に字幕が乗らない）
 ap.add_argument("--bgm", type=int, default=145)  # 曲の音量（ゲームの設定の 0〜100 と同じ目盛り。動画では効果音の合間が静かすぎるので上げる）
 a = ap.parse_args()
 FPS, SR = 30, 48000
@@ -80,7 +81,7 @@ with sync_playwright() as p:
     start_k = k
     end_k = None
     while True:
-        page.evaluate(f"() => {{ __vt({(k + 1) / FPS}); __tn.advance(2); }}")
+        page.evaluate(f"() => {{ __vt({(k + 1) / FPS}); __tn.advance(2, {a.reserve}); }}")
         shot()
         res = page.evaluate("() => !!__tn.match.result")
         if res and end_k is None:
