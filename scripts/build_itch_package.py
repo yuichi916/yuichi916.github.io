@@ -32,6 +32,15 @@ WORKS: dict[str, tuple[str, list[str], list[str]]] = {
     "hitofude":  ("hitofude.html",  ["assets/hitofude", "assets/feel"], ["favicon.svg"]),
     # ゲームポータル (CrazyGames・Y8・Game Jolt など) 用: 他作品・他サイトへの誘導と、外への通信を外す (PORTAL_STRIP)
     "hitofude-portal": ("hitofude.html", ["assets/hitofude", "assets/feel"], ["favicon.svg"]),
+    # ツナラベ！: assets/tsunagu-naraberu の中だけで完結（音・声・絵・ロゴも中）
+    "tsunagu-naraberu":        ("tsunagu-naraberu.html", ["assets/tsunagu-naraberu"], ["favicon.svg"]),
+    "tsunagu-naraberu-portal": ("tsunagu-naraberu.html", ["assets/tsunagu-naraberu"], ["favicon.svg"]),
+}
+
+# ポータル用の版の作品ごとの違い: タブの名前・隠すもの・CrazyGames の SDK を入れるか（画面の側が SDK に対応している作品だけ）
+PORTAL_OPTS = {
+    "hitofude-portal": {"title": "Hitofude Hanabi", "hide": "", "sdk": True},
+    "tsunagu-naraberu-portal": {"title": "ツナラベ！", "hide": ",a.back", "sdk": False},
 }
 
 # ポータル用の版だけに入れる変更。サイトの HTML は変えない
@@ -42,7 +51,8 @@ PORTAL_CSS = ("<style id=\"portal-build\">.endnext,.sharebox,pre.share,[data-fee
               "?Promise.reject(new Error('portal build')):f(u,...a);})();</script>")
 
 
-def portal_strip(html: str) -> str:
+def portal_strip(html: str, name: str = "hitofude-portal") -> str:
+    opt = PORTAL_OPTS[name]
     html = re.sub(r'<script[^>]*gc\.zgo\.at[^>]*></script>\s*', "", html)          # アクセス解析
     html = re.sub(r'<script[^>]*assets/feel/feel\.js[^>]*></script>\s*', "", html)  # 気持ちスタンプ
     html = re.sub(r'<div class="endnext">.*?</div>\s*', "", html, flags=re.S)        # 他の作品・研究ノートへの誘導（隠すだけでなく外す）
@@ -54,9 +64,12 @@ def portal_strip(html: str) -> str:
     # 画面の側で「ゲームサイト用」と分かるように（結果を 1 列にする など）
     # CrazyGames の SDK v3（遊んでいる/止めた の合図・広告・クラウド保存）。ほかのサイトでは SDK が動かず、画面の側で何もしない
     # タブの名前は短く（言葉は画面の側で、ゲームサイトが知らせる言葉に合わせて付けなおす）
-    html = re.sub(r"<title>[^<]*</title>", "<title>Hitofude Hanabi</title>", html, count=1)
+    html = re.sub(r"<title>[^<]*</title>", f"<title>{opt['title']}</title>", html, count=1)
+    css = PORTAL_CSS.replace("[data-noportal]{", "[data-noportal]" + opt["hide"] + "{")
+    if not opt["sdk"]:
+        return html.replace("</head>", css + "</head>", 1)
     # SDK は読みこんだらすぐ起こし、読みこみの始めの合図を出す（画面の側は window.__cgInit を待って、終わりの合図を出す）
-    return html.replace("</head>", PORTAL_CSS + "<script>window.HITO_PORTAL=1</script>"
+    return html.replace("</head>", css + "<script>window.HITO_PORTAL=1</script>"
                         "<script src=\"https://sdk.crazygames.com/crazygames-sdk-v3.js\"></script>"
                         "<script>(()=>{try{const s=window.CrazyGames&&window.CrazyGames.SDK;if(!s)return;"
                         "window.__cgInit=s.init().then(()=>{try{if(s.environment!=='disabled')s.game.loadingStart();}catch(e){}});"
@@ -159,7 +172,7 @@ def build(name: str) -> int:
 
     html = src.read_text(encoding="utf-8")
     if name.endswith("-portal"):
-        html = portal_strip(html)
+        html = portal_strip(html, name)
         text = src.read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8") for d in dirs for p in (ROOT / d).rglob("*.js"))
         html = self_host_fonts(html, stage, text)
     # サイトの一番上を起点にした /assets/... は、itch.io ではサイトの外を指すので相対にする

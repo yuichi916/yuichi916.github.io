@@ -611,10 +611,6 @@ export function createRenderer(canvas, { phys = null, charas = null } = {}) {
         const a = boardCenter(e.p), b = boardCenter(1 - e.p), sent = e.sent ?? e.D;
         fx.push({ kind: 'orb', x0: a.x, y0: L.Y + L.s * 2, x1: b.x, y1: layout.boards[1 - e.p].Y - layout.boards[1 - e.p].s * 0.6, t0: now + delay, dur: 0.45, r: Math.min(L.s * 0.9, L.s * (0.25 + sent / 40)), offset: false });
       }
-      if ((e.type === 'thaw' && e.left === 0 && e.w >= 4) || (e.type === 'garbageClear' && e.cells.length >= 6)) {
-        const y = e.type === 'thaw' ? L.Y + L.s * (e.y - TOP + 0.5) : L.Y + L.s * 7;
-        fx.push({ kind: 'text', text: 'ブレイク！', x: L.X + L.s * 3, y, t0: now, dur: 0.8, size: L.s * 0.7, color: '#d6f3ff' });
-      }
       if (e.type === 'garbage') {
         const big = (e.n || (e.w * e.h)) >= 12;
         if (big && !CALM) shake = [now, 0.25];
