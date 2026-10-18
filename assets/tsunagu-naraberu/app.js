@@ -267,11 +267,11 @@ function startFlow() {
 }
 $('vs').addEventListener('click', () => { if (screen === 'vs') startMatch(); });
 
-function startMatch(demo = false) {
+function startMatch(demo = false, seedFix = null) {
   clearTimeout(vsTimer);
   starting = false;
   tut = null; $('tutBar').hidden = true;
-  const seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0;
+  const seed = seedFix ?? (Date.now() ^ (Math.random() * 1e9)) >>> 0; // seedFix: 紹介動画などで同じ試合を再現する
   const practice = settings.mode === 'practice' && !demo;
   if (!demo && settings.mode !== 'cpu') playChars = settings.chars.slice();
   if (demo) playChars = settings.chars.slice();
@@ -627,7 +627,7 @@ boot();
 // デバッグ用
 window.__tn = {
   get match() { return match; }, get screen() { return screen; }, get tut() { return tut; },
-  phys, charas, audio, settings, records, startMatch, startFlow, startTutorial, openScreen, demo: () => startMatch(true), LEVELS,
+  phys, charas, audio, settings, records, startMatch, startFlow, startTutorial, openScreen, demo: seed => startMatch(true, seed ?? null), LEVELS,
   // 検証用: 描画ループが止まる環境でも n 刻み進めて描く
   advance(n) { countdown = 0; const t = performance.now() / 1000; simulate(n, t); renderer.draw(match, labels, t, { mobile, topReserve: tutReserve() }); return match && match.frame; },
 };
