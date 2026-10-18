@@ -9,12 +9,13 @@
 
 ## キャッチコピー（1つ選ぶ）
 - A: 消し方のちがう2つのパズルが、本気で対戦する。
-- B: 4つつなげる派 vs 3つ並べる派。ルールのちがう対戦パズル。
+- B: 4つつなげる派 vs 3つ並べる派。ルールのちがう対戦パズル。（採用）
+- 2026-10-18 依頼主の指示で「ぷよぷよ風・パネルでポン風」を入れる。採用版: ぷよぷよ風 vs パネルでポン風。ルールのちがう対戦パズル
 - C: つなげて消すか、並べて消すか。ちがうルールで、同じ勝負。
 
 ## 紹介文（日本語・夢現／PLiCy／Tsukutta／ProtoPedia）
 
-ルールのちがう2つのパズルが、直接ぶつかる対戦パズルです。
+ぷよぷよ風の「つなぐ派」と、パネルでポン風の「ならべる派」。ルールのちがう2つのパズルが、直接ぶつかる対戦パズルです。
 
 つなぐ派は、落ちてくる2個1組を積んで、同じ色を4つつなげて消す。
 ならべる派は、せり上がる盤のパネルを入れ替えて、3つ並べて消す。
@@ -39,9 +40,10 @@
 
 【制作について】
 音楽・効果音は Suno、キャラクターの声は ElevenLabs、キャラクターの絵は Stable Diffusion（WAI-Illustrious）で作成。プログラムは生成AI（Claude）と一緒に書きました。
+「ぷよぷよ」は株式会社セガの、「パネルでポン」は任天堂株式会社の商標です。本作は各社とは関係のない非公式の作品です。
 
 [English]
-Tsunarabe! is a versus puzzle where two different puzzle rules fight head to head. One side stacks falling pairs and links four of a color; the other swaps panels on a rising board to line up three. Chains on either side drop garbage on the opponent, and an incoming attack can be cancelled out during its 3-second warning. CPU battles with five difficulty levels, plus local 2-player on one PC. The interface is in Japanese.
+Tsunarabe! is a versus puzzle where a Puyo Puyo-style board fights a Panel de Pon-style board head to head. One side stacks falling pairs and links four of a color; the other swaps panels on a rising board to line up three. Chains on either side drop garbage on the opponent, and an incoming attack can be cancelled out during its 3-second warning. CPU battles with five difficulty levels, plus local 2-player on one PC. The interface is in Japanese.
 Music & SFX: Suno / Voices: ElevenLabs / Character art: Stable Diffusion (WAI-Illustrious) / Code written with Claude.
 
 ## タグ

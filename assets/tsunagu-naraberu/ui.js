@@ -4,6 +4,7 @@ import { CHARACTERS, CHAR } from './characters.js';
 const BASE = new URL('./', import.meta.url).href;
 const img = (id, name) => `${BASE}chara/${id}/${name}.webp`;
 const FACTION = { tsunagu: 'つなぐ派', naraberu: 'ならべる派' };
+const LIKE = { tsunagu: 'ぷよぷよ風', naraberu: 'パネルでポン風' }; // どんな遊びかを一目で伝える
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export function renderTitleCast(el) {
@@ -14,7 +15,7 @@ export function renderTitleCast(el) {
 export function renderCards(el, { player, selected, random = false, showRandom = false }) {
   const cards = CHARACTERS.map(c => `
     <button class="ccard${!random && selected === c.id ? ' sel' : ''}" data-set="char:${player}:${c.id}" style="--cc:${c.color.main}" title="${esc(c.name)}（${FACTION[c.faction]}・${esc(c.trait)}）" type="button">
-      <img src="${img(c.id, 'select')}" alt=""><b>${esc(c.name)}</b><small>${FACTION[c.faction]}</small>
+      <img src="${img(c.id, 'select')}" alt=""><b>${esc(c.name)}</b><small>${FACTION[c.faction]}</small><i>${LIKE[c.faction]}</i>
     </button>`).join('');
   el.innerHTML = cards;
   // 「おまかせ」はカードの段の下に小さく（段の列数をそろえる）
