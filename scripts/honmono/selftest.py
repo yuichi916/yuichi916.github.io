@@ -4,11 +4,13 @@
   2. 原文: 保存した zip の SHA-256 が記録と一致し、規則どおり整えたテキストに文字どおり含まれる（全件）。
      段落単位の切り出しは、その行の本文（字下げを除く）と完全に一致する
   3. 規則の既知例: ルビ・｜・入力者注が消え、親文字が残る
-  4. AI の文: 全件ある、長さが原文の ±20% 以内、使えない記号がない、原文と同一でない
+  4. AI の文: 全件ある、長さが原文の ±20% 以内（目標があればその範囲内）、使えない記号がない、原文と同一でない
   5. 指示文: 原文の文（15字以上）がそのまま入っていない
   6. 並び: データの並びで同じ作品・同じ作家が続かない（出題時の並びは test_core.mjs で検査）。作家は20人以上
   7. 解説: 全件1行（改行なし・80字以内）、「」で引いた言葉が原文かAIの文に実際にある
   8. 照合の結果（最長一致）を報告する
+  9. 長さの手がかり: AI の文が長さの目標の範囲に入る。「長い方を原文と答える」戦略の正答率が 45〜55%。
+     ほかの表面の手がかり（句読点の数・文の数など）の正答率も出し、どちら向きでも 65% を超えるものは警告する
 
 使い方:  python scripts/honmono/selftest.py
 """
@@ -23,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from aozora_text import BAD, clean_line, load_clean  # noqa: E402
 from passages import PICKS, extract  # noqa: E402
+from surface_cues import strategy_accuracy  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 D = ROOT / "data" / "honmono"
@@ -80,6 +83,9 @@ def main() -> None:
         r = na / no - 1
         ratios.append(r)
         check(abs(r) <= 0.20, f"{p['id']} 長さの差 {r:+.0%}")
+        lt = p.get("length_target")
+        if lt:
+            check(lt["lo"] <= na <= lt["hi"], f"{p['id']} 長さの目標 {lt['lo']}〜{lt['hi']} に入らない（{na}）")
         check(100 <= no <= 250, f"{p['id']} 原文の長さ {no}")
         check(not any(b in a for b in BAD), f"{p['id']} AI の文に使えない記号")
         check(not any(b in o for b in BAD), f"{p['id']} 原文に使えない記号")
@@ -121,6 +127,19 @@ def main() -> None:
         print("   ", r)
     print(f"   長さの差: {min(ratios):+.0%} 〜 {max(ratios):+.0%}")
     print(f"   作品 {len(pairs)} / 作家 {len(authors)} / 書き直し {data['generator']['rewritten']} 件")
+
+    # 9
+    print("9. 長さなど表面の手がかり")
+    acc = strategy_accuracy(pairs)
+    L = acc["長さ（字数）"]
+    print(f"   「長い方を原文と答える」正答率 {L:.1%}（「短い方」なら {1 - L:.1%}）")
+    check(0.45 <= L <= 0.55, f"長い方を選ぶ戦略の正答率が 45〜55% の外: {L:.1%}")
+    shorter = sum(1 for p in pairs if p["chars"]["ai"] < p["chars"]["original"])
+    print(f"   AI の方が短い組 {shorter} / {len(pairs)}")
+    for k, v in acc.items():
+        best = max(v, 1 - v)
+        mark = "  警告: 65% 超" if best > 0.65 else ""
+        print(f"   {k}: 大きい方を原文 {v:.1%} / 小さい方を原文 {1 - v:.1%}{mark}")
 
     if fails:
         print(f"\nFAIL {len(fails)} 件")
