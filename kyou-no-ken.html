@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<title>きょうの県 — 統計のヒントで都道府県を当てる毎日1問のクイズ</title>
+<meta name="description" content="毎日1問、統計のヒントで「きょうの県」を当てるブラウザゲーム。65歳以上の割合、日照時間、持ち家の割合、1世帯あたりの人数……総務省統計局「統計でみる都道府県のすがた」の数字と全国順位がヒント。外すと正解の県までの距離と方角が出る。登録なし・無料・1〜3分。">
+<meta name="theme-color" content="#0e1626">
+<link rel="canonical" href="https://yuichi916.github.io/kyou-no-ken.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="きょうの県 — 統計のヒント6つで、今日の都道府県を当てる">
+<meta property="og:description" content="毎日1問。日照時間、持ち家の割合、1世帯あたりの人数……公的統計の値と全国順位がヒント。外すと距離と方角が出る。">
+<meta property="og:url" content="https://yuichi916.github.io/kyou-no-ken.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og/kyou-no-ken-1200x630.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<meta name="twitter:image" content="https://yuichi916.github.io/assets/og/kyou-no-ken-1200x630.jpg">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "きょうの県",
+  "description": "毎日1問、統計のヒントで都道府県を当てるブラウザゲーム。ヒントは総務省統計局「統計でみる都道府県のすがた2026」の値と全国順位。外すと正解の県庁までの距離と方角が出る。",
+  "url": "https://yuichi916.github.io/kyou-no-ken.html",
+  "image": "https://yuichi916.github.io/assets/og/kyou-no-ken-1200x630.jpg",
+  "datePublished": "2026-10-24",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "genre": ["Quiz", "Geography", "Daily puzzle"],
+  "inLanguage": "ja",
+  "author": { "@type": "Person", "name": "yuichi916", "url": "https://yuichi916.github.io/" },
+  "isPartOf": { "@type": "WebSite", "name": "Views Engineer", "url": "https://yuichi916.github.io/" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" }
+}
+</script>
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<style>
+:root{
+  --bg:#0e1626; --bg2:#13203a; --card:#17253f; --card2:#1d2e4d; --line:rgba(255,255,255,.12);
+  --ink:#eef2fa; --dim:#a6b3cc; --faint:#7d8aa5;
+  --accent:#ff7a59; --gold:#ffd36b; --ok:#5fd28e; --near:#ffd36b; --mid:#ff9f43; --far:#ff5b5b;
+  --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%;background:#0d1424}
+body{
+  min-height:100vh;min-height:100dvh;color:var(--ink);font-family:"M PLUS Rounded 1c",system-ui,sans-serif;font-weight:500;
+  background:radial-gradient(900px 520px at 85% -10%,rgba(255,122,89,.16),transparent 60%),
+             radial-gradient(800px 600px at -10% 110%,rgba(95,140,255,.14),transparent 60%),
+             linear-gradient(180deg,#0e1626,#111c33 70%,#0d1424);
+  background-color:#0e1626;background-repeat:no-repeat;overflow-x:hidden;line-height:1.6;
+}
+a{color:inherit}
+button{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- 上の帯 ---------- */
+.bar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:8px;height:52px;padding:0 12px;
+  background:rgba(14,22,38,.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.bar .back{color:var(--dim);text-decoration:none;font-size:13px;white-space:nowrap;padding:6px 4px}
+.bar .back:hover{color:var(--ink)}
+.bar h1{flex:1;text-align:center;font-size:19px;font-weight:800;letter-spacing:.12em;white-space:nowrap}
+.bar h1 span{color:var(--accent)}
+.bar .tools{display:flex;gap:4px}
+.icon-btn{width:36px;height:36px;display:grid;place-items:center;border-radius:10px;border:1px solid var(--line);
+  background:rgba(255,255,255,.05);cursor:pointer;font-size:16px;line-height:1}
+.icon-btn:hover{background:rgba(255,255,255,.12)}
+
+.wrap{max-width:560px;margin:0 auto;padding:12px 16px 24px}
+.meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 2px 10px;color:var(--dim);font-size:13px}
+.meta b{color:var(--ink);font-weight:800;font-size:15px}
+.meta .arch{color:var(--gold)}
+.prog{display:flex;align-items:center;gap:3px;flex:none}
+.prog i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.16)}
+.prog i.on{background:var(--gold)}
+.prog span{margin-left:5px;font-size:12px;color:var(--dim);white-space:nowrap}
+.lead{font-size:14px;color:var(--dim);margin:0 2px 12px}
+.lead strong{color:var(--ink)}
+
+/* ---------- ヒント ---------- */
+.hints{display:flex;flex-direction:column;gap:8px}
+.hint{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px 9px;
+  transition:transform .35s ease,opacity .35s ease}
+.hint.new{animation:pop .45s ease}
+@keyframes pop{0%{transform:translateY(6px);opacity:0}100%{transform:none;opacity:1}}
+.hint .top{display:flex;align-items:center;gap:6px;min-width:0}
+.hint .no{flex:none;font-size:11.5px;font-weight:800;color:var(--bg);background:var(--gold);border-radius:6px;padding:1px 7px;line-height:1.5}
+.hint .lv{flex:none;font-size:10.5px;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:0 5px}
+.hint .lbl{flex:1;min-width:0;font-size:13.5px;font-weight:700;line-height:1.35}
+.hint .yr{flex:none;font-size:11px;color:var(--faint)}
+.hint .mid{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:4px}
+.hint .val{font-size:26px;font-weight:800;line-height:1.15;letter-spacing:.01em}
+.hint .val small{font-size:13px;font-weight:700;color:var(--dim);margin-left:3px}
+.hint .rank{flex:none;text-align:right;font-size:12px;color:var(--dim);line-height:1.2;white-space:nowrap}
+.hint .rank b{font-size:22px;color:var(--ink);font-weight:800}
+.hint .rank .of{color:var(--faint)}
+/* 前のヒント（縮めた形） */
+.hint.mini{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px;padding:7px 10px;background:rgba(23,37,63,.6)}
+.hint.mini .no{padding:0 7px;min-width:22px;text-align:center;background:rgba(255,211,107,.85)}
+.hint.mini .lbl{font-size:12.5px;font-weight:700;color:var(--dim);line-height:1.3}
+.hint.mini .val{font-size:17px;font-weight:800;white-space:nowrap}
+.hint.mini .val small{font-size:11px}
+.hint.mini .rk{font-size:15px;font-weight:800;white-space:nowrap;min-width:40px;text-align:right}
+.hint.mini .rk small{font-size:11px;color:var(--dim);margin-left:1px}
+.rbar{position:relative;height:6px;margin:7px 0 2px;border-radius:3px;
+  background:linear-gradient(90deg,rgba(255,122,89,.55),rgba(255,255,255,.12) 50%,rgba(120,170,255,.5))}
+.rbar i{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#fff;
+  box-shadow:0 0 0 3px rgba(14,22,38,.9)}
+.rlab{display:flex;justify-content:space-between;font-size:10px;color:var(--faint)}
+.src{margin-top:4px;font-size:10.5px;color:var(--faint);line-height:1.45}
+.src a{color:var(--faint)}
+.hint.closed{background:transparent;border-style:dashed;color:var(--faint);padding:9px 12px}
+.hint.closed .no{background:rgba(255,255,255,.18);color:var(--dim)}
+.hint.closed .lbl{font-weight:500;font-size:12.5px;color:var(--faint)}
+.hint.late{opacity:.82}
+.hint.late .no{background:rgba(255,255,255,.3)}
+
+/* ---------- 回答の履歴 ---------- */
+.tries{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.hints .try{scroll-margin-top:62px}
+.try{display:flex;align-items:center;gap:10px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:14px}
+.try .sq{flex:none;font-size:16px;line-height:1}
+.try .nm{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.try .km{flex:none;font-weight:800}
+.try .dir{flex:none;display:flex;align-items:center;gap:4px;color:var(--dim);font-size:12px;min-width:58px;justify-content:flex-end}
+.try .dir svg{width:22px;height:22px;flex:none}
+.try.ok{border-color:rgba(95,210,142,.6);background:rgba(95,210,142,.12)}
+.try.pass{color:var(--faint)}
+
+/* ---------- 入力 ---------- */
+.ask{position:sticky;bottom:0;z-index:20;margin:14px -16px 0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  background:rgba(13,20,36,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border-top:1px solid var(--line);border-radius:16px 16px 0 0}
+.ask .row{display:flex;gap:8px}
+.field{position:relative;flex:1;min-width:0}
+.field input{width:100%;height:46px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:#0b1220;color:var(--ink);
+  font:inherit;font-size:16px;padding:0 12px;outline:none}
+.field input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(255,211,107,.18)}
+.btn{height:46px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.08);padding:0 14px;cursor:pointer;
+  font-weight:800;font-size:15px;white-space:nowrap}
+.btn:hover{background:rgba(255,255,255,.14)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#1a0d08}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn:disabled{opacity:.45;cursor:default;filter:none}
+.ask .sub{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--faint)}
+.btn.small{height:34px;font-size:13px;padding:0 12px;font-weight:700}
+.sugg{position:absolute;left:0;right:0;bottom:calc(100% + 6px);max-height:min(46vh,320px);overflow:auto;background:#0b1220;
+  border:1px solid rgba(255,255,255,.22);border-radius:12px;box-shadow:0 -10px 30px rgba(0,0,0,.45);padding:4px;z-index:40}
+.sugg.below{bottom:auto;top:calc(100% + 6px);box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.sugg button{display:flex;width:100%;justify-content:space-between;align-items:center;gap:8px;text-align:left;border:0;background:none;
+  padding:9px 10px;border-radius:8px;cursor:pointer;font-size:15px}
+.sugg button small{color:var(--faint);font-size:11.5px}
+.sugg button[aria-selected="true"],.sugg button:hover{background:rgba(255,211,107,.14)}
+.sugg button:disabled{opacity:.35;cursor:default;background:none}
+.sugg .empty{padding:10px;color:var(--faint);font-size:13px}
+
+.done-bar{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+.done-bar .btn{flex:1}
+
+/* ---------- 解説・出典 ---------- */
+.about{margin-top:26px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:13px}
+.about h2{font-size:15px;color:var(--ink);margin:14px 0 6px}
+.about p{margin:6px 0}
+.about ul{margin:6px 0 6px 1.1em}
+.about li{margin:3px 0}
+.about .small{font-size:11.5px;color:var(--faint)}
+.about a{color:var(--dim)}
+.foot{margin:22px 0 6px;text-align:center;font-size:12px;color:var(--faint)}
+.foot a{color:var(--dim)}
+
+/* ---------- モーダル ---------- */
+.modal{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:16px;
+  background:rgba(5,9,18,.66);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);overflow:auto}
+.modal .card{position:relative;width:100%;max-width:440px;margin:auto 0;background:var(--card);border:1px solid var(--line);
+  border-radius:18px;padding:20px 18px 18px;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.modal h2{font-size:18px;font-weight:800;margin-bottom:10px;padding-right:36px}
+.modal .x{position:absolute;top:12px;right:12px}
+.modal p,.modal li{font-size:14px;color:var(--dim)}
+.modal ol{margin:6px 0 6px 1.2em}
+.modal li{margin:4px 0}
+.modal strong{color:var(--ink)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;font-size:12.5px;color:var(--dim)}
+.answer{text-align:center;margin:4px 0 8px}
+.answer .lab{font-size:12px;color:var(--dim)}
+.answer .pref{font-size:34px;font-weight:800;letter-spacing:.06em;line-height:1.25}
+.answer .msg{font-size:15px;font-weight:700;color:var(--gold)}
+.answer .msg.lose{color:var(--dim)}
+.minimap{display:block;width:100%;height:auto;max-height:230px;margin:6px 0 4px}
+.share-pre{white-space:pre-wrap;word-break:break-all;background:#0b1220;border:1px solid var(--line);border-radius:12px;padding:10px 12px;
+  font-family:inherit;font-size:13.5px;line-height:1.6;color:var(--ink);margin:10px 0}
+.share-row{display:flex;gap:8px}
+.share-row .btn{flex:1}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:14px 0 8px;text-align:center}
+.stats div{background:var(--bg2);border-radius:10px;padding:8px 2px}
+.stats b{display:block;font-size:22px;font-weight:800;line-height:1.2}
+.stats span{font-size:10.5px;color:var(--dim)}
+.dist{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.dist .r{display:flex;align-items:center;gap:6px;font-size:12px}
+.dist .r em{width:14px;font-style:normal;color:var(--dim);text-align:right}
+.dist .r i{display:block;min-width:22px;height:18px;border-radius:5px;background:rgba(255,255,255,.14);color:var(--ink);
+  font-style:normal;font-size:11px;text-align:right;padding:0 6px;line-height:18px}
+.dist .r.me i{background:var(--ok);color:#06210f}
+.next{margin-top:12px;text-align:center;font-size:13px;color:var(--dim)}
+.next b{font-family:"JetBrains Mono",monospace;color:var(--ink);font-size:16px}
+.note{margin-top:10px;font-size:11.5px;color:var(--faint)}
+.arch-list{display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow:auto;margin-top:6px}
+.arch-list a{display:flex;justify-content:space-between;gap:8px;text-decoration:none;background:var(--bg2);border:1px solid var(--line);
+  border-radius:10px;padding:9px 12px;font-size:14px}
+.arch-list a:hover{border-color:var(--gold)}
+.arch-list a span{color:var(--dim)}
+
+.toast{position:fixed;left:50%;top:64px;transform:translateX(-50%);width:max-content;z-index:80;background:#fff;color:#111;font-weight:700;font-size:14px;
+  padding:8px 14px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.4);pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
+.err{background:rgba(255,91,91,.12);border:1px solid rgba(255,91,91,.5);border-radius:12px;padding:12px;font-size:14px}
+
+body.nofx *,body.nofx *::before,body.nofx *::after{animation:none!important;transition:none!important}
+
+@media (min-width:900px){
+  .wrap{padding-top:18px}
+  .hint .val{font-size:28px}
+}
+@media (max-width:360px){
+  .bar .back{font-size:12px}
+  .bar h1{font-size:17px;letter-spacing:.06em}
+  .hint .val{font-size:23px}
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="back" href="index.html" aria-label="トップへ戻る">← 棚へ</a>
+  <h1>きょうの<span>県</span></h1>
+  <div class="tools">
+    <button class="icon-btn" type="button" id="btn-help" aria-label="遊び方">？</button>
+    <button class="icon-btn" type="button" id="btn-stats" aria-label="成績">📊</button>
+    <button class="icon-btn" type="button" id="btn-arch" aria-label="過去の問題">📅</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="meta"><span><b id="m-no">#—</b> <span id="m-date"></span> <span id="m-mode"></span></span><span class="prog" id="m-prog" aria-hidden="true"></span></div>
+  <p class="lead" id="lead">統計のヒントで、<strong>きょうの県</strong>を当ててください。外すたびにヒントが1つ増えます（最大6つ）。</p>
+
+  <div id="err" class="err" hidden></div>
+  <section class="hints" id="hints" aria-label="ヒントと答え" aria-live="polite"></section>
+
+  <div class="done-bar" id="done-bar" hidden>
+    <button class="btn primary" type="button" id="btn-result">結果と共有</button>
+    <button class="btn" type="button" id="btn-arch2">過去の問題</button>
+  </div>
+
+  <div class="ask" id="ask">
+    <div class="row">
+      <div class="field">
+        <input id="q" type="text" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="県名を入力（例: あおもり）" aria-label="都道府県" aria-autocomplete="list" aria-controls="sugg" role="combobox" aria-expanded="false">
+        <div class="sugg" id="sugg" role="listbox" hidden></div>
+      </div>
+      <button class="btn primary" type="button" id="btn-go" disabled>答える</button>
+    </div>
+    <div class="sub">
+      <span id="left">あと6回答えられます</span>
+      <button class="btn small" type="button" id="btn-skip">次のヒントを開く（パス）</button>
+    </div>
+  </div>
+
+  <section class="about" id="about">
+    <h2>遊び方</h2>
+    <p>毎日0時（日本時間）に問題が変わり、全員が同じ県を当てます。ヒント1から順に、当てにくい統計→当てやすい統計の順で開きます。各ヒントには、その県の値と<strong>全国で何位か</strong>（大きい順）が出ます。</p>
+    <p>外すと、答えた県の県庁から正解の県の県庁までの<strong>距離（km）と方角</strong>が出ます。🟩正解　🟨150km以内　🟧400km以内　🟥それより遠い　⬜パス。</p>
+    <h2>データについて</h2>
+    <p>統計の値と順位は、総務省統計局「統計でみる都道府県のすがた2026」（社会生活統計指標）の表から、数字を手で書き写さずにプログラムで読み込んでいます。順位は表に載っている順位で、四捨五入前の値で付いているため、表示上同じ値でも順位が分かれることがあります。距離は国土地理院の都道府県庁舎の経緯度から、楕円体（GRS80）上の最短距離として計算し、国土地理院「都道府県庁間の距離」の全1,081組と照合しています（差は最大0.05km）。地方の区分は総務省統計局「家計消費状況調査」の地域区分です。</p>
+    <ul id="ind-list"><li class="small">読み込み中…</li></ul>
+    <p class="small">出典 総務省統計局「統計でみる都道府県のすがた2026」／国土地理院「都道府県の庁舎及び東西南北端点の経緯度」「都道府県庁間の距離」／総務省統計局「家計消費状況調査 用語の説明」。このゲームは各機関とは関係のない個人の制作物です。</p>
+  </section>
+  <p class="foot"><a href="index.html">ひとりぶんの棚｜Views Engineer</a> のゲーム</p>
+</main>
+
+<!-- 遊び方 -->
+<div class="modal" id="md-help" hidden role="dialog" aria-modal="true" aria-labelledby="md-help-t">
+  <div class="card">
+    <button class="icon-btn x" type="button" data-close aria-label="閉じる">✕</button>
+    <h2 id="md-help-t">遊び方</h2>
+    <ol>
+      <li>ヒント1の<strong>統計の値と全国順位</strong>を見て、どの県か答えます。</li>
+      <li>外すと<strong>正解までの距離と方角</strong>が出て、次のヒントが開きます。答えずに「次のヒントを開く」でも進めます。</li>
+      <li>ヒントは最大6つ。あとのヒントほど当てやすく、6つ目は<strong>地方</strong>です。</li>
+    </ol>
+    <div class="legend"><span>🟩 正解</span><span>🟨 150km以内</span><span>🟧 400km以内</span><span>🟥 もっと遠い</span><span>⬜ パス</span></div>
+    <p class="note">問題は毎日0時（日本時間）に変わります。数字は総務省統計局「統計でみる都道府県のすがた2026」より。</p>
+    <div style="margin-top:14px"><button class="btn primary" type="button" data-close style="width:100%">はじめる</button></div>
+  </div>
+</div>
+
+<!-- 結果・成績 -->
+<div class="modal" id="md-result" hidden role="dialog" aria-modal="true" aria-labelledby="md-result-t">
+  <div class="card">
+    <button class="icon-btn x" type="button" data-close aria-label="閉じる">✕</button>
+    <h2 id="md-result-t">結果</h2>
+    <div id="res-body"></div>
+    <div class="stats" id="res-stats"></div>
+    <div class="dist" id="res-dist"></div>
+    <div class="next" id="res-next" hidden>次の問題まで <b id="res-count">--:--:--</b></div>
+    <p class="note" id="res-note" hidden></p>
+  </div>
+</div>
+
+<!-- 過去の問題 -->
+<div class="modal" id="md-arch" hidden role="dialog" aria-modal="true" aria-labelledby="md-arch-t">
+  <div class="card">
+    <button class="icon-btn x" type="button" data-close aria-label="閉じる">✕</button>
+    <h2 id="md-arch-t">過去の問題</h2>
+    <p>前の日の問題も遊べます（連続正解の記録には入りません）。</p>
+    <div class="arch-list" id="arch-list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script src="assets/kyou-no-ken-core.js"></script>
+<script>
+(function () {
+  'use strict';
+  const K = window.KyouNoKen;
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  if (params.get('nofx') === '1') document.body.classList.add('nofx');
+  const SITE_URL = 'https://yuichi916.github.io/kyou-no-ken.html';
+  const LV = { 1: 'むずかしい', 2: 'ふつう', 3: 'やさしい' };
+  const WEEK = ['日', '月', '火', '水', '木', '金', '土'];
+
+  // ------------------------------------------------------------ 保存（使えなくても遊べる）
+  const KEY = 'kyou-no-ken:v1';
+  let storageOk = false;
+  try { localStorage.setItem(KEY + ':t', '1'); localStorage.removeItem(KEY + ':t'); storageOk = true; } catch (e) { storageOk = false; }
+  function load() {
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { s = null; }
+    if (!s || typeof s !== 'object') s = {};
+    s.games = s.games && typeof s.games === 'object' ? s.games : {};
+    s.stats = Object.assign({ played: 0, wins: 0, streak: 0, maxStreak: 0, lastWonDay: null, lastDay: null, dist: [0, 0, 0, 0, 0, 0], fails: 0 }, s.stats || {});
+    return s;
+  }
+  let SAVE = load(); // ストレージが使えないときも、この変数の中で遊びは続く
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch (e) { /* 保存できなくても続ける */ } }
+
+  // ------------------------------------------------------------ 計測（壊れても画面に影響させない）
+  function gc(path) {
+    let tries = 0;
+    (function attempt() {
+      const g = window.goatcounter;
+      if (g && typeof g.count === 'function') { try { g.count({ path: path, title: path, event: true }); } catch (e) {} return; }
+      if (++tries < 20) setTimeout(attempt, 250);
+    })();
+  }
+
+  function hideToast() { $('toast').hidden = true; clearTimeout(toast._t); }
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, 1800);
+  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function jpDate(i) {
+    const [y, m, d] = K.dateOfIndex(i).split('-').map(Number);
+    const w = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    return y + '年' + m + '月' + d + '日（' + WEEK[w] + '）';
+  }
+
+  // ------------------------------------------------------------ モーダル
+  let lastFocus = null;
+  function openModal(id) {
+    lastFocus = document.activeElement;
+    const m = $(id); m.hidden = false;
+    const f = m.querySelector('[data-close]'); if (f) f.focus({ preventScroll: true });
+  }
+  function closeModal(m) { m.hidden = true; if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true }); }
+  document.querySelectorAll('.modal').forEach((m) => {
+    m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('[data-close]')) closeModal(m); });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') document.querySelectorAll('.modal:not([hidden])').forEach(closeModal);
+  });
+
+  // ------------------------------------------------------------ 問題の決定
+  const TODAY = Math.max(0, K.dayIndexAt(Date.now()));
+  let DAY = TODAY;
+  const reqDay = parseInt(params.get('day') || '', 10);
+  if (Number.isFinite(reqDay) && reqDay >= 1 && reqDay - 1 <= TODAY) DAY = reqDay - 1;
+  const IS_ARCHIVE = DAY !== TODAY;
+
+  let DATA = null, PUZ = null, game = null;
+  let suggIdx = -1, suggItems = [], picked = -1;
+
+  fetch('data/kyou-no-ken/data.json', { cache: 'no-cache' })
+    .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(start)
+    .catch((e) => {
+      const el = $('err'); el.hidden = false;
+      el.textContent = 'データを読み込めませんでした（' + e.message + '）。通信を確かめて、ページを読み込み直してください。';
+      $('ask').hidden = true;
+    });
+
+  function start(data) {
+    DATA = data;
+    PUZ = K.hintsForDay(DAY, DATA);
+    const g = SAVE.games[DAY];
+    game = g && Array.isArray(g.tries) ? { tries: g.tries.slice(0, 6), done: !!g.done, won: !!g.won } : { tries: [], done: false, won: false };
+    $('m-no').textContent = '#' + (DAY + 1);
+    $('m-date').textContent = jpDate(DAY);
+    $('m-mode').innerHTML = IS_ARCHIVE ? '<span class="arch">過去の問題</span>' : '';
+    renderIndicatorList();
+    render(false);
+    if (game.done) { setTimeout(() => showResult(), 350); }
+    else if (storageOk && !SAVE.seenHelp) { SAVE.seenHelp = true; persist(); openModal('md-help'); }
+    if (!game.tries.length) gc('kyou-no-ken/start' + (IS_ARCHIVE ? '-archive' : ''));
+  }
+
+  function renderIndicatorList() {
+    const ul = $('ind-list');
+    const tiers = [1, 2, 3];
+    ul.innerHTML = tiers.map((t) => DATA.indicators.filter((d) => d.tier === t).map((d) =>
+      '<li><strong>' + esc(d.label) + '</strong>（' + d.year + '年・' + esc(d.survey) + '）<span class="small">［' + LV[t] + '］</span></li>').join('')).join('') +
+      '<li><strong>地方</strong>（' + esc(DATA.sources.regions.name) + '）<span class="small">［最後のヒント］</span></li>';
+  }
+
+  // ------------------------------------------------------------ 描画
+  function openedCount() { return game.done ? 6 : Math.min(6, game.tries.length + 1); }
+
+  // mini=true は前のヒント（1〜2行に縮めて、いま開いたヒントと答えの結果を画面に収める）
+  function hintHtml(h, n, opts) {
+    const cls = 'hint' + (opts.isNew ? ' new' : '') + (opts.late ? ' late' : '') + (opts.mini ? ' mini' : '');
+    if (h.type === 'region') {
+      const p = DATA.prefs[PUZ.pref];
+      const valHtml = esc(p.region) + '<small>地方</small>';
+      if (opts.mini) return '<article class="' + cls + '"><span class="no">' + n + '</span><span class="lbl">地方</span><span class="val">' + valHtml + '</span><span></span></article>';
+      return '<article class="' + cls + '"><div class="top"><span class="no">ヒント' + n + '</span><span class="lv">' + LV[3] + '</span>' +
+        '<span class="lbl">地方</span></div><div class="mid"><div class="val">' + valHtml + '</div></div>' +
+        '<div class="src">地域区分: <a href="' + esc(DATA.sources.regions.url) + '" target="_blank" rel="noopener">' + esc(DATA.sources.regions.name) + '</a></div></article>';
+    }
+    const d = DATA.indicators[h.index];
+    const v = d.values[PUZ.pref], r = d.ranks[PUZ.pref];
+    const unit = d.unit ? '<small>' + esc(d.unit) + '</small>' : '';
+    const valHtml = K.formatValue(v, d.decimals) + unit;
+    if (opts.mini) {
+      return '<article class="' + cls + '"><span class="no">' + n + '</span><span class="lbl">' + esc(d.label) + '</span>' +
+        '<span class="val num">' + valHtml + '</span><span class="rk num">' + r + '<small>位</small></span></article>';
+    }
+    const pos = ((r - 1) / 46) * 100;
+    return '<article class="' + cls + '"><div class="top"><span class="no">ヒント' + n + '</span><span class="lv">' + LV[d.tier] + '</span>' +
+      '<span class="lbl">' + esc(d.label) + '</span><span class="yr">' + d.year + '年</span></div>' +
+      '<div class="mid"><div class="val num">' + valHtml + '</div>' +
+      '<div class="rank">全国 <b class="num">' + r + '</b>位<span class="of"> / 47</span></div></div>' +
+      '<div class="rbar" aria-hidden="true"><i style="left:' + pos.toFixed(1) + '%"></i></div>' +
+      '<div class="rlab" aria-hidden="true"><span>1位（大きい）</span><span>47位（小さい）</span></div>' +
+      '<div class="src">' + esc(d.survey) + (d.note ? '／' + esc(d.note) : '') + '<br>出典: <a href="' + esc(d.page) + '" target="_blank" rel="noopener">' +
+      esc(d.table) + '</a></div></article>';
+  }
+
+  function arrowSvg(az) {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" style="transform:rotate(' + az.toFixed(0) + 'deg)"><circle cx="12" cy="12" r="11" fill="rgba(255,255,255,.08)"/>' +
+      '<path d="M12 3.5 L17.5 13 H13.6 V20.5 H10.4 V13 H6.5 Z" fill="#ffd36b"/></svg>';
+  }
+
+  function tryHtml(p, i) {
+    if (p < 0) return '<div class="try pass" data-try="' + i + '"><span class="sq">⬜</span><span class="nm">パス</span></div>';
+    const name = DATA.prefs[p].name;
+    if (p === PUZ.pref) return '<div class="try ok" data-try="' + i + '"><span class="sq">🟩</span><span class="nm">' + esc(name) + '</span><span class="km">正解！</span></div>';
+    const c = K.clue(DATA, p, PUZ.pref);
+    const km = Math.round(c.km);
+    return '<div class="try" data-try="' + i + '"><span class="sq">' + K.square(c.km) + '</span><span class="nm">' + esc(name) + '</span>' +
+      '<span class="km num">' + km.toLocaleString('ja-JP') + ' km</span><span class="dir">' + arrowSvg(c.azimuth) + K.DIR_JA[K.dir8(c.azimuth)] + '</span></div>';
+  }
+
+  // ヒントと答えを交互に並べる: ヒント1 → そのときの答え → ヒント2 → …（いちばん新しいヒントは大きく）
+  let renderedOpen = 0;
+  function render(animate) {
+    const open = openedCount();
+    const playOpen = Math.min(6, game.tries.length + (game.won ? 0 : 1));
+    let html = '';
+    for (let i = 0; i < open; i++) {
+      const mini = !game.done && i < open - 1;
+      html += hintHtml(PUZ.hints[i], i + 1, { isNew: animate && i >= renderedOpen, late: game.done && i >= playOpen, mini: mini });
+      if (i < game.tries.length) html += tryHtml(game.tries[i], i);
+    }
+    $('hints').innerHTML = html;
+    renderedOpen = open;
+    $('m-prog').innerHTML = PUZ.hints.map((_, i) => '<i class="' + (i < open ? 'on' : '') + '"></i>').join('') +
+      '<span>ヒント ' + open + '/6</span>';
+
+    const left = 6 - game.tries.length;
+    $('left').textContent = game.done ? '' : (left === 1 ? '最後の1回' : 'あと' + left + '回答えられます');
+    $('btn-skip').hidden = game.done || left <= 1;
+    $('ask').hidden = game.done;
+    $('done-bar').hidden = !game.done;
+    if (animate && !game.done && game.tries.length) {
+      // 直前の答え（距離と方角）が見える位置まで送る
+      const last = $('hints').querySelector('[data-try="' + (game.tries.length - 1) + '"]');
+      if (last) last.scrollIntoView({ block: 'start', behavior: document.body.classList.contains('nofx') ? 'auto' : 'smooth' });
+    }
+  }
+
+  // ------------------------------------------------------------ 入力と候補
+  const HIRA = (s) => s.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
+  function matches(q) {
+    const raw = q.trim();
+    if (!raw) return DATA.prefs.map((p, i) => i);
+    const h = HIRA(raw), lo = raw.toLowerCase();
+    const out = [];
+    DATA.prefs.forEach((p, i) => {
+      const hit = p.name.startsWith(raw) || p.short.startsWith(raw) || p.kana.startsWith(h) || p.en.toLowerCase().startsWith(lo);
+      if (hit) out.push(i);
+    });
+    if (!out.length) DATA.prefs.forEach((p, i) => { if (p.name.includes(raw) || p.kana.includes(h)) out.push(i); });
+    return out;
+  }
+  function renderSugg() {
+    const q = $('q').value;
+    suggItems = matches(q);
+    const box = $('sugg');
+    if (!suggItems.length) {
+      box.innerHTML = '<div class="empty">当てはまる都道府県がありません</div>';
+    } else {
+      box.innerHTML = suggItems.map((i, k) => {
+        const p = DATA.prefs[i];
+        const used = game.tries.includes(i);
+        return '<button type="button" role="option" data-i="' + i + '" aria-selected="' + (k === suggIdx) + '"' + (used ? ' disabled' : '') + '>' +
+          '<span>' + esc(p.name) + '</span><small>' + (used ? '答え済み' : esc(p.kana)) + '</small></button>';
+      }).join('');
+    }
+    box.hidden = false;
+    // 上に十分な場所がなければ下に開く。どちらでも画面（上の帯の下）からはみ出さない高さにする
+    const r = $('q').getBoundingClientRect();
+    const above = r.top - 60, below = window.innerHeight - r.bottom - 8;
+    const down = above < 220 && below > above;
+    box.classList.toggle('below', down);
+    box.style.maxHeight = Math.max(120, Math.min(320, (down ? below : above) - 8)) + 'px';
+    $('q').setAttribute('aria-expanded', 'true');
+    const sel = box.querySelector('[aria-selected="true"]'); if (sel) sel.scrollIntoView({ block: 'nearest' });
+  }
+  function hideSugg() { $('sugg').hidden = true; $('q').setAttribute('aria-expanded', 'false'); suggIdx = -1; }
+  function setPicked(i) {
+    picked = i;
+    $('btn-go').disabled = i < 0;
+  }
+  function choose(i) {
+    $('q').value = DATA.prefs[i].name;
+    setPicked(i);
+    hideSugg();
+  }
+  function resolveTyped() {
+    const v = $('q').value.trim();
+    if (!v) return -1;
+    const exact = DATA.prefs.findIndex((p) => p.name === v || p.short === v || p.kana === HIRA(v) || p.en.toLowerCase() === v.toLowerCase());
+    if (exact >= 0) return exact;
+    const m = matches(v).filter((i) => !game.tries.includes(i));
+    return m.length === 1 ? m[0] : -1;
+  }
+  $('q').addEventListener('focus', () => { if (DATA && !game.done) renderSugg(); });
+  $('q').addEventListener('input', () => { suggIdx = -1; setPicked(resolveTyped()); renderSugg(); });
+  $('q').addEventListener('keydown', (e) => {
+    if (!DATA || game.done) return;
+    const box = $('sugg');
+    const enabled = suggItems.filter((i) => !game.tries.includes(i));
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (box.hidden) renderSugg();
+      if (!suggItems.length) return;
+      let k = suggIdx;
+      for (let n = 0; n < suggItems.length; n++) {
+        k = (k + (e.key === 'ArrowDown' ? 1 : -1) + suggItems.length) % suggItems.length;
+        if (!game.tries.includes(suggItems[k])) break;
+      }
+      suggIdx = k; renderSugg();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!box.hidden && suggIdx >= 0 && !game.tries.includes(suggItems[suggIdx])) { choose(suggItems[suggIdx]); return; }
+      const r = picked >= 0 ? picked : (enabled.length === 1 ? enabled[0] : -1);
+      if (r >= 0) submit(r); else if ($('q').value.trim()) toast('候補から1つ選んでください');
+    } else if (e.key === 'Escape') { hideSugg(); }
+  });
+  $('sugg').addEventListener('mousedown', (e) => e.preventDefault()); // 入力欄のフォーカスを外さない
+  $('sugg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-i]'); if (!b || b.disabled) return;
+    choose(+b.dataset.i);
+    $('btn-go').focus({ preventScroll: true });
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.field')) hideSugg(); });
+  $('btn-go').addEventListener('click', () => { const r = picked >= 0 ? picked : resolveTyped(); if (r >= 0) submit(r); });
+  $('btn-skip').addEventListener('click', () => {
+    if (!DATA || game.done || game.tries.length >= 5) return;
+    game.tries.push(-1); afterTry();
+  });
+
+  function submit(i) {
+    if (!DATA || game.done) return;
+    if (game.tries.includes(i)) { toast(DATA.prefs[i].name + 'はもう答えました'); return; }
+    game.tries.push(i);
+    if (i === PUZ.pref) { game.won = true; game.done = true; hideToast(); }
+    else if (game.tries.length >= 6) { game.done = true; }
+    else { toast('ちがいます。ヒント' + (game.tries.length + 1) + 'が開きました'); }
+    afterTry();
+  }
+
+  function afterTry() {
+    $('q').value = ''; setPicked(-1); hideSugg();
+    SAVE.games[DAY] = { tries: game.tries.slice(), done: game.done, won: game.won };
+    if (game.done) finish();
+    persist();
+    render(true);
+    if (game.done) { $('q').blur(); setTimeout(showResult, document.body.classList.contains('nofx') ? 0 : 900); }
+  }
+
+  function finish() {
+    if (!IS_ARCHIVE && SAVE.stats.lastDay !== DAY) {
+      const s = SAVE.stats;
+      s.played++; s.lastDay = DAY;
+      if (game.won) {
+        s.wins++; s.dist[game.tries.length - 1]++;
+        s.streak = s.lastWonDay === DAY - 1 ? s.streak + 1 : 1;
+        s.lastWonDay = DAY;
+        s.maxStreak = Math.max(s.maxStreak, s.streak);
+      } else { s.fails++; s.streak = 0; }
+    }
+    gc('kyou-no-ken/' + (game.won ? 'win-' + game.tries.length : 'lose') + (IS_ARCHIVE ? '-archive' : ''));
+  }
+
+  // ------------------------------------------------------------ 結果
+  function currentStreak() {
+    const s = SAVE.stats;
+    return s.lastWonDay === TODAY || s.lastWonDay === TODAY - 1 ? s.streak : 0;
+  }
+  function shareUrl() { return SITE_URL + (IS_ARCHIVE ? '?day=' + (DAY + 1) + '&ref=x' : '?ref=x'); }
+  function shareText() {
+    return K.shareText({ data: DATA, day: DAY, tries: game.tries.map((g) => ({ guess: g })), answer: PUZ.pref, won: game.won, url: shareUrl() });
+  }
+
+  function miniMap() {
+    // 47 の庁舎を点で置いた簡単な地図（経緯度をそのまま平面に。北が上）
+    const W = 400, H = 230, pad = 14;
+    const lons = DATA.prefs.map((p) => p.lon), lats = DATA.prefs.map((p) => p.lat);
+    const x0 = Math.min(...lons), x1 = Math.max(...lons), y0 = Math.min(...lats), y1 = Math.max(...lats);
+    const k = Math.min((W - 2 * pad) / (x1 - x0), (H - 2 * pad) / ((y1 - y0) * 1.15));
+    const ox = (W - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * 1.15 * k) / 2;
+    const X = (p) => ox + (p.lon - x0) * k, Y = (p) => oy + (y1 - p.lat) * 1.15 * k;
+    const ans = DATA.prefs[PUZ.pref];
+    const col = { '🟨': '#ffd36b', '🟧': '#ff9f43', '🟥': '#ff5b5b' };
+    let s = '<svg class="minimap" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="答えた県と正解の県の位置">';
+    DATA.prefs.forEach((p) => { s += '<circle cx="' + X(p).toFixed(1) + '" cy="' + Y(p).toFixed(1) + '" r="3" fill="rgba(255,255,255,.22)"/>'; });
+    game.tries.forEach((g) => {
+      if (g < 0 || g === PUZ.pref) return;
+      const p = DATA.prefs[g], c = col[K.square(K.clue(DATA, g, PUZ.pref).km)];
+      s += '<line x1="' + X(p).toFixed(1) + '" y1="' + Y(p).toFixed(1) + '" x2="' + X(ans).toFixed(1) + '" y2="' + Y(ans).toFixed(1) +
+        '" stroke="' + c + '" stroke-opacity=".5" stroke-dasharray="3 3"/>';
+      s += '<circle cx="' + X(p).toFixed(1) + '" cy="' + Y(p).toFixed(1) + '" r="5.5" fill="' + c + '"/>';
+    });
+    s += '<circle cx="' + X(ans).toFixed(1) + '" cy="' + Y(ans).toFixed(1) + '" r="8" fill="#5fd28e" stroke="#fff" stroke-width="2"/>';
+    const tx = Math.min(W - 60, Math.max(4, X(ans) + 12));
+    s += '<text x="' + tx.toFixed(1) + '" y="' + (Y(ans) + 4).toFixed(1) + '" fill="#fff" font-size="13" font-weight="800" font-family="M PLUS Rounded 1c,sans-serif">' + esc(ans.short) + '</text>';
+    return s + '</svg>';
+  }
+
+  function showResult() {
+    hideToast(); // 「ちがいます」が結果の上に残らないように
+    if (!DATA) return;
+    const body = $('res-body');
+    if (game.done) {
+      const p = DATA.prefs[PUZ.pref];
+      const txt = shareText();
+      body.innerHTML = '<div class="answer"><div class="lab">#' + (DAY + 1) + ' の答え</div><div class="pref">' + esc(p.name) + '</div>' +
+        '<div class="lab">' + esc(p.region) + '地方</div>' +
+        (game.won ? '<div class="msg">ヒント' + game.tries.length + 'つ目で正解！</div>' : '<div class="msg lose">6つのヒントで当てられませんでした</div>') + '</div>' +
+        miniMap() +
+        '<pre class="share-pre" id="share-pre">' + esc(txt) + '</pre>' +
+        '<div class="share-row"><button class="btn primary" type="button" id="btn-copy">結果をコピー</button>' +
+        '<button class="btn" type="button" id="btn-x">Xで共有</button></div>';
+      $('btn-copy').addEventListener('click', () => copy(txt));
+      $('btn-x').addEventListener('click', () => {
+        gc('kyou-no-ken/share/x');
+        window.open('https://x.com/intent/post?text=' + encodeURIComponent(txt), '_blank', 'noopener');
+      });
+      $('md-result-t').textContent = IS_ARCHIVE ? '結果（過去の問題）' : '結果';
+    } else {
+      body.innerHTML = '<p>今日の問題はまだ終わっていません。</p>';
+      $('md-result-t').textContent = '成績';
+    }
+    const s = SAVE.stats;
+    const pct = s.played ? Math.round((s.wins / s.played) * 100) : 0;
+    $('res-stats').innerHTML = '<div><b class="num">' + s.played + '</b><span>遊んだ日</span></div><div><b class="num">' + pct + '</b><span>正解率 %</span></div>' +
+      '<div><b class="num">' + currentStreak() + '</b><span>連続正解</span></div><div><b class="num">' + s.maxStreak + '</b><span>最長連続</span></div>';
+    const max = Math.max(1, ...s.dist, s.fails);
+    const mine = !IS_ARCHIVE && game.done ? (game.won ? game.tries.length - 1 : 6) : -1;
+    $('res-dist').innerHTML = '<div style="font-size:12px;color:var(--dim);margin-bottom:2px">何個目のヒントで当てたか</div>' +
+      s.dist.concat([s.fails]).map((n, k) => '<div class="r' + (k === mine ? ' me' : '') + '"><em>' + (k < 6 ? k + 1 : '×') + '</em>' +
+        '<i style="width:' + Math.max(8, (n / max) * 100).toFixed(0) + '%">' + n + '</i></div>').join('');
+    $('res-next').hidden = IS_ARCHIVE;
+    const notes = [];
+    if (!storageOk) notes.push('この端末では成績を保存できない設定のため、ページを閉じると記録は消えます（遊ぶことはできます）。');
+    if (IS_ARCHIVE) notes.push('過去の問題の結果は、成績と連続正解には入りません。');
+    $('res-note').hidden = !notes.length; $('res-note').textContent = notes.join(' ');
+    tick();
+    openModal('md-result');
+  }
+  function tick() {
+    const ms = K.msToNextJstMidnight(Date.now());
+    const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, sec = Math.floor(ms / 1000) % 60;
+    const p = (n) => String(n).padStart(2, '0');
+    $('res-count').textContent = p(h) + ':' + p(m) + ':' + p(sec);
+  }
+  setInterval(() => { if (!$('md-result').hidden) tick(); }, 1000);
+
+  function copy(txt) {
+    // 結果の画面ではトーストが答えの上に重なるので、ボタンの文字で知らせる
+    const ok = () => {
+      const b = $('btn-copy');
+      if (b) { b.textContent = 'コピーしました ✓'; clearTimeout(copy._t); copy._t = setTimeout(() => { b.textContent = '結果をコピー'; }, 2000); }
+      gc('kyou-no-ken/share/copy');
+    };
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.top = '-1000px'; document.body.appendChild(ta); ta.select();
+        const r = document.execCommand('copy'); document.body.removeChild(ta);
+        if (r) ok(); else toast('コピーできませんでした。上の文を長押しで選んでください');
+      } catch (e) { toast('コピーできませんでした。上の文を長押しで選んでください'); }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, fallback);
+    else fallback();
+  }
+
+  // ------------------------------------------------------------ 過去の問題
+  function showArchive() {
+    const rows = [];
+    for (let i = TODAY; i >= 0; i--) {
+      const g = SAVE.games[i];
+      const st = g && g.done ? (g.won ? '✓ ' + g.tries.length + '/6' : '× X/6') : (g && g.tries && g.tries.length ? '途中' : '');
+      const href = i === TODAY ? 'kyou-no-ken.html' : 'kyou-no-ken.html?day=' + (i + 1);
+      rows.push('<a href="' + href + '"><b>#' + (i + 1) + (i === TODAY ? '（今日）' : '') + '</b><span>' + jpDate(i).replace(/^\d+年/, '') + (st ? '　' + st : '') + '</span></a>');
+    }
+    $('arch-list').innerHTML = rows.join('');
+    openModal('md-arch');
+  }
+
+  $('btn-help').addEventListener('click', () => openModal('md-help'));
+  $('btn-stats').addEventListener('click', showResult);
+  $('btn-result').addEventListener('click', showResult);
+  $('btn-arch').addEventListener('click', showArchive);
+  $('btn-arch2').addEventListener('click', showArchive);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>きょうの県 OG</title>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1200px;height:630px;overflow:hidden}
+body{font-family:"M PLUS Rounded 1c",sans-serif;color:#eef2fa;
+  background:radial-gradient(700px 500px at 88% 0%,rgba(255,122,89,.28),transparent 60%),
+             radial-gradient(700px 600px at 0% 100%,rgba(95,140,255,.22),transparent 60%),
+             linear-gradient(160deg,#0e1626,#13203a 70%,#0d1424);position:relative}
+.l{position:absolute;left:72px;top:64px;width:760px}
+.eyebrow{font-size:24px;color:#ffd36b;font-weight:800;letter-spacing:.12em}
+h1{font-size:124px;font-weight:800;letter-spacing:.04em;line-height:1.15;margin-top:4px;white-space:nowrap}
+h1 span{color:#ff7a59}
+.sub{font-size:36px;font-weight:800;line-height:1.45;margin-top:14px}
+.sub em{font-style:normal;color:#ffd36b}
+.chips{display:flex;gap:12px;margin-top:30px}
+.chips span{font-size:22px;color:#c6d0e4;border:2px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 18px}
+.grid{margin-top:26px;font-size:40px;letter-spacing:6px}
+.grid small{font-size:22px;color:#a6b3cc;letter-spacing:0;margin-left:14px;vertical-align:middle}
+svg{position:absolute;right:30px;top:40px;width:400px;height:550px}
+</style>
+</head>
+<body>
+<div class="l">
+  <div class="eyebrow">毎日1問の都道府県クイズ</div>
+  <h1>きょうの<span>県</span></h1>
+  <p class="sub">統計のヒント<em>6つ</em>で、<br>今日の都道府県を当てる。</p>
+  <div class="chips"><span>65歳以上の割合</span><span>日照時間</span><span>持ち家の割合</span></div>
+  <div class="grid">🟥🟧🟨🟩<small>外すと距離と方角が出る</small></div>
+</div>
+<svg id="map" viewBox="0 0 400 550"></svg>
+<script>
+fetch('../../data/kyou-no-ken/data.json').then(r => r.json()).then(d => {
+  const W = 400, H = 550, pad = 30;
+  const lons = d.prefs.map(p => p.lon), lats = d.prefs.map(p => p.lat);
+  const x0 = Math.min(...lons), x1 = Math.max(...lons), y0 = Math.min(...lats), y1 = Math.max(...lats);
+  const k = Math.min((W - 2 * pad) / (x1 - x0), (H - 2 * pad) / ((y1 - y0) * 1.2));
+  const ox = (W - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * 1.2 * k) / 2;
+  const X = p => ox + (p.lon - x0) * k, Y = p => oy + (y1 - p.lat) * 1.2 * k;
+  let s = '';
+  d.prefs.forEach((p, i) => {
+    s += '<circle cx="' + X(p).toFixed(1) + '" cy="' + Y(p).toFixed(1) + '" r="7" fill="rgba(255,255,255,.28)"/>';
+  });
+  // 「？」の県を 1 つだけ光らせる（どの県かは決めない飾り。実在の問題とは関係ない位置: 47 点の重心にいちばん近い点）
+  const cx = lons.reduce((a, b) => a + b) / 47, cy = lats.reduce((a, b) => a + b) / 47;
+  let best = 0, bd = 1e9;
+  d.prefs.forEach((p, i) => { const dd = (p.lon - cx) ** 2 + (p.lat - cy) ** 2; if (dd < bd) { bd = dd; best = i; } });
+  const b = d.prefs[best];
+  s += '<circle cx="' + X(b).toFixed(1) + '" cy="' + Y(b).toFixed(1) + '" r="26" fill="rgba(255,211,107,.18)"/>';
+  s += '<circle cx="' + X(b).toFixed(1) + '" cy="' + Y(b).toFixed(1) + '" r="12" fill="#ffd36b"/>';
+  s += '<text x="' + (X(b) + 22).toFixed(1) + '" y="' + (Y(b) - 18).toFixed(1) + '" fill="#ffd36b" font-size="44" font-weight="800" font-family="M PLUS Rounded 1c">？</text>';
+  document.getElementById('map').innerHTML = s;
+  document.body.dataset.ready = '1';
+});
+</script>
+</body>
+</html>
