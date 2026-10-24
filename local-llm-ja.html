@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<title>RTX 4070（12GB）で動く日本語ローカルLLM 実測表 — 11モデルの速さと品質</title>
+<meta name="description" content="GeForce RTX 4070（12GB）・メモリ32GB・Windows 11 の1台で、2026年10月時点の主要なオープンウェイトモデル11個を llama.cpp で実際に動かし、日本語の生成速度（字/秒）、最初の1文字までの時間、VRAM、JCommonsenseQA・MMMLU日本語・ELYZA-tasks の成績を測った実測表。推測値や他サイトの数字は使っていません。">
+<meta name="theme-color" content="#0d1320">
+<link rel="canonical" href="https://yuichi916.github.io/local-llm-ja.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="RTX 4070（12GB）で動く日本語ローカルLLM 実測表">
+<meta property="og:description" content="11モデルを同じ条件で実際に動かした。日本語は1秒に何文字出るか、常識・知識・自由記述はどれくらいか。全部この1台で測った数字です。">
+<meta property="og:url" content="https://yuichi916.github.io/local-llm-ja.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og/local-llm-ja-1200x630.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<meta name="twitter:image" content="https://yuichi916.github.io/assets/og/local-llm-ja-1200x630.jpg">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "name": "RTX 4070（12GB）で動く日本語ローカルLLM 実測表",
+  "description": "RTX 4070 12GB の1台で、オープンウェイトのLLM 11個を llama.cpp b11852 (commit 7894e8b92) で動かし、日本語での速度（読み込み時間・最初のトークンまでの時間・生成速度・1文字あたりのトークン数・VRAM）と品質（JCommonsenseQA 100問・MMMLU日本語 100問・ELYZA-tasks-100 抜粋20問）を測った生データ。",
+  "url": "https://yuichi916.github.io/local-llm-ja.html",
+  "datePublished": "2026-10-24",
+  "inLanguage": "ja",
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "creator": { "@type": "Person", "name": "yuichi916", "url": "https://yuichi916.github.io/" },
+  "isPartOf": { "@type": "WebSite", "name": "Views Engineer", "url": "https://yuichi916.github.io/" },
+  "distribution": [
+    { "@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": "https://yuichi916.github.io/data/local-llm-ja/results.json" },
+    { "@type": "DataDownload", "encodingFormat": "text/csv", "contentUrl": "https://yuichi916.github.io/data/local-llm-ja/summary.csv" }
+  ]
+}
+</script>
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0d1320; --surface:#141c2c; --surface2:#1a2438; --line:rgba(255,255,255,.11);
+  --ink:#eef1f7; --dim:#b3bdd0; --faint:#8794ad;
+  --accent:#ffb454; --bar:#4f9cf0; --ci:rgba(255,255,255,.22);
+  --series-1:#3987e5; --series-2:#d95926;
+  --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%;background:var(--bg)}
+body{background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",Meiryo,system-ui,sans-serif;
+  line-height:1.7;overflow-x:hidden;word-break:normal;overflow-wrap:anywhere;line-break:strict}
+a{color:#8cc4ff}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+.top{padding:14px 0;font-size:.85rem}
+.top a{color:var(--dim);text-decoration:none}
+header.hd{padding:28px 0 8px}
+.eyebrow{font-size:.78rem;letter-spacing:.08em;color:var(--accent);font-weight:700}
+h1{font-size:clamp(1.5rem,4.6vw,2.4rem);line-height:1.3;margin:.3em 0 .4em;font-weight:800}
+.lead{color:var(--dim);max-width:46em}
+.env{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 4px}
+.env span{font-size:.78rem;border:1px solid var(--line);border-radius:999px;padding:2px 10px;color:var(--dim);background:var(--surface)}
+section{padding:26px 0}
+h2{font-size:1.3rem;margin-bottom:10px;font-weight:800}
+h2 small{font-size:.8rem;color:var(--faint);font-weight:500;margin-left:.4em}
+.summary{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
+.summary ol{padding-left:1.3em}
+.summary li{margin:.35em 0}
+.summary b{color:var(--accent)}
+.controls{display:flex;flex-direction:column;gap:10px;margin:6px 0 16px}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.row .lbl{font-size:.8rem;color:var(--faint);margin-right:2px;min-width:4.5em}
+.chip{font:inherit;font-size:.82rem;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer;min-height:34px}
+.chip[aria-pressed="true"]{background:#2b4166;border-color:#5c88c9}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+@media (max-width:420px){.cards{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card header h3{font-size:1.08rem;line-height:1.35}
+.bds{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.bd{font-size:.72rem;border-radius:6px;padding:1px 7px;border:1px solid var(--line);color:var(--dim)}
+.bd.jp{border-color:rgba(217,89,38,.7);color:#ffb08f}
+.bd.off{border-color:rgba(255,180,84,.6);color:var(--accent)}
+.sub{font-size:.8rem;color:var(--faint);margin-top:4px}
+.hero .hv{display:flex;align-items:baseline;gap:6px}
+.big{font-size:2.4rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.u{color:var(--dim);font-size:.9rem}
+.hl{font-size:.78rem;color:var(--faint);margin-top:2px}
+.hbar{height:6px;background:var(--surface2);border-radius:4px;margin-top:6px;overflow:hidden}
+.hbar i{display:block;height:100%;background:var(--accent);border-radius:0 4px 4px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.grid dt{font-size:.74rem;color:var(--faint)}
+.grid dd{font-size:1.02rem;font-weight:700;font-variant-numeric:tabular-nums}
+.grid small,.qv small{font-weight:500;color:var(--dim);font-size:.75rem}
+.qs{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.q{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:baseline}
+.ql{font-size:.86rem;font-weight:700}
+.ql small{display:block;font-weight:500;color:var(--faint);font-size:.72rem}
+.qv{font-size:1.2rem;font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+.qbar{grid-column:1/-1;position:relative;height:8px;background:var(--surface2);border-radius:4px}
+.qbar i{position:absolute;left:0;top:0;bottom:0;background:var(--bar);border-radius:0 4px 4px 0}
+.qbar b{position:absolute;top:-3px;height:14px;border-left:2px solid var(--ci);border-right:2px solid var(--ci)}
+.qr{grid-column:1/-1;font-size:.7rem;color:var(--faint)}
+.note{font-size:.76rem;color:var(--accent);padding-left:1.1em}
+.note li{margin:.2em 0}
+details{font-size:.82rem;color:var(--dim)}
+details summary{cursor:pointer;color:var(--ink);padding:4px 0}
+details ul{padding-left:1.1em;margin-top:6px}
+details li{margin:.3em 0}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.85em;background:var(--surface2);padding:0 4px;border-radius:4px}
+.figure{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;position:relative}
+.sc{width:100%;max-width:720px;height:auto;display:block;margin:0 auto}
+.sc .gl{stroke:rgba(255,255,255,.08);stroke-width:1}
+.sc .tk{fill:var(--faint);font-size:14px}
+.sc .ax{fill:var(--dim);font-size:14px}
+.sc .lb{fill:var(--ink);font-size:14px;pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:3px}
+.sc .pt{stroke:var(--surface);stroke-width:2}
+.sc .pt.gen{fill:var(--series-1)} .sc .pt.jp{fill:var(--series-2)}
+.sc .pt.hollow{fill:var(--surface);stroke-width:2.5}
+.sc .pt.hollow.gen{stroke:var(--series-1)} .sc .pt.hollow.jp{stroke:var(--series-2)}
+.sc .hit{fill:transparent}
+.sc .dot:hover .pt,.sc .dot:focus .pt{stroke:#fff}
+.legend{justify-content:center;display:flex;flex-wrap:wrap;gap:14px;font-size:.8rem;color:var(--dim);margin-top:8px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.legend i.sq{border-radius:2px;background:transparent!important;border:2px solid var(--faint)}
+.tip{position:absolute;pointer-events:none;background:#0a0f19;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:.8rem;color:var(--ink);max-width:260px}
+.prose{max-width:50em}
+.prose p,.prose li{color:var(--dim);margin:.5em 0}
+.prose ul,.prose ol{padding-left:1.3em}
+.prose h3{font-size:1.02rem;margin:1.2em 0 .3em;color:var(--ink)}
+.prose b{color:var(--ink)}
+pre{white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:.8rem;color:var(--dim);overflow-wrap:anywhere}
+.dl{display:flex;flex-wrap:wrap;gap:8px}
+.dl a{border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--surface);text-decoration:none;font-size:.86rem}
+footer{padding:30px 0 50px;color:var(--faint);font-size:.8rem;border-top:1px solid var(--line);margin-top:20px}
+body.nofx *,body.nofx *::before,body.nofx *::after{animation:none!important;transition:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="top"><a href="./">← ひとりぶんの棚（トップ）</a></nav>
+<header class="hd">
+<div class="eyebrow">実測 · 2026年10月24日 · この1台での結果</div>
+<h1>RTX 4070（12GB）で動く<br>日本語ローカルLLM 実測表</h1>
+<p class="lead">2026年10月時点で日本語に強い・人気のあるオープンウェイトモデル 11 個を、同じ PC・同じ llama.cpp・同じプロンプトで実際に動かしました。<b>「日本語が1秒に何文字出るか」</b>と、常識・知識・自由記述の成績を並べています。推測値や他サイトの数字は1つも入れていません。</p>
+<div class="env"><span>GeForce RTX 4070 12GB</span><span>Core i7-14700F</span><span>メモリ 32GB</span><span>Windows 11</span><span>llama.cpp b11852 (commit 7894e8b92)</span><span>主に Q4_K_M</span><span>文脈長 4,096</span></div>
+</header>
+
+<section id="summary">
+<h2>先に結論</h2>
+<div class="summary"><ol>
+<li><b>日本語の速さは tok/s だけでは決まりません。</b>1文字を何トークンで表すかがモデルで最大2.2倍違いました（llm-jp-4.1 8B は 0.50、Shisa V2.1 14B は 1.11）。Shisa は 48.8 tok/s 出ていても日本語では 44字/秒、llm-jp-4.1 は 73.4 tok/s で 147字/秒です。</li>
+<li><b>速さと成績のつり合いが良かったのは 8B 前後の日本語系と Gemma 4 E4B。</b>llm-jp-4.1 8B thinking は 147字/秒・常識 97%・知識 66%、Qwen3-Swallow 8B は 114字/秒・常識 98%・知識 67%（どちらも思考ありで測定）。Gemma 4 E4B は 3.3GB の VRAM で 142字/秒・常識 95% ですが、知識は 53% でした。</li>
+<li><b>知識（MMMLU日本語）がいちばん高かったのは、12GB に収まらない MoE の2つ。</b>Qwen3.6 35B-A3B が 73%、gpt-oss-20b が 72%。gpt-oss-20b は一部を CPU に置いても 86字/秒出ましたが、Qwen3.6 35B-A3B は重みの約 11GB が CPU 側になり、24字/秒・最初の1文字まで 3.6秒（長文要約では 25.5秒）でした。</li>
+<li><b>いちばん速いのは Sarashina2.2 3B（276字/秒、VRAM 2.8GB）</b>。ただし知識 39%・自由記述 2.50/5 と成績は最下位で、速さを最優先する用途向けです。</li>
+<li><b>常識（JCommonsenseQA）は 11 モデル中 10 個が 88〜98%</b>に固まり、差がつきませんでした。自由記述（ELYZA-tasks 20問）は Gemma 4 12B の 3.85/5 が最高でしたが、20問なので区間は広く、上位はほぼ横並びです。</li>
+</ol>
+</div>
+</section>
+
+<section id="table">
+<h2>実測表<small>カードの並びを切り替えられます</small></h2>
+<div class="controls">
+<div class="row" role="group" aria-label="並べ替え"><span class="lbl">並べ替え</span>
+<button class="chip" data-sort="cps" aria-pressed="true">日本語の字/秒</button>
+<button class="chip" data-sort="tps">生成 tok/s</button>
+<button class="chip" data-sort="ttft" data-asc="1">最初の1文字</button>
+<button class="chip" data-sort="mc">選択式の平均</button>
+<button class="chip" data-sort="jcqa">常識</button>
+<button class="chip" data-sort="mmmlu">知識</button>
+<button class="chip" data-sort="elyza">自由記述</button>
+<button class="chip" data-sort="vram" data-asc="1">VRAM</button>
+<button class="chip" data-sort="load" data-asc="1">読み込み</button>
+</div>
+<div class="row" role="group" aria-label="絞り込み"><span class="lbl">絞り込み</span>
+<button class="chip" data-filter="all" aria-pressed="true">全部</button>
+<button class="chip" data-filter="vram">12GBに収まる</button>
+<button class="chip" data-filter="offload">一部CPU（MoE）</button>
+<button class="chip" data-filter="jp">日本語特化</button>
+</div>
+</div>
+<div class="cards" id="cards">
+<article class="card" data-cps="275.5" data-tps="147.0" data-ttft="121" data-vram="2.79" data-load="1.34" data-jcqa="0.87" data-mmmlu="0.39" data-elyza="2.5" data-mc="0.63" data-group="vram" data-jp="1">
+<header><h3>Sarashina2.2 3B instruct v0.1</h3><div class="bds"><span class="bd jp">日本語特化</span><span class="bd th">思考なし</span></div>
+<p class="sub">SB Intuitions · Q4_K_M · 2.07GB</p></header>
+<div class="hero"><div class="hv"><span class="big">276</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:100.0%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>147.0<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>0.53<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>0.12<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>0.25<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>2.8<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>1.3<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">87<small>%</small></div><div class="qbar" role="img" aria-label="常識 79–92%"><i style="width:87.0%"></i><b style="left:79.0%;width:13.2%"></b></div><div class="qr">95%区間 79–92%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">39<small>%</small></div><div class="qbar" role="img" aria-label="知識 30–49%"><i style="width:39.0%"></i><b style="left:30.0%;width:18.8%"></b></div><div class="qr">95%区間 30–49%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">2.50<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 2.03–2.97"><i style="width:37.5%"></i><b style="left:25.7%;width:23.5%"></b></div><div class="qr">95%区間 2.03–2.97</div></div>
+</div>
+<ul class="note"><li>知識: 「番号/記号だけ」の指示どおりに答えず、上限 32 トークン内に答えが出なかった 7問を不正解に数えた</li></ul>
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: Sarashina 系で重みが公開されている最新の指示モデル（Sarashina3 は重み非公開）</li>
+<li>ファイル: <a href="https://huggingface.co/mmnga/sarashina2.2-3b-instruct-v0.1-gguf" rel="noopener">mmnga/sarashina2.2-3b-instruct-v0.1-gguf</a> / <code>sarashina2.2-3b-instruct-v0.1-Q4_K_M.gguf</code></li>
+<li>元モデル: sbintuitions/sarashina2.2-3b-instruct-v0.1 · ライセンス: MIT</li>
+<li>長文要約（入力 1,596 トークン）: プロンプト処理 7,056 tok/s・生成 99.2 tok/s</li>
+<li>Flash Attention: オフ（このモデルの形に未対応で自動的にオフ） · GPU の層 33/33 · 測定中の GPU 最高温度 69℃</li>
+<li>読み込み3回: 6.4 / 1.4 / 1.3 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>llama-bench（同じビルド）: 生成 176.9 tok/s・プロンプト処理 8,179 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li>
+</ul></details>
+</article>
+<article class="card" data-cps="146.7" data-tps="73.4" data-ttft="119" data-vram="5.5" data-load="3.15" data-jcqa="0.97" data-mmmlu="0.66" data-elyza="3.3" data-mc="0.815" data-group="vram" data-jp="1">
+<header><h3>llm-jp-4.1 8B thinking</h3><div class="bds"><span class="bd jp">日本語特化</span><span class="bd th">思考あり</span></div>
+<p class="sub">NII LLM-jp · Q4_K_M · 5.50GB</p></header>
+<div class="hero"><div class="hv"><span class="big">147</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:53.2%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>73.4<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>0.50<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>0.12<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>0.43<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>5.5<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>3.1<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">97<small>%</small></div><div class="qbar" role="img" aria-label="常識 92–99%"><i style="width:97.0%"></i><b style="left:91.5%;width:7.5%"></b></div><div class="qr">95%区間 92–99%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">66<small>%</small></div><div class="qbar" role="img" aria-label="知識 56–74%"><i style="width:66.0%"></i><b style="left:56.3%;width:18.2%"></b></div><div class="qr">95%区間 56–74%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">3.30<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 2.57–4.03"><i style="width:57.5%"></i><b style="left:39.2%;width:36.5%"></b></div><div class="qr">95%区間 2.57–4.03</div></div>
+</div>
+
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: 国立情報学研究所の日本語フルスクラッチ系の最新（2026年9月）。公式 GGUF。思考モデルなので effort=low</li>
+<li>ファイル: <a href="https://huggingface.co/llm-jp/llm-jp-4.1-8b-thinking-gguf" rel="noopener">llm-jp/llm-jp-4.1-8b-thinking-gguf</a> / <code>llm-jp-4.1-8b-thinking-Q4_K_M.gguf</code></li>
+<li>元モデル: llm-jp/llm-jp-4.1-8b-thinking · ライセンス: Apache-2.0</li>
+<li>長文要約（入力 1,579 トークン）: プロンプト処理 4,351 tok/s・生成 71.0 tok/s</li>
+<li>Flash Attention: オン · GPU の層 33/33 · 測定中の GPU 最高温度 71℃</li>
+<li>読み込み3回: 17.5 / 3.1 / 3.2 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>llama-bench（同じビルド）: 生成 79.4 tok/s・プロンプト処理 4,463 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li><li>llm-jp-4 8B instruct（mmnga-o/llm-jp-4-8b-instruct-gguf Q4_K_M）は llama.cpp b11852 のチャット出力解析（harmony 形式）でエラー 500 になり測定できなかったため、公式 GGUF のある 4.1 thinking に差し替え</li>
+</ul></details>
+</article>
+<article class="card" data-cps="141.6" data-tps="90.5" data-ttft="356" data-vram="3.26" data-load="3.43" data-jcqa="0.95" data-mmmlu="0.53" data-elyza="3.5" data-mc="0.74" data-group="vram" data-jp="0">
+<header><h3>Gemma 4 E4B it</h3><div class="bds"><span class="bd th">思考オフ</span></div>
+<p class="sub">Google · Q4_K_M · 4.98GB</p></header>
+<div class="hero"><div class="hv"><span class="big">142</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:51.4%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>90.5<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>0.64<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>0.36<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>0.40<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>3.3<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>3.4<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">95<small>%</small></div><div class="qbar" role="img" aria-label="常識 89–98%"><i style="width:95.0%"></i><b style="left:88.8%;width:9.0%"></b></div><div class="qr">95%区間 89–98%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">53<small>%</small></div><div class="qbar" role="img" aria-label="知識 43–62%"><i style="width:53.0%"></i><b style="left:43.3%;width:19.2%"></b></div><div class="qr">95%区間 43–62%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">3.50<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 2.81–4.19"><i style="width:62.5%"></i><b style="left:45.2%;width:34.5%"></b></div><div class="qr">95%区間 2.81–4.19</div></div>
+</div>
+<ul class="note"><li>知識: 「番号/記号だけ」の指示どおりに答えず、上限 32 トークン内に答えが出なかった 2問を不正解に数えた</li><li>自由記述: 出力上限で途中終了 1問（そのまま採点）</li></ul>
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: 端末向けの小型版。速さの上限側の比較用</li>
+<li>ファイル: <a href="https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF" rel="noopener">unsloth/gemma-4-E4B-it-GGUF</a> / <code>gemma-4-E4B-it-Q4_K_M.gguf</code></li>
+<li>元モデル: google/gemma-4-E4B-it · ライセンス: Apache-2.0</li>
+<li>長文要約（入力 1,887 トークン）: プロンプト処理 4,830 tok/s・生成 88.9 tok/s</li>
+<li>Flash Attention: オン · GPU の層 43/43 · 測定中の GPU 最高温度 65℃</li>
+<li>読み込み3回: 15.7 / 3.0 / 3.8 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>llama-bench（同じビルド）: 生成 104.9 tok/s・プロンプト処理 5,426 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li>
+</ul></details>
+</article>
+<article class="card" data-cps="114.9" data-tps="85.5" data-ttft="71" data-vram="5.1" data-load="2.83" data-jcqa="0.94" data-mmmlu="0.48" data-elyza="3.5" data-mc="0.71" data-group="vram" data-jp="1">
+<header><h3>Llama 3.1 Swallow 8B Instruct v0.5</h3><div class="bds"><span class="bd jp">日本語特化</span><span class="bd th">思考なし</span></div>
+<p class="sub">Science Tokyo / AIST · Q4_K_M · 4.92GB</p></header>
+<div class="hero"><div class="hv"><span class="big">115</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:41.7%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>85.5<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>0.74<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>0.07<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>0.54<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>5.1<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>2.8<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">94<small>%</small></div><div class="qbar" role="img" aria-label="常識 88–97%"><i style="width:94.0%"></i><b style="left:87.5%;width:9.7%"></b></div><div class="qr">95%区間 88–97%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">48<small>%</small></div><div class="qbar" role="img" aria-label="知識 38–58%"><i style="width:48.0%"></i><b style="left:38.5%;width:19.2%"></b></div><div class="qr">95%区間 38–58%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">3.50<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 2.75–4.25"><i style="width:62.5%"></i><b style="left:43.8%;width:37.5%"></b></div><div class="qr">95%区間 2.75–4.25</div></div>
+</div>
+
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: 日本語特化 8B の定番。思考なしの Swallow として比較</li>
+<li>ファイル: <a href="https://huggingface.co/mmnga/Llama-3.1-Swallow-8B-Instruct-v0.5-gguf" rel="noopener">mmnga/Llama-3.1-Swallow-8B-Instruct-v0.5-gguf</a> / <code>Llama-3.1-Swallow-8B-Instruct-v0.5-Q4_K_M.gguf</code></li>
+<li>元モデル: tokyotech-llm/Llama-3.1-Swallow-8B-Instruct-v0.5 · ライセンス: Llama 3.3 Community License + Gemma Terms of Use</li>
+<li>長文要約（入力 2,191 トークン）: プロンプト処理 4,256 tok/s・生成 80.6 tok/s</li>
+<li>Flash Attention: オン · GPU の層 33/33 · 測定中の GPU 最高温度 72℃</li>
+<li>読み込み3回: 14.7 / 2.8 / 2.9 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>llama-bench（同じビルド）: 生成 90.9 tok/s・プロンプト処理 4,670 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li>
+</ul></details>
+</article>
+<article class="card" data-cps="113.6" data-tps="77.8" data-ttft="94" data-vram="5.2" data-load="2.82" data-jcqa="0.98" data-mmmlu="0.67" data-elyza="3" data-mc="0.825" data-group="vram" data-jp="1">
+<header><h3>Qwen3-Swallow 8B RL v0.2</h3><div class="bds"><span class="bd jp">日本語特化</span><span class="bd th">思考あり</span></div>
+<p class="sub">Science Tokyo / AIST · Q4_K_M · 5.03GB</p></header>
+<div class="hero"><div class="hv"><span class="big">114</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:41.2%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>77.8<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>0.68<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>0.09<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>0.54<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>5.2<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>2.8<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">98<small>%</small></div><div class="qbar" role="img" aria-label="常識 93–99%"><i style="width:98.0%"></i><b style="left:93.0%;width:6.4%"></b></div><div class="qr">95%区間 93–99%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">67<small>%</small></div><div class="qbar" role="img" aria-label="知識 57–75%"><i style="width:67.0%"></i><b style="left:57.3%;width:18.1%"></b></div><div class="qr">95%区間 57–75%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">3.00<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 2.34–3.66"><i style="width:50.0%"></i><b style="left:33.5%;width:33.0%"></b></div><div class="qr">95%区間 2.34–3.66</div></div>
+</div>
+<ul class="note"><li>知識: 「番号/記号だけ」の指示どおりに答えず、上限 1,088 トークン内に答えが出なかった 3問を不正解に数えた</li><li>自由記述: 出力上限で途中終了 2問（そのまま採点）</li></ul>
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: Swallow の最新世代（Qwen3 ベースの日本語継続学習）。思考を切れない設計</li>
+<li>ファイル: <a href="https://huggingface.co/mmnga-o/Qwen3-Swallow-8B-RL-v0.2-gguf" rel="noopener">mmnga-o/Qwen3-Swallow-8B-RL-v0.2-gguf</a> / <code>Qwen3-Swallow-8B-RL-v0.2-Q4_K_M.gguf</code></li>
+<li>元モデル: tokyotech-llm/Qwen3-Swallow-8B-RL-v0.2 · ライセンス: Apache-2.0</li>
+<li>長文要約（入力 2,002 トークン）: プロンプト処理 4,191 tok/s・生成 73.8 tok/s</li>
+<li>Flash Attention: オン · GPU の層 37/37 · 測定中の GPU 最高温度 74℃</li>
+<li>読み込み3回: 16.1 / 2.8 / 2.9 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>llama-bench（同じビルド）: 生成 83.7 tok/s・プロンプト処理 4,342 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li>
+</ul></details>
+</article>
+<article class="card" data-cps="104.1" data-tps="63.4" data-ttft="247" data-vram="5.23" data-load="5.76" data-jcqa="0.92" data-mmmlu="0.63" data-elyza="3.1" data-mc="0.775" data-group="vram" data-jp="0">
+<header><h3>Qwen3.5 9B</h3><div class="bds"><span class="bd th">思考オフ</span></div>
+<p class="sub">Alibaba Qwen · Q4_K_M · 5.68GB</p></header>
+<div class="hero"><div class="hv"><span class="big">104</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:37.8%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>63.4<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>0.61<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>0.25<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>0.59<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>5.2<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>5.8<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">92<small>%</small></div><div class="qbar" role="img" aria-label="常識 85–96%"><i style="width:92.0%"></i><b style="left:85.0%;width:10.9%"></b></div><div class="qr">95%区間 85–96%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">63<small>%</small></div><div class="qbar" role="img" aria-label="知識 53–72%"><i style="width:63.0%"></i><b style="left:53.2%;width:18.6%"></b></div><div class="qr">95%区間 53–72%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">3.10<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 2.39–3.81"><i style="width:52.5%"></i><b style="left:34.8%;width:35.5%"></b></div><div class="qr">95%区間 2.39–3.81</div></div>
+</div>
+<ul class="note"><li>自由記述: 出力上限で途中終了 2問（そのまま採点）</li></ul>
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: 2026年2月公開の Qwen3.5 系で、12GB に余裕で載る最大級の密モデル。HFのダウンロード数が上位</li>
+<li>ファイル: <a href="https://huggingface.co/unsloth/Qwen3.5-9B-GGUF" rel="noopener">unsloth/Qwen3.5-9B-GGUF</a> / <code>Qwen3.5-9B-Q4_K_M.gguf</code></li>
+<li>元モデル: Qwen/Qwen3.5-9B · ライセンス: Apache-2.0</li>
+<li>長文要約（入力 1,804 トークン）: プロンプト処理 3,147 tok/s・生成 61.4 tok/s</li>
+<li>Flash Attention: オン · GPU の層 33/33 · 測定中の GPU 最高温度 64℃</li>
+<li>読み込み3回: 22.3 / 5.6 / 5.9 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>llama-bench（同じビルド）: 生成 69.2 tok/s・プロンプト処理 3,894 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li>
+</ul></details>
+</article>
+<article class="card" data-cps="85.6" data-tps="70.2" data-ttft="668" data-vram="9.99" data-load="10.92" data-jcqa="0.97" data-mmmlu="0.72" data-elyza="3.4" data-mc="0.845" data-group="offload" data-jp="0">
+<header><h3>gpt-oss-20b</h3><div class="bds"><span class="bd off">一部CPU</span><span class="bd th">思考あり</span></div>
+<p class="sub">OpenAI · MXFP4 · 12.11GB</p></header>
+<div class="hero"><div class="hv"><span class="big">86</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:31.1%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>70.2<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>0.82<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>0.67<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>0.98<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>10.0<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>10.9<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">97<small>%</small></div><div class="qbar" role="img" aria-label="常識 92–99%"><i style="width:97.0%"></i><b style="left:91.5%;width:7.5%"></b></div><div class="qr">95%区間 92–99%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">72<small>%</small></div><div class="qbar" role="img" aria-label="知識 62–80%"><i style="width:72.0%"></i><b style="left:62.5%;width:17.4%"></b></div><div class="qr">95%区間 62–80%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">3.40<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 2.79–4.01"><i style="width:60.0%"></i><b style="left:44.8%;width:30.5%"></b></div><div class="qr">95%区間 2.79–4.01</div></div>
+</div>
+
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: 人気の MoE。12.1GB で 12GB に収まりきらず一部が CPU 側に回る</li>
+<li>ファイル: <a href="https://huggingface.co/lmstudio-community/gpt-oss-20b-GGUF" rel="noopener">lmstudio-community/gpt-oss-20b-GGUF</a> / <code>gpt-oss-20b-MXFP4.gguf</code></li>
+<li>元モデル: openai/gpt-oss-20b · ライセンス: Apache-2.0</li>
+<li>長文要約（入力 2,440 トークン）: プロンプト処理 2,645 tok/s・生成 69.2 tok/s</li>
+<li>Flash Attention: オン · GPU の層 25/25 · 測定中の GPU 最高温度 68℃</li>
+<li>読み込み3回: 14.5 / 10.9 / 10.9 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>GPU に載せきれず、重み約 1.8GB を CPU 側のメモリに置いた（llama.cpp の --fit が自動で配置）</li><li>llama-bench（同じビルド）: 生成 62.4 tok/s・プロンプト処理 2,458 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li>
+</ul></details>
+</article>
+<article class="card" data-cps="74.9" data-tps="47.9" data-ttft="210" data-vram="7.5" data-load="7.91" data-jcqa="0.88" data-mmmlu="0.65" data-elyza="3.85" data-mc="0.765" data-group="vram" data-jp="0">
+<header><h3>Gemma 4 12B it</h3><div class="bds"><span class="bd th">思考オフ</span></div>
+<p class="sub">Google · Q4_K_M · 7.12GB</p></header>
+<div class="hero"><div class="hv"><span class="big">75</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:27.2%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>47.9<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>0.64<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>0.21<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>1.14<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>7.5<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>7.9<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">88<small>%</small></div><div class="qbar" role="img" aria-label="常識 80–93%"><i style="width:88.0%"></i><b style="left:80.2%;width:12.8%"></b></div><div class="qr">95%区間 80–93%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">65<small>%</small></div><div class="qbar" role="img" aria-label="知識 55–74%"><i style="width:65.0%"></i><b style="left:55.3%;width:18.3%"></b></div><div class="qr">95%区間 55–74%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">3.85<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 3.22–4.48"><i style="width:71.2%"></i><b style="left:55.5%;width:31.5%"></b></div><div class="qr">95%区間 3.22–4.48</div></div>
+</div>
+<ul class="note"><li>自由記述: 出力上限で途中終了 1問（そのまま採点）</li></ul>
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: 2026年5月公開。多言語に強いとされる Gemma 系の、12GB 向け中核サイズ</li>
+<li>ファイル: <a href="https://huggingface.co/unsloth/gemma-4-12b-it-GGUF" rel="noopener">unsloth/gemma-4-12b-it-GGUF</a> / <code>gemma-4-12b-it-Q4_K_M.gguf</code></li>
+<li>元モデル: google/gemma-4-12B-it · ライセンス: Apache-2.0</li>
+<li>長文要約（入力 1,891 トークン）: プロンプト処理 1,676 tok/s・生成 44.9 tok/s</li>
+<li>Flash Attention: オン · GPU の層 49/49 · 測定中の GPU 最高温度 68℃</li>
+<li>読み込み3回: 25.8 / 8.2 / 7.6 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>llama-bench（同じビルド）: 生成 52.6 tok/s・プロンプト処理 2,776 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li>
+</ul></details>
+</article>
+<article class="card" data-cps="56.4" data-tps="45.0" data-ttft="269" data-vram="8.51" data-load="8.56" data-jcqa="0.88" data-mmmlu="0.57" data-elyza="3" data-mc="0.725" data-group="vram" data-jp="0">
+<header><h3>Ministral 3 14B Instruct 2512</h3><div class="bds"><span class="bd th">思考なし</span></div>
+<p class="sub">Mistral AI · Q4_K_M · 8.24GB</p></header>
+<div class="hero"><div class="hv"><span class="big">56</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:20.5%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>45.0<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>0.80<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>0.27<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>1.12<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>8.5<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>8.6<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">88<small>%</small></div><div class="qbar" role="img" aria-label="常識 80–93%"><i style="width:88.0%"></i><b style="left:80.2%;width:12.8%"></b></div><div class="qr">95%区間 80–93%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">57<small>%</small></div><div class="qbar" role="img" aria-label="知識 47–66%"><i style="width:57.0%"></i><b style="left:47.2%;width:19.1%"></b></div><div class="qr">95%区間 47–66%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">3.00<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 2.30–3.70"><i style="width:50.0%"></i><b style="left:32.5%;width:35.0%"></b></div><div class="qr">95%区間 2.30–3.70</div></div>
+</div>
+<ul class="note"><li>自由記述: 出力上限で途中終了 4問（そのまま採点）</li></ul>
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: Mistral 系で 12GB に載る最大の指示モデル。公式 GGUF</li>
+<li>ファイル: <a href="https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512-GGUF" rel="noopener">mistralai/Ministral-3-14B-Instruct-2512-GGUF</a> / <code>Ministral-3-14B-Instruct-2512-Q4_K_M.gguf</code></li>
+<li>元モデル: mistralai/Ministral-3-14B-Instruct-2512 · ライセンス: Apache-2.0</li>
+<li>長文要約（入力 2,852 トークン）: プロンプト処理 2,570 tok/s・生成 43.7 tok/s</li>
+<li>Flash Attention: オン · GPU の層 41/41 · 測定中の GPU 最高温度 71℃</li>
+<li>読み込み3回: 26.5 / 9.9 / 7.2 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>llama-bench（同じビルド）: 生成 45.1 tok/s・プロンプト処理 2,453 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li>
+</ul></details>
+</article>
+<article class="card" data-cps="44.1" data-tps="48.8" data-ttft="53" data-vram="9.12" data-load="4.75" data-jcqa="0.98" data-mmmlu="0.63" data-elyza="3.65" data-mc="0.8049999999999999" data-group="vram" data-jp="1">
+<header><h3>Shisa V2.1 unphi4 14B</h3><div class="bds"><span class="bd jp">日本語特化</span><span class="bd th">思考なし</span></div>
+<p class="sub">Shisa.AI · Q4_K_M · 8.89GB</p></header>
+<div class="hero"><div class="hv"><span class="big">44</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:16.0%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>48.8<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>1.11<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>0.05<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>1.34<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>9.1<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>4.8<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">98<small>%</small></div><div class="qbar" role="img" aria-label="常識 93–99%"><i style="width:98.0%"></i><b style="left:93.0%;width:6.4%"></b></div><div class="qr">95%区間 93–99%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">63<small>%</small></div><div class="qbar" role="img" aria-label="知識 53–72%"><i style="width:63.0%"></i><b style="left:53.2%;width:18.6%"></b></div><div class="qr">95%区間 53–72%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">3.65<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 3.06–4.24"><i style="width:66.2%"></i><b style="left:51.5%;width:29.5%"></b></div><div class="qr">95%区間 3.06–4.24</div></div>
+</div>
+<ul class="note"><li>常識: 「番号/記号だけ」の指示どおりに答えず、上限 32 トークン内に答えが出なかった 1問を不正解に数えた</li><li>知識: 「番号/記号だけ」の指示どおりに答えず、上限 32 トークン内に答えが出なかった 3問を不正解に数えた</li><li>自由記述: 出力上限で途中終了 2問（そのまま採点）</li></ul>
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: 日英バイリンガル調整の 14B。12GB に載る日本語特化系で最大級</li>
+<li>ファイル: <a href="https://huggingface.co/mradermacher/shisa-v2.1-unphi4-14b-GGUF" rel="noopener">mradermacher/shisa-v2.1-unphi4-14b-GGUF</a> / <code>shisa-v2.1-unphi4-14b.Q4_K_M.gguf</code></li>
+<li>元モデル: shisa-ai/shisa-v2.1-unphi4-14b · ライセンス: MIT</li>
+<li>長文要約（入力 3,218 トークン）: プロンプト処理 2,410 tok/s・生成 45.3 tok/s</li>
+<li>Flash Attention: オン · GPU の層 41/41 · 測定中の GPU 最高温度 75℃</li>
+<li>読み込み3回: 26.2 / 4.8 / 4.7 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>llama-bench（同じビルド）: 生成 50.8 tok/s・プロンプト処理 2,522 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li>
+</ul></details>
+</article>
+<article class="card" data-cps="23.9" data-tps="14.6" data-ttft="3647" data-vram="9.87" data-load="58.72" data-jcqa="0.95" data-mmmlu="0.73" data-elyza="3.7" data-mc="0.84" data-group="offload" data-jp="0">
+<header><h3>Qwen3.6 35B-A3B</h3><div class="bds"><span class="bd off">一部CPU</span><span class="bd th">思考オフ</span></div>
+<p class="sub">Alibaba Qwen · UD-Q4_K_M · 22.13GB</p></header>
+<div class="hero"><div class="hv"><span class="big">24</span><span class="u">字/秒</span></div>
+<div class="hl">日本語の生成速さ</div><div class="hbar"><i style="width:8.7%"></i></div></div>
+<dl class="grid">
+<div><dt>生成速度</dt><dd>14.6<small> tok/s</small></dd></div>
+<div><dt>1字あたり</dt><dd>0.61<small> トークン</small></dd></div>
+<div><dt>最初の1文字まで</dt><dd>3.65<small> 秒</small></dd></div>
+<div><dt>長文要約の1文字目</dt><dd>25.53<small> 秒</small></dd></div>
+<div><dt>VRAM（増えた分）</dt><dd>9.9<small> GB</small></dd></div>
+<div><dt>読み込み（2回目以降）</dt><dd>58.7<small> 秒</small></dd></div>
+</dl>
+<div class="qs">
+<div class="q"><div class="ql">常識<small>JCommonsenseQA 100問</small></div><div class="qv">95<small>%</small></div><div class="qbar" role="img" aria-label="常識 89–98%"><i style="width:95.0%"></i><b style="left:88.8%;width:9.0%"></b></div><div class="qr">95%区間 89–98%</div></div>
+<div class="q"><div class="ql">知識<small>MMMLU日本語 100問</small></div><div class="qv">73<small>%</small></div><div class="qbar" role="img" aria-label="知識 64–81%"><i style="width:73.0%"></i><b style="left:63.6%;width:17.1%"></b></div><div class="qr">95%区間 64–81%</div></div>
+<div class="q"><div class="ql">自由記述<small>ELYZA-tasks 20問・Claude採点</small></div><div class="qv">3.70<small>/5</small></div><div class="qbar" role="img" aria-label="自由記述 3.04–4.36"><i style="width:67.5%"></i><b style="left:51.0%;width:33.0%"></b></div><div class="qr">95%区間 3.04–4.36</div></div>
+</div>
+<ul class="note"><li>自由記述: 出力上限で途中終了 1問（そのまま採点）</li></ul>
+<details><summary>詳しい条件</summary><ul>
+<li>選んだ理由: 12GB 機で「専門家を CPU に逃がして動かす」定番の MoE。22GB のうち大半が CPU 側</li>
+<li>ファイル: <a href="https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF" rel="noopener">unsloth/Qwen3.6-35B-A3B-GGUF</a> / <code>Qwen3.6-35B-A3B-UD-Q4_K_M.gguf</code></li>
+<li>元モデル: Qwen/Qwen3.6-35B-A3B · ライセンス: Apache-2.0</li>
+<li>長文要約（入力 1,804 トークン）: プロンプト処理 71 tok/s・生成 26.1 tok/s</li>
+<li>Flash Attention: オン · GPU の層 41/41 · 測定中の GPU 最高温度 47℃</li>
+<li>読み込み3回: 56.7 / 61.0 / 56.4 秒（1回目は OS のファイルキャッシュに載っていないことが多い）</li>
+<li>GPU に載せきれず、重み約 11.3GB を CPU 側のメモリに置いた（llama.cpp の --fit が自動で配置）</li><li>llama-bench（同じビルド）: 生成 13.8 tok/s・プロンプト処理 173 tok/s（突き合わせ用。上の生成速度はサーバー経由の実測）</li>
+</ul></details>
+</article>
+</div>
+<p class="prose" style="margin-top:12px;font-size:.82rem;color:var(--faint)">「字/秒」＝生成速度（tok/s）÷1文字あたりのトークン数。同じ tok/s でも、日本語を少ないトークンで表せるモデルほど速く読めます。区間は95%の信頼区間（選択式は Wilson、自由記述は t 分布）。100問なので、差が数ポイントのモデルどうしは「同じくらい」と読んでください。</p>
+</section>
+
+<section id="scatter">
+<h2>速さと賢さの位置<small>右上ほど速くて正答率が高い</small></h2>
+<div class="figure" id="fig">
+<svg viewBox="0 0 520 380" class="sc" role="img" aria-label="横軸が日本語の字/秒、縦軸が選択式2種の平均正答率の散布図">
+<line x1="50.0" y1="16" x2="50.0" y2="330" class="gl"/><text x="50.0" y="349" class="tk" text-anchor="middle">0</text><line x1="82.6" y1="16" x2="82.6" y2="330" class="gl"/><text x="82.6" y="349" class="tk" text-anchor="middle">20</text><line x1="115.1" y1="16" x2="115.1" y2="330" class="gl"/><text x="115.1" y="349" class="tk" text-anchor="middle">40</text><line x1="147.7" y1="16" x2="147.7" y2="330" class="gl"/><text x="147.7" y="349" class="tk" text-anchor="middle">60</text><line x1="180.3" y1="16" x2="180.3" y2="330" class="gl"/><text x="180.3" y="349" class="tk" text-anchor="middle">80</text><line x1="212.9" y1="16" x2="212.9" y2="330" class="gl"/><text x="212.9" y="349" class="tk" text-anchor="middle">100</text><line x1="245.4" y1="16" x2="245.4" y2="330" class="gl"/><text x="245.4" y="349" class="tk" text-anchor="middle">120</text><line x1="278.0" y1="16" x2="278.0" y2="330" class="gl"/><text x="278.0" y="349" class="tk" text-anchor="middle">140</text><line x1="310.6" y1="16" x2="310.6" y2="330" class="gl"/><text x="310.6" y="349" class="tk" text-anchor="middle">160</text><line x1="343.1" y1="16" x2="343.1" y2="330" class="gl"/><text x="343.1" y="349" class="tk" text-anchor="middle">180</text><line x1="375.7" y1="16" x2="375.7" y2="330" class="gl"/><text x="375.7" y="349" class="tk" text-anchor="middle">200</text><line x1="408.3" y1="16" x2="408.3" y2="330" class="gl"/><text x="408.3" y="349" class="tk" text-anchor="middle">220</text><line x1="440.9" y1="16" x2="440.9" y2="330" class="gl"/><text x="440.9" y="349" class="tk" text-anchor="middle">240</text><line x1="473.4" y1="16" x2="473.4" y2="330" class="gl"/><text x="473.4" y="349" class="tk" text-anchor="middle">260</text><line x1="506.0" y1="16" x2="506.0" y2="330" class="gl"/><text x="506.0" y="349" class="tk" text-anchor="middle">280</text><line x1="50" y1="330.0" x2="506" y2="330.0" class="gl"/><text x="42" y="334.0" class="tk" text-anchor="end">60%</text><line x1="50" y1="277.7" x2="506" y2="277.7" class="gl"/><text x="42" y="281.7" class="tk" text-anchor="end">65%</text><line x1="50" y1="225.3" x2="506" y2="225.3" class="gl"/><text x="42" y="229.3" class="tk" text-anchor="end">70%</text><line x1="50" y1="173.0" x2="506" y2="173.0" class="gl"/><text x="42" y="177.0" class="tk" text-anchor="end">75%</text><line x1="50" y1="120.7" x2="506" y2="120.7" class="gl"/><text x="42" y="124.7" class="tk" text-anchor="end">80%</text><line x1="50" y1="68.3" x2="506" y2="68.3" class="gl"/><text x="42" y="72.3" class="tk" text-anchor="end">85%</text><line x1="50" y1="16.0" x2="506" y2="16.0" class="gl"/><text x="42" y="20.0" class="tk" text-anchor="end">90%</text>
+<text x="278.0" y="372" class="ax" text-anchor="middle">日本語の生成速さ（字/秒）→</text>
+<text x="14" y="173.0" class="ax" text-anchor="middle" transform="rotate(-90 14 173.0)">選択式の平均正答率 →</text>
+<g class="dot" tabindex="0" data-tip="Qwen3.5 9B｜104字/秒・選択式平均 77.5%"><title>Qwen3.5 9B｜104字/秒・選択式平均 77.5%</title><circle cx="219.5" cy="146.8" r="16" class="hit"/><circle cx="219.5" cy="146.8" r="6.5" class="pt gen"/><text x="229.5" y="151.8" class="lb" text-anchor="start">Qwen3.5 9B</text></g><g class="dot" tabindex="0" data-tip="Gemma 4 12B it｜75字/秒・選択式平均 76.5%"><title>Gemma 4 12B it｜75字/秒・選択式平均 76.5%</title><circle cx="172.0" cy="157.3" r="16" class="hit"/><circle cx="172.0" cy="157.3" r="6.5" class="pt gen"/><text x="162.0" y="162.3" class="lb" text-anchor="end">Gemma4 12B</text></g><g class="dot" tabindex="0" data-tip="Gemma 4 E4B it｜142字/秒・選択式平均 74.0%"><title>Gemma 4 E4B it｜142字/秒・選択式平均 74.0%</title><circle cx="280.6" cy="183.5" r="16" class="hit"/><circle cx="280.6" cy="183.5" r="6.5" class="pt gen"/><text x="290.6" y="188.5" class="lb" text-anchor="start">Gemma4 E4B</text></g><g class="dot" tabindex="0" data-tip="Ministral 3 14B Instruct 2512｜56字/秒・選択式平均 72.5%"><title>Ministral 3 14B Instruct 2512｜56字/秒・選択式平均 72.5%</title><circle cx="141.9" cy="199.2" r="16" class="hit"/><circle cx="141.9" cy="199.2" r="6.5" class="pt gen"/><text x="131.9" y="204.2" class="lb" text-anchor="end">Ministral3 14B</text></g><g class="dot" tabindex="0" data-tip="llm-jp-4.1 8B thinking｜147字/秒・選択式平均 81.5%"><title>llm-jp-4.1 8B thinking｜147字/秒・選択式平均 81.5%</title><circle cx="288.9" cy="105.0" r="16" class="hit"/><circle cx="288.9" cy="105.0" r="6.5" class="pt jp"/><text x="298.9" y="110.0" class="lb" text-anchor="start">llm-jp-4.1 8B</text></g><g class="dot" tabindex="0" data-tip="Qwen3-Swallow 8B RL v0.2｜114字/秒・選択式平均 82.5%"><title>Qwen3-Swallow 8B RL v0.2｜114字/秒・選択式平均 82.5%</title><circle cx="235.0" cy="94.5" r="16" class="hit"/><circle cx="235.0" cy="94.5" r="6.5" class="pt jp"/><text x="225.0" y="99.5" class="lb" text-anchor="end">Qwen3-Swallow 8B</text></g><g class="dot" tabindex="0" data-tip="Llama 3.1 Swallow 8B Instruct v0.5｜115字/秒・選択式平均 71.0%"><title>Llama 3.1 Swallow 8B Instruct v0.5｜115字/秒・選択式平均 71.0%</title><circle cx="237.1" cy="214.9" r="16" class="hit"/><circle cx="237.1" cy="214.9" r="6.5" class="pt jp"/><text x="247.1" y="219.9" class="lb" text-anchor="start">Llama3.1-Swallow 8B</text></g><g class="dot" tabindex="0" data-tip="Shisa V2.1 unphi4 14B｜44字/秒・選択式平均 80.5%"><title>Shisa V2.1 unphi4 14B｜44字/秒・選択式平均 80.5%</title><circle cx="121.8" cy="115.4" r="16" class="hit"/><circle cx="121.8" cy="115.4" r="6.5" class="pt jp"/><text x="131.8" y="120.4" class="lb" text-anchor="start">Shisa2.1 14B</text></g><g class="dot" tabindex="0" data-tip="Sarashina2.2 3B instruct v0.1｜276字/秒・選択式平均 63.0%"><title>Sarashina2.2 3B instruct v0.1｜276字/秒・選択式平均 63.0%</title><circle cx="498.7" cy="298.6" r="16" class="hit"/><circle cx="498.7" cy="298.6" r="6.5" class="pt jp"/><text x="488.7" y="303.6" class="lb" text-anchor="end">Sarashina2.2 3B</text></g><g class="dot" tabindex="0" data-tip="gpt-oss-20b｜86字/秒・選択式平均 84.5%"><title>gpt-oss-20b｜86字/秒・選択式平均 84.5%</title><circle cx="189.4" cy="73.6" r="16" class="hit"/><rect x="183.4" y="67.6" width="12" height="12" rx="2" class="pt gen hollow"/><text x="199.4" y="78.6" class="lb" text-anchor="start">gpt-oss-20b</text></g><g class="dot" tabindex="0" data-tip="Qwen3.6 35B-A3B｜24字/秒・選択式平均 84.0%"><title>Qwen3.6 35B-A3B｜24字/秒・選択式平均 84.0%</title><circle cx="88.9" cy="78.8" r="16" class="hit"/><rect x="82.9" y="72.8" width="12" height="12" rx="2" class="pt gen hollow"/><text x="82.9" y="66.8" class="lb" text-anchor="start">Qwen3.6 35B-A3B</text></g></svg>
+<div class="legend"><span><i style="background:var(--series-1)"></i>汎用モデル</span><span><i style="background:var(--series-2)"></i>日本語特化モデル</span><span><i class="sq"></i>四角＝一部CPU（MoE）</span></div>
+<div class="tip" id="tip" hidden></div>
+</div>
+<p class="prose" style="font-size:.82rem;color:var(--faint);margin-top:8px">縦軸は JCommonsenseQA と MMMLU日本語の正答率の平均。数値の一覧は上のカードと <a href="data/local-llm-ja/summary.csv">summary.csv</a> にあります。</p>
+</section>
+
+<section id="method" class="prose">
+<h2>測り方</h2>
+<h3>道具: llama.cpp（llama-server）を選んだ理由</h3>
+<ul>
+<li>LM Studio・Ollama・llama.cpp のうち、<b>llama.cpp の公式ビルド（b11852 (commit 7894e8b92)、CUDA 13.4 版）</b>で全モデルを測りました。LM Studio と Ollama も中身は llama.cpp ですが、同梱の版が別々に更新され、量子化ファイルの選択や GPU への載せ方が隠れます。llama.cpp なら、Hugging Face の GGUF ファイルをそのまま指定でき、版を1つに固定でき、1回ごとの時間（読み込み・生成）をサーバーが返します。</li>
+<li>設定はすべて同じ: 文脈長 4,096、並列 1、KV キャッシュ f16、Flash Attention は auto（対応しない形のモデルは自動でオフ）、温度 0、プロンプトのキャッシュなし。12GB に収まるモデルは全層を GPU に固定（<code>-ngl all --fit off</code>）、収まらない MoE は llama.cpp の自動配置（<code>--fit on</code>）。</li>
+<li>モデルのファイルは Hugging Face から取得し、sha256 を Hugging Face の値と照合しました（<a href="data/local-llm-ja/sha256.json">sha256.json</a>）。</li>
+</ul>
+<h3>速度</h3>
+<ul>
+<li>モデルごとにサーバーを<b>3回起動し直し</b>、毎回「短い指示（梅雨の説明）」「長文要約（青空文庫の芥川龍之介『蜘蛛の糸』全文 2,885字）」「会話（3往復の後の質問）」を順に投げました。表の値は3回の中央値です。</li>
+<li><b>生成速度</b>は llama-server が返す timings の値で、短い指示と会話の計6回の中央値。クライアント側で測った値（最初と最後のトークンの間）とも突き合わせました。全99リクエストで差の中央値は 0.45%、5%を超えたのは Qwen3.6 35B-A3B の、26トークンしか出なかった1回（48%）だけです。さらに llama-bench（同じビルド）の値を各カードの「詳しい条件」に載せています。</li>
+<li><b>最初の1文字まで</b>はリクエストを送ってから最初のトークンが届くまで（思考するモデルは思考の最初のトークン）。</li>
+<li><b>1文字あたりのトークン数</b>は『蜘蛛の糸』と書き下ろしの現代文（549字）をそのモデルのトークナイザに通して数えました。</li>
+<li><b>VRAM</b> は nvidia-smi の使用量を 0.25 秒ごとに取り、生成中の最大値から起動前の値を引いたもの。測定の直前、デスクトップのアプリが使っていた VRAM は 0.2〜1.5GB（時間で変動）でした。</li>
+<li><b>読み込み</b>はプロセスの起動から準備完了（/health が応答）までの時間。カードの値は2回目と3回目の中央値で、OS のファイルキャッシュが効いた状態です。1回目の値は「詳しい条件」に載せています（多くは数倍かかりました）。モデルは USB 接続の外付け SSD に置きました（gpt-oss-20b のみ内蔵 NVMe）。</li>
+<li>各起動の前に GPU の使用状況を確かめ、他のプロセスの 3D/計算の使用率が合計 15% を超えるか、VRAM が 4.5GB を超えていたら待ってから測りました（動画再生のデコードは対象外）。GPU の温度は生データに残しています。</li>
+</ul>
+<h3>品質</h3>
+<ul>
+<li><b>常識: JCommonsenseQA v1.3</b>（JGLUE、CC BY-SA 4.0）の検証用1,119問から seed=42 で100問。5択の番号を答えさせ、出力の最初の数字で自動採点。</li>
+<li><b>知識: MMMLU の日本語版</b>（OpenAI、MIT。MMLU を人手で日本語に訳したもの）14,042問から seed=42 で100問。A〜D を答えさせ、出力の最初の記号で自動採点。</li>
+<li><b>自由記述: ELYZA-tasks-100</b>（CC BY-SA 4.0）から seed=42 で20問。<b>採点は Claude（Anthropic の Claude Opus 5.5）が審査員</b>として、データセット付属の模範解答と採点観点を見ながら1〜5点で付けました。モデル名は伏せ、問題ごとに並び順を入れ替えています。審査プロンプトは下に全文を載せます。</li>
+<li>問題文はこのページに転載していません。どの問題を使ったかは ID で <a href="data/local-llm-ja/quality_items.csv">quality_items.csv</a> に残しています。</li>
+<li>JMMLU はライセンスが CC BY-NC-ND 4.0 のため使いませんでした。</li>
+<li>思考（推論）を切り替えられるモデルは<b>切って</b>測りました。切れない設計のモデル（Qwen3-Swallow、gpt-oss、llm-jp-4.1 thinking）は思考ありで、思考の上限 1,024 トークン、選択式は最大 1,088 トークン・自由記述は最大 2,048 トークンまで。上限で答えが出なかった問題は不正解です。選択式で上限に届いたのは Qwen3-Swallow の 25問（うち答えを読み取れなかったのは3問）で、llm-jp-4.1 と gpt-oss は1問も届きませんでした。思考ありのモデルは、その分だけ答えが出るまでの時間が長くなります。</li>
+<li>採点スクリプトは、既知の正解（正解をそのまま出す満点の回答・必ず外す0点の回答・よくある出力の形）で assert してから使いました（<a href="data/local-llm-ja/scripts/test_scoring.py">test_scoring.py</a>）。</li>
+</ul>
+<h3>自由記述の審査プロンプト（全文）</h3>
+<pre>あなたは日本語の回答を採点する審査員です。以下の「問題」「模範解答」「採点観点」を読み、各「回答」に 1〜5 の整数で点を付けてください。
+模範解答は一例です。内容が正しく指示を満たしていれば、模範解答と書き方が違っても減点しないでください。
+
+## 基本の採点基準
+- 1点: 誤っている、指示に従えていない
+- 2点: 誤っているが、方向性は合っている
+- 3点: 部分的に誤っている、部分的に合っている
+- 4点: 合っている
+- 5点: 役に立つ（合っていて、そのうえ有用）
+
+## 基本の減点
+- 不自然な日本語（文法の誤り、中国語・英語の混入、文の途中での途切れなど）: -1点
+- 部分的に事実と異なる内容を述べている: -1点
+- 「倫理的に答えられません」のように過度に安全性を気にして答えない: 2点にする
+- 回答が空、または途中で切れて結論がない: 1点
+
+## 問題ごとの採点観点
+データセット付属の「採点観点（eval_aspect）」を優先して適用してください。
+
+## 出力
+各回答について {&quot;id&quot;: &quot;&lt;回答ID&gt;&quot;, &quot;score&quot;: &lt;1-5&gt;, &quot;reason&quot;: &quot;&lt;30字以内の理由&gt;&quot;} を JSON で返してください。</pre>
+</section>
+
+<section id="excluded" class="prose">
+<h2>外したモデルと理由</h2>
+<ul>
+<li><b>Ternary Bonsai 2 27B（prism-ml/Ternary-Bonsai-2-27B-gguf, PTQ1_0 5.95GB, Apache-2.0）</b><br>実在とライセンス（Apache-2.0）は確認し、ファイルも取得した（sha256 一致）。ただし PrismML 独自の三値の量子化型を使っており、公式 llama.cpp b11852 では「tensor &#x27;output.weight&#x27; has invalid ggml type 143」で読み込めない。動かすには PrismML の llama.cpp フォークの実行ファイルが必要で、今回は同じ条件（公式ビルド）で比べることを優先して外した。</li>
+<li><b>Sarashina3（SB Intuitions）</b><br>2026-10-24 時点で Hugging Face の sbintuitions に Sarashina3 の重みは公開されていない（無料ベータはサービスとしての提供）。ローカルでは動かせないため、重みが公開されている Sarashina2.2 3B instruct を測った。</li>
+<li><b>llm-jp-4 8B instruct（mmnga-o/llm-jp-4-8b-instruct-gguf Q4_K_M）</b><br>llama.cpp b11852 のチャット出力の解析（harmony 形式）でサーバーがエラー 500 を返し、回答を受け取れなかった。公式 GGUF がある後継の llm-jp-4.1 8B thinking に差し替えた。</li>
+<li><b>27B〜35B 級の密モデル（Qwen3.8 27B、Gemma 4 31B など）</b><br>Q4_K_M で 16GB 以上あり、12GB の GPU には載らない。MoE（専門家の一部だけが動くモデル）なら CPU に逃がしても実用速度が出るので、代わりに Qwen3.6 35B-A3B と gpt-oss-20b を「はみ出し組」として測った。</li>
+<li><b>ELYZA の最新モデル（ELYZA-Thinking-1.0 llm-jp-4 32B-A3B など）</b><br>常に思考する 32B 級で、200問の選択式でも数時間かかる見込みのため今回は外した。ELYZA の 12GB 向けの新しい密モデルは見つからなかった。</li>
+</ul>
+</section>
+
+<section id="limits" class="prose">
+<h2>この表の限界</h2>
+<ul>
+<li><b>この1台での結果です。</b>同じ RTX 4070 でも、CPU・メモリ・ドライバ・裏で動いているアプリで数字は変わります。特に「一部CPU」のモデルは CPU とメモリの速さに強く左右されます。</li>
+<li><b>12GB ぎりぎりのモデルは、ほかのアプリの VRAM 次第で速さが倍変わります。</b>gpt-oss-20b は、デスクトップの VRAM 使用が少なかった時に全層を GPU に載せた llama-bench（-ngl 99）で 143 tok/s 出ました。表の 70.2 tok/s は、自動配置で一部を CPU に置いた状態です。</li>
+<li><b>Qwen3.6 35B-A3B は、メモリ 32GB に対して 22GB のモデル</b>で、読み込み後の空きメモリは約 2GB しかありませんでした。メモリに余裕のある PC なら、もっと速い可能性があります。</li>
+<li>文脈長は 4,096 に固定しました。長い文書を扱うと KV キャッシュが増え、VRAM と速度は変わります。</li>
+<li>品質は1モデルあたり選択式200問＋自由記述20問の抜粋です。区間を見ると分かるとおり、近いモデルの順位は入れ替わり得ます。</li>
+<li>量子化は Q4_K_M を基本にしました（gpt-oss は配布形式の MXFP4、Qwen3.6 は unsloth の UD-Q4_K_M）。量子化を変えれば品質も速度も変わります。量子化を作った人（unsloth、mmnga など）による差もあります。</li>
+<li>自由記述は Claude 1体の採点で、人手の評価ではありません。採点者による癖が入ります。</li>
+<li>思考ありのモデルは思考トークンの上限を付けたため、本来の実力より低く出ている可能性があります。</li>
+</ul>
+</section>
+
+<section id="data" class="prose">
+<h2>生データとスクリプト</h2>
+<div class="dl">
+<a href="data/local-llm-ja/results.json">results.json（全部入り）</a>
+<a href="data/local-llm-ja/summary.csv">summary.csv（1モデル1行）</a>
+<a href="data/local-llm-ja/speed_requests.csv">speed_requests.csv（速度の全リクエスト）</a>
+<a href="data/local-llm-ja/quality_items.csv">quality_items.csv（1問ごとの正誤）</a>
+<a href="data/local-llm-ja/scripts/bench.py">bench.py（測定）</a>
+<a href="data/local-llm-ja/scripts/aggregate.py">aggregate.py（集計）</a>
+<a href="data/local-llm-ja/scripts/prompts.json">prompts.json（速度用プロンプト）</a>
+<a href="data/local-llm-ja/scripts/models.json">models.json（モデルと設定）</a>
+</div>
+<p>このページの数値と生データは CC BY 4.0 で使ってかまいません。使ったベンチマークのデータはそれぞれのライセンスに従います。</p>
+</section>
+
+<footer>測定・作成: yuichi916（<a href="https://x.com/ViewsEngineer" rel="noopener">@ViewsEngineer</a>）· 2026年10月24日 · 測定は Claude Code（Claude Opus 5.5）が手順どおりに実行し、数値は生データからそのまま載せています。</footer>
+</div>
+<script>
+(function(){
+  var params = new URLSearchParams(location.search);
+  if (params.get('nofx') === '1') document.body.classList.add('nofx');
+  var box = document.getElementById('cards');
+  var cards = Array.prototype.slice.call(box.querySelectorAll('.card'));
+  var sortBtns = document.querySelectorAll('[data-sort]');
+  var filtBtns = document.querySelectorAll('[data-filter]');
+  function sortBy(key, asc){
+    cards.sort(function(a,b){
+      var x = parseFloat(a.dataset[key]), y = parseFloat(b.dataset[key]);
+      if (x < 0) return 1; if (y < 0) return -1;
+      return asc ? x - y : y - x;
+    });
+    cards.forEach(function(c){ box.appendChild(c); });
+  }
+  sortBtns.forEach(function(b){
+    b.addEventListener('click', function(){
+      sortBtns.forEach(function(o){ o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+      sortBy(b.dataset.sort, b.dataset.asc === '1');
+      if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({path: 'local-llm-ja/sort/' + b.dataset.sort, event: true});
+    });
+  });
+  filtBtns.forEach(function(b){
+    b.addEventListener('click', function(){
+      filtBtns.forEach(function(o){ o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+      var f = b.dataset.filter;
+      cards.forEach(function(c){
+        var show = f === 'all' || (f === 'jp' ? c.dataset.jp === '1' : c.dataset.group === f);
+        c.hidden = !show;
+      });
+    });
+  });
+  var fig = document.getElementById('fig'), tip = document.getElementById('tip');
+  fig.querySelectorAll('.dot').forEach(function(g){
+    function show(e){
+      tip.textContent = g.dataset.tip; tip.hidden = false;
+      var r = fig.getBoundingClientRect(), t = g.getBoundingClientRect();
+      var left = t.left - r.left + t.width/2 + 10, top = t.top - r.top - 34;
+      if (left > r.width - 260) left = Math.max(8, t.left - r.left - 250);
+      tip.style.left = left + 'px'; tip.style.top = Math.max(4, top) + 'px';
+    }
+    g.addEventListener('mouseenter', show); g.addEventListener('focus', show);
+    g.addEventListener('mouseleave', function(){ tip.hidden = true; });
+    g.addEventListener('blur', function(){ tip.hidden = true; });
+  });
+})();
+</script>
+</body>
+</html>

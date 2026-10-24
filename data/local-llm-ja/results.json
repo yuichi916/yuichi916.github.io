@@ -1,0 +1,1194 @@
+{
+ "meta": {
+  "measured_on": "2026-10-24",
+  "machine": {
+   "gpu": "NVIDIA GeForce RTX 4070 (12GB GDDR6X, 電力上限 200W)",
+   "driver": "591.86 (CUDA 13.1)",
+   "cpu": "Intel Core i7-14700F",
+   "ram": "32GB",
+   "os": "Windows 11 Home (build 26200)",
+   "model_disk": "BUFFALO SSD-PGCU3-A（USB 接続の外付け SSD）。gpt-oss-20b だけは内蔵 NVMe（C:）から読み込み",
+   "desktop_vram": "測定中もデスクトップのアプリ（ブラウザ・エディタ・動画プレーヤーなど）が VRAM を約2.0〜2.5GB 使っていた。12GB 全部をモデルに使える状態ではない"
+  },
+  "engine": {
+   "name": "llama.cpp llama-server",
+   "build": "b11852 (commit 7894e8b92)",
+   "package": "llama-b11852-bin-win-cuda-13.4-x64（公式リリース）"
+  },
+  "settings": {
+   "ctx": 4096,
+   "flash_attn": "auto（対応しない形のモデルは自動でオフ）",
+   "kv_cache": "f16",
+   "parallel": 1,
+   "prompt_cache_ram": 0,
+   "temperature": 0,
+   "seed": 42,
+   "vram_group": "-ngl all --fit off（全層を GPU に載せる。載らなければ失敗）",
+   "offload_group": "--fit on（llama.cpp が空き VRAM に合わせて一部を CPU 側に置く）"
+  },
+  "speed_method": "モデルごとにサーバーを3回起動し直し、毎回「短い指示」「長文要約（青空文庫『蜘蛛の糸』全文2,885字）」「会話（3往復の後の質問）」の3つを順に投げた。各値は3回の中央値。生成速度は llama-server の timings（predicted_per_second）で、短い指示と会話の計6回の中央値。最初のトークンまでの時間はクライアント側で、リクエスト送信から最初の文字（思考モデルは思考の最初のトークン）が届くまで。プロンプトのキャッシュは切ってある。",
+  "tokenizer_method": "『蜘蛛の糸』（2,885字）と書き下ろしの現代文（549字）を各モデルのトークナイザに通し、トークン数÷文字数を「1文字あたりのトークン数」とした。1秒あたりの日本語の文字数＝生成速度（tok/s）÷1文字あたりのトークン数。",
+  "vram_method": "nvidia-smi の memory.used を 0.25秒ごとに取り、生成中の最大値から起動前の値（デスクトップの分）を引いた。",
+  "load_method": "llama-server のプロセス起動から /health が 200 を返すまでの時間。2回目以降はファイルが OS のキャッシュに載っている可能性が高い（3回の中央値なので、実質的に「2回目以降の起動」の値）。",
+  "quality": {
+   "jcqa": {
+    "name": "JCommonsenseQA v1.3（JGLUE）",
+    "license": "CC BY-SA 4.0",
+    "source": "https://github.com/yahoojapan/JGLUE",
+    "n": 100,
+    "how": "検証用データ1,119問から seed=42 で100問を抽出。5択の番号を答えさせ、出力の最初の0〜4の数字で自動採点"
+   },
+   "mmmlu": {
+    "name": "MMMLU 日本語（OpenAI, mmlu_JA-JP）",
+    "license": "MIT",
+    "source": "https://huggingface.co/datasets/openai/MMMLU",
+    "n": 100,
+    "how": "MMLU を人手で日本語に訳した14,042問から seed=42 で100問を抽出。A〜Dの記号を答えさせ、出力の最初の A〜D で自動採点"
+   },
+   "elyza": {
+    "name": "ELYZA-tasks-100",
+    "license": "CC BY-SA 4.0",
+    "source": "https://huggingface.co/datasets/elyza/ELYZA-tasks-100",
+    "n": 20,
+    "how": "100問から seed=42 で20問を抽出。自由記述の回答を Claude（Anthropic の Claude Opus 5.5）が、データセット付属の模範解答と採点観点を見ながら1〜5点で採点。モデル名は伏せ、並び順は問題ごとに入れ替えた"
+   },
+   "not_used": "JMMLU はライセンスが CC BY-NC-ND 4.0 で、このサイトでの利用条件を満たすか判断がつかないため使わなかった"
+  },
+  "thinking_policy": "思考（推論）を切り替えられるモデルは切って測った。切れない設計のモデル（Qwen3-Swallow、gpt-oss、llm-jp-4.1 thinking）は思考ありで、思考トークンの上限 1024（--reasoning-budget）・選択式は最大 1,088 トークン、自由記述は最大 2,048 トークン。gpt-oss と llm-jp-4.1 は reasoning effort = low。上限に達して答えが出なかった問題は不正解として数えた"
+ },
+ "models": [
+  {
+   "id": "qwen3.5-9b",
+   "name": "Qwen3.5 9B",
+   "maker": "Alibaba Qwen",
+   "jp": false,
+   "repo": "unsloth/Qwen3.5-9B-GGUF",
+   "base": "Qwen/Qwen3.5-9B",
+   "file": "Qwen3.5-9B-Q4_K_M.gguf",
+   "quant": "Q4_K_M",
+   "license": "Apache-2.0",
+   "group": "vram",
+   "think": "off",
+   "why": "2026年2月公開の Qwen3.5 系で、12GB に余裕で載る最大級の密モデル。HFのダウンロード数が上位",
+   "replaced": null,
+   "size_gb": 5.68,
+   "flash_attn": "on",
+   "gpu_layers": 33,
+   "total_layers": 33,
+   "cpu_weights_mib": 545.62,
+   "load_s": 5.76,
+   "load_first_s": 22.29,
+   "load_s_all": [
+    22.29,
+    5.59,
+    5.94
+   ],
+   "vram_gib": 5.23,
+   "gpu_temp_max_c": 64,
+   "baseline_vram_mib": [
+    1290,
+    1222,
+    1314
+   ],
+   "baseline_other_gpu_pct": [
+    12.1,
+    0,
+    10.5
+   ],
+   "tokens_per_char": 0.6089,
+   "gen_tps": 63.4,
+   "jp_chars_per_s": 104.1,
+   "ttft_ms_short": 247,
+   "ttft_ms_summary": 587,
+   "pp_tps_summary": 3147,
+   "gen_tps_summary": 61.4,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 246.88880005851388,
+     "gen_tps": 63.54514324470181,
+     "gen_tps_client": 63.856578499509965,
+     "pp_tps": 137.24324077039205,
+     "prompt_n": 30,
+     "gen_n": 206
+    },
+    "summary": {
+     "ttft_ms": 587.1079999487847,
+     "gen_tps": 61.35175971282564,
+     "gen_tps_client": 62.08265392632951,
+     "pp_tps": 3146.8317997470676,
+     "prompt_n": 1804,
+     "gen_n": 103
+    },
+    "chat": {
+     "ttft_ms": 389.23899992369115,
+     "gen_tps": 63.22737777628199,
+     "gen_tps_client": 63.22750607887562,
+     "pp_tps": 609.7027566517245,
+     "prompt_n": 230,
+     "gen_n": 512
+    }
+   },
+   "llamabench_pp512": 3894.1,
+   "llamabench_tg128": 69.2,
+   "jcqa": {
+    "k": 92,
+    "n": 100,
+    "acc": 0.92,
+    "lo": 0.85,
+    "hi": 0.959,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 63,
+    "n": 100,
+    "acc": 0.63,
+    "lo": 0.532,
+    "hi": 0.718,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "elyza": {
+    "mean": 3.1,
+    "lo": 2.39,
+    "hi": 3.81,
+    "n": 20
+   },
+   "elyza_truncated": 2
+  },
+  {
+   "id": "gemma4-12b",
+   "name": "Gemma 4 12B it",
+   "maker": "Google",
+   "jp": false,
+   "repo": "unsloth/gemma-4-12b-it-GGUF",
+   "base": "google/gemma-4-12B-it",
+   "file": "gemma-4-12b-it-Q4_K_M.gguf",
+   "quant": "Q4_K_M",
+   "license": "Apache-2.0",
+   "group": "vram",
+   "think": "off",
+   "why": "2026年5月公開。多言語に強いとされる Gemma 系の、12GB 向け中核サイズ",
+   "replaced": null,
+   "size_gb": 7.12,
+   "flash_attn": "on",
+   "gpu_layers": 49,
+   "total_layers": 49,
+   "cpu_weights_mib": 540.0,
+   "load_s": 7.91,
+   "load_first_s": 25.75,
+   "load_s_all": [
+    25.75,
+    8.18,
+    7.64
+   ],
+   "vram_gib": 7.5,
+   "gpu_temp_max_c": 68,
+   "baseline_vram_mib": [
+    1177,
+    1162,
+    1155
+   ],
+   "baseline_other_gpu_pct": [
+    0,
+    8.9,
+    7.9
+   ],
+   "tokens_per_char": 0.6392,
+   "gen_tps": 47.9,
+   "jp_chars_per_s": 74.9,
+   "ttft_ms_short": 210,
+   "ttft_ms_summary": 1136,
+   "pp_tps_summary": 1676,
+   "gen_tps_summary": 44.9,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 209.78420006576926,
+     "gen_tps": 47.45575212489721,
+     "gen_tps_client": 47.73317789984136,
+     "pp_tps": 155.6115534048812,
+     "prompt_n": 31,
+     "gen_n": 181
+    },
+    "summary": {
+     "ttft_ms": 1136.2855999032035,
+     "gen_tps": 44.87599077326763,
+     "gen_tps_client": 45.16195508442355,
+     "pp_tps": 1675.9370535413586,
+     "prompt_n": 1891,
+     "gen_n": 158
+    },
+    "chat": {
+     "ttft_ms": 449.7323000105098,
+     "gen_tps": 48.32750881244084,
+     "gen_tps_client": 48.32748458903068,
+     "pp_tps": 551.5821638175948,
+     "prompt_n": 239,
+     "gen_n": 512
+    }
+   },
+   "llamabench_pp512": 2776.5,
+   "llamabench_tg128": 52.6,
+   "jcqa": {
+    "k": 88,
+    "n": 100,
+    "acc": 0.88,
+    "lo": 0.802,
+    "hi": 0.93,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 65,
+    "n": 100,
+    "acc": 0.65,
+    "lo": 0.553,
+    "hi": 0.736,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "elyza": {
+    "mean": 3.85,
+    "lo": 3.22,
+    "hi": 4.48,
+    "n": 20
+   },
+   "elyza_truncated": 1
+  },
+  {
+   "id": "gemma4-e4b",
+   "name": "Gemma 4 E4B it",
+   "maker": "Google",
+   "jp": false,
+   "repo": "unsloth/gemma-4-E4B-it-GGUF",
+   "base": "google/gemma-4-E4B-it",
+   "file": "gemma-4-E4B-it-Q4_K_M.gguf",
+   "quant": "Q4_K_M",
+   "license": "Apache-2.0",
+   "group": "vram",
+   "think": "off",
+   "why": "端末向けの小型版。速さの上限側の比較用",
+   "replaced": null,
+   "size_gb": 4.98,
+   "flash_attn": "on",
+   "gpu_layers": 43,
+   "total_layers": 43,
+   "cpu_weights_mib": 2208.0,
+   "load_s": 3.43,
+   "load_first_s": 15.65,
+   "load_s_all": [
+    15.65,
+    3.04,
+    3.82
+   ],
+   "vram_gib": 3.26,
+   "gpu_temp_max_c": 65,
+   "baseline_vram_mib": [
+    1175,
+    1185,
+    1178
+   ],
+   "baseline_other_gpu_pct": [
+    9.0,
+    8.0,
+    7.1
+   ],
+   "tokens_per_char": 0.6392,
+   "gen_tps": 90.5,
+   "jp_chars_per_s": 141.6,
+   "ttft_ms_short": 356,
+   "ttft_ms_summary": 399,
+   "pp_tps_summary": 4830,
+   "gen_tps_summary": 88.9,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 355.7986000087112,
+     "gen_tps": 91.19133982395068,
+     "gen_tps_client": 91.63703059323947,
+     "pp_tps": 81.99260244520161,
+     "prompt_n": 27,
+     "gen_n": 238
+    },
+    "summary": {
+     "ttft_ms": 398.55879999231547,
+     "gen_tps": 88.89015945733229,
+     "gen_tps_client": 89.36892024871594,
+     "pp_tps": 4830.472679798795,
+     "prompt_n": 1887,
+     "gen_n": 200
+    },
+    "chat": {
+     "ttft_ms": 200.2521000104025,
+     "gen_tps": 89.7990872827798,
+     "gen_tps_client": 89.80236976258699,
+     "pp_tps": 1342.2358793929668,
+     "prompt_n": 235,
+     "gen_n": 512
+    }
+   },
+   "llamabench_pp512": 5426.4,
+   "llamabench_tg128": 104.9,
+   "jcqa": {
+    "k": 95,
+    "n": 100,
+    "acc": 0.95,
+    "lo": 0.888,
+    "hi": 0.978,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 53,
+    "n": 100,
+    "acc": 0.53,
+    "lo": 0.433,
+    "hi": 0.625,
+    "unparsed": 2,
+    "truncated": 2,
+    "think_truncated": 0
+   },
+   "elyza": {
+    "mean": 3.5,
+    "lo": 2.81,
+    "hi": 4.19,
+    "n": 20
+   },
+   "elyza_truncated": 1
+  },
+  {
+   "id": "ministral3-14b",
+   "name": "Ministral 3 14B Instruct 2512",
+   "maker": "Mistral AI",
+   "jp": false,
+   "repo": "mistralai/Ministral-3-14B-Instruct-2512-GGUF",
+   "base": "mistralai/Ministral-3-14B-Instruct-2512",
+   "file": "Ministral-3-14B-Instruct-2512-Q4_K_M.gguf",
+   "quant": "Q4_K_M",
+   "license": "Apache-2.0",
+   "group": "vram",
+   "think": "none",
+   "why": "Mistral 系で 12GB に載る最大の指示モデル。公式 GGUF",
+   "replaced": null,
+   "size_gb": 8.24,
+   "flash_attn": "on",
+   "gpu_layers": 41,
+   "total_layers": 41,
+   "cpu_weights_mib": 360.0,
+   "load_s": 8.56,
+   "load_first_s": 26.51,
+   "load_s_all": [
+    26.51,
+    9.86,
+    7.25
+   ],
+   "vram_gib": 8.51,
+   "gpu_temp_max_c": 71,
+   "baseline_vram_mib": [
+    1170,
+    1476,
+    1259
+   ],
+   "baseline_other_gpu_pct": [
+    8.2,
+    4.0,
+    4.5
+   ],
+   "tokens_per_char": 0.7994,
+   "gen_tps": 45.0,
+   "jp_chars_per_s": 56.4,
+   "ttft_ms_short": 269,
+   "ttft_ms_summary": 1122,
+   "pp_tps_summary": 2570,
+   "gen_tps_summary": 43.7,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 268.5768000083044,
+     "gen_tps": 45.61575379037886,
+     "gen_tps_client": 45.79193589707459,
+     "pp_tps": 2122.2782162213557,
+     "prompt_n": 558,
+     "gen_n": 276
+    },
+    "summary": {
+     "ttft_ms": 1122.4392999429256,
+     "gen_tps": 43.72675019260792,
+     "gen_tps_client": 43.89096215538885,
+     "pp_tps": 2569.702736210824,
+     "prompt_n": 2852,
+     "gen_n": 261
+    },
+    "chat": {
+     "ttft_ms": 143.21889996062964,
+     "gen_tps": 43.39576350344953,
+     "gen_tps_client": 43.39580441044385,
+     "pp_tps": 1971.9641353638904,
+     "prompt_n": 267,
+     "gen_n": 512
+    }
+   },
+   "llamabench_pp512": 2453.1,
+   "llamabench_tg128": 45.1,
+   "jcqa": {
+    "k": 88,
+    "n": 100,
+    "acc": 0.88,
+    "lo": 0.802,
+    "hi": 0.93,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 57,
+    "n": 100,
+    "acc": 0.57,
+    "lo": 0.472,
+    "hi": 0.663,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "elyza": {
+    "mean": 3,
+    "lo": 2.3,
+    "hi": 3.7,
+    "n": 20
+   },
+   "elyza_truncated": 4
+  },
+  {
+   "id": "llmjp41-8b",
+   "name": "llm-jp-4.1 8B thinking",
+   "maker": "NII LLM-jp",
+   "jp": true,
+   "repo": "llm-jp/llm-jp-4.1-8b-thinking-gguf",
+   "base": "llm-jp/llm-jp-4.1-8b-thinking",
+   "file": "llm-jp-4.1-8b-thinking-Q4_K_M.gguf",
+   "quant": "Q4_K_M",
+   "license": "Apache-2.0",
+   "group": "vram",
+   "think": "on",
+   "why": "国立情報学研究所の日本語フルスクラッチ系の最新（2026年9月）。公式 GGUF。思考モデルなので effort=low",
+   "replaced": "llm-jp-4 8B instruct（mmnga-o/llm-jp-4-8b-instruct-gguf Q4_K_M）は llama.cpp b11852 のチャット出力解析（harmony 形式）でエラー 500 になり測定できなかったため、公式 GGUF のある 4.1 thinking に差し替え",
+   "size_gb": 5.5,
+   "flash_attn": "on",
+   "gpu_layers": 33,
+   "total_layers": 33,
+   "cpu_weights_mib": 432.0,
+   "load_s": 3.15,
+   "load_first_s": 17.52,
+   "load_s_all": [
+    17.52,
+    3.1,
+    3.2
+   ],
+   "vram_gib": 5.5,
+   "gpu_temp_max_c": 71,
+   "baseline_vram_mib": [
+    1181,
+    1181,
+    1181
+   ],
+   "baseline_other_gpu_pct": [
+    7.5,
+    9.6,
+    8.6
+   ],
+   "tokens_per_char": 0.5006,
+   "gen_tps": 73.4,
+   "jp_chars_per_s": 146.7,
+   "ttft_ms_short": 119,
+   "ttft_ms_summary": 429,
+   "pp_tps_summary": 4351,
+   "gen_tps_summary": 71.0,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 118.91770001966506,
+     "gen_tps": 74.19137069406877,
+     "gen_tps_client": 76.95938295114343,
+     "pp_tps": 1751.8143791784348,
+     "prompt_n": 98,
+     "gen_n": 132
+    },
+    "summary": {
+     "ttft_ms": 429.208799963817,
+     "gen_tps": 70.98900301466634,
+     "gen_tps_client": 73.2771603311233,
+     "pp_tps": 4350.64129940623,
+     "prompt_n": 1579,
+     "gen_n": 136
+    },
+    "chat": {
+     "ttft_ms": 125.78250002115965,
+     "gen_tps": 73.38428203460866,
+     "gen_tps_client": 73.8752966773958,
+     "pp_tps": 4119.547657512116,
+     "prompt_n": 255,
+     "gen_n": 512
+    }
+   },
+   "llamabench_pp512": 4462.8,
+   "llamabench_tg128": 79.4,
+   "jcqa": {
+    "k": 97,
+    "n": 100,
+    "acc": 0.97,
+    "lo": 0.915,
+    "hi": 0.99,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 66,
+    "n": 100,
+    "acc": 0.66,
+    "lo": 0.563,
+    "hi": 0.745,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "elyza": {
+    "mean": 3.3,
+    "lo": 2.57,
+    "hi": 4.03,
+    "n": 20
+   },
+   "elyza_truncated": 0
+  },
+  {
+   "id": "qwen3-swallow-8b",
+   "name": "Qwen3-Swallow 8B RL v0.2",
+   "maker": "Science Tokyo / AIST",
+   "jp": true,
+   "repo": "mmnga-o/Qwen3-Swallow-8B-RL-v0.2-gguf",
+   "base": "tokyotech-llm/Qwen3-Swallow-8B-RL-v0.2",
+   "file": "Qwen3-Swallow-8B-RL-v0.2-Q4_K_M.gguf",
+   "quant": "Q4_K_M",
+   "license": "Apache-2.0",
+   "group": "vram",
+   "think": "on",
+   "why": "Swallow の最新世代（Qwen3 ベースの日本語継続学習）。思考を切れない設計",
+   "replaced": null,
+   "size_gb": 5.03,
+   "flash_attn": "on",
+   "gpu_layers": 37,
+   "total_layers": 37,
+   "cpu_weights_mib": 333.84,
+   "load_s": 2.82,
+   "load_first_s": 16.06,
+   "load_s_all": [
+    16.06,
+    2.79,
+    2.86
+   ],
+   "vram_gib": 5.2,
+   "gpu_temp_max_c": 74,
+   "baseline_vram_mib": [
+    1181,
+    1181,
+    1188
+   ],
+   "baseline_other_gpu_pct": [
+    1.4,
+    7.5,
+    8.3
+   ],
+   "tokens_per_char": 0.6843,
+   "gen_tps": 77.8,
+   "jp_chars_per_s": 113.6,
+   "ttft_ms_short": 94,
+   "ttft_ms_summary": 540,
+   "pp_tps_summary": 4191,
+   "gen_tps_summary": 73.8,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 94.3098000716418,
+     "gen_tps": 78.41985375848249,
+     "gen_tps_client": 78.83450208139104,
+     "pp_tps": 634.5896697867325,
+     "prompt_n": 28,
+     "gen_n": 512
+    },
+    "summary": {
+     "ttft_ms": 539.7789000999182,
+     "gen_tps": 73.81367860861516,
+     "gen_tps_client": 74.82225134425912,
+     "pp_tps": 4190.651623301865,
+     "prompt_n": 2002,
+     "gen_n": 246
+    },
+    "chat": {
+     "ttft_ms": 100.86720006074756,
+     "gen_tps": 77.65200988779057,
+     "gen_tps_client": 77.81593127255184,
+     "pp_tps": 3685.890848302983,
+     "prompt_n": 269,
+     "gen_n": 512
+    }
+   },
+   "llamabench_pp512": 4342.3,
+   "llamabench_tg128": 83.7,
+   "jcqa": {
+    "k": 98,
+    "n": 100,
+    "acc": 0.98,
+    "lo": 0.93,
+    "hi": 0.994,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 67,
+    "n": 100,
+    "acc": 0.67,
+    "lo": 0.573,
+    "hi": 0.754,
+    "unparsed": 3,
+    "truncated": 3,
+    "think_truncated": 3
+   },
+   "elyza": {
+    "mean": 3,
+    "lo": 2.34,
+    "hi": 3.66,
+    "n": 20
+   },
+   "elyza_truncated": 2
+  },
+  {
+   "id": "llama31-swallow-8b",
+   "name": "Llama 3.1 Swallow 8B Instruct v0.5",
+   "maker": "Science Tokyo / AIST",
+   "jp": true,
+   "repo": "mmnga/Llama-3.1-Swallow-8B-Instruct-v0.5-gguf",
+   "base": "tokyotech-llm/Llama-3.1-Swallow-8B-Instruct-v0.5",
+   "file": "Llama-3.1-Swallow-8B-Instruct-v0.5-Q4_K_M.gguf",
+   "quant": "Q4_K_M",
+   "license": "Llama 3.3 Community License + Gemma Terms of Use",
+   "group": "vram",
+   "think": "none",
+   "why": "日本語特化 8B の定番。思考なしの Swallow として比較",
+   "replaced": null,
+   "size_gb": 4.92,
+   "flash_attn": "on",
+   "gpu_layers": 33,
+   "total_layers": 33,
+   "cpu_weights_mib": 281.81,
+   "load_s": 2.83,
+   "load_first_s": 14.66,
+   "load_s_all": [
+    14.66,
+    2.82,
+    2.85
+   ],
+   "vram_gib": 5.1,
+   "gpu_temp_max_c": 72,
+   "baseline_vram_mib": [
+    1195,
+    1210,
+    1210
+   ],
+   "baseline_other_gpu_pct": [
+    0,
+    0,
+    0
+   ],
+   "tokens_per_char": 0.7434,
+   "gen_tps": 85.5,
+   "jp_chars_per_s": 114.9,
+   "ttft_ms_short": 71,
+   "ttft_ms_summary": 537,
+   "pp_tps_summary": 4256,
+   "gen_tps_summary": 80.6,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 71.23710005544126,
+     "gen_tps": 85.98506792027877,
+     "gen_tps_client": 86.38660553982643,
+     "pp_tps": 1140.9263444281107,
+     "prompt_n": 52,
+     "gen_n": 218
+    },
+    "summary": {
+     "ttft_ms": 537.1296999510378,
+     "gen_tps": 80.6342833144052,
+     "gen_tps_client": 80.84691559669808,
+     "pp_tps": 4255.839882522503,
+     "prompt_n": 2191,
+     "gen_n": 380
+    },
+    "chat": {
+     "ttft_ms": 88.2452999940142,
+     "gen_tps": 85.41977971057908,
+     "gen_tps_client": 85.42121762325364,
+     "pp_tps": 4004.018166640728,
+     "prompt_n": 283,
+     "gen_n": 512
+    }
+   },
+   "llamabench_pp512": 4670.3,
+   "llamabench_tg128": 90.9,
+   "jcqa": {
+    "k": 94,
+    "n": 100,
+    "acc": 0.94,
+    "lo": 0.875,
+    "hi": 0.972,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 48,
+    "n": 100,
+    "acc": 0.48,
+    "lo": 0.385,
+    "hi": 0.577,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "elyza": {
+    "mean": 3.5,
+    "lo": 2.75,
+    "hi": 4.25,
+    "n": 20
+   },
+   "elyza_truncated": 0
+  },
+  {
+   "id": "shisa21-phi4-14b",
+   "name": "Shisa V2.1 unphi4 14B",
+   "maker": "Shisa.AI",
+   "jp": true,
+   "repo": "mradermacher/shisa-v2.1-unphi4-14b-GGUF",
+   "base": "shisa-ai/shisa-v2.1-unphi4-14b",
+   "file": "shisa-v2.1-unphi4-14b.Q4_K_M.gguf",
+   "quant": "Q4_K_M",
+   "license": "MIT",
+   "group": "vram",
+   "think": "none",
+   "why": "日英バイリンガル調整の 14B。12GB に載る日本語特化系で最大級",
+   "replaced": null,
+   "size_gb": 8.89,
+   "flash_attn": "on",
+   "gpu_layers": 41,
+   "total_layers": 41,
+   "cpu_weights_mib": 275.62,
+   "load_s": 4.75,
+   "load_first_s": 26.2,
+   "load_s_all": [
+    26.2,
+    4.81,
+    4.7
+   ],
+   "vram_gib": 9.12,
+   "gpu_temp_max_c": 75,
+   "baseline_vram_mib": [
+    1210,
+    1210,
+    1221
+   ],
+   "baseline_other_gpu_pct": [
+    0,
+    0,
+    0
+   ],
+   "tokens_per_char": 1.1066,
+   "gen_tps": 48.8,
+   "jp_chars_per_s": 44.1,
+   "ttft_ms_short": 53,
+   "ttft_ms_summary": 1341,
+   "pp_tps_summary": 2410,
+   "gen_tps_summary": 45.3,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 52.71219997666776,
+     "gen_tps": 49.306035164359905,
+     "gen_tps_client": 49.425206036165584,
+     "pp_tps": 847.123719464145,
+     "prompt_n": 43,
+     "gen_n": 421
+    },
+    "summary": {
+     "ttft_ms": 1340.7626000698656,
+     "gen_tps": 45.29481294616166,
+     "gen_tps_client": 45.294968725614616,
+     "pp_tps": 2409.5573617668088,
+     "prompt_n": 3218,
+     "gen_n": 512
+    },
+    "chat": {
+     "ttft_ms": 223.23370003141463,
+     "gen_tps": 48.780016709372994,
+     "gen_tps_client": 48.98869082721714,
+     "pp_tps": 2173.9483119453594,
+     "prompt_n": 402,
+     "gen_n": 496
+    }
+   },
+   "llamabench_pp512": 2521.9,
+   "llamabench_tg128": 50.8,
+   "jcqa": {
+    "k": 98,
+    "n": 100,
+    "acc": 0.98,
+    "lo": 0.93,
+    "hi": 0.994,
+    "unparsed": 1,
+    "truncated": 1,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 63,
+    "n": 100,
+    "acc": 0.63,
+    "lo": 0.532,
+    "hi": 0.718,
+    "unparsed": 3,
+    "truncated": 3,
+    "think_truncated": 0
+   },
+   "elyza": {
+    "mean": 3.65,
+    "lo": 3.06,
+    "hi": 4.24,
+    "n": 20
+   },
+   "elyza_truncated": 2
+  },
+  {
+   "id": "sarashina22-3b",
+   "name": "Sarashina2.2 3B instruct v0.1",
+   "maker": "SB Intuitions",
+   "jp": true,
+   "repo": "mmnga/sarashina2.2-3b-instruct-v0.1-gguf",
+   "base": "sbintuitions/sarashina2.2-3b-instruct-v0.1",
+   "file": "sarashina2.2-3b-instruct-v0.1-Q4_K_M.gguf",
+   "quant": "Q4_K_M",
+   "license": "MIT",
+   "group": "vram",
+   "think": "none",
+   "why": "Sarashina 系で重みが公開されている最新の指示モデル（Sarashina3 は重み非公開）",
+   "replaced": null,
+   "size_gb": 2.07,
+   "flash_attn": "off (unsupported)",
+   "gpu_layers": 33,
+   "total_layers": 33,
+   "cpu_weights_mib": 140.62,
+   "load_s": 1.34,
+   "load_first_s": 6.36,
+   "load_s_all": [
+    6.36,
+    1.35,
+    1.32
+   ],
+   "vram_gib": 2.79,
+   "gpu_temp_max_c": 69,
+   "baseline_vram_mib": [
+    1210,
+    1210,
+    1210
+   ],
+   "baseline_other_gpu_pct": [
+    0,
+    0,
+    0
+   ],
+   "tokens_per_char": 0.5335,
+   "gen_tps": 147.0,
+   "jp_chars_per_s": 275.5,
+   "ttft_ms_short": 121,
+   "ttft_ms_summary": 248,
+   "pp_tps_summary": 7056,
+   "gen_tps_summary": 99.2,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 121.36009999085218,
+     "gen_tps": 153.7145683626221,
+     "gen_tps_client": 153.71662759976297,
+     "pp_tps": 168.5298578731532,
+     "prompt_n": 18,
+     "gen_n": 180
+    },
+    "summary": {
+     "ttft_ms": 247.59209994226694,
+     "gen_tps": 99.18354260548247,
+     "gen_tps_client": 99.18811834021095,
+     "pp_tps": 7055.609342051167,
+     "prompt_n": 1596,
+     "gen_n": 130
+    },
+    "chat": {
+     "ttft_ms": 48.790200031362474,
+     "gen_tps": 146.95467422096317,
+     "gen_tps_client": 146.96428882808618,
+     "pp_tps": 6475.373345744466,
+     "prompt_n": 160,
+     "gen_n": 167
+    }
+   },
+   "llamabench_pp512": 8179.2,
+   "llamabench_tg128": 176.9,
+   "jcqa": {
+    "k": 87,
+    "n": 100,
+    "acc": 0.87,
+    "lo": 0.79,
+    "hi": 0.922,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 39,
+    "n": 100,
+    "acc": 0.39,
+    "lo": 0.3,
+    "hi": 0.488,
+    "unparsed": 7,
+    "truncated": 7,
+    "think_truncated": 0
+   },
+   "elyza": {
+    "mean": 2.5,
+    "lo": 2.03,
+    "hi": 2.97,
+    "n": 20
+   },
+   "elyza_truncated": 0
+  },
+  {
+   "id": "gpt-oss-20b",
+   "name": "gpt-oss-20b",
+   "maker": "OpenAI",
+   "jp": false,
+   "repo": "lmstudio-community/gpt-oss-20b-GGUF",
+   "base": "openai/gpt-oss-20b",
+   "file": "gpt-oss-20b-MXFP4.gguf",
+   "quant": "MXFP4",
+   "license": "Apache-2.0",
+   "group": "offload",
+   "think": "on",
+   "why": "人気の MoE。12.1GB で 12GB に収まりきらず一部が CPU 側に回る",
+   "replaced": null,
+   "size_gb": 12.11,
+   "flash_attn": "on",
+   "gpu_layers": 25,
+   "total_layers": 25,
+   "cpu_weights_mib": 1800.5799999999997,
+   "load_s": 10.92,
+   "load_first_s": 14.52,
+   "load_s_all": [
+    14.52,
+    10.9,
+    10.94
+   ],
+   "vram_gib": 9.99,
+   "gpu_temp_max_c": 68,
+   "baseline_vram_mib": [
+    1210,
+    1037,
+    1010
+   ],
+   "baseline_other_gpu_pct": [
+    0,
+    0,
+    0
+   ],
+   "tokens_per_char": 0.82,
+   "gen_tps": 70.2,
+   "jp_chars_per_s": 85.6,
+   "ttft_ms_short": 668,
+   "ttft_ms_summary": 980,
+   "pp_tps_summary": 2645,
+   "gen_tps_summary": 69.2,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 668.2789999758825,
+     "gen_tps": 68.32309644905182,
+     "gen_tps_client": 69.95202891504239,
+     "pp_tps": 146.78997024166966,
+     "prompt_n": 88,
+     "gen_n": 237
+    },
+    "summary": {
+     "ttft_ms": 980.0521000288427,
+     "gen_tps": 69.19762000496476,
+     "gen_tps_client": 70.71453363361184,
+     "pp_tps": 2645.1929039448064,
+     "prompt_n": 2440,
+     "gen_n": 207
+    },
+    "chat": {
+     "ttft_ms": 634.7075999947265,
+     "gen_tps": 70.21769408940155,
+     "gen_tps_client": 70.70736422080762,
+     "pp_tps": 628.6225891977356,
+     "prompt_n": 363,
+     "gen_n": 512
+    }
+   },
+   "llamabench_pp512": 2458.1,
+   "llamabench_tg128": 62.4,
+   "jcqa": {
+    "k": 97,
+    "n": 100,
+    "acc": 0.97,
+    "lo": 0.915,
+    "hi": 0.99,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 72,
+    "n": 100,
+    "acc": 0.72,
+    "lo": 0.625,
+    "hi": 0.799,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "elyza": {
+    "mean": 3.4,
+    "lo": 2.79,
+    "hi": 4.01,
+    "n": 20
+   },
+   "elyza_truncated": 0
+  },
+  {
+   "id": "qwen3.6-35b-a3b",
+   "name": "Qwen3.6 35B-A3B",
+   "maker": "Alibaba Qwen",
+   "jp": false,
+   "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+   "base": "Qwen/Qwen3.6-35B-A3B",
+   "file": "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
+   "quant": "UD-Q4_K_M",
+   "license": "Apache-2.0",
+   "group": "offload",
+   "think": "off",
+   "why": "12GB 機で「専門家を CPU に逃がして動かす」定番の MoE。22GB のうち大半が CPU 側",
+   "replaced": null,
+   "size_gb": 22.13,
+   "flash_attn": "on",
+   "gpu_layers": 41,
+   "total_layers": 41,
+   "cpu_weights_mib": 11613.44,
+   "load_s": 58.72,
+   "load_first_s": 56.72,
+   "load_s_all": [
+    56.72,
+    61.05,
+    56.38
+   ],
+   "vram_gib": 9.87,
+   "gpu_temp_max_c": 47,
+   "baseline_vram_mib": [
+    175,
+    240,
+    240
+   ],
+   "baseline_other_gpu_pct": [
+    0,
+    0,
+    0
+   ],
+   "tokens_per_char": 0.6089,
+   "gen_tps": 14.6,
+   "jp_chars_per_s": 23.9,
+   "ttft_ms_short": 3647,
+   "ttft_ms_summary": 25528,
+   "pp_tps_summary": 71,
+   "gen_tps_summary": 26.1,
+   "speed_detail": {
+    "short": {
+     "ttft_ms": 3647.20100001432,
+     "gen_tps": 13.401939673595397,
+     "gen_tps_client": 13.460275518290771,
+     "pp_tps": 8.250017325036383,
+     "prompt_n": 30,
+     "gen_n": 186
+    },
+    "summary": {
+     "ttft_ms": 25528.242800035514,
+     "gen_tps": 26.054784526931964,
+     "gen_tps_client": 26.290558801047123,
+     "pp_tps": 70.76126213144767,
+     "prompt_n": 1804,
+     "gen_n": 145
+    },
+    "chat": {
+     "ttft_ms": 4131.280000088736,
+     "gen_tps": 25.54750865805068,
+     "gen_tps_client": 26.46928905947687,
+     "pp_tps": 57.72506956113424,
+     "prompt_n": 238,
+     "gen_n": 26
+    }
+   },
+   "llamabench_pp512": 173.4,
+   "llamabench_tg128": 13.8,
+   "jcqa": {
+    "k": 95,
+    "n": 100,
+    "acc": 0.95,
+    "lo": 0.888,
+    "hi": 0.978,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "mmmlu": {
+    "k": 73,
+    "n": 100,
+    "acc": 0.73,
+    "lo": 0.636,
+    "hi": 0.807,
+    "unparsed": 0,
+    "truncated": 0,
+    "think_truncated": 0
+   },
+   "elyza": {
+    "mean": 3.7,
+    "lo": 3.04,
+    "hi": 4.36,
+    "n": 20
+   },
+   "elyza_truncated": 1
+  }
+ ],
+ "excluded": [
+  {
+   "name": "Ternary Bonsai 2 27B（prism-ml/Ternary-Bonsai-2-27B-gguf, PTQ1_0 5.95GB, Apache-2.0）",
+   "reason": "実在とライセンス（Apache-2.0）は確認し、ファイルも取得した（sha256 一致）。ただし PrismML 独自の三値の量子化型を使っており、公式 llama.cpp b11852 では「tensor 'output.weight' has invalid ggml type 143」で読み込めない。動かすには PrismML の llama.cpp フォークの実行ファイルが必要で、今回は同じ条件（公式ビルド）で比べることを優先して外した。"
+  },
+  {
+   "name": "Sarashina3（SB Intuitions）",
+   "reason": "2026-10-24 時点で Hugging Face の sbintuitions に Sarashina3 の重みは公開されていない（無料ベータはサービスとしての提供）。ローカルでは動かせないため、重みが公開されている Sarashina2.2 3B instruct を測った。"
+  },
+  {
+   "name": "llm-jp-4 8B instruct（mmnga-o/llm-jp-4-8b-instruct-gguf Q4_K_M）",
+   "reason": "llama.cpp b11852 のチャット出力の解析（harmony 形式）でサーバーがエラー 500 を返し、回答を受け取れなかった。公式 GGUF がある後継の llm-jp-4.1 8B thinking に差し替えた。"
+  },
+  {
+   "name": "27B〜35B 級の密モデル（Qwen3.8 27B、Gemma 4 31B など）",
+   "reason": "Q4_K_M で 16GB 以上あり、12GB の GPU には載らない。MoE（専門家の一部だけが動くモデル）なら CPU に逃がしても実用速度が出るので、代わりに Qwen3.6 35B-A3B と gpt-oss-20b を「はみ出し組」として測った。"
+  },
+  {
+   "name": "ELYZA の最新モデル（ELYZA-Thinking-1.0 llm-jp-4 32B-A3B など）",
+   "reason": "常に思考する 32B 級で、200問の選択式でも数時間かかる見込みのため今回は外した。ELYZA の 12GB 向けの新しい密モデルは見つからなかった。"
+  }
+ ]
+}
