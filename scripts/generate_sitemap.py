@@ -70,6 +70,7 @@ POLICY: list[tuple[str, tuple[str, str]]] = [
     ("shogi-puyo.html",  ("monthly", "0.8")),
     ("hitofude.html",    ("daily",   "0.9")),   # 日替わりのお題（今夜の一筆）
     ("kyou-no-ken.html", ("daily",   "0.9")),   # 毎日1問（きょうの県）
+    ("nencho-2026.html", ("monthly", "0.8")),   # 令和8年分の年末調整の計算機
     ("lingo.html",       ("monthly", "0.8")),
     ("toeic.html",       ("monthly", "0.8")),
     ("toeic-practice.html", ("monthly", "0.8")),
