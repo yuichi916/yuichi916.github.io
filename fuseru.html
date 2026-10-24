@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<!-- 通信ゼロの約束をブラウザに守らせる設定。fetch・XHR・WebSocket・sendBeacon（connect-src）、フォーム送信、外部スクリプト・外部CSS・外部フォントを禁止。
+     画像だけは自サイトと、表示回数を数える GoatCounter の1か所（入力内容は含まない固定のURL）を許す -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://viewsengineer.goatcounter.com; connect-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="strict-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<title>伏せる — AIに貼る前に、個人情報をブラウザの中だけで伏せ字にする</title>
+<meta name="description" content="文章を ChatGPT や Claude などの AI に貼る前に、名前・電話・住所・メール・マイナンバー・カード番号・口座などを「[人名1]」のような伏せ字に変える道具。入力はどこにも送らず、ブラウザの中だけで処理します（通信を禁止する設定つき）。AIの返事を貼れば元の名前に戻せます。登録なし・無料。">
+<meta name="theme-color" content="#0f1720">
+<link rel="canonical" href="https://yuichi916.github.io/fuseru.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="AIに貼る前に、伏せる。— 個人情報をブラウザの中だけで伏せ字に">
+<meta property="og:description" content="名前・電話・住所・マイナンバー…を [人名1] のような伏せ字に。入力は外に送らない。AIの返事は元の名前に戻せる。">
+<meta property="og:url" content="https://yuichi916.github.io/fuseru.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og/fuseru-1200x630.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<meta name="twitter:image" content="https://yuichi916.github.io/assets/og/fuseru-1200x630.jpg">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="assets/fuseru.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "伏せる — AIに貼る前に、伏せる。",
+  "description": "文章をAIに貼る前に、日本語の個人情報（人名・会社名・住所・郵便番号・電話・メール・URL・IP・マイナンバー・カード番号・口座・生年月日）をブラウザの中だけで伏せ字にする道具。入力は送信しない。AIの返事を元に戻す機能つき。",
+  "url": "https://yuichi916.github.io/fuseru.html",
+  "image": "https://yuichi916.github.io/assets/og/fuseru-1200x630.jpg",
+  "datePublished": "2026-10-24",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Web browser",
+  "inLanguage": "ja",
+  "isAccessibleForFree": true,
+  "author": { "@type": "Person", "name": "yuichi916", "url": "https://yuichi916.github.io/" },
+  "isPartOf": { "@type": "WebSite", "name": "Views Engineer", "url": "https://yuichi916.github.io/" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" }
+}
+</script>
+</head>
+<body>
+<header class="bar">
+  <a class="back" href="index.html">← ひとりぶんの棚</a>
+  <span class="bar-title">伏せる</span>
+  <a class="zero" href="#how">通信ゼロ</a>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <h1>AIに貼る前に、<span class="nb">伏せる。</span></h1>
+    <p class="lead">名前・電話・住所・マイナンバー……を、このページの中だけで <code class="tok">[人名1]</code> のような伏せ字に変えます。AIの返事を貼れば、元の名前に戻せます。</p>
+    <ul class="facts">
+      <li><b>入力は外に送りません。</b>通信そのものを禁止する設定をページに入れています（<a href="#how">仕組み</a>）。</li>
+      <li><b>登録なし・無料。</b>スマホでも使えます。</li>
+      <li><b>完全には見つけられません。</b>特に人名は取りこぼします。貼る前に必ず目で確かめてください（<a href="#limits">できないこと</a>）。</li>
+    </ul>
+  </section>
+
+  <div class="tool">
+    <section class="step" id="step1" aria-labelledby="h-step1">
+      <div class="step-head">
+        <h2 id="h-step1"><span class="n">1</span>文章を貼る</h2>
+        <div class="step-tools">
+          <button type="button" class="btn ghost" id="btn-example">例文を入れる</button>
+          <button type="button" class="btn ghost" id="btn-clear">消す</button>
+        </div>
+      </div>
+      <textarea id="src" class="area" rows="9" spellcheck="false" autocomplete="off" placeholder="ここにメールや議事録などを貼り付けます。&#10;この欄の中身はどこにも送られません。"></textarea>
+      <p class="note" id="src-note" aria-live="polite"></p>
+
+      <fieldset class="types">
+        <legend>伏せる種類 <span class="dim">（押すと切り替わります）</span></legend>
+        <div class="chips" id="chips"></div>
+      </fieldset>
+    </section>
+
+    <section class="step" id="step2" aria-labelledby="h-step2">
+      <div class="step-head">
+        <h2 id="h-step2"><span class="n">2</span>伏せる場所を確かめる</h2>
+      </div>
+      <p class="hint">色の付いた所が伏せる場所です。<b>押すと「伏せない」に</b>、もう一度押すと戻ります。見落としは、文字を選んで「選んだ所を伏せる」で足せます。</p>
+      <div id="preview" class="preview" aria-label="検出した場所の表示"></div>
+      <div class="addbar">
+        <label class="sel">種類
+          <select id="add-type"></select>
+        </label>
+        <button type="button" class="btn" id="btn-add">選んだ所を伏せる</button>
+      </div>
+      <div id="manual" class="manual" hidden></div>
+    </section>
+
+    <section class="step" id="step3" aria-labelledby="h-step3">
+      <div class="step-head">
+        <h2 id="h-step3"><span class="n">3</span>AIに貼る文</h2>
+        <div class="step-tools"><button type="button" class="btn primary" id="btn-copy-out">コピー</button></div>
+      </div>
+      <textarea id="out" class="area" rows="9" readonly spellcheck="false" aria-describedby="out-sum"></textarea>
+      <p class="note" id="out-sum" aria-live="polite"></p>
+    </section>
+
+    <section class="step" id="step4" aria-labelledby="h-step4">
+      <div class="step-head">
+        <h2 id="h-step4"><span class="n">4</span>AIの返事を元に戻す</h2>
+        <div class="step-tools"><button type="button" class="btn primary" id="btn-copy-back">コピー</button></div>
+      </div>
+      <textarea id="reply" class="area short" rows="5" spellcheck="false" autocomplete="off" placeholder="AIの返事をここに貼ると、[人名1] などを元の名前に戻します。"></textarea>
+      <textarea id="back" class="area short" rows="5" readonly spellcheck="false" aria-label="元に戻した文"></textarea>
+      <p class="note" id="back-sum" aria-live="polite"></p>
+
+      <details class="table-box" id="table-box">
+        <summary>対応表（<span id="table-count">0</span>件）</summary>
+        <p class="dim small">この表はこのタブの中だけにあります。閉じたり再読み込みしたりすると消えます。どこにも保存しません。</p>
+        <div class="table-scroll"><table class="map"><thead><tr><th>伏せ字</th><th>元の文字</th></tr></thead><tbody id="table-body"></tbody></table></div>
+        <button type="button" class="btn ghost" id="btn-reset">対応表と手直しを全部消す</button>
+      </details>
+    </section>
+  </div>
+
+  <section class="info" id="why">
+    <h2>なぜ作ったか</h2>
+    <p>2026年10月23日、パナソニックの子会社で、使用が禁止されていた生成AIに従業員約33万人分の個人情報がアップロードされていたと報じられました。仕事の文章をAIに相談したくなる場面は、もう止められません。それなら、貼る前に「人が特定できる部分」だけを機械的に外す手間を、できるだけ小さくしたいと思いました。</p>
+    <p>伏せ字の道具そのものに文章を送ってしまっては意味がありません。だからこのページは、<b>入力を受け取るサーバーを持たず</b>、ブラウザの中だけで動きます。</p>
+  </section>
+
+  <section class="info" id="how">
+    <h2>通信しない仕組み</h2>
+    <ul class="dots">
+      <li>読み込むのは、このサイトに置いた HTML・CSS・JavaScript・地名と名字の一覧だけです。外部のスクリプト・フォント・広告は読みません。</li>
+      <li>ページの先頭に <b>Content-Security-Policy</b> を書き、ブラウザに通信を禁止させています。<code>connect-src 'none'</code> は fetch・XMLHttpRequest・WebSocket・sendBeacon をすべて止め、<code>form-action 'none'</code> はフォーム送信を止めます。もし仕込まれたコードが送ろうとしても、ブラウザが拒否します。</li>
+      <li>例外は1つだけです。表示回数を数えるため、<b>GoatCounter の画像を1回だけ</b>読みます（URL は <code>/count?p=/fuseru.html</code> で固定。入力した文章も、検出結果も含みません。送り元のページは「このサイト」までしか伝えない設定です）。</li>
+      <li>自分で確かめる方法: ブラウザの開発者ツールの「ネットワーク」を開いたまま使ってみてください。文章を貼っても、伏せても、戻しても、新しい通信は1件も出ません。ページを開いたあとに機内モードにしても、そのまま使えます。</li>
+    </ul>
+    <details class="csp">
+      <summary>このページの Content-Security-Policy（全文）</summary>
+      <pre id="csp-text"></pre>
+    </details>
+  </section>
+
+  <section class="info" id="limits">
+    <h2>できないこと</h2>
+    <ul class="dots">
+      <li><b>敬称の付かない名前は、ほとんど見つけられません。</b>「昨日、斎藤と話した」の斎藤は、同じ文の別の場所で「斎藤さん」などと出ていない限り残ります。「様・さん・氏・先生・くん・ちゃん」の前、「氏名：」「担当：」の後、署名欄、「〇〇と申します」などの決まった形だけを手がかりにしています。</li>
+      <li><b>人名でないものを人名にすることがあります。</b>「プリンさん」「チョコさん」のような、さん付けのカタカナの商品名などです。</li>
+      <li>名刺の読み取り（OCR）で「三 宅　直 人」のように一字ずつ空いた名前、辞書にない珍しい名字だけの行、法人格（株式会社など）の付かない会社名・屋号は見つけられません。</li>
+      <li>住所は市区町村＋番地まであるものだけを伏せます。「東京都在住」「港区で開催」のような大まかな地域は残します（ふつうは人を特定しないため）。</li>
+      <li>役職・部署・出来事の組み合わせ（「先月入社した経理の新人」など）からでも人は特定できます。そうした文脈は機械では外せません。</li>
+      <li>伏せ字にしても、<b>会社の規則で禁止されているAIに貼ってよいことにはなりません。</b>規則が先です。</li>
+      <li>画像・PDF・表計算のファイルは扱えません。文字だけです。AIが伏せ字の書き方を大きく変えると（「人名1さん」のように括弧を消すなど）、元に戻せないことがあります。</li>
+    </ul>
+  </section>
+
+  <section class="info" id="accuracy">
+    <h2>どのくらい当たるか</h2>
+    <p>架空の文章で作ったテスト（実在の個人情報は使っていません）で測りました。下の表は、<b>作者が中身を一度も見ていない75件</b>（別の担当が検出器を見ずに書いたもの）に、検出器を固定した状態で初めて通したときの値です。いちばん「答えを見ていない」数字なので、これを載せます。</p>
+    <div class="table-scroll"><table class="metrics" id="metrics"></table></div>
+    <p class="small dim" id="metrics-note"></p>
+    <ul class="dots small">
+      <li><b>適合率</b>＝伏せた所のうち、本当に伏せるべきだった割合。<b>再現率</b>＝伏せるべき所のうち、実際に伏せた割合。種類が同じで、範囲が半分以上重なれば当たりとしました。</li>
+      <li>マイナンバーの検査用数字（チェックデジット）とカード番号の Luhn 検査は、既知の正しい番号で確かめています。</li>
+      <li>テストと計算のスクリプトは <a href="https://github.com/yuichi916/yuichi916.github.io/tree/main/scripts/fuseru">scripts/fuseru</a> にあります。</li>
+    </ul>
+  </section>
+
+  <section class="info" id="sources">
+    <h2>使っているデータ</h2>
+    <ul class="dots">
+      <li>都道府県・市区町村名: 総務省「<a href="https://www.soumu.go.jp/denshijiti/code.html">全国地方公共団体コード</a>」都道府県コード及び市区町村コード（令和6年1月1日更新）の Excel から、政令指定都市の区を含む <span id="n-munis">1,885</span> の名前を取り出しました。</li>
+      <li>名字の一覧: 作者が、よく見かける名字を手で並べた自作のもの（<span id="n-surnames">768</span> 件）です。名字ランキングなどのデータは写していません。名字が一覧にあるかどうかは、署名欄や「部長」の前など、一部の手がかりでだけ使います。</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="foot">
+  <a href="index.html">← ひとりぶんの棚にもどる</a>
+  <span class="dim">作: Views Engineer（yuichi916）</span>
+</footer>
+
+<!-- 表示回数の計測（GoatCounter）。スクリプトは使わず、固定URLの画像を1回読むだけ。入力内容は含まない -->
+<img class="gc" src="https://viewsengineer.goatcounter.com/count?p=/fuseru.html" alt="" width="1" height="1" referrerpolicy="origin" decoding="async">
+
+<script src="data/fuseru/places.js"></script>
+<script src="data/fuseru/surnames.js"></script>
+<script src="data/fuseru/metrics.js"></script>
+<script src="assets/fuseru-core.js"></script>
+<script src="assets/fuseru-app.js"></script>
+</body>
+</html>

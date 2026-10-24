@@ -75,6 +75,7 @@ SECTIONS: list[tuple[str, str]] = [
     ("hitori",               "道具 — ひとりの時間"),
     ("hitoritabi/",          "道具 — 一人旅の記録"),
     ("stopwatch.html",       "道具"),
+    ("fuseru.html",          "道具"),
     ("devlog/",              "作り方"),
     ("journal.html",         "アーカイブ"),
 ]

@@ -66,6 +66,7 @@ POLICY: list[tuple[str, tuple[str, str]]] = [
     ("niwa.html",        ("weekly",  "0.9")),
     ("cabin.html",       ("weekly",  "0.9")),
     ("stopwatch.html",   ("monthly", "0.8")),
+    ("fuseru.html",      ("monthly", "0.8")),   # AIに貼る前に伏せる道具
     ("sudoku.html",      ("monthly", "0.8")),
     ("shogi-puyo.html",  ("monthly", "0.8")),
     ("hitofude.html",    ("daily",   "0.9")),   # 日替わりのお題（今夜の一筆）
