@@ -97,6 +97,8 @@
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
   function rint(run, n) { return Math.floor(rnd(run) * n); }
+  // 局・店ごとに、種と名前から決まる乱数（遊び方で乱数の進み方が変わっても、毎日の一局は全員同じ山札の順・同じ店になる）
+  function sub(run, key) { return { rs: hashSeed('yaku:' + run.seed + ':' + key) }; }
   function shuffle(run, a) { for (var i = a.length - 1; i > 0; i--) { var j = rint(run, i + 1), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
 
   // ------------------------------------------------------------ 辞書
@@ -155,7 +157,7 @@
     run.handsLeft = b && b.id === 'mitte' ? 3 : HANDS;
     run.discLeft = b && b.id === 'nosute' ? 1 : DISCARDS;
     run.handSize = b && (b.id === 'nana' || b.id === 'taisho') ? 7 : HAND_SIZE;
-    run.pile = shuffle(run, run.deck.map(function (t) { return t.id; }));
+    run.pile = shuffle(sub(run, 'deck:' + run.round), run.deck.map(function (t) { return t.id; }).sort(function (a, b) { return a - b; }));
     run.hand = [];
     draw(ctx, run);
   }
@@ -248,16 +250,17 @@
 
   // ------------------------------------------------------------ 店
   function makeShop(ctx, run) {
-    run.shop = { jokers: rollJokers(run, 2), pack: null, rerolls: 0, bought: {} };
+    run.shop = { jokers: rollJokers(run, 2, 0), pack: null, rerolls: 0, bought: {} };
   }
-  function rollJokers(run, n) {
+  function rollJokers(run, n, rerolls) {
+    var r = sub(run, 'shop:' + run.round + ':' + (run.endless || 0) + ':' + rerolls);
     var owned = {}; run.jokers.forEach(function (j) { owned[j.id] = 1; });
     var cands = JOKERS.filter(function (j) { return !owned[j.id]; });
     var out = [];
     while (out.length < n && cands.length) {
       // めずらしい札は出にくい
-      var k = rint(run, cands.length), c = cands[k];
-      if (c.rare && rnd(run) < 0.5) continue;
+      var k = rint(r, cands.length), c = cands[k];
+      if (c.rare && rnd(r) < 0.5) continue;
       out.push(c.id); cands.splice(k, 1);
     }
     return out;
@@ -265,7 +268,7 @@
   function rerollCost(run) { return PRICE.reroll + run.shop.rerolls; }
   function reroll(run) {
     var cost = rerollCost(run); if (run.money < cost) return false;
-    run.money -= cost; run.shop.rerolls++; run.shop.jokers = rollJokers(run, 2); return true;
+    run.money -= cost; run.shop.rerolls++; run.shop.jokers = rollJokers(run, 2, run.shop.rerolls); return true;
   }
   function buyJoker(run, k) {
     var id = run.shop.jokers[k]; if (!id) return false;
@@ -288,7 +291,8 @@
     var cnt = {}; run.deck.forEach(function (t) { cnt[t.ch] = (cnt[t.ch] || 0) + 1; });
     var top = ctx.pool.slice(0, 220).filter(function (c) { return (cnt[c] || 0) < 2; });
     var out = [];
-    while (out.length < 3 && top.length) { var k = rint(run, top.length); out.push(top[k]); top.splice(k, 1); }
+    var r = sub(run, 'pack:' + run.round + ':' + (run.endless || 0));
+    while (out.length < 3 && top.length) { var k = rint(r, top.length); out.push(top[k]); top.splice(k, 1); }
     run.shop.pack = out; run.shop.bought.pack = true; return out;
   }
   function takeFromPack(run, k) {

@@ -109,6 +109,16 @@ function runWith(hand, jokers = [], o = {}) {
   t('山札36枚', a.deck.length === 36 && a.hand.length === 8);
   t('JSONで往復できる', JSON.stringify(JSON.parse(JSON.stringify(a))) === JSON.stringify(a));
 }
+// --- 毎日の一局: 店で何をしても、次の局の山札の順と店の品ぞろえは同じ
+{
+  const a = Y.newRun(ctx, '2026-10-26', { daily: true }), b = Y.newRun(ctx, '2026-10-26', { daily: true });
+  for (const run of [a, b]) { run.phase = 'shop'; run.money = 40; Y.makeShop(ctx, run); }
+  t('同じ日の店は同じ', JSON.stringify(a.shop.jokers) === JSON.stringify(b.shop.jokers));
+  Y.reroll(a); Y.reroll(a); const p = Y.openPack(ctx, a);
+  Y.nextRound(ctx, a); Y.nextRound(ctx, b);
+  t('引き直し・字札を使っても次の局の手札は同じ', a.hand.map((h) => h.ch).join('') === b.hand.map((h) => h.ch).join(''), [a.hand.map((h) => h.ch).join(''), b.hand.map((h) => h.ch).join('')]);
+  t('字札の3字は日で決まる', p && p.length === 3);
+}
 // --- 店
 {
   const run = Y.newRun(ctx, 'shop', {});
