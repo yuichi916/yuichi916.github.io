@@ -73,7 +73,7 @@ POLICY: list[tuple[str, tuple[str, str]]] = [
     ("kyou-no-ken.html", ("daily",   "0.9")),   # 毎日1問（きょうの県）
     ("nencho-2026.html", ("monthly", "0.8")),   # 令和8年分の年末調整の計算機
     ("honmono.html",     ("monthly", "0.8")),   # 原文とAIの文を見分けるクイズ
-    ("mazeru.html",      ("monthly", "0.8")),   # 2つまぜて日本の要素を見つけるゲーム
+    ("mazeru.html",      ("daily",   "0.9")),   # 毎日1問（まぜる漢字・きょうの7字）。プリントの入口も兼ねる
     ("lingo.html",       ("monthly", "0.8")),
     ("toeic.html",       ("monthly", "0.8")),
     ("toeic-practice.html", ("monthly", "0.8")),

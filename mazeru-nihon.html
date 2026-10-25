@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>まぜる日本（前の版）</title>
+<meta name="description" content="水・火・土・風・木・米・人。2つをまぜると新しい要素ができるブラウザゲーム。妖怪、和食、季節の行事、名所、昔話……日本の題材が2,625個。ドラッグでも、タップ2回でもまぜられる。発見した要素は図鑑に入り、基本の要素から何回まぜて届いたかの「深さ」で珍しさがわかる。登録なし・無料。">
+<meta name="theme-color" content="#f3ead8">
+<link rel="canonical" href="https://yuichi916.github.io/mazeru-nihon.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="まぜる日本 — 水と火をまぜたら、何ができる？">
+<meta property="og:description" content="2つまぜると新しい要素ができる。妖怪・和食・行事・名所……日本の題材が2,625個。いちばん深い発見はどこまで行ける？">
+<meta property="og:url" content="https://yuichi916.github.io/mazeru-nihon.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og/mazeru-1200x630.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<meta name="twitter:image" content="https://yuichi916.github.io/assets/og/mazeru-1200x630.jpg">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Shippori+Mincho:wght@700;800&display=swap" rel="stylesheet">
+<link rel="preload" href="data/mazeru/elements.json" as="fetch" crossorigin>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "まぜる日本",
+  "description": "2つの要素をまぜて新しい要素を見つけるブラウザゲーム。基本の要素は水・火・土・風・木・米・人。妖怪・和食・行事・名所・昔話など日本の題材が出てくる。組み合わせ表はローカルのAI（Gemma 4 12B）で事前に作り、抜き取りで確認した。",
+  "url": "https://yuichi916.github.io/mazeru-nihon.html",
+  "image": "https://yuichi916.github.io/assets/og/mazeru-1200x630.jpg",
+  "datePublished": "2026-10-25",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "genre": ["Puzzle", "Crafting", "Casual"],
+  "inLanguage": "ja",
+  "author": { "@type": "Person", "name": "yuichi916", "url": "https://yuichi916.github.io/" },
+  "isPartOf": { "@type": "WebSite", "name": "Views Engineer", "url": "https://yuichi916.github.io/" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" }
+}
+</script>
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<style>
+:root{
+  --paper:#f3ead8; --paper2:#ebdfc6; --card:#fffaf0; --ink:#1f2a44; --dim:#5d6578; --faint:#8b8f99;
+  --line:rgba(31,42,68,.16); --shu:#c8442f; --shu2:#e2674f; --ai:#2a4a7f; --gold:#c99a2e; --ok:#3f8f5a;
+  --r:14px; --hdr:52px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%;background:var(--paper)}
+body{color:var(--ink);font-family:"Zen Maru Gothic",system-ui,sans-serif;font-weight:500;line-height:1.6;
+  background:var(--paper);overflow-x:hidden}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+a{color:var(--ai)}
+.emo{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;line-height:1}
+
+/* ---------- ゲーム画面（1画面） ---------- */
+.game{height:100vh;height:100dvh;min-height:520px;display:grid;grid-template-rows:var(--hdr) 1fr;position:relative}
+.hdr{display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--line);
+  background:rgba(243,234,216,.92);position:relative;z-index:5}
+.logo{display:flex;align-items:baseline;gap:8px;text-decoration:none;color:var(--ink);min-width:0}
+.logo b{font-family:"Shippori Mincho",serif;font-weight:800;font-size:21px;letter-spacing:.04em;white-space:nowrap}
+.logo b i{font-style:normal;color:var(--shu)}
+.count{font-size:13px;color:var(--dim);white-space:nowrap}
+.count strong{font-size:17px;color:var(--ink);font-weight:900}
+.hdr .sp{flex:1}
+.hbtn{display:inline-flex;align-items:center;gap:5px;height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line);
+  background:var(--card);font-size:14px;font-weight:700;white-space:nowrap}
+.hbtn:hover{border-color:var(--ink)}
+.hbtn:focus-visible,.chip:focus-visible,.it:focus-visible{outline:3px solid var(--ai);outline-offset:2px}
+.hbtn .emo{font-size:16px}
+
+.main{display:grid;grid-template-columns:1fr 360px;min-height:0}
+.board{position:relative;overflow:hidden;touch-action:none;
+  background:
+    radial-gradient(circle at 50% 120%,transparent 58%,rgba(31,42,68,.045) 59%,rgba(31,42,68,.045) 63%,transparent 64%) 0 0/56px 28px,
+    radial-gradient(1000px 600px at 50% 40%,#fbf5e8,var(--paper) 70%);
+}
+.board-hint{word-break:auto-phrase;text-wrap:balance;position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  text-align:center;color:var(--faint);font-size:15px;pointer-events:none;padding:24px}
+.board-hint .big{font-family:"Shippori Mincho",serif;font-size:24px;color:var(--dim);font-weight:800}
+.tools{position:absolute;left:12px;bottom:12px;display:flex;gap:8px;z-index:3}
+.tool{height:34px;padding:0 12px;border-radius:999px;background:rgba(255,250,240,.9);border:1px solid var(--line);font-size:13px;font-weight:700}
+.selbar{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);z-index:4;background:var(--ink);color:#fff;border-radius:999px;
+  padding:6px 14px;font-size:13px;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.selbar .emo{font-size:15px}
+
+/* 要素の札（盤と一覧で共通の見た目） */
+.it,.chip{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 13px 0 10px;border-radius:12px;background:var(--card);
+  border:1px solid var(--line);box-shadow:0 1px 0 rgba(31,42,68,.08),0 3px 8px rgba(31,42,68,.06);font-weight:700;font-size:15px;
+  white-space:nowrap;user-select:none;-webkit-user-select:none}
+.it .emo,.chip .emo{font-size:20px}
+.it{position:absolute;left:0;top:0;touch-action:none;cursor:grab;z-index:2;will-change:transform}
+.it.drag{cursor:grabbing;z-index:20;box-shadow:0 10px 24px rgba(31,42,68,.22)}
+.it.sel,.chip.sel{border-color:var(--shu);box-shadow:0 0 0 3px rgba(200,68,47,.25),0 3px 8px rgba(31,42,68,.08)}
+.it.over{border-color:var(--ai);box-shadow:0 0 0 4px rgba(42,74,127,.25)}
+.it.born{animation:born .45s cubic-bezier(.2,1.4,.4,1)}
+.it.shake,.chip.shake{animation:shake .4s}
+.it.newbie::after{content:"NEW";position:absolute;top:-8px;right:-6px;background:var(--shu);color:#fff;font-size:10px;font-weight:900;
+  letter-spacing:.06em;padding:1px 6px;border-radius:999px}
+@keyframes born{0%{transform:var(--t) scale(.3);opacity:0}100%{transform:var(--t) scale(1);opacity:1}}
+@keyframes shake{0%,100%{translate:0}20%{translate:-6px}40%{translate:6px}60%{translate:-4px}80%{translate:4px}}
+.ghost{position:fixed;left:0;top:0;z-index:100;pointer-events:none;opacity:.95}
+.puff{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;pointer-events:none;z-index:1;
+  background:radial-gradient(circle,rgba(200,68,47,.35),rgba(201,154,46,.18) 45%,transparent 70%);animation:puff .6s ease-out forwards}
+@keyframes puff{from{transform:scale(.2);opacity:1}to{transform:scale(1.6);opacity:0}}
+
+/* 一覧 */
+.side{display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);background:rgba(235,223,198,.55)}
+.side-top{display:flex;gap:8px;padding:10px 10px 8px;align-items:center}
+.search{flex:1;min-width:0;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--card);padding:0 12px;font:inherit;font-size:16px;color:var(--ink)}
+.sort{height:38px;border-radius:10px;border:1px solid var(--line);background:var(--card);padding:0 6px;font:inherit;font-size:13px;color:var(--ink)}
+.list{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:4px 10px 16px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:7px;touch-action:pan-y}
+.chip{cursor:grab;touch-action:pan-y}
+.chip.lift{opacity:.4}
+.list-empty{color:var(--faint);font-size:13px;padding:8px 2px}
+
+/* 発見カード（右上から出る・操作を止めない） */
+.found-card{position:absolute;left:12px;right:12px;top:12px;margin:0 auto;z-index:30;width:min(340px,calc(100% - 24px));pointer-events:none;background:var(--card);
+  border:1px solid var(--line);border-radius:16px;box-shadow:0 14px 34px rgba(31,42,68,.18);padding:14px 16px;animation:slidein .35s ease-out}
+.found-card.rare{border:2px solid var(--gold);background:linear-gradient(160deg,#fffaf0,#fbf0d4)}
+@keyframes slidein{from{transform:translateY(-14px);opacity:0}to{transform:none;opacity:1}}
+.fc-top{display:flex;align-items:center;gap:12px}
+.fc-emo{font-size:44px}
+.fc-kicker{font-size:12px;font-weight:900;color:var(--shu);letter-spacing:.08em}
+.fc-name{font-family:"Shippori Mincho",serif;font-weight:800;font-size:24px;line-height:1.25}
+.fc-meta{margin-top:8px;font-size:13px;color:var(--dim);line-height:1.7}
+.stars{color:var(--gold);letter-spacing:1px;font-size:14px}
+.stars i{font-style:normal;color:rgba(31,42,68,.18)}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:200;background:var(--ink);color:#fff;border-radius:999px;
+  padding:9px 18px;font-size:14px;box-shadow:0 8px 20px rgba(0,0,0,.2);white-space:nowrap}
+
+/* モーダル */
+.md{position:fixed;inset:0;z-index:150;background:rgba(31,42,68,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+.md-box{position:relative;background:var(--paper);border-radius:18px;width:min(720px,100%);max-height:min(88dvh,820px);overflow:auto;padding:22px 20px 20px;
+  box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.md-box h2{font-family:"Shippori Mincho",serif;font-weight:800;font-size:23px;margin-bottom:4px;padding-right:40px}
+.md-box .lead{word-break:auto-phrase;font-size:13px;color:var(--dim);margin-bottom:12px}
+.x{position:absolute;top:12px;right:12px;width:38px;height:38px;border-radius:50%;background:var(--card);border:1px solid var(--line);font-size:16px}
+.cats{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px}
+.cat{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 11px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13px;font-weight:700}
+.cat small{font-weight:500;color:var(--faint);font-size:11px}
+.cat[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.cat[aria-pressed="true"] small{color:rgba(255,255,255,.7)}
+.zk-bar{height:8px;border-radius:99px;background:rgba(31,42,68,.1);overflow:hidden;margin:2px 0 12px}
+.zk-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--shu),var(--gold))}
+.zk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.zk{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:84px;padding:8px 4px;border-radius:12px;background:var(--card);
+  border:1px solid var(--line);font-size:13px;font-weight:700;text-align:center;word-break:break-all}
+.zk .emo{font-size:28px}
+.zk .d{font-size:10px;color:var(--faint);font-weight:500}
+.zk.unk{background:transparent;border-style:dashed;color:var(--faint)}
+.zk-more{grid-column:1/-1;text-align:center;font-size:13px;color:var(--faint);padding:6px}
+.detail{margin:0 0 12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.detail .row{display:flex;gap:14px;align-items:center}
+.detail .emo{font-size:46px}
+.detail .nm{font-family:"Shippori Mincho",serif;font-weight:800;font-size:22px}
+.detail dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-top:10px;font-size:13px}
+.detail dt{color:var(--faint)}
+
+.share-card{background:linear-gradient(160deg,#fffaf0,#f6ead0);border:1px solid var(--line);border-radius:16px;padding:16px;margin:8px 0 12px}
+.share-card .n{font-family:"Shippori Mincho",serif;font-weight:800;font-size:40px;line-height:1.1}
+.share-card .n small{font-size:16px;color:var(--dim);font-family:"Zen Maru Gothic",sans-serif;font-weight:700}
+.share-card .deep{margin-top:8px;font-size:15px}
+.share-card .emos{margin-top:10px;font-size:24px;letter-spacing:4px;word-break:break-all}
+.share-pre{font-family:inherit;white-space:pre-wrap;word-break:break-all;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+.row2{display:flex;gap:8px}
+.btn{flex:1;height:46px;border-radius:12px;font-weight:900;font-size:15px;border:1px solid var(--line);background:var(--card)}
+.btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.hint-box{word-break:auto-phrase;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;font-size:15px;margin:8px 0 12px;line-height:1.9}
+.hint-box .emo{font-size:20px}
+
+/* ---------- 説明（下にスクロール） ---------- */
+.about{max-width:760px;margin:0 auto;padding:40px 16px 64px;word-break:auto-phrase;text-wrap:pretty}
+.nw{white-space:nowrap}
+.about h2{font-family:"Shippori Mincho",serif;font-weight:800;font-size:24px;margin:30px 0 10px}
+.about p,.about li{font-size:15px;line-height:1.9}
+.about ul{padding-left:1.2em}
+.about .note{font-size:13px;color:var(--dim)}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.fact{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.fact b{display:block;font-size:24px;font-weight:900;line-height:1.2}
+.fact span{font-size:12px;color:var(--dim)}
+.ex{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.ex span{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:4px 10px;font-size:14px}
+.foot{border-top:1px solid var(--line);margin-top:36px;padding-top:16px;font-size:13px;color:var(--dim)}
+.scroll-cue{position:absolute;right:12px;bottom:12px;z-index:3;font-size:12px;color:var(--faint);text-decoration:none}
+
+/* ---------- スマホ ---------- */
+@media (max-width:760px){
+  :root{--hdr:50px}
+  .hdr{gap:6px;padding:0 10px}
+  .logo b{font-size:18px}
+  .count{font-size:12px}
+  .count strong{font-size:15px}
+  .hbtn{height:34px;padding:0 9px;font-size:13px}
+  .hbtn .lbl{display:none}
+  .hbtn .emo{font-size:18px}
+  .main{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 42%}
+  .side{border-left:0;border-top:1px solid var(--line)}
+  .it,.chip{height:38px;font-size:14px;padding:0 11px 0 9px}
+  .it .emo,.chip .emo{font-size:19px}
+  .board-hint{font-size:13px}
+  .board-hint .big{font-size:20px}
+  .found-card{top:8px;left:8px;right:8px;width:auto}
+  .scroll-cue{display:none}
+}
+@media (max-width:380px){ .count .of{display:none} }
+
+body.nofx *,body.nofx *::before,body.nofx *::after{animation:none!important;transition:none!important}
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important} }
+</style>
+</head>
+<body>
+<section class="game" aria-label="まぜる日本 ゲーム画面">
+  <header class="hdr">
+    <a class="logo" href="./" title="ひとりぶんの棚（トップ）へ"><b>まぜる<i>日本</i></b></a>
+    <span class="count" aria-live="polite"><strong id="n-found">7</strong><span class="of"> / <span id="n-total">—</span></span></span>
+    <span class="sp"></span>
+    <button class="hbtn" type="button" id="btn-hint" aria-label="ヒント"><span class="emo">💡</span><span class="lbl">ヒント</span></button>
+    <button class="hbtn" type="button" id="btn-zukan" aria-label="図鑑"><span class="emo">📖</span><span class="lbl">図鑑</span></button>
+    <button class="hbtn" type="button" id="btn-share" aria-label="共有"><span class="emo">📣</span><span class="lbl">共有</span></button>
+  </header>
+  <div class="main">
+    <div class="board" id="board" aria-label="まぜる場所">
+      <div class="board-hint" id="board-hint">
+        <div class="big">ふたつ重ねると、まざる。</div>
+        <div>一覧から要素をここへドラッグして、別の要素の上で放す。<br>タップで1つ選んで、もう1つタップしてもまざります。</div>
+      </div>
+      <div class="selbar" id="selbar" hidden></div>
+      <div class="tools">
+        <button class="tool" type="button" id="btn-clear">盤を片づける</button>
+      </div>
+      <a class="scroll-cue" href="#about">このゲームについて ↓</a>
+      <div id="found-slot"></div>
+    </div>
+    <aside class="side" aria-label="見つけた要素">
+      <div class="side-top">
+        <input class="search" id="search" type="search" placeholder="見つけた要素をさがす" aria-label="見つけた要素をさがす" autocomplete="off">
+        <select class="sort" id="sort" aria-label="並べかた">
+          <option value="new">新しい順</option>
+          <option value="old">見つけた順</option>
+          <option value="deep">深い順</option>
+        </select>
+      </div>
+      <div class="list" id="list" role="list"></div>
+    </aside>
+  </div>
+</section>
+
+<main class="about" id="about">
+  <h2>まぜる日本とは</h2>
+  <p>水・火・土・風・木・米・人。最初にある7つの要素のうち2つをまぜると、新しい要素ができます。できた要素どうしをまたまぜて、妖怪、和食、季節の行事、名所、昔話……と、日本の何かを探していくゲームです。</p>
+  <div class="ex" id="ex"></div>
+  <div class="facts">
+    <div class="fact"><b id="f-elems">—</b><span>要素の数</span></div>
+    <div class="fact"><b id="f-recipes">—</b><span>組み合わせの数</span></div>
+    <div class="fact"><b id="f-depth">—</b><span>いちばん深い要素の深さ</span></div>
+    <div class="fact"><b id="f-ok">77.5%</b><span>抜き取り200組のうち「なるほど」と判定した割合</span></div>
+  </div>
+
+  <h2>あそびかた</h2>
+  <ul>
+    <li><b>ドラッグ</b>: 一覧の要素を上の盤へ運び、盤の上の別の要素に重ねて放すとまざります。スマホは一覧の要素を少し長く押してから動かします。</li>
+    <li><b>タップ2回</b>: 要素を1つタップして選び、もう1つタップするとまざります。同じ要素を2回タップすると、その要素どうしをまぜます。</li>
+    <li>何も起きない組み合わせもあります。困ったら「💡ヒント」で、新しい要素ができる材料を1つ教えます。</li>
+    <li>見つけた要素は「📖図鑑」に入ります。記録はこのブラウザの中だけに保存され、どこにも送りません。</li>
+  </ul>
+
+  <h2>「深さ」と星の数</h2>
+  <p>深さは、最初の7つから<b>最短で何回まぜれば届くか</b>です。深いほど、たどり着く人が少ない要素です。星は珍しさで、全要素を「深い順、同じ深さなら表の中の作り方が少ない順」に並べて上位何%に入るかで決めています（<span class="nw">★5 = 上位3%</span>、<span class="nw">★4 = 上位10%</span>、<span class="nw">★3 = 上位25%</span>、<span class="nw">★2 = 上位50%</span>）。</p>
+  <p class="note">このゲームはサーバーを持たないので、「世界で最初に見つけた人」は数えられません。代わりに、その要素がどれだけ奥にあるか（深さ）と、表の中に作り方が何通りあるかを出しています。</p>
+
+  <h2>組み合わせの作り方</h2>
+  <p>組み合わせはすべて、<b>このサイトの作者のパソコンで動かしたローカルのAI（<span id="m-name">Google の Gemma 4 12B it、4bit 量子化 Q4_K_M</span>、llama.cpp）</b>で事前に作り、表にしてページに同梱しています。遊んでいる間にAIは呼びません（表のファイルを読み込むだけです）。</p>
+  <ul>
+    <li>最初の7つから幅優先で、「すでにある要素の組」をAIに渡し、できるもの（名詞1語と絵文字1つ）を答えさせました。A+B と B+A は同じ組として1回だけ聞いています。</li>
+    <li>答えはそのまま使わず、門を通しています: 差別的な語・性的な語・むごい語・薬物や犯罪・商品名などの除外辞書、英数字まじりや9字以上の語、辞書にない造語（例: 入力の字をくっつけただけの語）、実在の人物名。さらに語をAIに分類させ、「実在の人物」「商品名・作品名」「不適切」「意味が通らない」となった語を落としました。<span id="m-removed"></span></li>
+    <li>最初の表から200組を抜き出して1組ずつ読んだところ、「なるほど」と思える組は 54.5% でした。そこで、できた組を同じAIに「つながりのわかりやすさ」1〜5点で採点させ、3点以上の組だけを残しました（2点の組は、その要素へ届く道がほかにないときだけ残す）。</li>
+    <li>門を通した表から、もう一度ランダムに200組を抜き出して<b>1組ずつ読んで確認</b>し、「なるほど」と思える組の割合を数えました（<b>77.5%</b>、200組中155組）。この抜き取りの判定は、制作を担当したAI（Anthropic の Claude）が行いました。組み合わせを作ったAIとは別のモデルです。AIが作った表なので、こじつけに見える組や、事実と少しずれた組も残っています。</li>
+  </ul>
+  <p class="note">要素の分類（図鑑のカテゴリ）もAIによるもので、ゆれがあります。気になる組み合わせがあれば X の <a href="https://x.com/ViewsEngineer" rel="noopener">@ViewsEngineer</a> へ。</p>
+
+  <h2>記録を消す</h2>
+  <p><button class="tool" type="button" id="btn-reset">最初からやり直す</button> <span class="note">（このブラウザに保存した発見の記録を消します）</span></p>
+
+  <div class="foot">
+    <a href="./">ひとりぶんの棚（トップ）</a> ・ いまの版: <a href="mazeru.html">まぜる漢字</a> ・ 着想: Neal Agarwal「Infinite Craft」 ・ <span id="m-ver"></span>
+  </div>
+</main>
+
+<div class="md" id="md-zukan" hidden role="dialog" aria-modal="true" aria-labelledby="md-zukan-t">
+  <div class="md-box">
+    <button class="x" type="button" data-close aria-label="閉じる">✕</button>
+    <h2 id="md-zukan-t">図鑑</h2>
+    <p class="lead" id="zk-lead"></p>
+    <div class="zk-bar"><i id="zk-bar" style="width:0"></i></div>
+    <div class="cats" id="zk-cats"></div>
+    <div class="detail" id="zk-detail" hidden></div>
+    <div class="zk-grid" id="zk-grid"></div>
+  </div>
+</div>
+
+<div class="md" id="md-share" hidden role="dialog" aria-modal="true" aria-labelledby="md-share-t">
+  <div class="md-box">
+    <button class="x" type="button" data-close aria-label="閉じる">✕</button>
+    <h2 id="md-share-t">結果を共有</h2>
+    <div class="share-card" id="share-card"></div>
+    <pre class="share-pre" id="share-pre"></pre>
+    <div class="row2">
+      <button class="btn primary" type="button" id="btn-x">X でポストする</button>
+      <button class="btn" type="button" id="btn-copy">文面をコピー</button>
+    </div>
+  </div>
+</div>
+
+<div class="md" id="md-hint" hidden role="dialog" aria-modal="true" aria-labelledby="md-hint-t">
+  <div class="md-box">
+    <button class="x" type="button" data-close aria-label="閉じる">✕</button>
+    <h2 id="md-hint-t">ヒント</h2>
+    <div class="hint-box" id="hint-box">読み込み中…</div>
+    <div class="row2">
+      <button class="btn" type="button" id="btn-hint-more">もう1つの材料も見る</button>
+      <button class="btn primary" type="button" id="btn-hint-place">盤に置く</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script src="assets/mazeru-core.js"></script>
+<script>
+(function () {
+  'use strict';
+  var M = window.Mazeru;
+  var $ = function (id) { return document.getElementById(id); };
+  var params = new URLSearchParams(location.search);
+  var NOFX = params.get('nofx') === '1';
+  if (NOFX) document.body.classList.add('nofx');
+  var DATA_DIR = 'data/mazeru/';
+
+  // ------------------------------------------------------------ 計測（壊れても画面に影響させない）
+  function gc(path) {
+    var tries = 0;
+    (function attempt() {
+      var g = window.goatcounter;
+      if (g && typeof g.count === 'function') { try { g.count({ path: path, title: path, event: true }); } catch (e) {} return; }
+      if (++tries < 20) setTimeout(attempt, 250);
+    })();
+  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.hidden = true; }, 1800);
+  }
+  function fmt(n) { return Number(n).toLocaleString('ja-JP'); }
+
+  // ------------------------------------------------------------ データ
+  var D = null;          // elements.json
+  var E = [];            // [name, emoji, cat, depth, makes, usedIn]
+  var BASES = [];
+  var rankOf = null;
+  var shards = [];       // i -> Promise<Map>
+  var table = new Map(); // 読み込んだ分だけ
+  var loadedShards = 0;
+
+  function loadShard(i) {
+    if (!shards[i]) {
+      shards[i] = fetch(DATA_DIR + 'r/' + String(i).padStart(2, '0') + '.txt')
+        .then(function (r) { if (!r.ok) throw new Error('shard ' + i); return r.text(); })
+        .then(function (t) { M.decodeShard(t, table); loadedShards++; return table; })
+        .catch(function (e) { shards[i] = null; throw e; });
+    }
+    return shards[i];
+  }
+  function loadAll() {
+    var ps = [];
+    for (var i = 0; i < D.shards; i++) ps.push(loadShard(i));
+    return Promise.all(ps);
+  }
+
+  // ------------------------------------------------------------ 保存（使えなくても遊べる）
+  var KEY = 'mazeru-nihon:v1';
+  function loadSave() {
+    var s = null;
+    try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { s = null; }
+    if (!s || typeof s !== 'object' || s.v !== 1) s = { v: 1, found: [], how: {}, at: {}, mixes: 0 };
+    return s;
+  }
+  var SAVE = loadSave();
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch (e) { /* 保存できなくても続ける */ } }
+  var foundSet = new Set();
+
+  // ------------------------------------------------------------ 一覧
+  var sel = null; // { kind: 'chip'|'item', e, el, id }
+  function chipHTML(i) { return '<span class="emo">' + E[i][1] + '</span>' + esc(E[i][0]); }
+  function renderList() {
+    var q = $('search').value.trim();
+    var arr = SAVE.found.slice();
+    var mode = $('sort').value;
+    if (mode === 'new') arr.reverse();
+    else if (mode === 'deep') arr.sort(function (a, b) { return E[b][3] - E[a][3] || a - b; });
+    if (q) arr = arr.filter(function (i) { return E[i][0].indexOf(q) >= 0; });
+    var list = $('list');
+    if (!arr.length) { list.innerHTML = '<div class="list-empty">' + (q ? '見つけた要素の中にありません' : '') + '</div>'; return; }
+    var h = '';
+    for (var k = 0; k < arr.length; k++) {
+      var i = arr[k];
+      h += '<button type="button" class="chip' + (sel && sel.kind === 'chip' && sel.e === i ? ' sel' : '') + '" role="listitem" data-e="' + i + '">' + chipHTML(i) + '</button>';
+    }
+    list.innerHTML = h;
+  }
+  function updateCount() { $('n-found').textContent = fmt(SAVE.found.length); }
+
+  // ------------------------------------------------------------ 盤
+  var board = $('board');
+  var items = new Map(); // id -> {id, e, x, y, el}
+  var nextId = 1;
+  function setPos(it, x, y) {
+    var bw = board.clientWidth, bh = board.clientHeight;
+    var w = it.el.offsetWidth || 100, h = it.el.offsetHeight || 40;
+    it.x = Math.max(4, Math.min(bw - w - 4, x));
+    it.y = Math.max(4, Math.min(bh - h - 4, y));
+    var t = 'translate(' + it.x + 'px,' + it.y + 'px)';
+    it.el.style.setProperty('--t', t);
+    it.el.style.transform = t;
+  }
+  function addItem(e, cx, cy, opts) {
+    var el = document.createElement('div');
+    el.className = 'it' + (opts && opts.born && !NOFX ? ' born' : '') + (opts && opts.newbie ? ' newbie' : '');
+    el.setAttribute('role', 'button'); el.tabIndex = 0;
+    el.innerHTML = chipHTML(e);
+    el.setAttribute('aria-label', E[e][0]);
+    board.appendChild(el);
+    var it = { id: nextId++, e: e, x: 0, y: 0, el: el };
+    el.dataset.id = it.id;
+    items.set(it.id, it);
+    setPos(it, cx - el.offsetWidth / 2, cy - el.offsetHeight / 2);
+    if (opts && opts.newbie) setTimeout(function () { el.classList.remove('newbie'); }, 4000);
+    // 盤に置けるのは40個まで（古いものから片づける）
+    if (items.size > 40) { var first = items.values().next().value; removeItem(first); }
+    $('board-hint').hidden = true;
+    return it;
+  }
+  function removeItem(it) { if (!it) return; items.delete(it.id); it.el.remove(); if (sel && sel.kind === 'item' && sel.id === it.id) clearSel(); }
+  function itemAt(x, y, exceptId) {
+    var r = board.getBoundingClientRect(), bx = x - r.left, by = y - r.top, best = null;
+    items.forEach(function (it) {
+      if (it.id === exceptId) return;
+      var w = it.el.offsetWidth, h = it.el.offsetHeight;
+      if (bx >= it.x - 6 && bx <= it.x + w + 6 && by >= it.y - 6 && by <= it.y + h + 6) best = it; // 上に描かれたもの（後から足したもの）を優先
+    });
+    return best;
+  }
+  function inBoard(x, y) { var r = board.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }
+  function puff(x, y) {
+    if (NOFX) return;
+    var p = document.createElement('div'); p.className = 'puff'; p.style.left = x + 'px'; p.style.top = y + 'px';
+    board.appendChild(p); setTimeout(function () { p.remove(); }, 650);
+  }
+
+  // ------------------------------------------------------------ 選択（タップ2回）
+  function clearSel() {
+    if (sel && sel.el) sel.el.classList.remove('sel');
+    document.querySelectorAll('.chip.sel').forEach(function (c) { c.classList.remove('sel'); });
+    sel = null; $('selbar').hidden = true;
+  }
+  function select(kind, e, el, id) {
+    clearSel();
+    sel = { kind: kind, e: e, el: el, id: id };
+    el.classList.add('sel');
+    $('selbar').innerHTML = '<span class="emo">' + E[e][1] + '</span> ' + esc(E[e][0]) + ' を選択中 — もう1つタップでまぜる';
+    $('selbar').hidden = false;
+  }
+  function tapOn(kind, e, el, id) {
+    if (!D) return;
+    if (!sel) { select(kind, e, el, id); return; }
+    var a = sel;
+    // 同じ札を2回: 自分どうしをまぜる
+    clearSel();
+    var target = kind === 'item' ? items.get(id) : (a.kind === 'item' ? items.get(a.id) : null);
+    var other = a.kind === 'item' && kind === 'item' && a.id !== id ? items.get(a.id) : null;
+    var pos;
+    if (target) pos = { x: target.x + target.el.offsetWidth / 2, y: target.y + target.el.offsetHeight / 2 };
+    else pos = randomSpot();
+    doMix(a.e, e, pos, [target, other].filter(Boolean), [a.el, el]);
+  }
+  // 盤の空いている場所（ほかの札からいちばん離れた候補）を選ぶ
+  function randomSpot() {
+    var bw = board.clientWidth, bh = board.clientHeight, best = null, bestD = -1;
+    for (var k = 0; k < 24; k++) {
+      var x = bw * (0.16 + Math.random() * 0.68), y = bh * (0.2 + Math.random() * 0.6), dmin = 1e9;
+      items.forEach(function (it) {
+        var cx = it.x + it.el.offsetWidth / 2, cy = it.y + it.el.offsetHeight / 2;
+        var d = Math.abs(cx - x) / 1.8 + Math.abs(cy - y);
+        if (d < dmin) dmin = d;
+      });
+      if (dmin > bestD) { bestD = dmin; best = { x: x, y: y }; }
+    }
+    return best;
+  }
+
+  // ------------------------------------------------------------ まぜる
+  var busy = 0;
+  function doMix(a, b, pos, consume, shakeEls) {
+    busy++;
+    var s = M.shardOf(a, b, D.shards);
+    loadShard(s).then(function () {
+      busy--;
+      var r = table.get(M.key(a, b));
+      SAVE.mixes = (SAVE.mixes || 0) + 1;
+      if (SAVE.mixes === 1) gc('mazeru/first-mix');
+      if (r == null) {
+        (shakeEls || []).forEach(function (el) { if (el && el.isConnected) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); } });
+        toast('まざらなかった… ' + E[a][0] + ' ＋ ' + E[b][0]);
+        persist();
+        return;
+      }
+      consume.forEach(removeItem);
+      puff(pos.x, pos.y);
+      var isNew = !foundSet.has(r);
+      addItem(r, pos.x, pos.y, { born: true, newbie: isNew });
+      if (isNew) discover(r, a, b);
+      else persist();
+    }).catch(function () { busy--; toast('表を読み込めませんでした。通信を確かめてください'); });
+  }
+
+  function discover(r, a, b) {
+    foundSet.add(r);
+    SAVE.found.push(r);
+    SAVE.how[r] = [a, b];
+    SAVE.at[r] = Date.now();
+    persist();
+    updateCount();
+    renderList();
+    showFoundCard(r, a, b);
+    var n = SAVE.found.length - BASES.length;
+    if ([1, 10, 30, 50, 100, 200, 300, 500, 1000].indexOf(n) >= 0) gc('mazeru/found/' + n);
+  }
+  function depthNote(f) {
+    if (f.depth === 0) return '（最初からある要素）';
+    if (f.share > 0.5) return '（浅め。多くの人が通る要素）';
+    return '（珍しさ ' + M.pctLabel(f.share) + '）';
+  }
+  function starHTML(n) { var s = ''; for (var i = 0; i < 5; i++) s += i < n ? '★' : '<i>★</i>'; return '<span class="stars" aria-label="星' + n + 'つ">' + s + '</span>'; }
+  function infoOf(i) {
+    var d = E[i][3], share = rankOf(i), st = M.stars(share);
+    return { depth: d, share: share, stars: st, makes: E[i][4], used: E[i][5], cat: D.cats[E[i][2]] };
+  }
+  function showFoundCard(r, a, b) {
+    var f = infoOf(r);
+    var slot = $('found-slot');
+    var rare = f.stars >= 4;
+    var kicker = rare ? '★ 珍しい発見！' : '新しい発見！';
+    var makesTxt = f.makes <= 1 ? '作り方はこの表に<b>1通りだけ</b>' : '作り方はこの表に ' + f.makes + ' 通り';
+    slot.innerHTML = '<div class="found-card' + (rare ? ' rare' : '') + '" role="status">' +
+      '<div class="fc-top"><span class="fc-emo emo">' + E[r][1] + '</span><div><div class="fc-kicker">' + kicker + ' あなたの ' + (SAVE.found.length - BASES.length) + ' 個目</div>' +
+      '<div class="fc-name">' + esc(E[r][0]) + '</div></div></div>' +
+      '<div class="fc-meta">' + starHTML(f.stars) + ' 深さ <b>' + f.depth + '</b>' + depthNote(f) + '<br>' +
+      esc(E[a][0]) + ' ＋ ' + esc(E[b][0]) + ' ・ ' + esc(f.cat) + ' ・ ' + makesTxt + '</div></div>';
+    clearTimeout(showFoundCard._t);
+    showFoundCard._t = setTimeout(function () { slot.innerHTML = ''; }, rare ? 5200 : 3400);
+  }
+
+  // ------------------------------------------------------------ ドラッグ（盤の札・一覧の札）
+  var drag = null; // {kind, e, it, ghost, sx, sy, ox, oy, started, pid, lpTimer, srcEl}
+  var THRESH = 6, LONGPRESS = 220;
+
+  function startGhost(e, x, y) {
+    var g = document.createElement('div'); g.className = 'it ghost drag'; g.innerHTML = chipHTML(e);
+    document.body.appendChild(g);
+    g.style.transform = 'translate(' + (x - g.offsetWidth / 2) + 'px,' + (y - g.offsetHeight / 2) + 'px)';
+    return g;
+  }
+  function onDown(ev) {
+    if (!D || ev.button > 0) return;
+    var chip = ev.target.closest('.chip'), itEl = ev.target.closest('.it');
+    if (!chip && !itEl) return;
+    if (itEl && itEl.classList.contains('ghost')) return;
+    var touch = ev.pointerType === 'touch';
+    if (itEl) {
+      var it = items.get(+itEl.dataset.id);
+      drag = { kind: 'item', e: it.e, it: it, sx: ev.clientX, sy: ev.clientY, ox: ev.clientX - board.getBoundingClientRect().left - it.x,
+               oy: ev.clientY - board.getBoundingClientRect().top - it.y, started: false, pid: ev.pointerId, srcEl: itEl, armed: true };
+      try { itEl.setPointerCapture(ev.pointerId); } catch (e) {}
+    } else {
+      drag = { kind: 'chip', e: +chip.dataset.e, sx: ev.clientX, sy: ev.clientY, started: false, pid: ev.pointerId, srcEl: chip, armed: !touch };
+      if (touch) {
+        // スマホ: 一覧は縦にスクロールするので、少し長押ししてから持ち上げる
+        drag.lpTimer = setTimeout(function () {
+          if (!drag || drag.started) return;
+          drag.armed = true; beginDrag(drag.sx, drag.sy);
+          if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
+        }, LONGPRESS);
+      }
+    }
+  }
+  function beginDrag(x, y) {
+    drag.started = true;
+    if (drag.kind === 'chip') { drag.ghost = startGhost(drag.e, x, y); drag.srcEl.classList.add('lift'); }
+    else drag.it.el.classList.add('drag');
+  }
+  function onMove(ev) {
+    if (!drag || ev.pointerId !== drag.pid) return;
+    var dx = ev.clientX - drag.sx, dy = ev.clientY - drag.sy;
+    if (!drag.started) {
+      if (Math.abs(dx) + Math.abs(dy) < THRESH) return;
+      if (!drag.armed) { clearTimeout(drag.lpTimer); drag = null; return; } // 長押し前に動いた = スクロール
+      beginDrag(ev.clientX, ev.clientY);
+    }
+    ev.preventDefault();
+    if (drag.kind === 'chip') {
+      var g = drag.ghost; g.style.transform = 'translate(' + (ev.clientX - g.offsetWidth / 2) + 'px,' + (ev.clientY - g.offsetHeight / 2) + 'px)';
+    } else {
+      var r = board.getBoundingClientRect();
+      setPos(drag.it, ev.clientX - r.left - drag.ox, ev.clientY - r.top - drag.oy);
+    }
+    var over = itemAt(ev.clientX, ev.clientY, drag.kind === 'item' ? drag.it.id : -1);
+    if (drag.over !== over) { if (drag.over) drag.over.el.classList.remove('over'); if (over) over.el.classList.add('over'); drag.over = over; }
+  }
+  function onUp(ev) {
+    if (!drag || ev.pointerId !== drag.pid) return;
+    var d = drag; drag = null;
+    clearTimeout(d.lpTimer);
+    if (d.over) d.over.el.classList.remove('over');
+    if (!d.started) {
+      // 動かさずに離した = タップ
+      if (ev.type === 'pointercancel') return;
+      if (d.kind === 'chip') tapOn('chip', d.e, d.srcEl, null);
+      else tapOn('item', d.e, d.srcEl, d.it.id);
+      return;
+    }
+    if (d.kind === 'chip') { d.ghost.remove(); d.srcEl.classList.remove('lift'); }
+    else d.it.el.classList.remove('drag');
+    if (ev.type === 'pointercancel') return;
+    var target = itemAt(ev.clientX, ev.clientY, d.kind === 'item' ? d.it.id : -1);
+    var r = board.getBoundingClientRect();
+    if (target) {
+      clearSel();
+      var pos = { x: target.x + target.el.offsetWidth / 2, y: target.y + target.el.offsetHeight / 2 };
+      doMix(d.e, target.e, pos, d.kind === 'item' ? [target, d.it] : [target], [target.el, d.kind === 'item' ? d.it.el : null]);
+    } else if (d.kind === 'chip' && inBoard(ev.clientX, ev.clientY)) {
+      addItem(d.e, ev.clientX - r.left, ev.clientY - r.top);
+    }
+  }
+  document.addEventListener('pointerdown', onDown);
+  document.addEventListener('pointermove', onMove, { passive: false });
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onUp);
+  // 長押しで持ち上げたあとは、一覧のスクロールを止める
+  document.addEventListener('touchmove', function (ev) { if (drag && drag.started) ev.preventDefault(); }, { passive: false });
+  document.addEventListener('contextmenu', function (ev) { if (ev.target.closest('.chip,.it')) ev.preventDefault(); });
+  // キーボード: Enter / Space で選択（タップと同じ）
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') { closeModals(); clearSel(); return; }
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    var chip = ev.target.closest && ev.target.closest('.chip'), itEl = ev.target.closest && ev.target.closest('.it');
+    if (chip) { ev.preventDefault(); tapOn('chip', +chip.dataset.e, chip, null); }
+    else if (itEl) { ev.preventDefault(); tapOn('item', items.get(+itEl.dataset.id).e, itEl, +itEl.dataset.id); }
+  });
+  board.addEventListener('click', function (ev) { if (ev.target === board && sel) clearSel(); });
+
+  $('btn-clear').addEventListener('click', function () { items.forEach(function (it) { it.el.remove(); }); items.clear(); clearSel(); $('board-hint').hidden = false; });
+  $('search').addEventListener('input', renderList);
+  $('sort').addEventListener('change', renderList);
+
+  // ------------------------------------------------------------ モーダル
+  var lastFocus = null;
+  function openModal(id) { lastFocus = document.activeElement; $(id).hidden = false; var x = $(id).querySelector('[data-close]'); if (x) x.focus(); }
+  function closeModals() { document.querySelectorAll('.md').forEach(function (m) { m.hidden = true; }); if (lastFocus && lastFocus.focus) try { lastFocus.focus(); } catch (e) {} }
+  document.querySelectorAll('.md').forEach(function (m) {
+    m.addEventListener('click', function (ev) { if (ev.target === m || ev.target.closest('[data-close]')) closeModals(); });
+  });
+
+  // ------------------------------------------------------------ 図鑑
+  var zkCat = -1;
+  function renderZukan() {
+    var total = E.length, found = SAVE.found.length;
+    $('zk-lead').textContent = '見つけた ' + fmt(found) + ' / ' + fmt(total) + ' 個（' + (found / total * 100).toFixed(1) + '%）。分類はAIによるものです。';
+    $('zk-bar').style.width = (found / total * 100).toFixed(2) + '%';
+    var tot = D.cats.map(function () { return 0; }), got = D.cats.map(function () { return 0; });
+    E.forEach(function (e) { tot[e[2]]++; });
+    SAVE.found.forEach(function (i) { got[E[i][2]]++; });
+    var h = '<button type="button" class="cat" data-c="-1" aria-pressed="' + (zkCat === -1) + '">すべて <small>' + found + '/' + total + '</small></button>';
+    D.cats.forEach(function (c, i) { if (tot[i]) h += '<button type="button" class="cat" data-c="' + i + '" aria-pressed="' + (zkCat === i) + '">' + esc(c) + ' <small>' + got[i] + '/' + tot[i] + '</small></button>'; });
+    $('zk-cats').innerHTML = h;
+    var list = SAVE.found.filter(function (i) { return zkCat < 0 || E[i][2] === zkCat; });
+    list.sort(function (a, b) { return E[b][3] - E[a][3] || a - b; });
+    var g = '';
+    list.forEach(function (i) { g += '<button type="button" class="zk" data-e="' + i + '"><span class="emo">' + E[i][1] + '</span>' + esc(E[i][0]) + '<span class="d">深さ ' + E[i][3] + '</span></button>'; });
+    var rest = (zkCat < 0 ? total : tot[zkCat]) - list.length;
+    for (var k = 0; k < Math.min(rest, 6); k++) g += '<div class="zk unk" aria-hidden="true"><span class="emo">？</span>？？？</div>';
+    if (rest > 0) g += '<div class="zk-more">まだ見つけていない要素が ' + fmt(rest) + ' 個あります</div>';
+    $('zk-grid').innerHTML = g;
+  }
+  function showDetail(i) {
+    var f = infoOf(i), how = SAVE.how[i], at = SAVE.at[i];
+    var howTxt = how ? esc(E[how[0]][0]) + ' ＋ ' + esc(E[how[1]][0]) : '最初からある要素';
+    var dl = '<dt>深さ</dt><dd>' + starHTML(f.stars) + ' ' + f.depth + depthNote(f) + '</dd>' +
+      '<dt>分類</dt><dd>' + esc(f.cat) + '</dd>' +
+      '<dt>あなたの作り方</dt><dd>' + howTxt + '</dd>' +
+      '<dt>表の中の作り方</dt><dd>' + (f.depth === 0 ? '—' : f.makes + ' 通り') + '</dd>' +
+      '<dt>材料になる組</dt><dd>' + f.used + ' 組</dd>' +
+      (at ? '<dt>見つけた日</dt><dd>' + new Date(at).toLocaleDateString('ja-JP') + '</dd>' : '');
+    var box = $('zk-detail');
+    box.innerHTML = '<div class="row"><span class="emo">' + E[i][1] + '</span><div class="nm">' + esc(E[i][0]) + '</div></div><dl>' + dl + '</dl>';
+    box.hidden = false;
+    box.scrollIntoView({ block: 'nearest', behavior: NOFX ? 'auto' : 'smooth' });
+  }
+  $('btn-zukan').addEventListener('click', function () { if (!D) return; $('zk-detail').hidden = true; renderZukan(); openModal('md-zukan'); gc('mazeru/zukan'); });
+  $('zk-cats').addEventListener('click', function (ev) { var b = ev.target.closest('.cat'); if (!b) return; zkCat = +b.dataset.c; $('zk-detail').hidden = true; renderZukan(); });
+  $('zk-grid').addEventListener('click', function (ev) { var b = ev.target.closest('.zk[data-e]'); if (b) showDetail(+b.dataset.e); });
+
+  // ------------------------------------------------------------ ヒント
+  var hint = null;
+  function findHint() {
+    var cands = [];
+    var owned = SAVE.found;
+    table.forEach(function (r, k) {
+      if (foundSet.has(r)) return;
+      var a = Math.floor(k / 8192), b = k % 8192;
+      if (foundSet.has(a) && foundSet.has(b)) cands.push([a, b, r]);
+    });
+    if (!cands.length) return null;
+    // 浅い答えを優先して、毎回少しちがうものを出す
+    cands.sort(function (x, y) { return E[x[2]][3] - E[y[2]][3]; });
+    var top = cands.slice(0, Math.max(8, Math.ceil(cands.length * 0.15)));
+    var c = top[Math.floor(Math.random() * top.length)];
+    if (Math.random() < 0.5) c = [c[1], c[0], c[2]];
+    return { a: c[0], b: c[1], r: c[2], n: cands.length, owned: owned.length };
+  }
+  function renderHint(more) {
+    var box = $('hint-box');
+    if (!hint) { box.textContent = '見つけた要素どうしでできる新しい要素は、もうありません。すごい！'; $('btn-hint-more').hidden = true; $('btn-hint-place').hidden = true; return; }
+    var a = E[hint.a], b = E[hint.b];
+    box.innerHTML = '<span class="emo">' + a[1] + '</span> <b>' + esc(a[0]) + '</b> に、' +
+      (more ? '<span class="emo">' + b[1] + '</span> <b>' + esc(b[0]) + '</b>' : '見つけた要素の<b>どれか</b>') +
+      ' をまぜると、まだ見つけていない要素ができます。<br><span style="font-size:13px;color:var(--dim)">いま手元の要素だけで、新しい要素ができる組があと ' + fmt(hint.n) + ' 組あります。</span>';
+    $('btn-hint-more').hidden = !!more; $('btn-hint-place').hidden = false;
+  }
+  $('btn-hint').addEventListener('click', function () {
+    if (!D) return;
+    $('hint-box').textContent = '読み込み中…'; openModal('md-hint'); gc('mazeru/hint');
+    loadAll().then(function () { hint = findHint(); renderHint(false); }).catch(function () { $('hint-box').textContent = '表を読み込めませんでした。'; });
+  });
+  $('btn-hint-more').addEventListener('click', function () { renderHint(true); });
+  $('btn-hint-place').addEventListener('click', function () {
+    if (!hint) return;
+    closeModals();
+    var bw = board.clientWidth, bh = board.clientHeight;
+    addItem(hint.a, bw * 0.38, bh * 0.45, { born: true });
+    if (!$('btn-hint-more').hidden) return; // 2つめを見ていないなら1つだけ置く
+    addItem(hint.b, bw * 0.62, bh * 0.45, { born: true });
+  });
+
+  // ------------------------------------------------------------ 共有
+  function shareInfo() {
+    var deepest = null, rare = 0;
+    SAVE.found.forEach(function (i) {
+      if (!deepest || E[i][3] > E[deepest][3]) deepest = i;
+      if (E[i][3] > 0 && M.stars(rankOf(i)) >= 4) rare++;
+    });
+    var found = SAVE.found.length;
+    return { found: found, total: E.length, rare: rare,
+             deepest: deepest != null && E[deepest][3] > 0 ? { name: E[deepest][0], emoji: E[deepest][1], depth: E[deepest][3] } : null };
+  }
+  $('btn-share').addEventListener('click', function () {
+    if (!D) return;
+    var o = shareInfo();
+    var recent = SAVE.found.slice(-12).map(function (i) { return E[i][1]; }).join('');
+    $('share-card').innerHTML = '<div class="n">' + fmt(o.found) + ' <small>/ ' + fmt(o.total) + ' 個 見つけた</small></div>' +
+      (o.deepest ? '<div class="deep">いちばん深い発見：<span class="emo">' + o.deepest.emoji + '</span> <b>' + esc(o.deepest.name) + '</b>（深さ ' + o.deepest.depth + '）</div>' : '<div class="deep">まだ深い発見はありません。まぜてみよう。</div>') +
+      (o.rare ? '<div class="deep">★4以上の珍しい発見：<b>' + o.rare + '</b> 個</div>' : '') +
+      '<div class="emos emo" aria-label="最近見つけた要素">' + recent + '</div>';
+    $('share-pre').textContent = M.shareText(o);
+    openModal('md-share');
+  });
+  $('btn-x').addEventListener('click', function () {
+    var url = 'https://x.com/intent/post?text=' + encodeURIComponent(M.shareText(shareInfo()));
+    gc('mazeru/share/x');
+    window.open(url, '_blank', 'noopener');
+  });
+  $('btn-copy').addEventListener('click', function () {
+    var txt = M.shareText(shareInfo());
+    gc('mazeru/share/copy');
+    var done = function () { toast('コピーしました'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () { fallbackCopy(txt); done(); });
+    else { fallbackCopy(txt); done(); }
+  });
+  function fallbackCopy(t) { var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} ta.remove(); }
+
+  $('btn-reset').addEventListener('click', function () {
+    if (!confirm('このブラウザに保存した発見の記録を消して、最初からやり直しますか？')) return;
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    SAVE = loadSave(); initFound(); items.forEach(function (it) { it.el.remove(); }); items.clear();
+    renderList(); updateCount(); $('board-hint').hidden = false; toast('最初からにしました');
+    window.scrollTo({ top: 0, behavior: NOFX ? 'auto' : 'smooth' });
+  });
+
+  // ------------------------------------------------------------ 起動
+  function initFound() {
+    var ok = SAVE.found.filter(function (i) { return Number.isInteger(i) && i >= 0 && i < E.length; });
+    BASES.forEach(function (b) { if (ok.indexOf(b) < 0) ok.unshift(b); });
+    SAVE.found = ok.filter(function (v, k, a) { return a.indexOf(v) === k; });
+    foundSet = new Set(SAVE.found);
+  }
+  fetch(DATA_DIR + 'elements.json').then(function (r) { if (!r.ok) throw new Error('elements'); return r.json(); }).then(function (d) {
+    D = d; E = d.e; BASES = d.bases;
+    rankOf = M.rarityRanker(E);
+    initFound();
+    $('n-total').textContent = fmt(E.length);
+    $('f-elems').textContent = fmt(E.length);
+    $('f-recipes').textContent = fmt(d.recipes);
+    $('f-depth').textContent = d.maxDepth;
+    $('m-ver').textContent = '要素 ' + fmt(E.length) + ' 個 ・ 組み合わせ ' + fmt(d.recipes) + ' 組';
+    if (d.removedTotal) $('m-removed').textContent = '生成の途中と最後の門で落とした答えは合わせて ' + fmt(d.removedTotal) + ' 件です。';
+    // 説明欄の例（固定の数件。表にあるものだけ）
+    renderList(); updateCount();
+    // 基本要素の表を先に読んでおく（最初のひとまぜを待たせない）
+    var need = {}; BASES.forEach(function (b) { need[b % d.shards] = 1; });
+    Object.keys(need).forEach(function (s) { loadShard(+s).catch(function () {}); });
+    examples();
+    if (location.hash === '#play') board.scrollIntoView();
+  }).catch(function () {
+    $('list').innerHTML = '<div class="list-empty">データを読み込めませんでした。再読み込みしてください。</div>';
+  });
+  function examples() {
+    var want = (D.examples || []);
+    var h = '';
+    want.forEach(function (x) { h += '<span><span class="emo">' + E[x[0]][1] + '</span> ' + esc(E[x[0]][0]) + ' ＋ <span class="emo">' + E[x[1]][1] + '</span> ' + esc(E[x[1]][0]) + ' → <span class="emo">' + E[x[2]][1] + '</span> <b>' + esc(E[x[2]][0]) + '</b></span>'; });
+    $('ex').innerHTML = h;
+  }
+  // テスト用の窓口（画面の操作には使わない）
+  window.__mazeru = { state: function () { return { found: SAVE.found.length, items: items.size, loaded: loadedShards, ready: !!D, mixes: SAVE.mixes || 0 }; },
+                      find: function (name) { for (var i = 0; i < E.length; i++) if (E[i][0] === name) return i; return -1; },
+                      recipeFor: function () { var out = null; table.forEach(function (r, k) { if (!out) { var a = Math.floor(k / 8192), b = k % 8192; if (foundSet.has(a) && foundSet.has(b) && !foundSet.has(r)) out = [a, b, r]; } }); return out; } };
+})();
+</script>
+</body>
+</html>
