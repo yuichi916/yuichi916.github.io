@@ -30,7 +30,12 @@ const EXPECTED = [
   ['toeic.html', 'toeic', 'tool', false],
   ['novel-bench.html', 'novel-bench', 'tool', false],
   ['hitoritabi/index.html', 'hitoritabi', 'tool', false],
+  ['mazeru.html', 'kanji-print', 'print', false],
+  ['mazeru.html', 'mazeru', 'game', true],
+  ['kanji-print.html', 'kanji-print', 'print', false],
 ];
+// 役札の結果画面は JS が描くので、描く側（yaku-ui.js）に置き場所があるかを見る
+check('yaku-ui.js: mazeru-yaku / game', () => ok(read('assets/yaku-ui.js').includes('data-feel="mazeru-yaku" data-feel-set="game"'), '役札の結果画面に置き場所が無い'));
 
 // 研究ノートは全部（index.html を除く）。新しいノートは scripts/feel_place.py を再実行すれば通る
 for (const dir of ['method/', 'method/en/']) {

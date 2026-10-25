@@ -270,11 +270,13 @@
         }).join('') + '</ul>';
       }
       h += '<div class="y-learn card"><b>じっくり漢字を学ぶなら</b><p>点や役札のない、シンプルな遊び方もあります。</p><div class="row2"><button class="btn small" type="button" data-learn="daily">きょうの7字</button><button class="btn small" type="button" data-learn="practice">学年別れんしゅう</button><button class="btn small" type="button" data-learn="print">プリント</button></div></div>';
+      h += '<div class="y-feel" data-feel="mazeru-yaku" data-feel-set="game"></div>';
       if (api.pr) h += '<div class="y-pr">' + api.pr('漢字 熟語 問題集', '熟語をもっと覚えるなら、漢字の問題集', '遊んでいる最中には出ません。') + '</div>';
       h += '</div>';
       root.innerHTML = h;
       root._lastShare = text;
       root._lastRun = r;
+      var fe = root.querySelector('.y-feel'); if (fe && api.feel) api.feel(fe);
     }
 
     function renderHow() {

@@ -7,6 +7,7 @@
 Net が横取りして、送られた中身を記録する。count.js は読ませず、window.goatcounter を差し替える。
 """
 import functools
+import re
 import http.server
 import json
 import socketserver
@@ -17,6 +18,18 @@ import urllib.parse
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
+
+def _board_works():
+    src = (Path(__file__).resolve().parents[1] / "assets" / "feel" / "feel-core.js").read_text(encoding="utf-8")
+    out = {}
+    for gid, works in re.findall(r"id: '([a-z]+)'.*?works: \[([^\]]*)\]", src, re.S):
+        out[gid] = re.findall(r"'([^']+)'", works)
+    assert {"cry", "fun", "learn"} <= set(out) and "hitofude" in out["fun"], out
+    return out
+
+
+BOARD_WORKS = _board_works()
+
 
 ROOT = Path(__file__).resolve().parent.parent
 PORT = 8773
@@ -257,10 +270,10 @@ def main():
             expect(rows.nth(0).locator(".name")).to_contain_text("正解の外側")
             expect(rows.nth(1).locator(".name")).to_contain_text("最後まで読んだ 14人")
             page.click('#board .chip[data-id="fun"]')
-            expect(rows).to_have_count(3)
+            expect(rows).to_have_count(len(BOARD_WORKS["fun"]))
             expect(rows.nth(0).locator(".n")).to_have_text("まだ誰も押していません")
             page.click('#board .chip[data-id="learn"]')
-            expect(rows).to_have_count(4)
+            expect(rows).to_have_count(len(BOARD_WORKS["learn"]))
             expect(page.locator('#board .chip[data-id="learn"]')).to_have_attribute("aria-pressed", "true")
             page.eval_on_selector(
                 "#board", "h => h.shadowRoot.addEventListener('click', e => e.preventDefault(), true)")

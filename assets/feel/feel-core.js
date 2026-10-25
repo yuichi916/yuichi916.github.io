@@ -38,6 +38,12 @@ export const SETS = {
     { key: 'omoshiroi', emoji: '✨', ja: '面白かった', en: 'Interesting' },
     { key: 'mata', emoji: '🔁', ja: 'また来る', en: 'Will come back' },
   ],
+  // 印刷して使うプリント（kanji-print）。ひとことは要望・不具合の受け口を兼ねる
+  print: [
+    { key: 'tsukatta', emoji: '\u{1F5A8}\uFE0F', ja: '印刷して使った', en: 'Printed and used' },
+    { key: 'yakudatta', emoji: '💡', ja: '役に立った', en: 'Useful' },
+    { key: 'hoshii', emoji: '📝', ja: 'ほかの形式もほしい', en: 'Want more formats' },
+  ],
   site: [
     { key: 'clap', emoji: '👏', ja: '拍手', en: 'Applause' },
     { key: 'mata', emoji: '🔁', ja: 'また来る', en: 'Will come back' },
@@ -52,6 +58,13 @@ export const HEADINGS = {
   note: { ja: 'このノート、どうでした？', en: 'How was this note?' },
   tool: { ja: 'ここまで見て、どうでした？', en: 'How was it?' },
   site: { ja: 'このサイトに、ひとこと', en: 'A word for this site' },
+  print: { ja: 'このプリント、どうでした？', en: 'How was this worksheet?' },
+};
+
+// 組ごとの、ひとことの例（無ければ TEXT の notePlaceholder）
+export const NOTE_PLACEHOLDERS = {
+  print: { ja: 'たとえば、ほしい形式・文字の大きさ・困ったこと', en: 'Formats you want, font size, problems' },
+  game: { ja: 'たとえば、難しすぎた所や、あったらうれしいもの', en: 'Too hard? Something you wish it had?' },
 };
 
 export const TEXT = {
@@ -103,6 +116,9 @@ export const WORKS = {
   toeic: { title: 'TOEIC Part 5 英文法30問', url: 'toeic.html' },
   'novel-bench': { title: '書き出し診断', url: 'novel-bench.html' },
   hitoritabi: { title: '一人旅フォトジャーナル', url: 'hitoritabi/' },
+  'mazeru-yaku': { title: '役札（まぜる漢字）', url: 'mazeru.html?mode=yaku' },
+  mazeru: { title: 'まぜる漢字（きょうの7字）', url: 'mazeru.html?mode=daily' },
+  'kanji-print': { title: '漢字パズルのプリント', url: 'kanji-print.html' },
   site: { title: 'ひとりぶんの棚', url: './' },
 };
 
@@ -110,9 +126,9 @@ export const WORKS = {
 export const BOARD = [
   // ことつぎの星のはがきは読む前の紹介ページにしかないので、読み終えた人の「泣いた」と混ぜない
   { id: 'cry', label: '泣きたい', key: 'naita', emoji: '😭', stamp: '泣いた', works: ['hyaku', 'seikai'] },
-  { id: 'fun', label: '遊びたい', key: 'tanoshii', emoji: '🎉', stamp: '楽しかった', works: ['hitofude', 'shogi-puyo', 'sudoku', 'ehon'] },
+  { id: 'fun', label: '遊びたい', key: 'tanoshii', emoji: '🎉', stamp: '楽しかった', works: ['hitofude', 'shogi-puyo', 'sudoku', 'ehon', 'mazeru-yaku'] },
   { id: 'learn', label: '学びたい', key: 'yakudatta', emoji: '💡', stamp: '役に立った',
-    works: ['ai-map', 'ai-english', 'toeic', 'novel-bench'] },
+    works: ['ai-map', 'ai-english', 'toeic', 'novel-bench', 'kanji-print'] },
 ];
 
 // 既存の読了イベント（hyaku.html / seikai.html が送っている）

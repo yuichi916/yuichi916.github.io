@@ -235,7 +235,8 @@ function noteBlock(cfg, T, title) {
   const ta = node('textarea');
   ta.id = 'feel-note';
   ta.maxLength = C.NOTE_MAX;
-  ta.placeholder = T.notePlaceholder;
+  const ph = C.NOTE_PLACEHOLDERS[cfg.set];
+  ta.placeholder = (ph && ph[T === C.TEXT.en ? 'en' : 'ja']) || T.notePlaceholder;
   const hp = node('input', 'hp'); // 人には見えない欄。埋まっていたらボット
   hp.type = 'text';
   hp.tabIndex = -1;
