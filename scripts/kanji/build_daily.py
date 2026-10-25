@@ -282,5 +282,37 @@ def main():
         print(d["d"], d["c"], d["o"], len(d["a"]), " ".join(f"{w}({READ[w]})" for w in d["a"]))
 
 
+def refresh(since: str):
+    """辞書を直したあと、盤（字の並び）はそのままに、since 以降の日の答えだけを作り直す。
+    すでに遊ばれた日（since より前）は答えを変えない。盤の条件のうち、答えの数・数字の割合・3字以上の語は満たすことを確かめる。"""
+    path = DATA / "daily.json"
+    old = json.loads(path.read_text(encoding="utf-8"))
+    changed, added, kept = 0, 0, []
+    for day in old["days"]:
+        if day["d"] < since:
+            continue
+        a = answers(day["c"], day["o"])
+        assert a == answers_bruteforce(day["c"], day["o"]), day
+        n = len(a)
+        if not (MIN_N <= n <= MAX_N) or sum(map(numeralish, a)) > MAX_NUMERAL * n or not any(len(w) >= 3 for w in a):
+            kept.append(day["d"])   # 盤の条件を外れる日は答えを変えない（新しく答えになった語は「辞書にはある言葉」のまま）
+            continue
+        assert set(day["a"]) - set(a) <= {w for w in day["a"] if Q.get(w, 2) == 2}, (day["d"], set(day["a"]) - set(a))
+        if a != day["a"]:
+            changed += 1
+            added += n - len(day["a"])
+        day["a"] = a
+    # 既知の正解: 社会・先生 は答えになる語
+    assert Q["社会"] < 2 and Q["先生"] < 2
+    path.write_text(json.dumps(old, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    ns = [len(d["a"]) for d in old["days"] if d["d"] >= since]
+    print(f"{since} から {len(ns)} 日の答えを作り直した。変わった日 {changed}、増えた語 {added}、答えの数 最小{min(ns)} 最大{max(ns)}、そのままの日 {kept}")
+
+
 if __name__ == "__main__":
-    main()
+    # python -I scripts/kanji/build_daily.py --refresh-from=2026-10-26  … 盤はそのまま、答えだけ作り直す
+    arg = next((x for x in sys.argv[1:] if x.startswith("--refresh-from=")), None)
+    if arg:
+        refresh(arg.split("=", 1)[1])
+    else:
+        main()

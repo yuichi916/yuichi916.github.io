@@ -84,9 +84,12 @@ eq(K.streak(['2026-10-22', '2026-10-24'], '2026-10-25'), 1, '1日空くと切れ
 
 // ---------------- 日替わりの表（Python で作った答えと、JS の答えが全日で一致）
 eq(DAILY.days.length, 433, '2026-10-25〜2027-12-31 の433日');
+// 辞書を直したとき（2026-10-25）、数字っぽい答えが25%をこえるので答えを据え置いた日。保存した答えは JS の答えの一部であること
+const FROZEN = new Set(['2027-06-10', '2027-11-11']);
 let dmis = 0;
 for (const d of DAILY.days) {
   const js = K.answers(idx, d.c, d.o).map((r) => r[0]);
+  if (FROZEN.has(d.d)) { ok(d.a.every((w) => js.includes(w)), d.d + ' の据え置いた答えは辞書の答えの一部'); continue; }
   if (JSON.stringify(js) !== JSON.stringify(d.a)) { dmis++; if (dmis < 3) console.log('  ずれ', d.d, d.c, d.o); }
   ok(GRADE[d.c] <= 6 && [...d.o].every((c) => GRADE[c] <= 8) && new Set(d.c + d.o).size === 7, d.d + ' の盤の字');
   ok(d.a.length >= 12 && d.a.length <= 30, d.d + ' の答えの数 ' + d.a.length);

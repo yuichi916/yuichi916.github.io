@@ -45,7 +45,8 @@ JARGON_FIELD = ("baseball", "sumo", "mahjong", "shogi", "go (game)", "hanafuda",
 AFFIX_POS = ("suffix", "prefix", "counter")
 # 頻度の印はあるが、単独の答えとしては不自然な語（野球の言い回し・読みが特殊な語など）。
 # 日替わりの答えを読んで確かめたときに見つけたもの。辞書には残し「辞書にはある言葉」として扱う
-ODD_ANSWERS = set("""中前 左前 右前 左中 右中 中越 左越 右越 七七日 二七日 一期 一二 人中 間中 一人物 代人 上期 下期 小人 大便 小便""".split())
+ODD_ANSWERS = set("""中前 左前 右前 左中 右中 中越 左越 右越 七七日 二七日 一期 一二 人中 間中 一人物 代人 上期 下期 小人 大便 小便
+                  中中 各各 日産 目黒 鳴門 高瀬 醜女 畜生 白人 黒人 手錠 仕手""".split())
 # 同じ字で読みのちがう見出しが2つあり、ふだんの読みでない方が選ばれてしまう語（確かめて直したもの）
 READ_FIX = {"火口": "かこう"}
 BAD_MISC = ("vulgar", "derogatory", "X rated", "sensitive")
@@ -117,8 +118,9 @@ def main():
                 continue
             misc = {m.text for m in el.iter("misc") if m.text}
             bad = sorted(m for m in misc if any(t in m for t in BAD_MISC))
-            obsc = any(any(t in m for t in OBSCURE_MISC) for m in misc)
             senses = el.findall("sense")
+            # 古語・略語などの印は意味ごとに付く。全部の意味がそうなら答えに出さない（1つだけなら出す。例: 社会・先生・大学）
+            obsc = bool(senses) and all(any(any(t in (m.text or "") for t in OBSCURE_MISC) for m in sn.findall("misc")) for sn in senses)
             if senses and all(any(any(j in (f.text or "") for j in JARGON_FIELD) for f in sn.findall("field")) for sn in senses):
                 obsc = True
             pos_all = [p.text or "" for p in el.iter("pos")]
@@ -216,6 +218,8 @@ def main():
     assert idx["大人"][1] == "おとな", idx["大人"]
     assert idx["日本"][1] in ("にほん", "にっぽん")
     assert idx["山脈"][2] == 5                                          # 脈は小5
+    for w in ("社会", "先生", "大学"):                                  # 略語などの印が一部の意味だけにある語は答えにする
+        assert idx[w][3] < 2, (w, idx[w])
     assert idx["憂鬱"][2] == 8 if "憂鬱" in idx else True                # 鬱は2010年に常用入り
     assert idx["東京"][3] == 0 and keep["東京"]["capital"]               # 東京は固有名詞だが よく使う
     assert idx["大蔵省"][3] == 2, idx["大蔵省"]                          # 省庁名（固有名詞らしい）は盤に出さない
