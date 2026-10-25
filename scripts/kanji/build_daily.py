@@ -20,6 +20,7 @@
   - 英訳が大文字で始まる語（東京・月曜 など固有名詞らしい語）は 2 語まで、質1（新聞の下位・spec2・gai のみ）の語は 5 語まで
   - まわりの6字は、どれも2つ以上の答えに使われる
   - 前後14日で中央の字が重ならない
+  - 数字・日付・助数詞だけでできた語（NUM_CHARS の字だけの語）は答えの25%まで。中央に数字の字は置かない
   - 各問の答えを辞書から作り直して（全語をなめる素朴な版で）保存した答えと一致することを assert する
 """
 from __future__ import annotations
@@ -36,8 +37,16 @@ ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data" / "kanji"
 START, END = date(2026, 10, 25), date(2027, 12, 31)
 GAP = 14
-POOL = 24          # 中央の字とよく熟語をつくる字の上位いくつから、まわりの6字を選ぶか
+POOL = 26          # 中央の字とよく熟語をつくる字の上位いくつから、まわりの6字を選ぶか
 MIN_N, MAX_N, TARGET = 12, 30, 18
+# 数字・日付・助数詞だけでできた語（二十日・一回・三人 など）。盤の答えの25%までにする。中央には数字の字を置かない
+NUM_CHARS = set("一二三四五六七八九十百千万億兆零半日年月回人時分秒度番倍枚個円週歳号")
+NUM_CENTER = set("一二三四五六七八九十百千万億兆零")
+MAX_NUMERAL = 0.25
+
+
+def numeralish(w: str) -> bool:
+    return all(ch in NUM_CHARS for ch in w)
 
 W = json.loads((DATA / "words.json").read_text(encoding="utf-8"))
 ROWS = W["common"]
@@ -70,6 +79,8 @@ def score_board(center, outer, a):
     n = len(a)
     if not (MIN_N <= n <= MAX_N):
         return None
+    if center in NUM_CENTER or sum(1 for w in a if numeralish(w)) > MAX_NUMERAL * n:
+        return None
     if any(Q[w] == 2 for w in a):
         return None
     longs = sum(1 for w in a if len(w) >= 3)
@@ -92,7 +103,7 @@ def score_board(center, outer, a):
             + (withc / n) * 3 + low * 0.3 - caps * 0.8)
 
 
-def search(center: str, rng: random.Random, keep: int = 6):
+def search(center: str, rng: random.Random, keep: int = 8):
     """中央の字ごとに、山登り（入れ替え）でよい盤を探す。まわりの字が3つ以上ちがう盤を keep 個まで。"""
     nb = Counter()
     for w in BY_CHAR[center]:
@@ -128,7 +139,7 @@ def search(center: str, rng: random.Random, keep: int = 6):
         return cache[key]
 
     found = {}
-    for restart in range(24):
+    for restart in range(30):
         cur = pool[:6] if restart == 0 else rng.sample(pool, 6)
         best = f(cur)
         improved = True
@@ -156,7 +167,7 @@ def search(center: str, rng: random.Random, keep: int = 6):
 
 def main():
     rng = random.Random(20261025)
-    centers = sorted(k for k, g in GRADE.items() if g <= 6)
+    centers = sorted(k for k, g in GRADE.items() if g <= 6 and k not in NUM_CENTER)
     pool = {}
     for i, c in enumerate(centers):
         b = search(c, rng)
@@ -231,6 +242,7 @@ def main():
         again = answers_bruteforce(c, o)
         assert again == a, (day, again)                  # 辞書から作り直して一致
         assert score_board(c, o, a) is not None, day     # 条件をすべて満たす
+        assert c not in NUM_CENTER and sum(map(numeralish, a)) <= MAX_NUMERAL * len(a), day
         for j in range(max(0, i - GAP), i):
             assert days[j]["c"] != c, (days[j], day)
     # 既知の答え: 火・山・花・大・人・口・水 の盤なら 火山・花火・大人・人口・火口・山火 は作れる語
@@ -240,6 +252,10 @@ def main():
     assert "火山" not in answers_bruteforce("山", "花大人口水金")   # 火 が盤に無ければ作れない
     assert "人々" not in a and all(len(w) >= 2 for w in a)
     assert a == answers("火", "山花大人口水")              # 索引版と素朴な版が一致
+    # 数字っぽさの判定と、数字だらけの盤が弾かれること（負例）
+    assert numeralish("二十日") and numeralish("一回") and numeralish("三人") and not numeralish("日本") and not numeralish("今日")
+    num_board = answers_bruteforce("二", "日前十期一回")
+    assert score_board("二", "日前十期一回", num_board) is None
     # 負例: わざと答えを1つ消した日・盤の字を1つ変えた日は、検算で落ちる
     bad = dict(days[0]); bad["a"] = days[0]["a"][1:]
     assert answers_bruteforce(bad["c"], bad["o"]) != bad["a"]
@@ -255,6 +271,9 @@ def main():
     print("まわりの字の学年:", dict(sorted(Counter(GRADE[k] for d in days for k in d['o']).items())))
     print("長さ別の答え:", dict(sorted(Counter(len(w) for d in days for w in d['a']).items())))
     tot = sum(ns)
+    print("数字っぽい答えの割合: %.1f%%（盤ごとの最大 %.0f%%）" % (
+        100 * sum(1 for d in days for w in d['a'] if numeralish(w)) / tot,
+        100 * max(sum(map(numeralish, d['a'])) / len(d['a']) for d in days)))
     print("質1の答えの割合: %.1f%%  固有名詞らしい語の割合: %.1f%%  中央の字を含む答えの割合: %.1f%%" % (
         100 * sum(1 for d in days for w in d['a'] if Q[w] == 1) / tot,
         100 * sum(1 for d in days for w in d['a'] if w in PROPERISH) / tot,

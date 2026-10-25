@@ -16,6 +16,10 @@
   var KANJI_RE = /^[一-鿿]+$/;
   var KANA_RE = /[぀-ヿ]/;
 
+  // 数字・日付・助数詞だけでできた語（build_daily.py の NUM_CHARS と同じ）。盤の答えの25%まで、中央に数字は置かない
+  var NUM_CHARS = '一二三四五六七八九十百千万億兆零半日年月回人時分秒度番倍枚個円週歳号';
+  var NUM_CENTER = '一二三四五六七八九十百千万億兆零';
+  function numeralish(w) { for (var i = 0; i < w.length; i++) if (NUM_CHARS.indexOf(w[i]) < 0) return false; return true; }
   function points(word) { return POINTS[word.length] || 0; }
   function totalPoints(words) { var s = 0; for (var i = 0; i < words.length; i++) s += points(words[i]); return s; }
 
@@ -148,7 +152,8 @@
     var ans = answers(idx, center, outer);
     var n = ans.length;
     if (n < o.min || n > o.max) return null;
-    var longs = 0, q1 = 0, prop = 0, withc = 0, uses = {};
+    if (NUM_CENTER.indexOf(center) >= 0) return null;
+    var longs = 0, q1 = 0, prop = 0, withc = 0, nums = 0, uses = {};
     for (var i = 0; i < n; i++) {
       var r = ans[i], w = r[0];
       if (r[3] === 2) return null;
@@ -157,10 +162,12 @@
       if (r[3] !== 0) q1++;
       if (idx.proper.has(w)) prop++;
       if (w.indexOf(center) >= 0) withc++;
+      if (numeralish(w)) nums++;
       var seen = {};
       for (var k = 0; k < w.length; k++) if (!seen[w[k]]) { seen[w[k]] = 1; uses[w[k]] = (uses[w[k]] || 0) + 1; }
     }
     if (prop > 2 || q1 > (o.maxQ1 == null ? 4 : o.maxQ1)) return null;
+    if (nums > 0.25 * n) return null;
     if (o.needLong && longs < 1) return null;
     if (withc < (o.minCenter || 3) || withc < (o.centerShare || 0.35) * n) return null;
     var minUse = 99;
@@ -175,7 +182,7 @@
     var r = o.rng || Math.random;
     var cmax = o.centerMaxGrade || Math.min(o.maxGrade, 6);
     var centers = [];
-    idx.byChar.forEach(function (list, ch) { var g = idx.grade[ch]; if (g && g <= cmax) centers.push(ch); });
+    idx.byChar.forEach(function (list, ch) { var g = idx.grade[ch]; if (g && g <= cmax && NUM_CENTER.indexOf(ch) < 0) centers.push(ch); });
     centers.sort();
     var best = null, tries = o.tries || 60;
     for (var t = 0; t < tries && !(best && t >= 12); t++) {
@@ -298,6 +305,7 @@
     POINTS: POINTS, RANKS: RANKS, points: points, totalPoints: totalPoints,
     rankThresholds: rankThresholds, rankOf: rankOf,
     makeIndex: makeIndex, answers: answers, judge: judge, gauge: gauge, shareText: shareText, hintGrid: hintGrid,
+    numeralish: numeralish, NUM_CENTER: NUM_CENTER,
     hashSeed: hashSeed, rng: rng, shuffle: shuffle, evalBoard: evalBoard, makePuzzle: makePuzzle,
     makeTwoIndex: makeTwoIndex, wadouCandidates: wadouCandidates, wadouUnique: wadouUnique, makeWadou: makeWadou,
     jstDate: jstDate, addDays: addDays, daysBetween: daysBetween, msToNextJstMidnight: msToNextJstMidnight, streak: streak

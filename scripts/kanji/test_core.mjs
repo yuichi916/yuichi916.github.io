@@ -92,6 +92,15 @@ for (const d of DAILY.days) {
   ok(d.a.length >= 12 && d.a.length <= 30, d.d + ' の答えの数 ' + d.a.length);
 }
 eq(dmis, 0, '全日で JS の答え＝daily.json の答え');
+// 数字・日付だらけの盤を出さない
+eq([K.numeralish('二十日'), K.numeralish('一回'), K.numeralish('三人'), K.numeralish('日本'), K.numeralish('今日')], [true, true, true, false, false], '数字っぽい語の判定');
+for (const d of DAILY.days) {
+  const nn = d.a.filter(K.numeralish).length;
+  ok(nn <= 0.25 * d.a.length, d.d + ' の数字っぽい答え ' + nn + '/' + d.a.length + ' は25%まで');
+  ok(!K.NUM_CENTER.includes(d.c), d.d + ' の中央は数字の字でない');
+}
+// 負例: 数字だらけの盤（中央が二）は、れんしゅうの評価でも弾かれる
+eq(K.evalBoard(idx, '二', '日前十期一回', { min: 6, max: 30, target: 14, maxGrade: 8, minUse: 1 }), null, '負例: 数字だらけの盤は弾かれる');
 for (let i = 0; i < DAILY.days.length; i++) for (let j = Math.max(0, i - 14); j < i; j++)
   if (DAILY.days[i].c === DAILY.days[j].c) ok(false, '前後14日で中央の字が重なる ' + DAILY.days[i].d);
 
@@ -109,6 +118,7 @@ for (const g of [2, 4, 6, 8]) {
     ok(p.answers.length >= 6 && p.answers.length <= 20, `小${g}: 答え ${p.answers.length} 語`);
     ok([...(p.center + p.outer)].every((c) => GRADE[c] <= g), `小${g}: 盤の字は学年の範囲`);
     ok(p.answers.every((r) => r[2] <= g && r[3] !== 2), `小${g}: 答えも学年の範囲で質2なし`);
+    ok(!K.NUM_CENTER.includes(p.center) && p.answers.filter((r) => K.numeralish(r[0])).length <= 0.25 * p.answers.length, `小${g}: 数字だらけの盤でない`);
     eq(p.answers.map((r) => r[0]), K.answers(idx, p.center, p.outer).map((r) => r[0]), `小${g}: 答えを作り直して一致`);
   }
   ok(made === 12, `学年 ${g}: 12問すべて作れた（${made}）`);
