@@ -7,7 +7,10 @@
 //   random    でたらめに取る。枠がいっぱいなら、でたらめに 1 つ捨てる
 //   archetype 型（金・提灯・連鎖・墨・大トリ）を、いま値打ちがいちばん集まっている型に決めて、その型のお守りと Lv 上げを先に取る
 //   arch:<型> はじめから型を 1 つに決める（gold / lantern / chain / ink / finale / risk / xmult = 掛け算のお守り）
+// STAGE=2 で、ステージ2『雪の山里』の八夜を測る（目標点・大一番・お守りの候補・願い札がステージ2のものになる。まんまるの夜は輪の線を引く）
 import * as K from '../assets/hitofude/core.js';
+
+export const STAGE = +(process.env.STAGE || 1) === 2 ? 2 : 1;
 
 // はじめから選べる 9 つ（assets/hitofude/meta.js の STARTER_CHARMS と同じ。13版: 墨と掛け算の取り合いを、はじめから入れる）
 export const STARTER = ['kinun', 'kodou', 'tairin', 'chouchinshi', 'mashidama', 'amayoke', 'nokorizumi', 'maneki', 'senkou'];
@@ -54,7 +57,7 @@ export function choosePick(policy, offer, held, { slots = K.SLOTS, rng = Math.ra
   }
   const focus = policy === 'archetype' ? focusOf(held) : null, arch = policy.startsWith('arch:') ? policy.slice(5) : null;
   // まだ役に立たない仕掛けのお守り（その仕掛けが出てくる夜までが遠い）は値打ちを下げる
-  const soon = (id) => ((K.CHARM_NEEDS[id] || 0) > night + 2 ? 0.5 : 1);
+  const soon = (id) => (K.charmNeed(id, 0, STAGE) > night + 2 ? 0.5 : 1);
   const w = (id, l) => {
     let v = val(id, l) * soon(id);
     if (policy === 'archetype') { const tags = K.charmById(id).tags; if (focus ? tags.includes(focus) : tags.some((t) => FOCUS.includes(t))) v *= 1.8; }
@@ -127,7 +130,24 @@ function straightStroke(shells, ink, rng, aim = false) {
   const b = (far.length ? far : alive)[Math.floor(rng() * (far.length ? far.length : alive.length))];
   return [{ x: a.x, y: a.y }, { x: b.x, y: b.y }];
 }
-export const strokeFor = (st, rng) => (st.twist === 'massugu' ? straightStroke(st.shells, st.ink, rng, true) : greedyStroke(st.shells, st.ink, rng, st.clouds));
+// まんまるの夜: 玉を中心に、輪の上にいちばん多く玉が並ぶ大きさの輪（中心と、輪が通る所の 2 点。lightStroke が輪にする）
+function ringStroke(shells, ink, rng) {
+  const alive = shells.filter((s) => !s.burst && !s.melted);
+  if (!alive.length) return [];
+  const R = K.roundRadius([{ x: 0, y: 0 }, { x: 1e4, y: 0 }], ink);
+  let best = null;
+  for (let t = 0; t < 14; t++) {
+    const c = alive[Math.floor(rng() * alive.length)];
+    for (const k of [0.45, 0.7, 1]) {
+      const r = R * k;
+      const on = alive.filter((s) => Math.abs(Math.hypot(s.x - c.x, s.y - c.y) - r) <= K.SHELLS[s.type].r + K.BASE_REACH);
+      if (!best || on.length > best.n) best = { n: on.length, c, r, to: on[0] };
+    }
+  }
+  const a = best.to ? Math.atan2(best.to.y - best.c.y, best.to.x - best.c.x) : rng() * Math.PI * 2;
+  return [{ x: best.c.x, y: best.c.y }, { x: best.c.x + Math.cos(a) * best.r, y: best.c.y + Math.sin(a) * best.r }];
+}
+export const strokeFor = (st, rng) => (st.twist === 'massugu' ? straightStroke(st.shells, st.ink, rng, true) : st.twist === 'manmaru' ? ringStroke(st.shells, st.ink, rng) : greedyStroke(st.shells, st.ink, rng, st.clouds));
 // 線を前から frac の長さで切る（墨を残すお守りを持つ人は、短い線も試す）
 export function cut(pts, frac) {
   const total = K.pathLength(pts) * frac, out = [pts[0]];
@@ -146,8 +166,8 @@ export function candidates(st, rng, T) {
   for (let t = 0; t < T; t++) {
     const s = strokeFor(st, rng);
     out.push(s);
-    if (ink && s.length >= 3 && st.twist !== 'massugu') out.push(cut(s, 0.7), cut(s, 0.5));
-    if (lv.tengu && st.twist !== 'massugu') out.push(straightStroke(st.shells, st.ink, rng, true));
+    if (ink && s.length >= 3 && st.twist !== 'massugu' && st.twist !== 'manmaru') out.push(cut(s, 0.7), cut(s, 0.5));
+    if (lv.tengu && st.twist !== 'massugu' && st.twist !== 'manmaru') out.push(straightStroke(st.shells, st.ink, rng, true));
   }
   return out;
 }
@@ -176,20 +196,20 @@ export function playRun(seed, moon, T, rng, pickPolicy = 'priority', { level = 0
   let charms = [], total = 0, cleared = 0, bank = 0, spare = fx.spare, retries = 0, wishes = 0;
   const scores = [], twists = [];
   for (let night = 0; night < K.NIGHTS; night++) {
-    const ctx = { seed, night, charms, moon, bank, level };
+    const ctx = { seed, night, charms, moon, bank, level, stage: STAGE };
     let best = playNight(ctx, T, rng);
-    const target = K.targetFor(seed, night, moon, level);
+    const target = K.targetFor(seed, night, moon, level, STAGE);
     if ((!best || best.result.score < target) && spare > 0) { spare--; retries++; const again = playNight(ctx, T, rng); if (again && (!best || again.result.score > best.result.score)) best = again; }
     const score = best ? best.result.score : 0;
-    scores.push(score); twists.push(K.twistFor(seed, night) ? K.twistFor(seed, night).id : '');
+    scores.push(score); twists.push(K.twistFor(seed, night, STAGE) ? K.twistFor(seed, night, STAGE).id : '');
     total += score;
     if (score < target) break;
     cleared++;
-    if (K.wishMet(best, K.wishFor(seed, night, level, moon), target)) wishes++;
+    if (K.wishMet(best, K.wishFor(seed, night, level, moon, STAGE), target)) wishes++;
     bank = best.result.carry || 0; // 墨壺: いちばん良かった線の残りの墨の半分を、次の夜へ
     // 大一番を越えたら、お守りを 2 つ
-    for (let round = 0; round < (K.isBoss(night) ? 2 : 1); round++) {
-      const offer = K.offerCharms(seed, night, charms, round, { pool, level });
+    for (let round = 0; round < (K.isBoss(night, STAGE) ? 2 : 1); round++) {
+      const offer = K.offerCharms(seed, night, charms, round, { pool, level, stage: STAGE });
       charms = applyPick(charms, choosePick(pickPolicy, offer, charms, { slots: fx.slots, rng, night }));
     }
   }
@@ -240,7 +260,7 @@ if (process.argv[1].endsWith('hitofude-balance.mjs') && process.argv[2] === 'val
     for (const [id, l] of Object.entries(K.charmLevels(r.charms))) { held[id] = (held[id] || 0) + 1; lvSum[id] = (lvSum[id] || 0) + l; }
     r.scores.forEach((s, n) => { perNight[n].push(s); if (r.twists[n]) (byTwist[`${n + 1}:${r.twists[n]}`] ||= []).push(s); });
   }
-  console.log(`moon ${moonArg} T=${T} ${policy} 段位${level} pool=${poolName} N=${N}: nights cleared hist`, hist.map((c, i) => `${i}:${c}`).join(' '));
+  console.log(`ステージ${STAGE} moon ${moonArg} T=${T} ${policy} 段位${level} pool=${poolName} N=${N}: nights cleared hist`, hist.map((c, i) => `${i}:${c}`).join(' '));
   const reach = hist.map((_, i) => hist.slice(i).reduce((a, b) => a + b, 0) / N);
   console.log('P(clear >= n):', reach.slice(1).map((p, i) => `${i + 1}:${(p * 100).toFixed(0)}%`).join(' '));
   // その夜までたどり着いた人のうち、その夜を越えた割合（夜ごとの難しさ）

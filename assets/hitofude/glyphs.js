@@ -24,6 +24,7 @@ import {
   CHARM_LV, MAX_LV, SHELLS, wishById, rulesFor,
   DECAY, SOFT_DECAYS, SPARE_STEP, SPARE_HALF, SENKOU_USE, MANEKI_CAP, BLOOM, TORI_BONUS, FOX_R, DEEP_SPARKS,
   SLOW_FUSE, DAMP_HITS, DARK_SECONDS, SNAP_SECONDS, MIRROR_INK,
+  YUKI_MELT, YUKI_ADD, TORII_ADD, ONI_GOOD, ONI_BAD, HIFUMI_ADD, KNOT_ADD, KNOT_MAX,
 } from './core.js';
 
 // お守りなしの夜のルール（金の玉の倍率・提灯の点の倍・千輪の火花の数を読む）
@@ -214,6 +215,13 @@ const WISH = {
   w_bloom: () => [[S('any'), N('100%')]],
   w_short: () => [[I('inkLeft'), N('≥50%')]],
   w_big_all: () => [[S('ootama'), N('100%')]],
+  // ステージ2
+  w_koori_all: () => [[S('koori'), N('100%')]],
+  w_yuki_all: () => [[S('yuki'), N('100%')]],
+  w_torii_all: () => [[I('stroke'), I('torii'), N('100%')]],
+  w_oni_fuku: () => [[I('stroke'), S('oni'), N('100%')]],
+  w_hifumi: () => [[S('hifumi'), N('1→2→3')]],
+  w_musubi2: () => [[I('knot'), N('≥2')]],
 };
 // 大トリの札（w_tori6・前の版の w_tori8）は、札の言葉の「+6」を読む
 const toriWish = (id) => {
@@ -241,6 +249,21 @@ const GIMMICK = {
   nawa: () => [[I('flame'), O(), I('rope'), O(), S('any')]],
   // 爆発では尺玉はひらかない・全部ひらいてから尺玉 → 倍率 +13
   shaku: () => [[I('boom'), O(), S('shaku'), O('✕')], [S('any'), N('100%'), O(), S('shaku'), M(plus(1 + TORI_BONUS))]],
+  // ---- ステージ2
+  // 氷玉: 線でふれても ✕ / 爆発でとける
+  koori: () => [[I('stroke'), S('koori'), O('✕')], [I('boom'), O(), S('koori'), O(), I('firework')]],
+  // 雪玉: 1.2 秒でとける / ひらけば倍率 +1
+  yuki: () => [[I('timer'), N(n2(YUKI_MELT)), O(), S('yuki'), O('✕')], [S('yuki'), O(), M(plus(YUKI_ADD))]],
+  // 鳥居: 線がくぐると倍率 +2
+  torii: () => [[I('stroke'), I('torii'), O(), M(plus(TORII_ADD))]],
+  // こだま玉: ひらくと反対側でも
+  kodama: () => [[S('kodama'), O(), I('echo'), O(), I('boom')]],
+  // 鬼玉: 線なら +3 / 爆発なら −3
+  oni: () => [[I('stroke'), S('oni'), O(), M(plus(ONI_GOOD))], [I('boom'), S('oni'), O(), M(`${MINUS}${ONI_BAD}`)]],
+  // 一二三: 順にひらくと +1・+2・+4
+  hifumi: () => [[S('hifumi'), N('1→2→3'), O(), M(plus(HIFUMI_ADD.reduce((a, b) => a + b, 0)))]],
+  // 結び: 線が交わると爆ぜる・結び目ごとに +2（3 つまで）
+  musubi: () => [[I('knot'), O(), I('boom'), M(plus(KNOT_ADD))], [N(`≤${KNOT_MAX}`)]],
 };
 export function gimmickGlyph(id) { return GIMMICK[id] ? join(GIMMICK[id]()) : []; }
 
@@ -250,6 +273,9 @@ const TWIST = {
   kagami: () => [[I('stroke'), O(), I('mirror')], [I('ink'), N(down(MIRROR_INK))]],
   yamiyo: () => [[I('timer'), N(String(DARK_SECONDS)), O(), I('dark')]],
   isshun: () => [[I('hand'), I('timer'), N(String(SNAP_SECONDS)), O(), I('lineEnd')]],
+  // ステージ2: まんまる（線が輪になる）/ とぎれ（点線。切れ目は爆発で越える）
+  manmaru: () => [[I('stroke'), O(), I('ring')]],
+  togire: () => [[I('stroke'), O(), I('dashes')]],
 };
 export function twistGlyph(id) { return TWIST[id] ? join(TWIST[id]()) : []; }
 
@@ -273,6 +299,15 @@ const HINT = {
   gold: () => [[S('kin'), O(), M(plus(BASE.goldBonus))]],
   far: () => [[S('any'), I('stroke'), S('any')]],
   general: () => [[I('lineStart'), S('any'), S('any'), S('any'), O(), S('any')]],
+  // ステージ2
+  twist_manmaru: () => [[I('ring'), S('any'), S('any'), S('any')]],
+  twist_togire: () => [[I('dashes'), S('any'), I('dashes'), S('any')]],
+  oniBad: () => [[I('stroke'), S('oni'), O(), M(plus(ONI_GOOD))]],
+  yukiMelt: () => [[I('lineStart'), S('yuki'), O(), M(plus(YUKI_ADD))]],
+  hifumi: () => [[S('hifumi'), N('1→2→3')]],
+  koori: () => [[S('any'), I('boom'), O(), S('koori')]],
+  musubi: () => [[I('knot'), O(), I('boom')]],
+  torii: () => [[I('stroke'), I('torii'), O(), M(plus(TORII_ADD))]],
 };
 export function hintGlyph(id) { return HINT[id] ? join(HINT[id]()) : []; }
 
