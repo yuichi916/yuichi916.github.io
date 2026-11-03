@@ -257,6 +257,10 @@ export const BASE_COUNTS = [16, 20, 24, 28, 32, 36, 40, 44];
 export const BASE_COUNTS2 = [18, 22, 25, 28, 32, 36, 40, 44];
 export const TARGET_RATIO2 = [0.35, 0.7, 0.85, 1.45, 2.1, 2.2, 3.2, 3.5];
 export const TARGETS2 = [260, 650, 890, 3800, 9000, 11000, 38000, 67000];
+// ステージ2の段位ごとの目標の倍率（段位の target にさらに掛ける）。ステージ2はふだん雲が無いので、段位 3 から二〜八夜すべてに雲が出て、
+// 雲の分だけ目標に届きにくい（基準点は雲なしの並びとの高い方をとる）。段位 3 の完走がステージ1の 23% に対して 11% だった。
+// 値打ち順のお守り・すべてのお守り・N=400 で、どの段位もステージ1の完走の 0.8 倍前後になるようにした（_dev/hitofude-stage2.md）
+export const LEVEL_TARGET2 = [1, 1, 1, 0.8, 0.85, 0.85, 0.85, 0.85, 0.85];
 
 // ---------------------------------------------------------------- 段位（何周も遊ぶ人のための、むずかしさの段）
 // 段位 n は、1〜n の決まりが全部重なる。fx は重なったあとの値（ページは LEVELS[n].fx を読む）。
@@ -338,7 +342,7 @@ export function targetFor(seed, night, moon = 4, level = 0, stage = 1) {
   const key = stage === 1 ? `${seed >>> 0}|${night}|${moon}|${level}` : `s${stage}|${seed >>> 0}|${night}|${moon}|${level}`;
   if (targetCache.has(key)) return targetCache.get(key);
   const tw = twistFor(seed, night, stage), ratio = stage === 2 ? TARGET_RATIO2 : TARGET_RATIO;
-  let t = Math.max(30, round2(parScore(seed, night, moon, level, stage) * ratio[night] * (tw ? tw.target : 1) * levelFx(level).target));
+  let t = Math.max(30, round2(parScore(seed, night, moon, level, stage) * ratio[night] * (tw ? tw.target : 1) * levelFx(level).target * (stage === 2 ? LEVEL_TARGET2[level] : 1)));
   if (night > 0) {
     const prev = targetFor(seed, night - 1, moon, level, stage);
     t = Math.max(t, prev, round2(prev * (tw ? 1 : TARGET_STEP)));

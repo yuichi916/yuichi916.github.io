@@ -61,7 +61,7 @@ function validate(name, tokens, { lv3 = false } = {}) {
 }
 
 // failHint が返す id（core.js の failHint の本文から読む。大一番のヒントは twist_<id>）
-const coreSrc = readFileSync(new URL('../assets/hitofude/core.js', import.meta.url), 'utf8');
+const coreSrc = readFileSync(new URL('../assets/hitofude/core.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n'); // Windows の CRLF でも本文を切り出せるように
 const failBody = coreSrc.slice(coreSrc.indexOf('export function failHint'), coreSrc.indexOf('\n}\n', coreSrc.indexOf('export function failHint')));
 const HINT_IDS = [...new Set([...failBody.matchAll(/id: '([^']+)'/g)].map((m) => m[1]).filter((id) => !id.endsWith('_')))].concat([...K.TWISTS, ...K.TWISTS2].map((tw) => 'twist_' + tw.id));
 const SHOP_IDS = ['reroll', 'ink', 'life', 'focus'];
