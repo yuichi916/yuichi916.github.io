@@ -5,8 +5,10 @@
 //   drawTown:  屋台の提灯の列（屋台の夜）と、川をゆく屋形船
 //   drawCrowd: 手前の見物客。大きな連鎖で手を上げ、スマホを掲げ、「たまや〜」と声が上がる
 //   paintLand: 夜ごとに一度だけ描く陸の絵（夜の雲・山の重なり・木立・瓦屋根の町・五重塔・太鼓橋・柳・月の道・紙の質感）
+//   paintSnowLand / drawSnowTown: ステージ2『雪の山里』の陸の絵（雪山・杉の森・温泉宿・鳥居・雪原・雪灯籠）と、降る雪・湯けむり
 
 export function createScenery() {
+  let snowFlakes = null;
   let excite = 0, nextShoot = 4, twinkleKey = '', twinkles = [], lastV = { L: 0, R: 360, T: 0, B: 640 };
   const shooting = [], cheers = [];
   const rnd = mulberry(20260926);
@@ -253,6 +255,112 @@ export function createScenery() {
       const vg = g.createRadialGradient(cx, cy * 0.9, rad * 0.45, cx, cy, rad);
       vg.addColorStop(0, 'rgba(0,0,12,0)'); vg.addColorStop(1, 'rgba(0,0,12,.38)');
       g.fillStyle = vg; g.fillRect(L, v.T, W, v.B - v.T);
+      g.restore();
+    },
+    // ---- ステージ2『雪の山里』の景色（冬の山あい。雪をかぶった山・杉の森・湯けむりの温泉宿・丘の上の鳥居・雪原）
+    // 夜ごとに一度だけ描く陸の絵（paintLand の冬版）
+    paintSnowLand(g, v, { hz = 562, moonX = 300 } = {}) {
+      const { L, R } = v, W = R - L, r = mulberry(1212);
+      // 遠い雪山（白い頂と、青い影）
+      const peaks = [];
+      // 夜の雪山は、月明かりの頂だけ白く、下は暗い青（花火と HUD が沈まないように）
+      for (let x = L - 40; x < R + 60; x += 70 + r() * 60) peaks.push({ x, h: 70 + r() * 60, w: 80 + r() * 60 });
+      for (const pk of peaks) {
+        const grd = g.createLinearGradient(0, hz - pk.h, 0, hz);
+        grd.addColorStop(0, '#aebfdf'); grd.addColorStop(0.18, '#5d73a3'); grd.addColorStop(0.55, '#26355f'); grd.addColorStop(1, '#152040');
+        g.fillStyle = grd; g.beginPath(); g.moveTo(pk.x - pk.w, hz); g.lineTo(pk.x - pk.w * 0.18, hz - pk.h * 0.86); g.lineTo(pk.x, hz - pk.h); g.lineTo(pk.x + pk.w * 0.22, hz - pk.h * 0.82); g.lineTo(pk.x + pk.w, hz); g.closePath(); g.fill();
+        // 尾根の影（右がわ）
+        g.fillStyle = 'rgba(10,18,40,.4)'; g.beginPath(); g.moveTo(pk.x, hz - pk.h); g.lineTo(pk.x + pk.w * 0.22, hz - pk.h * 0.82); g.lineTo(pk.x + pk.w, hz); g.lineTo(pk.x + pk.w * 0.2, hz); g.closePath(); g.fill();
+      }
+      const mist = g.createLinearGradient(0, hz - 60, 0, hz);
+      mist.addColorStop(0, 'rgba(150,175,220,0)'); mist.addColorStop(1, 'rgba(170,195,235,.4)');
+      g.fillStyle = mist; g.fillRect(L, hz - 60, W, 60);
+      // 杉の森（とがった木。先に雪）
+      for (let x = L - 6; x < R + 8; x += 6 + r() * 7) {
+        const h = 18 + r() * 16, w = 6 + r() * 4, base = hz - 6 - r() * 6;
+        g.fillStyle = '#0d1a30'; g.beginPath(); g.moveTo(x - w, base); g.lineTo(x, base - h); g.lineTo(x + w, base); g.closePath(); g.fill();
+        g.fillStyle = 'rgba(230,240,255,.75)'; g.beginPath(); g.moveTo(x - w * 0.35, base - h * 0.62); g.lineTo(x, base - h); g.lineTo(x + w * 0.35, base - h * 0.62); g.closePath(); g.fill();
+      }
+      // 丘の上の鳥居と石段の灯り（左寄り）
+      const tx = L + W * 0.2, ty = hz - 34;
+      g.strokeStyle = '#7a1c14'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(tx - 9, ty); g.lineTo(tx - 9, ty + 18); g.moveTo(tx + 9, ty); g.lineTo(tx + 9, ty + 18); g.stroke();
+      g.lineWidth = 2.6; g.beginPath(); g.moveTo(tx - 15, ty - 2); g.quadraticCurveTo(tx, ty + 1, tx + 15, ty - 2); g.stroke();
+      g.lineWidth = 1.6; g.beginPath(); g.moveTo(tx - 11, ty + 4); g.lineTo(tx + 11, ty + 4); g.stroke();
+      g.fillStyle = 'rgba(240,248,255,.85)'; g.fillRect(tx - 16, ty - 4.5, 32, 1.6);
+      // 温泉宿の町並み: 雪の積もった屋根・灯る窓
+      const town = mulberry(77);
+      let x = L - 8;
+      const glows = [];
+      while (x < R + 10) {
+        const w = 24 + town() * 26, two = town() < 0.35, h = (two ? 22 : 14) + town() * 7, base = hz, top = base - h;
+        g.fillStyle = '#0b1226'; g.fillRect(x, top, w, h);
+        const rh = 8 + town() * 4;
+        g.fillStyle = '#0a1020'; g.beginPath(); g.moveTo(x - 5, top + 1.5); g.lineTo(x + w * 0.5, top - rh); g.lineTo(x + w + 5, top + 1.5); g.closePath(); g.fill();
+        // 屋根の雪（ふっくら）
+        g.fillStyle = '#e8f0fb'; g.beginPath(); g.moveTo(x - 6, top + 1); g.lineTo(x + w * 0.5, top - rh - 2.5); g.lineTo(x + w + 6, top + 1); g.quadraticCurveTo(x + w * 0.5, top - rh * 0.4, x - 6, top + 1); g.fill();
+        const nwin = Math.max(1, Math.floor(w / 11));
+        for (let j = 0; j < nwin; j++) {
+          if (town() < 0.35) continue;
+          const wx = x + 3 + j * (w - 6) / nwin, wy = two && town() < 0.5 ? top + 3 : base - 9, ww = Math.min(7, (w - 6) / nwin - 2), wh = 5;
+          g.fillStyle = '#ffcf73'; g.globalAlpha = 0.65 + town() * 0.3; g.fillRect(wx, wy, ww, wh); g.globalAlpha = 1;
+          g.fillStyle = 'rgba(40,20,10,.5)'; g.fillRect(wx + ww / 2 - 0.3, wy, 0.6, wh);
+          glows.push([wx + ww / 2, wy + wh / 2]);
+        }
+        x += w + 4;
+      }
+      g.save(); g.globalCompositeOperation = 'lighter';
+      for (const [gx, gy] of glows) { const gg = g.createRadialGradient(gx, gy, 0, gx, gy, 10); gg.addColorStop(0, 'rgba(255,200,110,.25)'); gg.addColorStop(1, 'rgba(255,150,80,0)'); g.fillStyle = gg; g.fillRect(gx - 10, gy - 10, 20, 20); }
+      g.restore();
+      // 雪原（町の手前）: 青白い雪の面と、月の光のすじ
+      const snow = g.createLinearGradient(0, hz, 0, v.B);
+      snow.addColorStop(0, '#7f93ba'); snow.addColorStop(0.15, '#46597f'); snow.addColorStop(1, '#141d36');
+      g.fillStyle = snow; g.fillRect(L, hz, W, v.B - hz);
+      g.fillStyle = 'rgba(235,242,255,.18)';
+      for (let i = 0; i < 14; i++) { const yy = hz + 4 + i * 6, ww = 30 - i * 1.4; g.fillRect(moonX - ww / 2 + ((i * 29) % 9) - 4, yy, ww, 1.4); }
+      // 雪の吹きだまりの起伏
+      g.strokeStyle = 'rgba(220,232,255,.22)'; g.lineWidth = 1;
+      for (let k = 0; k < 4; k++) { const y0 = hz + 14 + k * 22; g.beginPath(); for (let xx = L; xx <= R; xx += 12) g.lineTo(xx, y0 + Math.sin(xx / 37 + k) * 3); g.stroke(); }
+      // 雪灯籠（雪原に、小さな灯り）
+      const lr = mulberry(31);
+      for (let i = 0; i < 7; i++) {
+        const lx = L + (i + 0.5) / 7 * W + (lr() - 0.5) * 20, ly = hz + 12 + lr() * Math.max(8, Math.min(60, v.B - hz - 40));
+        g.save(); g.globalCompositeOperation = 'lighter'; g.drawImage(halo([255, 190, 110]), lx - 9, ly - 9, 18, 18); g.restore();
+        g.fillStyle = '#dfe8f6'; g.beginPath(); g.arc(lx, ly + 1, 3.2, Math.PI, 0); g.fill(); g.fillStyle = '#ffd38a'; g.fillRect(lx - 1.2, ly - 0.5, 2.4, 2);
+      }
+      // 紙の質感と四隅の暗がり
+      g.save();
+      const fr = mulberry(556), n = Math.round(W * (v.B - v.T) / 900);
+      g.strokeStyle = 'rgba(240,248,255,.035)'; g.lineWidth = 0.6;
+      g.beginPath();
+      for (let i = 0; i < n; i++) { const fx = L + fr() * W, fy = v.T + fr() * (v.B - v.T), a = fr() * 6.28, l = 2 + fr() * 6; g.moveTo(fx, fy); g.lineTo(fx + Math.cos(a) * l, fy + Math.sin(a) * l); }
+      g.stroke();
+      const cx = (L + R) / 2, cy = (v.T + v.B) / 2, rad = Math.hypot(W, v.B - v.T) * 0.62;
+      const vg = g.createRadialGradient(cx, cy * 0.9, rad * 0.45, cx, cy, rad);
+      vg.addColorStop(0, 'rgba(0,4,20,0)'); vg.addColorStop(1, 'rgba(0,4,20,.36)');
+      g.fillStyle = vg; g.fillRect(L, v.T, W, v.B - v.T);
+      g.restore();
+    },
+    // 降る雪と、宿から立つ湯けむり（毎コマ）
+    drawSnowTown(g, tt, v, { hz = 562, heat = 0 } = {}) {
+      const W = v.R - v.L, H = hz - v.T + 40;
+      g.save();
+      // 湯けむり: 町の屋根から、ゆらゆら上る
+      for (let i = 0; i < 5; i++) {
+        const bx = v.L + (i + 0.5) / 5 * W + Math.sin(i * 7.3) * 18;
+        for (let k = 0; k < 4; k++) {
+          const u = ((tt * 0.12 + k / 4 + i * 0.37) % 1), y = hz - 18 - u * 70, x = bx + Math.sin(tt * 0.8 + k + i) * 8 * u;
+          const gr = g.createRadialGradient(x, y, 0, x, y, 10 + u * 16);
+          gr.addColorStop(0, `rgba(230,238,255,${0.16 * (1 - u)})`); gr.addColorStop(1, 'rgba(230,238,255,0)');
+          g.fillStyle = gr; g.fillRect(x - 28, y - 28, 56, 56);
+        }
+      }
+      // 降る雪（大小 2 段。花火が明るいほど、ちらちら光る）
+      if (!snowFlakes || snowFlakes.w !== W) snowFlakes = { w: W, list: Array.from({ length: Math.round(70 * Math.max(1, W / 360)) }, (_, i) => ({ u: (i * 0.618) % 1, v0: (i * 0.371) % 1, s: 0.6 + ((i * 7) % 10) / 10 * 1.6, sp: 12 + ((i * 13) % 10) * 3, ph: i })) };
+      for (const f of snowFlakes.list) {
+        const y = v.T + ((f.v0 * H + tt * f.sp) % H), x = v.L + ((f.u * W + Math.sin(tt * 0.6 + f.ph) * 10) % W + W) % W;
+        g.fillStyle = `rgba(245,250,255,${0.45 + 0.4 * Math.min(1, heat) + 0.15 * Math.sin(tt * 3 + f.ph)})`;
+        g.beginPath(); g.arc(x, y, f.s, 0, 7); g.fill();
+      }
       g.restore();
     },
     // 手前の見物客（画面のいちばん下）

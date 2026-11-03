@@ -93,6 +93,43 @@ export const CAST = {
       friend: 'Want speed? Try and keep up!',
     },
   },
+  // ---- ステージ2『雪の山里』の大一番の妖怪（伝説のお守りはくれない。図鑑の仲間に入る）
+  yukionna: {
+    id: 'yukionna', ja: '雪女', en: 'Yuki-onna', name: 'シラユキ', nameEn: 'Shirayuki', title: 'まんまるの雪女', titleEn: 'The Snow Woman of the Round',
+    color: '#9fe0ff', twist: 'manmaru', charm: null, stage: 2,
+    say: {
+      intro: '雪女のシラユキよ。今宵の線は、ぜんぶ輪にしてあげる。',
+      taunt: ['まあるく、まあるく…', '輪の外は、凍えるわよ', 'どこを真ん中にするの？'],
+      win: 'ふふ…輪の中で、凍えたわね',
+      lose: 'あら…わたしの輪を、とかしたのね',
+      friend: '雪の夜は、また輪を描いてあげる',
+    },
+    sayEn: {
+      intro: "I'm Shirayuki, the snow woman. Tonight, every line becomes a ring.",
+      taunt: ['Round and round…', "It's freezing outside the ring.", 'Where will you put the centre?'],
+      win: 'Hehe… frozen inside my ring.',
+      lose: 'Oh… you melted my ring.',
+      friend: "On snowy nights, I'll draw rings for you.",
+    },
+  },
+  yamabiko: {
+    id: 'yamabiko', ja: '山彦', en: 'Yamabiko', name: 'ヒビキ', nameEn: 'Hibiki', title: 'とぎれの山彦', titleEn: 'The Echo of the Gaps',
+    color: '#a8e07a', twist: 'togire', charm: null, stage: 2,
+    say: {
+      intro: 'ヤッホー！ 山彦のヒビキだよ！ 線も声も、と・ぎ・れ・と・ぎ・れ！',
+      taunt: ['と…ぎ…れ…た？', 'ヤッホー…ホー…ホー…', '切れ目は、どう越える？'],
+      win: 'ヤッホー！ とぎれて消えた！',
+      lose: 'あれれ…ぜんぶ、つながっちゃった…',
+      friend: 'こんどは、遠くまで声を届けるよ！',
+    },
+    sayEn: {
+      intro: "Yoo-hoo! I'm Hibiki the mountain echo! Lines and voices… keep… breaking!",
+      taunt: ['Did it… break…?', 'Yoo-hoo… hoo… hoo…', 'How will you cross the gaps?'],
+      win: 'Yoo-hoo! It broke and fizzled!',
+      lose: 'Huh… it all connected…',
+      friend: "Next time I'll carry your voice far!",
+    },
+  },
   neko: {
     id: 'neko', ja: '招き猫', en: 'Lucky cat', name: 'コバン', nameEn: 'Koban', title: '星屋台の招き猫', titleEn: 'Lucky Cat of the Star Stall',
     color: '#ffc94a', twist: null, charm: null,
@@ -115,9 +152,11 @@ export const CAST = {
   },
 };
 export const BOSSES = ['tengu', 'tanuki', 'kitsune', 'kamaitachi'];
+// ステージ2の大一番の妖怪（伝説のお守りはくれないので、meta の BOSSES には入れない）
+export const BOSSES2 = ['yukionna', 'yamabiko'];
 export const FACES = ['idle', 'taunt', 'wow', 'sad', 'joy'];
 // 大一番の仕掛けの id から、その夜の妖怪の id（なければ null）
-export function bossOf(twist) { return BOSSES.find((id) => CAST[id].twist === twist) || null; }
+export function bossOf(twist) { return BOSSES.find((id) => CAST[id].twist === twist) || BOSSES2.find((id) => CAST[id].twist === twist) || null; }
 
 // ヒノコの着せかえ
 export const OUTFITS = [
@@ -273,13 +312,15 @@ export function drawCast(g, id, x, y, size, opts = {}) {
   fn(g, face, { t, an, px: 1 / s });
   g.restore();
 }
-const BLINK_SEED = { tengu: 3, tanuki: 5, kitsune: 1, kamaitachi: 6, neko: 2 };
+const BLINK_SEED = { tengu: 3, tanuki: 5, kitsune: 1, kamaitachi: 6, neko: 2, yukionna: 4, yamabiko: 7 };
 const GLOW = {
   tengu: [[0, 'rgba(255,110,70,.42)'], [0.55, 'rgba(255,80,50,.12)'], [1, 'rgba(255,80,50,0)']],
   tanuki: [[0, 'rgba(255,190,100,.38)'], [0.55, 'rgba(240,150,70,.1)'], [1, 'rgba(240,150,70,0)']],
   kitsune: [[0, 'rgba(150,170,255,.45)'], [0.55, 'rgba(110,130,255,.13)'], [1, 'rgba(110,130,255,0)']],
   kamaitachi: [[0, 'rgba(110,255,210,.38)'], [0.55, 'rgba(60,220,180,.1)'], [1, 'rgba(60,220,180,0)']],
   neko: [[0, 'rgba(255,215,110,.42)'], [0.55, 'rgba(255,190,80,.12)'], [1, 'rgba(255,190,80,0)']],
+  yukionna: [[0, 'rgba(190,235,255,.45)'], [0.55, 'rgba(140,200,255,.13)'], [1, 'rgba(140,200,255,0)']],
+  yamabiko: [[0, 'rgba(200,255,160,.4)'], [0.55, 'rgba(150,220,110,.11)'], [1, 'rgba(150,220,110,0)']],
 };
 
 // ---- 天狗のハナタカ: 赤い丸顔・長い鼻・黒い頭巾（ときん）・白い山伏の衣とぼんてん・羽うちわ
@@ -702,12 +743,129 @@ function neko(g, face, k) {
   g.fillStyle = '#ffadc0'; ell(g, 0, 2, 4.2, 3.2); for (const [xx, yy] of [[-4.8, -3.6], [0, -5.8], [4.8, -3.6]]) dot(g, xx, yy, 1.9);
   g.restore(); g.restore();
 }
+// ---- ステージ2の妖怪
+// 雪女のシラユキ: 白い顔・長い黒髪・白い着物と水色の帯・雪の結晶の髪かざり・まわりに舞う雪
+function yukionna(g, face, k) {
+  const { t, an, px } = k;
+  const lw = Math.max(px, 2.4);
+  const skin = rad(g, 'yo.skin', -8, -30, 2, 0, -18, 32, [[0, '#ffffff'], [0.6, '#eef6ff'], [1, '#c6dcf5']]);
+  // 舞う雪（うしろ）
+  for (let i = 0; i < 7; i++) {
+    const a = i * 0.9 + (an ? t * 0.6 : 0), x = Math.cos(a) * (40 + (i % 3) * 6), y = -10 + ((i * 23 + (an ? t * 14 : 0)) % 70) - 30;
+    g.fillStyle = 'rgba(230,245,255,.85)'; dot(g, x, y, 1.6 + (i % 2));
+  }
+  // 長い黒髪（うしろ）
+  g.fillStyle = lin(g, 'yo.hairB', 0, -50, 0, 40, [[0, '#2a2f4a'], [0.6, '#161a2e'], [1, '#0c0e1c']]);
+  g.beginPath(); g.moveTo(-26, -30); g.bezierCurveTo(-36, -4, -34, 26, -30, 44); g.lineTo(30, 44); g.bezierCurveTo(34, 26, 36, -4, 26, -30); g.closePath(); g.fill();
+  // 着物（白。下へいくほど水色）・帯
+  g.fillStyle = lin(g, 'yo.robe', 0, 0, 0, 52, [[0, '#ffffff'], [0.55, '#e4f1ff'], [1, '#9cc4ee']]);
+  g.beginPath(); g.moveTo(-15, 2); g.bezierCurveTo(-26, 14, -30, 34, -28, 51); g.lineTo(28, 51); g.bezierCurveTo(30, 34, 26, 14, 15, 2); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(120,160,210,.7)'; g.lineWidth = Math.max(px, 1.4);
+  g.beginPath(); g.moveTo(-10, 4); g.lineTo(4, 26); g.moveTo(10, 4); g.lineTo(-2, 18); g.stroke(); // えり（左前）
+  g.fillStyle = lin(g, 'yo.obi', 0, 26, 0, 36, [[0, '#7fd0ff'], [1, '#3f8fd6']]);
+  g.beginPath(); g.moveTo(-26, 27); g.quadraticCurveTo(0, 31, 26, 27); g.lineTo(26.5, 35); g.quadraticCurveTo(0, 39, -26.5, 35); g.closePath(); g.fill();
+  // そで（手を口もとへ）
+  const sway = an * Math.sin(t * 1.7) * 0.08;
+  for (const s of [-1, 1]) {
+    g.save(); g.translate(s * 20, 12); g.rotate(s * (0.35 + sway));
+    g.fillStyle = lin(g, 'yo.robe', 0, 0, 0, 52, [[0, '#ffffff'], [0.55, '#e4f1ff'], [1, '#9cc4ee']]);
+    g.beginPath(); rrect(g, -8, -4, 16, 26, 6); g.fill();
+    g.restore();
+  }
+  // 顔
+  g.fillStyle = skin; ell(g, 0, -20, 24, 27);
+  // 前髪（まん中で分ける）
+  g.fillStyle = lin(g, 'yo.hairF', 0, -50, 0, -20, [[0, '#353b5c'], [1, '#14172a']]);
+  g.beginPath(); g.moveTo(-26, -16); g.bezierCurveTo(-28, -44, -10, -52, 0, -50); g.bezierCurveTo(10, -52, 28, -44, 26, -16);
+  g.quadraticCurveTo(18, -34, 2, -40); g.lineTo(0, -34); g.lineTo(-2, -40); g.quadraticCurveTo(-18, -34, -26, -16); g.closePath(); g.fill();
+  // 雪の結晶の髪かざり
+  g.save(); g.translate(17, -40); g.rotate(an ? t * 0.5 : 0.3);
+  g.strokeStyle = '#bfe8ff'; g.lineWidth = Math.max(px, 1.6);
+  g.beginPath(); for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU; g.moveTo(0, 0); g.lineTo(Math.cos(a) * 7, Math.sin(a) * 7); } g.stroke();
+  g.fillStyle = '#ffffff'; dot(g, 0, 0, 2);
+  g.restore();
+  // ほっぺ（うすい）
+  g.fillStyle = 'rgba(160,190,255,.45)'; ell(g, -14, -10, 5, 3); ell(g, 14, -10, 5, 3);
+  // 目（切れ長）
+  const ex = 9.5, ey = -20, ew = 3.8, eh = 5;
+  g.strokeStyle = INK; g.fillStyle = INK;
+  for (const s of [-1, 1]) {
+    const x = s * ex;
+    if (face === 'joy') eyeArc(g, x, ey, ew, eh, true, lw);
+    else if (face === 'blink') eyeArc(g, x, ey + 1, ew, eh * 0.6, false, lw);
+    else if (face === 'sad') eyeSad(g, x, ey, ew, eh, s, lw);
+    else if (face === 'wow') eyeBig(g, x, ey, ew, eh, '#1c2a4a');
+    else { eyeOpen(g, x, ey, ew, eh, '#1c2a4a'); lid(g, x, ey, ew, eh, face === 'taunt' ? 0.5 : 0.35, 0.2, s, skin); }
+    g.lineWidth = Math.max(px, 1.3); g.beginPath(); g.moveTo(x - s * 3, ey - 7); g.lineTo(x + s * 5, ey - 6); g.stroke(); // まゆ
+  }
+  if (face === 'sad') tearDrop(g, -ex - 2, ey + 8, 3.2);
+  // くちびる（青みの紅）
+  const mk = { idle: 'smile', taunt: 'smirk', wow: 'open', sad: 'frown', joy: 'laugh', blink: 'smile' }[face] || 'smile';
+  mouth(g, mk, 0, -6, 3.4, Math.max(px, 1.6));
+  // 吐く息（ひんやり）
+  if (face === 'taunt' || face === 'idle') {
+    const u = an ? (t * 0.7) % 1 : 0.5;
+    g.fillStyle = `rgba(210,235,255,${0.5 * (1 - u)})`; ell(g, 8 + u * 22, -4 - u * 4, 4 + u * 6, 2.5 + u * 3);
+  }
+}
+// 山彦のヒビキ: 山の岩かげに住む、毛むくじゃらの小さな妖怪。大きな耳・苔色の毛・口もとから広がる声の輪
+function yamabiko(g, face, k) {
+  const { t, an, px } = k;
+  const lw = Math.max(px, 2.5);
+  const fur = rad(g, 'yb.fur', -8, -24, 3, 0, 0, 52, [[0, '#d9f0b0'], [0.5, '#9fc86a'], [0.85, '#6a9a44'], [1, '#456e2c']]);
+  // 声の輪（こだま）
+  if (face !== 'sad') for (let i = 0; i < 3; i++) {
+    const u = ((an ? t * 0.9 : 0.4) + i / 3) % 1;
+    g.strokeStyle = `rgba(200,255,170,${0.55 * (1 - u)})`; g.lineWidth = Math.max(px, 2);
+    g.beginPath(); g.arc(0, -4, 34 + u * 24, -0.5, 0.5); g.stroke();
+    g.beginPath(); g.arc(0, -4, 34 + u * 24, Math.PI - 0.5, Math.PI + 0.5); g.stroke();
+  }
+  // からだ（まるい毛玉。ふちがぎざぎざ）
+  g.fillStyle = fur; g.beginPath();
+  for (let i = 0; i <= 28; i++) { const a = (i / 28) * TAU, r = 32 + (i % 2 ? 3 : -1.5); const x = Math.cos(a) * r, y = 10 + Math.sin(a) * r * 1.02; if (i) g.lineTo(x, y); else g.moveTo(x, y); }
+  g.closePath(); g.fill();
+  // 大きな耳（声をひろう）
+  const flap = an * Math.sin(t * 3) * 0.08 + (face === 'sad' ? 0.45 : 0);
+  for (const s of [-1, 1]) {
+    g.save(); g.translate(s * 26, -18); g.rotate(s * (0.5 + flap));
+    g.fillStyle = fur; ell(g, s * 6, -6, 9, 15);
+    g.fillStyle = '#f2b0a0'; ell(g, s * 6, -5, 5, 10);
+    g.restore();
+  }
+  // 顔のまわり（明るい毛）
+  g.fillStyle = rad(g, 'yb.face', 0, -6, 2, 0, -2, 24, [[0, '#fbffe8'], [1, '#d8ecb4']]);
+  ell(g, 0, -2, 22, 19);
+  // 頭の苔と葉っぱ
+  g.fillStyle = '#5f8f3a'; g.beginPath(); g.moveTo(-6, -26); g.quadraticCurveTo(-2, -40, 8, -42); g.quadraticCurveTo(6, -30, -6, -26); g.fill();
+  g.strokeStyle = '#3f6a26'; g.lineWidth = Math.max(px, 1.2); g.beginPath(); g.moveTo(-5, -27); g.quadraticCurveTo(2, -34, 7, -41); g.stroke();
+  // 目（まるく大きい）
+  const ex = 9, ey = -6, ew = 4.4, eh = 5.4;
+  g.strokeStyle = INK; g.fillStyle = INK;
+  for (const s of [-1, 1]) {
+    const x = s * ex;
+    if (face === 'joy') eyeArc(g, x, ey, ew, eh, true, lw);
+    else if (face === 'blink') eyeArc(g, x, ey + 1, ew, eh * 0.6, false, lw);
+    else if (face === 'sad') eyeSad(g, x, ey, ew, eh, s, lw);
+    else if (face === 'wow') eyeBig(g, x, ey, ew, eh);
+    else if (face === 'taunt') eyeWink(g, x, ey, ew, eh, s, lw);
+    else eyeOpen(g, x, ey, ew, eh);
+  }
+  if (face === 'sad') tearDrop(g, ex + 3, ey + 9, 3.3);
+  cheeks(g, 15, 3, 4.5, 2.8);
+  // 口（大きく開けて叫ぶ）
+  const mk = { idle: 'open', taunt: 'laugh', wow: 'open', sad: 'wobble', joy: 'laugh', blink: 'smile' }[face] || 'open';
+  mouth(g, mk, 0, 6, 4.6, Math.max(px, 1.8));
+  // 手（口もとに当てて、呼ぶ）
+  for (const s of [-1, 1]) { g.fillStyle = fur; ell(g, s * 14, 10, 6, 5, s * 0.4); }
+  // 足
+  g.fillStyle = '#456e2c'; for (const s of [-1, 1]) ell(g, s * 12, 42, 8, 4.5);
+}
 function starPath(g, x, y, R, r) {
   g.beginPath();
   for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r : R; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
   g.closePath();
 }
-const DRAW = { tengu, tanuki, kitsune, kamaitachi, neko };
+const DRAW = { tengu, tanuki, kitsune, kamaitachi, neko, yukionna, yamabiko };
 
 // ---------------------------------------------------------------- ヒノコのからだに合わせる
 // hinoko.js と同じ計算で、息づかい（伸び縮み）と炎の先のゆれを再現する。r を 1 とした座標にして返す

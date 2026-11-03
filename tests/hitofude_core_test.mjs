@@ -891,14 +891,15 @@ check('散ったときのヒント: 夜の様子から、効きそうなこと�
   eq(JSON.stringify(K.failHint(al)), JSON.stringify({ id: 'almost', n: 2, bloom: 3 }));
 });
 
-check('ステージ: 今は八夜の1ステージだけ遊べて、次のステージは準備中として一覧にある', () => {
+check('ステージ: ステージ1『川辺の夏祭り』とステージ2『雪の山里』。夜の数・今夜の一筆はステージ1から', () => {
   eq(K.STAGES[0].id, 1);
   eq(K.STAGES[0].ja, '川辺の夏祭り');
   eq(K.STAGES[0].nights, 8);
   eq(K.STAGES[0].ready, true);
   eq(K.NIGHTS, K.STAGES[0].nights, '夜の数はステージ1から取る');
-  eq(K.STAGE.id, 1, '今遊ぶのはステージ1');
-  ok(K.STAGES.length >= 2 && K.STAGES[1].id === 2 && K.STAGES[1].ready === false, 'ステージ2は準備中');
+  eq(K.STAGE.id, 1, 'ふだん（stage を渡さない）はステージ1');
+  ok(K.STAGES.length >= 2 && K.STAGES[1].id === 2 && K.STAGES[1].ready === true, 'ステージ2が遊べる');
+  eq(K.stageById(2).ja, '雪の山里'); eq(K.stageById(99).id, 1);
   eq(K.nextStage(1).id, 2);
   eq(K.nextStage(K.STAGES[K.STAGES.length - 1].id), null, '最後のステージの次は無い');
 });
@@ -1829,6 +1830,308 @@ check('世界の花火の日は日付だけで決まり、デイリーの共有�
   ok(K.runShareText(run, 'ja').includes('イギリスのガイ・フォークス・ナイトの夜に'));
   ok(K.runShareText(run, 'en').includes('On Bonfire Night'));
   ok(!K.runShareText({ ...run, daily: false }, 'ja').includes('ガイ・フォークス'), 'デイリー以外には出さない');
+});
+
+// ---------------------------------------------------------------- ステージ2『雪の山里』
+// 手で並べたステージ2の夜（night は仕掛けが出てくる夜。gates / twist を足せる）
+function hand2(shells, { night = 7, charms = [], moon = 1, gates = null, twist = null } = {}) {
+  const st = K.newRound({ seed: 1, night, charms, moon, stage: 2 });
+  st.shells = shells.map((s, i) => ({ id: i, hue: 0, burst: false, burstAt: -1, hp: 1, lastSrc: null, ...s }));
+  st.hifumi = { next: 1, broken: false, total: st.shells.filter((s) => s.type === 'hifumi').length };
+  st.gates = gates || []; st.gateAt = new Map();
+  if (twist !== undefined) st.twist = twist;
+  st.stats = { ...st.stats, oniGood: 0, oniBad: 0, hifumiDone: 0 };
+  return st;
+}
+function burn2(st, stroke) {
+  const ev = [];
+  K.lightStroke(st, stroke); ev.push(...st.events); st.events.length = 0;
+  for (let i = 0; i < 3600 && !st.done; i++) { if (st.phase === 'draw2') K.finish(st); K.step(st); ev.push(...st.events); st.events.length = 0; }
+  if (!st.done) K.finish(st);
+  return { res: st.result, ev };
+}
+
+check('ステージ2: 表はステージごと・ステージ1の表はそのまま・名前と文言（ヒノコのひとことは 15 字まで）', () => {
+  eq(K.STAGES[1].id, 2); eq(K.STAGES[1].ja, '雪の山里'); eq(K.STAGES[1].ready, true); eq(K.STAGES[1].nights, 8);
+  eq(K.stageDef(1).gimmicks, K.GIMMICKS); eq(K.stageDef(1).twists, K.TWISTS); eq(K.stageDef(1).ratio, K.TARGET_RATIO); eq(K.stageDef(1).counts, K.BASE_COUNTS);
+  eq(K.stageDef(2).gimmicks, K.GIMMICKS2); eq(K.stageDef(9).gimmicks, K.GIMMICKS, '知らないステージは 1');
+  eq(K.GIMMICKS2.length, 7, '新しい仕掛けは 7 つ');
+  eq(K.GIMMICKS2.map((g) => g.night).join(), '1,2,3,4,5,6,7', '1 夜に 1 つずつ');
+  for (const g of K.GIMMICKS2) {
+    ok(g.ja && g.en && g.desc && g.descEn && g.say && g.sayEn, `${g.id} の文言`);
+    ok([...g.say].length <= 15, `${g.id}: ヒノコのひとことが 15 字をこえる（${g.say}）`);
+    ok(!K.GIMMICKS.some((x) => x.id === g.id), `${g.id} はステージ1の仕掛けと別の id`);
+    eq(K.gimmickFor(g.night, 2).id, g.id); eq(K.gimmickById(g.id), g);
+  }
+  eq(K.gimmickFor(0, 2), null); eq(K.gimmickFor(7).id, 'shaku', 'stage を省けばステージ1');
+  eq(K.TWISTS2.length, 2);
+  for (const tw of K.TWISTS2) { ok([...tw.say].length <= 15 && tw.ja && tw.en && tw.desc && tw.descEn && tw.rule && tw.ruleEn, `${tw.id} の文言`); eq(K.twistById(tw.id), tw); }
+  eq(K.twistById('massugu').id, 'massugu');
+  for (const sc of K.SCENES2) eq(K.sceneById(sc.id), sc);
+  eq(K.TARGET_RATIO2.length, 8); eq(K.BASE_COUNTS2.length, 8); eq(K.TARGETS2.length, 8);
+  for (let i = 1; i < 8; i++) ok(K.TARGETS2[i] > K.TARGETS2[i - 1], 'TARGETS2 は夜ごとに上がる');
+});
+
+check('ステージ2: 解放はステージ1の完走の記録（recordStageClear）から', () => {
+  eq(K.stageOpen(null, 1), true, 'ステージ1はいつでも');
+  eq(K.stageOpen(null, 2), false); eq(K.stageOpen({}, 2), false);
+  const rec = K.recordStageClear({}, 1, 12345, '2026-11-03');
+  eq(K.stageOpen(rec, 2), true, 'ステージ1を完走したら開く');
+  eq(K.stageOpen(K.recordStageClear({}, 2, 5, '2026-11-03'), 2), false, 'ステージ2の記録だけでは開かない');
+  eq(K.stageOpen(rec, 3), false, '無いステージは開かない');
+});
+
+check('ステージ2: 決定的（同じ夜・同じ線なら同じ結果）・ステージ1と別の夜空・仕掛けは出てくる夜から', () => {
+  for (let seed = 1; seed <= 12; seed++) for (let night = 0; night < 8; night++) {
+    const a = K.newRound({ seed, night, stage: 2 }), b = K.newRound({ seed, night, stage: 2 }), s1 = K.newRound({ seed, night });
+    eq(JSON.stringify(a.shells), JSON.stringify(b.shells), `seed ${seed} night ${night}`);
+    eq(a.stage, 2); eq(s1.stage, 1);
+    ok(JSON.stringify(a.shells.map((s) => [s.x, s.y])) !== JSON.stringify(s1.shells.map((s) => [s.x, s.y])), 'ステージ1と同じ並び');
+    ok(a.shells.length >= K.BASE_COUNTS2[night] - 3, `seed ${seed} night ${night}: ${a.shells.length} 個しか置けない`);
+    const has = (t) => a.shells.some((s) => s.type === t);
+    ok(has('chouchin') && has('kin') && has('ootama') && has('senrin'), '金・大玉・千輪・提灯は一夜目から');
+    for (const g of K.GIMMICKS2) if (['koori', 'yuki', 'kodama', 'oni', 'hifumi'].includes(g.id)) eq(has(g.id), night >= g.night, `${g.id} は ${g.night} 夜目から（night ${night}）`);
+    eq(a.gates.length > 0, night >= 3, '鳥居は四夜目から');
+    eq(a.musubi, night >= 7, '結びは八夜目');
+    ok(!has('shime') && !has('shaku') && a.ropes.length === 0 && a.clouds.length === 0, 'ステージ1の湿った玉・尺玉・縄・雲は出ない');
+    if (night >= 6) eq(a.shells.filter((s) => s.type === 'hifumi').map((s) => s.num).sort().join(), '1,2,3', '一二三の札は 1・2・3');
+    // 段位 3 からは雲が出る
+    eq(K.newRound({ seed, night, stage: 2, level: 3 }).clouds.length > 0, night >= 1, '段位 3 の雲は二夜目から');
+    const line = [{ x: 60, y: 200 }, { x: 180, y: 300 }, { x: 300, y: 260 }, { x: 200, y: 420 }];
+    const r1 = K.runToEnd(K.newRound({ seed, night, stage: 2, charms: ['tairin', 'kinun'] }), [line]);
+    const r2 = K.runToEnd(K.newRound({ seed, night, stage: 2, charms: ['tairin', 'kinun'] }), [line]);
+    eq(JSON.stringify(r1), JSON.stringify(r2), '同じ線なら同じ結果');
+    const sp = rebuild(r1.parts); eq(sp.score, r1.score, '内訳から点が作り直せる');
+  }
+  // 大一番は三夜目と六夜目。ステージ2の祭りには 2 つとも出る
+  const kinds = new Set();
+  for (let seed = 1; seed <= 30; seed++) {
+    const a = K.twistFor(seed, 2, 2), b = K.twistFor(seed, 5, 2);
+    ok(a && b && a.id !== b.id, `seed ${seed}: 2 つの大一番が別`);
+    kinds.add(a.id);
+    for (const n of [0, 1, 3, 4, 6, 7]) eq(K.twistFor(seed, n, 2), null);
+    eq(K.isBoss(2, 2), true); eq(K.isBoss(3, 2), false);
+    ok(K.TWISTS2.some((x) => x.id === a.id) && !K.TWISTS.some((x) => x.id === a.id), 'ステージ2の大一番はステージ2の表から');
+  }
+  eq(kinds.size, 2, 'どちらが先かはシードで変わる');
+  // 景色: 一・二夜目は雪原・八夜目は雪山・続けて同じ景色は出ない
+  for (let seed = 1; seed <= 40; seed++) {
+    eq(K.sceneFor(seed, 0, 2).id, 'yukimi'); eq(K.sceneFor(seed, 7, 2).id, 'yama');
+    for (let n = 3; n < 7; n++) ok(K.sceneFor(seed, n, 2).id !== K.sceneFor(seed, n - 1, 2).id, '同じ景色が続く');
+  }
+});
+
+check('ステージ2 氷玉: 線でじかにふれてもひらかない・爆発でとける', () => {
+  const st = hand2([{ type: 'koori', x: 100, y: 300 }, { type: 'koori', x: 300, y: 100 }], { night: 1 });
+  const { res } = burn2(st, line(60, 300, 160, 300));
+  eq(res.pops, 0, '線の上の氷玉はひらかない');
+  const st2 = hand2([{ type: 'kiku', x: 100, y: 300 }, { type: 'koori', x: 100, y: 340 }], { night: 1 });
+  const r2 = burn2(st2, line(60, 300, 160, 300)).res;
+  eq(r2.pops, 2, '菊の爆発で、となりの氷玉がとける');
+  eq(r2.chips, K.SHELLS.kiku.pts + K.SHELLS.koori.pts);
+  // 終わり玉の爆発（線の火の爆発）も、氷玉をとかす
+  const st3 = hand2([{ type: 'koori', x: 160, y: 300 }], { night: 1, charms: ['owaridama'] });
+  eq(burn2(st3, line(60, 300, 160, 300)).res.pops, 1, '終わり玉で氷玉がとける');
+});
+
+check('ステージ2 雪玉: 火がついてから YUKI_MELT 秒で消える・ひらけば倍率 +1', () => {
+  // 線のはじめの雪玉はひらく。遠い所の雪玉（火が 1.2 秒より後に来る）は、とけて消える
+  const st = hand2([{ type: 'yuki', x: 40, y: 300 }, { type: 'yuki', x: 340, y: 520 }], { night: 2 });
+  const pts = [...line(40, 300, 340, 300, 40), ...line(340, 300, 340, 520, 30).slice(1)];
+  const { res, ev } = burn2(st, pts);
+  eq(res.pops, 1, 'はじめの雪玉だけ');
+  ok(ev.some((e) => e.type === 'melt'), 'とける知らせ');
+  ok(st.shells[1].melted && !st.shells[1].burst, '遠い雪玉はとけた');
+  eq(part(res, 'yuki', 'mult').v, K.YUKI_ADD);
+  eq(res.allClear, false, 'とけた雪玉があれば満開にならない');
+  eq(st.stats.yukiMelted, 1);
+  eq(K.failHint(st).id, 'yukiMelt');
+});
+
+check('ステージ2 鳥居: 燃える線が柱のあいだをくぐると倍率 +2（1 つの鳥居は 1 回）・外を通れば何もない', () => {
+  const gate = { id: 0, x: 200, y: 300, a: 0, x1: 178, y1: 300, x2: 222, y2: 300, lit: false };
+  const st = hand2([{ type: 'kiku', x: 200, y: 200 }], { night: 3, gates: [gate] });
+  const { res, ev } = burn2(st, [...line(200, 200, 200, 400, 30), ...line(200, 400, 210, 200, 30).slice(1)]);
+  ok(ev.filter((e) => e.type === 'torii').length === 1, '知らせは 1 回');
+  eq(part(res, 'torii', 'mult').v, K.TORII_ADD, '2 回くぐっても +2');
+  const st2 = hand2([{ type: 'kiku', x: 200, y: 200 }], { night: 3, gates: [{ ...gate, lit: false }] });
+  const r2 = burn2(st2, line(260, 200, 260, 400)).res;
+  eq(part(r2, 'torii'), undefined, '柱の外を通っても数えない');
+  eq(K.failHint(st2).id, 'torii');
+  // 本物の夜の鳥居は、玉に重ならない
+  for (let seed = 1; seed <= 20; seed++) {
+    const r = K.newRound({ seed, night: 6, stage: 2 });
+    for (const g of r.gates) for (const s of r.shells.filter((x) => !x.extra)) ok(Math.hypot(s.x - g.x, s.y - g.y) >= K.TORII_W * 0.5 + K.SHELLS[s.type].r, `seed ${seed}: 鳥居が玉に重なる`);
+  }
+});
+
+check('ステージ2 こだま玉: ひらくと左右反対の所で、もう一度爆ぜる（その爆発で、線の届かない側がひらく）', () => {
+  const st = hand2([{ type: 'kodama', x: 80, y: 300 }, { type: 'kiku', x: 280, y: 300 }, { type: 'kiku', x: 300, y: 330 }], { night: 4 });
+  const { res, ev } = burn2(st, line(40, 300, 100, 300));
+  eq(res.pops, 3, 'こだまで反対側の 2 つもひらく');
+  const e = ev.find((x) => x.type === 'kodama');
+  ok(e && e.x === K.W - 80 && e.y === 300, 'こだまの行き先は左右反対');
+  ok(ev.some((x) => x.type === 'echo'), '反対側で爆ぜた知らせ');
+  eq(JSON.stringify(K.echoPoint({ x: 80, y: 300 })), JSON.stringify({ x: K.W - 80, y: 300 }));
+  // こだまが無ければ、反対側は残る
+  const st2 = hand2([{ type: 'kiku', x: 80, y: 300 }, { type: 'kiku', x: 280, y: 300 }], { night: 4 });
+  eq(burn2(st2, line(40, 300, 100, 300)).res.pops, 1);
+});
+
+check('ステージ2 鬼玉: 線でひらけば福（+3）・爆発が先なら鬼（−2）・倍率は 1 より下がらない', () => {
+  const good = hand2([{ type: 'oni', x: 100, y: 300 }], { night: 5 });
+  const g = burn2(good, line(60, 300, 160, 300));
+  eq(part(g.res, 'oni', 'mult').v, K.ONI_GOOD);
+  ok(g.ev.some((e) => e.type === 'oni' && e.good), '福の知らせ');
+  const bad = hand2([{ type: 'kiku', x: 100, y: 300 }, { type: 'oni', x: 100, y: 345 }, { type: 'oni', x: 100, y: 390 }, { type: 'oni', x: 100, y: 435 }], { night: 5 });
+  const b = burn2(bad, line(60, 300, 140, 300));
+  eq(b.res.pops, 4);
+  eq(part(b.res, 'oni', 'mult').v, -3 * K.ONI_BAD, '3 つとも爆発でひらいた');
+  eq(b.res.mult, 1, '倍率の合計は 1 まで');
+  ok(part(b.res, 'floor', 'mult'), '1 にもどす分が内訳にある');
+  eq(rebuild(b.res.parts).score, b.res.score, '内訳から点が作り直せる');
+  eq(K.multOf(bad), 1, 'HUD の倍率も 1 まで');
+  eq(K.failHint(bad).id, 'oniBad');
+  // 終わり玉（線の火）でひらけば福
+  const fin = hand2([{ type: 'oni', x: 200, y: 300 }], { night: 5, charms: ['owaridama'] });
+  eq(part(burn2(fin, line(60, 300, 175, 300)).res, 'oni', 'mult').v, K.ONI_GOOD, '終わり玉の爆発は福');
+});
+
+check('ステージ2 一二三: 順にひらくと +1・+2・+4・順がくずれたらそこまで', () => {
+  const S = (num, x) => ({ type: 'hifumi', num, x, y: 300 });
+  const inOrder = hand2([S(1, 60), S(2, 160), S(3, 260)], { night: 6 });
+  const a = burn2(inOrder, line(40, 300, 280, 300, 60));
+  eq(part(a.res, 'hifumi', 'mult').v, 1 + 2 + 4);
+  eq(inOrder.stats.hifumiDone, 3);
+  ok(K.wishMet(inOrder, 'w_hifumi', 0), '願い札「一・二・三を順に」');
+  const wrong = hand2([S(2, 60), S(1, 160), S(3, 260)], { night: 6 });
+  const b = burn2(wrong, line(40, 300, 280, 300, 60));
+  eq(part(b.res, 'hifumi'), undefined, '二が先なら何もない');
+  ok(b.ev.some((e) => e.type === 'hifumi' && !e.ok && e.want === 1), 'くずれた知らせ');
+  eq(K.failHint(wrong).id, 'hifumi');
+  const half = hand2([S(1, 60), S(3, 160), S(2, 260)], { night: 6 });
+  eq(part(burn2(half, line(40, 300, 280, 300, 60)).res, 'hifumi', 'mult').v, 1, '一のあと三が来たら一の分だけ');
+});
+
+check('ステージ2 結び: 線が自分と交わった所が爆ぜて倍率 +2（3 つまで）・八夜目だけ', () => {
+  // 輪を描いて戻る線（1 か所で交わる）
+  const loop = [{ x: 60, y: 300 }, { x: 200, y: 300 }, { x: 200, y: 200 }, { x: 130, y: 200 }, { x: 130, y: 380 }];
+  const st = hand2([{ type: 'kiku', x: 130, y: 330 }, { type: 'koori', x: 300, y: 300 }], { night: 7 });
+  const { res, ev } = burn2(st, loop);
+  const kn = ev.filter((e) => e.type === 'knot');
+  eq(kn.length, 1, '結び目は 1 つ');
+  ok(Math.abs(kn[0].x - 130) <= 4 && Math.abs(kn[0].y - 300) <= 4, `結び目の場所 ${kn[0].x},${kn[0].y}`);
+  eq(part(res, 'musubi', 'mult').v, K.KNOT_ADD);
+  eq(st.stats.knots, 1);
+  // 交わらない線では何もない。八夜目でなければ結ばない
+  const st2 = hand2([{ type: 'kiku', x: 130, y: 330 }], { night: 7 });
+  eq(part(burn2(st2, line(60, 300, 300, 300)).res, 'musubi'), undefined);
+  const st3 = hand2([{ type: 'kiku', x: 130, y: 330 }], { night: 6 });
+  eq(part(burn2(st3, loop).res, 'musubi'), undefined, '七夜目までは結ばない');
+  // ぐるぐる巻く線でも 3 つまで
+  const spiral = [];
+  for (let i = 0; i <= 160; i++) { const a = i / 10, r = 30 + i * 0.25; spiral.push({ x: 180 + Math.cos(a) * r + i * 0.6, y: 300 + Math.sin(a) * r }); }
+  ok(K.knotsOf(spiral.map((p) => ({ x: p.x, y: p.y }))).length <= K.KNOT_MAX);
+  // 墨の中で 4 回交わる、小さなジグザグ（横に引いて戻り、たてに 4 回横切る）
+  const zig = [{ x: 100, y: 300 }, { x: 230, y: 300 }, { x: 130, y: 285 }, { x: 130, y: 315 }, { x: 160, y: 315 }, { x: 160, y: 285 }, { x: 190, y: 285 }, { x: 190, y: 315 }, { x: 220, y: 315 }, { x: 220, y: 285 }];
+  const st4 = hand2([{ type: 'kiku', x: 180, y: 300 }], { night: 7 });
+  const r4 = burn2(st4, zig).res;
+  ok(st4.knots.length === K.KNOT_MAX, `結び目 ${st4.knots.length}`);
+  eq(part(r4, 'musubi', 'mult').v, K.KNOT_ADD * K.KNOT_MAX, '結び目は 3 つまで');
+});
+
+check('ステージ2 まんまる: 線は引きはじめを中心に、指を離した所を通る輪（墨まで）。火は指を離した所から', () => {
+  const st = hand2([{ type: 'kiku', x: 250, y: 300 }, { type: 'kiku', x: 150, y: 300 }, { type: 'kiku', x: 200, y: 250 }, { type: 'kiku', x: 200, y: 300 }], { night: 2, twist: 'manmaru' });
+  const pts = K.lightStroke(st, [{ x: 200, y: 300 }, { x: 230, y: 300 }, { x: 250, y: 300 }]);
+  ok(pts && pts.length > 10, '輪の線');
+  ok(Math.abs(pts[0].x - 250) <= 1 && Math.abs(pts[0].y - 300) <= 1, '火は指を離した所から');
+  for (const p of pts) ok(Math.abs(Math.hypot(p.x - 200, p.y - 300) - 50) < 2, '半径 50 の輪');
+  for (let i = 0; i < 3600 && !st.done; i++) { K.step(st); st.events.length = 0; }
+  if (!st.done) K.finish(st);
+  eq(st.result.pops, 4, '輪の上の 3 つと、その爆発が届くまん中の玉');
+  // 墨が足りなければ、輪は墨の長さまで小さくなる
+  const r = K.roundRadius([{ x: 0, y: 0 }, { x: 999, y: 0 }], 460);
+  ok(r * 2 * Math.PI <= 460, '輪の長さは墨まで');
+  eq(K.roundLine([{ x: 10, y: 10 }, { x: 12, y: 10 }], 460).length, 1, '小さすぎる輪は引けない');
+  // 再生（ならし済みの線）でも同じ点
+  const a = K.newRound({ seed: 9, night: 2, stage: 2 }), tw = a.twist;
+  const st2 = K.newRound({ seed: 9, night: 2, stage: 2 });
+  st2.twist = 'manmaru';
+  const res = K.runToEnd(st2, [[{ x: 180, y: 300 }, { x: 240, y: 300 }]]);
+  const st3 = K.newRound({ seed: 9, night: 2, stage: 2 }); st3.twist = 'manmaru';
+  eq(K.runToEnd(st3, st2.strokes, { normalized: true }).score, res.score);
+  void tw;
+});
+
+check('ステージ2 とぎれ: 線は燃える所と切れ目のくり返し。切れ目は爆発でしか越えない', () => {
+  // 玉の無い所を通る線は、はじめの燃える所だけで消える
+  const st = hand2([{ type: 'kiku', x: 330, y: 300 }], { night: 5, twist: 'togire' });
+  K.lightStroke(st, line(40, 300, 340, 300, 60));
+  const dashes = new Set(st.fuse.seg.filter((x) => x >= 100)).size;
+  ok(dashes >= 3, `燃える所が ${dashes} つ`);
+  for (let i = 0; i < 3600 && !st.done; i++) { K.step(st); st.events.length = 0; }
+  if (!st.done) K.finish(st);
+  eq(st.result.pops, 0, '切れ目で火が止まる');
+  ok(st.fuse.burnt.filter(Boolean).length <= K.TOGIRE_ON + 1, 'はじめの燃える所だけ');
+  // 線の上に玉があれば、その爆発が切れ目の先へ火を渡す
+  const shells = []; for (let x = 60; x <= 320; x += 40) shells.push({ type: 'kiku', x, y: 300 });
+  const st2 = hand2(shells, { night: 5, twist: 'togire' });
+  eq(burn2(st2, line(40, 300, 340, 300, 60)).res.pops, shells.length, '玉の爆発で切れ目を越えて、終わりまで燃える');
+});
+
+check('ステージ2 目標点: 夜ごとに下がらない・ステージ1と別のキャッシュ・段位で上がる', () => {
+  for (let seed = 1; seed <= 6; seed++) {
+    const t = Array.from({ length: 8 }, (_, n) => K.targetFor(seed, n, seed % 8, 0, 2));
+    for (let n = 1; n < 8; n++) ok(t[n] >= t[n - 1], `seed ${seed}: 目標が下がる ${t}`);
+    ok(t.some((x, n) => x !== K.targetFor(seed, n, seed % 8, 0)), 'ステージ1と同じ目標');
+    eq(K.newRound({ seed, night: 3, moon: seed % 8, stage: 2 }).target, t[3]);
+    ok(K.targetFor(seed, 4, seed % 8, 7, 2) >= t[4], '段位で上がる');
+  }
+});
+
+check('ステージ2 再生リンク: s2. つきの形・同じ点にもどる・ステージ1のリンクは前のまま', () => {
+  for (let seed = 1; seed <= 10; seed++) {
+    const night = seed % 8, charms = ['kinun', 'kinun', 'tairin'];
+    const st = K.newRound({ seed, night, charms, moon: 3, stage: 2 });
+    const res = K.runToEnd(st, [[{ x: 60, y: 200 }, { x: 200, y: 260 }, { x: 300, y: 380 }, { x: 120, y: 420 }]]);
+    const code = K.encodeReplay({ seed, moon: 3, night, charms, strokes: st.strokes, stage: 2 });
+    ok(code.startsWith('s2.'), code.slice(0, 5));
+    const d = K.decodeReplay(code);
+    eq(d.stage, 2);
+    const again = K.runToEnd(K.newRound({ seed: d.seed, night: d.night, charms: d.charms, moon: d.moon, bank: d.bank, level: d.level, stage: d.stage }), d.strokes, { normalized: true });
+    eq(again.score, res.score, '再生で同じ点');
+    const s1 = K.encodeReplay({ seed, moon: 3, night, charms, strokes: st.strokes });
+    eq(code, 's2.' + s1, '中身はステージ1と同じ形');
+    eq(K.decodeReplay(s1).stage, undefined, 'ステージ1のリンクに stage は入らない');
+  }
+  eq(K.decodeReplay('s2.'), null); eq(K.decodeReplay('s2.@@@@@@@@@@@@@@'), null);
+});
+
+check('ステージ2 お守り: 雨よけ・風切りは出ない（段位 3 の雲があれば風切りは出る）・提灯のお守りは一夜目から', () => {
+  for (let seed = 1; seed <= 60; seed++) for (let night = 0; night < 7; night++) {
+    const o = K.offerCharms(seed, night, [], seed % 3, { stage: 2 });
+    ok(!o.includes('amayoke') && !o.includes('kazekiri'), `seed ${seed} night ${night}: ${o}`);
+  }
+  eq(K.charmNeed('chouchinshi', 0, 2), 0); eq(K.charmNeed('chouchinshi', 0), 3, 'ステージ1は前のまま');
+  eq(K.charmNeed('kazekiri', 3, 2), 1); eq(K.charmNeed('amayoke', 0, 2) > 7, true);
+  ok(K.startOffer(5, null, 3, 2).every((id) => K.charmNeed(id, 0, 2) === 0));
+  eq(JSON.stringify(K.offerCharms(5, 3, ['kinun'], 0, { stage: 2 })), JSON.stringify(K.offerCharms(5, 3, ['kinun'], 0, { stage: 2 })), '決定的');
+});
+
+check('ステージ2 願い札: その夜にある仕掛けの札だけ・前の夜と同じ札は出ない・ステージ1の湿った玉・大トリ・縄の札は出ない', () => {
+  const seen = new Set();
+  for (let seed = 1; seed <= 4; seed++) {
+    let prev = null;
+    for (let n = 0; n < 8; n++) {
+      const w = K.wishFor(seed, n, 0, 4, 2);
+      ok(w && w.id && w.ja && w.en, `seed ${seed} night ${n}`);
+      ok(!['w_damp_all', 'w_tori6', 'w_rope_all'].includes(w.id), w.id);
+      ok(w.id !== prev || w.fallback, '前の夜と同じ札');
+      prev = w.id; seen.add(w.id);
+      eq(JSON.stringify(K.wishFor(seed, n, 0, 4, 2)), JSON.stringify(w), '決定的');
+    }
+  }
+  ok(K.WISHES2.every((w) => K.wishById(w.id) === w));
 });
 
 if (failures) { console.error(`hitofude_core_test: ${failures} FAILED`); process.exit(1); }

@@ -8,15 +8,23 @@ export const W = 360;
 export const H = 640;
 export const DT = 1 / 60;
 // ---------------------------------------------------------------- ステージ
-// 八夜で1ステージ。今遊べるのはステージ1だけで、次のステージは反響を見てアップデートで足す
-// （景色と仕掛けを変えて続ける）。夜ごとの仕掛け・大一番・景色は、今はステージ1のものだけを持つ
+// 八夜で1ステージ。ステージ1『川辺の夏祭り』（夏の川辺）と、ステージ2『雪の山里』（冬の山あいの温泉郷と神社）。
+// 夜ごとの仕掛け・大一番・景色・目標点の倍率は、ステージごとの表（STAGE_DEFS。下の方で作る）に分けて持つ。
+// ステージ1の表と、ステージ1の夜の作り方・乱数・キャッシュの鍵は、ステージ2を足す前と 1 文字も変えない
+// （今夜の一筆・日間ランキング・挑戦状・再生リンクが同じ結果になるように。tests/hitofude_stage1_frozen_test.mjs が確かめる）。
+// 関数の stage は省けば 1。ステージ2はステージ1を完走すると開く（stageOpen。完走の記録は recordStageClear）
 export const STAGES = [
   { id: 1, ja: '川辺の夏祭り', en: 'Riverside Festival', nights: 8, ready: true },
-  { id: 2, ja: '準備中', en: 'Coming soon', nights: 8, ready: false },
+  { id: 2, ja: '雪の山里', en: 'Snowy Mountain Village', nights: 8, ready: true },
 ];
 export const STAGE = STAGES[0];
 export const NIGHTS = STAGE.nights;
 export function nextStage(id) { return STAGES.find((s) => s.id === id + 1) || null; }
+export function stageById(id) { return STAGES.find((s) => s.id === id) || STAGES[0]; }
+// ステージの番号をそろえる（2 だけが 2、ほかは 1）
+const stg = (stage) => (stage === 2 ? 2 : 1);
+// そのステージを遊べるか: ステージ1はいつでも。次のステージは、ひとつ前のステージを完走した記録（recordStageClear）があれば
+export function stageOpen(rec, id) { return id === 1 || (STAGES.some((s) => s.id === id && s.ready) && !!(rec && rec[id - 1])); }
 // ステージを完走した記録: { <id>: { first: 初めて完走した日, best: 完走したときの最高点 } }（もとの記録は書き換えない）
 export function recordStageClear(rec, id, total, dateKey) {
   const out = { ...(rec || {}) };
@@ -79,8 +87,16 @@ export const SHELLS = {
   shime: { r: 10, R: 50, pts: 25 },    // 湿った玉: 線の火が触れるとひらく。爆発だけなら、別々の火が 2 回いる
   shaku: { r: 22, R: 170, pts: 200 },  // 尺玉（大トリ）: 線の火でしかひらかない。先にひらいた玉が多いほど倍率が上がる（+1〜+13）
   kuro: { r: 12, R: 120, pts: 60 },    // 黒玉（花火合戦のお邪魔玉）: 最初に届いた線の火を消し、別の線の火が届くと大爆発。倍率 +1
+  // ---- ステージ2『雪の山里』の玉（ステージ2の夜にしか置かない）
+  koori: { r: 10, R: 46, pts: 25 },    // 氷玉: 線でじかにふれても、ひらかない。爆発・火花でとける
+  yuki: { r: 9, R: 40, pts: 15 },      // 雪玉: 火がついてから YUKI_MELT 秒でとけて消える。ひらけば倍率 +1
+  kodama: { r: 10, R: 46, pts: 15 },   // こだま玉: ひらくと、左右反対の所でもう一度爆ぜる
+  oni: { r: 12, R: 60, pts: 30 },      // 鬼玉: 線でひらくと福（倍率 +ONI_GOOD）、爆発・火花でひらくと鬼（倍率 −ONI_BAD）
+  hifumi: { r: 10, R: 50, pts: 20 },   // 一二三: 一・二・三の札の玉。その順にひらくと倍率（HIFUMI_ADD）
 };
 export const TYPES = ['kiku', 'ootama', 'kin', 'senrin', 'chouchin', 'shime', 'shaku'];
+// ステージ2の夜に出てくる玉（金・大玉・千輪・提灯は一夜目から。そこへ新しい玉が夜ごとに増える）
+export const TYPES2 = ['kiku', 'ootama', 'kin', 'senrin', 'chouchin', 'koori', 'yuki', 'kodama', 'oni', 'hifumi'];
 
 // 夜ごとに 1 つずつ増える仕掛け（一度に覚えることは 1 つだけ）
 // say / sayEn は、その夜にマスコットのヒノコがひとことで知らせる言葉（15 字まで）
@@ -93,7 +109,21 @@ export const GIMMICKS = [
   { id: 'nawa', night: 6, ja: '仕掛け縄', en: 'Fuse rope', desc: '火が届くと、縄を走って遠くの玉まで燃え広がる', descEn: 'Once lit, fire races along the rope to far shells', say: '縄に火がつくと遠くまで！', sayEn: 'Light the rope, go far!' },
   { id: 'shaku', night: 7, ja: '尺玉', en: 'Grand shell', desc: '線の火でしかひらかない。先にひらいた玉が多いほど、倍率が上がる（最大 +13）', descEn: 'Only your line lights it. The more already open, the bigger the mult (up to +13)', say: '尺玉は線の最後に！', sayEn: 'End your line on it!' },
 ];
-export function gimmickFor(night) { return GIMMICKS.find((g) => g.night === night) || null; }
+// ステージ2『雪の山里』の仕掛け。金・大玉・千輪・提灯は一夜目から盤にあり（ステージ1で覚えた）、ここから 1 夜に 1 つずつ増える。
+// どれも点が増えるだけではなく、線の引き方に新しい判断を 1 つ足す（_dev/hitofude-stage2.md）:
+//  氷玉 = ふれない / 雪玉 = 先に取る / 鳥居 = 寄り道 / こだま = 反対側を狙う / 鬼 = 連鎖と競争 / 一二三 = 順番 / 結び = 線の形
+export const GIMMICKS2 = [
+  { id: 'koori', night: 1, ja: '氷玉', en: 'Ice shell', desc: '線でふれても、ひらかない。まわりの爆発・火花でとける。点は高い', descEn: 'Your line cannot open it. Melt it with nearby bursts or sparks. Worth more', say: '氷玉は爆発でとかして！', sayEn: 'Melt ice with blasts!' },
+  { id: 'yuki', night: 2, ja: '雪玉', en: 'Snowball', desc: '火がついてから 1.2 秒でとけて消える。ひらけば 倍率 +1。雪玉のそばから引こう', descEn: 'Melts 1.2 s after you light up. Open it for +1 mult. Start near snowballs', say: '雪玉はすぐとける！', sayEn: 'Snowballs melt fast!' },
+  { id: 'torii', night: 3, ja: '鳥居', en: 'Shrine gate', desc: '燃える線が、柱のあいだをくぐると 倍率 +2', descEn: 'When your burning line passes between the posts: +2 mult', say: '鳥居をくぐると倍率UP！', sayEn: 'Go through the gate!' },
+  { id: 'kodama', night: 4, ja: 'こだま玉', en: 'Echo shell', desc: 'ひらくと、左右反対の所（うすい輪の印）でも、もう一度爆ぜる', descEn: 'When it bursts, it bursts again on the opposite side (the faint ring)', say: 'こだまは反対側でも！', sayEn: 'Echoes burst opposite!' },
+  { id: 'oni', night: 5, ja: '鬼玉', en: 'Oni shell', desc: '線でじかにひらくと 福：倍率 +3。爆発・火花が先に届くと 鬼：倍率 −2', descEn: 'Open it with your line: +3 mult. If a burst gets there first: −2 mult', say: '鬼は線でじかに払って！', sayEn: 'Hit oni with your line!' },
+  { id: 'hifumi', night: 6, ja: '一二三', en: 'One-two-three', desc: '一・二・三の玉を、その順にひらくと 倍率 +1・+2・+4。順がくずれたら、そこまで', descEn: 'Open 1, 2, 3 in that order: +1, +2, +4 mult. Out of order ends the bonus', say: '一・二・三の順にひらこう', sayEn: 'Open 1, 2, 3 in order!' },
+  { id: 'musubi', night: 7, ja: '結び', en: 'Knot', desc: '線が自分の線と交わった所（結び目）は、火が来ると爆ぜる。結び目 1 つで 倍率 +2（3 つまで）', descEn: 'Where your line crosses itself, the knot bursts when fire arrives. +2 mult per knot (up to 3)', say: '線を結ぶと爆ぜるよ！', sayEn: 'Cross your line: boom!' },
+];
+// その夜に新しく出てくる仕掛け（ステージごと）
+export function gimmickFor(night, stage = 1) { return (stg(stage) === 2 ? GIMMICKS2 : GIMMICKS).find((g) => g.night === night) || null; }
+export function gimmickById(id) { return GIMMICKS.find((g) => g.id === id) || GIMMICKS2.find((g) => g.id === id) || null; }
 
 // ---- お守り（13版）
 // 同じお守りをもう一度取ると Lv が上がる（Lv1 → Lv2 → Lv3）。持ち物は id の配列で、重なった数が Lv
@@ -223,6 +253,10 @@ export const TARGET_RATIO = [0.29, 0.65, 1.0, 1.75, 2.15, 3.1, 3.35, 3.2];
 // 目安（基準点を測らない所で使う。テストと古いメモ用。いろいろな夜の目標点の中央値）
 export const TARGETS = [100, 230, 440, 1900, 2800, 6000, 21000, 49000];
 export const BASE_COUNTS = [16, 20, 24, 28, 32, 36, 40, 44];
+// ステージ2の表。玉は一夜目から多め（金・大玉・千輪・提灯がそろっている）。倍率は _dev/hitofude-balance.mjs を STAGE=2 で回して決めた（_dev/hitofude-stage2.md）
+export const BASE_COUNTS2 = [18, 22, 25, 28, 32, 36, 40, 44];
+export const TARGET_RATIO2 = [0.35, 0.7, 0.85, 1.45, 2.1, 2.2, 3.2, 3.5];
+export const TARGETS2 = [260, 650, 890, 3800, 9000, 11000, 38000, 67000];
 
 // ---------------------------------------------------------------- 段位（何周も遊ぶ人のための、むずかしさの段）
 // 段位 n は、1〜n の決まりが全部重なる。fx は重なったあとの値（ページは LEVELS[n].fx を読む）。
@@ -271,26 +305,42 @@ export const SNAP_SECONDS = 4;
 export const DARK_SECONDS = 5;
 export const MIRROR_INK = 0.75;
 function shuffled(arr, rng) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-export function twistFor(seed, night) {
+// ステージ2の大一番。どちらも線の形そのものが変わる（まっすぐ・鏡の仲間）。ステージ2の祭りでは 2 つとも出る（どちらが先かはシードで決まる）
+//  まんまる: 線は、指を置いた所を中心に、指を離した所を通る輪になる（輪の長さは墨まで）。火は指を離した所からつく
+//  とぎれ: 線は TOGIRE_ON 燃えて TOGIRE_OFF 切れる、のくり返し。切れ目は、近くの玉の爆発でしか越えられない
+export const BOSS_NIGHTS2 = [2, 5];
+export const TWISTS2 = [
+  { id: 'manmaru', ja: 'まんまる', en: 'Round', say: '今夜の線は、まんまる！', sayEn: 'Your line is a circle!', rule: '指を置いた所を中心に、線が輪になる', ruleEn: 'Your line becomes a ring around where you touched', desc: '線は、指を置いた所を中心にして、指を離した所を通る輪になる（輪の長さは墨まで）', descEn: 'Your line becomes a ring centred where you touched, passing where you let go (as long as your ink allows)', target: 0.85 },
+  { id: 'togire', ja: 'とぎれ', en: 'Gaps', say: '線がとぎれとぎれだよ！', sayEn: 'Your line has gaps!', rule: '線がとぎれとぎれ。切れ目は爆発で越える', ruleEn: 'Your line has gaps. Only bursts can jump them', desc: '線は燃える所と切れ目のくり返しになる。切れ目の先へは、近くの玉の爆発でしか火が渡らない', descEn: 'Your line alternates between fuse and gaps. Fire only crosses a gap when a nearby shell bursts', target: 0.8 },
+];
+export const TOGIRE_ON = 18;   // とぎれ: 燃える所の長さ（導火線の点の数。1 点 = FUSE_SAMPLE）
+export const TOGIRE_OFF = 4;   // とぎれ: 切れ目の長さ（点の数）
+export function twistFor(seed, night, stage = 1) {
+  if (stg(stage) === 2) {
+    const k2 = BOSS_NIGHTS2.indexOf(night);
+    return k2 < 0 ? null : shuffled(TWISTS2, rng32(hashStr(`hitofude-boss2:${seed >>> 0}`)))[k2];
+  }
   const k = BOSS_NIGHTS.indexOf(night);
   if (k < 0) return null;
   return shuffled(TWISTS, rng32(hashStr(`hitofude-boss:${seed >>> 0}`)))[k];
 }
-export function isBoss(night) { return BOSS_NIGHTS.includes(night); }
+export function isBoss(night, stage = 1) { return (stg(stage) === 2 ? BOSS_NIGHTS2 : BOSS_NIGHTS).includes(night); }
+export function twistById(id) { return TWISTS.find((x) => x.id === id) || TWISTS2.find((x) => x.id === id) || null; }
 // その夜の目標点。基準点 × 倍率（大一番は、闇夜・一瞬のように人にだけ効く難しさの分を下げる）× 段位。見やすいよう上 2 桁に丸める。
 // 段位 3 から二夜目にも雲が出て並びが変わるので、基準点はその並びも測る（減衰の強さ・段位の墨の倍率は基準点に入れない）。
 // 13版: 目標は夜ごとに下がらない。前の夜の目標 × TARGET_STEP（大一番の夜は × 1。下がらないだけ）より低ければ、そこまで上げる
 // （並びの運で基準点が低い夜に、七夜目 32,000 → 八夜目 13,000 のように下がることがあった）
 export const TARGET_STEP = 1.1;
 const targetCache = new Map();
-export function targetFor(seed, night, moon = 4, level = 0) {
+export function targetFor(seed, night, moon = 4, level = 0, stage = 1) {
   level = Math.max(0, Math.min(MAX_LEVEL, Math.floor(+level || 0)));
-  const key = `${seed >>> 0}|${night}|${moon}|${level}`;
+  stage = stg(stage);
+  const key = stage === 1 ? `${seed >>> 0}|${night}|${moon}|${level}` : `s${stage}|${seed >>> 0}|${night}|${moon}|${level}`;
   if (targetCache.has(key)) return targetCache.get(key);
-  const tw = twistFor(seed, night);
-  let t = Math.max(30, round2(parScore(seed, night, moon, level) * TARGET_RATIO[night] * (tw ? tw.target : 1) * levelFx(level).target));
+  const tw = twistFor(seed, night, stage), ratio = stage === 2 ? TARGET_RATIO2 : TARGET_RATIO;
+  let t = Math.max(30, round2(parScore(seed, night, moon, level, stage) * ratio[night] * (tw ? tw.target : 1) * levelFx(level).target));
   if (night > 0) {
-    const prev = targetFor(seed, night - 1, moon, level);
+    const prev = targetFor(seed, night - 1, moon, level, stage);
     t = Math.max(t, prev, round2(prev * (tw ? 1 : TARGET_STEP)));
   }
   if (targetCache.size > 2000) targetCache.clear();
@@ -307,13 +357,34 @@ export const SCENES = [
   { id: 'wa', ja: '輪', en: 'Ring' },
   { id: 'yatai', ja: '屋台の列', en: 'Stalls' },
 ];
-export function sceneFor(seed, night) {
+// ステージ2の景色: 雪原（群れ）・つらら（上から垂れる縦の列）・棚田（ななめに下がる段々）。八夜目は、まん中が高い山の形
+export const SCENES2 = [
+  { id: 'yukimi', ja: '雪原', en: 'Snowfield' },
+  { id: 'tsurara', ja: 'つらら', en: 'Icicles' },
+  { id: 'tanada', ja: '棚田', en: 'Terraces' },
+  { id: 'yama', ja: '雪山', en: 'Mountain' },
+];
+export function sceneById(id) { return SCENES.find((x) => x.id === id) || SCENES2.find((x) => x.id === id) || null; }
+export function sceneFor(seed, night, stage = 1) {
+  if (stg(stage) === 2) {
+    if (night < 2) return SCENES2[0];
+    if (night === NIGHTS - 1) return SCENES2[3];
+    const prev2 = night > 2 ? sceneFor(seed, night - 1, 2).id : 'yukimi';
+    const pool2 = SCENES2.filter((sc) => sc.id !== prev2 && sc.id !== 'yama');
+    return pool2[Math.floor(rng32(nSeed(seed, night, 2) ^ 0x5ce9e)() * pool2.length)];
+  }
   if (night < 2) return SCENES[0];
   if (night === NIGHTS - 1) return SCENES[2];
   const prev = night > 2 ? sceneFor(seed, night - 1).id : 'mure';
   const pool = SCENES.filter((sc) => sc.id !== prev && !(night === NIGHTS - 2 && sc.id === 'wa'));
   return pool[Math.floor(rng32(nightSeed(seed, night) ^ 0x5ce9e)() * pool.length)];
 }
+// ステージごとの表（ページと道具は、これを読めばステージの違いがわかる）
+export const STAGE_DEFS = {
+  1: { gimmicks: GIMMICKS, bossNights: BOSS_NIGHTS, twists: TWISTS, scenes: SCENES, ratio: TARGET_RATIO, targets: TARGETS, counts: BASE_COUNTS, types: TYPES },
+  2: { gimmicks: GIMMICKS2, bossNights: BOSS_NIGHTS2, twists: TWISTS2, scenes: SCENES2, ratio: TARGET_RATIO2, targets: TARGETS2, counts: BASE_COUNTS2, types: TYPES2 },
+};
+export function stageDef(stage = 1) { return STAGE_DEFS[stg(stage)]; }
 
 // 連鎖の減衰（ひとりの夜だけ）。導火線でひらいた玉が 0 代目、その爆発・火花でひらいた玉が 1 代目…と数え、
 // ひらく大きさは R × max(DECAY_MIN, 減衰^代)。大輪（CHARM_LV.tairin.soft の段）と満月（MOON_SOFT 段）は減衰をゆるめる段を足し、SOFT_DECAYS[段] になる。
@@ -354,6 +425,14 @@ export const FOX_DELAY = 0.5;        // 狐火: 飛んでから届くまで（�
 export const FOX_MIN = 120;          // 狐火: これより遠い玉へ飛ぶ
 export const FOX_NEAR = 70;          // 狐火: 飛ぶ先は、この距離の中にまだひらいていない玉がいちばん多い所
 export const FOX_R = 1.5;            // 狐火でひらいた玉は、この倍の大きさでひらく
+// ステージ2の仕掛けの数字
+export const YUKI_MELT = 1.2;        // 雪玉: 火がついてから、とけて消えるまで（秒）
+export const YUKI_ADD = 1;           // 雪玉: ひらいたときの倍率
+export const TORII_ADD = 2;          // 鳥居: くぐったときの倍率
+export const ECHO_DELAY = 0.3;       // こだま玉: ひらいてから、反対側で爆ぜるまで（秒）
+export const ONI_GOOD = 3;           // 鬼玉: 線（線の火・終わり玉・結び目・狐火）でひらいたときの倍率
+export const ONI_BAD = 2;            // 鬼玉: 爆発・火花・残り火でひらいたときに引かれる倍率
+export const HIFUMI_ADD = [1, 2, 4]; // 一二三: 一・二・三を順にひらいたときの倍率
 export const LV3_SPARKS = 8;         // Lv3 で火花を飛ばすお守り（一番星・花筏）の本数
 export const DEEP_SPARKS = 4;        // 連獅子 Lv3: 深い玉が飛ばす火花の本数
 // Lv ごとの数字（[Lv1, Lv2, Lv3]）。意味は CHARMS の上の表。Lv3 だけが 0 でない数（keep・touch・sparks など）は、Lv3 で変わるふるまい
@@ -601,9 +680,12 @@ const MIN_GAP = 27;
 function gauss(rng) { return (rng() + rng() + rng() - 1.5) / 1.5; }
 
 export function nightSeed(seed, night) { return hashStr(`hitofude:${seed >>> 0}:${night}`); }
+// ステージごとの夜の種（ステージ1は nightSeed のまま。ステージ2は同じシードでも別の夜空になる）
+export function nSeed(seed, night, stage = 1) { return stg(stage) === 2 ? hashStr(`hitofude2:${seed >>> 0}:${night}`) : nightSeed(seed, night); }
 
 // 夜ごとの玉の内訳。仕掛けは GIMMICKS の夜から出てくる
-export function shellMix(night, rules) {
+export function shellMix(night, rules, stage = 1) {
+  if (stg(stage) === 2) return shellMix2(night, rules);
   let gold = 1 + Math.floor(night / 3);
   let big = night >= 1 ? 1 + Math.floor((night - 1) / 2) : 0;
   let star = night >= 2 ? 1 + Math.floor((night - 2) / 2) : 0;
@@ -617,12 +699,27 @@ export function shellMix(night, rules) {
   if (night >= 2) star += rules.extraSenrin;
   return { kin: gold, ootama: big, senrin: star, chouchin: lantern, shime: damp, shaku };
 }
+// ステージ2の内訳。金・大玉・千輪・提灯は一夜目から。新しい玉は GIMMICKS2 の夜から（一二三は、菊の玉のうち 3 つに札をつける。baseLayout2）
+export function shellMix2(night, rules) {
+  let gold = 1 + Math.floor(night / 3), big = 1 + Math.floor(night / 2), star = 1 + Math.floor(night / 3);
+  const lantern = night >= 5 ? 2 : 1;
+  if (rules.goldDouble) gold *= 2;
+  gold += rules.goldPlus || 0;
+  if (rules.bigDouble) big *= 2;
+  star += rules.extraSenrin || 0;
+  const koori = night >= 1 ? 2 + Math.floor((night - 1) / 2) : 0;
+  const yuki = night >= 2 ? (night >= 5 ? 3 : 2) : 0;
+  const kodama = night >= 4 ? (night >= 6 ? 3 : 2) : 0;
+  const oni = night >= 5 ? (night >= 6 ? 2 : 1) : 0;
+  return { kin: gold, ootama: big, senrin: star, chouchin: lantern, koori, yuki, kodama, oni, hifumi: night >= 6 ? 3 : 0, gates: night >= 3 ? (night >= 5 ? 2 : 1) : 0, shaku: 0 };
+}
 
 // 雲（5 夜目から。段位 3 からは 2 夜目から）。火も火花も通らない。
 // 置き場所はいつも元の大きさで決める（お守りで夜空が変わらないように）。風切りは、置いたあとで半径だけ縮める（Lv3 は消える）
-export function makeClouds(seed, night, rules = null, level = 0) {
-  if (night < (levelFx(level).clouds ? 1 : 4)) return [];
-  const rng = rng32(nightSeed(seed, night) ^ 0x0c10d5);
+export function makeClouds(seed, night, rules = null, level = 0, stage = 1) {
+  // ステージ2は、段位 3 からの雲だけ（二夜目から）
+  if (night < (levelFx(level).clouds ? 1 : 4) || (stg(stage) === 2 && !levelFx(level).clouds)) return [];
+  const rng = rng32(nSeed(seed, night, stage) ^ 0x0c10d5);
   const n = night >= 6 ? 2 : 1, out = [];
   for (let k = 0; k < n; k++) {
     for (let t = 0; t < 40; t++) {
@@ -648,8 +745,8 @@ export function inCloud(clouds, x, y) { return clouds.some((c) => Math.hypot(c.x
 
 // 仕掛け縄（7 夜目から）。離れた玉どうしをゆるい弧でつなぐ。雲（元の大きさ）は通らない。
 // 増し玉で足した玉はつながない（お守りで縄が変わらないように）
-export function makeRopes(seed, night, all, clouds) {
-  if (night < 6) return [];
+export function makeRopes(seed, night, all, clouds, stage = 1) {
+  if (night < 6 || stg(stage) === 2) return []; // ステージ2に縄は無い
   const shells = all.filter((s) => !s.extra);
   const rng = rng32(nightSeed(seed, night) ^ 0x2a0e5);
   const n = night >= 7 ? 3 : 2, out = [], used = new Set();
@@ -677,19 +774,21 @@ export function makeRopes(seed, night, all, clouds) {
 // clouds は元の大きさの雲（makeClouds(seed, night)）。お守りで増える玉（増し玉・増し玉 Lv3 の大玉・招き猫 Lv3 の金・提灯職人 Lv3 の提灯・
 // 風切り Lv3 の雲のあとの大玉）は、もとの並びを変えずに、お守りごとの別の乱数で後ろに足す（お守りを持っていても、同じ夜はみんな同じ並び）。
 // 足した玉には extra: true と、どのお守りの玉かを src に入れる。rules.baseExtra は花火合戦の玉の増し分で、こちらは並びに入る
-export function makeLayout(seed, night, rules, clouds = makeClouds(seed, night)) {
-  let shells = baseLayout(seed, night, rules, clouds);
-  if (rules.extraShells) shells = addExtraShells(seed, night, shells, clouds, rules.extraShells);
-  if (rules.extraBig) shells = addExtraShells(seed, night, shells, clouds, rules.extraBig, 'ootama', 0x51b16a, 'mashidama');
-  if (rules.extraGold) shells = addExtraShells(seed, night, shells, clouds, rules.extraGold, 'kin', 0x6a7e1d, 'maneki');
-  if (rules.extraLantern) shells = addExtraShells(seed, night, shells, clouds, rules.extraLantern, 'chouchin', 0x1a77e2, 'chouchinshi');
+export function makeLayout(seed, night, rules, clouds, stage = 1) {
+  stage = stg(stage);
+  if (clouds === undefined) clouds = makeClouds(seed, night, null, 0, stage);
+  let shells = stage === 2 ? baseLayout2(seed, night, rules, clouds) : baseLayout(seed, night, rules, clouds);
+  if (rules.extraShells) shells = addExtraShells(seed, night, shells, clouds, rules.extraShells, 'kiku', 0x3a5d1e, 'mashidama', stage);
+  if (rules.extraBig) shells = addExtraShells(seed, night, shells, clouds, rules.extraBig, 'ootama', 0x51b16a, 'mashidama', stage);
+  if (rules.extraGold) shells = addExtraShells(seed, night, shells, clouds, rules.extraGold, 'kin', 0x6a7e1d, 'maneki', stage);
+  if (rules.extraLantern) shells = addExtraShells(seed, night, shells, clouds, rules.extraLantern, 'chouchin', 0x1a77e2, 'chouchinshi', stage);
   // 風切り Lv3: 消えた雲のまん中に大玉（雲のまわりには玉が無いので、重ならない）
   if (rules.cloudBig) for (const c of clouds) if (spotClear(shells, [], c.x, c.y)) shells.push({ id: shells.length, type: 'ootama', x: c.x, y: c.y, hue: 3, extra: true, src: 'kazekiri' });
   return shells;
 }
 // 増し玉: もとの玉のそばに、別の乱数で足す（間隔と雲のよけ方は、もとの玉と同じ）
-function addExtraShells(seed, night, shells, clouds, n, type = 'kiku', salt = 0x3a5d1e, src = 'mashidama') {
-  const rng = rng32(nightSeed(seed, night) ^ salt);
+function addExtraShells(seed, night, shells, clouds, n, type = 'kiku', salt = 0x3a5d1e, src = 'mashidama', stage = 1) {
+  const rng = rng32(nSeed(seed, night, stage) ^ salt);
   const base = shells.filter((s) => s.type !== 'shaku' && !s.extra);
   const out = shells.slice();
   for (let i = 0; i < n && base.length; i++) {
@@ -768,6 +867,123 @@ function baseLayout(seed, night, rules, clouds) {
   return shells;
 }
 
+// ステージ2の並べ方。玉の群れの置き方は景色（SCENES2）ごと。一二三は、置いたあとで菊の玉のうち離れた 3 つに札（num 1〜3）をつける
+function baseLayout2(seed, night, rules, clouds) {
+  const rng = rng32(nSeed(seed, night, 2));
+  const n = BASE_COUNTS2[Math.min(night, BASE_COUNTS2.length - 1)];
+  const mix = shellMix2(night, rules);
+  const types = [];
+  for (const t of ['kin', 'ootama', 'senrin', 'chouchin', 'koori', 'yuki', 'kodama', 'oni']) for (let i = 0; i < mix[t]; i++) types.push(t);
+  while (types.length < n) types.push('kiku');
+  for (let i = types.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [types[i], types[j]] = [types[j], types[i]]; }
+  const scene = sceneFor(seed, night, 2).id;
+  let k = night < 2 ? 3 : 3 + Math.floor(rng() * 3), spread = night < 2 ? 34 : 38 + night, sx = 1, sy = 1;
+  const centers = [];
+  if (scene === 'tsurara') {
+    // 上の軒から垂れるつらら: 縦に長い列が 5 本（長さはまちまち）
+    k = 5; spread = 26; sx = 0.45; sy = 2.4;
+    for (let c = 0; c < k; c++) centers.push({ x: FIELD.x0 + 30 + c * (FIELD.x1 - FIELD.x0 - 60) / (k - 1) + (rng() - 0.5) * 16, y: FIELD.y0 + 90 + rng() * 120 });
+  } else if (scene === 'tanada') {
+    // 山の斜面の棚田: 左上から右下へ（か、その逆へ）下がる段々の列
+    k = 5; spread = 26; sx = 1.9; sy = 0.42;
+    const dir = rng() < 0.5 ? 1 : -1;
+    for (let c = 0; c < k; c++) { const u = c / (k - 1); centers.push({ x: W / 2 + dir * (u - 0.5) * 170 + (rng() - 0.5) * 20, y: FIELD.y0 + 50 + u * (FIELD.y1 - FIELD.y0 - 100) }); }
+  } else if (scene === 'yama') {
+    // 雪山: まん中が高い山の形。頂から左右のふもとへ、尾根に沿って群れが並ぶ
+    k = 7; spread = 26 + night;
+    for (let c = 0; c < k; c++) { const u = c / (k - 1), x = FIELD.x0 + 28 + u * (FIELD.x1 - FIELD.x0 - 56); centers.push({ x, y: FIELD.y0 + 70 + Math.abs(u - 0.5) * 2 * 270 + (rng() - 0.5) * 24 }); }
+  } else {
+    for (let c = 0; c < k; c++) {
+      let best = null;
+      for (let t = 0; t < 12; t++) {
+        const p = { x: FIELD.x0 + 30 + rng() * (FIELD.x1 - FIELD.x0 - 60), y: FIELD.y0 + 30 + rng() * (FIELD.y1 - FIELD.y0 - 60) };
+        const d = centers.reduce((m, q) => Math.min(m, Math.hypot(p.x - q.x, p.y - q.y)), 1e9);
+        if (!best || d > best.d) best = { p, d };
+      }
+      centers.push(best.p);
+    }
+  }
+  const shells = [];
+  const clear = (x, y) => spotClear(shells, clouds, x, y, MIN_GAP);
+  for (let i = 0; i < types.length; i++) {
+    let pos = null;
+    for (let t = 0; t < 60 && !pos; t++) {
+      const loose = rng() < (night < 2 ? 0.08 : scene === 'yukimi' ? 0.2 : 0.1);
+      const c = centers[Math.floor(rng() * centers.length)];
+      const grow = 1 + Math.floor(t / 20) * 0.35;
+      const x = Math.round(loose ? FIELD.x0 + rng() * (FIELD.x1 - FIELD.x0) : c.x + gauss(rng) * spread * sx * grow);
+      const y = Math.round(loose ? FIELD.y0 + rng() * (FIELD.y1 - FIELD.y0) : c.y + gauss(rng) * spread * sy * grow);
+      if (x < FIELD.x0 || x > FIELD.x1 || y < FIELD.y0 || y > FIELD.y1) continue;
+      if (!clear(x, y)) continue;
+      pos = { x, y };
+    }
+    if (!pos) continue;
+    shells.push({ id: shells.length, type: types[i], x: pos.x, y: pos.y, hue: Math.floor(rng() * 7) });
+  }
+  // 一二三: 菊の玉のうち、たがいに離れた 3 つ（いちばん近い 2 つの間がいちばん広い組を、何度か引いた中から）に札をつける。札の順はでたらめ
+  if (mix.hifumi) {
+    const kiku = shells.filter((s) => s.type === 'kiku');
+    let best = null;
+    for (let t = 0; t < 40 && kiku.length >= 3; t++) {
+      const a = kiku[Math.floor(rng() * kiku.length)], b = kiku[Math.floor(rng() * kiku.length)], c = kiku[Math.floor(rng() * kiku.length)];
+      if (a === b || b === c || a === c) continue;
+      const d = Math.min(Math.hypot(a.x - b.x, a.y - b.y), Math.hypot(b.x - c.x, b.y - c.y), Math.hypot(a.x - c.x, a.y - c.y));
+      if (!best || d > best.d) best = { d, list: [a, b, c] };
+    }
+    if (best) best.list.forEach((s, i) => { s.type = 'hifumi'; s.num = i + 1; });
+  }
+  return shells;
+}
+// 鳥居（ステージ2の四夜目から）。玉のない所に、2 本の柱（間は TORII_W）を立てる。燃える線が柱のあいだを横切ると、くぐったことになる
+export const TORII_W = 44;
+export function makeGates(seed, night, shells, clouds = []) {
+  const n = shellMix2(night, {}).gates;
+  if (!n) return [];
+  const rng = rng32(nSeed(seed, night, 2) ^ 0x70d11);
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    for (let t = 0; t < 160; t++) {
+      const x = Math.round(FIELD.x0 + 40 + rng() * (FIELD.x1 - FIELD.x0 - 80)), y = Math.round(FIELD.y0 + 50 + rng() * (FIELD.y1 - FIELD.y0 - 100));
+      // まわりに玉が少しはある所（くぐる意味がある）。でも柱と横木が玉に重ならない
+      if (shells.some((s) => Math.hypot(s.x - x, s.y - y) < TORII_W * 0.5 + SHELLS[s.type].r + 6)) continue;
+      if (t < 120 && !shells.some((s) => Math.hypot(s.x - x, s.y - y) < 95)) continue;
+      if (out.some((g) => Math.hypot(g.x - x, g.y - y) < 120) || clouds.some((c) => Math.hypot(c.x - x, c.y - y) < c.r + 40)) continue;
+      const a = Math.round((rng() - 0.5) * 1200) / 1000; // 柱を結ぶ線の向き（ほぼ横。少しかたむく）
+      const dx = Math.cos(a) * TORII_W / 2, dy = Math.sin(a) * TORII_W / 2;
+      out.push({ id: k, x, y, a, x1: Math.round(x - dx), y1: Math.round(y - dy), x2: Math.round(x + dx), y2: Math.round(y + dy), lit: false });
+      break;
+    }
+  }
+  return out;
+}
+// 線分 ab と cd が交わるか（どちらかの端が、もう一方の線分の上にあるときも交わるに入れる）
+function segCross(ax, ay, bx, by, cx, cy, dx, dy) {
+  const d1 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax), d2 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
+  const d3 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx), d4 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
+  const s1 = Math.sign(d1), s2 = Math.sign(d2), s3 = Math.sign(d3), s4 = Math.sign(d4);
+  if (s1 === 0 && s2 === 0) return false; // 同じ直線の上は数えない
+  return s1 !== s2 && s3 !== s4;
+}
+// 結び（ステージ2の八夜目）: 線が自分と交わった所。samples は導火線の点の列。
+// 返り値 [{ x, y, i, j }]（i が先に通る所、j があとで通る所。線の順に KNOT_MAX まで。近すぎる結び目はひとつにまとめる）
+export const KNOT_MAX = 3;
+export const KNOT_R = 90;     // 結び目が爆ぜる大きさ（線の火として玉に届く）
+export const KNOT_ADD = 2;    // 結び目 1 つの倍率
+export function knotsOf(samples) {
+  const out = [];
+  for (let j = 3; j < samples.length && out.length < KNOT_MAX; j++) {
+    for (let i = 1; i < j - 2; i++) {
+      const a = samples[i - 1], b = samples[i], c = samples[j - 1], d = samples[j];
+      if (!segCross(a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y)) continue;
+      const x = Math.round((b.x + d.x) / 2), y = Math.round((b.y + d.y) / 2);
+      if (out.some((k) => Math.hypot(k.x - x, k.y - y) < 16)) continue;
+      out.push({ x, y, i, j });
+      break;
+    }
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- 線
 function pathLength(pts) {
   let s = 0;
@@ -826,21 +1042,23 @@ export const SPARK_LIFE = 0.55;
 // bank は墨壺（前の夜に残した墨。inkCarry で出す）。その夜の墨に足す（鏡の夜は、足したあとで 3/4 にする。狸の葉っぱなら減らない）。
 // level は段位（雲・減衰・目標点が変わる）。花火合戦は段位なし
 // ref = true は基準点の手順の線（段位の墨の倍率を入れない。並びと減衰だけ段位に合わせる）
-export function newRound({ seed, night, charms = [], moon = 4, par = false, vs = null, bank = 0, level = 0, ref = false }) {
+// stage はステージ（省けば 1。花火合戦はいつも 1）
+export function newRound({ seed, night, charms = [], moon = 4, par = false, vs = null, bank = 0, level = 0, ref = false, stage = 1 }) {
   level = vs ? 0 : Math.max(0, Math.min(MAX_LEVEL, Math.floor(+level || 0)));
+  stage = vs ? 1 : stg(stage);
   const rules = rulesFor(charms, moon, level, !!vs);
   if (!vs && !ref && levelFx(level).ink !== 1) rules.ink = Math.round(rules.ink * levelFx(level).ink); // 段位 2 から墨が 15% へる
   if (vs) rules.baseExtra = vs.extra || 0;
-  const tw = vs ? null : twistFor(seed, night);
-  const full = makeClouds(seed, night, null, level), clouds = shrinkClouds(full, rules.cloudScale);
-  const shells = makeLayout(seed, night, rules, full).map((s) => ({ ...s, burst: false, burstAt: -1, hp: s.type === 'shime' ? rules.dampHits : 1, lastSrc: null }));
+  const tw = vs ? null : twistFor(seed, night, stage);
+  const full = makeClouds(seed, night, null, level, stage), clouds = shrinkClouds(full, rules.cloudScale);
+  const shells = makeLayout(seed, night, rules, full, stage).map((s) => ({ ...s, burst: false, burstAt: -1, hp: s.type === 'shime' ? rules.dampHits : 1, lastSrc: null }));
   bank = vs ? 0 : Math.max(0, Math.min(BASE_INK, Math.floor(+bank || 0)));
   const mirrorInk = tw && tw.id === 'kagami' && !rules.mirrorPart ? MIRROR_INK : 1;
   const ink = Math.round((rules.ink + bank) * mirrorInk);
   // ownInk は、この夜にもらった墨のうち墨壺の分を除いたもの（残り墨・墨流し・線香花火・願い札はこれに対する割合で数える）
   const st = {
     seed: seed >>> 0, night, charms: charms.slice(), moon, level, rules, shells, clouds, ropes: [],
-    twist: tw ? tw.id : null, scene: sceneFor(seed, night).id, target: par || vs ? 0 : targetFor(seed, night, moon, level),
+    twist: tw ? tw.id : null, scene: sceneFor(seed, night, stage).id, target: par || vs ? 0 : targetFor(seed, night, moon, level, stage), stage,
     t: 0, tick: 0, phase: 'draw', strokes: [], ink, bank, inkTotal: ink, ownInk: vs ? ink : Math.round(rules.ink * mirrorInk), mirrorInk, cloudCount: full.length,
     fuse: { pts: [], burnt: [], seg: [], wet: [], rope: [], links: [], owner: [], fire: [], ends: new Set() },
     heads: [], explosions: [], sparks: [], embers: [], later: [], foxes: [], nextId: 1,
@@ -849,10 +1067,18 @@ export function newRound({ seed, night, charms = [], moon = 4, par = false, vs =
     // 点の内訳（scoreParts で result.parts にする）。shells は玉そのものの点、lantern は提灯で増えた分、maker は提灯職人でさらに増えた分
     acc: { shells: 0, mashi: 0, damp: 0, lantern: 0, maker: 0, ember: 0, chain: 0, gold: 0, kinun: 0, star: 0, tori: 0, toriPlus: 0, lanternMult: 0, dampMult: 0, touch: 0 },
     stats: null,
-    rng: rng32(nightSeed(seed, night) ^ 0x9e3779b9), secondUsed: false, done: false, result: null, vs: null,
+    rng: rng32(nSeed(seed, night, stage) ^ 0x9e3779b9), secondUsed: false, done: false, result: null, vs: null,
   };
   if (vs) st.vs = newVsState(vs);
-  const ropes = makeRopes(seed, night, shells, full);
+  // ステージ2: 鳥居・結び目・こだま・一二三・雪玉のための入れ物（ステージ1の夜には足さない）
+  if (stage === 2) {
+    st.gates = makeGates(seed, night, shells, full);
+    st.gateAt = new Map(); st.knotAt = new Map(); st.knots = []; st.echoes = []; st.melted = false;
+    st.hifumi = { next: 1, broken: false, total: shells.filter((x) => x.type === 'hifumi').length };
+    st.musubi = night >= 7;
+    Object.assign(st.acc, { yuki: 0, torii: 0, oni: 0, hifumi: 0, knot: 0 });
+  }
+  const ropes = makeRopes(seed, night, shells, full, stage);
   ropes.forEach((r, k) => addSegment(st, r.pts, 10 + k, true));
   st.ropes = ropes;
   st.stats = newStats(st);
@@ -864,8 +1090,11 @@ export function newRound({ seed, night, charms = [], moon = 4, par = false, vs =
 export function multOf(st) {
   const r = st.rules;
   const pulse = r.chainPulse ? Math.floor(st.chainPops / r.chainPulse) : Math.floor(st.pops / r.pulse);
-  return 1 + r.startMult + st.goldMult + pulse + spareBonus(st) + (st.vs ? 0 : st.acc.lanternMult + st.acc.dampMult + st.acc.touch + r.cloudMult * st.cloudCount);
+  const m = 1 + r.startMult + st.goldMult + pulse + spareBonus(st) + (st.vs ? 0 : st.acc.lanternMult + st.acc.dampMult + st.acc.touch + r.cloudMult * st.cloudCount);
+  // ステージ2: 雪玉・鳥居・鬼・一二三・結び目の足し分（鬼で引かれても、倍率は 1 より下がらない）
+  return st.stage === 2 ? Math.max(1, m + s2Mult(st)) : m;
 }
+function s2Mult(st) { const a = st.acc; return a.yuki + a.torii + a.oni + a.hifumi + a.knot; }
 // 提灯が灯ったあとの、点の倍率（1 + 灯った提灯 × 1。提灯職人なら 1 つにつき CHARM_LV.chouchinshi.gain）
 export function pointFactor(st) { return 1 + st.lanterns; }
 
@@ -900,6 +1129,9 @@ export const PART_LABEL = {
   shells: { ja: '玉', en: 'Shells' }, lantern: { ja: '提灯', en: 'Lanterns' }, ember: { ja: '残り火', en: 'Embers' },
   base: { ja: '倍率', en: 'Base' }, moon: { ja: '月', en: 'Moon' }, gold: { ja: '金の玉', en: 'Gold' }, tori: { ja: '大トリ', en: 'Grand finale' },
   pulse: { ja: '10 個ごと', en: 'Every 10 bursts' }, bloom: { ja: '満開', en: 'Full bloom' }, kata: { ja: '型そろい', en: 'Set bonus' },
+  // ステージ2
+  yuki: { ja: '雪玉', en: 'Snowballs' }, torii: { ja: '鳥居', en: 'Gates' }, oni: { ja: '鬼玉', en: 'Oni' }, hifumi: { ja: '一二三', en: '1-2-3' },
+  musubi: { ja: '結び目', en: 'Knots' }, floor: { ja: '倍率の下限', en: 'Mult floor' },
 };
 function partLabel(id) { const c = CHARMS.find((x) => x.id === id); return c ? { ja: c.ja, en: c.en } : PART_LABEL[id] || { ja: id, en: id }; }
 const round2x = (v) => Math.round(v * 100) / 100;
@@ -935,6 +1167,12 @@ export function scoreParts(st) {
   add('hanaikada', 'mult', a.lanternMult);
   add('amayoke', 'mult', a.dampMult);
   add('kazekiri', 'mult', r.cloudMult * st.cloudCount);
+  if (st.stage === 2) {
+    add('yuki', 'mult', a.yuki); add('torii', 'mult', a.torii); add('oni', 'mult', a.oni); add('hifumi', 'mult', a.hifumi); add('musubi', 'mult', a.knot);
+    // 鬼で倍率が 1 より下がったときは、1 にもどす分を足す（内訳の合計と点がそろうように）
+    const m0 = parts.reduce((t, p) => t + (p.kind === 'mult' ? p.v : 0), 0);
+    if (m0 < 1) add('floor', 'mult', 1 - m0);
+  }
   if (r.spareHalf > 1 && steps >= SPARE_HALF) add('nokorizumi', 'xmult', r.spareHalf);
   if (r.goldX && a.gold) add('maneki', 'xmult', round2x(manekiX(r.goldX, a.gold)));
   if (r.genX && st.maxGen) add('renjishi', 'xmult', round2x(1 + r.genX * st.maxGen));
@@ -967,6 +1205,9 @@ function newStats(st) {
     goldTotal: n('kin'), goldBurst: 0, dampTotal: n('shime'), dampBurst: 0, bigTotal: n('ootama'), bigBurst: 0,
     lanternTotal: n('chouchin'), lanternsLit: 0, ropesLit: 0, ropesTotal: st.ropes.length, cloudTouched: false,
     maxGen: 0, inkFrac: 0, pops: 0, total: st.shells.length, chainPops: 0, toriAdd: 0, allClear: false,
+    // ステージ2（ステージ1の夜には足さない）
+    ...(st.stage === 2 ? { kooriTotal: n('koori'), kooriBurst: 0, yukiTotal: n('yuki'), yukiBurst: 0, yukiMelted: 0, gatesTotal: st.gates.length, gatesLit: 0,
+      oniTotal: n('oni'), oniGood: 0, oniBad: 0, hifumiTotal: st.hifumi.total, hifumiDone: 0, hifumiBroken: false, knots: 0, kodamaTotal: n('kodama'), kodamaBurst: 0 } : {}),
   };
 }
 function countStats(st) {
@@ -977,6 +1218,12 @@ function countStats(st) {
   S.maxGen = st.maxGen; S.inkFrac = inkUsedFrac(st);
   S.pops = st.pops; S.total = st.shells.length; S.chainPops = st.chainPops; S.toriAdd = st.tori ? st.tori.add : 0;
   S.allClear = st.shells.length > 0 && st.shells.every((s) => s.burst);
+  if (st.stage === 2) {
+    S.kooriTotal = n('koori'); S.kooriBurst = b('koori'); S.yukiTotal = n('yuki'); S.yukiBurst = b('yuki'); S.yukiMelted = st.shells.filter((s) => s.melted).length;
+    S.gatesTotal = st.gates.length; S.gatesLit = st.gates.filter((g) => g.lit).length; S.oniTotal = n('oni');
+    S.hifumiTotal = st.hifumi.total; S.hifumiDone = st.hifumi.broken ? Math.min(st.hifumi.next - 1, S.hifumiDone || 0) : st.hifumi.next - 1; S.hifumiBroken = st.hifumi.broken;
+    S.knots = st.knots.filter((k) => k.fired).length; S.kodamaTotal = n('kodama'); S.kodamaBurst = b('kodama');
+  }
   return S;
 }
 
@@ -1000,7 +1247,25 @@ function addSegment(st, samples, segId, isRope, owner = 0) {
 
 // 指の軌跡から線を置いて火をつける（1 本目も 2 本目も同じ）。返り値は、実際に使われた線
 export function lightStroke(st, raw) {
-  return lightPoints(st, normalizeStroke(st.twist === 'massugu' ? straighten(raw, st.ink) : raw, st.ink));
+  return lightPoints(st, normalizeStroke(st.twist === 'massugu' ? straighten(raw, st.ink) : st.twist === 'manmaru' ? roundLine(raw, st.ink) : raw, st.ink));
+}
+// まんまるの夜: 引きはじめを中心に、指を離した所を通る輪（輪の長さは墨まで）。輪は指を離した所から始まり、ひと回りして戻る
+export const ROUND_MIN = 8;
+export function roundRadius(raw, ink) {
+  const pts = (raw || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (pts.length < 2) return 0;
+  const a = pts[0], b = pts[pts.length - 1];
+  return Math.min(Math.hypot(b.x - a.x, b.y - a.y), Math.max(0, ink - STROKE_STEP * 1.5) / (Math.PI * 2));
+}
+export function roundLine(raw, ink) {
+  const pts = (raw || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (pts.length < 2) return pts;
+  const a = pts[0], b = pts[pts.length - 1], r = roundRadius(pts, ink);
+  if (r < ROUND_MIN) return [a];
+  const a0 = Math.atan2(b.y - a.y, b.x - a.x), n = Math.max(12, Math.ceil(Math.PI * 2 * r / 3));
+  const out = [];
+  for (let i = 0; i <= n; i++) { const u = a0 + (i / n) * Math.PI * 2; out.push({ x: a.x + Math.cos(u) * r, y: a.y + Math.sin(u) * r }); }
+  return out;
 }
 // まっすぐの夜: 引きはじめから、指を離した所へ向かう直線（墨の長さまで）
 export function straighten(raw, ink) {
@@ -1054,8 +1319,19 @@ function placePoints(st, input, owner, segOverride = null) {
     for (let k = i === 1 ? 0 : 1; k <= n; k++) samples.push({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n });
   }
   const segId = segOverride == null ? st.strokes.length - 1 : segOverride;
-  const base = addSegment(st, samples, segId, false, owner);
+  const base = st.twist === 'togire' && !st.vs ? addDashes(st, samples, segId, owner) : addSegment(st, samples, segId, false, owner);
+  const added = st.fuse.pts.length - base;
   st.fuse.ends.add(st.fuse.pts.length - 1);
+  if (st.stage === 2) {
+    markGates(st, base, st.fuse.pts.length);
+    // 結び（八夜目から）: 線が自分と交わった所。どちらの所に火が来ても、その結び目が爆ぜる
+    if (st.musubi && segOverride == null) for (const k of knotsOf(samples)) {
+      if (st.knots.length >= KNOT_MAX) break;
+      const id = st.knots.length;
+      st.knots.push({ id, x: k.x, y: k.y, fired: false });
+      for (const i of [k.i, k.j]) if (base + i < st.fuse.pts.length) st.knotAt.set(base + i, id);
+    }
+  }
   // 鏡の夜は、左右に映した線も置いて、両方の端から火をつける。
   // 狸の葉っぱ（鏡の夜でないとき）は、線の前の部分だけを映す（写しは別の区間 30 + 番号。終わりは終わり玉も爆ぜる）。
   // 狸の葉っぱ Lv3 は、線まるごとを上下にも、ななめ（上下と左右の両方）にも映す（区間 40 + 番号・50 + 番号。鏡の夜も）
@@ -1064,12 +1340,41 @@ function placePoints(st, input, owner, segOverride = null) {
   const copy = (ms, mseg) => {
     const mb = addSegment(st, ms, mseg, false, owner);
     st.fuse.ends.add(st.fuse.pts.length - 1);
+    if (st.stage === 2) markGates(st, mb, st.fuse.pts.length);
     mirrors.push({ base: mb, seg: mseg, p: ms[0], len: ms.length });
   };
   if (part) copy(samples.slice(0, part >= 1 ? samples.length : Math.max(2, Math.round(samples.length * part))).map(mirrorPoint), (kagami ? 20 : 30) + segId);
   if (solo && st.rules.mirrorFlip) { copy(samples.map(flipPoint), 40 + segId); copy(samples.map((p) => mirrorPoint(flipPoint(p))), 50 + segId); }
   if (!st.vs) for (let i = base; i < st.fuse.pts.length; i++) if (st.fuse.wet[i] || (st.rules.cloudBrush && inCloud(st.clouds, st.fuse.pts[i].x, st.fuse.pts[i].y))) { st.stats.cloudTouched = true; break; }
-  return { pts, base, segId, p0: samples[0], mirror: mirrors[0] || null, mirrors, len: samples.length };
+  return { pts, base, segId, p0: samples[0], mirror: mirrors[0] || null, mirrors, len: added };
+}
+// とぎれの夜: 導火線を TOGIRE_ON 点燃えて TOGIRE_OFF 点切れる、のくり返しで置く（燃える所は 1 つずつ別の区間。切れ目に点は無い）
+function addDashes(st, samples, segId, owner) {
+  const base = st.fuse.pts.length;
+  for (let k = 0, i = 0; i < samples.length; k++, i += TOGIRE_ON + TOGIRE_OFF) addSegment(st, samples.slice(i, i + TOGIRE_ON), 100 + segId * 100 + k, false, owner);
+  return base;
+}
+// 鳥居: 導火線の点 from..to-1 のうち、柱のあいだを横切る所を覚える（そこが燃えたら、くぐった）
+function markGates(st, from, to) {
+  const f = st.fuse;
+  for (let i = Math.max(from, 1); i < to; i++) {
+    if (f.seg[i] !== f.seg[i - 1]) continue;
+    for (const g of st.gates) if (segCross(f.pts[i - 1].x, f.pts[i - 1].y, f.pts[i].x, f.pts[i].y, g.x1, g.y1, g.x2, g.y2)) { if (!st.gateAt.has(i)) st.gateAt.set(i, g.id); }
+  }
+}
+// ステージ2: 導火線の点 i が燃えたとき（鳥居をくぐった・結び目に火が来た）
+function s2Burnt(st, i, o) {
+  const g = st.gateAt.get(i);
+  if (g != null && !st.gates[g].lit) {
+    const gt = st.gates[g]; gt.lit = true; st.acc.torii += TORII_ADD;
+    st.events.push({ type: 'torii', gate: gt, x: gt.x, y: gt.y, add: TORII_ADD, o });
+  }
+  const k = st.knotAt.get(i);
+  if (k != null && !st.knots[k].fired) {
+    const kn = st.knots[k]; kn.fired = true; st.acc.knot += KNOT_ADD;
+    spawnExplosion(st, kn.x, kn.y, KNOT_R, 'end', 2, o, 0, true);
+    st.events.push({ type: 'knot', knot: kn, x: kn.x, y: kn.y, add: KNOT_ADD, R: KNOT_R, o });
+  }
 }
 // 上下に映した点（狸の葉っぱ Lv3。玉の場のまん中で折り返す）
 export function flipPoint(p) { return { x: p.x, y: FIELD.y0 + FIELD.y1 - p.y }; }
@@ -1082,6 +1387,7 @@ function igniteStroke(st, placed, o) {
   if (f.burnt[base]) { st.events.push({ type: 'fizzle', x: p0.x, y: p0.y, o }); return; }
   f.burnt[base] = true; f.fire[base] = o;
   st.events.push({ type: 'light', x: p0.x, y: p0.y, o });
+  if (st.stage === 2) s2Burnt(st, base, o);
   // 雲の中から引きはじめた線は、火がつかない
   const mainWet = f.wet[base];
   if (!mainWet) {
@@ -1095,6 +1401,7 @@ function igniteStroke(st, placed, o) {
   const last = base + placed.len - 1;
   if (!st.vs && st.rules.bothEnds && last > base && !f.burnt[last] && !f.wet[last]) {
     f.burnt[last] = true; f.fire[last] = o;
+    if (st.stage === 2) s2Burnt(st, last, o);
     st.heads.push({ i: last, dir: -1, f: last, o });
     fuseNeighborsBurst(st, f.pts[last], st.rules.reach, 'f' + segId, o);
     catchLinks(st, last, o);
@@ -1103,6 +1410,7 @@ function igniteStroke(st, placed, o) {
   for (const mirror of mirrors || []) {
     if (f.burnt[mirror.base]) continue;
     f.burnt[mirror.base] = true; f.fire[mirror.base] = o;
+    if (st.stage === 2) s2Burnt(st, mirror.base, o);
     if (!f.wet[mirror.base]) {
       st.heads.push({ i: mirror.base, dir: 1, f: mirror.base, o });
       fuseNeighborsBurst(st, mirror.p, st.rules.reach, 'f' + mirror.seg, o);
@@ -1134,6 +1442,8 @@ function burst(st, s, cause, src, o = 0, gen = 0) {
   if (s.type === 'kuro' && cause !== 'fuse') return; // 黒玉は、導火線の火にしか反応しない（爆発や火花は素通り）
   const line = cause === 'fuse' || cause === 'end';
   if (s.type === 'shaku' && !st.vs && !line) return; // 大トリの尺玉も、線の火でしかひらかない
+  if (s.type === 'koori' && cause === 'fuse') return;  // 氷玉は、線でじかにふれてもひらかない（爆発・火花・終わり玉でとける）
+  if (s.melted) return;                                // とけて消えた雪玉
   const damp = s.type === 'shime' && !(st.vs ? false : line || cause === 'fox');
   if ((damp || s.type === 'kuro') && s.lastSrc === src) return; // 同じ火は、何度当たっても 1 回と数える
   if ((damp || s.type === 'kuro') && s.hp > 1) {
@@ -1215,6 +1525,7 @@ function pop(st, s, cause, o, gen) {
     st.events.push({ type: 'lantern', shell: s, factor: side ? 1 + side.lanterns : pointFactor(st), o, mult: side ? 0 : st.rules.lanternMult });
   }
   if (!side && s.type === 'shime') st.acc.dampMult += st.rules.dampMult;
+  if (st.stage === 2) s2Pop(st, s, cause, o, gen);
   // ひとりの夜の尺玉は、倍率のための大トリ。ひらいても火は遠くまで飛ばさない（先にひらいて夜空を一掃する手は無い）。
   // 金運 Lv3 の金・雨よけ Lv3 の湿った玉は、大玉のように大きくひらく
   const baseR = side ? def.R : s.type === 'kin' && st.rules.goldR ? st.rules.goldR : s.type === 'shime' && st.rules.dampR ? st.rules.dampR : def.R;
@@ -1241,13 +1552,38 @@ function pop(st, s, cause, o, gen) {
   }
   st.events.push({ type: 'burst', shell: s, chain: side ? side.pops : st.pops, cause, o, R, gen });
 }
+// ステージ2の玉がひらいたとき（雪玉・鬼・一二三の倍率と、こだまの予約）
+function s2Pop(st, s, cause, o, gen) {
+  const a = st.acc;
+  if (s.type === 'yuki') { a.yuki += YUKI_ADD; st.events.push({ type: 'yuki', shell: s, add: YUKI_ADD, o }); }
+  else if (s.type === 'oni') {
+    const good = cause === 'fuse' || cause === 'end' || cause === 'fox';
+    a.oni += good ? ONI_GOOD : -ONI_BAD;
+    if (good) st.stats.oniGood++; else st.stats.oniBad++;
+    st.events.push({ type: 'oni', shell: s, good, add: good ? ONI_GOOD : -ONI_BAD, o });
+  } else if (s.type === 'hifumi') {
+    const H = st.hifumi;
+    if (!H.broken && s.num === H.next) {
+      a.hifumi += HIFUMI_ADD[s.num - 1]; H.next++;
+      st.stats.hifumiDone = H.next - 1;
+      st.events.push({ type: 'hifumi', shell: s, ok: true, num: s.num, add: HIFUMI_ADD[s.num - 1], o });
+    } else if (!H.broken) { H.broken = true; st.events.push({ type: 'hifumi', shell: s, ok: false, num: s.num, want: H.next, o }); }
+  } else if (s.type === 'kodama') {
+    // こだま: 左右反対の所で、同じ大きさで、もう一度爆ぜる（そこに玉が無くても爆ぜる。その爆発でひらいた玉は、次の代）
+    const k = sizeAt(st.rules, gen), ex = { at: st.t + ECHO_DELAY, x: W - s.x, y: s.y, R: SHELLS.kodama.R * k, o, gen, hue: s.hue, from: s.id };
+    st.echoes.push(ex);
+    st.events.push({ type: 'kodama', shell: s, x: ex.x, y: ex.y, at: ex.at, o });
+  }
+}
+// こだまの印（ページが、ひらく前のこだま玉の反対側にうすい輪を描く）
+export function echoPoint(s) { return { x: W - s.x, y: s.y }; }
 // 狐火の行き先: FOX_MIN より遠い、まだひらいていない玉のうち、まわり FOX_NEAR にまだひらいていない玉がいちばん多いもの
 // （同じなら遠い方、それも同じなら番号の小さい方）。尺玉と、ほかの狐火がもう向かっている玉には飛ばない
 function launchFox(st, from, o, hop = 0) {
   const aimed = new Set(st.foxes.map((f) => f.target));
   let best = null;
   for (const c of st.shells) {
-    if (c.burst || c.type === 'shaku' || c.type === 'kuro' || aimed.has(c.id)) continue;
+    if (c.burst || c.type === 'shaku' || c.type === 'kuro' || c.melted || aimed.has(c.id)) continue;
     const d = Math.hypot(c.x - from.x, c.y - from.y);
     if (d < FOX_MIN) continue;
     let n = 0;
@@ -1298,6 +1634,7 @@ function igniteFuseAt(st, i, o = 0) {
   const f = st.fuse;
   if (f.burnt[i] || f.wet[i]) return;
   f.burnt[i] = true; f.fire[i] = o;
+  if (st.stage === 2) s2Burnt(st, i, o);
   fuseEnd(st, i, o);
   st.heads.push({ i, dir: 1, f: i, o }, { i, dir: -1, f: i, o });
   st.events.push({ type: 'catch', x: f.pts[i].x, y: f.pts[i].y, rope: f.rope[i], o });
@@ -1347,6 +1684,7 @@ export function step(st) {
       if (next < 0 || next >= f.pts.length || f.burnt[next] || f.wet[next] || f.seg[next] !== f.seg[h.i]) { dead = true; break; }
       f.burnt[next] = true; f.fire[next] = h.o;
       h.i = next;
+      if (st.stage === 2) s2Burnt(st, next, h.o);
       fuseNeighborsBurst(st, f.pts[next], st.rules.reach, 'f' + f.seg[next], h.o);
       if (f.wet[next]) { dead = true; break; } // 黒玉に消された
       catchLinks(st, next, h.o);
@@ -1366,6 +1704,16 @@ export function step(st) {
       st.events.push({ type: 'endBurst', x: L.x, y: L.y, R: L.R, o: L.o });
     }
     st.later = wait;
+  }
+  // こだま（ステージ2）: ひらいたこだま玉の反対側で爆ぜる
+  if (st.stage === 2 && st.echoes.length) {
+    const wait = [];
+    for (const ex of st.echoes) {
+      if (st.t < ex.at - 1e-9) { wait.push(ex); continue; }
+      spawnExplosion(st, ex.x, ex.y, ex.R, 'chain', ex.hue, ex.o, ex.gen);
+      st.events.push({ type: 'echo', x: ex.x, y: ex.y, R: ex.R, from: ex.from, o: ex.o });
+    }
+    st.echoes = wait;
   }
   // 狐火が届いた（行き先がもうひらいていたら、そのまま消える）
   if (st.foxes.length) {
@@ -1426,8 +1774,13 @@ export function step(st) {
   }
   st.embers = again.length ? embers.concat(again) : embers;
   st.explosions = st.explosions.filter((e) => e.t <= BURST_GROW + BURST_HOLD + 0.6);
+  // 雪玉（ステージ2）: 火がついてから YUKI_MELT 秒で、まだひらいていない雪玉はとけて消える
+  if (st.stage === 2 && !st.melted && st.t >= YUKI_MELT - 1e-9) {
+    st.melted = true;
+    for (const s of st.shells) if (s.type === 'yuki' && !s.burst) { s.melted = true; st.events.push({ type: 'melt', shell: s }); }
+  }
   // 終わったか
-  const busy = st.heads.length || st.sparks.length || st.embers.length || st.later.length || st.foxes.length || st.explosions.some((e) => e.t <= BURST_GROW + BURST_HOLD) || (st.vs && st.vs.ignite.length);
+  const busy = st.heads.length || st.sparks.length || st.embers.length || st.later.length || st.foxes.length || st.explosions.some((e) => e.t <= BURST_GROW + BURST_HOLD) || (st.vs && st.vs.ignite.length) || (st.stage === 2 && st.echoes.length);
   if (!busy) {
     if (st.rules.secondStroke && !st.secondUsed && st.pops >= nihitsuNeed(st) && st.shells.some((s) => !s.burst)) {
       // 二筆目の墨（その夜の墨に足す）。二筆目 Lv3 は、1 本目で残った墨もその線に使える（墨の勘定には、もう入っている）
@@ -1486,13 +1839,14 @@ export const PAR_LINES = 12;
 // cut = true は、同じ線を前から WISH_CUT の長さで切った線（墨を残す線の代わり）
 const refCache = new Map();
 export const WISH_CUT = 0.55;
-function refRuns(seed, night, moon, board, cut = false) {
-  const key = `${seed >>> 0}|${night}|${moon}|${board}|${cut ? 1 : 0}`;
+function refRuns(seed, night, moon, board, cut = false, stage = 1) {
+  stage = stg(stage);
+  const key = `${stage === 1 ? '' : 's' + stage + '|'}${seed >>> 0}|${night}|${moon}|${board}|${cut ? 1 : 0}`;
   if (refCache.has(key)) return refCache.get(key);
-  const r = rng32(nightSeed(seed, night) ^ 0x9a55e7);
+  const r = rng32(nSeed(seed, night, stage) ^ 0x9a55e7);
   const out = [];
   for (let c = 0; c < PAR_LINES; c++) {
-    const st = newRound({ seed, night, charms: [], moon, par: true, level: board, ref: true });
+    const st = newRound({ seed, night, charms: [], moon, par: true, level: board, ref: true, stage });
     const line = refLine(st, r, c);
     const res = runToEnd(st, [cut ? cutLine(line, WISH_CUT) : line]);
     if (res) out.push({ done: true, night, result: res, stats: res.stats, cut, line });
@@ -1503,15 +1857,16 @@ function refRuns(seed, night, moon, board, cut = false) {
 }
 // 願い札のための、もう少し広い手順の線: 金の玉から引きはじめる近い順の線（3 本まで）と、手順の線を前から WISH_SHORT で切った短い線（4 本）
 export const WISH_SHORT = 0.3;
-function probeRuns(seed, night, moon, board) {
-  const key = `p|${seed >>> 0}|${night}|${moon}|${board}`;
+function probeRuns(seed, night, moon, board, stage = 1) {
+  stage = stg(stage);
+  const key = `p|${stage === 1 ? '' : 's' + stage + '|'}${seed >>> 0}|${night}|${moon}|${board}`;
   if (refCache.has(key)) return refCache.get(key);
-  const st0 = newRound({ seed, night, charms: [], moon, par: true, level: board, ref: true });
-  const lines = refRuns(seed, night, moon, board).slice(0, 4).map((x) => cutLine(x.line, WISH_SHORT));
-  if (st0.twist !== 'massugu') for (const g of st0.shells.filter((x) => x.type === 'kin').slice(0, 3)) lines.push(nearestChain(st0, g));
+  const st0 = newRound({ seed, night, charms: [], moon, par: true, level: board, ref: true, stage });
+  const lines = refRuns(seed, night, moon, board, false, stage).slice(0, 4).map((x) => (st0.twist === 'manmaru' ? x.line : cutLine(x.line, WISH_SHORT)));
+  if (st0.twist !== 'massugu' && st0.twist !== 'manmaru') for (const g of st0.shells.filter((x) => x.type === 'kin').slice(0, 3)) lines.push(nearestChain(st0, g));
   const out = [];
   for (const line of lines) {
-    const st = newRound({ seed, night, charms: [], moon, par: true, level: board, ref: true });
+    const st = newRound({ seed, night, charms: [], moon, par: true, level: board, ref: true, stage });
     const res = line.length >= 2 ? runToEnd(st, [line]) : null;
     if (res) out.push({ done: true, night, result: res, stats: res.stats, line });
   }
@@ -1548,12 +1903,25 @@ function cutLine(pts, frac) {
 const bestOf = (runs) => runs.reduce((m, x) => Math.max(m, x.result.score), 0);
 // 段位 3 から（二夜目から雲。12版は段位 4）は並びが変わる。雲で点が下がる並びでも目標が下がらないように、いつもの並びとの高い方をとる
 // （13版。前の版は雲のある並びだけで測り、雲の段位がひとつ前の段位よりやさしくなる夜があった）。減衰が強くなる段位 5 からのルールは入れない
-export function parScore(seed, night, moon = 4, level = 0) {
+export function parScore(seed, night, moon = 4, level = 0, stage = 1) {
+  if (stg(stage) === 2) {
+    // ステージ2は、雲が段位 3 からしか出ないので、雲の段位の夜は二夜目から雲のある並びも測る
+    const q0 = bestOf(refRuns(seed, night, moon, 0, false, 2));
+    return levelFx(level).clouds && night >= 1 ? Math.max(q0, bestOf(refRuns(seed, night, moon, CLOUD_LEVEL, false, 2))) : q0;
+  }
   const p0 = bestOf(refRuns(seed, night, moon, 0));
   return levelFx(level).clouds && night >= 1 && night < 4 ? Math.max(p0, bestOf(refRuns(seed, night, moon, CLOUD_LEVEL))) : p0;
 }
 function refLine(st, r, c) {
   const alive = st.shells;
+  // まんまるの夜: 玉を中心に、近くの玉を通る輪（中心と、輪が通る所の 2 点。lightStroke が輪にする）
+  if (st.twist === 'manmaru') {
+    const a = alive[Math.floor(r() * alive.length)], R = roundRadius([{ x: 0, y: 0 }, { x: 1e4, y: 0 }], st.ink);
+    const near = alive.filter((s) => { const d = Math.hypot(s.x - a.x, s.y - a.y); return d > 24 && d <= R; });
+    if (near.length && r() < 0.7) { const b = near[Math.floor(r() * near.length)]; return [{ x: a.x, y: a.y }, { x: b.x, y: b.y }]; }
+    const u = r() * Math.PI * 2;
+    return [{ x: a.x, y: a.y }, { x: a.x + Math.cos(u) * R, y: a.y + Math.sin(u) * R }];
+  }
   if (st.twist === 'massugu') {
     const a = alive[Math.floor(r() * alive.length)], far = alive.filter((s) => Math.hypot(s.x - a.x, s.y - a.y) > 120);
     const b = (far.length ? far : alive)[Math.floor(r() * (far.length || alive.length))];
@@ -2032,7 +2400,12 @@ export const RARITY_W = { common: 1, rare: 0.5, legend: 0.3 };
 export const SYNERGY_W = 0.75;
 export const UPGRADE_SLOT_AT = 3;
 // 仕掛けが出てくる夜（段位 3 からは雲が二夜目から出るので、風切りも早く出る）
-export function charmNeed(id, level = 0) { return id === 'kazekiri' && levelFx(level).clouds ? 1 : CHARM_NEEDS[id] || 0; }
+// ステージ2: 湿った玉は出ないので雨よけは出さない。雲は段位 3 からだけなので、風切りもそのときだけ。提灯は一夜目からある
+export const CHARM_NEEDS2 = { amayoke: 99, kazekiri: 99 };
+export function charmNeed(id, level = 0, stage = 1) {
+  if (stg(stage) === 2) return id === 'kazekiri' && levelFx(level).clouds ? 1 : CHARM_NEEDS2[id] || 0;
+  return id === 'kazekiri' && levelFx(level).clouds ? 1 : CHARM_NEEDS[id] || 0;
+}
 // その夜に候補に出せるお守り（重みつき）
 function offerItems(night, held, opts = {}) {
   const level = opts.level || 0, lv = charmLevels(held), focus = TAGS.includes(opts.focus) ? opts.focus : null;
@@ -2041,7 +2414,7 @@ function offerItems(night, held, opts = {}) {
   const heldTags = new Set();
   for (const id in lv) for (const t of charmById(id).tags) heldTags.add(t);
   return CHARM_IDS.filter((id) => lv[id] || (opts.pool ? opts.pool.includes(id) : charmById(id).rarity !== 'legend'))
-    .filter((id) => (lv[id] || 0) < capOf(id) && charmNeed(id, level) <= night + 1 && (!focus || charmById(id).tags.includes(focus)))
+    .filter((id) => (lv[id] || 0) < capOf(id) && charmNeed(id, level, opts.stage) <= night + 1 && (!focus || charmById(id).tags.includes(focus)))
     .map((id) => { const c = charmById(id), shared = c.tags.filter((t) => heldTags.has(t)).length; return { id, w: (RARITY_W[c.rarity] || 1) * (1 + SYNERGY_W * shared) }; });
 }
 // 重みつきで、1 つずつ引いて並べる（足し算と掛け算だけ。どの端末でも同じ並びになる）
@@ -2060,7 +2433,7 @@ export function offerCharms(seed, night, held, round = 0, opts = {}) {
   const level = opts.level || 0, count = opts.count != null ? opts.count : levelFx(level).offer;
   const focus = TAGS.includes(opts.focus) ? opts.focus : null;
   const lv = charmLevels(held);
-  const rng = rng32(nightSeed(seed, night) ^ 0x51ed270b ^ (round ? 0x2b0d5 * round : 0) ^ (focus ? hashStr('focus:' + focus) : 0));
+  const rng = rng32(nSeed(seed, night, opts.stage) ^ 0x51ed270b ^ (round ? 0x2b0d5 * round : 0) ^ (focus ? hashStr('focus:' + focus) : 0));
   const order = weightedOrder(offerItems(night, held, opts), rng);
   const out = [], n = {};
   const take = (id) => { out.push(id); const k = charmById(id).kind; n[k] = (n[k] || 0) + 1; };
@@ -2078,9 +2451,9 @@ export function focusTags(night, held, opts = {}) {
 }
 // はじめのお守り（機能の解放 startPick）: 祭りのはじめに 3 つから 1 つ選ぶ。シードで決まる（今夜の一筆では、みんな同じ 3 つ）。
 // pool は解放ずみのお守り（伝説と、仕掛けが出てくる前は役に立たないお守りは出さない）。3 つは、いちばんはじめの型がなるべく別々のもの
-export function startOffer(seed, pool = null, count = 3) {
-  const rng = rng32(hashStr(`hitofude-start:${seed >>> 0}`));
-  const items = CHARM_IDS.filter((id) => (pool ? pool.includes(id) : true) && charmById(id).rarity !== 'legend' && charmNeed(id) === 0)
+export function startOffer(seed, pool = null, count = 3, stage = 1) {
+  const rng = rng32(hashStr(stg(stage) === 2 ? `hitofude-start2:${seed >>> 0}` : `hitofude-start:${seed >>> 0}`));
+  const items = CHARM_IDS.filter((id) => (pool ? pool.includes(id) : true) && charmById(id).rarity !== 'legend' && charmNeed(id, 0, stage) === 0)
     .map((id) => ({ id, w: RARITY_W[charmById(id).rarity] || 1 }));
   const order = weightedOrder(items, rng), out = [], tags = new Set();
   for (const id of order) if (out.length < count && !tags.has(charmById(id).tags[0])) { out.push(id); tags.add(charmById(id).tags[0]); }
@@ -2097,6 +2470,15 @@ export function failHint(st) {
   if (st.strokes.length && f.wet[0] && st.pops === 0) return { id: 'cloudStart' };
   // 2) 大一番のコツ
   if (st.twist) return { id: 'twist_' + st.twist };
+  // ステージ2の仕掛け（ステージ1の夜には出てこない）
+  if (st.stage === 2) {
+    if (st.stats.oniBad > 0) return { id: 'oniBad' };
+    if (st.shells.some((s) => s.melted)) return { id: 'yukiMelt' };
+    if (st.hifumi.total && st.hifumi.broken) return { id: 'hifumi' };
+    if (leftOf('koori') >= 2) return { id: 'koori' };
+    if (st.musubi && !st.knots.length) return { id: 'musubi' };
+    if (st.gates.length && !st.gates.some((g) => g.lit)) return { id: 'torii' };
+  }
   // 3) 尺玉が残った（線の火でしかひらかない）／早くひらきすぎた（大トリは最後に）
   if (leftOf('shaku')) return { id: 'shaku' };
   if (st.tori && st.tori.share < 0.6) return { id: 'toriEarly', share: st.tori.share, add: st.tori.add };
@@ -2156,22 +2538,33 @@ export const WISHES = [
 export const LEGACY_WISHES = [
   { id: 'w_tori8', ja: '大トリで倍率 +8 以上', en: 'Grand finale for +8 mult or more', legacy: true },
 ];
-export function wishById(id) { return WISHES.find((w) => w.id === id) || LEGACY_WISHES.find((w) => w.id === id) || null; }
-const wishPopsN = (night) => Math.round(BASE_COUNTS[night] * WISH_POPS);
+// ステージ2の札（ステージ2の夜にだけ出る）。ステージ1の札のうち、ステージ2に無い仕掛けの札（湿った玉・大トリ・縄）は出さない
+export const WISHES2 = [
+  { id: 'w_koori_all', ja: '氷玉を全部とかす', en: 'Melt every ice shell', ok: (n) => n >= 1, ref: true },
+  { id: 'w_yuki_all', ja: '雪玉を全部ひらく', en: 'Open every snowball', ok: (n) => n >= 2, ref: true },
+  { id: 'w_torii_all', ja: '鳥居を全部くぐる', en: 'Pass through every gate', ok: (n) => n >= 3, ref: true },
+  { id: 'w_oni_fuku', ja: '鬼を全部、線で払う', en: 'Hit every oni with your line', ok: (n) => n >= 5, ref: true },
+  { id: 'w_hifumi', ja: '一・二・三を順にひらく', en: 'Open 1, 2, 3 in order', ok: (n) => n >= 6, ref: true },
+  { id: 'w_musubi2', ja: '結び目を2つ爆ぜさせる', en: 'Make 2 knots burst', ok: (n) => n >= 7, ref: true },
+];
+const WISH_NOT2 = new Set(['w_damp_all', 'w_tori6', 'w_rope_all']);
+export function wishById(id) { return WISHES.find((w) => w.id === id) || WISHES2.find((w) => w.id === id) || LEGACY_WISHES.find((w) => w.id === id) || null; }
+const wishPopsN = (night, stage = 1) => Math.round((stg(stage) === 2 ? BASE_COUNTS2 : BASE_COUNTS)[night] * WISH_POPS);
 // 願い札が、その夜の手順の線でどうなるか: { cat: 'free'（いちばん高い線でかなう）| 'trade'（点を少しあきらめるとかなう）| 'impossible'（越えられる線ではかなわない）| 'unchecked',
 //  cost: かなえたときに下がる点の割合, stars }。moon・level はその夜の月と段位
-export function wishCheck(seed, night, id, level = 0, moon = 4) {
+export function wishCheck(seed, night, id, level = 0, moon = 4, stage = 1) {
   const w = wishById(id);
   if (!w || w.legacy || night < 0 || night >= NIGHTS) return null;
   level = Math.max(0, Math.min(MAX_LEVEL, Math.floor(+level || 0)));
+  stage = stg(stage);
   if (!w.ref) return { cat: 'unchecked', cost: 0, stars: 1 };
   const board = levelFx(level).clouds ? CLOUD_LEVEL : 0;
-  const runs = refRuns(seed, night, moon, board).concat(refRuns(seed, night, moon, board, true), probeRuns(seed, night, moon, board));
+  const runs = refRuns(seed, night, moon, board, false, stage).concat(refRuns(seed, night, moon, board, true, stage), probeRuns(seed, night, moon, board, stage));
   const best = runs.reduce((m, x) => (!m || x.result.score > m.result.score ? x : m), null);
   if (!best || !best.result.score) return { cat: 'impossible', cost: 1, stars: 2, near: 0 };
-  const wish = id === 'w_pops' ? { id, n: wishPopsN(night) } : { id };
+  const wish = id === 'w_pops' ? { id, n: wishPopsN(night, stage) } : { id };
   if (wishMet(best, wish, 0)) return { cat: 'free', cost: 0, stars: 1 };
-  const floor = Math.min(targetFor(seed, night, moon, level), WISH_FLOOR * best.result.score);
+  const floor = Math.min(targetFor(seed, night, moon, level, stage), WISH_FLOOR * best.result.score);
   const meet = runs.filter((x) => x.result.score >= floor && wishMet(x, wish, 0));
   // near: 越えられなくても、かなう線のいちばん高い点（いちばん高い線に対する割合。どれもだめな夜の札えらびに使う）
   if (!meet.length) return { cat: 'impossible', cost: 1, stars: 2, near: runs.filter((x) => wishMet(x, wish, 0)).reduce((m, x) => Math.max(m, x.result.score / best.result.score), 0) };
@@ -2180,20 +2573,23 @@ export function wishCheck(seed, night, id, level = 0, moon = 4) {
   return { cat: 'trade', cost, stars: cost >= WISH_COST2 ? 2 : 1 };
 }
 const wishCache = new Map();
-export function wishFor(seed, night, level = 0, moon = 4) {
+export function wishFor(seed, night, level = 0, moon = 4, stage = 1) {
   if (night < 0 || night >= NIGHTS) return null;
   level = Math.max(0, Math.min(MAX_LEVEL, Math.floor(+level || 0)));
-  const key = `${seed >>> 0}|${night}|${level}|${moon}`;
+  stage = stg(stage);
+  const key = `${stage === 1 ? '' : 's' + stage + '|'}${seed >>> 0}|${night}|${level}|${moon}`;
   if (wishCache.has(key)) return { ...wishCache.get(key) };
-  const tw = twistFor(seed, night), clouds = night >= (levelFx(level).clouds ? 1 : 4);
-  const prev = night > 0 ? wishFor(seed, night - 1, level, moon).id : null;
-  const pool = WISHES.filter((w) => w.id !== prev && w.ok(night, tw ? tw.id : null, clouds));
-  const order = shuffled(pool, rng32(hashStr(`hitofude-wish:${seed >>> 0}:${night}:${level}`)));
+  const tw = twistFor(seed, night, stage), clouds = stage === 2 ? levelFx(level).clouds && night >= 1 : night >= (levelFx(level).clouds ? 1 : 4);
+  const prev = night > 0 ? wishFor(seed, night - 1, level, moon, stage).id : null;
+  const pool = stage === 2
+    ? WISHES.filter((w) => !WISH_NOT2.has(w.id) && w.id !== prev && w.ok(Math.max(night, w.id === 'w_lantern_first' ? 3 : 0), tw ? tw.id : null, clouds)).concat(WISHES2.filter((w) => w.id !== prev && w.ok(night)))
+    : WISHES.filter((w) => w.id !== prev && w.ok(night, tw ? tw.id : null, clouds));
+  const order = shuffled(pool, rng32(hashStr(stage === 1 ? `hitofude-wish:${seed >>> 0}:${night}:${level}` : `hitofude-wish${stage}:${seed >>> 0}:${night}:${level}`)));
   let out = null;
   for (const w of order) {
-    const c = wishCheck(seed, night, w.id, level, moon);
+    const c = wishCheck(seed, night, w.id, level, moon, stage);
     if (c.cat !== 'trade' && c.cat !== 'unchecked') continue;
-    const n = w.id === 'w_pops' ? wishPopsN(night) : undefined;
+    const n = w.id === 'w_pops' ? wishPopsN(night, stage) : undefined;
     const fill = (t) => (n == null ? t : t.replace('{n}', n));
     out = n == null ? { id: w.id, ja: w.ja, en: w.en, stars: c.stars } : { id: w.id, n, ja: fill(w.ja), en: fill(w.en), stars: c.stars };
     break;
@@ -2202,14 +2598,14 @@ export function wishFor(seed, night, level = 0, moon = 4) {
     // どれも出せない夜（fallback: true、★2）: 手順の線では越えられなかったが、いちばん近くまで行った札（お守りがあれば届くことが多い）。
     // それも無ければ、手順の線よりたくさんひらく（前の夜がその札なら、目標の 2 倍）
     let near = null;
-    for (const w of order) { const c = wishCheck(seed, night, w.id, level, moon); if (c.cat === 'impossible' && c.near >= WISH_NEAR && (!near || c.near > near.c)) near = { w, c: c.near }; }
+    for (const w of order) { const c = wishCheck(seed, night, w.id, level, moon, stage); if (c.cat === 'impossible' && c.near >= WISH_NEAR && (!near || c.near > near.c)) near = { w, c: c.near }; }
     if (near) {
-      const n = near.w.id === 'w_pops' ? wishPopsN(night) : undefined, fill = (t) => (n == null ? t : t.replace('{n}', n));
+      const n = near.w.id === 'w_pops' ? wishPopsN(night, stage) : undefined, fill = (t) => (n == null ? t : t.replace('{n}', n));
       out = { id: near.w.id, ...(n == null ? {} : { n }), ja: fill(near.w.ja), en: fill(near.w.en), stars: 2, fallback: true };
     } else if (prev !== 'w_pops') {
         const board = levelFx(level).clouds ? CLOUD_LEVEL : 0;
-      const most = refRuns(seed, night, moon, board).reduce((m, x) => Math.max(m, x.result.pops), 0);
-      const w = wishById('w_pops'), n = Math.min(BASE_COUNTS[night] + 4, most + 2);
+      const most = refRuns(seed, night, moon, board, false, stage).reduce((m, x) => Math.max(m, x.result.pops), 0);
+      const w = wishById('w_pops'), n = Math.min((stage === 2 ? BASE_COUNTS2 : BASE_COUNTS)[night] + 4, most + 2);
       out = { id: w.id, n, ja: w.ja.replace('{n}', n), en: w.en.replace('{n}', n), stars: 2, fallback: true };
     } else { const w = wishById('w_double'); out = { id: w.id, ja: w.ja, en: w.en, stars: 2, fallback: true }; }
   }
@@ -2226,7 +2622,7 @@ export function wishMet(st, wish, target = st.target) {
     case 'w_lantern_first': return S.startType === 'chouchin';
     case 'w_all_gold': return S.goldTotal > 0 && S.goldBurst === S.goldTotal;
     case 'w_spare30': return S.inkFrac <= 0.7 + 1e-9;
-    case 'w_pops': return S.pops >= (w.n != null ? w.n : wishPopsN(st.night));
+    case 'w_pops': return S.pops >= (w.n != null ? w.n : wishPopsN(st.night, st.stage));
     case 'w_touch_few': return S.lineTouched <= 4;
     case 'w_double': return score >= 2 * (target || 0);
     case 'w_damp_all': return S.dampTotal > 0 && S.dampBurst === S.dampTotal;
@@ -2238,6 +2634,12 @@ export function wishMet(st, wish, target = st.target) {
     case 'w_bloom': return S.allClear;
     case 'w_short': return S.inkFrac <= 0.5 + 1e-9;
     case 'w_big_all': return S.bigTotal > 0 && S.bigBurst === S.bigTotal;
+    case 'w_koori_all': return S.kooriTotal > 0 && S.kooriBurst === S.kooriTotal;
+    case 'w_yuki_all': return S.yukiTotal > 0 && S.yukiBurst === S.yukiTotal;
+    case 'w_torii_all': return S.gatesTotal > 0 && S.gatesLit === S.gatesTotal;
+    case 'w_oni_fuku': return S.oniTotal > 0 && S.oniGood === S.oniTotal;
+    case 'w_hifumi': return S.hifumiTotal > 0 && S.hifumiDone === S.hifumiTotal;
+    case 'w_musubi2': return S.knots >= 2;
     default: return false;
   }
 }
@@ -2315,8 +2717,9 @@ export function runShareText(run, lang, url = SHARE_URL) {
     const md = `${+run.key.slice(5, 7)}/${+run.key.slice(8, 10)}`;
     head = `🎆${en ? 'Hitofude Hanabi' : '一筆花火'} #${run.no} ${md} ${en ? moon.en : moon.ja}`;
   } else head = en ? '🎆Hitofude Hanabi' : '🎆一筆花火';
-  const line2 = cleared === NIGHTS ? (en ? `Stage ${STAGE.id} clear!` : `ステージ${STAGE.id} 完走`)
-    : (en ? `Stage ${STAGE.id} · ${cleared}/${NIGHTS} nights` : `ステージ${STAGE.id} ${cleared}/${NIGHTS}夜`);
+  const sid = stg(run.stage); // ステージ2の祭りは、ステージ2と書く
+  const line2 = cleared === NIGHTS ? (en ? `Stage ${sid} clear!` : `ステージ${sid} 完走`)
+    : (en ? `Stage ${sid} · ${cleared}/${NIGHTS} nights` : `ステージ${sid} ${cleared}/${NIGHTS}夜`);
   const line3 = en ? `${fmt(run.total)} pts · best chain ${run.bestChain}` : `${fmt(run.total)}点・最大${run.bestChain}連鎖`;
   // 筆跡と、大一番の結果（今夜の一筆は、みんな同じ大一番）
   const extra = [];
@@ -2374,7 +2777,10 @@ function reader(s) {
     },
   };
 }
-export function encodeReplay({ seed, moon, night, charms, strokes, bank = 0, level = 0 }) {
+// ステージ2の再生リンクは、頭に 's2.' をつける（'.' は B64 に無いので、ステージ1の読み方では null になる）。中身の形はステージ1と同じ
+export const STAGE_PREFIX = 's2.';
+export function encodeReplay({ seed, moon, night, charms, strokes, bank = 0, level = 0, stage = 1 }) {
+  if (stg(stage) === 2) return STAGE_PREFIX + encodeReplay({ seed, moon, night, charms, strokes, bank, level });
   const w = writer();
   w.put(REPLAY_VERSION, 4); w.put(seed >>> 0, 32); w.put(moon, 3); w.put(night, 3);
   w.put(Math.max(0, Math.min(MAX_LEVEL, Math.floor(+level || 0))), 4);
@@ -2390,6 +2796,7 @@ export function encodeReplay({ seed, moon, night, charms, strokes, bank = 0, lev
 }
 // 返り値の charms は、Lv の数だけ同じ id を並べた配列（CHARM_IDS の並び）
 export function decodeReplay(s) {
+  if (typeof s === 'string' && s.startsWith(STAGE_PREFIX)) { const d = decodeReplay(s.slice(STAGE_PREFIX.length)); return d && !d.old ? { ...d, stage: 2 } : d; }
   if (typeof s !== 'string' || s.length < 12 || s.length > 900) return null;
   const r = reader(s);
   if (!r) return null;

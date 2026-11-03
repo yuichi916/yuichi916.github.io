@@ -18,7 +18,7 @@ const J = (x) => JSON.stringify(x);
 const KINDS = new Set(['shell', 'icon', 'mult', 'xmult', 'chips', 'num', 'op', 'sep']);
 const VALUED = new Set(['mult', 'xmult', 'chips', 'num', 'op']);
 const OPS = new Set(['→', '+', '×', '✕', '↻']);
-const SHELL_TYPES = new Set([...K.TYPES, 'any']);
+const SHELL_TYPES = new Set([...K.TYPES, ...K.TYPES2, 'any']);
 const LETTERS = /[A-Za-z]/;
 const JAPANESE = /[　-ヿ㐀-䶿一-鿿豈-﫿＀-￯]/;
 const MAX_GROUP = 7;
@@ -63,9 +63,9 @@ function validate(name, tokens, { lv3 = false } = {}) {
 // failHint が返す id（core.js の failHint の本文から読む。大一番のヒントは twist_<id>）
 const coreSrc = readFileSync(new URL('../assets/hitofude/core.js', import.meta.url), 'utf8');
 const failBody = coreSrc.slice(coreSrc.indexOf('export function failHint'), coreSrc.indexOf('\n}\n', coreSrc.indexOf('export function failHint')));
-const HINT_IDS = [...new Set([...failBody.matchAll(/id: '([^']+)'/g)].map((m) => m[1]).filter((id) => !id.endsWith('_')))].concat(K.TWISTS.map((tw) => 'twist_' + tw.id));
+const HINT_IDS = [...new Set([...failBody.matchAll(/id: '([^']+)'/g)].map((m) => m[1]).filter((id) => !id.endsWith('_')))].concat([...K.TWISTS, ...K.TWISTS2].map((tw) => 'twist_' + tw.id));
 const SHOP_IDS = ['reroll', 'ink', 'life', 'focus'];
-const WISH_IDS = K.WISHES.map((w) => w.id).concat('w_tori8');
+const WISH_IDS = K.WISHES.map((w) => w.id).concat(K.WISHES2.map((w) => w.id), 'w_tori8');
 
 const SHOW = [];
 
@@ -118,8 +118,8 @@ check('願い札: 全部の札（と前の版の w_tori8）・w_pops は数を�
 });
 
 check('仕掛け・大一番・ヒント・屋台: 全部の id の式が決まりどおり（数は core から）', () => {
-  for (const gm of K.GIMMICKS) { const g = gimmickGlyph(gm.id); validate(gm.id, g); SHOW.push(`gimmick ${gm.id}: ${show(g)}`); }
-  for (const tw of K.TWISTS) { const g = twistGlyph(tw.id); validate(tw.id, g); SHOW.push(`twist ${tw.id}: ${show(g)}`); }
+  for (const gm of [...K.GIMMICKS, ...K.GIMMICKS2]) { const g = gimmickGlyph(gm.id); validate(gm.id, g); SHOW.push(`gimmick ${gm.id}: ${show(g)}`); }
+  for (const tw of [...K.TWISTS, ...K.TWISTS2]) { const g = twistGlyph(tw.id); validate(tw.id, g); SHOW.push(`twist ${tw.id}: ${show(g)}`); }
   for (const id of ['almost', 'damp', 'far', 'general', 'gold', 'ink', 'lantern', 'rope', 'shaku', 'twist_massugu']) ok(HINT_IDS.includes(id), `failHint の id に ${id} が無い`);
   for (const id of HINT_IDS) { const g = hintGlyph(id); validate(`hint ${id}`, g); SHOW.push(`hint ${id}: ${show(g)}`); }
   for (const id of SHOP_IDS) { const g = shopGlyph(id); validate(`shop ${id}`, g); SHOW.push(`shop ${id}: ${show(g)}`); }
@@ -135,8 +135,8 @@ check('仕掛け・大一番・ヒント・屋台: 全部の id の式が決ま�
 check('色の決まり: 白い数（num）に × を使わない（× は点＝青と倍率＝金だけ）', () => {
   const all = [];
   for (const c of K.CHARMS) for (const lv of [1, 2, 3]) all.push([`${c.id} Lv${lv}`, charmGlyph(c.id, lv)]);
-  for (const gm of K.GIMMICKS) all.push([gm.id, gimmickGlyph(gm.id)]);
-  for (const tw of K.TWISTS) all.push([tw.id, twistGlyph(tw.id)]);
+  for (const gm of [...K.GIMMICKS, ...K.GIMMICKS2]) all.push([gm.id, gimmickGlyph(gm.id)]);
+  for (const tw of [...K.TWISTS, ...K.TWISTS2]) all.push([tw.id, twistGlyph(tw.id)]);
   for (const id of HINT_IDS) all.push([`hint ${id}`, hintGlyph(id)]);
   for (const w of K.WISHES) all.push([w.id, wishGlyph(w.id, 30)]);
   for (const [id, g] of all) for (const tk of g) ok(!(tk.k === 'num' && /^×/.test(tk.v)), `${id}: 白い ${tk.v}`);
