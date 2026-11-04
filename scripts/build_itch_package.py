@@ -44,8 +44,8 @@ PORTAL_OPTS = {
 }
 
 # ポータル用の版だけに入れる変更。サイトの HTML は変えない
-# .nextstage と [data-noportal] は「次のステージは準備中」の知らせ。ゲームサイトでは未完成に見えるので出さない
-PORTAL_CSS = ("<style id=\"portal-build\">.endnext,.sharebox,pre.share,[data-feel],.world,.nextstage,[data-noportal]{display:none!important}</style>"
+# .nextstage（.open でないもの）と [data-noportal] は「次のステージは準備中」の知らせ。ゲームサイトでは未完成に見えるので出さない。.open は開いた次のステージへ進むボタンなので残す
+PORTAL_CSS = ("<style id=\"portal-build\">.endnext,.sharebox,pre.share,[data-feel],.world,.nextstage:not(.open),[data-noportal]{display:none!important}</style>"
               "<script>/* ポータル用: 外への問い合わせ (アクセス解析の数え) をしない */"
               "(()=>{const f=window.fetch;window.fetch=(u,...a)=>/goatcounter|docs\.google/.test(String(u&&u.url||u))"
               "?Promise.reject(new Error('portal build')):f(u,...a);})();</script>")
@@ -68,11 +68,12 @@ def portal_strip(html: str, name: str = "hitofude-portal") -> str:
     css = PORTAL_CSS.replace("[data-noportal]{", "[data-noportal]" + opt["hide"] + "{")
     if not opt["sdk"]:
         return html.replace("</head>", css + "</head>", 1)
-    # SDK は読みこんだらすぐ起こし、読みこみの始めの合図を出す（画面の側は window.__cgInit を待って、終わりの合図を出す）
+    # SDK は本文ができたらすぐ起こし（init は body に要素を足すので、head の中では失敗する）、読みこみの始めの合図を出す（画面の側は window.__cgInit を待って、終わりの合図を出す）
     return html.replace("</head>", css + "<script>window.HITO_PORTAL=1</script>"
                         "<script src=\"https://sdk.crazygames.com/crazygames-sdk-v3.js\"></script>"
                         "<script>(()=>{try{const s=window.CrazyGames&&window.CrazyGames.SDK;if(!s)return;"
-                        "window.__cgInit=s.init().then(()=>{try{if(s.environment!=='disabled')s.game.loadingStart();}catch(e){}});"
+                        "const go=()=>s.init().then(()=>{try{if(s.environment!=='disabled')s.game.loadingStart();}catch(e){}});"
+                        "window.__cgInit=document.body?go():new Promise((r)=>addEventListener('DOMContentLoaded',()=>r(go()),{once:true}));"
                         "}catch(e){}})();</script></head>", 1)
 
 
