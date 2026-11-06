@@ -1172,6 +1172,8 @@ const PORTAL = !!window.HITO_PORTAL;
 const CG = (() => {
   let sdk = null, ready = false, playing = false, lastAd = performance.now(), happyAt = 0, adOn = false, muted = false, noReward = false;
   const safe = (fn) => { try { return fn(); } catch (e) { return undefined; } };
+  // Basic Launch の間は広告が止まる（押しても効かない広告のボタンがあると審査で落ちる）。Full Launch に進んだら build_itch_package.py の ads を True に
+  const noAds = !!window.HITO_NO_ADS;
   // 広告の間: 音を止め、画面を覆って触れないようにする（終わったら戻す）
   const hold = (on) => {
     adOn = on; const b = document.getElementById('adBlock'); if (b) b.hidden = !on;
@@ -1184,7 +1186,7 @@ const CG = (() => {
     get ready() { return ready; },
     get adOn() { return adOn; }, // 広告を出している間（音を鳴らさない・入力を受けない）
     get silent() { return adOn || muted; },
-    get canReward() { return ready && !noReward; },
+    get canReward() { return ready && !noAds && !noReward; },
     get noUGC() { return ready && !!safe(() => sdk.game.settings && sdk.game.settings.disableChat); }, // ゲームサイトの「人が書いた字を出さない」設定
     // 全体の音量: 消す設定・広告の間は 0
     level() { if (master && actx) safe(() => master.gain.setTargetAtTime(this.silent ? 0 : 0.9, actx.currentTime, 0.02)); },
@@ -1208,7 +1210,7 @@ const CG = (() => {
     // 祭りと祭りの合間の広告（3 分に 1 回まで）。終わったら（出なくても）then を呼ぶ
     midgame(then) {
       if (adOn) return;
-      if (!ready || performance.now() - lastAd < 180000) { then(); return; }
+      if (!ready || noAds || performance.now() - lastAd < 180000) { then(); return; }
       let done = false, timer = 0; const fin = () => { if (done) return; done = true; clearTimeout(timer); lastAd = performance.now(); hold(false); then(); };
       this.play(false); hold(true);
       // 広告が始まらないまま返ってこないときも先へ進める（始まったら、終わりの合図を待つ）
@@ -1398,7 +1400,7 @@ const T = {
     tutBtn: 'Tutorial', tutStart: '▶ Start with the tutorial', tutLabel: 'Tutorial', tutBanner: 'Draw one line', tutStep: (n, m) => `Tutorial ${n}/${m}`,
     tutEndStep: 'Tutorial 8/8', tutEndHead: 'You\'re ready!', tutGo: '▶ Start the festival', tutTitle: 'Back to title',
     tutEndBody: 'A festival is 8 nights. Nights 3 and 6 are boss nights, where a yokai changes how your line works. New gimmicks and bosses are explained on screen when they appear. You can replay the tutorial from the title any time.',
-    tip_tut1: 'Draw one line from shell to shell with your finger (or mouse). You can trace the hand. Your line can only be as long as the ink below.',
+    tip_tut1: 'Draw one line from shell to shell with your finger. You can trace the hand. Your line can only be as long as the ink below.',
     tip_tut2: 'Your line caught fire and the shells it touched burst! Each burst spreads to nearby shells (a chain). Longer chains score more.',
     tip_tut3: 'Your score is POINTS × MULT. Gold shells and every 10-chain raise the multiplier.',
     tip_tut4: 'Beat the target to reach the next night. Clear 8 nights to finish the festival! Stars come from beating the target, tripling it, and bursting every shell. Spend them at the stall.',
@@ -4519,7 +4521,8 @@ async function rankFetch(path, body = null) {
     return j || { ok: false, error: 'http' };
   } catch (e) { return { ok: false, error: 'net' }; } finally { clearTimeout(tm); }
 }
-async function rankHealth() { const j = await rankFetch('/health'); rankOn = !!(j && j.ok && j.v === K.REPLAY_VERSION); renderRankBtns(); }
+// ゲームサイトの Basic Launch の版は、名前や ID を外へ送らない（送るなら規約・プライバシーの案内が要る）
+async function rankHealth() { const j = window.HITO_NO_RANK ? null : await rankFetch('/health'); rankOn = !!(j && j.ok && j.v === K.REPLAY_VERSION); renderRankBtns(); }
 function renderRankBtns() { const b = $('#rankBtn'); if (b) b.hidden = !rankOn || $('#dailyBtn').hidden; }
 function rankId() {
   DB.rk = DB.rk || {};

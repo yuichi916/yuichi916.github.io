@@ -37,9 +37,9 @@ WORKS: dict[str, tuple[str, list[str], list[str]]] = {
     "tsunagu-naraberu-portal": ("tsunagu-naraberu.html", ["assets/tsunagu-naraberu"], ["favicon.svg"]),
 }
 
-# ポータル用の版の作品ごとの違い: タブの名前・隠すもの・CrazyGames の SDK を入れるか（画面の側が SDK に対応している作品だけ）
+# ポータル用の版の作品ごとの違い: タブの名前・隠すもの・CrazyGames の SDK を入れるか（画面の側が SDK に対応している作品だけ）・広告とランキングを使うか（Basic Launch の間は False）
 PORTAL_OPTS = {
-    "hitofude-portal": {"title": "Hitofude Hanabi", "hide": "", "sdk": True},
+    "hitofude-portal": {"title": "Hitofude Hanabi", "hide": "", "sdk": True, "ads": False, "rank": False},
     "tsunagu-naraberu-portal": {"title": "ツナラベ！", "hide": ",a.back", "sdk": False},
 }
 
@@ -69,7 +69,7 @@ def portal_strip(html: str, name: str = "hitofude-portal") -> str:
     if not opt["sdk"]:
         return html.replace("</head>", css + "</head>", 1)
     # SDK は本文ができたらすぐ起こし（init は body に要素を足すので、head の中では失敗する）、読みこみの始めの合図を出す（画面の側は window.__cgInit を待って、終わりの合図を出す）
-    return html.replace("</head>", css + "<script>window.HITO_PORTAL=1</script>"
+    return html.replace("</head>", css + "<script>window.HITO_PORTAL=1" + ("" if opt["ads"] else ";window.HITO_NO_ADS=1") + ("" if opt["rank"] else ";window.HITO_NO_RANK=1") + "</script>"
                         "<script src=\"https://sdk.crazygames.com/crazygames-sdk-v3.js\"></script>"
                         "<script>(()=>{try{const s=window.CrazyGames&&window.CrazyGames.SDK;if(!s)return;"
                         "const go=()=>s.init().then(()=>{try{if(s.environment!=='disabled')s.game.loadingStart();}catch(e){}});"
