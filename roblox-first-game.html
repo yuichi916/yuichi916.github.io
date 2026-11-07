@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>はじめての Roblox ゲーム作り コードのページ｜ひとりぶんの棚</title>
+<meta name="description" content="解説動画で使うコードをコピーできるページです。ポンプで風船を増やし、発射台で空へ飛ぶ小さなゲームを、Roblox Studio で作ります。">
+<meta name="author" content="yuichi916 / Views Engineer">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0d0b1f">
+<link rel="canonical" href="https://yuichi916.github.io/roblox-first-game.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ひとりぶんの棚｜Views Engineer">
+<meta property="og:title" content="はじめての Roblox ゲーム作り コードのページ">
+<meta property="og:description" content="解説動画で使うコードをコピーできます。">
+<meta property="og:url" content="https://yuichi916.github.io/roblox-first-game.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/branding/balloon-og.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--night:#0d0b1f;--night-2:#17143a;--text:#f3eefc;--text-2:#d2cbe6;--dim:#a9a2c4;--gold:#ffd24a;--line:rgba(255,210,120,.24)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--night,#0d0b1f);color:var(--text,#eee);font-family:"Noto Sans JP",system-ui,sans-serif;line-height:1.8}
+.wrap{max-width:860px;margin:0 auto;padding:0 16px}
+.bar{padding:14px 0;border-bottom:1px solid var(--line,#333)}
+.bar .wrap{display:flex;justify-content:space-between;align-items:center}
+.bar a{text-decoration:none;color:inherit;font-weight:800}
+h1{font-size:clamp(26px,5vw,38px);line-height:1.35;margin:28px 0 8px}
+h2{font-size:22px;margin:0 0 8px}
+section{padding:22px 0;border-top:1px solid var(--line,#333);margin-top:22px}
+.code{position:relative;background:#0a0a14;border:1px solid var(--line,#333);border-radius:10px}
+pre{margin:0;padding:48px 16px 16px;overflow-x:auto;font:14px/1.6 "JetBrains Mono",Consolas,monospace;tab-size:4}
+.copy{position:absolute;top:8px;right:8px;font:inherit;font-size:14px;font-weight:700;padding:4px 16px;border-radius:999px;border:0;background:var(--gold,#ffc14d);color:#1a1033;cursor:pointer}
+.note{font-size:13.5px;color:var(--dim,#aaa)}
+a{color:inherit}
+footer{border-top:1px solid var(--line,#333);margin-top:30px;padding:22px 0;font-size:12.5px;color:var(--dim,#aaa)}
+</style>
+</head>
+<body>
+<div class="bar"><div class="wrap"><a href="./">ひとりぶんの棚</a><a href="balloon.html">+1 Balloon</a></div></div>
+<main class="wrap">
+<h1>はじめての Roblox ゲーム作り<br>コードのページ</h1>
+<p>解説動画で使うコードです。「コピー」を押して、Roblox Studio のスクリプトの画面に貼り付けます。貼り付ける前に、スクリプトの画面の中を一度クリックしてください。</p>
+<p class="note">2026年11月7日に Roblox Studio で動くことを確かめました。動画では途中で速さの 30 を 60 に変えています。コードは自由に使ってください。</p>
+<section id="step1">
+  <h2>1. 数字を出す（PlayerData）</h2>
+  <p>ServerScriptService の中に Script を作り、名前を PlayerData にします。</p>
+  <div class="code"><button type="button" class="copy" data-goatcounter-click="roblox-first-game/step1">コピー</button><pre><code>-- プレイヤーが入ってきたら、右上に出す数字を作る
+local Players = game:GetService(&quot;Players&quot;)
+
+Players.PlayerAdded:Connect(function(player)
+	local stats = Instance.new(&quot;Folder&quot;)
+	stats.Name = &quot;leaderstats&quot;
+	stats.Parent = player
+
+	local balloons = Instance.new(&quot;IntValue&quot;)
+	balloons.Name = &quot;風船&quot;
+	balloons.Parent = stats
+
+	local best = Instance.new(&quot;IntValue&quot;)
+	best.Name = &quot;最高の高さ&quot;
+	best.Parent = stats
+end)</code></pre></div>
+</section>
+<section id="step2">
+  <h2>2. ポンプで風船を増やす（PumpScript）</h2>
+  <p>Pump に ClickDetector を入れてから、Script を作り、名前を PumpScript にします。</p>
+  <div class="code"><button type="button" class="copy" data-goatcounter-click="roblox-first-game/step2">コピー</button><pre><code>-- ポンプを押すたびに、風船を1つ増やす
+local pump = script.Parent
+local click = pump.ClickDetector
+
+click.MouseClick:Connect(function(player)
+	local balloons = player.leaderstats[&quot;風船&quot;]
+	balloons.Value = balloons.Value + 1
+end)</code></pre></div>
+</section>
+<section id="step3">
+  <h2>3. 空へ飛ぶ（PadScript）</h2>
+  <p>LaunchPad の中に Script を作り、名前を PadScript にします。</p>
+  <div class="code"><button type="button" class="copy" data-goatcounter-click="roblox-first-game/step3">コピー</button><pre><code>-- 発射台に乗ったら、風船の数だけ空へ飛ぶ
+local pad = script.Parent
+local Players = game:GetService(&quot;Players&quot;)
+local flying = {}
+
+pad.Touched:Connect(function(hit)
+	local character = hit.Parent
+	local player = Players:GetPlayerFromCharacter(character)
+	if player == nil or flying[player] then
+		return
+	end
+
+	local balloons = player.leaderstats[&quot;風船&quot;]
+	if balloons.Value == 0 then
+		return
+	end
+
+	flying[player] = true
+	local count = balloons.Value
+	balloons.Value = 0
+
+	local root = character.HumanoidRootPart
+	local startY = root.Position.Y
+
+	-- 頭の上に風船を出す
+	local parts = {}
+	for i = 1, count do
+		local ball = Instance.new(&quot;Part&quot;)
+		ball.Shape = Enum.PartType.Ball
+		ball.Size = Vector3.new(2, 2, 2)
+		ball.Color = Color3.fromHSV(math.random(), 0.7, 1)
+		ball.Massless = true
+		ball.CanCollide = false
+		ball.Position = root.Position + Vector3.new(math.random(-3, 3), math.random(5, 8), math.random(-3, 3))
+		ball.Parent = character
+
+		local weld = Instance.new(&quot;WeldConstraint&quot;)
+		weld.Part0 = root
+		weld.Part1 = ball
+		weld.Parent = ball
+		table.insert(parts, ball)
+	end
+
+	-- 上へ押す力をかける
+	local attachment = Instance.new(&quot;Attachment&quot;)
+	attachment.Parent = root
+
+	local force = Instance.new(&quot;LinearVelocity&quot;)
+	force.Attachment0 = attachment
+	force.ForceLimitsEnabled = false
+	force.VelocityConstraintMode = Enum.VelocityConstraintMode.Line
+	force.LineDirection = Vector3.new(0, 1, 0)
+	force.LineVelocity = 30
+	force.RelativeTo = Enum.ActuatorRelativeTo.World
+	force.Parent = root
+
+	-- 風船1個につき1秒飛ぶ
+	task.wait(count)
+
+	local height = math.floor(root.Position.Y - startY)
+	force:Destroy()
+	attachment:Destroy()
+	for _, ball in parts do
+		ball:Destroy()
+	end
+
+	local best = player.leaderstats[&quot;最高の高さ&quot;]
+	if height &gt; best.Value then
+		best.Value = height
+	end
+
+	flying[player] = nil
+end)</code></pre></div>
+</section>
+<section id="step4">
+  <h2>4. 記録を保存する（PlayerData を差し替え）</h2>
+  <p>先に Roblox に保存し、バーチャル空間設定のセキュリティで「StudioのAPIサービスへのアクセスを有効化」をオンにしてから、1 のコードをこれに差し替えます。</p>
+  <div class="code"><button type="button" class="copy" data-goatcounter-click="roblox-first-game/step4">コピー</button><pre><code>-- プレイヤーが入ってきたら、右上に出す数字を作る。最高の高さは保存する
+local Players = game:GetService(&quot;Players&quot;)
+local DataStoreService = game:GetService(&quot;DataStoreService&quot;)
+local store = DataStoreService:GetDataStore(&quot;BestHeight&quot;)
+
+Players.PlayerAdded:Connect(function(player)
+	local stats = Instance.new(&quot;Folder&quot;)
+	stats.Name = &quot;leaderstats&quot;
+	stats.Parent = player
+
+	local balloons = Instance.new(&quot;IntValue&quot;)
+	balloons.Name = &quot;風船&quot;
+	balloons.Parent = stats
+
+	local best = Instance.new(&quot;IntValue&quot;)
+	best.Name = &quot;最高の高さ&quot;
+	best.Parent = stats
+
+	local ok, saved = pcall(function()
+		return store:GetAsync(&quot;player_&quot; .. player.UserId)
+	end)
+	if ok and saved then
+		best.Value = saved
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	local best = player.leaderstats[&quot;最高の高さ&quot;]
+	pcall(function()
+		store:SetAsync(&quot;player_&quot; .. player.UserId, best.Value)
+	end)
+end)
+
+-- サーバーが閉じる前に、保存が終わるのを少し待つ
+game:BindToClose(function()
+	task.wait(2)
+end)</code></pre></div>
+</section>
+<section>
+  <h2>本物のゲーム</h2>
+  <p>同じ骨組みから作ったゲームです。<a href="balloon.html">+1 Balloon: Float To Space</a></p>
+</section>
+</main>
+<footer><div class="wrap"><a href="./">ひとりぶんの棚 トップ</a> ／ <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">X</a><br>© 2026 Views Engineer / yuichi916</div></footer>
+<script>
+document.querySelectorAll('.copy').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var text = b.parentElement.querySelector('code').textContent;
+    var done = function () { b.textContent = 'コピーしました'; setTimeout(function () { b.textContent = 'コピー'; }, 1600); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(text).then(done); }
+    else { var t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); done(); }
+  });
+});
+</script>
+</body>
+</html>
