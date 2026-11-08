@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Hitofude Hanabi</title>
+<meta name="description" content="線を引くと、その始まりから火が追ってくる。追いつかれる前に花火を全部ひらく、ブラウザの一筆書きローグライク。物語モード全7章つき。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Yuji+Boku&family=Shippori+Mincho+B1:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="nightname"><b id="nWorld"></b><span id="nName"></span><div class="twisttag" id="twistTag"></div><div class="streak" id="streak"></div></div>
+    <div class="goal">
+      <div class="goal-nums"><span id="gScore">0</span><small>/ <span id="gTarget">0</span></small></div>
+      <div class="goal-bar"><i id="gBar"></i><u class="tick t2"></u><u class="tick t3"></u></div>
+    </div>
+    <div class="topright"><div class="lives" id="lives"></div><div class="strokes" id="strokes"></div><button id="sndBtn" class="iconbtn" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="w" d="M16 9c1.5 1.5 1.5 4.5 0 6M18.5 6.5c3 3 3 8 0 11"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg></button><button id="pauseBtn" class="iconbtn" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button></div>
+  </div>
+  <div class="combo" id="combo"><span class="c-pts" id="cPts">0</span><span class="c-x">×</span><span class="c-mult" id="cMult">1</span></div>
+  <div class="heat" id="heat"><span id="heatTxt"></span></div>
+  <div class="bags" id="bags"></div>
+  <div class="coins" id="hudCoins"></div>
+  <div class="inkbar"><i id="inkBar"></i></div>
+  <canvas id="boss" width="280" height="280" class="hidden"></canvas>
+</div>
+<div id="zoneLabels"></div>
+<div id="float"></div>
+<div id="teach" class="hidden"></div>
+<div id="hand" class="hidden"><svg viewBox="0 0 48 64"><path d="M18 30V9a4.5 4.5 0 0 1 9 0v16l11 3c4 1 6 4 5 8l-3 15c-1 4-3 6-7 6H22c-3 0-5-1-7-4L6 39c-2-3 1-6 4-5l8 5z" fill="#fff6df" stroke="#3a2412" stroke-width="3" stroke-linejoin="round"/></svg></div>
+
+<div id="title" class="screen">
+  <div class="logo"><div class="logo-ja">一筆花火</div><div class="logo-en">HITOFUDE HANABI</div></div>
+  <button id="playBtn" class="bigbtn">PLAY</button>
+  <div class="menu" id="titleMenu"></div>
+  <div class="tagline" id="tagline"></div>
+</div>
+
+<div id="newrun" class="screen hidden"><div class="panel wide">
+  <h2 id="nrTitle"></h2>
+  <div class="fuses" id="fuseList"></div>
+  <div class="ranks"><button id="rankPrev" class="arrow">‹</button><div class="rankbox"><b id="rankName"></b><small id="rankDesc"></small></div><button id="rankNext" class="arrow">›</button></div>
+  <div class="row"><button id="nrBack" class="btn2"></button><button id="nrGo" class="bigbtn small"></button></div>
+</div></div>
+
+<div id="inter" class="screen hidden"><div class="panel inter">
+  <div class="res">
+    <div class="res-title" id="resTitle"></div>
+    <div class="stars" id="resStars"></div>
+    <div class="res-score" id="resScore"></div>
+    <div class="ledger" id="ledger"></div>
+    <div class="purse"><span class="coin"></span><b id="purse">0</b></div>
+  </div>
+  <div class="shop">
+    <div class="shophead"><canvas id="neko" width="140" height="140"></canvas><h3 id="shopTitle"></h3></div>
+    <div class="cards" id="cards"></div>
+    <div class="row bottom">
+      <button id="reroll" class="btn2"></button>
+      <div class="held" id="held"></div>
+      <button id="nextBtn" class="bigbtn small"></button>
+    </div>
+    <div class="nextinfo" id="nextInfo"></div>
+  </div>
+</div></div>
+
+<div id="over" class="screen hidden"><div class="panel">
+  <div class="res-title" id="ovTitle"></div>
+  <div class="ov-big" id="ovNights"></div>
+  <div class="ledger" id="ovStats"></div>
+  <div class="unlocks" id="ovUnlocks"></div>
+  <div class="row"><button id="ovTitleBtn" class="btn2"></button><button id="ovAgain" class="bigbtn small"></button></div>
+</div></div>
+
+<div id="pause" class="screen hidden"><div class="panel">
+  <h2 id="pzTitle"></h2>
+  <div class="toggles"><button id="pzSound" class="btn2"></button><button id="pzMusic" class="btn2"></button><button id="pzLang" class="btn2"></button></div>
+  <div class="held big" id="pzHeld"></div>
+  <div class="row"><button id="pzQuit" class="btn2"></button><button id="pzResume" class="bigbtn small"></button></div>
+</div></div>
+
+<div id="book" class="screen hidden"><div class="panel wide">
+  <h2 id="bkTitle"></h2>
+  <div class="booklist" id="bookList"></div>
+  <div class="row"><button id="bkBack" class="bigbtn small"></button></div>
+</div></div>
+
+<div id="senko" class="screen hidden">
+  <div class="sk-name" id="skName"></div>
+  <div class="sk-msg" id="skMsg"></div>
+  <button id="skNext" class="btn2 light"></button>
+</div>
+
+<div id="tip" class="hidden"></div>
+<script type="module" src="main.js" onerror="try{var n=+sessionStorage.getItem('hanabiRetry')||0;if(n<3){sessionStorage.setItem('hanabiRetry',n+1);setTimeout(function(){location.reload()},500)}}catch(e){}"></script>
+</body>
+</html>
