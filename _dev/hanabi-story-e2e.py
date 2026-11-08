@@ -7,6 +7,7 @@ OUT = sys.argv[1]
 VW, VH = (int(sys.argv[2]), int(sys.argv[3])) if len(sys.argv) > 3 else (1280, 720)
 os.makedirs(OUT, exist_ok=True)
 PORT = 8795
+BASE = os.environ.get("HANABI_BASE") or f"http://127.0.0.1:{PORT}"
 fails = []
 
 
@@ -51,7 +52,8 @@ async def stroke(pg, sol, shot=None):
 
 
 async def main():
-    srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "hanabi-serve.py"), str(PORT), "."], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # HANABI_BASE を渡すと、手元のサーバーを立てずに公開先などを通す
+    srv = None if os.environ.get("HANABI_BASE") else subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "hanabi-serve.py"), str(PORT), "."], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     await asyncio.sleep(1.2)
     try:
         async with async_playwright() as p:
@@ -61,7 +63,7 @@ async def main():
             errs = []
             pg.on("pageerror", lambda e: errs.append(str(e)[:300]))
             pg.on("console", lambda m: errs.append("console: " + m.text[:200]) if m.type == "error" and "404" not in m.text else None)
-            await pg.goto(f"http://127.0.0.1:{PORT}/hanabi/story.html", wait_until="load")
+            await pg.goto(f"{BASE}/hanabi/story.html", wait_until="load")
             await pg.wait_for_function("() => window.STORY && STORY.S.booted", timeout=20000, polling=100)
             await pg.wait_for_timeout(800)
             await pg.screenshot(path=f"{OUT}/menu.jpg", type="jpeg", quality=80)
@@ -174,7 +176,7 @@ async def main():
             check(not errs, f"例外なし {errs[:3]}")
             await b.close()
     finally:
-        srv.terminate()
+        srv and srv.terminate()
     print("STORY E2E:", "ALL PASS" if not fails else f"{len(fails)} FAIL")
 
 

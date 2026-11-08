@@ -8,10 +8,12 @@ OUT, CH = sys.argv[1], sys.argv[2]
 VW, VH = (int(sys.argv[3]), int(sys.argv[4])) if len(sys.argv) > 4 else (1280, 720)
 os.makedirs(OUT, exist_ok=True)
 PORT = int(os.environ.get('PORT', 8794))
+BASE = os.environ.get("HANABI_BASE") or f"http://127.0.0.1:{PORT}"
 
 
 async def main():
-    srv = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "hanabi-serve.py"), str(PORT), "."], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # HANABI_BASE を渡すと、手元のサーバーを立てずに公開先などを通す
+    srv = None if os.environ.get("HANABI_BASE") else subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "hanabi-serve.py"), str(PORT), "."], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     await asyncio.sleep(1.2)
     fails = []
     try:
@@ -23,7 +25,7 @@ async def main():
             pg.on("pageerror", lambda e: errs.append(str(e)[:300]))
             pg.on("console", lambda m: errs.append("console: " + m.text[:200]) if m.type == "error" and "404" not in m.text else None)
             await pg.add_init_script("localStorage.setItem('hanabi2story', JSON.stringify({ done: {}, stars: {}, skipTalk: true }))")
-            await pg.goto(f"http://127.0.0.1:{PORT}/hanabi/story.html?ch={CH}&auto=1", wait_until="load")
+            await pg.goto(f"{BASE}/hanabi/story.html?ch={CH}&auto=1", wait_until="load")
             await pg.wait_for_function("() => window.STORY && STORY.S.booted", timeout=20000, polling=100)
             n = await pg.evaluate(f"() => STORY.CHAPTERS.find((c) => c.mod.CHAPTER.id === '{CH}').mod.LEVELS.length")
             seen = set()
@@ -47,7 +49,7 @@ async def main():
             if errs: fails.append(f"例外 {errs[:3]}")
             await b.close()
     finally:
-        srv.terminate()
+        srv and srv.terminate()
     for f in fails: print("FAIL", f)
     print("CHAPTER E2E", CH, "ALL PASS" if not fails else f"{len(fails)} FAIL")
 
