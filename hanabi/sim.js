@@ -683,7 +683,7 @@ function rain(st, dt) {
   st.dropT -= dt;
   const k = st.stroke;
   if (st.dropT <= 0) {
-    st.dropT = 0.1;
+    st.dropT = 0.2;
     st.drops.push({ x: st.rnd() * st.w, y: -10, vy: 520 + st.rnd() * 180 });
   }
   for (let i = st.drops.length - 1; i >= 0; i--) {

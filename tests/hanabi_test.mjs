@@ -193,7 +193,7 @@ const SITUATIONAL = new Set(['atsukan', 'renjishi', 'risoku', 'oiri', 'suminagas
 for (const rule of Object.keys(Run.RULES)) {
   const st = play([], { rule, target: 100 });
   assert.equal(st.phase, 'over', rule);
-  if (rule === 'ame') { const s2 = drive(G.newNight(scene({ rule, target: 1e12 }), 1280, 720, {}), { speed: 260 }); assert.ok((s2._log || []).some((e) => e.type === 'cut'), '雪で線が切れる'); }
+  if (rule === 'ame') { const cuts = [321, 7, 99, 1234, 55].filter((seed) => (drive(G.newNight(scene({ rule, target: 1e12, seed }), 1280, 720, {}), { speed: 260 })._log || []).some((e) => e.type === 'cut')).length; assert.ok(cuts >= 1, '雪で線が切れる'); }
   console.log('ok   大一番', rule, st.score);
 }
 

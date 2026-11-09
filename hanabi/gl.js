@@ -78,7 +78,7 @@ void main(){ vec2 vel=a.zw; float sp=length(vel); vec2 dir= sp>1. ? vel/sp : vec
   uv=q; col=b; gl_Position=vec4(w.x/uView.x*2.-1., 1.-w.y/uView.y*2.,0.,1.); }`;
 const FS_PART = `#version 300 es
 precision highp float; in vec2 uv; in vec4 col; out vec4 o;
-void main(){ float g=exp(-dot(uv,uv)*3.2); float core=exp(-dot(uv,uv)*22.); o=vec4(col.rgb*(g+core*1.8)*col.a,0.); }`;
+void main(){ float r2=dot(uv,uv); if(r2>=1.) discard; float g=(exp(-r2*3.2)-.0408)/.9592; float core=exp(-r2*22.); o=vec4(col.rgb*(g+core*1.8)*col.a,0.); }`; // 縁で 0 にする（明るい粒が四角く切れて見えないように）
 
 // 煙: 周りの光で色づく
 const VS_SMOKE = `#version 300 es

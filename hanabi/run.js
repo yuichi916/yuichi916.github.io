@@ -71,7 +71,7 @@ export const RANKS = [
 
 // 目標点。作りが育つ前提で、夜ごとに伸びる（_dev/hanabi-bot.mjs で測る）
 const BASE_TARGET = [200, 400, 700, 1200, 1700, 2400, 3300, 5000];
-const WORLD_X = [1, 4.2, 13];
+const WORLD_X = [1, 3.7, 12];
 
 export function isBoss(night) { return night === 4 || night === 8; }
 

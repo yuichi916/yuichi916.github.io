@@ -108,6 +108,8 @@ function toTitle() {
   add(tr('お守り帳', 'Charm Book'), openBook);
   // 物語は日本語のみ。ゲームサイト用の書き出し（story.html を入れない）では出さない
   if (!window.HANABI_NO_STORY) add(tr('物語', 'Story (Japanese)'), () => { location.href = 'story.html'; });
+  // 初代（旧版）へ。CrazyGames など外へのリンクを禁じる書き出しでは出さない
+  if (!window.HANABI_NO_LINKS) add(tr('初代 一筆花火', 'Original Hitofude Hanabi'), () => { const u = window.HANABI_PKG ? 'https://yuichi916.github.io/hitofude.html' : '../hitofude.html'; if (window.HANABI_PKG) window.open(u, '_blank', 'noopener'); else location.href = u; });
   add(tr(`音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`), () => { DB.sound = !DB.sound; DB.music = DB.sound; audio.setSound(DB.sound); audio.setMusic(DB.music); save(); toTitle(); });
   add(JA() ? 'English' : '日本語', () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); toTitle(); });
   audio.scene('calm');

@@ -121,7 +121,7 @@ function playRun(seed, sk, rank = 0, fuse = 'asa') {
     seconds += playNight(st, sk, rnd) + 3; // 集計
     const res = Run.afterNight(run, st);
     if (res === 'retry') { retries++; continue; }
-    if (res === 'over') { log.push({ w: run.world, n: run.night, score: st.score, target: st.target }); break; }
+    if (res === 'over') { log.push({ w: run.world, n: run.night, score: st.score, target: st.target, rule: def.rule }); break; }
     const s = G.starsFor(st); stars += s;
     blooms += st.blooms;
     const rw = Run.rewardFor(st, s, def.boss);
@@ -144,6 +144,7 @@ for (const name of (skillName === 'all' ? Object.keys(SKILL) : [skillName])) {
   console.log(`== ${name}: 完走 ${(avg((r) => (r.won ? 1 : 0)) * 100).toFixed(0)}%  平均 ${avg((r) => r.cleared).toFixed(1)} 夜  1 周 ${(avg((r) => r.seconds) / 60).toFixed(1)} 分  星 ${avg((r) => r.stars).toFixed(1)}  やり直し ${avg((r) => r.retries).toFixed(1)}  満開 ${avg((r) => r.blooms).toFixed(1)}`);
   console.log('  到達率(夜0..24):', reach.filter((_, i) => i % 2 === 0).map((v) => (v * 100).toFixed(0)).join(' '));
   const ends = {}; for (const r of res) if (r.end) { const k = `${r.end.w}-${r.end.n}`; ends[k] = (ends[k] || 0) + 1; }
+  { const br = {}; for (const r of res) if (r.end?.rule) br[r.end.rule] = (br[r.end.rule] || 0) + 1; console.log('  散った大一番:', JSON.stringify(br)); }
   console.log('  散った夜:', Object.entries(ends).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, v]) => `${k}:${v}`).join(' '));
   const cnt = {}; for (const r of res) for (const id of r.charms) cnt[id] = (cnt[id] || 0) + 1;
   console.log('  よく持つ:', Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => `${k}:${v}`).join(' '));

@@ -9,7 +9,8 @@ export function newStage(lv, W, H, opt = {}) { return Z.newStage(lv, W, H, opt);
 export const penDown = Z.penDown, penMove = Z.penMove, penUp = Z.penUp, starsFor = Z.starsFor;
 export function step(st, dt) { Z.step(st, dt); }
 // 2 度しくじったら、氷の道すじをうっすら見せる
-export function retry(lv, fails, opt) { return { ...opt, hint: fails >= 2 }; }
+// 3 度しくじると火が少し遅く、5 度で もう少し遅くなる（物語で詰まらせない）
+export function retry(lv, fails, opt) { return { ...opt, hint: fails >= 2, speedX: fails >= 5 ? 0.72 : fails >= 3 ? 0.85 : 1 }; }
 export function bot(st, mem) { return Z.bot(st, mem); }
 
 export function info(st) {
