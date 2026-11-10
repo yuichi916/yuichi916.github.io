@@ -10,6 +10,7 @@ import { createPlatform } from './platform.js';
 import { ACHIEVEMENTS, checkAchievements } from './ach.js';
 import { THEMES } from './levels.js';
 import { drawCast } from '../assets/hitofude/cast.js';
+import { track, share, canShare } from './track.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -163,6 +164,7 @@ $('bkBack').onclick = () => { audio.ui('tap'); toTitle(); };
 function beginRun(o = {}) {
   S.run = Run.newRun({ fuse: o.fuse || 'asa', rank: o.rank || 0, seed: o.seed });
   S.daily = !!o.daily;
+  track(S.daily ? 'run/daily' : 'run/start');
   DB.run = S.run; save();
   startNight();
 }
@@ -289,8 +291,10 @@ function nightEnded() {
   run.bestChain = Math.max(run.bestChain, st.bestChain); run.totalScore += st.score;
   if (S.teachKey) DB.meta.taught[S.teachKey] = 1;
   const res = Run.afterNight(run, st);
+  if (def.boss && (res === 'over' || res === 'retry')) track(`boss/${bossKey(def)}/lose`);
   if (res === 'over') { achCheck({ stars: 0 }); return runOver(false); }
   if (res === 'retry') { achCheck({ stars: 0 }); return retryNight(); }
+  if (def.boss) track(`boss/${bossKey(def)}/win`);
   const stars = G.starsFor(st); run.stars += stars; run.nightsCleared++;
   achCheck({ stars });
   const rw = Run.rewardFor(st, stars, def.boss), interest = Run.interestFor(run.coins);
@@ -314,6 +318,7 @@ function nightEnded() {
   audio.ui('win'); audio.scene('calm');
   DB.run = run; save();
 }
+const bossKey = (def) => String((def.rule && (def.rule.id || def.rule)) || 'boss');
 // 失敗しても提灯が残っていれば、同じ夜をもう一度（盤は変わる）
 function retryNight() {
   S.mode = 'retry'; DB.run = S.run; save();
@@ -471,6 +476,19 @@ function runOver(won) {
   const order = Run.START_POOL, xp = meta.xp, rest = after < CHARMS.length ? 30 - (xp % 30) : 0;
   $('ovUnlocks').innerHTML = (ul.length ? `<div>${ul.join('  ')}</div>` : '') + (rest ? `<div class="nextun"><span>${tr(`次のお守りまで あと ${rest}`, `Next charm in ${rest} XP`)}</span><i style="width:${((30 - rest) / 30) * 100}%"></i></div>` : '');
   $('ovTitleBtn').textContent = tr('タイトル', 'Title'); $('ovAgain').textContent = tr('もう一度', 'PLAY AGAIN');
+  track(`run/${won ? 'win' : 'over'}/n${run.nightsCleared}${S.daily ? '/daily' : ''}`);
+  const sh = $('ovShare'); sh.classList.toggle('hidden', !canShare()); sh.textContent = tr('結果を共有', 'Share');
+  const d = new Date(), day = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+  const msg = JA()
+    ? `${S.daily ? `今日の祭り（${day}）
+` : ''}一筆花火2 ${won ? '祭りを大団円！' : `${run.nightsCleared} / 24 夜で散った`}
+合計 ${fmt(run.totalScore)} 点・最大連鎖 ${run.bestChain}
+線を引け。火が追いかけてくる。 #一筆花火`
+    : `${S.daily ? `Daily (${day})
+` : ''}Hitofude Hanabi 2 — ${won ? 'festival complete!' : `${run.nightsCleared}/24 nights`}
+${fmt(run.totalScore)} pts, best chain ${run.bestChain}
+Draw the fuse. The flame is right behind you. #HitofudeHanabi`;
+  sh.onclick = () => { audio.ui('tap'); share(msg, S.daily ? 'share-daily' : 'share'); };
   DB.run = null; S.run = null; save();
   audio.ui(won ? 'win' : 'lose'); audio.scene(won ? 'finale' : 'calm');
   if (won) grandFinale();

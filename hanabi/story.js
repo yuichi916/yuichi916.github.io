@@ -10,6 +10,7 @@ import { drawCast } from '../assets/hitofude/cast.js';
 import { drawHinoko } from '../assets/hitofude/hinoko.js';
 import { CHAPTERS } from './ch/index.js';
 import { SCRIPT, FINALE_PRE, FINALE_END, PROLOGUE } from './script.js';
+import { track, share, canShare } from './track.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -162,10 +163,12 @@ function showMenu() {
   audio.scene('calm');
 }
 function hideMenu() { $('smenu').classList.add('hidden'); $('card').classList.add('hidden'); }
-function card(main, sub, btn) {
+function card(main, sub, btn, msg = null) {
   return new Promise((ok) => {
     $('card').classList.remove('hidden'); $('cMain').innerHTML = main; $('cSub').innerHTML = sub; $('cBtn').textContent = btn;
     S.mode = 'card'; $('shud').classList.add('hidden');
+    const sh = $('cShare'); sh.classList.toggle('hidden', !msg || !canShare() || S.auto); sh.textContent = '共有する';
+    sh.onclick = () => { audio.ui('tap'); share(msg, 'share-story'); };
     $('cBtn').onclick = () => { audio.ui('tap'); $('card').classList.add('hidden'); ok(); };
   });
 }
@@ -174,15 +177,18 @@ function card(main, sub, btn) {
 async function playChapter(ch, from = 0) {
   const M = ch.mod, C = M.CHAPTER, sc = SCRIPT[C.id] || {};
   hideMenu(); S.st = null; S.ch = ch; S.mode = 'talk'; // 前の章の盤面を、次の章の描き方で描かない
+  if (from === 0) track(`story/${C.id}/start`);
   await setScene(C.sky, C.band || 'summer');
   if (from === 0) await say([...(C.no === 1 ? PROLOGUE : []), ...(sc.open || [])]); // 続けて出る会話は 1 つの場面（スキップ 1 回で飛ぶ）
   for (let i = from; i < M.LEVELS.length; i++) await playLevel(ch, i);
   S.mode = 'talk'; $('shud').classList.add('hidden');
   bigShow(); await wait(S.auto ? 600 : 2600);
   await say(sc.close);
-  DB.done[C.id] = 1; save();
+  DB.done[C.id] = 1; save(); track(`story/${C.id}/clear`);
   const nx = CHAPTERS[CHAPTERS.indexOf(ch) + 1];
-  await card(nx ? `第${KANJI[nx.mod.CHAPTER.no - 1]}章「${nx.mod.CHAPTER.ja}」へ` : '最終章「送り火」へ', '', 'つづける');
+  const got = M.LEVELS.reduce((a, l) => a + (DB.stars[`${C.id}:${l.id}`] || 0), 0);
+  await card(nx ? `第${KANJI[nx.mod.CHAPTER.no - 1]}章「${nx.mod.CHAPTER.ja}」へ` : '最終章「送り火」へ', '', 'つづける',
+    `一筆花火2 物語「送り火」\n第${KANJI[C.no - 1]}章「${C.ja}」を越えた（星 ${got} / ${M.LEVELS.length * 3}）\n#一筆花火`);
   if (S.auto) { S.chapterDone = C.id; return; }
   if (nx) return playChapter(nx); else return finale();
 }
@@ -278,10 +284,11 @@ async function finaleEnding() {
   fx.burst('kamuro', s.x, s.y, 270, 'shaku', 3); audio.boom(2.4, 0); R.flash = 0.14; R.shake = 20;
   bigShow();
   await wait(5200);
-  DB.done.finale = 1; save();
+  DB.done.finale = 1; save(); track('story/finale/clear');
   // ローグライクの側にも、結末を見たことを知らせる（タイトルの言葉が変わる）
   try { const k = 'hanabi2'; const d = JSON.parse(localStorage.getItem(k) || '{}'); d.meta = d.meta || {}; d.meta.storyDone = 1; localStorage.setItem(k, JSON.stringify(d)); } catch { /* */ }
-  await card('ずっと逃げていた火は、<br>あなたを迎えに来ていた。', '一筆花火 —— 送り火', 'メニューへ');
+  await card('ずっと逃げていた火は、<br>あなたを迎えに来ていた。', '一筆花火 —— 送り火', 'メニューへ',
+    '一筆花火2 物語「送り火」を、最後まで遊んだ。\n線を引け。火が追いかけてくる。 #一筆花火');
   showMenu();
 }
 
