@@ -26,6 +26,12 @@ export function createAudio(bgmList) {
     setMusic(v) { musicOn = v; if (bgm) bgm.gain.value = v ? 0.55 : 0; },
     get soundOn() { return on; }, get musicOn() { return musicOn; },
     mute(v) { if (master) master.gain.value = v ? 0 : 0.9; },
+    // 大事な音の前に、効果音と曲をいったん下げる（amt=残す割合、sec=戻るまで）
+    duck(sec = 0.4, amt = 0.35) {
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      for (const [node, lv] of [[sfx, on ? 0.85 : 0], [bgm, musicOn ? 0.55 : 0]]) { node.gain.cancelScheduledValues(t); node.gain.setValueAtTime(lv * amt, t); node.gain.setTargetAtTime(lv, t + sec * 0.4, sec / 3); }
+    },
     scene(name, fade = 0.5) {
       A.wanted = name;
       if (!ctx || current === name) return;
@@ -83,7 +89,13 @@ export function createAudio(bgmList) {
     ui(kind = 'tap') {
       if (!ctx || !on) return;
       if (kind === 'tap') A.note(12, { vol: 0.12, dur: 0.16 });
-      if (kind === 'caught') { const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(320, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.34); g.gain.setValueAtTime(0.14, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.4); o.connect(g); g.connect(sfx); o.start(t); o.stop(t + 0.42); }
+      if (kind === 'caught') { // 追いつかれた: ほかの音を一瞬下げて、低く沈む音をはっきり聞かせる
+        A.duck(0.45, 0.3);
+        const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(320, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.34); g.gain.setValueAtTime(0.3, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.4); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.42);
+        const s = ctx.createBufferSource(); s.buffer = noise; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, t); lp.frequency.exponentialRampToValueAtTime(120, t + 0.3);
+        const sg = ctx.createGain(); sg.gain.setValueAtTime(0.35, t); sg.gain.exponentialRampToValueAtTime(0.001, t + 0.32); s.connect(lp); lp.connect(sg); sg.connect(master); s.start(t, Math.random()); s.stop(t + 0.34);
+      }
+      if (kind === 'mikiri') { A.note(20, { vol: 0.2, dur: 0.25 }); setTimeout(() => A.note(23, { vol: 0.2, dur: 0.5 }), 60); }
       if (kind === 'win') [10, 12, 14, 15, 17, 20].forEach((n, i) => setTimeout(() => A.note(n, { vol: 0.17, dur: 0.8 }), i * 90));
       if (kind === 'lose') [12, 10, 7].forEach((n, i) => setTimeout(() => A.note(n, { vol: 0.13, dur: 0.7 }), i * 170));
       if (kind === 'heat') A.note(17, { vol: 0.18, dur: 0.3 });

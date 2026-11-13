@@ -189,7 +189,7 @@ export function createRenderer(canvas, { quality = 'high' } = {}) {
   };
   let W = 1280, H = 720, RW = 0, RH = 0, scene, comp, fxL, trailA, trailB, mips = [];
   const R = {
-    gl, floatOk, lights: [], flash: 0, heat: 0, shake: 0, zoom: 1, camX: 0, camY: 0, bloom: 0.95, trailFade: 0.885,
+    gl, floatOk, lights: [], flash: 0, heat: 0, shake: 0, kickX: 0, kickY: 0, zoom: 1, camX: 0, camY: 0, bloom: 0.95, trailFade: 0.885,
     waterY: 0.84, band: null, skyTex: null, grain: 0.022, time: 0,
     get view() { return { w: W, h: H }; },
   };
@@ -267,7 +267,7 @@ export function createRenderer(canvas, { quality = 'high' } = {}) {
   R.render = (dt, fx, draws) => {
     R.time += dt;
     const shX = (Math.sin(R.time * 71) + Math.sin(R.time * 47)) * R.shake, shY = (Math.cos(R.time * 63) + Math.sin(R.time * 53)) * R.shake;
-    const cam = { x: shX + R.camX, y: shY + R.camY, z: R.zoom };
+    const cam = { x: shX + R.camX + R.kickX, y: shY + R.camY + R.kickY, z: R.zoom };
     // 粒を上げる
     fx.fill(pData, MAX_P, sData, MAX_S);
     gl.bindBuffer(gl.ARRAY_BUFFER, pBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, pData, 0, fx.count * 9);

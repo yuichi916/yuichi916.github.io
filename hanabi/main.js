@@ -185,7 +185,8 @@ function startNight() {
   const W2 = Run.WORLDS[def.world - 1];
   setTheme(W2.theme);
   S.st = G.newNight(def, W, H, Run.loadoutFor(run));
-  S.mode = 'play'; S.crossed = false; S.seq = []; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0;
+  $('float').replaceChildren();
+  S.mode = 'play'; S.crossed = false; S.seq = []; S.endAfterCount = false; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0; S.cnt = null;
   PF.start();
   show('none'); $('hud').classList.remove('hidden');
   $('nWorld').textContent = JA() ? W2.ja : W2.en;
@@ -275,21 +276,25 @@ function achCheck(extra = {}) {
     fusesOpen: Run.FUSES.every((f) => Run.fuseOpen(f, meta)),
     bookFull: Run.unlockedCharms(meta).size >= CHARMS.length,
   });
-  got.forEach((a, i) => setTimeout(() => achToast(a), 500 + i * 900));
+  got.forEach((a, i) => setTimeout(() => achToast(a), 500 + i * 2000)); // 1 枚ずつ（重ねない）
   return got;
 }
 function achToast(a) {
   const e = document.createElement('div'); e.className = 'achtoast';
   e.innerHTML = `<small>${tr('実績', 'Achievement')}</small><b>${JA() ? a.ja : a.en}</b>`;
   document.body.append(e); audio.note(17, { vol: 0.15, dur: 0.5 }); setTimeout(() => audio.note(20, { vol: 0.14, dur: 0.6 }), 90);
-  setTimeout(() => e.remove(), 2600);
+  setTimeout(() => e.remove(), 1900);
 }
 function nightEnded() {
   const st = S.st, run = S.run, def = st.level;
   hideTip(); PF.stop(); $('teach').classList.add('hidden');
+  $('combo').classList.remove('on'); $('heat').className = 'heat'; // 一筆の箱を夜のあとに残さない
+  S.cnt = null; S.endAfterCount = false; S.shown = st.score; $('gScore').textContent = fmt(st.score); S.goalEl?.classList.remove('counting');
   if (st.cleared && (def.boss || G.starsFor(st) === 3)) PF.happy();
   run.bestChain = Math.max(run.bestChain, st.bestChain); run.totalScore += st.score;
   if (S.teachKey) DB.meta.taught[S.teachKey] = 1;
+  // 届かなかった夜は「あと何点だったか」を見せる（悔しさが次の一回を呼ぶ）
+  S.miss = !st.cleared && st.score < st.target ? { n: st.target - st.score, pct: Math.floor((st.score / st.target) * 100) } : null;
   const res = Run.afterNight(run, st);
   if (def.boss && (res === 'over' || res === 'retry')) track(`boss/${bossKey(def)}/lose`);
   if (res === 'over') { achCheck({ stars: 0 }); return runOver(false); }
@@ -303,7 +308,28 @@ function nightEnded() {
   DB.meta.taught.draw = 1;
   S.shop = Run.shopFor(run, Run.unlockedCharms(DB.meta)); S.sold = new Set();
   S.route = Run.routeChoices(run); S.routeSel = 0;
-  S.mode = 'inter'; show('inter');
+  DB.run = run; save();
+  // 大一番に勝った瞬間: すぐ屋台を出さず、止め・閃光・ゆっくりの大団円を 1.7 秒見せる
+  if (def.boss) { S.mode = 'bosswin'; bossWin(def); setTimeout(() => { if (S.mode === 'bosswin') openInter(def, st, stars, rw, interest, gain); }, 1700); }
+  else openInter(def, st, stars, rw, interest, gain);
+}
+function bossWin(def) {
+  const r = def.rule && Run.RULES[def.rule];
+  if (r) drawBoss(r.cast, 'sad');
+  $('boss').classList.remove('taunt');
+  banner(tr('勝 利', 'VICTORY'), 120, 1700);
+  audio.duck(0.3, 0.4); audio.boom(2, 0); audio.ui('win'); audio.scene('finale', 0.2);
+  S.stopT = 0.2; R.flash = 0.7; R.shake = 18; S.timeScale = 0.35; S.slowT = 1.4;
+  for (let i = 0; i < 40; i++) {
+    const t = 0.15 + i * 0.035 + Math.random() * 0.05, x = W * (0.06 + Math.random() * 0.88), y = H * (0.08 + Math.random() * 0.5);
+    const type = SHELL_ORDER[Math.floor(Math.random() * 6)], kind = fx.kinds[Math.floor(Math.random() * 6)];
+    S.seq.push({ at: t, f: () => { fx.burst(kind, x, y, 110 + Math.random() * 110, type, 1); if (i % 3 === 0) audio.boom(1, panOf(x)); } });
+  }
+}
+// 夜を越えたあとの、結果と屋台
+function openInter(def, st, stars, rw, interest, gain) {
+  const run = S.run;
+  S.mode = 'inter'; show('inter'); $('hud').classList.add('hidden'); hideTip();
   $('resTitle').textContent = def.boss ? tr('大一番、勝利！', 'Boss Defeated!') : tr(`第 ${def.night} 夜 大成功`, `Night ${def.night} Clear`);
   const sEl = $('resStars'); sEl.innerHTML = '<span>★</span><span>★</span><span>★</span>';
   [...sEl.children].forEach((c, i) => { if (i < stars) setTimeout(() => { c.classList.add('on'); audio.note(12 + i * 2, { vol: 0.18, dur: 0.5 }); }, 200 + i * 220); });
@@ -315,17 +341,33 @@ function nightEnded() {
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
   $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT');
   renderShop();
-  audio.ui('win'); audio.scene('calm');
-  DB.run = run; save();
+  countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
+  audio.ui('win'); if (!def.boss) audio.scene('calm');
+}
+// 小判を 0.6 秒で数え上げる（帳面の行が出そろうのに合わせて始める）
+function countUp(el, from, to, delay = 0) {
+  if (to <= from) { el.textContent = to; return; }
+  const t0 = performance.now() + delay * 1000, dur = 600; let k = -1, wrote = String(from);
+  el.textContent = wrote;
+  const go = (now) => {
+    if (el.textContent !== wrote) return; // ほかの所が書きかえたら止める（買い物・売り）
+    const u = Math.max(0, Math.min(1, (now - t0) / dur)), s = Math.floor(u * 10);
+    if (now >= t0 && s > k) { k = s; wrote = String(Math.round(from + (to - from) * s / 10)); el.textContent = wrote; if (s < 10) audio.note(10 + s, { vol: 0.06, dur: 0.07 }); }
+    if (u < 1) requestAnimationFrame(go);
+  };
+  requestAnimationFrame(go);
 }
 const bossKey = (def) => String((def.rule && (def.rule.id || def.rule)) || 'boss');
 // 失敗しても提灯が残っていれば、同じ夜をもう一度（盤は変わる）
 function retryNight() {
   S.mode = 'retry'; DB.run = S.run; save();
   renderLives();
-  banner(`${tr('提灯がひとつ消えた', 'A lantern goes out')}<small>${tr(`もう一度、この夜を。あと ${S.run.lives} つ`, `Try this night again. ${S.run.lives} left`)}</small>`, 56, 2000);
-  audio.ui('lose');
-  setTimeout(() => { if (S.mode === 'retry') startNight(); }, 2000);
+  const miss = S.miss ? tr(`あと ${fmt(S.miss.n)} 点だった（${S.miss.pct}%）`, `Just ${fmt(S.miss.n)} short (${S.miss.pct}%)`) + '<br>' : '';
+  banner(`${tr('提灯がひとつ消えた', 'A lantern goes out')}<small>${miss}${tr(`もう一度、この夜を。残り ${S.run.lives}`, `Try this night again. ${S.run.lives} left`)}</small>`, 56, 1000);
+  audio.ui('lose'); hurt();
+  // 待たせない: 1 秒で自動、0.3 秒すぎたら触れればすぐ
+  S.retryAt = performance.now();
+  setTimeout(() => { if (S.mode === 'retry') startNight(); }, 1000);
 }
 function renderShop() {
   const run = S.run, wrap = $('cards'); wrap.innerHTML = '';
@@ -376,9 +418,16 @@ function renderHeld(el, sell) {
     if (id) {
       const c = CHARM_BY_ID[id], cv = document.createElement('canvas'); cv.width = 84; cv.height = 105; drawBag(cv, c); d.append(cv);
       const price = Math.max(1, Math.floor(c.cost / 2));
-      d.addEventListener('pointerenter', (e) => showTip(e, JA() ? c.ja : c.en, (JA() ? c.dj : c.de) + (sell ? tr(`<br>押すと ${price} 小判で売る`, `<br>Click to sell for ${price}`) : '')));
-      d.addEventListener('pointerleave', hideTip);
-      if (sell) d.onclick = () => { S.run.charms.splice(i, 1); S.run.coins += price; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); };
+      const tip = (e, armed) => showTip(e, JA() ? c.ja : c.en, (JA() ? c.dj : c.de) + (sell ? (armed ? tr(`<br><em>もう一度押すと ${price} 小判で売る</em>`, `<br><em>Tap again to sell for ${price}</em>`) : tr(`<br>2 回押すと ${price} 小判で売る`, `<br>Tap twice to sell for ${price}`)) : ''));
+      d.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') tip(e, false); });
+      d.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { hideTip(); d.classList.remove('armed'); } });
+      // 指でも説明が読めるように、1 回目は説明と「売る」の合図、2 回目で売る（1 回で売れると誤って手放す）
+      d.onclick = (e) => {
+        if (sell && d.classList.contains('armed')) { S.run.charms.splice(i, 1); S.run.coins += price; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); return; }
+        el.querySelectorAll('.armed').forEach((o) => o.classList.remove('armed'));
+        if (sell) d.classList.add('armed');
+        tip(e, sell); audio.ui('tap');
+      };
     }
     el.append(d);
   }
@@ -460,14 +509,16 @@ $('skNext').onclick = () => { audio.ui('tap'); S.sk = null; startNight(); };
 
 function runOver(won) {
   const run = S.run;
-  S.mode = 'over'; show('over');
+  S.mode = 'over'; show('over'); $('hud').classList.add('hidden');
   const meta = DB.meta, before = Run.unlockedCharms(meta).size, fuseBefore = Run.FUSES.filter((f) => Run.fuseOpen(f, meta)).length;
+  const newBest = meta.runs > 0 && run.nightsCleared > (meta.best || 0);
   meta.runs = (meta.runs || 0) + 1; meta.xp = (meta.xp || 0) + Run.xpFor(run); meta.best = Math.max(meta.best || 0, run.nightsCleared);
   if (won) { meta.wins = (meta.wins || 0) + 1; meta.rankOpen = Math.max(meta.rankOpen || 0, run.rank + 1); }
   achCheck({ stars: 0 });
   const after = Run.unlockedCharms(meta).size, fuseAfter = Run.FUSES.filter((f) => Run.fuseOpen(f, meta)).length;
   $('ovTitle').textContent = won ? tr('祭り、大団円！', 'The Festival is Complete!') : tr('今夜はここまで', 'The Night Ends');
-  $('ovNights').textContent = tr(`${run.nightsCleared} / 24 夜`, `${run.nightsCleared} / 24 nights`);
+  const sub = [newBest ? `<em class="best">${tr('自己ベスト！', 'New Best!')}</em>` : '', !won && S.miss ? tr(`最後の夜は あと ${fmt(S.miss.n)} 点（${S.miss.pct}%）`, `Last night: ${fmt(S.miss.n)} short (${S.miss.pct}%)`) : ''].filter(Boolean).join(' ');
+  $('ovNights').innerHTML = tr(`${run.nightsCleared} / 24 夜`, `${run.nightsCleared} / 24 nights`) + (sub ? `<small>${sub}</small>` : '');
   $('ovStats').innerHTML = [[tr('合計の点', 'Total score'), fmt(run.totalScore)], [tr('最大連鎖', 'Best chain'), run.bestChain], [tr('星', 'Stars'), run.stars], [tr('経験', 'XP'), '+' + Run.xpFor(run)]].map(([a, b], i) => `<div style="animation-delay:${i * 0.1}s"><span>${a}</span><b>${b}</b></div>`).join('');
   const ul = [];
   if (after > before) ul.push(tr(`新しいお守り ${after - before} 種！`, `${after - before} new charm(s)!`));
@@ -525,10 +576,12 @@ function toast(t) { const e = document.createElement('div'); e.className = 'pop 
 
 // ------------------------------------------------------------------ 入力
 const toWorld = (e) => ({ x: (e.clientX / innerWidth) * W, y: (e.clientY / innerHeight) * H });
-let pid = null;
+let pid = null, TOUCH = false; // 指で遊んでいるか（輪を指の外に出す）
 canvas.addEventListener('pointerdown', (e) => {
-  audio.unlock();
+  audio.unlock(); TOUCH = e.pointerType === 'touch';
+  if (S.mode === 'retry' && performance.now() - S.retryAt > 300) { startNight(); return; }
   if (S.mode !== 'play' || !S.st || pid !== null || S.paused) return;
+  if (S.cnt) S.cnt.t = S.cnt.dur; // 数え上げの途中でも、触れたらすぐ次へ
   const p = toWorld(e);
   if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } $('teach').classList.add('hidden'); }
 });
@@ -557,6 +610,21 @@ function banner(html, size = 70, life = 1600) {
   $('float').append(e); setTimeout(() => e.remove(), life);
 }
 function bump(el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+// 止め（ヒットストップ）: ルールの時間だけを止め、粒と光は少しだけ動かし続ける。
+// 指が触れている間は止めない（線が飛ぶ）。小さな止めは 0.12 秒に 1 回まで、大きな止めは割りこめる
+function hitStop(ms) {
+  if (S.st?.stroke?.penDown || S.paused) return;
+  const s = ms / 1000;
+  if (S.stopCool > 0 && s < 0.07) return;
+  S.stopT = Math.max(S.stopT || 0, s); S.stopCool = 0.12;
+}
+// 追いつかれた・提灯が消えた: 画面のふちを一瞬、暗く赤く
+function hurt() { const e = $('hurt'); e.classList.remove('on'); void e.offsetWidth; e.classList.add('on'); }
+// 揺れ: 爆心から外へ押す一発。ばらばらの揺れ（R.shake）より向きがあるぶん、どこで起きたかが分かる
+function kick(x, y, px) {
+  const dx = W / 2 - x, dy = H / 2 - y, l = Math.hypot(dx, dy) || 1;
+  R.kickX += (dx / l) * px; R.kickY += (dy / l) * px;
+}
 function launchFor(s) { const t = Math.max(0.28, s.rise); fx.launch(s.x + (Math.random() - 0.5) * 60, H * 0.84, s.x, s.y, t, PALETTES[s.type]?.[0] || [1, 0.7, 0.3]); }
 
 function handle(ev) {
@@ -576,14 +644,22 @@ function handle(ev) {
       fx.burst(d.kind, s.x, s.y, ev.R, s.type, ev.heatLv);
       audio.boom(size * (ev.how === 'line' ? 1 : 0.75), panOf(s.x), 0.015 + ((s.y / H) * 0.02));
       audio.note(Math.min(ev.n, 28) + 3, { vol: 0.16, dur: 0.55, pan: panOf(s.x), up: Math.floor(ev.n / 10) });
-      R.shake = Math.min(14, R.shake + 2.2 * size);
+      R.shake = Math.min(7, R.shake + 0.9 * size);
+      kick(s.x, s.y, 1.5 + Math.min(1, size) * 4.5);
       floatText(s.x, s.y, '+' + fmt(ev.pts), ev.pts >= 60 ? 'big' : '', 20 + Math.min(20, ev.pts / 12));
       if (ev.multUp > 0) { floatText(s.x, s.y - 26, `×${fmtM(ev.mult)}`, 'mult', 30); bump($('cMult')); audio.note(16, { vol: 0.14, dur: 0.3 }); }
       if (ev.multUp < 0) floatText(s.x, s.y - 26, `×${fmtM(ev.mult)}`, 'mult', 30);
-      if (d.finale) { R.flash = 0.8; R.shake = 22; S.timeScale = 0.45; S.slowT = 0.5; }
+      if (d.finale) { R.flash = 0.8; R.shake = 22; S.timeScale = 0.45; S.slowT = 0.5; hitStop(120); }
+      else if (ev.pts >= 200 || s.type === 'shaku') { hitStop(70); R.flash = Math.max(R.flash, 0.08); }
+      else if (ev.multUp > 0) hitStop(17);
       $('cPts').textContent = fmt(ev.chips); $('cMult').textContent = fmtM(ev.mult); bump($('cPts'));
       break;
     }
+    case 'chainMark': // 連鎖の節目: 名前と小判
+      floatText(W / 2, H * 0.36, `${ev.n}${tr('連', ' chain')} ${JA() ? ev.ja : ev.en}！ +${ev.coin}`, 'mark', 34);
+      audio.note(18 + Math.min(6, ev.coin), { vol: 0.2, dur: 0.5 }); setTimeout(() => audio.note(21 + Math.min(6, ev.coin), { vol: 0.18, dur: 0.6 }), 80);
+      R.flash = Math.max(R.flash, 0.1); hitStop(45); renderBags();
+      break;
     case 'charmFire': {
       const b = document.querySelector(`#bags .bag[data-id="${ev.id}"]`);
       if (b) { b.classList.remove('fire'); void b.offsetWidth; b.classList.add('fire'); }
@@ -594,14 +670,26 @@ function handle(ev) {
     case 'heat': {
       const el = $('heat');
       el.className = 'heat' + (ev.lv ? ' on l' + ev.lv : '');
-      if (ev.lv) { $('heatTxt').textContent = tr(`熱い ×${G.heatMult(ev.lv, st)}`, `HOT ×${G.heatMult(ev.lv, st)}`); if (ev.up) { audio.ui('heat'); bump(el); } }
+      // 「×N」だと赤い倍率の箱と取り違えるので、点に掛かることを書く。段が上がる音は段ごとに高く
+      if (ev.lv) { $('heatTxt').textContent = tr(`熱い！ 点×${G.heatMult(ev.lv, st)}`, `HOT! POINTS ×${G.heatMult(ev.lv, st)}`); if (ev.up) { audio.note(13 + ev.lv * 3, { vol: 0.2, dur: 0.32 }); bump(el); } }
       break;
     }
     case 'held': if (!DB.meta.taught.leash) { DB.meta.taught.leash = 1; toast(tr('線は火から離れすぎると伸びない', 'Your line waits when it gets too far ahead')); } break;
     case 'gustWarn': audio.gust(0.5); break;
     case 'gust': audio.gust(1); R.shake = Math.min(14, R.shake + 5); fx.tick(ev.x, ev.y, [2.2, 2.6, 3.2], 34, 330); break;
     case 'brake': fx.tick(ev.x, ev.y, [1.6, 0.9, 0.4], 9, 120); break;
-    case 'caught': audio.ui('caught'); floatText(ev.x, ev.y - 30, tr('追いつかれた！', 'Caught!'), 'mult', 30); fx.tick(ev.x, ev.y, [1.2, 0.5, 0.2], 40, 200); R.shake += 8; break;
+    case 'caught': // 追いつかれた: 一瞬止めて、赤く暗く。火の子が筆先に飛びつく
+      audio.ui('caught'); hitStop(110); hurt();
+      floatText(ev.x, Math.max(H * 0.2, ev.y - 80), tr('追いつかれた！', 'Caught!'), 'caught', 40);
+      fx.tick(ev.x, ev.y, [2.6, 0.6, 0.15], 60, 260); fx.light(ev.x, ev.y, 0.9, 260, [1, 0.25, 0.08], 8);
+      R.shake = Math.min(14, R.shake + 6); kick(ev.x, ev.y, 9);
+      break;
+    case 'mikiri': // 見切り: ぎりぎりで自分から離した
+      audio.ui('mikiri'); hitStop(60);
+      floatText(ev.x, ev.y - 44, tr('見切り！ 倍率+1', 'CLOSE CALL! +1 MULT'), 'gold', 30);
+      fx.tick(ev.x, ev.y, [2.6, 2.4, 1.4], 30, 220);
+      $('cMult').textContent = fmtM(ev.mult); bump($('cMult'));
+      break;
     case 'saved': audio.note(20, { vol: 0.2, dur: 0.4 }); toast(tr('踏みとどまった！', 'Survived!')); break;
     case 'cut': fx.tick(ev.x, ev.y, [0.7, 0.9, 1.3], 18, 120); audio.note(0, { vol: 0.14, dur: 0.2 }); break;
     case 'knot': fx.tick(ev.x, ev.y, [3, 2.4, 1], 18, 180); audio.note(19, { vol: 0.16, dur: 0.3 }); floatText(ev.x, ev.y - 26, tr('結び！', 'Knot!'), 'gold', 22); break;
@@ -644,7 +732,7 @@ function handle(ev) {
       break;
     }
     case 'intrude': { const t = Run.INTRUDES[ev.kind]; banner(`${JA() ? t.ja : t.en}<small>${JA() ? t.dj : t.de}</small>`, 58, 1900); audio.boom(1, 0); R.shake = Math.min(14, R.shake + 7); R.flash = Math.max(R.flash, 0.12); break; }
-    case 'nightEnd': nightEnded(); break;
+    case 'nightEnd': if (S.cnt) S.endAfterCount = true; else nightEnded(); break; // 数え上げの最中なら、数え終わってから
     default:
   }
 }
@@ -656,6 +744,8 @@ function slam(gained) {
   audio.boom(0.6 + big * 0.8, 0);
   R.shake = Math.min(20, R.shake + 4 + big * 10);
   R.flash = Math.max(R.flash, 0.03 + big * 0.05);
+  // 3 拍目: ぶつかったあと一呼吸おいて、上の合計が音を上げながら数え上がる（大きいほど長く、最長 1.2 秒）
+  if (S.st) S.cnt = { from: S.shown, to: S.st.score, t: -0.28, dur: 0.4 + big * 0.8, ticks: 6 + Math.round(big * 14), k: -1 };
   for (let i = 0; i < 40; i++) { const a = Math.random() * 6.283, v = 120 + Math.random() * 300; fx.add(W / 2, H * 0.2, Math.cos(a) * v, Math.sin(a) * v * 0.5, 0.5 + Math.random() * 0.4, 2.2, 2.4, 90, [3, 2.2, 0.9], [1, 0.4, 0.1], 1.4); }
 }
 const fmtM = (m) => (Math.abs(m - Math.round(m)) < 0.05 ? String(Math.round(m)) : m.toFixed(1));
@@ -686,8 +776,8 @@ function skyShape(st) {
 // 全部ひらいた: 町じゅうの玉が一斉に上がる
 function grandFinale() {
   banner(tr('満 開', 'FULL BLOOM'), 112, 2600);
-  audio.scene('finale', 0.2); audio.ui('win');
-  R.flash = 0.26; R.shake = 18; S.timeScale = 0.4; S.slowT = 0.8;
+  audio.scene('finale', 0.2); audio.ui('win'); hitStop(150);
+  R.flash = 0.18; R.shake = 12; kick(W / 2, H * 0.8, 10); S.timeScale = 0.4; S.slowT = 0.8;
   for (let i = 0; i < 26; i++) {
     const t = 0.25 + i * 0.1 + Math.random() * 0.12, x = W * (0.08 + Math.random() * 0.84), y = H * (0.1 + Math.random() * 0.46);
     const type = SHELL_ORDER[Math.floor(Math.random() * 6)], kind = fx.kinds[Math.floor(Math.random() * 6)];
@@ -824,8 +914,13 @@ function perFrameFx(dt) {
         for (let i = 1; i <= n; i++) { const u = ((i - 1 + (R.time * 3) % 1) / n); fx.add(pen.x + dx * u, pen.y + dy * u, 0, 0, one, 2.2, 0, 0, [1.3, 1.1, 0.7], [1.3, 1.1, 0.7], 0.55); }
       }
       fx.add(pen.x, pen.y, 0, 0, one, 9 + hot * 6, 0, 0, [2.4, 2, 1.2], [2, 1.5, 0.8], 0.9);
+      // 熱の段を筆先で読む: 段の数だけ輪が重なる（目は筆先にあるので、上の字だけでは読めない）
+      for (let lv = 1; lv <= k.heatLv; lv++) {
+        const rr = 20 + lv * 9 + (TOUCH ? 30 : 0), col = lv >= 3 ? [2.6, 2.8, 3.4] : lv === 2 ? [3.2, 1.6, 0.4] : [3, 0.9, 0.2], n = 16 + lv * 4;
+        for (let i = 0; i < n; i++) { const a = (i / n) * 6.283 + R.time * (1.5 + lv) * (lv % 2 ? 1 : -1); fx.add(pen.x + Math.cos(a) * rr, pen.y + Math.sin(a) * rr, 0, 0, one, 1.9, 0, 0, col, col, 1.1); }
+      }
       if (k.flameOn && gap < st.m.hotGap * 1.6) {
-        const r = 14 + Math.max(0, gap) * 0.26, col = gap < st.m.hotGap * 0.45 ? [3, 0.5, 0.15] : gap < st.m.hotGap ? [3, 1.4, 0.3] : [1.2, 1, 0.6];
+        const r = 14 + Math.max(0, gap) * 0.26 + (TOUCH ? 30 : 0), col = gap < st.m.hotGap * 0.45 ? [3, 0.5, 0.15] : gap < st.m.hotGap ? [3, 1.4, 0.3] : [1.2, 1, 0.6];
         const nDots = 22;
         for (let i = 0; i < nDots; i++) { const a = (i / nDots) * 6.283 + R.time * 3; fx.add(pen.x + Math.cos(a) * r, pen.y + Math.sin(a) * r, 0, 0, one, 2.1, 0, 0, col, col, 1.3); }
       }
@@ -836,13 +931,28 @@ function perFrameFx(dt) {
   } else { R.heat *= 0.9; $('inkBar').parentElement.classList.remove('on'); }
 }
 
-function updateHud() {
+function updateHud(dt) {
   const st = S.st; if (!st || S.mode !== 'play') return;
-  const live = G.liveScore(st);
-  S.shown = (S.shown || 0) + (live - (S.shown || 0)) * 0.18; if (Math.abs(live - S.shown) < 1) S.shown = live;
+  // 一筆の点は「点 × 倍率」の箱で育て、上の合計には一筆が終わってから数え上げて入れる（精算の 3 拍目）
+  const c = S.cnt;
+  if (c) {
+    c.t += dt;
+    const u = Math.max(0, Math.min(1, c.t / c.dur)), e = 1 - (1 - u) ** 3;
+    S.shown = c.from + (c.to - c.from) * e;
+    const step = Math.floor(u * c.ticks);
+    if (c.t > 0 && step > c.k) { c.k = step; audio.note(9 + Math.min(step, 22), { vol: 0.07, dur: 0.09 }); }
+    if (u >= 1) { S.cnt = null; S.shown = c.to; if (S.endAfterCount) { S.endAfterCount = false; S.seq.push({ at: S.crossedNow ? 0.6 : 0.25, f: () => { if (S.mode === 'play') nightEnded(); } }); } }
+  } else S.shown = st.score;
+  const live = S.shown, goal = S.goalEl || (S.goalEl = document.querySelector('.goal'));
+  goal.classList.toggle('counting', !!S.cnt);
   $('gScore').textContent = fmt(S.shown);
   $('gBar').style.width = Math.min(100, (S.shown / (st.target * 2.5)) * 100) + '%';
-  if (!S.crossed && live >= st.target) { S.crossed = true; banner(tr('目標達成！', 'TARGET!'), 58, 1200); audio.ui('win'); R.flash = Math.max(R.flash, 0.06); }
+  const r = live / st.target, stars = $('gStars').children;
+  for (let i = 0; i < 3; i++) stars[i].classList.toggle('on', r >= [1, 1.6, 2.5][i]);
+  goal.classList.toggle('fire', r >= 1);
+  if (r >= 1) goal.style.setProperty('--fire', Math.min(1.6, 0.5 + Math.log(r) / Math.log(5)).toFixed(2));
+  S.crossedNow = false;
+  if (!S.crossed && live >= st.target) { S.crossed = true; S.crossedNow = true; banner(tr('目標達成！', 'TARGET!'), 58, 1200); audio.ui('win'); R.flash = Math.max(R.flash, 0.06); hitStop(80); }
 }
 
 // はじめての夜だけ: 動く手本（玉を順に通る火の粉）
@@ -887,25 +997,39 @@ function frame(now) {
   }
   try {
     if (S.paused) { dt = 0; }
-    if (S.slowT > 0) { S.slowT -= dt; if (S.slowT <= 0) S.timeScale = 1; }
-    const sdt = dt * S.timeScale;
-    if (S.mode === 'play' && S.st && !S.paused) {
+    if (S.stopT > 0) S.stopT -= dt;
+    if (S.stopCool > 0) S.stopCool -= dt;
+    const stopped = S.stopT > 0;
+    if (S.slowT > 0 && !stopped) { S.slowT -= dt; if (S.slowT <= 0) S.timeScale = 1; }
+    const sdt = stopped ? dt * 0.08 : dt * S.timeScale;
+    if (S.mode === 'play' && S.st && !S.paused && !stopped) {
       acc += sdt;
       while (acc >= G.DT && S.mode === 'play') { acc -= G.DT; G.step(S.st, G.DT); const evs = S.st.events.splice(0); for (const ev of evs) handle(ev); }
       const st = S.st;
       if (st.phase === 'stroke' && st.stroke && !st.stroke.penDown && S.slowT <= 0) {
         const idle = st.shells.filter((s) => s.state === 'idle' && s.rise <= 0).length;
-        if (idle === 0 && st.pending.length === 1 && st.stroke.pops > 3) { S.timeScale = 0.3; S.slowT = 0.6; }
+        if (idle === 0 && st.pending.length === 1 && st.stroke.pops > 3) { S.timeScale = 0.3; S.slowT = 0.6; S.focus = st.pending[0].s; }
       }
     }
+    // 満開がかかった最後の玉へ、ゆっくり寄る（ゆっくりが終わったら戻る）
+    const zt = S.focus && S.slowT > 0 && S.mode === 'play' ? 1.2 : 1;
+    if (zt === 1) S.focus = null;
+    R.zoom += (zt - R.zoom) * Math.min(1, dt * (zt > 1 ? 5 : 3));
+    if (S.focus) { S.fx0 = S.focus.x; S.fy0 = S.focus.y; }
+    R.camX = R.zoom > 1.001 ? -((S.fx0 ?? W / 2) - W / 2) * (R.zoom - 1) : 0;
+    R.camY = R.zoom > 1.001 ? -((S.fy0 ?? H / 2) - H / 2) * (R.zoom - 1) : 0;
     if (S.mode === 'title') titleFx(dt);
     if (S.mode === 'senko' && !S.paused) senkoFx(dt);
     for (let i = S.seq.length - 1; i >= 0; i--) { const e = S.seq[i]; e.at -= dt; if (e.at <= 0) { S.seq.splice(i, 1); e.f(); } }
     if (!S.paused) { perFrameFx(sdt); hintFx(sdt); fx.update(sdt); }
     R.lights = fx.lights;
     R.flash *= Math.exp(-dt * 6); R.shake *= Math.exp(-dt * 9);
+    // 蹴りはばねで戻す（行き過ぎて少し揺れ返す）
+    S.kvx = ((S.kvx || 0) - R.kickX * 900 * dt) * Math.exp(-dt * 18); S.kvy = ((S.kvy || 0) - R.kickY * 900 * dt) * Math.exp(-dt * 18);
+    R.kickX += S.kvx * dt; R.kickY += S.kvy * dt;
+    if (Math.abs(R.kickX) + Math.abs(R.kickY) < 0.05 && Math.abs(S.kvx) + Math.abs(S.kvy) < 1) { R.kickX = R.kickY = S.kvx = S.kvy = 0; }
     R.render(sdt, fx, drawWorld);
-    updateHud();
+    updateHud(dt);
   } catch (err) { if (!S.fatal) { S.fatal = err; console.error(err); } }
 }
 

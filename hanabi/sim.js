@@ -79,8 +79,8 @@ export function rng32(seed) {
 // 盤の大きさ。横長と縦長で別の広さを使い、玉の位置は 0〜1 の割合で持つ（どちらの向きでも同じ並びになる）
 export function fieldFor(w, h) {
   return w >= h
-    ? { w, h, x0: 70, x1: w - 70, y0: 112, y1: h * 0.62 }
-    : { w, h, x0: 60, x1: w - 60, y0: 190, y1: h * 0.72 };
+    ? { w, h, x0: 70, x1: w - 70, y0: 140, y1: h * 0.62 }
+    : { w, h, x0: 60, x1: w - 60, y0: 390, y1: h * 0.72 }; // 縦は上の「点×倍率」と「熱い」の字が玉を隠さない所から
 }
 
 // 群れと、離れた玉を混ぜて置く。読みどころは「群れをつなぐ順番」
@@ -388,10 +388,10 @@ function extendLine(st) {
     threadAt(st, px, py);
     if (st.m.knots) checkKnot(st, px, py);
   }
-  if (inkLimit(st) - k.len < 1) { k.inkOut = true; penUp(st); st.events.push({ type: 'inkOut' }); }
+  if (inkLimit(st) - k.len < 1) { k.inkOut = true; penUp(st, true); st.events.push({ type: 'inkOut' }); }
 }
 
-export function penUp(st) {
+export function penUp(st, auto = false) { // auto: 墨切れで勝手に離れた（見切りは付かない）
   const k = st.stroke;
   if (!k || !k.penDown) return;
   k.penDown = false;
@@ -402,6 +402,11 @@ export function penUp(st) {
     return;
   }
   st.events.push({ type: 'penUp', x: k.pts[k.pts.length - 1].x, y: k.pts[k.pts.length - 1].y });
+  // 見切り: 熱いまま、火がすぐ後ろにいるうちに自分で離すと倍率 +1。捕まると付かない（危ないほど得）
+  if (!auto && k.flameOn && k.heatLv >= 1 && k.len - k.flameS < st.m.hotGap * 0.5) {
+    k.mult += 1; st.mikiri = (st.mikiri || 0) + 1;
+    st.events.push({ type: 'mikiri', x: k.pts[k.pts.length - 1].x, y: k.pts[k.pts.length - 1].y, mult: k.mult });
+  }
 }
 
 function threadAt(st, x, y) {
@@ -465,6 +470,13 @@ function ignite(st, s, gen, how, delay = 0) {
   st.pending.push({ s, gen, how, at: st.t + delay });
 }
 
+// 連鎖の節目には名前と小判。数が「出来事」になる
+export const CHAIN_MARKS = [
+  { n: 8, ja: '八重芯', en: 'Double Core', coin: 1 },
+  { n: 15, ja: '十五夜', en: 'Harvest Moon', coin: 2 },
+  { n: 25, ja: '千輪', en: 'Thousand Rings', coin: 3 },
+  { n: 40, ja: '満天', en: 'Sky Ablaze', coin: 4 },
+];
 function burst(st, s, gen, how) {
   const k = st.stroke, d = SHELLS[s.type], m = st.m;
   s.state = 'burst';
@@ -493,6 +505,8 @@ function burst(st, s, gen, how) {
   k.fv = Math.min(m.flameVMax * m.flameX, k.fv + m.flameVPerPop * m.flameX);
   if (m.dyn) k.kick = Math.min(m.kickMax, k.kick + (how === 'line' ? m.kickLine : m.kickChain));
   st.bestChain = Math.max(st.bestChain, k.pops);
+  const ms = CHAIN_MARKS.find((c) => c.n === k.pops);
+  if (ms) { st.coinsEarned += ms.coin; st.events.push({ type: 'chainMark', x: s.x, y: s.y, ...ms }); }
   st.events.push({ type: 'burst', shell: s, gen, how, R, pts: Math.round(pts), chips: k.chips, mult: k.mult, multUp: k.mult - mult0, n: k.pops, heatLv: k.heatLv });
   // 爆風が届いた玉に火を移し、線の通っていない玉は押し出す
   for (const o of st.shells) {
