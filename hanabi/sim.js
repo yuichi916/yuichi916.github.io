@@ -190,6 +190,9 @@ export function newNight(level, w, h, loadout = {}) {
   return st;
 }
 
+// 夜のはじめに玉が町から上がってくる時間（画面と、ランキングの動かし直しで同じにする）
+export function stageRise(st) { const n = st.shells.length, step = Math.min(0.035, 1.4 / Math.max(1, n)); st.shells.forEach((s, k) => { s.rise = 0.15 + k * step; }); }
+
 function retype(s, type) { const d = SHELLS[type]; s.type = type; s.r = d.r; s.R = d.R; s.pts = d.pts; }
 
 const TAU = Math.PI * 2;

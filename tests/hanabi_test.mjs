@@ -451,4 +451,59 @@ for (const rule of Object.keys(Run.RULES)) {
   for (const sc of Run.SCHOOLS) { const st = drive(nightFor(sc.id)); assert.equal(st.phase, 'over', sc.id); assert.ok(st.score > 0, sc.id + ' で点が入る'); }
   console.log(`ok   流派 ${Run.SCHOOLS.length} 種`);
 }
+// ---- ランキングの確かめ役: 1 周の記録をもう一度流して、点と夜の数が合う。書きかえた記録は通らない
+{
+  const V = await import('../hanabi/verify.js');
+  // 記録を作りながら遊ぶ運転手（ページの入力と同じく、コマの合間に筆を入れる）
+  const playNight = (run, W, H) => {
+    const def = Run.nightDef(run, run.world, run.night), st = G.newNight(def, W, H, Run.loadoutFor(run)); G.stageRise(st);
+    const evs = []; let step = 0, path = null, pen = null;
+    while (st.phase !== 'over' && step < 60 * 400) {
+      if (st.phase === 'aim' && !st.shells.some((x) => x.rise > 0)) {
+        if (run.engi.length && st.strokesLeft === 1) { const id = run.engi[0]; if (G.useEngi(st, id)) { run.engi.shift(); evs.push([step, 'e', id]); } }
+        const idle = st.shells.filter((x) => x.state === 'idle').sort((a, b) => a.x - b.x);
+        if (idle.length) { const q = (v) => Math.round(v * 10) / 10; pen = { x: q(idle[0].x), y: q(idle[0].y) }; if (G.penDown(st, pen.x, pen.y)) { evs.push([step, 'd', pen.x, pen.y]); path = idle.slice(1, 10).map((x) => ({ x: x.x, y: x.y })); } }
+      } else if (st.phase === 'stroke' && st.stroke?.penDown && path) {
+        const t = path[0];
+        if (!t) { evs.push([step, 'u']); G.penUp(st); path = null; }
+        else { const dx = t.x - pen.x, dy = t.y - pen.y, d = Math.hypot(dx, dy), v = 7.5; if (d <= v) { pen = { ...t }; path.shift(); } else { pen = { x: pen.x + dx / d * v, y: pen.y + dy / d * v }; } pen = { x: Math.round(pen.x * 10) / 10, y: Math.round(pen.y * 10) / 10 }; evs.push([step, 'm', pen.x, pen.y]); G.penMove(st, pen.x, pen.y); }
+      }
+      G.step(st, G.DT); st.events.length = 0; step++;
+    }
+    return { st, def, op: ['n', W, H, evs, st.score] };
+  };
+  const playRun = (seed, nightsMax = 10) => {
+    const run = Run.newRun({ seed, school: 'hon' }), log = { v: Run.LOG_VERSION, seed, fuse: 'asa', rank: 0, school: 'hon', daily: false, xp: 0, ops: [] };
+    const unlocked = Run.unlockedCharms({ xp: 0 }), rnd = G.rng32(seed * 3 + 1);
+    for (let g = 0; g < 60 && run.nightsCleared < nightsMax; g++) {
+      const W = g % 3 === 2 ? 720 : 1280, H = g % 3 === 2 ? 1280 : 720; // 途中で向きを変えても再現できる
+      const { st, def, op } = playNight(run, W, H); log.ops.push(op);
+      const r = Run.settleNight(run, st, def);
+      if (r.res === 'over') break;
+      if (r.res !== 'clear') continue;
+      const sh = Run.openShop(run, unlocked);
+      for (let i = 0; i < sh.items.length; i++) if (rnd() < 0.5 && !Run.buyItem(sh, run, i)) log.ops.push(['b', i]);
+      if (run.coins >= Run.rerollCost(run) && rnd() < 0.3 && Run.rerollShop(sh, run, unlocked)) { log.ops.push(['r']); if (!Run.buyItem(sh, run, 0)) log.ops.push(['b', 0]); }
+      if (run.charms.length >= 2 && rnd() < 0.3) { Run.swapCharms(run, 0, 1); log.ops.push(['w', 0, 1]); }
+      if (run.charms.length >= 3 && rnd() < 0.15) { Run.sellCharm(run, 2); log.ops.push(['s', 2]); }
+      const ch = Run.routeChoices(run), c = ch.length ? ch[Math.floor(rnd() * ch.length)] : null; if (c) Run.chooseRoute(run, c);
+      log.ops.push(['a', c ? c.lane : -1]);
+      if (Run.advance(run) === 'world') { run.coins += 6; log.ops.push(['k', 6]); }
+    }
+    return { run, log };
+  };
+  const { run, log } = playRun(77, 10);
+  assert.ok(run.nightsCleared >= 3, '運転手が夜を越える ' + run.nightsCleared);
+  const v = V.verifyRun(JSON.parse(JSON.stringify(log)));
+  assert.ok(v.ok, '記録が通る ' + JSON.stringify({ why: v.why, at: v.at, got: v.got, claimed: v.claimed }));
+  assert.equal(v.total, run.totalScore); assert.equal(v.nights, run.nightsCleared);
+  // 書きかえ: 点を足す・筆の位置をずらす・買えない品を買う・線香花火の小判を盛る
+  const bad = (f) => { const L = JSON.parse(JSON.stringify(log)); f(L); return V.verifyRun(L); };
+  assert.equal(bad((L) => { L.ops[0][4] += 100; }).why, 'score', '点の書きかえ');
+  assert.equal(bad((L) => { const e = L.ops[0][3].find((x) => x[1] === 'm'); e[2] += 40; }).ok, false, '筆の書きかえ');
+  assert.equal(bad((L) => { const i = L.ops.findIndex((o) => o[0] === 'b'); L.ops.splice(i, 0, ['b', 99]); }).why, 'buy', '無い品');
+  assert.equal(bad((L) => { L.ops.push(['k', 99]); }).ok, false, '小判の盛り');
+  assert.equal(bad((L) => { L.school = 'okibi'; }).ok, false, '流派の書きかえ');
+  console.log(`ok   ランキングの確かめ役（${run.nightsCleared} 夜・${log.ops.length} 操作・${Math.round(JSON.stringify(log).length / 1024)} KB を再現、書きかえ 5 種を弾く）`);
+}
 console.log('hanabi_test: ALL PASS');

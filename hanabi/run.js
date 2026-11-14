@@ -1,6 +1,6 @@
 // 一筆花火 2 — 1 周のルール（夜の並び・目標・屋台・小判）。DOM に触らない
 import { CHARMS, CHARM_BY_ID } from './charms.js';
-import { rng32, SHELLS, ENGI } from './sim.js';
+import { rng32, SHELLS, ENGI, starsFor } from './sim.js';
 
 export const WORLDS = [
   { id: 1, ja: '川辺の夏祭り', en: 'Riverside Festival', theme: 'summer', mix: ['kin', 'ootama', 'senrin', 'chouchin'], rules: ['kasha', 'kaze'] },
@@ -400,3 +400,71 @@ export function fuseOpen(f, meta) {
   return (f.unlock.wins ? (meta?.wins || 0) >= f.unlock.wins : true) && (f.unlock.best ? (meta?.best || 0) >= f.unlock.best : true);
 }
 export function xpFor(run) { return run.nightsCleared * 5 + (run.won ? 60 : 0) + run.rank * 5; }
+
+// ---------------------------------------------------------------- 夜の結果と屋台の手続き
+// 画面（main.js）・ボット・ランキングの確かめ役（verify.js）が同じ関数を通るので、1 周をそっくり再現できる
+export const LOG_VERSION = 1;
+export function settleNight(run, st, def) {
+  run.bestChain = Math.max(run.bestChain || 0, st.bestChain); run.totalScore += st.score; run.inNight = null;
+  const res = afterNight(run, st);
+  if (res !== 'clear') return { res };
+  const stars = starsFor(st); run.stars += stars; run.nightsCleared++;
+  const rw = rewardFor(st, stars, def.boss), interest = interestFor(run.coins);
+  let engi = null;
+  if (def.boss) { run.engi = run.engi || []; if (run.engi.length < ENGI_SLOTS) { engi = bossEngi(run); run.engi.push(engi); } }
+  const gain = rw.base + rw.left + rw.star + rw.earned + rw.twist + interest;
+  run.coins += gain;
+  nodeReward(run, def.node);
+  run.shopAt = `${run.world}-${run.night}`; // 屋台で読みなおしても、越えた夜をもう一度遊ばない
+  return { res, stars, rw, interest, gain, engi };
+}
+// 屋台を開く: ふつうの品・買い戻し（売った値 +1）・大勝負のほうびと縁日の取り引き（引き直しても残る）
+export function openShop(run, unlocked) {
+  const sh = { items: shopFor(run, unlocked), sold: [], back: null, bonus: [], giftTaken: false };
+  let back = null;
+  while (run.soldIds?.length && !back) { const id = run.soldIds.shift(); if (!run.charms.includes(id) && CHARM_BY_ID[id]) back = id; }
+  if (back) { sh.back = { kind: 'charm', id: back, cost: Math.max(1, Math.floor(CHARM_BY_ID[back].cost / 2)) + 1, back: true }; sh.items.push({ ...sh.back }); }
+  sh.bonus = bonusItems(run, unlocked, sh.items.map((x) => x.id));
+  sh.bonus.forEach((x, bi) => sh.items.push({ ...x, bi }));
+  return sh;
+}
+export function rerollShop(sh, run, unlocked) {
+  const c = rerollCost(run); if (c > run.coins) return false;
+  run.coins -= c; run.rerolls++; run.shopRound++;
+  sh.items = shopFor(run, unlocked); sh.sold = [];
+  if (sh.back && !run.charms.includes(sh.back.id)) sh.items.push({ ...sh.back });
+  sh.bonus.forEach((x, bi) => { if (!x.taken && !(x.gift && sh.giftTaken)) sh.items.push({ ...x, bi }); });
+  return true;
+}
+// 買えない理由（買えるなら ''）
+export function cantBuy(sh, run, i) {
+  const it = sh.items[i];
+  if (!it || sh.sold.includes(i) || (it.gift && sh.giftTaken)) return 'gone';
+  if (it.cost > run.coins) return 'coins';
+  if (it.kind === 'charm' || it.kind === 'trade') { if (run.charms.includes(it.id)) return 'held'; if (run.charms.length >= run.slots) return 'full'; }
+  if (it.kind === 'trade' && run.lives < 2) return 'lives';
+  if (it.kind === 'engi' && (run.engi || []).length >= ENGI_SLOTS) return 'engi';
+  if (it.kind === 'slot' && run.slots >= MAX_SLOTS) return 'gone';
+  return '';
+}
+export function buyItem(sh, run, i) {
+  const why = cantBuy(sh, run, i); if (why) return why;
+  const it = sh.items[i];
+  run.coins -= it.cost; sh.sold.push(i);
+  applyItem(run, it);
+  if (it.back) sh.back = null;
+  if (it.bi !== undefined) { sh.bonus[it.bi].taken = true; if (it.gift) { sh.giftTaken = true; sh.items.forEach((x, j) => { if (x.gift && !sh.sold.includes(j)) sh.sold.push(j); }); } }
+  return '';
+}
+export const sellPrice = (run, id) => Math.max(1, Math.floor(CHARM_BY_ID[id].cost / 2)) + (CHARM_BY_ID[id].sellGrow ? (run.grow?.[id] || 0) : 0);
+// 売ったら育ちは消える（買い戻しで育ちが残らない）
+export function sellCharm(run, i) {
+  const id = run.charms[i]; if (!id || !CHARM_BY_ID[id]) return 0;
+  const p = sellPrice(run, id);
+  run.charms.splice(i, 1); if (run.grow) delete run.grow[id];
+  run.coins += p; (run.soldIds = run.soldIds || []).push(id);
+  return p;
+}
+export function swapCharms(run, i, j) { const a = run.charms; if (i < 0 || j < 0 || i >= a.length || j >= a.length) return false; [a[i], a[j]] = [a[j], a[i]]; return true; }
+// 線香花火の小判（いちばん長く保って 15）
+export const SENKO_MAX = 15;

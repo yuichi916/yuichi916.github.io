@@ -12,6 +12,7 @@ import { THEMES } from './levels.js';
 import { drawCast } from '../assets/hitofude/cast.js';
 import { track, share, canShare } from './track.js';
 import * as Mem from './memory.js';
+import { cleanName } from '../assets/hitofude/names.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -94,7 +95,7 @@ function resize() {
 addEventListener('resize', resize);
 
 // ------------------------------------------------------------------ 画面の切りかえ
-const SCREENS = ['title', 'newrun', 'inter', 'over', 'pause', 'book', 'senko'];
+const SCREENS = ['title', 'newrun', 'inter', 'over', 'pause', 'book', 'senko', 'rankScr'];
 function show(name) { for (const s of SCREENS) $(s).classList.toggle('hidden', s !== name); }
 
 function toTitle() {
@@ -111,6 +112,7 @@ function toTitle() {
   const add = (t, f) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { audio.unlock(); audio.ui('tap'); f(); }; m.append(b); };
   if (DB.meta.runs > 0 || DB.run) add(tr('新しい祭り', 'New Run'), openNewRun);
   if (DB.meta.runs > 0) add(tr('今日の祭り', 'Daily'), startDaily);
+  if (S.rankOk) add(tr('世界ランキング', 'World Ranking'), () => openRank(DB.run?.daily ? 'daily' : 'daily'));
   add(tr('お守り帳', 'Charm Book'), openBook);
   // 物語は日本語のみ。ゲームサイト用の書き出し（story.html を入れない）では出さない
   if (!window.HANABI_NO_STORY) add(tr('物語', 'Story (Japanese)'), () => { location.href = 'story.html'; });
@@ -188,8 +190,9 @@ function openBook() {
 $('bkBack').onclick = () => { audio.ui('tap'); toTitle(); };
 
 function beginRun(o = {}) {
-  S.run = Run.newRun({ fuse: o.fuse || 'asa', rank: o.rank || 0, seed: o.seed, school: o.school || q.get('school') || 'hon' });
-  S.daily = !!o.daily;
+  S.run = Run.newRun({ fuse: o.fuse || 'asa', rank: o.rank || 0, seed: o.seed, school: o.daily ? 'hon' : (o.school || q.get('school') || 'hon') });
+  S.daily = !!o.daily; S.run.daily = S.daily;
+  logStart(S.run);
   track(S.daily ? 'run/daily' : 'run/start');
   DB.run = S.run; save();
   startNight();
@@ -207,7 +210,7 @@ function resumeRun() {
   const run = S.run, was = run.inNight;
   // 屋台の途中で閉じていたら、その夜は越えたことにして次へ（ごほうびを二度もらわない）
   if (run.shopAt && run.shopAt === `${run.world}-${run.night}`) {
-    const res = Run.advance(run); DB.run = run; save();
+    logOp('x'); const res = Run.advance(run); DB.run = run; save();
     if (res === 'won') return runOver(true);
     return res === 'world' ? openSenko() : startNight();
   }
@@ -215,6 +218,7 @@ function resumeRun() {
   const m = mem(); m.left++; m.lastLeftAt = Date.now();
   const line = Mem.leftLine(m, run.lives);
   if (line.take) run.lives--;
+  logOp('L', line.take ? 1 : 0);
   run.inNight = null; DB.run = run; save(); achCheck({});
   track('mem/left');
   showTalk(tr('ねこ屋のトラ', 'Tora the cat'), 'neko', line.take ? 'sad' : 'joy', JA() ? line.ja : line.en, startNight);
@@ -240,8 +244,7 @@ function startNight() {
   $('gTarget').textContent = fmt(def.target);
   $('combo').classList.remove('on'); $('heat').className = 'heat';
   renderStrokes(); renderBags();
-  const nS = S.st.shells.length, riseStep = Math.min(0.035, 1.4 / Math.max(1, nS));
-  S.st.shells.forEach((s, k) => { s.rise = 0.15 + k * riseStep; launchFor(s); });
+  G.stageRise(S.st); S.st.shells.forEach((s) => launchFor(s));
   renderLives(); renderStreak(false); renderTech(); renderEngi();
   $('cLabP').textContent = tr('点', 'POINTS'); $('cLabM').textContent = tr('倍率', 'MULT');
   // まだ教えていない数字は出さない（星屑・かすりは 5 夜目、小判は初めての屋台のあと）
@@ -386,36 +389,25 @@ function nightEnded() {
   $('combo').classList.remove('on'); $('heat').className = 'heat'; // 一筆の箱を夜のあとに残さない
   S.cnt = null; S.endAfterCount = false; S.shown = st.score; $('gScore').textContent = fmt(st.score); S.goalEl?.classList.remove('counting');
   if (st.cleared && (def.boss || G.starsFor(st) === 3)) PF.happy();
-  run.bestChain = Math.max(run.bestChain, st.bestChain); run.totalScore += st.score;
-  run.inNight = null; const m = mem(); m.graze += st.graze; m.dust += st.dustGot; m.lastPlay = Date.now();
+  if (S.rec) logOp('n', S.rec.W, S.rec.H, S.rec.ev.map((e) => [Math.round(e[0] * 60), ...e.slice(1)]), st.score);
+  const m = mem(); m.graze += st.graze; m.dust += st.dustGot; m.lastPlay = Date.now();
   if (S.teachKey === 'draw' && st.cleared) DB.meta.taught.draw = 1;
   // 届かなかった夜は「あと何点だったか」を見せる（悔しさが次の一回を呼ぶ）
   S.miss = !st.cleared && st.score < st.target ? { n: st.target - st.score, pct: Math.floor((st.score / st.target) * 100) } : null;
-  const res = Run.afterNight(run, st);
+  const R2 = Run.settleNight(run, st, def), res = R2.res;
+  logSave();
   if (def.boss && (res === 'over' || res === 'retry')) track(`boss/${bossKey(def)}/lose`);
   if (res === 'over') { achCheck({ stars: 0 }); return runOver(false); }
   if (res === 'retry') { achCheck({ stars: 0 }); return retryNight(); }
   if (def.boss) track(`boss/${bossKey(def)}/win`);
-  const stars = G.starsFor(st); run.stars += stars; run.nightsCleared++;
+  const stars = R2.stars, rw = R2.rw, interest = R2.interest, gain = R2.gain;
+  if (R2.engi) S.gotEngi = R2.engi;
   achCheck({ stars });
-  const rw = Run.rewardFor(st, stars, def.boss), interest = Run.interestFor(run.coins);
-  if (def.boss) { run.engi = run.engi || []; if (run.engi.length < Run.ENGI_SLOTS) { const e = Run.bossEngi(run); run.engi.push(e); S.gotEngi = e; } }
-  const gain = rw.base + rw.left + rw.star + rw.earned + rw.twist + interest;
-  run.coins += gain;
   DB.meta.taught.draw = 1;
-  Run.nodeReward(run, def.node);
-  S.shop = Run.shopFor(run, Run.unlockedCharms(DB.meta)); S.sold = new Set();
-  // 大勝負のほうび（3 つから 1 つ）・縁日の取り引き。引き直しても残る
-  S.bonus = Run.bonusItems(run, Run.unlockedCharms(DB.meta), S.shop.map((x) => x.id)); S.giftTaken = false; S.giftInShop = false;
-  S.bonus.forEach((x, bi) => S.shop.push({ ...x, bi }));
-  // 売ったお守りは、トラが取っておいてくれる（売った値 +1 で買い戻せる）
-  let back = null;
-  while (run.soldIds?.length && !back) { const id = run.soldIds.shift(); if (!run.charms.includes(id) && CHARM_BY_ID[id]) back = id; }
-  S.back = back ? { kind: 'charm', id: back, cost: Math.max(1, Math.floor(CHARM_BY_ID[back].cost / 2)) + 1, back: true } : null;
-  if (S.back) S.shop.push({ ...S.back });
-  const sl = Mem.shopLine(mem(), run, { buyBack: !!back, ext: run.lastExt > 0, waited: st.waited > 0 });
+  // 屋台: ふつうの品・買い戻し・大勝負のほうび・縁日の取り引き（手続きは run.js。確かめ役も同じものを通る）
+  S.sh = Run.openShop(run, Run.unlockedCharms(DB.meta)); S.giftInShop = false;
+  const sl = Mem.shopLine(mem(), run, { buyBack: !!S.sh.back, ext: run.lastExt > 0, waited: st.waited > 0 });
   S.toraLine = sl ? (JA() ? sl.ja : sl.en) : '';
-  run.shopAt = `${run.world}-${run.night}`; // 屋台で読みなおしても、越えた夜をもう一度遊ばない
   S.route = Run.routeChoices(run); S.routeSel = 0; S.mapPeek = null;
   if (S.route.length && !DB.meta.taught.map) { DB.meta.taught.map = 1; S.toraLine = tr('道が分かれたよ。下の地図の丸を押して、次の夜をえらんでね。となりの道までしか移れないから、先の大一番まで見て決めて', 'The road forks! Tap a circle on the map below to pick your next night. You can only shift one lane at a time, so plan toward the boss'); }
   DB.run = run; save();
@@ -517,13 +509,13 @@ function pvTag(i) {
   return `<span class="pvt ${cls}${v === best && pct >= 5 ? ' best' : ''}">${pct >= 1 ? tr(`前の夜なら +${pct}%`, `Last night: +${pct}%`) : pct <= -1 ? tr(`前の夜なら ${pct}%`, `Last night: ${pct}%`) : tr('前の夜では 変わらず', 'Last night: no change')}</span>`;
 }
 function renderShop() {
-  const run = S.run, wrap = $('cards'); wrap.innerHTML = ''; wrap.classList.toggle('many', S.shop.filter((x) => !x.gift || S.giftInShop).length > 6);
+  const run = S.run, wrap = $('cards'); wrap.innerHTML = ''; wrap.classList.toggle('many', S.sh.items.filter((x) => !x.gift || S.giftInShop).length > 6);
   $('purse').textContent = run.coins;
-  S.shop.forEach((it, i) => {
+  S.sh.items.forEach((it, i) => {
     const b = document.createElement('button'); b.className = 'card';
     const can = it.cost <= run.coins && ((it.kind !== 'charm' && it.kind !== 'trade') || (run.charms.length < run.slots && !run.charms.includes(it.id)));
-    if (it.gift && (S.giftTaken || !S.giftInShop)) return;
-    if (S.sold.has(i)) { b.classList.add('sold'); wrap.append(b); return; }
+    if (it.gift && (S.sh.giftTaken || !S.giftInShop)) return;
+    if (S.sh.sold.includes(i)) { b.classList.add('sold'); wrap.append(b); return; }
     if (it.cost > run.coins) b.classList.add('cant');
     if (it.kind === 'charm' || it.kind === 'trade') {
       const c = CHARM_BY_ID[it.id]; if (c.rar !== 'c') b.classList.add(c.rar);
@@ -620,8 +612,8 @@ function nextLabel() { const c = S.route?.[S.routeSel || 0]; return c ? tr(`次�
 // 大勝負のほうび: 屋台の前に「3 つから 1 つ」。枠がいっぱいなら、屋台で売ってから選べるように並べる
 function openGift() {
   $('giftOv')?.remove();
-  const run = S.run, gifts = S.shop.map((it, i) => [it, i]).filter(([it]) => it.gift);
-  if (!gifts.length || S.giftTaken || S.giftInShop) return;
+  const run = S.run, gifts = S.sh.items.map((it, i) => [it, i]).filter(([it]) => it.gift);
+  if (!gifts.length || S.sh.giftTaken || S.giftInShop) return;
   const full = run.charms.length >= run.slots;
   const ov = document.createElement('div'); ov.className = 'giftov'; ov.id = 'giftOv';
   ov.innerHTML = `<div class="giftpanel"><h3>${tr('大勝負のほうび', 'High Stakes Reward')}</h3><p>${full ? tr('お守りの枠がいっぱい。屋台で 1 つ売ってから選べる', 'Your charm slots are full. Sell one in the shop, then choose') : tr('珍しいお守りを 3 つから 1 つ、ただで', 'Take 1 of 3 rare charms, free')}</p><div class="cards"></div><div class="row"></div></div>`;
@@ -638,7 +630,7 @@ function openGift() {
   }
   const later = document.createElement('button'); later.className = 'btn2';
   later.textContent = full ? tr('屋台で枠を空ける', 'Go free a slot') : tr('受け取らない', 'Skip');
-  later.onclick = () => { audio.ui('tap'); if (full) S.giftInShop = true; else S.giftTaken = true; ov.remove(); renderShop(); };
+  later.onclick = () => { audio.ui('tap'); if (full) S.giftInShop = true; else { S.sh.giftTaken = true; logOp('g'); } ov.remove(); renderShop(); };
   row.append(later);
   $('inter').append(ov);
 }
@@ -663,7 +655,7 @@ function renderPouch() {
 }
 // ---- 試し打ち: 前の夜と同じ筆の動きで、その品を持っていたら何点だったかを計算し直す（ルールは決定的なので再現できる）
 function replayScore(rec, run) {
-  const st = G.newNight({ ...rec.def, target: 1e15 }, rec.W, rec.H, Run.loadoutFor(run));
+  const st = G.newNight({ ...rec.def, target: 1e15 }, rec.W, rec.H, Run.loadoutFor(run)); G.stageRise(st);
   const ev = rec.ev, end = (ev.length ? ev[ev.length - 1][0] : 0) + 12;
   let i = 0;
   for (let g = 0; g < 60 * 240 && st.phase !== 'over' && st.t < end; g++) {
@@ -677,7 +669,7 @@ function previewShop() {
   if (!rec || !rec.ev.some((e) => e[1] === 'd')) return;
   S.preview = {};
   let base = null;
-  const queue = S.shop.map((it, i) => [it, i]).filter(([it]) => it.kind === 'charm' || it.kind === 'recipe' || it.kind === 'trade');
+  const queue = S.sh.items.map((it, i) => [it, i]).filter(([it]) => it.kind === 'charm' || it.kind === 'recipe' || it.kind === 'trade');
   const step = () => {
     if (S.pvToken !== token || S.mode !== 'inter') return;
     if (base === null) { base = Math.max(1, replayScore(rec, rec.run)); setTimeout(step, 0); return; }
@@ -697,20 +689,20 @@ function renderHeld(el, sell) {
     const id = S.run.charms[i], d = document.createElement('div'); d.className = 'slot';
     if (id) {
       const c = CHARM_BY_ID[id], cv = document.createElement('canvas'); cv.width = 84; cv.height = 105; drawBag(cv, c); d.append(cv);
-      const price = Math.max(1, Math.floor(c.cost / 2)) + (c.sellGrow ? (S.run.grow?.[id] || 0) : 0);
+      const price = Run.sellPrice(S.run, id);
       if (TIMES.has(id)) d.insertAdjacentHTML('beforeend', '<i class="xm">×</i>');
       const tip = (e, armed) => showTip(e, JA() ? c.ja : c.en, charmDesc(c) + (sell ? (armed ? tr(`<br><em>もう一度押すと ${price} 小判で売る</em>。‹ › で並べ替え（左から順に効く）`, `<br><em>Tap again to sell for ${price}</em>. ‹ › to reorder (left triggers first)`) : tr(`<br>2 回押すと ${price} 小判で売る`, `<br>Tap twice to sell for ${price}`)) : ''));
       if (sell) for (const [dir, ch] of [[-1, '‹'], [1, '›']]) {
         const j = i + dir; if (j < 0 || j >= S.run.charms.length) continue;
         const mv = document.createElement('button'); mv.className = 'mv ' + (dir < 0 ? 'l' : 'r'); mv.textContent = ch;
-        mv.onclick = (e) => { e.stopPropagation(); const a = S.run.charms; [a[i], a[j]] = [a[j], a[i]]; audio.ui('tap'); hideTip(); renderShop(); const nd = $('held').children[j]; nd?.classList.add('armed'); };
+        mv.onclick = (e) => { e.stopPropagation(); Run.swapCharms(S.run, i, j); logOp('w', i, j); audio.ui('tap'); hideTip(); renderShop(); const nd = $('held').children[j]; nd?.classList.add('armed'); };
         d.append(mv);
       }
       d.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') tip(e, false); });
       d.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { hideTip(); d.classList.remove('armed'); } });
       // 指でも説明が読めるように、1 回目は説明と「売る」の合図、2 回目で売る（1 回で売れると誤って手放す）
       d.onclick = (e) => {
-        if (sell && d.classList.contains('armed')) { S.run.charms.splice(i, 1); if (S.run.grow) delete S.run.grow[id]; /* 売ったら育ちは消える（買い戻しで育ちが残らない） */ S.run.coins += price; (S.run.soldIds = S.run.soldIds || []).push(id); mem().sold++; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); return; }
+        if (sell && d.classList.contains('armed')) { Run.sellCharm(S.run, i); logOp('s', i); mem().sold++; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); return; }
         el.querySelectorAll('.armed').forEach((o) => o.classList.remove('armed'));
         if (sell) d.classList.add('armed');
         tip(e, sell); audio.ui('tap');
@@ -720,21 +712,20 @@ function renderHeld(el, sell) {
   }
 }
 function buy(i) {
-  const it = S.shop[i], run = S.run;
-  if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.includes(it.id)) return; // 同じお守りを 2 つ持たない
-  run.coins -= it.cost; S.sold.add(i);
-  Run.applyItem(run, it);
-  if (it.bi !== undefined) { S.bonus[it.bi].taken = true; if (it.gift) { S.giftTaken = true; S.shop.forEach((x, j) => { if (x.gift) S.sold.add(j); }); } }
+  const it = S.sh.items[i], run = S.run;
+  if (Run.buyItem(S.sh, run, i)) return; // 買えない（同じお守りを 2 つ持たない・枠・小判）
+  logOp('b', i);
   if (it.kind === 'trade') { renderLives(); toast(tr('灯をひとつ差し出した', 'You gave up a light')); }
-  if (it.back) S.back = null;
   audio.note(14, { vol: 0.18, dur: 0.3 }); setTimeout(() => audio.note(17, { vol: 0.16, dur: 0.4 }), 70);
   hideTip(); renderShop();
 }
-$('reroll').onclick = () => { const run = S.run, c = Run.rerollCost(run); if (c > run.coins) return; run.coins -= c; run.rerolls++; run.shopRound++; S.shop = Run.shopFor(run, Run.unlockedCharms(DB.meta)); S.sold = new Set(); if (S.back && !run.charms.includes(S.back.id)) S.shop.push({ ...S.back }); (S.bonus || []).forEach((x, bi) => { if (!x.taken && !(x.gift && S.giftTaken)) S.shop.push({ ...x, bi }); }); audio.ui('tap'); renderShop(); previewShop(); }; // 買い戻し・ほうびは引き直しても残す
+$('reroll').onclick = () => { if (!Run.rerollShop(S.sh, S.run, Run.unlockedCharms(DB.meta))) return; logOp('r'); audio.ui('tap'); renderShop(); previewShop(); }; // 買い戻し・ほうびは引き直しても残す
 $('nextBtn').onclick = () => {
   audio.ui('tap');
-  if (S.route && S.route.length) Run.chooseRoute(S.run, S.route[S.routeSel || 0]);
-  const res = Run.advance(S.run);
+  const pick = S.route && S.route.length ? S.route[S.routeSel || 0] : null;
+  if (pick) Run.chooseRoute(S.run, pick);
+  logOp('a', pick ? pick.lane : -1);
+  const res = Run.advance(S.run); logSave();
   if (res === 'won') return runOver(true);
   DB.run = S.run; save();
   if (res === 'world') openSenko(); else startNight();
@@ -757,7 +748,7 @@ function endSenko(fell) {
   const k = S.sk; if (!k || k.done) return;
   k.done = true; k.held = false;
   const st = Math.max(0, k.stage), got = fell ? Math.floor(SK[st].coin / 2) : SK[st].coin;
-  S.run.coins += got;
+  S.run.coins += got; logOp('k', got); logSave();
   DB.meta.senko = Math.max(DB.meta.senko || 0, fell ? 0 : st);
   achCheck({ stars: 0 });
   $('skMsg').textContent = (fell ? tr('ぽとり……。', 'It fell...') + ' ' : '') + tr(`小判 +${got}`, `+${got} coins`);
@@ -838,13 +829,14 @@ Draw the fuse. The flame is right behind you. #HitofudeHanabi`;
   sh.onclick = () => { audio.ui('tap'); share(msg, S.daily ? 'share-daily' : 'share'); };
   // 24 夜を越えたら、そのまま千秋楽（終わらない祭り）へ続けられる
   const en = $('ovEndless'); en.classList.toggle('hidden', !(won && !run.endless)); en.textContent = tr('千秋楽へ（まだ続ける）', 'ENCORE: keep going');
-  en.onclick = () => { audio.ui('tap'); Run.startEndless(run); S.run = run; DB.run = run; save(); track('run/endless'); startNight(); };
-  DB.run = null; S.run = null; save();
+  en.onclick = () => { audio.ui('tap'); Run.startEndless(run); S.log = endLog; logOp('E'); logSave(); S.run = run; DB.run = run; save(); track('run/endless'); startNight(); };
+  const endLog = S.log; rankSubmit(run, endLog);
+  DB.run = null; S.run = null; save(); S.log = null; try { localStorage.removeItem(LOGKEY); } catch { /* なくても遊べる */ }
   audio.ui(won ? 'win' : 'lose'); audio.scene(won ? 'finale' : 'calm');
   if (won) grandFinale();
 }
 $('ovTitleBtn').onclick = () => { audio.ui('tap'); toTitle(); };
-$('ovAgain').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.rank }); };
+$('ovAgain').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school }); };
 
 // ひと休み
 function openPause() {
@@ -874,7 +866,8 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'p') { 
 function toast(t) { const e = document.createElement('div'); e.className = 'pop gold'; e.textContent = t; e.style.left = '50%'; e.style.top = '30%'; e.style.fontSize = '22px'; e.style.zIndex = 9; document.body.append(e); setTimeout(() => e.remove(), 950); }
 
 // ------------------------------------------------------------------ 入力
-const toWorld = (e) => ({ x: (e.clientX / innerWidth) * W, y: (e.clientY / innerHeight) * H });
+const q1 = (v) => Math.round(v * 10) / 10;
+const toWorld = (e) => ({ x: q1((e.clientX / innerWidth) * W), y: q1((e.clientY / innerHeight) * H) });
 let pid = null, TOUCH = false; // 指で遊んでいるか（輪を指の外に出す）
 canvas.addEventListener('pointerdown', (e) => {
   audio.unlock(); TOUCH = e.pointerType === 'touch';
@@ -1497,5 +1490,80 @@ async function boot() {
   try { sessionStorage.removeItem('hanabiRetry'); } catch { /* 無くても動く */ }
   if (!DB.run && !(DB.meta.runs > 0) && !q.has('title')) beginRun();
 }
-window.HANABI = { S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext };
+
+// ------------------------------------------------------------------ 世界ランキング
+// 1 周の記録（筆の動きと屋台の操作）を残し、終わったら送る。サーバーはありえない点だけを弾き、
+// 上位は手元の確かめ役（_dev/hanabi2-verify.mjs → hanabi/verify.js）が本物のルールで流しなおして、合わないものを隠す
+const LOGKEY = 'hanabi2_log';
+function logStart(run) { S.log = { v: Run.LOG_VERSION, seed: run.seed, fuse: run.fuse, rank: run.rank, school: run.school, daily: !!run.daily, xp: DB.meta.xp || 0, ops: [] }; logSave(); }
+function logOp(...op) { if (S.log) S.log.ops.push(op); }
+function logSave() { if (!S.log) return; try { localStorage.setItem(LOGKEY, JSON.stringify(S.log)); } catch { /* 大きすぎる・保存できない環境: ランキングに出ないだけ */ } }
+// 読みなおしたときは、続きの周回と同じ種の記録だけを使う
+try { const L = JSON.parse(localStorage.getItem(LOGKEY) || 'null'); if (L && S.run && L.seed === S.run.seed && L.v === Run.LOG_VERSION) S.log = L; } catch { /* なし */ }
+const RANK_API = (() => { const o = q.get('rankapi'); return o && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o) ? o : 'https://hanabi2-rank.yuichi916.workers.dev'; })();
+S.rankOk = false;
+if (!window.HANABI_PKG) fetch(RANK_API + '/health').then((r) => r.json()).then((j) => { S.rankOk = !!j.ok && j.v === Run.LOG_VERSION; if (S.rankOk && S.mode === 'title') toTitle(); }).catch(() => { /* ランキングが無くても遊べる */ });
+function playerId() {
+  if (!/^[a-f0-9]{32}$/.test(DB.meta.player || '')) { const a = new Uint8Array(16); crypto.getRandomValues(a); DB.meta.player = [...a].map((x) => x.toString(16).padStart(2, '0')).join(''); save(); }
+  return DB.meta.player;
+}
+const dayKey = () => { const d = new Date(); return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`; };
+async function gzipB64(text) {
+  const cs = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+  const buf = new Uint8Array(await new Response(cs).arrayBuffer());
+  let s = ''; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+const boardName = (b) => (b.daily ? tr(`今日の祭り（${b.day.slice(4, 6)}/${b.day.slice(6)}）`, `Daily (${b.day.slice(4, 6)}/${b.day.slice(6)})`) : tr(`歴代 段位 ${b.rank + 1}・${Run.schoolOf(b.school).ja}`, `All-time Rank ${b.rank + 1} · ${Run.schoolOf(b.school).en}`));
+// 終わった周回を送る。名前がまだなら、終わりの画面で聞く
+function rankSubmit(run, log) {
+  const box = $('ovRank'); if (!box) return;
+  box.innerHTML = '';
+  if (!S.rankOk || !log || !log.ops.some((o) => o[0] === 'n')) return;
+  const board = { daily: !!log.daily, day: String(log.seed), rank: run.rank, school: run.school };
+  const send = async () => {
+    box.innerHTML = `<small>${tr('世界ランキングに送っています…', 'Sending to the world ranking...')}</small>`;
+    try {
+      const body = { v: Run.LOG_VERSION, player: playerId(), name: DB.meta.rankName, daily: board.daily, day: board.day, rank: run.rank, school: run.school, fuse: run.fuse, score: run.totalScore, nights: run.nightsCleared, won: !!run.won, log: await gzipB64(JSON.stringify(log)) };
+      const r = await fetch(RANK_API + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'ng');
+      box.innerHTML = `<b>${boardName(board)}</b> ${tr(`世界 ${j.place} 位`, `#${j.place} in the world`)} <small>/ ${j.count}${tr(' 人', '')}${j.kept ? tr('（前の記録のほうが上）', ' (your earlier record is higher)') : ''}</small> <button class="btn2" id="ovRankBtn">${tr('ランキングを見る', 'View ranking')}</button>`;
+      $('ovRankBtn').onclick = () => { audio.ui('tap'); openRank(board.daily ? 'daily' : 'all', board); };
+      track('rank/submit');
+    } catch (e) { box.innerHTML = `<small>${tr('ランキングに送れなかった（あとで遊んだ分は送れます）', 'Could not reach the ranking')}</small>`; }
+  };
+  if (DB.meta.rankName) { send(); return; }
+  box.innerHTML = `<div class="rankname"><small>${tr('世界ランキングに載せる名前（12 字まで）', 'Name for the world ranking (max 12)')}</small><input id="rkName" maxlength="12" autocomplete="off"><button class="btn2" id="rkSend">${tr('載せる', 'Submit')}</button><button class="btn2 ghost" id="rkSkip">${tr('載せない', 'Skip')}</button></div>`;
+  $('rkSend').onclick = () => {
+    const n = cleanName($('rkName').value);
+    if (!n) { toast(tr('その名前は使えない', 'That name can\'t be used')); return; }
+    DB.meta.rankName = n; save(); audio.ui('tap'); send();
+  };
+  $('rkSkip').onclick = () => { audio.ui('tap'); box.innerHTML = ''; };
+}
+// ランキングの画面: 今日の祭り / 歴代（段位・流派ごと）
+async function openRank(tab = 'daily', pick = null) {
+  show('rankScr'); $('hud').classList.add('hidden');
+  S.rankView = { tab, rank: pick?.rank ?? S.rankView?.rank ?? 0, school: pick?.school ?? S.rankView?.school ?? 'hon' };
+  const v = S.rankView, el = $('rankPanel');
+  const tabs = `<div class="rktabs"><button class="${v.tab === 'daily' ? 'on' : ''}" data-t="daily">${tr('今日の祭り', 'Daily')}</button><button class="${v.tab === 'all' ? 'on' : ''}" data-t="all">${tr('歴代', 'All-time')}</button></div>`;
+  const sel = v.tab === 'all' ? `<div class="rksel"><select id="rkRank">${Run.RANKS.map((r, i) => `<option value="${i}"${i === v.rank ? ' selected' : ''}>${tr('段位', 'Rank')} ${i + 1} ${JA() ? r.ja : r.en}</option>`).join('')}</select><select id="rkSchool">${Run.SCHOOLS.map((s) => `<option value="${s.id}"${s.id === v.school ? ' selected' : ''}>${JA() ? s.ja : s.en}</option>`).join('')}</select></div>` : `<div class="rksel"><small>${tr('全員が同じ盤。毎日 9 時（日本時間）に入れかわる', 'Everyone plays the same board. Resets daily at 00:00 UTC')}</small></div>`;
+  el.innerHTML = `<h2>${tr('世界ランキング', 'World Ranking')}</h2>${tabs}${sel}<div class="rklist"><small>${tr('読みこみ中…', 'Loading...')}</small></div><div class="row"><button class="btn2" id="rkBack">${tr('もどる', 'Back')}</button>${v.tab === 'daily' ? `<button class="bigbtn small" id="rkPlay">${tr('今日の祭りを遊ぶ', 'Play the Daily')}</button>` : ''}</div><small class="rknote">${tr('✓ は、本物のルールで流しなおして確かめた記録', '✓ = replayed and verified with the real rules')}</small>`;
+  el.querySelectorAll('.rktabs button').forEach((b) => { b.onclick = () => { audio.ui('tap'); openRank(b.dataset.t); }; });
+  if ($('rkRank')) { $('rkRank').onchange = (e) => { v.rank = +e.target.value; openRank('all'); }; $('rkSchool').onchange = (e) => { v.school = e.target.value; openRank('all'); }; }
+  $('rkBack').onclick = () => { audio.ui('tap'); toTitle(); };
+  if ($('rkPlay')) $('rkPlay').onclick = () => { audio.ui('tap'); startDaily(); };
+  const board = v.tab === 'daily' ? `d:${dayKey()}` : `a:${v.rank}:${v.school}`;
+  try {
+    const j = await (await fetch(`${RANK_API}/top?board=${encodeURIComponent(board)}&player=${playerId()}`)).json();
+    if (S.rankView !== v) return;
+    const rows = (j.top || []).map((r, i) => `<div class="rkrow${r.me ? ' me' : ''}"><b>${i + 1}</b><span class="nm">${esc(r.name)}${r.verified ? ' <i class="ok">✓</i>' : ''}</span><span>${tr(`${r.nights} 夜`, `${r.nights} nights`)}${r.won ? ' ★' : ''}</span><span class="sc">${fmt(r.score)}</span></div>`).join('');
+    const me = j.me && !(j.top || []).some((r) => r.me) ? `<div class="rkrow me"><b>${j.me.place}</b><span class="nm">${esc(j.me.name)}</span><span>${tr(`${j.me.nights} 夜`, `${j.me.nights} nights`)}</span><span class="sc">${fmt(j.me.score)}</span></div>` : '';
+    el.querySelector('.rklist').innerHTML = rows ? rows + me : `<small>${tr('まだ誰もいない。最初の名前になろう', 'No one yet. Be the first!')}</small>`;
+  } catch { el.querySelector('.rklist').innerHTML = `<small>${tr('ランキングに届かない', 'Could not reach the ranking')}</small>`; }
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+window.HANABI = { rankSubmit, openRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext };
 boot();
