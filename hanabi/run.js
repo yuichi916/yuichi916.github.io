@@ -261,6 +261,16 @@ export function afterNight(run, st) {
   return 'retry';
 }
 
+// 異変の予定: 大一番は世界と夜ごとに決まった異変（2 筆目）。世界 2 からはふつうの夜にも、ときどき（千秋楽は多め）
+const BOSS_IHEN = { '1-4': 'katamuku', '1-8': 'uragaeru', '2-4': 'hanten', '2-8': 'moeru', '3-4': 'furu', '3-8': 'moeru' };
+export function ihenFor(run, world, night, twist, seed) {
+  if (twist === 'ippatsu' || twist === 'katamono') return [];
+  const key = `${(world - 1) % WORLDS.length + 1}-${night}`, out = [];
+  if (BOSS_IHEN[key]) { out.push({ id: BOSS_IHEN[key], at: 1 }); if (key === '3-8') out.push({ id: 'katamuku', at: 'act2' }); return out; }
+  const idx = (world - 1) * NIGHTS_PER_WORLD + night, r = rng32(seed + 6151)();
+  if (idx >= 9 && r < (world > WORLDS.length ? 0.35 : 0.15)) { const ids = ['katamuku', 'uragaeru', 'hanten', 'moeru', 'furu', 'utsuru']; out.push({ id: ids[Math.floor(rng32(seed + 6152)() * ids.length)], at: 1 }); }
+  return out;
+}
 export function nightDef(run, world, night) {
   const W = worldOf(world), rank = RANKS[run.rank] || RANKS[0];
   const seed = (run.seed * 31 + world * 1009 + night * 97 + (run.retry || 0) * 7919) >>> 0;
@@ -287,7 +297,7 @@ export function nightDef(run, world, night) {
     intrude = kinds[Math.floor(irnd() * kinds.length)];
     if (pl && pl.id === intrude) intrude = 'fuku';
   }
-  return { node, seals, endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, world, night, seed, count, mix, strokes, refill: 7 + Math.floor(night / 2), target, rule, boss, twist: pl?.id || null, twistCoin: pl?.coin || 0, twistHide: !!pl?.hide, intrude };
+  return { node, seals, ihen: ihenFor(run, world, night, pl?.id || null, seed), endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, world, night, seed, count, mix, strokes, refill: 7 + Math.floor(night / 2), target, rule, boss, twist: pl?.id || null, twistCoin: pl?.coin || 0, twistHide: !!pl?.hide, intrude };
 }
 
 // 流派ごとの目標の合わせ（_dev/hanabi-bot.mjs の完走率が本流 ±10 ポイントに入るように）

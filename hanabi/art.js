@@ -3,7 +3,7 @@ import { drawHinoko } from '../assets/hitofude/hinoko.js';
 export const SHELL_ORDER = ['kiku', 'ootama', 'kin', 'senrin', 'chouchin', 'shime', 'koori', 'oni', 'shaku', 'nezumi', 'roket', 'oyako', 'ko', 'meoto', 'bake', 'kingyo', 'nige', 'tome', 'juzu1', 'juzu2', 'juzu3', 'juzu4', 'juzu5', 'juzu6'];
 export const HINOKO_CELL = SHELL_ORDER.length, CROW_CELL = SHELL_ORDER.length + 2, HUB_CELL = SHELL_ORDER.length + 3;
 export const ATLAS_CELLS = SHELL_ORDER.length + 4;
-export const cellOf = (s) => SHELL_ORDER.indexOf(s.type === 'juzu' ? 'juzu' + (s.num || 1) : s.type);
+export const cellOf = (s) => SHELL_ORDER.indexOf(s.type === 'juzu' ? 'juzu' + (s.num || 1) : s.type === 'kazu' ? 'kin' : s.type);
 const LOOK = {
   kiku: { a: '#ff5d8a', b: '#7a1138', band: '#ffd9e4' },
   ootama: { a: '#58a9ff', b: '#123a84', band: '#d9ecff' },

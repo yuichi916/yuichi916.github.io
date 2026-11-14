@@ -451,6 +451,22 @@ for (const rule of Object.keys(Run.RULES)) {
   for (const sc of Run.SCHOOLS) { const st = drive(nightFor(sc.id)); assert.equal(st.phase, 'over', sc.id); assert.ok(st.score > 0, sc.id + ' で点が入る'); }
   console.log(`ok   流派 ${Run.SCHOOLS.length} 種`);
 }
+// ---- 異変: 2 筆目のはじめに起きる。盤が変わる・点が燃え落ちる・点 ×1.5・乗り越えると倍率 +2
+{
+  const at2 = (id, extra = {}) => { const st = G.newNight(scene({ ihen: [{ id, at: 1 }], ...extra }), 1280, 720, {}); return st; };
+  const firstStroke = (st) => { G.penDown(st, 100, 300); let x = 100; for (let i = 0; i < 40; i++) { x += 6; G.penMove(st, x, 300); G.step(st, G.DT); } G.penUp(st); for (let i = 0; i < 600 && st.phase !== 'aim'; i++) G.step(st, G.DT); };
+  { const st = at2('uragaeru'); firstStroke(st); const before = st.shells.filter((x) => x.state === 'idle').map((x) => [x.id, x.y]); G.penDown(st, 640, 700); assert.equal(st.ihen?.id, 'uragaeru'); for (let i = 0; i < 50; i++) G.step(st, G.DT); const f = st.field; let moved = 0; for (const [id, y] of before) { const x = st.shells.find((q) => q.id === id); if (x && Math.abs(x.y - (f.y0 + f.y1 - y)) < 1) moved++; } assert.ok(moved >= before.length * 0.7, '盤が上下に裏返る ' + moved + '/' + before.length); }
+  { const st = at2('furu'); firstStroke(st); G.penDown(st, 640, 700); assert.ok(st.shells.filter((x) => x.state === 'idle' && x.type !== 'shaku').every((x) => x.fall > 0 || x.threaded), '玉が降りだす'); }
+  { const st = at2('moeru'); firstStroke(st); const s0 = st.score; assert.ok(s0 > 0); G.penDown(st, 640, 700); const kz = st.shells.filter((x) => x.type === 'kazu'); assert.equal(st.score, s0 - Math.floor(s0 * 0.4), '4 割が燃え落ちる'); assert.equal(kz.reduce((a, x) => a + x.val, 0), Math.floor(s0 * 0.4)); assert.ok(st.events.some((e) => e.type === 'burnScore'));
+    // 数字の玉を拾うと 1.5 倍でもどる
+    const k = kz[0], sc = st.score; G.penUp(st); assert.equal(st.phase, 'aim', '短い線は数えない'); k.fall = 0; k.x = 120; k.y = 300; k.rise = 0; G.penDown(st, 90, 300); for (let i = 0; i < 200 && k.state !== 'burst'; i++) { G.penMove(st, 120 + i * 3, 300); G.step(st, G.DT); } assert.equal(k.state, 'burst', '数字の玉がひらく'); assert.ok(st.score >= sc + Math.round(k.val * 1.5), '1.5 倍でもどる'); }
+  { const a = drive(at2('katamuku', { mix: { kin: 2 } })), b = drive(G.newNight(scene({ mix: { kin: 2 } }), 1280, 720, {})); assert.ok(a.ihenLog.includes('katamuku')); assert.notEqual(a.score, b.score, '異変の間は点が変わる'); assert.ok(a._log.some((e) => e.type === 'ihenClear') || a.caughtCount > 0, '乗り越えると倍率 +2'); }
+  { const st = at2('utsuru'); firstStroke(st); const r0 = st.rule; G.penDown(st, 640, 700); assert.ok(G.UTSURU_RULES.includes(st.rule) && st.rule !== r0, '祭りが移ると決まりが変わる ' + st.rule); }
+  { const r = Run.newRun({ seed: 3 }); assert.deepEqual(Run.nightDef(r, 1, 4).ihen, [{ id: 'katamuku', at: 1 }]); assert.equal(Run.nightDef(r, 3, 8).ihen.length, 2, '最後の大一番は第二幕にも'); assert.deepEqual(Run.nightDef(r, 1, 2).ihen, [], 'はじめの夜には来ない');
+    let n = 0; for (let w = 2; w <= 3; w++) for (const ni of [1, 2, 3, 5, 6, 7]) for (let k = 0; k < 6; k++) { r.retry = k; if (Run.nightDef(r, w, ni).ihen.length) n++; } assert.ok(n > 3 && n < 30, 'ふつうの夜にもときどき ' + n + '/72'); }
+  console.log(`ok   異変 ${Object.keys(G.IHEN).length} 種（傾く・裏返る・左右・燃える点・降る・移る）`);
+}
+
 // ---- ランキングの確かめ役: 1 周の記録をもう一度流して、点と夜の数が合う。書きかえた記録は通らない
 {
   const V = await import('../hanabi/verify.js');

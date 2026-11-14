@@ -100,7 +100,7 @@ function show(name) { for (const s of SCREENS) $(s).classList.toggle('hidden', s
 
 function toTitle() {
   PF.stop();
-  S.mode = 'title'; S.st = null; S.seq = [];
+  S.mode = 'title'; S.st = null; S.seq = []; ihenReset();
   show('title'); $('hud').classList.add('hidden'); $('teach').classList.add('hidden');
   setTheme('summer');
   // 物語の結末を見たあとは、ここが「終わらない祭り」（灯が帰らずに逃げ続けていた世界）になる
@@ -231,7 +231,7 @@ function startNight() {
   if (q.get('intrude')) def.intrude = q.get('intrude');
   const W2 = Run.worldOf(def.world);
   setTheme(W2.theme);
-  S.st = G.newNight(def, W, H, Run.loadoutFor(run));
+  S.st = G.newNight(def, W, H, Run.loadoutFor(run)); ihenReset();
   S.rec = { def, W, H, run: JSON.parse(JSON.stringify({ ...run, inNight: null })), ev: [] }; // 屋台の「試し打ち」用
   S.growBefore = { ...(run.grow || {}) };
   run.inNight = { w: def.world, n: def.night, used: 0 }; DB.run = run; save();
@@ -385,7 +385,7 @@ function achToast(a) {
 }
 function nightEnded() {
   const st = S.st, run = S.run, def = st.level;
-  hideTip(); PF.stop(); $('teach').classList.add('hidden');
+  hideTip(); PF.stop(); $('teach').classList.add('hidden'); ihenReset();
   $('combo').classList.remove('on'); $('heat').className = 'heat'; // 一筆の箱を夜のあとに残さない
   S.cnt = null; S.endAfterCount = false; S.shown = st.score; $('gScore').textContent = fmt(st.score); S.goalEl?.classList.remove('counting');
   if (st.cleared && (def.boss || G.starsFor(st) === 3)) PF.happy();
@@ -867,7 +867,12 @@ function toast(t) { const e = document.createElement('div'); e.className = 'pop 
 
 // ------------------------------------------------------------------ 入力
 const q1 = (v) => Math.round(v * 10) / 10;
-const toWorld = (e) => ({ x: q1((e.clientX / innerWidth) * W), y: q1((e.clientY / innerHeight) * H) });
+const toWorld = (e) => {
+  let [cx, cy] = untilt(e.clientX, e.clientY);
+  let x = (cx / innerWidth) * W; const y = (cy / innerHeight) * H;
+  if (S.st?.ihen?.id === 'hanten') x = W - x; // 異変「反」: 指と線が左右に入れかわる
+  return { x: q1(x), y: q1(y) };
+};
 let pid = null, TOUCH = false; // 指で遊んでいるか（輪を指の外に出す）
 canvas.addEventListener('pointerdown', (e) => {
   audio.unlock(); TOUCH = e.pointerType === 'touch';
@@ -977,6 +982,23 @@ function handle(ev) {
       if (ev.dCoin) { renderBags(); if (ev.x) floatText(ev.x, ev.y + 26, '+' + ev.dCoin, 'coinp', 22); }
       break;
     }
+    case 'ihen': { // 異変: 大きな字 1 つと、短い一行だけ
+      const I = G.IHEN[ev.id];
+      banner(`<b class="ik">${I.k}</b><small>${JA() ? I.ja : I.en}${tr('　点 ×1.5', '  POINTS ×1.5')}</small>`, 150, 1700, 'ihen');
+      R.flash = Math.max(R.flash, 0.5); R.shake = 26; hitStop(160); audio.boom(2, 0); audio.duck(0.25, 0.5); audio.note(2, { vol: 0.2, dur: 0.9 });
+      document.body.classList.add('ihen-' + ev.id);
+      if (ev.id === 'katamuku') S.tilt = { a: S.tilt?.a || 0, to: 36 };
+      if (ev.id === 'utsuru' && ev.rule) { const wd = { kaze: 'summer', ame: 'winter', kagami: 'demon' }[ev.rule]; if (wd) setTheme(wd); const r = Run.RULES[ev.rule]; setTimeout(() => banner(`${JA() ? r.ja : r.en}<small>${JA() ? r.dj : r.de}</small>`, 56, 1800, 'top'), 1500); }
+      $('twistTag').textContent = [$('twistTag').textContent, `${I.k} ${JA() ? I.ja : I.en}`].filter(Boolean).join(' ・ ');
+      track(`ihen/${ev.id}`);
+      break;
+    }
+    case 'burnScore': // 点の箱が燃える。燃え落ちた点は、数字の玉になって落ちてくる
+      if (ev.take > 0) { const g = $('gScore'); g.classList.remove('burning'); void g.offsetWidth; g.classList.add('burning'); S.shown = st.score; g.textContent = fmt(st.score); floatText(W / 2, H * 0.34, `−${fmt(ev.take)}`, 'burn', 40, 1400); }
+      break;
+    case 'kazuBack': floatText(ev.x, ev.y - 30, `+${fmt(ev.val)}`, 'gold', 34, 1100); audio.ui('spell'); bump($('gScore')); break;
+    case 'kazuLost': floatText(ev.x, H * 0.7, `−${fmt(ev.val)}`, 'lost', 24, 900); audio.note(1, { vol: 0.12, dur: 0.3 }); break;
+    case 'ihenClear': floatText(W / 2, H * 0.3, tr('乗り越えた 倍率 +2', 'Overcome! MULT +2'), 'mark', 30, 1200); if (st.stroke) { $('cMult').textContent = fmtM(st.stroke.mult); bump($('cMult')); } break;
     case 'grow': { // 育つお守りが育った
       const b = document.querySelector(`#bags .bag[data-id="${ev.id}"]`);
       if (b) { b.classList.remove('grew'); void b.offsetWidth; b.classList.add('grew'); }
@@ -1465,7 +1487,7 @@ function frame(now) {
     R.kickX += S.kvx * dt; R.kickY += S.kvy * dt;
     if (Math.abs(R.kickX) + Math.abs(R.kickY) < 0.05 && Math.abs(S.kvx) + Math.abs(S.kvy) < 1) { R.kickX = R.kickY = S.kvx = S.kvy = 0; }
     R.render(sdt, fx, drawWorld);
-    updateHud(dt);
+    updateHud(dt); ihenFrame(dt);
   } catch (err) { if (!S.fatal) { S.fatal = err; console.error(err); } }
 }
 
@@ -1502,7 +1524,8 @@ function logSave() { if (!S.log) return; try { localStorage.setItem(LOGKEY, JSON
 try { const L = JSON.parse(localStorage.getItem(LOGKEY) || 'null'); if (L && S.run && L.seed === S.run.seed && L.v === Run.LOG_VERSION) S.log = L; } catch { /* なし */ }
 const RANK_API = (() => { const o = q.get('rankapi'); return o && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o) ? o : 'https://hanabi2-rank.yuichi916.workers.dev'; })();
 S.rankOk = false;
-if (!window.HANABI_PKG) fetch(RANK_API + '/health').then((r) => r.json()).then((j) => { S.rankOk = !!j.ok && j.v === Run.LOG_VERSION; if (S.rankOk && S.mode === 'title') toTitle(); }).catch(() => { /* ランキングが無くても遊べる */ });
+// ランキングを見に行くのは本番のサイトと、?rankapi= を付けた手元の試験だけ（手元の通しでサーバーへ問い合わせない）
+if (!window.HANABI_PKG && (location.hostname === 'yuichi916.github.io' || q.get('rankapi'))) fetch(RANK_API + '/health').then((r) => r.json()).then((j) => { S.rankOk = !!j.ok && j.v === Run.LOG_VERSION; if (S.rankOk && S.mode === 'title') toTitle(); }).catch(() => { /* ランキングが無くても遊べる */ });
 function playerId() {
   if (!/^[a-f0-9]{32}$/.test(DB.meta.player || '')) { const a = new Uint8Array(16); crypto.getRandomValues(a); DB.meta.player = [...a].map((x) => x.toString(16).padStart(2, '0')).join(''); save(); }
   return DB.meta.player;
@@ -1562,6 +1585,37 @@ async function openRank(tab = 'daily', pick = null) {
     const me = j.me && !(j.top || []).some((r) => r.me) ? `<div class="rkrow me"><b>${j.me.place}</b><span class="nm">${esc(j.me.name)}</span><span>${tr(`${j.me.nights} 夜`, `${j.me.nights} nights`)}</span><span class="sc">${fmt(j.me.score)}</span></div>` : '';
     el.querySelector('.rklist').innerHTML = rows ? rows + me : `<small>${tr('まだ誰もいない。最初の名前になろう', 'No one yet. Be the first!')}</small>`;
   } catch { el.querySelector('.rklist').innerHTML = `<small>${tr('ランキングに届かない', 'Could not reach the ranking')}</small>`; }
+}
+// ------------------------------------------------------------------ 異変の見せ方
+// 「傾」は画面（盤・字の層）を奥へ傾ける。角度は毎コマ自分で動かし、指の位置はその角度で逆算して盤にもどす
+const TILT_D = 900;
+const TILT_EL = () => [$('c'), $('float'), $('zoneLabels'), $('kazuLabels')];
+function untilt(cx, cy) {
+  const t = S.tilt; if (!t || t.a < 0.05) return [cx, cy];
+  const a = (t.a * Math.PI) / 180, ox = innerWidth / 2, oy = innerHeight / 2, U = cx - ox, V = cy - oy;
+  const v = (V * TILT_D) / (TILT_D * Math.cos(a) + V * Math.sin(a)), s = TILT_D / (TILT_D - v * Math.sin(a));
+  return [ox + U / s, oy + v];
+}
+function ihenReset() {
+  S.tilt = null; for (const el of TILT_EL()) if (el) el.style.transform = '';
+  for (const id of Object.keys(G.IHEN)) document.body.classList.remove('ihen-' + id);
+  const k = $('kazuLabels'); if (k) k.innerHTML = ''; S.kazuEls = new Map();
+}
+function ihenFrame(dt) {
+  if (S.tilt) {
+    const t = S.tilt; t.a += (t.to - t.a) * Math.min(1, dt * 2.2);
+    const tf = `perspective(${TILT_D}px) rotateX(${t.a.toFixed(2)}deg)`;
+    for (const el of TILT_EL()) if (el) el.style.transform = tf;
+  }
+  // 数字の玉（燃え落ちた点）に、いくらかを書いた札をつける
+  const box = $('kazuLabels'), st = S.st; if (!box) return; S.kazuEls ||= new Map();
+  const live = new Set();
+  if (st && S.mode === 'play') for (const s of st.shells) if (s.type === 'kazu' && s.state === 'idle') {
+    live.add(s.id); let e = S.kazuEls.get(s.id);
+    if (!e) { e = document.createElement('div'); e.className = 'kz'; e.textContent = fmt(s.val); box.append(e); S.kazuEls.set(s.id, e); }
+    e.style.left = (s.x / W) * 100 + '%'; e.style.top = (s.y / H) * 100 + '%';
+  }
+  for (const [id, e] of S.kazuEls) if (!live.has(id)) { e.remove(); S.kazuEls.delete(id); }
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 

@@ -25,7 +25,21 @@ export const SHELLS = {
   nige:     { r: 20, R: 120, pts: 40, multAdd: 3, kind: 'chrys' },           // 筆から逃げる
   tome:     { r: 21, R: 90,  pts: 10, tome: true, kind: 'peony' },           // 火が止まる
   juzu:     { r: 20, R: 60,  pts: 15, kind: 'ring' },                        // 順番に通す
+  kazu:     { r: 22, R: 80,  pts: 0, kind: 'willow' },                         // 異変「燃」: 燃え落ちた点。拾えば 1.5 倍でもどる
 };
+
+// ---- 異変: 夜の途中で、盤そのもの・見え方・決まりが変わる。乗り越える腕を試す（その間は点 ×1.5、捕まらずに一筆を終えると倍率 +2）
+// 見た目と入力の変化（傾く・左右反転）は画面の側が受け持ち、ルールの側は点の上乗せと、盤そのものの変化を受け持つ
+export const IHEN = {
+  katamuku: { k: '傾', ja: '空が傾く', en: 'The sky tilts' },
+  uragaeru: { k: '裏', ja: '盤が裏返る', en: 'The board flips' },
+  hanten: { k: '反', ja: '左右が入れかわる', en: 'Left and right swap' },
+  moeru: { k: '燃', ja: '点が燃え落ちる', en: 'Your score burns and falls' },
+  furu: { k: '降', ja: '玉が降りだす', en: 'The shells start to fall' },
+  utsuru: { k: '移', ja: '祭りが移る', en: 'The festival moves' }, // 背景が別の世界に変わり、その世界の妖怪の決まりがかかる
+};
+export const UTSURU_RULES = ['kaze', 'ame', 'kagami'];
+export const IHEN_PTS = 1.5, IHEN_CLEAR = 2, MOERU_TAKE = 0.4, MOERU_BACK = 1.5;
 
 export const TUNE = {
   ink: 1900,            // 1 本の線の長さの上限
@@ -177,6 +191,7 @@ export function newNight(level, w, h, loadout = {}) {
     crowMax: 0, crowLeft: 0, crowT: 0, falling: false, fallT: 0,
     // 腕の層
     seals: level.seals || [], grow: { ...(loadout.grow || {}) }, // 大一番の封じ・育つお守りの育ち
+    ihen: null, ihenLog: [], ihenDone: {}, // 異変（いま起きているもの）
     dust: [], drnd: rng32(level.seed + 11), pv: loadout.pv ?? m.pv0, graze: 0, dustGot: 0, dustPts: 0, mikiri: 0, tsugi: null, tsugiBest: 0, tsugiCount: 0, waited: 0, spellLog: [], spellDone: {}, rainEvery: 0.2, broken: [], deckI: 0,
   };
   const count = (level.count || 16) + m.countAdd;
@@ -429,10 +444,33 @@ export function penDown(st, x, y) {
   st.tsugi = null;
   if (st.next) { if (st.next.heat) k.heat = Math.max(k.heat, st.next.heat); if (st.next.grace) k.grace = st.next.grace; st.next = null; } // 縁起物の効き目
   const sl = sleepingCharm(st); if (sl) st.events.push({ type: 'sleep', id: sl.id });
+  (st.level.ihen || []).forEach((q, i) => { if (!st.ihenDone[i] && (q.at === 'act2' ? st.act2 : !st.act2 && st.strokesUsed === q.at)) { st.ihenDone[i] = 1; startIhen(st, q.id); } }); // 予定は書きかえない（試し打ちで同じ夜を流しなおすため）
   fire(st, 'strokeStart', {});
   st.events.push({ type: 'penDown', x, y, tsugi: !!tsugi });
   threadAt(st, x, y);
   return true;
+}
+
+function startIhen(st, id) {
+  const f = st.field;
+  st.ihen = { id, t0: st.t }; st.ihenLog.push(id);
+  if (id === 'uragaeru') { // 盤が上下に裏返る（0.6 秒かけて動く）
+    for (const s of st.shells) if (s.state === 'idle' && !s.threaded) { s.flip = { y0: s.y, y1: f.y0 + f.y1 - s.y, t: 0 }; }
+  }
+  if (id === 'utsuru') { const opts = UTSURU_RULES.filter((r) => r !== st.rule); st.rule = opts[Math.floor(rng32(st.seed + 9311)() * opts.length)]; }
+  if (id === 'furu') for (const s of st.shells) if (s.state === 'idle' && !s.threaded && s.type !== 'shaku') s.fall = 38 + (s.id % 5) * 9;
+  if (id === 'moeru') { // 持っている点の 4 割が数字の玉になって、上から落ちてくる
+    const take = Math.floor(st.score * MOERU_TAKE), n = Math.max(1, Math.min(7, Math.ceil(take / 400)));
+    if (take > 0) {
+      st.score -= take; st.burnt = (st.burnt || 0) + take;
+      for (let i = 0; i < n; i++) {
+        const x = f.x0 + ((i + 0.5) / n) * (f.x1 - f.x0), s = addShell(st, x, f.y0 - 10 - (i % 2) * 40, 'kazu');
+        s.val = Math.floor(take / n) + (i === 0 ? take % n : 0); s.fall = 32 + (i % 3) * 8;
+      }
+    }
+    st.events.push({ type: 'burnScore', take, n });
+  }
+  st.events.push({ type: 'ihen', id, rule: st.rule });
 }
 
 // ---- 技: 大一番の妖怪は一筆ごとに名前のある技を出す。捕まらずに盤の 6 割をひらけば取れる
@@ -653,6 +691,8 @@ function burst(st, s, gen, how) {
   if (mod === 'glass') pts *= 3; // 硝子: 点 ×3。ただし割れることがある
   if (k.lantern > 0) pts *= m.lanternX;
   if (st.zones.length && zoneAt(st, s.x, s.y)?.kind === 'oil') pts *= 3;
+  if (st.ihen) pts *= IHEN_PTS; // 異変の間は点 ×1.5
+  if (s.val) { const back = Math.round(s.val * MOERU_BACK); st.score += back; st.burnt = Math.max(0, (st.burnt || 0) - s.val); st.events.push({ type: 'kazuBack', x: s.x, y: s.y, val: back }); }
   const mult0 = k.mult;
   const c = fire(st, 'burst', { s, gen, how, pts, R, n: k.pops, heatLv: k.heatLv });
   pts = c.pts * m.chipsX; R = c.R;
@@ -863,7 +903,8 @@ function moveIdle(st, dt) {
       const p = st.stroke.pts[st.stroke.pts.length - 1], dx = s.x - p.x, dy = s.y - p.y, d = Math.hypot(dx, dy) || 1;
       if (d < 235) { const v = 130 + (1 - d / 235) * 300; s.x = Math.max(f.x0, Math.min(f.x1, s.x + (dx / d) * v * dt)); s.y = Math.max(f.y0, Math.min(f.y1, s.y + (dy / d) * v * dt)); }
     }
-    if (s.fall) { s.y += s.fall * dt; if (s.y > f.y1 + 46) { s.state = 'gone'; continue; } }
+    if (s.flip) { s.flip.t = Math.min(1, s.flip.t + dt / 0.6); const u = s.flip.t, e = u * u * (3 - 2 * u); s.y = s.flip.y0 + (s.flip.y1 - s.flip.y0) * e; if (u >= 1) s.flip = null; }
+    if (s.fall) { s.y += s.fall * dt; if (s.y > f.y1 + 46) { s.state = 'gone'; if (s.val) st.events.push({ type: 'kazuLost', val: s.val, x: s.x }); continue; } }
     if (wind) { s.x += wind * dt * (0.7 + (s.id % 5) * 0.12); if (s.x < f.x0 - 30) s.x = f.x1 + 20; if (s.x > f.x1 + 30) s.x = f.x0 - 20; }
     if (s.vx || s.vy) {
       s.x += s.vx * dt; s.y += s.vy * dt;
@@ -1043,6 +1084,7 @@ function finishStroke(st) {
     if (st.act2) st.encoreBloom = true;
     fire(st, 'bloom', {});
   }
+  if (st.ihen && !k.caught && k.pops > 0) { k.mult += IHEN_CLEAR; st.events.push({ type: 'ihenClear', id: st.ihen.id, mult: k.mult }); }
   // 追いつかれた一筆は、点が半分（何を失ったかを、数字で見せる）
   if (k.caught && !st.m.caughtSafe) { k.lostChips = Math.floor(k.chips * 0.5); k.chips -= k.lostChips; }
   const gained = Math.floor(k.chips * k.mult);
