@@ -863,7 +863,7 @@ $('sndBtn').onclick = () => { audio.unlock(); DB.sound = !DB.sound; DB.music = D
 soundIcon();
 $('pzResume').onclick = () => { audio.ui('tap'); closePause(); };
 $('pzQuit').onclick = () => { audio.ui('tap'); S.paused = false; pid = null; toTitle(); };
-addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'p') { if (S.paused) closePause(); else openPause(); } });
+addEventListener('keydown', (e) => { if ((e.key === 'Escape' && !window.HANABI_PG) || e.key === 'p') { /* Playgama では Esc を使わない（全画面を抜けるキー） */ if (S.paused) closePause(); else openPause(); } });
 function toast(t) { const e = document.createElement('div'); e.className = 'pop gold'; e.textContent = t; e.style.left = '50%'; e.style.top = '30%'; e.style.fontSize = '22px'; e.style.zIndex = 9; document.body.append(e); setTimeout(() => e.remove(), 950); }
 
 // ------------------------------------------------------------------ 入力
