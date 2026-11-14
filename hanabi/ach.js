@@ -43,6 +43,9 @@ export const ACHIEVEMENTS = [
   A('tsugi3', '継ぎ火三連', 'Relight ×3', '継ぎ火を 3 回つなげる', 'Chain 3 relights', (c) => c.st?.tsugiBest >= 3),
   A('spell1', '技取り', 'First Capture', '大一番の技を取る', 'Capture a boss technique', (c) => c.st?.spellLog?.some((x) => x.got)),
   A('oku', '奥義破り', 'Secret Art Broken', '第二幕の奥義を取る', 'Capture a secret art in an encore', (c) => c.st?.spellLog?.some((x) => x.got && x.id.endsWith('3'))),
+  A('shoubu3', '大勝負師', 'Gambler', '1 周で大勝負を 3 回越える', 'Win 3 High Stakes nights in one run', (c) => (c.run?.shoubu || 0) >= 3),
+  A('ryuha', '流派の開祖', 'Founder', '本流でない流派で 24 夜を越える', 'Clear all 24 nights with a non-Classic school', (c) => c.run?.won && c.run.school && c.run.school !== 'hon'),
+  A('sodachi', '満開の桜', 'Full-Grown Cherry', '育ち桜を +5 まで育てる', 'Grow the Growing Cherry to +5', (c) => (c.run?.grow?.sodachizakura || 0) >= 5),
   A('endless8', '千秋楽', 'Encore', '千秋楽で 8 夜を越える', 'Clear 8 nights in the Encore', (c) => c.run?.endless && c.run.nightsCleared >= 32),
   A('endless24', '終わらない祭り', 'The Endless Festival', '千秋楽で 24 夜を越える', 'Clear 24 nights in the Encore', (c) => c.run?.endless && c.run.nightsCleared >= 48),
   // 記憶の層

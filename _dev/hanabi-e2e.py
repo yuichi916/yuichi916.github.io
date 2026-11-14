@@ -70,13 +70,25 @@ async def main():
                     await pg.evaluate("""() => { const H = HANABI, st = H.S.st, G = H.G; if (st.phase !== 'aim') return; const idle = st.shells.filter((s) => s.state === 'idle'); idle.sort((a, b) => a.x - b.x); if (!idle.length) return;
                         const one = idle.length === 1; G.penDown(st, idle[0].x - (one ? 120 : 0), idle[0].y); for (const s of idle.slice(one ? 0 : 1, 7)) G.penMove(st, s.x, s.y); G.penUp(st); }""")
                     await pg.wait_for_function("() => HANABI.S.mode !== 'play' || (HANABI.S.st.phase !== 'stroke')", timeout=30000)
-                    await pg.wait_for_function("() => HANABI.S.mode !== 'play' || HANABI.S.st.phase === 'aim'", timeout=15000)
+                    try:
+                        await pg.wait_for_function("() => HANABI.S.mode !== 'play' || HANABI.S.st.phase === 'aim'", timeout=15000)
+                    except Exception:
+                        st = await pg.evaluate("() => { const H = HANABI, st = H.S.st; return { mode: H.S.mode, phase: st && st.phase, w: st && st.level.world, n: st && st.level.night, node: st && st.level.node, seals: st && st.level.seals, cleared: st && st.cleared, failed: st && st.failed, stroke: st && st.stroke && { penDown: st.stroke.penDown, fuseOut: st.stroke.fuseOut, caught: st.stroke.caught, done: st.stroke.done }, pending: st && st.pending.length, sparks: st && st.sparks.length, runners: st && st.runners.length, t: st && st.t, settleAt: st && st.settleAt }; }")
+                        print("STUCK", st, flush=True); raise
                 elif mode == "inter":
                     nights += 1
                     if nights in (1, 3, 11):
                         await pg.wait_for_timeout(500)
                         await pg.screenshot(path=f"{OUT}/shop{nights}.png")
-                    routes = await pg.query_selector_all("#nextInfo .route")
+                    # 大勝負のほうび: 1 枚取る
+                    gift = await pg.query_selector("#giftOv .card")
+                    if gift:
+                        await gift.click(); await pg.wait_for_timeout(120)
+                    gov = await pg.query_selector("#giftOv .btn2")
+                    if gov:
+                        await gov.click(); await pg.wait_for_timeout(120)
+                    # 地図: 行ける丸のいちばん下をえらぶ
+                    routes = await pg.query_selector_all("#nextInfo .fn.can")
                     if routes:
                         await routes[-1].click()
                         await pg.wait_for_timeout(60)

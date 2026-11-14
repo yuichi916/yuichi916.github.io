@@ -3,6 +3,14 @@
 import { charmBlast } from './sim.js';
 
 const C = (id, tag, rar, ja, en, dj, de, x = {}) => ({ id, tag, rar, ja, en, dj, de, cost: { c: 4, r: 7, l: 11 }[rar], ...x });
+// 育つお守り: 育ちは 1 周のあいだ残る（st.grow → run.grow）。育った瞬間は出来事で画面に見せる
+export const growOf = (st, id) => st?.grow?.[id] || 0;
+function gSet(c, id, v) {
+  const g = c.st.grow, old = g[id] || 0; g[id] = Math.round(v * 1000) / 1000;
+  if (g[id] !== old) c.st.events.push({ type: 'grow', id, v: g[id], up: g[id] > old, x: c.s?.x, y: c.s?.y });
+}
+const gAdd = (c, id, v, cap = Infinity) => gSet(c, id, Math.min(cap, growOf(c.st, id) + v));
+const x2 = (v) => (Math.round(v * 100) / 100).toFixed(2);
 
 export const CHARMS = [
   // ---- 熱: 火を引きつけるほど得をする
@@ -82,8 +90,27 @@ export const CHARMS = [
   C('hoshikuzu', 'star', 'c', '星の砂', 'Star Sand', '玉ひとつごとに 星屑が 2 粒増える', '+2 star dust from every shell', { mod: (m) => { m.dustAdd = 2; } }),
   C('kasurikizu', 'star', 'r', 'かすり傷', 'Scratch', 'かすり 20 回ごとに 倍率 +1', 'Every 20 grazes: +1 MULT', { on: { graze(c) { if (c.n % 20 === 0) c.k.mult += 1; } } }),
   C('kamihitoe', 'star', 'r', '薄紙', 'Paper Thin', 'かすれる距離が 1.5 倍。かすりで星の値が 2 倍伸びる', 'Graze range ×1.5, and grazes grow star value twice as fast', { mod: (m) => { m.grazeGapX = 1.5; m.grazePvX = 2; } }),
-  C('tsugite', 'star', 'r', '継ぎ手', 'Splicer', '継ぎ火の輪が大きく長くなり、倍率を 8 割持ちこむ', 'Bigger, longer relight rings that carry 80% MULT', { mod: (m) => { m.tsugiRX = 1.5; m.tsugiWinX = 1.6; m.tsugiKeepX = 0.8; } }),
+  C('tsugite', 'star', 'r', '継ぎ手', 'Splicer', '継ぎ火の輪が大きく長くなり、倍率を 8 割持ちこむ', 'Bigger, longer relight rings that carry 80% MULT', { mod: (m) => { m.tsugiRX = (m.tsugiRX || 1) * 1.5; m.tsugiWinX = (m.tsugiWinX || 1) * 1.6; m.tsugiKeepX = Math.max(m.tsugiKeepX || 0, 0.8); } }),
   C('tanabata', 'star', 'l', '天の川', 'Milky Way', '一筆で拾った星屑 10 粒ごとに 倍率 +1', 'Every 10 star dust in a stroke: +1 MULT', { on: { strokeEnd(c) { c.k.mult += Math.floor(c.k.dust / 10); } } }),
+  // ---- 育つ: 1 周のあいだ、条件を満たすたびに強くなる（早く買うほど育つ）
+  C('sodachizakura', 'grow', 'r', '育ち桜', 'Growing Cherry', '満開するたび育つ。一筆のはじめに 倍率 +育ち', 'Grows with every Full Bloom. Each stroke starts with +growth MULT',
+    { now: (g) => [`いま +${g}`, `now +${g}`], on: { strokeStart(c) { c.k.mult += growOf(c.st, 'sodachizakura'); }, bloom(c) { gAdd(c, 'sodachizakura', 1); } } }),
+  C('yukidaruma', 'grow', 'c', '雪だるま', 'Snowman', '夜を越えるたび育つ。玉ごとに 点 +育ち', 'Grows each night you clear. Every shell: +growth POINTS',
+    { now: (g) => [`いま +${g}`, `now +${g}`], on: { burst(c) { c.pts += growOf(c.st, 'yukidaruma'); }, nightWin(c) { gAdd(c, 'yukidaruma', 3); } } }),
+  C('koshu', 'grow', 'r', '古酒', 'Aged Sake', '熱 ×4 で玉をひらくたび育つ。一筆の終わりに 倍率 ×（1+育ち）', 'Grows with every shell opened at HOT ×4. Stroke end: MULT ×(1+growth)',
+    { now: (g) => [`いま ×${x2(1 + g)}`, `now ×${x2(1 + g)}`], on: { burst(c) { if (c.heatLv >= 3) gAdd(c, 'koshu', 0.02); }, strokeEnd(c) { c.k.mult *= 1 + growOf(c.st, 'koshu'); } } }),
+  C('nanakorobi', 'grow', 'c', '七転び', 'Seven Falls', '追いつかれるたび育つ（8 まで）。一筆のはじめに 倍率 +育ち', 'Grows each time you are caught (max 8). Each stroke starts with +growth MULT',
+    { now: (g) => [`いま +${g}`, `now +${g}`], on: { strokeStart(c) { c.k.mult += growOf(c.st, 'nanakorobi'); }, caught(c) { gAdd(c, 'nanakorobi', 1, 8); } } }),
+  C('ishinoue', 'grow', 'r', '石の上にも', 'Patience Stone', '追いつかれずに夜を越えるたび ×0.15 育つ。追いつかれると半分に。一筆の終わりに 倍率 ×（1+育ち）', 'Grows ×0.15 per night cleared without being caught; halves when caught. Stroke end: MULT ×(1+growth)',
+    { now: (g) => [`いま ×${x2(1 + g)}`, `now ×${x2(1 + g)}`], on: { strokeEnd(c) { c.k.mult *= 1 + growOf(c.st, 'ishinoue'); }, nightWin(c) { if (!c.st.caughtCount) gAdd(c, 'ishinoue', 0.15); }, caught(c) { gSet(c, 'ishinoue', growOf(c.st, 'ishinoue') * 0.5); } } }),
+  C('seizu', 'grow', 'c', '星図', 'Star Chart', '拾った星屑 40 粒ごとに、ずっと 倍率 +1', 'Every 40 star dust you ever pick up: +1 MULT for good',
+    { now: (g) => [`いま +${Math.floor(g / 40)}（次まで ${40 - (g % 40)} 粒）`, `now +${Math.floor(g / 40)} (${40 - (g % 40)} dust to next)`], on: { strokeStart(c) { c.k.mult += Math.floor(growOf(c.st, 'seizu') / 40); }, strokeEnd(c) { if (c.k.dust) gAdd(c, 'seizu', c.k.dust); } } }),
+  C('tamatebako', 'grow', 'r', '玉手箱', 'Treasure Box', '夜を越えるたび、売り値が 3 小判ずつ育つ', 'Its sell price grows by 3 coins each night you clear',
+    { sellGrow: true, now: (g) => [`売り値 ${3 + g}`, `sells for ${3 + g}`], on: { nightWin(c) { gAdd(c, 'tamatebako', 3); } } }),
+  // ---- ×倍率: 右に置くほど強い（お守りは左から順に効く）
+  C('houou', 'finale', 'l', '鳳凰', 'Phoenix', '満開した一筆は、さらに 倍率 ×2', 'A Full Bloom stroke: MULT ×2 more', { on: { bloom(c) { c.k.mult *= 2; } } }),
+  C('kinbyoubu', 'gold', 'r', '金屏風', 'Golden Screen', '一筆でひらいた金の玉 1 つごとに 倍率 ×1.15', 'MULT ×1.15 for each gold shell opened in the stroke', { on: { strokeEnd(c) { c.k.mult *= Math.pow(1.15, c.k.types.kin || 0); } } }),
+  C('noboriryu', 'heat', 'r', '昇り龍', 'Rising Dragon', '一筆の中で熱 ×4 に届いたら 倍率 ×1.5', 'If the stroke ever hits HOT ×4: MULT ×1.5', { on: { strokeEnd(c) { if ((c.k.topLv || 0) >= 3) c.k.mult *= 1.5; } } }),
 ];
 export const CHARM_BY_ID = Object.fromEntries(CHARMS.map((c) => [c.id, c]));
 // 特定の玉がないと働かないお守り（世界の邪魔玉か、玉袋の玉）
@@ -93,5 +120,9 @@ for (const [id, need] of Object.entries({ amayoke: 'shime', yukidoke: 'koori', f
 CHARM_BY_ID.hinotama.on.strokeEnd = (c) => { if (c.k.caught) c.k.mult += 4; };
 CHARM_BY_ID.hinotama.on.fuseEnd = () => {};
 
-export const TAG_NAME = { heat: ['熱', 'Heat'], chain: ['連鎖', 'Chain'], gold: ['金', 'Gold'], lantern: ['提灯', 'Lantern'], ink: ['筆', 'Brush'], finale: ['大トリ', 'Finale'], gimmick: ['仕掛け', 'Trick'], star: ['星', 'Star'] };
-export const TAG_COLOR = { heat: '#e8552a', chain: '#d43f8c', gold: '#d9a11f', lantern: '#e27a2c', ink: '#3a6fc4', finale: '#8f5ad6', gimmick: '#2ea77a', star: '#4fb3e8' };
+export const TAG_NAME = { heat: ['熱', 'Heat'], chain: ['連鎖', 'Chain'], gold: ['金', 'Gold'], lantern: ['提灯', 'Lantern'], ink: ['筆', 'Brush'], finale: ['大トリ', 'Finale'], gimmick: ['仕掛け', 'Trick'], star: ['星', 'Star'], grow: ['育つ', 'Grows'] };
+export const TAG_COLOR = { heat: '#e8552a', chain: '#d43f8c', gold: '#d9a11f', lantern: '#e27a2c', ink: '#3a6fc4', finale: '#8f5ad6', gimmick: '#2ea77a', star: '#4fb3e8', grow: '#5aa83a' };
+// ×倍率のお守り（並べ替えの手がかりに、札に「×」の印を出す）
+export const TIMES = new Set(['renjishi', 'tengu', 'ippatsu', 'koshu', 'ishinoue', 'houou', 'kinbyoubu', 'noboriryu']);
+// いまの育ちを言葉にする（屋台の札・持ち物の説明に足す）
+export function growText(c, g, ja) { return c?.now ? c.now(g || 0)[ja ? 0 : 1] : ''; }

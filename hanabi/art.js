@@ -101,7 +101,7 @@ export const SHELL_DESC = {
   tome: ['線の火でひらくと、火が 1 秒止まる', 'Lit by your line, freezes the flame for 1s'], kingyo: ['泳ぎ回る。ひらけば小判 +1', 'Swims around. +1 coin'],
   nige: ['筆から逃げる。ひらけば倍率 +3', 'Flees your brush. +3 MULT'],
 };
-const BAG_COLOR = { heat: ['#c8411f', '#6e150a'], chain: ['#c0307a', '#5a1038'], gold: ['#c98f18', '#6a4306'], lantern: ['#d0641e', '#6f2a08'], ink: ['#2c5cb4', '#112c63'], finale: ['#7a46c6', '#32155e'], gimmick: ['#1f8f68', '#0b4632'], star: ['#2f8fc8', '#0f3a5e'] };
+const BAG_COLOR = { heat: ['#c8411f', '#6e150a'], chain: ['#c0307a', '#5a1038'], gold: ['#c98f18', '#6a4306'], lantern: ['#d0641e', '#6f2a08'], ink: ['#2c5cb4', '#112c63'], finale: ['#7a46c6', '#32155e'], gimmick: ['#1f8f68', '#0b4632'], star: ['#2f8fc8', '#0f3a5e'], grow: ['#4f9a32', '#1d4410'] };
 
 // お守り袋: 型の色の錦に、名前の頭の字。稀さで縁を変える
 export function drawBag(cv, c) {

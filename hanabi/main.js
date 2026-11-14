@@ -1,7 +1,7 @@
 // 一筆花火 2 — 画面の流れと、入力・描画・音をつなぐ
 import * as G from './sim.js';
 import * as Run from './run.js';
-import { CHARMS, CHARM_BY_ID, TAG_NAME, TAG_COLOR } from './charms.js';
+import { CHARMS, CHARM_BY_ID, TAG_NAME, TAG_COLOR, TIMES, growText } from './charms.js';
 import { createRenderer } from './gl.js';
 import { createFx, PALETTES } from './fx.js';
 import { createAudio } from './audio.js';
@@ -133,6 +133,16 @@ function openNewRun() {
     b.onclick = () => { S.fuse = f.id; audio.ui('tap'); openNewRun(); };
     list.append(b);
   }
+  // 流派: 芯のルールを変える（夜を越えるほど開く）
+  $('nrSchoolT').textContent = tr('流派をえらぶ', 'Choose your school');
+  const sl = $('schoolList'); sl.innerHTML = ''; S.school = S.school || 'hon';
+  for (const f of Run.SCHOOLS) {
+    const open = Run.fuseOpen(f, DB.meta);
+    const b = document.createElement('button'); b.className = 'fuse school' + (S.school === f.id ? ' on' : ''); b.disabled = !open;
+    b.innerHTML = `<b>${open ? (JA() ? f.ja : f.en) : '？？？'}</b><small>${open ? (JA() ? f.dj : f.de) : unlockText(f)}</small>`;
+    b.onclick = () => { S.school = f.id; audio.ui('tap'); openNewRun(); };
+    sl.append(b);
+  }
   const maxR = Math.min(Run.RANKS.length - 1, DB.meta.rankOpen || 0); S.rank = Math.min(S.rank, maxR);
   const r = Run.RANKS[S.rank];
   $('rankName').textContent = `${tr('段位', 'Rank')} ${S.rank + 1} — ${JA() ? r.ja : r.en}`; $('rankDesc').textContent = (JA() ? r.dj : r.de) || tr('はじめての方はここから', 'A fair start');
@@ -142,7 +152,7 @@ const unlockText = (f) => (f.unlock.wins ? tr(`完走 ${f.unlock.wins} 回で開
 $('rankPrev').onclick = () => { S.rank--; audio.ui('tap'); openNewRun(); };
 $('rankNext').onclick = () => { S.rank++; audio.ui('tap'); openNewRun(); };
 $('nrBack').onclick = () => { audio.ui('tap'); toTitle(); };
-$('nrGo').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.rank }); };
+$('nrGo').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school }); };
 
 function openBook() {
   show('book');
@@ -178,7 +188,7 @@ function openBook() {
 $('bkBack').onclick = () => { audio.ui('tap'); toTitle(); };
 
 function beginRun(o = {}) {
-  S.run = Run.newRun({ fuse: o.fuse || 'asa', rank: o.rank || 0, seed: o.seed });
+  S.run = Run.newRun({ fuse: o.fuse || 'asa', rank: o.rank || 0, seed: o.seed, school: o.school || q.get('school') || 'hon' });
   S.daily = !!o.daily;
   track(S.daily ? 'run/daily' : 'run/start');
   DB.run = S.run; save();
@@ -195,6 +205,12 @@ $('playBtn').onclick = () => {
 // 夜の途中で（一筆でも引いたあとに）ページを閉じた・タイトルへ戻ったなら、それを覚えている
 function resumeRun() {
   const run = S.run, was = run.inNight;
+  // 屋台の途中で閉じていたら、その夜は越えたことにして次へ（ごほうびを二度もらわない）
+  if (run.shopAt && run.shopAt === `${run.world}-${run.night}`) {
+    const res = Run.advance(run); DB.run = run; save();
+    if (res === 'won') return runOver(true);
+    return res === 'world' ? openSenko() : startNight();
+  }
   if (!was || !was.used) return startNight();
   const m = mem(); m.left++; m.lastLeftAt = Date.now();
   const line = Mem.leftLine(m, run.lives);
@@ -213,6 +229,7 @@ function startNight() {
   setTheme(W2.theme);
   S.st = G.newNight(def, W, H, Run.loadoutFor(run));
   S.rec = { def, W, H, run: JSON.parse(JSON.stringify({ ...run, inNight: null })), ev: [] }; // 屋台の「試し打ち」用
+  S.growBefore = { ...(run.grow || {}) };
   run.inNight = { w: def.world, n: def.night, used: 0 }; DB.run = run; save();
   $('float').replaceChildren();
   S.mode = 'play'; S.crossed = false; S.seq = []; S.endAfterCount = false; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0; S.cnt = null;
@@ -231,7 +248,8 @@ function startNight() {
   $('hud').classList.toggle('noTech', !DB.meta.taught.dust); $('hud').classList.toggle('noCoins', !DB.meta.taught.shop);
   $('spellBar').className = 'spellbar off'; S.dustAcc = 0; S.dustAt = 0; S.dustSnd = 0;
   const tw = def.twist && Run.TWISTS[def.twist];
-  $('twistTag').textContent = tw ? (JA() ? tw.ja : tw.en) : '';
+  const nodeT = ['shoubu', 'chaya', 'tonya', 'ennichi'].includes(def.node) ? Run.NODES[def.node] : null;
+  $('twistTag').textContent = [tw ? (JA() ? tw.ja : tw.en) : '', nodeT ? (JA() ? nodeT.ja : nodeT.en) : '', ...(def.seals || []).map((x) => (JA() ? Run.SEALS[x].ja : Run.SEALS[x].en))].filter(Boolean).join(' ・ ');
   const zl = $('zoneLabels'); zl.innerHTML = '';
   for (const z of S.st.zones) { const e = document.createElement('div'); e.className = 'zl ' + z.kind; e.innerHTML = z.kind === 'oil' ? tr('油<small>火が速い・点 ×3</small>', 'OIL<small>fast flame, POINTS ×3</small>') : tr('水<small>火が遅い</small>', 'WATER<small>slow flame</small>'); e.style.left = (z.x / W) * 100 + '%'; e.style.top = (z.y / H) * 100 + '%'; zl.append(e); }
   // 大一番
@@ -240,11 +258,13 @@ function startNight() {
     const r = Run.RULES[def.rule];
     drawBoss(r.cast, 'taunt'); boss.classList.remove('hidden'); boss.classList.add('taunt');
     const taunt = Mem.bossTaunt(mem(), def.rule, run);
-    banner(`${JA() ? r.ja : r.en}<small>${JA() ? r.dj : r.de}${taunt ? `<br>「${JA() ? taunt.ja : taunt.en}」` : ''}</small>`, 62, taunt ? 3400 : 2600);
+    const seals = (def.seals || []).map((x) => `<br><span class="seal">${tr('封じ', 'Seal')}「${JA() ? Run.SEALS[x].ja : Run.SEALS[x].en}」${JA() ? Run.SEALS[x].dj : Run.SEALS[x].de}</span>`).join('');
+    banner(`${JA() ? r.ja : r.en}<small>${JA() ? r.dj : r.de}${seals}${taunt ? `<br>「${JA() ? taunt.ja : taunt.en}」` : ''}</small>`, 62, taunt || seals ? 3600 : 2600);
     audio.boom(1.4, 0);
   } else {
     boss.classList.add('hidden');
-    if (tw) banner(`${def.twistHide ? tr('今夜の正体は…', 'Tonight is…') + '<br>' : ''}${JA() ? tw.ja : tw.en}`, 64, 1500);
+    if (nodeT) banner(`${JA() ? nodeT.ja : nodeT.en}<small>${tw ? (JA() ? tw.ja : tw.en) + ' ・ ' : ''}${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}<br>${JA() ? nodeT.dj : nodeT.de}</small>`, 60, 2400);
+    else if (tw) banner(`${def.twistHide ? tr('今夜の正体は…', 'Tonight is…') + '<br>' : ''}${JA() ? tw.ja : tw.en}`, 64, 1500);
     else if (def.night === 1) banner(`${JA() ? W2.ja : W2.en}<small>${tr(`第 1 夜 ― 目標 ${fmt(def.target)}`, `Night 1 — Target ${fmt(def.target)}`)}</small>`, 54, 2200);
     else banner(`${tr(`第 ${def.night} 夜`, `Night ${def.night}`)}<small>${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}</small>`, 54, 1400);
   }
@@ -293,6 +313,8 @@ function showTeach(key) {
 function teachFor(def) {
   const el = $('teach'); el.classList.add('hidden'); S.teachKey = null;
   const taught = DB.meta.taught = DB.meta.taught || {};
+  const sc = Run.schoolOf(S.run?.school);
+  if (sc.id !== 'hon' && def.id === 1 && def.world === 1) { el.innerHTML = `<em>${tr('流派', 'School')}「${JA() ? sc.ja : sc.en}」</em> ${JA() ? sc.dj : sc.de}`; el.classList.remove('hidden'); return; }
   if (!taught.draw) return showTeach('draw');
   for (const [k, n] of TEACH_ORDER) if (!taught[k] && def.id >= n && (k !== 'shaku' || def.boss)) return showTeach(k);
   for (const t of ['senrin', 'chouchin', 'shime', 'koori', 'oni']) if (!taught[t] && st0HasType(t)) return showTeach(t);
@@ -305,8 +327,9 @@ function renderStrokes() {
 function bagEl(c, size = 84) {
   const d = document.createElement('div'); d.className = 'bag'; d.dataset.id = c.id;
   const cv = document.createElement('canvas'); cv.width = size; cv.height = Math.round(size * 1.25); drawBag(cv, c); d.append(cv);
-  const name = JA() ? c.ja : c.en, desc = JA() ? c.dj : c.de;
-  d.addEventListener('pointerenter', (e) => showTip(e, name, desc)); d.addEventListener('pointerleave', hideTip);
+  const name = JA() ? c.ja : c.en;
+  d.addEventListener('pointerenter', (e) => showTip(e, name, charmDesc(c))); d.addEventListener('pointerleave', hideTip);
+  if (TIMES.has(c.id)) d.insertAdjacentHTML('beforeend', '<i class="xm">×</i>');
   return d;
 }
 // 縁起物: 狙いを決めている間だけ押せる。押すと効いて、なくなる
@@ -330,6 +353,11 @@ function renderBags() {
   const el = $('bags'); el.innerHTML = '';
   for (const id of S.run.charms) { const c = CHARM_BY_ID[id]; if (c) el.append(bagEl(c)); }
   $('hudCoins').innerHTML = `<span class="coin"></span>${S.run.coins + (S.st?.coinsEarned || 0)}`;
+}
+// お守りの説明 + いまの育ち（育つお守り）
+function charmDesc(c, grow = S.run?.grow) {
+  const g = growText(c, (S.st?.grow || grow || {})[c.id], JA());
+  return (JA() ? c.dj : c.de) + (g ? `<br><b class="gr">${g}</b>` : '') + (TIMES.has(c.id) ? tr('<br><small>×倍率のお守り。右に置くほど強い（左から順に効く）</small>', '<br><small>A ×MULT charm: stronger further right (charms trigger left to right)</small>') : '');
 }
 function showTip(e, a, b) { const t = $('tip'); t.innerHTML = `<b>${a}</b>${b}`; t.classList.remove('hidden'); const r = e.currentTarget.getBoundingClientRect(); t.style.left = Math.min(innerWidth - 270, r.left) + 'px'; t.style.top = Math.max(8, r.top - 64) + 'px'; }
 function hideTip() { $('tip').classList.add('hidden'); }
@@ -375,7 +403,11 @@ function nightEnded() {
   const gain = rw.base + rw.left + rw.star + rw.earned + rw.twist + interest;
   run.coins += gain;
   DB.meta.taught.draw = 1;
+  Run.nodeReward(run, def.node);
   S.shop = Run.shopFor(run, Run.unlockedCharms(DB.meta)); S.sold = new Set();
+  // 大勝負のほうび（3 つから 1 つ）・縁日の取り引き。引き直しても残る
+  S.bonus = Run.bonusItems(run, Run.unlockedCharms(DB.meta), S.shop.map((x) => x.id)); S.giftTaken = false; S.giftInShop = false;
+  S.bonus.forEach((x, bi) => S.shop.push({ ...x, bi }));
   // 売ったお守りは、トラが取っておいてくれる（売った値 +1 で買い戻せる）
   let back = null;
   while (run.soldIds?.length && !back) { const id = run.soldIds.shift(); if (!run.charms.includes(id) && CHARM_BY_ID[id]) back = id; }
@@ -383,7 +415,9 @@ function nightEnded() {
   if (S.back) S.shop.push({ ...S.back });
   const sl = Mem.shopLine(mem(), run, { buyBack: !!back, ext: run.lastExt > 0, waited: st.waited > 0 });
   S.toraLine = sl ? (JA() ? sl.ja : sl.en) : '';
-  S.route = Run.routeChoices(run); S.routeSel = 0;
+  run.shopAt = `${run.world}-${run.night}`; // 屋台で読みなおしても、越えた夜をもう一度遊ばない
+  S.route = Run.routeChoices(run); S.routeSel = 0; S.mapPeek = null;
+  if (S.route.length && !DB.meta.taught.map) { DB.meta.taught.map = 1; S.toraLine = tr('道が分かれたよ。下の地図の丸を押して、次の夜をえらんでね。となりの道までしか移れないから、先の大一番まで見て決めて', 'The road forks! Tap a circle on the map below to pick your next night. You can only shift one lane at a time, so plan toward the boss'); }
   DB.run = run; save();
   // 大一番に勝った瞬間: すぐ屋台を出さず、止め・閃光・ゆっくりの大団円を 1.7 秒見せる
   if (def.boss) { S.mode = 'bosswin'; bossWin(def); setTimeout(() => { if (S.mode === 'bosswin') openInter(def, st, stars, rw, interest, gain); }, 1700); }
@@ -418,7 +452,7 @@ function openInter(def, st, stars, rw, interest, gain) {
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
   $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT');
-  renderShop(); previewShop();
+  renderShop(); previewShop(); openGift();
   countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
   audio.ui('win'); if (!def.boss) audio.scene('calm');
 }
@@ -429,6 +463,9 @@ function renderTechSum(st) {
     run?.lastExt ? `<span class="ext">${tr(`灯 +${run.lastExt}！`, `+${run.lastExt} light!`)}</span>` : '',
     S.gotEngi ? `<span class="ext">${tr(`縁起物「${G.ENGI[S.gotEngi].ja}」を授かった`, `Talisman: ${G.ENGI[S.gotEngi].en}`)}</span>` : '',
     run?.lastBroken ? `<span>${tr(`硝子が ${run.lastBroken} つ割れた`, `${run.lastBroken} glass shattered`)}</span>` : '',
+    run?.lastNodeGot === 'life' ? `<span class="ext">${tr('茶屋でひと休み：灯 +1', 'Teahouse rest: +1 light')}</span>` : run?.lastNodeGot === 'coin' ? `<span class="ext">${tr('茶屋でひと休み：小判 +4', 'Teahouse rest: +4 coins')}</span>` : '',
+    run?.lastNode === 'shoubu' ? `<span class="ext">${tr('大勝負に勝った！', 'High stakes won!')}</span>` : '',
+    ...(run ? run.charms.filter((id) => CHARM_BY_ID[id]?.now && (run.grow?.[id] || 0) !== (S.growBefore?.[id] || 0)).map((id) => `<span class="grw">${JA() ? CHARM_BY_ID[id].ja : CHARM_BY_ID[id].en} ${tr('が育った', 'grew')}<b>${growText(CHARM_BY_ID[id], run.grow[id], JA())}</b></span>`) : []),
     DB.meta.taught.dust ? `<span>${tr('星屑の値', 'Dust value')}<b>${fmtM(st.pv)}</b></span>` : '',
     st.graze && DB.meta.taught.dust ? `<span>${tr('かすり', 'Graze')}<b>${st.graze}</b></span>` : '',
     st.dustGot && DB.meta.taught.dust ? `<span>${tr('星屑', 'Dust')}<b>${st.dustGot}${tr(' 粒', '')}</b>（${fmt(st.dustScore || 0)}${tr(' 点', ' pts')}）</span>` : '',
@@ -480,19 +517,26 @@ function pvTag(i) {
   return `<span class="pvt ${cls}${v === best && pct >= 5 ? ' best' : ''}">${pct >= 1 ? tr(`前の夜なら +${pct}%`, `Last night: +${pct}%`) : pct <= -1 ? tr(`前の夜なら ${pct}%`, `Last night: ${pct}%`) : tr('前の夜では 変わらず', 'Last night: no change')}</span>`;
 }
 function renderShop() {
-  const run = S.run, wrap = $('cards'); wrap.innerHTML = '';
+  const run = S.run, wrap = $('cards'); wrap.innerHTML = ''; wrap.classList.toggle('many', S.shop.filter((x) => !x.gift || S.giftInShop).length > 6);
   $('purse').textContent = run.coins;
   S.shop.forEach((it, i) => {
     const b = document.createElement('button'); b.className = 'card';
-    const can = it.cost <= run.coins && (it.kind !== 'charm' || run.charms.length < run.slots);
+    const can = it.cost <= run.coins && ((it.kind !== 'charm' && it.kind !== 'trade') || (run.charms.length < run.slots && !run.charms.includes(it.id)));
+    if (it.gift && (S.giftTaken || !S.giftInShop)) return;
     if (S.sold.has(i)) { b.classList.add('sold'); wrap.append(b); return; }
     if (it.cost > run.coins) b.classList.add('cant');
-    if (it.kind === 'charm') {
+    if (it.kind === 'charm' || it.kind === 'trade') {
       const c = CHARM_BY_ID[it.id]; if (c.rar !== 'c') b.classList.add(c.rar);
       const art = document.createElement('div'); art.className = 'art'; const cv = document.createElement('canvas'); cv.width = 120; cv.height = 150; drawBag(cv, c); art.append(cv);
-      b.innerHTML = it.back ? `<span class="tg back">${tr('買い戻し', 'Buy back')}</span>` : `<span class="tg" style="background:${TAG_COLOR[c.tag]}">${TAG_NAME[c.tag][JA() ? 0 : 1]}</span>`;
+      b.innerHTML = it.back ? `<span class="tg back">${tr('買い戻し', 'Buy back')}</span>` : it.gift ? `<span class="tg gift">${tr('大勝負のほうび', 'Reward')}</span>` : it.kind === 'trade' ? `<span class="tg trade">${tr('縁日の取り引き', 'Fair trade')}</span>` : `<span class="tg" style="background:${TAG_COLOR[c.tag]}">${TAG_NAME[c.tag][JA() ? 0 : 1]}</span>`;
+      if (it.gift) b.classList.add('gift'); if (it.kind === 'trade') { b.classList.add('trade'); if (run.lives < 2) b.classList.add('cant'); }
+      if (TIMES.has(c.id)) b.insertAdjacentHTML('beforeend', '<span class="xm">×</span>');
       b.append(art);
-      b.insertAdjacentHTML('beforeend', `<span class="nm">${JA() ? c.ja : c.en}</span><span class="ds">${JA() ? c.dj : c.de}</span>${pvTag(i)}<span class="pr"><i class="coin"></i>${it.cost}</span>`);
+      const g = growText(c, run.grow?.[c.id], JA());
+      const price = it.kind === 'trade' ? `<span class="pr life">${tr('灯 1 つ', '1 light')}</span>` : it.gift ? `<span class="pr free">${tr('ただ', 'FREE')}</span>` : `<span class="pr"><i class="coin"></i>${it.cost}</span>`;
+      b.insertAdjacentHTML('beforeend', `<span class="nm">${JA() ? c.ja : c.en}</span><span class="ds">${JA() ? c.dj : c.de}${g ? `<br><b class="gr">${g}</b>` : ''}${it.gift ? tr('<br><b>3 つから 1 つ</b>', '<br><b>Pick 1 of 3</b>') : ''}</span>${pvTag(i)}${price}`);
+    } else if (it.kind === 'slot') {
+      b.innerHTML = `<span class="tg" style="background:#5a4228">${tr('袋を広げる', 'Bigger bag')}</span><div class="art engiart">${tr('枠 +1', '+1 slot')}</div><span class="nm">${tr('お守りの枠 +1', '+1 charm slot')}</span><span class="ds">${tr(`持てるお守りが ${run.slots} → ${run.slots + 1} つに（${Run.MAX_SLOTS} まで）`, `Hold ${run.slots} → ${run.slots + 1} charms (max ${Run.MAX_SLOTS})`)}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`;
     } else if (it.kind === 'engi') {
       const E = G.ENGI[it.id], full = (run.engi || []).length >= Run.ENGI_SLOTS;
       b.innerHTML = `<span class="tg engitag">${tr('縁起物', 'Talisman')}</span><div class="art engiart">${JA() ? E.ja : E.en}</div><span class="nm">${JA() ? E.ja : E.en}</span><span class="ds">${JA() ? E.dj : E.de}${tr('（使い切り）', ' (one use)')}${full ? tr('<br><b>2 つまで。いまは満杯</b>', '<br><b>Max 2 — full</b>') : ''}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`;
@@ -516,26 +560,90 @@ function renderShop() {
       b.append(art);
       b.insertAdjacentHTML('beforeend', `<span class="nm">${sn} Lv${lv + 1}</span><span class="ds">${it.id === 'kin' ? tr('金の玉の倍率 +1（いま +' + (1 + lv) + '）', 'Gold MULT +1 (now +' + (1 + lv) + ')') : tr(`この玉の点 +${Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))}（いま ${G.SHELLS[it.id].pts + lv * Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))}）`, `+${Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))} POINTS (now ${G.SHELLS[it.id].pts + lv * Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))})`)}</span>${pvTag(i)}<span class="pr"><i class="coin"></i>${it.cost}</span>`);
     }
-    b.onclick = () => { if (it.cost > run.coins) { audio.note(1, { vol: 0.1, dur: 0.2 }); return; } if (it.kind === 'charm' && run.charms.length >= run.slots) { toast(tr('袋がいっぱい。売ってから', 'Bags full. Sell one first')); return; } if (it.kind === 'engi' && (run.engi || []).length >= Run.ENGI_SLOTS) { toast(tr('縁起物は 2 つまで', 'You can hold 2 talismans')); return; } buy(i); };
+    b.onclick = () => { if (it.cost > run.coins) { audio.note(1, { vol: 0.1, dur: 0.2 }); return; } if (it.kind === 'trade' && run.lives < 2) { toast(tr('灯が 2 つ以上いる', 'Needs 2+ lights')); return; } if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.includes(it.id)) { toast(tr('もう持っている', 'Already held')); return; } if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.length >= run.slots) { toast(tr('袋がいっぱい。売ってから', 'Bags full. Sell one first')); return; } if (it.kind === 'engi' && (run.engi || []).length >= Run.ENGI_SLOTS) { toast(tr('縁起物は 2 つまで', 'You can hold 2 talismans')); return; } buy(i); };
     wrap.append(b);
   });
   const rc = Run.rerollCost(run), rb = $('reroll');
   rb.textContent = tr(`引き直し  ${rc}`, `Reroll  ${rc}`); rb.disabled = rc > run.coins;
   renderHeld($('held'), true); renderPouch();
-  const nd = peekNext();
-  if (S.route && S.route.length) {
-    const box = $('nextInfo');
-    box.innerHTML = `<div class="routes-title">${tr('次の夜をえらぶ', 'Choose the next night')}（${tr('目標', 'Target')} ${fmt(nd.target)}）</div>`;
-    const row = document.createElement('div'); row.className = 'routes';
-    S.route.forEach((c, i) => {
-      const t = Run.TWISTS[c.id], b = document.createElement('button'); b.className = 'route' + (i === S.routeSel ? ' on' : '') + (c.hide ? ' hide' : '');
-      b.innerHTML = `<em>${tr('小判', 'coins')} +${c.coin}</em><b>${c.hide ? tr('？？？', '???') : (JA() ? t.ja : t.en)}</b>${c.hide ? tr('何が出るかは、夜になるまで分からない', 'You find out when night falls') : (JA() ? t.dj : t.de)}`;
-      b.onclick = () => { S.routeSel = i; audio.ui('tap'); renderShop(); };
-      row.append(b);
-    });
-    box.append(row);
-  } else $('nextInfo').innerHTML = nd ? (nd.rule ? tr(`次は大一番 <b>${Run.RULES[nd.rule].ja}</b>: ${Run.RULES[nd.rule].dj}`, `Next is a boss: <b>${Run.RULES[nd.rule].en}</b> — ${Run.RULES[nd.rule].de}`) : tr(`次の目標 ${fmt(nd.target)}`, `Next target ${fmt(nd.target)}`)) : '';
+  renderMap();
 }
+// ---- 祭りの地図: この世界の 8 夜。いまいる所・通った道・次に行ける寄り道。丸を押すと中身が読める
+function renderMap() {
+  const run = S.run, box = $('nextInfo'), nx = Run.nextCoord(run);
+  if (!nx) { box.innerHTML = ''; return; }
+  const w = nx[0], cols = Run.mapFor(run, w), same = w === run.world, done = same ? run.night : 0;
+  const route = S.route || [], sel = route[S.routeSel || 0];
+  const laneAt = (n) => (cols[n - 1].length === 1 ? 1 : run.plan?.[`${w}-${n}`]?.lane ?? null);
+  const X = (n) => ((n - 0.5) / cols.length) * 100, Y = (col, x) => (col.length === 1 ? 50 : [18, 50, 82][x.lane]);
+  const isChoice = (x) => x.n === done + 1 && (cols[x.n - 1].length === 1 || route.some((c) => c.lane === x.lane));
+  let lines = '';
+  for (let n = 1; n < cols.length; n++) for (const a of cols[n - 1]) for (const b of cols[n]) {
+    if (!Run.linked(a, b, cols[n - 1], cols[n])) continue;
+    const walked = n + 1 <= done && laneAt(n) === a.lane && laneAt(n + 1) === b.lane;
+    const next = n === done && laneAt(n) === a.lane && isChoice(b);
+    lines += `<line x1="${X(n)}" y1="${Y(cols[n - 1], a)}" x2="${X(n + 1)}" y2="${Y(cols[n], b)}" class="${walked ? 'walked' : next ? 'next' : ''}" />`;
+  }
+  const peek = S.mapPeek || (sel ? { n: sel.n, lane: sel.lane } : { n: done + 1, lane: 1 });
+  let nodes = '';
+  for (const col of cols) for (const x of col) {
+    const N = Run.NODES[x.type], past = x.n <= done, here = x.n === done && laneAt(x.n) === x.lane, can = isChoice(x);
+    const on = can && (col.length === 1 || (sel && sel.lane === x.lane)), pk = peek.n === x.n && (col.length === 1 || peek.lane === x.lane);
+    const seal = x.type === 'boss' && Run.sealsFor(run, w, x.n).length ? '<i class="sl"></i>' : '';
+    nodes += `<button class="fn${past ? ' past' : ''}${past && laneAt(x.n) === x.lane ? ' walked' : ''}${here ? ' here' : ''}${can ? ' can' : ''}${on ? ' on' : ''}${pk ? ' pk' : ''}" data-n="${x.n}" data-l="${x.lane}" style="left:${X(x.n)}%;top:${Y(col, x)}%;--c:${N.col}">${x.type === 'nazo' || !past || laneAt(x.n) === x.lane || col.length === 1 ? N.k : '・'}${seal}</button>`;
+  }
+  const W2 = Run.worldOf(w);
+  box.innerHTML = `<div class="fmap"><div class="fmhead"><b>${JA() ? W2.ja : W2.en}</b>${route.length ? tr('　道をえらぶ（となりの道まで移れる）', '  Pick your road (one lane at a time)') : ''}</div><div class="fmbox"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${lines}</svg>${nodes}</div><div class="fmdesc">${mapDesc(cols, w, peek)}</div></div>`;
+  box.querySelectorAll('.fn').forEach((el) => {
+    el.onclick = () => {
+      const n = +el.dataset.n, lane = +el.dataset.l; S.mapPeek = { n, lane };
+      const i = route.findIndex((c) => c.n === n && c.lane === lane); if (i >= 0) S.routeSel = i;
+      audio.ui('tap'); renderMap(); $('nextBtn').textContent = nextLabel();
+    };
+  });
+  $('nextBtn').textContent = nextLabel();
+}
+// 地図の丸の中身: 寄り道の名前・目標・ごほうび・趣向・大一番の封じ
+function mapDesc(cols, w, peek) {
+  const col = cols[peek.n - 1]; if (!col) return '';
+  const x = col.length === 1 ? col[0] : col.find((y) => y.lane === peek.lane); if (!x) return '';
+  const run = S.run, N = Run.NODES[x.type], key = `${w}-${x.n}`;
+  const r2 = { ...run, retry: 0, plan: { ...run.plan, [key]: x.type === 'boss' || x.type === 'plain' ? run.plan?.[key] : { node: x.type, id: x.twist || null, coin: x.coin, hide: x.type === 'nazo', lane: x.lane } } };
+  const def = Run.nightDef(r2, w, x.n), tw = x.twist && Run.TWISTS[x.twist];
+  const parts = [`<b>${tr(`第 ${x.n} 夜`, `Night ${x.n}`)} ${JA() ? N.ja : N.en}</b>${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}${x.coin ? tr(`・小判 +${x.coin}`, ` · +${x.coin} coins`) : ''}`];
+  if (x.type === 'boss' && def.rule) { const r = Run.RULES[def.rule]; parts.push(`<em>${JA() ? r.ja : r.en}</em> ${JA() ? r.dj : r.de}`); for (const s of def.seals) parts.push(`<span class="seal">${tr('封じ', 'Seal')}「${JA() ? Run.SEALS[s].ja : Run.SEALS[s].en}」${JA() ? Run.SEALS[s].dj : Run.SEALS[s].de}</span>`); }
+  else if (x.type !== 'plain') parts.push(JA() ? N.dj : N.de);
+  if (tw && x.type !== 'nazo') parts.push(`<em>${JA() ? tw.ja : tw.en}</em> ${JA() ? tw.dj : tw.de}`);
+  return parts.join('<br>');
+}
+function nextLabel() { const c = S.route?.[S.routeSel || 0]; return c ? tr(`次へ：${Run.NODES[c.node].ja}`, `Go: ${Run.NODES[c.node].en}`) : tr('次の夜へ', 'NEXT NIGHT'); }
+// 大勝負のほうび: 屋台の前に「3 つから 1 つ」。枠がいっぱいなら、屋台で売ってから選べるように並べる
+function openGift() {
+  $('giftOv')?.remove();
+  const run = S.run, gifts = S.shop.map((it, i) => [it, i]).filter(([it]) => it.gift);
+  if (!gifts.length || S.giftTaken || S.giftInShop) return;
+  const full = run.charms.length >= run.slots;
+  const ov = document.createElement('div'); ov.className = 'giftov'; ov.id = 'giftOv';
+  ov.innerHTML = `<div class="giftpanel"><h3>${tr('大勝負のほうび', 'High Stakes Reward')}</h3><p>${full ? tr('お守りの枠がいっぱい。屋台で 1 つ売ってから選べる', 'Your charm slots are full. Sell one in the shop, then choose') : tr('珍しいお守りを 3 つから 1 つ、ただで', 'Take 1 of 3 rare charms, free')}</p><div class="cards"></div><div class="row"></div></div>`;
+  const row = ov.querySelector('.row'), cards = ov.querySelector('.cards');
+  for (const [it, i] of gifts) {
+    const c = CHARM_BY_ID[it.id], b = document.createElement('button'); b.className = 'card gift ' + (c.rar !== 'c' ? c.rar : '');
+    const cv = document.createElement('canvas'); cv.width = 120; cv.height = 150; drawBag(cv, c);
+    b.innerHTML = `<span class="tg" style="background:${TAG_COLOR[c.tag]}">${TAG_NAME[c.tag][JA() ? 0 : 1]}</span>${TIMES.has(c.id) ? '<span class="xm">×</span>' : ''}`;
+    const art = document.createElement('div'); art.className = 'art'; art.append(cv); b.append(art);
+    b.insertAdjacentHTML('beforeend', `<span class="nm">${JA() ? c.ja : c.en}</span><span class="ds">${JA() ? c.dj : c.de}</span>${pvTag(i)}`);
+    b.dataset.i = i;
+    b.onclick = () => { if (full) { toast(tr('枠がいっぱい', 'Slots full')); return; } buy(i); ov.remove(); audio.ui('win'); };
+    cards.append(b);
+  }
+  const later = document.createElement('button'); later.className = 'btn2';
+  later.textContent = full ? tr('屋台で枠を空ける', 'Go free a slot') : tr('受け取らない', 'Skip');
+  later.onclick = () => { audio.ui('tap'); if (full) S.giftInShop = true; else S.giftTaken = true; ov.remove(); renderShop(); };
+  row.append(later);
+  $('inter').append(ov);
+}
+// 試し打ちが出そろったら、ほうびの札にも出す
+function refreshGiftTags() { const ov = $('giftOv'); if (!ov) return; ov.querySelectorAll('.card').forEach((b) => { b.querySelector('.pvt')?.remove(); b.querySelector('.ds').insertAdjacentHTML('afterend', pvTag(+b.dataset.i)); }); }
 // 玉袋: 種類ごとの数と、刻印の色
 function renderPouch() {
   const run = S.run, el = $('pouch'); if (!run?.pouch) { el.innerHTML = ''; return; }
@@ -569,13 +677,13 @@ function previewShop() {
   if (!rec || !rec.ev.some((e) => e[1] === 'd')) return;
   S.preview = {};
   let base = null;
-  const queue = S.shop.map((it, i) => [it, i]).filter(([it]) => it.kind === 'charm' || it.kind === 'recipe');
+  const queue = S.shop.map((it, i) => [it, i]).filter(([it]) => it.kind === 'charm' || it.kind === 'recipe' || it.kind === 'trade');
   const step = () => {
     if (S.pvToken !== token || S.mode !== 'inter') return;
     if (base === null) { base = Math.max(1, replayScore(rec, rec.run)); setTimeout(step, 0); return; }
-    const next = queue.shift(); if (!next) { renderShop(); return; }
+    const next = queue.shift(); if (!next) { renderShop(); refreshGiftTags(); return; }
     const [it, i] = next, r2 = JSON.parse(JSON.stringify(rec.run));
-    if (it.kind === 'charm' && r2.charms.length >= r2.slots) r2.charms.shift();
+    if ((it.kind === 'charm' || it.kind === 'trade') && r2.charms.length >= r2.slots) r2.charms.shift();
     Run.applyItem(r2, it);
     S.preview[i] = (replayScore(rec, r2) - base) / base;
     setTimeout(step, 0);
@@ -589,13 +697,20 @@ function renderHeld(el, sell) {
     const id = S.run.charms[i], d = document.createElement('div'); d.className = 'slot';
     if (id) {
       const c = CHARM_BY_ID[id], cv = document.createElement('canvas'); cv.width = 84; cv.height = 105; drawBag(cv, c); d.append(cv);
-      const price = Math.max(1, Math.floor(c.cost / 2));
-      const tip = (e, armed) => showTip(e, JA() ? c.ja : c.en, (JA() ? c.dj : c.de) + (sell ? (armed ? tr(`<br><em>もう一度押すと ${price} 小判で売る</em>`, `<br><em>Tap again to sell for ${price}</em>`) : tr(`<br>2 回押すと ${price} 小判で売る`, `<br>Tap twice to sell for ${price}`)) : ''));
+      const price = Math.max(1, Math.floor(c.cost / 2)) + (c.sellGrow ? (S.run.grow?.[id] || 0) : 0);
+      if (TIMES.has(id)) d.insertAdjacentHTML('beforeend', '<i class="xm">×</i>');
+      const tip = (e, armed) => showTip(e, JA() ? c.ja : c.en, charmDesc(c) + (sell ? (armed ? tr(`<br><em>もう一度押すと ${price} 小判で売る</em>。‹ › で並べ替え（左から順に効く）`, `<br><em>Tap again to sell for ${price}</em>. ‹ › to reorder (left triggers first)`) : tr(`<br>2 回押すと ${price} 小判で売る`, `<br>Tap twice to sell for ${price}`)) : ''));
+      if (sell) for (const [dir, ch] of [[-1, '‹'], [1, '›']]) {
+        const j = i + dir; if (j < 0 || j >= S.run.charms.length) continue;
+        const mv = document.createElement('button'); mv.className = 'mv ' + (dir < 0 ? 'l' : 'r'); mv.textContent = ch;
+        mv.onclick = (e) => { e.stopPropagation(); const a = S.run.charms; [a[i], a[j]] = [a[j], a[i]]; audio.ui('tap'); hideTip(); renderShop(); const nd = $('held').children[j]; nd?.classList.add('armed'); };
+        d.append(mv);
+      }
       d.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') tip(e, false); });
       d.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { hideTip(); d.classList.remove('armed'); } });
       // 指でも説明が読めるように、1 回目は説明と「売る」の合図、2 回目で売る（1 回で売れると誤って手放す）
       d.onclick = (e) => {
-        if (sell && d.classList.contains('armed')) { S.run.charms.splice(i, 1); S.run.coins += price; (S.run.soldIds = S.run.soldIds || []).push(id); mem().sold++; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); return; }
+        if (sell && d.classList.contains('armed')) { S.run.charms.splice(i, 1); if (S.run.grow) delete S.run.grow[id]; /* 売ったら育ちは消える（買い戻しで育ちが残らない） */ S.run.coins += price; (S.run.soldIds = S.run.soldIds || []).push(id); mem().sold++; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); return; }
         el.querySelectorAll('.armed').forEach((o) => o.classList.remove('armed'));
         if (sell) d.classList.add('armed');
         tip(e, sell); audio.ui('tap');
@@ -606,13 +721,16 @@ function renderHeld(el, sell) {
 }
 function buy(i) {
   const it = S.shop[i], run = S.run;
+  if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.includes(it.id)) return; // 同じお守りを 2 つ持たない
   run.coins -= it.cost; S.sold.add(i);
   Run.applyItem(run, it);
+  if (it.bi !== undefined) { S.bonus[it.bi].taken = true; if (it.gift) { S.giftTaken = true; S.shop.forEach((x, j) => { if (x.gift) S.sold.add(j); }); } }
+  if (it.kind === 'trade') { renderLives(); toast(tr('灯をひとつ差し出した', 'You gave up a light')); }
   if (it.back) S.back = null;
   audio.note(14, { vol: 0.18, dur: 0.3 }); setTimeout(() => audio.note(17, { vol: 0.16, dur: 0.4 }), 70);
   hideTip(); renderShop();
 }
-$('reroll').onclick = () => { const run = S.run, c = Run.rerollCost(run); if (c > run.coins) return; run.coins -= c; run.rerolls++; run.shopRound++; S.shop = Run.shopFor(run, Run.unlockedCharms(DB.meta)); S.sold = new Set(); if (S.back && !run.charms.includes(S.back.id)) S.shop.push({ ...S.back }); audio.ui('tap'); renderShop(); }; // 買い戻しは引き直しても残す
+$('reroll').onclick = () => { const run = S.run, c = Run.rerollCost(run); if (c > run.coins) return; run.coins -= c; run.rerolls++; run.shopRound++; S.shop = Run.shopFor(run, Run.unlockedCharms(DB.meta)); S.sold = new Set(); if (S.back && !run.charms.includes(S.back.id)) S.shop.push({ ...S.back }); (S.bonus || []).forEach((x, bi) => { if (!x.taken && !(x.gift && S.giftTaken)) S.shop.push({ ...x, bi }); }); audio.ui('tap'); renderShop(); previewShop(); }; // 買い戻し・ほうびは引き直しても残す
 $('nextBtn').onclick = () => {
   audio.ui('tap');
   if (S.route && S.route.length) Run.chooseRoute(S.run, S.route[S.routeSel || 0]);
@@ -866,6 +984,15 @@ function handle(ev) {
       if (ev.dCoin) { renderBags(); if (ev.x) floatText(ev.x, ev.y + 26, '+' + ev.dCoin, 'coinp', 22); }
       break;
     }
+    case 'grow': { // 育つお守りが育った
+      const b = document.querySelector(`#bags .bag[data-id="${ev.id}"]`);
+      if (b) { b.classList.remove('grew'); void b.offsetWidth; b.classList.add('grew'); }
+      if (ev.up && ev.x !== undefined) floatText(ev.x, ev.y - 30, tr('育った！', 'Grew!'), 'grow', 20, 800);
+      break;
+    }
+    case 'sleep': // 封じ「札眠り」: この一筆で眠るお守り
+      document.querySelectorAll('#bags .bag').forEach((b) => b.classList.toggle('sleep', b.dataset.id === ev.id));
+      break;
     case 'heat': {
       const el = $('heat');
       el.className = 'heat' + (ev.lv ? ' on l' + ev.lv : '');

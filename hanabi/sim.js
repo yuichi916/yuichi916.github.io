@@ -158,6 +158,7 @@ export function newNight(level, w, h, loadout = {}) {
   if (level.flame) m.flameX *= level.flame;
   if (level.rule === 'kasha') m.flameX *= 1.55;
   if (level.rule === 'ishun') m.ink *= 0.55;
+  if ((level.seals || []).includes('sumi')) m.ink *= 0.75; // 封じ: 墨削り
   const mix = { ...(level.mix || {}) };
   for (const [k, n] of Object.entries(m.addMix)) mix[k] = (mix[k] || 0) + n;
   if (m.onlyOneStroke) m.strokesAdd = -99;
@@ -175,6 +176,7 @@ export function newNight(level, w, h, loadout = {}) {
     streak: loadout.streak || 0, lastBloom: false, act2: false, goalMet: false, intruded: false, refillTypes: [],
     crowMax: 0, crowLeft: 0, crowT: 0, falling: false, fallT: 0,
     // 腕の層
+    seals: level.seals || [], grow: { ...(loadout.grow || {}) }, // 大一番の封じ・育つお守りの育ち
     dust: [], drnd: rng32(level.seed + 11), pv: loadout.pv ?? m.pv0, graze: 0, dustGot: 0, dustPts: 0, mikiri: 0, tsugi: null, tsugiBest: 0, tsugiCount: 0, waited: 0, spellLog: [], spellDone: {}, rainEvery: 0.2, broken: [], deckI: 0,
   };
   const count = (level.count || 16) + m.countAdd;
@@ -345,9 +347,9 @@ function intrude(st) {
 function fire(st, name, c) {
   c.st = st; c.k = st.stroke;
   c.coin = (n) => { st.coinsEarned += n; };
-  const k = st.stroke;
+  const k = st.stroke, sleep = name === 'nightWin' || name === 'nightStart' ? null : sleepingCharm(st); // 眠るのは一筆の中だけ
   for (const ch of st.charms) {
-    const f = ch.on && ch.on[name]; if (!f) continue;
+    const f = ch.on && ch.on[name]; if (!f || ch === sleep) continue;
     const m0 = k ? k.mult : 0, p0 = c.pts, c0 = st.coinsEarned, s0 = st.strokesLeft;
     f(c, ch);
     const dM = k ? k.mult - m0 : 0, dP = c.pts !== undefined ? c.pts - p0 : 0, dC = st.coinsEarned - c0;
@@ -357,6 +359,12 @@ function fire(st, name, c) {
   return c;
 }
 
+// 封じ「札眠り」: 一筆ごとに、お守りが左から順に 1 つ眠る（開始の型の下ごしらえは眠らない）
+export function sleepingCharm(st) {
+  if (!st.seals?.includes('nemuri')) return null;
+  const real = st.charms.filter((c) => c.id[0] !== '_');
+  return real.length ? real[st.strokesUsed % real.length] : null;
+}
 const newStroke = (st) => ({
   pts: [], len: 0, flameS: 0, flameOn: false, age: 0, penDown: true, caught: false, inkOut: false, fuseOut: false,
   heat: 0, heatLv: 0, chips: st.m.startChips, mult: 1 + st.m.startMult, pops: 0, lantern: 0, done: false, idx: 0, mi: 0, fx: 0, fy: 0, fv: st.m.flameV0 * st.m.flameX, threaded: 0, close: 0,
@@ -417,6 +425,7 @@ export function penDown(st, x, y) {
   } else if (st.tsugi) st.events.push({ type: 'tsugiLost', n: st.tsugi.n - 1 });
   st.tsugi = null;
   if (st.next) { if (st.next.heat) k.heat = Math.max(k.heat, st.next.heat); if (st.next.grace) k.grace = st.next.grace; st.next = null; } // 縁起物の効き目
+  const sl = sleepingCharm(st); if (sl) st.events.push({ type: 'sleep', id: sl.id });
   fire(st, 'strokeStart', {});
   st.events.push({ type: 'penDown', x, y, tsugi: !!tsugi });
   threadAt(st, x, y);
@@ -474,7 +483,7 @@ function extendLine(st) {
   let dx = k.want.x - last.x, dy = k.want.y - last.y, d = Math.hypot(dx, dy);
   if (d < 5) { k.held = false; return; }
   let room = inkLimit(st) - k.len;
-  if (st.m.dyn) {
+  if (st.m.dyn && !(st.m.okibi && !k.flameOn)) {
     const lead = st.m.leash - (k.len - k.flameS);
     const heldNow = lead < d;
     if (heldNow && !k.held && k.flameOn) st.events.push({ type: 'held' });
@@ -506,6 +515,7 @@ export function penUp(st, auto = false) { // auto: 墨切れで勝手に離れ�
     return;
   }
   st.events.push({ type: 'penUp', x: k.pts[k.pts.length - 1].x, y: k.pts[k.pts.length - 1].y });
+  if (st.m.okibi) k.heat = Math.max(k.heat, st.m.heatLevels[1]); // 置き火: 離した瞬間に、熱 ×3 で燃えはじめる
   // 見切り: 熱いまま、火がすぐ後ろにいるうちに自分で離すと倍率 +1。捕まると付かない（危ないほど得）
   if (!auto && k.flameOn && k.heatLv >= 1 && k.len - k.flameS < st.m.hotGap * 0.5) {
     k.mult += 1; st.mikiri = (st.mikiri || 0) + 1;
@@ -522,15 +532,16 @@ export function penUp(st, auto = false) { // auto: 墨切れで勝手に離れ�
 
 // ---- 星屑
 function spawnDust(st, s, n, gold) {
+  if (st.seals.includes('hoshi')) return; // 封じ: 星隠し
   const k = st.stroke;
   for (let i = 0; i < n; i++) {
     const R = st.drnd, a = -Math.PI / 2 + (R() - 0.5) * 2.6, v = 70 + R() * 120;
     const d = { x: s.x + (R() - 0.5) * s.r, y: s.y + (R() - 0.5) * s.r, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, gold };
-    if (k && k.vacuum) { const p = k.pts[k.pts.length - 1]; takeDust(st, k, d, true); st.events.push({ type: 'dust', x: d.x, y: d.y, tx: p.x, ty: p.y, v: Math.round(st.pv * (gold ? 2 : 1)), auto: true }); }
+    if (k && k.vacuum) { const p = k.pts[k.pts.length - 1]; takeDust(st, k, d, true); st.events.push({ type: 'dust', x: d.x, y: d.y, tx: p.x, ty: p.y, v: Math.round(st.pv * (st.m.dustValX || 1) * (gold ? 2 : 1)), auto: true }); }
     else st.dust.push(d);
   }
 }
-function dustValue(st, d, fresh) { return st.pv * (d.gold ? 2 : 1) * (fresh ? 1 : 1 - st.m.dustFade * Math.min(1, d.t / st.m.dustLife)); }
+function dustValue(st, d, fresh) { return st.pv * (st.m.dustValX || 1) * (d.gold ? 2 : 1) * (fresh ? 1 : 1 - st.m.dustFade * Math.min(1, d.t / st.m.dustLife)); }
 function takeDust(st, k, d, fresh) {
   const v = dustValue(st, d, fresh);
   k.chips += v; k.dust++; k.dustPts += v; st.dustGot++; st.dustPts += v;
@@ -635,15 +646,16 @@ function burst(st, s, gen, how) {
   const heatX = heatMult(k.heatLv, st);
   const lvl = st.recipes[s.type] || 0;
   let pts = (s.pts + lvl * Math.max(5, Math.round(d.pts * 0.5))) * heatX;
-  if (s.mod === 'glass') pts *= 3; // 硝子: 点 ×3。ただし割れることがある
+  const mod = st.seals.includes('kokuin') ? null : s.mod, kinfuu = st.seals.includes('kinfuu'); // 封じ
+  if (mod === 'glass') pts *= 3; // 硝子: 点 ×3。ただし割れることがある
   if (k.lantern > 0) pts *= m.lanternX;
   if (st.zones.length && zoneAt(st, s.x, s.y)?.kind === 'oil') pts *= 3;
   const mult0 = k.mult;
   const c = fire(st, 'burst', { s, gen, how, pts, R, n: k.pops, heatLv: k.heatLv });
   pts = c.pts * m.chipsX; R = c.R;
   k.chips += Math.round(pts);
-  if (d.mult) k.mult += m.goldMult + lvl;
-  if (s.mod === 'gold') k.mult += 1; // 金箔
+  if (d.mult && !kinfuu) k.mult += m.goldMult + lvl;
+  if (mod === 'gold' && !kinfuu) k.mult += 1; // 金箔
   if (d.lantern) k.lantern++;
   if (d.multAdd) k.mult += d.multAdd;
   if (d.coin) { st.coinsEarned += d.coin; st.events.push({ type: 'coinPop', x: s.x, y: s.y, n: d.coin }); }
@@ -656,7 +668,7 @@ function burst(st, s, gen, how) {
   if (m.dyn) k.kick = Math.min(m.kickMax, k.kick + (how === 'line' ? m.kickLine : m.kickChain));
   st.bestChain = Math.max(st.bestChain, k.pops);
   // 星屑がこぼれる。大きい玉ほど多い。金の玉の星屑は 2 倍の値
-  spawnDust(st, s, (d.finale ? 16 : Math.min(6, 1 + Math.round(s.pts / 12)) + (m.dustAdd || 0)) * (s.mod === 'star' ? 3 : 1), s.type === 'kin' || s.type === 'kingyo' || s.mod === 'star');
+  spawnDust(st, s, (d.finale ? 16 : Math.min(6, 1 + Math.round(s.pts / 12)) + (m.dustAdd || 0)) * (mod === 'star' ? 3 : 1), s.type === 'kin' || s.type === 'kingyo' || mod === 'star');
   const ms = CHAIN_MARKS.find((c) => c.n === k.pops);
   if (ms) { st.coinsEarned += ms.coin; st.events.push({ type: 'chainMark', x: s.x, y: s.y, ...ms }); }
   st.events.push({ type: 'burst', shell: s, gen, how, R, pts: Math.round(pts), chips: k.chips, mult: k.mult, multUp: k.mult - mult0, n: k.pops, heatLv: k.heatLv });
@@ -704,6 +716,7 @@ function burst(st, s, gen, how) {
 
 // 刻印のあと始末: 二度咲き・導火・硝子の割れ
 function modAfter(st, s, gen) {
+  if (st.seals.includes('kokuin')) return;
   if (s.mod === 'twice' && !s.twiced) { // 二度咲き: 0.5 秒後に、もう一度ひらく
     s.twiced = true; s.state = 'lit';
     st.pending.push({ s, gen: gen + 1, how: 'twice', at: st.t + 0.5 });
@@ -904,7 +917,7 @@ export function step(st, dt = DT) {
       }
     }
     extendLine(st);
-    if (!k.flameOn && k.age >= (k.grace ?? m.grace)) { k.flameOn = true; st.events.push({ type: 'ignite', x: k.pts[0].x, y: k.pts[0].y }); }
+    if (!k.flameOn && k.age >= (k.grace ?? m.grace) && !(m.okibi && k.penDown)) { k.flameOn = true; st.events.push({ type: 'ignite', x: k.pts[0].x, y: k.pts[0].y }); }
     if (k.flameOn && !k.fuseOut) {
       k.v = flameSpeed(st, k, dt);
       if (k.stopT > 0 && k.penDown) { k.stopT -= dt; k.v = 0; }
@@ -924,6 +937,7 @@ export function step(st, dt = DT) {
           if (waited) st.waited++;
           const pv0 = st.pv; st.pv = Math.max(m.pv0, st.pv * m.caughtPv);
           st.events.push({ type: 'caught', x: k.pts[k.pts.length - 1].x, y: k.pts[k.pts.length - 1].y, waited, pvLost: Math.round(pv0 - st.pv) });
+          fire(st, 'caught', {});
         }
       }
       if (!k.penDown && !k.fuseOut && k.flameS >= k.len) {
@@ -943,6 +957,7 @@ export function step(st, dt = DT) {
         while (k.grazeT >= m.grazeEvery) { k.grazeT -= m.grazeEvery; k.graze++; st.graze++; st.pv += m.grazePv * (m.grazePvX || 1); st.events.push({ type: 'graze', n: st.graze, k: k.graze, pv: st.pv, x: k.fx, y: k.fy }); fire(st, 'graze', { n: k.graze }); }
       }
       const lv = m.heatLevels.filter((v) => k.heat >= v).length;
+      k.topLv = Math.max(k.topLv || 0, lv);
       if (lv !== k.heatLv) { const up = lv > k.heatLv; k.heatLv = lv; st.topHeat = Math.max(st.topHeat || 0, lv); st.events.push({ type: 'heat', lv, up }); if (up) fire(st, 'heatUp', { lv }); }
       // 線の火が玉にふれる
       const touch = (x, y) => {

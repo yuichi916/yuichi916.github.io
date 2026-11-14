@@ -36,13 +36,13 @@ function drive(st, { speed = 430, picks = 12, stopAt = Infinity, seed = 5 } = {}
   return st;
 }
 const scene = (extra = {}) => ({ id: 5, world: 1, night: 5, seed: 321, count: 22, mix: { kin: 4, ootama: 3, senrin: 3, chouchin: 3, shime: 3, koori: 3, oni: 3, shaku: 1 }, strokes: 3, refill: 5, target: 1e12, ...extra });
-const play = (charms, extra, o) => drive(G.newNight(scene(extra), 1280, 720, { charms: charms.map((id) => CHARM_BY_ID[id]), recipes: {}, coins: 20 }), o);
+const play = (charms, extra, o, grow = {}) => drive(G.newNight(scene(extra), 1280, 720, { charms: charms.map((id) => CHARM_BY_ID[id]), recipes: {}, coins: 20, grow }), o);
 
 // ---- 同じ入力なら同じ結果
 { const a = play([]), b = play([]); assert.equal(a.score, b.score); assert.ok(a.score > 0, '基本の点'); console.log('ok   決定的（同じ手で同じ点）', a.score); }
 
 // 特定の場面でしか働かないものは、下で場面を作って確かめる
-const SITUATIONAL = new Set(['atsukan', 'renjishi', 'risoku', 'oiri', 'suminagashi', 'mankai', 'yaguruma', 'futofude', 'kogane', 'musubi', 'yukidoke', 'oniibi', 'kasurikizu', 'tsugite']);
+const SITUATIONAL = new Set(['atsukan', 'renjishi', 'risoku', 'oiri', 'suminagashi', 'mankai', 'yaguruma', 'futofude', 'kogane', 'musubi', 'yukidoke', 'oniibi', 'kasurikizu', 'tsugite', 'houou', 'noboriryu']);
 // ---- 全お守りが、何かを変える（点・小判・筆・出来事のどれか）
 {
   const base = play([]);
@@ -55,10 +55,23 @@ const SITUATIONAL = new Set(['atsukan', 'renjishi', 'risoku', 'oiri', 'suminagas
       const fired = (s._log || []).some((e) => e.type === 'charmFire');
       if (s.score !== b.score || s.coinsEarned !== b.coinsEarned || s.maxStrokes !== b.maxStrokes || s.shells.length !== b.shells.length || fired || s.ink !== b.ink) { changed = true; break; }
     }
-    if (!changed && !c.discount && !c.freeReroll && !SITUATIONAL.has(c.id)) dead.push(c.id);
+    if (!changed && !c.discount && !c.freeReroll && !SITUATIONAL.has(c.id) && c.tag !== 'grow') dead.push(c.id);
   }
   assert.deepEqual(dead, [], '効かないお守り: ' + dead.join(','));
   console.log(`ok   お守り ${CHARMS.length} 種すべて、効き目が出る`);
+}
+
+// ---- 育つお守り: 育ちがあれば点が変わる。育つ条件を満たすと「grow」の出来事が出て、st.grow が増える
+{
+  const GROWN = { sodachizakura: 3, yukidaruma: 9, koshu: 0.5, nanakorobi: 3, ishinoue: 0.6, seizu: 120 };
+  for (const [id, g] of Object.entries(GROWN)) { const b = play([id]), s = play([id], undefined, undefined, { [id]: g }); assert.notEqual(s.score, b.score, id + ' の育ちが点に効く'); }
+  // 七転び: 追いつかれると育つ（遅い筆で必ず捕まる）
+  { const s = play(['nanakorobi'], undefined, { speed: 120 }); assert.ok(s.caughtCount > 0 && s.grow.nanakorobi >= 1, '七転びが育つ'); assert.ok(s._log.some((e) => e.type === 'grow' && e.id === 'nanakorobi')); }
+  // 古酒: 熱 ×4 でひらくと育つ
+  { const st = G.newNight(scene(), 1280, 720, { charms: [CHARM_BY_ID.koshu] }), on = CHARM_BY_ID.koshu.on; on.burst({ st, heatLv: 2, s: {} }); assert.equal(st.grow.koshu || 0, 0, '熱 ×3 では育たない'); on.burst({ st, heatLv: 3, s: {} }); assert.equal(st.grow.koshu, 0.02, '熱 ×4 で育つ'); }
+  // 育ちは夜をまたいで run に残る
+  { const run = Run.newRun({ seed: 4 }); run.charms.push('yukidaruma'); const st = G.newNight(Run.nightDef(run, 1, 1), 1280, 720, Run.loadoutFor(run)); st.grow.yukidaruma = 6; st.cleared = true; Run.afterNight(run, st); assert.equal(run.grow.yukidaruma, 6); assert.equal(Run.loadoutFor(run).grow.yukidaruma, 6); }
+  console.log('ok   育つお守り（育ちが点に効く・育つ・1 周残る）');
 }
 
 // ---- 場面を作って確かめるお守り
@@ -296,9 +309,16 @@ for (const rule of Object.keys(Run.RULES)) {
   { const st = G.newNight(scene({ count: 6, mix: {}, intrude: 'fuku' }), 1280, 720, {}); const n0 = st.shells.length; G.penDown(st, 100, 500); let x = 100; for (let i = 0; i < 180; i++) { x += 4; G.penMove(st, x, 500); G.step(st, G.DT); } assert.ok(st.shells.length > n0 && st.shells.some((s) => s.type === 'kin'), '福の神'); assert.ok(st.intruded); }
   for (const kind of Object.keys(Run.INTRUDES)) { const st = drive(G.newNight(scene({ count: 8, mix: {}, intrude: kind }), 1280, 720, {})); assert.equal(st.phase, 'over', kind); assert.ok(st.intruded, kind); }
   // 周回: 道の分かれ・提灯
-  { const run = Run.newRun({ seed: 9 }); assert.equal(run.lives, 3); assert.equal(Run.routeChoices(run).length, 0, 'はじめの夜は道を選ばない'); run.night = 4; const c = Run.routeChoices(run); assert.equal(c.length, 2); assert.notEqual(c[0].id, c[1].id); Run.chooseRoute(run, c[0]); Run.advance(run); const d = Run.nightDef(run, 1, 5); assert.equal(d.twist, c[0].id);
+  { const run = Run.newRun({ seed: 9 }); assert.equal(run.lives, 3); assert.equal(Run.routeChoices(run).length, 0, 'はじめの夜は道を選ばない'); run.night = 4; const c = Run.routeChoices(run); assert.equal(c.length, 3, '大一番のあとは 3 本どれにも行ける'); Run.chooseRoute(run, c[0]); assert.equal(run.lane, 0); Run.advance(run); const d = Run.nightDef(run, 1, 5); assert.equal(d.twist, c[0].id); assert.equal(d.node, c[0].node); assert.ok(Run.routeChoices(run).every((x) => x.lane <= 1), '端の道からは、となりまで');
     const fake = { cleared: false, blooms: 1, streak: 4 }; assert.equal(Run.afterNight(run, fake), 'retry'); assert.equal(run.lives, 2); assert.equal(run.bloomStreak, 4); assert.notEqual(Run.nightDef(run, 1, 2).seed, d.seed, 'やり直しは盤が変わる'); assert.equal(Run.afterNight(run, { cleared: false, blooms: 0, streak: 0 }), 'retry'); assert.equal(run.bloomStreak, 0, '満開なしで連続が切れる'); assert.equal(Run.afterNight(run, fake), 'over');
-    const r2 = Run.newRun({ seed: 5 }), seen = new Set(); while (!r2.done) { const ch = Run.routeChoices(r2); for (const x of ch) assert.ok(Run.TWISTS[x.id], x.id); if (ch.length) { Run.chooseRoute(r2, ch[1]); seen.add(ch[1].id); } Run.advance(r2); } assert.ok(seen.size >= 12, `1 周で趣向 ${seen.size} 種`);
+    const r2 = Run.newRun({ seed: 5 }), seen = new Set(), kinds = new Set(); while (!r2.done) { const ch = Run.routeChoices(r2); for (const x of ch) { assert.ok(!x.id || Run.TWISTS[x.id], x.id); assert.ok(Run.NODES[x.node], x.node); seen.add(x.id); kinds.add(x.node); } if (ch.length) Run.chooseRoute(r2, ch[ch.length - 1]); Run.advance(r2); } assert.ok(seen.size >= 10, `1 周で見える趣向 ${seen.size} 種`); assert.equal(kinds.size, 6, '寄り道 6 種がそろう');
+    // 寄り道の目標とごほうび
+    { const r = Run.newRun({ seed: 12 }); r.world = 2; r.night = 1; const base = Run.nightDef(r, 2, 2).target; r.plan['2-2'] = { node: 'shoubu' }; assert.equal(Run.nightDef(r, 2, 2).target, Math.round(base * 1.5 / 10) * 10); r.plan['2-2'] = { node: 'chaya' }; assert.equal(Run.nightDef(r, 2, 2).target, Math.round(base * 0.7 / 10) * 10);
+      r.lives = 2; Run.nodeReward(r, 'chaya'); assert.equal(r.lives, 3, '茶屋で灯 +1'); Run.nodeReward(r, 'shoubu'); const g = Run.bonusItems(r); const ex = Run.bonusItems(r, null, [g[0].id]); assert.ok(!ex.some((x) => x.id === g[0].id), '屋台にある札は、ほうびに重ねない'); assert.equal(g.length, 3); assert.ok(g.every((x) => x.gift && x.cost === 0 && CHARM_BY_ID[x.id].rar !== 'c'));
+      Run.nodeReward(r, 'ennichi'); const t = Run.bonusItems(r); assert.equal(t[0].kind, 'trade'); Run.applyItem(r, t[0]); assert.equal(r.lives, 2); assert.ok(r.charms.includes(t[0].id));
+      Run.nodeReward(r, 'tonya'); const sh = Run.shopFor(r); const r0 = { ...r, lastNode: null }; assert.equal(sh.length, Run.shopFor(r0).length + 2, '問屋は品 +2'); Run.advance(r); assert.equal(r.lastNode, null); }
+    // 大一番の封じ: 1-4 はなし、ほかは 1 つ、千秋楽は 2 つ。地図に出す前に決まっている
+    { const r = Run.newRun({ seed: 3 }); assert.deepEqual(Run.sealsFor(r, 1, 4), []); assert.equal(Run.sealsFor(r, 1, 8).length, 1); assert.equal(Run.sealsFor(r, 4, 4).length, 2); assert.deepEqual(Run.nightDef(r, 2, 4).seals, Run.sealsFor(r, 2, 4)); assert.deepEqual(Run.sealsFor(r, 2, 5), []); }
     const old = Run.fixRun({ seed: 1, world: 1, night: 2, charms: [], recipes: {} }); assert.equal(old.lives, 3); assert.ok(Run.nightDef(old, 1, 2)); }
   console.log(`ok   趣向 ${Object.keys(Run.TWISTS).length} 種・満開の連続・第二幕・乱入・道の分かれ・提灯`);
 }
@@ -408,5 +428,27 @@ for (const rule of Object.keys(Run.RULES)) {
   assert.equal(run.world, 6);
   const st = G.newNight(Run.nightDef(run, 6, 4), 1280, 720, Run.loadoutFor(run)); assert.ok(st.rule, '千秋楽にも大一番');
   console.log('ok   千秋楽');
+}
+// ---- 大一番の封じ
+{
+  const withSeal = (seals, charms = [], o) => play(charms, { seals }, o);
+  const base = play([]);
+  { const a = withSeal(['kinfuu']); const golds = (a._log || []).filter((e) => e.type === 'burst' && e.shell.type === 'kin' && e.multUp > 0); assert.equal(golds.length, 0, '金封じ: 金で倍率が増えない'); assert.ok(a.score < base.score); }
+  { const a = withSeal(['hoshi']); assert.equal(a.dustGot, 0, '星隠し: 星屑なし'); assert.ok(base.dustGot > 0); }
+  { const st = G.newNight(scene({ seals: ['nemuri'] }), 1280, 720, { charms: [CHARM_BY_ID.risoku] }); st.strokesUsed = 0; st.cleared = true; st.phase = 'settle'; st.settleAt = 0; G.step(st); assert.equal(st.coinsEarned, 3, '札眠りでも、夜の終わりのお守りは眠らない'); }
+  { const a = withSeal(['nemuri'], ['kiwadoi', 'rendan']); const sl = a._log.filter((e) => e.type === 'sleep').map((e) => e.id); assert.ok(sl.length >= 2 && sl[0] !== sl[1], '札眠り: 左から順に眠る ' + sl); }
+  { const st = G.newNight(scene({ seals: ['sumi'] }), 1280, 720, {}), b = G.newNight(scene(), 1280, 720, {}); assert.equal(st.ink, b.ink * 0.75, '墨削り'); }
+  { const mk = (seals) => { const st = G.newNight(scene({ seals, mix: { kiku: 10 } }), 1280, 720, {}); for (const x of st.shells) x.mod = 'glass'; return drive(st); }; assert.ok(mk([]).score > mk(['kokuin']).score, '刻印封じ: 硝子が効かない'); }
+  console.log('ok   大一番の封じ 6 種');
+}
+
+// ---- 流派
+{
+  const nightFor = (school) => { const r = Run.newRun({ seed: 8, school }); return G.newNight(Run.nightDef(r, 1, 3), 1280, 720, Run.loadoutFor(r)); };
+  { const st = nightFor('tanpitsu'), b = nightFor('hon'); assert.equal(st.maxStrokes, b.maxStrokes + 4, '短筆: 筆 +4'); assert.ok(Math.abs(st.ink - b.ink * 0.45) < 1e-6); }
+  { const st = nightFor('okibi'); G.penDown(st, 300, 400); let x = 300; for (let i = 0; i < 150; i++) { x += 5; G.penMove(st, x, 400); G.step(st, G.DT); } assert.equal(st.stroke.flameOn, false, '置き火: 引いている間は火がつかない'); assert.ok(st.stroke.len > 600, '置き火: 火との綱がない'); G.penUp(st); for (let i = 0; i < 5; i++) G.step(st, G.DT); assert.ok(st.stroke.flameOn && st.stroke.heatLv === 2, '置き火: 離すと熱 ×3 で燃える'); }
+  { const a = drive(nightFor('hoshiyomi')), b = drive(nightFor('hon')); assert.ok(a.dustPts / Math.max(1, a.score) > b.dustPts / Math.max(1, b.score), '星読み: 点が星屑に寄る'); }
+  for (const sc of Run.SCHOOLS) { const st = drive(nightFor(sc.id)); assert.equal(st.phase, 'over', sc.id); assert.ok(st.score > 0, sc.id + ' で点が入る'); }
+  console.log(`ok   流派 ${Run.SCHOOLS.length} 種`);
 }
 console.log('hanabi_test: ALL PASS');
