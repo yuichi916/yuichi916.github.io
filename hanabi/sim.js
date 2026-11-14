@@ -66,6 +66,23 @@ export const TUNE = {
   dampNeed: 2,
   goldMult: 1,
   chipsX: 1,            // 点全体の倍率
+  // ---- 腕の層: 星屑・かすり・継ぎ火
+  dustLife: 3.2,        // 星屑が消えるまで（秒）
+  dustG: 70,            // 星屑の落ちる速さ（重さ）
+  dustPick: 34,         // 筆先で拾える距離
+  dustPickTop: 120,     // 熱 ×4 のときに拾える距離（吸い寄せ）
+  dustFade: 0.6,        // 鮮度: 消える間ぎわは値が 1−0.6 = 4 割
+  pv0: 4,               // 星の値のはじめ
+  grazeGap: 55,         // 火とこれより近いと「かすり」
+  grazeEvery: 0.1,      // かすりを数える間隔（秒）
+  grazePv: 1,           // かすり 1 回で星の値が増える分
+  caughtPv: 0.8,        // 追いつかれると星の値がこの割合に
+  tsugiWin: 1.6,        // 継ぎ火の輪が残る時間（秒）
+  tsugiR: 64,           // 継ぎ火の輪の大きさ
+  tsugiKeep: 0.5,       // 継ぎ火で持ちこむ倍率の割合
+  tsugiGrace: 0.15,     // 継ぎ火の一筆は、火がすぐ移る
+  spellX: 0.35,         // 技のボーナス（目標に対する割合）
+  spellNeed: 0.6,       // 技を取るのに要る、ひらいた玉の割合
 };
 
 export function rng32(seed) {
@@ -153,6 +170,8 @@ export function newNight(level, w, h, loadout = {}) {
     twist: level.twist || null, runners: [], crows: [], blades: [], zones: [], shape: null,
     streak: loadout.streak || 0, lastBloom: false, act2: false, goalMet: false, intruded: false, refillTypes: [],
     crowMax: 0, crowLeft: 0, crowT: 0, falling: false, fallT: 0,
+    // 腕の層
+    dust: [], drnd: rng32(level.seed + 11), pv: loadout.pv ?? m.pv0, graze: 0, dustGot: 0, dustPts: 0, mikiri: 0, tsugi: null, tsugiBest: 0, tsugiCount: 0, waited: 0, spellLog: [], spellDone: {}, rainEvery: 0.2,
   };
   const count = (level.count || 16) + m.countAdd;
   for (const s of layout(level.seed, count, mix, field)) st.shells.push(newShell(st.nextId++, s.x, s.y, s.type));
@@ -337,21 +356,72 @@ const newStroke = (st) => ({
   heat: 0, heatLv: 0, chips: st.m.startChips, mult: 1 + st.m.startMult, pops: 0, lantern: 0, done: false, idx: 0, mi: 0, fx: 0, fy: 0, fv: st.m.flameV0 * st.m.flameX, threaded: 0, close: 0,
   gens: 0, types: {}, cutS: Infinity, saved: 0, turn: 0, fm: null, stopT: 0, juzu: 0,
   v: st.m.flameV0 * st.m.flameX, mo: 1, kick: 0, ti: 0, gustIn: st.level.gusts ? st.m.gustGap0 + st.rnd() * st.m.gustGapR : Infinity, gustWarnT: 0, gustT: 0, lullT: 0,
+  graze: 0, grazeT: 0, dust: 0, dustPts: 0, vacuum: false, tsugiN: 0, idle0: 0, spell: null, stillT: 0, seenLen: 0,
 });
 
+// 継ぎ火の輪の中に置いたか（輪が残っている間だけ）
+export const tsugiOpen = (st) => !!st.tsugi && st.t <= st.tsugi.until && !st.cleared && !st.failed && st.strokesLeft > 0;
+export function tsugiHit(st, x, y) { return tsugiOpen(st) && Math.hypot(x - st.tsugi.x, y - st.tsugi.y) <= st.m.tsugiR * (st.m.tsugiRX || 1); }
+
 export function penDown(st, x, y) {
+  // 一筆が終わった直後の間（settle）でも、継ぎ火の輪の中なら、すぐ次の一筆に入れる
+  const tsugi = tsugiHit(st, x, y) ? st.tsugi : null;
+  if (st.phase === 'settle' && tsugi) settleNow(st);
   if (st.phase !== 'aim') return false;
+  if (st.level.boss) prepSpell(st); // 技の邪魔（突風・火の速さ）は一筆を作る前に入れる。でないとその一筆に効かない
   st.stroke = newStroke(st);
   const k = st.stroke;
   k.pts.push({ x, y, s: 0 });
   k.fx = x; k.fy = y;
   st.phase = 'stroke';
   st.crowLeft = st.crowMax; st.crowT = 0.7; st.fallT = 0;
+  k.idle0 = st.shells.filter((s) => s.state === 'idle' && !s.fall).length;
+  if (st.level.boss) startSpell(st, k);
+  if (tsugi) { // 前の一筆の倍率の半分と熱を持ちこむ。続けるほど +1
+    k.tsugiN = tsugi.n; k.mult += Math.round(tsugi.mult * (st.m.tsugiKeepX || st.m.tsugiKeep)) + tsugi.n - 1; k.heat = Math.max(k.heat, tsugi.heat); k.grace = st.m.tsugiGrace;
+    st.tsugiCount++; st.tsugiBest = Math.max(st.tsugiBest, tsugi.n);
+    st.events.push({ type: 'tsugi', n: tsugi.n, mult: k.mult, x, y });
+  } else if (st.tsugi) st.events.push({ type: 'tsugiLost', n: st.tsugi.n - 1 });
+  st.tsugi = null;
   fire(st, 'strokeStart', {});
-  st.events.push({ type: 'penDown', x, y });
+  st.events.push({ type: 'penDown', x, y, tsugi: !!tsugi });
   threadAt(st, x, y);
   return true;
 }
+
+// ---- 技: 大一番の妖怪は一筆ごとに名前のある技を出す。捕まらずに盤の 6 割をひらけば取れる
+// add: blades=風車の数 / gust=突風の間隔の倍率 / crows=烏の数 / rain=雪の間隔 / bake=化け玉 / flame=火の速さ
+export const SPELLS = {
+  kasha: [['辻風', 'Crossroad Gale', {}], ['三つ巴', 'Triple Swirl', { blades: 1 }], ['つむじ返し', 'Whirlwind Return', { blades: 2 }], ['千本鎌', 'Thousand Sickles', { blades: 2, flame: 1.1 }]],
+  kaze: [['そよぎ団扇', 'Breeze Fan', {}], ['つむじ団扇', 'Whirl Fan', { gust: 0.5 }], ['天狗礫', 'Tengu Hail', { gust: 0.5, crows: 2 }], ['天狗倒し', 'Tengu Topple', { gust: 0.4, crows: 3 }]],
+  ame: [['細雪', 'Light Snow', {}], ['六花', 'Six Petals', { rain: 0.13 }], ['しまき', 'Blizzard', { rain: 0.11, blades: 1 }], ['雪見灯籠', 'Snow Lantern', { rain: 0.09 }]],
+  yamiyo: [['狐火', 'Foxfire', {}], ['狐の窓', 'Fox Window', { bake: 4 }], ['化け提灯', 'Haunted Lantern', { bake: 4, crows: 2 }], ['嫁入り行列', 'Fox Wedding', { crows: 3, bake: 3 }]],
+  kagami: [['腹鼓', 'Belly Drum', {}], ['化かし合い', 'Battle of Wits', { bake: 5 }], ['八百八狸', '808 Tanuki', { bake: 4, gust: 0.6 }], ['月夜の腹鼓', 'Moonlit Drum', { bake: 5, blades: 1 }]],
+  ishun: [['こだま', 'Echo', {}], ['呼ばわり', 'Calling Out', { crows: 2 }], ['山返し', 'Mountain Return', { gust: 0.5, crows: 2 }], ['声なき声', 'Voiceless Voice', { blades: 2 }]],
+};
+export const spellIndex = (st) => (st.act2 ? 3 : Math.min(2, st.strokesUsed));
+function prepSpell(st) {
+  const list = SPELLS[st.rule]; if (!list) return;
+  const i = spellIndex(st), add = list[i][2];
+  if (!st.spellDone[i]) { // 邪魔は一度だけ足す（短すぎてやり直した線で重ねない）
+    st.spellDone[i] = true;
+    const want = add.blades || 0; if (want > st.blades.length) makeBlades(st, want - st.blades.length);
+    if (add.gust) { st.m.gustGap0 *= add.gust; st.m.gustGapR *= add.gust; }
+    if (add.crows) st.crowMax = Math.max(st.crowMax, add.crows);
+    if (add.rain) st.rainEvery = add.rain;
+    if (add.bake) typeSome(st, 'bake', add.bake);
+    if (add.flame) st.m.flameX *= add.flame;
+  }
+}
+function startSpell(st, k) {
+  const list = SPELLS[st.rule]; if (!list) return;
+  const i = spellIndex(st), [ja, en] = list[i];
+  st.crowLeft = st.crowMax;
+  k.spell = { id: `${st.rule}${i}`, i, ja, en, base: Math.round((st.target * st.m.spellX * (i === 3 ? 1.7 : 1)) / 10) * 10, oku: i === 3 };
+  st.events.push({ type: 'spell', ...k.spell });
+}
+// いま取れば入るボーナス（時間で減って、3 割で止まる）
+export function spellBonus(k) { return k?.spell ? Math.round((k.spell.base * Math.max(0.3, 1 - k.age / 12)) / 10) * 10 : 0; }
 
 const inkLimit = (st) => st.ink + st.carriedInk;
 
@@ -405,7 +475,51 @@ export function penUp(st, auto = false) { // auto: 墨切れで勝手に離れ�
   // 見切り: 熱いまま、火がすぐ後ろにいるうちに自分で離すと倍率 +1。捕まると付かない（危ないほど得）
   if (!auto && k.flameOn && k.heatLv >= 1 && k.len - k.flameS < st.m.hotGap * 0.5) {
     k.mult += 1; st.mikiri = (st.mikiri || 0) + 1;
-    st.events.push({ type: 'mikiri', x: k.pts[k.pts.length - 1].x, y: k.pts[k.pts.length - 1].y, mult: k.mult });
+    const p = k.pts[k.pts.length - 1];
+    // 見切り回収: 空の星屑をぜんぶ、鮮度 100% で吸い寄せる。この一筆の残りの星屑も自動で入る
+    k.vacuum = true;
+    let v = 0;
+    const from = st.dust.map((d) => [d.x, d.y, d.gold ? 1 : 0]);
+    for (const d of st.dust) v += takeDust(st, k, d, true);
+    st.dust.length = 0; st.bestSweep = Math.max(st.bestSweep || 0, from.length);
+    st.events.push({ type: 'mikiri', x: p.x, y: p.y, mult: k.mult, dustN: from.length, dustV: Math.round(v), from });
+  }
+}
+
+// ---- 星屑
+function spawnDust(st, s, n, gold) {
+  const k = st.stroke;
+  for (let i = 0; i < n; i++) {
+    const R = st.drnd, a = -Math.PI / 2 + (R() - 0.5) * 2.6, v = 70 + R() * 120;
+    const d = { x: s.x + (R() - 0.5) * s.r, y: s.y + (R() - 0.5) * s.r, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, gold };
+    if (k && k.vacuum) { const p = k.pts[k.pts.length - 1]; takeDust(st, k, d, true); st.events.push({ type: 'dust', x: d.x, y: d.y, tx: p.x, ty: p.y, v: Math.round(st.pv * (gold ? 2 : 1)), auto: true }); }
+    else st.dust.push(d);
+  }
+}
+function dustValue(st, d, fresh) { return st.pv * (d.gold ? 2 : 1) * (fresh ? 1 : 1 - st.m.dustFade * Math.min(1, d.t / st.m.dustLife)); }
+function takeDust(st, k, d, fresh) {
+  const v = dustValue(st, d, fresh);
+  k.chips += v; k.dust++; k.dustPts += v; st.dustGot++; st.dustPts += v;
+  return v;
+}
+function moveDust(st, dt) {
+  const k = st.stroke, m = st.m;
+  const pen = k && k.penDown && k.pts.length ? k.pts[k.pts.length - 1] : null;
+  const pick = pen ? (k.heatLv >= 3 ? m.dustPickTop : m.dustPick + k.heatLv * 8) * (m.dustPickX || 1) : 0;
+  const life = m.dustLife * (m.dustLifeX || 1);
+  for (let i = st.dust.length - 1; i >= 0; i--) {
+    const d = st.dust[i];
+    d.t += dt;
+    if (d.t >= life) { st.dust.splice(i, 1); continue; }
+    d.vy += m.dustG * dt; const fr = Math.exp(-1.6 * dt); d.vx *= fr; d.vy *= fr;
+    d.x += d.vx * dt; d.y += d.vy * dt;
+    if (!pen) continue;
+    const dx = pen.x - d.x, dy = pen.y - d.y, dist = Math.hypot(dx, dy);
+    if (dist < pick) {
+      const v = takeDust(st, k, { ...d, t: d.t / (m.dustLifeX || 1) }, false);
+      st.dust.splice(i, 1);
+      st.events.push({ type: 'dust', x: d.x, y: d.y, tx: pen.x, ty: pen.y, v: Math.round(v) });
+    } else if (dist < pick * 2.2) { const f = (1 - dist / (pick * 2.2)) * 900 * dt / Math.max(dist, 1); d.vx += dx * f; d.vy += dy * f; } // 近くの星屑は筆先に寄ってくる
   }
 }
 
@@ -505,6 +619,8 @@ function burst(st, s, gen, how) {
   k.fv = Math.min(m.flameVMax * m.flameX, k.fv + m.flameVPerPop * m.flameX);
   if (m.dyn) k.kick = Math.min(m.kickMax, k.kick + (how === 'line' ? m.kickLine : m.kickChain));
   st.bestChain = Math.max(st.bestChain, k.pops);
+  // 星屑がこぼれる。大きい玉ほど多い。金の玉の星屑は 2 倍の値
+  spawnDust(st, s, d.finale ? 16 : Math.min(6, 1 + Math.round(s.pts / 12)) + (m.dustAdd || 0), s.type === 'kin' || s.type === 'kingyo');
   const ms = CHAIN_MARKS.find((c) => c.n === k.pops);
   if (ms) { st.coinsEarned += ms.coin; st.events.push({ type: 'chainMark', x: s.x, y: s.y, ...ms }); }
   st.events.push({ type: 'burst', shell: s, gen, how, R, pts: Math.round(pts), chips: k.chips, mult: k.mult, multUp: k.mult - mult0, n: k.pops, heatLv: k.heatLv });
@@ -697,7 +813,7 @@ function rain(st, dt) {
   st.dropT -= dt;
   const k = st.stroke;
   if (st.dropT <= 0) {
-    st.dropT = 0.2;
+    st.dropT = st.rainEvery;
     st.drops.push({ x: st.rnd() * st.w, y: -10, vy: 520 + st.rnd() * 180 });
   }
   for (let i = st.drops.length - 1; i >= 0; i--) {
@@ -721,8 +837,11 @@ export function step(st, dt = DT) {
   if (st.crows.length || st.crowLeft > 0) moveCrows(st, dt);
   if (st.blades.length) cutByBlades(st, dt);
   if (st.runners.length) moveRunners(st, dt);
+  if (st.dust.length) moveDust(st, dt);
   if (st.phase === 'stroke' && k) {
     k.age += dt;
+    // 筆が止まっている時間（わざと火を待ったか）
+    if (k.penDown) { if (k.len - k.seenLen < 2) k.stillT += dt; else { k.stillT = 0; k.seenLen = k.len; } }
     if (k.age >= 2.6 && !k.done) intrude(st);
     if (st.falling && k.penDown) {
       st.fallT -= dt;
@@ -733,7 +852,7 @@ export function step(st, dt = DT) {
       }
     }
     extendLine(st);
-    if (!k.flameOn && k.age >= m.grace) { k.flameOn = true; st.events.push({ type: 'ignite', x: k.pts[0].x, y: k.pts[0].y }); }
+    if (!k.flameOn && k.age >= (k.grace ?? m.grace)) { k.flameOn = true; st.events.push({ type: 'ignite', x: k.pts[0].x, y: k.pts[0].y }); }
     if (k.flameOn && !k.fuseOut) {
       k.v = flameSpeed(st, k, dt);
       if (k.stopT > 0 && k.penDown) { k.stopT -= dt; k.v = 0; }
@@ -748,7 +867,11 @@ export function step(st, dt = DT) {
           k.saved++; k.flameS = Math.max(0, k.len - 110); st.events.push({ type: 'saved' });
         } else {
           k.flameS = k.len; k.caught = true; k.penDown = false; st.caughtCount++;
-          st.events.push({ type: 'caught', x: k.pts[k.pts.length - 1].x, y: k.pts[k.pts.length - 1].y });
+          // 筆を止めて火を待っていたなら「わざと捕まった」。星の値は 2 割減る
+          const waited = k.stillT >= 0.7 && k.len > 120;
+          if (waited) st.waited++;
+          const pv0 = st.pv; st.pv = Math.max(m.pv0, st.pv * m.caughtPv);
+          st.events.push({ type: 'caught', x: k.pts[k.pts.length - 1].x, y: k.pts[k.pts.length - 1].y, waited, pvLost: Math.round(pv0 - st.pv) });
         }
       }
       if (!k.penDown && !k.fuseOut && k.flameS >= k.len) {
@@ -762,6 +885,11 @@ export function step(st, dt = DT) {
       const hotNow = m.hotGap * (m.dyn ? 1 - m.hotShrink * k.heatLv : 1);
       if (k.penDown && gap < hotNow) k.heat += m.heatRate * (1 + (hotNow - gap) / hotNow) * dt;
       else if (!m.heatHold) k.heat = Math.max(0, k.heat - m.heatDecay * dt);
+      // かすり: 火とのすき間がごく狭い間、0.1 秒ごとに数えて、星の値を上げる
+      if (k.penDown && gap > 0 && gap < m.grazeGap * (m.grazeGapX || 1)) {
+        k.grazeT += dt;
+        while (k.grazeT >= m.grazeEvery) { k.grazeT -= m.grazeEvery; k.graze++; st.graze++; st.pv += m.grazePv * (m.grazePvX || 1); st.events.push({ type: 'graze', n: st.graze, k: k.graze, pv: st.pv, x: k.fx, y: k.fy }); fire(st, 'graze', { n: k.graze }); }
+      }
       const lv = m.heatLevels.filter((v) => k.heat >= v).length;
       if (lv !== k.heatLv) { const up = lv > k.heatLv; k.heatLv = lv; st.topHeat = Math.max(st.topHeat || 0, lv); st.events.push({ type: 'heat', lv, up }); if (up) fire(st, 'heatUp', { lv }); }
       // 線の火が玉にふれる
@@ -805,13 +933,17 @@ export function step(st, dt = DT) {
       st.events.push({ type: 'nightEnd', cleared: st.cleared, score: st.score, target: st.target });
       return;
     }
-    st.stroke = null;
-    st.knots.length = 0;
-    refill(st);
-    st.phase = 'aim';
-    st.events.push({ type: 'aim', strokesLeft: st.strokesLeft });
-    intrude(st);
+    settleNow(st);
   }
+}
+// 一筆のあとの間を終えて、次の一筆を待つ（継ぎ火で早めに入るときも、ここを通る）
+function settleNow(st) {
+  st.stroke = null;
+  st.knots.length = 0;
+  refill(st);
+  st.phase = 'aim';
+  st.events.push({ type: 'aim', strokesLeft: st.strokesLeft });
+  intrude(st);
 }
 
 function knotBurst(st, q) {
@@ -834,6 +966,7 @@ function finishStroke(st) {
   const remain = st.shells.filter((s) => s.state === 'idle' && s.rise <= 0 && !s.fall).length;
   st.crows.forEach((c) => dropCrow(st, c)); st.crows.length = 0;
   let bloom = false;
+  const multPre = k.mult; // 継ぎ火で持ちこむのは、満開の掛け算の前の倍率
   if (remain === 0 && k.pops > 0) {
     bloom = true; k.mult *= st.m.bloomX + Math.min(6, st.streak); st.streak++; st.blooms++; st.lastBloom = true;
     if (st.twist === 'katamono') st.goalMet = true;
@@ -842,13 +975,29 @@ function finishStroke(st) {
   }
   const gained = Math.floor(k.chips * k.mult);
   st.score += gained; st.lastGain = gained;
+  st.dustScore = (st.dustScore || 0) + Math.floor(k.dustPts * k.mult); // 星屑で稼いだ点（結果の内訳に出す）
+  // 技: 捕まらずに、はじめにあった玉の 6 割以上をひらけば取れる。ボーナスは倍率の外で足す
+  let spellGot = 0;
+  if (k.spell) {
+    const got = !k.caught && (bloom || k.pops >= Math.ceil(k.idle0 * st.m.spellNeed));
+    if (got) { spellGot = spellBonus(k); st.score += spellGot; }
+    st.spellLog.push({ id: k.spell.id, got });
+    st.events.push({ type: got ? 'spellGet' : 'spellFail', ...k.spell, bonus: spellGot });
+  }
   st.strokesLeft--; st.strokesUsed++;
-  st.events.push({ type: 'strokeEnd', gained, chips: k.chips, mult: k.mult, pops: k.pops, bloom, caught: k.caught, heatLv: k.heatLv, streak: st.streak });
+  st.events.push({ type: 'strokeEnd', gained, chips: k.chips, mult: k.mult, pops: k.pops, bloom, caught: k.caught, heatLv: k.heatLv, streak: st.streak, graze: k.graze, dust: k.dust, dustPts: Math.round(k.dustPts), tsugiN: k.tsugiN, spellGot });
   st.phase = 'settle';
   st.settleAt = st.t + (bloom ? 3.2 : 0.9);
   if (st.act2) st.coinsEarned += Math.ceil(k.pops / 3);
   if (st.score >= st.target || st.goalMet || st.act2) st.cleared = true;
   else if (st.strokesLeft <= 0) st.failed = true;
+  // 継ぎ火: 捕まらずに終えたら、離した所に輪が残る。輪の中から次の一筆を始めると倍率を持ちこめる
+  const last = k.pts[k.pts.length - 1];
+  if (!k.caught && k.pops > 0 && !st.failed && !st.cleared && st.strokesLeft > 0) {
+    const win = st.m.tsugiWin * (st.m.tsugiWinX || 1);
+    st.tsugi = { x: last.x, y: last.y, until: st.t + win, win, mult: multPre, heat: k.heat, n: (k.tsugiN || 0) + 1 };
+    st.events.push({ type: 'tsugiOpen', x: last.x, y: last.y, n: st.tsugi.n, win });
+  } else st.tsugi = null;
 }
 
 // 一筆が終わるたびに、町から新しい玉が上がってくる。満開のあとは盤がまるごと入れかわる

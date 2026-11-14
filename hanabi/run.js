@@ -105,11 +105,22 @@ export function chooseRoute(run, c) {
 export function fixRun(run) {
   if (!run) return run;
   run.lives ??= 3; run.retry ??= 0; run.bloomStreak ??= 0; run.plan ??= {}; run.used ??= [];
+  run.pv ??= 4; run.dust ??= 0; run.graze ??= 0; run.waitedNights ??= 0; run.spells ??= {};
   return run;
 }
+// 1 周で拾った星屑がここに届くたび、提灯が 1 つ増える（5 まで）
+export const EXTENDS = [150, 400, 800, 1400, 2200];
+export const MAX_LIVES = 5;
 // 夜の結果を周回に反映する。'clear' | 'retry' | 'over'
 export function afterNight(run, st) {
   run.bloomStreak = st.blooms > 0 ? st.streak : 0;
+  // 腕の層は周回をまたいで持ちこす（星の値・星屑・かすり・技の記録）
+  fixRun(run);
+  const d0 = run.dust; run.dust += st.dustGot; run.graze += st.graze; run.pv = st.pv;
+  if (st.waited > 0) run.waitedNights++;
+  for (const r of st.spellLog || []) { const x = run.spells[r.id] || (run.spells[r.id] = { t: 0, g: 0 }); x.t++; if (r.got) x.g++; }
+  run.lastExt = 0;
+  for (const e of EXTENDS) if (d0 < e && run.dust >= e && run.lives < MAX_LIVES) { run.lives++; run.lastExt++; }
   if (st.cleared) { run.retry = 0; return 'clear'; }
   run.lives--;
   if (run.lives <= 0) return 'over';
@@ -150,6 +161,7 @@ export function newRun({ seed, fuse = 'asa', rank = 0 } = {}) {
     charms: f.start.slice(), recipes: {}, coins: f.coins, slots: 5 + (RANKS[rank]?.slots || 0), rerolls: 0, totalScore: 0, nightsCleared: 0, bestChain: 0, stars: 0,
     shopRound: 0, done: false, won: false,
     lives: rank >= 6 ? 1 : rank >= 4 ? 2 : 3, retry: 0, bloomStreak: 0, plan: {}, used: [],
+    pv: 4, dust: 0, graze: 0, waitedNights: 0, spells: {},
   };
 }
 
@@ -163,7 +175,7 @@ export function loadoutFor(run) {
       if (rank.flameX) m.flameX *= rank.flameX;
     },
   };
-  return { charms: [pre, ...charms], recipes: run.recipes, coins: run.coins, streak: run.bloomStreak || 0 };
+  return { charms: [pre, ...charms], recipes: run.recipes, coins: run.coins, streak: run.bloomStreak || 0, pv: run.pv ?? 4 };
 }
 
 // 夜の報酬: 基本 + 残った筆 + 星
@@ -211,7 +223,7 @@ export function advance(run) {
 export const clearedCount = (run) => (run.world - 1) * NIGHTS_PER_WORLD + run.night - 1;
 
 // ---- 周回をまたぐ記録: 周回ごとに経験がたまり、お守りと開始の型が開く
-export const START_POOL = 34;
+export const START_POOL = 38;
 export function unlockedCharms(meta) {
   const xp = meta?.xp || 0, n = Math.min(CHARMS.length, START_POOL + Math.floor(xp / 30));
   const order = CHARMS.slice().sort((a, b) => ({ c: 0, r: 1, l: 2 }[a.rar] - { c: 0, r: 1, l: 2 }[b.rar]));

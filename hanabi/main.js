@@ -11,6 +11,7 @@ import { ACHIEVEMENTS, checkAchievements } from './ach.js';
 import { THEMES } from './levels.js';
 import { drawCast } from '../assets/hitofude/cast.js';
 import { track, share, canShare } from './track.js';
+import * as Mem from './memory.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -33,6 +34,8 @@ const PF = createPlatform();
 const SAVE = 'hanabi2';
 const load = () => { try { return JSON.parse(localStorage.getItem(SAVE) || '{}'); } catch { return {}; } };
 const DB = { meta: { xp: 0, wins: 0, best: 0, runs: 0, rankOpen: 0, taught: {}, seen: {} }, run: null, lang: null, sound: true, music: true, ...load() };
+DB.meta.mem = Mem.fixMem(DB.meta.mem);
+const mem = () => DB.meta.mem;
 const save = () => { const j = JSON.stringify(DB); try { localStorage.setItem(SAVE, j); } catch { /* 保存できない環境でも遊べる */ } PF.write(SAVE, j); };
 
 let lang = q.get('lang') || DB.lang || ((navigator.language || 'en').startsWith('ja') ? 'ja' : 'en');
@@ -100,7 +103,9 @@ function toTitle() {
   show('title'); $('hud').classList.add('hidden'); $('teach').classList.add('hidden');
   setTheme('summer');
   // 物語の結末を見たあとは、ここが「終わらない祭り」（灯が帰らずに逃げ続けていた世界）になる
-  $('tagline').textContent = DB.meta.storyDone ? tr('終わらない祭り —— それでも、もう一夜だけ。', 'The Endless Festival — just one more night.') : tr('線を引け。火が追いかけてくる。', 'Draw the fuse. The flame is right behind you.');
+  // 前の遊びの終わり方・何日ぶりか・時刻で、一言が変わる（読んだあとで「いま」を記録）
+  const tl = Mem.titleLine(DB.meta); $('tagline').textContent = JA() ? tl.ja : tl.en;
+  if (!S.titleSeen) { S.titleSeen = 1; mem().lastPlay = Date.now(); save(); }
   $('playBtn').textContent = DB.run ? tr('続きから', 'CONTINUE') : tr('あそぶ', 'PLAY');
   const m = $('titleMenu'); m.innerHTML = '';
   const add = (t, f) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { audio.unlock(); audio.ui('tap'); f(); }; m.append(b); };
@@ -151,6 +156,17 @@ function openBook() {
     const t = document.createElement('div'); t.innerHTML = `<b>${o ? (JA() ? c.ja : c.en) : '？？？'}</b>${o ? (JA() ? c.dj : c.de) : ''}`;
     e.append(cv, t); list.append(e);
   }
+  // 技帳: 妖怪ごとの技と、取った回数 / 挑んだ回数
+  const sp = DB.meta.spells || {};
+  const sh = document.createElement('div'); sh.className = 'bookhead'; sh.textContent = tr(`技帳 ${Object.values(sp).filter((x) => x.g > 0).length} / 24`, `Techniques ${Object.values(sp).filter((x) => x.g > 0).length} / 24`); list.append(sh);
+  for (const [rule, arr] of Object.entries(G.SPELLS)) {
+    const r = Run.RULES[rule];
+    arr.forEach(([ja, en], i) => {
+      const rec = sp[`${rule}${i}`], seen = !!rec, e = document.createElement('div'); e.className = 'bookitem ach' + (rec?.g ? '' : ' locked');
+      e.innerHTML = `<span class="seal">${rec?.g ? '技' : '・'}</span><div><b>${seen ? (JA() ? `${r.ja}「${ja}」` : `${r.en} "${en}"`) : '？？？'}</b>${i === 3 ? tr('奥義 ', 'Secret art ') : ''}${seen ? tr(`取った ${rec.g} / 挑んだ ${rec.t}`, `Captured ${rec.g} / ${rec.t}`) : tr('まだ見ていない', 'Not seen yet')}</div>`;
+      list.append(e);
+    });
+  }
   const got = DB.meta.ach || {}, n = ACHIEVEMENTS.filter((a) => got[a.id]).length;
   const h = document.createElement('div'); h.className = 'bookhead'; h.textContent = tr(`実績 ${n} / ${ACHIEVEMENTS.length}`, `Achievements ${n} / ${ACHIEVEMENTS.length}`); list.append(h);
   for (const a of ACHIEVEMENTS) {
@@ -174,8 +190,19 @@ function startDaily() {
 }
 $('playBtn').onclick = () => {
   audio.unlock(); audio.ui('tap');
-  if (DB.run) { S.run = Run.fixRun(DB.run); startNight(); } else beginRun();
+  if (DB.run) { S.run = Run.fixRun(DB.run); resumeRun(); } else beginRun();
 };
+// 夜の途中で（一筆でも引いたあとに）ページを閉じた・タイトルへ戻ったなら、それを覚えている
+function resumeRun() {
+  const run = S.run, was = run.inNight;
+  if (!was || !was.used) return startNight();
+  const m = mem(); m.left++; m.lastLeftAt = Date.now();
+  const line = Mem.leftLine(m, run.lives);
+  if (line.take) run.lives--;
+  run.inNight = null; DB.run = run; save(); achCheck({});
+  track('mem/left');
+  showTalk(tr('ねこ屋のトラ', 'Tora the cat'), 'neko', line.take ? 'sad' : 'joy', JA() ? line.ja : line.en, startNight);
+}
 
 // ------------------------------------------------------------------ 夜
 function startNight() {
@@ -185,6 +212,7 @@ function startNight() {
   const W2 = Run.WORLDS[def.world - 1];
   setTheme(W2.theme);
   S.st = G.newNight(def, W, H, Run.loadoutFor(run));
+  run.inNight = { w: def.world, n: def.night, used: 0 }; DB.run = run; save();
   $('float').replaceChildren();
   S.mode = 'play'; S.crossed = false; S.seq = []; S.endAfterCount = false; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0; S.cnt = null;
   PF.start();
@@ -196,7 +224,8 @@ function startNight() {
   renderStrokes(); renderBags();
   const nS = S.st.shells.length, riseStep = Math.min(0.035, 1.4 / Math.max(1, nS));
   S.st.shells.forEach((s, k) => { s.rise = 0.15 + k * riseStep; launchFor(s); });
-  renderLives(); renderStreak(false);
+  renderLives(); renderStreak(false); renderTech();
+  $('spellBar').className = 'spellbar off'; S.dustAcc = 0; S.dustAt = 0; S.dustSnd = 0;
   const tw = def.twist && Run.TWISTS[def.twist];
   $('twistTag').textContent = tw ? (JA() ? tw.ja : tw.en) : '';
   const zl = $('zoneLabels'); zl.innerHTML = '';
@@ -206,7 +235,8 @@ function startNight() {
   if (def.rule) {
     const r = Run.RULES[def.rule];
     drawBoss(r.cast, 'taunt'); boss.classList.remove('hidden'); boss.classList.add('taunt');
-    banner(`${JA() ? r.ja : r.en}<small>${JA() ? r.dj : r.de}</small>`, 62, 2600);
+    const taunt = Mem.bossTaunt(mem(), def.rule, run);
+    banner(`${JA() ? r.ja : r.en}<small>${JA() ? r.dj : r.de}${taunt ? `<br>「${JA() ? taunt.ja : taunt.en}」` : ''}</small>`, 62, taunt ? 3400 : 2600);
     audio.boom(1.4, 0);
   } else {
     boss.classList.add('hidden');
@@ -219,6 +249,12 @@ function startNight() {
   audio.scene('calm');
 }
 function renderLives() { const r = S.run, el = $('lives'); el.innerHTML = ''; const max = Math.max(r.lives, r.rank >= 6 ? 1 : r.rank >= 4 ? 2 : 3); for (let i = 0; i < max; i++) { const b = document.createElement('i'); if (i >= r.lives) b.className = 'out'; el.append(b); } }
+// 腕の欄: 星の値（星屑 1 粒の値）と、かすりの数
+function renderTech(bumpPv) {
+  const st = S.st; if (!st) return;
+  $('tPv').textContent = fmtM(st.pv); $('tGrL').textContent = tr('かすり', 'Graze'); $('tGr').textContent = st.graze;
+  if (bumpPv) bump($('tPv').parentElement);
+}
 function renderStreak(up) { const n = S.st?.streak || 0, el = $('streak'); el.textContent = n > 0 ? tr(`連続満開 ${n}（次は ×${S.st.m.bloomX + Math.min(6, n)}）`, `Bloom streak ${n} (next ×${S.st.m.bloomX + Math.min(6, n)})`) : ''; if (up) { el.classList.remove('up'); void el.offsetWidth; el.classList.add('up'); } }
 function drawBoss(id, face) {
   const c = $('boss'), g = c.getContext('2d'); g.clearRect(0, 0, 280, 280);
@@ -292,6 +328,7 @@ function nightEnded() {
   S.cnt = null; S.endAfterCount = false; S.shown = st.score; $('gScore').textContent = fmt(st.score); S.goalEl?.classList.remove('counting');
   if (st.cleared && (def.boss || G.starsFor(st) === 3)) PF.happy();
   run.bestChain = Math.max(run.bestChain, st.bestChain); run.totalScore += st.score;
+  run.inNight = null; const m = mem(); m.graze += st.graze; m.dust += st.dustGot; m.lastPlay = Date.now();
   if (S.teachKey) DB.meta.taught[S.teachKey] = 1;
   // 届かなかった夜は「あと何点だったか」を見せる（悔しさが次の一回を呼ぶ）
   S.miss = !st.cleared && st.score < st.target ? { n: st.target - st.score, pct: Math.floor((st.score / st.target) * 100) } : null;
@@ -307,6 +344,13 @@ function nightEnded() {
   run.coins += gain;
   DB.meta.taught.draw = 1;
   S.shop = Run.shopFor(run, Run.unlockedCharms(DB.meta)); S.sold = new Set();
+  // 売ったお守りは、トラが取っておいてくれる（売った値 +1 で買い戻せる）
+  let back = null;
+  while (run.soldIds?.length && !back) { const id = run.soldIds.shift(); if (!run.charms.includes(id) && CHARM_BY_ID[id]) back = id; }
+  S.back = back ? { kind: 'charm', id: back, cost: Math.max(1, Math.floor(CHARM_BY_ID[back].cost / 2)) + 1, back: true } : null;
+  if (S.back) S.shop.push({ ...S.back });
+  const sl = Mem.shopLine(mem(), run, { buyBack: !!back, ext: run.lastExt > 0, waited: st.waited > 0 });
+  S.toraLine = sl ? (JA() ? sl.ja : sl.en) : '';
   S.route = Run.routeChoices(run); S.routeSel = 0;
   DB.run = run; save();
   // 大一番に勝った瞬間: すぐ屋台を出さず、止め・閃光・ゆっくりの大団円を 1.7 秒見せる
@@ -334,15 +378,31 @@ function openInter(def, st, stars, rw, interest, gain) {
   const sEl = $('resStars'); sEl.innerHTML = '<span>★</span><span>★</span><span>★</span>';
   [...sEl.children].forEach((c, i) => { if (i < stars) setTimeout(() => { c.classList.add('on'); audio.note(12 + i * 2, { vol: 0.18, dur: 0.5 }); }, 200 + i * 220); });
   $('resScore').textContent = fmt(st.score);
+  renderTechSum(st);
   const rows = [[def.boss ? tr('大一番のごほうび', 'Boss bonus') : tr('今夜のごほうび', 'Night bonus'), rw.base], [tr('残った筆', 'Strokes left'), rw.left], [tr('星', 'Stars'), rw.star], [tr('お守りと玉', 'Charms & shells'), rw.earned], [tr('趣向の上乗せ', 'Twist bonus'), rw.twist], [tr('利息', 'Interest'), interest]].filter((r) => r[1] > 0);
   $('ledger').innerHTML = rows.map(([a, b], i) => `<div style="animation-delay:${0.1 + i * 0.09}s"><span>${a}</span><b>+${b}</b></div>`).join('');
   $('shopTitle').textContent = tr('屋台', 'Festival Stalls');
+  $('toraSay').textContent = S.toraLine || '';
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
   $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT');
   renderShop();
   countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
   audio.ui('win'); if (!def.boss) audio.scene('calm');
+}
+// 夜の腕前: かすり・星屑・見切り・継ぎ火・技。提灯が増えたら一番前に
+function renderTechSum(st) {
+  const run = S.run, n = st.spellLog?.length || 0, g = st.spellLog?.filter((x) => x.got).length || 0;
+  const items = [
+    run?.lastExt ? `<span class="ext">${tr(`提灯 +${run.lastExt}！`, `+${run.lastExt} lantern!`)}</span>` : '',
+    `<span>★${tr('星の値', ' Star value')}<b>${fmtM(st.pv)}</b></span>`,
+    st.graze ? `<span>${tr('かすり', 'Graze')}<b>${st.graze}</b></span>` : '',
+    st.dustGot ? `<span>${tr('星屑', 'Dust')}<b>${st.dustGot}${tr(' 粒', '')}</b>（${fmt(st.dustScore || 0)}${tr(' 点', ' pts')}）</span>` : '',
+    st.mikiri ? `<span>${tr('見切り', 'Close calls')}<b>${st.mikiri}</b></span>` : '',
+    st.tsugiBest ? `<span>${tr('継ぎ火', 'Relight')}<b>${st.tsugiBest}${tr(' 連', '×')}</b></span>` : '',
+    n ? `<span>${tr('技', 'Techniques')}<b>${g} / ${n}</b></span>` : '',
+  ].filter(Boolean);
+  $('techSum').innerHTML = items.map((x, i) => x.replace('<span', `<span style="animation-delay:${0.15 + i * 0.07}s"`)).join('');
 }
 // 小判を 0.6 秒で数え上げる（帳面の行が出そろうのに合わせて始める）
 function countUp(el, from, to, delay = 0) {
@@ -362,7 +422,7 @@ const bossKey = (def) => String((def.rule && (def.rule.id || def.rule)) || 'boss
 function retryNight() {
   S.mode = 'retry'; DB.run = S.run; save();
   renderLives();
-  const miss = S.miss ? tr(`あと ${fmt(S.miss.n)} 点だった（${S.miss.pct}%）`, `Just ${fmt(S.miss.n)} short (${S.miss.pct}%)`) + '<br>' : '';
+  const miss = (S.miss ? tr(`あと ${fmt(S.miss.n)} 点だった（${S.miss.pct}%）`, `Just ${fmt(S.miss.n)} short (${S.miss.pct}%)`) + '<br>' : '') + (S.run.lastExt ? tr(`星屑で提灯 +${S.run.lastExt}`, `Star dust: +${S.run.lastExt} lantern`) + '<br>' : '');
   banner(`${tr('提灯がひとつ消えた', 'A lantern goes out')}<small>${miss}${tr(`もう一度、この夜を。残り ${S.run.lives}`, `Try this night again. ${S.run.lives} left`)}</small>`, 56, 1000);
   audio.ui('lose'); hurt();
   // 待たせない: 1 秒で自動、0.3 秒すぎたら触れればすぐ
@@ -380,7 +440,7 @@ function renderShop() {
     if (it.kind === 'charm') {
       const c = CHARM_BY_ID[it.id]; if (c.rar !== 'c') b.classList.add(c.rar);
       const art = document.createElement('div'); art.className = 'art'; const cv = document.createElement('canvas'); cv.width = 120; cv.height = 150; drawBag(cv, c); art.append(cv);
-      b.innerHTML = `<span class="tg" style="background:${TAG_COLOR[c.tag]}">${TAG_NAME[c.tag][JA() ? 0 : 1]}</span>`;
+      b.innerHTML = it.back ? `<span class="tg back">${tr('買い戻し', 'Buy back')}</span>` : `<span class="tg" style="background:${TAG_COLOR[c.tag]}">${TAG_NAME[c.tag][JA() ? 0 : 1]}</span>`;
       b.append(art);
       b.insertAdjacentHTML('beforeend', `<span class="nm">${JA() ? c.ja : c.en}</span><span class="ds">${JA() ? c.dj : c.de}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`);
     } else {
@@ -423,7 +483,7 @@ function renderHeld(el, sell) {
       d.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { hideTip(); d.classList.remove('armed'); } });
       // 指でも説明が読めるように、1 回目は説明と「売る」の合図、2 回目で売る（1 回で売れると誤って手放す）
       d.onclick = (e) => {
-        if (sell && d.classList.contains('armed')) { S.run.charms.splice(i, 1); S.run.coins += price; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); return; }
+        if (sell && d.classList.contains('armed')) { S.run.charms.splice(i, 1); S.run.coins += price; (S.run.soldIds = S.run.soldIds || []).push(id); mem().sold++; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); return; }
         el.querySelectorAll('.armed').forEach((o) => o.classList.remove('armed'));
         if (sell) d.classList.add('armed');
         tip(e, sell); audio.ui('tap');
@@ -440,7 +500,7 @@ function buy(i) {
   audio.note(14, { vol: 0.18, dur: 0.3 }); setTimeout(() => audio.note(17, { vol: 0.16, dur: 0.4 }), 70);
   hideTip(); renderShop();
 }
-$('reroll').onclick = () => { const run = S.run, c = Run.rerollCost(run); if (c > run.coins) return; run.coins -= c; run.rerolls++; run.shopRound++; S.shop = Run.shopFor(run, Run.unlockedCharms(DB.meta)); S.sold = new Set(); audio.ui('tap'); renderShop(); };
+$('reroll').onclick = () => { const run = S.run, c = Run.rerollCost(run); if (c > run.coins) return; run.coins -= c; run.rerolls++; run.shopRound++; S.shop = Run.shopFor(run, Run.unlockedCharms(DB.meta)); S.sold = new Set(); if (S.back && !run.charms.includes(S.back.id)) S.shop.push({ ...S.back }); audio.ui('tap'); renderShop(); }; // 買い戻しは引き直しても残す
 $('nextBtn').onclick = () => {
   audio.ui('tap');
   if (S.route && S.route.length) Run.chooseRoute(S.run, S.route[S.routeSel || 0]);
@@ -516,10 +576,15 @@ function runOver(won) {
   if (won) { meta.wins = (meta.wins || 0) + 1; meta.rankOpen = Math.max(meta.rankOpen || 0, run.rank + 1); }
   achCheck({ stars: 0 });
   const after = Run.unlockedCharms(meta).size, fuseAfter = Run.FUSES.filter((f) => Run.fuseOpen(f, meta)).length;
-  $('ovTitle').textContent = won ? tr('祭り、大団円！', 'The Festival is Complete!') : tr('今夜はここまで', 'The Night Ends');
+  const mercy = won && (run.waitedNights || 0) >= Mem.MERCY_NEED, ME = Mem.mercyEnding();
+  meta.mem.lastEnd = { nights: run.nightsCleared, won }; meta.mem.lastPlay = Date.now();
+  if (mercy) { meta.mem.mercy = 1; achCheck({}); track('mem/mercy'); }
+  $('ovTitle').textContent = mercy ? tr(ME.title.ja, ME.title.en) : won ? tr('祭り、大団円！', 'The Festival is Complete!') : tr('今夜はここまで', 'The Night Ends');
   const sub = [newBest ? `<em class="best">${tr('自己ベスト！', 'New Best!')}</em>` : '', !won && S.miss ? tr(`最後の夜は あと ${fmt(S.miss.n)} 点（${S.miss.pct}%）`, `Last night: ${fmt(S.miss.n)} short (${S.miss.pct}%)`) : ''].filter(Boolean).join(' ');
-  $('ovNights').innerHTML = tr(`${run.nightsCleared} / 24 夜`, `${run.nightsCleared} / 24 nights`) + (sub ? `<small>${sub}</small>` : '');
-  $('ovStats').innerHTML = [[tr('合計の点', 'Total score'), fmt(run.totalScore)], [tr('最大連鎖', 'Best chain'), run.bestChain], [tr('星', 'Stars'), run.stars], [tr('経験', 'XP'), '+' + Run.xpFor(run)]].map(([a, b], i) => `<div style="animation-delay:${i * 0.1}s"><span>${a}</span><b>${b}</b></div>`).join('');
+  $('ovNights').innerHTML = tr(`${run.nightsCleared} / 24 夜`, `${run.nightsCleared} / 24 nights`) + (sub ? `<small>${sub}</small>` : '') + (mercy ? `<small class="mercy">${(JA() ? ME.body.ja : ME.body.en).split('\n').join('<br>')}</small>` : '');
+  const sp = Object.values(run.spells || {}), spT = sp.reduce((a, x) => a + x.t, 0), spG = sp.reduce((a, x) => a + x.g, 0);
+  meta.bestScore = Math.max(meta.bestScore || 0, run.totalScore);
+  $('ovStats').innerHTML = [[tr('合計の点', 'Total score'), fmt(run.totalScore)], [tr('最大連鎖', 'Best chain'), run.bestChain], [tr('星の値', 'Star value'), fmtM(run.pv ?? 4)], [tr('かすり', 'Graze'), fmt(run.graze || 0)], [tr('星屑', 'Star dust'), fmt(run.dust || 0)], ...(spT ? [[tr('技', 'Techniques'), `${spG} / ${spT}`]] : []), [tr('星', 'Stars'), run.stars], [tr('経験', 'XP'), '+' + Run.xpFor(run)]].map(([a, b], i) => `<div style="animation-delay:${i * 0.1}s"><span>${a}</span><b>${b}</b></div>`).join('');
   const ul = [];
   if (after > before) ul.push(tr(`新しいお守り ${after - before} 種！`, `${after - before} new charm(s)!`));
   if (fuseAfter > fuseBefore) ul.push(tr('新しい導火線！', 'New fuse!'));
@@ -599,10 +664,20 @@ addEventListener('visibilitychange', () => { audio.mute(document.hidden); if (do
 // ------------------------------------------------------------------ 見せ方
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
 const panOf = (x) => Math.max(-0.8, Math.min(0.8, (x / W) * 2 - 1));
-function floatText(x, y, text, cls = '', size = 22) {
+function floatText(x, y, text, cls = '', size = 22, life = 950) {
+  x = Math.max(W * 0.14, Math.min(W * 0.86, x)); // 端で字が切れないように
   const e = document.createElement('div'); e.className = 'pop ' + cls; e.textContent = text;
   e.style.left = (x / W) * 100 + '%'; e.style.top = (y / H) * 100 + '%'; e.style.fontSize = size * (innerHeight / H) + 'px';
-  $('float').append(e); setTimeout(() => e.remove(), 950);
+  $('float').append(e); setTimeout(() => e.remove(), life);
+}
+// トラ（屋台の猫）や妖怪が、画面の下から話しかける。触れると閉じて then へ
+function showTalk(who, cast, face, text, then) {
+  const t = $('talk'), g = $('talkFace').getContext('2d'); g.clearRect(0, 0, 160, 160);
+  try { drawCast(g, cast, 80, 90, 110, { face, still: true, glow: false }); } catch { /* 絵が無くても話せる */ }
+  $('talkWho').textContent = who; $('talkMsg').textContent = text; $('talkNext').textContent = tr('触れて つづける', 'Tap to continue');
+  t.classList.remove('hidden'); audio.note(12, { vol: 0.12, dur: 0.3 });
+  const at = performance.now();
+  t.onclick = () => { if (performance.now() - at < 400) return; t.classList.add('hidden'); t.onclick = null; audio.ui('tap'); then?.(); };
 }
 function banner(html, size = 70, life = 1600) {
   $('float').querySelectorAll('.banner').forEach((o) => o.remove());
@@ -681,15 +756,71 @@ function handle(ev) {
     case 'caught': // 追いつかれた: 一瞬止めて、赤く暗く。火の子が筆先に飛びつく
       audio.ui('caught'); hitStop(110); hurt();
       floatText(ev.x, Math.max(H * 0.2, ev.y - 80), tr('追いつかれた！', 'Caught!'), 'caught', 40);
+      if (ev.pvLost > 0) floatText(ev.x, Math.max(H * 0.2, ev.y - 80) + 40, tr(`星の値 −${ev.pvLost}`, `Star value −${ev.pvLost}`), 'mult', 20);
+      renderTech();
+      mem().caught++;
+      if (ev.waited) {
+        const m = mem(); m.waited++; save(); achCheck({});
+        const line = Mem.hinokoLine(m.waited);
+        if (line) S.seq.push({ at: 0.5, f: () => floatText(ev.x, Math.max(H * 0.18, ev.y - 30), JA() ? line.ja : line.en, 'hinoko', 30, 2900) });
+      }
       fx.tick(ev.x, ev.y, [2.6, 0.6, 0.15], 60, 260); fx.light(ev.x, ev.y, 0.9, 260, [1, 0.25, 0.08], 8);
       R.shake = Math.min(14, R.shake + 6); kick(ev.x, ev.y, 9);
       break;
-    case 'mikiri': // 見切り: ぎりぎりで自分から離した
+    case 'mikiri': // 見切り: ぎりぎりで自分から離した。空の星屑がぜんぶ筆先に集まる
       audio.ui('mikiri'); hitStop(60);
       floatText(ev.x, ev.y - 44, tr('見切り！ 倍率+1', 'CLOSE CALL! +1 MULT'), 'gold', 30);
+      if (ev.dustN) {
+        floatText(ev.x, ev.y - 78, tr(`星屑 回収 ${ev.dustN} 粒 +${fmt(ev.dustV)}`, `Dust sweep ×${ev.dustN} +${fmt(ev.dustV)}`), 'dustp', 24);
+        for (const [x, y, g] of ev.from) { const c = g ? [3, 2.3, 0.8] : [1.6, 2.3, 3.4]; for (let i = 0; i < 4; i++) { const u = 0.16 + i * 0.03; fx.add(x, y, (ev.x - x) / u, (ev.y - y) / u, u, 3.2 - i * 0.5, 0, 0, c, c, 1.6); } }
+        audio.note(22, { vol: 0.16, dur: 0.5 }); $('cPts').textContent = fmt(st.stroke?.chips || 0); bump($('cPts'));
+      }
       fx.tick(ev.x, ev.y, [2.6, 2.4, 1.4], 30, 220);
       $('cMult').textContent = fmtM(ev.mult); bump($('cMult'));
       break;
+    case 'dust': { // 星屑を拾った: 筆先へ吸いこまれる光と、まとめた「+点」
+      const c = [1.6, 2.3, 3.4];
+      for (let i = 0; i < 3; i++) { const u = 0.1 + i * 0.03; fx.add(ev.x, ev.y, (ev.tx - ev.x) / u, (ev.ty - ev.y) / u, u, 3 - i * 0.6, 0, 0, c, c, 1.5); }
+      S.dustAcc += ev.v; S.dustX = ev.tx; S.dustY = ev.ty;
+      const now = performance.now(); if (now - S.dustSnd > 45) { S.dustSnd = now; audio.note(16 + ((S.dustN = (S.dustN || 0) + 1) % 8), { vol: 0.05, dur: 0.09 }); }
+      if (st.stroke) $('cPts').textContent = fmt(st.stroke.chips);
+      break;
+    }
+    case 'graze': { // かすり: 火と筆のすき間に白い火花。星の値が上がる
+      const p = st.stroke?.pts.at(-1); if (p) for (let i = 0; i < 3; i++) { const a = Math.random() * 6.283, v = 80 + Math.random() * 120; fx.add((p.x + ev.x) / 2, (p.y + ev.y) / 2, Math.cos(a) * v, Math.sin(a) * v, 0.18, 1.8, 1, 0, [3, 3, 3.2], [1.2, 1.4, 2], 1.6); }
+      if (ev.n % 2 === 0) audio.ui('graze');
+      renderTech(ev.k % 10 === 0);
+      if (ev.k === 10 || ev.k === 30 || ev.k === 60) floatText(p?.x ?? ev.x, (p?.y ?? ev.y) - 40, tr(`かすり ${ev.k}！`, `Graze ${ev.k}!`), 'graze', 22 + ev.k / 6);
+      break;
+    }
+    case 'tsugiOpen': // 継ぎ火の輪: ここから次の一筆を始めれば、倍率を持ちこめる
+      floatText(ev.x, ev.y - 52, ev.n > 1 ? tr(`ここから継げる（${ev.n} 連）`, `Relight here (×${ev.n})`) : tr('ここから継げる', 'Relight here'), 'gold', 20);
+      break;
+    case 'tsugi':
+      audio.ui('tsugi'); hitStop(40);
+      banner(`${tr('継ぎ火', 'RELIGHT')} ${ev.n > 1 ? ev.n + tr(' 連', ' chain') : ''}<small>${tr(`倍率を持ちこんだ ×${fmtM(ev.mult)}`, `MULT carried ×${fmtM(ev.mult)}`)}</small>`, 52, 1000);
+      fx.tick(ev.x, ev.y, [3, 1.6, 0.4], 46, 260); fx.light(ev.x, ev.y, 0.8, 280, [1, 0.55, 0.2], 8);
+      $('cMult').textContent = fmtM(ev.mult); bump($('cMult'));
+      break;
+    case 'tsugiLost': if (ev.n >= 2) floatText(W / 2, H * 0.3, tr(`継ぎ火 ${ev.n} 連で途切れた`, `Relight chain ended at ${ev.n}`), 'mult', 22); break;
+    case 'spell': { // 技の名乗り: 右に名前とボーナス。初めの一筆は 技の説明も
+      const r = Run.RULES[st.rule], bar = $('spellBar');
+      $('spLabel').textContent = ev.oku ? tr('奥義', 'SECRET ART') : tr(`技 其の${'一二三'[ev.i]}`, `TECHNIQUE ${ev.i + 1}`);
+      $('spName').textContent = JA() ? `${r?.ja || ''}「${ev.ja}」` : `${r?.en || ''} "${ev.en}"`;
+      bar.className = 'spellbar declare'; void bar.offsetWidth;
+      audio.ui('spell'); R.flash = Math.max(R.flash, 0.12);
+      if (ev.i === 0 && !DB.meta.taught.spell) { DB.meta.taught.spell = 1; floatText(W / 2, H * 0.32, tr('技: 捕まらずに 6 割ひらけば、ボーナス', 'Technique: open 60% without getting caught for a bonus'), 'spell', 22); }
+      break;
+    }
+    case 'spellGet': case 'spellFail': {
+      const got = ev.type === 'spellGet', bar = $('spellBar'), m = DB.meta.spells = DB.meta.spells || {}, rec = m[ev.id] = m[ev.id] || { t: 0, g: 0 };
+      rec.t++; if (got) rec.g++;
+      bar.classList.add(got ? 'got' : 'fail');
+      $('spBonus').textContent = got ? tr(`取得 +${fmt(ev.bonus)}`, `CAPTURED +${fmt(ev.bonus)}`) : tr('失敗', 'FAILED');
+      if (got) { banner(`${tr('技を取った！', 'Technique Captured!')}<small>+${fmt(ev.bonus)}　${tr(`（${rec.g} / ${rec.t}）`, `(${rec.g}/${rec.t})`)}</small>`, 54, 1500); audio.ui('win'); }
+      setTimeout(() => { if (S.st === st) bar.classList.add('off'); }, 1400);
+      break;
+    }
     case 'saved': audio.note(20, { vol: 0.2, dur: 0.4 }); toast(tr('踏みとどまった！', 'Survived!')); break;
     case 'cut': fx.tick(ev.x, ev.y, [0.7, 0.9, 1.3], 18, 120); audio.note(0, { vol: 0.14, dur: 0.2 }); break;
     case 'knot': fx.tick(ev.x, ev.y, [3, 2.4, 1], 18, 180); audio.note(19, { vol: 0.16, dur: 0.3 }); floatText(ev.x, ev.y - 26, tr('結び！', 'Knot!'), 'gold', 22); break;
@@ -699,6 +830,8 @@ function handle(ev) {
     case 'inkOut': if (st.stroke) floatText(st.stroke.pts.at(-1).x, st.stroke.pts.at(-1).y - 30, tr('墨切れ', 'Out of ink'), 'gold', 24); break;
     case 'strokeEnd': {
       audio.fuse(0, 0);
+      // 夜がまだ決まっていない一筆だけ「夜の途中」にする（勝ち負けが決まった直後に閉じても罰しない）
+      if (S.run?.inNight && !S.run.inNight.used && !st.cleared && !st.failed) { S.run.inNight.used = 1; DB.run = S.run; save(); }
       $('heat').className = 'heat';
       $('cMult').textContent = fmtM(ev.mult);
       slam(ev.gained);
@@ -893,6 +1026,26 @@ function perFrameFx(dt) {
       fx.light(q.x, q.y, 0.18, 240, [1, 0.6, 0.25], 40);
     }
     for (const d of st.drops) fx.add(d.x, d.y, 0, d.vy, one, 1.6, 0, 0, [0.75, 0.9, 1.3], [0.75, 0.9, 1.3], 0.8);
+    // 星屑: 新しいほど明るく大きい。消える間ぎわは点滅する。十字のきらめき
+    const life = st.m.dustLife * (st.m.dustLifeX || 1);
+    for (const d of st.dust) {
+      const f = 1 - d.t / life, blink = d.t > life - 0.7 ? (Math.sin(R.time * 32 + d.x) > 0 ? 1 : 0.25) : 1;
+      const c = d.gold ? [3.2, 2.4, 0.7] : [1.6, 2.5, 3.6], tw = 0.75 + 0.25 * Math.sin(R.time * 9 + d.x * 0.3), sz = (0.75 + f * 0.5) * blink;
+      fx.add(d.x, d.y, 0, 0, one, 5.5 * sz, 0, 0, c, c, 1.6 * blink); // 芯
+      fx.add(d.x, d.y, 0, 0, one, 14 * sz, 0, 0, c, c, 0.22 * blink); // にじみ
+      // 四方に伸びるきらめき（星の形）
+      for (let j = 1; j <= 3; j++) { const r = j * 4.2 * sz * tw, s2 = (2.6 - j * 0.6) * sz; fx.add(d.x + r, d.y, 0, 0, one, s2, 0, 0, c, c, blink); fx.add(d.x - r, d.y, 0, 0, one, s2, 0, 0, c, c, blink); fx.add(d.x, d.y + r, 0, 0, one, s2, 0, 0, c, c, blink); fx.add(d.x, d.y - r, 0, 0, one, s2, 0, 0, c, c, blink); }
+    }
+    // 継ぎ火の輪: 残り時間だけ弧が残る。中に残り火
+    if (G.tsugiOpen(st)) {
+      const tg = st.tsugi, u = Math.max(0, (tg.until - st.t) / tg.win), rr = st.m.tsugiR * (st.m.tsugiRX || 1), n = 64, col = [3.4, 1.5, 0.35], dim = [1.2, 0.5, 0.15];
+      // 外の輪は残り時間の弧（時計回りに減る）。うすい輪で全体の大きさも見せる
+      for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + (i / n) * 6.283, on = i / n <= u; fx.add(tg.x + Math.cos(a) * rr, tg.y + Math.sin(a) * rr, 0, 0, one, on ? 4.2 : 2, 0, 0, on ? col : dim, on ? col : dim, on ? 2 : 0.7); }
+      const pr = rr * (0.35 + 0.65 * ((R.time * 1.6) % 1)); // 内へ寄せる波（ここに置け）
+      for (let i = 0; i < 28; i++) { const a = (i / 28) * 6.283; fx.add(tg.x + Math.cos(a) * pr, tg.y + Math.sin(a) * pr, 0, 0, one, 2.2, 0, 0, col, col, 1.2 * (1 - pr / rr) + 0.2); }
+      fx.add(tg.x, tg.y, 0, 0, one, 9 + Math.sin(R.time * 12) * 2, 0, 0, [3, 1.2, 0.3], [3, 1.2, 0.3], 1.6);
+      fx.light(tg.x, tg.y, 0.12, 200, [1, 0.5, 0.15], 40);
+    }
     for (const q2 of st.sparks) fx.add(q2.x, q2.y, q2.vx, q2.vy, 0.05, 2.6, 0, 0, [3, 2.6, 1.3], [1, 0.6, 0.2], 1.3);
   }
   const k = st && st.stroke;
@@ -951,6 +1104,12 @@ function updateHud(dt) {
   for (let i = 0; i < 3; i++) stars[i].classList.toggle('on', r >= [1, 1.6, 2.5][i]);
   goal.classList.toggle('fire', r >= 1);
   if (r >= 1) goal.style.setProperty('--fire', Math.min(1.6, 0.5 + Math.log(r) / Math.log(5)).toFixed(2));
+  // 技のボーナス: 一筆の間、時間で減っていくのを見せる
+  const k = st.stroke;
+  if (k?.spell && !k.done) $('spBonus').textContent = tr(`ボーナス ${fmt(G.spellBonus(k))}`, `Bonus ${fmt(G.spellBonus(k))}`);
+  // 拾った星屑は 0.3 秒ごとにまとめて「+点」を出す（1 粒ずつだと読めない）
+  S.dustAt += dt;
+  if (S.dustAcc > 0 && S.dustAt > 0.3) { floatText(S.dustX, S.dustY - 36, '+' + fmt(S.dustAcc), 'dustp', 18 + Math.min(14, S.dustAcc / 40)); S.dustAcc = 0; S.dustAt = 0; }
   S.crossedNow = false;
   if (!S.crossed && live >= st.target) { S.crossed = true; S.crossedNow = true; banner(tr('目標達成！', 'TARGET!'), 58, 1200); audio.ui('win'); R.flash = Math.max(R.flash, 0.06); hitStop(80); }
 }

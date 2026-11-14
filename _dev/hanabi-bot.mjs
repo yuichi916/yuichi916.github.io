@@ -10,6 +10,7 @@ const SKILL = {
   casual: { speed: 620, jitter: 16, greed: 0.55, keepGap: 240, maxPicks: 7, react: 0.35 },
   good: { speed: 520, jitter: 9, greed: 0.8, keepGap: 150, maxPicks: 12, react: 0.22 },
   expert: { speed: 430, jitter: 5, greed: 1, keepGap: 90, maxPicks: 18, react: 0.14 },
+  tech: { speed: 430, jitter: 5, greed: 1, keepGap: 75, maxPicks: 18, react: 0.14, tsugi: true, dust: true }, // かすり・星屑・継ぎ火を使う人
 };
 
 // 玉が 1 つだけの夜は、まわりを回って熱をためてから飛びこむ
@@ -43,7 +44,10 @@ function playNight(st, sk, rnd) {
   while (st.phase !== 'over' && ticks < 60 * 300) {
     ticks++;
     if (st.phase === 'aim' && st.shells.some((x) => x.rise > 0)) { /* 上がりきるのを見てから引く */ }
-    else if (st.phase === 'aim') {
+    else if (sk.tsugi && G.tsugiOpen(st) && st.t > st.tsugi.until - st.tsugi.win + 0.35) { // 継ぎ火: 輪の中から次を始める
+      const at = { x: st.tsugi.x, y: st.tsugi.y };
+      if (G.penDown(st, at.x, at.y)) { const path = plan(st, sk, rnd); if (!path.length) path.push({ x: at.x + 200, y: at.y }); st._path = path; st._pen = { ...at }; }
+    } else if (st.phase === 'aim') {
       const path = plan(st, sk, rnd);
       const start = path.shift() || { x: st.field.x0 + rnd() * 400, y: st.field.y0 + rnd() * 200 };
       if (!path.length) path.push({ x: start.x + 200, y: start.y });
@@ -51,7 +55,11 @@ function playNight(st, sk, rnd) {
       st._path = path; st._pen = { ...start };
       ticks += 60 * (0.5 + rnd()); // 考える時間
     } else if (st.phase === 'stroke' && st.stroke && st.stroke.penDown) {
-      const k = st.stroke, tgt = st._path[0];
+      const k = st.stroke;
+      // 星屑: 筆先の近くに新しい星屑があれば、寄り道して拾う
+      if (sk.dust && st.dust.length && !st._detour) { const p = st._pen; let best = null, bd = 150; for (const d of st.dust) { const dd = Math.hypot(d.x - p.x, d.y - p.y); if (dd < bd && d.t < 1.5) { bd = dd; best = d; } } if (best) { st._detour = 1; st._path.unshift({ x: best.x, y: best.y, detour: true }); } }
+      if (st._path[0] && !st._path[0].detour) st._detour = 0;
+      const tgt = st._path[0];
       if (!tgt) { G.penUp(st); }
       else {
         const gap = k.len - k.flameS;
@@ -114,11 +122,12 @@ function shop(run, rnd, sk) {
 function playRun(seed, sk, rank = 0, fuse = 'asa') {
   const rnd = G.rng32(seed * 77 + 5);
   const run = Run.newRun({ seed, rank, fuse });
-  const log = []; let seconds = 0, stars = 0, retries = 0, blooms = 0;
+  const log = []; let dscore = 0, seconds = 0, stars = 0, retries = 0, blooms = 0, score = 0, graze = 0, dust = 0, tsugi = 0;
   while (!run.done) {
     const def = Run.nightDef(run, run.world, run.night);
     const st = G.newNight(def, 1280, 720, Run.loadoutFor(run));
     seconds += playNight(st, sk, rnd) + 3; // 集計
+    score += st.score; dscore = (dscore || 0) + (st.dustScore || 0); graze += st.graze; dust += st.dustGot; tsugi += st.tsugiCount || 0;
     const res = Run.afterNight(run, st);
     if (res === 'retry') { retries++; continue; }
     if (res === 'over') { log.push({ w: run.world, n: run.night, score: st.score, target: st.target, rule: def.rule }); break; }
@@ -132,7 +141,7 @@ function playRun(seed, sk, rank = 0, fuse = 'asa') {
     const ch = Run.routeChoices(run); if (ch.length) Run.chooseRoute(run, ch[Math.floor(rnd() * ch.length)]);
     Run.advance(run);
   }
-  return { retries, blooms, cleared: run.nightsCleared, won: run.won, seconds, stars, end: log[0], charms: run.charms, coins: run.coins, picked: run.picked || {} };
+  return { score, dscore, graze, dust, tsugi, pv: run.pv, retries, blooms, cleared: run.nightsCleared, won: run.won, seconds, stars, end: log[0], charms: run.charms, coins: run.coins, picked: run.picked || {} };
 }
 
 const N = +(process.argv[2] || 60), skillName = process.argv[3] || 'all';
@@ -142,6 +151,7 @@ for (const name of (skillName === 'all' ? Object.keys(SKILL) : [skillName])) {
   const reach = Array.from({ length: 25 }, (_, n) => res.filter((r) => r.cleared >= n).length / N);
   const avg = (f) => res.reduce((a, r) => a + f(r), 0) / N;
   console.log(`== ${name}: 完走 ${(avg((r) => (r.won ? 1 : 0)) * 100).toFixed(0)}%  平均 ${avg((r) => r.cleared).toFixed(1)} 夜  1 周 ${(avg((r) => r.seconds) / 60).toFixed(1)} 分  星 ${avg((r) => r.stars).toFixed(1)}  やり直し ${avg((r) => r.retries).toFixed(1)}  満開 ${avg((r) => r.blooms).toFixed(1)}`);
+  console.log(`  腕: 点の合計 ${Math.round(avg((r) => r.score)).toLocaleString()}（星屑 ${(100 * avg((r) => r.dscore) / avg((r) => r.score)).toFixed(0)}%）  かすり ${avg((r) => r.graze ?? 0).toFixed(0)}  星屑 ${avg((r) => r.dust ?? 0).toFixed(0)}  継ぎ火 ${avg((r) => r.tsugi ?? 0).toFixed(1)}  星の値 ${avg((r) => r.pv ?? 0).toFixed(1)}`);
   console.log('  到達率(夜0..24):', reach.filter((_, i) => i % 2 === 0).map((v) => (v * 100).toFixed(0)).join(' '));
   const ends = {}; for (const r of res) if (r.end) { const k = `${r.end.w}-${r.end.n}`; ends[k] = (ends[k] || 0) + 1; }
   { const br = {}; for (const r of res) if (r.end?.rule) br[r.end.rule] = (br[r.end.rule] || 0) + 1; console.log('  散った大一番:', JSON.stringify(br)); }

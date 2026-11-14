@@ -90,7 +90,7 @@ export const SHELL_NAME = {
   kiku: ['菊玉', 'Peony'], ootama: ['大玉', 'Big Shell'], kin: ['金の玉', 'Gold Shell'], senrin: ['千輪', 'Crossette'],
   chouchin: ['提灯', 'Lantern'], shime: ['湿り玉', 'Wet Shell'], koori: ['氷玉', 'Ice Shell'], oni: ['鬼玉', 'Oni Shell'], shaku: ['尺玉', 'Grand Shell'], ko: ['子玉', 'Small Shell'],
 };
-const BAG_COLOR = { heat: ['#c8411f', '#6e150a'], chain: ['#c0307a', '#5a1038'], gold: ['#c98f18', '#6a4306'], lantern: ['#d0641e', '#6f2a08'], ink: ['#2c5cb4', '#112c63'], finale: ['#7a46c6', '#32155e'], gimmick: ['#1f8f68', '#0b4632'] };
+const BAG_COLOR = { heat: ['#c8411f', '#6e150a'], chain: ['#c0307a', '#5a1038'], gold: ['#c98f18', '#6a4306'], lantern: ['#d0641e', '#6f2a08'], ink: ['#2c5cb4', '#112c63'], finale: ['#7a46c6', '#32155e'], gimmick: ['#1f8f68', '#0b4632'], star: ['#2f8fc8', '#0f3a5e'] };
 
 // お守り袋: 型の色の錦に、名前の頭の字。稀さで縁を変える
 export function drawBag(cv, c) {

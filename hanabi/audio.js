@@ -99,6 +99,15 @@ export function createAudio(bgmList) {
       if (kind === 'win') [10, 12, 14, 15, 17, 20].forEach((n, i) => setTimeout(() => A.note(n, { vol: 0.17, dur: 0.8 }), i * 90));
       if (kind === 'lose') [12, 10, 7].forEach((n, i) => setTimeout(() => A.note(n, { vol: 0.13, dur: 0.7 }), i * 170));
       if (kind === 'heat') A.note(17, { vol: 0.18, dur: 0.3 });
+      if (kind === 'graze') { // かすり: ごく短い、乾いた高い音
+        const t = ctx.currentTime, s = ctx.createBufferSource(); s.buffer = noise; const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 6500;
+        const g = ctx.createGain(); g.gain.setValueAtTime(0.11, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.035); s.connect(hp); hp.connect(g); g.connect(sfx); s.start(t, Math.random()); s.stop(t + 0.04);
+      }
+      if (kind === 'spell') { // 技の名乗り: 低い一打のあとに、下から上へ鳴る
+        A.duck(0.5, 0.45); A.boom(1.3, 0);
+        [5, 9, 12, 16].forEach((n, i) => setTimeout(() => A.note(n, { vol: 0.15, dur: 0.6, up: -12 }), 90 + i * 70));
+      }
+      if (kind === 'tsugi') [12, 15, 19].forEach((n, i) => setTimeout(() => A.note(n, { vol: 0.17, dur: 0.45 }), i * 55));
     },
   };
   async function load(k, f, l) {

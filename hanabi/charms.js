@@ -76,6 +76,14 @@ export const CHARMS = [
   C('kamaitachi', 'gimmick', 'r', '鎌鼬', 'Sickle Weasel', '千輪の火花が 6 本増える', 'Crossettes shoot 6 more sparks', { mod: (m) => { m.sparkAdd = 6; } }),
   C('senrin', 'gimmick', 'c', '千輪師', 'Crossette Master', '千輪が夜ごとに 3 つ増える', '+3 crossettes each night', { mod: (m) => { m.addMix.senrin = (m.addMix.senrin || 0) + 3; } }),
   C('oonyuudou', 'gimmick', 'r', '大入道', 'Colossus', '大玉が夜ごとに 3 つ増える', '+3 big shells each night', { mod: (m) => { m.addMix.ootama = (m.addMix.ootama || 0) + 3; } }),
+  // ---- 星: 星屑・かすり・継ぎ火（腕の層を伸ばす）
+  C('hoshihiroi', 'star', 'c', '星拾い', 'Stargazer', '星屑を拾える範囲が 1.7 倍', 'Pick up star dust from 1.7× farther', { mod: (m) => { m.dustPickX = 1.7; } }),
+  C('nagareboshi', 'star', 'c', '流れ星', 'Shooting Star', '星屑が 2 倍長く残り、値が落ちにくい', 'Star dust lasts twice as long and keeps its value', { mod: (m) => { m.dustLifeX = 2; m.dustFade = 0.3; } }),
+  C('hoshikuzu', 'star', 'c', '星の砂', 'Star Sand', '玉ひとつごとに 星屑が 2 粒増える', '+2 star dust from every shell', { mod: (m) => { m.dustAdd = 2; } }),
+  C('kasurikizu', 'star', 'r', 'かすり傷', 'Scratch', 'かすり 20 回ごとに 倍率 +1', 'Every 20 grazes: +1 MULT', { on: { graze(c) { if (c.n % 20 === 0) c.k.mult += 1; } } }),
+  C('kamihitoe', 'star', 'r', '薄紙', 'Paper Thin', 'かすれる距離が 1.5 倍。かすりで星の値が 2 倍伸びる', 'Graze range ×1.5, and grazes grow star value twice as fast', { mod: (m) => { m.grazeGapX = 1.5; m.grazePvX = 2; } }),
+  C('tsugite', 'star', 'r', '継ぎ手', 'Splicer', '継ぎ火の輪が大きく長くなり、倍率を 8 割持ちこむ', 'Bigger, longer relight rings that carry 80% MULT', { mod: (m) => { m.tsugiRX = 1.5; m.tsugiWinX = 1.6; m.tsugiKeepX = 0.8; } }),
+  C('tanabata', 'star', 'l', '天の川', 'Milky Way', '一筆で拾った星屑 10 粒ごとに 倍率 +1', 'Every 10 star dust in a stroke: +1 MULT', { on: { strokeEnd(c) { c.k.mult += Math.floor(c.k.dust / 10); } } }),
 ];
 export const CHARM_BY_ID = Object.fromEntries(CHARMS.map((c) => [c.id, c]));
 
@@ -83,5 +91,5 @@ export const CHARM_BY_ID = Object.fromEntries(CHARMS.map((c) => [c.id, c]));
 CHARM_BY_ID.hinotama.on.strokeEnd = (c) => { if (c.k.caught) c.k.mult += 4; };
 CHARM_BY_ID.hinotama.on.fuseEnd = () => {};
 
-export const TAG_NAME = { heat: ['熱', 'Heat'], chain: ['連鎖', 'Chain'], gold: ['金', 'Gold'], lantern: ['提灯', 'Lantern'], ink: ['筆', 'Brush'], finale: ['大トリ', 'Finale'], gimmick: ['仕掛け', 'Trick'] };
-export const TAG_COLOR = { heat: '#e8552a', chain: '#d43f8c', gold: '#d9a11f', lantern: '#e27a2c', ink: '#3a6fc4', finale: '#8f5ad6', gimmick: '#2ea77a' };
+export const TAG_NAME = { heat: ['熱', 'Heat'], chain: ['連鎖', 'Chain'], gold: ['金', 'Gold'], lantern: ['提灯', 'Lantern'], ink: ['筆', 'Brush'], finale: ['大トリ', 'Finale'], gimmick: ['仕掛け', 'Trick'], star: ['星', 'Star'] };
+export const TAG_COLOR = { heat: '#e8552a', chain: '#d43f8c', gold: '#d9a11f', lantern: '#e27a2c', ink: '#3a6fc4', finale: '#8f5ad6', gimmick: '#2ea77a', star: '#4fb3e8' };

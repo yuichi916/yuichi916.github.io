@@ -42,7 +42,7 @@ const play = (charms, extra, o) => drive(G.newNight(scene(extra), 1280, 720, { c
 { const a = play([]), b = play([]); assert.equal(a.score, b.score); assert.ok(a.score > 0, '基本の点'); console.log('ok   決定的（同じ手で同じ点）', a.score); }
 
 // 特定の場面でしか働かないものは、下で場面を作って確かめる
-const SITUATIONAL = new Set(['atsukan', 'renjishi', 'risoku', 'oiri', 'suminagashi', 'mankai', 'yaguruma', 'futofude', 'kogane', 'musubi', 'yukidoke', 'oniibi']);
+const SITUATIONAL = new Set(['atsukan', 'renjishi', 'risoku', 'oiri', 'suminagashi', 'mankai', 'yaguruma', 'futofude', 'kogane', 'musubi', 'yukidoke', 'oniibi', 'kasurikizu', 'tsugite']);
 // ---- 全お守りが、何かを変える（点・小判・筆・出来事のどれか）
 {
   const base = play([]);
@@ -299,5 +299,58 @@ for (const rule of Object.keys(Run.RULES)) {
     const r2 = Run.newRun({ seed: 5 }), seen = new Set(); while (!r2.done) { const ch = Run.routeChoices(r2); for (const x of ch) assert.ok(Run.TWISTS[x.id], x.id); if (ch.length) { Run.chooseRoute(r2, ch[1]); seen.add(ch[1].id); } Run.advance(r2); } assert.ok(seen.size >= 12, `1 周で趣向 ${seen.size} 種`);
     const old = Run.fixRun({ seed: 1, world: 1, night: 2, charms: [], recipes: {} }); assert.equal(old.lives, 3); assert.ok(Run.nightDef(old, 1, 2)); }
   console.log(`ok   趣向 ${Object.keys(Run.TWISTS).length} 種・満開の連続・第二幕・乱入・道の分かれ・提灯`);
+}
+
+// ---- 腕の層: 星屑・かすり・見切り回収・継ぎ火・技・提灯の増え
+{
+  const flat = (extra = {}) => scene({ count: 1, mix: {}, refill: 0, ...extra });
+  // 星屑: 玉がはじけるとこぼれ、筆先で拾うと一筆の点に入る。古いほど値が下がる
+  { const st = G.newNight(flat(), 1280, 720, {}); st.stroke = null; const s = st.shells[0];
+    G.penDown(st, s.x - 200, s.y); for (let i = 1; i <= 25; i++) G.penMove(st, s.x - 200 + i * 8, s.y);
+    for (let i = 0; i < 200 && !st.dust.length; i++) { G.penMove(st, st.stroke.pts.at(-1).x + 3, s.y); G.step(st, G.DT); }
+    assert.ok(st.dust.length >= 2, '玉から星屑がこぼれる ' + st.dust.length);
+    const d = st.dust[0], c0 = st.stroke.chips; G.penMove(st, d.x, d.y); G.step(st, G.DT);
+    assert.ok(st.dustGot >= 1 && st.stroke.chips > c0, '筆先で星屑を拾うと点が増える');
+    const fresh = { t: 0 }, old = { t: st.m.dustLife * 0.99 };
+    assert.ok(Math.abs(st.pv * (1 - st.m.dustFade * 0.99) - (st.pv * (1 - st.m.dustFade * Math.min(1, old.t / st.m.dustLife)))) < 1e-9 && fresh.t === 0); }
+  // かすり: 火とのすき間が grazeGap より狭いと数え、星の値が上がる
+  { const st = G.newNight(flat(), 1280, 720, {}), pv0 = st.pv; G.penDown(st, 100, 600); let x = 100;
+    for (let i = 0; i < 240 && st.stroke?.penDown; i++) { const k = st.stroke; if (k.flameOn && k.len - k.flameS > 40) { G.step(st, G.DT); continue; } x += 4; G.penMove(st, x, 600); G.step(st, G.DT); }
+    assert.ok(st.graze >= 3, 'かすりを数える ' + st.graze); assert.ok(st.pv > pv0, '星の値が上がる'); }
+  // 追いつかれると星の値が 2 割減る。止まって待つと「わざと捕まった」
+  { const st = G.newNight(flat(), 1280, 720, { pv: 50 }); G.penDown(st, 100, 600); for (let i = 1; i <= 30; i++) G.penMove(st, 100 + i * 8, 600);
+    let ev = null; for (let i = 0; i < 600 && !ev; i++) { G.step(st, G.DT); ev = st.events.find((e) => e.type === 'caught'); st.events.length = 0; }
+    assert.ok(ev && ev.waited, '止まって待つと、わざと捕まった'); assert.equal(st.waited, 1); assert.ok(st.pv >= 40 && st.pv < 42, '星の値 ×0.8 ' + st.pv); }
+  // 見切り回収: 空の星屑をぜんぶ吸い寄せる
+  { const st = G.newNight(flat(), 1280, 720, {}); G.penDown(st, 100, 600); for (let i = 1; i <= 30; i++) G.penMove(st, 100 + i * 8, 600);
+    const k = st.stroke; k.flameOn = true; k.age = 1; k.heat = 1; k.heatLv = 1; k.flameS = k.len - 30;
+    for (let i = 0; i < 5; i++) st.dust.push({ x: 900, y: 200, vx: 0, vy: 0, t: 1, gold: false });
+    const c0 = k.chips; G.penUp(st);
+    assert.equal(st.dust.length, 0, '見切りで星屑が消える'); assert.ok(Math.abs(k.chips - c0 - 5 * st.pv) < 1e-9, '鮮度 100% で入る'); assert.ok(k.vacuum); }
+  // 継ぎ火: 捕まらずに終えると輪が残り、輪の中から始めると倍率と熱を持ちこむ。輪の外なら持ちこまない
+  { const go = (inside) => { const st = G.newNight(scene({ count: 3, mix: {}, refill: 0, strokes: 3 }), 1280, 720, {}); st.shells.forEach((s, i) => { s.x = 300 + i * 70; s.y = 400; });
+      G.penDown(st, 250, 400); for (let i = 1; i <= 12; i++) G.penMove(st, 250 + i * 10, 400); G.penUp(st);
+      for (let i = 0; i < 600 && st.phase === 'stroke'; i++) G.step(st, G.DT);
+      assert.equal(st.phase, 'settle'); assert.ok(st.tsugi, '輪が残る'); const m = st.tsugi.mult;
+      const p = inside ? { x: st.tsugi.x + 10, y: st.tsugi.y } : { x: st.tsugi.x + 200, y: st.tsugi.y };
+      const ok = G.penDown(st, p.x, p.y); return { ok, st, m }; };
+    const a = go(true); assert.ok(a.ok, 'settle 中でも輪の中なら置ける'); assert.equal(a.st.stroke.tsugiN, 1); assert.ok(a.st.stroke.mult >= 1 + Math.round(a.m * 0.5), '倍率を持ちこむ'); assert.equal(a.st.tsugiCount, 1);
+    const b = go(false); assert.equal(b.ok, false, '輪の外は settle 中には置けない'); }
+  // 技: 大一番は一筆ごとに技を出す。捕まらずに 6 割ひらけばボーナス
+  { const st = G.newNight(scene({ count: 2, mix: {}, refill: 0, boss: true, rule: 'kasha', target: 1000 }), 1280, 720, {}); st.shells.forEach((s, i) => { s.x = 300 + i * 50; s.y = 400; });
+    G.penDown(st, 270, 400); assert.equal(st.stroke.spell.id, 'kasha0'); assert.ok(G.spellBonus(st.stroke) > 0);
+    for (let i = 1; i <= 10; i++) G.penMove(st, 270 + i * 10, 400); G.penUp(st);
+    let got = null; for (let i = 0; i < 600 && !got; i++) { G.step(st, G.DT); got = st.events.find((e) => e.type === 'spellGet' || e.type === 'spellFail'); st.events.length = 0; }
+    assert.equal(got?.type, 'spellGet', '技を取る'); assert.ok(got.bonus >= 300 * 0.3, 'ボーナス'); assert.deepEqual(st.spellLog, [{ id: 'kasha0', got: true }]);
+    for (const [r, list] of Object.entries(G.SPELLS)) { assert.ok(Run.RULES[r], r); assert.equal(list.length, 4, r); } }
+  // 提灯の増え・星の値の持ちこし
+  { const run = Run.newRun({ seed: 3 }); const st = { cleared: true, blooms: 0, streak: 0, dustGot: 420, graze: 30, pv: 19, waited: 1, spellLog: [{ id: 'kaze1', got: true }] };
+    Run.afterNight(run, st); assert.equal(run.lives, 5, '150 と 400 を越えて提灯 +2'); assert.equal(run.lastExt, 2); assert.equal(run.pv, 19); assert.equal(run.waitedNights, 1); assert.deepEqual(run.spells.kaze1, { t: 1, g: 1 });
+    assert.equal(Run.loadoutFor(run).pv, 19); }
+  // お守り: かすり傷・継ぎ手
+  { const st = G.newNight(flat(), 1280, 720, { charms: [CHARM_BY_ID.kasurikizu] }); G.penDown(st, 100, 600); for (let i = 0; i < 20; i++) G.penMove(st, 100 + i * 8, 600); const m0 = st.stroke.mult; st.stroke.flameOn = true; st.stroke.age = 1;
+    for (let i = 0; i < 130; i++) { st.stroke.flameS = st.stroke.len - 20; G.step(st, G.DT); } assert.ok(st.graze >= 20 && st.stroke.mult >= m0 + 1, 'かすり傷 ' + st.graze);
+    const t = G.newNight(flat(), 1280, 720, { charms: [CHARM_BY_ID.tsugite] }); assert.equal(t.m.tsugiKeepX, 0.8); assert.ok(t.m.tsugiRX > 1 && t.m.tsugiWinX > 1); }
+  console.log('ok   腕の層: 星屑・かすり・わざと捕まる・見切り回収・継ぎ火・技・提灯の増え');
 }
 console.log('hanabi_test: ALL PASS');

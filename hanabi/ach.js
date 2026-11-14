@@ -35,6 +35,18 @@ export const ACHIEVEMENTS = [
   A('runs10', '常連', 'Regular', '10 回遊ぶ', 'Play 10 runs', (c) => c.meta?.runs >= 10),
   A('allfuses', '導火線集め', 'Fuse Collector', '導火線を全部開く', 'Unlock every fuse', (c) => c.fusesOpen),
   A('book', 'お守り帳', 'Charm Book', 'お守りを全部開く', 'Unlock every charm', (c) => c.bookFull),
+  // 腕の層
+  A('graze100', 'かすり百', 'Hundred Grazes', '1 夜に 100 回かすめる', 'Graze 100 times in one night', (c) => c.st?.graze >= 100),
+  A('dust100', '星集め', 'Stardust Collector', '1 夜に星屑を 100 粒拾う', 'Collect 100 star dust in one night', (c) => c.st?.dustGot >= 100),
+  A('pv100', '星の値 百', 'Star Value 100', '星の値を 100 まで育てる', 'Raise star value to 100', (c) => c.st?.pv >= 100),
+  A('sweep', '一網打尽', 'Clean Sweep', '見切りで星屑を 20 粒まとめて回収', 'Sweep 20 star dust with one close call', (c) => c.st?.bestSweep >= 20),
+  A('tsugi3', '継ぎ火三連', 'Relight ×3', '継ぎ火を 3 回つなげる', 'Chain 3 relights', (c) => c.st?.tsugiBest >= 3),
+  A('spell1', '技取り', 'First Capture', '大一番の技を取る', 'Capture a boss technique', (c) => c.st?.spellLog?.some((x) => x.got)),
+  A('oku', '奥義破り', 'Secret Art Broken', '第二幕の奥義を取る', 'Capture a secret art in an encore', (c) => c.st?.spellLog?.some((x) => x.got && x.id.endsWith('3'))),
+  // 記憶の層
+  A('seen', '見られていた', 'Someone Was Watching', '夜の途中で、いなくなる', 'Leave in the middle of a night', (c) => c.meta?.mem?.left >= 1),
+  A('wait', '立ち止まる', 'Standing Still', '筆を止めて、火を待つ', 'Stop and wait for the flame', (c) => c.meta?.mem?.waited >= 1),
+  A('mercy', '迎え火', 'The Welcoming Fire', '火を待ちながら、祭りを越える', 'Finish the festival while waiting for the flame', (c) => c.meta?.mem?.mercy),
 ];
 export function checkAchievements(meta, ctx) {
   meta.ach = meta.ach || {};
