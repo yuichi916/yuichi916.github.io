@@ -1530,6 +1530,8 @@ function logSave() { if (!S.log || window.HANABI_PG) return; try { localStorage.
 if (!window.HANABI_PG) try { const L = JSON.parse(localStorage.getItem(LOGKEY) || 'null'); if (L && S.run && L.seed === S.run.seed && L.v === Run.LOG_VERSION) S.log = L; } catch { /* なし */ }
 const RANK_API = (() => { const o = q.get('rankapi'); return o && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o) ? o : 'https://hanabi2-rank.yuichi916.workers.dev'; })();
 S.rankOk = false;
+// アプリ化（PWA）: 本番のサイトでだけ登録する（ゲームサイトの書き出しでは登録しない）
+if (!window.HANABI_PKG && location.hostname === 'yuichi916.github.io' && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { /* 無くても遊べる */ });
 // ランキングを見に行くのは本番のサイトと、?rankapi= を付けた手元の試験だけ（手元の通しでサーバーへ問い合わせない）
 if (!window.HANABI_PKG && (location.hostname === 'yuichi916.github.io' || q.get('rankapi'))) fetch(RANK_API + '/health').then((r) => r.json()).then((j) => { S.rankOk = !!j.ok && j.v === Run.LOG_VERSION; if (S.rankOk && S.mode === 'title') toTitle(); }).catch(() => { /* ランキングが無くても遊べる */ });
 function playerId() {
