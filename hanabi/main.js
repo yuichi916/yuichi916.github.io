@@ -5,7 +5,7 @@ import { CHARMS, CHARM_BY_ID, TAG_NAME, TAG_COLOR } from './charms.js';
 import { createRenderer } from './gl.js';
 import { createFx, PALETTES } from './fx.js';
 import { createAudio } from './audio.js';
-import { shellAtlas, noiseTex, placeholderBand, SHELL_ORDER, ATLAS_CELLS, drawBag, drawShellIcon, SHELL_NAME, cellOf, HINOKO_CELL, CROW_CELL, HUB_CELL } from './art.js';
+import { shellAtlas, noiseTex, placeholderBand, SHELL_ORDER, ATLAS_CELLS, drawBag, drawShellIcon, SHELL_NAME, SHELL_DESC, cellOf, HINOKO_CELL, CROW_CELL, HUB_CELL } from './art.js';
 import { createPlatform } from './platform.js';
 import { ACHIEVEMENTS, checkAchievements } from './ach.js';
 import { THEMES } from './levels.js';
@@ -443,6 +443,18 @@ function renderShop() {
       b.innerHTML = it.back ? `<span class="tg back">${tr('買い戻し', 'Buy back')}</span>` : `<span class="tg" style="background:${TAG_COLOR[c.tag]}">${TAG_NAME[c.tag][JA() ? 0 : 1]}</span>`;
       b.append(art);
       b.insertAdjacentHTML('beforeend', `<span class="nm">${JA() ? c.ja : c.en}</span><span class="ds">${JA() ? c.dj : c.de}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`);
+    } else if (it.kind === 'add' || it.kind === 'thin' || it.kind === 'engrave') {
+      const art = document.createElement('div'); art.className = 'art'; const cv = document.createElement('canvas'); cv.width = 120; cv.height = 150;
+      drawShellIcon(cv, it.kind === 'engrave' ? it.target : it.id); art.append(cv);
+      const sn = (SHELL_NAME[it.kind === 'engrave' ? it.target : it.id] || ['', ''])[JA() ? 0 : 1], M = Run.MODS[it.id];
+      const [tag, col, nm, ds] = it.kind === 'add' ? [tr('玉を足す', 'Add shell'), '#3a7a4a', sn, (SHELL_DESC[it.id] || ['', ''])[JA() ? 0 : 1]]
+        : it.kind === 'thin' ? [tr('間引き', 'Thin out'), '#6a5a4a', tr('菊玉をひとつ抜く', 'Remove a Peony'), tr('袋が濃くなり、ほかの玉が出やすくなる', 'A denser bag: your other shells show up more')]
+          : [tr('刻印', 'Engrave'), M.col, tr(`${sn}に「${M.ja}」`, `${M.en} on a ${sn}`), JA() ? M.dj : M.de];
+      b.innerHTML = `<span class="tg" style="background:${col}">${tag}</span>`;
+      if (it.kind === 'thin') cv.style.opacity = 0.45;
+      b.append(art);
+      if (it.kind === 'engrave') b.insertAdjacentHTML('beforeend', `<span class="mk" style="background:${M.col};color:${M.col}"></span>`);
+      b.insertAdjacentHTML('beforeend', `<span class="nm">${nm}</span><span class="ds">${ds}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`);
     } else {
       const art = document.createElement('div'); art.className = 'art'; const cv = document.createElement('canvas'); cv.width = 120; cv.height = 150; drawShellIcon(cv, it.id); art.append(cv);
       const lv = run.recipes[it.id] || 0, sn = SHELL_NAME[it.id][JA() ? 0 : 1];
@@ -455,7 +467,7 @@ function renderShop() {
   });
   const rc = Run.rerollCost(run), rb = $('reroll');
   rb.textContent = tr(`引き直し  ${rc}`, `Reroll  ${rc}`); rb.disabled = rc > run.coins;
-  renderHeld($('held'), true);
+  renderHeld($('held'), true); renderPouch();
   const nd = peekNext();
   if (S.route && S.route.length) {
     const box = $('nextInfo');
@@ -469,6 +481,23 @@ function renderShop() {
     });
     box.append(row);
   } else $('nextInfo').innerHTML = nd ? (nd.rule ? tr(`次は大一番 <b>${Run.RULES[nd.rule].ja}</b>: ${Run.RULES[nd.rule].dj}`, `Next is a boss: <b>${Run.RULES[nd.rule].en}</b> — ${Run.RULES[nd.rule].de}`) : tr(`次の目標 ${fmt(nd.target)}`, `Next target ${fmt(nd.target)}`)) : '';
+}
+// 玉袋: 種類ごとの数と、刻印の色
+function renderPouch() {
+  const run = S.run, el = $('pouch'); if (!run?.pouch) { el.innerHTML = ''; return; }
+  const groups = {};
+  for (const x of run.pouch) { const g = groups[x.t] = groups[x.t] || { n: 0, mods: [] }; g.n++; if (x.m) g.mods.push(x.m); }
+  el.innerHTML = `<h4>${tr(`玉袋 ${run.pouch.length}`, `Shell bag ${run.pouch.length}`)}</h4><div class="row"></div>`;
+  const row = el.querySelector('.row');
+  for (const [t, g] of Object.entries(groups)) {
+    const d = document.createElement('span'); d.className = 'pi';
+    const cv = document.createElement('canvas'); cv.width = 44; cv.height = 44; drawShellIcon(cv, t); d.append(cv);
+    d.insertAdjacentHTML('beforeend', `<b>×${g.n}</b>${g.mods.map((m, i) => `<i style="background:${Run.MODS[m].col};left:${12 + i * 5}px"></i>`).join('')}`);
+    const nm = (SHELL_NAME[t] || ['', ''])[JA() ? 0 : 1], ds = (SHELL_DESC[t] || ['', ''])[JA() ? 0 : 1];
+    d.addEventListener('pointerenter', (e) => showTip(e, `${nm} ×${g.n}`, ds + (g.mods.length ? '<br>' + g.mods.map((m) => (JA() ? Run.MODS[m].ja : Run.MODS[m].en)).join('・') : '')));
+    d.addEventListener('pointerleave', hideTip);
+    row.append(d);
+  }
 }
 function peekNext() { const r = S.run, n = Run.nextCoord(r); return n ? Run.nightDef(r, n[0], n[1]) : null; }
 function renderHeld(el, sell) {
@@ -495,8 +524,8 @@ function renderHeld(el, sell) {
 function buy(i) {
   const it = S.shop[i], run = S.run;
   run.coins -= it.cost; S.sold.add(i);
-  if (it.kind === 'charm') { run.charms.push(it.id); }
-  else run.recipes[it.id] = (run.recipes[it.id] || 0) + 1;
+  Run.applyItem(run, it);
+  if (it.back) S.back = null;
   audio.note(14, { vol: 0.18, dur: 0.3 }); setTimeout(() => audio.note(17, { vol: 0.16, dur: 0.4 }), 70);
   hideTip(); renderShop();
 }
@@ -793,6 +822,9 @@ function handle(ev) {
       if (ev.k === 10 || ev.k === 30 || ev.k === 60) floatText(p?.x ?? ev.x, (p?.y ?? ev.y) - 40, tr(`かすり ${ev.k}！`, `Graze ${ev.k}!`), 'graze', 22 + ev.k / 6);
       break;
     }
+    case 'twice': floatText(ev.x, ev.y - 36, tr('二度咲き！', 'Again!'), 'gold', 24); audio.note(19, { vol: 0.15, dur: 0.4 }); break;
+    case 'fuseLink': for (const [tx, ty] of ev.to) { const n = 16; for (let i = 0; i <= n; i++) { const u = i / n; fx.add(ev.x + (tx - ev.x) * u, ev.y + (ty - ev.y) * u, 0, 0, 0.3 + u * 0.15, 3, 0, 0, [3.2, 1.2, 0.4], [1, 0.3, 0.05], 1.6); } } audio.note(14, { vol: 0.13, dur: 0.25 }); break;
+    case 'glassBreak': floatText(ev.x, ev.y - 36, tr('硝子が割れた', 'Glass shattered'), 'mult', 22); for (let i = 0; i < 26; i++) { const a = Math.random() * 6.283, v = 120 + Math.random() * 260; fx.add(ev.x, ev.y, Math.cos(a) * v, Math.sin(a) * v, 0.5, 2.2, 1.5, 300, [1.4, 2.8, 3.2], [0.4, 0.8, 1], 1.5); } audio.note(26, { vol: 0.12, dur: 0.3 }); break;
     case 'tsugiOpen': // 継ぎ火の輪: ここから次の一筆を始めれば、倍率を持ちこめる
       floatText(ev.x, ev.y - 52, ev.n > 1 ? tr(`ここから継げる（${ev.n} 連）`, `Relight here (×${ev.n})`) : tr('ここから継げる', 'Relight here'), 'gold', 20);
       break;
@@ -982,6 +1014,7 @@ function drawWorld({ gl, cam, P, vaoSpr, vaoF, sprBuf, sprData, fuseBuf, tex, W:
   }
 }
 
+const MOD_RGB = { gold: [3, 2.2, 0.6], twice: [2.8, 2.8, 3.2], glass: [1, 2.8, 3.2], fuse: [3.2, 1, 0.4], star: [1.4, 2.2, 3.4] };
 function perFrameFx(dt) {
   const st = S.st, one = Math.max(dt, 0.001) * 1.2;
   if (st) {
@@ -1007,6 +1040,12 @@ function perFrameFx(dt) {
     for (const b of st.blades) {
       const ca = Math.cos(b.a), sa = Math.sin(b.a), col = [3, 0.7, 0.45];
       for (let i = -14; i <= 14; i++) { const u = (i / 14) * b.len; fx.add(b.x + ca * u, b.y + sa * u, 0, 0, one, 3, 0, 0, col, col, 1.5); }
+    }
+    // 刻印: 玉のまわりを、刻印の色の輪がめぐる
+    for (const s of st.shells) {
+      if (!s.mod || s.state !== 'idle' || s.rise > 0) continue;
+      const c = MOD_RGB[s.mod], n = 12, rr = s.r + 6;
+      for (let i = 0; i < n; i++) { const a = (i / n) * 6.283 + R.time * (s.mod === 'twice' ? -2 : 1.5); fx.add(s.x + Math.cos(a) * rr, s.y + Math.sin(a) * rr, 0, 0, one, i % 3 ? 1.7 : 2.8, 0, 0, c, c, 1.2); }
     }
     // 夫婦の糸・矢の向き
     for (const s of st.shells) {

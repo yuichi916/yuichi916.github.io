@@ -211,7 +211,9 @@ for (const rule of Object.keys(Run.RULES)) {
   }
   assert.equal(n, 24); assert.ok(run.won); assert.equal(seen.size, 6, '妖怪 6 人に会う: ' + [...seen]);
   const t = []; { const r = Run.newRun({ seed: 1 }); for (let w = 1; w <= 3; w++) for (let i = 1; i <= 8; i++) t.push(Run.nightDef(r, w, i).target); }
-  for (let i = 1; i < t.length; i++) if (i % 8) assert.ok(t[i] > t[i - 1], '目標はワールド内で増える');
+  // ふつうの夜は前のふつうの夜より高く、大一番はその前の夜より高い
+  const boss = (i) => (i % 8) === 3 || (i % 8) === 7;
+  for (let i = 1; i < t.length; i++) { if (boss(i)) assert.ok(t[i] > t[i - 1], '大一番は前の夜より高い'); else { let j = i - 1; while (boss(j)) j--; assert.ok(t[i] > t[j], '目標は夜ごとに増える ' + i); } }
   console.log('ok   周回 24 夜・目標', t[0], '→', t[23]);
 }
 
@@ -352,5 +354,33 @@ for (const rule of Object.keys(Run.RULES)) {
     for (let i = 0; i < 130; i++) { st.stroke.flameS = st.stroke.len - 20; G.step(st, G.DT); } assert.ok(st.graze >= 20 && st.stroke.mult >= m0 + 1, 'かすり傷 ' + st.graze);
     const t = G.newNight(flat(), 1280, 720, { charms: [CHARM_BY_ID.tsugite] }); assert.equal(t.m.tsugiKeepX, 0.8); assert.ok(t.m.tsugiRX > 1 && t.m.tsugiWinX > 1); }
   console.log('ok   腕の層: 星屑・かすり・わざと捕まる・見切り回収・継ぎ火・技・提灯の増え');
+}
+
+// ---- 玉袋: 盤は袋から。屋台で足す・間引く・刻印。刻印が効く
+{
+  const light = (st, s) => { G.penDown(st, s.x - 70, s.y); for (let i = 1; i <= 22; i++) G.penMove(st, s.x - 70 + i * 8, s.y); G.penUp(st); };
+  const run = Run.newRun({ seed: 11 });
+  assert.equal(run.pouch.length, 13); assert.deepEqual(Run.pouchCount(run.pouch), { kiku: 10, kin: 1, ootama: 1, chouchin: 1 });
+  const def = Run.nightDef(run, 1, 1); assert.equal(def.deck.length, 13); assert.deepEqual(Run.nightDef(run, 1, 1).deck, def.deck, '同じ夜は同じ順');
+  const st = G.newNight(def, 1280, 720, Run.loadoutFor(run));
+  const kinds = new Set(st.shells.map((s) => s.type)); for (const t of kinds) assert.ok(['kiku', 'kin', 'ootama', 'chouchin'].includes(t), '袋にない玉は出ない ' + t);
+  assert.ok(st.shells.filter((s) => s.type === 'kin').length >= 1);
+  Run.applyItem(run, { kind: 'add', id: 'nezumi' }); assert.equal(run.pouch.length, 14);
+  Run.applyItem(run, { kind: 'thin', id: 'kiku' }); assert.equal(Run.pouchCount(run.pouch).kiku, 9);
+  Run.applyItem(run, { kind: 'engrave', id: 'gold', target: 'kin' }); assert.equal(run.pouch.find((x) => x.t === 'kin').m, 'gold');
+  for (let i = 0; i < 20; i++) Run.applyItem(run, { kind: 'thin', id: 'kiku' }); assert.equal(run.pouch.length, Run.POUCH_MIN, '袋は 8 個より減らない');
+  const st2 = G.newNight(Run.nightDef(run, 1, 2), 1280, 720, Run.loadoutFor(run)); assert.ok(st2.shells.some((s) => s.type === 'nezumi'), '足した玉が出る'); assert.ok(st2.shells.some((s) => s.mod === 'gold'), '刻印の玉が出る');
+  for (let i = 0; i < 30; i++) { const sh = Run.shopFor(run); assert.ok(sh.length >= 5); for (const it of sh) assert.ok(['charm', 'add', 'thin', 'engrave', 'recipe'].includes(it.kind)); }
+  // 刻印の効き目
+  const one = (mod) => { const a = G.newNight(scene({ count: 1, mix: {}, strokes: 1, refill: 0 }), 1280, 720, {}); const s = a.shells[0]; s.mod = mod; s.pi = 0; light(a, s); for (let i = 0; i < 600 && a.phase === 'stroke'; i++) G.step(a, G.DT); return a; };
+  const base = one(null), gold = one('gold'), twice = one('twice'), glass = one('glass');
+  assert.ok(gold.score > base.score, '金箔で点が上がる ' + gold.score + ' > ' + base.score);
+  assert.ok(twice.totalPops === 2, '二度咲きは 2 回ひらく ' + twice.totalPops);
+  assert.ok(glass.score > base.score * 2, '硝子は点 ×3');
+  const f = G.newNight(scene({ count: 3, mix: {}, strokes: 1, refill: 0 }), 1280, 720, {}); f.shells[0].x = 200; f.shells[0].y = 300; f.shells[1].x = 900; f.shells[1].y = 600; f.shells[2].x = 1100; f.shells[2].y = 250; f.shells[0].mod = 'fuse';
+  light(f, f.shells[0]); for (let i = 0; i < 600 && f.phase === 'stroke'; i++) G.step(f, G.DT); assert.equal(f.totalPops, 3, '導火は遠くの玉にも火を渡す');
+  // 割れた硝子は袋から消える
+  const r2 = Run.newRun({ seed: 2 }); r2.pouch[0].m = 'glass'; Run.afterNight(r2, { cleared: true, blooms: 0, streak: 0, dustGot: 0, graze: 0, pv: 4, waited: 0, spellLog: [], broken: [0] }); assert.equal(r2.pouch.length, 12); assert.equal(r2.lastBroken, 1);
+  console.log('ok   玉袋: 袋から盤・足す・間引く・刻印（金箔・二度咲き・硝子・導火）');
 }
 console.log('hanabi_test: ALL PASS');

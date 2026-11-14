@@ -81,7 +81,7 @@ export const TUNE = {
   tsugiR: 64,           // 継ぎ火の輪の大きさ
   tsugiKeep: 0.5,       // 継ぎ火で持ちこむ倍率の割合
   tsugiGrace: 0.15,     // 継ぎ火の一筆は、火がすぐ移る
-  spellX: 0.35,         // 技のボーナス（目標に対する割合）
+  spellX: 0.2,          // 技のボーナス（目標に対する割合）
   spellNeed: 0.6,       // 技を取るのに要る、ひらいた玉の割合
 };
 
@@ -101,7 +101,8 @@ export function fieldFor(w, h) {
 }
 
 // 群れと、離れた玉を混ぜて置く。読みどころは「群れをつなぐ順番」
-export function layout(seed, count, mix, field) {
+// deck: 玉袋の中身 [{ t, m, pi }]（t=種類 m=刻印 pi=袋の何番目）。あれば菊で埋めずに袋を順にめぐる
+export function layout(seed, count, mix, field, deck = null) {
   const rnd = rng32(seed * 2654435761 + 97);
   const nClusters = Math.max(2, Math.round(count / 6));
   const centers = [];
@@ -112,8 +113,10 @@ export function layout(seed, count, mix, field) {
     }
   }
   const types = [];
-  for (const [k, n] of Object.entries(mix)) for (let i = 0; i < n; i++) types.push(k);
-  while (types.length < count) types.push('kiku');
+  for (const [k, n] of Object.entries(mix)) for (let i = 0; i < n; i++) types.push({ t: k });
+  let used = 0;
+  if (deck && deck.length) while (types.length < count) types.push(deck[used++ % deck.length]);
+  while (types.length < count) types.push({ t: 'kiku' });
   for (let i = types.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [types[i], types[j]] = [types[j], types[i]]; }
   const out = [];
   const place = (u, v, type) => {
@@ -122,7 +125,7 @@ export function layout(seed, count, mix, field) {
     return out.every((s) => Math.hypot(s.x - x, s.y - y) > s.r + r + 16) ? { x, y } : null;
   };
   for (let i = 0; i < types.length; i++) {
-    const type = types[i];
+    const it = types[i], type = it.t;
     let p = null;
     for (let t = 0; t < 60 && !p; t++) {
       const inCluster = i % 5 !== 4;
@@ -134,14 +137,15 @@ export function layout(seed, count, mix, field) {
         p = place(u, v, type);
       } else p = place(rnd(), rnd(), type);
     }
-    if (p) out.push({ ...p, type, r: SHELLS[type].r });
+    if (p) out.push({ ...p, type, r: SHELLS[type].r, mod: it.m || null, pi: it.pi ?? -1 });
   }
+  out.deckUsed = used;
   return out;
 }
 
 export function newShell(id, x, y, type, rise = 0) {
   const d = SHELLS[type];
-  return { id, type, x, y, vx: 0, vy: 0, r: d.r, R: d.R, pts: d.pts, state: 'idle', threaded: false, hits: 0, rise, phase: (id * 0.37) % 6.28, litBy: null, how: null };
+  return { id, type, x, y, vx: 0, vy: 0, r: d.r, R: d.R, pts: d.pts, state: 'idle', threaded: false, hits: 0, rise, phase: (id * 0.37) % 6.28, litBy: null, how: null, mod: null, pi: -1 };
 }
 
 // level: { seed, count, mix, strokes, refill, target, rule, id }
@@ -171,10 +175,12 @@ export function newNight(level, w, h, loadout = {}) {
     streak: loadout.streak || 0, lastBloom: false, act2: false, goalMet: false, intruded: false, refillTypes: [],
     crowMax: 0, crowLeft: 0, crowT: 0, falling: false, fallT: 0,
     // 腕の層
-    dust: [], drnd: rng32(level.seed + 11), pv: loadout.pv ?? m.pv0, graze: 0, dustGot: 0, dustPts: 0, mikiri: 0, tsugi: null, tsugiBest: 0, tsugiCount: 0, waited: 0, spellLog: [], spellDone: {}, rainEvery: 0.2,
+    dust: [], drnd: rng32(level.seed + 11), pv: loadout.pv ?? m.pv0, graze: 0, dustGot: 0, dustPts: 0, mikiri: 0, tsugi: null, tsugiBest: 0, tsugiCount: 0, waited: 0, spellLog: [], spellDone: {}, rainEvery: 0.2, broken: [], deckI: 0,
   };
   const count = (level.count || 16) + m.countAdd;
-  for (const s of layout(level.seed, count, mix, field)) st.shells.push(newShell(st.nextId++, s.x, s.y, s.type));
+  const L = layout(level.seed, count, mix, field, level.deck);
+  for (const s of L) { const sh = newShell(st.nextId++, s.x, s.y, s.type); sh.mod = s.mod; sh.pi = s.pi; if (level.deck) initShell(st, sh); st.shells.push(sh); }
+  st.deckI = L.deckUsed || 0;
   if (level.rule === 'kappa') st.shells.forEach((s, i) => { if (i % 2 === 0 && s.type === 'kiku') retype(s, 'shime'); });
   if (st.twist && TWIST_SETUP[st.twist]) TWIST_SETUP[st.twist](st);
   st.startCount = st.shells.length;
@@ -601,6 +607,7 @@ function burst(st, s, gen, how) {
   const heatX = heatMult(k.heatLv, st);
   const lvl = st.recipes[s.type] || 0;
   let pts = (s.pts + lvl * Math.max(5, Math.round(d.pts * 0.5))) * heatX;
+  if (s.mod === 'glass') pts *= 3; // 硝子: 点 ×3。ただし割れることがある
   if (k.lantern > 0) pts *= m.lanternX;
   if (st.zones.length && zoneAt(st, s.x, s.y)?.kind === 'oil') pts *= 3;
   const mult0 = k.mult;
@@ -608,6 +615,7 @@ function burst(st, s, gen, how) {
   pts = c.pts * m.chipsX; R = c.R;
   k.chips += Math.round(pts);
   if (d.mult) k.mult += m.goldMult + lvl;
+  if (s.mod === 'gold') k.mult += 1; // 金箔
   if (d.lantern) k.lantern++;
   if (d.multAdd) k.mult += d.multAdd;
   if (d.coin) { st.coinsEarned += d.coin; st.events.push({ type: 'coinPop', x: s.x, y: s.y, n: d.coin }); }
@@ -620,7 +628,7 @@ function burst(st, s, gen, how) {
   if (m.dyn) k.kick = Math.min(m.kickMax, k.kick + (how === 'line' ? m.kickLine : m.kickChain));
   st.bestChain = Math.max(st.bestChain, k.pops);
   // 星屑がこぼれる。大きい玉ほど多い。金の玉の星屑は 2 倍の値
-  spawnDust(st, s, d.finale ? 16 : Math.min(6, 1 + Math.round(s.pts / 12)) + (m.dustAdd || 0), s.type === 'kin' || s.type === 'kingyo');
+  spawnDust(st, s, (d.finale ? 16 : Math.min(6, 1 + Math.round(s.pts / 12)) + (m.dustAdd || 0)) * (s.mod === 'star' ? 3 : 1), s.type === 'kin' || s.type === 'kingyo' || s.mod === 'star');
   const ms = CHAIN_MARKS.find((c) => c.n === k.pops);
   if (ms) { st.coinsEarned += ms.coin; st.events.push({ type: 'chainMark', x: s.x, y: s.y, ...ms }); }
   st.events.push({ type: 'burst', shell: s, gen, how, R, pts: Math.round(pts), chips: k.chips, mult: k.mult, multUp: k.mult - mult0, n: k.pops, heatLv: k.heatLv });
@@ -656,6 +664,7 @@ function burst(st, s, gen, how) {
     st.events.push({ type: 'kids', x: s.x, y: s.y, n: d.kids });
   }
   if (d.bake) bakeOut(st, s);
+  modAfter(st, s, gen);
   if (d.sparks || m.sparkAll) {
     const cnt = (d.sparks ? d.sparks : 0) + (m.sparkAll || 0) + (d.sparks ? (m.sparkAdd || 0) : 0);
     for (let i = 0; i < cnt; i++) {
@@ -663,6 +672,21 @@ function burst(st, s, gen, how) {
       st.sparks.push({ x: s.x, y: s.y, vx: Math.cos(a) * m.sparkV, vy: Math.sin(a) * m.sparkV, life: m.sparkLife, gen: gen + 1 });
     }
   }
+}
+
+// 刻印のあと始末: 二度咲き・導火・硝子の割れ
+function modAfter(st, s, gen) {
+  if (s.mod === 'twice' && !s.twiced) { // 二度咲き: 0.5 秒後に、もう一度ひらく
+    s.twiced = true; s.state = 'lit';
+    st.pending.push({ s, gen: gen + 1, how: 'twice', at: st.t + 0.5 });
+    st.events.push({ type: 'twice', x: s.x, y: s.y });
+  }
+  if (s.mod === 'fuse') { // 導火: いちばん近い 2 つの玉へ、距離に関係なく火を渡す
+    const near = st.shells.filter((o) => o.state === 'idle' && o.rise <= 0 && o.type !== 'shaku').sort((a, b) => Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y)).slice(0, 2);
+    for (const o of near) ignite(st, o, gen + 1, 'blast', 0.15 + Math.hypot(o.x - s.x, o.y - s.y) / 1600);
+    if (near.length) st.events.push({ type: 'fuseLink', x: s.x, y: s.y, to: near.map((o) => [o.x, o.y]) });
+  }
+  if (s.mod === 'glass' && s.pi >= 0 && st.drnd() < 0.2 && !st.broken.includes(s.pi)) { st.broken.push(s.pi); st.events.push({ type: 'glassBreak', x: s.x, y: s.y }); }
 }
 
 // 化け玉: 開けてみるまで分からない
@@ -973,6 +997,8 @@ function finishStroke(st) {
     if (st.act2) st.encoreBloom = true;
     fire(st, 'bloom', {});
   }
+  // 追いつかれた一筆は、点が半分（何を失ったかを、数字で見せる）
+  if (k.caught && !st.m.caughtSafe) { k.lostChips = Math.floor(k.chips * 0.5); k.chips -= k.lostChips; }
   const gained = Math.floor(k.chips * k.mult);
   st.score += gained; st.lastGain = gained;
   st.dustScore = (st.dustScore || 0) + Math.floor(k.dustPts * k.mult); // 星屑で稼いだ点（結果の内訳に出す）
@@ -985,7 +1011,7 @@ function finishStroke(st) {
     st.events.push({ type: got ? 'spellGet' : 'spellFail', ...k.spell, bonus: spellGot });
   }
   st.strokesLeft--; st.strokesUsed++;
-  st.events.push({ type: 'strokeEnd', gained, chips: k.chips, mult: k.mult, pops: k.pops, bloom, caught: k.caught, heatLv: k.heatLv, streak: st.streak, graze: k.graze, dust: k.dust, dustPts: Math.round(k.dustPts), tsugiN: k.tsugiN, spellGot });
+  st.events.push({ type: 'strokeEnd', gained, chips: k.chips, mult: k.mult, pops: k.pops, bloom, caught: k.caught, heatLv: k.heatLv, streak: st.streak, graze: k.graze, dust: k.dust, dustPts: Math.round(k.dustPts), tsugiN: k.tsugiN, spellGot, lost: k.lostChips || 0 });
   st.phase = 'settle';
   st.settleAt = st.t + (bloom ? 3.2 : 0.9);
   if (st.act2) st.coinsEarned += Math.ceil(k.pops / 3);
@@ -1016,9 +1042,12 @@ function refill(st) {
     const mix = {}; for (const [t, n] of Object.entries(st.level.mix || {})) if (t !== 'shaku') mix[t] = n;
     if (st.act2) mix.kin = (mix.kin || 0) + 5;
     const cnt = Math.min(26, Math.max(st.level.count || 16, st.act2 ? 22 : 0) + st.m.countAdd);
-    for (const p of layout(st.seed + st.strokesUsed * 131 + (st.act2 ? 977 : 0), cnt, mix, f)) {
+    const deck = st.level.deck ? rotate(st.level.deck, st.deckI) : null;
+    const L = layout(st.seed + st.strokesUsed * 131 + (st.act2 ? 977 : 0), cnt, mix, f, deck);
+    st.deckI += L.deckUsed || 0;
+    for (const p of L) {
       if (st.shells.every((o) => Math.hypot(o.x - p.x, o.y - p.y) > o.r + SHELLS[p.type].r + 10)) {
-        const s = addShell(st, p.x, p.y, p.type, 0.1 + st.shells.length * 0.022);
+        const s = addShell(st, p.x, p.y, p.type, 0.1 + st.shells.length * 0.022); s.mod = p.mod; s.pi = p.pi;
         st.events.push({ type: 'rise', shell: s });
       }
     }
@@ -1029,10 +1058,16 @@ function refill(st) {
     const types = [...Object.keys(st.level.mix || {}).filter((t) => t !== 'shaku'), ...st.refillTypes, ...st.refillTypes];
     for (let i = 0; i < n; i++) {
       for (let t = 0; t < 40; t++) {
-        const type = st.rnd() < 0.45 && types.length ? types[Math.floor(st.rnd() * types.length)] : 'kiku';
+        // 玉袋があれば袋の続きから（邪魔玉と趣向の玉はときどき混ざる）。なければ前のとおり
+        const deck = st.level.deck, hz = types.filter((x) => !deck || !deck.some((d) => d.t === x));
+        let it;
+        if (deck && deck.length) it = hz.length && st.rnd() < 0.25 ? { t: hz[Math.floor(st.rnd() * hz.length)] } : deck[st.deckI % deck.length];
+        else it = { t: st.rnd() < 0.45 && types.length ? types[Math.floor(st.rnd() * types.length)] : 'kiku' };
+        const type = it.t;
         const x = f.x0 + st.rnd() * (f.x1 - f.x0), y = f.y0 + st.rnd() * (f.y1 - f.y0);
         if (st.shells.every((s) => Math.hypot(s.x - x, s.y - y) > s.r + SHELLS[type].r + 18)) {
-          const s = addShell(st, x, y, type, 0.1 + i * 0.09);
+          if (deck && it === deck[st.deckI % deck.length]) st.deckI++;
+          const s = addShell(st, x, y, type, 0.1 + i * 0.09); s.mod = it.m || null; s.pi = it.pi ?? -1;
           st.events.push({ type: 'rise', shell: s });
           break;
         }
@@ -1042,6 +1077,8 @@ function refill(st) {
   if (st.twist === 'meoto') pairUp(st);
   if (st.twist === 'juzu') { typeSome(st, 'juzu', Math.max(0, 6 - st.shells.filter((s) => s.type === 'juzu').length)); numberJuzu(st); }
 }
+
+function rotate(a, i) { const k = ((i % a.length) + a.length) % a.length; return a.slice(k).concat(a.slice(0, k)); }
 
 export function starsFor(st) {
   const s = st.score, t = st.target;

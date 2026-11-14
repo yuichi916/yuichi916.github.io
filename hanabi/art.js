@@ -89,6 +89,17 @@ export function shellAtlas(cell = 144) {
 export const SHELL_NAME = {
   kiku: ['菊玉', 'Peony'], ootama: ['大玉', 'Big Shell'], kin: ['金の玉', 'Gold Shell'], senrin: ['千輪', 'Crossette'],
   chouchin: ['提灯', 'Lantern'], shime: ['湿り玉', 'Wet Shell'], koori: ['氷玉', 'Ice Shell'], oni: ['鬼玉', 'Oni Shell'], shaku: ['尺玉', 'Grand Shell'], ko: ['子玉', 'Small Shell'],
+  nezumi: ['ねずみ花火', 'Whirling Mouse'], roket: ['ロケット花火', 'Bottle Rocket'], oyako: ['親子玉', 'Mother Shell'], bake: ['化け玉', 'Trickster'], tome: ['地蔵玉', 'Jizo Shell'],
+  kingyo: ['金魚玉', 'Goldfish'], nige: ['逃げ玉', 'Runaway'], meoto: ['夫婦玉', 'Twin Shell'], juzu: ['数珠玉', 'Prayer Bead'],
+};
+// 玉の一行説明（屋台の「玉を足す」と玉袋で使う）
+export const SHELL_DESC = {
+  kiku: ['ふつうの玉。点 10', 'A plain shell. 10 POINTS'], ootama: ['爆風が大きい。点 30', 'Big blast. 30 POINTS'], kin: ['ひらくと 倍率 +1', 'Opens for +1 MULT'],
+  senrin: ['八方に火花を飛ばす', 'Shoots sparks in 8 directions'], chouchin: ['このあとひらく玉の点が 2 倍', 'Doubles POINTS of shells opened after it'],
+  nezumi: ['走り回って、ふれた玉に火を移す', 'Scurries around, lighting what it touches'], roket: ['矢の向きへ一直線に飛ぶ', 'Flies straight where its arrow points'],
+  oyako: ['子玉を 4 つ飛ばす', 'Scatters 4 small shells'], bake: ['何が起きるかは、ひらくまで分からない', 'Who knows what happens'],
+  tome: ['線の火でひらくと、火が 1 秒止まる', 'Lit by your line, freezes the flame for 1s'], kingyo: ['泳ぎ回る。ひらけば小判 +1', 'Swims around. +1 coin'],
+  nige: ['筆から逃げる。ひらけば倍率 +3', 'Flees your brush. +3 MULT'],
 };
 const BAG_COLOR = { heat: ['#c8411f', '#6e150a'], chain: ['#c0307a', '#5a1038'], gold: ['#c98f18', '#6a4306'], lantern: ['#d0641e', '#6f2a08'], ink: ['#2c5cb4', '#112c63'], finale: ['#7a46c6', '#32155e'], gimmick: ['#1f8f68', '#0b4632'], star: ['#2f8fc8', '#0f3a5e'] };
 

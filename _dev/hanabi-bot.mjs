@@ -92,8 +92,8 @@ function trial(run, sk, seed) {
 function shop(run, rnd, sk) {
   if (sk.randomShop) { // 人はボットほど上手に買わない: 買えるものを適当に買う
     for (const it of Run.shopFor(run)) {
-      if (it.kind !== 'charm' || it.cost > run.coins || run.charms.length >= run.slots || rnd() < 0.35) continue;
-      run.coins -= it.cost; run.charms.push(it.id);
+      if (it.cost > run.coins || (it.kind === 'charm' && run.charms.length >= run.slots) || rnd() < 0.35) continue;
+      run.coins -= it.cost; Run.applyItem(run, it);
     }
     return;
   }
@@ -105,14 +105,14 @@ function shop(run, rnd, sk) {
       let best = null, bv = 1.02 * base;
       for (const it of items) {
         if (it.bought || it.cost > run.coins || (it.kind === 'charm' && run.charms.length >= run.slots)) continue;
-        const r2 = { ...run, charms: it.kind === 'charm' ? [...run.charms, it.id] : run.charms, recipes: it.kind === 'recipe' ? { ...run.recipes, [it.id]: (run.recipes[it.id] || 0) + 1 } : run.recipes };
+        const r2 = structuredClone(run); Run.applyItem(r2, it);
         const v = seeds.reduce((a, x) => a + trial(r2, sk, x), 0);
         if (v > bv) { bv = v; best = it; }
       }
       if (!best) break;
       run.coins -= best.cost; best.bought = true;
-      if (best.kind === 'charm') { run.charms.push(best.id); run.picked = run.picked || {}; run.picked[best.id] = bv / Math.max(1, base); }
-      else run.recipes[best.id] = (run.recipes[best.id] || 0) + 1;
+      Run.applyItem(run, best);
+      if (best.kind === 'charm') { run.picked = run.picked || {}; run.picked[best.id] = bv / Math.max(1, base); }
     }
     const rc = Run.rerollCost(run);
     if (run.coins >= rc + 5 && run.charms.length < run.slots) { run.coins -= rc; run.rerolls++; run.shopRound++; } else break;
@@ -125,8 +125,10 @@ function playRun(seed, sk, rank = 0, fuse = 'asa') {
   const log = []; let dscore = 0, seconds = 0, stars = 0, retries = 0, blooms = 0, score = 0, graze = 0, dust = 0, tsugi = 0;
   while (!run.done) {
     const def = Run.nightDef(run, run.world, run.night);
+    if (process.env.MEASURE) { const m = G.newNight({ ...def, target: 1e15 }, 1280, 720, Run.loadoutFor(run)); playNight(m, sk, G.rng32(seed * 13 + run.night)); (globalThis.FULL ||= []).push({ i: (def.world - 1) * 8 + def.night, s: m.score, t: def.target }); }
     const st = G.newNight(def, 1280, 720, Run.loadoutFor(run));
     seconds += playNight(st, sk, rnd) + 3; // 集計
+    (globalThis.NIGHTS ||= []).push({ i: (def.world - 1) * 8 + def.night, r: st.score / def.target, used: st.strokesUsed, first: st._first ?? 0 });
     score += st.score; dscore = (dscore || 0) + (st.dustScore || 0); graze += st.graze; dust += st.dustGot; tsugi += st.tsugiCount || 0;
     const res = Run.afterNight(run, st);
     if (res === 'retry') { retries++; continue; }
@@ -141,7 +143,7 @@ function playRun(seed, sk, rank = 0, fuse = 'asa') {
     const ch = Run.routeChoices(run); if (ch.length) Run.chooseRoute(run, ch[Math.floor(rnd() * ch.length)]);
     Run.advance(run);
   }
-  return { score, dscore, graze, dust, tsugi, pv: run.pv, retries, blooms, cleared: run.nightsCleared, won: run.won, seconds, stars, end: log[0], charms: run.charms, coins: run.coins, picked: run.picked || {} };
+  return { pouch: run.pouch.length, coinsLeft: run.coins, score, dscore, graze, dust, tsugi, pv: run.pv, retries, blooms, cleared: run.nightsCleared, won: run.won, seconds, stars, end: log[0], charms: run.charms, coins: run.coins, picked: run.picked || {} };
 }
 
 const N = +(process.argv[2] || 60), skillName = process.argv[3] || 'all';
@@ -152,6 +154,7 @@ for (const name of (skillName === 'all' ? Object.keys(SKILL) : [skillName])) {
   const avg = (f) => res.reduce((a, r) => a + f(r), 0) / N;
   console.log(`== ${name}: 完走 ${(avg((r) => (r.won ? 1 : 0)) * 100).toFixed(0)}%  平均 ${avg((r) => r.cleared).toFixed(1)} 夜  1 周 ${(avg((r) => r.seconds) / 60).toFixed(1)} 分  星 ${avg((r) => r.stars).toFixed(1)}  やり直し ${avg((r) => r.retries).toFixed(1)}  満開 ${avg((r) => r.blooms).toFixed(1)}`);
   console.log(`  腕: 点の合計 ${Math.round(avg((r) => r.score)).toLocaleString()}（星屑 ${(100 * avg((r) => r.dscore) / avg((r) => r.score)).toFixed(0)}%）  かすり ${avg((r) => r.graze ?? 0).toFixed(0)}  星屑 ${avg((r) => r.dust ?? 0).toFixed(0)}  継ぎ火 ${avg((r) => r.tsugi ?? 0).toFixed(1)}  星の値 ${avg((r) => r.pv ?? 0).toFixed(1)}`);
+  console.log(`  袋 ${avg((r) => r.pouch).toFixed(1)} 個  残り小判 ${avg((r) => r.coinsLeft).toFixed(0)}`);
   console.log('  到達率(夜0..24):', reach.filter((_, i) => i % 2 === 0).map((v) => (v * 100).toFixed(0)).join(' '));
   const ends = {}; for (const r of res) if (r.end) { const k = `${r.end.w}-${r.end.n}`; ends[k] = (ends[k] || 0) + 1; }
   { const br = {}; for (const r of res) if (r.end?.rule) br[r.end.rule] = (br[r.end.rule] || 0) + 1; console.log('  散った大一番:', JSON.stringify(br)); }
@@ -161,4 +164,7 @@ for (const name of (skillName === 'all' ? Object.keys(SKILL) : [skillName])) {
   const ex = res.find((r) => r.end) || res[0];
   if (ex.end) console.log('  例:', ex.end, ex.charms.join(','));
 }
+if (process.env.NIGHTS) { const by = {}; for (const x of globalThis.NIGHTS) (by[x.i] ||= []).push(x); const med = (a) => { const b = a.slice().sort((p, q) => p - q); return b[Math.floor(b.length / 2)]; };
+  console.log('夜  点/目標の中央値  25%  75%  使った筆'); for (const [i, a] of Object.entries(by)) { const r = a.map((x) => x.r).sort((p, q) => p - q); console.log(i.padStart(2), med(r).toFixed(2).padStart(6), r[Math.floor(r.length * 0.25)].toFixed(2).padStart(6), r[Math.floor(r.length * 0.75)].toFixed(2).padStart(6), (a.reduce((p, x) => p + x.used, 0) / a.length).toFixed(1).padStart(6)); } }
+if (process.env.MEASURE) { const by = {}; for (const x of globalThis.FULL) (by[x.i] ||= []).push(x); console.log('夜  3筆の中央値  目標  比'); for (const [i, a] of Object.entries(by)) { const v = a.map((x) => x.s).sort((p, q) => p - q), m = v[Math.floor(v.length / 2)]; console.log(i.padStart(2), String(Math.round(m)).padStart(9), String(a[0].t).padStart(8), (m / a[0].t).toFixed(2), 'n=' + a.length); } }
 console.log('お守り', CHARMS.length, '種');
