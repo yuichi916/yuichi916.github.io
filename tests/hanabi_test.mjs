@@ -296,7 +296,7 @@ for (const rule of Object.keys(Run.RULES)) {
   { const st = G.newNight(scene({ count: 6, mix: {}, intrude: 'fuku' }), 1280, 720, {}); const n0 = st.shells.length; G.penDown(st, 100, 500); let x = 100; for (let i = 0; i < 180; i++) { x += 4; G.penMove(st, x, 500); G.step(st, G.DT); } assert.ok(st.shells.length > n0 && st.shells.some((s) => s.type === 'kin'), '福の神'); assert.ok(st.intruded); }
   for (const kind of Object.keys(Run.INTRUDES)) { const st = drive(G.newNight(scene({ count: 8, mix: {}, intrude: kind }), 1280, 720, {})); assert.equal(st.phase, 'over', kind); assert.ok(st.intruded, kind); }
   // 周回: 道の分かれ・提灯
-  { const run = Run.newRun({ seed: 9 }); assert.equal(run.lives, 3); const c = Run.routeChoices(run); assert.equal(c.length, 2); assert.notEqual(c[0].id, c[1].id); Run.chooseRoute(run, c[0]); Run.advance(run); const d = Run.nightDef(run, 1, 2); assert.equal(d.twist, c[0].id);
+  { const run = Run.newRun({ seed: 9 }); assert.equal(run.lives, 3); assert.equal(Run.routeChoices(run).length, 0, 'はじめの夜は道を選ばない'); run.night = 4; const c = Run.routeChoices(run); assert.equal(c.length, 2); assert.notEqual(c[0].id, c[1].id); Run.chooseRoute(run, c[0]); Run.advance(run); const d = Run.nightDef(run, 1, 5); assert.equal(d.twist, c[0].id);
     const fake = { cleared: false, blooms: 1, streak: 4 }; assert.equal(Run.afterNight(run, fake), 'retry'); assert.equal(run.lives, 2); assert.equal(run.bloomStreak, 4); assert.notEqual(Run.nightDef(run, 1, 2).seed, d.seed, 'やり直しは盤が変わる'); assert.equal(Run.afterNight(run, { cleared: false, blooms: 0, streak: 0 }), 'retry'); assert.equal(run.bloomStreak, 0, '満開なしで連続が切れる'); assert.equal(Run.afterNight(run, fake), 'over');
     const r2 = Run.newRun({ seed: 5 }), seen = new Set(); while (!r2.done) { const ch = Run.routeChoices(r2); for (const x of ch) assert.ok(Run.TWISTS[x.id], x.id); if (ch.length) { Run.chooseRoute(r2, ch[1]); seen.add(ch[1].id); } Run.advance(r2); } assert.ok(seen.size >= 12, `1 周で趣向 ${seen.size} 種`);
     const old = Run.fixRun({ seed: 1, world: 1, night: 2, charms: [], recipes: {} }); assert.equal(old.lives, 3); assert.ok(Run.nightDef(old, 1, 2)); }
@@ -370,7 +370,7 @@ for (const rule of Object.keys(Run.RULES)) {
   Run.applyItem(run, { kind: 'engrave', id: 'gold', target: 'kin' }); assert.equal(run.pouch.find((x) => x.t === 'kin').m, 'gold');
   for (let i = 0; i < 20; i++) Run.applyItem(run, { kind: 'thin', id: 'kiku' }); assert.equal(run.pouch.length, Run.POUCH_MIN, '袋は 8 個より減らない');
   const st2 = G.newNight(Run.nightDef(run, 1, 2), 1280, 720, Run.loadoutFor(run)); assert.ok(st2.shells.some((s) => s.type === 'nezumi'), '足した玉が出る'); assert.ok(st2.shells.some((s) => s.mod === 'gold'), '刻印の玉が出る');
-  for (let i = 0; i < 30; i++) { const sh = Run.shopFor(run); assert.ok(sh.length >= 5); for (const it of sh) assert.ok(['charm', 'add', 'thin', 'engrave', 'recipe'].includes(it.kind)); }
+  for (let i = 0; i < 30; i++) { const sh = Run.shopFor(run); assert.ok(sh.length >= 5); for (const it of sh) assert.ok(['charm', 'add', 'thin', 'engrave', 'recipe', 'engi'].includes(it.kind)); }
   // 刻印の効き目
   const one = (mod) => { const a = G.newNight(scene({ count: 1, mix: {}, strokes: 1, refill: 0 }), 1280, 720, {}); const s = a.shells[0]; s.mod = mod; s.pi = 0; light(a, s); for (let i = 0; i < 600 && a.phase === 'stroke'; i++) G.step(a, G.DT); return a; };
   const base = one(null), gold = one('gold'), twice = one('twice'), glass = one('glass');
@@ -382,5 +382,31 @@ for (const rule of Object.keys(Run.RULES)) {
   // 割れた硝子は袋から消える
   const r2 = Run.newRun({ seed: 2 }); r2.pouch[0].m = 'glass'; Run.afterNight(r2, { cleared: true, blooms: 0, streak: 0, dustGot: 0, graze: 0, pv: 4, waited: 0, spellLog: [], broken: [0] }); assert.equal(r2.pouch.length, 12); assert.equal(r2.lastBroken, 1);
   console.log('ok   玉袋: 袋から盤・足す・間引く・刻印（金箔・二度咲き・硝子・導火）');
+}
+
+// ---- 縁起物: 狙いの間だけ使える。効き目が出る
+{
+  const mk = () => G.newNight(scene({ count: 8, mix: {}, refill: 0 }), 1280, 720, {});
+  let st = mk(); assert.ok(G.useEngi(st, 'kinka')); assert.equal(st.shells.filter((s) => s.type === 'kin').length, 3, '金化け');
+  st = mk(); G.useEngi(st, 'atsu'); G.penDown(st, 100, 600); assert.ok(st.stroke.heat >= 1.7, '熱燗札');
+  st = mk(); G.useEngi(st, 'osoi'); G.penDown(st, 100, 600); assert.equal(st.stroke.grace, 2.4, '寝坊札');
+  st = mk(); const n0 = st.shells.length; G.useEngi(st, 'shaku'); assert.equal(st.shells.length, n0 + 1); assert.ok(st.shells.some((s) => s.type === 'shaku'));
+  st = mk(); G.useEngi(st, 'hoshi'); assert.equal(st.dust.length, 24);
+  st = mk(); G.useEngi(st, 'fude'); assert.equal(st.strokesLeft, 4);
+  st = mk(); G.penDown(st, 100, 600); assert.equal(G.useEngi(st, 'kinka'), false, '引いている間は使えない');
+  const run = Run.newRun({ seed: 4 }); Run.applyItem(run, { kind: 'engi', id: 'atsu' }); Run.applyItem(run, { kind: 'engi', id: 'fude' }); Run.applyItem(run, { kind: 'engi', id: 'hoshi' }); assert.deepEqual(run.engi, ['atsu', 'fude'], '2 つまで');
+  console.log('ok   縁起物 7 種');
+}
+
+// ---- 千秋楽: 24 夜のあとも続く。目標は上がり続ける
+{
+  const run = Run.newRun({ seed: 6 }); run.world = 3; run.night = 8;
+  assert.equal(Run.advance(run), 'won');
+  Run.startEndless(run); assert.equal(run.world, 4); assert.ok(!run.done);
+  const a = Run.nightDef(run, 4, 1), b = Run.nightDef(run, 3, 7); assert.ok(a.target > b.target, '千秋楽の目標は上がる'); assert.ok(a.endless && a.mix);
+  for (let i = 0; i < 16; i++) { const d = Run.nightDef(run, run.world, run.night); assert.ok(d.target > 0 && Run.worldOf(run.world)); assert.notEqual(Run.advance(run), 'won'); }
+  assert.equal(run.world, 6);
+  const st = G.newNight(Run.nightDef(run, 6, 4), 1280, 720, Run.loadoutFor(run)); assert.ok(st.rule, '千秋楽にも大一番');
+  console.log('ok   千秋楽');
 }
 console.log('hanabi_test: ALL PASS');

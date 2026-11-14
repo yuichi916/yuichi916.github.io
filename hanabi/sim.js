@@ -369,6 +369,33 @@ const newStroke = (st) => ({
 export const tsugiOpen = (st) => !!st.tsugi && st.t <= st.tsugi.until && !st.cleared && !st.failed && st.strokesLeft > 0;
 export function tsugiHit(st, x, y) { return tsugiOpen(st) && Math.hypot(x - st.tsugi.x, y - st.tsugi.y) <= st.m.tsugiR * (st.m.tsugiRX || 1); }
 
+// ---- 縁起物: 狙いを決めている間（aim）に使う、使い切りの札
+export const ENGI = {
+  kinka: { ja: '金化け札', en: 'Gilding Charm', dj: '盤のまん中に近い玉 3 つが、金の玉に化ける', de: 'The 3 shells nearest the center turn to gold', cost: 4 },
+  atsu: { ja: '熱燗札', en: 'Hot Start', dj: '次の一筆は 熱 ×3 から始まる', de: 'Your next stroke starts at HOT ×3', cost: 4 },
+  osoi: { ja: '寝坊札', en: 'Late Spark', dj: '次の一筆は、火が 2 秒おそくつく', de: 'Next stroke: the flame lights 2s late', cost: 3 },
+  shaku: { ja: '尺玉札', en: 'Grand Shell Charm', dj: '盤のまん中に尺玉がひとつ上がる', de: 'A Grand Shell rises in the center', cost: 5 },
+  yose: { ja: '寄せ札', en: 'Gathering Charm', dj: '盤の玉が、まん中へぐっと寄る', de: 'All shells drift toward the center', cost: 3 },
+  hoshi: { ja: '星降り札', en: 'Starfall', dj: '盤いっぱいに星屑が 24 粒降る', de: '24 star dust fall across the sky', cost: 3 },
+  fude: { ja: '筆札', en: 'Extra Brush', dj: 'この夜の筆が 1 本増える', de: '+1 stroke this night', cost: 6 },
+};
+export function useEngi(st, id) {
+  if (st.phase !== 'aim' || !ENGI[id]) return false;
+  const f = st.field, cx = (f.x0 + f.x1) / 2, cy = (f.y0 + f.y1) / 2;
+  const idle = st.shells.filter((s) => s.state === 'idle' && s.rise <= 0 && !s.fall && s.type !== 'shaku');
+  st.next = st.next || {};
+  if (id === 'kinka') for (const s of idle.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy)).slice(0, 3)) { retype(s, 'kin'); s.swim = null; }
+  if (id === 'atsu') st.next.heat = 1.7;
+  if (id === 'osoi') st.next.grace = 2.4;
+  if (id === 'shaku') { const s = addShell(st, cx, cy, 'shaku', 0.3); for (const o of st.shells) if (o !== s && o.state === 'idle' && Math.hypot(o.x - cx, o.y - cy) < 70) { o.x += (o.x - cx) * 0.8 + 40; o.y += (o.y - cy) * 0.5; } st.events.push({ type: 'rise', shell: s }); }
+  if (id === 'yose') for (const s of idle) { s.x += (cx - s.x) * 0.35; s.y += (cy - s.y) * 0.35; }
+  if (id === 'hoshi') for (let i = 0; i < 24; i++) st.dust.push({ x: f.x0 + st.drnd() * (f.x1 - f.x0), y: f.y0 - 20 + st.drnd() * (f.y1 - f.y0) * 0.5, vx: 0, vy: 20, t: 0, gold: i % 6 === 0 });
+  if (id === 'fude') { st.strokesLeft++; st.maxStrokes++; }
+  st.engiUsed = (st.engiUsed || 0) + 1;
+  st.events.push({ type: 'engi', id });
+  return true;
+}
+
 export function penDown(st, x, y) {
   // 一筆が終わった直後の間（settle）でも、継ぎ火の輪の中なら、すぐ次の一筆に入れる
   const tsugi = tsugiHit(st, x, y) ? st.tsugi : null;
@@ -389,6 +416,7 @@ export function penDown(st, x, y) {
     st.events.push({ type: 'tsugi', n: tsugi.n, mult: k.mult, x, y });
   } else if (st.tsugi) st.events.push({ type: 'tsugiLost', n: st.tsugi.n - 1 });
   st.tsugi = null;
+  if (st.next) { if (st.next.heat) k.heat = Math.max(k.heat, st.next.heat); if (st.next.grace) k.grace = st.next.grace; st.next = null; } // 縁起物の効き目
   fire(st, 'strokeStart', {});
   st.events.push({ type: 'penDown', x, y, tsugi: !!tsugi });
   threadAt(st, x, y);

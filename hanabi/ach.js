@@ -43,6 +43,8 @@ export const ACHIEVEMENTS = [
   A('tsugi3', '継ぎ火三連', 'Relight ×3', '継ぎ火を 3 回つなげる', 'Chain 3 relights', (c) => c.st?.tsugiBest >= 3),
   A('spell1', '技取り', 'First Capture', '大一番の技を取る', 'Capture a boss technique', (c) => c.st?.spellLog?.some((x) => x.got)),
   A('oku', '奥義破り', 'Secret Art Broken', '第二幕の奥義を取る', 'Capture a secret art in an encore', (c) => c.st?.spellLog?.some((x) => x.got && x.id.endsWith('3'))),
+  A('endless8', '千秋楽', 'Encore', '千秋楽で 8 夜を越える', 'Clear 8 nights in the Encore', (c) => c.run?.endless && c.run.nightsCleared >= 32),
+  A('endless24', '終わらない祭り', 'The Endless Festival', '千秋楽で 24 夜を越える', 'Clear 24 nights in the Encore', (c) => c.run?.endless && c.run.nightsCleared >= 48),
   // 記憶の層
   A('seen', '見られていた', 'Someone Was Watching', '夜の途中で、いなくなる', 'Leave in the middle of a night', (c) => c.meta?.mem?.left >= 1),
   A('wait', '立ち止まる', 'Standing Still', '筆を止めて、火を待つ', 'Stop and wait for the flame', (c) => c.meta?.mem?.waited >= 1),

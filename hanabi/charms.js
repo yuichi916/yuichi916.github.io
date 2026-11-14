@@ -86,6 +86,8 @@ export const CHARMS = [
   C('tanabata', 'star', 'l', '天の川', 'Milky Way', '一筆で拾った星屑 10 粒ごとに 倍率 +1', 'Every 10 star dust in a stroke: +1 MULT', { on: { strokeEnd(c) { c.k.mult += Math.floor(c.k.dust / 10); } } }),
 ];
 export const CHARM_BY_ID = Object.fromEntries(CHARMS.map((c) => [c.id, c]));
+// 特定の玉がないと働かないお守り（世界の邪魔玉か、玉袋の玉）
+for (const [id, need] of Object.entries({ amayoke: 'shime', yukidoke: 'koori', fukumame: 'oni', kamaitachi: 'senrin', hanaikada: 'chouchin' })) if (CHARM_BY_ID[id]) CHARM_BY_ID[id].need = need;
 
 // 追いつかれたときの火の玉
 CHARM_BY_ID.hinotama.on.strokeEnd = (c) => { if (c.k.caught) c.k.mult += 4; };

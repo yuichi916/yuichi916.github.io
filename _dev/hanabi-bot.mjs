@@ -39,7 +39,7 @@ function plan(st, sk, rnd) {
   return path.map((s) => ({ x: s.x, y: s.y }));
 }
 
-function playNight(st, sk, rnd) {
+function playNight(st, sk, rnd, run = null) {
   let ticks = 0, drawn = 0;
   while (st.phase !== 'over' && ticks < 60 * 300) {
     ticks++;
@@ -48,6 +48,7 @@ function playNight(st, sk, rnd) {
       const at = { x: st.tsugi.x, y: st.tsugi.y };
       if (G.penDown(st, at.x, at.y)) { const path = plan(st, sk, rnd); if (!path.length) path.push({ x: at.x + 200, y: at.y }); st._path = path; st._pen = { ...at }; }
     } else if (st.phase === 'aim') {
+      if (run?.engi?.length && st.strokesLeft === 1 && st.score < st.target) G.useEngi(st, run.engi.shift()); // 最後の一筆で足りなければ縁起物
       const path = plan(st, sk, rnd);
       const start = path.shift() || { x: st.field.x0 + rnd() * 400, y: st.field.y0 + rnd() * 200 };
       if (!path.length) path.push({ x: start.x + 200, y: start.y });
@@ -127,7 +128,7 @@ function playRun(seed, sk, rank = 0, fuse = 'asa') {
     const def = Run.nightDef(run, run.world, run.night);
     if (process.env.MEASURE) { const m = G.newNight({ ...def, target: 1e15 }, 1280, 720, Run.loadoutFor(run)); playNight(m, sk, G.rng32(seed * 13 + run.night)); (globalThis.FULL ||= []).push({ i: (def.world - 1) * 8 + def.night, s: m.score, t: def.target }); }
     const st = G.newNight(def, 1280, 720, Run.loadoutFor(run));
-    seconds += playNight(st, sk, rnd) + 3; // 集計
+    seconds += playNight(st, sk, rnd, run) + 3; // 集計
     (globalThis.NIGHTS ||= []).push({ i: (def.world - 1) * 8 + def.night, r: st.score / def.target, used: st.strokesUsed, first: st._first ?? 0 });
     score += st.score; dscore = (dscore || 0) + (st.dustScore || 0); graze += st.graze; dust += st.dustGot; tsugi += st.tsugiCount || 0;
     const res = Run.afterNight(run, st);

@@ -1,6 +1,6 @@
 // 一筆花火 2 — 1 周のルール（夜の並び・目標・屋台・小判）。DOM に触らない
 import { CHARMS, CHARM_BY_ID } from './charms.js';
-import { rng32, SHELLS } from './sim.js';
+import { rng32, SHELLS, ENGI } from './sim.js';
 
 export const WORLDS = [
   { id: 1, ja: '川辺の夏祭り', en: 'Riverside Festival', theme: 'summer', mix: ['kin', 'ootama', 'senrin', 'chouchin'], rules: ['kasha', 'kaze'] },
@@ -63,6 +63,8 @@ export const MODS = {
   star: { ja: '星宿し', en: 'Star-Bearing', dj: '星屑が 3 倍こぼれる', de: 'Drops 3× star dust', cost: 4, col: '#7fb6ff' },
 };
 export const POUCH_MIN = 8;
+export const ENGI_SLOTS = 2;
+export function bossEngi(run) { const ids = Object.keys(ENGI), r = rng32((run.seed * 5 + run.world * 77) >>> 0); return ids[Math.floor(r() * ids.length)]; }
 export const startPouch = (extra = []) => [...Array(10).fill('kiku'), 'kin', 'ootama', 'chouchin', ...extra].map((t) => ({ t, m: null }));
 export function pouchCount(pouch) { const c = {}; for (const x of pouch || []) c[x.t] = (c[x.t] || 0) + 1; return c; }
 // 夜ごとに袋を切る（同じ周回・同じ夜なら同じ順）
@@ -77,6 +79,7 @@ export function applyItem(run, it) {
   if (it.kind === 'charm') run.charms.push(it.id);
   else if (it.kind === 'recipe') run.recipes[it.id] = (run.recipes[it.id] || 0) + 1;
   else if (it.kind === 'add') run.pouch.push({ t: it.id, m: null });
+  else if (it.kind === 'engi') { run.engi = run.engi || []; if (run.engi.length < ENGI_SLOTS) run.engi.push(it.id); }
   else if (it.kind === 'thin') { const i = run.pouch.findIndex((x) => x.t === 'kiku' && !x.m); if (i >= 0 && run.pouch.length > POUCH_MIN) run.pouch.splice(i, 1); run.thinned = (run.thinned || 0) + 1; }
   else if (it.kind === 'engrave') { const x = run.pouch.find((y) => y.t === it.target && !y.m) || run.pouch.find((y) => !y.m); if (x) x.m = it.id; }
 }
@@ -97,9 +100,9 @@ export const RANKS = [
   { ja: '手代', en: 'Journeyman', dj: '目標 +15%', de: 'Targets +15%', target: 1.15 },
   { ja: '職人', en: 'Artisan', dj: '上に加えて 屋台の品 +1 小判', de: '+ Shop items cost +1', target: 1.15, costAdd: 1 },
   { ja: '親方', en: 'Master', dj: '上に加えて 火が 1.1 倍速い', de: '+ Flame 10% faster', target: 1.15, costAdd: 1, flameX: 1.1 },
-  { ja: '名人', en: 'Virtuoso', dj: '上に加えて 目標 +40%・提灯 2 つ', de: '+ Targets +40%, 2 lanterns', target: 1.4, costAdd: 1, flameX: 1.1 },
+  { ja: '名人', en: 'Virtuoso', dj: '上に加えて 目標 +40%・灯 2 つ', de: '+ Targets +40%, 2 lights', target: 1.4, costAdd: 1, flameX: 1.1 },
   { ja: '鍵屋', en: 'Grandmaster', dj: '上に加えて 筆 −1 の夜あり（大一番）', de: '+ Boss nights: 1 less stroke', target: 1.4, costAdd: 1, flameX: 1.1, bossStroke: -1 },
-  { ja: '玉屋', en: 'Legend', dj: '上に加えて 目標 +80%・提灯 1 つ', de: '+ Targets +80%, 1 lantern', target: 1.8, costAdd: 1, flameX: 1.15, bossStroke: -1 },
+  { ja: '玉屋', en: 'Legend', dj: '上に加えて 目標 +80%・灯 1 つ', de: '+ Targets +80%, 1 light', target: 1.8, costAdd: 1, flameX: 1.15, bossStroke: -1 },
   { ja: '花火神', en: 'Fireworks God', dj: '上に加えて 持てるお守り −1', de: '+ One fewer charm slot', target: 1.8, costAdd: 1, flameX: 1.2, bossStroke: -1, slots: -1 },
 ];
 
@@ -110,11 +113,15 @@ const WORLD_X = [1, 3.7, 12];
 // 目標点: 24 夜を通してなめらかに伸びる（ボットの「3 筆の点」の中央値に合わせた曲線 × TARGET_K）。
 // 世界の変わり目で目標が下がって楽になる夜をなくした
 // はじめの夜はゆるく（×0.45）、終盤ほどきつく（×0.75）。大一番は ×1.35（技のボーナスと第二幕があるぶん）
-export const TARGET_K = [0.43, 0.0135];
+export const TARGET_K = [0.37, 0.0115];
 export function targetFor(i, rank = RANKS[0], boss = false) {
   const k = TARGET_K[0] + TARGET_K[1] * (i - 1);
   return Math.round((k * 1190 * Math.pow(i, 1.12) * (rank.target || 1) * (boss ? 1.35 : 1)) / 10) * 10;
 }
+// 千秋楽（24 夜のあとに続く祭り）: 世界は 3 つをめぐり、目標は 1 巡ごとに 1.6 倍、火も速くなる
+export const worldOf = (w) => WORLDS[(w - 1) % WORLDS.length];
+export const endlessX = (w) => (w > WORLDS.length ? Math.pow(1.6, w - WORLDS.length) : 1);
+export function startEndless(run) { run.endless = true; run.done = false; run.world = WORLDS.length + 1; run.night = 1; run.retry = 0; run.lives = Math.max(run.lives, 1); }
 export function isBoss(night) { return night === 4 || night === 8; }
 
 // 次の夜の座標
@@ -123,7 +130,7 @@ const allowedTier = (w, n) => (w === 1 ? (n <= 4 ? 1 : 2) : w === 2 ? (n <= 2 ? 
 // 道の分かれ: 次の夜を 2 つから選ぶ。片方は中身の見えない夜のことがある（小判が多い）
 export function routeChoices(run) {
   const nx = nextCoord(run);
-  if (!nx || isBoss(nx[1]) || nx[1] === 1) return [];
+  if (!nx || isBoss(nx[1]) || nx[1] === 1 || (nx[0] === 1 && nx[1] <= 3)) return []; // 道の分かれは、遊び方を覚えた 4 夜目から
   const rnd = rng32((run.seed * 3 + nx[0] * 211 + nx[1] * 37 + 5) >>> 0), tier = allowedTier(nx[0], nx[1]);
   const all = Object.keys(TWISTS).filter((id) => TWISTS[id].tier <= tier);
   let pool = all.filter((id) => !(run.used || []).includes(id));
@@ -148,7 +155,7 @@ export function fixRun(run) {
   if (!run) return run;
   run.lives ??= 3; run.retry ??= 0; run.bloomStreak ??= 0; run.plan ??= {}; run.used ??= [];
   run.pv ??= 4; run.dust ??= 0; run.graze ??= 0; run.waitedNights ??= 0; run.spells ??= {};
-  run.pouch ??= startPouch();
+  run.pouch ??= startPouch(); run.engi ??= [];
   return run;
 }
 // 1 周で拾った星屑がここに届くたび、提灯が 1 つ増える（5 まで）
@@ -175,7 +182,7 @@ export function afterNight(run, st) {
 }
 
 export function nightDef(run, world, night) {
-  const W = WORLDS[world - 1], rank = RANKS[run.rank] || RANKS[0];
+  const W = worldOf(world), rank = RANKS[run.rank] || RANKS[0];
   const seed = (run.seed * 31 + world * 1009 + night * 97 + (run.retry || 0) * 7919) >>> 0;
   const rnd = rng32(seed + 13);
   const boss = isBoss(night);
@@ -186,7 +193,7 @@ export function nightDef(run, world, night) {
   if (boss) mix.shaku = 1;
   const rule = boss ? W.rules[(night / 4 - 1 + (run.seed % 2)) % W.rules.length] : null;
   const count = 13 + Math.min(14, world * 2 + night);
-  const target = targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss);
+  const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) / 10) * 10;
   const strokes = 3 + (boss && rank.bossStroke ? rank.bossStroke : 0);
   const idx = (world - 1) * NIGHTS_PER_WORLD + night - 1;
   const pl = run.plan?.[`${world}-${night}`];
@@ -198,7 +205,7 @@ export function nightDef(run, world, night) {
     intrude = kinds[Math.floor(irnd() * kinds.length)];
     if (pl && pl.id === intrude) intrude = 'fuku';
   }
-  return { deck: deckFor(run, seed), flame: 1 + idx * 0.022, gusts: idx >= 2, id: idx + 1, world, night, seed, count, mix, strokes, refill: 7 + Math.floor(night / 2), target, rule, boss, twist: pl?.id || null, twistCoin: pl?.coin || 0, twistHide: !!pl?.hide, intrude };
+  return { endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, world, night, seed, count, mix, strokes, refill: 7 + Math.floor(night / 2), target, rule, boss, twist: pl?.id || null, twistCoin: pl?.coin || 0, twistHide: !!pl?.hide, intrude };
 }
 
 export function newRun({ seed, fuse = 'asa', rank = 0 } = {}) {
@@ -209,7 +216,7 @@ export function newRun({ seed, fuse = 'asa', rank = 0 } = {}) {
     shopRound: 0, done: false, won: false,
     lives: rank >= 6 ? 1 : rank >= 4 ? 2 : 3, retry: 0, bloomStreak: 0, plan: {}, used: [],
     pv: 4, dust: 0, graze: 0, waitedNights: 0, spells: {},
-    pouch: startPouch(f.pouch || []),
+    pouch: startPouch(f.pouch || []), engi: [],
   };
 }
 
@@ -239,7 +246,10 @@ export function shopFor(run, unlocked) {
   const rank = RANKS[run.rank] || RANKS[0];
   const disc = run.charms.reduce((a, id) => a + (CHARM_BY_ID[id]?.discount || 0), 0);
   const cost = (c) => Math.max(1, c + (rank.costAdd || 0) - disc);
-  const pool = CHARMS.filter((c) => !run.charms.includes(c.id) && (!unlocked || unlocked.has(c.id)));
+  // その玉が出ない世界・袋に無い玉のためのお守りは並べない
+  const hazardWorld = { shime: 2, koori: 2, oni: 3 };
+  const usable = (c) => !c.need || (hazardWorld[c.need] ? run.world >= hazardWorld[c.need] : (run.pouch || []).some((x) => x.t === c.need));
+  const pool = CHARMS.filter((c) => !run.charms.includes(c.id) && (!unlocked || unlocked.has(c.id)) && usable(c));
   const items = [];
   const taken = new Set();
   // 今の作りに合う型を少し出やすく
@@ -257,15 +267,18 @@ export function shopFor(run, unlocked) {
   const add = shellPool[Math.floor(rnd() * shellPool.length)];
   const bought = Math.max(0, pouch.length - 13 + (run.thinned || 0)), mods = pouch.filter((x) => x.m).length;
   items.push({ kind: 'add', id: add, cost: cost(POUCH_SHELLS[add].cost + Math.floor(bought / 2)) }); // 玉は買うほど高くなる
-  // 2) 刻印: 袋のまだ刻印のない玉ひとつに（半分は菊以外を狙う）
+  // 刻印の候補: 袋のまだ刻印のない玉ひとつ（半分は菊以外を狙う）
   const modIds = Object.keys(MODS), mod = modIds[Math.floor(rnd() * modIds.length)];
   const bare = pouch.filter((x) => !x.m), nonKiku = bare.filter((x) => x.t !== 'kiku');
   const tgt = (nonKiku.length && rnd() < 0.5 ? nonKiku : bare)[Math.floor(rnd() * Math.max(1, (nonKiku.length && rnd() < 0.5 ? nonKiku : bare).length))];
-  if (tgt) items.push({ kind: 'engrave', id: mod, target: tgt.t, cost: cost(MODS[mod].cost + mods) });
-  // 3) 間引き（菊を 1 つ抜く。袋は 8 個まで）か、秘伝
-  const kikuN = pouch.filter((x) => x.t === 'kiku' && !x.m).length;
-  if (kikuN > 0 && pouch.length > POUCH_MIN && rnd() < 0.6) items.push({ kind: 'thin', id: 'kiku', cost: cost(2 + (run.thinned || 0)) });
+  // 2) 刻印・間引き・秘伝のどれか 1 つ（屋台の札は 6 枚まで）
+  const kikuN = pouch.filter((x) => x.t === 'kiku' && !x.m).length, roll = rnd();
+  if (tgt && roll < 0.45) items.push({ kind: 'engrave', id: mod, target: tgt.t, cost: cost(MODS[mod].cost + mods) });
+  else if (kikuN > 0 && pouch.length > POUCH_MIN && roll < 0.8) items.push({ kind: 'thin', id: 'kiku', cost: cost(2 + (run.thinned || 0)) });
   else { const own = [...new Set(pouch.map((x) => x.t))]; const t = own[Math.floor(rnd() * own.length)] || 'kiku'; if (SHELLS[t]) items.push({ kind: 'recipe', id: t, cost: cost(3 + (run.recipes[t] || 0) * 2) }); }
+  // 4) 縁起物（使い切り）。持てるのは 2 つまで
+  const eids = Object.keys(ENGI), e = eids[Math.floor(rnd() * eids.length)];
+  items.push({ kind: 'engi', id: e, cost: cost(ENGI[e].cost) });
   return items;
 }
 
@@ -277,7 +290,7 @@ export function rerollCost(run) {
 export function advance(run) {
   run.rerolls = 0; run.shopRound = 0; run.retry = 0;
   if (run.night < NIGHTS_PER_WORLD) { run.night++; return 'night'; }
-  if (run.world < WORLDS.length) { run.world++; run.night = 1; return 'world'; }
+  if (run.world < WORLDS.length || run.endless) { run.world++; run.night = 1; return 'world'; } // 千秋楽: 世界 4 から先も続く
   run.done = true; run.won = true;
   return 'won';
 }

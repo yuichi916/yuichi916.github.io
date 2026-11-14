@@ -8,8 +8,8 @@ export const fixMem = (m) => ({ ...newMem(), ...(m || {}) });
 // 夜の途中で消えたときの、トラの返事。1 回目は見逃す。2 回目からは提灯を 1 つもらう（最後の 1 つは取らない）
 export function leftLine(mem, lives) {
   if (mem.left <= 1) return { take: false, ja: 'さっきの夜、途中で消えたね。\n……見なかったことにしてあげる。一度だけね。', en: 'You vanished in the middle of that night.\n...I\'ll pretend I didn\'t see. Just this once.' };
-  if (lives <= 1) return { take: false, ja: `また途中で帰ったね。これで ${mem.left} 回目。\n最後の提灯は、取らないでおく。`, en: `You left in the middle again. That's ${mem.left} times.\nI won't take your last lantern.` };
-  return { take: true, ja: `また途中で帰ったね。これで ${mem.left} 回目。\n提灯をひとつ、もらっておくよ。祭りは、ちゃんと数えてるから。`, en: `You left in the middle again. That's ${mem.left} times.\nI'll take one lantern. The festival keeps count.` };
+  if (lives <= 1) return { take: false, ja: `また途中で帰ったね。これで ${mem.left} 回目。\n最後の灯は、取らないでおく。`, en: `You left in the middle again. That's ${mem.left} times.\nI won't take your last light.` };
+  return { take: true, ja: `また途中で帰ったね。これで ${mem.left} 回目。\n灯をひとつ、もらっておくよ。祭りは、ちゃんと数えてるから。`, en: `You left in the middle again. That's ${mem.left} times.\nI'll take one light. The festival keeps count.` };
 }
 
 // 火の子（ヒノコ）は話さない。でも、筆を止めて待ってくれた回数だけ、筆先に小さく書く
@@ -36,7 +36,7 @@ export function bossTaunt(mem, rule, run) {
   if (mem.sold >= 5) L.push([6, `お守りを ${mem.sold} 個も 売ったな。勝つためなら、何でも手放すか`, `You sold ${mem.sold} charms. Will you give up anything to win?`]);
   if (mem.graze >= 1000) L.push([5, `火を ${mem.graze.toLocaleString()} 回 かすめた。おまえ、火が怖くないのか`, `You grazed the flame ${mem.graze.toLocaleString()} times. Are you not afraid of fire?`]);
   if (mem.caught >= 30) L.push([4, `${mem.caught} 回も 追いつかれて、まだ来るか`, `Caught ${mem.caught} times, and still you come.`]);
-  if (run && run.lives === 1) L.push([3, '提灯は、あと ひとつ。よく見ておけ', 'One lantern left. Look at it well.']);
+  if (run && run.lives === 1) L.push([3, '灯は、あと ひとつ。よく見ておけ', 'One light left. Look at it well.']);
   if (mem.dust >= 2000) L.push([2, `星屑を ${mem.dust.toLocaleString()} 粒も 拾い集めて、何を願う`, `${mem.dust.toLocaleString()} grains of star dust. What are you wishing for?`]);
   if (!L.length) return null;
   L.sort((a, b) => b[0] - a[0]);
@@ -54,7 +54,7 @@ export function titleLine(meta, now = new Date()) {
   const days = mem.lastPlay ? Math.floor((now.getTime() - mem.lastPlay) / 86400000) : 0;
   if (days >= 3) return { ja: `${days} 日ぶりだね。火の子が、ずっと待ってた。`, en: `${days} days. The little flame has been waiting.` };
   if (mem.left > 0 && mem.lastLeftAt && now.getTime() - mem.lastLeftAt < 86400000) return { ja: '途中で消えた夜のこと、トラは覚えている。', en: 'Tora remembers the night you left halfway.' };
-  if (mem.lastEnd && !mem.lastEnd.won && mem.lastEnd.nights > 0) return { ja: `この前は 第 ${mem.lastEnd.nights + 1} 夜で、提灯が尽きた。`, en: `Last time, your lanterns ran out on night ${mem.lastEnd.nights + 1}.` };
+  if (mem.lastEnd && !mem.lastEnd.won && mem.lastEnd.nights > 0) return { ja: `この前は 第 ${mem.lastEnd.nights + 1} 夜で、灯が尽きた。`, en: `Last time, your lights ran out on night ${mem.lastEnd.nights + 1}.` };
   if (h >= 5 && h < 16) return { ja: 'まだ明るい。花火には、すこし早いかな。', en: 'Still daylight. A little early for fireworks.' };
   if (h < 5) return { ja: 'こんな夜ふけに。……でも、火は起きている。', en: 'This late at night. ...But the flame is awake.' };
   return { ja: '線を引け。火が追いかけてくる。', en: 'Draw the fuse. The flame is right behind you.' };
@@ -63,7 +63,7 @@ export function titleLine(meta, now = new Date()) {
 // 屋台のトラ: 売ったお守りを覚えていて、買い戻しを出す。ほかに言うことがあれば言う
 export function shopLine(mem, run, ctx = {}) {
   if (ctx.buyBack) return { ja: `あのお守り、取っておいたよ。買い戻す？`, en: 'I kept that charm you sold. Want it back?' };
-  if (ctx.ext) return { ja: '星屑で、提灯がひとつ増えたね。きれいに拾うもんだ。', en: 'Your star dust bought you a lantern. Nicely gathered.' };
+  if (ctx.ext) return { ja: '星屑で、灯がひとつ増えたね。きれいに拾うもんだ。', en: 'Your star dust bought you a light. Nicely gathered.' };
   if (ctx.waited) return { ja: 'さっき、火を待ってたね。……あの子、うれしそうだった。', en: 'You waited for the flame just now. ...That child looked happy.' };
   if (ctx.spellAll) return { ja: '技をぜんぶ取ったのかい。妖怪も、たまげてたよ。', en: 'You captured every technique? Even the yokai were stunned.' };
   return null;
