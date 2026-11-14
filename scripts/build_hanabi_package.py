@@ -2,6 +2,7 @@
 
     python scripts/build_hanabi_package.py portal   # ゲームサイト用（CrazyGames の SDK を読む）
     python scripts/build_hanabi_package.py itch     # SDK なし・物語（story.html と ch/）も入れる
+    python scripts/build_hanabi_package.py playgama # Playgama Bridge（YouTube Playables・MSN 等）。物語・外リンクなし、保存は Bridge
 
 字は使う字の切れはしだけを入れる（build_itch_package.py と同じ道具）。
 """
@@ -21,6 +22,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "hanabi"
 OUT = ROOT / "_dist" / "hanabi"
 SDK = '<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>'
+# Playgama Bridge は <head> の最初の script（async なし）。設定ファイルは index.html の隣
+BRIDGE = '<script src="https://bridge.playgama.com/v2/stable/playgama-bridge.js"></script>'
+BRIDGE_CONFIG = '{"platforms": {}}\n'
 
 
 FONTS = [("Yuji Boku", [400]), ("Shippori Mincho B1", [500, 800])]
@@ -54,7 +58,7 @@ def localize_fonts(html: str, style: str) -> str:
 def main() -> int:
     kind = sys.argv[1] if len(sys.argv) > 1 else "portal"
     # portal = CrazyGames（SDK・物語なし・外へのリンクなし）。itch = itch.io・PLiCy・Game Jolt・ふりーむ 等（物語あり・SDK なし）
-    story = kind != "portal"
+    story = kind not in ("portal", "playgama")
     stage = OUT / kind
     if stage.exists():
         shutil.rmtree(stage)
@@ -80,7 +84,7 @@ def main() -> int:
 
     # 使うものだけ（絵と音）
     (stage / "assets" / "hitofude" / "bgm").mkdir(parents=True)
-    for f in ("cast.js", "hinoko.js"):
+    for f in ("cast.js", "hinoko.js", "names.js"):  # names.js はランキングの名前の確かめ（main.js が読む）
         s = (ROOT / "assets" / "hitofude" / f).read_text(encoding="utf-8")
         text += s
         (stage / "assets" / "hitofude" / f).write_text(s, encoding="utf-8")
@@ -94,7 +98,7 @@ def main() -> int:
     text += "".join(htmls.values())
     style = embed_fonts(stage, text)
     # 書き出しの印: HANABI_PKG（サイトの外で動く）、HANABI_NO_STORY（物語を入れない）、HANABI_NO_LINKS（外へのリンクを出さない）
-    flags = "window.HANABI_PKG=1;" + ("" if story else "window.HANABI_NO_STORY=1;window.HANABI_NO_LINKS=1;")
+    flags = "window.HANABI_PKG=1;" + ("" if story else "window.HANABI_NO_STORY=1;window.HANABI_NO_LINKS=1;") + ("window.HANABI_PG=1;" if kind == "playgama" else "")
     for n, html in htmls.items():
         html = localize_fonts(html, style)
         # 計測（GoatCounter）は自分のサイトだけ。ゲームサイトの中では数えない
@@ -102,6 +106,10 @@ def main() -> int:
         html = html.replace("</head>", f"<script>{flags}</script></head>", 1)
         if kind == "portal":
             html = html.replace("</head>", SDK + "</head>", 1)
+        if kind == "playgama":
+            html = re.sub(r"(<meta charset=[^>]*>)", r"\1\n" + BRIDGE, html, count=1)
+    if kind == "playgama":
+        (stage / "playgama-bridge-config.json").write_text(BRIDGE_CONFIG, encoding="utf-8")
         (stage / n).write_text(html, encoding="utf-8")
 
     zpath = OUT / f"hanabi-{kind}.zip"

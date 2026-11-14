@@ -73,7 +73,7 @@ async def main():
                     try:
                         await pg.wait_for_function("() => HANABI.S.mode !== 'play' || HANABI.S.st.phase === 'aim'", timeout=15000)
                     except Exception:
-                        st = await pg.evaluate("() => { const H = HANABI, st = H.S.st; return { mode: H.S.mode, phase: st && st.phase, w: st && st.level.world, n: st && st.level.night, node: st && st.level.node, seals: st && st.level.seals, cleared: st && st.cleared, failed: st && st.failed, stroke: st && st.stroke && { penDown: st.stroke.penDown, fuseOut: st.stroke.fuseOut, caught: st.stroke.caught, done: st.stroke.done }, pending: st && st.pending.length, sparks: st && st.sparks.length, runners: st && st.runners.length, t: st && st.t, settleAt: st && st.settleAt }; }")
+                        st = await pg.evaluate("() => { const H = HANABI, st = H.S.st; return { paused: H.S.paused, adPause: H.S.adPause, stopT: H.S.stopT, timeScale: H.S.timeScale, slowT: H.S.slowT, hidden: document.hidden, fatal: String(H.S.fatal), mode: H.S.mode, phase: st && st.phase, w: st && st.level.world, n: st && st.level.night, node: st && st.level.node, seals: st && st.level.seals, cleared: st && st.cleared, failed: st && st.failed, stroke: st && st.stroke && { penDown: st.stroke.penDown, fuseOut: st.stroke.fuseOut, caught: st.stroke.caught, done: st.stroke.done }, pending: st && st.pending.length, sparks: st && st.sparks.length, runners: st && st.runners.length, t: st && st.t, settleAt: st && st.settleAt }; }")
                         print("STUCK", st, flush=True); raise
                 elif mode == "inter":
                     nights += 1

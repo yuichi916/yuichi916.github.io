@@ -33,11 +33,12 @@ const PF = createPlatform();
 
 // ------------------------------------------------------------------ 保存
 const SAVE = 'hanabi2';
-const load = () => { try { return JSON.parse(localStorage.getItem(SAVE) || '{}'); } catch { return {}; } };
+// Playgama の書き出し（HANABI_PG）では localStorage を使わない（保存は Bridge の storage だけ）
+const load = () => { if (window.HANABI_PG) return {}; try { return JSON.parse(localStorage.getItem(SAVE) || '{}'); } catch { return {}; } };
 const DB = { meta: { xp: 0, wins: 0, best: 0, runs: 0, rankOpen: 0, taught: {}, seen: {} }, run: null, lang: null, sound: true, music: true, ...load() };
 DB.meta.mem = Mem.fixMem(DB.meta.mem);
 const mem = () => DB.meta.mem;
-const save = () => { const j = JSON.stringify(DB); try { localStorage.setItem(SAVE, j); } catch { /* 保存できない環境でも遊べる */ } PF.write(SAVE, j); };
+const save = () => { const j = JSON.stringify(DB); if (!window.HANABI_PG) { try { localStorage.setItem(SAVE, j); } catch { /* 保存できない環境でも遊べる */ } } PF.write(SAVE, j); };
 
 let lang = q.get('lang') || DB.lang || ((navigator.language || 'en').startsWith('ja') ? 'ja' : 'en');
 const JA = () => lang === 'ja';
@@ -444,7 +445,7 @@ function openInter(def, st, stars, rw, interest, gain) {
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
   $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT');
-  renderShop(); previewShop(); openGift();
+  renderShop(); previewShop(); openGift(); PF.ad();
   countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
   audio.ui('win'); if (!def.boss) audio.scene('calm');
 }
@@ -831,9 +832,9 @@ Draw the fuse. The flame is right behind you. #HitofudeHanabi`;
   const en = $('ovEndless'); en.classList.toggle('hidden', !(won && !run.endless)); en.textContent = tr('千秋楽へ（まだ続ける）', 'ENCORE: keep going');
   en.onclick = () => { audio.ui('tap'); Run.startEndless(run); S.log = endLog; logOp('E'); logSave(); S.run = run; DB.run = run; save(); track('run/endless'); startNight(); };
   const endLog = S.log; rankSubmit(run, endLog);
-  DB.run = null; S.run = null; save(); S.log = null; try { localStorage.removeItem(LOGKEY); } catch { /* なくても遊べる */ }
+  DB.run = null; S.run = null; save(); S.log = null; if (!window.HANABI_PG) try { localStorage.removeItem(LOGKEY); } catch { /* なくても遊べる */ }
   audio.ui(won ? 'win' : 'lose'); audio.scene(won ? 'finale' : 'calm');
-  if (won) grandFinale();
+  if (won) grandFinale(); else PF.ad();
 }
 $('ovTitleBtn').onclick = () => { audio.ui('tap'); toTitle(); };
 $('ovAgain').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school }); };
@@ -1454,7 +1455,7 @@ function frame(now) {
     if (slowCount >= 6 && scaleMax > 0.6) { scaleMax = Math.max(0.6, scaleMax * 0.75); slowCount = 0; resize(); }
   }
   try {
-    if (S.paused) { dt = 0; }
+    if (S.paused || S.adPause) { dt = 0; }
     if (S.stopT > 0) S.stopT -= dt;
     if (S.stopCool > 0) S.stopCool -= dt;
     const stopped = S.stopT > 0;
@@ -1497,7 +1498,12 @@ async function boot() {
   PF.loadingStart();
   PF.onMute = (m) => audio.setSound(m ? false : DB.sound);
   if (PF.muted) { audio.setSound(false); audio.setMusic(false); }
-  if (PF.ready) { const j = PF.read(SAVE); if (j) { try { const c = JSON.parse(j); if ((c.meta?.xp || 0) >= (DB.meta.xp || 0)) { Object.assign(DB, c); S.run = DB.run; } } catch { /* */ } } }
+  // 場の言葉に合わせる（自分で選んだ言葉・?lang= が先）
+  if (PF.lang && !q.get('lang') && !DB.lang) lang = PF.lang;
+  // 場の一時停止・広告の間は止めて、音を消す
+  PF.onPause = (p) => { audio.mute(p); if (p && S.mode === 'play' && !S.paused) openPause(); };
+  PF.onAd = (on) => { S.adPause = on; audio.mute(on); };
+  if (PF.ready) { const j = await PF.load(SAVE); if (j) { try { const c = JSON.parse(j); if ((c.meta?.xp || 0) >= (DB.meta.xp || 0)) { Object.assign(DB, c); S.run = DB.run; } } catch { /* */ } } }
   try { await document.fonts.load('900 60px "Yuji Boku"', '一筆花火金大千灯雫氷鬼尺' + CHARMS.map((c) => c.ja[0]).join('')); } catch { /* 字が読めなくても遊べる */ }
   atlasTex = R.texture(shellAtlas());
   S.themeKey = 'summer';
@@ -1509,7 +1515,7 @@ async function boot() {
   requestAnimationFrame(frame);
   PF.loadingStop();
   S.booted = true;
-  try { sessionStorage.removeItem('hanabiRetry'); } catch { /* 無くても動く */ }
+  if (!window.HANABI_PG) try { sessionStorage.removeItem('hanabiRetry'); } catch { /* 無くても動く */ }
   if (!DB.run && !(DB.meta.runs > 0) && !q.has('title')) beginRun();
 }
 
@@ -1519,9 +1525,9 @@ async function boot() {
 const LOGKEY = 'hanabi2_log';
 function logStart(run) { S.log = { v: Run.LOG_VERSION, seed: run.seed, fuse: run.fuse, rank: run.rank, school: run.school, daily: !!run.daily, xp: DB.meta.xp || 0, ops: [] }; logSave(); }
 function logOp(...op) { if (S.log) S.log.ops.push(op); }
-function logSave() { if (!S.log) return; try { localStorage.setItem(LOGKEY, JSON.stringify(S.log)); } catch { /* 大きすぎる・保存できない環境: ランキングに出ないだけ */ } }
+function logSave() { if (!S.log || window.HANABI_PG) return; try { localStorage.setItem(LOGKEY, JSON.stringify(S.log)); } catch { /* 大きすぎる・保存できない環境: ランキングに出ないだけ */ } }
 // 読みなおしたときは、続きの周回と同じ種の記録だけを使う
-try { const L = JSON.parse(localStorage.getItem(LOGKEY) || 'null'); if (L && S.run && L.seed === S.run.seed && L.v === Run.LOG_VERSION) S.log = L; } catch { /* なし */ }
+if (!window.HANABI_PG) try { const L = JSON.parse(localStorage.getItem(LOGKEY) || 'null'); if (L && S.run && L.seed === S.run.seed && L.v === Run.LOG_VERSION) S.log = L; } catch { /* なし */ }
 const RANK_API = (() => { const o = q.get('rankapi'); return o && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o) ? o : 'https://hanabi2-rank.yuichi916.workers.dev'; })();
 S.rankOk = false;
 // ランキングを見に行くのは本番のサイトと、?rankapi= を付けた手元の試験だけ（手元の通しでサーバーへ問い合わせない）
