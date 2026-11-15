@@ -1,5 +1,7 @@
 // 一筆花火 2 — ゲームサイトとのつなぎ。SDK が無い場所（自分のサイト・テスト）では何もしない
 // CrazyGames（window.CrazyGames）と Playgama Bridge（window.bridge。YouTube Playables・MSN などへ配る）に対応
+const AD_GRACE_MS = 120000; // 遊び始めてから最初の広告までの最短（ミリ秒）
+const AD_T0 = performance.now();
 export function createPlatform() {
   let sdk = null, pg = null, playing = false;
   const P = {
@@ -43,8 +45,9 @@ export function createPlatform() {
     // 大事な場面（大一番の勝ち・完走）
     milestone() { try { pg?.platform.sendMessage('player_got_achievement')?.catch?.(() => {}); } catch { /* */ } },
     happy() { try { sdk?.game.happytime(); } catch { /* */ } },
-    // 区切り（夜のあと・祭りの終わり）の広告。間隔は場の SDK が決める（自前のタイマーは持たない）
-    ad() { try { if (pg?.advertisement?.isInterstitialSupported) pg.advertisement.showInterstitial(); } catch { /* */ } },
+    // 区切り（夜のあと・祭りの終わり）の広告。広告どうしの間隔は場の SDK が決める。
+    // ただし遊び始めて 2 分までは出さない（Playgama は 30 秒未満で離れた回を「遊び」と数えず、最初の広告が 29 秒目に出ていた）
+    ad() { try { if (performance.now() - AD_T0 < AD_GRACE_MS) return; if (pg?.advertisement?.isInterstitialSupported) pg.advertisement.showInterstitial(); } catch { /* */ } },
     read(key) { try { return sdk?.data ? sdk.data.getItem(key) : null; } catch { return null; } },
     async load(key) {
       if (pg) { try { const d = await pg.storage.get([key]); return d && d[0] != null ? d[0] : null; } catch { return null; } }
