@@ -108,10 +108,10 @@ export function rng32(seed) {
 }
 
 // 盤の大きさ。横長と縦長で別の広さを使い、玉の位置は 0〜1 の割合で持つ（どちらの向きでも同じ並びになる）
-export function fieldFor(w, h) {
-  return w >= h
-    ? { w, h, x0: 70, x1: w - 70, y0: 140, y1: h * 0.62 }
-    : { w, h, x0: 60, x1: w - 60, y0: 390, y1: h * 0.72 }; // 縦は上の「点×倍率」と「熱い」の字が玉を隠さない所から
+export function fieldFor(w, h, rs = 1) {
+  if (w >= h) return { w, h, x0: 70, x1: w - 70, y0: 140, y1: h * 0.62 };
+  // 縦は上の「点×倍率」と「熱い」の字が玉を隠さない所から。玉を大きくした縦（rs > 1）は、そのぶん上と横をあける
+  return rs > 1 ? { w, h, x0: 70, x1: w - 70, y0: 440, y1: h * 0.74 } : { w, h, x0: 60, x1: w - 60, y0: 390, y1: h * 0.72 };
 }
 
 // 群れと、離れた玉を混ぜて置く。読みどころは「群れをつなぐ順番」
@@ -164,8 +164,11 @@ export function newShell(id, x, y, type, rise = 0) {
 
 // level: { seed, count, mix, strokes, refill, target, rule, id }
 // loadout: { charms: [def], recipes: { type: lv }, coins }
+// 縦画面（スマホ）は玉を 1.3 倍にする。見た目と当たりの両方。並べる間隔は元の大きさで取るので重ならない
+export const PORTRAIT_SHELL = 1.3;
 export function newNight(level, w, h, loadout = {}) {
-  const field = fieldFor(w, h);
+  const rs = loadout.rs ?? (w < h ? PORTRAIT_SHELL : 1); // ランキングの旧い記録（ps なし）は 1 で流しなおす
+  const field = fieldFor(w, h, rs);
   const charms = loadout.charms || [];
   const m = { ...TUNE, strokesAdd: 0, refillAdd: 0, countAdd: 0, flameX: 1, startChips: 0, startMult: 0, addMix: {} };
   for (const c of charms) if (c.mod) c.mod(m, loadout);
@@ -196,7 +199,8 @@ export function newNight(level, w, h, loadout = {}) {
   };
   const count = (level.count || 16) + m.countAdd;
   const L = layout(level.seed, count, mix, field, level.deck);
-  for (const s of L) { const sh = newShell(st.nextId++, s.x, s.y, s.type); sh.mod = s.mod; sh.pi = s.pi; if (level.deck) initShell(st, sh); st.shells.push(sh); }
+  st.rs = rs;
+  for (const s of L) { const sh = newShell(st.nextId++, s.x, s.y, s.type); sh.rs = rs; sh.r *= rs; sh.mod = s.mod; sh.pi = s.pi; if (level.deck) initShell(st, sh); st.shells.push(sh); }
   st.deckI = L.deckUsed || 0;
   if (level.rule === 'kappa') st.shells.forEach((s, i) => { if (i % 2 === 0 && s.type === 'kiku') retype(s, 'shime'); });
   if (st.twist && TWIST_SETUP[st.twist]) TWIST_SETUP[st.twist](st);
@@ -208,7 +212,7 @@ export function newNight(level, w, h, loadout = {}) {
 // 夜のはじめに玉が町から上がってくる時間（画面と、ランキングの動かし直しで同じにする）
 export function stageRise(st) { const n = st.shells.length, step = Math.min(0.035, 1.4 / Math.max(1, n)); st.shells.forEach((s, k) => { s.rise = 0.15 + k * step; }); }
 
-function retype(s, type) { const d = SHELLS[type]; s.type = type; s.r = d.r; s.R = d.R; s.pts = d.pts; }
+function retype(s, type) { const d = SHELLS[type]; s.type = type; s.r = d.r * (s.rs || 1); s.R = d.R; s.pts = d.pts; }
 
 const TAU = Math.PI * 2;
 function initShell(st, s) {
@@ -216,7 +220,7 @@ function initShell(st, s) {
   if (s.type === 'kingyo') s.swim = { a: st.rnd() * TAU, v: 70 + st.rnd() * 50, t: 0 };
   return s;
 }
-function addShell(st, x, y, type, rise = 0) { const s = initShell(st, newShell(st.nextId++, x, y, type, rise)); st.shells.push(s); return s; }
+function addShell(st, x, y, type, rise = 0) { const s = initShell(st, newShell(st.nextId++, x, y, type, rise)); s.rs = st.rs || 1; s.r *= s.rs; st.shells.push(s); return s; }
 // ふつうの玉を、趣向の玉に変える
 function typeSome(st, type, n) {
   const idle = st.shells.filter((s) => s.state === 'idle' && s.rise >= 0 && s.type !== type && s.type !== 'shaku');

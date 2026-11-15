@@ -489,7 +489,7 @@ for (const rule of Object.keys(Run.RULES)) {
     return { st, def, op: ['n', W, H, evs, st.score] };
   };
   const playRun = (seed, nightsMax = 10) => {
-    const run = Run.newRun({ seed, school: 'hon' }), log = { v: Run.LOG_VERSION, seed, fuse: 'asa', rank: 0, school: 'hon', daily: false, xp: 0, ops: [] };
+    const run = Run.newRun({ seed, school: 'hon' }), log = { v: Run.LOG_VERSION, ps: 1, seed, fuse: 'asa', rank: 0, school: 'hon', daily: false, xp: 0, ops: [] };
     const unlocked = Run.unlockedCharms({ xp: 0 }), rnd = G.rng32(seed * 3 + 1);
     for (let g = 0; g < 60 && run.nightsCleared < nightsMax; g++) {
       const W = g % 3 === 2 ? 720 : 1280, H = g % 3 === 2 ? 1280 : 720; // 途中で向きを変えても再現できる

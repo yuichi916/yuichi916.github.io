@@ -881,16 +881,16 @@ canvas.addEventListener('pointerdown', (e) => {
   if (S.mode === 'retry' && performance.now() - S.retryAt > 300) { startNight(); return; }
   if (S.mode !== 'play' || !S.st || pid !== null || S.paused) return;
   if (S.cnt) S.cnt.t = S.cnt.dur; // 数え上げの途中でも、触れたらすぐ次へ
-  const p = toWorld(e); S.touch = TOUCH ? { x: e.clientX, y: e.clientY, p } : null;
+  const p = toWorld(e);
   S.rec?.ev.push([S.st.t, 'd', p.x, p.y]);
   if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } $('teach').classList.add('hidden'); }
 });
 canvas.addEventListener('pointermove', (e) => {
   if (e.pointerId !== pid || !S.st) return;
   const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
-  for (const ev of (list.length ? list : [e])) { const p = toWorld(ev); S.rec?.ev.push([S.st.t, 'm', p.x, p.y]); G.penMove(S.st, p.x, p.y); if (TOUCH) S.touch = { x: ev.clientX, y: ev.clientY, p }; }
+  for (const ev of (list.length ? list : [e])) { const p = toWorld(ev); S.rec?.ev.push([S.st.t, 'm', p.x, p.y]); G.penMove(S.st, p.x, p.y); }
 });
-const release = (e) => { if (e.pointerId !== pid) return; pid = null; S.touch = null; S.loupeSide = null; if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
+const release = (e) => { if (e.pointerId !== pid) return; pid = null; if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
 canvas.addEventListener('pointerup', release);
 canvas.addEventListener('pointercancel', release);
 addEventListener('contextmenu', (e) => e.preventDefault());
@@ -1488,7 +1488,7 @@ function frame(now) {
     S.kvx = ((S.kvx || 0) - R.kickX * 900 * dt) * Math.exp(-dt * 18); S.kvy = ((S.kvy || 0) - R.kickY * 900 * dt) * Math.exp(-dt * 18);
     R.kickX += S.kvx * dt; R.kickY += S.kvy * dt;
     if (Math.abs(R.kickX) + Math.abs(R.kickY) < 0.05 && Math.abs(S.kvx) + Math.abs(S.kvy) < 1) { R.kickX = R.kickY = S.kvx = S.kvy = 0; }
-    R.render(sdt, fx, drawWorld); drawLoupe();
+    R.render(sdt, fx, drawWorld);
     updateHud(dt); ihenFrame(dt);
   } catch (err) { if (!S.fatal) { S.fatal = err; console.error(err); } }
 }
@@ -1524,7 +1524,7 @@ async function boot() {
 // 1 周の記録（筆の動きと屋台の操作）を残し、終わったら送る。サーバーはありえない点だけを弾き、
 // 上位は手元の確かめ役（_dev/hanabi2-verify.mjs → hanabi/verify.js）が本物のルールで流しなおして、合わないものを隠す
 const LOGKEY = 'hanabi2_log';
-function logStart(run) { S.log = { v: Run.LOG_VERSION, seed: run.seed, fuse: run.fuse, rank: run.rank, school: run.school, daily: !!run.daily, xp: DB.meta.xp || 0, ops: [] }; logSave(); }
+function logStart(run) { S.log = { v: Run.LOG_VERSION, ps: 1, seed: run.seed, fuse: run.fuse, rank: run.rank, school: run.school, daily: !!run.daily, xp: DB.meta.xp || 0, ops: [] }; logSave(); }
 function logOp(...op) { if (S.log) S.log.ops.push(op); }
 function logSave() { if (!S.log || window.HANABI_PG) return; try { localStorage.setItem(LOGKEY, JSON.stringify(S.log)); } catch { /* 大きすぎる・保存できない環境: ランキングに出ないだけ */ } }
 // 読みなおしたときは、続きの周回と同じ種の記録だけを使う
@@ -1604,32 +1604,6 @@ function untilt(cx, cy) {
   const a = (t.a * Math.PI) / 180, ox = innerWidth / 2, oy = innerHeight / 2, U = cx - ox, V = cy - oy;
   const v = (V * TILT_D) / (TILT_D * Math.cos(a) + V * Math.sin(a)), s = TILT_D / (TILT_D - v * Math.sin(a));
   return [ox + U / s, oy + v];
-}
-// 拡大鏡: 指で引いているあいだ、線の先のまわりを 1.7 倍で指の左上（端では反対側）に映す。描いた直後の絵を写すので WebGL の控えは要らない
-const LOUPE = $('loupe'), LOUPE_CSS = 132, LOUPE_ZOOM = 1.7;
-function drawLoupe() {
-  const t = S.touch, on = !!(t && pid !== null && S.mode === 'play' && !S.paused && S.st && S.st.phase === 'stroke');
-  LOUPE.classList.toggle('on', on);
-  if (!on) return;
-  const dpr = Math.min(2, devicePixelRatio || 1), px = Math.round(LOUPE_CSS * dpr);
-  if (LOUPE.width !== px) { LOUPE.width = LOUPE.height = px; }
-  const kx = canvas.width / innerWidth, ky = canvas.height / innerHeight;
-  const cx = (t.p.x / W) * innerWidth, cy = (t.p.y / H) * innerHeight; // 線の先（傾き・反転をほどいた絵の上の位置）
-  const hw = (LOUPE_CSS / 2 / LOUPE_ZOOM) * kx, hh = (LOUPE_CSS / 2 / LOUPE_ZOOM) * ky;
-  const c2 = LOUPE.getContext('2d');
-  c2.fillStyle = '#04060f'; c2.fillRect(0, 0, px, px);
-  try { c2.drawImage(canvas, cx * kx - hw, cy * ky - hh, hw * 2, hh * 2, 0, 0, px, px); } catch { /* 写せない環境では窓だけ */ }
-  c2.strokeStyle = '#ffe9b0cc'; c2.lineWidth = 1.5 * dpr; c2.beginPath(); c2.arc(px / 2, px / 2, 5 * dpr, 0, Math.PI * 2); c2.stroke();
-  // 置き場所: 指の左上 → 右上 → 左 → 右。点・倍率の箱より下で、画面に収まる所。収まるうちは前と同じ側（跳ねない）
-  const L = LOUPE_CSS, g = 28, hudB = (() => { const r = $('combo').getBoundingClientRect(), h = $('heat'); return Math.max(r.bottom + 26, h.classList.contains('on') ? $('heatTxt').getBoundingClientRect().bottom + 10 : 0); })();
-  const cand = [[t.x - L - g, t.y - L - g], [t.x + g, t.y - L - g], [t.x - L - g, t.y - L / 2], [t.x + g, t.y - L / 2]];
-  const fits = ([l, tp]) => l >= 6 && tp >= Math.max(6, hudB) && l + L <= innerWidth - 6 && tp + L <= innerHeight - 6;
-  let k = S.loupeSide ?? 0;
-  cand.push([t.x - L - g, hudB], [t.x + g, hudB]); // どれも収まらないとき: 指の横で、点・倍率・熱いの下まで押し下げる
-  if (!fits(cand[k])) { k = cand.findIndex(fits); if (k < 0) k = 5; }
-  S.loupeSide = k;
-  const [left, top] = cand[k].map((v, i) => Math.max(6, Math.min(v, (i ? innerHeight : innerWidth) - L - 6)));
-  LOUPE.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
 }
 function ihenReset() {
   S.tilt = null; for (const el of TILT_EL()) if (el) el.style.transform = '';
