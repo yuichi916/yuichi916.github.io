@@ -100,7 +100,7 @@ addEventListener('resize', resize);
 
 // ------------------------------------------------------------------ 画面の切りかえ
 const SCREENS = ['title', 'newrun', 'inter', 'over', 'pause', 'book', 'senko', 'rankScr'];
-function show(name) { for (const s of SCREENS) $(s).classList.toggle('hidden', s !== name); }
+function show(name) { for (const s of SCREENS) $(s).classList.toggle('hidden', s !== name); if (name !== 'none') { $('hand').classList.add('hidden'); S.guide = false; $('guide').classList.add('hidden'); $('guideRing').classList.add('hidden'); } } // 手本の指は遊んでいる間だけ（屋台に残っていた）
 
 function toTitle() {
   PF.stop();
@@ -126,6 +126,8 @@ function toTitle() {
   add(JA() ? 'English' : '日本語', () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); toTitle(); });
   audio.scene('calm');
 }
+// 題名画面で音がまだ止まっている間だけ出す（ブラウザは、画面に一度触れるまで音を出させない）。どこに触れても鳴り始める
+setInterval(() => { const e = $('sndHint'); if (!e) return; const need = S.mode === 'title' && DB.sound && !(audio.ctx && audio.ctx.state === 'running'); e.textContent = tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); e.classList.toggle('hidden', !need); }, 400);
 
 function openNewRun() {
   show('newrun');
@@ -448,7 +450,7 @@ function openInter(def, st, stars, rw, interest, gain) {
   $('ledger').innerHTML = rows.map(([a, b], i) => `<div style="animation-delay:${0.1 + i * 0.09}s"><span>${a}</span><b>+${b}</b></div>`).join('');
   $('shopTitle').textContent = tr('屋台', 'Festival Stalls');
   S.shopBought = false; S.shopNudged = false;
-  if (!S.toraLine && !DB.meta.taught.buy) S.toraLine = tr('小判でお守りを買うと、次の夜の点が伸びるよ。「前の夜なら +◯%」が大きい品が効く', 'Spend coins on charms to score more next night. Look for the biggest "Last night: +%"');
+  if (!S.toraLine && !DB.meta.taught.buy) S.toraLine = tr('お守りを買うと点が伸びるよ。「+◯%」が大きい品が効く', 'Charms boost your score. Pick the biggest "+%"');
   $('toraSay').textContent = S.toraLine || '';
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
@@ -736,7 +738,7 @@ $('nextBtn').onclick = () => {
     const run = S.run, can = S.sh.items.some((it) => !it.gift && it.cost <= run.coins && (it.kind !== 'trade') && (it.kind !== 'charm' || (run.charms.length < run.slots && !run.charms.includes(it.id))));
     if (can) {
       S.shopNudged = true;
-      $('toraSay').textContent = tr(`小判が ${run.coins} 枚あるよ。お守りを買っていかない？（もう一度押すと、このまま進む）`, `You still have ${run.coins} coins. Buy a charm? (Tap again to go on)`);
+      $('toraSay').textContent = tr(`小判が ${run.coins} 枚あるよ。買っていく？（もう一度押すと進む）`, `${run.coins} coins left. Buy a charm? (Tap again to go)`);
       const cards = [...$('cards').querySelectorAll('.card')], best = cards.find((c) => c.querySelector('.pvt.best')) || cards.find((c) => !c.classList.contains('cant'));
       if (best) { best.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); best.classList.remove('nudge'); void best.offsetWidth; best.classList.add('nudge'); }
       return;
@@ -966,6 +968,28 @@ function hitStop(ms) {
   if (S.stopCool > 0 && s < 0.07) return;
   S.stopT = Math.max(S.stopT || 0, s); S.stopCool = 0.12;
 }
+// 初めて追いつかれたとき: ゲームの時計を止めて、追いつかれた所に輪を出し、何が起きたか・次にどうするかを見せる（変わったきまりなので、初めての 1 回だけ）。
+// 時計を止めるだけなので、点の計算・ランキングの記録には関わらない
+const GUIDE_SVG = (a, b, c) => `<svg viewBox="0 0 260 64" aria-hidden="true"><path d="M14 44 C70 10 120 58 176 26 S236 30 246 22" fill="none" stroke="#ffe3a0" stroke-width="4" stroke-linecap="round" stroke-dasharray="2 9"/><path d="M14 44 C70 10 120 58 176 26" fill="none" stroke="#ff7a2a" stroke-width="6" stroke-linecap="round"/><circle cx="176" cy="26" r="11" fill="#ffb347"/><circle cx="176" cy="26" r="6" fill="#fff3c4"/><circle cx="246" cy="22" r="7" fill="#fff"/><circle cx="246" cy="22" r="15" fill="none" stroke="#ff4a3a" stroke-width="3"/><text x="8" y="62" font-size="12" fill="#ffcf8a">${a}</text><text x="${b.length > 2 ? 160 : 170}" y="60" font-size="12" fill="#ffb347">${b}</text><text x="${c.length > 3 ? 214 : 222}" y="60" font-size="12" fill="#fff">${c}</text></svg>`;
+function caughtGuide(ev) {
+  if (DB.meta.taught.caught) return;
+  DB.meta.taught.caught = 1; save();
+  S.guide = true; S.guideAt = performance.now();
+  const r = $('guideRing'); r.style.left = (Math.max(0, Math.min(W, ev.x)) / W) * 100 + '%'; r.style.top = (Math.max(0, Math.min(H, ev.y)) / H) * 100 + '%'; r.classList.remove('hidden');
+  $('guide').innerHTML = `<div class="gcard"><h3>${tr('火に追いつかれた！', 'The flame caught your line!')}</h3>${GUIDE_SVG(tr('始まり', 'START'), tr('火', 'FIRE'), tr('線の先', 'TIP'))}`
+    + `<p>${tr('火は、<b>線の始まり</b>から線を追いかけてくる。', 'The flame chases your line from <b>where you started</b>.')}</p>`
+    + `<p>${tr('<b>線の先</b>に追いつかれると、その一筆はおしまい。<em>点は半分</em>。', 'If it reaches <b>your fingertip</b>, the stroke ends and scores <em>half POINTS</em>.')}</p>`
+    + `<p>${tr('火が近いほど「熱い」＝点 ×2〜×4。熱いうちに<b>自分で指を離す</b>と「見切り」で倍率 +1。', 'Closer flame = HOT = POINTS ×2–×4. <b>Let go yourself</b> while it\'s hot for a Close Call: +1 MULT.')}</p>`
+    + `<button class="bigbtn small" id="guideOk">${tr('わかった', 'Got it')}</button></div>`;
+  // 札は、追いつかれた所と反対側に（輪を隠さない）。横長の低い画面は左右、それ以外は上下
+  const g = $('guide'), sx = ev.x / W, sy = ev.y / H, wide = innerWidth > innerHeight && innerHeight <= 500;
+  g.className = wide ? (sx < 0.5 ? 'right' : 'left') : (sy > 0.5 ? 'top' : 'bottom');
+}
+function closeGuide() {
+  if (!S.guide || performance.now() - S.guideAt < 900) return; // 描いていた指を離した瞬間に閉じないように
+  S.guide = false; $('guide').classList.add('hidden'); $('guideRing').classList.add('hidden'); audio.ui('tap');
+}
+$('guide').addEventListener('click', closeGuide);
 // 追いつかれた・提灯が消えた: 画面のふちを一瞬、暗く赤く
 function hurt() { const e = $('hurt'); e.classList.remove('on'); void e.offsetWidth; e.classList.add('on'); }
 // 揺れ: 爆心から外へ押す一発。ばらばらの揺れ（R.shake）より向きがあるぶん、どこで起きたかが分かる
@@ -1054,7 +1078,8 @@ function handle(ev) {
     case 'brake': fx.tick(ev.x, ev.y, [1.6, 0.9, 0.4], 9, 120); break;
     case 'caught': // 追いつかれた: 一瞬止めて、赤く暗く。火の子が筆先に飛びつく
       audio.ui('caught'); hitStop(110); hurt();
-      floatText(ev.x, Math.max(H * 0.2, ev.y - 80), tr('追いつかれた！', 'Caught!'), 'caught', 40);
+      floatText(ev.x, Math.max(H * 0.2, ev.y - 80), tr('追いつかれた！ 点 ½', 'Caught! POINTS ½'), 'caught', 40);
+      caughtGuide(ev);
       if (ev.pvLost > 0) floatText(ev.x, Math.max(H * 0.2, ev.y - 80) + 40, tr(`星の値 −${ev.pvLost}`, `Star value −${ev.pvLost}`), 'mult', 20);
       renderTech();
       mem().caught++;
@@ -1451,7 +1476,7 @@ function updateHud(dt) {
 
 // はじめての夜だけ: 動く手本（玉を順に通る火の粉）
 function hintFx(dt) {
-  const st = S.st; if (!st || S.teachKey !== 'draw' || st.phase !== 'aim' || st.strokesUsed > 0) { $('hand').classList.add('hidden'); return; }
+  const st = S.st; if (!st || S.mode !== 'play' || S.teachKey !== 'draw' || st.phase !== 'aim' || st.strokesUsed > 0) { $('hand').classList.add('hidden'); return; }
   S.hint += dt;
   const idle = st.shells.filter((s) => s.rise <= 0); if (idle.length < 3) return;
   if (!S.hintPath || S.hintFor !== st) {
@@ -1496,9 +1521,9 @@ function frame(now) {
     const stopped = S.stopT > 0;
     if (S.slowT > 0 && !stopped) { S.slowT -= dt; if (S.slowT <= 0) S.timeScale = 1; }
     const sdt = stopped ? dt * 0.08 : dt * S.timeScale;
-    if (S.mode === 'play' && S.st && !S.paused && !stopped) {
+    if (S.mode === 'play' && S.st && !S.paused && !stopped && !S.guide) {
       acc += sdt;
-      while (acc >= G.DT && S.mode === 'play') { acc -= G.DT; G.step(S.st, G.DT); const evs = S.st.events.splice(0); for (const ev of evs) { try { handle(ev); } catch (e) { console.error('handle', ev.type, e); } } }
+      while (acc >= G.DT && S.mode === 'play' && !S.guide) { acc -= G.DT; G.step(S.st, G.DT); const evs = S.st.events.splice(0); for (const ev of evs) { try { handle(ev); } catch (e) { console.error('handle', ev.type, e); } } }
       const st = S.st;
       if (st.phase === 'stroke' && st.stroke && !st.stroke.penDown && S.slowT <= 0) {
         const idle = st.shells.filter((s) => s.state === 'idle' && s.rise <= 0).length;
