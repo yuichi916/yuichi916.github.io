@@ -950,7 +950,7 @@ function launchFor(s) { const t = Math.max(0.28, s.rise); fx.launch(s.x + (Math.
 function handle(ev) {
   const st = S.st;
   switch (ev.type) {
-    case 'penDown': $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke.chips); $('cMult').textContent = fmtM(st.stroke.mult); break;
+    case 'penDown': $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
     case 'ignite': audio.note(2, { vol: 0.14, dur: 0.25 }); fx.tick(ev.x, ev.y, [3, 1.8, 0.7], 26, 220); fx.light(ev.x, ev.y, 0.5, 300, [1, 0.6, 0.25], 6); break;
     case 'thread': {
       const s = ev.shell, n = ev.n;
@@ -1467,7 +1467,7 @@ function frame(now) {
     const sdt = stopped ? dt * 0.08 : dt * S.timeScale;
     if (S.mode === 'play' && S.st && !S.paused && !stopped) {
       acc += sdt;
-      while (acc >= G.DT && S.mode === 'play') { acc -= G.DT; G.step(S.st, G.DT); const evs = S.st.events.splice(0); for (const ev of evs) handle(ev); }
+      while (acc >= G.DT && S.mode === 'play') { acc -= G.DT; G.step(S.st, G.DT); const evs = S.st.events.splice(0); for (const ev of evs) { try { handle(ev); } catch (e) { console.error('handle', ev.type, e); } } }
       const st = S.st;
       if (st.phase === 'stroke' && st.stroke && !st.stroke.penDown && S.slowT <= 0) {
         const idle = st.shells.filter((s) => s.state === 'idle' && s.rise <= 0).length;
