@@ -4,6 +4,10 @@ export function createAudio(bgmList) {
   let ctx = null, master, sfx, bgm, fuseGain, fuseFilter, noise;
   const tracks = {}; let current = null, on = true, musicOn = true, lastThump = 0, thumps = 0;
   const els = {}, bytes = {}; let prefetched = false;
+  // 流し読み（<audio> → WebAudio）は、よそのサイトの枠（Playgama など）の中だと Android の Chrome で無音になった（2026-11-16 依頼主の実機）。
+  // 枠の中では、流し読みをやめて中身を先に落とす方式（ほかの曲と同じ、鳴ると分かっている方式）にする。代わりに起動直後から真っ先に落とす
+  const STREAM_OK = (() => { try { return window.self === window.top; } catch { return false; } })();
+  const streams = (l) => !!l.stream && STREAM_OK;
   const A = {
     get ctx() { return ctx; },
     unlock() {
@@ -34,10 +38,12 @@ export function createAudio(bgmList) {
     prefetch() {
       if (prefetched) return; prefetched = true;
       for (const [k, f, l] of bgmList) {
-        if (l.stream) { const el = new Audio(); el.preload = 'auto'; el.loop = true; el.src = f; els[k] = el; try { el.load(); } catch { /* */ } }
+        if (streams(l)) { const el = new Audio(); el.preload = 'auto'; el.loop = true; el.src = f; els[k] = el; try { el.load(); } catch { /* */ } }
       }
       // 流す曲の読み込みを先にさせ、残りは少しあとから
-      setTimeout(() => { for (const [k, f, l] of bgmList) if (!l.stream && !bytes[k]) bytes[k] = fetch(f).then((r) => r.arrayBuffer()).catch(() => null); }, 1200);
+      const get = (k, f) => { if (!bytes[k]) bytes[k] = fetch(f).then((r) => r.arrayBuffer()).catch(() => null); };
+      for (const [k, f, l] of bgmList) if (l.stream && !streams(l)) get(k, f); // 枠の中: 最初の曲はすぐ落とし始める
+      setTimeout(() => { for (const [k, f, l] of bgmList) if (!l.stream) get(k, f); }, 1200);
     },
     setSound(v) { on = v; if (sfx) sfx.gain.value = v ? 0.85 : 0; },
     setMusic(v) { musicOn = v; if (bgm) bgm.gain.value = v ? 0.55 : 0; },
@@ -132,7 +138,7 @@ export function createAudio(bgmList) {
   async function attachAll() {
     // 1) 流す曲（最初に鳴る静かな曲）: 届いたぶんからすぐ鳴る。全部を変換しないのでメモリも軽い
     for (const [k, f, l] of bgmList) {
-      if (!l.stream || tracks[k]) continue;
+      if (!streams(l) || tracks[k]) continue;
       try {
         const el = els[k];
         const src = ctx.createMediaElementSource(el), g = ctx.createGain(); g.gain.value = 0.0001; src.connect(g); g.connect(bgm);
@@ -143,7 +149,7 @@ export function createAudio(bgmList) {
     }
     // 2) 残りは、先に落としておいた中身を1曲ずつ変換（同時にやると重い）
     for (const [k, f, l] of bgmList) {
-      if (l.stream || tracks[k]) continue;
+      if (streams(l) || tracks[k]) continue;
       try {
         if (!bytes[k]) bytes[k] = fetch(f).then((r) => r.arrayBuffer()).catch(() => null);
         const ab = await bytes[k]; if (!ab) continue;
