@@ -889,6 +889,8 @@ function openPause() {
 function closePause() { S.paused = false; show('none'); last = performance.now(); PF.start(); if (S.st) PF.level('resumed', S.st.level.world, S.st.level.night); }
 $('pauseBtn').onclick = () => { audio.ui('tap'); openPause(); };
 function soundIcon() { $('sndBtn').classList.toggle('off', !DB.sound); }
+// 音を出してよい操作（指を離した時・click・キー）のたびに鳴らし直す。最初の pointerdown だけでは、スマホで無音のまま残ることがある
+for (const t of ['pointerup', 'touchend', 'click', 'keydown']) addEventListener(t, () => audio.unlock(), { capture: true, passive: true });
 $('sndBtn').onclick = () => { audio.unlock(); DB.sound = !DB.sound; DB.music = DB.sound; audio.setSound(DB.sound); audio.setMusic(DB.music); save(); soundIcon(); };
 soundIcon();
 $('pzResume').onclick = () => { audio.ui('tap'); closePause(); };
@@ -1530,7 +1532,7 @@ async function boot() {
   performance.mark('b0');
   await PF.init(); performance.mark('b_pf');
   PF.loadingStart();
-  PF.onMute = (m) => audio.setSound(m ? false : DB.sound);
+  PF.onMute = (m) => { audio.setSound(m ? false : DB.sound); audio.setMusic(m ? false : DB.music); }; // 曲も戻す（効果音だけ戻して曲が無音のままだった）
   if (PF.muted) { audio.setSound(false); audio.setMusic(false); }
   // 場の言葉に合わせる（自分で選んだ言葉・?lang= が先）
   if (PF.lang && !q.get('lang') && !DB.lang) lang = PF.lang;

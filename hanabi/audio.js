@@ -7,7 +7,13 @@ export function createAudio(bgmList) {
   const A = {
     get ctx() { return ctx; },
     unlock() {
-      if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+      // 2 回目以降: 止まっている箱を動かし直し、再生を断られた曲（<audio>）を鳴らし直す。
+      // タッチの pointerdown は「音を出してよい操作」に数えられず、最初の 1 回では断られることがある（指を離した時・click で通る）
+      if (ctx) {
+        if (ctx.state !== 'running') { try { const r = ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch { /* */ } }
+        for (const x of Object.values(tracks)) if (x.el && x.el.paused) { const r = x.el.play(); if (r && r.catch) r.catch(() => {}); }
+        return;
+      }
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
       ctx = new AC();
       const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 5; comp.attack.value = 0.003; comp.release.value = 0.18;
