@@ -986,7 +986,7 @@ function handle(ev) {
     }
     case 'ihen': { // 異変: 大きな字 1 つと、短い一行だけ
       const I = G.IHEN[ev.id];
-      banner(`<b class="ik">${I.k}</b><small>${JA() ? I.ja : I.en}${tr('　点 ×1.5', '  POINTS ×1.5')}</small>`, 150, 1700, 'ihen');
+      banner(`<b class="ik">${I.k}</b><small>${JA() ? I.ja : I.en}${tr('　点 ×1.5', '  POINTS ×1.5')}</small>`, 120, 1700, 'ihen');
       R.flash = Math.max(R.flash, 0.5); R.shake = 26; hitStop(160); audio.boom(2, 0); audio.duck(0.25, 0.5); audio.note(2, { vol: 0.2, dur: 0.9 });
       document.body.classList.add('ihen-' + ev.id);
       if (ev.id === 'katamuku') S.tilt = { a: S.tilt?.a || 0, to: 36 };
