@@ -24,7 +24,7 @@ const fx = createFx(lowEnd ? 7000 : 26000);
 R.noiseTex = R.texture(noiseTex(), { repeat: true });
 const BGM = q.get('bgm') || '../assets/hitofude/bgm/';
 const audio = createAudio([
-  ['calm', BGM + 'hitofude_calm.mp3', { loopStart: 1.17, gain: 0.5 }],
+  ['calm', BGM + 'hitofude_calm.mp3', { loopStart: 1.17, gain: 0.5, stream: true }], // 最初に鳴る長い曲は、届いたぶんから流す（全部を変換しない）
   ['burn', BGM + 'hitofude_burn.mp3', { gain: 0.95 }],
   ['finale', BGM + 'hitofude_finale.mp3', { gain: 0.9 }],
 ]);
@@ -68,13 +68,16 @@ async function loadBand(key) {
     bandCache[key] = (async () => {
       try {
         const meta = await fetch(`art/${key}/band.json`).then((r) => { if (!r.ok) throw 0; return r.json(); });
-        const [a, c] = await Promise.all([img(`art/${key}/band_night.webp`), img(`art/${key}/band_flash.webp`)]);
-        return { a, c, f: meta.waterFrac };
+        // 夜の絵だけで始め、花火に照らされた絵は届いたら差しかえる（起動を待たせない）
+        const a = await img(`art/${key}/band_night.webp`);
+        const out = { a, c: a, f: meta.waterFrac };
+        img(`art/${key}/band_flash.webp`).then((c) => { out.c = c; if (S.bandKey === key) setBand(out.a, out.c, out.f); }).catch(() => {});
+        return out;
       } catch { const ph = placeholderBand(); return { a: ph.night, c: ph.flash, f: ph.waterFrac }; }
     })();
   }
   const b = await bandCache[key];
-  setBand(b.a, b.c, b.f);
+  S.bandKey = key; setBand(b.a, b.c, b.f);
 }
 async function setTheme(key) {
   if (S.themeKey === key) return;
@@ -1495,7 +1498,8 @@ function frame(now) {
 
 // ------------------------------------------------------------------ 起動
 async function boot() {
-  await PF.init();
+  performance.mark('b0');
+  await PF.init(); performance.mark('b_pf');
   PF.loadingStart();
   PF.onMute = (m) => audio.setSound(m ? false : DB.sound);
   if (PF.muted) { audio.setSound(false); audio.setMusic(false); }
@@ -1505,17 +1509,22 @@ async function boot() {
   PF.onPause = (p) => { audio.mute(p); if (p && S.mode === 'play' && !S.paused) openPause(); };
   PF.onAd = (on) => { S.adPause = on; audio.mute(on); };
   if (PF.ready) { const j = await PF.load(SAVE); if (j) { try { const c = JSON.parse(j); if ((c.meta?.xp || 0) >= (DB.meta.xp || 0)) { Object.assign(DB, c); S.run = DB.run; } } catch { /* */ } } }
-  try { await document.fonts.load('900 60px "Yuji Boku"', '一筆花火金大千灯雫氷鬼尺' + CHARMS.map((c) => c.ja[0]).join('')); } catch { /* 字が読めなくても遊べる */ }
-  atlasTex = R.texture(shellAtlas());
+  // 玉の字の筆文字は 0.25 秒だけ待つ。間に合わなければ、ふつうの字で始めて、届いたら描きなおす（遅い回線で起動を止めない）
+  const glyphs = '一筆花火金大千灯雫氷鬼尺' + CHARMS.map((c) => c.ja[0]).join('');
+  const fontP = document.fonts.load('900 60px "Yuji Boku"', glyphs).catch(() => null);
+  const fontOk = await Promise.race([fontP.then(() => true), new Promise((r) => setTimeout(() => r(false), 250))]);
+  performance.mark('b_font'); atlasTex = R.texture(shellAtlas()); performance.mark('b_atlas');
+  if (!fontOk) fontP.then(() => { if (document.fonts.check('900 60px "Yuji Boku"', glyphs)) atlasTex = R.texture(shellAtlas()); });
   S.themeKey = 'summer';
   resize();
-  await loadBand('summer');
+  performance.mark('b_resize'); await loadBand('summer'); performance.mark('b_band');
   layoutBand();
-  toTitle();
+  toTitle(); performance.mark('b_title');
   if (q.has('debug')) { const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:8px;top:60px;font:12px monospace;color:#7f7;z-index:9'; document.body.append(d); S.fpsEl = d; }
   requestAnimationFrame(frame);
   PF.loadingStop();
   S.booted = true;
+  audio.prefetch(); // 遊べる状態になったら曲を先に読み始める（最初のタップですぐ鳴る）
   if (!window.HANABI_PG) try { sessionStorage.removeItem('hanabiRetry'); } catch { /* 無くても動く */ }
   if (!DB.run && !(DB.meta.runs > 0) && !q.has('title')) beginRun();
 }

@@ -101,6 +101,7 @@ def main() -> int:
     flags = "window.HANABI_PKG=1;" + ("" if story else "window.HANABI_NO_STORY=1;window.HANABI_NO_LINKS=1;") + ("window.HANABI_PG=1;" if kind == "playgama" else "")
     for n, html in htmls.items():
         html = localize_fonts(html, style)
+        html = html.replace("../assets/hitofude/", "./assets/hitofude/")  # 先読みの印（modulepreload）も書き出し先の場所に
         # 計測（GoatCounter）は自分のサイトだけ。ゲームサイトの中では数えない
         html = re.sub(r'<script data-goatcounter[^>]*></script>\s*', '', html)
         html = html.replace("</head>", f"<script>{flags}</script></head>", 1)

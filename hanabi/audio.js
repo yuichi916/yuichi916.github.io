@@ -3,6 +3,7 @@ const PENTA = [0, 2, 4, 7, 9];
 export function createAudio(bgmList) {
   let ctx = null, master, sfx, bgm, fuseGain, fuseFilter, noise;
   const tracks = {}; let current = null, on = true, musicOn = true, lastThump = 0, thumps = 0;
+  const els = {}, bytes = {}; let prefetched = false;
   const A = {
     get ctx() { return ctx; },
     unlock() {
@@ -20,11 +21,22 @@ export function createAudio(bgmList) {
       fuseFilter = ctx.createBiquadFilter(); fuseFilter.type = 'bandpass'; fuseFilter.frequency.value = 3800; fuseFilter.Q.value = 0.7;
       fuseGain = ctx.createGain(); fuseGain.gain.value = 0;
       src.connect(fuseFilter); fuseFilter.connect(fuseGain); fuseGain.connect(sfx); src.start();
-      for (const [k, f, l] of bgmList) load(k, f, l);
+      A.prefetch();
+      attachAll();
+    },
+    // 曲を先に用意する（遊べる状態になったら呼ぶ）。stream の曲は <audio> で少しずつ読み、ほかは中身だけ先に落としておく
+    prefetch() {
+      if (prefetched) return; prefetched = true;
+      for (const [k, f, l] of bgmList) {
+        if (l.stream) { const el = new Audio(); el.preload = 'auto'; el.loop = true; el.src = f; els[k] = el; try { el.load(); } catch { /* */ } }
+      }
+      // 流す曲の読み込みを先にさせ、残りは少しあとから
+      setTimeout(() => { for (const [k, f, l] of bgmList) if (!l.stream && !bytes[k]) bytes[k] = fetch(f).then((r) => r.arrayBuffer()).catch(() => null); }, 1200);
     },
     setSound(v) { on = v; if (sfx) sfx.gain.value = v ? 0.85 : 0; },
     setMusic(v) { musicOn = v; if (bgm) bgm.gain.value = v ? 0.55 : 0; },
     get soundOn() { return on; }, get musicOn() { return musicOn; },
+    get state() { return { ctx: ctx ? ctx.state : null, tracks: Object.keys(tracks), current, playing: Object.fromEntries(Object.entries(els).map(([k, e]) => [k, +e.currentTime.toFixed(2)])) }; }, // 確かめる道具用
     mute(v) { if (master) master.gain.value = v ? 0 : 0.9; },
     // 大事な音の前に、効果音と曲をいったん下げる（amt=残す割合、sec=戻るまで）
     duck(sec = 0.4, amt = 0.35) {
@@ -37,7 +49,7 @@ export function createAudio(bgmList) {
       if (!ctx || current === name) return;
       const t = ctx.currentTime;
       for (const [k, x] of Object.entries(tracks)) { x.gain.gain.cancelScheduledValues(t); x.gain.gain.setTargetAtTime(k === name ? x.level : 0.0001, t, fade / 3); }
-      current = name;
+      current = tracks[name] ? name : null;
     },
     fuse(level, heat) { if (!ctx) return; const t = ctx.currentTime; fuseGain.gain.setTargetAtTime(level * (0.05 + heat * 0.03), t, 0.04); fuseFilter.frequency.setTargetAtTime(3000 + heat * 1500, t, 0.05); },
     note(n, { vol = 0.2, pan = 0, dur = 0.5, up = 0 } = {}) {
@@ -110,14 +122,32 @@ export function createAudio(bgmList) {
       if (kind === 'tsugi') [12, 15, 19].forEach((n, i) => setTimeout(() => A.note(n, { vol: 0.17, dur: 0.45 }), i * 55));
     },
   };
-  async function load(k, f, l) {
-    try {
-      const r = await fetch(f); const b = await ctx.decodeAudioData(await r.arrayBuffer());
-      const s = ctx.createBufferSource(); s.buffer = b; s.loop = true; if (l.loopStart) s.loopStart = l.loopStart;
-      const g = ctx.createGain(); g.gain.value = 0.0001; s.connect(g); g.connect(bgm); s.start();
-      tracks[k] = { gain: g, level: l.gain ?? 1 };
-      if (A.wanted === k) { current = k; g.gain.setTargetAtTime(tracks[k].level, ctx.currentTime, 0.2); }
-    } catch (e) { console.warn('bgm', k, e); }
+  function fadeInIfWanted(k) { if (A.wanted === k && current !== k) { current = k; tracks[k].gain.gain.setTargetAtTime(tracks[k].level, ctx.currentTime, 0.2); } }
+  async function attachAll() {
+    // 1) 流す曲（最初に鳴る静かな曲）: 届いたぶんからすぐ鳴る。全部を変換しないのでメモリも軽い
+    for (const [k, f, l] of bgmList) {
+      if (!l.stream || tracks[k]) continue;
+      try {
+        const el = els[k];
+        const src = ctx.createMediaElementSource(el), g = ctx.createGain(); g.gain.value = 0.0001; src.connect(g); g.connect(bgm);
+        tracks[k] = { gain: g, level: l.gain ?? 1, el };
+        const pr = el.play(); if (pr && pr.catch) pr.catch(() => {});
+        fadeInIfWanted(k);
+      } catch (e) { console.warn('bgm', k, e); }
+    }
+    // 2) 残りは、先に落としておいた中身を1曲ずつ変換（同時にやると重い）
+    for (const [k, f, l] of bgmList) {
+      if (l.stream || tracks[k]) continue;
+      try {
+        if (!bytes[k]) bytes[k] = fetch(f).then((r) => r.arrayBuffer()).catch(() => null);
+        const ab = await bytes[k]; if (!ab) continue;
+        const b = await ctx.decodeAudioData(ab.slice(0));
+        const s2 = ctx.createBufferSource(); s2.buffer = b; s2.loop = true; if (l.loopStart) s2.loopStart = l.loopStart;
+        const g = ctx.createGain(); g.gain.value = 0.0001; s2.connect(g); g.connect(bgm); s2.start();
+        tracks[k] = { gain: g, level: l.gain ?? 1 };
+        fadeInIfWanted(k);
+      } catch (e) { console.warn('bgm', k, e); }
+    }
   }
   return A;
 }
