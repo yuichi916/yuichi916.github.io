@@ -245,6 +245,7 @@ function startNight() {
   show('none'); $('hud').classList.remove('hidden');
   $('nWorld').textContent = (JA() ? W2.ja : W2.en) + (def.endless ? tr(`・千秋楽 ${def.world - Run.WORLDS.length} 巡`, ` · Encore ${def.world - Run.WORLDS.length}`) : '');
   $('nName').textContent = tr(`第 ${def.night} 夜`, `Night ${def.night}`);
+  { const nb = def.night < 4 ? 4 : def.night < 8 ? 8 : 0; if (nb && !def.endless) { const g = document.createElement('i'); g.className = 'goal'; g.textContent = tr(`大一番まで あと ${nb - def.night} 夜`, `Boss in ${nb - def.night}`); $('nName').append(g); } }
   $('gTarget').textContent = fmt(def.target);
   $('combo').classList.remove('on'); $('heat').className = 'heat';
   renderStrokes(); renderBags();
@@ -414,6 +415,7 @@ function nightEnded() {
   const sl = Mem.shopLine(mem(), run, { buyBack: !!S.sh.back, ext: run.lastExt > 0, waited: st.waited > 0 });
   S.toraLine = sl ? (JA() ? sl.ja : sl.en) : '';
   S.route = Run.routeChoices(run); S.routeSel = 0; S.mapPeek = null;
+  if ((DB.meta.runs || 0) < 2 && S.route.length > 1) { const risk = (c) => ({ shoubu: 3, nazo: 1, chaya: -1 }[c.node] || 0); S.route.forEach((c, i) => { if (risk(c) < risk(S.route[S.routeSel])) S.routeSel = i; }); }
   if (S.route.length && !DB.meta.taught.map) { DB.meta.taught.map = 1; S.toraLine = tr('道が分かれたよ。下の地図の丸を押して、次の夜をえらんでね。となりの道までしか移れないから、先の大一番まで見て決めて', 'The road forks! Tap a circle on the map below to pick your next night. You can only shift one lane at a time, so plan toward the boss'); }
   DB.run = run; save();
   // 大一番に勝った瞬間: すぐ屋台を出さず、止め・閃光・ゆっくりの大団円を 1.7 秒見せる
@@ -445,6 +447,8 @@ function openInter(def, st, stars, rw, interest, gain) {
   const rows = [[def.boss ? tr('大一番のごほうび', 'Boss bonus') : tr('今夜のごほうび', 'Night bonus'), rw.base], [tr('残った筆', 'Strokes left'), rw.left], [tr('星', 'Stars'), rw.star], [tr('お守りと玉', 'Charms & shells'), rw.earned], [tr('趣向の上乗せ', 'Twist bonus'), rw.twist], [tr('利息', 'Interest'), interest]].filter((r) => r[1] > 0);
   $('ledger').innerHTML = rows.map(([a, b], i) => `<div style="animation-delay:${0.1 + i * 0.09}s"><span>${a}</span><b>+${b}</b></div>`).join('');
   $('shopTitle').textContent = tr('屋台', 'Festival Stalls');
+  S.shopBought = false; S.shopNudged = false;
+  if (!S.toraLine && !DB.meta.taught.buy) S.toraLine = tr('小判でお守りを買うと、次の夜の点が伸びるよ。「前の夜なら +◯%」が大きい品が効く', 'Spend coins on charms to score more next night. Look for the biggest "Last night: +%"');
   $('toraSay').textContent = S.toraLine || '';
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
@@ -500,11 +504,11 @@ function retryNight() {
   S.mode = 'retry'; DB.run = S.run; save();
   renderLives();
   const miss = (S.miss ? tr(`あと ${fmt(S.miss.n)} 点だった（${S.miss.pct}%）`, `Just ${fmt(S.miss.n)} short (${S.miss.pct}%)`) + '<br>' : '') + (S.run.lastExt ? tr(`星屑で提灯 +${S.run.lastExt}`, `Star dust: +${S.run.lastExt} lantern`) + '<br>' : '');
-  banner(`${tr('灯がひとつ消えた', 'A light goes out')}<small>${miss}${tr(`もう一度、この夜を。残り ${S.run.lives}`, `Try this night again. ${S.run.lives} left`)}<span class="hint">${lossHint()}</span></small>`, 56, 1000);
+  banner(`${tr('灯がひとつ消えた', 'A light goes out')}<small>${miss}${tr(`もう一度、この夜を。残り ${S.run.lives}`, `Try this night again. ${S.run.lives} left`)}<span class="hint">${lossHint()}</span></small>`, 56, 2400);
   audio.ui('lose'); hurt();
-  // 待たせない: 1 秒で自動、0.3 秒すぎたら触れればすぐ
+  // 待たせすぎない: 2.4 秒で自動（惜しさと一言を読める長さ）、0.6 秒すぎたら触れればすぐ
   S.retryAt = performance.now();
-  setTimeout(() => { if (S.mode === 'retry') startNight(); }, 1000);
+  setTimeout(() => { if (S.mode === 'retry') startNight(); }, 2400);
 }
 // 「前の夜なら +38%」。いちばん伸びる品には印
 function pvTag(i) {
@@ -719,7 +723,7 @@ function renderHeld(el, sell) {
 function buy(i) {
   const it = S.sh.items[i], run = S.run;
   if (Run.buyItem(S.sh, run, i)) return; // 買えない（同じお守りを 2 つ持たない・枠・小判）
-  logOp('b', i);
+  logOp('b', i); S.shopBought = true; DB.meta.taught.buy = 1;
   if (it.kind === 'trade') { renderLives(); toast(tr('灯をひとつ差し出した', 'You gave up a light')); }
   audio.note(14, { vol: 0.18, dur: 0.3 }); setTimeout(() => audio.note(17, { vol: 0.16, dur: 0.4 }), 70);
   hideTip(); renderShop();
@@ -727,6 +731,17 @@ function buy(i) {
 $('reroll').onclick = () => { if (!Run.rerollShop(S.sh, S.run, Run.unlockedCharms(DB.meta))) return; logOp('r'); audio.ui('tap'); renderShop(); previewShop(); }; // 買い戻し・ほうびは引き直しても残す
 $('nextBtn').onclick = () => {
   audio.ui('tap');
+  // 小判を余らせたまま素通りしがち。初めの 3 周は、買える品があれば 1 回だけ声をかけて、いちばん伸びる品を揺らす
+  if (S.mode === 'inter' && !S.shopBought && !S.shopNudged && (DB.meta.runs || 0) < 3) {
+    const run = S.run, can = S.sh.items.some((it) => !it.gift && it.cost <= run.coins && (it.kind !== 'trade') && (it.kind !== 'charm' || (run.charms.length < run.slots && !run.charms.includes(it.id))));
+    if (can) {
+      S.shopNudged = true;
+      $('toraSay').textContent = tr(`小判が ${run.coins} 枚あるよ。お守りを買っていかない？（もう一度押すと、このまま進む）`, `You still have ${run.coins} coins. Buy a charm? (Tap again to go on)`);
+      const cards = [...$('cards').querySelectorAll('.card')], best = cards.find((c) => c.querySelector('.pvt.best')) || cards.find((c) => !c.classList.contains('cant'));
+      if (best) { best.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); best.classList.remove('nudge'); void best.offsetWidth; best.classList.add('nudge'); }
+      return;
+    }
+  }
   const pick = S.route && S.route.length ? S.route[S.routeSel || 0] : null;
   if (pick) Run.chooseRoute(S.run, pick);
   logOp('a', pick ? pick.lane : -1);
@@ -795,8 +810,8 @@ $('skNext').onclick = () => { audio.ui('tap'); S.sk = null; startNight(); };
 
 function runOver(won) {
   const run = S.run;
-  S.mode = 'over'; show('over'); $('hud').classList.add('hidden');
-  const meta = DB.meta, before = Run.unlockedCharms(meta).size, fuseBefore = Run.FUSES.filter((f) => Run.fuseOpen(f, meta)).length;
+  S.mode = 'over'; show('over'); $('hud').classList.add('hidden'); $('teach').classList.add('hidden');
+  const meta = DB.meta, prevEnd = meta.mem?.lastEnd, prevBest = meta.best || 0, beforeSet = Run.unlockedCharms(meta), before = beforeSet.size, fuseBefore = Run.FUSES.filter((f) => Run.fuseOpen(f, meta)).length;
   const newBest = meta.runs > 0 && run.nightsCleared > (meta.best || 0);
   meta.runs = (meta.runs || 0) + 1; meta.xp = (meta.xp || 0) + Run.xpFor(run); meta.best = Math.max(meta.best || 0, run.nightsCleared);
   if (won) { meta.wins = (meta.wins || 0) + 1; meta.rankOpen = Math.max(meta.rankOpen || 0, run.rank + 1); }
@@ -808,17 +823,27 @@ function runOver(won) {
   $('ovTitle').textContent = mercy ? tr(ME.title.ja, ME.title.en) : won ? tr('祭り、大団円！', 'The Festival is Complete!') : tr('今夜はここまで', 'The Night Ends');
   const sub = [newBest ? `<em class="best">${tr('自己ベスト！', 'New Best!')}</em>` : '', !won && S.miss ? tr(`最後の夜は あと ${fmt(S.miss.n)} 点（${S.miss.pct}%）`, `Last night: ${fmt(S.miss.n)} short (${S.miss.pct}%)`) : ''].filter(Boolean).join(' ');
   if (run.endless) meta.endlessBest = Math.max(meta.endlessBest || 0, run.nightsCleared);
-  $('ovNights').innerHTML = (run.endless ? tr(`千秋楽 ${run.nightsCleared} 夜（最高 ${meta.endlessBest}）`, `Encore: ${run.nightsCleared} nights (best ${meta.endlessBest})`) : tr(`${run.nightsCleared} / 24 夜`, `${run.nightsCleared} / 24 nights`)) + (sub ? `<small>${sub}</small>` : '') + (!won && S.st ? `<small class="hint">${lossHint()}</small>` : '') + (mercy ? `<small class="mercy">${(JA() ? ME.body.ja : ME.body.en).split('\n').join('<br>')}</small>` : '');
+  $('ovNights').innerHTML = (run.endless ? tr(`千秋楽 ${run.nightsCleared} 夜（最高 ${meta.endlessBest}）`, `Encore: ${run.nightsCleared} nights (best ${meta.endlessBest})`) : (run.nightsCleared ? tr(`${run.nightsCleared} 夜を越えた`, `${run.nightsCleared} nights cleared`) : tr('第 1 夜で散った', 'Fell on night 1')) + (() => {
+      const n = run.nightsCleared, bits = [];
+      if (prevEnd && !won) bits.push(n > prevEnd.nights ? tr(`前回より +${n - prevEnd.nights} 夜`, `+${n - prevEnd.nights} vs last run`) : n === prevEnd.nights ? tr('前回と同じ', 'Same as last run') : tr(`前回は ${prevEnd.nights} 夜`, `Last run: ${prevEnd.nights}`));
+      if (prevBest && n < prevBest) bits.push(tr(`最高 ${prevBest} 夜`, `Best ${prevBest}`));
+      const nb = run.nightsCleared < 4 ? 4 : run.nightsCleared < 8 ? 8 : 0;
+      const d = nb - n - 1; // 散った夜（第 n+1 夜）から数える。遊んでいる間の「大一番まで あと N 夜」と同じ数え方
+      if (!won && nb && d > 0 && (!prevBest || prevBest < nb)) bits.push(tr(`大一番（第 ${nb} 夜）まで あと ${d} 夜`, `${d} more to the boss (night ${nb})`));
+      return bits.length ? `<small class="cmp">${bits.map((x) => `<span>${x}</span>`).join('')}</small>` : '';
+    })()) + (sub ? `<small>${sub}</small>` : '') + (!won && S.st ? `<small class="hint">${lossHint()}</small>` : '') + (mercy ? `<small class="mercy">${(JA() ? ME.body.ja : ME.body.en).split('\n').join('<br>')}</small>` : '');
   const sp = Object.values(run.spells || {}), spT = sp.reduce((a, x) => a + x.t, 0), spG = sp.reduce((a, x) => a + x.g, 0);
   meta.bestScore = Math.max(meta.bestScore || 0, run.totalScore);
-  $('ovStats').innerHTML = [[tr('合計の点', 'Total score'), fmt(run.totalScore)], [tr('最大連鎖', 'Best chain'), run.bestChain], [tr('星の値', 'Star value'), fmtM(run.pv ?? 4)], [tr('かすり', 'Graze'), fmt(run.graze || 0)], [tr('星屑', 'Star dust'), fmt(run.dust || 0)], ...(spT ? [[tr('技', 'Techniques'), `${spG} / ${spT}`]] : []), [tr('星', 'Stars'), run.stars], [tr('経験', 'XP'), '+' + Run.xpFor(run)]].map(([a, b], i) => `<div style="animation-delay:${i * 0.1}s"><span>${a}</span><b>${b}</b></div>`).join('');
+  $('ovStats').innerHTML = [[tr('合計の点', 'Total score'), fmt(run.totalScore)], [tr('最大連鎖', 'Best chain'), run.bestChain], ...(DB.meta.taught.dust ? [[tr('星の値', 'Star value'), fmtM(run.pv ?? 4)], [tr('かすり', 'Graze'), fmt(run.graze || 0)], [tr('星屑', 'Star dust'), fmt(run.dust || 0)]] : []), ...(spT ? [[tr('技', 'Techniques'), `${spG} / ${spT}`]] : []), [tr('星', 'Stars'), run.stars], [tr('経験', 'XP'), '+' + Run.xpFor(run)]].map(([a, b], i) => `<div style="animation-delay:${i * 0.1}s"><span>${a}</span><b>${b}</b></div>`).join('');
   const ul = [];
-  if (after > before) ul.push(tr(`新しいお守り ${after - before} 種！`, `${after - before} new charm(s)!`));
+  if (after > before) { const nw = CHARMS.filter((c) => !beforeSet.has(c.id) && Run.unlockedCharms(meta).has(c.id)); ul.push(tr(`新しいお守り「${nw.map((c) => c.ja).join('」「')}」が屋台に並ぶ！`, `New charm${nw.length > 1 ? 's' : ''}: ${nw.map((c) => c.en).join(', ')}!`)); }
   if (fuseAfter > fuseBefore) ul.push(tr('新しい導火線！', 'New fuse!'));
   if (won && run.rank + 1 < Run.RANKS.length) ul.push(tr('次の段位が開いた！', 'Next rank unlocked!'));
   const order = Run.START_POOL, xp = meta.xp, rest = after < CHARMS.length ? 30 - (xp % 30) : 0;
   $('ovUnlocks').innerHTML = (ul.length ? `<div>${ul.join('  ')}</div>` : '') + (rest ? `<div class="nextun"><span>${tr(`次のお守りまで あと ${rest}`, `Next charm in ${rest} XP`)}</span><i style="width:${((30 - rest) / 30) * 100}%"></i></div>` : '');
   $('ovTitleBtn').textContent = tr('タイトル', 'Title'); $('ovAgain').textContent = tr('もう一度', 'PLAY AGAIN');
+  // Playgama ではタイトルを通らないので、今日の祭りの入口をここにも置く
+  const od = $('ovDaily'); od.textContent = tr('今日の祭り', 'Daily'); od.classList.toggle('hidden', !!(S.daily || run.endless));
   track(`run/${won ? 'win' : 'over'}/n${run.nightsCleared}${S.daily ? '/daily' : ''}`);
   const sh = $('ovShare'); sh.classList.toggle('hidden', !canShare()); sh.textContent = tr('結果を共有', 'Share');
   const d = new Date(), day = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
@@ -841,6 +866,7 @@ Draw the fuse. The flame is right behind you. #HitofudeHanabi`;
   if (won) grandFinale(); else PF.ad();
 }
 $('ovTitleBtn').onclick = () => { audio.ui('tap'); toTitle(); };
+$('ovDaily').onclick = () => { audio.ui('tap'); startDaily(); };
 $('ovAgain').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school }); };
 
 // ひと休み
@@ -881,7 +907,7 @@ const toWorld = (e) => {
 let pid = null, TOUCH = false; // 指で遊んでいるか（輪を指の外に出す）
 canvas.addEventListener('pointerdown', (e) => {
   audio.unlock(); TOUCH = e.pointerType === 'touch';
-  if (S.mode === 'retry' && performance.now() - S.retryAt > 300) { startNight(); return; }
+  if (S.mode === 'retry' && performance.now() - S.retryAt > 600) { startNight(); return; }
   if (S.mode !== 'play' || !S.st || pid !== null || S.paused) return;
   if (S.cnt) S.cnt.t = S.cnt.dur; // 数え上げの途中でも、触れたらすぐ次へ
   const p = toWorld(e);
@@ -1122,7 +1148,10 @@ function handle(ev) {
       if (!DB.meta.taught.score && st.strokesUsed >= 1) showTeach('score');
       break;
     case 'rise': launchFor(ev.shell); audio.launch(panOf(ev.shell.x)); break;
-    case 'cancel': $('combo').classList.remove('on'); audio.scene('calm'); break;
+    case 'cancel': $('combo').classList.remove('on'); audio.scene('calm');
+      // 叩いただけで何も起きないと「壊れている」に見える。なぞり方を言い直す（覚えるまで）
+      if (!DB.meta.taught.draw) { S.taps = (S.taps || 0) + 1; showTeach('draw'); floatText(W / 2, H * 0.42, tr('指を離さずに、玉から玉へなぞって', 'Hold and drag through the shells'), 'gold', S.taps > 1 ? 30 : 24); }
+      break;
     case 'runner': audio.launch(panOf(ev.x)); break;
     case 'kids': audio.note(15, { vol: 0.14, dur: 0.3 }); floatText(ev.x, ev.y - 30, tr('子玉！', 'Babies!'), 'gold', 22); break;
     case 'meoto': { const n = 14; for (let i = 0; i <= n; i++) { const u = i / n; fx.add(ev.x + (ev.ox - ev.x) * u, ev.y + (ev.oy - ev.y) * u, 0, 0, 0.35, 3.4, 0, 0, [3, 1.2, 2], [1, 0.3, 0.6], 1.6); } audio.note(19, { vol: 0.17, dur: 0.4 }); floatText(ev.ox, ev.oy - 30, tr('夫婦！', 'Twins!'), 'gold', 24); $('cMult').textContent = fmtM(ev.mult); bump($('cMult')); break; }
