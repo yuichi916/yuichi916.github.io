@@ -8,6 +8,11 @@ export function createAudio(bgmList) {
   // 枠の中では、流し読みをやめて中身を先に落とす方式（ほかの曲と同じ、鳴ると分かっている方式）にする。代わりに起動直後から真っ先に落とす
   const STREAM_OK = (() => { try { return window.self === window.top; } catch { return false; } })();
   const streams = (l) => !!l.stream && STREAM_OK;
+  const diag = {}; let muted = false;
+  // 予備の「普通の <audio> 再生」（WebAudio を通さない）の音量。WebAudio の道（曲の量 → 曲 0.55 → 全体 0.9）と同じ掛け算
+  const plainVol = (x) => Math.max(0, Math.min(1, (x.target || 0) * (musicOn ? 0.55 : 0) * (muted ? 0 : 0.9)));
+  const setTrack = (x, v, tc) => { if (x.plain) { x.target = v; x.plain.volume = plainVol(x); return; } x.gain.gain.cancelScheduledValues(ctx.currentTime); x.gain.gain.setTargetAtTime(Math.max(v, 0.0001), ctx.currentTime, tc); };
+  const refreshPlain = () => { for (const x of Object.values(tracks)) if (x.plain) x.plain.volume = plainVol(x); };
   const A = {
     get ctx() { return ctx; },
     unlock() {
@@ -15,7 +20,7 @@ export function createAudio(bgmList) {
       // タッチの pointerdown は「音を出してよい操作」に数えられず、最初の 1 回では断られることがある（指を離した時・click で通る）
       if (ctx) {
         if (ctx.state !== 'running') { try { const r = ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch { /* */ } }
-        for (const x of Object.values(tracks)) if (x.el && x.el.paused) { const r = x.el.play(); if (r && r.catch) r.catch(() => {}); }
+        for (const x of Object.values(tracks)) { const e = x.el || x.plain; if (e && e.paused) { const r = e.play(); if (r && r.catch) r.catch(() => {}); } }
         return;
       }
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
@@ -46,10 +51,15 @@ export function createAudio(bgmList) {
       setTimeout(() => { for (const [k, f, l] of bgmList) if (!l.stream) get(k, f); }, 1200);
     },
     setSound(v) { on = v; if (sfx) sfx.gain.value = v ? 0.85 : 0; },
-    setMusic(v) { musicOn = v; if (bgm) bgm.gain.value = v ? 0.55 : 0; },
+    setMusic(v) { musicOn = v; if (bgm) bgm.gain.value = v ? 0.55 : 0; refreshPlain(); },
     get soundOn() { return on; }, get musicOn() { return musicOn; },
     get state() { return { ctx: ctx ? ctx.state : null, tracks: Object.keys(tracks), current, playing: Object.fromEntries(Object.entries(els).map(([k, e]) => [k, +e.currentTime.toFixed(2)])) }; }, // 確かめる道具用
-    mute(v) { if (master) master.gain.value = v ? 0 : 0.9; },
+    mute(v) { muted = !!v; if (master) master.gain.value = v ? 0 : 0.9; refreshPlain(); },
+    // 音の状態（ポーズの画面の隅に出す。実機で鳴らないときに、何で止まっているかを見る）
+    diagText() {
+      const tr = Object.entries(tracks).map(([k, x]) => { const e = x.el || x.plain; return `${k}:${x.plain ? 'P' : x.el ? 'S' : 'B'}${e ? (e.paused ? '-stop' : '-play') + (x.plain ? '-v' + e.volume.toFixed(2) : '') + (e.error ? '-e' + e.error.code : '') : ''}`; }).join(' ');
+      return `${STREAM_OK ? 'top' : 'frame'} ctx:${ctx ? ctx.state + '/' + ctx.sampleRate : '-'} m:${musicOn ? 1 : 0}${muted ? 'x' : ''} now:${current || '-'} want:${A.wanted || '-'} | ${tr} | calm:${diag.calm || '-'} burn:${diag.burn || '-'}`;
+    },
     // 大事な音の前に、効果音と曲をいったん下げる（amt=残す割合、sec=戻るまで）
     duck(sec = 0.4, amt = 0.35) {
       if (!ctx) return;
@@ -60,7 +70,7 @@ export function createAudio(bgmList) {
       A.wanted = name;
       if (!ctx || current === name) return;
       const t = ctx.currentTime;
-      for (const [k, x] of Object.entries(tracks)) { x.gain.gain.cancelScheduledValues(t); x.gain.gain.setTargetAtTime(k === name ? x.level : 0.0001, t, fade / 3); }
+      void t; for (const [k, x] of Object.entries(tracks)) setTrack(x, k === name ? x.level : 0, fade / 3);
       current = tracks[name] ? name : null;
     },
     fuse(level, heat) { if (!ctx) return; const t = ctx.currentTime; fuseGain.gain.setTargetAtTime(level * (0.05 + heat * 0.03), t, 0.04); fuseFilter.frequency.setTargetAtTime(3000 + heat * 1500, t, 0.05); },
@@ -134,7 +144,16 @@ export function createAudio(bgmList) {
       if (kind === 'tsugi') [12, 15, 19].forEach((n, i) => setTimeout(() => A.note(n, { vol: 0.17, dur: 0.45 }), i * 55));
     },
   };
-  function fadeInIfWanted(k) { if (A.wanted === k && current !== k) { current = k; tracks[k].gain.gain.setTargetAtTime(tracks[k].level, ctx.currentTime, 0.2); } }
+  function fadeInIfWanted(k) { if (A.wanted === k && current !== k) { current = k; setTrack(tracks[k], tracks[k].level, 0.2); } }
+  // 予備: WebAudio を通さず、<audio> をそのまま鳴らす（変換に失敗した・時間がかかりすぎたとき）。断られても、次に触れたとき unlock が鳴らし直す
+  function plainTrack(k, f, l) {
+    if (tracks[k]) return;
+    const el = new Audio(f); el.loop = true; el.preload = 'auto';
+    tracks[k] = { plain: el, level: l.gain ?? 1, target: 0 }; el.volume = 0;
+    const r = el.play(); if (r && r.catch) r.catch(() => {});
+    diag[k] = (diag[k] || '') + '>plain';
+    if (A.wanted === k) { current = null; fadeInIfWanted(k); }
+  }
   async function attachAll() {
     // 1) 流す曲（最初に鳴る静かな曲）: 届いたぶんからすぐ鳴る。全部を変換しないのでメモリも軽い
     for (const [k, f, l] of bgmList) {
@@ -142,7 +161,7 @@ export function createAudio(bgmList) {
       try {
         const el = els[k];
         const src = ctx.createMediaElementSource(el), g = ctx.createGain(); g.gain.value = 0.0001; src.connect(g); g.connect(bgm);
-        tracks[k] = { gain: g, level: l.gain ?? 1, el };
+        tracks[k] = { gain: g, level: l.gain ?? 1, el }; diag[k] = 'stream';
         const pr = el.play(); if (pr && pr.catch) pr.catch(() => {});
         fadeInIfWanted(k);
       } catch (e) { console.warn('bgm', k, e); }
@@ -152,13 +171,17 @@ export function createAudio(bgmList) {
       if (streams(l) || tracks[k]) continue;
       try {
         if (!bytes[k]) bytes[k] = fetch(f).then((r) => r.arrayBuffer()).catch(() => null);
-        const ab = await bytes[k]; if (!ab) continue;
-        const b = await ctx.decodeAudioData(ab.slice(0));
+        diag[k] = 'dl';
+        const ab = await bytes[k]; if (!ab) { diag[k] = 'dl-fail'; if (l.stream) plainTrack(k, f, l); continue; }
+        diag[k] = 'dec' + Math.round(ab.byteLength / 1024) + 'k';
+        const dec = ctx.decodeAudioData(ab.slice(0));
+        const b = l.stream ? await Promise.race([dec, new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 8000))]) : await dec;
+        if (tracks[k]) continue; // 待つ間に予備で鳴り始めていた
         const s2 = ctx.createBufferSource(); s2.buffer = b; s2.loop = true; if (l.loopStart) s2.loopStart = l.loopStart;
         const g = ctx.createGain(); g.gain.value = 0.0001; s2.connect(g); g.connect(bgm); s2.start();
-        tracks[k] = { gain: g, level: l.gain ?? 1 };
+        tracks[k] = { gain: g, level: l.gain ?? 1 }; diag[k] = 'ok';
         fadeInIfWanted(k);
-      } catch (e) { console.warn('bgm', k, e); }
+      } catch (e) { console.warn('bgm', k, e); diag[k] = 'err:' + ((e && (e.name || e.message)) || '?').slice(0, 14); if (l.stream) plainTrack(k, f, l); }
     }
   }
   return A;

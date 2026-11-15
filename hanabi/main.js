@@ -872,7 +872,7 @@ $('ovAgain').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S
 // ひと休み
 function openPause() {
   if (S.mode !== 'play') return;
-  S.paused = true; show('pause'); hideTip(); PF.stop(); if (S.st) PF.level('paused', S.st.level.world, S.st.level.night);
+  S.paused = true; show('pause'); try { $('pzDiag').textContent = audio.diagText(); } catch { /* */ } hideTip(); PF.stop(); if (S.st) PF.level('paused', S.st.level.world, S.st.level.night);
   $('pzTitle').textContent = tr('ひと休み', 'Paused');
   const lab = () => {
     $('pzSound').textContent = tr(`効果音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`);
@@ -1557,7 +1557,8 @@ async function boot() {
   S.booted = true;
   audio.prefetch(); // 遊べる状態になったら曲を先に読み始める（最初のタップですぐ鳴る）
   if (!window.HANABI_PG) try { sessionStorage.removeItem('hanabiRetry'); } catch { /* 無くても動く */ }
-  if (!DB.run && !(DB.meta.runs > 0) && !q.has('title')) beginRun();
+  // 新しい人も題名画面から（何のゲームか分かってから始める。「あそぶ」の 1 回が音を確実に鳴らせる操作にもなる）。撮影などは ?play=1
+  if (q.has('play') && !DB.run) beginRun();
 }
 
 // ------------------------------------------------------------------ 世界ランキング
