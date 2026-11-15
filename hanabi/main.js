@@ -1556,6 +1556,9 @@ async function boot() {
   PF.loadingStop();
   S.booted = true;
   audio.prefetch(); // 遊べる状態になったら曲を先に読み始める（最初のタップですぐ鳴る）
+  // 起動した時点で音の箱を作ってみる。親のページ（Playgama は枠に autoplay を許している）で押して入ってきたなら、題名画面から曲が鳴る。
+  // 許されなければ止まったまま待ち、最初に触れたとき（pointerup・click など）に動き出す
+  try { audio.unlock(); } catch { /* 無くても遊べる */ }
   if (!window.HANABI_PG) try { sessionStorage.removeItem('hanabiRetry'); } catch { /* 無くても動く */ }
   // 新しい人も題名画面から（何のゲームか分かってから始める。「あそぶ」の 1 回が音を確実に鳴らせる操作にもなる）。撮影などは ?play=1
   if (q.has('play') && !DB.run) beginRun();
