@@ -238,7 +238,7 @@ function startNight() {
   run.inNight = { w: def.world, n: def.night, used: 0 }; DB.run = run; save();
   $('float').replaceChildren();
   S.mode = 'play'; S.crossed = false; S.seq = []; S.endAfterCount = false; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0; S.cnt = null;
-  PF.start();
+  PF.start(); PF.level('started', def.world, def.night);
   show('none'); $('hud').classList.remove('hidden');
   $('nWorld').textContent = (JA() ? W2.ja : W2.en) + (def.endless ? tr(`・千秋楽 ${def.world - Run.WORLDS.length} 巡`, ` · Encore ${def.world - Run.WORLDS.length}`) : '');
   $('nName').textContent = tr(`第 ${def.night} 夜`, `Night ${def.night}`);
@@ -396,6 +396,7 @@ function nightEnded() {
   // 届かなかった夜は「あと何点だったか」を見せる（悔しさが次の一回を呼ぶ）
   S.miss = !st.cleared && st.score < st.target ? { n: st.target - st.score, pct: Math.floor((st.score / st.target) * 100) } : null;
   const R2 = Run.settleNight(run, st, def), res = R2.res;
+  PF.level(res === 'clear' ? 'completed' : 'failed', def.world, def.night); if (res === 'clear' && def.boss) PF.milestone();
   logSave();
   if (def.boss && (res === 'over' || res === 'retry')) track(`boss/${bossKey(def)}/lose`);
   if (res === 'over') { achCheck({ stars: 0 }); return runOver(false); }
@@ -842,7 +843,7 @@ $('ovAgain').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S
 // ひと休み
 function openPause() {
   if (S.mode !== 'play') return;
-  S.paused = true; show('pause'); hideTip(); PF.stop();
+  S.paused = true; show('pause'); hideTip(); PF.stop(); if (S.st) PF.level('paused', S.st.level.world, S.st.level.night);
   $('pzTitle').textContent = tr('ひと休み', 'Paused');
   const lab = () => {
     $('pzSound').textContent = tr(`効果音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`);
@@ -856,7 +857,7 @@ function openPause() {
   renderHeld($('pzHeld'), false);
   $('pzQuit').textContent = tr('タイトルへ（続きから遊べます）', 'Title (you can continue later)'); $('pzResume').textContent = tr('つづける', 'RESUME');
 }
-function closePause() { S.paused = false; show('none'); last = performance.now(); PF.start(); }
+function closePause() { S.paused = false; show('none'); last = performance.now(); PF.start(); if (S.st) PF.level('resumed', S.st.level.world, S.st.level.night); }
 $('pauseBtn').onclick = () => { audio.ui('tap'); openPause(); };
 function soundIcon() { $('sndBtn').classList.toggle('off', !DB.sound); }
 $('sndBtn').onclick = () => { audio.unlock(); DB.sound = !DB.sound; DB.music = DB.sound; audio.setSound(DB.sound); audio.setMusic(DB.music); save(); soundIcon(); };
@@ -1627,5 +1628,5 @@ function ihenFrame(dt) {
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-window.HANABI = { rankSubmit, openRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext };
+window.HANABI = { PF, rankSubmit, openRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext };
 boot();

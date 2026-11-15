@@ -36,8 +36,12 @@ export function createPlatform() {
     loadingStart() { try { sdk?.game.loadingStart?.(); } catch { /* */ } },
     // 遊べる最初の画面が出たら知らせる（Playgama は game_ready が必須）
     loadingStop() { try { sdk?.game.loadingStop?.(); } catch { /* */ } try { pg?.platform.sendMessage('game_ready'); } catch { /* */ } },
-    start() { if (playing) return; playing = true; try { sdk?.game.gameplayStart(); } catch { /* */ } try { pg?.platform.sendMessage('gameplay_started')?.catch?.(() => {}); } catch { /* */ } },
-    stop() { if (!playing) return; playing = false; try { sdk?.game.gameplayStop(); } catch { /* */ } try { pg?.platform.sendMessage('gameplay_stopped')?.catch?.(() => {}); } catch { /* */ } },
+    start() { if (playing) return; playing = true; try { sdk?.game.gameplayStart(); } catch { /* */ } },
+    stop() { if (!playing) return; playing = false; try { sdk?.game.gameplayStop(); } catch { /* */ } },
+    // 夜の進み（Playgama: level_started / level_completed / level_failed / level_paused / level_resumed）。どの夜で離れたかが場の数字に出る
+    level(kind, world, night) { try { pg?.platform.sendMessage('level_' + kind, { world: String(world), level: String(night) })?.catch?.(() => {}); } catch { /* */ } },
+    // 大事な場面（大一番の勝ち・完走）
+    milestone() { try { pg?.platform.sendMessage('player_got_achievement')?.catch?.(() => {}); } catch { /* */ } },
     happy() { try { sdk?.game.happytime(); } catch { /* */ } },
     // 区切り（夜のあと・祭りの終わり）の広告。間隔は場の SDK が決める（自前のタイマーは持たない）
     ad() { try { if (pg?.advertisement?.isInterstitialSupported) pg.advertisement.showInterstitial(); } catch { /* */ } },
