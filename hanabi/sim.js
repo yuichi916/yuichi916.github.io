@@ -108,8 +108,8 @@ export function rng32(seed) {
 }
 
 // 盤の大きさ。横長と縦長で別の広さを使い、玉の位置は 0〜1 の割合で持つ（どちらの向きでも同じ並びになる）
-export function fieldFor(w, h, rs = 1, gw = 1) {
-  if (gw > 1) { const f = fieldFor(w, h, rs); return { ...f, x1: w * gw - (w - f.x1) }; } // 大仕掛け: 横に長い盤
+export function fieldFor(w, h, rs = 1, gw = 1, gh = 1) {
+  if (gw > 1 || gh > 1) { const f = fieldFor(w, h, rs); return { ...f, x1: gw > 1 ? w * gw - (w - f.x1) : f.x1, y0: gh > 1 ? f.y0 - (gh - 1) * h : f.y0 }; } // 大仕掛け: 横に長い・上に高い盤
   if (w >= h) return { w, h, x0: 70, x1: w - 70, y0: 140, y1: h * 0.62 };
   // 縦は上の「点×倍率」と「熱い」の字が玉を隠さない所から。玉を大きくした縦（rs > 1）は、そのぶん上と横をあける
   return rs > 1 ? { w, h, x0: 70, x1: w - 70, y0: 440, y1: h * 0.74 } : { w, h, x0: 60, x1: w - 60, y0: 390, y1: h * 0.72 };
@@ -169,7 +169,7 @@ export function newShell(id, x, y, type, rise = 0) {
 export const PORTRAIT_SHELL = 1.3;
 export function newNight(level, w, h, loadout = {}) {
   const rs = loadout.rs ?? (w < h ? PORTRAIT_SHELL : 1); // ランキングの旧い記録（ps なし）は 1 で流しなおす
-  const field = fieldFor(w, h, rs, level.grand?.gw || 1);
+  const field = fieldFor(w, h, rs, level.grand?.gw || 1, level.grand?.gh || 1);
   // dn: 盤の混み方をそろえる（2026-11-16〜）。縦の 16:9 は盤が狭く、1 つの玉から爆風だけで盤の 8〜9 割に火が回っていた
   const dn = loadout.dn ?? 1, kd = dn ? Math.min(1, ((field.x1 - field.x0) * (field.y1 - field.y0)) / 349000) : 1;
   const charms = loadout.charms || [];
@@ -179,7 +179,7 @@ export function newNight(level, w, h, loadout = {}) {
   if (level.rule === 'kasha') m.flameX *= 1.55;
   if (level.rule === 'ishun') m.ink *= 0.55;
   if ((level.seals || []).includes('sumi')) m.ink *= 0.75; // 封じ: 墨削り
-  if (level.grand) m.ink *= level.grand.gw; // 大仕掛け: 盤が横に長いぶん、墨も長く
+  if (level.grand) m.ink *= (level.grand.gw || 1) * (level.grand.gh || 1); // 大仕掛け: 盤が広いぶん、墨も長く
   const mix = { ...(level.mix || {}) };
   for (const [k, n] of Object.entries(m.addMix)) mix[k] = (mix[k] || 0) + n;
   if (m.onlyOneStroke) m.strokesAdd = -99;
@@ -219,6 +219,14 @@ export function newNight(level, w, h, loadout = {}) {
     order.forEach((s, i) => { s.mod = 'moji'; s.seq = i + 1; });
     const K = ['祭', '華', '夢', '寿', '翔'];
     st.moji = { need: order.length, next: 1, done: false, kanji: K[Math.floor(r() * K.length)], missAt: -1 };
+  }
+  // 天の川: 空の高い所に北斗七星の形で 7 つの星玉。順にたどると星座の線、7 つで満天
+  if (level.grand?.kind === 'seiza') {
+    const D = [[0, 0], [0.05, 0.32], [0.42, 0.4], [0.5, 0.12], [0.72, 0.05], [0.92, 0], [1.15, 0.12]];
+    const fw = field.x1 - field.x0, sw = fw * 0.7, x0 = field.x0 + fw * 0.15, yTop = field.y0 + 70, shh = Math.min(sw * 0.4, (field.y1 - field.y0) * 0.22);
+    const pool = st.shells.filter((s) => !['shaku', 'oni', 'koori', 'shime'].includes(s.type)).slice(0, 7);
+    pool.forEach((s, i) => { s.x = x0 + (D[i][0] / 1.15) * sw; s.y = yTop + (D[i][1] / 0.4) * shh; s.mod = 'seiza'; s.seq = i + 1; });
+    st.seiza = { need: pool.length, next: 1, done: false, missAt: -1, last: null };
   }
   // 連発（スターマイン）: 盤の中ほどの発射台。一筆で 6 つ以上ひらいてから火が届くと、盤のあちこちへ 16 発が次々に打ち込まれる
   if (level.grand?.kind === 'renpatsu') {
@@ -714,6 +722,18 @@ export const liveScore = (st) => st.score + (st.stroke && !st.stroke.done ? Math
 
 function ignite(st, s, gen, how, delay = 0) {
   if (s.state !== 'idle') return;
+  if (s.mod === 'seiza' && st.seiza && !st.seiza.done) { // 星玉: 自分の線でだけ、順に
+    const Z = st.seiza;
+    if (how !== 'line') return;
+    if (s.seq !== Z.next) { if (Z.missAt !== st.strokesUsed) { Z.missAt = st.strokesUsed; st.events.push({ type: 'seizaMiss', x: s.x, y: s.y, want: Z.next }); } return; }
+    st.events.push({ type: 'seizaStep', x: s.x, y: s.y, n: s.seq, need: Z.need, from: Z.last }); Z.last = [s.x, s.y]; Z.next++;
+    if (Z.next > Z.need && st.stroke) {
+      Z.done = true; st.stroke.mult *= 2; st.stroke.chips += 150 * Z.need;
+      st.events.push({ type: 'seizaDone', x: s.x, y: s.y, mult: st.stroke.mult, chips: st.stroke.chips });
+      // 満天: 空の高い所（画面の上より上）の玉が、星の雨のように順にひらく
+      for (const o of st.shells) if (o !== s && o.state === 'idle' && o.rise <= 0 && o.y < 0 && o.mod !== 'seiza') ignite(st, o, 1, 'blast', 0.3 + ((o.id * 37) % 100) / 70);
+    }
+  }
   if (s.mod === 'moji' && st.moji && !st.moji.done) {
     const M = st.moji;
     if (how !== 'line') return; // 字玉は自分の線でだけ

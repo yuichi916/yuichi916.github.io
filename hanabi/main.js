@@ -63,6 +63,7 @@ function layoutBand() {
   const rw = wPx / W, rh = hPx / H;
   b.rect = [(1 - rw) / 2, 1 - rh, rw, rh];
   b.waterY = 1 - rh * b.waterFrac;
+  b.rect0 = b.rect.slice(); b.water0 = b.waterY; // 上へ昇るとき、町を下へずらす元
 }
 const img = (src) => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
 const bandCache = {};
@@ -216,7 +217,7 @@ function beginRun(o = {}) {
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
   S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
-  S.run.rv = 2; // 決まりの版 2: 囲い
+  S.run.rv = 3; // 決まりの版 2: 囲い / 3: 天の川の夜
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
@@ -285,7 +286,7 @@ function startNight(resume = null) {
   S.mode = 'play'; S.crossed = false; S.seq = []; S.endAfterCount = false; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0; S.cnt = null;
   PF.start(); PF.level('started', def.world, def.night);
   S.nightT0 = performance.now();
-  S.pan = 0; S.drag = null; S.panIntro = def.grand && !resume ? 2.4 : 0;
+  S.pan = 0; S.panY = 0; S.drag = null; S.panIntro = def.grand && !resume ? 2.4 : 0;
   if (!resume) nightCard(def);
   PF.ev('night_start', { idx: (def.world - 1) * 8 + def.night, world: def.world, night: def.night, boss: def.boss ? 1 : 0, retry: S.run.retry || 0, target: def.target, assist: S.run.assist ? 1 : 0 });
   show('none'); $('hud').classList.remove('hidden');
@@ -1001,7 +1002,7 @@ const touchMode = () => { const qm = q.get('touch'); return qm != null ? Math.ma
 const tipOff = (e) => { if (!TOUCH || !S.tip) return 0; const off = TOUCH_OFF[touchMode()] || 0; if (!off) return 0; const d = Math.hypot(e.clientX - S.tip.x, e.clientY - S.tip.y); S.tip.ramp = Math.max(S.tip.ramp || 0, Math.min(1, d / 28)); return off * S.tip.ramp; };
 const toWorld = (e, dy = 0) => {
   let [cx, cy] = untilt(e.clientX, e.clientY - dy);
-  let x = (cx / innerWidth) * W + (S.pan || 0); const y = (cy / innerHeight) * H;
+  let x = (cx / innerWidth) * W + (S.pan || 0); const y = (cy / innerHeight) * H - (S.panY || 0);
   if (S.st?.ihen?.id === 'hanten') x = W - x; // 異変「反」: 指と線が左右に入れかわる
   return { x: q1(x), y: q1(y) };
 };
@@ -1016,10 +1017,10 @@ canvas.addEventListener('pointerdown', (e) => {
   const p = toWorld(e);
   S.rec?.ev.push([S.st.t, 'd', p.x, p.y]);
   if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; S.lastPtr = { clientX: e.clientX, clientY: e.clientY }; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } $('teach').classList.add('hidden'); }
-  else if (S.st.level.grand) { S.rec?.ev.pop(); S.drag = { id: e.pointerId, x: e.clientX, pan: S.pan || 0 }; S.panIntro = 0; try { canvas.setPointerCapture(e.pointerId); } catch { /* */ } }
+  else if (S.st.level.grand) { S.rec?.ev.pop(); S.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, pan: S.pan || 0, panY: S.panY || 0 }; S.panIntro = 0; try { canvas.setPointerCapture(e.pointerId); } catch { /* */ } }
 });
 canvas.addEventListener('pointermove', (e) => {
-  if (S.drag && e.pointerId === S.drag.id) { S.pan = Math.max(0, Math.min(panMax(), S.drag.pan - ((e.clientX - S.drag.x) / innerWidth) * W)); return; }
+  if (S.drag && e.pointerId === S.drag.id) { S.pan = Math.max(0, Math.min(panMax(), S.drag.pan - ((e.clientX - S.drag.x) / innerWidth) * W)); S.panY = Math.max(0, Math.min(panMaxY(), S.drag.panY + ((e.clientY - S.drag.y) / innerHeight) * H)); return; }
   if (e.pointerId !== pid || !S.st) return;
   const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
   for (const ev of (list.length ? list : [e])) { const p = toWorld(ev, tipOff(ev)); S.rec?.ev.push([S.st.t, 'm', p.x, p.y]); G.penMove(S.st, p.x, p.y); }
@@ -1028,8 +1029,19 @@ canvas.addEventListener('pointermove', (e) => {
 const release = (e) => { if (S.drag && e.pointerId === S.drag.id) { S.drag = null; return; } if (e.pointerId !== pid) return; pid = null; S.tip = null; tether(null); if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
 // ---- 大仕掛けの夜: 盤が画面より横に長い。線の先が画面の端に近づくと流れる（指が止まっていても線は伸びる）
 const panMax = () => (S.st?.level?.grand ? Math.max(0, S.st.field.x1 + 70 - W) : 0);
+const panMaxY = () => (S.st?.level?.grand?.gh > 1 ? Math.max(0, 60 - S.st.field.y0) : 0);
 function panFrame(dt) {
-  const st = S.st; if (!st || !st.level?.grand || S.mode !== 'play') { if (S.pan && S.mode !== 'play' && S.mode !== 'retry') S.pan = 0; miniMap(); return; }
+  const st = S.st;
+  { const b = R.band; if (b?.rect0) { const off = (S.panY || 0) / H; b.rect[1] = b.rect0[1] + off; b.waterY = b.water0 + off; } } // 昇るほど町は下へ消える
+  if (!st || !st.level?.grand || S.mode !== 'play') { if ((S.pan || S.panY) && S.mode !== 'play' && S.mode !== 'retry') { S.pan = 0; S.panY = 0; } miniMap(); grandLabels(); return; }
+  const maxY = panMaxY();
+  if (maxY > 0 && S.panIntro > 0) { S.panIntro = Math.max(0, S.panIntro - dt); const u = S.panIntro / 2.4; S.panY = maxY * Math.min(1, Math.max(0, (u - 0.1) / 0.6)); miniMap(); grandLabels(); return; } // 空の上（星座）から地上へ
+  if (maxY > 0 && pid !== null && st.stroke && S.lastPtr) {
+    const sy = S.lastPtr.clientY / innerHeight, edge = 0.2; let v = 0;
+    if (sy < edge) v = (edge - sy) / edge; else if (sy > 1 - edge) v = -(sy - (1 - edge)) / edge;
+    if (v) { const p0 = S.panY || 0; S.panY = Math.max(0, Math.min(maxY, p0 + v * H * 0.8 * dt));
+      if (S.panY !== p0) { const p = toWorld(S.lastPtr, tipOff(S.lastPtr)); S.rec?.ev.push([st.t, 'm', p.x, p.y]); G.penMove(st, p.x, p.y); } }
+  }
   const max = Math.max(0, st.field.x1 + 70 - W);
   if (S.panIntro > 0) { S.panIntro = Math.max(0, S.panIntro - dt); const u = S.panIntro / 2.4; S.pan = max * Math.min(1, Math.max(0, (u - 0.1) / 0.6)); } // 右端（滝）を見せてから、左の始まりへ
   else if (pid !== null && st.stroke && S.lastPtr) {
@@ -1046,17 +1058,22 @@ function grandLabels() {
   if (!st || !st.level?.grand || S.mode !== 'play') { if (box.childElementCount) box.innerHTML = ''; return; }
   const KN = ['壱', '弐', '参', '肆', '伍'], live = new Set();
   for (const s of st.shells) {
-    if (!s.mod || !['moji', 'taki', 'renpatsu'].includes(s.mod) || s.state !== 'idle' || s.rise > 0) continue;
+    if (!s.mod || !['moji', 'taki', 'renpatsu', 'seiza'].includes(s.mod) || s.state !== 'idle' || s.rise > 0) continue;
     let e = box.querySelector(`[data-id="${s.id}"]`);
-    if (!e) { e = document.createElement('div'); e.dataset.id = s.id; e.className = 'gl ' + s.mod; e.textContent = s.mod === 'moji' ? KN[s.seq - 1] : s.mod === 'taki' ? tr('滝', 'Falls') : tr('発射台', 'Launch'); box.append(e); }
-    e.classList.toggle('next', s.mod === 'moji' && st.moji && st.moji.next === s.seq);
-    e.style.left = ((s.x - (S.pan || 0)) / W) * 100 + '%'; e.style.top = ((s.y - s.r - 18) / H) * 100 + '%'; live.add(String(s.id));
+    if (!e) { e = document.createElement('div'); e.dataset.id = s.id; e.className = 'gl ' + s.mod; e.textContent = s.mod === 'seiza' ? '★' + ['一', '二', '三', '四', '五', '六', '七'][s.seq - 1] : s.mod === 'moji' ? KN[s.seq - 1] : s.mod === 'taki' ? tr('滝', 'Falls') : tr('発射台', 'Launch'); box.append(e); }
+    e.classList.toggle('next', (s.mod === 'moji' && st.moji && st.moji.next === s.seq) || (s.mod === 'seiza' && st.seiza && st.seiza.next === s.seq));
+    e.style.left = ((s.x - (S.pan || 0)) / W) * 100 + '%'; e.style.top = ((s.y - s.r - 18 + (S.panY || 0)) / H) * 100 + '%'; live.add(String(s.id));
   }
   for (const e of [...box.children]) if (!live.has(e.dataset.id)) e.remove();
 }
 // 上の端の細い地図: 盤の全体と、いま見ている範囲
 function miniMap() {
   const cv = $('mini'); if (!cv) return; const st = S.st, on = !!(st && st.level?.grand && S.mode === 'play'); cv.classList.toggle('hidden', !on); if (!on) return;
+  const vert = st.level.grand.gh > 1; cv.classList.toggle('v', vert);
+  if (vert) { const f = st.field, Y0 = f.y0 - 60, Y1 = H, w = cv.width = Math.round(cv.clientWidth * 2) || 24, h = cv.height = Math.round(cv.clientHeight * 2) || 300, g = cv.getContext('2d'), sy = (y) => ((y - Y0) / (Y1 - Y0)) * h;
+    g.clearRect(0, 0, w, h); g.fillStyle = '#05070fb0'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffffff22'; g.fillRect(0, sy(-(S.panY || 0)), w, (H / (Y1 - Y0)) * h);
+    for (const s of st.shells) { if (s.state !== 'idle') continue; g.fillStyle = s.mod === 'seiza' ? '#bfe0ff' : s.type === 'kin' ? '#ffd24a' : '#ff8a7a'; g.beginPath(); g.arc((s.x / W) * w * 0.9 + w * 0.05, sy(s.y), s.mod === 'seiza' ? 6 : 3.4, 0, 7); g.fill(); }
+    return; }
   const f = st.field, X0 = 0, X1 = f.x1 + 70, w = cv.width = Math.round(cv.clientWidth * 2) || 400, h = cv.height = Math.round(cv.clientHeight * 2) || 24, g = cv.getContext('2d');
   g.clearRect(0, 0, w, h); g.fillStyle = '#05070fb0'; g.fillRect(0, 0, w, h);
   const sx = (x) => ((x - X0) / (X1 - X0)) * w;
@@ -1094,7 +1111,7 @@ function floatText(x, y, text, cls = '', size = 22, life = 950) {
     MSG.live++; setTimeout(() => { MSG.live--; const n = MSG.q.shift(); if (n) floatText(...n); }, 320);
   }
   const e = document.createElement('div'); e.className = 'pop ' + cls; e.textContent = text;
-  e.style.left = ((x - (S.pan || 0)) / W) * 100 + '%'; e.style.top = (y / H) * 100 + '%'; e.style.fontSize = size * (innerHeight / H) + 'px';
+  e.style.left = ((x - (S.pan || 0)) / W) * 100 + '%'; e.style.top = ((y + (S.panY || 0)) / H) * 100 + '%'; e.style.fontSize = size * (innerHeight / H) + 'px';
   $('float').append(e); setTimeout(() => e.remove(), life);
 }
 // トラ（屋台の猫）や妖怪が、画面の下から話しかける。触れると閉じて then へ
@@ -1126,7 +1143,8 @@ const GUIDE_SVG = (a, b, c) => `<svg viewBox="0 0 260 64" aria-hidden="true"><pa
 // 夜の始まりの札: 大仕掛け・趣向・封じの夜は、何が起きるかと狙いを大きく見せる（触れると閉じる）
 function nightCard(def) {
   const el = $('nightCard'); if (!el) return; const items = [];
-  if (def.grand?.kind === 'moji') items.push([tr('大仕掛け「文字花火」', 'Grand Set Piece: Sky Writing'), tr('盤は横に長い。<b>壱・弐・参・肆</b>の字玉を<b>番号の順に</b>線で通すと、夜空に字が浮かんで倍率 ×2。<br>字玉は爆風では燃えない。違う順番の字玉はひらかずに残る', 'The board is wide. Thread the <b>numbered shells 1–4 in order</b> with your line to write a kanji in the sky: MULT ×2.<br>They ignore blasts, and wrong-order ones stay unlit.')]);
+  if (def.grand?.kind === 'seiza') items.push([tr('大仕掛け「天の川」', 'Grand Set Piece: Milky Way'), tr('盤は空の高みまで続く。線の先を画面の上の端へ運ぶと、夜空へ昇る。<br>空の高い所の<b>北斗七星</b>の星玉を<b>★一から★七まで順に</b>線で通すと、星座が結ばれ<b>満天</b>：倍率 ×2、空の玉がぜんぶ降るようにひらく', 'The board reaches high into the sky: move the tip to the top edge to climb.<br>Thread the <b>Big Dipper</b> stars <b>1 to 7 in order</b> to connect the constellation: <b>Sky Ablaze</b> — MULT ×2 and every shell in the high sky opens.')]);
+  else if (def.grand?.kind === 'moji') items.push([tr('大仕掛け「文字花火」', 'Grand Set Piece: Sky Writing'), tr('盤は横に長い。<b>壱・弐・参・肆</b>の字玉を<b>番号の順に</b>線で通すと、夜空に字が浮かんで倍率 ×2。<br>字玉は爆風では燃えない。違う順番の字玉はひらかずに残る', 'The board is wide. Thread the <b>numbered shells 1–4 in order</b> with your line to write a kanji in the sky: MULT ×2.<br>They ignore blasts, and wrong-order ones stay unlit.')]);
   else if (def.grand?.kind === 'renpatsu') items.push([tr('大仕掛け「連発」', 'Grand Set Piece: Starmine'), tr('盤は横に長い。盤の中ほどの<b>発射台</b>へ、<b>一筆で 6 つ以上</b>ひらいてから火を届けると、盤のあちこちへ 16 発が次々に打ち込まれる', 'The board is wide. Open <b>6+ shells in one stroke</b>, then reach the <b>Launcher</b> in the middle: 16 shots rain across the board.')]);
   else if (def.grand) items.push([tr('大仕掛け「火の滝」', 'Grand Set Piece: Fire Falls'), tr('盤は横に長い。線の先を画面の端へ運ぶと、盤が流れる。<br>右端の<b>滝の玉</b>へ、<b>一筆で 6 つ以上</b>ひらいてから火を届けると、火の滝が盤を流れ落ちる', 'The board is wide: move the line tip to the screen edge to scroll.<br>Open <b>6+ shells in one stroke</b>, then reach the <b>Falls shell</b> on the far right to unleash a waterfall of fire.')]);
   const tw = def.twist && Run.TWISTS[def.twist];
@@ -1154,6 +1172,7 @@ const TECHS = [
   ['graze', 'かすり三十', 'Graze 30', '火のすぐ前を細く保ったまま走る（一筆で 30 回）', 'Keep a thin gap just ahead of the flame (30 in one stroke)', '星の値が上がる', 'Raises star value'],
   ['chain', '十五夜', 'Harvest Moon', '一筆で 15 個つなげる', 'Chain 15 shells in one stroke', '小判 +2（25 個で千輪、40 個で満天）', '+2 coins (25: Thousand Rings, 40: Sky Ablaze)'],
   ['knot', '結び', 'Knot', 'お守り「結び」を持って、自分の線と交差させる', 'With the Knot charm, cross your own line', '交点が爆ぜて倍率 +2', 'The crossing bursts: +2 MULT'],
+  ['seiza', '満天', 'Sky Ablaze', '天の川の夜、北斗七星の星玉を★一から★七まで順に線で通す', 'On the Milky Way night, thread the Big Dipper stars 1–7 in order', '倍率 ×2、空の高い所の玉がぜんぶ降るようにひらく', 'MULT ×2 and every shell high in the sky opens'],
   ['moji', '文字花火', 'Sky Writing', '大仕掛けの夜、壱〜肆の字玉を番号の順に線で通す', 'On a set-piece night, thread the numbered shells 1–4 in order', '夜空に字が浮かび、倍率 ×2', 'A kanji lights the sky: MULT ×2'],
   ['ren', '連発', 'Starmine', '大仕掛けの夜、一筆で 6 つ以上ひらいてから発射台へ', 'On a set-piece night, open 6+ shells then reach the Launcher', '盤のあちこちへ 16 発が次々に', '16 shots rain across the board'],
   ['taki', '火の滝', 'Fire Falls', '大仕掛けの夜、一筆で 6 つ以上ひらいてから右端の滝の玉へ', 'On a set-piece night, open 6+ shells then reach the Falls shell', '火の滝が盤を流れ、通り道の玉が一斉にひらく', 'A waterfall of fire opens everything in its path'],
@@ -1172,14 +1191,14 @@ function caughtGuide(ev) {
   if (DB.meta.taught.caught) return;
   DB.meta.taught.caught = 1; save();
   S.guide = true; S.guideAt = performance.now();
-  const r = $('guideRing'); r.style.left = (Math.max(0, Math.min(W, ev.x - (S.pan || 0))) / W) * 100 + '%'; r.style.top = (Math.max(0, Math.min(H, ev.y)) / H) * 100 + '%'; r.classList.remove('hidden');
+  const r = $('guideRing'); r.style.left = (Math.max(0, Math.min(W, ev.x - (S.pan || 0))) / W) * 100 + '%'; r.style.top = (Math.max(0, Math.min(H, ev.y + (S.panY || 0))) / H) * 100 + '%'; r.classList.remove('hidden');
   $('guide').innerHTML = `<div class="gcard"><h3>${tr('火に追いつかれた！', 'The flame caught your line!')}</h3>${GUIDE_SVG(tr('始まり', 'START'), tr('火', 'FIRE'), tr('線の先', 'TIP'))}`
     + `<p>${tr('火は、<b>線の始まり</b>から線を追いかけてくる。', 'The flame chases your line from <b>where you started</b>.')}</p>`
     + `<p>${tr('<b>線の先</b>に追いつかれると、その一筆はおしまい。<em>点は半分</em>。', 'If it reaches <b>your fingertip</b>, the stroke ends and scores <em>half POINTS</em>.')}</p>`
     + `<p>${tr('火が近いほど「熱い」＝点 ×2〜×4。熱いうちに<b>自分で指を離す</b>と「見切り」で倍率 +1。', 'Closer flame = HOT = POINTS ×2–×4. <b>Let go yourself</b> while it\'s hot for a Close Call: +1 MULT.')}</p>`
     + `<button class="bigbtn small" id="guideOk">${tr('わかった', 'Got it')}</button></div>`;
   // 札は、追いつかれた所と反対側に（輪を隠さない）。横長の低い画面は左右、それ以外は上下
-  const g = $('guide'), sx = (ev.x - (S.pan || 0)) / W, sy = ev.y / H, wide = innerWidth > innerHeight && innerHeight <= 500;
+  const g = $('guide'), sx = (ev.x - (S.pan || 0)) / W, sy = (ev.y + (S.panY || 0)) / H, wide = innerWidth > innerHeight && innerHeight <= 500;
   g.className = wide ? (sx < 0.5 ? 'right' : 'left') : (sy > 0.5 ? 'top' : 'bottom');
 }
 function closeGuide() {
@@ -1242,6 +1261,13 @@ function handle(ev) {
     case 'renFail': floatText(ev.x, ev.y - 50, tr(`発射台には火が足りない（${ev.have}/${ev.need}）`, `Not enough fire for the Launcher (${ev.have}/${ev.need})`), 'gold', 22, 1600); break;
     case 'renShot': fx.launch(ev.x + (Math.random() - 0.5) * 120, H * 0.86, ev.x, ev.y, 0.32, [1, 0.75, 0.35]); audio.launch(panOf(ev.x)); break;
     case 'renEnd': break;
+    case 'seizaStep': {
+      floatText(ev.x, ev.y - 40, `★${['一', '二', '三', '四', '五', '六', '七'][ev.n - 1]}`, 'gold', 26); audio.note(12 + ev.n * 2, { vol: 0.17, dur: 0.6 });
+      if (ev.from) { const [fx0, fy0] = ev.from, n = 18; for (let i = 0; i <= n; i++) { const u = i / n; fx.add(fx0 + (ev.x - fx0) * u, fy0 + (ev.y - fy0) * u, 0, 0, 3.2, 2.6, 0, 0, [2.2, 2.6, 3.2], [0.8, 1.1, 1.8], 1.4); } } // 星座の線
+      break;
+    }
+    case 'seizaMiss': floatText(ev.x, ev.y - 46, tr(`順番がちがう（次は ★${['一', '二', '三', '四', '五', '六', '七'][ev.want - 1]}）`, `Wrong order (next: ★${ev.want})`), 'gold', 22, 1500); break;
+    case 'seizaDone': techCall('seiza'); banner(`${tr('満天', 'SKY ABLAZE')}<small>${tr('北斗七星が結ばれた！ 倍率 ×2', 'The Big Dipper is complete! MULT ×2')}</small>`, 76, 2000); audio.boom(2.6, 0); audio.duck(0.3, 0.6); R.flash = Math.max(R.flash, 0.6); R.shake = 20; $('cMult').textContent = fmtM(ev.mult); bump($('cMult')); break;
     case 'charmFire': {
       const b = document.querySelector(`#bags .bag[data-id="${ev.id}"]`);
       if (b) { b.classList.remove('fire'); void b.offsetWidth; b.classList.add('fire'); }
@@ -1537,7 +1563,7 @@ function drawWorld({ gl, cam, P, vaoSpr, vaoF, sprBuf, sprData, fuseBuf, tex, W:
   }
 }
 
-const MOD_RGB = { gold: [3, 2.2, 0.6], twice: [2.8, 2.8, 3.2], glass: [1, 2.8, 3.2], fuse: [3.2, 1, 0.4], star: [1.4, 2.2, 3.4] };
+const MOD_RGB = { gold: [3, 2.2, 0.6], twice: [2.8, 2.8, 3.2], glass: [1, 2.8, 3.2], fuse: [3.2, 1, 0.4], star: [1.4, 2.2, 3.4], taki: [0.6, 2.2, 3.4], moji: [2.4, 1.6, 3.4], renpatsu: [1, 3, 1.4], seiza: [2.4, 2.8, 3.4] };
 function perFrameFx(dt) {
   const st = S.st, one = Math.max(dt, 0.001) * 1.2;
   if (st) {
@@ -1567,7 +1593,7 @@ function perFrameFx(dt) {
     // 刻印: 玉のまわりを、刻印の色の輪がめぐる
     for (const s of st.shells) {
       if (!s.mod || s.state !== 'idle' || s.rise > 0) continue;
-      const c = MOD_RGB[s.mod], n = 12, rr = s.r + 6;
+      const c = MOD_RGB[s.mod], n = 12, rr = s.r + 6; if (!c) continue; // 色の無い刻印で毎コマ例外になり、火花の片付けと描画が止まっていた
       for (let i = 0; i < n; i++) { const a = (i / n) * 6.283 + R.time * (s.mod === 'twice' ? -2 : 1.5); fx.add(s.x + Math.cos(a) * rr, s.y + Math.sin(a) * rr, 0, 0, one, i % 3 ? 1.7 : 2.8, 0, 0, c, c, 1.2); }
     }
     // 夫婦の糸・矢の向き
@@ -1762,7 +1788,7 @@ function frame(now) {
     if (S.focus) { S.fx0 = S.focus.x; S.fy0 = S.focus.y; }
     R.camX = (R.zoom > 1.001 ? -((S.fx0 ?? W / 2) - W / 2) * (R.zoom - 1) : 0) - (S.pan || 0);
     panFrame(dt);
-    R.camY = R.zoom > 1.001 ? -((S.fy0 ?? H / 2) - H / 2) * (R.zoom - 1) : 0;
+    R.camY = (R.zoom > 1.001 ? -((S.fy0 ?? H / 2) - H / 2) * (R.zoom - 1) : 0) + (S.panY || 0);
     if (S.mode === 'title') titleFx(dt);
     if (S.mode === 'senko' && !S.paused) senkoFx(dt);
     for (let i = S.seq.length - 1; i >= 0; i--) { const e = S.seq[i]; e.at -= dt; if (e.at <= 0) { S.seq.splice(i, 1); e.f(); } }
