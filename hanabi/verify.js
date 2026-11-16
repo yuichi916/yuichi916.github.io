@@ -1,7 +1,7 @@
 // 一筆花火 2 — ランキングの確かめ役。遊んだ人の記録（筆の動きと屋台の操作）を、本物のルールでもう一度流して、
 // 送られてきた点と夜の数が出るかを確かめる。DOM に触らない（ページ・テスト・確かめの道具で同じものを使う）。
 //
-// 記録 log = { v, seed, fuse, rank, school, daily, xp, ps, ops: [...] }（ps: 縦画面の玉 1.3 倍で遊んだ記録なら 1）
+// 記録 log = { v, seed, fuse, rank, school, daily, xp, ps, as, ops: [...] }（ps: 縦画面の玉 1.3 倍で遊んだ記録なら 1、as: 練習の周＝世界 1 の大一番 ×0.75）
 //   ['n', W, H, evs, score]  夜。evs = [[コマ, 'd', x, y] | [コマ, 'm', x, y] | [コマ, 'u'] | [コマ, 'e', 縁起物]]
 //   ['b', i] 買う / ['r'] 引き直し / ['s', i] 売る / ['w', i, j] 並べ替え / ['g'] ほうびを受け取らない
 //   ['a', 道] 次の夜へ（道の分かれがなければ -1）/ ['x'] 屋台の途中で閉じた（そのまま次へ）
@@ -42,7 +42,7 @@ export function verifyRun(log) {
   if (!Run.SCHOOLS.some((s) => s.id === log.school) || !Run.FUSES.some((f) => f.id === log.fuse) || !(Number.isInteger(log.rank) && log.rank >= 0 && log.rank < Run.RANKS.length)) return fail('header');
   if (log.daily && (log.fuse !== 'asa' || log.rank !== 0 || log.school !== 'hon')) return fail('daily-header');
   const run = Run.newRun({ seed: log.seed, fuse: log.fuse, rank: log.rank, school: log.school });
-  run.daily = !!log.daily;
+  run.daily = !!log.daily; run.assist = log.as ? 1 : 0;
   const unlocked = Run.unlockedCharms({ xp: Math.max(0, +log.xp || 0) });
   let sh = null, phase = 'night', senko = false;
   for (let k = 0; k < log.ops.length; k++) {

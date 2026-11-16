@@ -271,6 +271,8 @@ export function ihenFor(run, world, night, twist, seed) {
   if (idx >= 9 && r < (world > WORLDS.length ? 0.35 : 0.15)) { const ids = ['katamuku', 'uragaeru', 'hanten', 'moeru', 'furu', 'utsuru']; out.push({ id: ids[Math.floor(rng32(seed + 6152)() * ids.length)], at: 1 }); }
   return out;
 }
+// 練習の周（初めの 2 周）: 世界 1 の大一番の目標をゆるめる。第 3 夜から 1.94 倍に跳ねて、ほとんどの人がここで終わっていた（Playgama 11/14〜16: 越えた夜の平均 2.9）
+export const ASSIST_BOSS = 0.75;
 export function nightDef(run, world, night) {
   const W = worldOf(world), rank = RANKS[run.rank] || RANKS[0];
   const seed = (run.seed * 31 + world * 1009 + night * 97 + (run.retry || 0) * 7919) >>> 0;
@@ -286,7 +288,8 @@ export function nightDef(run, world, night) {
   const rule = boss ? W.rules[(night / 4 - 1 + (run.seed % 2)) % W.rules.length] : null;
   const count = 13 + Math.min(14, world * 2 + night);
   const pl = run.plan?.[`${world}-${night}`], node = pl?.node || (boss ? 'boss' : 'plain');
-  const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) * (NODE_TARGET[node] || 1) * (SCHOOL_TARGET[run.school] || 1) / 10) * 10;
+  const assist = run.assist && boss && world === 1 ? ASSIST_BOSS : 1;
+  const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) * (NODE_TARGET[node] || 1) * (SCHOOL_TARGET[run.school] || 1) * assist / 10) * 10;
   const strokes = 3 + (boss && rank.bossStroke ? rank.bossStroke : 0);
   const idx = (world - 1) * NIGHTS_PER_WORLD + night - 1;
   // 乱入は予告なし。大一番と、はじめの 2 夜にはこない
