@@ -288,6 +288,8 @@ function startNight(resume = null) {
   PF.start(); PF.level('started', def.world, def.night);
   S.nightT0 = performance.now();
   S.pan = 0; S.panY = 0; S.drag = null; S.panIntro = def.grand && !resume ? 2.4 : 0;
+  { const wr = ((def.world - 1) % 3) + 1, hq = !def.endless && wr === 3 && def.night === 5 && lore() >= 2; document.body.classList.toggle('hudq', hq);
+    if (hq && !resume) setTimeout(() => banner(`${tr('札隠し', 'NUMBERS HIDDEN')}<small>${tr('今夜は、数が見えない。……数えなくても、わかるはず', 'Tonight the numbers hide. ...You can feel it without counting.')}</small>`, 58, 2600), 900); }
   if (!resume) nightCard(def);
   PF.ev('night_start', { idx: (def.world - 1) * 8 + def.night, world: def.world, night: def.night, boss: def.boss ? 1 : 0, retry: S.run.retry || 0, target: def.target, assist: S.run.assist ? 1 : 0 });
   show('none'); $('hud').classList.remove('hidden');
@@ -446,7 +448,7 @@ function achToast(a) {
 }
 function nightEnded() {
   const st = S.st, run = S.run, def = st.level;
-  hideTip(); PF.stop(); $('teach').classList.add('hidden'); ihenReset();
+  hideTip(); PF.stop(); $('teach').classList.add('hidden'); ihenReset(); document.body.classList.remove('hudq');
   $('combo').classList.remove('on'); $('heat').className = 'heat'; // 一筆の箱を夜のあとに残さない
   S.cnt = null; S.endAfterCount = false; S.shown = st.score; $('gScore').textContent = fmt(st.score); S.goalEl?.classList.remove('counting');
   if (st.cleared && (def.boss || G.starsFor(st) === 3)) PF.happy();
@@ -997,7 +999,7 @@ $('skNext').onclick = () => { audio.ui('tap'); S.sk = null; S.ip = null; const c
 
 function runOver(won) {
   const run = S.run;
-  S.mode = 'over'; show('over'); $('hud').classList.add('hidden'); $('teach').classList.add('hidden');
+  S.mode = 'over'; show('over'); $('hud').classList.add('hidden'); $('teach').classList.add('hidden'); document.body.classList.remove('hudq');
   const meta = DB.meta, prevEnd = meta.mem?.lastEnd, prevBest = meta.best || 0, beforeSet = Run.unlockedCharms(meta), before = beforeSet.size, fuseBefore = Run.FUSES.filter((f) => Run.fuseOpen(f, meta)).length;
   const newBest = meta.runs > 0 && run.nightsCleared > (meta.best || 0);
   meta.runs = (meta.runs || 0) + 1; meta.xp = (meta.xp || 0) + Run.xpFor(run); meta.best = Math.max(meta.best || 0, run.nightsCleared);
@@ -1008,6 +1010,7 @@ function runOver(won) {
   meta.mem.lastEnd = { nights: run.nightsCleared, won }; meta.mem.lastPlay = Date.now();
   if (mercy) { meta.mem.mercy = 1; achCheck({}); track('mem/mercy'); }
   $('ovTitle').textContent = mercy ? tr(ME.title.ja, ME.title.en) : won ? tr('祭り、大団円！', 'The Festival is Complete!') : tr('今夜はここまで', 'The Night Ends');
+  { const t = $('ovTitle'); t.classList.remove('crack', 'burn'); S.crack = !won && lore() >= 3 ? { x0: null, n: 0 } : null; if (S.crack) t.classList.add('crack'); }
   const sub = [newBest ? `<em class="best">${tr('自己ベスト！', 'New Best!')}</em>` : '', !won && S.miss ? tr(`最後の夜は あと ${fmt(S.miss.n)} 点（${S.miss.pct}%）`, `Last night: ${fmt(S.miss.n)} short (${S.miss.pct}%)`) : ''].filter(Boolean).join(' ');
   if (run.endless) meta.endlessBest = Math.max(meta.endlessBest || 0, run.nightsCleared);
   $('ovNights').innerHTML = (run.endless ? tr(`千秋楽 ${run.nightsCleared} 夜（最高 ${meta.endlessBest}）`, `Encore: ${run.nightsCleared} nights (best ${meta.endlessBest})`) : (run.nightsCleared ? tr(`${run.nightsCleared} 夜を越えた`, `${run.nightsCleared} nights cleared`) : tr('第 1 夜で散った', 'Fell on night 1')) + (() => {
@@ -1065,6 +1068,12 @@ Draw the fuse. The flame is right behind you. #HitofudeHanabi`;
   if (won) grandFinale(); else PF.ad();
 }
 $('ovTitleBtn').onclick = () => { audio.ui('tap'); toTitle(); };
+// 割れる題: 点線の上を指でなぞる（左右に 60% 以上）と、字が燃えて書きかわる。見た目と一言だけ
+$('ovTitle').addEventListener('pointerdown', (e) => { if (S.crack) { S.crack.x0 = e.clientX; S.crack.min = e.clientX; S.crack.max = e.clientX; } });
+$('ovTitle').addEventListener('pointermove', (e) => { const c = S.crack; if (!c || c.x0 == null) return; c.min = Math.min(c.min, e.clientX); c.max = Math.max(c.max, e.clientX); const w = $('ovTitle').getBoundingClientRect().width;
+  if (c.max - c.min > w * 0.6) { S.crack = null; const t = $('ovTitle'); t.classList.remove('crack'); t.classList.add('burn'); audio.boom(1.2, 0);
+    setTimeout(() => { t.textContent = tr('まだ、終わってない', 'It isn\'t over yet'); t.classList.remove('burn'); $('ovUnlocks').insertAdjacentHTML('afterbegin', `<div class="storyline hinoko">${tr('火の子「まって」', 'The little flame: "wait"')}</div>`); once('crack'); }, 700); } });
+addEventListener('pointerup', () => { if (S.crack) S.crack.x0 = null; });
 $('ovDaily').onclick = () => { audio.ui('tap'); startDaily(); };
 $('ovAgain').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school }); };
 
