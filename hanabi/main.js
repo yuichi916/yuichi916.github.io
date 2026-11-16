@@ -43,7 +43,9 @@ const save = () => { const j = JSON.stringify(DB); if (!window.HANABI_PG) { try 
 let lang = q.get('lang') || DB.lang || ((navigator.language || 'en').startsWith('ja') ? 'ja' : 'en');
 const JA = () => lang === 'ja';
 const tr = (ja, en) => (JA() ? ja : en);
-audio.setSound(DB.sound); audio.setMusic(DB.music);
+// 音の設定を反映する。場（Playgama・YouTube）が消音している間は、ゲームの設定が ON でも鳴らさない（場の設定を上書きしない）
+const applySound = () => { const m = !!PF.muted; audio.setSound(DB.sound && !m); audio.setMusic(DB.music && !m); };
+applySound();
 
 let W = 1280, H = 720, dpr = 1, atlasTex = null, scaleMax = 1;
 const S = { mode: 'title', st: null, run: Run.fixRun(DB.run), timeScale: 1, slowT: 0, seq: [], titleT: 0, crossed: false, hint: 0, fuse: 'asa', rank: 0, shop: [], sold: new Set(), themeKey: null, lastStars: 0, daily: false, fatal: null };
@@ -124,7 +126,7 @@ function toTitle() {
   if (!window.HANABI_NO_STORY) add(tr('物語', 'Story (Japanese)'), () => { location.href = 'story.html'; });
   // 初代（旧版）へ。CrazyGames など外へのリンクを禁じる書き出しでは出さない
   if (!window.HANABI_NO_LINKS) add(tr('初代 一筆花火', 'Original Hitofude Hanabi'), () => { const u = window.HANABI_PKG ? 'https://yuichi916.github.io/hitofude.html' : '../hitofude.html'; if (window.HANABI_PKG) window.open(u, '_blank', 'noopener'); else location.href = u; });
-  add(tr(`音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`), () => { DB.sound = !DB.sound; DB.music = DB.sound; audio.setSound(DB.sound); audio.setMusic(DB.music); save(); toTitle(); });
+  add(tr(`音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`), () => { DB.sound = !DB.sound; DB.music = DB.sound; applySound(); save(); toTitle(); });
   add(JA() ? 'English' : '日本語', () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); toTitle(); });
   audio.scene('calm');
 }
@@ -904,8 +906,8 @@ function openPause() {
     $('pzLang').textContent = JA() ? 'English' : '日本語';
   };
   lab();
-  $('pzSound').onclick = () => { DB.sound = !DB.sound; audio.setSound(DB.sound); save(); lab(); };
-  $('pzMusic').onclick = () => { DB.music = !DB.music; audio.setMusic(DB.music); save(); lab(); };
+  $('pzSound').onclick = () => { DB.sound = !DB.sound; applySound(); save(); lab(); };
+  $('pzMusic').onclick = () => { DB.music = !DB.music; applySound(); save(); lab(); };
   $('pzLang').onclick = () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); openPause(); };
   renderHeld($('pzHeld'), false);
   $('pzQuit').textContent = tr('タイトルへ（続きから遊べます）', 'Title (you can continue later)'); $('pzResume').textContent = tr('つづける', 'RESUME');
@@ -915,7 +917,7 @@ $('pauseBtn').onclick = () => { audio.ui('tap'); openPause(); };
 function soundIcon() { $('sndBtn').classList.toggle('off', !DB.sound); }
 // 音を出してよい操作（指を離した時・click・キー）のたびに鳴らし直す。最初の pointerdown だけでは、スマホで無音のまま残ることがある
 for (const t of ['pointerup', 'touchend', 'click', 'keydown']) addEventListener(t, () => audio.unlock(), { capture: true, passive: true });
-$('sndBtn').onclick = () => { audio.unlock(); DB.sound = !DB.sound; DB.music = DB.sound; audio.setSound(DB.sound); audio.setMusic(DB.music); save(); soundIcon(); };
+$('sndBtn').onclick = () => { audio.unlock(); DB.sound = !DB.sound; DB.music = DB.sound; applySound(); save(); soundIcon(); };
 soundIcon();
 $('pzResume').onclick = () => { audio.ui('tap'); closePause(); };
 $('pzQuit').onclick = () => { audio.ui('tap'); S.paused = false; pid = null; toTitle(); };
@@ -1579,8 +1581,8 @@ async function boot() {
   performance.mark('b0');
   await PF.init(); performance.mark('b_pf');
   PF.loadingStart();
-  PF.onMute = (m) => { audio.setSound(m ? false : DB.sound); audio.setMusic(m ? false : DB.music); }; // 曲も戻す（効果音だけ戻して曲が無音のままだった）
-  if (PF.muted) { audio.setSound(false); audio.setMusic(false); }
+  PF.onMute = () => applySound(); // 消音が解けたら効果音も曲も戻す
+  applySound();
   // 場の言葉に合わせる（自分で選んだ言葉・?lang= が先）
   if (PF.lang && !q.get('lang') && !DB.lang) lang = PF.lang;
   // 場の一時停止・広告の間は止めて、音を消す
