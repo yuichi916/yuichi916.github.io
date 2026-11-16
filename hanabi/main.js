@@ -1038,7 +1038,21 @@ function panFrame(dt) {
     if (v) { const p0 = S.pan || 0; S.pan = Math.max(0, Math.min(max, p0 + v * W * 0.9 * dt));
       if (S.pan !== p0) { const p = toWorld(S.lastPtr, tipOff(S.lastPtr)); S.rec?.ev.push([st.t, 'm', p.x, p.y]); G.penMove(st, p.x, p.y); } }
   } else if (st.taki && st.taki.front !== null) { S.pan += ((Math.max(0, Math.min(max, st.taki.front - W * 0.5))) - S.pan) * Math.min(1, dt * 4); } // 滝を追う
-  miniMap();
+  miniMap(); grandLabels();
+}
+// 大仕掛けの玉の札（字玉の番号・滝・発射台）。玉について動き、ひらいたら消える
+function grandLabels() {
+  const box = $('grandLabels'); if (!box) return; const st = S.st;
+  if (!st || !st.level?.grand || S.mode !== 'play') { if (box.childElementCount) box.innerHTML = ''; return; }
+  const KN = ['壱', '弐', '参', '肆', '伍'], live = new Set();
+  for (const s of st.shells) {
+    if (!s.mod || !['moji', 'taki', 'renpatsu'].includes(s.mod) || s.state !== 'idle' || s.rise > 0) continue;
+    let e = box.querySelector(`[data-id="${s.id}"]`);
+    if (!e) { e = document.createElement('div'); e.dataset.id = s.id; e.className = 'gl ' + s.mod; e.textContent = s.mod === 'moji' ? KN[s.seq - 1] : s.mod === 'taki' ? tr('滝', 'Falls') : tr('発射台', 'Launch'); box.append(e); }
+    e.classList.toggle('next', s.mod === 'moji' && st.moji && st.moji.next === s.seq);
+    e.style.left = ((s.x - (S.pan || 0)) / W) * 100 + '%'; e.style.top = ((s.y - s.r - 18) / H) * 100 + '%'; live.add(String(s.id));
+  }
+  for (const e of [...box.children]) if (!live.has(e.dataset.id)) e.remove();
 }
 // 上の端の細い地図: 盤の全体と、いま見ている範囲
 function miniMap() {
@@ -1047,7 +1061,7 @@ function miniMap() {
   g.clearRect(0, 0, w, h); g.fillStyle = '#05070fb0'; g.fillRect(0, 0, w, h);
   const sx = (x) => ((x - X0) / (X1 - X0)) * w;
   g.fillStyle = '#ffffff22'; g.fillRect(sx(S.pan || 0), 0, (W / (X1 - X0)) * w, h);
-  for (const s of st.shells) { if (s.state !== 'idle') continue; g.fillStyle = s.mod === 'taki' ? '#7fd4ff' : s.type === 'kin' ? '#ffd24a' : '#ff8a7a'; g.beginPath(); g.arc(sx(s.x), (s.y / H) * h * 0.9 + h * 0.05, s.mod === 'taki' ? 6 : 3.4, 0, 7); g.fill(); }
+  for (const s of st.shells) { if (s.state !== 'idle') continue; g.fillStyle = s.mod === 'taki' ? '#7fd4ff' : s.mod === 'moji' ? '#d6b0ff' : s.mod === 'renpatsu' ? '#8ef0a0' : s.type === 'kin' ? '#ffd24a' : '#ff8a7a'; g.beginPath(); g.arc(sx(s.x), (s.y / H) * h * 0.9 + h * 0.05, s.mod === 'taki' || s.mod === 'moji' || s.mod === 'renpatsu' ? 6 : 3.4, 0, 7); g.fill(); }
   if (st.taki && st.taki.front !== null) { g.fillStyle = '#9fe6ff'; g.fillRect(sx(st.taki.front) - 2, 0, 4, h); }
 }
 // 指と線の先をつなぐ細い線（先端をずらしているときだけ）
@@ -1112,7 +1126,9 @@ const GUIDE_SVG = (a, b, c) => `<svg viewBox="0 0 260 64" aria-hidden="true"><pa
 // 夜の始まりの札: 大仕掛け・趣向・封じの夜は、何が起きるかと狙いを大きく見せる（触れると閉じる）
 function nightCard(def) {
   const el = $('nightCard'); if (!el) return; const items = [];
-  if (def.grand) items.push([tr('大仕掛け「火の滝」', 'Grand Set Piece: Fire Falls'), tr('盤は横に長い。線の先を画面の端へ運ぶと、盤が流れる。<br>右端の<b>滝の玉</b>へ、<b>一筆で 6 つ以上</b>ひらいてから火を届けると、火の滝が盤を流れ落ちる', 'The board is wide: move the line tip to the screen edge to scroll.<br>Open <b>6+ shells in one stroke</b>, then reach the <b>Falls shell</b> on the far right to unleash a waterfall of fire.')]);
+  if (def.grand?.kind === 'moji') items.push([tr('大仕掛け「文字花火」', 'Grand Set Piece: Sky Writing'), tr('盤は横に長い。<b>壱・弐・参・肆</b>の字玉を<b>番号の順に</b>線で通すと、夜空に字が浮かんで倍率 ×2。<br>字玉は爆風では燃えない。違う順番の字玉はひらかずに残る', 'The board is wide. Thread the <b>numbered shells 1–4 in order</b> with your line to write a kanji in the sky: MULT ×2.<br>They ignore blasts, and wrong-order ones stay unlit.')]);
+  else if (def.grand?.kind === 'renpatsu') items.push([tr('大仕掛け「連発」', 'Grand Set Piece: Starmine'), tr('盤は横に長い。盤の中ほどの<b>発射台</b>へ、<b>一筆で 6 つ以上</b>ひらいてから火を届けると、盤のあちこちへ 16 発が次々に打ち込まれる', 'The board is wide. Open <b>6+ shells in one stroke</b>, then reach the <b>Launcher</b> in the middle: 16 shots rain across the board.')]);
+  else if (def.grand) items.push([tr('大仕掛け「火の滝」', 'Grand Set Piece: Fire Falls'), tr('盤は横に長い。線の先を画面の端へ運ぶと、盤が流れる。<br>右端の<b>滝の玉</b>へ、<b>一筆で 6 つ以上</b>ひらいてから火を届けると、火の滝が盤を流れ落ちる', 'The board is wide: move the line tip to the screen edge to scroll.<br>Open <b>6+ shells in one stroke</b>, then reach the <b>Falls shell</b> on the far right to unleash a waterfall of fire.')]);
   const tw = def.twist && Run.TWISTS[def.twist];
   if (tw && !def.twistHide) items.push([tr(`趣向「${tw.ja}」`, `Twist: ${tw.en}`), JA() ? tw.dj : tw.de]);
   for (const x of def.seals || []) { const z = Run.SEALS[x]; if (z) items.push([tr(`封じ「${z.ja}」`, `Seal: ${z.en}`), JA() ? (z.dj || '') : (z.de || '')]); }
@@ -1121,6 +1137,14 @@ function nightCard(def) {
   el.classList.remove('hidden'); clearTimeout(S.ncT); S.ncT = setTimeout(() => el.classList.add('hidden'), def.grand ? 5200 : 3600);
 }
 $('nightCard')?.addEventListener('pointerdown', () => $('nightCard').classList.add('hidden'));
+// 夜空に字を描く: 字を小さな画に書いて、字の画素の所に火花を置く
+function skyKanji(ch) {
+  const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '800 84px "Shippori Mincho", "Yuji Boku", serif'; g.fillText(ch, 48, 50);
+  const d = g.getImageData(0, 0, 96, 96).data, cx = (S.pan || 0) + W * 0.5, cy = H * 0.3, k = Math.min(W, H) / 210;
+  for (let y = 0; y < 96; y += 3) for (let x = 0; x < 96; x += 3) if (d[(y * 96 + x) * 4 + 3] > 120)
+    fx.add(cx + (x - 48) * k, cy + (y - 48) * k, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, 2.4 + Math.random() * 0.6, 3.4, 0.6, 8, [3, 2.5, 1.3], [1.8, 0.7, 0.2], 1.5);
+}
 // ---- 点を伸ばす技
 const TECHS = [
   ['mikiri', '見切り', 'Close Call', '火が近い（熱い）うちに、自分で指を離す', 'Let go yourself while the flame is close', '倍率 +1・星屑を回収', '+1 MULT, sweeps star dust'],
@@ -1130,6 +1154,8 @@ const TECHS = [
   ['graze', 'かすり三十', 'Graze 30', '火のすぐ前を細く保ったまま走る（一筆で 30 回）', 'Keep a thin gap just ahead of the flame (30 in one stroke)', '星の値が上がる', 'Raises star value'],
   ['chain', '十五夜', 'Harvest Moon', '一筆で 15 個つなげる', 'Chain 15 shells in one stroke', '小判 +2（25 個で千輪、40 個で満天）', '+2 coins (25: Thousand Rings, 40: Sky Ablaze)'],
   ['knot', '結び', 'Knot', 'お守り「結び」を持って、自分の線と交差させる', 'With the Knot charm, cross your own line', '交点が爆ぜて倍率 +2', 'The crossing bursts: +2 MULT'],
+  ['moji', '文字花火', 'Sky Writing', '大仕掛けの夜、壱〜肆の字玉を番号の順に線で通す', 'On a set-piece night, thread the numbered shells 1–4 in order', '夜空に字が浮かび、倍率 ×2', 'A kanji lights the sky: MULT ×2'],
+  ['ren', '連発', 'Starmine', '大仕掛けの夜、一筆で 6 つ以上ひらいてから発射台へ', 'On a set-piece night, open 6+ shells then reach the Launcher', '盤のあちこちへ 16 発が次々に', '16 shots rain across the board'],
   ['taki', '火の滝', 'Fire Falls', '大仕掛けの夜、一筆で 6 つ以上ひらいてから右端の滝の玉へ', 'On a set-piece night, open 6+ shells then reach the Falls shell', '火の滝が盤を流れ、通り道の玉が一斉にひらく', 'A waterfall of fire opens everything in its path'],
 ];
 const TECH_BY = Object.fromEntries(TECHS.map((t) => [t[0], t]));
@@ -1209,6 +1235,13 @@ function handle(ev) {
     case 'takiFail': floatText(ev.x, ev.y - 50, tr(`滝には火が足りない（${ev.have}/${ev.need}）`, `Not enough fire for the Falls (${ev.have}/${ev.need})`), 'gold', 22, 1600); break;
     case 'taki': for (let i = 0; i < 6; i++) fx.add(ev.x + (Math.random() - 0.5) * 30, ev.y + Math.random() * 12, (Math.random() - 0.5) * 30, 120 + Math.random() * 240, 1.3, 2.4 + Math.random() * 1.6, 0.4, 420, [3, 2.4, 1.4], [1.6, 0.6, 0.2], 1.1); break;
     case 'takiEnd': break;
+    case 'mojiStep': { const KN = ['壱', '弐', '参', '肆', '伍']; floatText(ev.x, ev.y - 46, tr(`字玉 ${KN[ev.n - 1]}（${ev.n}/${ev.need}）`, `Glyph ${ev.n}/${ev.need}`), 'gold', 24); audio.note(10 + ev.n * 2, { vol: 0.16, dur: 0.4 }); break; }
+    case 'mojiMiss': { const KN = ['壱', '弐', '参', '肆', '伍']; floatText(ev.x, ev.y - 46, tr(`順番がちがう（次は ${KN[ev.want - 1]}）`, `Wrong order (next: ${ev.want})`), 'gold', 22, 1500); break; }
+    case 'mojiDone': techCall('moji'); skyKanji(ev.kanji); banner(`<b class="ik">${ev.kanji}</b><small>${tr('文字花火！ 倍率 ×2', 'Sky writing! MULT ×2')}</small>`, 110, 1900, 'ihen'); audio.boom(2.4, 0); R.flash = Math.max(R.flash, 0.5); $('cMult').textContent = fmtM(ev.mult); bump($('cMult')); break;
+    case 'renStart': techCall('ren'); banner(`${tr('連発', 'STARMINE')}<small>${tr('16 発が次々に！', '16 shots incoming!')}</small>`, 64, 1400); audio.boom(2, 0); R.shake = 14; break;
+    case 'renFail': floatText(ev.x, ev.y - 50, tr(`発射台には火が足りない（${ev.have}/${ev.need}）`, `Not enough fire for the Launcher (${ev.have}/${ev.need})`), 'gold', 22, 1600); break;
+    case 'renShot': fx.launch(ev.x + (Math.random() - 0.5) * 120, H * 0.86, ev.x, ev.y, 0.32, [1, 0.75, 0.35]); audio.launch(panOf(ev.x)); break;
+    case 'renEnd': break;
     case 'charmFire': {
       const b = document.querySelector(`#bags .bag[data-id="${ev.id}"]`);
       if (b) { b.classList.remove('fire'); void b.offsetWidth; b.classList.add('fire'); }

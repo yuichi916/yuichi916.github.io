@@ -210,6 +210,21 @@ export function newNight(level, w, h, loadout = {}) {
     const t = st.shells.filter((s) => !['shaku', 'oni', 'koori', 'shime'].includes(s.type)).sort((a, b) => b.x - a.x)[0];
     if (t) { t.mod = 'taki'; st.taki = { id: t.id, x0: field.x0, x1: field.x1, y: field.y0 - 24, front: null, done: false, need: 6, ev: 0 }; }
   }
+  // 文字花火: 盤に散らばる 4 つの字玉（壱〜肆）を番号の順に線で通すと、夜空に字が浮かび倍率 ×2。字玉は爆風では燃えない
+  if (level.grand?.kind === 'moji') {
+    const pool = st.shells.filter((s) => !['shaku', 'oni', 'koori', 'shime'].includes(s.type)).sort((a, b) => a.x - b.x);
+    const pick = [0.1, 0.37, 0.63, 0.9].map((u) => pool[Math.min(pool.length - 1, Math.round(u * (pool.length - 1)))]).filter((v, i, a) => v && a.indexOf(v) === i);
+    // 並びは左から右。隣り合う 2 つだけ入れ替える（一度だけ引き返す道筋）
+    const r = rng32(level.seed + 911), order = pick.slice(); { const j = Math.floor(r() * Math.max(1, order.length - 1)); [order[j], order[j + 1]] = [order[j + 1], order[j]]; }
+    order.forEach((s, i) => { s.mod = 'moji'; s.seq = i + 1; });
+    const K = ['祭', '華', '夢', '寿', '翔'];
+    st.moji = { need: order.length, next: 1, done: false, kanji: K[Math.floor(r() * K.length)], missAt: -1 };
+  }
+  // 連発（スターマイン）: 盤の中ほどの発射台。一筆で 6 つ以上ひらいてから火が届くと、盤のあちこちへ 16 発が次々に打ち込まれる
+  if (level.grand?.kind === 'renpatsu') {
+    const mid = (field.x0 + field.x1) / 2, pool = st.shells.filter((s) => !['shaku', 'oni', 'koori', 'shime'].includes(s.type)).sort((a, b) => Math.abs(a.x - mid) - Math.abs(b.x - mid));
+    if (pool[0]) { pool[0].mod = 'renpatsu'; st.ren = { id: pool[0].id, need: 6, left: 0, t: 0, active: false, done: false }; }
+  }
   st.deckI = L.deckUsed || 0;
   if (level.rule === 'kappa') st.shells.forEach((s, i) => { if (i % 2 === 0 && s.type === 'kiku') retype(s, 'shime'); });
   if (st.twist && TWIST_SETUP[st.twist]) TWIST_SETUP[st.twist](st);
@@ -699,6 +714,13 @@ export const liveScore = (st) => st.score + (st.stroke && !st.stroke.done ? Math
 
 function ignite(st, s, gen, how, delay = 0) {
   if (s.state !== 'idle') return;
+  if (s.mod === 'moji' && st.moji && !st.moji.done) {
+    const M = st.moji;
+    if (how !== 'line') return; // 字玉は自分の線でだけ
+    if (s.seq !== M.next) { if (M.missAt !== st.strokesUsed) { M.missAt = st.strokesUsed; st.events.push({ type: 'mojiMiss', x: s.x, y: s.y, want: M.next }); } return; }
+    M.next++; st.events.push({ type: 'mojiStep', x: s.x, y: s.y, n: s.seq, need: M.need });
+    if (M.next > M.need && st.stroke) { M.done = true; st.stroke.mult *= 2; st.stroke.chips += 120 * M.need; st.events.push({ type: 'mojiDone', kanji: M.kanji, x: s.x, y: s.y, mult: st.stroke.mult, chips: st.stroke.chips }); }
+  }
   const m = st.m;
   if (how !== 'line' && s.type === 'shime') { s.hits++; st.events.push({ type: 'damp', shell: s }); if (s.hits < m.dampNeed) return; }
   if (how === 'line' && s.type === 'koori' && !m.iceLine) return;  // 氷玉は爆風でとかす
@@ -801,6 +823,11 @@ function modAfter(st, s, gen) {
     s.twiced = true; s.state = 'lit';
     st.pending.push({ s, gen: gen + 1, how: 'twice', at: st.t + 0.5 });
     st.events.push({ type: 'twice', x: s.x, y: s.y });
+  }
+  if (s.mod === 'renpatsu' && st.ren && !st.ren.done && !st.ren.active) { // 発射台: 長い一筆の終わりに届けば、連発
+    const pops = st.stroke ? st.stroke.pops : 0;
+    if (pops >= st.ren.need) { st.ren.active = true; st.ren.left = 16; st.ren.t = 0.3; st.events.push({ type: 'renStart', x: s.x, y: s.y }); }
+    else st.events.push({ type: 'renFail', x: s.x, y: s.y, need: st.ren.need, have: pops });
   }
   if (s.mod === 'taki' && st.taki && !st.taki.done && st.taki.front === null) { // 滝の玉: 長い一筆の終わりに届けば、火の滝
     const pops = st.stroke ? st.stroke.pops : 0;
@@ -1073,13 +1100,24 @@ export function step(st, dt = DT) {
     T.ev += dt; if (T.ev >= 0.05) { T.ev = 0; st.events.push({ type: 'taki', x: T.front, y: T.y }); }
     if (T.front <= T.x0) { T.front = null; T.done = true; st.events.push({ type: 'takiEnd' }); }
   }
+  // 連発: 0.2 秒ごとに、盤のどこかの玉へ 1 発（16 発）
+  const Rn = st.ren;
+  if (Rn && Rn.active && st.stroke) {
+    Rn.t -= dt;
+    if (Rn.t <= 0) {
+      Rn.t = 0.2; Rn.left--;
+      const idle = st.shells.filter((o) => o.state === 'idle' && o.rise <= 0 && o.mod !== 'moji');
+      if (idle.length) { const o = idle[Math.floor(st.drnd() * idle.length)]; ignite(st, o, 1, 'blast', 0.35); st.events.push({ type: 'renShot', x: o.x, y: o.y }); }
+      if (Rn.left <= 0 || !idle.length) { Rn.active = false; Rn.done = true; st.events.push({ type: 'renEnd' }); }
+    }
+  }
   // 火の移りを、順に爆ぜさせる
   for (let i = st.pending.length - 1; i >= 0; i--) {
     const p = st.pending[i];
     if (st.t >= p.at) { st.pending.splice(i, 1); if (st.stroke) burst(st, p.s, p.gen, p.how); }
   }
   // 一筆の終わり
-  if (st.phase === 'stroke' && k && !k.done && !k.penDown && (k.fuseOut || k.caught) && !st.pending.length && !st.sparks.length && !st.runners.length && !(st.taki && st.taki.front !== null)) finishStroke(st);
+  if (st.phase === 'stroke' && k && !k.done && !k.penDown && (k.fuseOut || k.caught) && !st.pending.length && !st.sparks.length && !st.runners.length && !(st.taki && st.taki.front !== null) && !(st.ren && st.ren.active)) finishStroke(st);
   if (st.phase === 'settle' && st.t >= st.settleAt) {
     if (st.cleared && st.level.boss && !st.act2) { // 勝ったと思ったら、もう一幕
       st.act2 = true; st.keptStrokes = st.strokesLeft; st.strokesLeft = 1; st.maxStrokes = 1;
