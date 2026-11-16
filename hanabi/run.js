@@ -300,7 +300,9 @@ export function nightDef(run, world, night) {
     intrude = kinds[Math.floor(irnd() * kinds.length)];
     if (pl && pl.id === intrude) intrude = 'fuku';
   }
-  return { node, seals, ihen: ihenFor(run, world, night, pl?.id || null, seed), endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, world, night, seed, count, mix, strokes, refill: 7 + Math.floor(night / 2), target, rule, boss, twist: pl?.id || null, twistCoin: pl?.coin || 0, twistHide: !!pl?.hide, intrude };
+  // 大仕掛けの夜（各世界の第 6 夜。gr の周から）: 盤は画面の 2.2 倍の横長、玉 1.8 倍・目標 1.7 倍。異変は起こさない
+  const grand = run.grand && night === 6 && world <= WORLDS.length && !boss ? { gw: 2.2, kind: 'taki' } : null;
+  return { node, seals, ihen: grand ? null : ihenFor(run, world, night, pl?.id || null, seed), grand, endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, world, night, seed, count: grand ? Math.round(count * 1.8) : count, mix, strokes, refill: 7 + Math.floor(night / 2), target: grand ? Math.round((target * 1.7) / 10) * 10 : target, rule, boss, twist: pl?.id || null, twistCoin: pl?.coin || 0, twistHide: !!pl?.hide, intrude };
 }
 
 // 流派ごとの目標の合わせ（_dev/hanabi-bot.mjs の完走率が本流 ±10 ポイントに入るように）

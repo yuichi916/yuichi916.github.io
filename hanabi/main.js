@@ -208,6 +208,7 @@ function beginRun(o = {}) {
   S.daily = !!o.daily; S.run.daily = S.daily;
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
+  S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
@@ -276,6 +277,8 @@ function startNight(resume = null) {
   S.mode = 'play'; S.crossed = false; S.seq = []; S.endAfterCount = false; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0; S.cnt = null;
   PF.start(); PF.level('started', def.world, def.night);
   S.nightT0 = performance.now();
+  S.pan = 0; S.drag = null; S.panIntro = def.grand && !resume ? 2.4 : 0;
+  if (!resume) nightCard(def);
   PF.ev('night_start', { idx: (def.world - 1) * 8 + def.night, world: def.world, night: def.night, boss: def.boss ? 1 : 0, retry: S.run.retry || 0, target: def.target, assist: S.run.assist ? 1 : 0 });
   show('none'); $('hud').classList.remove('hidden');
   $('nWorld').textContent = (JA() ? W2.ja : W2.en) + (def.endless ? tr(`・千秋楽 ${def.world - Run.WORLDS.length} 巡`, ` · Encore ${def.world - Run.WORLDS.length}`) : '');
@@ -989,7 +992,7 @@ const touchMode = () => { const qm = q.get('touch'); return qm != null ? Math.ma
 const tipOff = (e) => { if (!TOUCH || !S.tip) return 0; const off = TOUCH_OFF[touchMode()] || 0; if (!off) return 0; const d = Math.hypot(e.clientX - S.tip.x, e.clientY - S.tip.y); S.tip.ramp = Math.max(S.tip.ramp || 0, Math.min(1, d / 28)); return off * S.tip.ramp; };
 const toWorld = (e, dy = 0) => {
   let [cx, cy] = untilt(e.clientX, e.clientY - dy);
-  let x = (cx / innerWidth) * W; const y = (cy / innerHeight) * H;
+  let x = (cx / innerWidth) * W + (S.pan || 0); const y = (cy / innerHeight) * H;
   if (S.st?.ihen?.id === 'hanten') x = W - x; // 異変「反」: 指と線が左右に入れかわる
   return { x: q1(x), y: q1(y) };
 };
@@ -1003,15 +1006,41 @@ canvas.addEventListener('pointerdown', (e) => {
   if (TOUCH && touchMode() && !DB.meta.taught.tip) { DB.meta.taught.tip = 1; save(); floatText(W / 2, H * 0.3, tr('線の先は、指の少し上に出ます', 'The line tip sits just above your finger'), 'gold', 24, 1800); }
   const p = toWorld(e);
   S.rec?.ev.push([S.st.t, 'd', p.x, p.y]);
-  if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } $('teach').classList.add('hidden'); }
+  if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; S.lastPtr = { clientX: e.clientX, clientY: e.clientY }; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } $('teach').classList.add('hidden'); }
+  else if (S.st.level.grand) { S.rec?.ev.pop(); S.drag = { id: e.pointerId, x: e.clientX, pan: S.pan || 0 }; S.panIntro = 0; try { canvas.setPointerCapture(e.pointerId); } catch { /* */ } }
 });
 canvas.addEventListener('pointermove', (e) => {
+  if (S.drag && e.pointerId === S.drag.id) { S.pan = Math.max(0, Math.min(panMax(), S.drag.pan - ((e.clientX - S.drag.x) / innerWidth) * W)); return; }
   if (e.pointerId !== pid || !S.st) return;
   const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
   for (const ev of (list.length ? list : [e])) { const p = toWorld(ev, tipOff(ev)); S.rec?.ev.push([S.st.t, 'm', p.x, p.y]); G.penMove(S.st, p.x, p.y); }
-  tether(e);
+  tether(e); S.lastPtr = { clientX: e.clientX, clientY: e.clientY };
 });
-const release = (e) => { if (e.pointerId !== pid) return; pid = null; S.tip = null; tether(null); if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
+const release = (e) => { if (S.drag && e.pointerId === S.drag.id) { S.drag = null; return; } if (e.pointerId !== pid) return; pid = null; S.tip = null; tether(null); if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
+// ---- 大仕掛けの夜: 盤が画面より横に長い。線の先が画面の端に近づくと流れる（指が止まっていても線は伸びる）
+const panMax = () => (S.st?.level?.grand ? Math.max(0, S.st.field.x1 + 70 - W) : 0);
+function panFrame(dt) {
+  const st = S.st; if (!st || !st.level?.grand || S.mode !== 'play') { if (S.pan && S.mode !== 'play' && S.mode !== 'retry') S.pan = 0; miniMap(); return; }
+  const max = Math.max(0, st.field.x1 + 70 - W);
+  if (S.panIntro > 0) { S.panIntro = Math.max(0, S.panIntro - dt); const u = S.panIntro / 2.4; S.pan = max * Math.min(1, Math.max(0, (u - 0.1) / 0.6)); } // 右端（滝）を見せてから、左の始まりへ
+  else if (pid !== null && st.stroke && S.lastPtr) {
+    const sx = S.lastPtr.clientX / innerWidth, edge = 0.2; let v = 0;
+    if (sx > 1 - edge) v = (sx - (1 - edge)) / edge; else if (sx < edge) v = -(edge - sx) / edge;
+    if (v) { const p0 = S.pan || 0; S.pan = Math.max(0, Math.min(max, p0 + v * W * 0.9 * dt));
+      if (S.pan !== p0) { const p = toWorld(S.lastPtr, tipOff(S.lastPtr)); S.rec?.ev.push([st.t, 'm', p.x, p.y]); G.penMove(st, p.x, p.y); } }
+  } else if (st.taki && st.taki.front !== null) { S.pan += ((Math.max(0, Math.min(max, st.taki.front - W * 0.5))) - S.pan) * Math.min(1, dt * 4); } // 滝を追う
+  miniMap();
+}
+// 上の端の細い地図: 盤の全体と、いま見ている範囲
+function miniMap() {
+  const cv = $('mini'); if (!cv) return; const st = S.st, on = !!(st && st.level?.grand && S.mode === 'play'); cv.classList.toggle('hidden', !on); if (!on) return;
+  const f = st.field, X0 = 0, X1 = f.x1 + 70, w = cv.width = Math.round(cv.clientWidth * 2) || 400, h = cv.height = Math.round(cv.clientHeight * 2) || 24, g = cv.getContext('2d');
+  g.clearRect(0, 0, w, h); g.fillStyle = '#05070fb0'; g.fillRect(0, 0, w, h);
+  const sx = (x) => ((x - X0) / (X1 - X0)) * w;
+  g.fillStyle = '#ffffff22'; g.fillRect(sx(S.pan || 0), 0, (W / (X1 - X0)) * w, h);
+  for (const s of st.shells) { if (s.state !== 'idle') continue; g.fillStyle = s.mod === 'taki' ? '#7fd4ff' : s.type === 'kin' ? '#ffd24a' : '#ff8a7a'; g.beginPath(); g.arc(sx(s.x), (s.y / H) * h * 0.9 + h * 0.05, s.mod === 'taki' ? 6 : 3.4, 0, 7); g.fill(); }
+  if (st.taki && st.taki.front !== null) { g.fillStyle = '#9fe6ff'; g.fillRect(sx(st.taki.front) - 2, 0, 4, h); }
+}
 // 指と線の先をつなぐ細い線（先端をずらしているときだけ）
 function tether(e) {
   const el = $('tether'); if (!el) return;
@@ -1034,7 +1063,7 @@ const fmt = (n) => Math.round(n).toLocaleString('en-US');
 const panOf = (x) => Math.max(-0.8, Math.min(0.8, (x / W) * 2 - 1));
 const MSG = { live: 0, q: [] };
 function floatText(x, y, text, cls = '', size = 22, life = 950) {
-  x = Math.max(W * 0.14, Math.min(W * 0.86, x)); // 端で字が切れないように
+  { const p = S.pan || 0; x = Math.max(p + W * 0.14, Math.min(p + W * 0.86, x)); } // 端で字が切れないように（流した盤では見えている範囲で）
   // 「+30」のような数は何個でも出す。言葉の字は同時に 2 つまで、あふれたら 0.3 秒ずつ順に（古いものは捨てる）
   const isMsg = cls !== 'hinoko' && !/^[+×−\-]?[\d,]/.test(String(text));
   if (isMsg) {
@@ -1042,7 +1071,7 @@ function floatText(x, y, text, cls = '', size = 22, life = 950) {
     MSG.live++; setTimeout(() => { MSG.live--; const n = MSG.q.shift(); if (n) floatText(...n); }, 320);
   }
   const e = document.createElement('div'); e.className = 'pop ' + cls; e.textContent = text;
-  e.style.left = (x / W) * 100 + '%'; e.style.top = (y / H) * 100 + '%'; e.style.fontSize = size * (innerHeight / H) + 'px';
+  e.style.left = ((x - (S.pan || 0)) / W) * 100 + '%'; e.style.top = (y / H) * 100 + '%'; e.style.fontSize = size * (innerHeight / H) + 'px';
   $('float').append(e); setTimeout(() => e.remove(), life);
 }
 // トラ（屋台の猫）や妖怪が、画面の下から話しかける。触れると閉じて then へ
@@ -1071,18 +1100,30 @@ function hitStop(ms) {
 // 初めて追いつかれたとき: ゲームの時計を止めて、追いつかれた所に輪を出し、何が起きたか・次にどうするかを見せる（変わったきまりなので、初めての 1 回だけ）。
 // 時計を止めるだけなので、点の計算・ランキングの記録には関わらない
 const GUIDE_SVG = (a, b, c) => `<svg viewBox="0 0 260 64" aria-hidden="true"><path d="M14 44 C70 10 120 58 176 26 S236 30 246 22" fill="none" stroke="#ffe3a0" stroke-width="4" stroke-linecap="round" stroke-dasharray="2 9"/><path d="M14 44 C70 10 120 58 176 26" fill="none" stroke="#ff7a2a" stroke-width="6" stroke-linecap="round"/><circle cx="176" cy="26" r="11" fill="#ffb347"/><circle cx="176" cy="26" r="6" fill="#fff3c4"/><circle cx="246" cy="22" r="7" fill="#fff"/><circle cx="246" cy="22" r="15" fill="none" stroke="#ff4a3a" stroke-width="3"/><text x="8" y="62" font-size="12" fill="#ffcf8a">${a}</text><text x="${b.length > 2 ? 160 : 170}" y="60" font-size="12" fill="#ffb347">${b}</text><text x="${c.length > 3 ? 214 : 222}" y="60" font-size="12" fill="#fff">${c}</text></svg>`;
+// 夜の始まりの札: 大仕掛け・趣向・封じの夜は、何が起きるかと狙いを大きく見せる（触れると閉じる）
+function nightCard(def) {
+  const el = $('nightCard'); if (!el) return; const items = [];
+  if (def.grand) items.push([tr('大仕掛け「火の滝」', 'Grand Set Piece: Fire Falls'), tr('盤は横に長い。線の先を画面の端へ運ぶと、盤が流れる。<br>右端の<b>滝の玉</b>へ、<b>一筆で 6 つ以上</b>ひらいてから火を届けると、火の滝が盤を流れ落ちる', 'The board is wide: move the line tip to the screen edge to scroll.<br>Open <b>6+ shells in one stroke</b>, then reach the <b>Falls shell</b> on the far right to unleash a waterfall of fire.')]);
+  const tw = def.twist && Run.TWISTS[def.twist];
+  if (tw && !def.twistHide) items.push([tr(`趣向「${tw.ja}」`, `Twist: ${tw.en}`), JA() ? tw.dj : tw.de]);
+  for (const x of def.seals || []) { const z = Run.SEALS[x]; if (z) items.push([tr(`封じ「${z.ja}」`, `Seal: ${z.en}`), JA() ? (z.dj || '') : (z.de || '')]); }
+  if (!items.length) { el.classList.add('hidden'); return; }
+  el.innerHTML = items.slice(0, 2).map(([a, b]) => `<div class="nc"><h3>${a}</h3><p>${b}</p></div>`).join('') + `<small>${tr('触れると閉じる', 'Tap to close')}</small>`;
+  el.classList.remove('hidden'); clearTimeout(S.ncT); S.ncT = setTimeout(() => el.classList.add('hidden'), def.grand ? 5200 : 3600);
+}
+$('nightCard')?.addEventListener('pointerdown', () => $('nightCard').classList.add('hidden'));
 function caughtGuide(ev) {
   if (DB.meta.taught.caught) return;
   DB.meta.taught.caught = 1; save();
   S.guide = true; S.guideAt = performance.now();
-  const r = $('guideRing'); r.style.left = (Math.max(0, Math.min(W, ev.x)) / W) * 100 + '%'; r.style.top = (Math.max(0, Math.min(H, ev.y)) / H) * 100 + '%'; r.classList.remove('hidden');
+  const r = $('guideRing'); r.style.left = (Math.max(0, Math.min(W, ev.x - (S.pan || 0))) / W) * 100 + '%'; r.style.top = (Math.max(0, Math.min(H, ev.y)) / H) * 100 + '%'; r.classList.remove('hidden');
   $('guide').innerHTML = `<div class="gcard"><h3>${tr('火に追いつかれた！', 'The flame caught your line!')}</h3>${GUIDE_SVG(tr('始まり', 'START'), tr('火', 'FIRE'), tr('線の先', 'TIP'))}`
     + `<p>${tr('火は、<b>線の始まり</b>から線を追いかけてくる。', 'The flame chases your line from <b>where you started</b>.')}</p>`
     + `<p>${tr('<b>線の先</b>に追いつかれると、その一筆はおしまい。<em>点は半分</em>。', 'If it reaches <b>your fingertip</b>, the stroke ends and scores <em>half POINTS</em>.')}</p>`
     + `<p>${tr('火が近いほど「熱い」＝点 ×2〜×4。熱いうちに<b>自分で指を離す</b>と「見切り」で倍率 +1。', 'Closer flame = HOT = POINTS ×2–×4. <b>Let go yourself</b> while it\'s hot for a Close Call: +1 MULT.')}</p>`
     + `<button class="bigbtn small" id="guideOk">${tr('わかった', 'Got it')}</button></div>`;
   // 札は、追いつかれた所と反対側に（輪を隠さない）。横長の低い画面は左右、それ以外は上下
-  const g = $('guide'), sx = ev.x / W, sy = ev.y / H, wide = innerWidth > innerHeight && innerHeight <= 500;
+  const g = $('guide'), sx = (ev.x - (S.pan || 0)) / W, sy = ev.y / H, wide = innerWidth > innerHeight && innerHeight <= 500;
   g.className = wide ? (sx < 0.5 ? 'right' : 'left') : (sy > 0.5 ? 'top' : 'bottom');
 }
 function closeGuide() {
@@ -1133,6 +1174,10 @@ function handle(ev) {
       audio.note(18 + Math.min(6, ev.coin), { vol: 0.2, dur: 0.5 }); setTimeout(() => audio.note(21 + Math.min(6, ev.coin), { vol: 0.18, dur: 0.6 }), 80);
       R.flash = Math.max(R.flash, 0.1); hitStop(45); renderBags();
       break;
+    case 'takiStart': banner(`${tr('火の滝', 'FIRE FALLS')}<small>${tr('盤を流れ落ちる！', 'pouring across the board!')}</small>`, 64, 1500); audio.boom(2.2, 0); audio.duck(0.3, 0.5); R.flash = Math.max(R.flash, 0.4); R.shake = 18; break;
+    case 'takiFail': floatText(ev.x, ev.y - 50, tr(`滝には火が足りない（${ev.have}/${ev.need}）`, `Not enough fire for the Falls (${ev.have}/${ev.need})`), 'gold', 22, 1600); break;
+    case 'taki': for (let i = 0; i < 6; i++) fx.add(ev.x + (Math.random() - 0.5) * 30, ev.y + Math.random() * 12, (Math.random() - 0.5) * 30, 120 + Math.random() * 240, 1.3, 2.4 + Math.random() * 1.6, 0.4, 420, [3, 2.4, 1.4], [1.6, 0.6, 0.2], 1.1); break;
+    case 'takiEnd': break;
     case 'charmFire': {
       const b = document.querySelector(`#bags .bag[data-id="${ev.id}"]`);
       if (b) { b.classList.remove('fire'); void b.offsetWidth; b.classList.add('fire'); }
@@ -1600,7 +1645,7 @@ function hintFx(dt) {
   const seg = u * (seedS.length - 1), i = Math.floor(seg), f = seg - i, a = seedS[i], b = seedS[Math.min(i + 1, seedS.length - 1)];
   const hx = a.x + (b.x - a.x) * f, hy = a.y + (b.y - a.y) * f;
   fx.add(hx, hy, 0, 0, 0.6, 6, 0, 0, [2.6, 2, 1], [1, 0.4, 0.1], 1.4);
-  hand.classList.remove('hidden'); hand.style.left = (hx / W) * 100 + '%'; hand.style.top = (hy / H) * 100 + '%';
+  hand.classList.remove('hidden'); hand.style.left = ((hx - (S.pan || 0)) / W) * 100 + '%'; hand.style.top = (hy / H) * 100 + '%';
 }
 function titleFx(dt) {
   S.titleT -= dt;
@@ -1648,7 +1693,8 @@ function frame(now) {
     if (zt === 1) S.focus = null;
     R.zoom += (zt - R.zoom) * Math.min(1, dt * (zt > 1 ? 5 : 3));
     if (S.focus) { S.fx0 = S.focus.x; S.fy0 = S.focus.y; }
-    R.camX = R.zoom > 1.001 ? -((S.fx0 ?? W / 2) - W / 2) * (R.zoom - 1) : 0;
+    R.camX = (R.zoom > 1.001 ? -((S.fx0 ?? W / 2) - W / 2) * (R.zoom - 1) : 0) - (S.pan || 0);
+    panFrame(dt);
     R.camY = R.zoom > 1.001 ? -((S.fy0 ?? H / 2) - H / 2) * (R.zoom - 1) : 0;
     if (S.mode === 'title') titleFx(dt);
     if (S.mode === 'senko' && !S.paused) senkoFx(dt);
@@ -1706,7 +1752,7 @@ async function boot() {
 // 1 周の記録（筆の動きと屋台の操作）を残し、終わったら送る。サーバーはありえない点だけを弾き、
 // 上位は手元の確かめ役（_dev/hanabi2-verify.mjs → hanabi/verify.js）が本物のルールで流しなおして、合わないものを隠す
 const LOGKEY = 'hanabi2_log';
-function logStart(run) { S.log = { v: Run.LOG_VERSION, ps: 1, dn: 1, as: run.assist ? 1 : 0, seed: run.seed, fuse: run.fuse, rank: run.rank, school: run.school, daily: !!run.daily, xp: DB.meta.xp || 0, ops: [] }; logSave(); }
+function logStart(run) { S.log = { v: Run.LOG_VERSION, ps: 1, dn: 1, gr: run.grand ? 1 : 0, as: run.assist ? 1 : 0, seed: run.seed, fuse: run.fuse, rank: run.rank, school: run.school, daily: !!run.daily, xp: DB.meta.xp || 0, ops: [] }; logSave(); }
 function logOp(...op) { if (S.log) S.log.ops.push(op); }
 function logSave() { if (!S.log || window.HANABI_PG) return; try { localStorage.setItem(LOGKEY, JSON.stringify(S.log)); } catch { /* 大きすぎる・保存できない環境: ランキングに出ないだけ */ } }
 // 読みなおしたときは、続きの周回と同じ種の記録だけを使う
@@ -1816,7 +1862,7 @@ function ihenFrame(dt) {
   if (st && S.mode === 'play') for (const s of st.shells) if (s.type === 'kazu' && s.state === 'idle') {
     live.add(s.id); let e = S.kazuEls.get(s.id);
     if (!e) { e = document.createElement('div'); e.className = 'kz'; e.textContent = fmt(s.val); box.append(e); S.kazuEls.set(s.id, e); }
-    e.style.left = (s.x / W) * 100 + '%'; e.style.top = (s.y / H) * 100 + '%';
+    e.style.left = ((s.x - (S.pan || 0)) / W) * 100 + '%'; e.style.top = (s.y / H) * 100 + '%';
   }
   for (const [id, e] of S.kazuEls) if (!live.has(id)) { e.remove(); S.kazuEls.delete(id); }
 }

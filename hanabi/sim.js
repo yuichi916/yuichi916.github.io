@@ -108,7 +108,8 @@ export function rng32(seed) {
 }
 
 // 盤の大きさ。横長と縦長で別の広さを使い、玉の位置は 0〜1 の割合で持つ（どちらの向きでも同じ並びになる）
-export function fieldFor(w, h, rs = 1) {
+export function fieldFor(w, h, rs = 1, gw = 1) {
+  if (gw > 1) { const f = fieldFor(w, h, rs); return { ...f, x1: w * gw - (w - f.x1) }; } // 大仕掛け: 横に長い盤
   if (w >= h) return { w, h, x0: 70, x1: w - 70, y0: 140, y1: h * 0.62 };
   // 縦は上の「点×倍率」と「熱い」の字が玉を隠さない所から。玉を大きくした縦（rs > 1）は、そのぶん上と横をあける
   return rs > 1 ? { w, h, x0: 70, x1: w - 70, y0: 440, y1: h * 0.74 } : { w, h, x0: 60, x1: w - 60, y0: 390, y1: h * 0.72 };
@@ -168,7 +169,7 @@ export function newShell(id, x, y, type, rise = 0) {
 export const PORTRAIT_SHELL = 1.3;
 export function newNight(level, w, h, loadout = {}) {
   const rs = loadout.rs ?? (w < h ? PORTRAIT_SHELL : 1); // ランキングの旧い記録（ps なし）は 1 で流しなおす
-  const field = fieldFor(w, h, rs);
+  const field = fieldFor(w, h, rs, level.grand?.gw || 1);
   // dn: 盤の混み方をそろえる（2026-11-16〜）。縦の 16:9 は盤が狭く、1 つの玉から爆風だけで盤の 8〜9 割に火が回っていた
   const dn = loadout.dn ?? 1, kd = dn ? Math.min(1, ((field.x1 - field.x0) * (field.y1 - field.y0)) / 349000) : 1;
   const charms = loadout.charms || [];
@@ -178,6 +179,7 @@ export function newNight(level, w, h, loadout = {}) {
   if (level.rule === 'kasha') m.flameX *= 1.55;
   if (level.rule === 'ishun') m.ink *= 0.55;
   if ((level.seals || []).includes('sumi')) m.ink *= 0.75; // 封じ: 墨削り
+  if (level.grand) m.ink *= level.grand.gw; // 大仕掛け: 盤が横に長いぶん、墨も長く
   const mix = { ...(level.mix || {}) };
   for (const [k, n] of Object.entries(m.addMix)) mix[k] = (mix[k] || 0) + n;
   if (m.onlyOneStroke) m.strokesAdd = -99;
@@ -203,6 +205,11 @@ export function newNight(level, w, h, loadout = {}) {
   const L = layout(level.seed, count, mix, field, level.deck);
   st.rs = rs;
   for (const s of L) { const sh = newShell(st.nextId++, s.x, s.y, s.type); sh.rs = rs; sh.r *= rs; sh.mod = s.mod; sh.pi = s.pi; if (level.deck) initShell(st, sh); st.shells.push(sh); }
+  // 大仕掛け「滝」: いちばん右の玉が滝の玉。一筆で 6 つ以上ひらいたあとに火が届くと、上の端を火の滝が右から左へ流れる
+  if (level.grand?.kind === 'taki') {
+    const t = st.shells.filter((s) => !['shaku', 'oni', 'koori', 'shime'].includes(s.type)).sort((a, b) => b.x - a.x)[0];
+    if (t) { t.mod = 'taki'; st.taki = { id: t.id, x0: field.x0, x1: field.x1, y: field.y0 - 24, front: null, done: false, need: 6, ev: 0 }; }
+  }
   st.deckI = L.deckUsed || 0;
   if (level.rule === 'kappa') st.shells.forEach((s, i) => { if (i % 2 === 0 && s.type === 'kiku') retype(s, 'shime'); });
   if (st.twist && TWIST_SETUP[st.twist]) TWIST_SETUP[st.twist](st);
@@ -771,6 +778,11 @@ function modAfter(st, s, gen) {
     st.pending.push({ s, gen: gen + 1, how: 'twice', at: st.t + 0.5 });
     st.events.push({ type: 'twice', x: s.x, y: s.y });
   }
+  if (s.mod === 'taki' && st.taki && !st.taki.done && st.taki.front === null) { // 滝の玉: 長い一筆の終わりに届けば、火の滝
+    const pops = st.stroke ? st.stroke.pops : 0;
+    if (pops >= st.taki.need) { st.taki.front = st.taki.x1; st.events.push({ type: 'takiStart', x: s.x, y: s.y }); }
+    else st.events.push({ type: 'takiFail', x: s.x, y: s.y, need: st.taki.need, have: pops });
+  }
   if (s.mod === 'fuse') { // 導火: いちばん近い 2 つの玉へ、距離に関係なく火を渡す
     const near = st.shells.filter((o) => o.state === 'idle' && o.rise <= 0 && o.type !== 'shaku').sort((a, b) => Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y)).slice(0, 2);
     for (const o of near) ignite(st, o, gen + 1, 'blast', 0.15 + Math.hypot(o.x - s.x, o.y - s.y) / 1600);
@@ -1028,13 +1040,21 @@ export function step(st, dt = DT) {
     for (const s of st.shells) if (s.state === 'idle' && s.rise <= 0 && Math.hypot(s.x - q.x, s.y - q.y) < s.r + 6) { ignite(st, s, q.gen, 'spark', 0); q.life = 0; break; }
     if (q.life <= 0) st.sparks.splice(i, 1);
   }
+  // 火の滝: 右から左へ 3.2 秒。通り道の玉に、上から順に火を付ける
+  const T = st.taki;
+  if (T && T.front !== null && st.stroke) {
+    const f0 = T.front; T.front -= ((T.x1 - T.x0) / 3.2) * dt;
+    for (const o of st.shells) if (o.state === 'idle' && o.rise <= 0 && o.x <= f0 + 12 && o.x > T.front - 12) ignite(st, o, 1, 'blast', 0.03 + Math.max(0, o.y - T.y) / 1400);
+    T.ev += dt; if (T.ev >= 0.05) { T.ev = 0; st.events.push({ type: 'taki', x: T.front, y: T.y }); }
+    if (T.front <= T.x0) { T.front = null; T.done = true; st.events.push({ type: 'takiEnd' }); }
+  }
   // 火の移りを、順に爆ぜさせる
   for (let i = st.pending.length - 1; i >= 0; i--) {
     const p = st.pending[i];
     if (st.t >= p.at) { st.pending.splice(i, 1); if (st.stroke) burst(st, p.s, p.gen, p.how); }
   }
   // 一筆の終わり
-  if (st.phase === 'stroke' && k && !k.done && !k.penDown && (k.fuseOut || k.caught) && !st.pending.length && !st.sparks.length && !st.runners.length) finishStroke(st);
+  if (st.phase === 'stroke' && k && !k.done && !k.penDown && (k.fuseOut || k.caught) && !st.pending.length && !st.sparks.length && !st.runners.length && !(st.taki && st.taki.front !== null)) finishStroke(st);
   if (st.phase === 'settle' && st.t >= st.settleAt) {
     if (st.cleared && st.level.boss && !st.act2) { // 勝ったと思ったら、もう一幕
       st.act2 = true; st.keptStrokes = st.strokesLeft; st.strokesLeft = 1; st.maxStrokes = 1;
