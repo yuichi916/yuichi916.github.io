@@ -744,7 +744,7 @@ function aboutHtmlImpl() {
     <p class="sec-label">次はこちら</p>
     <a href="hitoritabi/" style="display:flex;align-items:center;min-height:44px;color:#8d4734;font-weight:700;text-decoration:none;margin:4px 0">一人旅ジャーナル — 実際に行った32本 →</a>
     <a href="cabin.html" style="display:flex;align-items:center;min-height:44px;color:#8d4734;font-weight:700;text-decoration:none;margin:4px 0">森の小屋 — 出かけられない日のための、行かなくていい場所 →</a>
-    <a href="./" style="display:flex;align-items:center;min-height:44px;color:#8d4734;font-weight:700;text-decoration:none;margin:12px 0">← ひとりぶんの棚（ほかの作品を見る）</a>
+    <a href="./" style="display:flex;align-items:center;min-height:44px;color:#8d4734;font-weight:700;text-decoration:none;margin:12px 0">← Views Engineer（ほかの作品を見る）</a>
   </div>`;
 }
 function bindAbout() { if ($('about')) $('btn-back').addEventListener('click', closeOverlay); }

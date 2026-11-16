@@ -98,7 +98,7 @@ ol.list>li{background:var(--white);border:1px solid var(--line);border-radius:12
 <main>
 `;
 const FOOT = `<p class="note">一覧に載せているのは、公式サイトや自治体のページなど<b>公式の情報で裏付けが取れた施設だけ</b>です（閉業・休業の情報があるものは除いています）。「ひとりで入りやすいか」の根拠は、地図の詳細で出典つきで確かめられます。データは OpenStreetMap と各施設の公式情報をもとに、AI（Claude・Codex）で公式ページから読み取っています。最終更新 ${esc(updated)}。</p>
-<p class="note"><a href="/hitori.html">ひとり歓迎マップ</a> ／ <a href="/hitori/">都道府県の一覧</a> ／ <a href="/">ひとりぶんの棚（トップ）</a></p>
+<p class="note"><a href="/hitori.html">ひとり歓迎マップ</a> ／ <a href="/hitori/">都道府県の一覧</a> ／ <a href="/">Views Engineer（トップ）</a></p>
 </main>
 </body>
 </html>

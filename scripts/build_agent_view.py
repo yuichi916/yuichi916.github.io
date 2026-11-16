@@ -47,6 +47,7 @@ EXCLUDE_FILES = {
 # llms.txt の並び。前方一致で最初に当たったものを採用する
 SECTIONS: list[tuple[str, str]] = [
     ("index.html",           "入口"),
+    ("works.html",           "入口"),
     ("ai-map.html",          "研究 — AIエージェント能力アトラス"),
     ("method/",              "研究 — 新しい形の型"),
     ("kototsugi/",           "物語 — ことつぎの星"),
@@ -194,7 +195,7 @@ def scan() -> dict:
     return {
         "generatedAt": TODAY,
         "site": SITE,
-        "name": "ひとりぶんの棚 — Views Engineer",
+        "name": "Views Engineer",
         "pageCount": len(pages),
         "pages": pages,
         "externalPosts": external,

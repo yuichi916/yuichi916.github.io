@@ -119,7 +119,7 @@ export const WORKS = {
   'mazeru-yaku': { title: '役札（まぜる漢字）', url: 'mazeru.html?mode=yaku' },
   mazeru: { title: 'まぜる漢字（きょうの7字）', url: 'mazeru.html?mode=daily' },
   'kanji-print': { title: '漢字パズルのプリント', url: 'kanji-print.html' },
-  site: { title: 'ひとりぶんの棚', url: './' },
+  site: { title: 'Views Engineer', url: './' },
 };
 
 // トップの「みんなの気持ち」。研究ノートは 16 本に分かれて問い合わせが増えるので載せない

@@ -271,7 +271,7 @@ def test_about_sheet_keeps_provenance_and_site_links(page):
     page.click("#btn-menu")
     page.wait_for_selector("#about")
     txt = page.inner_text("#about")
-    for needle in ["OpenStreetMap", "国土地理院", "食い違い", "ひとりぶんの棚", "この地図の作り方", "一人旅ジャーナル", "載せてほしい"]:
+    for needle in ["OpenStreetMap", "国土地理院", "食い違い", "Views Engineer", "この地図の作り方", "一人旅ジャーナル", "載せてほしい"]:
         assert needle in txt, needle
     assert page.locator("#about .roadmap li").count() == 47
     assert page.locator(".homeback").count() == 0 and page.locator(".nextstrip").count() == 0
