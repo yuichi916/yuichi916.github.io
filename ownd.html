@@ -173,6 +173,11 @@ code,.code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.9em;ba
 .check li span{color:var(--dim);font-size:13.5px}
 details.more{margin-top:10px}
 details.more summary{cursor:pointer;font-weight:700;font-size:14.5px;color:var(--accent);min-height:32px}
+details.diag{margin-top:8px;border-top:1px dashed var(--line2);padding-top:6px}
+details.diag summary{cursor:pointer;font-weight:700;font-size:13px;color:var(--dim);min-height:32px}
+details.diag .note{margin-top:6px}
+.diagout{margin-top:8px;max-height:280px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-all;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11.5px;line-height:1.55;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink)}
+.diagout:empty{display:none}
 .share{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 footer{padding:24px 0 40px;color:var(--faint);font-size:12.5px}
 footer a{color:var(--dim)}
@@ -183,7 +188,7 @@ footer a{color:var(--dim)}
   .deadline{grid-template-columns:1fr 1fr}
   .row2{grid-template-columns:1fr 1fr}
 }
-@media print{.drop,.btns,#run,#step2{display:none}}
+@media print{.drop,.btns,#run,#step2,details.diag{display:none}}
 </style>
 </head>
 <body>
@@ -235,6 +240,13 @@ footer a{color:var(--dim)}
       <div class="kpis" id="kpis"></div>
       <div id="issues" class="issues"></div>
       <details class="more"><summary>記事とページの一覧を見る</summary><div class="scroll"><table class="tbl" id="itemTbl"></table></div></details>
+      <details class="diag" id="diagBox"><summary>形式の診断（作者に知らせる用・中身は含みません）</summary>
+        <p class="small">11/18 から書き出せます。書き出したファイルで道具がうまく動いたか・動かなかったかを、この診断と一緒に X の <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">@ViewsEngineer</a> へ返信か DM で教えてください（ファイル自体は送らないでください）。</p>
+        <p class="note">診断に入るのは、ファイルの形（項目の名前・数・アドレスや日付の形）だけです。題名・文章・サイトの名前・アドレスは入りません。コピーされる文は、下の枠に出ているものと同じです。</p>
+        <div class="btns" style="margin-top:8px"><button class="btn small sub" type="button" id="diagCopy">診断をコピー</button></div>
+        <p class="small" id="diagMsg" aria-live="polite"></p>
+        <pre class="diagout" id="diagOut" tabindex="0" aria-label="コピーされる診断の文"></pre>
+      </details>
     </div>
   </section>
 
@@ -305,12 +317,13 @@ footer a{color:var(--dim)}
       <li>「公開用」フォルダ（または「…_公開用.zip」）をドラッグします。<b>ドラッグで入れられるのは1,000ファイルまで</b>です（zip でも同じです）。写真が多くて超えるときは、下の Netlify Drop を試してください。</li>
       <li>「デプロイ」を押すと、数十秒で公開されます。</li>
     </ol>
-    <h3>手軽さ重視：Netlify Drop</h3>
+    <h3>1,000ファイルを超えるとき：Netlify Drop</h3>
     <ol class="steps">
-      <li><a href="https://app.netlify.com/drop" target="_blank" rel="noopener">app.netlify.com/drop</a> を開き、「公開用」フォルダをドラッグします。</li>
-      <li>アドレスが出たら公開されています。<b>無料登録して、サイトを自分のアカウントに残してください</b>。登録しないと、しばらくして消えます。</li>
+      <li><a href="https://app.netlify.com/drop" target="_blank" rel="noopener">app.netlify.com/drop</a> を開き、「公開用」フォルダをドラッグします。写真が多いと、入れ終わるまで数分かかります。</li>
+      <li>ログインせずに入れると、<b>合言葉つきで1時間だけ見られる「仮公開」</b>になり、そのままだと消えます。</li>
+      <li>画面の「<b>Claim this site</b>」から無料アカウントを作ってサイトを引き取ると、正式に公開されます。</li>
     </ol>
-    <p class="note">ドラッグで入れられる大きさには目安があります（1ファイル10MB前後・全体で数十MB程度と言われています。公式の数字は確かめられませんでした）。大きいときは Cloudflare Pages を使ってください。</p>
+    <p class="note">公式の案内では、全体で50MB未満が最適で、1ファイルが10MBを超えると止まることがあります（<a href="https://docs.netlify.com/start/quickstarts/netlify-drop-quickstart/" target="_blank" rel="noopener">Netlify Drop の説明</a>）。こちらでは1,801ファイル・540MBを入れて、約4分で全部のファイルが表示されることを確かめました（2026年11月）。無料枠は月300クレジットで、転送量1GBごとに20クレジット使います。使い切ると翌月までサイトが止まります。</p>
 
     <h3>独自ドメイン（自分のアドレス）を付け替える</h3>
     <ol class="steps">
@@ -351,7 +364,7 @@ footer a{color:var(--dim)}
     <h3>WordPress に移りたいのですが</h3>
     <p class="small">書き出した zip はそのまま WordPress に取り込めますが、写真は取り込みのときに Ameba Ownd から読み込まれるため、<b>終了日までに取り込みを済ませる</b>必要があります。念のため、ここで写真を保存しておくと安心です。</p>
     <h3>書き出しファイルの形が違っていたら</h3>
-    <p class="small">公式の書き出しファイルはまだ公開されていないため、この道具は WordPress の一般的な書き出しの形（WXR）を想定し、項目が欠けていても読めるように作っています。読めなかったときは、出てきたメッセージを添えて <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">@ViewsEngineer</a> に知らせていただけると直します（ファイルそのものは送らないでください）。</p>
+    <p class="small">公式の書き出しファイルはまだ公開されていないため、この道具は WordPress の一般的な書き出しの形（WXR）を想定し、項目が欠けていても読めるように作っています。読めなかったときは、出てきたメッセージと、読み込んだあとに出る「形式の診断」（ファイルの形だけで、中身は入りません）を添えて <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">@ViewsEngineer</a> に知らせていただけると直します（ファイルそのものは送らないでください）。</p>
   </section>
 
   <section class="card" aria-labelledby="h-share">
@@ -387,7 +400,7 @@ const isoDate = (ms) => { const t = jst(ms); return t.y + '-' + String(t.m).padS
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const charLen = (s) => [...s].length;
 
-const S = { items: [], cats: new Map(), images: new Map(), issues: [], files: [], site: { title: '', link: '', description: '', hosts: new Set() }, run: null, lastSink: null };
+const S = { items: [], cats: new Map(), images: new Map(), issues: [], files: [], diagSrc: null, otherTypes: new Map(), site: { title: '', link: '', description: '', hosts: new Set() }, run: null, lastSink: null };
 window.__ownd = S;
 
 // ===================================================================== header bits
@@ -438,9 +451,10 @@ function decodeText(u8) {
 const isZip = (u8) => u8.length > 3 && u8[0] === 0x50 && u8[1] === 0x4B;
 
 async function readInputs(fileList) {
-  const out = { xml: [], txt: [], skipped: [] };
+  const out = { xml: [], txt: [], skipped: [], entries: [] };
   async function take(name, u8, depth) {
     const base = name.split('/').pop();
+    out.entries.push({ path: name, size: u8.length, depth, zip: isZip(u8) });
     if (/(^|\/)__MACOSX\//.test(name) || base.startsWith('._') || base === '.DS_Store' || base === 'Thumbs.db') return;
     if (isZip(u8)) {
       if (depth > 2) { out.skipped.push(name); return; }
@@ -580,7 +594,7 @@ function slugify(s) {
 const safeSeg = (s) => /^[A-Za-z0-9_-]{1,80}$/.test(s);
 
 // ===================================================================== analysing
-function addIssue(level, title, list) { S.issues.push({ level, title, list: list || [] }); }
+function addIssue(level, title, list, code) { S.issues.push({ level, title, list: list || [], code: code || 'other' }); }
 
 function analyse(parsed) {
   S.items = []; S.cats = new Map(); S.images = new Map(); S.issues = []; S.site = { title: '', link: '', description: '', hosts: new Set() };
@@ -680,19 +694,20 @@ function analyse(parsed) {
   const empty = S.items.filter((x) => x.type !== 'attachment' && !x.content.replace(/<[^>]*>/g, '').trim() && !x.images.length && !/<iframe/i.test(x.content));
   const pw = S.items.filter((x) => x.password);
   const name = (x) => (x.title || '（題名なし）') + (x.date != null ? '（' + fmtDate(x.date) + '）' : '');
-  if (not.length) addIssue('warn', '題名のない記事が ' + not.length + ' 件あります。「（題名なし）」として作ります。', not.map(name));
-  if (nod.length) addIssue('warn', '日付のない記事が ' + nod.length + ' 件あります。一覧のいちばん後ろに並べます。', nod.map(name));
-  if (noId.length) addIssue('warn', '記事の番号が分からないものが ' + noId.length + ' 件あります。古いアドレスは引き継げないため、新しい番号を付けます。', noId);
-  if (dups.length) addIssue('info', '同じ番号の記事が2回出てきました（' + dups.length + ' 件）。文章の長いほうを使います。', dups);
-  if (empty.length) addIssue('info', '中身が空の記事が ' + empty.length + ' 件あります。書き出しに対応していない部品だけの記事かもしれません。', empty.map(name));
-  if (pw.length) addIssue('info', '合言葉（パスワード）付きの記事が ' + pw.length + ' 件あります。公開用のホームページには入れず、保存版にだけ入れます。', pw.map(name));
+  if (not.length) addIssue('warn', '題名のない記事が ' + not.length + ' 件あります。「（題名なし）」として作ります。', not.map(name), 'no_title');
+  if (nod.length) addIssue('warn', '日付のない記事が ' + nod.length + ' 件あります。一覧のいちばん後ろに並べます。', nod.map(name), 'no_date');
+  if (noId.length) addIssue('warn', '記事の番号が分からないものが ' + noId.length + ' 件あります。古いアドレスは引き継げないため、新しい番号を付けます。', noId, 'no_id');
+  if (dups.length) addIssue('info', '同じ番号の記事が2回出てきました（' + dups.length + ' 件）。文章の長いほうを使います。', dups, 'dup_id');
+  if (empty.length) addIssue('info', '中身が空の記事が ' + empty.length + ' 件あります。書き出しに対応していない部品だけの記事かもしれません。', empty.map(name), 'empty_body');
+  if (pw.length) addIssue('info', '合言葉（パスワード）付きの記事が ' + pw.length + ' 件あります。公開用のホームページには入れず、保存版にだけ入れます。', pw.map(name), 'password');
   const ext = [...S.images.values()].filter((i) => !CDN_HOST.test(hostOf(i.url)));
   const insta = ext.filter((i) => /cdninstagram|fbcdn|instagram\.com|facebook\.com/i.test(i.url));
-  if (insta.length) addIssue('warn', 'Instagram・Facebook の写真が ' + insta.length + ' 枚あります。これらは外のサービスの写真なので、保存できないことがあります。元の写真は Instagram・Facebook に残っています。', insta.slice(0, 20).map((i) => i.url));
-  if (ext.length - insta.length > 0) addIssue('info', 'Ameba Ownd 以外の場所にある写真が ' + (ext.length - insta.length) + ' 枚あります。置き場によっては保存できません。', ext.filter((i) => !insta.includes(i)).slice(0, 20).map((i) => i.url));
+  if (insta.length) addIssue('warn', 'Instagram・Facebook の写真が ' + insta.length + ' 枚あります。これらは外のサービスの写真なので、保存できないことがあります。元の写真は Instagram・Facebook に残っています。', insta.slice(0, 20).map((i) => i.url), 'sns_images');
+  if (ext.length - insta.length > 0) addIssue('info', 'Ameba Ownd 以外の場所にある写真が ' + (ext.length - insta.length) + ' 枚あります。置き場によっては保存できません。', ext.filter((i) => !insta.includes(i)).slice(0, 20).map((i) => i.url), 'other_host_images');
   const base = S.items.filter((x) => /\b(base\.shop|thebase\.in|base\.ec|thebase\.com)\b/i.test(x.content || ''));
-  if (base.length) addIssue('info', 'BASE のショップへのリンクが ' + base.length + ' 件の記事にあります。リンク先の商品ページが見られるか確かめてください。', base.map(name));
-  if (otherTypes.size) addIssue('info', 'ほかの種類のデータ（' + [...otherTypes].map(([k, v]) => k + ' ' + v + '件').join('、') + '）は使いません。', []);
+  if (base.length) addIssue('info', 'BASE のショップへのリンクが ' + base.length + ' 件の記事にあります。リンク先の商品ページが見られるか確かめてください。', base.map(name), 'base_links');
+  S.otherTypes = otherTypes;
+  if (otherTypes.size) addIssue('info', 'ほかの種類のデータ（' + [...otherTypes].map(([k, v]) => k + ' ' + v + '件').join('、') + '）は使いません。', [], 'other_types');
   return { posts, pages };
 }
 
@@ -765,23 +780,24 @@ window.addEventListener('drop', (e) => e.preventDefault());
 async function handleFiles(files) {
   if (S.run && S.run.active) { $('loadMsg').innerHTML = '<div class="warnbox">保存の途中です。終わってから入れ直してください。</div>'; return; }
   $('loadMsg').innerHTML = '<p class="small" style="margin-top:10px">読み込んでいます…</p>';
-  $('summary').hidden = true; $('step2').hidden = true;
+  $('summary').hidden = true; $('step2').hidden = true; S.diagSrc = null; resetDiag();
   if (typeof JSZip === 'undefined') { $('loadMsg').innerHTML = '<div class="badbox">zip を読む部品が読み込めませんでした。インターネットにつながっているか確かめて、ページを読み込み直してください。</div>'; return; }
   try {
     const got = await readInputs(files);
-    const parsed = []; const fileNotes = [];
+    const parsed = []; const fileNotes = []; const diagXml = []; const diagTxt = [];
     for (const x of got.xml) {
       let doc = parseXmlDoc(x.text); let how = '';
       if (!doc) { doc = parseXmlDoc(repairXml(x.text)); how = doc ? 'repaired' : ''; }
       let data = doc ? domItems(doc) : null;
       if (!data || (!data.items.length && /<item[\s>]/.test(x.text))) { data = lenientItems(x.text); how = 'lenient'; }
-      if (how === 'repaired') fileNotes.push(x.name + ' は形が少し崩れていたので、直して読みました。');
-      if (how === 'lenient') fileNotes.push(x.name + ' は形が崩れていたので、読める部分だけ読みました（' + data.items.length + ' 件）。');
+      if (how === 'repaired') fileNotes.push([x.name + ' は形が少し崩れていたので、直して読みました。', 'xml_repaired']);
+      if (how === 'lenient') fileNotes.push([x.name + ' は形が崩れていたので、読める部分だけ読みました（' + data.items.length + ' 件）。', 'xml_partial']);
       parsed.push({ name: x.name, data });
+      diagXml.push({ path: x.path, bytes: x.bytes, how: how || 'ok', items: data.items.length });
     }
     for (const x of got.txt) {
       const data = parseMT(x.text);
-      if (data) { parsed.push({ name: x.name, data }); fileNotes.push(x.name + ' は Amebaブログ用の形として読みました。記事の番号が入っていないため、古いアドレスは引き継げません。'); }
+      if (data) { parsed.push({ name: x.name, data }); fileNotes.push([x.name + ' は Amebaブログ用の形として読みました。記事の番号が入っていないため、古いアドレスは引き継げません。', 'ameba_text']); diagTxt.push({ path: x.path, bytes: x.bytes, items: data.items.length }); }
       else got.skipped.push(x.path);
     }
     S.files = [...got.xml, ...got.txt.filter((x) => parsed.some((p) => p.name === x.name))].map((x) => ({ name: x.name, path: x.path, bytes: x.bytes }));
@@ -790,8 +806,9 @@ async function handleFiles(files) {
       return;
     }
     const { posts, pages } = analyse(parsed);
-    if (got.skipped.length) addIssue('info', '記事ではないファイルは読みませんでした（' + got.skipped.length + ' 個）。', got.skipped.slice(0, 20));
-    for (const n of fileNotes) addIssue('warn', n, []);
+    if (got.skipped.length) addIssue('info', '記事ではないファイルは読みませんでした（' + got.skipped.length + ' 個）。', got.skipped.slice(0, 20), 'skipped_files');
+    for (const [n, code] of fileNotes) addIssue('warn', n, [], code);
+    S.diagSrc = { entries: got.entries, xml: diagXml, txt: diagTxt };
     $('loadMsg').innerHTML = '<div class="okbox">' + esc(parsed.length) + ' 個のファイルを読みました。' + (S.site.title ? '「' + esc(S.site.title) + '」' : '') + '</div>';
     renderSummary(posts, pages);
     prepareStep2();
@@ -825,6 +842,443 @@ function renderSummary(posts, pages) {
   $('summary').hidden = false;
 }
 const byDate = (a, b) => (b.date == null) - (a.date == null) || (b.date || 0) - (a.date || 0) || String(b.id).localeCompare(String(a.id), undefined, { numeric: true });
+
+// ===================================================================== format diagnosis (structure only, never content)
+// Shares the SHAPE of the export (element names, counts, URL/date patterns) so the author can fix the reader
+// without seeing any title, text, slug, name, site name or domain. Values are never copied; they are reduced
+// to placeholders ({n} digits, {hex} hex runs, {x} anything else) or to a fixed vocabulary.
+const TOOL_VERSION = '2026-11-16';
+const DIAG_WORDS = new Set(('images image img imgs pic pics picture pictures sites site madrid prd stg dev web posts post pages page files file uploads upload ' +
+  'wp content contents media photos photo original orig large medium small thumb thumbs thumbnail thumbnails resize resized static assets asset cdn embed ' +
+  'watch user users blog blogs entry entries categories category tags tag item items shop shops products product export exports index view video videos ' +
+  'www amebaownd ameba ownd wordpress wxr xml zip txt data backup feed rss json html htm php jpg jpeg png gif webp svg avif heic heif bmp mp4 mov pdf ' +
+  'default public stat scontent lh pbs cdninstagram fbcdn wp-content stg api v1 v2 article articles news archive archives attachment attachments ' +
+  'download downloads amp maxresdefault hqdefault vi player plugins utf part macosx readme').split(' '));
+const PUBLIC_HOSTS = ['amebaowndme.com', 'amebaownd.com', 'themedia.jp', 'localinfo.jp', 'storeinfo.jp', 'shopinfo.jp', 'theblog.me', 'ameba.jp', 'ameblo.jp',
+  'amebame.com', 'youtube.com', 'youtu.be', 'youtube-nocookie.com', 'ytimg.com', 'google.com', 'google.co.jp', 'googleusercontent.com', 'ggpht.com',
+  'gstatic.com', 'googleapis.com', 'instagram.com', 'cdninstagram.com', 'facebook.com', 'fbcdn.net', 'twitter.com', 'x.com', 'twimg.com', 'line.me',
+  'line-scdn.net', 'wp.com', 'wordpress.com', 'wordpress.org', 'imgur.com', 'flickr.com', 'staticflickr.com', 'cloudfront.net', 'amazonaws.com',
+  'amazon.co.jp', 'amazon.com', 'media-amazon.com', 'thebase.in', 'base.shop', 'base.ec', 'thebase.com', 'baseec-img-mng.akamaized.net', 'akamaized.net',
+  'vimeo.com', 'vimeocdn.com', 'spotify.com', 'soundcloud.com', 'note.com', 'tiktok.com', 'pinterest.com', 'pinimg.com', 'rakuten.co.jp', 'hatena.ne.jp',
+  'fc2.com', 'yahoo.co.jp', 'yimg.jp', 'purl.org', 'wellformedweb.org', 'w3.org', 'ogp.me', 'schema.org', 'maps.google.com', 'goo.gl', 'bit.ly']
+  .sort((a, b) => b.length - a.length);
+const OWND_FAMILY = /(?:^|\.)(amebaownd\.com|themedia\.jp|localinfo\.jp|storeinfo\.jp|shopinfo\.jp|theblog\.me)$/i;
+const KNOWN_NS_HOST = /^(wordpress\.org|purl\.org|wellformedweb\.org|www\.w3\.org|w3\.org|search\.yahoo\.com|www\.itunes\.com|www\.georss\.org|ogp\.me|schema\.org)$/i;
+let diagSite = new Set();
+let diagText = '';
+
+const countUp = (m, k, n) => { m.set(k, (m.get(k) || 0) + (n == null ? 1 : n)); };
+function fmtCounts(m, limit) {
+  const a = [...m].sort((x, y) => y[1] - x[1] || String(x[0]).localeCompare(String(y[0])));
+  const lim = limit || 30;
+  if (!a.length) return 'なし';
+  return a.slice(0, lim).map(([k, v]) => k + ' ' + v).join(', ') + (a.length > lim ? ', ほか ' + (a.length - lim) + ' 種類' : '');
+}
+function tokShape(t) {
+  if (!t) return t;
+  if (/^\d+$/.test(t)) return '{n}';
+  if (/^[0-9a-f]{6,}$/i.test(t) && /\d/.test(t) && /[a-f]/i.test(t)) return '{hex}';
+  if (/^[A-Za-z]$/.test(t) || DIAG_WORDS.has(t.toLowerCase())) return t;
+  const m = t.match(/^([A-Za-z]+)(\d+)$/);
+  if (m && DIAG_WORDS.has(m[1].toLowerCase())) return m[1] + '{n}';
+  return '{x}';
+}
+function segShape(seg) {
+  let s = String(seg || '');
+  try { s = decodeURIComponent(s); } catch (e) { /* keep as is */ }
+  return s.split(/([._~+\- ]+)/).map((t, i) => (i % 2 ? t.replace(/ +/g, ' ') : tokShape(t))).join('')
+    .replace(/\{x\}(?:[._~+\- ]+\{x\})+/g, '{x}').replace(/\{n\}(?:[._~+\- ]+\{n\}){2,}/g, '{n}…').slice(0, 60);
+}
+const pathShape = (p) => String(p || '').split('/').map(segShape).join('/').slice(0, 140);
+function isSiteHost(h) { return diagSite.has(h.replace(/^www\./, '')); }
+function hostShape(h) {
+  h = String(h || '').toLowerCase().replace(/:\d+$/, '').replace(/\.$/, '');
+  if (!h) return '(なし)';
+  const fam = h.match(OWND_FAMILY);
+  if (isSiteHost(h)) return fam ? '{このサイト}.' + fam[1] : '{このサイト・独自ドメイン}';
+  if (fam && h !== fam[1] && h !== 'www.' + fam[1]) return '{ほかのサイト}.' + fam[1];
+  const pub = PUBLIC_HOSTS.find((d) => h === d || h.endsWith('.' + d));
+  if (pub) { const sub = h.slice(0, h.length - pub.length).replace(/\.$/, ''); return (sub ? sub.split('.').map(segShape).join('.') + '.' : '') + pub; }
+  if (/^[\d.]+$/.test(h) || /^\[/.test(h)) return '{IPアドレス}';
+  return '{ほかのサイト}';
+}
+function qShape(p, keepValues) {
+  const keys = [...p.searchParams.keys()];
+  if (!keys.length) return p.search === '?' ? '?' : '';
+  const out = [];
+  for (const k of keys) {
+    const kk = /^[A-Za-z_][\w.-]{0,20}$/.test(k) ? k : '{k}';
+    const v = p.searchParams.get(k) || '';
+    const s = kk + '=' + (keepValues && /^[\w.-]{1,20}$/.test(v) ? v : (/^\d+$/.test(v) ? '{n}' : '…'));
+    if (!out.includes(s)) out.push(s);
+  }
+  return '?' + out.join('&');
+}
+function urlShape(u, keepQueryValues) {
+  u = String(u || '').trim();
+  if (!u) return '(空)';
+  if (/^data:/i.test(u)) { const m = u.match(/^data:([a-z]+\/[a-z0-9.+-]{1,30})/i); return 'data:' + (m ? m[1] : '') + '…'; }
+  let scheme = ''; let x = u;
+  if (u.startsWith('//')) { scheme = '//'; x = 'https:' + u; }
+  else if (/^https?:\/\//i.test(u)) scheme = u.slice(0, u.indexOf('//') + 2).toLowerCase();
+  else if (/^[a-z][a-z0-9+.-]{0,15}:/i.test(u)) return u.match(/^[a-z][a-z0-9+.-]{0,15}:/i)[0].toLowerCase() + '…';
+  else {
+    let p; try { p = new URL(u, 'https://relative.invalid/'); } catch (e) { return '{読めない形}'; }
+    return '(相対)' + (u.startsWith('/') ? '' : './') + pathShape(u.startsWith('/') ? p.pathname : p.pathname.slice(1)) + qShape(p) + (p.hash ? '#…' : '');
+  }
+  let p; try { p = new URL(x); } catch (e) { return '{読めない形}'; }
+  const hs = hostShape(p.host);
+  return scheme + hs + pathShape(p.pathname) + qShape(p, keepQueryValues && !hs.startsWith('{')) + (p.hash ? '#…' : '');
+}
+function dateShape(v) {
+  v = String(v || '').trim();
+  if (!v) return '(空)';
+  if (v.length > 40 || !/\d/.test(v) || /[^\x20-\x7E]/.test(v)) return '(ほかの形)';
+  let s = v.replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\b/g, '\u0001').replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/g, '\u0002')
+    .replace(/\b[AaPp][Mm]\b/g, '\u0003');
+  s = s.replace(/(\d)T(\d)/g, '$1\u0004$2').replace(/(\d)Z$/, '$1\u0005').replace(/[A-Za-z]+/g, (w) => (/^(GMT|UTC|JST)$/.test(w) ? w : 'a'))
+    .replace(/\u0004/g, 'T').replace(/\u0005/g, 'Z');
+  const runs = s.match(/\d+/g) || [];
+  const four = runs.findIndex((r) => r.length === 4);
+  const names = four === 0 ? ['YYYY', 'MM', 'DD', 'hh', 'mm', 'ss'] : four === 1 ? ['DD', 'YYYY', 'hh', 'mm', 'ss'] : four === 2 ? ['MM', 'DD', 'YYYY', 'hh', 'mm', 'ss'] : [];
+  let i = 0;
+  s = s.replace(/\d+/g, (d) => { const nm = names[i++]; if (nm && d.length === nm.length) return nm; if (nm && d.length === 1 && nm.length === 2) return nm[0]; return 'n'.repeat(Math.min(d.length, 6)); });
+  return s.replace(/\u0001/g, 'Www').replace(/\u0002/g, 'Mmm').replace(/\u0003/g, 'AM/PM');
+}
+function valKind(v) {
+  v = String(v == null ? '' : v).trim();
+  if (!v) return '空';
+  if (/^-?\d+$/.test(v)) return v === '0' ? '0' : '数字' + v.replace('-', '').length + '桁';
+  if (/^(https?:)?\/\//i.test(v)) return 'URL';
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(v) || /^[A-Z][a-z]{2}, \d{1,2} [A-Z][a-z]{2} \d{4}/.test(v)) return '日付';
+  return '文';
+}
+function slugKind(v) {
+  v = String(v || '').trim();
+  if (!v) return '空';
+  if (/^\d+$/.test(v)) return '数字';
+  if (/%[0-9a-f]{2}/i.test(v)) return '%で符号化';
+  if (/^[A-Za-z0-9_-]+$/.test(v)) return '英数字';
+  return '日本語など';
+}
+const enumVal = (v) => { v = String(v == null ? '' : v).trim(); return !v ? '空' : /^[A-Za-z0-9_-]{1,24}$/.test(v) ? v : '{その他}'; };
+const safeName = (n) => (/^[A-Za-z_][\w.:-]{0,40}$/.test(n) ? n : '{名前}');
+const attrName = (n) => { n = String(n).toLowerCase(); return /^[a-z][a-z0-9:_-]{0,30}$/.test(n) ? n : '{名前}'; };
+const qn = (el) => safeName(el.prefix ? el.prefix + ':' + el.localName : el.localName);
+const metaKey = (k) => { k = String(k || '').trim(); return !k ? '空' : /^[A-Za-z0-9_:.-]{1,40}$/.test(k) ? k : '{その他}'; };
+const sizeShape = (n) => fmtBytes(n).replace(' バイト', ' B');
+
+const URL_F = new Set(['link', 'guid', 'wp:attachment_url', 'comments', 'wfw:commentRss']);
+const DATE_F = new Set(['pubDate', 'wp:post_date', 'wp:post_date_gmt', 'wp:post_modified', 'wp:post_modified_gmt', 'dc:date', 'lastBuildDate']);
+const ENUM_F = new Set(['wp:status', 'wp:post_type', 'wp:comment_status', 'wp:ping_status', 'wp:is_sticky']);
+function fieldShape(q, v) {
+  if (URL_F.has(q)) return urlShape(v);
+  if (DATE_F.has(q)) return dateShape(v);
+  if (ENUM_F.has(q)) return enumVal(v);
+  if (q === 'wp:post_name') return slugKind(v);
+  return valKind(v);
+}
+function nsShape(uri) {
+  const u = String(uri || '').trim();
+  try { const p = new URL(u); if (KNOWN_NS_HOST.test(p.host) && /^https?:\/\/[\w./-]{1,80}$/.test(u)) return u; } catch (e) { /* not a URL */ }
+  return urlShape(u);
+}
+function parseErrorShape(text) {
+  const d = new DOMParser().parseFromString(text, 'application/xml');
+  const pe = d.getElementsByTagName('parsererror')[0];
+  if (!pe) return '';
+  const m = pe.textContent.replace(/\s+/g, ' ');
+  const lc = m.match(/line (\d+) at column (\d+)/);
+  const kind = m.replace(/^.*?line \d+ at column \d+:\s*/, '').replace(/Below is a rendering.*$/, '').replace(/'[^']*'/g, "'…'").replace(/"[^"]*"/g, '"…"')
+    .replace(/[^A-Za-z0-9 :;,.()'"…_-]/g, '').trim().slice(0, 90);
+  return (lc ? lc[1] + '行目 ' + lc[2] + '文字目: ' : '') + kind;
+}
+
+function newAcc() {
+  return {
+    files: [], roots: new Map(), ns: new Map(), chKids: new Map(), chNested: new Map(), chVals: new Map(), items: 0, fields: new Map(), types: new Map(),
+    status: new Map(), typeStatus: new Map(), catDomains: new Map(), catNice: new Map(), catAttrs: new Map(), metaKeys: new Map(), lenientTags: new Map(),
+    entities: new Map(), contentWrap: new Map(),
+  };
+}
+function diagRaw(text, bytes, A, F) {
+  F.bom = bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF ? 'UTF-8 の BOM あり' : (bytes[0] === 0xFF && bytes[1] === 0xFE) || (bytes[0] === 0xFE && bytes[1] === 0xFF) ? 'UTF-16 の BOM あり' : 'BOM なし';
+  const decl = text.slice(0, 400).match(/<\?xml[^>]*\?>/);
+  const enc = decl && (decl[0].match(/encoding\s*=\s*["']([\w.:-]{1,20})["']/i) || [])[1];
+  F.decl = decl ? '宣言あり' + (enc ? ' encoding=' + enc : '') : '宣言なし';
+  F.eol = /\r\n/.test(text.slice(0, 200000)) ? 'CRLF' : /\n/.test(text.slice(0, 200000)) ? 'LF' : '改行なし';
+  F.doctype = /<!DOCTYPE/i.test(text.slice(0, 3000));
+  const noCdata = text.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+  F.comments = (noCdata.match(/<!--/g) || []).length;
+  F.ctrl = (text.match(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g) || []).length;
+  F.bareAmp = (noCdata.match(/&(?!(?:[a-zA-Z][a-zA-Z0-9]*|#\d+|#x[0-9a-fA-F]+);)/g) || []).length;
+  for (const m of noCdata.matchAll(/&([a-zA-Z][a-zA-Z0-9]{0,15});/g)) if (!/^(amp|lt|gt|quot|apos)$/.test(m[1])) countUp(A.entities, '&' + m[1] + ';');
+  const used = new Set([...noCdata.matchAll(/<\/?([A-Za-z_][\w.-]{0,20}):[A-Za-z_]/g)].map((m) => m[1]));
+  const declared = new Set([...noCdata.matchAll(/xmlns:([\w.-]{1,20})\s*=/g)].map((m) => m[1]));
+  F.undeclared = [...used].filter((p) => !declared.has(p) && p !== 'xml').map(safeName);
+  const close = text.lastIndexOf('</rss>');
+  F.trailing = close >= 0 && /\S/.test(text.slice(close + 6).replace(/<!--[\s\S]*?-->/g, ''));
+  countUp(A.contentWrap, 'CDATA', (text.match(/<content:encoded>\s*<!\[CDATA\[/g) || []).length);
+  countUp(A.contentWrap, '文字の置き換え(&lt;)', (text.match(/<content:encoded>\s*&lt;/g) || []).length);
+  countUp(A.contentWrap, '空', (text.match(/<content:encoded\s*\/>|<content:encoded>\s*(<!\[CDATA\[\s*\]\]>\s*)?<\/content:encoded>/g) || []).length);
+  return noCdata;
+}
+function diagDoc(doc, A) {
+  const root = doc.documentElement;
+  const ver = root.getAttribute('version');
+  countUp(A.roots, qn(root) + (ver && /^[\d.]{1,6}$/.test(ver) ? ' version=' + ver : ''));
+  for (const a of root.attributes) if (/^xmlns(:|$)/.test(a.name)) A.ns.set(safeName(a.name.replace(/^xmlns:?/, '')) || '(既定)', nsShape(a.value));
+  const ch = kids(root, 'channel')[0] || root.getElementsByTagName('channel')[0] || root;
+  for (const c of ch.children) {
+    const q = qn(c);
+    if (q === 'item') continue;
+    countUp(A.chKids, q);
+    if (c.children.length) { for (const cc of c.children) countUp(A.chNested, q + ' > ' + qn(cc)); continue; }
+    const v = c.textContent.trim();
+    let shape;
+    if (q === 'link' || q === 'wp:base_site_url' || q === 'wp:base_blog_url') shape = urlShape(v);
+    else if (q === 'wp:wxr_version') shape = /^[\d.]{1,8}$/.test(v) ? v : valKind(v);
+    else if (q === 'language') shape = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(v) ? v : valKind(v);
+    else if (q === 'generator') shape = /^(https?:)?\/\//i.test(v) ? urlShape(v, true) : valKind(v);
+    else if (DATE_F.has(q)) shape = dateShape(v);
+    else shape = valKind(v);
+    countUp(A.chVals, q + ' = ' + shape);
+  }
+  const items = kids(ch, 'item').length ? kids(ch, 'item') : [...doc.getElementsByTagName('item')];
+  A.items += items.length;
+  for (const it of items) {
+    const seen = new Set();
+    let type = null; let status = null;
+    for (const c of it.children) {
+      const q = qn(c);
+      let f = A.fields.get(q);
+      if (!f) { f = { n: 0, items: 0, filled: 0, kinds: new Map(), attrs: new Map(), kids: new Map() }; A.fields.set(q, f); }
+      f.n++;
+      if (!seen.has(q)) { f.items++; seen.add(q); }
+      for (const a of c.attributes) countUp(f.attrs, safeName(a.name));
+      if (c.children.length) { f.filled++; for (const cc of c.children) countUp(f.kids, qn(cc)); }
+      else { const v = c.textContent; if (v.trim()) f.filled++; countUp(f.kinds, fieldShape(q, v)); }
+      if (q === 'wp:post_type') type = c.textContent;
+      if (q === 'wp:status') status = c.textContent;
+      if (q === 'category') {
+        countUp(A.catDomains, c.hasAttribute('domain') ? enumVal(c.getAttribute('domain')) : '(domain なし)');
+        countUp(A.catNice, c.hasAttribute('nicename') ? slugKind(c.getAttribute('nicename')) : '(nicename なし)');
+      }
+      if (q === 'wp:postmeta') { const k = kids(c, 'wp:meta_key')[0]; countUp(A.metaKeys, k ? metaKey(k.textContent) : '(meta_key なし)'); }
+    }
+    const t = type == null ? '(post_type なし)' : enumVal(type);
+    const s = status == null ? '(status なし)' : enumVal(status);
+    countUp(A.types, t); countUp(A.status, s); countUp(A.typeStatus, t + '/' + s);
+  }
+}
+function diagLenient(noCdata, A) {
+  for (const m of noCdata.matchAll(/<([A-Za-z_][\w.-]{0,30}(?::[A-Za-z_][\w.-]{0,30})?)[\s>/]/g)) countUp(A.lenientTags, safeName(m[1]));
+}
+function looksImageLink(u) { const c = canonUrl(u, true); return !!c && looksImage(c); }
+function diagHtml() {
+  const H = { items: 0, empty: 0, tags: new Map(), attrs: new Map(), refs: new Map(), iframes: new Map(), links: new Map(), imgUrls: new Set(), thumbs: 0 };
+  const addUrl = (u) => { if (u && H.imgUrls.size < 50000) H.imgUrls.add(u); };
+  for (const it of S.items) {
+    if (it.type === 'attachment') { if (it.url) { countUp(H.refs, 'attachment の item'); addUrl(it.url); } continue; }
+    H.items++;
+    if ((it.meta || []).some((m) => m.k === '_thumbnail_id')) H.thumbs++;
+    const c = it.content || '';
+    if (!c.trim()) { H.empty++; continue; }
+    const doc = new DOMParser().parseFromString('<!doctype html><body>' + c, 'text/html');
+    for (const el of doc.body.querySelectorAll('*')) {
+      const t = el.localName;
+      countUp(H.tags, /^[a-z][a-z0-9]{0,15}$/.test(t) ? t : t.includes('-') ? '{独自の部品}' : '{名前}');
+      for (const a of el.attributes) countUp(H.attrs, attrName(a.name));
+      if (t === 'img' || t === 'source' || t === 'input') {
+        if (el.getAttribute('src')) { countUp(H.refs, t + ' src'); addUrl(el.getAttribute('src')); }
+        for (const a of ['data-src', 'data-original', 'data-lazy-src']) if (el.getAttribute(a)) { countUp(H.refs, t + ' ' + a); addUrl(el.getAttribute(a)); }
+        for (const a of ['srcset', 'data-srcset']) if (el.getAttribute(a)) { countUp(H.refs, t + ' ' + a); for (const u of srcsetUrls(el.getAttribute(a))) addUrl(u); }
+      }
+      if (t === 'video' && el.getAttribute('poster')) { countUp(H.refs, 'video poster'); addUrl(el.getAttribute('poster')); }
+      const st = el.getAttribute('style');
+      if (st && /url\(/i.test(st)) for (const m of st.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)) { countUp(H.refs, 'style の背景 url()'); addUrl(m[2]); }
+      if (t === 'a' && el.getAttribute('href')) {
+        const h = el.getAttribute('href');
+        if (looksImageLink(h)) { countUp(H.refs, 'a href（写真へのリンク）'); addUrl(h); }
+        else { const c2 = canonUrl(h, true); const hs = c2 ? hostShape(hostOf(c2)) : ''; countUp(H.links, hs.startsWith('{このサイト') || !c2 ? urlShape(h) : hs); }
+      }
+      if ((t === 'iframe' || t === 'embed') && el.getAttribute('src')) { const c2 = canonUrl(el.getAttribute('src'), true); countUp(H.iframes, t + ' ' + (c2 ? hostShape(hostOf(c2)) + pathShape(new URL(c2).pathname).replace(/\/\{x\}$/, '/…') : urlShape(el.getAttribute('src')))); }
+    }
+    const textUrls = (doc.body.textContent.match(/https?:\/\/cdn\.amebaowndme\.com\/[^\s"'<>)]+/gi) || []);
+    if (textUrls.length) { countUp(H.refs, '本文の文字に直接（CDN のアドレス）', textUrls.length); textUrls.forEach(addUrl); }
+  }
+  if (H.thumbs) countUp(H.refs, 'アイキャッチ（_thumbnail_id）', H.thumbs);
+  // image hosts and path shapes
+  H.hosts = new Map(); H.shapes = new Map();
+  for (const u of H.imgUrls) {
+    const c = canonUrl(u, true);
+    if (!c) { countUp(H.hosts, urlShape(u).slice(0, 30)); continue; }
+    const p = new URL(c);
+    const hs = hostShape(p.host);
+    countUp(H.hosts, hs);
+    if (!H.shapes.has(hs)) H.shapes.set(hs, new Map());
+    countUp(H.shapes.get(hs), pathShape(p.pathname) + qShape(p));
+  }
+  return H;
+}
+function diagMT(text, M) {
+  M.files++;
+  M.eol.add(/\r\n/.test(text) ? 'CRLF' : 'LF');
+  for (const e of text.split(/^-{8}\s*$/m)) {
+    if (!/\S/.test(e)) continue;
+    M.entries++;
+    const secs = e.split(/^-{5}\s*$/m);
+    for (const line of secs[0].split(/\r?\n/)) {
+      const m = line.match(/^([A-Z][A-Z _]{0,30}):/);
+      if (!m) { if (line.trim()) M.otherLines++; continue; }
+      countUp(M.keys, m[1]);
+      const v = line.slice(m[0].length).trim();
+      if (m[1] === 'DATE') countUp(M.dates, dateShape(v));
+      if (/^(STATUS|ALLOW COMMENTS|ALLOW PINGS|CONVERT BREAKS)$/.test(m[1])) countUp(M.enums, m[1] + '=' + enumVal(v));
+    }
+    for (const s of secs.slice(1)) { if (!/\S/.test(s)) continue; const m = s.match(/^\s*([A-Z][A-Z _]{0,30}):/); countUp(M.sections, m ? m[1] : '(名前なし)'); }
+  }
+}
+
+function buildDiagnosis() {
+  const src = S.diagSrc;
+  // the site's own hosts (channel link, base URLs, links of posts/pages); attachment links point at the photo CDN, which is not the site
+  diagSite = new Set([...S.site.hosts, ...S.items.filter((x) => x.type !== 'attachment').map((x) => hostOf(x.link || ''))]
+    .map((h) => h.toLowerCase().replace(/^www\./, '')).filter((h) => h && !CDN_HOST.test(h)));
+  const L = [];
+  const today = jst(Date.now());
+  L.push('【形式の診断】Ameba Ownd 引っ越し道具（ownd.html 版 ' + TOOL_VERSION + '）');
+  L.push('診断した日: ' + today.y + '-' + String(today.m).padStart(2, '0') + '-' + String(today.d).padStart(2, '0') + ' ／ 中身（題名・文章・アドレス・名前・サイト名）は入っていません。数と形だけです。');
+  L.push('記号: {n}=数字 {hex}=英数字の並び {x}=文字（伏せています） {このサイト}=あなたのサイトのアドレス');
+  // files
+  const readXml = new Map(src.xml.map((x) => [x.path, x]));
+  const readTxt = new Set(src.txt.map((x) => x.path));
+  L.push('', '■ ファイル（' + src.entries.length + ' 個）');
+  for (const e of src.entries.slice(0, 40)) {
+    const base = e.path.split('/').pop();
+    const junk = /(^|\/)__MACOSX\//.test(e.path) || base.startsWith('._') || base === '.DS_Store' || base === 'Thumbs.db';
+    const x = readXml.get(e.path);
+    const what = e.zip ? 'zip' : junk ? '付属ファイル（無視）' : x ? 'XML として読んだ（' + { ok: 'そのまま', repaired: '直して読んだ', lenient: '崩れていて一部だけ' }[x.how] + '・item ' + x.items + '）' : readTxt.has(e.path) ? 'Amebaブログ用として読んだ' : '読まなかった';
+    L.push('- ' + '  '.repeat(Math.min(e.depth, 3)) + pathShape(e.path) + '  ' + sizeShape(e.size) + '  ' + what);
+  }
+  if (src.entries.length > 40) L.push('- ほか ' + (src.entries.length - 40) + ' 個');
+  // XML structure
+  if (src.xml.length) {
+    const A = newAcc();
+    for (const x of src.xml) {
+      const text = decodeText(x.bytes);
+      const F = { how: x.how };
+      const noCdata = diagRaw(text, x.bytes, A, F);
+      let doc = parseXmlDoc(text);
+      if (!doc) { F.error = parseErrorShape(text); doc = parseXmlDoc(repairXml(text)); }
+      if (doc) diagDoc(doc, A); else diagLenient(noCdata, A);
+      A.files.push(F);
+    }
+    L.push('', '■ XML の形（' + src.xml.length + ' 個の合計）');
+    A.files.forEach((F, i) => L.push('- ' + (i + 1) + '個目: ' + F.decl + '・' + F.bom + '・改行 ' + F.eol + (F.doctype ? '・DOCTYPE あり' : '') + (F.comments ? '・コメント ' + F.comments : '') +
+      (F.ctrl ? '・制御文字 ' + F.ctrl : '') + (F.bareAmp ? '・裸の & ' + F.bareAmp : '') + (F.undeclared.length ? '・宣言のない接頭辞 ' + F.undeclared.join(' ') : '') + (F.trailing ? '・終わりの後に余分な文字' : '') +
+      (F.error ? '・読めなかった場所 ' + F.error : '')));
+    L.push('root: ' + fmtCounts(A.roots));
+    L.push('名前空間: ' + ([...A.ns].map(([k, v]) => k + '=' + v).join(' ') || 'なし'));
+    if (A.entities.size) L.push('XML の外で使われた文字参照: ' + fmtCounts(A.entities, 15));
+    L.push('channel の中の要素: ' + fmtCounts(A.chKids, 40));
+    if (A.chNested.size) L.push('channel の中の入れ子: ' + fmtCounts(A.chNested, 40));
+    L.push('channel の値の形: ' + fmtCounts(A.chVals, 30));
+    if (A.lenientTags.size) L.push('（崩れていて読めなかったファイルの要素名）: ' + fmtCounts(A.lenientTags, 40));
+    L.push('', '■ item（' + A.items + ' 件）');
+    L.push('post_type: ' + fmtCounts(A.types));
+    L.push('status: ' + fmtCounts(A.status));
+    L.push('post_type/status: ' + fmtCounts(A.typeStatus));
+    L.push('item の中の要素（入っていた item の数 / 空でない数: 値の形）');
+    const fs = [...A.fields].sort((a, b) => b[1].items - a[1].items || a[0].localeCompare(b[0]));
+    for (const [q, f] of fs.slice(0, 60)) {
+      let s = '- ' + q + '  ' + f.items + '/' + f.filled + (f.n > f.items ? '（' + f.n + ' 回）' : '');
+      if (f.kinds.size) s += ': ' + fmtCounts(f.kinds, URL_F.has(q) ? 4 : 6);
+      if (f.attrs.size) s += ' ［属性 ' + fmtCounts(f.attrs, 8) + '］';
+      if (f.kids.size) s += ' ［中の要素 ' + fmtCounts(f.kids, 12) + '］';
+      L.push(s);
+    }
+    if (fs.length > 60) L.push('- ほか ' + (fs.length - 60) + ' 種類');
+    L.push('よく使う項目の有無: ' + ['wp:post_id', 'link', 'guid', 'wp:post_name', 'title', 'content:encoded', 'excerpt:encoded', 'wp:post_date', 'pubDate', 'category', 'wp:postmeta', 'wp:attachment_url', 'wp:post_parent']
+      .map((q) => q + ' ' + (A.fields.has(q) ? A.fields.get(q).items + '/' + A.items : 'なし')).join(', '));
+    if (A.catDomains.size) L.push('category の domain: ' + fmtCounts(A.catDomains) + ' ／ nicename: ' + fmtCounts(A.catNice));
+    if (A.metaKeys.size) L.push('postmeta の key: ' + fmtCounts(A.metaKeys, 30));
+    L.push('content:encoded の入れ方: ' + fmtCounts(new Map([...A.contentWrap].filter(([, v]) => v > 0))));
+  }
+  // Ameba blog text
+  if (src.txt.length) {
+    const M = { files: 0, entries: 0, keys: new Map(), sections: new Map(), dates: new Map(), enums: new Map(), otherLines: 0, eol: new Set() };
+    for (const x of src.txt) diagMT(decodeText(x.bytes), M);
+    L.push('', '■ Amebaブログ用テキスト（' + M.files + ' 個）');
+    L.push('記事の区切り（--------）で分けた数: ' + M.entries + ' ／ 改行 ' + [...M.eol].join('・'));
+    L.push('見出しの行の名前: ' + fmtCounts(M.keys, 30));
+    L.push('本文の区切り（-----）の後の名前: ' + fmtCounts(M.sections, 20));
+    if (M.dates.size) L.push('DATE の形: ' + fmtCounts(M.dates, 5));
+    if (M.enums.size) L.push('値: ' + fmtCounts(M.enums, 20));
+    if (M.otherLines) L.push('見出しの形でない行: ' + M.otherLines);
+  }
+  // HTML inside the posts
+  const H = diagHtml();
+  L.push('', '■ 記事の中の HTML（記事とページ ' + H.items + ' 件・空 ' + H.empty + ' 件）');
+  L.push('タグ: ' + fmtCounts(H.tags, 45));
+  L.push('属性の名前: ' + fmtCounts(H.attrs, 45));
+  L.push('写真の参照のしかた: ' + fmtCounts(H.refs));
+  if (H.iframes.size) L.push('埋め込み: ' + fmtCounts(H.iframes, 10));
+  if (H.links.size) L.push('リンクの行き先: ' + fmtCounts(H.links, 10));
+  L.push('', '■ 写真のアドレス（' + H.imgUrls.size + ' 種類）');
+  for (const [hs, n] of [...H.hosts].sort((a, b) => b[1] - a[1]).slice(0, 12)) {
+    L.push('- ' + hs + '  ' + n);
+    const sh = H.shapes.get(hs);
+    if (sh) for (const [p, k] of [...sh].sort((a, b) => b[1] - a[1]).slice(0, 5)) L.push('    ' + p + '  ' + k);
+  }
+  // what the tool did
+  const posts = S.items.filter((x) => x.type === 'post'); const pages = S.items.filter((x) => x.type === 'page');
+  const st = (list) => { const m = new Map(); for (const x of list) countUp(m, enumVal(x.status) + (x.password ? '(合言葉)' : '')); return m; };
+  const idFrom = new Map();
+  for (const x of [...posts, ...pages]) countUp(idFrom, /^item-/.test(x.id) ? '新しく付けた' : /\/(posts|pages)\/\d+/.test(x.link || '') ? 'link の /posts・/pages の番号' : 'wp:post_id');
+  const imgs = [...S.images.values()];
+  L.push('', '■ 道具が読み取った結果');
+  L.push('記事 ' + posts.length + '（' + fmtCounts(st(posts)) + '）／ 固定ページ ' + pages.length + '（' + fmtCounts(st(pages)) + '）／ 添付 ' + S.items.filter((x) => x.type === 'attachment').length +
+    ' ／ カテゴリ ' + S.cats.size + ' ／ 日付なし ' + S.items.filter((x) => x.type !== 'attachment' && x.date == null).length);
+  L.push('記事の番号の取り方: ' + fmtCounts(idFrom));
+  L.push('写真 ' + imgs.length + '（Ameba Ownd の置き場 ' + imgs.filter((i) => CDN_HOST.test(hostOf(i.url))).length + '）');
+  if (S.otherTypes.size) L.push('使わなかった種類: ' + fmtCounts(new Map([...S.otherTypes].map(([k, v]) => [enumVal(k), v]))));
+  L.push('気をつけること: ' + (S.issues.length ? S.issues.map((i) => i.code + (i.list.length ? ' ' + i.list.length : '')).join(', ') : 'なし'));
+  if (S.run && S.run.done != null) L.push('保存: ' + (S.run.done || 0) + ' 枚できた・' + (S.run.failed || 0) + ' 枚失敗');
+  let out = L.join('\n');
+  if (out.length > 9500) out = out.slice(0, 9400) + '\n…（長いので途中まで）';
+  return out;
+}
+
+function resetDiag() {
+  diagText = '';
+  if ($('diagOut')) $('diagOut').textContent = '';
+  if ($('diagMsg')) $('diagMsg').textContent = '';
+  if ($('diagBox')) $('diagBox').open = false;
+}
+function ensureDiag() {
+  if (!diagText && S.diagSrc) {
+    try { diagText = buildDiagnosis(); } catch (e) { console.error(e); diagText = '【形式の診断】作れませんでした（' + String((e && e.name) || 'Error').replace(/[^A-Za-z]/g, '') + '）・道具の版 ' + TOOL_VERSION; }
+    $('diagOut').textContent = diagText;
+  }
+  return diagText;
+}
+$('diagBox').addEventListener('toggle', () => { if ($('diagBox').open) ensureDiag(); });
+$('diagCopy').onclick = async (e) => {
+  const btn = e.currentTarget;
+  const t = ensureDiag();
+  let ok = false;
+  try { await navigator.clipboard.writeText(t); ok = true; } catch (err) {
+    try {
+      const r = document.createRange(); r.selectNodeContents($('diagOut'));
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      ok = document.execCommand('copy');
+    } catch (e2) { ok = false; }
+  }
+  $('diagMsg').textContent = ok ? 'コピーしました。X の返信か DM に貼り付けてください。' : 'コピーできませんでした。下の枠の文字を選んであります。Ctrl＋C（Mac は ⌘＋C）でコピーしてください。';
+  if (ok) { btn.textContent = 'コピーしました'; setTimeout(() => { btn.textContent = '診断をコピー'; }, 1600); }
+};
+S.diagnose = ensureDiag;
 
 // ===================================================================== step 2 options
 const SWATCHES = ['#1f6f5c', '#2f5d9e', '#8a3b5e', '#b4561c', '#5b4a9e', '#333333'];
@@ -1185,10 +1639,10 @@ function showResult(run) {
     let h = '<h3>公開用のホームページ</h3><div class="kpis res"><div class="kpi"><div class="k">ファイルの数</div><div class="v num">' + fmtNum(st.files) + '</div></div><div class="kpi"><div class="k">合計の大きさ</div><div class="v num">' + fmtBytes(st.total) + '</div></div><div class="kpi"><div class="k">いちばん大きいファイル</div><div class="v num">' + fmtBytes(st.max) + '</div><div class="s path">' + esc(st.maxPath.replace(/^公開用\//, '')) + '</div></div></div>';
     const w = [];
     if (st.files > 20000) w.push('ファイルが2万個を超えています。Cloudflare Pages の無料の上限（1サイト2万ファイル）を超えるため、写真を小さくしても入りません。記事一覧の件数を増やすか、サイトを分けてください。');
-    else if (st.files > 1000) w.push('ファイルが1,000個を超えています。Cloudflare Pages の画面からドラッグで入れられるのは1,000ファイルまで（zip でも同じ）なので、<b>Netlify Drop</b> を試してください（ファイル数の上限は公表されていません。こちらでも大きなサイトではまだ試していません）。うまくいかないときは、X の @ViewsEngineer に件数を添えて知らせてください。');
+    else if (st.files > 1000) w.push('ファイルが1,000個を超えています。Cloudflare Pages の画面からドラッグで入れられるのは1,000ファイルまで（zip でも同じ）なので、<b>Netlify Drop</b> を使ってください（1,801ファイル・540MBで表示を確認（2026年11月））。ログインせずに入れると1時間で消える仮公開になるので、画面の「Claim this site」から無料アカウントを作って引き取ってください。1ファイルが10MBを超えると、Netlify Drop では止まることがあります。無料枠は月300クレジット（転送量1GBで20クレジット）で、使い切ると翌月までサイトが止まります。うまくいかないときは、X の @ViewsEngineer に件数を添えて知らせてください。');
     if (st.max > 25 * 1024 * 1024) w.push('25MB を超えるファイルがあります。Cloudflare Pages には入りません。写真を小さくする設定を選んで、作り直してください。');
-    else if (st.max > 10 * 1024 * 1024) w.push('10MB を超えるファイルがあります。Netlify Drop では入らないことがあります。Cloudflare Pages（1ファイル25MBまで）を使ってください。');
-    if (st.total > 50 * 1024 * 1024) w.push('合計が50MB を超えています。Netlify Drop のドラッグでは入らないことがあります。Cloudflare Pages をおすすめします。');
+    else if (st.max > 10 * 1024 * 1024) w.push('10MB を超えるファイルがあります。Netlify Drop では止まることがあります。' + (st.files <= 1000 ? 'Cloudflare Pages（1ファイル25MBまで）を使ってください。' : '写真を小さくする設定（長い辺1600ピクセル以下）で作り直すと確実です。'));
+    if (st.total > 50 * 1024 * 1024 && st.files <= 1000) w.push('合計が50MB を超えています。Netlify Drop は50MB未満が最適とされているので、Cloudflare Pages をおすすめします。');
     if (!run.opts.baseUrl) w.push('公開先のアドレスを入れていないので、検索エンジン向けの一覧（sitemap.xml）は作っていません。公開先が決まったら、アドレスを入れてもう一度作ると入ります。');
     h += w.map((x) => '<div class="warnbox">' + x + '</div>').join('') || '<div class="okbox">Cloudflare Pages にも Netlify Drop にも、そのままドラッグで入れられる大きさです。</div>';
     $('siteStats').innerHTML = h;
