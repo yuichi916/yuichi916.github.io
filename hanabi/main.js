@@ -218,7 +218,7 @@ function beginRun(o = {}) {
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
   S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
-  S.run.rv = 3; // 決まりの版 2: 囲い / 3: 天の川の夜
+  S.run.rv = 4; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
@@ -290,7 +290,7 @@ function startNight(resume = null) {
   S.pan = 0; S.panY = 0; S.drag = null; S.panIntro = def.grand && !resume ? 2.4 : 0;
   { const wr = ((def.world - 1) % 3) + 1, hq = !def.endless && wr === 3 && def.night === 5 && lore() >= 2; document.body.classList.toggle('hudq', hq);
     if (hq && !resume) setTimeout(() => banner(`${tr('札隠し', 'NUMBERS HIDDEN')}<small>${tr('今夜は、数が見えない。……数えなくても、わかるはず', 'Tonight the numbers hide. ...You can feel it without counting.')}</small>`, 58, 2600), 900); }
-  if (!resume) nightCard(def);
+  if (!resume) { if (def.rule) { const st0 = S.st; clearTimeout(S.ncD); S.ncD = setTimeout(() => { if (S.st === st0) nightCard(def); }, 4400); } else nightCard(def); } /* 大一番は静かな間と名前のあとに */
   PF.ev('night_start', { idx: (def.world - 1) * 8 + def.night, world: def.world, night: def.night, boss: def.boss ? 1 : 0, retry: S.run.retry || 0, target: def.target, assist: S.run.assist ? 1 : 0 });
   show('none'); $('hud').classList.remove('hidden');
   $('nWorld').textContent = (JA() ? W2.ja : W2.en) + (def.endless ? tr(`・千秋楽 ${def.world - Run.WORLDS.length} 巡`, ` · Encore ${def.world - Run.WORLDS.length}`) : '');
@@ -298,7 +298,7 @@ function startNight(resume = null) {
   { const wr = ((def.world - 1) % 3) + 1, tot = (mem().nights || 0) + 1;
     if (!resume && !def.endless && wr === 1 && def.night === 1 && (DB.meta.runs || 0) >= 1) { $('nName').textContent = tr(`第 ${tot} 夜`, `Night ${tot}`); setTimeout(() => { if (S.st?.level === def) { $('nName').firstChild.textContent = tr(`第 ${def.night} 夜`, `Night ${def.night}`); } }, 700); }
     if (!def.endless && wr === 3 && def.night === 7 && lore() >= 2) { $('nName').textContent = tr(`第 ${tot} 夜`, `Night ${tot}`); const g = document.createElement('i'); g.className = 'goal'; g.textContent = tr('大一番まで あと ？ 夜', 'Boss in ?'); $('nName').append(g); S.noGoal = 1; } else S.noGoal = 0; }
-  { const nb = def.night < 4 ? 4 : def.night < 8 ? 8 : 0; if (nb && !def.endless && !S.noGoal) { const g = document.createElement('i'); g.className = 'goal'; g.textContent = tr(`大一番まで あと ${nb - def.night} 夜`, `Boss in ${nb - def.night}`); $('nName').append(g); } }
+  { const nb = def.night < 4 ? 4 : def.night < 8 ? 8 : 0; if (nb && !def.endless && !S.noGoal) { const g = document.createElement('i'); g.className = 'goal'; g.textContent = def.rule ? tr('今夜は大一番', 'Boss night') : tr(`大一番まで あと ${nb - def.night} 夜`, `Boss in ${nb - def.night}`); $('nName').append(g); } }
   $('gTarget').textContent = fmt(def.target);
   $('combo').classList.remove('on'); $('heat').className = 'heat';
   renderStrokes(); renderBags();
@@ -324,8 +324,10 @@ function startNight(resume = null) {
     else if (!def.endless && wr === 3 && def.night === 8 && lore() >= 3) taunt = { ja: `${(DB.meta.runs || 0) + 1} 度目の夏だな、灯。迎え火の主が待っている。`, en: `Your summer number ${(DB.meta.runs || 0) + 1}, Akari. The keeper of the welcoming fire is waiting.` };
     else if (lost >= 1) taunt = { ja: `わたしに ${lost} 度敗れて、まだ来るのね。`, en: `You fell to me ${lost} times, and still you come.` };
     const seals = (def.seals || []).map((x) => `<br><span class="seal">${tr('封じ', 'Seal')}「${JA() ? Run.SEALS[x].ja : Run.SEALS[x].en}」${JA() ? Run.SEALS[x].dj : Run.SEALS[x].de}</span>`).join('');
-    banner(`${JA() ? r.ja : r.en}<small>${JA() ? r.dj : r.de}${seals}${taunt ? `<br>「${JA() ? taunt.ja : taunt.en}」` : ''}</small>`, 62, taunt || seals ? 3600 : 2600);
-    audio.boom(1.4, 0);
+    // 演出の強弱: 静かな間（暗く・曲を引く）→ 一打と揺れで名前を叩きつける
+    const st0 = S.st, slam = () => { document.body.classList.remove('veil'); if (S.st !== st0) return; /* 間のうちに夜を出たら名前は出さない */ audio.boom(1.9, 0); R.shake = Math.max(R.shake, 14); R.flash = Math.max(R.flash, 0.25);
+      banner(`${JA() ? r.ja : r.en}<small>${JA() ? r.dj : r.de}${seals}${taunt ? `<br>「${JA() ? taunt.ja : taunt.en}」` : ''}</small>`, 62, taunt || seals ? 3600 : 2600); };
+    if (resume) slam(); else { document.body.classList.add('veil'); audio.duck(1.3, 0.12); audio.note(0, { vol: 0.12, dur: 0.9 }); setTimeout(slam, 900); }
   } else {
     boss.classList.add('hidden');
     if (nodeT) banner(`${JA() ? nodeT.ja : nodeT.en}<small>${tw ? (JA() ? tw.ja : tw.en) + ' ・ ' : ''}${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}<br>${JA() ? nodeT.dj : nodeT.de}</small>`, 60, 2400);
@@ -448,7 +450,7 @@ function achToast(a) {
 }
 function nightEnded() {
   const st = S.st, run = S.run, def = st.level;
-  hideTip(); PF.stop(); $('teach').classList.add('hidden'); ihenReset(); document.body.classList.remove('hudq');
+  hideTip(); PF.stop(); $('teach').classList.add('hidden'); ihenReset(); document.body.classList.remove('hudq', 'veil');
   $('combo').classList.remove('on'); $('heat').className = 'heat'; // 一筆の箱を夜のあとに残さない
   S.cnt = null; S.endAfterCount = false; S.shown = st.score; $('gScore').textContent = fmt(st.score); S.goalEl?.classList.remove('counting');
   if (st.cleared && (def.boss || G.starsFor(st) === 3)) PF.happy();
@@ -1266,7 +1268,7 @@ function nightCard(def) {
   else if (def.grand) items.push([tr('大仕掛け「火の滝」', 'Grand Set Piece: Fire Falls'), tr('盤は横に長い。線の先を画面の端へ運ぶと、盤が流れる。<br>右端の<b>滝の玉</b>へ、<b>一筆で 6 つ以上</b>ひらいてから火を届けると、火の滝が盤を流れ落ちる', 'The board is wide: move the line tip to the screen edge to scroll.<br>Open <b>6+ shells in one stroke</b>, then reach the <b>Falls shell</b> on the far right to unleash a waterfall of fire.')]);
   const tw = def.twist && Run.TWISTS[def.twist];
   if (tw && !def.twistHide) items.push([tr(`趣向「${tw.ja}」`, `Twist: ${tw.en}`), JA() ? tw.dj : tw.de]);
-  for (const x of def.seals || []) { const z = Run.SEALS[x]; if (z) items.push([tr(`封じ「${z.ja}」`, `Seal: ${z.en}`), JA() ? (z.dj || '') : (z.de || '')]); }
+  for (const x of def.rule ? [] : def.seals || []) { const z = Run.SEALS[x]; /* 大一番の封じは名前の札で言う */ if (z) items.push([tr(`封じ「${z.ja}」`, `Seal: ${z.en}`), JA() ? (z.dj || '') : (z.de || '')]); }
   if (!items.length) { el.classList.add('hidden'); return; }
   el.innerHTML = items.slice(0, 2).map(([a, b]) => `<div class="nc"><h3>${a}</h3><p>${b}</p></div>`).join('') + `<small>${tr('触れると閉じる', 'Tap to close')}</small>`;
   el.classList.remove('hidden'); clearTimeout(S.ncT); S.ncT = setTimeout(() => el.classList.add('hidden'), def.grand ? 5200 : 3600);
