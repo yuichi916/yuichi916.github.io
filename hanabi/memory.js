@@ -2,7 +2,7 @@
 // DOM に触らない。台詞を選ぶだけ（main.js が出す）。
 // mem: DB.meta.mem = { left, caught, waited, graze, dust, sold, lastPlay, lastEnd, mercy }
 
-export const newMem = () => ({ left: 0, caught: 0, waited: 0, graze: 0, dust: 0, sold: 0, lastPlay: 0, lastEnd: null, mercy: 0 });
+export const newMem = () => ({ left: 0, caught: 0, waited: 0, graze: 0, dust: 0, sold: 0, lastPlay: 0, lastEnd: null, mercy: 0, nights: 0, bossLost: {}, sky: 0, lore: 0, seen: {}, lastBoss: null });
 export const fixMem = (m) => ({ ...newMem(), ...(m || {}) });
 
 // 夜の途中で消えたときの、トラの返事。1 回目は見逃す。2 回目からは提灯を 1 つもらう（最後の 1 つは取らない）
@@ -21,6 +21,8 @@ const HINOKO = [
   [8, 'いっしょに、いても いい？', 'can I stay with you?'],
   [13, 'ずっと、おいかけてた', 'I was chasing you all along'],
   [21, 'ありがとう', 'thank you'],
+  [34, 'じいちゃんが、まってる', 'grandpa is waiting'],
+  [55, 'かえろう、あかり', 'let\'s go home, Akari'],
 ];
 export function hinokoLine(waitedTotal) {
   const hit = HINOKO.find(([n]) => n === waitedTotal);
@@ -49,6 +51,8 @@ export function bossTaunt(mem, rule, run) {
 export function titleLine(meta, now = new Date()) {
   const mem = fixMem(meta.mem), mo = now.getMonth() + 1, d = now.getDate(), h = now.getHours();
   if (mo === 8 && d >= 13 && d <= 16) return { ja: 'お盆の夜。帰ってくる人が、いる。', en: 'Obon night. Someone is coming home.' };
+  if ((mem.lore || 0) >= 5) return { ja: '迎え火が、まだ焚いてある。', en: 'The welcoming fire is still burning.' };
+  if (mem.lastBoss && mem.lastBoss.n >= 2 && mem.lastEnd && !mem.lastEnd.won) return { ja: `${mem.lastBoss.ja}は、あなたを ${mem.lastBoss.n} 度見送った。`, en: `${mem.lastBoss.en} has seen you off ${mem.lastBoss.n} times.` };
   if (mem.mercy) return { ja: '火の子は、もう追いかけてこない。となりにいる。', en: 'The little flame no longer chases you. It walks beside you.' };
   if (meta.storyDone) return { ja: '終わらない祭り —— それでも、もう一夜だけ。', en: 'The Endless Festival — just one more night.' };
   const days = mem.lastPlay ? Math.floor((now.getTime() - mem.lastPlay) / 86400000) : 0;
@@ -71,12 +75,29 @@ export function shopLine(mem, run, ctx = {}) {
 
 // 迎えの結末: 1 周で「わざと捕まった」夜が 3 つ以上あって、最後まで越えたとき
 export const MERCY_NEED = 3;
-export function mercyEnding() {
-  return {
+export function mercyEnding(mem) {
+  const home = (mem?.sky || 0) >= 5;
+  const r = {
     title: { ja: '迎え火', en: 'The Welcoming Fire' },
     body: {
       ja: 'あなたは、何度も立ち止まって、火を待った。\n逃げるための祭りだったのに。\n\n火の子は、もう追いかけてこない。\nいまは、となりを歩いている。',
       en: 'Again and again, you stopped and waited for the flame.\nIn a festival made for running away.\n\nThe little flame no longer chases you.\nNow it walks beside you.',
     },
   };
+  if (home) { r.body.ja += '\n\n灯へ。おかえり。'; r.body.en += '\n\nTo Akari: welcome home.'; }
+  return r;
 }
+
+// ---- 物語の手がかり（短い一言だけ）。lore: 明かしの段（1 名前 → 2 輔星 → 3 見物人 → 4 迎え火 → 5 おかえり）
+export const STORY = {
+  boss14: ['また来たか、灯（あかり）。', 'Back again, Akari.'],
+  shop12: ['河原の見物の衆。今夜も、顔が見えないね。', 'The riverbank crowd... still no faces tonight.'],
+  win18: ['……まだ帰さぬ。頼まれているのでな。', '...Not yet. We were asked to keep you here.'],
+  house: ['（戸口に、小さな火が焚いてある）', '(A small fire is burning at the doorway.)'],
+  hosei2: ['北斗のそばの小さい星、見えなかったろう。……見えない者はね——なんでもない。', 'That tiny star by the Dipper — you didn\'t see it, did you. Those who can\'t... never mind.'],
+  hosei3: ['見えたね。あの星には、名前があったんだ。', 'You saw it. That star had a name all along.'],
+  win28: ['見物の衆は、みな盆に帰ってきた者たち。……おまえと同じだ。', 'The crowd are all souls come home for Obon. ...Just like you.'],
+  fake: ['火の子はね、親方の迎え火なんだよ。……まだ、帰らないのかい。', 'That little flame is the master\'s welcoming fire. ...Still not going home?'],
+};
+export const SKY_KANA = ['お', 'か', 'え', 'り'];
+
