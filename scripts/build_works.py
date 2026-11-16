@@ -218,7 +218,9 @@ def render_works_parts(d: dict) -> dict:
             s.append(f'  <div class="nt-list"{gap}>\n    ' + "\n    ".join(note_row(i, "ls") for i in notes) + "\n  </div>")
         s.append("</section>")
         secs.append("\n".join(s))
-    return {"catnav": f'<nav class="cat-nav" aria-label="分類">{nav}</nav>', "sections": "\n".join(secs)}
+    return {"catnav": f'<nav class="cat-nav" aria-label="分類">{nav}</nav>', "sections": "\n".join(secs),
+            # 属性を足さない素の <script type="application/ld+json"> にする（build_agent_view.py の検出に合わせる）
+            "jsonld": f'<script type="application/ld+json">{works_jsonld(d)}</script>'}
 
 
 def works_jsonld(d: dict) -> str:
@@ -346,8 +348,7 @@ def main() -> int:
     idx_path, works_path = ROOT / "index.html", ROOT / "works.html"
     index_html = patch(idx_path.read_text(encoding="utf-8"), render_index_parts(d), n, "index.html")
     works_html = patch(TEMPLATE.read_text(encoding="utf-8"), render_works_parts(d), n, "works.html")
-    works_html = re.sub(r'(<script type="application/ld\+json" data-build="works">).*?(</script>)',
-                        lambda m: m.group(1) + works_jsonld(d) + m.group(2), works_html, count=1, flags=re.S)
+    assert 'application/ld+json">{' in works_html, "works.html に構造化データが入っていません"
     check_output(index_html, works_html, d)
     if not check:
         idx_path.write_text(index_html, encoding="utf-8", newline="\n")
