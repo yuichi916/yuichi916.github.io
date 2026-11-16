@@ -48,6 +48,8 @@ EXCLUDE_FILES = {
 SECTIONS: list[tuple[str, str]] = [
     ("index.html",           "入口"),
     ("works.html",           "入口"),
+    ("firsts.html",          "入口"),
+    ("about.html",           "入口"),
     ("ai-map.html",          "研究 — AIエージェント能力アトラス"),
     ("method/",              "研究 — 新しい形の型"),
     ("kototsugi/",           "物語 — ことつぎの星"),

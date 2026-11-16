@@ -9,6 +9,7 @@
   2. このスクリプトを回す（絵 assets/thumbs/<id>.webp も作られる）
   3. python scripts/build_agent_view.py → python scripts/generate_sitemap.py
 
+トップは絵と題だけ（説明文は出さない）。top:true は分類タイルの絵に並ぶ4作品、now は最上段の3枚。
 index.html は手で書く部分と、ここが書きかえる部分に分かれている。
 <!-- BUILD:名前 --> から <!-- /BUILD:名前 --> の間だけを書きかえ、ほかは触らない。
 """
@@ -108,6 +109,27 @@ def make_og(d: dict) -> None:
     sheet.save(out, "JPEG", quality=84, optimize=True, progressive=True)
 
 
+def mosaic_items(d: dict, c: dict) -> list:
+    """分類タイルに並べる4作品。台帳の cats[].mosaic があればそれ、なければその分類の top（足りなければ絵のある作品で埋める）。"""
+    byid = {i["id"]: i for i in d["items"]}
+    if c.get("mosaic"):
+        return [byid[x] for x in c["mosaic"]]
+    mine = [i for i in d["items"] if i["cat"] == c["id"] and i.get("img")]
+    picked = [i for i in mine if i.get("top")] + [i for i in mine if not i.get("top") and not i.get("now")] + [i for i in mine if i.get("now")]
+    return picked[:4]
+
+
+def make_cat_mosaics(d: dict) -> None:
+    from PIL import Image
+
+    for c in d["cats"]:
+        sheet = Image.new("RGB", (TW, TH), "#161510")
+        for k, it in enumerate(mosaic_items(d, c)):
+            im = Image.open(THUMBS / f"{it['id']}.webp").convert("RGB").resize((TW // 2, TH // 2), Image.LANCZOS)
+            sheet.paste(im, ((k % 2) * (TW // 2), (k // 2) * (TH // 2)))
+        sheet.save(THUMBS / f"cat-{c['id']}.webp", "WEBP", quality=80, method=6)
+
+
 # ── 部品 ──────────────────────────────────────────────────
 def attrs(it: dict, prefix: str) -> str:
     a = f' href="{esc(it["href"])}" data-start="{prefix}-{esc(it["id"])}"'
@@ -155,15 +177,14 @@ def note_row(it: dict, prefix: str) -> str:
     if where:
         tail = f'<small>{esc(where)}{" ↗" if is_ext(it["href"]) else ""}</small>'
     return (f'<a class="nt"{attrs(it, prefix)}><span class="nt-c">{esc(it.get("code", ""))}</span>'
-            f'<span class="nt-t">{esc(it["title"])}{tail}</span><span class="nt-d">{esc(it["desc"])}</span></a>')
+            f'<span class="nt-t">{esc(it["title"])}{tail}</span></a>')
 
 
 def now_card(it: dict) -> str:
     return (f'<a class="now-card"{attrs(it, "now")}{added_attr(it)}>'
             f'<img src="{thumb_rel(it)}" width="{TW}" height="{TH}" alt="{esc(it["title"])}（{esc(it["kicker"])}）">'
             f'<span class="nc-b"><span class="nc-chip"><b>NEW</b>{esc(it["kicker"])}</span>'
-            f'<span class="nc-t">{esc(it["title"])}</span><span class="nc-d">{esc(it["desc"])}</span>'
-            f'<span class="nc-go">ひらく →</span></span></a>')
+            f'<span class="nc-t">{esc(it["title"])}</span></span></a>')
 
 
 # ── 数 ────────────────────────────────────────────────────
@@ -177,25 +198,22 @@ def counts(d: dict) -> dict:
 
 
 # ── トップの作品欄 ────────────────────────────────────────
+def cat_tile(d: dict, c: dict, n: dict) -> str:
+    sub = c["h"].split(" — ", 1)[1]
+    names = "・".join(i["title"] for i in mosaic_items(d, c))
+    return (f'<a class="cat" href="works.html#{c["id"]}" data-start="cat-{c["id"]}">'
+            f'<img src="assets/thumbs/cat-{c["id"]}.webp" width="{TW}" height="{TH}" alt="{esc(names)}" loading="lazy" decoding="async">'
+            f'<span class="cat-b"><b>{esc(c["name"])}</b><small>{esc(sub)}</small>'
+            f'<i>{n[c["id"]]}{esc(c["unit"])} →</i></span></a>')
+
+
 def render_index_parts(d: dict) -> dict:
+    """トップには説明文を出さない。新しい3枚と、分類のタイルだけ。くわしくは works.html で。"""
     items, n = d["items"], counts(d)
-    cats = {c["id"]: c for c in d["cats"]}
     now = sorted((i for i in items if i.get("now")), key=lambda i: i["now"])
-    rows = []
-    for cid in CARD_CATS:
-        c = cats[cid]
-        tops = [i for i in items if i["cat"] == cid and i.get("top") and not i.get("note")]
-        sub = c["h"].split(" — ", 1)[1]
-        rows.append(
-            f'<div class="row" id="w-{cid}">\n'
-            f'  <div class="row-h"><h3>{esc(c["name"])} <span>{esc(sub)}</span></h3>'
-            f'<a href="works.html#{cid}" data-start="all-{cid}">{n[cid]}{esc(c["unit"])}すべて見る →</a></div>\n'
-            f'  <div class="wk-grid">\n    ' + "\n    ".join(card(i, "w", False) for i in tops) + "\n  </div>\n</div>")
-    making = [i for i in items if i["cat"] == "making" and i.get("top")]
     return {
         "now": '<div class="now-row">\n  ' + "\n  ".join(now_card(i) for i in now) + "\n</div>",
-        "rows": "\n".join(rows),
-        "making": '<div class="nt-list">\n  ' + "\n  ".join(note_row(i, "mk") for i in making) + "\n</div>",
+        "cats": '<div class="cat-grid">\n  ' + "\n  ".join(cat_tile(d, c, n) for c in d["cats"]) + "\n</div>",
     }
 
 
@@ -218,7 +236,7 @@ def render_works_parts(d: dict) -> dict:
             s.append(f'  <div class="nt-list"{gap}>\n    ' + "\n    ".join(note_row(i, "ls") for i in notes) + "\n  </div>")
         s.append("</section>")
         secs.append("\n".join(s))
-    return {"catnav": f'<nav class="cat-nav" aria-label="分類">{nav}</nav>', "sections": "\n".join(secs),
+    return {"catnav": f'<nav class="cat-nav" data-spy aria-label="分類">{nav}</nav>', "sections": "\n".join(secs),
             # 属性を足さない素の <script type="application/ld+json"> にする（build_agent_view.py の検出に合わせる）
             "jsonld": f'<script type="application/ld+json">{works_jsonld(d)}</script>'}
 
@@ -300,6 +318,9 @@ def validate(d: dict) -> None:
     for c in CARD_CATS:
         t = sum(1 for i in items if i["cat"] == c and i.get("top"))
         assert 1 <= t <= TOP_MAX, f"{c}: top は1〜{TOP_MAX}件にします（いま {t}）"
+    for c in d["cats"]:
+        m = mosaic_items(d, c)
+        assert len(m) == 4 and all(i.get("img") for i in m), f"{c['id']}: 分類タイルに並べる絵つきの作品が4つ要ります（いま {len(m)}）"
 
 
 def check_output(index_html: str, works_html: str, d: dict) -> None:
@@ -308,12 +329,14 @@ def check_output(index_html: str, works_html: str, d: dict) -> None:
         nc = NestCheck()
         nc.feed(text)
         assert not nc.errors, f"{name}: {nc.errors[:3]}"
-    # 一覧には全件が1回ずつ、トップには top と now だけが1回ずつ出る
+    # 一覧には全件が1回ずつ。トップに出るのは now の3枚と、分類のタイルが1枚ずつだけ
+    for c in d["cats"]:
+        assert index_html.count(f'data-start="cat-{c["id"]}"') == 1, f"index.html に分類 {c['id']} のタイルが1枚ではありません"
     for i in items:
         k = works_html.count(f'data-start="ls-{i["id"]}"')
         assert k == 1, f"works.html に {i['id']} が {k} 回"
-        want = 1 if (i.get("top") or i.get("now")) else 0
-        got = sum(index_html.count(f'data-start="{p}-{i["id"]}"') for p in ("w", "now", "mk"))
+        want = 1 if i.get("now") else 0
+        got = index_html.count(f'data-start="now-{i["id"]}"')
         assert got == want, f"index.html に {i['id']} が {got} 回（{want} のはず）"
     assert "BUILD:" not in re.sub(r"<!-- /?BUILD:[a-z]+ -->", "", works_html + index_html), "目印が壊れています"
 
@@ -344,6 +367,7 @@ def main() -> int:
         for it in d["items"]:
             make_thumb(it)
         make_og(d)
+        make_cat_mosaics(d)
     n = counts(d)
     idx_path, works_path = ROOT / "index.html", ROOT / "works.html"
     index_html = patch(idx_path.read_text(encoding="utf-8"), render_index_parts(d), n, "index.html")
