@@ -843,7 +843,88 @@ const SK = [
   { t: 0, ja: '蕾', en: 'Bud', coin: 0 }, { t: 2.2, ja: '牡丹', en: 'Peony', coin: 3 }, { t: 5, ja: '松葉', en: 'Pine Needles', coin: 6 },
   { t: 8.5, ja: '柳', en: 'Willow', coin: 10 }, { t: 12, ja: '散り菊', en: 'Falling Chrysanthemum', coin: 15 },
 ];
+// ---- 幕間「一筆書きの儀」
+const IP_FIGS = [
+  { ja: '家', en: 'House', n: [[0, 0.35], [1, 0.35], [1, 1], [0, 1], [0.5, -0.25]], e: [[0, 1], [1, 2], [2, 3], [3, 0], [0, 2], [1, 3], [0, 4], [1, 4]] },
+  { ja: '星', en: 'Star', n: [0, 1, 2, 3, 4].map((i) => [0.5 + 0.5 * Math.cos(-Math.PI / 2 + i * 1.2566), 0.5 + 0.5 * Math.sin(-Math.PI / 2 + i * 1.2566)]), e: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0], [0, 2], [2, 4], [4, 1], [1, 3], [3, 0]] },
+  { ja: '蝶', en: 'Butterfly', n: [[0, 0], [0, 1], [0.5, 0.5], [1, 0], [1, 1]], e: [[0, 1], [1, 2], [2, 0], [3, 4], [4, 2], [2, 3], [0, 3]] },
+];
+function openIp() {
+  const fig = IP_FIGS[((S.run.world || 2) - 2 + 30) % IP_FIGS.length];
+  const deg = fig.n.map((_, i) => fig.e.filter((e) => e[0] === i || e[1] === i).length);
+  S.ip = { fig, deg, used: [], cur: -1, path: [], len: 0, drawing: false, tries: 0, done: false, fireD: 0, t: 0, hint: false, pts: [] };
+  $('teach').classList.add('hidden');
+  $('skName').textContent = tr(`一筆書きの儀「${fig.ja}」`, `One-Stroke Rite: ${fig.en}`);
+  $('skMsg').textContent = tr('点から書き始め、すべての線を一度ずつ、指を離さずになぞれ。始まりから火が追ってくる', 'Start on a dot and trace every line exactly once without lifting. Fire chases from the start.');
+  $('skNext').textContent = tr('そのまま次の祭りへ', 'Skip to the next festival');
+  ipLayout(); requestAnimationFrame(ipLayout); // 題の位置が決まってから
+}
+function ipLayout() {
+  const k = S.ip; if (!k) return; const cv = $('ipCanvas'); cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio;
+  // 画面の上 10% から、題の上の端までに収める（図形ごとの縦横の広がりも見る）
+  const top = innerHeight * 0.1, nameTop = $('skName').getBoundingClientRect().top, bottom = (nameTop > top + 120 ? nameTop : innerHeight * 0.66) - 28;
+  const xs = k.fig.n.map((p) => p[0]), ys = k.fig.n.map((p) => p[1]), mnx = Math.min(...xs), mny = Math.min(...ys), w0 = Math.max(...xs) - mnx || 1, h0 = Math.max(...ys) - mny || 1;
+  const sz = Math.min((innerWidth * 0.7) / w0, (bottom - top) / h0), x0 = innerWidth / 2 - (mnx + w0 / 2) * sz, y0 = top + (bottom - top - h0 * sz) / 2 - mny * sz;
+  k.pts = k.fig.n.map(([u, v]) => [x0 + u * sz, y0 + v * sz]); k.sz = sz;
+}
+addEventListener('resize', () => { if (S.ip && !S.ip.drawing) ipLayout(); });
+const ipToW = (x, y) => [(x / innerWidth) * W, (y / innerHeight) * H];
+function ipEdge(a, b) { return S.ip.fig.e.findIndex((e) => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a)); }
+function ipSegDist(px, py, ax, ay, bx, by) { const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)); return Math.hypot(px - (ax + dx * t), py - (ay + dy * t)); }
+function ipDown(e) {
+  const k = S.ip; if (!k || k.done) return; audio.unlock();
+  const j = k.pts.findIndex(([x, y]) => Math.hypot(x - e.clientX, y - e.clientY) < 36);
+  if (j < 0) { $('skMsg').textContent = tr('点（光る丸）から書き始める', 'Start on a dot'); return; }
+  k.drawing = true; k.cur = j; k.used = []; k.path = [[k.pts[j][0], k.pts[j][1]]]; k.len = 0; k.fireD = 0; k.t = 0;
+  audio.note(10, { vol: 0.14, dur: 0.3 });
+}
+function ipMove(e) {
+  const k = S.ip; if (!k || !k.drawing || k.done) return;
+  const x = e.clientX, y = e.clientY, last = k.path[k.path.length - 1]; k.len += Math.hypot(x - last[0], y - last[1]); k.path.push([x, y]);
+  // 図形から大きくはみ出したら失敗
+  const near = Math.min(...k.fig.e.map(([a, b]) => ipSegDist(x, y, k.pts[a][0], k.pts[a][1], k.pts[b][0], k.pts[b][1])));
+  if (near > Math.max(46, k.sz * 0.1)) return ipFail(tr('線をはみ出した', 'You left the lines'));
+  for (let j = 0; j < k.pts.length; j++) {
+    if (j === k.cur || Math.hypot(k.pts[j][0] - x, k.pts[j][1] - y) > 30) continue;
+    const ei = ipEdge(k.cur, j); if (ei < 0) continue;
+    if (k.used.includes(ei)) return ipFail(tr('同じ線は二度なぞれない', 'No line twice'));
+    k.used.push(ei); k.cur = j; audio.note(12 + k.used.length, { vol: 0.15, dur: 0.35 });
+    const [wx, wy] = ipToW(k.pts[j][0], k.pts[j][1]); fx.tick(wx, wy, [3, 2, 0.8], 24, 200);
+    if (k.used.length === k.fig.e.length) return ipWin();
+  }
+}
+function ipUp() { const k = S.ip; if (k && k.drawing && !k.done) ipFail(tr('指を離した', 'You lifted your finger')); }
+function ipFail(why) {
+  const k = S.ip; k.drawing = false; k.tries++; k.hint = true; audio.note(1, { vol: 0.14, dur: 0.5 }); hurt();
+  if (k.tries >= 3) { k.done = true; return ipReward(3, tr(`${why}……。小判 +3`, `${why}... +3 coins`)); }
+  const odd = k.deg.some((d) => d % 2);
+  $('skMsg').textContent = `${why}。` + (odd ? tr('光る点は、線が奇数本あつまる所。一筆書きはそこから始まり、もう一方で終わる', 'Glowing dots meet an odd number of lines: a one-stroke path starts at one and ends at the other') : tr('どの点からでも書ける形。同じ点に戻ってくる', 'Any dot works here: you end where you began')) + tr(`（あと ${3 - k.tries} 回）`, ` (${3 - k.tries} left)`);
+}
+function ipWin() {
+  const k = S.ip; k.drawing = false; k.done = true; techCall('hitofude');
+  const got = [15, 10, 6][k.tries] ?? 6;
+  // 書いた順に、辺が仕掛け花火になって弾ける
+  k.used.forEach((ei, i) => setTimeout(() => { const [a, b] = k.fig.e[ei]; for (let s = 1; s <= 3; s++) { const u = s / 4, [wx, wy] = ipToW(k.pts[a][0] + (k.pts[b][0] - k.pts[a][0]) * u, k.pts[a][1] + (k.pts[b][1] - k.pts[a][1]) * u); fx.burst(i % 2 ? 'peony' : 'chrys', wx, wy, 70, i % 3 ? 'kiku' : 'kin', 1); } audio.boom(0.7, 0); }, 120 * i));
+  setTimeout(() => { for (const [x, y] of k.pts) { const [wx, wy] = ipToW(x, y); fx.burst('ring', wx, wy, 120, 'kin', 2); } const [cx, cy] = ipToW(innerWidth / 2, innerHeight * 0.45); fx.burst('kamuro', cx, cy, 190, 'ootama', 1); audio.boom(2.4, 0); R.flash = 0.2; }, 120 * k.used.length + 200);
+  ipReward(got, tr(`一筆書き、成る！ 小判 +${got}`, `One stroke complete! +${got} coins`));
+}
+function ipReward(got, msg) {
+  S.run.coins += got; logOp('k', got); logSave(); DB.run = S.run; save(); achCheck({ stars: 0 });
+  $('skMsg').textContent = msg; $('skNext').textContent = tr('次の祭りへ', 'On to the next festival'); if (got >= 6) audio.ui('win');
+}
+function ipFx(dt) {
+  const k = S.ip, cv = $('ipCanvas'); if (!k || !cv) return; const g = cv.getContext('2d'), d = devicePixelRatio;
+  g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, innerWidth, innerHeight); g.lineCap = 'round';
+  // 追いかける火
+  if (k.drawing) { k.t += dt; if (k.t > 1.4) { k.fireD += (150 + (k.t - 1.4) * 45) * dt; if (k.fireD >= k.len - 8 && k.len > 20) ipFail(tr('火に追いつかれた', 'The fire caught you')); } }
+  k.fig.e.forEach(([a, b], i) => { const on = k.used.includes(i); g.strokeStyle = on ? '#ffb347' : '#f6cf7a66'; g.lineWidth = on ? 7 : 4; g.setLineDash(on ? [] : [8, 10]); g.beginPath(); g.moveTo(...k.pts[a]); g.lineTo(...k.pts[b]); g.stroke(); });
+  g.setLineDash([]);
+  if (k.path.length > 1 && !k.done) { g.strokeStyle = '#fff4d6aa'; g.lineWidth = 2; g.beginPath(); g.moveTo(...k.path[0]); for (const p of k.path) g.lineTo(...p); g.stroke(); }
+  k.pts.forEach(([x, y], i) => { const odd = k.deg[i] % 2 === 1, glow = k.hint && (odd || !k.deg.some((v) => v % 2)); g.fillStyle = i === k.cur && k.drawing ? '#fff' : glow ? '#8ef0a0' : '#ffd27a'; g.beginPath(); g.arc(x, y, glow ? 12 + Math.sin(R.time * 6) * 3 : 10, 0, 7); g.fill(); });
+  if (k.drawing && k.t > 1.4) { let acc = 0; for (let i = 1; i < k.path.length; i++) { const [ax, ay] = k.path[i - 1], [bx, by] = k.path[i], l = Math.hypot(bx - ax, by - ay); if (acc + l >= k.fireD) { const u = (k.fireD - acc) / (l || 1), fxp = ax + (bx - ax) * u, fyp = ay + (by - ay) * u; g.fillStyle = '#ff7a2a'; g.beginPath(); g.arc(fxp, fyp, 9, 0, 7); g.fill(); const [wx, wy] = ipToW(fxp, fyp); fx.add(wx, wy, (Math.random() - 0.5) * 60, -40 - Math.random() * 60, 0.4, 2.4, 1, 80, [3, 1.4, 0.3], [1, 0.3, 0.05], 1.3); break; } acc += l; } }
+}
 function openSenko() {
+  if (!q.has('senko')) { S.mode = 'senko'; S.st = null; show('senko'); $('hud').classList.add('hidden'); S.sk = null; openIp(); audio.scene('calm'); return; } // 幕間は一筆書きの儀（?senko で前の線香花火）
   S.mode = 'senko'; S.st = null; show('senko'); $('hud').classList.add('hidden');
   S.sk = { t: 0, held: false, done: false, shake: 0, stage: -1, drop: 0, y: 0, px: 0, py: 0 };
   $('skName').textContent = tr('線香花火', 'Sparkler');
@@ -864,6 +945,7 @@ function endSenko(fell) {
   if (fell) audio.note(1, { vol: 0.14, dur: 0.5 }); else if (got) audio.ui('win');
 }
 function senkoFx(dt) {
+  if (S.ip) return ipFx(dt);
   const k = S.sk; if (!k) return;
   const x = W / 2, y0 = H * 0.2, y = H * 0.44 + k.y, one = Math.max(dt, 0.001) * 1.2;
   for (let i = 0; i < 14; i++) fx.add(x, y0 + ((y - y0) * i) / 14, 0, 0, one, 1.3, 0, 0, [0.5, 0.35, 0.25], [0.5, 0.35, 0.25], 0.5);
@@ -889,11 +971,11 @@ function senkoFx(dt) {
   if (Math.random() < risk * dt || k.shake >= 1) { k.drop = 40; endSenko(true); }
   else if (k.t >= 16) endSenko(false);
 }
-$('senko').addEventListener('pointerdown', (e) => { if (e.target.id === 'skNext') return; audio.unlock(); const k = S.sk; if (!k || k.done) return; k.held = true; k.px = e.clientX; k.py = e.clientY; try { $('senko').setPointerCapture(e.pointerId); } catch { /* 無くても動く */ } });
-$('senko').addEventListener('pointermove', (e) => { const k = S.sk; if (!k || !k.held) return; k.shake += Math.hypot(e.clientX - k.px, e.clientY - k.py) * 0.004; k.px = e.clientX; k.py = e.clientY; });
+$('senko').addEventListener('pointerdown', (e) => { if (e.target.id === 'skNext') return; if (S.ip) return ipDown(e); audio.unlock(); const k = S.sk; if (!k || k.done) return; k.held = true; k.px = e.clientX; k.py = e.clientY; try { $('senko').setPointerCapture(e.pointerId); } catch { /* 無くても動く */ } });
+$('senko').addEventListener('pointermove', (e) => { if (S.ip) { for (const ev of (e.getCoalescedEvents ? e.getCoalescedEvents() : [e])) ipMove(ev); return; } const k = S.sk; if (!k || !k.held) return; k.shake += Math.hypot(e.clientX - k.px, e.clientY - k.py) * 0.004; k.px = e.clientX; k.py = e.clientY; });
 const skUp = () => { const k = S.sk; if (k && k.held && !k.done) { if (k.stage >= 0) endSenko(false); else k.held = false; } };
-$('senko').addEventListener('pointerup', skUp); $('senko').addEventListener('pointercancel', skUp);
-$('skNext').onclick = () => { audio.ui('tap'); S.sk = null; startNight(); };
+$('senko').addEventListener('pointerup', () => (S.ip ? ipUp() : skUp())); $('senko').addEventListener('pointercancel', () => (S.ip ? ipUp() : skUp()));
+$('skNext').onclick = () => { audio.ui('tap'); S.sk = null; S.ip = null; const cv = $('ipCanvas'); cv?.getContext('2d').clearRect(0, 0, cv.width, cv.height); startNight(); };
 
 function runOver(won) {
   const run = S.run;
@@ -1173,6 +1255,7 @@ const TECHS = [
   ['chain', '十五夜', 'Harvest Moon', '一筆で 15 個つなげる', 'Chain 15 shells in one stroke', '小判 +2（25 個で千輪、40 個で満天）', '+2 coins (25: Thousand Rings, 40: Sky Ablaze)'],
   ['knot', '結び', 'Knot', 'お守り「結び」を持って、自分の線と交差させる', 'With the Knot charm, cross your own line', '交点が爆ぜて倍率 +2', 'The crossing bursts: +2 MULT'],
   ['seiza', '満天', 'Sky Ablaze', '天の川の夜、北斗七星の星玉を★一から★七まで順に線で通す', 'On the Milky Way night, thread the Big Dipper stars 1–7 in order', '倍率 ×2、空の高い所の玉がぜんぶ降るようにひらく', 'MULT ×2 and every shell high in the sky opens'],
+  ['hitofude', '一筆書き', 'One Stroke', '幕間の儀で、図形のすべての線を指を離さず一度ずつなぞる', 'In the interlude rite, trace every line once without lifting', '仕掛け花火と小判（1 回目なら 15）', 'Set-piece fireworks and coins (15 on the first try)'],
   ['moji', '文字花火', 'Sky Writing', '大仕掛けの夜、壱〜肆の字玉を番号の順に線で通す', 'On a set-piece night, thread the numbered shells 1–4 in order', '夜空に字が浮かび、倍率 ×2', 'A kanji lights the sky: MULT ×2'],
   ['ren', '連発', 'Starmine', '大仕掛けの夜、一筆で 6 つ以上ひらいてから発射台へ', 'On a set-piece night, open 6+ shells then reach the Launcher', '盤のあちこちへ 16 発が次々に', '16 shots rain across the board'],
   ['taki', '火の滝', 'Fire Falls', '大仕掛けの夜、一筆で 6 つ以上ひらいてから右端の滝の玉へ', 'On a set-piece night, open 6+ shells then reach the Falls shell', '火の滝が盤を流れ、通り道の玉が一斉にひらく', 'A waterfall of fire opens everything in its path'],
