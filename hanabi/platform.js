@@ -48,9 +48,28 @@ export function createPlatform() {
     // 区切り（夜のあと・祭りの終わり）の広告。広告どうしの間隔は場の SDK が決める。
     // ただし遊び始めて 3 分までは出さない（Playgama は 30 秒未満で離れた回を「遊び」と数えず、最初の広告が 29 秒目に出ていた）
     ad() { try { if (performance.now() - AD_T0 < AD_GRACE_MS) return; if (pg?.advertisement?.isInterstitialSupported) pg.advertisement.showInterstitial(); } catch { /* */ } },
+    // ランキング（Bridge）。Playgama は Bridge SaaS で in_game（自分で表を描く）、YouTube は native（点を送るだけ）
+    lbType() { try { return pg?.leaderboards?.type || 'not_available'; } catch { return 'not_available'; } },
+    async lbSet(score) { if (P.lbType() === 'not_available') return; try { await pg.leaderboards.setScore('best_score', Math.max(0, Math.floor(score))); } catch { /* 送れなくても遊べる */ } },
+    async lbTop() { if (P.lbType() !== 'in_game') return null; try { return await pg.leaderboards.getEntries('best_score'); } catch { return null; } },
+    lbPopup() { try { if (P.lbType() === 'native_popup') pg.leaderboards.showNativePopup('best_score')?.catch?.(() => {}); } catch { /* */ } },
+    get playerId() { try { return pg?.player?.id || null; } catch { return null; } },
+    // 報酬つき広告: 見終わって報酬が出たら true。失敗・途中で閉じたら false。広告の間は音を消す
+    get rewardedOk() { try { return !!pg?.advertisement?.isRewardedSupported; } catch { return false; } },
+    rewarded(placement = 'revive') {
+      return new Promise((resolve) => {
+        if (!P.rewardedOk) { resolve(false); return; }
+        const E = pg.EVENT_NAME || {}; let got = false, done = false;
+        const fin = (v) => { if (done) return; done = true; try { pg.advertisement.off?.(E.REWARDED_STATE_CHANGED, h); } catch { /* */ } P.onAd && P.onAd(false); resolve(v); };
+        const h = (s) => { if (done) return; if (s === 'opened' || s === 'loading') P.onAd && P.onAd(true); if (s === 'rewarded') got = true; if (s === 'closed') fin(got); if (s === 'failed') fin(false); };
+        try { pg.advertisement.on(E.REWARDED_STATE_CHANGED, h); pg.advertisement.showRewarded(placement); } catch { fin(false); }
+        setTimeout(() => fin(got), 120000);
+      });
+    },
     read(key) { try { return sdk?.data ? sdk.data.getItem(key) : null; } catch { return null; } },
     async load(key) {
-      if (pg) { try { const d = await pg.storage.get([key]); return d && d[0] != null ? d[0] : null; } catch { return null; } }
+      // Bridge は JSON の文字列を読み出し時に自動で物に直して返す（そのまま JSON.parse すると失敗し、続きからが消えていた）
+      if (pg) { try { const d = await pg.storage.get([key]); const v = d && d[0]; return v == null ? null : (typeof v === 'string' ? v : JSON.stringify(v)); } catch { return null; } }
       return P.read(key);
     },
     write(key, v) {

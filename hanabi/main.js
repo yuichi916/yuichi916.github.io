@@ -117,6 +117,8 @@ function toTitle() {
   if (DB.meta.runs > 0 || DB.run) add(tr('新しい祭り', 'New Run'), openNewRun);
   if (DB.meta.runs > 0) add(tr('今日の祭り', 'Daily'), startDaily);
   if (S.rankOk) add(tr('世界ランキング', 'World Ranking'), () => openRank(DB.run?.daily ? 'daily' : 'daily'));
+  else if (PF.lbType() === 'in_game') add(tr('ランキング', 'Leaderboard'), openPgRank);
+  else if (PF.lbType() === 'native_popup') add(tr('ランキング', 'Leaderboard'), () => PF.lbPopup());
   add(tr('お守り帳', 'Charm Book'), openBook);
   // 物語は日本語のみ。ゲームサイト用の書き出し（story.html を入れない）では出さない
   if (!window.HANABI_NO_STORY) add(tr('物語', 'Story (Japanese)'), () => { location.href = 'story.html'; });
@@ -405,7 +407,7 @@ function nightEnded() {
   PF.level(res === 'clear' ? 'completed' : 'failed', def.world, def.night); if (res === 'clear' && def.boss) PF.milestone();
   logSave();
   if (def.boss && (res === 'over' || res === 'retry')) track(`boss/${bossKey(def)}/lose`);
-  if (res === 'over') { achCheck({ stars: 0 }); return runOver(false); }
+  if (res === 'over') { achCheck({ stars: 0 }); if (PF.rewardedOk && !run.revived && !run.endless) return offerRevive(); return runOver(false); }
   if (res === 'retry') { achCheck({ stars: 0 }); return retryNight(); }
   if (def.boss) track(`boss/${bossKey(def)}/win`);
   const stars = R2.stars, rw = R2.rw, interest = R2.interest, gain = R2.gain;
@@ -500,6 +502,23 @@ function lossHint() {
   if ((st.topHeat || 0) < 1) return tr('火を引きつけるほど熱くなり、点が ×2〜×4 になる', 'Let the flame get close: hotter means POINTS ×2 to ×4');
   if (!st.blooms) return tr('一筆で盤の玉を全部ひらくと「満開」で倍率 ×2', 'Open every shell in one stroke for a Full Bloom: MULT ×2');
   return tr('金の玉（倍率 +1）を一筆の中で先に通すと伸びる', 'Thread gold shells (+1 MULT) early in a stroke');
+}
+// 灯が尽きた: 広告を見れば灯をひとつ取り戻して、この夜をもう一度（1 周に 1 回）。見なければ、いつもの終わり
+function offerRevive() {
+  S.mode = 'revive'; audio.ui('lose'); hurt();
+  const el = $('revive'), miss = S.miss ? tr(`あと ${fmt(S.miss.n)} 点だった（${S.miss.pct}%）`, `Just ${fmt(S.miss.n)} short (${S.miss.pct}%)`) : '';
+  el.innerHTML = `<div class="gcard"><h3>${tr('灯が尽きた', 'Out of lights')}</h3>${miss ? `<p class="rvmiss">${miss}</p>` : ''}`
+    + `<p>${tr('広告を見ると、灯をひとつ取り戻して<b>この夜をもう一度</b>。（1 周に 1 回）', 'Watch an ad to get a light back and <b>retry this night</b>. (Once per run)')}</p>`
+    + `<div class="row"><button class="btn2" id="rvNo">${tr('ここまでにする', 'End run')}</button><button class="bigbtn small" id="rvYes">${tr('▶ 広告を見て続ける', '▶ Watch & continue')}</button></div><p class="rvmsg" id="rvMsg"></p></div>`;
+  el.classList.remove('hidden');
+  $('rvNo').onclick = () => { audio.ui('tap'); el.classList.add('hidden'); runOver(false); };
+  $('rvYes').onclick = async () => {
+    audio.ui('tap'); $('rvYes').disabled = true; $('rvNo').disabled = true; $('rvMsg').textContent = '';
+    const ok = await PF.rewarded('revive');
+    if (S.mode !== 'revive') return;
+    if (ok) { const run = S.run; run.lives = 1; run.retry++; run.revived = 1; el.classList.add('hidden'); track('run/revive'); retryNight(); return; }
+    $('rvYes').disabled = false; $('rvNo').disabled = false; $('rvMsg').textContent = tr('広告を最後まで見られなかった。もう一度ためせます', 'The ad did not finish. You can try again.');
+  };
 }
 // 失敗しても灯が残っていれば、同じ夜をもう一度（盤は変わる）
 function retryNight() {
@@ -836,6 +855,7 @@ function runOver(won) {
     })()) + (sub ? `<small>${sub}</small>` : '') + (!won && S.st ? `<small class="hint">${lossHint()}</small>` : '') + (mercy ? `<small class="mercy">${(JA() ? ME.body.ja : ME.body.en).split('\n').join('<br>')}</small>` : '');
   const sp = Object.values(run.spells || {}), spT = sp.reduce((a, x) => a + x.t, 0), spG = sp.reduce((a, x) => a + x.g, 0);
   meta.bestScore = Math.max(meta.bestScore || 0, run.totalScore);
+  PF.lbSet(run.totalScore);
   $('ovStats').innerHTML = [[tr('合計の点', 'Total score'), fmt(run.totalScore)], [tr('最大連鎖', 'Best chain'), run.bestChain], ...(DB.meta.taught.dust ? [[tr('星の値', 'Star value'), fmtM(run.pv ?? 4)], [tr('かすり', 'Graze'), fmt(run.graze || 0)], [tr('星屑', 'Star dust'), fmt(run.dust || 0)]] : []), ...(spT ? [[tr('技', 'Techniques'), `${spG} / ${spT}`]] : []), [tr('星', 'Stars'), run.stars], [tr('経験', 'XP'), '+' + Run.xpFor(run)]].map(([a, b], i) => `<div style="animation-delay:${i * 0.1}s"><span>${a}</span><b>${b}</b></div>`).join('');
   const ul = [];
   if (after > before) { const nw = CHARMS.filter((c) => !beforeSet.has(c.id) && Run.unlockedCharms(meta).has(c.id)); ul.push(tr(`新しいお守り「${nw.map((c) => c.ja).join('」「')}」が屋台に並ぶ！`, `New charm${nw.length > 1 ? 's' : ''}: ${nw.map((c) => c.en).join(', ')}!`)); }
@@ -845,6 +865,8 @@ function runOver(won) {
   $('ovUnlocks').innerHTML = (ul.length ? `<div>${ul.join('  ')}</div>` : '') + (rest ? `<div class="nextun"><span>${tr(`次のお守りまで あと ${rest}`, `Next charm in ${rest} XP`)}</span><i style="width:${((30 - rest) / 30) * 100}%"></i></div>` : '');
   $('ovTitleBtn').textContent = tr('タイトル', 'Title'); $('ovAgain').textContent = tr('もう一度', 'PLAY AGAIN');
   // Playgama ではタイトルを通らないので、今日の祭りの入口をここにも置く
+  // Playgama のランキング（ovRank は自分のサイトの世界ランキングの欄なので別の名前）
+  const orb = $('ovPgRank'); orb.textContent = tr('ランキング', 'Leaderboard'); orb.classList.toggle('hidden', PF.lbType() !== 'in_game'); orb.onclick = () => { audio.ui('tap'); openPgRank(); };
   const od = $('ovDaily'); od.textContent = tr('今日の祭り', 'Daily'); od.classList.toggle('hidden', !!(S.daily || run.endless));
   track(`run/${won ? 'win' : 'over'}/n${run.nightsCleared}${S.daily ? '/daily' : ''}`);
   const sh = $('ovShare'); sh.classList.toggle('hidden', !canShare()); sh.textContent = tr('結果を共有', 'Share');
@@ -1644,6 +1666,18 @@ function rankSubmit(run, log) {
   $('rkSkip').onclick = () => { audio.ui('tap'); box.innerHTML = ''; };
 }
 // ランキングの画面: 今日の祭り / 歴代（段位・流派ごと）
+// Playgama のランキング（Bridge SaaS、1 周の合計の点の自己ベスト）
+async function openPgRank() {
+  show('rankScr'); $('hud').classList.add('hidden');
+  const el = $('rankPanel'); S.pgRankAt = performance.now(); const at = S.pgRankAt;
+  el.innerHTML = `<h2>${tr('ランキング', 'Leaderboard')}</h2><p class="rknote">${tr('1 周の合計の点（自己ベスト）', 'Best total score in one run')}</p><div class="rklist"><small>${tr('読みこみ中…', 'Loading...')}</small></div>`
+    + `<p class="rknote">${tr(`あなたの自己ベスト ${fmt(DB.meta.bestScore || 0)} 点`, `Your best: ${fmt(DB.meta.bestScore || 0)}`)}</p><div class="row"><button class="btn2" id="rkBack">${tr('もどる', 'Back')}</button></div>`;
+  $('rkBack').onclick = () => { audio.ui('tap'); toTitle(); };
+  const list = await PF.lbTop(); if (S.pgRankAt !== at) return;
+  const me = PF.playerId;
+  const rows = (list || []).slice(0, 50).map((r, i) => `<div class="rkrow${me && r.id === me ? ' me' : ''}"><b>${r.rank || i + 1}</b><span class="nm">${esc(r.name || tr('名無し', 'Guest'))}</span><span></span><span class="sc">${fmt(r.score || 0)}</span></div>`).join('');
+  el.querySelector('.rklist').innerHTML = rows || `<small>${list ? tr('まだ誰もいない。最初の名前になろう', 'No one yet. Be the first!') : tr('ランキングを読めなかった', 'Could not load the leaderboard')}</small>`;
+}
 async function openRank(tab = 'daily', pick = null) {
   show('rankScr'); $('hud').classList.add('hidden');
   S.rankView = { tab, rank: pick?.rank ?? S.rankView?.rank ?? 0, school: pick?.school ?? S.rankView?.school ?? 'hon' };

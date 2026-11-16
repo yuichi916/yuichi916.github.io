@@ -7,6 +7,7 @@
 字は使う字の切れはしだけを入れる（build_itch_package.py と同じ道具）。
 """
 from __future__ import annotations
+import json
 
 import re
 import shutil
@@ -24,7 +25,9 @@ OUT = ROOT / "_dist" / "hanabi"
 SDK = '<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>'
 # Playgama Bridge は <head> の最初の script（async なし）。設定ファイルは index.html の隣
 BRIDGE = '<script src="https://bridge.playgama.com/v2/stable/playgama-bridge.js"></script>'
-BRIDGE_CONFIG = '{"platforms": {}}\n'
+# Playgama Bridge の設定。ランキングは Bridge SaaS（開発者画面 → Bridge SaaS → Leaderboards で best_score を作成。publicToken は同じ画面）。
+# YouTube では isMain の 1 つだけが YouTube 側のランキングに送られる
+BRIDGE_CONFIG = json.dumps({"platforms": {}, "saas": {"publicToken": "cmwgmpcsa1ktklz0hv2d9fuy2", "leaderboards": {"platforms": ["playgama", "qa_tool"]}}, "leaderboards": [{"id": "best_score", "isMain": True}]})
 
 
 FONTS = [("Yuji Boku", [400]), ("Shippori Mincho B1", [500, 800])]
