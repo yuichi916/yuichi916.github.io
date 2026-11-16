@@ -956,10 +956,14 @@ function openPause() {
     $('pzSound').textContent = tr(`効果音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`);
     $('pzMusic').textContent = tr(`音楽 ${DB.music ? 'ON' : 'OFF'}`, `Music ${DB.music ? 'ON' : 'OFF'}`);
     $('pzLang').textContent = JA() ? 'English' : '日本語';
+    $('pzTouch').textContent = tr(`指の操作：${['ふつう', '先を上に', '先をもっと上に'][touchMode()]}`, `Touch: ${['normal', 'tip above finger', 'tip far above'][touchMode()]}`);
+    $('pzHaptic').textContent = tr(`振動 ${DB.haptic === false ? 'OFF' : 'ON'}`, `Vibration ${DB.haptic === false ? 'OFF' : 'ON'}`); $('pzHaptic').classList.toggle('hidden', !navigator.vibrate);
   };
   lab();
   $('pzSound').onclick = () => { DB.sound = !DB.sound; applySound(); save(); lab(); };
   $('pzMusic').onclick = () => { DB.music = !DB.music; applySound(); save(); lab(); };
+  $('pzTouch').onclick = () => { DB.touchMode = (touchMode() + 1) % 3; save(); lab(); };
+  $('pzHaptic').onclick = () => { DB.haptic = DB.haptic === false; save(); lab(); buzz(20); };
   $('pzLang').onclick = () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); openPause(); };
   renderHeld($('pzHeld'), false);
   $('pzQuit').textContent = tr('タイトルへ（続きから遊べます）', 'Title (you can continue later)'); $('pzResume').textContent = tr('つづける', 'RESUME');
@@ -978,8 +982,13 @@ function toast(t) { const e = document.createElement('div'); e.className = 'pop 
 
 // ------------------------------------------------------------------ 入力
 const q1 = (v) => Math.round(v * 10) / 10;
-const toWorld = (e) => {
-  let [cx, cy] = untilt(e.clientX, e.clientY);
+// 指で遊ぶとき、線の先を指より上に出す（Potter 1988 の take-off・縦シューティングの自機ずらしと同じ考え）。
+// 0: ふつう / 1: 上に 64px / 2: もっと上に 110px。触った直後は 0 から始め、指が 28px 動くまでに満額へ（先が跳ばない）
+const TOUCH_OFF = [0, 64, 110];
+const touchMode = () => { const qm = q.get('touch'); return qm != null ? Math.max(0, Math.min(2, +qm || 0)) : (DB.touchMode ?? 0); };
+const tipOff = (e) => { if (!TOUCH || !S.tip) return 0; const off = TOUCH_OFF[touchMode()] || 0; if (!off) return 0; const d = Math.hypot(e.clientX - S.tip.x, e.clientY - S.tip.y); S.tip.ramp = Math.max(S.tip.ramp || 0, Math.min(1, d / 28)); return off * S.tip.ramp; };
+const toWorld = (e, dy = 0) => {
+  let [cx, cy] = untilt(e.clientX, e.clientY - dy);
   let x = (cx / innerWidth) * W; const y = (cy / innerHeight) * H;
   if (S.st?.ihen?.id === 'hanten') x = W - x; // 異変「反」: 指と線が左右に入れかわる
   return { x: q1(x), y: q1(y) };
@@ -990,6 +999,8 @@ canvas.addEventListener('pointerdown', (e) => {
   if (S.mode === 'retry' && performance.now() - S.retryAt > 600) { startNight(); return; }
   if (S.mode !== 'play' || !S.st || pid !== null || S.paused) return;
   if (S.cnt) S.cnt.t = S.cnt.dur; // 数え上げの途中でも、触れたらすぐ次へ
+  S.tip = { x: e.clientX, y: e.clientY, ramp: 0 };
+  if (TOUCH && touchMode() && !DB.meta.taught.tip) { DB.meta.taught.tip = 1; save(); floatText(W / 2, H * 0.3, tr('線の先は、指の少し上に出ます', 'The line tip sits just above your finger'), 'gold', 24, 1800); }
   const p = toWorld(e);
   S.rec?.ev.push([S.st.t, 'd', p.x, p.y]);
   if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } $('teach').classList.add('hidden'); }
@@ -997,9 +1008,22 @@ canvas.addEventListener('pointerdown', (e) => {
 canvas.addEventListener('pointermove', (e) => {
   if (e.pointerId !== pid || !S.st) return;
   const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
-  for (const ev of (list.length ? list : [e])) { const p = toWorld(ev); S.rec?.ev.push([S.st.t, 'm', p.x, p.y]); G.penMove(S.st, p.x, p.y); }
+  for (const ev of (list.length ? list : [e])) { const p = toWorld(ev, tipOff(ev)); S.rec?.ev.push([S.st.t, 'm', p.x, p.y]); G.penMove(S.st, p.x, p.y); }
+  tether(e);
 });
-const release = (e) => { if (e.pointerId !== pid) return; pid = null; if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
+const release = (e) => { if (e.pointerId !== pid) return; pid = null; S.tip = null; tether(null); if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
+// 指と線の先をつなぐ細い線（先端をずらしているときだけ）
+function tether(e) {
+  const el = $('tether'); if (!el) return;
+  const off = e && S.tip ? (TOUCH_OFF[touchMode()] || 0) * (S.tip.ramp || 0) : 0;
+  if (!e || off < 4) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const ln = el.querySelector('line'), c1 = el.querySelector('.fg'), c2 = el.querySelector('.tp');
+  ln.setAttribute('x1', e.clientX); ln.setAttribute('y1', e.clientY); ln.setAttribute('x2', e.clientX); ln.setAttribute('y2', e.clientY - off);
+  c1.setAttribute('cx', e.clientX); c1.setAttribute('cy', e.clientY); c2.setAttribute('cx', e.clientX); c2.setAttribute('cy', e.clientY - off);
+}
+// 振動（Android の Chrome。iPhone の Safari は非対応）。指で遊んでいるときだけ
+const buzz = (p) => { try { if (TOUCH && DB.haptic !== false && navigator.vibrate) navigator.vibrate(p); } catch { /* */ } };
 canvas.addEventListener('pointerup', release);
 canvas.addEventListener('pointercancel', release);
 addEventListener('contextmenu', (e) => e.preventDefault());
@@ -1081,6 +1105,7 @@ function handle(ev) {
     case 'penDown': $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
     case 'ignite': audio.note(2, { vol: 0.14, dur: 0.25 }); fx.tick(ev.x, ev.y, [3, 1.8, 0.7], 26, 220); fx.light(ev.x, ev.y, 0.5, 300, [1, 0.6, 0.25], 6); break;
     case 'thread': {
+      buzz(10);
       const s = ev.shell, n = ev.n;
       audio.note(9 + n, { vol: ev.close ? 0.2 : 0.11, dur: 0.22, pan: panOf(s.x) });
       fx.tick(s.x, s.y, PALETTES[s.type]?.[1] || [1, 1, 0.8], ev.close ? 22 : 10, ev.close ? 240 : 150);
@@ -1157,7 +1182,7 @@ function handle(ev) {
     case 'gust': audio.gust(1); R.shake = Math.min(14, R.shake + 5); fx.tick(ev.x, ev.y, [2.2, 2.6, 3.2], 34, 330); break;
     case 'brake': fx.tick(ev.x, ev.y, [1.6, 0.9, 0.4], 9, 120); break;
     case 'caught': // 追いつかれた: 一瞬止めて、赤く暗く。火の子が筆先に飛びつく
-      audio.ui('caught'); hitStop(110); hurt();
+      audio.ui('caught'); hitStop(110); hurt(); buzz([25, 30, 25]);
       floatText(ev.x, Math.max(H * 0.2, ev.y - 80), tr('追いつかれた！ 点 ½', 'Caught! POINTS ½'), 'caught', 40);
       caughtGuide(ev);
       if (ev.pvLost > 0) floatText(ev.x, Math.max(H * 0.2, ev.y - 80) + 40, tr(`星の値 −${ev.pvLost}`, `Star value −${ev.pvLost}`), 'mult', 20);
@@ -1500,11 +1525,11 @@ function perFrameFx(dt) {
       }
       // 熱の段を筆先で読む: 段の数だけ輪が重なる（目は筆先にあるので、上の字だけでは読めない）
       for (let lv = 1; lv <= k.heatLv; lv++) {
-        const rr = 20 + lv * 9 + (TOUCH ? 30 : 0), col = lv >= 3 ? [2.6, 2.8, 3.4] : lv === 2 ? [3.2, 1.6, 0.4] : [3, 0.9, 0.2], n = 16 + lv * 4;
+        const rr = 20 + lv * 9 + (TOUCH && !touchMode() ? 30 : 0), col = lv >= 3 ? [2.6, 2.8, 3.4] : lv === 2 ? [3.2, 1.6, 0.4] : [3, 0.9, 0.2], n = 16 + lv * 4;
         for (let i = 0; i < n; i++) { const a = (i / n) * 6.283 + R.time * (1.5 + lv) * (lv % 2 ? 1 : -1); fx.add(pen.x + Math.cos(a) * rr, pen.y + Math.sin(a) * rr, 0, 0, one, 1.9, 0, 0, col, col, 1.1); }
       }
       if (k.flameOn && gap < st.m.hotGap * 1.6) {
-        const r = 14 + Math.max(0, gap) * 0.26 + (TOUCH ? 30 : 0), col = gap < st.m.hotGap * 0.45 ? [3, 0.5, 0.15] : gap < st.m.hotGap ? [3, 1.4, 0.3] : [1.2, 1, 0.6];
+        const r = 14 + Math.max(0, gap) * 0.26 + (TOUCH && !touchMode() ? 30 : 0), col = gap < st.m.hotGap * 0.45 ? [3, 0.5, 0.15] : gap < st.m.hotGap ? [3, 1.4, 0.3] : [1.2, 1, 0.6];
         const nDots = 22;
         for (let i = 0; i < nDots; i++) { const a = (i / nDots) * 6.283 + R.time * 3; fx.add(pen.x + Math.cos(a) * r, pen.y + Math.sin(a) * r, 0, 0, one, 2.1, 0, 0, col, col, 1.3); }
       }
