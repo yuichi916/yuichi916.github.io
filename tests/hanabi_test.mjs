@@ -478,7 +478,7 @@ for (const rule of Object.keys(Run.RULES)) {
       if (st.phase === 'aim' && !st.shells.some((x) => x.rise > 0)) {
         if (run.engi.length && st.strokesLeft === 1) { const id = run.engi[0]; if (G.useEngi(st, id)) { run.engi.shift(); evs.push([step, 'e', id]); } }
         const idle = st.shells.filter((x) => x.state === 'idle').sort((a, b) => a.x - b.x);
-        if (idle.length) { const q = (v) => Math.round(v * 10) / 10; pen = { x: q(idle[0].x), y: q(idle[0].y) }; if (G.penDown(st, pen.x, pen.y)) { evs.push([step, 'd', pen.x, pen.y]); path = idle.slice(1, 10).map((x) => ({ x: x.x, y: x.y })); } }
+        const q = (v) => Math.round(v * 10) / 10; path = null; for (let c = 0; c < idle.length && !path; c++) { const a0 = idle[c]; pen = { x: q(a0.x), y: q(a0.y) }; if (G.penDown(st, pen.x, pen.y)) { evs.push([step, 'd', pen.x, pen.y]); path = idle.filter((x) => x !== a0).slice(0, 9).map((x) => ({ x: x.x, y: x.y })); if (!path.length) path = [{ x: a0.x + (a0.x < W / 2 ? 160 : -160), y: a0.y }]; /* 玉が 1 つでも、線を伸ばして一筆にする */ } }
       } else if (st.phase === 'stroke' && st.stroke?.penDown && path) {
         const t = path[0];
         if (!t) { evs.push([step, 'u']); G.penUp(st); path = null; }
@@ -489,7 +489,7 @@ for (const rule of Object.keys(Run.RULES)) {
     return { st, def, op: ['n', W, H, evs, st.score] };
   };
   const playRun = (seed, nightsMax = 10) => {
-    const run = Run.newRun({ seed, school: 'hon' }), log = { v: Run.LOG_VERSION, ps: 1, seed, fuse: 'asa', rank: 0, school: 'hon', daily: false, xp: 0, ops: [] };
+    const run = Run.newRun({ seed, school: 'hon' }), log = { v: Run.LOG_VERSION, ps: 1, dn: 1, seed, fuse: 'asa', rank: 0, school: 'hon', daily: false, xp: 0, ops: [] };
     const unlocked = Run.unlockedCharms({ xp: 0 }), rnd = G.rng32(seed * 3 + 1);
     for (let g = 0; g < 60 && run.nightsCleared < nightsMax; g++) {
       const W = g % 3 === 2 ? 720 : 1280, H = g % 3 === 2 ? 1280 : 720; // 途中で向きを変えても再現できる

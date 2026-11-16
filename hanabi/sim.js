@@ -169,6 +169,8 @@ export const PORTRAIT_SHELL = 1.3;
 export function newNight(level, w, h, loadout = {}) {
   const rs = loadout.rs ?? (w < h ? PORTRAIT_SHELL : 1); // ランキングの旧い記録（ps なし）は 1 で流しなおす
   const field = fieldFor(w, h, rs);
+  // dn: 盤の混み方をそろえる（2026-11-16〜）。縦の 16:9 は盤が狭く、1 つの玉から爆風だけで盤の 8〜9 割に火が回っていた
+  const dn = loadout.dn ?? 1, kd = dn ? Math.min(1, ((field.x1 - field.x0) * (field.y1 - field.y0)) / 349000) : 1;
   const charms = loadout.charms || [];
   const m = { ...TUNE, strokesAdd: 0, refillAdd: 0, countAdd: 0, flameX: 1, startChips: 0, startMult: 0, addMix: {} };
   for (const c of charms) if (c.mod) c.mod(m, loadout);
@@ -181,7 +183,7 @@ export function newNight(level, w, h, loadout = {}) {
   if (m.onlyOneStroke) m.strokesAdd = -99;
   const strokes = Math.max(1, (level.strokes ?? 3) + m.strokesAdd);
   const st = {
-    level, field, w, h, t: 0, seed: level.seed, m, loadout, charms,
+    level, field, w, h, t: 0, seed: level.seed, m, loadout, charms, dn, kd,
     recipes: loadout.recipes || {},
     shells: [], nextId: 1, sparks: [], pending: [], drops: [], knots: [],
     maxStrokes: strokes, strokesLeft: strokes, strokesUsed: 0,
@@ -685,7 +687,7 @@ function burst(st, s, gen, how) {
   const k = st.stroke, d = SHELLS[s.type], m = st.m;
   s.state = 'burst';
   const decay = Math.max(m.genMin, m.genDecay ** gen);
-  let R = s.R * decay * m.blastR;
+  let R = s.R * decay * m.blastR * (st.kd || 1);
   k.pops++; st.totalPops++;
   k.types[s.type] = (k.types[s.type] || 0) + 1;
   const heatX = heatMult(k.heatLv, st);
@@ -723,7 +725,7 @@ function burst(st, s, gen, how) {
   for (const o of st.shells) {
     if (o.state !== 'idle' || o === s || o.rise > 0) continue;
     const dist = Math.hypot(o.x - s.x, o.y - s.y);
-    if (dist < R + o.r) ignite(st, o, gen + 1, 'blast', dist / m.shockV + 0.04);
+    if (dist < R + (st.dn ? o.r / (o.rs || 1) : o.r)) ignite(st, o, gen + 1, 'blast', dist / m.shockV + 0.04);
     else if (dist < R * 1.8 && !o.threaded) {
       const f = ((m.pull ? -1 : 1) * m.pushK * (1 - dist / (R * 1.8))) / Math.max(dist, 1);
       o.vx += (o.x - s.x) * f; o.vy += (o.y - s.y) * f;
@@ -1065,7 +1067,7 @@ function knotBurst(st, q) {
   const k = st.stroke, R = 90;
   k.mult += 2; k.chips += 20;
   st.events.push({ type: 'knotBurst', x: q.x, y: q.y, R, mult: k.mult, chips: k.chips });
-  for (const o of st.shells) if (o.state === 'idle' && o.rise <= 0 && Math.hypot(o.x - q.x, o.y - q.y) < R + o.r) ignite(st, o, 1, 'blast', 0.05);
+  for (const o of st.shells) if (o.state === 'idle' && o.rise <= 0 && Math.hypot(o.x - q.x, o.y - q.y) < R * (st.kd || 1) + (st.dn ? o.r / (o.rs || 1) : o.r)) ignite(st, o, 1, 'blast', 0.05);
 }
 
 // 狐火・終わり玉のような、お守りが起こす爆発

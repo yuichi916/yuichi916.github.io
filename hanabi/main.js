@@ -1,6 +1,7 @@
 // 一筆花火 2 — 画面の流れと、入力・描画・音をつなぐ
 import * as G from './sim.js';
 import * as Run from './run.js';
+import { resumeNight } from './verify.js';
 import { CHARMS, CHARM_BY_ID, TAG_NAME, TAG_COLOR, TIMES, growText } from './charms.js';
 import { createRenderer } from './gl.js';
 import { createFx, PALETTES } from './fx.js';
@@ -114,6 +115,9 @@ function toTitle() {
   const tl = Mem.titleLine(DB.meta); $('tagline').textContent = JA() ? tl.ja : tl.en;
   if (!S.titleSeen) { S.titleSeen = 1; mem().lastPlay = Date.now(); save(); }
   $('playBtn').textContent = DB.run ? tr('続きから', 'CONTINUE') : tr('あそぶ', 'PLAY');
+  { const ci = $('contInfo'), r = DB.run; ci.classList.toggle('hidden', !r);
+    if (r) { const wn = Run.worldOf(r.world), where = r.shopState?.sh && r.shopAt === `${r.world}-${r.night}` ? tr(`第 ${r.night} 夜のあとの屋台`, `stalls after night ${r.night}`) : tr(`第 ${r.night} 夜${r.inNight?.used ? 'の途中' : ''}`, `night ${r.night}${r.inNight?.used ? ' (in progress)' : ''}`);
+      ci.innerHTML = (S.savedNote ? `<b>${tr('保存しました。', 'Saved. ')}</b>` : '') + tr(`続き：${JA() ? wn.ja : wn.en} ${where}`, `Continue: ${wn.en}, ${where}`); S.savedNote = 0; } }
   const m = $('titleMenu'); m.innerHTML = '';
   const add = (t, f) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { audio.unlock(); audio.ui('tap'); f(); }; m.append(b); };
   if (DB.meta.runs > 0 || DB.run) add(tr('新しい祭り', 'New Run'), openNewRun);
@@ -218,16 +222,36 @@ $('playBtn').onclick = () => {
   audio.unlock(); audio.ui('tap');
   if (DB.run) { S.run = Run.fixRun(DB.run); resumeRun(); } else beginRun();
 };
+// 屋台でやめていたら、同じ屋台を開き直す（前の夜の結果の欄は「続きから」だけ）
+function reopenShop() {
+  const run = S.run, k = run.shopState;
+  S.mode = 'inter'; show('inter'); $('hud').classList.add('hidden'); hideTip();
+  S.sh = k.sh; S.route = k.route || Run.routeChoices(run); S.routeSel = k.sel || 0; S.giftInShop = !!k.gift; S.toraLine = k.tora || ''; S.shopBought = !!k.bought; S.shopNudged = !!k.nudged; S.mapPeek = null; S.rec = null;
+  $('resTitle').textContent = tr(`第 ${run.night} 夜のあと（続きから）`, `After night ${run.night} (continued)`);
+  $('resStars').innerHTML = ''; $('resScore').textContent = ''; $('ledger').innerHTML = ''; $('techSum') && ($('techSum').innerHTML = '');
+  $('purse').textContent = run.coins; $('shopTitle').textContent = tr('屋台', 'Festival Stalls'); $('toraSay').textContent = S.toraLine;
+  const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
+  try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
+  renderShop(); $('nextBtn').textContent = nextLabel(); $('shopQuit').textContent = tr('やめる（保存）', 'Quit (saved)'); audio.scene('calm');
+}
 // 夜の途中で（一筆でも引いたあとに）ページを閉じた・タイトルへ戻ったなら、それを覚えている
 function resumeRun() {
   const run = S.run, was = run.inNight;
   // 屋台の途中で閉じていたら、その夜は越えたことにして次へ（ごほうびを二度もらわない）
+  if (run.shopAt && run.shopAt === `${run.world}-${run.night}` && run.shopState?.sh) return reopenShop();
   if (run.shopAt && run.shopAt === `${run.world}-${run.night}`) {
     logOp('x'); const res = Run.advance(run); DB.run = run; save();
     if (res === 'won') return runOver(true);
     return res === 'world' ? openSenko() : startNight();
   }
   if (!was || !was.used) return startNight();
+  if (was.ev && was.snap && (was.W < was.H) === (W < H)) {
+    try {
+      const snap = JSON.parse(JSON.stringify(was.snap)), def = Run.nightDef(snap, was.w, was.n);
+      const st = resumeNight(def, was.W, was.H, snap, was.ev, 1, S.log ? (S.log.dn ? 1 : 0) : 1);
+      if (st && st.phase !== 'over') { track('mem/resume'); return startNight({ def, st, W: was.W, H: was.H, snap: was.snap, ev: was.ev.map((e) => [e[0] / 60, ...e.slice(1)]) }); }
+    } catch (e) { console.warn('resume', e); }
+  }
   const m = mem(); m.left++; m.lastLeftAt = Date.now();
   const line = Mem.leftLine(m, run.lives);
   if (line.take) run.lives--;
@@ -238,16 +262,16 @@ function resumeRun() {
 }
 
 // ------------------------------------------------------------------ 夜
-function startNight() {
-  const run = S.run, def = Run.nightDef(run, +(q.get('w') || run.world), +(q.get('n') || run.night));
+function startNight(resume = null) {
+  const run = S.run, def = resume ? resume.def : Run.nightDef(run, +(q.get('w') || run.world), +(q.get('n') || run.night));
   if (q.get('twist')) def.twist = q.get('twist');
   if (q.get('intrude')) def.intrude = q.get('intrude');
   const W2 = Run.worldOf(def.world);
   setTheme(W2.theme);
-  S.st = G.newNight(def, W, H, Run.loadoutFor(run)); ihenReset();
-  S.rec = { def, W, H, run: JSON.parse(JSON.stringify({ ...run, inNight: null })), ev: [] }; // 屋台の「試し打ち」用
+  S.st = resume ? resume.st : G.newNight(def, W, H, Run.loadoutFor(run)); ihenReset();
+  S.rec = resume ? { def, W: resume.W, H: resume.H, run: resume.snap, ev: resume.ev } : { def, W, H, run: JSON.parse(JSON.stringify({ ...run, inNight: null })), ev: [] }; // 屋台の「試し打ち」用
   S.growBefore = { ...(run.grow || {}) };
-  run.inNight = { w: def.world, n: def.night, used: 0 }; DB.run = run; save();
+  if (!resume) { run.inNight = { w: def.world, n: def.night, used: 0 }; DB.run = run; save(); }
   $('float').replaceChildren();
   S.mode = 'play'; S.crossed = false; S.seq = []; S.endAfterCount = false; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0; S.cnt = null;
   PF.start(); PF.level('started', def.world, def.night);
@@ -260,7 +284,7 @@ function startNight() {
   $('gTarget').textContent = fmt(def.target);
   $('combo').classList.remove('on'); $('heat').className = 'heat';
   renderStrokes(); renderBags();
-  G.stageRise(S.st); S.st.shells.forEach((s) => launchFor(s));
+  if (!resume) { G.stageRise(S.st); S.st.shells.forEach((s) => launchFor(s)); } else { S.shown = S.st.score; $('gScore').textContent = fmt(S.st.score); }
   renderLives(); renderStreak(false); renderTech(); renderEngi();
   $('cLabP').textContent = tr('点', 'POINTS'); $('cLabM').textContent = tr('倍率', 'MULT');
   // まだ教えていない数字は出さない（星屑・かすりは 5 夜目、小判は初めての屋台のあと）
@@ -464,7 +488,7 @@ function openInter(def, st, stars, rw, interest, gain) {
   $('toraSay').textContent = S.toraLine || '';
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
-  $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT');
+  $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT'); $('shopQuit').textContent = tr('やめる（保存）', 'Quit (saved)');
   renderShop(); previewShop(); openGift(); PF.ad();
   countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
   audio.ui('win'); if (!def.boss) audio.scene('calm');
@@ -598,6 +622,9 @@ function renderShop() {
   rb.textContent = tr(`引き直し  ${rc}`, `Reroll  ${rc}`); rb.disabled = rc > run.coins;
   renderHeld($('held'), true); renderPouch();
   renderMap();
+  // 屋台でやめても同じ屋台から続けられるように（品は変わらない＝引き直しのずるにならない）
+  run.shopState = { sh: S.sh, route: S.route, sel: S.routeSel || 0, gift: !!S.giftInShop, tora: S.toraLine || '', bought: !!S.shopBought, nudged: !!S.shopNudged };
+  DB.run = run; save();
 }
 // ---- 祭りの地図: この世界の 8 夜。いまいる所・通った道・次に行ける寄り道。丸を押すと中身が読める
 function renderMap() {
@@ -705,13 +732,16 @@ function replayScore(rec, run) {
 }
 function previewShop() {
   const rec = S.rec, token = (S.pvToken = (S.pvToken || 0) + 1);
+  const cw = $('charmWork'); if (cw) cw.innerHTML = '';
   if (!rec || !rec.ev.some((e) => e[1] === 'd')) return;
+  const owned = (rec.run.charms || []).filter((id) => CHARM_BY_ID[id]), work = {};
   S.preview = {};
   let base = null;
   const queue = S.sh.items.map((it, i) => [it, i]).filter(([it]) => it.kind === 'charm' || it.kind === 'recipe' || it.kind === 'trade');
   const step = () => {
     if (S.pvToken !== token || S.mode !== 'inter') return;
     if (base === null) { base = Math.max(1, replayScore(rec, rec.run)); setTimeout(step, 0); return; }
+    if (owned.length) { const id = owned.shift(), r0 = JSON.parse(JSON.stringify(rec.run)); r0.charms = r0.charms.filter((x) => x !== id); work[id] = base - replayScore(rec, r0); if (!owned.length) renderCharmWork(work); setTimeout(step, 0); return; }
     const next = queue.shift(); if (!next) { renderShop(); refreshGiftTags(); return; }
     const [it, i] = next, r2 = JSON.parse(JSON.stringify(rec.run));
     if ((it.kind === 'charm' || it.kind === 'trade') && r2.charms.length >= r2.slots) r2.charms.shift();
@@ -720,6 +750,13 @@ function previewShop() {
     setTimeout(step, 0);
   };
   setTimeout(step, 30);
+}
+// 「お守りの働き（この夜）」: 稼いだ点の多い順。効かなかったものも正直に出す
+function renderCharmWork(work) {
+  const el = $('charmWork'); if (!el || S.mode !== 'inter') return;
+  const rows = Object.entries(work).sort((a, b) => b[1] - a[1]).map(([id, d]) => { const c = CHARM_BY_ID[id], v = Math.round(d);
+    return `<div><span>${JA() ? c.ja : c.en}</span><b class="${v > 0 ? 'up' : 'flat'}">${v > 0 ? '+' + fmt(v) + tr(' 点', ' pts') : tr('効かず', 'no effect')}</b></div>`; });
+  el.innerHTML = rows.length ? `<h4>${tr('お守りの働き（この夜）', 'What your charms earned tonight')}</h4>${rows.join('')}` : '';
 }
 function peekNext() { const r = S.run, n = Run.nextCoord(r); return n ? Run.nightDef(r, n[0], n[1]) : null; }
 function renderHeld(el, sell) {
@@ -754,15 +791,19 @@ function buy(i) {
   const it = S.sh.items[i], run = S.run;
   if (Run.buyItem(S.sh, run, i)) return; // 買えない（同じお守りを 2 つ持たない・枠・小判）
   logOp('b', i); S.shopBought = true; DB.meta.taught.buy = 1;
+  { const c = CHARM_BY_ID[it.id]; if (c && (it.kind === 'charm' || it.kind === 'trade')) { S.toraLine = tr(`「${c.ja}」を買った！ ${c.dj}。次の夜から効くよ`, `Got "${c.en}"! ${c.de}. It works from the next night.`); $('toraSay').textContent = S.toraLine; } }
   if (it.kind === 'trade') { renderLives(); toast(tr('灯をひとつ差し出した', 'You gave up a light')); }
   audio.note(14, { vol: 0.18, dur: 0.3 }); setTimeout(() => audio.note(17, { vol: 0.16, dur: 0.4 }), 70);
   hideTip(); renderShop();
 }
 $('reroll').onclick = () => { if (!Run.rerollShop(S.sh, S.run, Run.unlockedCharms(DB.meta))) return; logOp('r'); audio.ui('tap'); renderShop(); previewShop(); }; // 買い戻し・ほうびは引き直しても残す
+$('shopQuit').onclick = () => { audio.ui('tap'); DB.run = S.run; save(); S.savedNote = 1; toTitle(); };
 $('nextBtn').onclick = () => {
   audio.ui('tap');
   // 小判を余らせたまま素通りしがち。初めの 3 周は、買える品があれば 1 回だけ声をかけて、いちばん伸びる品を揺らす
-  if (S.mode === 'inter' && !S.shopBought && !S.shopNudged && (DB.meta.runs || 0) < 3) {
+  // 3 回続けて何も買わずに出ようとしたときだけ（毎回聞くのはうっとうしい）
+  const noBuy = S.run.noBuy || 0;
+  if (S.mode === 'inter' && !S.shopBought && !S.shopNudged && noBuy % 3 === 2) {
     const run = S.run, can = S.sh.items.some((it) => !it.gift && it.cost <= run.coins && (it.kind !== 'trade') && (it.kind !== 'charm' || (run.charms.length < run.slots && !run.charms.includes(it.id))));
     if (can) {
       S.shopNudged = true;
@@ -773,9 +814,11 @@ $('nextBtn').onclick = () => {
     }
   }
   const pick = S.route && S.route.length ? S.route[S.routeSel || 0] : null;
+  S.run.noBuy = S.shopBought ? 0 : (S.run.noBuy || 0) + 1;
   PF.ev('shop_leave', { idx: (S.run.world - 1) * 8 + S.run.night, bought: S.shopBought ? 1 : 0, coins: S.run.coins, nudged: S.shopNudged ? 1 : 0 });
   if (pick) Run.chooseRoute(S.run, pick);
   logOp('a', pick ? pick.lane : -1);
+  S.run.shopState = null;
   const res = Run.advance(S.run); logSave();
   if (res === 'won') return runOver(true);
   DB.run = S.run; save();
@@ -929,7 +972,7 @@ for (const t of ['pointerup', 'touchend', 'click', 'keydown']) addEventListener(
 $('sndBtn').onclick = () => { audio.unlock(); DB.sound = !DB.sound; DB.music = DB.sound; applySound(); save(); soundIcon(); };
 soundIcon();
 $('pzResume').onclick = () => { audio.ui('tap'); closePause(); };
-$('pzQuit').onclick = () => { audio.ui('tap'); S.paused = false; pid = null; toTitle(); };
+$('pzQuit').onclick = () => { audio.ui('tap'); S.paused = false; pid = null; if (S.run) { DB.run = S.run; save(); S.savedNote = 1; } toTitle(); };
 addEventListener('keydown', (e) => { if ((e.key === 'Escape' && !window.HANABI_PG) || e.key === 'p') { /* Playgama では Esc を使わない（全画面を抜けるキー） */ if (S.paused) closePause(); else openPause(); } });
 function toast(t) { const e = document.createElement('div'); e.className = 'pop gold'; e.textContent = t; e.style.left = '50%'; e.style.top = '30%'; e.style.fontSize = '22px'; e.style.zIndex = 9; document.body.append(e); setTimeout(() => e.remove(), 950); }
 
@@ -1070,6 +1113,10 @@ function handle(ev) {
       if (b) { b.classList.remove('fire'); void b.offsetWidth; b.classList.add('fire'); }
       if (ev.dMult && st.stroke) { $('cMult').textContent = fmtM(st.stroke.mult); bump($('cMult')); }
       if (ev.dCoin) { renderBags(); if (ev.x) floatText(ev.x, ev.y + 26, '+' + ev.dCoin, 'coinp', 22); }
+      { const c = CHARM_BY_ID[ev.id], now = performance.now(); S.cfAt ||= {};
+        if (c && (now - (S.cfAt[ev.id] || 0)) > 600 && (ev.dMult || ev.dPts)) { S.cfAt[ev.id] = now;
+          const what = ev.dMult ? tr(`倍率${ev.dMult > 0 ? '+' : ''}${fmtM(ev.dMult)}`, `MULT ${ev.dMult > 0 ? '+' : ''}${fmtM(ev.dMult)}`) : tr(`点+${fmt(Math.round(ev.dPts))}`, `+${fmt(Math.round(ev.dPts))} pts`);
+          const x = ev.x ?? W * 0.5, y = ev.y ?? H * 0.3; floatText(x, Math.max(H * 0.16, y - 54), `${JA() ? c.ja : c.en} ${what}`, 'charm', 19, 1100); } }
       break;
     }
     case 'ihen': { // 異変: 大きな字 1 つと、短い一行だけ
@@ -1194,7 +1241,10 @@ function handle(ev) {
     case 'strokeEnd': {
       audio.fuse(0, 0);
       // 夜がまだ決まっていない一筆だけ「夜の途中」にする（勝ち負けが決まった直後に閉じても罰しない）
-      if (S.run?.inNight && !S.run.inNight.used && !st.cleared && !st.failed) { S.run.inNight.used = 1; DB.run = S.run; save(); }
+      if (S.run?.inNight && !st.failed && st.phase !== 'over' && S.rec) {
+        const r = S.rec; S.run.inNight = { w: r.def.world, n: r.def.night, used: 1, W: r.W, H: r.H, snap: r.run, ev: r.ev.map((e) => [Math.round(e[0] * 60), ...e.slice(1)]) };
+        DB.run = S.run; save();
+      }
       $('heat').className = 'heat';
       $('cMult').textContent = fmtM(ev.mult);
       slam(ev.gained);
@@ -1631,7 +1681,7 @@ async function boot() {
 // 1 周の記録（筆の動きと屋台の操作）を残し、終わったら送る。サーバーはありえない点だけを弾き、
 // 上位は手元の確かめ役（_dev/hanabi2-verify.mjs → hanabi/verify.js）が本物のルールで流しなおして、合わないものを隠す
 const LOGKEY = 'hanabi2_log';
-function logStart(run) { S.log = { v: Run.LOG_VERSION, ps: 1, as: run.assist ? 1 : 0, seed: run.seed, fuse: run.fuse, rank: run.rank, school: run.school, daily: !!run.daily, xp: DB.meta.xp || 0, ops: [] }; logSave(); }
+function logStart(run) { S.log = { v: Run.LOG_VERSION, ps: 1, dn: 1, as: run.assist ? 1 : 0, seed: run.seed, fuse: run.fuse, rank: run.rank, school: run.school, daily: !!run.daily, xp: DB.meta.xp || 0, ops: [] }; logSave(); }
 function logOp(...op) { if (S.log) S.log.ops.push(op); }
 function logSave() { if (!S.log || window.HANABI_PG) return; try { localStorage.setItem(LOGKEY, JSON.stringify(S.log)); } catch { /* 大きすぎる・保存できない環境: ランキングに出ないだけ */ } }
 // 読みなおしたときは、続きの周回と同じ種の記録だけを使う

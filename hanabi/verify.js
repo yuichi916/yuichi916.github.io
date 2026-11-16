@@ -12,12 +12,34 @@ import * as Run from './run.js';
 const MAX_STEPS = 60 * 900; // 1 夜 15 分まで
 
 // 1 夜を流す。ページと同じく、夜のはじめに玉の上がる時間をそろえてから、コマごとに筆の動きを入れる
-export function replayNight(def, W, H, run, evs, ps = 1) {
+export function replayNight(def, W, H, run, evs, ps = 1, dn = 0) {
   const lo = Run.loadoutFor(run); if (!ps) lo.rs = 1; // 縦画面の玉 1.3 倍より前の記録（ps なし）は、元の大きさで流す
+  lo.dn = dn ? 1 : 0; // 盤の混み方をそろえる前の記録（dn なし）は、前の計算で流す
   const st = G.newNight(def, W, H, lo);
   G.stageRise(st);
   let i = 0;
   for (let step = 0; step < MAX_STEPS && st.phase !== 'over'; step++) {
+    while (i < evs.length && evs[i][0] <= step) {
+      const e = evs[i++];
+      if (e[1] === 'd') G.penDown(st, e[2], e[3]);
+      else if (e[1] === 'm') G.penMove(st, e[2], e[3]);
+      else if (e[1] === 'u') G.penUp(st);
+      else if (e[1] === 'e') { const k = (run.engi || []).indexOf(e[2]); if (k >= 0 && G.useEngi(st, e[2])) run.engi.splice(k, 1); }
+    }
+    G.step(st, G.DT); st.events.length = 0;
+  }
+  return st;
+}
+
+// 夜の途中から続ける: 記録した指の動きを流し、すべて入れ終えて次の一筆を待つところ（aim）で止める
+export function resumeNight(def, W, H, run, evs, ps = 1, dn = 1) {
+  const lo = Run.loadoutFor(run); if (!ps) lo.rs = 1; lo.dn = dn ? 1 : 0;
+  const st = G.newNight(def, W, H, lo);
+  G.stageRise(st);
+  const last = evs.length ? evs[evs.length - 1][0] : 0;
+  let i = 0;
+  for (let step = 0; step < MAX_STEPS && st.phase !== 'over'; step++) {
+    if (i >= evs.length && step > last && st.phase === 'aim' && !st.pending?.length) break;
     while (i < evs.length && evs[i][0] <= step) {
       const e = evs[i++];
       if (e[1] === 'd') G.penDown(st, e[2], e[3]);
@@ -57,7 +79,7 @@ export function verifyRun(log) {
         const [, W, H, evs, score] = op;
         if (!(num(W) && num(H) && W >= 200 && H >= 200 && W <= 4000 && H <= 4000) || !okEvs(evs)) return fail('night-data', k);
         const def = Run.nightDef(run, run.world, run.night);
-        const st = replayNight(def, W, H, run, evs, log.ps ? 1 : 0);
+        const st = replayNight(def, W, H, run, evs, log.ps ? 1 : 0, log.dn ? 1 : 0);
         if (st.phase !== 'over') return fail('unfinished', k);
         if (st.score !== score) return fail('score', k, { got: st.score, claimed: score, w: run.world, n: run.night });
         const r = Run.settleNight(run, st, def);
