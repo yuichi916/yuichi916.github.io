@@ -60,7 +60,7 @@ def build_html(idx: dict) -> str:
     <a href="method/hitori-kijun.html">この地図の作り方（ひとり基準）</a> ／
     <a href="hitoritabi/">一人旅ジャーナル</a> ／
     <a href="hitori-legacy.html">旧版</a> ／
-    <a href="./">ひとりぶんの棚</a></p>
+    <a href="./">Views Engineer</a></p>
   </div>
 {END}"""
 

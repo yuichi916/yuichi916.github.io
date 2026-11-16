@@ -89,7 +89,7 @@ def build(idx: dict) -> None:
         "@type": "WebPage",
         "@id": SITE + "/agent.html",
         "url": SITE + "/agent.html",
-        "name": "AIから見た、このサイト｜ひとりぶんの棚",
+        "name": "AIから見た、このサイト｜Views Engineer",
         "description": desc,
         "inLanguage": "ja-JP",
         "dateModified": idx["generatedAt"],

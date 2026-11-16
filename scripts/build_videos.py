@@ -271,7 +271,7 @@ def build():
                             "itemListElement": [{"@type": "ListItem", "position": i + 1, "item": video_ld(v)}
                                                 for i, v in enumerate(items)]}},
             {"@type": "BreadcrumbList", "itemListElement": [
-                {"@type": "ListItem", "position": 1, "name": "ひとりぶんの棚", "item": SITE},
+                {"@type": "ListItem", "position": 1, "name": "Views Engineer", "item": SITE},
                 {"@type": "ListItem", "position": 2, "name": "動画の棚", "item": SITE + "videos.html"}]},
         ],
     }
