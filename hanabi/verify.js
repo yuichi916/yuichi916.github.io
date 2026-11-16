@@ -64,7 +64,7 @@ export function verifyRun(log) {
   if (!Run.SCHOOLS.some((s) => s.id === log.school) || !Run.FUSES.some((f) => f.id === log.fuse) || !(Number.isInteger(log.rank) && log.rank >= 0 && log.rank < Run.RANKS.length)) return fail('header');
   if (log.daily && (log.fuse !== 'asa' || log.rank !== 0 || log.school !== 'hon')) return fail('daily-header');
   const run = Run.newRun({ seed: log.seed, fuse: log.fuse, rank: log.rank, school: log.school });
-  run.daily = !!log.daily; run.assist = log.as ? 1 : 0; run.grand = log.gr ? 1 : 0;
+  run.daily = !!log.daily; run.assist = log.as ? 1 : 0; run.grand = log.gr ? 1 : 0; run.rv = log.rv || 1;
   const unlocked = Run.unlockedCharms({ xp: Math.max(0, +log.xp || 0) });
   let sh = null, phase = 'night', senko = false;
   for (let k = 0; k < log.ops.length; k++) {

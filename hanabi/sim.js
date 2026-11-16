@@ -187,7 +187,7 @@ export function newNight(level, w, h, loadout = {}) {
   const st = {
     level, field, w, h, t: 0, seed: level.seed, m, loadout, charms, dn, kd,
     recipes: loadout.recipes || {},
-    shells: [], nextId: 1, sparks: [], pending: [], drops: [], knots: [],
+    shells: [], nextId: 1, sparks: [], pending: [], drops: [], knots: [], rv: level.rv || 1,
     maxStrokes: strokes, strokesLeft: strokes, strokesUsed: 0,
     score: 0, target: level.target, cleared: false, failed: false,
     stroke: null, phase: 'aim', events: [], rnd: rng32(level.seed + 5),
@@ -554,6 +554,7 @@ function extendLine(st) {
     k.pts.push({ x: px, y: py, s: k.len });
     threadAt(st, px, py);
     if (st.m.knots) checkKnot(st, px, py);
+    if (st.rv >= 2) checkLoop(st, px, py);
   }
   if (inkLimit(st) - k.len < 1) { k.inkOut = true; penUp(st, true); st.events.push({ type: 'inkOut' }); }
 }
@@ -648,6 +649,29 @@ function threadAt(st, x, y) {
   if (st.rule === 'kagami' || m.mirror) check(st.w - x, y);
 }
 
+// 囲い（決まりの版 2〜）: 自分の線と交わって輪ができたら、輪の中の玉を覚える。火がその交点まで来ると、中の玉が一斉にひらく。
+// 2 つ以上囲ったときだけ。1 本の線で 2 回まで。3 つ以上なら倍率 +1
+function checkLoop(st, x, y) {
+  const k = st.stroke, P = k.pts, n = P.length; k.loops ||= [];
+  if (k.loops.length >= 2 || n < 24) return;
+  for (let i = 0; i < n - 12; i++) {
+    if (Math.abs(P[i].x - x) >= 10 || Math.abs(P[i].y - y) >= 10 || Math.hypot(P[i].x - x, P[i].y - y) >= 10) continue;
+    if (k.loops.some((q) => Math.hypot(q.x - x, q.y - y) < 60)) return;
+    const poly = P.slice(i);
+    const inside = (sx, sy) => { let c = false; for (let a = 0, b = poly.length - 1; a < poly.length; b = a++) { const A = poly[a], B = poly[b]; if ((A.y > sy) !== (B.y > sy) && sx < ((B.x - A.x) * (sy - A.y)) / ((B.y - A.y) || 1e-9) + A.x) c = !c; } return c; };
+    const ids = st.shells.filter((s) => s.state === 'idle' && s.rise <= 0 && inside(s.x, s.y)).map((s) => s.id);
+    if (ids.length < 2) return;
+    k.loops.push({ x, y, s: P[i].s, ids, done: false });
+    st.events.push({ type: 'loopMade', x, y, n: ids.length });
+    return;
+  }
+}
+function loopBurst(st, L) {
+  const k = st.stroke; let n = 0;
+  for (const s of st.shells) if (L.ids.includes(s.id) && s.state === 'idle') { ignite(st, s, 1, 'blast', 0.05 + n * 0.04); n++; }
+  if (n >= 3) k.mult += 1;
+  st.events.push({ type: 'loopBurst', x: L.x, y: L.y, n, mult: k.mult, up: n >= 3 });
+}
 // 自分の線と交わったら結び目（火が来ると爆ぜる）
 function checkKnot(st, x, y) {
   const k = st.stroke; const P = k.pts, n = P.length;
@@ -1031,6 +1055,7 @@ export function step(st, dt = DT) {
       touch(p.x, p.y);
       if (st.rule === 'kagami' || m.mirror) touch(st.w - p.x, p.y);
       for (const q of st.knots) if (!q.done && k.flameS >= q.s) { q.done = true; knotBurst(st, q); }
+      if (k.loops) for (const L of k.loops) if (!L.done && k.flameS >= L.s) { L.done = true; loopBurst(st, L); }
     }
   }
   // 火花
