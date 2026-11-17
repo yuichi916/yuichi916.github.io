@@ -49,7 +49,7 @@ export function createPlatform() {
     // ただし遊び始めて 3 分までは出さない（Playgama は 30 秒未満で離れた回を「遊び」と数えず、最初の広告が 29 秒目に出ていた）
     ad() { try { if (performance.now() - AD_T0 < AD_GRACE_MS) return; if (pg?.advertisement?.isInterstitialSupported) pg.advertisement.showInterstitial(); } catch { /* */ } },
     // 独自のイベント（どこで離れたかを見る）。名前は固定、変わる値は data に。版の名前を必ず付ける
-    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, build: '2026-11-17a' }); } catch { /* 送れなくても遊べる */ } },
+    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, build: '2026-11-17b' }); } catch { /* 送れなくても遊べる */ } },
     // ランキング（Bridge）。Playgama は Bridge SaaS で in_game（自分で表を描く）、YouTube は native（点を送るだけ）
     lbType() { try { return pg?.leaderboards?.type || 'not_available'; } catch { return 'not_available'; } },
     async lbSet(score) { if (P.lbType() === 'not_available') return; try { await pg.leaderboards.setScore('best_score', Math.max(0, Math.floor(score))); } catch { /* 送れなくても遊べる */ } },

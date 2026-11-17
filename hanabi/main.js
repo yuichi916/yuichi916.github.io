@@ -104,11 +104,11 @@ addEventListener('resize', resize);
 
 // ------------------------------------------------------------------ 画面の切りかえ
 const SCREENS = ['title', 'newrun', 'inter', 'over', 'pause', 'book', 'senko', 'rankScr'];
-function show(name) { for (const s of SCREENS) $(s).classList.toggle('hidden', s !== name); if (name !== 'none') { $('hand').classList.add('hidden'); S.guide = false; $('guide').classList.add('hidden'); $('guideRing').classList.add('hidden'); } } // 手本の指は遊んでいる間だけ（屋台に残っていた）
+function show(name) { for (const s of SCREENS) $(s).classList.toggle('hidden', s !== name); if (name !== 'none') { hideVeil(); /* 盤の上の題名は、ほかの画面を開いたら消す */ $('hand').classList.add('hidden'); S.guide = false; $('guide').classList.add('hidden'); $('guideRing').classList.add('hidden'); } } // 手本の指は遊んでいる間だけ（屋台に残っていた）
 
 function toTitle() {
   PF.stop();
-  S.mode = 'title'; S.st = null; S.seq = []; ihenReset();
+  S.mode = 'title'; S.st = null; S.seq = []; ihenReset(); hideVeil();
   show('title'); $('hud').classList.add('hidden'); $('teach').classList.add('hidden');
   setTheme('summer');
   // 物語の結末を見たあとは、ここが「終わらない祭り」（灯が帰らずに逃げ続けていた世界）になる
@@ -332,6 +332,7 @@ function startNight(resume = null) {
     boss.classList.add('hidden');
     if (nodeT) banner(`${JA() ? nodeT.ja : nodeT.en}<small>${tw ? (JA() ? tw.ja : tw.en) + ' ・ ' : ''}${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}<br>${JA() ? nodeT.dj : nodeT.de}</small>`, 60, 2400);
     else if (tw) banner(`${def.twistHide ? tr('今夜の正体は…', 'Tonight is…') + '<br>' : ''}${JA() ? tw.ja : tw.en}`, 64, 1500);
+    else if (def.night === 1 && S.tveil) { /* 題名を重ねている */ }
     else if (def.night === 1) banner(`${JA() ? W2.ja : W2.en}<small>${tr(`第 1 夜 ― 目標 ${fmt(def.target)}`, `Night 1 — Target ${fmt(def.target)}`)}</small>`, 54, 2200);
     else banner(`${tr(`第 ${def.night} 夜`, `Night ${def.night}`)}<small>${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}</small>`, 54, 1400);
   }
@@ -450,7 +451,7 @@ function achToast(a) {
 }
 function nightEnded() {
   const st = S.st, run = S.run, def = st.level;
-  hideTip(); PF.stop(); $('teach').classList.add('hidden'); ihenReset(); document.body.classList.remove('hudq', 'veil');
+  hideTip(); PF.stop(); $('teach').classList.add('hidden'); ihenReset(); document.body.classList.remove('hudq', 'veil'); hideVeil();
   $('combo').classList.remove('on'); $('heat').className = 'heat'; // 一筆の箱を夜のあとに残さない
   S.cnt = null; S.endAfterCount = false; S.shown = st.score; $('gScore').textContent = fmt(st.score); S.goalEl?.classList.remove('counting');
   if (st.cleared && (def.boss || G.starsFor(st) === 3)) PF.happy();
@@ -1127,7 +1128,7 @@ const toWorld = (e, dy = 0) => {
 };
 let pid = null, TOUCH = false; // 指で遊んでいるか（輪を指の外に出す）
 canvas.addEventListener('pointerdown', (e) => {
-  audio.unlock(); TOUCH = e.pointerType === 'touch';
+  audio.unlock(); TOUCH = e.pointerType === 'touch'; hideVeil('board');
   if (S.mode === 'retry' && performance.now() - S.retryAt > 600) { startNight(); return; }
   if (S.mode !== 'play' || !S.st || pid !== null || S.paused) return;
   if (S.cnt) S.cnt.t = S.cnt.dur; // 数え上げの途中でも、触れたらすぐ次へ
@@ -1873,6 +1874,9 @@ function hintFx(dt) {
   fx.add(hx, hy, 0, 0, 0.6, 6, 0, 0, [2.6, 2, 1], [1, 0.4, 0.1], 1.4);
   hand.classList.remove('hidden'); hand.style.left = ((hx - (S.pan || 0)) / W) * 100 + '%'; hand.style.top = (hy / H) * 100 + '%';
 }
+// 盤の上の題名（はじめての人の第 1 夜だけ）。触れない飾りで、最初に盤へ触れたら消す
+function titleVeil() { const e = $('tveil'); if (!e) return; $('tveilSub').textContent = tr('線を引け。火が追いかけてくる。', 'Draw the line. The fire is right behind you.') /* やり方は下の札が言う。ここは引き */; e.classList.remove('hidden', 'off'); PF.ev('title_veil', {}); }
+function hideVeil(how) { if (!S.tveil) return; S.tveil = 0; const e = $('tveil'); if (e) { e.classList.add('off'); setTimeout(() => e.classList.add('hidden'), 700); } if (how) PF.ev('first_touch', { how, sec: Math.round(performance.now() / 1000) }); }
 function titleFx(dt) {
   S.titleT -= dt;
   if (S.titleT <= 0) {
@@ -1971,7 +1975,10 @@ async function boot() {
   try { audio.unlock(); } catch { /* 無くても遊べる */ }
   if (!window.HANABI_PG) try { sessionStorage.removeItem('hanabiRetry'); } catch { /* 無くても動く */ }
   // 新しい人も題名画面から（何のゲームか分かってから始める。「あそぶ」の 1 回が音を確実に鳴らせる操作にもなる）。撮影などは ?play=1
-  if (q.has('play') && !DB.run) beginRun();
+  // 11/16 の数字: 題名画面から始めると、読み込んだ人の約半分が「あそぶ」を押さずに帰った（その前はほぼ全員が第 1 夜へ）。
+  // はじめての人は第 1 夜の盤の上に題名を重ね、玉をなぞると題名が消えてそのまま遊べる。続きのある人・遊んだことのある人は題名画面から。撮影などは ?play=1、題名画面の確認は ?title=1
+  const fresh = !DB.run && !(DB.meta.runs > 0) && !q.has('title');
+  if ((q.has('play') && !DB.run) || fresh) { if (fresh && !q.has('play')) S.tveil = 1; beginRun(); if (S.tveil) titleVeil(); }
 }
 
 // ------------------------------------------------------------------ 世界ランキング
