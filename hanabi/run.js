@@ -116,6 +116,7 @@ export function bonusItems(run, unlocked, exclude = []) {
   // まだ開いていない珍しいお守りにも、ここでなら出会える（大勝負・縁日の値打ち）
   const pool = (rar) => CHARMS.filter((c) => rar.includes(c.rar) && !run.charms.includes(c.id) && !exclude.includes(c.id) && !c.need);
   if (run.lastNode === 'shoubu') { const p = pool(['r', 'l']); for (let i = 0; i < 3 && p.length; i++) out.push({ kind: 'charm', id: p.splice(Math.floor(rnd() * p.length), 1)[0].id, cost: 0, gift: true }); }
+  if (run.lastNode === 'raid') { const p = pool(['l']).length >= 3 ? pool(['l']) : pool(['r', 'l']); for (let i = 0; i < 3 && p.length; i++) out.push({ kind: 'charm', id: p.splice(Math.floor(rnd() * p.length), 1)[0].id, cost: 0, gift: true }); }
   if (run.lastNode === 'ennichi') { const p = pool(['l']); if (p.length) out.push({ kind: 'trade', id: p[Math.floor(rnd() * p.length)].id, cost: 0, life: 1 }); }
   return out;
 }
@@ -283,7 +284,9 @@ export function nightDef(run, world, night) {
   // 盤は玉袋から。世界の邪魔玉（湿り・氷・鬼）だけを、この夜の分だけ混ぜる
   for (const t of pool) if (HAZARDS.includes(t)) mix[t] = 1 + Math.floor(rnd() * (1 + night / 3));
   if (boss) mix.shaku = 1;
-  const seals = sealsFor(run, world, night);
+  // 大妖怪（版 6〜）: 各世界の最後の夜は、大一番をこえる本物の戦い。封じ・異変・技はかけない
+  const raid = (run.rv || 1) >= 6 && night === NIGHTS_PER_WORLD && world <= WORLDS.length;
+  const seals = raid ? [] : sealsFor(run, world, night);
   if (seals.includes('kiku')) mix.kiku = (mix.kiku || 0) + 8;
   const rule = boss ? W.rules[(night / 4 - 1 + (run.seed % 2)) % W.rules.length] : null;
   const count = 13 + Math.min(14, world * 2 + night);
@@ -291,7 +294,7 @@ export function nightDef(run, world, night) {
   // 練習の周: 世界 1 の大一番 ×0.75、版 4 からは世界 2 の大一番も ×0.85（11/16 の数字: 世界 2 の大一番で目標の 65% 止まり・周が終わっていた）
   const assist = run.assist && boss ? (world === 1 ? ASSIST_BOSS : world === 2 && (run.rv || 1) >= 4 ? 0.85 : 1) : 1;
   const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) * (NODE_TARGET[node] || 1) * (SCHOOL_TARGET[run.school] || 1) * assist / 10) * 10;
-  const strokes = 3 + (boss && rank.bossStroke ? rank.bossStroke : 0);
+  const strokes = (raid ? 5 : 3) + (boss && rank.bossStroke ? rank.bossStroke : 0);
   const idx = (world - 1) * NIGHTS_PER_WORLD + night - 1;
   // 乱入は予告なし。大一番と、はじめの 2 夜にはこない
   const irnd = rng32(seed + 77);
@@ -304,7 +307,7 @@ export function nightDef(run, world, night) {
   // 大仕掛けの夜（各世界の第 6 夜。gr の周から）: 盤は画面の 2.2 倍の横長、玉 1.8 倍・目標 1.7 倍。異変は起こさない
   const sky = run.grand && (run.rv || 1) >= 3 && night === 3 && world >= 2 && world <= WORLDS.length; // 天の川の夜（版 3〜）
   const grand = sky ? { gw: 1, gh: 2.4, kind: 'seiza' } : run.grand && night === 6 && world <= WORLDS.length && !boss ? { gw: 2.2, kind: ['taki', 'moji', 'renpatsu'][world - 1] } : null;
-  return { node, seals, ihen: grand ? null : ihenFor(run, world, night, pl?.id || null, seed), grand, endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (run.assist && (run.rv || 1) >= 5 && world === 1 && night <= 3 ? [0.8, 0.85, 0.9][night - 1] : 1) /* 練習の周の第 1〜3 夜は火を遅く（11/17: 第 1 夜の 3 回に 1 回が負け、負けた回は追いつかれ 2〜3 度） */ * (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, rv: run.rv || 1, world, night, seed, count: grand ? Math.round(count * 1.8) : count, mix, strokes: grand ? strokes + 1 : strokes, refill: 7 + Math.floor(night / 2), target: grand ? Math.round((target * (grand.kind === 'seiza' && (run.rv || 1) >= 4 ? 1.5 : 1.7)) / 10) * 10 : target, /* 天の川は版 4 から 1.5 倍（11/16: 中央値 97% でやり直しが半分） */ rule, boss, twist: pl?.id || null, twistCoin: pl?.coin || 0, twistHide: !!pl?.hide, intrude };
+  return { raid: raid ? { cast: RULES[rule].cast } : null, node, seals, ihen: grand || raid ? null : ihenFor(run, world, night, pl?.id || null, seed), grand, endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (run.assist && (run.rv || 1) >= 5 && world === 1 && night <= 3 ? [0.8, 0.85, 0.9][night - 1] : 1) /* 練習の周の第 1〜3 夜は火を遅く（11/17: 第 1 夜の 3 回に 1 回が負け、負けた回は追いつかれ 2〜3 度） */ * (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, rv: run.rv || 1, world, night, seed, count: grand ? Math.round(count * 1.8) : count, mix, strokes: grand ? strokes + 1 : strokes, refill: 7 + Math.floor(night / 2), target: grand ? Math.round((target * (grand.kind === 'seiza' && (run.rv || 1) >= 4 ? 1.5 : 1.7)) / 10) * 10 : target, /* 天の川は版 4 から 1.5 倍（11/16: 中央値 97% でやり直しが半分） */ rule, boss, twist: pl?.id || null, twistCoin: pl?.coin || 0, twistHide: !!pl?.hide, intrude };
 }
 
 // 流派ごとの目標の合わせ（_dev/hanabi-bot.mjs の完走率が本流 ±10 ポイントに入るように）
@@ -340,7 +343,7 @@ export function loadoutFor(run) {
 
 // 夜の報酬: 基本 + 残った筆 + 星
 export function rewardFor(st, stars, boss) {
-  return { base: boss ? 6 : 3, left: (st.keptStrokes ?? st.strokesLeft) * 1, star: Math.max(0, stars - 1), earned: st.coinsEarned, twist: st.level.twistCoin || 0, interest: 0 };
+  return { base: st.raid ? 12 : boss ? 6 : 3, left: (st.keptStrokes ?? st.strokesLeft) * 1, star: Math.max(0, stars - 1), earned: st.coinsEarned, twist: st.level.twistCoin || 0, interest: 0 };
 }
 export function interestFor(coins) { return Math.min(3, Math.floor(coins / 5)); }
 
@@ -429,11 +432,15 @@ export function settleNight(run, st, def) {
   const rw = rewardFor(st, stars, def.boss), interest = interestFor(run.coins);
   let engi = null;
   if (def.boss) { run.engi = run.engi || []; if (run.engi.length < ENGI_SLOTS) { engi = bossEngi(run); run.engi.push(engi); } }
+  // 大成功のごほうび（版 6〜）: ふつうの夜で星 3 つなら、札が 1 枚（札がいっぱいなら小判 +3）
+  let fuku = null;
+  if ((run.rv || 1) >= 6 && stars === 3 && !def.boss) { run.engi = run.engi || []; if (run.engi.length < ENGI_SLOTS) { const ids = Object.keys(ENGI); fuku = ids[Math.floor(rng32((run.seed * 7 + run.world * 131 + run.night * 17) >>> 0)() * ids.length)]; run.engi.push(fuku); } else { run.coins += 3; fuku = 'coin'; } }
   const gain = rw.base + rw.left + rw.star + rw.earned + rw.twist + interest;
   run.coins += gain;
   nodeReward(run, def.node);
+  if (def.raid) { run.lastNode = 'raid'; run.raids = (run.raids || 0) + 1; }
   run.shopAt = `${run.world}-${run.night}`; // 屋台で読みなおしても、越えた夜をもう一度遊ばない
-  return { res, stars, rw, interest, gain, engi };
+  return { res, stars, rw, interest, gain, engi, fuku };
 }
 // 屋台を開く: ふつうの品・買い戻し（売った値 +1）・大勝負のほうびと縁日の取り引き（引き直しても残る）
 export function openShop(run, unlocked) {

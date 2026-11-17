@@ -141,12 +141,14 @@ function pickRoute(ch, rnd) {
 function playRun(seed, sk, rank = 0, fuse = 'asa', school = process.env.SCHOOL || 'hon') {
   const rnd = G.rng32(seed * 77 + 5);
   const run = Run.newRun({ seed, rank, fuse, school });
+  if (process.env.RV) { run.rv = +process.env.RV; run.grand = 1; }
   const log = []; let shoubu = 0, chaya = 0, dscore = 0, seconds = 0, stars = 0, retries = 0, blooms = 0, score = 0, graze = 0, dust = 0, tsugi = 0;
   while (!run.done) {
     const def = Run.nightDef(run, run.world, run.night);
     if (process.env.MEASURE) { const m = G.newNight({ ...def, target: 1e15 }, 1280, 720, Run.loadoutFor(run)); playNight(m, sk, G.rng32(seed * 13 + run.night)); (globalThis.FULL ||= []).push({ i: (def.world - 1) * 8 + def.night, s: m.score, t: def.target }); }
     const st = G.newNight(def, 1280, 720, Run.loadoutFor(run));
     seconds += playNight(st, sk, rnd, run) + 3; // 集計
+    if (st.raid) (globalThis.RAIDS ||= []).push({ w: def.world, win: st.raid.dead, left: st.raid.hp / st.raid.max, used: st.strokesUsed, max: st.maxStrokes, burns: st.raid.burns, crits: st.raid.crits, hits: st.raid.hitsAll, t: st.t, retry: run.retry || 0 });
     (globalThis.NIGHTS ||= []).push({ i: (def.world - 1) * 8 + def.night, r: st.score / def.target, used: st.strokesUsed, first: st._first ?? 0 });
     score += st.score; dscore = (dscore || 0) + (st.dustScore || 0); graze += st.graze; dust += st.dustGot; tsugi += st.tsugiCount || 0;
     const res = Run.afterNight(run, st);
@@ -187,4 +189,5 @@ for (const name of (skillName === 'all' ? Object.keys(SKILL) : [skillName])) {
 if (process.env.NIGHTS) { const by = {}; for (const x of globalThis.NIGHTS) (by[x.i] ||= []).push(x); const med = (a) => { const b = a.slice().sort((p, q) => p - q); return b[Math.floor(b.length / 2)]; };
   console.log('夜  点/目標の中央値  25%  75%  使った筆'); for (const [i, a] of Object.entries(by)) { const r = a.map((x) => x.r).sort((p, q) => p - q); console.log(i.padStart(2), med(r).toFixed(2).padStart(6), r[Math.floor(r.length * 0.25)].toFixed(2).padStart(6), r[Math.floor(r.length * 0.75)].toFixed(2).padStart(6), (a.reduce((p, x) => p + x.used, 0) / a.length).toFixed(1).padStart(6)); } }
 if (process.env.MEASURE) { const by = {}; for (const x of globalThis.FULL) (by[x.i] ||= []).push(x); console.log('夜  3筆の中央値  目標  比'); for (const [i, a] of Object.entries(by)) { const v = a.map((x) => x.s).sort((p, q) => p - q), m = v[Math.floor(v.length / 2)]; console.log(i.padStart(2), String(Math.round(m)).padStart(9), String(a[0].t).padStart(8), (m / a[0].t).toFixed(2), 'n=' + a.length); } }
+if (globalThis.RAIDS) { for (const w of [1, 2, 3]) { const a = globalThis.RAIDS.filter((x) => x.w === w); if (!a.length) continue; const av = (f) => (a.reduce((p, x) => p + f(x), 0) / a.length); console.log(`大妖怪 世界${w}: 戦い ${a.length} 勝ち ${(av((x) => (x.win ? 1 : 0)) * 100).toFixed(0)}%  筆 ${av((x) => x.used).toFixed(1)}/${av((x) => x.max).toFixed(1)}  残り体力 ${(av((x) => x.left) * 100).toFixed(0)}%  焼かれ ${av((x) => x.burns).toFixed(1)}  急所 ${av((x) => x.crits).toFixed(1)}  当たり ${av((x) => x.hits).toFixed(0)}  秒 ${av((x) => x.t).toFixed(0)}`); } }
 console.log('お守り', CHARMS.length, '種');

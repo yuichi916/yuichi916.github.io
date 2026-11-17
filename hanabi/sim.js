@@ -39,6 +39,9 @@ export const IHEN = {
   utsuru: { k: '移', ja: '祭りが移る', en: 'The festival moves' }, // 背景が別の世界に変わり、その世界の妖怪の決まりがかかる
 };
 export const UTSURU_RULES = ['kaze', 'ame', 'kagami'];
+// ---- 大妖怪: 各世界の最後の夜（版 6〜）。体力は目標 × hpX。魂（3 つ）が砕けるたびに筆 +1・居場所が変わり・技が増える
+// fire = 火の玉の間（秒） / warn = 赤い輪が出てから落ちるまで / sweep = 薙ぎの間（0 は無し）
+export const RAID = { hpX: [2.6, 1.9, 1.2], seg: 3, fire: [2.5, 2.0, 1.6], warn: [1.1, 1.0, 0.9], sweep: [0, 5.5, 4.4], sweepWarn: 1.25, ballR: 48, bandHW: 36, orbit: 52 };
 export const IHEN_PTS = 1.5, IHEN_CLEAR = 2, MOERU_TAKE = 0.4, MOERU_BACK = 1.5;
 
 export const TUNE = {
@@ -176,8 +179,8 @@ export function newNight(level, w, h, loadout = {}) {
   const m = { ...TUNE, strokesAdd: 0, refillAdd: 0, countAdd: 0, flameX: 1, startChips: 0, startMult: 0, addMix: {} };
   for (const c of charms) if (c.mod) c.mod(m, loadout);
   if (level.flame) m.flameX *= level.flame;
-  if (level.rule === 'kasha') m.flameX *= 1.55;
-  if (level.rule === 'ishun') m.ink *= 0.55;
+  if (level.rule === 'kasha' && !level.raid) m.flameX *= 1.55;
+  if (level.rule === 'ishun' && !level.raid) m.ink *= 0.55;
   if ((level.seals || []).includes('sumi')) m.ink *= 0.75; // 封じ: 墨削り
   if (level.grand) m.ink *= (level.grand.gw || 1) * (level.grand.gh || 1); // 大仕掛け: 盤が広いぶん、墨も長く
   const mix = { ...(level.mix || {}) };
@@ -192,7 +195,7 @@ export function newNight(level, w, h, loadout = {}) {
     score: 0, target: level.target, cleared: false, failed: false,
     stroke: null, phase: 'aim', events: [], rnd: rng32(level.seed + 5),
     bestChain: 0, blooms: 0, totalPops: 0, coinsEarned: 0, carriedInk: 0, closeCalls: 0, caughtCount: 0, encore: 0,
-    ink: m.ink, rule: level.rule || null, dropT: 0,
+    ink: m.ink, rule: (!level.raid && level.rule) || null, dropT: 0,
     twist: level.twist || null, runners: [], crows: [], blades: [], zones: [], shape: null,
     streak: loadout.streak || 0, lastBloom: false, act2: false, goalMet: false, intruded: false, refillTypes: [],
     crowMax: 0, crowLeft: 0, crowT: 0, falling: false, fallT: 0,
@@ -234,11 +237,79 @@ export function newNight(level, w, h, loadout = {}) {
     if (pool[0]) { pool[0].mod = 'renpatsu'; st.ren = { id: pool[0].id, need: 6, left: 0, t: 0, active: false, done: false }; }
   }
   st.deckI = L.deckUsed || 0;
+  if (level.raid) { // 大妖怪は盤のまん中より少し上。体のまわりの玉は外へ押し出す
+    const fw = field.x1 - field.x0, fh = field.y1 - field.y0, r = Math.round(w < h ? fw * 0.18 : fh * 0.3);
+    const max = Math.max(100, Math.round((level.target * RAID.hpX[Math.min(2, (level.world || 1) - 1)]) / 10) * 10);
+    st.raid = { x: (field.x0 + field.x1) / 2, y: field.y0 + fh * 0.42, r, max, hp: max, ph: 0, atkT: 1.4, swT: 2.6, warns: [], dead: false, moved: false, broke: 0, hitsAll: 0, burns: 0, crits: 0 };
+    raidClear(st); raidKaku(st);
+  }
   if (level.rule === 'kappa') st.shells.forEach((s, i) => { if (i % 2 === 0 && s.type === 'kiku') retype(s, 'shime'); });
   if (st.twist && TWIST_SETUP[st.twist]) TWIST_SETUP[st.twist](st);
   st.startCount = st.shells.length;
   fire(st, 'nightStart', {});
   return st;
+}
+
+function raidClear(st) {
+  const Rd = st.raid, f = st.field;
+  for (const s of st.shells) {
+    if (s.state !== 'idle' || s.mod === 'kaku') continue;
+    const dx = s.x - Rd.x, dy = s.y - Rd.y, d = Math.hypot(dx, dy), min = Rd.r + s.r + 14;
+    if (d >= min) continue;
+    const a = d > 1 ? Math.atan2(dy, dx) : (s.id * 2.399) % TAU;
+    s.x = Math.max(f.x0, Math.min(f.x1, Rd.x + Math.cos(a) * min)); s.y = Math.max(f.y0, Math.min(f.y1, Rd.y + Math.sin(a) * min));
+  }
+}
+function raidKaku(st) {
+  const Rd = st.raid; if (!Rd || Rd.dead || st.shells.some((s) => s.mod === 'kaku' && s.state === 'idle')) return;
+  const a = st.rnd() * TAU, d = Rd.r + RAID.orbit, s = addShell(st, Rd.x + Math.cos(a) * d, Rd.y + Math.sin(a) * d, 'kin', 0.2);
+  s.mod = 'kaku'; s.orb = a; st.events.push({ type: 'rise', shell: s });
+}
+// 一筆の間の妖怪の技: 赤い輪（火の玉）と赤い帯（薙ぎ）。落ちた時に筆先がその中にあれば焼かれる（捕まったのと同じ）。火の玉は落ちた所の玉に火をつける
+function raidBurn(st, x, y, kind) {
+  const k = st.stroke; if (!k || !k.penDown) return;
+  k.flameS = k.len; k.caught = true; k.penDown = false; st.caughtCount++; st.raid.burns++;
+  st.events.push({ type: 'raidBurn', x, y, kind }); fire(st, 'caught', {});
+}
+function raidStep(st, dt) {
+  const Rd = st.raid, k = st.stroke, f = st.field;
+  for (const s of st.shells) if (s.mod === 'kaku' && s.state === 'idle' && !s.threaded && s.rise <= 0) { s.orb += (0.55 + Rd.ph * 0.3) * dt; const d = Rd.r + RAID.orbit; s.x = Rd.x + Math.cos(s.orb) * d; s.y = Rd.y + Math.sin(s.orb) * d; }
+  const tip = k && k.pts.length ? k.pts[k.pts.length - 1] : null;
+  for (let i = Rd.warns.length - 1; i >= 0; i--) {
+    const w = Rd.warns[i]; w.t -= dt; if (w.t > 0) continue;
+    Rd.warns.splice(i, 1);
+    st.events.push({ type: 'raidImpact', kind: w.kind, x: w.x, y: w.y, axis: w.axis });
+    if (w.kind === 'ball') {
+      if (k && st.phase === 'stroke') for (const o of st.shells) if (o.state === 'idle' && o.rise <= 0 && o.mod !== 'kaku' && Math.hypot(o.x - w.x, o.y - w.y) < w.r + o.r) ignite(st, o, 1, 'blast', 0.05);
+      if (tip && Math.hypot(tip.x - w.x, tip.y - w.y) < w.r) raidBurn(st, tip.x, tip.y, 'ball');
+    } else if (tip && (w.axis === 'h' ? Math.abs(tip.y - w.y) : Math.abs(tip.x - w.x)) < RAID.bandHW) raidBurn(st, tip.x, tip.y, 'band');
+  }
+  if (Rd.dead || st.phase !== 'stroke' || !k || !k.penDown || !k.flameOn || !tip) return;
+  Rd.atkT -= dt;
+  if (Rd.atkT <= 0) {
+    Rd.atkT = RAID.fire[Rd.ph];
+    const n = Rd.ph >= 2 ? 2 : 1, prev = k.pts[Math.max(0, k.pts.length - 6)], dx = tip.x - prev.x, dy = tip.y - prev.y, dl = Math.hypot(dx, dy) || 1;
+    for (let j = 0; j < n; j++) { // 2 つ目は、筆の向かう先へ
+      const lead = j === 0 ? 0 : 110, x = Math.max(f.x0, Math.min(f.x1, tip.x + (dx / dl) * lead)), y = Math.max(f.y0, Math.min(f.y1, tip.y + (dy / dl) * lead));
+      const w = { kind: 'ball', x, y, r: RAID.ballR * (st.rs || 1) ** 0.5, t: RAID.warn[Rd.ph] + j * 0.25, T: RAID.warn[Rd.ph] + j * 0.25 }; Rd.warns.push(w);
+      st.events.push({ type: 'raidWarn', ...w, fx: Rd.x, fy: Rd.y });
+    }
+  }
+  if (RAID.sweep[Rd.ph] > 0) {
+    Rd.swT -= dt;
+    if (Rd.swT <= 0) {
+      Rd.swT = RAID.sweep[Rd.ph]; const axis = st.rnd() < 0.5 ? 'h' : 'v';
+      const w = { kind: 'band', axis, x: tip.x, y: tip.y, t: RAID.sweepWarn, T: RAID.sweepWarn }; Rd.warns.push(w);
+      st.events.push({ type: 'raidWarn', ...w, fx: Rd.x, fy: Rd.y });
+    }
+  }
+}
+// 魂が砕けたあと: 妖怪は別の場所へ移る（盤はまるごと入れかわる）
+function raidMove(st) {
+  const Rd = st.raid, f = st.field, fw = f.x1 - f.x0, fh = f.y1 - f.y0, land = st.w >= st.h;
+  const xs = land ? [0.3, 0.5, 0.7] : [0.42, 0.5, 0.58], ys = land ? [0.36, 0.5] : [0.3, 0.5, 0.62];
+  let nx = Rd.x, ny = Rd.y; for (let t = 0; t < 8 && Math.hypot(nx - Rd.x, ny - Rd.y) < fw * 0.12; t++) { nx = f.x0 + fw * xs[Math.floor(st.rnd() * xs.length)]; ny = f.y0 + fh * ys[Math.floor(st.rnd() * ys.length)]; }
+  st.events.push({ type: 'raidMove', x0: Rd.x, y0: Rd.y, x: nx, y: ny }); Rd.x = nx; Rd.y = ny; Rd.moved = false; Rd.warns.length = 0;
 }
 
 // 夜のはじめに玉が町から上がってくる時間（画面と、ランキングの動かし直しで同じにする）
@@ -433,13 +504,13 @@ export function tsugiHit(st, x, y) { return tsugiOpen(st) && Math.hypot(x - st.t
 
 // ---- 縁起物: 狙いを決めている間（aim）に使う、使い切りの札
 export const ENGI = {
-  kinka: { ja: '金化け札', en: 'Gilding Charm', dj: '盤のまん中に近い玉 3 つが、金の玉に化ける', de: 'The 3 shells nearest the center turn to gold', cost: 4 },
-  atsu: { ja: '熱燗札', en: 'Hot Start', dj: '次の一筆は 熱 ×3 から始まる', de: 'Your next stroke starts at HOT ×3', cost: 4 },
-  osoi: { ja: '寝坊札', en: 'Late Spark', dj: '次の一筆は、火が 2 秒おそくつく', de: 'Next stroke: the flame lights 2s late', cost: 3 },
-  shaku: { ja: '尺玉札', en: 'Grand Shell Charm', dj: '盤のまん中に尺玉がひとつ上がる', de: 'A Grand Shell rises in the center', cost: 5 },
-  yose: { ja: '寄せ札', en: 'Gathering Charm', dj: '盤の玉が、まん中へぐっと寄る', de: 'All shells drift toward the center', cost: 3 },
-  hoshi: { ja: '星降り札', en: 'Starfall', dj: '盤いっぱいに星屑が 24 粒降る', de: '24 star dust fall across the sky', cost: 3 },
-  fude: { ja: '筆札', en: 'Extra Brush', dj: 'この夜の筆が 1 本増える', de: '+1 stroke this night', cost: 6 },
+  kinka: { sj: '金の玉 3', se: '3 gold', ja: '金化け札', en: 'Gilding Charm', dj: '盤のまん中に近い玉 3 つが、金の玉に化ける', de: 'The 3 shells nearest the center turn to gold', cost: 4 },
+  atsu: { sj: '熱 ×3', se: 'HOT ×3', ja: '熱燗札', en: 'Hot Start', dj: '次の一筆は 熱 ×3 から始まる', de: 'Your next stroke starts at HOT ×3', cost: 4 },
+  osoi: { sj: '火が遅い', se: 'Late fire', ja: '寝坊札', en: 'Late Spark', dj: '次の一筆は、火が 2 秒おそくつく', de: 'Next stroke: the flame lights 2s late', cost: 3 },
+  shaku: { sj: '尺玉', se: 'Grand', ja: '尺玉札', en: 'Grand Shell Charm', dj: '盤のまん中に尺玉がひとつ上がる', de: 'A Grand Shell rises in the center', cost: 5 },
+  yose: { sj: '玉を寄せる', se: 'Gather', ja: '寄せ札', en: 'Gathering Charm', dj: '盤の玉が、まん中へぐっと寄る', de: 'All shells drift toward the center', cost: 3 },
+  hoshi: { sj: '星屑 24', se: '24 dust', ja: '星降り札', en: 'Starfall', dj: '盤いっぱいに星屑が 24 粒降る', de: '24 star dust fall across the sky', cost: 3 },
+  fude: { sj: '筆 +1', se: '+1 stroke', ja: '筆札', en: 'Extra Brush', dj: 'この夜の筆が 1 本増える', de: '+1 stroke this night', cost: 6 },
 };
 export function useEngi(st, id) {
   if (st.phase !== 'aim' || !ENGI[id]) return false;
@@ -463,7 +534,7 @@ export function penDown(st, x, y) {
   const tsugi = tsugiHit(st, x, y) ? st.tsugi : null;
   if (st.phase === 'settle' && tsugi) settleNow(st);
   if (st.phase !== 'aim') return false;
-  if (st.level.boss) prepSpell(st); // 技の邪魔（突風・火の速さ）は一筆を作る前に入れる。でないとその一筆に効かない
+  if (st.level.boss && !st.raid) prepSpell(st); // 技の邪魔（突風・火の速さ）は一筆を作る前に入れる。でないとその一筆に効かない
   st.stroke = newStroke(st);
   const k = st.stroke;
   k.pts.push({ x, y, s: 0 });
@@ -471,7 +542,7 @@ export function penDown(st, x, y) {
   st.phase = 'stroke';
   st.crowLeft = st.crowMax; st.crowT = 0.7; st.fallT = 0;
   k.idle0 = st.shells.filter((s) => s.state === 'idle' && !s.fall).length;
-  if (st.level.boss) startSpell(st, k);
+  if (st.level.boss && !st.raid) startSpell(st, k);
   if (tsugi) { // 前の一筆の倍率の半分と熱を持ちこむ。続けるほど +1
     k.tsugiN = tsugi.n; k.mult += Math.round(tsugi.mult * (st.m.tsugiKeepX || st.m.tsugiKeep)) + tsugi.n - 1; k.heat = Math.max(k.heat, tsugi.heat); k.grace = st.m.tsugiGrace;
     st.tsugiCount++; st.tsugiBest = Math.max(st.tsugiBest, tsugi.n);
@@ -557,7 +628,9 @@ function extendLine(st) {
   const k = st.stroke;
   if (!k || !k.penDown || !k.want) return;
   const last = k.pts[k.pts.length - 1];
-  let dx = k.want.x - last.x, dy = k.want.y - last.y, d = Math.hypot(dx, dy);
+  let wx = k.want.x, wy = k.want.y;
+  if (st.raid && !st.raid.dead) { const Rd = st.raid, ex = wx - Rd.x, ey = wy - Rd.y, ed = Math.hypot(ex, ey), rr = Rd.r * 0.92; if (ed < rr) { const a = ed > 0.5 ? Math.atan2(ey, ex) : 0; wx = Rd.x + Math.cos(a) * rr; wy = Rd.y + Math.sin(a) * rr; } } // 指が大妖怪の体の中なら、体の縁まで
+  let dx = wx - last.x, dy = wy - last.y, d = Math.hypot(dx, dy);
   if (d < 5) { k.held = false; return; }
   let room = inkLimit(st) - k.len;
   if (st.m.dyn && !(st.m.okibi && !k.flameOn)) {
@@ -572,7 +645,8 @@ function extendLine(st) {
   if (k.pts.length > 2) { const p = k.pts[k.pts.length - 2]; const a0 = Math.atan2(last.y - p.y, last.x - p.x), a1 = Math.atan2(dy, dx); let da = a1 - a0; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; k.turn += Math.abs(da); if (Math.abs(da) >= st.m.turnMin) last.bend = Math.abs(da); }
   const n = Math.max(1, Math.ceil(d / 14));
   for (let i = 1; i <= n; i++) {
-    const px = last.x + (dx * i) / n, py = last.y + (dy * i) / n;
+    let px = last.x + (dx * i) / n, py = last.y + (dy * i) / n;
+    if (st.raid && !st.raid.dead) { const Rd = st.raid, ex = px - Rd.x, ey = py - Rd.y, ed = Math.hypot(ex, ey), rr = Rd.r * 0.92; if (ed < rr) { const a = ed > 0.5 ? Math.atan2(ey, ex) : 0; px = Rd.x + Math.cos(a) * rr; py = Rd.y + Math.sin(a) * rr; } }
     k.len += d / n;
     k.pts.push({ x: px, y: py, s: k.len });
     threadAt(st, px, py);
@@ -741,6 +815,7 @@ function ignite(st, s, gen, how, delay = 0) {
     M.next++; st.events.push({ type: 'mojiStep', x: s.x, y: s.y, n: s.seq, need: M.need });
     if (M.next > M.need && st.stroke) { M.done = true; st.stroke.mult *= 2; st.stroke.chips += 120 * M.need; st.events.push({ type: 'mojiDone', kanji: M.kanji, x: s.x, y: s.y, mult: st.stroke.mult, chips: st.stroke.chips }); }
   }
+  if (s.mod === 'kaku' && how !== 'line') return; // 急所は自分の線でだけ
   const m = st.m;
   if (how !== 'line' && s.type === 'shime') { s.hits++; st.events.push({ type: 'damp', shell: s }); if (s.hits < m.dampNeed) return; }
   if (how === 'line' && s.type === 'koori' && !m.iceLine) return;  // 氷玉は爆風でとかす
@@ -776,6 +851,11 @@ function burst(st, s, gen, how) {
   const c = fire(st, 'burst', { s, gen, how, pts, R, n: k.pops, heatLv: k.heatLv });
   pts = c.pts * m.chipsX; R = c.R;
   k.chips += Math.round(pts);
+  if (st.raid && !st.raid.dead) {
+    const Rd = st.raid, dd = Math.hypot(s.x - Rd.x, s.y - Rd.y) || 1;
+    if (s.mod === 'kaku') { k.crit = (k.crit || 0) + 1; Rd.crits++; st.events.push({ type: 'raidCrit', x: s.x, y: s.y }); }
+    if (dd < R + Rd.r || s.mod === 'kaku') { k.rPts = (k.rPts || 0) + Math.round(pts); k.rHits = (k.rHits || 0) + 1; Rd.hitsAll++; st.events.push({ type: 'raidHit', x: Rd.x + ((s.x - Rd.x) / dd) * Rd.r * 0.75, y: Rd.y + ((s.y - Rd.y) / dd) * Rd.r * 0.75, pts: Math.round(pts), n: k.rHits }); }
+  }
   if (d.mult && !kinfuu) k.mult += m.goldMult + lvl;
   if (mod === 'gold' && !kinfuu) k.mult += 1; // 金箔
   if (d.lantern) k.lantern++;
@@ -1036,6 +1116,7 @@ export function step(st, dt = DT) {
   if (st.blades.length) cutByBlades(st, dt);
   if (st.runners.length) moveRunners(st, dt);
   if (st.dust.length) moveDust(st, dt);
+  if (st.raid) raidStep(st, dt);
   if (st.phase === 'stroke' && k) {
     k.age += dt;
     // 筆が止まっている時間（わざと火を待ったか）
@@ -1139,7 +1220,7 @@ export function step(st, dt = DT) {
   // 一筆の終わり
   if (st.phase === 'stroke' && k && !k.done && !k.penDown && (k.fuseOut || k.caught) && !st.pending.length && !st.sparks.length && !st.runners.length && !(st.taki && st.taki.front !== null) && !(st.ren && st.ren.active)) finishStroke(st);
   if (st.phase === 'settle' && st.t >= st.settleAt) {
-    if (st.cleared && st.level.boss && !st.act2) { // 勝ったと思ったら、もう一幕
+    if (st.cleared && st.level.boss && !st.act2 && !st.raid) { // 勝ったと思ったら、もう一幕
       st.act2 = true; st.keptStrokes = st.strokesLeft; st.strokesLeft = 1; st.maxStrokes = 1;
       st.stroke = null; st.knots.length = 0; st.lastBloom = true; st.m.flameX *= 1.2;
       refill(st);
@@ -1207,12 +1288,23 @@ function finishStroke(st) {
     st.spellLog.push({ id: k.spell.id, got });
     st.events.push({ type: got ? 'spellGet' : 'spellFail', ...k.spell, bonus: spellGot });
   }
+  if (st.raid && !st.raid.dead) {
+    const Rd = st.raid, seg = Rd.max / RAID.seg, before = Rd.hp;
+    let dmg = Math.floor((k.rPts || 0) * k.mult * (k.crit ? 2 : 1)); if (k.caught && !st.m.caughtSafe) dmg = Math.floor(dmg * 0.5);
+    Rd.hp = Math.max(0, Rd.hp - dmg);
+    const n0 = Math.min(RAID.seg, Math.floor((Rd.max - before) / seg + 1e-9)), n1 = Math.min(RAID.seg, Math.floor((Rd.max - Rd.hp) / seg + 1e-9));
+    st.events.push({ type: 'raidDmg', dmg, hp: Rd.hp, max: Rd.max, crit: !!k.crit, hits: k.rHits || 0, caught: k.caught });
+    if (Rd.hp <= 0) { Rd.dead = true; Rd.warns.length = 0; st.events.push({ type: 'raidDown', x: Rd.x, y: Rd.y }); }
+    else if (n1 > n0) { Rd.broke = n1; Rd.ph = Math.min(RAID.fire.length - 1, n1); Rd.moved = true; Rd.atkT = 1.4; Rd.swT = 2.4; st.strokesLeft += 1; st.maxStrokes += 1; st.lastBloom = true; if (Rd.ph >= 2) st.m.flameX *= 1.08; st.events.push({ type: 'raidBreak', n: n1, ph: Rd.ph, x: Rd.x, y: Rd.y }); }
+  }
   st.strokesLeft--; st.strokesUsed++;
   st.events.push({ type: 'strokeEnd', gained, chips: k.chips, mult: k.mult, pops: k.pops, bloom, caught: k.caught, heatLv: k.heatLv, streak: st.streak, graze: k.graze, dust: k.dust, dustPts: Math.round(k.dustPts), tsugiN: k.tsugiN, spellGot, lost: k.lostChips || 0 });
   st.phase = 'settle';
   st.settleAt = st.t + (bloom ? 3.2 : 0.9);
+  if (st.raid?.dead) st.settleAt = st.t + 3.4; // 討ち取りの演出を見せる間
   if (st.act2) st.coinsEarned += Math.ceil(k.pops / 3);
-  if (st.score >= st.target || st.goalMet || st.act2) st.cleared = true;
+  if (st.raid) { if (st.raid.dead) st.cleared = true; else if (st.strokesLeft <= 0) st.failed = true; }
+  else if (st.score >= st.target || st.goalMet || st.act2) st.cleared = true;
   else if (st.strokesLeft <= 0) st.failed = true;
   // 継ぎ火: 捕まらずに終えたら、離した所に輪が残る。輪の中から次の一筆を始めると倍率を持ちこめる
   const last = k.pts[k.pts.length - 1];
@@ -1225,6 +1317,7 @@ function finishStroke(st) {
 
 // 一筆が終わるたびに、町から新しい玉が上がってくる。満開のあとは盤がまるごと入れかわる
 function refill(st) {
+  if (st.raid?.moved) raidMove(st);
   const bloomed = st.lastBloom; st.lastBloom = false;
   const f = st.field;
   st.shells = st.shells.filter((s) => s.state === 'idle' && !s.fall);
@@ -1271,6 +1364,7 @@ function refill(st) {
       }
     }
   }
+  if (st.raid && !st.raid.dead) { raidClear(st); raidKaku(st); }
   if (st.twist === 'meoto') pairUp(st);
   if (st.twist === 'juzu') { typeSome(st, 'juzu', Math.max(0, 6 - st.shells.filter((s) => s.type === 'juzu').length)); numberJuzu(st); }
 }
@@ -1279,5 +1373,6 @@ function rotate(a, i) { const k = ((i % a.length) + a.length) % a.length; return
 
 export function starsFor(st) {
   const s = st.score, t = st.target;
+  if (st.raid?.dead) return Math.max(1, s >= t * 2.5 ? 3 : s >= t * 1.6 ? 2 : s >= t ? 1 : 0);
   return s >= t * 2.5 ? 3 : s >= t * 1.6 ? 2 : s >= t ? 1 : 0;
 }

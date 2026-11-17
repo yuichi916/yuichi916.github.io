@@ -218,7 +218,7 @@ function beginRun(o = {}) {
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
   S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
-  S.run.rv = 5; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い
+  S.run.rv = 6; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
@@ -290,15 +290,17 @@ function startNight(resume = null) {
   S.pan = 0; S.panY = 0; S.drag = null; S.panIntro = def.grand && !resume ? 2.4 : 0;
   { const wr = ((def.world - 1) % 3) + 1, hq = !def.endless && wr === 3 && def.night === 5 && lore() >= 2; document.body.classList.toggle('hudq', hq);
     if (hq && !resume) setTimeout(() => banner(`${tr('札隠し', 'NUMBERS HIDDEN')}<small>${tr('今夜は、数が見えない。……数えなくても、わかるはず', 'Tonight the numbers hide. ...You can feel it without counting.')}</small>`, 58, 2600), 900); }
-  if (!resume) { if (def.rule) { const st0 = S.st; clearTimeout(S.ncD); S.ncD = setTimeout(() => { if (S.st === st0) nightCard(def); }, 4400); } else nightCard(def); } /* 大一番は静かな間と名前のあとに */
-  PF.ev('night_start', { idx: (def.world - 1) * 8 + def.night, world: def.world, night: def.night, boss: def.boss ? 1 : 0, retry: S.run.retry || 0, target: def.target, assist: S.run.assist ? 1 : 0 });
+  document.body.classList.toggle('raid', !!def.raid); S.raidV = null;
+  document.body.classList.toggle('fuku', (S.run.rv || 1) >= 6 && !def.boss); // ★3 で札（目標の棒の ★★★ に印）
+  if (!resume && !def.raid) { if (def.rule) { const st0 = S.st; clearTimeout(S.ncD); S.ncD = setTimeout(() => { if (S.st === st0) nightCard(def); }, 4400); } else nightCard(def); } /* 大一番は静かな間と名前のあとに */
+  PF.ev('night_start', { idx: (def.world - 1) * 8 + def.night, world: def.world, night: def.night, boss: def.boss ? 1 : 0, raid: def.raid ? 1 : 0, retry: S.run.retry || 0, target: def.target, assist: S.run.assist ? 1 : 0 });
   show('none'); $('hud').classList.remove('hidden');
   $('nWorld').textContent = (JA() ? W2.ja : W2.en) + (def.endless ? tr(`・千秋楽 ${def.world - Run.WORLDS.length} 巡`, ` · Encore ${def.world - Run.WORLDS.length}`) : '');
   $('nName').textContent = tr(`第 ${def.night} 夜`, `Night ${def.night}`);
   { const wr = ((def.world - 1) % 3) + 1, tot = (mem().nights || 0) + 1;
     if (!resume && !def.endless && wr === 1 && def.night === 1 && (DB.meta.runs || 0) >= 1) { $('nName').textContent = tr(`第 ${tot} 夜`, `Night ${tot}`); setTimeout(() => { if (S.st?.level === def) { $('nName').firstChild.textContent = tr(`第 ${def.night} 夜`, `Night ${def.night}`); } }, 700); }
     if (!def.endless && wr === 3 && def.night === 7 && lore() >= 2) { $('nName').textContent = tr(`第 ${tot} 夜`, `Night ${tot}`); const g = document.createElement('i'); g.className = 'goal'; g.textContent = tr('大一番まで あと ？ 夜', 'Boss in ?'); $('nName').append(g); S.noGoal = 1; } else S.noGoal = 0; }
-  { const nb = def.night < 4 ? 4 : def.night < 8 ? 8 : 0; if (nb && !def.endless && !S.noGoal) { const g = document.createElement('i'); g.className = 'goal'; g.textContent = def.rule ? tr('今夜は大一番', 'Boss night') : tr(`大一番まで あと ${nb - def.night} 夜`, `Boss in ${nb - def.night}`); $('nName').append(g); } }
+  { const nb = def.night < 4 ? 4 : def.night < 8 ? 8 : 0; if (nb && !def.endless && !S.noGoal) { const g = document.createElement('i'); g.className = 'goal'; g.textContent = def.raid ? tr('大妖怪との決戦', 'Final battle') : def.rule ? tr('今夜は大一番', 'Boss night') : nb === 8 && (S.run.rv || 1) >= 6 && def.world <= Run.WORLDS.length ? tr(`大妖怪まで あと ${nb - def.night} 夜`, `Great Yokai in ${nb - def.night}`) : tr(`大一番まで あと ${nb - def.night} 夜`, `Boss in ${nb - def.night}`); $('nName').append(g); } }
   $('gTarget').textContent = fmt(def.target);
   $('combo').classList.remove('on'); $('heat').className = 'heat';
   renderStrokes(); renderBags();
@@ -315,7 +317,8 @@ function startNight(resume = null) {
   for (const z of S.st.zones) { const e = document.createElement('div'); e.className = 'zl ' + z.kind; e.innerHTML = z.kind === 'oil' ? tr('油<small>火が速い・点 ×3</small>', 'OIL<small>fast flame, POINTS ×3</small>') : tr('水<small>火が遅い</small>', 'WATER<small>slow flame</small>'); e.style.left = (z.x / W) * 100 + '%'; e.style.top = (z.y / H) * 100 + '%'; zl.append(e); }
   // 大一番
   const boss = $('boss');
-  if (def.rule) {
+  if (def.raid) raidIntro(def, run, resume);
+  else if (def.rule) {
     const r = Run.RULES[def.rule];
     drawBoss(r.cast, 'taunt'); boss.classList.remove('hidden'); boss.classList.add('taunt');
     let taunt = Mem.bossTaunt(mem(), def.rule, run);
@@ -349,22 +352,97 @@ function renderTech(bumpPv) {
   if (bumpPv) bump($('tPv').parentElement);
 }
 function renderStreak(up) { const n = S.st?.streak || 0, el = $('streak'); el.textContent = n > 0 ? tr(`連続満開 ${n}（次は ×${S.st.m.bloomX + Math.min(6, n)}）`, `Bloom streak ${n} (next ×${S.st.m.bloomX + Math.min(6, n)})`) : ''; if (up) { el.classList.remove('up'); void el.offsetWidth; el.classList.add('up'); } }
+// 大妖怪（各世界の最後の夜）の名前
+const RAID_NAME = { kamaitachi: ['大鎌鼬', 'Great Kamaitachi'], tengu: ['大天狗', 'Great Tengu'], yukionna: ['雪女郎', 'Snow Matriarch'], kitsune: ['九尾', 'Nine-Tails'], tanuki: ['大狸', 'Great Tanuki'], yamabiko: ['大山彦', 'Great Yamabiko'] };
+const raidName = (def) => { const n = RAID_NAME[def?.raid?.cast] || ['大妖怪', 'Great Yokai']; return JA() ? n[0] : n[1]; };
 function drawBoss(id, face) {
   const c = $('boss'), g = c.getContext('2d'); g.clearRect(0, 0, 280, 280);
   try { drawCast(g, id, 140, 150, 190, { face, still: true, glow: true }); } catch { /* 絵が無くても遊べる */ }
 }
+function raidIntro(def, run, resume) {
+  const st = S.st, Rd = st.raid; $('boss').classList.add('hidden');
+  $('raidName').textContent = raidName(def);
+  S.raidV = { x: Rd.x, y: Rd.y, hp: Rd.hp, flash: 0, shake: 0, face: 'taunt', faceT: 0, show: resume ? 1 : 0, dead: 0, ghost: 0 };
+  const wr = ((def.world - 1) % 3) + 1;
+  const taunt = !def.endless && wr === 3 && lore() >= 3 ? tr(`${(DB.meta.runs || 0) + 1} 度目の夏だな、灯。迎え火の主が待っている。`, `Your summer number ${(DB.meta.runs || 0) + 1}, Akari. The keeper of the welcoming fire is waiting.`) : '';
+  const st0 = st, slam = () => { document.body.classList.remove('veil'); if (S.st !== st0) return; audio.boom(2.4, 0); R.shake = Math.max(R.shake, 20); R.flash = Math.max(R.flash, 0.3); S.raidV.flash = 1;
+    banner(`${raidName(def)}<small>${tr('花火の爆発をぶつけて、魂を 3 つ砕け', 'Blast it with fireworks. Break all three souls')}${taunt ? `<br>「${taunt}」` : ''}</small>`, 66, taunt ? 3800 : 2800); };
+  if (resume) slam(); else { document.body.classList.add('veil'); audio.duck(1.6, 0.12); audio.note(-12, { vol: 0.16, dur: 1.4 }); setTimeout(slam, 1300); }
+}
+const raidCv = $('raidCv');
+function raidSize() { if (!raidCv) return; const w = Math.round(innerWidth * Math.min(2, devicePixelRatio || 1)), h = Math.round(innerHeight * Math.min(2, devicePixelRatio || 1)); if (raidCv.width !== w || raidCv.height !== h) { raidCv.width = w; raidCv.height = h; } }
+// 毎フレーム: 大妖怪・赤い輪・赤い帯・飛んでくる火の玉
+function drawRaid(dt) {
+  const st = S.st, V = S.raidV, Rd = st?.raid;
+  if (!raidCv || !Rd || !V || S.mode !== 'play') { if (raidCv && raidCv.dataset.on) { raidCv.getContext('2d').clearRect(0, 0, raidCv.width, raidCv.height); delete raidCv.dataset.on; } return; }
+  raidSize(); raidCv.dataset.on = 1;
+  const g = raidCv.getContext('2d'), cw = raidCv.width, ch = raidCv.height, k = cw / W, sx = (x) => (x - (S.pan || 0)) * k, sy = (y) => (y + (S.panY || 0)) * (ch / H);
+  g.clearRect(0, 0, cw, ch);
+  V.show = Math.min(1, V.show + dt / 0.9); V.flash = Math.max(0, V.flash - dt * 4); V.shake *= Math.exp(-dt * 10);
+  V.x += (Rd.x - V.x) * Math.min(1, dt * 3.2); V.y += (Rd.y - V.y) * Math.min(1, dt * 3.2);
+  if (V.faceT > 0) { V.faceT -= dt; if (V.faceT <= 0) V.face = 'taunt'; }
+  const t = R.time || 0, r = Rd.r * k, bx = sx(V.x) + (Math.random() - 0.5) * V.shake * k, by = sy(V.y) + (Math.random() - 0.5) * V.shake * k;
+  // 赤い帯（薙ぎ）
+  for (const w of Rd.warns) {
+    if (w.kind !== 'band') continue;
+    const u = 1 - w.t / w.T, hw = 36 * k, a = 0.18 + 0.22 * Math.abs(Math.sin(t * (8 + u * 14)));
+    g.fillStyle = `rgba(255,40,30,${a})`; g.strokeStyle = 'rgba(255,90,60,.9)'; g.lineWidth = 2 * k;
+    if (w.axis === 'h') { const y = sy(w.y); g.fillRect(0, y - hw, cw, hw * 2); g.strokeRect(-4, y - hw, cw + 8, hw * 2); g.fillStyle = 'rgba(255,240,200,.85)'; g.fillRect(0, y - 2 * k, cw * u, 4 * k); }
+    else { const x = sx(w.x); g.fillRect(x - hw, 0, hw * 2, ch); g.strokeRect(x - hw, -4, hw * 2, ch + 8); g.fillStyle = 'rgba(255,240,200,.85)'; g.fillRect(x - 2 * k, 0, 4 * k, ch * u); }
+  }
+  // 大妖怪: 後ろの気配 → 姿 → 当たったときの白い光
+  const dead = V.dead > 0, al = V.show * (dead ? Math.max(0, 1 - V.dead / 1.6) : 1), sc = dead ? 1 + V.dead * 0.5 : 1;
+  if (dead) V.dead += dt;
+  if (al > 0) {
+    const pulse = 1 + Math.sin(t * 2.4) * 0.05, ag = g.createRadialGradient(bx, by, r * 0.2, bx, by, r * 1.6 * pulse * sc);
+    ag.addColorStop(0, `rgba(160,20,60,${0.55 * al})`); ag.addColorStop(0.6, `rgba(90,10,50,${0.28 * al})`); ag.addColorStop(1, 'rgba(40,0,30,0)');
+    g.fillStyle = ag; g.beginPath(); g.arc(bx, by, r * 1.6 * pulse * sc, 0, 7); g.fill();
+    g.save(); g.globalAlpha = al;
+    try { drawCast(g, Rd && def0()?.raid?.cast, bx, by + r * 0.16, r * 2.5 * sc, { face: V.face, t, still: false, glow: true }); } catch { /* 絵が無くても戦える */ }
+    g.restore();
+    if (V.flash > 0) { g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,240,220,${V.flash * 0.45})`; g.beginPath(); g.arc(bx, by, r * 1.05, 0, 7); g.fill(); g.restore(); }
+  }
+  // 赤い輪（火の玉）: 縮む輪が 0 になったら落ちる。終わりの 0.35 秒は大妖怪から火の玉が飛んでくる
+  for (const w of Rd.warns) {
+    if (w.kind !== 'ball') continue;
+    const x = sx(w.x), y = sy(w.y), rr = w.r * k, u = Math.max(0, w.t / w.T), blink = 0.55 + 0.45 * Math.abs(Math.sin(t * (10 + (1 - u) * 18)));
+    g.fillStyle = `rgba(255,30,20,${0.16 + 0.14 * (1 - u)})`; g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill();
+    g.strokeStyle = `rgba(255,70,50,${blink})`; g.lineWidth = 3 * k; g.beginPath(); g.arc(x, y, rr, 0, 7); g.stroke();
+    g.strokeStyle = 'rgba(255,230,190,.9)'; g.lineWidth = 2 * k; g.beginPath(); g.arc(x, y, Math.max(2, rr * u), 0, 7); g.stroke();
+    g.fillStyle = `rgba(255,235,200,${blink})`; g.font = `900 ${Math.round(rr * 0.9)}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('!', x, y);
+    if (w.t < 0.35) { const p = 1 - w.t / 0.35, fx0 = sx(w.fx ?? Rd.x), fy0 = sy(w.fy ?? Rd.y), qx = fx0 + (x - fx0) * p, qy = fy0 + (y - fy0) * p - Math.sin(p * Math.PI) * 60 * k;
+      const fg = g.createRadialGradient(qx, qy, 0, qx, qy, 26 * k); fg.addColorStop(0, 'rgba(255,250,220,1)'); fg.addColorStop(0.35, 'rgba(255,150,40,.95)'); fg.addColorStop(1, 'rgba(255,40,0,0)'); g.fillStyle = fg; g.beginPath(); g.arc(qx, qy, 26 * k, 0, 7); g.fill(); }
+  }
+  // 急所の玉の印
+  for (const s of st.shells) if (s.mod === 'kaku' && s.state === 'idle' && s.rise <= 0) { const x = sx(s.x), y = sy(s.y) - s.r * k - 12 * k; g.fillStyle = '#ffe08a'; g.font = `800 ${Math.round(15 * k)}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.strokeStyle = '#3a1406'; g.lineWidth = 4 * k; g.strokeText(tr('急所', 'WEAK'), x, y); g.fillText(tr('急所', 'WEAK'), x, y); }
+  // 体力の棒（いまの一筆で当てている分は黄色で先に見せる）
+  const kk = st.stroke, pend = kk && !kk.done && Rd && !Rd.dead ? Math.floor((kk.rPts || 0) * kk.mult * (kk.crit ? 2 : 1)) : 0;
+  V.hp += (Rd.hp - V.hp) * Math.min(1, dt * 5);
+  const hpU = Math.max(0, V.hp / Rd.max), gU = Math.min(hpU, pend / Rd.max);
+  $('raidHp').style.width = (hpU * 100).toFixed(2) + '%'; const gh = $('raidGhost'); gh.style.left = ((hpU - gU) * 100).toFixed(2) + '%'; gh.style.width = (gU * 100).toFixed(2) + '%';
+}
+const def0 = () => S.st?.level;
+function raidFinale(ev) {
+  const V = S.raidV, def = S.st?.level; if (!V) return;
+  V.dead = 0.001; V.face = 'sad'; hitStop(260); R.flash = 0.8; R.shake = 26; audio.boom(3, 0); buzz([40, 40, 80]);
+  banner(`${raidName(def)}<small>${tr('討ち取った！', 'DEFEATED!')}<br>${tr('ほうび：小判 +12・伝説のお守りを 1 つ', 'Reward: +12 coins, and a Legendary charm')}</small>`, 74, 3600, 'ihen');
+  const kinds = ['kamuro', 'chrys', 'peony', 'ring', 'willow'], types = ['ootama', 'kin', 'kiku', 'chouchin', 'kin'];
+  for (let i = 0; i < 14; i++) S.seq.push({ at: 0.15 + i * 0.16, f: () => { const a = i * 2.4, d = 40 + (i % 5) * 46; fx.burst(kinds[i % 5], ev.x + Math.cos(a) * d, ev.y + Math.sin(a) * d * 0.7, 120 + (i % 4) * 40, types[i % 5], 2); if (i % 2 === 0) audio.boom(1.2, panOf(ev.x)); } });
+  const m = mem(); m.raidWin ||= {}; const c = def?.raid?.cast || 'x'; m.raidWin[c] = (m.raidWin[c] || 0) + 1; save();
+  PF.ev('raid_win', { world: def?.world || 0, used: S.st?.strokesUsed || 0 });
+}
 // 教える順: 1 夜に 1 つ。数字は、教えてから出す
 const TEACH = {
-  draw: ['玉をなぞって<em>線を引こう</em>。線の始まりから<em>火が追いかけてくる</em>！', 'Drag through the shells. <em>The flame chases your line!</em>'],
-  score: ['一筆の点は<em>「点 × 倍率」</em>。<em>金の玉</em>をひらくと倍率 +1', 'A stroke scores <em>POINTS × MULT</em>. <em>Gold shells</em> add +1 MULT'],
-  heat: ['<em>火を引きつけろ</em>。近いほど熱く、点 ×2〜×4。熱いうちに<em>自分で離す</em>と見切り（倍率 +1）。追いつかれると点が半分', '<em>Let the flame get close</em>: hotter = POINTS ×2–×4. <em>Let go</em> while hot for a Close Call (+1 MULT). Get caught and you lose half'],
-  bloom: ['一筆で<em>盤の玉を全部</em>ひらくと<em>満開</em>：倍率 ×2。続けて満開するほど ×3、×4…', 'Open <em>every shell in one stroke</em> for a <em>Full Bloom</em>: MULT ×2, then ×3, ×4 in a row'],
-  shaku: ['<em>尺玉</em>は線の火でしかひらかない。妖怪は一筆ごとに<em>技</em>を出す：捕まらずに 6 割ひらけばボーナス', 'The <em>Grand Shell</em> only lights from your line. The yokai casts a <em>technique</em> each stroke: open 60% without being caught for a bonus'],
-  dust: ['玉から<em>星屑</em>がこぼれる。筆先でふれて拾え。火のすぐ前を<em>かすめる</em>ほど、星屑の値が上がる', 'Shells drop <em>star dust</em>: touch it with your brush. <em>Graze</em> the flame to raise its value'],
-  loop: ['線で<em>輪</em>を作って玉を囲むと、火が輪を閉じたとき中の玉が<em>一斉にひらく</em>（3 つ以上で倍率 +1）', 'Loop your line around shells: when the fire closes the loop they <em>all open at once</em> (3+ = +1 MULT)'],
-  tsugi: ['筆を離した所に<em>輪</em>が残る。輪の中から次の一筆を始めると<em>継ぎ火</em>：倍率を持ちこめる', 'Where you let go, a <em>ring</em> stays. Start your next stroke inside it to <em>Relight</em> and carry your MULT'],
-  flame: ['火は<em>曲がり角で遅く</em>なり、<em>玉がはじけると跳ねる</em>', 'The flame <em>slows at corners</em> and <em>jumps when shells burst</em>'],
-  gust: ['<em>白い輪</em>は突風の合図。先へ逃げろ！', 'A <em>white ring</em> means a gust is coming. Get ahead!'],
+  draw: ['玉をなぞって<em>線を引く</em>。<em>火が追ってくる</em>！', 'Drag through shells. <em>The flame chases you!</em>'],
+  score: ['<em>点 × 倍率</em>。<em>金の玉</em>で倍率 +1', '<em>POINTS × MULT</em>. <em>Gold</em> = +1 MULT'],
+  heat: ['<em>火を近づける</em>ほど点 ×2〜×4。熱いうちに<em>離す</em>と倍率 +1', '<em>Flame close</em> = POINTS ×2–×4. <em>Let go</em> while hot: +1 MULT'],
+  bloom: ['一筆で<em>全部ひらく</em>と<em>満開</em>：倍率 ×2', 'Open <em>every shell</em> in one stroke: <em>Full Bloom</em> ×2'],
+  shaku: ['<em>尺玉</em>は線でだけひらく。妖怪の<em>技</em>をしのげばボーナス', 'The <em>Grand Shell</em> lights only from your line. Survive the yokai’s <em>technique</em> for a bonus'],
+  dust: ['<em>星屑</em>は筆先で拾う。火を<em>かすめる</em>ほど高い', 'Grab <em>star dust</em> with your brush. <em>Graze</em> the flame for more'],
+  loop: ['線で<em>輪</em>を作ると、中の玉が<em>一斉に</em>ひらく', 'Draw a <em>loop</em>: shells inside <em>open at once</em>'],
+  tsugi: ['離した所の<em>輪</em>から次を引くと、倍率を<em>持ちこめる</em>', 'Start in the <em>ring</em> you left to <em>carry your MULT</em>'],
+  flame: ['火は<em>角で遅く</em>、<em>爆発で速く</em>なる', 'Flame <em>slows at corners</em>, <em>speeds up on bursts</em>'],
+  gust: ['<em>白い輪</em>は突風。先へ逃げろ！', 'A <em>white ring</em> means a gust is coming. Get ahead!'],
   kin: ['<em>金の玉</em>は倍率 +1', '<em>Gold shells</em> add +1 MULT'],
   senrin: ['<em>千輪</em>は八方に火花を飛ばす', '<em>Crossettes</em> shoot sparks in 8 directions'],
   chouchin: ['<em>提灯玉</em>のあとにひらく玉は、点が 2 倍', 'After a <em>Lantern shell</em>, every shell scores double'],
@@ -385,6 +463,7 @@ function teachFor(def) {
   const sc = Run.schoolOf(S.run?.school);
   if (sc.id !== 'hon' && def.id === 1 && def.world === 1) { el.innerHTML = `<em>${tr('流派', 'School')}「${JA() ? sc.ja : sc.en}」</em> ${JA() ? sc.dj : sc.de}`; el.classList.remove('hidden'); return; }
   if (!taught.draw) return showTeach('draw');
+  if (def.raid) { el.innerHTML = tr('<em>爆発</em>を大妖怪に当てろ ・ <em>赤い輪</em>から筆を逃がせ ・ <em>急所</em>を線で通すと ×2', 'Hit it with <em>blasts</em> · Get your brush out of <em>red rings</em> · Thread the <em>weak spot</em> for ×2'); el.classList.remove('hidden'); return; }
   for (const [k, n] of TEACH_ORDER) if (!taught[k] && def.id >= n && (k !== 'shaku' || def.boss) && (k !== 'loop' || (S.run?.rv || 1) >= 2)) return showTeach(k);
   for (const t of ['senrin', 'chouchin', 'shime', 'koori', 'oni']) if (!taught[t] && st0HasType(t)) return showTeach(t);
 }
@@ -404,18 +483,24 @@ function bagEl(c, size = 84) {
 // 縁起物: 狙いを決めている間だけ押せる。押すと効いて、なくなる
 function renderEngi() {
   const el = $('engi'), run = S.run, st = S.st; el.innerHTML = '';
-  if (!run?.engi?.length) return;
+  if (!run?.engi?.length) { el.classList.remove('can'); return; }
+  const can = !!st && st.phase === 'aim'; el.classList.toggle('can', can);
+  el.insertAdjacentHTML('afterbegin', `<span class="ecap">${tr('札 ・ タップで使う', 'Talisman · tap')}</span>`);
+  // 初めて札を持って狙いに入ったら、指で示す（1 度だけ）
+  if (can && !DB.meta.taught.engi && S.mode === 'play') { DB.meta.taught.engi = 1; save(); el.classList.add('first'); setTimeout(() => el.classList.remove('first'), 5200); }
   run.engi.forEach((id, i) => {
     const E = G.ENGI[id]; if (!E) return;
-    const b = document.createElement('button'); b.textContent = JA() ? E.ja : E.en; b.disabled = !st || st.phase !== 'aim';
+    const w = document.createElement('div'); w.className = 'engiw';
+    const b = document.createElement('button'); b.textContent = JA() ? E.ja : E.en; b.disabled = !can;
+    w.append(b); w.insertAdjacentHTML('beforeend', `<small>${JA() ? E.sj || '' : E.se || ''}</small>`);
     b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') showTip(e, JA() ? E.ja : E.en, (JA() ? E.dj : E.de) + tr('<br>狙いを決めている間に押す', '<br>Use while aiming')); });
     b.addEventListener('pointerleave', hideTip);
     b.onclick = (e) => {
       e.stopPropagation();
       if (!S.st || S.st.phase !== 'aim') { showTip(e, JA() ? E.ja : E.en, JA() ? E.dj : E.de); return; }
-      if (G.useEngi(S.st, id)) { S.rec?.ev.push([S.st.t, 'e', id]); run.engi.splice(i, 1); hideTip(); DB.run = run; save(); renderEngi(); renderStrokes(); }
+      if (G.useEngi(S.st, id)) { S.rec?.ev.push([S.st.t, 'e', id]); run.engi.splice(i, 1); hideTip(); DB.run = run; save(); renderEngi(); renderStrokes(); floatText(W * 0.5, H * 0.3, `${JA() ? E.ja : E.en}：${JA() ? E.sj || '' : E.se || ''}`, 'gold', 34, 1400); audio.ui('win'); }
     };
-    el.append(b);
+    el.append(w);
   });
 }
 function renderBags() {
@@ -451,7 +536,7 @@ function achToast(a) {
 }
 function nightEnded() {
   const st = S.st, run = S.run, def = st.level;
-  hideTip(); PF.stop(); $('teach').classList.add('hidden'); ihenReset(); document.body.classList.remove('hudq', 'veil'); hideVeil();
+  hideTip(); PF.stop(); $('teach').classList.add('hidden'); ihenReset(); document.body.classList.remove('hudq', 'veil', 'raid'); hideVeil();
   $('combo').classList.remove('on'); $('heat').className = 'heat'; // 一筆の箱を夜のあとに残さない
   S.cnt = null; S.endAfterCount = false; S.shown = st.score; $('gScore').textContent = fmt(st.score); S.goalEl?.classList.remove('counting');
   if (st.cleared && (def.boss || G.starsFor(st) === 3)) PF.happy();
@@ -470,7 +555,7 @@ function nightEnded() {
   if (res === 'retry') { achCheck({ stars: 0 }); return retryNight(); }
   if (def.boss) track(`boss/${bossKey(def)}/win`);
   const stars = R2.stars, rw = R2.rw, interest = R2.interest, gain = R2.gain;
-  if (R2.engi) S.gotEngi = R2.engi;
+  if (R2.engi) S.gotEngi = R2.engi; S.gotFuku = R2.fuku || null;
   achCheck({ stars });
   DB.meta.taught.draw = 1;
   // 屋台: ふつうの品・買い戻し・大勝負のほうび・縁日の取り引き（手続きは run.js。確かめ役も同じものを通る）
@@ -512,7 +597,7 @@ function openInter(def, st, stars, rw, interest, gain) {
   // はじめての周の第 1 夜のあとは、結果と「次の夜へ」だけ（11/17: 第 1 夜を越えてすぐ帰る人が多い。15 秒遊んだだけで 6 品・引き直し・地図は重い）。屋台は第 2 夜のあとから
   const lite = (DB.meta.runs || 0) === 0 && !run.daily && def.world === 1 && def.night === 1 && !DB.meta.taught.shop; S.interLite = lite;
   S.mode = 'inter'; show('inter'); $('inter').classList.toggle('lite', lite); $('hud').classList.add('hidden'); hideTip(); if (!lite) DB.meta.taught.shop = 1;
-  $('resTitle').textContent = def.boss ? tr('大一番、勝利！', 'Boss Defeated!') : tr(`第 ${def.night} 夜 大成功`, `Night ${def.night} Clear`);
+  $('resTitle').textContent = def.raid ? tr(`${raidName(def)}、討ち取った！`, `${raidName(def)} Defeated!`) : def.boss ? tr('大一番、勝利！', 'Boss Defeated!') : tr(`第 ${def.night} 夜 大成功`, `Night ${def.night} Clear`);
   const sEl = $('resStars'); sEl.innerHTML = '<span>★</span><span>★</span><span>★</span>';
   [...sEl.children].forEach((c, i) => { if (i < stars) setTimeout(() => { c.classList.add('on'); audio.note(12 + i * 2, { vol: 0.18, dur: 0.5 }); }, 200 + i * 220); });
   $('resScore').textContent = fmt(st.score);
@@ -522,7 +607,7 @@ function openInter(def, st, stars, rw, interest, gain) {
   $('shopTitle').textContent = tr('屋台', 'Festival Stalls');
   S.shopBought = false; S.shopNudged = false;
   if (lite) S.toraLine = tr('おみごと！ 次はもっと大きく咲かせよう。屋台は次の夜のあとに開くよ', 'Nicely done! Go bigger next night. The stalls open after night 2.');
-  if (!S.toraLine && !DB.meta.taught.buy) S.toraLine = tr('お守りを買うと点が伸びるよ。「+◯%」が大きい品が効く', 'Charms boost your score. Pick the biggest "+%"');
+  if (!S.toraLine && !DB.meta.taught.buy) S.toraLine = tr('「おすすめ」の品から買ってみて', 'Try the one marked "Best"');
   $('toraSay').textContent = S.toraLine || '';
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
@@ -536,10 +621,11 @@ function renderTechSum(st) {
   const run = S.run, n = st.spellLog?.length || 0, g = st.spellLog?.filter((x) => x.got).length || 0;
   const items = [
     run?.lastExt ? `<span class="ext">${tr(`灯 +${run.lastExt}！`, `+${run.lastExt} light!`)}</span>` : '',
-    S.gotEngi ? `<span class="ext">${tr(`縁起物「${G.ENGI[S.gotEngi].ja}」を授かった`, `Talisman: ${G.ENGI[S.gotEngi].en}`)}</span>` : '',
+    S.gotEngi ? `<span class="ext">${tr(`札「${G.ENGI[S.gotEngi].ja}」を授かった`, `Talisman: ${G.ENGI[S.gotEngi].en}`)}</span>` : '',
+    S.gotFuku ? `<span class="ext fuku">${S.gotFuku === 'coin' ? tr('★3 のごほうび：小判 +3', '★3 reward: +3 coins') : tr(`★3 のごほうび：札「${G.ENGI[S.gotFuku].ja}」`, `★3 reward: ${G.ENGI[S.gotFuku].en}`)}</span>` : '',
     run?.lastBroken ? `<span>${tr(`硝子が ${run.lastBroken} つ割れた`, `${run.lastBroken} glass shattered`)}</span>` : '',
     run?.lastNodeGot === 'life' ? `<span class="ext">${tr('茶屋でひと休み：灯 +1', 'Teahouse rest: +1 light')}</span>` : run?.lastNodeGot === 'coin' ? `<span class="ext">${tr('茶屋でひと休み：小判 +4', 'Teahouse rest: +4 coins')}</span>` : '',
-    run?.lastNode === 'shoubu' ? `<span class="ext">${tr('大勝負に勝った！', 'High stakes won!')}</span>` : '',
+    run?.lastNode === 'shoubu' ? `<span class="ext">${tr('大勝負に勝った！', 'High stakes won!')}</span>` : run?.lastNode === 'raid' ? `<span class="ext">${tr('大妖怪を討ち取った！', 'Great Yokai defeated!')}</span>` : '',
     ...(run ? run.charms.filter((id) => CHARM_BY_ID[id]?.now && (run.grow?.[id] || 0) !== (S.growBefore?.[id] || 0)).map((id) => `<span class="grw">${JA() ? CHARM_BY_ID[id].ja : CHARM_BY_ID[id].en} ${tr('が育った', 'grew')}<b>${growText(CHARM_BY_ID[id], run.grow[id], JA())}</b></span>`) : []),
     DB.meta.taught.dust ? `<span>${tr('星屑の値', 'Dust value')}<b>${fmtM(st.pv)}</b></span>` : '',
     st.graze && DB.meta.taught.dust ? `<span>${tr('かすり', 'Graze')}<b>${st.graze}</b></span>` : '',
@@ -548,7 +634,7 @@ function renderTechSum(st) {
     st.tsugiBest ? `<span>${tr('継ぎ火', 'Relight')}<b>${st.tsugiBest}${tr(' 連', '×')}</b></span>` : '',
     n ? `<span>${tr('技', 'Techniques')}<b>${g} / ${n}</b></span>` : '',
   ].filter(Boolean);
-  S.gotEngi = null;
+  S.gotEngi = null; S.gotFuku = null;
   $('techSum').innerHTML = items.map((x, i) => x.replace('<span', `<span style="animation-delay:${0.15 + i * 0.07}s"`)).join('');
 }
 // 小判を 0.6 秒で数え上げる（帳面の行が出そろうのに合わせて始める）
@@ -603,11 +689,13 @@ function retryNight() {
   setTimeout(() => { if (S.mode === 'retry') startNight(); }, 2400);
 }
 // 「前の夜なら +38%」。いちばん伸びる品には印
+const short1 = (t) => String(t || '').split(/[。]|\. /)[0].replace(/（[^）]*）/g, '');
 function pvTag(i) {
   const v = S.preview?.[i]; if (v === undefined) return '';
   const best = Math.max(...Object.values(S.preview)), pct = Math.round(v * 100);
   const cls = pct >= 1 ? 'up' : pct <= -1 ? 'down' : 'flat';
-  return `<span class="pvt ${cls}${v === best && pct >= 5 ? ' best' : ''}">${pct >= 1 ? tr(`前の夜なら +${pct}%`, `Last night: +${pct}%`) : pct <= -1 ? tr(`前の夜なら ${pct}%`, `Last night: ${pct}%`) : tr('前の夜では 変わらず', 'Last night: no change')}</span>`;
+  if (!(v === best && pct >= 5)) return ''; // 文字を減らす（11/17）: 効く 1 枚にだけ「おすすめ」
+  return `<span class="pvt ${cls} best">${tr(`おすすめ +${pct}%`, `Best +${pct}%`)}</span>`;
 }
 function renderShop() {
   const run = S.run, wrap = $('cards'); wrap.innerHTML = ''; wrap.classList.toggle('many', S.sh.items.filter((x) => !x.gift || S.giftInShop).length > 6);
@@ -627,12 +715,12 @@ function renderShop() {
       b.append(art);
       const g = growText(c, run.grow?.[c.id], JA());
       const price = it.kind === 'trade' ? `<span class="pr life">${tr('灯 1 つ', '1 light')}</span>` : it.gift ? `<span class="pr free">${tr('ただ', 'FREE')}</span>` : `<span class="pr"><i class="coin"></i>${it.cost}</span>`;
-      b.insertAdjacentHTML('beforeend', `<span class="nm">${JA() ? c.ja : c.en}</span><span class="ds">${JA() ? c.dj : c.de}${g ? `<br><b class="gr">${g}</b>` : ''}${it.gift ? tr('<br><b>3 つから 1 つ</b>', '<br><b>Pick 1 of 3</b>') : ''}</span>${pvTag(i)}${price}`);
+      b.insertAdjacentHTML('beforeend', `<span class="nm">${JA() ? c.ja : c.en}</span><span class="ds">${short1(JA() ? c.dj : c.de)}${g ? `<br><b class="gr">${g}</b>` : ''}</span>${pvTag(i)}${price}`);
     } else if (it.kind === 'slot') {
       b.innerHTML = `<span class="tg" style="background:#5a4228">${tr('袋を広げる', 'Bigger bag')}</span><div class="art engiart">${tr('枠 +1', '+1 slot')}</div><span class="nm">${tr('お守りの枠 +1', '+1 charm slot')}</span><span class="ds">${tr(`持てるお守りが ${run.slots} → ${run.slots + 1} つに（${Run.MAX_SLOTS} まで）`, `Hold ${run.slots} → ${run.slots + 1} charms (max ${Run.MAX_SLOTS})`)}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`;
     } else if (it.kind === 'engi') {
       const E = G.ENGI[it.id], full = (run.engi || []).length >= Run.ENGI_SLOTS;
-      b.innerHTML = `<span class="tg engitag">${tr('縁起物', 'Talisman')}</span><div class="art engiart">${JA() ? E.ja : E.en}</div><span class="nm">${JA() ? E.ja : E.en}</span><span class="ds">${JA() ? E.dj : E.de}${tr('（使い切り）', ' (one use)')}${full ? tr('<br><b>2 つまで。いまは満杯</b>', '<br><b>Max 2 — full</b>') : ''}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`;
+      b.innerHTML = `<span class="tg engitag">${tr('札', 'Talisman')}</span><div class="art engiart">${JA() ? E.ja : E.en}</div><span class="nm">${JA() ? E.ja : E.en}</span><span class="ds">${JA() ? E.sj : E.se}${tr('（1 回）', ' (once)')}${full ? tr('<br><b>満杯</b>', '<br><b>Full</b>') : ''}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`;
       if (full) b.classList.add('cant');
     } else if (it.kind === 'add' || it.kind === 'thin' || it.kind === 'engrave') {
       const art = document.createElement('div'); art.className = 'art'; const cv = document.createElement('canvas'); cv.width = 120; cv.height = 150;
@@ -645,7 +733,7 @@ function renderShop() {
       if (it.kind === 'thin') cv.style.opacity = 0.45;
       b.append(art);
       if (it.kind === 'engrave') b.insertAdjacentHTML('beforeend', `<span class="mk" style="background:${M.col};color:${M.col}"></span>`);
-      b.insertAdjacentHTML('beforeend', `<span class="nm">${nm}</span><span class="ds">${ds}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`);
+      b.insertAdjacentHTML('beforeend', `<span class="nm">${nm}</span><span class="ds">${short1(ds)}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`);
     } else {
       const art = document.createElement('div'); art.className = 'art'; const cv = document.createElement('canvas'); cv.width = 120; cv.height = 150; drawShellIcon(cv, it.id); art.append(cv);
       const lv = run.recipes[it.id] || 0, sn = SHELL_NAME[it.id][JA() ? 0 : 1];
@@ -720,7 +808,8 @@ function openGift() {
   if (!gifts.length || S.sh.giftTaken || S.giftInShop) return;
   const full = run.charms.length >= run.slots;
   const ov = document.createElement('div'); ov.className = 'giftov'; ov.id = 'giftOv';
-  ov.innerHTML = `<div class="giftpanel"><h3>${tr('大勝負のほうび', 'High Stakes Reward')}</h3><p>${full ? tr('お守りの枠がいっぱい。屋台で 1 つ売ってから選べる', 'Your charm slots are full. Sell one in the shop, then choose') : tr('珍しいお守りを 3 つから 1 つ、ただで', 'Take 1 of 3 rare charms, free')}</p><div class="cards"></div><div class="row"></div></div>`;
+  const raidG = run.lastNode === 'raid';
+  ov.innerHTML = `<div class="giftpanel${raidG ? ' raidgift' : ''}"><h3>${raidG ? tr('大妖怪を討ったほうび', 'Spoils of the Great Yokai') : tr('大勝負のほうび', 'High Stakes Reward')}</h3><p>${full ? tr('お守りの枠がいっぱい。屋台で 1 つ売ってから選べる', 'Your charm slots are full. Sell one in the shop, then choose') : raidG ? tr('伝説のお守りを 3 つから 1 つ、ただで', 'Take 1 of 3 legendary charms, free') : tr('珍しいお守りを 3 つから 1 つ、ただで', 'Take 1 of 3 rare charms, free')}</p><div class="cards"></div><div class="row"></div></div>`;
   const row = ov.querySelector('.row'), cards = ov.querySelector('.cards');
   for (const [it, i] of gifts) {
     const c = CHARM_BY_ID[it.id], b = document.createElement('button'); b.className = 'card gift ' + (c.rar !== 'c' ? c.rar : '');
@@ -1347,7 +1436,7 @@ function launchFor(s) { const t = Math.max(0.28, s.rise); fx.launch(s.x + (Math.
 function handle(ev) {
   const st = S.st;
   switch (ev.type) {
-    case 'penDown': $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
+    case 'penDown': $('engi').classList.remove('can', 'first'); $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
     case 'ignite': audio.note(2, { vol: 0.14, dur: 0.25 }); fx.tick(ev.x, ev.y, [3, 1.8, 0.7], 26, 220); fx.light(ev.x, ev.y, 0.5, 300, [1, 0.6, 0.25], 6); break;
     case 'thread': {
       buzz(10);
@@ -1583,6 +1672,31 @@ function handle(ev) {
       break;
     }
     case 'intrude': { const t = Run.INTRUDES[ev.kind]; banner(`${JA() ? t.ja : t.en}<small>${JA() ? t.dj : t.de}</small>`, 58, 1900); audio.boom(1, 0); R.shake = Math.min(14, R.shake + 7); R.flash = Math.max(R.flash, 0.12); break; }
+    case 'raidWarn': audio.note(ev.kind === 'band' ? 3 : 10, { vol: 0.14, dur: 0.22 }); if (S.raidV) { S.raidV.face = 'wow'; S.raidV.faceT = 0.5; } break;
+    case 'raidImpact':
+      if (ev.kind === 'ball') { fx.burst('peony', ev.x, ev.y, 80, 'oni', 1); audio.boom(1, panOf(ev.x)); R.shake = Math.max(R.shake, 6); }
+      else { R.shake = Math.max(R.shake, 10); audio.boom(1.3, 0); R.flash = Math.max(R.flash, 0.15); }
+      break;
+    case 'raidHit': if (S.raidV) { S.raidV.flash = 1; S.raidV.shake = Math.min(12, S.raidV.shake + 4); } floatText(ev.x, ev.y, `+${fmt(ev.pts)}`, 'raidhit', 20, 650); if (ev.n === 1) audio.note(7, { vol: 0.14, dur: 0.2 }); break;
+    case 'raidCrit': floatText(ev.x, ev.y - 36, tr('急所！ ×2', 'WEAK SPOT! ×2'), 'gold', 32, 1400); audio.boom(1.8, panOf(ev.x)); R.flash = Math.max(R.flash, 0.3); break;
+    case 'raidDmg': {
+      const Rd = S.st?.raid; if (!Rd) break;
+      if (ev.dmg > 0) { floatText(Rd.x, Rd.y - Rd.r - 20, `−${fmt(ev.dmg)}`, 'raiddmg', ev.crit ? 64 : 52, 1500); if (S.raidV) { S.raidV.shake = 18; S.raidV.flash = 1; S.raidV.face = 'sad'; S.raidV.faceT = 1.1; } R.shake = Math.max(R.shake, ev.crit ? 18 : 10); audio.boom(ev.crit ? 2.2 : 1.5, 0); }
+      else { floatText(Rd.x, Rd.y - Rd.r - 20, tr('爆発が届いていない', 'Your blasts missed it'), 'gold', 26, 1500); if (S.raidV) { S.raidV.face = 'joy'; S.raidV.faceT = 1.2; } }
+      break;
+    }
+    case 'raidBreak':
+      banner(`${tr(`魂がひとつ砕けた（残り ${3 - ev.n}）`, `A soul shatters (${3 - ev.n} left)`)}<small>${tr('筆 +1 ・ 大妖怪が怒った', '+1 stroke · It grows angrier')}</small>`, 60, 2400, 'ihen');
+      audio.boom(2.4, 0); R.shake = 22; R.flash = Math.max(R.flash, 0.4); renderStrokes();
+      for (let i = 0; i < 6; i++) S.seq.push({ at: i * 0.12, f: () => fx.burst('ring', ev.x + Math.cos(i) * 90, ev.y + Math.sin(i) * 70, 110, 'kin', 1) });
+      break;
+    case 'raidMove': break;
+    case 'raidDown': raidFinale(ev); break;
+    case 'raidBurn':
+      audio.ui('caught'); hitStop(120); hurt(); buzz([25, 30, 25]);
+      floatText(ev.x, Math.max(H * 0.2, ev.y - 80), tr('焼かれた！ 点 ½', 'Burned! POINTS ½'), 'caught', 40);
+      fx.tick(ev.x, ev.y, [2.8, 0.7, 0.1], 70, 300); R.shake = Math.min(16, R.shake + 8); kick(ev.x, ev.y, 10);
+      break;
     case 'nightEnd': if (S.cnt) S.endAfterCount = true; else nightEnded(); break; // 数え上げの最中なら、数え終わってから
     default:
   }
@@ -1821,10 +1935,10 @@ function renderRemain() {
   const n = st.shells.filter((s) => s.state === 'idle' && !s.fall).length, k = st.stroke;
   const key = n + '|' + (k && !k.done ? 1 : 0);
   if (S.remainKey === key) return; S.remainKey = key;
-  if (!n) { el.textContent = ''; return; }
+  if (!n || (S.teachKey === 'bloom' && !(k && !k.done) && !$('teach').classList.contains('hidden'))) { el.textContent = ''; S.remainKey = null; return; } // 満開を教えている間は同じことを 2 行で言わない
   const bx = st.m.bloomX + Math.min(6, st.streak);
   el.className = 'remain' + (n <= 3 && k && !k.done ? ' near' : '');
-  el.innerHTML = k && !k.done ? tr(`あと<b>${n}</b>玉で満開`, `<b>${n}</b> left for Full Bloom`) + `<small>${tr(`倍率 ×${bx}`, `MULT ×${bx}`)}</small>` : tr(`盤の玉<b>${n}</b>個 ― 一筆で全部ひらけば満開`, `<b>${n}</b> shells — open them all in one stroke for a Full Bloom`) + `<small>${tr(`倍率 ×${bx}`, `MULT ×${bx}`)}</small>`;
+  el.innerHTML = k && !k.done ? tr(`あと<b>${n}</b>玉で満開`, `<b>${n}</b> left for Full Bloom`) + `<small>${tr(`倍率 ×${bx}`, `MULT ×${bx}`)}</small>` : tr(`残り<b>${n}</b>玉 ・ 全部で満開`, `<b>${n}</b> left · all = Full Bloom`) + `<small>${tr(`倍率 ×${bx}`, `MULT ×${bx}`)}</small>`;
 }
 function updateHud(dt) {
   const st = S.st; if (!st || S.mode !== 'play') return;
@@ -1939,7 +2053,7 @@ function frame(now) {
     S.kvx = ((S.kvx || 0) - R.kickX * 900 * dt) * Math.exp(-dt * 18); S.kvy = ((S.kvy || 0) - R.kickY * 900 * dt) * Math.exp(-dt * 18);
     R.kickX += S.kvx * dt; R.kickY += S.kvy * dt;
     if (Math.abs(R.kickX) + Math.abs(R.kickY) < 0.05 && Math.abs(S.kvx) + Math.abs(S.kvy) < 1) { R.kickX = R.kickY = S.kvx = S.kvy = 0; }
-    R.render(sdt, fx, drawWorld);
+    R.render(sdt, fx, drawWorld); drawRaid(sdt);
     updateHud(dt); ihenFrame(dt);
   } catch (err) { if (!S.fatal) { S.fatal = err; console.error(err); } }
 }
