@@ -218,7 +218,7 @@ function beginRun(o = {}) {
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
   S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
-  S.run.rv = 4; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた
+  S.run.rv = 5; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
@@ -478,7 +478,7 @@ function nightEnded() {
   const sl = Mem.shopLine(mem(), run, { buyBack: !!S.sh.back, ext: run.lastExt > 0, waited: st.waited > 0 });
   S.toraLine = sl ? (JA() ? sl.ja : sl.en) : '';
   { const wr = ((def.world - 1) % 3) + 1;
-    if (!def.endless && wr === 1 && def.night === 2 && once('shop12')) S.toraLine = story('shop12');
+    if (!def.endless && wr === 1 && def.night === 2 && DB.meta.taught.shop && once('shop12')) /* はじめての屋台は買い方の一言を先に */ S.toraLine = story('shop12');
     if (S.hosei === 2 && once('hosei2')) { S.toraLine = story('hosei2'); loreUp(2); }
     if (S.hosei === 3 && once('hosei3')) S.toraLine = story('hosei3');
     S.hosei = 0; }
@@ -509,7 +509,9 @@ function bossWin(def) {
 // 夜を越えたあとの、結果と屋台
 function openInter(def, st, stars, rw, interest, gain) {
   const run = S.run;
-  S.mode = 'inter'; show('inter'); $('hud').classList.add('hidden'); hideTip(); DB.meta.taught.shop = 1;
+  // はじめての周の第 1 夜のあとは、結果と「次の夜へ」だけ（11/17: 第 1 夜を越えてすぐ帰る人が多い。15 秒遊んだだけで 6 品・引き直し・地図は重い）。屋台は第 2 夜のあとから
+  const lite = (DB.meta.runs || 0) === 0 && !run.daily && def.world === 1 && def.night === 1 && !DB.meta.taught.shop; S.interLite = lite;
+  S.mode = 'inter'; show('inter'); $('inter').classList.toggle('lite', lite); $('hud').classList.add('hidden'); hideTip(); if (!lite) DB.meta.taught.shop = 1;
   $('resTitle').textContent = def.boss ? tr('大一番、勝利！', 'Boss Defeated!') : tr(`第 ${def.night} 夜 大成功`, `Night ${def.night} Clear`);
   const sEl = $('resStars'); sEl.innerHTML = '<span>★</span><span>★</span><span>★</span>';
   [...sEl.children].forEach((c, i) => { if (i < stars) setTimeout(() => { c.classList.add('on'); audio.note(12 + i * 2, { vol: 0.18, dur: 0.5 }); }, 200 + i * 220); });
@@ -519,6 +521,7 @@ function openInter(def, st, stars, rw, interest, gain) {
   $('ledger').innerHTML = rows.map(([a, b], i) => `<div style="animation-delay:${0.1 + i * 0.09}s"><span>${a}</span><b>+${b}</b></div>`).join('');
   $('shopTitle').textContent = tr('屋台', 'Festival Stalls');
   S.shopBought = false; S.shopNudged = false;
+  if (lite) S.toraLine = tr('おみごと！ 次はもっと大きく咲かせよう。屋台は次の夜のあとに開くよ', 'Nicely done! Go bigger next night. The stalls open after night 2.');
   if (!S.toraLine && !DB.meta.taught.buy) S.toraLine = tr('お守りを買うと点が伸びるよ。「+◯%」が大きい品が効く', 'Charms boost your score. Pick the biggest "+%"');
   $('toraSay').textContent = S.toraLine || '';
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
@@ -838,7 +841,7 @@ $('nextBtn').onclick = () => {
   // 小判を余らせたまま素通りしがち。初めの 3 周は、買える品があれば 1 回だけ声をかけて、いちばん伸びる品を揺らす
   // 3 回続けて何も買わずに出ようとしたときだけ（毎回聞くのはうっとうしい）
   const noBuy = S.run.noBuy || 0;
-  if (S.mode === 'inter' && !S.shopBought && !S.shopNudged && noBuy % 3 === 2) {
+  if (S.mode === 'inter' && !S.interLite && !S.shopBought && !S.shopNudged && noBuy % 3 === 2) {
     const run = S.run, can = S.sh.items.some((it) => !it.gift && it.cost <= run.coins && (it.kind !== 'trade') && (it.kind !== 'charm' || (run.charms.length < run.slots && !run.charms.includes(it.id))));
     if (can) {
       S.shopNudged = true;
@@ -849,8 +852,8 @@ $('nextBtn').onclick = () => {
     }
   }
   const pick = S.route && S.route.length ? S.route[S.routeSel || 0] : null;
-  S.run.noBuy = S.shopBought ? 0 : (S.run.noBuy || 0) + 1;
-  PF.ev('shop_leave', { idx: (S.run.world - 1) * 8 + S.run.night, bought: S.shopBought ? 1 : 0, coins: S.run.coins, nudged: S.shopNudged ? 1 : 0 });
+  if (!S.interLite) S.run.noBuy = S.shopBought ? 0 : (S.run.noBuy || 0) + 1;
+  PF.ev('shop_leave', { idx: (S.run.world - 1) * 8 + S.run.night, bought: S.shopBought ? 1 : 0, coins: S.run.coins, nudged: S.shopNudged ? 1 : 0, lite: S.interLite ? 1 : 0 }); S.interLite = false;
   if (pick) Run.chooseRoute(S.run, pick);
   logOp('a', pick ? pick.lane : -1);
   S.run.shopState = null;
@@ -2101,5 +2104,5 @@ function ihenFrame(dt) {
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-window.HANABI = { PF, rankSubmit, openRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext };
+window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, openRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext };
 boot();
