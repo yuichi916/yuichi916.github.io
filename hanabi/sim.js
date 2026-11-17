@@ -41,7 +41,7 @@ export const IHEN = {
 export const UTSURU_RULES = ['kaze', 'ame', 'kagami'];
 // ---- 大妖怪: 各世界の最後の夜（版 6〜）。体力は目標 × hpX。魂（3 つ）が砕けるたびに筆 +1・居場所が変わり・技が増える
 // fire = 火の玉の間（秒） / warn = 赤い輪が出てから落ちるまで / sweep = 薙ぎの間（0 は無し）
-export const RAID = { hpX: [2.6, 1.9, 1.2], seg: 3, fire: [2.5, 2.0, 1.6], warn: [1.1, 1.0, 0.9], sweep: [0, 5.5, 4.4], sweepWarn: 1.25, ballR: 48, bandHW: 36, orbit: 52 };
+export const RAID = { hpX: [6.0, 3.4, 1.7], seg: 3, fire: [2.5, 2.0, 1.6], warn: [1.1, 1.0, 0.9], sweep: [0, 5.5, 4.4], sweepWarn: 1.25, ballR: 48, bandHW: 36, orbit: 52 };
 export const IHEN_PTS = 1.5, IHEN_CLEAR = 2, MOERU_TAKE = 0.4, MOERU_BACK = 1.5;
 
 export const TUNE = {
@@ -239,7 +239,7 @@ export function newNight(level, w, h, loadout = {}) {
   st.deckI = L.deckUsed || 0;
   if (level.raid) { // 大妖怪は盤のまん中より少し上。体のまわりの玉は外へ押し出す
     const fw = field.x1 - field.x0, fh = field.y1 - field.y0, r = Math.round(w < h ? fw * 0.18 : fh * 0.3);
-    const max = Math.max(100, Math.round((level.target * RAID.hpX[Math.min(2, (level.world || 1) - 1)]) / 10) * 10);
+    const max = level.raid.hp || Math.max(100, Math.round((level.target * RAID.hpX[Math.min(2, (level.world || 1) - 1)]) / 10) * 10);
     st.raid = { x: (field.x0 + field.x1) / 2, y: field.y0 + fh * 0.42, r, max, hp: max, ph: 0, atkT: 1.4, swT: 2.6, warns: [], dead: false, moved: false, broke: 0, hitsAll: 0, burns: 0, crits: 0 };
     raidClear(st); raidKaku(st);
   }
@@ -854,7 +854,10 @@ function burst(st, s, gen, how) {
   if (st.raid && !st.raid.dead) {
     const Rd = st.raid, dd = Math.hypot(s.x - Rd.x, s.y - Rd.y) || 1;
     if (s.mod === 'kaku') { k.crit = (k.crit || 0) + 1; Rd.crits++; st.events.push({ type: 'raidCrit', x: s.x, y: s.y }); }
-    if (dd < R + Rd.r || s.mod === 'kaku') { k.rPts = (k.rPts || 0) + Math.round(pts); k.rHits = (k.rHits || 0) + 1; Rd.hitsAll++; st.events.push({ type: 'raidHit', x: Rd.x + ((s.x - Rd.x) / dd) * Rd.r * 0.75, y: Rd.y + ((s.y - Rd.y) / dd) * Rd.r * 0.75, pts: Math.round(pts), n: k.rHits }); }
+    // ひらいた花火は全部、大妖怪へ飛んでいく（なぞる＝攻撃）
+    // 当たった時の倍率でその場で削れる（rLive）。離した時に、最後の倍率との差が追撃で入る
+    k.rPts = (k.rPts || 0) + Math.round(pts); k.rLive = (k.rLive || 0) + Math.round(pts) * k.mult; k.rHits = (k.rHits || 0) + 1; Rd.hitsAll++;
+    st.events.push({ type: 'raidHit', sx: s.x, sy: s.y, x: Rd.x + ((s.x - Rd.x) / dd) * Rd.r * 0.55, y: Rd.y + ((s.y - Rd.y) / dd) * Rd.r * 0.55, pts: Math.round(pts), dmg: Math.round(Math.round(pts) * k.mult), n: k.rHits, kaku: s.mod === 'kaku' });
   }
   if (d.mult && !kinfuu) k.mult += m.goldMult + lvl;
   if (mod === 'gold' && !kinfuu) k.mult += 1; // 金箔
@@ -1290,18 +1293,21 @@ function finishStroke(st) {
   }
   if (st.raid && !st.raid.dead) {
     const Rd = st.raid, seg = Rd.max / RAID.seg, before = Rd.hp;
-    let dmg = Math.floor((k.rPts || 0) * k.mult * (k.crit ? 2 : 1)); if (k.caught && !st.m.caughtSafe) dmg = Math.floor(dmg * 0.5);
+    const base = Math.floor((k.rLive || 0) * (k.crit ? 2 : 1)); // 焼かれた・追いつかれた一筆は、追撃が出ない（当てた分だけ）
+    const dmg = k.caught && !st.m.caughtSafe ? base : Math.floor((k.rPts || 0) * k.mult * (k.crit ? 2 : 1));
     Rd.hp = Math.max(0, Rd.hp - dmg);
     const n0 = Math.min(RAID.seg, Math.floor((Rd.max - before) / seg + 1e-9)), n1 = Math.min(RAID.seg, Math.floor((Rd.max - Rd.hp) / seg + 1e-9));
-    st.events.push({ type: 'raidDmg', dmg, hp: Rd.hp, max: Rd.max, crit: !!k.crit, hits: k.rHits || 0, caught: k.caught });
+    st.events.push({ type: 'raidDmg', dmg, base, mult: k.mult, hp: Rd.hp, max: Rd.max, crit: !!k.crit, hits: k.rHits || 0, caught: k.caught });
     if (Rd.hp <= 0) { Rd.dead = true; Rd.warns.length = 0; st.events.push({ type: 'raidDown', x: Rd.x, y: Rd.y }); }
     else if (n1 > n0) { Rd.broke = n1; Rd.ph = Math.min(RAID.fire.length - 1, n1); Rd.moved = true; Rd.atkT = 1.4; Rd.swT = 2.4; st.strokesLeft += 1; st.maxStrokes += 1; st.lastBloom = true; if (Rd.ph >= 2) st.m.flameX *= 1.08; st.events.push({ type: 'raidBreak', n: n1, ph: Rd.ph, x: Rd.x, y: Rd.y }); }
+    else st.events.push({ type: 'raidCounter', burned: !!k.caught, x: Rd.x, y: Rd.y }); // 魂を砕けなかった一筆のあとは、大妖怪の反撃（命 −1）
   }
   st.strokesLeft--; st.strokesUsed++;
   st.events.push({ type: 'strokeEnd', gained, chips: k.chips, mult: k.mult, pops: k.pops, bloom, caught: k.caught, heatLv: k.heatLv, streak: st.streak, graze: k.graze, dust: k.dust, dustPts: Math.round(k.dustPts), tsugiN: k.tsugiN, spellGot, lost: k.lostChips || 0 });
   st.phase = 'settle';
   st.settleAt = st.t + (bloom ? 3.2 : 0.9);
   if (st.raid?.dead) st.settleAt = st.t + 3.4; // 討ち取りの演出を見せる間
+  else if (st.raid) st.settleAt = Math.max(st.settleAt, st.t + 2.2); // 追撃と反撃を見せる間
   if (st.act2) st.coinsEarned += Math.ceil(k.pops / 3);
   if (st.raid) { if (st.raid.dead) st.cleared = true; else if (st.strokesLeft <= 0) st.failed = true; }
   else if (st.score >= st.target || st.goalMet || st.act2) st.cleared = true;

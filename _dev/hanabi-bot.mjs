@@ -160,6 +160,7 @@ function playRun(seed, sk, rank = 0, fuse = 'asa', school = process.env.SCHOOL |
     const rw = Run.rewardFor(st, s, def.boss);
     run.coins += rw.base + rw.left + rw.star + rw.earned + rw.twist + Run.interestFor(run.coins);
     run.nightsCleared++;
+    if (!def.raid && (run.rv || 1) >= 6) run.form = [...(run.form || []), Math.round(st.score / Math.max(1, st.strokesUsed))].slice(-3); // 本物の settleNight と同じ
     seconds += 12; // 屋台
     shop(run, rnd, sk);
     const ch = Run.routeChoices(run); if (ch.length) Run.chooseRoute(run, pickRoute(ch, rnd));

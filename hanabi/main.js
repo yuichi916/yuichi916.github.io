@@ -362,11 +362,12 @@ function drawBoss(id, face) {
 function raidIntro(def, run, resume) {
   const st = S.st, Rd = st.raid; $('boss').classList.add('hidden');
   $('raidName').textContent = raidName(def);
-  S.raidV = { x: Rd.x, y: Rd.y, hp: Rd.hp, flash: 0, shake: 0, face: 'taunt', faceT: 0, show: resume ? 1 : 0, dead: 0, ghost: 0 };
+  S.raidV = { x: Rd.x, y: Rd.y, hp: Rd.hp, hpT: Rd.hp, flash: 0, shake: 0, face: 'taunt', faceT: 0, show: resume ? 1 : 0, dead: 0, shots: [], hits: 0, hitT: 0, hitBump: 0, atk: 0, slash: 0, life: st.strokesLeft, max0: st.strokesLeft, lifeHold: false, noteT: 0 };
+  renderLife();
   const wr = ((def.world - 1) % 3) + 1;
   const taunt = !def.endless && wr === 3 && lore() >= 3 ? tr(`${(DB.meta.runs || 0) + 1} 度目の夏だな、灯。迎え火の主が待っている。`, `Your summer number ${(DB.meta.runs || 0) + 1}, Akari. The keeper of the welcoming fire is waiting.`) : '';
   const st0 = st, slam = () => { document.body.classList.remove('veil'); if (S.st !== st0) return; audio.boom(2.4, 0); R.shake = Math.max(R.shake, 20); R.flash = Math.max(R.flash, 0.3); S.raidV.flash = 1;
-    banner(`${raidName(def)}<small>${tr('花火の爆発をぶつけて、魂を 3 つ砕け', 'Blast it with fireworks. Break all three souls')}${taunt ? `<br>「${taunt}」` : ''}</small>`, 66, taunt ? 3800 : 2800); };
+    banner(`${raidName(def)}<small>${tr('なぞった花火が、飛んでいって当たる', 'Every firework you trace flies at it')}${taunt ? `<br>「${taunt}」` : ''}</small>`, 66, taunt ? 3800 : 2800); };
   if (resume) slam(); else { document.body.classList.add('veil'); audio.duck(1.6, 0.12); audio.note(-12, { vol: 0.16, dur: 1.4 }); setTimeout(slam, 1300); }
 }
 const raidCv = $('raidCv');
@@ -381,7 +382,12 @@ function drawRaid(dt) {
   V.show = Math.min(1, V.show + dt / 0.9); V.flash = Math.max(0, V.flash - dt * 4); V.shake *= Math.exp(-dt * 10);
   V.x += (Rd.x - V.x) * Math.min(1, dt * 3.2); V.y += (Rd.y - V.y) * Math.min(1, dt * 3.2);
   if (V.faceT > 0) { V.faceT -= dt; if (V.faceT <= 0) V.face = 'taunt'; }
-  const t = R.time || 0, r = Rd.r * k, bx = sx(V.x) + (Math.random() - 0.5) * V.shake * k, by = sy(V.y) + (Math.random() - 0.5) * V.shake * k;
+  V.noteT -= dt; V.hitBump = Math.max(0, V.hitBump - dt * 5);
+  if (V.hitT > 0) { V.hitT -= dt; if (V.hitT <= 0) V.hits = 0; }
+  // 反撃: 0〜0.32 秒で身を乗り出し、そこで爪がふり下ろされる、0.9 秒で戻る
+  let lunge = 0;
+  if (V.atk > 0) { V.atk += dt; const a = V.atk; lunge = a < 0.32 ? (a / 0.32) ** 2 : a < 0.5 ? 1 : Math.max(0, 1 - (a - 0.5) / 0.4); if (a >= 0.32 && !V.slash) { V.slash = 0.001; counterHit(); } if (a > 0.9) V.atk = 0; }
+  const t = R.time || 0, r = Rd.r * k, bx = sx(V.x) + (Math.random() - 0.5) * V.shake * k + (cw / 2 - sx(V.x)) * lunge * 0.25, by = sy(V.y) + (Math.random() - 0.5) * V.shake * k + (ch * 0.5 - sy(V.y)) * lunge * 0.3;
   // 赤い帯（薙ぎ）
   for (const w of Rd.warns) {
     if (w.kind !== 'band') continue;
@@ -398,7 +404,7 @@ function drawRaid(dt) {
     ag.addColorStop(0, `rgba(160,20,60,${0.55 * al})`); ag.addColorStop(0.6, `rgba(90,10,50,${0.28 * al})`); ag.addColorStop(1, 'rgba(40,0,30,0)');
     g.fillStyle = ag; g.beginPath(); g.arc(bx, by, r * 1.6 * pulse * sc, 0, 7); g.fill();
     g.save(); g.globalAlpha = al;
-    try { drawCast(g, Rd && def0()?.raid?.cast, bx, by + r * 0.16, r * 2.5 * sc, { face: V.face, t, still: false, glow: true }); } catch { /* 絵が無くても戦える */ }
+    try { drawCast(g, Rd && def0()?.raid?.cast, bx, by + r * 0.16, r * 2.5 * sc * (1 + lunge * 0.45) * (1 - V.flash * 0.06), { face: V.face, t, still: false, glow: true }); } catch { /* 絵が無くても戦える */ }
     g.restore();
     if (V.flash > 0) { g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,240,220,${V.flash * 0.45})`; g.beginPath(); g.arc(bx, by, r * 1.05, 0, 7); g.fill(); g.restore(); }
   }
@@ -416,12 +422,52 @@ function drawRaid(dt) {
   // 急所の玉の印
   for (const s of st.shells) if (s.mod === 'kaku' && s.state === 'idle' && s.rise <= 0) { const x = sx(s.x), y = sy(s.y) - s.r * k - 12 * k; g.fillStyle = '#ffe08a'; g.font = `800 ${Math.round(15 * k)}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.strokeStyle = '#3a1406'; g.lineWidth = 4 * k; g.strokeText(tr('急所', 'WEAK'), x, y); g.fillText(tr('急所', 'WEAK'), x, y); }
   // 体力の棒（いまの一筆で当てている分は黄色で先に見せる）
-  const kk = st.stroke, pend = kk && !kk.done && Rd && !Rd.dead ? Math.floor((kk.rPts || 0) * kk.mult * (kk.crit ? 2 : 1)) : 0;
-  V.hp += (Rd.hp - V.hp) * Math.min(1, dt * 5);
-  const hpU = Math.max(0, V.hp / Rd.max), gU = Math.min(hpU, pend / Rd.max);
+  // 飛んでいく花火（光の尾つき）
+  for (let i = V.shots.length - 1; i >= 0; i--) {
+    const o = V.shots[i]; o.t += dt; const p = Math.min(1, o.t / o.T), e = p * p, cx = o.x0 + (o.x1 - o.x0) * e, cy = o.y0 + (o.y1 - o.y0) * e - Math.sin(p * Math.PI) * o.arc;
+    const X = sx(cx), Y = sy(cy), rr = (o.big ? 15 : 9) * k;
+    o.tr.push(X, Y); if (o.tr.length > 16) o.tr.splice(0, 2);
+    g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
+    for (let j = 2; j < o.tr.length; j += 2) { g.strokeStyle = o.big ? `rgba(255,250,210,${j / o.tr.length})` : `rgba(255,190,90,${(j / o.tr.length) * 0.9})`; g.lineWidth = rr * (j / o.tr.length) * 1.2; g.beginPath(); g.moveTo(o.tr[j - 2], o.tr[j - 1]); g.lineTo(o.tr[j], o.tr[j + 1]); g.stroke(); }
+    const fg = g.createRadialGradient(X, Y, 0, X, Y, rr * 2); fg.addColorStop(0, 'rgba(255,255,235,1)'); fg.addColorStop(0.4, o.big ? 'rgba(255,230,120,.95)' : 'rgba(255,160,50,.9)'); fg.addColorStop(1, 'rgba(255,80,0,0)'); g.fillStyle = fg; g.beginPath(); g.arc(X, Y, rr * 2, 0, 7); g.fill(); g.restore();
+    if (p >= 1) { V.shots.splice(i, 1); shotLand(o); }
+  }
+  // 連撃の数
+  if (V.hits > 1 && !dead) { const sz = (30 + Math.min(30, V.hits * 1.2)) * k * (1 + V.hitBump * 0.35), hx = bx + r * 1.15, hy = by - r * 0.9; g.save(); g.textAlign = 'left'; g.textBaseline = 'middle'; g.font = `italic 900 ${Math.round(sz)}px sans-serif`; g.lineWidth = 6 * k; g.strokeStyle = '#3a0a04'; g.strokeText(`${V.hits}`, hx, hy); g.fillStyle = V.hits >= 20 ? '#fff3b0' : '#ffd27a'; g.fillText(`${V.hits}`, hx, hy); const w0 = g.measureText(`${V.hits}`).width; g.font = `900 ${Math.round(sz * 0.42)}px sans-serif`; g.strokeText(tr('連撃', 'HITS'), hx + w0 + 4 * k, hy + sz * 0.12); g.fillStyle = '#ffe9c0'; g.fillText(tr('連撃', 'HITS'), hx + w0 + 4 * k, hy + sz * 0.12); g.restore(); }
+  // 反撃の爪: 画面を斜めに 3 本
+  if (V.slash > 0) {
+    V.slash += dt; const u = V.slash / 0.45;
+    if (u >= 1) V.slash = 0;
+    else { g.save(); g.lineCap = 'round'; for (let j = 0; j < 3; j++) { const o = (j - 1) * 0.16 * cw, x0 = cw * 0.15 + o, y0 = ch * 0.1, x1 = cw * 0.85 + o, y1 = ch * 0.9, q = Math.min(1, u * 2.4); g.strokeStyle = `rgba(255,${60 + j * 30},40,${(1 - u) * 0.95})`; g.lineWidth = (26 - j * 4) * k * (1 - u * 0.6); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + (x1 - x0) * q, y0 + (y1 - y0) * q); g.stroke(); g.strokeStyle = `rgba(255,240,220,${(1 - u) * 0.9})`; g.lineWidth = 5 * k; g.stroke(); } g.restore(); }
+  }
+  const kk = st.stroke, live = kk && !kk.done && Rd && !Rd.dead, pend = live ? Math.floor((kk.caught ? kk.rLive || 0 : (kk.rPts || 0) * kk.mult) * (kk.crit ? 2 : 1)) : 0;
+  V.hp += (V.hpT - V.hp) * Math.min(1, dt * 9);
+  const hpU = Math.max(0, V.hp / Rd.max), endU = live ? Math.max(0, (Rd.hp - pend) / Rd.max) : hpU, gU = Math.max(0, Math.min(hpU, hpU - endU));
   $('raidHp').style.width = (hpU * 100).toFixed(2) + '%'; const gh = $('raidGhost'); gh.style.left = ((hpU - gU) * 100).toFixed(2) + '%'; gh.style.width = (gU * 100).toFixed(2) + '%';
 }
 const def0 = () => S.st?.level;
+function shotLand(o) {
+  const V = S.raidV, Rd = S.st?.raid; if (!V || !Rd) return;
+  if (o.live) V.hpT = Math.max(Math.min(Rd.hp, Rd.max * 0.03), V.hpT - o.pts); // とどめは離した時の追撃で（途中で 0 にしない）
+  floatText(o.x1 + (Math.random() - 0.5) * 50, o.y1 - 10, fmt(o.pts), 'raidhit', o.big ? 30 : Math.min(30, 16 + Math.log10(Math.max(10, o.pts)) * 3), 620);
+  V.flash = 1; V.shake = Math.min(14, V.shake + (o.big ? 9 : 3)); V.hits++; V.hitT = 1.6; V.hitBump = 1;
+  if (V.face !== 'sad' && Math.random() < 0.3) { V.face = 'wow'; V.faceT = 0.3; }
+  fx.tick(o.x1, o.y1, o.big ? [3, 2.6, 1.4] : [2.6, 1.5, 0.5], o.big ? 60 : 26, o.big ? 220 : 120);
+  if (V.noteT <= 0) { audio.note(Math.min(19, 3 + Math.round(V.hits * 0.6)), { vol: 0.11, dur: 0.14 }); V.noteT = 0.05; }
+  if (o.big) { audio.boom(1.6, panOf(o.x1)); R.shake = Math.max(R.shake, 10); }
+}
+function renderLife(lose) {
+  const V = S.raidV, st = S.st, el = $('raidLife'); if (!el || !V || !st) return;
+  el.innerHTML = `<small>${tr('命', 'LIFE')}</small>` + Array.from({ length: Math.max(V.max0 || 3, V.life) }, (_, i) => `<i class="${i < V.life ? 'on' : i === V.life && lose ? 'brk' : ''}">♥</i>`).join('');
+}
+// 反撃が当たった瞬間（爪がふり下ろされた所）
+function counterHit() {
+  const V = S.raidV, st = S.st; if (!V || !st) return;
+  V.lifeHold = false; V.life = st.strokesLeft; renderLife(true);
+  hurt(); hitStop(110); R.shake = Math.max(R.shake, 26); R.flash = Math.max(R.flash, 0.25); audio.boom(2.6, 0); audio.ui('caught'); buzz([40, 30, 60]);
+  banner(`${tr('反撃！', 'COUNTER!')}<small>${st.strokesLeft > 0 ? tr(`命 −1 ・ のこり ${st.strokesLeft}`, `−1 life · ${st.strokesLeft} left`) : tr('命が尽きた', 'Out of lives')}</small>`, 64, 1300);
+  V.face = 'joy'; V.faceT = 1.2;
+}
 function raidFinale(ev) {
   const V = S.raidV, def = S.st?.level; if (!V) return;
   V.dead = 0.001; V.face = 'sad'; hitStop(260); R.flash = 0.8; R.shake = 26; audio.boom(3, 0); buzz([40, 40, 80]);
@@ -463,7 +509,7 @@ function teachFor(def) {
   const sc = Run.schoolOf(S.run?.school);
   if (sc.id !== 'hon' && def.id === 1 && def.world === 1) { el.innerHTML = `<em>${tr('流派', 'School')}「${JA() ? sc.ja : sc.en}」</em> ${JA() ? sc.dj : sc.de}`; el.classList.remove('hidden'); return; }
   if (!taught.draw) return showTeach('draw');
-  if (def.raid) { el.innerHTML = tr('<em>爆発</em>を大妖怪に当てろ ・ <em>赤い輪</em>から筆を逃がせ ・ <em>急所</em>を線で通すと ×2', 'Hit it with <em>blasts</em> · Get your brush out of <em>red rings</em> · Thread the <em>weak spot</em> for ×2'); el.classList.remove('hidden'); return; }
+  if (def.raid) { el.innerHTML = tr('花火を<em>なぞって攻撃</em> ・ <em>赤い輪</em>から逃げろ ・ <em>急所</em>は ×2', '<em>Trace to attack</em> · Escape the <em>red rings</em> · <em>Weak spot</em> ×2'); el.classList.remove('hidden'); return; }
   for (const [k, n] of TEACH_ORDER) if (!taught[k] && def.id >= n && (k !== 'shaku' || def.boss) && (k !== 'loop' || (S.run?.rv || 1) >= 2)) return showTeach(k);
   for (const t of ['senrin', 'chouchin', 'shime', 'koori', 'oni']) if (!taught[t] && st0HasType(t)) return showTeach(t);
 }
@@ -471,6 +517,7 @@ const st0HasType = (t) => !!S.st?.shells.some((s) => s.type === t);
 function renderStrokes() {
   const st = S.st, el = $('strokes'); el.innerHTML = '';
   for (let i = 0; i < st.maxStrokes; i++) { const b = document.createElement('b'); if (i >= st.strokesLeft) b.className = 'used'; el.append(b); }
+  if (st.raid && S.raidV && !S.raidV.lifeHold) { S.raidV.life = st.strokesLeft; renderLife(); }
 }
 function bagEl(c, size = 84) {
   const d = document.createElement('div'); d.className = 'bag'; d.dataset.id = c.id;
@@ -1544,7 +1591,7 @@ function handle(ev) {
     case 'brake': fx.tick(ev.x, ev.y, [1.6, 0.9, 0.4], 9, 120); break;
     case 'caught': // 追いつかれた: 一瞬止めて、赤く暗く。火の子が筆先に飛びつく
       audio.ui('caught'); hitStop(110); hurt(); buzz([25, 30, 25]);
-      floatText(ev.x, Math.max(H * 0.2, ev.y - 80), tr('追いつかれた！ 点 ½', 'Caught! POINTS ½'), 'caught', 40);
+      floatText(ev.x, Math.max(H * 0.2, ev.y - 80), st.raid ? tr('追いつかれた！ 追撃なし', 'Caught! No finisher') : tr('追いつかれた！ 点 ½', 'Caught! POINTS ½'), 'caught', 40);
       caughtGuide(ev);
       if (ev.pvLost > 0) floatText(ev.x, Math.max(H * 0.2, ev.y - 80) + 40, tr(`星の値 −${ev.pvLost}`, `Star value −${ev.pvLost}`), 'mult', 20);
       renderTech();
@@ -1663,7 +1710,7 @@ function handle(ev) {
     case 'crowTake': floatText(ev.x, ev.y - 20, tr('さらわれた！', 'Stolen!'), 'mult', 24); audio.note(2, { vol: 0.14, dur: 0.25 }); break;
     case 'crowDown': case 'shoo': floatText(ev.x, ev.y - 20, (ev.type === 'shoo' ? tr('しっしっ！', 'Shoo!') : tr('撃ち落とした！', 'Shot down!')) + ` +${ev.n}`, 'coinp', 24); fx.tick(ev.x, ev.y, [1.6, 1.6, 2.4], 20, 170); audio.note(17, { vol: 0.15, dur: 0.25 }); renderBags(); break;
     case 'goal': banner(tr('お見事！', 'Splendid!'), 80, 1500); audio.ui('win'); R.flash = Math.max(R.flash, 0.2); break;
-    case 'okawari': if (st.act2) break; banner(`${tr('おかわり！', 'One More Round!')}<small>${tr('盤がまるごと入れかわった', 'A whole new sky')}</small>`, 64, 1500); audio.ui('heat'); renderStreak(true); break;
+    case 'okawari': if (st.act2 || st.raid) break; banner(`${tr('おかわり！', 'One More Round!')}<small>${tr('盤がまるごと入れかわった', 'A whole new sky')}</small>`, 64, 1500); audio.ui('heat'); renderStreak(true); break;
     case 'act2': {
       const r = st.rule && Run.RULES[st.rule];
       banner(`${tr('第 二 幕', 'ENCORE')}<small>${r ? tr(`${r.ja}が怒った！ `, `${r.en} is furious! `) : ''}${tr('もう勝っている。この一筆は稼ぎ放題', 'You already won. This stroke is pure profit')}</small>`, 56, 2600, 'top');
@@ -1677,24 +1724,36 @@ function handle(ev) {
       if (ev.kind === 'ball') { fx.burst('peony', ev.x, ev.y, 80, 'oni', 1); audio.boom(1, panOf(ev.x)); R.shake = Math.max(R.shake, 6); }
       else { R.shake = Math.max(R.shake, 10); audio.boom(1.3, 0); R.flash = Math.max(R.flash, 0.15); }
       break;
-    case 'raidHit': if (S.raidV) { S.raidV.flash = 1; S.raidV.shake = Math.min(12, S.raidV.shake + 4); } floatText(ev.x, ev.y, `+${fmt(ev.pts)}`, 'raidhit', 20, 650); if (ev.n === 1) audio.note(7, { vol: 0.14, dur: 0.2 }); break;
+    case 'raidHit': if (S.raidV) { const d = Math.hypot(ev.x - ev.sx, ev.y - ev.sy); S.raidV.shots.push({ x0: ev.sx, y0: ev.sy, x1: ev.x + (Math.random() - 0.5) * 30, y1: ev.y + (Math.random() - 0.5) * 30, t: 0, T: 0.22 + Math.min(0.3, d / 1800), arc: 40 + Math.random() * 60, pts: ev.dmg ?? ev.pts, big: ev.kaku, live: true, tr: [] }); } break;
     case 'raidCrit': floatText(ev.x, ev.y - 36, tr('急所！ ×2', 'WEAK SPOT! ×2'), 'gold', 32, 1400); audio.boom(1.8, panOf(ev.x)); R.flash = Math.max(R.flash, 0.3); break;
     case 'raidDmg': {
       const Rd = S.st?.raid; if (!Rd) break;
-      if (ev.dmg > 0) { floatText(Rd.x, Rd.y - Rd.r - 20, `−${fmt(ev.dmg)}`, 'raiddmg', ev.crit ? 64 : 52, 1500); if (S.raidV) { S.raidV.shake = 18; S.raidV.flash = 1; S.raidV.face = 'sad'; S.raidV.faceT = 1.1; } R.shake = Math.max(R.shake, ev.crit ? 18 : 10); audio.boom(ev.crit ? 2.2 : 1.5, 0); }
-      else { floatText(Rd.x, Rd.y - Rd.r - 20, tr('爆発が届いていない', 'Your blasts missed it'), 'gold', 26, 1500); if (S.raidV) { S.raidV.face = 'joy'; S.raidV.faceT = 1.2; } }
+      const V = S.raidV; if (!V) break;
+      for (const o of V.shots) o.live = false; // 飛んでいる途中の分も、ここでまとめて入る
+      const extra = ev.dmg - ev.base, x = Rd.x, y = Rd.y;
+      if (ev.dmg <= 0) { floatText(x, y - Rd.r - 20, tr('一発も当たっていない', 'No hits'), 'gold', 26, 1500); V.face = 'joy'; V.faceT = 1.2; break; }
+      S.seq.push({ at: 0.35, f: () => { // 追撃: 倍率のぶんが、ひと塊で叩きこまれる
+        V.hpT = ev.hp; V.flash = 1; V.shake = 22; V.face = 'sad'; V.faceT = 1.3;
+        if (extra > 0) { floatText(x, y - Rd.r * 0.2, tr(`追撃 ×${fmtM(ev.mult)}`, `Finisher ×${fmtM(ev.mult)}`), 'gold', 40, 1200); fx.burst('chrys', x, y, 150 + Math.min(150, extra / 40), 'kin', 2); fx.burst('ring', x, y, 110, 'ootama', 1); hitStop(90); R.flash = Math.max(R.flash, 0.35); buzz([30, 20, 50]); }
+        else if (ev.caught) floatText(x, y - Rd.r * 0.2, tr('追撃なし（焼かれた）', 'No finisher (burned)'), 'caught', 28, 1300);
+        floatText(x, y - Rd.r - 30, `−${fmt(ev.dmg)}`, 'raiddmg', ev.crit ? 76 : 62, 1700);
+        R.shake = Math.max(R.shake, ev.crit ? 24 : 16); audio.boom(ev.crit ? 2.8 : 2.2, 0);
+      } });
       break;
     }
     case 'raidBreak':
-      banner(`${tr(`魂がひとつ砕けた（残り ${3 - ev.n}）`, `A soul shatters (${3 - ev.n} left)`)}<small>${tr('筆 +1 ・ 大妖怪が怒った', '+1 stroke · It grows angrier')}</small>`, 60, 2400, 'ihen');
-      audio.boom(2.4, 0); R.shake = 22; R.flash = Math.max(R.flash, 0.4); renderStrokes();
-      for (let i = 0; i < 6; i++) S.seq.push({ at: i * 0.12, f: () => fx.burst('ring', ev.x + Math.cos(i) * 90, ev.y + Math.sin(i) * 70, 110, 'kin', 1) });
+      S.seq.push({ at: 0.6, f: () => {
+        banner(`${tr('魂を砕いた！', 'SOUL BROKEN!')}<small>${tr(`ひるんだ ・ 反撃なし ・ 魂 のこり ${3 - ev.n}`, `It staggers · no counter · ${3 - ev.n} left`)}</small>`, 66, 2000, 'ihen');
+        audio.boom(2.8, 0); R.shake = 26; R.flash = Math.max(R.flash, 0.45); hitStop(140); if (S.raidV) { S.raidV.face = 'sad'; S.raidV.faceT = 1.6; }
+        for (let i = 0; i < 8; i++) S.seq.push({ at: i * 0.09, f: () => fx.burst(i % 2 ? 'ring' : 'peony', ev.x + Math.cos(i * 0.8) * 100, ev.y + Math.sin(i * 0.8) * 80, 130, 'kin', 1) });
+      } });
       break;
+    case 'raidCounter': if (S.raidV) { S.raidV.lifeHold = true; S.seq.push({ at: 0.95, f: () => { if (S.raidV) { S.raidV.atk = 0.001; S.raidV.face = 'taunt'; } } }); } break;
     case 'raidMove': break;
     case 'raidDown': raidFinale(ev); break;
     case 'raidBurn':
       audio.ui('caught'); hitStop(120); hurt(); buzz([25, 30, 25]);
-      floatText(ev.x, Math.max(H * 0.2, ev.y - 80), tr('焼かれた！ 点 ½', 'Burned! POINTS ½'), 'caught', 40);
+      floatText(ev.x, Math.max(H * 0.2, ev.y - 80), tr('焼かれた！', 'Burned!'), 'caught', 44);
       fx.tick(ev.x, ev.y, [2.8, 0.7, 0.1], 70, 300); R.shake = Math.min(16, R.shake + 8); kick(ev.x, ev.y, 10);
       break;
     case 'nightEnd': if (S.cnt) S.endAfterCount = true; else nightEnded(); break; // 数え上げの最中なら、数え終わってから
@@ -1968,7 +2027,7 @@ function updateHud(dt) {
   S.dustAt += dt;
   if (S.dustAcc > 0 && S.dustAt > 0.3) { floatText(S.dustX, S.dustY - 36, '+' + fmt(S.dustAcc), 'dustp', 18 + Math.min(14, S.dustAcc / 40)); S.dustAcc = 0; S.dustAt = 0; }
   S.crossedNow = false;
-  if (!S.crossed && live >= st.target) { S.crossed = true; S.crossedNow = true; banner(tr('目標達成！', 'TARGET!'), 58, 1200); audio.ui('win'); R.flash = Math.max(R.flash, 0.06); hitStop(80); }
+  if (!S.crossed && !st.raid && live >= st.target) { S.crossed = true; S.crossedNow = true; banner(tr('目標達成！', 'TARGET!'), 58, 1200); audio.ui('win'); R.flash = Math.max(R.flash, 0.06); hitStop(80); }
 }
 
 // はじめての夜だけ: 動く手本（玉を順に通る火の粉）

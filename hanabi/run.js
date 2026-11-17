@@ -274,6 +274,12 @@ export function ihenFor(run, world, night, twist, seed) {
 }
 // 練習の周（初めの 2 周）: 世界 1 の大一番の目標をゆるめる。第 3 夜から 1.94 倍に跳ねて、ほとんどの人がここで終わっていた（Playgama 11/14〜16: 越えた夜の平均 2.9）
 export const ASSIST_BOSS = 0.75;
+// 大妖怪の体力: その人の直前 3 夜の「一筆あたりの点」×3 ×RAID_FORM。上手な人にも初めての人にも、3〜4 筆の勝負になる
+export const RAID_FORM = [0.85, 1.0, 0.4]; // 世界ごと（世界 3 は道中の夜で点が伸びやすく、一筆あたりの点が大妖怪の夜より高く出る）
+function raidHp(run, target, world) {
+  const f = run.form || [], per = f.length ? f.reduce((a, b) => a + b, 0) / f.length : target / 12; // 記録が無い時（途中から入った時）はやさしめ
+  return Math.round(Math.max(target * 0.6, per * 3 * RAID_FORM[Math.min(2, world - 1)]) / 10) * 10;
+}
 export function nightDef(run, world, night) {
   const W = worldOf(world), rank = RANKS[run.rank] || RANKS[0];
   const seed = (run.seed * 31 + world * 1009 + night * 97 + (run.retry || 0) * 7919) >>> 0;
@@ -294,7 +300,7 @@ export function nightDef(run, world, night) {
   // 練習の周: 世界 1 の大一番 ×0.75、版 4 からは世界 2 の大一番も ×0.85（11/16 の数字: 世界 2 の大一番で目標の 65% 止まり・周が終わっていた）
   const assist = run.assist && boss ? (world === 1 ? ASSIST_BOSS : world === 2 && (run.rv || 1) >= 4 ? 0.85 : 1) : 1;
   const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) * (NODE_TARGET[node] || 1) * (SCHOOL_TARGET[run.school] || 1) * assist / 10) * 10;
-  const strokes = (raid ? 5 : 3) + (boss && rank.bossStroke ? rank.bossStroke : 0);
+  const strokes = 3 + (boss && rank.bossStroke ? rank.bossStroke : 0);
   const idx = (world - 1) * NIGHTS_PER_WORLD + night - 1;
   // 乱入は予告なし。大一番と、はじめの 2 夜にはこない
   const irnd = rng32(seed + 77);
@@ -307,7 +313,7 @@ export function nightDef(run, world, night) {
   // 大仕掛けの夜（各世界の第 6 夜。gr の周から）: 盤は画面の 2.2 倍の横長、玉 1.8 倍・目標 1.7 倍。異変は起こさない
   const sky = run.grand && (run.rv || 1) >= 3 && night === 3 && world >= 2 && world <= WORLDS.length; // 天の川の夜（版 3〜）
   const grand = sky ? { gw: 1, gh: 2.4, kind: 'seiza' } : run.grand && night === 6 && world <= WORLDS.length && !boss ? { gw: 2.2, kind: ['taki', 'moji', 'renpatsu'][world - 1] } : null;
-  return { raid: raid ? { cast: RULES[rule].cast } : null, node, seals, ihen: grand || raid ? null : ihenFor(run, world, night, pl?.id || null, seed), grand, endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (run.assist && (run.rv || 1) >= 5 && world === 1 && night <= 3 ? [0.8, 0.85, 0.9][night - 1] : 1) /* 練習の周の第 1〜3 夜は火を遅く（11/17: 第 1 夜の 3 回に 1 回が負け、負けた回は追いつかれ 2〜3 度） */ * (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, rv: run.rv || 1, world, night, seed, count: grand ? Math.round(count * 1.8) : count, mix, strokes: grand ? strokes + 1 : strokes, refill: 7 + Math.floor(night / 2), target: grand ? Math.round((target * (grand.kind === 'seiza' && (run.rv || 1) >= 4 ? 1.5 : 1.7)) / 10) * 10 : target, /* 天の川は版 4 から 1.5 倍（11/16: 中央値 97% でやり直しが半分） */ rule, boss, twist: pl?.id || null, twistCoin: pl?.coin || 0, twistHide: !!pl?.hide, intrude };
+  return { raid: raid ? { cast: RULES[rule].cast, hp: raidHp(run, target, world) } : null, node, seals, ihen: grand || raid ? null : ihenFor(run, world, night, pl?.id || null, seed), grand, endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (run.assist && (run.rv || 1) >= 5 && world === 1 && night <= 3 ? [0.8, 0.85, 0.9][night - 1] : 1) /* 練習の周の第 1〜3 夜は火を遅く（11/17: 第 1 夜の 3 回に 1 回が負け、負けた回は追いつかれ 2〜3 度） */ * (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, rv: run.rv || 1, world, night, seed, count: grand ? Math.round(count * 1.8) : count, mix, strokes: grand ? strokes + 1 : strokes, refill: 7 + Math.floor(night / 2), target: grand ? Math.round((target * (grand.kind === 'seiza' && (run.rv || 1) >= 4 ? 1.5 : 1.7)) / 10) * 10 : target, /* 天の川は版 4 から 1.5 倍（11/16: 中央値 97% でやり直しが半分） */ rule, boss, twist: pl?.id || null, twistCoin: pl?.coin || 0, twistHide: !!pl?.hide, intrude };
 }
 
 // 流派ごとの目標の合わせ（_dev/hanabi-bot.mjs の完走率が本流 ±10 ポイントに入るように）
@@ -439,6 +445,7 @@ export function settleNight(run, st, def) {
   run.coins += gain;
   nodeReward(run, def.node);
   if (def.raid) { run.lastNode = 'raid'; run.raids = (run.raids || 0) + 1; }
+  else if ((run.rv || 1) >= 6) run.form = [...(run.form || []), Math.round(st.score / Math.max(1, st.strokesUsed))].slice(-3);
   run.shopAt = `${run.world}-${run.night}`; // 屋台で読みなおしても、越えた夜をもう一度遊ばない
   return { res, stars, rw, interest, gain, engi, fuku };
 }
