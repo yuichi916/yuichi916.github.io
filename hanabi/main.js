@@ -1086,7 +1086,7 @@ $('ovAgain').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S
 // ひと休み
 function openPause() {
   if (S.mode !== 'play') return;
-  S.paused = true; show('pause'); try { $('pzDiag').textContent = audio.diagText(); } catch { /* */ } hideTip(); PF.stop(); if (S.st) PF.level('paused', S.st.level.world, S.st.level.night);
+  S.paused = true; show('pause'); hideTip(); PF.stop(); if (S.st) PF.level('paused', S.st.level.world, S.st.level.night);
   $('pzTitle').textContent = tr('ひと休み', 'Paused');
   const lab = () => {
     $('pzSound').textContent = tr(`効果音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`);
