@@ -467,7 +467,7 @@ function shotLand(o) {
 }
 function renderLife(lose) {
   const V = S.raidV, st = S.st, el = $('raidLife'); if (!el || !V || !st) return;
-  el.innerHTML = `<small>${tr('命', 'LIFE')}</small>` + Array.from({ length: Math.max(V.max0 || 3, V.life) }, (_, i) => `<i class="${i < V.life ? 'on' : i === V.life && lose ? 'brk' : ''}">♥</i>`).join('');
+  el.innerHTML = `<small>${tr('あなたの命', 'YOUR LIFE')}</small>` + Array.from({ length: Math.max(V.max0 || 3, V.life) }, (_, i) => `<i class="${i < V.life ? 'on' : i === V.life && lose ? 'brk' : ''}">♥</i>`).join('');
 }
 // 反撃が当たった瞬間（爪がふり下ろされた所）
 function counterHit() {
