@@ -337,7 +337,7 @@ function startNight(resume = null) {
     else if (tw) banner(`${def.twistHide ? tr('今夜の正体は…', 'Tonight is…') + '<br>' : ''}${JA() ? tw.ja : tw.en}`, 64, 1500);
     else if (def.night === 1 && S.tveil) { /* 題名を重ねている */ }
     else if (def.night === 1) banner(`${JA() ? W2.ja : W2.en}<small>${tr(`第 1 夜 ― 目標 ${fmt(def.target)}`, `Night 1 — Target ${fmt(def.target)}`)}</small>`, 54, 2200);
-    else banner(`${tr(`第 ${def.night} 夜`, `Night ${def.night}`)}<small>${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}</small>`, 54, 1400);
+    else banner(`${tr(`第 ${def.night} 夜`, `Night ${def.night}`)}<small>${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}${raidLeft(def) ? tr(` ・ 大妖怪まで あと ${raidLeft(def)} 夜`, ` · ${raidLeft(def)} nights to the great yokai`) : ''}</small>`, 54, 1600);
   }
   teachFor(def);
   if (tw && $('teach').classList.contains('hidden')) { const el = $('teach'); el.innerHTML = `<em>${JA() ? tw.ja : tw.en}</em> ${JA() ? tw.dj : tw.de}`; el.classList.remove('hidden'); }
@@ -367,7 +367,7 @@ function raidIntro(def, run, resume) {
   const wr = ((def.world - 1) % 3) + 1;
   const taunt = !def.endless && wr === 3 && lore() >= 3 ? tr(`${(DB.meta.runs || 0) + 1} 度目の夏だな、灯。迎え火の主が待っている。`, `Your summer number ${(DB.meta.runs || 0) + 1}, Akari. The keeper of the welcoming fire is waiting.`) : '';
   const st0 = st, slam = () => { document.body.classList.remove('veil'); if (S.st !== st0) return; audio.boom(2.4, 0); R.shake = Math.max(R.shake, 20); R.flash = Math.max(R.flash, 0.3); S.raidV.flash = 1;
-    banner(`${raidName(def)}<small>${tr('なぞった花火が、飛んでいって当たる', 'Every firework you trace flies at it')}${taunt ? `<br>「${taunt}」` : ''}</small>`, 66, taunt ? 3800 : 2800); };
+    banner(`${raidName(def)}<small>${tr('なぞった花火が飛んでいって当たる ・ 速いほど強い', 'Every firework you trace flies at it · faster hits harder')}${taunt ? `<br>「${taunt}」` : ''}</small>`, 66, taunt ? 3800 : 2800); };
   if (resume) slam(); else { document.body.classList.add('veil'); audio.duck(1.6, 0.12); audio.note(-12, { vol: 0.16, dur: 1.4 }); setTimeout(slam, 1300); }
 }
 const raidCv = $('raidCv');
@@ -433,13 +433,22 @@ function drawRaid(dt) {
     if (p >= 1) { V.shots.splice(i, 1); shotLand(o); }
   }
   // 連撃の数
-  if (V.hits > 1 && !dead) { const sz = (30 + Math.min(30, V.hits * 1.2)) * k * (1 + V.hitBump * 0.35), hx = bx + r * 1.15, hy = by - r * 0.9; g.save(); g.textAlign = 'left'; g.textBaseline = 'middle'; g.font = `italic 900 ${Math.round(sz)}px sans-serif`; g.lineWidth = 6 * k; g.strokeStyle = '#3a0a04'; g.strokeText(`${V.hits}`, hx, hy); g.fillStyle = V.hits >= 20 ? '#fff3b0' : '#ffd27a'; g.fillText(`${V.hits}`, hx, hy); const w0 = g.measureText(`${V.hits}`).width; g.font = `900 ${Math.round(sz * 0.42)}px sans-serif`; g.strokeText(tr('連撃', 'HITS'), hx + w0 + 4 * k, hy + sz * 0.12); g.fillStyle = '#ffe9c0'; g.fillText(tr('連撃', 'HITS'), hx + w0 + 4 * k, hy + sz * 0.12); g.restore(); }
+  if (V.hits > 1 && !dead) { const sz = (30 + Math.min(30, V.hits * 1.2)) * k * (1 + V.hitBump * 0.35), hy = by - r * 0.9; g.save(); g.textAlign = 'left'; g.textBaseline = 'middle'; g.font = `italic 900 ${Math.round(sz)}px sans-serif`; const w0 = g.measureText(`${V.hits}`).width; g.font = `900 ${Math.round(sz * 0.42)}px sans-serif`; const w1 = g.measureText(tr('連撃', 'HITS')).width; const hx = bx > cw / 2 ? bx - r * 1.15 - (w0 + 4 * k + w1) : bx + r * 1.15;
+    g.font = `italic 900 ${Math.round(sz)}px sans-serif`; g.lineWidth = 6 * k; g.strokeStyle = '#3a0a04'; g.strokeText(`${V.hits}`, hx, hy); g.fillStyle = V.hits >= 20 ? '#fff3b0' : '#ffd27a'; g.fillText(`${V.hits}`, hx, hy); g.font = `900 ${Math.round(sz * 0.42)}px sans-serif`; g.strokeText(tr('連撃', 'HITS'), hx + w0 + 4 * k, hy + sz * 0.12); g.fillStyle = '#ffe9c0'; g.fillText(tr('連撃', 'HITS'), hx + w0 + 4 * k, hy + sz * 0.12); g.restore(); }
   // 反撃の爪: 画面を斜めに 3 本
   if (V.slash > 0) {
     V.slash += dt; const u = V.slash / 0.45;
     if (u >= 1) V.slash = 0;
     else { g.save(); g.lineCap = 'round'; for (let j = 0; j < 3; j++) { const o = (j - 1) * 0.16 * cw, x0 = cw * 0.15 + o, y0 = ch * 0.1, x1 = cw * 0.85 + o, y1 = ch * 0.9, q = Math.min(1, u * 2.4); g.strokeStyle = `rgba(255,${60 + j * 30},40,${(1 - u) * 0.95})`; g.lineWidth = (26 - j * 4) * k * (1 - u * 0.6); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + (x1 - x0) * q, y0 + (y1 - y0) * q); g.stroke(); g.strokeStyle = `rgba(255,240,220,${(1 - u) * 0.9})`; g.lineWidth = 5 * k; g.stroke(); } g.restore(); }
   }
+  { const k0 = st.stroke; if (k0 && k0.penDown && !k0.done && !Rd.dead && k0.pts.length) {
+    const sp = G.raidSpd(k0.age), u = (sp - G.RAID.spdLo) / (G.RAID.spdHi - G.RAID.spdLo), tip = k0.pts[k0.pts.length - 1], X = sx(tip.x), Y = sy(tip.y), rr = 44 * k;
+    const col = u > 0.5 ? '255,224,138' : u > 0.2 ? '255,150,60' : '255,70,50', bl = u > 0.2 ? 1 : 0.55 + 0.45 * Math.abs(Math.sin(t * 14));
+    g.save(); g.lineCap = 'round'; g.lineWidth = 7 * k; g.strokeStyle = 'rgba(30,6,8,.55)'; g.beginPath(); g.arc(X, Y, rr, 0, 7); g.stroke();
+    if (u > 0) { g.strokeStyle = `rgba(${col},${bl})`; g.shadowColor = `rgba(${col},.9)`; g.shadowBlur = 12 * k; g.beginPath(); g.arc(X, Y, rr, -Math.PI / 2, -Math.PI / 2 + u * Math.PI * 2); g.stroke(); }
+    g.shadowBlur = 0; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `italic 900 ${Math.round((26 + u * 14) * k)}px sans-serif`; g.lineWidth = 5 * k; g.strokeStyle = '#2a0604'; const lab = u > 0 ? `${tr('速攻', 'SPEED')} ×${sp.toFixed(1)}` : tr('速攻 切れ', 'SPEED ×1');
+    g.strokeText(lab, X, Y - rr - 22 * k); g.fillStyle = `rgba(${col},${bl})`; g.fillText(lab, X, Y - rr - 22 * k); g.restore();
+  } }
   const kk = st.stroke, live = kk && !kk.done && Rd && !Rd.dead, pend = live ? Math.floor((kk.caught ? kk.rLive || 0 : (kk.rPts || 0) * kk.mult) * (kk.crit ? 2 : 1)) : 0;
   V.hp += (V.hpT - V.hp) * Math.min(1, dt * 9);
   const hpU = Math.max(0, V.hp / Rd.max), endU = live ? Math.max(0, (Rd.hp - pend) / Rd.max) : hpU, gU = Math.max(0, Math.min(hpU, hpU - endU));
@@ -509,7 +518,7 @@ function teachFor(def) {
   const sc = Run.schoolOf(S.run?.school);
   if (sc.id !== 'hon' && def.id === 1 && def.world === 1) { el.innerHTML = `<em>${tr('流派', 'School')}「${JA() ? sc.ja : sc.en}」</em> ${JA() ? sc.dj : sc.de}`; el.classList.remove('hidden'); return; }
   if (!taught.draw) return showTeach('draw');
-  if (def.raid) { el.innerHTML = tr('花火を<em>なぞって攻撃</em> ・ <em>赤い輪</em>から逃げろ ・ <em>急所</em>は ×2', '<em>Trace to attack</em> · Escape the <em>red rings</em> · <em>Weak spot</em> ×2'); el.classList.remove('hidden'); return; }
+  if (def.raid) { el.innerHTML = tr('花火を<em>なぞって攻撃</em> ・ <em>速く</em>通すほど強い ・ <em>赤い輪</em>から逃げろ', '<em>Trace to attack</em> · <em>Faster</em> hits harder · Escape the <em>red rings</em>'); el.classList.remove('hidden'); return; }
   for (const [k, n] of TEACH_ORDER) if (!taught[k] && def.id >= n && (k !== 'shaku' || def.boss) && (k !== 'loop' || (S.run?.rv || 1) >= 2)) return showTeach(k);
   for (const t of ['senrin', 'chouchin', 'shime', 'koori', 'oni']) if (!taught[t] && st0HasType(t)) return showTeach(t);
 }
@@ -622,6 +631,18 @@ function nightEnded() {
   if (def.boss) { S.mode = 'bosswin'; bossWin(def); setTimeout(() => { if (S.mode === 'bosswin') openInter(def, st, stars, rw, interest, gain); }, 1700); }
   else openInter(def, st, stars, rw, interest, gain);
 }
+// 大妖怪の夜まであと何夜か（版 6 から・千秋楽は数えない）
+function raidLeft(def) { return (S.run?.rv || 1) >= 6 && !def.endless && !def.raid && def.night < 8 ? 8 - def.night : 0; }
+// 数えてから次の夜へ（押せばすぐ）。屋台を開いた時は使わない
+function autoNext(sec) {
+  const b = $('nextBtn'), lab = b.textContent, t0 = performance.now(), mode = S.mode;
+  clearInterval(S.autoT); S.autoT = setInterval(() => {
+    if (S.mode !== mode || !S.interLite || $("giftOv")) { clearInterval(S.autoT); b.textContent = lab; return; }
+    const left = Math.ceil(sec - (performance.now() - t0) / 1000);
+    if (left <= 0) { clearInterval(S.autoT); b.textContent = lab; PF.ev('auto_next', {}); b.click(); return; }
+    b.textContent = `${lab} ${left}`;
+  }, 200);
+}
 function bossWin(def) {
   const r = def.rule && Run.RULES[def.rule];
   if (r) drawBoss(r.cast, 'sad');
@@ -653,13 +674,14 @@ function openInter(def, st, stars, rw, interest, gain) {
   $('ledger').innerHTML = rows.map(([a, b], i) => `<div style="animation-delay:${0.1 + i * 0.09}s"><span>${a}</span><b>+${b}</b></div>`).join('');
   $('shopTitle').textContent = tr('屋台', 'Festival Stalls');
   S.shopBought = false; S.shopNudged = false;
-  if (lite) S.toraLine = tr('おみごと！ 次はもっと大きく咲かせよう。屋台は次の夜のあとに開くよ', 'Nicely done! Go bigger next night. The stalls open after night 2.');
+  if (lite) S.toraLine = (S.run.rv || 1) >= 6 ? tr('おみごと！ 8 夜目に大妖怪が来る。なぞった花火で戦うよ', 'Nicely done! On night 8 a great yokai comes. Your fireworks are your weapon.') : tr('おみごと！ 次はもっと大きく咲かせよう。屋台は次の夜のあとに開くよ', 'Nicely done! Go bigger next night. The stalls open after night 2.');
   if (!S.toraLine && !DB.meta.taught.buy) S.toraLine = tr('「おすすめ」の品から買ってみて', 'Try the one marked "Best"');
   $('toraSay').textContent = S.toraLine || '';
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
   $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT'); $('shopQuit').textContent = tr('やめる（保存）', 'Quit (saved)');
   renderShop(); previewShop(); openGift(); PF.ad();
+  if (lite) autoNext(4); // 11/19: 30 秒以上遊んだ人の 4 割が 1〜2 分で帰る（第 1 夜のあとの「次の夜へ」で止まる）
   countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
   audio.ui('win'); if (!def.boss) audio.scene('calm');
 }
@@ -1207,7 +1229,7 @@ Draw the fuse. The flame is right behind you. #HitofudeHanabi`;
   const endLog = S.log; rankSubmit(run, endLog);
   DB.run = null; S.run = null; save(); S.log = null; if (!window.HANABI_PG) try { localStorage.removeItem(LOGKEY); } catch { /* なくても遊べる */ }
   audio.ui(won ? 'win' : 'lose'); audio.scene(won ? 'finale' : 'calm');
-  if (won) grandFinale(); else PF.ad();
+  if (won) grandFinale();
 }
 $('ovTitleBtn').onclick = () => { audio.ui('tap'); toTitle(); };
 // 割れる題: 点線の上を指でなぞる（左右に 60% 以上）と、字が燃えて書きかわる。見た目と一言だけ
@@ -1217,7 +1239,7 @@ $('ovTitle').addEventListener('pointermove', (e) => { const c = S.crack; if (!c 
     setTimeout(() => { t.textContent = tr('まだ、終わってない', 'It isn\'t over yet'); t.classList.remove('burn'); $('ovUnlocks').insertAdjacentHTML('afterbegin', `<div class="storyline hinoko">${tr('火の子「まって」', 'The little flame: "wait"')}</div>`); once('crack'); }, 700); } });
 addEventListener('pointerup', () => { if (S.crack) S.crack.x0 = null; });
 $('ovDaily').onclick = () => { audio.ui('tap'); startDaily(); };
-$('ovAgain').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school }); };
+$('ovAgain').onclick = () => { audio.ui('tap'); PF.ad(); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school }); };
 
 // ひと休み
 function openPause() {
@@ -1730,13 +1752,13 @@ function handle(ev) {
       const Rd = S.st?.raid; if (!Rd) break;
       const V = S.raidV; if (!V) break;
       for (const o of V.shots) o.live = false; // 飛んでいる途中の分も、ここでまとめて入る
-      const extra = ev.dmg - ev.base, x = Rd.x, y = Rd.y;
-      if (ev.dmg <= 0) { floatText(x, y - Rd.r - 20, tr('一発も当たっていない', 'No hits'), 'gold', 26, 1500); V.face = 'joy'; V.faceT = 1.2; break; }
+      const extra = ev.dmg - ev.base, x = Math.min(W - 290, Math.max(290, Rd.x)), y = Rd.y; // 長い字が画面の端で切れないよう、内側へ寄せる
+      if (ev.dmg <= 0) { floatText(x, y, tr('一発も当たっていない', 'No hits'), 'gold', 26, 1500); V.face = 'joy'; V.faceT = 1.2; break; }
       S.seq.push({ at: 0.35, f: () => { // 追撃: 倍率のぶんが、ひと塊で叩きこまれる
         V.hpT = ev.hp; V.flash = 1; V.shake = 22; V.face = 'sad'; V.faceT = 1.3;
-        if (extra > 0) { floatText(x, y - Rd.r * 0.2, tr(`追撃 ×${fmtM(ev.mult)}`, `Finisher ×${fmtM(ev.mult)}`), 'gold', 40, 1200); fx.burst('chrys', x, y, 150 + Math.min(150, extra / 40), 'kin', 2); fx.burst('ring', x, y, 110, 'ootama', 1); hitStop(90); R.flash = Math.max(R.flash, 0.35); buzz([30, 20, 50]); }
-        else if (ev.caught) floatText(x, y - Rd.r * 0.2, tr('追撃なし（焼かれた）', 'No finisher (burned)'), 'caught', 28, 1300);
-        floatText(x, y - Rd.r - 30, `−${fmt(ev.dmg)}`, 'raiddmg', ev.crit ? 76 : 62, 1700);
+        if (extra > 0) { floatText(x, y - Rd.r * 0.5, tr(`追撃 ×${fmtM(ev.mult)}`, `Finisher ×${fmtM(ev.mult)}`) + (ev.spd > 1 ? tr(` ・ 速攻 ×${ev.spd.toFixed(1)}`, ` · speed ×${ev.spd.toFixed(1)}`) : ''), 'gold', 40, 1200); fx.burst('chrys', Rd.x, y, 150 + Math.min(150, extra / 40), 'kin', 2); fx.burst('ring', Rd.x, y, 110, 'ootama', 1); hitStop(90); R.flash = Math.max(R.flash, 0.35); buzz([30, 20, 50]); }
+        else if (ev.caught) floatText(x, y - Rd.r * 0.5, tr('追撃なし（焼かれた）', 'No finisher (burned)'), 'caught', 28, 1300);
+        floatText(x, y + Rd.r * 0.3, `−${fmt(ev.dmg)}`, 'raiddmg', ev.crit ? 76 : 62, 1700);
         R.shake = Math.max(R.shake, ev.crit ? 24 : 16); audio.boom(ev.crit ? 2.8 : 2.2, 0);
       } });
       break;
@@ -1750,6 +1772,8 @@ function handle(ev) {
       break;
     case 'raidCounter': if (S.raidV) { S.raidV.lifeHold = true; S.seq.push({ at: 0.95, f: () => { if (S.raidV) { S.raidV.atk = 0.001; S.raidV.face = 'taunt'; } } }); } break;
     case 'raidMove': break;
+    case 'raidSpd': if (ev.spd >= 2) floatText(ev.x, ev.y - 30, `×${ev.spd.toFixed(1)}`, ev.spd >= 2.6 ? 'gold' : 'raidhit', ev.spd >= 2.6 ? 22 : 18, 520); break;
+    case 'raidScatter': for (const [x, y] of ev.pts) fx.tick(x, y, [2.6, 1.5, 0.5], 14, 90); break;
     case 'raidDown': raidFinale(ev); break;
     case 'raidBurn':
       audio.ui('caught'); hitStop(120); hurt(); buzz([25, 30, 25]);

@@ -41,7 +41,9 @@ export const IHEN = {
 export const UTSURU_RULES = ['kaze', 'ame', 'kagami'];
 // ---- 大妖怪: 各世界の最後の夜（版 6〜）。体力は目標 × hpX。魂（3 つ）が砕けるたびに筆 +1・居場所が変わり・技が増える
 // fire = 火の玉の間（秒） / warn = 赤い輪が出てから落ちるまで / sweep = 薙ぎの間（0 は無し）
-export const RAID = { hpX: [6.0, 3.4, 1.7], seg: 3, fire: [2.5, 2.0, 1.6], warn: [1.1, 1.0, 0.9], sweep: [0, 5.5, 4.4], sweepWarn: 1.25, ballR: 48, bandHW: 36, orbit: 52 };
+export const RAID = { hpX: [6.0, 3.4, 1.7], seg: 3, fire: [2.5, 2.0, 1.6], warn: [1.1, 1.0, 0.9], sweep: [0, 5.5, 4.4], sweepWarn: 1.25, ballR: 48, bandHW: 36, orbit: 52, spdHi: 3, spdLo: 1, spdT: 6 };
+// 速攻: 指を置いてから早く通した玉ほど強く当たる（×3 → 6 秒で ×1）
+export const raidSpd = (age) => Math.max(RAID.spdLo, Math.round((RAID.spdHi - ((RAID.spdHi - RAID.spdLo) * age) / RAID.spdT) * 10) / 10);
 export const IHEN_PTS = 1.5, IHEN_CLEAR = 2, MOERU_TAKE = 0.4, MOERU_BACK = 1.5;
 
 export const TUNE = {
@@ -172,7 +174,9 @@ export function newShell(id, x, y, type, rise = 0) {
 export const PORTRAIT_SHELL = 1.3;
 export function newNight(level, w, h, loadout = {}) {
   const rs = loadout.rs ?? (w < h ? PORTRAIT_SHELL : 1); // ランキングの旧い記録（ps なし）は 1 で流しなおす
-  const field = fieldFor(w, h, rs, level.grand?.gw || 1, level.grand?.gh || 1);
+  let field = fieldFor(w, h, rs, level.grand?.gw || 1, level.grand?.gh || 1);
+  const rz = level.raid ? raidZone(field, w, h, 1) : null; // 大妖怪の夜: 大妖怪は盤の外（横は右・縦は上）。玉は残りの広い所へ
+  if (rz) field = rz.field;
   // dn: 盤の混み方をそろえる（2026-11-16〜）。縦の 16:9 は盤が狭く、1 つの玉から爆風だけで盤の 8〜9 割に火が回っていた
   const dn = loadout.dn ?? 1, kd = dn ? Math.min(1, ((field.x1 - field.x0) * (field.y1 - field.y0)) / 349000) : 1;
   const charms = loadout.charms || [];
@@ -237,10 +241,9 @@ export function newNight(level, w, h, loadout = {}) {
     if (pool[0]) { pool[0].mod = 'renpatsu'; st.ren = { id: pool[0].id, need: 6, left: 0, t: 0, active: false, done: false }; }
   }
   st.deckI = L.deckUsed || 0;
-  if (level.raid) { // 大妖怪は盤のまん中より少し上。体のまわりの玉は外へ押し出す
-    const fw = field.x1 - field.x0, fh = field.y1 - field.y0, r = Math.round(w < h ? fw * 0.18 : fh * 0.3);
+  if (level.raid) {
     const max = level.raid.hp || Math.max(100, Math.round((level.target * RAID.hpX[Math.min(2, (level.world || 1) - 1)]) / 10) * 10);
-    st.raid = { x: (field.x0 + field.x1) / 2, y: field.y0 + fh * 0.42, r, max, hp: max, ph: 0, atkT: 1.4, swT: 2.6, warns: [], dead: false, moved: false, broke: 0, hitsAll: 0, burns: 0, crits: 0 };
+    st.raid = { x: rz.x, y: rz.y, r: rz.r, face: rz.face, side: 1, base: rz.base, max, hp: max, ph: 0, atkT: 1.4, swT: 2.6, warns: [], dead: false, moved: false, broke: 0, hitsAll: 0, burns: 0, crits: 0, spdW: 0, spdN: 0 };
     raidClear(st); raidKaku(st);
   }
   if (level.rule === 'kappa') st.shells.forEach((s, i) => { if (i % 2 === 0 && s.type === 'kiku') retype(s, 'shime'); });
@@ -250,6 +253,18 @@ export function newNight(level, w, h, loadout = {}) {
   return st;
 }
 
+// 大妖怪の居場所。絵は体の半径 r の 2.5 倍の大きさで描くので、その外に玉の盤を取る
+function raidZone(base, w, h, side) {
+  const f = base;
+  if (w >= h) {
+    const fh = f.y1 - f.y0, r = Math.round(Math.min(150, fh * 0.46)), y = Math.round(f.y0 + fh * 0.5);
+    const x = side > 0 ? w - r * 1.25 - 24 : r * 1.25 + 24, edge = side > 0 ? x - r * 1.3 - 20 : x + r * 1.3 + 20;
+    return { base, x, y, r, face: side > 0 ? Math.PI : 0, field: { ...f, x0: side > 0 ? f.x0 : Math.max(f.x0, edge), x1: side > 0 ? Math.min(f.x1, edge) : f.x1 } };
+  }
+  const top = 240, y1 = Math.max(f.y1, h * 0.77), r = Math.round(Math.min(110, (f.x1 - f.x0) * 0.19, ((y1 - top) * 0.42) / 2.6)), y = Math.round(top + r * 1.1);
+  return { base, x: w / 2, y, r, face: Math.PI / 2, field: { ...f, y0: Math.round(y + r * 1.45 + 20), y1 } };
+}
+const kakuAt = (Rd, s) => { const a = Rd.face + Math.sin(s.orb) * 1.15, d = Rd.r + RAID.orbit; return [Rd.x + Math.cos(a) * d, Rd.y + Math.sin(a) * d]; };
 function raidClear(st) {
   const Rd = st.raid, f = st.field;
   for (const s of st.shells) {
@@ -262,8 +277,8 @@ function raidClear(st) {
 }
 function raidKaku(st) {
   const Rd = st.raid; if (!Rd || Rd.dead || st.shells.some((s) => s.mod === 'kaku' && s.state === 'idle')) return;
-  const a = st.rnd() * TAU, d = Rd.r + RAID.orbit, s = addShell(st, Rd.x + Math.cos(a) * d, Rd.y + Math.sin(a) * d, 'kin', 0.2);
-  s.mod = 'kaku'; s.orb = a; st.events.push({ type: 'rise', shell: s });
+  const o = { orb: st.rnd() * TAU }, [x, y] = kakuAt(Rd, o), s = addShell(st, x, y, 'kin', 0.2);
+  s.mod = 'kaku'; s.orb = o.orb; st.events.push({ type: 'rise', shell: s });
 }
 // 一筆の間の妖怪の技: 赤い輪（火の玉）と赤い帯（薙ぎ）。落ちた時に筆先がその中にあれば焼かれる（捕まったのと同じ）。火の玉は落ちた所の玉に火をつける
 function raidBurn(st, x, y, kind) {
@@ -273,7 +288,7 @@ function raidBurn(st, x, y, kind) {
 }
 function raidStep(st, dt) {
   const Rd = st.raid, k = st.stroke, f = st.field;
-  for (const s of st.shells) if (s.mod === 'kaku' && s.state === 'idle' && !s.threaded && s.rise <= 0) { s.orb += (0.55 + Rd.ph * 0.3) * dt; const d = Rd.r + RAID.orbit; s.x = Rd.x + Math.cos(s.orb) * d; s.y = Rd.y + Math.sin(s.orb) * d; }
+  for (const s of st.shells) if (s.mod === 'kaku' && s.state === 'idle' && !s.threaded && s.rise <= 0) { s.orb += (0.8 + Rd.ph * 0.35) * dt; [s.x, s.y] = kakuAt(Rd, s); } // 急所は大妖怪の、盤に向いた側をふり子のように行き来する
   const tip = k && k.pts.length ? k.pts[k.pts.length - 1] : null;
   for (let i = Rd.warns.length - 1; i >= 0; i--) {
     const w = Rd.warns[i]; w.t -= dt; if (w.t > 0) continue;
@@ -305,11 +320,16 @@ function raidStep(st, dt) {
   }
 }
 // 魂が砕けたあと: 妖怪は別の場所へ移る（盤はまるごと入れかわる）
+// 横の画面: 左右が入れかわる（盤ごと反対側へ。残っていた玉は散る）。縦の画面: 上の段で横へ動く
 function raidMove(st) {
-  const Rd = st.raid, f = st.field, fw = f.x1 - f.x0, fh = f.y1 - f.y0, land = st.w >= st.h;
-  const xs = land ? [0.3, 0.5, 0.7] : [0.42, 0.5, 0.58], ys = land ? [0.36, 0.5] : [0.3, 0.5, 0.62];
-  let nx = Rd.x, ny = Rd.y; for (let t = 0; t < 8 && Math.hypot(nx - Rd.x, ny - Rd.y) < fw * 0.12; t++) { nx = f.x0 + fw * xs[Math.floor(st.rnd() * xs.length)]; ny = f.y0 + fh * ys[Math.floor(st.rnd() * ys.length)]; }
-  st.events.push({ type: 'raidMove', x0: Rd.x, y0: Rd.y, x: nx, y: ny }); Rd.x = nx; Rd.y = ny; Rd.moved = false; Rd.warns.length = 0;
+  const Rd = st.raid, px = Rd.x, py = Rd.y;
+  if (st.w >= st.h) {
+    Rd.side = -Rd.side; const z = raidZone(Rd.base, st.w, st.h, Rd.side); Rd.x = z.x; Rd.y = z.y; Rd.face = z.face; st.field = z.field;
+    const gone = st.shells.filter((s) => s.state === 'idle' && s.mod !== 'kaku').map((s) => [s.x, s.y]);
+    st.shells = st.shells.filter((s) => s.state !== 'idle' || s.mod === 'kaku');
+    st.events.push({ type: 'raidScatter', pts: gone });
+  } else { const xs = [0.3, 0.5, 0.7].map((u) => st.w * u).filter((x) => Math.abs(x - Rd.x) > 40); Rd.x = xs[Math.floor(st.rnd() * xs.length)]; }
+  st.events.push({ type: 'raidMove', x0: px, y0: py, x: Rd.x, y: Rd.y }); Rd.moved = false; Rd.warns.length = 0;
 }
 
 // 夜のはじめに玉が町から上がってくる時間（画面と、ランキングの動かし直しで同じにする）
@@ -661,7 +681,7 @@ export function penUp(st, auto = false) { // auto: 墨切れで勝手に離れ�
   if (!k || !k.penDown) return;
   k.penDown = false;
   if (k.len < st.m.minLen) { // 押し間違いは数えない
-    for (const s of st.shells) s.threaded = false;
+    for (const s of st.shells) { s.threaded = false; s.spd = 0; }
     st.stroke = null; st.phase = 'aim';
     st.events.push({ type: 'cancel' });
     return;
@@ -727,6 +747,7 @@ function threadAt(st, x, y) {
       if (s.state !== 'idle' || s.threaded || s.rise > 0) continue;
       if (Math.hypot(s.x - px, s.y - py) < s.r + m.threadR) {
         s.threaded = true; s.vx = 0; s.vy = 0; k.threaded++;
+        if (st.raid && !st.raid.dead) { s.spd = raidSpd(k.age); st.events.push({ type: 'raidSpd', x: s.x, y: s.y, spd: s.spd }); }
         const gap = k.len - k.flameS;
         const close = k.flameOn && gap < m.closeGap;
         if (close) { k.heat += m.closeCall; k.close++; st.closeCalls++; }
@@ -856,8 +877,10 @@ function burst(st, s, gen, how) {
     if (s.mod === 'kaku') { k.crit = (k.crit || 0) + 1; Rd.crits++; st.events.push({ type: 'raidCrit', x: s.x, y: s.y }); }
     // ひらいた花火は全部、大妖怪へ飛んでいく（なぞる＝攻撃）
     // 当たった時の倍率でその場で削れる（rLive）。離した時に、最後の倍率との差が追撃で入る
-    k.rPts = (k.rPts || 0) + Math.round(pts); k.rLive = (k.rLive || 0) + Math.round(pts) * k.mult; k.rHits = (k.rHits || 0) + 1; Rd.hitsAll++;
-    st.events.push({ type: 'raidHit', sx: s.x, sy: s.y, x: Rd.x + ((s.x - Rd.x) / dd) * Rd.r * 0.55, y: Rd.y + ((s.y - Rd.y) / dd) * Rd.r * 0.55, pts: Math.round(pts), dmg: Math.round(Math.round(pts) * k.mult), n: k.rHits, kaku: s.mod === 'kaku' });
+    // 速攻: 通した時の速攻（爆風で燃えた玉は、ひらいた時の速攻）を掛ける
+    const sp = s.spd || raidSpd(k.age), p = Math.round(Math.round(pts) * sp); s.spd = 0;
+    k.rPts = (k.rPts || 0) + p; k.rRaw = (k.rRaw || 0) + Math.round(pts); k.rLive = (k.rLive || 0) + p * k.mult; k.rHits = (k.rHits || 0) + 1; Rd.hitsAll++; Rd.spdW += p; Rd.spdN += Math.round(pts);
+    st.events.push({ type: 'raidHit', sx: s.x, sy: s.y, x: Rd.x + ((s.x - Rd.x) / dd) * Rd.r * 0.55, y: Rd.y + ((s.y - Rd.y) / dd) * Rd.r * 0.55, pts: p, dmg: Math.round(p * k.mult), spd: sp, n: k.rHits, kaku: s.mod === 'kaku' });
   }
   if (d.mult && !kinfuu) k.mult += m.goldMult + lvl;
   if (mod === 'gold' && !kinfuu) k.mult += 1; // 金箔
@@ -1144,7 +1167,7 @@ export function step(st, dt = DT) {
         k.flameS = k.cutS; k.penDown = false; k.fuseOut = true; k.len = Math.min(k.len, k.cutS);
         st.events.push({ type: 'fuseOut', cut: true });
       } else if (k.penDown && gap <= 0) {
-        if (k.len < m.minLen) { for (const s of st.shells) s.threaded = false; st.stroke = null; st.phase = 'aim'; st.events.push({ type: 'cancel' }); return; }
+        if (k.len < m.minLen) { for (const s of st.shells) { s.threaded = false; s.spd = 0; } st.stroke = null; st.phase = 'aim'; st.events.push({ type: 'cancel' }); return; }
         if (k.saved < (m.catchSaves || 0)) { // 追いつかれても 1 度だけ踏みとどまる
           k.saved++; k.flameS = Math.max(0, k.len - 110); st.events.push({ type: 'saved' });
         } else {
@@ -1297,7 +1320,7 @@ function finishStroke(st) {
     const dmg = k.caught && !st.m.caughtSafe ? base : Math.floor((k.rPts || 0) * k.mult * (k.crit ? 2 : 1));
     Rd.hp = Math.max(0, Rd.hp - dmg);
     const n0 = Math.min(RAID.seg, Math.floor((Rd.max - before) / seg + 1e-9)), n1 = Math.min(RAID.seg, Math.floor((Rd.max - Rd.hp) / seg + 1e-9));
-    st.events.push({ type: 'raidDmg', dmg, base, mult: k.mult, hp: Rd.hp, max: Rd.max, crit: !!k.crit, hits: k.rHits || 0, caught: k.caught });
+    st.events.push({ type: 'raidDmg', dmg, base, mult: k.mult, spd: k.rRaw ? Math.round(((k.rPts || 0) / k.rRaw) * 10) / 10 : 1, hp: Rd.hp, max: Rd.max, crit: !!k.crit, hits: k.rHits || 0, caught: k.caught });
     if (Rd.hp <= 0) { Rd.dead = true; Rd.warns.length = 0; st.events.push({ type: 'raidDown', x: Rd.x, y: Rd.y }); }
     else if (n1 > n0) { Rd.broke = n1; Rd.ph = Math.min(RAID.fire.length - 1, n1); Rd.moved = true; Rd.atkT = 1.4; Rd.swT = 2.4; st.strokesLeft += 1; st.maxStrokes += 1; st.lastBloom = true; if (Rd.ph >= 2) st.m.flameX *= 1.08; st.events.push({ type: 'raidBreak', n: n1, ph: Rd.ph, x: Rd.x, y: Rd.y }); }
     else st.events.push({ type: 'raidCounter', burned: !!k.caught, x: Rd.x, y: Rd.y }); // 魂を砕けなかった一筆のあとは、大妖怪の反撃（命 −1）
@@ -1327,7 +1350,7 @@ function refill(st) {
   const bloomed = st.lastBloom; st.lastBloom = false;
   const f = st.field;
   st.shells = st.shells.filter((s) => s.state === 'idle' && !s.fall);
-  for (const s of st.shells) s.threaded = false;
+  for (const s of st.shells) { s.threaded = false; s.spd = 0; }
   if (st.twist === 'ippatsu') {
     const s = addShell(st, (f.x0 + f.x1) / 2, (f.y0 + f.y1) / 2, 'shaku', 0.2);
     st.events.push({ type: 'rise', shell: s });

@@ -275,10 +275,10 @@ export function ihenFor(run, world, night, twist, seed) {
 // 練習の周（初めの 2 周）: 世界 1 の大一番の目標をゆるめる。第 3 夜から 1.94 倍に跳ねて、ほとんどの人がここで終わっていた（Playgama 11/14〜16: 越えた夜の平均 2.9）
 export const ASSIST_BOSS = 0.75;
 // 大妖怪の体力: その人の直前 3 夜の「一筆あたりの点」×3 ×RAID_FORM。上手な人にも初めての人にも、3〜4 筆の勝負になる
-export const RAID_FORM = [0.85, 1.0, 0.4]; // 世界ごと（世界 3 は道中の夜で点が伸びやすく、一筆あたりの点が大妖怪の夜より高く出る）
+export const RAID_FORM = [0.85, 1.0, 0.36], RAID_SPD = 1.5; // 世界ごと（世界 3 は道中の夜で点が伸びやすく、一筆あたりの点が大妖怪の夜より高く出る）
 function raidHp(run, target, world) {
   const f = run.form || [], per = f.length ? f.reduce((a, b) => a + b, 0) / f.length : target / 12; // 記録が無い時（途中から入った時）はやさしめ
-  return Math.round(Math.max(target * 0.6, per * 3 * RAID_FORM[Math.min(2, world - 1)]) / 10) * 10;
+  return Math.round((Math.max(target * 0.6, per * 3 * RAID_FORM[Math.min(2, world - 1)]) * RAID_SPD) / 10) * 10; // 速攻（ボットの平均 ×2.5）のぶん固く
 }
 export function nightDef(run, world, night) {
   const W = worldOf(world), rank = RANKS[run.rank] || RANKS[0];
