@@ -1408,6 +1408,9 @@ function banner(html, size = 70, life = 1600, cls = '') {
   $('float').querySelectorAll('.banner').forEach((o) => o.remove());
   const e = document.createElement('div'); e.className = 'banner ' + cls; e.innerHTML = html; e.style.fontSize = size * (Math.min(innerWidth, innerHeight) / 720) + 'px'; e.style.animationDuration = life + 'ms';
   $('float').append(e); setTimeout(() => e.remove(), life);
+  // 長い英語の名前（Great Kamaitachi など）が縦の画面で左右にはみ出すので、幅に収まるまで縮める
+  const maxW = Math.min(e.clientWidth || innerWidth, innerWidth) * 0.98, sw = e.scrollWidth;
+  if (sw > maxW) e.style.fontSize = (parseFloat(e.style.fontSize) * maxW) / sw + 'px';
 }
 function bump(el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 // 止め（ヒットストップ）: ルールの時間だけを止め、粒と光は少しだけ動かし続ける。

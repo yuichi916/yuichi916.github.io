@@ -299,7 +299,7 @@ export function nightDef(run, world, night) {
   const pl = run.plan?.[`${world}-${night}`], node = pl?.node || (boss ? 'boss' : 'plain');
   // 練習の周: 世界 1 の大一番 ×0.75、版 4 からは世界 2 の大一番も ×0.85（11/16 の数字: 世界 2 の大一番で目標の 65% 止まり・周が終わっていた）
   const assist = run.assist && boss ? (world === 1 ? ASSIST_BOSS : world === 2 && (run.rv || 1) >= 4 ? 0.85 : 1) : 1;
-  const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) * (NODE_TARGET[node] || 1) * (SCHOOL_TARGET[run.school] || 1) * assist / 10) * 10;
+  const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) * (NODE_TARGET[node] || 1) * (SCHOOL_TARGET[run.school] || 1) * assist * (run.assist && (run.rv || 1) >= 6 && world === 1 && (night === 2 || night === 3) ? 0.8 : 1) / 10) * 10; // 練習の周の第 2〜3 夜は目標 ×0.8（11/19 MCP: 勝ちは第 2 夜 40%・第 3 夜 39%、夜の途中で帰るのが最多）
   const strokes = 3 + (boss && rank.bossStroke ? rank.bossStroke : 0);
   const idx = (world - 1) * NIGHTS_PER_WORLD + night - 1;
   // 乱入は予告なし。大一番と、はじめの 2 夜にはこない
