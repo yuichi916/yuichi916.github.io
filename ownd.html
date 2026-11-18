@@ -234,6 +234,7 @@ footer a{color:var(--dim)}
       <span class="sub">またはクリックして選ぶ（zip のまま入れられます。中の XML ファイルを何個か選んでもかまいません）</span>
       <input type="file" id="file" multiple accept=".zip,.xml,.txt,application/zip,text/xml,application/xml,text/plain">
     </label>
+    <p class="small" style="margin-top:10px">書き出しの履歴に「一部のコンテンツはエクスポートされませんでした」と出た人は、同じ行から<b>書き出されなかったものの一覧（CSV）</b>をダウンロードして残してください。その記事は書き出しファイルに入っていないので、この道具でも作れません。Ameba Ownd が終わる前に、ページを開いて「印刷」→「PDFに保存」で残します。Instagram・Facebook から取り込んだ写真とギャラリーも書き出しに入りません（<a href="https://help.amebaownd.com/posts/59351300" target="_blank" rel="noopener">公式の手順</a>）。</p>
     <p class="private"><span class="ic" aria-hidden="true">✓</span><span><b>ファイルはどこにも送りません。</b>読み込みも作成も、このパソコンのブラウザの中だけで行います。写真は Ameba Ownd の写真置き場から、直接このパソコンに保存します。（このページはアクセス数を数えるために GoatCounter を使っていますが、ファイルの中身は送りません。）</span></p>
     <div id="loadMsg" aria-live="polite"></div>
     <div id="summary" hidden>
@@ -363,9 +364,9 @@ footer a{color:var(--dim)}
     <h3>写真は何枚まで保存できますか</h3>
     <p class="small">「フォルダに直接保存」なら、パソコンの空き容量の範囲で何枚でも保存できます。1枚10MB前後の写真もあるので、写真1,000枚なら数GBの空きを用意してください。</p>
     <h3>WordPress に移りたいのですが</h3>
-    <p class="small">書き出した zip はそのまま WordPress に取り込めますが、写真は取り込みのときに Ameba Ownd から読み込まれるため、<b>終了日までに取り込みを済ませる</b>必要があります。念のため、ここで写真を保存しておくと安心です。</p>
+    <p class="small">WordPress.com なら zip を解凍せずにそのまま、WordPress.org（自分のサーバー）なら zip を解凍して「-01.xml」から順に1つずつ取り込みます（<a href="https://help.amebaownd.com/posts/59351462" target="_blank" rel="noopener">公式の手順</a>）。写真は取り込みのときに Ameba Ownd から読み込まれるため、<b>終了日までに取り込みを済ませる</b>必要があります。念のため、ここで写真を保存しておくと安心です。</p>
     <h3>書き出しファイルの形が違っていたら</h3>
-    <p class="small">こちらでは本物の書き出しファイルの形をまだ確かめられていないため、この道具は WordPress の一般的な書き出しの形（WXR）を想定し、項目が欠けていても読めるように作っています。読めなかったときは、出てきたメッセージと、読み込んだあとに出る「形式の診断」（ファイルの形だけで、中身は入りません）を添えて <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">@ViewsEngineer</a> に知らせていただけると直します（ファイルそのものは送らないでください）。</p>
+    <p class="small">公式の手順（2026年11月18日）では、書き出しは WordPress の標準の形（WXR）の XML で、件数が多いと「-01.xml」「-02.xml」…に分かれます。この道具はその形を読み、項目が欠けていても読めるように作っています。ただ、本物の書き出しファイルではまだ確かめられていません。読めなかったときは、出てきたメッセージと、読み込んだあとに出る「形式の診断」（ファイルの形だけで、中身は入りません）を添えて <a href="https://x.com/ViewsEngineer" target="_blank" rel="noopener">@ViewsEngineer</a> に知らせていただけると直します（ファイルそのものは送らないでください）。</p>
   </section>
 
   <section class="card" aria-labelledby="h-share">
@@ -465,7 +466,7 @@ async function readInputs(fileList) {
       for (const f of entries) await take(f.name, await f.async('uint8array'), depth + 1);
       return;
     }
-    if (/\.xml$/i.test(base) || /^\s*<\?xml|<rss[\s>]/.test(decodeText(u8.subarray(0, 400)))) { out.xml.push({ name: base, path: name, text: decodeText(u8), bytes: u8 }); return; }
+    if (/\.xml$/i.test(base) || /^\s*<\?xml|<rss[\s>]/.test(decodeText(u8.subarray(0, 400)))) { out.xml.push({ name: base, path: name, text: decodeText(u8), bytes: u8, depth }); return; }
     if (/\.txt$/i.test(base)) { out.txt.push({ name: base, path: name, text: decodeText(u8), bytes: u8 }); return; }
     out.skipped.push(name);
   }
@@ -809,6 +810,19 @@ async function handleFiles(files) {
     const { posts, pages } = analyse(parsed);
     if (got.skipped.length) addIssue('info', '記事ではないファイルは読みませんでした（' + got.skipped.length + ' 個）。', got.skipped.slice(0, 20), 'skipped_files');
     for (const [n, code] of fileNotes) addIssue('warn', n, [], code);
+    // 公式の書き出しは ownd-…-01.xml から番号順に分かれる（2026-11-18 公式ヘルプ）。番号の抜けと、解凍して入れたときの入れ忘れを知らせる
+    const numGroups = new Map();
+    for (const x of got.xml) {
+      const m = /^(.*?)-(\d{1,3})\.xml$/i.exec(x.name); if (!m) continue;
+      const g = numGroups.get(m[1]) || { nums: new Set(), loose: false }; g.nums.add(+m[2]); if (!x.depth) g.loose = true; numGroups.set(m[1], g);
+    }
+    const nn = (n) => String(n).padStart(2, '0');
+    for (const g of numGroups.values()) {
+      const nums = [...g.nums].sort((a, b) => a - b); const missing = [];
+      for (let i = 1; i <= nums[nums.length - 1]; i++) if (!g.nums.has(i)) missing.push(nn(i));
+      if (missing.length) addIssue('warn', '書き出しファイルの番号が抜けています（' + missing.join('・') + ' 番がありません）。抜けたファイルの記事は、作るものに入りません。zip を解凍した人は、中の XML を全部まとめて入れ直してください。', [], 'xml_number_gap');
+      else if (g.loose) addIssue('info', '読んだ XML は ' + nums.map(nn).join('・') + ' 番です。zip を解凍した人は、最後の番号まで全部入れたか確かめてください（zip のまま入れれば、全部まとめて読みます）。', [], 'xml_numbered_loose');
+    }
     S.diagSrc = { entries: got.entries, xml: diagXml, txt: diagTxt };
     $('loadMsg').innerHTML = '<div class="okbox">' + esc(parsed.length) + ' 個のファイルを読みました。' + (S.site.title ? '「' + esc(S.site.title) + '」' : '') + '</div>';
     renderSummary(posts, pages);
