@@ -52,13 +52,16 @@ export function createPlatform() {
     // ただし遊び始めて 3 分までは出さない（Playgama は 30 秒未満で離れた回を「遊び」と数えず、最初の広告が 29 秒目に出ていた）
     ad() { try { const now = performance.now(); if (now - AD_T0 < AD_GRACE_MS || now - adLast < AD_GAP_MS) return false; if (pg?.advertisement?.isInterstitialSupported) { adLast = now; pg.advertisement.showInterstitial(); return true; } } catch { /* */ } return false; },
     // 独自のイベント（どこで離れたかを見る）。名前は固定、変わる値は data に。版の名前を必ず付ける
-    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, build: '2026-11-19d' }); } catch { /* 送れなくても遊べる */ } },
+    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, build: '2026-11-20a' }); } catch { /* 送れなくても遊べる */ } },
     // ランキング（Bridge）。Playgama は Bridge SaaS で in_game（自分で表を描く）、YouTube は native（点を送るだけ）
     lbType() { try { return pg?.leaderboards?.type || 'not_available'; } catch { return 'not_available'; } },
     async lbSet(score) { if (P.lbType() === 'not_available') return; try { await pg.leaderboards.setScore('best_score', Math.max(0, Math.floor(score))); } catch { /* 送れなくても遊べる */ } },
     async lbTop() { if (P.lbType() !== 'in_game') return null; try { return await pg.leaderboards.getEntries('best_score'); } catch { return null; } },
     lbPopup() { try { if (P.lbType() === 'native_popup') pg.leaderboards.showNativePopup('best_score')?.catch?.(() => {}); } catch { /* */ } },
     get playerId() { try { return pg?.player?.id || null; } catch { return null; } },
+    // ログイン（Playgama のアカウント名でランキングに載る）。ログインしていない人の名前は Playgama が英語で自動につける（例: Ivory Pheasant）
+    get loginOk() { try { return !!pg?.player?.isAuthorizationSupported && !pg.player.isAuthorized; } catch { return false; } },
+    async login() { try { await pg.player.authorize(); return !!pg.player.isAuthorized; } catch { return false; } },
     // 報酬つき広告: 見終わって報酬が出たら true。失敗・途中で閉じたら false。広告の間は音を消す
     get rewardedOk() { try { return !!pg?.advertisement?.isRewardedSupported; } catch { return false; } },
     rewarded(placement = 'revive') {

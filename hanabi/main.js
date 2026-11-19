@@ -284,7 +284,7 @@ function startNight(resume = null) {
   S.growBefore = { ...(run.grow || {}) };
   if (!resume) { run.inNight = { w: def.world, n: def.night, used: 0 }; DB.run = run; save(); }
   $('float').replaceChildren();
-  S.mode = 'play'; S.crossed = false; S.seq = []; S.endAfterCount = false; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0; S.cnt = null;
+  S.mode = 'play'; S.crossed = false; S.seq = []; S.endAfterCount = false; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0; S.cnt = null; S.tut = null;
   PF.start(); PF.level('started', def.world, def.night);
   S.nightT0 = performance.now();
   S.pan = 0; S.panY = 0; S.drag = null; S.panIntro = def.grand && !resume ? 2.4 : 0;
@@ -507,9 +507,25 @@ const TEACH = {
 };
 // 夜ごとの教える番（def.id = 通しの夜の番号）。教えたらすぐ覚えたことにする（やり直しの夜でくり返さない）
 const TEACH_ORDER = [['heat', 2], ['bloom', 3], ['shaku', 4], ['loop', 5], ['dust', 5], ['tsugi', 6], ['flame', 7]];
+// はじめての一筆の案内（マウスなら「クリック」、指なら「指」で言う）
+const MOUSE = (() => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches; } catch { return false; } })();
+function drawText(step) {
+  const st = S.st, need = st ? Math.max(0, st.target - st.score) : 0;
+  if (step === 'down') return tr('そのまま<em>次の玉へ</em>！ 火が後ろから追ってくる', 'Keep going to the <em>next shell</em>! The flame is chasing you');
+  if (step === 'go') return MOUSE ? tr('<em>ボタンを離す</em>と、なぞった玉がひらく', '<em>Release</em> to burst every shell you traced') : tr('<em>指を離す</em>と、なぞった玉がひらく', '<em>Lift your finger</em> to burst every shell you traced');
+  if (step === 'aim1') return tr(`あと <em>${fmt(need)} 点</em>。もう一筆！ 長くなぞるほど大きい`, `<em>${fmt(need)} more</em>. One more stroke! Longer lines score bigger`);
+  return MOUSE ? tr('<em>クリックしたまま</em>、玉から玉へ<em>なぞる</em>', '<em>Click and hold</em>, then drag through the shells') : tr('<em>指を離さずに</em>、玉から玉へ<em>なぞる</em>', '<em>Hold your finger down</em> and drag through the shells');
+}
+function tutStep(step) {
+  const st = S.st, el = $('teach'); if (S.teachKey !== 'draw' || !st) return;
+  if (step === 'down') { if (st.strokesUsed > 0) { el.classList.add('hidden'); return; } if (!S.tutSent) { S.tutSent = 1; PF.ev('tut', { s: 'down' }); } }
+  else if (step === 'go') { if (S.tut !== 'down') return; }
+  else if (step === 'lift') { if (S.tut === 'lift' || st.strokesUsed > 0) return; S.tut = 'lift'; el.classList.add('hidden'); if (S.tutSent === 1) { S.tutSent = 2; PF.ev('tut', { s: 'lift', n: st.stroke?.threaded || 0 }); } return; }
+  S.tut = step; el.innerHTML = drawText(step); el.classList.add('big'); el.classList.remove('hidden');
+}
 function showTeach(key) {
   const el = $('teach'), t = TEACH[key]; if (!t) return;
-  el.innerHTML = JA() ? t[0] : t[1]; el.classList.remove('hidden'); S.teachKey = key;
+  el.innerHTML = key === 'draw' ? drawText('aim0') : JA() ? t[0] : t[1]; el.classList.toggle('big', key === 'draw'); el.classList.remove('hidden'); S.teachKey = key;
   if (key !== 'draw') DB.meta.taught[key] = 1;
 }
 function teachFor(def) {
@@ -1297,7 +1313,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (TOUCH && touchMode() && !DB.meta.taught.tip) { DB.meta.taught.tip = 1; save(); floatText(W / 2, H * 0.3, tr('線の先は、指の少し上に出ます', 'The line tip sits just above your finger'), 'gold', 24, 1800); }
   const p = toWorld(e);
   S.rec?.ev.push([S.st.t, 'd', p.x, p.y]);
-  if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; S.lastPtr = { clientX: e.clientX, clientY: e.clientY }; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } $('teach').classList.add('hidden'); }
+  if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; S.lastPtr = { clientX: e.clientX, clientY: e.clientY }; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } if (S.teachKey !== 'draw') $('teach').classList.add('hidden'); }
   else if (S.st.level.grand) { S.rec?.ev.pop(); S.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, pan: S.pan || 0, panY: S.panY || 0 }; S.panIntro = 0; try { canvas.setPointerCapture(e.pointerId); } catch { /* */ } }
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -1508,7 +1524,13 @@ function launchFor(s) { const t = Math.max(0.28, s.rise); fx.launch(s.x + (Math.
 function handle(ev) {
   const st = S.st;
   switch (ev.type) {
-    case 'penDown': FEEL.flow = 0; FEEL.last = null; FEEL.has = false; $('engi').classList.remove('can', 'first'); $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
+    case 'penDown': tutStep('down'); FEEL.flow = 0; FEEL.last = null; FEEL.has = false; $('engi').classList.remove('can', 'first'); $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
+    case 'penUp': { // 放つ: 指を離した瞬間。火が線を駆けだす合図を、音・光・振動で
+      const nT = st.stroke?.threaded || 0; FEEL.rel = R.time; buzz(16); audio.whoosh(0.6 + Math.min(1, nT / 8) * 0.6);
+      for (let i = 0; i < 22; i++) { const a = (i / 22) * 6.283; fx.add(ev.x, ev.y, Math.cos(a) * 260, Math.sin(a) * 260, 0.22, 2.4, 6, 0, [3, 2.6, 1.6], [1.4, 0.6, 0.15], 1.7); }
+      fx.light(ev.x, ev.y, 0.5, 220, [1, 0.7, 0.35], 8); kick(ev.x, ev.y, 2.5);
+      tutStep('lift'); break;
+    }
     case 'ignite': audio.note(2, { vol: 0.14, dur: 0.25 }); fx.tick(ev.x, ev.y, [3, 1.8, 0.7], 26, 220); fx.light(ev.x, ev.y, 0.5, 300, [1, 0.6, 0.25], 6); break;
     case 'thread': {
       const s = ev.shell, n = ev.n, now = R.time;
@@ -1731,12 +1753,13 @@ function handle(ev) {
       break;
     }
     case 'aim': $('combo').classList.remove('on'); renderEngi(); if (st.strokesLeft === 1 && !st.cleared) banner(tr('最後の一筆', 'Last Stroke'), 46, 1100);
-      if (!DB.meta.taught.score && st.strokesUsed >= 1) showTeach('score');
+      if (S.teachKey === 'draw' && st.strokesUsed >= 1 && !st.cleared) tutStep('aim1');
+      else if (!DB.meta.taught.score && st.strokesUsed >= 1) showTeach('score');
       break;
     case 'rise': launchFor(ev.shell); audio.launch(panOf(ev.shell.x)); break;
     case 'cancel': $('combo').classList.remove('on'); audio.scene('calm');
       // 叩いただけで何も起きないと「壊れている」に見える。なぞり方を言い直す（覚えるまで）
-      if (!DB.meta.taught.draw) { S.taps = (S.taps || 0) + 1; showTeach('draw'); floatText(W / 2, H * 0.42, tr('指を離さずに、玉から玉へなぞって', 'Hold and drag through the shells'), 'gold', S.taps > 1 ? 30 : 24); }
+      if (!DB.meta.taught.draw) { S.taps = (S.taps || 0) + 1; S.tut = null; showTeach('draw'); floatText(W / 2, H * 0.42, tr('指を離さずに、玉から玉へなぞって', 'Hold and drag through the shells'), 'gold', S.taps > 1 ? 30 : 24); }
       break;
     case 'runner': audio.launch(panOf(ev.x)); break;
     case 'kids': audio.note(15, { vol: 0.14, dur: 0.3 }); floatText(ev.x, ev.y - 30, tr('子玉！', 'Babies!'), 'gold', 22); break;
@@ -1855,11 +1878,12 @@ function grandFinale() {
 // ------------------------------------------------------------------ 描画の仕上げ
 function ribbon(gl, P, vaoF, fuseBuf, cam, VW, VH, k, t, mirror) {
   const P2 = k.pts, n = P2.length, data = new Float32Array(n * 8);
-  const wid = 4.6 + k.heatLv * 1.1;
+  const wid = 4.6 + k.heatLv * 1.1, ws = k === FEEL.wk ? FEEL.wid : null, rel = Math.max(0, 1 - (t - FEEL.rel) / 0.28);
   for (let i = 0; i < n; i++) {
     const a = P2[Math.max(0, i - 1)], b = P2[Math.min(n - 1, i + 1)];
     let dx = b.x - a.x, dy = b.y - a.y; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
-    const w = wid * (0.82 + 0.25 * Math.sin(P2[i].s * 0.021)), o = i * 8, x = mirror ? VW - P2[i].x : P2[i].x;
+    const tipU = k.penDown ? Math.max(0, 1 - (k.len - P2[i].s) / 46) : 0;
+    const w = wid * (0.82 + 0.25 * Math.sin(P2[i].s * 0.021)) * (ws ? ws[i] ?? ws[ws.length - 1] ?? 1 : 1) * (1 + tipU * 0.35) * (1 + rel * 0.55), o = i * 8, x = mirror ? VW - P2[i].x : P2[i].x;
     const nx = mirror ? dy : -dy;
     data[o] = x + nx * w; data[o + 1] = P2[i].y + dx * w; data[o + 2] = P2[i].s; data[o + 3] = -1;
     data[o + 4] = x - nx * w; data[o + 5] = P2[i].y - dx * w; data[o + 6] = P2[i].s; data[o + 7] = 1;
@@ -1918,7 +1942,7 @@ function drawWorld({ gl, cam, P, vaoSpr, vaoF, sprBuf, sprData, fuseBuf, tex, W:
 
 const MOD_RGB = { gold: [3, 2.2, 0.6], twice: [2.8, 2.8, 3.2], glass: [1, 2.8, 3.2], fuse: [3.2, 1, 0.4], star: [1.4, 2.2, 3.4], taki: [0.6, 2.2, 3.4], moji: [2.4, 1.6, 3.4], renpatsu: [1, 3, 1.4], seiza: [2.4, 2.8, 3.4] };
 // 線を引く手ざわり（描くだけ。点の計算には入れない）: 流れ＝間をあけずに続けて通した玉の数
-const FEEL = { flow: 0, flowT: -9, last: null, px: 0, py: 0, v: 0, has: false };
+const FEEL = { flow: 0, flowT: -9, last: null, px: 0, py: 0, v: 0, has: false, wk: null, wid: [], rel: -9 };
 const POP = new WeakMap();
 function perFrameFx(dt) {
   const st = S.st, one = Math.max(dt, 0.001) * 1.2;
@@ -2019,6 +2043,9 @@ function perFrameFx(dt) {
           for (let i = 0; i < m; i++) { const u = i / m; fx.add(FEEL.px + dx * u, FEEL.py + dy * u, -ux * back + (Math.random() - 0.5) * 130, -uy * back + (Math.random() - 0.5) * 130 - 20, 0.16 + Math.random() * 0.28, 1.5 + sp * 1.7, 3, 120, [3, 2.3, 1.1], [1, 0.35, 0.08], 1.5); }
         }
         audio.pen(sp);
+        if (FEEL.wk !== k) { FEEL.wk = k; FEEL.wid = []; }
+        if (S.tut === 'down' && (k.threaded >= 3 || (k.age > 1.1 && k.threaded >= 1))) tutStep('go'); // 離すことを教える（横長の盤は玉が遠いので、時間でも）
+        const wv = 1.32 - 0.58 * sp; while (FEEL.wid.length < k.pts.length) { const pv = FEEL.wid.length ? FEEL.wid[FEEL.wid.length - 1] : wv; FEEL.wid.push(pv + (wv - pv) * 0.35); }
       }
       FEEL.px = pen.x; FEEL.py = pen.y; FEEL.has = true;
       const flowGlow = Math.min(FEEL.flow, 8) * 1.3 * Math.max(0, 1 - (R.time - FEEL.flowT) / 0.7);
@@ -2091,26 +2118,34 @@ function updateHud(dt) {
 
 // はじめての夜だけ: 動く手本（玉を順に通る火の粉）
 function hintFx(dt) {
-  const st = S.st; if (!st || S.mode !== 'play' || S.teachKey !== 'draw' || st.phase !== 'aim' || st.strokesUsed > 0) { $('hand').classList.add('hidden'); return; }
+  const st = S.st; if (!st || S.mode !== 'play' || S.teachKey !== 'draw' || st.phase !== 'aim' || st.strokesUsed > 0) { $('hand').classList.add('hidden'); $('tutGo').classList.add('hidden'); return; }
+  if (st.shells.some((s) => s.rise > 0)) { $('hand').classList.add('hidden'); $('tutGo').classList.add('hidden'); return; } // 玉が上がりきってから（輪が別の玉へ飛ばない）
   S.hint += dt;
   const idle = st.shells.filter((s) => s.rise <= 0); if (idle.length < 3) return;
-  if (!S.hintPath || S.hintFor !== st) {
+  if (!S.hintPath || S.hintFor !== st || S.hintN !== idle.length) { // 玉が上がりきるまでは数え直す（上がる途中の 3 つで道を決めない）
+    S.hintN = idle.length;
     let best = idle[0], bn = 0;
     for (const a of idle) { const n = idle.filter((b) => Math.hypot(a.x - b.x, a.y - b.y) < 170).length; if (n > bn) { bn = n; best = a; } }
     S.hintPath = idle.slice().sort((a, b) => Math.hypot(a.x - best.x, a.y - best.y) - Math.hypot(b.x - best.x, b.y - best.y)).slice(0, 5).sort((a, b) => a.x - b.x);
     S.hintFor = st;
   }
-  const seedS = S.hintPath;
-  const u = (S.hint % 3.2) / 2.4;
-  const hand = $('hand');
-  if (u > 1) { hand.classList.add('hidden'); return; }
-  const seg = u * (seedS.length - 1), i = Math.floor(seg), f = seg - i, a = seedS[i], b = seedS[Math.min(i + 1, seedS.length - 1)];
-  const hx = a.x + (b.x - a.x) * f, hy = a.y + (b.y - a.y) * f;
-  fx.add(hx, hy, 0, 0, 0.6, 6, 0, 0, [2.6, 2, 1], [1, 0.4, 0.1], 1.4);
-  hand.classList.remove('hidden'); hand.style.left = ((hx - (S.pan || 0)) / W) * 100 + '%'; hand.style.top = (hy / H) * 100 + '%';
+  const P = S.hintPath, one = Math.max(dt, 0.001) * 1.2, hand = $('hand'), go = $('tutGo'), a0 = P[0];
+  // 道しるべ: 玉から玉へ、進む向きに流れる点線
+  for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1], d = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(2, Math.floor(d / 24)); for (let j = 0; j < n; j++) { const u = (j + ((S.hint * 1.8) % 1)) / n; fx.add(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, 0, 0, one, 3.4, 0, 0, [3, 2.5, 1.4], [3, 2.5, 1.4], 1.25); } }
+  // 始める玉: 輪と「ここ」
+  go.classList.remove('hidden'); go.style.left = ((a0.x - (S.pan || 0)) / W) * 100 + '%'; go.style.top = (a0.y / H) * 100 + '%';
+  const lab = MOUSE ? tr('ここを押したまま なぞる', 'Click & hold here, then drag') : tr('ここに指を置いて なぞる', 'Put your finger here and drag'); if (go.firstChild.textContent !== lab) go.firstChild.textContent = lab;
+  // 手本の手: 0〜0.7 秒 押す / 〜3.3 秒 なぞる / 〜3.9 秒 離す（なぞった玉が光る） / 〜4.6 秒 休む
+  const CY = 4.6, c = S.hint % CY, pc = S.hintC ?? c; S.hintC = c;
+  let hx = a0.x, hy = a0.y, sc = 1;
+  if (c < 0.7) sc = 1 - 0.16 * Math.min(1, c / 0.35);
+  else if (c < 3.3) { const u0 = (c - 0.7) / 2.6, u = u0 * u0 * (3 - 2 * u0), seg = u * (P.length - 1), i = Math.min(P.length - 2, Math.floor(seg)), f = seg - i, a = P[i], b = P[i + 1]; hx = a.x + (b.x - a.x) * f; hy = a.y + (b.y - a.y) * f; sc = 0.84; fx.add(hx, hy, 0, 0, 0.6, 6, 0, 0, [2.6, 2, 1], [1, 0.4, 0.1], 1.4); }
+  else if (c < 3.9) { const e = P[P.length - 1]; hx = e.x; hy = e.y - Math.min(1, (c - 3.3) / 0.3) * 26; sc = 1; if (pc < 3.3) P.forEach((s, i) => S.seq.push({ at: 0.05 + i * 0.09, f: () => { if (S.st === st && st.phase === 'aim') fx.tick(s.x, s.y, PALETTES[s.type]?.[1] || [1, 1, 0.8], 12, 150); } })); }
+  else { hand.classList.add('hidden'); return; }
+  hand.classList.remove('hidden'); hand.style.left = ((hx - (S.pan || 0)) / W) * 100 + '%'; hand.style.top = (hy / H) * 100 + '%'; hand.style.transform = `translate(-30%, -8%) scale(${sc})`;
 }
 // 盤の上の題名（はじめての人の第 1 夜だけ）。触れない飾りで、最初に盤へ触れたら消す
-function titleVeil() { const e = $('tveil'); if (!e) return; $('tveilSub').textContent = tr('線を引け。火が追いかけてくる。', 'Draw the line. The fire is right behind you.') /* やり方は下の札が言う。ここは引き */; e.classList.remove('hidden', 'off'); PF.ev('title_veil', {}); }
+function titleVeil() { const e = $('tveil'); if (!e) return; $('tveilSub').textContent = tr('線を引け。火が追いかけてくる。', 'Draw the line. The fire is right behind you.') /* やり方は下の札が言う。ここは引き */; e.classList.remove('hidden', 'off', 'dim'); PF.ev('title_veil', {}); clearTimeout(S.tvT); S.tvT = setTimeout(() => { if (S.tveil) e.classList.add('dim'); }, 2600); }
 function hideVeil(how) { if (!S.tveil) return; S.tveil = 0; const e = $('tveil'); if (e) { e.classList.add('off'); setTimeout(() => e.classList.add('hidden'), 700); } if (how) PF.ev('first_touch', { how, sec: Math.round(performance.now() / 1000) }); }
 function titleFx(dt) {
   S.titleT -= dt;
@@ -2276,11 +2311,16 @@ async function openPgRank() {
   show('rankScr'); $('hud').classList.add('hidden');
   const el = $('rankPanel'); S.pgRankAt = performance.now(); const at = S.pgRankAt;
   el.innerHTML = `<h2>${tr('ランキング', 'Leaderboard')}</h2><p class="rknote">${tr('1 周の合計の点（自己ベスト）', 'Best total score in one run')}</p><div class="rklist"><small>${tr('読みこみ中…', 'Loading...')}</small></div>`
-    + `<p class="rknote">${tr(`あなたの自己ベスト ${fmt(DB.meta.bestScore || 0)} 点`, `Your best: ${fmt(DB.meta.bestScore || 0)}`)}</p><div class="row"><button class="btn2" id="rkBack">${tr('もどる', 'Back')}</button></div>`;
+    + `<p class="rknote" id="rkMe">${tr(`あなたの自己ベスト ${fmt(DB.meta.bestScore || 0)} 点`, `Your best: ${fmt(DB.meta.bestScore || 0)}`)}</p>`
+    + `<p class="rknote rkhow">${PF.loginOk ? tr('名前は Playgama が自動でつけます（ログインしていない人は、英語の「色や性格＋生き物」の名前）。Playgama にログインすると、アカウントの名前で載ります。', 'Names come from Playgama. Guests get a random name like "Blue Bass". Log in to Playgama to show your account name.') : tr('名前は Playgama のアカウントの名前です。', 'Names come from your Playgama account.')}</p>`
+    + `<div class="row"><button class="btn2" id="rkBack">${tr('もどる', 'Back')}</button>${PF.loginOk ? `<button class="btn2" id="rkLogin">${tr('Playgama にログイン', 'Log in to Playgama')}</button>` : ''}</div>`;
   $('rkBack').onclick = () => { audio.ui('tap'); toTitle(); };
+  if ($('rkLogin')) $('rkLogin').onclick = async () => { audio.ui('tap'); $('rkLogin').disabled = true; const ok = await PF.login(); PF.ev('rank_login', { ok: ok ? 1 : 0 }); if (ok && DB.meta.bestScore) await PF.lbSet(DB.meta.bestScore); openPgRank(); /* ログインした人の自己ベストを、アカウントの名前で載せなおす */ };
   const list = await PF.lbTop(); if (S.pgRankAt !== at) return;
   const me = PF.playerId;
-  const rows = (list || []).slice(0, 50).map((r, i) => `<div class="rkrow${me && r.id === me ? ' me' : ''}"><b>${r.rank || i + 1}</b><span class="nm">${esc(r.name || tr('名無し', 'Guest'))}</span><span></span><span class="sc">${fmt(r.score || 0)}</span></div>`).join('');
+  const rows = (list || []).slice(0, 50).map((r, i) => `<div class="rkrow${me && r.id === me ? ' me' : ''}"><b>${r.rank || i + 1}</b><span class="nm">${esc(r.name || tr('名無し', 'Guest'))}${me && r.id === me ? ` <em>${tr('← あなた', '← you')}</em>` : ''}</span><span></span><span class="sc">${fmt(r.score || 0)}</span></div>`).join('');
+  { const mine = (list || []).find((r) => me && r.id === me), m = $('rkMe');
+    if (m && list) m.innerHTML = mine ? tr(`あなたは「<b>${esc(mine.name || '')}</b>」で ${mine.rank} 位（${fmt(mine.score || 0)} 点）`, `You are "<b>${esc(mine.name || '')}</b>": #${mine.rank} (${fmt(mine.score || 0)})`) : tr(`あなたはまだ載っていない。1 周を終えると、自己ベストが載ります（いまの自己ベスト ${fmt(DB.meta.bestScore || 0)} 点）`, `You are not on the board yet. Finish a run to post your best (now ${fmt(DB.meta.bestScore || 0)})`); }
   el.querySelector('.rklist').innerHTML = rows || `<small>${list ? tr('まだ誰もいない。最初の名前になろう', 'No one yet. Be the first!') : tr('ランキングを読めなかった', 'Could not load the leaderboard')}</small>`;
 }
 async function openRank(tab = 'daily', pick = null) {
@@ -2336,5 +2376,5 @@ function ihenFrame(dt) {
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, openRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext };
+window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, openRank, openPgRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext };
 boot();

@@ -113,6 +113,14 @@ export function createAudio(bgmList) {
         s.connect(hp); hp.connect(g); g.connect(p); s.start(t, Math.random() * 1.5); s.stop(t + 0.04);
       }
     },
+    whoosh(level = 1) { // 放つ音: 指を離した瞬間の「しゅばっ」。雑音を高いほうへ一気に持ち上げる
+      if (!ctx || !on) return;
+      const t = ctx.currentTime, d = 0.24, n = ctx.createBufferSource(); n.buffer = noise;
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 2.2; f.frequency.setValueAtTime(650, t); f.frequency.exponentialRampToValueAtTime(5200, t + d * 0.8);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.001, t); g.gain.linearRampToValueAtTime(0.14 * level, t + 0.025); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+      n.connect(f); f.connect(g); g.connect(sfx); n.start(t, Math.random()); n.stop(t + d + 0.02);
+      A.note(14, { vol: 0.06 * level, dur: 0.18, up: 12 });
+    },
     gust(level = 1) { // 風の音: 雑音を帯域で持ち上げる
       if (!ctx || !on) return;
       const t = ctx.currentTime, d = level >= 1 ? 0.7 : 0.5, n = ctx.createBufferSource(); n.buffer = noise;
