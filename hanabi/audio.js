@@ -1,7 +1,7 @@
 // 一筆花火 2 — 音。効果音はその場で合成する。ペンタトニックで連鎖が駆け上がる
 const PENTA = [0, 2, 4, 7, 9];
 export function createAudio(bgmList) {
-  let ctx = null, master, sfx, bgm, fuseGain, fuseFilter, noise;
+  let ctx = null, master, sfx, bgm, fuseGain, fuseFilter, noise, penGain, penFilter;
   const tracks = {}; let current = null, on = true, musicOn = true, lastThump = 0, thumps = 0;
   const els = {}, bytes = {}; let prefetched = false;
   // 流し読み（<audio> → WebAudio）は、よそのサイトの枠（Playgama など）の中だと Android の Chrome で無音になった（2026-11-16 依頼主の実機）。
@@ -36,6 +36,11 @@ export function createAudio(bgmList) {
       fuseFilter = ctx.createBiquadFilter(); fuseFilter.type = 'bandpass'; fuseFilter.frequency.value = 3800; fuseFilter.Q.value = 0.7;
       fuseGain = ctx.createGain(); fuseGain.gain.value = 0;
       src.connect(fuseFilter); fuseFilter.connect(fuseGain); fuseGain.connect(sfx); src.start();
+      // 筆の音: 紙を筆でこする「すーっ」。速く引くほど高く、大きく
+      const src2 = ctx.createBufferSource(); src2.buffer = buf; src2.loop = true; src2.playbackRate.value = 0.6;
+      penFilter = ctx.createBiquadFilter(); penFilter.type = 'bandpass'; penFilter.frequency.value = 800; penFilter.Q.value = 1.2;
+      penGain = ctx.createGain(); penGain.gain.value = 0;
+      src2.connect(penFilter); penFilter.connect(penGain); penGain.connect(sfx); src2.start(0, 0.7);
       A.prefetch();
       attachAll();
     },
@@ -74,6 +79,7 @@ export function createAudio(bgmList) {
       current = tracks[name] ? name : null;
     },
     fuse(level, heat) { if (!ctx) return; const t = ctx.currentTime; fuseGain.gain.setTargetAtTime(level * (0.05 + heat * 0.03), t, 0.04); fuseFilter.frequency.setTargetAtTime(3000 + heat * 1500, t, 0.05); },
+    pen(v) { if (!ctx) return; const t = ctx.currentTime; penGain.gain.setTargetAtTime(v > 0.02 ? 0.012 + v * v * 0.11 : 0, t, 0.035); penFilter.frequency.setTargetAtTime(650 + v * 2800, t, 0.05); },
     note(n, { vol = 0.2, pan = 0, dur = 0.5, up = 0 } = {}) {
       if (!ctx || !on) return;
       const oct = Math.floor(n / 5), step = PENTA[((n % 5) + 5) % 5], f = 293.66 * 2 ** ((step + oct * 12 + up) / 12);

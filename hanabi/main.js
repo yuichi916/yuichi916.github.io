@@ -1508,13 +1508,28 @@ function launchFor(s) { const t = Math.max(0.28, s.rise); fx.launch(s.x + (Math.
 function handle(ev) {
   const st = S.st;
   switch (ev.type) {
-    case 'penDown': $('engi').classList.remove('can', 'first'); $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
+    case 'penDown': FEEL.flow = 0; FEEL.last = null; FEEL.has = false; $('engi').classList.remove('can', 'first'); $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
     case 'ignite': audio.note(2, { vol: 0.14, dur: 0.25 }); fx.tick(ev.x, ev.y, [3, 1.8, 0.7], 26, 220); fx.light(ev.x, ev.y, 0.5, 300, [1, 0.6, 0.25], 6); break;
     case 'thread': {
-      buzz(10);
-      const s = ev.shell, n = ev.n;
-      audio.note(9 + n, { vol: ev.close ? 0.2 : 0.11, dur: 0.22, pan: panOf(s.x) });
-      fx.tick(s.x, s.y, PALETTES[s.type]?.[1] || [1, 1, 0.8], ev.close ? 22 : 10, ev.close ? 240 : 150);
+      const s = ev.shell, n = ev.n, now = R.time;
+      FEEL.flow = now - FEEL.flowT < 0.55 ? FEEL.flow + 1 : 1; FEEL.flowT = now;
+      const fl = Math.min(FEEL.flow, 12), col = PALETTES[s.type]?.[1] || [1, 1, 0.8];
+      buzz(Math.min(26, 8 + fl * 2));
+      audio.note(9 + n, { vol: ev.close ? 0.2 : 0.11 + fl * 0.006, dur: 0.22, pan: panOf(s.x) });
+      if (fl >= 3) audio.note(12 + fl, { vol: 0.045 + fl * 0.005, dur: 0.16, pan: panOf(s.x), up: 12 }); // きらり（流れに乗ると上に重なる）
+      POP.set(s, now);
+      const lp = FEEL.last;
+      if (lp && now - lp.t < 1.2) {
+        const dx = s.x - lp.x, dy = s.y - lp.y, d = Math.hypot(dx, dy), m = Math.min(28, Math.round(d / 13));
+        if (d > 8 && d < 760) for (let i = 1; i <= m; i++) { const u = i / m; fx.add(lp.x + dx * u, lp.y + dy * u, (Math.random() - 0.5) * 36, (Math.random() - 0.5) * 36, 0.12 + u * 0.26, 2.2 + u * 1.4, 4, 0, [3, 2.6, 1.6], col, 1.7); }
+      }
+      FEEL.last = { x: s.x, y: s.y, t: now };
+      fx.tick(s.x, s.y, col, (ev.close ? 22 : 10) + fl * 2, (ev.close ? 240 : 150) + fl * 10);
+      fx.light(s.x, s.y, 0.26 + fl * 0.04, 160, PALETTES[s.type]?.[0] || [1, 0.7, 0.3], 9);
+      if (FEEL.flow % 5 === 0) { // 5 つ続けるごとに、輪がはじける
+        for (let i = 0; i < 40; i++) { const a = (i / 40) * 6.283; fx.add(s.x, s.y, Math.cos(a) * 460, Math.sin(a) * 460, 0.34, 3, 5.5, 0, [3, 2.5, 1.2], [1.6, 0.7, 0.2], 1.9); }
+        audio.note(17 + Math.min(6, FEEL.flow / 5), { vol: 0.15, dur: 0.4 }); R.shake = Math.min(7, R.shake + 2.5); buzz([14, 30, 22]);
+      }
       if (ev.close) floatText(s.x, s.y - 34, tr('きわどい！', 'Close!'), 'gold', 22);
       break;
     }
@@ -1870,7 +1885,8 @@ function drawWorld({ gl, cam, P, vaoSpr, vaoF, sprBuf, sprData, fuseBuf, tex, W:
     for (const s of st.shells) {
       if (s.state === 'burst' || s.state === 'stolen' || s.state === 'gone' || s.rise > 0 || c >= MAX_SPR - 12) continue;
       const lit = s.state === 'lit', bob = s.threaded || lit ? 0 : Math.sin(t * 1.3 + s.phase) * 3.2;
-      const swell = lit ? 1.16 + Math.sin(t * 60) * 0.06 : s.threaded ? 1.1 : 1 + Math.sin(t * 2 + s.phase) * 0.015;
+      const pp = POP.get(s), pu = pp == null ? 1 : (t - pp) / 0.24, pop = pu < 1 ? 1 + 0.3 * Math.sin(pu * Math.PI) * (1 - pu * 0.4) : 1;
+      const swell = (lit ? 1.16 + Math.sin(t * 60) * 0.06 : s.threaded ? 1.1 : 1 + Math.sin(t * 2 + s.phase) * 0.015) * pop;
       let al = 1;
       if (dark && !lit && st.t > 3.5) { const d = pen ? Math.hypot(s.x - pen.x, s.y - pen.y) : 9999; al = Math.max(0.03, 1 - d / 210); }
       const o = c * 8;
@@ -1901,6 +1917,9 @@ function drawWorld({ gl, cam, P, vaoSpr, vaoF, sprBuf, sprData, fuseBuf, tex, W:
 }
 
 const MOD_RGB = { gold: [3, 2.2, 0.6], twice: [2.8, 2.8, 3.2], glass: [1, 2.8, 3.2], fuse: [3.2, 1, 0.4], star: [1.4, 2.2, 3.4], taki: [0.6, 2.2, 3.4], moji: [2.4, 1.6, 3.4], renpatsu: [1, 3, 1.4], seiza: [2.4, 2.8, 3.4] };
+// 線を引く手ざわり（描くだけ。点の計算には入れない）: 流れ＝間をあけずに続けて通した玉の数
+const FEEL = { flow: 0, flowT: -9, last: null, px: 0, py: 0, v: 0, has: false };
+const POP = new WeakMap();
 function perFrameFx(dt) {
   const st = S.st, one = Math.max(dt, 0.001) * 1.2;
   if (st) {
@@ -1991,7 +2010,19 @@ function perFrameFx(dt) {
         const dx = k.want.x - pen.x, dy = k.want.y - pen.y, d = Math.hypot(dx, dy), n = Math.min(14, Math.floor(d / 22));
         for (let i = 1; i <= n; i++) { const u = ((i - 1 + (R.time * 3) % 1) / n); fx.add(pen.x + dx * u, pen.y + dy * u, 0, 0, one, 2.2, 0, 0, [1.3, 1.1, 0.7], [1.3, 1.1, 0.7], 0.55); }
       }
-      fx.add(pen.x, pen.y, 0, 0, one, 9 + hot * 6, 0, 0, [2.4, 2, 1.2], [2, 1.5, 0.8], 0.9);
+      if (FEEL.has && dt > 0) {
+        const dx = pen.x - FEEL.px, dy = pen.y - FEEL.py, d = Math.hypot(dx, dy);
+        FEEL.v += (Math.min(d / dt, 3000) - FEEL.v) * Math.min(1, dt * 14);
+        const sp = Math.min(1, FEEL.v / 1600);
+        if (d > 1.5) {
+          const ux = dx / d, uy = dy / d, m = Math.min(6, Math.round(d / 8)), back = 60 + 300 * sp;
+          for (let i = 0; i < m; i++) { const u = i / m; fx.add(FEEL.px + dx * u, FEEL.py + dy * u, -ux * back + (Math.random() - 0.5) * 130, -uy * back + (Math.random() - 0.5) * 130 - 20, 0.16 + Math.random() * 0.28, 1.5 + sp * 1.7, 3, 120, [3, 2.3, 1.1], [1, 0.35, 0.08], 1.5); }
+        }
+        audio.pen(sp);
+      }
+      FEEL.px = pen.x; FEEL.py = pen.y; FEEL.has = true;
+      const flowGlow = Math.min(FEEL.flow, 8) * 1.3 * Math.max(0, 1 - (R.time - FEEL.flowT) / 0.7);
+      fx.add(pen.x, pen.y, 0, 0, one, 9 + hot * 6 + flowGlow, 0, 0, [2.4, 2, 1.2], [2, 1.5, 0.8], 0.9 + flowGlow * 0.05);
       // 見切りの合図: 熱いまま火がすぐ後ろに来たら、覚えるまで（3 回まで）筆先に出す
       const tg = DB.meta.taught;
       if (k.flameOn && k.heatLv >= 1 && gap < st.m.hotGap * 0.5 && gap > 0 && !tg.mikiri && (tg.mikiriN || 0) < 3 && S.mikiriHintFor !== k) {
@@ -2010,9 +2041,10 @@ function perFrameFx(dt) {
       }
       audio.fuse(k.flameOn ? 1 : 0, k.heatLv);
     } else audio.fuse(k.flameOn && !k.fuseOut ? 0.7 : 0, k.heatLv);
+    if (!k.penDown && FEEL.has) { FEEL.has = false; audio.pen(0); }
     R.heat += ((k.penDown ? k.heatLv / 3 : 0) - R.heat) * Math.min(1, dt * 8);
     const inkEl = $('inkBar'); inkEl.parentElement.classList.toggle('on', k.penDown); inkEl.style.transform = `scaleX(${Math.max(0, 1 - k.len / (st.ink + st.carriedInk))})`;
-  } else { R.heat *= 0.9; $('inkBar').parentElement.classList.remove('on'); }
+  } else { if (FEEL.has) { FEEL.has = false; audio.pen(0); } R.heat *= 0.9; $('inkBar').parentElement.classList.remove('on'); }
 }
 
 // 満開までの残り: 一筆で盤の玉を全部ひらけば ×2（玉は一筆ごとに足されるので、いまの数を出す）
