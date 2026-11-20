@@ -218,7 +218,7 @@ function beginRun(o = {}) {
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
   S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
-  S.run.rv = 6; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い
+  S.run.rv = 7; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');

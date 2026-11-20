@@ -340,7 +340,8 @@ function retype(s, type) { const d = SHELLS[type]; s.type = type; s.r = d.r * (s
 const TAU = Math.PI * 2;
 function initShell(st, s) {
   if (s.type === 'roket') s.dir = st.rnd() * TAU;
-  if (s.type === 'kingyo') s.swim = { a: st.rnd() * TAU, v: 70 + st.rnd() * 50, t: 0 };
+  // 版 7 から金魚はゆっくり泳ぐ（11/20 依頼主「第 6 夜の金魚すくいが難しすぎる」: 追ううちに火に追いつかれていた）
+  if (s.type === 'kingyo') s.swim = { a: st.rnd() * TAU, v: st.rv >= 7 ? 38 + st.rnd() * 26 : 70 + st.rnd() * 50, t: 0 };
   return s;
 }
 function addShell(st, x, y, type, rise = 0) { const s = initShell(st, newShell(st.nextId++, x, y, type, rise)); s.rs = st.rs || 1; s.r *= s.rs; st.shells.push(s); return s; }
@@ -745,7 +746,7 @@ function threadAt(st, x, y) {
   const check = (px, py) => {
     for (const s of st.shells) {
       if (s.state !== 'idle' || s.threaded || s.rise > 0) continue;
-      if (Math.hypot(s.x - px, s.y - py) < s.r + m.threadR) {
+      if (Math.hypot(s.x - px, s.y - py) < s.r + m.threadR + (s.swim && st.rv >= 7 ? 10 : 0)) { // 版 7: 泳ぐ金魚は少し大きくすくえる
         s.threaded = true; s.vx = 0; s.vy = 0; k.threaded++;
         if (st.raid && !st.raid.dead) { s.spd = raidSpd(k.age); st.events.push({ type: 'raidSpd', x: s.x, y: s.y, spd: s.spd }); }
         const gap = k.len - k.flameS;
@@ -1086,7 +1087,10 @@ function moveIdle(st, dt) {
     if (s.swim) {
       const q = s.swim; q.t -= dt;
       if (q.t <= 0) { q.a += (st.rnd() - 0.5) * 2.2; q.t = 0.6 + st.rnd() * 1.2; }
-      s.x += Math.cos(q.a) * q.v * dt; s.y += Math.sin(q.a) * q.v * dt;
+      // 版 7: 筆先が近づくと金魚は止まりかける（網を寄せたらすくえる）
+      let sv = 1;
+      if (st.rv >= 7 && st.stroke?.penDown && st.stroke.pts.length) { const p = st.stroke.pts[st.stroke.pts.length - 1], d = Math.hypot(s.x - p.x, s.y - p.y); if (d < 170) sv = 0.2 + 0.8 * (d / 170); }
+      s.x += Math.cos(q.a) * q.v * sv * dt; s.y += Math.sin(q.a) * q.v * sv * dt;
       if (s.x < f.x0 || s.x > f.x1) { q.a = Math.PI - q.a; s.x = Math.max(f.x0, Math.min(f.x1, s.x)); }
       if (s.y < f.y0 || s.y > f.y1) { q.a = -q.a; s.y = Math.max(f.y0, Math.min(f.y1, s.y)); }
     }
