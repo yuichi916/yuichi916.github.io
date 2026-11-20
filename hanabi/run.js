@@ -274,6 +274,10 @@ export function ihenFor(run, world, night, twist, seed) {
 }
 // 練習の周（初めの 2 周）: 世界 1 の大一番の目標をゆるめる。第 3 夜から 1.94 倍に跳ねて、ほとんどの人がここで終わっていた（Playgama 11/14〜16: 越えた夜の平均 2.9）
 export const ASSIST_BOSS = 0.75;
+// 情け（決まりの版 8）: 世界 1 のふつうの夜で負けると、次の挑戦は目標 ×0.85、2 度目からは ×0.72（今日の祭りは除く）。
+// 11/21 MCP: 遊んだ 104 人の 73% が第 1〜2 夜で終わり、同じ夜で 2 度以上負けた 39 件のうち 28 件はそのまま帰った
+export const MERCY = [1, 0.85, 0.72];
+export const mercyFor = (run, world, boss) => ((run.rv || 1) >= 8 && !run.daily && world === 1 && !boss ? MERCY[Math.min(2, run.retry || 0)] : 1);
 // 大妖怪の体力: その人の直前 3 夜の「一筆あたりの点」×3 ×RAID_FORM。上手な人にも初めての人にも、3〜4 筆の勝負になる
 export const RAID_FORM = [0.85, 1.0, 0.3], RAID_SPD = 1.5; // 世界ごと（世界 3 は道中の夜で点が伸びやすく、一筆あたりの点が大妖怪の夜より高く出る）
 function raidHp(run, target, world) {
@@ -299,7 +303,7 @@ export function nightDef(run, world, night) {
   const pl = run.plan?.[`${world}-${night}`], node = pl?.node || (boss ? 'boss' : 'plain');
   // 練習の周: 世界 1 の大一番 ×0.75、版 4 からは世界 2 の大一番も ×0.85（11/16 の数字: 世界 2 の大一番で目標の 65% 止まり・周が終わっていた）
   const assist = run.assist && boss ? (world === 1 ? ASSIST_BOSS : world === 2 && (run.rv || 1) >= 4 ? 0.85 : 1) : 1;
-  const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) * (NODE_TARGET[node] || 1) * (SCHOOL_TARGET[run.school] || 1) * assist * (run.assist && (run.rv || 1) >= 6 && world === 1 && (night === 2 || night === 3) ? 0.8 : 1) / 10) * 10; // 練習の周の第 2〜3 夜は目標 ×0.8（11/19 MCP: 勝ちは第 2 夜 40%・第 3 夜 39%、夜の途中で帰るのが最多）
+  const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) * (NODE_TARGET[node] || 1) * (SCHOOL_TARGET[run.school] || 1) * assist * (run.assist && (run.rv || 1) >= 6 && world === 1 && (night === 2 || night === 3) ? 0.8 : 1) * mercyFor(run, world, boss) / 10) * 10; // 練習の周の第 2〜3 夜は目標 ×0.8（11/19 MCP: 勝ちは第 2 夜 40%・第 3 夜 39%、夜の途中で帰るのが最多）
   const strokes = 3 + (boss && rank.bossStroke ? rank.bossStroke : 0);
   const idx = (world - 1) * NIGHTS_PER_WORLD + night - 1;
   // 乱入は予告なし。大一番と、はじめの 2 夜にはこない
@@ -310,6 +314,7 @@ export function nightDef(run, world, night) {
     intrude = kinds[Math.floor(irnd() * kinds.length)];
     if (pl && pl.id === intrude) intrude = 'fuku';
   }
+  if ((run.rv || 1) >= 8 && run.assist && world === 1 && night === 2) intrude = 'fuku'; // 練習の周の第 2 夜: 招き猫のトラが金の玉をばらまく（序盤に驚きを 1 つ。乱数は上で引き終えている）
   // 大仕掛けの夜（各世界の第 6 夜。gr の周から）: 盤は画面の 2.2 倍の横長、玉 1.8 倍・目標 1.7 倍。異変は起こさない
   const sky = run.grand && (run.rv || 1) >= 3 && night === 3 && world >= 2 && world <= WORLDS.length; // 天の川の夜（版 3〜）
   const grand = sky ? { gw: 1, gh: 2.4, kind: 'seiza' } : run.grand && night === 6 && world <= WORLDS.length && !boss ? { gw: 2.2, kind: ['taki', 'moji', 'renpatsu'][world - 1] } : null;

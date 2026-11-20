@@ -218,7 +218,7 @@ function beginRun(o = {}) {
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
   S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
-  S.run.rv = 7; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる
+  S.run.rv = 8; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる / 8: 世界 1 で負けたら次の挑戦の目標を下げる（情け）・練習の周の第 2 夜に福の神
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
@@ -745,6 +745,27 @@ function lossHint() {
   if (!st.blooms) return tr('一筆で盤の玉を全部ひらくと「満開」で倍率 ×2', 'Open every shell in one stroke for a Full Bloom: MULT ×2');
   return tr('金の玉（倍率 +1）を一筆の中で先に通すと伸びる', 'Thread gold shells (+1 MULT) early in a stroke');
 }
+// トラ（屋台の招き猫）が盤の下で話す。負けたあとの「超え方」と、乱入のひと言
+let toraEl = null;
+function toraSay(html, face = 'joy') {
+  if (!toraEl) { toraEl = document.createElement('div'); toraEl.id = 'tora'; toraEl.className = 'hidden'; toraEl.innerHTML = '<canvas width="140" height="140"></canvas><p></p>'; document.body.append(toraEl); }
+  if (toraEl.dataset.t !== html + face) {
+    toraEl.dataset.t = html + face; toraEl.querySelector('p').innerHTML = html;
+    const g = toraEl.querySelector('canvas').getContext('2d'); g.clearRect(0, 0, 140, 140);
+    try { drawCast(g, 'neko', 70, 76, 96, { face, still: true, glow: false }); } catch { /* 絵が無くても読める */ }
+  }
+  toraEl.classList.remove('hidden');
+}
+function toraHide() { if (toraEl) { toraEl.classList.add('hidden'); toraEl.dataset.t = ''; } }
+function coachLine() {
+  const st = S.st, name = `<b>${tr('トラ', 'Tora')}</b>`; if (!st) return '';
+  let t;
+  if (st.caughtCount >= 2) t = tr('追いつかれると点が半分ニャ。熱いうちに<em>自分で離す</em>ニャ', 'Caught strokes score half. <em>Let go</em> while it\'s hot!');
+  else if ((st.topHeat || 0) < 1) t = tr('火を<em>背中まで引きつける</em>と、点が 2〜4 倍ニャ', 'Let the flame get <em>right behind you</em>: POINTS ×2 to ×4!');
+  else if (!st.blooms) t = tr('<em>光る道</em>のとおりに、玉をまとめて一筆でつなぐニャ', 'Follow the <em>glowing route</em> and chain the shells in one stroke!');
+  else t = tr('<em>金の玉</em>を先に通すと、あとの玉が全部伸びるニャ', 'Thread the <em>gold shells</em> first. Everything after scores more!');
+  return `${name}${t}`;
+}
 // 灯が尽きた: 広告を見れば灯をひとつ取り戻して、この夜をもう一度（1 周に 1 回）。見なければ、いつもの終わり
 function offerRevive() {
   S.mode = 'revive'; audio.ui('lose'); hurt();
@@ -768,7 +789,10 @@ function retryNight() {
   S.mode = 'retry'; DB.run = S.run; save();
   renderLives();
   const miss = (S.miss ? tr(`あと ${fmt(S.miss.n)} 点だった（${S.miss.pct}%）`, `Just ${fmt(S.miss.n)} short (${S.miss.pct}%)`) + '<br>' : '') + (S.run.lastExt ? tr(`星屑で提灯 +${S.run.lastExt}`, `Star dust: +${S.run.lastExt} lantern`) + '<br>' : '');
-  banner(`${tr('灯がひとつ消えた', 'A light goes out')}<small>${miss}${tr(`もう一度、この夜を。残り ${S.run.lives}`, `Try this night again. ${S.run.lives} left`)}<span class="hint">${lossHint()}</span></small>`, 56, 2400);
+  const lv = def0(), mc = lv ? Run.mercyFor(S.run, lv.world, lv.boss) : 1, off = Math.round((1 - mc) * 100);
+  S.coach = { line: coachLine() + (off > 0 ? `<small>${tr(`おまけで、目標を ${off}% 下げといたニャ`, `I lowered the target by ${off}% for you.`)}</small>` : ''), st: null };
+  if (off > 0) PF.ev('mercy', { off });
+  banner(`${tr('灯がひとつ消えた', 'A light goes out')}<small>${miss}${tr(`もう一度、この夜を。残り ${S.run.lives}`, `Try this night again. ${S.run.lives} left`)}</small>`, 56, 2400);
   audio.ui('lose'); hurt();
   // 待たせすぎない: 2.4 秒で自動（惜しさと一言を読める長さ）、0.6 秒すぎたら触れればすぐ
   S.retryAt = performance.now();
@@ -1803,7 +1827,7 @@ function handle(ev) {
       audio.boom(1.8, 0); R.flash = 0.4; R.shake = 16; renderStrokes(); audio.scene('finale', 0.4);
       break;
     }
-    case 'intrude': { const t = Run.INTRUDES[ev.kind]; banner(`${JA() ? t.ja : t.en}<small>${JA() ? t.dj : t.de}</small>`, 58, 1900); audio.boom(1, 0); R.shake = Math.min(14, R.shake + 7); R.flash = Math.max(R.flash, 0.12); break; }
+    case 'intrude': { const t = Run.INTRUDES[ev.kind]; if (ev.kind === 'fuku') { toraSay(`<b>${tr('トラ', 'Tora')}</b>${tr('おまけニャ！ <em>金の玉</em>もつなぐニャ', 'A little gift! Chain the <em>gold shells</em> too!')}`, 'wow'); S.toraT = 2.6; } banner(`${JA() ? t.ja : t.en}<small>${JA() ? t.dj : t.de}</small>`, 58, 1900); audio.boom(1, 0); R.shake = Math.min(14, R.shake + 7); R.flash = Math.max(R.flash, 0.12); break; }
     case 'raidWarn': audio.note(ev.kind === 'band' ? 3 : 10, { vol: 0.14, dur: 0.22 }); if (S.raidV) { S.raidV.face = 'wow'; S.raidV.faceT = 0.5; } break;
     case 'raidImpact':
       if (ev.kind === 'ball') { fx.burst('peony', ev.x, ev.y, 80, 'oni', 1); audio.boom(1, panOf(ev.x)); R.shake = Math.max(R.shake, 6); }
@@ -2140,7 +2164,12 @@ function updateHud(dt) {
 
 // はじめての夜だけ: 動く手本（玉を順に通る火の粉）
 function hintFx(dt) {
-  const st = S.st; if (!st || S.mode !== 'play' || S.teachKey !== 'draw' || st.phase !== 'aim' || st.strokesUsed > 0) { $('hand').classList.add('hidden'); $('tutGo').classList.add('hidden'); return; }
+  const st = S.st;
+  if (S.toraT > 0) { S.toraT -= dt; if (S.toraT <= 0 && !S.coach?.st) toraHide(); }
+  if (S.coach && st && S.mode === 'play' && !S.coach.st && st.phase === 'aim' && !st.strokesUsed) { S.coach.st = st; S.hintPath = null; toraSay(S.coach.line, 'joy'); $('teach').classList.add('hidden'); } // 教えの帯はトラと重なるので消す（なぞり方はもう知っている）
+  if (S.coach?.st && (S.coach.st !== st || st.strokesUsed > 0 || (S.mode !== 'play' && S.mode !== 'retry'))) { S.coach = null; if (!(S.toraT > 0)) toraHide(); }
+  const coach = !!(S.coach?.st && S.coach.st === st);
+  if (!st || S.mode !== 'play' || !(S.teachKey === 'draw' || coach) || st.phase !== 'aim' || st.strokesUsed > 0) { $('hand').classList.add('hidden'); $('tutGo').classList.add('hidden'); return; }
   if (st.shells.some((s) => s.rise > 0)) { $('hand').classList.add('hidden'); $('tutGo').classList.add('hidden'); return; } // 玉が上がりきってから（輪が別の玉へ飛ばない）
   S.hint += dt;
   const idle = st.shells.filter((s) => s.rise <= 0); if (idle.length < 3) return;
@@ -2156,7 +2185,7 @@ function hintFx(dt) {
   for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1], d = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(2, Math.floor(d / 24)); for (let j = 0; j < n; j++) { const u = (j + ((S.hint * 1.8) % 1)) / n; fx.add(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, 0, 0, one, 3.4, 0, 0, [3, 2.5, 1.4], [3, 2.5, 1.4], 1.25); } }
   // 始める玉: 輪と「ここ」
   go.classList.remove('hidden'); go.style.left = ((a0.x - (S.pan || 0)) / W) * 100 + '%'; go.style.top = (a0.y / H) * 100 + '%';
-  const lab = MOUSE ? tr('ここを押したまま なぞる', 'Click & hold here, then drag') : tr('ここに指を置いて なぞる', 'Put your finger here and drag'); if (go.firstChild.textContent !== lab) go.firstChild.textContent = lab;
+  const lab = coach ? tr('おすすめの道', 'Try this route') : MOUSE ? tr('ここを押したまま なぞる', 'Click & hold here, then drag') : tr('ここに指を置いて なぞる', 'Put your finger here and drag'); if (go.firstChild.textContent !== lab) go.firstChild.textContent = lab;
   // 手本の手: 0〜0.7 秒 押す / 〜3.3 秒 なぞる / 〜3.9 秒 離す（なぞった玉が光る） / 〜4.6 秒 休む
   const CY = 4.6, c = S.hint % CY, pc = S.hintC ?? c; S.hintC = c;
   let hx = a0.x, hy = a0.y, sc = 1;
