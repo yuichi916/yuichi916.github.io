@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<title>みんなの思い込み地図 — 都道府県の統計、どれだけ思い違いしている？（きょうの県）</title>
+<meta name="description" content="「長野県の空き家の割合は全国で何位？」——きょうの県の思い込みチェックで集まった予想から、都道府県の統計をみんながどれだけ思い違いしているかを地図にしました。県ごと・統計ごとのずれ、県民と県外の違い、まちがえやすい県の組。予想の全件をオープンデータ（CC BY 4.0）で公開しています。">
+<meta name="theme-color" content="#f3f8fc">
+<link rel="canonical" href="https://yuichi916.github.io/kyou-no-ken-omoikomi.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Views Engineer">
+<meta property="og:title" content="みんなの思い込み地図 — 都道府県の統計、どれだけ思い違いしている？">
+<meta property="og:description" content="きょうの県の思い込みチェックで集まった予想から、県ごと・統計ごとの思い違いを地図に。予想の全件をオープンデータで公開。">
+<meta property="og:url" content="https://yuichi916.github.io/kyou-no-ken-omoikomi.html">
+<meta property="og:image" content="https://yuichi916.github.io/assets/og/kyou-no-ken-1200x630.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ViewsEngineer">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "name": "みんなの思い込み地図（都道府県の統計の順位の予想）",
+  "description": "ブラウザゲーム「きょうの県」の思い込みチェックで集めた、都道府県の統計（総務省統計局「統計でみる都道府県のすがた2026」の20指標）の全国順位の予想と本当の順位。匿名。",
+  "url": "https://yuichi916.github.io/kyou-no-ken-omoikomi.html",
+  "license": "https://creativecommons.org/licenses/by/4.0/deed.ja",
+  "creator": { "@type": "Person", "name": "yuichi916", "url": "https://yuichi916.github.io/" },
+  "isAccessibleForFree": true,
+  "inLanguage": "ja",
+  "spatialCoverage": "日本（47都道府県）",
+  "distribution": [{ "@type": "DataDownload", "encodingFormat": "text/csv", "contentUrl": "https://yuichi916.github.io/kyou-no-ken-omoikomi.html#download" }]
+}
+</script>
+<script data-goatcounter="https://viewsengineer.goatcounter.com/count" async src="//gc.zgo.at/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
+<style>
+:root{
+  --bg:#f3f8fc; --sea:#cfe8f6; --sea2:#e4f3fb; --ink:#1d2b3a; --dim:#5b6b7b; --faint:#8a99a8;
+  --card:#fff; --line:#d9e4ee; --ck:#7b4dd8; --btn:#2f6fed; --over:#2f6fed; --under:#e2632b; --na:#e3e9ef;
+  --font:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;overflow-x:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-weight:500;line-height:1.6}
+a{color:#1d4fbf}
+button,select{font-family:inherit;font-weight:800;cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px;margin:0 auto;padding:0 14px 60px}
+header{display:flex;align-items:center;gap:10px;min-height:52px}
+header a{font-size:13px;text-decoration:none;color:var(--dim);white-space:nowrap}
+h1{font-size:26px;line-height:1.3;margin:6px 0 4px}
+.lead{color:var(--dim);margin:0 0 14px;font-size:14.5px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0 18px}
+.kpi{background:var(--card);border-radius:16px;padding:10px 12px;box-shadow:0 2px 0 #dfe8f0}
+.kpi b{display:block;font-size:24px;line-height:1.2}
+.kpi span{font-size:12px;color:var(--dim)}
+@media (max-width:640px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}h1{font-size:22px}}
+section{background:var(--card);border-radius:20px;padding:16px;box-shadow:0 2px 0 #dfe8f0;margin:0 0 16px}
+section h2{margin:0 0 4px;font-size:18px}
+section .sub{color:var(--dim);font-size:13px;margin:0 0 10px}
+.two{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:820px){.two{grid-template-columns:minmax(0,1fr)}}
+.mapbox{position:relative;background:radial-gradient(ellipse at 70% 30%,var(--sea2),var(--sea));border-radius:18px;overflow:hidden}
+.mapbox svg{display:block;width:100%;height:auto}
+.pref{stroke:#fff;stroke-width:1.1;stroke-linejoin:round;cursor:pointer;transition:fill .4s}
+.pref.on{stroke:var(--ink);stroke-width:3}
+.inset-frame{fill:none;stroke:#9cc4da;stroke-width:2;stroke-dasharray:6 5}
+.legend{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);margin-top:8px;flex-wrap:wrap}
+.legend .bar{flex:1;min-width:140px;height:12px;border-radius:6px}
+.legend .na{display:inline-block;width:14px;height:12px;border-radius:3px;background:var(--na);vertical-align:-1px}
+.tip{min-height:58px;background:#f6f9fc;border-radius:12px;padding:8px 10px;font-size:13.5px;margin-top:8px}
+.tip b{font-size:15px}
+.rank{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.rank li{display:flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:12px;padding:6px 10px;font-size:14px}
+.rank li .n{width:22px;height:22px;border-radius:50%;background:#efe8fc;color:var(--ck);display:grid;place-items:center;font-size:12px;font-weight:800;flex:none}
+.rank li .v{margin-left:auto;font-weight:800;white-space:nowrap}
+.rank li small{color:var(--faint)}
+h3{font-size:14px;margin:12px 0 6px;color:var(--dim)}
+select.pick{border:2px solid var(--line);border-radius:12px;background:#fff;padding:7px 10px;font-size:14px;color:var(--ink);max-width:100%}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal}
+th{font-size:12px;color:var(--dim);font-weight:800}
+.tbl{overflow-x:auto}
+.pill{display:inline-block;border-radius:99px;padding:1px 8px;font-size:12px;font-weight:800}
+.pill.over{background:#e3ecff;color:#1d4fbf}.pill.under{background:#ffe9dd;color:#b4451a}.pill.ok{background:#e1f5ec;color:#04805f}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cmp div{background:#f6f9fc;border-radius:14px;padding:12px;text-align:center}
+.cmp b{display:block;font-size:26px}
+.days{display:flex;align-items:flex-end;gap:2px;height:90px;margin-top:6px}
+.days i{flex:1;background:#b9a3ea;border-radius:3px 3px 0 0;min-width:3px;position:relative}
+.days i.g{background:#cfdae5}
+.daysx{display:flex;justify-content:space-between;font-size:11px;color:var(--faint)}
+.btn{border:0;border-radius:14px;padding:11px 16px;font-size:15px;color:#fff;background:var(--ck);box-shadow:0 4px 0 #5530a8;text-decoration:none;display:inline-block}
+.btn.sub{background:#eef3f8;color:var(--ink);box-shadow:0 4px 0 #cfdae5}
+.btn:disabled{opacity:.5}
+.dl{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0}
+.empty{background:#f6f9fc;border-radius:14px;padding:14px;text-align:center;color:var(--dim)}
+.note{font-size:12.5px;color:var(--dim)}
+code{font-size:12px;background:#f1f5f9;border-radius:6px;padding:1px 5px}
+dl.cols{display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;font-size:13px;margin:6px 0}
+dl.cols dt{font-weight:800}
+dl.cols dd{margin:0;color:var(--dim)}
+.cta{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><a href="kyou-no-ken.html">← きょうの県</a><a href="index.html" style="margin-left:auto">Views Engineer</a></header>
+  <h1>みんなの思い込み地図</h1>
+  <p class="lead">「長野県の空き家の割合は、全国で何位？」——<a href="kyou-no-ken.html?mode=check">思い込みチェック</a>で集まった予想から、都道府県の統計をみんながどれだけ思い違いしているかを地図にしています。</p>
+  <div class="kpis">
+    <div class="kpi"><b class="num" id="k-n">—</b><span>集まった予想</span></div>
+    <div class="kpi"><b class="num" id="k-p">—</b><span>答えた端末</span></div>
+    <div class="kpi"><b class="num" id="k-mae">—</b><span>平均のずれ（位）</span></div>
+    <div class="kpi"><b class="num" id="k-since">—</b><span>集め始め</span></div>
+  </div>
+  <div class="cta"><a class="btn" href="kyou-no-ken.html?mode=check">思い込みチェックで予想する（5問）</a><a class="btn sub" href="#download">データをダウンロード</a></div>
+  <div id="err" class="empty" hidden></div>
+
+  <section id="s-pref">
+    <h2>県ごとの「思い違いの大きさ」</h2>
+    <p class="sub">その県の20の統計について、予想した順位と本当の順位のずれ（平均）。色が濃いほど、思い違いされている県です。予想が<span id="minp"></span>件未満の県は灰色。</p>
+    <div class="two">
+      <div><div class="mapbox"><svg id="map1" role="img" aria-label="県ごとの思い違いの大きさの日本地図"></svg></div>
+        <div class="legend"><span>小さい</span><span class="bar" id="leg1"></span><span>大きい</span><span><i class="na"></i> 予想が少ない</span></div>
+        <div class="tip" id="tip1">地図の県を押すと、くわしく出ます。</div></div>
+      <div><h3>いちばん思い違いされている県</h3><ol class="rank" id="top-wrong"></ol>
+        <h3>いちばん正しく知られている県</h3><ol class="rank" id="top-right"></ol></div>
+    </div>
+  </section>
+
+  <section id="s-ind">
+    <h2>統計を選んで見る：実際より「多い」「少ない」と思われている県</h2>
+    <p class="sub">青は実際より上の順位（多い・高い）と思われている県、オレンジは実際より下の順位（少ない・低い）と思われている県。予想が<span id="minc"></span>件未満の県は灰色。</p>
+    <select class="pick" id="indsel" aria-label="統計をえらぶ"></select>
+    <div class="two" style="margin-top:10px">
+      <div><div class="mapbox"><svg id="map2" role="img" aria-label="統計ごとの思い違いの向きの日本地図"></svg></div>
+        <div class="legend"><span>実際より多いと思われている</span><span class="bar" id="leg2"></span><span>実際より少ないと思われている</span></div>
+        <div class="tip" id="tip2">地図の県を押すと、くわしく出ます。</div></div>
+      <div><h3>思われているより、実は<b id="w-big">多い</b>県</h3><ol class="rank" id="ind-under"></ol>
+        <h3>思われているより、実は<b id="w-small">少ない</b>県</h3><ol class="rank" id="ind-over"></ol></div>
+    </div>
+  </section>
+
+  <section id="s-stat">
+    <h2>統計ごとのずれ</h2>
+    <p class="sub">どの統計を、みんなは思い違いしやすいか（予想のずれの平均。全県をまとめたもの）。</p>
+    <div class="tbl"><table><thead><tr><th>統計</th><th>予想</th><th>平均のずれ</th></tr></thead><tbody id="stat-body"></tbody></table></div>
+  </section>
+
+  <section id="s-home">
+    <h2>県民は、自分の県をよく知っている？</h2>
+    <p class="sub">住んでいる県を答えた人の予想だけで、自分の県についての予想と、ほかの県についての予想のずれをくらべます。</p>
+    <div class="cmp"><div><span>自分の県について</span><b class="num" id="h-in">—</b><small id="h-in-n"></small></div><div><span>ほかの県について</span><b class="num" id="h-out">—</b><small id="h-out-n"></small></div></div>
+  </section>
+
+  <section id="s-conf">
+    <h2>まちがえやすい県の組</h2>
+    <p class="sub">毎日の問題で、正解の県とまちがえて答えられた県（多い順）。統計の顔つきが似ていると思われている組です。</p>
+    <ol class="rank" id="conf-list"></ol>
+  </section>
+
+  <section id="s-days">
+    <h2>日ごとの予想の数</h2>
+    <p class="sub"><span style="color:#7b4dd8">■</span> 思い込みチェックの予想　<span style="color:#9aa9b8">■</span> 毎日の問題でまちがえた答え</p>
+    <div class="days" id="days"></div><div class="daysx"><span id="d0"></span><span id="d1"></span></div>
+  </section>
+
+  <section id="s-pref-report">
+    <h2>各県の方へ：県ごとの思い込みの一覧</h2>
+    <p class="sub">県を選ぶと、その県の20の統計について、本当の順位とみんなの予想を並べます。広報や授業の材料にお使いください（出典を書いていただければ自由に使えます）。</p>
+    <select class="pick" id="prefsel" aria-label="県をえらぶ"></select>
+    <div class="tbl" style="margin-top:8px"><table><thead><tr><th>統計</th><th>本当</th><th>予想の平均</th><th>思われ方</th><th>予想</th></tr></thead><tbody id="pref-body"></tbody></table></div>
+  </section>
+
+  <section id="download">
+    <h2>オープンデータ</h2>
+    <p class="sub">予想の全件を CSV（UTF-8、表計算ソフトでそのまま開けるよう BOM 付き）で配っています。ライセンスは <a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener">CC BY 4.0</a>。出典は「きょうの県 みんなの思い込み地図（Views Engineer）」と書いてください。</p>
+    <div class="dl"><button class="btn" type="button" id="dl-r">予想の全件（CSV）</button><button class="btn sub" type="button" id="dl-g">まちがえた答えの全件（CSV）</button><button class="btn sub" type="button" id="dl-s">集計（JSON）</button></div>
+    <p class="note" id="dl-msg"></p>
+    <h3>予想の全件の列</h3>
+    <dl class="cols">
+      <dt>id</dt><dd>通し番号</dd>
+      <dt>date</dt><dd>答えた日（日本時間）</dd>
+      <dt>person</dt><dd>同じ端末の答えをまとめるための記号（端末に残っている番号とは結びつかない）</dd>
+      <dt>pref_code / pref_name</dt><dd>予想した県（全国地方公共団体コードの県の2桁）</dd>
+      <dt>indicator_id / indicator</dt><dd>統計（「統計でみる都道府県のすがた2026」の指標番号と名前）</dd>
+      <dt>guess_rank</dt><dd>予想した全国順位（1＝いちばん大きい）</dd>
+      <dt>true_rank</dt><dd>本当の全国順位（同じ表から）</dd>
+      <dt>error</dt><dd>guess_rank − true_rank（マイナスは実際より上の順位と思った）</dd>
+      <dt>home_pref_code</dt><dd>住んでいる県（答えた人だけ。空欄は答えていない）</dd>
+      <dt>source</dt><dd>daily＝毎日の問題を当てたあとの問い、check＝思い込みチェック</dd>
+    </dl>
+    <h3>集め方と注意</h3>
+    <ul class="note">
+      <li>予想は匿名です。名前・場所・端末の情報は集めていません。同じ端末が同じ問いに2回答えても1件として数えます。</li>
+      <li>答えたのはこのゲームを遊んだ人で、日本の人口を代表する調査ではありません。県ごとの件数にも差があります。件数の少ない県・統計は灰色にしています。</li>
+      <li>本当の順位は、総務省統計局「統計でみる都道府県のすがた2026」の表の順位です（サーバーが表から入れ、答えた人が送った値は使いません）。</li>
+      <li>集計は2分ごと、全件の CSV は10分ごとに新しくなります。</li>
+    </ul>
+  </section>
+  <p class="note" id="credit" style="text-align:center"></p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const params = new URLSearchParams(location.search);
+  const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  const API = (LOCAL && params.get('api')) || 'https://kyou-omoikomi.yuichi916.workers.dev';
+  const MIN_P = 5, MIN_C = 3; // 県ごとの地図・県×統計の地図に色をつける最低の件数
+  $('minp').textContent = MIN_P; $('minc').textContent = MIN_C;
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  let DATA, MAP, S;
+
+  function gc(path) {
+    let tries = 0;
+    (function attempt() {
+      const g = window.goatcounter;
+      if (g && typeof g.count === 'function') { try { g.count({ path: path, title: path, event: true }); } catch (e) {} return; }
+      if (++tries < 20) setTimeout(attempt, 250);
+    })();
+  }
+  // 色: 順序（白→紫）と、向き（青←白→オレンジ）
+  function mix(a, b, t) { return 'rgb(' + a.map((v, k) => Math.round(v + (b[k] - v) * t)).join(',') + ')'; }
+  const seqColor = (t) => mix([243, 238, 252], [91, 44, 180], Math.max(0, Math.min(1, t)));
+  function divColor(x) { // x: 平均の (予想 − 本当)。マイナス＝上の順位と思われている（青）
+    const t = Math.max(-1, Math.min(1, x / 15));
+    return t < 0 ? mix([246, 248, 250], [47, 111, 237], -t) : mix([246, 248, 250], [226, 99, 43], t);
+  }
+  $('leg1').style.background = 'linear-gradient(90deg,' + seqColor(0) + ',' + seqColor(.5) + ',' + seqColor(1) + ')';
+  $('leg2').style.background = 'linear-gradient(90deg,' + divColor(-15) + ',' + divColor(0) + ',' + divColor(15) + ')';
+
+  function words(d) {
+    if (/面積/.test(d.label)) return ['広い', 'せまい'];
+    if (/時間/.test(d.label)) return ['長い', '短い'];
+    if (/割合|率|比率|所得|家賃|気温|密度/.test(d.label)) return ['高い', '低い'];
+    return ['多い', '少ない'];
+  }
+
+  function drawMap(svgId, onPick) {
+    const svg = $(svgId);
+    svg.setAttribute('viewBox', MAP.viewBox.join(' '));
+    const r = document.createElementNS(SVGNS, 'rect');
+    [['x', MAP.inset.x], ['y', MAP.inset.y], ['width', MAP.inset.w], ['height', MAP.inset.h], ['rx', 14], ['class', 'inset-frame']].forEach(([k, v]) => r.setAttribute(k, v));
+    svg.appendChild(r);
+    const paths = MAP.prefs.map((p, i) => {
+      const e = document.createElementNS(SVGNS, 'path');
+      e.setAttribute('d', p.d); e.setAttribute('class', 'pref'); e.setAttribute('fill', 'var(--na)');
+      const t = document.createElementNS(SVGNS, 'title'); t.textContent = DATA.prefs[i].name; e.appendChild(t);
+      e.addEventListener('click', () => { paths.forEach((x) => x.classList.remove('on')); e.classList.add('on'); svg.appendChild(e); onPick(i); });
+      svg.appendChild(e);
+      return e;
+    });
+    return paths;
+  }
+
+  // ---------------------------------------------------------- 集計
+  let byPref, byInd, byCell;
+  function aggregate() {
+    byPref = DATA.prefs.map(() => ({ n: 0, se: 0, ae: 0 }));
+    byInd = new Map(DATA.indicators.map((d) => [d.id, { n: 0, se: 0, ae: 0 }]));
+    byCell = new Map();
+    S.cells.forEach(([p, i, n, se, ae]) => {
+      if (p < 0 || p > 46 || !byInd.has(i)) return;
+      byPref[p].n += n; byPref[p].se += se; byPref[p].ae += ae;
+      const b = byInd.get(i); b.n += n; b.se += se; b.ae += ae;
+      byCell.set(p + ',' + i, { n, se, ae });
+    });
+  }
+  const total = () => byPref.reduce((a, b) => a + b.n, 0);
+
+  function renderKpis() {
+    const n = total(), ae = byPref.reduce((a, b) => a + b.ae, 0);
+    $('k-n').textContent = n.toLocaleString('ja-JP');
+    $('k-p').textContent = (S.people || 0).toLocaleString('ja-JP');
+    $('k-mae').textContent = n ? (ae / n).toFixed(1) : '—';
+    $('k-since').textContent = S.since ? S.since.slice(5).replace('-', '/') : '—';
+  }
+
+  let paths1, paths2;
+  function renderPrefMap() {
+    const vals = byPref.map((b) => (b.n >= MIN_P ? b.ae / b.n : null));
+    const ok = vals.filter((v) => v != null);
+    const lo = ok.length ? Math.min(...ok) : 0, hi = ok.length ? Math.max(...ok) : 1;
+    paths1.forEach((e, i) => e.setAttribute('fill', vals[i] == null ? 'var(--na)' : seqColor(hi > lo ? (vals[i] - lo) / (hi - lo) : .5)));
+    const ranked = vals.map((v, i) => ({ v, i })).filter((x) => x.v != null).sort((a, b) => b.v - a.v);
+    const li = (x, k) => '<li><span class="n">' + (k + 1) + '</span>' + esc(DATA.prefs[x.i].name) + '<span class="v num">' + x.v.toFixed(1) + '位 <small>' + byPref[x.i].n + '件</small></span></li>';
+    const empty = '<li style="justify-content:center;color:var(--faint)">予想が' + MIN_P + '件を超えた県から出ます</li>';
+    $('top-wrong').innerHTML = ranked.slice(0, 5).map(li).join('') || empty;
+    $('top-right').innerHTML = ranked.slice(-5).reverse().map(li).join('') || empty;
+  }
+  function tipPref(i) {
+    const b = byPref[i];
+    $('tip1').innerHTML = '<b>' + esc(DATA.prefs[i].name) + '</b>　' + (b.n ? '予想 ' + b.n + '件・平均のずれ <b class="num">' + (b.ae / b.n).toFixed(1) + '位</b>' : 'まだ予想がありません') +
+      '<br><a href="#s-pref-report" data-p="' + i + '">この県の統計ごとの一覧へ</a>';
+    const a = $('tip1').querySelector('a'); a.addEventListener('click', () => { $('prefsel').value = String(i); renderPrefReport(); });
+  }
+
+  function renderIndMap() {
+    const id = $('indsel').value, d = DATA.indicators.find((x) => x.id === id), [b, s] = words(d);
+    $('w-big').textContent = b; $('w-small').textContent = s;
+    const list = [];
+    paths2.forEach((e, i) => {
+      const c = byCell.get(i + ',' + id);
+      if (!c || c.n < MIN_C) { e.setAttribute('fill', 'var(--na)'); return; }
+      const m = c.se / c.n; e.setAttribute('fill', divColor(m)); list.push({ i, m, n: c.n });
+    });
+    // 実際は上なのに下と思われている（m>0）＝ 思われているより実は多い
+    const li = (x, k) => { const t = d.ranks[x.i]; return '<li><span class="n">' + (k + 1) + '</span>' + esc(DATA.prefs[x.i].name) + '<span class="v num">本当 ' + t + '位／予想 ' + (t + x.m).toFixed(0) + '位 <small>' + x.n + '件</small></span></li>'; };
+    const empty = '<li style="justify-content:center;color:var(--faint)">予想が' + MIN_C + '件を超えた県から出ます</li>';
+    $('ind-under').innerHTML = list.filter((x) => x.m > 0).sort((a, c) => c.m - a.m).slice(0, 5).map(li).join('') || empty;
+    $('ind-over').innerHTML = list.filter((x) => x.m < 0).sort((a, c) => a.m - c.m).slice(0, 5).map(li).join('') || empty;
+    $('tip2').textContent = '地図の県を押すと、くわしく出ます。';
+  }
+  function tipInd(i) {
+    const id = $('indsel').value, d = DATA.indicators.find((x) => x.id === id), c = byCell.get(i + ',' + id), t = d.ranks[i];
+    const [b, s] = words(d);
+    let txt = '<b>' + esc(DATA.prefs[i].name) + '</b>の' + esc(d.label) + '：本当は <b class="num">' + t + '位</b>';
+    if (c && c.n) {
+      const m = c.se / c.n;
+      txt += '、みんなの予想の平均は <b class="num">' + (t + m).toFixed(1) + '位</b>（' + c.n + '件）<br>' +
+        (c.n < MIN_C ? '件数が少ないので、まだ参考です' : Math.abs(m) < 3 ? 'ほぼ正しく知られています' : m > 0 ? '実際より' + s + 'と思われています（本当はもっと' + b + '）' : '実際より' + b + 'と思われています（本当はもっと' + s + '）');
+    } else txt += '。まだ予想がありません';
+    $('tip2').innerHTML = txt;
+  }
+
+  function renderStatTable() {
+    const rows = DATA.indicators.map((d) => ({ d, b: byInd.get(d.id) })).sort((x, y) => (y.b.n ? y.b.ae / y.b.n : -1) - (x.b.n ? x.b.ae / x.b.n : -1));
+    $('stat-body').innerHTML = rows.map((r) => '<tr><td>' + esc(r.d.label) + '</td><td class="num">' + r.b.n + '</td><td class="num">' + (r.b.n ? (r.b.ae / r.b.n).toFixed(1) + '位' : '—') + '</td></tr>').join('');
+  }
+
+  function renderHome() {
+    const agg = (ins) => S.home.filter((h) => h[1] === ins).reduce((a, h) => ({ n: a.n + h[2], ae: a.ae + h[4] }), { n: 0, ae: 0 });
+    const a = agg(1), b = agg(0), MIN = 10;
+    $('h-in').textContent = a.n >= MIN ? (a.ae / a.n).toFixed(1) + '位' : '集計中';
+    $('h-out').textContent = b.n >= MIN ? (b.ae / b.n).toFixed(1) + '位' : '集計中';
+    $('h-in-n').textContent = '予想 ' + a.n + '件'; $('h-out-n').textContent = '予想 ' + b.n + '件';
+  }
+
+  function renderConf() {
+    // A→B と B→A をまとめて「組」にする
+    const pair = new Map();
+    S.conf.forEach(([p, g, n]) => { const k = Math.min(p, g) + ',' + Math.max(p, g); pair.set(k, (pair.get(k) || 0) + n); });
+    const list = [...pair.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+    $('conf-list').innerHTML = list.map(([k, n], i) => { const [a, b] = k.split(',').map(Number); return '<li><span class="n">' + (i + 1) + '</span>' + esc(DATA.prefs[a].short) + ' と ' + esc(DATA.prefs[b].short) + '<span class="v num">' + n + '回</span></li>'; }).join('') ||
+      '<li style="justify-content:center;color:var(--faint)">まだありません</li>';
+  }
+
+  function renderDays() {
+    const m = new Map();
+    S.days.forEach(([d, k, n]) => { const x = m.get(d) || { r: 0, g: 0 }; x[k] = n; m.set(d, x); });
+    const keys = [...m.keys()].sort();
+    if (!keys.length) { $('days').innerHTML = '<div class="empty" style="flex:1">まだありません</div>'; return; }
+    const mx = Math.max(...keys.map((k) => m.get(k).r + m.get(k).g), 1);
+    $('days').innerHTML = keys.map((k) => { const x = m.get(k); return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%" title="' + k + ' 予想' + x.r + '件・まちがえた答え' + x.g + '件">' +
+      '<i class="g" style="height:' + (x.g / mx * 88).toFixed(1) + 'px"></i><i style="height:' + (x.r / mx * 88).toFixed(1) + 'px"></i></div>'; }).join('');
+    $('d0').textContent = keys[0]; $('d1').textContent = keys[keys.length - 1];
+  }
+
+  function renderPrefReport() {
+    const p = +$('prefsel').value;
+    const rows = DATA.indicators.map((d) => { const c = byCell.get(p + ',' + d.id); return { d, t: d.ranks[p], c }; });
+    $('pref-body').innerHTML = rows.map((r) => {
+      const [b, s] = words(r.d);
+      if (!r.c || !r.c.n) return '<tr><td>' + esc(r.d.label) + '</td><td class="num">' + r.t + '位</td><td>—</td><td>—</td><td class="num">0</td></tr>';
+      const m = r.c.se / r.c.n;
+      const tag = r.c.n < MIN_C ? '<span class="pill">件数が少ない</span>' : Math.abs(m) < 3 ? '<span class="pill ok">ほぼ正しい</span>' :
+        m > 0 ? '<span class="pill under">実際より' + s + 'と思われている</span>' : '<span class="pill over">実際より' + b + 'と思われている</span>';
+      return '<tr><td>' + esc(r.d.label) + '</td><td class="num">' + r.t + '位</td><td class="num">' + (r.t + m).toFixed(1) + '位</td><td>' + tag + '</td><td class="num">' + r.c.n + '</td></tr>';
+    }).join('');
+  }
+
+  // ---------------------------------------------------------- ダウンロード（全件を 5,000 行ずつ読んで CSV にする）
+  async function allRows(kind) {
+    let after = 0, out = [];
+    for (let k = 0; k < 400; k++) {
+      const r = await fetch(API + '/rows?kind=' + kind + '&after=' + after).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error || 'rows');
+      out = out.concat(r.rows);
+      if (r.next == null) break;
+      after = r.next;
+    }
+    return out;
+  }
+  const q = (v) => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  function save(name, text, type) {
+    const blob = new Blob([text], { type });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  async function download(kind) {
+    const msg = $('dl-msg');
+    msg.textContent = '読み込み中…';
+    try {
+      const rows = await allRows(kind);
+      const P = DATA.prefs, I = new Map(DATA.indicators.map((d) => [d.id, d]));
+      let csv;
+      if (kind === 'r') {
+        csv = 'id,date,person,pref_code,pref_name,indicator_id,indicator,guess_rank,true_rank,error,home_pref_code,source\n' +
+          rows.map((x) => [x[0], x[1], x[2], P[x[3]].code, P[x[3]].name, x[4], (I.get(x[4]) || {}).label, x[5], x[6], x[5] - x[6], x[7] >= 0 ? P[x[7]].code : '', x[8]].map(q).join(',')).join('\n');
+      } else {
+        csv = 'id,date,person,problem_no,answer_pref_code,answer_pref_name,guessed_pref_code,guessed_pref_name,hints_open\n' +
+          rows.map((x) => [x[0], x[1], x[2], x[3] + 1, P[x[4]].code, P[x[4]].name, P[x[5]].code, P[x[5]].name, x[6]].map(q).join(',')).join('\n');
+      }
+      const day = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+      save('kyou-no-ken-' + (kind === 'r' ? 'omoikomi' : 'machigai') + '-' + day + '.csv', '﻿' + csv + '\n', 'text/csv;charset=utf-8');
+      msg.textContent = rows.length.toLocaleString('ja-JP') + '件をダウンロードしました。';
+      gc('kyou-no-ken/omoikomi/download-' + kind);
+    } catch (e) { msg.textContent = '読み込めませんでした（' + e.message + '）。少しおいて、もう一度押してください。'; }
+  }
+
+  // ---------------------------------------------------------- 起動
+  async function main() {
+    const [d, m, s] = await Promise.all([
+      fetch('data/kyou-no-ken/data.json').then((r) => r.json()),
+      fetch('data/kyou-no-ken/map.json').then((r) => r.json()),
+      fetch(API + '/stats').then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch((e) => ({ ok: false, error: e.message })),
+    ]);
+    DATA = d; MAP = m;
+    S = s && s.ok ? s : { cells: [], home: [], conf: [], days: [], active: [], people: 0, since: null };
+    if (!s || !s.ok) { $('err').hidden = false; $('err').textContent = '集計を読み込めませんでした。少しおいて、読み込み直してください。'; }
+    $('credit').innerHTML = '統計: ' + esc(DATA.sources.stats.citation) + '／地図: 国土数値情報（行政区域データ、国土交通省）を加工' + (S.updated ? '／集計 ' + esc(S.updated.slice(0, 16).replace('T', ' ')) + '（UTC）' : '');
+    $('indsel').innerHTML = DATA.indicators.map((x) => '<option value="' + esc(x.id) + '">' + esc(x.label) + '</option>').join('');
+    $('prefsel').innerHTML = DATA.prefs.map((x, i) => '<option value="' + i + '">' + esc(x.name) + '</option>').join('');
+    const pp = parseInt(params.get('pref') || '', 10); if (pp >= 0 && pp <= 46) $('prefsel').value = String(pp);
+    aggregate();
+    renderKpis();
+    paths1 = drawMap('map1', tipPref); renderPrefMap();
+    paths2 = drawMap('map2', tipInd);
+    // はじめは、予想がいちばん多い統計を見せる
+    const best = [...byInd.entries()].sort((a, b) => b[1].n - a[1].n)[0];
+    if (best && best[1].n) $('indsel').value = best[0];
+    renderIndMap(); renderStatTable(); renderHome(); renderConf(); renderDays(); renderPrefReport();
+    $('indsel').addEventListener('change', renderIndMap);
+    $('prefsel').addEventListener('change', renderPrefReport);
+    $('dl-r').addEventListener('click', () => download('r'));
+    $('dl-g').addEventListener('click', () => download('g'));
+    $('dl-s').addEventListener('click', () => { save('kyou-no-ken-omoikomi-summary.json', JSON.stringify(S, null, 1), 'application/json'); gc('kyou-no-ken/omoikomi/download-s'); });
+  }
+  main().catch((e) => { $('err').hidden = false; $('err').textContent = '読み込みに失敗しました（' + e.message + '）'; });
+})();
+</script>
+</body>
+</html>
