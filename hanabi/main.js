@@ -10,7 +10,7 @@ import { shellAtlas, noiseTex, placeholderBand, SHELL_ORDER, ATLAS_CELLS, drawBa
 import { createPlatform } from './platform.js';
 import { ACHIEVEMENTS, checkAchievements } from './ach.js';
 import { THEMES } from './levels.js';
-import { drawCast } from '../assets/hitofude/cast.js';
+import { drawCast, CAST } from '../assets/hitofude/cast.js';
 import { track, share, canShare } from './track.js';
 import * as Mem from './memory.js';
 import { cleanName } from '../assets/hitofude/names.js';
@@ -218,7 +218,7 @@ function beginRun(o = {}) {
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
   S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
-  S.run.rv = 8; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる / 8: 世界 1 で負けたら次の挑戦の目標を下げる（情け）・練習の周の第 2 夜に福の神
+  S.run.rv = 9; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる / 8: 世界 1 で負けたら次の挑戦の目標を下げる（情け）・練習の周の第 2 夜に福の神 / 9: 道で趣向を選ばなかった夜にも軽い趣向（夜ごとに中身が変わる）
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
@@ -310,6 +310,7 @@ function startNight(resume = null) {
   // まだ教えていない数字は出さない（星屑・かすりは 5 夜目、小判は初めての屋台のあと）
   $('hud').classList.toggle('noTech', !DB.meta.taught.dust); $('hud').classList.toggle('noCoins', !DB.meta.taught.shop);
   $('spellBar').className = 'spellbar off'; S.dustAcc = 0; S.dustAt = 0; S.dustSnd = 0;
+  if (!resume) guestPop(def);
   const tw = def.twist && Run.TWISTS[def.twist];
   const nodeT = ['shoubu', 'chaya', 'tonya', 'ennichi'].includes(def.node) ? Run.NODES[def.node] : null;
   $('twistTag').textContent = [tw ? (JA() ? tw.ja : tw.en) : '', nodeT ? (JA() ? nodeT.ja : nodeT.en) : '', ...(def.seals || []).map((x) => (JA() ? Run.SEALS[x].ja : Run.SEALS[x].en))].filter(Boolean).join(' ・ ');
@@ -747,14 +748,26 @@ function lossHint() {
 }
 // トラ（屋台の招き猫）が盤の下で話す。負けたあとの「超え方」と、乱入のひと言
 let toraEl = null;
-function toraSay(html, face = 'joy') {
+function toraSay(html, face = 'joy', who = 'neko') {
   if (!toraEl) { toraEl = document.createElement('div'); toraEl.id = 'tora'; toraEl.className = 'hidden'; toraEl.innerHTML = '<canvas width="140" height="140"></canvas><p></p>'; document.body.append(toraEl); }
-  if (toraEl.dataset.t !== html + face) {
-    toraEl.dataset.t = html + face; toraEl.querySelector('p').innerHTML = html;
+  if (toraEl.dataset.t !== html + face + who) {
+    toraEl.dataset.t = html + face + who; toraEl.querySelector('p').innerHTML = html;
     const g = toraEl.querySelector('canvas').getContext('2d'); g.clearRect(0, 0, 140, 140);
-    try { drawCast(g, 'neko', 70, 76, 96, { face, still: true, glow: false }); } catch { /* 絵が無くても読める */ }
+    try { drawCast(g, who, 70, 76, 96, { face, still: true, glow: false }); } catch { /* 絵が無くても読める */ }
   }
   toraEl.classList.remove('hidden');
+}
+// 妖怪が顔を出す: 大一番の前の夜は次の相手が予告（taunt）、倒したあとの夜はその妖怪が応援（friend）
+function bossCastOf(world, night) { const W = Run.WORLDS[(world - 1) % Run.WORLDS.length], r = W.rules[(night / 4 - 1 + (S.run.seed % 2)) % W.rules.length]; return Run.RULES[r]?.cast; }
+function guestPop(def) {
+  if (def.boss || def.raid || S.coach || S.daily || def.world > Run.WORLDS.length) return;
+  let id = null, kind = null;
+  if (def.night === 3 || def.night === 7) { id = bossCastOf(def.world, def.night + 1); kind = 'taunt'; }
+  else if (def.night === 5) { id = bossCastOf(def.world, 4); kind = 'friend'; }
+  const c = id && CAST[id]; if (!c) return;
+  const say = JA() ? c.say : (c.sayEn || c.say), line = kind === 'taunt' ? say.taunt[(def.night + S.run.seed) % say.taunt.length] : say.friend;
+  const note = kind === 'taunt' ? tr('次の大一番の相手', 'Your next boss') : tr('大一番で倒した妖怪が、応援に来た', 'The yokai you beat came to cheer you on');
+  setTimeout(() => { if (S.st?.level === def && S.mode === 'play' && !S.coach) { toraSay(`<b>${JA() ? c.name : c.nameEn}</b>${line}<small>${note}</small>`, kind === 'taunt' ? 'taunt' : 'joy', id); S.toraT = 3.6; } }, 900);
 }
 function toraHide() { if (toraEl) { toraEl.classList.add('hidden'); toraEl.dataset.t = ''; } }
 function coachLine() {
