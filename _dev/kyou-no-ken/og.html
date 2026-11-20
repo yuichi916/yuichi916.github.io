@@ -2,60 +2,79 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>きょうの県 OG</title>
+<title>きょうの県 OGP</title>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{width:1200px;height:630px;overflow:hidden}
-body{font-family:"M PLUS Rounded 1c",sans-serif;color:#eef2fa;
-  background:radial-gradient(700px 500px at 88% 0%,rgba(255,122,89,.28),transparent 60%),
-             radial-gradient(700px 600px at 0% 100%,rgba(95,140,255,.22),transparent 60%),
-             linear-gradient(160deg,#0e1626,#13203a 70%,#0d1424);position:relative}
-.l{position:absolute;left:72px;top:64px;width:760px}
-.eyebrow{font-size:24px;color:#ffd36b;font-weight:800;letter-spacing:.12em}
-h1{font-size:124px;font-weight:800;letter-spacing:.04em;line-height:1.15;margin-top:4px;white-space:nowrap}
-h1 span{color:#ff7a59}
-.sub{font-size:36px;font-weight:800;line-height:1.45;margin-top:14px}
-.sub em{font-style:normal;color:#ffd36b}
-.chips{display:flex;gap:12px;margin-top:30px}
-.chips span{font-size:22px;color:#c6d0e4;border:2px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 18px}
-.grid{margin-top:26px;font-size:40px;letter-spacing:6px}
-.grid small{font-size:22px;color:#a6b3cc;letter-spacing:0;margin-left:14px;vertical-align:middle}
-svg{position:absolute;right:30px;top:40px;width:400px;height:550px}
+/* 共有用の画像（1200x630）。?v=game はゲーム、?v=omoi は思い込み地図。scripts/kyou_no_ken/make_og.py が撮る */
+*{box-sizing:border-box}
+html,body{margin:0;width:1200px;height:630px;overflow:hidden}
+body{font-family:"M PLUS Rounded 1c",sans-serif;background:#f3f8fc;color:#1d2b3a;position:relative}
+.map{position:absolute;right:28px;top:22px;width:600px;height:586px;border-radius:30px;overflow:hidden;background:radial-gradient(ellipse at 70% 30%,#e4f3fb,#cfe8f6)}
+.map svg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:640px}
+.pref{stroke:#fff;stroke-width:1.2;stroke-linejoin:round}
+.out{fill:#c3d0db;opacity:.55}
+.inset-frame{fill:none;stroke:#9cc4da;stroke-width:2;stroke-dasharray:6 5}
+.lab{font:800 34px "M PLUS Rounded 1c";paint-order:stroke;stroke:#fff;stroke-width:8px;stroke-linejoin:round;fill:#7a4b00;text-anchor:middle}
+.lab.ck{fill:#4a2a9a}
+.txt{position:absolute;left:64px;top:70px;width:500px}
+.pin{display:inline-grid;place-items:center;width:58px;height:58px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#ef476f;box-shadow:0 4px 0 #c22d55;vertical-align:middle;margin-right:16px}
+.pin i{transform:rotate(45deg);color:#fff;font-style:normal;font-size:30px;font-weight:800}
+h1{display:inline-block;vertical-align:middle;font-size:76px;margin:0;letter-spacing:.02em}
+.k{font-size:40px;font-weight:800;line-height:1.35;margin:38px 0 0}
+.k b{color:#ef476f}
+.k.ck b{color:#7b4dd8}
+.s{font-size:24px;color:#5b6b7b;margin-top:22px;line-height:1.55}
+.chip{display:inline-block;margin-top:30px;background:#fff;border:3px solid #d9e4ee;border-radius:99px;padding:8px 20px;font-size:24px;font-weight:800;color:#5b6b7b}
+.strip{margin-top:30px;position:relative;height:84px}
+.strip .cells{display:flex;height:22px;border-radius:11px;overflow:hidden;position:absolute;top:30px;left:0;right:0}
+.strip .cells i{flex:1}
+.mk{position:absolute;font-size:20px;font-weight:800;white-space:nowrap}
+.mk.t{top:0;transform:translateX(-50%)}
+.mk.t::after{content:"";display:block;width:5px;height:34px;background:#1d2b3a;margin:2px auto 0;border-radius:3px}
+.mk.y{top:60px;transform:translateX(-50%);color:#ef476f}
+.mk.y::before{content:"";display:block;width:20px;height:20px;border-radius:50%;background:#ef476f;border:3px solid #fff;margin:-34px auto 10px}
 </style>
 </head>
 <body>
-<div class="l">
-  <div class="eyebrow">毎日1問の都道府県クイズ</div>
-  <h1>きょうの<span>県</span></h1>
-  <p class="sub">統計のヒント<em>6つ</em>で、<br>今日の都道府県を当てる。</p>
-  <div class="chips"><span>65歳以上の割合</span><span>日照時間</span><span>持ち家の割合</span></div>
-  <div class="grid">🟥🟧🟨🟩<small>外すと距離と方角が出る</small></div>
-</div>
-<svg id="map" viewBox="0 0 400 550"></svg>
+<div class="map"><svg id="map"></svg></div>
+<div class="txt" id="txt"></div>
 <script>
-fetch('../../data/kyou-no-ken/data.json').then(r => r.json()).then(d => {
-  const W = 400, H = 550, pad = 30;
-  const lons = d.prefs.map(p => p.lon), lats = d.prefs.map(p => p.lat);
-  const x0 = Math.min(...lons), x1 = Math.max(...lons), y0 = Math.min(...lats), y1 = Math.max(...lats);
-  const k = Math.min((W - 2 * pad) / (x1 - x0), (H - 2 * pad) / ((y1 - y0) * 1.2));
-  const ox = (W - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * 1.2 * k) / 2;
-  const X = p => ox + (p.lon - x0) * k, Y = p => oy + (y1 - p.lat) * 1.2 * k;
-  let s = '';
-  d.prefs.forEach((p, i) => {
-    s += '<circle cx="' + X(p).toFixed(1) + '" cy="' + Y(p).toFixed(1) + '" r="7" fill="rgba(255,255,255,.28)"/>';
-  });
-  // 「？」の県を 1 つだけ光らせる（どの県かは決めない飾り。実在の問題とは関係ない位置: 47 点の重心にいちばん近い点）
-  const cx = lons.reduce((a, b) => a + b) / 47, cy = lats.reduce((a, b) => a + b) / 47;
-  let best = 0, bd = 1e9;
-  d.prefs.forEach((p, i) => { const dd = (p.lon - cx) ** 2 + (p.lat - cy) ** 2; if (dd < bd) { bd = dd; best = i; } });
-  const b = d.prefs[best];
-  s += '<circle cx="' + X(b).toFixed(1) + '" cy="' + Y(b).toFixed(1) + '" r="26" fill="rgba(255,211,107,.18)"/>';
-  s += '<circle cx="' + X(b).toFixed(1) + '" cy="' + Y(b).toFixed(1) + '" r="12" fill="#ffd36b"/>';
-  s += '<text x="' + (X(b) + 22).toFixed(1) + '" y="' + (Y(b) - 18).toFixed(1) + '" fill="#ffd36b" font-size="44" font-weight="800" font-family="M PLUS Rounded 1c">？</text>';
-  document.getElementById('map').innerHTML = s;
+(async function () {
+  const v = new URLSearchParams(location.search).get('v') === 'omoi' ? 'omoi' : 'game';
+  const [D, M] = await Promise.all([fetch('../../data/kyou-no-ken/data.json').then((r) => r.json()), fetch('../../data/kyou-no-ken/map.json').then((r) => r.json())]);
+  const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('map');
+  svg.setAttribute('viewBox', M.viewBox.join(' '));
+  const mk = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); svg.appendChild(e); return e; };
+  mk('rect', { x: M.inset.x, y: M.inset.y, width: M.inset.w, height: M.inset.h, rx: 14, class: 'inset-frame' });
+  const STOPS = [[0, [200, 30, 70]], [0.33, [244, 96, 54]], [0.66, [255, 200, 87]], [1, [255, 243, 196]]];
+  const color = (r) => { const t = (r - 1) / 46; for (let i = 1; i < STOPS.length; i++) if (t <= STOPS[i][0]) { const [t0, c0] = STOPS[i - 1], [t1, c1] = STOPS[i], u = (t - t0) / (t1 - t0); return 'rgb(' + c0.map((x, k) => Math.round(x + (c1[k] - x) * u)).join(',') + ')'; } return '#fff3c4'; };
+  const ind = D.indicators.find((x) => x.id === 'B01202'); // 森林の割合
+  const nagano = 19;
+  if (v === 'game') {
+    // 「森林の割合が 9位前後」で残った県だけ色を付け、ほかは消えた形。長野が光る
+    const r0 = ind.ranks[nagano];
+    M.prefs.forEach((p, i) => { const keep = Math.abs(ind.ranks[i] - r0) <= 5; mk('path', { d: p.d, class: 'pref' + (keep ? '' : ' out'), fill: i === nagano ? '#ffc61a' : color(ind.ranks[i]) }); });
+    const n = M.prefs[nagano]; svg.appendChild(svg.querySelector('path:nth-of-type(' + (nagano + 1) + ')'));
+    const t = mk('text', { x: n.label[0], y: n.label[1] - 20, class: 'lab' }); t.textContent = '長野？';
+    document.getElementById('txt').innerHTML = '<div><span class="pin"><i>?</i></span><h1>きょうの県</h1></div>' +
+      '<p class="k">ヒントが出るたびに、<br>合わない県が<b>消えていく</b>。</p>' +
+      '<p class="s">統計のヒントで、毎日1つの県を当てる。<br>当てたら「思い込みチェック」。</p><span class="chip">毎日1問・無料・登録なし</span>';
+  } else {
+    // 思い込みチェックの答え合わせ（例: 長野の森林の割合。本当の順位はデータの表どおり）
+    M.prefs.forEach((p, i) => mk('path', { d: p.d, class: 'pref', fill: color(ind.ranks[i]), stroke: i === nagano ? '#1d2b3a' : '#fff', 'stroke-width': i === nagano ? 4 : 1.2 }));
+    const n = M.prefs[nagano];
+    const t = mk('text', { x: n.label[0], y: n.label[1] - 20, class: 'lab ck' }); t.textContent = '長野 ' + ind.ranks[nagano] + '位';
+    const truth = ind.ranks[nagano], you = 30;
+    let cells = ''; for (let r = 1; r <= 47; r++) cells += '<i style="background:' + color(r) + '"></i>';
+    const pos = (r) => ((r - 0.5) / 47 * 100).toFixed(2) + '%';
+    document.getElementById('txt').innerHTML = '<div><span class="pin" style="background:#7b4dd8;box-shadow:0 4px 0 #5530a8"><i>?</i></span><h1 style="font-size:60px">思い込み地図</h1></div>' +
+      '<p class="k ck">長野県の森林の割合は、<br>全国で<b>何位</b>だと思う？</p>' +
+      '<div class="strip"><div class="cells">' + cells + '</div><span class="mk t" style="left:' + pos(truth) + '">本当 ' + truth + '位</span><span class="mk y" style="left:' + pos(you) + '">予想 ' + you + '位</span></div>' +
+      '<p class="s" style="margin-top:30px">みんなの予想から、47都道府県の<br>思い違いを地図に。オープンデータで公開。</p>';
+  }
+  await document.fonts.ready;
   document.body.dataset.ready = '1';
-});
+})();
 </script>
 </body>
 </html>
