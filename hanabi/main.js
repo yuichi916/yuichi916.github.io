@@ -511,7 +511,8 @@ const TEACH_ORDER = [['heat', 2], ['bloom', 3], ['shaku', 4], ['loop', 5], ['dus
 const MOUSE = (() => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches; } catch { return false; } })();
 function drawText(step) {
   const st = S.st, need = st ? Math.max(0, st.target - st.score) : 0;
-  if (step === 'down') return tr('そのまま<em>次の玉へ</em>！ 火が後ろから追ってくる', 'Keep going to the <em>next shell</em>! The flame is chasing you');
+  if (step === 'down') return CARRY ? tr('線が付いてくる。<em>次の玉へ</em>動かして！ 火が後ろから追ってくる', 'The line follows you. Move to the <em>next shell</em>! The flame is chasing you') : tr('そのまま<em>次の玉へ</em>！ 火が後ろから追ってくる', 'Keep going to the <em>next shell</em>! The flame is chasing you');
+  if (step === 'go' && CARRY) return tr('<em>もう一度クリック</em>すると、なぞった玉がひらく', '<em>Click again</em> to burst every shell you traced');
   if (step === 'go') return MOUSE ? tr('<em>ボタンを離す</em>と、なぞった玉がひらく', '<em>Release</em> to burst every shell you traced') : tr('<em>指を離す</em>と、なぞった玉がひらく', '<em>Lift your finger</em> to burst every shell you traced');
   if (step === 'aim1') return tr(`あと <em>${fmt(need)} 点</em>。もう一筆！ 長くなぞるほど大きい`, `<em>${fmt(need)} more</em>. One more stroke! Longer lines score bigger`);
   return MOUSE ? tr('<em>クリックしたまま</em>、玉から玉へ<em>なぞる</em>', '<em>Click and hold</em>, then drag through the shells') : tr('<em>指を離さずに</em>、玉から玉へ<em>なぞる</em>', '<em>Hold your finger down</em> and drag through the shells');
@@ -1304,7 +1305,17 @@ const toWorld = (e, dy = 0) => {
   return { x: q1(x), y: q1(y) };
 };
 let pid = null, TOUCH = false; // 指で遊んでいるか（輪を指の外に出す）
+// 運び: マウスで玉をクリックしただけ（ほとんど動かさずに離した）なら、線はそのままカーソルに付いてくる。次のクリックでひらく。
+// 11/21 の計測: 玉を押した人の 46% が一筆を終えずに帰っていた（遊ぶ人の 9 割はパソコン）。決まりの側は押す・動く・離すのまま
+let CARRY = null, carryEnd = null;
+function endCarry(e) { // 運びの最中のクリック: 生きている線ならひらく（このクリックは食べる）。線が終わっていたら運びを解くだけ
+  const k = S.st?.stroke, live = pid !== null && k && k.penDown; CARRY = null;
+  if (live) { carryEnd = e; release({ pointerId: pid, type: 'carryEnd' }); return true; }
+  pid = null; S.tip = null; return false;
+}
+addEventListener('pointerdown', (e) => { if (CARRY) endCarry(e); }, true);
 canvas.addEventListener('pointerdown', (e) => {
+  if (e === carryEnd) return; // 運びを終えたクリック
   audio.unlock(); TOUCH = e.pointerType === 'touch'; hideVeil('board');
   if (S.mode === 'retry' && performance.now() - S.retryAt > 600) { startNight(); return; }
   if (S.mode !== 'play' || !S.st || pid !== null || S.paused) return;
@@ -1313,17 +1324,27 @@ canvas.addEventListener('pointerdown', (e) => {
   if (TOUCH && touchMode() && !DB.meta.taught.tip) { DB.meta.taught.tip = 1; save(); floatText(W / 2, H * 0.3, tr('線の先は、指の少し上に出ます', 'The line tip sits just above your finger'), 'gold', 24, 1800); }
   const p = toWorld(e);
   S.rec?.ev.push([S.st.t, 'd', p.x, p.y]);
-  if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; S.lastPtr = { clientX: e.clientX, clientY: e.clientY }; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } if (S.teachKey !== 'draw') $('teach').classList.add('hidden'); }
+  if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; S.press = { t: performance.now(), mouse: e.pointerType === 'mouse' }; S.lastPtr = { clientX: e.clientX, clientY: e.clientY }; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } if (S.teachKey !== 'draw') $('teach').classList.add('hidden'); }
   else if (S.st.level.grand) { S.rec?.ev.pop(); S.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, pan: S.pan || 0, panY: S.panY || 0 }; S.panIntro = 0; try { canvas.setPointerCapture(e.pointerId); } catch { /* */ } }
 });
-canvas.addEventListener('pointermove', (e) => {
+const onMove = (e) => {
   if (S.drag && e.pointerId === S.drag.id) { S.pan = Math.max(0, Math.min(panMax(), S.drag.pan - ((e.clientX - S.drag.x) / innerWidth) * W)); S.panY = Math.max(0, Math.min(panMaxY(), S.drag.panY + ((e.clientY - S.drag.y) / innerHeight) * H)); return; }
   if (e.pointerId !== pid || !S.st) return;
   const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
   for (const ev of (list.length ? list : [e])) { const p = toWorld(ev, tipOff(ev)); S.rec?.ev.push([S.st.t, 'm', p.x, p.y]); G.penMove(S.st, p.x, p.y); }
   tether(e); S.lastPtr = { clientX: e.clientX, clientY: e.clientY };
-});
-const release = (e) => { if (S.drag && e.pointerId === S.drag.id) { S.drag = null; return; } if (e.pointerId !== pid) return; pid = null; S.tip = null; tether(null); if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
+};
+canvas.addEventListener('pointermove', onMove);
+addEventListener('pointermove', (e) => { if (CARRY && e.target !== canvas) onMove(e); });
+const release = (e) => { if (S.drag && e.pointerId === S.drag.id) { S.drag = null; return; } if (e.pointerId !== pid) return;
+  const k = S.st?.stroke;
+  if (e.type === 'pointerup' && !CARRY && S.press?.mouse && k?.penDown && k.len < S.st.m.minLen && performance.now() - S.press.t < 450) { // クリックしただけ → 運びにする
+    CARRY = 1; S.carryN = (S.carryN || 0) + 1; if (S.carryN <= 2) PF.ev('carry', { n: S.carryN });
+    if (S.teachKey === 'draw' && S.tut === 'down') { const el = $('teach'); el.innerHTML = drawText('down'); }
+    else if (!S.carryTold) { S.carryTold = 1; floatText(W / 2, H * 0.3, tr('線が付いてくる。もう一度クリックでひらく', 'The line follows. Click again to burst'), 'gold', 22, 1800); }
+    return;
+  }
+  pid = null; S.tip = null; tether(null); if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
 // ---- 大仕掛けの夜: 盤が画面より横に長い。線の先が画面の端に近づくと流れる（指が止まっていても線は伸びる）
 const panMax = () => (S.st?.level?.grand ? Math.max(0, S.st.field.x1 + 70 - W) : 0);
 const panMaxY = () => (S.st?.level?.grand?.gh > 1 ? Math.max(0, 60 - S.st.field.y0) : 0);
@@ -1757,7 +1778,8 @@ function handle(ev) {
       else if (!DB.meta.taught.score && st.strokesUsed >= 1) showTeach('score');
       break;
     case 'rise': launchFor(ev.shell); audio.launch(panOf(ev.shell.x)); break;
-    case 'cancel': $('combo').classList.remove('on'); audio.scene('calm');
+    case 'cancel': $('combo').classList.remove('on'); audio.scene('calm'); if (CARRY) { CARRY = null; pid = null; S.tip = null; }
+      if (!DB.meta.taught.draw && (S.taps || 0) < 2) PF.ev('tut', { s: 'cancel', n: (S.taps || 0) + 1 });
       // 叩いただけで何も起きないと「壊れている」に見える。なぞり方を言い直す（覚えるまで）
       if (!DB.meta.taught.draw) { S.taps = (S.taps || 0) + 1; S.tut = null; showTeach('draw'); floatText(W / 2, H * 0.42, tr('指を離さずに、玉から玉へなぞって', 'Hold and drag through the shells'), 'gold', S.taps > 1 ? 30 : 24); }
       break;
