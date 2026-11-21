@@ -1,4 +1,5 @@
 // 一筆花火 2 — 夜明けの頁（灯の物語）。夜を越えるたびに 1 頁。負けても続きから読める。DOM に触らない
+// 11/22 第 3 版: 前半はボケとツッコミで本質的・短く、後半は物語の根幹（依頼主）
 // 11/21 第 2 版（依頼主「情景が分からない・漫才みたいなテンポのかけあい・最初は背景を知らなくても分かって先を読みたくなる・進むほど真相」）
 // 筋は「送り火」: いなくなったのは、じいちゃんではなく灯のほうだった。追ってくる火は、じいちゃんの迎え火。コンは、じいちゃんが灯のために詰めた赤い玉の火の子
 // 人: akari=灯（ツッコミ） / kon=相棒の子狐（食いしん坊のボケ、語尾コン） / tora=屋台のねこ / note=じいちゃんの秘伝帳 / yokai=妖怪 / mem=灯の記憶 / hinoko=追ってきた火（じいちゃんの声）
@@ -6,24 +7,23 @@
 // gate: b1〜b3=その世界の大一番（第 4 夜）に勝った / r1〜r3=その世界の大妖怪（第 8 夜）に勝った。w=その世界まで来ている（いまの周で）
 const L = (w, ja, en, f) => ({ w, ja, en, ...(f ? { f } : {}) });
 export const TALE = [
-  // ── 第一の世界 川辺の夏祭り: 灯は自分のことを覚えていない
+  // ── 第一の世界 川辺の夏祭り: 前半はボケとツッコミ。遊びの本質（一筆・追ってくる火・屋台）で短く笑わせ、謎はひとさじ
   { scene: { ja: `花火のあと、河原の屋台。灯と、相棒の子狐コン。`, en: `After the fireworks, at a riverside stall. Akari and her fox-cub partner, Kon.` }, lines: [
-    L('kon', `すごいコン！ ……で、灯って、だれコン？`, `Amazing, kon! ...So, who are you, kon?`),
-    L('akari', `え？ わたしは灯。……灯、だよね？`, `Huh? I'm Akari. ...I am Akari, right?`, 'surprise'),
-    L('tora', `おかえり、灯。今年も来たんだね`, `Welcome back, Akari. You came again this year.`),
-    L('akari', `……今年「も」？`, `...Again?`, 'surprise'),
+    L('kon', `灯、なんで線を一本しか引かないコン？`, `Akari, why do you only ever draw one line, kon?`),
+    L('akari', `一筆花火だからだよ。とちゅうで指を離したら、おしまい`, `Because it's one-stroke fireworks. Lift your finger and it's over.`, 'smile'),
+    L('kon', `コンなら、二本引いちゃうコン`, `I'd just draw two, kon.`),
+    L('akari', `それはもう、ただの落書き！`, `Then it's just doodling!`, 'angry'),
   ] },
-  { gap: 2, scene: { ja: `屋台の棚に、古い帳面が一冊。表紙に「秘伝帳」とある。`, en: `An old notebook on the stall shelf. The cover says "Secret Notes."` }, lines: [
-    L('kon', `灯、これ、おいしそうな本だコン`, `Akari, this book looks tasty, kon.`),
-    L('akari', `本は食べものじゃないの！`, `Books are not food!`, 'angry'),
-    L('akari', `……あ。この字、知ってる。じいちゃんの字だ`, `...Oh. I know this handwriting. It's Grandpa's.`, 'surprise'),
-    L('note', `一筆花火は、帰り道を空に描く花火。——源`, `Hitofude Hanabi: fireworks that draw the way home across the sky. —Gen`),
+  { gap: 2, scene: { ja: `線を引くと、うしろから火が追ってくる。`, en: `Every line she draws, a flame chases it.` }, lines: [
+    L('kon', `灯！ うしろから火が来てるコン！`, `Akari! The fire's right behind you, kon!`),
+    L('akari', `知ってる！ だから急いで引いてるの！`, `I know! That's why I'm drawing fast!`, 'angry'),
+    L('kon', `たいへんコン！ コンの尻尾にも火がついてるコン！`, `Oh no, kon! My tail's on fire too, kon!`),
+    L('akari', `それ、もともと花火の模様でしょ！`, `That's just the firework pattern on your tail!`, 'angry'),
   ] },
-  { gap: 2, scene: { ja: `河原は見物の人でいっぱい。でも、だれの顔も見えない。`, en: `The riverbank is packed with people watching. But no one has a face.` }, lines: [
-    L('kon', `灯、見物の人、みんなお面かぶってるコン`, `Akari, everyone in the crowd is wearing a mask, kon.`),
-    L('kon', `お面の下も、なんにもないコン`, `There's nothing under the masks either, kon.`),
-    L('akari', `……え？`, `...What?`, 'surprise'),
-    L('tora', `見ないほうがいい。今夜は、まだね`, `Better not look. Not tonight. Not yet.`),
+  { gap: 2, scene: { ja: `屋台のトラが、小判を数えている。`, en: `Tora is counting coins at the stall.` }, lines: [
+    L('kon', `トラ、お守りちょうだいコン。お代は、つけでコン`, `Tora, give me a charm, kon. Put it on my tab, kon.`),
+    L('tora', `去年の分のつけも、まだだよ`, `You still owe me for last year.`),
+    L('akari', `去年……？ わたしたち、去年もここに来たの？`, `Last year...? We were here last year too?`, 'surprise'),
   ] },
   { gate: 'b1', scene: { ja: `大一番に負けた妖怪が、屋台の屋根から灯を見下ろしている。`, en: `The yokai you beat at the boss night looks down from the stall roof.` }, lines: [
     L('yokai', `……強くなったな。だが、まだ帰さぬ`, `...You've grown strong. But you're not going home yet.`),
@@ -33,20 +33,20 @@ export const TALE = [
     L('akari', `取り調べじゃないんだから……`, `This isn't a police interview...`, 'angry'),
     L('yokai', `いずれ分かる。おまえがいちばんよく知っている者だ`, `You'll see. Someone you know better than anyone.`),
   ] },
-  { scene: { ja: `線を引くたび、うしろから火が追ってくる。今夜も、ぎりぎりだった。`, en: `Every line she draws, a flame chases it. Tonight was close again.` }, lines: [
+  // ここから物語の根幹へ: 一筆花火とは何か・追ってくる火・手を放した記憶
+  { scene: { ja: `屋台の棚に、古い帳面が一冊。表紙に「秘伝帳」とある。`, en: `An old notebook on the stall shelf. The cover says "Secret Notes."` }, lines: [
+    L('akari', `……あ。この字、知ってる。じいちゃんの字だ`, `...Oh. I know this handwriting. It's Grandpa's.`, 'surprise'),
+    L('note', `一筆花火は、帰り道を空に描く花火。——源`, `Hitofude Hanabi: fireworks that draw the way home across the sky. —Gen`),
+    L('note', `振り返るな。尺玉だけは、追いかけるな`, `Don't look back. And never chase the great shell.`),
+    L('kon', `尺玉って、いちばん大きい花火コン！ 追いかけたいコン！`, `The great shell is the biggest firework, kon! I wanna chase it, kon!`),
+    L('akari', `だめって書いてあるでしょ`, `It literally says don't.`, 'angry'),
+  ] },
+  { scene: { ja: `今夜も、ぎりぎりで火から逃げきった。`, en: `Tonight, she barely escaped the flame again.` }, lines: [
     L('akari', `ねえトラ。あの火、なんでわたしを追ってくるの？`, `Hey, Tora. Why does that flame keep chasing me?`, 'angry'),
     L('tora', `怖いかい`, `Scared?`),
     L('akari', `怖いよ！ 毎晩追いかけられてるんだよ！`, `Of course! It chases me every single night!`, 'angry'),
     L('kon', `コンは、あの火、ちょっと好きコン。あったかいにおいがするコン`, `I kind of like it, kon. It smells warm, kon.`),
     L('tora', `……そのにおい、覚えておおき`, `...Remember that smell.`),
-  ] },
-  { scene: { ja: `秘伝帳の次の頁。じいちゃんの字が、少しふるえている。`, en: `The next page of the notebook. Grandpa's writing is a little shaky.` }, lines: [
-    L('note', `振り返るな。尺玉だけは、追いかけるな`, `Don't look back. And never chase the great shell.`),
-    L('kon', `尺玉って、いちばん大きい花火コン！ 追いかけたいコン！`, `The great shell is the biggest firework, kon! I wanna chase it, kon!`),
-    L('akari', `だめって書いてあるでしょ`, `It literally says don't.`, 'angry'),
-    L('akari', `……じいちゃん、なんでこんなこと書いたんだろう`, `...Why would Grandpa write that?`, 'surprise'),
-    L('kon', `灯が追いかけそうだったからコン`, `Because you looked like the chasing type, kon.`),
-    L('akari', `……そう、かも`, `...Maybe I am.`, 'sad'),
   ] },
   { scene: { ja: `綿あめの屋台の前で、灯がふいに立ち止まった。`, en: `In front of the cotton-candy stall, Akari suddenly stops.` }, lines: [
     L('kon', `綿あめ！ 灯、買ってほしいコン！`, `Cotton candy! Buy me some, Akari, kon!`),
