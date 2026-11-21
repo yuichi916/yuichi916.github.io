@@ -126,7 +126,7 @@ function toTitle() {
   if (S.rankOk) add(tr('世界ランキング', 'World Ranking'), () => openRank(DB.run?.daily ? 'daily' : 'daily'));
   else if (PF.lbType() === 'in_game') add(tr('ランキング', 'Leaderboard'), openPgRank);
   else if (PF.lbType() === 'native_popup') add(tr('ランキング', 'Leaderboard'), () => PF.lbPopup());
-  add(tr('お守り帳', 'Charm Book'), openBook);
+  add(tr('妖怪図鑑・お守り帳', 'Yokai & Charm Book'), openBook);
   // 物語は日本語のみ。ゲームサイト用の書き出し（story.html を入れない）では出さない
   if (!window.HANABI_NO_STORY) add(tr('物語', 'Story (Japanese)'), () => { location.href = 'story.html'; });
   // 初代（旧版）へ。CrazyGames など外へのリンクを禁じる書き出しでは出さない
@@ -174,7 +174,7 @@ $('nrGo').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.ra
 function openBook() {
   show('book');
   const un = Run.unlockedCharms(DB.meta);
-  $('bkTitle').textContent = tr(`お守り帳 ${un.size} / ${CHARMS.length}`, `Charm Book ${un.size} / ${CHARMS.length}`);
+  $('bkTitle').textContent = tr(`妖怪図鑑・お守り帳`, `Yokai & Charm Book`);
   $('bkBack').textContent = tr('もどる', 'Back');
   const list = $('bookList'); list.innerHTML = '';
   for (const c of CHARMS) {
@@ -191,6 +191,23 @@ function openBook() {
     for (const t of TECHS) { const n = tq[t[0]] || 0, e = document.createElement('div'); e.className = 'bookitem ach' + (n ? '' : ' locked');
       e.innerHTML = `<span class="seal">${n ? '技' : '・'}</span><div><b>${n ? (JA() ? t[1] : t[2]) : '？？？'}${n ? `<small class="cnt">${tr(`${n} 回`, `×${n}`)}</small>` : ''}</b>${tr('やり方：', 'How: ')}${JA() ? t[3] : t[4]}<br>${tr('効き目：', 'Effect: ')}${JA() ? t[5] : t[6]}</div>`;
       after.after(e); after = e; } }
+  // 妖怪図鑑: 会った妖怪は絵・名前・ひと言・勝ち負け。まだなら影と、どこで会えるか
+  { const y = ykRec(), nodes = [], zh = document.createElement('div'); zh.className = 'bookhead'; zh.textContent = tr(`妖怪図鑑 ${ykCount()} / ${ZUKAN.length}`, `Yokai Book ${ykCount()} / ${ZUKAN.length}`); nodes.push(zh);
+    const ch = document.createElement('div'); ch.className = 'bookhead'; ch.textContent = tr(`お守り ${un.size} / ${CHARMS.length}`, `Charms ${un.size} / ${CHARMS.length}`);
+    for (const id of ZUKAN) {
+      const c = CAST[id], r = y[id], met = !!r?.m, e = document.createElement('div'); e.className = 'bookitem yk' + (met ? '' : ' locked');
+      const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128; const g = cv.getContext('2d');
+      try { drawCast(g, id, 64, 72, 92, { face: !met ? 'idle' : id === 'neko' || r.w > 0 ? 'joy' : 'taunt', still: true, glow: false }); } catch { /* 絵が無くても読める */ }
+      if (!met) { g.globalCompositeOperation = 'source-in'; g.fillStyle = '#2a1d14'; g.fillRect(0, 0, 128, 128); }
+      const t = document.createElement('div');
+      if (id === 'neko') t.innerHTML = `<b>${tr('トラ', 'Tora')}<small class="cnt">${JA() ? c.title : c.titleEn}</small></b>${tr('「いらっしゃいニャ！ 屋台と、負けたあとの道案内はまかせるニャ」', '"Welcome, meow! Leave the stalls and the route tips to me."')}`;
+      else if (met) { const sy = JA() ? c.say : (c.sayEn || c.say), line = r.w > 0 ? sy.friend : sy.taunt[0];
+        t.innerHTML = `<b>${JA() ? `${c.ja}の${c.name}` : `${c.nameEn} the ${c.en}`}</b><span class="rec">${tr(`勝ち ${r.w || 0}・負け ${r.l || 0}`, `Won ${r.w || 0} · Lost ${r.l || 0}`)}</span>${tr(`「${line}」`, `"${line}"`)}`; }
+      else { const rule = Object.keys(Run.RULES).find((k) => Run.RULES[k].cast === id), W = Run.WORLDS.find((w) => w.rules.includes(rule));
+        t.innerHTML = `<b>？？？</b>${W ? tr(`「${W.ja}」の大一番で会える`, `Waits at a boss night in ${W.en}`) : ''}`; }
+      e.append(cv, t); nodes.push(e);
+    }
+    nodes.push(ch); list.prepend(...nodes); }
   // 技帳: 妖怪ごとの技と、取った回数 / 挑んだ回数
   const sp = DB.meta.spells || {};
   const sh = document.createElement('div'); sh.className = 'bookhead'; sh.textContent = tr(`技帳 ${Object.values(sp).filter((x) => x.g > 0).length} / 24`, `Techniques ${Object.values(sp).filter((x) => x.g > 0).length} / 24`); list.append(sh);
@@ -318,9 +335,10 @@ function startNight(resume = null) {
   for (const z of S.st.zones) { const e = document.createElement('div'); e.className = 'zl ' + z.kind; e.innerHTML = z.kind === 'oil' ? tr('油<small>火が速い・点 ×3</small>', 'OIL<small>fast flame, POINTS ×3</small>') : tr('水<small>火が遅い</small>', 'WATER<small>slow flame</small>'); e.style.left = (z.x / W) * 100 + '%'; e.style.top = (z.y / H) * 100 + '%'; zl.append(e); }
   // 大一番
   const boss = $('boss');
-  if (def.raid) raidIntro(def, run, resume);
+  if (def.raid) { raidIntro(def, run, resume); if (!resume) ykMeet(def.raid.cast, 3200); }
   else if (def.rule) {
     const r = Run.RULES[def.rule];
+    if (!resume) ykMeet(r.cast, 3000);
     drawBoss(r.cast, 'taunt'); boss.classList.remove('hidden'); boss.classList.add('taunt');
     let taunt = Mem.bossTaunt(mem(), def.rule, run);
     const lost = (mem().bossLost || {})[def.rule] || 0, wr = ((def.world - 1) % 3) + 1;
@@ -620,6 +638,7 @@ function nightEnded() {
   // 届かなかった夜は「あと何点だったか」を見せる（悔しさが次の一回を呼ぶ）
   S.miss = !st.cleared && st.score < st.target ? { n: st.target - st.score, pct: Math.floor((st.score / st.target) * 100) } : null;
   const R2 = Run.settleNight(run, st, def), res = R2.res;
+  ykResult(def, res);
   { const m = mem(); if (res === 'clear') m.nights = (m.nights || 0) + 1; if (def.boss && def.rule && res !== 'clear') { m.bossLost ||= {}; m.bossLost[def.rule] = (m.bossLost[def.rule] || 0) + 1; const rr = Run.RULES[def.rule]; m.lastBoss = { ja: rr.ja, en: rr.en, n: m.bossLost[def.rule] }; } }
   PF.ev('night_end', { idx: (def.world - 1) * 8 + def.night, boss: def.boss ? 1 : 0, res, pct: Math.floor((st.score / Math.max(1, def.target)) * 100), sec: Math.round((performance.now() - (S.nightT0 || performance.now())) / 1000), strokes: st.strokesUsed || 0, caught: st.caughtCount || 0, lives: run.lives, assist: run.assist ? 1 : 0 });
   PF.level(res === 'clear' ? 'completed' : 'failed', def.world, def.night); if (res === 'clear' && def.boss) PF.milestone();
@@ -757,6 +776,30 @@ function toraSay(html, face = 'joy', who = 'neko') {
   }
   toraEl.classList.remove('hidden');
 }
+// 妖怪図鑑（11/21）: DB.meta.yk = { 妖怪: { m: 出会った, w: 勝った, l: 負けた } }。前からの記録（技帳・大一番で負けた回数）からも出会いを起こす
+const ZUKAN = ['neko', 'kamaitachi', 'tengu', 'yukionna', 'kitsune', 'tanuki', 'yamabiko'];
+function ykRec() {
+  const y = (DB.meta.yk ||= {}); y.neko ||= { m: 1, w: 0, l: 0 };
+  const sp = DB.meta.spells || {}, bl = mem()?.bossLost || {};
+  for (const [rule, r] of Object.entries(Run.RULES)) if (r.cast && !y[r.cast] && (bl[rule] || Object.keys(sp).some((k) => k.startsWith(rule)))) y[r.cast] = { m: 1, w: 0, l: bl[rule] || 0 };
+  return y;
+}
+const ykCount = () => { const y = ykRec(); return ZUKAN.filter((k) => y[k]?.m).length; };
+function ykMeet(id, delay = 2600) {
+  if (!id || !CAST[id]) return; const y = ykRec(); if (y[id]?.m) return;
+  y[id] = { m: 1, w: 0, l: 0 }; save();
+  const c = CAST[id], n = ykCount(); PF.ev('zukan', { id, n });
+  setTimeout(() => {
+    const e = document.createElement('div'); e.className = 'achtoast zukan';
+    e.innerHTML = `<small>${tr(`妖怪図鑑に載った　${n} / ${ZUKAN.length}`, `New in the Yokai Book  ${n} / ${ZUKAN.length}`)}</small><b>${JA() ? `${c.ja}の${c.name}` : `${c.nameEn} the ${c.en}`}</b>`;
+    document.body.append(e); audio.note(15, { vol: 0.15, dur: 0.5 }); setTimeout(() => audio.note(19, { vol: 0.14, dur: 0.7 }), 110);
+    setTimeout(() => e.remove(), 2800);
+  }, delay);
+}
+function ykResult(def, res) {
+  const id = def.rule && (def.boss || def.raid) && Run.RULES[def.rule]?.cast; if (!id) return;
+  const y = ykRec(), r = (y[id] ||= { m: 1, w: 0, l: 0 }); if (res === 'clear') r.w = (r.w || 0) + 1; else r.l = (r.l || 0) + 1;
+}
 // 妖怪が顔を出す: 大一番の前の夜は次の相手が予告（taunt）、倒したあとの夜はその妖怪が応援（friend）
 function bossCastOf(world, night) { const W = Run.WORLDS[(world - 1) % Run.WORLDS.length], r = W.rules[(night / 4 - 1 + (S.run.seed % 2)) % W.rules.length]; return Run.RULES[r]?.cast; }
 function guestPop(def) {
@@ -767,7 +810,7 @@ function guestPop(def) {
   const c = id && CAST[id]; if (!c) return;
   const say = JA() ? c.say : (c.sayEn || c.say), line = kind === 'taunt' ? say.taunt[(def.night + S.run.seed) % say.taunt.length] : say.friend;
   const note = kind === 'taunt' ? tr('次の大一番の相手', 'Your next boss') : tr('大一番で倒した妖怪が、応援に来た', 'The yokai you beat came to cheer you on');
-  setTimeout(() => { if (S.st?.level === def && S.mode === 'play' && !S.coach) { toraSay(`<b>${JA() ? c.name : c.nameEn}</b>${line}<small>${note}</small>`, kind === 'taunt' ? 'taunt' : 'joy', id); S.toraT = 3.6; } }, 900);
+  setTimeout(() => { if (S.st?.level === def && S.mode === 'play' && !S.coach) { toraSay(`<b>${JA() ? c.name : c.nameEn}</b>${line}<small>${note}</small>`, kind === 'taunt' ? 'taunt' : 'joy', id); S.toraT = 3.6; ykMeet(id, 3900); } }, 900);
 }
 function toraHide() { if (toraEl) { toraEl.classList.add('hidden'); toraEl.dataset.t = ''; } }
 function coachLine() {
