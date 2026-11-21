@@ -1,73 +1,220 @@
 // 一筆花火 2 — 夜明けの頁（灯の物語）。夜を越えるたびに 1 頁。負けても続きから読める。DOM に触らない
-// 筋は _dev/hanabi-story-design.md の「送り火」: いなくなったのは、じいちゃんではなく灯のほうだった。追ってくる火は、じいちゃんの迎え火
-// who: tora=ねこ屋のトラ / note=じいちゃんの秘伝帳 / yokai=倒した妖怪（gate の相手）・まだなら次の大一番の相手 / mem=灯の記憶 / hinoko=追ってくる火
+// 11/21 第 2 版（依頼主「情景が分からない・漫才みたいなテンポのかけあい・最初は背景を知らなくても分かって先を読みたくなる・進むほど真相」）
+// 筋は「送り火」: いなくなったのは、じいちゃんではなく灯のほうだった。追ってくる火は、じいちゃんの迎え火。コンは、じいちゃんが灯のために詰めた赤い玉の火の子
+// 人: akari=灯（ツッコミ） / kon=相棒の子狐（食いしん坊のボケ、語尾コン） / tora=屋台のねこ / note=じいちゃんの秘伝帳 / yokai=妖怪 / mem=灯の記憶 / hinoko=追ってきた火（じいちゃんの声）
+// 声があるのは akari・kon・hinoko。f は灯の顔（tale/img/akari_<f>.webp）
 // gate: b1〜b3=その世界の大一番（第 4 夜）に勝った / r1〜r3=その世界の大妖怪（第 8 夜）に勝った。w=その世界まで来ている（いまの周で）
-// a: 灯の返し（声つき）。face は tale/img/akari_<face>.webp
+const L = (w, ja, en, f) => ({ w, ja, en, ...(f ? { f } : {}) });
 export const TALE = [
-  // 第一の世界 川辺の夏祭り — 灯は名前しか覚えていない
-  { who: 'tora', ja: 'おかえり、灯。……今年も来たんだね', en: 'Welcome back, Akari. ...So you came again this year.',
-    a: { face: 'surprise', ja: '今年も……？ わたし、ここに来たこと、あったっけ', en: 'Again...? Have I been here before?' },
-    tail: { ja: '（足もとで、花火の尻尾の子狐が「コン」と鳴いた。灯の相棒だ）', en: '(At her feet, a little fox with a firework tail yips "Kon!" Akari\'s partner.)' } },
-  { who: 'note', ja: '一筆花火は、帰り道を空に描く花火。　——源', en: 'Hitofude Hanabi: fireworks that draw the way home across the sky. —Gen',
-    a: { face: 'smile', ja: 'じいちゃんの字だ。……帰り道って、誰の？', en: "That's Grandpa's handwriting. ...The way home for who?" } },
-  { who: 'tora', ja: '見物の衆を見てごらん。今夜も、顔がひとりもないだろう', en: 'Look at the crowd. Not a single face again tonight.',
-    a: { face: 'sad', ja: 'ほんとだ……。あの人たち、どこから来たの？', en: "You're right... Where did all those people come from?" } },
-  { who: 'yokai', gate: 'b1', ja: '……まだ帰さぬ。頼まれているのでな', en: "...You're not going home yet. We were asked to keep you here.",
-    a: { face: 'angry', ja: '頼まれた？ 誰に？ わたし、帰りたいなんて言ってない', en: 'Asked? By who? I never said I wanted to go home.' } },
-  { who: 'tora', ja: '後ろから追ってくる火、怖いかい。……あれの正体は、まだ言えない', en: "Scared of the flame chasing you? ...I can't tell you what it is. Not yet.",
-    a: { face: 'angry', ja: 'トラはいつも、いちばん大事なところで黙るんだから', en: 'You always go quiet at the most important part, Tora.' } },
-  { who: 'note', ja: '振り返るな。尺玉だけは、追いかけるな', en: "Don't look back. And never chase the great shell.",
-    a: { face: 'surprise', ja: '尺玉……？ じいちゃん、何を知ってたの？', en: 'The great shell...? Grandpa, what did you know?' } },
-  { who: 'mem', ja: '（綿あめの匂い。大きな手。……その手を、わたしが放した）', en: '(The smell of cotton candy. A big, warm hand. ...And I let go of it.)',
-    a: { face: 'sad', ja: '放したのは、わたし……？ どうして', en: "I'm the one who let go...? Why?" } },
-  { who: 'yokai', gate: 'r1', ja: '思い出したか。あの夏の夜、おまえは祭りの灯りを離れて、川のほうへ走っていった', en: 'Do you remember now? That summer night, you left the festival lights and ran toward the river.',
-    a: { face: 'sad', ja: 'じいちゃん、ずっとわたしを探してたのかな。……いま、どこにいるの？', en: 'Has Grandpa been looking for me all this time? ...Where is he now?' } },
-  // 第二の世界 雪の山里 — じいちゃんの側
-  { who: 'tora', w: 2, ja: 'ここは、じいちゃんの冬だよ。花火のない季節に、あの人はひとりで玉を詰める', en: "This is your grandpa's winter. In the season without fireworks, he packs shells all alone.",
-    a: { face: 'surprise', ja: 'じいちゃんは……いなくなったんじゃなかったの？', en: 'Grandpa... I thought he was the one who disappeared?' } },
-  { who: 'note', w: 2, ja: '今年も、あの子の分の玉を詰めた。三寸、赤。あの子の好きな色', en: 'Packed her shell again this year. Three-inch, red. Her favorite color.',
-    a: { face: 'smile', ja: '赤は、わたしの好きな色……。どうして毎年、わたしの分を作るの？', en: 'Red is my favorite color... Why does he make one for me every year?' } },
-  { who: 'tora', w: 2, ja: '戸口に、小さな火が焚いてあるだろう。毎年、盆のこの夜にだけ', en: 'See the small fire at the doorway? He lights it every year, only on this Obon night.',
-    a: { face: 'surprise', ja: '迎え火……？ 誰を迎えるための火なの？', en: 'A welcoming fire...? Who is it meant to welcome?' } },
-  { who: 'yokai', gate: 'b2', ja: 'おまえも、こちら側だろう。……雪は、生きた者の肩にしか積もらぬ', en: 'You belong on our side too. ...Snow only settles on the shoulders of the living.',
-    a: { face: 'sad', ja: 'わたしの肩……雪が、ひとつも積もってない', en: "My shoulders... there isn't a single flake on them." } },
-  { who: 'tora', w: 2, ja: '灯、花火の下で、自分の影を見たことはあるかい', en: 'Akari, have you ever looked for your own shadow under the fireworks?',
-    a: { face: 'surprise', ja: '影……。みんなの影はあるのに、わたしのだけ、どこにもない', en: 'My shadow... Everyone has one. Mine is nowhere.' } },
-  { who: 'note', w: 2, ja: '七年。待つのには慣れた。ただ、あの子が迷っていないかだけが、気がかりだ', en: "Seven years. I'm used to waiting. I only worry that she's lost her way.",
-    a: { face: 'sad', ja: '七年……？ 迷ってるのは、わたしのほうなの？', en: "Seven years...? Am I the one who's lost?" } },
-  { who: 'mem', w: 2, ja: '（冷たい水。遠くで、じいちゃんがわたしの名前を呼んでいた）', en: '(Cold water. Far away, Grandpa was calling my name.)',
-    a: { face: 'sad', ja: '……あれは、夢だよね。ねえ、夢だって言って', en: '...That was a dream, right? Please, tell me it was a dream.' } },
-  { who: 'yokai', gate: 'r2', ja: '見物の衆は、みな盆に帰ってきた者たち。……おまえと同じだ', en: 'The crowd are all souls come home for Obon. ...Just like you.',
-    a: { face: 'sad', ja: 'わたしと、同じ……。じゃあ、いなくなったのは——', en: 'Just like me... Then the one who disappeared was—' } },
-  // 第三の世界 百鬼の宵山 — 真相
-  { who: 'tora', w: 3, ja: 'そうだよ、灯。いなくなったのは、じいちゃんじゃない。おまえのほうだ', en: "That's right, Akari. It wasn't your grandpa who went missing. It was you.",
-    a: { face: 'sad', ja: '……知ってた。じゃあ、どうしてわたしは、帰らずに逃げてるの？', en: '...I knew. Then why do I keep running instead of going home?' } },
-  { who: 'note', w: 3, ja: '盆の三日だけ、あの子は帰ってくる。帰り道を、今年も空に描く', en: "For the three days of Obon, she comes home. This year again, I'll draw her way home in the sky.",
-    a: { face: 'smile', ja: '一筆花火は、わたしの帰り道だったんだ……。なのに、どうして届かないの？', en: "Hitofude Hanabi was my way home... So why can't I reach it?" } },
-  { who: 'yokai', w: 3, ja: '祭りを終わらせるなと、わしらに頼んだのは誰だと思う', en: 'Who do you think asked us never to let the festival end?',
-    a: { face: 'surprise', ja: '……まさか', en: '...No way.' } },
-  { who: 'yokai', gate: 'b3', ja: 'おまえだ、灯。「帰さないで。帰ったら、じいちゃんが泣くから」と', en: "It was you, Akari. 'Don't send me home. If I go back, Grandpa will cry.'",
-    a: { face: 'sad', ja: 'だって……わたしが手を放したせいで、じいちゃんはひとりになったんだもの', en: "Because... it's my fault for letting go. Grandpa ended up all alone." } },
-  { who: 'tora', w: 3, ja: '後ろの火はね、親方の迎え火なんだよ。おまえを捕まえに来ていたんじゃない。迎えに来ていたんだ', en: "That flame behind you is the master's welcoming fire. It never came to catch you. It came to bring you home.",
-    a: { face: 'surprise', ja: 'ずっと逃げてた火が……じいちゃんの？', en: "The fire I've been running from... was Grandpa's?" } },
-  { who: 'note', w: 3, ja: 'あの子が帰ってきたら、言うことは決めてある。叱らない。ひとことだけだ', en: "When she comes home, I know what I'll say. No scolding. Just one word.",
-    a: { face: 'smile', ja: 'ひとこと……。じいちゃん、なんて言うつもりなの？', en: 'Just one word... Grandpa, what are you going to say?' } },
-  { who: 'tora', w: 3, ja: '「振り返るな」はね、火から逃げろって意味じゃない。後ろを気にせず、まっすぐ帰っておいで、って意味さ', en: "'Don't look back' never meant 'run from the fire.' It meant: don't worry about what's behind you. Come straight home.",
-    a: { face: 'joy', ja: '……うん。こんどは、逃げない', en: "...Okay. This time, I won't run." } },
-  // 結末: 祭りを大団円で終えたときだけ（runOver）
-  { who: 'hinoko', gate: 'r3', end: 1, ja: 'やっと、追いついた。……おかえり、灯', en: 'Finally, I caught up. ...Welcome home, Akari.',
-    a: { face: 'laugh', ja: 'ただいま、じいちゃん', en: "I'm home, Grandpa." }, tail: { ja: 'トラ「また来年の盆に、おいで」', en: 'Tora: "Come again next Obon."' } },
+  // ── 第一の世界 川辺の夏祭り: 灯は自分のことを覚えていない
+  { scene: { ja: `花火のあと、河原の屋台。灯と、相棒の子狐コン。`, en: `After the fireworks, at a riverside stall. Akari and her fox-cub partner, Kon.` }, lines: [
+    L('kon', `灯！ いまの花火、ぜんぶ灯が上げたコン？`, `Akari! Did you launch all those fireworks, kon?`),
+    L('akari', `そうだよ。線を一本引いただけで、ドーン！`, `Yep. One line, and then — boom!`, 'joy'),
+    L('kon', `すごいコン！ ……で、灯って、だれコン？`, `Amazing, kon! ...So, who are you, kon?`),
+    L('akari', `え？ わたしは灯。……灯、だよね？`, `Huh? I'm Akari. ...I am Akari, right?`, 'surprise'),
+    L('tora', `おかえり、灯。今年も来たんだね`, `Welcome back, Akari. You came again this year.`),
+    L('akari', `……今年「も」？`, `...Again?`, 'surprise'),
+  ] },
+  { scene: { ja: `屋台の棚に、古い帳面が一冊。表紙に「秘伝帳」とある。`, en: `An old notebook on the stall shelf. The cover says "Secret Notes."` }, lines: [
+    L('kon', `灯、これ、おいしそうな本だコン`, `Akari, this book looks tasty, kon.`),
+    L('akari', `本は食べものじゃないの！`, `Books are not food!`, 'angry'),
+    L('akari', `……あ。この字、知ってる。じいちゃんの字だ`, `...Oh. I know this handwriting. It's Grandpa's.`, 'surprise'),
+    L('note', `一筆花火は、帰り道を空に描く花火。——源`, `Hitofude Hanabi: fireworks that draw the way home across the sky. —Gen`),
+    L('kon', `帰り道？ 灯、迷子コン？`, `The way home? Are you lost, kon?`),
+    L('akari', `……わかんない。どこに帰るのか、思い出せないの`, `...I don't know. I can't remember where home is.`, 'sad'),
+  ] },
+  { scene: { ja: `河原は見物の人でいっぱい。でも、だれの顔も見えない。`, en: `The riverbank is packed with people watching. But no one has a face.` }, lines: [
+    L('kon', `灯、見物の人、みんなお面かぶってるコン`, `Akari, everyone in the crowd is wearing a mask, kon.`),
+    L('akari', `お祭りだもん。お面くらい、かぶるよ`, `It's a festival. Of course they wear masks.`, 'smile'),
+    L('kon', `お面の下も、なんにもないコン`, `There's nothing under the masks either, kon.`),
+    L('akari', `……え？`, `...What?`, 'surprise'),
+    L('tora', `見ないほうがいい。今夜は、まだね`, `Better not look. Not tonight. Not yet.`),
+  ] },
+  { gate: 'b1', scene: { ja: `大一番に負けた妖怪が、屋台の屋根から灯を見下ろしている。`, en: `The yokai you beat at the boss night looks down from the stall roof.` }, lines: [
+    L('yokai', `……強くなったな。だが、まだ帰さぬ`, `...You've grown strong. But you're not going home yet.`),
+    L('akari', `帰さないって、どういうこと？`, `Not going home? What do you mean?`, 'angry'),
+    L('yokai', `頼まれているのでな`, `We were asked to keep you here.`),
+    L('kon', `だれにコン？ 名前と住所を言うコン！`, `By who, kon? Name and address, kon!`),
+    L('akari', `取り調べじゃないんだから……`, `This isn't a police interview...`, 'angry'),
+    L('yokai', `いずれ分かる。おまえがいちばんよく知っている者だ`, `You'll see. Someone you know better than anyone.`),
+  ] },
+  { scene: { ja: `線を引くたび、うしろから火が追ってくる。今夜も、ぎりぎりだった。`, en: `Every line she draws, a flame chases it. Tonight was close again.` }, lines: [
+    L('akari', `ねえトラ。あの火、なんでわたしを追ってくるの？`, `Hey, Tora. Why does that flame keep chasing me?`, 'angry'),
+    L('tora', `怖いかい`, `Scared?`),
+    L('akari', `怖いよ！ 毎晩追いかけられてるんだよ！`, `Of course! It chases me every single night!`, 'angry'),
+    L('kon', `コンは、あの火、ちょっと好きコン。あったかいにおいがするコン`, `I kind of like it, kon. It smells warm, kon.`),
+    L('tora', `……そのにおい、覚えておおき`, `...Remember that smell.`),
+  ] },
+  { scene: { ja: `秘伝帳の次の頁。じいちゃんの字が、少しふるえている。`, en: `The next page of the notebook. Grandpa's writing is a little shaky.` }, lines: [
+    L('note', `振り返るな。尺玉だけは、追いかけるな`, `Don't look back. And never chase the great shell.`),
+    L('kon', `尺玉って、いちばん大きい花火コン！ 追いかけたいコン！`, `The great shell is the biggest firework, kon! I wanna chase it, kon!`),
+    L('akari', `だめって書いてあるでしょ`, `It literally says don't.`, 'angry'),
+    L('akari', `……じいちゃん、なんでこんなこと書いたんだろう`, `...Why would Grandpa write that?`, 'surprise'),
+    L('kon', `灯が追いかけそうだったからコン`, `Because you looked like the chasing type, kon.`),
+    L('akari', `……そう、かも`, `...Maybe I am.`, 'sad'),
+  ] },
+  { scene: { ja: `綿あめの屋台の前で、灯がふいに立ち止まった。`, en: `In front of the cotton-candy stall, Akari suddenly stops.` }, lines: [
+    L('kon', `綿あめ！ 灯、買ってほしいコン！`, `Cotton candy! Buy me some, Akari, kon!`),
+    L('akari', `はいはい……`, `Okay, okay...`, 'smile'),
+    L('mem', `（綿あめの匂い。大きな手。……その手を、わたしが放した）`, `(The smell of cotton candy. A big, warm hand. ...And I let go of it.)`),
+    L('akari', `……ごめん、コン。いまの、なに……？`, `...Sorry, Kon. What was that...?`, 'sad'),
+    L('kon', `灯、顔がまっさおだコン。綿あめは、あしたでいいコン`, `You've gone pale, kon. Cotton candy can wait till tomorrow, kon.`),
+  ] },
+  { gate: 'r1', scene: { ja: `討たれた大妖怪が、川の向こうを指さした。`, en: `The defeated great yokai points across the river.` }, lines: [
+    L('yokai', `思い出したか。あの夏の夜、おまえは祭りの灯りを離れて、川へ走った`, `Remember now? That summer night, you left the festival lights and ran to the river.`),
+    L('akari', `川へ……？ わたし、なんで……`, `To the river...? Why would I...`, 'sad'),
+    L('yokai', `知りたければ、雪の山へ行け。あの男が待っている`, `If you want to know, go to the snowy mountain. That man is waiting.`),
+    L('kon', `あの男って、だれコン？`, `What man, kon?`),
+    L('akari', `……じいちゃんだ`, `...Grandpa.`, 'surprise'),
+  ] },
+  // ── 第二の世界 雪の山里: じいちゃんの側
+  { w: 2, scene: { ja: `雪の山里。灯りのついた家で、老人がひとり、花火の玉を詰めている。`, en: `A snowy village. In a lit house, an old man is packing firework shells alone.` }, lines: [
+    L('akari', `じいちゃん！ じいちゃーん！`, `Grandpa! Grandpaaa!`, 'joy'),
+    L('kon', `……灯、聞こえてないみたいコン`, `...He can't hear you, kon.`),
+    L('akari', `なんで？ こんなに近くにいるのに`, `Why? I'm right here.`, 'surprise'),
+    L('tora', `ここは、じいちゃんの冬だよ。花火のない季節に、ああしてひとりで玉を詰めるのさ`, `This is your grandpa's winter. In the season without fireworks, he packs shells all alone.`),
+    L('akari', `ひとりで……？ わたし、ここにいるのに`, `Alone...? But I'm here.`, 'sad'),
+  ] },
+  { w: 2, scene: { ja: `作業台に、詰めたばかりの赤い玉。秘伝帳が開いている。`, en: `A freshly packed red shell on the workbench. The notebook lies open.` }, lines: [
+    L('note', `今年も、あの子の分の玉を詰めた。三寸、赤。あの子の好きな色`, `Packed her shell again this year. Three-inch, red. Her favorite color.`),
+    L('akari', `赤……わたしの好きな色だ`, `Red... that's my favorite color.`, 'smile'),
+    L('kon', `コンも赤が好きコン。……なんでか、わかんないけどコン`, `I like red too, kon. ...Not sure why, kon.`),
+    L('akari', `「あの子の分」って、わたしのことだよね。なんで毎年……？`, `"Her shell" means me, right? Why every year...?`, 'surprise'),
+  ] },
+  { w: 2, scene: { ja: `家の戸口で、小さな火が焚かれている。雪の中でも消えない。`, en: `A small fire burns at the doorway. Even in the snow, it won't go out.` }, lines: [
+    L('kon', `灯、あの火、見たことあるコン`, `Akari, I've seen that fire before, kon.`),
+    L('akari', `え、どこで？`, `Huh? Where?`, 'surprise'),
+    L('kon', `毎晩、灯のうしろで見てるコン`, `Behind you. Every night, kon.`),
+    L('akari', `……わたしを追ってくる火と、同じ色`, `...It's the same color as the flame that chases me.`, 'surprise'),
+    L('tora', `盆の夜にだけ焚く火さ。迎え火っていうんだ`, `It's only lit on Obon nights. A welcoming fire.`),
+    L('akari', `迎え火って……帰ってくる人を、迎える火だよね`, `A welcoming fire... for welcoming someone who comes home.`, 'sad'),
+  ] },
+  { gate: 'b2', scene: { ja: `大一番に負けた雪女が、灯の肩にそっと手を置いた。`, en: `The snow woman you beat lays a hand gently on Akari's shoulder.` }, lines: [
+    L('yokai', `冷たくないのか`, `Isn't it cold?`),
+    L('akari', `ぜんぜん。雪女さんの手、やさしいね`, `Not at all. Your hand is gentle.`, 'smile'),
+    L('yokai', `……雪は、生きた者の肩にしか積もらぬ`, `...Snow only settles on the shoulders of the living.`),
+    L('kon', `灯の肩、つるつるコン。コンの背中も、つるつるコン`, `Your shoulders are bare, kon. My back is bare too, kon.`),
+    L('akari', `……ほんとだ。ひとつも、積もってない`, `...You're right. Not a single flake.`, 'sad'),
+  ] },
+  { w: 2, scene: { ja: `花火が上がるたび、雪の上にみんなの影がのびる。`, en: `Every firework stretches everyone's shadow across the snow.` }, lines: [
+    L('kon', `影ふみしようコン！ 灯の影、ふむコン！`, `Let's play shadow tag, kon! I'll step on yours, kon!`),
+    L('akari', `いいよ、ほら……`, `Sure, here...`, 'joy'),
+    L('kon', `……灯の影、どこコン？`, `...Where's your shadow, kon?`),
+    L('akari', `え？`, `Huh?`, 'surprise'),
+    L('tora', `気づいたかい。花火の下で影がないのは、灯だけじゃないよ`, `Noticed, have you? Akari isn't the only one with no shadow.`),
+    L('kon', `……コンの影も、ないコン`, `...I don't have one either, kon.`),
+  ] },
+  { w: 2, scene: { ja: `秘伝帳の、いちばん新しい頁。`, en: `The newest page of the notebook.` }, lines: [
+    L('note', `七年。待つのには慣れた。ただ、あの子が迷っていないかだけが、気がかりだ`, `Seven years. I'm used to waiting. I only worry that she's lost her way.`),
+    L('akari', `七年……？ わたし、七年もどこにいたの？`, `Seven years...? Where have I been for seven years?`, 'surprise'),
+    L('kon', `灯は迷子じゃないコン。コンがついてるコン`, `You're not lost, kon. You've got me, kon.`),
+    L('akari', `……コンのほうが、すぐ迷子になるくせに`, `...You're the one who always gets lost.`, 'smile'),
+    L('kon', `それはそれ、これはこれコン`, `That's a different story, kon.`),
+  ] },
+  { w: 2, scene: { ja: `凍った川をわたるとき、灯の足がすくんだ。`, en: `Crossing the frozen river, Akari's legs freeze.` }, lines: [
+    L('mem', `（冷たい水。遠くで、じいちゃんがわたしの名前を呼んでいた）`, `(Cold water. Far away, Grandpa was calling my name.)`),
+    L('akari', `……ねえ、コン。いまの、夢だよね`, `...Hey, Kon. That was a dream, right?`, 'sad'),
+    L('kon', `……`, `...`),
+    L('akari', `夢だって、言ってよ`, `Tell me it was a dream.`, 'sad'),
+    L('kon', `コンは、うそはつけないコン`, `I can't lie to you, kon.`),
+  ] },
+  { gate: 'r2', scene: { ja: `討たれた大妖怪が、花火を見上げる顔のない見物の衆を見わたした。`, en: `The defeated great yokai looks out over the faceless crowd watching the fireworks.` }, lines: [
+    L('yokai', `見物の衆は、みな盆に帰ってきた者たち`, `The crowd are all souls who came home for Obon.`),
+    L('akari', `帰ってきた……って、どこから？`, `Came home... from where?`, 'surprise'),
+    L('yokai', `あの世からだ。……おまえと同じだ`, `From the other side. ...Just like you.`),
+    L('akari', `わたしと、同じ……。じゃあ、いなくなったのは——`, `Just like me... Then the one who disappeared was—`, 'sad'),
+    L('kon', `灯、その先は宵山で聞くコン。百鬼の祭りが、呼んでるコン`, `Akari, ask the rest at the demon festival, kon. It's calling us, kon.`),
+  ] },
+  // ── 第三の世界 百鬼の宵山: 真相
+  { w: 3, scene: { ja: `妖怪たちの夜祭り、百鬼の宵山。トラが、いつもの屋台で待っていた。`, en: `The Night of a Hundred Demons. Tora is waiting at the usual stall.` }, lines: [
+    L('tora', `もう分かったろう。いなくなったのは、じいちゃんじゃない。おまえのほうだ`, `You understand now. It wasn't your grandpa who went missing. It was you.`),
+    L('akari', `……うん。ほんとは、ずっと前から知ってた`, `...Yeah. Deep down, I always knew.`, 'sad'),
+    L('kon', `灯……`, `Akari...`),
+    L('akari', `じゃあ、なんでわたし、帰らないで逃げてるの？`, `Then why do I keep running instead of going home?`, 'sad'),
+    L('tora', `それは、この祭りの主に聞くといい`, `Ask the master of this festival.`),
+  ] },
+  { w: 3, scene: { ja: `秘伝帳の、終わり近くの頁。`, en: `A page near the end of the notebook.` }, lines: [
+    L('note', `盆の三日だけ、あの子は帰ってくる。帰り道を、今年も空に描く`, `For the three days of Obon, she comes home. This year again, I'll draw her way home in the sky.`),
+    L('akari', `一筆花火は、わたしの帰り道だったんだ`, `Hitofude Hanabi was my way home.`, 'sad'),
+    L('kon', `じゃあ、花火をたどれば帰れるコン！`, `Then just follow the fireworks home, kon!`),
+    L('akari', `なのに、いつも届かないの。なんでだろう`, `But I never reach it. Why?`, 'sad'),
+    L('kon', `……灯が、うしろの火から逃げてるからコン`, `...Because you keep running from the fire behind you, kon.`),
+  ] },
+  { w: 3, scene: { ja: `宵山の行列から、次の大一番の妖怪が顔を出した。`, en: `From the demon parade, the next boss yokai peers out.` }, lines: [
+    L('yokai', `祭りを終わらせるな、と、わしらに頼んだのは誰だと思う`, `Who do you think asked us never to let the festival end?`),
+    L('kon', `犯人はトラコン！ ねこはあやしいコン！`, `It was Tora, kon! Cats are always suspicious, kon!`),
+    L('tora', `わたしじゃないよ`, `Not me.`),
+    L('akari', `……待って。まさか`, `...Wait. No way.`, 'surprise'),
+  ] },
+  { gate: 'b3', scene: { ja: `大一番に負けた妖怪が、灯の前にひざをついた。`, en: `The yokai you beat kneels before Akari.` }, lines: [
+    L('yokai', `おまえだ、灯。「帰さないで。帰ったら、じいちゃんが泣くから」と`, `It was you, Akari. "Don't send me home. If I go back, Grandpa will cry."`),
+    L('akari', `……だって、わたしが手を放したから。じいちゃんは、ひとりになったんだもん`, `...Because I let go of his hand. And he ended up all alone.`, 'sad'),
+    L('kon', `ちがうコン！ じいちゃんは、泣くために待ってるんじゃないコン`, `No, kon! He isn't waiting so he can cry, kon.`),
+    L('akari', `コン……？`, `Kon...?`, 'surprise'),
+    L('kon', `灯に会うために、待ってるコン`, `He's waiting so he can see you, kon.`),
+  ] },
+  { w: 3, scene: { ja: `灯の線のうしろで、あの火が、今夜もゆらゆら燃えている。`, en: `Behind Akari's line, that flame flickers again tonight.` }, lines: [
+    L('tora', `あの火はね、じいちゃんの迎え火なんだよ`, `That flame is your grandpa's welcoming fire.`),
+    L('akari', `わたしを捕まえに来てたんじゃ、ないの？`, `It wasn't coming to catch me?`, 'surprise'),
+    L('tora', `迎えに来ていたんだ。毎年、毎晩ね`, `It was coming to bring you home. Every year. Every night.`),
+    L('kon', `やっぱり、あったかいにおいだったコン`, `I knew it smelled warm, kon.`),
+    L('akari', `……わたし、ずっと、じいちゃんから逃げてたんだ`, `...So I've been running from Grandpa all along.`, 'sad'),
+  ] },
+  { w: 3, scene: { ja: `秘伝帳の、最後の頁。`, en: `The last page of the notebook.` }, lines: [
+    L('note', `あの子が帰ってきたら、言うことは決めてある。叱らない。ひとことだけだ`, `When she comes home, I know what I'll say. No scolding. Just one word.`),
+    L('kon', `ひとことって、なにコン？ 「ごはんできたよ」コン？`, `One word? Like "Dinner's ready," kon?`),
+    L('akari', `それは、コンが言われたいことでしょ`, `That's what YOU want to hear.`, 'smile'),
+    L('akari', `……でも、なんて言ってくれるのかな`, `...But I wonder what he'll say.`, 'smile'),
+    L('kon', `聞きに行くコン、灯！`, `Let's go find out, Akari, kon!`),
+  ] },
+  { w: 3, scene: { ja: `最後の夜の前。トラが、屋台の灯りを消した。`, en: `Before the last night, Tora puts out the stall lantern.` }, lines: [
+    L('tora', `「振り返るな」はね、火から逃げろって意味じゃない。後ろを気にせず、まっすぐ帰っておいで、って意味さ`, `"Don't look back" never meant "run from the fire." It meant: don't worry about what's behind you. Come straight home.`),
+    L('akari', `……うん。こんどは、逃げない`, `...Okay. This time, I won't run.`, 'joy'),
+    L('kon', `コンも、いっしょに帰るコン！`, `I'm coming home with you, kon!`),
+    L('tora', `いっておいで。最後の一筆だ`, `Go on. One last stroke.`),
+  ] },
+  // ── 結末: 祭りを大団円で終えたときだけ（runOver）
+  { gate: 'r3', end: 1, scene: { ja: `最後の花火が消えたとき、追ってきた火が、灯の手にそっと触れた。`, en: `As the last firework fades, the flame that followed her gently touches Akari's hand.` }, lines: [
+    L('hinoko', `やっと、追いついた。……おかえり、灯`, `Finally, I caught up. ...Welcome home, Akari.`),
+    L('akari', `ただいま、じいちゃん`, `I'm home, Grandpa.`, 'laugh'),
+    L('kon', `……コンの役目も、おしまいコン`, `...Guess my job is done, kon.`),
+    L('akari', `え……？`, `Huh...?`, 'surprise'),
+    L('kon', `コンはね、じいちゃんが灯のために詰めた、赤い玉の火の子だったコン。灯を、ひとりにしないように`, `I was the spark from the red shell Grandpa packed for you, kon. So you'd never be alone.`),
+    L('akari', `……ありがとう、コン`, `...Thank you, Kon.`, 'laugh'),
+  ], tail: { ja: `トラ「また来年の盆に、おいで」`, en: `Tora: "Come again next Obon."` } },
 ];
 export const TALE_N = TALE.length;
 
-// 声のファイル名: 灯の返しの本文から（台詞を直すと名前が変わり、古い声は使われない）
-export function voiceKey(text) { let h = 0; for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0; return 'a' + (h >>> 0).toString(36); }
+// ボス戦の会話（カットイン）。intro は世界ごとの大一番（b）・大妖怪（r）の始まり、atk は攻めが決まったとき、hurt はやられたとき
+export const BATTLE = {
+  intro: {
+    b1: [L('akari', `なにあれ、顔こわっ！`, `Whoa, that face is scary!`, 'surprise'), L('kon', `灯、コンのうしろに隠れていいコン！`, `Hide behind me, Akari, kon!`)],
+    b2: [L('akari', `寒っ……！ でも、火は消えないよ！`, `So cold...! But my fire won't go out!`, 'angry'), L('kon', `コンの尻尾で、あっためるコン！`, `I'll warm you up with my tail, kon!`)],
+    b3: [L('akari', `もう逃げない。正面から行く！`, `No more running. Straight at it!`, 'angry'), L('kon', `灯、かっこいいコン！`, `Akari, you're so cool, kon!`)],
+    r1: [L('akari', `でっか……！`, `It's huge...!`, 'surprise'), L('kon', `でも、花火のほうがでっかいコン！`, `But fireworks are huger, kon!`)],
+    r2: [L('akari', `ここで負けたら、じいちゃんに会えない！`, `If I lose here, I'll never see Grandpa!`, 'angry'), L('kon', `灯、いくコン！`, `Let's go, Akari, kon!`)],
+    r3: [L('akari', `これが最後。いっしょに行こう、コン！`, `This is the last one. Come with me, Kon!`, 'angry'), L('kon', `どこまでも、いっしょだコン！`, `Anywhere, together, kon!`)],
+  },
+  atk: [
+    L('akari', `いっけええ！`, `Gooo!`, 'angry'), L('kon', `コーーン！`, `Koooon!`),
+    L('akari', `これでどうだ！`, `Take that!`, 'angry'), L('kon', `灯、かっこいいコン！`, `So cool, Akari, kon!`),
+    L('akari', `花火は、まだまだあるよ！`, `I've got plenty more fireworks!`, 'joy'),
+  ],
+  hurt: [
+    L('akari', `きゃっ……！`, `Kyah...!`, 'hurt'), L('kon', `灯！ けが、ないコン！？`, `Akari! Are you okay, kon!?`),
+    L('akari', `いったぁ……！`, `Owww...!`, 'hurt'), L('kon', `よくも灯を！ ゆるさないコン！`, `How dare you hurt Akari, kon!`),
+    L('akari', `まだ……負けない！`, `I'm... not done yet!`, 'hurt'),
+  ],
+};
+
+// 声のファイル名: 話し手と本文から（台詞を直すと名前が変わり、古い声は使われない）
+export function voiceKey(who, text) { const s = who + '|' + text; let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'v' + (h >>> 0).toString(36); }
+export const VOICED = new Set(['akari', 'kon', 'hinoko']);
 
 // 次に読む頁。読める条件がそろっていなければ null。gates = これまでに勝った相手 { b1: 'kamaitachi', r1: ..., }
 export function nextPage(read, gates, world, opts = {}) {
   const p = TALE[read]; if (!p) return null;
-  if (p.end && !opts.end) return null;
-  if (!p.end && opts.end) return null;
+  if (!!p.end !== !!opts.end) return null;
   if (p.gate && !gates[p.gate]) return null;
   if (p.w && world < p.w) return null;
   return p;

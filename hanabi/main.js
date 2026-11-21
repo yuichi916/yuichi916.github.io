@@ -13,7 +13,7 @@ import { THEMES } from './levels.js';
 import { drawCast, CAST } from '../assets/hitofude/cast.js';
 import { track, share, canShare } from './track.js';
 import * as Mem from './memory.js';
-import { TALE, TALE_N, voiceKey, nextPage, lockReason } from './tale.js';
+import { TALE, TALE_N, BATTLE, VOICED, voiceKey, nextPage, lockReason } from './tale.js';
 import { cleanName } from '../assets/hitofude/names.js';
 
 const $ = (id) => document.getElementById(id);
@@ -210,11 +210,12 @@ function openBook() {
       e.append(cv, t); nodes.push(e);
     }
     nodes.push(ch); list.prepend(...nodes); }
-  // 灯の物語: 読んだ頁。まだの頁は数だけ
+  // 灯の物語: 読んだ頁（情景とかけあい。灯とコンの行は押すと声）。まだの頁は数だけ
   { const T = taleRec(), th = document.createElement('div'); th.className = 'bookhead'; th.textContent = tr(`灯の物語 ${T.n} / ${TALE_N}`, `Akari's Story ${T.n} / ${TALE_N}`); const nodes = [th];
-    TALE.slice(0, T.n).forEach((p, i) => { const e = document.createElement('div'); e.className = 'bookitem tl'; const id = taleCast(p);
-      e.innerHTML = `<img src="tale/img/akari_${p.a.face}.webp" alt=""><div><b>${i + 1}. ${taleName(p, id)}</b>${JA() ? `「${p.ja}」` : `"${p.en}"`}<span class="me">${tr('灯', 'Akari')}${JA() ? `「${p.a.ja}」` : ` "${p.a.en}"`}</span></div>`;
-      e.onclick = () => talePlay(JA() ? p.a.ja : p.a.en); nodes.push(e); });
+    TALE.slice(0, T.n).forEach((p, i) => { const e = document.createElement('div'); e.className = 'bookitem tl';
+      e.innerHTML = `<div><b>${i + 1}. ${JA() ? p.scene.ja : p.scene.en}</b></div>`;
+      for (const ln of p.lines) { const r = document.createElement('div'); r.className = 'bkln ' + ln.w; r.innerHTML = `<i>${taleLineName(ln.w, p, taleCast({ who: ln.w, gate: p.gate, w: p.w }))}</i>${JA() ? ln.ja : ln.en}`; if (VOICED.has(ln.w)) r.onclick = (ev) => { ev.stopPropagation(); talePlay(ln.w, JA() ? ln.ja : ln.en); }; e.firstChild.append(r); }
+      nodes.push(e); });
     if (T.n < TALE_N) { const e = document.createElement('div'); e.className = 'bookitem locked'; e.innerHTML = `<span class="seal">・</span><div><b>？？？</b>${taleHint() || tr('夜を越えると、続きが読める', 'Clear a night to read on')}</div>`; nodes.push(e); }
     list.prepend(...nodes); }
   // 技帳: 妖怪ごとの技と、取った回数 / 挑んだ回数
@@ -344,6 +345,7 @@ function startNight(resume = null) {
   for (const z of S.st.zones) { const e = document.createElement('div'); e.className = 'zl ' + z.kind; e.innerHTML = z.kind === 'oil' ? tr('油<small>火が速い・点 ×3</small>', 'OIL<small>fast flame, POINTS ×3</small>') : tr('水<small>火が遅い</small>', 'WATER<small>slow flame</small>'); e.style.left = (z.x / W) * 100 + '%'; e.style.top = (z.y / H) * 100 + '%'; zl.append(e); }
   // 大一番
   const boss = $('boss');
+  if (!resume && (def.raid || def.rule)) battleIntro(def);
   if (def.raid) { raidIntro(def, run, resume); if (!resume) ykMeet(def.raid.cast, 3200); }
   else if (def.rule) {
     const r = Run.RULES[def.rule];
@@ -732,7 +734,7 @@ function openInter(def, st, stars, rw, interest, gain) {
   $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT'); $('shopQuit').textContent = tr('やめる（保存）', 'Quit (saved)');
   renderShop(); previewShop(); openGift(); PF.ad();
   // 夜明けの頁: 続きがあれば 1 頁（11/21 依頼主「一夜終わった後に徐々にストーリーや主人公が明らかになって先が気になるように」）
-  { const T = taleRec(), tp = run.endless ? null : nextPage(T.n, T.g, def.world);
+  { const T = taleRec(), tp = run.endless || !talkOn() ? null : nextPage(T.n, T.g, def.world);
     if (tp) openTale(tp, () => { if (lite && S.mode === 'inter') autoNext(4); }, { delay: def.boss ? 300 : 500 });
     else if (lite) autoNext(4); } // 11/19: 30 秒以上遊んだ人の 4 割が 1〜2 分で帰る（第 1 夜のあとの「次の夜へ」で止まる）
   countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
@@ -1299,7 +1301,7 @@ function runOver(won) {
       if (!won && nb && d > 0 && (!prevBest || prevBest < nb)) bits.push(tr(`大一番（第 ${nb} 夜）まで あと ${d} 夜`, `${d} more to the boss (night ${nb})`));
       return bits.length ? `<small class="cmp">${bits.map((x) => `<span>${x}</span>`).join('')}</small>` : '';
     })()) + (sub ? `<small>${sub}</small>` : '') + (!won && S.st ? `<small class="hint">${lossHint()}</small>` : '') + (mercy ? `<small class="mercy">${(JA() ? ME.body.ja : ME.body.en).split('\n').join('<br>')}</small>` : '');
-  if (!won && !run.endless) { const th = taleHint(); if (th) $('ovNights').insertAdjacentHTML('beforeend', `<small class="talehint">${th}</small>`); }
+  if (!won && !run.endless && talkOn()) { const th = taleHint(); if (th) $('ovNights').insertAdjacentHTML('beforeend', `<small class="talehint">${th}</small>`); }
   const sp = Object.values(run.spells || {}), spT = sp.reduce((a, x) => a + x.t, 0), spG = sp.reduce((a, x) => a + x.g, 0);
   meta.bestScore = Math.max(meta.bestScore || 0, run.totalScore);
   PF.lbSet(run.totalScore);
@@ -1332,7 +1334,7 @@ Draw the fuse. The flame is right behind you. #HitofudeHanabi`;
   // 24 夜を越えたら、そのまま千秋楽（終わらない祭り）へ続けられる
   const en = $('ovEndless'); en.classList.toggle('hidden', !(won && !run.endless)); en.textContent = tr('千秋楽へ（まだ続ける）', 'ENCORE: keep going');
   S.taleEnd = null;
-  if (won && !run.endless) { const T = taleRec(), tp = nextPage(T.n, T.g, Run.WORLDS.length, { end: 1 }); if (tp) { S.taleEnd = tp; setTimeout(() => { if (S.mode === 'over') openTale(tp, null, { end: 1 }); }, 2600); } }
+  if (won && !run.endless && talkOn()) { const T = taleRec(), tp = nextPage(T.n, T.g, Run.WORLDS.length, { end: 1 }); if (tp) { S.taleEnd = tp; setTimeout(() => { if (S.mode === 'over') openTale(tp, null, { end: 1 }); }, 2600); } }
   // 偽の大団円: 明かし 3 を見たあとに勝つと、題が燃えて問いに変わり、ボタンが「帰る」「帰らない」になる
   if (won && !run.endless && !mercy && lore() >= 3 && !S.taleEnd) {
     loreUp(4); const tt = $('ovTitle');
@@ -1367,12 +1369,14 @@ function openPause() {
     $('pzMusic').textContent = tr(`音楽 ${DB.music ? 'ON' : 'OFF'}`, `Music ${DB.music ? 'ON' : 'OFF'}`);
     $('pzLang').textContent = JA() ? 'English' : '日本語';
     $('pzTouch').textContent = tr(`指の操作：${['ふつう', '先を上に', '先をもっと上に'][touchMode()]}`, `Touch: ${['normal', 'tip above finger', 'tip far above'][touchMode()]}`);
+    $('pzTalk').textContent = tr(`物語と会話 ${talkOn() ? 'ON' : 'OFF'}`, `Story & talk ${talkOn() ? 'ON' : 'OFF'}`);
     $('pzHaptic').textContent = tr(`振動 ${DB.haptic === false ? 'OFF' : 'ON'}`, `Vibration ${DB.haptic === false ? 'OFF' : 'ON'}`); $('pzHaptic').classList.toggle('hidden', !navigator.vibrate);
   };
   lab();
   $('pzSound').onclick = () => { DB.sound = !DB.sound; applySound(); save(); lab(); };
   $('pzMusic').onclick = () => { DB.music = !DB.music; applySound(); save(); lab(); };
   $('pzTouch').onclick = () => { DB.touchMode = (touchMode() + 1) % 3; save(); lab(); };
+  $('pzTalk').onclick = () => { DB.talk = !talkOn(); save(); lab(); };
   $('pzHaptic').onclick = () => { DB.haptic = DB.haptic === false; save(); lab(); buzz(20); };
   $('pzLang').onclick = () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); openPause(); };
   renderHeld($('pzHeld'), false);
@@ -1612,33 +1616,85 @@ function taleHint() {
   if (L.kind === 'raid') return tr(`灯の物語のつづきは、「${W.ja}」の大妖怪を討つと読める`, `Defeat the great yokai of ${W.en} to read on in Akari's story`);
   return w >= L.w ? '' : tr(`灯の物語のつづきは、「${W.ja}」まで進むと読める`, `Reach ${W.en} to read on in Akari's story`);
 }
+const talkOn = () => DB.talk !== false;
 let taleVoice = null;
-function talePlay(text) {
-  try { taleVoice?.pause(); if (!DB.sound || PF.muted || S.adPause) return; taleVoice = new Audio(`tale/voice/${voiceKey(text)}.mp3`); taleVoice.volume = 1; taleVoice.play().catch(() => {}); audio.duck(4, 0.4); } catch { /* 声が無くても読める */ }
+// 声を鳴らす。鳴った長さ（秒）を返す Promise（鳴らせなければ 0）
+function talePlay(who, text) {
+  return new Promise((res) => {
+    try { taleVoice?.pause(); if (!VOICED.has(who) || !DB.sound || PF.muted || S.adPause) return res(0);
+      const v = taleVoice = new Audio(`tale/voice/${voiceKey(who, text)}.mp3`); v.volume = 1;
+      v.onended = () => res(v.duration || 0); v.onerror = () => res(0); v.play().then(() => audio.duck(Math.max(1.5, (v.duration || 2) + 0.4), 0.4)).catch(() => res(0));
+    } catch { res(0); }
+  });
+}
+// 話し手の小さい絵（灯は顔・コンは顔・トラと妖怪は絵・帳は「帳」・火は光）
+function taleIcon(who, f, id) {
+  const ic = document.createElement('span'); ic.className = 'tl-ic ' + who;
+  if (who === 'akari' || who === 'mem') { const im = new Image(); im.src = `tale/img/akari_${who === 'mem' ? 'sad' : f || 'smile'}.webp`; im.alt = ''; ic.append(im); }
+  else if (who === 'kon') { const im = new Image(); im.src = 'tale/img/kon_face.webp'; im.alt = ''; ic.append(im); }
+  else if (id) { const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128; try { drawCast(cv.getContext('2d'), id, 64, 72, 92, { face: who === 'tora' ? 'idle' : 'taunt', still: true, glow: false }); } catch { /* 絵が無くても読める */ } ic.append(cv); }
+  else if (who === 'note') ic.textContent = '帳';
+  return ic;
+}
+function taleLineName(who, p, id) {
+  if (who === 'akari') return tr('灯', 'Akari'); if (who === 'kon') return tr('コン', 'Kon');
+  return taleName({ who, gate: p.gate, w: p.w }, id);
 }
 function openTale(p, done, opts = {}) {
   const T = taleRec(), idx = TALE.indexOf(p), el = $('tale'); if (!el || idx < 0) { done?.(); return; }
   T.n = Math.max(T.n, idx + 1); save(); PF.ev('tale', { n: idx + 1 }); track(`tale/${idx + 1}`);
+  el.lang = JA() ? 'ja' : 'en'; // 日本語の折り返し（word-break: auto-phrase）は lang が ja のときだけ効く
   $('tlHead').textContent = tr(`灯の物語　${idx + 1} / ${TALE_N}`, `Akari's Story  ${idx + 1} / ${TALE_N}`);
-  const id = taleCast(p), ic = $('tlIcon'); ic.className = 'tl-icon ' + p.who; ic.innerHTML = '';
-  if (id) { const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128; try { drawCast(cv.getContext('2d'), id, 64, 72, 92, { face: p.who === 'tora' ? 'idle' : p.gate ? 'sad' : 'taunt', still: true, glow: false }); } catch { /* 絵が無くても読める */ } ic.append(cv); }
-  else if (p.who === 'note') ic.textContent = '帳';
-  else if (p.who === 'mem') { const im = new Image(); im.src = 'tale/img/akari_sad.webp'; im.alt = ''; ic.append(im); }
-  $('tlName').textContent = taleName(p, id); $('tlLine').textContent = JA() ? p.ja : p.en;
-  const reply = JA() ? p.a.ja : p.a.en;
-  $('tlFace').src = `tale/img/akari_${p.a.face}.webp`; $('tlMe').textContent = tr('灯', 'Akari'); $('tlReply').textContent = reply;
-  $('tlTail').textContent = p.tail ? (JA() ? p.tail.ja : p.tail.en) : '';
-  $('tlNext').textContent = tr('さわって つづける', 'Tap to continue');
-  el.classList.remove('hidden', 'me', 'out', 'in'); el.classList.toggle('end', !!p.end); el.classList.toggle('first', idx === 0);
-  const t0 = performance.now(); let stage = 0, tm = 0;
-  const showMe = () => { if (stage) return; stage = 1; el.classList.add('me'); talePlay(reply); };
-  const start = () => { if (S.adPause) { tm = setTimeout(start, 300); return; } el.classList.add('in'); tm = setTimeout(showMe, (opts.end ? 1900 : 1200)); };
+  $('tlScene').textContent = JA() ? p.scene.ja : p.scene.en;
+  const log = $('tlLog'); log.innerHTML = '';
+  $('tlTail').textContent = ''; $('tlNext').textContent = '';
+  const off = $('tlOff'); off.textContent = tr('物語を出さない', 'Hide story'); off.onclick = (e) => { e.stopPropagation(); DB.talk = false; save(); close(); };
+  el.classList.remove('hidden', 'done', 'out', 'in'); el.classList.toggle('end', !!p.end); el.classList.toggle('first', idx === 0);
+  const yid = taleCast({ who: 'yokai', gate: p.gate, w: p.w });
+  let i = 0, tm = 0, closed = false, finished = false, tok = 0;
+  const finish = () => { finished = true; el.classList.add('done'); $('tlTail').textContent = p.tail ? (JA() ? p.tail.ja : p.tail.en) : ''; $('tlNext').textContent = tr('さわって つづける', 'Tap to continue'); };
+  const step = () => {
+    clearTimeout(tm); if (closed) return;
+    if (i >= p.lines.length) { finish(); return; }
+    const ln = p.lines[i++], text = JA() ? ln.ja : ln.en, id = ln.w === 'tora' ? 'neko' : ln.w === 'yokai' ? yid : null;
+    const row = document.createElement('div'); row.className = 'tl-ln ' + ln.w + (ln.w === 'akari' ? ' me' : '');
+    const say = document.createElement('div'); say.className = 'tl-say'; say.innerHTML = `<b></b><span></span>`; say.firstChild.textContent = taleLineName(ln.w, p, id); say.lastChild.textContent = text;
+    row.append(taleIcon(ln.w, ln.f, id), say); log.append(row); log.scrollTop = log.scrollHeight;
+    if (ln.w === 'kon') el.classList.add('konhop'), setTimeout(() => el.classList.remove('konhop'), 520);
+    const my = ++tok, t0 = performance.now(), read = Math.min(3400, 850 + text.length * (JA() ? 70 : 28));
+    talePlay(ln.w, text).then((d) => { if (my !== tok || closed) return; const left = Math.max(d ? 380 : 0, read - (performance.now() - t0)); tm = setTimeout(step, d ? 380 : left); });
+  };
+  const close = () => { if (closed) return; closed = true; clearTimeout(tm); el.onclick = null; S.taleKey = null; taleVoice?.pause(); audio.ui('tap'); el.classList.add('out'); setTimeout(() => { el.classList.add('hidden'); el.classList.remove('out', 'in', 'done'); done?.(); }, 260); };
+  const start = () => { if (S.adPause) { tm = setTimeout(start, 300); return; } el.classList.add('in'); tm = setTimeout(step, opts.end ? 1500 : 900); };
   tm = setTimeout(start, opts.delay ?? 0);
-  const close = () => { clearTimeout(tm); el.onclick = null; S.taleKey = null; taleVoice?.pause(); audio.ui('tap'); el.classList.add('out'); setTimeout(() => { el.classList.add('hidden'); el.classList.remove('out', 'in', 'me'); done?.(); }, 260); };
-  el.onclick = () => { const dt = performance.now() - t0; if (dt < 450 + (opts.delay || 0)) return; if (!stage) { clearTimeout(tm); el.classList.add('in'); showMe(); return; } close(); };
+  const t0 = performance.now();
+  el.onclick = () => { if (performance.now() - t0 < 400 + (opts.delay || 0)) return; if (!el.classList.contains('in')) { clearTimeout(tm); el.classList.add('in'); step(); return; } if (finished) { close(); return; } tok++; taleVoice?.pause(); step(); };
   S.taleKey = () => el.onclick?.();
 }
 addEventListener('keydown', (e) => { if (S.taleKey && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopImmediatePropagation(); S.taleKey(); } }, true);
+
+// ボス戦のカットイン: 始まりの会話・攻めが決まった・やられた。遊びは止めない
+function showCut(ln, kind) {
+  const el = $('cutin'); if (!el || !ln) return; el.lang = JA() ? 'ja' : 'en';
+  const img = ln.w === 'kon' ? 'cut_kon' : kind === 'hurt' || ln.f === 'hurt' ? 'cut_hurt' : ln.f === 'angry' ? 'cut_atk' : `akari_${ln.f || 'smile'}`;
+  $('ciImg').src = `tale/img/${img}.webp`; $('ciName').textContent = ln.w === 'kon' ? tr('コン', 'Kon') : tr('灯', 'Akari'); $('ciLine').textContent = JA() ? ln.ja : ln.en;
+  el.className = `cutin ${kind} ${ln.w}`; void el.offsetWidth; el.classList.add('on');
+  clearTimeout(S.cutHide); S.cutHide = setTimeout(() => el.classList.remove('on'), kind === 'intro' ? 1900 : 1350);
+  talePlay(ln.w, JA() ? ln.ja : ln.en);
+}
+function battleCut(kind) {
+  if (!talkOn() || !S.st || S.mode !== 'play' || S.coach) return;
+  const now = performance.now(); if (now - (S.cutT || 0) < 2600) return; S.cutT = now;
+  // まず灯（やられは痛がる顔・攻めは決めた顔）。コンの一言は 2 回に 1 回、あとから続ける
+  const me = BATTLE[kind].filter((l) => l.w === 'akari'), kon = BATTLE[kind].filter((l) => l.w === 'kon'), k = S.cutI = (S.cutI || 0) + 1;
+  showCut(me[k % me.length], kind);
+  if (k % 2 === 0 && kon.length) { const st = S.st; setTimeout(() => { if (S.st === st && S.mode === 'play' && talkOn()) { S.cutT = performance.now(); showCut(kon[(k / 2) % kon.length], kind); } }, 1450); }
+}
+function battleIntro(def) {
+  if (!talkOn() || def.endless) return; const wr = ((def.world - 1) % 3) + 1, L2 = BATTLE.intro[(def.raid ? 'r' : 'b') + wr]; if (!L2) return;
+  const at = def.raid ? 4300 : 4100;
+  L2.forEach((ln, k) => setTimeout(() => { if (S.st?.level === def && S.mode === 'play' && talkOn()) { S.cutT = performance.now(); showCut(ln, 'intro'); } }, at + k * 2000));
+}
 const once = (k) => { const m = mem(); m.seen ||= {}; if (m.seen[k]) return false; m.seen[k] = 1; save(); return true; };
 // ---- 点を伸ばす技
 const TECHS = [
@@ -1826,6 +1882,7 @@ function handle(ev) {
     case 'gust': audio.gust(1); R.shake = Math.min(14, R.shake + 5); fx.tick(ev.x, ev.y, [2.2, 2.6, 3.2], 34, 330); break;
     case 'brake': fx.tick(ev.x, ev.y, [1.6, 0.9, 0.4], 9, 120); break;
     case 'caught': // 追いつかれた: 一瞬止めて、赤く暗く。火の子が筆先に飛びつく
+      if (st.level?.boss || st.raid) battleCut('hurt');
       audio.ui('caught'); hitStop(110); hurt(); buzz([25, 30, 25]);
       floatText(ev.x, Math.max(H * 0.2, ev.y - 80), st.raid ? tr('追いつかれた！ 追撃なし', 'Caught! No finisher') : tr('追いつかれた！ 点 ½', 'Caught! POINTS ½'), 'caught', 40);
       caughtGuide(ev);
@@ -1980,19 +2037,19 @@ function handle(ev) {
       } });
       break;
     }
-    case 'raidBreak':
+    case 'raidBreak': battleCut('atk');
       S.seq.push({ at: 0.6, f: () => {
         banner(`${tr('魂を砕いた！', 'SOUL BROKEN!')}<small>${tr(`ひるんだ ・ 反撃なし ・ 魂 のこり ${3 - ev.n}`, `It staggers · no counter · ${3 - ev.n} left`)}</small>`, 66, 2000, 'ihen');
         audio.boom(2.8, 0); R.shake = 26; R.flash = Math.max(R.flash, 0.45); hitStop(140); if (S.raidV) { S.raidV.face = 'sad'; S.raidV.faceT = 1.6; }
         for (let i = 0; i < 8; i++) S.seq.push({ at: i * 0.09, f: () => fx.burst(i % 2 ? 'ring' : 'peony', ev.x + Math.cos(i * 0.8) * 100, ev.y + Math.sin(i * 0.8) * 80, 130, 'kin', 1) });
       } });
       break;
-    case 'raidCounter': if (S.raidV) { S.raidV.lifeHold = true; S.seq.push({ at: 0.95, f: () => { if (S.raidV) { S.raidV.atk = 0.001; S.raidV.face = 'taunt'; } } }); } break;
+    case 'raidCounter': if (S.raidV) { S.raidV.lifeHold = true; S.seq.push({ at: 0.95, f: () => { if (S.raidV) { S.raidV.atk = 0.001; S.raidV.face = 'taunt'; } } }); S.seq.push({ at: 1.15, f: () => battleCut('hurt') }); } break;
     case 'raidMove': break;
     case 'raidSpd': if (ev.spd >= 2) floatText(ev.x, ev.y - 30, `×${ev.spd.toFixed(1)}`, ev.spd >= 2.6 ? 'gold' : 'raidhit', ev.spd >= 2.6 ? 22 : 18, 520); break;
     case 'raidScatter': for (const [x, y] of ev.pts) fx.tick(x, y, [2.6, 1.5, 0.5], 14, 90); break;
     case 'raidDown': raidFinale(ev); break;
-    case 'raidBurn':
+    case 'raidBurn': battleCut('hurt');
       audio.ui('caught'); hitStop(120); hurt(); buzz([25, 30, 25]);
       floatText(ev.x, Math.max(H * 0.2, ev.y - 80), tr('焼かれた！', 'Burned!'), 'caught', 44);
       fx.tick(ev.x, ev.y, [2.8, 0.7, 0.1], 70, 300); R.shake = Math.min(16, R.shake + 8); kick(ev.x, ev.y, 10);
@@ -2573,5 +2630,5 @@ function ihenFrame(dt) {
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, openRank, openPgRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext };
+window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, openRank, openPgRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext, battleCut: (k) => battleCut(k), showCut: (l, k) => showCut(l, k), BATTLE };
 boot();
