@@ -363,7 +363,9 @@ function startNight(resume = null) {
   if (tw && $('teach').classList.contains('hidden')) { const el = $('teach'); el.innerHTML = `<em>${JA() ? tw.ja : tw.en}</em> ${JA() ? tw.dj : tw.de}`; el.classList.remove('hidden'); }
   audio.scene('calm');
 }
-function renderLives() { const r = S.run, el = $('lives'); el.dataset.name = lore() >= 1 ? tr('灯', 'Akari') : ''; el.innerHTML = ''; const max = Math.max(r.lives, r.rank >= 6 ? 1 : r.rank >= 4 ? 2 : 3); for (let i = 0; i < max; i++) { const b = document.createElement('i'); if (i >= r.lives) b.className = 'out'; el.append(b); } }
+function renderLives() { const r = S.run, el = $('lives'); el.dataset.name = lore() >= 1 ? tr('灯', 'Akari') : ''; el.innerHTML = ''; const max = Math.max(r.lives, r.rank >= 6 ? 1 : r.rank >= 4 ? 2 : 3); for (let i = 0; i < max; i++) { const b = document.createElement('i'); if (i >= r.lives) b.className = 'out'; el.append(b); }
+  // 何回まで負けられるか（11/21）: 灯が 0 になったら周がおわる＝やり直せるのは 灯 − 1 回
+  const left = r.lives - 1; el.dataset.cap = left > 0 ? tr(`やり直しあと${left}`, `${left} ${left > 1 ? 'retries' : 'retry'} left`) : tr('次で最後', 'Last try'); el.classList.toggle('last', left <= 0); }
 // 腕の欄: 星の値（星屑 1 粒の値）と、かすりの数
 function renderTech(bumpPv) {
   const st = S.st; if (!st) return;
@@ -563,6 +565,7 @@ const st0HasType = (t) => !!S.st?.shells.some((s) => s.type === t);
 function renderStrokes() {
   const st = S.st, el = $('strokes'); el.innerHTML = '';
   for (let i = 0; i < st.maxStrokes; i++) { const b = document.createElement('b'); if (i >= st.strokesLeft) b.className = 'used'; el.append(b); }
+  el.dataset.cap = tr(`一筆あと${st.strokesLeft}`, `${st.strokesLeft} ${st.strokesLeft === 1 ? 'stroke' : 'strokes'}`);
   if (st.raid && S.raidV && !S.raidV.lifeHold) { S.raidV.life = st.strokesLeft; renderLife(); }
 }
 function bagEl(c, size = 84) {
@@ -849,7 +852,7 @@ function retryNight() {
   const lv = def0(), mc = lv ? Run.mercyFor(S.run, lv.world, lv.boss) : 1, off = Math.round((1 - mc) * 100);
   S.coach = { line: coachLine() + (off > 0 ? `<small>${tr(`おまけで、目標を ${off}% 下げといたニャ`, `I lowered the target by ${off}% for you.`)}</small>` : ''), st: null };
   if (off > 0) PF.ev('mercy', { off });
-  banner(`${tr('灯がひとつ消えた', 'A light goes out')}<small>${miss}${tr(`もう一度、この夜を。残り ${S.run.lives}`, `Try this night again. ${S.run.lives} left`)}</small>`, 56, 2400);
+  banner(`${tr('灯がひとつ消えた', 'A light goes out')}<small>${miss}${(S.run.lives > 1 ? tr(`もう一度、この夜を。やり直せるのは あと ${S.run.lives - 1} 回`, `Try this night again. ${S.run.lives - 1} more ${S.run.lives > 2 ? 'retries' : 'retry'} after this`) : tr('もう一度、この夜を。<b>次に負けたら おしまい</b>', 'Try this night again. <b>Lose again and the run ends</b>'))}</small>`, 56, 2400);
   audio.ui('lose'); hurt();
   // 待たせすぎない: 2.4 秒で自動（惜しさと一言を読める長さ）、0.6 秒すぎたら触れればすぐ
   S.retryAt = performance.now();
@@ -2262,7 +2265,9 @@ function hintFx(dt) {
   let hx = a0.x, hy = a0.y, sc = 1;
   if (c < 0.7) sc = 1 - 0.16 * Math.min(1, c / 0.35);
   else if (c < 3.3) { const u0 = (c - 0.7) / 2.6, u = u0 * u0 * (3 - 2 * u0), seg = u * (P.length - 1), i = Math.min(P.length - 2, Math.floor(seg)), f = seg - i, a = P[i], b = P[i + 1]; hx = a.x + (b.x - a.x) * f; hy = a.y + (b.y - a.y) * f; sc = 0.84; fx.add(hx, hy, 0, 0, 0.6, 6, 0, 0, [2.6, 2, 1], [1, 0.4, 0.1], 1.4); }
-  else if (c < 3.9) { const e = P[P.length - 1]; hx = e.x; hy = e.y - Math.min(1, (c - 3.3) / 0.3) * 26; sc = 1; if (pc < 3.3) P.forEach((s, i) => S.seq.push({ at: 0.05 + i * 0.09, f: () => { if (S.st === st && st.phase === 'aim') fx.tick(s.x, s.y, PALETTES[s.type]?.[1] || [1, 1, 0.8], 12, 150); } })); }
+  else if (c < 3.9) { const e = P[P.length - 1]; hx = e.x; hy = e.y - Math.min(1, (c - 3.3) / 0.3) * 26; sc = 1; if (pc < 3.3) { P.forEach((s, i) => S.seq.push({ at: 0.05 + i * 0.09, f: () => { if (S.st === st && st.phase === 'aim') fx.tick(s.x, s.y, PALETTES[s.type]?.[1] || [1, 1, 0.8], 12, 150); } }));
+      // はじめての人には、遊ぶとどうなるかを先に見せる: なぞった玉の上の空で、順に花火がひらく（あとの玉ほど大きい＝つなぐほど大きい）。盤の玉には触らない
+      if (!coach) P.forEach((s, i) => S.seq.push({ at: 0.2 + i * 0.2, f: () => { if (S.st !== st || st.phase !== 'aim' || st.strokesUsed) return; const y = Math.max(H * 0.26, s.y - 120 - i * 14); fx.burst(i === P.length - 1 ? 'chrys' : 'peony', s.x, y, 30 + i * 13, s.type, i === P.length - 1 ? 1 : 0); } })); } }
   else { hand.classList.add('hidden'); return; }
   hand.classList.remove('hidden'); hand.style.left = ((hx - (S.pan || 0)) / W) * 100 + '%'; hand.style.top = (hy / H) * 100 + '%'; hand.style.transform = `translate(-30%, -8%) scale(${sc})`;
 }
