@@ -244,7 +244,7 @@ def render_works_parts(d: dict) -> dict:
 def works_jsonld(d: dict) -> str:
     def url(h):
         return h if is_ext(h) else SITE + h
-    els = [{"@type": "ListItem", "position": k + 1, "name": i["title"], "url": url(i["href"])}
+    els = [{"@type": "ListItem", "position": k + 1, "name": i["title"], "url": url(i.get("page") or i["href"])}
            for k, i in enumerate(x for x in d["items"] if not is_ext(x["href"]))]
     g = {"@context": "https://schema.org", "@graph": [
         {"@type": "CollectionPage", "@id": SITE + "works.html#page", "url": SITE + "works.html",
