@@ -84,6 +84,8 @@ def main() -> int:
             (stage / "ch" / p.name).write_text(s, encoding="utf-8")
     if (SRC / "art").is_dir():
         shutil.copytree(SRC / "art", stage / "art")
+    if (SRC / "tale").is_dir():  # 夜明けの頁: 灯の顔絵・立ち絵・声
+        shutil.copytree(SRC / "tale", stage / "tale")
 
     # 使うものだけ（絵と音）
     (stage / "assets" / "hitofude" / "bgm").mkdir(parents=True)

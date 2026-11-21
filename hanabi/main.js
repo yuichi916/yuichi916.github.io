@@ -13,6 +13,7 @@ import { THEMES } from './levels.js';
 import { drawCast, CAST } from '../assets/hitofude/cast.js';
 import { track, share, canShare } from './track.js';
 import * as Mem from './memory.js';
+import { TALE, TALE_N, voiceKey, nextPage, lockReason } from './tale.js';
 import { cleanName } from '../assets/hitofude/names.js';
 
 const $ = (id) => document.getElementById(id);
@@ -209,6 +210,13 @@ function openBook() {
       e.append(cv, t); nodes.push(e);
     }
     nodes.push(ch); list.prepend(...nodes); }
+  // 灯の物語: 読んだ頁。まだの頁は数だけ
+  { const T = taleRec(), th = document.createElement('div'); th.className = 'bookhead'; th.textContent = tr(`灯の物語 ${T.n} / ${TALE_N}`, `Akari's Story ${T.n} / ${TALE_N}`); const nodes = [th];
+    TALE.slice(0, T.n).forEach((p, i) => { const e = document.createElement('div'); e.className = 'bookitem tl'; const id = taleCast(p);
+      e.innerHTML = `<img src="tale/img/akari_${p.a.face}.webp" alt=""><div><b>${i + 1}. ${taleName(p, id)}</b>${JA() ? `「${p.ja}」` : `"${p.en}"`}<span class="me">${tr('灯', 'Akari')}${JA() ? `「${p.a.ja}」` : ` "${p.a.en}"`}</span></div>`;
+      e.onclick = () => talePlay(JA() ? p.a.ja : p.a.en); nodes.push(e); });
+    if (T.n < TALE_N) { const e = document.createElement('div'); e.className = 'bookitem locked'; e.innerHTML = `<span class="seal">・</span><div><b>？？？</b>${taleHint() || tr('夜を越えると、続きが読める', 'Clear a night to read on')}</div>`; nodes.push(e); }
+    list.prepend(...nodes); }
   // 技帳: 妖怪ごとの技と、取った回数 / 挑んだ回数
   const sp = DB.meta.spells || {};
   const sh = document.createElement('div'); sh.className = 'bookhead'; sh.textContent = tr(`技帳 ${Object.values(sp).filter((x) => x.g > 0).length} / 24`, `Techniques ${Object.values(sp).filter((x) => x.g > 0).length} / 24`); list.append(sh);
@@ -363,7 +371,7 @@ function startNight(resume = null) {
   if (tw && $('teach').classList.contains('hidden')) { const el = $('teach'); el.innerHTML = `<em>${JA() ? tw.ja : tw.en}</em> ${JA() ? tw.dj : tw.de}`; el.classList.remove('hidden'); }
   audio.scene('calm');
 }
-function renderLives() { const r = S.run, el = $('lives'); el.dataset.name = lore() >= 1 ? tr('灯', 'Akari') : ''; el.innerHTML = ''; const max = Math.max(r.lives, r.rank >= 6 ? 1 : r.rank >= 4 ? 2 : 3); for (let i = 0; i < max; i++) { const b = document.createElement('i'); if (i >= r.lives) b.className = 'out'; el.append(b); }
+function renderLives() { const r = S.run, el = $('lives'); el.dataset.name = lore() >= 1 || taleRec().n >= 1 ? tr('灯', 'Akari') : ''; el.innerHTML = ''; const max = Math.max(r.lives, r.rank >= 6 ? 1 : r.rank >= 4 ? 2 : 3); for (let i = 0; i < max; i++) { const b = document.createElement('i'); if (i >= r.lives) b.className = 'out'; el.append(b); }
   // 何回まで負けられるか（11/21）: 灯が 0 になったら周がおわる＝やり直せるのは 灯 − 1 回
   const left = r.lives - 1; el.dataset.cap = left > 0 ? tr(`やり直しあと${left}`, `${left} ${left > 1 ? 'retries' : 'retry'} left`) : tr('次で最後', 'Last try'); el.classList.toggle('last', left <= 0); }
 // 腕の欄: 星の値（星屑 1 粒の値）と、かすりの数
@@ -643,6 +651,7 @@ function nightEnded() {
   S.miss = !st.cleared && st.score < st.target ? { n: st.target - st.score, pct: Math.floor((st.score / st.target) * 100) } : null;
   const R2 = Run.settleNight(run, st, def), res = R2.res;
   ykResult(def, res);
+  if (res === 'clear' && def.boss && !def.endless && def.world <= Run.WORLDS.length) { const T = taleRec(), k = (def.raid ? 'r' : 'b') + def.world; if (!T.g[k]) T.g[k] = def.raid?.cast || (def.rule && Run.RULES[def.rule]?.cast) || 1; }
   { const m = mem(); if (res === 'clear') m.nights = (m.nights || 0) + 1; if (def.boss && def.rule && res !== 'clear') { m.bossLost ||= {}; m.bossLost[def.rule] = (m.bossLost[def.rule] || 0) + 1; const rr = Run.RULES[def.rule]; m.lastBoss = { ja: rr.ja, en: rr.en, n: m.bossLost[def.rule] }; } }
   PF.ev('night_end', { idx: (def.world - 1) * 8 + def.night, boss: def.boss ? 1 : 0, res, pct: Math.floor((st.score / Math.max(1, def.target)) * 100), sec: Math.round((performance.now() - (S.nightT0 || performance.now())) / 1000), strokes: st.strokesUsed || 0, caught: st.caughtCount || 0, lives: run.lives, assist: run.assist ? 1 : 0 });
   PF.level(res === 'clear' ? 'completed' : 'failed', def.world, def.night); if (res === 'clear' && def.boss) PF.milestone();
@@ -722,7 +731,10 @@ function openInter(def, st, stars, rw, interest, gain) {
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
   $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT'); $('shopQuit').textContent = tr('やめる（保存）', 'Quit (saved)');
   renderShop(); previewShop(); openGift(); PF.ad();
-  if (lite) autoNext(4); // 11/19: 30 秒以上遊んだ人の 4 割が 1〜2 分で帰る（第 1 夜のあとの「次の夜へ」で止まる）
+  // 夜明けの頁: 続きがあれば 1 頁（11/21 依頼主「一夜終わった後に徐々にストーリーや主人公が明らかになって先が気になるように」）
+  { const T = taleRec(), tp = run.endless ? null : nextPage(T.n, T.g, def.world);
+    if (tp) openTale(tp, () => { if (lite && S.mode === 'inter') autoNext(4); }, { delay: def.boss ? 300 : 500 });
+    else if (lite) autoNext(4); } // 11/19: 30 秒以上遊んだ人の 4 割が 1〜2 分で帰る（第 1 夜のあとの「次の夜へ」で止まる）
   countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
   audio.ui('win'); if (!def.boss) audio.scene('calm');
 }
@@ -1287,6 +1299,7 @@ function runOver(won) {
       if (!won && nb && d > 0 && (!prevBest || prevBest < nb)) bits.push(tr(`大一番（第 ${nb} 夜）まで あと ${d} 夜`, `${d} more to the boss (night ${nb})`));
       return bits.length ? `<small class="cmp">${bits.map((x) => `<span>${x}</span>`).join('')}</small>` : '';
     })()) + (sub ? `<small>${sub}</small>` : '') + (!won && S.st ? `<small class="hint">${lossHint()}</small>` : '') + (mercy ? `<small class="mercy">${(JA() ? ME.body.ja : ME.body.en).split('\n').join('<br>')}</small>` : '');
+  if (!won && !run.endless) { const th = taleHint(); if (th) $('ovNights').insertAdjacentHTML('beforeend', `<small class="talehint">${th}</small>`); }
   const sp = Object.values(run.spells || {}), spT = sp.reduce((a, x) => a + x.t, 0), spG = sp.reduce((a, x) => a + x.g, 0);
   meta.bestScore = Math.max(meta.bestScore || 0, run.totalScore);
   PF.lbSet(run.totalScore);
@@ -1318,8 +1331,10 @@ Draw the fuse. The flame is right behind you. #HitofudeHanabi`;
   sh.onclick = () => { audio.ui('tap'); share(msg, S.daily ? 'share-daily' : 'share'); };
   // 24 夜を越えたら、そのまま千秋楽（終わらない祭り）へ続けられる
   const en = $('ovEndless'); en.classList.toggle('hidden', !(won && !run.endless)); en.textContent = tr('千秋楽へ（まだ続ける）', 'ENCORE: keep going');
+  S.taleEnd = null;
+  if (won && !run.endless) { const T = taleRec(), tp = nextPage(T.n, T.g, Run.WORLDS.length, { end: 1 }); if (tp) { S.taleEnd = tp; setTimeout(() => { if (S.mode === 'over') openTale(tp, null, { end: 1 }); }, 2600); } }
   // 偽の大団円: 明かし 3 を見たあとに勝つと、題が燃えて問いに変わり、ボタンが「帰る」「帰らない」になる
-  if (won && !run.endless && !mercy && lore() >= 3) {
+  if (won && !run.endless && !mercy && lore() >= 3 && !S.taleEnd) {
     loreUp(4); const tt = $('ovTitle');
     setTimeout(() => { if (S.mode !== 'over') return; tt.classList.add('burn'); setTimeout(() => { tt.textContent = tr('……大団円？', '...Complete?'); tt.classList.remove('burn');
       $('ovUnlocks').insertAdjacentHTML('afterbegin', `<div class="storyline">${tr('トラ', 'Tora')}「${story('fake')}」</div>`);
@@ -1572,6 +1587,58 @@ function skyKanji(ch) {
 const story = (k) => { const s = Mem.STORY[k]; return s ? (JA() ? s[0] : s[1]) : ''; };
 const lore = () => mem().lore || 0;
 const loreUp = (n) => { const m = mem(); if ((m.lore || 0) === n - 1) { m.lore = n; save(); } };
+// ------------------------------------------------------------------ 夜明けの頁（灯の物語）。頁の中身は tale.js
+function taleRec() { DB.meta.tale ||= { n: 0, g: {} }; DB.meta.tale.g ||= {}; return DB.meta.tale; }
+function taleCast(p) {
+  if (p.who === 'tora') return 'neko'; if (p.who !== 'yokai') return null;
+  const g = p.gate && taleRec().g[p.gate]; if (typeof g === 'string' && CAST[g]) return g;
+  try { const id = S.run ? bossCastOf(p.w || 1, 4) : null; if (id && CAST[id]) return id; } catch { /* 周の外 */ }
+  return 'kamaitachi';
+}
+function taleName(p, id) {
+  if (p.who === 'note') return tr('秘伝帳（じいちゃんの字）', "Grandpa's notebook");
+  if (p.who === 'mem') return tr('灯の記憶', "Akari's memory");
+  if (p.who === 'hinoko') return tr('追ってきた火', 'The flame that followed');
+  if (p.who === 'tora') return tr('トラ', 'Tora');
+  if (p.gate && p.gate[0] === 'r' && RAID_NAME[id]) return JA() ? RAID_NAME[id][0] : RAID_NAME[id][1];
+  const c = CAST[id]; return c ? (JA() ? `${c.ja}の${c.name}` : `${c.nameEn} the ${c.en}`) : tr('妖怪', 'Yokai');
+}
+// 続きを読むには何が要るか（負けた画面・帳）
+function taleHint() {
+  const T = taleRec(); if (!T.n || T.n >= TALE_N) return '';
+  const w = S.run?.world || 1, L = lockReason(T.n, T.g, Run.WORLDS.length), W = L && Run.WORLDS[L.w - 1];
+  if (!L) return tr(`次の夜を越えると、灯の物語のつづき（${T.n + 1} / ${TALE_N}）`, `Clear a night to read Akari's story ${T.n + 1} / ${TALE_N}`);
+  if (L.kind === 'boss') return tr(`灯の物語のつづきは、「${W.ja}」の大一番に勝つと読める`, `Beat the boss of ${W.en} to read on in Akari's story`);
+  if (L.kind === 'raid') return tr(`灯の物語のつづきは、「${W.ja}」の大妖怪を討つと読める`, `Defeat the great yokai of ${W.en} to read on in Akari's story`);
+  return w >= L.w ? '' : tr(`灯の物語のつづきは、「${W.ja}」まで進むと読める`, `Reach ${W.en} to read on in Akari's story`);
+}
+let taleVoice = null;
+function talePlay(text) {
+  try { taleVoice?.pause(); if (!DB.sound || PF.muted || S.adPause) return; taleVoice = new Audio(`tale/voice/${voiceKey(text)}.mp3`); taleVoice.volume = 1; taleVoice.play().catch(() => {}); audio.duck(4, 0.4); } catch { /* 声が無くても読める */ }
+}
+function openTale(p, done, opts = {}) {
+  const T = taleRec(), idx = TALE.indexOf(p), el = $('tale'); if (!el || idx < 0) { done?.(); return; }
+  T.n = Math.max(T.n, idx + 1); save(); PF.ev('tale', { n: idx + 1 }); track(`tale/${idx + 1}`);
+  $('tlHead').textContent = tr(`灯の物語　${idx + 1} / ${TALE_N}`, `Akari's Story  ${idx + 1} / ${TALE_N}`);
+  const id = taleCast(p), ic = $('tlIcon'); ic.className = 'tl-icon ' + p.who; ic.innerHTML = '';
+  if (id) { const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128; try { drawCast(cv.getContext('2d'), id, 64, 72, 92, { face: p.who === 'tora' ? 'idle' : p.gate ? 'sad' : 'taunt', still: true, glow: false }); } catch { /* 絵が無くても読める */ } ic.append(cv); }
+  else if (p.who === 'note') ic.textContent = '帳';
+  else if (p.who === 'mem') { const im = new Image(); im.src = 'tale/img/akari_sad.webp'; im.alt = ''; ic.append(im); }
+  $('tlName').textContent = taleName(p, id); $('tlLine').textContent = JA() ? p.ja : p.en;
+  const reply = JA() ? p.a.ja : p.a.en;
+  $('tlFace').src = `tale/img/akari_${p.a.face}.webp`; $('tlMe').textContent = tr('灯', 'Akari'); $('tlReply').textContent = reply;
+  $('tlTail').textContent = p.tail ? (JA() ? p.tail.ja : p.tail.en) : '';
+  $('tlNext').textContent = tr('さわって つづける', 'Tap to continue');
+  el.classList.remove('hidden', 'me', 'out', 'in'); el.classList.toggle('end', !!p.end); el.classList.toggle('first', idx === 0);
+  const t0 = performance.now(); let stage = 0, tm = 0;
+  const showMe = () => { if (stage) return; stage = 1; el.classList.add('me'); talePlay(reply); };
+  const start = () => { if (S.adPause) { tm = setTimeout(start, 300); return; } el.classList.add('in'); tm = setTimeout(showMe, (opts.end ? 1900 : 1200)); };
+  tm = setTimeout(start, opts.delay ?? 0);
+  const close = () => { clearTimeout(tm); el.onclick = null; S.taleKey = null; taleVoice?.pause(); audio.ui('tap'); el.classList.add('out'); setTimeout(() => { el.classList.add('hidden'); el.classList.remove('out', 'in', 'me'); done?.(); }, 260); };
+  el.onclick = () => { const dt = performance.now() - t0; if (dt < 450 + (opts.delay || 0)) return; if (!stage) { clearTimeout(tm); el.classList.add('in'); showMe(); return; } close(); };
+  S.taleKey = () => el.onclick?.();
+}
+addEventListener('keydown', (e) => { if (S.taleKey && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopImmediatePropagation(); S.taleKey(); } }, true);
 const once = (k) => { const m = mem(); m.seen ||= {}; if (m.seen[k]) return false; m.seen[k] = 1; save(); return true; };
 // ---- 点を伸ばす技
 const TECHS = [
