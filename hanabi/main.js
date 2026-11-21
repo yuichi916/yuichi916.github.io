@@ -723,7 +723,8 @@ function openInter(def, st, stars, rw, interest, gain) {
   $('resScore').textContent = fmt(st.score);
   renderTechSum(st);
   const rows = [[def.boss ? tr('大一番のごほうび', 'Boss bonus') : tr('今夜のごほうび', 'Night bonus'), rw.base], [tr('残った筆', 'Strokes left'), rw.left], [tr('星', 'Stars'), rw.star], [tr('お守りと玉', 'Charms & shells'), rw.earned], [tr('趣向の上乗せ', 'Twist bonus'), rw.twist], [tr('利息', 'Interest'), interest]].filter((r) => r[1] > 0);
-  $('ledger').innerHTML = rows.map(([a, b], i) => `<div style="animation-delay:${0.1 + i * 0.09}s"><span>${a}</span><b>+${b}</b></div>`).join('');
+  // 11/21 依頼主「毎夜の結果は文字が多すぎ」: 内訳の行をやめて「小判 +N」の 1 行に（内訳は指したときの title だけ）
+  { const sum = rows.reduce((a, r) => a + r[1], 0); $('ledger').innerHTML = sum ? `<div class="sum" title="${rows.map(([a, b]) => `${a} +${b}`).join(' / ')}"><span>${tr('小判', 'Coins')}</span><b>+${sum}</b></div>` : ''; }
   $('shopTitle').textContent = tr('屋台', 'Festival Stalls');
   S.shopBought = false; S.shopNudged = false;
   if (lite) S.toraLine = (S.run.rv || 1) >= 6 ? tr('おみごと！ 8 夜目に大妖怪が来る。なぞった花火で戦うよ', 'Nicely done! On night 8 a great yokai comes. Your fireworks are your weapon.') : tr('おみごと！ 次はもっと大きく咲かせよう。屋台は次の夜のあとに開くよ', 'Nicely done! Go bigger next night. The stalls open after night 2.');
@@ -760,7 +761,7 @@ function renderTechSum(st) {
     st.mikiri ? `<span>${tr('見切り', 'Close calls')}<b>${st.mikiri}</b></span>` : '',
     st.tsugiBest ? `<span>${tr('継ぎ火', 'Relight')}<b>${st.tsugiBest}${tr(' 連', '×')}</b></span>` : '',
     n ? `<span>${tr('技', 'Techniques')}<b>${g} / ${n}</b></span>` : '',
-  ].filter(Boolean);
+  ].filter((x) => x && /class="(ext|grw)/.test(x)).slice(0, 2); // 大事な知らせだけ 2 つまで（星屑・かすりなどの数字は出さない）
   S.gotEngi = null; S.gotFuku = null;
   $('techSum').innerHTML = items.map((x, i) => x.replace('<span', `<span style="animation-delay:${0.15 + i * 0.07}s"`)).join('');
 }
@@ -1755,7 +1756,11 @@ function launchFor(s) { const t = Math.max(0.28, s.rise); fx.launch(s.x + (Math.
 function handle(ev) {
   const st = S.st;
   switch (ev.type) {
-    case 'penDown': tutStep('down'); FEEL.flow = 0; FEEL.last = null; FEEL.has = false; $('engi').classList.remove('can', 'first'); $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
+    case 'penDown': tutStep('down');
+      // 11/21 依頼主「説明の吹き出しは一筆がはじまったら消す」: 盤の下の説明とトラの吹き出し（はじめての遊び方の案内＝tut・coach は残す）
+      if ((!S.tut || S.tut === 'lift') && S.teachKey !== 'draw') $('teach').classList.add('hidden');
+      if (!S.coach) { S.toraT = 0; toraHide(); }
+      FEEL.flow = 0; FEEL.last = null; FEEL.has = false; $('engi').classList.remove('can', 'first'); $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
     case 'penUp': { // 放つ: 指を離した瞬間。火が線を駆けだす合図を、音・光・振動で
       S.lastPop = R.time;
       const nT = st.stroke?.threaded || 0; FEEL.rel = R.time; buzz(16); audio.whoosh(0.6 + Math.min(1, nT / 8) * 0.6);
