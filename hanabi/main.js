@@ -39,6 +39,7 @@ const load = () => { if (window.HANABI_PG) return {}; try { return JSON.parse(lo
 const DB = { meta: { xp: 0, wins: 0, best: 0, runs: 0, rankOpen: 0, taught: {}, seen: {} }, run: null, lang: null, sound: true, music: true, ...load() };
 DB.meta.mem = Mem.fixMem(DB.meta.mem);
 const mem = () => DB.meta.mem;
+const NOFF = new URLSearchParams(location.search).has('noff'); // 確かめ用: 速送りを切る
 const save = () => { const j = JSON.stringify(DB); if (!window.HANABI_PG) { try { localStorage.setItem(SAVE, j); } catch { /* 保存できない環境でも遊べる */ } } PF.write(SAVE, j); };
 
 let lang = q.get('lang') || DB.lang || ((navigator.language || 'en').startsWith('ja') ? 'ja' : 'en');
@@ -1627,12 +1628,13 @@ function handle(ev) {
   switch (ev.type) {
     case 'penDown': tutStep('down'); FEEL.flow = 0; FEEL.last = null; FEEL.has = false; $('engi').classList.remove('can', 'first'); $('engi').querySelectorAll('button').forEach((b) => { b.disabled = true; }); audio.scene('burn', 0.3); audio.note(7, { vol: 0.12, dur: 0.2 }); $('combo').classList.add('on'); $('cPts').textContent = fmt(st.stroke?.chips ?? 0); $('cMult').textContent = fmtM(st.stroke?.mult ?? 1); break;
     case 'penUp': { // 放つ: 指を離した瞬間。火が線を駆けだす合図を、音・光・振動で
+      S.lastPop = R.time;
       const nT = st.stroke?.threaded || 0; FEEL.rel = R.time; buzz(16); audio.whoosh(0.6 + Math.min(1, nT / 8) * 0.6);
       for (let i = 0; i < 22; i++) { const a = (i / 22) * 6.283; fx.add(ev.x, ev.y, Math.cos(a) * 260, Math.sin(a) * 260, 0.22, 2.4, 6, 0, [3, 2.6, 1.6], [1.4, 0.6, 0.15], 1.7); }
       fx.light(ev.x, ev.y, 0.5, 220, [1, 0.7, 0.35], 8); kick(ev.x, ev.y, 2.5);
       tutStep('lift'); break;
     }
-    case 'ignite': audio.note(2, { vol: 0.14, dur: 0.25 }); fx.tick(ev.x, ev.y, [3, 1.8, 0.7], 26, 220); fx.light(ev.x, ev.y, 0.5, 300, [1, 0.6, 0.25], 6); break;
+    case 'ignite': S.lastPop = R.time; audio.note(2, { vol: 0.14, dur: 0.25 }); fx.tick(ev.x, ev.y, [3, 1.8, 0.7], 26, 220); fx.light(ev.x, ev.y, 0.5, 300, [1, 0.6, 0.25], 6); break;
     case 'thread': {
       const s = ev.shell, n = ev.n, now = R.time;
       FEEL.flow = now - FEEL.flowT < 0.55 ? FEEL.flow + 1 : 1; FEEL.flowT = now;
@@ -1657,6 +1659,7 @@ function handle(ev) {
       break;
     }
     case 'burst': {
+      S.lastPop = R.time;
       const s = ev.shell, d = G.SHELLS[s.type], size = Math.min(1.8, ev.R / 120);
       fx.burst(d.kind, s.x, s.y, ev.R, s.type, ev.heatLv);
       audio.boom(size * (ev.how === 'line' ? 1 : 0.75), panOf(s.x), 0.015 + ((s.y / H) * 0.02));
@@ -1847,6 +1850,7 @@ function handle(ev) {
       $('heat').className = 'heat';
       $('cMult').textContent = fmtM(ev.mult);
       slam(ev.gained);
+      if (!ev.bloom) niagara(st, ev);
       if (ev.bloom) { techCall('bloom'); renderStreak(true); skyLine(st); if (st.shape) skyShape(st); grandFinale(); floatText(W * (0.2 + Math.random() * 0.6), H * 0.7, Math.random() < 0.5 ? tr('たまやー！', 'Tamaya!') : tr('かぎやー！', 'Kagiya!'), 'gold', 40); }
       else if (ev.pops >= 15) floatText(W * (0.2 + Math.random() * 0.6), H * 0.72, tr('たまやー！', 'Tamaya!'), 'gold', 30);
       else audio.scene('calm', 0.8);
@@ -1941,6 +1945,17 @@ function slam(gained) {
 }
 const fmtM = (m) => (Math.abs(m - Math.round(m)) < 0.05 ? String(Math.round(m)) : m.toFixed(1));
 
+// 一筆の締め「ナイアガラ」（11/21）: 燃え尽きた線から、金の火の粉が滝のように流れ落ちる。大きい一筆ほど濃く長く。見た目と音だけ
+function niagara(st, ev) {
+  const P = st.stroke?.pts, pops = ev.pops || 0; if (!P || P.length < 3 || pops < 2) return;
+  const big = Math.min(1, pops / 14), n = Math.round(36 + big * 84), step = Math.max(1, Math.floor(P.length / n)), dur = 0.4 + big * 0.5, waves = 2 + Math.round(big * 4);
+  for (let w = 0; w < waves; w++) for (let i = 0; i < P.length; i += step) {
+    const p = P[i];
+    S.seq.push({ at: (i / P.length) * dur + w * 0.12, f: () => fx.add(p.x + (Math.random() - 0.5) * 5, p.y, (Math.random() - 0.5) * 16, 14 + Math.random() * 42, 0.9 + Math.random() * 0.8, 2 + big * 1.2, 1.2, 170, [3.2, 2.6, 1.3], [1.3, 0.45, 0.1], 1.6, 2) });
+  }
+  audio.fuse(1 + big, 1);
+  setTimeout(() => { if (!S.st?.stroke?.penDown) audio.fuse(0, 0); }, (dur + waves * 0.12 + 0.3) * 1000);
+}
 // 満開: 自分の引いた線が、そのまま空に光る
 function skyLine(st) {
   const P = st.stroke?.pts; if (!P || P.length < 3) return;
@@ -2285,7 +2300,10 @@ function frame(now) {
     if (S.stopCool > 0) S.stopCool -= dt;
     const stopped = S.stopT > 0;
     if (S.slowT > 0 && !stopped) { S.slowT -= dt; if (S.slowT <= 0) S.timeScale = 1; }
-    const sdt = stopped ? dt * 0.08 : dt * S.timeScale;
+    // 間延びを詰める（11/21 録画: 山場のあと約 4 秒、残りの線が燃えるだけで何も起きなかった）。指を離したあと新しく開く玉が 0.7 秒ないと、だんだん ×3 まで速送り。開いたら戻す
+    { const k = S.mode === 'play' && S.st?.phase === 'stroke' ? S.st.stroke : null;
+      S.ff = k && !NOFF && !k.penDown && !k.done && !stopped && S.slowT <= 0 && R.time - (S.lastPop || 0) > 0.7 ? Math.min(3, (S.ff || 1) + dt * 2.5) : 1; }
+    const sdt = stopped ? dt * 0.08 : dt * S.timeScale * S.ff;
     if (S.mode === 'play' && S.st && !S.paused && !stopped && !S.guide) {
       acc += sdt;
       while (acc >= G.DT && S.mode === 'play' && !S.guide) { acc -= G.DT; G.step(S.st, G.DT); const evs = S.st.events.splice(0); for (const ev of evs) { try { handle(ev); } catch (e) { console.error('handle', ev.type, e); } } }
