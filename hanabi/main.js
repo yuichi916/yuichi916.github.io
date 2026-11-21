@@ -13,7 +13,7 @@ import { THEMES } from './levels.js';
 import { drawCast, CAST } from '../assets/hitofude/cast.js';
 import { track, share, canShare } from './track.js';
 import * as Mem from './memory.js';
-import { TALE, TALE_N, BATTLE, VOICED, voiceKey, nextPage, lockReason } from './tale.js';
+import { TALE, TALE_N, BATTLE, VOICED, voiceKey, nextPage, lockReason, pageWorld } from './tale.js';
 import { cleanName } from '../assets/hitofude/names.js';
 
 const $ = (id) => document.getElementById(id);
@@ -734,8 +734,11 @@ function openInter(def, st, stars, rw, interest, gain) {
   $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT'); $('shopQuit').textContent = tr('やめる（保存）', 'Quit (saved)');
   renderShop(); previewShop(); openGift(); PF.ad();
   // 夜明けの頁: 続きがあれば 1 頁（11/21 依頼主「一夜終わった後に徐々にストーリーや主人公が明らかになって先が気になるように」）
-  { const T = taleRec(), tp = run.endless || !talkOn() ? null : nextPage(T.n, T.g, def.world);
-    if (tp) openTale(tp, () => { if (lite && S.mode === 'inter') autoNext(4); }, { delay: def.boss ? 300 : 500 });
+  // 11/21 依頼主「最初は出さないで徐々に。はまったころに多く」: 夜を 3 つ越えてから・最初の 3 頁は夜 2 つに 1 頁（tale.js）。前の世界の頁が残っていれば 2 頁つづけて追いつく
+  { const T = taleRec(), tp = run.endless || !talkOn() ? null : nextPage(T.n, T.g, def.world, { nights: mem().nights || 0, last: T.last || 0 });
+    const tp2 = tp && pageWorld(T.n + 1) < def.world ? nextPage(T.n + 1, T.g, def.world) : null;
+    const after = () => { if (lite && S.mode === 'inter') autoNext(4); };
+    if (tp) openTale(tp, () => (tp2 && S.mode === 'inter' && talkOn() ? openTale(tp2, after, { delay: 200 }) : after()), { delay: def.boss ? 300 : 500 });
     else if (lite) autoNext(4); } // 11/19: 30 秒以上遊んだ人の 4 割が 1〜2 分で帰る（第 1 夜のあとの「次の夜へ」で止まる）
   countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
   audio.ui('win'); if (!def.boss) audio.scene('calm');
@@ -1611,7 +1614,7 @@ function taleName(p, id) {
 function taleHint() {
   const T = taleRec(); if (!T.n || T.n >= TALE_N) return '';
   const w = S.run?.world || 1, L = lockReason(T.n, T.g, Run.WORLDS.length), W = L && Run.WORLDS[L.w - 1];
-  if (!L) return tr(`次の夜を越えると、灯の物語のつづき（${T.n + 1} / ${TALE_N}）`, `Clear a night to read Akari's story ${T.n + 1} / ${TALE_N}`);
+  if (!L) return tr(`夜を越えていくと、灯の物語のつづき（${T.n + 1} / ${TALE_N}）`, `Keep clearing nights to read Akari's story ${T.n + 1} / ${TALE_N}`);
   if (L.kind === 'boss') return tr(`灯の物語のつづきは、「${W.ja}」の大一番に勝つと読める`, `Beat the boss of ${W.en} to read on in Akari's story`);
   if (L.kind === 'raid') return tr(`灯の物語のつづきは、「${W.ja}」の大妖怪を討つと読める`, `Defeat the great yokai of ${W.en} to read on in Akari's story`);
   return w >= L.w ? '' : tr(`灯の物語のつづきは、「${W.ja}」まで進むと読める`, `Reach ${W.en} to read on in Akari's story`);
@@ -1642,7 +1645,7 @@ function taleLineName(who, p, id) {
 }
 function openTale(p, done, opts = {}) {
   const T = taleRec(), idx = TALE.indexOf(p), el = $('tale'); if (!el || idx < 0) { done?.(); return; }
-  T.n = Math.max(T.n, idx + 1); save(); PF.ev('tale', { n: idx + 1 }); track(`tale/${idx + 1}`);
+  T.n = Math.max(T.n, idx + 1); T.last = mem().nights || 0; save(); PF.ev('tale', { n: idx + 1 }); track(`tale/${idx + 1}`);
   el.lang = JA() ? 'ja' : 'en'; // 日本語の折り返し（word-break: auto-phrase）は lang が ja のときだけ効く
   $('tlHead').textContent = tr(`灯の物語　${idx + 1} / ${TALE_N}`, `Akari's Story  ${idx + 1} / ${TALE_N}`);
   $('tlScene').textContent = JA() ? p.scene.ja : p.scene.en;

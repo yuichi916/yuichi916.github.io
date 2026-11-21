@@ -8,24 +8,19 @@ const L = (w, ja, en, f) => ({ w, ja, en, ...(f ? { f } : {}) });
 export const TALE = [
   // ── 第一の世界 川辺の夏祭り: 灯は自分のことを覚えていない
   { scene: { ja: `花火のあと、河原の屋台。灯と、相棒の子狐コン。`, en: `After the fireworks, at a riverside stall. Akari and her fox-cub partner, Kon.` }, lines: [
-    L('kon', `灯！ いまの花火、ぜんぶ灯が上げたコン？`, `Akari! Did you launch all those fireworks, kon?`),
-    L('akari', `そうだよ。線を一本引いただけで、ドーン！`, `Yep. One line, and then — boom!`, 'joy'),
     L('kon', `すごいコン！ ……で、灯って、だれコン？`, `Amazing, kon! ...So, who are you, kon?`),
     L('akari', `え？ わたしは灯。……灯、だよね？`, `Huh? I'm Akari. ...I am Akari, right?`, 'surprise'),
     L('tora', `おかえり、灯。今年も来たんだね`, `Welcome back, Akari. You came again this year.`),
     L('akari', `……今年「も」？`, `...Again?`, 'surprise'),
   ] },
-  { scene: { ja: `屋台の棚に、古い帳面が一冊。表紙に「秘伝帳」とある。`, en: `An old notebook on the stall shelf. The cover says "Secret Notes."` }, lines: [
+  { gap: 2, scene: { ja: `屋台の棚に、古い帳面が一冊。表紙に「秘伝帳」とある。`, en: `An old notebook on the stall shelf. The cover says "Secret Notes."` }, lines: [
     L('kon', `灯、これ、おいしそうな本だコン`, `Akari, this book looks tasty, kon.`),
     L('akari', `本は食べものじゃないの！`, `Books are not food!`, 'angry'),
     L('akari', `……あ。この字、知ってる。じいちゃんの字だ`, `...Oh. I know this handwriting. It's Grandpa's.`, 'surprise'),
     L('note', `一筆花火は、帰り道を空に描く花火。——源`, `Hitofude Hanabi: fireworks that draw the way home across the sky. —Gen`),
-    L('kon', `帰り道？ 灯、迷子コン？`, `The way home? Are you lost, kon?`),
-    L('akari', `……わかんない。どこに帰るのか、思い出せないの`, `...I don't know. I can't remember where home is.`, 'sad'),
   ] },
-  { scene: { ja: `河原は見物の人でいっぱい。でも、だれの顔も見えない。`, en: `The riverbank is packed with people watching. But no one has a face.` }, lines: [
+  { gap: 2, scene: { ja: `河原は見物の人でいっぱい。でも、だれの顔も見えない。`, en: `The riverbank is packed with people watching. But no one has a face.` }, lines: [
     L('kon', `灯、見物の人、みんなお面かぶってるコン`, `Akari, everyone in the crowd is wearing a mask, kon.`),
-    L('akari', `お祭りだもん。お面くらい、かぶるよ`, `It's a festival. Of course they wear masks.`, 'smile'),
     L('kon', `お面の下も、なんにもないコン`, `There's nothing under the masks either, kon.`),
     L('akari', `……え？`, `...What?`, 'surprise'),
     L('tora', `見ないほうがいい。今夜は、まだね`, `Better not look. Not tonight. Not yet.`),
@@ -60,10 +55,10 @@ export const TALE = [
     L('akari', `……ごめん、コン。いまの、なに……？`, `...Sorry, Kon. What was that...?`, 'sad'),
     L('kon', `灯、顔がまっさおだコン。綿あめは、あしたでいいコン`, `You've gone pale, kon. Cotton candy can wait till tomorrow, kon.`),
   ] },
-  { gate: 'r1', scene: { ja: `討たれた大妖怪が、川の向こうを指さした。`, en: `The defeated great yokai points across the river.` }, lines: [
+  { gate: 'r1', scene: { ja: `討たれた大妖怪が、雪の山の奥を指さした。`, en: `The defeated great yokai points deep into the snowy mountains.` }, lines: [
     L('yokai', `思い出したか。あの夏の夜、おまえは祭りの灯りを離れて、川へ走った`, `Remember now? That summer night, you left the festival lights and ran to the river.`),
     L('akari', `川へ……？ わたし、なんで……`, `To the river...? Why would I...`, 'sad'),
-    L('yokai', `知りたければ、雪の山へ行け。あの男が待っている`, `If you want to know, go to the snowy mountain. That man is waiting.`),
+    L('yokai', `知りたければ、雪の山の奥へ行け。あの男が待っている`, `If you want to know, go deep into the snowy mountains. That man is waiting.`),
     L('kon', `あの男って、だれコン？`, `What man, kon?`),
     L('akari', `……じいちゃんだ`, `...Grandpa.`, 'surprise'),
   ] },
@@ -184,6 +179,10 @@ export const TALE = [
   ], tail: { ja: `トラ「また来年の盆に、おいで」`, en: `Tora: "Come again next Obon."` } },
 ];
 export const TALE_N = TALE.length;
+// 物語の出しはじめ: これまでに越えた夜がこの数になってから（第 1〜2 夜で帰る人が多い。まずは遊びだけ）
+export const TALE_START = 3;
+// 頁がどの世界の話か（8 頁ずつ）。前の世界の頁が残っていたら、一晩に 2 頁まで続けて読ませて追いつく
+export const pageWorld = (i) => Math.floor(i / 8) + 1;
 
 // ボス戦の会話（カットイン）。intro は世界ごとの大一番（b）・大妖怪（r）の始まり、atk は攻めが決まったとき、hurt はやられたとき
 export const BATTLE = {
@@ -212,11 +211,16 @@ export function voiceKey(who, text) { const s = who + '|' + text; let h = 0; for
 export const VOICED = new Set(['akari', 'kon', 'hinoko']);
 
 // 次に読む頁。読める条件がそろっていなければ null。gates = これまでに勝った相手 { b1: 'kamaitachi', r1: ..., }
+// opts.nights = これまでに越えた夜の数・opts.last = 前の頁を出したときの nights。ボスに勝った頁（gate）は間を待たない
 export function nextPage(read, gates, world, opts = {}) {
   const p = TALE[read]; if (!p) return null;
   if (!!p.end !== !!opts.end) return null;
   if (p.gate && !gates[p.gate]) return null;
   if (p.w && world < p.w) return null;
+  if (!p.gate && opts.nights != null) {
+    if (read === 0 && opts.nights < TALE_START) return null;
+    if (read > 0 && opts.nights - (opts.last || 0) < (p.gap || 1)) return null;
+  }
   return p;
 }
 // 読めない頁の手前で、何をすれば続きが読めるか（負けた画面の一言）
