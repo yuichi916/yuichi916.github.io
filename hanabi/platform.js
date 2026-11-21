@@ -50,9 +50,13 @@ export function createPlatform() {
     happy() { try { sdk?.game.happytime(); } catch { /* */ } },
     // 区切り（夜のあと・祭りの終わり）の広告。広告どうしの間隔は場の SDK が決める。
     // ただし遊び始めて 3 分までは出さない（Playgama は 30 秒未満で離れた回を「遊び」と数えず、最初の広告が 29 秒目に出ていた）
+    // 11/21 依頼主「大勝負の後の夜に音や声が出なくなる」（最初の広告は 7 分すぎ＝大勝負のころ）: 広告が本当に出ているか・場が音を許しているかを、知らせを待たずに読み直す
+    adBusy() { try { const s = pg?.advertisement?.interstitialState, r = pg?.advertisement?.rewardedState; return s === 'opened' || s === 'loading' || r === 'opened' || r === 'loading'; } catch { return false; } },
+    pausedNow() { try { return !!pg?.platform?.isPaused; } catch { return false; } },
+    audioOk() { try { return pg ? pg.platform?.isAudioEnabled !== false : !P.muted; } catch { return true; } },
     ad() { try { const now = performance.now(); if (now - AD_T0 < AD_GRACE_MS || now - adLast < AD_GAP_MS) return false; if (pg?.advertisement?.isInterstitialSupported) { adLast = now; pg.advertisement.showInterstitial(); return true; } } catch { /* */ } return false; },
     // 独自のイベント（どこで離れたかを見る）。名前は固定、変わる値は data に。版の名前を必ず付ける
-    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, t: Math.round(performance.now() / 1000), build: '2026-11-21k' }); } catch { /* 送れなくても遊べる */ } },
+    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, t: Math.round(performance.now() / 1000), build: '2026-11-21l' }); } catch { /* 送れなくても遊べる */ } },
     // ランキング（Bridge）。Playgama は Bridge SaaS で in_game（自分で表を描く）、YouTube は native（点を送るだけ）
     lbType() { try { return pg?.leaderboards?.type || 'not_available'; } catch { return 'not_available'; } },
     async lbSet(score) { if (P.lbType() === 'not_available') return; try { await pg.leaderboards.setScore('best_score', Math.max(0, Math.floor(score))); } catch { /* 送れなくても遊べる */ } },

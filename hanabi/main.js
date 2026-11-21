@@ -2483,8 +2483,19 @@ async function boot() {
   // 場の言葉に合わせる（自分で選んだ言葉・?lang= が先）
   if (PF.lang && !q.get('lang') && !DB.lang) lang = PF.lang;
   // 場の一時停止・広告の間は止めて、音を消す
-  PF.onPause = (p) => { audio.mute(p); if (p && S.mode === 'play' && !S.paused) openPause(); };
-  PF.onAd = (on) => { S.adPause = on; audio.mute(on); };
+  PF.onPause = (p) => { audio.mute(p); if (p && S.mode === 'play' && !S.paused) openPause(); if (!p) setTimeout(soundResync, 600); };
+  PF.onAd = (on) => { S.adPause = on; audio.mute(on); if (!on) { setTimeout(soundResync, 600); setTimeout(soundResync, 2500); } };
+  // 音の読み直し: 広告が出ていないのに「広告中」「消音」が残っていたら解く（広告のあと音も声も止まったままになるのを防ぐ）。2 秒ごとにも見る
+  function soundResync() {
+    if (document.hidden) return;
+    const busy = PF.adBusy(), fixed = [];
+    if (S.adPause && !busy) { S.adPause = false; fixed.push('adPause'); }
+    const ok = PF.audioOk(); if (PF.muted && ok) { PF.muted = false; fixed.push('pfMuted'); }
+    if (!busy && !PF.pausedNow()) audio.mute(false);
+    if (fixed.length || !audio.soundOn !== !(DB.sound && !PF.muted)) { applySound(); try { audio.unlock(); } catch { /* */ } }
+    if (fixed.length) PF.ev('snd_fix', { what: fixed.join(','), mode: S.mode, ok: ok ? 1 : 0, ctx: audio.ctx?.state || '-' });
+  }
+  setInterval(soundResync, 2000);
   if (PF.ready) { const j = await PF.load(SAVE); if (j) { try { const c = JSON.parse(j); if ((c.meta?.xp || 0) >= (DB.meta.xp || 0)) { Object.assign(DB, c); S.run = DB.run; } } catch { /* */ } } }
   // 玉の字の筆文字は 0.25 秒だけ待つ。間に合わなければ、ふつうの字で始めて、届いたら描きなおす（遅い回線で起動を止めない）
   const glyphs = '一筆花火金大千灯雫氷鬼尺' + CHARMS.map((c) => c.ja[0]).join('');
