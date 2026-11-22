@@ -245,7 +245,7 @@ function beginRun(o = {}) {
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
   S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
-  S.run.rv = 10; DB.meta.ck = null; // 決まりの版 10: 世界 2・3 の負けにも情け・世界 2・3 の第 1〜3 夜 ×0.88・コンの身代わり（11/22）/ 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる / 8: 世界 1 で負けたら次の挑戦の目標を下げる（情け）・練習の周の第 2 夜に福の神 / 9: 道で趣向を選ばなかった夜にも軽い趣向（夜ごとに中身が変わる）
+  S.run.rv = 11; DB.meta.ck = null; // 決まりの版 11: 練習の周の第 1 夜は負けても灯が減らない / 10: 世界 2・3 の負けにも情け・世界 2・3 の第 1〜3 夜 ×0.88・コンの身代わり（11/22）/ 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる / 8: 世界 1 で負けたら次の挑戦の目標を下げる（情け）・練習の周の第 2 夜に福の神 / 9: 道で趣向を選ばなかった夜にも軽い趣向（夜ごとに中身が変わる）
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
@@ -898,6 +898,7 @@ function retryNight() {
   const lv = def0(), mc = lv ? Run.mercyFor(S.run, lv.world, lv.boss) : 1, off = Math.round((1 - mc) * 100);
   S.coach = { line: coachLine() + (off > 0 ? `<small>${tr(`おまけで、目標を ${off}% 下げといたニャ`, `I lowered the target by ${off}% for you.`)}</small>` : ''), st: null };
   if (off > 0) PF.ev('mercy', { off });
+  if (lv && Run.freeNight(S.run)) { PF.ev('free_retry', { n: S.run.retry }); banner(`${tr('もう一度！', 'Again!')}<small>${miss}${tr('第 1 夜は練習。灯は減らない', 'Night 1 is practice: no light lost')}</small>`, 54, 2200); audio.ui('lose'); S.retryAt = performance.now(); setTimeout(() => { if (S.mode === 'retry') startNight(); }, 2400); return; }
   banner(`${tr('灯がひとつ消えた', 'A light goes out')}<small>${miss}${(S.run.lives > 1 ? tr(`もう一度、この夜を。やり直せるのは あと ${S.run.lives - 1} 回`, `Try this night again. ${S.run.lives - 1} more ${S.run.lives > 2 ? 'retries' : 'retry'} after this`) : tr('もう一度、この夜を。<b>次に負けたら おしまい</b>', 'Try this night again. <b>Lose again and the run ends</b>'))}</small>`, 56, 2400);
   audio.ui('lose'); hurt();
   // 待たせすぎない: 2.4 秒で自動（惜しさと一言を読める長さ）、0.6 秒すぎたら触れればすぐ

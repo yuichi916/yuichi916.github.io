@@ -1,6 +1,6 @@
 // 一筆花火 2 — ゲームサイトとのつなぎ。SDK が無い場所（自分のサイト・テスト）では何もしない
 // CrazyGames（window.CrazyGames）と Playgama Bridge（window.bridge。YouTube Playables・MSN などへ配る）に対応
-const AD_GRACE_MS = 420000; // 11/21 依頼主: 7 分。平均の遊び時間を上げるのが先。遊び始めてから最初の広告までの最短（ミリ秒）。序盤は広告で止めない（Playgama の目安: 平均 5 分・1 遊びあたり広告 0.30）
+const AD_GRACE_MS = 600000; // 11/22 依頼主: 10 分（第 1 の世界を越えるころ。長く遊ぶ人の流れを切らない）。11/21 は 7 分。平均の遊び時間を上げるのが先。遊び始めてから最初の広告までの最短（ミリ秒）。序盤は広告で止めない（Playgama の目安: 平均 5 分・1 遊びあたり広告 0.30）
 const AD_T0 = performance.now();
 // 広告どうしの最短の間（11/19: 1 遊びあたり 1.05 回で目安 0.30 の 3.5 倍、間は平均 70 秒。平均の遊び時間 4:09 が目安 5:00 に届かない）
 const AD_GAP_MS = 200000;
@@ -56,7 +56,7 @@ export function createPlatform() {
     audioOk() { try { return pg ? pg.platform?.isAudioEnabled !== false : !P.muted; } catch { return true; } },
     ad() { try { const now = performance.now(); if (now - AD_T0 < AD_GRACE_MS || now - adLast < AD_GAP_MS) return false; if (pg?.advertisement?.isInterstitialSupported) { adLast = now; pg.advertisement.showInterstitial(); return true; } } catch { /* */ } return false; },
     // 独自のイベント（どこで離れたかを見る）。名前は固定、変わる値は data に。版の名前を必ず付ける
-    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, t: Math.round(performance.now() / 1000), build: '2026-11-22b' }); } catch { /* 送れなくても遊べる */ } },
+    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, t: Math.round(performance.now() / 1000), build: '2026-11-22c' }); } catch { /* 送れなくても遊べる */ } },
     // ランキング（Bridge）。Playgama は Bridge SaaS で in_game（自分で表を描く）、YouTube は native（点を送るだけ）
     lbType() { try { return pg?.leaderboards?.type || 'not_available'; } catch { return 'not_available'; } },
     async lbSet(score) { if (P.lbType() === 'not_available') return; try { await pg.leaderboards.setScore('best_score', Math.max(0, Math.floor(score))); } catch { /* 送れなくても遊べる */ } },

@@ -242,6 +242,7 @@ export function fixRun(run) {
 export const EXTENDS = [150, 400, 800, 1400, 2200];
 export const MAX_LIVES = 5;
 // 夜の結果を周回に反映する。'clear' | 'retry' | 'over'
+export const freeNight = (run) => (run.rv || 1) >= 11 && !!run.assist && !run.daily && !run.endless && run.world === 1 && run.night === 1;
 export function afterNight(run, st) {
   run.bloomStreak = st.blooms > 0 ? st.streak : 0;
   // 腕の層は周回をまたいで持ちこす（星の値・星屑・かすり・技の記録）
@@ -256,6 +257,8 @@ export function afterNight(run, st) {
   for (const i of [...(st.broken || [])].sort((a, b) => b - a)) if (run.pouch?.[i]?.m === 'glass') { run.pouch.splice(i, 1); run.lastBroken++; }
   for (const e of EXTENDS) if (d0 < e && run.dust >= e && run.lives < MAX_LIVES) { run.lives++; run.lastExt++; }
   if (st.cleared) { run.retry = 0; return 'clear'; }
+  // 版 11（11/22）: 練習の周の第 1 夜は、負けても灯を減らさない（夜の途中で帰るいちばん多い所が第 1 夜。11/19 MCP: 82 回中 42 回）
+  if (freeNight(run)) { run.retry++; return 'retry'; }
   run.lives--;
   if (run.lives <= 0) return 'over';
   run.retry++;
