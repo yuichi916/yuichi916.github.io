@@ -13,7 +13,7 @@ import { THEMES } from './levels.js';
 import { drawCast, CAST } from '../assets/hitofude/cast.js';
 import { track, share, canShare } from './track.js';
 import * as Mem from './memory.js';
-import { TALE, TALE_N, BATTLE, VOICED, voiceKey, nextPage, lockReason, pageWorld } from './tale.js';
+import { TALE, TALE_N, BATTLE, BANTER, VOICED, voiceKey, nextPage, lockReason, pageWorld } from './tale.js';
 import { cleanName } from '../assets/hitofude/names.js';
 
 const $ = (id) => document.getElementById(id);
@@ -134,6 +134,7 @@ function toTitle() {
   // 初代（旧版）へ。CrazyGames など外へのリンクを禁じる書き出しでは出さない
   if (!window.HANABI_NO_LINKS) add(tr('初代 一筆花火', 'Original Hitofude Hanabi'), () => { const u = window.HANABI_PKG ? 'https://yuichi916.github.io/hitofude.html' : '../hitofude.html'; if (window.HANABI_PKG) window.open(u, '_blank', 'noopener'); else location.href = u; });
   add(tr(`音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`), () => { DB.sound = !DB.sound; DB.music = DB.sound; applySound(); save(); toTitle(); });
+  add(tr('設定', 'Settings'), () => openSettings('title'));
   add(JA() ? 'English' : '日本語', () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); toTitle(); });
   audio.scene('calm');
 }
@@ -301,6 +302,7 @@ function resumeRun() {
 
 // ------------------------------------------------------------------ 夜
 function startNight(resume = null) {
+  hideKakeai(); hideSellPop();
   const run = S.run, def = resume ? resume.def : Run.nightDef(run, +(q.get('w') || run.world), +(q.get('n') || run.night));
   if (q.get('twist')) def.twist = q.get('twist');
   if (q.get('intrude')) def.intrude = q.get('intrude');
@@ -619,8 +621,20 @@ function charmDesc(c, grow = S.run?.grow) {
   const g = growText(c, (S.st?.grow || grow || {})[c.id], JA());
   return (JA() ? c.dj : c.de) + (g ? `<br><b class="gr">${g}</b>` : '') + (TIMES.has(c.id) ? tr('<br><small>×倍率のお守り。右に置くほど強い（左から順に効く）</small>', '<br><small>A ×MULT charm: stronger further right (charms trigger left to right)</small>') : '');
 }
-function showTip(e, a, b) { const t = $('tip'); t.innerHTML = `<b>${a}</b>${b}`; t.classList.remove('hidden'); const r = e.currentTarget.getBoundingClientRect(); t.style.left = Math.min(innerWidth - 270, r.left) + 'px'; t.style.top = Math.max(8, r.top - 64) + 'px'; }
-function hideTip() { $('tip').classList.add('hidden'); }
+function showTip(e, a, b) { const t = $('tip'); t.innerHTML = `<b>${a}</b>${b}`; t.classList.remove('hidden'); placeOver(t, (e.currentTarget || e.target).getBoundingClientRect()); }
+// 札を、指した物（r）の真上に置く。物にはかぶせない。上に入らなければ物の下へ
+function placeOver(t, r, below = 8) { t.style.left = '0px'; t.style.top = '0px'; const w = t.offsetWidth, h = t.offsetHeight; t.style.left = Math.round(Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))) + 'px'; const up = r.top - h - 10; t.style.top = Math.round(up >= 6 ? up : Math.min(innerHeight - h - 6, r.bottom + below)) + 'px'; }
+function hideTip() { $('tip').classList.add('hidden'); hideSellPop(); }
+function hideSellPop() { const p = $('sellPop'); if (p && !p.classList.contains('hidden')) { p.classList.add('hidden'); document.querySelectorAll('#held .armed').forEach((o) => o.classList.remove('armed')); } }
+// 屋台の持ち物を押したとき: 説明と「売る」ボタンの札（ボタンを押すか、同じ持ち物をもう一度押すと売れる）
+function openSellPop(d, c, i, price) {
+  const p = $('sellPop'); p.innerHTML = `<b>${JA() ? c.ja : c.en}</b><span class="ds">${charmDesc(c)}</span>${S.run.charms.length > 1 ? `<small>${tr('‹ › で順番を変える（左から効く）', '‹ › to reorder (left triggers first)')}</small>` : ''}`;
+  const bt = document.createElement('button'); bt.className = 'sellbtn'; bt.innerHTML = tr(`売る　<i class="coin"></i>+${price}`, `Sell　<i class="coin"></i>+${price}`); bt.onclick = (e) => { e.stopPropagation(); sellAt(i); }; p.append(bt);
+  p.classList.remove('hidden'); $('tip').classList.add('hidden'); placeOver(p, d.getBoundingClientRect(), 30);
+}
+function sellAt(i) { Run.sellCharm(S.run, i); logOp('s', i); mem().sold++; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); }
+// 売る札の外を押したら閉じる（持ち物どうしの乗りかえは各持ち物が受ける）
+addEventListener('pointerdown', (e) => { const p = $('sellPop'); if (!p || p.classList.contains('hidden') || p.contains(e.target) || e.target.closest?.('#held .slot')) return; hideSellPop(); }, true);
 
 // ------------------------------------------------------------------ 幕間
 function achCheck(extra = {}) {
@@ -741,7 +755,7 @@ function openInter(def, st, stars, rw, interest, gain) {
     const tp2 = tp && pageWorld(T.n + 1) < def.world ? nextPage(T.n + 1, T.g, def.world) : null;
     const after = () => { if (lite && S.mode === 'inter') autoNext(4); };
     if (tp) openTale(tp, () => (tp2 && S.mode === 'inter' && talkOn() ? openTale(tp2, after, { delay: 200 }) : after()), { delay: def.boss ? 300 : 500 });
-    else if (lite) autoNext(4); } // 11/19: 30 秒以上遊んだ人の 4 割が 1〜2 分で帰る（第 1 夜のあとの「次の夜へ」で止まる）
+    else { if (lite) autoNext(4); if (talkOn() && !run.endless && T.n >= 1) showKakeai(def.world); } } // 11/19: 30 秒以上遊んだ人の 4 割が 1〜2 分で帰る（第 1 夜のあとの「次の夜へ」で止まる）
   countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
   audio.ui('win'); if (!def.boss) audio.scene('calm');
 }
@@ -958,7 +972,7 @@ function renderShop() {
       b.append(art);
       b.insertAdjacentHTML('beforeend', `<span class="nm">${sn} Lv${lv + 1}</span><span class="ds">${it.id === 'kin' ? tr('金の玉の倍率 +1（いま +' + (1 + lv) + '）', 'Gold MULT +1 (now +' + (1 + lv) + ')') : tr(`この玉の点 +${Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))}（いま ${G.SHELLS[it.id].pts + lv * Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))}）`, `+${Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))} POINTS (now ${G.SHELLS[it.id].pts + lv * Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))})`)}</span>${pvTag(i)}<span class="pr"><i class="coin"></i>${it.cost}</span>`);
     }
-    b.onclick = () => { if (it.cost > run.coins) { audio.note(1, { vol: 0.1, dur: 0.2 }); return; } if (it.kind === 'trade' && run.lives < 2) { toast(tr('灯が 2 つ以上いる', 'Needs 2+ lights')); return; } if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.includes(it.id)) { toast(tr('もう持っている', 'Already held')); return; } if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.length >= run.slots) { toast(tr('袋がいっぱい。売ってから', 'Bags full. Sell one first')); return; } if (it.kind === 'engi' && (run.engi || []).length >= Run.ENGI_SLOTS) { toast(tr('縁起物は 2 つまで', 'You can hold 2 talismans')); return; } buy(i); };
+    b.onclick = () => { if (it.cost > run.coins) { audio.note(1, { vol: 0.1, dur: 0.2 }); return; } if (it.kind === 'trade' && run.lives < 2) { toast(tr('灯が 2 つ以上いる', 'Needs 2+ lights')); return; } if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.includes(it.id)) { toast(tr('もう持っている', 'Already held')); return; } if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.length >= run.slots) { toast(tr('袋がいっぱい。持ち物を押して売ろう', 'Bag full. Tap a charm you hold to sell it')); S.toraLine = tr('袋がいっぱい。下の持ち物を押すと売れるよ', 'Your bag is full. Tap a charm below to sell it.'); $('toraSay').textContent = S.toraLine; const hd = $('held'); hd.classList.remove('nudge'); void hd.offsetWidth; hd.classList.add('nudge'); return; } if (it.kind === 'engi' && (run.engi || []).length >= Run.ENGI_SLOTS) { toast(tr('縁起物は 2 つまで', 'You can hold 2 talismans')); return; } buy(i); };
     wrap.append(b);
   });
   const rc = Run.rerollCost(run), rb = $('reroll');
@@ -1105,6 +1119,7 @@ function renderCharmWork(work) {
 function peekNext() { const r = S.run, n = Run.nextCoord(r); return n ? Run.nightDef(r, n[0], n[1]) : null; }
 function renderHeld(el, sell) {
   el.innerHTML = '';
+  if (sell) el.insertAdjacentHTML('beforeend', `<span class="hcap">${tr('持ち物', 'Your charms')}${S.run.charms.length ? `<small>${tr('押すと売れる', 'tap to sell')}</small>` : ''}</span>`);
   for (let i = 0; i < S.run.slots; i++) {
     const id = S.run.charms[i], d = document.createElement('div'); d.className = 'slot';
     if (id) {
@@ -1115,17 +1130,17 @@ function renderHeld(el, sell) {
       if (sell) for (const [dir, ch] of [[-1, '‹'], [1, '›']]) {
         const j = i + dir; if (j < 0 || j >= S.run.charms.length) continue;
         const mv = document.createElement('button'); mv.className = 'mv ' + (dir < 0 ? 'l' : 'r'); mv.textContent = ch;
-        mv.onclick = (e) => { e.stopPropagation(); Run.swapCharms(S.run, i, j); logOp('w', i, j); audio.ui('tap'); hideTip(); renderShop(); const nd = $('held').children[j]; nd?.classList.add('armed'); };
+        mv.onclick = (e) => { e.stopPropagation(); Run.swapCharms(S.run, i, j); logOp('w', i, j); audio.ui('tap'); hideTip(); renderShop(); $('held').querySelectorAll('.slot')[j]?.click(); };
         d.append(mv);
       }
       d.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') tip(e, false); });
-      d.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { hideTip(); d.classList.remove('armed'); } });
+      d.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') $('tip').classList.add('hidden'); });
       // 指でも説明が読めるように、1 回目は説明と「売る」の合図、2 回目で売る（1 回で売れると誤って手放す）
       d.onclick = (e) => {
-        if (sell && d.classList.contains('armed')) { Run.sellCharm(S.run, i); logOp('s', i); mem().sold++; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); return; }
+        if (sell && d.classList.contains('armed')) { sellAt(i); return; }
         el.querySelectorAll('.armed').forEach((o) => o.classList.remove('armed'));
-        if (sell) d.classList.add('armed');
-        tip(e, sell); audio.ui('tap');
+        if (sell) { d.classList.add('armed'); openSellPop(d, c, i, price); } else tip(e, false);
+        audio.ui('tap');
       };
     }
     el.append(d);
@@ -1141,6 +1156,7 @@ function buy(i) {
   hideTip(); renderShop();
 }
 $('reroll').onclick = () => { if (!Run.rerollShop(S.sh, S.run, Run.unlockedCharms(DB.meta))) return; logOp('r'); audio.ui('tap'); renderShop(); previewShop(); }; // 買い戻し・ほうびは引き直しても残す
+$('interSet').onclick = () => { audio.ui('tap'); openSettings('inter'); };
 $('shopQuit').onclick = () => { audio.ui('tap'); DB.run = S.run; save(); S.savedNote = 1; toTitle(); };
 $('nextBtn').onclick = () => {
   audio.ui('tap');
@@ -1400,25 +1416,35 @@ $('ovAgain').onclick = () => { audio.ui('tap'); PF.ad(); beginRun({ fuse: S.fuse
 // ひと休み
 function openPause() {
   if (S.mode !== 'play') return;
-  S.paused = true; show('pause'); hideTip(); PF.stop(); if (S.st) PF.level('paused', S.st.level.world, S.st.level.night);
-  $('pzTitle').textContent = tr('ひと休み', 'Paused');
+  S.paused = true; PF.stop(); if (S.st) PF.level('paused', S.st.level.world, S.st.level.night);
+  openSettings('play');
+}
+// 設定: from = 'play'（ひと休み）・'title'・'inter'（屋台）。会話とカットインはここでいつでも切り替えられる
+function openSettings(from) {
+  S.setFrom = from; show('pause'); hideTip(); hideKakeai();
+  if (from === 'inter') { clearInterval(S.autoT); $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT'); }
+  $('pzTitle').textContent = from === 'play' ? tr('ひと休み', 'Paused') : tr('設定', 'Settings');
   const lab = () => {
     $('pzSound').textContent = tr(`効果音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`);
     $('pzMusic').textContent = tr(`音楽 ${DB.music ? 'ON' : 'OFF'}`, `Music ${DB.music ? 'ON' : 'OFF'}`);
     $('pzLang').textContent = JA() ? 'English' : '日本語';
     $('pzTouch').textContent = tr(`指の操作：${['ふつう', '先を上に', '先をもっと上に'][touchMode()]}`, `Touch: ${['normal', 'tip above finger', 'tip far above'][touchMode()]}`);
-    $('pzTalk').textContent = tr(`物語と会話 ${talkOn() ? 'ON' : 'OFF'}`, `Story & talk ${talkOn() ? 'ON' : 'OFF'}`);
+    $('pzTalk').textContent = tr(`会話 ${talkOn() ? 'ON' : 'OFF'}`, `Story talk ${talkOn() ? 'ON' : 'OFF'}`);
+    $('pzCut').textContent = tr(`カットイン ${cutOn() ? 'ON' : 'OFF'}`, `Cut-ins ${cutOn() ? 'ON' : 'OFF'}`);
     $('pzHaptic').textContent = tr(`振動 ${DB.haptic === false ? 'OFF' : 'ON'}`, `Vibration ${DB.haptic === false ? 'OFF' : 'ON'}`); $('pzHaptic').classList.toggle('hidden', !navigator.vibrate);
   };
   lab();
   $('pzSound').onclick = () => { DB.sound = !DB.sound; applySound(); save(); lab(); };
   $('pzMusic').onclick = () => { DB.music = !DB.music; applySound(); save(); lab(); };
   $('pzTouch').onclick = () => { DB.touchMode = (touchMode() + 1) % 3; save(); lab(); };
-  $('pzTalk').onclick = () => { DB.talk = !talkOn(); save(); lab(); };
+  $('pzTalk').onclick = () => { DB.talk = !talkOn(); save(); lab(); PF.ev('set_talk', { on: talkOn() ? 1 : 0 }); };
+  $('pzCut').onclick = () => { DB.cut = !cutOn(); save(); lab(); PF.ev('set_cut', { on: cutOn() ? 1 : 0 }); };
   $('pzHaptic').onclick = () => { DB.haptic = DB.haptic === false; save(); lab(); buzz(20); };
-  $('pzLang').onclick = () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); openPause(); };
-  renderHeld($('pzHeld'), false);
-  $('pzQuit').textContent = tr('タイトルへ（続きから遊べます）', 'Title (you can continue later)'); $('pzResume').textContent = tr('つづける', 'RESUME');
+  $('pzLang').onclick = () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); openSettings(from); };
+  $('pzLang').classList.toggle('hidden', from === 'inter'); // 屋台の途中で言葉を変えると、画面の半分が前の言葉のまま残る
+  const play = from === 'play'; $('pzHeld').classList.toggle('hidden', !play); $('pzQuit').classList.toggle('hidden', !play);
+  if (play) renderHeld($('pzHeld'), false);
+  $('pzQuit').textContent = tr('タイトルへ（続きから遊べます）', 'Title (you can continue later)'); $('pzResume').textContent = play ? tr('つづける', 'RESUME') : tr('もどる', 'Back');
 }
 function closePause() { S.paused = false; show('none'); last = performance.now(); PF.start(); if (S.st) PF.level('resumed', S.st.level.world, S.st.level.night); }
 $('pauseBtn').onclick = () => { audio.ui('tap'); openPause(); };
@@ -1427,10 +1453,10 @@ function soundIcon() { $('sndBtn').classList.toggle('off', !DB.sound); }
 for (const t of ['pointerup', 'touchend', 'click', 'keydown']) addEventListener(t, () => audio.unlock(), { capture: true, passive: true });
 $('sndBtn').onclick = () => { audio.unlock(); DB.sound = !DB.sound; DB.music = DB.sound; applySound(); save(); soundIcon(); };
 soundIcon();
-$('pzResume').onclick = () => { audio.ui('tap'); closePause(); };
+$('pzResume').onclick = () => { audio.ui('tap'); if (S.setFrom === 'title') toTitle(); else if (S.setFrom === 'inter') { show('inter'); renderShop(); } else closePause(); };
 $('pzQuit').onclick = () => { audio.ui('tap'); S.paused = false; pid = null; if (S.run) { DB.run = S.run; save(); S.savedNote = 1; } toTitle(); };
 addEventListener('keydown', (e) => { if ((e.key === 'Escape' && !window.HANABI_PG) || e.key === 'p') { /* Playgama では Esc を使わない（全画面を抜けるキー） */ if (S.paused) closePause(); else openPause(); } });
-function toast(t) { const e = document.createElement('div'); e.className = 'pop gold'; e.textContent = t; e.style.left = '50%'; e.style.top = '30%'; e.style.fontSize = '22px'; e.style.zIndex = 9; document.body.append(e); setTimeout(() => e.remove(), 950); }
+function toast(t) { const e = document.createElement('div'); e.className = 'pop gold'; e.textContent = t; e.style.left = '50%'; e.style.top = '30%'; e.style.fontSize = '22px'; e.style.zIndex = 9; e.style.width = 'max-content'; e.style.maxWidth = '92vw'; e.style.whiteSpace = 'normal'; e.style.textAlign = 'center'; /* スマホで長い知らせが画面の外へ切れない */ document.body.append(e); setTimeout(() => e.remove(), 950); }
 
 // ------------------------------------------------------------------ 入力
 const q1 = (v) => Math.round(v * 10) / 10;
@@ -1655,6 +1681,8 @@ function taleHint() {
   return w >= L.w ? '' : tr(`灯の物語のつづきは、「${W.ja}」まで進むと読める`, `Reach ${W.en} to read on in Akari's story`);
 }
 const talkOn = () => DB.talk !== false;
+// カットイン（ボス戦の顔と台詞）。前は会話と同じ切り替えだったので、まだ決めていなければ会話に合わせる
+const cutOn = () => (DB.cut ?? DB.talk) !== false;
 let taleVoice = null;
 // 声を鳴らす。鳴った長さ（秒）を返す Promise（鳴らせなければ 0）
 function talePlay(who, text) {
@@ -1686,7 +1714,7 @@ function openTale(p, done, opts = {}) {
   $('tlScene').textContent = JA() ? p.scene.ja : p.scene.en;
   const log = $('tlLog'); log.innerHTML = '';
   $('tlTail').textContent = ''; $('tlNext').textContent = '';
-  const off = $('tlOff'); off.textContent = tr('物語を出さない', 'Hide story'); off.onclick = (e) => { e.stopPropagation(); DB.talk = false; save(); close(); };
+  const off = $('tlOff'); off.textContent = tr('とばす', 'Skip'); off.onclick = (e) => { e.stopPropagation(); close(); };
   el.classList.remove('hidden', 'done', 'out', 'in'); el.classList.toggle('end', !!p.end); el.classList.toggle('first', idx === 0);
   const yid = taleCast({ who: 'yokai', gate: p.gate, w: p.w });
   let i = 0, tm = 0, closed = false, finished = false, tok = 0;
@@ -1709,6 +1737,28 @@ function openTale(p, done, opts = {}) {
   el.onclick = () => { if (performance.now() - t0 < 400 + (opts.delay || 0)) return; if (!el.classList.contains('in')) { clearTimeout(tm); el.classList.add('in'); step(); return; } if (finished) { close(); return; } tok++; taleVoice?.pause(); step(); };
   S.taleKey = () => el.onclick?.();
 }
+// 夜のあとのひとこと: コンのボケと灯のツッコミを 1 行ずつ。読み終えるころに消える
+function showKakeai(world) {
+  const el = $('kakeai'), list = BANTER[((world - 1) % 3) + 1]; if (!el || !list?.length) return;
+  const m = DB.meta; m.banter ||= {}; const wk = String(((world - 1) % 3) + 1), k = m.banter[wk] = ((m.banter[wk] ?? -1) + 1) % list.length; save();
+  const my = S.kkTok = (S.kkTok || 0) + 1; el.innerHTML = ''; el.lang = JA() ? 'ja' : 'en'; el.classList.remove('hidden', 'on');
+  PF.ev('kakeai', { w: world, k });
+  // 1 行ずつ: 声があれば声が終わるまで、なければ読み終える時間だけ待って次の行。最後の行のあと少しして消える
+  const lines = list[k];
+  const step = (j) => {
+    if (S.kkTok !== my || S.mode !== 'inter') return;
+    if (j >= lines.length) { setTimeout(() => { if (S.kkTok === my) hideKakeai(); }, 1600); return; }
+    const ln = lines[j], text = JA() ? ln.ja : ln.en, t0 = performance.now(), read = JA() ? Math.min(3400, 900 + text.length * 70) : Math.min(4200, 1000 + text.length * 50);
+    const row = document.createElement('div'); row.className = 'kk-ln ' + ln.w;
+    const sp = document.createElement('span'); sp.textContent = text;
+    row.append(taleIcon(ln.w, ln.f), sp); el.append(row); el.classList.add('on');
+    let went = false; const go = (ms) => { if (went || S.kkTok !== my) return; went = true; setTimeout(() => step(j + 1), ms); };
+    talePlay(ln.w, text).then((d) => go(Math.max(d ? 350 : 0, read - (performance.now() - t0))));
+    setTimeout(() => go(0), Math.max(read, 7000)); // 声が止まって終わりが来なくても先へ
+  };
+  setTimeout(() => step(0), 2200); // 夜の結果（題・点・小判）を先に見せてから
+}
+function hideKakeai() { const el = $('kakeai'); if (!el) return; S.kkTok = (S.kkTok || 0) + 1; if (el.classList.contains('on')) taleVoice?.pause(); el.classList.remove('on'); setTimeout(() => { if (!el.classList.contains('on')) el.classList.add('hidden'); }, 300); }
 addEventListener('keydown', (e) => { if (S.taleKey && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopImmediatePropagation(); S.taleKey(); } }, true);
 
 // ボス戦のカットイン: 始まりの会話・攻めが決まった・やられた。遊びは止めない
@@ -1721,17 +1771,17 @@ function showCut(ln, kind) {
   talePlay(ln.w, JA() ? ln.ja : ln.en);
 }
 function battleCut(kind) {
-  if (!talkOn() || !S.st || S.mode !== 'play' || S.coach) return;
+  if (!cutOn() || !S.st || S.mode !== 'play' || S.coach) return;
   const now = performance.now(); if (now - (S.cutT || 0) < 2600) return; S.cutT = now;
   // まず灯（やられは痛がる顔・攻めは決めた顔）。コンの一言は 2 回に 1 回、あとから続ける
   const me = BATTLE[kind].filter((l) => l.w === 'akari'), kon = BATTLE[kind].filter((l) => l.w === 'kon'), k = S.cutI = (S.cutI || 0) + 1;
   showCut(me[k % me.length], kind);
-  if (k % 2 === 0 && kon.length) { const st = S.st; setTimeout(() => { if (S.st === st && S.mode === 'play' && talkOn()) { S.cutT = performance.now(); showCut(kon[(k / 2) % kon.length], kind); } }, 1450); }
+  if (k % 2 === 0 && kon.length) { const st = S.st; setTimeout(() => { if (S.st === st && S.mode === 'play' && cutOn()) { S.cutT = performance.now(); showCut(kon[(k / 2) % kon.length], kind); } }, 1450); }
 }
 function battleIntro(def) {
-  if (!talkOn() || def.endless) return; const wr = ((def.world - 1) % 3) + 1, L2 = BATTLE.intro[(def.raid ? 'r' : 'b') + wr]; if (!L2) return;
+  if (!cutOn() || def.endless) return; const wr = ((def.world - 1) % 3) + 1, L2 = BATTLE.intro[(def.raid ? 'r' : 'b') + wr]; if (!L2) return;
   const at = def.raid ? 4300 : 4100;
-  L2.forEach((ln, k) => setTimeout(() => { if (S.st?.level === def && S.mode === 'play' && talkOn()) { S.cutT = performance.now(); showCut(ln, 'intro'); } }, at + k * 2000));
+  L2.forEach((ln, k) => setTimeout(() => { if (S.st?.level === def && S.mode === 'play' && cutOn()) { S.cutT = performance.now(); showCut(ln, 'intro'); } }, at + k * 2000));
 }
 const once = (k) => { const m = mem(); m.seen ||= {}; if (m.seen[k]) return false; m.seen[k] = 1; save(); return true; };
 // ---- 点を伸ばす技

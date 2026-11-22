@@ -206,6 +206,32 @@ export const BATTLE = {
   ],
 };
 
+// 夜のあとのひとこと（11/22 依頼主「1 夜以降の会話がでなくなることがある」）: 読める頁がない夜に、屋台の上で 2 行だけ。
+// 物語の頁は先へ進むと読める作りなので、同じ周回では頁がない夜が続く。そこを埋める。筋の核心には触れず、遊びのこつをボケとツッコミで
+export const BANTER = {
+  1: [
+    [L('kon', `灯、お守りって食べられるコン？`, `Akari, can we eat charms, kon?`), L('akari', `食べない！ 持ち物を押すと売れるよ`, `No! Tap one you hold to sell it.`, 'angry')],
+    [L('kon', `金の玉、かじったら固かったコン`, `I bit a gold shell. So hard, kon.`), L('akari', `小判じゃないから！`, `It's not a coin!`, 'angry')],
+    [L('kon', `火がこわいなら、線を短くするコン`, `Scared of the fire? Draw short lines, kon.`), L('akari', `短いと、点も短いの`, `Short line, short score.`, 'smile')],
+    [L('kon', `提灯の玉のあとは、ぜんぶ二倍コン？`, `After a Lantern, it's all double, kon?`), L('akari', `そう。だから、つなぐ順番が大事`, `Yes. So the order you link them matters.`, 'smile')],
+    [L('kon', `トラのつけ、また増えたコン`, `My tab with Tora grew again, kon.`), L('akari', `わたしの小判で払わないでね`, `Don't pay it with my coins.`, 'angry')],
+  ],
+  2: [
+    [L('kon', `雪、冷たいコン。しっぽを巻くコン`, `Snow's cold, kon. Tail scarf time.`), L('akari', `わたしの首に巻かないで！`, `Not around my neck!`, 'angry')],
+    [L('kon', `氷の玉、線を引いてもひらかないコン`, `Ice shells won't open with a line, kon.`), L('akari', `近くの花火で、とかすの`, `Melt them with a blast nearby.`, 'smile')],
+    [L('kon', `風が吹くと、玉が流れていくコン`, `The wind blows the shells away, kon.`), L('akari', `白い輪が出たら、先回り！`, `See a white ring? Get ahead!`, 'joy')],
+    [L('kon', `お守りの袋、もういっぱいコン`, `The charm bag is full, kon.`), L('akari', `弱いのを売って、空ければいいよ`, `Sell a weak one to make room.`, 'smile')],
+    [L('kon', `雪だるまに、花火の目をつけたコン`, `I gave the snowman firework eyes, kon.`), L('akari', `燃えてる！ とけてる！`, `They're burning! It's melting!`, 'surprise')],
+  ],
+  3: [
+    [L('kon', `妖怪の屋台、おいしそうコン`, `The yokai stalls smell good, kon.`), L('akari', `中身は、聞かないでおこう`, `Let's not ask what's inside.`, 'surprise')],
+    [L('kon', `大妖怪、ちょっとこわいコン`, `The great yokai is kinda scary, kon.`), L('akari', `技をしのげば、ボーナスだよ`, `Survive its technique for a bonus.`, 'smile')],
+    [L('kon', `灯の線、前よりまっすぐコン`, `Your lines are straighter now, kon.`), L('akari', `まっすぐじゃなくて、迷わなくなったの`, `Not straighter. I just don't hesitate.`, 'laugh')],
+    [L('kon', `小判、ためるとふえるコン？`, `Do coins grow if we save them, kon?`), L('akari', `利息がつくよ。使いどきも大事`, `They earn interest. Spend them in time.`, 'smile')],
+    [L('kon', `最後の夜まで、あと少しコン`, `Almost at the last night, kon.`), L('akari', `うん。ちゃんと咲かせよう`, `Yeah. Let's make it bloom.`, 'joy')],
+  ],
+};
+
 // 声のファイル名: 話し手と本文から（台詞を直すと名前が変わり、古い声は使われない）
 export function voiceKey(who, text) { const s = who + '|' + text; let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'v' + (h >>> 0).toString(36); }
 export const VOICED = new Set(['akari', 'kon', 'hinoko']);
