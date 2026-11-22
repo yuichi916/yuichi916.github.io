@@ -5,7 +5,7 @@
 //   ['n', W, H, evs, score]  夜。evs = [[コマ, 'd', x, y] | [コマ, 'm', x, y] | [コマ, 'u'] | [コマ, 'e', 縁起物]]
 //   ['b', i] 買う / ['r'] 引き直し / ['s', i] 売る / ['w', i, j] 並べ替え / ['g'] ほうびを受け取らない
 //   ['a', 道] 次の夜へ（道の分かれがなければ -1）/ ['x'] 屋台の途中で閉じた（そのまま次へ）
-//   ['k', 小判] 線香花火 / ['L', 0|1] 夜の途中で閉じた（1 なら灯をひとつ取られた）/ ['E'] 千秋楽へ
+//   ['k', 小判] 線香花火 / ['L', 0|1] 夜の途中で閉じた（1 なら灯をひとつ取られた）/ ['E'] 千秋楽へ / ['V'] 灯が尽きたあとの復活
 import * as G from './sim.js';
 import * as Run from './run.js';
 
@@ -71,7 +71,7 @@ export function verifyRun(log) {
     const op = log.ops[k];
     if (!Array.isArray(op)) return fail('op', k);
     const t = op[0];
-    if (phase === 'over') return fail('after-end', k);
+    if (phase === 'over' && t !== 'V') return fail('after-end', k);
     if (phase === 'won' && t !== 'E') return fail('after-win', k);
     switch (t) {
       case 'n': {
@@ -109,6 +109,10 @@ export function verifyRun(log) {
         run.coins += op[1]; senko = false;
         break;
       case 'E': if (phase !== 'won') return fail('endless', k); Run.startEndless(run); phase = 'night'; break;
+      case 'V': // 灯が尽きたあとの復活（コンの身代わり 1 回・広告 1 回まで）。灯をひとつ戻して、同じ夜をもう一度
+        if (phase !== 'over' || (run.rvUsed || 0) >= 2) return fail('revive', k);
+        run.rvUsed = (run.rvUsed || 0) + 1; run.lives = 1; run.retry++; phase = 'night';
+        break;
       default: return fail('op', k);
     }
   }

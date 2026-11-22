@@ -245,7 +245,7 @@ function beginRun(o = {}) {
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
   S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
-  S.run.rv = 9; // 決まりの版 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる / 8: 世界 1 で負けたら次の挑戦の目標を下げる（情け）・練習の周の第 2 夜に福の神 / 9: 道で趣向を選ばなかった夜にも軽い趣向（夜ごとに中身が変わる）
+  S.run.rv = 10; DB.meta.ck = null; // 決まりの版 10: 世界 2・3 の負けにも情け・世界 2・3 の第 1〜3 夜 ×0.88・コンの身代わり（11/22）/ 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる / 8: 世界 1 で負けたら次の挑戦の目標を下げる（情け）・練習の周の第 2 夜に福の神 / 9: 道で趣向を選ばなかった夜にも軽い趣向（夜ごとに中身が変わる）
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
@@ -278,7 +278,7 @@ function resumeRun() {
   // 屋台の途中で閉じていたら、その夜は越えたことにして次へ（ごほうびを二度もらわない）
   if (run.shopAt && run.shopAt === `${run.world}-${run.night}` && run.shopState?.sh) return reopenShop();
   if (run.shopAt && run.shopAt === `${run.world}-${run.night}`) {
-    logOp('x'); const res = Run.advance(run); DB.run = run; save();
+    logOp('x'); const res = Run.advance(run); if (res === 'world') ckSave(); DB.run = run; save();
     if (res === 'won') return runOver(true);
     return res === 'world' ? openSenko() : startNight();
   }
@@ -659,7 +659,7 @@ function nightEnded() {
   PF.level(res === 'clear' ? 'completed' : 'failed', def.world, def.night); if (res === 'clear' && def.boss) PF.milestone();
   logSave();
   if (def.boss && (res === 'over' || res === 'retry')) track(`boss/${bossKey(def)}/lose`);
-  if (res === 'over') { achCheck({ stars: 0 }); if (PF.rewardedOk && !run.revived && !run.endless) return offerRevive(); return runOver(false); }
+  if (res === 'over') { achCheck({ stars: 0 }); const rk = reviveKind(run); if (rk) return offerRevive(rk); return runOver(false); }
   if (res === 'retry') { achCheck({ stars: 0 }); return retryNight(); }
   if (def.boss) track(`boss/${bossKey(def)}/win`);
   const stars = R2.stars, rw = R2.rw, interest = R2.interest, gain = R2.gain;
@@ -844,23 +844,50 @@ function coachLine() {
   else t = tr('<em>金の玉</em>を先に通すと、あとの玉が全部伸びるニャ', 'Thread the <em>gold shells</em> first. Everything after scores more!');
   return `${name}${t}`;
 }
-// 灯が尽きた: 広告を見れば灯をひとつ取り戻して、この夜をもう一度（1 周に 1 回）。見なければ、いつもの終わり
-function offerRevive() {
+// 灯が尽きた（11/22 依頼主「中毒性が足りない」。広告の復活は 23 回中 1 回しか受けられていなかった）
+// 1 回目はコンの身代わり（広告なし・1 周に 1 回）。使ったあとは、広告を見れば灯をひとつ（Playgama・1 周に 1 回）
+function reviveKind(run) {
+  if (run.endless) return null;
+  if ((run.rv || 1) >= 10 && !run.konRv) return 'kon';
+  if (PF.rewardedOk && !run.revived) return 'ad';
+  return null;
+}
+function offerRevive(kind = 'ad') {
   S.mode = 'revive'; audio.ui('lose'); hurt();
-  const el = $('revive'), miss = S.miss ? tr(`あと ${fmt(S.miss.n)} 点だった（${S.miss.pct}%）`, `Just ${fmt(S.miss.n)} short (${S.miss.pct}%)`) : '';
-  el.innerHTML = `<div class="gcard"><h3>${tr('灯が尽きた', 'Out of lights')}</h3>${miss ? `<p class="rvmiss">${miss}</p>` : ''}`
-    + `<p>${tr('広告を見ると、灯をひとつ取り戻して<b>この夜をもう一度</b>。（1 周に 1 回）', 'Watch an ad to get a light back and <b>retry this night</b>. (Once per run)')}</p>`
-    + `<div class="row"><button class="btn2" id="rvNo">${tr('ここまでにする', 'End run')}</button><button class="bigbtn small" id="rvYes">${tr('▶ 広告を見て続ける', '▶ Watch & continue')}</button></div><p class="rvmsg" id="rvMsg"></p></div>`;
+  const el = $('revive'), kon = kind === 'kon';
+  const miss = S.miss ? tr(`あと <b>${fmt(S.miss.n)}</b> 点だった`, `Just <b>${fmt(S.miss.n)}</b> short`) + `<span class="rvbar"><i style="width:${Math.min(100, S.miss.pct)}%"></i></span><small>${S.miss.pct}%</small>` : '';
+  el.innerHTML = `<div class="gcard${kon ? ' kon' : ''}">${kon ? '<img class="rvkon" src="tale/img/kon_face.webp" alt="">' : ''}<h3>${tr('灯が尽きた', 'Out of lights')}</h3>${miss ? `<p class="rvmiss">${miss}</p>` : ''}`
+    + (kon ? `<p>${tr('コン「コンが身代わりになるコン！」<br>灯をひとつ戻して、<b>この夜をもう一度</b>。（1 周に 1 回）', 'Kon: "I\'ll take the hit, kon!"<br>Get a light back and <b>retry this night</b>. (Once per run)')}</p>`
+      : `<p>${tr('広告を見ると、灯をひとつ取り戻して<b>この夜をもう一度</b>。（1 周に 1 回）', 'Watch an ad to get a light back and <b>retry this night</b>. (Once per run)')}</p>`)
+    + `<div class="row"><button class="btn2" id="rvNo">${tr('ここまでにする', 'End run')}</button><button class="bigbtn small" id="rvYes">${kon ? tr('▶ もう一度この夜', '▶ Retry this night') : tr('▶ 広告を見て続ける', '▶ Watch & continue')}</button></div><p class="rvmsg" id="rvMsg"></p></div>`;
   el.classList.remove('hidden');
-  $('rvNo').onclick = () => { audio.ui('tap'); el.classList.add('hidden'); PF.ev('revive', { ok: 0, declined: 1 }); runOver(false); };
+  const back = () => { const run = S.run; run.lives = 1; run.retry++; logOp('V'); logSave(); el.classList.add('hidden'); track('run/revive' + (kon ? '/kon' : '')); retryNight(); };
+  $('rvNo').onclick = () => { audio.ui('tap'); el.classList.add('hidden'); PF.ev('revive', { ok: 0, declined: 1, kind }); runOver(false); };
   $('rvYes').onclick = async () => {
-    audio.ui('tap'); $('rvYes').disabled = true; $('rvNo').disabled = true; $('rvMsg').textContent = '';
+    audio.ui('tap');
+    if (kon) { S.run.konRv = 1; PF.ev('revive', { ok: 1, kind }); back(); return; }
+    $('rvYes').disabled = true; $('rvNo').disabled = true; $('rvMsg').textContent = '';
     const ok = await PF.rewarded('revive');
-    PF.ev('revive', { ok: ok ? 1 : 0 });
+    PF.ev('revive', { ok: ok ? 1 : 0, kind });
     if (S.mode !== 'revive') return;
-    if (ok) { const run = S.run; run.lives = 1; run.retry++; run.revived = 1; el.classList.add('hidden'); track('run/revive'); retryNight(); return; }
+    if (ok) { S.run.revived = 1; back(); return; }
     $('rvYes').disabled = false; $('rvNo').disabled = false; $('rvMsg').textContent = tr('広告を最後まで見られなかった。もう一度ためせます', 'The ad did not finish. You can try again.');
   };
+}
+// 世界の頭の写し（11/22）: 長い周ほど 1 回の負けで全部消え、そのまま帰っていた（11/21 MCP: 10 夜・16 夜を越えた周が負けて終わり）。
+// 負けたら、いちばん新しい世界の頭（線香花火の前）から、そのときのお守り・小判・灯でやり直せる。続けた周はランキングに送らない
+function ckSave() {
+  const r = S.run; if (!r || r.endless || r.daily || r.world < 2 || r.world > Run.WORLDS.length) return;
+  const c = JSON.parse(JSON.stringify(r)); c.inNight = null; c.shopState = null;
+  DB.meta.ck = { seed: r.seed, world: r.world, run: c };
+}
+function contRun(ck) {
+  ck.run.cont = (ck.run.cont || 0) + 1;
+  S.run = Run.fixRun(JSON.parse(JSON.stringify(ck.run))); S.run.ckN = S.run.nightsCleared;
+  S.daily = false; S.log = null; if (!window.HANABI_PG) try { localStorage.removeItem(LOGKEY); } catch { /* */ }
+  PF.ev('cont', { w: ck.world, n: S.run.cont, nights: S.run.nightsCleared }); track(`run/cont/w${ck.world}`);
+  DB.run = S.run; save();
+  openSenko();
 }
 // 失敗しても灯が残っていれば、同じ夜をもう一度（盤は変わる）
 function retryNight() {
@@ -1136,6 +1163,7 @@ $('nextBtn').onclick = () => {
   S.run.shopState = null;
   const res = Run.advance(S.run); logSave();
   if (res === 'won') return runOver(true);
+  if (res === 'world') ckSave();
   DB.run = S.run; save();
   if (res === 'world') openSenko(); else startNight();
 };
@@ -1285,7 +1313,7 @@ function runOver(won) {
   S.mode = 'over'; show('over'); $('hud').classList.add('hidden'); $('teach').classList.add('hidden'); document.body.classList.remove('hudq');
   const meta = DB.meta, prevEnd = meta.mem?.lastEnd, prevBest = meta.best || 0, beforeSet = Run.unlockedCharms(meta), before = beforeSet.size, fuseBefore = Run.FUSES.filter((f) => Run.fuseOpen(f, meta)).length;
   const newBest = meta.runs > 0 && run.nightsCleared > (meta.best || 0);
-  meta.runs = (meta.runs || 0) + 1; meta.xp = (meta.xp || 0) + Run.xpFor(run); meta.best = Math.max(meta.best || 0, run.nightsCleared);
+  meta.runs = (meta.runs || 0) + 1; meta.xp = (meta.xp || 0) + Math.max(0, Run.xpFor(run) - (run.cont ? (run.ckN || 0) * 5 : 0)); meta.best = Math.max(meta.best || 0, run.nightsCleared);
   if (won) { meta.wins = (meta.wins || 0) + 1; meta.rankOpen = Math.max(meta.rankOpen || 0, run.rank + 1); }
   achCheck({ stars: 0 });
   const after = Run.unlockedCharms(meta).size, fuseAfter = Run.FUSES.filter((f) => Run.fuseOpen(f, meta)).length;
@@ -1308,7 +1336,7 @@ function runOver(won) {
   if (!won && !run.endless && talkOn()) { const th = taleHint(); if (th) $('ovNights').insertAdjacentHTML('beforeend', `<small class="talehint">${th}</small>`); }
   const sp = Object.values(run.spells || {}), spT = sp.reduce((a, x) => a + x.t, 0), spG = sp.reduce((a, x) => a + x.g, 0);
   meta.bestScore = Math.max(meta.bestScore || 0, run.totalScore);
-  PF.lbSet(run.totalScore);
+  if (!run.cont) PF.lbSet(run.totalScore);
   PF.ev('run_end', { nights: run.nightsCleared, won: won ? 1 : 0, total: run.totalScore, revived: run.revived ? 1 : 0, runs: meta.runs, assist: run.assist ? 1 : 0, daily: S.daily ? 1 : 0 });
   $('ovStats').innerHTML = [[tr('合計の点', 'Total score'), fmt(run.totalScore)], [tr('最大連鎖', 'Best chain'), run.bestChain], ...(DB.meta.taught.dust ? [[tr('星の値', 'Star value'), fmtM(run.pv ?? 4)], [tr('かすり', 'Graze'), fmt(run.graze || 0)], [tr('星屑', 'Star dust'), fmt(run.dust || 0)]] : []), ...(spT ? [[tr('技', 'Techniques'), `${spG} / ${spT}`]] : []), [tr('星', 'Stars'), run.stars], [tr('経験', 'XP'), '+' + Run.xpFor(run)]].map(([a, b], i) => `<div style="animation-delay:${i * 0.1}s"><span>${a}</span><b>${b}</b></div>`).join('');
   const ul = [];
@@ -1318,6 +1346,10 @@ function runOver(won) {
   const order = Run.START_POOL, xp = meta.xp, rest = after < CHARMS.length ? 30 - (xp % 30) : 0;
   $('ovUnlocks').innerHTML = (ul.length ? `<div>${ul.join('  ')}</div>` : '') + (rest ? `<div class="nextun"><span>${tr(`次のお守りまで あと ${rest}`, `Next charm in ${rest} XP`)}</span><i style="width:${((30 - rest) / 30) * 100}%"></i></div>` : '');
   $('ovTitleBtn').textContent = tr('タイトル', 'Title'); $('ovAgain').textContent = tr('もう一度', 'PLAY AGAIN');
+  { const ck = !won && !run.endless && !S.daily && DB.meta.ck && DB.meta.ck.seed === run.seed ? DB.meta.ck : null, cb = $('ovCont');
+    cb.classList.toggle('hidden', !ck); $('ovAgain').className = ck ? 'btn2' : 'bigbtn small';
+    if (ck) { cb.innerHTML = tr(`▶ 第 ${ck.world} の世界の頭から`, `▶ Retry World ${ck.world}`) + `<small>${tr(`お守り・小判・灯はそのとき（${ck.run.nightsCleared} 夜を越えたところ）のまま`, `Keep your charms, coins and lights (after night ${ck.run.nightsCleared})`)}</small>`; $('ovAgain').textContent = tr('はじめから', 'New run'); cb.onclick = () => { audio.ui('tap'); PF.ad(); contRun(ck); }; }
+    if (ck) PF.ev('cont_offer', { w: ck.world, nights: run.nightsCleared }); }
   // Playgama ではタイトルを通らないので、今日の祭りの入口をここにも置く
   // Playgama のランキング（ovRank は自分のサイトの世界ランキングの欄なので別の名前）
   const orb = $('ovPgRank'); orb.textContent = tr('ランキング', 'Leaderboard'); orb.classList.toggle('hidden', PF.lbType() !== 'in_game'); orb.onclick = () => { audio.ui('tap'); openPgRank(); };
@@ -2649,5 +2681,5 @@ function ihenFrame(dt) {
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, openRank, openPgRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext, battleCut: (k) => battleCut(k), showCut: (l, k) => showCut(l, k), BATTLE };
+window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, offerRevive, runOver, ckSave, contRun, openRank, openPgRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext, battleCut: (k) => battleCut(k), showCut: (l, k) => showCut(l, k), BATTLE };
 boot();

@@ -277,7 +277,11 @@ export const ASSIST_BOSS = 0.75;
 // 情け（決まりの版 8）: 世界 1 のふつうの夜で負けると、次の挑戦は目標 ×0.85、2 度目からは ×0.72（今日の祭りは除く）。
 // 11/21 MCP: 遊んだ 104 人の 73% が第 1〜2 夜で終わり、同じ夜で 2 度以上負けた 39 件のうち 28 件はそのまま帰った
 export const MERCY = [1, 0.85, 0.72];
-export const mercyFor = (run, world, boss) => ((run.rv || 1) >= 8 && !run.daily && world === 1 && !boss ? MERCY[Math.min(2, run.retry || 0)] : 1);
+// 版 10（11/22 依頼主「中毒性が足りない」）: 情けを世界 2・3 のふつうの夜にも。11/21 MCP: 第 11 夜で 4 回続けて負けてそのまま帰った周があった
+export const mercyFor = (run, world, boss) => ((run.rv || 1) >= 8 && !run.daily && !boss && (world === 1 || ((run.rv || 1) >= 10 && world <= WORLDS.length)) ? MERCY[Math.min(2, run.retry || 0)] : 1);
+// 版 10: 世界 2・3 の入り口（第 1〜3 夜）の目標 ×0.88。世界 1 は連勝で抜けるのに、第 9〜11 夜・第 17 夜で急に止まっていた（11/21 MCP）
+export const ENTRY_EASE = 0.88;
+const entryEase = (run, world, night, boss) => ((run.rv || 1) >= 10 && !boss && world >= 2 && world <= WORLDS.length && night <= 3 ? ENTRY_EASE : 1);
 // 大妖怪の体力: その人の直前 3 夜の「一筆あたりの点」×3 ×RAID_FORM。上手な人にも初めての人にも、3〜4 筆の勝負になる
 export const RAID_FORM = [0.85, 1.0, 0.3], RAID_SPD = 1.5; // 世界ごと（世界 3 は道中の夜で点が伸びやすく、一筆あたりの点が大妖怪の夜より高く出る）
 function raidHp(run, target, world) {
@@ -315,7 +319,7 @@ export function nightDef(run, world, night) {
   const pl = run.plan?.[`${world}-${night}`], node = pl?.node || (boss ? 'boss' : 'plain'), tid = pl?.id || autoTwist(run, world, night);
   // 練習の周: 世界 1 の大一番 ×0.75、版 4 からは世界 2 の大一番も ×0.85（11/16 の数字: 世界 2 の大一番で目標の 65% 止まり・周が終わっていた）
   const assist = run.assist && boss ? (world === 1 ? ASSIST_BOSS : world === 2 && (run.rv || 1) >= 4 ? 0.85 : 1) : 1;
-  const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) * (NODE_TARGET[node] || 1) * (SCHOOL_TARGET[run.school] || 1) * assist * (run.assist && (run.rv || 1) >= 6 && world === 1 && (night === 2 || night === 3) ? 0.8 : 1) * mercyFor(run, world, boss) / 10) * 10; // 練習の周の第 2〜3 夜は目標 ×0.8（11/19 MCP: 勝ちは第 2 夜 40%・第 3 夜 39%、夜の途中で帰るのが最多）
+  const target = Math.round(targetFor((world - 1) * NIGHTS_PER_WORLD + night, rank, boss) * endlessX(world) * (NODE_TARGET[node] || 1) * (SCHOOL_TARGET[run.school] || 1) * assist * (run.assist && (run.rv || 1) >= 6 && world === 1 && (night === 2 || night === 3) ? 0.8 : 1) * mercyFor(run, world, boss) * entryEase(run, world, night, boss) / 10) * 10; // 練習の周の第 2〜3 夜は目標 ×0.8（11/19 MCP: 勝ちは第 2 夜 40%・第 3 夜 39%、夜の途中で帰るのが最多）
   const strokes = 3 + (boss && rank.bossStroke ? rank.bossStroke : 0);
   const idx = (world - 1) * NIGHTS_PER_WORLD + night - 1;
   // 乱入は予告なし。大一番と、はじめの 2 夜にはこない
@@ -328,9 +332,10 @@ export function nightDef(run, world, night) {
   }
   if ((run.rv || 1) >= 8 && run.assist && world === 1 && night === 2) intrude = 'fuku'; // 練習の周の第 2 夜: 招き猫のトラが金の玉をばらまく（序盤に驚きを 1 つ。乱数は上で引き終えている）
   // 大仕掛けの夜（各世界の第 6 夜。gr の周から）: 盤は画面の 2.2 倍の横長、玉 1.8 倍・目標 1.7 倍。異変は起こさない
+  // 版 10: 天の川 ×1.5→×1.2・大仕掛け ×1.7→×1.5（11/21 MCP: 第 11 夜＝天の川で 4 回負けて帰った。ボットも前の夜の 1/3 しか取れない）
   const sky = run.grand && (run.rv || 1) >= 3 && night === 3 && world >= 2 && world <= WORLDS.length; // 天の川の夜（版 3〜）
   const grand = sky ? { gw: 1, gh: 2.4, kind: 'seiza' } : run.grand && night === 6 && world <= WORLDS.length && !boss ? { gw: 2.2, kind: ['taki', 'moji', 'renpatsu'][world - 1] } : null;
-  return { raid: raid ? { cast: RULES[rule].cast, hp: raidHp(run, target, world) } : null, node, seals, ihen: grand || raid ? null : ihenFor(run, world, night, tid || null, seed), grand, endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (run.assist && (run.rv || 1) >= 5 && world === 1 && night <= 3 ? [0.8, 0.85, 0.9][night - 1] : 1) /* 練習の周の第 1〜3 夜は火を遅く（11/17: 第 1 夜の 3 回に 1 回が負け、負けた回は追いつかれ 2〜3 度） */ * (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, rv: run.rv || 1, world, night, seed, count: grand ? Math.round(count * 1.8) : count, mix, strokes: grand ? strokes + 1 : strokes, refill: 7 + Math.floor(night / 2), target: grand ? Math.round((target * (grand.kind === 'seiza' && (run.rv || 1) >= 4 ? 1.5 : 1.7)) / 10) * 10 : target, /* 天の川は版 4 から 1.5 倍（11/16: 中央値 97% でやり直しが半分） */ rule, boss, twist: tid || null, twistCoin: pl?.id ? pl.coin || 0 : 0, twistHide: !!pl?.hide, intrude };
+  return { raid: raid ? { cast: RULES[rule].cast, hp: raidHp(run, target, world) } : null, node, seals, ihen: grand || raid ? null : ihenFor(run, world, night, tid || null, seed), grand, endless: world > WORLDS.length, deck: deckFor(run, seed), flame: (run.assist && (run.rv || 1) >= 5 && world === 1 && night <= 3 ? [0.8, 0.85, 0.9][night - 1] : 1) /* 練習の周の第 1〜3 夜は火を遅く（11/17: 第 1 夜の 3 回に 1 回が負け、負けた回は追いつかれ 2〜3 度） */ * (1 + Math.min(idx, 23) * 0.022) * (world > WORLDS.length ? 1 + 0.06 * (world - WORLDS.length) : 1), gusts: idx >= 2, id: idx + 1, rv: run.rv || 1, world, night, seed, count: grand ? Math.round(count * 1.8) : count, mix, strokes: grand ? strokes + 1 : strokes, refill: 7 + Math.floor(night / 2), target: grand ? Math.round((target * (grand.kind === 'seiza' ? ((run.rv || 1) >= 10 ? 1.2 : (run.rv || 1) >= 4 ? 1.5 : 1.7) : (run.rv || 1) >= 10 ? 1.5 : 1.7)) / 10) * 10 : target, /* 天の川は版 4 から 1.5 倍（11/16: 中央値 97% でやり直しが半分） */ rule, boss, twist: tid || null, twistCoin: pl?.id ? pl.coin || 0 : 0, twistHide: !!pl?.hide, intrude };
 }
 
 // 流派ごとの目標の合わせ（_dev/hanabi-bot.mjs の完走率が本流 ±10 ポイントに入るように）
