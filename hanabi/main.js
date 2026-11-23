@@ -141,7 +141,10 @@ function toTitle() {
   audio.scene('calm');
 }
 // 題名画面で音がまだ止まっている間だけ出す（ブラウザは、画面に一度触れるまで音を出させない）。どこに触れても鳴り始める
-setInterval(() => { { const off = DB.sound && !PF.muted && !S.adPause && S.adEnd && performance.now() - S.adEnd > 2500 && S.mode !== 'title' && audio.ctx && audio.ctx.state !== 'running'; let h = $('sndHint2'); if (off && !h) { h = document.createElement('div'); h.id = 'sndHint2'; h.className = 'sndhint2'; document.body.append(h); } if (h) { h.textContent = tr('♪ 画面に触れると音が戻ります', '♪ Tap to bring the sound back'); h.classList.toggle('hidden', !off); } }
+// 11/23 依頼主「最初に何か触るまで音が出ないのはなんとかしたい」: ブラウザは、だれかがページを押すまで音を出させない。
+// Playgama の枠は音の許しを受け継ぐ（allow="autoplay"）ので、外のページが押されたらすぐ鳴るよう 0.3 秒ごとに試す。止まっている間は、どの画面でも知らせる
+setInterval(() => { if (!document.hidden && DB.sound && !PF.muted && !S.adPause && audio.ctx && audio.ctx.state !== 'running') { try { audio.unlock(); } catch { /* まだ許されていない */ } } }, 300);
+setInterval(() => { { const off = DB.sound && !PF.muted && !S.adPause && S.mode !== 'title' && audio.ctx && audio.ctx.state !== 'running' && performance.now() > 2500; let h = $('sndHint2'); if (off && !h) { h = document.createElement('div'); h.id = 'sndHint2'; h.className = 'sndhint2'; document.body.append(h); } if (h) { h.textContent = S.adEnd ? tr('♪ 画面に触れると音が戻ります', '♪ Tap to bring the sound back') : tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); h.classList.toggle('hidden', !off); } }
   const e = $('sndHint'); if (!e) return; const need = S.mode === 'title' && DB.sound && !(audio.ctx && audio.ctx.state === 'running'); e.textContent = tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); e.classList.toggle('hidden', !need); }, 400);
 
 // 題名画面の「おわる」（11/23 依頼主「タイトル画面に終わるがない。終わるときに灯にしゃべってほしい」）。ブラウザの遊びは窓を閉じられないので、保存して灯のお別れを見せる
@@ -336,7 +339,7 @@ function startNight(resume = null) {
   S.mode = 'play'; S.crossed = false; S.seq = []; S.endAfterCount = false; R.zoom = 1; S.timeScale = 1; S.hint = 0; S.shown = 0; S.cnt = null; S.tut = null;
   PF.start(); PF.level('started', def.world, def.night);
   S.nightT0 = performance.now();
-  S.pan = 0; S.panY = 0; S.drag = null; S.panIntro = def.grand && !resume ? 2.4 : 0;
+  S.pan = 0; S.panY = 0; S.drag = null; S.panVX = 0; S.panVY = 0; S.flingX = 0; S.flingY = 0; S.panIntro = def.grand && !resume ? 2.4 : 0;
   { const wr = ((def.world - 1) % 3) + 1, hq = !def.endless && wr === 3 && def.night === 5 && lore() >= 2; document.body.classList.toggle('hudq', hq);
     if (hq && !resume) setTimeout(() => banner(`${tr('札隠し', 'NUMBERS HIDDEN')}<small>${tr('今夜は、数が見えない。……数えなくても、わかるはず', 'Tonight the numbers hide. ...You can feel it without counting.')}</small>`, 58, 2600), 900); }
   document.body.classList.toggle('raid', !!def.raid); S.raidV = null;
@@ -367,6 +370,7 @@ function startNight(resume = null) {
   for (const z of S.st.zones) { const e = document.createElement('div'); e.className = 'zl ' + z.kind; e.innerHTML = z.kind === 'oil' ? tr('油<small>火が速い・点 ×3</small>', 'OIL<small>fast flame, POINTS ×3</small>') : tr('水<small>火が遅い</small>', 'WATER<small>slow flame</small>'); e.style.left = (z.x / W) * 100 + '%'; e.style.top = (z.y / H) * 100 + '%'; zl.append(e); }
   // 大一番
   const boss = $('boss');
+  if (def.raid || def.rule) { if (cutOn() && !def.endless) { const wr = ((def.world - 1) % 3) + 1; for (const ln of [...(BATTLE.intro[(def.raid ? 'r' : 'b') + wr] || []), ...BATTLE.atk, ...BATTLE.hurt]) preVoice(ln.w, JA() ? ln.ja : ln.en); } }
   if (!resume && (def.raid || def.rule)) battleIntro(def);
   if (def.raid) { raidIntro(def, run, resume); if (!resume) ykMeet(def.raid.cast, 3200); }
   else if (def.rule) {
@@ -651,7 +655,10 @@ function hideSellPop() { const p = $('sellPop'); if (p && !p.classList.contains(
 // 屋台の持ち物を押したとき: 説明と「売る」ボタンの札（ボタンを押すか、同じ持ち物をもう一度押すと売れる）
 function openSellPop(d, c, i, price) {
   const p = $('sellPop'); p.innerHTML = `<b>${JA() ? c.ja : c.en}</b><span class="ds">${charmDesc(c)}</span>${S.run.charms.length > 1 ? `<small>${tr('‹ › で順番を変える（左から効く）', '‹ › to reorder (left triggers first)')}</small>` : ''}`;
-  const bt = document.createElement('button'); bt.className = 'sellbtn'; bt.innerHTML = tr(`売る　<i class="coin"></i>+${price}`, `Sell　<i class="coin"></i>+${price}`); bt.onclick = (e) => { e.stopPropagation(); sellAt(i); }; p.append(bt);
+  const row = document.createElement('div'); row.className = 'sellrow'; // 11/23 依頼主「売るとやめるも欲しい」
+  const no = document.createElement('button'); no.className = 'sellno'; no.textContent = tr('やめる', 'Cancel'); no.onclick = (e) => { e.stopPropagation(); audio.ui('tap'); hideSellPop(); };
+  const bt = document.createElement('button'); bt.className = 'sellbtn'; bt.innerHTML = tr(`売る　<i class="coin"></i>+${price}`, `Sell　<i class="coin"></i>+${price}`); bt.onclick = (e) => { e.stopPropagation(); sellAt(i); };
+  row.append(no, bt); p.append(row);
   p.classList.remove('hidden'); $('tip').classList.add('hidden'); placeOver(p, d.getBoundingClientRect(), 30);
 }
 function sellAt(i) { Run.sellCharm(S.run, i); logOp('s', i); mem().sold++; audio.note(8, { vol: 0.14, dur: 0.2 }); hideTip(); renderShop(); }
@@ -1144,6 +1151,8 @@ function replayScore(rec, run) {
   }
   return G.liveScore(st);
 }
+// 試し打ちの盤の印: お守りで玉の数・種類・置き場所が変わるなら、前の夜の線をそのまま流しても比べられない（11/23 依頼主「金箔・夜長の値がバグる」）
+function boardSig(rec, run) { try { const st = G.newNight({ ...rec.def, target: 1e15 }, rec.W, rec.H, Run.loadoutFor(run)); G.stageRise(st); return st.shells.length + ':' + st.shells.map((q) => q.type + Math.round(q.x) + ',' + Math.round(q.y)).join(';'); } catch { return 'x' + Math.random(); } }
 function previewShop() {
   const rec = S.rec, token = (S.pvToken = (S.pvToken || 0) + 1);
   const cw = $('charmWork'); if (cw) cw.innerHTML = '';
@@ -1154,13 +1163,13 @@ function previewShop() {
   const queue = S.sh.items.map((it, i) => [it, i]).filter(([it]) => it.kind === 'charm' || it.kind === 'recipe' || it.kind === 'trade');
   const step = () => {
     if (S.pvToken !== token || S.mode !== 'inter') return;
-    if (base === null) { base = Math.max(1, replayScore(rec, rec.run)); setTimeout(step, 0); return; }
-    if (owned.length) { const id = owned.shift(), r0 = JSON.parse(JSON.stringify(rec.run)); r0.charms = r0.charms.filter((x) => x !== id); work[id] = base - replayScore(rec, r0); if (!owned.length) renderCharmWork(work); setTimeout(step, 0); return; }
+    if (base === null) { base = Math.max(1, replayScore(rec, rec.run)); S.pvSig = boardSig(rec, rec.run); setTimeout(step, 0); return; }
+    if (owned.length) { const id = owned.shift(), r0 = JSON.parse(JSON.stringify(rec.run)); r0.charms = r0.charms.filter((x) => x !== id); work[id] = boardSig(rec, r0) === S.pvSig ? base - replayScore(rec, r0) : null; if (!owned.length) renderCharmWork(work); setTimeout(step, 0); return; }
     const next = queue.shift(); if (!next) { renderShop(); refreshGiftTags(); return; }
     const [it, i] = next, r2 = JSON.parse(JSON.stringify(rec.run));
     if ((it.kind === 'charm' || it.kind === 'trade') && r2.charms.length >= r2.slots) r2.charms.shift();
     Run.applyItem(r2, it);
-    S.preview[i] = (replayScore(rec, r2) - base) / base;
+    if (boardSig(rec, r2) === S.pvSig) S.preview[i] = (replayScore(rec, r2) - base) / base; // 盤が変わる品には「おすすめ」の数を出さない
     setTimeout(step, 0);
   };
   setTimeout(step, 30);
@@ -1168,7 +1177,9 @@ function previewShop() {
 // 「お守りの働き（この夜）」: 稼いだ点の多い順。効かなかったものも正直に出す
 function renderCharmWork(work) {
   const el = $('charmWork'); if (!el || S.mode !== 'inter') return;
-  const rows = Object.entries(work).sort((a, b) => b[1] - a[1]).map(([id, d]) => { const c = CHARM_BY_ID[id], v = Math.round(d);
+  const rows = Object.entries(work).sort((a, b) => (b[1] ?? -1e15) - (a[1] ?? -1e15)).map(([id, d]) => { const c = CHARM_BY_ID[id];
+    if (d === null) return `<div><span>${JA() ? c.ja : c.en}</span><b class="flat">${esc(short1(JA() ? c.dj : c.de))}</b></div>`; // 盤を変えるお守りは、点でなく効き目を書く
+    const v = Math.round(d);
     return `<div><span>${JA() ? c.ja : c.en}</span><b class="${v > 0 ? 'up' : 'flat'}">${v > 0 ? '+' + fmt(v) + tr(' 点', ' pts') : tr('効かず', 'no effect')}</b></div>`; });
   el.innerHTML = rows.length ? `<h4>${tr('お守りの働き（この夜）', 'What your charms earned tonight')}</h4>${rows.join('')}` : '';
 }
@@ -1561,7 +1572,7 @@ function feedTrail() {
   while (S.trail.length && !k.held) { const p = S.trail.shift(); S.rec?.ev.push([st.t, 'm', p.x, p.y]); G.penMove(st, p.x, p.y); if (!k.penDown) { S.trail.length = 0; return; } }
 }
 const onMove = (e) => {
-  if (S.drag && e.pointerId === S.drag.id) { S.pan = Math.max(0, Math.min(panMax(), S.drag.pan - ((e.clientX - S.drag.x) / innerWidth) * W)); S.panY = Math.max(0, Math.min(panMaxY(), S.drag.panY + ((e.clientY - S.drag.y) / innerHeight) * H)); return; }
+  if (S.drag && e.pointerId === S.drag.id) { const now = performance.now(), p0 = S.pan || 0, q0 = S.panY || 0; S.pan = Math.max(0, Math.min(panMax(), S.drag.pan - ((e.clientX - S.drag.x) / innerWidth) * W)); S.panY = Math.max(0, Math.min(panMaxY(), S.drag.panY + ((e.clientY - S.drag.y) / innerHeight) * H)); const dts = Math.max(0.008, (now - (S.drag.t || now - 16)) / 1000); S.drag.t = now; S.flingX = (S.pan - p0) / dts; S.flingY = (S.panY - q0) / dts; return; }
   if (e.pointerId !== pid || !S.st) return;
   const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
   // 11/23 依頼主「指と線の追従が悪い・うまく線が引けないときがある」: 線が火から離れすぎて止まると、伸びられるようになった時に今の指へ一直線に近道して、指でなぞった玉を取りこぼしていた。
@@ -1572,7 +1583,7 @@ const onMove = (e) => {
 };
 canvas.addEventListener('pointermove', onMove);
 addEventListener('pointermove', (e) => { if (CARRY && e.target !== canvas) onMove(e); });
-const release = (e) => { if (S.drag && e.pointerId === S.drag.id) { S.drag = null; if (e.pointerId !== pid) return; } if (e.pointerId !== pid) return; // 盤を動かした指と線の指が同じでも、線の後片付けをとばさない
+const release = (e) => { if (S.drag && e.pointerId === S.drag.id) { if (performance.now() - (S.drag.t || 0) > 90) { S.flingX = 0; S.flingY = 0; } S.drag = null; if (e.pointerId !== pid) return; } if (e.pointerId !== pid) return; // 盤を動かした指と線の指が同じでも、線の後片付けをとばさない
   const k = S.st?.stroke;
   if (e.type === 'pointerup' && !CARRY && S.press?.mouse && k?.penDown && k.len < S.st.m.minLen && performance.now() - S.press.t < 450) { // クリックしただけ → 運びにする
     CARRY = 1; S.carryN = (S.carryN || 0) + 1; if (S.carryN <= 2) PF.ev('carry', { n: S.carryN });
@@ -1598,21 +1609,26 @@ function panFrame(dt) {
   { const b = R.band; if (b?.rect0) { const off = (S.panY || 0) / H; b.rect[1] = b.rect0[1] + off; b.waterY = b.water0 + off; } } // 昇るほど町は下へ消える
   if (!st || !st.level?.grand || S.mode !== 'play') { if ((S.pan || S.panY) && S.mode !== 'play' && S.mode !== 'retry') { S.pan = 0; S.panY = 0; } miniMap(); grandLabels(); return; }
   const maxY = panMaxY();
+  if (pid === null) { S.panVX = 0; S.panVY = 0; } // 指を離したら、端の流れの速さは持ちこさない
   if (maxY > 0 && S.panIntro > 0) { S.panIntro = Math.max(0, S.panIntro - dt); const u = S.panIntro / 2.4; S.panY = maxY * Math.min(1, Math.max(0, (u - 0.1) / 0.6)); miniMap(); grandLabels(); return; } // 空の上（星座）から地上へ
   if (maxY > 0 && pid !== null && st.stroke && S.lastPtr) {
-    const sy = S.lastPtr.clientY / innerHeight, edge = 0.2; let v = 0;
+    // 11/23 依頼主「画面を移動するのはもっと UX 考えて爽快感が欲しい」: 端の帯を広く（20%→28%）、端ほど速く（最大 1.3 画面/秒）、速さはなめらかに
+    const sy = S.lastPtr.clientY / innerHeight, edge = 0.28; let v = 0;
     if (sy < edge) v = (edge - sy) / edge; else if (sy > 1 - edge) v = -(sy - (1 - edge)) / edge;
-    if (v) { const p0 = S.panY || 0; S.panY = Math.max(0, Math.min(maxY, p0 + v * H * 0.8 * dt));
+    S.panVY = (S.panVY || 0) + (Math.sign(v) * Math.abs(v) ** 1.4 * H * 1.3 - (S.panVY || 0)) * Math.min(1, dt * 7);
+    if (Math.abs(S.panVY) > 2) { const p0 = S.panY || 0; S.panY = Math.max(0, Math.min(maxY, p0 + S.panVY * dt));
       if (S.panY !== p0) { S.trail.push(toWorld(S.lastPtr, tipOff(S.lastPtr))); feedTrail(); } } // 盤が流れた分も、指の道の続きとして順に伸ばす（止まっている間に近道しない）
   }
   const max = Math.max(0, st.field.x1 + 70 - W);
   if (S.panIntro > 0) { S.panIntro = Math.max(0, S.panIntro - dt); const u = S.panIntro / 2.4; S.pan = max * Math.min(1, Math.max(0, (u - 0.1) / 0.6)); } // 右端（滝）を見せてから、左の始まりへ
   else if (pid !== null && st.stroke && S.lastPtr) {
-    const sx = S.lastPtr.clientX / innerWidth, edge = 0.2; let v = 0;
+    const sx = S.lastPtr.clientX / innerWidth, edge = 0.28; let v = 0;
     if (sx > 1 - edge) v = (sx - (1 - edge)) / edge; else if (sx < edge) v = -(edge - sx) / edge;
-    if (v) { const p0 = S.pan || 0; S.pan = Math.max(0, Math.min(max, p0 + v * W * 0.9 * dt));
+    S.panVX = (S.panVX || 0) + (Math.sign(v) * Math.abs(v) ** 1.4 * W * 1.3 - (S.panVX || 0)) * Math.min(1, dt * 7);
+    if (Math.abs(S.panVX) > 2) { const p0 = S.pan || 0; S.pan = Math.max(0, Math.min(max, p0 + S.panVX * dt));
       if (S.pan !== p0) { S.trail.push(toWorld(S.lastPtr, tipOff(S.lastPtr))); feedTrail(); } }
-  } else if (st.taki && st.taki.front !== null) { S.pan += ((Math.max(0, Math.min(max, st.taki.front - W * 0.5))) - S.pan) * Math.min(1, dt * 4); } // 滝を追う
+  } else if (!S.drag && Math.abs(S.flingX || 0) + Math.abs(S.flingY || 0) > 8) { S.pan = Math.max(0, Math.min(max, (S.pan || 0) + (S.flingX || 0) * dt)); S.panY = Math.max(0, Math.min(maxY, (S.panY || 0) + (S.flingY || 0) * dt)); const f = Math.exp(-dt * 4); S.flingX *= f; S.flingY *= f; }
+  else if (st.taki && st.taki.front !== null) { S.pan += ((Math.max(0, Math.min(max, st.taki.front - W * 0.5))) - S.pan) * Math.min(1, dt * 4); } // 滝を追う
   miniMap(); grandLabels();
 }
 // 大仕掛けの玉の札（字玉の番号・滝・発射台）。玉について動き、ひらいたら消える
@@ -1790,12 +1806,13 @@ function preNextTalk(def) {
   } catch { /* 先読みできなくても遊べる */ }
 }
 // 声を鳴らす。鳴った長さ（秒）を返す Promise（鳴らせなければ 0）
-function talePlay(who, text) {
+function talePlay(who, text, onStart) {
   return new Promise((res) => {
-    try { taleVoice?.pause(); if (!VOICED.has(who) || !DB.sound || PF.muted || S.adPause) return res(0);
+    const st0 = () => { if (onStart) { const f = onStart; onStart = null; f(); } };
+    try { taleVoice?.pause(); if (!VOICED.has(who) || !DB.sound || PF.muted || S.adPause) { st0(); return res(0); }
       const u = `tale/voice/${voiceKey(who, text)}.mp3`, v = taleVoice = VCACHE.get(u) || new Audio(u); VCACHE.delete(u); v.volume = 1; try { v.currentTime = 0; } catch { /* 読み込み前 */ }
-      v.onended = () => res(v.duration || 0); v.onerror = () => res(0); v.play().then(() => audio.duck(Math.max(1.5, (v.duration || 2) + 0.4), 0.4)).catch(() => res(0));
-    } catch { res(0); }
+      v.onended = () => res(v.duration || 0); v.onerror = () => { st0(); res(0); }; v.addEventListener('playing', st0, { once: true }); v.play().then(() => audio.duck(Math.max(1.5, (v.duration || 2) + 0.4), 0.4)).catch(() => { st0(); res(0); });
+    } catch { st0(); res(0); }
   });
 }
 // 話し手の小さい絵（灯は顔・コンは顔・トラと妖怪は絵・帳は「帳」・火は光）
@@ -1872,9 +1889,12 @@ function showCut(ln, kind) {
   const el = $('cutin'); if (!el || !ln) return; el.lang = JA() ? 'ja' : 'en';
   const img = ln.w === 'kon' ? 'cut_kon' : kind === 'hurt' || ln.f === 'hurt' ? 'cut_hurt' : ln.f === 'angry' ? 'cut_atk' : `akari_${ln.f || 'smile'}`;
   $('ciImg').src = `tale/img/${img}.webp`; $('ciName').textContent = ln.w === 'kon' ? tr('コン', 'Kon') : tr('灯', 'Akari'); $('ciLine').textContent = JA() ? ln.ja : ln.en;
-  el.className = `cutin ${kind} ${ln.w}`; requestAnimationFrame(() => el.classList.add('on'));
-  clearTimeout(S.cutHide); S.cutHide = setTimeout(() => el.classList.remove('on'), (kind === 'intro' ? 1900 : 1350) + (JA() ? 0 : Math.max(0, (ln.en.length - 18) * 30)));
-  talePlay(ln.w, JA() ? ln.ja : ln.en);
+  el.className = `cutin ${kind} ${ln.w}`;
+  // 11/23 依頼主「カットインの声が遅くてずれる」: 声が鳴り始めたら絵を出す（読みこみが遅くても 0.35 秒で出す）。声が終わるまでは下げない
+  const tok = S.cutTok = (S.cutTok || 0) + 1, base = (kind === 'intro' ? 1900 : 1350) + (JA() ? 0 : Math.max(0, (ln.en.length - 18) * 30));
+  let shownAt = 0, ended = false; const show = () => { if (shownAt || S.cutTok !== tok) return; shownAt = performance.now(); el.classList.add('on'); clearTimeout(S.cutHide); S.cutHide = setTimeout(() => { if (S.cutTok === tok && ended) el.classList.remove('on'); }, base); };
+  setTimeout(show, 350);
+  talePlay(ln.w, JA() ? ln.ja : ln.en, () => requestAnimationFrame(show)).then(() => { ended = true; if (S.cutTok !== tok) return; const left = base - (performance.now() - (shownAt || performance.now())); clearTimeout(S.cutHide); S.cutHide = setTimeout(() => { if (S.cutTok === tok) el.classList.remove('on'); }, Math.max(250, left)); });
 }
 function battleCut(kind) {
   if (!cutOn() || !S.st || S.mode !== 'play' || S.coach) return;
@@ -2559,6 +2579,20 @@ function updateHud(dt) {
 }
 
 // はじめての夜だけ: 動く手本（玉を順に通る火の粉）
+// 11/23 依頼主「たまに線がゆっくりなるのは何？」: 線は火から離れすぎると、火が来るまで伸びない。待っている間に指が通った道を、薄い点で先に見せる（線はこの道をたどる）
+// 11/23 依頼主「順番通りのやつは難しい」: 次に通す番号の玉に輪、線を引いている間は線の先からその玉へ点線
+function guideFx(dt) {
+  const st = S.st; if (!st || S.mode !== 'play') return;
+  S.gdT = (S.gdT || 0) + dt; const one = Math.max(dt, 0.001) * 1.25, k = st.stroke;
+  if (S.trail.length && k?.penDown) { const step = Math.max(1, Math.floor(S.trail.length / 40)); for (let i = 0; i < S.trail.length; i += step) { const p = S.trail[i]; fx.add(p.x, p.y, 0, 0, one, 4.2, 0, 0, [2.4, 2.0, 1.1], [2.4, 2.0, 1.1], 1.4); } }
+  let nx = null;
+  if (st.moji && st.moji.next) nx = st.shells.find((q) => q.mod === 'moji' && q.seq === st.moji.next && q.state === 'idle');
+  else if (st.seiza && st.seiza.next) nx = st.shells.find((q) => q.mod === 'seiza' && q.seq === st.seiza.next && q.state === 'idle');
+  else { const want = (k ? k.juzu || 0 : 0) + 1; nx = st.shells.find((q) => q.type === 'juzu' && q.num === want && q.state === 'idle' && !q.threaded); }
+  if (!nx || nx.rise > 0) return;
+  { const a = S.gdT * 3.2, r = nx.r + 14 + Math.sin(S.gdT * 6) * 3; for (let i = 0; i < 10; i++) { const t = a + (i / 10) * Math.PI * 2; fx.add(nx.x + Math.cos(t) * r, nx.y + Math.sin(t) * r, 0, 0, one, 3, 0, 0, [2.2, 1.9, 0.9], [2.2, 1.9, 0.9], 1.2); } }
+  if (k?.penDown && k.pts.length) { const p = k.pts[k.pts.length - 1], d = Math.hypot(nx.x - p.x, nx.y - p.y), n = Math.min(24, Math.floor(d / 26)); for (let j = 1; j < n; j++) { const u = (j + ((S.gdT * 2) % 1)) / n; fx.add(p.x + (nx.x - p.x) * u, p.y + (nx.y - p.y) * u, 0, 0, one, 2.4, 0, 0, [2, 1.7, 0.8], [2, 1.7, 0.8], 1.1); } }
+}
 function hintFx(dt) {
   const st = S.st;
   if (S.toraT > 0) { S.toraT -= dt; if (S.toraT <= 0 && !S.coach?.st) toraHide(); }
@@ -2662,7 +2696,7 @@ function frame(now) {
     if (S.mode === 'title') titleFx(dt);
     if (S.mode === 'senko' && !S.paused) senkoFx(dt);
     for (let i = S.seq.length - 1; i >= 0; i--) { const e = S.seq[i]; e.at -= dt; if (e.at <= 0) { S.seq.splice(i, 1); e.f(); } }
-    if (!S.paused) { perFrameFx(sdt); hintFx(sdt); fx.update(sdt); }
+    if (!S.paused) { perFrameFx(sdt); hintFx(sdt); guideFx(sdt); fx.update(sdt); }
     R.lights = fx.lights;
     R.flash *= Math.exp(-dt * 6); R.shake *= Math.exp(-dt * 9);
     // 蹴りはばねで戻す（行き過ぎて少し揺れ返す）
@@ -2685,7 +2719,7 @@ async function boot() {
   if (PF.lang && !q.get('lang') && !DB.lang) lang = PF.lang;
   // 場の一時停止・広告の間は止めて、音を消す
   PF.onPause = (p) => { audio.mute(p); if (p && S.mode === 'play' && !S.paused) openPause(); if (!p) setTimeout(soundResync, 600); };
-  PF.onAd = (on) => { S.adPause = on; audio.mute(on); if (!on) { S.adEnd = performance.now(); [60, 400, 1200, 2500].forEach((ms) => setTimeout(soundResync, ms)); } }; // 11/23 依頼主「広告の後にタップするまで音が出ない」
+  PF.onAd = (on) => { S.adPause = on; audio.mute(on); if (!on) { S.adEnd = performance.now(); try { window.focus(); } catch { /* 焦点を枠に戻す（bridge の「見えていない」を解く） */ } [60, 400, 1200, 2500].forEach((ms) => setTimeout(soundResync, ms)); } }; // 11/23 依頼主「広告の後にタップするまで音が出ない」
   // 音の読み直し: 広告が出ていないのに「広告中」「消音」が残っていたら解く（広告のあと音も声も止まったままになるのを防ぐ）。2 秒ごとにも見る
   function soundResync() {
     if (document.hidden) return;
