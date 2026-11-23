@@ -143,7 +143,7 @@ function toTitle() {
 // 題名画面で音がまだ止まっている間だけ出す（ブラウザは、画面に一度触れるまで音を出させない）。どこに触れても鳴り始める
 // 11/23 依頼主「最初に何か触るまで音が出ないのはなんとかしたい」: ブラウザは、だれかがページを押すまで音を出させない。
 // Playgama の枠は音の許しを受け継ぐ（allow="autoplay"）ので、外のページが押されたらすぐ鳴るよう 0.3 秒ごとに試す。止まっている間は、どの画面でも知らせる
-setInterval(() => { if (!document.hidden && DB.sound && !PF.muted && !S.adPause && audio.ctx && audio.ctx.state !== 'running') { try { audio.unlock(); } catch { /* まだ許されていない */ } } }, 300);
+setInterval(() => { if (!document.hidden && DB.sound && !PF.muted && !S.adPause && audio.ctx && audio.ctx.state !== 'running') { try { audio.unlock(); } catch { /* まだ許されていない */ } } if (S.entryOn && audio.ctx?.state === 'running') lightEntry('auto'); }, 300);
 setInterval(() => { { const off = DB.sound && !PF.muted && !S.adPause && S.mode !== 'title' && audio.ctx && audio.ctx.state !== 'running' && performance.now() > 2500 && S.adEnd; /* 11/23 依頼主「操作を増やさず自然に始めたい」: はじめの「触れると音が出ます」は出さない（最初に触れた時にそっと鳴り始める）。広告のあとに戻らない時だけ知らせる */ let h = $('sndHint2'); if (off && !h) { h = document.createElement('div'); h.id = 'sndHint2'; h.className = 'sndhint2'; document.body.append(h); } if (h) { h.textContent = S.adEnd ? tr('♪ 画面に触れると音が戻ります', '♪ Tap to bring the sound back') : tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); h.classList.toggle('hidden', !off); } }
   const e = $('sndHint'); if (!e) return; const need = S.mode === 'title' && DB.sound && S.adEnd && !(audio.ctx && audio.ctx.state === 'running'); e.textContent = tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); e.classList.toggle('hidden', !need); }, 400);
 
@@ -2693,7 +2693,31 @@ function hintFx(dt) {
 // 盤の上の題名（はじめての人の第 1 夜だけ）。触れない飾りで、最初に盤へ触れたら消す
 function titleVeil() { const e = $('tveil'); if (!e) return; $('tveilSub').textContent = tr('線を引け。火が追いかけてくる。', 'Draw the line. The fire is right behind you.') /* やり方は下の札が言う。ここは引き */; e.classList.remove('hidden', 'off', 'dim'); PF.ev('title_veil', {}); clearTimeout(S.tvT); S.tvT = setTimeout(() => { if (S.tveil) e.classList.add('dim'); }, 2600); }
 function hideVeil(how) { if (!S.tveil) return; S.tveil = 0; const e = $('tveil'); if (e) { e.classList.add('off'); setTimeout(() => e.classList.add('hidden'), 700); } if (how) PF.ev('first_touch', { how, sec: Math.round(performance.now() / 1000) }); }
+// 11/23 依頼主「最初の 1 回のタップはしょうがないからやらせて、ただゲームの入り方を工夫したい」:
+// ブラウザは触れるまで音を出させない。音が止まっている間だけ、夜空に火種をひとつ置いて「触れて、火をつける」。
+// 触れると火種が導火線を登り、最初の一発が開く（最初に聞こえる音が、導火線のぱちぱちと最初の花火になる）。音のない花火は上げない
+function entryGate() {
+  if (q.has('noentry') || !DB.sound || PF.muted || S.entryOn || $('entry')) return;
+  if (!audio.ctx || audio.ctx.state === 'running') return; // 音が許されていれば幕は出さない（カタログの Play Now から来た人など）
+  const e = document.createElement('div'); e.id = 'entry'; e.className = 'entry';
+  e.innerHTML = `<div class="en-fuse"><i class="en-spark"></i></div><div class="en-say">${tr('触れて、火をつける', 'Touch to light it')}</div>`;
+  document.body.append(e); document.body.classList.add('entryOn'); S.entryOn = 1; PF.ev('entry_show', {});
+  e.addEventListener('click', () => lightEntry('tap'));
+}
+function lightEntry(how) {
+  const e = $('entry'); if (!S.entryOn || !e) return; S.entryOn = 0;
+  try { audio.unlock(); } catch { /* 無くても進む */ }
+  e.classList.add('lit'); audio.fuse(1, 1); setTimeout(() => audio.fuse(0, 0), 420);
+  const r = e.querySelector('.en-fuse').getBoundingClientRect(), x = (S.pan || 0) + ((r.left + r.width / 2) / innerWidth) * W, y0 = (r.top / innerHeight) * H, y1 = H * 0.22;
+  setTimeout(() => { fx.launch(x, y0, x, y1, 0.55, PALETTES.kiku[0]); audio.launch(0); }, 400);
+  setTimeout(() => { fx.burst(fx.kinds.includes('chrys') ? 'chrys' : fx.kinds[0], x, y1, 240, 'kin', 0); audio.boom(1.2, 0); fx.light?.(x, y1, 0.9, 420, PALETTES.kiku[0], 1.2); }, 950);
+  document.body.classList.add('entryRev'); setTimeout(() => document.body.classList.remove('entryOn'), 900); /* 花火が開くのと同時に、題名や盤の札が浮かぶ */
+  setTimeout(() => { e.remove(); document.body.classList.remove('entryRev'); }, 1700);
+  PF.ev('entry_lit', { how });
+}
+addEventListener('keydown', (e) => { if (S.entryOn && (e.key === ' ' || e.key === 'Enter')) lightEntry('key'); });
 function titleFx(dt) {
+  if (S.entryOn) return; // 火をつけるまでは、音のない花火を上げない
   S.titleT -= dt;
   if (S.titleT <= 0) {
     S.titleT = 0.9 + Math.random() * 1.1;
@@ -2805,6 +2829,7 @@ async function boot() {
   // 起動した時点で音の箱を作ってみる。親のページ（Playgama は枠に autoplay を許している）で押して入ってきたなら、題名画面から曲が鳴る。
   // 許されなければ止まったまま待ち、最初に触れたとき（pointerup・click など）に動き出す
   try { audio.unlock(); } catch { /* 無くても遊べる */ }
+  setTimeout(entryGate, 450);
   if (!window.HANABI_PG) try { sessionStorage.removeItem('hanabiRetry'); } catch { /* 無くても動く */ }
   // 新しい人も題名画面から（何のゲームか分かってから始める。「あそぶ」の 1 回が音を確実に鳴らせる操作にもなる）。撮影などは ?play=1
   // 11/16 の数字: 題名画面から始めると、読み込んだ人の約半分が「あそぶ」を押さずに帰った（その前はほぼ全員が第 1 夜へ）。
