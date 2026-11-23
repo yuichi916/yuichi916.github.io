@@ -1,4 +1,5 @@
 // 一筆花火 2 — 夜明けの頁（灯の物語）。夜を越えるたびに 1 頁。負けても続きから読める。DOM に触らない
+// 11/23 第 4 版（依頼主「最後が弱い。起承転結とオチ、最初は掛け合いでコミカル、最後は泣けるように」）: 持ちネタ 3 つ（二本引いちゃう・つけ・うそはつけない）と「ごはん、できたよ」を三度ずつ編み、最後の 2 頁（山場と後日談）で回収。jii=じいちゃん（声は追ってきた火と同じ）
 // 11/22 第 3 版: 前半はボケとツッコミで本質的・短く、後半は物語の根幹（依頼主）
 // 11/21 第 2 版（依頼主「情景が分からない・漫才みたいなテンポのかけあい・最初は背景を知らなくても分かって先を読みたくなる・進むほど真相」）
 // 筋は「送り火」: いなくなったのは、じいちゃんではなく灯のほうだった。追ってくる火は、じいちゃんの迎え火。コンは、じいちゃんが灯のために詰めた赤い玉の火の子
@@ -22,8 +23,10 @@ export const TALE = [
   ] },
   { gap: 2, scene: { ja: `屋台のトラが、小判を数えている。`, en: `Tora is counting coins at the stall.` }, lines: [
     L('kon', `トラ、お守りちょうだいコン。お代は、つけでコン`, `Tora, give me a charm, kon. Put it on my tab, kon.`),
-    L('tora', `去年の分のつけも、まだだよ`, `You still owe me for last year.`),
+    L('tora', `去年の分のつけは……まあ、いいさ`, `Last year's tab...? Eh, never mind.`),
+    L('kon', `コンは、うそはつけないコン。……払ってないコン`, `I can't tell a lie, kon. ...I never paid, kon.`),
     L('akari', `去年……？ わたしたち、去年もここに来たの？`, `Last year...? We were here last year too?`, 'surprise'),
+    L('tora', `……灯は毎年、おなじことを聞くんだよ`, `...Every year, Akari asks me the same thing.`),
   ] },
   { gate: 'b1', scene: { ja: `大一番に負けた妖怪が、屋台の屋根から灯を見下ろしている。`, en: `The yokai you beat at the boss night looks down from the stall roof.` }, lines: [
     L('yokai', `……強くなったな。だが、まだ帰さぬ`, `...You've grown strong. But you're not going home yet.`),
@@ -34,7 +37,7 @@ export const TALE = [
     L('yokai', `いずれ分かる。おまえがいちばんよく知っている者だ`, `You'll see. Someone you know better than anyone.`),
   ] },
   // ここから物語の根幹へ: 一筆花火とは何か・追ってくる火・手を放した記憶
-  { scene: { ja: `屋台の棚に、古い帳面が一冊。表紙に「秘伝帳」とある。`, en: `An old notebook on the stall shelf. The cover says "Secret Notes."` }, lines: [
+  { scene: { ja: `屋台の棚に、古い帳面の切れはしが一枚。「秘伝帳」とある。`, en: `A torn scrap of an old notebook on the stall shelf. It says "Secret Notes."` }, lines: [
     L('akari', `……あ。この字、知ってる。じいちゃんの字だ`, `...Oh. I know this handwriting. It's Grandpa's.`, 'surprise'),
     L('note', `一筆花火は、帰り道を空に描く花火。——源`, `Hitofude Hanabi: fireworks that draw the way home across the sky. —Gen`),
     L('note', `振り返るな。尺玉だけは、追いかけるな`, `Don't look back. And never chase the great shell.`),
@@ -58,7 +61,8 @@ export const TALE = [
   { gate: 'r1', scene: { ja: `討たれた大妖怪が、雪の山の奥を指さした。`, en: `The defeated great yokai points deep into the snowy mountains.` }, lines: [
     L('yokai', `思い出したか。あの夏の夜、おまえは祭りの灯りを離れて、川へ走った`, `Remember now? That summer night, you left the festival lights and ran to the river.`),
     L('akari', `川へ……？ わたし、なんで……`, `To the river...? Why would I...`, 'sad'),
-    L('yokai', `知りたければ、雪の山の奥へ行け。あの男が待っている`, `If you want to know, go deep into the snowy mountains. That man is waiting.`),
+    L('yokai', `あの火に捕まるな。捕まれば、おまえの祭りは終わる`, `Don't let that flame catch you. If it does, your festival is over.`),
+    L('yokai', `……負けは負けだ。知りたければ、雪の山の奥へ行け。あの男が待っている`, `...A loss is a loss. If you want to know, go deep into the snowy mountains. That man is waiting.`),
     L('kon', `あの男って、だれコン？`, `What man, kon?`),
     L('akari', `……じいちゃんだ`, `...Grandpa.`, 'surprise'),
   ] },
@@ -69,6 +73,7 @@ export const TALE = [
     L('akari', `なんで？ こんなに近くにいるのに`, `Why? I'm right here.`, 'surprise'),
     L('tora', `ここは、じいちゃんの冬だよ。花火のない季節に、ああしてひとりで玉を詰めるのさ`, `This is your grandpa's winter. In the season without fireworks, he packs shells all alone.`),
     L('akari', `ひとりで……？ わたし、ここにいるのに`, `Alone...? But I'm here.`, 'sad'),
+    L('jii', `ごはん、できたよ。灯`, `Dinner's ready, Akari.`),
   ] },
   { w: 2, scene: { ja: `作業台に、詰めたばかりの赤い玉。秘伝帳が開いている。`, en: `A freshly packed red shell on the workbench. The notebook lies open.` }, lines: [
     L('note', `今年も、あの子の分の玉を詰めた。三寸、赤。あの子の好きな色`, `Packed her shell again this year. Three-inch, red. Her favorite color.`),
@@ -81,14 +86,14 @@ export const TALE = [
     L('akari', `え、どこで？`, `Huh? Where?`, 'surprise'),
     L('kon', `毎晩、灯のうしろで見てるコン`, `Behind you. Every night, kon.`),
     L('akari', `……わたしを追ってくる火と、同じ色`, `...It's the same color as the flame that chases me.`, 'surprise'),
-    L('tora', `盆の夜にだけ焚く火さ。迎え火っていうんだ`, `It's only lit on Obon nights. A welcoming fire.`),
+    L('tora', `盆の夜に焚く、迎え火さ。……じいちゃんは、冬でも消さないんだ`, `A welcoming fire, for Obon nights. ...Your grandpa never lets it go out, not even in winter.`),
     L('akari', `迎え火って……帰ってくる人を、迎える火だよね`, `A welcoming fire... for welcoming someone who comes home.`, 'sad'),
   ] },
   { gate: 'b2', scene: { ja: `大一番に負けた雪女が、灯の肩にそっと手を置いた。`, en: `The snow woman you beat lays a hand gently on Akari's shoulder.` }, lines: [
     L('yokai', `冷たくないのか`, `Isn't it cold?`),
     L('akari', `ぜんぜん。雪女さんの手、やさしいね`, `Not at all. Your hand is gentle.`, 'smile'),
     L('yokai', `……雪は、生きた者の肩にしか積もらぬ`, `...Snow only settles on the shoulders of the living.`),
-    L('kon', `灯の肩、つるつるコン。コンの背中も、つるつるコン`, `Your shoulders are bare, kon. My back is bare too, kon.`),
+    L('kon', `コンの背中にも、ひとつも積もってないコン`, `Not one flake on my back either, kon.`),
     L('akari', `……ほんとだ。ひとつも、積もってない`, `...You're right. Not a single flake.`, 'sad'),
   ] },
   { w: 2, scene: { ja: `花火が上がるたび、雪の上にみんなの影がのびる。`, en: `Every firework stretches everyone's shadow across the snow.` }, lines: [
@@ -96,18 +101,20 @@ export const TALE = [
     L('akari', `いいよ、ほら……`, `Sure, here...`, 'joy'),
     L('kon', `……灯の影、どこコン？`, `...Where's your shadow, kon?`),
     L('akari', `え？`, `Huh?`, 'surprise'),
-    L('tora', `気づいたかい。花火の下で影がないのは、灯だけじゃないよ`, `Noticed, have you? Akari isn't the only one with no shadow.`),
-    L('kon', `……コンの影も、ないコン`, `...I don't have one either, kon.`),
+    L('tora', `……影ふみは、また今度にしな`, `...Save shadow tag for another time.`),
   ] },
-  { w: 2, scene: { ja: `秘伝帳の、いちばん新しい頁。`, en: `The newest page of the notebook.` }, lines: [
+  { w: 2, scene: { ja: `秘伝帳の、まんなかあたりの頁。`, en: `A page near the middle of the notebook.` }, lines: [
     L('note', `七年。待つのには慣れた。ただ、あの子が迷っていないかだけが、気がかりだ`, `Seven years. I'm used to waiting. I only worry that she's lost her way.`),
     L('akari', `七年……？ わたし、七年もどこにいたの？`, `Seven years...? Where have I been for seven years?`, 'surprise'),
     L('kon', `灯は迷子じゃないコン。コンがついてるコン`, `You're not lost, kon. You've got me, kon.`),
     L('akari', `……コンのほうが、すぐ迷子になるくせに`, `...You're the one who always gets lost.`, 'smile'),
     L('kon', `それはそれ、これはこれコン`, `That's a different story, kon.`),
+    L('kon', `迷子になったら、コンが二本目で道を引くコン`, `If we get lost, I'll draw a second line to show the way, kon.`),
+    L('kon', `「それはもう、ただの落書き！」……って言うコン？`, `"Then it's just doodling!"... is what you'll say, right, kon?`),
+    L('akari', `……先に言わないで`, `...Don't steal my line.`, 'smile'),
   ] },
   { w: 2, scene: { ja: `凍った川をわたるとき、灯の足がすくんだ。`, en: `Crossing the frozen river, Akari's legs freeze.` }, lines: [
-    L('mem', `（冷たい水。遠くで、じいちゃんがわたしの名前を呼んでいた）`, `(Cold water. Far away, Grandpa was calling my name.)`),
+    L('mem', `（尺玉の火を追って、川へ。冷たい水。遠くで、じいちゃんがわたしの名前を呼んでいた）`, `(I chased the great shell's fire into the river. Cold water. Far away, Grandpa was calling my name.)`),
     L('akari', `……ねえ、コン。いまの、夢だよね`, `...Hey, Kon. That was a dream, right?`, 'sad'),
     L('kon', `……`, `...`),
     L('akari', `夢だって、言ってよ`, `Tell me it was a dream.`, 'sad'),
@@ -122,61 +129,86 @@ export const TALE = [
   ] },
   // ── 第三の世界 百鬼の宵山: 真相
   { w: 3, scene: { ja: `妖怪たちの夜祭り、百鬼の宵山。トラが、いつもの屋台で待っていた。`, en: `The Night of a Hundred Demons. Tora is waiting at the usual stall.` }, lines: [
-    L('tora', `もう分かったろう。いなくなったのは、じいちゃんじゃない。おまえのほうだ`, `You understand now. It wasn't your grandpa who went missing. It was you.`),
-    L('akari', `……うん。ほんとは、ずっと前から知ってた`, `...Yeah. Deep down, I always knew.`, 'sad'),
+    L('akari', `トラ。いなくなったの、わたしのほうだよね`, `Tora. I'm the one who went missing, aren't I?`, 'sad'),
+    L('tora', `……ああ`, `...Yes.`),
+    L('akari', `ほんとは、ずっと前から知ってた`, `Deep down, I always knew.`, 'sad'),
     L('kon', `灯……`, `Akari...`),
     L('akari', `じゃあ、なんでわたし、帰らないで逃げてるの？`, `Then why do I keep running instead of going home?`, 'sad'),
     L('tora', `それは、この祭りの主に聞くといい`, `Ask the master of this festival.`),
   ] },
   { w: 3, scene: { ja: `秘伝帳の、終わり近くの頁。`, en: `A page near the end of the notebook.` }, lines: [
-    L('note', `盆の三日だけ、あの子は帰ってくる。帰り道を、今年も空に描く`, `For the three days of Obon, she comes home. This year again, I'll draw her way home in the sky.`),
+    L('note', `盆の祭りの夜だけ、あの子は帰ってくる。帰り道を、空に描く`, `Only on the festival nights of Obon does she come home. I draw her way home in the sky.`),
     L('akari', `一筆花火は、わたしの帰り道だったんだ`, `Hitofude Hanabi was my way home.`, 'sad'),
     L('kon', `じゃあ、花火をたどれば帰れるコン！`, `Then just follow the fireworks home, kon!`),
     L('akari', `なのに、いつも届かないの。なんでだろう`, `But I never reach it. Why?`, 'sad'),
+    L('kon', `コンが二本目を引いたら、届くコン？`, `What if I draw a second line, kon? Would it reach, kon?`),
+    L('akari', `だから、それは落書きだってば`, `I keep telling you, that's doodling.`, 'smile'),
     L('kon', `……灯が、うしろの火から逃げてるからコン`, `...Because you keep running from the fire behind you, kon.`),
+    L('tora', `……それと、二本目はやめときな。引いた火の子は燃えつきる。次の玉で生まれても、なにも覚えてないよ`, `...And forget the second line. A spark that draws it burns out. Even reborn in a new shell, it remembers nothing.`),
   ] },
   { w: 3, scene: { ja: `宵山の行列から、次の大一番の妖怪が顔を出した。`, en: `From the demon parade, the next boss yokai peers out.` }, lines: [
     L('yokai', `祭りを終わらせるな、と、わしらに頼んだのは誰だと思う`, `Who do you think asked us never to let the festival end?`),
-    L('kon', `犯人はトラコン！ ねこはあやしいコン！`, `It was Tora, kon! Cats are always suspicious, kon!`),
+    L('kon', `……トラ、なにか知ってるコン？`, `...Tora, do you know something, kon?`),
     L('tora', `わたしじゃないよ`, `Not me.`),
     L('akari', `……待って。まさか`, `...Wait. No way.`, 'surprise'),
   ] },
   { gate: 'b3', scene: { ja: `大一番に負けた妖怪が、灯の前にひざをついた。`, en: `The yokai you beat kneels before Akari.` }, lines: [
-    L('yokai', `おまえだ、灯。「帰さないで。帰ったら、じいちゃんが泣くから」と`, `It was you, Akari. "Don't send me home. If I go back, Grandpa will cry."`),
+    L('yokai', `この祭りの主は、おまえだ、灯。「帰さないで。帰ったら、じいちゃんが泣くから」と`, `The master of this festival is you, Akari. "Don't send me home. If I go back, Grandpa will cry."`),
     L('akari', `……だって、わたしが手を放したから。じいちゃんは、ひとりになったんだもん`, `...Because I let go of his hand. And he ended up all alone.`, 'sad'),
-    L('kon', `ちがうコン！ じいちゃんは、泣くために待ってるんじゃないコン`, `No, kon! He isn't waiting so he can cry, kon.`),
+    L('kon', `ちがうコン！ じいちゃん、泣いてないコン。待ってるだけコン`, `No, kon! Grandpa isn't crying, kon. He's just waiting, kon.`),
     L('akari', `コン……？`, `Kon...?`, 'surprise'),
-    L('kon', `灯に会うために、待ってるコン`, `He's waiting so he can see you, kon.`),
   ] },
   { w: 3, scene: { ja: `灯の線のうしろで、あの火が、今夜もゆらゆら燃えている。`, en: `Behind Akari's line, that flame flickers again tonight.` }, lines: [
     L('tora', `あの火はね、じいちゃんの迎え火なんだよ`, `That flame is your grandpa's welcoming fire.`),
     L('akari', `わたしを捕まえに来てたんじゃ、ないの？`, `It wasn't coming to catch me?`, 'surprise'),
-    L('tora', `迎えに来ていたんだ。毎年、毎晩ね`, `It was coming to bring you home. Every year. Every night.`),
+    L('tora', `迎えに来ていたんだ`, `It was coming to bring you home.`),
     L('kon', `やっぱり、あったかいにおいだったコン`, `I knew it smelled warm, kon.`),
-    L('akari', `……わたし、ずっと、じいちゃんから逃げてたんだ`, `...So I've been running from Grandpa all along.`, 'sad'),
+    L('akari', `……ほんとだ。あったかい`, `...You're right. It's warm.`, 'sad'),
   ] },
   { w: 3, scene: { ja: `秘伝帳の、最後の頁。`, en: `The last page of the notebook.` }, lines: [
     L('note', `あの子が帰ってきたら、言うことは決めてある。叱らない。ひとことだけだ`, `When she comes home, I know what I'll say. No scolding. Just one word.`),
-    L('kon', `ひとことって、なにコン？ 「ごはんできたよ」コン？`, `One word? Like "Dinner's ready," kon?`),
-    L('akari', `それは、コンが言われたいことでしょ`, `That's what YOU want to hear.`, 'smile'),
+    L('kon', `ひとことって、なにコン？ 「つけを払え」コン？`, `One word? Like "Pay your tab," kon?`),
+    L('akari', `それは、トラの言いたいことでしょ`, `That's what TORA wants to say.`, 'smile'),
     L('akari', `……でも、なんて言ってくれるのかな`, `...But I wonder what he'll say.`, 'smile'),
     L('kon', `聞きに行くコン、灯！`, `Let's go find out, Akari, kon!`),
   ] },
   { w: 3, scene: { ja: `最後の夜の前。トラが、屋台の灯りを消した。`, en: `Before the last night, Tora puts out the stall lantern.` }, lines: [
-    L('tora', `「振り返るな」はね、火から逃げろって意味じゃない。後ろを気にせず、まっすぐ帰っておいで、って意味さ`, `"Don't look back" never meant "run from the fire." It meant: don't worry about what's behind you. Come straight home.`),
+    L('kon', `トラ、お守りちょうだいコン。お代は、つけでコン`, `Tora, give me a charm, kon. Put it on my tab, kon.`),
+    L('tora', `つけは、ないよ`, `There is no tab.`),
+    L('tora', `毎年、じいちゃんが払っていったのさ。「あの子が来たら、好きなだけ持たせてやってくれ」ってね`, `Your grandpa paid it every year. "When she comes, let her take whatever she likes," he said.`),
+    L('akari', `……じいちゃん`, `...Grandpa.`, 'sad'),
+    L('tora', `……振り返るんじゃないよ`, `...Don't look back.`),
     L('akari', `……うん。こんどは、逃げない`, `...Okay. This time, I won't run.`, 'joy'),
     L('kon', `コンも、いっしょに帰るコン！`, `I'm coming home with you, kon!`),
     L('tora', `いっておいで。最後の一筆だ`, `Go on. One last stroke.`),
   ] },
   // ── 結末: 祭りを大団円で終えたときだけ（runOver）
-  { gate: 'r3', end: 1, scene: { ja: `最後の花火が消えたとき、追ってきた火が、灯の手にそっと触れた。`, en: `As the last firework fades, the flame that followed her gently touches Akari's hand.` }, lines: [
-    L('hinoko', `やっと、追いついた。……おかえり、灯`, `Finally, I caught up. ...Welcome home, Akari.`),
-    L('akari', `ただいま、じいちゃん`, `I'm home, Grandpa.`, 'laugh'),
-    L('kon', `……コンの役目も、おしまいコン`, `...Guess my job is done, kon.`),
-    L('akari', `え……？`, `Huh...?`, 'surprise'),
-    L('kon', `コンはね、じいちゃんが灯のために詰めた、赤い玉の火の子だったコン。灯を、ひとりにしないように`, `I was the spark from the red shell Grandpa packed for you, kon. So you'd never be alone.`),
-    L('akari', `……ありがとう、コン`, `...Thank you, Kon.`, 'laugh'),
-  ], tail: { ja: `トラ「また来年の盆に、おいで」`, en: `Tora: "Come again next Obon."` } },
+  { gate: 'r3', end: 1, scene: { ja: `最後の花火が消えかけた空。灯は、もう逃げなかった。うしろの迎え火が、あと少しのところで、灯の背に届かない。`, en: `The last firework is fading. Akari has stopped running. Behind her, the welcoming fire falls just short of reaching her back.` }, lines: [
+    L('akari', `届かない……！ あと少しなのに`, `I can't reach it...! I'm so close!`, 'hurt'),
+    L('kon', `灯、コンが二本目を引くコン`, `Akari, I'll draw the second line, kon.`),
+    L('akari', `だめ！ それは、ただの落書き……`, `No! That's just doodling...`, 'surprise'),
+    L('kon', `落書きでいいコン。尻尾の火は、もともと花火の模様コン`, `Doodling's fine, kon. The fire on my tail was always a firework pattern, kon.`),
+    L('nar', `コンの火が、灯の線のとなりを走って、つないだ。迎え火が、灯の背に届く。大きな手の、温度だった。灯は、指を離さなかった。`, `Kon's fire raced beside Akari's line and joined it. The welcoming fire reached her back. It was the warmth of a big hand. Akari did not lift her finger.`),
+    L('jii', `ごはん、できたよ。灯`, `Dinner's ready, Akari.`),
+    L('akari', `……ただいま、じいちゃん`, `...I'm home, Grandpa.`, 'sad'),
+    L('jii', `……今年も、返事はなしか`, `...No answer again this year.`),
+    L('akari', `ここだよ。じいちゃん、ここにいるよ`, `I'm here, Grandpa. I'm right here.`, 'hurt'),
+    L('jii', `……あったかいな。おかえり、灯`, `...It's warm. Welcome home, Akari.`),
+    L('akari', `コン……？ コン、どこ？`, `Kon...? Kon, where are you?`, 'surprise'),
+    L('kon', `また来年も、会えるコン`, `We'll meet again next year, kon.`),
+    L('akari', `……うそつき。綿あめ、まだ買ってあげてないのに`, `...Liar. I still haven't bought you that cotton candy.`, 'sad'),
+  ] },
+  // ── 後日談: 祭りを大団円で終えたあと、次の周（次の年の盆）の最初の夜明けに（オチ）。コンは新しい赤い玉の火の子で、灯を覚えていない（代価は残る）
+  { gate: 'r3', scene: { ja: `次の年の盆。河原の屋台に灯りがともる。棚の上に、新しい赤い玉がひとつ。`, en: `The next Obon. The riverside stall lights up. On the shelf sits one new red shell.` }, lines: [
+    L('tora', `今年は、まっすぐ来たね`, `You came straight here this year.`),
+    L('akari', `うん。ぜんぶ、覚えてるよ`, `Yeah. I remember everything.`, 'smile'),
+    L('akari', `……ねえトラ、その赤い玉は？`, `...Hey, Tora, what's that red shell?`, 'surprise'),
+    L('tora', `じいちゃんが、今年も詰めていったのさ。三寸、赤`, `Your grandpa packed it again this year. Three-inch, red.`),
+    L('kon', `はじめましてコン。線、二本引いていいコン？`, `Nice to meet you, kon. Can I draw two lines, kon?`),
+    L('akari', `それはもう、ただの落書き！`, `Then it's just doodling!`, 'angry'),
+    L('akari', `綿あめ、買ってあげる。約束してたから`, `I'll buy you cotton candy. I promised.`, 'smile'),
+    L('kon', `わたあめ！ ……だれとの約束コン？`, `Cotton candy! ...Promised who, kon?`),
+  ], tail: { ja: `トラ「さあ、今年の一筆だ」`, en: `Tora: "Now then. This year's stroke."` } },
 ];
 export const TALE_N = TALE.length;
 // 物語の出しはじめ: これまでに越えた夜がこの数になってから（第 1〜2 夜で帰る人が多い。まずは遊びだけ）
@@ -234,7 +266,7 @@ export const BANTER = {
 
 // 声のファイル名: 話し手と本文から（台詞を直すと名前が変わり、古い声は使われない）
 export function voiceKey(who, text) { const s = who + '|' + text; let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'v' + (h >>> 0).toString(36); }
-export const VOICED = new Set(['akari', 'kon', 'hinoko']);
+export const VOICED = new Set(['akari', 'kon', 'hinoko', 'jii']);
 
 // 次に読む頁。読める条件がそろっていなければ null。gates = これまでに勝った相手 { b1: 'kamaitachi', r1: ..., }
 // opts.nights = これまでに越えた夜の数・opts.last = 前の頁を出したときの nights。ボスに勝った頁（gate）は間を待たない

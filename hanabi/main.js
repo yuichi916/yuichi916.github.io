@@ -1755,6 +1755,8 @@ function taleName(p, id) {
   if (p.who === 'note') return tr('秘伝帳（じいちゃんの字）', "Grandpa's notebook");
   if (p.who === 'mem') return tr('灯の記憶', "Akari's memory");
   if (p.who === 'hinoko') return tr('追ってきた火', 'The flame that followed');
+  if (p.who === 'jii') return tr('じいちゃん', 'Grandpa');
+  if (p.who === 'nar') return '';
   if (p.who === 'tora') return tr('トラ', 'Tora');
   if (p.gate && p.gate[0] === 'r' && RAID_NAME[id]) return JA() ? RAID_NAME[id][0] : RAID_NAME[id][1];
   const c = CAST[id]; return c ? (JA() ? `${c.ja}の${c.name}` : `${c.nameEn} the ${c.en}`) : tr('妖怪', 'Yokai');
@@ -1803,6 +1805,7 @@ function taleIcon(who, f, id) {
   else if (who === 'kon') { const im = new Image(); im.src = 'tale/img/kon_face.webp'; im.alt = ''; ic.append(im); }
   else if (id) { const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128; try { drawCast(cv.getContext('2d'), id, 64, 72, 92, { face: who === 'tora' ? 'idle' : 'taunt', still: true, glow: false }); } catch { /* 絵が無くても読める */ } ic.append(cv); }
   else if (who === 'note') ic.textContent = '帳';
+  else if (who === 'jii') ic.textContent = '源'; // じいちゃん（源）
   return ic;
 }
 function taleLineName(who, p, id) {
