@@ -144,8 +144,8 @@ function toTitle() {
 // 11/23 依頼主「最初に何か触るまで音が出ないのはなんとかしたい」: ブラウザは、だれかがページを押すまで音を出させない。
 // Playgama の枠は音の許しを受け継ぐ（allow="autoplay"）ので、外のページが押されたらすぐ鳴るよう 0.3 秒ごとに試す。止まっている間は、どの画面でも知らせる
 setInterval(() => { if (!document.hidden && DB.sound && !PF.muted && !S.adPause && audio.ctx && audio.ctx.state !== 'running') { try { audio.unlock(); } catch { /* まだ許されていない */ } } }, 300);
-setInterval(() => { { const off = DB.sound && !PF.muted && !S.adPause && S.mode !== 'title' && audio.ctx && audio.ctx.state !== 'running' && performance.now() > 2500; let h = $('sndHint2'); if (off && !h) { h = document.createElement('div'); h.id = 'sndHint2'; h.className = 'sndhint2'; document.body.append(h); } if (h) { h.textContent = S.adEnd ? tr('♪ 画面に触れると音が戻ります', '♪ Tap to bring the sound back') : tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); h.classList.toggle('hidden', !off); } }
-  const e = $('sndHint'); if (!e) return; const need = S.mode === 'title' && DB.sound && !(audio.ctx && audio.ctx.state === 'running'); e.textContent = tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); e.classList.toggle('hidden', !need); }, 400);
+setInterval(() => { { const off = DB.sound && !PF.muted && !S.adPause && S.mode !== 'title' && audio.ctx && audio.ctx.state !== 'running' && performance.now() > 2500 && S.adEnd; /* 11/23 依頼主「操作を増やさず自然に始めたい」: はじめの「触れると音が出ます」は出さない（最初に触れた時にそっと鳴り始める）。広告のあとに戻らない時だけ知らせる */ let h = $('sndHint2'); if (off && !h) { h = document.createElement('div'); h.id = 'sndHint2'; h.className = 'sndhint2'; document.body.append(h); } if (h) { h.textContent = S.adEnd ? tr('♪ 画面に触れると音が戻ります', '♪ Tap to bring the sound back') : tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); h.classList.toggle('hidden', !off); } }
+  const e = $('sndHint'); if (!e) return; const need = S.mode === 'title' && DB.sound && S.adEnd && !(audio.ctx && audio.ctx.state === 'running'); e.textContent = tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); e.classList.toggle('hidden', !need); }, 400);
 
 // 題名画面の「おわる」（11/23 依頼主「タイトル画面に終わるがない。終わるときに灯にしゃべってほしい」）。ブラウザの遊びは窓を閉じられないので、保存して灯のお別れを見せる
 const BYE = {
@@ -1551,7 +1551,7 @@ function closePause() { S.paused = false; show('none'); last = performance.now()
 $('pauseBtn').onclick = () => { audio.ui('tap'); openPause(); };
 function soundIcon() { $('sndBtn').classList.toggle('off', !DB.sound); }
 // 音を出してよい操作（指を離した時・click・キー）のたびに鳴らし直す。最初の pointerdown だけでは、スマホで無音のまま残ることがある
-for (const t of ['pointerup', 'touchend', 'click', 'keydown']) addEventListener(t, () => audio.unlock(), { capture: true, passive: true });
+for (const t of ['pointerdown', 'mousedown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(t, () => audio.unlock(), { capture: true, passive: true }); /* 押した瞬間に動き出す（マウス）。指は離した時にしか許されない */
 $('sndBtn').onclick = () => { audio.unlock(); DB.sound = !DB.sound; DB.music = DB.sound; applySound(); save(); soundIcon(); };
 soundIcon();
 $('pzResume').onclick = () => { audio.ui('tap'); if (S.setFrom === 'title') toTitle(); else if (S.setFrom === 'inter') { show('inter'); renderShop(); } else closePause(); };

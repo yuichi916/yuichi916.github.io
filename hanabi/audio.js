@@ -26,7 +26,12 @@ export function createAudio(bgmList) {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
       ctx = new AC();
       const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 5; comp.attack.value = 0.003; comp.release.value = 0.18;
-      master = ctx.createGain(); master.gain.value = 0.9; comp.connect(master); master.connect(ctx.destination);
+      // 11/23 依頼主「引いている最中に急に音が出るのが気持ち悪い。操作を増やさず自然に始めたい」: ブラウザが音を許した瞬間に全部の音が全開で鳴っていた。
+      // 最初に鳴り出す時だけ、全体の音量を 0 から 1.5 秒ほどかけて上げる（題名画面でも、線の途中でも、そっと始まる）
+      master = ctx.createGain(); master.gain.value = 0; comp.connect(master); master.connect(ctx.destination);
+      let warmed = false;
+      const warm = () => { if (warmed || ctx.state !== 'running') return; warmed = true; const t = ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(0.0001, t); if (!muted) master.gain.setTargetAtTime(0.9, t + 0.03, 0.6); };
+      ctx.addEventListener('statechange', warm); warm();
       sfx = ctx.createGain(); sfx.gain.value = on ? 0.85 : 0; sfx.connect(comp);
       bgm = ctx.createGain(); bgm.gain.value = musicOn ? 0.55 : 0; bgm.connect(comp);
       const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
@@ -59,7 +64,11 @@ export function createAudio(bgmList) {
     setMusic(v) { musicOn = v; if (bgm) bgm.gain.value = v ? 0.55 : 0; refreshPlain(); },
     get soundOn() { return on; }, get musicOn() { return musicOn; },
     get state() { return { ctx: ctx ? ctx.state : null, tracks: Object.keys(tracks), current, playing: Object.fromEntries(Object.entries(els).map(([k, e]) => [k, +e.currentTime.toFixed(2)])) }; }, // 確かめる道具用
-    mute(v) { muted = !!v; if (master) master.gain.value = v ? 0 : 0.9; refreshPlain(); },
+    mute(v) { // 戻るときは 0.3 秒ほどでそっと戻す（広告のあとなど）。まだ一度も鳴っていない間は、鳴り出しの時に上げる
+      muted = !!v;
+      if (master) { const t = ctx.currentTime; master.gain.cancelScheduledValues(t); if (v) master.gain.setValueAtTime(0, t); else if (ctx.state === 'running') { master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), t); master.gain.setTargetAtTime(0.9, t, 0.1); } }
+      refreshPlain();
+    },
     // 音の状態（ポーズの画面の隅に出す。実機で鳴らないときに、何で止まっているかを見る）
     diagText() {
       const tr = Object.entries(tracks).map(([k, x]) => { const e = x.el || x.plain; return `${k}:${x.plain ? 'P' : x.el ? 'S' : 'B'}${e ? (e.paused ? '-stop' : '-play') + (x.plain ? '-v' + e.volume.toFixed(2) : '') + (e.error ? '-e' + e.error.code : '') : ''}`; }).join(' ');
