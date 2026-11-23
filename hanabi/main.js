@@ -234,13 +234,15 @@ function openBook() {
     }
     nodes.push(ch); list.prepend(...nodes); }
   // 灯の物語: 読んだ頁（情景とかけあい。灯とコンの行は押すと声）。まだの頁は数だけ
-  { const T = taleRec(), th = document.createElement('div'); th.className = 'bookhead'; th.textContent = tr(`灯の物語 ${T.n} / ${TALE_N}`, `Akari's Story ${T.n} / ${TALE_N}`); const nodes = [th];
+  { const T = taleRec(), th = document.createElement('div'); th.className = 'bookhead'; th.textContent = tr(`灯の物語 ${T.n} / ${TALE_N}`, `Akari's Story ${T.n} / ${TALE_N}`) + (lastPageReady() ? tr('　・最後の頁が読める（いちばん下）', '  · Last page ready (bottom)') : ''); const nodes = [th];
     // 11/23 依頼主「妖怪図鑑の最初が文字ばっかりで汚い」: 読んだ頁は番号と情景の 1 行だけ。押すと、その頁を声つきで読み返す
     TALE.slice(0, T.n).forEach((p, i) => { const e = document.createElement('button'); e.className = 'bookitem tl';
       e.innerHTML = `<span class="seal">${i + 1}</span><div><b>${JA() ? p.scene.ja : p.scene.en}</b><small>${tr('▶ 読み返す', '▶ Read again')}</small></div>`;
       e.onclick = () => { audio.ui('tap'); openTale(p, null, { review: true }); };
       nodes.push(e); });
-    if (T.n < TALE_N) { const e = document.createElement('div'); e.className = 'bookitem locked'; e.innerHTML = `<span class="seal">・</span><div><b>？？？</b>${taleHint() || tr('夜を越えると、続きが読める', 'Clear a night to read on')}</div>`; nodes.push(e); }
+    const p25 = lastPageReady();
+    if (p25) { const e = document.createElement('button'); e.className = 'bookitem tl'; e.innerHTML = `<span class="seal">${TALE_N}</span><div><b>${JA() ? p25.scene.ja : p25.scene.en}</b><small>${tr('▶ 読む（最後の頁）', '▶ Read (last page)')}</small></div>`; e.onclick = () => { audio.ui('tap'); openTale(p25, () => { if (S.mode === 'title' || S.mode === 'book') openBook?.(); }); }; nodes.push(e); }
+    else if (T.n < TALE_N) { const e = document.createElement('div'); e.className = 'bookitem locked'; e.innerHTML = `<span class="seal">・</span><div><b>？？？</b>${taleHint() || tr('夜を越えると、続きが読める', 'Clear a night to read on')}</div>`; nodes.push(e); }
     list.prepend(...nodes); }
   // 技帳: 妖怪ごとの技と、取った回数 / 挑んだ回数
   const sp = DB.meta.spells || {};
@@ -1487,7 +1489,7 @@ Draw the fuse. The flame is right behind you. #HitofudeHanabi`;
   // 24 夜を越えたら、そのまま千秋楽（終わらない祭り）へ続けられる
   const en = $('ovEndless'); en.classList.toggle('hidden', !(won && !run.endless)); en.textContent = tr('千秋楽へ（まだ続ける）', 'ENCORE: keep going');
   S.taleEnd = null;
-  if (won && !run.endless && talkOn()) { const T = taleRec(), tp = nextPage(T.n, T.g, Run.WORLDS.length, { end: 1 }); if (tp) { S.taleEnd = tp; setTimeout(() => { if (S.mode === 'over') openTale(tp, null, { end: 1 }); }, 2600); } }
+  if (won && !run.endless && talkOn()) { const T = taleRec(), tp = nextPage(T.n, T.g, Run.WORLDS.length, { end: 1 }); if (tp) { S.taleEnd = tp; setTimeout(() => { if (S.mode === 'over') openTale(tp, () => { const p25 = lastPageReady(); if (p25 && S.mode === 'over') openTale(p25, null, { delay: 400 }); }, { end: 1 }); }, 2600); } } // 11/23 依頼主「24 話だと不完全燃焼なので 25 話まで読みたい」: 24 頁を閉じたら、そのまま 25 頁（次の年の盆）へ
   // 偽の大団円: 明かし 3 を見たあとに勝つと、題が燃えて問いに変わり、ボタンが「帰る」「帰らない」になる
   if (won && !run.endless && !mercy && lore() >= 3 && !S.taleEnd) {
     loreUp(4); const tt = $('ovTitle');
@@ -1809,9 +1811,13 @@ function taleName(p, id) {
   if (p.gate && p.gate[0] === 'r' && RAID_NAME[id]) return JA() ? RAID_NAME[id][0] : RAID_NAME[id][1];
   const c = CAST[id]; return c ? (JA() ? `${c.ja}の${c.name}` : `${c.nameEn} the ${c.en}`) : tr('妖怪', 'Yokai');
 }
+// 25 頁（次の年の盆）: 大妖怪を討って 24 頁まで読んでいれば、すぐ読める（大団円の 24 頁のあとに続けて開く・図鑑からも）
+const lastPageReady = () => { const T = taleRec(), p = TALE[TALE_N - 1]; return T.n === TALE_N - 1 && p && (!p.gate || T.g[p.gate]) ? p : null; };
+const lastPageHint = () => tr('灯の物語の最後の頁（25）は、図鑑から読める', "Akari's last page (25) is ready in the Book");
 // 続きを読むには何が要るか（負けた画面・帳）
 function taleHint() {
   const T = taleRec(); if (!T.n || T.n >= TALE_N) return '';
+  if (T.n === TALE_N - 1 && TALE[T.n]?.gate && T.g[TALE[T.n].gate]) return lastPageHint(); // 11/23 依頼主「25 話の開放がわからない」: 最後の頁は「次の年の盆」の話。千秋楽で夜を越えても出ない
   const w = S.run?.world || 1, L = lockReason(T.n, T.g, Run.WORLDS.length), W = L && Run.WORLDS[L.w - 1];
   if (!L) return tr(`夜を越えていくと、灯の物語のつづき（${T.n + 1} / ${TALE_N}）`, `Keep clearing nights to read Akari's story ${T.n + 1} / ${TALE_N}`);
   if (L.kind === 'boss') return tr(`灯の物語のつづきは、「${W.ja}」の大一番に勝つと読める`, `Beat the boss of ${W.en} to read on in Akari's story`);
