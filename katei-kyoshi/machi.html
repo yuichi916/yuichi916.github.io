@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>窓口が1つのとき、混み具合と待ち時間</title>
+<style>
+:root{
+  --paper:#f6f2e7; --ink:#1f2a33; --soft:#66717a; --rule:#d3ccb8;
+  --pen:#1c5d99; --red:#c0392b; --idle:#f0c541; --burst:#7b4fa3;
+}
+*{box-sizing:border-box}
+html{background:var(--paper)}
+body{
+  margin:0 auto; padding:28px 20px 80px; max-width:980px;
+  background:var(--paper); color:var(--ink);
+  font-family:"Yu Gothic UI","Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+  font-size:16px; line-height:1.75; font-variant-numeric:tabular-nums;
+}
+h1,h2,h3{font-family:"UD デジタル 教科書体 N-B","UD Digi Kyokasho N-B","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif; line-height:1.4}
+h1{font-size:26px; margin:0 0 6px}
+header p{margin:2px 0; color:var(--soft)}
+header .key{color:var(--ink)}
+.sw{display:inline-block; width:12px; height:12px; vertical-align:-1px; margin-right:3px}
+section{margin-top:44px; border-top:3px solid var(--ink); padding-top:14px}
+h2{font-size:21px; margin:0 0 14px}
+h2 .no{display:inline-block; margin-right:12px; padding:0 8px; border:2px solid var(--ink); font-size:16px}
+h3{font-size:16px; margin:26px 0 4px}
+.tag{margin:0 0 4px; font-weight:bold; font-size:14px; letter-spacing:.08em}
+.guess{border-left:5px solid var(--red); padding:4px 0 6px 14px}
+.guess .tag{color:var(--red)}
+.guess p{margin:4px 0}
+.work{margin-top:22px; border-left:5px solid var(--pen); padding:4px 0 6px 14px}
+.work .tag{color:var(--pen)}
+.work[hidden]{display:none}
+.wait{margin:18px 0 0 19px; color:var(--soft); font-size:14px}
+.row{display:flex; flex-wrap:wrap; gap:8px 22px; align-items:center}
+.note{font-size:13px; color:var(--soft)}
+.msg{color:var(--red); font-size:14px}
+input[type=number]{
+  width:5.2em; font:inherit; padding:2px 6px; text-align:right;
+  border:0; border-bottom:2px solid var(--red); background:transparent; color:var(--red); font-weight:bold;
+}
+input[type=number].plain{border-bottom-color:var(--ink); color:var(--ink)}
+input[type=number]:disabled{opacity:1; -webkit-text-fill-color:var(--red)}
+button{
+  font:inherit; font-size:15px; padding:3px 12px; cursor:pointer;
+  background:var(--paper); color:var(--ink); border:1.5px solid var(--ink); border-radius:0;
+}
+button:hover{background:#ebe5d3}
+button:disabled{opacity:.4; cursor:default}
+button.on{background:var(--ink); color:var(--paper)}
+.seg button{margin-left:-1.5px}
+.seg button:first-of-type{margin-left:6px}
+input[type=range]{width:min(360px,52vw); accent-color:var(--pen); vertical-align:middle}
+output{display:inline-block; min-width:3.6em; font-weight:bold; font-size:20px; text-align:right}
+canvas{display:block; width:100%; margin:8px 0 2px}
+.read{margin:2px 0 10px; font-size:15px}
+.read b{font-size:19px}
+.mine{color:var(--red)}
+.chartwrap{position:relative}
+#tip{position:absolute; pointer-events:none; background:var(--ink); color:var(--paper); font-size:13px; padding:2px 8px; white-space:nowrap; display:none}
+table{border-collapse:collapse; margin:10px 0 4px; font-size:15px}
+th,td{padding:3px 14px 3px 0; text-align:right; border-bottom:1px solid var(--rule)}
+th{font-weight:normal; color:var(--soft); font-size:13px; border-bottom:1.5px solid var(--ink)}
+td.l,th.l{text-align:left}
+td.neg{color:var(--burst); font-weight:bold}
+.lane{margin-top:8px}
+.lane + .lane{margin-top:22px; border-top:1px dashed var(--rule); padding-top:6px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>窓口が1つのとき、混み具合と待ち時間</h1>
+  <p>3つの問いを上から順に。どれも「まず予想する → 動かして確かめる」。</p>
+  <p class="key">利用率 ＝ 窓口が動いている時間の割合。
+    <span class="sw" style="background:var(--red)"></span>赤 ＝ あなたの予想
+    <span class="sw" style="background:var(--pen)"></span>青 ＝ その場で測った値</p>
+</header>
+
+<!-- =================== 問い1 =================== -->
+<section id="q1">
+  <h2><span class="no">問い1</span>ひとことで言うと、どういうことか</h2>
+  <div class="guess">
+    <p class="tag">まず予想する</p>
+    <p>窓口は1つ。1人の用事は平均 <b data-k="ts"></b> 分。並んで待つ時間は、平均で何分？</p>
+    <p class="row">
+      <label>利用率 <b data-k="lo"></b>% の日 <input type="number" id="g1lo" min="0" step="any" value="5"> 分</label>
+      <label>利用率 <b data-k="hi"></b>% の日 <input type="number" id="g1hi" min="0" step="any" value="9"> 分</label>
+      <button id="g1go">予想を決めて、動かす</button>
+      <span class="msg" id="g1msg"></span>
+    </p>
+    <p class="note">チャットで書いてくれた予想を入れてあります。変えてもかまいません。</p>
+  </div>
+  <p class="wait" id="x1">予想を決めると、ここに動く絵が出ます。</p>
+  <div class="work" id="w1" hidden>
+    <p class="tag">動かして確かめる</p>
+    <p class="row">
+      <label>利用率 <input type="range" id="s1rho" min="5" max="97" step="1" value="30"><output id="s1out"></output></label>
+      <span class="seg" id="s1speed">速さ</span>
+    </p>
+    <canvas id="c1scene"></canvas>
+    <p class="read">いま並んでいる <b id="r1q"></b> 人　／　ここまでの平均待ち <b id="r1w"></b> 分（<span id="r1n"></span> 人ぶん）　／　たった時間 <span id="r1t"></span></p>
+    <p class="row">
+      <span>スライダーをはなすたびに、その利用率で <span data-k="nman"></span> 万人ぶんを一気に測って、下に点を打ちます。</span>
+      <button id="s1all"><span data-k="stepAll"></span>% きざみで全部測る</button>
+      <button id="s1clr">点を消す</button>
+    </p>
+    <div class="chartwrap"><canvas id="c1chart"></canvas><div id="tip"></div></div>
+    <p class="row"><label><input type="checkbox" id="s1f" disabled> 見たことのある式 ρ ÷ (1 − ρ) × 用事の時間 の線を重ねる</label><span class="note" id="s1fnote"></span></p>
+    <table id="t1"></table>
+  </div>
+</section>
+
+<!-- =================== 問い2 =================== -->
+<section id="q2">
+  <h2><span class="no">問い2</span>いちばんつまずきやすい所</h2>
+  <div class="guess">
+    <p class="tag">まず予想する</p>
+    <p>① 全員がきっちり同じ間隔で来て、用事も全員ぴったり <b data-k="ts"></b> 分。利用率は <b data-k="hi"></b>%。<br>
+      <label>並んで待つ時間は、平均 <input type="number" id="g2a" min="0" step="any"> 分</label></p>
+    <p>② そこへ <b data-k="burst0"></b> 人が、まとめて来た。だれも並ばなくなるまで、何分かかる？</p>
+    <p class="row">
+      <label>利用率 <b data-k="lo"></b>% なら <input type="number" id="g2lo" min="0" step="any"> 分</label>
+      <label>利用率 <b data-k="hi"></b>% なら <input type="number" id="g2hi" min="0" step="any"> 分</label>
+      <button id="g2go">予想を決めて、動かす</button>
+      <span class="msg" id="g2msg"></span>
+    </p>
+  </div>
+  <p class="wait" id="x2">予想を決めると、ここに動く絵が出ます。</p>
+  <div class="work" id="w2" hidden>
+    <p class="tag">動かして確かめる</p>
+    <p class="row">
+      <label>利用率 <input type="range" id="s2rho" min="50" max="97" step="1" value="90"><output id="s2out"></output></label>
+    </p>
+    <p class="row">
+      <button id="s2play"></button>
+      <label>時刻 <input type="range" id="s2t" min="0" step="1" value="0"><output id="s2tout" style="min-width:7em;font-size:16px"></output></label>
+    </p>
+    <p class="note">
+      <span class="sw" style="background:var(--ink)"></span>用事をしている
+      <span class="sw" style="background:var(--idle)"></span>窓口が空いている
+      <span class="sw" style="background:var(--pen);opacity:.45"></span>並んでいる人数
+    </p>
+
+    <div class="lane">
+      <h3>まちがえやすい考え方で進むと：みんなが平均どおり、同じ間隔で来る。用事も全員ぴったり <span data-k="ts"></span> 分</h3>
+      <p class="row">
+        <label><input type="checkbox" id="s2b"> <span data-k="burstAt"></span> 分の時点で、<input type="number" class="plain" id="s2bn" min="1" max="6" step="1" style="width:3em"> 人まとめて来させる</label>
+      </p>
+      <canvas id="c2a"></canvas>
+      <p class="read" id="r2a"></p>
+      <p class="read mine" id="r2mine"></p>
+    </div>
+
+    <div class="lane">
+      <h3>じっさい：平均は上と同じ。来る間隔も、用事の長さも、ばらばら</h3>
+      <p class="row"><button id="s2seed">べつの <span data-k="hh"></span> 時間にする</button></p>
+      <canvas id="c2b"></canvas>
+      <p class="read" id="r2b"></p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== 問い3 =================== -->
+<section id="q3">
+  <h2><span class="no">問い3</span>どんなときに、まちがえやすいか</h2>
+  <div class="guess">
+    <p class="tag">まず予想する</p>
+    <p>問題文：「1時間に平均 <b data-k="q3lam"></b> 人来る。1人の用事は平均 <b data-k="q3ts"></b> 分。」</p>
+    <p><label>① 並んで待つ時間は、平均 <input type="number" id="g3a" min="0" step="any"> 分</label></p>
+    <p class="row">
+      <label>② 用事が半分の <b data-k="q3half"></b> 分で済むようになったら、並んで待つ時間は <input type="number" id="g3b" min="0" step="any"> 分の1</label>
+      <button id="g3go">予想を決めて、動かす</button>
+      <span class="msg" id="g3msg"></span>
+    </p>
+  </div>
+  <p class="wait" id="x3">予想を決めると、ここに動く絵が出ます。</p>
+  <div class="work" id="w3" hidden>
+    <p class="tag">動かして確かめる</p>
+    <p class="row">
+      <label>1時間に来る人数 <input type="range" id="s3lam" min="1" max="8" step="0.5"><output id="s3lamOut"></output></label>
+      <label>用事の平均 <input type="range" id="s3ts" min="2" max="20" step="1"><output id="s3tsOut"></output></label>
+      <button id="s3reset">問題文の数字にもどす</button>
+    </p>
+    <canvas id="c3bars"></canvas>
+    <p class="read" id="r3"></p>
+    <p class="read" id="r3over"></p>
+    <h3>同じ数字を、ちがう入れ方で式に入れると</h3>
+    <table id="t3"></table>
+    <p class="read" id="r3m"></p>
+  </div>
+</section>
+
+<script>
+'use strict';
+
+/* ---------- 決めごと。画面に出る数字は、すべてここから計算する ---------- */
+const TS = 10;
+const P_LO = 50, P_HI = 90;
+const N_MEASURE = 2000000;
+const STEP_ALL = 5;
+const SPEEDS = [1, 10, 60];
+const H = 720;
+const BURST_AT = 60;
+const BURST0 = 3;
+const WARM = 800;
+const Q3_LAM = 5, Q3_TS = 10;
+
+const C = {paper:'#f6f2e7', ink:'#1f2a33', soft:'#66717a', rule:'#d3ccb8',
+           pen:'#1c5d99', red:'#c0392b', idle:'#f0c541', burst:'#7b4fa3', formula:'#7a8791'};
+const FONT = '"Yu Gothic UI","Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif';
+
+const $ = id => document.getElementById(id);
+
+const K = {ts:TS, lo:P_LO, hi:P_HI, nman:N_MEASURE/10000, stepAll:STEP_ALL, hh:H/60,
+           burstAt:BURST_AT, burst0:BURST0, q3lam:Q3_LAM, q3ts:Q3_TS, q3half:Q3_TS/2};
+document.querySelectorAll('[data-k]').forEach(e => { e.textContent = K[e.dataset.k]; });
+
+/* ---------- 道具 ---------- */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function expo(r){ return -Math.log(1 - r()); }
+
+function fmt(x, d){
+  if (!isFinite(x)) return '―';
+  if (d === undefined) d = 1;
+  const s = Math.abs(x) >= 100 ? Math.round(x).toLocaleString('ja-JP') : x.toFixed(d);
+  return s.replace('-', '−');
+}
+function clock(t){
+  const m = Math.floor(t);
+  return Math.floor(m / 60) + '時間' + String(m % 60).padStart(2, '0') + '分';
+}
+function niceMax(v){
+  const steps = [10, 20, 30, 50, 100, 150, 200, 300, 500, 1000, 2000, 5000];
+  for (const s of steps) if (v <= s) return s;
+  return Math.ceil(v / 5000) * 5000;
+}
+function prep(cv, hCss){
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth;
+  const W = Math.round(w * dpr), Hh = Math.round(hCss * dpr);
+  if (cv.width !== W || cv.height !== Hh){ cv.width = W; cv.height = Hh; cv.style.height = hCss + 'px'; }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, hCss);
+  return {ctx, w, h:hCss};
+}
+function line(ctx, x1, y1, x2, y2, col, lw, dash){
+  ctx.save();
+  ctx.strokeStyle = col; ctx.lineWidth = lw || 1;
+  if (dash) ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.restore();
+}
+function text(ctx, s, x, y, col, align, size, bold){
+  ctx.font = (bold ? 'bold ' : '') + (size || 12) + 'px ' + FONT;
+  ctx.fillStyle = col || C.ink; ctx.textAlign = align || 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(s, x, y);
+}
+function person(ctx, x, base, fill, stroke){
+  ctx.save();
+  ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x - 7, base);
+  ctx.quadraticCurveTo(x - 7, base - 13, x, base - 13);
+  ctx.quadraticCurveTo(x + 7, base - 13, x + 7, base);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, base - 19, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+function counter(ctx, x, base, busy){
+  ctx.fillStyle = busy ? C.ink : C.idle;
+  ctx.fillRect(x, base - 34, 46, 34);
+  text(ctx, busy ? '窓口' : '空き', x + 23, base - 16, busy ? C.paper : C.ink, 'center', 12, true);
+}
+
+/* 長い時間の平均を一気に測る。到着も用事もばらばら（指数分布）。lam は1分あたりの人数 */
+function measure(lam, ts, n, seed){
+  const r = mulberry32(seed);
+  const warm = Math.floor(n / 20);
+  let w = 0, sumW = 0, sumS = 0, sumA = 0;
+  for (let i = 0; i < n + warm; i++){
+    const s = -Math.log(1 - r()) * ts;
+    const a = -Math.log(1 - r()) / lam;
+    if (i >= warm){ sumW += w; sumS += s; sumA += a; }
+    w = w + s - a;
+    if (w < 0) w = 0;
+  }
+  return {wq: sumW / n, w: (sumW + sumS) / n, util: sumS / sumA};
+}
+const LR = new Map();
+function longRun(p){
+  if (!LR.has(p)) LR.set(p, measure(p / 100 / TS, TS, N_MEASURE, 777 + p));
+  return LR.get(p);
+}
+const timers = {};
+function later(key, fn, ms){ clearTimeout(timers[key]); timers[key] = setTimeout(fn, ms); }
+
+function gate(n, ids, onGo){
+  $('g' + n + 'go').addEventListener('click', () => {
+    const vals = ids.map(id => parseFloat($(id).value));
+    if (vals.some(v => !isFinite(v) || v < 0)){ $('g' + n + 'msg').textContent = '数字を入れてください'; return; }
+    $('g' + n + 'msg').textContent = '';
+    ids.forEach(id => { $(id).disabled = true; });
+    $('g' + n + 'go').disabled = true;
+    $('x' + n).hidden = true;
+    $('w' + n).hidden = false;
+    onGo(vals);
+  });
+}
+
+/* =================== 問い1 =================== */
+const s1 = {on:false, p:30, speed:10, sim:null, pts:new Map(), showF:false, seed:1, g:null, hot:null, geo:null};
+
+function liveNew(rho){
+  const r = mulberry32(1000 + (s1.seed++));
+  const sim = {rho, r, t:0, q:[], sv:null, next:0, started:0, sumWait:0, gone:[]};
+  sim.next = expo(r) * TS / rho;
+  return sim;
+}
+function liveBegin(sim, p){
+  p.end = sim.t + expo(sim.r) * TS;
+  sim.sv = p; sim.started++; sim.sumWait += sim.t - p.arr;
+}
+function liveStep(sim, dt){
+  const end = sim.t + dt;
+  for (;;){
+    const dep = sim.sv ? sim.sv.end : Infinity;
+    const nx = Math.min(dep, sim.next);
+    if (nx > end) break;
+    sim.t = nx;
+    if (dep <= sim.next){
+      sim.gone.push({x: sim.sv.x, a: 1});
+      sim.sv = null;
+      if (sim.q.length) liveBegin(sim, sim.q.shift());
+    } else {
+      const p = {arr: sim.t, x: -12};
+      if (!sim.sv) liveBegin(sim, p); else sim.q.push(p);
+      sim.next = sim.t + expo(sim.r) * TS / sim.rho;
+    }
+  }
+  sim.t = end;
+}
+function drawScene1(){
+  const {ctx, w, h} = prep($('c1scene'), 92);
+  const sim = s1.sim, base = h - 14, xC = w - 96;
+  line(ctx, 0, base + .5, w, base + .5, C.rule, 1);
+  const n = sim.q.length;
+  const gap = Math.max(4, Math.min(22, (xC - 40) / (n + 1)));
+  if (sim.sv) sim.sv.x += (xC - 16 - sim.sv.x) * 0.25;
+  for (let i = 0; i < n; i++){ const p = sim.q[i]; p.x += (xC - 16 - (i + 1) * gap - p.x) * 0.25; }
+  for (let i = n - 1; i >= 0; i--) person(ctx, sim.q[i].x, base, C.paper, C.ink);
+  counter(ctx, xC, base, !!sim.sv);
+  if (sim.sv) person(ctx, sim.sv.x, base, C.pen, C.pen);
+  sim.gone = sim.gone.filter(g => { g.a -= 0.05; return g.a > 0; });
+  for (const g of sim.gone){
+    g.x = Math.max(g.x, xC + 52) + 2;
+    ctx.globalAlpha = g.a; person(ctx, g.x, base, C.soft, C.soft); ctx.globalAlpha = 1;
+  }
+}
+function live1(){
+  const sim = s1.sim;
+  $('r1q').textContent = sim.q.length;
+  $('r1w').textContent = sim.started ? fmt(sim.sumWait / sim.started) : '―';
+  $('r1n').textContent = sim.started.toLocaleString('ja-JP');
+  $('r1t').textContent = clock(sim.t);
+}
+function predLine(p){ return s1.g.lo + (p - P_LO) * (s1.g.hi - s1.g.lo) / (P_HI - P_LO); }
+function formulaWq(p){ const r = p / 100; return r / (1 - r) * TS; }
+
+function drawChart1(){
+  const {ctx, w, h} = prep($('c1chart'), 350);
+  const narrow = w < 600;
+  const L = 56, R = 22, T = narrow ? 56 : 34, B = 44, pw = w - L - R, ph = h - T - B;
+  let m = Math.max(s1.g.lo, s1.g.hi, 2 * TS);
+  for (const v of s1.pts.values()) m = Math.max(m, v);
+  const ymax = niceMax(m * 1.12);
+  const X = p => L + pw * p / 100, Y = v => T + ph * (1 - v / ymax);
+  s1.geo = {X, Y};
+
+  text(ctx, '並んで待つ時間の平均（分）', 4, 12, C.soft, 'left', 12);
+  for (let i = 0; i <= 5; i++){
+    const v = ymax * i / 5;
+    line(ctx, L, Y(v) + .5, L + pw, Y(v) + .5, i ? C.rule : C.ink, 1);
+    text(ctx, fmt(v, 0), L - 8, Y(v), C.soft, 'right', 12);
+  }
+  for (let p = 0; p <= 100; p += 10){
+    line(ctx, X(p) + .5, T + ph, X(p) + .5, T + ph + 4, C.ink, 1);
+    if (pw >= 420 || p % 20 === 0) text(ctx, p + '%', X(p), T + ph + 14, C.soft, 'center', 12);
+  }
+  text(ctx, '利用率', L + pw / 2, h - 10, C.soft, 'center', 12);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(L, T - 6, pw + 1, ph + 6); ctx.clip();
+  line(ctx, X(s1.p), T, X(s1.p), T + ph, C.soft, 1, [2, 4]);
+  if (s1.showF){
+    ctx.strokeStyle = C.formula; ctx.lineWidth = 2; ctx.beginPath();
+    for (let p = 0; p <= 99.6; p += 0.2){ const y = Y(formulaWq(p)); if (p === 0) ctx.moveTo(X(p), y); else ctx.lineTo(X(p), y); }
+    ctx.stroke();
+  }
+  line(ctx, X(0), Y(predLine(0)), X(100), Y(predLine(100)), C.red, 2, [7, 5]);
+  ctx.restore();
+
+  for (const [p, v] of [[P_LO, s1.g.lo], [P_HI, s1.g.hi]]){
+    ctx.beginPath(); ctx.arc(X(p), Y(v), 5, 0, Math.PI * 2);
+    ctx.fillStyle = C.paper; ctx.fill(); ctx.strokeStyle = C.red; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  const keys = [...s1.pts.keys()].sort((a, b) => a - b);
+  for (const p of keys){
+    const v = s1.pts.get(p);
+    ctx.beginPath(); ctx.arc(X(p), Y(v), 5, 0, Math.PI * 2);
+    ctx.fillStyle = C.pen; ctx.fill(); ctx.strokeStyle = C.paper; ctx.lineWidth = 2; ctx.stroke();
+  }
+  for (const p of keys){
+    if (keys.length > 7 && p % 10 !== 0 && p !== s1.p) continue;
+    const v = s1.pts.get(p);
+    text(ctx, fmt(v), X(p) - 8, Y(v) - 12, C.ink, 'center', 12, p === s1.p);
+  }
+  let lx = narrow ? 4 : L + 150;
+  const ly = narrow ? 32 : 12;
+  ctx.beginPath(); ctx.arc(lx + 5, ly, 5, 0, Math.PI * 2); ctx.fillStyle = C.pen; ctx.fill();
+  text(ctx, '測った値', lx + 16, ly, C.ink, 'left', 12); lx += 86;
+  line(ctx, lx, ly, lx + 26, ly, C.red, 2, [7, 5]);
+  text(ctx, 'あなたの予想', lx + 32, ly, C.ink, 'left', 12); lx += 126;
+  if (s1.showF){
+    line(ctx, lx, ly, lx + 26, ly, C.formula, 2);
+    text(ctx, '式の線', lx + 32, ly, C.ink, 'left', 12);
+  }
+}
+function table1(){
+  const keys = [...s1.pts.keys()].sort((a, b) => a - b);
+  let h = '<tr><th>利用率</th><th>空いている割合</th><th>測った平均待ち（分）</th><th>あなたの予想の線だと（分）</th>' +
+          (s1.showF ? '<th>式だと（分）</th>' : '') + '</tr>';
+  for (const p of keys){
+    h += '<tr><td>' + p + '%</td><td>' + (100 - p) + '%</td><td><b>' + fmt(s1.pts.get(p)) + '</b></td><td class="mine">' +
+         fmt(predLine(p)) + '</td>' + (s1.showF ? '<td>' + fmt(formulaWq(p)) + '</td>' : '') + '</tr>';
+  }
+  $('t1').innerHTML = h;
+  const need = 4;
+  const ok = s1.pts.size >= need;
+  $('s1f').disabled = !ok;
+  $('s1fnote').textContent = ok ? '' : '（点を ' + need + ' つ打つと使えます。いま ' + s1.pts.size + ' つ）';
+}
+function addPoint1(p){
+  s1.pts.set(p, longRun(p).wq);
+  drawChart1(); table1();
+}
+function setRho1(p){
+  s1.p = p;
+  $('s1out').textContent = p + '%';
+  s1.sim = liveNew(p / 100);
+  drawChart1();
+}
+function initS1(vals){
+  s1.g = {lo: vals[0], hi: vals[1]};
+  const seg = $('s1speed');
+  for (const v of SPEEDS){
+    const b = document.createElement('button');
+    b.textContent = '1秒＝' + (v < 60 ? v + '分' : (v / 60) + '時間');
+    if (v === s1.speed) b.className = 'on';
+    b.addEventListener('click', () => {
+      s1.speed = v;
+      seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    });
+    seg.appendChild(b);
+  }
+  const sl = $('s1rho');
+  sl.addEventListener('input', () => setRho1(+sl.value));
+  sl.addEventListener('change', () => later('s1', () => addPoint1(+sl.value), 20));
+  $('s1all').addEventListener('click', () => {
+    const list = [];
+    for (let p = STEP_ALL; p < 100; p += STEP_ALL) if (p <= +sl.max && !s1.pts.has(p)) list.push(p);
+    $('s1all').disabled = true;
+    (function next(){
+      if (!list.length){ $('s1all').disabled = false; return; }
+      addPoint1(list.shift());
+      setTimeout(next, 70);
+    })();
+  });
+  $('s1clr').addEventListener('click', () => {
+    s1.pts.clear(); s1.showF = false; $('s1f').checked = false;
+    drawChart1(); table1();
+  });
+  $('s1f').addEventListener('change', () => { s1.showF = $('s1f').checked; drawChart1(); table1(); });
+  const cv = $('c1chart'), tip = $('tip');
+  cv.addEventListener('mousemove', e => {
+    const b = cv.getBoundingClientRect(), mx = e.clientX - b.left, my = e.clientY - b.top;
+    let best = null, bd = 18;
+    for (const [p, v] of s1.pts){
+      const d = Math.hypot(s1.geo.X(p) - mx, s1.geo.Y(v) - my);
+      if (d < bd){ bd = d; best = p; }
+    }
+    if (best === null){ tip.style.display = 'none'; return; }
+    tip.textContent = '利用率 ' + best + '%：測った平均待ち ' + fmt(s1.pts.get(best)) + ' 分';
+    tip.style.display = 'block';
+    const left = Math.min(s1.geo.X(best) + 10, b.width - tip.offsetWidth - 4);
+    tip.style.left = left + 'px';
+    tip.style.top = (s1.geo.Y(s1.pts.get(best)) - 34) + 'px';
+  });
+  cv.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  s1.on = true;
+  setRho1(+sl.value);
+  addPoint1(s1.p);
+}
+gate(1, ['g1lo', 'g1hi'], initS1);
+
+/* =================== 問い2 =================== */
+/* はじめに見せる区間は、長い目で見た平均に近いものを選んである。ボタンで別の区間に変えられる */
+const SEED0 = 206;
+const s2 = {on:false, p:90, burstOn:false, burstN:BURST0, t:0, playing:false, seed:SEED0, g:null, A:null, B:null, clear:0};
+
+function runFifo(list){
+  let free = -Infinity;
+  for (const c of list){ c.start = Math.max(c.t, free); c.end = c.start + c.s; free = c.end; }
+  return list;
+}
+function evenWorld(rho, burstN){
+  const g = TS / rho, list = [], tMax = H * 6;
+  for (let k = 0; k * g < tMax; k++) list.push({t: k * g, s: TS, burst: false});
+  for (let i = 0; i < burstN; i++) list.push({t: BURST_AT, s: TS, burst: true});
+  list.sort((a, b) => a.t - b.t || (a.burst - b.burst));
+  return runFifo(list);
+}
+function randomWorld(rho, seed){
+  const g = TS / rho;
+  const rA = mulberry32(seed * 11 + 1), rS = mulberry32(seed * 11 + 2);
+  const rB = mulberry32(seed * 11 + 3), rT = mulberry32(seed * 11 + 4);
+  const back = [];
+  let t = 0;
+  for (let j = 0; j < WARM; j++){ t -= expo(rB) * g; back.push({t, s: expo(rT) * TS, burst: false}); }
+  back.reverse();
+  const fwd = [];
+  t = 0;
+  for (;;){
+    t += expo(rA) * g;
+    const s = expo(rS) * TS;
+    if (t > H) break;
+    fwd.push({t, s, burst: false});
+  }
+  return runFifo(back.concat(fwd));
+}
+function analyse(list){
+  const ev = [];
+  for (const c of list){ if (c.start - c.t > 1e-9){ ev.push([c.t, 1]); ev.push([c.start, -1]); } }
+  ev.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  let q = 0, i = 0;
+  while (i < ev.length && ev[i][0] < 0){ q += ev[i][1]; i++; }
+  const steps = [[0, q]];
+  let maxQ = q;
+  for (; i < ev.length && ev[i][0] <= H; i++){ q += ev[i][1]; steps.push([ev[i][0], q]); if (q > maxQ) maxQ = q; }
+  const busy = [];
+  for (const c of list){
+    const a = Math.max(0, c.start), b = Math.min(H, c.end);
+    if (b <= a) continue;
+    const last = busy[busy.length - 1];
+    if (last && a - last[1] < 1e-9) last[1] = Math.max(last[1], b); else busy.push([a, b]);
+  }
+  let busySum = 0;
+  for (const iv of busy) busySum += iv[1] - iv[0];
+  let n = 0, sw = 0;
+  const arr = [];
+  for (const c of list){ if (c.t >= 0 && c.t < H){ n++; sw += c.start - c.t; arr.push(c); } }
+  return {steps, busy, idle: H - busySum, meanWait: n ? sw / n : 0, n, maxQ, arr};
+}
+function clearTime(list){
+  let last = null;
+  for (const c of list){ if (c.start - c.t > 1e-6) last = c; }
+  return last ? last.start - BURST_AT : 0;
+}
+function qAt(A, t){
+  let q = A.steps[0][1];
+  for (const s of A.steps){ if (s[0] <= t) q = s[1]; else break; }
+  return q;
+}
+function busyAt(A, t){
+  for (const iv of A.busy){ if (iv[0] <= t && t < iv[1]) return true; if (iv[0] > t) break; }
+  return false;
+}
+function drawLane(cv, A, ymaxQ, t, burstN){
+  const {ctx, w, h} = prep(cv, 246);
+  const L = 70, R = 30, pw = w - L - R;
+  const X = v => L + pw * v / H;
+
+  const base = 62, xC = w - R - 46;
+  const n = qAt(A, t), busy = busyAt(A, t);
+  line(ctx, L, base + .5, w - R, base + .5, C.rule, 1);
+  const gap = Math.max(4, Math.min(22, (xC - L - 30) / (n + 1)));
+  for (let i = n - 1; i >= 0; i--) person(ctx, xC - 16 - (i + 1) * gap, base, C.paper, C.ink);
+  counter(ctx, xC, base, busy);
+  if (busy) person(ctx, xC - 16, base, C.pen, C.pen);
+  text(ctx, clock(t) + ' の時点', L, 10, C.soft, 'left', 12);
+  text(ctx, '並んでいる ' + n + ' 人', L, 28, C.ink, 'left', 14, true);
+
+  text(ctx, '来た時刻', L - 8, 91, C.soft, 'right', 12);
+  for (const c of A.arr){ if (!c.burst) line(ctx, X(c.t), 85, X(c.t), 97, C.ink, 1); }
+  if (burstN > 0){
+    line(ctx, X(BURST_AT), 81, X(BURST_AT), 97, C.burst, 4);
+    text(ctx, '▼ ' + burstN + ' 人まとめて', X(BURST_AT) - 6, 74, C.burst, 'left', 12, true);
+  }
+  text(ctx, '窓口', L - 8, 111, C.soft, 'right', 12);
+  ctx.fillStyle = C.idle; ctx.fillRect(L, 104, pw, 14);
+  ctx.fillStyle = C.ink;
+  for (const iv of A.busy) ctx.fillRect(X(iv[0]), 104, Math.max(0.5, X(iv[1]) - X(iv[0])), 14);
+
+  const top = 134, y0 = h - 28;
+  const Yq = v => y0 - (y0 - top) * v / ymaxQ;
+  text(ctx, '列の人数', L - 8, y0 - 4, C.soft, 'right', 12);
+  for (const v of [ymaxQ / 2, ymaxQ]){
+    line(ctx, L, Yq(v) + .5, L + pw, Yq(v) + .5, C.rule, 1);
+    text(ctx, v + '人', L - 8, Yq(v), C.soft, 'right', 12);
+  }
+  ctx.beginPath();
+  ctx.moveTo(X(0), y0);
+  let py = Yq(A.steps[0][1]);
+  ctx.lineTo(X(0), py);
+  for (let i = 1; i < A.steps.length; i++){
+    const x = X(A.steps[i][0]);
+    ctx.lineTo(x, py);
+    py = Yq(A.steps[i][1]);
+    ctx.lineTo(x, py);
+  }
+  ctx.lineTo(X(H), py); ctx.lineTo(X(H), y0); ctx.closePath();
+  ctx.globalAlpha = 0.3; ctx.fillStyle = C.pen; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = C.pen; ctx.lineWidth = 1.5; ctx.stroke();
+  line(ctx, L, y0 + .5, L + pw, y0 + .5, C.ink, 1);
+  const hourPx = pw / (H / 60);
+  const every = hourPx >= 46 ? 1 : hourPx >= 23 ? 2 : 3;
+  for (let m = 0; m <= H; m += 60){
+    line(ctx, X(m) + .5, y0, X(m) + .5, y0 + 4, C.ink, 1);
+    if ((m / 60) % every === 0) text(ctx, (m / 60) + (m ? '時間' : ''), X(m), y0 + 15, C.soft, 'center', 12);
+  }
+  line(ctx, X(t), 81, X(t), y0, C.red, 1.5);
+  ctx.fillStyle = C.red;
+  ctx.beginPath(); ctx.moveTo(X(t) - 5, 76); ctx.lineTo(X(t) + 5, 76); ctx.lineTo(X(t), 83); ctx.closePath(); ctx.fill();
+}
+function compute2(){
+  const rho = s2.p / 100, bn = s2.burstOn ? s2.burstN : 0;
+  const ev = evenWorld(rho, bn);
+  s2.A = analyse(ev);
+  s2.clear = bn ? clearTime(ev) : 0;
+  s2.B = analyse(randomWorld(rho, s2.seed));
+}
+function draw2(){
+  const m = Math.max(4, s2.A.maxQ, s2.B.maxQ);
+  const ymaxQ = m <= 4 ? 4 : m <= 10 ? 10 : Math.ceil(m / 10) * 10;
+  drawLane($('c2a'), s2.A, ymaxQ, s2.t, s2.burstOn ? s2.burstN : 0);
+  drawLane($('c2b'), s2.B, ymaxQ, s2.t, 0);
+  $('s2tout').textContent = clock(s2.t);
+}
+function laneText(A){
+  return '空いていた時間 <b>' + fmt(A.idle, 0) + '</b> 分（' + fmt(A.idle / H * 100) + '%）　／　並んで待った時間の平均 <b>' +
+         fmt(A.meanWait) + '</b> 分（' + A.n + ' 人）　／　いちばん長い列 <b>' + A.maxQ + '</b> 人';
+}
+function read2(full){
+  let a = laneText(s2.A);
+  if (s2.burstOn) a += '<br>かたまりが来てから、だれも並ばなくなるまで <b>' + fmt(s2.clear, 0) + '</b> 分';
+  $('r2a').innerHTML = a;
+  $('r2mine').textContent = 'あなたの予想：利用率 ' + P_HI + '% で平均 ' + fmt(s2.g.a) + ' 分待つ　／　だれも並ばなくなるまで ' +
+    P_LO + '% なら ' + fmt(s2.g.lo, 0) + ' 分、' + P_HI + '% なら ' + fmt(s2.g.hi, 0) + ' 分';
+  let b = laneText(s2.B) + '<br>この利用率を長くつづけたときの平均待ち（' + (N_MEASURE / 10000) + ' 万人ぶん） ';
+  if (full || LR.has(s2.p)) b += '<b>' + fmt(longRun(s2.p).wq) + '</b> 分'; else b += '…';
+  $('r2b').innerHTML = b;
+}
+function refresh2(full){ compute2(); draw2(); read2(full); }
+function setPlay(on){
+  s2.playing = on;
+  $('s2play').textContent = on ? '■ 止める' : '▶ 時刻を進める';
+}
+function initS2(vals){
+  s2.g = {a: vals[0], lo: vals[1], hi: vals[2]};
+  $('s2bn').value = s2.burstN;
+  $('s2t').max = H;
+  const sl = $('s2rho');
+  const upd = () => { s2.p = +sl.value; $('s2out').textContent = s2.p + '%'; };
+  sl.addEventListener('input', () => { upd(); refresh2(false); });
+  sl.addEventListener('change', () => { upd(); later('s2', () => refresh2(true), 20); });
+  $('s2b').addEventListener('change', () => { s2.burstOn = $('s2b').checked; refresh2(true); });
+  $('s2bn').addEventListener('input', () => {
+    const v = Math.round(+$('s2bn').value);
+    if (v >= 1 && v <= 6){ s2.burstN = v; refresh2(true); }
+  });
+  $('s2t').addEventListener('input', () => { s2.t = +$('s2t').value; setPlay(false); draw2(); });
+  $('s2play').addEventListener('click', () => {
+    if (!s2.playing && s2.t >= H){ s2.t = 0; }
+    setPlay(!s2.playing);
+  });
+  $('s2seed').addEventListener('click', () => { s2.seed++; refresh2(true); });
+  s2.on = true;
+  upd(); setPlay(false);
+  refresh2(true);
+}
+gate(2, ['g2a', 'g2lo', 'g2hi'], initS2);
+
+/* =================== 問い3 =================== */
+const s3 = {on:false, lam:Q3_LAM, ts:Q3_TS, g:null, now:null, half:null};
+
+function measure3(lam, ts, n, seed){
+  const rho = lam * ts / 60;
+  if (rho >= 1) return null;
+  return measure(lam / 60, ts, n, seed);
+}
+function compute3(n){
+  s3.now = measure3(s3.lam, s3.ts, n, 4242);
+  s3.half = measure3(s3.lam, s3.ts / 2, n, 4243);
+}
+function drawBars3(){
+  const {ctx, w, h} = prep($('c3bars'), 278);
+  const L = 6, R = 26, pw = w - L - R;
+  const atQ = s3.lam === Q3_LAM && s3.ts === Q3_TS;
+  const rows = [
+    {title: 'いまの設定（用事 ' + s3.ts + ' 分）', m: s3.now, ts: s3.ts},
+    {title: '用事が半分の ' + (s3.ts / 2) + ' 分で済むとき（来る人数は同じ）', m: s3.half, ts: s3.ts / 2}
+  ];
+  let xm = 3 * s3.ts;
+  for (const r of rows) if (r.m) xm = Math.max(xm, r.m.w);
+  if (atQ) xm = Math.max(xm, s3.g.a);
+  const xmax = niceMax(xm * 1.1);
+  const X = v => L + pw * v / xmax;
+
+  rows.forEach((r, i) => {
+    const y = 46 + i * 110;
+    text(ctx, r.title, L, y - 32, C.ink, 'left', 13, true);
+    if (!r.m){
+      ctx.save();
+      ctx.beginPath(); ctx.rect(L, y, pw + R - 8, 26); ctx.clip();
+      ctx.strokeStyle = C.burst; ctx.lineWidth = 1.5;
+      for (let x = L - 30; x < w; x += 9){ ctx.beginPath(); ctx.moveTo(x, y + 26); ctx.lineTo(x + 26, y); ctx.stroke(); }
+      ctx.restore();
+      ctx.strokeStyle = C.burst; ctx.lineWidth = 1.5; ctx.strokeRect(L + .5, y + .5, pw + R - 9, 25);
+      text(ctx, '列がのび続ける。平均が決まらない →', L, y + 42, C.ink, 'left', 13);
+      return;
+    }
+    const xw = X(r.m.wq), xe = X(r.m.wq + r.ts);
+    ctx.globalAlpha = 0.3; ctx.fillStyle = C.pen; ctx.fillRect(L, y, xw - L, 26); ctx.globalAlpha = 1;
+    ctx.strokeStyle = C.pen; ctx.lineWidth = 1.5; ctx.strokeRect(L + .5, y + .5, Math.max(1, xw - L - 1), 25);
+    ctx.fillStyle = C.pen; ctx.fillRect(xw + 2, y, Math.max(1, xe - xw - 2), 26);
+    let tx = L, ty = y + 42;
+    const put = (s, col, bold) => { text(ctx, s, tx, ty, col, 'left', 13, bold); tx += ctx.measureText(s).width; };
+    ctx.globalAlpha = 0.3; ctx.fillStyle = C.pen; ctx.fillRect(tx, y + 36, 11, 11); ctx.globalAlpha = 1;
+    ctx.strokeStyle = C.pen; ctx.lineWidth = 1; ctx.strokeRect(tx + .5, y + 36.5, 10, 10); tx += 15;
+    put('並んで待つ ', C.ink); put(fmt(r.m.wq) + ' 分', C.ink, true); put('　＋　', C.soft);
+    ctx.fillStyle = C.pen; ctx.fillRect(tx, y + 36, 11, 11); tx += 15;
+    put('用事 ', C.ink); put(fmt(r.ts) + ' 分', C.ink, true);
+    if (tx + 230 > w){ tx = L; ty += 19; put('＝　着いてから帰るまで ', C.soft); } else put('　＝　着いてから帰るまで ', C.soft);
+    put(fmt(r.m.wq + r.ts) + ' 分', C.ink, true);
+  });
+
+  if (atQ){
+    const y1 = 46, y2 = 46 + 110;
+    line(ctx, X(s3.g.a), y1 - 6, X(s3.g.a), y1 + 32, C.red, 2.5);
+    text(ctx, 'あなたの予想 ' + fmt(s3.g.a) + ' 分', X(s3.g.a) + 6, y1 - 12, C.red, 'left', 12, true);
+    if (s3.now && s3.g.b > 0){
+      const v = s3.now.wq / s3.g.b;
+      line(ctx, X(v), y2 - 6, X(v), y2 + 32, C.red, 2.5);
+      text(ctx, 'あなたの予想（いまの ' + fmt(s3.g.b, s3.g.b % 1 ? 1 : 0) + ' 分の1）', X(v) + 6, y2 - 12, C.red, 'left', 12, true);
+    }
+  }
+  const ya = h - 24;
+  line(ctx, L, ya + .5, L + pw, ya + .5, C.ink, 1);
+  for (let i = 0; i <= 5; i++){
+    const v = xmax * i / 5;
+    line(ctx, X(v) + .5, ya, X(v) + .5, ya + 4, C.ink, 1);
+    text(ctx, fmt(v, 0) + (i === 5 ? ' 分' : ''), X(v), ya + 14, C.soft, i === 0 ? 'left' : 'center', 12);
+  }
+}
+function read3(){
+  const lam = s3.lam, ts = s3.ts, rho = lam * ts / 60, raw = lam * ts;
+  $('s3lamOut').textContent = lam + '人';
+  $('s3tsOut').textContent = ts + '分';
+  let r = '';
+  if (s3.now && s3.half){
+    r = '並んで待つ時間　<b>' + fmt(s3.now.wq) + '</b> 分 → <b>' + fmt(s3.half.wq) + '</b> 分　（<b>' +
+        fmt(s3.now.wq / s3.half.wq) + '</b> 分の1）';
+  } else if (s3.half){
+    r = '並んで待つ時間　決まらない → <b>' + fmt(s3.half.wq) + '</b> 分';
+  }
+  $('r3').innerHTML = r;
+  const cap = 60 / ts;
+  $('r3over').innerHTML = rho >= 1
+    ? '1時間にさばけるのは <b>' + fmt(cap) + '</b> 人。来るのは <b>' + lam + '</b> 人。8時間で、列はおよそ <b>' + fmt((lam - cap) * 8, 0) + '</b> 人のびる。'
+    : '';
+
+  const rows = [
+    ['あ', lam + ' × ' + ts + ' を、そのまま利用率にする。式は ρ ÷ (1 − ρ) × 用事', raw, raw / (1 - raw) * ts],
+    ['い', '分にそろえて ' + lam + ' × ' + ts + ' ÷ 60 を利用率にする。式は ρ ÷ (1 − ρ) × 用事', rho, rho / (1 - rho) * ts],
+    ['う', '利用率は「い」と同じ。式は 用事 ÷ (1 − ρ)', rho, ts / (1 - rho)],
+    ['え', '利用率は「い」と同じ。式は ρ × 用事', rho, rho * ts]
+  ];
+  let h = '<tr><th class="l"></th><th class="l">入れ方</th><th>利用率</th><th>出てくる答え（分）</th></tr>';
+  for (const x of rows){
+    h += '<tr><td class="l">' + x[0] + '</td><td class="l">' + x[1] + '</td><td>' + fmt(x[2] * 100) + '%</td><td class="' +
+         (x[3] < 0 ? 'neg' : '') + '"><b>' + fmt(x[3]) + '</b></td></tr>';
+  }
+  $('t3').innerHTML = h;
+  $('r3m').innerHTML = s3.now
+    ? '<span class="sw" style="background:var(--pen)"></span>測った値（' + (N_MEASURE / 10000) + ' 万人ぶん）：窓口が動いていた割合 <b>' +
+      fmt(s3.now.util * 100) + '</b>%　／　並んで待った時間 <b>' + fmt(s3.now.wq) + '</b> 分　／　着いてから帰るまで <b>' + fmt(s3.now.w) + '</b> 分'
+    : '<span class="sw" style="background:var(--burst)"></span>測った値：列がのび続けて、平均が決まらない';
+}
+function refresh3(full){
+  compute3(full ? N_MEASURE : N_MEASURE / 10);
+  drawBars3(); read3();
+}
+function initS3(vals){
+  s3.g = {a: vals[0], b: vals[1]};
+  const a = $('s3lam'), b = $('s3ts');
+  a.value = s3.lam; b.value = s3.ts;
+  const upd = () => { s3.lam = +a.value; s3.ts = +b.value; };
+  for (const el of [a, b]){
+    el.addEventListener('input', () => { upd(); refresh3(false); later('s3', () => refresh3(true), 250); });
+  }
+  $('s3reset').addEventListener('click', () => { a.value = Q3_LAM; b.value = Q3_TS; upd(); refresh3(true); });
+  s3.on = true;
+  refresh3(true);
+}
+gate(3, ['g3a', 'g3b'], initS3);
+
+/* =================== 動かす =================== */
+let lastTs = 0;
+function frame(ts){
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (ts - lastTs) / 1000);
+  lastTs = ts;
+  if (s1.on){
+    liveStep(s1.sim, dt * s1.speed);
+    drawScene1(); live1();
+  }
+  if (s2.on && s2.playing){
+    s2.t = Math.min(H, s2.t + dt * 40);
+    $('s2t').value = Math.round(s2.t);
+    if (s2.t >= H) setPlay(false);
+    draw2();
+  }
+}
+requestAnimationFrame(frame);
+window.addEventListener('resize', () => {
+  if (s1.on) drawChart1();
+  if (s2.on) draw2();
+  if (s3.on) drawBars3();
+});
+</script>
+</body>
+</html>

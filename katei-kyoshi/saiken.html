@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>金利と債券の値段　さわって確かめる</title>
+<style>
+:root {
+  --paper: #f6f3ea;
+  --sheet: #fffdf7;
+  --ink: #26221c;
+  --ink2: #5b554b;
+  --pencil: #9a9486;
+  --rule: #d8d2c2;
+  --blue: #2a5fa8;
+  --red: #c23a22;
+  --teal: #1f9a8a;
+  --marker: #ffe27a;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Yu Gothic UI", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+}
+main { max-width: 760px; margin: 0 auto; padding: 28px 16px 96px; }
+h1 {
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 25px;
+  line-height: 1.4;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 3px double var(--ink);
+}
+.scene { margin: 0; padding: 10px 14px; background: var(--sheet); border: 1px solid var(--ink); }
+.scene b { font-size: 18px; }
+.how { color: var(--ink2); font-size: 14px; margin: 10px 0 0; }
+section { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--ink); }
+h2 {
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 21px;
+  margin: 0 0 4px;
+}
+h2 .no {
+  display: inline-block;
+  width: 1.7em;
+  margin-right: 8px;
+  text-align: center;
+  border: 1px solid var(--ink);
+  background: var(--sheet);
+}
+.ask { font-size: 18px; margin: 6px 0 14px; font-weight: 700; }
+.step {
+  display: inline-block;
+  margin: 16px 0 8px;
+  padding: 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  background: linear-gradient(transparent 55%, var(--marker) 55%);
+}
+.sublabel { font-size: 14px; color: var(--ink2); margin: 10px 0 4px; }
+.picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.pick {
+  font: inherit;
+  color: var(--ink);
+  background: var(--sheet);
+  border: 1px solid var(--ink);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.pick:hover:not(:disabled) { background: var(--marker); }
+.pick:disabled { cursor: default; color: var(--pencil); border-color: var(--rule); }
+.pick.chosen, .pick.chosen:disabled {
+  color: var(--ink);
+  border: 2px solid var(--red);
+  background: var(--sheet);
+  font-weight: 700;
+}
+.lock { color: var(--pencil); font-size: 14px; margin: 12px 0 0; }
+.mine { margin: 16px 0 0; padding: 6px 10px; border-left: 4px solid var(--red); background: var(--sheet); }
+.todo { margin: 0 0 12px; }
+.ctl {
+  display: grid;
+  grid-template-columns: 9.5em 1fr 6.5em;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 6px 0;
+}
+.ctl .name { font-size: 14px; }
+.ctl output { font-weight: 700; font-size: 18px; text-align: right; font-variant-numeric: tabular-nums; }
+.ctl input[type=range] { width: 100%; accent-color: var(--ink); }
+.nudge { display: flex; gap: 6px; align-items: center; }
+.nudge input { flex: 1; }
+.nudge button, .btn {
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--sheet);
+  border: 1px solid var(--ink);
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.nudge button:hover, .btn:hover { background: var(--marker); }
+svg { display: block; width: 100%; height: auto; margin-top: 10px; }
+svg text { font-family: inherit; fill: var(--ink); }
+.t-row { font-size: 14px; }
+.t-num { font-weight: 700; font-size: 16px; }
+.t-leg { font-size: 12px; fill: var(--ink2); }
+.t-tick { font-size: 10px; fill: var(--ink2); }
+.t-big { font-size: 22px; font-weight: 700; }
+.t-mid { font-size: 16px; font-weight: 700; }
+.t-old { font-size: 18px; fill: var(--pencil); }
+.t-pen { font-size: 22px; font-weight: 700; font-style: italic; }
+.t-face { font-size: 13px; font-weight: 700; }
+.t-ghost { font-size: 13px; fill: var(--pencil); }
+.t-head { font-size: 15px; font-weight: 700; }
+.f-face { fill: var(--pencil); }
+.f-int { fill: var(--blue); }
+.f-more { fill: var(--teal); }
+.f-less { fill: var(--red); }
+.ghost { fill: none; stroke: var(--pencil); stroke-width: 1; stroke-dasharray: 3 2; }
+.track { fill: none; stroke: var(--rule); stroke-width: 1; }
+.axis { stroke: var(--ink); stroke-width: 1; }
+.grid { stroke: var(--rule); stroke-width: 1; }
+.grid.face { stroke: var(--ink2); stroke-dasharray: 4 3; }
+.tickmark { stroke: var(--ink); stroke-width: 2; }
+.cert { fill: var(--sheet); stroke: var(--ink); stroke-width: 1.5; }
+.cert-in { fill: none; stroke: var(--ink); stroke-width: 0.5; }
+.strike { stroke: var(--red); stroke-width: 2.5; stroke-linecap: round; }
+.pen-ring { fill: none; stroke: var(--red); stroke-width: 2; }
+.ground { stroke: var(--ink); stroke-width: 1; }
+.pivot { fill: var(--sheet); stroke: var(--ink); stroke-width: 1.5; }
+.beam { stroke: var(--ink); stroke-width: 4; stroke-linecap: round; }
+.ball { fill: var(--red); stroke: var(--sheet); stroke-width: 2; }
+.dot { fill: var(--blue); stroke: var(--sheet); stroke-width: 2; }
+.here { fill: none; stroke: var(--ink); stroke-width: 2; }
+.verdict {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  background: var(--sheet);
+  border: 1px solid var(--ink);
+  font-weight: 700;
+  min-height: 2.6em;
+}
+.note { font-size: 13px; color: var(--ink2); margin: 4px 0 0; }
+.auto { display: block; margin: 14px 0 0; font-size: 14px; }
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+.col { background: var(--sheet); border: 1px solid var(--ink); padding: 10px 10px 12px; }
+.col.wrong { border: 2px dashed var(--red); }
+.col h3 { margin: 0; font-size: 15px; }
+.col .sub { margin: 2px 0 0; font-size: 12px; color: var(--ink2); min-height: 3.4em; line-height: 1.5; }
+.col .fig { margin: 8px 0 0; font-size: 14px; }
+.col .fig b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.col .fig.small b { font-size: 16px; }
+.playrow { margin: 10px 0 0; display: flex; gap: 10px; align-items: center; font-size: 14px; }
+.end { margin-top: 56px; padding: 12px 14px; border: 1px solid var(--ink); background: var(--sheet); }
+@media (max-width: 640px) {
+  .cols { grid-template-columns: 1fr; }
+  .col .sub { min-height: 0; }
+  .ctl { grid-template-columns: 1fr 6em; }
+  .ctl .name { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>金利が上がると、なぜ債券の値段は下がるのか</h1>
+  <p class="scene">
+    あなたの古い債券：毎年 <b data-k="coupon"></b>万円の利子。あと <b data-k="years"></b>年で <b data-k="face"></b>万円が返ってくる。<br>
+    いま売り出されている新しい債券：<b data-k="face"></b>万円で買えて、毎年 <b data-k="newCoupon"></b>万円の利子。
+  </p>
+  <p class="how">3つの問いは、どれも先に予想をえらぶと、下の絵が動かせるようになります。</p>
+</header>
+
+<section>
+  <h2><span class="no">1</span>ひとことで言うと</h2>
+  <p class="ask">あなたの古い債券を、いま売りに出す。買う人は、いくら出す？</p>
+  <p class="step">まず予想する</p>
+  <div class="picks" id="q1a"></div>
+  <p class="lock" id="q1lock">予想をえらぶと、ここから下が開きます。</p>
+
+  <div id="q1try" hidden>
+    <p class="mine">あなたの予想：<b id="q1mine"></b></p>
+    <p class="step">動かして確かめる</p>
+    <p class="todo">買う人は、売り値と同じだけのお金を持っています。使い道は ア か イ。<br>
+      買う人にとって「どちらでも同じ」になる売り値を、さがしてください。見つけたら、金利を変えてもう一度。</p>
+
+    <div class="ctl">
+      <span class="name">世の中の金利</span>
+      <input type="range" id="s1r" step="1" aria-label="世の中の金利">
+      <output id="s1rOut"></output>
+    </div>
+    <div class="ctl">
+      <span class="name">あなたの売り値</span>
+      <span class="nudge">
+        <button type="button" id="s1down" aria-label="売り値を少し下げる">−</button>
+        <input type="range" id="s1p" step="1" aria-label="あなたの売り値">
+        <button type="button" id="s1up" aria-label="売り値を少し上げる">＋</button>
+      </span>
+      <output id="s1pOut"></output>
+    </div>
+
+    <svg id="s1svg" viewBox="0 0 680 312" role="img" aria-label="買う人の2つの使い道と、てんびん">
+      <g id="s1bars"></g>
+      <circle cx="30" cy="200" r="7" class="ball"/>
+      <text x="44" y="204" class="t-leg">＝ 買う人（得なほうへ転がる）</text>
+      <line x1="60" y1="302" x2="620" y2="302" class="ground"/>
+      <polygon points="340,262 320,302 360,302" class="pivot"/>
+      <g id="s1beam">
+        <line x1="140" y1="258" x2="540" y2="258" class="beam"/>
+        <text x="142" y="244" class="t-row">ア 古い債券</text>
+        <text x="538" y="244" class="t-row" text-anchor="end">イ 新しい債券</text>
+        <circle id="s1ball" cx="340" cy="246" r="9" class="ball"/>
+      </g>
+    </svg>
+    <p class="verdict" id="s1msg"></p>
+    <p class="note">受け取った利子は、そのときの金利で預けておく計算です。</p>
+
+    <label class="auto"><input type="checkbox" id="s1auto" disabled>
+      売り値を、つり合う所に自動で合わせる（いちど自分で見つけると使えます）</label>
+    <svg id="s1chart" viewBox="0 0 680 240" role="img" aria-label="金利ごとの、つり合った売り値の記録"></svg>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">2</span>いちばんつまずきやすい所</h2>
+  <p class="ask">金利が上がったあと、あなたの古い債券が毎年くれる利子は、いくら？　得をするのは、だれ？</p>
+  <p class="step">まず予想する</p>
+  <p class="sublabel">古い債券の、毎年の利子は</p>
+  <div class="picks" id="q2a"></div>
+  <p class="sublabel">金利が上がって得をするのは</p>
+  <div class="picks" id="q2b"></div>
+  <p class="lock" id="q2lock">2つともえらぶと、ここから下が開きます。</p>
+
+  <div id="q2try" hidden>
+    <p class="mine">あなたの予想：<b id="q2mine"></b></p>
+    <p class="step">動かして確かめる</p>
+    <p class="todo">金利を動かして、3枚をくらべてください。<br>
+      動く数字と、動かない数字は、それぞれどれですか。中身が同じになるのは、どれとどれですか。</p>
+
+    <div class="ctl">
+      <span class="name">世の中の金利</span>
+      <input type="range" id="s2r" step="1" aria-label="世の中の金利">
+      <output id="s2rOut"></output>
+    </div>
+    <div class="playrow">
+      <button type="button" class="btn" id="s2play">▶ 1年ずつ進める</button>
+      <span>いま <b id="s2year"></b>年め</span>
+    </div>
+
+    <div class="cols">
+      <div class="col wrong">
+        <h3>まちがえた考え方で進むと</h3>
+        <p class="sub">「金利が上がれば、持っている債券の利子も増える」</p>
+        <svg id="s2svgw" viewBox="0 0 240 224" role="img" aria-label="まちがえた考え方の債券"></svg>
+        <p class="fig">いま売れる値段 <b id="s2pricew"></b>万円</p>
+        <p class="fig small">金利 <span data-k="rateOld"></span>% のときから <b id="s2movew"></b>万円</p>
+      </div>
+      <div class="col">
+        <h3>じっさいの古い債券</h3>
+        <p class="sub">券面の約束は、買った日のまま</p>
+        <svg id="s2svgo" viewBox="0 0 240 224" role="img" aria-label="じっさいの古い債券"></svg>
+        <p class="fig">いま売れる値段 <b id="s2priceo"></b>万円</p>
+        <p class="fig small">金利 <span data-k="rateOld"></span>% のときから <b id="s2moveo"></b>万円</p>
+      </div>
+      <div class="col">
+        <h3>これから買う人の新しい債券</h3>
+        <p class="sub">いまの金利で、新しく売り出される</p>
+        <svg id="s2svgn" viewBox="0 0 240 224" role="img" aria-label="これから買う人の新しい債券"></svg>
+        <p class="fig">いま売れる値段 <b id="s2pricen"></b>万円</p>
+        <p class="fig small">金利 <span data-k="rateOld"></span>% のときから <b id="s2moven"></b>万円</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">3</span>どんなときに、まちがえやすいか</h2>
+  <p class="ask">利子は同じ毎年 <span data-k="coupon"></span>万円。残り <span data-k="shortYears"></span>年の債券と、残り <span data-k="years"></span>年の債券。金利が同じだけ上がると、値段の動き方は同じ？</p>
+  <p class="step">まず予想する</p>
+  <div class="picks" id="q3a"></div>
+  <p class="lock" id="q3lock">予想をえらぶと、ここから下が開きます。</p>
+
+  <div id="q3try" hidden>
+    <p class="mine">あなたの予想：<b id="q3mine"></b></p>
+    <p class="step">動かして確かめる</p>
+    <p class="todo">金利を上げて、2枚の値段の動いた幅をくらべてください。そのあと、残り年数も動かしてみてください。</p>
+
+    <div class="ctl">
+      <span class="name">世の中の金利</span>
+      <input type="range" id="s3r" step="1" aria-label="世の中の金利">
+      <output id="s3rOut"></output>
+    </div>
+    <div class="ctl">
+      <span class="name">債券A の残り年数</span>
+      <input type="range" id="s3a" step="1" aria-label="債券Aの残り年数">
+      <output id="s3aOut"></output>
+    </div>
+    <div class="ctl">
+      <span class="name">債券B の残り年数</span>
+      <input type="range" id="s3b" step="1" aria-label="債券Bの残り年数">
+      <output id="s3bOut"></output>
+    </div>
+
+    <svg id="s3svga" viewBox="0 0 680 180" role="img" aria-label="債券A"></svg>
+    <svg id="s3svgb" viewBox="0 0 680 180" role="img" aria-label="債券B"></svg>
+    <p class="note">点線の箱＝新しい債券とくらべた、その年の利子の差。ぬった所＝その差を、いまのお金に直した分（先の年ほど小さくなる）。</p>
+  </div>
+</section>
+
+<p class="end">3つとも動かしたら、チャットにもどって、同じ3つの問いに自分の言葉で答えてください。</p>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // 場面の数字。画面に出る数字は、すべてここから計算して出す。
+  // 単位は万円、年、金利は小数（0.03 = 3%）。
+  var FACE = 100;
+  var COUPON = 1;
+  var YEARS = 10;
+  var SHORT_YEARS = 1;
+  var RATE_NOW = 0.03;
+  var RATE_MAX = 0.06;
+  var PRICE_MIN = 50;
+  var PRICE_MAX = 130;
+  var YEARS_MAX = 30;
+  // 古い債券を買ったときの金利
+  var RATE_OLD = COUPON / FACE;
+
+  // ---------- 計算 ----------
+  function grow(r, k) { return Math.pow(1 + r, k); }
+
+  // 毎年 c を受け取り、金利 r で預けつづけたときの k 年後の合計
+  function savedUp(c, r, k) {
+    if (r === 0) { return c * k; }
+    return c * (grow(r, k) - 1) / r;
+  }
+
+  // 毎年 c、n 年後に f が返ってくる債券の、金利 r のもとでの値段
+  function price(c, f, r, n) {
+    var s = 0;
+    for (var t = 1; t <= n; t++) { s += c / grow(r, t); }
+    return s + f / grow(r, n);
+  }
+
+  // ---------- 数字の書き方 ----------
+  function round1(x) {
+    var v = Math.round(x * 10) / 10;
+    return v === 0 ? 0 : v;
+  }
+  function f1(x) { return round1(x).toFixed(1); }
+  function fs(x) {
+    var v = round1(x);
+    if (v === 0) { return '±0.0'; }
+    return (v > 0 ? '＋' : '−') + Math.abs(v).toFixed(1);
+  }
+  function fi(x) {
+    var v = round1(x);
+    return v === Math.round(v) ? String(Math.round(v)) : v.toFixed(1);
+  }
+  function pct(r) { return (Math.round(r * 1000) / 10).toFixed(1); }
+  function n1(x) { return (Math.round(x * 10) / 10).toFixed(1); }
+
+  function $(id) { return document.getElementById(id); }
+
+  // ---------- 文章の中の数字を入れる ----------
+  var words = {
+    face: fi(FACE),
+    coupon: fi(COUPON),
+    years: fi(YEARS),
+    shortYears: fi(SHORT_YEARS),
+    newCoupon: fi(RATE_NOW * FACE),
+    rateNow: pct(RATE_NOW),
+    rateOld: pct(RATE_OLD)
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-k]'), function (el) {
+    el.textContent = words[el.getAttribute('data-k')];
+  });
+
+  // ---------- なめらかに動かす ----------
+  var anims = {};
+  function ease(key, target, apply) {
+    var a = anims[key];
+    if (!a) {
+      a = anims[key] = { v: target, t: target, run: false };
+      apply(target);
+      return;
+    }
+    a.t = target;
+    if (a.run) { return; }
+    a.run = true;
+    requestAnimationFrame(function step() {
+      a.v += (a.t - a.v) * 0.22;
+      if (Math.abs(a.t - a.v) < 0.02) { a.v = a.t; a.run = false; }
+      apply(a.v);
+      if (a.run) { requestAnimationFrame(step); }
+    });
+  }
+
+  function setRange(id, min, max, value) {
+    var el = $(id);
+    el.setAttribute('min', String(min));
+    el.setAttribute('max', String(max));
+    el.value = String(value);
+  }
+
+  // ---------- 予想のボタン ----------
+  var ASKS = [
+    { q: 'q1', groups: [
+      { box: 'q1a', items: [
+        fi(FACE) + '万円より高い',
+        'ちょうど' + fi(FACE) + '万円',
+        fi(FACE) + '万円より安い'
+      ] }
+    ] },
+    { q: 'q2', groups: [
+      { box: 'q2a', items: [
+        fi(COUPON) + '万円のまま',
+        fi(RATE_NOW * FACE) + '万円に増える',
+        'そのほか'
+      ] },
+      { box: 'q2b', items: [
+        '前から持っている自分',
+        'これから買う人',
+        '両方'
+      ] }
+    ] },
+    { q: 'q3', groups: [
+      { box: 'q3a', items: [
+        '同じだけ動く',
+        '残り' + fi(SHORT_YEARS) + '年のほうが大きく動く',
+        '残り' + fi(YEARS) + '年のほうが大きく動く'
+      ] }
+    ] }
+  ];
+
+  ASKS.forEach(function (ask) {
+    var picked = [];
+    ask.groups.forEach(function (g, gi) {
+      var box = $(g.box);
+      var buttons = [];
+      g.items.forEach(function (label) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'pick';
+        b.textContent = label;
+        b.addEventListener('click', function () {
+          picked[gi] = label;
+          buttons.forEach(function (x) { x.disabled = true; });
+          b.className = 'pick chosen';
+          var done = ask.groups.every(function (_, i) { return picked[i] !== undefined; });
+          if (done) {
+            $(ask.q + 'mine').textContent = picked.join(' ／ ');
+            $(ask.q + 'lock').hidden = true;
+            $(ask.q + 'try').hidden = false;
+          }
+        });
+        buttons.push(b);
+        box.appendChild(b);
+      });
+    });
+  });
+
+  // ---------- 1. 買う人のてんびん ----------
+  var s1 = { found: {}, ever: false };
+  var S1_MAX = Math.max(PRICE_MAX * grow(RATE_MAX, YEARS), savedUp(COUPON, RATE_MAX, YEARS) + FACE);
+  var S1_SCALE = 640 / S1_MAX;
+
+  function barRow(y, title, total, segs) {
+    var o = '<text x="20" y="' + (y - 8) + '" class="t-row">' + title +
+      '　' + fi(YEARS) + '年後の手もと <tspan class="t-num">' + f1(total) + '万円</tspan></text>';
+    var x = 20;
+    segs.forEach(function (s) {
+      var w = Math.max(0, s.v * S1_SCALE);
+      var shown = Math.max(0, w - 2);
+      o += '<rect x="' + n1(x) + '" y="' + y + '" width="' + n1(shown) + '" height="24" class="' + s.c + '">' +
+        '<title>' + s.n + ' ' + f1(s.v) + '万円</title></rect>';
+      x += w;
+    });
+    var lx = 20;
+    segs.forEach(function (s) {
+      o += '<rect x="' + lx + '" y="' + (y + 33) + '" width="10" height="10" class="' + s.c + '"/>' +
+        '<text x="' + (lx + 15) + '" y="' + (y + 42) + '" class="t-leg">' + s.n + ' ' + f1(s.v) + '</text>';
+      lx += 15 + s.n.length * 12 + 56;
+    });
+    return o;
+  }
+
+  function s1chart(r, p, balanced) {
+    var X0 = 64, X1 = 656, Y0 = 200, Y1 = 24;
+    function cx(rr) { return X0 + rr / RATE_MAX * (X1 - X0); }
+    function cy(pp) { return Y0 - (pp - PRICE_MIN) / (PRICE_MAX - PRICE_MIN) * (Y0 - Y1); }
+    var o = '<text x="8" y="14" class="t-leg">自分で見つけた、つり合う売り値（万円）</text>';
+    var steps = Math.round(RATE_MAX * 100);
+    for (var i = 0; i <= steps; i++) {
+      var gx = cx(i / 100);
+      o += '<line x1="' + n1(gx) + '" y1="' + Y1 + '" x2="' + n1(gx) + '" y2="' + Y0 + '" class="grid"/>' +
+        '<text x="' + n1(gx) + '" y="' + (Y0 + 15) + '" class="t-tick" text-anchor="middle">' + pct(i / 100) + '</text>';
+    }
+    for (var v = PRICE_MIN; v <= PRICE_MAX; v += 10) {
+      var gy = cy(v);
+      o += '<line x1="' + X0 + '" y1="' + n1(gy) + '" x2="' + X1 + '" y2="' + n1(gy) + '" class="grid' + (v === FACE ? ' face' : '') + '"/>' +
+        '<text x="' + (X0 - 8) + '" y="' + n1(gy + 4) + '" class="t-tick" text-anchor="end">' + fi(v) + '</text>';
+    }
+    o += '<text x="' + X1 + '" y="' + (Y0 + 32) + '" class="t-leg" text-anchor="end">世の中の金利（%）</text>';
+    Object.keys(s1.found).sort(function (a, b) { return a - b; }).forEach(function (key) {
+      var rr = +key / 1000, pp = s1.found[key];
+      o += '<circle cx="' + n1(cx(rr)) + '" cy="' + n1(cy(pp)) + '" r="5" class="dot">' +
+        '<title>金利 ' + pct(rr) + '% のとき ' + f1(pp) + '万円</title></circle>';
+    });
+    var hx = cx(r), hy = cy(p);
+    o += '<circle cx="' + n1(hx) + '" cy="' + n1(hy) + '" r="9" class="here"><title>いまの金利と売り値</title></circle>';
+    if (balanced) {
+      var right = hx > 470;
+      o += '<text x="' + n1(hx + (right ? -14 : 14)) + '" y="' + n1(hy - 12) + '" class="t-row" text-anchor="' + (right ? 'end' : 'start') + '">' +
+        '金利 ' + pct(r) + '% → ' + f1(p) + '万円</text>';
+    }
+    return o;
+  }
+
+  function s1render() {
+    var rv = +$('s1r').value;
+    var r = rv / 1000;
+    var fair = price(COUPON, FACE, r, YEARS);
+    if ($('s1auto').checked) { $('s1p').value = String(Math.round(fair * 10)); }
+    var p = +$('s1p').value / 10;
+
+    // ア：古い債券を売り値 p で買う
+    var oldInt = COUPON * YEARS;
+    var oldAll = savedUp(COUPON, r, YEARS) + FACE;
+    var oldMore = oldAll - FACE - oldInt;
+    // イ：同じお金 p で、いまの金利の新しい債券を買う
+    var newAll = p * grow(r, YEARS);
+    var newInt = p * r * YEARS;
+    var newMore = newAll - p - newInt;
+
+    var balanced = Math.abs(p - fair) <= 0.05 + 1e-9;
+    var gap = newAll - oldAll;
+
+    $('s1rOut').textContent = pct(r) + '%';
+    $('s1pOut').textContent = f1(p) + '万円';
+
+    $('s1bars').innerHTML =
+      barRow(30, 'ア　あなたの古い債券を買う', oldAll, [
+        { n: '返ってくるお金', v: FACE, c: 'f-face' },
+        { n: '利子', v: oldInt, c: 'f-int' },
+        { n: '利子を預けてふえた分', v: oldMore, c: 'f-more' }
+      ]) +
+      barRow(118, 'イ　同じお金で、新しい債券を買う', newAll, [
+        { n: '出したお金', v: p, c: 'f-face' },
+        { n: '利子', v: newInt, c: 'f-int' },
+        { n: '利子を預けてふえた分', v: newMore, c: 'f-more' }
+      ]);
+
+    var tilt = 0;
+    if (!balanced) {
+      var size = Math.max(1.5, Math.min(10, Math.abs(gap) * 0.8));
+      tilt = gap > 0 ? size : -size;
+    }
+    ease('s1tilt', tilt, function (a) {
+      $('s1beam').setAttribute('transform', 'rotate(' + a.toFixed(2) + ' 340 258)');
+      $('s1ball').setAttribute('cx', n1(340 + a * 8.5));
+    });
+
+    var msg;
+    if (balanced) {
+      msg = 'ア と イ は、ほぼ同じ。買う人にとって、どちらでもいい。この売り値なら売れる。';
+    } else if (gap > 0) {
+      msg = '買う人は イ（新しい債券）をえらぶ。イ のほうが ' + f1(gap) + '万円 多い。この売り値では売れない。';
+    } else {
+      msg = '買う人は ア（あなたの古い債券）をえらぶ。ア のほうが ' + f1(-gap) + '万円 多い。もっと高くても売れる。';
+    }
+    $('s1msg').textContent = msg;
+
+    if (balanced) {
+      s1.found[rv] = p;
+      if (!s1.ever) {
+        s1.ever = true;
+        $('s1auto').disabled = false;
+      }
+    }
+    $('s1chart').innerHTML = s1chart(r, p, balanced);
+  }
+
+  function s1nudge(d) {
+    var el = $('s1p');
+    var v = Math.max(PRICE_MIN * 10, Math.min(PRICE_MAX * 10, +el.value + d));
+    $('s1auto').checked = false;
+    el.value = String(v);
+    s1render();
+  }
+
+  // ---------- 2. 3枚の債券 ----------
+  var s2 = { k: YEARS, timer: null };
+  var S2_UNIT = 48 / Math.max(RATE_MAX * FACE, COUPON);
+
+  function s2col(kind, c, k) {
+    var o = '<rect x="8" y="8" width="224" height="78" class="cert"/>' +
+      '<rect x="12" y="12" width="216" height="70" class="cert-in"/>' +
+      '<text x="24" y="38" class="t-leg">毎年の利子</text>';
+    var rewritten = kind === 'wrong' && Math.abs(c - COUPON) >= 0.05;
+    if (rewritten) {
+      o += '<text x="124" y="40" class="t-old" text-anchor="end">' + f1(COUPON) + '</text>' +
+        '<line x1="92" y1="38" x2="128" y2="29" class="strike"/>' +
+        '<text x="218" y="41" class="t-pen" text-anchor="end">' + f1(c) + '万円</text>';
+    } else {
+      o += '<text x="218" y="41" class="t-big" text-anchor="end">' + f1(c) + '万円</text>';
+    }
+    o += '<text x="24" y="68" class="t-leg">' + fi(YEARS) + '年後に返ってくる</text>' +
+      '<text x="218" y="69" class="t-mid" text-anchor="end">' + f1(FACE) + '万円</text>';
+
+    var slot = 224 / YEARS, base = 176, h = c * S2_UNIT;
+    for (var t = 1; t <= YEARS; t++) {
+      var x = 8 + (t - 1) * slot + 3, w = slot - 6;
+      o += '<rect x="' + n1(x) + '" y="' + n1(base - h) + '" width="' + n1(w) + '" height="' + n1(h) + '" class="' + (t <= k ? 'f-int' : 'ghost') + '">' +
+        '<title>' + t + '年め：利子 ' + f1(c) + '万円</title></rect>' +
+        '<text x="' + n1(x + w / 2) + '" y="190" class="t-tick" text-anchor="middle">' + t + '</text>';
+    }
+    o += '<line x1="8" y1="' + base + '" x2="232" y2="' + base + '" class="axis"/>' +
+      '<text x="232" y="' + n1(base - h - 8) + '" class="' + (k >= YEARS ? 't-face' : 't-ghost') + '" text-anchor="end">' +
+      fi(YEARS) + '年めに ＋' + f1(FACE) + '万円</text>' +
+      '<text x="8" y="214" class="t-row">' + k + '年ぶんの利子 <tspan class="t-num">' + f1(c * k) + '万円</tspan></text>';
+    return o;
+  }
+
+  function s2render() {
+    var r = +$('s2r').value / 1000;
+    var k = s2.k;
+    $('s2rOut').textContent = pct(r) + '%';
+    $('s2year').textContent = String(k);
+    var cols = [
+      { id: 'w', kind: 'wrong', c: r * FACE, c0: RATE_OLD * FACE },
+      { id: 'o', kind: 'real', c: COUPON, c0: COUPON },
+      { id: 'n', kind: 'new', c: r * FACE, c0: RATE_OLD * FACE }
+    ];
+    cols.forEach(function (col) {
+      var now = price(col.c, FACE, r, YEARS);
+      var before = price(col.c0, FACE, RATE_OLD, YEARS);
+      $('s2svg' + col.id).innerHTML = s2col(col.kind, col.c, k);
+      $('s2price' + col.id).textContent = f1(now);
+      $('s2move' + col.id).textContent = fs(now - before);
+    });
+  }
+
+  function s2play() {
+    clearInterval(s2.timer);
+    s2.k = 0;
+    s2render();
+    s2.timer = setInterval(function () {
+      s2.k += 1;
+      if (s2.k >= YEARS) {
+        s2.k = YEARS;
+        clearInterval(s2.timer);
+      }
+      s2render();
+    }, 450);
+  }
+
+  // ---------- 3. 残り年数のちがう2枚 ----------
+  var S3_UNIT = 50 / Math.max(RATE_MAX * FACE - COUPON, COUPON);
+  var S3_PMAX = COUPON * YEARS_MAX + FACE;
+  var S3_SCALE = 640 / S3_PMAX;
+
+  function s3bond(name, n, r) {
+    var gap = r * FACE - COUPON;
+    var p = price(COUPON, FACE, r, n);
+    var before = price(COUPON, FACE, RATE_OLD, n);
+    var less = gap >= 0;
+    var o = '<text x="20" y="18" class="t-head">債券' + name + '　残り ' + n + '年</text>';
+
+    var base = 106, step = 21, w = 17, h = Math.abs(gap) * S3_UNIT, sum = 0;
+    for (var t = 1; t <= n; t++) {
+      var part = gap / grow(r, t);
+      sum += part;
+      var hf = Math.abs(part) * S3_UNIT;
+      var x = 20 + (t - 1) * step;
+      o += '<rect x="' + x + '" y="' + n1(base - h) + '" width="' + w + '" height="' + n1(h) + '" class="ghost"/>' +
+        '<rect x="' + x + '" y="' + n1(base - hf) + '" width="' + w + '" height="' + n1(hf) + '" class="' + (less ? 'f-less' : 'f-more') + '">' +
+        '<title>' + t + '年め：差 ' + f1(Math.abs(gap)) + '万円 → いまのお金に直すと ' + f1(Math.abs(part)) + '万円</title></rect>';
+      if (n <= 15 || t === 1 || t % 5 === 0) {
+        o += '<text x="' + n1(x + w / 2) + '" y="' + (base + 13) + '" class="t-tick" text-anchor="middle">' + t + '</text>';
+      }
+    }
+    o += '<line x1="20" y1="' + base + '" x2="660" y2="' + base + '" class="axis"/>';
+
+    var cap;
+    if (round1(gap) === 0) {
+      cap = '新しい債券と、毎年の利子は同じ';
+    } else {
+      cap = '新しい債券より、毎年の利子が ' + f1(Math.abs(gap)) + '万円 ' + (less ? '少ない' : '多い') +
+        ' × ' + n + '年　→　ぬった所の合計 ' + f1(Math.abs(sum)) + '万円';
+    }
+    o += '<text x="20" y="40" class="t-row">' + cap + '</text>';
+
+    var by = 136;
+    o += '<rect x="20" y="' + by + '" width="640" height="14" class="track"/>' +
+      '<rect x="20" y="' + by + '" width="' + n1(p * S3_SCALE) + '" height="14" class="f-int">' +
+      '<title>値段 ' + f1(p) + '万円</title></rect>' +
+      '<line x1="' + n1(20 + before * S3_SCALE) + '" y1="' + (by - 5) + '" x2="' + n1(20 + before * S3_SCALE) + '" y2="' + (by + 19) + '" class="tickmark">' +
+      '<title>金利 ' + pct(RATE_OLD) + '% のときの値段 ' + f1(before) + '万円</title></line>' +
+      '<text x="20" y="174" class="t-row">値段 <tspan class="t-num">' + f1(p) + '万円</tspan>' +
+      '　（金利 ' + pct(RATE_OLD) + '% のときの ' + f1(before) + '万円から <tspan class="t-num">' + fs(p - before) + '万円</tspan>）</text>';
+    return o;
+  }
+
+  function s3render() {
+    var r = +$('s3r').value / 1000;
+    var a = +$('s3a').value, b = +$('s3b').value;
+    $('s3rOut').textContent = pct(r) + '%';
+    $('s3aOut').textContent = a + '年';
+    $('s3bOut').textContent = b + '年';
+    $('s3svga').innerHTML = s3bond('A', a, r);
+    $('s3svgb').innerHTML = s3bond('B', b, r);
+  }
+
+  // ---------- はじめの値と、動かしたときの処理 ----------
+  setRange('s1r', 0, Math.round(RATE_MAX * 1000), Math.round(RATE_NOW * 1000));
+  setRange('s1p', PRICE_MIN * 10, PRICE_MAX * 10, FACE * 10);
+  setRange('s2r', 0, Math.round(RATE_MAX * 1000), Math.round(RATE_OLD * 1000));
+  setRange('s3r', 0, Math.round(RATE_MAX * 1000), Math.round(RATE_OLD * 1000));
+  setRange('s3a', 1, YEARS_MAX, SHORT_YEARS);
+  setRange('s3b', 1, YEARS_MAX, YEARS);
+
+  $('s1r').addEventListener('input', s1render);
+  $('s1p').addEventListener('input', function () {
+    $('s1auto').checked = false;
+    s1render();
+  });
+  $('s1down').addEventListener('click', function () { s1nudge(-1); });
+  $('s1up').addEventListener('click', function () { s1nudge(1); });
+  $('s1auto').addEventListener('change', s1render);
+
+  $('s2r').addEventListener('input', s2render);
+  $('s2play').addEventListener('click', s2play);
+
+  $('s3r').addEventListener('input', s3render);
+  $('s3a').addEventListener('input', s3render);
+  $('s3b').addEventListener('input', s3render);
+
+  s1render();
+  s2render();
+  s3render();
+})();
+</script>
+</body>
+</html>

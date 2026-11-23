@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>have done と did　さわって確かめる</title>
+<style>
+:root{
+  --paper:#f4efe2; --card:#fffdf6; --ink:#23313d; --sub:#5d6870; --rule:#b9ae95;
+  --red:#c5402a; --blue:#2c5f8d; --mark:#f2d24a; --pale:#e9e3d2;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);line-height:1.7;font-size:16px;
+  font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif}
+.wrap{max-width:940px;margin:0 auto;padding:26px 16px 80px}
+h1{font-size:26px;margin:0 0 2px;letter-spacing:.02em}
+.lead{color:var(--sub);margin:0 0 26px;font-size:14px}
+section{background:var(--card);border:1px solid var(--rule);border-top:5px solid var(--ink);
+  padding:18px 22px 24px;margin:0 0 30px}
+h2{font-size:19px;margin:0 0 12px}
+h2 small{font-weight:normal;color:var(--sub);font-size:14px;margin-left:10px}
+.en{font-family:Georgia,"Times New Roman",serif;font-size:18px}
+.scene{margin:0 0 8px}
+.scene ul{margin:6px 0 6px;padding-left:0;list-style:none}
+.scene li{margin:2px 0}
+.step{font-size:13px;font-weight:bold;letter-spacing:.1em;color:var(--blue);margin:20px 0 8px;
+  border-bottom:1px dashed var(--rule);padding-bottom:3px}
+.choices{display:flex;flex-direction:column;gap:6px}
+.choices button{font:inherit;color:inherit;text-align:left;background:#fff;border:1px solid var(--ink);
+  padding:7px 12px;cursor:pointer}
+.choices button:hover{background:#f7f2df}
+.choices button.sel{background:var(--ink);color:#fff}
+.prev{font-size:12px;margin-left:12px;padding:1px 6px;border:1px solid currentColor;opacity:.8}
+.locked-note{color:var(--sub);font-size:14px;border:1px dashed var(--rule);padding:14px;text-align:center}
+.demo{display:none}
+.open .demo{display:block}
+.open .locked-note{display:none}
+.mine{font-size:14px;margin:0 0 12px;padding:6px 10px;background:var(--pale);display:inline-block}
+.ctrl{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 24px;margin:0 0 6px}
+.ctrl label{display:block;font-size:14px}
+.ctrl label b{font-size:17px}
+.ctrl input[type=range]{width:100%;margin:2px 0 0;accent-color:var(--blue)}
+.btns{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+.btns .cap{font-size:13px;color:var(--sub);margin-right:4px}
+.btns button{font:inherit;font-size:14px;color:inherit;background:#fff;border:1px solid var(--ink);padding:4px 11px;cursor:pointer}
+.btns button.on{background:var(--ink);color:#fff}
+.btns button.en{font-size:16px}
+.btns button.sub{border-color:var(--rule);color:var(--sub)}
+.svgw{overflow-x:auto;margin:10px 0 6px}
+svg{display:block;width:100%;min-width:660px;height:auto;background:#fffefa;border:1px solid var(--pale)}
+.ax{stroke:#23313d;stroke-width:1.2}
+.tk{font-size:12px;fill:#5d6870}
+.lb{font-size:13px;fill:#23313d}
+.lane{font-size:13px;font-weight:bold;fill:#23313d}
+.lane-en{font-family:Georgia,"Times New Roman",serif;font-size:15px;fill:#23313d}
+.nowl{stroke:#2c5f8d;stroke-width:2}
+.nowt{fill:#2c5f8d;font-weight:bold;font-size:14px}
+.halo{paint-order:stroke;stroke:#fffefa;stroke-width:5px;stroke-linejoin:round}
+.redt{fill:#c5402a;font-weight:bold;font-size:13px}
+.sent{display:grid;grid-template-columns:1fr auto;gap:4px 16px;align-items:baseline;margin:10px 0 0;
+  border-top:1px solid var(--pale);padding-top:8px}
+.sent .v{font-size:14px;white-space:nowrap}
+.ok{color:var(--blue);font-weight:bold;font-size:20px}
+.ng{color:var(--red);font-weight:bold;font-size:20px}
+.big{font-size:22px;margin:12px 0 2px}
+.big mark{background:linear-gradient(transparent 55%,var(--mark) 55%);color:inherit;padding:0 2px}
+.big b{border-bottom:3px solid var(--blue)}
+.verdict{font-size:14px;margin:0 0 4px;min-height:1.7em}
+.strip-t{font-size:14px;margin:14px 0 4px}
+.strip-t b{font-size:18px}
+.strip{display:flex;flex-wrap:wrap;gap:4px}
+.cell{font-size:12px;line-height:1.35;border:1px solid var(--rule);padding:3px 6px;color:#a39b88;background:#f3efe3;text-align:center;min-width:62px}
+.cell.fit{color:var(--ink);background:#fff;border-color:var(--ink)}
+.cell.real{outline:3px solid var(--mark);outline-offset:1px}
+.cell.hit{background:#dfeaf3;border-color:var(--blue);color:var(--ink)}
+.cell.miss{background:#f6ddd6;border-color:var(--red);color:var(--ink)}
+.cell .en{font-size:13px}
+.legend{font-size:12px;color:var(--sub);margin:4px 0 0}
+.legend i{display:inline-block;width:12px;height:12px;vertical-align:-2px;margin:0 3px 0 10px;outline:3px solid var(--mark)}
+.wrongbox{border:2px solid var(--red);padding:12px 14px 14px;margin:18px 0 0;background:#fffaf6}
+.wrongbox h3{font-size:15px;margin:0 0 8px;color:var(--red)}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:14px;margin:0 0 4px}
+.flow span.bx{border:1px solid var(--rule);padding:4px 10px;color:#a39b88;background:#fff;transition:all .2s}
+.flow span.bx.lit{border-color:var(--red);color:var(--ink);background:#fbe7e1}
+.flow span.ar{color:var(--rule)}
+table{border-collapse:collapse;width:100%;margin:8px 0 0;font-size:14px}
+th,td{border-bottom:1px solid var(--pale);padding:6px 8px;text-align:left;vertical-align:baseline}
+th{font-size:12px;color:var(--sub);font-weight:normal}
+td.c,th.c{text-align:center;white-space:nowrap}
+.hint{font-size:14px;margin:14px 0 0;padding:8px 12px;border-left:4px solid var(--mark);background:#fbf7e6}
+.foot{font-size:14px;color:var(--sub);text-align:center}
+@media (max-width:560px){.en{font-size:16px}.big{font-size:18px}section{padding:14px 12px 18px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>have done と did　さわって確かめる</h1>
+<p class="lead">問いは3つ。どれも「まず予想する → 動かして確かめる」の順です。画面の数字は、つまみを動かすたびに計算し直しています。</p>
+
+<section id="q1">
+  <h2>問い1<small>ひとことで言うと、どういうことか</small></h2>
+  <div class="scene" id="q1-scene"></div>
+  <div class="step">まず予想する</div>
+  <div class="choices" id="q1-choices"></div>
+  <div class="step">動かして確かめる</div>
+  <div class="locked-note">上で予想を1つ選ぶと、ここが開きます。</div>
+  <div class="demo">
+    <div class="mine" id="q1-mine"></div>
+    <div class="ctrl">
+      <label>なくした時刻 <b id="q1-lost-v"></b><input type="range" id="q1-lost" min="7" max="12" step="1"></label>
+      <label>見つかる時刻 <b id="q1-found-v"></b><input type="range" id="q1-found" min="8" max="21" step="1"></label>
+      <label>いまの時刻 <b id="q1-now-v"></b><input type="range" id="q1-now" min="8" max="20" step="1"></label>
+    </div>
+    <div class="btns">
+      <button type="button" id="q1-play">▶ 「いま」を1時間ずつ進める</button>
+      <button type="button" class="sub" id="q1-reset">はじめの場面にもどす</button>
+    </div>
+    <div class="svgw"><svg id="q1-svg" viewBox="0 0 860 250" role="img" aria-label="かぎをなくした時刻と、いまの時刻の図"></svg></div>
+    <div class="sent" id="q1-sent"></div>
+    <div id="q1-strip"></div>
+    <p class="hint">「見つかる時刻」を「いま」より左へ動かす。ア と イ のうち、言えなくなるのはどちらか。</p>
+  </div>
+</section>
+
+<section id="q2">
+  <h2>問い2<small>いちばんつまずきやすい所</small></h2>
+  <div class="scene" id="q2-scene"></div>
+  <div class="step">まず予想する</div>
+  <div class="choices" id="q2-choices"></div>
+  <div class="step">動かして確かめる</div>
+  <div class="locked-note">上で予想を1つ選ぶと、ここが開きます。</div>
+  <div class="demo">
+    <div class="mine" id="q2-mine"></div>
+    <div class="ctrl">
+      <label>書き終えたのは <b id="q2-h-v"></b><input type="range" id="q2-h" min="1" max="40" step="1"></label>
+      <label>いまは <b id="q2-now-v"></b><input type="range" id="q2-now" min="1" max="23" step="1"></label>
+    </div>
+    <div class="btns"><span class="cap">動詞の形</span><span id="q2-verbs"></span></div>
+    <div class="btns"><span class="cap">時の言葉</span><span id="q2-words"></span>
+      <button type="button" class="sub" id="q2-reset">はじめの場面にもどす</button></div>
+    <div class="big en" id="q2-big"></div>
+    <div class="verdict" id="q2-verdict"></div>
+    <div class="svgw"><svg id="q2-svg" viewBox="0 0 860 250" role="img" aria-label="書き終えた時刻、時の言葉が指す範囲、いまの時刻の図"></svg></div>
+
+    <div class="wrongbox">
+      <h3>まちがえた考え方で進むと、どうなるか</h3>
+      <div class="flow" id="q2-flow"></div>
+      <div class="btns"><button type="button" id="q2-go">▶ この考え方で、3つの文を作ってみる</button></div>
+      <div class="svgw"><svg id="q2-svg2" viewBox="0 0 860 242" role="img" aria-label="まちがえた考え方で作った3つの文の図"></svg></div>
+      <div class="verdict" id="q2-count"></div>
+    </div>
+    <p class="hint">「書き終えたのは」を右や左へ動かして、時の言葉が today に変わる所をさがす。そこで have finished はどうなるか。</p>
+  </div>
+</section>
+
+<section id="q3">
+  <h2>問い3<small>どんなときに、まちがえやすいか</small></h2>
+  <div class="scene" id="q3-scene"></div>
+  <div class="step">まず予想する</div>
+  <div class="choices" id="q3-choices"></div>
+  <div class="step">動かして確かめる</div>
+  <div class="locked-note">上で予想を1つ選ぶと、ここが開きます。</div>
+  <div class="demo">
+    <div class="mine" id="q3-mine"></div>
+    <div class="btns"><span class="cap">場面</span><span id="q3-presets"></span></div>
+    <div class="ctrl">
+      <label>入社した年 <b id="q3-start-v"></b><input type="range" id="q3-start" min="2008" max="2024" step="1"></label>
+      <label>やめた年 <b id="q3-quit-v"></b><input type="range" id="q3-quit" min="2009" max="2029" step="1"></label>
+      <label>いまの年 <b id="q3-now-v"></b><input type="range" id="q3-now" min="2020" max="2030" step="1"></label>
+    </div>
+    <div class="btns">
+      <label style="font-size:14px"><input type="checkbox" id="q3-still"> いまも働いている</label>
+      <button type="button" id="q3-play">▶ 「いま」を1年ずつ進める</button>
+    </div>
+    <div class="svgw"><svg id="q3-svg" viewBox="0 0 860 300" role="img" aria-label="働いた期間と、3つの時の言葉が指す範囲の図"></svg></div>
+    <table id="q3-table"></table>
+    <div class="wrongbox">
+      <h3>「for ○ years が付いたら has worked」で進むと、どうなるか</h3>
+      <div id="q3-strip"></div>
+    </div>
+    <p class="hint">「いまも働いている」のチェックを入れたり外したりする。for の文は、英語の形が変わるか。</p>
+  </div>
+</section>
+
+<p class="foot">3つとも動かし終えたら、チャットにもどって、同じ3つの問いに自分の言葉で答えてください。</p>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* はじめの場面。問いの文の数字も、ここから計算して出す */
+const F_NEVER = 21;
+const DEF = {
+  q1: {lost: 9, found: F_NEVER, now: 15},
+  q2: {h: 17, now: 10, verb: 'have', word: 'day'},
+  q3: {now: 2026, a: {start: 2019, still: true, quit: 2023}, b: {start: 2012, still: false, quit: 2019}}
+};
+/* さっきチャットで返ってきた予想 */
+const PREV = {q1: 'C', q2: 'C', q3: 'C'};
+const PICK = {q1: null, q2: null, q3: null};
+
+const OK = '<span class="ok">○</span>';
+const NG = '<span class="ng">✕</span>';
+const mark = b => b ? OK : NG;
+const yrs = n => n + (n === 1 ? ' year' : ' years');
+const hrs = n => n + (n === 1 ? ' hour' : ' hours');
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const anchor = (x, lo, hi) => x < lo ? 'start' : (x > hi ? 'end' : 'middle');
+
+/* ───────── 問い1：かぎ ───────── */
+const AX1 = {min: 6, max: 21};
+const S1 = Object.assign({}, DEF.q1);
+
+function calc1(s) {
+  const found = s.found >= F_NEVER ? Infinity : s.found;
+  const missingNow = found > s.now;
+  const worlds = [];
+  for (let f = s.lost + 1; f <= s.now; f++) worlds.push({found: f, missing: false});
+  worlds.push({found: null, missing: true});
+  const pastOK = w => s.lost < s.now;
+  const perfOK = w => w.missing;
+  const real = missingNow ? worlds.length - 1 : worlds.findIndex(w => w.found === found);
+  return {
+    found, missingNow,
+    dur: Math.min(found, s.now) - s.lost,
+    gap: missingNow ? 0 : s.now - found,
+    worlds, real,
+    fitPast: worlds.map(pastOK), fitPerf: worlds.map(perfOK),
+    sayPast: pastOK(worlds[real]), sayPerf: perfOK(worlds[real])
+  };
+}
+
+function draw1() {
+  const s = S1, c = calc1(s);
+  const X0 = 160, X1 = 840;
+  const x = h => X0 + (h - AX1.min) / (AX1.max - AX1.min) * (X1 - X0);
+  const xl = x(s.lost), xn = x(s.now);
+  const knownEnd = Math.min(c.found, s.now);
+  let o = '<defs><pattern id="hat1" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">' +
+          '<rect width="6" height="6" fill="#f6d9d0"/><line x1="0" y1="0" x2="0" y2="6" stroke="#c5402a" stroke-width="2"/></pattern></defs>';
+  o += `<text x="145" y="69" text-anchor="end" class="lane">できごと</text>`;
+  o += `<text x="145" y="129" text-anchor="end" class="lane-en">ア　lost</text>`;
+  o += `<text x="145" y="174" text-anchor="end" class="lane-en">イ　has lost</text>`;
+  [96, 146].forEach(y => { o += `<line x1="20" y1="${y}" x2="${X1}" y2="${y}" stroke="#e9e3d2"/>`; });
+
+  /* できごと：かぎが無い時間 */
+  o += `<rect x="${xl}" y="54" width="${x(knownEnd) - xl}" height="20" fill="url(#hat1)" stroke="#c5402a"/>`;
+  if (c.missingNow) {
+    const fe = x(Math.min(c.found, AX1.max));
+    o += `<rect x="${xn}" y="54" width="${fe - xn}" height="20" fill="none" stroke="#c5402a" stroke-dasharray="3 4" opacity=".5"/>`;
+    if (c.found !== Infinity) o += `<text x="${fe - 4}" y="46" text-anchor="start" class="lb halo" opacity=".55">${c.found}時に見つかる</text>`;
+  } else {
+    o += `<line x1="${x(c.found)}" y1="48" x2="${x(c.found)}" y2="80" stroke="#23313d" stroke-width="2"/>`;
+    o += `<text x="${x(c.found) - 4}" y="46" text-anchor="start" class="lb halo">${c.found}時に見つかった</text>`;
+  }
+  o += `<text x="${xl + 4}" y="46" text-anchor="end" class="lb halo">${s.lost}時になくした</text>`;
+  o += `<text x="${xl}" y="91" class="lb halo">かぎが無かった時間：${c.dur}時間</text>`;
+
+  /* ア：過去形は1点 */
+  o += `<circle cx="${xl}" cy="124" r="7" fill="#23313d"/><circle cx="${xl}" cy="124" r="12" fill="none" stroke="#23313d"/>`;
+  o += `<text x="${xl + 20}" y="129" class="lb halo">${s.lost}時の1点だけを指す</text>`;
+
+  /* イ：現在完了は「いま」まで */
+  const solidEnd = x(knownEnd);
+  o += `<rect x="${xl}" y="161" width="${solidEnd - xl}" height="16" fill="#2c5f8d"/>`;
+  if (!c.missingNow && c.gap > 0) {
+    o += `<rect x="${solidEnd}" y="161" width="${xn - solidEnd}" height="16" fill="#fff" stroke="#c5402a" stroke-dasharray="5 4" stroke-width="1.5"/>`;
+    o += `<text x="${(solidEnd + xn) / 2}" y="174" text-anchor="middle" class="redt halo">✕</text>`;
+  }
+  const head = c.sayPerf ? '#2c5f8d' : '#c5402a';
+  o += `<path d="M${xn - 12},153 L${xn},169 L${xn - 12},185 Z" fill="${head}"/>`;
+  const note = c.sayPerf
+    ? `なくした時から「いま」まで ${c.dur}時間、切れずに続いている`
+    : (c.gap > 0 ? `${c.found}時で切れた。「いま」まで ${c.gap}時間あいている` : `ちょうど「いま」切れた`);
+  const nx = clamp((xl + xn) / 2, 330, 700);
+  o += `<text x="${nx}" y="200" text-anchor="middle" class="${c.sayPerf ? 'lb' : 'redt'} halo">${note}</text>`;
+
+  /* 目もりと「いま」 */
+  o += `<line x1="${X0}" y1="215" x2="${X1}" y2="215" class="ax"/>`;
+  for (let h = AX1.min; h <= AX1.max; h++) {
+    o += `<line x1="${x(h)}" y1="215" x2="${x(h)}" y2="221" class="ax"/><text x="${x(h)}" y="236" text-anchor="middle" class="tk">${h}時</text>`;
+  }
+  o += `<line x1="${xn}" y1="26" x2="${xn}" y2="215" class="nowl"/>`;
+  o += `<text x="${xn}" y="19" text-anchor="${anchor(xn, 200, 800)}" class="nowt">いま ${s.now}時</text>`;
+  $('q1-svg').innerHTML = o;
+
+  $('q1-lost-v').textContent = s.lost + '時';
+  $('q1-found-v').textContent = c.found === Infinity ? '見つからない' : c.found + '時';
+  $('q1-now-v').textContent = s.now + '時';
+  $('q1-lost').value = s.lost; $('q1-found').value = s.found; $('q1-now').value = s.now;
+
+  const state = c.missingNow ? 'かぎは、いまも無い' : (c.gap > 0 ? `かぎは ${c.gap}時間前に見つかっている` : 'かぎは、ちょうどいま見つかった');
+  $('q1-sent').innerHTML =
+    `<div style="grid-column:1/3;font-size:14px;color:#5d6870">いま ${s.now}時の本当のようす：${state}</div>` +
+    `<div><span class="en">ア　Tanaka lost his key.</span></div><div class="v">いま言える？ ${mark(c.sayPast)}</div>` +
+    `<div><span class="en">イ　Tanaka has lost his key.</span></div><div class="v">いま言える？ ${mark(c.sayPerf)}</div>`;
+
+  const total = c.worlds.length;
+  const row = (name, fit) => {
+    const n = fit.filter(Boolean).length;
+    const cells = c.worlds.map((w, i) =>
+      `<div class="cell${fit[i] ? ' fit' : ''}${i === c.real ? ' real' : ''}">${w.missing ? 'いまも<br>無い' : w.found + '時に<br>発見'}</div>`).join('');
+    return `<p class="strip-t"><span class="en">${name}</span> を聞いただけの人には、${total}通りの場面のうち <b>${n}通り</b>が残る</p><div class="strip">${cells}</div>`;
+  };
+  $('q1-strip').innerHTML = row('ア', c.fitPast) + row('イ', c.fitPerf) +
+    '<p class="legend"><i></i>黄色のわく＝いまの本当の場面　／　うすい色＝その文とは合わない場面</p>';
+}
+
+function fix1(changed) {
+  if (S1.found <= S1.lost) S1.found = S1.lost + 1;
+  if (S1.now <= S1.lost) S1.now = S1.lost + 1;
+  draw1();
+}
+let T1 = null;
+function stop1() { if (T1) { clearInterval(T1); T1 = null; $('q1-play').textContent = '▶ 「いま」を1時間ずつ進める'; } }
+function init1() {
+  ['lost', 'found', 'now'].forEach(k => $('q1-' + k).addEventListener('input', e => { stop1(); S1[k] = +e.target.value; fix1(k); }));
+  $('q1-reset').addEventListener('click', () => { stop1(); Object.assign(S1, DEF.q1); draw1(); });
+  $('q1-play').addEventListener('click', () => {
+    if (T1) { stop1(); return; }
+    S1.now = S1.lost + 1; draw1();
+    $('q1-play').textContent = '■ 止める';
+    T1 = setInterval(() => { if (S1.now >= 20) { stop1(); return; } S1.now++; draw1(); }, 550);
+  });
+  draw1();
+}
+
+/* ───────── 問い2：報告書 ───────── */
+const DAY_JP = {'0': 'きょう', '-1': 'きのう', '-2': 'おととい'};
+const DAY_EN = {'0': 'today', '-1': 'yesterday', '-2': 'the day before yesterday'};
+const S2 = Object.assign({}, DEF.q2);
+let MIS = 0;
+
+function calc2(s) {
+  const fin = s.now - s.h;
+  const day = Math.floor(fin / 24);
+  const clock = ((fin % 24) + 24) % 24;
+  const mk = (key, en, win) => {
+    const hasNow = !win || (win[0] <= s.now && s.now <= win[1]);
+    return {key, en, win, hasNow, gap: win ? Math.max(0, s.now - win[1]) : 0, pastOK: fin < s.now, perfOK: hasNow};
+  };
+  const words = {
+    none: mk('none', '', null),
+    day: mk('day', DAY_EN[day], [day * 24, (day + 1) * 24]),
+    ago: mk('ago', hrs(s.h) + ' ago', [fin, fin])
+  };
+  return {fin, day, clock, words, list: [words.none, words.day, words.ago]};
+}
+const sentence2 = (verb, w) => `I <b>${verb === 'have' ? 'have finished' : 'finished'}</b> the report${w.en ? ' <mark>' + w.en + '</mark>' : ''}.`;
+
+function axis2(o, x, X0, X1, yTop, yAx) {
+  [-48, -24, 0].forEach((d, i) => {
+    o += `<rect x="${x(d)}" y="${yTop}" width="${x(d + 24) - x(d)}" height="${yAx - yTop}" fill="${i % 2 ? '#fffefa' : '#f7f3e6'}"/>`;
+    o += `<text x="${(x(d) + x(d + 24)) / 2}" y="${yAx + 34}" text-anchor="middle" class="lb">${DAY_JP[String(d / 24)]}</text>`;
+  });
+  o += `<line x1="${X0}" y1="${yAx}" x2="${X1}" y2="${yAx}" class="ax"/>`;
+  for (let t = -48; t <= 24; t += 6) {
+    const big = t % 24 === 0;
+    o += `<line x1="${x(t)}" y1="${yAx}" x2="${x(t)}" y2="${yAx + (big ? 9 : 5)}" class="ax"/>`;
+    if (t < 24) o += `<text x="${x(t) + 2}" y="${yAx + 18}" class="tk">${((t % 24) + 24) % 24}時</text>`;
+  }
+  return o;
+}
+
+function windowShape(w, x, y, hgt, withLabel) {
+  let o = '';
+  if (!w.win) {
+    return withLabel ? `<text x="${x(-48) + 8}" y="${y + hgt / 2 + 5}" class="tk">（時の言葉がないので、わくもない）</text>` : '';
+  }
+  const a = x(w.win[0]), b = x(w.win[1]);
+  if (b - a > 1) {
+    o += `<rect x="${a}" y="${y}" width="${b - a}" height="${hgt}" fill="#f2d24a" opacity=".75"/>`;
+    o += `<rect x="${a}" y="${y}" width="${b - a}" height="${hgt}" fill="none" stroke="#a88a12"/>`;
+    if (withLabel) o += `<text x="${(a + b) / 2}" y="${y + hgt / 2 + 5}" text-anchor="middle" class="lane-en halo" style="stroke:#f5dc6e">${w.en}</text>`;
+  } else {
+    o += `<rect x="${a - 5}" y="${y}" width="10" height="${hgt}" fill="#f2d24a" stroke="#a88a12"/>`;
+    if (withLabel) o += `<text x="${a > 420 ? a - 12 : a + 12}" y="${y + hgt / 2 + 5}" text-anchor="${a > 420 ? 'end' : 'start'}" class="lane-en halo">${w.en}</text>`;
+  }
+  return o;
+}
+function gapShape(w, x, y, now, unit, xmax, fy) {
+  if (w.hasNow) return '';
+  const a = x(w.win[1]), b = x(now);
+  let o = `<line x1="${a}" y1="${y}" x2="${b}" y2="${y}" stroke="#c5402a" stroke-width="2" stroke-dasharray="6 4"/>`;
+  o += `<line x1="${a}" y1="${y - 7}" x2="${a}" y2="${y + 7}" stroke="#c5402a" stroke-width="2"/>`;
+  o += `<line x1="${b}" y1="${y - 7}" x2="${b}" y2="${y + 7}" stroke="#c5402a" stroke-width="2"/>`;
+  const label = `すきま ${w.gap}${unit}`;
+  if (b - a >= 110) {
+    o += `<text x="${(a + b) / 2}" y="${y - 9}" text-anchor="middle" class="redt halo">${label}</text>`;
+  } else if (b + 112 < xmax) {
+    o += `<text x="${b + 9}" y="${y + 5}" text-anchor="start" class="redt halo">${label}</text>`;
+  } else {
+    o += `<text x="${a - 9}" y="${y + fy}" text-anchor="end" class="redt halo">${label}</text>`;
+  }
+  return o;
+}
+
+function draw2() {
+  const s = S2, c = calc2(s), w = c.words[s.word];
+  const X0 = 160, X1 = 840;
+  const x = t => X0 + (t + 48) / 72 * (X1 - X0);
+  const xf = x(c.fin), xn = x(s.now);
+  const ok = s.verb === 'have' ? w.perfOK : w.pastOK;
+
+  let o = axis2('', x, X0, X1, 30, 200);
+  o += `<text x="145" y="64" text-anchor="end" class="lane">できごと</text>`;
+  o += `<text x="145" y="114" text-anchor="end" class="lane">時の言葉のわく</text>`;
+  o += `<text x="145" y="164" text-anchor="end" class="lane-en">${s.verb === 'have' ? 'have finished' : 'finished'}</text>`;
+  [85, 135].forEach(y => { o += `<line x1="20" y1="${y}" x2="${X1}" y2="${y}" stroke="#e9e3d2"/>`; });
+
+  /* できごと */
+  o += `<circle cx="${xf}" cy="59" r="9" fill="#23313d"/><path d="M${xf - 4.5},59 l3.2,3.6 l6,-7.2" fill="none" stroke="#fff" stroke-width="2"/>`;
+  const fa = xf > 440 ? 'end' : 'start';
+  o += `<text x="${xf + (fa === 'end' ? -15 : 15)}" y="64" text-anchor="${fa}" class="lb halo">${DAY_JP[String(c.day)]}の${c.clock}時に書き終えた（${s.h}時間前）</text>`;
+
+  /* 時の言葉 */
+  o += windowShape(w, x, 96, 28, true);
+  if (s.verb === 'have') o += gapShape(w, x, 110, s.now, '時間', 850, -10);
+
+  /* 動詞 */
+  if (s.verb === 'have') {
+    o += `<rect x="${xf}" y="152" width="${Math.max(0, xn - xf - 10)}" height="14" fill="#2c5f8d"/>`;
+    o += `<path d="M${xn - 13},145 L${xn},159 L${xn - 13},173 Z" fill="#2c5f8d"/>`;
+    const na = xn > 480 ? 'end' : 'start';
+    o += `<text x="${xn + (na === 'end' ? -18 : 12)}" y="191" text-anchor="${na}" class="lb halo">足を「いま」に置いて、後ろをふり返る</text>`;
+  } else {
+    o += `<circle cx="${xf}" cy="159" r="7" fill="#23313d"/><circle cx="${xf}" cy="159" r="12" fill="none" stroke="#23313d"/>`;
+    o += `<text x="${xf + (fa === 'end' ? -20 : 20)}" y="164" text-anchor="${fa}" class="lb halo">書き終えた1点だけを指す</text>`;
+  }
+  o += `<line x1="${xn}" y1="26" x2="${xn}" y2="200" class="nowl"/>`;
+  o += `<text x="${xn}" y="19" text-anchor="${anchor(xn, 240, 760)}" class="nowt">いま（きょうの${s.now}時）</text>`;
+  $('q2-svg').innerHTML = o;
+
+  $('q2-h-v').textContent = `${s.h}時間前（${DAY_JP[String(c.day)]}の${c.clock}時）`;
+  $('q2-now-v').textContent = `きょうの${s.now}時`;
+  $('q2-h').value = s.h; $('q2-now').value = s.now;
+  $('q2-verbs').innerHTML = [['past', 'finished'], ['have', 'have finished']].map(([k, t]) =>
+    `<button type="button" class="en${s.verb === k ? ' on' : ''}" data-verb="${k}">${t}</button>`).join(' ');
+  $('q2-words').innerHTML = c.list.map(v =>
+    `<button type="button" class="${v.en ? 'en' : ''}${s.word === v.key ? ' on' : ''}" data-word="${v.key}">${v.en || '（なし）'}</button>`).join(' ') + ' ';
+  $('q2-big').innerHTML = sentence2(s.verb, w);
+  $('q2-verdict').innerHTML = ok
+    ? `${OK} ぶつからない`
+    : `${NG} ぶつかる：have の足は「いま」にあるのに、<span class="en" style="font-size:15px">${w.en}</span> のわくは「いま」の ${w.gap}時間手前で終わっている`;
+
+  drawMis2(c);
+}
+
+function drawMis2(c) {
+  const s = S2;
+  const steps = ['書き終えた', '「完了」だ', '完了は have done', 'うしろに時の言葉を付ける'];
+  $('q2-flow').innerHTML = steps.map((t, i) => `<span class="bx${MIS > i ? ' lit' : ''}">${t}</span>`).join('<span class="ar">→</span>');
+  const X0 = 300, X1 = 800;
+  const x = t => X0 + (t + 48) / 72 * (X1 - X0);
+  const xf = x(c.fin), xn = x(s.now);
+  let o = '';
+  const shown = Math.max(0, MIS - steps.length);
+  const LH = 62, TOP = 28, BOT = TOP + LH * c.list.length;
+  [-48, -24, 0].forEach((d, i) => {
+    o += `<rect x="${x(d)}" y="${TOP}" width="${x(d + 24) - x(d)}" height="${BOT - TOP}" fill="${i % 2 ? '#fffefa' : '#f7f3e6'}"/>`;
+    o += `<text x="${(x(d) + x(d + 24)) / 2}" y="${BOT + 18}" text-anchor="middle" class="tk">${DAY_JP[String(d / 24)]}</text>`;
+  });
+  c.list.forEach((w, i) => {
+    const y = TOP + i * LH;
+    o += `<line x1="10" y1="${y + LH}" x2="850" y2="${y + LH}" stroke="#e9e3d2"/>`;
+    if (i >= shown) { o += `<text x="20" y="${y + 34}" class="tk">${i + 1}つめの文</text>`; return; }
+    if (w.en) {
+      o += `<text x="20" y="${y + 26}" class="lane-en" style="font-size:14px">I have finished the report</text>`;
+      o += `<text x="20" y="${y + 45}" class="lane-en" style="font-size:14px">${w.en}.</text>`;
+    } else {
+      o += `<text x="20" y="${y + 26}" class="lane-en" style="font-size:14px">I have finished the report.</text>`;
+      o += `<text x="20" y="${y + 45}" class="tk">（時の言葉なし）</text>`;
+    }
+    o += windowShape(w, x, y + 6, 22, false);
+    o += `<rect x="${xf}" y="${y + 13}" width="${Math.max(0, xn - xf - 8)}" height="8" fill="#2c5f8d"/>`;
+    o += `<path d="M${xn - 10},${y + 8} L${xn},${y + 17} L${xn - 10},${y + 26} Z" fill="#2c5f8d"/>`;
+    o += gapShape(w, x, y + 49, s.now, '時間', 806, 5);
+    o += `<text x="828" y="${y + 39}" text-anchor="middle" style="font-size:22px;font-weight:bold" fill="${w.perfOK ? '#2c5f8d' : '#c5402a'}">${w.perfOK ? '○' : '✕'}</text>`;
+  });
+  o += `<line x1="${xn}" y1="20" x2="${xn}" y2="${BOT}" class="nowl"/>`;
+  o += `<text x="${xn}" y="15" text-anchor="${anchor(xn, 360, 760)}" class="nowt">いま</text>`;
+  $('q2-svg2').innerHTML = o;
+  if (shown >= c.list.length) {
+    const bad = c.list.filter(w => !w.perfOK).length;
+    const badPast = c.list.filter(w => !w.pastOK).length;
+    $('q2-count').innerHTML = `この考え方で作った ${c.list.length}つの文のうち、<b class="ng" style="font-size:18px">${bad}つ</b>がぶつかる。` +
+      `（同じ3つを finished で作ると、ぶつかるのは ${badPast}つ）`;
+  } else {
+    $('q2-count').innerHTML = '';
+  }
+}
+
+let T2 = null;
+function init2() {
+  $('q2-h').addEventListener('input', e => { S2.h = +e.target.value; draw2(); });
+  $('q2-now').addEventListener('input', e => { S2.now = +e.target.value; draw2(); });
+  $('q2-verbs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { S2.verb = b.dataset.verb; draw2(); } });
+  $('q2-words').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { S2.word = b.dataset.word; draw2(); } });
+  $('q2-reset').addEventListener('click', () => { Object.assign(S2, DEF.q2); draw2(); });
+  $('q2-go').addEventListener('click', () => {
+    if (T2) clearInterval(T2);
+    MIS = 0; draw2();
+    T2 = setInterval(() => { MIS++; draw2(); if (MIS >= 7) { clearInterval(T2); T2 = null; } }, 520);
+  });
+  draw2();
+}
+
+/* ───────── 問い3：佐藤さん ───────── */
+const S3 = Object.assign({now: DEF.q3.now}, DEF.q3.a);
+
+function calc3(s) {
+  const end = s.still ? s.now : s.quit;
+  const n = end - s.start, gap = s.now - end, k = s.now - s.start;
+  const mk = (key, en, win) => ({
+    key, en, win,
+    edgeGap: s.now - win[1],
+    perfOK: win[1] === s.now && end === s.now,
+    pastOK: win[1] < s.now
+  });
+  const rows = [
+    mk('since', 'since ' + s.start, [s.start, s.now]),
+    mk('for', 'for ' + yrs(n), [s.start, end]),
+    mk('ago', yrs(k) + ' ago', [s.start, s.start])
+  ];
+  const worlds = [];
+  for (let q = s.start + 1; q <= s.now - 1; q++) worlds.push({quit: q, n: q - s.start, fits: 'worked'});
+  worlds.push({quit: null, n: s.now - s.start, fits: 'has worked'});
+  const real = s.still ? worlds.length - 1 : worlds.findIndex(w => w.quit === s.quit);
+  return {end, n, gap, k, rows, worlds, real};
+}
+
+function draw3() {
+  const s = S3, c = calc3(s);
+  const A0 = 2006, A1 = 2031, X0 = 160, X1 = 840;
+  const x = y => X0 + (y - A0) / (A1 - A0) * (X1 - X0);
+  const xs = x(s.start), xe = x(c.end), xn = x(s.now);
+  let o = '<defs><pattern id="hat3" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">' +
+          '<rect width="6" height="6" fill="#f6d9d0"/><line x1="0" y1="0" x2="0" y2="6" stroke="#c5402a" stroke-width="2"/></pattern></defs>';
+  o += `<text x="145" y="67" text-anchor="end" class="lane">できごと</text>`;
+  c.rows.forEach((r, i) => { o += `<text x="145" y="${133 + i * 50}" text-anchor="end" class="lane-en">${r.en}</text>`; });
+  [100, 150, 200].forEach(y => { o += `<line x1="20" y1="${y}" x2="${X1}" y2="${y}" stroke="#e9e3d2"/>`; });
+
+  /* できごと：働いた期間 */
+  o += `<rect x="${xs}" y="54" width="${xe - xs}" height="18" fill="#2c5f8d"/>`;
+  if (s.still) o += `<rect x="${xn}" y="54" width="${x(A1) - xn}" height="18" fill="none" stroke="#2c5f8d" stroke-dasharray="3 4" opacity=".5"/>`;
+  else o += `<line x1="${xe}" y1="48" x2="${xe}" y2="78" stroke="#23313d" stroke-width="2"/>`;
+  o += `<text x="${xs}" y="46" text-anchor="${xs > 700 ? 'end' : 'start'}" class="lb halo">${s.start}年に入社</text>`;
+  o += `<text x="${xe < 360 ? xs : xe}" y="91" text-anchor="${xe < 360 ? 'start' : 'end'}" class="lb halo">${s.still ? `いまも働いている（${c.n}年間）` : `${s.quit}年にやめた（${c.n}年間）`}</text>`;
+
+  /* since */
+  o += `<rect x="${xs}" y="116" width="${xe - xs}" height="22" fill="#f2d24a" opacity=".8"/>`;
+  if (c.gap > 0) {
+    o += `<rect x="${xe}" y="116" width="${xn - xe}" height="22" fill="url(#hat3)"/>`;
+    o += `<text x="${clamp((xe + xn) / 2, 240, 760)}" y="112" text-anchor="middle" class="redt halo">ここ ${c.gap}年は働いていない</text>`;
+  }
+  o += `<rect x="${xs}" y="116" width="${xn - xs}" height="22" fill="none" stroke="#a88a12"/>`;
+  o += `<path d="M${xn - 11},112 L${xn},127 L${xn - 11},142 Z" fill="#a88a12"/>`;
+
+  /* for */
+  o += `<rect x="${xs}" y="166" width="${xe - xs}" height="22" fill="#f2d24a" opacity=".8" stroke="#a88a12"/>`;
+  for (let y = s.start + 1; y < c.end; y++) o += `<line x1="${x(y)}" y1="166" x2="${x(y)}" y2="176" stroke="#a88a12"/>`;
+  o += `<text x="${(xs + xe) / 2}" y="182" text-anchor="middle" class="lb halo" style="stroke:#f5dc6e">${c.n}年</text>`;
+  if (c.gap > 0) {
+    o += `<line x1="${xe}" y1="177" x2="${xn}" y2="177" stroke="#c5402a" stroke-width="2" stroke-dasharray="6 4"/>`;
+    o += `<line x1="${xn}" y1="170" x2="${xn}" y2="184" stroke="#c5402a" stroke-width="2"/>`;
+    o += `<text x="${clamp((xe + xn) / 2, 240, 760)}" y="162" text-anchor="middle" class="redt halo">すきま ${c.gap}年</text>`;
+  }
+
+  /* ago */
+  o += `<rect x="${xs - 5}" y="216" width="10" height="22" fill="#f2d24a" stroke="#a88a12"/>`;
+  o += `<line x1="${xs + 5}" y1="227" x2="${xn}" y2="227" stroke="#c5402a" stroke-width="2" stroke-dasharray="6 4"/>`;
+  o += `<line x1="${xn}" y1="220" x2="${xn}" y2="234" stroke="#c5402a" stroke-width="2"/>`;
+  o += `<text x="${clamp((xs + xn) / 2, 240, 760)}" y="212" text-anchor="middle" class="redt halo">すきま ${c.k}年</text>`;
+
+  /* 目もりと「いま」 */
+  o += `<line x1="${X0}" y1="255" x2="${X1}" y2="255" class="ax"/>`;
+  for (let y = A0; y <= A1; y++) {
+    const lab = y % 2 === 0;
+    o += `<line x1="${x(y)}" y1="255" x2="${x(y)}" y2="${lab ? 263 : 259}" class="ax"/>`;
+    if (lab) o += `<text x="${x(y)}" y="278" text-anchor="middle" class="tk">${y}</text>`;
+  }
+  o += `<line x1="${xn}" y1="26" x2="${xn}" y2="255" class="nowl"/>`;
+  o += `<text x="${xn}" y="19" text-anchor="${anchor(xn, 220, 780)}" class="nowt">いま ${s.now}年</text>`;
+  $('q3-svg').innerHTML = o;
+
+  $('q3-start-v').textContent = s.start + '年';
+  $('q3-quit-v').textContent = s.still ? '（やめていない）' : s.quit + '年';
+  $('q3-now-v').textContent = s.now + '年';
+  $('q3-start').value = s.start; $('q3-quit').value = s.quit; $('q3-now').value = s.now;
+  $('q3-quit').disabled = s.still; $('q3-still').checked = s.still;
+
+  $('q3-table').innerHTML =
+    '<tr><th>文</th><th class="c">worked</th><th class="c">has worked</th><th class="c">わくの右はし<br>→「いま」</th></tr>' +
+    c.rows.map(r =>
+      `<tr><td><span class="en">Mr. Sato (　　) here ${r.en}.</span></td><td class="c">${mark(r.pastOK)}</td><td class="c">${mark(r.perfOK)}</td>` +
+      `<td class="c">${r.edgeGap}年${r.key === 'since' && c.gap > 0 ? ' ※' : ''}</td></tr>`).join('') +
+    (c.gap > 0
+      ? `<tr><td colspan="4" style="font-size:13px;color:#5d6870">※ わくは「いま」まで届くが、そのうち ${c.gap}年は働いていない。この場面は <span class="en" style="font-size:14px">from ${s.start} to ${s.quit}</span> と言う。</td></tr>`
+      : '');
+
+  const hit = c.worlds.filter(w => w.fits === 'has worked').length;
+  $('q3-strip').innerHTML =
+    `<p class="strip-t" style="margin-top:0">${s.start}年に入社した人について、やめた年を1年ずつずらして全部ならべた。どの場面でも文には <span class="en" style="font-size:15px">for ○ years</span> が付く。</p>` +
+    '<div class="strip">' + c.worlds.map((w, i) =>
+      `<div class="cell ${w.fits === 'has worked' ? 'hit' : 'miss'}${i === c.real ? ' real' : ''}">${w.quit ? w.quit + '年にやめた' : 'いまも働いている'}<br>` +
+      `<span class="en">for ${yrs(w.n)}</span><br><b>${w.fits}</b></div>`).join('') + '</div>' +
+    `<p class="strip-t">「for が付いたら has worked」が当たるのは、${c.worlds.length}通りのうち <b>${hit}通り</b>。外れるのは <b class="ng" style="font-size:18px">${c.worlds.length - hit}通り</b>。</p>` +
+    '<p class="legend"><i></i>黄色のわく＝いま上の図に出ている場面</p>';
+
+  const P = DEF.q3;
+  const same = p => s.start === p.start && s.still === p.still && (p.still || s.quit === p.quit) && s.now === P.now;
+  $('q3-presets').innerHTML =
+    `<button type="button" data-p="a" class="${same(P.a) ? 'on' : ''}">${P.a.start}年に入社・いまも働いている</button> ` +
+    `<button type="button" data-p="b" class="${same(P.b) ? 'on' : ''}">${P.b.start}年に入社・${P.b.quit}年にやめた</button>`;
+}
+
+function fix3() {
+  S3.start = Math.min(S3.start, S3.now - 2);
+  S3.quit = clamp(S3.quit, S3.start + 1, S3.now - 1);
+  draw3();
+}
+let T3 = null;
+function stop3() { if (T3) { clearInterval(T3); T3 = null; $('q3-play').textContent = '▶ 「いま」を1年ずつ進める'; } }
+function init3() {
+  ['start', 'quit', 'now'].forEach(k => $('q3-' + k).addEventListener('input', e => { stop3(); S3[k] = +e.target.value; fix3(); }));
+  $('q3-still').addEventListener('change', e => { stop3(); S3.still = e.target.checked; fix3(); });
+  $('q3-presets').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    stop3(); Object.assign(S3, {now: DEF.q3.now}, DEF.q3[b.dataset.p]); fix3();
+  });
+  $('q3-play').addEventListener('click', () => {
+    if (T3) { stop3(); return; }
+    $('q3-play').textContent = '■ 止める';
+    T3 = setInterval(() => { if (S3.now >= 2030) { stop3(); return; } S3.now++; fix3(); }, 700);
+  });
+  fix3();
+}
+
+/* ───────── 問いの文と、予想のボタン ───────── */
+function buildQuestions() {
+  const d1 = DEF.q1;
+  $('q1-scene').innerHTML =
+    `朝${d1.lost}時に、田中さんがかぎをなくしました。いまは${d1.now}時です。同僚が、2通りの言い方をしました。` +
+    `<ul><li><span class="en">ア　Tanaka lost his key.</span></li><li><span class="en">イ　Tanaka has lost his key.</span></li></ul>` +
+    `聞いた人が「いま${d1.now}時の時点でも、かぎはまだ無いんだな」と受け取れるのは、どれですか。`;
+  const c2 = calc2(DEF.q2);
+  const dayEn = c2.words.day.en;
+  $('q2-scene').innerHTML =
+    `報告書を、${DAY_JP[String(c2.day)]}の${c2.clock}時に書き終えました。いまは、きょうの${DEF.q2.now}時です（書き終えてから${DEF.q2.h}時間）。` +
+    `「${DAY_JP[String(c2.day)]}、報告書を書き終えました」を英語にします。正しいのはどれですか。`;
+  const P = DEF.q3, nA = P.now - P.a.start, nB = P.b.quit - P.b.start;
+  $('q3-scene').innerHTML =
+    `いまは${P.now}年です。次の4つの文の（　）に、<span class="en">worked</span> か <span class="en">has worked</span> のどちらかを入れます。` +
+    `<ul>` +
+    `<li>① <span class="en">Mr. Sato (　　) here since ${P.a.start}.</span>　（${P.a.start}年に入社して、いまも働いている）</li>` +
+    `<li>② <span class="en">Mr. Sato (　　) here for ${yrs(nA)}.</span>　（${P.a.start}年に入社して、いまも働いている）</li>` +
+    `<li>③ <span class="en">Mr. Sato (　　) here for ${yrs(nB)}.</span>　（${P.b.start}年に入社して、${P.b.quit}年にやめた）</li>` +
+    `<li>④ <span class="en">Mr. Sato (　　) here ${yrs(nA)} ago.</span>　（${nA}年前の話。いまのことは言っていない）</li>` +
+    `</ul><span class="en">has worked</span> が入るのは、どれですか。`;
+  return {
+    q1: [['A', 'アだけ'], ['B', 'イだけ'], ['C', 'アでもイでも、同じように受け取れる'], ['D', 'どちらからも分からない']],
+    q2: [['A', `<span class="en">I finished the report ${dayEn}.</span>`], ['B', `<span class="en">I have finished the report ${dayEn}.</span>`], ['C', 'どちらも正しい（意味が少しちがうだけ）']],
+    q3: [['A', '①だけ'], ['B', '①と②'], ['C', '①と②と③'], ['D', '①②③④の全部']]
+  };
+}
+
+function initChoices(Q) {
+  Object.keys(Q).forEach(q => {
+    const box = $(q + '-choices');
+    const paint = () => {
+      box.innerHTML = Q[q].map(([k, t]) =>
+        `<button type="button" data-k="${k}" class="${PICK[q] === k ? 'sel' : ''}"><b>${k}.</b> ${t}` +
+        `${PREV[q] === k ? '<span class="prev">さっきの返事</span>' : ''}</button>`).join('');
+    };
+    box.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      PICK[q] = b.dataset.k; paint();
+      $(q).classList.add('open');
+      const t = Q[q].find(v => v[0] === PICK[q])[1];
+      $(q + '-mine').innerHTML = `あなたの予想：<b>${PICK[q]}.</b> ${t}`;
+    });
+    paint();
+  });
+}
+
+initChoices(buildQuestions());
+init1(); init2(); init3();
+</script>
+</body>
+</html>
