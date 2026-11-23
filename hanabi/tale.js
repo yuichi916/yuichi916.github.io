@@ -198,7 +198,8 @@ export const TALE = [
     L('kon', `また来年も、会えるコン`, `We'll meet again next year, kon.`),
     L('akari', `……うそつき。綿あめ、まだ買ってあげてないのに`, `...Liar. I still haven't bought you that cotton candy.`, 'sad'),
   ] },
-  // ── 後日談: 祭りを大団円で終えたあと、次の周（次の年の盆）の最初の夜明けに（オチ）。コンは新しい赤い玉の火の子で、灯を覚えていない（代価は残る）
+  // ── 後日談: 大団円の 24 頁のあとに続けて（図鑑からも）。次の年の盆、新しい赤い玉の火の子は、覚えていないはずの灯を覚えていた（第 4.4 版・ハッピーエンド）。
+  // 24 頁の自分の言葉を思わず言う→約束（綿あめ）は尻尾の火に残る→トラが 18 頁の決まりを破れた理由を言う→「うそはつけない」で 24 頁の「また来年も」が本当になる→じいちゃん「ふたり分」
   { gate: 'r3', scene: { ja: `次の年の盆。河原の屋台に灯りがともる。棚の上に、新しい赤い玉がひとつ。`, en: `The next Obon. The riverside stall lights up. On the shelf sits one new red shell.` }, lines: [
     L('tora', `今年は、まっすぐ来たね`, `You came straight here this year.`),
     L('akari', `うん。ぜんぶ、覚えてるよ`, `Yeah. I remember everything.`, 'smile'),
@@ -206,9 +207,14 @@ export const TALE = [
     L('tora', `じいちゃんが、今年も詰めていったのさ。三寸、赤`, `Your grandpa packed it again this year. Three-inch, red.`),
     L('kon', `はじめましてコン。線、二本引いていいコン？`, `Nice to meet you, kon. Can I draw two lines, kon?`),
     L('akari', `それはもう、ただの落書き！`, `Then it's just doodling!`, 'angry'),
-    L('akari', `綿あめ、買ってあげる。約束してたから`, `I'll buy you cotton candy. I promised.`, 'smile'),
-    L('kon', `わたあめ！ ……だれとの約束コン？`, `Cotton candy! ...Promised who, kon?`),
-  ], tail: { ja: `トラ「さあ、今年の一筆だ」`, en: `Tora: "Now then. This year's stroke."` } },
+    L('kon', `落書きでいいコン。尻尾の火は、もともと花火の模様コン`, `Doodling's fine, kon. The fire on my tail was always a firework pattern, kon.`),
+    L('akari', `コン……？ コン、覚えてるの？`, `Kon...? Kon, you remember?`, 'smile'),
+    L('kon', `綿あめ、まだ買ってもらってないコン。約束は、尻尾の火に残るコン`, `You still haven't bought me cotton candy, kon. Promises stay in the fire on my tail, kon.`),
+    L('tora', `……覚えてないはずなんだがね。よっぽど熱い約束だったんだね`, `...He shouldn't remember a thing. That must have been one hot promise.`),
+    L('akari', `……うそつきって言って、ごめん。ちゃんと来てくれた`, `...Sorry I called you a liar. You really came back.`, 'smile'),
+    L('kon', `コンは、うそはつけないコン`, `I can't lie to you, kon.`),
+    L('jii', `ごはん、できたよ。今年は、ふたり分だ`, `Dinner's ready. This year, it's for two.`),
+  ], tail: { ja: `トラ「さあ、ふたり分の一筆だ」`, en: `Tora: "Now then. A stroke for two."` } },
 ];
 export const TALE_N = TALE.length;
 // 物語の出しはじめ: これまでに越えた夜がこの数になってから（第 1〜2 夜で帰る人が多い。まずは遊びだけ）

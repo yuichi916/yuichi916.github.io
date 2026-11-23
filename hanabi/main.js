@@ -1881,7 +1881,7 @@ function openTale(p, done, opts = {}) {
   el.classList.remove('hidden', 'done', 'out', 'in'); el.classList.toggle('end', !!p.end); el.classList.toggle('first', idx === 0);
   const yid = taleCast({ who: 'yokai', gate: p.gate, w: p.w });
   let i = 0, tm = 0, closed = false, finished = false, tok = 0;
-  const finish = () => { finished = true; el.classList.add('done'); $('tlTail').textContent = p.tail ? (JA() ? p.tail.ja : p.tail.en) : ''; $('tlNext').textContent = tr('さわって つづける', 'Tap to continue'); };
+  const finish = () => { finished = true; el.classList.add('done'); $('tlTail').textContent = p.tail ? (JA() ? p.tail.ja : p.tail.en) : ''; $('tlNext').textContent = tr('さわって つづける', 'Tap to continue'); requestAnimationFrame(() => { log.scrollTop = log.scrollHeight; }); }; /* 結びの一言が出ると欄が縮み、最後の行が隠れていた */
   const step = () => {
     clearTimeout(tm); if (closed) return;
     if (i >= p.lines.length) { finish(); return; }
