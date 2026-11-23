@@ -266,7 +266,7 @@ export const BANTER = {
 
 // 声のファイル名: 話し手と本文から（台詞を直すと名前が変わり、古い声は使われない）
 export function voiceKey(who, text) { const s = who + '|' + text; let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'v' + (h >>> 0).toString(36); }
-export const VOICED = new Set(['akari', 'kon', 'hinoko', 'jii']);
+export const VOICED = new Set(['akari', 'kon', 'hinoko', 'jii', 'tora', 'note', 'mem', 'nar']); // 11/23 依頼主「2 人以外も声をつけたい」: トラ・秘伝帳（じいちゃんの声）・灯の記憶（灯のささやき）・語り。妖怪は 'yokai.<名>' で妖怪ごとの声
 
 // 次に読む頁。読める条件がそろっていなければ null。gates = これまでに勝った相手 { b1: 'kamaitachi', r1: ..., }
 // opts.nights = これまでに越えた夜の数・opts.last = 前の頁を出したときの nights。ボスに勝った頁（gate）は間を待たない

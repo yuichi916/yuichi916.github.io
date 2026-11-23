@@ -194,7 +194,7 @@ const unlockText = (f) => (f.unlock.wins ? tr(`完走 ${f.unlock.wins} 回で開
 $('rankPrev').onclick = () => { S.rank--; audio.ui('tap'); openNewRun(); };
 $('rankNext').onclick = () => { S.rank++; audio.ui('tap'); openNewRun(); };
 $('nrBack').onclick = () => { audio.ui('tap'); toTitle(); };
-$('nrGo').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school }); };
+$('nrGo').onclick = () => { audio.ui('tap'); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school, omikuji: true }); };
 
 function openBook() {
   show('book');
@@ -264,6 +264,7 @@ function openBook() {
 $('bkBack').onclick = () => { audio.ui('tap'); toTitle(); };
 
 function beginRun(o = {}) {
+  const omi = !!o.omikuji;
   S.run = Run.newRun({ fuse: o.fuse || 'asa', rank: o.rank || 0, seed: o.seed, school: o.daily ? 'hon' : (o.school || q.get('school') || 'hon') });
   S.daily = !!o.daily; S.run.daily = S.daily;
   // 練習の周: 初めの 2 周（今日の祭りは除く）
@@ -274,7 +275,35 @@ function beginRun(o = {}) {
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
   DB.run = S.run; save();
+  // おみくじ: 2 周目から、ふつうの祭りの初めに（今日の祭りは引かない。だれも同じ条件で比べる）
+  if (omi && !S.daily && (DB.meta.runs || 0) >= 1) { openOmikuji(() => { DB.run = S.run; save(); startNight(); }); return; }
   startNight();
+}
+// おみくじの画面: 引く → 札がひらく → この運で祭りへ（引き直しは 1 回）
+function openOmikuji(done) {
+  const run = S.run; let n = 0, busy = false;
+  $('omi')?.remove();
+  const el = document.createElement('div'); el.id = 'omi'; el.className = 'omi'; el.lang = JA() ? 'ja' : 'en';
+  el.innerHTML = `<div class="omi-box"><h3>${tr('おみくじ', 'Omikuji')}</h3><p class="omi-q">${tr('祭りの前に、一枚どうぞ', 'Draw a fortune before the festival')}</p>`
+    + `<div class="omi-tube"><i></i></div><div class="omi-slip hidden"><b class="omi-r"></b><span class="omi-d"></span></div><p class="omi-tora hidden"></p>`
+    + `<div class="omi-row"><button class="btn2 hidden" id="omiRe"></button><button class="bigbtn small" id="omiGo">${tr('おみくじを引く', 'Draw')}</button></div></div>`;
+  document.body.append(el); audio.ui('tap');
+  const show = (key) => {
+    const o = Run.OMIKUJI[key]; Run.applyOmikuji(run, key);
+    const slip = el.querySelector('.omi-slip'); slip.className = 'omi-slip ' + key; slip.querySelector('.omi-r').textContent = JA() ? o.ja : o.en; slip.querySelector('.omi-d').textContent = JA() ? o.dj : o.de;
+    const t = el.querySelector('.omi-tora'); t.textContent = tr(`トラ「${o.tj}」`, `Tora: "${o.te}"`); t.classList.remove('hidden');
+    el.querySelector('.omi-tube').classList.add('done');
+    const re = $('omiRe'); re.textContent = tr('引き直す（1 回）', 'Redraw (once)'); re.classList.toggle('hidden', n > 1);
+    $('omiGo').textContent = tr('この運で祭りへ', 'Go with this fortune');
+    if (key === 'daikichi' || key === 'daikyo') { audio.ui('win'); R.flash = Math.max(R.flash, 0.25); } else audio.note(15, { vol: 0.16, dur: 0.5 });
+  };
+  const draw = () => {
+    if (busy) return; busy = true; const tube = el.querySelector('.omi-tube'); tube.classList.remove('done'); tube.classList.add('shake'); el.querySelector('.omi-slip').classList.add('hidden');
+    for (let i = 0; i < 5; i++) setTimeout(() => audio.note(8 + (i % 2) * 3, { vol: 0.1, dur: 0.08 }), i * 120);
+    setTimeout(() => { tube.classList.remove('shake'); busy = false; const key = Run.drawOmikuji(run.seed, n); n++; show(key); }, 720);
+  };
+  $('omiGo').onclick = () => { audio.unlock(); if (busy) return; if (!run.omi) { draw(); return; } audio.ui('tap'); PF.ev('omikuji', { r: run.omi, re: n > 1 ? 1 : 0 }); el.remove(); done(); };
+  $('omiRe').onclick = () => { if (busy || n > 1) return; audio.ui('tap'); draw(); };
 }
 function startDaily() {
   const d = new Date(); const key = d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
@@ -282,7 +311,7 @@ function startDaily() {
 }
 $('playBtn').onclick = () => {
   audio.unlock(); audio.ui('tap');
-  if (DB.run) { S.run = Run.fixRun(DB.run); resumeRun(); } else beginRun();
+  if (DB.run) { S.run = Run.fixRun(DB.run); resumeRun(); } else beginRun({ omikuji: true });
 };
 // 屋台でやめていたら、同じ屋台を開き直す（前の夜の結果の欄は「続きから」だけ）
 function reopenShop() {
@@ -365,7 +394,7 @@ function startNight(resume = null) {
   if (!resume) guestPop(def);
   const tw = def.twist && Run.TWISTS[def.twist];
   const nodeT = ['shoubu', 'chaya', 'tonya', 'ennichi'].includes(def.node) ? Run.NODES[def.node] : null;
-  $('twistTag').textContent = [tw ? (JA() ? tw.ja : tw.en) : '', nodeT ? (JA() ? nodeT.ja : nodeT.en) : '', ...(def.seals || []).map((x) => (JA() ? Run.SEALS[x].ja : Run.SEALS[x].en))].filter(Boolean).join(' ・ ');
+  $('twistTag').textContent = [run.omi && Run.OMIKUJI[run.omi] ? tr(`おみくじ ${Run.OMIKUJI[run.omi].ja}`, `Omikuji: ${Run.OMIKUJI[run.omi].en}`) : '', tw ? (JA() ? tw.ja : tw.en) : '', nodeT ? (JA() ? nodeT.ja : nodeT.en) : '', ...(def.seals || []).map((x) => (JA() ? Run.SEALS[x].ja : Run.SEALS[x].en))].filter(Boolean).join(' ・ ');
   const zl = $('zoneLabels'); zl.innerHTML = '';
   for (const z of S.st.zones) { const e = document.createElement('div'); e.className = 'zl ' + z.kind; e.innerHTML = z.kind === 'oil' ? tr('油<small>火が速い・点 ×3</small>', 'OIL<small>fast flame, POINTS ×3</small>') : tr('水<small>火が遅い</small>', 'WATER<small>slow flame</small>'); e.style.left = (z.x / W) * 100 + '%'; e.style.top = (z.y / H) * 100 + '%'; zl.append(e); }
   // 大一番
@@ -1479,7 +1508,7 @@ $('ovTitle').addEventListener('pointermove', (e) => { const c = S.crack; if (!c 
     setTimeout(() => { t.textContent = tr('まだ、終わってない', 'It isn\'t over yet'); t.classList.remove('burn'); $('ovUnlocks').insertAdjacentHTML('afterbegin', `<div class="storyline hinoko">${tr('火の子「まって」', 'The little flame: "wait"')}</div>`); once('crack'); }, 700); } });
 addEventListener('pointerup', () => { if (S.crack) S.crack.x0 = null; });
 $('ovDaily').onclick = () => { audio.ui('tap'); startDaily(); };
-$('ovAgain').onclick = () => { audio.ui('tap'); PF.ad(); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school }); };
+$('ovAgain').onclick = () => { audio.ui('tap'); PF.ad(); beginRun({ fuse: S.fuse, rank: S.rank, school: S.school, omikuji: true }); };
 
 // ひと休み
 function openPause() {
@@ -1793,11 +1822,13 @@ let taleVoice = null;
 // 声の先読み（11/23 依頼主「声が出るのが遅い」: 行を出してから声を取りに行っていた）。夜の始まりに、その夜のあとに出そうな頁とひとことの声を読んでおく
 const VCACHE = new Map();
 function preVoice(who, text) {
-  if (!VOICED.has(who) || !DB.sound || PF.muted) return;
+  if (!(VOICED.has(who) || String(who).startsWith('yokai.')) || !DB.sound || PF.muted) return;
   const u = `tale/voice/${voiceKey(who, text)}.mp3`; if (VCACHE.has(u)) return;
   try { const a = new Audio(); a.preload = 'auto'; a.src = u; VCACHE.set(u, a); if (VCACHE.size > 48) VCACHE.delete(VCACHE.keys().next().value); } catch { /* 読めなくても遊べる */ }
 }
-function preTale(p) { if (p) for (const ln of p.lines) preVoice(ln.w, JA() ? ln.ja : ln.en); }
+// 声の持ち主: 妖怪は、その頁に出ている妖怪の声（yokai.<名>）
+const voiceOf = (ln, p) => (ln.w === 'yokai' ? 'yokai.' + taleCast({ who: 'yokai', gate: p.gate, w: p.w }) : ln.w);
+function preTale(p) { if (p) for (const ln of p.lines) preVoice(voiceOf(ln, p), JA() ? ln.ja : ln.en); }
 function preNextTalk(def) {
   try {
     if (!talkOn() || !S.run || S.run.endless) return;
@@ -1809,7 +1840,7 @@ function preNextTalk(def) {
 function talePlay(who, text, onStart) {
   return new Promise((res) => {
     const st0 = () => { if (onStart) { const f = onStart; onStart = null; f(); } };
-    try { taleVoice?.pause(); if (!VOICED.has(who) || !DB.sound || PF.muted || S.adPause) { st0(); return res(0); }
+    try { taleVoice?.pause(); if (!(VOICED.has(who) || String(who).startsWith('yokai.')) || !DB.sound || PF.muted || S.adPause) { st0(); return res(0); }
       const u = `tale/voice/${voiceKey(who, text)}.mp3`, v = taleVoice = VCACHE.get(u) || new Audio(u); VCACHE.delete(u); v.volume = 1; try { v.currentTime = 0; } catch { /* 読み込み前 */ }
       v.onended = () => res(v.duration || 0); v.onerror = () => { st0(); res(0); }; v.addEventListener('playing', st0, { once: true }); v.play().then(() => audio.duck(Math.max(1.5, (v.duration || 2) + 0.4), 0.4)).catch(() => { st0(); res(0); });
     } catch { st0(); res(0); }
@@ -1851,7 +1882,7 @@ function openTale(p, done, opts = {}) {
     row.append(taleIcon(ln.w, ln.f, id), say); log.append(row); log.scrollTop = log.scrollHeight;
     if (ln.w === 'kon') el.classList.add('konhop'), setTimeout(() => el.classList.remove('konhop'), 520);
     const my = ++tok, t0 = performance.now(), read = JA() ? Math.min(4200, 900 + text.length * 75) : Math.min(5600, 1100 + text.length * 55);
-    talePlay(ln.w, text).then((d) => { if (my !== tok || closed) return; tm = setTimeout(step, Math.max(d ? 450 : 0, read - (performance.now() - t0))); });
+    talePlay(ln.w === 'yokai' ? 'yokai.' + yid : ln.w, text).then((d) => { if (my !== tok || closed) return; tm = setTimeout(step, Math.max(d ? 450 : 0, read - (performance.now() - t0))); });
   };
   const close = () => { if (closed) return; closed = true; clearTimeout(tm); el.onclick = null; S.taleKey = null; taleVoice?.pause(); audio.ui('tap'); el.classList.add('out'); setTimeout(() => { el.classList.add('hidden'); el.classList.remove('out', 'in', 'done'); done?.(); }, 260); };
   const start = () => { if (S.adPause) { tm = setTimeout(start, 300); return; } el.classList.add('in'); tm = setTimeout(step, opts.end ? 900 : 260); }; // 11/23 依頼主「会話の始まりが遅くてフリーズしているように見える」: 0.9 秒 → 0.26 秒
@@ -2791,7 +2822,7 @@ const boardName = (b) => (b.daily ? tr(`今日の祭り（${b.day.slice(4, 6)}/$
 function rankSubmit(run, log) {
   const box = $('ovRank'); if (!box) return;
   box.innerHTML = '';
-  if (!S.rankOk || !log || log.as || !log.ops.some((o) => o[0] === 'n')) return; // 練習の周（as）は出さない
+  if (!S.rankOk || !log || log.as || run.omi || !log.ops.some((o) => o[0] === 'n')) return; // 練習の周（as）・おみくじを引いた周は出さない（決まりどおりの検算と合わない）
   const board = { daily: !!log.daily, day: String(log.seed), rank: run.rank, school: run.school };
   const send = async () => {
     box.innerHTML = `<small>${tr('世界ランキングに送っています…', 'Sending to the world ranking...')}</small>`;

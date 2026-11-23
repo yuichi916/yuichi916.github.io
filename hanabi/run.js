@@ -148,6 +148,32 @@ export const MODS = {
 export const POUCH_MIN = 8;
 export const MAX_SLOTS = 6;
 export const ENGI_SLOTS = 2;
+// おみくじ（11/23 依頼主「何回でもやりたくなるギミック」→ おみくじ）: 祭りの初めに 1 枚。運はその祭りのあいだ続く。w=出やすさ（合計 100）
+// 凶・大凶は「火が速い・そのかわり点が多い」の賭け。引き直しは祭りに 1 回。くじは種から決まる（同じ祭りで同じくじ）
+export const OMIKUJI = {
+  daikichi: { ja: '大吉', en: 'Great Blessing', w: 6, coins: 12, kin: 2, dj: '小判 +12・金の玉が毎夜 2 つ多い', de: '+12 coins · 2 extra gold shells each night', tj: '大吉！ 今年の夏は、きっと金色だよ', te: 'Great Blessing! This summer will be golden.' },
+  chukichi: { ja: '中吉', en: 'Middle Blessing', w: 14, coins: 8, dj: '小判 +8', de: '+8 coins', tj: '中吉。ほどほどが、いちばん長持ちさ', te: 'Middle Blessing. Moderation lasts the longest.' },
+  shokichi: { ja: '小吉', en: 'Small Blessing', w: 18, engi: 'shaku', dj: '札「尺玉札」を 1 枚', de: 'A Grand Shell talisman', tj: '小吉でも、札は札。大事に使いな', te: 'Small, but a talisman is a talisman. Use it well.' },
+  kichi: { ja: '吉', en: 'Blessing', w: 24, coins: 4, dj: '小判 +4', de: '+4 coins', tj: '吉。まあ、悪くない夜になるよ', te: 'Blessing. Not a bad night ahead.' },
+  suekichi: { ja: '末吉', en: 'Future Blessing', w: 16, lives: 1, dj: '灯 +1（やり直しが 1 回ふえる）', de: '+1 light (one more retry)', tj: '末吉は、あとから良くなるくじさ', te: 'Future Blessing gets better as you go.' },
+  kyo: { ja: '凶', en: 'Curse', w: 15, flameX: 1.12, chipsX: 1.3, dj: '火が少し速い。そのかわり点 ×1.3', de: 'Flame a bit faster, but POINTS ×1.3', tj: '凶かい。……火は速いけど、そのぶん点が出るよ', te: 'A curse, eh. The flame is faster, but the points come too.' },
+  daikyo: { ja: '大凶', en: 'Great Curse', w: 7, flameX: 1.2, chipsX: 1.6, dj: '火が速い。そのかわり点 ×1.6', de: 'Faster flame, but POINTS ×1.6', tj: '大凶は、当たりくじだよ。覚悟しな', te: 'A Great Curse is the jackpot. Brace yourself.' },
+};
+export function drawOmikuji(seed, n = 0) {
+  const rnd = rng32(((seed | 0) * 13 + n * 7919 + 5) >>> 0); rnd(); rnd(); rnd(); let x = rnd() * 100; // 最初の数個は種に引きずられるので捨てる
+  for (const [k, o] of Object.entries(OMIKUJI)) { x -= o.w; if (x < 0) return k; }
+  return 'kichi';
+}
+// 効き目を周に入れる。引き直しのときは、引く前の小判・灯・札に戻してから入れ直す
+export function applyOmikuji(run, key) {
+  const o = OMIKUJI[key]; if (!o) return;
+  if (!run.omiBase) run.omiBase = { coins: run.coins, lives: run.lives, engi: [...(run.engi || [])] };
+  const b = run.omiBase; run.coins = b.coins; run.lives = b.lives; run.engi = [...b.engi];
+  run.omi = key;
+  if (o.coins) run.coins += o.coins;
+  if (o.lives) run.lives += o.lives;
+  if (o.engi && run.engi.length < ENGI_SLOTS) run.engi.push(o.engi);
+}
 export function bossEngi(run) { const ids = Object.keys(ENGI), r = rng32((run.seed * 5 + run.world * 77) >>> 0); return ids[Math.floor(r() * ids.length)]; }
 export const startPouch = (extra = []) => [...Array(10).fill('kiku'), 'kin', 'ootama', 'chouchin', ...extra].map((t) => ({ t, m: null }));
 export function pouchCount(pouch) { const c = {}; for (const x of pouch || []) c[x.t] = (c[x.t] || 0) + 1; return c; }
@@ -367,6 +393,10 @@ export function loadoutFor(run) {
       if (run.school === 'tanpitsu') { m.ink *= 0.45; m.strokesAdd += 4; m.tsugiKeepX = 1; m.tsugiRX = 1.6; m.tsugiWinX = 1.8; }
       if (run.school === 'hoshiyomi') { m.chipsX *= 0.5; m.dustValX = 6; m.dustLifeX = 1.6; m.dustPickX = 1.5; }
       if (run.school === 'okibi') { m.okibi = true; m.ink *= 0.6; m.heatHold = true; }
+      const om = run.omi && OMIKUJI[run.omi]; // おみくじの運（火の速さ・点の倍率・金の玉）
+      if (om?.flameX) m.flameX *= om.flameX;
+      if (om?.chipsX) m.chipsX *= om.chipsX;
+      if (om?.kin) m.addMix.kin = (m.addMix.kin || 0) + om.kin;
     },
   };
   return { charms: [pre, ...charms], recipes: run.recipes, coins: run.coins, streak: run.bloomStreak || 0, pv: run.pv ?? 4, grow: { ...(run.grow || {}) } };
