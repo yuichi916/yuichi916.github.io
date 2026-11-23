@@ -187,6 +187,7 @@ export function newNight(level, w, h, loadout = {}) {
   if (level.rule === 'ishun' && !level.raid) m.ink *= 0.55;
   if ((level.seals || []).includes('sumi')) m.ink *= 0.75; // 封じ: 墨削り
   if (level.grand) m.ink *= (level.grand.gw || 1) * (level.grand.gh || 1); // 大仕掛け: 盤が広いぶん、墨も長く
+  if ((level.rv || 1) >= 12) m.threadR += 6; /* 版 12（11/23 依頼主「なぞったはずなのに消えない」）: スマホでは当たりの直径が指先より細かった */
   const mix = { ...(level.mix || {}) };
   for (const [k, n] of Object.entries(m.addMix)) mix[k] = (mix[k] || 0) + n;
   if (m.onlyOneStroke) m.strokesAdd = -99;
@@ -654,7 +655,7 @@ function extendLine(st) {
   let dx = wx - last.x, dy = wy - last.y, d = Math.hypot(dx, dy);
   if (d < 5) { k.held = false; return; }
   let room = inkLimit(st) - k.len;
-  if (st.m.dyn && !(st.m.okibi && !k.flameOn)) {
+  if (st.m.dyn && st.rv < 12 && !(st.m.okibi && !k.flameOn)) { /* 版 12 から線は止めない（指にぴったり付いてくる）。一気に引いて離すと、離したあと熱が冷めるので点は伸びない（_dev の比べ: 火の後ろ 90 を保つ人の 3 分の 1） */
     const lead = st.m.leash - (k.len - k.flameS);
     const heldNow = lead < d;
     if (heldNow && !k.held && k.flameOn) st.events.push({ type: 'held' });
@@ -759,8 +760,13 @@ function threadAt(st, x, y) {
             if (k.juzu === st.juzuN) { k.mult += 5; st.events.push({ type: 'juzuDone', x: s.x, y: s.y, mult: k.mult }); }
           } else st.events.push({ type: 'juzu', ok: false, x: s.x, y: s.y });
         }
+        // 線では燃えない玉は、通した瞬間に「通らない」と知らせる（決まりは ignite のまま。知らせだけ）
+        let block = null, want = 0;
+        if (s.type === 'koori' && !m.iceLine) block = 'ice';
+        else if (s.mod === 'seiza' && st.seiza && !st.seiza.done) { want = k.seizaNext ?? st.seiza.next; if (s.seq === want) k.seizaNext = want + 1; else block = 'seiza'; }
+        else if (s.mod === 'moji' && st.moji && !st.moji.done) { want = k.mojiNext ?? st.moji.next; if (s.seq === want) k.mojiNext = want + 1; else block = 'moji'; }
         const c = fire(st, 'thread', { s, close, gap });
-        st.events.push({ type: 'thread', shell: s, n: k.threaded, close, ...(c.x ? { extra: c.x } : {}) });
+        st.events.push({ type: 'thread', shell: s, n: k.threaded, close, ...(c.x ? { extra: c.x } : {}), ...(block ? { block, want } : {}) });
       }
     }
   };
@@ -906,7 +912,7 @@ function burst(st, s, gen, how) {
     if (o.state !== 'idle' || o === s || o.rise > 0) continue;
     const dist = Math.hypot(o.x - s.x, o.y - s.y);
     if (dist < R + (st.dn ? o.r / (o.rs || 1) : o.r)) ignite(st, o, gen + 1, 'blast', dist / m.shockV + 0.04);
-    else if (dist < R * 1.8 && !o.threaded) {
+    else if (dist < R * 1.8 && !o.threaded && !(st.rv >= 12 && k.penDown && k.pts.length && Math.hypot(o.x - k.pts[k.pts.length - 1].x, o.y - k.pts[k.pts.length - 1].y) < 160)) { /* 版 12: 筆先の近くの玉は押さない */
       const f = ((m.pull ? -1 : 1) * m.pushK * (1 - dist / (R * 1.8))) / Math.max(dist, 1);
       o.vx += (o.x - s.x) * f; o.vy += (o.y - s.y) * f;
     }

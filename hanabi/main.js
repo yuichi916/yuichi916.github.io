@@ -270,7 +270,7 @@ function beginRun(o = {}) {
   // 練習の周: 初めの 2 周（今日の祭りは除く）
   S.run.assist = !S.daily && (DB.meta.runs || 0) < 2 ? 1 : 0;
   S.run.grand = 1; // 大仕掛けの夜がある周（2026-11-17〜）
-  S.run.rv = 11; DB.meta.ck = null; // 決まりの版 11: 練習の周の第 1 夜は負けても灯が減らない / 10: 世界 2・3 の負けにも情け・世界 2・3 の第 1〜3 夜 ×0.88・コンの身代わり（11/22）/ 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる / 8: 世界 1 で負けたら次の挑戦の目標を下げる（情け）・練習の周の第 2 夜に福の神 / 9: 道で趣向を選ばなかった夜にも軽い趣向（夜ごとに中身が変わる）
+  S.run.rv = 12; DB.meta.ck = null; // 決まりの版 12: 線は火より先で止めず指にぴったり付いてくる・玉を通る幅 +6（11/23 依頼主「なぞったはずなのに消えない・線の手応えが薄い」）/ 11: 練習の周の第 1 夜は負けても灯が減らない / 10: 世界 2・3 の負けにも情け・世界 2・3 の第 1〜3 夜 ×0.88・コンの身代わり（11/22）/ 2: 囲い / 3: 天の川の夜 / 4: 天の川と世界 2 の大一番（練習の周）の目標をゆるめた / 5: 練習の周の第 1〜3 夜は火が遅い / 7: 金魚すくいの金魚がゆっくり泳ぎ、筆先の近くで止まりかけ、少し大きくすくえる / 8: 世界 1 で負けたら次の挑戦の目標を下げる（情け）・練習の周の第 2 夜に福の神 / 9: 道で趣向を選ばなかった夜にも軽い趣向（夜ごとに中身が変わる）
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
@@ -355,7 +355,9 @@ function resumeRun() {
 // ------------------------------------------------------------------ 夜
 function startNight(resume = null) {
   hideKakeai(); hideSellPop(); hideNightCard();
-  const run = S.run, def = resume ? resume.def : Run.nightDef(run, +(q.get('w') || run.world), +(q.get('n') || run.night));
+  const run = S.run;
+  if (!resume && run && (run.rv || 1) < 12) { run.rv = 12; S.log = null; if (!window.HANABI_PG) try { localStorage.removeItem(LOGKEY); } catch { /* なくても遊べる */ } } /* 続きの周も、次の夜から版 12 の線に（その周は世界順位に送らない） */
+  const def = resume ? resume.def : Run.nightDef(run, +(q.get('w') || run.world), +(q.get('n') || run.night));
   if (q.get('twist')) def.twist = q.get('twist');
   if (q.get('intrude')) def.intrude = q.get('intrude');
   const W2 = Run.worldOf(def.world);
@@ -1723,6 +1725,7 @@ function floatText(x, y, text, cls = '', size = 22, life = 950) {
   }
   if (!isMsg && $('float').childElementCount > 14) return; // 数の飛び字は同時に 14 まで（大きな連鎖で何十個も作ると重い・読めない）
   const e = document.createElement('div'); e.className = 'pop ' + cls; e.textContent = text;
+  if (isMsg && life > 1200) e.style.animationDuration = life + 'ms'; /* 長く見せたい言葉は、見せる時間ずっと読めるように（.pop は 0.9 秒で消えていた） */
   e.style.left = ((x - (S.pan || 0)) / W) * 100 + '%'; e.style.top = ((y + (S.panY || 0)) / H) * 100 + '%'; e.style.fontSize = size * (innerHeight / H) + 'px';
   $('float').append(e); setTimeout(() => e.remove(), life);
 }
@@ -2011,6 +2014,19 @@ function handle(ev) {
     }
     case 'ignite': S.lastPop = R.time; audio.note(2, { vol: 0.14, dur: 0.25 }); fx.tick(ev.x, ev.y, [3, 1.8, 0.7], 26, 220); fx.light(ev.x, ev.y, 0.5, 300, [1, 0.6, 0.25], 6); break;
     case 'thread': {
+      // 11/23 依頼主「なぞったはずなのに消えない・制約が直感的にわかりづらい」: 線では燃えない玉（氷・順番ちがい）は、通した瞬間に鈍い音と短い理由
+      if (ev.block) {
+        const s = ev.shell, ice = ev.block === 'ice';
+        audio.note(1, { vol: 0.13, dur: 0.16, pan: panOf(s.x) }); buzz([10, 50, 10]);
+        fx.tick(s.x, s.y, ice ? [0.7, 1.1, 1.8] : [1.2, 1.2, 1.2], 14, 120);
+        const KN = ['一', '二', '三', '四', '五', '六', '七'], KM = ['壱', '弐', '参', '肆', '伍'];
+        const key = ev.block + (ev.want || 0);
+        if (S.blockSaid !== key || R.time - (S.blockSaidT || 0) > 2.5) {
+          S.blockSaid = key; S.blockSaidT = R.time; S.orderSaidT = performance.now();
+          floatText(s.x, s.y - 40, ice ? tr('氷は爆風でとかす', 'Melt ice with a blast') : ev.block === 'seiza' ? tr(`順番がちがう（次は ★${KN[ev.want - 1]}）`, `Wrong order (next: ★${ev.want})`) : tr(`順番がちがう（次は ${KM[ev.want - 1]}）`, `Wrong order (next: ${ev.want})`), 'gold', 24, 1500);
+        }
+        break;
+      }
       const s = ev.shell, n = ev.n, now = R.time;
       FEEL.flow = now - FEEL.flowT < 0.55 ? FEEL.flow + 1 : 1; FEEL.flowT = now;
       const fl = Math.min(FEEL.flow, 12), col = PALETTES[s.type]?.[1] || [1, 1, 0.8];
@@ -2061,7 +2077,7 @@ function handle(ev) {
     case 'taki': for (let i = 0; i < 6; i++) fx.add(ev.x + (Math.random() - 0.5) * 30, ev.y + Math.random() * 12, (Math.random() - 0.5) * 30, 120 + Math.random() * 240, 1.3, 2.4 + Math.random() * 1.6, 0.4, 420, [3, 2.4, 1.4], [1.6, 0.6, 0.2], 1.1); break;
     case 'takiEnd': break;
     case 'mojiStep': { const KN = ['壱', '弐', '参', '肆', '伍']; floatText(ev.x, ev.y - 46, tr(`字玉 ${KN[ev.n - 1]}（${ev.n}/${ev.need}）`, `Glyph ${ev.n}/${ev.need}`), 'gold', 24); audio.note(10 + ev.n * 2, { vol: 0.16, dur: 0.4 }); break; }
-    case 'mojiMiss': { const KN = ['壱', '弐', '参', '肆', '伍']; floatText(ev.x, ev.y - 46, tr(`順番がちがう（次は ${KN[ev.want - 1]}）`, `Wrong order (next: ${ev.want})`), 'gold', 22, 1500); break; }
+    case 'mojiMiss': { if (performance.now() - (S.orderSaidT || 0) < 6000) break; /* 通した時にもう知らせた */ const KN = ['壱', '弐', '参', '肆', '伍']; floatText(ev.x, ev.y - 46, tr(`順番がちがう（次は ${KN[ev.want - 1]}）`, `Wrong order (next: ${ev.want})`), 'gold', 22, 1500); break; }
     case 'mojiDone': { const m = mem(); m.sky = (m.sky || 0) + 1; if (m.sky >= 2 && m.sky <= 5) ev.kanji = Mem.SKY_KANA[m.sky - 2]; if (m.sky >= 5 && (m.lore || 0) >= 4) loreUp(5); save(); }
       techCall('moji'); skyKanji(ev.kanji); banner(`<b class="ik">${ev.kanji}</b><small>${tr('文字花火！ 倍率 ×2', 'Sky writing! MULT ×2')}</small>`, 110, 1900, 'ihen'); audio.boom(2.4, 0); R.flash = Math.max(R.flash, 0.5); $('cMult').textContent = fmtM(ev.mult); bump($('cMult')); break;
     case 'renStart': techCall('ren'); banner(`${tr('連発', 'STARMINE')}<small>${tr('16 発が次々に！', '16 shots incoming!')}</small>`, 64, 1400); audio.boom(2, 0); R.shake = 14; break;
@@ -2073,7 +2089,7 @@ function handle(ev) {
       if (ev.from) { const [fx0, fy0] = ev.from, n = 18; for (let i = 0; i <= n; i++) { const u = i / n; fx.add(fx0 + (ev.x - fx0) * u, fy0 + (ev.y - fy0) * u, 0, 0, 3.2, 2.6, 0, 0, [2.2, 2.6, 3.2], [0.8, 1.1, 1.8], 1.4); } } // 星座の線
       break;
     }
-    case 'seizaMiss': floatText(ev.x, ev.y - 46, tr(`順番がちがう（次は ★${['一', '二', '三', '四', '五', '六', '七'][ev.want - 1]}）`, `Wrong order (next: ★${ev.want})`), 'gold', 22, 1500); break;
+    case 'seizaMiss': if (performance.now() - (S.orderSaidT || 0) < 6000) break; floatText(ev.x, ev.y - 46, tr(`順番がちがう（次は ★${['一', '二', '三', '四', '五', '六', '七'][ev.want - 1]}）`, `Wrong order (next: ★${ev.want})`), 'gold', 22, 1500); break;
     case 'seizaDone': {
       const s6 = st.shells.find((s) => s.mod === 'seiza' && s.seq === 6), wr = ((st.level.world - 1) % 3) + 1;
       if (s6 && !st.level.endless) { const hx = s6.x + 26, hy = s6.y - 18;
