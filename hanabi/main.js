@@ -106,7 +106,8 @@ addEventListener('resize', resize);
 
 // ------------------------------------------------------------------ 画面の切りかえ
 const SCREENS = ['title', 'newrun', 'inter', 'over', 'pause', 'book', 'senko', 'rankScr'];
-function show(name) { for (const s of SCREENS) $(s).classList.toggle('hidden', s !== name); if (name !== 'none') { hideVeil(); /* 盤の上の題名は、ほかの画面を開いたら消す */ $('hand').classList.add('hidden'); S.guide = false; $('guide').classList.add('hidden'); $('guideRing').classList.add('hidden'); } } // 手本の指は遊んでいる間だけ（屋台に残っていた）
+function clearAch() { (S.achT || []).forEach(clearTimeout); S.achT = []; document.querySelectorAll('.achtoast').forEach((e) => e.remove()); }
+function show(name) { clearAch(); for (const s of SCREENS) $(s).classList.toggle('hidden', s !== name); if (name !== 'none') { hideVeil(); /* 盤の上の題名は、ほかの画面を開いたら消す */ $('hand').classList.add('hidden'); S.guide = false; $('guide').classList.add('hidden'); $('guideRing').classList.add('hidden'); } } // 手本の指は遊んでいる間だけ（屋台に残っていた）
 
 function toTitle() {
   PF.stop();
@@ -122,9 +123,9 @@ function toTitle() {
     if (r) { const wn = Run.worldOf(r.world), where = r.shopState?.sh && r.shopAt === `${r.world}-${r.night}` ? tr(`第 ${r.night} 夜のあとの屋台`, `stalls after night ${r.night}`) : tr(`第 ${r.night} 夜${r.inNight?.used ? 'の途中' : ''}`, `night ${r.night}${r.inNight?.used ? ' (in progress)' : ''}`);
       ci.innerHTML = (S.savedNote ? `<b>${tr('保存しました。', 'Saved. ')}</b>` : '') + tr(`続き：${JA() ? wn.ja : wn.en} ${where}`, `Continue: ${wn.en}, ${where}`); S.savedNote = 0; } }
   const m = $('titleMenu'); m.innerHTML = '';
-  const add = (t, f) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { audio.unlock(); audio.ui('tap'); f(); }; m.append(b); };
-  if (DB.meta.runs > 0 || DB.run) add(tr('新しい祭り', 'New Run'), openNewRun);
-  if (DB.meta.runs > 0) add(tr('今日の祭り', 'Daily'), startDaily);
+  const add = (t, f, sub) => { const b = document.createElement('button'); b.textContent = t; if (sub) { const sm = document.createElement('small'); sm.className = 'msub'; sm.textContent = sub; b.append(sm); } b.onclick = () => { audio.unlock(); audio.ui('tap'); f(); }; m.append(b); };
+  if (DB.meta.runs > 0 || DB.run) add(tr('新しい祭り', 'New Run'), openNewRun, DB.run ? tr('今の続きをやめて、第 1 夜から', 'Drop this run, start from night 1') : tr('第 1 夜から、はじめる', 'Start from night 1'));
+  if (DB.meta.runs > 0) add(tr('今日の祭り', 'Daily'), startDaily, tr('今日だけの同じ盤。みんなと点をくらべる', "Today's board, same for everyone"));
   if (S.rankOk) add(tr('世界ランキング', 'World Ranking'), () => openRank(DB.run?.daily ? 'daily' : 'daily'));
   else if (PF.lbType() === 'in_game') add(tr('ランキング', 'Leaderboard'), openPgRank);
   else if (PF.lbType() === 'native_popup') add(tr('ランキング', 'Leaderboard'), () => PF.lbPopup());
@@ -136,11 +137,29 @@ function toTitle() {
   add(tr(`音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`), () => { DB.sound = !DB.sound; DB.music = DB.sound; applySound(); save(); toTitle(); });
   add(tr('設定', 'Settings'), () => openSettings('title'));
   add(JA() ? 'English' : '日本語', () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); toTitle(); });
+  add(tr('おわる', 'Quit'), sayBye);
   audio.scene('calm');
 }
 // 題名画面で音がまだ止まっている間だけ出す（ブラウザは、画面に一度触れるまで音を出させない）。どこに触れても鳴り始める
-setInterval(() => { const e = $('sndHint'); if (!e) return; const need = S.mode === 'title' && DB.sound && !(audio.ctx && audio.ctx.state === 'running'); e.textContent = tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); e.classList.toggle('hidden', !need); }, 400);
+setInterval(() => { { const off = DB.sound && !PF.muted && !S.adPause && S.adEnd && performance.now() - S.adEnd > 2500 && S.mode !== 'title' && audio.ctx && audio.ctx.state !== 'running'; let h = $('sndHint2'); if (off && !h) { h = document.createElement('div'); h.id = 'sndHint2'; h.className = 'sndhint2'; document.body.append(h); } if (h) { h.textContent = tr('♪ 画面に触れると音が戻ります', '♪ Tap to bring the sound back'); h.classList.toggle('hidden', !off); } }
+  const e = $('sndHint'); if (!e) return; const need = S.mode === 'title' && DB.sound && !(audio.ctx && audio.ctx.state === 'running'); e.textContent = tr('♪ 画面に触れると音が出ます', '♪ Tap anywhere for sound'); e.classList.toggle('hidden', !need); }, 400);
 
+// 題名画面の「おわる」（11/23 依頼主「タイトル画面に終わるがない。終わるときに灯にしゃべってほしい」）。ブラウザの遊びは窓を閉じられないので、保存して灯のお別れを見せる
+const BYE = {
+  cont: ['続きは、ちゃんと取っておくね。……また、火をつけに来て', "I'll keep your place. ...Come back and light the fire again."],
+  many: ['今夜もありがとう。次の夏も、ここで待ってる', "Thank you for tonight. I'll be waiting here next summer, too."],
+  first: ['もう帰るの？ ……うん、またね。花火、見に来てね', 'Leaving already? ...Okay. See you. Come watch the fireworks.'],
+};
+function sayBye() {
+  save(); PF.ev('bye', { run: DB.run ? 1 : 0 }); PF.stop();
+  const k = DB.run ? 'cont' : (mem().nights || 0) >= 8 ? 'many' : 'first', text = JA() ? BYE[k][0] : BYE[k][1];
+  let el = $('bye'); if (!el) { el = document.createElement('div'); el.id = 'bye'; el.className = 'bye hidden'; document.body.append(el); }
+  el.lang = JA() ? 'ja' : 'en';
+  el.innerHTML = `<img class="bye-stand" src="tale/img/akari_stand.webp" alt=""><div class="bye-box"><b>${tr('灯', 'Akari')}</b><p></p><small>${tr('遊んだところまで保存しました', 'Your progress is saved')}</small><button class="btn2" id="byeBack">${tr('タイトルへ', 'Back to title')}</button></div>`;
+  el.querySelector('p').textContent = text; el.classList.remove('hidden');
+  talePlay('akari', text);
+  $('byeBack').onclick = () => { audio.ui('tap'); taleVoice?.pause(); el.classList.add('hidden'); };
+}
 function openNewRun() {
   show('newrun');
   $('nrTitle').textContent = tr('導火線をえらぶ', 'Choose your fuse');
@@ -191,8 +210,8 @@ function openBook() {
     const th = document.createElement('div'); th.className = 'bookhead'; th.textContent = tr(`点を伸ばす技 ${got} / ${TECHS.length}`, `Scoring techniques ${got} / ${TECHS.length}`); list.prepend(th);
     { const n = Math.max(0, Math.min(4, (mem().sky || 0) - 1)); if (n > 0) { const sk = document.createElement('div'); sk.className = 'bookhead skyword'; sk.textContent = tr('空の字　', 'Sky letters  ') + Mem.SKY_KANA.map((c, i) => (i < n ? c : '＿')).join(' '); th.before(sk); } }
     let after = th;
-    for (const t of TECHS) { const n = tq[t[0]] || 0, e = document.createElement('div'); e.className = 'bookitem ach' + (n ? '' : ' locked');
-      e.innerHTML = `<span class="seal">${n ? '技' : '・'}</span><div><b>${n ? (JA() ? t[1] : t[2]) : '？？？'}${n ? `<small class="cnt">${tr(`${n} 回`, `×${n}`)}</small>` : ''}</b>${tr('やり方：', 'How: ')}${JA() ? t[3] : t[4]}<br>${tr('効き目：', 'Effect: ')}${JA() ? t[5] : t[6]}</div>`;
+    for (const t of TECHS) { const n = tq[t[0]] || 0, e = document.createElement('div'); e.className = 'bookitem ach' + (n ? '' : ' locked'); e.onclick = () => e.classList.toggle('open');
+      e.innerHTML = `<span class="seal">${n ? '技' : '・'}</span><div><b>${n ? (JA() ? t[1] : t[2]) : '？？？'}${n ? `<small class="cnt">${tr(`${n} 回`, `×${n}`)}</small>` : ''}</b><span class="bd">${tr('やり方：', 'How: ')}${JA() ? t[3] : t[4]}<br>${tr('効き目：', 'Effect: ')}${JA() ? t[5] : t[6]}</span></div>`;
       after.after(e); after = e; } }
   // 妖怪図鑑: 会った妖怪は絵・名前・ひと言・勝ち負け。まだなら影と、どこで会えるか
   { const y = ykRec(), nodes = [], zh = document.createElement('div'); zh.className = 'bookhead'; zh.textContent = tr(`妖怪図鑑 ${ykCount()} / ${ZUKAN.length}`, `Yokai Book ${ykCount()} / ${ZUKAN.length}`); nodes.push(zh);
@@ -213,9 +232,10 @@ function openBook() {
     nodes.push(ch); list.prepend(...nodes); }
   // 灯の物語: 読んだ頁（情景とかけあい。灯とコンの行は押すと声）。まだの頁は数だけ
   { const T = taleRec(), th = document.createElement('div'); th.className = 'bookhead'; th.textContent = tr(`灯の物語 ${T.n} / ${TALE_N}`, `Akari's Story ${T.n} / ${TALE_N}`); const nodes = [th];
-    TALE.slice(0, T.n).forEach((p, i) => { const e = document.createElement('div'); e.className = 'bookitem tl';
-      e.innerHTML = `<div><b>${i + 1}. ${JA() ? p.scene.ja : p.scene.en}</b></div>`;
-      for (const ln of p.lines) { const r = document.createElement('div'); r.className = 'bkln ' + ln.w; r.innerHTML = `<i>${taleLineName(ln.w, p, taleCast({ who: ln.w, gate: p.gate, w: p.w }))}</i>${JA() ? ln.ja : ln.en}`; if (VOICED.has(ln.w)) r.onclick = (ev) => { ev.stopPropagation(); talePlay(ln.w, JA() ? ln.ja : ln.en); }; e.firstChild.append(r); }
+    // 11/23 依頼主「妖怪図鑑の最初が文字ばっかりで汚い」: 読んだ頁は番号と情景の 1 行だけ。押すと、その頁を声つきで読み返す
+    TALE.slice(0, T.n).forEach((p, i) => { const e = document.createElement('button'); e.className = 'bookitem tl';
+      e.innerHTML = `<span class="seal">${i + 1}</span><div><b>${JA() ? p.scene.ja : p.scene.en}</b><small>${tr('▶ 読み返す', '▶ Read again')}</small></div>`;
+      e.onclick = () => { audio.ui('tap'); openTale(p, null, { review: true }); };
       nodes.push(e); });
     if (T.n < TALE_N) { const e = document.createElement('div'); e.className = 'bookitem locked'; e.innerHTML = `<span class="seal">・</span><div><b>？？？</b>${taleHint() || tr('夜を越えると、続きが読める', 'Clear a night to read on')}</div>`; nodes.push(e); }
     list.prepend(...nodes); }
@@ -234,7 +254,7 @@ function openBook() {
   const h = document.createElement('div'); h.className = 'bookhead'; h.textContent = tr(`実績 ${n} / ${ACHIEVEMENTS.length}`, `Achievements ${n} / ${ACHIEVEMENTS.length}`); list.append(h);
   for (const a of ACHIEVEMENTS) {
     const e = document.createElement('div'); e.className = 'bookitem ach' + (got[a.id] ? '' : ' locked');
-    e.innerHTML = `<span class="seal">${got[a.id] ? '★' : '☆'}</span><div><b>${JA() ? a.ja : a.en}</b>${JA() ? a.dj : a.de}</div>`;
+    e.innerHTML = `<span class="seal">${got[a.id] ? '★' : '☆'}</span><div><b>${JA() ? a.ja : a.en}</b><span class="bd">${JA() ? a.dj : a.de}</span></div>`; e.onclick = () => e.classList.toggle('open');
     list.append(e);
   }
 }
@@ -264,7 +284,7 @@ $('playBtn').onclick = () => {
 // 屋台でやめていたら、同じ屋台を開き直す（前の夜の結果の欄は「続きから」だけ）
 function reopenShop() {
   const run = S.run, k = run.shopState;
-  S.mode = 'inter'; show('inter'); $('hud').classList.add('hidden'); hideTip();
+  S.mode = 'inter'; $('float').querySelectorAll('.banner').forEach((o) => o.remove()); show('inter'); /* 屋台を開いたら「勝 利」などの大きな字を消す（屋台の題に重なって残っていた） */ $('hud').classList.add('hidden'); hideTip();
   S.sh = k.sh; S.route = k.route || Run.routeChoices(run); S.routeSel = k.sel || 0; S.giftInShop = !!k.gift; S.toraLine = k.tora || ''; S.shopBought = !!k.bought; S.shopNudged = !!k.nudged; S.mapPeek = null; S.rec = null;
   $('resTitle').textContent = tr(`第 ${run.night} 夜のあと（続きから）`, `After night ${run.night} (continued)`);
   $('resStars').innerHTML = ''; $('resScore').textContent = ''; $('ledger').innerHTML = ''; $('techSum') && ($('techSum').innerHTML = '');
@@ -302,7 +322,7 @@ function resumeRun() {
 
 // ------------------------------------------------------------------ 夜
 function startNight(resume = null) {
-  hideKakeai(); hideSellPop();
+  hideKakeai(); hideSellPop(); hideNightCard();
   const run = S.run, def = resume ? resume.def : Run.nightDef(run, +(q.get('w') || run.world), +(q.get('n') || run.night));
   if (q.get('twist')) def.twist = q.get('twist');
   if (q.get('intrude')) def.intrude = q.get('intrude');
@@ -365,14 +385,15 @@ function startNight(resume = null) {
     if (resume) slam(); else { document.body.classList.add('veil'); audio.duck(1.3, 0.12); audio.note(0, { vol: 0.12, dur: 0.9 }); setTimeout(slam, 900); }
   } else {
     boss.classList.add('hidden');
-    if (nodeT) banner(`${JA() ? nodeT.ja : nodeT.en}<small>${tw ? (JA() ? tw.ja : tw.en) + ' ・ ' : ''}${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}<br>${JA() ? nodeT.dj : nodeT.de}</small>`, 60, 2400);
+    if (nodeT) banner(`${JA() ? nodeT.ja : nodeT.en}<small>${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}</small>`, 60, 2200);
     else if (tw) banner(`${def.twistHide ? tr('今夜の正体は…', 'Tonight is…') + '<br>' : ''}${JA() ? tw.ja : tw.en}`, 64, 1500);
     else if (def.night === 1 && S.tveil) { /* 題名を重ねている */ }
     else if (def.night === 1) banner(`${JA() ? W2.ja : W2.en}<small>${tr(`第 1 夜 ― 目標 ${fmt(def.target)}`, `Night 1 — Target ${fmt(def.target)}`)}</small>`, 54, 2200);
     else banner(`${tr(`第 ${def.night} 夜`, `Night ${def.night}`)}<small>${tr(`目標 ${fmt(def.target)}`, `Target ${fmt(def.target)}`)}${raidLeft(def) ? tr(` ・ 大妖怪まで あと ${raidLeft(def)} 夜`, ` · ${raidLeft(def)} nights to the great yokai`) : ''}</small>`, 54, 1600);
   }
   teachFor(def);
-  if (tw && $('teach').classList.contains('hidden')) { const el = $('teach'); el.innerHTML = `<em>${JA() ? tw.ja : tw.en}</em> ${JA() ? tw.dj : tw.de}`; el.classList.remove('hidden'); }
+  if (tw && def.twistHide && $('teach').classList.contains('hidden')) { const el = $('teach'); el.innerHTML = `<em>${JA() ? tw.ja : tw.en}</em> ${JA() ? tw.dj : tw.de}`; el.classList.remove('hidden'); } // 見えている趣向は札で言うので、帯ではくり返さない
+  preNextTalk(def);
   audio.scene('calm');
 }
 function renderLives() { const r = S.run, el = $('lives'); el.dataset.name = lore() >= 1 || taleRec().n >= 1 ? tr('灯', 'Akari') : ''; el.innerHTML = ''; const max = Math.max(r.lives, r.rank >= 6 ? 1 : r.rank >= 4 ? 2 : 3); for (let i = 0; i < max; i++) { const b = document.createElement('i'); if (i >= r.lives) b.className = 'out'; el.append(b); }
@@ -381,17 +402,17 @@ function renderLives() { const r = S.run, el = $('lives'); el.dataset.name = lor
 // 腕の欄: 星の値（星屑 1 粒の値）と、かすりの数
 function renderTech(bumpPv) {
   const st = S.st; if (!st) return;
-  $('tPv').textContent = fmtM(st.pv); $('tGrL').textContent = tr('かすり', 'Graze'); $('tGr').textContent = st.graze;
-  $('tPv').previousElementSibling.textContent = (innerWidth < 520 ? tr('星屑', 'Dust') : tr('星屑の値', 'Dust value')) + ' ';
+  setT($('tPv'), String(fmtM(st.pv))); setT($('tGrL'), tr('かすり', 'Graze')); setT($('tGr'), String(st.graze));
+  setT($('tPv').previousElementSibling, (innerWidth < 520 ? tr('星屑', 'Dust') : tr('星屑の値', 'Dust value')) + ' ');
   if (bumpPv) bump($('tPv').parentElement);
 }
-function renderStreak(up) { const n = S.st?.streak || 0, el = $('streak'); el.textContent = n > 0 ? tr(`連続満開 ${n}（次は ×${S.st.m.bloomX + Math.min(6, n)}）`, `Bloom streak ${n} (next ×${S.st.m.bloomX + Math.min(6, n)})`) : ''; if (up) { el.classList.remove('up'); void el.offsetWidth; el.classList.add('up'); } }
+function renderStreak(up) { const n = S.st?.streak || 0, el = $('streak'); el.textContent = n > 0 ? tr(`連続満開 ${n}（次は ×${S.st.m.bloomX + Math.min(6, n)}）`, `Bloom streak ${n} (next ×${S.st.m.bloomX + Math.min(6, n)})`) : ''; if (up) { restartAnim(el, 'up'); } }
 // 大妖怪（各世界の最後の夜）の名前
 const RAID_NAME = { kamaitachi: ['大鎌鼬', 'Great Kamaitachi'], tengu: ['大天狗', 'Great Tengu'], yukionna: ['雪女郎', 'Snow Matriarch'], kitsune: ['九尾', 'Nine-Tails'], tanuki: ['大狸', 'Great Tanuki'], yamabiko: ['大山彦', 'Great Yamabiko'] };
 const raidName = (def) => { const n = RAID_NAME[def?.raid?.cast] || ['大妖怪', 'Great Yokai']; return JA() ? n[0] : n[1]; };
 function drawBoss(id, face) {
   const c = $('boss'), g = c.getContext('2d'); g.clearRect(0, 0, 280, 280);
-  try { drawCast(g, id, 140, 150, 190, { face, still: true, glow: true }); } catch { /* 絵が無くても遊べる */ }
+  try { drawCast(g, id, 140, 150, 190, { face, still: true, glow: true, tails: id === 'kitsune' && S.st?.level?.raid ? 9 : 1 }); } catch { /* 絵が無くても遊べる */ }
 }
 function raidIntro(def, run, resume) {
   const st = S.st, Rd = st.raid; $('boss').classList.add('hidden');
@@ -438,7 +459,7 @@ function drawRaid(dt) {
     ag.addColorStop(0, `rgba(160,20,60,${0.55 * al})`); ag.addColorStop(0.6, `rgba(90,10,50,${0.28 * al})`); ag.addColorStop(1, 'rgba(40,0,30,0)');
     g.fillStyle = ag; g.beginPath(); g.arc(bx, by, r * 1.6 * pulse * sc, 0, 7); g.fill();
     g.save(); g.globalAlpha = al;
-    try { drawCast(g, Rd && def0()?.raid?.cast, bx, by + r * 0.16, r * 2.5 * sc * (1 + lunge * 0.45) * (1 - V.flash * 0.06), { face: V.face, t, still: false, glow: true }); } catch { /* 絵が無くても戦える */ }
+    try { drawCast(g, Rd && def0()?.raid?.cast, bx, by + r * 0.16, r * 2.5 * sc * (1 + lunge * 0.45) * (1 - V.flash * 0.06), { face: V.face, t, still: false, glow: true, tails: def0()?.raid?.cast === 'kitsune' ? 9 : 1 }); } catch { /* 絵が無くても戦える */ }
     g.restore();
     if (V.flash > 0) { g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,240,220,${V.flash * 0.45})`; g.beginPath(); g.arc(bx, by, r * 1.05, 0, 7); g.fill(); g.restore(); }
   }
@@ -615,6 +636,7 @@ function renderBags() {
   const el = $('bags'); el.innerHTML = '';
   for (const id of S.run.charms) { const c = CHARM_BY_ID[id]; if (c) el.append(bagEl(c)); }
   $('hudCoins').innerHTML = `<span class="coin"></span>${S.run.coins + (S.st?.coinsEarned || 0)}`;
+  $('engi').style.setProperty('--engiL', (14 + el.offsetWidth + (el.childElementCount ? 14 : 0)) + 'px'); // 札は袋の右（11/23 依頼主「左下の札と花火が重なる」）
 }
 // お守りの説明 + いまの育ち（育つお守り）
 function charmDesc(c, grow = S.run?.grow) {
@@ -645,12 +667,14 @@ function achCheck(extra = {}) {
     fusesOpen: Run.FUSES.every((f) => Run.fuseOpen(f, meta)),
     bookFull: Run.unlockedCharms(meta).size >= CHARMS.length,
   });
-  got.forEach((a, i) => setTimeout(() => achToast(a), 500 + i * 2000)); // 1 枚ずつ（重ねない）
+  // 11/23 依頼主「実績が画面が変わったあとも出続けるのが冗長」: 夜を越えた時の実績は屋台の結果の欄に 1 行で並べる
+  if (extra.quiet) { if (got.length) (S.achPend ||= []).push(...got); return got; }
+  S.achT ||= []; got.forEach((a, i) => S.achT.push(setTimeout(() => achToast(a), 400 + i * 1600))); // 1 枚ずつ（重ねない）
   return got;
 }
 function achToast(a) {
-  if (!$('revive').classList.contains('hidden')) { setTimeout(() => achToast(a), 1200); return; }
-  const e = document.createElement('div'); e.className = 'achtoast';
+  if (!$('revive').classList.contains('hidden')) { (S.achT ||= []).push(setTimeout(() => achToast(a), 1200)); return; } /* 画面が変わったら取り消せるように */
+  const e = document.createElement('div'); e.className = 'achtoast ' + (S.mode === 'play' || S.mode === 'retry' ? 'inplay' : 'onpanel');
   e.innerHTML = `<small>${tr('実績', 'Achievement')}</small><b>${JA() ? a.ja : a.en}</b>`;
   document.body.append(e); audio.note(17, { vol: 0.15, dur: 0.5 }); setTimeout(() => audio.note(20, { vol: 0.14, dur: 0.6 }), 90);
   setTimeout(() => e.remove(), 1900);
@@ -679,7 +703,7 @@ function nightEnded() {
   if (def.boss) track(`boss/${bossKey(def)}/win`);
   const stars = R2.stars, rw = R2.rw, interest = R2.interest, gain = R2.gain;
   if (R2.engi) S.gotEngi = R2.engi; S.gotFuku = R2.fuku || null;
-  achCheck({ stars });
+  achCheck({ stars, quiet: true });
   DB.meta.taught.draw = 1;
   // 屋台: ふつうの品・買い戻し・大勝負のほうび・縁日の取り引き（手続きは run.js。確かめ役も同じものを通る）
   S.sh = Run.openShop(run, Run.unlockedCharms(DB.meta)); S.giftInShop = false;
@@ -731,12 +755,12 @@ function openInter(def, st, stars, rw, interest, gain) {
   const run = S.run;
   // はじめての周の第 1 夜のあとは、結果と「次の夜へ」だけ（11/17: 第 1 夜を越えてすぐ帰る人が多い。15 秒遊んだだけで 6 品・引き直し・地図は重い）。屋台は第 2 夜のあとから
   const lite = (DB.meta.runs || 0) === 0 && !run.daily && def.world === 1 && def.night === 1 && !DB.meta.taught.shop; S.interLite = lite;
-  S.mode = 'inter'; show('inter'); $('inter').classList.toggle('lite', lite); $('hud').classList.add('hidden'); hideTip(); if (!lite) DB.meta.taught.shop = 1;
+  S.mode = 'inter'; $('float').querySelectorAll('.banner').forEach((o) => o.remove()); show('inter'); /* 屋台を開いたら「勝 利」などの大きな字を消す（屋台の題に重なって残っていた） */ $('inter').classList.toggle('lite', lite); $('hud').classList.add('hidden'); hideTip(); if (!lite) DB.meta.taught.shop = 1;
   $('resTitle').textContent = def.raid ? tr(`${raidName(def)}、討ち取った！`, `${raidName(def)} Defeated!`) : def.boss ? tr('大一番、勝利！', 'Boss Defeated!') : tr(`第 ${def.night} 夜 大成功`, `Night ${def.night} Clear`);
   const sEl = $('resStars'); sEl.innerHTML = '<span>★</span><span>★</span><span>★</span>';
   [...sEl.children].forEach((c, i) => { if (i < stars) setTimeout(() => { c.classList.add('on'); audio.note(12 + i * 2, { vol: 0.18, dur: 0.5 }); }, 200 + i * 220); });
   $('resScore').textContent = fmt(st.score);
-  renderTechSum(st);
+  renderTechSum(st); renderAchLine(); renderTip(st, lite);
   const rows = [[def.boss ? tr('大一番のごほうび', 'Boss bonus') : tr('今夜のごほうび', 'Night bonus'), rw.base], [tr('残った筆', 'Strokes left'), rw.left], [tr('星', 'Stars'), rw.star], [tr('お守りと玉', 'Charms & shells'), rw.earned], [tr('趣向の上乗せ', 'Twist bonus'), rw.twist], [tr('利息', 'Interest'), interest]].filter((r) => r[1] > 0);
   // 11/21 依頼主「毎夜の結果は文字が多すぎ」: 内訳の行をやめて「小判 +N」の 1 行に（内訳は指したときの title だけ）
   { const sum = rows.reduce((a, r) => a + r[1], 0); $('ledger').innerHTML = sum ? `<div class="sum" title="${rows.map(([a, b]) => `${a} +${b}`).join(' / ')}"><span>${tr('小判', 'Coins')}</span><b>+${sum}</b></div>` : ''; }
@@ -754,10 +778,36 @@ function openInter(def, st, stars, rw, interest, gain) {
   { const T = taleRec(), tp = run.endless || !talkOn() ? null : nextPage(T.n, T.g, def.world, { nights: mem().nights || 0, last: T.last || 0 });
     const tp2 = tp && pageWorld(T.n + 1) < def.world ? nextPage(T.n + 1, T.g, def.world) : null;
     const after = () => { if (lite && S.mode === 'inter') autoNext(4); };
-    if (tp) openTale(tp, () => (tp2 && S.mode === 'inter' && talkOn() ? openTale(tp2, after, { delay: 200 }) : after()), { delay: def.boss ? 300 : 500 });
+    preTale(tp); preTale(tp2);
+    if (tp) openTale(tp, () => (tp2 && S.mode === 'inter' && talkOn() ? openTale(tp2, after, { delay: 200 }) : after()), { delay: def.boss ? 200 : 120 });
     else { if (lite) autoNext(4); if (talkOn() && !run.endless && T.n >= 1) showKakeai(def.world); } } // 11/19: 30 秒以上遊んだ人の 4 割が 1〜2 分で帰る（第 1 夜のあとの「次の夜へ」で止まる）
   countUp($('purse'), run.coins - gain, run.coins, 0.35 + rows.length * 0.09);
   audio.ui('win'); if (!def.boss) audio.scene('calm');
+}
+// 夜を越えた時の実績（屋台の結果の欄に 1 行）
+function renderAchLine() {
+  let el = $('achLine'); if (!el) { el = document.createElement('div'); el.id = 'achLine'; el.className = 'achline'; $('techSum').after(el); }
+  const a = S.achPend || []; S.achPend = [];
+  el.innerHTML = a.length ? `<small>${tr('実績', 'Achievement')}</small>${a.map((x) => `<b>${esc(JA() ? x.ja : x.en)}</b>`).join('・')}` : '';
+  if (a.length) audio.note(17, { vol: 0.13, dur: 0.45 });
+}
+// 高得点のコツ（11/23 依頼主「点数の仕組みがわかりにくい。冗長にならないように簡潔に」）: 今夜まだ使っていない、いちばん効く手を 1 行だけ。同じコツは 2 回まで
+function scoreTip(st) {
+  const T = (DB.meta.tips ||= {});
+  const c = [
+    ['heat', (st.topHeat || 0) < 1, tr('火を引きつけるほど「熱」：点 ×2〜×4', 'Let the flame get close: HOT = POINTS ×2–×4')],
+    ['mikiri', !st.mikiri, tr('熱いうちに自分で離すと「見切り」：倍率 +1', "Let go while it's hot (Close Call): +1 MULT")],
+    ['bloom', !st.blooms, tr('一筆で全部ひらくと「満開」：倍率 ×2', 'Open every shell in one stroke (Full Bloom): MULT ×2')],
+    ['tsugi', !st.tsugiBest && !!DB.meta.taught.tsugi, tr('離した所の輪から次を引くと、倍率を持ちこめる', 'Start in the ring you left: keep your MULT')],
+    ['gold', true, tr('金の玉は倍率 +1。一筆の早いうちに通す', 'Gold shells give +1 MULT. Thread them early')],
+  ];
+  const t = c.find(([k, on]) => on && (T[k] || 0) < 2); if (!t) return '';
+  T[t[0]] = (T[t[0]] || 0) + 1; save(); return t[2];
+}
+function renderTip(st, lite) {
+  let el = $('tipLine'); if (!el) { el = document.createElement('div'); el.id = 'tipLine'; el.className = 'tipline'; ($('achLine') || $('techSum')).after(el); }
+  const t = lite || S.run?.daily ? '' : scoreTip(st);
+  el.innerHTML = t ? `<b>${tr('コツ', 'TIP')}</b>${t}` : '';
 }
 // 夜の腕前: かすり・星屑・見切り・継ぎ火・技。提灯が増えたら一番前に
 function renderTechSum(st) {
@@ -811,7 +861,7 @@ function toraSay(html, face = 'joy', who = 'neko') {
     const g = toraEl.querySelector('canvas').getContext('2d'); g.clearRect(0, 0, 140, 140);
     try { drawCast(g, who, 70, 76, 96, { face, still: true, glow: false }); } catch { /* 絵が無くても読める */ }
   }
-  toraEl.classList.remove('hidden');
+  toraEl.classList.remove('hidden'); document.body.classList.add('toraOn'); // しゃべっている間は「残り N 玉で満開」を隠す（下の真ん中で重なっていた）
 }
 // 妖怪図鑑（11/21）: DB.meta.yk = { 妖怪: { m: 出会った, w: 勝った, l: 負けた } }。前からの記録（技帳・大一番で負けた回数）からも出会いを起こす
 const ZUKAN = ['neko', 'kamaitachi', 'tengu', 'yukionna', 'kitsune', 'tanuki', 'yamabiko'];
@@ -826,12 +876,13 @@ function ykMeet(id, delay = 2600) {
   if (!id || !CAST[id]) return; const y = ykRec(); if (y[id]?.m) return;
   y[id] = { m: 1, w: 0, l: 0 }; save();
   const c = CAST[id], n = ykCount(); PF.ev('zukan', { id, n });
-  setTimeout(() => {
-    const e = document.createElement('div'); e.className = 'achtoast zukan';
+  S.achT ||= []; S.achT.push(setTimeout(() => {
+    if (S.mode !== 'play' && S.mode !== 'retry') return; // 夜が先に終わったら出さない（屋台に残っていた。図鑑には載っている）
+    const e = document.createElement('div'); e.className = 'achtoast zukan inplay';
     e.innerHTML = `<small>${tr(`妖怪図鑑に載った　${n} / ${ZUKAN.length}`, `New in the Yokai Book  ${n} / ${ZUKAN.length}`)}</small><b>${JA() ? `${c.ja}の${c.name}` : `${c.nameEn} the ${c.en}`}</b>`;
     document.body.append(e); audio.note(15, { vol: 0.15, dur: 0.5 }); setTimeout(() => audio.note(19, { vol: 0.14, dur: 0.7 }), 110);
     setTimeout(() => e.remove(), 2800);
-  }, delay);
+  }, delay));
 }
 function ykResult(def, res) {
   const id = def.rule && (def.boss || def.raid) && Run.RULES[def.rule]?.cast; if (!id) return;
@@ -847,9 +898,10 @@ function guestPop(def) {
   const c = id && CAST[id]; if (!c) return;
   const say = JA() ? c.say : (c.sayEn || c.say), line = kind === 'taunt' ? say.taunt[(def.night + S.run.seed) % say.taunt.length] : say.friend;
   const note = kind === 'taunt' ? tr('次の大一番の相手', 'Your next boss') : tr('大一番で倒した妖怪が、応援に来た', 'The yokai you beat came to cheer you on');
-  setTimeout(() => { if (S.st?.level === def && S.mode === 'play' && !S.coach) { toraSay(`<b>${JA() ? c.name : c.nameEn}</b>${line}<small>${note}</small>`, kind === 'taunt' ? 'taunt' : 'joy', id); S.toraT = 3.6; ykMeet(id, 3900); } }, 900);
+  const go = () => { if (document.body.classList.contains('ncOn')) { setTimeout(go, 400); return; } if (S.st?.level === def && S.mode === 'play' && !S.coach) { toraSay(`<b>${JA() ? c.name : c.nameEn}</b>${line}<small>${note}</small>`, kind === 'taunt' ? 'taunt' : 'joy', id); S.toraT = 3.6; ykMeet(id, 3900); } };
+  setTimeout(go, 900);
 }
-function toraHide() { if (toraEl) { toraEl.classList.add('hidden'); toraEl.dataset.t = ''; } }
+function toraHide() { document.body.classList.remove('toraOn'); if (toraEl) { toraEl.classList.add('hidden'); toraEl.dataset.t = ''; } }
 function coachLine() {
   const st = S.st, name = `<b>${tr('トラ', 'Tora')}</b>`; if (!st) return '';
   let t;
@@ -926,7 +978,9 @@ function pvTag(i) {
   const best = Math.max(...Object.values(S.preview)), pct = Math.round(v * 100);
   const cls = pct >= 1 ? 'up' : pct <= -1 ? 'down' : 'flat';
   if (!(v === best && pct >= 5)) return ''; // 文字を減らす（11/17）: 効く 1 枚にだけ「おすすめ」
-  return `<span class="pvt ${cls} best">${tr(`おすすめ +${pct}%`, `Best +${pct}%`)}</span>`;
+  // 11/23 依頼主「おすすめが 2 回・100% より上の数字がバグに見える」: 2 倍を超えたら「点 ×2.4」の形で言う
+  const x = Math.min(9.9, 1 + v).toFixed(1), txt = pct <= 100 ? tr(`おすすめ +${pct}%`, `Best +${pct}%`) : tr(`おすすめ 点×${x}`, `Best ×${x} pts`);
+  return `<span class="pvt ${cls} best">${txt}</span>`;
 }
 function renderShop() {
   const run = S.run, wrap = $('cards'); wrap.innerHTML = ''; wrap.classList.toggle('many', S.sh.items.filter((x) => !x.gift || S.giftInShop).length > 6);
@@ -937,6 +991,8 @@ function renderShop() {
     if (it.gift && (S.sh.giftTaken || !S.giftInShop)) return;
     if (S.sh.sold.includes(i)) { b.classList.add('sold'); wrap.append(b); return; }
     if (it.cost > run.coins) b.classList.add('cant');
+    else if ((it.kind === 'charm' || it.kind === 'trade') && !it.gift && run.charms.includes(it.id)) { b.classList.add('full'); b.dataset.full = tr('もう持っている', 'Already held'); }
+    else if ((it.kind === 'charm' || it.kind === 'trade') && !it.gift && run.charms.length >= run.slots) { b.classList.add('full'); b.dataset.full = tr('袋がいっぱい・売ると買える', 'Bag full: sell one first'); }
     if (it.kind === 'charm' || it.kind === 'trade') {
       const c = CHARM_BY_ID[it.id]; if (c.rar !== 'c') b.classList.add(c.rar);
       const art = document.createElement('div'); art.className = 'art'; const cv = document.createElement('canvas'); cv.width = 120; cv.height = 150; drawBag(cv, c); art.append(cv);
@@ -972,7 +1028,7 @@ function renderShop() {
       b.append(art);
       b.insertAdjacentHTML('beforeend', `<span class="nm">${sn} Lv${lv + 1}</span><span class="ds">${it.id === 'kin' ? tr('金の玉の倍率 +1（いま +' + (1 + lv) + '）', 'Gold MULT +1 (now +' + (1 + lv) + ')') : tr(`この玉の点 +${Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))}（いま ${G.SHELLS[it.id].pts + lv * Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))}）`, `+${Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))} POINTS (now ${G.SHELLS[it.id].pts + lv * Math.max(5, Math.round(G.SHELLS[it.id].pts * 0.5))})`)}</span>${pvTag(i)}<span class="pr"><i class="coin"></i>${it.cost}</span>`);
     }
-    b.onclick = () => { if (it.cost > run.coins) { audio.note(1, { vol: 0.1, dur: 0.2 }); return; } if (it.kind === 'trade' && run.lives < 2) { toast(tr('灯が 2 つ以上いる', 'Needs 2+ lights')); return; } if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.includes(it.id)) { toast(tr('もう持っている', 'Already held')); return; } if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.length >= run.slots) { toast(tr('袋がいっぱい。持ち物を押して売ろう', 'Bag full. Tap a charm you hold to sell it')); S.toraLine = tr('袋がいっぱい。下の持ち物を押すと売れるよ', 'Your bag is full. Tap a charm below to sell it.'); $('toraSay').textContent = S.toraLine; const hd = $('held'); hd.classList.remove('nudge'); void hd.offsetWidth; hd.classList.add('nudge'); return; } if (it.kind === 'engi' && (run.engi || []).length >= Run.ENGI_SLOTS) { toast(tr('縁起物は 2 つまで', 'You can hold 2 talismans')); return; } buy(i); };
+    b.onclick = () => { if (it.cost > run.coins) { audio.note(1, { vol: 0.1, dur: 0.2 }); return; } if (it.kind === 'trade' && run.lives < 2) { toast(tr('灯が 2 つ以上いる', 'Needs 2+ lights')); return; } if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.includes(it.id)) { toast(tr('もう持っている', 'Already held')); return; } if ((it.kind === 'charm' || it.kind === 'trade') && run.charms.length >= run.slots) { toast(tr('袋がいっぱい。持ち物を押して売ろう', 'Bag full. Tap a charm you hold to sell it')); S.toraLine = tr('袋がいっぱい。下の持ち物を押すと売れるよ', 'Your bag is full. Tap a charm below to sell it.'); $('toraSay').textContent = S.toraLine; const hd = $('held'); restartAnim(hd, 'nudge'); return; } if (it.kind === 'engi' && (run.engi || []).length >= Run.ENGI_SLOTS) { toast(tr('縁起物は 2 つまで', 'You can hold 2 talismans')); return; } buy(i); };
     wrap.append(b);
   });
   const rc = Run.rerollCost(run), rb = $('reroll');
@@ -1167,9 +1223,10 @@ $('nextBtn').onclick = () => {
     const run = S.run, can = S.sh.items.some((it) => !it.gift && it.cost <= run.coins && (it.kind !== 'trade') && (it.kind !== 'charm' || (run.charms.length < run.slots && !run.charms.includes(it.id))));
     if (can) {
       S.shopNudged = true;
-      $('toraSay').textContent = tr(`小判が ${run.coins} 枚あるよ。買っていく？（もう一度押すと進む）`, `${run.coins} coins left. Buy a charm? (Tap again to go)`);
+      $('toraSay').textContent = tr(`小判が ${run.coins} 枚あるよ。買っていく？`, `${run.coins} coins left. Buy a charm?`);
+      $('nextBtn').textContent = tr('もう一度押すと進む', 'Tap again to go'); // 11/23: 知らせが押したボタンから遠く、押しても進まないように見えた
       const cards = [...$('cards').querySelectorAll('.card')], best = cards.find((c) => c.querySelector('.pvt.best')) || cards.find((c) => !c.classList.contains('cant'));
-      if (best) { best.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); best.classList.remove('nudge'); void best.offsetWidth; best.classList.add('nudge'); }
+      if (best) { best.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); restartAnim(best, 'nudge'); }
       return;
     }
   }
@@ -1444,6 +1501,8 @@ function openSettings(from) {
   $('pzLang').classList.toggle('hidden', from === 'inter'); // 屋台の途中で言葉を変えると、画面の半分が前の言葉のまま残る
   const play = from === 'play'; $('pzHeld').classList.toggle('hidden', !play); $('pzQuit').classList.toggle('hidden', !play);
   if (play) renderHeld($('pzHeld'), false);
+  { let d = $('pzRules'); if (!d) { $('pzHeld').insertAdjacentHTML('beforebegin', '<details id="pzRules" class="rules"><summary></summary><ul></ul></details>'); d = $('pzRules'); }
+    d.querySelector('summary').textContent = tr('点のしくみ', 'How scoring works'); d.querySelector('ul').innerHTML = ['score', 'heat', 'bloom', 'tsugi', 'dust'].map((k) => `<li>${JA() ? TEACH[k][0] : TEACH[k][1]}</li>`).join(''); }
   $('pzQuit').textContent = tr('タイトルへ（続きから遊べます）', 'Title (you can continue later)'); $('pzResume').textContent = play ? tr('つづける', 'RESUME') : tr('もどる', 'Back');
 }
 function closePause() { S.paused = false; show('none'); last = performance.now(); PF.start(); if (S.st) PF.level('resumed', S.st.level.world, S.st.level.night); }
@@ -1485,25 +1544,35 @@ canvas.addEventListener('pointerdown', (e) => {
   if (e === carryEnd) return; // 運びを終えたクリック
   audio.unlock(); TOUCH = e.pointerType === 'touch'; hideVeil('board');
   if (S.mode === 'retry' && performance.now() - S.retryAt > 600) { startNight(); return; }
+  // 前の指が残っていたら捨てる（11/23 通し遊び: 大仕掛けの夜に、押しても線が始まらないまま夜が進まなくなった。線を引いている最中・運びの最中でなければ、残った指は古い）
+  if (pid !== null && !CARRY && !(S.st?.stroke?.penDown)) { pid = null; S.tip = null; S.trail.length = 0; if (S.drag) S.drag = null; }
   if (S.mode !== 'play' || !S.st || pid !== null || S.paused) return;
   if (S.cnt) S.cnt.t = S.cnt.dur; // 数え上げの途中でも、触れたらすぐ次へ
   S.tip = { x: e.clientX, y: e.clientY, ramp: 0 };
   if (TOUCH && touchMode() && !DB.meta.taught.tip) { DB.meta.taught.tip = 1; save(); floatText(W / 2, H * 0.3, tr('線の先は、指の少し上に出ます', 'The line tip sits just above your finger'), 'gold', 24, 1800); }
   const p = toWorld(e);
   S.rec?.ev.push([S.st.t, 'd', p.x, p.y]);
-  if (G.penDown(S.st, p.x, p.y)) { pid = e.pointerId; S.press = { t: performance.now(), mouse: e.pointerType === 'mouse' }; S.lastPtr = { clientX: e.clientX, clientY: e.clientY }; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } if (S.teachKey !== 'draw') $('teach').classList.add('hidden'); }
+  if (G.penDown(S.st, p.x, p.y)) { S.trail.length = 0; hideNightCard(); pid = e.pointerId; S.press = { t: performance.now(), mouse: e.pointerType === 'mouse' }; S.lastPtr = { clientX: e.clientX, clientY: e.clientY }; try { canvas.setPointerCapture(pid); } catch { /* 無くても動く */ } if (S.teachKey !== 'draw') $('teach').classList.add('hidden'); }
   else if (S.st.level.grand) { S.rec?.ev.pop(); S.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, pan: S.pan || 0, panY: S.panY || 0 }; S.panIntro = 0; try { canvas.setPointerCapture(e.pointerId); } catch { /* */ } }
 });
+S.trail = [];
+function feedTrail() {
+  const st = S.st, k = st?.stroke; if (!k || !k.penDown || pid === null) { S.trail.length = 0; return; }
+  while (S.trail.length && !k.held) { const p = S.trail.shift(); S.rec?.ev.push([st.t, 'm', p.x, p.y]); G.penMove(st, p.x, p.y); if (!k.penDown) { S.trail.length = 0; return; } }
+}
 const onMove = (e) => {
   if (S.drag && e.pointerId === S.drag.id) { S.pan = Math.max(0, Math.min(panMax(), S.drag.pan - ((e.clientX - S.drag.x) / innerWidth) * W)); S.panY = Math.max(0, Math.min(panMaxY(), S.drag.panY + ((e.clientY - S.drag.y) / innerHeight) * H)); return; }
   if (e.pointerId !== pid || !S.st) return;
   const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
-  for (const ev of (list.length ? list : [e])) { const p = toWorld(ev, tipOff(ev)); S.rec?.ev.push([S.st.t, 'm', p.x, p.y]); G.penMove(S.st, p.x, p.y); }
+  // 11/23 依頼主「指と線の追従が悪い・うまく線が引けないときがある」: 線が火から離れすぎて止まると、伸びられるようになった時に今の指へ一直線に近道して、指でなぞった玉を取りこぼしていた。
+  // 止まっている間も指の通った道を覚えておき、同じ道を順に伸ばす（決まりの側 sim.js は変えない。記録は伸ばした時刻で残すので、試し打ち・ランキングの検算と一致する）
+  for (const ev of (list.length ? list : [e])) { const p = toWorld(ev, tipOff(ev)), l = S.trail[S.trail.length - 1]; if (!l || Math.abs(l.x - p.x) + Math.abs(l.y - p.y) >= 2) S.trail.push(p); }
+  feedTrail();
   tether(e); S.lastPtr = { clientX: e.clientX, clientY: e.clientY };
 };
 canvas.addEventListener('pointermove', onMove);
 addEventListener('pointermove', (e) => { if (CARRY && e.target !== canvas) onMove(e); });
-const release = (e) => { if (S.drag && e.pointerId === S.drag.id) { S.drag = null; return; } if (e.pointerId !== pid) return;
+const release = (e) => { if (S.drag && e.pointerId === S.drag.id) { S.drag = null; if (e.pointerId !== pid) return; } if (e.pointerId !== pid) return; // 盤を動かした指と線の指が同じでも、線の後片付けをとばさない
   const k = S.st?.stroke;
   if (e.type === 'pointerup' && !CARRY && S.press?.mouse && k?.penDown && k.len < S.st.m.minLen && performance.now() - S.press.t < 450) { // クリックしただけ → 運びにする
     CARRY = 1; S.carryN = (S.carryN || 0) + 1; if (S.carryN <= 2) PF.ev('carry', { n: S.carryN });
@@ -1511,12 +1580,21 @@ const release = (e) => { if (S.drag && e.pointerId === S.drag.id) { S.drag = nul
     else if (!S.carryTold) { S.carryTold = 1; floatText(W / 2, H * 0.3, tr('線が付いてくる。もう一度クリックでひらく', 'The line follows. Click again to burst'), 'gold', 22, 1800); }
     return;
   }
-  pid = null; S.tip = null; tether(null); if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
+  pid = null; S.tip = null; S.trail.length = 0; tether(null); if (S.st) { S.rec?.ev.push([S.st.t, 'u']); G.penUp(S.st); } };
 // ---- 大仕掛けの夜: 盤が画面より横に長い。線の先が画面の端に近づくと流れる（指が止まっていても線は伸びる）
 const panMax = () => (S.st?.level?.grand ? Math.max(0, S.st.field.x1 + 70 - W) : 0);
 const panMaxY = () => (S.st?.level?.grand?.gh > 1 ? Math.max(0, 60 - S.st.field.y0) : 0);
+// 大仕掛けの夜: 画面の外にまだ玉があることを、端に小さく出す（11/23 通し遊び: 天の川の夜の突破率が 2〜4 割。空にも玉があると気づきにくい）
+function offHint(st) {
+  let el = $('offHint'); if (!el) { el = document.createElement('div'); el.id = 'offHint'; el.className = 'offhint hidden'; $('hud').append(el); }
+  if (!st || !st.level?.grand || S.mode !== 'play' || S.panIntro > 0) { if (!el.classList.contains('hidden')) el.classList.add('hidden'); return; }
+  const vert = st.level.grand.gh > 1, pan = S.pan || 0, panY = S.panY || 0; let n = 0;
+  for (const q of st.shells) { if (q.state !== 'idle' || q.rise > 0) continue; if (vert ? q.y + panY < 20 : q.x - pan > W - 20) n++; }
+  setT(el, n ? (vert ? tr(`▲ 空にも玉 ${n}`, `▲ ${n} more up in the sky`) : tr(`玉 ${n} ▶`, `${n} more ▶`)) : '');
+  el.classList.toggle('hidden', !n); el.classList.toggle('v', vert);
+}
 function panFrame(dt) {
-  const st = S.st;
+  const st = S.st; offHint(st);
   { const b = R.band; if (b?.rect0) { const off = (S.panY || 0) / H; b.rect[1] = b.rect0[1] + off; b.waterY = b.water0 + off; } } // 昇るほど町は下へ消える
   if (!st || !st.level?.grand || S.mode !== 'play') { if ((S.pan || S.panY) && S.mode !== 'play' && S.mode !== 'retry') { S.pan = 0; S.panY = 0; } miniMap(); grandLabels(); return; }
   const maxY = panMaxY();
@@ -1525,7 +1603,7 @@ function panFrame(dt) {
     const sy = S.lastPtr.clientY / innerHeight, edge = 0.2; let v = 0;
     if (sy < edge) v = (edge - sy) / edge; else if (sy > 1 - edge) v = -(sy - (1 - edge)) / edge;
     if (v) { const p0 = S.panY || 0; S.panY = Math.max(0, Math.min(maxY, p0 + v * H * 0.8 * dt));
-      if (S.panY !== p0) { const p = toWorld(S.lastPtr, tipOff(S.lastPtr)); S.rec?.ev.push([st.t, 'm', p.x, p.y]); G.penMove(st, p.x, p.y); } }
+      if (S.panY !== p0) { S.trail.push(toWorld(S.lastPtr, tipOff(S.lastPtr))); feedTrail(); } } // 盤が流れた分も、指の道の続きとして順に伸ばす（止まっている間に近道しない）
   }
   const max = Math.max(0, st.field.x1 + 70 - W);
   if (S.panIntro > 0) { S.panIntro = Math.max(0, S.panIntro - dt); const u = S.panIntro / 2.4; S.pan = max * Math.min(1, Math.max(0, (u - 0.1) / 0.6)); } // 右端（滝）を見せてから、左の始まりへ
@@ -1533,7 +1611,7 @@ function panFrame(dt) {
     const sx = S.lastPtr.clientX / innerWidth, edge = 0.2; let v = 0;
     if (sx > 1 - edge) v = (sx - (1 - edge)) / edge; else if (sx < edge) v = -(edge - sx) / edge;
     if (v) { const p0 = S.pan || 0; S.pan = Math.max(0, Math.min(max, p0 + v * W * 0.9 * dt));
-      if (S.pan !== p0) { const p = toWorld(S.lastPtr, tipOff(S.lastPtr)); S.rec?.ev.push([st.t, 'm', p.x, p.y]); G.penMove(st, p.x, p.y); } }
+      if (S.pan !== p0) { S.trail.push(toWorld(S.lastPtr, tipOff(S.lastPtr))); feedTrail(); } }
   } else if (st.taki && st.taki.front !== null) { S.pan += ((Math.max(0, Math.min(max, st.taki.front - W * 0.5))) - S.pan) * Math.min(1, dt * 4); } // 滝を追う
   miniMap(); grandLabels();
 }
@@ -1552,14 +1630,16 @@ function grandLabels() {
   for (const e of [...box.children]) if (!live.has(e.dataset.id)) e.remove();
 }
 // 上の端の細い地図: 盤の全体と、いま見ている範囲
+// 小さな地図の大きさは、画面の大きさ・向きが変わった時だけ測り直す（毎フレーム clientWidth を読んで canvas を作り直していた）
+function miniSize(cv, dw, dh) { const key = innerWidth + 'x' + innerHeight + (cv.classList.contains('v') ? 'v' : 'h'); if (cv._k !== key) { cv._k = key; cv.width = Math.round(cv.clientWidth * 2) || dw; cv.height = Math.round(cv.clientHeight * 2) || dh; } return [cv.width, cv.height]; }
 function miniMap() {
   const cv = $('mini'); if (!cv) return; const st = S.st, on = !!(st && st.level?.grand && S.mode === 'play'); cv.classList.toggle('hidden', !on); if (!on) return;
   const vert = st.level.grand.gh > 1; cv.classList.toggle('v', vert);
-  if (vert) { const f = st.field, Y0 = f.y0 - 60, Y1 = H, w = cv.width = Math.round(cv.clientWidth * 2) || 24, h = cv.height = Math.round(cv.clientHeight * 2) || 300, g = cv.getContext('2d'), sy = (y) => ((y - Y0) / (Y1 - Y0)) * h;
+  if (vert) { const f = st.field, Y0 = f.y0 - 60, Y1 = H, [w, h] = miniSize(cv, 24, 300), g = cv.getContext('2d'), sy = (y) => ((y - Y0) / (Y1 - Y0)) * h;
     g.clearRect(0, 0, w, h); g.fillStyle = '#05070fb0'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffffff22'; g.fillRect(0, sy(-(S.panY || 0)), w, (H / (Y1 - Y0)) * h);
     for (const s of st.shells) { if (s.state !== 'idle') continue; g.fillStyle = s.mod === 'seiza' ? '#bfe0ff' : s.type === 'kin' ? '#ffd24a' : '#ff8a7a'; g.beginPath(); g.arc((s.x / W) * w * 0.9 + w * 0.05, sy(s.y), s.mod === 'seiza' ? 6 : 3.4, 0, 7); g.fill(); }
     return; }
-  const f = st.field, X0 = 0, X1 = f.x1 + 70, w = cv.width = Math.round(cv.clientWidth * 2) || 400, h = cv.height = Math.round(cv.clientHeight * 2) || 24, g = cv.getContext('2d');
+  const f = st.field, X0 = 0, X1 = f.x1 + 70, [w, h] = miniSize(cv, 400, 24), g = cv.getContext('2d');
   g.clearRect(0, 0, w, h); g.fillStyle = '#05070fb0'; g.fillRect(0, 0, w, h);
   const sx = (x) => ((x - X0) / (X1 - X0)) * w;
   g.fillStyle = '#ffffff22'; g.fillRect(sx(S.pan || 0), 0, (W / (X1 - X0)) * w, h);
@@ -1584,7 +1664,8 @@ addEventListener('contextmenu', (e) => e.preventDefault());
 addEventListener('visibilitychange', () => { audio.mute(document.hidden); if (document.hidden && S.mode === 'play' && !S.paused && !(S.st && S.st.phase === 'stroke')) openPause(); });
 
 // ------------------------------------------------------------------ 見せ方
-const fmt = (n) => Math.round(n).toLocaleString('en-US');
+const NF = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }); const fmt = (n) => NF.format(Math.round(n)); // toLocaleString は呼ぶたびに書式を作り直すので重い（毎フレーム呼ぶ）
+const setT = (el, v) => { if (el && el.textContent !== v) el.textContent = v; }; // 同じ文字を毎フレーム書くと、配置のやり直しが毎回走る（11/23 依頼主「全体的に重い」）
 const panOf = (x) => Math.max(-0.8, Math.min(0.8, (x / W) * 2 - 1));
 const MSG = { live: 0, q: [] };
 function floatText(x, y, text, cls = '', size = 22, life = 950) {
@@ -1595,6 +1676,7 @@ function floatText(x, y, text, cls = '', size = 22, life = 950) {
     if (MSG.live >= 2) { MSG.q.push([x, y, text, cls, size, life]); if (MSG.q.length > 3) MSG.q.shift(); return; }
     MSG.live++; setTimeout(() => { MSG.live--; const n = MSG.q.shift(); if (n) floatText(...n); }, 320);
   }
+  if (!isMsg && $('float').childElementCount > 14) return; // 数の飛び字は同時に 14 まで（大きな連鎖で何十個も作ると重い・読めない）
   const e = document.createElement('div'); e.className = 'pop ' + cls; e.textContent = text;
   e.style.left = ((x - (S.pan || 0)) / W) * 100 + '%'; e.style.top = ((y + (S.panY || 0)) / H) * 100 + '%'; e.style.fontSize = size * (innerHeight / H) + 'px';
   $('float').append(e); setTimeout(() => e.remove(), life);
@@ -1616,7 +1698,8 @@ function banner(html, size = 70, life = 1600, cls = '') {
   const maxW = Math.min(e.clientWidth || innerWidth, innerWidth) * 0.98, sw = e.scrollWidth;
   if (sw > maxW) e.style.fontSize = (parseFloat(e.style.fontSize) * maxW) / sw + 'px';
 }
-function bump(el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+function restartAnim(el, cls) { if (!el) return; el.classList.remove(cls); requestAnimationFrame(() => el.classList.add(cls)); } // 動きのやり直し: offsetWidth で配置を今すぐ測り直させず、次の描き替えで付け直す（同じフレームに何十回も呼ばれる）
+function bump(el) { if (!el) return; el.classList.remove('bump'); requestAnimationFrame(() => el.classList.add('bump')); } // offsetWidth で配置を今すぐやり直させない（次の描き替えで付け直す）
 // 止め（ヒットストップ）: ルールの時間だけを止め、粒と光は少しだけ動かし続ける。
 // 指が触れている間は止めない（線が飛ぶ）。小さな止めは 0.12 秒に 1 回まで、大きな止めは割りこめる
 function hitStop(ms) {
@@ -1631,18 +1714,23 @@ const GUIDE_SVG = (a, b, c) => `<svg viewBox="0 0 260 64" aria-hidden="true"><pa
 // 夜の始まりの札: 大仕掛け・趣向・封じの夜は、何が起きるかと狙いを大きく見せる（触れると閉じる）
 function nightCard(def) {
   const el = $('nightCard'); if (!el) return; const items = [];
-  if (def.grand?.kind === 'seiza') items.push([tr('大仕掛け「天の川」', 'Grand Set Piece: Milky Way'), tr('盤は空の高みまで続く。線の先を画面の上の端へ運ぶと、夜空へ昇る。<br>空の高い所の<b>北斗七星</b>の星玉を<b>★一から★七まで順に</b>線で通すと、星座が結ばれ<b>満天</b>：倍率 ×2、空の玉がぜんぶ降るようにひらく', 'The board reaches high into the sky: move the tip to the top edge to climb.<br>Thread the <b>Big Dipper</b> stars <b>1 to 7 in order</b> to connect the constellation: <b>Sky Ablaze</b> — MULT ×2 and every shell in the high sky opens.')]);
-  else if (def.grand?.kind === 'moji') items.push([tr('大仕掛け「文字花火」', 'Grand Set Piece: Sky Writing'), tr('盤は横に長い。<b>壱・弐・参・肆</b>の字玉を<b>番号の順に</b>線で通すと、夜空に字が浮かんで倍率 ×2。<br>字玉は爆風では燃えない。違う順番の字玉はひらかずに残る', 'The board is wide. Thread the <b>numbered shells 1–4 in order</b> with your line to write a kanji in the sky: MULT ×2.<br>They ignore blasts, and wrong-order ones stay unlit.')]);
-  else if (def.grand?.kind === 'renpatsu') items.push([tr('大仕掛け「連発」', 'Grand Set Piece: Starmine'), tr('盤は横に長い。盤の中ほどの<b>発射台</b>へ、<b>一筆で 6 つ以上</b>ひらいてから火を届けると、盤のあちこちへ 16 発が次々に打ち込まれる', 'The board is wide. Open <b>6+ shells in one stroke</b>, then reach the <b>Launcher</b> in the middle: 16 shots rain across the board.')]);
-  else if (def.grand) items.push([tr('大仕掛け「火の滝」', 'Grand Set Piece: Fire Falls'), tr('盤は横に長い。線の先を画面の端へ運ぶと、盤が流れる。<br>右端の<b>滝の玉</b>へ、<b>一筆で 6 つ以上</b>ひらいてから火を届けると、火の滝が盤を流れ落ちる', 'The board is wide: move the line tip to the screen edge to scroll.<br>Open <b>6+ shells in one stroke</b>, then reach the <b>Falls shell</b> on the far right to unleash a waterfall of fire.')]);
+  if (def.grand?.kind === 'seiza') items.push([tr('大仕掛け「天の川」', 'Grand Set Piece: Milky Way'), tr('線の先を<b>上の端</b>へ運ぶと空へ昇る。<b>★一〜★七を順に</b>通すと倍率 ×2', 'Take the tip to the <b>top edge</b> to climb. Thread <b>stars 1→7 in order</b>: MULT ×2')]);
+  else if (def.grand?.kind === 'moji') items.push([tr('大仕掛け「文字花火」', 'Grand Set Piece: Sky Writing'), tr('<b>壱・弐・参・肆</b>の字玉を<b>順に</b>線で通すと倍率 ×2', 'Thread the <b>numbered shells 1→4 in order</b>: MULT ×2')]);
+  else if (def.grand?.kind === 'renpatsu') items.push([tr('大仕掛け「連発」', 'Grand Set Piece: Starmine'), tr('<b>一筆で 6 つ以上</b>ひらいて、中ほどの<b>発射台</b>へ火を届けると 16 連発', 'Open <b>6+ in one stroke</b>, then reach the <b>Launcher</b>: 16 shots')]);
+  else if (def.grand) items.push([tr('大仕掛け「火の滝」', 'Grand Set Piece: Fire Falls'), tr('<b>一筆で 6 つ以上</b>ひらいて、右端の<b>滝の玉</b>へ火を届けると火の滝', 'Open <b>6+ in one stroke</b>, then reach the <b>Falls shell</b> at the right')]);
+  const nodeT = ['shoubu', 'chaya', 'tonya', 'ennichi'].includes(def.node) ? Run.NODES[def.node] : null;
+  if (nodeT && !def.rule) items.push([JA() ? nodeT.ja : nodeT.en, JA() ? nodeT.dj : nodeT.de]);
   const tw = def.twist && Run.TWISTS[def.twist];
   if (tw && !def.twistHide) items.push([tr(`趣向「${tw.ja}」`, `Twist: ${tw.en}`), JA() ? tw.dj : tw.de]);
   for (const x of def.rule ? [] : def.seals || []) { const z = Run.SEALS[x]; /* 大一番の封じは名前の札で言う */ if (z) items.push([tr(`封じ「${z.ja}」`, `Seal: ${z.en}`), JA() ? (z.dj || '') : (z.de || '')]); }
   if (!items.length) { el.classList.add('hidden'); return; }
-  el.innerHTML = items.slice(0, 2).map(([a, b]) => `<div class="nc"><h3>${a}</h3><p>${b}</p></div>`).join('') + `<small>${tr('触れると閉じる', 'Tap to close')}</small>`;
-  el.classList.remove('hidden'); clearTimeout(S.ncT); S.ncT = setTimeout(() => el.classList.add('hidden'), def.grand ? 5200 : 3600);
+  const show3 = items.slice(0, 3);
+  el.innerHTML = show3.map(([a, b]) => `<div class="nc"><h3>${a}</h3><p>${b}</p></div>`).join('');
+  // 読める長さだけ出す（11/23 依頼主「面のはじめの説明が長い。読めないときがある」）。線を引き始めたら閉じる。札は指を通す（下の玉を押すと線が始まる）
+  const len = show3.reduce((a, [h, b]) => a + (h + b).replace(/<[^>]+>/g, '').length, 0), life = Math.max(3000, Math.min(8000, JA() ? 1300 + len * 80 : 1300 + len * 40));
+  el.classList.remove('hidden'); document.body.classList.add('ncOn'); clearTimeout(S.ncT); S.ncT = setTimeout(hideNightCard, life);
 }
-$('nightCard')?.addEventListener('pointerdown', () => $('nightCard').classList.add('hidden'));
+function hideNightCard() { clearTimeout(S.ncT); $('nightCard')?.classList.add('hidden'); document.body.classList.remove('ncOn'); }
 // 夜空に字を描く: 字を小さな画に書いて、字の画素の所に火花を置く
 function skyKanji(ch) {
   const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d');
@@ -1684,11 +1772,26 @@ const talkOn = () => DB.talk !== false;
 // カットイン（ボス戦の顔と台詞）。前は会話と同じ切り替えだったので、まだ決めていなければ会話に合わせる
 const cutOn = () => (DB.cut ?? DB.talk) !== false;
 let taleVoice = null;
+// 声の先読み（11/23 依頼主「声が出るのが遅い」: 行を出してから声を取りに行っていた）。夜の始まりに、その夜のあとに出そうな頁とひとことの声を読んでおく
+const VCACHE = new Map();
+function preVoice(who, text) {
+  if (!VOICED.has(who) || !DB.sound || PF.muted) return;
+  const u = `tale/voice/${voiceKey(who, text)}.mp3`; if (VCACHE.has(u)) return;
+  try { const a = new Audio(); a.preload = 'auto'; a.src = u; VCACHE.set(u, a); if (VCACHE.size > 48) VCACHE.delete(VCACHE.keys().next().value); } catch { /* 読めなくても遊べる */ }
+}
+function preTale(p) { if (p) for (const ln of p.lines) preVoice(ln.w, JA() ? ln.ja : ln.en); }
+function preNextTalk(def) {
+  try {
+    if (!talkOn() || !S.run || S.run.endless) return;
+    const T = taleRec(); preTale(nextPage(T.n, T.g, def.world, { nights: (mem().nights || 0) + 1, last: T.last || 0 }));
+    const wk = String(((def.world - 1) % 3) + 1), list = BANTER[+wk]; if (list?.length) { const k = (((DB.meta.banter || {})[wk] ?? -1) + 1) % list.length; for (const ln of list[k]) preVoice(ln.w, JA() ? ln.ja : ln.en); }
+  } catch { /* 先読みできなくても遊べる */ }
+}
 // 声を鳴らす。鳴った長さ（秒）を返す Promise（鳴らせなければ 0）
 function talePlay(who, text) {
   return new Promise((res) => {
     try { taleVoice?.pause(); if (!VOICED.has(who) || !DB.sound || PF.muted || S.adPause) return res(0);
-      const v = taleVoice = new Audio(`tale/voice/${voiceKey(who, text)}.mp3`); v.volume = 1;
+      const u = `tale/voice/${voiceKey(who, text)}.mp3`, v = taleVoice = VCACHE.get(u) || new Audio(u); VCACHE.delete(u); v.volume = 1; try { v.currentTime = 0; } catch { /* 読み込み前 */ }
       v.onended = () => res(v.duration || 0); v.onerror = () => res(0); v.play().then(() => audio.duck(Math.max(1.5, (v.duration || 2) + 0.4), 0.4)).catch(() => res(0));
     } catch { res(0); }
   });
@@ -1708,7 +1811,7 @@ function taleLineName(who, p, id) {
 }
 function openTale(p, done, opts = {}) {
   const T = taleRec(), idx = TALE.indexOf(p), el = $('tale'); if (!el || idx < 0) { done?.(); return; }
-  T.n = Math.max(T.n, idx + 1); T.last = mem().nights || 0; save(); PF.ev('tale', { n: idx + 1 }); track(`tale/${idx + 1}`);
+  if (!opts.review) { T.n = Math.max(T.n, idx + 1); T.last = mem().nights || 0; save(); PF.ev('tale', { n: idx + 1 }); track(`tale/${idx + 1}`); }
   el.lang = JA() ? 'ja' : 'en'; // 日本語の折り返し（word-break: auto-phrase）は lang が ja のときだけ効く
   $('tlHead').textContent = tr(`灯の物語　${idx + 1} / ${TALE_N}`, `Akari's Story  ${idx + 1} / ${TALE_N}`);
   $('tlScene').textContent = JA() ? p.scene.ja : p.scene.en;
@@ -1731,7 +1834,7 @@ function openTale(p, done, opts = {}) {
     talePlay(ln.w, text).then((d) => { if (my !== tok || closed) return; tm = setTimeout(step, Math.max(d ? 450 : 0, read - (performance.now() - t0))); });
   };
   const close = () => { if (closed) return; closed = true; clearTimeout(tm); el.onclick = null; S.taleKey = null; taleVoice?.pause(); audio.ui('tap'); el.classList.add('out'); setTimeout(() => { el.classList.add('hidden'); el.classList.remove('out', 'in', 'done'); done?.(); }, 260); };
-  const start = () => { if (S.adPause) { tm = setTimeout(start, 300); return; } el.classList.add('in'); tm = setTimeout(step, opts.end ? 1500 : 900); };
+  const start = () => { if (S.adPause) { tm = setTimeout(start, 300); return; } el.classList.add('in'); tm = setTimeout(step, opts.end ? 900 : 260); }; // 11/23 依頼主「会話の始まりが遅くてフリーズしているように見える」: 0.9 秒 → 0.26 秒
   tm = setTimeout(start, opts.delay ?? 0);
   const t0 = performance.now();
   el.onclick = () => { if (performance.now() - t0 < 400 + (opts.delay || 0)) return; if (!el.classList.contains('in')) { clearTimeout(tm); el.classList.add('in'); step(); return; } if (finished) { close(); return; } tok++; taleVoice?.pause(); step(); };
@@ -1751,14 +1854,14 @@ function showKakeai(world) {
     const ln = lines[j], text = JA() ? ln.ja : ln.en, t0 = performance.now(), read = JA() ? Math.min(3400, 900 + text.length * 70) : Math.min(4200, 1000 + text.length * 50);
     const row = document.createElement('div'); row.className = 'kk-ln ' + ln.w;
     const sp = document.createElement('span'); sp.textContent = text;
-    row.append(taleIcon(ln.w, ln.f), sp); el.append(row); el.classList.add('on');
+    row.append(taleIcon(ln.w, ln.f), sp); el.append(row); el.classList.add('on'); document.body.classList.add('kkOn');
     let went = false; const go = (ms) => { if (went || S.kkTok !== my) return; went = true; setTimeout(() => step(j + 1), ms); };
     talePlay(ln.w, text).then((d) => go(Math.max(d ? 350 : 0, read - (performance.now() - t0))));
     setTimeout(() => go(0), Math.max(read, 7000)); // 声が止まって終わりが来なくても先へ
   };
-  setTimeout(() => step(0), 2200); // 夜の結果（題・点・小判）を先に見せてから
+  setTimeout(() => step(0), 1100); // 夜の結果（題・点・小判）を先に見せてから（11/23 2.2 秒 → 1.1 秒）
 }
-function hideKakeai() { const el = $('kakeai'); if (!el) return; S.kkTok = (S.kkTok || 0) + 1; if (el.classList.contains('on')) taleVoice?.pause(); el.classList.remove('on'); setTimeout(() => { if (!el.classList.contains('on')) el.classList.add('hidden'); }, 300); }
+function hideKakeai() { const el = $('kakeai'); document.body.classList.remove('kkOn'); if (!el) return; S.kkTok = (S.kkTok || 0) + 1; if (el.classList.contains('on')) taleVoice?.pause(); el.classList.remove('on'); setTimeout(() => { if (!el.classList.contains('on')) el.classList.add('hidden'); }, 300); }
 addEventListener('keydown', (e) => { if (S.taleKey && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopImmediatePropagation(); S.taleKey(); } }, true);
 
 // ボス戦のカットイン: 始まりの会話・攻めが決まった・やられた。遊びは止めない
@@ -1766,7 +1869,7 @@ function showCut(ln, kind) {
   const el = $('cutin'); if (!el || !ln) return; el.lang = JA() ? 'ja' : 'en';
   const img = ln.w === 'kon' ? 'cut_kon' : kind === 'hurt' || ln.f === 'hurt' ? 'cut_hurt' : ln.f === 'angry' ? 'cut_atk' : `akari_${ln.f || 'smile'}`;
   $('ciImg').src = `tale/img/${img}.webp`; $('ciName').textContent = ln.w === 'kon' ? tr('コン', 'Kon') : tr('灯', 'Akari'); $('ciLine').textContent = JA() ? ln.ja : ln.en;
-  el.className = `cutin ${kind} ${ln.w}`; void el.offsetWidth; el.classList.add('on');
+  el.className = `cutin ${kind} ${ln.w}`; requestAnimationFrame(() => el.classList.add('on'));
   clearTimeout(S.cutHide); S.cutHide = setTimeout(() => el.classList.remove('on'), (kind === 'intro' ? 1900 : 1350) + (JA() ? 0 : Math.max(0, (ln.en.length - 18) * 30)));
   talePlay(ln.w, JA() ? ln.ja : ln.en);
 }
@@ -1829,7 +1932,7 @@ function closeGuide() {
 }
 $('guide').addEventListener('click', closeGuide);
 // 追いつかれた・提灯が消えた: 画面のふちを一瞬、暗く赤く
-function hurt() { const e = $('hurt'); e.classList.remove('on'); void e.offsetWidth; e.classList.add('on'); }
+function hurt() { const e = $('hurt'); restartAnim(e, 'on'); }
 // 揺れ: 爆心から外へ押す一発。ばらばらの揺れ（R.shake）より向きがあるぶん、どこで起きたかが分かる
 function kick(x, y, px) {
   const dx = W / 2 - x, dy = H / 2 - y, l = Math.hypot(dx, dy) || 1;
@@ -1927,7 +2030,7 @@ function handle(ev) {
     if (ev.type === 'seizaDone') { techCall('seiza'); banner(`${tr('満天', 'SKY ABLAZE')}<small>${tr('北斗七星が結ばれた！ 倍率 ×2', 'The Big Dipper is complete! MULT ×2')}</small>`, 76, 2000); audio.boom(2.6, 0); audio.duck(0.3, 0.6); R.flash = Math.max(R.flash, 0.6); R.shake = 20; $('cMult').textContent = fmtM(ev.mult); bump($('cMult')); } break;
     case 'charmFire': {
       const b = document.querySelector(`#bags .bag[data-id="${ev.id}"]`);
-      if (b) { b.classList.remove('fire'); void b.offsetWidth; b.classList.add('fire'); }
+      if (b) { restartAnim(b, 'fire'); }
       if (ev.dMult && st.stroke) { $('cMult').textContent = fmtM(st.stroke.mult); bump($('cMult')); }
       if (ev.dCoin) { renderBags(); if (ev.x) floatText(ev.x, ev.y + 26, '+' + ev.dCoin, 'coinp', 22); }
       { const c = CHARM_BY_ID[ev.id], now = performance.now(); S.cfAt ||= {};
@@ -1948,14 +2051,14 @@ function handle(ev) {
       break;
     }
     case 'burnScore': // 点の箱が燃える。燃え落ちた点は、数字の玉になって落ちてくる
-      if (ev.take > 0) { const g = $('gScore'); g.classList.remove('burning'); void g.offsetWidth; g.classList.add('burning'); S.shown = st.score; g.textContent = fmt(st.score); floatText(W / 2, H * 0.34, `−${fmt(ev.take)}`, 'burn', 40, 1400); }
+      if (ev.take > 0) { const g = $('gScore'); restartAnim(g, 'burning'); S.shown = st.score; g.textContent = fmt(st.score); floatText(W / 2, H * 0.34, `−${fmt(ev.take)}`, 'burn', 40, 1400); }
       break;
     case 'kazuBack': floatText(ev.x, ev.y - 30, `+${fmt(ev.val)}`, 'gold', 34, 1100); audio.ui('spell'); bump($('gScore')); break;
     case 'kazuLost': floatText(ev.x, H * 0.7, `−${fmt(ev.val)}`, 'lost', 24, 900); audio.note(1, { vol: 0.12, dur: 0.3 }); break;
     case 'ihenClear': floatText(W / 2, H * 0.3, tr('乗り越えた 倍率 +2', 'Overcome! MULT +2'), 'mark', 30, 1200); if (st.stroke) { $('cMult').textContent = fmtM(st.stroke.mult); bump($('cMult')); } break;
     case 'grow': { // 育つお守りが育った
       const b = document.querySelector(`#bags .bag[data-id="${ev.id}"]`);
-      if (b) { b.classList.remove('grew'); void b.offsetWidth; b.classList.add('grew'); }
+      if (b) { restartAnim(b, 'grew'); }
       if (ev.up && ev.x !== undefined) floatText(ev.x, ev.y - 30, tr('育った！', 'Grew!'), 'grow', 20, 800);
       break;
     }
@@ -2152,7 +2255,7 @@ function handle(ev) {
 }
 // 点 × 倍率 が一つにまとまって、上の点へ飛んでいく。大きいほど派手に
 function slam(gained) {
-  const el = $('combo'); el.classList.remove('slam'); void el.offsetWidth; el.classList.add('slam');
+  const el = $('combo'); restartAnim(el, 'slam');
   const big = Math.min(1, Math.log10(Math.max(10, gained)) / 5);
   floatText(W / 2, H * 0.27, `+${fmt(gained)}`, 'big', 30 + big * 40);
   audio.boom(0.6 + big * 0.8, 0);
@@ -2436,15 +2539,15 @@ function updateHud(dt) {
   renderRemain();
   const live = S.shown, goal = S.goalEl || (S.goalEl = document.querySelector('.goal'));
   goal.classList.toggle('counting', !!S.cnt);
-  $('gScore').textContent = fmt(S.shown);
-  $('gBar').style.width = Math.min(100, (S.shown / (st.target * 2.5)) * 100) + '%';
+  setT($('gScore'), fmt(S.shown));
+  { const gb = $('gBar'), w = Math.min(100, (S.shown / (st.target * 2.5)) * 100).toFixed(1) + '%'; if (gb.style.width !== w) gb.style.width = w; }
   const r = live / st.target, stars = $('gStars').children;
   for (let i = 0; i < 3; i++) stars[i].classList.toggle('on', r >= [1, 1.6, 2.5][i]);
   goal.classList.toggle('fire', r >= 1);
-  if (r >= 1) goal.style.setProperty('--fire', Math.min(1.6, 0.5 + Math.log(r) / Math.log(5)).toFixed(2));
+  if (r >= 1) { const fv = Math.min(1.6, 0.5 + Math.log(r) / Math.log(5)).toFixed(2); if (goal.style.getPropertyValue('--fire') !== fv) goal.style.setProperty('--fire', fv); }
   // 技のボーナス: 一筆の間、時間で減っていくのを見せる
   const k = st.stroke;
-  if (k?.spell && !k.done) $('spBonus').textContent = tr(`ボーナス ${fmt(G.spellBonus(k))}`, `Bonus ${fmt(G.spellBonus(k))}`);
+  if (k?.spell && !k.done) setT($('spBonus'), tr(`ボーナス ${fmt(G.spellBonus(k))}`, `Bonus ${fmt(G.spellBonus(k))}`));
   // 拾った星屑は 0.3 秒ごとにまとめて「+点」を出す（1 粒ずつだと読めない）
   S.dustAt += dt;
   if (S.dustAcc > 0 && S.dustAt > 0.3) { floatText(S.dustX, S.dustY - 36, '+' + fmt(S.dustAcc), 'dustp', 18 + Math.min(14, S.dustAcc / 40)); S.dustAcc = 0; S.dustAt = 0; }
@@ -2475,8 +2578,17 @@ function hintFx(dt) {
   for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1], d = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(2, Math.floor(d / 24)); for (let j = 0; j < n; j++) { const u = (j + ((S.hint * 1.8) % 1)) / n; fx.add(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, 0, 0, one, 3.4, 0, 0, [3, 2.5, 1.4], [3, 2.5, 1.4], 1.25); } }
   // 始める玉: 輪と「ここ」
   go.classList.remove('hidden'); go.style.left = ((a0.x - (S.pan || 0)) / W) * 100 + '%'; go.style.top = (a0.y / H) * 100 + '%';
-  const lab = coach ? tr('おすすめの道', 'Try this route') : MOUSE ? tr('ここを押したまま なぞる', 'Click & hold here, then drag') : tr('ここに指を置いて なぞる', 'Hold here & drag'); if (go.firstChild.textContent !== lab) go.firstChild.textContent = lab;
-  { const sp = go.firstChild; sp.style.marginLeft = '0px'; const r = sp.getBoundingClientRect(), dx = r.left < 8 ? 8 - r.left : r.right > innerWidth - 8 ? innerWidth - 8 - r.right : 0; if (dx) sp.style.marginLeft = dx + 'px'; }
+  const lab = coach ? tr('おすすめの道', 'Try this route') : MOUSE ? tr('ここを押したまま なぞる', 'Click & hold here, then drag') : tr('ここに指を置いて なぞる', 'Hold here & drag');
+  // 札の置き場所は道が決まった時だけ決める（毎フレーム getBoundingClientRect で配置を測り直していた）。
+  // 11/23 依頼主「おすすめの道の表示が花火にかぶる」: 始めの玉の下に玉があれば上に出す。左右は画面の中に収める
+  if (go.firstChild.textContent !== lab || S.hintLabFor !== P) {
+    S.hintLabFor = P; const sp = go.firstChild; sp.textContent = lab; sp.style.marginLeft = '0px';
+    const k = innerWidth / W, sx = (a0.x - (S.pan || 0)) * k, sy = a0.y * (innerHeight / H), hw = Math.max(90, sp.offsetWidth / 2 + 10);
+    const ky = innerHeight / H, hits = (x0, x1, y0, y1) => idle.filter((q) => { if (q === a0) return false; const qx = (q.x - (S.pan || 0)) * k, qy = q.y * ky, rr = q.r * k; return qx > sx + x0 - rr && qx < sx + x1 + rr && qy > sy + y0 - rr && qy < sy + y1 + rr; }).length;
+    const opt = [['', hits(-hw, hw, 40, 92)], ['up', hits(-hw, hw, -92, -40)], ['rt', hits(44, 44 + hw * 2, -18, 18)], ['lt', hits(-44 - hw * 2, -44, -18, 18)]].filter(([d]) => d !== 'rt' || sx + 44 + hw * 2 < innerWidth - 8).filter(([d]) => d !== 'lt' || sx - 44 - hw * 2 > 8);
+    const best = opt.reduce((a, b) => (b[1] < a[1] ? b : a)); go.classList.remove('up', 'rt', 'lt'); if (best[0]) go.classList.add(best[0]);
+    const r = sp.getBoundingClientRect(), dx = r.left < 8 ? 8 - r.left : r.right > innerWidth - 8 ? innerWidth - 8 - r.right : 0; if (dx) sp.style.marginLeft = dx + 'px';
+  }
   // 手本の手: 0〜0.7 秒 押す / 〜3.3 秒 なぞる / 〜3.9 秒 離す（なぞった玉が光る） / 〜4.6 秒 休む
   const CY = 4.6, c = S.hint % CY, pc = S.hintC ?? c; S.hintC = c;
   let hx = a0.x, hy = a0.y, sc = 1;
@@ -2513,8 +2625,8 @@ function frame(now) {
   }
   frames++; fpsT += dt; if (fpsT > 0.5) {
     fps = frames / fpsT; frames = 0; fpsT = 0; if (S.fpsEl) S.fpsEl.textContent = `${fps.toFixed(0)} fps ${fx.live()} p x${scaleMax.toFixed(2)}`;
-    slowCount = fps < 42 && !document.hidden ? slowCount + 1 : 0;
-    if (slowCount >= 6 && scaleMax > 0.6) { scaleMax = Math.max(0.6, scaleMax * 0.75); slowCount = 0; resize(); }
+    slowCount = fps < 48 && !document.hidden ? slowCount + 1 : 0;
+    if (slowCount >= 4 && scaleMax > 0.5) { scaleMax = Math.max(0.5, scaleMax * 0.8); slowCount = 0; resize(); } // 重い端末では早めに絵の細かさを下げる（2 秒続いたら）
   }
   try {
     if (S.paused || S.adPause) { dt = 0; }
@@ -2527,6 +2639,7 @@ function frame(now) {
       S.ff = k && !NOFF && !k.penDown && !k.done && !stopped && S.slowT <= 0 && R.time - (S.lastPop || 0) > 0.7 ? Math.min(3, (S.ff || 1) + dt * 2.5) : 1; }
     const sdt = stopped ? dt * 0.08 : dt * S.timeScale * S.ff;
     if (S.mode === 'play' && S.st && !S.paused && !stopped && !S.guide) {
+      if (S.trail.length) feedTrail();
       acc += sdt;
       while (acc >= G.DT && S.mode === 'play' && !S.guide) { acc -= G.DT; G.step(S.st, G.DT); const evs = S.st.events.splice(0); for (const ev of evs) { try { handle(ev); } catch (e) { console.error('handle', ev.type, e); } } }
       const st = S.st;
@@ -2569,7 +2682,7 @@ async function boot() {
   if (PF.lang && !q.get('lang') && !DB.lang) lang = PF.lang;
   // 場の一時停止・広告の間は止めて、音を消す
   PF.onPause = (p) => { audio.mute(p); if (p && S.mode === 'play' && !S.paused) openPause(); if (!p) setTimeout(soundResync, 600); };
-  PF.onAd = (on) => { S.adPause = on; audio.mute(on); if (!on) { setTimeout(soundResync, 600); setTimeout(soundResync, 2500); } };
+  PF.onAd = (on) => { S.adPause = on; audio.mute(on); if (!on) { S.adEnd = performance.now(); [60, 400, 1200, 2500].forEach((ms) => setTimeout(soundResync, ms)); } }; // 11/23 依頼主「広告の後にタップするまで音が出ない」
   // 音の読み直し: 広告が出ていないのに「広告中」「消音」が残っていたら解く（広告のあと音も声も止まったままになるのを防ぐ）。2 秒ごとにも見る
   function soundResync() {
     if (document.hidden) return;
@@ -2578,6 +2691,7 @@ async function boot() {
     const ok = PF.audioOk(); if (PF.muted && ok) { PF.muted = false; fixed.push('pfMuted'); }
     if (!busy && !PF.pausedNow()) audio.mute(false);
     if (fixed.length || !audio.soundOn !== !(DB.sound && !PF.muted)) { applySound(); try { audio.unlock(); } catch { /* */ } }
+    else if (!busy && !S.adPause && DB.sound && !PF.muted && audio.ctx && audio.ctx.state !== 'running') { try { audio.unlock(); } catch { /* 一度触れた画面なら、触れなくても戻せる */ } }
     if (fixed.length) PF.ev('snd_fix', { what: fixed.join(','), mode: S.mode, ok: ok ? 1 : 0, ctx: audio.ctx?.state || '-' });
   }
   setInterval(soundResync, 2000);

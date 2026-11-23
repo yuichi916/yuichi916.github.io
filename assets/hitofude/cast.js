@@ -309,7 +309,7 @@ export function drawCast(g, id, x, y, size, opts = {}) {
   // ふわっと上下する（足もとは止めたまま、少しだけ伸び縮み）
   const bob = an * Math.sin(t * 2.3 + (BLINK_SEED[id] || 0));
   g.translate(0, 50); g.scale(1 - bob * 0.012, 1 + bob * 0.018); g.translate(0, -50 - bob * 0.8);
-  fn(g, face, { t, an, px: 1 / s });
+  fn(g, face, { t, an, px: 1 / s, tails: opts.tails || 1 });
   g.restore();
 }
 const BLINK_SEED = { tengu: 3, tanuki: 5, kitsune: 1, kamaitachi: 6, neko: 2, yukionna: 4, yamabiko: 7 };
@@ -507,13 +507,21 @@ function kitsune(g, face, k) {
     g.restore();
   };
   for (const w of wisps) if (w.d < 0) wisp(w);
-  // しっぽ（右うしろ。先は藍色）
-  g.save(); g.translate(14, 44); g.rotate(an * Math.sin(t * 1.5) * 0.1);
-  g.fillStyle = lin(g, 'ks.tail', 0, 0, 30, -54, [[0, '#ffffff'], [0.5, '#eef0ff'], [0.78, '#8f98ee'], [1, '#4a4fb6']]);
-  g.beginPath(); g.moveTo(-8, 4); g.bezierCurveTo(30, 10, 52, -18, 42, -46); g.quadraticCurveTo(38, -60, 24, -62);
-  g.quadraticCurveTo(30, -50, 22, -38); g.bezierCurveTo(16, -24, 6, -16, -8, -12); g.closePath(); g.fill();
-  g.fillStyle = 'rgba(255,255,255,.45)'; g.beginPath(); g.moveTo(4, -2); g.bezierCurveTo(26, 0, 40, -18, 36, -38); g.bezierCurveTo(32, -20, 22, -8, 4, -6); g.fill();
-  g.restore();
+  // しっぽ（右うしろ。先は藍色）。大妖怪「九尾」のときは 9 本を扇に広げる（11/23 依頼主「九尾の尾が 9 ない」）
+  const tailPath = () => {
+    g.fillStyle = lin(g, 'ks.tail', 0, 0, 30, -54, [[0, '#ffffff'], [0.5, '#eef0ff'], [0.78, '#8f98ee'], [1, '#4a4fb6']]);
+    g.beginPath(); g.moveTo(-8, 4); g.bezierCurveTo(30, 10, 52, -18, 42, -46); g.quadraticCurveTo(38, -60, 24, -62);
+    g.quadraticCurveTo(30, -50, 22, -38); g.bezierCurveTo(16, -24, 6, -16, -8, -12); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.45)'; g.beginPath(); g.moveTo(4, -2); g.bezierCurveTo(26, 0, 40, -18, 36, -38); g.bezierCurveTo(32, -20, 22, -8, 4, -6); g.fill();
+  };
+  if ((k.tails || 1) > 1) {
+    const n = k.tails;
+    for (let i = 0; i < n; i++) {
+      // 尾の先の向き: 左上 −165° から右上 −15° まで。元の尾（右上 −64° 向き）を左側は裏返して回す
+      const th = (-172 + (i * 164) / (n - 1)) * Math.PI / 180, side = th < -Math.PI / 2 ? -1 : 1, rot = th + (side < 0 ? 116 : 64) * Math.PI / 180 + an * Math.sin(t * 1.5 + i * 0.7) * 0.06;
+      g.save(); g.translate(0, 34); g.rotate(rot); g.scale(side * 0.98, 1.02); g.translate(10, -6); tailPath(); g.restore();
+    }
+  } else { g.save(); g.translate(14, 44); g.rotate(an * Math.sin(t * 1.5) * 0.1); tailPath(); g.restore(); }
   // からだ（すわった形）
   g.fillStyle = fur; g.beginPath(); g.moveTo(0, -8);
   g.bezierCurveTo(20, -8, 28, 18, 26, 38); g.bezierCurveTo(25, 48, 16, 51, 0, 51);
