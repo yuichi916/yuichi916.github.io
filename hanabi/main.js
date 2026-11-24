@@ -103,11 +103,19 @@ function resize() {
   if ((pw !== W || ph !== H) && S.st && S.mode === 'play' && S.st.phase === 'aim' && S.st.strokesUsed === 0) startNight();
 }
 addEventListener('resize', resize);
+// 11/24 依頼主「大天狗、討ち取った！などもはみ出る」: 題の字を、枠の幅に入るまで縮める（字を入れた直後・画面の大きさが変わった時・書体が届いた時）
+function fitText(el) {
+  if (!el) return; el.style.fontSize = ''; const w = el.clientWidth, sw = el.scrollWidth;
+  if (w > 20 && sw > w + 1) el.style.fontSize = Math.max(13, parseFloat(getComputedStyle(el).fontSize) * (w / sw) * 0.965) + 'px';
+}
+const fitTitles = () => ['resTitle', 'ovTitle', 'bkTitle', 'skName', 'pzTitle'].forEach((id) => { const e = $(id); if (e && e.clientWidth) fitText(e); });
+addEventListener('resize', () => requestAnimationFrame(fitTitles));
+document.fonts?.ready?.then(() => fitTitles());
 
 // ------------------------------------------------------------------ 画面の切りかえ
 const SCREENS = ['title', 'newrun', 'inter', 'over', 'pause', 'book', 'senko', 'rankScr'];
 function clearAch() { (S.achT || []).forEach(clearTimeout); S.achT = []; document.querySelectorAll('.achtoast').forEach((e) => e.remove()); }
-function show(name) { clearAch(); for (const s of SCREENS) $(s).classList.toggle('hidden', s !== name); if (name !== 'none') { hideVeil(); /* 盤の上の題名は、ほかの画面を開いたら消す */ $('hand').classList.add('hidden'); S.guide = false; $('guide').classList.add('hidden'); $('guideRing').classList.add('hidden'); } } // 手本の指は遊んでいる間だけ（屋台に残っていた）
+function show(name) { clearAch(); if (name !== 'none') hideCut(); for (const s of SCREENS) $(s).classList.toggle('hidden', s !== name); if (name !== 'none') { hideVeil(); /* 盤の上の題名は、ほかの画面を開いたら消す */ $('hand').classList.add('hidden'); S.guide = false; $('guide').classList.add('hidden'); $('guideRing').classList.add('hidden'); } } // 手本の指は遊んでいる間だけ（屋台に残っていた）
 
 function toTitle() {
   PF.stop();
@@ -326,7 +334,7 @@ function reopenShop() {
   const run = S.run, k = run.shopState;
   S.mode = 'inter'; $('float').querySelectorAll('.banner').forEach((o) => o.remove()); show('inter'); /* 屋台を開いたら「勝 利」などの大きな字を消す（屋台の題に重なって残っていた） */ $('hud').classList.add('hidden'); hideTip();
   S.sh = k.sh; S.route = k.route || Run.routeChoices(run); S.routeSel = k.sel || 0; S.giftInShop = !!k.gift; S.toraLine = k.tora || ''; S.shopBought = !!k.bought; S.shopNudged = !!k.nudged; S.mapPeek = null; S.rec = null;
-  $('resTitle').textContent = tr(`第 ${run.night} 夜のあと（続きから）`, `After night ${run.night} (continued)`);
+  $('resTitle').textContent = tr(`第 ${run.night} 夜のあと（続きから）`, `After night ${run.night} (continued)`); requestAnimationFrame(fitTitles);
   $('resStars').innerHTML = ''; $('resScore').textContent = ''; $('ledger').innerHTML = ''; $('techSum') && ($('techSum').innerHTML = '');
   $('purse').textContent = run.coins; $('shopTitle').textContent = tr('屋台', 'Festival Stalls'); $('toraSay').textContent = S.toraLine;
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
@@ -803,7 +811,7 @@ function openInter(def, st, stars, rw, interest, gain) {
   // はじめての周の第 1 夜のあとは、結果と「次の夜へ」だけ（11/17: 第 1 夜を越えてすぐ帰る人が多い。15 秒遊んだだけで 6 品・引き直し・地図は重い）。屋台は第 2 夜のあとから
   const lite = (DB.meta.runs || 0) === 0 && !run.daily && def.world === 1 && def.night === 1 && !DB.meta.taught.shop; S.interLite = lite;
   S.mode = 'inter'; $('float').querySelectorAll('.banner').forEach((o) => o.remove()); show('inter'); /* 屋台を開いたら「勝 利」などの大きな字を消す（屋台の題に重なって残っていた） */ $('inter').classList.toggle('lite', lite); $('hud').classList.add('hidden'); hideTip(); if (!lite) DB.meta.taught.shop = 1;
-  $('resTitle').textContent = def.raid ? tr(`${raidName(def)}、討ち取った！`, `${raidName(def)} Defeated!`) : def.boss ? tr('大一番、勝利！', 'Boss Defeated!') : tr(`第 ${def.night} 夜 大成功`, `Night ${def.night} Clear`);
+  $('resTitle').textContent = def.raid ? tr(`${raidName(def)}、討ち取った！`, `${raidName(def)} Defeated!`) : def.boss ? tr('大一番、勝利！', 'Boss Defeated!') : tr(`第 ${def.night} 夜 大成功`, `Night ${def.night} Clear`); requestAnimationFrame(fitTitles);
   const sEl = $('resStars'); sEl.innerHTML = '<span>★</span><span>★</span><span>★</span>';
   [...sEl.children].forEach((c, i) => { if (i < stars) setTimeout(() => { c.classList.add('on'); audio.note(12 + i * 2, { vol: 0.18, dur: 0.5 }); }, 200 + i * 220); });
   $('resScore').textContent = fmt(st.score);
@@ -818,7 +826,7 @@ function openInter(def, st, stars, rw, interest, gain) {
   $('toraSay').textContent = S.toraLine || '';
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
-  $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT'); $('shopQuit').textContent = tr('やめる（保存）', 'Quit (saved)');
+  $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT'); $('nextBtn').classList.remove('ask'); $('shopQuit').textContent = tr('やめる（保存）', 'Quit (saved)');
   renderShop(); previewShop(); openGift(); PF.ad();
   // 夜明けの頁: 続きがあれば 1 頁（11/21 依頼主「一夜終わった後に徐々にストーリーや主人公が明らかになって先が気になるように」）
   // 11/21 依頼主「最初は出さないで徐々に。はまったころに多く」: 夜を 3 つ越えてから・最初の 3 頁は夜 2 つに 1 頁（tale.js）。前の世界の頁が残っていれば 2 頁つづけて追いつく
@@ -1051,10 +1059,10 @@ function renderShop() {
       const price = it.kind === 'trade' ? `<span class="pr life">${tr('灯 1 つ', '1 light')}</span>` : it.gift ? `<span class="pr free">${tr('ただ', 'FREE')}</span>` : `<span class="pr"><i class="coin"></i>${it.cost}</span>`;
       b.insertAdjacentHTML('beforeend', `<span class="nm">${JA() ? c.ja : c.en}</span><span class="ds">${short1(JA() ? c.dj : c.de)}${g ? `<br><b class="gr">${g}</b>` : ''}</span>${pvTag(i)}${price}`);
     } else if (it.kind === 'slot') {
-      b.innerHTML = `<span class="tg" style="background:#5a4228">${tr('袋を広げる', 'Bigger bag')}</span><div class="art engiart">${tr('枠 +1', '+1 slot')}</div><span class="nm">${tr('お守りの枠 +1', '+1 charm slot')}</span><span class="ds">${tr(`持てるお守りが ${run.slots} → ${run.slots + 1} つに（${Run.MAX_SLOTS} まで）`, `Hold ${run.slots} → ${run.slots + 1} charms (max ${Run.MAX_SLOTS})`)}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`;
+      b.innerHTML = `<span class="tg" style="background:#5a4228">${tr('袋を広げる', 'Bigger bag')}</span><div class="art engiart${JA() ? '' : ' en'}">${tr('枠 +1', '+1 slot')}</div><span class="nm">${tr('お守りの枠 +1', '+1 charm slot')}</span><span class="ds">${tr(`持てるお守りが ${run.slots} → ${run.slots + 1} つに（${Run.MAX_SLOTS} まで）`, `Hold ${run.slots} → ${run.slots + 1} charms (max ${Run.MAX_SLOTS})`)}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`;
     } else if (it.kind === 'engi') {
       const E = G.ENGI[it.id], full = (run.engi || []).length >= Run.ENGI_SLOTS;
-      b.innerHTML = `<span class="tg engitag">${tr('札', 'Talisman')}</span><div class="art engiart">${JA() ? E.ja : E.en}</div><span class="nm">${JA() ? E.ja : E.en}</span><span class="ds">${JA() ? E.sj : E.se}${tr('（1 回）', ' (once)')}${full ? tr('<br><b>満杯</b>', '<br><b>Full</b>') : ''}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`;
+      b.innerHTML = `<span class="tg engitag">${tr('札', 'Talisman')}</span><div class="art engiart${JA() ? '' : ' en'}">${JA() ? E.ja : E.en}</div><span class="nm">${JA() ? E.ja : E.en}</span><span class="ds">${JA() ? E.sj : E.se}${tr('（1 回）', ' (once)')}${full ? tr('<br><b>満杯</b>', '<br><b>Full</b>') : ''}</span><span class="pr"><i class="coin"></i>${it.cost}</span>`;
       if (full) b.classList.add('cant');
     } else if (it.kind === 'add' || it.kind === 'thin' || it.kind === 'engrave') {
       const art = document.createElement('div'); art.className = 'art'; const cv = document.createElement('canvas'); cv.width = 120; cv.height = 150;
@@ -1134,7 +1142,7 @@ function mapDesc(cols, w, peek) {
   if (tw && x.type !== 'nazo') parts.push(`<em>${JA() ? tw.ja : tw.en}</em> ${JA() ? tw.dj : tw.de}`);
   return parts.join('<br>');
 }
-function nextLabel() { const c = S.route?.[S.routeSel || 0]; return c ? tr(`次へ：${Run.NODES[c.node].ja}`, `Go: ${Run.NODES[c.node].en}`) : tr('次の夜へ', 'NEXT NIGHT'); }
+function nextLabel() { $('nextBtn').classList.remove('ask'); const c = S.route?.[S.routeSel || 0]; return c ? tr(`次へ：${Run.NODES[c.node].ja}`, `Go: ${Run.NODES[c.node].en}`) : tr('次の夜へ', 'NEXT NIGHT'); }
 // 大勝負のほうび: 屋台の前に「3 つから 1 つ」。枠がいっぱいなら、屋台で売ってから選べるように並べる
 function openGift() {
   $('giftOv')?.remove();
@@ -1275,7 +1283,7 @@ $('nextBtn').onclick = () => {
     if (can) {
       S.shopNudged = true;
       $('toraSay').textContent = tr(`小判が ${run.coins} 枚あるよ。買っていく？`, `${run.coins} coins left. Buy a charm?`);
-      $('nextBtn').textContent = tr('もう一度押すと進む', 'Tap again to go'); // 11/23: 知らせが押したボタンから遠く、押しても進まないように見えた
+      $('nextBtn').textContent = tr('もう一度押すと進む', 'Tap again to go'); $('nextBtn').classList.add('ask'); // 11/23: 知らせが押したボタンから遠く、押しても進まないように見えた
       const cards = [...$('cards').querySelectorAll('.card')], best = cards.find((c) => c.querySelector('.pvt.best')) || cards.find((c) => !c.classList.contains('cant'));
       if (best) { best.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); restartAnim(best, 'nudge'); }
       return;
@@ -1448,7 +1456,7 @@ function runOver(won) {
   const mercy = won && (run.waitedNights || 0) >= Mem.MERCY_NEED, ME = Mem.mercyEnding(mem());
   meta.mem.lastEnd = { nights: run.nightsCleared, won }; meta.mem.lastPlay = Date.now();
   if (mercy) { meta.mem.mercy = 1; achCheck({}); track('mem/mercy'); }
-  $('ovTitle').textContent = mercy ? tr(ME.title.ja, ME.title.en) : won ? tr('祭り、大団円！', 'The Festival is Complete!') : tr('今夜はここまで', 'The Night Ends');
+  $('ovTitle').textContent = mercy ? tr(ME.title.ja, ME.title.en) : won ? tr('祭り、大団円！', 'The Festival is Complete!') : tr('今夜はここまで', 'The Night Ends'); requestAnimationFrame(fitTitles);
   { const t = $('ovTitle'); t.classList.remove('crack', 'burn'); S.crack = !won && lore() >= 3 ? { x0: null, n: 0 } : null; if (S.crack) t.classList.add('crack'); }
   const sub = [newBest ? `<em class="best">${tr('自己ベスト！', 'New Best!')}</em>` : '', !won && S.miss ? tr(`最後の夜は あと ${fmt(S.miss.n)} 点（${S.miss.pct}%）`, `Last night: ${fmt(S.miss.n)} short (${S.miss.pct}%)`) : ''].filter(Boolean).join(' ');
   if (run.endless) meta.endlessBest = Math.max(meta.endlessBest || 0, run.nightsCleared);
@@ -1532,7 +1540,7 @@ function openPause() {
 // 設定: from = 'play'（ひと休み）・'title'・'inter'（屋台）。会話とカットインはここでいつでも切り替えられる
 function openSettings(from) {
   S.setFrom = from; show('pause'); hideTip(); hideKakeai();
-  if (from === 'inter') { clearInterval(S.autoT); $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT'); }
+  if (from === 'inter') { clearInterval(S.autoT); $('nextBtn').textContent = tr('次の夜へ', 'NEXT NIGHT'); $('nextBtn').classList.remove('ask'); }
   $('pzTitle').textContent = from === 'play' ? tr('ひと休み', 'Paused') : tr('設定', 'Settings');
   const lab = () => {
     $('pzSound').textContent = tr(`効果音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`);
@@ -1568,7 +1576,7 @@ soundIcon();
 $('pzResume').onclick = () => { audio.ui('tap'); if (S.setFrom === 'title') toTitle(); else if (S.setFrom === 'inter') { show('inter'); renderShop(); } else closePause(); };
 $('pzQuit').onclick = () => { audio.ui('tap'); S.paused = false; pid = null; if (S.run) { DB.run = S.run; save(); S.savedNote = 1; } toTitle(); };
 addEventListener('keydown', (e) => { if ((e.key === 'Escape' && !window.HANABI_PG) || e.key === 'p') { /* Playgama では Esc を使わない（全画面を抜けるキー） */ if (S.paused) closePause(); else openPause(); } });
-function toast(t) { const e = document.createElement('div'); e.className = 'pop gold'; e.textContent = t; e.style.left = '50%'; e.style.top = '30%'; e.style.fontSize = '22px'; e.style.zIndex = 9; e.style.width = 'max-content'; e.style.maxWidth = '92vw'; e.style.whiteSpace = 'normal'; e.style.textAlign = 'center'; /* スマホで長い知らせが画面の外へ切れない */ document.body.append(e); setTimeout(() => e.remove(), 950); }
+function toast(t) { const e = document.createElement('div'); e.className = 'pop gold'; e.textContent = t; e.style.left = '50%'; e.style.top = '30%'; e.style.fontSize = '22px'; e.style.zIndex = 9; e.style.width = 'max-content'; e.style.maxWidth = '84vw'; /* 出はじめに 1.15 倍になるので */ e.style.whiteSpace = 'normal'; e.style.textAlign = 'center'; /* スマホで長い知らせが画面の外へ切れない */ document.body.append(e); setTimeout(() => e.remove(), 950); }
 
 // ------------------------------------------------------------------ 入力
 const q1 = (v) => Math.round(v * 10) / 10;
@@ -1739,6 +1747,11 @@ function floatText(x, y, text, cls = '', size = 22, life = 950) {
   if (isMsg && life > 1200) e.style.animationDuration = life + 'ms'; /* 長く見せたい言葉は、見せる時間ずっと読めるように（.pop は 0.9 秒で消えていた） */
   e.style.left = ((x - (S.pan || 0)) / W) * 100 + '%'; e.style.top = ((y + (S.panY || 0)) / H) * 100 + '%'; e.style.fontSize = size * (innerHeight / H) + 'px';
   $('float').append(e); setTimeout(() => e.remove(), life);
+  if (isMsg) { // 長い言葉（英語の技の説明など）が画面の横に切れていた。いちばん大きくなる時（1.15 倍）も入るように
+    const vw = innerWidth, max = (vw - 16) / 1.15; let w = e.offsetWidth; if (w > max) { e.style.fontSize = Math.max(11, parseFloat(e.style.fontSize) * max / w) + 'px'; w = e.offsetWidth; }
+    if (w > max) { e.style.whiteSpace = 'normal'; e.style.textAlign = 'center'; e.style.width = Math.floor(max) + 'px'; w = max; }
+    const half = w * 0.575 + 6, px = ((x - (S.pan || 0)) / W) * vw, fx2 = Math.max(half, Math.min(vw - half, px)); if (Math.abs(fx2 - px) > 1) e.style.left = fx2 + 'px';
+  }
 }
 // トラ（屋台の猫）や妖怪が、画面の下から話しかける。触れると閉じて then へ
 function showTalk(who, cast, face, text, then) {
@@ -1754,8 +1767,9 @@ function banner(html, size = 70, life = 1600, cls = '') {
   const e = document.createElement('div'); e.className = 'banner ' + cls; e.innerHTML = html; e.style.fontSize = size * (Math.min(innerWidth, innerHeight) / 720) + 'px'; e.style.animationDuration = life + 'ms';
   $('float').append(e); setTimeout(() => e.remove(), life);
   // 長い英語の名前（Great Kamaitachi など）が縦の画面で左右にはみ出すので、幅に収まるまで縮める
-  const maxW = Math.min(e.clientWidth || innerWidth, innerWidth) * 0.98, sw = e.scrollWidth;
+  const maxW = Math.min(e.clientWidth || innerWidth, innerWidth) * 0.98, sw = e.scrollWidth, over = innerWidth * 0.9;
   if (sw > maxW) e.style.fontSize = (parseFloat(e.style.fontSize) * maxW) / sw + 'px';
+  if (e.scrollWidth > over) e.style.fontSize = (parseFloat(e.style.fontSize) * over) / e.scrollWidth + 'px'; // 出はじめの弾みで少し大きくなるので、画面の 9 割まで
 }
 function restartAnim(el, cls) { if (!el) return; el.classList.remove(cls); requestAnimationFrame(() => el.classList.add(cls)); } // 動きのやり直し: offsetWidth で配置を今すぐ測り直させず、次の描き替えで付け直す（同じフレームに何十回も呼ばれる）
 function bump(el) { if (!el) return; el.classList.remove('bump'); requestAnimationFrame(() => el.classList.add('bump')); } // offsetWidth で配置を今すぐやり直させない（次の描き替えで付け直す）
@@ -1934,29 +1948,51 @@ function hideKakeai() { const el = $('kakeai'); document.body.classList.remove('
 addEventListener('keydown', (e) => { if (S.taleKey && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopImmediatePropagation(); S.taleKey(); } }, true);
 
 // ボス戦のカットイン: 始まりの会話・攻めが決まった・やられた。遊びは止めない
+// 11/24 依頼主「カットインで play を邪魔されてしまう」: ①線を引いている間は出さない（終わってから出す・古くなったら捨てる）②盤に重ねない（画面の下の小さな札）
+const cutBusy = () => { const k = S.st?.stroke; return (S.st?.phase === 'stroke' && !!k && k.penDown) || document.body.classList.contains('toraOn'); };
+function cutWhenFree(fn, wait) {
+  const st = S.st, t0 = performance.now(), pend = S.cutPend = (S.cutPend || 0) + 1; // 待ちは 1 つだけ（新しい出番が来たら、前の待ちは捨てる）
+  const tick = () => { if (S.cutPend !== pend || S.st !== st || S.mode !== 'play' || !cutOn()) return; if (!cutBusy()) return fn(); if (performance.now() - t0 < wait) setTimeout(tick, 120); };
+  tick();
+}
+// 置き場所: 下の帯。お守り・縁起物の札・妖怪・小判をよける（縦の画面ではお守りの段の上）
+function placeCut(el) {
+  const vw = innerWidth, vh = innerHeight, tall = vh > vw, box = (id) => { const e = $(id); if (!e || e.classList.contains('hidden')) return null; const r = e.getBoundingClientRect(); return r.width > 4 && r.height > 4 ? r : null; };
+  const bags = box('bags'), engi = box('engi'), boss = box('boss'), h = Math.round(tall ? Math.max(58, Math.min(84, vh * 0.085)) : Math.max(54, Math.min(96, vh * 0.125)));
+  const left = !tall && bags ? bags.right + 14 : 12, bottom = tall ? vh - Math.min(bags ? bags.top : vh - 46, engi ? engi.top : vh - 46) + 8 : 12;
+  const right = boss && boss.bottom > vh - bottom - h - 4 ? boss.left - 8 : vw - (tall ? 12 : 96);
+  el.style.left = Math.round(left) + 'px'; el.style.bottom = Math.round(bottom) + 'px'; el.style.height = h + 'px'; el.style.maxWidth = Math.round(Math.max(150, Math.min(tall ? vw * 0.72 : 460, right - left))) + 'px';
+}
 function showCut(ln, kind) {
   const el = $('cutin'); if (!el || !ln) return; el.lang = JA() ? 'ja' : 'en';
   const img = ln.w === 'kon' ? 'cut_kon' : kind === 'hurt' || ln.f === 'hurt' ? 'cut_hurt' : ln.f === 'angry' ? 'cut_atk' : `akari_${ln.f || 'smile'}`;
   $('ciImg').src = `tale/img/${img}.webp`; $('ciName').textContent = ln.w === 'kon' ? tr('コン', 'Kon') : tr('灯', 'Akari'); $('ciLine').textContent = JA() ? ln.ja : ln.en;
-  el.className = `cutin ${kind} ${ln.w}`;
+  el.className = `cutin ${kind} ${ln.w}`; placeCut(el);
   // 11/23 依頼主「カットインの声が遅くてずれる」: 声が鳴り始めたら絵を出す（読みこみが遅くても 0.35 秒で出す）。声が終わるまでは下げない
   const tok = S.cutTok = (S.cutTok || 0) + 1, base = (kind === 'intro' ? 1900 : 1350) + (JA() ? 0 : Math.max(0, (ln.en.length - 18) * 30));
-  let shownAt = 0, ended = false; const show = () => { if (shownAt || S.cutTok !== tok) return; shownAt = performance.now(); el.classList.add('on'); clearTimeout(S.cutHide); S.cutHide = setTimeout(() => { if (S.cutTok === tok && ended) el.classList.remove('on'); }, base); };
-  setTimeout(show, 350);
-  talePlay(ln.w, JA() ? ln.ja : ln.en, () => requestAnimationFrame(show)).then(() => { ended = true; if (S.cutTok !== tok) return; const left = base - (performance.now() - (shownAt || performance.now())); clearTimeout(S.cutHide); S.cutHide = setTimeout(() => { if (S.cutTok === tok) el.classList.remove('on'); }, Math.max(250, left)); });
+  let shownAt = 0, ended = false; const show = () => { if (shownAt || S.cutTok !== tok) return; shownAt = performance.now(); el.classList.add('on'); document.body.classList.add('cutOn'); clearTimeout(S.cutHide); S.cutHide = setTimeout(() => { if (S.cutTok === tok && ended) hideCut(); }, base); };
+  setTimeout(show, 350); setTimeout(() => { if (S.cutTok === tok) hideCut(); }, base + 4200); /* 声の終わりの知らせが来なくても残さない */
+  talePlay(ln.w, JA() ? ln.ja : ln.en, () => requestAnimationFrame(show)).then(() => { ended = true; if (S.cutTok !== tok) return; const left = base - (performance.now() - (shownAt || performance.now())); clearTimeout(S.cutHide); S.cutHide = setTimeout(() => { if (S.cutTok === tok) hideCut(); }, Math.max(250, left)); });
 }
+function hideCut() { $('cutin')?.classList.remove('on'); document.body.classList.remove('cutOn'); }
 function battleCut(kind) {
   if (!cutOn() || !S.st || S.mode !== 'play' || S.coach) return;
-  const now = performance.now(); if (now - (S.cutT || 0) < 2600) return; S.cutT = now;
+  const now = performance.now(); if (now - (S.cutT || 0) < 2600) return;
+  cutWhenFree(() => cutNow(kind), 3200);
+}
+function cutNow(kind) {
+  S.cutT = performance.now();
   // まず灯（やられは痛がる顔・攻めは決めた顔）。コンの一言は 2 回に 1 回、あとから続ける
   const me = BATTLE[kind].filter((l) => l.w === 'akari'), kon = BATTLE[kind].filter((l) => l.w === 'kon'), k = S.cutI = (S.cutI || 0) + 1;
   showCut(me[k % me.length], kind);
-  if (k % 2 === 0 && kon.length) { const st = S.st; setTimeout(() => { if (S.st === st && S.mode === 'play' && cutOn()) { S.cutT = performance.now(); showCut(kon[(k / 2) % kon.length], kind); } }, 1450); }
+  if (k % 2 === 0 && kon.length) { const st = S.st; setTimeout(() => { if (S.st === st && S.mode === 'play' && cutOn() && !cutBusy()) { S.cutT = performance.now(); showCut(kon[(k / 2) % kon.length], kind); } }, 1450); }
 }
 function battleIntro(def) {
   if (!cutOn() || def.endless) return; const wr = ((def.world - 1) % 3) + 1, L2 = BATTLE.intro[(def.raid ? 'r' : 'b') + wr]; if (!L2) return;
   const at = def.raid ? 4300 : 4100;
-  L2.forEach((ln, k) => setTimeout(() => { if (S.st?.level === def && S.mode === 'play' && cutOn()) { S.cutT = performance.now(); showCut(ln, 'intro'); } }, at + k * 2000));
+  // 2 行の掛け合い。引いている間は待ち、1 行目を捨てたら 2 行目も出さない
+  const say = (k) => { if (!L2[k] || S.st?.level !== def) return; cutWhenFree(() => { if (!k && performance.now() - (S.cutT || 0) < 2600) return; /* ほかの一言が出たばかりなら重ねない */ S.cutT = performance.now(); showCut(L2[k], 'intro'); setTimeout(() => say(k + 1), 2000); }, k ? 1500 : 3000); };
+  setTimeout(() => say(0), at);
 }
 const once = (k) => { const m = mem(); m.seen ||= {}; if (m.seen[k]) return false; m.seen[k] = 1; save(); return true; };
 // ---- 点を伸ばす技
@@ -2972,5 +3008,5 @@ function ihenFrame(dt) {
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, offerRevive, runOver, ckSave, contRun, openRank, openPgRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext, battleCut: (k) => battleCut(k), showCut: (l, k) => showCut(l, k), BATTLE };
+window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, offerRevive, runOver, ckSave, contRun, openRank, openPgRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext, battleCut: (k) => battleCut(k), showCut: (l, k) => showCut(l, k), BATTLE, banner, floatText, toast, openBook, openSettings, openGift, openTale, openIp, fitTitles };
 boot();

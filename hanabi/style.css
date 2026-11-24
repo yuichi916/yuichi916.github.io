@@ -120,7 +120,8 @@ button { font-family: inherit; }
 @keyframes rowin { from { opacity: 0; transform: translateX(-10px); } }
 .purse { font-weight: 800; font-size: clamp(22px, 3.8vmin, 34px); color: #8a4a06; display: flex; gap: 8px; justify-content: center; align-items: center; }
 
-.panel.inter { display: grid; grid-template-columns: minmax(170px, 23%) 1fr; gap: clamp(10px, 2vmin, 24px); width: min(96vw, 1180px); text-align: center; }
+.panel.inter { display: grid; grid-template-columns: minmax(170px, 23%) minmax(0, 1fr); gap: clamp(10px, 2vmin, 24px); width: min(96vw, 1180px); text-align: center; }
+.panel.inter > * { min-width: 0; } /* 11/24 中身の幅で列が広がり、右のボタンと札が枠の外へ切れていた */
 .inter .res { border-right: 1px solid #5a422840; padding-right: clamp(10px, 2vmin, 22px); align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
 .cards { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(6px, 1vmin, 12px); }
 .cards .card { flex: 1 1 14%; max-width: 16%; }
@@ -135,7 +136,9 @@ button { font-family: inherit; }
 .card .pr { font-weight: 800; font-size: clamp(14px, 2.2vmin, 19px); color: #8a4a06; display: flex; align-items: center; gap: 4px; }
 .card.sold { visibility: hidden; }
 .card.cant .pr { color: #a33; }
-.row.bottom { justify-content: space-between; flex-wrap: nowrap; }
+.row.bottom { justify-content: space-between; flex-wrap: wrap; row-gap: 6px; } /* 入りきらない時は段を分ける（切れさせない） */
+.row.bottom #nextBtn { margin-left: auto; max-width: 100%; }
+#nextBtn.ask { font-size: clamp(13px, 2.1vmin, 19px); padding: .85em 1.3em; letter-spacing: .04em; }
 .held { display: flex; gap: 5px; align-items: center; flex: 1; justify-content: center; min-height: 40px; }
 .held .slot { width: clamp(30px, 5.4vmin, 46px); aspect-ratio: 1 / 1.25; border-radius: 6px; box-shadow: inset 0 0 0 1px #5a422855; position: relative; cursor: pointer; }
 .held .slot canvas { width: 100%; height: 100%; display: block; }
@@ -162,13 +165,13 @@ button { font-family: inherit; }
 .toggles { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 8px; }
 .booklist { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 7px; max-height: 66vh; overflow: auto; padding: 4px; touch-action: pan-y; }
 .bookitem { display: grid; grid-template-columns: 42px 1fr; gap: 6px; text-align: left; background: #fff8ea; border-radius: 6px; padding: 6px; box-shadow: 0 0 0 1px #8a6a3f55; font-size: clamp(12px, 1.9vmin, 15px); line-height: 1.25; }
-.bookitem b { display: block; font-size: 1.12em; } .bookitem canvas { width: 42px; height: 52px; }
+.bookitem > div { min-width: 0; overflow-wrap: anywhere; } .bookitem b { display: block; font-size: 1.12em; } .bookitem canvas { width: 42px; height: 52px; }
 .bookitem.locked { opacity: .35; filter: grayscale(1); }
 #tip { position: fixed; z-index: 9; max-width: 260px; padding: 6px 10px; border-radius: 6px; background: #120c08f0; color: #ffe9b0; font-size: 14px; line-height: 1.3; pointer-events: none; box-shadow: 0 0 0 1px #c79a50; }
 #tip b { display: block; color: #fff; }
 
 @media (orientation: portrait) {
-  .panel.inter { grid-template-columns: 1fr; }
+  .panel.inter { grid-template-columns: minmax(0, 1fr); }
   .inter .res { border-right: 0; border-bottom: 1px solid #5a422840; padding: 0 0 8px; display: grid; grid-template-columns: 1fr 1fr; align-items: center; }
   .inter .res .res-title { grid-column: 1 / 3; }
   .cards .card { flex: 1 1 30%; max-width: 32%; }
@@ -312,7 +315,7 @@ button { font-family: inherit; }
   .shop { display: flex; flex-direction: column; }
   .shop .shophead { order: 0; } .shop .cards { order: 1; } .shop .nextinfo { order: 2; } .shop .row.bottom { order: 3; margin-top: 6px; }
   /* 縦画面: 屋台の枠が画面より長くなるので、「次の夜へ」の段を枠の下端に貼りつけて、スクロールしなくても見えるようにする */
-  .inter .shop .row.bottom { position: sticky; bottom: calc(-1 * clamp(14px, 2.4vmin, 28px)); z-index: 3; margin: 6px calc(-1 * clamp(16px, 3vmin, 36px)) 0; padding: 8px clamp(16px, 3vmin, 36px) clamp(10px, 2vmin, 18px); background: var(--paper); box-shadow: 0 -10px 16px -8px #3a24124d; }
+  .inter .shop .row.bottom { position: sticky; bottom: 0; z-index: 3; margin: 6px calc(-1 * clamp(16px, 3vmin, 36px)) 0; padding: 8px clamp(16px, 3vmin, 36px) clamp(10px, 2vmin, 18px); background: var(--paper); box-shadow: 0 -10px 16px -8px #3a24124d; }
 }
 
 /* ---- 縁起物の札（使い切り） */
@@ -689,21 +692,20 @@ body.fuku .goal-stars u:last-child::after { content: '＋札'; margin-left: 3px;
 .bookitem.tl .bkln i { font-style: normal; color: #b0864a; margin-right: .5em; font-size: .85em; }
 .bookitem.tl .bkln.akari, .bookitem.tl .bkln.kon, .bookitem.tl .bkln.hinoko { cursor: pointer; }
 .bookitem.tl .bkln.akari { font-weight: 700; }
-/* ボス戦のカットイン: 斜めの帯に顔と一言。遊びは止めない */
-.cutin { position: fixed; left: 0; right: 0; top: 16%; z-index: 40; height: clamp(92px, 17vh, 150px); pointer-events: none; display: flex; align-items: center; gap: 14px; padding: 0 5vw; background: linear-gradient(90deg, rgba(10, 8, 26, .0), rgba(10, 8, 26, .82) 12%, rgba(10, 8, 26, .82) 88%, rgba(10, 8, 26, 0)); border-top: 2px solid rgba(255, 200, 120, .6); border-bottom: 2px solid rgba(255, 200, 120, .6); transform: translateX(-110%) skewY(-3deg); opacity: 0; }
-.cutin.on { animation: cutIn 1.35s cubic-bezier(.2, .9, .3, 1) forwards; }
-.cutin.intro.on { animation-duration: 1.9s; }
-@keyframes cutIn { 0% { transform: translateX(-110%) skewY(-3deg); opacity: 1; } 16% { transform: translateX(0) skewY(-3deg); opacity: 1; } 84% { transform: translateX(2%) skewY(-3deg); opacity: 1; } 100% { transform: translateX(110%) skewY(-3deg); opacity: 0; } }
-.cutin img { height: 100%; aspect-ratio: 560 / 426; object-fit: cover; border-left: 2px solid rgba(255, 200, 120, .6); border-right: 2px solid rgba(255, 200, 120, .6); }
-.ci-txt { display: flex; flex-direction: column; color: #fff; text-shadow: 0 2px 6px #000; }
-.ci-txt b { font-size: 13px; color: #e9c27a; letter-spacing: .1em; }
-.ci-txt span { font-size: clamp(20px, 3.4vw, 34px); font-weight: 800; }
-.cutin.hurt { border-color: rgba(255, 90, 70, .8); background: linear-gradient(90deg, rgba(60, 6, 10, 0), rgba(60, 6, 10, .85) 12%, rgba(60, 6, 10, .85) 88%, rgba(60, 6, 10, 0)); }
+/* ボス戦のカットイン: 画面の下の小さな札に、顔と一言（11/24: 盤に重なる帯をやめた。置き場所は placeCut） */
+.cutin { position: fixed; left: 12px; bottom: 12px; z-index: 40; height: 84px; width: max-content; max-width: 460px; box-sizing: border-box; pointer-events: none; display: flex; align-items: center; gap: 12px; padding-right: 18px; overflow: hidden; border-radius: 10px; border: 1.5px solid rgba(255, 200, 120, .6); background: rgba(10, 8, 26, .86); box-shadow: 0 4px 16px #0009; opacity: 0; transform: translateX(-14px); transition: opacity .16s, transform .2s; }
+.cutin.on { opacity: 1; transform: none; }
+.cutin img { height: 100%; aspect-ratio: 560 / 426; object-fit: cover; flex: none; border-right: 1.5px solid rgba(255, 200, 120, .6); }
+.ci-txt { display: flex; flex-direction: column; min-width: 0; color: #fff; text-shadow: 0 2px 6px #000; }
+.ci-txt b { font-size: 12px; color: #e9c27a; letter-spacing: .1em; }
+.cutin.hurt { border-color: rgba(255, 90, 70, .85); background: rgba(52, 8, 14, .88); }
 .cutin.hurt.on img { animation: ciShake .35s linear 2; }
-@keyframes ciShake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+@keyframes ciShake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 .cutin.atk { border-color: rgba(255, 220, 120, .9); }
-@media (max-aspect-ratio: 4/3) { .cutin { height: clamp(78px, 11vh, 120px); top: 15%; } }
-.ci-txt span { font-size: clamp(17px, 3vw, 32px); text-wrap: pretty; word-break: auto-phrase; }
+.ci-txt span { font-weight: 800; font-size: clamp(14px, 2.5vmin, 22px); line-height: 1.25; text-wrap: pretty; word-break: auto-phrase; }
+body.cutOn .remain, body.cutOn .inkbar { visibility: hidden; }
+@media (orientation: portrait) { .cutin { gap: 9px; padding-right: 12px; } .ci-txt b { font-size: 11px; } .ci-txt span { font-size: clamp(13px, 3.7vw, 18px); } }
+@media (prefers-reduced-motion: reduce) { .cutin { transition: none; } .cutin.hurt.on img { animation: none; } }
 .tl-scene { text-wrap: pretty; line-break: strict; word-break: auto-phrase; }
 .ledger .sum { border-bottom: none; justify-content: center; gap: 10px; font-size: 1.25em; } .ledger .sum b { font-size: 1.15em; }
 
@@ -859,3 +861,21 @@ body.toraOn .remain { visibility: hidden; }
 body.entryOn :is(#title, #hud, #teach, #tveil, #nightCard, #tutGo, #hand, #guide, #guideRing, #float, #mini, #techFeed, #sndHint) { opacity: 0 !important; } /* 幕の間は文字や札を出さない（透けて重なる） */
 body.entryRev :is(#title, #hud, #teach, #tveil, #nightCard, #tutGo, #hand, #guide, #guideRing, #float, #mini, #techFeed) { transition: opacity .6s ease; }
 .omi-skip { display: block; margin: 12px auto 0; padding: 8px 16px; border: 0; background: none; color: #7a6040; font: inherit; font-size: 13px; letter-spacing: .06em; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; } /* 11/24 引かずに進む */
+
+/* 11/24 はみ出しの総ざらい（PC 12 サイズ・スマホ 7 サイズ × 日英）で見つかったもの */
+/* 横持ちのスマホ: おみくじの箱が画面より高く、下のボタンが切れていた → 2 列に */
+@media (max-height: 470px) {
+  .omi-box { width: min(620px, 94vw); max-height: 96vh; overflow: auto; box-sizing: border-box; padding: 10px 16px; display: grid; grid-template-columns: 96px minmax(0, 1fr); grid-template-areas: "h h" "q q" "t s" "t o" "r r" "k k"; column-gap: 14px; align-items: center; }
+  .omi-box h3 { grid-area: h; font-size: 20px; } .omi-q { grid-area: q; margin: 0 0 4px; } .omi-tube { grid-area: t; height: 84px; margin: 24px auto 6px; } .omi-slip { grid-area: s; margin: 0 auto 4px; padding: 6px 12px; max-width: none; } .omi-slip .omi-r { font-size: 30px; } .omi-tora { grid-area: o; margin: 0 0 4px; } .omi-row { grid-area: r; } .omi-skip { grid-area: k; margin-top: 4px; }
+}
+/* 横持ち・低い画面の屋台: 「次の夜へ」の段を枠の下端に貼り、送らなくても見えるように */
+@media (orientation: landscape) and (max-height: 620px) {
+  .inter .shop .row.bottom { position: sticky; bottom: 0; z-index: 3; margin: 6px 0 0; padding: 6px 0 8px; background: var(--paper); box-shadow: 0 -8px 12px -8px #3a24124d; }
+  .inter .row.bottom .btn2 { padding: .4em .8em; } .inter .row.bottom .bigbtn.small { padding: .45em 1.3em; } .inter .row.bottom .held { min-height: 34px; }
+}
+/* 札の名前（英語は横書きで折る） */
+.card .engiart { overflow: hidden; } .card .engiart.en { writing-mode: horizontal-tb; letter-spacing: 0; padding: 0 3px; box-sizing: border-box; overflow-wrap: anywhere; line-height: 1.15; font-size: clamp(9px, 1.4vmin, 12px); text-align: center; }
+/* 幅 340 以下の小さなスマホ */
+@media (max-width: 340px) {
+  .techsum span { white-space: normal; } .achline b { overflow-wrap: anywhere; } .held .hcap { white-space: normal; max-width: 66px; } .held { gap: 3px; } .hud-top { padding: 0 8px; gap: 4px; } .topright { gap: 6px; }
+}
