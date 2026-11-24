@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>by と until を、さわって確かめる</title>
+<style>
+:root{
+  --paper:#f5f0e1; --sheet:#fffdf5; --ink:#2b2a28; --pencil:#77726a; --rule:#9c968a;
+  --red:#c8321e; --blue:#2f5fa8;
+  --mark:rgba(255,206,40,.74); --bmark:rgba(110,160,225,.42);
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; color:var(--ink); background-color:var(--paper);
+  background-image:linear-gradient(rgba(60,90,140,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(60,90,140,.09) 1px,transparent 1px);
+  background-size:22px 22px;
+  font-family:"UD デジタル 教科書体 NK-R","UD Digi Kyokasho NK-R","Hiragino Maru Gothic ProN","BIZ UDPGothic","Yu Gothic",Meiryo,sans-serif;
+  font-size:16px; line-height:1.7;
+}
+main{max-width:760px; margin:0 auto; padding:22px 16px 72px; overflow-x:hidden; overflow-x:clip; overflow-wrap:break-word}
+main *{max-width:100%}
+.choices{min-width:0}
+.kicker{margin:0; font-size:13px; color:var(--pencil); letter-spacing:.06em}
+h1{margin:2px 0 6px; font-size:30px; line-height:1.3; font-weight:700}
+h1 .ul{background:linear-gradient(transparent 62%,var(--mark) 62% 92%,transparent 92%); padding:0 4px; font-family:Georgia,"Times New Roman",serif}
+.lead{margin:10px 0 0; font-size:15px}
+section{margin-top:46px; padding-top:16px; border-top:4px double var(--ink)}
+h2{margin:0 0 4px; font-size:20px; line-height:1.4; display:flex; align-items:center; gap:10px}
+.num{
+  flex:none; width:38px; height:38px; display:inline-grid; place-items:center;
+  border:2.5px solid var(--red); color:var(--red); font-family:Georgia,serif; font-size:20px;
+  border-radius:47% 53% 51% 49%/52% 46% 54% 48%; transform:rotate(-5deg);
+}
+.step{margin:20px 0 8px; font-size:14px; color:var(--red); letter-spacing:.1em; border-bottom:1px dashed var(--red); padding-bottom:2px}
+.step::before{content:"▷ "}
+.ask{margin:12px 0 6px; font-size:15px}
+.choices{display:flex; flex-wrap:wrap; gap:8px}
+.ch{
+  font:inherit; font-size:15px; color:var(--ink); background:var(--sheet); border:1.5px solid var(--ink); border-radius:0;
+  padding:7px 12px; min-height:42px; max-width:100%; text-align:left; cursor:pointer;
+}
+.ch.on{background:#ffd84a; box-shadow:2px 2px 0 var(--ink)}
+.ch.en{font-family:Georgia,"Times New Roman",serif; min-width:68px; text-align:center}
+.go{font:inherit; font-size:15px; color:var(--sheet); background:var(--ink); border:0; border-radius:0; padding:9px 14px; min-height:42px; margin:8px 0 2px; cursor:pointer; max-width:100%; text-align:left}
+.locknote{margin:0 0 6px; font-size:13px; color:var(--pencil)}
+.lab.locked{opacity:.3; filter:grayscale(1) blur(4px); pointer-events:none; user-select:none}
+.ctrl{display:block; margin:10px 0 0; font-size:14px}
+.ctrl b{font-size:17px; color:var(--red); margin-left:4px}
+.ctrl small{color:var(--pencil); font-size:12px}
+input[type=range]{display:block; width:100%; height:34px; margin:0; accent-color:var(--red)}
+.notice{
+  position:relative; margin:22px 3px 10px; padding:14px 13px 11px; background:var(--sheet);
+  border:1px solid #c9c1ac; box-shadow:1px 2px 0 rgba(0,0,0,.13); transform:rotate(-.35deg);
+  font-family:Georgia,"Times New Roman",serif; font-size:17px; line-height:1.5; overflow-wrap:anywhere;
+}
+.notice::before{content:""; position:absolute; left:50%; top:-9px; width:62px; height:18px; margin-left:-31px; background:rgba(226,212,150,.78); transform:rotate(-2.5deg)}
+.notice.odd{transform:rotate(.3deg)}
+.notice .who-l{display:block; font-family:inherit; font-size:12px; color:var(--pencil); letter-spacing:.08em}
+.notice b.w{background:linear-gradient(transparent 52%,var(--mark) 52%); padding:0 3px}
+.notice .opts{display:block; margin-top:6px; font-size:15px}
+.two{display:grid; grid-template-columns:minmax(0,1fr); gap:4px 26px}
+.two>div{min-width:0}
+@media (min-width:680px){.two{grid-template-columns:1fr 1fr}}
+.cal{display:grid; grid-template-columns:repeat(var(--cols),minmax(0,1fr)); border-top:1px solid var(--rule); border-left:1px solid var(--rule); background:var(--sheet); margin:6px 0 4px}
+.wd{font-size:11px; line-height:1.7; text-align:center; color:var(--pencil); border-right:1px solid var(--rule); border-bottom:1px solid var(--rule)}
+.cell{position:relative; overflow:hidden; aspect-ratio:1/.84; min-height:36px; border-right:1px solid var(--rule); border-bottom:1px solid var(--rule)}
+.cal.hour .cell{aspect-ratio:1/1.35}
+.cell .d{position:absolute; left:3px; top:1px; z-index:2; font-family:Georgia,serif; font-size:11px; line-height:1.3}
+.cal.hour .cell .d{font-size:10px; left:2px}
+.sun .d,.wd.sun{color:var(--red)}
+.sat .d,.wd.sat{color:var(--blue)}
+.cell.xday .d{color:var(--red); font-weight:700; text-decoration:underline}
+.cell.band::before,.cell.fade::before,.cell.hollow::before{content:""; position:absolute; left:0; right:0; top:47%; height:36%}
+.cell.band::before{background:var(--mark)}
+.cell.band.blue::before{background:var(--bmark)}
+.cell.band.bandstart::before{left:9%}
+.cell.band.bandend::before{right:15%}
+.cell.band.newband::before{transform-origin:left center; animation:drawband .22s ease-out both}
+.cell.fade::before{background:repeating-linear-gradient(90deg,var(--mark) 0 5px,transparent 5px 10px)}
+.cell.hollow::before{border-top:1.5px dashed var(--pencil); border-bottom:1.5px dashed var(--pencil)}
+.cell.hatch{background-image:repeating-linear-gradient(135deg,rgba(50,50,50,.36) 0 1.5px,transparent 1.5px 6px)}
+.cell.wall{box-shadow:inset -4px 0 0 var(--red)}
+.cell.cur{outline:2.5px solid var(--ink); outline-offset:-3px}
+.ring{position:absolute; left:50%; top:56%; width:64%; max-width:34px; transform:translate(-50%,-50%); z-index:3}
+.ring path{fill:none; stroke:var(--red); stroke-width:3; stroke-linecap:round}
+.ring.pop path{stroke-dasharray:100; animation:ringdraw .4s ease-out both}
+.ring.ghost path{stroke:var(--pencil); stroke-width:2; stroke-dasharray:4 4}
+.qm{position:absolute; left:0; right:0; top:56%; transform:translateY(-50%); text-align:center; font-size:13px; color:var(--pencil); z-index:3}
+.whoi{position:absolute; right:8%; bottom:4%; width:34%; max-width:17px; z-index:3}
+.whoi path,.whoi circle{fill:none; stroke:var(--ink); stroke-width:2; stroke-linecap:round}
+.bang{position:absolute; right:4px; bottom:-2px; z-index:3; color:var(--red); font-family:Georgia,serif; font-weight:700; font-size:17px}
+.tag{position:absolute; left:3px; bottom:0; z-index:3; font-size:10px; line-height:1.5; color:var(--blue)}
+.read{margin:2px 0 0; font-size:14px; line-height:1.75}
+.read b{font-family:Georgia,serif; font-size:21px; color:var(--red); margin:0 2px}
+.legend{margin:10px 0 0; font-size:12px; color:var(--pencil); line-height:1.9}
+.legend i{display:inline-block; vertical-align:middle; margin:0 4px 0 10px; font-style:normal}
+.legend i:first-child{margin-left:0}
+.sw-band{width:22px; height:9px; background:var(--mark)}
+.sw-blue{width:22px; height:9px; background:var(--bmark)}
+.sw-hatch{width:18px; height:13px; border:1px solid var(--rule); background-image:repeating-linear-gradient(135deg,rgba(50,50,50,.4) 0 1.5px,transparent 1.5px 6px)}
+.sw-wall{width:4px; height:14px; background:var(--red)}
+.sw-ring{width:13px; height:13px; border:2px solid var(--red); border-radius:50%}
+.sw-hollow{width:22px; height:9px; border-top:1.5px dashed var(--pencil); border-bottom:1.5px dashed var(--pencil)}
+.side{margin:30px 0 0; padding-left:12px; border-left:3px solid var(--red)}
+.side h3{margin:0; font-size:16px; color:var(--red)}
+.scene{display:block; width:100%; height:auto; max-width:460px; margin:8px 0 0; background:var(--sheet); border:1px solid #c9c1ac}
+.scene .pen{fill:none; stroke:var(--ink); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
+.scene .fillp{fill:var(--sheet)}
+.scene .fillr{fill:#f2b8a8}
+.scene .thin{stroke-width:1}
+.scene .door{fill:#3a3530}
+.scene .shut{fill:#d2cbb8; stroke:var(--ink); stroke-width:1.5}
+.scene .tool{fill:none; stroke:#f3e6bf; stroke-width:3; stroke-linecap:round}
+.scene .t{fill:var(--ink); font-size:12px}
+.scene .t.big{font-size:17px}
+.scene .t.r{fill:var(--red)}
+.scene .shutter{transform-box:fill-box; transform-origin:top center}
+.scene .shutter.up{transform:scaleY(.1)}
+.scene .shutter.toup{animation:shup .35s ease both}
+.scene .shutter.todown{animation:shdown .35s ease both}
+.scene .hammer{transform-box:fill-box; transform-origin:bottom center; animation:ham .42s ease-in-out infinite alternate}
+.scene .vis.in{animation:walkin .8s linear both}
+.scene .vis.stop{animation:walkstop .65s ease-out both}
+.scene .hit{transform-box:fill-box; transform-origin:center; animation:hit .3s .72s ease-out both}
+.scene .hit circle{fill:var(--sheet); stroke:var(--red); stroke-width:2.5}
+.scene .hit text{fill:var(--red); font-family:Georgia,serif; font-weight:700; font-size:19px}
+@keyframes drawband{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes ringdraw{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+@keyframes shup{from{transform:scaleY(1)}to{transform:scaleY(.1)}}
+@keyframes shdown{from{transform:scaleY(.1)}to{transform:scaleY(1)}}
+@keyframes ham{from{transform:rotate(-30deg)}to{transform:rotate(24deg)}}
+@keyframes walkin{0%{transform:translateX(0);opacity:1}82%{opacity:1}100%{transform:translateX(228px);opacity:0}}
+@keyframes walkstop{from{transform:translateX(0)}to{transform:translateX(184px)}}
+@keyframes hit{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){
+  .scene .hammer,.scene .vis,.scene .hit,.scene .shutter,.cell.band.newband::before,.ring.pop path{animation-duration:.01s; animation-delay:0s; animation-iteration-count:1}
+}
+.p3row{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin:10px 0 0; padding-bottom:10px; border-bottom:1px dotted var(--rule)}
+.p3row .sen{flex:1 1 230px; min-width:0; font-family:Georgia,"Times New Roman",serif; font-size:16px; line-height:1.45; overflow-wrap:anywhere}
+.tabs{display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 0}
+.tabs .ch{min-width:46px; text-align:center}
+.foot{margin-top:46px; padding-top:14px; border-top:4px double var(--ink); font-size:15px}
+.fine{font-size:12px; color:var(--pencil); margin:6px 0 0}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">TOEIC Part 5 の1問を、さわって確かめる</p>
+  <h1><span class="ul">by</span> と <span class="ul">until</span></h1>
+  <div class="notice">The museum will remain closed ______ <span data-out="x0en"></span> while renovations are completed.<span class="opts">(A) by　(B) since　(C) until　(D) during</span></div>
+  <p class="lead">問いは3つ。どれも、先に予想をえらぶと、下の絵を動かせるようになります。<br>ここでは、今日を <b data-out="today"></b> とします。</p>
+</header>
+
+<section>
+  <h2><span class="num">1</span>ひとことで言うと</h2>
+  <p class="step">まず予想する</p>
+  <div class="notice odd">The museum will remain closed (　　) <span data-out="x0en"></span>.</div>
+  <p class="ask">「remain closed」をカレンダーに書きこむなら</p>
+  <div class="choices">
+    <button type="button" class="ch" data-p="q1a" data-v="point">ア　どこか1日に、点をひとつ</button>
+    <button type="button" class="ch" data-p="q1a" data-v="line">イ　何日ぶんも続けて、線</button>
+  </div>
+  <p class="ask">by が相手にするのは</p>
+  <div class="choices">
+    <button type="button" class="ch" data-p="q1b" data-v="point">点</button>
+    <button type="button" class="ch" data-p="q1b" data-v="line">線</button>
+  </div>
+  <p class="ask">until が相手にするのは</p>
+  <div class="choices">
+    <button type="button" class="ch" data-p="q1c" data-v="point">点</button>
+    <button type="button" class="ch" data-p="q1c" data-v="line">線</button>
+  </div>
+
+  <p class="step">動かして確かめる</p>
+  <p class="locknote" data-lock="q1">↑ 3つとも予想をえらぶと、動かせます</p>
+  <div class="lab" data-lab="q1">
+    <label class="ctrl">文の日付<b data-out="x1v"></b><input type="range" step="1" data-s="x1"></label>
+    <label class="ctrl">「reopen（開く）」が起きる日<b data-out="e1v"></b><input type="range" step="1" data-s="e1"></label>
+    <button type="button" class="go" data-act="play1">▶ <span data-out="today"></span>から、1日ずつ進める</button>
+    <div class="two">
+      <div>
+        <div data-out="s1a"></div>
+        <div data-out="c1a"></div>
+        <p class="read" data-out="r1a"></p>
+      </div>
+      <div>
+        <div data-out="s1b"></div>
+        <div data-out="c1b"></div>
+        <p class="read" data-out="r1b"></p>
+      </div>
+    </div>
+    <p class="legend"><i class="sw-band"></i>続いている日<i class="sw-ring"></i>1回起きた日<i class="sw-wall"></i>しめ切り</p>
+    <p class="fine">until の日付の当日を入れるかどうかは、文脈で変わります。ここでは「その日に切りかわる」として描いています。</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">2</span>いちばんつまずきやすい所</h2>
+  <p class="step">まず予想する</p>
+  <p class="ask" data-out="p2scene"></p>
+  <div data-out="p2P"></div>
+  <div data-out="p2Q"></div>
+  <p class="ask">「掲示とちがう」と文句を言えるのは</p>
+  <div class="choices">
+    <button type="button" class="ch" data-p="q2a" data-v="P">ア　Pにだけ</button>
+    <button type="button" class="ch" data-p="q2a" data-v="Q">イ　Qにだけ</button>
+    <button type="button" class="ch" data-p="q2a" data-v="both">ウ　両方</button>
+    <button type="button" class="ch" data-p="q2a" data-v="none">エ　どちらにも言えない</button>
+  </div>
+  <p class="ask">もとの問題で (A) by を選ぶ人は、「remain closed」をどちらの意味で読んでいる？</p>
+  <div class="choices">
+    <button type="button" class="ch" data-p="q2b" data-v="P">P の意味</button>
+    <button type="button" class="ch" data-p="q2b" data-v="Q">Q の意味</button>
+  </div>
+
+  <p class="step">動かして確かめる</p>
+  <p class="locknote" data-lock="q2">↑ 2つとも予想をえらぶと、動かせます</p>
+  <div class="lab" data-lab="q2">
+    <label class="ctrl">行ってみたら開いていた日<b data-out="v2v"></b><input type="range" step="1" data-s="v2"></label>
+    <label class="ctrl">掲示の日付<b data-out="x2v"></b><input type="range" step="1" data-s="x2"></label>
+    <div class="two">
+      <div>
+        <div data-out="s2P"></div>
+        <div data-out="c2P"></div>
+        <p class="read" data-out="r2P"></p>
+      </div>
+      <div>
+        <div data-out="s2Q"></div>
+        <div data-out="c2Q"></div>
+        <p class="read" data-out="r2Q"></p>
+      </div>
+    </div>
+    <p class="legend"><i class="sw-hatch"></i>閉まっていなければならない日<i>人</i>行った日（開いていた）</p>
+
+    <div class="side">
+      <h3>まちがえた読み方のまま進むと</h3>
+      <div data-out="sW"></div>
+      <div class="choices">
+        <button type="button" class="ch" data-act="read2" data-v="by">by のつもりで読む</button>
+        <button type="button" class="ch" data-act="read2" data-v="until">until で読む</button>
+      </div>
+      <p class="read" data-out="rd2"></p>
+      <label class="ctrl" data-show="by2">じっさいに閉める日<b data-out="c2v"></b> <small data-out="c2note"></small><input type="range" step="1" data-s="c2"></label>
+      <label class="ctrl">見る日<b data-out="d2v"></b><input type="range" step="1" data-s="d2"></label>
+      <button type="button" class="go" data-act="play2">▶ <span data-out="today"></span>から、1日ずつ客が来る</button>
+      <div data-out="sc2"></div>
+      <div data-out="cw2"></div>
+      <p class="read" data-out="rw2"></p>
+      <p class="legend"><i class="sw-blue"></i>工事中<i>開</i>開いている日<i style="color:#c8321e;font-weight:700">!</i>工事中に客が入れた日</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">3</span>どんなときに、まちがえやすいか</h2>
+  <p class="step">まず予想する</p>
+  <div class="p3row"><span class="sen" data-out="p3s0"></span><span class="choices"><button type="button" class="ch en" data-p="q3s0" data-v="by">by</button><button type="button" class="ch en" data-p="q3s0" data-v="until">until</button></span></div>
+  <div class="p3row"><span class="sen" data-out="p3s1"></span><span class="choices"><button type="button" class="ch en" data-p="q3s1" data-v="by">by</button><button type="button" class="ch en" data-p="q3s1" data-v="until">until</button></span></div>
+  <div class="p3row"><span class="sen" data-out="p3s2"></span><span class="choices"><button type="button" class="ch en" data-p="q3s2" data-v="by">by</button><button type="button" class="ch en" data-p="q3s2" data-v="until">until</button></span></div>
+  <div class="p3row"><span class="sen" data-out="p3s3"></span><span class="choices"><button type="button" class="ch en" data-p="q3s3" data-v="by">by</button><button type="button" class="ch en" data-p="q3s3" data-v="until">until</button></span></div>
+  <p class="ask">いちばん迷ったのは</p>
+  <div class="choices tabs">
+    <button type="button" class="ch" data-p="q3m" data-v="0">①</button>
+    <button type="button" class="ch" data-p="q3m" data-v="1">②</button>
+    <button type="button" class="ch" data-p="q3m" data-v="2">③</button>
+    <button type="button" class="ch" data-p="q3m" data-v="3">④</button>
+  </div>
+
+  <p class="step">動かして確かめる</p>
+  <p class="locknote" data-lock="q3">↑ 5つとも予想をえらぶと、動かせます</p>
+  <div class="lab" data-lab="q3">
+    <p class="ask">見る文</p>
+    <div class="choices tabs">
+      <button type="button" class="ch" data-act="tab" data-v="0">①</button>
+      <button type="button" class="ch" data-act="tab" data-v="1">②</button>
+      <button type="button" class="ch" data-act="tab" data-v="2">③</button>
+      <button type="button" class="ch" data-act="tab" data-v="3">④</button>
+    </div>
+    <div data-out="s3"></div>
+    <div class="choices">
+      <button type="button" class="ch en" data-act="word" data-v="by">by</button>
+      <button type="button" class="ch en" data-act="word" data-v="until">until</button>
+      <button type="button" class="ch" data-act="not" data-show="not3"><span data-out="notl"></span></button>
+    </div>
+    <label class="ctrl">文の日付・時刻<b data-out="x3v"></b><input type="range" step="1" data-s="x3"></label>
+    <label class="ctrl" data-show="e3"><span data-out="e3l"></span><b data-out="e3v"></b><input type="range" step="1" data-s="e3"></label>
+    <p class="read" data-out="now3"></p>
+    <div data-out="c3"></div>
+    <p class="read" data-out="r3"></p>
+    <p class="legend"><i class="sw-ring"></i>1回起きる<i class="sw-band"></i>続く<i class="sw-wall"></i>しめ切り<i class="sw-hollow"></i>あるはずの印がない</p>
+  </div>
+</section>
+
+<p class="foot">ここまで動かしたら、チャットにもどって、同じ3つの問いに自分の言葉で答えてください。</p>
+
+</main>
+
+<script>
+(function(){
+'use strict';
+
+var START = new Date(2026, 11, 20);
+var NDAYS = 21;
+var HOUR0 = 9;
+var NHOURS = 9;
+var EN_MONTH = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var CIRCLED = '①②③④';
+
+function dayDate(i){ var d = new Date(START.getTime()); d.setDate(d.getDate() + i); return d; }
+function jpDay(i){ var d = dayDate(i); return (d.getMonth() + 1) + '月' + d.getDate() + '日'; }
+function enDay(i){ var d = dayDate(i); return EN_MONTH[d.getMonth()] + ' ' + d.getDate(); }
+function cellDay(i){ var d = dayDate(i); return (i === 0 || d.getDate() === 1) ? (d.getMonth() + 1) + '/' + d.getDate() : String(d.getDate()); }
+function findDay(month, date){
+  for (var i = 0; i < NDAYS; i++){ var d = dayDate(i); if (d.getMonth() === month && d.getDate() === date) return i; }
+  return -1;
+}
+function jpHour(k){ return (HOUR0 + k) + '時'; }
+function enHour(k){ var h = HOUR0 + k; return (h > 12 ? h - 12 : h) + (h >= 12 ? ' p.m.' : ' a.m.'); }
+function cellHour(k){ return (HOUR0 + k) + ':00'; }
+function findHour(h){ return h - HOUR0; }
+
+var UNIT = {
+  day:  {name:'day',  n:NDAYS,  cols:7,      jp:jpDay,  en:enDay,  cell:cellDay,  count:'日',   pad:dayDate(0).getDay(), weekday:true},
+  hour: {name:'hour', n:NHOURS, cols:NHOURS, jp:jpHour, en:enHour, cell:cellHour, count:'時間', pad:0, weekday:false}
+};
+
+function countCells(n, pred){ var c = 0; for (var i = 0; i < n; i++){ if (pred(i)) c++; } return c; }
+function inLine(i, x){ return i < x; }
+function mustBeClosed(sign, i, x){ return sign === 'P' ? i > x : i < x; }
+function renovating(i, x){ return i < x; }
+function isOpenUnder(reading, i, x, c){ return reading === 'by' ? i < c : i >= x; }
+function intrusion(reading, i, x, c){ return isOpenUnder(reading, i, x, c) && renovating(i, x); }
+
+var X0 = findDay(0, 5);
+var V0 = findDay(11, 28);
+var H0 = findHour(15);
+
+var SENT = [
+  {unit:'day',  pre:function(){ return 'Please submit the form'; }, kind:function(){ return 'point'; }, pName:'提出する', lName:'', after:''},
+  {unit:'day',  pre:function(s){ return s.not ? 'The museum will not open' : 'The museum will open'; }, kind:function(s){ return s.not ? 'line' : 'point'; }, pName:'開く', lName:'開かない', after:'開く'},
+  {unit:'hour', pre:function(){ return 'The repairs will be finished'; }, kind:function(){ return 'point'; }, pName:'修理が終わる', lName:'', after:''},
+  {unit:'hour', pre:function(){ return 'The elevator will be out of service'; }, kind:function(){ return 'line'; }, pName:'', lName:'止まっている', after:'動く'}
+];
+
+var S = {
+  pred:{}, playing:{},
+  x1:X0, e1:X0 - 2, cur1:NDAYS - 1,
+  v2:V0, x2:X0, read2:'by', c2:X0 - 2, d2:V0,
+  tab:1, not:true, word:[null, null, null, null],
+  sx:[X0, X0, H0, H0], se:[X0 - 4, X0 - 4, H0 - 2, H0 - 2]
+};
+
+var GATE = {q1:['q1a','q1b','q1c'], q2:['q2a','q2b'], q3:['q3s0','q3s1','q3s2','q3s3','q3m']};
+function gateOpen(name){
+  var keys = GATE[name];
+  for (var i = 0; i < keys.length; i++){ if (!S.pred[keys[i]]) return false; }
+  return true;
+}
+
+function getS(key){
+  if (key === 'x3') return S.sx[S.tab];
+  if (key === 'e3') return S.se[S.tab];
+  return S[key];
+}
+function setS(key, v){
+  if (key === 'x3') S.sx[S.tab] = v;
+  else if (key === 'e3') S.se[S.tab] = v;
+  else S[key] = v;
+}
+function unitOf(t){ return UNIT[SENT[t].unit]; }
+var RANGE = {
+  x1:function(){ return [2, NDAYS - 2]; },
+  e1:function(){ return [0, NDAYS - 1]; },
+  v2:function(){ return [0, NDAYS - 1]; },
+  x2:function(){ return [2, NDAYS - 2]; },
+  c2:function(){ return [0, S.x2]; },
+  d2:function(){ return [0, NDAYS - 1]; },
+  x3:function(){ return [1, unitOf(S.tab).n - 1]; },
+  e3:function(){ return [0, unitOf(S.tab).n - 1]; }
+};
+function clamp(){
+  if (S.c2 > S.x2) S.c2 = S.x2;
+}
+
+var RING = '<path d="M22 6C31 5 36 12 35 20S27 35 19 34 5 27 6 18 12 6 24 7"/>';
+var WHO = '<svg class="whoi" viewBox="0 0 16 24" aria-hidden="true"><circle cx="8" cy="4" r="3"/><path d="M8 7V15M8 15L4 22M8 15L12 22M3 10H13"/></svg>';
+
+function has(fn, i, n){ return !!fn && i >= 0 && i < n && !!fn(i); }
+
+function calendar(u, o){
+  var h = '<div class="cal ' + u.name + '" style="--cols:' + u.cols + '">';
+  var i, w;
+  if (u.weekday){
+    for (w = 0; w < 7; w++){
+      h += '<div class="wd' + (w === 0 ? ' sun' : (w === 6 ? ' sat' : '')) + '">' + '日月火水木金土'.charAt(w) + '</div>';
+    }
+  }
+  for (i = 0; i < u.pad; i++){ h += '<div class="cell"></div>'; }
+  for (i = 0; i < u.n; i++){
+    var cls = ['cell'];
+    if (u.weekday){
+      w = dayDate(i).getDay();
+      if (w === 0) cls.push('sun');
+      if (w === 6) cls.push('sat');
+    }
+    if (has(o.band, i, u.n)){
+      cls.push('band');
+      if (o.bandClass) cls.push(o.bandClass);
+      if (!has(o.band, i - 1, u.n)) cls.push('bandstart');
+      if (!has(o.band, i + 1, u.n) && !has(o.fade, i + 1, u.n)) cls.push('bandend');
+      if (o.newband === i) cls.push('newband');
+    } else if (has(o.fade, i, u.n)){
+      cls.push('fade');
+    } else if (has(o.hollow, i, u.n)){
+      cls.push('hollow');
+    }
+    if (has(o.hatch, i, u.n)) cls.push('hatch');
+    if (o.wall === i) cls.push('wall');
+    if (o.xday === i) cls.push('xday');
+    if (o.cur === i) cls.push('cur');
+    h += '<div class="' + cls.join(' ') + '"><span class="d">' + u.cell(i) + '</span>';
+    if (o.dot === i) h += '<svg class="ring' + (o.pop ? ' pop' : '') + '" viewBox="0 0 40 40" aria-label="1回">' + RING + '</svg>';
+    if (o.ghost === i) h += '<svg class="ring ghost" viewBox="0 0 40 40" aria-hidden="true">' + RING + '</svg><span class="qm">？</span>';
+    if (o.who === i) h += WHO;
+    if (has(o.bang, i, u.n)) h += '<b class="bang">!</b>';
+    var tg = o.tag ? o.tag(i) : '';
+    if (tg) h += '<span class="tag">' + tg + '</span>';
+    h += '</div>';
+  }
+  return h + '</div>';
+}
+
+function notice(pre, word, when, label, odd){
+  var w = word ? '<b class="w">' + word + '</b>' : '(　　)';
+  return '<div class="notice' + (odd ? ' odd' : '') + '">' + (label ? '<span class="who-l">' + label + '</span>' : '') + pre + ' ' + w + ' ' + endDot(when) + '</div>';
+}
+function endDot(s){ return /\.$/.test(s) ? s : s + '.'; }
+
+function diffText(e, x, u){
+  if (e < x) return 'しめ切りの<b>' + (x - e) + '</b>' + u.count + '前';
+  if (e === x) return 'しめ切りまで<b>' + (x - e) + '</b>' + u.count + '（ちょうど）';
+  return 'しめ切りを<b>' + (e - x) + '</b>' + u.count + 'すぎている';
+}
+
+function scene(open, reno, prevOpen, dayText){
+  var sh = open ? 'up' : 'down';
+  if (prevOpen !== open) sh += open ? ' toup' : ' todown';
+  var cols = [212, 232, 298, 318];
+  var s = '<svg class="scene" viewBox="0 0 360 150" role="img" aria-label="' + dayText + 'の博物館">';
+  s += '<text class="t big" x="8" y="24">' + dayText + '</text>';
+  s += '<text class="t" x="8" y="44">' + (open ? '開いている' : '閉まっている') + '</text>';
+  s += '<text class="t' + (reno ? ' r' : '') + '" x="8" y="62">' + (reno ? '工事中' : '工事は終わった') + '</text>';
+  s += '<path class="pen" d="M4 133C90 131 210 135 356 132"/>';
+  s += '<path class="pen fillp" d="M196 60L270 24L344 60Z"/>';
+  s += '<rect class="pen fillp" x="204" y="60" width="132" height="8"/>';
+  for (var k = 0; k < cols.length; k++){ s += '<rect class="pen fillp" x="' + cols[k] + '" y="68" width="10" height="60"/>'; }
+  s += '<rect class="pen fillp" x="200" y="128" width="140" height="5"/>';
+  s += '<rect class="door" x="252" y="80" width="36" height="48"/>';
+  if (reno) s += '<g class="hammer"><path class="tool" d="M270 124L270 101"/><path class="tool" d="M262 100L279 100"/></g>';
+  s += '<g class="shutter ' + sh + '"><rect class="shut" x="252" y="80" width="36" height="48"/><path class="pen thin" d="M252 92H288M252 104H288M252 116H288"/></g>';
+  if (reno) s += '<path class="pen fillr" d="M342 132L348 114L354 132Z"/>';
+  s += '<g transform="translate(40 131)"><g class="vis ' + (open ? 'in' : 'stop') + '">';
+  s += '<circle class="pen fillp" cx="0" cy="-36" r="6"/><path class="pen" d="M0 -30V-12M0 -12L-7 0M0 -12L7 0M-8 -22H8"/></g></g>';
+  if (open && reno) s += '<g transform="translate(270 100)"><g class="hit"><circle r="13"/><text x="0" y="7" text-anchor="middle">!</text></g></g>';
+  return s + '</svg>';
+}
+
+var OUT = {
+  today:function(){ return jpDay(0); },
+  x0en:function(){ return enDay(X0); },
+
+  x1v:function(){ return jpDay(S.x1); },
+  e1v:function(){ return jpDay(S.e1); },
+  s1a:function(){ return notice('The museum will remain closed', 'until', enDay(S.x1)); },
+  c1a:function(){
+    var p = !!S.playing.cur1;
+    return calendar(UNIT.day, {
+      band:function(i){ return inLine(i, S.x1) && i <= S.cur1; },
+      newband:p ? S.cur1 : -1, xday:S.x1, cur:p ? S.cur1 : -1
+    });
+  },
+  r1a:function(){
+    var n = countCells(NDAYS, function(i){ return inLine(i, S.x1) && i <= S.cur1; });
+    return '印のついた日: <b>' + n + '</b>日ぶん';
+  },
+  s1b:function(){ return notice('The museum will reopen', 'by', enDay(S.x1), '', true); },
+  c1b:function(){
+    var p = !!S.playing.cur1;
+    return calendar(UNIT.day, {
+      dot:S.e1 <= S.cur1 ? S.e1 : -1, pop:p && S.cur1 === S.e1,
+      wall:S.x1, xday:S.x1, cur:p ? S.cur1 : -1
+    });
+  },
+  r1b:function(){
+    var n = countCells(NDAYS, function(i){ return i === S.e1 && i <= S.cur1; });
+    return '印のついた日: <b>' + n + '</b>日ぶん' + (n ? ' ／ ' + diffText(S.e1, S.x1, UNIT.day) : '');
+  },
+
+  p2scene:function(){ return jpDay(V0) + 'に博物館へ行ったら、開いていました。'; },
+  p2P:function(){ return notice('The museum will close', 'by', enDay(X0), '掲示P'); },
+  p2Q:function(){ return notice('The museum will remain closed', 'until', enDay(X0), '掲示Q', true); },
+  v2v:function(){ return jpDay(S.v2); },
+  x2v:function(){ return jpDay(S.x2); },
+  s2P:function(){ return notice('The museum will close', 'by', enDay(S.x2), '掲示P'); },
+  s2Q:function(){ return notice('The museum will remain closed', 'until', enDay(S.x2), '掲示Q', true); },
+  c2P:function(){ return calendar(UNIT.day, {hatch:function(i){ return mustBeClosed('P', i, S.x2); }, who:S.v2, xday:S.x2}); },
+  c2Q:function(){ return calendar(UNIT.day, {hatch:function(i){ return mustBeClosed('Q', i, S.x2); }, who:S.v2, xday:S.x2}); },
+  r2P:function(){ return read2('P'); },
+  r2Q:function(){ return read2('Q'); },
+
+  sW:function(){ return notice('The museum will remain closed', S.read2, enDay(S.x2) + ' while renovations are completed'); },
+  rd2:function(){
+    return S.read2 === 'by'
+      ? 'この読み方: ' + jpDay(S.x2) + 'までの、どこかで閉まればよい'
+      : 'この読み方: ' + jpDay(S.x2) + 'まで、ずっと閉まったまま';
+  },
+  c2v:function(){ return jpDay(S.c2); },
+  c2note:function(){ return '（' + jpDay(0) + '〜' + jpDay(S.x2) + 'の ' + countCells(NDAYS, function(i){ return i <= S.x2; }) + '通り、どれでも by に合う）'; },
+  d2v:function(){ return jpDay(S.d2); },
+  sc2:function(){
+    var open = isOpenUnder(S.read2, S.d2, S.x2, S.c2);
+    var prev = (S.playing.d2 && S.d2 > 0) ? isOpenUnder(S.read2, S.d2 - 1, S.x2, S.c2) : open;
+    return scene(open, renovating(S.d2, S.x2), prev, jpDay(S.d2));
+  },
+  cw2:function(){
+    return calendar(UNIT.day, {
+      band:function(i){ return renovating(i, S.x2); }, bandClass:'blue',
+      tag:function(i){ return isOpenUnder(S.read2, i, S.x2, S.c2) ? '開' : ''; },
+      bang:function(i){ return i <= S.d2 && intrusion(S.read2, i, S.x2, S.c2); },
+      cur:S.d2, xday:S.x2
+    });
+  },
+  rw2:function(){
+    var k = countCells(NDAYS, function(i){ return i <= S.d2 && intrusion(S.read2, i, S.x2, S.c2); });
+    var all = countCells(NDAYS, function(i){ return intrusion(S.read2, i, S.x2, S.c2); });
+    return jpDay(0) + '〜' + jpDay(S.d2) + 'で、工事中なのに客が入れた日: <b>' + k + '</b>日<br>工事が終わるまでの合計: <b>' + all + '</b>日';
+  },
+
+  p3s0:function(){ return p3(0); },
+  p3s1:function(){ return p3(1); },
+  p3s2:function(){ return p3(2); },
+  p3s3:function(){ return p3(3); },
+  s3:function(){
+    var t = S.tab, u = unitOf(t);
+    return notice(CIRCLED.charAt(t) + ' ' + SENT[t].pre(S), S.word[t], u.en(S.sx[t]));
+  },
+  notl:function(){ return S.not ? 'not をはずす' : 'not をつける'; },
+  x3v:function(){ return unitOf(S.tab).jp(S.sx[S.tab]); },
+  e3l:function(){ return '「' + SENT[S.tab].pName + '」が起きるのは'; },
+  e3v:function(){ return unitOf(S.tab).jp(S.se[S.tab]); },
+  now3:function(){ return 'いま: ' + unitOf(S.tab).jp(0); },
+  c3:function(){ return calendar(unitOf(S.tab), opts3()); },
+  r3:function(){
+    var t = S.tab, u = unitOf(t), d = SENT[t], x = S.sx[t], e = S.se[t], w = S.word[t], k = d.kind(S);
+    var o = opts3();
+    var len = countCells(u.n, function(i){ return has(o.band, i, u.n); });
+    if (k === 'point' && w === 'by') return '「' + d.pName + '」: ' + u.jp(e) + 'に1回 ／ ' + diffText(e, x, u);
+    if (k === 'point') return '「' + d.pName + '」: ' + u.jp(e) + 'に1回 ／ until がのばせる線: <b>' + len + '</b>' + u.count + 'ぶん';
+    if (w === 'until') return '「' + d.lName + '」が続く: <b>' + len + '</b>' + u.count + 'ぶん ／ 終わり: ' + u.jp(x);
+    return u.jp(x) + 'の時点で「' + d.lName + '」／ 終わり: <b>？</b>（この文からは決まらない）';
+  }
+};
+
+function read2(sign){
+  var n = countCells(NDAYS, function(i){ return mustBeClosed(sign, i, S.x2); });
+  var bad = mustBeClosed(sign, S.v2, S.x2);
+  return '斜線の日: <b>' + n + '</b>日 ／ ' + NDAYS + '日<br>' + jpDay(S.v2) + 'に開いていた → 掲示と<b>' + (bad ? 'ちがう' : 'ちがわない') + '</b>';
+}
+function p3(t){
+  var u = unitOf(t);
+  return CIRCLED.charAt(t) + ' ' + SENT[t].pre({not:true}) + ' (　　) ' + endDot(u.en(u === UNIT.day ? X0 : H0));
+}
+function opts3(){
+  var t = S.tab, d = SENT[t], x = S.sx[t], e = S.se[t], w = S.word[t], k = d.kind(S);
+  var o = {xday:x};
+  if (k === 'point'){
+    o.dot = e;
+    if (w === 'by') o.wall = x;
+    else o.hollow = function(i){ return inLine(i, x); };
+  } else if (w === 'until'){
+    o.band = function(i){ return inLine(i, x); };
+    o.tag = function(i){ return i === x ? d.after : ''; };
+  } else {
+    o.band = function(i){ return i <= x; };
+    o.fade = function(i){ return i > x; };
+    o.wall = x;
+    o.ghost = x;
+  }
+  return o;
+}
+
+var SHOW = {
+  by2:function(){ return S.read2 === 'by'; },
+  not3:function(){ return S.tab === 1; },
+  e3:function(){ return SENT[S.tab].kind(S) === 'point'; }
+};
+var ACTIVE = {
+  read2:function(v){ return S.read2 === v; },
+  tab:function(v){ return S.tab === +v; },
+  word:function(v){ return S.word[S.tab] === v; }
+};
+
+function each(sel, fn){ var list = document.querySelectorAll(sel); for (var i = 0; i < list.length; i++){ fn(list[i]); } }
+
+function render(){
+  clamp();
+  each('[data-out]', function(el){
+    var html = OUT[el.getAttribute('data-out')]();
+    if (el.__h !== html){ el.innerHTML = html; el.__h = html; }
+  });
+  each('input[data-s]', function(el){
+    var key = el.getAttribute('data-s'), r = RANGE[key](), v = String(getS(key));
+    el.min = r[0]; el.max = r[1];
+    if (el.value !== v) el.value = v;
+  });
+  each('button[data-p]', function(el){
+    el.classList.toggle('on', S.pred[el.getAttribute('data-p')] === el.getAttribute('data-v'));
+  });
+  each('button[data-act][data-v]', function(el){
+    el.classList.toggle('on', ACTIVE[el.getAttribute('data-act')](el.getAttribute('data-v')));
+  });
+  each('[data-lab]', function(el){
+    var locked = !gateOpen(el.getAttribute('data-lab'));
+    el.classList.toggle('locked', locked);
+    el.inert = locked;
+  });
+  each('[data-lock]', function(el){ el.hidden = gateOpen(el.getAttribute('data-lock')); });
+  each('[data-show]', function(el){ el.hidden = !SHOW[el.getAttribute('data-show')](); });
+}
+
+var timers = {};
+function stop(key){
+  if (timers[key]){ clearInterval(timers[key]); timers[key] = null; }
+  S.playing[key] = false;
+}
+function play(key, max, ms){
+  stop(key);
+  setS(key, 0);
+  S.playing[key] = true;
+  render();
+  timers[key] = setInterval(function(){
+    var v = getS(key);
+    if (v >= max){ stop(key); render(); return; }
+    setS(key, v + 1);
+    render();
+  }, ms);
+}
+
+function onClick(ev){
+  var b = ev.target.closest ? ev.target.closest('button') : null;
+  if (!b) return;
+  var p = b.getAttribute('data-p'), a = b.getAttribute('data-act'), v = b.getAttribute('data-v');
+  if (p){
+    S.pred[p] = v;
+    var m = /^q3s(\d)$/.exec(p);
+    if (m && !gateOpen('q3')) S.word[+m[1]] = v;
+    if (m && S.word[+m[1]] === null) S.word[+m[1]] = v;
+    if (p === 'q3m') S.tab = +v;
+  } else if (a === 'play1'){
+    play('cur1', NDAYS - 1, 240);
+    return;
+  } else if (a === 'play2'){
+    play('d2', NDAYS - 1, 1150);
+    return;
+  } else if (a === 'read2'){
+    S.read2 = v;
+  } else if (a === 'tab'){
+    S.tab = +v;
+  } else if (a === 'word'){
+    S.word[S.tab] = v;
+  } else if (a === 'not'){
+    S.not = !S.not;
+  } else {
+    return;
+  }
+  render();
+}
+function onInput(ev){
+  var t = ev.target;
+  if (!t || !t.getAttribute || !t.getAttribute('data-s')) return;
+  var key = t.getAttribute('data-s');
+  if (key === 'x1' || key === 'e1'){ stop('cur1'); S.cur1 = NDAYS - 1; }
+  if (key === 'd2' || key === 'x2' || key === 'c2') stop('d2');
+  setS(key, +t.value);
+  render();
+}
+
+var API = {
+  S:S, OUT:OUT, SENT:SENT, UNIT:UNIT, RANGE:RANGE, SHOW:SHOW, GATE:GATE,
+  NDAYS:NDAYS, X0:X0, V0:V0, H0:H0,
+  dayDate:dayDate, jpDay:jpDay, enDay:enDay, jpHour:jpHour, enHour:enHour, findDay:findDay,
+  countCells:countCells, inLine:inLine, mustBeClosed:mustBeClosed, isOpenUnder:isOpenUnder, intrusion:intrusion,
+  getS:getS, setS:setS, clamp:clamp, gateOpen:gateOpen, opts3:opts3
+};
+if (typeof module !== 'undefined' && module.exports){ module.exports = API; }
+if (typeof document !== 'undefined'){
+  document.addEventListener('click', onClick);
+  document.addEventListener('input', onInput);
+  render();
+}
+})();
+</script>
+</body>
+</html>
