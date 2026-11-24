@@ -102,13 +102,14 @@ const VS_FUSE = `#version 300 es
 in vec2 p; in vec2 ls; out vec2 l; uniform vec2 uView; uniform vec3 cam;
 void main(){ l=ls; vec2 w=(p-uView*.5)*cam.z+uView*.5+cam.xy; gl_Position=vec4(w.x/uView.x*2.-1.,1.-w.y/uView.y*2.,0.,1.); }`;
 const FS_FUSE = `#version 300 es
-precision highp float; in vec2 l; out vec4 o; uniform float flameS, len, time, heat, on;
+precision highp float; in vec2 l; out vec4 o; uniform float flameS, len, time, heat, on, skin;
 void main(){ float s=l.x, e=abs(l.y); float edge=smoothstep(1.,.45,e);
   float rope = .75+.25*sin(s*.55+e*2.5);
   vec3 c; float a=edge;
   if (s>flameS || on<.5) { // これから燃える線: 金の筆
     float tip = smoothstep(len-160.,len,s);
     c = mix(vec3(1.05,.68,.22),vec3(1.5,1.1,.5),tip)*rope*(1.1+.25*sin(time*7.-s*.03));
+    if (skin>.5) c = (.5+.5*cos(6.2832*(s*.0032-time*.22+vec3(0.,.33,.67))))*rope*(1.35+.5*tip); // 虹の線（落書き帳を全部書いたごほうび）
     a*=.95;
   } else { // 燃えたあと: 赤い燠が冷えて消える
     float age=(flameS-s);

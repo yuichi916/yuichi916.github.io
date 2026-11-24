@@ -270,6 +270,16 @@ export const BANTER = {
   ],
 };
 
+// 隠しモード「コンの落書き帳」のコンのひとこと（11/25）
+export const RAKU_SAY = {
+  hint: L('kon', `ないしょの話コン。題名の空に、星をひと筆で、描いてみるコン`, `Here's a secret, kon. Draw a star in one stroke on the title sky, kon!`),
+  open: L('kon', `見つかっちゃったコン！ これ、コンの落書き帳だコン`, `You found it, kon! This is my scribble book, kon!`),
+  win: [L('kon', `つながったコン！`, `It's all connected, kon!`), L('kon', `うまいコン！`, `So good, kon!`), L('kon', `やったコン！`, `You did it, kon!`)],
+  miss: [L('kon', `あっ、行き止まりコン`, `Oops, a dead end, kon.`), L('kon', `もう一回コン！`, `One more time, kon!`)],
+  demo: L('kon', `お手本、見せるコン。よく見ててコン`, `I'll show you, kon. Watch closely, kon!`),
+  all: L('kon', `ぜんぶ描けたコン！ ごほうびに、虹の線をあげるコン！`, `You drew them all, kon! Take my rainbow line, kon!`),
+};
+
 // 声のファイル名: 話し手と本文から（台詞を直すと名前が変わり、古い声は使われない）
 export function voiceKey(who, text) { const s = who + '|' + text; let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'v' + (h >>> 0).toString(36); }
 export const VOICED = new Set(['akari', 'kon', 'hinoko', 'jii', 'tora', 'note', 'mem', 'nar']); // 11/23 依頼主「2 人以外も声をつけたい」: トラ・秘伝帳（じいちゃんの声）・灯の記憶（灯のささやき）・語り。妖怪は 'yokai.<名>' で妖怪ごとの声

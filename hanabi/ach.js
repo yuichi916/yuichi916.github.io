@@ -52,6 +52,8 @@ export const ACHIEVEMENTS = [
   A('seen', '見られていた', 'Someone Was Watching', '夜の途中で、いなくなる', 'Leave in the middle of a night', (c) => c.meta?.mem?.left >= 1),
   A('wait', '立ち止まる', 'Standing Still', '筆を止めて、火を待つ', 'Stop and wait for the flame', (c) => c.meta?.mem?.waited >= 1),
   A('mercy', '迎え火', 'The Welcoming Fire', '火を待ちながら、祭りを越える', 'Finish the festival while waiting for the flame', (c) => c.meta?.mem?.mercy),
+  A('raku1', '空の落書き', 'Sky Scribble', '題名の空で、何かを見つける', 'Find something in the title sky', (c) => c.meta?.raku?.found),
+  A('raku10', '落書き帳', 'Scribble Book', 'コンの落書き帳を全部書く', "Finish Kon's Scribble Book", (c) => c.meta?.raku?.all),
 ];
 export function checkAchievements(meta, ctx) {
   meta.ach = meta.ach || {};

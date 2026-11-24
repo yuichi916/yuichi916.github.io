@@ -13,7 +13,8 @@ import { THEMES } from './levels.js';
 import { drawCast, CAST } from '../assets/hitofude/cast.js';
 import { track, share, canShare } from './track.js';
 import * as Mem from './memory.js';
-import { TALE, TALE_N, BATTLE, BANTER, VOICED, voiceKey, nextPage, lockReason, pageWorld } from './tale.js';
+import { TALE, TALE_N, BATTLE, BANTER, RAKU_SAY, VOICED, voiceKey, nextPage, lockReason, pageWorld } from './tale.js';
+import { RAKU, RAKU_N, RAKU_COIN, PURSE_MAX, rakuStars, rakuTime, passes, total, degrees, edgeTo, starScore, STAR_OK, STAR_NEAR } from './raku.js';
 import { cleanName } from '../assets/hitofude/names.js';
 
 const $ = (id) => document.getElementById(id);
@@ -118,13 +119,15 @@ function clearAch() { (S.achT || []).forEach(clearTimeout); S.achT = []; documen
 function show(name) { clearAch(); if (name !== 'none') hideCut(); for (const s of SCREENS) $(s).classList.toggle('hidden', s !== name); if (name !== 'none') { hideVeil(); /* 盤の上の題名は、ほかの画面を開いたら消す */ $('hand').classList.add('hidden'); S.guide = false; $('guide').classList.add('hidden'); $('guideRing').classList.add('hidden'); } } // 手本の指は遊んでいる間だけ（屋台に残っていた）
 
 function toTitle() {
+  const wasTitle = S.mode === 'title'; // ランキングが使えると分かった時などに作り直す。引きかけの線は消さない
   PF.stop();
   S.mode = 'title'; S.st = null; S.seq = []; ihenReset(); hideVeil();
   show('title'); $('hud').classList.add('hidden'); $('teach').classList.add('hidden');
   setTheme('summer');
   // 物語の結末を見たあとは、ここが「終わらない祭り」（灯が帰らずに逃げ続けていた世界）になる
   // 前の遊びの終わり方・何日ぶりか・時刻で、一言が変わる（読んだあとで「いま」を記録）
-  const tl = Mem.titleLine(DB.meta); $('tagline').textContent = JA() ? tl.ja : tl.en;
+  if (!wasTitle) { S.td = null; S.tdGo = 0; document.body.classList.remove('tdOn'); }
+  const tl = (DB.meta.wins || 0) > 0 && !DB.meta.raku?.found ? { ja: 'コン「この空に、星をひと筆……コン」', en: 'Kon: "A star in this sky, in one stroke... kon."' } : Mem.titleLine(DB.meta); $('tagline').textContent = JA() ? tl.ja : tl.en;
   if (!S.titleSeen) { S.titleSeen = 1; mem().lastPlay = Date.now(); save(); }
   $('playBtn').textContent = DB.run ? tr('続きから', 'CONTINUE') : tr('あそぶ', 'PLAY');
   { const ci = $('contInfo'), r = DB.run; ci.classList.toggle('hidden', !r);
@@ -251,6 +254,10 @@ function openBook() {
     const p25 = lastPageReady();
     if (p25) { const e = document.createElement('button'); e.className = 'bookitem tl'; e.innerHTML = `<span class="seal">${TALE_N}</span><div><b>${JA() ? p25.scene.ja : p25.scene.en}</b><small>${tr('▶ 読む（最後の頁）', '▶ Read (last page)')}</small></div>`; e.onclick = () => { audio.ui('tap'); openTale(p25, () => { if (S.mode === 'title' || S.mode === 'book') openBook?.(); }); }; nodes.push(e); }
     else if (T.n < TALE_N) { const e = document.createElement('div'); e.className = 'bookitem locked'; e.innerHTML = `<span class="seal">・</span><div><b>？？？</b>${taleHint() || tr('夜を越えると、続きが読める', 'Clear a night to read on')}</div>`; nodes.push(e); }
+    // コンの落書き帳（見つけたあと。大団円のあと・まだ見つけていない間はヒント）
+    if (rakuRec().found || (DB.meta.wins || 0) > 0) { const f0 = rakuRec().found, h = document.createElement('div'); h.className = 'bookhead'; h.textContent = tr(`コンの落書き帳 ${f0 ? `${rakuN()} / ${RAKU_N}` : ''}`, `Kon's Scribble Book ${f0 ? `${rakuN()} / ${RAKU_N}` : ''}`); const e = document.createElement(f0 ? 'button' : 'div'); e.className = f0 ? 'bookitem tl' : 'bookitem locked';
+      e.innerHTML = f0 ? `<span class="seal">★</span><div><b>${tr('難しい一筆書きに挑戦', 'Hard one-stroke puzzles')}</b><small>${tr(`▶ ひらく（支度金 ${rakuRec().purse || 0}）`, `▶ Open (gift ${rakuRec().purse || 0})`)}</small></div>` : `<span class="seal">・</span><div><b>？？？</b>${tr('題名の空に、星をひと筆で描く', 'Draw a star in one stroke on the title sky')}</div>`;
+      if (f0) e.onclick = () => { audio.ui('tap'); openRaku('book'); }; nodes.push(h, e); }
     list.prepend(...nodes); }
   // 技帳: 妖怪ごとの技と、取った回数 / 挑んだ回数
   const sp = DB.meta.spells || {};
@@ -284,6 +291,7 @@ function beginRun(o = {}) {
   logStart(S.run);
   PF.ev('run_start', { runs: DB.meta.runs || 0, daily: S.daily ? 1 : 0, assist: S.run.assist });
   track(S.daily ? 'run/daily' : 'run/start');
+  if (!S.daily && (DB.meta.raku?.purse || 0) > 0) { const n = Math.min(PURSE_MAX, DB.meta.raku.purse); DB.meta.raku.purse -= n; S.run.coins += n; S.run.bon = n; logOp('B', n); logSave(); const r0 = S.run; setTimeout(() => { if (S.run === r0) toast(tr(`コンの支度金　小判 +${n}`, `Kon's gift: +${n} coins`)); }, omi ? 400 : 1600); }
   DB.run = S.run; save();
   // おみくじ: 2 周目から、ふつうの祭りの初めに（今日の祭りは引かない。だれも同じ条件で比べる）
   if (omi && !S.daily && (DB.meta.runs || 0) >= 1) { openOmikuji(() => { DB.run = S.run; save(); startNight(); }); return; }
@@ -291,13 +299,14 @@ function beginRun(o = {}) {
 }
 // おみくじの画面: 引く → 札がひらく → この運で祭りへ（引き直しは 1 回）
 // おみくじ: 祭りの初めと、大一番（4 夜ごと）に勝つたびに 1 枚（引き直しは 1 回・引かずに進んでもよい。11/24 依頼主「もっと頻繁に引かせたい」）
-const omiDue = () => { const r = S.run; return !!r && !S.daily && !r.daily && (DB.meta.runs || 0) >= 1 && r.nightsCleared > 0 && r.nightsCleared % 4 === 0 && r.omiAt !== r.nightsCleared; };
+// 大一番（4 夜ごと）に勝つたび。はじめての祭りは初めの 1 枚が無いので、最初の夜を越えたところで 1 枚（11/25 依頼主「最初に遊んだ人は引けないまま終わる」）
+const omiDue = () => { const r = S.run; if (!r || S.daily || r.daily || !(r.nightsCleared > 0) || r.omiAt === r.nightsCleared) return false; return r.nightsCleared % 4 === 0 || r.omiAt === undefined; };
 function openOmikuji(done, opts = {}) {
   const run = S.run; let n = run.omiN || 0, drawn = 0, busy = false;
   run.omiBase = null; // ここでの値（小判・灯・札）を土台に、引いた運を足す
   $('omi')?.remove();
   const el = document.createElement('div'); el.id = 'omi'; el.className = 'omi'; el.lang = JA() ? 'ja' : 'en';
-  el.innerHTML = `<div class="omi-box"><h3>${tr('おみくじ', 'Omikuji')}</h3><p class="omi-q">${opts.again ? tr('大一番のごほうびに、一枚どうぞ', 'Beat the boss: draw a fortune') : tr('祭りの前に、一枚どうぞ', 'Draw a fortune before the festival')}</p>`
+  el.innerHTML = `<div class="omi-box"><h3>${tr('おみくじ', 'Omikuji')}</h3><p class="omi-q">${opts.again ? (run.nightsCleared % 4 ? tr('はじめての夜を越えたお祝いに、一枚どうぞ', 'You cleared a night: draw a fortune') : tr('大一番のごほうびに、一枚どうぞ', 'Beat the boss: draw a fortune')) : tr('祭りの前に、一枚どうぞ', 'Draw a fortune before the festival')}</p>`
     + `<div class="omi-tube"><i></i></div><div class="omi-slip hidden"><b class="omi-r"></b><span class="omi-d"></span></div><p class="omi-tora hidden"></p>`
     + `<div class="omi-row"><button class="btn2 hidden" id="omiRe"></button><button class="bigbtn small" id="omiGo">${tr('おみくじを引く', 'Draw')}</button></div><button class="omi-skip" id="omiSkip">${tr('引かずに進む', 'Skip')}</button></div>`;
   document.body.append(el); audio.ui('tap');
@@ -823,6 +832,8 @@ function openInter(def, st, stars, rw, interest, gain) {
   S.shopBought = false; S.shopNudged = false;
   if (lite) S.toraLine = (S.run.rv || 1) >= 6 ? tr('おみごと！ 8 夜目に大妖怪が来る。なぞった花火で戦うよ', 'Nicely done! On night 8 a great yokai comes. Your fireworks are your weapon.') : tr('おみごと！ 次はもっと大きく咲かせよう。屋台は次の夜のあとに開くよ', 'Nicely done! Go bigger next night. The stalls open after night 2.');
   if (!S.toraLine && !DB.meta.taught.buy) S.toraLine = tr('「おすすめ」の品から買ってみて', 'Try the one marked "Best"');
+  // 隠しモードのヒントは少しずつ: 第 1 の大妖怪 → 題名の空に線が引ける／第 2 → かたちがある／大団円 → 星（11/25）
+  if (def.raid && !run.endless && !DB.meta.raku?.found && def.world <= 2) S.toraLine = def.world === 1 ? tr('知ってるかい。題名の空にも、線が引けるんだよ', 'Did you know? You can draw on the title sky, too') : tr('題名の空に、ひと筆で描くと開くものがあるのさ。かたちは、まだ内緒', 'Draw a certain shape on the title sky in one stroke... What shape? Not yet');
   $('toraSay').textContent = S.toraLine || '';
   const nk = $('neko'), ng = nk.getContext('2d'); ng.clearRect(0, 0, nk.width, nk.height);
   try { drawCast(ng, 'neko', 70, 76, 96, { face: 'joy', still: true, glow: false }); } catch { /* 絵が無くても遊べる */ }
@@ -1327,7 +1338,7 @@ function openIp() {
   ipLayout(); requestAnimationFrame(ipLayout); // 題の位置が決まってから
 }
 function ipLayout() {
-  const k = S.ip; if (!k) return; const cv = $('ipCanvas'); cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio;
+  const k = S.ip; if (!k) return; if (k.raku) return rakuLayout(k); const cv = $('ipCanvas'); cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio;
   // 画面の上 10% から、題の上の端までに収める（図形ごとの縦横の広がりも見る）
   const top = innerHeight * 0.1, nameTop = $('skName').getBoundingClientRect().top, bottom = (nameTop > top + 120 ? nameTop : innerHeight * 0.66) - 28;
   const xs = k.fig.n.map((p) => p[0]), ys = k.fig.n.map((p) => p[1]), mnx = Math.min(...xs), mny = Math.min(...ys), w0 = Math.max(...xs) - mnx || 1, h0 = Math.max(...ys) - mny || 1;
@@ -1340,13 +1351,14 @@ function ipEdge(a, b) { return S.ip.fig.e.findIndex((e) => (e[0] === a && e[1] =
 function ipSegDist(px, py, ax, ay, bx, by) { const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)); return Math.hypot(px - (ax + dx * t), py - (ay + dy * t)); }
 function ipDown(e) {
   const k = S.ip; if (!k || k.done) return; audio.unlock();
-  const j = k.pts.findIndex(([x, y]) => Math.hypot(x - e.clientX, y - e.clientY) < 36);
+  if (k.raku && rakuDown(k)) return;
+  const j = k.pts.findIndex(([x, y]) => Math.hypot(x - e.clientX, y - e.clientY) < (k.raku ? Math.max(24, k.hitR + 4) : 36));
   if (j < 0) { $('skMsg').textContent = tr('点（光る丸）から書き始める', 'Start on a dot'); return; }
   k.drawing = true; k.cur = j; k.used = []; k.path = [[k.pts[j][0], k.pts[j][1]]]; k.len = 0; k.fireD = 0; k.t = 0;
   audio.note(10, { vol: 0.14, dur: 0.3 });
 }
 function ipMove(e) {
-  const k = S.ip; if (!k || !k.drawing || k.done) return;
+  const k = S.ip; if (!k || !k.drawing || k.done) return; if (k.raku) return rakuMove(k, e);
   const x = e.clientX, y = e.clientY, last = k.path[k.path.length - 1]; k.len += Math.hypot(x - last[0], y - last[1]); k.path.push([x, y]);
   // 図形から大きくはみ出したら失敗
   const near = Math.min(...k.fig.e.map(([a, b]) => ipSegDist(x, y, k.pts[a][0], k.pts[a][1], k.pts[b][0], k.pts[b][1])));
@@ -1362,6 +1374,7 @@ function ipMove(e) {
 }
 function ipUp() { const k = S.ip; if (k && k.drawing && !k.done) ipFail(tr('指を離した', 'You lifted your finger')); }
 function ipFail(why) {
+  if (S.ip?.raku) return rakuFail(S.ip, why);
   const k = S.ip; k.drawing = false; k.tries++; k.hint = true; audio.note(1, { vol: 0.14, dur: 0.5 }); hurt();
   if (k.tries >= 3) { k.done = true; return ipReward(3, tr(`${why}……。小判 +3`, `${why}... +3 coins`)); }
   const odd = k.deg.some((d) => d % 2);
@@ -1381,6 +1394,7 @@ function ipReward(got, msg) {
 }
 function ipFx(dt) {
   const k = S.ip, cv = $('ipCanvas'); if (!k || !cv) return; const g = cv.getContext('2d'), d = devicePixelRatio;
+  if (k.raku) return rakuFx(k, g, d, dt);
   g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, innerWidth, innerHeight); g.lineCap = 'round';
   // 追いかける火
   if (k.drawing) { k.t += dt; if (k.t > 1.4) { k.fireD += (150 + (k.t - 1.4) * 45) * dt; if (k.fireD >= k.len - 8 && k.len > 20) ipFail(tr('火に追いつかれた', 'The fire caught you')); } }
@@ -1438,11 +1452,116 @@ function senkoFx(dt) {
   if (Math.random() < risk * dt || k.shake >= 1) { k.drop = 40; endSenko(true); }
   else if (k.t >= 16) endSenko(false);
 }
-$('senko').addEventListener('pointerdown', (e) => { if (e.target.id === 'skNext') return; if (S.ip) return ipDown(e); audio.unlock(); const k = S.sk; if (!k || k.done) return; k.held = true; k.px = e.clientX; k.py = e.clientY; try { $('senko').setPointerCapture(e.pointerId); } catch { /* 無くても動く */ } });
+// ------------------------------------------------------------------ 隠しモード「コンの落書き帳」（11/25）
+// 題名の空に星をひと筆で描くと開く。難しい一筆書き 10 枚（一方通行の矢印・二度なぞる二重線）。★ の数だけ、次の祭りの支度金（小判）。全部書くと虹の線
+const rakuRec = () => { const m = DB.meta; m.raku ||= { found: 0, done: {}, purse: 0 }; m.raku.done ||= {}; return m.raku; };
+const rakuN = () => Object.keys(rakuRec().done).length;
+const rakuOpen = (i) => i < RAKU_N && (!!rakuRec().done[RAKU[i].id] || i <= rakuN() + 1); // 1 枚飛ばして先へ進める
+const rakuFirst = () => { const i = RAKU.findIndex((f) => !rakuRec().done[f.id]); return i < 0 ? 0 : i; };
+function konSay(ln, show = true) { if (!ln) return; const t = JA() ? ln.ja : ln.en; if (show) $('skMsg').innerHTML = `<img class="rk-kon" src="tale/img/kon_face.webp" alt=""><span>${tr(`コン「${t}」`, `Kon: "${t}"`)}</span>`; talePlay('kon', t); }
+function openRaku(i) {
+  const rec = rakuRec(), first = !rec.found; rec.found = 1; save(); achCheck({});
+  S.mode = 'raku'; S.st = null; S.td = null; S.sk = null; S.seq.length = 0; S.rkFromBook = i === 'book'; show('senko'); $('hud').classList.add('hidden'); audio.scene('calm'); document.body.classList.add('rakuOn');
+  PF.ev('raku_open', { first: first ? 1 : 0, n: rakuN() }); track('raku/open');
+  for (const k of ['win', 'miss']) for (const l of RAKU_SAY[k]) preVoice('kon', JA() ? l.ja : l.en); preVoice('kon', JA() ? RAKU_SAY.demo.ja : RAKU_SAY.demo.en);
+  rakuPage(typeof i === 'number' ? i : rakuFirst()); if (first) konSay(RAKU_SAY.open);
+}
+function rakuClose() { S.ip = null; document.body.classList.remove('rakuOn'); try { taleVoice?.pause(); } catch { /* */ } const cv = $('ipCanvas'); cv?.getContext('2d').clearRect(0, 0, cv.width, cv.height); audio.fuse(0, 0); if (S.rkFromBook) { S.mode = 'title'; toTitle(); openBook(); } else toTitle(); }
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.mode === 'raku') rakuClose(); });
+function rakuNext() { const k = S.ip; if (!k) return rakuClose(); if (k.done && k.i + 1 < RAKU_N) return rakuPage(k.i + 1); rakuClose(); }
+function rakuPage(i) {
+  const fig = RAKU[i], rec = rakuRec();
+  S.ip = { fig, deg: degrees(fig), raku: 1, i, left: passes(fig), used: [], cur: -1, path: [], len: 0, drawing: false, tries: 0, done: false, fireD: 0, t: 0, hint: false, pts: [], demo: null, demoSeen: 0, hitR: 24, tot: 1 };
+  $('skName').innerHTML = `<small class="rk-no">${i + 1} / ${RAKU_N}</small>${JA() ? fig.ja : fig.en}`; // 筆の書体だと 1 が 7 に見えるので、番号は本文の書体で
+  const one = Object.keys(fig.d).length, two = fig.m.length;
+  $('skMsg').innerHTML = `<span>${tr('点から書き始め、すべての線を、指を離さずに一筆で', 'Start on a dot. Trace every line without lifting')}${one ? tr('。矢印は一方通行', '. Arrows are one-way') : ''}${two ? tr('。二重線は二度なぞる', '. Trace double lines twice') : ''}${tr('。火が追ってくる', '. Fire chases you')}</span>`;
+  $('skNext').textContent = tr('題名へ', 'Title'); rakuBar(); ipLayout(); requestAnimationFrame(ipLayout);
+  if (rec.done[fig.id]) $('skName').insertAdjacentHTML('beforeend', `<small class="rk-st">${'★'.repeat(rec.done[fig.id])}</small>`);
+}
+function rakuBar() {
+  let el = $('rkBar'); if (!el) { el = document.createElement('div'); el.id = 'rkBar'; $('senko').prepend(el); }
+  const rec = rakuRec(), k = S.ip; el.innerHTML = `<b>${tr('コンの落書き帳', "Kon's Scribble Book")}</b><div class="rk-dots"></div><span class="rk-purse"><i class="coin"></i>${tr(`支度金 ${rec.purse || 0}`, `Gift ${rec.purse || 0}`)}</span>`;
+  const box = el.querySelector('.rk-dots'); RAKU.forEach((f, i) => { const b = document.createElement('button'), st = rec.done[f.id] || 0, op = rakuOpen(i); b.className = 'rk-dot' + (st ? ' s' + st : '') + (k?.i === i ? ' on' : ''); b.disabled = !op; b.innerHTML = `${i + 1}${st ? `<small>${'★'.repeat(st)}</small>` : ''}`; b.title = op ? (JA() ? f.ja : f.en) : ''; b.onclick = () => { audio.ui('tap'); rakuPage(i); }; box.append(b); });
+  let d = $('rkDemo'); if (!d) { d = document.createElement('button'); d.id = 'rkDemo'; d.className = 'btn2 light'; $('skNext').before(d); d.onclick = () => { const k2 = S.ip; if (!k2?.raku || k2.done || k2.demo) return; audio.ui('tap'); k2.drawing = false; k2.demoSeen = 1; k2.left = passes(k2.fig); k2.used = []; k2.path = []; k2.demo = { t: 0 }; konSay(RAKU_SAY.demo); }; }
+  d.textContent = tr('お手本を見る（★1）', 'Watch Kon (★1)'); d.classList.toggle('hidden', !(k && k.tries >= 4 && !k.done));
+}
+function rakuLayout(k) {
+  const cv = $('ipCanvas'); cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio;
+  const barB = $('rkBar')?.getBoundingClientRect().bottom || innerHeight * 0.1, top = Math.max(barB + 26, innerHeight * 0.1), nameTop = $('skName').getBoundingClientRect().top, bottom = (nameTop > top + 120 ? nameTop : innerHeight * 0.66) - 26;
+  const xs = k.fig.n.map((p) => p[0]), ys = k.fig.n.map((p) => p[1]), mnx = Math.min(...xs), mny = Math.min(...ys), w0 = Math.max(...xs) - mnx || 1, h0 = Math.max(...ys) - mny || 1;
+  const sz = Math.min(Math.min(innerWidth * 0.76, 760) / w0, (bottom - top) / h0), x0 = innerWidth / 2 - (mnx + w0 / 2) * sz, y0 = top + (bottom - top - h0 * sz) / 2 - mny * sz;
+  k.pts = k.fig.n.map(([u, v]) => [x0 + u * sz, y0 + v * sz]); k.sz = sz;
+  let dm = 1e9, em = 1e9; k.pts.forEach((a, i) => { k.pts.forEach((b, j) => { if (i < j) dm = Math.min(dm, Math.hypot(a[0] - b[0], a[1] - b[1])); }); k.fig.e.forEach(([p, q2]) => { if (p !== i && q2 !== i) em = Math.min(em, ipSegDist(a[0], a[1], k.pts[p][0], k.pts[p][1], k.pts[q2][0], k.pts[q2][1])); }); });
+  k.hitR = Math.max(11, Math.min(30, dm * 0.34, em * 0.62)); k.near = Math.max(30, Math.min(52, em * 1.1));
+  k.tot = k.fig.e.reduce((a, [p, q2], i) => a + Math.hypot(k.pts[p][0] - k.pts[q2][0], k.pts[p][1] - k.pts[q2][1]) * (k.fig.m.includes(i) ? 2 : 1), 0);
+}
+function rakuDown(k) { if (k.demo) { k.demo = null; k.left = passes(k.fig); k.used = []; } k.left = passes(k.fig); return false; }
+function rakuMove(k, e) {
+  const x = e.clientX, y = e.clientY, last = k.path[k.path.length - 1]; k.len += Math.hypot(x - last[0], y - last[1]); k.path.push([x, y]);
+  if (Math.min(...k.fig.e.map(([a, b]) => ipSegDist(x, y, k.pts[a][0], k.pts[a][1], k.pts[b][0], k.pts[b][1]))) > k.near) return rakuFail(k, tr('線をはみ出した', 'You left the lines'));
+  for (let j = 0; j < k.pts.length; j++) {
+    if (j === k.cur) continue; const d = Math.hypot(k.pts[j][0] - x, k.pts[j][1] - y); if (d > k.hitR) continue;
+    const ei = edgeTo(k.fig, k.left, k.cur, j); if (ei === -1) continue;
+    if (ei < 0) { if (d > k.hitR * 0.8) continue; return rakuFail(k, ei === -3 ? tr('矢印の向きにしか進めない', 'Arrows are one-way') : tr('その線は、もうなぞった', 'That line is already traced')); }
+    k.left[ei]--; k.used.push(ei); k.cur = j; audio.note(10 + [0, 2, 4, 5, 7, 9, 12, 14][k.used.length % 8] + Math.floor(k.used.length / 8) * 2, { vol: 0.14, dur: 0.3 });
+    const [wx, wy] = ipToW(k.pts[j][0], k.pts[j][1]); fx.tick(wx, wy, [3, 2, 0.8], 18, 160);
+    if (k.used.length === total(k.fig)) return rakuWin(k);
+    if (!k.fig.n.some((_, q2) => edgeTo(k.fig, k.left, j, q2) >= 0)) return rakuFail(k, tr('行き止まり', 'Dead end'));
+    return;
+  }
+}
+function rakuFail(k, why) {
+  k.drawing = false; k.tries++; k.hint = k.tries >= 2; audio.note(1, { vol: 0.14, dur: 0.5 }); hurt(); buzz([20, 30, 20]); audio.fuse(0, 0);
+  const odd = k.deg.some((d) => d % 2), tip = k.tries >= 2 ? (odd ? tr('書き出しは、光る点から', 'Start from a glowing dot') : tr('どの点からでも書ける形', 'Any dot can be the start')) : tr('もう一度', 'Try again');
+  $('skMsg').innerHTML = `<span>${why}（${total(k.fig) - k.used.length} ${tr('本のこり', 'left')}）。${tip}</span>`;
+  if (k.tries % 3 === 1) konSay(RAKU_SAY.miss[Math.floor(k.tries / 3) % RAKU_SAY.miss.length], false);
+  rakuBar(); PF.ev('raku_miss', { i: k.i, left: total(k.fig) - k.used.length });
+}
+function rakuWin(k) {
+  const rec = rakuRec(), st = rakuStars(k.tries, k.demoSeen), prev = rec.done[k.fig.id] || 0, got = Math.max(0, RAKU_COIN[st] - RAKU_COIN[prev]);
+  k.drawing = false; k.done = true; audio.fuse(0, 0); rec.done[k.fig.id] = Math.max(prev, st); const p0 = rec.purse || 0; rec.purse = p0 + got;
+  const fin = rakuN() === RAKU_N && !rec.all; if (fin) { rec.all = 1; DB.meta.skin = 'niji'; } save(); achCheck({}); PF.ev('raku_win', { i: k.i, st, tries: k.tries, all: fin ? 1 : 0 }); track('raku/win/' + (k.i + 1));
+  k.used.forEach((ei, i) => setTimeout(() => { if (S.ip !== k) return; const [a, b] = k.fig.e[ei]; for (let q2 = 1; q2 <= 2; q2++) { const u = q2 / 3, [wx, wy] = ipToW(k.pts[a][0] + (k.pts[b][0] - k.pts[a][0]) * u, k.pts[a][1] + (k.pts[b][1] - k.pts[a][1]) * u); fx.burst(i % 2 ? 'peony' : 'chrys', wx, wy, 62, i % 3 ? 'kiku' : 'kin', 1); } if (i % 2 === 0) audio.boom(0.6, 0); }, 80 * i));
+  setTimeout(() => { if (S.ip !== k) return; for (const [x, y] of k.pts) { const [wx, wy] = ipToW(x, y); fx.burst('ring', wx, wy, 100, 'kin', 2); } const [cx, cy] = ipToW(innerWidth / 2, innerHeight * 0.42); fx.burst('kamuro', cx, cy, fin ? 300 : 190, 'ootama', 1); audio.boom(2.4, 0); R.flash = 0.2; if (fin) grandFinale(); }, 80 * k.used.length + 250);
+  audio.ui('win'); $('skNext').textContent = k.i + 1 < RAKU_N ? tr('次の落書き', 'Next page') : tr('題名へ', 'Title'); rakuBar();
+  const gtx = got ? tr(`支度金 +${got}（次の祭りの初めに、小判 ${PURSE_MAX} 枚まで）`, `Gift +${got} (up to ${PURSE_MAX} coins at your next run's start)`) : '';
+  $('skMsg').innerHTML = `<span class="rk-ok"><b>${'★'.repeat(st)}${'☆'.repeat(3 - st)}</b> ${tr('一筆、成る！', 'One stroke complete!')} ${gtx}</span>`;
+  if (fin) setTimeout(() => { if (S.ip === k) konSay(RAKU_SAY.all); }, 900); else talePlay('kon', JA() ? RAKU_SAY.win[k.i % RAKU_SAY.win.length].ja : RAKU_SAY.win[k.i % RAKU_SAY.win.length].en);
+}
+function rakuFx(k, g, d, dt) {
+  g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, innerWidth, innerHeight); g.lineCap = 'round'; g.lineJoin = 'round';
+  if (k.drawing) { k.t += dt; if (k.t > 1.8) { k.fireD += (k.tot / rakuTime(k.fig)) * dt; audio.fuse(0.35, 0); if (k.fireD >= k.len - 8 && k.len > 20) return rakuFail(k, tr('火に追いつかれた', 'The fire caught you')); } }
+  if (k.demo) { // お手本: 火が順に走る
+    k.demo.t += dt * 2.1; const p = k.fig.s, n = Math.min(p.length - 1, Math.floor(k.demo.t)); const left = passes(k.fig); for (let i = 1; i <= n; i++) { const ei = edgeTo(k.fig, left, p[i - 1], p[i]); if (ei >= 0) left[ei]--; } k.left = left;
+    if (n >= p.length - 1 && k.demo.t > p.length + 0.6) { k.demo = null; k.left = passes(k.fig); $('skMsg').innerHTML = `<span>${tr('やってみよう', 'Your turn')}</span>`; }
+  }
+  const cnt = passes(k.fig), lw = Math.max(3, Math.min(5, k.sz * 0.05));
+  k.fig.e.forEach(([a, b], i) => {
+    const A = k.pts[a], B = k.pts[b], dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, two = cnt[i] === 2;
+    for (let q2 = 0; q2 < cnt[i]; q2++) { const o = two ? (q2 ? 4.5 : -4.5) : 0, lit = q2 < cnt[i] - k.left[i]; g.strokeStyle = lit ? '#ffb347' : '#f6cf7a70'; g.lineWidth = lit ? lw + 2 : lw; g.setLineDash(lit ? [] : [8, 9]); g.beginPath(); g.moveTo(A[0] + nx * o, A[1] + ny * o); g.lineTo(B[0] + nx * o, B[1] + ny * o); g.stroke(); }
+    const dir = k.fig.d[i]; g.setLineDash([]);
+    if (dir) { const ux = (dx / L) * dir, uy = (dy / L) * dir, mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2, z = Math.max(7, Math.min(11, L * 0.11)), done = !k.left[i]; g.fillStyle = done ? '#ffb347' : '#7fd4ff'; g.strokeStyle = '#04060f'; g.lineWidth = 2; g.beginPath(); g.moveTo(mx + ux * z, my + uy * z); g.lineTo(mx - ux * z - uy * z * 0.85, my - uy * z + ux * z * 0.85); g.lineTo(mx - ux * z * 0.4, my - uy * z * 0.4); g.lineTo(mx - ux * z + uy * z * 0.85, my - uy * z - ux * z * 0.85); g.closePath(); g.stroke(); g.fill(); }
+  });
+  if (k.path.length > 1 && !k.done && k.drawing) { g.strokeStyle = '#fff4d6bb'; g.lineWidth = 2; g.beginPath(); g.moveTo(...k.path[0]); for (const p of k.path) g.lineTo(...p); g.stroke(); }
+  const odd = k.deg.some((v) => v % 2);
+  k.pts.forEach(([x, y], i) => { const glow = k.hint && !k.drawing && !k.done && (!odd || k.deg[i] % 2); g.fillStyle = i === k.cur && k.drawing ? '#fff' : glow ? '#8ef0a0' : '#ffd27a'; g.beginPath(); g.arc(x, y, (i === k.cur && k.drawing ? 1.25 : 1) * Math.max(6, Math.min(10, k.hitR * 0.5)) + (glow ? 2 + Math.sin(R.time * 6) * 2 : 0), 0, 7); g.fill(); });
+  const fire = (x, y) => { g.fillStyle = '#ff7a2a'; g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill(); const [wx, wy] = ipToW(x, y); fx.add(wx, wy, (Math.random() - 0.5) * 60, -30 - Math.random() * 60, 0.35, 4, 0, 0, [3, 1.1, 0.3], [1, 0.3, 0.05], 1); };
+  if (k.demo) { const p = k.fig.s, n = Math.min(p.length - 2, Math.floor(k.demo.t)), u = Math.min(1, k.demo.t - n), A = k.pts[p[n]], B = k.pts[p[n + 1]]; fire(A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u); }
+  if (k.drawing && k.t > 1.8) { let acc = 0; for (let i = 1; i < k.path.length; i++) { const [ax, ay] = k.path[i - 1], [bx, by] = k.path[i], l = Math.hypot(bx - ax, by - ay); if (acc + l >= k.fireD) { const u = (k.fireD - acc) / (l || 1); fire(ax + (bx - ax) * u, ay + (by - ay) * u); break; } acc += l; } }
+}
+// クリアのあとのヒント（大団円の画面）: 星の一筆を絵で見せる。押すとコンが話す
+const starSvg = () => { const v = [0, 2, 4, 1, 3, 0].map((i) => [50 + 42 * Math.cos(-Math.PI / 2 + i * 1.25664), 52 + 42 * Math.sin(-Math.PI / 2 + i * 1.25664)].map((x) => x.toFixed(1)).join(',')).join(' '); return `<svg viewBox="0 0 100 100" aria-hidden="true"><polyline class="rk-l0" points="${v}"/><polyline class="rk-l1" pathLength="100" points="${v}"/></svg>`; };
+function rakuHint(box) {
+  const rec = rakuRec(); if (rec.all) return; const el = document.createElement('button'); el.className = 'rakuhint'; el.type = 'button';
+  el.innerHTML = rec.found ? `<img class="rk-kon" src="tale/img/kon_face.webp" alt=""><span>${tr(`コンの落書き帳 ${rakuN()} / ${RAKU_N}（題名の空に、星をひと筆）`, `Kon's Scribble Book ${rakuN()} / ${RAKU_N} (draw a star on the title sky)`)}</span>` : `${starSvg()}<span>${tr(`コン「${RAKU_SAY.hint.ja}」`, `Kon: "${RAKU_SAY.hint.en}"`)}</span>`;
+  el.onclick = () => talePlay('kon', JA() ? RAKU_SAY.hint.ja : RAKU_SAY.hint.en); box.prepend(el);
+  if (!rec.found) { PF.ev('raku_hint'); const t0 = S.taleEnd; setTimeout(() => { if (S.mode === 'over' && !t0) talePlay('kon', JA() ? RAKU_SAY.hint.ja : RAKU_SAY.hint.en); }, 3200); }
+}
+$('senko').addEventListener('pointerdown', (e) => { if (e.target.closest?.('button')) return; if (S.ip) return ipDown(e); audio.unlock(); const k = S.sk; if (!k || k.done) return; k.held = true; k.px = e.clientX; k.py = e.clientY; try { $('senko').setPointerCapture(e.pointerId); } catch { /* 無くても動く */ } });
 $('senko').addEventListener('pointermove', (e) => { if (S.ip) { for (const ev of (e.getCoalescedEvents ? e.getCoalescedEvents() : [e])) ipMove(ev); return; } const k = S.sk; if (!k || !k.held) return; k.shake += Math.hypot(e.clientX - k.px, e.clientY - k.py) * 0.004; k.px = e.clientX; k.py = e.clientY; });
 const skUp = () => { const k = S.sk; if (k && k.held && !k.done) { if (k.stage >= 0) endSenko(false); else k.held = false; } };
 $('senko').addEventListener('pointerup', () => (S.ip ? ipUp() : skUp())); $('senko').addEventListener('pointercancel', () => (S.ip ? ipUp() : skUp()));
-$('skNext').onclick = () => { audio.ui('tap'); S.sk = null; S.ip = null; const cv = $('ipCanvas'); cv?.getContext('2d').clearRect(0, 0, cv.width, cv.height); startNight(); };
+$('skNext').onclick = () => { audio.ui('tap'); if (S.mode === 'raku') return rakuNext(); S.sk = null; S.ip = null; const cv = $('ipCanvas'); cv?.getContext('2d').clearRect(0, 0, cv.width, cv.height); startNight(); };
 
 function runOver(won) {
   const run = S.run;
@@ -1515,6 +1634,7 @@ Draw the fuse. The flame is right behind you. #HitofudeHanabi`;
       $('ovTitleBtn').textContent = tr('帰る', 'Go home'); en.textContent = tr('帰らない（千秋楽へ）', 'Stay (Encore)'); audio.note(3, { vol: 0.16, dur: 1.2 }); }, 700); }, 2400);
   }
 
+  if (won && !run.endless) rakuHint($('ovUnlocks'));
   en.onclick = () => { audio.ui('tap'); Run.startEndless(run); S.log = endLog; logOp('E'); logSave(); S.run = run; DB.run = run; save(); track('run/endless'); startNight(); };
   const endLog = S.log; rankSubmit(run, endLog);
   DB.run = null; S.run = null; save(); S.log = null; if (!window.HANABI_PG) try { localStorage.removeItem(LOGKEY); } catch { /* なくても遊べる */ }
@@ -1549,6 +1669,7 @@ function openSettings(from) {
     $('pzTouch').textContent = tr(`指の操作：${['ふつう', '先を上に', '先をもっと上に'][touchMode()]}`, `Touch: ${['normal', 'tip above finger', 'tip far above'][touchMode()]}`);
     $('pzTalk').textContent = tr(`会話 ${talkOn() ? 'ON' : 'OFF'}`, `Story talk ${talkOn() ? 'ON' : 'OFF'}`);
     $('pzCut').textContent = tr(`カットイン ${cutOn() ? 'ON' : 'OFF'}`, `Cut-ins ${cutOn() ? 'ON' : 'OFF'}`);
+    $('pzSkin').textContent = tr(`線 ${DB.meta.skin === 'niji' ? '虹' : '金'}`, `Line: ${DB.meta.skin === 'niji' ? 'rainbow' : 'gold'}`); $('pzSkin').classList.toggle('hidden', !DB.meta.raku?.all);
     $('pzHaptic').textContent = tr(`振動 ${DB.haptic === false ? 'OFF' : 'ON'}`, `Vibration ${DB.haptic === false ? 'OFF' : 'ON'}`); $('pzHaptic').classList.toggle('hidden', !navigator.vibrate);
   };
   lab();
@@ -1557,6 +1678,7 @@ function openSettings(from) {
   $('pzTouch').onclick = () => { DB.touchMode = (touchMode() + 1) % 3; save(); lab(); };
   $('pzTalk').onclick = () => { DB.talk = !talkOn(); save(); lab(); PF.ev('set_talk', { on: talkOn() ? 1 : 0 }); };
   $('pzCut').onclick = () => { DB.cut = !cutOn(); save(); lab(); PF.ev('set_cut', { on: cutOn() ? 1 : 0 }); };
+  $('pzSkin').onclick = () => { DB.meta.skin = DB.meta.skin === 'niji' ? '' : 'niji'; save(); lab(); };
   $('pzHaptic').onclick = () => { DB.haptic = DB.haptic === false; save(); lab(); buzz(20); };
   $('pzLang').onclick = () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); openSettings(from); };
   $('pzLang').classList.toggle('hidden', from === 'inter'); // 屋台の途中で言葉を変えると、画面の半分が前の言葉のまま残る
@@ -1604,6 +1726,7 @@ addEventListener('pointerdown', (e) => { if (CARRY) endCarry(e); }, true);
 canvas.addEventListener('pointerdown', (e) => {
   if (e === carryEnd) return; // 運びを終えたクリック
   audio.unlock(); TOUCH = e.pointerType === 'touch'; hideVeil('board');
+  if (S.mode === 'title') return tdDown(e); // 題名の空に線を引く
   if (S.mode === 'retry' && performance.now() - S.retryAt > 600) { startNight(); return; }
   // 前の指が残っていたら捨てる（11/23 通し遊び: 大仕掛けの夜に、押しても線が始まらないまま夜が進まなくなった。線を引いている最中・運びの最中でなければ、残った指は古い）
   if (pid !== null && !CARRY && !(S.st?.stroke?.penDown)) { pid = null; S.tip = null; S.trail.length = 0; if (S.drag) S.drag = null; }
@@ -1622,6 +1745,7 @@ function feedTrail() {
   while (S.trail.length && !k.held) { const p = S.trail.shift(); S.rec?.ev.push([st.t, 'm', p.x, p.y]); G.penMove(st, p.x, p.y); if (!k.penDown) { S.trail.length = 0; return; } }
 }
 const onMove = (e) => {
+  if (S.td && e.pointerId === S.td.pid) return tdMove(e);
   if (S.drag && e.pointerId === S.drag.id) { const now = performance.now(), p0 = S.pan || 0, q0 = S.panY || 0; S.pan = Math.max(0, Math.min(panMax(), S.drag.pan - ((e.clientX - S.drag.x) / innerWidth) * W)); S.panY = Math.max(0, Math.min(panMaxY(), S.drag.panY + ((e.clientY - S.drag.y) / innerHeight) * H)); const dts = Math.max(0.008, (now - (S.drag.t || now - 16)) / 1000); S.drag.t = now; S.flingX = (S.pan - p0) / dts; S.flingY = (S.panY - q0) / dts; return; }
   if (e.pointerId !== pid || !S.st) return;
   const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
@@ -1633,7 +1757,7 @@ const onMove = (e) => {
 };
 canvas.addEventListener('pointermove', onMove);
 addEventListener('pointermove', (e) => { if (CARRY && e.target !== canvas) onMove(e); });
-const release = (e) => { if (S.drag && e.pointerId === S.drag.id) { if (performance.now() - (S.drag.t || 0) > 90) { S.flingX = 0; S.flingY = 0; } S.drag = null; if (e.pointerId !== pid) return; } if (e.pointerId !== pid) return; // 盤を動かした指と線の指が同じでも、線の後片付けをとばさない
+const release = (e) => { if (S.td && e.pointerId === S.td.pid) return tdUp(e); if (S.drag && e.pointerId === S.drag.id) { if (performance.now() - (S.drag.t || 0) > 90) { S.flingX = 0; S.flingY = 0; } S.drag = null; if (e.pointerId !== pid) return; } if (e.pointerId !== pid) return; // 盤を動かした指と線の指が同じでも、線の後片付けをとばさない
   const k = S.st?.stroke;
   if (e.type === 'pointerup' && !CARRY && S.press?.mouse && k?.penDown && k.len < S.st.m.minLen && performance.now() - S.press.t < 450) { // クリックしただけ → 運びにする
     CARRY = 1; S.carryN = (S.carryN || 0) + 1; if (S.carryN <= 2) PF.ev('carry', { n: S.carryN });
@@ -2451,13 +2575,14 @@ function ribbon(gl, P, vaoF, fuseBuf, cam, VW, VH, k, t, mirror) {
   gl.useProgram(P.fuse.p); gl.bindVertexArray(vaoF);
   gl.bindBuffer(gl.ARRAY_BUFFER, fuseBuf); gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
   const U = P.fuse.u;
-  gl.uniform2f(U.uView, VW, VH); gl.uniform3f(U.cam, cam.x, cam.y, cam.z); gl.uniform1f(U.flameS, k.flameS); gl.uniform1f(U.len, k.len); gl.uniform1f(U.time, t); gl.uniform1f(U.heat, k.heatLv); gl.uniform1f(U.on, k.flameOn ? 1 : 0);
+  gl.uniform2f(U.uView, VW, VH); gl.uniform3f(U.cam, cam.x, cam.y, cam.z); gl.uniform1f(U.flameS, k.flameS); gl.uniform1f(U.len, k.len); gl.uniform1f(U.time, t); gl.uniform1f(U.heat, k.heatLv); gl.uniform1f(U.on, k.flameOn ? 1 : 0); gl.uniform1f(U.skin, DB.meta.skin === 'niji' ? 1 : 0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, n * 2);
 }
 function drawWorld({ gl, cam, P, vaoSpr, vaoF, sprBuf, sprData, fuseBuf, tex, W: VW, H: VH, MAX_SPR }) {
   const st = S.st, t = R.time;
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   const k = st && st.stroke;
+  if (!st && S.td && S.mode === 'title' && S.td.pts.length > 1) ribbon(gl, P, vaoF, fuseBuf, cam, VW, VH, S.td, t, false);
   if (k && k.pts.length > 1) {
     ribbon(gl, P, vaoF, fuseBuf, cam, VW, VH, k, t, false);
     if (st.rule === 'kagami' || st.m.mirror) ribbon(gl, P, vaoF, fuseBuf, cam, VW, VH, k, t, true);
@@ -2761,8 +2886,54 @@ function lightEntry(how) {
   PF.ev('entry_lit', { how });
 }
 addEventListener('keydown', (e) => { if (S.entryOn && (e.key === ' ' || e.key === 'Enter')) lightEntry('key'); });
+// ---- 題名の空に線を引く（11/25 依頼主「タイトル画面でも線を引けるようにしたい」）。遊びと同じ金の線。少しすると書き出しから火が追いかけ、通ったところが花火になる
+// 星（五芒星）をひと筆で描くと、コンの落書き帳が開く
+function tdDown(e) {
+  if (S.entryOn || S.td?.penDown || S.tdGo || $('title').classList.contains('hidden')) return;
+  const p = toWorld(e); S.td = { pid: e.pointerId, pts: [{ x: p.x, y: p.y, s: 0 }], scr: [[e.clientX, e.clientY]], len: 0, flameS: 0, flameOn: false, penDown: true, heatLv: 0, age: 0, next: 70, n: 0, star: 0, done: 0 };
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* 無くても引ける */ }
+  document.body.classList.add('tdOn'); fx.tick(p.x, p.y, [3, 2, 0.8], 10, 120); audio.note(10, { vol: 0.08, dur: 0.2 });
+}
+function tdMove(e) {
+  const k = S.td; if (!k || !k.penDown) return; const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  for (const ev of (list.length ? list : [e])) {
+    const p = toWorld(ev), l = k.pts[k.pts.length - 1], d = Math.hypot(p.x - l.x, p.y - l.y); if (d < 3 || k.pts.length > 1600) continue;
+    k.len += d; k.pts.push({ x: p.x, y: p.y, s: k.len }); k.scr.push([ev.clientX, ev.clientY]);
+  }
+}
+function tdUp() {
+  const k = S.td; if (!k || !k.penDown) return; k.penDown = false; document.body.classList.remove('tdOn');
+  if (k.len < 46) { S.td = null; return; }
+  k.flameOn = true; const xs = k.scr.map((p) => p[0]), ys = k.scr.map((p) => p[1]), m = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  const sc = m > Math.min(innerWidth, innerHeight) * 0.18 ? starScore(k.scr) : 0;
+  if (sc >= STAR_OK) { k.star = 1; k.heatLv = 3; S.tdGo = 1; audio.ui('win'); }
+  else if (sc >= STAR_NEAR && (DB.meta.wins || 0) > 0 && !rakuRec().found) toast(tr('コン「おしいコン！」', 'Kon: "So close, kon!"'));
+  if (!DB.meta.taught.td) { DB.meta.taught.td = 1; save(); PF.ev('title_draw', { star: k.star }); }
+}
+const tdAt = (k, s) => { let i = 1; while (i < k.pts.length - 1 && k.pts[i].s < s) i++; const a = k.pts[i - 1], b = k.pts[i] || a, u = b.s > a.s ? Math.max(0, Math.min(1, (s - a.s) / (b.s - a.s))) : 0; return [a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u]; };
+function tdFx(dt) {
+  const k = S.td; if (!k) return; k.age += dt;
+  if (k.done) { k.done += dt; audio.fuse(0, 0); if (k.done > 1.5) S.td = null; return; }
+  if (!k.flameOn) { if (k.age > 0.55 && k.len > 90) k.flameOn = true; else return; }
+  const v = k.penDown ? 120 + k.age * 6 : Math.max(780, k.len * 0.95); k.flameS = Math.min(k.len, k.flameS + v * dt);
+  const [x, y] = tdAt(k, k.flameS); audio.fuse(0.7, 1); fx.light(x, y, 0.2, 240, [1, 0.56, 0.2], 40);
+  for (let i = 0; i < 2; i++) { const a = Math.random() * 6.283, w = 60 + Math.random() * 150; fx.add(x, y, Math.cos(a) * w, Math.sin(a) * w - 20, 0.3, 2.2, 2, 120, [3.2, 1.7, 0.5], [1, 0.3, 0.05], 1.4, 1); }
+  const gap = Math.max(96, k.len / 30);
+  while (k.flameS >= k.next && k.n < 40) { const [bx, by] = tdAt(k, k.next), type = k.star ? 'kin' : SHELL_ORDER[Math.floor(Math.random() * 6)]; fx.burst(k.star ? 'ring' : fx.kinds[Math.floor(Math.random() * 6)], bx, by, 52 + Math.random() * 34, type, 0); audio.note(10 + [0, 2, 4, 5, 7, 9, 12][k.n % 7], { vol: 0.1, dur: 0.35, pan: panOf(bx) }); if (k.n % 3 === 0) audio.boom(0.35, panOf(bx)); k.n++; k.next += gap; }
+  if (k.flameS >= k.len - 1) { // 書き終わりまで届いた（引いている途中なら、追いつかれた）
+    k.penDown = false; k.done = 0.001; document.body.classList.remove('tdOn'); audio.fuse(0, 0); fx.burst('chrys', x, y, 150, k.star ? 'kin' : 'kiku', 1); audio.boom(1.1, panOf(x));
+    if (k.star) tdStar(k);
+  }
+}
+function tdStar(k) {
+  const xs = k.pts.map((p) => p.x), ys = k.pts.map((p) => p.y), cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2, r = (Math.max(...xs) - Math.min(...xs)) / 2;
+  for (let i = 0; i < 5; i++) S.seq.push({ at: 0.1 + i * 0.13, f: () => { const a = -Math.PI / 2 + (i * 4 * Math.PI) / 5; fx.burst('kamuro', cx + Math.cos(a) * r, cy + Math.sin(a) * r, 120, 'kin', 1); audio.note(15 + i * 2, { vol: 0.15, dur: 0.6 }); } });
+  S.seq.push({ at: 0.85, f: () => { fx.burst('peony', cx, cy, 260, 'ootama', 2); audio.boom(2, 0); R.flash = 0.3; } });
+  setTimeout(() => { S.tdGo = 0; if (S.mode === 'title') openRaku(); }, 2300); // 花火が散ってから
+}
 function titleFx(dt) {
   if (S.entryOn) return; // 火をつけるまでは、音のない花火を上げない
+  tdFx(dt);
   S.titleT -= dt;
   if (S.titleT <= 0) {
     S.titleT = 0.9 + Math.random() * 1.1;
@@ -2816,7 +2987,7 @@ function frame(now) {
     panFrame(dt);
     R.camY = (R.zoom > 1.001 ? -((S.fy0 ?? H / 2) - H / 2) * (R.zoom - 1) : 0) + (S.panY || 0);
     if (S.mode === 'title') titleFx(dt);
-    if (S.mode === 'senko' && !S.paused) senkoFx(dt);
+    if ((S.mode === 'senko' || S.mode === 'raku') && !S.paused) senkoFx(dt);
     for (let i = S.seq.length - 1; i >= 0; i--) { const e = S.seq[i]; e.at -= dt; if (e.at <= 0) { S.seq.splice(i, 1); e.f(); } }
     if (!S.paused) { perFrameFx(sdt); hintFx(sdt); guideFx(sdt); fx.update(sdt); }
     R.lights = fx.lights;
@@ -3008,5 +3179,5 @@ function ihenFrame(dt) {
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, offerRevive, runOver, ckSave, contRun, openRank, openPgRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext, battleCut: (k) => battleCut(k), showCut: (l, k) => showCut(l, k), BATTLE, banner, floatText, toast, openBook, openSettings, openGift, openTale, openIp, fitTitles };
+window.HANABI = { PF, nightEnded: () => nightEnded(), rankSubmit, offerRevive, runOver, ckSave, contRun, openRank, openPgRank, RANK_API: () => RANK_API, S, G, Run, R, fx, audio, DB, replayScore, startNight, beginRun, grandFinale, openSenko, skyLine, skyShape, get W() { return W; }, get H() { return H; }, toWorld, nightEnded, runOver, peekNext, battleCut: (k) => battleCut(k), showCut: (l, k) => showCut(l, k), BATTLE, banner, floatText, toast, openBook, openSettings, openGift, openTale, openIp, fitTitles, openRaku, rakuPage, rakuRec, get RAKU() { return RAKU; }, starScore };
 boot();

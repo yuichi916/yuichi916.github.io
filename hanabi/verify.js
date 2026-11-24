@@ -6,6 +6,7 @@
 //   ['b', i] 買う / ['r'] 引き直し / ['s', i] 売る / ['w', i, j] 並べ替え / ['g'] ほうびを受け取らない
 //   ['a', 道] 次の夜へ（道の分かれがなければ -1）/ ['x'] 屋台の途中で閉じた（そのまま次へ）
 //   ['k', 小判] 線香花火 / ['L', 0|1] 夜の途中で閉じた（1 なら灯をひとつ取られた）/ ['E'] 千秋楽へ / ['V'] 灯が尽きたあとの復活
+import { PURSE_MAX } from './raku.js';
 import * as G from './sim.js';
 import * as Run from './run.js';
 
@@ -113,11 +114,15 @@ export function verifyRun(log) {
         if (phase !== 'over' || (run.rvUsed || 0) >= 2) return fail('revive', k);
         run.rvUsed = (run.rvUsed || 0) + 1; run.lives = 1; run.retry++; phase = 'night';
         break;
+      case 'B': // 落書き帳の支度金（祭りのいちばん初めに 1 回だけ・今日の祭りには無い）
+        if (k !== 0 || run.daily || !Number.isInteger(op[1]) || op[1] < 1 || op[1] > PURSE_MAX) return fail('gift', k);
+        run.coins += op[1]; run.bon = op[1];
+        break;
       case 'O': { // おみくじ（祭りの初めと、大一番に勝ったあとに 1 枚・引き直しは 1 回）: 種と番号から決まる運が合っているか
         if (phase !== 'night' || run.daily) return fail('order', k);
         const [, key, idx, isNew] = op, cleared = run.nightsCleared;
         if (!Run.OMIKUJI[key] || !Number.isInteger(idx) || idx !== (run.omiN || 0) || Run.drawOmikuji(run.seed, idx) !== key) return fail('omikuji', k);
-        if (isNew) { if (cleared % 4 || run.omiAt === cleared) return fail('omikuji', k); run.omiAt = cleared; run.omiBase = null; run.omiD = 0; }
+        if (isNew) { if ((cleared % 4 && run.omiAt !== undefined) || run.omiAt === cleared) return fail('omikuji', k); /* はじめての祭りは、最初の夜を越えたところで 1 枚 */ run.omiAt = cleared; run.omiBase = null; run.omiD = 0; }
         else if ((run.omiD || 0) !== 1) return fail('omikuji', k);
         run.omiD = (run.omiD || 0) + 1; run.omiN = idx + 1; Run.applyOmikuji(run, key);
         break;
