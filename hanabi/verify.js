@@ -113,6 +113,15 @@ export function verifyRun(log) {
         if (phase !== 'over' || (run.rvUsed || 0) >= 2) return fail('revive', k);
         run.rvUsed = (run.rvUsed || 0) + 1; run.lives = 1; run.retry++; phase = 'night';
         break;
+      case 'O': { // おみくじ（祭りの初めと、大一番に勝ったあとに 1 枚・引き直しは 1 回）: 種と番号から決まる運が合っているか
+        if (phase !== 'night' || run.daily) return fail('order', k);
+        const [, key, idx, isNew] = op, cleared = run.nightsCleared;
+        if (!Run.OMIKUJI[key] || !Number.isInteger(idx) || idx !== (run.omiN || 0) || Run.drawOmikuji(run.seed, idx) !== key) return fail('omikuji', k);
+        if (isNew) { if (cleared % 4 || run.omiAt === cleared) return fail('omikuji', k); run.omiAt = cleared; run.omiBase = null; run.omiD = 0; }
+        else if ((run.omiD || 0) !== 1) return fail('omikuji', k);
+        run.omiD = (run.omiD || 0) + 1; run.omiN = idx + 1; Run.applyOmikuji(run, key);
+        break;
+      }
       default: return fail('op', k);
     }
   }

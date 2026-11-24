@@ -282,30 +282,36 @@ function beginRun(o = {}) {
   startNight();
 }
 // おみくじの画面: 引く → 札がひらく → この運で祭りへ（引き直しは 1 回）
-function openOmikuji(done) {
-  const run = S.run; let n = 0, busy = false;
+// おみくじ: 祭りの初めと、大一番（4 夜ごと）に勝つたびに 1 枚（引き直しは 1 回・引かずに進んでもよい。11/24 依頼主「もっと頻繁に引かせたい」）
+const omiDue = () => { const r = S.run; return !!r && !S.daily && !r.daily && (DB.meta.runs || 0) >= 1 && r.nightsCleared > 0 && r.nightsCleared % 4 === 0 && r.omiAt !== r.nightsCleared; };
+function openOmikuji(done, opts = {}) {
+  const run = S.run; let n = run.omiN || 0, drawn = 0, busy = false;
+  run.omiBase = null; // ここでの値（小判・灯・札）を土台に、引いた運を足す
   $('omi')?.remove();
   const el = document.createElement('div'); el.id = 'omi'; el.className = 'omi'; el.lang = JA() ? 'ja' : 'en';
-  el.innerHTML = `<div class="omi-box"><h3>${tr('おみくじ', 'Omikuji')}</h3><p class="omi-q">${tr('祭りの前に、一枚どうぞ', 'Draw a fortune before the festival')}</p>`
+  el.innerHTML = `<div class="omi-box"><h3>${tr('おみくじ', 'Omikuji')}</h3><p class="omi-q">${opts.again ? tr('大一番のごほうびに、一枚どうぞ', 'Beat the boss: draw a fortune') : tr('祭りの前に、一枚どうぞ', 'Draw a fortune before the festival')}</p>`
     + `<div class="omi-tube"><i></i></div><div class="omi-slip hidden"><b class="omi-r"></b><span class="omi-d"></span></div><p class="omi-tora hidden"></p>`
-    + `<div class="omi-row"><button class="btn2 hidden" id="omiRe"></button><button class="bigbtn small" id="omiGo">${tr('おみくじを引く', 'Draw')}</button></div></div>`;
+    + `<div class="omi-row"><button class="btn2 hidden" id="omiRe"></button><button class="bigbtn small" id="omiGo">${tr('おみくじを引く', 'Draw')}</button></div><button class="omi-skip" id="omiSkip">${tr('引かずに進む', 'Skip')}</button></div>`;
   document.body.append(el); audio.ui('tap');
-  const show = (key) => {
+  const show = (key, idx) => {
+    logOp('O', key, idx, drawn === 1 ? 1 : 0); $('omiSkip')?.remove();
     const o = Run.OMIKUJI[key]; Run.applyOmikuji(run, key);
     const slip = el.querySelector('.omi-slip'); slip.className = 'omi-slip ' + key; slip.querySelector('.omi-r').textContent = JA() ? o.ja : o.en; slip.querySelector('.omi-d').textContent = JA() ? o.dj : o.de;
     const t = el.querySelector('.omi-tora'); t.textContent = tr(`トラ「${o.tj}」`, `Tora: "${o.te}"`); t.classList.remove('hidden');
     el.querySelector('.omi-tube').classList.add('done');
-    const re = $('omiRe'); re.textContent = tr('引き直す（1 回）', 'Redraw (once)'); re.classList.toggle('hidden', n > 1);
-    $('omiGo').textContent = tr('この運で祭りへ', 'Go with this fortune');
+    const re = $('omiRe'); re.textContent = tr('引き直す（1 回）', 'Redraw (once)'); re.classList.toggle('hidden', drawn > 1);
+    $('omiGo').textContent = opts.again ? tr('この運で進む', 'Go on with this fortune') : tr('この運で祭りへ', 'Go with this fortune');
     if (key === 'daikichi' || key === 'daikyo') { audio.ui('win'); R.flash = Math.max(R.flash, 0.25); } else audio.note(15, { vol: 0.16, dur: 0.5 });
   };
   const draw = () => {
     if (busy) return; busy = true; const tube = el.querySelector('.omi-tube'); tube.classList.remove('done'); tube.classList.add('shake'); el.querySelector('.omi-slip').classList.add('hidden');
     for (let i = 0; i < 5; i++) setTimeout(() => audio.note(8 + (i % 2) * 3, { vol: 0.1, dur: 0.08 }), i * 120);
-    setTimeout(() => { tube.classList.remove('shake'); busy = false; const key = Run.drawOmikuji(run.seed, n); n++; show(key); }, 720);
+    setTimeout(() => { tube.classList.remove('shake'); busy = false; const idx = n, key = Run.drawOmikuji(run.seed, idx); n++; drawn++; run.omiN = n; show(key, idx); }, 720);
   };
-  $('omiGo').onclick = () => { audio.unlock(); if (busy) return; if (!run.omi) { draw(); return; } audio.ui('tap'); PF.ev('omikuji', { r: run.omi, re: n > 1 ? 1 : 0 }); el.remove(); done(); };
-  $('omiRe').onclick = () => { if (busy || n > 1) return; audio.ui('tap'); draw(); };
+  const finish = () => { run.omiAt = run.nightsCleared; DB.run = run; save(); el.remove(); done(); };
+  $('omiGo').onclick = () => { audio.unlock(); if (busy) return; if (!drawn) { draw(); return; } audio.ui('tap'); PF.ev('omikuji', { r: run.omi, re: drawn > 1 ? 1 : 0, nights: run.nightsCleared }); finish(); };
+  $('omiRe').onclick = () => { if (busy || drawn > 1) return; audio.ui('tap'); draw(); };
+  $('omiSkip').onclick = () => { if (busy || drawn) return; audio.unlock(); audio.ui('tap'); PF.ev('omikuji', { r: 'skip', nights: run.nightsCleared }); finish(); };
 }
 function startDaily() {
   const d = new Date(); const key = d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
@@ -335,9 +341,10 @@ function resumeRun() {
   if (run.shopAt && run.shopAt === `${run.world}-${run.night}`) {
     logOp('x'); const res = Run.advance(run); if (res === 'world') ckSave(); DB.run = run; save();
     if (res === 'won') return runOver(true);
-    return res === 'world' ? openSenko() : startNight();
+    const go = () => (res === 'world' ? openSenko() : startNight());
+    return omiDue() ? openOmikuji(go, { again: true }) : go();
   }
-  if (!was || !was.used) return startNight();
+  if (!was || !was.used) return omiDue() ? openOmikuji(startNight, { again: true }) : startNight();
   if (was.ev && was.snap && (was.W < was.H) === (W < H)) {
     try {
       const snap = JSON.parse(JSON.stringify(was.snap)), def = Run.nightDef(snap, was.w, was.n);
@@ -1284,7 +1291,9 @@ $('nextBtn').onclick = () => {
   if (res === 'won') return runOver(true);
   if (res === 'world') ckSave();
   DB.run = S.run; save();
-  if (res === 'world') openSenko(); else startNight();
+  const go = () => (res === 'world' ? openSenko() : startNight());
+  if (omiDue()) return openOmikuji(go, { again: true });
+  go();
 };
 
 // ------------------------------------------------------------------ 線香花火: 祭りと祭りのあいだの、静かなひととき
@@ -2869,7 +2878,7 @@ const boardName = (b) => (b.daily ? tr(`今日の祭り（${b.day.slice(4, 6)}/$
 function rankSubmit(run, log) {
   const box = $('ovRank'); if (!box) return;
   box.innerHTML = '';
-  if (!S.rankOk || !log || log.as || run.omi || !log.ops.some((o) => o[0] === 'n')) return; // 練習の周（as）・おみくじを引いた周は出さない（決まりどおりの検算と合わない）
+  if (!S.rankOk || !log || log.as || (run.omi && !log.ops.some((o) => o[0] === 'O')) || !log.ops.some((o) => o[0] === 'n')) return; // 練習の周（as）は出さない。おみくじは、引いたことが記録に残っている周だけ（検算できる。23k より前に引いた周は残っていない）
   const board = { daily: !!log.daily, day: String(log.seed), rank: run.rank, school: run.school };
   const send = async () => {
     box.innerHTML = `<small>${tr('世界ランキングに送っています…', 'Sending to the world ranking...')}</small>`;
