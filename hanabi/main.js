@@ -44,7 +44,8 @@ const mem = () => DB.meta.mem;
 const NOFF = new URLSearchParams(location.search).has('noff'); // 確かめ用: 速送りを切る
 const save = () => { const j = JSON.stringify(DB); if (!window.HANABI_PG) { try { localStorage.setItem(SAVE, j); } catch { /* 保存できない環境でも遊べる */ } } PF.write(SAVE, j); };
 
-let lang = q.get('lang') || DB.lang || ((navigator.language || 'en').startsWith('ja') ? 'ja' : 'en');
+// 言葉: Playgama では場（Bridge）の言葉だけを見る（決まり 3.4.2。起動のとき PF.lang に合わせる）
+let lang = q.get('lang') || DB.lang || (!window.HANABI_PG && (navigator.language || 'en').startsWith('ja') ? 'ja' : 'en');
 const JA = () => lang === 'ja';
 const tr = (ja, en) => (JA() ? ja : en);
 // 音の設定を反映する。場（Playgama・YouTube）が消音している間は、ゲームの設定が ON でも鳴らさない（場の設定を上書きしない）
@@ -248,15 +249,15 @@ function openBook() {
   { const T = taleRec(), th = document.createElement('div'); th.className = 'bookhead'; th.textContent = tr(`灯の物語 ${T.n} / ${TALE_N}`, `Akari's Story ${T.n} / ${TALE_N}`) + (lastPageReady() ? tr('　・最後の頁が読める（いちばん下）', '  · Last page ready (bottom)') : ''); const nodes = [th];
     // 11/23 依頼主「妖怪図鑑の最初が文字ばっかりで汚い」: 読んだ頁は番号と情景の 1 行だけ。押すと、その頁を声つきで読み返す
     TALE.slice(0, T.n).forEach((p, i) => { const e = document.createElement('button'); e.className = 'bookitem tl';
-      e.innerHTML = `<span class="seal">${i + 1}</span><div><b>${JA() ? p.scene.ja : p.scene.en}</b><small>${tr('▶ 読み返す', '▶ Read again')}</small></div>`;
+      e.innerHTML = `<span class="seal">${i + 1}</span><div><b>${JA() ? p.scene.ja : p.scene.en}</b><small>${tr('▶︎ 読み返す', '▶︎ Read again')}</small></div>`;
       e.onclick = () => { audio.ui('tap'); openTale(p, null, { review: true }); };
       nodes.push(e); });
     const p25 = lastPageReady();
-    if (p25) { const e = document.createElement('button'); e.className = 'bookitem tl'; e.innerHTML = `<span class="seal">${TALE_N}</span><div><b>${JA() ? p25.scene.ja : p25.scene.en}</b><small>${tr('▶ 読む（最後の頁）', '▶ Read (last page)')}</small></div>`; e.onclick = () => { audio.ui('tap'); openTale(p25, () => { if (S.mode === 'title' || S.mode === 'book') openBook?.(); }); }; nodes.push(e); }
+    if (p25) { const e = document.createElement('button'); e.className = 'bookitem tl'; e.innerHTML = `<span class="seal">${TALE_N}</span><div><b>${JA() ? p25.scene.ja : p25.scene.en}</b><small>${tr('▶︎ 読む（最後の頁）', '▶︎ Read (last page)')}</small></div>`; e.onclick = () => { audio.ui('tap'); openTale(p25, () => { if (S.mode === 'title' || S.mode === 'book') openBook?.(); }); }; nodes.push(e); }
     else if (T.n < TALE_N) { const e = document.createElement('div'); e.className = 'bookitem locked'; e.innerHTML = `<span class="seal">・</span><div><b>？？？</b>${taleHint() || tr('夜を越えると、続きが読める', 'Clear a night to read on')}</div>`; nodes.push(e); }
     // コンの落書き帳（見つけたあと。大団円のあと・まだ見つけていない間はヒント）
     if (rakuRec().found || (DB.meta.wins || 0) > 0) { const f0 = rakuRec().found, h = document.createElement('div'); h.className = 'bookhead'; h.textContent = tr(`コンの落書き帳 ${f0 ? `${rakuN()} / ${RAKU_N}` : ''}`, `Kon's Scribble Book ${f0 ? `${rakuN()} / ${RAKU_N}` : ''}`); const e = document.createElement(f0 ? 'button' : 'div'); e.className = f0 ? 'bookitem tl' : 'bookitem locked';
-      e.innerHTML = f0 ? `<span class="seal">★</span><div><b>${tr('難しい一筆書きに挑戦', 'Hard one-stroke puzzles')}</b><small>${tr(`▶ ひらく（支度金 ${rakuRec().purse || 0}）`, `▶ Open (gift ${rakuRec().purse || 0})`)}</small></div>` : `<span class="seal">・</span><div><b>？？？</b>${tr('題名の空に、星をひと筆で描く', 'Draw a star in one stroke on the title sky')}</div>`;
+      e.innerHTML = f0 ? `<span class="seal">★</span><div><b>${tr('難しい一筆書きに挑戦', 'Hard one-stroke puzzles')}</b><small>${tr(`▶︎ ひらく（支度金 ${rakuRec().purse || 0}）`, `▶︎ Open (gift ${rakuRec().purse || 0})`)}</small></div>` : `<span class="seal">・</span><div><b>？？？</b>${tr('題名の空に、星をひと筆で描く', 'Draw a star in one stroke on the title sky')}</div>`;
       if (f0) e.onclick = () => { audio.ui('tap'); openRaku('book'); }; nodes.push(h, e); }
     list.prepend(...nodes); }
   // 技帳: 妖怪ごとの技と、取った回数 / 挑んだ回数
@@ -583,7 +584,7 @@ function shotLand(o) {
 }
 function renderLife(lose) {
   const V = S.raidV, st = S.st, el = $('raidLife'); if (!el || !V || !st) return;
-  el.innerHTML = `<small>${tr('あなたの命', 'YOUR LIFE')}</small>` + Array.from({ length: Math.max(V.max0 || 3, V.life) }, (_, i) => `<i class="${i < V.life ? 'on' : i === V.life && lose ? 'brk' : ''}">♥</i>`).join('');
+  el.innerHTML = `<small>${tr('あなたの命', 'YOUR LIFE')}</small>` + Array.from({ length: Math.max(V.max0 || 3, V.life) }, (_, i) => `<i class="${i < V.life ? 'on' : i === V.life && lose ? 'brk' : ''}">♥︎</i>`).join('');
 }
 // 反撃が当たった瞬間（爪がふり下ろされた所）
 function counterHit() {
@@ -790,8 +791,9 @@ function nightEnded() {
 function raidLeft(def) { return (S.run?.rv || 1) >= 6 && !def.endless && !def.raid && def.night < 8 ? 8 - def.night : 0; }
 // 数えてから次の夜へ（押せばすぐ）。屋台を開いた時は使わない
 function autoNext(sec) {
-  const b = $('nextBtn'), lab = b.textContent, t0 = performance.now(), mode = S.mode;
+  const b = $('nextBtn'), lab = b.textContent, mode = S.mode; let t0 = performance.now(), tp = t0;
   clearInterval(S.autoT); S.autoT = setInterval(() => {
+    const now = performance.now(); if (S.adPause || document.hidden) t0 += now - tp; tp = now; // 広告の間・頁が隠れている間は、秒読みを止める
     if (S.mode !== mode || !S.interLite || $("giftOv")) { clearInterval(S.autoT); b.textContent = lab; return; }
     const left = Math.ceil(sec - (performance.now() - t0) / 1000);
     if (left <= 0) { clearInterval(S.autoT); b.textContent = lab; PF.ev('auto_next', {}); b.click(); return; }
@@ -992,7 +994,7 @@ function offerRevive(kind = 'ad') {
   el.innerHTML = `<div class="gcard${kon ? ' kon' : ''}">${kon ? '<img class="rvkon" src="tale/img/kon_face.webp" alt="">' : ''}<h3>${tr('灯が尽きた', 'Out of lights')}</h3>${miss ? `<p class="rvmiss">${miss}</p>` : ''}`
     + (kon ? `<p>${tr('コン「コンが身代わりになるコン！」<br>灯をひとつ戻して、<b>この夜をもう一度</b>。（1 周に 1 回）', 'Kon: "I\'ll take the hit, kon!"<br>Get a light back and <b>retry this night</b>. (Once per run)')}</p>`
       : `<p>${tr('広告を見ると、灯をひとつ取り戻して<b>この夜をもう一度</b>。（1 周に 1 回）', 'Watch an ad to get a light back and <b>retry this night</b>. (Once per run)')}</p>`)
-    + `<div class="row"><button class="btn2" id="rvNo">${tr('ここまでにする', 'End run')}</button><button class="bigbtn small" id="rvYes">${kon ? tr('▶ もう一度この夜', '▶ Retry this night') : tr('▶ 広告を見て続ける', '▶ Watch & continue')}</button></div><p class="rvmsg" id="rvMsg"></p></div>`;
+    + `<div class="row"><button class="btn2" id="rvNo">${tr('ここまでにする', 'End run')}</button><button class="bigbtn small" id="rvYes">${kon ? tr('▶︎ もう一度この夜', '▶︎ Retry this night') : tr('▶︎ 広告を見て もう一度', '▶︎ Watch ad: retry')}</button></div><p class="rvmsg" id="rvMsg"></p></div>`;
   el.classList.remove('hidden');
   const back = () => { const run = S.run; run.lives = 1; run.retry++; logOp('V'); logSave(); el.classList.add('hidden'); track('run/revive' + (kon ? '/kon' : '')); retryNight(); };
   $('rvNo').onclick = () => { audio.ui('tap'); el.classList.add('hidden'); PF.ev('revive', { ok: 0, declined: 1, kind }); runOver(false); };
@@ -1467,7 +1469,7 @@ function openRaku(i) {
   rakuPage(typeof i === 'number' ? i : rakuFirst()); if (first) konSay(RAKU_SAY.open);
 }
 function rakuClose() { S.ip = null; document.body.classList.remove('rakuOn'); try { taleVoice?.pause(); } catch { /* */ } const cv = $('ipCanvas'); cv?.getContext('2d').clearRect(0, 0, cv.width, cv.height); audio.fuse(0, 0); if (S.rkFromBook) { S.mode = 'title'; toTitle(); openBook(); } else toTitle(); }
-addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.mode === 'raku') rakuClose(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !window.HANABI_PG && S.mode === 'raku') rakuClose(); }); // Playgama では Esc を使わない（決まり 1.5.2）
 function rakuNext() { const k = S.ip; if (!k) return rakuClose(); if (k.done && k.i + 1 < RAKU_N) return rakuPage(k.i + 1); rakuClose(); }
 function rakuPage(i) {
   const fig = RAKU[i], rec = rakuRec();
@@ -1603,7 +1605,7 @@ function runOver(won) {
   $('ovTitleBtn').textContent = tr('タイトル', 'Title'); $('ovAgain').textContent = tr('もう一度', 'PLAY AGAIN');
   { const ck = !won && !run.endless && !S.daily && DB.meta.ck && DB.meta.ck.seed === run.seed ? DB.meta.ck : null, cb = $('ovCont');
     cb.classList.toggle('hidden', !ck); $('ovAgain').className = ck ? 'btn2' : 'bigbtn small';
-    if (ck) { cb.innerHTML = tr(`▶ 第 ${ck.world} の世界の頭から`, `▶ Retry World ${ck.world}`) + `<small>${tr('お守り・小判はそのまま', 'Keep charms & coins')}</small>`; $('ovAgain').textContent = tr('はじめから', 'New run'); cb.onclick = () => { audio.ui('tap'); PF.ad(); contRun(ck); }; }
+    if (ck) { cb.innerHTML = tr(`▶︎ 第 ${ck.world} の世界の頭から`, `▶︎ Retry World ${ck.world}`) + `<small>${tr('お守り・小判はそのまま', 'Keep charms & coins')}</small>`; $('ovAgain').textContent = tr('はじめから', 'New run'); cb.onclick = () => { audio.ui('tap'); PF.ad(); contRun(ck); }; }
     if (ck) PF.ev('cont_offer', { w: ck.world, nights: run.nightsCleared }); }
   // Playgama ではタイトルを通らないので、今日の祭りの入口をここにも置く
   // Playgama のランキング（ovRank は自分のサイトの世界ランキングの欄なので別の名前）
@@ -1775,7 +1777,7 @@ function offHint(st) {
   if (!st || !st.level?.grand || S.mode !== 'play' || S.panIntro > 0) { if (!el.classList.contains('hidden')) el.classList.add('hidden'); return; }
   const vert = st.level.grand.gh > 1, pan = S.pan || 0, panY = S.panY || 0; let n = 0;
   for (const q of st.shells) { if (q.state !== 'idle' || q.rise > 0) continue; if (vert ? q.y + panY < 20 : q.x - pan > W - 20) n++; }
-  setT(el, n ? (vert ? tr(`▲ 空にも玉 ${n}`, `▲ ${n} more up in the sky`) : tr(`玉 ${n} ▶`, `${n} more ▶`)) : '');
+  setT(el, n ? (vert ? tr(`▲ 空にも玉 ${n}`, `▲ ${n} more up in the sky`) : tr(`玉 ${n} ▶︎`, `${n} more ▶︎`)) : '');
   el.classList.toggle('hidden', !n); el.classList.toggle('v', vert);
 }
 function panFrame(dt) {
@@ -1850,6 +1852,8 @@ function tether(e) {
 const buzz = (p) => { try { if (TOUCH && DB.haptic !== false && navigator.vibrate) navigator.vibrate(p); } catch { /* */ } };
 canvas.addEventListener('pointerup', release);
 canvas.addEventListener('pointercancel', release);
+// iPhone: 盤の長押し・二度押しで、虫めがねや選択が出ないように（決まり 1.4.5）。音の鍵は touchend・pointerup で開くので変わらない
+for (const el of [canvas, $('ipCanvas')]) el?.addEventListener('touchstart', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
 addEventListener('contextmenu', (e) => e.preventDefault());
 addEventListener('visibilitychange', () => { audio.mute(document.hidden); if (document.hidden && S.mode === 'play' && !S.paused && !(S.st && S.st.phase === 'stroke')) openPause(); });
 
@@ -2440,7 +2444,7 @@ function handle(ev) {
     case 'bake': { const T = { fuku: ['福！ 倍率 +3', 'Luck! +3 MULT'], koban: ['小判 +3', '+3 coins'], tanuki: ['どろん！ 玉が入れかわった', 'Poof! Shells swapped places'], oni: ['鬼だ！ 火が跳ねる', 'Oni! The flame jumps'], tane: ['玉がわいた！', 'More shells!'], kinka: ['金に化けた！', 'Turned to gold!'] }[ev.what]; floatText(ev.x, ev.y - 40, JA() ? T[0] : T[1], ev.what === 'oni' || ev.what === 'tanuki' ? 'mult' : 'gold', 28); audio.note(ev.what === 'oni' ? 2 : 20, { vol: 0.18, dur: 0.4 }); if (ev.what === 'oni') R.shake += 8; if (ev.what === 'tanuki') for (const o of st.shells) if (o.state === 'idle') fx.tick(o.x, o.y, [1.8, 1.8, 2], 8, 90); renderBags(); $('cMult').textContent = fmtM(ev.mult); break; }
     case 'tome': floatText(ev.x, ev.y - 34, tr('火が止まった！', 'Flame stopped!'), 'gold', 26); audio.note(4, { vol: 0.18, dur: 0.6 }); fx.tick(ev.x, ev.y, [1.6, 1.8, 1.4], 24, 150); break;
     case 'juzu': if (ev.ok) { floatText(ev.x, ev.y - 30, `${ev.n}`, 'gold', 34); audio.note(10 + ev.n * 2, { vol: 0.18, dur: 0.35 }); $('cMult').textContent = fmtM(ev.mult); bump($('cMult')); } else { floatText(ev.x, ev.y - 30, tr('順番ちがい', 'Wrong order'), 'mult', 20); audio.note(1, { vol: 0.1, dur: 0.2 }); } break;
-    case 'juzuDone': banner(tr('数珠がつながった！', 'Beads complete!'), 48, 1100); audio.ui('win'); $('cMult').textContent = fmtM(ev.mult); break;
+    case 'juzuDone': banner(tr('玉がぜんぶつながった！', 'Chain complete!'), 48, 1100); audio.ui('win'); $('cMult').textContent = fmtM(ev.mult); break;
     case 'coinPop': floatText(ev.x, ev.y + 26, '+' + ev.n, 'coinp', 24); renderBags(); break;
     case 'crowIn': audio.note(1, { vol: 0.16, dur: 0.18 }); setTimeout(() => audio.note(0, { vol: 0.14, dur: 0.16 }), 120); break;
     case 'crowTake': floatText(ev.x, ev.y - 20, tr('さらわれた！', 'Stolen!'), 'mult', 24); audio.note(2, { vol: 0.14, dur: 0.25 }); break;
@@ -3025,7 +3029,7 @@ async function boot() {
     if (fixed.length) PF.ev('snd_fix', { what: fixed.join(','), mode: S.mode, ok: ok ? 1 : 0, ctx: audio.ctx?.state || '-' });
   }
   setInterval(soundResync, 2000);
-  if (PF.ready) { const j = await PF.load(SAVE); if (j) { try { const c = JSON.parse(j); if ((c.meta?.xp || 0) >= (DB.meta.xp || 0)) { Object.assign(DB, c); S.run = DB.run; } } catch { /* */ } } }
+  if (PF.ready) { const j = await PF.load(SAVE); if (j) { try { const c = JSON.parse(j); if ((c.meta?.xp || 0) >= (DB.meta.xp || 0)) { Object.assign(DB, c); S.run = DB.run; } } catch { /* */ } } if (DB.lang && !q.get('lang')) lang = DB.lang; } // 自分で選んだ言葉は、次に来た時も
   // 玉の字の筆文字は 0.25 秒だけ待つ。間に合わなければ、ふつうの字で始めて、届いたら描きなおす（遅い回線で起動を止めない）
   const glyphs = '一筆花火金大千灯雫氷鬼尺' + CHARMS.map((c) => c.ja[0]).join('');
   const fontP = document.fonts.load('900 60px "Yuji Boku"', glyphs).catch(() => null);
@@ -3039,6 +3043,7 @@ async function boot() {
   toTitle(); performance.mark('b_title');
   if (q.has('debug')) { const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:8px;top:60px;font:12px monospace;color:#7f7;z-index:9'; document.body.append(d); S.fpsEl = d; }
   requestAnimationFrame(frame);
+  document.body.classList.add('booted'); // 読み込み中の「Loading」を消し、題名の札を出す
   PF.loadingStop();
   S.booted = true;
   audio.prefetch(); // 遊べる状態になったら曲を先に読み始める（最初のタップですぐ鳴る）

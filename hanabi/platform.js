@@ -1,10 +1,7 @@
 // 一筆花火 2 — ゲームサイトとのつなぎ。SDK が無い場所（自分のサイト・テスト）では何もしない
 // CrazyGames（window.CrazyGames）と Playgama Bridge（window.bridge。YouTube Playables・MSN などへ配る）に対応
-const AD_GRACE_MS = 600000; // 11/22 依頼主: 10 分（第 1 の世界を越えるころ。長く遊ぶ人の流れを切らない）。11/21 は 7 分。平均の遊び時間を上げるのが先。遊び始めてから最初の広告までの最短（ミリ秒）。序盤は広告で止めない（Playgama の目安: 平均 5 分・1 遊びあたり広告 0.30）
-const AD_T0 = performance.now();
-// 広告どうしの最短の間（11/19: 1 遊びあたり 1.05 回で目安 0.30 の 3.5 倍、間は平均 70 秒。平均の遊び時間 4:09 が目安 5:00 に届かない）
-const AD_GAP_MS = 200000;
-let adLast = -Infinity;
+// 広告の間（最初の 1 本・間隔）は、場の Bridge が決める。ゲームの側では時計も回数も数えない
+// （2026-11-25: Playgama の必須項目 7「自前の時計や回数を足さない」。前は最初の 10 分と 200 秒の間を自前で足していた）
 // 11/23 依頼主「広告の後はやっぱり音が出ない」: Playgama の bridge は、枠の外が押されて焦点が外れただけ（window の blur）でも「見えていない」とみなし、
 // 止める・音を消すを出す。広告を閉じる操作はまさに枠の外なので、ゲームに触れるまで音が戻らなかった。
 // bridge は理由ごとに持っているので、ページが本当に見えていない時だけ「見えていない」に従う（広告・場の消音・評価の窓はそのまま従う）
@@ -22,7 +19,8 @@ export function createPlatform() {
       const B = window.bridge;
       if (B && B.initialize) {
         try {
-          await B.initialize();
+          // 枠の頁（index.html）が、ゲームを読み込む前に Bridge を起こしてある。手元など、起こしていない所ではここで起こす
+          if (window.HANABI_BRIDGE ? !(await window.HANABI_BRIDGE) : (await B.initialize(), false)) throw new Error('bridge init');
           pg = B; P.ready = true; P.kind = 'playgama'; P.noLocal = true;
           const L = String(B.platform.language || '');
           P.lang = L.startsWith('ja') ? 'ja' : 'en';
@@ -60,14 +58,13 @@ export function createPlatform() {
     milestone() { try { pg?.platform.sendMessage('player_got_achievement')?.catch?.(() => {}); } catch { /* */ } },
     happy() { try { sdk?.game.happytime(); } catch { /* */ } },
     // 区切り（夜のあと・祭りの終わり）の広告。広告どうしの間隔は場の SDK が決める。
-    // ただし遊び始めて 3 分までは出さない（Playgama は 30 秒未満で離れた回を「遊び」と数えず、最初の広告が 29 秒目に出ていた）
     // 11/21 依頼主「大勝負の後の夜に音や声が出なくなる」（最初の広告は 7 分すぎ＝大勝負のころ）: 広告が本当に出ているか・場が音を許しているかを、知らせを待たずに読み直す
     adBusy() { try { const s = pg?.advertisement?.interstitialState, r = pg?.advertisement?.rewardedState; return s === 'opened' || s === 'loading' || r === 'opened' || r === 'loading'; } catch { return false; } },
     pausedNow() { try { return P.realPaused ? P.realPaused() : !!pg?.platform?.isPaused; } catch { return false; } },
     audioOk() { try { return pg ? (P.realMuted ? !P.realMuted() : pg.platform?.isAudioEnabled !== false) : !P.muted; } catch { return true; } },
-    ad() { try { const now = performance.now(); if (now - AD_T0 < AD_GRACE_MS || now - adLast < AD_GAP_MS) return false; if (pg?.advertisement?.isInterstitialSupported) { adLast = now; pg.advertisement.showInterstitial(); return true; } } catch { /* */ } return false; },
+    ad() { try { if (pg?.advertisement?.isInterstitialSupported) { P.flush(); pg.advertisement.showInterstitial(); return true; } } catch { /* */ } return false; },
     // 独自のイベント（どこで離れたかを見る）。名前は固定、変わる値は data に。版の名前を必ず付ける
-    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, t: Math.round(performance.now() / 1000), build: '2026-11-25b' }); } catch { /* 送れなくても遊べる */ } },
+    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, t: Math.round(performance.now() / 1000), build: '2026-11-25c' }); } catch { /* 送れなくても遊べる */ } },
     // ランキング（Bridge）。Playgama は Bridge SaaS で in_game（自分で表を描く）、YouTube は native（点を送るだけ）
     lbType() { try { return pg?.leaderboards?.type || 'not_available'; } catch { return 'not_available'; } },
     async lbSet(score) { if (P.lbType() === 'not_available') return; try { await pg.leaderboards.setScore('best_score', Math.max(0, Math.floor(score))); } catch { /* 送れなくても遊べる */ } },
@@ -95,10 +92,23 @@ export function createPlatform() {
       if (pg) { try { const d = await pg.storage.get([key]); const v = d && d[0]; return v == null ? null : (typeof v === 'string' ? v : JSON.stringify(v)); } catch { return null; } }
       return P.read(key);
     },
+    // 保存。Bridge へは、続けて来た分をまとめて 2.5 秒に 1 回（同じ中身なら書かない）。頁が隠れる時・広告の前はすぐ書く
     write(key, v) {
       try { sdk?.data?.setItem(key, v); } catch { /* */ }
-      try { pg?.storage.set([key], [v])?.catch?.(() => {}); } catch { /* */ }
+      if (!pg) return;
+      if (P.last?.[key] === v) { delete (P.pend || {})[key]; return; }
+      (P.pend ||= {})[key] = v;
+      if (document.visibilityState === 'hidden') return P.flush();
+      P.tm ||= setTimeout(P.flush, 2500);
+    },
+    flush() {
+      clearTimeout(P.tm); P.tm = 0;
+      const ks = Object.keys(P.pend || {}); if (!pg || !ks.length) return;
+      const vs = ks.map((k) => P.pend[k]); P.last = { ...P.last, ...P.pend }; P.pend = {};
+      try { pg.storage.set(ks, vs)?.catch?.(() => { P.last = {}; }); } catch { P.last = {}; }
     },
   };
+  addEventListener('pagehide', () => P.flush());
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') P.flush(); });
   return P;
 }

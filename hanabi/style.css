@@ -1,5 +1,6 @@
 :root { --gold: #f6cf7a; --gold2: #ffe9b0; --ink: #1c130c; --paper: #efe4cd; --red: #c8331f; --u: min(1vw, 1.78vh); }
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+img { -webkit-user-drag: none; }
 html, body { margin: 0; height: 100%; background: #04060f; overflow: hidden; overscroll-behavior: none; touch-action: none; user-select: none; -webkit-user-select: none; font-family: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif; color: #fff; }
 #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
 .hidden { display: none !important; }
@@ -894,3 +895,17 @@ body.rakuOn #senko { padding-bottom: 4vh; gap: 8px; }
 @keyframes rkStar { 0%, 6% { stroke-dashoffset: 100; } 70%, 92% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
 @media (orientation: landscape) and (max-height: 470px) { #rkBar { top: 4px; } #rkBar b { font-size: 15px; } body.rakuOn .sk-name { font-size: 18px; min-height: 0; } body.rakuOn .sk-msg { font-size: 13px; min-height: 0; } body.rakuOn #senko { padding-bottom: 6px; gap: 3px; } .rk-kon { width: 30px; height: 30px; } body.rakuOn #skNext, #rkDemo { padding: .3em 1em; font-size: 13px; } }
 @media (prefers-reduced-motion: reduce) { .rk-l1 { animation: none; stroke-dashoffset: 0; } }
+
+/* 読み込みが終わるまでは、押しても動かない札を出さない */
+body:not(.booted) #title .menu, body:not(.booted) #titleMenu, body:not(.booted) #title button { visibility: hidden; }
+body:not(.booted) #title::after { content: 'Loading…'; position: absolute; left: 0; right: 0; top: 62%; text-align: center; color: #ffd98a; font-size: 18px; letter-spacing: .2em; animation: ldp 1.2s ease-in-out infinite alternate; }
+@keyframes ldp { from { opacity: .35; } to { opacity: 1; } }
+
+/* 正方形の窓（決まり 1.6.8）: 貼りつけた段の下に、札が透けて見えていた */
+@media (orientation: portrait) { .inter .shop .row.bottom::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 40px; background: var(--paper); } }
+/* とても小さい窓（360×360 など）: 段を画面の下に置き、送らなくても次の夜へ進める */
+@media (max-height: 430px) and (max-width: 430px) {
+  .panel.inter { padding-bottom: 96px; }
+  .inter .shop .row.bottom { position: fixed; left: 14px; right: 14px; bottom: 12px; margin: 0; padding: 6px 4px 4px; }
+  .inter .row.bottom .held, .inter .row.bottom .heldlab, .inter .row.bottom > .heldrow { display: none; }
+}

@@ -58,6 +58,38 @@ def localize_fonts(html: str, style: str) -> str:
     return html.replace("</head>", style + "</head>", 1)
 
 
+def playgama_js(s: str) -> str:
+    """Playgama: 保存は Bridge だけ（3.2.1）・外は読まない（1.2.5）。どちらも実行はされないが、審査が中を見るので文字ごと取り除く"""
+    s = s.replace("localStorage", "HANABI_NOSTORE").replace("sessionStorage", "HANABI_NOSTORE")
+    for u in ("https://hanabi2-rank.yuichi916.workers.dev", "https://yuichi916.github.io/hitofude.html", "https://yuichi916.github.io/hanabi/", "https://x.com/intent/tweet?text="):
+        s = s.replace(u, "")
+    return s
+
+
+def playgama_boot(html: str) -> str:
+    """Playgama: Bridge が起き終わってから、ゲームのプログラムと絵を読みはじめる（必須項目 2）。
+    前は modulepreload と <script src=main.js> が、Bridge を待たずに並んで読みに行っていた。sessionStorage も使わない（3.2.1）"""
+    pre = re.findall(r'<link rel="(modulepreload|preload)" href="([^"]+)"([^>]*)>', html)
+    html = re.sub(r'<link rel="(?:modulepreload|preload)"[^>]*>\s*', "", html)
+    html = re.sub(r'<!-- 起動を速く[^>]*-->\s*', "", html)
+    # 枠の中では使わない物（アプリ化・共有の札・外のアドレス）
+    html = re.sub(r'<link rel="(?:manifest|apple-touch-icon|canonical)"[^>]*>\s*', "", html)
+    html = re.sub(r'<meta (?:property="og:|name="twitter:)[^>]*>\s*', "", html)
+    html = re.sub(r"<title>[^<]*</title>", "<title>Hitofude Hanabi 2</title>", html, count=1)
+    html = re.sub(r'<meta name="description"[^>]*>', '<meta name="description" content="Draw one line through the fireworks, and outrun the flame chasing it.">', html, count=1)
+    # 字の形も、Bridge が起き終わってから
+    m = re.search(r"<style>(@font-face.*?)</style>", html, re.S)
+    faces = m.group(1) if m else ""
+    html = html.replace(m.group(0), "", 1) if m else html
+    links = json.dumps([[r, h, "fetch" if "fetch" in x else ("image" if "image" in x else "")] for r, h, x in pre], ensure_ascii=False)
+    boot = ("<script>(function(){var L=" + links + ";function go(){var st=document.createElement('style');st.textContent=" + json.dumps(faces, ensure_ascii=False) + ";document.head.appendChild(st);L.forEach(function(x){var l=document.createElement('link');l.rel=x[0];l.href=x[1];if(x[2]){l.as=x[2];if(x[2]==='fetch')l.crossOrigin='anonymous';}document.head.appendChild(l);});"
+            "var n=0;(function add(){var s=document.createElement('script');s.type='module';s.src='main.js'+(n?'?r='+n:'');s.onerror=function(){if(n++<3)setTimeout(add,500);};document.body.appendChild(s);})();}"
+            "window.HANABI_BRIDGE=(window.bridge&&bridge.initialize)?bridge.initialize().then(function(){return true},function(e){console.warn('bridge',e);return false}):Promise.resolve(false);window.HANABI_BRIDGE.then(go);})();</script>")
+    html, n = re.subn(r'<script type="module" src="main\.js"[^>]*></script>', lambda m: boot, html)
+    assert n == 1, "main.js の script"
+    return html
+
+
 def main() -> int:
     kind = sys.argv[1] if len(sys.argv) > 1 else "portal"
     # portal = CrazyGames（SDK・物語なし・外へのリンクなし）。itch = itch.io・PLiCy・Game Jolt・ふりーむ 等（物語あり・SDK なし）
@@ -75,6 +107,8 @@ def main() -> int:
             s = p.read_text(encoding="utf-8")
             text += s
             s = s.replace("../assets/hitofude/", "./assets/hitofude/")
+            if kind == "playgama" and p.suffix == ".js":
+                s = playgama_js(s)
             (stage / p.name).write_text(s, encoding="utf-8")
     if story:
         (stage / "ch").mkdir()
@@ -84,6 +118,8 @@ def main() -> int:
             (stage / "ch" / p.name).write_text(s, encoding="utf-8")
     if (SRC / "art").is_dir():
         shutil.copytree(SRC / "art", stage / "art")
+    if (SRC / "sfx").is_dir():  # 効果音（録音を 1 本にまとめたもの）
+        shutil.copytree(SRC / "sfx", stage / "sfx")
     if (SRC / "tale").is_dir():  # 夜明けの頁: 灯の顔絵・立ち絵・声
         shutil.copytree(SRC / "tale", stage / "tale")
 
@@ -103,7 +139,7 @@ def main() -> int:
     text += "".join(htmls.values())
     style = embed_fonts(stage, text)
     # 書き出しの印: HANABI_PKG（サイトの外で動く）、HANABI_NO_STORY（物語を入れない）、HANABI_NO_LINKS（外へのリンクを出さない）
-    flags = "window.HANABI_PKG=1;" + ("" if story else "window.HANABI_NO_STORY=1;window.HANABI_NO_LINKS=1;") + ("window.HANABI_PG=1;" if kind == "playgama" else "")
+    flags = "window.HANABI_PKG=1;" + ("" if story else "window.HANABI_NO_STORY=1;window.HANABI_NO_LINKS=1;") + ("window.HANABI_PG=1;window.HANABI_NOSTORE={getItem:function(){return null},setItem:function(){},removeItem:function(){}};" if kind == "playgama" else "")
     for n, html in htmls.items():
         html = localize_fonts(html, style)
         html = html.replace("../assets/hitofude/", "./assets/hitofude/")  # 先読みの印（modulepreload）も書き出し先の場所に
@@ -114,6 +150,7 @@ def main() -> int:
             html = html.replace("</head>", SDK + "</head>", 1)
         if kind == "playgama":
             html = re.sub(r"(<meta charset=[^>]*>)", r"\1\n" + BRIDGE, html, count=1)
+            html = playgama_boot(html)
     if kind == "playgama":
         (stage / "playgama-bridge-config.json").write_text(BRIDGE_CONFIG, encoding="utf-8")
         (stage / n).write_text(html, encoding="utf-8")

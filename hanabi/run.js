@@ -28,10 +28,10 @@ export const TWISTS = {
   katamono: { tier: 1, coin: 2, ja: '型物の夜', en: 'Picture Night', dj: '玉が絵になっている。何筆かけてもいい。全部ひらけば、点が足りなくても突破', de: 'The shells form a picture. Open them all, in as many strokes as you have, and you pass whatever the score' },
   gyoretsu: { tier: 1, coin: 1, ja: '提灯行列', en: 'Lantern Parade', dj: '提灯の列が空を渡っていく', de: 'Rows of lanterns march across the sky' },
   senpatsu: { tier: 1, coin: 1, ja: '千発の夜', en: 'A Thousand Sparks', dj: '小さな玉が空いっぱいに。道をえらんで全部さらえ', de: 'Tiny shells fill the sky. Pick a route and sweep them all' },
-  tome: { tier: 2, coin: 1, ja: '地蔵玉', en: 'Jizo Shells', dj: '線の火でひらくと、火が 1 秒止まる。息つぎに使え', de: 'Lit by your line, they freeze the flame for a second. Catch your breath' },
+  tome: { tier: 2, coin: 1, ja: '止め玉', en: 'Stopper Shells', dj: '線の火でひらくと、火が 1 秒止まる。息つぎに使え', de: 'Lit by your line, they freeze the flame for a second. Catch your breath' },
   meoto: { tier: 2, coin: 2, ja: '夫婦玉', en: 'Twin Shells', dj: '片方ひらくと、離れていてももう片方もひらく。倍率 +1', de: 'Open one and its twin opens too, however far away. +1 MULT' },
   nige: { tier: 2, coin: 3, ja: '逃げ玉', en: 'Runaway Shells', dj: '筆が近づくと逃げる。追いつめれば倍率 +3', de: 'They flee from your brush. Corner them for +3 MULT' },
-  juzu: { tier: 2, coin: 2, ja: '数珠玉', en: 'Prayer Beads', dj: '1 から順に通すほど倍率が上がる。全部つなげば、さらに +5', de: 'Thread them in order for rising MULT. All six: +5 more' },
+  juzu: { tier: 2, coin: 2, ja: '連ね玉', en: 'Chain Beads', dj: '1 から順に通すほど倍率が上がる。全部つなげば、さらに +5', de: 'Thread them in order for rising MULT. All six: +5 more' },
   ryusei: { tier: 2, coin: 2, ja: '流れ玉の夜', en: 'Falling Shells', dj: '引いている間、空から玉が降ってくる。墨は多め', de: 'Shells rain down as long as you keep drawing. Extra ink' },
   abura: { tier: 2, coin: 2, ja: '油と水の川', en: 'Oil and Water', dj: '油の上は火が速いが点 ×3。水の上は火が遅い', de: 'On oil the flame races but POINTS ×3. On water it crawls' },
   ippatsu: { tier: 2, coin: 3, ja: '尺玉一発', en: 'One Grand Shell', dj: '尺玉だけ。熱 ×3 以上で火を入れれば、点が足りなくても突破', de: 'Just one Grand Shell. Light it at HOT ×3+ and you pass, whatever the score' },
@@ -39,7 +39,7 @@ export const TWISTS = {
   karasu: { tier: 3, coin: 3, ja: '烏の夜', en: 'Crows', dj: '烏が玉をさらう。線を通した玉は無事。筆で追い払える', de: 'Crows steal shells. Threaded ones are safe. Shoo them with your brush' },
 };
 export const INTRUDES = {
-  fuku: { ja: '福の神が乱入！', en: 'A lucky god drops in!', dj: '金の玉が降ってきた', de: 'Gold shells appear' },
+  fuku: { ja: '招き猫が乱入！', en: 'A lucky cat drops in!', dj: '金の玉が降ってきた', de: 'Gold shells appear' },
   nezumi: { ja: 'ねずみが乱入！', en: 'Mice on the loose!', dj: 'ねずみ花火が上がった', de: 'Whirling mice appear' },
   oyako: { ja: '親子連れが乱入！', en: 'A family drops in!', dj: '親子玉が上がった', de: 'Mother shells appear' },
   bake: { ja: '化け狸が乱入！', en: 'A tanuki drops in!', dj: '化け玉が混ざった', de: 'Trickster shells appear' },
@@ -215,7 +215,7 @@ export const RANKS = [
   { ja: '名人', en: 'Virtuoso', dj: '上に加えて 目標 +40%・灯 2 つ', de: '+ Targets +40%, 2 lights', target: 1.4, costAdd: 1, flameX: 1.1 },
   { ja: '鍵屋', en: 'Grandmaster', dj: '上に加えて 筆 −1 の夜あり（大一番）', de: '+ Boss nights: 1 less stroke', target: 1.4, costAdd: 1, flameX: 1.1, bossStroke: -1 },
   { ja: '玉屋', en: 'Legend', dj: '上に加えて 目標 +80%・灯 1 つ', de: '+ Targets +80%, 1 light', target: 1.8, costAdd: 1, flameX: 1.15, bossStroke: -1 },
-  { ja: '花火神', en: 'Fireworks God', dj: '上に加えて 持てるお守り −1', de: '+ One fewer charm slot', target: 1.8, costAdd: 1, flameX: 1.2, bossStroke: -1, slots: -1 },
+  { ja: '花火の極み', en: 'Fireworks Legend', dj: '上に加えて 持てるお守り −1', de: '+ One fewer charm slot', target: 1.8, costAdd: 1, flameX: 1.2, bossStroke: -1, slots: -1 },
 ];
 
 // 目標点。作りが育つ前提で、夜ごとに伸びる（_dev/hanabi-bot.mjs で測る）

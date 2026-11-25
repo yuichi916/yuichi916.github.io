@@ -26,7 +26,7 @@ const LOOK = {
   juzu1: { a: '#d0a070', b: '#54300f', band: '#ffe8c8' }, juzu2: { a: '#d0a070', b: '#54300f', band: '#ffe8c8' }, juzu3: { a: '#d0a070', b: '#54300f', band: '#ffe8c8' },
   juzu4: { a: '#d0a070', b: '#54300f', band: '#ffe8c8' }, juzu5: { a: '#d0a070', b: '#54300f', band: '#ffe8c8' }, juzu6: { a: '#d0a070', b: '#54300f', band: '#ffe8c8' },
 };
-const SIGN = { kin: '金', ootama: '大', senrin: '千', chouchin: '灯', shime: '雫', koori: '氷', oni: '鬼', shaku: '尺', nezumi: '鼠', roket: '矢', oyako: '親', meoto: '夫', bake: '？', kingyo: '魚', nige: '逃', tome: '地', juzu1: '1', juzu2: '2', juzu3: '3', juzu4: '4', juzu5: '5', juzu6: '6' };
+const SIGN = { kin: '金', ootama: '大', senrin: '千', chouchin: '灯', shime: '雫', koori: '氷', oni: '鬼', shaku: '尺', nezumi: '鼠', roket: '矢', oyako: '親', meoto: '夫', bake: '？', kingyo: '魚', nige: '逃', tome: '止', juzu1: '1', juzu2: '2', juzu3: '3', juzu4: '4', juzu5: '5', juzu6: '6' };
 
 export function shellAtlas(cell = 144) {
   const c = document.createElement('canvas');
@@ -89,8 +89,8 @@ export function shellAtlas(cell = 144) {
 export const SHELL_NAME = {
   kiku: ['菊玉', 'Peony'], ootama: ['大玉', 'Big Shell'], kin: ['金の玉', 'Gold Shell'], senrin: ['千輪', 'Crossette'],
   chouchin: ['提灯', 'Lantern'], shime: ['湿り玉', 'Wet Shell'], koori: ['氷玉', 'Ice Shell'], oni: ['鬼玉', 'Oni Shell'], shaku: ['尺玉', 'Grand Shell'], ko: ['子玉', 'Small Shell'],
-  nezumi: ['ねずみ花火', 'Whirling Mouse'], roket: ['ロケット花火', 'Bottle Rocket'], oyako: ['親子玉', 'Mother Shell'], bake: ['化け玉', 'Trickster'], tome: ['地蔵玉', 'Jizo Shell'],
-  kingyo: ['金魚玉', 'Goldfish'], nige: ['逃げ玉', 'Runaway'], meoto: ['夫婦玉', 'Twin Shell'], juzu: ['数珠玉', 'Prayer Bead'],
+  nezumi: ['ねずみ花火', 'Whirling Mouse'], roket: ['ロケット花火', 'Bottle Rocket'], oyako: ['親子玉', 'Mother Shell'], bake: ['化け玉', 'Trickster'], tome: ['止め玉', 'Stopper'],
+  kingyo: ['金魚玉', 'Goldfish'], nige: ['逃げ玉', 'Runaway'], meoto: ['夫婦玉', 'Twin Shell'], juzu: ['連ね玉', 'Chain Bead'],
 };
 // 玉の一行説明（屋台の「玉を足す」と玉袋で使う）
 export const SHELL_DESC = {
