@@ -3044,7 +3044,6 @@ async function boot() {
   if (q.has('debug')) { const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:8px;top:60px;font:12px monospace;color:#7f7;z-index:9'; document.body.append(d); S.fpsEl = d; }
   requestAnimationFrame(frame);
   document.body.classList.add('booted'); // 読み込み中の「Loading」を消し、題名の札を出す
-  PF.loadingStop();
   S.booted = true;
   audio.prefetch(); // 遊べる状態になったら曲を先に読み始める（最初のタップですぐ鳴る）
   // 起動した時点で音の箱を作ってみる。親のページ（Playgama は枠に autoplay を許している）で押して入ってきたなら、題名画面から曲が鳴る。
@@ -3057,6 +3056,9 @@ async function boot() {
   // はじめての人は第 1 夜の盤の上に題名を重ね、玉をなぞると題名が消えてそのまま遊べる。続きのある人・遊んだことのある人は題名画面から。撮影などは ?play=1、題名画面の確認は ?title=1
   const fresh = !DB.run && !(DB.meta.runs > 0) && !q.has('title');
   if ((q.has('play') && !DB.run) || fresh) { if (fresh && !q.has('play')) S.tveil = 1; beginRun(); if (S.tveil) titleVeil(); }
+  // 遊べる最初の画面が本当に描かれてから知らせる（Playgama の game_ready）。頁が隠れていて描けない時は少し待って知らせる
+  let told = 0; const ready = () => { if (told++) return; PF.loadingStop(); };
+  requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(ready))); setTimeout(ready, 1500);
 }
 
 // ------------------------------------------------------------------ 世界ランキング

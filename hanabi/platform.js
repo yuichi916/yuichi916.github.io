@@ -49,11 +49,13 @@ export function createPlatform() {
     },
     loadingStart() { try { sdk?.game.loadingStart?.(); } catch { /* */ } },
     // 遊べる最初の画面が出たら知らせる（Playgama は game_ready が必須）
-    loadingStop() { try { sdk?.game.loadingStop?.(); } catch { /* */ } try { pg?.platform.sendMessage('game_ready'); } catch { /* */ } },
+    loadingStop() { try { sdk?.game.loadingStop?.(); } catch { /* */ } try { pg?.platform.sendMessage('game_ready'); } catch { /* */ } P.told = true; for (const f of P.q || []) f(); P.q = null; },
+    // game_ready より前の知らせは取っておき、game_ready のあとに順に送る
+    later(f) { if (P.told || !pg) f(); else (P.q ||= []).push(f); },
     start() { if (playing) return; playing = true; try { sdk?.game.gameplayStart(); } catch { /* */ } },
     stop() { if (!playing) return; playing = false; try { sdk?.game.gameplayStop(); } catch { /* */ } },
     // 夜の進み（Playgama: level_started / level_completed / level_failed / level_paused / level_resumed）。どの夜で離れたかが場の数字に出る
-    level(kind, world, night) { try { pg?.platform.sendMessage('level_' + kind, { world: String(world), level: String(night) })?.catch?.(() => {}); } catch { /* */ } },
+    level(kind, world, night) { P.later(() => { try { pg?.platform.sendMessage('level_' + kind, { world: String(world), level: String(night) })?.catch?.(() => {}); } catch { /* */ } }); },
     // 大事な場面（大一番の勝ち・完走）
     milestone() { try { pg?.platform.sendMessage('player_got_achievement')?.catch?.(() => {}); } catch { /* */ } },
     happy() { try { sdk?.game.happytime(); } catch { /* */ } },
@@ -64,7 +66,7 @@ export function createPlatform() {
     audioOk() { try { return pg ? (P.realMuted ? !P.realMuted() : pg.platform?.isAudioEnabled !== false) : !P.muted; } catch { return true; } },
     ad() { try { if (pg?.advertisement?.isInterstitialSupported) { P.flush(); pg.advertisement.showInterstitial(); return true; } } catch { /* */ } return false; },
     // 独自のイベント（どこで離れたかを見る）。名前は固定、変わる値は data に。版の名前を必ず付ける
-    ev(name, data = {}) { try { pg?.analytics?.send?.(name, { ...data, t: Math.round(performance.now() / 1000), build: '2026-11-25c' }); } catch { /* 送れなくても遊べる */ } },
+    ev(name, data = {}) { const t = Math.round(performance.now() / 1000); P.later(() => { try { pg?.analytics?.send?.(name, { ...data, t, build: '2026-11-25d' }); } catch { /* 送れなくても遊べる */ } }); },
     // ランキング（Bridge）。Playgama は Bridge SaaS で in_game（自分で表を描く）、YouTube は native（点を送るだけ）
     lbType() { try { return pg?.leaderboards?.type || 'not_available'; } catch { return 'not_available'; } },
     async lbSet(score) { if (P.lbType() === 'not_available') return; try { await pg.leaderboards.setScore('best_score', Math.max(0, Math.floor(score))); } catch { /* 送れなくても遊べる */ } },
