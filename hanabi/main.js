@@ -47,6 +47,7 @@ const save = () => { const j = JSON.stringify(DB); if (!window.HANABI_PG) { try 
 // 言葉: Playgama では場（Bridge）の言葉だけを見る（決まり 3.4.2。起動のとき PF.lang に合わせる）
 let lang = q.get('lang') || DB.lang || (!window.HANABI_PG && (navigator.language || 'en').startsWith('ja') ? 'ja' : 'en');
 const JA = () => lang === 'ja';
+const langCls = () => { document.body.classList.toggle('en', !JA()); document.documentElement.lang = JA() ? 'ja' : 'en'; }; langCls(); // 英語では題名のローマ字を主役にする（style.css body.en .logo）
 const tr = (ja, en) => (JA() ? ja : en);
 // 音の設定を反映する。場（Playgama・YouTube）が消音している間は、ゲームの設定が ON でも鳴らさない（場の設定を上書きしない）
 const applySound = () => { const m = !!PF.muted; audio.setSound(DB.sound && !m); audio.setMusic(DB.music && !m); };
@@ -148,7 +149,7 @@ function toTitle() {
   if (!window.HANABI_NO_LINKS) add(tr('初代 一筆花火', 'Original Hitofude Hanabi'), () => { const u = window.HANABI_PKG ? 'https://yuichi916.github.io/hitofude.html' : '../hitofude.html'; if (window.HANABI_PKG) window.open(u, '_blank', 'noopener'); else location.href = u; });
   add(tr(`音 ${DB.sound ? 'ON' : 'OFF'}`, `Sound ${DB.sound ? 'ON' : 'OFF'}`), () => { DB.sound = !DB.sound; DB.music = DB.sound; applySound(); save(); toTitle(); });
   add(tr('設定', 'Settings'), () => openSettings('title'));
-  add(JA() ? 'English' : '日本語', () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); toTitle(); });
+  add(JA() ? 'English' : '日本語', () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; langCls(); save(); toTitle(); });
   add(tr('おわる', 'Quit'), sayBye);
   audio.scene('calm');
 }
@@ -1682,7 +1683,7 @@ function openSettings(from) {
   $('pzCut').onclick = () => { DB.cut = !cutOn(); save(); lab(); PF.ev('set_cut', { on: cutOn() ? 1 : 0 }); };
   $('pzSkin').onclick = () => { DB.meta.skin = DB.meta.skin === 'niji' ? '' : 'niji'; save(); lab(); };
   $('pzHaptic').onclick = () => { DB.haptic = DB.haptic === false; save(); lab(); buzz(20); };
-  $('pzLang').onclick = () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; save(); openSettings(from); };
+  $('pzLang').onclick = () => { lang = JA() ? 'en' : 'ja'; DB.lang = lang; langCls(); save(); openSettings(from); };
   $('pzLang').classList.toggle('hidden', from === 'inter'); // 屋台の途中で言葉を変えると、画面の半分が前の言葉のまま残る
   const play = from === 'play'; $('pzHeld').classList.toggle('hidden', !play); $('pzQuit').classList.toggle('hidden', !play);
   if (play) renderHeld($('pzHeld'), false);
@@ -2853,6 +2854,14 @@ function hintFx(dt) {
     const best = opt.reduce((a, b) => (b[1] < a[1] ? b : a)); go.classList.remove('up', 'rt', 'lt'); if (best[0]) go.classList.add(best[0]);
     const r = sp.getBoundingClientRect(), dx = r.left < 8 ? 8 - r.left : r.right > innerWidth - 8 ? innerWidth - 8 - r.right : 0; if (dx) sp.style.marginLeft = dx + 'px';
   }
+  // 案内の板・重ねた題名・目標の棒と重なる時は、小札を別の側へ。どこも空いていなければ出さない（輪と指だけで足りる。板が同じことを言っている）
+  if (performance.now() - (S.hintChk || 0) > 350) {
+    S.hintChk = performance.now(); const sp = go.firstChild, sides = ['', 'up', 'rt', 'lt'], put = (d) => { go.classList.remove('up', 'rt', 'lt'); if (d) go.classList.add(d); };
+    const walls = [$('teach'), document.querySelector('.hud-top .goal'), ...(S.tveil ? document.querySelectorAll('#tveil .logo-en, #tveil .logo-ja, #tveilSub') : [])].filter((e) => e && !e.classList.contains('hidden')).map((e) => e.getBoundingClientRect()).filter((q) => q.width > 0);
+    const bad = () => { const q = sp.getBoundingClientRect(); return q.left < 4 || q.right > innerWidth - 4 || walls.some((w) => q.left < w.right - 3 && q.right > w.left + 3 && q.top < w.bottom - 2 && q.bottom > w.top + 2); };
+    const cur = sides.find((d) => d && go.classList.contains(d)) || '';
+    if (bad()) { const d = sides.find((x) => x !== cur && (put(x), !bad())); if (d === undefined) put(cur); sp.style.visibility = d === undefined ? 'hidden' : ''; } else sp.style.visibility = '';
+  }
   // 手本の手: 0〜0.7 秒 押す / 〜3.3 秒 なぞる / 〜3.9 秒 離す（なぞった玉が光る） / 〜4.6 秒 休む
   const CY = 4.6, c = S.hint % CY, pc = S.hintC ?? c; S.hintC = c;
   let hx = a0.x, hy = a0.y, sc = 1;
@@ -3014,6 +3023,7 @@ async function boot() {
   applySound();
   // 場の言葉に合わせる（自分で選んだ言葉・?lang= が先）
   if (PF.lang && !q.get('lang') && !DB.lang) lang = PF.lang;
+  langCls();
   // 場の一時停止・広告の間は止めて、音を消す
   PF.onPause = (p) => { audio.mute(p); if (p && S.mode === 'play' && !S.paused) openPause(); if (!p) setTimeout(soundResync, 600); };
   PF.onAd = (on) => { S.adPause = on; audio.mute(on); if (!on) { S.adEnd = performance.now(); try { window.focus(); } catch { /* 焦点を枠に戻す（bridge の「見えていない」を解く） */ } [60, 400, 1200, 2500].forEach((ms) => setTimeout(soundResync, ms)); } }; // 11/23 依頼主「広告の後にタップするまで音が出ない」
@@ -3029,7 +3039,7 @@ async function boot() {
     if (fixed.length) PF.ev('snd_fix', { what: fixed.join(','), mode: S.mode, ok: ok ? 1 : 0, ctx: audio.ctx?.state || '-' });
   }
   setInterval(soundResync, 2000);
-  if (PF.ready) { const j = await PF.load(SAVE); if (j) { try { const c = JSON.parse(j); if ((c.meta?.xp || 0) >= (DB.meta.xp || 0)) { Object.assign(DB, c); S.run = DB.run; } } catch { /* */ } } if (DB.lang && !q.get('lang')) lang = DB.lang; } // 自分で選んだ言葉は、次に来た時も
+  if (PF.ready) { const j = await PF.load(SAVE); if (j) { try { const c = JSON.parse(j); if ((c.meta?.xp || 0) >= (DB.meta.xp || 0)) { Object.assign(DB, c); S.run = DB.run; } } catch { /* */ } } if (DB.lang && !q.get('lang')) { lang = DB.lang; langCls(); } } // 自分で選んだ言葉は、次に来た時も
   // 玉の字の筆文字は 0.25 秒だけ待つ。間に合わなければ、ふつうの字で始めて、届いたら描きなおす（遅い回線で起動を止めない）
   const glyphs = '一筆花火金大千灯雫氷鬼尺' + CHARMS.map((c) => c.ja[0]).join('');
   const fontP = document.fonts.load('900 60px "Yuji Boku"', glyphs).catch(() => null);

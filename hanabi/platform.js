@@ -66,7 +66,7 @@ export function createPlatform() {
     audioOk() { try { return pg ? (P.realMuted ? !P.realMuted() : pg.platform?.isAudioEnabled !== false) : !P.muted; } catch { return true; } },
     ad() { try { if (pg?.advertisement?.isInterstitialSupported) { P.flush(); pg.advertisement.showInterstitial(); return true; } } catch { /* */ } return false; },
     // 独自のイベント（どこで離れたかを見る）。名前は固定、変わる値は data に。版の名前を必ず付ける
-    ev(name, data = {}) { const t = Math.round(performance.now() / 1000); P.later(() => { try { pg?.analytics?.send?.(name, { ...data, t, build: '2026-11-25d' }); } catch { /* 送れなくても遊べる */ } }); },
+    ev(name, data = {}) { const t = Math.round(performance.now() / 1000); P.later(() => { try { pg?.analytics?.send?.(name, { ...data, t, build: '2026-11-25e' }); } catch { /* 送れなくても遊べる */ } }); },
     // ランキング（Bridge）。Playgama は Bridge SaaS で in_game（自分で表を描く）、YouTube は native（点を送るだけ）
     lbType() { try { return pg?.leaderboards?.type || 'not_available'; } catch { return 'not_available'; } },
     async lbSet(score) { if (P.lbType() === 'not_available') return; try { await pg.leaderboards.setScore('best_score', Math.max(0, Math.floor(score))); } catch { /* 送れなくても遊べる */ } },
